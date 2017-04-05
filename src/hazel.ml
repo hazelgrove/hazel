@@ -412,14 +412,13 @@ module AppView = struct
         div [
           div ~a:[a_class ["jumbotron"]] [
             div ~a:[a_class ["headerTextAndLogo"]] [
-              div ~a:[a_class ["display-3"]] [pcdata "HZ"];
+              div ~a:[a_class ["display-3"]] [pcdata "Hazel"];
               div ~a:[a_class ["logoDiv"]] [
                 img ~a:[a_id "logo"] ~alt:("Logo") ~src:(Xml.uri_of_string ("imgs/hazel-logo.png")) ()
               ]
             ]; 
             div ~a:[a_class ["subtext"]] [
-              pcdata "(a reference implementation of "; 
-              a ~a:[a_href "https://arxiv.org/abs/1607.04180"] [pcdata "Hazelnut"]; pcdata ")"];
+              pcdata "(a structure editor rooted in the principles of type theory)"]; 
             div ~a:[a_class ["ModelExp"]] [zexp_view]; br ();
             div ~a:[a_class ["subtext"; "ModelType"]] [
               div ~a:[a_class ["typeLbl"]] [pcdata "Synthesizes H-type: "];
@@ -428,8 +427,8 @@ module AppView = struct
           div ~a:[a_class ["container"]; a_id "footerContainer"] [
             p [
               pcdata "Source (OCaml): "; 
-              a ~a:[a_href "https://github.com/hazelgrove/HZ"] [
-                pcdata "https://github.com/hazelgrove/HZ"
+              a ~a:[a_href "https://github.com/hazelgrove/hazel"] [
+                pcdata "https://github.com/hazelgrove/hazel"
               ]];
             p [
               pcdata "A project of "; 
