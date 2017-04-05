@@ -89,6 +89,7 @@ module HExp = struct
   type t =
     | Asc of t * HTyp.t
     | Var of Var.t
+    | Let of Var.t * t * t
     | Lam of Var.t * t
     | Ap of t * t
     | NumLit of int
@@ -107,6 +108,10 @@ module HExp = struct
         | Some ty -> ty
         | None -> raise IllTyped
       end
+    | Let (x, e1, e2) -> 
+      let ty1 = syn ctx e1 in 
+      let ctx' = Ctx.extend ctx (x, ty1) in 
+      syn ctx' e2
     | Ap (e1, e2) (* SAp *) ->
       let ty1 = syn ctx e1 in
       begin match HTyp.matched_arrow ty1 with
@@ -127,6 +132,10 @@ module HExp = struct
       HTyp.Hole
     | _ -> raise IllTyped
   and ana ctx e ty = match e with
+    | Let (x, e1, e2) -> 
+      let ty1 = syn ctx e1 in 
+      let ctx' = Ctx.extend ctx (x, ty1) in 
+      ana ctx' e2 ty
     | Lam (x, e') (* ALam *) ->
       begin match HTyp.matched_arrow ty with
         | Some (ty1, ty2) ->
@@ -158,6 +167,7 @@ module HExp = struct
   let rec complete e = match e with
     | Asc (e', ty) -> (complete e') && (HTyp.complete ty)
     | Var _ -> true
+    | Let (_, e, e') -> (complete e) && (complete e')
     | Lam (_, e') -> complete e'
     | Ap (e1, e2) -> (complete e1) && (complete e2)
     | NumLit _ -> true 
@@ -190,6 +200,8 @@ module ZExp = struct
     | CursorE of HExp.t
     | LeftAsc of t * HTyp.t
     | RightAsc of HExp.t * ZTyp.t
+    | LetZ1 of Var.t * t * HExp.t
+    | LetZ2 of Var.t * HExp.t * t
     | LamZ of Var.t * t
     | LeftAp of t * HExp.t
     | RightAp of HExp.t * t
@@ -205,6 +217,8 @@ module ZExp = struct
     | CursorE e (* EETop *) -> e
     | LeftAsc (ze', ty) (* EEAscL *) -> HExp.Asc ((erase ze'), ty)
     | RightAsc (e', zty) (* EEAscR *) -> HExp.Asc (e', (ZTyp.erase zty))
+    | LetZ1 (x, ze, e) -> HExp.Let (x, erase ze, e)
+    | LetZ2 (x, e, ze) -> HExp.Let (x, e, erase ze)
     | LamZ (x, ze') (* EELam *) -> HExp.Lam (x, (erase ze'))
     | LeftAp (ze', e) (* EEApL *) -> HExp.Ap ((erase ze'), e)
     | RightAp (e, ze') (* EEApR *) -> HExp.Ap (e, (erase ze'))
@@ -227,6 +241,7 @@ module Action = struct
     | SNum
     | SSum
     | SAsc
+    | SLet of Var.t
     | SVar of Var.t
     | SLam of Var.t
     | SAp
@@ -301,6 +316,15 @@ module Action = struct
           ZExp.CursorE (HExp.Asc (e, ty))
         | (Parent, ZExp.RightAsc (e, ZTyp.CursorT ty)) (* EMAscParent2 *) ->
           ZExp.CursorE (HExp.Asc (e, ty))
+        (* Let *)
+        | ((Child 1), ZExp.CursorE (HExp.Let (x, e, e'))) -> 
+          ZExp.LetZ1 (x, ZExp.CursorE e, e')
+        | ((Child 2), ZExp.CursorE (HExp.Let (x, e, e'))) -> 
+          ZExp.LetZ2 (x, e, ZExp.CursorE e')
+        | (Parent, ZExp.LetZ1 (x, (ZExp.CursorE e), e')) -> 
+          ZExp.CursorE (HExp.Let (x, e, e'))
+        | (Parent, ZExp.LetZ2 (x, e, (ZExp.CursorE e'))) -> 
+          ZExp.CursorE (HExp.Let (x, e, e'))
         (* Lambda *)
         | ((Child 1), ZExp.CursorE (HExp.Lam (x, e))) (* EMLamChild1 *) ->
           ZExp.LamZ (x, (ZExp.CursorE e))
@@ -375,6 +399,13 @@ module Action = struct
             | Some xty -> (ZExp.CursorE (HExp.Var x), xty)
             | None -> raise InvalidAction
           end
+        | (Construct (SLet x), (ZExp.CursorE e, ty)) -> 
+          begin match e with 
+            | HExp.EmptyHole -> 
+              (ZExp.LetZ1 (x, ZExp.CursorE e, HExp.EmptyHole), HTyp.Hole)
+            | _ -> 
+              (ZExp.LetZ2 (x, e, ZExp.CursorE HExp.EmptyHole), HTyp.Hole)
+          end
         | (Construct (SLam x), (ZExp.CursorE HExp.EmptyHole, HTyp.Hole)) (* SAConLam *) ->
           (ZExp.RightAsc (
               HExp.Lam (x, HExp.EmptyHole),
@@ -438,6 +469,21 @@ module Action = struct
             with
             | HExp.IllTyped -> raise InvalidAction
           end
+        | (a, (ZExp.LetZ1 (x, ze1, e2), _)) -> 
+          let e1 = ZExp.erase ze1 in 
+          let ty1 = hsyn ctx e1 in 
+          let (ze1', ty1') = performSyn ctx a (ze1, ty1) in 
+          let ctx' = Ctx.extend ctx (x, ty1') in 
+          begin try 
+              let ty2' = hsyn ctx' e2 in 
+              (ZExp.LetZ1 (x, ze1', e2), ty2')
+            with HExp.IllTyped -> raise InvalidAction 
+          end 
+        | (a, (ZExp.LetZ2 (x, e1, ze2), _)) -> 
+          let ty1 = hsyn ctx e1 in 
+          let ctx' = Ctx.extend ctx (x, ty1) in 
+          let (ze2', ty2') = performSyn ctx' a (ze2, ty) in 
+          (ZExp.LetZ2 (x, e1, ze2'), ty2')
         | (_, (ZExp.LeftAp (ze1, e2), _)) (* SAZipApArr *) ->
           let e1 = ZExp.erase ze1 in
           let ty2 = hsyn ctx e1 in
@@ -497,6 +543,8 @@ module Action = struct
       | Some xty -> HTyp.inconsistent ty xty
       | None -> false end (* SAConVar *) ->
       ZExp.NonEmptyHoleZ (ZExp.CursorE (HExp.Var x))
+    | (Construct (SLet x), ZExp.CursorE HExp.EmptyHole, _) -> 
+      ZExp.LetZ1 (x, ze, HExp.EmptyHole)
     | (Construct (SLam x), ZExp.CursorE HExp.EmptyHole, ty) ->
       begin match HTyp.matched_arrow ty with
         | Some _ (* AAConLam1 *) -> ZExp.LamZ (x, ze)
@@ -528,6 +576,20 @@ module Action = struct
       let _ = hana ctx e ty in
       ZExp.CursorE e
     (* Zipper Cases *)
+    | (_, ZExp.LetZ1 (x, ze1, e2), _) -> 
+      let e1 = ZExp.erase ze1 in 
+      let ty1 = hsyn ctx e1 in 
+      let ze1', ty1' = performSyn ctx a (ze1, ty1) in 
+      let ctx' = Ctx.extend ctx (x, ty1') in 
+      begin try 
+          let _ = hana ctx' e2 ty in 
+          ZExp.LetZ1 (x, ze1', e2) 
+        with HExp.IllTyped -> raise InvalidAction end 
+    | (_, ZExp.LetZ2 (x, e1, ze2), _) -> 
+      let ty1 = hsyn ctx e1 in 
+      let ctx' = Ctx.extend ctx (x, ty1) in 
+      let ze2' = performAna ctx' a ze2 ty in 
+      ZExp.LetZ2 (x, e1, ze2')
     | (_, ZExp.LamZ (x, ze'), ty) (* AAZipLam *) ->
       begin match HTyp.matched_arrow ty with
         | Some (ty1, ty2) ->

@@ -80,6 +80,7 @@ module JSUtil = struct
     let r = _kc "r" 114 
     let c = _kc "c" 99 
     let qmark = _kc "?" 63
+    let equals = _kc "=" 61
   end
 
   let get_keyCode (evt : Dom_html.keyboardEvent Js.t) = 
@@ -154,7 +155,7 @@ module ActionPalette = struct
       (* listen for the key combo at the document level *)
       let _ = JSUtil.listen_to Ev.keypress Dom_html.document (fun evt ->
           let evt_key = JSUtil.get_keyCode evt in
-          (* let _ = Firebug.console##log evt_key in *)
+          (* let _ = Firebug.console##log evt_key in *) 
           if evt_key = KC.keyCode key_combo then
             begin
               i_dom##focus;
@@ -288,6 +289,10 @@ module ActionPalette = struct
 
     (* expression construction *)
     let constructAsc = action_button (Action.Construct Action.SAsc) "construct asc" KCs.colon in 
+    let constructLet = action_input_button 
+        (fun v -> Action.Construct (Action.SLet v))
+        (fun s -> match String.compare s "" with 0 -> None | _ -> Some s)
+        "construct let" "var_input" KCs.equals "Enter var + press Enter" in 
     let constructVar = action_input_button
         (fun v -> Action.Construct (Action.SVar v))
         (fun s -> match String.compare s "" with 0 -> None | _ -> Some s)
@@ -368,6 +373,8 @@ module ActionPalette = struct
             div ~a:[a_class ["panel-title"]] [pcdata "Expression Construction"];
             div ~a:[a_class ["panel-body"]] [
               (constructAsc);
+              br ();
+              (constructLet);
               br ();
               (constructVar);
               (constructLam);

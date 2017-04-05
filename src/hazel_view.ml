@@ -29,6 +29,15 @@ module HTMLView = struct
 
   let rec of_hexp (hexp : HExp.t ) : [> Html_types.div ] Tyxml_js.Html.elt  =
     match hexp with
+    | HExp.Let (x, e1, e2) -> hzdiv "Let" [
+        hzdiv "leftParens" [];
+        hzdiv "letKeyword" []; 
+        hzdiv "varExp" [pcdata x];
+        hzdiv "isChar" [];
+        hzdiv "letRhsExp" [of_hexp e1];
+        hzdiv "inChar" []; 
+        hzdiv "letBodyExp" [of_hexp e2];
+        hzdiv "rightParens" []]
     | HExp.Lam (var,exp) -> hzdiv "Lam" [
         hzdiv "leftParens" []; 
         hzdiv "lambda" []; 
@@ -60,7 +69,7 @@ module HTMLView = struct
         hzdiv "bNE" [of_hexp hc]; 
         hzdiv "rNE" []]
     | HExp.Inj (side,exp) -> hzdiv "Inj" [
-        hzdiv ("inj" ^ string_of_side side) []; 
+        hzdiv ("i<t_%9>nj" ^ string_of_side side) []; 
         hzdiv "leftParens" []; 
         hzdiv "injBody" [of_hexp exp]; 
         hzdiv "rightParens" []]
@@ -124,6 +133,24 @@ module HTMLView = struct
         hzdiv "lCursor" []; 
         hzdiv "bCursor" [of_hexp hexp]; 
         hzdiv "rCursor" []]
+    | ZExp.LetZ1 (x, ze1, e2) -> hzdiv "LetZ1" [ 
+        hzdiv "leftParens" [];
+        hzdiv "letKeyword" []; 
+        hzdiv "varExp" [pcdata x];
+        hzdiv "isChar" [];
+        hzdiv "letRhsExp" [of_zexp ze1];
+        hzdiv "inChar" []; 
+        hzdiv "letBodyExp" [of_hexp e2];
+        hzdiv "rightParens" []]
+    | ZExp.LetZ2 (x, e1, ze2) -> hzdiv "LetZ2" [
+        hzdiv "leftParens" [];
+        hzdiv "letKeyword" []; 
+        hzdiv "varExp" [pcdata x];
+        hzdiv "isChar" [];
+        hzdiv "letRhsExp" [of_hexp e1];
+        hzdiv "inChar" []; 
+        hzdiv "letBodyExp" [of_zexp ze2];
+        hzdiv "rightParens" []]
     | ZExp.LamZ (var,exp) -> hzdiv "LamZ" [
         hzdiv "leftParens" [];
         hzdiv "lambda" [];

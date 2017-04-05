@@ -200,3 +200,16 @@ button:disabled {
 	border-bottom-left-radius: 0;
 	border-bottom-right-radius: 4px;
 }
+
+.letKeyword:before {
+	content: "let\0000a0"; /* \0000a0 is non-breaking space */
+}
+
+.isChar:before {
+	content: "\0000a0=\0000a0";
+}
+
+.inChar:before { 
+	content: "\0000a0in\0000a0";
+}
+
