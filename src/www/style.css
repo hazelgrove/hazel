@@ -203,6 +203,7 @@ button:disabled {
 
 .letKeyword:before {
 	content: "let\0000a0"; /* \0000a0 is non-breaking space */
+	font-weight: bold;
 }
 
 .isChar:before {
@@ -211,5 +212,6 @@ button:disabled {
 
 .inChar:before { 
 	content: "\0000a0in\0000a0";
+	font-weight: bold;
 }
 
