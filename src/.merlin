@@ -1,0 +1,14 @@
+PKG js_of_ocaml
+PKG tyxml
+PKG js_of_ocaml.tyxml
+PKG js_of_ocaml.syntax
+PKG react
+PKG reactiveData
+PKG oUnit
+PKG js_of_ocaml.ppx
+PKG lwt.syntax
+PKG lwt.ppx
+EXT js
+B _build
+
+

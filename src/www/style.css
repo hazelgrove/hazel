@@ -1,0 +1,202 @@
+.display-3{
+	height: 72px;
+	font-size: 60px;
+	width: 80%;
+	float: left;
+}
+
+.subtext{
+	width: 100%;
+}
+
+.logoDiv {
+	width: 20%;
+	min-height: 75px;
+	float: right;
+	text-align: right;
+}
+
+#logo {
+	height: 75px
+}
+
+.jumbotron{
+	padding-top: 11px;
+	margin-top: 24px;
+	padding-bottom: 69px;
+}
+
+.ModelExp {
+	padding: 10px;
+	font-size: xx-large;
+	margin-top: 20px;
+	background-color: white;
+	width:100%;
+	border: 2px solid #999;
+	display: table;
+}
+
+.ModelType {
+  font-size: large;
+	width:100%
+}
+
+.typeLbl {
+	font-weight: bold;
+	font-size: 12pt;
+}
+
+#numLabel {
+/*	float:left;*/
+}
+
+#num_input_id{
+	width:70%;
+}
+
+button:disabled {
+	background-color: #9d9d9d;
+	color: #27160d;
+	border-color:#27160d;
+}
+
+.HZElem{
+	float: left;
+}
+
+.HZElem img{
+	float: left;
+}
+
+.Model{
+	float:left;
+}
+
+
+.panel-title{
+	text-align: center;
+	background-color:#029344;
+	color: white;
+}
+
+
+.btn-outline-primary {
+	color: #975633;
+	background-image: none;
+	background-color: transparent;
+	border-color: #975633;
+	margin-bottom: 10px;
+	margin-right:20px;
+	}
+
+.input-group{
+	margin-bottom: 10px;
+}
+
+/*brown #975633*/
+
+/*CSS content*/
+.EmptyHole:before {
+	content: "⦇⦈"; /* http://www.fileformat.info/info/unicode/char/2988/index.htm */
+	color: #a040a0;
+}
+
+.ascChar:before{
+	content: ":";
+}
+
+/* 
+.lCursor:before{
+	content: "⊳";
+	color: green;
+}
+
+.rCursor:before{
+	content: "⊲";
+	color: green;
+}*/
+
+.Num:before{
+	content: "num";
+}
+
+.leftParens:before{
+	content: "(";
+	color: #999;
+}
+
+.rightParens:before{
+	content: ")";
+	color: #999;
+}
+
+.arrow:before{
+	content: "→";
+}
+
+.plusSign:before{
+	content: "+";
+}
+
+.Hole:before{
+	 content: "⦇⦈";
+	 color: #a040a0;
+}
+
+.lambda:before{
+	content: "λ";
+}
+
+.dot::before{
+	content:".";
+}
+
+.injL:before{
+	content:"injL";
+}
+
+.injR:before{
+	content:"injR";
+}
+
+.lNE:before{
+	content:"⦇";
+	color: #a040a0;
+}
+
+.rNE:before{
+	content:"⦈";
+	color: #a040a0;
+}
+
+.case:before{
+	content:"case";
+}
+
+.comma:before{
+	content:",";
+}
+
+.CursorT {
+	background-color: #e5ffe5;
+	border-bottom: 1px solid green;
+}
+
+.CursorE {
+	background-color: #e5ffe5;
+	border-bottom: 1px solid green;
+}
+
+#case_input_1{
+	border-top-left-radius: 0;
+	border-top-right-radius: 4px;
+	border-bottom-left-radius: 0;
+	border-bottom-right-radius: 0px;
+}
+
+#case_input_2{
+	border-top-left-radius: 0;
+	border-top-right-radius: 0px;
+	border-bottom-left-radius: 0;
+	border-bottom-right-radius: 4px;
+}
