@@ -2,7 +2,7 @@
 module HTMLView = struct
   module Html = Tyxml_js.Html
   open Html
-  open Hz_semantics
+  open Hazel_semantics
 
   let hzdiv cls contents =  Html.(div ~a:[a_class ["HZElem";cls]] contents)
 

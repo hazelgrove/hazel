@@ -1,4 +1,4 @@
-open Hz_semantics
+open Hazel_semantics
 
 module Model = struct
   type t = ZExp.t * HTyp.t

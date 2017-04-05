@@ -1,8 +1,8 @@
 open Tyxml_js
-open Hz_semantics
-open Hz_model
-open Hz_model.Model
-open Hz_view
+open Hazel_semantics
+open Hazel_model
+open Hazel_model.Model
+open Hazel_view
 
 open React
 
