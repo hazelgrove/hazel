@@ -403,6 +403,14 @@ module AppView = struct
         [HTMLView.of_zexp zexp]) rs in
     let zexp_view = (R.Html5.div (ReactiveData.RList.from_signal zexp_rs)) in
 
+    (* pp view *) 
+    let pp_rs = React.S.map (fun (zexp, _) -> 
+        let hexp = ZExp.erase zexp in 
+        let prettified = Pretty.PP.string_of_sdoc (
+            Pretty.PP.sdoc_of_doc 20 (PPView.of_hexp hexp)) in 
+        [Html5.pcdata prettified]) rs in 
+    let pp_view = (R.Html5.pre (ReactiveData.RList.from_signal pp_rs)) in 
+
     (* htype view *)
     let htype_rs = React.S.map (fun (_, htype) -> 
         [HTMLView.of_htype htype]) rs in 
@@ -420,6 +428,8 @@ module AppView = struct
             div ~a:[a_class ["subtext"]] [
               pcdata "(a structure editor rooted in the principles of type theory)"]; 
             div ~a:[a_class ["ModelExp"]] [zexp_view]; br ();
+            div ~a:[a_class ["typeLbl"]] [pcdata "Pretty-printed (width=20):"]; 
+            div ~a:[a_class ["ModelExp"]] [pp_view]; br ();
             div ~a:[a_class ["subtext"; "ModelType"]] [
               div ~a:[a_class ["typeLbl"]] [pcdata "Synthesizes H-type: "];
               htype_view]];
