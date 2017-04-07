@@ -215,3 +215,22 @@ button:disabled {
 	font-weight: bold;
 }
 
+.SDoc {
+	font-family: monospace;
+}
+
+.SIndentation {
+  white-space: pre;
+}
+
+.kw {
+	font-weight: bold;
+}
+
+.var {
+	font-style: italic;
+}
+
+.hole {
+  color: #a040a0
+}
