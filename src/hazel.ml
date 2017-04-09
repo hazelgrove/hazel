@@ -408,7 +408,10 @@ module AppView = struct
 
     (* htype view *)
     let htype_rs = React.S.map (fun (_, htype) -> 
-        [HTMLView.of_htype htype]) rs in 
+        let pp_view = PPView.of_htype htype in 
+        let sdoc = Pretty.PP.sdoc_of_doc pp_view_width pp_view in 
+        let prettified = Pretty.HTML_Of_SDoc.html_of_sdoc sdoc in 
+        [prettified]) rs in 
     let htype_view = (R.Html5.div (ReactiveData.RList.from_signal htype_rs)) in 
 
     Tyxml_js.To_dom.of_div Html5.(

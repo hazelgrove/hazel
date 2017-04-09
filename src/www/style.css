@@ -95,132 +95,8 @@ button:disabled {
 
 /*brown #975633*/
 
-/*CSS content*/
-.EmptyHole:before {
-	content: "⦇⦈"; /* http://www.fileformat.info/info/unicode/char/2988/index.htm */
-	color: #a040a0;
-}
-
-.ascChar:before{
-	content: ":";
-}
-
-/* 
-.lCursor:before{
-	content: "⊳";
-	color: green;
-}
-
-.rCursor:before{
-	content: "⊲";
-	color: green;
-}*/
-
-.Num:before{
-	content: "num";
-}
-
-.leftParens:before{
-	content: "(";
-	color: #999;
-}
-
-.rightParens:before{
-	content: ")";
-	color: #999;
-}
-
-.arrow:before{
-	content: "→";
-}
-
-.plusSign:before{
-	content: "+";
-}
-
-.Hole:before{
-	 content: "⦇⦈";
-	 color: #a040a0;
-}
-
-.lambda:before{
-	content: "λ";
-}
-
-.dot::before{
-	content:".";
-}
-
-.injL:before{
-	content:"injL";
-}
-
-.injR:before{
-	content:"injR";
-}
-
-.lNE:before{
-	content:"⦇";
-	color: #a040a0;
-}
-
-.rNE:before{
-	content:"⦈";
-	color: #a040a0;
-}
-
-.case:before{
-	content:"case";
-}
-
-.comma:before{
-	content:",";
-}
-
-.CursorT {
-	background-color: #e5ffe5;
-	border-bottom: 1px solid green;
-}
-
-.CursorE {
-	background-color: #e5ffe5;
-	border-bottom: 1px solid green;
-}
-
-#case_input_1{
-	border-top-left-radius: 0;
-	border-top-right-radius: 4px;
-	border-bottom-left-radius: 0;
-	border-bottom-right-radius: 0px;
-}
-
-#case_input_2{
-	border-top-left-radius: 0;
-	border-top-right-radius: 0px;
-	border-bottom-left-radius: 0;
-	border-bottom-right-radius: 4px;
-}
-
-.letKeyword:before {
-	content: "let\0000a0"; /* \0000a0 is non-breaking space */
-	font-weight: bold;
-}
-
-.isChar:before {
-	content: "\0000a0=\0000a0";
-}
-
-.inChar:before { 
-	content: "\0000a0in\0000a0";
-	font-weight: bold;
-}
-
 .SDoc {
 	font-family: monospace;
-}
-
-.SIndentation {
-  white-space: pre;
 }
 
 .kw {
@@ -235,8 +111,14 @@ button:disabled {
   color: #a040a0
 }
 
-.new-Cursor {
+.cursor {
 	background-color: #e5ffe5;
 	border-bottom: 1px solid green;
+}
+
+.SIndentation {
+  white-space: pre;
+	background-color: white;
+	border-bottom: 1px solid white
 }
 
