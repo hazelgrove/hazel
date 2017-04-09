@@ -398,19 +398,14 @@ end
 (* generates the view for the whole application *)
 module AppView = struct
   let view ((rs, rf) : Model.rp) =
-    (* zexp view *)
-    let zexp_rs = React.S.map (fun (zexp, _) ->
-        [HTMLView.of_zexp zexp]) rs in
-    let zexp_view = (R.Html5.div (ReactiveData.RList.from_signal zexp_rs)) in
-
     (* pp view *) 
     let pp_view_width = 30 in 
     let pp_rs = React.S.map (fun (zexp, _) -> 
-        let hexp = ZExp.erase zexp in 
         let prettified = Pretty.HTML_Of_SDoc.html_of_sdoc (
-            Pretty.PP.sdoc_of_doc pp_view_width (PPView.of_hexp hexp)) in 
+            Pretty.PP.sdoc_of_doc pp_view_width (PPView.of_zexp zexp)) in 
         [prettified]) rs in 
     let pp_view = (R.Html5.div (ReactiveData.RList.from_signal pp_rs)) in 
+
     (* htype view *)
     let htype_rs = React.S.map (fun (_, htype) -> 
         [HTMLView.of_htype htype]) rs in 
@@ -426,8 +421,8 @@ module AppView = struct
               ]
             ]; 
             div ~a:[a_class ["subtext"]] [
-              pcdata "(a structure editor rooted in the principles of type theory)"]; 
-            div ~a:[a_class ["ModelExp"]] [zexp_view]; br ();
+              pcdata "(a structure editor rooted in the principles of type theory)"]; br (); 
+
             div ~a:[a_class ["typeLbl"]] [pcdata 
                                             ("Pretty-printed (width=" ^ (string_of_int pp_view_width) ^ "):")]; 
             div ~a:[a_class ["ModelExp"]] [pp_view]; br ();
