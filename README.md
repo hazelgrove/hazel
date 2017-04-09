@@ -49,11 +49,11 @@ An easy way to install both OCaml and the necessary libraries is to install [opa
     > eval `opam config env`
     ```
 
-  - We can now install Js_of_ocaml and tyxml, including optional dependencies.
+  - We can now install the necessary dependencies.
   NOTE: HZ requires TyXML 4.0, which is NOT backwards compatible with TyXML 3.X.
 
     ```sh
-    > opam install js_of_ocaml tyxml deriving ppx_deriving reactiveData ocp-indent
+    > opam install js_of_ocaml tyxml deriving ppx_deriving reactiveData ocp-indent camomile
     ```
 
   - To make sure you have the latest versions of everything, ask `opam` to upgrade the packages if needed:

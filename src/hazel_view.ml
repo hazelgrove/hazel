@@ -244,31 +244,40 @@ module PPView = struct
     | [x3] -> x1 ^^ x2 ^^ x3
     | x3 :: x4 :: xs' -> x1 ^^ x2 ^^ (concat x3 x4 xs')
 
-  let kw = PP.taggedText "kw"
-  let parens = PP.taggedText "paren" 
-  let op = PP.taggedText "op"
-  let var = PP.taggedText "var" 
-  let space = PP.taggedText "space" " "
+
+  let taggedText tag s = 
+    PP.tagged tag (PP.text s)
+  let kw = taggedText "kw"
+  let parens = taggedText "paren" 
+  let op = taggedText "op"
+  let var = taggedText "var" 
+  let space = taggedText "space" " "
+  let term tag doc = 
+    let tag' = "new-" ^ tag in 
+    PP.tagged tag' doc
 
   let rec of_htype tau = match tau with 
-    | HTyp.Num -> kw "num"
+    | HTyp.Num -> 
+      term "Num" (kw "num")
     | HTyp.Arrow (tau1, tau2) -> 
-      (parens "(") ^^ (PP.nestRelative 0 
-                         (of_htype tau1) ^^ 
-                       (op " ->") ^^
-                       PP.optionalBreak ^^
-                       (of_htype tau2) ^^ 
-                       (parens ")")
-                      )
+      term "Arrow" (
+        (parens "(") ^^ (PP.nestRelative 0 
+                           (of_htype tau1) ^^ 
+                         (op " ->") ^^
+                         PP.optionalBreak ^^
+                         (of_htype tau2) ^^ 
+                         (parens ")")
+                        ))
     | HTyp.Sum (tau1, tau2) -> 
-      (parens "(") ^^ (PP.nestRelative 0 
-                         (of_htype tau1) ^^ 
-                       (op " +") ^^
-                       PP.optionalBreak ^^
-                       (of_htype tau2) ^^ 
-                       (parens ")")
-                      )
-    | HTyp.Hole -> PP.taggedText "hole" "⦇⦈"
+      term "Sum" (
+        (parens "(") ^^ (PP.nestRelative 0 
+                           (of_htype tau1) ^^ 
+                         (op " +") ^^
+                         PP.optionalBreak ^^
+                         (of_htype tau2) ^^ 
+                         (parens ")")))
+    | HTyp.Hole -> 
+      term "Hole" (taggedText "hole" "⦇⦈")
 
   let string_of_side side = match side with 
     | HExp.L -> "L"
@@ -276,54 +285,64 @@ module PPView = struct
 
   let rec of_hexp e = match e with 
     | HExp.Asc (e', tau) -> 
-      PP.nestAbsolute 2 (
-        (parens "(" ^^ (PP.nestRelative 0 (
-             (of_hexp e') ^^
-             (op " :") ^^
-             PP.optionalBreak ^^ 
-             (of_htype tau) ^^ 
-             (parens ")")))))
-    | HExp.Var x -> var x
+      term "Asc" (PP.nestAbsolute 2 (
+          (parens "(" ^^ (PP.nestRelative 0 (
+               (of_hexp e') ^^
+               (op " :") ^^
+               PP.optionalBreak ^^ 
+               (of_htype tau) ^^ 
+               (parens ")"))))))
+    | HExp.Var x -> term "Var" (var x)
     | HExp.Let (x, e, e') -> 
-      (PP.blockBoundary) ^^ 
-      (kw "let") ^^ space ^^ 
-      (var x) ^^ space ^^ 
-      (op "=") ^^ (PP.nestAbsolute 2 (
-          PP.optionalBreak ^^ 
-          (of_hexp e))) ^^ 
-      (PP.mandatoryBreak) ^^ 
-      (of_hexp e')
+      term "Let" (
+        (PP.blockBoundary) ^^ 
+        (kw "let") ^^ space ^^ 
+        (var x) ^^ space ^^ 
+        (op "=") ^^ (PP.nestAbsolute 2 (
+            PP.optionalBreak ^^ 
+            (of_hexp e))) ^^ 
+        (PP.mandatoryBreak) ^^ 
+        (of_hexp e'))
     | HExp.Lam (x, e) -> 
-      (kw "λ") ^^ 
-      (var x) ^^ 
-      (kw ".") ^^ 
-      (PP.nestRelative 4 (
-          of_hexp e))
+      term "Lam" (
+        (kw "λ") ^^ 
+        (var x) ^^ 
+        (kw ".") ^^ 
+        (PP.nestRelative 4 (
+            of_hexp e)))
     | HExp.Ap (e1, e2) -> 
-      (of_hexp e1) ^^ PP.optionalBreak ^^ (of_hexp e2)
-    | HExp.NumLit n -> (PP.taggedText "number" (string_of_int n))
+      term "Ap" (
+        (of_hexp e1) ^^ PP.optionalBreak ^^ (of_hexp e2))
+    | HExp.NumLit n -> 
+      term "NumLit" (
+        taggedText "number" (string_of_int n))
     | HExp.Plus (e1, e2) -> 
-      (of_hexp e1) ^^ PP.optionalBreak ^^ 
-      (op "+") ^^ PP.optionalBreak ^^ (of_hexp e2) 
+      term "Plus" (
+        (of_hexp e1) ^^ PP.optionalBreak ^^ 
+        (op "+") ^^ PP.optionalBreak ^^ (of_hexp e2)) 
     | HExp.Inj (side, e) -> 
-      (kw "inj") ^^ (parens "[") ^^ 
-      (kw (string_of_side side)) ^^ (parens "]") ^^ 
-      (parens "(") ^^ PP.optionalBreak ^^ (of_hexp e) ^^ (parens ")")
+      term "Inj" (
+        (kw "inj") ^^ (parens "[") ^^ 
+        (kw (string_of_side side)) ^^ (parens "]") ^^ 
+        (parens "(") ^^ PP.optionalBreak ^^ (of_hexp e) ^^ (parens ")"))
     | HExp.Case (e1, (x, e2), (y, e3)) -> 
-      (kw "case") ^^ space ^^ 
-      (of_hexp e1) ^^ space ^^ 
-      (kw "of") ^^ (PP.nestAbsolute 2 (
-          PP.mandatoryBreak ^^ 
-          (kw "L") ^^ (parens "(") ^^ (var x) ^^ (parens ")") ^^ 
-          space ^^ (op "=>") ^^ space ^^ (PP.nestAbsolute 2 (
-              of_hexp e2)) ^^ 
-          PP.mandatoryBreak ^^ 
-          (kw "R") ^^ (parens "(") ^^ (var y) ^^ (parens ")") ^^ 
-          space ^^ (op "=>") ^^ space ^^ (PP.nestAbsolute 2 (
-              of_hexp e3))))
-    | HExp.EmptyHole -> PP.taggedText "hole" "⦇⦈"
+      term "Case" (
+        (kw "case") ^^ space ^^ 
+        (of_hexp e1) ^^ space ^^ 
+        (kw "of") ^^ (PP.nestAbsolute 2 (
+            PP.mandatoryBreak ^^ 
+            (kw "L") ^^ (parens "(") ^^ (var x) ^^ (parens ")") ^^ 
+            space ^^ (op "=>") ^^ space ^^ (PP.nestAbsolute 2 (
+                of_hexp e2)) ^^ 
+            PP.mandatoryBreak ^^ 
+            (kw "R") ^^ (parens "(") ^^ (var y) ^^ (parens ")") ^^ 
+            space ^^ (op "=>") ^^ space ^^ (PP.nestAbsolute 2 (
+                of_hexp e3)))))
+    | HExp.EmptyHole -> 
+      term "EmptyHole" (taggedText "hole" "⦇⦈")
     | HExp.NonEmptyHole e -> 
-      (PP.taggedText "hole" "⦇") ^^ (of_hexp e) ^^ 
-      (PP.taggedText "hole" "⦈") 
+      term "NonEmptyHole" (
+        (taggedText "hole" "⦇") ^^ (of_hexp e) ^^ 
+        (taggedText "hole" "⦈")) 
 end
 

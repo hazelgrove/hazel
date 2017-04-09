@@ -10,17 +10,19 @@ sig
   val (^^) : doc -> doc -> doc
   val nestRelative : int -> doc -> doc
   val nestAbsolute : int -> doc -> doc
-  val taggedText : tag -> string -> doc
+  val text : string -> doc 
+  val tagged : tag -> doc -> doc
   val blockBoundary : doc
   val optionalBreak : doc
   val mandatoryBreak : doc
 
   type sdoc = SEmpty 
-            | STaggedText of tag * string * sdoc
+            | SText of string * sdoc
+            | STagStart of tag * sdoc
+            | STagEnd of sdoc
             | SLine of int * sdoc
   val sdoc_of_doc : int -> doc -> sdoc
   val string_of_sdoc : sdoc -> string
-  (* TODO: html_of_sdoc *)
 end = 
 struct
   type tag = string
@@ -28,7 +30,9 @@ struct
            | Concat of doc * doc
            | NestRelative of int * doc
            | NestAbsolute of int * doc
-           | TaggedText of tag * string
+           | Text of string
+           | TagStart of tag
+           | TagEnd
            | BlockBoundary 
            | OptionalBreak
            | MandatoryBreak
@@ -36,46 +40,56 @@ struct
   let (^^) x y = Concat (x, y)
   let nestRelative n x = NestRelative (n, x)
   let nestAbsolute n x = NestAbsolute (n, x)
-  let taggedText tag s = TaggedText (tag, s)
+  let text s = Text s
+  let tagged tag x = Concat (TagStart tag, Concat (x, TagEnd))
   let blockBoundary = BlockBoundary
   let optionalBreak = OptionalBreak
   let mandatoryBreak = MandatoryBreak
 
   type sdoc = SEmpty 
-            | STaggedText of tag * string * sdoc
+            | SText of string * sdoc
+            | STagStart of tag * sdoc
+            | STagEnd of sdoc
             | SLine of int * sdoc
+
+  let strlen = CamomileLibrary.UTF8.length
 
   let rec sdoc_of_doc' width k zs = match zs with 
     | [] -> SEmpty
-    | z :: zs' -> 
-      begin match z with 
-        | (i, Empty) -> sdoc_of_doc' width k zs'
-        | (i, Concat (x1, x2)) -> 
+    | (i, x) :: zs' -> 
+      begin match x with 
+        | Empty -> sdoc_of_doc' width k zs'
+        | Concat (x1, x2) -> 
           sdoc_of_doc' width k ((i, x1) :: (i, x2) :: zs')
-        | (i, NestRelative (n, x')) -> 
+        | NestRelative (n, x') -> 
           sdoc_of_doc' width k (((n + k), x') :: zs') 
-        | (i, NestAbsolute (n, x')) ->
+        | NestAbsolute (n, x') ->
           sdoc_of_doc' width k (((n + i), x') :: zs')
-        | (i, TaggedText (tag, s)) -> 
-          STaggedText (tag, s, 
-                       sdoc_of_doc' width (k + String.length s) zs')
-        | (i, BlockBoundary) -> 
+        | Text s -> 
+          SText (s, sdoc_of_doc' width (k + (strlen s)) zs')
+        | TagStart tag -> 
+          STagStart (tag, sdoc_of_doc' width k zs')
+        | TagEnd -> 
+          STagEnd (sdoc_of_doc' width k zs')
+        | BlockBoundary -> 
           if i == k then sdoc_of_doc' width k zs' 
           else SLine (i, sdoc_of_doc' width i zs')
-        | (i, OptionalBreak) -> 
+        | OptionalBreak -> 
           if (width - k) <= 0 
           then 
             SLine (i, sdoc_of_doc' width i zs')
           else
-            STaggedText ("space", " ", sdoc_of_doc' width k zs')
-        | (i, MandatoryBreak) -> 
+            SText (" ", sdoc_of_doc' width (k + 1) zs')
+        | MandatoryBreak -> 
           SLine (i, sdoc_of_doc' width i zs')
       end 
   let sdoc_of_doc width x = sdoc_of_doc' width 0 [(0, x)]
 
   let rec string_of_sdoc x = match x with 
     | SEmpty -> ""
-    | STaggedText(tag, s, x') -> s ^ (string_of_sdoc x')
+    | SText (s, x') -> s ^ (string_of_sdoc x')
+    | STagStart (tag, x') -> string_of_sdoc x'
+    | STagEnd x' -> string_of_sdoc x'
     | SLine(n, x') -> "\n" ^ (String.make n ' ') ^ (string_of_sdoc x')
 end 
 
@@ -84,17 +98,34 @@ struct
   open Tyxml_js
   open PP
 
-  let rec html_of_sdoc' x = match x with 
-    | SEmpty -> [Html5.(span ~a:[a_class ["SEmpty"]] [])]
-    | STaggedText (tag, s, x') -> 
-      (Html5.(span ~a:[a_class ["STaggedText"; tag]] [pcdata s])) 
-      :: (html_of_sdoc' x')
+  let rec html_of_sdoc'' x = match x with 
+    | SEmpty -> ([Html5.(span ~a:[a_class ["SEmpty"]] [])], None)
+    | SText (s, x') -> 
+      let (h, x'') = html_of_sdoc'' x' in 
+      let h' = (Html5.(span ~a:[a_class ["SText"]]
+                         [pcdata s])) :: h in 
+      (h', x'')
+    | STagStart (tag, x') -> 
+      let (h, x'') = html_of_sdoc'' x' in 
+      let (tl, rem) = 
+        begin match x'' with 
+          | Some x'' -> 
+            html_of_sdoc'' x'' 
+          | None -> ([], None)
+        end in 
+      let h' = (Html5.(span ~a:[a_class [tag]] h)) :: tl in 
+      (h', rem)
+    | STagEnd x' -> 
+      ([], Some x')
     | SLine (n, x') -> 
       let newline = Html5.br () in 
-      let indentation = Html5.(span ~a:[a_class ["SIndentation"]] [pcdata (String.make n ' ')]) in 
-      newline :: indentation :: html_of_sdoc' x'
-
+      let indentation = Html5.(span ~a:[a_class ["SIndentation"]]
+                                 [pcdata (String.make n ' ')]) in 
+      let (tl, rem) = html_of_sdoc'' x' in 
+      let h = newline :: indentation :: tl in 
+      (h, rem)
   let rec html_of_sdoc x = 
-    Html5.(div ~a:[a_class ["SDoc"]] (html_of_sdoc' x))
+    let (h, _) = html_of_sdoc'' x in 
+    Html5.(div ~a:[a_class ["SDoc"]] h)
 end
 
