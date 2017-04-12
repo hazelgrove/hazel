@@ -1,18 +1,19 @@
-# HZ
+# Hazel
 
-HZ is a reference implementation of Hazelnut, a bidirectionally typed
-structure editor calculus. A release of this repo was submitted to POPL
-2017 for artifact evaluation.
+Hazel is a structure editor rooted in the principles of type theory. It is 
+based on Hazelnut, a structure editor calculus described in our paper at
+POPL 2017, and is the primary artifact of the research vision outlined in 
+our paper at SNAPL 2017. You can find these papers at [the Hazel Grove website](http://www.hazelgrove.org/).
 
-# Running HZ
-You can run HZ without installing any dependencies by opening /src/www/hz.html in a browser. We also have a hosted version available at https://hazelgrove.github.io/implementation/hz.html.
+# Running Hazel
+You can run Hazel without installing any dependencies by opening /src/www/hazel.html in a browser. We also have [a hosted version available](http://www.hazelgrove.org/hazel/).
 
-# Building HZ
-You can build HZ using the following instructions.
+# Building Hazel
+You can build Hazel using the following instructions.
 
 ## Prerequisites
 
-An easy way to install both OCaml and the necessary libraries is to install [opam](https://opam.ocaml.org/). After having installed `opam` using the instructions on their website, follow these steps:
+Hazel is implemented in OCaml and compiled to Javascript for the web browser via the `js_of_ocaml` compiler. An easy way to install both OCaml and the necessary libraries is to install [opam](https://opam.ocaml.org/). After having installed `opam` using the instructions on their website, follow these steps:
 
   - If you are using `opam` for the first time, you have to initialize it:
 
@@ -45,12 +46,11 @@ An easy way to install both OCaml and the necessary libraries is to install [opa
     The following command switches out the current compiler with the newly installed one and sets up your path to use it permanently.
 
     ```sh
-    > opam switch 4.02.2
+    > opam switch 4.03.0
     > eval `opam config env`
     ```
 
   - We can now install the necessary dependencies.
-  NOTE: HZ requires TyXML 4.0, which is NOT backwards compatible with TyXML 3.X.
 
     ```sh
     > opam install js_of_ocaml tyxml deriving ppx_deriving reactiveData ocp-indent camomile
@@ -84,10 +84,12 @@ You can now open hz.html in a browser to see HZ in action.
 
 # Implementation Details
 
-The file `hz_semantics.ml` implements the syntax and semantics from the paper in a pure functional style, independent of any details of the user interface. NOTE: We use positive OCaml integers for the Hazelnut `num` type.
+The file `hz_semantics.ml` implements the syntax and semantics in a pure functional style, independent of any details of the user interface.
 
 The file `hz_model.ml` gives the signature of the reactive signal that models edit states, which consist of a Z-expression paired with an H-type.
 
-The file `hz_view.ml` transforms Z-expressions to HTML trees. These are styled by the `style.css` file in the `www` directory.
+The file `hz_view.ml` transforms Z-expressions to pretty printed documents. 
 
-The file `hz.ml` (which should be read roughly from the bottom up) is the top-level file. It sets up the reactive signals  and constructs the UI. The main logic of interest has to do with the action palette, which controls updates to the model and therefore the view.
+The file `pretty.ml` defines a generic pretty printer, and a translation from pretty printed documents to HTML. This HTML is styled by the `style.css` file in the `www` directory.
+
+The file `hz.ml` (which should be read roughly from the bottom up) is the top-level file. It sets up the reactive signals and constructs the UI. The main logic of interest has to do with the action palette, which controls updates to the model and therefore the view.

@@ -53,6 +53,7 @@ struct
             | SLine of int * sdoc
 
   let strlen = CamomileLibrary.UTF8.length
+  (* let strlen = String.length *) 
 
   let rec sdoc_of_doc' width k zs = match zs with 
     | [] -> SEmpty
