@@ -6,7 +6,7 @@ POPL 2017, and is the primary artifact of the research vision outlined in
 our paper at SNAPL 2017. You can find these papers at [the Hazel Grove website](http://www.hazelgrove.org/).
 
 # Running Hazel
-You can run Hazel without installing any dependencies by opening /src/www/hazel.html in a browser. We also have [a hosted version available](http://www.hazelgrove.org/hazel/).
+You can run Hazel without installing any dependencies by opening /src/www/hazel.html in a browser. We plan to soon have [a hosted version](http://www.hazelgrove.org/hazel/) available.
 
 # Building Hazel
 You can build Hazel using the following instructions.
@@ -71,7 +71,7 @@ You can execute build.sh to compile hz.ml.
 
 ```sh
 > cd src/
-> /bin/sh build.sh
+> ./build.sh
 ```
 
 It consists of two steps:
@@ -80,16 +80,17 @@ It consists of two steps:
 2. Build the Javascript file from the `hz.byte` file with the `js_of_ocaml` command.
 
 ## Results
-You can now open hz.html in a browser to see HZ in action.
+You can now open src/www/hazel.html in a browser to see Hazel in action.
 
 # Implementation Details
 
-The file `hz_semantics.ml` implements the syntax and semantics in a pure functional style, independent of any details of the user interface.
+The file `hazel_semantics.ml` implements the syntax and semantics in a pure functional style, independent of any details of the user interface.
 
-The file `hz_model.ml` gives the signature of the reactive signal that models edit states, which consist of a Z-expression paired with an H-type.
+The file `hazel_model.ml` gives the signature of the reactive signal that models edit states, which consist of a Z-expression paired with an H-type.
 
-The file `hz_view.ml` transforms Z-expressions to pretty printed documents. 
+The file `hazel_view.ml` transforms Z-expressions to pretty printed documents. 
 
 The file `pretty.ml` defines a generic pretty printer, and a translation from pretty printed documents to HTML. This HTML is styled by the `style.css` file in the `www` directory.
 
-The file `hz.ml` (which should be read roughly from the bottom up) is the top-level file. It sets up the reactive signals and constructs the UI. The main logic of interest has to do with the action palette, which controls updates to the model and therefore the view.
+The file `hazel.ml` (which should be read roughly from the bottom up) is the top-level file. It sets up the reactive signals and constructs the UI. The main logic of interest has to do with the action palette, which controls updates to the model and therefore the view.
+
