@@ -67,7 +67,7 @@ Hazel is implemented in OCaml and compiled to Javascript for the web browser via
 
 ## Compilation
 
-You can execute build.sh to compile hz.ml.
+You can execute build.sh to compile Hazel.
 
 ```sh
 > cd src/
