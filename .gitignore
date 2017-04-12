@@ -18,3 +18,9 @@ _build/
 # oasis generated files
 setup.data
 setup.log
+
+# vim files
+*.swn
+*.swo
+*.swp
+
