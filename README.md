@@ -76,8 +76,8 @@ You can execute build.sh to compile Hazel.
 
 It consists of two steps:
 
-1. Compile the `hz.ml` file to OCaml bytecode with the `ocamlbuild` command.
-2. Build the Javascript file from the `hz.byte` file with the `js_of_ocaml` command.
+1. Compile the `hazel.ml` file to OCaml bytecode with the `ocamlbuild` command.
+2. Build the Javascript file from the `hazel.byte` file with the `js_of_ocaml` command.
 
 ## Results
 You can now open src/www/hazel.html in a browser to see Hazel in action.
