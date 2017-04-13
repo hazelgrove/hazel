@@ -13,7 +13,7 @@ sig
   val text : string -> doc 
   val tagged : tag -> doc -> doc
   val blockBoundary : doc
-  val optionalBreak : doc
+  val optionalBreak : string -> doc
   val mandatoryBreak : doc
 
   type sdoc = SEmpty 
@@ -34,7 +34,7 @@ struct
            | TagStart of tag
            | TagEnd
            | BlockBoundary 
-           | OptionalBreak
+           | OptionalBreak of string
            | MandatoryBreak
   let empty = Empty
   let (^^) x y = Concat (x, y)
@@ -43,7 +43,7 @@ struct
   let text s = Text s
   let tagged tag x = Concat (TagStart tag, Concat (x, TagEnd))
   let blockBoundary = BlockBoundary
-  let optionalBreak = OptionalBreak
+  let optionalBreak s = OptionalBreak s 
   let mandatoryBreak = MandatoryBreak
 
   type sdoc = SEmpty 
@@ -75,12 +75,12 @@ struct
         | BlockBoundary -> 
           if i == k then sdoc_of_doc' width k zs' 
           else SLine (i, sdoc_of_doc' width i zs')
-        | OptionalBreak -> 
+        | OptionalBreak s -> 
           if (width - k) <= 0 
           then 
             SLine (i, sdoc_of_doc' width i zs')
           else
-            SText (" ", sdoc_of_doc' width (k + 1) zs')
+            SText (s, sdoc_of_doc' width (k + (strlen s)) zs')
         | MandatoryBreak -> 
           SLine (i, sdoc_of_doc' width i zs')
       end 

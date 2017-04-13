@@ -12,8 +12,24 @@ module PPView = struct
   let var = taggedText "var" 
   let space = taggedText "space" " "
   let term = PP.tagged
+  let optionalBreakSp = PP.optionalBreak " "
 
-  (* types *)
+  (* # types *)
+
+  let rec of_Arrow r1 r2 = 
+    term "Arrow" (
+      r1 ^^ optionalBreakSp ^^ 
+      (op "→") ^^ optionalBreakSp ^^
+      r2)
+
+  let rec of_Sum r1 r2 = 
+    term "Sum" (
+      r1 ^^ optionalBreakSp ^^ 
+      (op "+") ^^ optionalBreakSp ^^
+      r2)
+
+  (* ## parenthesization helpers *)
+
   let num_precedence = 0 
   let hole_precedence = 0  
   let sum_precedence = 1
@@ -33,18 +49,6 @@ module PPView = struct
     let paren1 = (prec1 != prec) && (prec1 != 0) in 
     let paren2 = (prec2 != prec) && (prec2 != 0) in 
     (paren1, paren2)
-
-  let rec of_Arrow r1 r2 = 
-    term "Arrow" (
-      r1 ^^ PP.optionalBreak ^^ 
-      (op "→") ^^ PP.optionalBreak ^^
-      r2)
-
-  let rec of_Sum r1 r2 = 
-    term "Sum" (
-      r1 ^^ PP.optionalBreak ^^ 
-      (op "+") ^^ PP.optionalBreak ^^
-      r2)
 
   let rec of_htype' tau paren = 
     if paren 
@@ -117,12 +121,8 @@ module PPView = struct
     | HExp.R -> "R"
 
   let of_Asc r1 r2 = 
-    term "Asc" ((parens "(") ^^ 
-                (PP.nestRelative 0 (
-                    r1 ^^ (parens ")"))) ^^ 
-                PP.optionalBreak ^^ (op ":") ^^ PP.optionalBreak ^^ 
-                PP.nestAbsolute 4 (
-                  r2))
+    term "Asc" (
+      r1 ^^ space ^^ (op ":") ^^ space ^^ r2)
 
   let of_Let x r1 r2 =
     term "Let" (
@@ -130,59 +130,118 @@ module PPView = struct
       (kw "let") ^^ space ^^ 
       (var x) ^^ space ^^ 
       (op "=") ^^ (PP.nestAbsolute 2 (
-          PP.optionalBreak ^^ 
-          (r1))) ^^ 
+          optionalBreakSp ^^ 
+          r1)) ^^ 
       (PP.mandatoryBreak) ^^ 
-      (r2))
+      r2)
 
   let of_Lam x r = 
     term "Lam" (
       (kw "λ") ^^ 
       (var x) ^^ 
       (kw ".") ^^ 
+      (PP.optionalBreak "") ^^
       (PP.nestRelative 4 r))
 
   let of_Ap r1 r2 = 
-    term "Ap" (r1 ^^ PP.optionalBreak ^^ r2)
+    term "Ap" (r1 ^^ optionalBreakSp ^^ r2)
 
   let of_Plus r1 r2 = 
     term "Plus" (
-      r1 ^^ PP.optionalBreak ^^ 
-      (op "+") ^^ PP.optionalBreak ^^ r2) 
+      r1 ^^ optionalBreakSp ^^ 
+      (op "+") ^^ optionalBreakSp ^^ r2) 
 
   let of_Inj side r = 
     term "Inj" (
       (kw "inj") ^^ (parens "[") ^^ 
       (kw (string_of_side side)) ^^ (parens "]") ^^ 
-      (parens "(") ^^ PP.optionalBreak ^^ r ^^ (parens ")"))
+      (parens "(") ^^ optionalBreakSp ^^ r ^^ (parens ")"))
 
   let of_Case r1 x r2 y r3 = 
     term "Case" (
-      (kw "case") ^^ space ^^ 
-      r1 ^^ space ^^ 
-      (kw "of") ^^ (PP.nestAbsolute 2 (
-          PP.mandatoryBreak ^^ 
-          (kw "L") ^^ (parens "(") ^^ (var x) ^^ (parens ")") ^^ 
-          space ^^ (op "=>") ^^ space ^^ (PP.nestAbsolute 2 r2) ^^ 
-          PP.mandatoryBreak ^^ 
-          (kw "R") ^^ (parens "(") ^^ (var y) ^^ (parens ")") ^^ 
-          space ^^ (op "=>") ^^ space ^^ (PP.nestAbsolute 2 r3))))
+      (PP.blockBoundary) ^^ 
+      (kw "case") ^^ space ^^ r1 ^^ 
+      PP.mandatoryBreak ^^ 
+      (kw "L") ^^ (parens "(") ^^ (var x) ^^ (parens ")") ^^ 
+      space ^^ (op "=>") ^^ optionalBreakSp ^^ (PP.nestAbsolute 2 r2) ^^ 
+      PP.mandatoryBreak ^^ 
+      (kw "R") ^^ (parens "(") ^^ (var y) ^^ (parens ")") ^^ 
+      space ^^ (op "=>") ^^ optionalBreakSp ^^ (PP.nestAbsolute 2 r3))
 
   let of_NonEmptyHole r = 
     term "NonEmptyHole" (
       (taggedText "hole" "⦇") ^^ r ^^ 
       (taggedText "hole" "⦈")) 
 
-  let rec of_hexp e = match e with 
-    | HExp.Asc (e', tau) -> of_Asc (of_hexp e') (of_htype tau)
+  let asc_precedence = 1
+  let var_precedence = 0
+  let let_precedence = 1
+  let lam_precedence = 1
+  let ap_precedence = 1
+  let numlit_precedence = 0
+  let plus_precedence = 2 
+  let inj_precedence = 0
+  let case_precedence = 1
+  let empty_hole_precedence = 0
+  let non_empty_hole_precedence = 0
+  let hexp_precedence e = HExp.(match e with 
+      | Asc _ -> asc_precedence
+      | Var _ -> var_precedence
+      | Let _ -> let_precedence
+      | Lam _ -> lam_precedence
+      | Ap _ -> ap_precedence
+      | NumLit _ -> numlit_precedence
+      | Plus _ -> plus_precedence
+      | Inj _ -> inj_precedence
+      | Case _ -> case_precedence
+      | EmptyHole -> empty_hole_precedence
+      | NonEmptyHole _ -> non_empty_hole_precedence)
+  let zexp_precedence ze = ZExp.(match ze with 
+      | CursorE e -> hexp_precedence e
+      | LeftAsc _ | RightAsc _ -> asc_precedence
+      | LetZ1 _ | LetZ2 _ -> let_precedence
+      | LamZ _ -> lam_precedence
+      | LeftAp _ | RightAp _ -> ap_precedence
+      | LeftPlus _ | RightPlus _ -> plus_precedence
+      | InjZ _ -> inj_precedence
+      | CaseZ1 _ | CaseZ2 _ | CaseZ3 _ -> case_precedence
+      | NonEmptyHoleZ _ -> non_empty_hole_precedence)
+
+  let rec of_hexp' e paren = 
+    if paren 
+    then 
+      (parens "(") ^^ (PP.nestRelative 0 (of_hexp e)) ^^ (parens ")")
+    else 
+      of_hexp e
+  and of_hexp e = match e with 
+    | HExp.Asc (e', tau) -> 
+      let prec1 = hexp_precedence e' in 
+      let paren1 = prec1 != 0 in 
+      let r1 = of_hexp' e' paren1 in 
+      let r2 = of_htype tau in 
+      of_Asc r1 r2
     | HExp.Var x -> term "Var" (var x)
     | HExp.Let (x, e, e') -> of_Let x (of_hexp e) (of_hexp e')
     | HExp.Lam (x, e') -> of_Lam x (of_hexp e')
-    | HExp.Ap (e1, e2) -> of_Ap (of_hexp e1) (of_hexp e2)
+    | HExp.Ap (e1, e2) ->
+      let prec1 = hexp_precedence e1 in 
+      let paren1 = prec1 != 0 in 
+      let r1 = of_hexp' e1 paren1 in 
+      let prec2 = hexp_precedence e2 in 
+      let paren2 = prec2 != 0 in 
+      let r2 = of_hexp' e2 paren2 in  
+      of_Ap r1 r2
     | HExp.NumLit n -> 
       term "NumLit" (
         taggedText "number" (string_of_int n))
-    | HExp.Plus (e1, e2) -> of_Plus (of_hexp e1) (of_hexp e2)
+    | HExp.Plus (e1, e2) -> 
+      let prec1 = hexp_precedence e1 in 
+      let paren1 = (prec1 > 0) && (prec1 < plus_precedence) in
+      let r1 = of_hexp' e1 paren1 in 
+      let prec2 = hexp_precedence e2 in 
+      let paren2 = (prec2 > 0) && (prec2 < plus_precedence) in 
+      let r2 = of_hexp' e2 paren2 in 
+      of_Plus r1 r2
     | HExp.Inj (side, e) -> of_Inj side (of_hexp e)
     | HExp.Case (e1, (x, e2), (y, e3)) -> 
       of_Case (of_hexp e1) x (of_hexp e2) y (of_hexp e3)
@@ -190,18 +249,63 @@ module PPView = struct
       term "EmptyHole" (taggedText "hole" "⦇⦈")
     | HExp.NonEmptyHole e -> of_NonEmptyHole (of_hexp e)
 
-  let rec of_zexp ze = match ze with 
+  let rec of_zexp' ze paren = match ze with 
+    | ZExp.CursorE e -> 
+      term "cursor" (of_hexp' e paren) 
+    | _ -> 
+      if paren then 
+        (parens "(") ^^ (PP.nestRelative 0 (of_zexp ze)) ^^ (parens ")")
+      else of_zexp ze 
+  and of_zexp ze = match ze with 
     | ZExp.CursorE e -> 
       term "cursor" (of_hexp e)
-    | ZExp.LeftAsc (ze, e) -> of_Asc (of_zexp ze) (of_htype e)
-    | ZExp.RightAsc (e, ze) -> of_Asc (of_hexp e) (of_ztype ze)
+    | ZExp.LeftAsc (ze, tau) -> 
+      let prec1 = zexp_precedence ze in 
+      let paren1 = prec1 != 0 in 
+      let r1 = of_zexp' ze paren1 in 
+      let r2 = of_htype tau in 
+      of_Asc r1 r2
+    | ZExp.RightAsc (e, ztau) -> 
+      let prec1 = hexp_precedence e in 
+      let paren1 = prec1 != 0 in 
+      let r1 = of_hexp' e paren1 in 
+      let r2 = of_ztype ztau in 
+      of_Asc r1 r2
     | ZExp.LetZ1 (x, ze, e) -> of_Let x (of_zexp ze) (of_hexp e)
     | ZExp.LetZ2 (x, e, ze) -> of_Let x (of_hexp e) (of_zexp ze)
     | ZExp.LamZ (x, ze) -> of_Lam x (of_zexp ze)
-    | ZExp.LeftAp (ze, e) -> of_Ap (of_zexp ze) (of_hexp e)
-    | ZExp.RightAp (e, ze) -> of_Ap (of_hexp e) (of_zexp ze)
-    | ZExp.LeftPlus (ze, e) -> of_Plus (of_zexp ze) (of_hexp e)
-    | ZExp.RightPlus (e, ze) -> of_Plus (of_hexp e) (of_zexp ze)
+    | ZExp.LeftAp (ze, e) -> 
+      let prec1 = zexp_precedence ze in 
+      let paren1 = prec1 != 0 in 
+      let r1 = of_zexp' ze paren1 in 
+      let prec2 = hexp_precedence e in 
+      let paren2 = prec2 != 0 in 
+      let r2 = of_hexp' e paren2 in  
+      of_Ap r1 r2
+    | ZExp.RightAp (e, ze) -> 
+      let prec1 = hexp_precedence e in 
+      let paren1 = prec1 != 0 in 
+      let r1 = of_hexp' e paren1 in 
+      let prec2 = zexp_precedence ze in 
+      let paren2 = prec2 != 0 in 
+      let r2 = of_zexp' ze paren2 in  
+      of_Ap r1 r2
+    | ZExp.LeftPlus (ze, e) -> 
+      let prec1 = zexp_precedence ze in 
+      let paren1 = (prec1 > 0) && (prec1 < plus_precedence) in
+      let r1 = of_zexp' ze paren1 in 
+      let prec2 = hexp_precedence e in 
+      let paren2 = (prec2 > 0) && (prec2 < plus_precedence) in 
+      let r2 = of_hexp' e paren2 in 
+      of_Plus r1 r2
+    | ZExp.RightPlus (e, ze) ->
+      let prec1 = hexp_precedence e in 
+      let paren1 = (prec1 > 0) && (prec1 < plus_precedence) in
+      let r1 = of_hexp' e paren1 in 
+      let prec2 = zexp_precedence ze in 
+      let paren2 = (prec2 > 0) && (prec2 < plus_precedence) in 
+      let r2 = of_zexp' ze paren2 in 
+      of_Plus r1 r2
     | ZExp.InjZ (side, ze) -> of_Inj side (of_zexp ze)
     | ZExp.CaseZ1 (ze, (x, e2), (y, e3)) -> 
       of_Case (of_zexp ze) x (of_hexp e2) y (of_hexp e3)
