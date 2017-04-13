@@ -11,48 +11,105 @@ module PPView = struct
   let op = taggedText "op"
   let var = taggedText "var" 
   let space = taggedText "space" " "
-  let term = PP.tagged 
+  let term = PP.tagged
 
   (* types *)
+  let num_precedence = 0 
+  let hole_precedence = 0  
+  let sum_precedence = 1
+  let arrow_precedence = 2
+  let h_precedence tau = match tau with 
+    | HTyp.Num -> num_precedence
+    | HTyp.Hole -> hole_precedence
+    | HTyp.Sum _ -> sum_precedence
+    | HTyp.Arrow _ -> arrow_precedence
+  let z_precedence ztau = match ztau with 
+    | ZTyp.CursorT tau -> h_precedence tau
+    | ZTyp.LeftArrow _ | ZTyp.RightArrow _ -> arrow_precedence
+    | ZTyp.LeftSum _ | ZTyp.RightSum _ -> sum_precedence
+
+  (* parenthesize binary right-associative type operators *)
+  let parenthesize_bi_r_tau prec prec1 prec2 = 
+    let paren1 = (prec1 != prec) && (prec1 != 0) in 
+    let paren2 = (prec2 != prec) && (prec2 != 0) in 
+    (paren1, paren2)
+
   let rec of_Arrow r1 r2 = 
     term "Arrow" (
-      (parens "(") ^^ (PP.nestRelative 0 (
-          (r1) ^^ 
-          (op " ->") ^^
-          PP.optionalBreak ^^
-          (r2) ^^ 
-          (parens ")"))))
+      r1 ^^ PP.optionalBreak ^^ 
+      (op "→") ^^ PP.optionalBreak ^^
+      r2)
 
   let rec of_Sum r1 r2 = 
     term "Sum" (
-      (parens "(") ^^ (PP.nestRelative 0 (
-          (r1) ^^ 
-          (op " +") ^^
-          PP.optionalBreak ^^
-          (r2) ^^ 
-          (parens ")"))))
+      r1 ^^ PP.optionalBreak ^^ 
+      (op "+") ^^ PP.optionalBreak ^^
+      r2)
 
-  let rec of_htype tau = match tau with 
+  let rec of_htype' tau paren = 
+    if paren 
+    then 
+      (parens "(") ^^ (PP.nestRelative 0 (of_htype tau)) ^^ (parens ")") 
+    else
+      of_htype tau
+  and of_htype tau = match tau with 
     | HTyp.Num -> 
       term "Num" (kw "num")
     | HTyp.Arrow (tau1, tau2) -> 
-      of_Arrow (of_htype tau1) (of_htype tau2)
+      let (paren1, paren2) = 
+        parenthesize_bi_r_tau arrow_precedence 
+          (h_precedence tau1) (h_precedence tau2) in 
+      let r1 = of_htype' tau1 paren1 in  
+      let r2 = of_htype' tau2 paren2 in 
+      of_Arrow r1 r2
     | HTyp.Sum (tau1, tau2) -> 
-      of_Sum (of_htype tau1) (of_htype tau2)
+      let (paren1, paren2) = 
+        parenthesize_bi_r_tau sum_precedence 
+          (h_precedence tau1) (h_precedence tau2) in 
+      let r1 = of_htype' tau1 paren1 in  
+      let r2 = of_htype' tau2 paren2 in 
+      of_Sum r1 r2
     | HTyp.Hole -> 
       term "Hole" (taggedText "hole" "⦇⦈")
 
-  let rec of_ztype ztau = match ztau with 
+  let rec of_ztype' ztau paren = match ztau with 
+    | ZTyp.CursorT tau -> 
+      term "cursor" (of_htype' tau paren)
+    | _ -> 
+      if paren then 
+        (parens "(") ^^ (PP.nestRelative 0 (of_ztype ztau)) ^^ (parens ")")
+      else of_ztype ztau 
+  and of_ztype ztau = match ztau with 
     | ZTyp.CursorT tau -> 
       term "cursor" (of_htype tau)
     | ZTyp.LeftArrow (ztau, tau) -> 
-      of_Arrow (of_ztype ztau) (of_htype tau)
+      let (paren1, paren2) = 
+        parenthesize_bi_r_tau arrow_precedence 
+          (z_precedence ztau) (h_precedence tau) in  
+      let r1 = of_ztype' ztau paren1 in 
+      let r2 = of_htype' tau paren2 in 
+      of_Arrow r1 r2
     | ZTyp.RightArrow (tau, ztau) -> 
-      of_Arrow (of_htype tau) (of_ztype ztau)
+      let (paren1, paren2) = 
+        parenthesize_bi_r_tau arrow_precedence 
+          (h_precedence tau) (z_precedence ztau) in  
+      let r1 = of_htype' tau paren1 in 
+      let r2 = of_ztype' ztau paren2 in 
+      of_Arrow r1 r2
     | ZTyp.LeftSum (ztau, tau) -> 
-      of_Sum (of_ztype ztau) (of_htype tau)
+      let (paren1, paren2) = 
+        parenthesize_bi_r_tau sum_precedence 
+          (z_precedence ztau) (h_precedence tau) in  
+      let r1 = of_ztype' ztau paren1 in 
+      let r2 = of_htype' tau paren2 in 
+      of_Sum r1 r2
     | ZTyp.RightSum (tau, ztau) -> 
-      of_Sum (of_htype tau) (of_ztype ztau)
+      let (paren1, paren2) = 
+        parenthesize_bi_r_tau sum_precedence 
+          (h_precedence tau) (z_precedence ztau) in  
+      let r1 = of_htype' tau paren1 in 
+      let r2 = of_ztype' ztau paren2 in 
+      of_Sum r1 r2
 
   (* h-exps and z-exps *)
   let string_of_side side = match side with 
@@ -60,13 +117,12 @@ module PPView = struct
     | HExp.R -> "R"
 
   let of_Asc r1 r2 = 
-    term "Asc" (PP.nestAbsolute 2 (
-        (parens "(" ^^ (PP.nestRelative 0 (
-             (r1) ^^
-             (op " :") ^^
-             PP.optionalBreak ^^ 
-             (r2) ^^ 
-             (parens ")"))))))
+    term "Asc" ((parens "(") ^^ 
+                (PP.nestRelative 0 (
+                    r1 ^^ (parens ")"))) ^^ 
+                PP.optionalBreak ^^ (op ":") ^^ PP.optionalBreak ^^ 
+                PP.nestAbsolute 4 (
+                  r2))
 
   let of_Let x r1 r2 =
     term "Let" (
