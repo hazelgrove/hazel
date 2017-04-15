@@ -101,7 +101,5 @@ End HTyp.
 
 Extract Inductive bool => "bool" ["true" "false"].
 Extract Constant negb => "not".
-Extraction HTyp.yScheme new_scheme := Induction for _ Sort _
-with _ := Induction for _ Sort _.
-
+Extraction HTyp.
 
