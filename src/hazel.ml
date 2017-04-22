@@ -6,6 +6,8 @@ open Hazel_view
 
 open React
 
+(* github/travis test *)
+
 module Ev = Dom_html.Event
 
 module Util = struct
