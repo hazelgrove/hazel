@@ -16,3 +16,8 @@ install:
 
 script:
   - bash .travis-ci.sh
+
+#Only run on Master currently
+branches:
+  only:
+  - master
