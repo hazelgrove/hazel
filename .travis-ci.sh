@@ -22,7 +22,7 @@ cd hazel
 echo "switch to gh-pages"
 git checkout gh-pages
 echo "get latest files"
-cp -r ../www/* .
+cp -r ../www/* ./master/
 echo "git add"
 git add .
 echo "commit"
