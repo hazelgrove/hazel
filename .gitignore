@@ -24,3 +24,8 @@ setup.log
 *.swo
 *.swp
 
+# coq
+*.glob
+*.vo
+*.vo.aux
+core/ml/*
