@@ -95,11 +95,19 @@ Module HTyp.
      simpl; 
      reflexivity.
    Qed.
-  
+
+   Definition matched_arrow (ty : t) : option (t * t) :=
+     match ty with
+     | Arrow ty1 ty2 (* MAArr *) => Some (ty1, ty2)
+     | Hole (* MAHole *) => Some (Hole, Hole)
+     | _ => None
+     end.
 
 End HTyp.
 
 Extract Inductive bool => "bool" ["true" "false"].
 Extract Constant negb => "not".
+Extract Inductive option => "option" ["Some" "None"].
+Extract Inductive prod => "" [""].
 Extraction HTyp.
 
