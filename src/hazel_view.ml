@@ -74,7 +74,7 @@ module PPView = struct
       let r2 = of_htype' tau2 paren2 in 
       of_Sum r1 r2
     | HTyp.Hole -> 
-      term "Hole" (taggedText "hole" "⦇⦈")
+      term "Hole" (taggedText "hole" "▢")
 
   let rec of_ztype' ztau paren = match ztau with 
     | ZTyp.CursorT tau -> 
@@ -163,21 +163,19 @@ module PPView = struct
       (kw "case") ^^ space ^^ r1 ^^ 
       PP.mandatoryBreak ^^ 
       (kw "L") ^^ (parens "(") ^^ (var x) ^^ (parens ")") ^^ 
-      space ^^ (op "=>") ^^ optionalBreakSp ^^ (PP.nestAbsolute 2 r2) ^^ 
+      space ^^ (op "⇒") ^^ optionalBreakSp ^^ (PP.nestAbsolute 2 r2) ^^ 
       PP.mandatoryBreak ^^ 
       (kw "R") ^^ (parens "(") ^^ (var y) ^^ (parens ")") ^^ 
-      space ^^ (op "=>") ^^ optionalBreakSp ^^ (PP.nestAbsolute 2 r3))
+      space ^^ (op "⇒") ^^ optionalBreakSp ^^ (PP.nestAbsolute 2 r3))
 
   let of_NonEmptyHole r = 
-    term "NonEmptyHole" (
-      (taggedText "hole" "⦇") ^^ r ^^ 
-      (taggedText "hole" "⦈")) 
+    term "NonEmptyHole" (r)
 
   let asc_precedence = 1
   let var_precedence = 0
   let let_precedence = 1
   let lam_precedence = 1
-  let ap_precedence = 1
+  let ap_precedence = 3
   let numlit_precedence = 0
   let plus_precedence = 2 
   let inj_precedence = 0
@@ -225,10 +223,10 @@ module PPView = struct
     | HExp.Lam (x, e') -> of_Lam x (of_hexp e')
     | HExp.Ap (e1, e2) ->
       let prec1 = hexp_precedence e1 in 
-      let paren1 = prec1 != 0 in 
+      let paren1 = (prec1 != 0) && (prec1 < ap_precedence) in 
       let r1 = of_hexp' e1 paren1 in 
       let prec2 = hexp_precedence e2 in 
-      let paren2 = prec2 != 0 in 
+      let paren2 = (prec2 != 0) && (prec2 <= ap_precedence) in 
       let r2 = of_hexp' e2 paren2 in  
       of_Ap r1 r2
     | HExp.NumLit n -> 
@@ -236,17 +234,17 @@ module PPView = struct
         taggedText "number" (string_of_int n))
     | HExp.Plus (e1, e2) -> 
       let prec1 = hexp_precedence e1 in 
-      let paren1 = (prec1 > 0) && (prec1 < plus_precedence) in
+      let paren1 = (prec1 > 0) && (prec1 != plus_precedence) in
       let r1 = of_hexp' e1 paren1 in 
       let prec2 = hexp_precedence e2 in 
-      let paren2 = (prec2 > 0) && (prec2 < plus_precedence) in 
+      let paren2 = (prec2 > 0) && (prec2 != plus_precedence) in 
       let r2 = of_hexp' e2 paren2 in 
       of_Plus r1 r2
     | HExp.Inj (side, e) -> of_Inj side (of_hexp e)
     | HExp.Case (e1, (x, e2), (y, e3)) -> 
       of_Case (of_hexp e1) x (of_hexp e2) y (of_hexp e3)
     | HExp.EmptyHole -> 
-      term "EmptyHole" (taggedText "hole" "⦇⦈")
+      term "EmptyHole" (taggedText "hole" "▢")
     | HExp.NonEmptyHole e -> of_NonEmptyHole (of_hexp e)
 
   let rec of_zexp' ze paren = match ze with 
@@ -276,34 +274,34 @@ module PPView = struct
     | ZExp.LamZ (x, ze) -> of_Lam x (of_zexp ze)
     | ZExp.LeftAp (ze, e) -> 
       let prec1 = zexp_precedence ze in 
-      let paren1 = prec1 != 0 in 
+      let paren1 = (prec1 != 0) && (prec1 < ap_precedence) in 
       let r1 = of_zexp' ze paren1 in 
       let prec2 = hexp_precedence e in 
-      let paren2 = prec2 != 0 in 
+      let paren2 = (prec2 != 0) && (prec2 <= ap_precedence) in 
       let r2 = of_hexp' e paren2 in  
       of_Ap r1 r2
     | ZExp.RightAp (e, ze) -> 
       let prec1 = hexp_precedence e in 
-      let paren1 = prec1 != 0 in 
+      let paren1 = (prec1 != 0) && (prec1 < ap_precedence) in 
       let r1 = of_hexp' e paren1 in 
       let prec2 = zexp_precedence ze in 
-      let paren2 = prec2 != 0 in 
+      let paren2 = (prec2 != 0) && (prec2 <= ap_precedence) in 
       let r2 = of_zexp' ze paren2 in  
       of_Ap r1 r2
     | ZExp.LeftPlus (ze, e) -> 
       let prec1 = zexp_precedence ze in 
-      let paren1 = (prec1 > 0) && (prec1 < plus_precedence) in
+      let paren1 = (prec1 > 0) && (prec1 != plus_precedence) in
       let r1 = of_zexp' ze paren1 in 
       let prec2 = hexp_precedence e in 
-      let paren2 = (prec2 > 0) && (prec2 < plus_precedence) in 
+      let paren2 = (prec2 > 0) && (prec2 != plus_precedence) in 
       let r2 = of_hexp' e paren2 in 
       of_Plus r1 r2
     | ZExp.RightPlus (e, ze) ->
       let prec1 = hexp_precedence e in 
-      let paren1 = (prec1 > 0) && (prec1 < plus_precedence) in
+      let paren1 = (prec1 > 0) && (prec1 != plus_precedence) in
       let r1 = of_hexp' e paren1 in 
       let prec2 = zexp_precedence ze in 
-      let paren2 = (prec2 > 0) && (prec2 < plus_precedence) in 
+      let paren2 = (prec2 > 0) && (prec2 != plus_precedence) in 
       let r2 = of_zexp' ze paren2 in 
       of_Plus r1 r2
     | ZExp.InjZ (side, ze) -> of_Inj side (of_zexp ze)

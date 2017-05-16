@@ -6,6 +6,8 @@ open Hazel_view
 
 open React
 
+(* github/travis test *)
+
 module Ev = Dom_html.Event
 
 module Util = struct
@@ -427,7 +429,7 @@ module AppView = struct
               pcdata "(a structure editor rooted in the principles of type theory)"]; br (); 
 
             div ~a:[a_class ["typeLbl"]] [pcdata 
-                                            ("Pretty-printed (width=" ^ (string_of_int pp_view_width) ^ "):")]; 
+                                            ("Pretty-printed (width:" ^ (string_of_int pp_view_width) ^ "):")]; 
             div ~a:[a_class ["ModelExp"]] [pp_view]; br ();
             div ~a:[a_class ["subtext"; "ModelType"]] [
               div ~a:[a_class ["typeLbl"]] [pcdata "Synthesizes H-type: "];
