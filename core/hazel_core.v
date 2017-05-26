@@ -143,18 +143,24 @@ Module Var.
   Definition equal (x : t) (y : t) : bool := equiv_decb x y.
 End Var.
 
-Module Ctx.
+Module Type CTX.
+  Parameter t : Type.
+  Parameter empty : t.
+  Parameter extend : t -> Var.t * HTyp.t -> t.
+  Parameter lookup : t -> Var.t -> option HTyp.t.
+End CTX.
+Module _Ctx <: CTX.
   Definition t := list (Var.t * HTyp.t).
 
-  Definition empty {A : Type} : list A := [].
+  Definition empty : t := [].
 
-  Definition extend {A B : Type} (ctx : list (A * B)) (x : A * B)
-    : list (A * B) :=
+  Definition extend (ctx : t) (x : Var.t * HTyp.t)
+    : t :=
     match x with
     | (x, ty) => cons (x, ty) ctx
     end.
 
-  Fixpoint lookup {A : Type} (ctx : list (Var.t * A)) (x : Var.t) : option A :=
+  Fixpoint lookup (ctx : t) (x : Var.t) : option HTyp.t :=
     match ctx with
     | [] => None
     | cons (y, ty) ctx' =>
@@ -163,7 +169,8 @@ Module Ctx.
       | false => lookup ctx' x
       end
     end.
-End Ctx.
+End _Ctx.
+Module Ctx : CTX := _Ctx.
 
 Module HExp.
   Inductive inj_side : Type :=
@@ -194,116 +201,105 @@ Module HExp.
   Definition raise_IllTyped {A : Type} (x : unit) : M [ IllTyped ] A :=
     fun s => (inr (inl x), s).
 
-  Fixpoint syn_rec (counter : nat) (ctx : Ctx.t) (e : t)
-    : M [ NonTermination; IllTyped ] HTyp.t :=
-    match counter with
-    | O => lift [_;_] "10" (not_terminated tt)
-    | S counter =>
-      match e with
-      | Asc e' ty =>
-        let! x := (ana_rec counter) ctx e' ty in
-        match x with
-        | _ => ret ty
-        end
-      | Var x =>
-        lift [_;_] "01"
-          match Ctx.lookup ctx x with
-          | Some ty => ret ty
-          | None => raise_IllTyped tt
-          end
-      | Let x e1 e2 =>
-        let! ty1 := (syn_rec counter) ctx e1 in
-        let ctx' := Ctx.extend ctx (x, ty1) in
-        (syn_rec counter) ctx' e2
-      | Ap e1 e2 =>
-        let! ty1 := (syn_rec counter) ctx e1 in
+  (* helpers that should be lifted out of this module probably *)
+  Fixpoint map_option {A B : Type} (f : A -> B) (input : option A) : option B :=
+    match input with
+    | Some x => Some (f x)
+    | None => None
+    end.
+
+  Fixpoint flatmap_option {A B : Type} (f : A -> option B) (input : option A) : option B :=
+    match input with
+    | Some x => f x
+    | None => None
+    end.
+
+  Definition pipe_forward {A B : Type} (x : A) (f : A -> B) : B := f x.
+  Notation "X |> F" := (pipe_forward X F)
+    (at level 40, left associativity) : core_scope.
+
+  Fixpoint syn (ctx : Ctx.t) (e : t)
+    : option HTyp.t :=
+    match e with
+    | Asc e' ty (* SAsc *) =>
+      let _ := ana ctx e' ty in Some ty
+    | Var x (* SVar *) => Ctx.lookup ctx x
+    | Let x e1 e2 =>
+      (syn ctx e1) |>
+          (map_option (fun ty1 => Ctx.extend ctx (x, ty1))) |>
+          (flatmap_option (fun ctx' => syn ctx' e2))
+    | Ap e1 e2 (* SAp *) =>
+      let _ty1 := syn ctx e1 in
+      match _ty1 with
+      | Some ty1 =>
         match HTyp.matched_arrow ty1 with
         | Some (ty1_left, ty1_right) =>
-          let! x := (ana_rec counter) ctx e2 ty1_left in
-          match x with
-          | _ => ret ty1_right
-          end
-        | _ => lift [_;_] "01" (raise_IllTyped tt)
+            let _ := ana ctx e2 ty1_left in Some ty1_right
+        | None => None
         end
-      | NumLit i =>
-        lift [_;_] "01"
-          (if OCaml.Pervasives.lt i 0 then
-            raise_IllTyped tt
-          else
-            ret HTyp.Num)
-      | Plus e1 e2 =>
-        let! x := (ana_rec counter) ctx e1 HTyp.Num in
-        match x with
-        | _ =>
-          let! x := (ana_rec counter) ctx e2 HTyp.Num in
-          match x with
-          | _ => ret HTyp.Num
-          end
-        end
-      | EmptyHole => ret HTyp.Hole
-      | NonEmptyHole e' =>
-        let! x := (syn_rec counter) ctx e' in
-        match x with
-        | _ => ret HTyp.Hole
-        end
-      | _ => lift [_;_] "01" (raise_IllTyped tt)
+      | None => None
       end
+    | NumLit i (* SNum *) =>
+        (if OCaml.Pervasives.lt i 0 then
+          None
+        else
+          Some HTyp.Num)
+    | Plus e1 e2 (* 3e *) =>
+      let _ := ana ctx e1 HTyp.Num in
+      let _ := ana ctx e2 HTyp.Num in
+      Some HTyp.Num
+    | EmptyHole (* SHole *) => Some HTyp.Hole
+    | NonEmptyHole e' (* SNEHole *) =>
+      let _ := syn ctx e' in
+      Some HTyp.Hole
+    | _ => None
     end
-
-  with ana_rec (counter : nat) (ctx : Ctx.t) (e : t) (ty : HTyp.t)
-    : M [ NonTermination; IllTyped ] unit :=
-    match counter with
-    | O => lift [_;_] "10" (not_terminated tt)
-    | S counter =>
-      match e with
-      | Let x e1 e2 =>
-        let! ty1 := (syn_rec counter) ctx e1 in
+  with ana (ctx : Ctx.t) (e : t) (ty : HTyp.t)
+    : option unit :=
+    match e with
+    | Let x e1 e2 =>
+        syn ctx e1 |>
+            map_option (fun ty1 => Ctx.extend ctx (x, ty1)) |>
+            flatmap_option (fun ctx' => ana ctx' e2 ty)
+    | Lam x e' (* ALam *) =>
+      match HTyp.matched_arrow ty with
+      | Some (ty1, ty2) =>
         let ctx' := Ctx.extend ctx (x, ty1) in
-        (ana_rec counter) ctx' e2 ty
-      | Lam x e' =>
-        match HTyp.matched_arrow ty with
-        | Some (ty1, ty2) =>
-          let ctx' := Ctx.extend ctx (x, ty1) in
-          (ana_rec counter) ctx' e' ty2
-        | _ => lift [_;_] "01" (raise_IllTyped tt)
-        end
-      | Inj side e' =>
-        match HTyp.matched_sum ty with
-        | Some (ty1, ty2) => (ana_rec counter) ctx e' (pick_side side ty1 ty2)
-        | None => lift [_;_] "01" (raise_IllTyped tt)
-        end
-      | Case e' (x, e1) (y, e2) =>
-        let! e'_ty := (syn_rec counter) ctx e' in
+        ana ctx' e' ty2
+      | _ => None
+      end
+    | Inj side e' (* 21a *) =>
+      match HTyp.matched_sum ty with
+      | Some (ty1, ty2) => ana ctx e' (pick_side side ty1 ty2)
+      | None => None
+      end
+    | Case e' (x, e1) (y, e2) (* 21b *) =>
+      let _e'_ty := syn ctx e' in
+      match _e'_ty with
+      | Some e'_ty =>
         match HTyp.matched_sum e'_ty with
         | Some (ty1, ty2) =>
           let ctx1 := Ctx.extend ctx (x, ty1) in
-          let! x_1 := (ana_rec counter) ctx1 e1 ty in
-          match x_1 with
-          | tt =>
+          match (ana ctx1 e1 ty) with
+          | Some _ =>
             let ctx2 := Ctx.extend ctx (y, ty2) in
-            (ana_rec counter) ctx2 e2 ty
+            ana ctx2 e2 ty
+          | None => None
           end
-        | _ => lift [_;_] "01" (raise_IllTyped tt)
+        | None => None
         end
-      | _ =>
-        let! ty' := (syn_rec counter) ctx e in
-        lift [_;_] "01"
-          (if HTyp.consistent ty ty' then
-            ret tt
-          else
-            raise_IllTyped tt)
+      | None => None
       end
+    | _ => None
+      (* ASubsume -- coq gets confused about the fix point with this case *)
+      (*syn ctx e |>
+          flatmap_option (fun ty' =>
+            (if HTyp.consistent ty ty' then
+              Some tt
+            else
+              None)
+          )*)
     end.
-
-  Definition syn (ctx : Ctx.t) (e : t)
-    : M [ Counter; NonTermination; IllTyped ] HTyp.t :=
-    let! x := lift [_;_;_] "100" (read_counter tt) in
-    lift [_;_;_] "011" (syn_rec x ctx e).
-
-  Definition ana (ctx : Ctx.t) (e : t) (ty : HTyp.t)
-    : M [ Counter; NonTermination; IllTyped ] unit :=
-    let! x := lift [_;_;_] "100" (read_counter tt) in
-    lift [_;_;_] "011" (ana_rec x ctx e ty).
 
   Fixpoint complete (e : t) : bool :=
     match e with
@@ -521,18 +517,16 @@ Module Action.
 
   Definition hsyn (ctx : Ctx.t) (e : HExp.t)
     : M [ Counter; NonTermination; InvalidAction ] HTyp.t :=
-    let! x := lift [_;_;_] "110" (Exception.run 2 (HExp.syn ctx e) tt) in
-    match x with
-    | inl x => ret x
-    | inr tt => lift [_;_;_] "001" (raise_InvalidAction tt)
+    match HExp.syn ctx e with
+    | Some x => ret x
+    | None => lift [_;_;_] "001" (raise_InvalidAction tt)
     end.
 
   Definition hana (ctx : Ctx.t) (e : HExp.t) (ty : HTyp.t)
     : M [ Counter; NonTermination; InvalidAction ] unit :=
-    let! x := lift [_;_;_] "110" (Exception.run 2 (HExp.ana ctx e ty) tt) in
-    match x with
-    | inl x => ret x
-    | inr tt => lift [_;_;_] "001" (raise_InvalidAction tt)
+    match HExp.ana ctx e ty with
+    | Some x => ret x
+    | None => lift [_;_;_] "001" (raise_InvalidAction tt)
     end.
 
 End Action.
