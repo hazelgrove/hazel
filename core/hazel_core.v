@@ -1,9 +1,6 @@
 Require Coq.Bool.Bool. Open Scope bool.
-Require Import OCaml.OCaml.
-
-Local Open Scope Z_scope.
-Local Open Scope type_scope.
-Import ListNotations.
+Require Coq.Arith.PeanoNat. Open Scope nat_scope.
+Require Coq.Lists.List. Open Scope list_scope.
 
 Lemma and_proj_1 : forall b1 b2 : bool,
   (b1 && b2) = true -> b1 = true.
@@ -138,9 +135,9 @@ Module HTyp.
 End HTyp.
 
 Module Var.
-  Definition t := Z.
+  Definition t := nat.
 
-  Definition equal (x : t) (y : t) : bool := equiv_decb x y.
+  Definition equal (x : t) (y : t) : bool := Coq.Arith.PeanoNat.Nat.eqb x y.
 End Var.
 
 Module Type CTX.
@@ -152,7 +149,7 @@ End CTX.
 Module _Ctx <: CTX.
   Definition t := list (Var.t * HTyp.t).
 
-  Definition empty : t := [].
+  Definition empty : t := nil.
 
   Definition extend (ctx : t) (x : Var.t * HTyp.t)
     : t :=
@@ -162,7 +159,7 @@ Module _Ctx <: CTX.
 
   Fixpoint lookup (ctx : t) (x : Var.t) : option HTyp.t :=
     match ctx with
-    | [] => None
+    | nil => None
     | cons (y, ty) ctx' =>
       match Var.equal x y with
       | true => Some ty
@@ -189,17 +186,12 @@ Module HExp.
   | Let : Var.t -> t -> t -> t
   | Lam : Var.t -> t -> t
   | Ap : t -> t -> t
-  | NumLit : Z -> t
+  | NumLit : nat -> t
   | Plus : t -> t -> t
   | Inj : inj_side -> t -> t
   | Case : t -> (Var.t * t) -> (Var.t * t) -> t
   | EmptyHole : t
   | NonEmptyHole : t -> t.
-
-  Definition IllTyped := Effect.make unit unit.
-
-  Definition raise_IllTyped {A : Type} (x : unit) : M [ IllTyped ] A :=
-    fun s => (inr (inl x), s).
 
   (* helpers that should be lifted out of this module probably *)
   Fixpoint map_option {A B : Type} (f : A -> B) (input : option A) : option B :=
@@ -239,11 +231,7 @@ Module HExp.
         end
       | None => None
       end
-    | NumLit i (* SNum *) =>
-        (if OCaml.Pervasives.lt i 0 then
-          None
-        else
-          Some HTyp.Num)
+    | NumLit i (* SNum *) => Some HTyp.Num
     | Plus e1 e2 (* 3e *) =>
       let _ := ana ctx e1 HTyp.Num in
       let _ := ana ctx e2 HTyp.Num in
@@ -376,7 +364,7 @@ End ZExp.
 
 Module Action.
   Inductive direction : Type :=
-  | Child : Z -> direction
+  | Child : nat -> direction
   | Parent : direction.
 
   Inductive shape : Type :=
@@ -388,7 +376,7 @@ Module Action.
   | SVar : Var.t -> shape
   | SLam : Var.t -> shape
   | SAp : shape
-  | SLit : Z -> shape
+  | SLit : nat -> shape
   | SPlus : shape
   | SInj : HExp.inj_side -> shape
   | SCase : Var.t -> Var.t -> shape
@@ -400,140 +388,139 @@ Module Action.
   | Construct : shape -> t
   | Finish : t.
 
-  Definition InvalidAction := Effect.make unit unit.
+  (*Fixpoint performTyp (a : t) (zty : ZTyp.t) : M [ InvalidAction ] ZTyp.t :=*)
+    (*match (a, zty) with*)
+    (*| (Move (Child 1), ZTyp.CursorT (HTyp.Arrow ty1 ty2)) =>*)
+      (*ret (ZTyp.LeftArrow (ZTyp.CursorT ty1) ty2)*)
+    (*| (Move (Child 2), ZTyp.CursorT (HTyp.Arrow ty1 ty2)) =>*)
+      (*ret (ZTyp.RightArrow ty1 (ZTyp.CursorT ty2))*)
+    (*| (Move Parent, ZTyp.LeftArrow (ZTyp.CursorT ty1) ty2) =>*)
+      (*ret (ZTyp.CursorT (HTyp.Arrow ty1 ty2))*)
+    (*| (Move Parent, ZTyp.RightArrow ty1 (ZTyp.CursorT ty2)) =>*)
+      (*ret (ZTyp.CursorT (HTyp.Arrow ty1 ty2))*)
+    (*| (Move (Child 1), ZTyp.CursorT (HTyp.Sum ty1 ty2)) =>*)
+      (*ret (ZTyp.LeftSum (ZTyp.CursorT ty1) ty2)*)
+    (*| (Move (Child 2), ZTyp.CursorT (HTyp.Sum ty1 ty2)) =>*)
+      (*ret (ZTyp.RightSum ty1 (ZTyp.CursorT ty2))*)
+    (*| (Move Parent, ZTyp.LeftSum (ZTyp.CursorT ty1) ty2) =>*)
+      (*ret (ZTyp.CursorT (HTyp.Sum ty1 ty2))*)
+    (*| (Move Parent, ZTyp.RightSum ty1 (ZTyp.CursorT ty2)) =>*)
+      (*ret (ZTyp.CursorT (HTyp.Sum ty1 ty2))*)
+    (*| (Del, ZTyp.CursorT ty) => ret (ZTyp.CursorT HTyp.Hole)*)
+    (*| (Construct SArrow, ZTyp.CursorT ty) =>*)
+      (*ret (ZTyp.RightArrow ty (ZTyp.CursorT HTyp.Hole))*)
+    (*| (Construct SNum, ZTyp.CursorT HTyp.Hole) => ret (ZTyp.CursorT HTyp.Num)*)
+    (*| (Construct SSum, ZTyp.CursorT ty) =>*)
+      (*ret (ZTyp.RightSum ty (ZTyp.CursorT HTyp.Hole))*)
+    (*| (_, ZTyp.LeftArrow zty1 ty2) =>*)
+      (*let! zty1' := performTyp a zty1 in*)
+      (*ret (ZTyp.LeftArrow zty1' ty2)*)
+    (*| (_, ZTyp.RightArrow ty1 zty2) =>*)
+      (*let! zty2' := performTyp a zty2 in*)
+      (*ret (ZTyp.RightArrow ty1 zty2')*)
+    (*| (_, ZTyp.LeftSum zty1 ty2) =>*)
+      (*let! zty1' := performTyp a zty1 in*)
+      (*ret (ZTyp.LeftSum zty1' ty2)*)
+    (*| (_, ZTyp.RightSum ty1 zty2) =>*)
+      (*let! zty2' := performTyp a zty2 in*)
+      (*ret (ZTyp.RightSum ty1 zty2')*)
+    (*| _ => raise_InvalidAction tt*)
+    (*end.*)
 
-  Definition raise_InvalidAction {A : Type} (x : unit) : M [ InvalidAction ] A :=
-    fun s => (inr (inl x), s).
+  (*Fixpoint performEMove (action : t) (ze : ZExp.t)*)
+    (*: M [ InvalidAction ] ZExp.t :=*)
+    (*match action with*)
+    (*| Move direction =>*)
+      (*match (direction, ze) with*)
+      (*| (Child 1, ZExp.CursorE (HExp.Asc e ty)) =>*)
+        (*ret (ZExp.LeftAsc (ZExp.CursorE e) ty)*)
+      (*| (Child 2, ZExp.CursorE (HExp.Asc e ty)) =>*)
+        (*ret (ZExp.RightAsc e (ZTyp.CursorT ty))*)
+      (*| (Parent, ZExp.LeftAsc (ZExp.CursorE e) ty) =>*)
+        (*ret (ZExp.CursorE (HExp.Asc e ty))*)
+      (*| (Parent, ZExp.RightAsc e (ZTyp.CursorT ty)) =>*)
+        (*ret (ZExp.CursorE (HExp.Asc e ty))*)
+      (*| (Child 1, ZExp.CursorE (HExp.Let x e e')) =>*)
+        (*ret (ZExp.LetZ1 x (ZExp.CursorE e) e')*)
+      (*| (Child 2, ZExp.CursorE (HExp.Let x e e')) =>*)
+        (*ret (ZExp.LetZ2 x e (ZExp.CursorE e'))*)
+      (*| (Parent, ZExp.LetZ1 x (ZExp.CursorE e) e') =>*)
+        (*ret (ZExp.CursorE (HExp.Let x e e'))*)
+      (*| (Parent, ZExp.LetZ2 x e (ZExp.CursorE e')) =>*)
+        (*ret (ZExp.CursorE (HExp.Let x e e'))*)
+      (*| (Child 1, ZExp.CursorE (HExp.Lam x e)) =>*)
+        (*ret (ZExp.LamZ x (ZExp.CursorE e))*)
+      (*| (Parent, ZExp.LamZ x (ZExp.CursorE e)) =>*)
+        (*ret (ZExp.CursorE (HExp.Lam x e))*)
+      (*| (Child 1, ZExp.CursorE (HExp.Ap e1 e2)) =>*)
+        (*ret (ZExp.LeftAp (ZExp.CursorE e1) e2)*)
+      (*| (Child 2, ZExp.CursorE (HExp.Ap e1 e2)) =>*)
+        (*ret (ZExp.RightAp e1 (ZExp.CursorE e2))*)
+      (*| (Parent, ZExp.LeftAp (ZExp.CursorE e1) e2) =>*)
+        (*ret (ZExp.CursorE (HExp.Ap e1 e2))*)
+      (*| (Parent, ZExp.RightAp e1 (ZExp.CursorE e2)) =>*)
+        (*ret (ZExp.CursorE (HExp.Ap e1 e2))*)
+      (*| (Child 1, ZExp.CursorE (HExp.Plus e1 e2)) =>*)
+        (*ret (ZExp.LeftPlus (ZExp.CursorE e1) e2)*)
+      (*| (Child 2, ZExp.CursorE (HExp.Plus e1 e2)) =>*)
+        (*ret (ZExp.RightPlus e1 (ZExp.CursorE e2))*)
+      (*| (Parent, ZExp.LeftPlus (ZExp.CursorE e1) e2) =>*)
+        (*ret (ZExp.CursorE (HExp.Plus e1 e2))*)
+      (*| (Parent, ZExp.RightPlus e1 (ZExp.CursorE e2)) =>*)
+        (*ret (ZExp.CursorE (HExp.Plus e1 e2))*)
+      (*| (Child 1, ZExp.CursorE (HExp.Inj side e)) =>*)
+        (*ret (ZExp.InjZ side (ZExp.CursorE e))*)
+      (*| (Parent, ZExp.InjZ side (ZExp.CursorE e)) =>*)
+        (*ret (ZExp.CursorE (HExp.Inj side e))*)
+      (*| (Child 1, ZExp.CursorE (HExp.Case e branch1 branch2)) =>*)
+        (*ret (ZExp.CaseZ1 (ZExp.CursorE e) branch1 branch2)*)
+      (*| (Child 2, ZExp.CursorE (HExp.Case e (x, e1) branch2)) =>*)
+        (*ret (ZExp.CaseZ2 e (x, (ZExp.CursorE e1)) branch2)*)
+      (*| (Child 3, ZExp.CursorE (HExp.Case e branch1 (y, e2))) =>*)
+        (*ret (ZExp.CaseZ3 e branch1 (y, (ZExp.CursorE e2)))*)
+      (*| (Parent, ZExp.CaseZ1 (ZExp.CursorE e) branch1 branch2) =>*)
+        (*ret (ZExp.CursorE (HExp.Case e branch1 branch2))*)
+      (*| (Parent, ZExp.CaseZ2 e (x, ZExp.CursorE e1) branch2) =>*)
+        (*ret (ZExp.CursorE (HExp.Case e (x, e1) branch2))*)
+      (*| (Parent, ZExp.CaseZ3 e branch1 (y, ZExp.CursorE e2)) =>*)
+        (*ret (ZExp.CursorE (HExp.Case e branch1 (y, e2)))*)
+      (*| (Child 1, ZExp.CursorE (HExp.NonEmptyHole e)) =>*)
+        (*ret (ZExp.NonEmptyHoleZ (ZExp.CursorE e))*)
+      (*| (Parent, ZExp.NonEmptyHoleZ (ZExp.CursorE e)) =>*)
+        (*ret (ZExp.CursorE (HExp.NonEmptyHole e))*)
+      (*| _ => raise_InvalidAction tt*)
+      (*end*)
+    (*| _ => raise_InvalidAction tt*)
+    (*end.*)
 
-  Definition Impossible := Effect.make unit unit.
+  (*Definition hsyn (ctx : Ctx.t) (e : HExp.t)*)
+    (*: M [ Counter; NonTermination; InvalidAction ] HTyp.t :=*)
+    (*match HExp.syn ctx e with*)
+    (*| Some x => ret x*)
+    (*| None => lift [_;_;_] "001" (raise_InvalidAction tt)*)
+    (*end.*)
 
-  Definition raise_Impossible {A : Type} (x : unit) : M [ Impossible ] A :=
-    fun s => (inr (inl x), s).
-
-  Fixpoint performTyp (a : t) (zty : ZTyp.t) : M [ InvalidAction ] ZTyp.t :=
-    match (a, zty) with
-    | (Move (Child 1), ZTyp.CursorT (HTyp.Arrow ty1 ty2)) =>
-      ret (ZTyp.LeftArrow (ZTyp.CursorT ty1) ty2)
-    | (Move (Child 2), ZTyp.CursorT (HTyp.Arrow ty1 ty2)) =>
-      ret (ZTyp.RightArrow ty1 (ZTyp.CursorT ty2))
-    | (Move Parent, ZTyp.LeftArrow (ZTyp.CursorT ty1) ty2) =>
-      ret (ZTyp.CursorT (HTyp.Arrow ty1 ty2))
-    | (Move Parent, ZTyp.RightArrow ty1 (ZTyp.CursorT ty2)) =>
-      ret (ZTyp.CursorT (HTyp.Arrow ty1 ty2))
-    | (Move (Child 1), ZTyp.CursorT (HTyp.Sum ty1 ty2)) =>
-      ret (ZTyp.LeftSum (ZTyp.CursorT ty1) ty2)
-    | (Move (Child 2), ZTyp.CursorT (HTyp.Sum ty1 ty2)) =>
-      ret (ZTyp.RightSum ty1 (ZTyp.CursorT ty2))
-    | (Move Parent, ZTyp.LeftSum (ZTyp.CursorT ty1) ty2) =>
-      ret (ZTyp.CursorT (HTyp.Sum ty1 ty2))
-    | (Move Parent, ZTyp.RightSum ty1 (ZTyp.CursorT ty2)) =>
-      ret (ZTyp.CursorT (HTyp.Sum ty1 ty2))
-    | (Del, ZTyp.CursorT ty) => ret (ZTyp.CursorT HTyp.Hole)
-    | (Construct SArrow, ZTyp.CursorT ty) =>
-      ret (ZTyp.RightArrow ty (ZTyp.CursorT HTyp.Hole))
-    | (Construct SNum, ZTyp.CursorT HTyp.Hole) => ret (ZTyp.CursorT HTyp.Num)
-    | (Construct SSum, ZTyp.CursorT ty) =>
-      ret (ZTyp.RightSum ty (ZTyp.CursorT HTyp.Hole))
-    | (_, ZTyp.LeftArrow zty1 ty2) =>
-      let! zty1' := performTyp a zty1 in
-      ret (ZTyp.LeftArrow zty1' ty2)
-    | (_, ZTyp.RightArrow ty1 zty2) =>
-      let! zty2' := performTyp a zty2 in
-      ret (ZTyp.RightArrow ty1 zty2')
-    | (_, ZTyp.LeftSum zty1 ty2) =>
-      let! zty1' := performTyp a zty1 in
-      ret (ZTyp.LeftSum zty1' ty2)
-    | (_, ZTyp.RightSum ty1 zty2) =>
-      let! zty2' := performTyp a zty2 in
-      ret (ZTyp.RightSum ty1 zty2')
-    | _ => raise_InvalidAction tt
-    end.
-
-  Fixpoint performEMove (action : t) (ze : ZExp.t)
-    : M [ InvalidAction ] ZExp.t :=
-    match action with
-    | Move direction =>
-      match (direction, ze) with
-      | (Child 1, ZExp.CursorE (HExp.Asc e ty)) =>
-        ret (ZExp.LeftAsc (ZExp.CursorE e) ty)
-      | (Child 2, ZExp.CursorE (HExp.Asc e ty)) =>
-        ret (ZExp.RightAsc e (ZTyp.CursorT ty))
-      | (Parent, ZExp.LeftAsc (ZExp.CursorE e) ty) =>
-        ret (ZExp.CursorE (HExp.Asc e ty))
-      | (Parent, ZExp.RightAsc e (ZTyp.CursorT ty)) =>
-        ret (ZExp.CursorE (HExp.Asc e ty))
-      | (Child 1, ZExp.CursorE (HExp.Let x e e')) =>
-        ret (ZExp.LetZ1 x (ZExp.CursorE e) e')
-      | (Child 2, ZExp.CursorE (HExp.Let x e e')) =>
-        ret (ZExp.LetZ2 x e (ZExp.CursorE e'))
-      | (Parent, ZExp.LetZ1 x (ZExp.CursorE e) e') =>
-        ret (ZExp.CursorE (HExp.Let x e e'))
-      | (Parent, ZExp.LetZ2 x e (ZExp.CursorE e')) =>
-        ret (ZExp.CursorE (HExp.Let x e e'))
-      | (Child 1, ZExp.CursorE (HExp.Lam x e)) =>
-        ret (ZExp.LamZ x (ZExp.CursorE e))
-      | (Parent, ZExp.LamZ x (ZExp.CursorE e)) =>
-        ret (ZExp.CursorE (HExp.Lam x e))
-      | (Child 1, ZExp.CursorE (HExp.Ap e1 e2)) =>
-        ret (ZExp.LeftAp (ZExp.CursorE e1) e2)
-      | (Child 2, ZExp.CursorE (HExp.Ap e1 e2)) =>
-        ret (ZExp.RightAp e1 (ZExp.CursorE e2))
-      | (Parent, ZExp.LeftAp (ZExp.CursorE e1) e2) =>
-        ret (ZExp.CursorE (HExp.Ap e1 e2))
-      | (Parent, ZExp.RightAp e1 (ZExp.CursorE e2)) =>
-        ret (ZExp.CursorE (HExp.Ap e1 e2))
-      | (Child 1, ZExp.CursorE (HExp.Plus e1 e2)) =>
-        ret (ZExp.LeftPlus (ZExp.CursorE e1) e2)
-      | (Child 2, ZExp.CursorE (HExp.Plus e1 e2)) =>
-        ret (ZExp.RightPlus e1 (ZExp.CursorE e2))
-      | (Parent, ZExp.LeftPlus (ZExp.CursorE e1) e2) =>
-        ret (ZExp.CursorE (HExp.Plus e1 e2))
-      | (Parent, ZExp.RightPlus e1 (ZExp.CursorE e2)) =>
-        ret (ZExp.CursorE (HExp.Plus e1 e2))
-      | (Child 1, ZExp.CursorE (HExp.Inj side e)) =>
-        ret (ZExp.InjZ side (ZExp.CursorE e))
-      | (Parent, ZExp.InjZ side (ZExp.CursorE e)) =>
-        ret (ZExp.CursorE (HExp.Inj side e))
-      | (Child 1, ZExp.CursorE (HExp.Case e branch1 branch2)) =>
-        ret (ZExp.CaseZ1 (ZExp.CursorE e) branch1 branch2)
-      | (Child 2, ZExp.CursorE (HExp.Case e (x, e1) branch2)) =>
-        ret (ZExp.CaseZ2 e (x, (ZExp.CursorE e1)) branch2)
-      | (Child 3, ZExp.CursorE (HExp.Case e branch1 (y, e2))) =>
-        ret (ZExp.CaseZ3 e branch1 (y, (ZExp.CursorE e2)))
-      | (Parent, ZExp.CaseZ1 (ZExp.CursorE e) branch1 branch2) =>
-        ret (ZExp.CursorE (HExp.Case e branch1 branch2))
-      | (Parent, ZExp.CaseZ2 e (x, ZExp.CursorE e1) branch2) =>
-        ret (ZExp.CursorE (HExp.Case e (x, e1) branch2))
-      | (Parent, ZExp.CaseZ3 e branch1 (y, ZExp.CursorE e2)) =>
-        ret (ZExp.CursorE (HExp.Case e branch1 (y, e2)))
-      | (Child 1, ZExp.CursorE (HExp.NonEmptyHole e)) =>
-        ret (ZExp.NonEmptyHoleZ (ZExp.CursorE e))
-      | (Parent, ZExp.NonEmptyHoleZ (ZExp.CursorE e)) =>
-        ret (ZExp.CursorE (HExp.NonEmptyHole e))
-      | _ => raise_InvalidAction tt
-      end
-    | _ => raise_InvalidAction tt
-    end.
-
-  Definition hsyn (ctx : Ctx.t) (e : HExp.t)
-    : M [ Counter; NonTermination; InvalidAction ] HTyp.t :=
-    match HExp.syn ctx e with
-    | Some x => ret x
-    | None => lift [_;_;_] "001" (raise_InvalidAction tt)
-    end.
-
-  Definition hana (ctx : Ctx.t) (e : HExp.t) (ty : HTyp.t)
-    : M [ Counter; NonTermination; InvalidAction ] unit :=
-    match HExp.ana ctx e ty with
-    | Some x => ret x
-    | None => lift [_;_;_] "001" (raise_InvalidAction tt)
-    end.
+  (*Definition hana (ctx : Ctx.t) (e : HExp.t) (ty : HTyp.t)*)
+    (*: M [ Counter; NonTermination; InvalidAction ] unit :=*)
+    (*match HExp.ana ctx e ty with*)
+    (*| Some x => ret x*)
+    (*| None => lift [_;_;_] "001" (raise_InvalidAction tt)*)
+    (*end.*)
 
 End Action.
 
 Extract Inductive bool => "bool" ["true" "false"].
+Extract Inductive unit => "unit" ["()"].
 Extract Constant negb => "not".
+Extract Constant Coq.Arith.PeanoNat.Nat.eqb => "(=)".
 Extract Inductive option => "option" ["Some" "None"].
 Extract Inductive prod => "(*)" ["(,)"].
 Extract Inductive list => "list" [ "[]" "(::)" ].
+Extract Inductive nat => int [ "0" "succ" ]
+       "(fun fO fS n -> if n=0 then fO () else fS (n-1))".
+(* TODO: Only extract "Action" when it is properly using all of the other modules *)
+Extraction HTyp.
+Extraction HExp.
+Extraction ZTyp.
+Extraction ZExp.
 Extraction Action.
