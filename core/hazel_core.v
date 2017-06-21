@@ -169,6 +169,10 @@ Module _Ctx <: CTX.
 End _Ctx.
 Module Ctx : CTX := _Ctx.
 
+Inductive Fuel : Type :=
+  | More : Fuel -> Fuel
+  | Kicked : Fuel.
+
 Module HExp.
   Inductive inj_side : Type :=
   | L : inj_side
@@ -210,125 +214,98 @@ Module HExp.
   Notation "X |> F" := (pipe_forward X F)
     (at level 40, left associativity) : core_scope.
 
-  Inductive Mode : Type := 
+  Inductive Mode : Type :=
   | Syn : Mode
   | Ana : HTyp.t -> Mode.
 
-  Inductive Result : Type := 
+  Inductive Result : Type :=
   | SynOK : HTyp.t -> Result
   | AnaOK : Result
   | IllTyped.
 
-  Fixpoint msynana (mode : Mode) (fuel : nat) (ctx : Ctx.t) (e : t) : Result := 
-  let syn := msynana Syn in 
-  match mode with 
-  | Syn => (
-    match e with
-    | Asc e' ty (* SAsc *) =>
-      let _ := msynana (Ana ty) (S(O)) ctx e' in SynOK ty
-    | _ => IllTyped
-    end
-  )
-  | Ana ty => (
-    match e with
-    | _ (* subsumption *) =>  
-		match fuel with 
-		| S(fuel') => (
-			let result := syn fuel' ctx e in 
-			match result with 
-			| SynOK(ty') => AnaOK
-			    (* if HTyp.consistent ty ty' then
-				  (Some tt)
-			     else None *)
-	        | _ => IllTyped
-	        end)
-		| _ => IllTyped
-	    end
-    end
-) end.
-
-  (* Fixpoint syn (fuel : nat) (ctx : Ctx.t) (e : t)
+  Fixpoint syn (fuel : Fuel) (ctx : Ctx.t) (e : t)
     : option HTyp.t :=
-    match e with
-    | Asc e' ty (* SAsc *) =>
-      let _ := ana fuel ctx e' ty in Some ty
-    | Var x (* SVar *) => Ctx.lookup ctx x
-    | Let x e1 e2 =>
-      (syn fuel ctx e1) |>
-          (map_option (fun ty1 => Ctx.extend ctx (x, ty1))) |>
-          (flatmap_option (fun ctx' => syn fuel ctx' e2))
-    | Ap e1 e2 (* SAp *) =>
-      let _ty1 := syn fuel ctx e1 in
-      match _ty1 with
-      | Some ty1 =>
-        match HTyp.matched_arrow ty1 with
-        | Some (ty1_left, ty1_right) =>
-            let _ := ana fuel ctx e2 ty1_left in Some ty1_right
-        | None => None
-        end
-      | None => None
-      end
-    | NumLit i (* SNum *) => Some HTyp.Num
-    | Plus e1 e2 (* 3e *) =>
-      let _ := ana fuel ctx e1 HTyp.Num in
-      let _ := ana fuel ctx e2 HTyp.Num in
-      Some HTyp.Num
-    | EmptyHole (* SHole *) => Some HTyp.Hole
-    | NonEmptyHole e' (* SNEHole *) =>
-      let _ := syn fuel ctx e' in
-      Some HTyp.Hole
-    | _ => None
-    end
-  with ana (fuel : nat) (ctx : Ctx.t) (e : t) (ty : HTyp.t)
-    : option unit :=
-    match e with
-    | Let x e1 e2 =>
-        syn fuel ctx e1 |>
-            map_option (fun ty1 => Ctx.extend ctx (x, ty1)) |>
-            flatmap_option (fun ctx' => ana fuel ctx' e2 ty)
-    | Lam x e' (* ALam *) =>
-      match HTyp.matched_arrow ty with
-      | Some (ty1, ty2) =>
-        let ctx' := Ctx.extend ctx (x, ty1) in
-        ana fuel ctx' e' ty2
-      | _ => None
-      end
-    | Inj side e' (* 21a *) =>
-      match HTyp.matched_sum ty with
-      | Some (ty1, ty2) => ana fuel ctx e' (pick_side side ty1 ty2)
-      | None => None
-      end
-    | Case e' (x, e1) (y, e2) (* 21b *) =>
-      let _e'_ty := syn fuel ctx e' in
-      match _e'_ty with
-      | Some e'_ty =>
-        match HTyp.matched_sum e'_ty with
-        | Some (ty1, ty2) =>
-          let ctx1 := Ctx.extend ctx (x, ty1) in
-          match (ana fuel ctx1 e1 ty) with
-          | Some _ =>
-            let ctx2 := Ctx.extend ctx (y, ty2) in
-            ana fuel ctx2 e2 ty
+    match fuel with
+    | More fuel =>
+      match e with
+      | Asc e' ty (* SAsc *) =>
+        let _ := ana fuel ctx e' ty in Some ty
+      | Var x (* SVar *) => Ctx.lookup ctx x
+      | Let x e1 e2 =>
+        (syn fuel ctx e1) |>
+            (map_option (fun ty1 => Ctx.extend ctx (x, ty1))) |>
+            (flatmap_option (fun ctx' => syn fuel ctx' e2))
+      | Ap e1 e2 (* SAp *) =>
+        let _ty1 := syn fuel ctx e1 in
+        match _ty1 with
+        | Some ty1 =>
+          match HTyp.matched_arrow ty1 with
+          | Some (ty1_left, ty1_right) =>
+              let _ := ana fuel ctx e2 ty1_left in Some ty1_right
           | None => None
           end
         | None => None
         end
-      | None => None
+      | NumLit i (* SNum *) => Some HTyp.Num
+      | Plus e1 e2 (* 3e *) =>
+        let _ := ana fuel ctx e1 HTyp.Num in
+        let _ := ana fuel ctx e2 HTyp.Num in
+        Some HTyp.Num
+      | EmptyHole (* SHole *) => Some HTyp.Hole
+      | NonEmptyHole e' (* SNEHole *) =>
+        let _ := syn fuel ctx e' in
+        Some HTyp.Hole
+      | _ => None
       end
-    | _ (* subsumption *) =>  
-		match fuel with 
-		| S(fuel') => (
-			let ty' := syn fuel' ctx e in 
-			match ty' with 
-			| Some ty' => None 
-			    (* if HTyp.consistent ty ty' then
-				  (Some tt)
-			     else None *)
-	        | None => None
-	        end)
-		| _ => None
-	    end
-    end. *)
+    | Kicked => None
+    end
+  with ana (fuel : Fuel) (ctx : Ctx.t) (e : t) (ty : HTyp.t)
+    : option unit :=
+    match fuel with
+    | More fuel =>
+      match e with
+      | Let x e1 e2 =>
+          syn fuel ctx e1 |>
+              map_option (fun ty1 => Ctx.extend ctx (x, ty1)) |>
+              flatmap_option (fun ctx' => ana fuel ctx' e2 ty)
+      | Lam x e' (* ALam *) =>
+        match HTyp.matched_arrow ty with
+        | Some (ty1, ty2) =>
+          let ctx' := Ctx.extend ctx (x, ty1) in
+          ana fuel ctx' e' ty2
+        | _ => None
+        end
+      | Inj side e' (* 21a *) =>
+        match HTyp.matched_sum ty with
+        | Some (ty1, ty2) => ana fuel ctx e' (pick_side side ty1 ty2)
+        | None => None
+        end
+      | Case e' (x, e1) (y, e2) (* 21b *) =>
+        let _e'_ty := syn fuel ctx e' in
+        match _e'_ty with
+        | Some e'_ty =>
+          match HTyp.matched_sum e'_ty with
+          | Some (ty1, ty2) =>
+            let ctx1 := Ctx.extend ctx (x, ty1) in
+            match (ana fuel ctx1 e1 ty) with
+            | Some _ =>
+              let ctx2 := Ctx.extend ctx (y, ty2) in
+              ana fuel ctx2 e2 ty
+            | None => None
+            end
+          | None => None
+          end
+        | None => None
+        end
+      | _ (* subsumption *) =>
+        match syn fuel ctx e with
+        | Some ty' =>
+            if HTyp.consistent ty ty' then (Some tt) else None
+        | None => None
+        end
+      end
+    | Kicked => None
+    end.
 
   Fixpoint complete (e : t) : bool :=
     match e with
@@ -559,6 +536,8 @@ Extract Inductive prod => "(*)" ["(,)"].
 Extract Inductive list => "list" [ "[]" "(::)" ].
 Extract Inductive nat => int [ "0" "succ" ]
        "(fun fO fS n -> if n=0 then fO () else fS (n-1))".
+Extract Inductive Fuel => "unit" [ "()" "()" ] "(fun fMore _ fKicked -> fMore ())".
+
 (* TODO: Only extract "Action" when it is properly using all of the other modules *)
 Extraction HTyp.
 Extraction HExp.
