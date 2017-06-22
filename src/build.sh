@@ -5,15 +5,15 @@ set -eou pipefail
 SCRIPTPATH="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 cd "$SCRIPTPATH"
 
-for f in `find . -name '*.ml'` ; \
+for f in `find . -name '*.re'` ; \
 do ( \
-ocp-indent -i $f; \
+refmt --in-place $f; \
 ); \
 done
 
 ../core/extract-coq.sh
 
-ocamlbuild -use-ocamlfind \
+rebuild -use-ocamlfind \
   -pkgs js_of_ocaml,js_of_ocaml.ppx,js_of_ocaml.tyxml,tyxml,react,reactiveData,camomile \
    hazel.byte;
 
