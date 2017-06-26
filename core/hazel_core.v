@@ -173,7 +173,6 @@ Inductive Fuel : Type :=
   | More : Fuel -> Fuel
   | Kicked : Fuel.
 
-(* helpers that should be lifted out of this module probably *)
 Fixpoint map_option {A B : Type} (f : A -> B) (input : option A) : option B :=
   match input with
   | Some x => Some (f x)
@@ -508,163 +507,184 @@ Module Action.
     | _ => None
     end.
 
-(*
-  let hsyn ctx e = try
-      HExp.syn ctx e 
-    with HExp.IllTyped -> raise InvalidAction
+  Definition hsyn (fuel: Fuel) (ctx: Ctx.t) (e: HExp.t): option HTyp.t := HExp.syn fuel ctx e.
 
-  let hana ctx e ty = try
-      HExp.ana ctx e ty 
-    with HExp.IllTyped -> raise InvalidAction
+  Definition hana (fuel: Fuel) (ctx: Ctx.t) (e: HExp.t) (ty: HTyp.t): option unit := HExp.ana fuel ctx e ty.
 
-  let rec performSyn ctx a (ze, ty) =
-    try
-      (performEMove a ze, ty) (* SAMove *)
-    with InvalidAction ->
-      begin match (a, (ze, ty)) with
+  Fixpoint performSyn (fuel: Fuel) (ctx: Ctx.t) (a: t) (ze_ty: ZExp.t * HTyp.t): option (ZExp.t * HTyp.t) :=
+    match ze_ty with
+    | (ze, ty) =>
+    match fuel with
+    | Kicked => None
+    | More fuel =>
+    match performEMove a ze with
+    | Some ze1 => Some (ze1, ty) (* SAMove *)
+    | None =>
+      match (a, (ze, ty)) with
         (* Deletion *)
-        | (Del, (ZExp.CursorE e, _)) (* SADel *) ->
-          ((ZExp.CursorE HExp.EmptyHole), HTyp.Hole)
+        | (Del, (ZExp.CursorE e, _)) (* SADel *) =>
+          Some ((ZExp.CursorE HExp.EmptyHole), HTyp.Hole)
         (* Construction *)
-        | (Construct SAsc, (ZExp.CursorE e, ty)) (* SAConAsc *) ->
-          (ZExp.RightAsc (e, ZTyp.CursorT ty), ty)
-        | (Construct (SVar x), (ZExp.CursorE HExp.EmptyHole, HTyp.Hole)) (* SAConVar *) ->
-          begin match Ctx.lookup ctx x with
-            | Some xty -> (ZExp.CursorE (HExp.Var x), xty)
-            | None -> raise InvalidAction
+        | (Construct SAsc, (ZExp.CursorE e, ty)) (* SAConAsc *) =>
+          Some (ZExp.RightAsc e (ZTyp.CursorT ty), ty)
+        | (Construct (SVar x), (ZExp.CursorE HExp.EmptyHole, HTyp.Hole)) (* SAConVar *) =>
+          match Ctx.lookup ctx x with
+          | Some xty => Some (ZExp.CursorE (HExp.Var x), xty)
+          | None => None
           end
-        | (Construct (SLet x), (ZExp.CursorE e, ty)) -> 
-          begin match e with 
-            | HExp.EmptyHole -> 
-              (ZExp.LetZ1 (x, ZExp.CursorE e, HExp.EmptyHole), HTyp.Hole)
-            | _ -> 
-              (ZExp.LetZ2 (x, e, ZExp.CursorE HExp.EmptyHole), HTyp.Hole)
+        | (Construct (SLet x), (ZExp.CursorE e, ty)) =>
+          match e with
+            | HExp.EmptyHole =>
+              Some ((ZExp.LetZ1 x (ZExp.CursorE e) HExp.EmptyHole), HTyp.Hole)
+            | _ =>
+              Some ((ZExp.LetZ2 x e (ZExp.CursorE HExp.EmptyHole)), HTyp.Hole)
           end
-        | (Construct (SLam x), (ZExp.CursorE HExp.EmptyHole, HTyp.Hole)) (* SAConLam *) ->
-          (ZExp.RightAsc (
-              HExp.Lam (x, HExp.EmptyHole),
-              ZTyp.LeftArrow (ZTyp.CursorT HTyp.Hole, HTyp.Hole)),
-           HTyp.Arrow (HTyp.Hole, HTyp.Hole))
-        | (Construct SAp, (ZExp.CursorE e, ty)) ->
-          begin match HTyp.matched_arrow ty with
-            | Some (_, ty2) (* SAConApArr *) -> (ZExp.RightAp (
-                e,
-                ZExp.CursorE HExp.EmptyHole),
-                                                 ty2)
-            | None (* SAConApOtw *) -> (ZExp.RightAp (
-                HExp.NonEmptyHole e,
-                ZExp.CursorE HExp.EmptyHole),
-                                        HTyp.Hole)
+        | (Construct (SLam x), (ZExp.CursorE HExp.EmptyHole, HTyp.Hole)) (* SAConLam *) =>
+          Some (ZExp.RightAsc
+              (HExp.Lam x HExp.EmptyHole)
+              (ZTyp.LeftArrow (ZTyp.CursorT HTyp.Hole) HTyp.Hole),
+           (HTyp.Arrow HTyp.Hole HTyp.Hole))
+        | (Construct SAp, (ZExp.CursorE e, ty)) =>
+          match HTyp.matched_arrow ty with
+            | Some (_, ty2) (* SAConApArr *) => Some (
+                  (ZExp.RightAp e (ZExp.CursorE HExp.EmptyHole)),
+                  ty2)
+            | None (* SAConApOtw *) => Some (
+                (ZExp.RightAp (HExp.NonEmptyHole e) (ZExp.CursorE HExp.EmptyHole)),
+                HTyp.Hole)
           end
-        | (Construct (SLit n), (ZExp.CursorE HExp.EmptyHole, HTyp.Hole)) (* SAConNumLit *) ->
-          if n < 0 then raise InvalidAction else 
-            (ZExp.CursorE (HExp.NumLit n),
-             HTyp.Num)
-        | (Construct SPlus, (ZExp.CursorE e, _)) ->
+        | (Construct (SLit n), (ZExp.CursorE HExp.EmptyHole, HTyp.Hole)) (* SAConNumLit *) =>
+            Some (ZExp.CursorE (HExp.NumLit n), HTyp.Num)
+        | (Construct SPlus, (ZExp.CursorE e, _)) =>
           if HTyp.consistent ty HTyp.Num (* SAConPlus1 *) then
-            (ZExp.RightPlus (e, ZExp.CursorE HExp.EmptyHole),
-             HTyp.Num)
+            Some ((ZExp.RightPlus e (ZExp.CursorE HExp.EmptyHole)), HTyp.Num)
           else (* SAConPlus2 *)
-            (ZExp.RightPlus (HExp.NonEmptyHole e, ZExp.CursorE HExp.EmptyHole),
-             HTyp.Num)
-        | (Construct (SInj side), (ZExp.CursorE HExp.EmptyHole, HTyp.Hole)) (* 24a *) ->
-          (ZExp.RightAsc(
-              HExp.Inj (side, HExp.EmptyHole),
-              ZTyp.LeftSum (ZTyp.CursorT HTyp.Hole, HTyp.Hole)),
-           HTyp.Sum (HTyp.Hole, HTyp.Hole))
-        | (Construct (SCase (x, y)), ((ZExp.CursorE e), ty)) ->
-          begin match HTyp.matched_sum ty with
-            | Some _ (* 24b *) -> (ZExp.LeftAsc (
-                (ZExp.CaseZ2 (e,
-                              (x, ZExp.CursorE HExp.EmptyHole),
-                              (y, HExp.EmptyHole))),
-                HTyp.Hole), HTyp.Hole)
-            | None (* 24c *) -> (ZExp.LeftAsc (
-                (ZExp.CaseZ1 (ZExp.NonEmptyHoleZ (ZExp.CursorE e),
-                              (x, HExp.EmptyHole),
-                              (y, HExp.EmptyHole))),
-                HTyp.Hole), HTyp.Hole)
+            Some ((ZExp.RightPlus (HExp.NonEmptyHole e) (ZExp.CursorE HExp.EmptyHole)), HTyp.Num)
+        | (Construct (SInj side), (ZExp.CursorE HExp.EmptyHole, HTyp.Hole)) (* 24a *) =>
+          Some (
+            (ZExp.RightAsc (HExp.Inj side HExp.EmptyHole) (ZTyp.LeftSum (ZTyp.CursorT HTyp.Hole) HTyp.Hole)),
+            (HTyp.Sum HTyp.Hole HTyp.Hole)
+          )
+        | (Construct (SCase x y), ((ZExp.CursorE e), ty)) =>
+          match HTyp.matched_sum ty with
+            | Some _ (* 24b *) =>
+                let casez2 := (ZExp.CaseZ2 e
+                              (x, ZExp.CursorE HExp.EmptyHole)
+                              (y, HExp.EmptyHole)) in
+                Some (ZExp.LeftAsc casez2 HTyp.Hole, HTyp.Hole)
+            | None (* 24c *) => Some (
+                (ZExp.LeftAsc
+                  (ZExp.CaseZ1 (ZExp.NonEmptyHoleZ (ZExp.CursorE e))
+                                (x, HExp.EmptyHole)
+                                (y, HExp.EmptyHole))
+                  HTyp.Hole
+                ),
+                HTyp.Hole)
           end
-        | (Construct SNEHole, (ZExp.CursorE e', ty)) (* SAConNEHole *) ->
-          (ZExp.NonEmptyHoleZ (ZExp.CursorE e'), HTyp.Hole)
+        | (Construct SNEHole, (ZExp.CursorE e', ty)) (* SAConNEHole *) =>
+          Some (ZExp.NonEmptyHoleZ (ZExp.CursorE e'), HTyp.Hole)
         (* Finish *)
-        | (Finish, (ZExp.CursorE (HExp.NonEmptyHole e), HTyp.Hole)) (* SAFinish *) ->
-          let ty' = hsyn ctx e in
-          (ZExp.CursorE e, ty')
+        | (Finish, (ZExp.CursorE (HExp.NonEmptyHole e), HTyp.Hole)) (* SAFinish *) =>
+          (hsyn fuel ctx e) |>
+              map_option(fun ty' => (ZExp.CursorE e, ty'))
         (* Zipper Cases *)
-        | (a, (ZExp.LeftAsc (ze, ty), _)) (* SAZipAsc1 *) ->
-          (ZExp.LeftAsc ((performAna ctx a ze ty), ty), ty)
-        | (a, (ZExp.RightAsc (e, zty), _)) (* SAZipAsc2 *) ->
-          let zty' = performTyp a zty in
-          let ty' = ZTyp.erase zty' in
-          begin try
-              let _ = hana ctx e ty' in
-              (ZExp.RightAsc (e, zty'), ty')
-            with
-            | HExp.IllTyped -> raise InvalidAction
-          end
-        | (a, (ZExp.LetZ1 (x, ze1, e2), _)) -> 
-          let e1 = ZExp.erase ze1 in 
-          let ty1 = hsyn ctx e1 in 
-          let (ze1', ty1') = performSyn ctx a (ze1, ty1) in 
-          let ctx' = Ctx.extend ctx (x, ty1') in 
-          begin try 
-              let ty2' = hsyn ctx' e2 in 
-              (ZExp.LetZ1 (x, ze1', e2), ty2')
-            with HExp.IllTyped -> raise InvalidAction 
-          end 
-        | (a, (ZExp.LetZ2 (x, e1, ze2), _)) -> 
-          let ty1 = hsyn ctx e1 in 
-          let ctx' = Ctx.extend ctx (x, ty1) in 
-          let (ze2', ty2') = performSyn ctx' a (ze2, ty) in 
-          (ZExp.LetZ2 (x, e1, ze2'), ty2')
-        | (_, (ZExp.LeftAp (ze1, e2), _)) (* SAZipApArr *) ->
-          let e1 = ZExp.erase ze1 in
-          let ty2 = hsyn ctx e1 in
-          let (ze1', ty3) = performSyn ctx a (ze1, ty2) in
-          begin match HTyp.matched_arrow ty3 with
-            | Some (ty4, ty5) ->
-              let _ = hana ctx e2 ty4 in
-              (ZExp.LeftAp (ze1', e2),
-               ty5)
-            | None -> raise InvalidAction
-          end
-        | (_, (ZExp.RightAp (e1, ze2), _)) (* SAZipApAna *) ->
-          let ty2 = hsyn ctx e1 in
-          begin match HTyp.matched_arrow ty2 with
-            | Some (ty3, ty4) ->
-              let ze2' = performAna ctx a ze2 ty3 in
-              (ZExp.RightAp (e1, ze2'),
-               ty4)
-            | None -> raise InvalidAction
-          end
-        | (_, (ZExp.LeftPlus (ze1, e2), _)) (* SAZipPlus1 *) ->
-          let ze1' = performAna ctx a ze1 HTyp.Num in
-          (ZExp.LeftPlus (ze1', e2),
-           HTyp.Num)
-        | (_, (ZExp.RightPlus (e1, ze2), _)) (* SAZipPlus2 *) ->
-          let ze2' = performAna ctx a ze2 HTyp.Num in
-          (ZExp.RightPlus (e1, ze2'),
-           HTyp.Num)
-        | (_, (ZExp.NonEmptyHoleZ ze1, _)) (* SAZipHole *) ->
-          let e1 = ZExp.erase ze1 in
-          let ty1 = hsyn ctx e1 in
-          let (ze1', _) = performSyn ctx a (ze1, ty1) in
-          (ZExp.NonEmptyHoleZ ze1', HTyp.Hole)
-        | _ -> raise InvalidAction
+        | (a, (ZExp.LeftAsc ze ty, _)) (* SAZipAsc1 *) =>
+          (performAna fuel ctx a ze ty) |>
+              map_option(fun ze' => (ZExp.LeftAsc ze' ty, ty))
+        | (a, (ZExp.RightAsc e zty, _)) (* SAZipAsc2 *) =>
+          (performTyp a zty) |>
+              flatmap_option(fun zty' => let ty' := ZTyp.erase zty' in
+                (hana fuel ctx e ty') |>
+                  map_option(fun tt => (ZExp.RightAsc e zty', ty'))
+              )
+        | (a, (ZExp.LetZ1 x ze1 e2, _)) =>
+          let e1 := ZExp.erase ze1 in
+          (hsyn fuel ctx e1) |>
+              flatmap_option(fun ty1 => performSyn fuel ctx a (ze1, ty1)) |>
+              flatmap_option(fun ze_ty1' =>
+                match ze_ty1' with
+                | (ze1', ty1') =>
+                  let ctx' := Ctx.extend ctx (x, ty1') in
+                  (hsyn fuel ctx' e2) |>
+                    map_option(fun ty2' => (ZExp.LetZ1 x ze1' e2, ty2'))
+                end
+              )
+        | (a, (ZExp.LetZ2 x e1 ze2, _)) =>
+          (hsyn fuel ctx e1) |>
+              flatmap_option(fun ty1 =>
+                let ctx' := Ctx.extend ctx (x, ty1) in
+                performSyn fuel ctx' a (ze2, ty)
+              ) |>
+              map_option(fun ze_ty2' =>
+                match ze_ty2' with
+                | (ze2', ty2') =>
+                  (ZExp.LetZ2 x e1 ze2', ty2')
+                end)
+        | (_, (ZExp.LeftAp ze1 e2, _)) (* SAZipApArr *) =>
+          let e1 := ZExp.erase ze1 in
+          (hsyn fuel ctx e1) |>
+              flatmap_option(fun ty2 => performSyn fuel ctx a (ze1, ty2)) |>
+              flatmap_option(fun ze1'_ty3 =>
+                match ze1'_ty3 with
+                | (ze1', ty3) =>
+                  (HTyp.matched_arrow ty3) |>
+                      flatmap_option(fun ty4_ty5 =>
+                        match ty4_ty5 with
+                        | (ty4, ty5) =>
+                        (hana fuel ctx e2 ty5) |>
+                          map_option(fun _ => (ZExp.LeftAp ze1' e2, ty5))
+                        end
+                      )
+                end
+              )
+        | (_, (ZExp.RightAp e1 ze2, _)) (* SAZipApAna *) =>
+          (hsyn fuel ctx e1) |>
+              flatmap_option(fun ty2 => HTyp.matched_arrow ty2) |>
+              flatmap_option(fun ty3_ty4 =>
+                match ty3_ty4 with
+                | (ty3, ty4) =>
+                (performAna fuel ctx a ze2 ty3) |>
+                  map_option(fun ze2' => (ZExp.RightAp e1 ze2', ty4))
+                end
+              )
+        | (_, (ZExp.LeftPlus ze1 e2, _)) (* SAZipPlus1 *) =>
+          (performAna fuel ctx a ze1 HTyp.Num) |>
+              map_option(fun ze1' => (ZExp.LeftPlus ze1' e2, HTyp.Num))
+        | (_, (ZExp.RightPlus e1 ze2, _)) (* SAZipPlus2 *) =>
+          (performAna fuel ctx a ze2 HTyp.Num) |>
+              map_option(fun ze2' => (ZExp.RightPlus e1 ze2', HTyp.Num))
+        | (_, (ZExp.NonEmptyHoleZ ze1, _)) (* SAZipHole *) =>
+          let e1 := ZExp.erase ze1 in
+          (hsyn fuel ctx e1) |>
+              flatmap_option(fun ty1 => performSyn fuel ctx a (ze1, ty1)) |>
+              map_option(fun ze1'_ty1' =>
+                match ze1'_ty1' with
+                | (ze1', _) => (ZExp.NonEmptyHoleZ ze1', HTyp.Hole)
+                end)
+        | _ => None
+        end
       end
-  and performAna ctx a ze ty = match a with
-    | Move _ (* AAMove *) ->
-      (* try to use the non-zipper move actions *)
-      begin try
-          performEMove a ze
-        with InvalidAction ->
-          (* if it doesn't work, keep going --
-           * it'll hit the subsumption rule at the bottom *)
-          performAna_postMoveCheck ctx a ze ty
       end
-    | _ -> performAna_postMoveCheck ctx a ze ty
-  and performAna_postMoveCheck ctx a ze ty =
+      end
+    with performAna (fuel: Fuel) (ctx: Ctx.t) (a: t) (ze: ZExp.t) (ty: HTyp.t): option ZExp.t :=
+    match fuel with
+    | Kicked => None
+    | More fuel =>
+      match a with
+      | Move _ (* AAMove *) =>
+        (* try to use the non-zipper move actions *)
+        match performEMove a ze with
+        | Some x => Some x
+        | None => None
+            (*InvalidAction ->
+            (* if it doesn't work, keep going --
+             * it'll hit the subsumption rule at the bottom *)
+            performAna_postMoveCheck ctx a ze ty*)
+        end
+      | _ => None
+      end
+    end.
+(* and performAna_postMoveCheck ctx a ze ty =
     match (a, ze, ty) with
     (* Deletion *)
     | (Del, ZExp.CursorE e, _) (* AADel *) ->
@@ -677,7 +697,7 @@ Module Action.
       | Some xty -> HTyp.inconsistent ty xty
       | None -> false end (* SAConVar *) ->
       ZExp.NonEmptyHoleZ (ZExp.CursorE (HExp.Var x))
-    | (Construct (SLet x), ZExp.CursorE HExp.EmptyHole, _) -> 
+    | (Construct (SLet x), ZExp.CursorE HExp.EmptyHole, _) ->
       ZExp.LetZ1 (x, ze, HExp.EmptyHole)
     | (Construct (SLam x), ZExp.CursorE HExp.EmptyHole, ty) ->
       begin match HTyp.matched_arrow ty with
@@ -689,7 +709,7 @@ Module Action.
             ))
       end
     | (Construct SLit n, ZExp.CursorE HExp.EmptyHole, ty) when HTyp.inconsistent ty HTyp.Num (* AAConNumLit *) ->
-      if n < 0 then raise InvalidAction else 
+      if n < 0 then raise InvalidAction else
         ZExp.NonEmptyHoleZ (ZExp.CursorE (HExp.NumLit n))
     | (Construct (SInj side), ZExp.CursorE HExp.EmptyHole, ty) ->
       begin match HTyp.matched_sum ty with
@@ -710,19 +730,19 @@ Module Action.
       let _ = hana ctx e ty in
       ZExp.CursorE e
     (* Zipper Cases *)
-    | (_, ZExp.LetZ1 (x, ze1, e2), _) -> 
-      let e1 = ZExp.erase ze1 in 
-      let ty1 = hsyn ctx e1 in 
-      let ze1', ty1' = performSyn ctx a (ze1, ty1) in 
-      let ctx' = Ctx.extend ctx (x, ty1') in 
-      begin try 
-          let _ = hana ctx' e2 ty in 
-          ZExp.LetZ1 (x, ze1', e2) 
-        with HExp.IllTyped -> raise InvalidAction end 
-    | (_, ZExp.LetZ2 (x, e1, ze2), _) -> 
-      let ty1 = hsyn ctx e1 in 
-      let ctx' = Ctx.extend ctx (x, ty1) in 
-      let ze2' = performAna ctx' a ze2 ty in 
+    | (_, ZExp.LetZ1 (x, ze1, e2), _) ->
+      let e1 = ZExp.erase ze1 in
+      let ty1 = hsyn ctx e1 in
+      let ze1', ty1' = performSyn ctx a (ze1, ty1) in
+      let ctx' = Ctx.extend ctx (x, ty1') in
+      begin try
+          let _ = hana ctx' e2 ty in
+          ZExp.LetZ1 (x, ze1', e2)
+        with HExp.IllTyped -> raise InvalidAction end
+    | (_, ZExp.LetZ2 (x, e1, ze2), _) ->
+      let ty1 = hsyn ctx e1 in
+      let ctx' = Ctx.extend ctx (x, ty1) in
+      let ze2' = performAna ctx' a ze2 ty in
       ZExp.LetZ2 (x, e1, ze2')
     | (_, ZExp.LamZ (x, ze'), ty) (* AAZipLam *) ->
       begin match HTyp.matched_arrow ty with
