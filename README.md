@@ -65,17 +65,11 @@ Hazel is implemented in Reason/OCaml and compiled to Javascript for the web brow
 
     ```sh
     > cd ..
-    > opam install js_of_ocaml tyxml deriving ppx_deriving reactiveData ocp-indent camomile coq js_of_ocaml-tyxml
-    ```
-
-  - To make sure you have the latest versions of everything, ask `opam` to upgrade the packages if needed:
-
-    ```sh
     > opam update
-    > opam upgrade
+    > opam install reason reason-parser js_of_ocaml tyxml deriving ppx_deriving reactiveData ocp-indent camomile coq js_of_ocaml-tyxml
     ```
-
-  You now have all the required packages. We can now build the application.
+    
+ You now have all the required packages. We can now build the application.
 
 ## Compilation
 
