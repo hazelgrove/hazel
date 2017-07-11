@@ -92,7 +92,11 @@ module ActionPalette = {
   let make_palette ((rs, rf): Model.rp) => {
     /* start by defining a bunch of helpers */
     /* performs the top-level action and updates the signal */
-    let doAction action => rf (Action.performSyn Ctx.empty action (React.S.value rs));
+    let doAction action =>
+      switch (Action.performSyn () Ctx.empty action (React.S.value rs)) {
+      | Some x => rf x
+      | None => ()
+      };
     module KC = JSUtil.KeyCombo;
     module KCs = JSUtil.KeyCombos;
     /* helper function for constructing action buttons with no textbox */
@@ -104,9 +108,7 @@ module ActionPalette = {
           (
             fun evt =>
               if (JSUtil.get_keyCode evt == KC.keyCode key_combo) {
-                try (doAction action) {
-                | Action.InvalidAction => ()
-                }
+                doAction action
               } else {
                 ()
               }
@@ -127,11 +129,9 @@ module ActionPalette = {
                 S.map
                   (
                     fun m =>
-                      try {
-                        let _ = Action.performSyn Ctx.empty action m;
-                        false
-                      } {
-                      | Action.InvalidAction => true
+                      switch (Action.performSyn () Ctx.empty action m) {
+                      | Some _ => false
+                      | None => true
                       }
                   )
                   rs
@@ -173,11 +173,9 @@ module ActionPalette = {
                         /* S.l2 creates a signal from two signals */
                         switch (conv s) {
                         | Some arg =>
-                          try {
-                            let _ = Action.performSyn Ctx.empty (action arg) m;
-                            false
-                          } {
-                          | Action.InvalidAction => true /* filter disbled attr out if invalid action */
+                          switch (Action.performSyn () Ctx.empty (action arg) m) {
+                          | Some _ => false
+                          | None => true /* filter disbled attr out if invalid action */
                           }
                         | _ => true
                         }
@@ -292,13 +290,10 @@ module ActionPalette = {
                       fun s1 s2 m =>
                         switch (conv (s1, s2)) {
                         | Some arg =>
-                          try {
-                            let _ = Action.performSyn Ctx.empty (action arg) m;
-                            false
-                          } {
-                          | Action.InvalidAction => true
+                          switch (Action.performSyn () Ctx.empty (action arg) m) {
+                          | Some _ => false
+                          | None => true
                           }
-                        | _ => true
                         }
                     )
                     i_rs_1
@@ -392,7 +387,13 @@ module ActionPalette = {
           fun s =>
             switch (String.compare s "") {
             | 0 => None
-            | _ => Some s
+            | _ =>
+              try {
+                let i = int_of_string s;
+                Some i
+              } {
+              | Failure s => None
+              }
             }
         )
         "construct let"
@@ -406,7 +407,13 @@ module ActionPalette = {
           fun s =>
             switch (String.compare s "") {
             | 0 => None
-            | _ => Some s
+            | _ =>
+              try {
+                let i = int_of_string s;
+                Some i
+              } {
+              | Failure s => None
+              }
             }
         )
         "construct var"
@@ -420,7 +427,13 @@ module ActionPalette = {
           fun s =>
             switch (String.compare s "") {
             | 0 => None
-            | _ => Some s
+            | _ =>
+              try {
+                let i = int_of_string s;
+                Some i
+              } {
+              | Failure s => None
+              }
             }
         )
         "construct lam"
@@ -463,7 +476,14 @@ module ActionPalette = {
             switch (s1_empty, s2_empty) {
             | (0, _) => None
             | (_, 0) => None
-            | _ => Some (s1, s2)
+            | _ =>
+              try {
+                let i1 = int_of_string s1;
+                let i2 = int_of_string s2;
+                Some (i1, i2)
+              } {
+              | Failure s => None
+              }
             }
           }
         )

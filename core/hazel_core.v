@@ -666,7 +666,7 @@ Module Action.
       end
       end
       end
-    with performAna (fuel: Fuel) (ctx: Ctx.t) (a: t) (ze: ZExp.t) (ty: HTyp.t): option ZExp.t :=
+  with performAna (fuel: Fuel) (ctx: Ctx.t) (a: t) (ze: ZExp.t) (ty: HTyp.t): option ZExp.t :=
     match fuel with
     | Kicked => None
     | More fuel =>
@@ -675,131 +675,160 @@ Module Action.
         (* try to use the non-zipper move actions *)
         match performEMove a ze with
         | Some x => Some x
-        | None => None
-            (*InvalidAction ->
+        | None =>
             (* if it doesn't work, keep going --
              * it'll hit the subsumption rule at the bottom *)
-            performAna_postMoveCheck ctx a ze ty*)
+            performAna_postMoveCheck fuel ctx a ze ty
         end
       | _ => None
       end
-    end.
-(* and performAna_postMoveCheck ctx a ze ty =
+    end
+  with performAna_subsume (fuel : Fuel) (ctx : Ctx.t) (a : t) (ze : ZExp.t) (ty : HTyp.t) : option ZExp.t :=
+    match fuel with
+    | Kicked => None
+    | More fuel =>
+      let e := ZExp.erase ze in
+      (hsyn fuel ctx e) |>
+        flatmap_option(fun ty1 => performSyn fuel ctx a (ze, ty1)) |>
+        flatmap_option(fun ze_ty1 =>
+          match ze_ty1 with
+          | (ze', ty1') =>
+            if HTyp.consistent ty ty1' then Some ze' else None
+          end
+        )
+    end
+  with performAna_postMoveCheck (fuel : Fuel) (ctx : Ctx.t) (a : t) (ze : ZExp.t) (ty : HTyp.t) : option ZExp.t :=
+    match fuel with
+    | Kicked => None
+    | More fuel =>
     match (a, ze, ty) with
     (* Deletion *)
-    | (Del, ZExp.CursorE e, _) (* AADel *) ->
-      ZExp.CursorE HExp.EmptyHole
+    | (Del, ZExp.CursorE e, _) (* AADel *) =>
+      Some (ZExp.CursorE HExp.EmptyHole)
     (* Construction *)
-    | (Construct SAsc, ZExp.CursorE e, _) (* AAConAsc *) ->
-      ZExp.RightAsc (e, ZTyp.CursorT ty)
-    | (Construct (SVar x), ZExp.CursorE HExp.EmptyHole, ty) when begin
-      match Ctx.lookup ctx x with
-      | Some xty -> HTyp.inconsistent ty xty
-      | None -> false end (* SAConVar *) ->
-      ZExp.NonEmptyHoleZ (ZExp.CursorE (HExp.Var x))
-    | (Construct (SLet x), ZExp.CursorE HExp.EmptyHole, _) ->
-      ZExp.LetZ1 (x, ze, HExp.EmptyHole)
-    | (Construct (SLam x), ZExp.CursorE HExp.EmptyHole, ty) ->
-      begin match HTyp.matched_arrow ty with
-        | Some _ (* AAConLam1 *) -> ZExp.LamZ (x, ze)
-        | None (* AAConLam2 *) -> ZExp.NonEmptyHoleZ (
-            ZExp.RightAsc (
-              HExp.Lam (x, HExp.EmptyHole),
-              ZTyp.LeftArrow (ZTyp.CursorT HTyp.Hole, HTyp.Hole)
-            ))
+    | (Construct SAsc, ZExp.CursorE e, _) (* AAConAsc *) =>
+      Some (ZExp.RightAsc e (ZTyp.CursorT ty))
+    | (Construct (SVar x), ZExp.CursorE HExp.EmptyHole, ty) (* SAConVar *) =>
+      let ty_valid := match Ctx.lookup ctx x with
+        | Some xty => HTyp.inconsistent ty xty
+        | None => false end
+      in
+        if ty_valid then
+          Some (ZExp.NonEmptyHoleZ (ZExp.CursorE (HExp.Var x))) else
+          performAna_subsume fuel ctx a ze ty
+    | (Construct (SLet x), ZExp.CursorE HExp.EmptyHole, _) =>
+      Some (ZExp.LetZ1 x ze HExp.EmptyHole)
+    | (Construct (SLam x), ZExp.CursorE HExp.EmptyHole, ty) =>
+      match HTyp.matched_arrow ty with
+        | Some _ (* AAConLam1 *) => Some (ZExp.LamZ x ze)
+        | None (* AAConLam2 *) => Some (
+            ZExp.NonEmptyHoleZ (
+              ZExp.RightAsc
+                (HExp.Lam x HExp.EmptyHole)
+                (ZTyp.LeftArrow (ZTyp.CursorT HTyp.Hole) HTyp.Hole)
+              )
+        )
       end
-    | (Construct SLit n, ZExp.CursorE HExp.EmptyHole, ty) when HTyp.inconsistent ty HTyp.Num (* AAConNumLit *) ->
-      if n < 0 then raise InvalidAction else
-        ZExp.NonEmptyHoleZ (ZExp.CursorE (HExp.NumLit n))
-    | (Construct (SInj side), ZExp.CursorE HExp.EmptyHole, ty) ->
-      begin match HTyp.matched_sum ty with
-        | Some _ (* 23a *) -> ZExp.InjZ (side, ze)
-        | None (* 23b *) -> ZExp.NonEmptyHoleZ (
-            ZExp.RightAsc (
-              HExp.Inj (side, HExp.EmptyHole),
-              ZTyp.LeftSum (ZTyp.CursorT HTyp.Hole, HTyp.Hole)
-            ))
-      end
-    | (Construct (SCase (x, y)), ZExp.CursorE e, ty) (* 23c *) ->
-      ZExp.CaseZ1 (
-        ZExp.CursorE HExp.EmptyHole,
-        (x, HExp.EmptyHole),
-        (y, HExp.EmptyHole))
-    (* Finishing *)
-    | (Finish, ZExp.CursorE (HExp.NonEmptyHole e), _) (* AAFinish *) ->
-      let _ = hana ctx e ty in
-      ZExp.CursorE e
-    (* Zipper Cases *)
-    | (_, ZExp.LetZ1 (x, ze1, e2), _) ->
-      let e1 = ZExp.erase ze1 in
-      let ty1 = hsyn ctx e1 in
-      let ze1', ty1' = performSyn ctx a (ze1, ty1) in
-      let ctx' = Ctx.extend ctx (x, ty1') in
-      begin try
-          let _ = hana ctx' e2 ty in
-          ZExp.LetZ1 (x, ze1', e2)
-        with HExp.IllTyped -> raise InvalidAction end
-    | (_, ZExp.LetZ2 (x, e1, ze2), _) ->
-      let ty1 = hsyn ctx e1 in
-      let ctx' = Ctx.extend ctx (x, ty1) in
-      let ze2' = performAna ctx' a ze2 ty in
-      ZExp.LetZ2 (x, e1, ze2')
-    | (_, ZExp.LamZ (x, ze'), ty) (* AAZipLam *) ->
-      begin match HTyp.matched_arrow ty with
-        | Some (ty1, ty2) ->
-          let ctx' = Ctx.extend ctx (x, ty1) in
-          let ze'' = performAna ctx' a ze' ty2 in
-          ZExp.LamZ (x, ze'')
-        | None -> raise InvalidAction
-      end
-    | (_, ZExp.InjZ (side, ze), ty) (* 23d *) ->
-      begin match HTyp.matched_sum ty with
-        | Some (ty1, ty2) ->
-          ZExp.InjZ (HExp.L, (performAna ctx a ze
-                                (HExp.pick_side side ty1 ty2)))
-        | None -> raise InvalidAction
-      end
-    | (_, ZExp.CaseZ1 (ze, (x, e1), (y, e2)), ty) (* 23e *) ->
-      let e0 = ZExp.erase ze in
-      let ty0 = hsyn ctx e0 in
-      let (ze', ty0') = performSyn ctx a (ze, ty0) in
-      begin match HTyp.matched_sum ty0' with
-        | Some (ty1, ty2) ->
-          let ctx1 = Ctx.extend ctx (x, ty1) in
-          let () = hana ctx1 e1 ty in
-          let ctx2 = Ctx.extend ctx (y, ty2) in
-          let () = hana ctx2 e2 ty in
-          ZExp.CaseZ1 (ze', (x, e1), (y, e2))
-        | None -> raise InvalidAction
-      end
-    | (_, ZExp.CaseZ2 (e0, (x, ze1), (y, e2)), ty) (* 23f *) ->
-      let ty0 = hsyn ctx e0 in
-      begin match HTyp.matched_sum ty0 with
-        | Some (ty1, ty2) ->
-          let ctx1 = Ctx.extend ctx (x, ty1) in
-          let ze1' = performAna ctx1 a ze1 ty in
-          ZExp.CaseZ2 (e0, (x, ze1'), (y, e2))
-        | None -> raise InvalidAction
-      end
-    | (_, ZExp.CaseZ3 (e0, (x, e1), (y, ze2)), ty) (* 23g *) ->
-      let ty0 = hsyn ctx e0 in
-      begin match HTyp.matched_sum ty0 with
-        | Some (ty1, ty2) ->
-          let ctx2 = Ctx.extend ctx (y, ty2) in
-          let ze2' = performAna ctx2 a ze2 ty in
-          ZExp.CaseZ3 (e0, (x, e1), (y, ze2'))
-        | None -> raise InvalidAction
-      end
-    (* Subsumption *)
-    | _ (* AASubsume *) ->
-      let e = ZExp.erase ze in
-      let ty1 = hsyn ctx e in
-      let (ze', ty1') = performSyn ctx a (ze, ty1) in
-      if HTyp.consistent ty ty1' then
-        ze'
+    | (Construct (SLit n), ZExp.CursorE HExp.EmptyHole, ty) (* AAConNumLit *) =>
+      if HTyp.inconsistent ty HTyp.Num then
+        Some (ZExp.NonEmptyHoleZ (ZExp.CursorE (HExp.NumLit n)))
       else
-        raise InvalidAction
-*)
+        performAna_subsume fuel ctx a ze ty
+    | (Construct (SInj side), ZExp.CursorE HExp.EmptyHole, ty) =>
+      match HTyp.matched_sum ty with
+        | Some _ (* 23a *) => Some (ZExp.InjZ side ze)
+        | None (* 23b *) => Some (
+            ZExp.NonEmptyHoleZ (
+              ZExp.RightAsc
+                (HExp.Inj side HExp.EmptyHole)
+                (ZTyp.LeftSum (ZTyp.CursorT HTyp.Hole) HTyp.Hole)
+            )
+        )
+      end
+    | (Construct (SCase x y), ZExp.CursorE e, ty) (* 23c *) =>
+      Some (
+        ZExp.CaseZ1
+          (ZExp.CursorE HExp.EmptyHole)
+          (x, HExp.EmptyHole)
+          (y, HExp.EmptyHole)
+      )
+    (* Finishing *)
+    | (Finish, ZExp.CursorE (HExp.NonEmptyHole e), _) (* AAFinish *) =>
+      (hana fuel ctx e ty) |>
+          map_option(fun _ => ZExp.CursorE e)
+    (* Zipper Cases *)
+    | (_, ZExp.LetZ1 x ze1 e2, _) =>
+      let e1 := ZExp.erase ze1 in
+      (hsyn fuel ctx e1) |>
+          flatmap_option(fun ty1 => performSyn fuel ctx a (ze1, ty1)) |>
+          flatmap_option(fun ze1'_ty1' =>
+            match ze1'_ty1' with
+            | (ze1', ty1') =>
+              let ctx' := Ctx.extend ctx (x, ty1') in
+              (hana fuel ctx' e2 ty) |>
+                map_option(fun _ => ZExp.LetZ1 x ze1' e2)
+            end)
+    | (_, ZExp.LetZ2 x e1 ze2, _) =>
+      (hsyn fuel ctx e1) |>
+          flatmap_option(fun ty1 =>
+            let ctx' := Ctx.extend ctx (x, ty1) in
+            performAna fuel ctx' a ze2 ty) |>
+          map_option(fun ze2' => ZExp.LetZ2 x e1 ze2')
+    | (_, ZExp.LamZ x ze', ty) (* AAZipLam *) =>
+      (HTyp.matched_arrow ty) |>
+          flatmap_option(fun ty1_ty2 => match ty1_ty2 with
+          | (ty1, ty2) =>
+            let ctx' := Ctx.extend ctx (x, ty1) in
+            performAna fuel ctx' a ze' ty2
+          end) |>
+          map_option(fun ze'' => ZExp.LamZ x ze'')
+    | (_, ZExp.InjZ side ze, ty) (* 23d *) =>
+      (HTyp.matched_sum ty) |>
+          flatmap_option(fun ty1_ty2 => match ty1_ty2 with
+          | (ty1, ty2) =>
+            performAna fuel ctx a ze
+              (HExp.pick_side side ty1 ty2)
+          end) |>
+          map_option(fun ze' => ZExp.InjZ HExp.L ze')
+    | (_, ZExp.CaseZ1 ze (x, e1) (y, e2), ty) (* 23e *) =>
+      let e0 := ZExp.erase ze in
+      (hsyn fuel ctx e0) |>
+          flatmap_option(fun ty0 => performSyn fuel ctx a (ze, ty0)) |>
+          flatmap_option(fun ze'_ty0' => match ze'_ty0' with
+          | (ze', ty0') => (HTyp.matched_sum ty0') |>
+            flatmap_option(fun ty1_ty2 => match ty1_ty2 with
+            | (ty1, ty2) =>
+              let ctx1 := Ctx.extend ctx (x, ty1) in
+              (hana fuel ctx1 e1 ty) |>
+                  flatmap_option(fun _ =>
+                    let ctx2 := Ctx.extend ctx (y, ty2) in
+                    hana fuel ctx2 e2 ty)
+            end) |>
+            map_option(fun _ => ZExp.CaseZ1 ze' (x, e1) (y, e2))
+          end)
+    | (_, ZExp.CaseZ2 e0 (x, ze1) (y, e2), ty) (* 23f *) =>
+      (hsyn fuel ctx e0) |>
+          flatmap_option(fun ty0 => HTyp.matched_sum ty0) |>
+          flatmap_option(fun ty1_ty2 => match ty1_ty2 with
+          | (ty1, ty2) =>
+            let ctx1 := Ctx.extend ctx (x, ty1) in
+            performAna fuel ctx1 a ze1 ty
+          end) |>
+          map_option(fun ze1' => ZExp.CaseZ2 e0 (x, ze1') (y, e2))
+    | (_, ZExp.CaseZ3 e0 (x, e1) (y, ze2), ty) (* 23g *) =>
+      (hsyn fuel ctx e0) |>
+          flatmap_option(fun ty0 => HTyp.matched_sum ty0) |>
+          flatmap_option(fun ty1_ty2 => match ty1_ty2 with
+          | (ty1, ty2) =>
+            let ctx2 := Ctx.extend ctx (y, ty2) in
+            performAna fuel ctx2 a ze2 ty
+          end) |>
+          map_option(fun ze2' => ZExp.CaseZ3 e0 (x, e1) (y, ze2'))
+    (* Subsumption *)
+    | _ (* AASubsume *) =>
+      performAna_subsume fuel ctx a ze ty
+    end
+    end.
 
 End Action.
 
