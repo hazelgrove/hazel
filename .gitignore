@@ -29,6 +29,8 @@ setup.log
 *.vo
 *.vo.aux
 core/ml/*
+hazel_semantics.re
 
 # www artifacts
-www/hazel.js
+hazel.js
+
