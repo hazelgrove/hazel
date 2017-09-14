@@ -169,16 +169,22 @@ module ActionPalette = {
                 (
                   S.l2
                     (
-                      fun s m =>
+                      fun s m => {
                         /* S.l2 creates a signal from two signals */
+                        let converted = conv s;
                         switch (conv s) {
                         | Some arg =>
                           switch (Action.performSyn () Ctx.empty (action arg) m) {
-                          | Some _ => false
-                          | None => true /* filter disbled attr out if invalid action */
+                          | Some _ =>
+                            Firebug.console##log "A";
+                            false
+                          | None =>
+                            Firebug.console##log "B";
+                            true /* filter disbled attr out if invalid action */
                           }
                         | _ => true
                         }
+                      }
                     )
                     i_rs
                     rs

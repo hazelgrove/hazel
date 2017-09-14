@@ -680,7 +680,7 @@ Module Action.
              * it'll hit the subsumption rule at the bottom *)
             performAna_postMoveCheck fuel ctx a ze ty
         end
-      | _ => None
+      | _ => performAna_postMoveCheck fuel ctx a ze ty
       end
     end
   with performAna_subsume (fuel : Fuel) (ctx : Ctx.t) (a : t) (ze : ZExp.t) (ty : HTyp.t) : option ZExp.t :=
