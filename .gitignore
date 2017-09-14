@@ -25,6 +25,7 @@ setup.log
 *.swp
 
 # coq
+*.aux
 *.glob
 *.vo
 *.vo.aux
