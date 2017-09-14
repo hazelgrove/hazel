@@ -1,13 +1,13 @@
 module PPView = {
   module PP = Pretty.PP;
-  open Hazel_semantics;
+  open Hazel_semantics.Core;
   let (^^) = PP.(^^);
   /* Utility functions */
   let taggedText tag s => PP.tagged tag (PP.text s);
   let kw = taggedText "kw";
   let parens = taggedText "paren";
   let op = taggedText "op";
-  let var s => taggedText "var" (string_of_int s);
+  let var s => taggedText "var" s;
   let space = taggedText "space" " ";
   let term = PP.tagged;
   let optionalBreakSp = PP.optionalBreak " ";

@@ -1,6 +1,6 @@
 open Tyxml_js;
 
-open Hazel_semantics;
+open Hazel_semantics.Core;
 
 open Hazel_model;
 
@@ -172,7 +172,7 @@ module ActionPalette = {
                       fun s m => {
                         /* S.l2 creates a signal from two signals */
                         let converted = conv s;
-                        switch (conv s) {
+                        switch converted {
                         | Some arg =>
                           switch (Action.performSyn () Ctx.empty (action arg) m) {
                           | Some _ =>
@@ -394,13 +394,7 @@ module ActionPalette = {
           fun s =>
             switch (String.compare s "") {
             | 0 => None
-            | _ =>
-              try {
-                let i = int_of_string s;
-                Some i
-              } {
-              | Failure s => None
-              }
+            | _ => Some s
             }
         )
         "construct let"
@@ -414,13 +408,7 @@ module ActionPalette = {
           fun s =>
             switch (String.compare s "") {
             | 0 => None
-            | _ =>
-              try {
-                let i = int_of_string s;
-                Some i
-              } {
-              | Failure s => None
-              }
+            | _ => Some s
             }
         )
         "construct var"
@@ -434,13 +422,7 @@ module ActionPalette = {
           fun s =>
             switch (String.compare s "") {
             | 0 => None
-            | _ =>
-              try {
-                let i = int_of_string s;
-                Some i
-              } {
-              | Failure s => None
-              }
+            | _ => Some s
             }
         )
         "construct lam"
@@ -453,15 +435,12 @@ module ActionPalette = {
         (fun n => Action.Construct (Action.SLit n))
         (
           fun s =>
-            try {
-              let i = int_of_string s;
-              if (i < 0) {
-                None
-              } else {
-                Some i
+            switch (String.compare s "") {
+            | 0 => None
+            | _ =>
+              try (Some (int_of_string s)) {
+              | _ => None
               }
-            } {
-            | Failure _ => None
             }
         )
         "construct lit"
@@ -483,14 +462,7 @@ module ActionPalette = {
             switch (s1_empty, s2_empty) {
             | (0, _) => None
             | (_, 0) => None
-            | _ =>
-              try {
-                let i1 = int_of_string s1;
-                let i2 = int_of_string s2;
-                Some (i1, i2)
-              } {
-              | Failure s => None
-              }
+            | _ => Some (s1, s2)
             }
           }
         )
