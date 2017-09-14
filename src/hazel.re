@@ -294,6 +294,7 @@ module ActionPalette = {
                           | Some _ => false
                           | None => true
                           }
+                        | None => true
                         }
                     )
                     i_rs_1
