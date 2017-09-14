@@ -53,7 +53,7 @@ Hazel is implemented in OCaml and compiled to Javascript for the web browser via
   - We can now install the necessary dependencies.
 
     ```sh
-    > opam install js_of_ocaml tyxml deriving ppx_deriving reactiveData ocp-indent camomile
+    > opam install js_of_ocaml tyxml js_of_ocaml-tyxml deriving ppx_deriving reactiveData ocp-indent camomile
     ```
 
   - To make sure you have the latest versions of everything, ask `opam` to upgrade the packages if needed:
