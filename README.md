@@ -13,7 +13,7 @@ You can build Hazel using the following instructions.
 
 ## Prerequisites
 
-Hazel is implemented in OCaml and compiled to Javascript for the web browser via the `js_of_ocaml` compiler. An easy way to install both OCaml and the necessary libraries is to install [opam](https://opam.ocaml.org/). After having installed `opam` using the instructions on their website, follow these steps:
+Hazel is implemented in Reason/OCaml and compiled to Javascript for the web browser via the `js_of_ocaml` compiler. An easy way to install both OCaml and the necessary libraries is to install [opam](https://opam.ocaml.org/). After having installed `opam` using the instructions on their website, follow these steps:
 
   - If you are using `opam` for the first time, you have to initialize it:
 
@@ -52,18 +52,24 @@ Hazel is implemented in OCaml and compiled to Javascript for the web browser via
 
   - We can now install the necessary dependencies.
 
+    First we will install the Reason frontend.
+
     ```sh
-    > opam install js_of_ocaml tyxml deriving ppx_deriving reactiveData ocp-indent camomile
+    > git clone https://github.com/facebook/reason.git
+    > cd reason
+    > opam pin add -y reason-parser reason-parser
+    > opam pin add -y reason .
     ```
 
-  - To make sure you have the latest versions of everything, ask `opam` to upgrade the packages if needed:
+    Then we can install our library dependencies.
 
     ```sh
+    > cd ..
     > opam update
-    > opam upgrade
+    > opam install reason reason-parser js_of_ocaml tyxml deriving ppx_deriving reactiveData ocp-indent camomile coq js_of_ocaml-tyxml
     ```
-
-  You now have all the required packages. We can now build the application.
+    
+ You now have all the required packages. We can now build the application.
 
 ## Compilation
 
@@ -76,7 +82,7 @@ You can execute build.sh to compile Hazel.
 
 It consists of two steps:
 
-1. Compile the `hazel.ml` file to OCaml bytecode with the `ocamlbuild` command.
+1. Compile the `hazel.re` file to OCaml bytecode with the `ocamlbuild` command.
 2. Build the Javascript file from the `hazel.byte` file with the `js_of_ocaml` command.
 
 ## Results
@@ -84,13 +90,13 @@ You can now open src/www/hazel.html in a browser to see Hazel in action.
 
 # Implementation Details
 
-The file `hazel_semantics.ml` implements the syntax and semantics in a pure functional style, independent of any details of the user interface.
+The file `hazel_semantics.re` implements the syntax and semantics in a pure functional style, independent of any details of the user interface.
 
-The file `hazel_model.ml` gives the signature of the reactive signal that models edit states, which consist of a Z-expression paired with an H-type.
+The file `hazel_model.re` gives the signature of the reactive signal that models edit states, which consist of a Z-expression paired with an H-type.
 
-The file `hazel_view.ml` transforms Z-expressions to pretty printed documents. 
+The file `hazel_view.re` transforms Z-expressions to pretty printed documents. 
 
-The file `pretty.ml` defines a generic pretty printer, and a translation from pretty printed documents to HTML. This HTML is styled by the `style.css` file in the `www` directory.
+The file `pretty.re` defines a generic pretty printer, and a translation from pretty printed documents to HTML. This HTML is styled by the `style.css` file in the `www` directory.
 
-The file `hazel.ml` (which should be read roughly from the bottom up) is the top-level file. It sets up the reactive signals and constructs the UI. The main logic of interest has to do with the action palette, which controls updates to the model and therefore the view.
+The file `hazel.re` (which should be read roughly from the bottom up) is the top-level file. It sets up the reactive signals and constructs the UI. The main logic of interest has to do with the action palette, which controls updates to the model and therefore the view.
 
