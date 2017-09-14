@@ -24,3 +24,14 @@ setup.log
 *.swo
 *.swp
 
+# coq
+*.aux
+*.glob
+*.vo
+*.vo.aux
+core/ml/*
+hazel_semantics.re
+
+# www artifacts
+hazel.js
+
