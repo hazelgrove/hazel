@@ -1,4 +1,4 @@
-open Hazel_semantics;
+open Hazel_semantics.Core;
 
 module Model = {
   type t = (ZExp.t, HTyp.t);
