@@ -5,9 +5,6 @@ based on Hazelnut, a structure editor calculus described in our paper at
 POPL 2017, and is the primary artifact of the research vision outlined in 
 our paper at SNAPL 2017. You can find these papers at [the Hazel Grove website](http://www.hazelgrove.org/).
 
-# Running Hazel
-You can run Hazel without installing any dependencies by opening /src/www/hazel.html in a browser. We plan to soon have [a hosted version](http://www.hazelgrove.org/hazel/) available.
-
 # Building Hazel
 You can build Hazel using the following instructions.
 
