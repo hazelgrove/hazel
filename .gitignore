@@ -29,8 +29,7 @@ setup.log
 *.glob
 *.vo
 *.vo.aux
-core/ml/*
-hazel_semantics.re
+semantics.re
 
 # www artifacts
 hazel.js

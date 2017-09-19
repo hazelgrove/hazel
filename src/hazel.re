@@ -1,16 +1,13 @@
 open Tyxml_js;
 
-open Hazel_semantics.Core;
+open Semantics.Core;
 
-open Hazel_model;
+open Model;
 
-open Hazel_model.Model;
-
-open Hazel_view;
+open View;
 
 open React;
 
-/* github/travis test */
 module Ev = Dom_html.Event;
 
 module Util = {

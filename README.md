@@ -73,30 +73,17 @@ Hazel is implemented in Reason/OCaml and compiled to Javascript for the web brow
 
 ## Compilation
 
-You can execute build.sh to compile Hazel.
-
 ```sh
-> cd src/
-> ./build.sh
+> cd src
+> make
 ```
 
-It consists of two steps:
+From a fresh checkout, `make` does three things:
 
-1. Compile the `hazel.re` file to OCaml bytecode with the `ocamlbuild` command.
-2. Build the Javascript file from the `hazel.byte` file with the `js_of_ocaml` command.
+1. Extracts the semantics from the Coq file, `semantics.v`.
+2. Compiles the `hazel.re` file to OCaml bytecode, `hazel.byte`, with the `rebuild` command.
+3. Compiles the `www/hazel.js` file from `hazel.byte`, with the `js_of_ocaml` compiler.
 
 ## Results
 You can now open src/www/hazel.html in a browser to see Hazel in action.
-
-# Implementation Details
-
-The file `hazel_semantics.re` implements the syntax and semantics in a pure functional style, independent of any details of the user interface.
-
-The file `hazel_model.re` gives the signature of the reactive signal that models edit states, which consist of a Z-expression paired with an H-type.
-
-The file `hazel_view.re` transforms Z-expressions to pretty printed documents. 
-
-The file `pretty.re` defines a generic pretty printer, and a translation from pretty printed documents to HTML. This HTML is styled by the `style.css` file in the `www` directory.
-
-The file `hazel.re` (which should be read roughly from the bottom up) is the top-level file. It sets up the reactive signals and constructs the UI. The main logic of interest has to do with the action palette, which controls updates to the model and therefore the view.
 
