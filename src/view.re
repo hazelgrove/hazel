@@ -1,6 +1,6 @@
 module PPView = {
   module PP = Pretty.PP;
-  open Hazel_semantics.Core;
+  open Semantics.Core;
   let (^^) = PP.(^^);
   /* Utility functions */
   let taggedText tag s => PP.tagged tag (PP.text s);
