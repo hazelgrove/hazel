@@ -35,10 +35,13 @@ Hazel is implemented in Reason/OCaml and compiled to Javascript for the web brow
     --     -- 4.02.2  Official 4.02.2 release
     --     -- 4.02.3  Official 4.02.3 release
     --     -- 4.03.0  Official 4.03.0 release
+		--     -- 4.04.0  Official 4.04.0 release
+    --     -- 4.04.1  Official 4.04.1 release
+    --     -- 4.04.2  Official 4.04.2 release
     system  C system  System compiler (4.02.1)
     ```
 
-    The `C` marks the current compiler. Here version 4.02.1 is installed. We can see that a more recent version is available (4.03.0). So we will install it with `opam switch 4.03.0`. This won't remove the system compiler as `opam` will install the files in your `.opam` directory.
+    The `C` marks the current compiler. Here version 4.02.1 is installed. We can see that a more recent version is available (4.04.2). So we will install it with `opam switch 4.03.0`. This won't remove the system compiler as `opam` will install the files in your `.opam` directory. Hazel requires OCaml 4.04.2+.
 
     The following command switches out the current compiler with the newly installed one and sets up your path to use it permanently.
 
@@ -49,21 +52,10 @@ Hazel is implemented in Reason/OCaml and compiled to Javascript for the web brow
 
   - We can now install the necessary dependencies.
 
-    First we will install the Reason frontend.
-
-    ```sh
-    > git clone https://github.com/facebook/reason.git
-    > cd reason
-    > opam pin add -y reason-parser reason-parser
-    > opam pin add -y reason .
-    ```
-
-    Then we can install our library dependencies.
-
     ```sh
     > cd ..
     > opam update
-    > opam install reason reason-parser js_of_ocaml tyxml deriving ppx_deriving reactiveData ocp-indent camomile coq js_of_ocaml-tyxml
+    > opam install reason reason-parser js_of_ocaml tyxml deriving ppx_deriving reactiveData ocp-indent camomile js_of_ocaml-tyxml coq
     ```
     
  You now have all the required packages. We can now build the application.
