@@ -2,7 +2,7 @@ echo "build here"
 
 echo "Compiling new static content"
 cd ./src
-./make
+make
 
 echo "chmod"
 chmod 600 ../deploy-key
