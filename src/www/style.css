@@ -1,36 +1,69 @@
-.display-3{
-	height: 72px;
-	font-size: 60px;
-	width: 80%;
-	float: left;
+body {
+	margin: 0px;
+	padding: 0px;
+	font-family: Montserrat, sans-serif;
 }
 
-.subtext{
+.top-bar {
+	width: 100%;
+	background-color: #029344;
+	color: white;
+	font-weight: bold;
+	padding: 10px;
+	border-bottom: 2px solid darkgreen;
+}
+
+.main-area {
+	background-color: wheat;
+	display: table;
 	width: 100%;
 }
 
-.logoDiv {
-	width: 20%;
-	min-height: 75px;
-	float: right;
-	text-align: right;
+.page-area {
+	display: table-cell;
+	padding-left: 0.25in;
+	padding-top: 0.25in;
+	padding-bottom: 0.75in;
 }
 
-#logo {
-	height: 75px
+.sidebar {
+	display: table-cell;
+	width: 275px;
+	background: #029344;
+	vertical-align: top;
+	border-left: 2px solid darkgreen;
+	padding: 5px;
 }
 
-.jumbotron{
-	padding-top: 11px;
-	margin-top: 24px;
-	padding-bottom: 69px;
+.page {
+	background-color: white;
+	border: 2px solid #444;
+	padding: 0.8in;
+	box-shadow: 3px 3px 10px #444;
+	max-width: 8.5in;
+	margin-right: 0.25in;
+}
+
+h1 {
+	margin-top: 0pt;
+	padding-top: 0pt;
+	margin-bottom: 0pt;
+	color: #444;
+}
+
+.panel-title{
+	text-align: center;
+	background-color:#029344;
+	color: white;
+	border-bottom: 2px solid darkgreen;
+	margin-bottom: 10px;
 }
 
 .ModelExp {
 	padding: 10px;
 	font-size: xx-large;
 	margin-top: 20px;
-	background-color: white;
+	background-color: ghostwhite;
 	width:100%;
 	border: 2px solid #999;
 	display: table;
@@ -46,18 +79,12 @@
 	font-size: 12pt;
 }
 
-#numLabel {
-/*	float:left;*/
-}
-
 #num_input_id{
 	width:70%;
 }
 
 button:disabled {
-	background-color: #9d9d9d;
-	color: #27160d;
-	border-color:#27160d;
+
 }
 
 .HZElem{
@@ -73,18 +100,8 @@ button:disabled {
 }
 
 
-.panel-title{
-	text-align: center;
-	background-color:#029344;
-	color: white;
-}
-
 
 .btn-outline-primary {
-	color: #975633;
-	background-image: none;
-	background-color: transparent;
-	border-color: #975633;
 	margin-bottom: 10px;
 	margin-right:20px;
 	}

@@ -394,7 +394,7 @@ let make_palette ((rs, rf): Model.rp) => {
   /* finally, put it all together into the action palette */
   Html5.(
     div
-      a::[a_class ["row", "marketing"]]
+      a::[a_class ["action-palette", "row", "marketing"]]
       [
         div
           a::[a_class ["col-lg-3", "col-md-3", "col-sm-3"]]

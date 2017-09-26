@@ -34,37 +34,25 @@ let view ((rs, rf): Model.rp) => {
   Tyxml_js.To_dom.of_div
     Html5.(
       div [
+        div a::[a_class ["top-bar"]] [span a::[a_class ["logo-text"]] [pcdata "Hazel"]],
         div
-          a::[a_class ["jumbotron"]]
+          a::[a_class ["main-area"]]
           [
             div
-              a::[a_class ["headerTextAndLogo"]]
+              a::[a_class ["page-area"]]
               [
-                div a::[a_class ["display-3"]] [pcdata "Hazel"],
                 div
-                  a::[a_class ["logoDiv"]]
+                  a::[a_class ["page"]]
                   [
-                    img
-                      a::[a_id "logo"]
-                      alt::"Logo"
-                      src::(Xml.uri_of_string "imgs/hazel-logo.png")
-                      ()
+                    h1 [pcdata "Welcome to Hazel!"],
+                    hr (),
+                    p [pcdata "Introductory paragraph"],
+                    div a::[a_class ["ModelExp"]] [pp_view],
+                    div [span [pcdata "Type: "], htype_view]
                   ]
               ],
-            div
-              a::[a_class ["subtext"]]
-              [pcdata "(a structure editor rooted in the principles of type theory)"],
-            br (),
-            div
-              a::[a_class ["typeLbl"]]
-              [pcdata ("Pretty-printed (width:" ^ string_of_int pp_view_width ^ "):")],
-            div a::[a_class ["ModelExp"]] [pp_view],
-            br (),
-            div
-              a::[a_class ["subtext", "ModelType"]]
-              [div a::[a_class ["typeLbl"]] [pcdata "Synthesizes H-type: "], htype_view]
+            div a::[a_class ["sidebar"]] [Action_palette.make_palette (rs, rf)]
           ],
-        Action_palette.make_palette (rs, rf),
         div
           a::[a_class ["container"], a_id "footerContainer"]
           [
