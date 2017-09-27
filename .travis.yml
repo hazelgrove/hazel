@@ -12,7 +12,7 @@ install:
  - sudo apt-get install -qq ocaml opam
  - export OPAMYES=1 && opam init && eval `opam config env`
   # - opam install bisect ounit
- - opam install js_of_ocaml tyxml deriving ppx_deriving reactiveData ocp-indent camomile
+ - opam install reason reason-parser js_of_ocaml tyxml deriving ppx_deriving reactiveData ocp-indent camomile js_of_ocaml-tyxml coq
 
 script:
   - bash .travis-ci.sh
