@@ -391,77 +391,85 @@ let make_palette ((rs, rf): Model.rp) => {
       "Enter var + press Enter";
   let constructNEHole =
     action_button (Action.Construct Action.SNEHole) "construct neHole" KCs.qmark;
+  let movementActions =
+    Html5.(
+      div
+        a::[a_class ["panel", "panel-default"]]
+        [
+          div a::[a_class ["panel-title"]] [pcdata "Movement"],
+          div
+            a::[a_class ["panel-body"]]
+            [moveChild1, br (), moveChild2, br (), moveChild3, br (), moveParent]
+        ]
+    );
+  let typeConstructionActions =
+    Html5.(
+      div
+        a::[a_class ["panel", "panel-default"]]
+        [
+          div a::[a_class ["panel-title"]] [pcdata "Type Construction"],
+          div
+            a::[a_class ["panel-body"]]
+            [constructArrow, br (), constructNum, br (), constructSum, br ()]
+        ]
+    );
+  let expressionConstructionActions =
+    Html5.(
+      div
+        a::[a_class ["panel", "panel-default"]]
+        [
+          div a::[a_class ["panel-title"]] [pcdata "Expression Construction"],
+          div
+            a::[a_class ["panel-body"]]
+            [
+              constructAsc,
+              br (),
+              constructLet,
+              br (),
+              constructVar,
+              constructLam,
+              constructAp,
+              br (),
+              constructLit,
+              constructPlus,
+              br (),
+              constructInjL,
+              br (),
+              constructInjR,
+              br (),
+              constructCase,
+              constructNEHole
+            ]
+        ]
+    );
+  let deleteActions =
+    Html5.(
+      div
+        a::[a_class ["panel", "panel-default"]]
+        [
+          div a::[a_class ["panel-title"]] [pcdata "Deletion"],
+          div a::[a_class ["panel-body"]] [delete]
+        ]
+    );
+  let finishingActions =
+    Html5.(
+      div
+        a::[a_class ["panel", "panel-default"]]
+        [
+          div a::[a_class ["panel-title"]] [pcdata "Finishing"],
+          div a::[a_class ["panel-body"]] [finish]
+        ]
+    );
   /* finally, put it all together into the action palette */
   Html5.(
     div
-      a::[a_class ["action-palette", "row", "marketing"]]
+      a::[a_class ["action-palette"]]
       [
-        div
-          a::[a_class ["col-lg-3", "col-md-3", "col-sm-3"]]
-          [
-            div
-              a::[a_class ["panel", "panel-default"]]
-              [
-                div a::[a_class ["panel-title"]] [pcdata "Movement"],
-                div
-                  a::[a_class ["panel-body"]]
-                  [moveChild1, br (), moveChild2, br (), moveChild3, br (), moveParent]
-              ],
-            div
-              a::[a_class ["panel", "panel-default"]]
-              [
-                div a::[a_class ["panel-title"]] [pcdata "Deletion"],
-                div a::[a_class ["panel-body"]] [delete]
-              ]
-          ],
-        div
-          a::[a_class ["col-lg-3", "col-md-3", "col-sm-3"]]
-          [
-            div
-              a::[a_class ["panel", "panel-default"]]
-              [
-                div a::[a_class ["panel-title"]] [pcdata "Type Construction"],
-                div
-                  a::[a_class ["panel-body"]]
-                  [constructArrow, br (), constructNum, br (), constructSum, br ()]
-              ],
-            div
-              a::[a_class ["panel", "panel-default"]]
-              [
-                div a::[a_class ["panel-title"]] [pcdata "Finishing"],
-                div a::[a_class ["panel-body"]] [finish]
-              ]
-          ],
-        div
-          a::[a_class ["col-lg-6", "col-md-6", "col-sm-6"]]
-          [
-            div
-              a::[a_class ["panel", "panel-default"]]
-              [
-                div a::[a_class ["panel-title"]] [pcdata "Expression Construction"],
-                div
-                  a::[a_class ["panel-body"]]
-                  [
-                    constructAsc,
-                    br (),
-                    constructLet,
-                    br (),
-                    constructVar,
-                    constructLam,
-                    constructAp,
-                    br (),
-                    constructLit,
-                    constructPlus,
-                    br (),
-                    constructInjL,
-                    br (),
-                    constructInjR,
-                    br (),
-                    constructCase,
-                    constructNEHole
-                  ]
-              ]
-          ]
+        movementActions,
+        typeConstructionActions,
+        expressionConstructionActions,
+        deleteActions,
+        finishingActions
       ]
   )
 };

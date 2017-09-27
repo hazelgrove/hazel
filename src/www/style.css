@@ -1,25 +1,49 @@
-body {
+html, body {
 	margin: 0px;
 	padding: 0px;
 	font-family: Montserrat, sans-serif;
+	height: 100%;
+}
+
+.container {
+	width: 100%;
+	height: 100%;
+}
+
+.container > :first-child {
+	height: 100%;
+	width: 100%;
+	display: table;
 }
 
 .top-bar {
+	display: table-cell;
 	width: 100%;
-	background-color: #029344;
+	height: 30px;
+	padding: 10px;
+	vertical-align: middle;
+	background-color: #529344;
 	color: white;
 	font-weight: bold;
-	padding: 10px;
-	border-bottom: 2px solid darkgreen;
+	font-size: 14pt;
+	border-bottom: 1px solid darkgreen;
 }
 
 .main-area {
 	background-color: wheat;
+	display: table-row;
+	width: 100%;
+	height: 100%;
+}
+
+.main-area > :first-child {
 	display: table;
 	width: 100%;
+	height: 100%;
 }
 
 .page-area {
+	height: 100%;
 	display: table-cell;
 	padding-left: 0.25in;
 	padding-top: 0.25in;
@@ -29,18 +53,19 @@ body {
 .sidebar {
 	display: table-cell;
 	width: 275px;
-	background: #029344;
+	background: rgb(144, 184, 96);
 	vertical-align: top;
-	border-left: 2px solid darkgreen;
 	padding: 5px;
+	height: 100%;
+	border-left: 1px solid darkgreen;
 }
 
 .page {
+	border-radius: 5px;
 	background-color: white;
-	border: 2px solid #444;
-	padding: 0.8in;
-	box-shadow: 3px 3px 10px #444;
-	max-width: 8.5in;
+	padding: 0.25in;
+	box-shadow: 4px 4px #555;
+	max-width: 10in;
 	margin-right: 0.25in;
 }
 
@@ -51,11 +76,30 @@ h1 {
 	color: #444;
 }
 
+.type-indicator {
+	text-align: right;
+	width: 100%;
+	font-size: 12pt;
+}
+
+.type-label {
+	background-color: #CCC;
+	padding: 3px;
+	display: inline-block;
+	padding-right: 5px;
+}
+
+.htype-view {
+	padding: 3px;
+	background-color: #CCC;
+	display: inline-block;
+}
+
 .panel-title{
 	text-align: center;
-	background-color:#029344;
-	color: white;
-	border-bottom: 2px solid darkgreen;
+	/* background-color: seagreen; */
+	color: black;
+	border-bottom: 1px solid darkgreen;
 	margin-bottom: 10px;
 }
 
@@ -63,10 +107,8 @@ h1 {
 	padding: 10px;
 	font-size: xx-large;
 	margin-top: 20px;
-	background-color: ghostwhite;
-	width:100%;
-	border: 2px solid #999;
-	display: table;
+	background-color: white;
+	border: 2px solid #CCC;
 }
 
 .ModelType {
@@ -98,8 +140,6 @@ button:disabled {
 .Model{
 	float:left;
 }
-
-
 
 .btn-outline-primary {
 	margin-bottom: 10px;

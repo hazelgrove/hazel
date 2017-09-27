@@ -4,7 +4,7 @@ open Tyxml_js;
 
 let view ((rs, rf): Model.rp) => {
   /* pp view */
-  let pp_view_width = 30;
+  let pp_view_width = 50;
   let pp_rs =
     React.S.map
       (
@@ -38,34 +38,28 @@ let view ((rs, rf): Model.rp) => {
         div
           a::[a_class ["main-area"]]
           [
-            div
-              a::[a_class ["page-area"]]
-              [
-                div
-                  a::[a_class ["page"]]
-                  [
-                    h1 [pcdata "Welcome to Hazel!"],
-                    hr (),
-                    p [pcdata "Introductory paragraph"],
-                    div a::[a_class ["ModelExp"]] [pp_view],
-                    div [span [pcdata "Type: "], htype_view]
-                  ]
-              ],
-            div a::[a_class ["sidebar"]] [Action_palette.make_palette (rs, rf)]
-          ],
-        div
-          a::[a_class ["container"], a_id "footerContainer"]
-          [
-            p [
-              pcdata "Source (OCaml): ",
-              a
-                a::[a_href "https://github.com/hazelgrove/hazel"]
-                [pcdata "https://github.com/hazelgrove/hazel"]
-            ],
-            p [
-              pcdata "A project of ",
-              a a::[a_href "http://hazelgrove.org"] [pcdata "Hazel Grove"],
-              pcdata "."
+            div [
+              div
+                a::[a_class ["page-area"]]
+                [
+                  div
+                    a::[a_class ["page"]]
+                    [
+                      h1 [pcdata "Welcome to Hazel"],
+                      hr (),
+                      p [
+                        pcdata "Hazel is a structure editor for the typed lambda calculus (for now)."
+                      ],
+                      div a::[a_class ["ModelExp"]] [pp_view],
+                      div
+                        a::[a_class ["type-indicator"]]
+                        [
+                          div a::[a_class ["type-label"]] [pcdata "Type: "],
+                          div a::[a_class ["htype-view"]] [htype_view]
+                        ]
+                    ]
+                ],
+              div a::[a_class ["sidebar"]] [Action_palette.make_palette (rs, rf)]
             ]
           ]
       ]
