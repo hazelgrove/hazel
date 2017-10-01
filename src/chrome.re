@@ -8,7 +8,7 @@ let view ((rs, rf): Model.rp) => {
   let pp_rs =
     React.S.map
       (
-        fun (zexp, _) => {
+        fun ((zexp, _), _) => {
           let prettified =
             Pretty.HTML_Of_SDoc.html_of_sdoc (
               Pretty.PP.sdoc_of_doc pp_view_width (PPView.of_zexp zexp)
@@ -22,7 +22,7 @@ let view ((rs, rf): Model.rp) => {
   let htype_rs =
     React.S.map
       (
-        fun (_, htype) => {
+        fun ((_, htype), _) => {
           let pp_view = PPView.of_htype htype;
           let sdoc = Pretty.PP.sdoc_of_doc pp_view_width pp_view;
           let prettified = Pretty.HTML_Of_SDoc.html_of_sdoc sdoc;
@@ -48,7 +48,7 @@ let view ((rs, rf): Model.rp) => {
                       h1 [pcdata "Welcome to Hazel"],
                       hr (),
                       p [
-                        pcdata "Hazel is a structure editor for the typed lambda calculus (for now)."
+                        pcdata "Hazel is an experimental structure editor for a simple typed expression language."
                       ],
                       div a::[a_class ["ModelExp"]] [pp_view],
                       div
