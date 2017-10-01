@@ -178,8 +178,8 @@ module PPView = {
       | Plus _ => plus_precedence
       | Inj _ => inj_precedence
       | Case _ => case_precedence
-      | EmptyHole => empty_hole_precedence
-      | NonEmptyHole _ => non_empty_hole_precedence
+      | EmptyHole _ => empty_hole_precedence
+      | NonEmptyHole _ _ => non_empty_hole_precedence
       }
     );
   let zexp_precedence ze =>
@@ -199,7 +199,7 @@ module PPView = {
       | CaseZ1 _
       | CaseZ2 _
       | CaseZ3 _ => case_precedence
-      | NonEmptyHoleZ _ => non_empty_hole_precedence
+      | NonEmptyHoleZ _ _ => non_empty_hole_precedence
       }
     );
   let rec of_hexp' e paren =>
@@ -239,8 +239,8 @@ module PPView = {
     | HExp.Inj side e [@implicit_arity] => of_Inj side (of_hexp e)
     | HExp.Case e1 (x, e2) (y, e3) [@implicit_arity] =>
       of_Case (of_hexp e1) x (of_hexp e2) y (of_hexp e3)
-    | HExp.EmptyHole => term "EmptyHole" (taggedText "hole" "\226\150\162")
-    | HExp.NonEmptyHole e => of_NonEmptyHole (of_hexp e)
+    | HExp.EmptyHole _ => term "EmptyHole" (taggedText "hole" "\226\150\162")
+    | HExp.NonEmptyHole _ e => of_NonEmptyHole (of_hexp e)
     };
   let rec of_zexp' ze paren =>
     switch ze {
@@ -309,6 +309,6 @@ module PPView = {
       of_Case (of_hexp e1) x (of_zexp ze) y (of_hexp e3)
     | ZExp.CaseZ3 e1 (x, e2) (y, ze) [@implicit_arity] =>
       of_Case (of_hexp e1) x (of_hexp e2) y (of_zexp ze)
-    | ZExp.NonEmptyHoleZ ze => of_NonEmptyHole (of_zexp ze)
+    | ZExp.NonEmptyHoleZ _ ze => of_NonEmptyHole (of_zexp ze)
     };
 };

@@ -22,7 +22,7 @@ html, body {
 	height: 30px;
 	padding: 10px;
 	vertical-align: middle;
-	background-color: #529344;
+	background-color: #006633;
 	color: white;
 	font-weight: bold;
 	font-size: 14pt;
@@ -57,7 +57,7 @@ html, body {
 	vertical-align: top;
 	padding: 5px;
 	height: 100%;
-	border-left: 1px solid darkgreen;
+	border-left: 5px solid darkgreen;
 }
 
 .page {
