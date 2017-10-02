@@ -121,9 +121,9 @@ module PPView = {
       );
   let of_Lam x r =>
     term "Lam" (kw "\206\187" ^^ var x ^^ kw "." ^^ PP.optionalBreak "" ^^ PP.nestRelative 4 r);
-  let of_LamAsc x rty r1 =>
+  let of_LamAnn x rty r1 =>
     term
-      "LamAsc"
+      "LamAnn"
       (
         kw "\206\187" ^^
         var x ^^ kw ":" ^^ rty ^^ kw "." ^^ PP.optionalBreak "" ^^ PP.nestRelative 4 r1
@@ -139,12 +139,49 @@ module PPView = {
         kw (string_of_side side) ^^
         parens "]" ^^ parens "(" ^^ PP.optionalBreak "" ^^ r ^^ parens ")"
       );
+  let of_InjAnn rty side r =>
+    term
+      "Inj"
+      (
+        kw "inj" ^^
+        parens "[" ^^
+        kw (string_of_side side) ^^
+        kw "," ^^
+        optionalBreakSp ^^
+        rty ^^ parens "]" ^^ parens "(" ^^ PP.optionalBreak "" ^^ r ^^ parens ")"
+      );
   let of_Case r1 x r2 y r3 =>
     term
       "Case"
       (
         PP.blockBoundary ^^
         kw "case" ^^
+        space ^^
+        r1 ^^
+        PP.mandatoryBreak ^^
+        kw "L" ^^
+        parens "(" ^^
+        var x ^^
+        parens ")" ^^
+        space ^^
+        op "\226\135\146" ^^
+        optionalBreakSp ^^
+        PP.nestAbsolute 2 r2 ^^
+        PP.mandatoryBreak ^^
+        kw "R" ^^
+        parens "(" ^^
+        var y ^^
+        parens ")" ^^ space ^^ op "\226\135\146" ^^ optionalBreakSp ^^ PP.nestAbsolute 2 r3
+      );
+  let of_CaseAnn rty r1 x r2 y r3 =>
+    term
+      "Case"
+      (
+        PP.blockBoundary ^^
+        kw "case" ^^
+        parens "[" ^^
+        rty ^^
+        parens "]" ^^
         space ^^
         r1 ^^
         PP.mandatoryBreak ^^
@@ -222,8 +259,8 @@ module PPView = {
       | Ap _ _ => ap_precedence
       | NumLit _ => numlit_precedence
       | Plus _ _ => plus_precedence
-      | Inj _ _ => inj_precedence
-      | Case _ _ _ => case_precedence
+      | Inj _ _ _ => inj_precedence
+      | Case _ _ _ _ => case_precedence
       | EmptyHole _ _ _ => empty_hole_precedence
       | NonEmptyHole _ _ _ _ => non_empty_hole_precedence
       | Cast _ _ => cast_precedence
@@ -350,7 +387,7 @@ module PPView = {
         switch d {
         | Var x => term "Var" (var x)
         | Let x d1 d2 => of_Let x (of_dhexp d1) (of_dhexp d2)
-        | Lam x ty d1 => of_LamAsc x (of_htype ty) (of_dhexp d1)
+        | Lam x ty d1 => of_LamAnn x (of_htype ty) (of_dhexp d1)
         | Ap d1 d2 =>
           let prec1 = dhexp_precedence d1;
           let paren1 = prec1 !== 0 && prec1 < ap_precedence;
@@ -368,8 +405,9 @@ module PPView = {
           let paren2 = prec2 > 0 && prec2 !== plus_precedence;
           let r2 = of_dhexp' d2 paren2;
           of_Plus r1 r2
-        | Inj side d1 => of_Inj side (of_dhexp d1)
-        | Case d1 (x, d2) (y, d3) => of_Case (of_dhexp d1) x (of_dhexp d2) y (of_dhexp d3)
+        | Inj ty side d1 => of_InjAnn (of_htype ty) side (of_dhexp d1)
+        | Case ty d1 (x, d2) (y, d3) =>
+          of_CaseAnn (of_htype ty) (of_dhexp d1) x (of_dhexp d2) y (of_dhexp d3)
         | EmptyHole u m sigma =>
           /* TODO: show names, substitutions */
           term "EmptyHole" (taggedText "hole" "\226\150\162")

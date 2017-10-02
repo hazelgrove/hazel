@@ -1010,8 +1010,8 @@ Module Core.
             | Ap  : t -> t -> t
             | NumLit : nat -> t
             | Plus : t -> t -> t
-            | Inj : HExp.inj_side -> t -> t
-            | Case : t -> (Var.t * t) -> (Var.t * t) -> t
+            | Inj : HTyp.t -> HExp.inj_side -> t -> t
+            | Case : HTyp.t -> t -> (Var.t * t) -> (Var.t * t) -> t
             | EmptyHole : MetaVar.t -> eval_state -> Environment.t(t) -> t 
             | NonEmptyHole : MetaVar.t -> eval_state -> Environment.t(t) -> t -> t
             | Cast : HTyp.t -> t -> t.
@@ -1039,14 +1039,14 @@ Module Core.
                         let d3' := subst d1 x d3 in 
                         let d4' := subst d1 x d4 in 
                         Plus d3' d4'
-                    | Inj side d3 => 
+                    | Inj ty side d3 => 
                         let d3' := subst d1 x d3 in 
-                        Inj side d3' 
-                    | Case d3 (y4, d4) (y5, d5) => 
+                        Inj ty side d3' 
+                    | Case ty d3 (y4, d4) (y5, d5) => 
                         let d3' := subst d1 x d3 in 
                         let d4' := if Var.equal x y4 then d4 else subst d1 x d4 in 
                         let d5' := if Var.equal x y5 then d5 else subst d1 x d5 in 
-                        Case d3' (y4, d4') (y5, d5')
+                        Case ty d3' (y4, d4') (y5, d5')
                     | EmptyHole u m sigma => 
                         let sigma' := env_subst fuel d1 x sigma in 
                         EmptyHole u m sigma' 
@@ -1128,8 +1128,40 @@ Module Core.
                             else IllTyped
                         | _ => IllTyped
                         end
-                    | Inj side d1 => IllTyped (* TODO *)
-                    | Case d1 (x, d2) (y, d3) => IllTyped (* TODO *)
+                    | Inj other_ty side d1 => 
+                        match assign_type gamma delta d1 with
+                        | IllTyped => IllTyped
+                        | WellTyped ty1 => 
+                            match side with 
+                            | HExp.L => WellTyped (HTyp.Sum ty1 other_ty)
+                            | HExp.R => WellTyped (HTyp.Sum other_ty ty1)
+                            end
+                        end
+                    | Case ty d1 (x, d2) (y, d3) => 
+                        match assign_type gamma delta d1 with 
+                        | IllTyped => IllTyped
+                        | WellTyped ty1 => 
+                            match HTyp.matched_sum ty1 with 
+                            | None => IllTyped
+                            | Some (ty1L, ty1R) => 
+                                let gammaL := Ctx.extend gamma (x, ty1L) in 
+                                match assign_type gammaL delta d2 with 
+                                | IllTyped => IllTyped
+                                | WellTyped ty2 => 
+                                    if HTyp.consistent ty2 ty
+                                    then 
+                                        let gammaR := Ctx.extend gamma (y, ty1R) in 
+                                        match assign_type gammaR delta d3 with 
+                                        | IllTyped => IllTyped
+                                        | WellTyped ty3 => 
+                                            if HTyp.consistent ty3 ty then 
+                                                WellTyped ty
+                                             else IllTyped
+                                        end
+                                    else IllTyped
+                                end
+                            end
+                        end
                     | EmptyHole u m sigma => 
                         match MetaVarCtx.lookup delta u with 
                         | Some (ty, gamma') => 
@@ -1278,8 +1310,8 @@ Module Core.
                             end
                         | DoesNotExpand => DoesNotExpand
                         end
-                    | HExp.Inj side e1 => DoesNotExpand (* TODO *)
-                    | HExp.Case e1 (x, e2) (y, e3) => DoesNotExpand (* TODO *)
+                    | HExp.Inj _ _ => DoesNotExpand
+                    | HExp.Case _ _ _ => DoesNotExpand
                     | HExp.EmptyHole u => 
                         let sigma := id_env gamma in 
                         let d := DHExp.EmptyHole u Unevaled sigma in 
@@ -1328,6 +1360,45 @@ Module Core.
                             end
                         | _ => DoesNotExpand
                         end
+                    | HExp.Inj side e1 => 
+                        match HTyp.matched_sum ty with 
+                        | None => DoesNotExpand
+                        | Some (ty1, ty2) => 
+                            let e1ty := HExp.pick_side side ty1 ty2 in 
+                            match ana_expand gamma e1 e1ty with 
+                            | DoesNotExpand => DoesNotExpand
+                            | Expands d1 e1ty' delta => 
+                                let (ann_ty, ty) := 
+                                    match side with 
+                                    | HExp.L => (ty2, HTyp.Sum e1ty' ty2) 
+                                    | HExp.R => (ty1, HTyp.Sum ty1 e1ty')
+                                    end in 
+                                let d := Inj ann_ty side d1 in 
+                                Expands d ty delta
+                            end
+                        end
+                    | HExp.Case e1 (x, e2) (y, e3) => 
+                        match syn_expand fuel gamma e1 with 
+                        | DoesNotExpand => DoesNotExpand
+                        | Expands d1 ty1 delta1 => 
+                            match HTyp.matched_sum ty1 with 
+                            | None => DoesNotExpand
+                            | Some (ty1L, ty1R) => 
+                                let gammaL := Ctx.extend gamma (x, ty1L) in 
+                                match ana_expand gammaL e2 ty with 
+                                | DoesNotExpand => DoesNotExpand
+                                | Expands d2 _ delta2 => 
+                                    let gammaR := Ctx.extend gamma (y, ty1R) in 
+                                    match ana_expand gammaR e3 ty with 
+                                    | DoesNotExpand => DoesNotExpand
+                                    | Expands d3 _ delta3 => 
+                                        let d := Case ty d1 (x, d2) (y, d3) in 
+                                        let delta := delta1 ++ delta2 ++ delta3 in 
+                                        Expands d ty delta
+                                    end
+                                end
+                            end
+                        end
                     | HExp.EmptyHole u => 
                         let sigma := id_env gamma in 
                         let d := EmptyHole u Unevaled sigma in 
@@ -1348,9 +1419,7 @@ Module Core.
                     | HExp.Let _ _ _ 
                     | HExp.Ap _ _
                     | HExp.NumLit _
-                    | HExp.Plus _ _ 
-                    | HExp.Inj _ _ 
-                    | HExp.Case _ _ _ => 
+                    | HExp.Plus _ _ => 
                         match syn_expand fuel gamma e with 
                         | DoesNotExpand => DoesNotExpand
                         | (Expands d ty' delta) as result => 
@@ -1427,8 +1496,34 @@ Module Core.
                                 Indet (DHExp.Plus d1' d2')
                             end
                         end
-                    | DHExp.Inj side d1 => InvalidInput (* TODO *)
-                    | DHExp.Case d1 (x, d2) (y, d3) => InvalidInput (* TODO *)
+                    | DHExp.Inj ty side d1 => 
+                        match evaluate fuel' delta d1 with 
+                        | InvalidInput => InvalidInput
+                        | CastError => CastError
+                        | Value d1' => Value (DHExp.Inj ty side d1')
+                        | Indet d1' => Indet (DHExp.Inj ty side d1')
+                        end
+                    | DHExp.Case ty d1 (x, d2) (y, d3) =>
+                        match evaluate fuel' delta d1 with 
+                        | InvalidInput => InvalidInput
+                        | CastError => CastError
+                        | Value d1' => 
+                            match d1' with 
+                            | DHExp.Inj _ side d1'' => 
+                                let (xb, db) := HExp.pick_side side (x, d2) (y, d3) in
+                                let branch := DHExp.subst fuel' d1'' xb db in 
+                                evaluate fuel' delta branch
+                            | _ => InvalidInput
+                            end
+                        | Indet d1' => 
+                            match d1' with 
+                            | DHExp.Inj _ side d1'' => 
+                                let (xb, db) := HExp.pick_side side (x, d2) (y, d3) in 
+                                let branch := DHExp.subst fuel' d1'' xb db in 
+                                evaluate fuel' delta branch
+                            | _ => Indet (DHExp.Case ty d1' (x, d2) (y, d3))
+                            end
+                        end
                     | DHExp.EmptyHole _ _ _ => Indet d 
                     | DHExp.NonEmptyHole u m sigma d1 => 
                         match evaluate fuel' delta d1 with 
