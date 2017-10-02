@@ -76,6 +76,22 @@ h1 {
 	color: #444;
 }
 
+.cell-status {
+	display: grid;
+	grid-template-columns: 30px 1fr;
+	background-color: #CCC;
+}
+
+.result-label {
+	padding: 3px
+}
+
+.result-view {
+	padding-left: 15px;
+	padding-bottom: 5px;
+	background-color: #CCC;
+}
+
 .type-indicator {
 	text-align: right;
 	width: 100%;

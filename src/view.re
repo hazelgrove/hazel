@@ -121,6 +121,13 @@ module PPView = {
       );
   let of_Lam x r =>
     term "Lam" (kw "\206\187" ^^ var x ^^ kw "." ^^ PP.optionalBreak "" ^^ PP.nestRelative 4 r);
+  let of_LamAsc x rty r1 =>
+    term
+      "LamAsc"
+      (
+        kw "\206\187" ^^
+        var x ^^ kw ":" ^^ rty ^^ kw "." ^^ PP.optionalBreak "" ^^ PP.nestRelative 4 r1
+      );
   let of_Ap r1 r2 => term "Ap" (r1 ^^ optionalBreakSp ^^ r2);
   let of_Plus r1 r2 => term "Plus" (r1 ^^ optionalBreakSp ^^ op "+" ^^ optionalBreakSp ^^ r2);
   let of_Inj side r =>
@@ -129,7 +136,8 @@ module PPView = {
       (
         kw "inj" ^^
         parens "[" ^^
-        kw (string_of_side side) ^^ parens "]" ^^ parens "(" ^^ optionalBreakSp ^^ r ^^ parens ")"
+        kw (string_of_side side) ^^
+        parens "]" ^^ parens "(" ^^ PP.optionalBreak "" ^^ r ^^ parens ")"
       );
   let of_Case r1 x r2 y r3 =>
     term
@@ -155,6 +163,8 @@ module PPView = {
         parens ")" ^^ space ^^ op "\226\135\146" ^^ optionalBreakSp ^^ PP.nestAbsolute 2 r3
       );
   let of_NonEmptyHole r => term "NonEmptyHole" r;
+  let of_Cast rty r1 =>
+    term "Cast" (parens "<" ^^ rty ^^ parens ">(" ^^ PP.optionalBreak "" ^^ r1 ^^ parens ")");
   let asc_precedence = 1;
   let var_precedence = 0;
   let let_precedence = 1;
@@ -166,6 +176,7 @@ module PPView = {
   let case_precedence = 1;
   let empty_hole_precedence = 0;
   let non_empty_hole_precedence = 0;
+  let cast_precedence = 1;
   let hexp_precedence e =>
     HExp.(
       switch e {
@@ -200,6 +211,22 @@ module PPView = {
       | CaseZ2 _
       | CaseZ3 _ => case_precedence
       | NonEmptyHoleZ _ _ => non_empty_hole_precedence
+      }
+    );
+  let dhexp_precedence e =>
+    Dynamics.DHExp.(
+      switch e {
+      | Var _ => var_precedence
+      | Let _ _ _ => let_precedence
+      | Lam _ _ _ => lam_precedence
+      | Ap _ _ => ap_precedence
+      | NumLit _ => numlit_precedence
+      | Plus _ _ => plus_precedence
+      | Inj _ _ => inj_precedence
+      | Case _ _ _ => case_precedence
+      | EmptyHole _ _ _ => empty_hole_precedence
+      | NonEmptyHole _ _ _ _ => non_empty_hole_precedence
+      | Cast _ _ => cast_precedence
       }
     );
   let rec of_hexp' e paren =>
@@ -311,4 +338,44 @@ module PPView = {
       of_Case (of_hexp e1) x (of_hexp e2) y (of_zexp ze)
     | ZExp.NonEmptyHoleZ _ ze => of_NonEmptyHole (of_zexp ze)
     };
+  let rec of_dhexp' d paren =>
+    if paren {
+      parens "(" ^^ PP.nestRelative 0 (of_dhexp d) ^^ parens ")"
+    } else {
+      of_dhexp d
+    }
+  and of_dhexp d =>
+    Dynamics.(
+      DHExp.(
+        switch d {
+        | Var x => term "Var" (var x)
+        | Let x d1 d2 => of_Let x (of_dhexp d1) (of_dhexp d2)
+        | Lam x ty d1 => of_LamAsc x (of_htype ty) (of_dhexp d1)
+        | Ap d1 d2 =>
+          let prec1 = dhexp_precedence d1;
+          let paren1 = prec1 !== 0 && prec1 < ap_precedence;
+          let r1 = of_dhexp' d1 paren1;
+          let prec2 = dhexp_precedence d2;
+          let paren2 = prec2 !== 0 && prec2 <= ap_precedence;
+          let r2 = of_dhexp' d2 paren2;
+          of_Ap r1 r2
+        | NumLit n => term "NumLit" (taggedText "number" (string_of_int n))
+        | Plus d1 d2 =>
+          let prec1 = dhexp_precedence d1;
+          let paren1 = prec1 > 0 && prec1 !== plus_precedence;
+          let r1 = of_dhexp' d1 paren1;
+          let prec2 = dhexp_precedence d2;
+          let paren2 = prec2 > 0 && prec2 !== plus_precedence;
+          let r2 = of_dhexp' d2 paren2;
+          of_Plus r1 r2
+        | Inj side d1 => of_Inj side (of_dhexp d1)
+        | Case d1 (x, d2) (y, d3) => of_Case (of_dhexp d1) x (of_dhexp d2) y (of_dhexp d3)
+        | EmptyHole u m sigma =>
+          /* TODO: show names, substitutions */
+          term "EmptyHole" (taggedText "hole" "\226\150\162")
+        | NonEmptyHole u m sigma d1 => of_NonEmptyHole (of_dhexp d1)
+        | Cast ty d1 => of_Cast (of_htype ty) (of_dhexp d1)
+        }
+      )
+    );
 };
