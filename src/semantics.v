@@ -1226,7 +1226,7 @@ Module Core.
                         end
                     | HExp.Lam x e1 => DoesNotExpand
                     | HExp.Ap e1 e2 => 
-                        match HExp.hsyn fuel gamma e with 
+                        match HExp.hsyn fuel gamma e1 with 
                         | Some HTyp.Hole => 
                             match ana_expand fuel gamma e2 HTyp.Hole with 
                             | Expands d2 ty2 delta2 => 
