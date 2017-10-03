@@ -62,7 +62,7 @@ module PPView = {
       let r1 = of_htype' tau1 paren1;
       let r2 = of_htype' tau2 paren2;
       of_Sum r1 r2
-    | HTyp.Hole => term "Hole" (taggedText "hole" "\226\150\162")
+    | HTyp.Hole => term "Hole" (taggedText "hole" "\226\151\139")
     };
   let rec of_ztype' ztau paren =>
     switch ztau {
@@ -199,7 +199,7 @@ module PPView = {
         var y ^^
         parens ")" ^^ space ^^ op "\226\135\146" ^^ optionalBreakSp ^^ PP.nestAbsolute 2 r3
       );
-  let of_NonEmptyHole r => term "NonEmptyHole" r;
+  let of_NonEmptyHole u r => term "NonEmptyHole" r ^^ taggedText "holeName" (string_of_int u);
   let of_Cast rty r1 =>
     term "Cast" (parens "<" ^^ rty ^^ parens ">(" ^^ PP.optionalBreak "" ^^ r1 ^^ parens ")");
   let asc_precedence = 1;
@@ -303,8 +303,10 @@ module PPView = {
     | HExp.Inj side e [@implicit_arity] => of_Inj side (of_hexp e)
     | HExp.Case e1 (x, e2) (y, e3) [@implicit_arity] =>
       of_Case (of_hexp e1) x (of_hexp e2) y (of_hexp e3)
-    | HExp.EmptyHole _ => term "EmptyHole" (taggedText "hole" "\226\150\162")
-    | HExp.NonEmptyHole _ e => of_NonEmptyHole (of_hexp e)
+    | HExp.EmptyHole u =>
+      term
+        "EmptyHole" (taggedText "hole" "\226\151\139" ^^ taggedText "holeName" (string_of_int u))
+    | HExp.NonEmptyHole u e => of_NonEmptyHole u (of_hexp e)
     };
   let rec of_zexp' ze paren =>
     switch ze {
@@ -373,7 +375,7 @@ module PPView = {
       of_Case (of_hexp e1) x (of_zexp ze) y (of_hexp e3)
     | ZExp.CaseZ3 e1 (x, e2) (y, ze) [@implicit_arity] =>
       of_Case (of_hexp e1) x (of_hexp e2) y (of_zexp ze)
-    | ZExp.NonEmptyHoleZ _ ze => of_NonEmptyHole (of_zexp ze)
+    | ZExp.NonEmptyHoleZ u ze => of_NonEmptyHole u (of_zexp ze)
     };
   let rec of_dhexp' d paren =>
     if paren {
@@ -410,10 +412,47 @@ module PPView = {
           of_CaseAnn (of_htype ty) (of_dhexp d1) x (of_dhexp d2) y (of_dhexp d3)
         | EmptyHole u m sigma =>
           /* TODO: show names, substitutions */
-          term "EmptyHole" (taggedText "hole" "\226\150\162")
-        | NonEmptyHole u m sigma d1 => of_NonEmptyHole (of_dhexp d1)
+          let hole_string =
+            switch m {
+            | Unevaled => "\226\151\139"
+            | Evaled => "\226\151\137"
+            };
+          term
+            "EmptyHole"
+            (
+              taggedText "hole" hole_string ^^
+              PP.tagged
+                "hole-decorations"
+                (
+                  taggedText "holeName" (string_of_int u) ^^
+                  PP.tagged "environment" (of_sigma sigma)
+                )
+            )
+        | NonEmptyHole u m sigma d1 =>
+          let hole_class =
+            switch m {
+            | Unevaled => "unevaled-ne-hole"
+            | Evaled => "evaled-ne-hole"
+            };
+          let r = of_dhexp d1;
+          term "NonEmptyHole" (PP.tagged hole_class r) ^^
+          PP.tagged
+            "hole-decorations"
+            (taggedText "holeName" (string_of_int u) ^^ PP.tagged "environment" (of_sigma sigma))
         | Cast ty d1 => of_Cast (of_htype ty) (of_dhexp d1)
         }
       )
-    );
+    )
+  and of_sigma sigma => {
+    let map_f (x, d) => of_dhexp d ^^ kw "/" ^^ PP.text x;
+    let docs = List.map map_f sigma;
+    let doc' =
+      switch docs {
+      | [] => PP.empty
+      | [x, ...xs] =>
+        let fold_f doc doc' => doc ^^ kw ", " ^^ doc';
+        List.fold_left fold_f x xs
+      };
+    parens "[" ^^ doc' ^^ parens "]"
+  };
 };

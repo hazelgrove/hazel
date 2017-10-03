@@ -1524,13 +1524,13 @@ Module Core.
                             | _ => Indet (DHExp.Case ty d1' (x, d2) (y, d3))
                             end
                         end
-                    | DHExp.EmptyHole _ _ _ => Indet d 
-                    | DHExp.NonEmptyHole u m sigma d1 => 
+                    | DHExp.EmptyHole u _ sigma => Indet (DHExp.EmptyHole u (DHExp.Evaled) sigma)  
+                    | DHExp.NonEmptyHole u _ sigma d1 => 
                         match evaluate fuel' delta d1 with 
                         | InvalidInput => InvalidInput
                         | CastError => CastError
                         | Value d1' | Indet d1' => 
-                                Indet (DHExp.NonEmptyHole u m sigma d1')
+                                Indet (DHExp.NonEmptyHole u (DHExp.Evaled) sigma d1')
                         end
                     | DHExp.Cast ty1 d1 => 
                         match evaluate fuel' delta d1 with 

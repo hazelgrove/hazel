@@ -87,7 +87,7 @@ h1 {
 }
 
 .result-view {
-	padding-left: 15px;
+	padding-left: 25px;
 	padding-bottom: 5px;
 	background-color: #CCC;
 }
@@ -204,3 +204,34 @@ button:disabled {
 	padding-right: 3px;
 	
 }
+
+.result-view {
+  font-size: xx-large;
+}
+
+.hole-decorations {
+	display: inline-table;
+	vertical-align: top;
+}
+
+.holeName {
+	vertical-align: super;
+	font-size: 50%;
+	color: #a040a0;
+}
+
+.hole-decorations > .holeName {
+	display: table-row;
+}
+
+.environment {
+	vertical-align: sub;
+	font-size: 50%;
+	/* color: #a040a0; */
+	color: black;
+}
+
+.hole-decorations > .environment {
+	display: table-row;
+}
+
