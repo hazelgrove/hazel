@@ -33,6 +33,24 @@ let r_input id placeholder_str => {
   ((rs, rf), i_elt, i_dom)
 };
 
+let r_checkbox id label_str default_val => {
+  let (rs, rf) = S.create default_val;
+  let checkbox_elt_attrs_base = Html5.[a_input_type `Checkbox, a_id id, a_class ["r-checkbox"]];
+  let checkbox_elt_attrs =
+    if default_val {
+      Html5.[a_checked (), ...checkbox_elt_attrs_base]
+    } else {
+      checkbox_elt_attrs_base
+    };
+  let checkbox_elt = Html5.(input a::checkbox_elt_attrs ());
+  let label_elt = Html5.(label a::[a_label_for id] [pcdata label_str]);
+  let control_elt = Html5.(div [checkbox_elt, label_elt]);
+  let checkbox_dom = To_dom.of_input checkbox_elt;
+  let _ = listen_to_t Ev.change checkbox_dom (fun _ => rf (Js.to_bool checkbox_dom##.checked));
+  let control_dom = To_dom.of_div control_elt;
+  ((rs, rf), control_elt, control_dom)
+};
+
 module KeyCombo: {
   type t;
   let make: string => int => t;

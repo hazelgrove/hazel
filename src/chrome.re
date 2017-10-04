@@ -58,44 +58,69 @@ let view ((rs, rf): Model.rp) => {
         }
       )
       rs;
+  let ((show_hole_names_checkbox_rs, _), show_hole_names_checkbox, _) =
+    Js_util.r_checkbox "show_hole_names_checkbox" "Show hole names" true;
+  let ((show_hole_envs_checkbox_rs, _), show_hole_envs_checkbox, _) =
+    Js_util.r_checkbox "show_hole_envs_checkbox" "Show hole environments" false;
+  let root_classes =
+    React.S.l2
+      (
+        fun show_hole_names show_hole_envs => {
+          let show_hole_names_class =
+            if show_hole_names {"show-hole-names"} else {"hide-hole-names"};
+          let show_hole_envs_class = if show_hole_envs {"show-hole-envs"} else {"hide-hole-envs"};
+          [show_hole_names_class, show_hole_envs_class]
+        }
+      )
+      show_hole_names_checkbox_rs
+      show_hole_envs_checkbox_rs;
   let result_view = R.Html5.div (ReactiveData.RList.from_signal result_rs);
   Tyxml_js.To_dom.of_div
     Html5.(
-      div [
-        div a::[a_class ["top-bar"]] [span a::[a_class ["logo-text"]] [pcdata "Hazel"]],
-        div
-          a::[a_class ["main-area"]]
-          [
-            div [
-              div
-                a::[a_class ["page-area"]]
-                [
-                  div
-                    a::[a_class ["page"]]
-                    [
-                      h1 [pcdata "Welcome to Hazel"],
-                      hr (),
-                      p [
-                        pcdata "Hazel is an experimental structure editor for a simple typed expression language."
-                      ],
-                      div a::[a_class ["ModelExp"]] [pp_view],
-                      div
-                        a::[a_class ["cell-status"]]
-                        [
-                          div a::[a_class ["result-label"]] [pcdata "Result: "],
-                          div
-                            a::[a_class ["type-indicator"]]
-                            [
-                              div a::[a_class ["type-label"]] [pcdata "Type: "],
-                              div a::[a_class ["htype-view"]] [htype_view]
-                            ]
+      div
+        a::[R.Html5.a_class root_classes]
+        [
+          div a::[a_class ["top-bar"]] [span a::[a_class ["logo-text"]] [pcdata "Hazel"]],
+          div
+            a::[a_class ["main-area"]]
+            [
+              div [
+                div
+                  a::[a_class ["page-area"]]
+                  [
+                    div
+                      a::[a_class ["page"]]
+                      [
+                        h1 [pcdata "Welcome to Hazel"],
+                        hr (),
+                        p [
+                          pcdata "Hazel is an experimental structure editor for a simple typed expression language."
                         ],
-                      div a::[a_class ["result-view"]] [result_view]
-                    ]
-                ],
-              div a::[a_class ["sidebar"]] [Action_palette.make_palette (rs, rf)]
+                        div a::[a_class ["ModelExp"]] [pp_view],
+                        div
+                          a::[a_class ["cell-status"]]
+                          [
+                            div a::[a_class ["result-label"]] [pcdata "Result: "],
+                            div
+                              a::[a_class ["type-indicator"]]
+                              [
+                                div a::[a_class ["type-label"]] [pcdata "Type: "],
+                                div a::[a_class ["htype-view"]] [htype_view]
+                              ]
+                          ],
+                        div a::[a_class ["result-view"]] [result_view]
+                      ]
+                  ],
+                div
+                  a::[a_class ["sidebar"]]
+                  [
+                    Action_palette.make_palette (rs, rf),
+                    div a::[a_class ["panel-title"]] [pcdata "Options"],
+                    show_hole_names_checkbox,
+                    show_hole_envs_checkbox
+                  ]
+              ]
             ]
-          ]
-      ]
+        ]
     )
 };

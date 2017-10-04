@@ -220,6 +220,14 @@ button:disabled {
 	color: #a040a0;
 }
 
+.hide-hole-names .holeName {
+	display: none !important;
+}
+
+.hide-hole-envs .environment {
+	display: none !important;
+}
+
 .hole-decorations > .holeName {
 	display: table-row;
 }
