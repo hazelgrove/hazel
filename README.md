@@ -10,7 +10,7 @@ You can build Hazel using the following instructions.
 
 ## Prerequisites
 
-Hazel is implemented in Reason/OCaml and compiled to Javascript for the web browser via the `js_of_ocaml` compiler. An easy way to install both OCaml and the necessary libraries is to install [opam](https://opam.ocaml.org/). After having installed `opam` using the instructions on their website, follow these steps:
+Hazel is implemented in Coq and Reason/OCaml, and is compiled to Javascript for the web browser via the `js_of_ocaml` compiler. Coq can be downloaded [here](https://coq.inria.fr/download). An easy way to install both OCaml and the necessary libraries is to install [opam](https://opam.ocaml.org/). After having installed `opam` using the instructions on their website, follow these steps:
 
   - If you are using `opam` for the first time, you have to initialize it:
 
@@ -41,12 +41,12 @@ Hazel is implemented in Reason/OCaml and compiled to Javascript for the web brow
     system  C system  System compiler (4.02.1)
     ```
 
-    The `C` marks the current compiler. Here version 4.02.1 is installed. We can see that a more recent version is available (4.04.2). So we will install it with `opam switch 4.03.0`. This won't remove the system compiler as `opam` will install the files in your `.opam` directory. Hazel requires OCaml 4.04.2+.
+    The `C` marks the current compiler. Here version 4.02.1 is installed. We can see that a more recent version is available (4.04.2). So we will install it with `opam switch 4.04.2`. This won't remove the system compiler as `opam` will install the files in your `.opam` directory. Hazel requires OCaml 4.04.2+. Note that Reason may not be supported for OCaml 4.05 or above.
 
     The following command switches out the current compiler with the newly installed one and sets up your path to use it permanently.
 
     ```sh
-    > opam switch 4.03.0
+    > opam switch 4.04.2
     > eval `opam config env`
     ```
 
@@ -61,6 +61,8 @@ Hazel is implemented in Reason/OCaml and compiled to Javascript for the web brow
  You now have all the required packages. We can now build the application.
 
 ## Compilation
+
+After installing Coq and OCaml, you can compile Hazel:
 
 ```sh
 > cd src
