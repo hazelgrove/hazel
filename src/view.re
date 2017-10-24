@@ -62,7 +62,7 @@ module PPView = {
       let r1 = of_htype' tau1 paren1;
       let r2 = of_htype' tau2 paren2;
       of_Sum r1 r2
-    | HTyp.Hole => term "Hole" (taggedText "hole" "\226\151\139")
+    | HTyp.Hole => term "Hole" (taggedText "hole" "\226\144\163")
     };
   let rec of_ztype' ztau paren =>
     switch ztau {
@@ -305,7 +305,7 @@ module PPView = {
       of_Case (of_hexp e1) x (of_hexp e2) y (of_hexp e3)
     | HExp.EmptyHole u =>
       term
-        "EmptyHole" (taggedText "hole" "\226\151\139" ^^ taggedText "holeName" (string_of_int u))
+        "EmptyHole" (taggedText "hole" "\226\144\163" ^^ taggedText "holeName" (string_of_int u))
     | HExp.NonEmptyHole u e => of_NonEmptyHole u (of_hexp e)
     };
   let rec of_zexp' ze paren =>
@@ -414,8 +414,8 @@ module PPView = {
           /* TODO: show names, substitutions */
           let hole_string =
             switch m {
-            | Unevaled => "\226\151\139"
-            | Evaled => "\226\151\137"
+            | Unevaled => "\226\144\163"
+            | Evaled => "\226\144\163"
             };
           term
             "EmptyHole"
