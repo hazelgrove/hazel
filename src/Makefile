@@ -8,5 +8,5 @@ semantics.re: semantics.v
 	scripts/extract-coq.sh
 clean:
 	rm -rf _build
-	rm *.glob *.vo *.byte www/hazel.js semantics.re
+	rm -f *.glob *.vo *.byte www/hazel.js semantics.re
 
