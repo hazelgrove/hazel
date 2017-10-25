@@ -1,3 +1,5 @@
+PKG compiler-libs
+PKG reason
 PKG js_of_ocaml
 PKG tyxml
 PKG js_of_ocaml.tyxml

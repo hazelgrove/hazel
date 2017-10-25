@@ -75,6 +75,26 @@ let view ((rs, rf): Model.rp) => {
       show_hole_names_checkbox_rs
       show_hole_envs_checkbox_rs;
   let result_view = R.Html5.div (ReactiveData.RList.from_signal result_rs);
+  let hrs = React.S.map (fun ((zexp, _), _) => ZExp.erase zexp) rs;
+  let _ =
+    Js_util.listen_to
+      Dom_html.Event.keydown
+      Dom_html.document
+      (
+        fun evt => {
+          let key_code = Js_util.get_keyCode evt;
+          let is_shift = Js.to_bool evt##.shiftKey;
+          let kcd = Js_util.KeyCombo.keyCode;
+          module KCs = Js_util.KeyCombos;
+          if (is_shift && key_code == kcd KCs.enter) {
+            Transpile.serialize Format.str_formatter (React.S.value hrs);
+            Firebug.console##log (Format.flush_str_formatter ());
+            Js._false
+          } else {
+            Js._true
+          }
+        }
+      );
   Tyxml_js.To_dom.of_div
     Html5.(
       div
