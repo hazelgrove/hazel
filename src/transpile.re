@@ -87,6 +87,14 @@ let serialize formatter hexp =>
   Reason_toolchain.JS.print_canonical_implementation_with_comments
     formatter (expr_to_structure (hz_to_ml hexp), []);
 
+let hz_to_string hexp => {
+  let buf = Buffer.create 32;
+  let fmtr = Format.formatter_of_buffer buf;
+  serialize fmtr hexp;
+  Format.pp_print_flush fmtr ();
+  Buffer.contents buf
+};
+
 let hz_to_file filename hexp => {
   let out = open_out filename;
   serialize (Format.formatter_of_out_channel out) hexp;
