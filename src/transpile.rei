@@ -5,13 +5,24 @@
 exception InvalidVar string;
 
 /**
+ * raised by ml_to_hz, parse, hz_from_file, and hz_from_string if the passed
+ * serialization cannot be interpreted as a valid hazelnut expression.
+ */
+exception InvalidSerialization string;
+
+/**
  * Returns an ml Parsetree expression equivalent to the passed HExp.
  * The retuned expression may depend on the HazelPrelude module.
  */
 let hz_to_ml: Semantics.Core.HExp.t => Parsetree.expression;
-/* TODO let ml_to_hz : Parsetree.expression => Semantics.Core.HExp.t; */
 let serialize: Format.formatter => Semantics.Core.HExp.t => unit;
-let hz_to_string: Semantics.Core.HExp.t => string;
-/* TODO let parse : ??? => Parsetree.expression => unit; */
 let hz_to_file: string => Semantics.Core.HExp.t => unit;
-/* TODO let hz_from_file : string => Parsetree.expression; */
+let hz_to_string: Semantics.Core.HExp.t => string;
+/**
+ * Returns an HExp derived from the passed Parsetree.
+ * The passed Parsetree may depend on the HazelPrelude module.
+ */
+let ml_to_hz : Parsetree.expression => Semantics.Core.HExp.t;
+let parse : in_channel => Semantics.Core.HExp.t;
+let hz_from_file : string => Semantics.Core.HExp.t;
+let hz_from_string : string => Semantics.Core.HExp.t;

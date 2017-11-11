@@ -23,6 +23,9 @@ let testVar _ => test_serialize_ (HExp.Var "var") "var;";
 let testLet _ => {
   test_serialize_ (HExp.Let "x" ph_ (HExp.Var "b")) "{ let x = ph; b };";
   test_serialize_
+    (HExp.Let "x" (phn_ 1) (HExp.Let "y" (phn_ 2) (HExp.Var "x")))
+    "{ let x = ph1; let y = ph2; x };";
+  test_serialize_
     (HExp.Let "a" (HExp.Let "b" ph_ (HExp.Var "b")) (HExp.Let "c" (HExp.Var "a") (HExp.Var "c")))
     "{ let a = { let b = ph; b }; let c = a; c };";
   test_serialize_
@@ -253,6 +256,7 @@ let testInvalidVarName _ => {
   test_bad_var "x-x" 0
 };
 
+/* TODO don't forget a test case for case that tries to use wrong constructor names */
 let tests =
   "Transpile tests" >::: [
     "testVar" >:: testVar,
