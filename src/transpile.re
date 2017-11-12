@@ -58,6 +58,20 @@ let unwrap_var v =>
     }
   );
 
+let unwrap_tupled_var v =>
+  Parsetree.(
+    switch v.ppat_desc {
+    | Ppat_tuple [v_] => unwrap_var v_
+    | _ =>
+      raise (
+        InvalidSerialization (
+          "Invalid pattern where tuple of one variable was expected at " ^
+          get_loc_string v.ppat_loc
+        )
+      )
+    }
+  );
+
 let unwrap_nat_literal expr =>
   Parsetree.(
     switch (unwrap_expr expr) {
@@ -209,7 +223,7 @@ let rec ml_to_hz_unsafe prstree_expr => {
           pc_rhs: e
         }
           when unwrap_hz_lib s == side => (
-          unwrap_var v,
+          unwrap_tupled_var v,
           ml_to_hz_unsafe e
         )
       | _ => raise_ ("Invalid " ^ side ^ " case at ")
@@ -218,16 +232,17 @@ let rec ml_to_hz_unsafe prstree_expr => {
   | Pexp_match _ _ => raise_ "Invalid 'match' that doesn't correspond to Hazelnut `Case` at "
   | Pexp_construct hz_lib_loc (Some sub_expr) =>
     let constr_name = unwrap_hz_lib hz_lib_loc;
-    switch constr_name {
-    | "L" => HExp.Inj HExp.L (ml_to_hz_unsafe sub_expr)
-    | "R" => HExp.Inj HExp.R (ml_to_hz_unsafe sub_expr)
-    | "EHole" => HExp.EmptyHole (unwrap_nat_literal sub_expr)
-    | "NEHole" =>
-      switch (unwrap_expr sub_expr) {
-      | Pexp_tuple [u, e] => HExp.NonEmptyHole (unwrap_nat_literal u) (ml_to_hz_unsafe e)
-      | _ => raise_ "Invalid non-empty hole at "
+    switch (unwrap_expr sub_expr) {
+    | Pexp_tuple [v] =>
+      switch constr_name {
+      | "L" => HExp.Inj HExp.L (ml_to_hz_unsafe v)
+      | "R" => HExp.Inj HExp.R (ml_to_hz_unsafe v)
+      | "EHole" => HExp.EmptyHole (unwrap_nat_literal v)
+      | _ => raise_ ("Invalid constructor HazelPrelude." ^ constr_name ^ " at ")
       }
-    | _ => raise_ ("Invalid constructor HazelPrelude." ^ constr_name ^ " at ")
+    | Pexp_tuple [u, e] when constr_name == "NEHole" =>
+      HExp.NonEmptyHole (unwrap_nat_literal u) (ml_to_hz_unsafe e)
+    | _ => raise_ "Invalid constructor at "
     }
   | Pexp_construct _ _ => raise_ "Invalid nullary constructor at "
   | Pexp_constraint e t => HExp.Asc (ml_to_hz_unsafe e) (mlt_to_hzt t)
@@ -238,7 +253,7 @@ let rec ml_to_hz_unsafe prstree_expr => {
 let ml_to_hz prstree_expr => {
   let res = ml_to_hz_unsafe prstree_expr;
   switch (HExp.hsyn () Ctx.empty res) {
-  | None => raise (InvalidSerialization "Serialization fails to type check")
+  | None => raise (InvalidSerialization "Type check failure")
   | _ => ()
   };
   res
@@ -253,9 +268,7 @@ let structure_to_expr =
     );
 
 let parse_ lexbuf =>
-  ml_to_hz (
-    structure_to_expr (fst (Reason_toolchain.JS.canonical_implementation_with_comments lexbuf))
-  );
+  ml_to_hz (structure_to_expr (Reason_toolchain.JS.canonical_implementation lexbuf));
 
 let parse i_channel => parse_ (Lexing.from_channel i_channel);
 

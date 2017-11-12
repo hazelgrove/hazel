@@ -4,128 +4,62 @@ open Printf;
 
 open Semantics.Core;
 
-let ph_ = HExp.Var "ph";
+/* See comment for `tests` value below for info on how to read the test cases */
+/* var_ and varN_ create variables that don't need to be declared */
+let var_ = HExp.Var "v";
 
-let phn_ n => HExp.Var ("ph" ^ string_of_int n);
-
-let wsre_ = "[ \n\r\t]";
-
-let norm_ s => Str.global_replace (Str.regexp (wsre_ ^ "+")) " " (String.trim s);
-
-let test_serialize_ hexp expected =>
-  assert_equal printer::(fun x => x) (norm_ expected) (norm_ (Transpile.hz_to_string hexp));
-
-let test_serialize_ hexp expected =>
-  assert_equal printer::(fun x => x) (norm_ expected) (norm_ (Transpile.hz_to_string hexp));
-
-let testVar _ => test_serialize_ (HExp.Var "var") "var;";
-
-let testLet _ => {
-  test_serialize_ (HExp.Let "x" ph_ (HExp.Var "b")) "{ let x = ph; b };";
-  test_serialize_
-    (HExp.Let "x" (phn_ 1) (HExp.Let "y" (phn_ 2) (HExp.Var "x")))
-    "{ let x = ph1; let y = ph2; x };";
-  test_serialize_
-    (HExp.Let "a" (HExp.Let "b" ph_ (HExp.Var "b")) (HExp.Let "c" (HExp.Var "a") (HExp.Var "c")))
-    "{ let a = { let b = ph; b }; let c = a; c };";
-  test_serialize_
-    (HExp.Let "a" ph_ (HExp.Let "a" (HExp.Var "a") (HExp.Var "a"))) "{ let a = ph; let a = a; a };"
+let varN_ n => {
+  assert (n > 0 && n < 10);
+  HExp.Var (sprintf "v%d" n)
 };
 
-let testLam _ => {
-  test_serialize_ (HExp.Lam "a" ph_) "fun a => ph;";
-  test_serialize_ (HExp.Lam "a" (HExp.Lam "b" (HExp.Var "b"))) "fun a b => b;"
-};
-
-let testAp _ => {
-  test_serialize_ (HExp.Ap (phn_ 1) (phn_ 2)) "ph1 ph2;";
-  test_serialize_
-    (HExp.Ap (HExp.Ap (phn_ 1) (phn_ 2)) (HExp.Ap (phn_ 3) (phn_ 4))) "(ph1 ph2) (ph3 ph4);"
-};
-
-let testNumLit _ => {
-  test_serialize_ (HExp.NumLit 0) "0;";
-  test_serialize_ (HExp.NumLit 1) "1;"
-};
-
-let testPlus _ => {
-  test_serialize_ (HExp.Plus (phn_ 1) (phn_ 2)) "ph1 + ph2;";
-  test_serialize_
-    (HExp.Plus (HExp.Plus (phn_ 1) (phn_ 2)) (HExp.Plus (phn_ 3) (phn_ 4)))
-    "ph1 + ph2 + (ph3 + ph4);"
-};
-
-let testInj side _ => {
-  let side_str =
-    switch side {
-    | HExp.L => "L"
-    | HExp.R => "R"
-    };
-  test_serialize_ (HExp.Inj side ph_) (sprintf "HazelPrelude.%s ph;" side_str);
-  test_serialize_
-    (HExp.Inj side (HExp.Inj HExp.L (HExp.Var "x")))
-    (sprintf "HazelPrelude.%s (HazelPrelude.L x);" side_str)
-};
-
-let testCase _ => {
-  test_serialize_
-    (HExp.Case ph_ ("l", HExp.Var "x") ("r", HExp.Var "y"))
-    "switch ph { | HazelPrelude.L l => x | HazelPrelude.R r => y };";
-  test_serialize_
+let (>:::%) group_name checks =>
+  group_name >:::
+  List.map
     (
-      HExp.Case
-        (HExp.Case ph_ ("el", HExp.Var "ele") ("er", HExp.Var "ere"))
-        ("l", HExp.Case (phn_ 1) ("ll", HExp.Var "lle") ("lr", HExp.Var "lre"))
-        ("r", HExp.Case (phn_ 2) ("rl", HExp.Var "rle") ("rr", HExp.Var "rre"))
+      fun (name, hexp) =>
+        group_name ^ "/" ^ name >:: (
+          fun _ => {
+            /* TODO We shouldn't magically know that this is being invoked from the `src` directory.
+               We should either use logic to determine where the `tests` dir is relative to the cwd,
+               or we should find a way to ensure that this is run from the `tests` dir, which would
+               seem sensible */
+            let tf = open_in ("tests/test_data/" ^ group_name ^ "/" ^ name ^ ".re");
+            let fcontents = really_input_string tf (in_channel_length tf);
+            close_in tf;
+            assert_equal
+              printer::(fun x => x)
+              msg::"serialization failed"
+              fcontents
+              (Transpile.hz_to_string hexp);
+            let rec contextualize n (hexp_, fcontents_) => {
+              let h_n = n + 100;
+              if (n == 0) {
+                (
+                  HExp.Let "v" (HExp.EmptyHole h_n) (HExp.Asc hexp_ HTyp.Hole),
+                  sprintf
+                    "let v = HazelPrelude.EHole %d;\n((%s) : HazelPrelude.hole)"
+                    h_n
+                    /* kinda hacky - we remove the trailing newline and ';' */
+                    (String.sub fcontents_ 0 (String.length fcontents_ - 2))
+                )
+              } else {
+                let (hexp__, fcontents__) = contextualize (n - 1) (hexp_, fcontents_);
+                (
+                  HExp.Let (sprintf "v%d" n) (HExp.EmptyHole h_n) hexp__,
+                  sprintf "let v%d = HazelPrelude.EHole %d;\n%s" n h_n fcontents__
+                )
+              }
+            };
+            /* contextualize ensures that the reason has proper type ascription and all variables
+               are defined, so that hazelnut type checking will work */
+            let (hexp_, fcontents_) = contextualize 9 (hexp, fcontents);
+            assert_equal
+              msg::"parse failed" hexp_ (Transpile.hz_from_string (sprintf "{%s};" fcontents_))
+          }
+        )
     )
-    (
-      "switch ( switch ph { | HazelPrelude.L el => ele | HazelPrelude.R er => ere } ) { " ^
-      "| HazelPrelude.L l => " ^
-      "  switch ph1 { | HazelPrelude.L ll => lle | HazelPrelude.R lr => lre } " ^
-      "| HazelPrelude.R r => " ^
-      "  switch ph2 { | HazelPrelude.L rl => rle | HazelPrelude.R rr => rre } " ^ "};"
-    )
-};
-
-let testEmptyHole _ => {
-  test_serialize_ (HExp.EmptyHole 0) "HazelPrelude.EHole 0;";
-  test_serialize_ (HExp.EmptyHole 1) "HazelPrelude.EHole 1;"
-};
-
-let testNonEmptyHole _ => {
-  /* The presence of `[@implicit_arity]` is painful, but apparentally unavoidable */
-  test_serialize_ (HExp.NonEmptyHole 0 ph_) "HazelPrelude.NEHole 0 ph [@implicit_arity];";
-  test_serialize_
-    (HExp.NonEmptyHole 1 (HExp.NonEmptyHole 2 ph_))
-    "HazelPrelude.NEHole 1 (HazelPrelude.NEHole 2 ph [@implicit_arity]) [@implicit_arity];"
-};
-
-let testAscNum _ => test_serialize_ (HExp.Asc ph_ HTyp.Num) "(ph: HazelPrelude.num);";
-
-let testAscArrow _ => {
-  test_serialize_
-    (HExp.Asc ph_ (HTyp.Arrow HTyp.Num HTyp.Hole)) "(ph: HazelPrelude.num => HazelPrelude.hole);";
-  test_serialize_
-    (HExp.Asc ph_ (HTyp.Arrow HTyp.Hole (HTyp.Arrow HTyp.Num HTyp.Hole)))
-    "(ph: HazelPrelude.hole => HazelPrelude.num => HazelPrelude.hole);";
-  test_serialize_
-    (HExp.Asc ph_ (HTyp.Arrow (HTyp.Arrow HTyp.Hole HTyp.Num) HTyp.Hole))
-    "(ph: (HazelPrelude.hole => HazelPrelude.num) => HazelPrelude.hole);"
-};
-
-let testAscSum _ => {
-  test_serialize_
-    (HExp.Asc ph_ (HTyp.Sum (HTyp.Arrow HTyp.Num HTyp.Hole) HTyp.Hole))
-    "(ph: HazelPrelude.sum (HazelPrelude.num => HazelPrelude.hole) HazelPrelude.hole);";
-  test_serialize_
-    (HExp.Asc ph_ (HTyp.Sum HTyp.Hole (HTyp.Sum HTyp.Num HTyp.Hole)))
-    "( ph: HazelPrelude.sum HazelPrelude.hole (HazelPrelude.sum HazelPrelude.num HazelPrelude.hole) );";
-  test_serialize_
-    (HExp.Asc ph_ (HTyp.Sum (HTyp.Sum HTyp.Hole HTyp.Num) HTyp.Hole))
-    "( ph: HazelPrelude.sum (HazelPrelude.sum HazelPrelude.hole HazelPrelude.num) HazelPrelude.hole );"
-};
-
-let testAscHole _ => test_serialize_ (HExp.Asc ph_ HTyp.Hole) "(ph: HazelPrelude.hole);";
+    checks;
 
 let get_thorough_ var_mod_info => {
   let cur_n = ref 0;
@@ -137,6 +71,7 @@ let get_thorough_ var_mod_info => {
     | Some (n, subst) => cur_n_val == n ? subst : default
     }
   };
+  /* ~:"x" really just means "x", for the most part */
   let res =
     HExp.Let
       ~:"vNum"
@@ -196,38 +131,6 @@ let get_thorough_ var_mod_info => {
   }
 };
 
-let testThorough _ =>
-  test_serialize_
-    (
-      switch (get_thorough_ None) {
-      | None => assert false
-      | Some t => t
-      }
-    )
-    (
-      /* TODO move this to a data file */
-      "{ " ^
-      "  let vNum: HazelPrelude.num = HazelPrelude.EHole 0; " ^
-      "  let _plus: HazelPrelude.num => HazelPrelude.num => HazelPrelude.num = " ^
-      "    fun n_ n_2 => n_ + n_2; " ^
-      "  let l001: HazelPrelude.sum " ^
-      "              (HazelPrelude.num => HazelPrelude.num => HazelPrelude.num) " ^
-      "              HazelPrelude.num = " ^
-      "    HazelPrelude.L _plus;" ^
-      "  let r: HazelPrelude.sum " ^
-      "           (HazelPrelude.num => HazelPrelude.num => HazelPrelude.num) " ^
-      "           HazelPrelude.hole = " ^
-      "    HazelPrelude.R vNum;" ^
-      "  HazelPrelude.NEHole 1 ( " ^
-      "    ( " ^
-      "      _plus " ^
-      "      ( " ^
-      "        switch l001 { " ^
-      "          | HazelPrelude.L l2 => (l2 7) 0 " ^
-      "          | HazelPrelude.R r2 => r2 " ^
-      "        } " ^ "      ) " ^ "    ) " ^ "    3 " ^ "  ) [@implicit_arity] " ^ "};"
-    );
-
 let testInvalidVarName _ => {
   let rec test_bad_var bad_var n => {
     let hexp_opt = get_thorough_ (Some (n, bad_var));
@@ -256,24 +159,93 @@ let testInvalidVarName _ => {
   test_bad_var "x-x" 0
 };
 
-/* TODO don't forget a test case for case that tries to use wrong constructor names */
+
+/**
+ * The test cases are layed out as such:
+ * ...
+ * "testFolder" >:::% [
+ *   ("testName1", HExp1...),
+ *   ("testName2", HExp2...),
+ * ],
+ * ...
+ * Each pair asserts that the corresponding HExp and test data should be equivalent. So HExp1
+ * should serialize to the contents of 'tests/test_data/testFolder/testName1.re', and the
+ * contents of that file should parse to HExp1 (roughly speaking). Each HExp can use `var_`
+ * or `(varN_ d)` (0 < d < 10) to refer to variables `v` and `v1` through `v9` - these variables
+ * can be referred to without having to be defined. Any other variable that is referred to must
+ * be defined, or else a "Type check failure" will be raised.
+ */
 let tests =
   "Transpile tests" >::: [
-    "testVar" >:: testVar,
-    "testLet" >:: testLet,
-    "testLam" >:: testLam,
-    "testAp" >:: testAp,
-    "testNumLit" >:: testNumLit,
-    "testPlus" >:: testPlus,
-    "testInjLeft" >:: testInj HExp.L,
-    "testInjRight" >:: testInj HExp.R,
-    "testCase" >:: testCase,
-    "testEmptyHole" >:: testEmptyHole,
-    "testNonEmptyHole" >:: testNonEmptyHole,
-    "testAscNum" >:: testAscNum,
-    "testAscArrow" >:: testAscArrow,
-    "testAscSum" >:: testAscSum,
-    "testAscHole" >:: testAscHole,
-    "testThorough" >:: testThorough,
+    "testVar" >:::% [("basic", var_)],
+    "testLet" >:::% [
+      ("basic", HExp.Let "x" var_ (varN_ 1)),
+      ("nested", HExp.Let "x" (varN_ 1) (HExp.Let "y" (varN_ 2) (HExp.Var "x"))),
+      (
+        "deep",
+        HExp.Let
+          "a" (HExp.Let "b" var_ (HExp.Var "b")) (HExp.Let "c" (HExp.Var "a") (HExp.Var "c"))
+      ),
+      ("shadowing", HExp.Let "a" var_ (HExp.Let "a" (HExp.Var "a") (HExp.Var "a")))
+    ],
+    "testLam" >:::% [
+      ("basic", HExp.Lam "a" var_),
+      ("deep", HExp.Lam "a" (HExp.Lam "b" (HExp.Var "b")))
+    ],
+    "testAp" >:::% [
+      ("basic", HExp.Ap (varN_ 1) (varN_ 2)),
+      ("deep", HExp.Ap (HExp.Ap (varN_ 1) (varN_ 2)) (HExp.Ap (varN_ 3) (varN_ 4)))
+    ],
+    "testNumLit" >:::% [("zero", HExp.NumLit 0), ("one", HExp.NumLit 1)],
+    "testPlus" >:::% [
+      ("basic", HExp.Plus (varN_ 1) (varN_ 2)),
+      ("deep", HExp.Plus (HExp.Plus (varN_ 1) (varN_ 2)) (HExp.Plus (varN_ 3) (varN_ 4)))
+    ],
+    "testInjLeft" >:::% [
+      ("basic", HExp.Inj HExp.L var_),
+      ("deep", HExp.Inj HExp.L (HExp.Inj HExp.L var_))
+    ],
+    "testInjRight" >:::% [
+      ("basic", HExp.Inj HExp.R var_),
+      ("deep", HExp.Inj HExp.R (HExp.Inj HExp.L var_))
+    ],
+    /* TODO don't forget a test case for case that tries to use wrong constructor names */
+    "testCase" >:::% [
+      ("basic", HExp.Case var_ ("l", HExp.Var "l") ("r", HExp.Var "r")),
+      (
+        "deep",
+        HExp.Case
+          (HExp.Asc (HExp.Case var_ ("el", HExp.Var "el") ("er", HExp.Var "er")) HTyp.Hole)
+          ("l", HExp.Case (HExp.Var "l") ("ll", HExp.Var "ll") ("lr", HExp.Var "lr"))
+          ("r", HExp.Case (HExp.Var "r") ("rl", HExp.Var "rl") ("rr", HExp.Var "rr"))
+      )
+    ],
+    "testEmptyHole" >:::% [("zero", HExp.EmptyHole 0), ("one", HExp.EmptyHole 1)],
+    "testNonEmptyHole" >:::% [
+      ("basic", HExp.NonEmptyHole 0 var_),
+      ("deep", HExp.NonEmptyHole 1 (HExp.NonEmptyHole 2 var_))
+    ],
+    "testAscNum" >:::% [("basic", HExp.Asc var_ HTyp.Num)],
+    "testAscArrow" >:::% [
+      ("basic", HExp.Asc var_ (HTyp.Arrow HTyp.Num HTyp.Hole)),
+      ("rightAssoc", HExp.Asc var_ (HTyp.Arrow HTyp.Hole (HTyp.Arrow HTyp.Num HTyp.Hole))),
+      ("leftAssoc", HExp.Asc var_ (HTyp.Arrow (HTyp.Arrow HTyp.Hole HTyp.Num) HTyp.Hole))
+    ],
+    "testAscSum" >:::% [
+      ("withArrow", HExp.Asc var_ (HTyp.Sum (HTyp.Arrow HTyp.Num HTyp.Hole) HTyp.Hole)),
+      ("rightAssoc", HExp.Asc var_ (HTyp.Sum HTyp.Hole (HTyp.Sum HTyp.Num HTyp.Hole))),
+      ("leftAssoc", HExp.Asc var_ (HTyp.Sum (HTyp.Sum HTyp.Hole HTyp.Num) HTyp.Hole))
+    ],
+    "testAscHole" >:::% [("basic", HExp.Asc var_ HTyp.Hole)],
+    "testThorough" >:::% [
+      (
+        "thorough",
+        /* See the HExp returned by get_thorough_ */
+        switch (get_thorough_ None) {
+        | Some thorough => thorough
+        | _ => assert false
+        }
+      )
+    ],
     "testInvalidVarName" >:: testInvalidVarName
   ];
