@@ -5,7 +5,7 @@ open Tyxml_js;
 open Semantics.Core;
 
 let view ((rs, rf): Model.rp) => {
-  /* pp view */
+  /* pretty printed view */
   let pp_view_width = 50;
   let pp_rs =
     React.S.map
@@ -20,7 +20,7 @@ let view ((rs, rf): Model.rp) => {
       )
       rs;
   let pp_view = R.Html5.div (ReactiveData.RList.from_signal pp_rs);
-  /* htype view */
+  /* type view */
   let htype_rs =
     React.S.map
       (
@@ -58,6 +58,8 @@ let view ((rs, rf): Model.rp) => {
         }
       )
       rs;
+  let result_view = R.Html5.div (ReactiveData.RList.from_signal result_rs);
+  /* checkboxes */
   let ((show_hole_names_checkbox_rs, _), show_hole_names_checkbox, _) =
     Js_util.r_checkbox "show_hole_names_checkbox" "Show hole names" true;
   let ((show_hole_envs_checkbox_rs, _), show_hole_envs_checkbox, _) =
@@ -74,52 +76,50 @@ let view ((rs, rf): Model.rp) => {
       )
       show_hole_names_checkbox_rs
       show_hole_envs_checkbox_rs;
-  let result_view = R.Html5.div (ReactiveData.RList.from_signal result_rs);
+  /* final chrome */
   Tyxml_js.To_dom.of_div
     Html5.(
       div
-        a::[R.Html5.a_class root_classes]
+        a::[a_id "root", R.Html5.a_class root_classes]
         [
           div a::[a_class ["top-bar"]] [span a::[a_class ["logo-text"]] [pcdata "Hazel"]],
           div
             a::[a_class ["main-area"]]
             [
-              div [
-                div
-                  a::[a_class ["page-area"]]
-                  [
-                    div
-                      a::[a_class ["page"]]
-                      [
-                        h1 [pcdata "Welcome to Hazel"],
-                        hr (),
-                        p [
-                          pcdata "Hazel is an experimental structure editor for a simple typed expression language."
+              div
+                a::[a_class ["page-area"]]
+                [
+                  div
+                    a::[a_class ["page"]]
+                    [
+                      h1 [pcdata "Welcome to Hazel"],
+                      hr (),
+                      p [
+                        pcdata "Hazel is an experimental structure editor for a simple typed functional programming language."
+                      ],
+                      div a::[a_class ["ModelExp"]] [pp_view],
+                      div
+                        a::[a_class ["cell-status"]]
+                        [
+                          div a::[a_class ["result-label"]] [pcdata "Result: "],
+                          div
+                            a::[a_class ["type-indicator"]]
+                            [
+                              div a::[a_class ["type-label"]] [pcdata "Type: "],
+                              div a::[a_class ["htype-view"]] [htype_view]
+                            ]
                         ],
-                        div a::[a_class ["ModelExp"]] [pp_view],
-                        div
-                          a::[a_class ["cell-status"]]
-                          [
-                            div a::[a_class ["result-label"]] [pcdata "Result: "],
-                            div
-                              a::[a_class ["type-indicator"]]
-                              [
-                                div a::[a_class ["type-label"]] [pcdata "Type: "],
-                                div a::[a_class ["htype-view"]] [htype_view]
-                              ]
-                          ],
-                        div a::[a_class ["result-view"]] [result_view]
-                      ]
-                  ],
-                div
-                  a::[a_class ["sidebar"]]
-                  [
-                    Action_palette.make_palette (rs, rf),
-                    div a::[a_class ["panel-title"]] [pcdata "Options"],
-                    show_hole_names_checkbox,
-                    show_hole_envs_checkbox
-                  ]
-              ]
+                      div a::[a_class ["result-view"]] [result_view]
+                    ]
+                ],
+              div
+                a::[a_class ["sidebar"]]
+                [
+                  Action_palette.make_palette (rs, rf),
+                  div a::[a_class ["panel-title"]] [pcdata "Options"],
+                  show_hole_names_checkbox,
+                  show_hole_envs_checkbox
+                ]
             ]
         ]
     )
