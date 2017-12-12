@@ -67,6 +67,8 @@ module KeyCombos = {
   let _kc = KeyCombo.make;
   let enter = _kc "Enter" 13;
   let esc = _kc "Esc" 27;
+  let backspace = _kc "backspace" 8;
+  let del = _kc "del" 46;
   let number_1 = _kc "1" 49;
   let number_2 = _kc "2" 50;
   let number_3 = _kc "3" 51;
@@ -91,3 +93,5 @@ module KeyCombos = {
 
 let get_keyCode (evt: Js.t Dom_html.keyboardEvent) =>
   Js.Optdef.get evt##.which (fun () => assert false);
+
+let log x => Firebug.console##log x;

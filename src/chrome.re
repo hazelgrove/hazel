@@ -5,6 +5,8 @@ open Tyxml_js;
 open Semantics.Core;
 
 let view ((rs, rf): Model.rp) => {
+  /* helpers */
+  let kc = Js_util.KeyCombo.keyCode;
   /* pretty printed view */
   let pp_view_width = 50;
   let pp_rs =
@@ -19,7 +21,50 @@ let view ((rs, rf): Model.rp) => {
         }
       )
       rs;
-  let pp_view = R.Html5.div (ReactiveData.RList.from_signal pp_rs);
+  let pp_view =
+    R.Html5.div
+      a::
+        Html5.[
+          a_contenteditable true,
+          a_onkeypress (
+            fun evt => {
+              /* when pressing letters, don't actually insert them */
+              Dom.preventDefault evt;
+              true
+            }
+          ),
+          a_onkeydown (
+            fun evt => {
+              /* prevent backspace and delete, which doesn't trigger keypress */
+              let which = Js_util.get_keyCode evt;
+              let is_backspace = which == kc Js_util.KeyCombos.backspace;
+              let is_del = which == kc Js_util.KeyCombos.del;
+              if (is_backspace || is_del) {
+                Dom.preventDefault evt;
+                false
+              } else {
+                true
+              }
+            }
+          ),
+          a_ondrop (
+            fun evt => {
+              /* prevent dropping dragged stuff into view */
+              Dom.preventDefault evt;
+              false
+            }
+          )
+        ]
+      (ReactiveData.RList.from_signal pp_rs);
+  /* need to prevent cut and paste differently because
+     a_onpaste and a_oncut are not defined by Html5 */
+  let pp_view_dom = Tyxml_js.To_dom.of_div pp_view;
+  let preventDefault_handler evt => {
+    Dom.preventDefault evt;
+    false
+  };
+  let _ = Js_util.listen_to_t (Dom.Event.make "paste") pp_view_dom preventDefault_handler;
+  let _ = Js_util.listen_to_t (Dom.Event.make "cut") pp_view_dom preventDefault_handler;
   /* type view */
   let htype_rs =
     React.S.map

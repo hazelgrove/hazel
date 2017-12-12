@@ -2,6 +2,7 @@ Require Coq.Bool.Bool. Open Scope bool.
 Require Coq.Strings.String. Open Scope string_scope.
 Require Coq.Arith.PeanoNat. Open Scope nat_scope.
 Require Coq.Lists.List. Open Scope list_scope.
+Require Extraction.
 
 Module Core.
     Module HTyp.
