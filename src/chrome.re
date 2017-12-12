@@ -65,6 +65,46 @@ let view ((rs, rf): Model.rp) => {
   };
   let _ = Js_util.listen_to_t (Dom.Event.make "paste") pp_view_dom preventDefault_handler;
   let _ = Js_util.listen_to_t (Dom.Event.make "cut") pp_view_dom preventDefault_handler;
+  let pp_view_parent = Html5.(div a::[a_id "pp_view", a_class ["ModelExp"]] [pp_view]);
+  /* Construct a simple DOM change listener to trigger cursor
+     movements (we could also just listen directly to the DOM
+     changes for pp_view, but this avoids the browser needlessly
+     computing the diffs for us */
+  let num_changes = ref 0;
+  let num_changes_str_rs =
+    React.S.map
+      (
+        fun _ => {
+          let num_changes' = !num_changes + 1;
+          num_changes := num_changes';
+          string_of_int num_changes'
+        }
+      )
+      rs;
+  let num_changes_counter =
+    Html5.(div a::[a_id "num_changes_counter"] [R.Html5.pcdata num_changes_str_rs]);
+  let num_changes_counter_dom = Tyxml_js.To_dom.of_div num_changes_counter;
+  let set_cursor () => {
+    let cursors = Dom_html.document##getElementsByClassName (Js.string "cursor");
+    let cursor_opt = cursors##item 0;
+    let cursor = Js.Opt.get cursor_opt (fun () => assert false);
+    let cursor': Js.t Dom.node = Js.Unsafe.coerce cursor;
+    let selection = Dom_html.window##getSelection;
+    let range = Dom_html.document##createRange;
+    range##setStartBefore cursor';
+    range##setEndBefore cursor';
+    selection##removeAllRanges;
+    selection##addRange range
+  };
+  let _ =
+    MutationObserver.observe
+      child_list::false
+      attributes::false
+      node::num_changes_counter_dom
+      subtree::true
+      character_data::true
+      f::(fun _ _ => set_cursor ())
+      ();
   /* type view */
   let htype_rs =
     React.S.map
@@ -122,50 +162,53 @@ let view ((rs, rf): Model.rp) => {
       show_hole_names_checkbox_rs
       show_hole_envs_checkbox_rs;
   /* final chrome */
-  Tyxml_js.To_dom.of_div
-    Html5.(
-      div
-        a::[a_id "root", R.Html5.a_class root_classes]
-        [
-          div a::[a_class ["top-bar"]] [span a::[a_class ["logo-text"]] [pcdata "Hazel"]],
-          div
-            a::[a_class ["main-area"]]
-            [
-              div
-                a::[a_class ["page-area"]]
-                [
-                  div
-                    a::[a_class ["page"]]
-                    [
-                      h1 [pcdata "Welcome to Hazel"],
-                      hr (),
-                      p [
-                        pcdata "Hazel is an experimental structure editor for a simple typed functional programming language."
-                      ],
-                      div a::[a_class ["ModelExp"]] [pp_view],
-                      div
-                        a::[a_class ["cell-status"]]
-                        [
-                          div a::[a_class ["result-label"]] [pcdata "Result: "],
-                          div
-                            a::[a_class ["type-indicator"]]
-                            [
-                              div a::[a_class ["type-label"]] [pcdata "Type: "],
-                              div a::[a_class ["htype-view"]] [htype_view]
-                            ]
+  let chrome =
+    Tyxml_js.To_dom.of_div
+      Html5.(
+        div
+          a::[a_id "root", R.Html5.a_class root_classes]
+          [
+            div a::[a_class ["top-bar"]] [span a::[a_class ["logo-text"]] [pcdata "Hazel"]],
+            div
+              a::[a_class ["main-area"]]
+              [
+                div
+                  a::[a_class ["page-area"]]
+                  [
+                    div
+                      a::[a_class ["page"]]
+                      [
+                        h1 [pcdata "Welcome to Hazel"],
+                        hr (),
+                        p [
+                          pcdata "Hazel is an experimental structure editor for a simple typed functional programming language."
                         ],
-                      div a::[a_class ["result-view"]] [result_view]
-                    ]
-                ],
-              div
-                a::[a_class ["sidebar"]]
-                [
-                  Action_palette.make_palette (rs, rf),
-                  div a::[a_class ["panel-title"]] [pcdata "Options"],
-                  show_hole_names_checkbox,
-                  show_hole_envs_checkbox
-                ]
-            ]
-        ]
-    )
+                        pp_view_parent,
+                        div
+                          a::[a_class ["cell-status"]]
+                          [
+                            div a::[a_class ["result-label"]] [pcdata "Result: "],
+                            div
+                              a::[a_class ["type-indicator"]]
+                              [
+                                div a::[a_class ["type-label"]] [pcdata "Type: "],
+                                div a::[a_class ["htype-view"]] [htype_view]
+                              ]
+                          ],
+                        div a::[a_class ["result-view"]] [result_view]
+                      ]
+                  ],
+                div
+                  a::[a_class ["sidebar"]]
+                  [
+                    Action_palette.make_palette (rs, rf),
+                    div a::[a_class ["panel-title"]] [pcdata "Options"],
+                    show_hole_names_checkbox,
+                    show_hole_envs_checkbox,
+                    num_changes_counter
+                  ]
+              ]
+          ]
+      );
+  (chrome, set_cursor)
 };

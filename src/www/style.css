@@ -238,3 +238,6 @@ button:disabled {
 	display: table-row;
 }
 
+#num_changes_counter {
+	display: none;
+}
