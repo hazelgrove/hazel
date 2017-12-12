@@ -27,7 +27,8 @@ let make_palette ((rs, rf): Model.rp) => {
         (
           fun evt =>
             if (Js_util.get_keyCode evt == KC.keyCode key_combo) {
-              doAction action
+              doAction action;
+              Dom.preventDefault evt
             } else {
               ()
             }
