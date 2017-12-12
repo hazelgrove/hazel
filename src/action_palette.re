@@ -94,11 +94,8 @@ let make_palette ((rs, rf): Model.rp) => {
                       switch converted {
                       | Some arg =>
                         switch (Action.performSyn () Ctx.empty (action arg) m) {
-                        | Some _ =>
-                          Firebug.console##log "A";
-                          false
+                        | Some _ => false
                         | None =>
-                          Firebug.console##log "B";
                           true /* filter disbled attr out if invalid action */
                         }
                       | _ => true

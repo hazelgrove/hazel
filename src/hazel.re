@@ -9,6 +9,8 @@ Js_util.listen_to_t
       let (rs, rf) = React.S.create Model.empty;
       /* Construct the Chrome and append it to container div */
       let parent = Js_util.forceGetElementById "container";
-      Dom.appendChild parent (Chrome.view (rs, rf))
+      let (chrome, set_cursor) = Chrome.view (rs, rf);
+      Dom.appendChild parent chrome;
+      set_cursor ()
     }
   );
