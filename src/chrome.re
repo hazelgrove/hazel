@@ -9,18 +9,24 @@ let view ((rs, rf): Model.rp) => {
   let kc = Js_util.KeyCombo.keyCode;
   /* pretty printed view */
   let pp_view_width = 50;
-  let pp_rs =
+  let pp_sdoc_locs_rs =
     React.S.map
       (
         fun ((zexp, _), _) => {
-          let prettified =
-            Pretty.HTML_Of_SDoc.html_of_sdoc (
-              Pretty.PP.sdoc_of_doc pp_view_width (PPView.of_zexp zexp)
-            );
-          [prettified]
+          let view = PPView.of_zexp [] zexp;
+          Pretty.PP.sdoc_of_doc pp_view_width view
         }
       )
       rs;
+  let pp_rs =
+    React.S.map
+      (
+        fun (sdoc, _) => {
+          let prettified = Pretty.HTML_Of_SDoc.html_of_sdoc sdoc;
+          [prettified]
+        }
+      )
+      pp_sdoc_locs_rs;
   let pp_view =
     R.Html5.div
       a::
@@ -110,8 +116,8 @@ let view ((rs, rf): Model.rp) => {
     React.S.map
       (
         fun ((_, htype), _) => {
-          let pp_view = PPView.of_htype htype;
-          let sdoc = Pretty.PP.sdoc_of_doc pp_view_width pp_view;
+          let pp_view = PPView.of_htype [] htype;
+          let (sdoc, _) = Pretty.PP.sdoc_of_doc pp_view_width pp_view;
           let prettified = Pretty.HTML_Of_SDoc.html_of_sdoc sdoc;
           [prettified]
         }
@@ -134,8 +140,8 @@ let view ((rs, rf): Model.rp) => {
             | Dynamics.Evaluator.CastError => [Html5.pcdata "(cast error)"]
             | Dynamics.Evaluator.Value d_val
             | Dynamics.Evaluator.Indet d_val =>
-              let pp_view = PPView.of_dhexp d_val;
-              let sdoc = Pretty.PP.sdoc_of_doc pp_view_width pp_view;
+              let pp_view = PPView.of_dhexp [] d_val;
+              let (sdoc, _) = Pretty.PP.sdoc_of_doc pp_view_width pp_view;
               let prettified = Pretty.HTML_Of_SDoc.html_of_sdoc sdoc;
               [prettified]
             }
