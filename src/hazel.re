@@ -5,10 +5,12 @@ Js_util.listen_to_t
   Dom_html.document
   (
     fun _ => {
-      /* Create a reactive signal containing an empty model. */
-      let (rs, rf) = React.S.create Model.empty;
+      /* Create the reactive signals for an empty model and the do_action function that updates them. */
+      let (ms, es, do_action) = Model.new_model ();
       /* Construct the Chrome and append it to container div */
       let parent = Js_util.forceGetElementById "container";
-      Dom.appendChild parent (Chrome.view (rs, rf))
+      let (chrome, set_cursor) = Chrome.view (ms, es, do_action);
+      Dom.appendChild parent chrome;
+      set_cursor ()
     }
   );
