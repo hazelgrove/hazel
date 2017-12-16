@@ -122,6 +122,10 @@ h1 {
 	border: 2px solid #CCC;
 }
 
+.ModelExp :focus {
+	outline: 0px;
+}
+
 .ModelType {
   font-size: large;
 	width:100%
