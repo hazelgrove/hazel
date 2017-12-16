@@ -233,7 +233,10 @@ module PPView = {
         parens ")" ^^ space ^^ op "\226\135\146" ^^ optionalBreakSp ^^ PP.nestAbsolute 2 r3
       );
   let of_NonEmptyHole rev_path u r =>
-    term "NonEmptyHole" rev_path r ^^ taggedText "holeName" (string_of_int u);
+    term
+      "NonEmptyHole"
+      rev_path
+      (PP.tagged "NonEmptyHoleTerm" None r ^^ taggedText "holeName" (string_of_int u));
   let of_Cast rev_path rty r1 =>
     term
       "Cast"
