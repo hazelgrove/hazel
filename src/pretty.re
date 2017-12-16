@@ -10,14 +10,14 @@ module PP: {
   let (^^): doc 'a => doc 'a => doc 'a;
   let nestRelative: int => doc 'a => doc 'a;
   let nestAbsolute: int => doc 'a => doc 'a;
-  let text: string => doc 'a;
+  let text: cls => string => doc 'a;
   let tagged: cls => option (id, 'a) => doc 'a => doc 'a;
   let blockBoundary: doc 'a;
   let optionalBreak: string => doc 'a;
   let mandatoryBreak: doc 'a;
   type sdoc =
     | SEmpty
-    | SText string sdoc
+    | SText cls string sdoc
     | STagStart cls (option id) sdoc
     | STagEnd sdoc
     | SLine int sdoc;
@@ -31,7 +31,7 @@ module PP: {
     | Concat (doc 'a) (doc 'a)
     | NestRelative int (doc 'a)
     | NestAbsolute int (doc 'a)
-    | Text string
+    | Text cls string
     | TagStart cls (option (id, 'a))
     | TagEnd
     | BlockBoundary
@@ -41,14 +41,14 @@ module PP: {
   let (^^) x y => Concat x y;
   let nestRelative n x => NestRelative n x;
   let nestAbsolute n x => NestAbsolute n x;
-  let text s => Text s;
+  let text cls s => Text cls s;
   let tagged cls metadata x => Concat (TagStart cls metadata) (Concat x TagEnd);
   let blockBoundary = BlockBoundary;
   let optionalBreak s => OptionalBreak s;
   let mandatoryBreak = MandatoryBreak;
   type sdoc =
     | SEmpty
-    | SText string sdoc
+    | SText cls string sdoc
     | STagStart cls (option id) sdoc
     | STagEnd sdoc
     | SLine int sdoc;
@@ -63,7 +63,7 @@ module PP: {
       | Concat x1 x2 => sdoc_of_doc' table width k [(i, x1), (i, x2), ...zs']
       | NestRelative n x' => sdoc_of_doc' table width k [(n + k, x'), ...zs']
       | NestAbsolute n x' => sdoc_of_doc' table width k [(n + i, x'), ...zs']
-      | Text s => SText s (sdoc_of_doc' table width (k + strlen s) zs')
+      | Text cls s => SText cls s (sdoc_of_doc' table width (k + strlen s) zs')
       | TagStart tag metadata =>
         let id =
           switch metadata {
@@ -84,7 +84,7 @@ module PP: {
         if (width - k <= 0) {
           SLine i (sdoc_of_doc' table width i zs')
         } else {
-          SText s (sdoc_of_doc' table width (k + strlen s) zs')
+          SText "space" s (sdoc_of_doc' table width (k + strlen s) zs')
         }
       | MandatoryBreak => SLine i (sdoc_of_doc' table width i zs')
       }
@@ -97,7 +97,7 @@ module PP: {
   let rec string_of_sdoc x =>
     switch x {
     | SEmpty => ""
-    | SText s x' => s ^ string_of_sdoc x'
+    | SText cls s x' => s ^ string_of_sdoc x'
     | STagStart _ _ x' => string_of_sdoc x'
     | STagEnd x' => string_of_sdoc x'
     | SLine n x' => "\n" ^ String.make n ' ' ^ string_of_sdoc x'
@@ -110,9 +110,9 @@ module HTML_Of_SDoc = {
   let rec html_of_sdoc'' x =>
     switch x {
     | SEmpty => ([Html5.(span a::[a_class ["SEmpty"]] [])], None)
-    | SText s x' =>
+    | SText cls s x' =>
       let (h, x'') = html_of_sdoc'' x';
-      let h' = [Html5.(span a::[a_class ["SText"]] [pcdata s]), ...h];
+      let h' = [Html5.(span a::[a_class ["SText", cls]] [pcdata s]), ...h];
       (h', x'')
     | STagStart cls id x' =>
       let (h, x'') = html_of_sdoc'' x';

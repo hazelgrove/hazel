@@ -3,7 +3,7 @@ module PPView = {
   open Semantics.Core;
   let (^^) = PP.(^^);
   /* Utility functions */
-  let taggedText cls s => PP.tagged cls None (PP.text s);
+  let taggedText cls s => PP.text cls s;
   let kw = taggedText "kw";
   let parens = taggedText "paren";
   let op = taggedText "op";
@@ -36,14 +36,14 @@ module PPView = {
     | HTyp.Sum _ => sum_precedence
     | HTyp.Arrow _ => arrow_precedence
     };
-  let z_precedence ztau =>
-    switch ztau {
-    | ZTyp.CursorT tau => h_precedence tau
-    | ZTyp.LeftArrow _
-    | ZTyp.RightArrow _ => arrow_precedence
-    | ZTyp.LeftSum _
-    | ZTyp.RightSum _ => sum_precedence
-    };
+  /* let z_precedence ztau =>
+     switch ztau {
+     | ZTyp.CursorT tau => h_precedence tau
+     | ZTyp.LeftArrow _
+     | ZTyp.RightArrow _ => arrow_precedence
+     | ZTyp.LeftSum _
+     | ZTyp.RightSum _ => sum_precedence
+     }; */
   /* parenthesize binary right-associative type operators */
   let parenthesize_bi_r_tau prec prec1 prec2 => {
     let paren1 = prec1 !== prec && prec1 !== 0;
@@ -77,52 +77,54 @@ module PPView = {
       of_Sum path r1 r2
     | HTyp.Hole => term "Hole" path (taggedText "hole" "\226\144\163")
     };
-  let rec of_ztype' path ztau paren =>
-    switch ztau {
-    | ZTyp.CursorT tau => PP.tagged "cursor" None (of_htype' path tau paren)
-    | _ =>
-      if paren {
-        parens "(" ^^ PP.nestRelative 0 (of_ztype path ztau) ^^ parens ")"
-      } else {
-        of_ztype path ztau
-      }
-    }
-  and of_ztype path ztau =>
-    switch ztau {
-    | ZTyp.CursorT tau => PP.tagged "cursor" None (of_htype path tau)
-    | ZTyp.LeftArrow ztau tau =>
-      let (paren1, paren2) =
-        parenthesize_bi_r_tau arrow_precedence (z_precedence ztau) (h_precedence tau);
-      let path1 = [0, ...path];
-      let path2 = [1, ...path];
-      let r1 = of_ztype' path1 ztau paren1;
-      let r2 = of_htype' path2 tau paren2;
-      of_Arrow path r1 r2
-    | ZTyp.RightArrow tau ztau =>
-      let (paren1, paren2) =
-        parenthesize_bi_r_tau arrow_precedence (h_precedence tau) (z_precedence ztau);
-      let path1 = [0, ...path];
-      let path2 = [1, ...path];
-      let r1 = of_htype' path1 tau paren1;
-      let r2 = of_ztype' path2 ztau paren2;
-      of_Arrow path r1 r2
-    | ZTyp.LeftSum ztau tau =>
-      let (paren1, paren2) =
-        parenthesize_bi_r_tau sum_precedence (z_precedence ztau) (h_precedence tau);
-      let path1 = [0, ...path];
-      let path2 = [1, ...path];
-      let r1 = of_ztype' path1 ztau paren1;
-      let r2 = of_htype' path2 tau paren2;
-      of_Sum path r1 r2
-    | ZTyp.RightSum tau ztau =>
-      let (paren1, paren2) =
-        parenthesize_bi_r_tau sum_precedence (h_precedence tau) (z_precedence ztau);
-      let path1 = [0, ...path];
-      let path2 = [1, ...path];
-      let r1 = of_htype' path1 tau paren1;
-      let r2 = of_ztype' path2 ztau paren2;
-      of_Sum path r1 r2
-    };
+  /* let rec of_ztype' path ztau paren =>
+       switch ztau {
+       | ZTyp.CursorT tau => (of_htype' path tau paren, path)
+       | _ =>
+         if paren {
+           let (r, cursor_path) = of_ztype path ztau;
+           let v = parens "(" ^^ PP.nestRelative 0 r ^^ parens ")";
+           (v, cursor_path)
+         } else {
+           of_ztype path ztau
+         }
+       }
+     and of_ztype path ztau =>
+       switch ztau {
+       | ZTyp.CursorT tau => (of_htype path tau, path)
+       | ZTyp.LeftArrow ztau tau =>
+         let (paren1, paren2) =
+           parenthesize_bi_r_tau arrow_precedence (z_precedence ztau) (h_precedence tau);
+         let path1 = [0, ...path];
+         let path2 = [1, ...path];
+         let (r1, cursor_path) = of_ztype' path1 ztau paren1;
+         let r2 = of_htype' path2 tau paren2;
+         (of_Arrow path r1 r2, cursor_path)
+       | ZTyp.RightArrow tau ztau =>
+         let (paren1, paren2) =
+           parenthesize_bi_r_tau arrow_precedence (h_precedence tau) (z_precedence ztau);
+         let path1 = [0, ...path];
+         let path2 = [1, ...path];
+         let r1 = of_htype' path1 tau paren1;
+         let (r2, cursor_path) = of_ztype' path2 ztau paren2;
+         (of_Arrow path r1 r2, cursor_path)
+       | ZTyp.LeftSum ztau tau =>
+         let (paren1, paren2) =
+           parenthesize_bi_r_tau sum_precedence (z_precedence ztau) (h_precedence tau);
+         let path1 = [0, ...path];
+         let path2 = [1, ...path];
+         let (r1, cursor_path) = of_ztype' path1 ztau paren1;
+         let r2 = of_htype' path2 tau paren2;
+         (of_Sum path r1 r2, cursor_path)
+       | ZTyp.RightSum tau ztau =>
+         let (paren1, paren2) =
+           parenthesize_bi_r_tau sum_precedence (h_precedence tau) (z_precedence ztau);
+         let path1 = [0, ...path];
+         let path2 = [1, ...path];
+         let r1 = of_htype' path1 tau paren1;
+         let (r2, cursor_path) = of_ztype' path2 ztau paren2;
+         (of_Sum path r1 r2, cursor_path)
+       }; */
   /* h-exps and z-exps */
   let string_of_side side =>
     switch side {
@@ -260,26 +262,26 @@ module PPView = {
       | NonEmptyHole _ _ => non_empty_hole_precedence
       }
     );
-  let zexp_precedence ze =>
-    ZExp.(
-      switch ze {
-      | CursorE e => hexp_precedence e
-      | LeftAsc _
-      | RightAsc _ => asc_precedence
-      | LetZ1 _
-      | LetZ2 _ => let_precedence
-      | LamZ _ => lam_precedence
-      | LeftAp _
-      | RightAp _ => ap_precedence
-      | LeftPlus _
-      | RightPlus _ => plus_precedence
-      | InjZ _ => inj_precedence
-      | CaseZ1 _
-      | CaseZ2 _
-      | CaseZ3 _ => case_precedence
-      | NonEmptyHoleZ _ _ => non_empty_hole_precedence
-      }
-    );
+  /* let zexp_precedence ze =>
+     ZExp.(
+       switch ze {
+       | CursorE e => hexp_precedence e
+       | LeftAsc _
+       | RightAsc _ => asc_precedence
+       | LetZ1 _
+       | LetZ2 _ => let_precedence
+       | LamZ _ => lam_precedence
+       | LeftAp _
+       | RightAp _ => ap_precedence
+       | LeftPlus _
+       | RightPlus _ => plus_precedence
+       | InjZ _ => inj_precedence
+       | CaseZ1 _
+       | CaseZ2 _
+       | CaseZ3 _ => case_precedence
+       | NonEmptyHoleZ _ _ => non_empty_hole_precedence
+       }
+     ); */
   let dhexp_precedence e =>
     Dynamics.DHExp.(
       switch e {
@@ -366,124 +368,125 @@ module PPView = {
       let r1 = of_hexp path1 e;
       of_NonEmptyHole path u r1
     };
-  let rec of_zexp' path ze paren =>
-    switch ze {
-    | ZExp.CursorE e => PP.tagged "cursor" None (of_hexp' path e paren)
-    | _ =>
-      if paren {
-        parens "(" ^^ PP.nestRelative 0 (of_zexp path ze) ^^ parens ")"
-      } else {
-        of_zexp path ze
-      }
-    }
-  and of_zexp path ze =>
-    switch ze {
-    | ZExp.CursorE e => PP.tagged "cursor" None (of_hexp path e)
-    | ZExp.LeftAsc ze tau =>
-      let path1 = [0, ...path];
-      let path2 = [1, ...path];
-      let prec1 = zexp_precedence ze;
-      let paren1 = prec1 !== 0;
-      let r1 = of_zexp' path1 ze paren1;
-      let r2 = of_htype path2 tau;
-      of_Asc path r1 r2
-    | ZExp.RightAsc e ztau =>
-      let path1 = [0, ...path];
-      let path2 = [1, ...path];
-      let prec1 = hexp_precedence e;
-      let paren1 = prec1 !== 0;
-      let r1 = of_hexp' path1 e paren1;
-      let r2 = of_ztype path2 ztau;
-      of_Asc path r1 r2
-    | ZExp.LetZ1 x ze e =>
-      let path1 = [0, ...path];
-      let path2 = [1, ...path];
-      let r1 = of_zexp path1 ze;
-      let r2 = of_hexp path2 e;
-      of_Let path x r1 r2
-    | ZExp.LetZ2 x e ze =>
-      let path1 = [0, ...path];
-      let path2 = [1, ...path];
-      let r1 = of_hexp path1 e;
-      let r2 = of_zexp path2 ze;
-      of_Let path x r1 r2
-    | ZExp.LamZ x ze =>
-      let path1 = [0, ...path];
-      let r1 = of_zexp path1 ze;
-      of_Lam path x r1
-    | ZExp.LeftAp ze e =>
-      let path1 = [0, ...path];
-      let path2 = [1, ...path];
-      let prec1 = zexp_precedence ze;
-      let paren1 = prec1 !== 0 && prec1 < ap_precedence;
-      let r1 = of_zexp' path1 ze paren1;
-      let prec2 = hexp_precedence e;
-      let paren2 = prec2 !== 0 && prec2 <= ap_precedence;
-      let r2 = of_hexp' path2 e paren2;
-      of_Ap path r1 r2
-    | ZExp.RightAp e ze =>
-      let path1 = [0, ...path];
-      let path2 = [1, ...path];
-      let prec1 = hexp_precedence e;
-      let paren1 = prec1 !== 0 && prec1 < ap_precedence;
-      let r1 = of_hexp' path1 e paren1;
-      let prec2 = zexp_precedence ze;
-      let paren2 = prec2 !== 0 && prec2 <= ap_precedence;
-      let r2 = of_zexp' path2 ze paren2;
-      of_Ap path r1 r2
-    | ZExp.LeftPlus ze e =>
-      let path1 = [0, ...path];
-      let path2 = [1, ...path];
-      let prec1 = zexp_precedence ze;
-      let paren1 = prec1 > 0 && prec1 !== plus_precedence;
-      let r1 = of_zexp' path1 ze paren1;
-      let prec2 = hexp_precedence e;
-      let paren2 = prec2 > 0 && prec2 !== plus_precedence;
-      let r2 = of_hexp' path2 e paren2;
-      of_Plus path r1 r2
-    | ZExp.RightPlus e ze =>
-      let path1 = [0, ...path];
-      let path2 = [1, ...path];
-      let prec1 = hexp_precedence e;
-      let paren1 = prec1 > 0 && prec1 !== plus_precedence;
-      let r1 = of_hexp' path1 e paren1;
-      let prec2 = zexp_precedence ze;
-      let paren2 = prec2 > 0 && prec2 !== plus_precedence;
-      let r2 = of_zexp' path2 ze paren2;
-      of_Plus path r1 r2
-    | ZExp.InjZ side ze =>
-      let path1 = [0, ...path];
-      let r = of_zexp path1 ze;
-      of_Inj path side r
-    | ZExp.CaseZ1 ze (x, e2) (y, e3) =>
-      let path1 = [0, ...path];
-      let path2 = [1, ...path];
-      let path3 = [2, ...path];
-      let r1 = of_zexp path1 ze;
-      let r2 = of_hexp path2 e2;
-      let r3 = of_hexp path3 e3;
-      of_Case path r1 x r2 y r3
-    | ZExp.CaseZ2 e1 (x, ze) (y, e3) =>
-      let path1 = [0, ...path];
-      let path2 = [1, ...path];
-      let path3 = [2, ...path];
-      let r1 = of_hexp path1 e1;
-      let r2 = of_zexp path2 ze;
-      let r3 = of_hexp path3 e3;
-      of_Case path r1 x r2 y r3
-    | ZExp.CaseZ3 e1 (x, e2) (y, ze) =>
-      let path1 = [0, ...path];
-      let path2 = [1, ...path];
-      let path3 = [2, ...path];
-      let r1 = of_hexp path1 e1;
-      let r2 = of_hexp path2 e2;
-      let r3 = of_zexp path3 ze;
-      of_Case path r1 x r2 y r3
-    | ZExp.NonEmptyHoleZ u ze =>
-      let path1 = [0, ...path];
-      let r = of_zexp path1 ze;
-      of_NonEmptyHole path u r
-    };
+  /* let rec of_zexp' path ze paren =>
+       switch ze {
+       | ZExp.CursorE e => (of_hexp' path e paren, path)
+       | _ =>
+         if paren {
+           let (r, cursor_path) = of_zexp path ze;
+           (parens "(" ^^ PP.nestRelative 0 r ^^ parens ")", cursor_path)
+         } else {
+           of_zexp path ze
+         }
+       }
+     and of_zexp path ze =>
+       switch ze {
+       | ZExp.CursorE e => (of_hexp path e, path)
+       | ZExp.LeftAsc ze tau =>
+         let path1 = [0, ...path];
+         let path2 = [1, ...path];
+         let prec1 = zexp_precedence ze;
+         let paren1 = prec1 !== 0;
+         let (r1, cursor_path) = of_zexp' path1 ze paren1;
+         let r2 = of_htype path2 tau;
+         (of_Asc path r1 r2, cursor_path)
+       | ZExp.RightAsc e ztau =>
+         let path1 = [0, ...path];
+         let path2 = [1, ...path];
+         let prec1 = hexp_precedence e;
+         let paren1 = prec1 !== 0;
+         let r1 = of_hexp' path1 e paren1;
+         let (r2, cursor_path) = of_ztype path2 ztau;
+         (of_Asc path r1 r2, cursor_path)
+       | ZExp.LetZ1 x ze e =>
+         let path1 = [0, ...path];
+         let path2 = [1, ...path];
+         let (r1, cursor_path) = of_zexp path1 ze;
+         let r2 = of_hexp path2 e;
+         (of_Let path x r1 r2, cursor_path)
+       | ZExp.LetZ2 x e ze =>
+         let path1 = [0, ...path];
+         let path2 = [1, ...path];
+         let r1 = of_hexp path1 e;
+         let (r2, cursor_path) = of_zexp path2 ze;
+         (of_Let path x r1 r2, cursor_path)
+       | ZExp.LamZ x ze =>
+         let path1 = [0, ...path];
+         let (r1, cursor_path) = of_zexp path1 ze;
+         (of_Lam path x r1, cursor_path)
+       | ZExp.LeftAp ze e =>
+         let path1 = [0, ...path];
+         let path2 = [1, ...path];
+         let prec1 = zexp_precedence ze;
+         let paren1 = prec1 !== 0 && prec1 < ap_precedence;
+         let (r1, cursor_path) = of_zexp' path1 ze paren1;
+         let prec2 = hexp_precedence e;
+         let paren2 = prec2 !== 0 && prec2 <= ap_precedence;
+         let r2 = of_hexp' path2 e paren2;
+         (of_Ap path r1 r2, cursor_path)
+       | ZExp.RightAp e ze =>
+         let path1 = [0, ...path];
+         let path2 = [1, ...path];
+         let prec1 = hexp_precedence e;
+         let paren1 = prec1 !== 0 && prec1 < ap_precedence;
+         let r1 = of_hexp' path1 e paren1;
+         let prec2 = zexp_precedence ze;
+         let paren2 = prec2 !== 0 && prec2 <= ap_precedence;
+         let (r2, cursor_path) = of_zexp' path2 ze paren2;
+         (of_Ap path r1 r2, cursor_path)
+       | ZExp.LeftPlus ze e =>
+         let path1 = [0, ...path];
+         let path2 = [1, ...path];
+         let prec1 = zexp_precedence ze;
+         let paren1 = prec1 > 0 && prec1 !== plus_precedence;
+         let (r1, cursor_path) = of_zexp' path1 ze paren1;
+         let prec2 = hexp_precedence e;
+         let paren2 = prec2 > 0 && prec2 !== plus_precedence;
+         let r2 = of_hexp' path2 e paren2;
+         (of_Plus path r1 r2, cursor_path)
+       | ZExp.RightPlus e ze =>
+         let path1 = [0, ...path];
+         let path2 = [1, ...path];
+         let prec1 = hexp_precedence e;
+         let paren1 = prec1 > 0 && prec1 !== plus_precedence;
+         let r1 = of_hexp' path1 e paren1;
+         let prec2 = zexp_precedence ze;
+         let paren2 = prec2 > 0 && prec2 !== plus_precedence;
+         let (r2, cursor_path) = of_zexp' path2 ze paren2;
+         (of_Plus path r1 r2, cursor_path)
+       | ZExp.InjZ side ze =>
+         let path1 = [0, ...path];
+         let (r, cursor_path) = of_zexp path1 ze;
+         (of_Inj path side r, cursor_path)
+       | ZExp.CaseZ1 ze (x, e2) (y, e3) =>
+         let path1 = [0, ...path];
+         let path2 = [1, ...path];
+         let path3 = [2, ...path];
+         let (r1, cursor_path) = of_zexp path1 ze;
+         let r2 = of_hexp path2 e2;
+         let r3 = of_hexp path3 e3;
+         (of_Case path r1 x r2 y r3, cursor_path)
+       | ZExp.CaseZ2 e1 (x, ze) (y, e3) =>
+         let path1 = [0, ...path];
+         let path2 = [1, ...path];
+         let path3 = [2, ...path];
+         let r1 = of_hexp path1 e1;
+         let (r2, cursor_path) = of_zexp path2 ze;
+         let r3 = of_hexp path3 e3;
+         (of_Case path r1 x r2 y r3, cursor_path)
+       | ZExp.CaseZ3 e1 (x, e2) (y, ze) =>
+         let path1 = [0, ...path];
+         let path2 = [1, ...path];
+         let path3 = [2, ...path];
+         let r1 = of_hexp path1 e1;
+         let r2 = of_hexp path2 e2;
+         let (r3, cursor_path) = of_zexp path3 ze;
+         (of_Case path r1 x r2 y r3, cursor_path)
+       | ZExp.NonEmptyHoleZ u ze =>
+         let path1 = [0, ...path];
+         let (r, cursor_path) = of_zexp path1 ze;
+         (of_NonEmptyHole path u r, cursor_path)
+       }; */
   let rec of_dhexp' path d paren =>
     if paren {
       parens "(" ^^ PP.nestRelative 0 (of_dhexp path d) ^^ parens ")"
@@ -589,7 +592,7 @@ module PPView = {
       )
     )
   and of_sigma path sigma => {
-    let map_f (x, d) => of_dhexp path d ^^ kw "/" ^^ PP.text x;
+    let map_f (x, d) => of_dhexp path d ^^ kw "/" ^^ PP.text "" x;
     let docs = List.map map_f sigma;
     let doc' =
       switch docs {

@@ -8,14 +8,11 @@ open React;
 
 module Util = General_util;
 
-let make_palette ((rs, rf): Model.rp) => {
+let make_palette ((ms, es, do_action): Model.mt) set_cursor => {
   /* start by defining a bunch of helpers */
   /* performs the top-level action and updates the signal */
-  let doAction action =>
-    switch (Action.performSyn () Ctx.empty action (React.S.value rs)) {
-    | Some x => rf x
-    | None => ()
-    };
+  let doAction action => do_action action;
+  /* set_cursor () */
   module KC = Js_util.KeyCombo;
   module KCs = Js_util.KeyCombos;
   /* helper function for constructing action buttons with no textbox */
@@ -54,7 +51,7 @@ let make_palette ((rs, rf): Model.rp) => {
                     | None => true
                     }
                 )
-                rs
+                ms
             )
         ]
         [pcdata (btn_label ^ " [" ^ KC.to_string key_combo ^ "]")]
@@ -104,7 +101,7 @@ let make_palette ((rs, rf): Model.rp) => {
                     }
                   )
                   i_rs
-                  rs
+                  ms
               )
           ]
           [pcdata (btn_label ^ " [" ^ KC.to_string key_combo ^ "]")]
@@ -221,7 +218,7 @@ let make_palette ((rs, rf): Model.rp) => {
                   )
                   i_rs_1
                   i_rs_2
-                  rs
+                  ms
               )
           ]
           [pcdata (btn_label ^ " [" ^ KC.to_string key_combo ^ "]")]
@@ -288,10 +285,10 @@ let make_palette ((rs, rf): Model.rp) => {
   };
   /* now construct the action palette entries*/
   /* movement */
-  let moveChild1 = action_button (Action.Move (Action.Child 1)) "move child 1" KCs.number_1;
-  let moveChild2 = action_button (Action.Move (Action.Child 2)) "move child 2" KCs.number_2;
-  let moveChild3 = action_button (Action.Move (Action.Child 3)) "move child 3" KCs.number_3;
-  let moveParent = action_button (Action.Move Action.Parent) "move parent" KCs.p;
+  /* let moveChild1 = action_button (Action.Move (Action.Child 1)) "move child 1" KCs.number_1;
+     let moveChild2 = action_button (Action.Move (Action.Child 2)) "move child 2" KCs.number_2;
+     let moveChild3 = action_button (Action.Move (Action.Child 3)) "move child 3" KCs.number_3;
+     let moveParent = action_button (Action.Move Action.Parent) "move parent" KCs.p; */
   /* deletion */
   let delete = action_button Action.Del "del" KCs.x;
   /* type construction */
@@ -389,17 +386,17 @@ let make_palette ((rs, rf): Model.rp) => {
       "Enter var + press Enter";
   let constructNEHole =
     action_button (Action.Construct Action.SNEHole) "construct neHole" KCs.qmark;
-  let movementActions =
-    Html5.(
-      div
-        a::[a_class ["panel", "panel-default"]]
-        [
-          div a::[a_class ["panel-title"]] [pcdata "Movement"],
-          div
-            a::[a_class ["panel-body"]]
-            [moveChild1, br (), moveChild2, br (), moveChild3, br (), moveParent]
-        ]
-    );
+  /* let movementActions =
+     Html5.(
+       div
+         a::[a_class ["panel", "panel-default"]]
+         [
+           div a::[a_class ["panel-title"]] [pcdata "Movement"],
+           div
+             a::[a_class ["panel-body"]]
+             [moveChild1, br (), moveChild2, br (), moveChild3, br (), moveParent]
+         ]
+     ); */
   let typeConstructionActions =
     Html5.(
       div
@@ -463,7 +460,7 @@ let make_palette ((rs, rf): Model.rp) => {
     div
       a::[a_class ["action-palette"]]
       [
-        movementActions,
+        /* movementActions, */
         typeConstructionActions,
         expressionConstructionActions,
         deleteActions,
