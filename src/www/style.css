@@ -194,7 +194,7 @@ button:disabled {
 	border-bottom: 1px solid rgba(0, 0, 0, 0);
 }
 
-.NonEmptyHole {
+.NonEmptyHoleTerm {
 	border: 2px solid #a040a0;
 	border-radius: 4px;
 	margin-left: 3px;
