@@ -15,7 +15,8 @@ install:
  - eval `opam config env`
  - opam pin add reason-parser 2.0.0
  - opam pin add reason 2.0.0
- - opam install reason reason-parser js_of_ocaml tyxml deriving ppx_deriving reactiveData ocp-indent camomile js_of_ocaml-tyxml coq
+ - opam install reason reason-parser js_of_ocaml tyxml deriving ppx_deriving reactiveData ocp-indent camomile js_of_ocaml-tyxml
+ - opam install coq
 
 script:
   - bash .travis-ci.sh
