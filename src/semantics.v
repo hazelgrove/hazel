@@ -2,6 +2,7 @@ Require Coq.Bool.Bool. Open Scope bool.
 Require Coq.Strings.String. Open Scope string_scope.
 Require Coq.Arith.PeanoNat. Open Scope nat_scope.
 Require Coq.Lists.List. Open Scope list_scope.
+Require Import BinInt.
 Require Extraction.
 
 Module Core.
@@ -444,6 +445,159 @@ Module Core.
         end.
     End ZExp.
 
+    Module Path.
+      Definition t : Type := list(nat).
+
+      Fixpoint of_ztyp (zty : ZTyp.t) : t := 
+        match zty with 
+        | ZTyp.CursorT _ => nil
+        | ZTyp.LeftArrow zty' _ => cons O (of_ztyp zty')
+        | ZTyp.RightArrow _ zty' => cons (S O) (of_ztyp zty')
+        | ZTyp.LeftSum zty' _ => cons O (of_ztyp zty')
+        | ZTyp.RightSum _ zty' => cons (S O) (of_ztyp zty')
+        end.
+
+      Fixpoint of_zexp (ze : ZExp.t) : t := 
+        match ze with 
+        | ZExp.CursorE _ => nil
+        | ZExp.LeftAsc ze' _ => cons O (of_zexp ze')
+        | ZExp.RightAsc _ ze' => cons (S O) (of_ztyp ze')
+        | ZExp.LetZ1 _ ze' _ => cons O (of_zexp ze') 
+        | ZExp.LetZ2 _ _ ze' => cons (S O) (of_zexp ze')
+        | ZExp.LamZ _ ze' => cons O (of_zexp ze')
+        | ZExp.LeftAp ze' _ => cons O (of_zexp ze')
+        | ZExp.RightAp _ ze' => cons (S O) (of_zexp ze')
+        | ZExp.LeftPlus ze' _ => cons O (of_zexp ze')
+        | ZExp.RightPlus _ ze' => cons (S O) (of_zexp ze')
+        | ZExp.InjZ _ ze' => cons O (of_zexp ze')
+        | ZExp.CaseZ1 ze' _ _ => cons O (of_zexp ze')
+        | ZExp.CaseZ2 _ (_, ze') _ => cons (S O) (of_zexp ze')
+        | ZExp.CaseZ3 _ _ (_, ze') => cons (S (S O)) (of_zexp ze')
+        | ZExp.NonEmptyHoleZ _ ze' => cons O (of_zexp ze')
+        end.
+
+      Fixpoint follow_ty (path : t) (ty : HTyp.t) : option(ZTyp.t) := 
+        match path with
+        | nil => Some (ZTyp.CursorT ty)
+        | cons x xs => 
+            match (x, ty) with 
+            | (_, HTyp.Num) => None
+            | (O, HTyp.Arrow ty1 ty2) => 
+              match follow_ty xs ty1 with 
+              | Some zty => Some (ZTyp.LeftArrow zty ty2)
+              | None => None
+              end
+            | (S(O), HTyp.Arrow ty1 ty2) => 
+              match follow_ty xs ty2 with 
+              | Some zty => Some (ZTyp.RightArrow ty1 zty)
+              | None => None
+              end
+            | (_, HTyp.Arrow _ _) => None
+            | (O, HTyp.Sum ty1 ty2) => 
+              match follow_ty xs ty1 with 
+              | Some zty => Some (ZTyp.LeftSum zty ty2)
+              | None => None
+              end
+            | (S(O), HTyp.Sum ty1 ty2) => 
+              match follow_ty xs ty2 with 
+              | Some zty => Some (ZTyp.RightSum ty1 zty)
+              | None => None
+              end
+            | (_, HTyp.Sum _ _) => None
+            | (_, HTyp.Hole) => None
+            end
+        end.
+
+      Fixpoint follow_e (path : t) (e : HExp.t) : option(ZExp.t) := 
+        match path with 
+        | nil => Some (ZExp.CursorE e)
+        | cons x xs =>  
+            match (x, e) with 
+            | (O, HExp.Asc e1 ty) => 
+              match follow_e xs e1 with 
+              | Some ze => Some (ZExp.LeftAsc ze ty)
+              | None => None
+              end
+            | (S(O), HExp.Asc e1 ty) => 
+              match follow_ty xs ty with 
+              | Some ztau => Some (ZExp.RightAsc e1 ztau)
+              | None => None
+              end
+            | (_, HExp.Asc _ _) => None
+            | (_, HExp.Var _) => None
+            | (O, HExp.Let x e1 e2) => 
+              match follow_e xs e1 with 
+              | Some ze => Some (ZExp.LetZ1 x ze e2)
+              | None => None
+              end
+            | (S(O), HExp.Let x e1 e2) => 
+              match follow_e xs e2 with 
+              | Some ze => Some (ZExp.LetZ2 x e1 ze)
+              | None => None
+              end
+            | (_, HExp.Let _ _ _) => None
+            | (O, HExp.Lam x e1) => 
+              match follow_e xs e1 with 
+              | Some ze => Some (ZExp.LamZ x ze)
+              | None => None
+              end
+            | (_, HExp.Lam _ _ ) => None
+            | (O, HExp.Ap e1 e2) => 
+              match follow_e xs e1 with 
+              | Some ze => Some (ZExp.LeftAp ze e2)
+              | None => None
+              end
+            | (S(O), HExp.Ap e1 e2) => 
+              match follow_e xs e2 with 
+              | Some ze => Some (ZExp.RightAp e1 ze)
+              | None => None
+              end
+            | (_, HExp.Ap _ _) => None
+            | (_, HExp.NumLit _) => None
+            | (O, HExp.Plus e1 e2) => 
+              match follow_e xs e1 with 
+              | Some ze => Some (ZExp.LeftPlus ze e2)
+              | None => None
+              end
+            | (S(O), HExp.Plus e1 e2) => 
+              match follow_e xs e2 with 
+              | Some ze => Some (ZExp.RightPlus e1 ze)
+              | None => None
+              end
+            | (_, HExp.Plus _ _) => None
+            | (O, HExp.Inj side e1) => 
+              match follow_e xs e1 with 
+              | Some ze => Some (ZExp.InjZ side ze)
+              | None => None
+              end
+            | (_, HExp.Inj _ _) => None
+            | (O, HExp.Case e1 (x, e2) (y, e3)) => 
+              match follow_e xs e1 with 
+              | Some ze => Some (ZExp.CaseZ1 ze (x, e2) (y, e3))
+              | None => None
+              end
+            | (S(O), HExp.Case e1 (x, e2) (y, e3)) => 
+              match follow_e xs e2 with 
+              | Some ze => Some (ZExp.CaseZ2 e1 (x, ze) (y, e3))
+              | None => None
+              end
+            | (S(S(O)), HExp.Case e1 (x, e2) (y, e3)) => 
+              match follow_e xs e3 with 
+              | Some ze => Some (ZExp.CaseZ3 e1 (x, e2) (y, ze))
+              | None => None
+              end
+            | (_, HExp.Case _ _ _) => None
+            | (_, HExp.EmptyHole _) => None
+            | (O, HExp.NonEmptyHole u e1) =>
+              match follow_e xs e1 with 
+              | Some ze => Some (ZExp.NonEmptyHoleZ u ze)
+              | None => None
+              end
+            | (_, HExp.NonEmptyHole _ _) => None
+            end
+        end.
+    End Path.
+
     Module Action.
       Inductive direction : Type :=
       | Child : nat -> direction
@@ -466,12 +620,16 @@ Module Core.
 
       Inductive t : Type :=
       | Move : direction -> t
+      | MoveTo : Path.t -> t (* not in Hazelnut, used for text cursor based navigation *)
       | Del : t
       | Construct : shape -> t
       | Finish : t.
 
       Fixpoint performTyp (a : t) (zty : ZTyp.t) : option ZTyp.t :=
         match (a, zty) with
+        | (MoveTo path, _) => 
+            let ty := ZTyp.erase zty in 
+            Path.follow_ty path ty
         | (Move (Child 1), ZTyp.CursorT (HTyp.Arrow ty1 ty2)) =>
           Some (ZTyp.LeftArrow (ZTyp.CursorT ty1) ty2)
         | (Move (Child 2), ZTyp.CursorT (HTyp.Arrow ty1 ty2)) =>
@@ -509,6 +667,9 @@ Module Core.
       Fixpoint performEMove (action : t) (ze : ZExp.t)
         : option ZExp.t :=
         match action with
+        | MoveTo path => 
+            let e := ZExp.erase ze in
+            Path.follow_e path e
         | Move direction =>
           match (direction, ze) with
           | (Child 1, ZExp.CursorE (HExp.Asc e ty)) =>
@@ -773,7 +934,7 @@ Module Core.
         | Kicked => None
         | More fuel =>
           match a with
-          | Move _ (* AAMove *) =>
+          | Move _ (* AAMove *) | MoveTo _ =>
             (* try to use the non-zipper move actions *)
             match performEMove a ze with
             | Some x => Some (x, u_gen)
