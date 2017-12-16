@@ -7,19 +7,22 @@ open Semantics.Core;
 let view ((ms, es, do_action): Model.mt) => {
   /* helpers */
   let kc = Js_util.KeyCombo.keyCode;
-  /* pretty printed view */
+  /* # pretty printed view */
   let pp_view_width = 50;
   let view_rs =
     React.S.map
       (
         fun e => {
           let view = PPView.of_hexp [] e;
+          /* returns a pair of a doc and rev_paths table */
           Pretty.PP.sdoc_of_doc pp_view_width view
         }
       )
-      es;
+      es; /* only updates when the underlying erasure changes */
+  /* ## stream of HTML from the above doc stream */
   let pp_rs = React.S.map (fun (sdoc, _) => [Pretty.HTML_Of_SDoc.html_of_sdoc sdoc]) view_rs;
   let pp_view =
+    /* container div is content editable, but with input disabled */
     R.Html5.div
       a::
         Html5.[
@@ -64,6 +67,8 @@ let view ((ms, es, do_action): Model.mt) => {
   let _ = Js_util.listen_to_t (Dom.Event.make "paste") pp_view_dom preventDefault_handler;
   let _ = Js_util.listen_to_t (Dom.Event.make "cut") pp_view_dom preventDefault_handler;
   let pp_view_parent = Html5.(div a::[a_id "pp_view", a_class ["ModelExp"]] [pp_view]);
+  /* set_cursor is called when we need to put the cursor at the appropriate place given
+     the current Z-expression */
   let first_leaf node => {
     let cur = ref node;
     let found = ref false;
@@ -77,10 +82,9 @@ let view ((ms, es, do_action): Model.mt) => {
     !cur
   };
   let set_cursor () => {
-    Js_util.log "Setting cursor";
     let ((ze, _), _) = React.S.value ms;
     let cursor_path = Semantics.Core.Path.of_zexp ze;
-    let id = PPView.id_of_path (List.rev cursor_path);
+    let id = PPView.id_of_rev_path (List.rev cursor_path);
     let cursor_elem = Js_util.forceGetElementById id;
     let cursor_node: Js.t Dom.node = Js.Unsafe.coerce cursor_elem;
     let cursor_leaf = first_leaf cursor_node;
@@ -90,23 +94,12 @@ let view ((ms, es, do_action): Model.mt) => {
     range##setEndBefore cursor_leaf;
     selection##removeAllRanges;
     selection##addRange range
-    /* done setting cursor */
   };
-  /* let cursors = Dom_html.document##getElementsByClassName (Js.string "cursor");
-     let cursor_opt = cursors##item 0;
-     let cursor = Js.Opt.get cursor_opt (fun () => assert false);
-     let cursor': Js.t Dom.node = Js.Unsafe.coerce cursor;
-     let cursor'' = first_leaf cursor';
-     let selection = Dom_html.window##getSelection;
-     let range = Dom_html.document##createRange;
-     range##setStartBefore cursor'';
-     range##setEndBefore cursor'';
-     selection##removeAllRanges;
-     selection##addRange range */
   /* Construct a simple DOM change listener to trigger cursor
-     movements (we could also just listen directly to the DOM
+     movements. we could also just listen directly to the DOM
      changes for pp_view, but this avoids the browser needlessly
-     computing the diffs for us */
+     computing the diffs for us. instead we make a simple hidden
+     counter div that increments on every change to the erasure */
   let num_changes = ref 0;
   let num_changes_str_rs =
     React.S.map
@@ -131,7 +124,7 @@ let view ((ms, es, do_action): Model.mt) => {
       f::(fun _ _ => set_cursor ())
       ();
   /* listen to selection change events and respond */
-  let locs_rs = React.S.map (fun (_, locs) => locs) view_rs;
+  let rev_paths_rs = React.S.map (fun (_, rev_paths) => rev_paths) view_rs;
   let fix_anchor selection anchor =>
     switch anchor##.nodeType {
     | Dom.TEXT =>
@@ -178,14 +171,14 @@ let view ((ms, es, do_action): Model.mt) => {
       Dom_html.document
       (
         fun evt => {
-          /* get current locs hash table */
-          let locs = React.S.value locs_rs;
+          /* get current paths hash table */
+          let rev_paths = React.S.value rev_paths_rs;
           /* get anchor node (where selection began) */
           let selection = Dom_html.window##getSelection;
           let anchor = fix_anchor selection selection##.anchorNode;
           let cur = ref (Js.some anchor);
           let found = ref false;
-          /* traverse up the DOM until we find an element with an id in the locs table */
+          /* traverse up the DOM until we find an element with an id in the paths table */
           while (Js.Opt.test !cur && not !found) {
             let cur_node = Js.Opt.get !cur (fun () => assert false);
             switch cur_node##.nodeType {
@@ -193,11 +186,10 @@ let view ((ms, es, do_action): Model.mt) => {
               let cur_element' = Dom_html.CoerceTo.element cur_node;
               let cur_element = Js.Opt.get cur_element' (fun () => assert false);
               let cur_id = Js.to_string cur_element##.id;
-              switch (Hashtbl.find locs cur_id) {
-              | loc =>
+              switch (Hashtbl.find rev_paths cur_id) {
+              | rev_path =>
                 found := true;
-                /* Js_util.log ("Found: " ^ cur_id); */
-                do_action (Semantics.Core.Action.MoveTo (List.rev loc));
+                do_action (Semantics.Core.Action.MoveTo (List.rev rev_path));
                 clear_cursors ();
                 let elem = Js_util.forceGetElementById cur_id;
                 elem##.classList##add (Js.string "cursor")
@@ -209,7 +201,6 @@ let view ((ms, es, do_action): Model.mt) => {
             cur := cur_node##.parentNode;
             ()
           };
-          /* TODO trigger the navigateToLoc action (only if different?) */
           ()
         }
       );
