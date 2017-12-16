@@ -55,6 +55,8 @@ Hazel is implemented in Coq and Reason/OCaml, and is compiled to Javascript for 
     ```sh
     > cd ..
     > opam update
+		> opam pin reason-parser 2.0.0
+		> opam pin reason 2.0.0
     > opam install reason reason-parser js_of_ocaml tyxml deriving ppx_deriving reactiveData ocp-indent camomile js_of_ocaml-tyxml coq
     ```
     
