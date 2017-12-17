@@ -30,8 +30,14 @@ let view ((ms, es, do_action): Model.mt) => {
           a_onkeypress (
             fun evt => {
               /* when pressing letters, don't actually insert them */
-              Dom.preventDefault evt;
-              true
+              let charCode = Js.Optdef.get evt##.charCode (fun () => assert false);
+              let key = Js.to_string (Js.Optdef.get evt##.key (fun () => assert false));
+              if (charCode != 0 || String.equal key "Enter" || String.equal key "Tab") {
+                Dom.preventDefault evt;
+                true
+              } else {
+                true
+              }
             }
           ),
           a_onkeydown (
@@ -175,6 +181,7 @@ let view ((ms, es, do_action): Model.mt) => {
           let rev_paths = React.S.value rev_paths_rs;
           /* get anchor node (where selection began) */
           let selection = Dom_html.window##getSelection;
+          Js_util.log selection;
           let anchor = fix_anchor selection selection##.anchorNode;
           let cur = ref (Js.some anchor);
           let found = ref false;

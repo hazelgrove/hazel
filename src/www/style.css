@@ -245,3 +245,8 @@ button:disabled {
 #num_changes_counter {
 	display: none;
 }
+
+.space {
+	margin-right: 2px;
+	margin-left: -2px;
+}
