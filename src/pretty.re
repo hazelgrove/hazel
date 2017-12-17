@@ -52,8 +52,8 @@ module PP: {
     | STagStart cls (option id) sdoc
     | STagEnd sdoc
     | SLine int sdoc;
-  let strlen = CamomileLibrary.UTF8.length;
-  /* let strlen = String.length */
+  /* let strlen = CamomileLibrary.UTF8.length; */
+  let strlen = String.length;
   let rec sdoc_of_doc' table width k zs =>
     switch zs {
     | [] => SEmpty
