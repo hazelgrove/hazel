@@ -74,7 +74,7 @@ h1 {
 .cell-status {
 	display: grid;
 	grid-template-columns: 30px 1fr;
-	background-color: #DED;
+	background-color: #EEF;
 }
 
 .result-label {
@@ -84,7 +84,7 @@ h1 {
 .result-view {
 	padding-left: 25px;
 	padding-bottom: 5px;
-	background-color: #DED;
+	background-color: #EEF;
 }
 
 .type-indicator {
@@ -94,7 +94,7 @@ h1 {
 }
 
 .type-label {
-	background-color: #DED;
+	background-color: #EEF;
 	padding: 3px;
 	display: inline-block;
 	padding-right: 5px;
@@ -102,7 +102,7 @@ h1 {
 
 .htype-view {
 	padding: 3px;
-	background-color: #DED;
+	background-color: #EEF;
 	display: inline-block;
 }
 
