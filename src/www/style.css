@@ -116,10 +116,15 @@ h1 {
 
 .ModelExp {
 	padding: 10px;
-	font-size: xx-large;
+	font-size: 125%;
 	margin-top: 20px;
 	background-color: white;
 	border: 2px solid #CCC;
+	line-height: 100%;
+}
+
+.EmptyHole {
+	line-height: 100%;
 }
 
 .ModelExp :focus {
@@ -214,9 +219,12 @@ button:disabled {
 }
 
 .holeName {
-	vertical-align: super;
-	font-size: 50%;
-	color: #a040a0;
+	vertical-align: bottom;
+	font-size: 65%;
+	color: #CCC;
+	padding-left: 2px;
+	padding-right: 2px;
+	border-bottom: 1px solid #a040a0;
 }
 
 .hide-hole-names .holeName {
@@ -248,5 +256,28 @@ button:disabled {
 
 .space {
 	margin-right: 2px;
-	margin-left: -2px;
 }
+
+/* .EmptyHole {
+	-moz-user-select: all;
+  -webkit-user-select: all;
+	user-select: all;
+}
+
+.hole-before {
+	-moz-user-select: none;
+  -webkit-user-select: text;
+	user-select: none;
+}
+
+.hole-after {
+	-moz-user-select: none;
+  -webkit-user-select: text;
+	user-select: none;
+}
+
+.holeName {
+	-moz-user-select: none;
+  -webkit-user-select: text;
+	user-select: none;
+} */

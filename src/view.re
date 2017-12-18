@@ -370,7 +370,13 @@ module PPView = {
       term
         "EmptyHole"
         rev_path
-        (taggedText "hole" "\226\144\163" ^^ taggedText "holeName" (string_of_int u))
+        (
+          taggedText "hole-before-1" "\226\128\140" ^^
+          taggedText "hole-before-2" "\226\128\140" ^^
+          taggedText "holeName" (string_of_int u) ^^
+          taggedText "hole-after-1" "\226\128\140" ^^ taggedText "hole-after-2" "\226\128\140"
+        )
+    /* (taggedText "hole" "\226\144\163" ^^ taggedText "holeName" (string_of_int u)) */
     | HExp.NonEmptyHole u e =>
       let rev_path1 = [0, ...rev_path];
       let r1 = of_hexp rev_path1 e;
