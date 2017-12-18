@@ -75,7 +75,17 @@ module PPView = {
       let r1 = of_htype' rev_path1 tau1 paren1;
       let r2 = of_htype' rev_path2 tau2 paren2;
       of_Sum rev_path r1 r2
-    | HTyp.Hole => term "Hole" rev_path (taggedText "hole" "\226\144\163")
+    | HTyp.Hole =>
+      term
+        "Hole"
+        rev_path
+        (
+          taggedText "hole-before-1" "\226\128\139\226\128\139" ^^
+          taggedText "hole-before-2" "\226\128\140" ^^
+          /* taggedText "hole" "_" */
+          taggedText "holeName" "?" ^^
+          taggedText "hole-after-1" "\226\128\140" ^^ taggedText "hole-after-2" "\226\128\140"
+        )
     };
   /* let rec of_ztype' rev_path ztau paren =>
        switch ztau {
@@ -563,24 +573,36 @@ module PPView = {
           let r4 = of_dhexp rev_path4 d3;
           of_CaseAnn rev_path r1 r2 x r3 y r4
         | EmptyHole u m sigma =>
-          let hole_string =
-            switch m {
-            | Unevaled => "\226\144\163"
-            | Evaled => "\226\144\163"
-            };
           term
             "EmptyHole"
             rev_path
             (
-              taggedText "hole" hole_string ^^
+              /* taggedText "hole-before-1" "\226\128\139\226\128\139" ^^
+                 taggedText "hole-before-2" "\226\128\140" ^^ */
+              /* taggedText "hole" "_" */
+              taggedText "holeName" (string_of_int u) ^^
               PP.tagged
-                "hole-decorations"
-                None
-                (
-                  taggedText "holeName" (string_of_int u) ^^
-                  PP.tagged "environment" None (of_sigma rev_path sigma)
-                )
+                "hole-decorations" None (PP.tagged "environment" None (of_sigma rev_path sigma))
+              /* taggedText "hole-after-1" "\226\128\140" ^^ taggedText "hole-after-2" "\226\128\140" */
             )
+        /* let hole_string =
+             switch m {
+             | Unevaled => "\226\144\163"
+             | Evaled => "\226\144\163"
+             };
+           term
+             "EmptyHole"
+             rev_path
+             (
+               taggedText "hole" hole_string ^^
+               PP.tagged
+                 "hole-decorations"
+                 None
+                 (
+                   taggedText "holeName" (string_of_int u) ^^
+                   PP.tagged "environment" None (of_sigma rev_path sigma)
+                 )
+             ) */
         | NonEmptyHole u m sigma d1 =>
           let rev_path1 = [0, ...rev_path];
           let hole_class =
