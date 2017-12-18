@@ -52,8 +52,14 @@ module PP: {
     | STagStart cls (option id) sdoc
     | STagEnd sdoc
     | SLine int sdoc;
-  /* let strlen = CamomileLibrary.UTF8.length; */
-  let strlen = String.length;
+  let strlen s =>
+    /* don't count invisible characters used for contenteditable hacks toward limit */
+    if (String.equal s "\226\128\139\226\128\139" || String.equal s "\226\128\140") {
+      0
+    } else {
+      CamomileLibrary.UTF8.length s
+    };
+  /* let strlen = String.length; */
   let rec sdoc_of_doc' table width k zs =>
     switch zs {
     | [] => SEmpty
