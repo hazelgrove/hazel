@@ -74,7 +74,7 @@ h1 {
 .cell-status {
 	display: grid;
 	grid-template-columns: 30px 1fr;
-	background-color: #CCC;
+	background-color: #DED;
 }
 
 .result-label {
@@ -84,7 +84,7 @@ h1 {
 .result-view {
 	padding-left: 25px;
 	padding-bottom: 5px;
-	background-color: #CCC;
+	background-color: #DED;
 }
 
 .type-indicator {
@@ -94,7 +94,7 @@ h1 {
 }
 
 .type-label {
-	background-color: #CCC;
+	background-color: #DED;
 	padding: 3px;
 	display: inline-block;
 	padding-right: 5px;
@@ -102,7 +102,7 @@ h1 {
 
 .htype-view {
 	padding: 3px;
-	background-color: #CCC;
+	background-color: #DED;
 	display: inline-block;
 }
 
@@ -124,6 +124,10 @@ h1 {
 }
 
 .EmptyHole {
+	line-height: 100%;
+}
+
+.Hole { 
 	line-height: 100%;
 }
 
@@ -210,7 +214,7 @@ button:disabled {
 }
 
 .result-view {
-  font-size: xx-large;
+  font-size: 125%;
 }
 
 .hole-decorations {
@@ -221,7 +225,7 @@ button:disabled {
 .holeName {
 	vertical-align: bottom;
 	font-size: 65%;
-	color: #CCC;
+	color: #BBB;
 	padding-left: 2px;
 	padding-right: 2px;
 	border-bottom: 1px solid #a040a0;
