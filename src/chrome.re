@@ -87,19 +87,43 @@ let view ((ms, es, do_action): Model.mt) => {
     };
     !cur
   };
-  let set_cursor () => {
-    let ((ze, _), _) = React.S.value ms;
-    let cursor_path = Semantics.Core.Path.of_zexp ze;
-    let id = PPView.id_of_rev_path (List.rev cursor_path);
-    let cursor_elem = Js_util.forceGetElementById id;
-    let cursor_node: Js.t Dom.node = Js.Unsafe.coerce cursor_elem;
-    let cursor_leaf = first_leaf cursor_node;
+  let last_leaf node => {
+    let cur = ref node;
+    let found = ref false;
+    while (not !found) {
+      let cur_node = !cur;
+      switch (Js.Opt.to_option cur_node##.lastChild) {
+      | Some lastChild => cur := lastChild
+      | None => found := true
+      }
+    };
+    !cur
+  };
+  let move_cursor_before node => {
+    let cursor_leaf = first_leaf node;
     let selection = Dom_html.window##getSelection;
     let range = Dom_html.document##createRange;
     range##setStartBefore cursor_leaf;
     range##setEndBefore cursor_leaf;
     selection##removeAllRanges;
     selection##addRange range
+  };
+  let move_cursor_after node => {
+    let cursor_leaf = last_leaf node;
+    let selection = Dom_html.window##getSelection;
+    let range = Dom_html.document##createRange;
+    range##setStartAfter cursor_leaf;
+    range##setEndAfter cursor_leaf;
+    selection##removeAllRanges;
+    selection##addRange range
+  };
+  let set_cursor () => {
+    let ((ze, _), _) = React.S.value ms;
+    let cursor_path = Semantics.Core.Path.of_zexp ze;
+    let id = PPView.id_of_rev_path (List.rev cursor_path);
+    let cursor_elem = Js_util.forceGetElementById id;
+    let cursor_node: Js.t Dom.node = Js.Unsafe.coerce cursor_elem;
+    move_cursor_before cursor_node
   };
   /* Construct a simple DOM change listener to trigger cursor
      movements. we could also just listen directly to the DOM
@@ -137,7 +161,7 @@ let view ((ms, es, do_action): Model.mt) => {
       let anchor' = Js.Opt.get (Dom.CoerceTo.text anchor) (fun () => assert false);
       let length = anchor'##.length;
       let anchor_offset = selection##.anchorOffset;
-      if (anchor_offset == length) {
+      if (length > 0 && anchor_offset == length) {
         switch (Js.Opt.to_option anchor##.parentNode) {
         | Some parent =>
           switch parent##.nodeType {
@@ -149,6 +173,28 @@ let view ((ms, es, do_action): Model.mt) => {
             if is_space {
               switch (Js.Opt.to_option parent##.nextSibling) {
               | Some sibling => first_leaf sibling
+              | None => anchor
+              }
+            } else {
+              anchor
+            }
+          | _ => anchor
+          }
+        | None => anchor
+        }
+      } else if (
+        anchor_offset == 0
+      ) {
+        switch (Js.Opt.to_option anchor##.parentNode) {
+        | Some parent =>
+          switch parent##.nodeType {
+          | Dom.ELEMENT =>
+            let parent_elem =
+              Js.Opt.get (Dom_html.CoerceTo.element parent) (fun () => assert false);
+            let classList = parent_elem##.classList;
+            if (Js.to_bool (classList##contains (Js.string "space"))) {
+              switch (Js.Opt.to_option parent##.previousSibling) {
+              | Some sibling => last_leaf sibling
               | None => anchor
               }
             } else {
@@ -171,21 +217,114 @@ let view ((ms, es, do_action): Model.mt) => {
       cursor##.classList##remove (Js.string "cursor")
     }
   };
+  let do_transport () => {
+    let selection = Dom_html.window##getSelection;
+    let anchor = selection##.anchorNode;
+    switch anchor##.nodeType {
+    | Dom.TEXT =>
+      switch (Js.Opt.to_option anchor##.parentNode) {
+      | Some parent =>
+        switch (Js.Opt.to_option (Dom_html.CoerceTo.element parent)) {
+        | Some parent_elem =>
+          let classList = parent_elem##.classList;
+          if (Js.to_bool (classList##contains (Js.string "hole-before-1"))) {
+            let anchorOffset = selection##.anchorOffset;
+            if (anchorOffset == 1) {
+              Js_util.log "moving after";
+              switch (Js.Opt.to_option parent##.parentNode) {
+              | Some super_parent =>
+                switch (Js.Opt.to_option super_parent##.lastChild) {
+                | Some lastChild => move_cursor_after lastChild
+                | None => ()
+                }
+              | None => ()
+              }
+            }
+          } else if (
+            Js.to_bool (classList##contains (Js.string "holeName"))
+          ) {
+            let anchorOffset = selection##.anchorOffset;
+            if (anchorOffset == 0) {
+              switch (Js.Opt.to_option parent##.parentNode) {
+              | Some super_parent =>
+                switch (Js.Opt.to_option super_parent##.firstChild) {
+                | Some firstChild => move_cursor_before firstChild
+                | None => ()
+                }
+              | None => ()
+              }
+            } else {
+              switch (Js.Opt.to_option parent##.parentNode) {
+              | Some super_parent =>
+                switch (Js.Opt.to_option super_parent##.lastChild) {
+                | Some lastChild => move_cursor_after lastChild
+                | None => ()
+                }
+              | None => ()
+              }
+            }
+          } else if (
+            Js.to_bool (classList##contains (Js.string "hole-after-1")) ||
+            Js.to_bool (classList##contains (Js.string "hole-before-2"))
+          ) {
+            Js_util.log "moving before";
+            Js_util.log classList;
+            switch (Js.Opt.to_option parent##.parentNode) {
+            | Some super_parent =>
+              switch (Js.Opt.to_option super_parent##.firstChild) {
+              | Some firstChild => move_cursor_before firstChild
+              | None => ()
+              }
+            | None => ()
+            }
+          } else if (
+            Js.to_bool (classList##contains (Js.string "SIndentation"))
+          ) {
+            switch (Js.Opt.to_option parent_elem##.nextSibling) {
+            | Some sibling => move_cursor_before (first_leaf sibling)
+            | None => ()
+            }
+          } else {
+            ()
+          }
+        | None => ()
+        }
+      | None => ()
+      }
+    | Dom.ELEMENT =>
+      let anchor_elem = Js.Opt.get (Dom_html.CoerceTo.element anchor) (fun () => assert false);
+      let classList = anchor_elem##.classList;
+      if (not (Js.to_bool (classList##contains (Js.string "SText")))) {
+        let anchorOffset = selection##.anchorOffset;
+        let children = anchor##.childNodes;
+        let child_opt = children##item (anchorOffset - 1);
+        switch (Js.Opt.to_option child_opt) {
+        | Some child => move_cursor_after (last_leaf child)
+        | None => ()
+        }
+      } else {
+        ()
+      }
+    | _ => ()
+    }
+  };
   let _ =
     Js_util.listen_to_t
       (Dom.Event.make "selectionchange")
       Dom_html.document
       (
         fun evt => {
+          /* transport */
+          do_transport ();
+          /* get effective anchor node (where selection began) */
+          let selection = Dom_html.window##getSelection;
+          let anchor = fix_anchor selection selection##.anchorNode;
+          Js_util.log selection;
           /* get current paths hash table */
           let rev_paths = React.S.value rev_paths_rs;
-          /* get anchor node (where selection began) */
-          let selection = Dom_html.window##getSelection;
-          Js_util.log selection;
-          let anchor = fix_anchor selection selection##.anchorNode;
+          /* traverse up the DOM until we find an element with an id in the paths table */
           let cur = ref (Js.some anchor);
           let found = ref false;
-          /* traverse up the DOM until we find an element with an id in the paths table */
           while (Js.Opt.test !cur && not !found) {
             let cur_node = Js.Opt.get !cur (fun () => assert false);
             switch cur_node##.nodeType {
