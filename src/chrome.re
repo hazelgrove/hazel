@@ -161,7 +161,7 @@ let view ((ms, es, do_action): Model.mt) => {
       let anchor' = Js.Opt.get (Dom.CoerceTo.text anchor) (fun () => assert false);
       let length = anchor'##.length;
       let anchor_offset = selection##.anchorOffset;
-      if (length > 0 && anchor_offset == length) {
+      if (anchor_offset == length) {
         switch (Js.Opt.to_option anchor##.parentNode) {
         | Some parent =>
           switch parent##.nodeType {
@@ -202,6 +202,20 @@ let view ((ms, es, do_action): Model.mt) => {
             }
           | _ => anchor
           }
+        | None => anchor
+        }
+      } else {
+        anchor
+      }
+    | Dom.ELEMENT =>
+      let anchor_elem = Js.Opt.get (Dom_html.CoerceTo.element anchor) (fun () => assert false);
+      let classList = anchor_elem##.classList;
+      if (not (Js.to_bool (classList##contains (Js.string "SText")))) {
+        let anchorOffset = selection##.anchorOffset;
+        let children = anchor##.childNodes;
+        let child_opt = children##item (anchorOffset - 1);
+        switch (Js.Opt.to_option child_opt) {
+        | Some child => last_leaf child
         | None => anchor
         }
       } else {
@@ -280,9 +294,15 @@ let view ((ms, es, do_action): Model.mt) => {
           } else if (
             Js.to_bool (classList##contains (Js.string "SIndentation"))
           ) {
-            switch (Js.Opt.to_option parent_elem##.nextSibling) {
-            | Some sibling => move_cursor_before (first_leaf sibling)
-            | None => ()
+            let anchor_text = Js.Opt.get (Dom.CoerceTo.text anchor) (fun () => assert false);
+            let len = anchor_text##.length;
+            let anchor_offset = selection##.anchorOffset;
+            Js_util.log ("indentation: " ^ string_of_int len ^ string_of_int anchor_offset);
+            if (len == anchor_offset) {
+              switch (Js.Opt.to_option parent##.nextSibling) {
+              | Some sibling => move_cursor_before (first_leaf sibling)
+              | None => ()
+              }
             }
           } else {
             ()
@@ -290,20 +310,6 @@ let view ((ms, es, do_action): Model.mt) => {
         | None => ()
         }
       | None => ()
-      }
-    | Dom.ELEMENT =>
-      let anchor_elem = Js.Opt.get (Dom_html.CoerceTo.element anchor) (fun () => assert false);
-      let classList = anchor_elem##.classList;
-      if (not (Js.to_bool (classList##contains (Js.string "SText")))) {
-        let anchorOffset = selection##.anchorOffset;
-        let children = anchor##.childNodes;
-        let child_opt = children##item (anchorOffset - 1);
-        switch (Js.Opt.to_option child_opt) {
-        | Some child => move_cursor_after (last_leaf child)
-        | None => ()
-        }
-      } else {
-        ()
       }
     | _ => ()
     }
