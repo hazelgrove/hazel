@@ -213,9 +213,9 @@ let view ((ms, es, do_action): Model.mt) => {
       if (not (Js.to_bool (classList##contains (Js.string "SText")))) {
         let anchorOffset = selection##.anchorOffset;
         let children = anchor##.childNodes;
-        let child_opt = children##item (anchorOffset - 1);
+        let child_opt = children##item anchorOffset;
         switch (Js.Opt.to_option child_opt) {
-        | Some child => last_leaf child
+        | Some child => first_leaf child
         | None => anchor
         }
       } else {
@@ -244,11 +244,23 @@ let view ((ms, es, do_action): Model.mt) => {
           if (Js.to_bool (classList##contains (Js.string "hole-before-1"))) {
             let anchorOffset = selection##.anchorOffset;
             if (anchorOffset == 1) {
-              Js_util.log "moving after";
+              Js_util.log ("moving after " ^ string_of_int anchorOffset);
+              Js_util.log anchor;
               switch (Js.Opt.to_option parent##.parentNode) {
               | Some super_parent =>
                 switch (Js.Opt.to_option super_parent##.lastChild) {
                 | Some lastChild => move_cursor_after lastChild
+                | None => ()
+                }
+              | None => ()
+              }
+            } else if (
+              anchorOffset == 2
+            ) {
+              switch (Js.Opt.to_option parent##.parentNode) {
+              | Some super_parent =>
+                switch (Js.Opt.to_option super_parent##.firstChild) {
+                | Some firstChild => move_cursor_before firstChild
                 | None => ()
                 }
               | None => ()

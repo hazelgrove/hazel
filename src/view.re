@@ -371,8 +371,9 @@ module PPView = {
         "EmptyHole"
         rev_path
         (
-          taggedText "hole-before-1" "\226\128\140" ^^
+          taggedText "hole-before-1" "\226\128\139\226\128\139" ^^
           taggedText "hole-before-2" "\226\128\140" ^^
+          /* taggedText "hole" "_" */
           taggedText "holeName" (string_of_int u) ^^
           taggedText "hole-after-1" "\226\128\140" ^^ taggedText "hole-after-2" "\226\128\140"
         )
