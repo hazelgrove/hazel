@@ -351,6 +351,29 @@ let view ((ms, es, do_action): Model.mt) => {
           }
         }
       } else if (
+        has_class "nonEmptyHoleName"
+      ) {
+        let anchor_offset = selection##.anchorOffset;
+        if (anchor_offset == 0) {
+          switch (Js.Opt.to_option parent_elem##.parentNode) {
+          | Some super_parent =>
+            switch (Js.Opt.to_option super_parent##.firstChild) {
+            | Some firstChild =>
+              switch (Js.Opt.to_option firstChild##.firstChild) {
+              | Some firstChild => move_cursor_after firstChild
+              | _ => ()
+              }
+            | _ => ()
+            }
+          | _ => ()
+          }
+        } else {
+          switch (Js.Opt.to_option parent_elem##.nextSibling) {
+          | Some sibling => move_cursor_after sibling
+          | None => ()
+          }
+        }
+      } else if (
         has_class "SIndentation"
       ) {
         let anchor_text = Js.Opt.get (Dom.CoerceTo.text anchor) (fun () => assert false);
