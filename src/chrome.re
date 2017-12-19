@@ -474,21 +474,16 @@ let view ((ms, es, do_action): Model.mt) => {
       ms;
   let result_view = R.Html5.div (ReactiveData.RList.from_signal result_rs);
   /* checkboxes */
-  let ((show_hole_names_checkbox_rs, _), show_hole_names_checkbox, _) =
-    Js_util.r_checkbox "show_hole_names_checkbox" "Show hole names" true;
   let ((show_hole_envs_checkbox_rs, _), show_hole_envs_checkbox, _) =
     Js_util.r_checkbox "show_hole_envs_checkbox" "Show hole environments" false;
   let root_classes =
-    React.S.l2
+    React.S.l1
       (
-        fun show_hole_names show_hole_envs => {
-          let show_hole_names_class =
-            if show_hole_names {"show-hole-names"} else {"hide-hole-names"};
+        fun show_hole_envs => {
           let show_hole_envs_class = if show_hole_envs {"show-hole-envs"} else {"hide-hole-envs"};
-          [show_hole_names_class, show_hole_envs_class]
+          [show_hole_envs_class]
         }
       )
-      show_hole_names_checkbox_rs
       show_hole_envs_checkbox_rs;
   /* final chrome */
   let chrome =
@@ -532,7 +527,6 @@ let view ((ms, es, do_action): Model.mt) => {
                   [
                     Action_palette.make_palette (ms, es, do_action) set_cursor,
                     div a::[a_class ["panel-title"]] [pcdata "Options"],
-                    show_hole_names_checkbox,
                     show_hole_envs_checkbox
                     /* num_changes_counter */
                   ]
