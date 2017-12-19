@@ -505,7 +505,9 @@ let view ((ms, es, do_action): Model.mt) => {
                         h1 [pcdata "Welcome to Hazel"],
                         hr (),
                         p [
-                          pcdata "Hazel is an experimental structure editor for a simple typed functional programming language."
+                          pcdata "Hazel is an experiment in ",
+                          strong [pcdata "hole-driven development"],
+                          pcdata ". Use the actions on the right to construct a lambda term. Navigate using the standard text cursor."
                         ],
                         pp_view_parent,
                         div
