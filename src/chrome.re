@@ -231,99 +231,142 @@ let view ((ms, es, do_action): Model.mt) => {
       cursor##.classList##remove (Js.string "cursor")
     }
   };
+  let has_class classList cls => Js.to_bool (classList##contains (Js.string cls));
   let do_transport () => {
     let selection = Dom_html.window##getSelection;
     let anchor = selection##.anchorNode;
-    switch anchor##.nodeType {
-    | Dom.TEXT =>
-      switch (Js.Opt.to_option anchor##.parentNode) {
-      | Some parent =>
-        switch (Js.Opt.to_option (Dom_html.CoerceTo.element parent)) {
-        | Some parent_elem =>
-          let classList = parent_elem##.classList;
-          if (Js.to_bool (classList##contains (Js.string "hole-before-1"))) {
-            let anchorOffset = selection##.anchorOffset;
-            if (anchorOffset == 1) {
-              Js_util.log ("moving after " ^ string_of_int anchorOffset);
-              Js_util.log anchor;
-              switch (Js.Opt.to_option parent##.parentNode) {
-              | Some super_parent =>
-                switch (Js.Opt.to_option super_parent##.lastChild) {
-                | Some lastChild => move_cursor_after lastChild
-                | None => ()
-                }
-              | None => ()
-              }
-            } else if (
-              anchorOffset == 2
-            ) {
-              switch (Js.Opt.to_option parent##.parentNode) {
-              | Some super_parent =>
-                switch (Js.Opt.to_option super_parent##.firstChild) {
-                | Some firstChild => move_cursor_before firstChild
-                | None => ()
-                }
-              | None => ()
-              }
+    let parent_elem =
+      switch anchor##.nodeType {
+      | Dom.TEXT =>
+        switch (Js.Opt.to_option anchor##.parentNode) {
+        | Some parentNode => Js.Opt.to_option (Dom_html.CoerceTo.element parentNode)
+        | None => None
+        }
+      | Dom.ELEMENT => Js.Opt.to_option (Dom_html.CoerceTo.element anchor)
+      | _ =>
+        Js_util.log "BAD ANCHOR";
+        None
+      };
+    switch parent_elem {
+    | Some parent_elem =>
+      let classList = parent_elem##.classList;
+      let has_class = has_class classList;
+      if (has_class "hole-before-1") {
+        let anchorOffset = selection##.anchorOffset;
+        if (anchorOffset == 1) {
+          /* Js_util.log ("moving after " ^ string_of_int anchorOffset); */
+          switch (Js.Opt.to_option parent_elem##.parentNode) {
+          | Some super_parent =>
+            switch (Js.Opt.to_option super_parent##.lastChild) {
+            | Some lastChild => move_cursor_after lastChild
+            | None => ()
             }
-          } else if (
-            Js.to_bool (classList##contains (Js.string "holeName"))
-          ) {
-            let anchorOffset = selection##.anchorOffset;
-            if (anchorOffset == 0) {
-              switch (Js.Opt.to_option parent##.parentNode) {
-              | Some super_parent =>
-                switch (Js.Opt.to_option super_parent##.firstChild) {
-                | Some firstChild => move_cursor_before firstChild
-                | None => ()
-                }
-              | None => ()
-              }
-            } else {
-              switch (Js.Opt.to_option parent##.parentNode) {
-              | Some super_parent =>
-                switch (Js.Opt.to_option super_parent##.lastChild) {
-                | Some lastChild => move_cursor_after lastChild
-                | None => ()
-                }
-              | None => ()
-              }
+          | None => ()
+          }
+        } else if (
+          anchorOffset == 2
+        ) {
+          switch (Js.Opt.to_option parent_elem##.parentNode) {
+          | Some super_parent =>
+            switch (Js.Opt.to_option super_parent##.firstChild) {
+            | Some firstChild => move_cursor_before firstChild
+            | None => ()
             }
-          } else if (
-            Js.to_bool (classList##contains (Js.string "hole-after-1")) ||
-            Js.to_bool (classList##contains (Js.string "hole-before-2"))
-          ) {
-            Js_util.log "moving before";
-            Js_util.log classList;
-            switch (Js.Opt.to_option parent##.parentNode) {
-            | Some super_parent =>
-              switch (Js.Opt.to_option super_parent##.firstChild) {
-              | Some firstChild => move_cursor_before firstChild
+          | None => ()
+          }
+        }
+      } else if (
+        has_class "holeName"
+      ) {
+        let anchorOffset = selection##.anchorOffset;
+        if (anchorOffset == 0) {
+          switch (Js.Opt.to_option parent_elem##.parentNode) {
+          | Some super_parent =>
+            switch (Js.Opt.to_option super_parent##.firstChild) {
+            | Some firstChild => move_cursor_before firstChild
+            | None => ()
+            }
+          | None => ()
+          }
+        } else {
+          switch (Js.Opt.to_option parent_elem##.parentNode) {
+          | Some super_parent =>
+            switch (Js.Opt.to_option super_parent##.lastChild) {
+            | Some lastChild => move_cursor_after lastChild
+            | None => ()
+            }
+          | None => ()
+          }
+        }
+      } else if (
+        has_class "hole-after-1" || has_class "hole-before-2"
+      ) {
+        /* Js_util.log "moving before"; */
+        switch (Js.Opt.to_option parent_elem##.parentNode) {
+        | Some super_parent =>
+          switch (Js.Opt.to_option super_parent##.firstChild) {
+          | Some firstChild => move_cursor_before firstChild
+          | None => ()
+          }
+        | None => ()
+        }
+      } else if (
+        has_class "nonEmptyHole-after-inner"
+      ) {
+        let anchor_offset = selection##.anchorOffset;
+        if (anchor_offset > 0) {
+          switch (Js.Opt.to_option parent_elem##.parentNode) {
+          | Some super_parent =>
+            switch (Js.Opt.to_option super_parent##.parentNode) {
+            | Some super_parent' =>
+              switch (Js.Opt.to_option super_parent'##.lastChild) {
+              | Some lastChild =>
+                Js_util.log "moving after";
+                Js_util.log lastChild;
+                move_cursor_after lastChild
               | None => ()
               }
             | None => ()
             }
-          } else if (
-            Js.to_bool (classList##contains (Js.string "SIndentation"))
-          ) {
-            let anchor_text = Js.Opt.get (Dom.CoerceTo.text anchor) (fun () => assert false);
-            let len = anchor_text##.length;
-            let anchor_offset = selection##.anchorOffset;
-            Js_util.log ("indentation: " ^ string_of_int len ^ string_of_int anchor_offset);
-            if (len == anchor_offset) {
-              switch (Js.Opt.to_option parent##.nextSibling) {
-              | Some sibling => move_cursor_before (first_leaf sibling)
-              | None => ()
-              }
-            }
-          } else {
-            ()
+          | None => ()
           }
-        | None => ()
         }
-      | None => ()
+      } else if (
+        has_class "nonEmptyHole-after-outer"
+      ) {
+        let anchor_offset = selection##.anchorOffset;
+        Js_util.log ("anchor_offset = " ^ string_of_int anchor_offset);
+        if (anchor_offset == 2) {
+          switch (Js.Opt.to_option parent_elem##.parentNode) {
+          | Some super_parent =>
+            switch (Js.Opt.to_option super_parent##.firstChild) {
+            | Some firstChild =>
+              switch (Js.Opt.to_option firstChild##.firstChild) {
+              | Some firstChild => move_cursor_after firstChild
+              | _ => ()
+              }
+            | _ => ()
+            }
+          | _ => ()
+          }
+        }
+      } else if (
+        has_class "SIndentation"
+      ) {
+        let anchor_text = Js.Opt.get (Dom.CoerceTo.text anchor) (fun () => assert false);
+        let len = anchor_text##.length;
+        let anchor_offset = selection##.anchorOffset;
+        Js_util.log ("indentation: " ^ string_of_int len ^ string_of_int anchor_offset);
+        if (len == anchor_offset) {
+          switch (Js.Opt.to_option parent_elem##.nextSibling) {
+          | Some sibling => move_cursor_before (first_leaf sibling)
+          | None => ()
+          }
+        }
+      } else {
+        ()
       }
-    | _ => ()
+    | None => ()
     }
   };
   let _ =

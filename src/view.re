@@ -246,7 +246,14 @@ module PPView = {
     term
       "NonEmptyHole"
       rev_path
-      (PP.tagged "NonEmptyHoleTerm" None r ^^ taggedText "holeName" (string_of_int u));
+      (
+        PP.tagged
+          "NonEmptyHoleTerm"
+          None
+          (r ^^ taggedText "nonEmptyHole-after-inner" "\226\128\139\226\128\139") ^^
+        taggedText "nonEmptyHoleName" (string_of_int u) ^^
+        taggedText "nonEmptyHole-after-outer" "\226\128\139\226\128\139\226\128\139"
+      );
   let of_Cast rev_path rty r1 =>
     term
       "Cast"
@@ -605,20 +612,22 @@ module PPView = {
              ) */
         | NonEmptyHole u m sigma d1 =>
           let rev_path1 = [0, ...rev_path];
-          let hole_class =
-            switch m {
-            | Unevaled => "unevaled-ne-hole"
-            | Evaled => "evaled-ne-hole"
-            };
           let r = of_dhexp rev_path1 d1;
-          term "NonEmptyHole" rev_path (PP.tagged hole_class None r) ^^
-          PP.tagged
-            "hole-decorations"
-            None
-            (
-              taggedText "holeName" (string_of_int u) ^^
-              PP.tagged "environment" None (of_sigma rev_path sigma)
-            )
+          of_NonEmptyHole rev_path u r
+        /* let hole_class =
+             switch m {
+             | Unevaled => "unevaled-ne-hole"
+             | Evaled => "evaled-ne-hole"
+             };
+           let r = of_dhexp rev_path1 d1;
+           term "NonEmptyHole" rev_path (PP.tagged hole_class None r) ^^
+           PP.tagged
+             "hole-decorations"
+             None
+             (
+               taggedText "holeName" (string_of_int u) ^^
+               PP.tagged "environment" None (of_sigma rev_path sigma)
+             ) */
         | Cast ty d1 =>
           let rev_path1 = [0, ...rev_path];
           let rev_path2 = [1, ...rev_path];

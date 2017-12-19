@@ -116,18 +116,10 @@ h1 {
 
 .ModelExp {
 	padding: 10px;
-	font-size: 125%;
+	font-size: 175%;
 	margin-top: 20px;
 	background-color: white;
 	border: 2px solid #CCC;
-	line-height: 100%;
-}
-
-.EmptyHole {
-	line-height: 100%;
-}
-
-.Hole { 
 	line-height: 100%;
 }
 
@@ -194,32 +186,39 @@ button:disabled {
 
 .cursor {
 	background-color: rgb(229, 255, 229);
-	/* border-bottom: 3px solid green; */
 }
 
 .SIndentation {
   white-space: pre;
 	background-color: rgba(0, 0, 0, 0);
-	border-bottom: 1px solid rgba(0, 0, 0, 0);
+}
+
+.NonEmptyHole {
+	line-height: initial;
 }
 
 .NonEmptyHoleTerm {
-	border: 2px solid #a040a0;
-	border-radius: 4px;
-	margin-left: 3px;
-	margin-right: 3px;
-	padding-left: 3px;
-	padding-right: 3px;
-	
+	/* padding-bottom: 1px; */
+	/* margin-bottom: -1px; */
+	margin-right: 2px;
+	border: 1px dashed red;
 }
 
 .result-view {
-  font-size: 125%;
+  font-size: 175%;
 }
 
 .hole-decorations {
 	display: inline-table;
 	vertical-align: top;
+}
+
+.EmptyHole {
+	border-bottom: 1px solid #a040a0;
+}
+
+.Hole {
+	border-bottom: 1px solid #a040a0;
 }
 
 .holeName {
@@ -228,7 +227,16 @@ button:disabled {
 	color: #BBB;
 	padding-left: 2px;
 	padding-right: 2px;
-	border-bottom: 1px solid #a040a0;
+	/* border-bottom: 1px solid #a040a0; */
+	margin-bottom: -3px;
+	line-height: initial;
+}
+
+.nonEmptyHoleName {
+	vertical-align: bottom;
+	font-size: 65%;
+	color: red;
+	line-height: initial;
 }
 
 .hide-hole-names .holeName {
