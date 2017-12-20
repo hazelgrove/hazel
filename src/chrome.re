@@ -215,7 +215,20 @@ let view ((ms, es, do_action): Model.mt) => {
         let children = anchor##.childNodes;
         let child_opt = children##item anchorOffset;
         switch (Js.Opt.to_option child_opt) {
-        | Some child => first_leaf child
+        | Some child =>
+          switch (Js.Opt.to_option (Dom_html.CoerceTo.element child)) {
+          | Some child_element =>
+            let tagName = Js.to_string child_element##.tagName;
+            if (String.equal tagName "BR") {
+              switch (Js.Opt.to_option child_element##.previousSibling) {
+              | Some sibling => last_leaf sibling
+              | None => first_leaf child
+              }
+            } else {
+              first_leaf child
+            }
+          | None => first_leaf child
+          }
         | None => anchor
         }
       } else {
