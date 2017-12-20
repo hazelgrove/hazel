@@ -191,6 +191,7 @@ button:disabled {
 .SIndentation {
   white-space: pre;
 	background-color: rgba(0, 0, 0, 0);
+	margin-right: 2px;
 }
 
 .NonEmptyHole {
