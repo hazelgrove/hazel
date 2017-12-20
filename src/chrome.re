@@ -170,7 +170,8 @@ let view ((ms, es, do_action): Model.mt) => {
               Js.Opt.get (Dom_html.CoerceTo.element parent) (fun () => assert false);
             let classList = parent_elem##.classList;
             let is_space = Js.to_bool (classList##contains (Js.string "space"));
-            if is_space {
+            let is_indentation = Js.to_bool (classList##contains (Js.string "SIndentation"));
+            if (is_space || is_indentation) {
               switch (Js.Opt.to_option parent##.nextSibling) {
               | Some sibling => first_leaf sibling
               | None => anchor
@@ -225,9 +226,9 @@ let view ((ms, es, do_action): Model.mt) => {
               | None => first_leaf child
               }
             } else {
-              first_leaf child
+              anchor
             }
-          | None => first_leaf child
+          | None => anchor
           }
         | None => anchor
         }
@@ -236,6 +237,20 @@ let view ((ms, es, do_action): Model.mt) => {
       }
     | _ => anchor
     };
+  /* else if (
+       has_class "SIndentation"
+     ) {
+       let anchor_text = Js.Opt.get (Dom.CoerceTo.text anchor) (fun () => assert false);
+       let len = anchor_text##.length;
+       let anchor_offset = selection##.anchorOffset;
+       Js_util.log ("indentation: " ^ string_of_int len ^ string_of_int anchor_offset);
+       if (len == anchor_offset) {
+         switch (Js.Opt.to_option parent_elem##.nextSibling) {
+         | Some sibling => move_cursor_before (first_leaf sibling)
+         | None => ()
+         }
+       }
+     } */
   let clear_cursors () => {
     let cursors = Dom_html.document##getElementsByClassName (Js.string "cursor");
     let num_cursors = cursors##.length;
@@ -383,19 +398,6 @@ let view ((ms, es, do_action): Model.mt) => {
         } else {
           switch (Js.Opt.to_option parent_elem##.nextSibling) {
           | Some sibling => move_cursor_after sibling
-          | None => ()
-          }
-        }
-      } else if (
-        has_class "SIndentation"
-      ) {
-        let anchor_text = Js.Opt.get (Dom.CoerceTo.text anchor) (fun () => assert false);
-        let len = anchor_text##.length;
-        let anchor_offset = selection##.anchorOffset;
-        Js_util.log ("indentation: " ^ string_of_int len ^ string_of_int anchor_offset);
-        if (len == anchor_offset) {
-          switch (Js.Opt.to_option parent_elem##.nextSibling) {
-          | Some sibling => move_cursor_before (first_leaf sibling)
           | None => ()
           }
         }
