@@ -1053,7 +1053,7 @@ Module Core.
               end) |>
               map_option(fun ana_out => 
                 match ana_out with 
-                | (ze', u_gen') => (ZExp.InjZ HExp.L ze', u_gen')
+                | (ze', u_gen') => (ZExp.InjZ side ze', u_gen')
                 end)
         | (_, ZExp.CaseZ1 ze (x, e1) (y, e2), ty) (* 23e *) =>
           let e0 := ZExp.erase ze in
