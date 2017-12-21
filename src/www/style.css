@@ -192,6 +192,7 @@ button:disabled {
   white-space: pre;
 	background-color: rgba(0, 0, 0, 0);
 	margin-right: 2px;
+	margin-left: -2px;
 }
 
 .NonEmptyHole {
