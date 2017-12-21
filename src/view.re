@@ -166,7 +166,7 @@ module PPView = {
         kw "\206\187" ^^
         var x ^^ kw ":" ^^ rty ^^ kw "." ^^ PP.optionalBreak "" ^^ PP.nestRelative 4 r1
       );
-  let of_Ap rev_path r1 r2 => term "Ap" rev_path (r1 ^^ optionalBreakSp ^^ r2);
+  let of_Ap rev_path r1 r2 => term "Ap" rev_path (r1 ^^ parens "(" ^^ r2 ^^ parens ")");
   let of_Plus rev_path r1 r2 =>
     term "Plus" rev_path (r1 ^^ optionalBreakSp ^^ op "+" ^^ optionalBreakSp ^^ r2);
   let of_Inj rev_path side r =>
