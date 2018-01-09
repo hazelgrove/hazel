@@ -250,14 +250,20 @@ module PPView = {
       | Cast _ _ => cast_precedence
       }
     );
-  let rec of_op op => {
-    let op_s =
-      switch op {
-      | UHExp.Plus => " + "
-      | UHExp.Times => "*"
-      };
-    taggedText "seq-op" op_s
-  };
+  let rec of_op op =>
+    switch op {
+    | UHExp.Plus =>
+      PP.tagged
+        "seq-op"
+        None
+        (
+          taggedText "op-before-1" "\226\128\139\226\128\139" ^^
+          taggedText "op-before-2" "\226\128\140" ^^
+          taggedText "op-center" " + " ^^
+          taggedText "op-after-1" "\226\128\139" ^^ taggedText "op-after-2" "\226\128\139"
+        )
+    | UHExp.Times => taggedText "seq-op" "*"
+    };
   let rec of_hexp' rev_path e paren =>
     if paren {
       parens "(" ^^ PP.nestRelative 0 (of_hexp rev_path e) ^^ parens ")"

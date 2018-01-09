@@ -26,7 +26,6 @@ let make_palette ((ms, es, do_action): Model.mt) set_cursor => {
         (
           fun evt => {
             let keycode = Js_util.get_keyCode evt;
-            Js_util.log keycode;
             if (keycode == KC.keyCode key_combo) {
               doAction action;
               Dom.preventDefault evt
@@ -392,8 +391,8 @@ let make_palette ((ms, es, do_action): Model.mt) set_cursor => {
       KCs.c
       "Enter var + press Tab"
       "Enter var + press Enter";
-  /* let constructNEHole =
-     action_button (Action.Construct Action.SNEHole) "construct neHole" KCs.qmark; */
+  let constructNEHole =
+    action_button (Action.Construct Action.SNEHole) "construct neHole" KCs.qmark;
   /* let movementActions =
      Html5.(
        div
@@ -441,8 +440,8 @@ let make_palette ((ms, es, do_action): Model.mt) set_cursor => {
               br (),
               constructInjR,
               br (),
-              constructCase /* ,
-              constructNEHole */
+              constructCase,
+              constructNEHole
             ]
         ]
     );

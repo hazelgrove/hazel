@@ -199,7 +199,9 @@ let view ((ms, es, do_action): Model.mt) => {
               let parent_elem =
                 Js.Opt.get (Dom_html.CoerceTo.element parent) (fun () => assert false);
               let classList = parent_elem##.classList;
-              if (Js.to_bool (classList##contains (Js.string "space"))) {
+              let is_space = Js.to_bool (classList##contains (Js.string "space"));
+              let is_op = Js.to_bool (classList##contains (Js.string "seq-op"));
+              if (is_space || is_op) {
                 switch (Js.Opt.to_option parent##.previousSibling) {
                 | Some sibling => last_leaf sibling
                 | None => anchor
@@ -256,6 +258,7 @@ let view ((ms, es, do_action): Model.mt) => {
   let has_class classList cls => Js.to_bool (classList##contains (Js.string cls));
   let do_transport () => {
     let selection = Dom_html.window##getSelection;
+    Js_util.log selection;
     let anchor = selection##.anchorNode;
     let parent_elem =
       switch anchor##.nodeType {
@@ -272,13 +275,15 @@ let view ((ms, es, do_action): Model.mt) => {
     switch parent_elem {
     | Some parent_elem =>
       let classList = parent_elem##.classList;
-      let has_class = has_class classList;
+      let has_class = has_class classList; /* partially applied for convenience */
+      Js_util.log parent_elem##.className;
       if (has_class "hole-before-1") {
         let anchorOffset = selection##.anchorOffset;
         if (anchorOffset == 1) {
+          /* came in from the left */
           switch (Js.Opt.to_option parent_elem##.parentNode) {
-          | Some super_parent =>
-            switch (Js.Opt.to_option super_parent##.lastChild) {
+          | Some grandparent =>
+            switch (Js.Opt.to_option grandparent##.lastChild) {
             | Some lastChild => move_cursor_after lastChild
             | None => ()
             }
@@ -287,10 +292,38 @@ let view ((ms, es, do_action): Model.mt) => {
         } else if (
           anchorOffset == 2
         ) {
+          /* came in from above or below */
           switch (Js.Opt.to_option parent_elem##.parentNode) {
-          | Some super_parent =>
-            switch (Js.Opt.to_option super_parent##.firstChild) {
+          | Some grandparent =>
+            switch (Js.Opt.to_option grandparent##.firstChild) {
             | Some firstChild => move_cursor_before firstChild
+            | None => ()
+            }
+          | None => ()
+          }
+        }
+      } else if (
+        has_class "op-before-1"
+      ) {
+        let anchorOffset = selection##.anchorOffset;
+        if (anchorOffset == 1) {
+          /* came in from the left */
+          switch (Js.Opt.to_option parent_elem##.parentNode) {
+          | Some grandparent =>
+            switch (Js.Opt.to_option grandparent##.nextSibling) {
+            | Some sibling => move_cursor_before sibling
+            | None => ()
+            }
+          | None => ()
+          }
+        } else if (
+          anchorOffset == 2
+        ) {
+          /* came in from above or below */
+          switch (Js.Opt.to_option parent_elem##.parentNode) {
+          | Some grandparent =>
+            switch (Js.Opt.to_option grandparent##.previousSibling) {
+            | Some sibling => move_cursor_after sibling
             | None => ()
             }
           | None => ()
@@ -302,8 +335,8 @@ let view ((ms, es, do_action): Model.mt) => {
         let anchorOffset = selection##.anchorOffset;
         if (anchorOffset == 0) {
           switch (Js.Opt.to_option parent_elem##.parentNode) {
-          | Some super_parent =>
-            switch (Js.Opt.to_option super_parent##.firstChild) {
+          | Some grandparent =>
+            switch (Js.Opt.to_option grandparent##.firstChild) {
             | Some firstChild => move_cursor_before firstChild
             | None => ()
             }
@@ -311,8 +344,8 @@ let view ((ms, es, do_action): Model.mt) => {
           }
         } else {
           switch (Js.Opt.to_option parent_elem##.parentNode) {
-          | Some super_parent =>
-            switch (Js.Opt.to_option super_parent##.lastChild) {
+          | Some grandparent =>
+            switch (Js.Opt.to_option grandparent##.lastChild) {
             | Some lastChild => move_cursor_after lastChild
             | None => ()
             }
@@ -320,12 +353,48 @@ let view ((ms, es, do_action): Model.mt) => {
           }
         }
       } else if (
-        has_class "hole-after-1" || has_class "hole-before-2"
+        has_class "op-center"
+      ) {
+        let anchorOffset = selection##.anchorOffset;
+        if (anchorOffset <= 1) {
+          /* clicked before the + */
+          switch (Js.Opt.to_option parent_elem##.parentNode) {
+          | Some grandparent =>
+            switch (Js.Opt.to_option grandparent##.previousSibling) {
+            | Some sibling => move_cursor_after sibling
+            | None => ()
+            }
+          | None => ()
+          }
+        } else {
+          /* clicked after the + */
+          switch (Js.Opt.to_option parent_elem##.parentNode) {
+          | Some grandparent =>
+            switch (Js.Opt.to_option grandparent##.nextSibling) {
+            | Some sibling => move_cursor_before sibling
+            | None => ()
+            }
+          | None => ()
+          }
+        }
+      } else if (
+        has_class "hole-before-2" || has_class "hole-after-1"
       ) {
         switch (Js.Opt.to_option parent_elem##.parentNode) {
-        | Some super_parent =>
-          switch (Js.Opt.to_option super_parent##.firstChild) {
+        | Some grandparent =>
+          switch (Js.Opt.to_option grandparent##.firstChild) {
           | Some firstChild => move_cursor_before firstChild
+          | None => ()
+          }
+        | None => ()
+        }
+      } else if (
+        has_class "op-before-2" || has_class "op-after-1" || has_class "op-after-2"
+      ) {
+        switch (Js.Opt.to_option parent_elem##.parentNode) {
+        | Some grandparent =>
+          switch (Js.Opt.to_option grandparent##.previousSibling) {
+          | Some sibling => move_cursor_after sibling
           | None => ()
           }
         | None => ()
@@ -336,10 +405,10 @@ let view ((ms, es, do_action): Model.mt) => {
         let anchor_offset = selection##.anchorOffset;
         if (anchor_offset > 0) {
           switch (Js.Opt.to_option parent_elem##.parentNode) {
-          | Some super_parent =>
-            switch (Js.Opt.to_option super_parent##.parentNode) {
-            | Some super_parent' =>
-              switch (Js.Opt.to_option super_parent'##.lastChild) {
+          | Some grandparent =>
+            switch (Js.Opt.to_option grandparent##.parentNode) {
+            | Some grandparent' =>
+              switch (Js.Opt.to_option grandparent'##.lastChild) {
               | Some lastChild => move_cursor_after lastChild
               | None => ()
               }
@@ -354,8 +423,8 @@ let view ((ms, es, do_action): Model.mt) => {
         let anchor_offset = selection##.anchorOffset;
         if (anchor_offset == 2) {
           switch (Js.Opt.to_option parent_elem##.parentNode) {
-          | Some super_parent =>
-            switch (Js.Opt.to_option super_parent##.firstChild) {
+          | Some grandparent =>
+            switch (Js.Opt.to_option grandparent##.firstChild) {
             | Some firstChild =>
               switch (Js.Opt.to_option firstChild##.firstChild) {
               | Some firstChild => move_cursor_after firstChild
@@ -372,8 +441,8 @@ let view ((ms, es, do_action): Model.mt) => {
         let anchor_offset = selection##.anchorOffset;
         if (anchor_offset == 0) {
           switch (Js.Opt.to_option parent_elem##.parentNode) {
-          | Some super_parent =>
-            switch (Js.Opt.to_option super_parent##.firstChild) {
+          | Some grandparent =>
+            switch (Js.Opt.to_option grandparent##.firstChild) {
             | Some firstChild =>
               switch (Js.Opt.to_option firstChild##.firstChild) {
               | Some firstChild => move_cursor_after firstChild
@@ -389,8 +458,16 @@ let view ((ms, es, do_action): Model.mt) => {
           | None => ()
           }
         }
-      } else {
-        ()
+      } else if (
+        has_class "seq-op"
+      ) {
+        let anchorOffset = selection##.anchorOffset;
+        if (anchorOffset == 1) {
+          switch (Js.Opt.to_option parent_elem##.nextSibling) {
+          | Some sibling => move_cursor_before sibling
+          | None => ()
+          }
+        }
       }
     | None => ()
     }
@@ -406,7 +483,6 @@ let view ((ms, es, do_action): Model.mt) => {
           /* get effective anchor node (where selection began) */
           let selection = Dom_html.window##getSelection;
           let anchor = fix_anchor selection selection##.anchorNode;
-          Js_util.log selection;
           /* get current paths hash table */
           let rev_paths = React.S.value rev_paths_rs;
           /* traverse up the DOM until we find an element with an id in the paths table */
