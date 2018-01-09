@@ -119,11 +119,15 @@ let view ((ms, es, do_action): Model.mt) => {
   };
   let set_cursor () => {
     let ((ze, _), _) = React.S.value ms;
-    let cursor_path = Semantics.Core.Path.of_zexp ze;
+    let (cursor_path, cursor_side) = Semantics.Core.Path.of_zexp ze;
     let id = PPView.id_of_rev_path (List.rev cursor_path);
     let cursor_elem = Js_util.forceGetElementById id;
     let cursor_node: Js.t Dom.node = Js.Unsafe.coerce cursor_elem;
-    move_cursor_before cursor_node
+    switch cursor_side {
+    | Path.Before
+    | Path.On => move_cursor_before cursor_node
+    | Path.After => move_cursor_after cursor_node
+    }
   };
   /* Construct a simple DOM change listener to trigger cursor
      movements. we could also just listen directly to the DOM
@@ -155,102 +159,92 @@ let view ((ms, es, do_action): Model.mt) => {
       ();
   /* listen to selection change events and respond */
   let rev_paths_rs = React.S.map (fun (_, rev_paths) => rev_paths) view_rs;
-  let fix_anchor selection anchor =>
-    switch anchor##.nodeType {
-    | Dom.TEXT =>
-      let anchor' = Js.Opt.get (Dom.CoerceTo.text anchor) (fun () => assert false);
-      let length = anchor'##.length;
-      let anchor_offset = selection##.anchorOffset;
-      if (anchor_offset == length) {
-        switch (Js.Opt.to_option anchor##.parentNode) {
-        | Some parent =>
-          switch parent##.nodeType {
-          | Dom.ELEMENT =>
-            let parent_elem =
-              Js.Opt.get (Dom_html.CoerceTo.element parent) (fun () => assert false);
-            let classList = parent_elem##.classList;
-            let is_space = Js.to_bool (classList##contains (Js.string "space"));
-            let is_indentation = Js.to_bool (classList##contains (Js.string "SIndentation"));
-            if (is_space || is_indentation) {
-              switch (Js.Opt.to_option parent##.nextSibling) {
-              | Some sibling => first_leaf sibling
-              | None => anchor
+  let fix_anchor selection anchor => {
+    let anchor' =
+      switch anchor##.nodeType {
+      | Dom.TEXT =>
+        let anchor' = Js.Opt.get (Dom.CoerceTo.text anchor) (fun () => assert false);
+        let length = anchor'##.length;
+        let anchor_offset = selection##.anchorOffset;
+        if (anchor_offset == length) {
+          switch (Js.Opt.to_option anchor##.parentNode) {
+          | Some parent =>
+            switch parent##.nodeType {
+            | Dom.ELEMENT =>
+              let parent_elem =
+                Js.Opt.get (Dom_html.CoerceTo.element parent) (fun () => assert false);
+              let classList = parent_elem##.classList;
+              let is_space = Js.to_bool (classList##contains (Js.string "space"));
+              let is_indentation = Js.to_bool (classList##contains (Js.string "SIndentation"));
+              let is_op = Js.to_bool (classList##contains (Js.string "seq-op"));
+              if (is_space || is_indentation || is_op) {
+                switch (Js.Opt.to_option parent##.nextSibling) {
+                | Some sibling => first_leaf sibling
+                | None => anchor
+                }
+              } else {
+                anchor
               }
-            } else {
-              anchor
-            }
-          | _ => anchor
-          }
-        | None => anchor
-        }
-      } else if (
-        anchor_offset == 0
-      ) {
-        switch (Js.Opt.to_option anchor##.parentNode) {
-        | Some parent =>
-          switch parent##.nodeType {
-          | Dom.ELEMENT =>
-            let parent_elem =
-              Js.Opt.get (Dom_html.CoerceTo.element parent) (fun () => assert false);
-            let classList = parent_elem##.classList;
-            if (Js.to_bool (classList##contains (Js.string "space"))) {
-              switch (Js.Opt.to_option parent##.previousSibling) {
-              | Some sibling => last_leaf sibling
-              | None => anchor
-              }
-            } else {
-              anchor
-            }
-          | _ => anchor
-          }
-        | None => anchor
-        }
-      } else {
-        anchor
-      }
-    | Dom.ELEMENT =>
-      let anchor_elem = Js.Opt.get (Dom_html.CoerceTo.element anchor) (fun () => assert false);
-      let classList = anchor_elem##.classList;
-      if (not (Js.to_bool (classList##contains (Js.string "SText")))) {
-        let anchorOffset = selection##.anchorOffset;
-        let children = anchor##.childNodes;
-        let child_opt = children##item anchorOffset;
-        switch (Js.Opt.to_option child_opt) {
-        | Some child =>
-          switch (Js.Opt.to_option (Dom_html.CoerceTo.element child)) {
-          | Some child_element =>
-            let tagName = Js.to_string child_element##.tagName;
-            if (String.equal tagName "BR") {
-              switch (Js.Opt.to_option child_element##.previousSibling) {
-              | Some sibling => last_leaf sibling
-              | None => first_leaf child
-              }
-            } else {
-              anchor
+            | _ => anchor
             }
           | None => anchor
           }
-        | None => anchor
+        } else if (
+          anchor_offset == 0
+        ) {
+          switch (Js.Opt.to_option anchor##.parentNode) {
+          | Some parent =>
+            switch parent##.nodeType {
+            | Dom.ELEMENT =>
+              let parent_elem =
+                Js.Opt.get (Dom_html.CoerceTo.element parent) (fun () => assert false);
+              let classList = parent_elem##.classList;
+              if (Js.to_bool (classList##contains (Js.string "space"))) {
+                switch (Js.Opt.to_option parent##.previousSibling) {
+                | Some sibling => last_leaf sibling
+                | None => anchor
+                }
+              } else {
+                anchor
+              }
+            | _ => anchor
+            }
+          | None => anchor
+          }
+        } else {
+          anchor
         }
-      } else {
-        anchor
-      }
-    | _ => anchor
-    };
-  /* else if (
-       has_class "SIndentation"
-     ) {
-       let anchor_text = Js.Opt.get (Dom.CoerceTo.text anchor) (fun () => assert false);
-       let len = anchor_text##.length;
-       let anchor_offset = selection##.anchorOffset;
-       Js_util.log ("indentation: " ^ string_of_int len ^ string_of_int anchor_offset);
-       if (len == anchor_offset) {
-         switch (Js.Opt.to_option parent_elem##.nextSibling) {
-         | Some sibling => move_cursor_before (first_leaf sibling)
-         | None => ()
-         }
-       }
-     } */
+      | Dom.ELEMENT =>
+        let anchor_elem = Js.Opt.get (Dom_html.CoerceTo.element anchor) (fun () => assert false);
+        let classList = anchor_elem##.classList;
+        if (not (Js.to_bool (classList##contains (Js.string "SText")))) {
+          let anchorOffset = selection##.anchorOffset;
+          let children = anchor##.childNodes;
+          let child_opt = children##item anchorOffset;
+          switch (Js.Opt.to_option child_opt) {
+          | Some child =>
+            switch (Js.Opt.to_option (Dom_html.CoerceTo.element child)) {
+            | Some child_element =>
+              let tagName = Js.to_string child_element##.tagName;
+              if (String.equal tagName "BR") {
+                switch (Js.Opt.to_option child_element##.previousSibling) {
+                | Some sibling => last_leaf sibling
+                | None => first_leaf child
+                }
+              } else {
+                anchor
+              }
+            | None => anchor
+            }
+          | None => anchor
+          }
+        } else {
+          anchor
+        }
+      | _ => anchor
+      };
+    anchor'
+  };
   let clear_cursors () => {
     let cursors = Dom_html.document##getElementsByClassName (Js.string "cursor");
     let num_cursors = cursors##.length;
@@ -282,7 +276,6 @@ let view ((ms, es, do_action): Model.mt) => {
       if (has_class "hole-before-1") {
         let anchorOffset = selection##.anchorOffset;
         if (anchorOffset == 1) {
-          /* Js_util.log ("moving after " ^ string_of_int anchorOffset); */
           switch (Js.Opt.to_option parent_elem##.parentNode) {
           | Some super_parent =>
             switch (Js.Opt.to_option super_parent##.lastChild) {
@@ -329,7 +322,6 @@ let view ((ms, es, do_action): Model.mt) => {
       } else if (
         has_class "hole-after-1" || has_class "hole-before-2"
       ) {
-        /* Js_util.log "moving before"; */
         switch (Js.Opt.to_option parent_elem##.parentNode) {
         | Some super_parent =>
           switch (Js.Opt.to_option super_parent##.firstChild) {
@@ -348,10 +340,7 @@ let view ((ms, es, do_action): Model.mt) => {
             switch (Js.Opt.to_option super_parent##.parentNode) {
             | Some super_parent' =>
               switch (Js.Opt.to_option super_parent'##.lastChild) {
-              | Some lastChild =>
-                Js_util.log "moving after";
-                Js_util.log lastChild;
-                move_cursor_after lastChild
+              | Some lastChild => move_cursor_after lastChild
               | None => ()
               }
             | None => ()
@@ -363,7 +352,6 @@ let view ((ms, es, do_action): Model.mt) => {
         has_class "nonEmptyHole-after-outer"
       ) {
         let anchor_offset = selection##.anchorOffset;
-        Js_util.log ("anchor_offset = " ^ string_of_int anchor_offset);
         if (anchor_offset == 2) {
           switch (Js.Opt.to_option parent_elem##.parentNode) {
           | Some super_parent =>
@@ -434,7 +422,9 @@ let view ((ms, es, do_action): Model.mt) => {
               switch (Hashtbl.find rev_paths cur_id) {
               | rev_path =>
                 found := true;
-                do_action (Semantics.Core.Action.MoveTo (List.rev rev_path));
+                let path = List.rev rev_path;
+                let cursor_side = Path.On;
+                do_action (Semantics.Core.Action.MoveTo (path, cursor_side));
                 clear_cursors ();
                 let elem = Js_util.forceGetElementById cur_id;
                 elem##.classList##add (Js.string "cursor")
@@ -467,7 +457,7 @@ let view ((ms, es, do_action): Model.mt) => {
     React.S.map
       (
         fun ((zexp, _), _) => {
-          let e = ZExp.erase zexp;
+          let e = Associator.associate (ZExp.erase zexp);
           let expanded = Dynamics.DHExp.syn_expand () Ctx.empty e;
           switch expanded {
           | Dynamics.DHExp.DoesNotExpand => [Html5.(pcdata "(does not expand)")] /* should never happen! */

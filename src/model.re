@@ -8,18 +8,18 @@ let u_gen0: MetaVar.gen = MetaVar.new_gen;
 
 let (u, u_gen1) = MetaVar.next u_gen0;
 
-let empty: t = ((ZExp.CursorE (HExp.EmptyHole u), HTyp.Hole), u_gen1);
+let empty: t = ((ZExp.CursorE (UHExp.EmptyHole u), HTyp.Hole), u_gen1);
 
-let empty_erasure = HExp.EmptyHole u;
+let empty_erasure = UHExp.EmptyHole u;
 
 /* convenient type synonyms */
 type ms = React.signal t; /* reactive signal */
 
 type mf = step::React.step? => t => unit; /* update function */
 
-type es = React.signal HExp.t; /* derivative reactive signal that only updates when the underlying erasure changes (i.e. not on movement actions) */
+type es = React.signal UHExp.t; /* derivative reactive signal that only updates when the underlying erasure changes (i.e. not on movement actions) */
 
-type ef = step::React.step? => HExp.t => unit;
+type ef = step::React.step? => UHExp.t => unit;
 
 exception InvalidAction;
 
@@ -27,7 +27,7 @@ let new_model () => {
   let (ms, mf) = React.S.create empty;
   let (es, ef) = React.S.create empty_erasure;
   let do_action action =>
-    switch (Action.performSyn () Ctx.empty action (React.S.value ms)) {
+    switch (Action.performSyn () Ctx.empty action (React.S.value ms) Associator.associate) {
     | Some ((ze, ty), ugen) =>
       mf ((ze, ty), ugen);
       switch action {

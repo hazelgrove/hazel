@@ -215,7 +215,7 @@ Module Core.
     Notation "X |> F" := (pipe_forward X F)
       (at level 40, left associativity) : core_scope.
 
-    Module HExp.
+    Module AHExp. (* associated H-expressions *)
       Inductive inj_side : Type :=
       | L : inj_side
       | R : inj_side.
@@ -227,13 +227,14 @@ Module Core.
         end.
 
       Inductive t : Type :=
-      | Asc : t -> HTyp.t -> t
+      | Asc : t -> HTyp.t -> t 
       | Var : Var.t -> t
       | Let : Var.t -> t -> t -> t
       | Lam : Var.t -> t -> t
-      | Ap : t -> t -> t
+      | Ap : t -> t -> t 
       | NumLit : nat -> t
       | Plus : t -> t -> t
+      | Times : t -> t -> t
       | Inj : inj_side -> t -> t
       | Case : t -> (Var.t * t) -> (Var.t * t) -> t
       | EmptyHole : MetaVar.t -> t
@@ -283,7 +284,8 @@ Module Core.
               end
             end
           | NumLit i (* SNum *) => Some (HTyp.Num, nil)
-          | Plus e1 e2 (* 3e *) =>
+          | Plus e1 e2 (* 3e *)
+          | Times e1 e2 =>
             match ana fuel ctx e1 HTyp.Num with 
             | None => None
             | Some us1 => 
@@ -360,14 +362,14 @@ Module Core.
         | Kicked => None
         end.
 
-      Definition hsyn (fuel: Fuel) (ctx: Ctx.t) (e: HExp.t): option HTyp.t := 
-          match HExp.syn fuel ctx e with 
+      Definition hsyn (fuel: Fuel) (ctx: Ctx.t) (e: t): option HTyp.t := 
+          match syn fuel ctx e with 
           | None => None
           | Some (ty, _) => Some ty 
           end.
 
-      Definition hana (fuel: Fuel) (ctx: Ctx.t) (e: HExp.t) (ty: HTyp.t): option unit := 
-          match HExp.ana fuel ctx e ty with 
+      Definition hana (fuel: Fuel) (ctx: Ctx.t) (e: t) (ty: HTyp.t): option unit := 
+          match ana fuel ctx e ty with 
           | None => None
           | Some _ => Some tt
           end.
@@ -380,14 +382,51 @@ Module Core.
         | Lam _ e' => complete e'
         | Ap e1 e2 => andb (complete e1) (complete e2)
         | NumLit _ => true
-        | Plus e1 e2 => andb (complete e1) (complete e2)
+        | Plus e1 e2 
+        | Times e1 e2 => andb (complete e1) (complete e2)
         | Inj _ e => complete e
         | Case e (x, e1) (y, e2) =>
           andb (complete e) (andb (complete e1) (complete e2))
         | EmptyHole _ => false
         | NonEmptyHole _ _ => false
         end.
-    End HExp.
+    End AHExp.
+
+    Module UHExp. (* unassociated H-expressions *)
+      Inductive t : Type := 
+      | Asc : t -> HTyp.t -> t
+      | Var : Var.t -> t
+      | Let : Var.t -> t -> t -> t
+      | Lam : Var.t -> t -> t
+      | Ap : t -> t -> t 
+      | NumLit : nat -> t
+      | Inj : AHExp.inj_side -> t -> t
+      | Case : t -> (Var.t * t) -> (Var.t * t) -> t
+      | EmptyHole : MetaVar.t -> t
+      | NonEmptyHole : MetaVar.t -> t -> t
+      | OpSeq : opseq -> t
+      with opseq : Type := 
+      | BareExp : t -> opseq
+      | SeqOpExp : opseq -> op -> t -> opseq
+      with op : Type :=
+      | Plus : op
+      | Times : op.
+
+      Fixpoint append (seq1 : opseq) (op : op) (seq2 : opseq) : opseq := 
+        match seq2 with 
+        | BareExp ue => SeqOpExp seq1 op ue
+        | SeqOpExp seq2' op' ue' => 
+            SeqOpExp (append seq1 op seq2') op' ue'
+        end.
+
+      Fixpoint length (seq : opseq) : nat := 
+        match seq with 
+        | BareExp _ => S(O)
+        | SeqOpExp seq' _ _ => S(length seq')
+        end.
+
+      (* TODO: Fixpoint associate(oe : t) : HExp.t *) 
+    End UHExp.
 
     Module ZTyp.
       Inductive t : Type :=
@@ -409,97 +448,170 @@ Module Core.
 
     Module ZExp.
       Inductive t : Type :=
-      | CursorE : HExp.t -> t
+      | CursorE : UHExp.t -> t (* cursor is in/on expression *)
+      | CursorBefore : UHExp.t -> t
+      | CursorAfter : UHExp.t -> t
       | LeftAsc : t -> HTyp.t -> t
-      | RightAsc : HExp.t -> ZTyp.t -> t
-      | LetZ1 : Var.t -> t -> HExp.t -> t
-      | LetZ2 : Var.t -> HExp.t -> t -> t
+      | RightAsc : UHExp.t -> ZTyp.t -> t
+      | LetZ1 : Var.t -> t -> UHExp.t -> t
+      | LetZ2 : Var.t -> UHExp.t -> t -> t
       | LamZ : Var.t -> t -> t
-      | LeftAp : t -> HExp.t -> t
-      | RightAp : HExp.t -> t -> t
-      | LeftPlus : t -> HExp.t -> t
-      | RightPlus : HExp.t -> t -> t
-      | InjZ : HExp.inj_side -> t -> t
-      | CaseZ1 : t -> (Var.t * HExp.t) -> (Var.t * HExp.t) -> t
-      | CaseZ2 : HExp.t -> (Var.t * t) -> (Var.t * HExp.t) -> t
-      | CaseZ3 : HExp.t -> (Var.t * HExp.t) -> (Var.t * t) -> t
-      | NonEmptyHoleZ : MetaVar.t -> t -> t.
+      | LeftAp : t -> UHExp.t -> t
+      | RightAp : UHExp.t -> t -> t
+      | InjZ : AHExp.inj_side -> t -> t
+      | CaseZ1 : t -> (Var.t * UHExp.t) -> (Var.t * UHExp.t) -> t
+      | CaseZ2 : UHExp.t -> (Var.t * t) -> (Var.t * UHExp.t) -> t
+      | CaseZ3 : UHExp.t -> (Var.t * UHExp.t) -> (Var.t * t) -> t
+      | NonEmptyHoleZ : MetaVar.t -> t -> t
+      | OpSeqZ : opseq_prefix -> t -> opseq_suffix -> t
+      with opseq_prefix : Type := 
+      | EmptyPrefix : opseq_prefix
+      | NonEmptyPrefix : UHExp.opseq -> UHExp.op -> opseq_prefix
+      with opseq_suffix : Type := 
+      | EmptySuffix : opseq_suffix
+      | NonEmptySuffix : UHExp.op -> UHExp.opseq -> opseq_suffix.
 
-      Fixpoint erase (ze : t) : HExp.t :=
+      Fixpoint erase (ze : t) : UHExp.t :=
         match ze with
-        | CursorE e => e
-        | LeftAsc ze' ty => HExp.Asc (erase ze') ty
-        | RightAsc e' zty => HExp.Asc e' (ZTyp.erase zty)
-        | LetZ1 x ze e => HExp.Let x (erase ze) e
-        | LetZ2 x e ze => HExp.Let x e (erase ze)
-        | LamZ x ze' => HExp.Lam x (erase ze')
-        | LeftAp ze' e => HExp.Ap (erase ze') e
-        | RightAp e ze' => HExp.Ap e (erase ze')
-        | LeftPlus ze' e => HExp.Plus (erase ze') e
-        | RightPlus e ze' => HExp.Plus e (erase ze')
-        | InjZ side ze => HExp.Inj side (erase ze)
-        | CaseZ1 ze branch1 branch2 => HExp.Case (erase ze) branch1 branch2
-        | CaseZ2 e (x, ze) branch2 => HExp.Case e (x, (erase ze)) branch2
-        | CaseZ3 e branch1 (y, ze) => HExp.Case e branch1 (y, (erase ze))
-        | NonEmptyHoleZ u ze' => HExp.NonEmptyHole u (erase ze')
+        | CursorE e 
+        | CursorBefore e
+        | CursorAfter e => e
+        | LeftAsc ze' ty => UHExp.Asc (erase ze') ty
+        | RightAsc e' zty => UHExp.Asc e' (ZTyp.erase zty)
+        | LetZ1 x ze e => UHExp.Let x (erase ze) e
+        | LetZ2 x e ze => UHExp.Let x e (erase ze)
+        | LamZ x ze' => UHExp.Lam x (erase ze')
+        | LeftAp ze' e => UHExp.Ap (erase ze') e
+        | RightAp e ze' => UHExp.Ap e (erase ze')
+        | InjZ side ze => UHExp.Inj side (erase ze)
+        | CaseZ1 ze branch1 branch2 => UHExp.Case (erase ze) branch1 branch2
+        | CaseZ2 e (x, ze) branch2 => UHExp.Case e (x, (erase ze)) branch2
+        | CaseZ3 e branch1 (y, ze) => UHExp.Case e branch1 (y, (erase ze))
+        | NonEmptyHoleZ u ze' => UHExp.NonEmptyHole u (erase ze')
+        | OpSeqZ pre ze' post => 
+           let erasure := erase ze' in 
+           match (pre, post) with 
+           | (EmptyPrefix, EmptySuffix) => (UHExp.OpSeq (UHExp.BareExp erasure))
+           | (EmptyPrefix, NonEmptySuffix op seq) => 
+               let pre' := UHExp.BareExp erasure in 
+               UHExp.OpSeq (UHExp.append pre' op seq)
+           | (NonEmptyPrefix seq op, EmptySuffix) => 
+               UHExp.OpSeq (UHExp.SeqOpExp seq op erasure)
+           | (NonEmptyPrefix seq1 op1, NonEmptySuffix op2 seq2) => 
+              let pre' := UHExp.SeqOpExp seq1 op1 erasure in 
+              UHExp.OpSeq (UHExp.append pre' op2 seq2)
+           end
+        end.
+
+      Definition prefix_length (pre : opseq_prefix) : nat := 
+        match pre with 
+        | EmptyPrefix => O
+        | NonEmptyPrefix seq _ => UHExp.length seq
+        end.
+
+      Definition suffix_length (post : opseq_suffix) : nat := 
+        match post with 
+        | EmptySuffix => O
+        | NonEmptySuffix _ seq => UHExp.length seq
+        end.
+
+      Fixpoint split (n : nat) (seq : UHExp.opseq) 
+          : option(opseq_prefix * UHExp.t * opseq_suffix) := 
+        match (n, seq) with 
+        | (O, UHExp.BareExp e) => 
+            let pre := EmptyPrefix in 
+            let post := EmptySuffix in 
+            Some (pre, e, post)
+        | (_, UHExp.BareExp e) => None
+        | (n, UHExp.SeqOpExp seq' op e) => 
+          let length' := UHExp.length seq' in 
+          if Nat.ltb n length' then 
+            match split n seq' with 
+            | Some (pre, e', post) => 
+                let post' := match post with 
+                | EmptySuffix => 
+                    NonEmptySuffix op (UHExp.BareExp e)
+                | NonEmptySuffix op' seq'' => 
+                    NonEmptySuffix op' (UHExp.SeqOpExp seq'' op e)
+                end in 
+                Some (pre, e', post')
+            | None => None
+            end
+          else if Nat.eqb n length' then 
+            let pre := NonEmptyPrefix seq' op in 
+            let post := EmptySuffix in 
+            Some (pre, e, post)
+          else None
         end.
     End ZExp.
 
     Module Path.
-      Definition t : Type := list(nat).
+      Inductive cursor_side : Type := 
+      | Before : cursor_side
+      | After : cursor_side
+      | On : cursor_side.
+
+      Definition t : Type := list(nat) * cursor_side.
+
+      Definition cons' (step : nat) (r : t) : t := 
+          match r with (steps, side) => (cons step steps, side) end. 
 
       Fixpoint of_ztyp (zty : ZTyp.t) : t := 
         match zty with 
-        | ZTyp.CursorT _ => nil
-        | ZTyp.LeftArrow zty' _ => cons O (of_ztyp zty')
-        | ZTyp.RightArrow _ zty' => cons (S O) (of_ztyp zty')
-        | ZTyp.LeftSum zty' _ => cons O (of_ztyp zty')
-        | ZTyp.RightSum _ zty' => cons (S O) (of_ztyp zty')
+        | ZTyp.CursorT _ => (nil, On)
+        | ZTyp.LeftArrow zty' _ => cons' O (of_ztyp zty')
+        | ZTyp.RightArrow _ zty' => cons' (S O) (of_ztyp zty')
+        | ZTyp.LeftSum zty' _ => cons' O (of_ztyp zty') 
+        | ZTyp.RightSum _ zty' => cons' (S O) (of_ztyp zty') 
         end.
 
       Fixpoint of_zexp (ze : ZExp.t) : t := 
         match ze with 
-        | ZExp.CursorE _ => nil
-        | ZExp.LeftAsc ze' _ => cons O (of_zexp ze')
-        | ZExp.RightAsc _ ze' => cons (S O) (of_ztyp ze')
-        | ZExp.LetZ1 _ ze' _ => cons O (of_zexp ze') 
-        | ZExp.LetZ2 _ _ ze' => cons (S O) (of_zexp ze')
-        | ZExp.LamZ _ ze' => cons O (of_zexp ze')
-        | ZExp.LeftAp ze' _ => cons O (of_zexp ze')
-        | ZExp.RightAp _ ze' => cons (S O) (of_zexp ze')
-        | ZExp.LeftPlus ze' _ => cons O (of_zexp ze')
-        | ZExp.RightPlus _ ze' => cons (S O) (of_zexp ze')
-        | ZExp.InjZ _ ze' => cons O (of_zexp ze')
-        | ZExp.CaseZ1 ze' _ _ => cons O (of_zexp ze')
-        | ZExp.CaseZ2 _ (_, ze') _ => cons (S O) (of_zexp ze')
-        | ZExp.CaseZ3 _ _ (_, ze') => cons (S (S O)) (of_zexp ze')
-        | ZExp.NonEmptyHoleZ _ ze' => cons O (of_zexp ze')
+        | ZExp.CursorE _ => (nil, On)
+        | ZExp.CursorBefore _ => (nil, Before)
+        | ZExp.CursorAfter _ => (nil, After)
+        | ZExp.LeftAsc ze' _ => cons' O (of_zexp ze')
+        | ZExp.RightAsc _ ze' => cons' (S O) (of_ztyp ze')
+        | ZExp.LetZ1 _ ze' _ => cons' O (of_zexp ze') 
+        | ZExp.LetZ2 _ _ ze' => cons' (S O) (of_zexp ze')
+        | ZExp.LamZ _ ze' => cons' O (of_zexp ze')
+        | ZExp.LeftAp ze' _ => cons' O (of_zexp ze')
+        | ZExp.RightAp _ ze' => cons' (S O) (of_zexp ze')
+        | ZExp.InjZ _ ze' => cons' O (of_zexp ze')
+        | ZExp.CaseZ1 ze' _ _ => cons' O (of_zexp ze')
+        | ZExp.CaseZ2 _ (_, ze') _ => cons' (S O) (of_zexp ze')
+        | ZExp.CaseZ3 _ _ (_, ze') => cons' (S (S O)) (of_zexp ze')
+        | ZExp.NonEmptyHoleZ _ ze' => cons' O (of_zexp ze')
+        | ZExp.OpSeqZ pre ze' _ => 
+            let n := ZExp.prefix_length pre in 
+            cons' n (of_zexp ze')
         end.
 
       Fixpoint follow_ty (path : t) (ty : HTyp.t) : option(ZTyp.t) := 
         match path with
-        | nil => Some (ZTyp.CursorT ty)
-        | cons x xs => 
+        | (nil, On) => Some (ZTyp.CursorT ty)
+        | (nil, _) => None
+        | (cons x xs, cursor_side) => 
             match (x, ty) with 
             | (_, HTyp.Num) => None
             | (O, HTyp.Arrow ty1 ty2) => 
-              match follow_ty xs ty1 with 
+              match follow_ty (xs, cursor_side) ty1 with 
               | Some zty => Some (ZTyp.LeftArrow zty ty2)
               | None => None
               end
             | (S(O), HTyp.Arrow ty1 ty2) => 
-              match follow_ty xs ty2 with 
+              match follow_ty (xs, cursor_side) ty2 with 
               | Some zty => Some (ZTyp.RightArrow ty1 zty)
               | None => None
               end
             | (_, HTyp.Arrow _ _) => None
             | (O, HTyp.Sum ty1 ty2) => 
-              match follow_ty xs ty1 with 
+              match follow_ty (xs, cursor_side) ty1 with 
               | Some zty => Some (ZTyp.LeftSum zty ty2)
               | None => None
               end
             | (S(O), HTyp.Sum ty1 ty2) => 
-              match follow_ty xs ty2 with 
+              match follow_ty (xs, cursor_side) ty2 with 
               | Some zty => Some (ZTyp.RightSum ty1 zty)
               | None => None
               end
@@ -508,93 +620,99 @@ Module Core.
             end
         end.
 
-      Fixpoint follow_e (path : t) (e : HExp.t) : option(ZExp.t) := 
+      Fixpoint follow_e (fuel : Fuel) (path : t) (e : UHExp.t) : option(ZExp.t) := 
+        match fuel with 
+        | Kicked => None
+        | More fuel' => 
+        let follow_e := follow_e fuel' in  
         match path with 
-        | nil => Some (ZExp.CursorE e)
-        | cons x xs =>  
+        | (nil, On) => Some (ZExp.CursorE e)
+        | (nil, Before) => Some (ZExp.CursorBefore e)
+        | (nil, After) => Some (ZExp.CursorAfter e)
+        | (cons x xs, cursor_side) => 
             match (x, e) with 
-            | (O, HExp.Asc e1 ty) => 
-              match follow_e xs e1 with 
+            | (O, UHExp.Asc e1 ty) => 
+              match follow_e (xs, cursor_side) e1 with 
               | Some ze => Some (ZExp.LeftAsc ze ty)
               | None => None
               end
-            | (S(O), HExp.Asc e1 ty) => 
-              match follow_ty xs ty with 
+            | (S(O), UHExp.Asc e1 ty) => 
+              match follow_ty (xs, cursor_side) ty with 
               | Some ztau => Some (ZExp.RightAsc e1 ztau)
               | None => None
               end
-            | (_, HExp.Asc _ _) => None
-            | (_, HExp.Var _) => None
-            | (O, HExp.Let x e1 e2) => 
-              match follow_e xs e1 with 
+            | (_, UHExp.Asc _ _) => None
+            | (_, UHExp.Var _) => None
+            | (O, UHExp.Let x e1 e2) => 
+              match follow_e (xs, cursor_side) e1 with 
               | Some ze => Some (ZExp.LetZ1 x ze e2)
               | None => None
               end
-            | (S(O), HExp.Let x e1 e2) => 
-              match follow_e xs e2 with 
+            | (S(O), UHExp.Let x e1 e2) => 
+              match follow_e (xs, cursor_side) e2 with 
               | Some ze => Some (ZExp.LetZ2 x e1 ze)
               | None => None
               end
-            | (_, HExp.Let _ _ _) => None
-            | (O, HExp.Lam x e1) => 
-              match follow_e xs e1 with 
+            | (_, UHExp.Let _ _ _) => None
+            | (O, UHExp.Lam x e1) => 
+              match follow_e (xs, cursor_side) e1 with 
               | Some ze => Some (ZExp.LamZ x ze)
               | None => None
               end
-            | (_, HExp.Lam _ _ ) => None
-            | (O, HExp.Ap e1 e2) => 
-              match follow_e xs e1 with 
+            | (_, UHExp.Lam _ _ ) => None
+            | (O, UHExp.Ap e1 e2) => 
+              match follow_e (xs, cursor_side) e1 with 
               | Some ze => Some (ZExp.LeftAp ze e2)
               | None => None
               end
-            | (S(O), HExp.Ap e1 e2) => 
-              match follow_e xs e2 with 
+            | (S(O), UHExp.Ap e1 e2) => 
+              match follow_e (xs, cursor_side) e2 with 
               | Some ze => Some (ZExp.RightAp e1 ze)
               | None => None
               end
-            | (_, HExp.Ap _ _) => None
-            | (_, HExp.NumLit _) => None
-            | (O, HExp.Plus e1 e2) => 
-              match follow_e xs e1 with 
-              | Some ze => Some (ZExp.LeftPlus ze e2)
-              | None => None
-              end
-            | (S(O), HExp.Plus e1 e2) => 
-              match follow_e xs e2 with 
-              | Some ze => Some (ZExp.RightPlus e1 ze)
-              | None => None
-              end
-            | (_, HExp.Plus _ _) => None
-            | (O, HExp.Inj side e1) => 
-              match follow_e xs e1 with 
+            | (_, UHExp.Ap _ _) => None
+            | (_, UHExp.NumLit _) => None
+            | (O, UHExp.Inj side e1) => 
+              match follow_e (xs, cursor_side) e1 with 
               | Some ze => Some (ZExp.InjZ side ze)
               | None => None
               end
-            | (_, HExp.Inj _ _) => None
-            | (O, HExp.Case e1 (x, e2) (y, e3)) => 
-              match follow_e xs e1 with 
+            | (_, UHExp.Inj _ _) => None
+            | (O, UHExp.Case e1 (x, e2) (y, e3)) => 
+              match follow_e (xs, cursor_side) e1 with 
               | Some ze => Some (ZExp.CaseZ1 ze (x, e2) (y, e3))
               | None => None
               end
-            | (S(O), HExp.Case e1 (x, e2) (y, e3)) => 
-              match follow_e xs e2 with 
+            | (S(O), UHExp.Case e1 (x, e2) (y, e3)) => 
+              match follow_e (xs, cursor_side) e2 with 
               | Some ze => Some (ZExp.CaseZ2 e1 (x, ze) (y, e3))
               | None => None
               end
-            | (S(S(O)), HExp.Case e1 (x, e2) (y, e3)) => 
-              match follow_e xs e3 with 
+            | (S(S(O)), UHExp.Case e1 (x, e2) (y, e3)) => 
+              match follow_e (xs, cursor_side) e3 with 
               | Some ze => Some (ZExp.CaseZ3 e1 (x, e2) (y, ze))
               | None => None
               end
-            | (_, HExp.Case _ _ _) => None
-            | (_, HExp.EmptyHole _) => None
-            | (O, HExp.NonEmptyHole u e1) =>
-              match follow_e xs e1 with 
+            | (_, UHExp.Case _ _ _) => None
+            | (_, UHExp.EmptyHole _) => None
+            | (O, UHExp.NonEmptyHole u e1) =>
+              match follow_e (xs, cursor_side) e1 with 
               | Some ze => Some (ZExp.NonEmptyHoleZ u ze)
               | None => None
               end
-            | (_, HExp.NonEmptyHole _ _) => None
+            | (_, UHExp.NonEmptyHole _ _) => None
+            | (n, UHExp.OpSeq seq) => 
+                match ZExp.split n seq with 
+                | Some (pre, e, post) => 
+                    match follow_e (xs, cursor_side) e with 
+                    | Some ze => 
+                        Some (ZExp.OpSeqZ pre ze post)
+                    | None => None
+                    end
+                | None => None
+                end
             end
+        end
         end.
     End Path.
 
@@ -613,10 +731,10 @@ Module Core.
       | SLam : Var.t -> shape
       | SAp : shape
       | SLit : nat -> shape
-      | SPlus : shape
-      | SInj : HExp.inj_side -> shape
+      | SInj : AHExp.inj_side -> shape
       | SCase : Var.t -> Var.t -> shape
-      | SNEHole : shape.
+      | SNEHole : shape
+      | SOp : UHExp.op -> shape.
 
       Inductive t : Type :=
       | Move : direction -> t
@@ -652,124 +770,121 @@ Module Core.
         | (Construct SNum, ZTyp.CursorT HTyp.Hole) => Some (ZTyp.CursorT HTyp.Num)
         | (Construct SSum, ZTyp.CursorT ty) =>
           Some (ZTyp.RightSum ty (ZTyp.CursorT HTyp.Hole))
-        | (_, ZTyp.LeftArrow zty1 ty2) =>
+        | (a, ZTyp.LeftArrow zty1 ty2) =>
             (performTyp a zty1) |>
               flatmap_option(fun zty1' => Some (ZTyp.LeftArrow zty1' ty2))
-        | (_, ZTyp.RightArrow ty1 zty2) => (performTyp a zty2) |>
+        | (a, ZTyp.RightArrow ty1 zty2) => (performTyp a zty2) |>
               flatmap_option(fun zty2' => Some (ZTyp.RightArrow ty1 zty2'))
-        | (_, ZTyp.LeftSum zty1 ty2) => (performTyp a zty1) |>
+        | (a, ZTyp.LeftSum zty1 ty2) => (performTyp a zty1) |>
               flatmap_option(fun zty1' => Some (ZTyp.LeftSum zty1' ty2))
-        | (_, ZTyp.RightSum ty1 zty2) => (performTyp a zty2) |>
+        | (a, ZTyp.RightSum ty1 zty2) => (performTyp a zty2) |>
               flatmap_option(fun zty2' => Some (ZTyp.RightSum ty1 zty2'))
         | _ => None
         end.
 
-      Fixpoint performEMove (action : t) (ze : ZExp.t)
+      Fixpoint performEMove (fuel : Fuel) (action : t) (ze : ZExp.t)
         : option ZExp.t :=
         match action with
         | MoveTo path => 
             let e := ZExp.erase ze in
-            Path.follow_e path e
+            Path.follow_e fuel path e
         | Move direction =>
           match (direction, ze) with
-          | (Child 1, ZExp.CursorE (HExp.Asc e ty)) =>
+          | (Child 1, ZExp.CursorE (UHExp.Asc e ty)) =>
             Some (ZExp.LeftAsc (ZExp.CursorE e) ty)
-          | (Child 2, ZExp.CursorE (HExp.Asc e ty)) =>
+          | (Child 2, ZExp.CursorE (UHExp.Asc e ty)) =>
             Some (ZExp.RightAsc e (ZTyp.CursorT ty))
           | (Parent, ZExp.LeftAsc (ZExp.CursorE e) ty) =>
-            Some (ZExp.CursorE (HExp.Asc e ty))
+            Some (ZExp.CursorE (UHExp.Asc e ty))
           | (Parent, ZExp.RightAsc e (ZTyp.CursorT ty)) =>
-            Some (ZExp.CursorE (HExp.Asc e ty))
-          | (Child 1, ZExp.CursorE (HExp.Let x e e')) =>
+            Some (ZExp.CursorE (UHExp.Asc e ty))
+          | (Child 1, ZExp.CursorE (UHExp.Let x e e')) =>
             Some (ZExp.LetZ1 x (ZExp.CursorE e) e')
-          | (Child 2, ZExp.CursorE (HExp.Let x e e')) =>
+          | (Child 2, ZExp.CursorE (UHExp.Let x e e')) =>
             Some (ZExp.LetZ2 x e (ZExp.CursorE e'))
           | (Parent, ZExp.LetZ1 x (ZExp.CursorE e) e') =>
-            Some (ZExp.CursorE (HExp.Let x e e'))
+            Some (ZExp.CursorE (UHExp.Let x e e'))
           | (Parent, ZExp.LetZ2 x e (ZExp.CursorE e')) =>
-            Some (ZExp.CursorE (HExp.Let x e e'))
-          | (Child 1, ZExp.CursorE (HExp.Lam x e)) =>
+            Some (ZExp.CursorE (UHExp.Let x e e'))
+          | (Child 1, ZExp.CursorE (UHExp.Lam x e)) =>
             Some (ZExp.LamZ x (ZExp.CursorE e))
           | (Parent, ZExp.LamZ x (ZExp.CursorE e)) =>
-            Some (ZExp.CursorE (HExp.Lam x e))
-          | (Child 1, ZExp.CursorE (HExp.Ap e1 e2)) =>
+            Some (ZExp.CursorE (UHExp.Lam x e))
+          | (Child 1, ZExp.CursorE (UHExp.Ap e1 e2)) =>
             Some (ZExp.LeftAp (ZExp.CursorE e1) e2)
-          | (Child 2, ZExp.CursorE (HExp.Ap e1 e2)) =>
+          | (Child 2, ZExp.CursorE (UHExp.Ap e1 e2)) =>
             Some (ZExp.RightAp e1 (ZExp.CursorE e2))
           | (Parent, ZExp.LeftAp (ZExp.CursorE e1) e2) =>
-            Some (ZExp.CursorE (HExp.Ap e1 e2))
+            Some (ZExp.CursorE (UHExp.Ap e1 e2))
           | (Parent, ZExp.RightAp e1 (ZExp.CursorE e2)) =>
-            Some (ZExp.CursorE (HExp.Ap e1 e2))
-          | (Child 1, ZExp.CursorE (HExp.Plus e1 e2)) =>
-            Some (ZExp.LeftPlus (ZExp.CursorE e1) e2)
-          | (Child 2, ZExp.CursorE (HExp.Plus e1 e2)) =>
-            Some (ZExp.RightPlus e1 (ZExp.CursorE e2))
-          | (Parent, ZExp.LeftPlus (ZExp.CursorE e1) e2) =>
-            Some (ZExp.CursorE (HExp.Plus e1 e2))
-          | (Parent, ZExp.RightPlus e1 (ZExp.CursorE e2)) =>
-            Some (ZExp.CursorE (HExp.Plus e1 e2))
-          | (Child 1, ZExp.CursorE (HExp.Inj side e)) =>
+            Some (ZExp.CursorE (UHExp.Ap e1 e2))
+          | (Child 1, ZExp.CursorE (UHExp.Inj side e)) =>
             Some (ZExp.InjZ side (ZExp.CursorE e))
           | (Parent, ZExp.InjZ side (ZExp.CursorE e)) =>
-            Some (ZExp.CursorE (HExp.Inj side e))
-          | (Child 1, ZExp.CursorE (HExp.Case e branch1 branch2)) =>
+            Some (ZExp.CursorE (UHExp.Inj side e))
+          | (Child 1, ZExp.CursorE (UHExp.Case e branch1 branch2)) =>
             Some (ZExp.CaseZ1 (ZExp.CursorE e) branch1 branch2)
-          | (Child 2, ZExp.CursorE (HExp.Case e (x, e1) branch2)) =>
+          | (Child 2, ZExp.CursorE (UHExp.Case e (x, e1) branch2)) =>
             Some (ZExp.CaseZ2 e (x, (ZExp.CursorE e1)) branch2)
-          | (Child 3, ZExp.CursorE (HExp.Case e branch1 (y, e2))) =>
+          | (Child 3, ZExp.CursorE (UHExp.Case e branch1 (y, e2))) =>
             Some (ZExp.CaseZ3 e branch1 (y, (ZExp.CursorE e2)))
           | (Parent, ZExp.CaseZ1 (ZExp.CursorE e) branch1 branch2) =>
-            Some (ZExp.CursorE (HExp.Case e branch1 branch2))
+            Some (ZExp.CursorE (UHExp.Case e branch1 branch2))
           | (Parent, ZExp.CaseZ2 e (x, ZExp.CursorE e1) branch2) =>
-            Some (ZExp.CursorE (HExp.Case e (x, e1) branch2))
+            Some (ZExp.CursorE (UHExp.Case e (x, e1) branch2))
           | (Parent, ZExp.CaseZ3 e branch1 (y, ZExp.CursorE e2)) =>
-            Some (ZExp.CursorE (HExp.Case e branch1 (y, e2)))
-          | (Child 1, ZExp.CursorE (HExp.NonEmptyHole u e)) =>
+            Some (ZExp.CursorE (UHExp.Case e branch1 (y, e2)))
+          | (Child 1, ZExp.CursorE (UHExp.NonEmptyHole u e)) =>
             Some (ZExp.NonEmptyHoleZ u (ZExp.CursorE e))
           | (Parent, ZExp.NonEmptyHoleZ u (ZExp.CursorE e)) =>
-            Some (ZExp.CursorE (HExp.NonEmptyHole u e))
+            Some (ZExp.CursorE (UHExp.NonEmptyHole u e))
           | _ => None
           end
         | _ => None
         end.
 
-      Fixpoint performSyn (fuel: Fuel) (ctx: Ctx.t) (a: t) (ze_ty: (ZExp.t * HTyp.t) * MetaVar.gen): option ((ZExp.t * HTyp.t) * MetaVar.gen) :=
-        let hsyn := HExp.hsyn in 
-        let hana := HExp.hana in 
+      Fixpoint performSyn 
+          (fuel: Fuel) 
+          (ctx: Ctx.t) 
+          (a: t) 
+          (ze_ty: (ZExp.t * HTyp.t) * MetaVar.gen) 
+          (associate : UHExp.t -> AHExp.t) : option ((ZExp.t * HTyp.t) * MetaVar.gen) :=
+        let hsyn := AHExp.hsyn in 
+        let hana := AHExp.hana in 
         match ze_ty with 
         | (ze, ty, u_gen) => 
         match fuel with
         | Kicked => None
         | More fuel =>
-        match performEMove a ze with
+        match performEMove fuel a ze with
         | Some ze1 => Some (ze1, ty, u_gen) (* SAMove *)
         | None =>
           match (a, (ze, ty)) with
             (* Deletion *)
             | (Del, (ZExp.CursorE e, _)) (* SADel *) =>
               let (u', u_gen') := MetaVar.next u_gen in 
-              Some ((ZExp.CursorE (HExp.EmptyHole u')), HTyp.Hole, u_gen')
+              Some ((ZExp.CursorE (UHExp.EmptyHole u')), HTyp.Hole, u_gen')
             (* Construction *)
             | (Construct SAsc, (ZExp.CursorE e, ty)) (* SAConAsc *) =>
               Some (ZExp.RightAsc e (ZTyp.CursorT ty), ty, u_gen)
-            | (Construct (SVar x), (ZExp.CursorE (HExp.EmptyHole _), HTyp.Hole)) (* SAConVar *) =>
+            | (Construct (SVar x), (ZExp.CursorE (UHExp.EmptyHole _), HTyp.Hole)) (* SAConVar *) =>
               match Ctx.lookup ctx x with
-              | Some xty => Some (ZExp.CursorE (HExp.Var x), xty, u_gen)
+              | Some xty => Some (ZExp.CursorE (UHExp.Var x), xty, u_gen)
               | None => None
               end
             | (Construct (SLet x), (ZExp.CursorE e, ty)) =>
               match e with
-                | HExp.EmptyHole u =>
+                | UHExp.EmptyHole u =>
                   let (u', u_gen') := MetaVar.next u_gen in 
-                  Some ((ZExp.LetZ1 x (ZExp.CursorE e) (HExp.EmptyHole u'), HTyp.Hole, u_gen'))
+                  Some ((ZExp.LetZ1 x (ZExp.CursorE e) (UHExp.EmptyHole u'), HTyp.Hole, u_gen'))
                 | _ =>
                   let (u', u_gen') := MetaVar.next u_gen in 
-                  Some ((ZExp.LetZ2 x e (ZExp.CursorE (HExp.EmptyHole u')), HTyp.Hole, u_gen'))
+                  Some ((ZExp.LetZ2 x e (ZExp.CursorE (UHExp.EmptyHole u')), HTyp.Hole, u_gen'))
               end
-            | (Construct (SLam x), (ZExp.CursorE (HExp.EmptyHole u), HTyp.Hole)) (* SAConLam *) =>
+            | (Construct (SLam x), (ZExp.CursorE (UHExp.EmptyHole u), HTyp.Hole)) (* SAConLam *) =>
               let (u', u_gen') := MetaVar.next u_gen in 
               Some (ZExp.RightAsc
-                  (HExp.Lam x (HExp.EmptyHole u'))
+                  (UHExp.Lam x (UHExp.EmptyHole u'))
                   (ZTyp.LeftArrow (ZTyp.CursorT HTyp.Hole) HTyp.Hole),
                (HTyp.Arrow HTyp.Hole HTyp.Hole), u_gen')
             | (Construct SAp, (ZExp.CursorE e, ty)) =>
@@ -777,29 +892,21 @@ Module Core.
                 | Some (_, ty2) (* SAConApArr *) => 
                       let (u', u_gen') := MetaVar.next u_gen in 
                       Some (
-                        (ZExp.RightAp e (ZExp.CursorE (HExp.EmptyHole u'))),
+                        (ZExp.RightAp e (ZExp.CursorE (UHExp.EmptyHole u'))),
                       ty2, u_gen')
                 | None (* SAConApOtw *) => 
                     let (u1, u_gen') := MetaVar.next u_gen in 
                     let (u2, u_gen'') := MetaVar.next u_gen' in 
                     Some (
-                      (ZExp.RightAp (HExp.NonEmptyHole u1 e) (ZExp.CursorE (HExp.EmptyHole u2))),
+                      (ZExp.RightAp (UHExp.NonEmptyHole u1 e) (ZExp.CursorE (UHExp.EmptyHole u2))),
                       HTyp.Hole, u_gen'')
               end
-            | (Construct (SLit n), (ZExp.CursorE (HExp.EmptyHole u), HTyp.Hole)) (* SAConNumLit *) =>
-                Some (ZExp.CursorE (HExp.NumLit n), HTyp.Num, u_gen)
-            | (Construct SPlus, (ZExp.CursorE e, _)) =>
-              if HTyp.consistent ty HTyp.Num (* SAConPlus1 *) then
-                let (u', u_gen') := MetaVar.next u_gen in 
-                Some ((ZExp.RightPlus e (ZExp.CursorE (HExp.EmptyHole u'))), HTyp.Num, u_gen')
-              else (* SAConPlus2 *)
-                let (u1, u_gen') := MetaVar.next u_gen in  
-                let (u2, u_gen'') := MetaVar.next u_gen' in 
-                Some ((ZExp.RightPlus (HExp.NonEmptyHole u1 e) (ZExp.CursorE (HExp.EmptyHole u2))), HTyp.Num, u_gen'')
-            | (Construct (SInj side), (ZExp.CursorE (HExp.EmptyHole u), HTyp.Hole)) (* 24a *) =>
+            | (Construct (SLit n), (ZExp.CursorE (UHExp.EmptyHole u), HTyp.Hole)) (* SAConNumLit *) =>
+                Some (ZExp.CursorE (UHExp.NumLit n), HTyp.Num, u_gen)
+            | (Construct (SInj side), (ZExp.CursorE (UHExp.EmptyHole u), HTyp.Hole)) (* 24a *) =>
               let (u', u_gen') := MetaVar.next u_gen in 
               Some (
-                (ZExp.RightAsc (HExp.Inj side (HExp.EmptyHole u')) (ZTyp.LeftSum (ZTyp.CursorT HTyp.Hole) HTyp.Hole)),
+                (ZExp.RightAsc (UHExp.Inj side (UHExp.EmptyHole u')) (ZTyp.LeftSum (ZTyp.CursorT HTyp.Hole) HTyp.Hole)),
                 (HTyp.Sum HTyp.Hole HTyp.Hole), u_gen'
               )
             | (Construct (SCase x y), ((ZExp.CursorE e), ty)) =>
@@ -808,8 +915,8 @@ Module Core.
                     let (u1, u_gen') := MetaVar.next u_gen in 
                     let (u2, u_gen'') := MetaVar.next u_gen' in 
                     let casez2 := (ZExp.CaseZ2 e
-                                  (x, ZExp.CursorE (HExp.EmptyHole u1))
-                                  (y, (HExp.EmptyHole u2))) in
+                                  (x, ZExp.CursorE (UHExp.EmptyHole u1))
+                                  (y, (UHExp.EmptyHole u2))) in
                     Some (ZExp.LeftAsc casez2 HTyp.Hole, HTyp.Hole, u_gen'')
                 | None (* 24c *) => 
                     let (u1, u_gen') := MetaVar.next u_gen in 
@@ -818,8 +925,8 @@ Module Core.
                     Some (
                     (ZExp.LeftAsc
                       (ZExp.CaseZ1 (ZExp.NonEmptyHoleZ u1 (ZExp.CursorE e))
-                                    (x, HExp.EmptyHole u2)
-                                    (y, HExp.EmptyHole u3))
+                                    (x, UHExp.EmptyHole u2)
+                                    (y, UHExp.EmptyHole u3))
                       HTyp.Hole
                     ),
                     HTyp.Hole, u_gen''')
@@ -827,13 +934,65 @@ Module Core.
             | (Construct SNEHole, (ZExp.CursorE e', ty)) (* SAConNEHole *) =>
               let (u', u_gen') := MetaVar.next u_gen in 
               Some (ZExp.NonEmptyHoleZ u' (ZExp.CursorE e'), HTyp.Hole, u_gen')
+            | (Construct (SOp op), (ZExp.OpSeqZ pre (ZExp.CursorE e') post, ty))
+            | (Construct (SOp op), (ZExp.OpSeqZ pre (ZExp.CursorAfter e') post, ty)) => 
+              (* make new prefix *)
+              let pre' := match pre with 
+              | ZExp.EmptyPrefix => ZExp.NonEmptyPrefix (UHExp.BareExp e') op
+              | ZExp.NonEmptyPrefix seq op' => ZExp.NonEmptyPrefix (UHExp.SeqOpExp seq op' e') op
+              end in 
+              (* generate final z-expression *)
+              let (u, u_gen') := MetaVar.next u_gen in 
+              let ze' := ZExp.OpSeqZ pre' (ZExp.CursorE (UHExp.EmptyHole u)) post in 
+              (* assign it a type *)
+              let ae' := associate (ZExp.erase ze') in 
+              match hsyn fuel ctx ae' with 
+              | Some ty => Some (ze', ty, u_gen')
+              | None => None
+              end
+            | (Construct (SOp op), (ZExp.OpSeqZ pre (ZExp.CursorBefore e') post, ty)) => 
+              (* make new suffix *)
+              let post' := match post with 
+              | ZExp.EmptySuffix => ZExp.NonEmptySuffix op (UHExp.BareExp e')
+              | ZExp.NonEmptySuffix op' seq => 
+                let seq' := UHExp.append (UHExp.BareExp e') op' seq in 
+                ZExp.NonEmptySuffix op seq'
+              end in 
+              (* generate final z-expression *)
+              let (u, u_gen') := MetaVar.next u_gen in 
+              let ze' := ZExp.OpSeqZ pre (ZExp.CursorE (UHExp.EmptyHole u)) post' in 
+              (* assign it a type *)
+              let ae' := associate (ZExp.erase ze') in 
+              match hsyn fuel ctx ae' with 
+              | Some ty => Some (ze', ty, u_gen')
+              | None => None
+              end
+            | (Construct (SOp op), (ZExp.CursorAfter e, ty))
+            | (Construct (SOp op), (ZExp.CursorE e, ty)) => 
+              if HTyp.consistent ty (HTyp.Num) then 
+                (* generate final z-expression *)
+                let pre := ZExp.NonEmptyPrefix (UHExp.BareExp e) op in 
+                let post := ZExp.EmptySuffix in 
+                let (u, u_gen') := MetaVar.next u_gen in 
+                let ze := ZExp.OpSeqZ pre (ZExp.CursorE (UHExp.EmptyHole u)) post in 
+                Some (ze, HTyp.Num, u_gen')
+              else None
+            | (Construct (SOp op), (ZExp.CursorBefore e, ty)) => 
+              if HTyp.consistent ty (HTyp.Num) then 
+                (* generate final z-expression *)
+                let pre := ZExp.EmptyPrefix in 
+                let post := ZExp.NonEmptySuffix op (UHExp.BareExp e) in 
+                let (u, u_gen') := MetaVar.next u_gen in 
+                let ze := ZExp.OpSeqZ pre (ZExp.CursorE (UHExp.EmptyHole u)) post in 
+                Some (ze, HTyp.Num, u_gen')
+              else None
             (* Finish *)
-            | (Finish, (ZExp.CursorE (HExp.NonEmptyHole u e), HTyp.Hole)) (* SAFinish *) =>
-              (hsyn fuel ctx e) |>
+            | (Finish, (ZExp.CursorE (UHExp.NonEmptyHole u e), HTyp.Hole)) (* SAFinish *) =>
+              (hsyn fuel ctx (associate e)) |>
                   map_option(fun ty' => (ZExp.CursorE e, ty', u_gen))
             (* Zipper Cases *)
             | (a, (ZExp.LeftAsc ze ty, _)) (* SAZipAsc1 *) =>
-              match performAna fuel u_gen ctx a ze ty with 
+              match performAna fuel u_gen ctx a ze ty associate with 
               | None => None
               | Some (ze', u_gen') => Some (ZExp.LeftAsc ze' ty, ty, u_gen')
               end
@@ -842,29 +1001,31 @@ Module Core.
               | None => None
               | Some zty' => 
                   let ty' := ZTyp.erase zty' in
-                  match hana fuel ctx e ty' with 
+                  let ae := associate e in 
+                  match hana fuel ctx ae ty' with 
                   | None => None
                   | Some tt => 
                       Some (ZExp.RightAsc e zty', ty', u_gen)
                   end
               end
             | (a, (ZExp.LetZ1 x ze1 e2, _)) =>
-              let e1 := ZExp.erase ze1 in
+              let e1 := associate (ZExp.erase ze1) in
               (hsyn fuel ctx e1) |>
-                  flatmap_option(fun ty1 => performSyn fuel ctx a (ze1, ty1, u_gen)) |>
+                  flatmap_option(fun ty1 => performSyn fuel ctx a (ze1, ty1, u_gen) associate) |>
                   flatmap_option(fun ze_ty1' =>
                     match ze_ty1' with
                     | (ze1', ty1', u_gen') =>
                       let ctx' := Ctx.extend ctx (x, ty1') in
-                      (hsyn fuel ctx' e2) |>
+                      let ae2 := associate e2 in 
+                      (hsyn fuel ctx' ae2) |>
                         map_option(fun ty2' => (ZExp.LetZ1 x ze1' e2, ty2', u_gen'))
                     end
                   )
             | (a, (ZExp.LetZ2 x e1 ze2, _)) =>
-              (hsyn fuel ctx e1) |>
+              (hsyn fuel ctx (associate e1)) |>
                   flatmap_option(fun ty1 =>
                     let ctx' := Ctx.extend ctx (x, ty1) in
-                    performSyn fuel ctx' a (ze2, ty, u_gen)
+                    performSyn fuel ctx' a (ze2, ty, u_gen) associate
                   ) |>
                   map_option(fun ze_ty2' =>
                     match ze_ty2' with
@@ -872,9 +1033,9 @@ Module Core.
                       (ZExp.LetZ2 x e1 ze2', ty2', u_gen')
                     end)
             | (_, (ZExp.LeftAp ze1 e2, _)) (* SAZipApArr *) =>
-              let e1 := ZExp.erase ze1 in
+              let e1 := associate (ZExp.erase ze1) in
               (hsyn fuel ctx e1) |>
-                  flatmap_option(fun ty2 => performSyn fuel ctx a (ze1, ty2, u_gen)) |>
+                  flatmap_option(fun ty2 => performSyn fuel ctx a (ze1, ty2, u_gen) associate) |>
                   flatmap_option(fun ze1'_ty3 =>
                     match ze1'_ty3 with
                     | (ze1', ty3, u_gen') =>
@@ -882,19 +1043,19 @@ Module Core.
                           flatmap_option(fun ty4_ty5 =>
                             match ty4_ty5 with
                             | (ty4, ty5) =>
-                            (hana fuel ctx e2 ty5) |>
+                            (hana fuel ctx (associate e2) ty5) |>
                               map_option(fun _ => (ZExp.LeftAp ze1' e2, ty5, u_gen'))
                             end
                           )
                     end
                   )
             | (_, (ZExp.RightAp e1 ze2, _)) (* SAZipApAna *) =>
-              (hsyn fuel ctx e1) |>
+              (hsyn fuel ctx (associate e1)) |>
                   flatmap_option(fun ty2 => HTyp.matched_arrow ty2) |>
                   flatmap_option(fun ty3_ty4 =>
                     match ty3_ty4 with
                     | (ty3, ty4) =>
-                    (performAna fuel u_gen ctx a ze2 ty3) |>
+                    (performAna fuel u_gen ctx a ze2 ty3 associate) |>
                       map_option(fun ana_out => 
                         match ana_out with 
                         | (ze2', u_gen') => 
@@ -902,51 +1063,66 @@ Module Core.
                         end)
                     end
                   )
-            | (_, (ZExp.LeftPlus ze1 e2, _)) (* SAZipPlus1 *) =>
-              (performAna fuel u_gen ctx a ze1 HTyp.Num) |>
-                  map_option(fun ana_out => 
-                    match ana_out with 
-                    | (ze1', u_gen') => 
-                        (ZExp.LeftPlus ze1' e2, HTyp.Num, u_gen')
-                    end)
-            | (_, (ZExp.RightPlus e1 ze2, _)) (* SAZipPlus2 *) =>
-              (performAna fuel u_gen ctx a ze2 HTyp.Num) |>
-                  map_option(fun ana_out => 
-                      match ana_out with 
-                      | (ze2', u_gen') => 
-                          (ZExp.RightPlus e1 ze2', HTyp.Num, u_gen')
-                      end)
             | (_, (ZExp.NonEmptyHoleZ u ze1, _)) (* SAZipHole *) =>
               let e1 := ZExp.erase ze1 in
-              (hsyn fuel ctx e1) |>
-                  flatmap_option(fun ty1 => performSyn fuel ctx a (ze1, ty1, u_gen)) |>
+              (hsyn fuel ctx (associate e1)) |>
+                  flatmap_option(fun ty1 => performSyn fuel ctx a (ze1, ty1, u_gen) associate) |>
                   map_option(fun syn_out =>
                     match syn_out with
                     | (ze1', _, u_gen') => (ZExp.NonEmptyHoleZ u ze1', HTyp.Hole, u_gen')
                     end)
+            | (_, (ZExp.OpSeqZ pre ze post, _)) => 
+              (* this is gonna be a little trickier once there are base types other than num... *)
+              match performAna fuel u_gen ctx a ze (HTyp.Num) associate with
+              | Some (ze', u_gen') => 
+                  let ae := associate (ZExp.erase ze') in 
+                  match hsyn fuel ctx ae with
+                  | Some ty => 
+                      Some (
+                        ZExp.OpSeqZ pre ze' post, 
+                        ty, 
+                        u_gen')
+                  | None => None
+                  end
+              | None => None
+              end
             | _ => None
             end
           end
           end
         end
-      with performAna (fuel: Fuel) (u_gen : MetaVar.gen) (ctx: Ctx.t) (a: t) (ze: ZExp.t) (ty: HTyp.t): option (ZExp.t * MetaVar.gen) :=
+      with performAna 
+        (fuel: Fuel) 
+        (u_gen : MetaVar.gen) 
+        (ctx: Ctx.t) 
+        (a: t) 
+        (ze: ZExp.t) 
+        (ty: HTyp.t)
+        (associate : UHExp.t -> AHExp.t) : option (ZExp.t * MetaVar.gen) :=
         match fuel with
         | Kicked => None
         | More fuel =>
           match a with
           | Move _ (* AAMove *) | MoveTo _ =>
             (* try to use the non-zipper move actions *)
-            match performEMove a ze with
+            match performEMove fuel a ze with
             | Some x => Some (x, u_gen)
             | None =>
                 (* if it doesn't work, keep going --
                  * it'll hit the subsumption rule at the bottom *)
-                performAna_postMoveCheck fuel u_gen ctx a ze ty
+                performAna_postMoveCheck fuel u_gen ctx a ze ty associate
             end
-          | _ => performAna_postMoveCheck fuel u_gen ctx a ze ty
+          | _ => performAna_postMoveCheck fuel u_gen ctx a ze ty associate
           end
         end
-      with performAna_postMoveCheck (fuel : Fuel) (u_gen : MetaVar.gen) (ctx : Ctx.t) (a : t) (ze : ZExp.t) (ty : HTyp.t) : option (ZExp.t * MetaVar.gen) :=
+      with performAna_postMoveCheck 
+        (fuel : Fuel) 
+        (u_gen : MetaVar.gen) 
+        (ctx : Ctx.t) 
+        (a : t)
+        (ze : ZExp.t)
+        (ty : HTyp.t)
+        (associate : UHExp.t -> AHExp.t): option (ZExp.t * MetaVar.gen) :=
         match fuel with
         | Kicked => None
         | More fuel =>
@@ -954,22 +1130,22 @@ Module Core.
         (* Deletion *)
         | (Del, ZExp.CursorE e, _) (* AADel *) =>
           let (u', u_gen') := MetaVar.next u_gen in 
-          Some (ZExp.CursorE (HExp.EmptyHole u'), u_gen')
+          Some (ZExp.CursorE (UHExp.EmptyHole u'), u_gen')
         (* Construction *)
         | (Construct SAsc, ZExp.CursorE e, _) (* AAConAsc *) =>
           Some (ZExp.RightAsc e (ZTyp.CursorT ty), u_gen)
-        | (Construct (SVar x), ZExp.CursorE (HExp.EmptyHole u), ty) (* SAConVar *) =>
+        | (Construct (SVar x), ZExp.CursorE (UHExp.EmptyHole u), ty) (* SAConVar *) =>
           let ty_valid := match Ctx.lookup ctx x with
             | Some xty => HTyp.inconsistent ty xty
             | None => false end
           in
             if ty_valid then
-              Some (ZExp.NonEmptyHoleZ u (ZExp.CursorE (HExp.Var x)), u_gen) else
-              performAna_subsume fuel u_gen ctx a ze ty
-        | (Construct (SLet x), ZExp.CursorE (HExp.EmptyHole u), _) =>
+              Some (ZExp.NonEmptyHoleZ u (ZExp.CursorE (UHExp.Var x)), u_gen) else
+              performAna_subsume fuel u_gen ctx a ze ty associate
+        | (Construct (SLet x), ZExp.CursorE (UHExp.EmptyHole u), _) =>
           let (u', u_gen') := MetaVar.next u_gen in 
-          Some (ZExp.LetZ1 x ze (HExp.EmptyHole u'), u_gen')
-        | (Construct (SLam x), ZExp.CursorE (HExp.EmptyHole u), ty) =>
+          Some (ZExp.LetZ1 x ze (UHExp.EmptyHole u'), u_gen')
+        | (Construct (SLam x), ZExp.CursorE (UHExp.EmptyHole u), ty) =>
           match HTyp.matched_arrow ty with
             | Some _ (* AAConLam1 *) => Some (ZExp.LamZ x ze, u_gen)
             | None (* AAConLam2 *) => 
@@ -977,16 +1153,16 @@ Module Core.
                 Some (
                     ZExp.NonEmptyHoleZ u (
                       ZExp.RightAsc
-                        (HExp.Lam x (HExp.EmptyHole u'))
+                        (UHExp.Lam x (UHExp.EmptyHole u'))
                         (ZTyp.LeftArrow (ZTyp.CursorT HTyp.Hole) HTyp.Hole)
                       ), u_gen')
           end
-        | (Construct (SLit n), ZExp.CursorE (HExp.EmptyHole u), ty) (* AAConNumLit *) =>
+        | (Construct (SLit n), ZExp.CursorE (UHExp.EmptyHole u), ty) (* AAConNumLit *) =>
           if HTyp.inconsistent ty HTyp.Num then
-            Some (ZExp.NonEmptyHoleZ u (ZExp.CursorE (HExp.NumLit n)), u_gen)
+            Some (ZExp.NonEmptyHoleZ u (ZExp.CursorE (UHExp.NumLit n)), u_gen)
           else
-            performAna_subsume fuel u_gen ctx a ze ty
-        | (Construct (SInj side), ZExp.CursorE (HExp.EmptyHole u), ty) =>
+            performAna_subsume fuel u_gen ctx a ze ty associate
+        | (Construct (SInj side), ZExp.CursorE (UHExp.EmptyHole u), ty) =>
           match HTyp.matched_sum ty with
             | Some _ (* 23a *) => Some (ZExp.InjZ side ze, u_gen)
             | None (* 23b *) => 
@@ -994,41 +1170,41 @@ Module Core.
                 Some (
                     ZExp.NonEmptyHoleZ u (
                       ZExp.RightAsc
-                        (HExp.Inj side (HExp.EmptyHole u'))
+                        (UHExp.Inj side (UHExp.EmptyHole u'))
                         (ZTyp.LeftSum (ZTyp.CursorT HTyp.Hole) HTyp.Hole)
                     ), u_gen')
           end
-        | (Construct (SCase x y), ZExp.CursorE (HExp.EmptyHole u), ty) (* 23c *) =>
+        | (Construct (SCase x y), ZExp.CursorE (UHExp.EmptyHole u), ty) (* 23c *) =>
           let (u1, u_gen') := MetaVar.next u_gen in 
           let (u2, u_gen'') := MetaVar.next u_gen' in 
           Some (
             ZExp.CaseZ1
               ze 
-              (x, HExp.EmptyHole u1)
-              (y, HExp.EmptyHole u2),
+              (x, UHExp.EmptyHole u1)
+              (y, UHExp.EmptyHole u2),
             u_gen''
           )
         (* Finishing *)
-        | (Finish, ZExp.CursorE (HExp.NonEmptyHole u e), _) (* AAFinish *) =>
-          (HExp.hana fuel ctx e ty) |>
+        | (Finish, ZExp.CursorE (UHExp.NonEmptyHole u e), _) (* AAFinish *) =>
+          (AHExp.hana fuel ctx (associate e) ty) |>
               map_option(fun _ => (ZExp.CursorE e, u_gen))
         (* Zipper Cases *)
         | (_, ZExp.LetZ1 x ze1 e2, _) =>
-          let e1 := ZExp.erase ze1 in
-          (HExp.hsyn fuel ctx e1) |>
-              flatmap_option(fun ty1 => performSyn fuel ctx a (ze1, ty1, u_gen)) |>
+          let e1 := associate (ZExp.erase ze1) in
+          (AHExp.hsyn fuel ctx e1) |>
+              flatmap_option(fun ty1 => performSyn fuel ctx a (ze1, ty1, u_gen) associate) |>
               flatmap_option(fun syn_out =>
                 match syn_out with
                 | (ze1', ty1', u_gen') =>
                   let ctx' := Ctx.extend ctx (x, ty1') in
-                  (HExp.hana fuel ctx' e2 ty) |>
+                  (AHExp.hana fuel ctx' (associate e2) ty) |>
                     map_option(fun _ => (ZExp.LetZ1 x ze1' e2, u_gen'))
                 end)
         | (_, ZExp.LetZ2 x e1 ze2, _) =>
-          (HExp.hsyn fuel ctx e1) |>
+          (AHExp.hsyn fuel ctx (associate e1)) |>
               flatmap_option(fun ty1 =>
                 let ctx' := Ctx.extend ctx (x, ty1) in
-                performAna fuel u_gen ctx' a ze2 ty) |>
+                performAna fuel u_gen ctx' a ze2 ty associate) |>
               map_option(fun ana_out => 
                 match ana_out with 
                 | (ze2', u_gen') => (ZExp.LetZ2 x e1 ze2', u_gen')
@@ -1038,7 +1214,7 @@ Module Core.
               flatmap_option(fun ty1_ty2 => match ty1_ty2 with
               | (ty1, ty2) =>
                 let ctx' := Ctx.extend ctx (x, ty1) in
-                performAna fuel u_gen ctx' a ze' ty2
+                performAna fuel u_gen ctx' a ze' ty2 associate
               end) |>
               map_option(fun ana_out => 
                 match ana_out with 
@@ -1049,29 +1225,29 @@ Module Core.
               flatmap_option(fun ty1_ty2 => match ty1_ty2 with
               | (ty1, ty2) =>
                 performAna fuel u_gen ctx a ze
-                  (HExp.pick_side side ty1 ty2)
+                  (AHExp.pick_side side ty1 ty2) associate
               end) |>
               map_option(fun ana_out => 
                 match ana_out with 
                 | (ze', u_gen') => (ZExp.InjZ side ze', u_gen')
                 end)
         | (_, ZExp.CaseZ1 ze (x, e1) (y, e2), ty) (* 23e *) =>
-          let e0 := ZExp.erase ze in
-          match HExp.hsyn fuel ctx e0 with 
+          let e0 := associate (ZExp.erase ze) in
+          match AHExp.hsyn fuel ctx e0 with 
           | None => None
           | Some ty0 => 
-              match performSyn fuel ctx a (ze, ty0, u_gen) with 
+              match performSyn fuel ctx a (ze, ty0, u_gen) associate with 
               | None => None
               | Some (ze', ty0', u_gen') => 
                 match HTyp.matched_sum ty0' with 
                 | None => None
                 | Some (ty1, ty2) =>
                   let ctx1 := Ctx.extend ctx (x, ty1) in
-                  match HExp.hana fuel ctx1 e1 ty with 
+                  match AHExp.hana fuel ctx1 (associate e1) ty with 
                   | None => None
                   | Some _ => 
                       let ctx2 := Ctx.extend ctx (y, ty2) in
-                      match HExp.hana fuel ctx2 e2 ty with 
+                      match AHExp.hana fuel ctx2 (associate e2) ty with 
                       | None => None
                       | Some _ => 
                           Some (ZExp.CaseZ1 ze' (x, e1) (y, e2), u_gen')
@@ -1081,24 +1257,24 @@ Module Core.
               end
           end
         | (_, ZExp.CaseZ2 e0 (x, ze1) (y, e2), ty) (* 23f *) =>
-          (HExp.hsyn fuel ctx e0) |>
+          (AHExp.hsyn fuel ctx (associate e0)) |>
               flatmap_option(fun ty0 => HTyp.matched_sum ty0) |>
               flatmap_option(fun ty1_ty2 => match ty1_ty2 with
               | (ty1, ty2) =>
                 let ctx1 := Ctx.extend ctx (x, ty1) in
-                performAna fuel u_gen ctx1 a ze1 ty
+                performAna fuel u_gen ctx1 a ze1 ty associate
               end) |>
               map_option(fun ana_out => 
                   match ana_out with 
                   | (ze1', u_gen') => (ZExp.CaseZ2 e0 (x, ze1') (y, e2), u_gen')
                   end)
         | (_, ZExp.CaseZ3 e0 (x, e1) (y, ze2), ty) (* 23g *) =>
-          (HExp.hsyn fuel ctx e0) |>
+          (AHExp.hsyn fuel ctx (associate e0)) |>
               flatmap_option(fun ty0 => HTyp.matched_sum ty0) |>
               flatmap_option(fun ty1_ty2 => match ty1_ty2 with
               | (ty1, ty2) =>
                 let ctx2 := Ctx.extend ctx (y, ty2) in
-                performAna fuel u_gen ctx2 a ze2 ty
+                performAna fuel u_gen ctx2 a ze2 ty associate
               end) |>
               map_option(fun ana_out => 
                   match ana_out with 
@@ -1106,16 +1282,23 @@ Module Core.
                   end)
         (* Subsumption *)
         | _ (* AASubsume *) =>
-          performAna_subsume fuel u_gen ctx a ze ty
+          performAna_subsume fuel u_gen ctx a ze ty associate
         end
         end
-      with performAna_subsume (fuel : Fuel) (u_gen : MetaVar.gen) (ctx : Ctx.t) (a : t) (ze : ZExp.t) (ty : HTyp.t) : option (ZExp.t * MetaVar.gen) :=
+      with performAna_subsume 
+        (fuel : Fuel) 
+        (u_gen : MetaVar.gen) 
+        (ctx : Ctx.t) 
+        (a : t) 
+        (ze : ZExp.t) 
+        (ty : HTyp.t)
+        (associate : UHExp.t -> AHExp.t) : option (ZExp.t * MetaVar.gen) :=
         match fuel with
         | Kicked => None
         | More fuel =>
-          let e := ZExp.erase ze in
-          (HExp.hsyn fuel ctx e) |>
-            flatmap_option(fun ty1 => performSyn fuel ctx a (ze, ty1, u_gen)) |>
+          let e := associate (ZExp.erase ze) in
+          (AHExp.hsyn fuel ctx e) |>
+            flatmap_option(fun ty1 => performSyn fuel ctx a (ze, ty1, u_gen) associate) |>
             flatmap_option(fun syn_out =>
               match syn_out with
               | (ze', ty1', u_gen') =>
@@ -1127,7 +1310,7 @@ Module Core.
 
     Module Dynamics.
         Module Environment.
-            (* polymorphic to avoid having to do mutual definition with DHExp.t *)
+            (* polymorphic to avoid having to do mutual definition with UHExp.t *)
             Definition t (a : Type) : Type := list(Var.t * a).
         End Environment.
 
@@ -1172,7 +1355,8 @@ Module Core.
             | Ap  : t -> t -> t
             | NumLit : nat -> t
             | Plus : t -> t -> t
-            | Inj : HTyp.t -> HExp.inj_side -> t -> t
+            | Times : t -> t -> t
+            | Inj : HTyp.t -> AHExp.inj_side -> t -> t
             | Case : HTyp.t -> t -> (Var.t * t) -> (Var.t * t) -> t
             | EmptyHole : MetaVar.t -> eval_state -> Environment.t(t) -> t 
             | NonEmptyHole : MetaVar.t -> eval_state -> Environment.t(t) -> t -> t
@@ -1201,6 +1385,10 @@ Module Core.
                         let d3' := subst d1 x d3 in 
                         let d4' := subst d1 x d4 in 
                         Plus d3' d4'
+                    | Times d3 d4 => 
+                        let d3' := subst d1 x d3 in 
+                        let d4' := subst d1 x d4 in 
+                        Times d3' d4'
                     | Inj ty side d3 => 
                         let d3' := subst d1 x d3 in 
                         Inj ty side d3' 
@@ -1280,7 +1468,8 @@ Module Core.
                         | IllTyped => IllTyped
                         end
                     | NumLit _ => WellTyped HTyp.Num
-                    | Plus d1 d2 => 
+                    | Plus d1 d2 
+                    | Times d1 d2 => 
                         match (assign_type gamma delta d1, 
                                assign_type gamma delta d2) with 
                         | (WellTyped ty1, WellTyped ty2) => 
@@ -1295,8 +1484,8 @@ Module Core.
                         | IllTyped => IllTyped
                         | WellTyped ty1 => 
                             match side with 
-                            | HExp.L => WellTyped (HTyp.Sum ty1 other_ty)
-                            | HExp.R => WellTyped (HTyp.Sum other_ty ty1)
+                            | AHExp.L => WellTyped (HTyp.Sum ty1 other_ty)
+                            | AHExp.R => WellTyped (HTyp.Sum other_ty ty1)
                             end
                         end
                     | Case ty d1 (x, d2) (y, d3) => 
@@ -1386,12 +1575,12 @@ Module Core.
                       let (x, t) := xt in 
                       (x, DHExp.Var x)) gamma.
 
-            Fixpoint syn_expand (fuel : Fuel) (gamma : Ctx.t) (e : HExp.t) : expand_result := 
+            Fixpoint syn_expand (fuel : Fuel) (gamma : Ctx.t) (e : AHExp.t) : expand_result := 
                 match fuel with 
                 | Kicked => DoesNotExpand
                 | More fuel => let syn_expand := syn_expand fuel in 
                     match e with 
-                    | HExp.Asc e1 ty => 
+                    | AHExp.Asc e1 ty => 
                         match ana_expand fuel gamma e1 ty with 
                         | Expands d1 ty' delta => 
                             let d := 
@@ -1400,12 +1589,12 @@ Module Core.
                             Expands d ty delta 
                         | DoesNotExpand => DoesNotExpand
                         end
-                    | HExp.Var x => 
+                    | AHExp.Var x => 
                         match Ctx.lookup gamma x with 
                         | Some ty => Expands (DHExp.Var x) ty MetaVarCtx.empty
                         | None => DoesNotExpand
                         end
-                    | HExp.Let x e1 e2 => 
+                    | AHExp.Let x e1 e2 => 
                         match syn_expand gamma e1 with 
                         | Expands d1 ty1 delta1 => 
                             let gamma' := Ctx.extend gamma (x, ty1) in 
@@ -1418,9 +1607,9 @@ Module Core.
                             end
                         | DoesNotExpand => DoesNotExpand
                         end
-                    | HExp.Lam x e1 => DoesNotExpand
-                    | HExp.Ap e1 e2 => 
-                        match HExp.hsyn fuel gamma e1 with 
+                    | AHExp.Lam x e1 => DoesNotExpand
+                    | AHExp.Ap e1 e2 => 
+                        match AHExp.hsyn fuel gamma e1 with 
                         | Some HTyp.Hole => 
                             match ana_expand fuel gamma e2 HTyp.Hole with 
                             | Expands d2 ty2 delta2 => 
@@ -1452,9 +1641,9 @@ Module Core.
                             end
                         | _ => DoesNotExpand
                         end
-                    | HExp.NumLit n => 
+                    | AHExp.NumLit n => 
                         Expands (DHExp.NumLit n) HTyp.Num MetaVarCtx.empty 
-                    | HExp.Plus e1 e2 => 
+                    | AHExp.Plus e1 e2 => 
                         match ana_expand fuel gamma e1 HTyp.Num with 
                         | Expands d1 ty1 delta1 => 
                             match ana_expand fuel gamma e2 HTyp.Num with 
@@ -1472,16 +1661,34 @@ Module Core.
                             end
                         | DoesNotExpand => DoesNotExpand
                         end
-                    | HExp.Inj _ _ => DoesNotExpand
-                    | HExp.Case _ _ _ => DoesNotExpand
-                    | HExp.EmptyHole u => 
+                    | AHExp.Times e1 e2 => 
+                        match ana_expand fuel gamma e1 HTyp.Num with 
+                        | Expands d1 ty1 delta1 => 
+                            match ana_expand fuel gamma e2 HTyp.Num with 
+                            | Expands d2 ty2 delta2 => 
+                                let d1' := 
+                                    if HTyp.eq ty1 HTyp.Num then d1 
+                                    else Cast HTyp.Num d1 in 
+                                let d2' := 
+                                    if HTyp.eq ty2 HTyp.Num then d2
+                                    else Cast HTyp.Num d2 in 
+                                let d := Times d1' d2' in 
+                                let delta12 := MetaVarCtx.union delta1 delta2 in 
+                                Expands d HTyp.Num delta12
+                            | DoesNotExpand => DoesNotExpand
+                            end
+                        | DoesNotExpand => DoesNotExpand
+                        end
+                    | AHExp.Inj _ _ => DoesNotExpand
+                    | AHExp.Case _ _ _ => DoesNotExpand
+                    | AHExp.EmptyHole u => 
                         let sigma := id_env gamma in 
                         let d := DHExp.EmptyHole u Unevaled sigma in 
                         let ty := HTyp.Hole in 
                         let delta := MetaVarCtx.extend MetaVarCtx.empty 
                                      (u, ty, gamma) in 
                         Expands d ty delta
-                    | HExp.NonEmptyHole u e1 => 
+                    | AHExp.NonEmptyHole u e1 => 
                         let sigma := id_env gamma in 
                         match syn_expand gamma e1 with 
                         | Expands d1 _ delta1 => 
@@ -1495,12 +1702,12 @@ Module Core.
                      end
                 end
             with ana_expand (fuel : Fuel) 
-                            (gamma : Ctx.t) (e : HExp.t) (ty : HTyp.t) : expand_result := 
+                            (gamma : Ctx.t) (e : AHExp.t) (ty : HTyp.t) : expand_result := 
                 match fuel with 
                 | Kicked => DoesNotExpand
                 | More fuel => let ana_expand := ana_expand fuel in 
                     match e with 
-                    | HExp.Lam x e1 => 
+                    | AHExp.Lam x e1 => 
                         match ty with 
                         | HTyp.Arrow ty1 ty2 =>
                             let gamma' := Ctx.extend gamma (x, ty1) in 
@@ -1522,24 +1729,24 @@ Module Core.
                             end
                         | _ => DoesNotExpand
                         end
-                    | HExp.Inj side e1 => 
+                    | AHExp.Inj side e1 => 
                         match HTyp.matched_sum ty with 
                         | None => DoesNotExpand
                         | Some (ty1, ty2) => 
-                            let e1ty := HExp.pick_side side ty1 ty2 in 
+                            let e1ty := AHExp.pick_side side ty1 ty2 in 
                             match ana_expand gamma e1 e1ty with 
                             | DoesNotExpand => DoesNotExpand
                             | Expands d1 e1ty' delta => 
                                 let (ann_ty, ty) := 
                                     match side with 
-                                    | HExp.L => (ty2, HTyp.Sum e1ty' ty2) 
-                                    | HExp.R => (ty1, HTyp.Sum ty1 e1ty')
+                                    | AHExp.L => (ty2, HTyp.Sum e1ty' ty2) 
+                                    | AHExp.R => (ty1, HTyp.Sum ty1 e1ty')
                                     end in 
                                 let d := Inj ann_ty side d1 in 
                                 Expands d ty delta
                             end
                         end
-                    | HExp.Case e1 (x, e2) (y, e3) => 
+                    | AHExp.Case e1 (x, e2) (y, e3) => 
                         match syn_expand fuel gamma e1 with 
                         | DoesNotExpand => DoesNotExpand
                         | Expands d1 ty1 delta1 => 
@@ -1561,12 +1768,12 @@ Module Core.
                                 end
                             end
                         end
-                    | HExp.EmptyHole u => 
+                    | AHExp.EmptyHole u => 
                         let sigma := id_env gamma in 
                         let d := EmptyHole u Unevaled sigma in 
                         let delta := MetaVarCtx.extend MetaVarCtx.empty (u, ty, gamma) in 
                         Expands d ty delta
-                    | HExp.NonEmptyHole u e1 => 
+                    | AHExp.NonEmptyHole u e1 => 
                         let sigma := id_env gamma in 
                         match syn_expand fuel gamma e1 with 
                         | Expands d1 _ delta1 => 
@@ -1576,12 +1783,13 @@ Module Core.
                             Expands d ty delta
                         | DoesNotExpand => DoesNotExpand
                         end
-                    | HExp.Asc _ _ 
-                    | HExp.Var _ 
-                    | HExp.Let _ _ _ 
-                    | HExp.Ap _ _
-                    | HExp.NumLit _
-                    | HExp.Plus _ _ => 
+                    | AHExp.Asc _ _ 
+                    | AHExp.Var _ 
+                    | AHExp.Let _ _ _ 
+                    | AHExp.Ap _ _
+                    | AHExp.NumLit _
+                    | AHExp.Plus _ _ 
+                    | AHExp.Times _ _ => 
                         match syn_expand fuel gamma e with 
                         | DoesNotExpand => DoesNotExpand
                         | (Expands d ty' delta) as result => 
@@ -1658,6 +1866,29 @@ Module Core.
                                 Indet (DHExp.Plus d1' d2')
                             end
                         end
+                    | DHExp.Times d1 d2 => 
+                        match evaluate fuel' delta d1 with 
+                        | InvalidInput => InvalidInput
+                        | CastError => CastError
+                        | Value (DHExp.NumLit n1 as d1')  => 
+                            match evaluate fuel' delta d2 with 
+                            | InvalidInput => InvalidInput
+                            | CastError => CastError
+                            | Value (DHExp.NumLit n2) => 
+                                Value (DHExp.NumLit (n1 * n2))
+                            | Value _ => InvalidInput
+                            | Indet d2' => 
+                                    Indet (DHExp.Times d1' d2')
+                            end
+                        | Value _ => InvalidInput
+                        | Indet d1' => 
+                            match evaluate fuel' delta d2 with 
+                            | InvalidInput => InvalidInput
+                            | CastError => CastError
+                            | Value d2' | Indet d2' => 
+                                Indet (DHExp.Times d1' d2')
+                            end
+                        end
                     | DHExp.Inj ty side d1 => 
                         match evaluate fuel' delta d1 with 
                         | InvalidInput => InvalidInput
@@ -1672,7 +1903,7 @@ Module Core.
                         | Value d1' => 
                             match d1' with 
                             | DHExp.Inj _ side d1'' => 
-                                let (xb, db) := HExp.pick_side side (x, d2) (y, d3) in
+                                let (xb, db) := AHExp.pick_side side (x, d2) (y, d3) in
                                 let branch := DHExp.subst fuel' d1'' xb db in 
                                 evaluate fuel' delta branch
                             | _ => InvalidInput
@@ -1680,7 +1911,7 @@ Module Core.
                         | Indet d1' => 
                             match d1' with 
                             | DHExp.Inj _ side d1'' => 
-                                let (xb, db) := HExp.pick_side side (x, d2) (y, d3) in 
+                                let (xb, db) := AHExp.pick_side side (x, d2) (y, d3) in 
                                 let branch := DHExp.subst fuel' d1'' xb db in 
                                 evaluate fuel' delta branch
                             | _ => Indet (DHExp.Case ty d1' (x, d2) (y, d3))

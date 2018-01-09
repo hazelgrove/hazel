@@ -8,6 +8,8 @@ open React;
 
 module Util = General_util;
 
+let associate = Associator.associate;
+
 let make_palette ((ms, es, do_action): Model.mt) set_cursor => {
   /* start by defining a bunch of helpers */
   /* performs the top-level action and updates the signal */
@@ -22,13 +24,16 @@ let make_palette ((ms, es, do_action): Model.mt) set_cursor => {
         Ev.keypress
         Dom_html.document
         (
-          fun evt =>
-            if (Js_util.get_keyCode evt == KC.keyCode key_combo) {
+          fun evt => {
+            let keycode = Js_util.get_keyCode evt;
+            Js_util.log keycode;
+            if (keycode == KC.keyCode key_combo) {
               doAction action;
               Dom.preventDefault evt
             } else {
               ()
             }
+          }
         );
     Html5.(
       button
@@ -46,7 +51,7 @@ let make_palette ((ms, es, do_action): Model.mt) set_cursor => {
               S.map
                 (
                   fun m =>
-                    switch (Action.performSyn () Ctx.empty action m) {
+                    switch (Action.performSyn () Ctx.empty action m associate) {
                     | Some _ => false
                     | None => true
                     }
@@ -91,7 +96,7 @@ let make_palette ((ms, es, do_action): Model.mt) set_cursor => {
                       let converted = conv s;
                       switch converted {
                       | Some arg =>
-                        switch (Action.performSyn () Ctx.empty (action arg) m) {
+                        switch (Action.performSyn () Ctx.empty (action arg) m associate) {
                         | Some _ => false
                         | None =>
                           true /* filter disbled attr out if invalid action */
@@ -209,7 +214,7 @@ let make_palette ((ms, es, do_action): Model.mt) set_cursor => {
                     fun s1 s2 m =>
                       switch (conv (s1, s2)) {
                       | Some arg =>
-                        switch (Action.performSyn () Ctx.empty (action arg) m) {
+                        switch (Action.performSyn () Ctx.empty (action arg) m associate) {
                         | Some _ => false
                         | None => true
                         }
@@ -360,11 +365,14 @@ let make_palette ((ms, es, do_action): Model.mt) set_cursor => {
       "lit_input"
       KCs.pound
       "Enter num + press Enter";
-  let constructPlus = action_button (Action.Construct Action.SPlus) "construct plus" KCs.plus;
+  let constructPlus =
+    action_button (Action.Construct (Action.SOp UHExp.Plus)) "construct plus" KCs.plus;
+  let constructTimes =
+    action_button (Action.Construct (Action.SOp UHExp.Times)) "construct times" KCs.asterisk;
   let constructInjL =
-    action_button (Action.Construct (Action.SInj HExp.L)) "construct inj L" KCs.l;
+    action_button (Action.Construct (Action.SInj AHExp.L)) "construct inj L" KCs.l;
   let constructInjR =
-    action_button (Action.Construct (Action.SInj HExp.R)) "construct inj R" KCs.r;
+    action_button (Action.Construct (Action.SInj AHExp.R)) "construct inj R" KCs.r;
   let constructCase =
     action_input_input_button
       (fun (v1, v2) => Action.Construct (Action.SCase v1 v2 [@implicit_arity]))
@@ -384,8 +392,8 @@ let make_palette ((ms, es, do_action): Model.mt) set_cursor => {
       KCs.c
       "Enter var + press Tab"
       "Enter var + press Enter";
-  let constructNEHole =
-    action_button (Action.Construct Action.SNEHole) "construct neHole" KCs.qmark;
+  /* let constructNEHole =
+     action_button (Action.Construct Action.SNEHole) "construct neHole" KCs.qmark; */
   /* let movementActions =
      Html5.(
        div
@@ -427,13 +435,14 @@ let make_palette ((ms, es, do_action): Model.mt) set_cursor => {
               br (),
               constructLit,
               constructPlus,
+              constructTimes,
               br (),
               constructInjL,
               br (),
               constructInjR,
               br (),
-              constructCase,
-              constructNEHole
+              constructCase /* ,
+              constructNEHole */
             ]
         ]
     );

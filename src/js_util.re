@@ -84,6 +84,7 @@ module KeyCombos = {
   let openParens = _kc "(" 40;
   let pound = _kc "#" 35;
   let plus = _kc "+" 43;
+  let asterisk = _kc "*" 42;
   let l = _kc "l" 108;
   let r = _kc "r" 114;
   let c = _kc "c" 99;
