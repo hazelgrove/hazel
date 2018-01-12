@@ -26,33 +26,33 @@ Module Core.
         | _ => false
         end.
 
-      Theorem eq_refl : forall (x : t),
+      (* Theorem eq_refl : forall (x : t),
         eq x x = true.
       Proof.
-        induction x; (simpl; auto with *).
-      Qed.
+        induction x; (simpl; auto with * ).
+      Qed. *)
 
-      Theorem eq_sound : forall x y : t,
+      (* Theorem eq_sound : forall x y : t,
         x = y -> (eq x y = true).
       Proof.
         intros.
         rewrite -> H.
         apply eq_refl.
-      Qed.
+      Qed. *)
 
-      Lemma and_proj_1 : forall b1 b2 : bool,
+      (* Lemma and_proj_1 : forall b1 b2 : bool,
         (b1 && b2) = true -> b1 = true.
       Proof.
         apply Coq.Bool.Bool.andb_true_iff.
-      Qed.
+      Qed. *)
 
-      Lemma and_proj_2 : forall b1 b2 : bool,
+      (* Lemma and_proj_2 : forall b1 b2 : bool,
         (b1 && b2) = true -> b2 = true.
       Proof.
         apply Coq.Bool.Bool.andb_true_iff.
-      Qed.
+      Qed. *)
 
-      Theorem eq_complete : forall x y : t,
+      (* Theorem eq_complete : forall x y : t,
         (eq x y = true) -> x = y.
       Proof.
         induction x;
@@ -78,7 +78,7 @@ Module Core.
           )]
         )])
         )).
-      Qed.
+      Qed. *)
 
       (* type consistency *)
       Fixpoint consistent (x y : t) : bool :=
@@ -95,7 +95,7 @@ Module Core.
       Definition inconsistent (ty1 : t) (ty2 : t) : bool :=
         negb (consistent ty1 ty2).
 
-      Theorem eq_implies_consistent : forall x y : t,
+      (* Theorem eq_implies_consistent : forall x y : t,
         ((eq x y) = true) -> ((consistent x y) = true).
       Proof.
         intuition.
@@ -104,7 +104,7 @@ Module Core.
         repeat rewrite -> H;
         simpl;
         reflexivity.
-      Qed.
+      Qed. *)
 
       (* matched arrow types *)
       Definition matched_arrow (ty : t) : option (t * t) :=
@@ -447,10 +447,13 @@ Module Core.
     End ZTyp.
 
     Module ZExp.
+      Inductive cursor_side : Type := 
+      | Before : cursor_side
+      | After : cursor_side
+      | On : cursor_side.
+
       Inductive t : Type :=
-      | CursorE : UHExp.t -> t (* cursor is in/on expression *)
-      | CursorBefore : UHExp.t -> t
-      | CursorAfter : UHExp.t -> t
+      | CursorE : cursor_side -> UHExp.t -> t
       | LeftAsc : t -> HTyp.t -> t
       | RightAsc : UHExp.t -> ZTyp.t -> t
       | LetZ1 : Var.t -> t -> UHExp.t -> t
@@ -473,9 +476,7 @@ Module Core.
 
       Fixpoint erase (ze : t) : UHExp.t :=
         match ze with
-        | CursorE e 
-        | CursorBefore e
-        | CursorAfter e => e
+        | CursorE _ e => e
         | LeftAsc ze' ty => UHExp.Asc (erase ze') ty
         | RightAsc e' zty => UHExp.Asc e' (ZTyp.erase zty)
         | LetZ1 x ze e => UHExp.Let x (erase ze) e
@@ -546,19 +547,14 @@ Module Core.
     End ZExp.
 
     Module Path.
-      Inductive cursor_side : Type := 
-      | Before : cursor_side
-      | After : cursor_side
-      | On : cursor_side.
-
-      Definition t : Type := list(nat) * cursor_side.
+      Definition t : Type := list(nat) * ZExp.cursor_side.
 
       Definition cons' (step : nat) (r : t) : t := 
           match r with (steps, side) => (cons step steps, side) end. 
 
       Fixpoint of_ztyp (zty : ZTyp.t) : t := 
         match zty with 
-        | ZTyp.CursorT _ => (nil, On)
+        | ZTyp.CursorT _ => (nil, ZExp.On)
         | ZTyp.LeftArrow zty' _ => cons' O (of_ztyp zty')
         | ZTyp.RightArrow _ zty' => cons' (S O) (of_ztyp zty')
         | ZTyp.LeftSum zty' _ => cons' O (of_ztyp zty') 
@@ -567,9 +563,7 @@ Module Core.
 
       Fixpoint of_zexp (ze : ZExp.t) : t := 
         match ze with 
-        | ZExp.CursorE _ => (nil, On)
-        | ZExp.CursorBefore _ => (nil, Before)
-        | ZExp.CursorAfter _ => (nil, After)
+        | ZExp.CursorE cursor_side _ => (nil, cursor_side)
         | ZExp.LeftAsc ze' _ => cons' O (of_zexp ze')
         | ZExp.RightAsc _ ze' => cons' (S O) (of_ztyp ze')
         | ZExp.LetZ1 _ ze' _ => cons' O (of_zexp ze') 
@@ -589,8 +583,7 @@ Module Core.
 
       Fixpoint follow_ty (path : t) (ty : HTyp.t) : option(ZTyp.t) := 
         match path with
-        | (nil, On) => Some (ZTyp.CursorT ty)
-        | (nil, _) => None
+        | (nil, _) => Some (ZTyp.CursorT ty)
         | (cons x xs, cursor_side) => 
             match (x, ty) with 
             | (_, HTyp.Num) => None
@@ -626,9 +619,7 @@ Module Core.
         | More fuel' => 
         let follow_e := follow_e fuel' in  
         match path with 
-        | (nil, On) => Some (ZExp.CursorE e)
-        | (nil, Before) => Some (ZExp.CursorBefore e)
-        | (nil, After) => Some (ZExp.CursorAfter e)
+        | (nil, cursor_side) => Some (ZExp.CursorE cursor_side e)
         | (cons x xs, cursor_side) => 
             match (x, e) with 
             | (O, UHExp.Asc e1 ty) => 
@@ -737,8 +728,7 @@ Module Core.
       | SOp : UHExp.op -> shape.
 
       Inductive t : Type :=
-      | Move : direction -> t
-      | MoveTo : Path.t -> t (* not in Hazelnut, used for text cursor based navigation *)
+      | MoveTo : Path.t -> t
       | Del : t
       | Construct : shape -> t
       | Finish : t.
@@ -748,22 +738,6 @@ Module Core.
         | (MoveTo path, _) => 
             let ty := ZTyp.erase zty in 
             Path.follow_ty path ty
-        | (Move (Child 1), ZTyp.CursorT (HTyp.Arrow ty1 ty2)) =>
-          Some (ZTyp.LeftArrow (ZTyp.CursorT ty1) ty2)
-        | (Move (Child 2), ZTyp.CursorT (HTyp.Arrow ty1 ty2)) =>
-          Some (ZTyp.RightArrow ty1 (ZTyp.CursorT ty2))
-        | (Move Parent, ZTyp.LeftArrow (ZTyp.CursorT ty1) ty2) =>
-          Some (ZTyp.CursorT (HTyp.Arrow ty1 ty2))
-        | (Move Parent, ZTyp.RightArrow ty1 (ZTyp.CursorT ty2)) =>
-          Some (ZTyp.CursorT (HTyp.Arrow ty1 ty2))
-        | (Move (Child 1), ZTyp.CursorT (HTyp.Sum ty1 ty2)) =>
-          Some (ZTyp.LeftSum (ZTyp.CursorT ty1) ty2)
-        | (Move (Child 2), ZTyp.CursorT (HTyp.Sum ty1 ty2)) =>
-          Some (ZTyp.RightSum ty1 (ZTyp.CursorT ty2))
-        | (Move Parent, ZTyp.LeftSum (ZTyp.CursorT ty1) ty2) =>
-          Some (ZTyp.CursorT (HTyp.Sum ty1 ty2))
-        | (Move Parent, ZTyp.RightSum ty1 (ZTyp.CursorT ty2)) =>
-          Some (ZTyp.CursorT (HTyp.Sum ty1 ty2))
         | (Del, ZTyp.CursorT ty) => Some (ZTyp.CursorT HTyp.Hole)
         | (Construct SArrow, ZTyp.CursorT ty) =>
           Some (ZTyp.RightArrow ty (ZTyp.CursorT HTyp.Hole))
@@ -782,67 +756,6 @@ Module Core.
         | _ => None
         end.
 
-      Fixpoint performEMove (fuel : Fuel) (action : t) (ze : ZExp.t)
-        : option ZExp.t :=
-        match action with
-        | MoveTo path => 
-            let e := ZExp.erase ze in
-            Path.follow_e fuel path e
-        | Move direction =>
-          match (direction, ze) with
-          | (Child 1, ZExp.CursorE (UHExp.Asc e ty)) =>
-            Some (ZExp.LeftAsc (ZExp.CursorE e) ty)
-          | (Child 2, ZExp.CursorE (UHExp.Asc e ty)) =>
-            Some (ZExp.RightAsc e (ZTyp.CursorT ty))
-          | (Parent, ZExp.LeftAsc (ZExp.CursorE e) ty) =>
-            Some (ZExp.CursorE (UHExp.Asc e ty))
-          | (Parent, ZExp.RightAsc e (ZTyp.CursorT ty)) =>
-            Some (ZExp.CursorE (UHExp.Asc e ty))
-          | (Child 1, ZExp.CursorE (UHExp.Let x e e')) =>
-            Some (ZExp.LetZ1 x (ZExp.CursorE e) e')
-          | (Child 2, ZExp.CursorE (UHExp.Let x e e')) =>
-            Some (ZExp.LetZ2 x e (ZExp.CursorE e'))
-          | (Parent, ZExp.LetZ1 x (ZExp.CursorE e) e') =>
-            Some (ZExp.CursorE (UHExp.Let x e e'))
-          | (Parent, ZExp.LetZ2 x e (ZExp.CursorE e')) =>
-            Some (ZExp.CursorE (UHExp.Let x e e'))
-          | (Child 1, ZExp.CursorE (UHExp.Lam x e)) =>
-            Some (ZExp.LamZ x (ZExp.CursorE e))
-          | (Parent, ZExp.LamZ x (ZExp.CursorE e)) =>
-            Some (ZExp.CursorE (UHExp.Lam x e))
-          | (Child 1, ZExp.CursorE (UHExp.Ap e1 e2)) =>
-            Some (ZExp.LeftAp (ZExp.CursorE e1) e2)
-          | (Child 2, ZExp.CursorE (UHExp.Ap e1 e2)) =>
-            Some (ZExp.RightAp e1 (ZExp.CursorE e2))
-          | (Parent, ZExp.LeftAp (ZExp.CursorE e1) e2) =>
-            Some (ZExp.CursorE (UHExp.Ap e1 e2))
-          | (Parent, ZExp.RightAp e1 (ZExp.CursorE e2)) =>
-            Some (ZExp.CursorE (UHExp.Ap e1 e2))
-          | (Child 1, ZExp.CursorE (UHExp.Inj side e)) =>
-            Some (ZExp.InjZ side (ZExp.CursorE e))
-          | (Parent, ZExp.InjZ side (ZExp.CursorE e)) =>
-            Some (ZExp.CursorE (UHExp.Inj side e))
-          | (Child 1, ZExp.CursorE (UHExp.Case e branch1 branch2)) =>
-            Some (ZExp.CaseZ1 (ZExp.CursorE e) branch1 branch2)
-          | (Child 2, ZExp.CursorE (UHExp.Case e (x, e1) branch2)) =>
-            Some (ZExp.CaseZ2 e (x, (ZExp.CursorE e1)) branch2)
-          | (Child 3, ZExp.CursorE (UHExp.Case e branch1 (y, e2))) =>
-            Some (ZExp.CaseZ3 e branch1 (y, (ZExp.CursorE e2)))
-          | (Parent, ZExp.CaseZ1 (ZExp.CursorE e) branch1 branch2) =>
-            Some (ZExp.CursorE (UHExp.Case e branch1 branch2))
-          | (Parent, ZExp.CaseZ2 e (x, ZExp.CursorE e1) branch2) =>
-            Some (ZExp.CursorE (UHExp.Case e (x, e1) branch2))
-          | (Parent, ZExp.CaseZ3 e branch1 (y, ZExp.CursorE e2)) =>
-            Some (ZExp.CursorE (UHExp.Case e branch1 (y, e2)))
-          | (Child 1, ZExp.CursorE (UHExp.NonEmptyHole u e)) =>
-            Some (ZExp.NonEmptyHoleZ u (ZExp.CursorE e))
-          | (Parent, ZExp.NonEmptyHoleZ u (ZExp.CursorE e)) =>
-            Some (ZExp.CursorE (UHExp.NonEmptyHole u e))
-          | _ => None
-          end
-        | _ => None
-        end.
-
       Fixpoint performSyn 
           (fuel: Fuel) 
           (ctx: Ctx.t) 
@@ -851,71 +764,77 @@ Module Core.
           (associate : UHExp.t -> AHExp.t) : option ((ZExp.t * HTyp.t) * MetaVar.gen) :=
         let hsyn := AHExp.hsyn in 
         let hana := AHExp.hana in 
-        match ze_ty with 
-        | (ze, ty, u_gen) => 
         match fuel with
         | Kicked => None
         | More fuel =>
-        match performEMove fuel a ze with
-        | Some ze1 => Some (ze1, ty, u_gen) (* SAMove *)
-        | None =>
-          match (a, (ze, ty)) with
-            (* Deletion *)
-            | (Del, (ZExp.CursorE e, _)) (* SADel *) =>
-              let (u', u_gen') := MetaVar.next u_gen in 
-              Some ((ZExp.CursorE (UHExp.EmptyHole u')), HTyp.Hole, u_gen')
-            (* Construction *)
-            | (Construct SAsc, (ZExp.CursorE e, ty)) (* SAConAsc *) =>
-              Some (ZExp.RightAsc e (ZTyp.CursorT ty), ty, u_gen)
-            | (Construct (SVar x), (ZExp.CursorE (UHExp.EmptyHole _), HTyp.Hole)) (* SAConVar *) =>
-              match Ctx.lookup ctx x with
-              | Some xty => Some (ZExp.CursorE (UHExp.Var x), xty, u_gen)
+        match ze_ty with 
+        | (ze, ty, u_gen) => 
+          match (a, ze) with
+            (* Movement *)
+            | (MoveTo path, _) => 
+              let e := ZExp.erase ze in
+              match Path.follow_e fuel path e with
+              | Some ze' => Some (ze', ty, u_gen)
               | None => None
               end
-            | (Construct (SLet x), (ZExp.CursorE e, ty)) =>
+            (* Deletion *)
+            | (Del, ZExp.CursorE _ e) =>
+              let (u', u_gen') := MetaVar.next u_gen in 
+              Some ((ZExp.CursorE ZExp.Before (UHExp.EmptyHole u')), HTyp.Hole, u_gen')
+            (* Construction *)
+            | (Construct SAsc, ZExp.CursorE ZExp.On e)
+            | (Construct SAsc, ZExp.CursorE ZExp.After e) =>
+              Some (ZExp.RightAsc e (ZTyp.CursorT ty), ty, u_gen)
+            | (Construct (SVar x), ZExp.CursorE _ (UHExp.EmptyHole _)) (* SAConVar *) =>
+              match Ctx.lookup ctx x with
+              | Some xty => Some (ZExp.CursorE ZExp.After (UHExp.Var x), xty, u_gen)
+              | None => None
+              end
+            | (Construct (SLet x), ZExp.CursorE _ e) =>
               match e with
                 | UHExp.EmptyHole u =>
                   let (u', u_gen') := MetaVar.next u_gen in 
-                  Some ((ZExp.LetZ1 x (ZExp.CursorE e) (UHExp.EmptyHole u'), HTyp.Hole, u_gen'))
+                  Some ((ZExp.LetZ1 x (ZExp.CursorE ZExp.Before e) (UHExp.EmptyHole u'), HTyp.Hole, u_gen'))
                 | _ =>
                   let (u', u_gen') := MetaVar.next u_gen in 
-                  Some ((ZExp.LetZ2 x e (ZExp.CursorE (UHExp.EmptyHole u')), HTyp.Hole, u_gen'))
+                  Some ((ZExp.LetZ2 x e (ZExp.CursorE ZExp.Before (UHExp.EmptyHole u')), HTyp.Hole, u_gen'))
               end
-            | (Construct (SLam x), (ZExp.CursorE (UHExp.EmptyHole u), HTyp.Hole)) (* SAConLam *) =>
+            | (Construct (SLam x), ZExp.CursorE _ (UHExp.EmptyHole u)) (* SAConLam *) =>
               let (u', u_gen') := MetaVar.next u_gen in 
               Some (ZExp.RightAsc
                   (UHExp.Lam x (UHExp.EmptyHole u'))
                   (ZTyp.LeftArrow (ZTyp.CursorT HTyp.Hole) HTyp.Hole),
                (HTyp.Arrow HTyp.Hole HTyp.Hole), u_gen')
-            | (Construct SAp, (ZExp.CursorE e, ty)) =>
+            | (Construct SAp, ZExp.CursorE ZExp.On e) 
+            | (Construct SAp, ZExp.CursorE ZExp.After e) =>
               match HTyp.matched_arrow ty with
                 | Some (_, ty2) (* SAConApArr *) => 
                       let (u', u_gen') := MetaVar.next u_gen in 
                       Some (
-                        (ZExp.RightAp e (ZExp.CursorE (UHExp.EmptyHole u'))),
+                        (ZExp.RightAp e (ZExp.CursorE ZExp.Before (UHExp.EmptyHole u'))),
                       ty2, u_gen')
                 | None (* SAConApOtw *) => 
                     let (u1, u_gen') := MetaVar.next u_gen in 
                     let (u2, u_gen'') := MetaVar.next u_gen' in 
                     Some (
-                      (ZExp.RightAp (UHExp.NonEmptyHole u1 e) (ZExp.CursorE (UHExp.EmptyHole u2))),
+                      (ZExp.RightAp (UHExp.NonEmptyHole u1 e) (ZExp.CursorE ZExp.Before (UHExp.EmptyHole u2))),
                       HTyp.Hole, u_gen'')
               end
-            | (Construct (SLit n), (ZExp.CursorE (UHExp.EmptyHole u), HTyp.Hole)) (* SAConNumLit *) =>
-                Some (ZExp.CursorE (UHExp.NumLit n), HTyp.Num, u_gen)
-            | (Construct (SInj side), (ZExp.CursorE (UHExp.EmptyHole u), HTyp.Hole)) (* 24a *) =>
+            | (Construct (SLit n), ZExp.CursorE _ (UHExp.EmptyHole u)) (* SAConNumLit *) =>
+                Some (ZExp.CursorE ZExp.After (UHExp.NumLit n), HTyp.Num, u_gen)
+            | (Construct (SInj side), ZExp.CursorE _ (UHExp.EmptyHole u)) (* 24a *) =>
               let (u', u_gen') := MetaVar.next u_gen in 
               Some (
                 (ZExp.RightAsc (UHExp.Inj side (UHExp.EmptyHole u')) (ZTyp.LeftSum (ZTyp.CursorT HTyp.Hole) HTyp.Hole)),
                 (HTyp.Sum HTyp.Hole HTyp.Hole), u_gen'
               )
-            | (Construct (SCase x y), ((ZExp.CursorE e), ty)) =>
+            | (Construct (SCase x y), (ZExp.CursorE _ e)) =>
               match HTyp.matched_sum ty with
                 | Some _ (* 24b *) =>
                     let (u1, u_gen') := MetaVar.next u_gen in 
                     let (u2, u_gen'') := MetaVar.next u_gen' in 
                     let casez2 := (ZExp.CaseZ2 e
-                                  (x, ZExp.CursorE (UHExp.EmptyHole u1))
+                                  (x, ZExp.CursorE ZExp.Before (UHExp.EmptyHole u1))
                                   (y, (UHExp.EmptyHole u2))) in
                     Some (ZExp.LeftAsc casez2 HTyp.Hole, HTyp.Hole, u_gen'')
                 | None (* 24c *) => 
@@ -924,18 +843,18 @@ Module Core.
                     let (u3, u_gen''') := MetaVar.next u_gen'' in 
                     Some (
                     (ZExp.LeftAsc
-                      (ZExp.CaseZ1 (ZExp.NonEmptyHoleZ u1 (ZExp.CursorE e))
+                      (ZExp.CaseZ1 (ZExp.NonEmptyHoleZ u1 ze)
                                     (x, UHExp.EmptyHole u2)
                                     (y, UHExp.EmptyHole u3))
                       HTyp.Hole
                     ),
                     HTyp.Hole, u_gen''')
               end
-            | (Construct SNEHole, (ZExp.CursorE e', ty)) (* SAConNEHole *) =>
+            | (Construct SNEHole, ZExp.CursorE _ e') (* SAConNEHole *) =>
               let (u', u_gen') := MetaVar.next u_gen in 
-              Some (ZExp.NonEmptyHoleZ u' (ZExp.CursorE e'), HTyp.Hole, u_gen')
-            | (Construct (SOp op), (ZExp.OpSeqZ pre (ZExp.CursorE e') post, ty))
-            | (Construct (SOp op), (ZExp.OpSeqZ pre (ZExp.CursorAfter e') post, ty)) => 
+              Some (ZExp.NonEmptyHoleZ u' ze, HTyp.Hole, u_gen')
+            | (Construct (SOp op), ZExp.OpSeqZ pre (ZExp.CursorE ZExp.On e') post)
+            | (Construct (SOp op), ZExp.OpSeqZ pre (ZExp.CursorE ZExp.After e') post) => 
               (* make new prefix *)
               let pre' := match pre with 
               | ZExp.EmptyPrefix => ZExp.NonEmptyPrefix (UHExp.BareExp e') op
@@ -943,14 +862,14 @@ Module Core.
               end in 
               (* generate final z-expression *)
               let (u, u_gen') := MetaVar.next u_gen in 
-              let ze' := ZExp.OpSeqZ pre' (ZExp.CursorE (UHExp.EmptyHole u)) post in 
+              let ze' := ZExp.OpSeqZ pre' (ZExp.CursorE ZExp.Before (UHExp.EmptyHole u)) post in 
               (* assign it a type *)
               let ae' := associate (ZExp.erase ze') in 
               match hsyn fuel ctx ae' with 
               | Some ty => Some (ze', ty, u_gen')
               | None => None
               end
-            | (Construct (SOp op), (ZExp.OpSeqZ pre (ZExp.CursorBefore e') post, ty)) => 
+            | (Construct (SOp op), ZExp.OpSeqZ pre (ZExp.CursorE ZExp.Before e') post) => 
               (* make new suffix *)
               let post' := match post with 
               | ZExp.EmptySuffix => ZExp.NonEmptySuffix op (UHExp.BareExp e')
@@ -960,43 +879,41 @@ Module Core.
               end in 
               (* generate final z-expression *)
               let (u, u_gen') := MetaVar.next u_gen in 
-              let ze' := ZExp.OpSeqZ pre (ZExp.CursorE (UHExp.EmptyHole u)) post' in 
+              let ze' := ZExp.OpSeqZ pre (ZExp.CursorE ZExp.Before (UHExp.EmptyHole u)) post' in 
               (* assign it a type *)
               let ae' := associate (ZExp.erase ze') in 
               match hsyn fuel ctx ae' with 
               | Some ty => Some (ze', ty, u_gen')
               | None => None
               end
-            | (Construct (SOp op), (ZExp.CursorAfter e, ty))
-            | (Construct (SOp op), (ZExp.CursorE e, ty)) => 
+            | (Construct (SOp op), ZExp.CursorE ZExp.On e)
+            | (Construct (SOp op), ZExp.CursorE ZExp.After e) => 
               if HTyp.consistent ty (HTyp.Num) then 
-                (* generate final z-expression *)
                 let pre := ZExp.NonEmptyPrefix (UHExp.BareExp e) op in 
                 let post := ZExp.EmptySuffix in 
                 let (u, u_gen') := MetaVar.next u_gen in 
-                let ze := ZExp.OpSeqZ pre (ZExp.CursorE (UHExp.EmptyHole u)) post in 
+                let ze := ZExp.OpSeqZ pre (ZExp.CursorE ZExp.Before (UHExp.EmptyHole u)) post in 
                 Some (ze, HTyp.Num, u_gen')
               else None
-            | (Construct (SOp op), (ZExp.CursorBefore e, ty)) => 
+            | (Construct (SOp op), ZExp.CursorE ZExp.Before e) => 
               if HTyp.consistent ty (HTyp.Num) then 
-                (* generate final z-expression *)
                 let pre := ZExp.EmptyPrefix in 
                 let post := ZExp.NonEmptySuffix op (UHExp.BareExp e) in 
                 let (u, u_gen') := MetaVar.next u_gen in 
-                let ze := ZExp.OpSeqZ pre (ZExp.CursorE (UHExp.EmptyHole u)) post in 
+                let ze := ZExp.OpSeqZ pre (ZExp.CursorE ZExp.Before (UHExp.EmptyHole u)) post in 
                 Some (ze, HTyp.Num, u_gen')
               else None
             (* Finish *)
-            | (Finish, (ZExp.CursorE (UHExp.NonEmptyHole u e), HTyp.Hole)) (* SAFinish *) =>
+            | (Finish, ZExp.CursorE _ (UHExp.NonEmptyHole u e)) =>
               (hsyn fuel ctx (associate e)) |>
-                  map_option(fun ty' => (ZExp.CursorE e, ty', u_gen))
+                  map_option(fun ty' => (ZExp.CursorE ZExp.After e, ty', u_gen))
             (* Zipper Cases *)
-            | (a, (ZExp.LeftAsc ze ty, _)) (* SAZipAsc1 *) =>
+            | (a, ZExp.LeftAsc ze ty) (* SAZipAsc1 *) =>
               match performAna fuel u_gen ctx a ze ty associate with 
               | None => None
               | Some (ze', u_gen') => Some (ZExp.LeftAsc ze' ty, ty, u_gen')
               end
-            | (a, (ZExp.RightAsc e zty, _)) (* SAZipAsc2 *) =>
+            | (a, ZExp.RightAsc e zty) (* SAZipAsc2 *) =>
               match performTyp a zty with 
               | None => None
               | Some zty' => 
@@ -1008,7 +925,7 @@ Module Core.
                       Some (ZExp.RightAsc e zty', ty', u_gen)
                   end
               end
-            | (a, (ZExp.LetZ1 x ze1 e2, _)) =>
+            | (a, ZExp.LetZ1 x ze1 e2) =>
               let e1 := associate (ZExp.erase ze1) in
               (hsyn fuel ctx e1) |>
                   flatmap_option(fun ty1 => performSyn fuel ctx a (ze1, ty1, u_gen) associate) |>
@@ -1021,7 +938,7 @@ Module Core.
                         map_option(fun ty2' => (ZExp.LetZ1 x ze1' e2, ty2', u_gen'))
                     end
                   )
-            | (a, (ZExp.LetZ2 x e1 ze2, _)) =>
+            | (a, ZExp.LetZ2 x e1 ze2) =>
               (hsyn fuel ctx (associate e1)) |>
                   flatmap_option(fun ty1 =>
                     let ctx' := Ctx.extend ctx (x, ty1) in
@@ -1032,7 +949,7 @@ Module Core.
                     | (ze2', ty2', u_gen') =>
                       (ZExp.LetZ2 x e1 ze2', ty2', u_gen')
                     end)
-            | (_, (ZExp.LeftAp ze1 e2, _)) (* SAZipApArr *) =>
+            | (_, ZExp.LeftAp ze1 e2) (* SAZipApArr *) =>
               let e1 := associate (ZExp.erase ze1) in
               (hsyn fuel ctx e1) |>
                   flatmap_option(fun ty2 => performSyn fuel ctx a (ze1, ty2, u_gen) associate) |>
@@ -1049,7 +966,7 @@ Module Core.
                           )
                     end
                   )
-            | (_, (ZExp.RightAp e1 ze2, _)) (* SAZipApAna *) =>
+            | (_, ZExp.RightAp e1 ze2) (* SAZipApAna *) =>
               (hsyn fuel ctx (associate e1)) |>
                   flatmap_option(fun ty2 => HTyp.matched_arrow ty2) |>
                   flatmap_option(fun ty3_ty4 =>
@@ -1063,7 +980,7 @@ Module Core.
                         end)
                     end
                   )
-            | (_, (ZExp.NonEmptyHoleZ u ze1, _)) (* SAZipHole *) =>
+            | (_, ZExp.NonEmptyHoleZ u ze1) (* SAZipHole *) =>
               let e1 := ZExp.erase ze1 in
               (hsyn fuel ctx (associate e1)) |>
                   flatmap_option(fun ty1 => performSyn fuel ctx a (ze1, ty1, u_gen) associate) |>
@@ -1071,7 +988,7 @@ Module Core.
                     match syn_out with
                     | (ze1', _, u_gen') => (ZExp.NonEmptyHoleZ u ze1', HTyp.Hole, u_gen')
                     end)
-            | (_, (ZExp.OpSeqZ pre ze post, _)) => 
+            | (_, ZExp.OpSeqZ pre ze post) => 
               (* this is gonna be a little trickier once there are base types other than num... *)
               match performAna fuel u_gen ctx a ze (HTyp.Num) associate with
               | Some (ze', u_gen') => 
@@ -1089,7 +1006,6 @@ Module Core.
             | _ => None
             end
           end
-          end
         end
       with performAna 
         (fuel: Fuel) 
@@ -1102,50 +1018,34 @@ Module Core.
         match fuel with
         | Kicked => None
         | More fuel =>
-          match a with
-          | Move _ (* AAMove *) | MoveTo _ =>
-            (* try to use the non-zipper move actions *)
-            match performEMove fuel a ze with
-            | Some x => Some (x, u_gen)
-            | None =>
-                (* if it doesn't work, keep going --
-                 * it'll hit the subsumption rule at the bottom *)
-                performAna_postMoveCheck fuel u_gen ctx a ze ty associate
-            end
-          | _ => performAna_postMoveCheck fuel u_gen ctx a ze ty associate
+        match (a, ze) with
+        (* Movement *)
+        | (MoveTo path, _) => 
+          let e := ZExp.erase ze in
+          match Path.follow_e fuel path e with
+          | Some ze' => Some (ze', u_gen)
+          | None => None
           end
-        end
-      with performAna_postMoveCheck 
-        (fuel : Fuel) 
-        (u_gen : MetaVar.gen) 
-        (ctx : Ctx.t) 
-        (a : t)
-        (ze : ZExp.t)
-        (ty : HTyp.t)
-        (associate : UHExp.t -> AHExp.t): option (ZExp.t * MetaVar.gen) :=
-        match fuel with
-        | Kicked => None
-        | More fuel =>
-        match (a, ze, ty) with
         (* Deletion *)
-        | (Del, ZExp.CursorE e, _) (* AADel *) =>
+        | (Del, ZExp.CursorE _ e) (* AADel *) =>
           let (u', u_gen') := MetaVar.next u_gen in 
-          Some (ZExp.CursorE (UHExp.EmptyHole u'), u_gen')
+          Some (ZExp.CursorE ZExp.Before (UHExp.EmptyHole u'), u_gen')
         (* Construction *)
-        | (Construct SAsc, ZExp.CursorE e, _) (* AAConAsc *) =>
+        | (Construct SAsc, ZExp.CursorE ZExp.On e)
+        | (Construct SAsc, ZExp.CursorE ZExp.After e) =>
           Some (ZExp.RightAsc e (ZTyp.CursorT ty), u_gen)
-        | (Construct (SVar x), ZExp.CursorE (UHExp.EmptyHole u), ty) (* SAConVar *) =>
+        | (Construct (SVar x), ZExp.CursorE ZExp.Before (UHExp.EmptyHole u)) =>
           let ty_valid := match Ctx.lookup ctx x with
             | Some xty => HTyp.inconsistent ty xty
             | None => false end
           in
             if ty_valid then
-              Some (ZExp.NonEmptyHoleZ u (ZExp.CursorE (UHExp.Var x)), u_gen) else
+              Some (ZExp.NonEmptyHoleZ u (ZExp.CursorE ZExp.After (UHExp.Var x)), u_gen) else
               performAna_subsume fuel u_gen ctx a ze ty associate
-        | (Construct (SLet x), ZExp.CursorE (UHExp.EmptyHole u), _) =>
+        | (Construct (SLet x), ZExp.CursorE _ (UHExp.EmptyHole u)) =>
           let (u', u_gen') := MetaVar.next u_gen in 
           Some (ZExp.LetZ1 x ze (UHExp.EmptyHole u'), u_gen')
-        | (Construct (SLam x), ZExp.CursorE (UHExp.EmptyHole u), ty) =>
+        | (Construct (SLam x), ZExp.CursorE _ (UHExp.EmptyHole u)) =>
           match HTyp.matched_arrow ty with
             | Some _ (* AAConLam1 *) => Some (ZExp.LamZ x ze, u_gen)
             | None (* AAConLam2 *) => 
@@ -1157,12 +1057,12 @@ Module Core.
                         (ZTyp.LeftArrow (ZTyp.CursorT HTyp.Hole) HTyp.Hole)
                       ), u_gen')
           end
-        | (Construct (SLit n), ZExp.CursorE (UHExp.EmptyHole u), ty) (* AAConNumLit *) =>
+        | (Construct (SLit n), ZExp.CursorE _ (UHExp.EmptyHole u)) (* AAConNumLit *) =>
           if HTyp.inconsistent ty HTyp.Num then
-            Some (ZExp.NonEmptyHoleZ u (ZExp.CursorE (UHExp.NumLit n)), u_gen)
+            Some (ZExp.NonEmptyHoleZ u (ZExp.CursorE ZExp.After (UHExp.NumLit n)), u_gen)
           else
             performAna_subsume fuel u_gen ctx a ze ty associate
-        | (Construct (SInj side), ZExp.CursorE (UHExp.EmptyHole u), ty) =>
+        | (Construct (SInj side), ZExp.CursorE _ (UHExp.EmptyHole u)) =>
           match HTyp.matched_sum ty with
             | Some _ (* 23a *) => Some (ZExp.InjZ side ze, u_gen)
             | None (* 23b *) => 
@@ -1174,7 +1074,7 @@ Module Core.
                         (ZTyp.LeftSum (ZTyp.CursorT HTyp.Hole) HTyp.Hole)
                     ), u_gen')
           end
-        | (Construct (SCase x y), ZExp.CursorE (UHExp.EmptyHole u), ty) (* 23c *) =>
+        | (Construct (SCase x y), ZExp.CursorE _ (UHExp.EmptyHole u)) (* 23c *) =>
           let (u1, u_gen') := MetaVar.next u_gen in 
           let (u2, u_gen'') := MetaVar.next u_gen' in 
           Some (
@@ -1185,11 +1085,11 @@ Module Core.
             u_gen''
           )
         (* Finishing *)
-        | (Finish, ZExp.CursorE (UHExp.NonEmptyHole u e), _) (* AAFinish *) =>
+        | (Finish, ZExp.CursorE _ (UHExp.NonEmptyHole u e)) =>
           (AHExp.hana fuel ctx (associate e) ty) |>
-              map_option(fun _ => (ZExp.CursorE e, u_gen))
+              map_option(fun _ => (ZExp.CursorE ZExp.After e, u_gen))
         (* Zipper Cases *)
-        | (_, ZExp.LetZ1 x ze1 e2, _) =>
+        | (_, ZExp.LetZ1 x ze1 e2) =>
           let e1 := associate (ZExp.erase ze1) in
           (AHExp.hsyn fuel ctx e1) |>
               flatmap_option(fun ty1 => performSyn fuel ctx a (ze1, ty1, u_gen) associate) |>
@@ -1200,7 +1100,7 @@ Module Core.
                   (AHExp.hana fuel ctx' (associate e2) ty) |>
                     map_option(fun _ => (ZExp.LetZ1 x ze1' e2, u_gen'))
                 end)
-        | (_, ZExp.LetZ2 x e1 ze2, _) =>
+        | (_, ZExp.LetZ2 x e1 ze2) =>
           (AHExp.hsyn fuel ctx (associate e1)) |>
               flatmap_option(fun ty1 =>
                 let ctx' := Ctx.extend ctx (x, ty1) in
@@ -1209,7 +1109,7 @@ Module Core.
                 match ana_out with 
                 | (ze2', u_gen') => (ZExp.LetZ2 x e1 ze2', u_gen')
                 end)
-        | (_, ZExp.LamZ x ze', ty) (* AAZipLam *) =>
+        | (_, ZExp.LamZ x ze') =>
           (HTyp.matched_arrow ty) |>
               flatmap_option(fun ty1_ty2 => match ty1_ty2 with
               | (ty1, ty2) =>
@@ -1220,7 +1120,7 @@ Module Core.
                 match ana_out with 
                 | (ze'', u_gen') => (ZExp.LamZ x ze'', u_gen')
                 end)
-        | (_, ZExp.InjZ side ze, ty) (* 23d *) =>
+        | (_, ZExp.InjZ side ze) =>
           (HTyp.matched_sum ty) |>
               flatmap_option(fun ty1_ty2 => match ty1_ty2 with
               | (ty1, ty2) =>
@@ -1231,7 +1131,7 @@ Module Core.
                 match ana_out with 
                 | (ze', u_gen') => (ZExp.InjZ side ze', u_gen')
                 end)
-        | (_, ZExp.CaseZ1 ze (x, e1) (y, e2), ty) (* 23e *) =>
+        | (_, ZExp.CaseZ1 ze (x, e1) (y, e2)) =>
           let e0 := associate (ZExp.erase ze) in
           match AHExp.hsyn fuel ctx e0 with 
           | None => None
@@ -1256,7 +1156,7 @@ Module Core.
                 end
               end
           end
-        | (_, ZExp.CaseZ2 e0 (x, ze1) (y, e2), ty) (* 23f *) =>
+        | (_, ZExp.CaseZ2 e0 (x, ze1) (y, e2)) =>
           (AHExp.hsyn fuel ctx (associate e0)) |>
               flatmap_option(fun ty0 => HTyp.matched_sum ty0) |>
               flatmap_option(fun ty1_ty2 => match ty1_ty2 with
@@ -1268,7 +1168,7 @@ Module Core.
                   match ana_out with 
                   | (ze1', u_gen') => (ZExp.CaseZ2 e0 (x, ze1') (y, e2), u_gen')
                   end)
-        | (_, ZExp.CaseZ3 e0 (x, e1) (y, ze2), ty) (* 23g *) =>
+        | (_, ZExp.CaseZ3 e0 (x, e1) (y, ze2)) =>
           (AHExp.hsyn fuel ctx (associate e0)) |>
               flatmap_option(fun ty0 => HTyp.matched_sum ty0) |>
               flatmap_option(fun ty1_ty2 => match ty1_ty2 with

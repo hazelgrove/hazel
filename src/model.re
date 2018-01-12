@@ -8,7 +8,7 @@ let u_gen0: MetaVar.gen = MetaVar.new_gen;
 
 let (u, u_gen1) = MetaVar.next u_gen0;
 
-let empty: t = ((ZExp.CursorE (UHExp.EmptyHole u), HTyp.Hole), u_gen1);
+let empty: t = ((ZExp.CursorE ZExp.Before (UHExp.EmptyHole u), HTyp.Hole), u_gen1);
 
 let empty_erasure = UHExp.EmptyHole u;
 
@@ -31,7 +31,6 @@ let new_model () => {
     | Some ((ze, ty), ugen) =>
       mf ((ze, ty), ugen);
       switch action {
-      | Action.Move _
       | Action.MoveTo _ => ()
       | _ => ef (ZExp.erase ze)
       }

@@ -124,9 +124,9 @@ let view ((ms, es, do_action): Model.mt) => {
     let cursor_elem = Js_util.forceGetElementById id;
     let cursor_node: Js.t Dom.node = Js.Unsafe.coerce cursor_elem;
     switch cursor_side {
-    | Path.Before
-    | Path.On => move_cursor_before cursor_node
-    | Path.After => move_cursor_after cursor_node
+    | ZExp.Before
+    | ZExp.On => move_cursor_before cursor_node
+    | ZExp.After => move_cursor_after cursor_node
     }
   };
   /* Construct a simple DOM change listener to trigger cursor
@@ -472,6 +472,141 @@ let view ((ms, es, do_action): Model.mt) => {
     | None => ()
     }
   };
+  let get_anchor_elem (anchor: Js.t Dom.node) =>
+    switch anchor##.nodeType {
+    | Dom.ELEMENT => Js.Opt.get (Dom_html.CoerceTo.element anchor) (fun () => assert false)
+    | Dom.TEXT =>
+      let parentNode = Js.Opt.get anchor##.parentNode (fun () => assert false);
+      Js.Opt.get (Dom_html.CoerceTo.element parentNode) (fun () => assert false)
+    | _ => assert false
+    };
+  /* TODO this should probably go in view.re */
+  let determine_cursor_side
+      (selection: Js.t Dom_html.selection)
+      (anchor: Js.t Dom.node)
+      (ast_elem: Js.t Dom_html.element) => {
+    let classList = ast_elem##.classList;
+    let ast_has_class = has_class classList;
+    if (ast_has_class "Asc") {
+      ZExp.On
+    } else if (ast_has_class "Let") {
+      let anchor_elem = get_anchor_elem anchor;
+      let anchorOffset = selection##.anchorOffset;
+      if (anchorOffset == 0) {
+        let innerHTML = Js.to_string anchor_elem##.innerHTML;
+        if (String.equal innerHTML "let") {
+          ZExp.Before
+        } else {
+          ZExp.On
+        }
+      } else {
+        ZExp.On
+      }
+    } else if (
+      ast_has_class "Var" || ast_has_class "NumLit" || ast_has_class "Num"
+    ) {
+      let anchorOffset = selection##.anchorOffset;
+      if (anchorOffset == 0) {
+        ZExp.Before
+      } else {
+        let anchor_elem = get_anchor_elem anchor;
+        let innerText = Js.to_string anchor_elem##.innerHTML;
+        let length = String.length innerText;
+        if (anchorOffset == length) {
+          ZExp.After
+        } else {
+          ZExp.On
+        }
+      }
+    } else if (
+      ast_has_class "Lam"
+    ) {
+      let anchor_elem = get_anchor_elem anchor;
+      let anchorOffset = selection##.anchorOffset;
+      if (anchorOffset == 0) {
+        let innerHTML = Js.to_string anchor_elem##.innerHTML;
+        if (String.equal innerHTML "\206\187") {
+          ZExp.Before
+        } else {
+          ZExp.On
+        }
+      } else {
+        ZExp.On
+      }
+    } else if (
+      ast_has_class "Ap"
+    ) {
+      ZExp.After
+    } else if (
+      ast_has_class "Inj"
+    ) {
+      let anchor_elem = get_anchor_elem anchor;
+      let anchorOffset = selection##.anchorOffset;
+      if (anchorOffset == 0) {
+        let innerHTML = Js.to_string anchor_elem##.innerHTML;
+        if (String.equal innerHTML "inj") {
+          ZExp.Before
+        } else {
+          ZExp.On
+        }
+      } else if (
+        anchorOffset == 1
+      ) {
+        let innerHTML = Js.to_string anchor_elem##.innerHTML;
+        if (String.equal innerHTML ")") {
+          ZExp.After
+        } else {
+          ZExp.On
+        }
+      } else {
+        ZExp.On
+      }
+    } else if (
+      ast_has_class "Case"
+    ) {
+      let anchor_elem = get_anchor_elem anchor;
+      let anchorOffset = selection##.anchorOffset;
+      if (anchorOffset == 0) {
+        let innerHTML = Js.to_string anchor_elem##.innerHTML;
+        if (String.equal innerHTML "case") {
+          ZExp.Before
+        } else {
+          ZExp.On
+        }
+      } else {
+        ZExp.On
+      }
+    } else if (
+      ast_has_class "NonEmptyHole"
+    ) {
+      ZExp.After
+    } else if (
+      ast_has_class "EmptyHole" || ast_has_class "Hole"
+    ) {
+      let anchor_elem = get_anchor_elem anchor;
+      let anchor_has_class = has_class anchor_elem##.classList;
+      if (anchor_has_class "hole-before-1") {
+        ZExp.Before
+      } else if (anchor_has_class "hole-after-2") {
+        ZExp.After
+      } else {
+        Js_util.log "weird hole cursor position";
+        ZExp.After
+      }
+    } else if (
+      ast_has_class "Arrow"
+    ) {
+      ZExp.On
+    } else if (
+      ast_has_class "Sum"
+    ) {
+      ZExp.On
+    } else {
+      Js_util.log "Unknown ast element!";
+      Js_util.log classList;
+      ZExp.On
+    }
+  };
   let _ =
     Js_util.listen_to_t
       (Dom.Event.make "selectionchange")
@@ -499,7 +634,7 @@ let view ((ms, es, do_action): Model.mt) => {
               | rev_path =>
                 found := true;
                 let path = List.rev rev_path;
-                let cursor_side = Path.On;
+                let cursor_side = determine_cursor_side selection anchor cur_element;
                 do_action (Semantics.Core.Action.MoveTo (path, cursor_side));
                 clear_cursors ();
                 let elem = Js_util.forceGetElementById cur_id;
