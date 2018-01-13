@@ -13,20 +13,23 @@ let associate = Associator.associate;
 let make_palette ((ms, es, do_action): Model.mt) set_cursor => {
   /* start by defining a bunch of helpers */
   /* performs the top-level action and updates the signal */
-  let doAction action => do_action action;
-  /* set_cursor () */
+  let doAction action => {
+    do_action action;
+    set_cursor ()
+  };
   module KC = Js_util.KeyCombo;
   module KCs = Js_util.KeyCombos;
   /* helper function for constructing action buttons with no textbox */
   let action_button action btn_label key_combo => {
     let _ =
       Js_util.listen_to_t
-        Ev.keypress
+        Ev.keydown
         Dom_html.document
         (
           fun evt => {
-            let keycode = Js_util.get_keyCode evt;
-            if (keycode == KC.keyCode key_combo) {
+            let key = Js_util.get_key evt;
+            /* Js_util.log key */
+            if (key == KC.key key_combo) {
               doAction action;
               Dom.preventDefault evt
             } else {
@@ -58,7 +61,7 @@ let make_palette ((ms, es, do_action): Model.mt) set_cursor => {
                 ms
             )
         ]
-        [pcdata (btn_label ^ " [" ^ KC.to_string key_combo ^ "]")]
+        [pcdata (btn_label ^ " [" ^ KC.name key_combo ^ "]")]
     )
   };
   /* actions that take an input. the conversion function
@@ -108,7 +111,7 @@ let make_palette ((ms, es, do_action): Model.mt) set_cursor => {
                   ms
               )
           ]
-          [pcdata (btn_label ^ " [" ^ KC.to_string key_combo ^ "]")]
+          [pcdata (btn_label ^ " [" ^ KC.name key_combo ^ "]")]
       );
     let button_dom = To_dom.of_button button_elt;
     /* listen for the key combo at the document level */
@@ -118,9 +121,9 @@ let make_palette ((ms, es, do_action): Model.mt) set_cursor => {
         Dom_html.document
         (
           fun evt => {
-            let evt_key = Js_util.get_keyCode evt;
+            let key = Js_util.get_key evt;
             /* let _ = Firebug.console##log evt_key in */
-            if (evt_key == KC.keyCode key_combo) {
+            if (key == KC.key key_combo) {
               i_dom##focus;
               Dom_html.stopPropagation evt;
               Js._false
@@ -136,13 +139,13 @@ let make_palette ((ms, es, do_action): Model.mt) set_cursor => {
         i_dom
         (
           fun evt => {
-            let evt_key = Js_util.get_keyCode evt;
-            if (evt_key == KC.keyCode KCs.enter) {
+            let key = Js_util.get_key evt;
+            if (key == KC.key KCs.enter) {
               button_dom##click;
               i_dom##blur;
               Js._false
             } else if (
-              evt_key == KC.keyCode KCs.esc
+              key == KC.key KCs.esc
             ) {
               i_dom##blur;
               Js._false
@@ -225,7 +228,7 @@ let make_palette ((ms, es, do_action): Model.mt) set_cursor => {
                   ms
               )
           ]
-          [pcdata (btn_label ^ " [" ^ KC.to_string key_combo ^ "]")]
+          [pcdata (btn_label ^ " [" ^ KC.name key_combo ^ "]")]
       );
     let button_dom = To_dom.of_button button_elt;
     let _ =
@@ -234,8 +237,8 @@ let make_palette ((ms, es, do_action): Model.mt) set_cursor => {
         Dom_html.document
         (
           fun evt => {
-            let evt_key = Js_util.get_keyCode evt;
-            if (evt_key == KC.keyCode key_combo) {
+            let key = Js_util.get_key evt;
+            if (key == KC.key key_combo) {
               Firebug.console##log "in c";
               i_dom_1##focus;
               Dom_html.stopPropagation evt;
@@ -251,13 +254,13 @@ let make_palette ((ms, es, do_action): Model.mt) set_cursor => {
         i_dom
         (
           fun evt => {
-            let evt_key = Js_util.get_keyCode evt;
-            if (evt_key == KC.keyCode KCs.enter) {
+            let key = Js_util.get_key evt;
+            if (key == KC.key KCs.enter) {
               button_dom##click;
               i_dom##blur;
               Js._false
             } else if (
-              evt_key == KC.keyCode KCs.esc
+              key == KC.key KCs.esc
             ) {
               i_dom##blur;
               Js._false
@@ -294,7 +297,8 @@ let make_palette ((ms, es, do_action): Model.mt) set_cursor => {
      let moveChild3 = action_button (Action.Move (Action.Child 3)) "move child 3" KCs.number_3;
      let moveParent = action_button (Action.Move Action.Parent) "move parent" KCs.p; */
   /* deletion */
-  let delete = action_button Action.Del "del" KCs.x;
+  let delete = action_button Action.Del "del" KCs.del;
+  let backspace = action_button Action.Backspace "backspace" KCs.backspace;
   /* type construction */
   let constructArrow =
     action_button (Action.Construct Action.SArrow) "construct arrow" KCs.greaterThan;
@@ -451,7 +455,7 @@ let make_palette ((ms, es, do_action): Model.mt) set_cursor => {
         a::[a_class ["panel", "panel-default"]]
         [
           div a::[a_class ["panel-title"]] [pcdata "Deletion"],
-          div a::[a_class ["panel-body"]] [delete]
+          div a::[a_class ["panel-body"]] [delete, backspace]
         ]
     );
   let finishingActions =

@@ -53,46 +53,47 @@ let r_checkbox id label_str default_val => {
 
 module KeyCombo: {
   type t;
-  let make: string => int => t;
-  let to_string: t => string;
-  let keyCode: t => int;
+  let make: string => string => t;
+  let name: t => string;
+  /* value returned by browser evt.key property, see https://developer.mozilla.org/en-US/docs/Web/API/KeyboardEvent/key */
+  let key: t => string;
 } = {
-  type t = (string, int);
-  let make str keyCode => (str, keyCode);
-  let keyCode (str, keyCode) => keyCode;
-  let to_string (str, keyCode) => str;
+  type t = (string, string);
+  let make name key => (name, key);
+  let name (name, key) => name;
+  let key (name, key) => key;
 };
 
 module KeyCombos = {
   let _kc = KeyCombo.make;
-  let enter = _kc "Enter" 13;
-  let esc = _kc "Esc" 27;
-  let backspace = _kc "backspace" 8;
-  let del = _kc "del" 46;
-  let number_1 = _kc "1" 49;
-  let number_2 = _kc "2" 50;
-  let number_3 = _kc "3" 51;
-  let p = _kc "p" 112;
-  let x = _kc "x" 120;
-  let greaterThan = _kc ">" 62;
-  let n = _kc "n" 110;
-  let s = _kc "s" 115;
-  let dot = _kc "." 46;
-  let colon = _kc ":" 58;
-  let v = _kc "v" 118;
-  let backslash = _kc "\\" 92;
-  let openParens = _kc "(" 40;
-  let pound = _kc "#" 35;
-  let plus = _kc "+" 43;
-  let asterisk = _kc "*" 42;
-  let l = _kc "l" 108;
-  let r = _kc "r" 114;
-  let c = _kc "c" 99;
-  let qmark = _kc "?" 63;
-  let equals = _kc "=" 61;
+  let enter = _kc "Enter" "Enter";
+  let esc = _kc "Esc" "Escape";
+  let backspace = _kc "Backspace" "Backspace"; /* on (some?) macs, this is labeled Delete on the kb */
+  let del = _kc "Delete" "Delete";
+  let p = _kc "p" "p";
+  let x = _kc "x" "x";
+  let greaterThan = _kc ">" ">";
+  let n = _kc "n" "n";
+  let s = _kc "s" "s";
+  let dot = _kc "." ".";
+  let colon = _kc ":" ":";
+  let v = _kc "v" "v";
+  let backslash = _kc "\\" "\\";
+  let openParens = _kc "(" "(";
+  let pound = _kc "#" "#";
+  let plus = _kc "+" "+";
+  let asterisk = _kc "*" "*";
+  let l = _kc "l" "l";
+  let r = _kc "r" "r";
+  let c = _kc "c" "c";
+  let qmark = _kc "?" "?";
+  let equals = _kc "=" "=";
 };
 
-let get_keyCode (evt: Js.t Dom_html.keyboardEvent) =>
+let get_which (evt: Js.t Dom_html.keyboardEvent) =>
   Js.Optdef.get evt##.which (fun () => assert false);
+
+let get_key (evt: Js.t Dom_html.keyboardEvent) =>
+  Js.to_string (Js.Optdef.get evt##.key (fun () => assert false));
 
 let log x => Firebug.console##log x;

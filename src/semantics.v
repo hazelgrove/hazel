@@ -730,6 +730,7 @@ Module Core.
       Inductive t : Type :=
       | MoveTo : Path.t -> t
       | Del : t
+      | Backspace : t
       | Construct : shape -> t
       | Finish : t.
 
@@ -738,6 +739,7 @@ Module Core.
         | (MoveTo path, _) => 
             let ty := ZTyp.erase zty in 
             Path.follow_ty path ty
+        | (Backspace, ZTyp.CursorT ty) 
         | (Del, ZTyp.CursorT ty) => Some (ZTyp.CursorT HTyp.Hole)
         | (Construct SArrow, ZTyp.CursorT ty) =>
           Some (ZTyp.RightArrow ty (ZTyp.CursorT HTyp.Hole))
@@ -777,10 +779,25 @@ Module Core.
               | Some ze' => Some (ze', ty, u_gen)
               | None => None
               end
-            (* Deletion *)
-            | (Del, ZExp.CursorE _ e) =>
+            (* Backspace & Deletion *)
+            | (Backspace, ZExp.CursorE ZExp.After e) 
+            | (Del, ZExp.CursorE ZExp.Before e) => 
+              let x' := match e with 
+              | UHExp.EmptyHole u => (e, ty, u_gen)
+              | _ => 
+                  let (u', u_gen') := MetaVar.next u_gen in 
+                  (UHExp.EmptyHole u', HTyp.Hole, u_gen')
+              end in
+              match x' with 
+              (e', ty', u_gen') => 
+                let ze' := ZExp.CursorE ZExp.Before e' in 
+                Some (ze', ty', u_gen')
+              end
+            | (Backspace, ZExp.CursorE ZExp.On e)
+            | (Del, ZExp.CursorE ZExp.On e) => 
               let (u', u_gen') := MetaVar.next u_gen in 
-              Some ((ZExp.CursorE ZExp.Before (UHExp.EmptyHole u')), HTyp.Hole, u_gen')
+              let ze' := ZExp.CursorE ZExp.Before (UHExp.EmptyHole u') in 
+              Some (ze', HTyp.Hole, u_gen')
             (* Construction *)
             | (Construct SAsc, ZExp.CursorE ZExp.On e)
             | (Construct SAsc, ZExp.CursorE ZExp.After e) =>
@@ -1027,9 +1044,24 @@ Module Core.
           | None => None
           end
         (* Deletion *)
-        | (Del, ZExp.CursorE _ e) (* AADel *) =>
+        | (Backspace, ZExp.CursorE ZExp.After e) 
+        | (Del, ZExp.CursorE ZExp.Before e) => 
+          let x' := match e with 
+          | UHExp.EmptyHole u => (e, u_gen)
+          | _ => 
+              let (u', u_gen') := MetaVar.next u_gen in 
+              (UHExp.EmptyHole u', u_gen')
+          end in
+          match x' with 
+          (e', u_gen') => 
+            let ze' := ZExp.CursorE ZExp.Before e' in 
+            Some (ze', u_gen')
+          end
+        | (Backspace, ZExp.CursorE ZExp.On e)
+        | (Del, ZExp.CursorE ZExp.On e) => 
           let (u', u_gen') := MetaVar.next u_gen in 
-          Some (ZExp.CursorE ZExp.Before (UHExp.EmptyHole u'), u_gen')
+          let ze' := ZExp.CursorE ZExp.Before (UHExp.EmptyHole u') in 
+          Some (ze', u_gen')
         (* Construction *)
         | (Construct SAsc, ZExp.CursorE ZExp.On e)
         | (Construct SAsc, ZExp.CursorE ZExp.After e) =>

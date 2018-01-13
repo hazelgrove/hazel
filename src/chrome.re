@@ -6,7 +6,7 @@ open Semantics.Core;
 
 let view ((ms, es, do_action): Model.mt) => {
   /* helpers */
-  let kc = Js_util.KeyCombo.keyCode;
+  let kc = Js_util.KeyCombo.key;
   /* # pretty printed view */
   let pp_view_width = 50;
   let view_rs =
@@ -43,9 +43,9 @@ let view ((ms, es, do_action): Model.mt) => {
           a_onkeydown (
             fun evt => {
               /* prevent backspace and delete, which doesn't trigger keypress */
-              let which = Js_util.get_keyCode evt;
-              let is_backspace = which == kc Js_util.KeyCombos.backspace;
-              let is_del = which == kc Js_util.KeyCombos.del;
+              let key = Js_util.get_key evt;
+              let is_backspace = key == kc Js_util.KeyCombos.backspace;
+              let is_del = key == kc Js_util.KeyCombos.del;
               if (is_backspace || is_del) {
                 Dom.preventDefault evt;
                 false
@@ -389,7 +389,7 @@ let view ((ms, es, do_action): Model.mt) => {
         | None => ()
         }
       } else if (
-        has_class "op-before-2" || has_class "op-after-1" || has_class "op-after-2"
+        has_class "op-before-2" || has_class "op-after-1"
       ) {
         switch (Js.Opt.to_option parent_elem##.parentNode) {
         | Some grandparent =>
@@ -398,6 +398,29 @@ let view ((ms, es, do_action): Model.mt) => {
           | None => ()
           }
         | None => ()
+        }
+      } else if (
+        has_class "op-after-2"
+      ) {
+        let anchorOffset = selection##.anchorOffset;
+        if (anchorOffset == 0) {
+          switch (Js.Opt.to_option parent_elem##.parentNode) {
+          | Some grandparent =>
+            switch (Js.Opt.to_option grandparent##.previousSibling) {
+            | Some sibling => move_cursor_after sibling
+            | None => ()
+            }
+          | None => ()
+          }
+        } else {
+          switch (Js.Opt.to_option parent_elem##.parentNode) {
+          | Some grandparent =>
+            switch (Js.Opt.to_option grandparent##.nextSibling) {
+            | Some sibling => move_cursor_before sibling
+            | None => ()
+            }
+          | None => ()
+          }
         }
       } else if (
         has_class "nonEmptyHole-after-inner"
@@ -607,6 +630,12 @@ let view ((ms, es, do_action): Model.mt) => {
       ZExp.On
     }
   };
+  let string_of_cursor_side cursor_side =>
+    switch cursor_side {
+    | ZExp.On => "On"
+    | ZExp.Before => "Before"
+    | ZExp.After => "After"
+    };
   let _ =
     Js_util.listen_to_t
       (Dom.Event.make "selectionchange")
@@ -635,6 +664,7 @@ let view ((ms, es, do_action): Model.mt) => {
                 found := true;
                 let path = List.rev rev_path;
                 let cursor_side = determine_cursor_side selection anchor cur_element;
+                Js_util.log (string_of_cursor_side cursor_side);
                 do_action (Semantics.Core.Action.MoveTo (path, cursor_side));
                 clear_cursors ();
                 let elem = Js_util.forceGetElementById cur_id;
