@@ -760,10 +760,10 @@ Module Core.
         end.
 
       (* helper function used below *)
-      Definition perform_Backspace 
+      Definition perform_Backspace_OpSeqZ_Before
         (seq : UHExp.opseq) 
         (op : AHExp.op) 
-        (e : UHExp.t) 
+        (ze0 : ZExp.t) 
         (post : ZExp.opseq_suffix) 
         (ty : HTyp.t) 
         (u_gen : MetaVar.gen) := 
@@ -772,8 +772,8 @@ Module Core.
             let ze' := match seq with 
               | UHExp.BareExp e' => 
                 (* e' |e + ... *)
-                match e with 
-                | UHExp.EmptyHole _ => 
+                match ze0 with 
+                | ZExp.CursorE _ (UHExp.EmptyHole _) => 
                   (* e' |_ + ... 
                   -> e'| + ... *)
                   let pre' := ZExp.EmptyPrefix in 
@@ -784,14 +784,14 @@ Module Core.
                   (* e' |e + ...
                   -> |e + ...*)
                   let pre' := ZExp.EmptyPrefix in 
-                  let ze' := ZExp.CursorE ZExp.Before e in 
+                  let ze' := ze0 in 
                   let post' := post in 
                   ZExp.OpSeqZ pre' ze' post'
                 end
               | UHExp.SeqOpExp seq' op' e' => 
                 (* ... + e' |e + ... *)
-                match e with 
-                | UHExp.EmptyHole _ => 
+                match ze0 with 
+                | ZExp.CursorE _ (UHExp.EmptyHole _) => 
                   (* ... + e' |_ + ...
                   -> ... + e'| + ... *)
                   let pre' := ZExp.NonEmptyPrefix seq' op' in 
@@ -802,7 +802,7 @@ Module Core.
                   (* ... + e' |e + ... 
                   -> ... + |e + ... *)
                   let pre' := ZExp.NonEmptyPrefix seq' op' in 
-                  let ze' := ZExp.CursorE ZExp.Before e in 
+                  let ze' := ze0 in 
                   let post' := post in 
                   ZExp.OpSeqZ pre' ze' post'
                 end
@@ -812,7 +812,7 @@ Module Core.
             (* ... + e' + |e + ...
             -> ... + e' |e + ... *)
             let pre' := ZExp.NonEmptyPrefix seq (AHExp.Space) in 
-            let ze' := ZExp.CursorE ZExp.Before e in 
+            let ze' := ze0 in 
             let post' := post in  
             Some (ZExp.OpSeqZ pre' ze' post', ty, u_gen)
           end.
@@ -926,112 +926,51 @@ Module Core.
             | (Backspace, 
                 ZExp.OpSeqZ 
                   (ZExp.NonEmptyPrefix seq op)
-                  (ZExp.CursorE ZExp.Before e) 
+                  ((ZExp.CursorE ZExp.Before e) as ze0) 
                   post) => 
-              perform_Backspace seq op e post ty u_gen
+              perform_Backspace_OpSeqZ_Before seq op ze0 post ty u_gen
             | (Backspace,
                 ZExp.OpSeqZ
                   (ZExp.NonEmptyPrefix seq op)
-                  (ZExp.LeftAp (ZExp.CursorE ZExp.Before e1) e2)
+                  ((ZExp.LeftAp (ZExp.CursorE ZExp.Before e1) e2) as ze0)
                   post) => 
-              perform_Backspace seq op (UHExp.Ap e1 e2) post ty u_gen
+              perform_Backspace_OpSeqZ_Before seq op ze0 post ty u_gen
             | (Del, 
                 ZExp.OpSeqZ
                   pre
                   ((ZExp.CursorE ZExp.After e) as ze)
                   (ZExp.NonEmptySuffix op seq)) => 
-              match seq with 
-              | UHExp.BareExp e' => 
-                match e' with 
-                | UHExp.EmptyHole _ => 
-                  (* ... + e| + _ 
-                  -> ... + e| *)
-                  let pre' := pre in 
-                  let ze' := ze in 
-                  let post' := ZExp.EmptySuffix in 
-                  Some (ZExp.OpSeqZ pre' ze' post', ty, u_gen) 
-                | _ => 
-                  (* ... + e| + e' *)
-                  match e with 
-                  | UHExp.EmptyHole _ => 
-                    (* ... + _| + e'
-                    -> ... + |e' *)
-                    let pre' := pre in 
-                    let ze' := ZExp.CursorE ZExp.Before e' in 
-                    let post' := ZExp.EmptySuffix in 
-                    Some (ZExp.OpSeqZ pre' ze' post', ty, u_gen)
-                  | _ => 
-                    (* ... + e| + e'
-                    -> ... + e| e' *)
+              match op with 
+              | AHExp.Space => 
+                match ZExp.split 0 seq with 
+                | Some (_, e', post') =>
+                  match (e, e') with 
+                  | (UHExp.EmptyHole _, UHExp.EmptyHole _) => 
+                    (* ... + _| _' + ... 
+                    -> ... + _| + ... *)
                     let pre' := pre in 
                     let ze' := ze in 
-                    let post' := ZExp.NonEmptySuffix (AHExp.Space) (UHExp.BareExp e') in 
+                    Some (ZExp.OpSeqZ pre' ze' post', ty, u_gen)
+                  | (UHExp.EmptyHole _, _) => 
+                    (* ... + _| e' + ... 
+                    -> ... + |e' + ... *)
+                    let pre' := pre in 
+                    let ze' := ZExp.CursorE ZExp.Before e' in 
+                    Some (ZExp.OpSeqZ pre' ze' post', ty, u_gen)
+                  | _ => 
+                    (* ... + e| e' + ... 
+                    -> ... + e| + ... *)
+                    let pre' := pre in 
+                    let ze' := ze in 
                     Some (ZExp.OpSeqZ pre' ze' post', ty, u_gen)
                   end
+                | _ => None (* should never happen *)
                 end
               | _ => 
-                match ZExp.split 0 seq with 
-                | Some (ZExp.EmptyPrefix, e', post') => 
-                  match e' with 
-                  | UHExp.EmptyHole _ => 
-                    match post' with 
-                    | ZExp.EmptySuffix => 
-                      (* ... + e| + _
-                      -> ... + e| *)
-                      let pre' := pre in 
-                      let ze' := ze in 
-                      let post' := ZExp.EmptySuffix in 
-                      Some (ZExp.OpSeqZ pre' ze' post', ty, u_gen)
-                    | ZExp.NonEmptySuffix op' seq' => 
-                      (* ... + e| + _ + ...
-                      -> ... + e| + ... *)
-                      let pre' := pre in 
-                      let ze' := ze in 
-                      let post' := post' in 
-                      Some (ZExp.OpSeqZ pre' ze' post', ty, u_gen)
-                    end
-                  | _ => 
-                    match post' with 
-                    | ZExp.EmptySuffix => 
-                      match e with 
-                      | UHExp.EmptyHole _ => 
-                        (* ... + _| + e'
-                        -> ... + |e' *)
-                        let pre' := pre in 
-                        let ze' := ZExp.CursorE ZExp.Before e' in 
-                        let post' := ZExp.EmptySuffix in 
-                        Some (ZExp.OpSeqZ pre' ze' post', ty, u_gen)
-                      | _ => 
-                        (* ... + e| + e'
-                        -> ... + e| e' *)
-                        let pre' := pre in 
-                        let ze' := ze in 
-                        let post' := ZExp.NonEmptySuffix (AHExp.Space) (UHExp.BareExp e') in 
-                        Some (ZExp.OpSeqZ pre' ze' post', ty, u_gen)
-                      end
-                    | ZExp.NonEmptySuffix op' seq' => 
-                      match e with 
-                      | UHExp.EmptyHole _ => 
-                        (* ... + _| + e' + ... 
-                        -> ... + |e' + ... *)
-                        let pre' := pre in 
-                        let ze' := ZExp.CursorE ZExp.Before e' in 
-                        let post' := post' in 
-                        Some (ZExp.OpSeqZ pre' ze' post', ty, u_gen)
-                      | _ => 
-                        (* ... + e| + e' + ... 
-                        -> ... + e| e' + ... *)
-                        let pre' := pre in 
-                        let ze' := ze in 
-                        let post' := ZExp.NonEmptySuffix (AHExp.Space) (
-                          UHExp.append (UHExp.BareExp e') op' seq') in 
-                        Some (ZExp.OpSeqZ pre' ze' post', ty, u_gen)
-                      end
-                    end
-                  end
-                | Some _ => None (* should never happen to due to parent match *)
-                | None => None (* should never happen due to parent match *)
-                end
+                let pre' := pre in 
+                let ze' := ze in 
+                let post' := ZExp.NonEmptySuffix (AHExp.Space) seq in 
+                Some (ZExp.OpSeqZ pre' ze' post', ty, u_gen)
               end 
             (* Construction *)
             | (Construct SAsc, ZExp.CursorE ZExp.On e)
