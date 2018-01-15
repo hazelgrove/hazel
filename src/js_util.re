@@ -70,6 +70,7 @@ module KeyCombos = {
   let esc = _kc "Esc" "Escape";
   let backspace = _kc "Backspace" "Backspace"; /* on (some?) macs, this is labeled Delete on the kb */
   let del = _kc "Delete" "Delete";
+  let space = _kc "Space" " ";
   let p = _kc "p" "p";
   let x = _kc "x" "x";
   let greaterThan = _kc ">" ">";

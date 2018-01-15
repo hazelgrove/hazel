@@ -99,21 +99,30 @@ let view ((ms, es, do_action): Model.mt) => {
     };
     !cur
   };
+  let node_length node => {
+    let text_node = Js.Opt.get (Dom.CoerceTo.text node) (fun () => assert false);
+    text_node##.length
+  };
   let move_cursor_before node => {
     let cursor_leaf = first_leaf node;
+    /* Js_util.log "moving_cursor_before "; */
+    /* Js_util.log cursor_leaf; */
     let selection = Dom_html.window##getSelection;
     let range = Dom_html.document##createRange;
-    range##setStartBefore cursor_leaf;
-    range##setEndBefore cursor_leaf;
+    range##setStart cursor_leaf 0;
+    range##setEnd cursor_leaf 0;
     selection##removeAllRanges;
     selection##addRange range
   };
   let move_cursor_after node => {
     let cursor_leaf = last_leaf node;
+    /* Js_util.log "moving_cursor_after "; */
+    /* Js_util.log cursor_leaf; */
     let selection = Dom_html.window##getSelection;
     let range = Dom_html.document##createRange;
-    range##setStartAfter cursor_leaf;
-    range##setEndAfter cursor_leaf;
+    let len = node_length cursor_leaf;
+    range##setStart cursor_leaf len;
+    range##setEnd cursor_leaf len;
     selection##removeAllRanges;
     selection##addRange range
   };
@@ -125,8 +134,8 @@ let view ((ms, es, do_action): Model.mt) => {
     let cursor_node: Js.t Dom.node = Js.Unsafe.coerce cursor_elem;
     switch cursor_side {
     | ZExp.Before
-    | ZExp.On => move_cursor_before cursor_node
-    | ZExp.After => move_cursor_after cursor_node
+    | ZExp.On => move_cursor_before (first_leaf cursor_node)
+    | ZExp.After => move_cursor_after (last_leaf cursor_node)
     }
   };
   /* Construct a simple DOM change listener to trigger cursor
@@ -526,9 +535,11 @@ let view ((ms, es, do_action): Model.mt) => {
         ZExp.On
       }
     } else if (
-      ast_has_class "Var" || ast_has_class "NumLit" || ast_has_class "Num"
+      ast_has_class "Var" ||
+      ast_has_class "NumLit" || ast_has_class "Num" || ast_has_class "number"
     ) {
       let anchorOffset = selection##.anchorOffset;
+      Js_util.log anchorOffset;
       if (anchorOffset == 0) {
         ZExp.Before
       } else {

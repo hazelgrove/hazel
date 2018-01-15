@@ -114,6 +114,7 @@ module PPView = {
   let of_Plus rev_path r1 r2 =>
     term "Plus" rev_path (r1 ^^ optionalBreakNSp ^^ op " +" ^^ optionalBreakSp ^^ r2);
   let of_Times rev_path r1 r2 => term "Times" rev_path (r1 ^^ op "*" ^^ optionalBreakNSp ^^ r2);
+  let of_Space rev_path r1 r2 => term "Space" rev_path (r1 ^^ op " " ^^ optionalBreakNSp ^^ r2);
   let of_Inj rev_path side r =>
     term
       "Inj"
@@ -241,8 +242,9 @@ module PPView = {
       | Lam _ _ _ => lam_precedence
       | Ap _ _ => ap_precedence
       | NumLit _ => numlit_precedence
-      | Plus _ _ => plus_precedence
-      | Times _ _ => times_precedence
+      | BinOp AHExp.Plus _ _ => plus_precedence
+      | BinOp AHExp.Times _ _ => times_precedence
+      | BinOp AHExp.Space _ _ => times_precedence
       | Inj _ _ _ => inj_precedence
       | Case _ _ _ _ => case_precedence
       | EmptyHole _ _ _ => empty_hole_precedence
@@ -252,7 +254,7 @@ module PPView = {
     );
   let rec of_op op =>
     switch op {
-    | UHExp.Plus =>
+    | AHExp.Plus =>
       PP.tagged
         "seq-op"
         None
@@ -262,7 +264,8 @@ module PPView = {
           taggedText "op-center" " + " ^^
           taggedText "op-after-1" "\226\128\139" ^^ taggedText "op-after-2" "\226\128\139"
         )
-    | UHExp.Times => taggedText "seq-op" "*"
+    | AHExp.Times => taggedText "seq-op" "*"
+    | AHExp.Space => taggedText "seq-op" " "
     };
   let rec of_hexp' rev_path e paren =>
     if paren {
@@ -379,7 +382,7 @@ module PPView = {
           let r2 = of_dhexp' rev_path2 d2 paren2;
           of_Ap rev_path r1 r2
         | NumLit n => term "NumLit" rev_path (taggedText "number" (string_of_int n))
-        | Plus d1 d2 =>
+        | BinOp AHExp.Plus d1 d2 =>
           let rev_path1 = [0, ...rev_path];
           let rev_path2 = [1, ...rev_path];
           let prec1 = dhexp_precedence d1;
@@ -389,7 +392,7 @@ module PPView = {
           let paren2 = prec2 > 0 && prec2 !== plus_precedence;
           let r2 = of_dhexp' rev_path2 d2 paren2;
           of_Plus rev_path r1 r2
-        | Times d1 d2 =>
+        | BinOp AHExp.Times d1 d2 =>
           let rev_path1 = [0, ...rev_path];
           let rev_path2 = [1, ...rev_path];
           let prec1 = dhexp_precedence d1;
@@ -399,6 +402,16 @@ module PPView = {
           let paren2 = prec2 > 0 && prec2 !== times_precedence;
           let r2 = of_dhexp' rev_path2 d2 paren2;
           of_Times rev_path r1 r2
+        | BinOp AHExp.Space d1 d2 =>
+          let rev_path1 = [0, ...rev_path];
+          let rev_path2 = [1, ...rev_path];
+          let prec1 = dhexp_precedence d1;
+          let paren1 = prec1 > 0 && prec1 !== times_precedence;
+          let r1 = of_dhexp' rev_path1 d1 paren1;
+          let prec2 = dhexp_precedence d2;
+          let paren2 = prec2 > 0 && prec2 !== times_precedence;
+          let r2 = of_dhexp' rev_path2 d2 paren2;
+          of_Space rev_path r1 r2
         | Inj ty side d1 =>
           let rev_path1 = [0, ...rev_path];
           let rev_path2 = [1, ...rev_path];

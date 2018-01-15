@@ -220,6 +220,11 @@ Module Core.
       | L : inj_side
       | R : inj_side.
 
+      Inductive op : Type := 
+      | Plus : op
+      | Times : op
+      | Space : op.
+
       Definition pick_side {A : Type} (side : inj_side) (l : A) (r : A) : A :=
         match side with
         | L => l
@@ -233,8 +238,7 @@ Module Core.
       | Lam : Var.t -> t -> t
       | Ap : t -> t -> t 
       | NumLit : nat -> t
-      | Plus : t -> t -> t
-      | Times : t -> t -> t
+      | BinOp : op -> t -> t -> t
       | Inj : inj_side -> t -> t
       | Case : t -> (Var.t * t) -> (Var.t * t) -> t
       | EmptyHole : MetaVar.t -> t
@@ -284,8 +288,7 @@ Module Core.
               end
             end
           | NumLit i (* SNum *) => Some (HTyp.Num, nil)
-          | Plus e1 e2 (* 3e *)
-          | Times e1 e2 =>
+          | BinOp _ e1 e2 => 
             match ana fuel ctx e1 HTyp.Num with 
             | None => None
             | Some us1 => 
@@ -382,8 +385,7 @@ Module Core.
         | Lam _ e' => complete e'
         | Ap e1 e2 => andb (complete e1) (complete e2)
         | NumLit _ => true
-        | Plus e1 e2 
-        | Times e1 e2 => andb (complete e1) (complete e2)
+        | BinOp _ e1 e2 => andb (complete e1) (complete e2)
         | Inj _ e => complete e
         | Case e (x, e1) (y, e2) =>
           andb (complete e) (andb (complete e1) (complete e2))
@@ -393,6 +395,8 @@ Module Core.
     End AHExp.
 
     Module UHExp. (* unassociated H-expressions *)
+      Definition op : Type := AHExp.op.
+
       Inductive t : Type := 
       | Asc : t -> HTyp.t -> t
       | Var : Var.t -> t
@@ -407,10 +411,7 @@ Module Core.
       | OpSeq : opseq -> t
       with opseq : Type := 
       | BareExp : t -> opseq
-      | SeqOpExp : opseq -> op -> t -> opseq
-      with op : Type :=
-      | Plus : op
-      | Times : op.
+      | SeqOpExp : opseq -> op -> t -> opseq.
 
       Fixpoint append (seq1 : opseq) (op : op) (seq2 : opseq) : opseq := 
         match seq2 with 
@@ -758,6 +759,129 @@ Module Core.
         | _ => None
         end.
 
+      (* helper function used below *)
+      Definition perform_Backspace 
+        (seq : UHExp.opseq) 
+        (op : AHExp.op) 
+        (e : UHExp.t) 
+        (post : ZExp.opseq_suffix) 
+        (ty : HTyp.t) 
+        (u_gen : MetaVar.gen) := 
+          let ze' := match seq with 
+            | UHExp.BareExp e' => 
+              (* e' + |e + ... *)
+              match e with 
+              | UHExp.EmptyHole _ => 
+                (* e' + |_ + ... 
+                -> e'| + ... *)
+                let pre' := ZExp.EmptyPrefix in 
+                let ze' := ZExp.CursorE ZExp.After e' in 
+                let post' := post in 
+                ZExp.OpSeqZ pre' ze' post'
+              | _ => 
+                match e' with 
+                | UHExp.EmptyHole _ => 
+                  (* _ + |e + ...
+                  -> |e + ...*)
+                  let pre' := ZExp.EmptyPrefix in 
+                  let ze' := ZExp.CursorE ZExp.Before e in 
+                  let post' := post in 
+                  ZExp.OpSeqZ pre' ze' post'
+                | _ => 
+                  (* e' + |e + ...
+                  -> e'| e + ... *)
+                  let pre' := ZExp.EmptyPrefix in 
+                  let ze' := ZExp.CursorE ZExp.After e' in 
+                  let post' := match post with 
+                  | ZExp.EmptySuffix => 
+                    ZExp.NonEmptySuffix (AHExp.Space) (UHExp.BareExp e)
+                  | ZExp.NonEmptySuffix op' seq' => 
+                    ZExp.NonEmptySuffix (AHExp.Space) (
+                      UHExp.append (UHExp.BareExp e) op' seq')
+                  end in 
+                  ZExp.OpSeqZ pre' ze' post' 
+                end
+              end
+            | UHExp.SeqOpExp seq' op' e' => 
+              (* ... + e' + |e + ... *)
+              match e with 
+              | UHExp.EmptyHole _ => 
+                (* ... + e' + |_ + ...
+                -> ... + e'| + ... *)
+                let pre' := ZExp.NonEmptyPrefix seq' op' in 
+                let ze' := ZExp.CursorE ZExp.After e' in 
+                let post' := post in 
+                ZExp.OpSeqZ pre' ze' post'
+              | _ => 
+                match e' with 
+                | UHExp.EmptyHole _ => 
+                  (* ... + _ + |e + ... 
+                  -> ... + |e + ... *)
+                  let pre' := ZExp.NonEmptyPrefix seq' op' in 
+                  let ze' := ZExp.CursorE ZExp.Before e in 
+                  let post' := post in 
+                  ZExp.OpSeqZ pre' ze' post'
+                | _ => 
+                  (* ... + e' + |e + ...
+                  -> ... + e'| e + ... *)
+                  let pre' := ZExp.NonEmptyPrefix seq' op' in 
+                  let ze' := ZExp.CursorE ZExp.After e' in 
+                  let post' := match post with 
+                  | ZExp.EmptySuffix => 
+                    ZExp.NonEmptySuffix (AHExp.Space) (UHExp.BareExp e)
+                  | ZExp.NonEmptySuffix op'' seq'' => 
+                    ZExp.NonEmptySuffix (AHExp.Space) (
+                      UHExp.append (UHExp.BareExp e) op'' seq'')
+                  end in 
+                  ZExp.OpSeqZ pre' ze' post' 
+                end
+              end
+            end in 
+          Some (ze', ty, u_gen).
+
+      (* helper function used below *)
+      Definition perform_Construct_SOp_OpSeqZ_Before
+        (op : AHExp.op)
+        (pre : ZExp.opseq_prefix)
+        (e' : UHExp.t) 
+        (post : ZExp.opseq_suffix)
+        (fuel : Fuel)
+        (ctx : Ctx.t)
+        (ty : HTyp.t) 
+        (u_gen : MetaVar.gen) 
+        (associate : UHExp.t -> AHExp.t)
+        (hsyn : Fuel -> Ctx.t -> AHExp.t -> option HTyp.t) := 
+          (* make new suffix *)
+          let post' := match post with 
+          | ZExp.EmptySuffix => ZExp.NonEmptySuffix op (UHExp.BareExp e')
+          | ZExp.NonEmptySuffix op' seq => 
+            let seq' := UHExp.append (UHExp.BareExp e') op' seq in 
+            ZExp.NonEmptySuffix op seq'
+          end in 
+          (* generate final z-expression *)
+          let (u, u_gen') := MetaVar.next u_gen in 
+          let ze' := ZExp.OpSeqZ pre (ZExp.CursorE ZExp.Before (UHExp.EmptyHole u)) post' in 
+          (* assign it a type *)
+          let ae' := associate (ZExp.erase ze') in 
+          match hsyn fuel ctx ae' with 
+          | Some ty => Some (ze', ty, u_gen')
+          | None => None
+          end.
+
+      (* helper function used below *)
+      Definition perform_Construct_SOp_Before 
+        (op : AHExp.op) 
+        (e : UHExp.t) 
+        (ty : HTyp.t) 
+        (u_gen : MetaVar.gen) := 
+              if HTyp.consistent ty (HTyp.Num) then 
+                let pre := ZExp.EmptyPrefix in 
+                let post := ZExp.NonEmptySuffix op (UHExp.BareExp e) in 
+                let (u, u_gen') := MetaVar.next u_gen in 
+                let ze := ZExp.OpSeqZ pre (ZExp.CursorE ZExp.Before (UHExp.EmptyHole u)) post in 
+                Some (ze, HTyp.Num, u_gen')
+              else None.
+
       Fixpoint performSyn 
           (fuel: Fuel) 
           (ctx: Ctx.t) 
@@ -780,17 +904,28 @@ Module Core.
               | None => None
               end
             (* Backspace & Deletion *)
-            | (Backspace, ZExp.CursorE ZExp.After e) 
-            | (Del, ZExp.CursorE ZExp.Before e) => 
+            | (Backspace, ZExp.CursorE ZExp.After e) => 
               let x' := match e with 
-              | UHExp.EmptyHole u => (e, ty, u_gen)
+              | UHExp.EmptyHole u => (e, ty, u_gen, ZExp.Before)
               | _ => 
                   let (u', u_gen') := MetaVar.next u_gen in 
-                  (UHExp.EmptyHole u', HTyp.Hole, u_gen')
+                  (UHExp.EmptyHole u', HTyp.Hole, u_gen', ZExp.Before)
               end in
               match x' with 
-              (e', ty', u_gen') => 
-                let ze' := ZExp.CursorE ZExp.Before e' in 
+              (e', ty', u_gen', cursor_side) => 
+                let ze' := ZExp.CursorE cursor_side e' in 
+                Some (ze', ty', u_gen')
+              end
+            | (Del, ZExp.CursorE ZExp.Before e) => 
+              let x' := match e with 
+              | UHExp.EmptyHole u => (e, ty, u_gen, ZExp.After)
+              | _ => 
+                  let (u', u_gen') := MetaVar.next u_gen in 
+                  (UHExp.EmptyHole u', HTyp.Hole, u_gen', ZExp.Before)
+              end in 
+              match x' with 
+              (e', ty', u_gen', cursor_side) => 
+                let ze' := ZExp.CursorE cursor_side e' in 
                 Some (ze', ty', u_gen')
               end
             | (Backspace, ZExp.CursorE ZExp.On e)
@@ -798,6 +933,116 @@ Module Core.
               let (u', u_gen') := MetaVar.next u_gen in 
               let ze' := ZExp.CursorE ZExp.Before (UHExp.EmptyHole u') in 
               Some (ze', HTyp.Hole, u_gen')
+            | (Backspace, 
+                ZExp.OpSeqZ 
+                  (ZExp.NonEmptyPrefix seq op)
+                  (ZExp.CursorE ZExp.Before e) 
+                  post) => 
+              perform_Backspace seq op e post ty u_gen
+            | (Backspace,
+                ZExp.OpSeqZ
+                  (ZExp.NonEmptyPrefix seq op)
+                  (ZExp.LeftAp (ZExp.CursorE ZExp.Before e1) e2)
+                  post) => 
+              perform_Backspace seq op (UHExp.Ap e1 e2) post ty u_gen
+            | (Del, 
+                ZExp.OpSeqZ
+                  pre
+                  ((ZExp.CursorE ZExp.After e) as ze)
+                  (ZExp.NonEmptySuffix op seq)) => 
+              match seq with 
+              | UHExp.BareExp e' => 
+                match e' with 
+                | UHExp.EmptyHole _ => 
+                  (* ... + e| + _ 
+                  -> ... + e| *)
+                  let pre' := pre in 
+                  let ze' := ze in 
+                  let post' := ZExp.EmptySuffix in 
+                  Some (ZExp.OpSeqZ pre' ze' post', ty, u_gen) 
+                | _ => 
+                  (* ... + e| + e' *)
+                  match e with 
+                  | UHExp.EmptyHole _ => 
+                    (* ... + _| + e'
+                    -> ... + |e' *)
+                    let pre' := pre in 
+                    let ze' := ZExp.CursorE ZExp.Before e' in 
+                    let post' := ZExp.EmptySuffix in 
+                    Some (ZExp.OpSeqZ pre' ze' post', ty, u_gen)
+                  | _ => 
+                    (* ... + e| + e'
+                    -> ... + e| e' *)
+                    let pre' := pre in 
+                    let ze' := ze in 
+                    let post' := ZExp.NonEmptySuffix (AHExp.Space) (UHExp.BareExp e') in 
+                    Some (ZExp.OpSeqZ pre' ze' post', ty, u_gen)
+                  end
+                end
+              | _ => 
+                match ZExp.split 0 seq with 
+                | Some (ZExp.EmptyPrefix, e', post') => 
+                  match e' with 
+                  | UHExp.EmptyHole _ => 
+                    match post' with 
+                    | ZExp.EmptySuffix => 
+                      (* ... + e| + _
+                      -> ... + e| *)
+                      let pre' := pre in 
+                      let ze' := ze in 
+                      let post' := ZExp.EmptySuffix in 
+                      Some (ZExp.OpSeqZ pre' ze' post', ty, u_gen)
+                    | ZExp.NonEmptySuffix op' seq' => 
+                      (* ... + e| + _ + ...
+                      -> ... + e| + ... *)
+                      let pre' := pre in 
+                      let ze' := ze in 
+                      let post' := post' in 
+                      Some (ZExp.OpSeqZ pre' ze' post', ty, u_gen)
+                    end
+                  | _ => 
+                    match post' with 
+                    | ZExp.EmptySuffix => 
+                      match e with 
+                      | UHExp.EmptyHole _ => 
+                        (* ... + _| + e'
+                        -> ... + |e' *)
+                        let pre' := pre in 
+                        let ze' := ZExp.CursorE ZExp.Before e' in 
+                        let post' := ZExp.EmptySuffix in 
+                        Some (ZExp.OpSeqZ pre' ze' post', ty, u_gen)
+                      | _ => 
+                        (* ... + e| + e'
+                        -> ... + e| e' *)
+                        let pre' := pre in 
+                        let ze' := ze in 
+                        let post' := ZExp.NonEmptySuffix (AHExp.Space) (UHExp.BareExp e') in 
+                        Some (ZExp.OpSeqZ pre' ze' post', ty, u_gen)
+                      end
+                    | ZExp.NonEmptySuffix op' seq' => 
+                      match e with 
+                      | UHExp.EmptyHole _ => 
+                        (* ... + _| + e' + ... 
+                        -> ... + |e' + ... *)
+                        let pre' := pre in 
+                        let ze' := ZExp.CursorE ZExp.Before e' in 
+                        let post' := post' in 
+                        Some (ZExp.OpSeqZ pre' ze' post', ty, u_gen)
+                      | _ => 
+                        (* ... + e| + e' + ... 
+                        -> ... + e| e' + ... *)
+                        let pre' := pre in 
+                        let ze' := ze in 
+                        let post' := ZExp.NonEmptySuffix (AHExp.Space) (
+                          UHExp.append (UHExp.BareExp e') op' seq') in 
+                        Some (ZExp.OpSeqZ pre' ze' post', ty, u_gen)
+                      end
+                    end
+                  end
+                | Some _ => None (* should never happen to due to parent match *)
+                | None => None (* should never happen due to parent match *)
+                end
+              end 
             (* Construction *)
             | (Construct SAsc, ZExp.CursorE ZExp.On e)
             | (Construct SAsc, ZExp.CursorE ZExp.After e) =>
@@ -847,7 +1092,7 @@ Module Core.
               )
             | (Construct (SCase x y), (ZExp.CursorE _ e)) =>
               match HTyp.matched_sum ty with
-                | Some _ (* 24b *) =>
+                | Some _ (* 24b *) => 
                     let (u1, u_gen') := MetaVar.next u_gen in 
                     let (u2, u_gen'') := MetaVar.next u_gen' in 
                     let casez2 := (ZExp.CaseZ2 e
@@ -887,25 +1132,18 @@ Module Core.
               | None => None
               end
             | (Construct (SOp op), ZExp.OpSeqZ pre (ZExp.CursorE ZExp.Before e') post) => 
-              (* make new suffix *)
-              let post' := match post with 
-              | ZExp.EmptySuffix => ZExp.NonEmptySuffix op (UHExp.BareExp e')
-              | ZExp.NonEmptySuffix op' seq => 
-                let seq' := UHExp.append (UHExp.BareExp e') op' seq in 
-                ZExp.NonEmptySuffix op seq'
-              end in 
-              (* generate final z-expression *)
-              let (u, u_gen') := MetaVar.next u_gen in 
-              let ze' := ZExp.OpSeqZ pre (ZExp.CursorE ZExp.Before (UHExp.EmptyHole u)) post' in 
-              (* assign it a type *)
-              let ae' := associate (ZExp.erase ze') in 
-              match hsyn fuel ctx ae' with 
-              | Some ty => Some (ze', ty, u_gen')
-              | None => None
-              end
+              perform_Construct_SOp_OpSeqZ_Before op pre e' post fuel ctx ty u_gen associate hsyn
+            | (Construct (SOp op), 
+                ZExp.OpSeqZ 
+                  pre 
+                  (ZExp.LeftAp (ZExp.CursorE ZExp.Before e1) e2) 
+                  post) =>
+              let e' := UHExp.Ap e1 e2 in 
+              perform_Construct_SOp_OpSeqZ_Before 
+                op pre e' post fuel ctx ty u_gen associate hsyn
             | (Construct (SOp op), ZExp.CursorE ZExp.On e)
             | (Construct (SOp op), ZExp.CursorE ZExp.After e) => 
-              if HTyp.consistent ty (HTyp.Num) then 
+              if HTyp.consistent ty (HTyp.Num) then
                 let pre := ZExp.NonEmptyPrefix (UHExp.BareExp e) op in 
                 let post := ZExp.EmptySuffix in 
                 let (u, u_gen') := MetaVar.next u_gen in 
@@ -913,13 +1151,11 @@ Module Core.
                 Some (ze, HTyp.Num, u_gen')
               else None
             | (Construct (SOp op), ZExp.CursorE ZExp.Before e) => 
-              if HTyp.consistent ty (HTyp.Num) then 
-                let pre := ZExp.EmptyPrefix in 
-                let post := ZExp.NonEmptySuffix op (UHExp.BareExp e) in 
-                let (u, u_gen') := MetaVar.next u_gen in 
-                let ze := ZExp.OpSeqZ pre (ZExp.CursorE ZExp.Before (UHExp.EmptyHole u)) post in 
-                Some (ze, HTyp.Num, u_gen')
-              else None
+              perform_Construct_SOp_Before op e ty u_gen
+            | (Construct (SOp op), 
+                ZExp.LeftAp (ZExp.CursorE ZExp.Before e1) e2) => 
+              let e := UHExp.Ap e1 e2 in 
+              perform_Construct_SOp_Before op e ty u_gen
             (* Finish *)
             | (Finish, ZExp.CursorE _ (UHExp.NonEmptyHole u e)) =>
               (hsyn fuel ctx (associate e)) |>
@@ -1043,18 +1279,29 @@ Module Core.
           | Some ze' => Some (ze', u_gen)
           | None => None
           end
-        (* Deletion *)
-        | (Backspace, ZExp.CursorE ZExp.After e) 
-        | (Del, ZExp.CursorE ZExp.Before e) => 
+        (* Backspace & Deletion *)
+        | (Backspace, ZExp.CursorE ZExp.After e) => 
           let x' := match e with 
-          | UHExp.EmptyHole u => (e, u_gen)
+          | UHExp.EmptyHole u => (e, u_gen, ZExp.Before)
           | _ => 
               let (u', u_gen') := MetaVar.next u_gen in 
-              (UHExp.EmptyHole u', u_gen')
+              (UHExp.EmptyHole u', u_gen', ZExp.Before)
           end in
           match x' with 
-          (e', u_gen') => 
-            let ze' := ZExp.CursorE ZExp.Before e' in 
+          (e', u_gen', cursor_side) => 
+            let ze' := ZExp.CursorE cursor_side e' in 
+            Some (ze', u_gen')
+          end
+        | (Del, ZExp.CursorE ZExp.Before e) => 
+          let x' := match e with 
+          | UHExp.EmptyHole u => (e, u_gen, ZExp.After)
+          | _ => 
+              let (u', u_gen') := MetaVar.next u_gen in 
+              (UHExp.EmptyHole u', u_gen', ZExp.Before)
+          end in 
+          match x' with 
+          (e', u_gen', cursor_side) => 
+            let ze' := ZExp.CursorE cursor_side e' in 
             Some (ze', u_gen')
           end
         | (Backspace, ZExp.CursorE ZExp.On e)
@@ -1286,8 +1533,7 @@ Module Core.
             | Lam : Var.t -> HTyp.t -> t -> t
             | Ap  : t -> t -> t
             | NumLit : nat -> t
-            | Plus : t -> t -> t
-            | Times : t -> t -> t
+            | BinOp : AHExp.op -> t -> t -> t
             | Inj : HTyp.t -> AHExp.inj_side -> t -> t
             | Case : HTyp.t -> t -> (Var.t * t) -> (Var.t * t) -> t
             | EmptyHole : MetaVar.t -> eval_state -> Environment.t(t) -> t 
@@ -1313,14 +1559,10 @@ Module Core.
                         let d4' := subst d1 x d4 in 
                         Ap d3' d4'
                     | NumLit _ => d2
-                    | Plus d3 d4 => 
+                    | BinOp op d3 d4 => 
                         let d3' := subst d1 x d3 in 
                         let d4' := subst d1 x d4 in 
-                        Plus d3' d4'
-                    | Times d3 d4 => 
-                        let d3' := subst d1 x d3 in 
-                        let d4' := subst d1 x d4 in 
-                        Times d3' d4'
+                        BinOp op d3' d4'
                     | Inj ty side d3 => 
                         let d3' := subst d1 x d3 in 
                         Inj ty side d3' 
@@ -1400,8 +1642,7 @@ Module Core.
                         | IllTyped => IllTyped
                         end
                     | NumLit _ => WellTyped HTyp.Num
-                    | Plus d1 d2 
-                    | Times d1 d2 => 
+                    | BinOp _ d1 d2 => 
                         match (assign_type gamma delta d1, 
                                assign_type gamma delta d2) with 
                         | (WellTyped ty1, WellTyped ty2) => 
@@ -1575,7 +1816,7 @@ Module Core.
                         end
                     | AHExp.NumLit n => 
                         Expands (DHExp.NumLit n) HTyp.Num MetaVarCtx.empty 
-                    | AHExp.Plus e1 e2 => 
+                    | AHExp.BinOp op e1 e2 => 
                         match ana_expand fuel gamma e1 HTyp.Num with 
                         | Expands d1 ty1 delta1 => 
                             match ana_expand fuel gamma e2 HTyp.Num with 
@@ -1586,25 +1827,7 @@ Module Core.
                                 let d2' := 
                                     if HTyp.eq ty2 HTyp.Num then d2
                                     else Cast HTyp.Num d2 in 
-                                let d := Plus d1' d2' in 
-                                let delta12 := MetaVarCtx.union delta1 delta2 in 
-                                Expands d HTyp.Num delta12
-                            | DoesNotExpand => DoesNotExpand
-                            end
-                        | DoesNotExpand => DoesNotExpand
-                        end
-                    | AHExp.Times e1 e2 => 
-                        match ana_expand fuel gamma e1 HTyp.Num with 
-                        | Expands d1 ty1 delta1 => 
-                            match ana_expand fuel gamma e2 HTyp.Num with 
-                            | Expands d2 ty2 delta2 => 
-                                let d1' := 
-                                    if HTyp.eq ty1 HTyp.Num then d1 
-                                    else Cast HTyp.Num d1 in 
-                                let d2' := 
-                                    if HTyp.eq ty2 HTyp.Num then d2
-                                    else Cast HTyp.Num d2 in 
-                                let d := Times d1' d2' in 
+                                let d := BinOp op d1' d2' in 
                                 let delta12 := MetaVarCtx.union delta1 delta2 in 
                                 Expands d HTyp.Num delta12
                             | DoesNotExpand => DoesNotExpand
@@ -1720,8 +1943,7 @@ Module Core.
                     | AHExp.Let _ _ _ 
                     | AHExp.Ap _ _
                     | AHExp.NumLit _
-                    | AHExp.Plus _ _ 
-                    | AHExp.Times _ _ => 
+                    | AHExp.BinOp _ _ _ => 
                         match syn_expand fuel gamma e with 
                         | DoesNotExpand => DoesNotExpand
                         | (Expands d ty' delta) as result => 
@@ -1775,7 +1997,7 @@ Module Core.
                             end
                         end
                     | DHExp.NumLit _ => Value d
-                    | DHExp.Plus d1 d2 => 
+                    | DHExp.BinOp (AHExp.Plus as op) d1 d2 => 
                         match evaluate fuel' delta d1 with 
                         | InvalidInput => InvalidInput
                         | CastError => CastError
@@ -1787,7 +2009,7 @@ Module Core.
                                 Value (DHExp.NumLit (n1 + n2))
                             | Value _ => InvalidInput
                             | Indet d2' => 
-                                    Indet (DHExp.Plus d1' d2')
+                                    Indet (DHExp.BinOp op d1' d2')
                             end
                         | Value _ => InvalidInput
                         | Indet d1' => 
@@ -1795,10 +2017,11 @@ Module Core.
                             | InvalidInput => InvalidInput
                             | CastError => CastError
                             | Value d2' | Indet d2' => 
-                                Indet (DHExp.Plus d1' d2')
+                                Indet (DHExp.BinOp op d1' d2')
                             end
                         end
-                    | DHExp.Times d1 d2 => 
+                    | DHExp.BinOp (AHExp.Times as op) d1 d2
+                    | DHExp.BinOp (AHExp.Space as op) d1 d2 => 
                         match evaluate fuel' delta d1 with 
                         | InvalidInput => InvalidInput
                         | CastError => CastError
@@ -1810,7 +2033,7 @@ Module Core.
                                 Value (DHExp.NumLit (n1 * n2))
                             | Value _ => InvalidInput
                             | Indet d2' => 
-                                    Indet (DHExp.Times d1' d2')
+                                    Indet (DHExp.BinOp op d1' d2')
                             end
                         | Value _ => InvalidInput
                         | Indet d1' => 
@@ -1818,7 +2041,7 @@ Module Core.
                             | InvalidInput => InvalidInput
                             | CastError => CastError
                             | Value d2' | Indet d2' => 
-                                Indet (DHExp.Times d1' d2')
+                                Indet (DHExp.BinOp op d1' d2')
                             end
                         end
                     | DHExp.Inj ty side d1 => 

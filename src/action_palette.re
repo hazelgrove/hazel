@@ -28,7 +28,7 @@ let make_palette ((ms, es, do_action): Model.mt) set_cursor => {
         (
           fun evt => {
             let key = Js_util.get_key evt;
-            /* Js_util.log key */
+            /* Js_util.log key; */
             if (key == KC.key key_combo) {
               doAction action;
               Dom.preventDefault evt
@@ -369,9 +369,12 @@ let make_palette ((ms, es, do_action): Model.mt) set_cursor => {
       KCs.pound
       "Enter num + press Enter";
   let constructPlus =
-    action_button (Action.Construct (Action.SOp UHExp.Plus)) "construct plus" KCs.plus;
+    action_button (Action.Construct (Action.SOp AHExp.Plus)) "construct plus" KCs.plus;
   let constructTimes =
-    action_button (Action.Construct (Action.SOp UHExp.Times)) "construct times" KCs.asterisk;
+    action_button
+      (Action.Construct (Action.SOp AHExp.Times)) "construct explicit times" KCs.asterisk;
+  let constructSpace =
+    action_button (Action.Construct (Action.SOp AHExp.Space)) "construct implicit times" KCs.space;
   let constructInjL =
     action_button (Action.Construct (Action.SInj AHExp.L)) "construct inj L" KCs.l;
   let constructInjR =
@@ -439,6 +442,7 @@ let make_palette ((ms, es, do_action): Model.mt) set_cursor => {
               constructLit,
               constructPlus,
               constructTimes,
+              constructSpace,
               br (),
               constructInjL,
               br (),
