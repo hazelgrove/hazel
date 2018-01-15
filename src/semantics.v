@@ -843,6 +843,7 @@ Module Core.
       Definition perform_Construct_SOp_OpSeqZ_Before
         (op : AHExp.op)
         (pre : ZExp.opseq_prefix)
+        (ze0 : ZExp.t)
         (e' : UHExp.t) 
         (post : ZExp.opseq_suffix)
         (fuel : Fuel)
@@ -851,21 +852,32 @@ Module Core.
         (u_gen : MetaVar.gen) 
         (associate : UHExp.t -> AHExp.t)
         (hsyn : Fuel -> Ctx.t -> AHExp.t -> option HTyp.t) := 
-          (* make new suffix *)
-          let post' := match post with 
-          | ZExp.EmptySuffix => ZExp.NonEmptySuffix op (UHExp.BareExp e')
-          | ZExp.NonEmptySuffix op' seq => 
-            let seq' := UHExp.append (UHExp.BareExp e') op' seq in 
-            ZExp.NonEmptySuffix op seq'
-          end in 
-          (* generate final z-expression *)
-          let (u, u_gen') := MetaVar.next u_gen in 
-          let ze' := ZExp.OpSeqZ pre (ZExp.CursorE ZExp.Before (UHExp.EmptyHole u)) post' in 
-          (* assign it a type *)
-          let ae' := associate (ZExp.erase ze') in 
-          match hsyn fuel ctx ae' with 
-          | Some ty => Some (ze', ty, u_gen')
-          | None => None
+          match pre with 
+          | ZExp.NonEmptyPrefix seq (AHExp.Space) => 
+            let pre' := ZExp.NonEmptyPrefix seq op in 
+            let ze' := ZExp.OpSeqZ pre' ze0 post in 
+            let ae' := associate (ZExp.erase ze') in 
+            match hsyn fuel ctx ae' with 
+            | Some ty => Some (ze', ty, u_gen)
+            | None => None
+            end
+          | _ => 
+            (* make new suffix *)
+            let post' := match post with 
+            | ZExp.EmptySuffix => ZExp.NonEmptySuffix op (UHExp.BareExp e')
+            | ZExp.NonEmptySuffix op' seq => 
+              let seq' := UHExp.append (UHExp.BareExp e') op' seq in 
+              ZExp.NonEmptySuffix op seq'
+            end in 
+            (* generate final z-expression *)
+            let (u, u_gen') := MetaVar.next u_gen in 
+            let ze' := ZExp.OpSeqZ pre (ZExp.CursorE ZExp.Before (UHExp.EmptyHole u)) post' in 
+            (* assign it a type *)
+            let ae' := associate (ZExp.erase ze') in 
+            match hsyn fuel ctx ae' with 
+            | Some ty => Some (ze', ty, u_gen')
+            | None => None
+            end
           end.
 
       (* helper function used below *)
@@ -1117,30 +1129,49 @@ Module Core.
               Some (ZExp.NonEmptyHoleZ u' ze, HTyp.Hole, u_gen')
             | (Construct (SOp op), ZExp.OpSeqZ pre (ZExp.CursorE ZExp.On e') post)
             | (Construct (SOp op), ZExp.OpSeqZ pre (ZExp.CursorE ZExp.After e') post) => 
-              (* make new prefix *)
-              let pre' := match pre with 
-              | ZExp.EmptyPrefix => ZExp.NonEmptyPrefix (UHExp.BareExp e') op
-              | ZExp.NonEmptyPrefix seq op' => ZExp.NonEmptyPrefix (UHExp.SeqOpExp seq op' e') op
-              end in 
-              (* generate final z-expression *)
-              let (u, u_gen') := MetaVar.next u_gen in 
-              let ze' := ZExp.OpSeqZ pre' (ZExp.CursorE ZExp.Before (UHExp.EmptyHole u)) post in 
-              (* assign it a type *)
-              let ae' := associate (ZExp.erase ze') in 
-              match hsyn fuel ctx ae' with 
-              | Some ty => Some (ze', ty, u_gen')
-              | None => None
+              match post with 
+              | ZExp.NonEmptySuffix (AHExp.Space) seq => 
+                let pre' := match pre with 
+                | ZExp.EmptyPrefix => ZExp.NonEmptyPrefix (UHExp.BareExp e') op
+                | ZExp.NonEmptyPrefix seq' op' => ZExp.NonEmptyPrefix (UHExp.SeqOpExp seq' op' e') op
+                end in 
+                match ZExp.split 0 seq with 
+                | Some (_, e0, post') => 
+                  let ze' := ZExp.OpSeqZ pre' (ZExp.CursorE ZExp.Before e0) post' in 
+                  let ae' := associate (ZExp.erase ze') in 
+                  match hsyn fuel ctx ae' with 
+                  | Some ty => Some (ze', ty, u_gen)
+                  | None => None
+                  end
+                | None => None (* should never happen *)
+                end
+              | _ => 
+                (* make new prefix *)
+                let pre' := match pre with 
+                | ZExp.EmptyPrefix => ZExp.NonEmptyPrefix (UHExp.BareExp e') op
+                | ZExp.NonEmptyPrefix seq op' => ZExp.NonEmptyPrefix (UHExp.SeqOpExp seq op' e') op
+                end in 
+                (* generate final z-expression *)
+                let (u, u_gen') := MetaVar.next u_gen in 
+                let ze' := ZExp.OpSeqZ pre' (ZExp.CursorE ZExp.Before (UHExp.EmptyHole u)) post in 
+                (* assign it a type *)
+                let ae' := associate (ZExp.erase ze') in 
+                match hsyn fuel ctx ae' with 
+                | Some ty => Some (ze', ty, u_gen')
+                | None => None
+                end
               end
-            | (Construct (SOp op), ZExp.OpSeqZ pre (ZExp.CursorE ZExp.Before e') post) => 
-              perform_Construct_SOp_OpSeqZ_Before op pre e' post fuel ctx ty u_gen associate hsyn
+            | (Construct (SOp op), ZExp.OpSeqZ pre 
+                ((ZExp.CursorE ZExp.Before e') as ze0) post) => 
+              perform_Construct_SOp_OpSeqZ_Before op pre ze0 e' post fuel ctx ty u_gen associate hsyn
             | (Construct (SOp op), 
                 ZExp.OpSeqZ 
                   pre 
-                  (ZExp.LeftAp (ZExp.CursorE ZExp.Before e1) e2) 
+                  ((ZExp.LeftAp (ZExp.CursorE ZExp.Before e1) e2) as ze0) 
                   post) =>
               let e' := UHExp.Ap e1 e2 in 
               perform_Construct_SOp_OpSeqZ_Before 
-                op pre e' post fuel ctx ty u_gen associate hsyn
+                op pre ze0 e' post fuel ctx ty u_gen associate hsyn
             | (Construct (SOp op), ZExp.CursorE ZExp.On e)
             | (Construct (SOp op), ZExp.CursorE ZExp.After e) => 
               if HTyp.consistent ty (HTyp.Num) then
