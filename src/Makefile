@@ -22,7 +22,9 @@ Hazel.byte: \
 	SkelExprLexer.mll \
 	SkelExprParser.mly \
 	SkelTypLexer.mll \
-	SkelTypParser.mly 
+	SkelTypParser.mly \
+	HZLex.mll \
+	HZParse.mly
 	scripts/refmt.sh
 	rebuild -use-menhir -use-ocamlfind -cflag -g -lflag -g -pkgs js_of_ocaml,js_of_ocaml.ppx,js_of_ocaml.tyxml,tyxml,react,reactiveData,camomile Hazel.byte
 Semantics.re: Semantics.v
@@ -30,4 +32,3 @@ Semantics.re: Semantics.v
 clean:
 	rm -rf _build
 	rm -f *.glob *.vo *.byte www/hazel.js Semantics.re
-
