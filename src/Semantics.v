@@ -59,6 +59,7 @@ Module Core.
             (Helpers.char_is_prime_b ch)
           ) && _is_valid_internal rest
         end.
+    (* TODO: var name rules should disallow keywords *)
     Definition is_valid (s : Coq.Strings.String.string) : bool :=
         (* should be equivalent to the OCaml rules: "[_a-z][_a-zA-Z0-9']*" *)
         match s with
