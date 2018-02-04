@@ -1,5 +1,6 @@
 Require Coq.Bool.Bool. Open Scope bool.
 Require Coq.Strings.String. Open Scope string_scope.
+Require Coq.Strings.Ascii. Open Scope char_scope.
 Require Coq.Arith.PeanoNat. Open Scope nat_scope.
 Require Coq.Lists.List. Open Scope list_scope.
 Require Import BinInt.
@@ -22,6 +23,17 @@ Fixpoint update_nth {a : Type} (n : nat) (xs : list a) (f : a -> a) :=
   | (S n, cons x xs) => cons x (update_nth n xs f)
   end.
 
+Module Helpers.
+    Definition char_le_b (ch1 ch2 : Coq.Strings.Ascii.ascii) : bool :=
+        Nat.leb (Coq.Strings.Ascii.nat_of_ascii ch1) (Coq.Strings.Ascii.nat_of_ascii ch2).
+    Definition char_in_range_b (ch s e : Coq.Strings.Ascii.ascii) : bool :=
+        (char_le_b s ch) && (char_le_b ch e).
+    Definition char_is_underscore_b (ch : Coq.Strings.Ascii.ascii) : bool :=
+        char_in_range_b ch "_" "_".
+    Definition char_is_prime_b (ch : Coq.Strings.Ascii.ascii) : bool :=
+        char_in_range_b ch "'" "'".
+End Helpers.
+
 Module Core.
   Module Fuel.
     Inductive t : Type :=
@@ -35,6 +47,31 @@ Module Core.
   Module Var.
     Definition t := Coq.Strings.String.string.
     Definition equal (x : t) (y : t) : bool := str_eqb x y.
+    Fixpoint _is_valid_internal (s : Coq.Strings.String.string) : bool :=
+        match s with
+        | Coq.Strings.String.EmptyString => true
+        | Coq.Strings.String.String ch rest =>
+          (
+            (Helpers.char_is_underscore_b ch) ||
+            (Helpers.char_in_range_b ch "a" "z") ||
+            (Helpers.char_in_range_b ch "A" "Z") ||
+            (Helpers.char_in_range_b ch "0" "9") ||
+            (Helpers.char_is_prime_b ch)
+          ) && _is_valid_internal rest
+        end.
+    Definition is_valid (s : Coq.Strings.String.string) : bool :=
+        (* should be equivalent to the OCaml rules: "[_a-z][_a-zA-Z0-9']*" *)
+        match s with
+        | Coq.Strings.String.EmptyString => false
+        | Coq.Strings.String.String first_char rest =>
+          ((Helpers.char_is_underscore_b first_char) || (Helpers.char_in_range_b first_char "a" "z")) &&
+          _is_valid_internal rest
+        end.
+    Definition check_valid {A : Type}
+        (s : Coq.Strings.String.string)
+        (result : option(A))
+        : option(A) :=
+        if is_valid s then result else None.
   End Var.
 
   Module MetaVar.
@@ -2822,6 +2859,7 @@ Module Core.
           ty, 
           u_gen)
       | (Construct (SVar x), ZExp.CursorE _ (UHExp.Tm _ (UHExp.EmptyHole _))) (* SAConVar *) =>
+        Var.check_valid x
         match VarMap.lookup ctx x with
         | Some xty => Some (ZExp.CursorE After 
           (UHExp.Tm NotInHole (UHExp.Var x)), 
@@ -2829,6 +2867,7 @@ Module Core.
         | None => None
         end
       | (Construct (SLet x), ZExp.CursorE _ e) =>
+        Var.check_valid x
         match e with
         | UHExp.Tm _ (UHExp.EmptyHole u) =>
           let (new_hole, u_gen') := UHExp.new_EmptyHole u_gen in 
@@ -2848,11 +2887,12 @@ Module Core.
             u_gen')
         end
       | (Construct (SLam x), ZExp.CursorE _ (UHExp.Tm _ (UHExp.EmptyHole u))) =>
-        let (new_hole, u_gen') := UHExp.new_EmptyHole u_gen in 
+        Var.check_valid x
+        (let (new_hole, u_gen') := UHExp.new_EmptyHole u_gen in
         Some (ZExp.Deeper NotInHole (ZExp.AscZ2
             (UHExp.Parenthesized (UHExp.Tm NotInHole (UHExp.Lam x new_hole)))
             ZTyp.ZHole_Arrow_Hole), 
-         HTyp.Arrow HTyp.Hole HTyp.Hole, u_gen')
+         HTyp.Arrow HTyp.Hole HTyp.Hole, u_gen'))
       | (Construct (SLit n), ZExp.CursorE _ (UHExp.Tm _ (UHExp.EmptyHole u))) (* SAConNumLit *) =>
           Some (ZExp.CursorE After (UHExp.Tm NotInHole (UHExp.NumLit n)), HTyp.Num, u_gen)
       | (Construct (SInj side), (ZExp.CursorE _ e)) => 
@@ -2866,6 +2906,8 @@ Module Core.
           end in 
         Some (ze', ty', u_gen)
       | (Construct (SCase x y), (ZExp.CursorE _ e)) =>
+        Var.check_valid x
+        (Var.check_valid y
         match HTyp.matched_sum ty with
         | Some _ => 
           let (new_hole1, u_gen') := UHExp.new_EmptyHole u_gen in 
@@ -2889,7 +2931,7 @@ Module Core.
                 ZExp.CaseZ1 ze' (x, new_hole2) (y, new_hole3))))
               UHTyp.Hole)), 
           HTyp.Hole, u_gen''')
-        end
+        end)
       | (Construct (SOp op), ZExp.Deeper _ (
           ZExp.OpSeqZ _ (ZExp.CursorE On e) surround))
       | (Construct (SOp op), ZExp.Deeper _ (
@@ -3413,14 +3455,16 @@ Module Core.
       | (Construct (SLet x), 
           ZExp.CursorE _ 
             (UHExp.Tm _ (UHExp.EmptyHole u))) =>
-        let (new_hole, u_gen') := UHExp.new_EmptyHole u_gen in 
+        Var.check_valid x
+        (let (new_hole, u_gen') := UHExp.new_EmptyHole u_gen in
         Some (
           ZExp.Deeper NotInHole
             (ZExp.LetZ1 x ze new_hole), 
-          u_gen')
+          u_gen'))
       | (Construct (SLam x), 
           ZExp.CursorE _ 
             (UHExp.Tm _ (UHExp.EmptyHole u))) =>
+        Var.check_valid x
         match HTyp.matched_arrow ty with
         | Some _ => 
           Some (
@@ -4659,8 +4703,19 @@ Module Core.
 End Core.
 
 Extract Constant Core.str_eqb => "String.equal".
+Extract Inductive Coq.Strings.String.string => "string"
+       ["""""" "(fun c s -> (String.make 1 c) ^ s)"]
+       "(fun fES fS s -> if s="""" then fES () else fS s.[0] (String.sub s 1 (String.length s - 1)))".
+(* TODO: stolen from Coq.extraction.ExtrOcamlString, but I don't know how to import only
+   some of the `Extract` clauses in that library without importing others, so for now I'm
+   copy-pasting
+*)
+Extract Inductive Coq.Strings.Ascii.ascii => "char"
+       [
+           "(fun (b0,b1,b2,b3,b4,b5,b6,b7) -> let f b i = if b then 1 lsl i else 0 in Char.chr (f b0 0 + f b1 1 + f b2 2 + f b3 3 + f b4 4 + f b5 5 + f b6 6 + f b7 7))"
+       ]
+       "(fun f c -> let n = Char.code c in let h i = (n land (1 lsl i)) <> 0 in f (h 0) (h 1) (h 2) (h 3) (h 4) (h 5) (h 6) (h 7))".
 Extract Inductive Core.Fuel.t => "unit" [ "()" "()" ] "(fun fMore _ fKicked -> fMore ())".
-Extract Inductive Coq.Strings.String.string => "string" ["""""" "String"].
 Extract Inductive bool => "bool" ["true" "false"].
 Extract Inductive unit => "unit" ["()"].
 Extract Constant negb => "not".
