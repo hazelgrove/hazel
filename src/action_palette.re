@@ -8,8 +8,6 @@ open React;
 
 module Util = General_util;
 
-let associate = Associator.associate;
-
 let make_palette ((ms, es, do_action): Model.mt) set_cursor => {
   /* start by defining a bunch of helpers */
   /* performs the top-level action and updates the signal */
@@ -53,10 +51,10 @@ let make_palette ((ms, es, do_action): Model.mt) set_cursor => {
               S.map
                 (
                   fun m =>
-                    switch (Action.performSyn () Ctx.empty action m associate) {
-                    | Some _ => false
-                    | None => true
-                    }
+                    /* switch (Action.performSyn () Ctx.empty action m) {
+                       | Some _ => false
+                       | None => true
+                       } */ false
                 )
                 ms
             )
@@ -98,7 +96,7 @@ let make_palette ((ms, es, do_action): Model.mt) set_cursor => {
                       let converted = conv s;
                       switch converted {
                       | Some arg =>
-                        switch (Action.performSyn () Ctx.empty (action arg) m associate) {
+                        switch (Action.performSyn () Ctx.empty (action arg) m) {
                         | Some _ => false
                         | None =>
                           true /* filter disbled attr out if invalid action */
@@ -216,7 +214,7 @@ let make_palette ((ms, es, do_action): Model.mt) set_cursor => {
                     fun s1 s2 m =>
                       switch (conv (s1, s2)) {
                       | Some arg =>
-                        switch (Action.performSyn () Ctx.empty (action arg) m associate) {
+                        switch (Action.performSyn () Ctx.empty (action arg) m) {
                         | Some _ => false
                         | None => true
                         }
@@ -297,15 +295,13 @@ let make_palette ((ms, es, do_action): Model.mt) set_cursor => {
      let moveChild3 = action_button (Action.Move (Action.Child 3)) "move child 3" KCs.number_3;
      let moveParent = action_button (Action.Move Action.Parent) "move parent" KCs.p; */
   /* deletion */
-  let delete = action_button Action.Del "del" KCs.del;
+  let delete = action_button Action.Delete "delete" KCs.del;
   let backspace = action_button Action.Backspace "backspace" KCs.backspace;
   /* type construction */
   let constructArrow =
     action_button (Action.Construct Action.SArrow) "construct arrow" KCs.greaterThan;
   let constructNum = action_button (Action.Construct Action.SNum) "construct num" KCs.n;
   let constructSum = action_button (Action.Construct Action.SSum) "construct sum" KCs.s;
-  /* finishing */
-  let finish = action_button Action.Finish "finish" KCs.dot;
   /* expression construction */
   let constructAsc = action_button (Action.Construct Action.SAsc) "construct asc" KCs.colon;
   let constructLet =
@@ -369,16 +365,16 @@ let make_palette ((ms, es, do_action): Model.mt) set_cursor => {
       KCs.pound
       "Enter num + press Enter";
   let constructPlus =
-    action_button (Action.Construct (Action.SOp AHExp.Plus)) "construct plus" KCs.plus;
+    action_button (Action.Construct (Action.SOp UHExp.Plus)) "construct plus" KCs.plus;
   let constructTimes =
     action_button
-      (Action.Construct (Action.SOp AHExp.Times)) "construct explicit times" KCs.asterisk;
+      (Action.Construct (Action.SOp UHExp.Times)) "construct explicit times" KCs.asterisk;
   let constructSpace =
-    action_button (Action.Construct (Action.SOp AHExp.Space)) "construct implicit times" KCs.space;
+    action_button (Action.Construct (Action.SOp UHExp.Space)) "construct implicit times" KCs.space;
   let constructInjL =
-    action_button (Action.Construct (Action.SInj AHExp.L)) "construct inj L" KCs.l;
+    action_button (Action.Construct (Action.SInj UHExp.L)) "construct inj L" KCs.l;
   let constructInjR =
-    action_button (Action.Construct (Action.SInj AHExp.R)) "construct inj R" KCs.r;
+    action_button (Action.Construct (Action.SInj UHExp.R)) "construct inj R" KCs.r;
   let constructCase =
     action_input_input_button
       (fun (v1, v2) => Action.Construct (Action.SCase v1 v2 [@implicit_arity]))
@@ -398,8 +394,6 @@ let make_palette ((ms, es, do_action): Model.mt) set_cursor => {
       KCs.c
       "Enter var + press Tab"
       "Enter var + press Enter";
-  let constructNEHole =
-    action_button (Action.Construct Action.SNEHole) "construct neHole" KCs.qmark;
   /* let movementActions =
      Html5.(
        div
@@ -448,8 +442,7 @@ let make_palette ((ms, es, do_action): Model.mt) set_cursor => {
               br (),
               constructInjR,
               br (),
-              constructCase,
-              constructNEHole
+              constructCase
             ]
         ]
     );
@@ -462,15 +455,6 @@ let make_palette ((ms, es, do_action): Model.mt) set_cursor => {
           div a::[a_class ["panel-body"]] [delete, backspace]
         ]
     );
-  let finishingActions =
-    Html5.(
-      div
-        a::[a_class ["panel", "panel-default"]]
-        [
-          div a::[a_class ["panel-title"]] [pcdata "Finishing"],
-          div a::[a_class ["panel-body"]] [finish]
-        ]
-    );
   /* finally, put it all together into the action palette */
   Html5.(
     div
@@ -479,8 +463,7 @@ let make_palette ((ms, es, do_action): Model.mt) set_cursor => {
         /* movementActions, */
         typeConstructionActions,
         expressionConstructionActions,
-        deleteActions,
-        finishingActions
+        deleteActions
       ]
   )
 };

@@ -64,7 +64,7 @@ Module Core.
         discriminate ||
         (simpl;
         intro H;
-        assert (x1 = y1) as H0;
+        assert (x1 = y1) as H0;iii
         [(apply IHx1;
           apply and_proj_1 with (eq x2 y2);
           exact H)
@@ -142,10 +142,28 @@ Module Core.
         | Sum ty1 ty2 => andb (complete ty1) (complete ty2)
         | Hole => false
         end.
+      
+      Fixpoint join ty1 ty2 := 
+        match (ty1, ty2) with
+        | (HTyp.Num, HTyp.Num) => Some ty1
+        | (_, HTyp.Hole) => Some ty1
+        | (HTyp.Hole, _) => Some ty2
+        | (HTyp.Arrow ty11 ty12, HTyp.Arrow ty21 ty22) => 
+          match (join ty11 ty21, join ty12 ty22) with 
+          | (Some ty1, Some ty2) => Some (HTyp.Arrow ty1 ty2)
+          | _ => None
+          end
+        | (HTyp.Sum ty11 ty12, HTyp.Sum ty21 ty22) => 
+          match (join ty11 ty21, join ty12 ty22) with 
+          | (Some ty1, Some ty2) => Some (HTyp.Sum ty1 ty2)
+          | _ => None
+          end
+        | _ => None
+        end.
     End HTyp.
 
     Definition str_eqb (s1 s2 : Coq.Strings.String.string) : bool := 
-        if Coq.Strings.String.string_dec s1 s2 then true else false.
+      if Coq.Strings.String.string_dec s1 s2 then true else false.
 
     Module Var.
       Definition t := Coq.Strings.String.string.
@@ -154,13 +172,13 @@ Module Core.
     End Var.
 
     Module MetaVar.
-        Definition t := nat.
-        Fixpoint equal (x : t) (y : t) : bool := Nat.eqb x y.
+      Definition t := nat.
+      Fixpoint equal (x : t) (y : t) : bool := Nat.eqb x y.
 
-        Definition gen : Type := nat.
-        Definition new_gen : gen := O.
-        Definition next (x : gen) : t * gen := 
-            let n := S(x) in (n, n).
+      Definition gen : Type := nat.
+      Definition new_gen : gen := O.
+      Definition next (x : gen) : t * gen := 
+        let n := S(x) in (n, n).
     End MetaVar.
 
     Module Type CTX.
@@ -170,6 +188,7 @@ Module Core.
       Parameter lookup : t -> Var.t -> option HTyp.t.
       Parameter map : forall U : Type, (Var.t * HTyp.t -> U) -> t -> (list U).
     End CTX.
+
     Module Ctx <: CTX.
       Definition t := list (Var.t * HTyp.t).
 
@@ -195,35 +214,20 @@ Module Core.
          Coq.Lists.List.map f xs.
     End Ctx.
 
-    Inductive Fuel : Type :=
-      | More : Fuel -> Fuel
-      | Kicked : Fuel.
+    Module Fuel.
+      Inductive t : Type :=
+      | More : t -> t
+      | Kicked : t.
+    End Fuel.
 
-    Fixpoint map_option {A B : Type} (f : A -> B) (input : option A) : option B :=
-      match input with
-      | Some x => Some (f x)
-      | None => None
-      end.
+    Module UHExp. (* unassociated H-expressions *)
+      Inductive err_status : Type := 
+      | NotInHole : err_status
+      | InHole : MetaVar.t -> err_status.
 
-    Fixpoint flatmap_option {A B : Type} (f : A -> option B) (input : option A) : option B :=
-      match input with
-      | Some x => f x
-      | None => None
-      end.
-
-    Definition pipe_forward {A B : Type} (x : A) (f : A -> B) : B := f x.
-    Notation "X |> F" := (pipe_forward X F)
-      (at level 40, left associativity) : core_scope.
-
-    Module AHExp. (* associated H-expressions *)
       Inductive inj_side : Type :=
       | L : inj_side
       | R : inj_side.
-
-      Inductive op : Type := 
-      | Plus : op
-      | Times : op
-      | Space : op.
 
       Definition pick_side {A : Type} (side : inj_side) (l : A) (r : A) : A :=
         match side with
@@ -231,98 +235,215 @@ Module Core.
         | R => r
         end.
 
-      Inductive t : Type :=
-      | Asc : t -> HTyp.t -> t 
-      | Var : Var.t -> t
-      | Let : Var.t -> t -> t -> t
-      | Lam : Var.t -> t -> t
-      | Ap : t -> t -> t 
-      | NumLit : nat -> t
-      | BinOp : op -> t -> t -> t
-      | Inj : inj_side -> t -> t
-      | Case : t -> (Var.t * t) -> (Var.t * t) -> t
-      | EmptyHole : MetaVar.t -> t
-      | NonEmptyHole : MetaVar.t -> t -> t.
+      Inductive op : Type := 
+      | Plus : op
+      | Times : op
+      | Space : op.
 
-      Fixpoint syn (fuel : Fuel) (ctx : Ctx.t) (e : t)
-        : option (HTyp.t * list(MetaVar.t)) :=
-        match fuel with
-        | More fuel =>
-          match e with
-          | Asc e' ty (* SAsc *) =>
-             match ana fuel ctx e' ty with 
-             | None => None
-             | Some us =>  Some (ty, us)
-             end
-          | Var x (* SVar *) => 
-             let ty := Ctx.lookup ctx x in 
-             match ty with 
-             | None => None
-             | Some ty => Some (ty, nil)
-             end
-          | Let x e1 e2 =>
-            match syn fuel ctx e1 with 
-            | None => None
-            | Some (ty1, us1) => 
-                let ctx' := Ctx.extend ctx (x, ty1) in 
-                match syn fuel ctx' e2 with 
-                | None => None
-                | Some (ty, us2) => 
-                    let us := us1 ++ us2 in 
-                    Some (ty, us)
-                end
-            end
-          | Ap e1 e2 (* SAp *) =>
-            match syn fuel ctx e1 with
-            | None => None
-            | Some (ty1, us1) =>
-              match HTyp.matched_arrow ty1 with
-              | None => None
-              | Some (ty1_left, ty1_right) =>
-                  match ana fuel ctx e2 ty1_left with 
-                  | None => None
-                  | Some us2 =>
-                      let us := us1 ++ us2 in Some
-                      (ty1_right, us) 
-                  end
-              end
-            end
-          | NumLit i (* SNum *) => Some (HTyp.Num, nil)
-          | BinOp _ e1 e2 => 
-            match ana fuel ctx e1 HTyp.Num with 
-            | None => None
-            | Some us1 => 
-                match ana fuel ctx e2 HTyp.Num with 
-                | None => None
-                | Some us2 => Some (HTyp.Num, us1 ++ us2)
-                end
-            end
-          | EmptyHole u (* SHole *) => Some (HTyp.Hole, u :: nil)
-          | NonEmptyHole u e' (* SNEHole *) =>
-            match syn fuel ctx e' with 
-            | None => None
-            | Some (_, us) => Some (HTyp.Hole, u :: us) 
-            end
-          | Lam _ _ => None
-          | Inj _ _ => None
-          | Case _ _ _ => None
+      Module Skel.
+        Inductive t : Type := 
+        | Placeholder : nat -> t
+        | BinOp : err_status -> op -> t -> t -> t.
+      End Skel.
+
+      Inductive t : Type := 
+      | Tm : err_status -> t' -> t
+      with t' : Type := 
+      | Asc : t -> HTyp.t -> t'
+      | Var : Var.t -> t'
+      | Let : Var.t -> t -> t -> t'
+      | Lam : Var.t -> t -> t'
+      | Ap : t -> t -> t'
+      | NumLit : nat -> t'
+      | Inj : inj_side -> t -> t'
+      | Case : t -> (Var.t * t) -> (Var.t * t) -> t'
+      | EmptyHole : MetaVar.t -> t'
+      | OpSeq : Skel.t -> opseq -> t'
+      with opseq : Type := 
+      | ExpOpExp : t -> op -> t -> opseq (* need at least one op to be an op seq *)
+      | SeqOpExp : opseq -> op -> t -> opseq.
+
+      Fixpoint seq_op_seq (seq1 : opseq) (op : op) (seq2 : opseq) : opseq := 
+        match seq2 with 
+        | ExpOpExp e1 op1 e2 => SeqOpExp (SeqOpExp seq1 op e1) op1 e2 
+        | SeqOpExp seq2' op' ue' => 
+            SeqOpExp (seq_op_seq seq1 op seq2') op' ue'
+        end.
+
+      Fixpoint exp_op_seq (e1 : t) (op1 : op) (seq : opseq) : opseq := 
+        match seq with 
+        | ExpOpExp e2 op2 e3 => SeqOpExp (ExpOpExp e1 op1 e2) op2 e3
+        | SeqOpExp seq' op' e' => 
+            SeqOpExp (exp_op_seq e1 op1 seq') op' e'
+        end.
+
+      (* returns number of expressions in seq (not ops) *)
+      Fixpoint seq_length (seq : opseq) : nat := 
+        match seq with 
+        | ExpOpExp _ _ _ => S(S(O))
+        | SeqOpExp seq' _ _ => S(seq_length seq')
+        end.
+
+      Fixpoint seq_nth (n : nat) (seq : opseq) : option(t) := 
+        match (n, seq) with 
+        | (O, ExpOpExp e1 _ _) => Some e1
+        | (S O, ExpOpExp _ _ e2) => Some e2
+        | (_, ExpOpExp _ _ _) => None
+        | (_, SeqOpExp seq' _ e) => 
+          let len := seq_length seq' in 
+          if Nat.eqb n len then Some e else seq_nth n seq' 
+        end.
+
+      Fixpoint seq_update_nth (n : nat) (seq : opseq) (e : t) : option(opseq) := 
+        match (n, seq) with 
+        | (O, ExpOpExp _ op e2) => Some (ExpOpExp e op e2)
+        | (S O, ExpOpExp e1 op _) => Some (ExpOpExp e1 op e)
+        | (_, ExpOpExp _ _ _) => None
+        | (_, SeqOpExp seq' op e') => 
+          let len := seq_length seq' in 
+          if Nat.eqb n len then Some (SeqOpExp seq' op e) 
+          else match seq_update_nth n seq' e with 
+          | Some seq'' => Some (SeqOpExp seq'' op e')
+          | None => None
           end
-        | Kicked => None
-        end
-      with ana (fuel : Fuel) (ctx : Ctx.t) (e : t) (ty : HTyp.t)
-        : option (list(MetaVar.t)) :=
+        end.
+
+      Definition new_EmptyHole (u_gen : MetaVar.gen) : t * MetaVar.gen :=
+        let (u', u_gen') := MetaVar.next u_gen in 
+        (Tm NotInHole (EmptyHole u'), u_gen').
+
+      Definition put_in_hole (u : MetaVar.t) (e : t) := 
+        match e with Tm _ e' => Tm (InHole u) e' end.
+
+      Definition put_in_new_hole (u_gen : MetaVar.gen) (e : t) := 
+        match e with
+        | Tm NotInHole e' => 
+          let (u, u_gen') := MetaVar.next u_gen in 
+          (Tm (InHole u) e', u_gen')
+        | Tm (InHole _) _ => (e, u_gen)
+        end.
+
+      Definition put_skel_in_new_hole (u_gen : MetaVar.gen) (skel : Skel.t) (seq : opseq) := 
+        match skel with 
+        | Skel.Placeholder n => 
+          match seq_nth n seq with 
+          | Some en => 
+            let (en', u_gen') := put_in_new_hole u_gen en in 
+            match seq_update_nth n seq en' with 
+            | Some seq' => Some (skel, seq', u_gen')
+            | None => None
+            end
+          | None => None
+          end
+        | Skel.BinOp (InHole _) _ _ _ => Some (skel, seq, u_gen)
+        | Skel.BinOp NotInHole op skel1 skel2 => 
+          let (u', u_gen') := MetaVar.next u_gen in 
+          Some (Skel.BinOp (InHole u') op skel1 skel2, seq, u_gen')
+        end.
+
+      Inductive type_mode : Type := 
+      | AnalyzedAgainst : HTyp.t -> type_mode
+      | Synthesized : HTyp.t -> type_mode.
+
+      Fixpoint syn
+        (fuel : Fuel.t) 
+        (ctx : Ctx.t)
+        (e : UHExp.t) 
+        : option(HTyp.t) := 
+          match fuel with 
+          | Fuel.Kicked => None
+          | Fuel.More fuel => 
+          match e with
+          | Tm (InHole _) e' => 
+            match syn' fuel ctx e' with 
+            | Some _ => Some HTyp.Hole
+            | None => None
+            end
+          | Tm NotInHole e' => syn' fuel ctx e'
+          end
+          end
+      with syn'
+        (fuel : Fuel.t)
+        (ctx : Ctx.t)
+        (e : UHExp.t')
+        : option(HTyp.t) := 
+          match fuel with
+          | Fuel.Kicked => None
+          | Fuel.More fuel =>
+            match e with 
+            | Asc e' ty (* SAsc *) =>
+               match ana fuel ctx e' ty with 
+               | None => None
+               | Some _ => Some ty
+               end
+            | Var x (* SVar *) => 
+               Ctx.lookup ctx x 
+            | Let x e1 e2 =>
+              match syn fuel ctx e1 with 
+              | None => None
+              | Some ty1 => 
+                  let ctx' := Ctx.extend ctx (x, ty1) in 
+                  syn fuel ctx' e2 
+              end
+            | Ap e1 e2 (* SAp *) =>
+              match syn fuel ctx e1 with
+              | None => None
+              | Some ty1 =>
+                match HTyp.matched_arrow ty1 with
+                | None => None
+                | Some (ty1_left, ty1_right) =>
+                    match ana fuel ctx e2 ty1_left with 
+                    | None => None
+                    | Some _ => Some ty1_right 
+                    end
+                end
+              end
+            | NumLit i (* SNum *) => Some HTyp.Num
+            | EmptyHole u (* SHole *) => Some HTyp.Hole
+            | OpSeq skel seq => 
+              (* NOTE: doesn't check if skel is the correct parse of seq!!! *)
+              match syn_skel fuel ctx skel seq None with 
+              | Some (ty, _) => Some ty 
+              | None => None
+              end
+            | Lam _ _ => None
+            | Inj _ _ => None
+            | Case _ _ _ => None
+            end
+          end
+      with ana
+        (fuel : Fuel.t)
+        (ctx : Ctx.t)
+        (e : UHExp.t)
+        (ty : HTyp.t)
+        : option(unit) := 
+          match fuel with 
+          | Fuel.Kicked => None
+          | Fuel.More fuel => 
+          match e with 
+          | Tm (InHole _) e' => 
+            match syn' fuel ctx e' with 
+            | Some _ => Some tt (* this is a consequence of subsumption and hole universality *)
+            | None => None
+            end
+          | Tm NotInHole e' => ana' fuel ctx e' ty
+          end
+          end
+      with ana'
+        (fuel : Fuel.t)
+        (ctx : Ctx.t)
+        (e : UHExp.t')
+        (ty : HTyp.t)
+        : option(unit) := 
         match fuel with
-        | More fuel =>
+        | Fuel.More fuel =>
           match e with
           | Let x e1 e2 =>
               match syn fuel ctx e1 with 
               | None => None
-              | Some (ty1, us1) => 
+              | Some ty1 => 
                   let ctx' := Ctx.extend ctx (x, ty1) in
-                  match ana fuel ctx' e2 ty with 
-                  | None => None
-                  | Some us2 => Some (us1 ++ us2)
-                  end
+                  ana fuel ctx' e2 ty
               end
           | Lam x e' (* ALam *) =>
             match HTyp.matched_arrow ty with
@@ -334,99 +455,392 @@ Module Core.
           | Inj side e' (* 21a *) =>
             match HTyp.matched_sum ty with
             | None => None
-            | Some (ty1, ty2) => ana fuel ctx e' (pick_side side ty1 ty2)
+            | Some (ty1, ty2) => 
+              ana fuel ctx e' (pick_side side ty1 ty2)
             end
           | Case e' (x, e1) (y, e2) (* 21b *) =>
             match syn fuel ctx e' with 
             | None => None
-            | Some (e'_ty, us1) =>
+            | Some e'_ty =>
               match HTyp.matched_sum e'_ty with
               | None => None
               | Some (ty1, ty2) =>
                 let ctx1 := Ctx.extend ctx (x, ty1) in
                 match ana fuel ctx1 e1 ty with
                 | None => None 
-                | Some us2 =>
+                | Some _ =>
                   let ctx2 := Ctx.extend ctx (y, ty2) in
-                  match ana fuel ctx2 e2 ty with 
-                  | None => None
-                  | Some us3 => Some (us1 ++ us2 ++ us3)
-                  end
+                  ana fuel ctx2 e2 ty 
                 end
               end
             end
           | _ (* subsumption *) =>
-            match syn fuel ctx e with
-            | Some (ty', us) =>
-                if HTyp.consistent ty ty' then (Some us) else None
+            match syn' fuel ctx e with
+            | Some ty' =>
+              if HTyp.consistent ty ty' then (Some tt) else None
             | None => None
             end
           end
-        | Kicked => None
-        end.
-
-      Definition hsyn (fuel: Fuel) (ctx: Ctx.t) (e: t): option HTyp.t := 
-          match syn fuel ctx e with 
-          | None => None
-          | Some (ty, _) => Some ty 
+        | Fuel.Kicked => None
+        end
+      with syn_skel
+        (fuel : Fuel.t)
+        (ctx : Ctx.t)
+        (skel : Skel.t)
+        (seq : opseq)
+        (monitor : option(nat))
+        : option(HTyp.t * option(type_mode)) := 
+          match fuel with 
+          | Fuel.Kicked => None
+          | Fuel.More fuel => 
+          match skel with 
+          | Skel.Placeholder n => 
+            match seq_nth n seq with 
+            | Some en => 
+              match syn fuel ctx en with
+              | Some ty => 
+                let mode := 
+                  match monitor with 
+                  | Some n' => 
+                    if Nat.eqb n n' then Some (Synthesized ty)
+                    else None
+                  | None => None
+                  end in 
+                Some (ty, mode)
+              | None => None
+              end
+            | None => None
+            end
+          | Skel.BinOp (InHole u) op skel1 skel2 => 
+            let skel_not_in_hole := Skel.BinOp NotInHole op skel1 skel2 in 
+            match syn_skel fuel ctx skel_not_in_hole seq monitor with 
+            | None => None
+            | Some (ty, mode) => Some (HTyp.Hole, mode)
+            end
+          | Skel.BinOp NotInHole Plus skel1 skel2
+          | Skel.BinOp NotInHole Times skel1 skel2 => 
+            match ana_skel fuel ctx skel1 seq HTyp.Num monitor with 
+            | Some mode1 => 
+              match ana_skel fuel ctx skel2 seq HTyp.Num monitor with 
+              | Some mode2 => 
+                let ty := HTyp.Num in 
+                match mode1 with 
+                | Some _ => Some (ty, mode1)
+                | None => Some (ty, mode2)
+                end
+              | None => None
+              end
+            | None => None
+            end
+          | Skel.BinOp NotInHole Space skel1 skel2 => 
+            match syn_skel fuel ctx skel1 seq monitor with 
+            | Some (ty1, mode1) => 
+              match HTyp.matched_arrow ty1 with 
+              | None => None
+              | Some (ty2, ty) => 
+                match ana_skel fuel ctx skel2 seq ty2 monitor with 
+                | Some mode2 => 
+                  match mode1 with 
+                  | Some _ => Some (ty, mode1)
+                  | None => Some (ty, mode2)
+                  end
+                | None => None
+                end
+              end
+            | None => None
+            end
+          end
+          end
+      with ana_skel
+        (fuel : Fuel.t)
+        (ctx : Ctx.t)
+        (skel : Skel.t)
+        (seq : opseq)
+        (ty : HTyp.t)
+        (monitor : option(nat))
+        : option(option(type_mode)) := 
+          match fuel with 
+          | Fuel.Kicked => None
+          | Fuel.More fuel => 
+          match skel with 
+          | Skel.Placeholder n => 
+            match seq_nth n seq with 
+            | Some en => 
+                match ana fuel ctx en ty with 
+                | Some _ => 
+                  match monitor with 
+                  | Some n' => 
+                    if Nat.eqb n n' then 
+                      Some (Some (AnalyzedAgainst ty))
+                    else Some (None)
+                  | None => Some (None)
+                  end
+                | None => None
+                end
+            | None => None
+            end
+          | _ => 
+            match syn_skel fuel ctx skel seq monitor with 
+            | Some (ty', mode) => 
+              if HTyp.consistent ty ty' then Some mode else None
+            | None => None
+            end
+          end
           end.
 
-      Definition hana (fuel: Fuel) (ctx: Ctx.t) (e: t) (ty: HTyp.t): option unit := 
-          match ana fuel ctx e ty with 
-          | None => None
-          | Some _ => Some tt
+      Fixpoint syn_fix_holes
+        (fuel : Fuel.t)
+        (ctx : Ctx.t)
+        (u_gen : MetaVar.gen)
+        (e : t)
+        : option(t * HTyp.t * MetaVar.gen) := 
+          match fuel with 
+          | Fuel.Kicked => None
+          | Fuel.More fuel => 
+          match e with 
+          | Tm _ e' => 
+            match syn_fix_holes' fuel ctx u_gen e' with 
+            | Some (e'', ty, u_gen') => 
+              Some (Tm NotInHole e'', ty, u_gen')
+            | None => None
+            end
+          end
+          end
+      with syn_fix_holes'
+        (fuel : Fuel.t)
+        (ctx : Ctx.t)
+        (u_gen : MetaVar.gen)
+        (e : t')
+        : option(t' * HTyp.t * MetaVar.gen) := 
+          match fuel with 
+          | Fuel.Kicked => None
+          | Fuel.More fuel => 
+          match e with 
+          | Asc e1 ty => 
+            match ana_fix_holes fuel ctx u_gen e1 ty with 
+            | Some (e1', u_gen') => Some (Asc e1' ty, ty, u_gen')
+            | None => None
+            end
+          | Var x => 
+            match Ctx.lookup ctx x with 
+            | Some ty => Some (e, ty, u_gen)
+            | None => None
+            end
+          | Let x e1 e2 => 
+            match syn_fix_holes fuel ctx u_gen e1 with 
+            | Some (e1', ty1, u_gen1) => 
+              let ctx1 := Ctx.extend ctx (x, ty1) in 
+              match syn_fix_holes fuel ctx1 u_gen1 e2 with 
+              | Some (e2', ty2, u_gen2) => 
+                Some (Let x e1' e2', ty2, u_gen2)
+              | None => None
+              end
+            | None => None
+            end
+          | Ap e1 e2 => 
+            match syn_fix_holes fuel ctx u_gen e1 with 
+            | Some (e1', ty1, u_gen1) => 
+              match HTyp.matched_arrow ty1 with 
+              | Some (ty11, ty12) => 
+                match ana_fix_holes fuel ctx u_gen1 e2 ty11 with 
+                | Some (e2', u_gen2) => 
+                  Some (Ap e1' e2', ty12, u_gen2)
+                | None => None
+                end
+              | None => 
+                match ana_fix_holes fuel ctx u_gen1 e2 HTyp.Hole with 
+                | Some (e2', u_gen2) => 
+                  let (e1'', u_gen2') := put_in_new_hole u_gen1 e1' in 
+                  Some (Ap e1'' e2', HTyp.Hole, u_gen2')
+                | None => None
+                end
+              end
+            | None => None
+            end
+          | NumLit i => Some (e, HTyp.Num, u_gen)
+          | EmptyHole u => Some (e, HTyp.Hole, u_gen)
+          | OpSeq skel seq => 
+            match syn_skel_fix_holes fuel ctx u_gen skel seq with 
+            | Some (skel', seq', ty, u_gen') => 
+              Some (OpSeq skel' seq', ty, u_gen')
+            | None => None
+            end
+          | Lam _ _ => None
+          | Inj _ _ => None
+          | Case _ _ _ => None
+          end
+          end
+      with ana_fix_holes
+        (fuel : Fuel.t)
+        (ctx : Ctx.t)
+        (u_gen : MetaVar.gen)
+        (e : t)
+        (ty : HTyp.t)
+        : option(t * MetaVar.gen) := 
+          match fuel with 
+          | Fuel.Kicked => None
+          | Fuel.More fuel => 
+          match e with 
+          | Tm _ (Let x e1 e2) => 
+            match syn_fix_holes fuel ctx u_gen e1 with 
+            | Some (e1', ty1, u_gen1) => 
+              let ctx1 := Ctx.extend ctx (x, ty1) in 
+              match ana_fix_holes fuel ctx1 u_gen1 e2 ty with 
+              | Some (e2', u_gen2) => 
+                Some (Tm NotInHole (Let x e1' e2'), u_gen2)
+              | None => None
+              end
+            | None => None
+            end
+          | Tm _ (Lam x e1) => 
+            match HTyp.matched_arrow ty with 
+            | Some (ty1, ty2) => 
+              let ctx' := Ctx.extend ctx (x, ty1) in 
+              match ana_fix_holes fuel ctx' u_gen e1 ty2 with 
+              | Some (e1', u_gen') => 
+                Some (Tm NotInHole (Lam x e1'), u_gen')
+              | None => None
+              end
+            | None => None
+            end
+          | Tm _ (Inj side e1) => 
+            match HTyp.matched_sum ty with 
+            | Some (ty1, ty2) => 
+              match ana_fix_holes fuel ctx u_gen e1 (pick_side side ty1 ty2) with 
+              | Some (e1', u_gen') => 
+                Some (Tm NotInHole (Inj side e1'), u_gen')
+              | None => None
+              end
+            | None => None
+            end
+          | Tm _ (Case e1 (x, e2) (y, e3)) => 
+            match syn_fix_holes fuel ctx u_gen e1 with 
+            | Some (e1', ty1, u_gen1) => 
+              match HTyp.matched_sum ty1 with 
+              | Some (ty2, ty3) => 
+                let ctx2 := Ctx.extend ctx (x, ty2) in 
+                match ana_fix_holes fuel ctx2 u_gen1 e2 ty with 
+                | Some (e2', u_gen2) => 
+                  let ctx3 := Ctx.extend ctx (y, ty3) in 
+                  match ana_fix_holes fuel ctx3 u_gen2 e3 ty with 
+                  | Some (e3', u_gen3) => 
+                    Some (
+                      Tm NotInHole (
+                        Case e1' (x, e2') (y, e3')), 
+                      u_gen3)
+                  | None => None
+                  end
+                | None => None
+                end
+              | None => None
+              end
+            | None => None
+            end
+          | Tm _ _ => 
+            match syn_fix_holes fuel ctx u_gen e with 
+            | Some (e', ty', u_gen') => 
+              if HTyp.consistent ty ty' then Some (e', u_gen')
+              else Some (put_in_new_hole u_gen' e') 
+            | None => None
+            end
+          end
+          end
+      with syn_skel_fix_holes
+        (fuel : Fuel.t)
+        (ctx : Ctx.t)
+        (u_gen : MetaVar.gen)
+        (skel : Skel.t)
+        (seq : opseq)
+        : option(Skel.t * opseq * HTyp.t * MetaVar.gen) := 
+          match fuel with 
+          | Fuel.Kicked => None
+          | Fuel.More fuel => 
+          match skel with 
+          | Skel.Placeholder n => 
+            match seq_nth n seq with
+            | Some en => 
+              match syn_fix_holes fuel ctx u_gen en with 
+              | Some (en', ty, u_gen') => 
+                match seq_update_nth n seq en' with
+                | Some seq' => 
+                  Some (skel, seq', ty, u_gen')
+                | None => None
+                end
+              | None => None
+              end
+            | None => None
+            end
+          | Skel.BinOp _ (Plus as op) skel1 skel2 
+          | Skel.BinOp _ (Times as op) skel1 skel2 => 
+            match ana_skel_fix_holes fuel ctx u_gen skel1 seq HTyp.Num with 
+            | Some (skel1', seq1, u_gen1) => 
+              match ana_skel_fix_holes fuel ctx u_gen1 skel2 seq1 HTyp.Num with 
+              | Some (skel2', seq2, u_gen2) => 
+                Some (Skel.BinOp NotInHole op skel1' skel2', seq2, HTyp.Num, u_gen2)
+              | None => None
+              end
+            | None => None
+            end
+          | Skel.BinOp _ Space skel1 skel2 => 
+            match syn_skel_fix_holes fuel ctx u_gen skel1 seq with 
+            | Some (skel1', seq1, ty1, u_gen1) => 
+              match HTyp.matched_arrow ty1 with 
+              | Some (ty2, ty) => 
+                match ana_skel_fix_holes fuel ctx u_gen1 skel2 seq1 ty2 with 
+                | Some (skel2', seq2, u_gen2) => 
+                  Some (Skel.BinOp NotInHole Space skel1' skel2', seq2, ty, u_gen2)
+                | None => None
+                end
+              | None =>
+                match ana_skel_fix_holes fuel ctx u_gen1 skel2 seq1 HTyp.Hole with 
+                | Some (skel2', seq2, u_gen2) => 
+                  match UHExp.put_skel_in_new_hole u_gen2 skel1' seq2 with 
+                  | Some (skel1'', seq3, u_gen3) => 
+                    Some (Skel.BinOp NotInHole Space skel1'' skel2', seq3, HTyp.Hole, u_gen3)
+                  | None => None
+                  end
+                | None => None
+                end
+              end
+            | None => None
+            end
+          end
+          end
+      with ana_skel_fix_holes
+        (fuel : Fuel.t)
+        (ctx : Ctx.t)
+        (u_gen : MetaVar.gen)
+        (skel : Skel.t)
+        (seq : opseq)
+        (ty : HTyp.t)
+        : option(Skel.t * opseq * MetaVar.gen) := 
+          match fuel with 
+          | Fuel.Kicked => None
+          | Fuel.More fuel => 
+            match skel with 
+            | Skel.Placeholder n => 
+              match seq_nth n seq with
+              | Some en => 
+                match ana_fix_holes fuel ctx u_gen en ty with 
+                | Some (en', u_gen') => 
+                  match seq_update_nth n seq en' with 
+                  | Some seq' => Some (skel, seq', u_gen')
+                  | None => None
+                  end
+                | None => None
+                end
+              | None => None
+              end
+            | _ => 
+              match syn_skel_fix_holes fuel ctx u_gen skel seq with 
+              | Some (skel', seq', ty', u_gen') => 
+                if HTyp.consistent ty ty' then Some (skel', seq', u_gen')
+                else 
+                  put_skel_in_new_hole u_gen' skel' seq'
+              | None => None
+              end
+            end
           end.
-
-      Fixpoint complete (e : t) : bool :=
-        match e with
-        | Asc e' ty => andb (complete e') (HTyp.complete ty)
-        | Var _ => true
-        | Let _ e e' => andb (complete e) (complete e')
-        | Lam _ e' => complete e'
-        | Ap e1 e2 => andb (complete e1) (complete e2)
-        | NumLit _ => true
-        | BinOp _ e1 e2 => andb (complete e1) (complete e2)
-        | Inj _ e => complete e
-        | Case e (x, e1) (y, e2) =>
-          andb (complete e) (andb (complete e1) (complete e2))
-        | EmptyHole _ => false
-        | NonEmptyHole _ _ => false
-        end.
-    End AHExp.
-
-    Module UHExp. (* unassociated H-expressions *)
-      Definition op : Type := AHExp.op.
-
-      Inductive t : Type := 
-      | Asc : t -> HTyp.t -> t
-      | Var : Var.t -> t
-      | Let : Var.t -> t -> t -> t
-      | Lam : Var.t -> t -> t
-      | Ap : t -> t -> t 
-      | NumLit : nat -> t
-      | Inj : AHExp.inj_side -> t -> t
-      | Case : t -> (Var.t * t) -> (Var.t * t) -> t
-      | EmptyHole : MetaVar.t -> t
-      | NonEmptyHole : MetaVar.t -> t -> t
-      | OpSeq : opseq -> t
-      with opseq : Type := 
-      | BareExp : t -> opseq
-      | SeqOpExp : opseq -> op -> t -> opseq.
-
-      Fixpoint append (seq1 : opseq) (op : op) (seq2 : opseq) : opseq := 
-        match seq2 with 
-        | BareExp ue => SeqOpExp seq1 op ue
-        | SeqOpExp seq2' op' ue' => 
-            SeqOpExp (append seq1 op seq2') op' ue'
-        end.
-
-      Fixpoint length (seq : opseq) : nat := 
-        match seq with 
-        | BareExp _ => S(O)
-        | SeqOpExp seq' _ _ => S(length seq')
-        end.
-
-      (* TODO: Fixpoint associate(oe : t) : HExp.t *) 
     End UHExp.
 
     Module ZTyp.
@@ -453,32 +867,215 @@ Module Core.
       | After : cursor_side
       | On : cursor_side.
 
-      Inductive t : Type :=
+      Inductive t : Type := 
       | CursorE : cursor_side -> UHExp.t -> t
-      | LeftAsc : t -> HTyp.t -> t
-      | RightAsc : UHExp.t -> ZTyp.t -> t
-      | LetZ1 : Var.t -> t -> UHExp.t -> t
-      | LetZ2 : Var.t -> UHExp.t -> t -> t
-      | LamZ : Var.t -> t -> t
-      | LeftAp : t -> UHExp.t -> t
-      | RightAp : UHExp.t -> t -> t
-      | InjZ : AHExp.inj_side -> t -> t
-      | CaseZ1 : t -> (Var.t * UHExp.t) -> (Var.t * UHExp.t) -> t
-      | CaseZ2 : UHExp.t -> (Var.t * t) -> (Var.t * UHExp.t) -> t
-      | CaseZ3 : UHExp.t -> (Var.t * UHExp.t) -> (Var.t * t) -> t
-      | NonEmptyHoleZ : MetaVar.t -> t -> t
-      | OpSeqZ : opseq_prefix -> t -> opseq_suffix -> t
+      | Deeper : UHExp.err_status -> t' -> t
+      with t' : Type := 
+      | LeftAsc : t -> HTyp.t -> t'
+      | RightAsc : UHExp.t -> ZTyp.t -> t'
+      | LetZ1 : Var.t -> t -> UHExp.t -> t'
+      | LetZ2 : Var.t -> UHExp.t -> t -> t'
+      | LamZ : Var.t -> t -> t'
+      | LeftAp : t -> UHExp.t -> t'
+      | RightAp : UHExp.t -> t -> t'
+      | InjZ : UHExp.inj_side -> t -> t'
+      | CaseZ1 : t -> (Var.t * UHExp.t) -> (Var.t * UHExp.t) -> t'
+      | CaseZ2 : UHExp.t -> (Var.t * t) -> (Var.t * UHExp.t) -> t'
+      | CaseZ3 : UHExp.t -> (Var.t * UHExp.t) -> (Var.t * t) -> t'
+      | OpSeqZ : UHExp.Skel.t -> t -> opseq_surround -> t'
+      with opseq_surround : Type := 
+      (* set up this way to enforce the requirement that there be at least one op *)
+      (* if the prefix is empty, there must be a non-empty suffix *)
+      | EmptyPrefix : opseq_suffix -> opseq_surround
+      (* if the suffix is empty, there must be a non-empty prefix *)
+      | EmptySuffix : opseq_prefix -> opseq_surround
+      (* both can be non-empty *)
+      | BothNonEmpty : opseq_prefix -> opseq_suffix -> opseq_surround
       with opseq_prefix : Type := 
-      | EmptyPrefix : opseq_prefix
-      | NonEmptyPrefix : UHExp.opseq -> UHExp.op -> opseq_prefix
-      with opseq_suffix : Type := 
-      | EmptySuffix : opseq_suffix
-      | NonEmptySuffix : UHExp.op -> UHExp.opseq -> opseq_suffix.
+      (* a non-empty prefix is either one that contains a single expression *)
+      | ExpPrefix : UHExp.t -> UHExp.op -> opseq_prefix
+      (* or one that contains two or more expressions, i.e. another opseq *)
+      | SeqPrefix : UHExp.opseq -> UHExp.op -> opseq_prefix
+      with opseq_suffix : Type :=
+      (* analagous to opseq_prefix *)
+      | ExpSuffix : UHExp.op -> UHExp.t -> opseq_suffix 
+      | SeqSuffix : UHExp.op -> UHExp.opseq -> opseq_suffix.
+
+      Definition put_in_new_hole 
+        (u_gen : MetaVar.gen)
+        (ze : t) 
+        : (t * MetaVar.gen) := 
+          match ze with 
+          | CursorE cursor_side (UHExp.Tm (UHExp.InHole _) e) => 
+            (ze, u_gen)
+          | Deeper (UHExp.InHole _) _ => 
+            (ze, u_gen)
+          | CursorE cursor_side (UHExp.Tm UHExp.NotInHole e) => 
+            let (u', u_gen') := MetaVar.next u_gen in 
+            (CursorE cursor_side (UHExp.Tm (UHExp.InHole u') e), u_gen')
+          | Deeper UHExp.NotInHole ze' => 
+            let (u', u_gen') := MetaVar.next u_gen in 
+            (Deeper (UHExp.InHole u') ze', u_gen')
+          end.
+
+      (* append an exp to a prefix *)
+      Definition prefix_append_exp
+          (prefix : opseq_prefix)
+          (e : UHExp.t)
+          (op : UHExp.op)
+          : opseq_prefix := 
+            match prefix with 
+            | ExpPrefix e1 op1 => 
+              SeqPrefix (UHExp.ExpOpExp e1 op1 e) op
+            | SeqPrefix seq1 op1 => 
+              SeqPrefix (UHExp.SeqOpExp seq1 op1 e) op
+            end.
+
+      (* prepend an exp to a suffix *)
+      Definition suffix_prepend_exp
+        (suffix : opseq_suffix)
+        (op : UHExp.op)
+        (e : UHExp.t)
+        : opseq_suffix :=
+          match suffix with 
+          | ExpSuffix op' e' => 
+            SeqSuffix op (UHExp.ExpOpExp e op' e')
+          | SeqSuffix op' seq' => 
+            SeqSuffix op (UHExp.exp_op_seq e op' seq')
+          end.
+
+      (* append an exp to a suffix *)
+      Definition suffix_append_exp
+        (suffix : opseq_suffix)
+        (op : UHExp.op)
+        (e : UHExp.t)
+        : opseq_suffix := 
+          match suffix with 
+          | ExpSuffix op' e' => 
+              SeqSuffix op' (UHExp.ExpOpExp e' op e)
+          | SeqSuffix op' seq => 
+              SeqSuffix op' (UHExp.SeqOpExp seq op e)
+          end.
+
+      (* append an exp to the suffix of a surround *)
+      Definition surround_suffix_append_exp
+        (surround : opseq_surround)
+        (op : UHExp.op)
+        (e : UHExp.t)
+        : opseq_surround := 
+          match surround with 
+          | EmptyPrefix suffix => 
+            let suffix' := suffix_append_exp suffix op e in 
+            EmptyPrefix suffix'
+          | EmptySuffix prefix => 
+            let suffix' := ExpSuffix op e in 
+            BothNonEmpty prefix suffix' 
+          | BothNonEmpty prefix suffix => 
+            let suffix' := suffix_append_exp suffix op e in 
+            BothNonEmpty prefix suffix'
+          end.
+
+      Fixpoint split (n : nat) (seq : UHExp.opseq) 
+          : option(UHExp.t * opseq_surround) := 
+        match (n, seq) with 
+        | (O, UHExp.ExpOpExp e1 op e2) => 
+            Some (e1, EmptyPrefix (ExpSuffix op e2))
+        | (S O, UHExp.ExpOpExp e1 op e2) => 
+            Some (e2, EmptySuffix (ExpPrefix e1 op))
+        | (_, UHExp.ExpOpExp _ _ _) => 
+            None
+        | (_, UHExp.SeqOpExp seq' op e) => 
+            let length' := UHExp.seq_length seq' in 
+            if Nat.ltb n length' then 
+              match split n seq' with 
+              | Some (e', surround) => 
+                let surround' := surround_suffix_append_exp surround op e in 
+                Some (e', surround')
+              | None => None
+              end
+            else if Nat.eqb n length' then 
+              let prefix' := SeqPrefix seq' op in 
+              let surround' := EmptySuffix prefix' in 
+              Some (e, surround')
+            else None
+        end.
+
+      Fixpoint split0 (seq : UHExp.opseq) : UHExp.t * opseq_suffix := 
+        match seq with 
+        | UHExp.ExpOpExp e1 op e2 => 
+          (e1, ExpSuffix op e2)
+        | UHExp.SeqOpExp seq' op e => 
+          let (e0, suffix') := split0 seq' in
+          (e0, suffix_append_exp suffix' op e)
+        end.
+
+      Definition split_tail (seq : UHExp.opseq) : UHExp.t * opseq_prefix := 
+        match seq with 
+        | UHExp.ExpOpExp e1 op e2 => 
+          (e2, ExpPrefix e1 op)
+        | UHExp.SeqOpExp seq' op e => 
+          (e, SeqPrefix seq' op)
+        end.
+
+      Definition prefix_length (prefix : opseq_prefix) : nat := 
+        match prefix with 
+        | ExpPrefix _ _ => S(O)
+        | SeqPrefix seq _ => UHExp.seq_length seq
+        end.
+
+      Definition surround_prefix_length
+        (surround : opseq_surround)
+        : nat := 
+          match surround with 
+          | EmptyPrefix _ => O
+          | EmptySuffix prefix
+          | BothNonEmpty prefix _ => prefix_length prefix
+          end.
+
+      Definition opseq_of_exp_and_surround
+        (e : UHExp.t)
+        (surround : opseq_surround)
+        : UHExp.opseq := 
+           match surround with 
+           | EmptyPrefix suffix => 
+             match suffix with 
+             | ExpSuffix op e2 => UHExp.ExpOpExp e op e2
+             | SeqSuffix op seq => UHExp.exp_op_seq e op seq
+             end
+           | EmptySuffix prefix => 
+             match prefix with 
+             | ExpPrefix e1 op => UHExp.ExpOpExp e1 op e
+             | SeqPrefix seq op => UHExp.SeqOpExp seq op e
+             end
+           | BothNonEmpty prefix suffix => 
+             match (prefix, suffix) with 
+             | (ExpPrefix e1 op1, ExpSuffix op2 e2) => 
+                 UHExp.SeqOpExp
+                   (UHExp.ExpOpExp e1 op1 e)
+                   op2 e2
+             | (ExpPrefix e1 op1, SeqSuffix op2 seq2) => 
+                 UHExp.seq_op_seq
+                   (UHExp.ExpOpExp e1 op1 e)
+                   op2 seq2
+             | (SeqPrefix seq1 op1, ExpSuffix op2 e2) => 
+                 UHExp.SeqOpExp 
+                   (UHExp.SeqOpExp seq1 op1 e) op2 e2
+             | (SeqPrefix seq1 op1, SeqSuffix op2 seq2) => 
+                 UHExp.seq_op_seq
+                   (UHExp.SeqOpExp seq1 op1 e) op2 seq2
+             end
+           end.
 
       Fixpoint erase (ze : t) : UHExp.t :=
         match ze with
         | CursorE _ e => e
-        | LeftAsc ze' ty => UHExp.Asc (erase ze') ty
+        | Deeper error_state ze' => 
+          let e' := erase' ze' in 
+          UHExp.Tm error_state e'
+        end
+      with erase' (ze : t') : UHExp.t' := 
+        match ze with 
+        | LeftAsc ze' ty => (UHExp.Asc (erase ze') ty)
         | RightAsc e' zty => UHExp.Asc e' (ZTyp.erase zty)
         | LetZ1 x ze e => UHExp.Let x (erase ze) e
         | LetZ2 x e ze => UHExp.Let x e (erase ze)
@@ -489,61 +1086,9 @@ Module Core.
         | CaseZ1 ze branch1 branch2 => UHExp.Case (erase ze) branch1 branch2
         | CaseZ2 e (x, ze) branch2 => UHExp.Case e (x, (erase ze)) branch2
         | CaseZ3 e branch1 (y, ze) => UHExp.Case e branch1 (y, (erase ze))
-        | NonEmptyHoleZ u ze' => UHExp.NonEmptyHole u (erase ze')
-        | OpSeqZ pre ze' post => 
-           let erasure := erase ze' in 
-           match (pre, post) with 
-           | (EmptyPrefix, EmptySuffix) => (UHExp.OpSeq (UHExp.BareExp erasure))
-           | (EmptyPrefix, NonEmptySuffix op seq) => 
-               let pre' := UHExp.BareExp erasure in 
-               UHExp.OpSeq (UHExp.append pre' op seq)
-           | (NonEmptyPrefix seq op, EmptySuffix) => 
-               UHExp.OpSeq (UHExp.SeqOpExp seq op erasure)
-           | (NonEmptyPrefix seq1 op1, NonEmptySuffix op2 seq2) => 
-              let pre' := UHExp.SeqOpExp seq1 op1 erasure in 
-              UHExp.OpSeq (UHExp.append pre' op2 seq2)
-           end
-        end.
-
-      Definition prefix_length (pre : opseq_prefix) : nat := 
-        match pre with 
-        | EmptyPrefix => O
-        | NonEmptyPrefix seq _ => UHExp.length seq
-        end.
-
-      Definition suffix_length (post : opseq_suffix) : nat := 
-        match post with 
-        | EmptySuffix => O
-        | NonEmptySuffix _ seq => UHExp.length seq
-        end.
-
-      Fixpoint split (n : nat) (seq : UHExp.opseq) 
-          : option(opseq_prefix * UHExp.t * opseq_suffix) := 
-        match (n, seq) with 
-        | (O, UHExp.BareExp e) => 
-            let pre := EmptyPrefix in 
-            let post := EmptySuffix in 
-            Some (pre, e, post)
-        | (_, UHExp.BareExp e) => None
-        | (n, UHExp.SeqOpExp seq' op e) => 
-          let length' := UHExp.length seq' in 
-          if Nat.ltb n length' then 
-            match split n seq' with 
-            | Some (pre, e', post) => 
-                let post' := match post with 
-                | EmptySuffix => 
-                    NonEmptySuffix op (UHExp.BareExp e)
-                | NonEmptySuffix op' seq'' => 
-                    NonEmptySuffix op' (UHExp.SeqOpExp seq'' op e)
-                end in 
-                Some (pre, e', post')
-            | None => None
-            end
-          else if Nat.eqb n length' then 
-            let pre := NonEmptyPrefix seq' op in 
-            let post := EmptySuffix in 
-            Some (pre, e, post)
-          else None
+        | OpSeqZ skel ze' surround => 
+           let e := erase ze' in 
+           UHExp.OpSeq skel (opseq_of_exp_and_surround e surround)
         end.
     End ZExp.
 
@@ -565,6 +1110,10 @@ Module Core.
       Fixpoint of_zexp (ze : ZExp.t) : t := 
         match ze with 
         | ZExp.CursorE cursor_side _ => (nil, cursor_side)
+        | ZExp.Deeper _ ze' => of_zexp' ze' 
+        end
+      with of_zexp' (ze : ZExp.t') : t := 
+        match ze with 
         | ZExp.LeftAsc ze' _ => cons' O (of_zexp ze')
         | ZExp.RightAsc _ ze' => cons' (S O) (of_ztyp ze')
         | ZExp.LetZ1 _ ze' _ => cons' O (of_zexp ze') 
@@ -576,11 +1125,14 @@ Module Core.
         | ZExp.CaseZ1 ze' _ _ => cons' O (of_zexp ze')
         | ZExp.CaseZ2 _ (_, ze') _ => cons' (S O) (of_zexp ze')
         | ZExp.CaseZ3 _ _ (_, ze') => cons' (S (S O)) (of_zexp ze')
-        | ZExp.NonEmptyHoleZ _ ze' => cons' O (of_zexp ze')
-        | ZExp.OpSeqZ pre ze' _ => 
-            let n := ZExp.prefix_length pre in 
-            cons' n (of_zexp ze')
+        | ZExp.OpSeqZ _ ze' surround => 
+          let n := ZExp.surround_prefix_length surround in 
+          cons' n (of_zexp ze')
         end.
+
+      Definition of_OpSeqZ ze surround := 
+        let n := ZExp.surround_prefix_length surround in 
+        cons' n (of_zexp ze).
 
       Fixpoint follow_ty (path : t) (ty : HTyp.t) : option(ZTyp.t) := 
         match path with
@@ -614,101 +1166,103 @@ Module Core.
             end
         end.
 
-      Fixpoint follow_e (fuel : Fuel) (path : t) (e : UHExp.t) : option(ZExp.t) := 
+      Fixpoint follow_e (fuel : Fuel.t) (path : t) (e : UHExp.t) : option(ZExp.t) := 
         match fuel with 
-        | Kicked => None
-        | More fuel' => 
+        | Fuel.Kicked => None
+        | Fuel.More fuel' => 
         let follow_e := follow_e fuel' in  
         match path with 
         | (nil, cursor_side) => Some (ZExp.CursorE cursor_side e)
         | (cons x xs, cursor_side) => 
+            match e with UHExp.Tm err_status e => 
             match (x, e) with 
             | (O, UHExp.Asc e1 ty) => 
               match follow_e (xs, cursor_side) e1 with 
-              | Some ze => Some (ZExp.LeftAsc ze ty)
+              | Some ze => Some (ZExp.Deeper err_status (ZExp.LeftAsc ze ty))
               | None => None
               end
             | (S(O), UHExp.Asc e1 ty) => 
               match follow_ty (xs, cursor_side) ty with 
-              | Some ztau => Some (ZExp.RightAsc e1 ztau)
+              | Some ztau => Some (ZExp.Deeper err_status (ZExp.RightAsc e1 ztau))
               | None => None
               end
             | (_, UHExp.Asc _ _) => None
             | (_, UHExp.Var _) => None
             | (O, UHExp.Let x e1 e2) => 
               match follow_e (xs, cursor_side) e1 with 
-              | Some ze => Some (ZExp.LetZ1 x ze e2)
+              | Some ze => Some (ZExp.Deeper err_status (ZExp.LetZ1 x ze e2))
               | None => None
               end
             | (S(O), UHExp.Let x e1 e2) => 
               match follow_e (xs, cursor_side) e2 with 
-              | Some ze => Some (ZExp.LetZ2 x e1 ze)
+              | Some ze => Some (ZExp.Deeper err_status (ZExp.LetZ2 x e1 ze))
               | None => None
               end
             | (_, UHExp.Let _ _ _) => None
             | (O, UHExp.Lam x e1) => 
               match follow_e (xs, cursor_side) e1 with 
-              | Some ze => Some (ZExp.LamZ x ze)
+              | Some ze => Some (ZExp.Deeper err_status (ZExp.LamZ x ze))
               | None => None
               end
             | (_, UHExp.Lam _ _ ) => None
             | (O, UHExp.Ap e1 e2) => 
               match follow_e (xs, cursor_side) e1 with 
-              | Some ze => Some (ZExp.LeftAp ze e2)
+              | Some ze => Some (ZExp.Deeper err_status (ZExp.LeftAp ze e2))
               | None => None
               end
             | (S(O), UHExp.Ap e1 e2) => 
               match follow_e (xs, cursor_side) e2 with 
-              | Some ze => Some (ZExp.RightAp e1 ze)
+              | Some ze => Some (ZExp.Deeper err_status (ZExp.RightAp e1 ze))
               | None => None
               end
             | (_, UHExp.Ap _ _) => None
             | (_, UHExp.NumLit _) => None
             | (O, UHExp.Inj side e1) => 
               match follow_e (xs, cursor_side) e1 with 
-              | Some ze => Some (ZExp.InjZ side ze)
+              | Some ze => Some (ZExp.Deeper err_status (ZExp.InjZ side ze))
               | None => None
               end
             | (_, UHExp.Inj _ _) => None
             | (O, UHExp.Case e1 (x, e2) (y, e3)) => 
               match follow_e (xs, cursor_side) e1 with 
-              | Some ze => Some (ZExp.CaseZ1 ze (x, e2) (y, e3))
+              | Some ze => Some (ZExp.Deeper err_status (ZExp.CaseZ1 ze (x, e2) (y, e3)))
               | None => None
               end
             | (S(O), UHExp.Case e1 (x, e2) (y, e3)) => 
               match follow_e (xs, cursor_side) e2 with 
-              | Some ze => Some (ZExp.CaseZ2 e1 (x, ze) (y, e3))
+              | Some ze => Some (ZExp.Deeper err_status (ZExp.CaseZ2 e1 (x, ze) (y, e3)))
               | None => None
               end
             | (S(S(O)), UHExp.Case e1 (x, e2) (y, e3)) => 
               match follow_e (xs, cursor_side) e3 with 
-              | Some ze => Some (ZExp.CaseZ3 e1 (x, e2) (y, ze))
+              | Some ze => Some (ZExp.Deeper err_status (ZExp.CaseZ3 e1 (x, e2) (y, ze)))
               | None => None
               end
             | (_, UHExp.Case _ _ _) => None
             | (_, UHExp.EmptyHole _) => None
-            | (O, UHExp.NonEmptyHole u e1) =>
-              match follow_e (xs, cursor_side) e1 with 
-              | Some ze => Some (ZExp.NonEmptyHoleZ u ze)
-              | None => None
-              end
-            | (_, UHExp.NonEmptyHole _ _) => None
-            | (n, UHExp.OpSeq seq) => 
+            | (n, UHExp.OpSeq skel seq) => 
                 match ZExp.split n seq with 
-                | Some (pre, e, post) => 
+                | Some (e, surround) => 
                     match follow_e (xs, cursor_side) e with 
                     | Some ze => 
-                        Some (ZExp.OpSeqZ pre ze post)
+                        Some (ZExp.Deeper err_status (ZExp.OpSeqZ skel ze surround))
                     | None => None
                     end
                 | None => None
                 end
             end
+            end
         end
         end.
     End Path.
 
-    Module Action.
+    Module Type ASSOCIATOR.
+      (* calls the parser (from OCaml) to produce a skel from an opseq. 
+       * initially, there are no errors marked in the skel. *)
+      Parameter associate : UHExp.opseq -> UHExp.Skel.t.
+    End ASSOCIATOR.
+
+    Module FAction (Associator : ASSOCIATOR).
       Inductive direction : Type :=
       | Child : nat -> direction
       | Parent : direction.
@@ -723,17 +1277,15 @@ Module Core.
       | SLam : Var.t -> shape
       | SAp : shape
       | SLit : nat -> shape
-      | SInj : AHExp.inj_side -> shape
+      | SInj : UHExp.inj_side -> shape
       | SCase : Var.t -> Var.t -> shape
-      | SNEHole : shape
       | SOp : UHExp.op -> shape.
 
       Inductive t : Type :=
       | MoveTo : Path.t -> t
-      | Del : t
+      | Delete : t
       | Backspace : t
-      | Construct : shape -> t
-      | Finish : t.
+      | Construct : shape -> t.
 
       Fixpoint performTyp (a : t) (zty : ZTyp.t) : option ZTyp.t :=
         match (a, zty) with
@@ -741,148 +1293,143 @@ Module Core.
             let ty := ZTyp.erase zty in 
             Path.follow_ty path ty
         | (Backspace, ZTyp.CursorT ty) 
-        | (Del, ZTyp.CursorT ty) => Some (ZTyp.CursorT HTyp.Hole)
+        | (Delete, ZTyp.CursorT ty) => Some (ZTyp.CursorT HTyp.Hole)
         | (Construct SArrow, ZTyp.CursorT ty) =>
           Some (ZTyp.RightArrow ty (ZTyp.CursorT HTyp.Hole))
         | (Construct SNum, ZTyp.CursorT HTyp.Hole) => Some (ZTyp.CursorT HTyp.Num)
         | (Construct SSum, ZTyp.CursorT ty) =>
           Some (ZTyp.RightSum ty (ZTyp.CursorT HTyp.Hole))
         | (a, ZTyp.LeftArrow zty1 ty2) =>
-            (performTyp a zty1) |>
-              flatmap_option(fun zty1' => Some (ZTyp.LeftArrow zty1' ty2))
-        | (a, ZTyp.RightArrow ty1 zty2) => (performTyp a zty2) |>
-              flatmap_option(fun zty2' => Some (ZTyp.RightArrow ty1 zty2'))
-        | (a, ZTyp.LeftSum zty1 ty2) => (performTyp a zty1) |>
-              flatmap_option(fun zty1' => Some (ZTyp.LeftSum zty1' ty2))
-        | (a, ZTyp.RightSum ty1 zty2) => (performTyp a zty2) |>
-              flatmap_option(fun zty2' => Some (ZTyp.RightSum ty1 zty2'))
+          match performTyp a zty1 with 
+          | Some zty1' => Some (ZTyp.LeftArrow zty1' ty2)
+          | None => None
+          end
+        | (a, ZTyp.RightArrow ty1 zty2) => 
+          match performTyp a zty2 with 
+          | Some zty2' => Some (ZTyp.RightArrow ty1 zty2')
+          | None => None
+          end
+        | (a, ZTyp.LeftSum zty1 ty2) => 
+          match performTyp a zty1 with 
+          | Some zty1' => Some (ZTyp.LeftSum zty1' ty2)
+          | None => None 
+          end
+        | (a, ZTyp.RightSum ty1 zty2) =>
+          match performTyp a zty2 with 
+          | Some zty2' => Some (ZTyp.RightSum ty1 zty2')
+          | None => None
+          end
         | _ => None
         end.
 
-      (* helper function used below *)
-      Definition perform_Backspace_OpSeqZ_Before
-        (seq : UHExp.opseq) 
-        (op : AHExp.op) 
-        (ze0 : ZExp.t) 
-        (post : ZExp.opseq_suffix) 
-        (ty : HTyp.t) 
-        (u_gen : MetaVar.gen) := 
-          match op with 
-          | AHExp.Space => 
-            let ze' := match seq with 
-              | UHExp.BareExp e' => 
-                (* e' |e + ... *)
-                match ze0 with 
-                | ZExp.CursorE _ (UHExp.EmptyHole _) => 
-                  (* e' |_ + ... 
-                  -> e'| + ... *)
-                  let pre' := ZExp.EmptyPrefix in 
-                  let ze' := ZExp.CursorE ZExp.After e' in 
-                  let post' := post in 
-                  ZExp.OpSeqZ pre' ze' post'
-                | _ => 
-                  (* e' |e + ...
-                  -> |e + ...*)
-                  let pre' := ZExp.EmptyPrefix in 
-                  let ze' := ze0 in 
-                  let post' := post in 
-                  ZExp.OpSeqZ pre' ze' post'
-                end
-              | UHExp.SeqOpExp seq' op' e' => 
-                (* ... + e' |e + ... *)
-                match ze0 with 
-                | ZExp.CursorE _ (UHExp.EmptyHole _) => 
-                  (* ... + e' |_ + ...
-                  -> ... + e'| + ... *)
-                  let pre' := ZExp.NonEmptyPrefix seq' op' in 
-                  let ze' := ZExp.CursorE ZExp.After e' in 
-                  let post' := post in 
-                  ZExp.OpSeqZ pre' ze' post'
-                | _ => 
-                  (* ... + e' |e + ... 
-                  -> ... + |e + ... *)
-                  let pre' := ZExp.NonEmptyPrefix seq' op' in 
-                  let ze' := ze0 in 
-                  let post' := post in 
-                  ZExp.OpSeqZ pre' ze' post'
-                end
-              end in 
-            Some (ze', ty, u_gen)
-          | _ => (* not space *)
-            (* ... + e' + |e + ...
-            -> ... + e' |e + ... *)
-            let pre' := ZExp.NonEmptyPrefix seq (AHExp.Space) in 
-            let ze' := ze0 in 
-            let post' := post in  
-            Some (ZExp.OpSeqZ pre' ze' post', ty, u_gen)
-          end.
-
-      (* helper function used below *)
-      Definition perform_Construct_SOp_OpSeqZ_Before
-        (op : AHExp.op)
-        (pre : ZExp.opseq_prefix)
-        (ze0 : ZExp.t)
-        (e' : UHExp.t) 
-        (post : ZExp.opseq_suffix)
-        (fuel : Fuel)
+      Definition zexp_syn_fix_holes
+        (fuel : Fuel.t)
         (ctx : Ctx.t)
-        (ty : HTyp.t) 
-        (u_gen : MetaVar.gen) 
-        (associate : UHExp.t -> AHExp.t)
-        (hsyn : Fuel -> Ctx.t -> AHExp.t -> option HTyp.t) := 
-          match pre with 
-          | ZExp.NonEmptyPrefix seq (AHExp.Space) => 
-            let pre' := ZExp.NonEmptyPrefix seq op in 
-            let ze' := ZExp.OpSeqZ pre' ze0 post in 
-            let ae' := associate (ZExp.erase ze') in 
-            match hsyn fuel ctx ae' with 
-            | Some ty => Some (ze', ty, u_gen)
+        (u_gen : MetaVar.gen)
+        (ze : ZExp.t)
+        : option (ZExp.t * HTyp.t * MetaVar.gen) := 
+          let path := Path.of_zexp ze in 
+          let e := ZExp.erase ze in 
+          match UHExp.syn_fix_holes fuel ctx u_gen e with 
+          | Some (e', ty, u_gen') => 
+            match Path.follow_e fuel path e' with 
+            | Some ze' => Some (ze', ty, u_gen')
             | None => None
             end
-          | _ => 
-            (* make new suffix *)
-            let post' := match post with 
-            | ZExp.EmptySuffix => ZExp.NonEmptySuffix op (UHExp.BareExp e')
-            | ZExp.NonEmptySuffix op' seq => 
-              let seq' := UHExp.append (UHExp.BareExp e') op' seq in 
-              ZExp.NonEmptySuffix op seq'
-            end in 
-            (* generate final z-expression *)
-            let (u, u_gen') := MetaVar.next u_gen in 
-            let ze' := ZExp.OpSeqZ pre (ZExp.CursorE ZExp.Before (UHExp.EmptyHole u)) post' in 
-            (* assign it a type *)
-            let ae' := associate (ZExp.erase ze') in 
-            match hsyn fuel ctx ae' with 
-            | Some ty => Some (ze', ty, u_gen')
+          | None => None
+          end.
+      
+      Definition zexp_ana_fix_holes
+        (fuel : Fuel.t)
+        (ctx : Ctx.t)
+        (u_gen : MetaVar.gen)
+        (ze : ZExp.t)
+        (ty : HTyp.t)
+        : option (ZExp.t * MetaVar.gen) := 
+          let path := Path.of_zexp ze in 
+          let e := ZExp.erase ze in 
+          match UHExp.ana_fix_holes fuel ctx u_gen e ty with 
+          | Some (e', u_gen') => 
+            match Path.follow_e fuel path e' with 
+            | Some ze' => Some (ze', u_gen')
             | None => None
             end
+          | None => None
           end.
 
-      (* helper function used below *)
-      Definition perform_Construct_SOp_Before 
-        (op : AHExp.op) 
-        (e : UHExp.t) 
-        (ty : HTyp.t) 
-        (u_gen : MetaVar.gen) := 
-              if HTyp.consistent ty (HTyp.Num) then 
-                let pre := ZExp.EmptyPrefix in 
-                let post := ZExp.NonEmptySuffix op (UHExp.BareExp e) in 
-                let (u, u_gen') := MetaVar.next u_gen in 
-                let ze := ZExp.OpSeqZ pre (ZExp.CursorE ZExp.Before (UHExp.EmptyHole u)) post in 
-                Some (ze, HTyp.Num, u_gen')
-              else None.
+      Definition make_and_syn_OpSeqZ 
+        (fuel : Fuel.t)
+        (ctx : Ctx.t)
+        (u_gen : MetaVar.gen)
+        (ze0 : ZExp.t)
+        (surround : ZExp.opseq_surround)
+        : option (ZExp.t * HTyp.t * MetaVar.gen) := 
+          (* figure out the current path so that we can follow it again 
+           * to reconstitute the Z-exp after calling into the UHExp hole 
+           * insertion logic (otherwise we'd have to do a version of that
+           * logic specific to Z-exps) *)
+          let path0 := Path.of_OpSeqZ ze0 surround in 
+          let e0 := ZExp.erase ze0 in 
+          let seq := ZExp.opseq_of_exp_and_surround e0 surround in 
+          let skel := Associator.associate seq in 
+          match UHExp.syn_skel_fix_holes fuel ctx u_gen skel seq with 
+          | Some (skel', seq', ty, u_gen') => 
+            let e' := UHExp.Tm UHExp.NotInHole (UHExp.OpSeq skel' seq') in 
+            match Path.follow_e fuel path0 e' with 
+            | Some ze' => Some (ze', ty, u_gen')
+            | None => None
+            end
+          | None => None
+          end.
+ 
+      Definition combine_for_Backspace_Space e1 ze0 := 
+        match (e1, ze0) with 
+        | (UHExp.Tm _ (UHExp.EmptyHole _),
+           ZExp.CursorE _ (UHExp.Tm _ (UHExp.EmptyHole _))) => 
+          (* _ |_ --> |_ *)
+          ze0
+        | (_, ZExp.CursorE _ (UHExp.Tm _ (UHExp.EmptyHole _))) => 
+          (* e1 |_ --> e1| *)
+          ZExp.CursorE ZExp.After e1
+        | (UHExp.Tm _ (UHExp.EmptyHole _),
+           ZExp.Deeper _ (ZExp.LeftAp 
+             (ZExp.CursorE ZExp.Before (UHExp.Tm _ (UHExp.EmptyHole _)))
+             e3)) => 
+          (* _ |_(e3) --> |_(e3) *)
+          ze0
+        | (_, 
+           ZExp.Deeper _ (ZExp.LeftAp
+             (ZExp.CursorE ZExp.Before (UHExp.Tm _ (UHExp.EmptyHole _)))
+             e3)) => 
+          (* e1 |_(e3) --> e1|(e3) *)
+          ZExp.Deeper UHExp.NotInHole (ZExp.LeftAp
+            (ZExp.CursorE ZExp.After e1)
+            e3)
+        | _ => ze0
+        end.
+
+      Definition combine_for_Delete_Space ze0 e := 
+        match (ze0, e) with 
+        | ((ZExp.CursorE ZExp.After (UHExp.Tm _ (UHExp.EmptyHole _))),
+           UHExp.Tm _ (UHExp.EmptyHole _)) => 
+          (* _| _ --> _| *)
+          ze0
+        | ((ZExp.CursorE ZExp.After (UHExp.Tm _ (UHExp.EmptyHole _))),
+           _) => 
+          ZExp.CursorE ZExp.Before e
+        | _ => 
+          ze0
+        end.
 
       Fixpoint performSyn 
-          (fuel: Fuel) 
+          (fuel: Fuel.t) 
           (ctx: Ctx.t) 
           (a: t) 
           (ze_ty: (ZExp.t * HTyp.t) * MetaVar.gen) 
-          (associate : UHExp.t -> AHExp.t) : option ((ZExp.t * HTyp.t) * MetaVar.gen) :=
-        let hsyn := AHExp.hsyn in 
-        let hana := AHExp.hana in 
+          : option ((ZExp.t * HTyp.t) * MetaVar.gen) :=
         match fuel with
-        | Kicked => None
-        | More fuel =>
+        | Fuel.Kicked => None
+        | Fuel.More fuel =>
         match ze_ty with 
         | (ze, ty, u_gen) => 
           match (a, ze) with
@@ -895,330 +1442,551 @@ Module Core.
               end
             (* Backspace & Deletion *)
             | (Backspace, ZExp.CursorE ZExp.After e) => 
-              let x' := match e with 
-              | UHExp.EmptyHole u => (e, ty, u_gen, ZExp.Before)
+              match e with 
+              | UHExp.Tm _ (UHExp.EmptyHole _) => 
+                Some (ZExp.CursorE ZExp.Before e, ty, u_gen)
               | _ => 
-                  let (u', u_gen') := MetaVar.next u_gen in 
-                  (UHExp.EmptyHole u', HTyp.Hole, u_gen', ZExp.Before)
-              end in
-              match x' with 
-              (e', ty', u_gen', cursor_side) => 
-                let ze' := ZExp.CursorE cursor_side e' in 
-                Some (ze', ty', u_gen')
+                let (e', u_gen') := UHExp.new_EmptyHole u_gen in 
+                Some (ZExp.CursorE ZExp.Before e', HTyp.Hole, u_gen')
               end
-            | (Del, ZExp.CursorE ZExp.Before e) => 
-              let x' := match e with 
-              | UHExp.EmptyHole u => (e, ty, u_gen, ZExp.After)
+            | (Delete, ZExp.CursorE ZExp.Before e) => 
+              match e with 
+              | UHExp.Tm _ (UHExp.EmptyHole _) => 
+                Some (ZExp.CursorE ZExp.After e, ty, u_gen)
               | _ => 
-                  let (u', u_gen') := MetaVar.next u_gen in 
-                  (UHExp.EmptyHole u', HTyp.Hole, u_gen', ZExp.Before)
-              end in 
-              match x' with 
-              (e', ty', u_gen', cursor_side) => 
-                let ze' := ZExp.CursorE cursor_side e' in 
-                Some (ze', ty', u_gen')
+                let (e', u_gen') := UHExp.new_EmptyHole u_gen in 
+                Some (ZExp.CursorE ZExp.Before e', HTyp.Hole, u_gen)
               end
             | (Backspace, ZExp.CursorE ZExp.On e)
-            | (Del, ZExp.CursorE ZExp.On e) => 
-              let (u', u_gen') := MetaVar.next u_gen in 
-              let ze' := ZExp.CursorE ZExp.Before (UHExp.EmptyHole u') in 
+            | (Delete, ZExp.CursorE ZExp.On e) => 
+              let (e', u_gen') := UHExp.new_EmptyHole u_gen in 
+              let ze' := ZExp.CursorE ZExp.Before e' in 
               Some (ze', HTyp.Hole, u_gen')
-            | (Backspace, 
-                ZExp.OpSeqZ 
-                  (ZExp.NonEmptyPrefix seq op)
-                  ((ZExp.CursorE ZExp.Before e) as ze0) 
-                  post) => 
-              perform_Backspace_OpSeqZ_Before seq op ze0 post ty u_gen
-            | (Backspace,
-                ZExp.OpSeqZ
-                  (ZExp.NonEmptyPrefix seq op)
-                  ((ZExp.LeftAp (ZExp.CursorE ZExp.Before e1) e2) as ze0)
-                  post) => 
-              perform_Backspace_OpSeqZ_Before seq op ze0 post ty u_gen
-            | (Del, 
-                ZExp.OpSeqZ
-                  pre
-                  ((ZExp.CursorE ZExp.After e) as ze)
-                  (ZExp.NonEmptySuffix op seq)) => 
-              match op with 
-              | AHExp.Space => 
-                match ZExp.split 0 seq with 
-                | Some (_, e', post') =>
-                  match (e, e') with 
-                  | (UHExp.EmptyHole _, UHExp.EmptyHole _) => 
-                    (* ... + _| _' + ... 
-                    -> ... + _| + ... *)
-                    let pre' := pre in 
-                    let ze' := ze in 
-                    Some (ZExp.OpSeqZ pre' ze' post', ty, u_gen)
-                  | (UHExp.EmptyHole _, _) => 
-                    (* ... + _| e' + ... 
-                    -> ... + |e' + ... *)
-                    let pre' := pre in 
-                    let ze' := ZExp.CursorE ZExp.Before e' in 
-                    Some (ZExp.OpSeqZ pre' ze' post', ty, u_gen)
-                  | _ => 
-                    (* ... + e| e' + ... 
-                    -> ... + e| + ... *)
-                    let pre' := pre in 
-                    let ze' := ze in 
-                    Some (ZExp.OpSeqZ pre' ze' post', ty, u_gen)
+            | (Backspace, ZExp.Deeper _
+                (ZExp.OpSeqZ _
+                  ((ZExp.CursorE ZExp.Before _) as ze0) 
+                  ((ZExp.EmptySuffix _) as surround)))
+            | (Backspace, ZExp.Deeper _
+                (ZExp.OpSeqZ _
+                  ((ZExp.CursorE ZExp.Before _) as ze0) 
+                  ((ZExp.BothNonEmpty _ _) as surround)))
+            | (Backspace, ZExp.Deeper _ 
+                (ZExp.OpSeqZ _
+                  ((ZExp.Deeper _ (ZExp.LeftAp (ZExp.CursorE ZExp.Before _) _)) as ze0)
+                  ((ZExp.EmptySuffix _) as surround)))
+            | (Backspace, ZExp.Deeper _ 
+                (ZExp.OpSeqZ _
+                  ((ZExp.Deeper _ (ZExp.LeftAp (ZExp.CursorE ZExp.Before _) _)) as ze0)
+                  ((ZExp.BothNonEmpty _ _) as surround))) =>
+                match surround with 
+                | ZExp.EmptyPrefix _ => None (* precluded by pattern match above *)
+                | ZExp.EmptySuffix prefix => 
+                  match prefix with 
+                  | ZExp.ExpPrefix e1 op1 => 
+                    (* e1 op1 |ze0 *)
+                    match op1 with 
+                    | UHExp.Space => 
+                      (* e1 |ze0 *)
+                      let ze0' := combine_for_Backspace_Space e1 ze0 in  
+                      zexp_syn_fix_holes fuel ctx u_gen ze0' 
+                    | _ => 
+                      (* e1 op1 |ze0 --> e1 |ze0 *)
+                      let surround' := ZExp.EmptySuffix (ZExp.ExpPrefix e1 UHExp.Space) in 
+                      make_and_syn_OpSeqZ fuel ctx u_gen ze0 surround' 
+                    end
+                  | ZExp.SeqPrefix seq1 op1 => 
+                    (* seq1 op1 |ze0 *)
+                    match op1 with 
+                    | UHExp.Space =>
+                      (* seq1 |ze0 *)
+                      let (e1, prefix') := ZExp.split_tail seq1 in 
+                      let surround' := ZExp.EmptySuffix prefix' in 
+                      let ze0' := combine_for_Backspace_Space e1 ze0 in 
+                      make_and_syn_OpSeqZ fuel ctx u_gen ze0' surround'
+                    | _ => 
+                      (* seq1 op1 |ze0 --> seq1 |ze0 *)
+                      let prefix' := ZExp.SeqPrefix seq1 (UHExp.Space) in 
+                      let surround' := ZExp.EmptySuffix prefix' in 
+                      make_and_syn_OpSeqZ fuel ctx u_gen ze0 surround' 
+                    end
                   end
-                | _ => None (* should never happen *)
+                | ZExp.BothNonEmpty prefix suffix => 
+                  match prefix with 
+                  | ZExp.ExpPrefix e1 op1 => 
+                    (* e1 op1 |ze0 ...suffix *)
+                    match op1 with 
+                    | UHExp.Space => 
+                      (* e1 |ze0 ...suffix *)
+                      let ze0' := combine_for_Backspace_Space e1 ze0 in  
+                      let surround' := ZExp.EmptyPrefix suffix in 
+                      make_and_syn_OpSeqZ fuel ctx u_gen ze0' surround'
+                    | _ => 
+                      (* e1 op1 |ze0 --> e1 |ze0 ...suffix *)
+                      let surround' := ZExp.BothNonEmpty (ZExp.ExpPrefix e1 UHExp.Space) suffix in 
+                      make_and_syn_OpSeqZ fuel ctx u_gen ze0 surround' 
+                    end
+                  | ZExp.SeqPrefix seq1 op1 => 
+                    (* seq1 op1 |ze0 ...suffix *)
+                    match op1 with 
+                    | UHExp.Space =>
+                      (* seq1 |ze0 ...suffix *)
+                      let (e1, prefix') := ZExp.split_tail seq1 in 
+                      let ze0' :=  combine_for_Backspace_Space e1 ze0 in  
+                      let surround' := ZExp.BothNonEmpty prefix' suffix in 
+                      make_and_syn_OpSeqZ fuel ctx u_gen ze0' surround'
+                    | _ => 
+                      (* seq1 op1 |ze0 --> seq1 |ze0 ...suffix *)
+                      let prefix' := ZExp.SeqPrefix seq1 (UHExp.Space) in 
+                      let surround' := ZExp.BothNonEmpty prefix' suffix in 
+                      make_and_syn_OpSeqZ fuel ctx u_gen ze0 surround' 
+                    end
+                  end
                 end
-              | _ => 
-                let pre' := pre in 
-                let ze' := ze in 
-                let post' := ZExp.NonEmptySuffix (AHExp.Space) seq in 
-                Some (ZExp.OpSeqZ pre' ze' post', ty, u_gen)
-              end 
+            | (Delete, ZExp.Deeper _
+                (ZExp.OpSeqZ _
+                  ((ZExp.CursorE ZExp.After e0) as ze0)
+                  ((ZExp.EmptyPrefix _) as surround)))
+            | (Delete, ZExp.Deeper _ 
+                (ZExp.OpSeqZ _
+                  ((ZExp.CursorE ZExp.After e0) as ze0)
+                  ((ZExp.BothNonEmpty _ _) as surround))) => 
+              match surround with 
+              | ZExp.EmptySuffix _ => None (* precluded by pattern match above *)
+              | ZExp.EmptyPrefix suffix => 
+                match suffix with 
+                | ZExp.ExpSuffix op e => 
+                  match op with 
+                  | UHExp.Space => 
+                    let ze0' := combine_for_Delete_Space ze0 e in 
+                    zexp_syn_fix_holes fuel ctx u_gen ze0'  
+                  | _ => 
+                    (* e0| op e --> e0| e *)
+                    let surround' := ZExp.EmptyPrefix (ZExp.ExpSuffix UHExp.Space e) in 
+                    match make_and_syn_OpSeqZ fuel ctx u_gen ze0 surround' with 
+                    | Some (ze, ty, u_gen') => Some (ze, ty, u_gen')
+                    | None => None
+                    end
+                  end
+                | ZExp.SeqSuffix op seq => 
+                  match op with 
+                  | UHExp.Space => 
+                    let (e, suffix') := ZExp.split0 seq in
+                    let surround' := ZExp.EmptyPrefix suffix' in 
+                    let ze0' := combine_for_Delete_Space ze0 e in 
+                    make_and_syn_OpSeqZ fuel ctx u_gen ze0' surround'
+                  | _ => 
+                    (* e| op seq --> e| seq *)
+                    let suffix' := ZExp.SeqSuffix UHExp.Space seq in 
+                    let surround' := ZExp.EmptyPrefix suffix' in 
+                    make_and_syn_OpSeqZ fuel ctx u_gen ze0 surround 
+                  end
+                end
+              | ZExp.BothNonEmpty prefix suffix => 
+                match suffix with 
+                | ZExp.ExpSuffix op e => 
+                  match op with 
+                  | UHExp.Space => 
+                    let ze0' := combine_for_Delete_Space ze0 e in 
+                    let surround' := ZExp.EmptySuffix prefix in 
+                    make_and_syn_OpSeqZ fuel ctx u_gen ze0' surround'
+                  | _ => 
+                    (* e0| op e --> e0| e *)
+                    let surround' := ZExp.BothNonEmpty prefix (ZExp.ExpSuffix UHExp.Space e) in 
+                    make_and_syn_OpSeqZ fuel ctx u_gen ze0 surround'
+                  end
+                | ZExp.SeqSuffix op seq => 
+                  match op with 
+                  | UHExp.Space => 
+                    let (e, suffix') := ZExp.split0 seq in 
+                    let ze0' := combine_for_Delete_Space ze0 e in 
+                    let surround' := ZExp.BothNonEmpty prefix suffix' in 
+                    make_and_syn_OpSeqZ fuel ctx u_gen ze0' surround'
+                  | _ => 
+                    (* prefix e| op seq --> e| seq *)
+                    let suffix' := ZExp.SeqSuffix UHExp.Space seq in 
+                    let surround' := ZExp.BothNonEmpty prefix suffix' in 
+                    make_and_syn_OpSeqZ fuel ctx u_gen ze0 surround
+                  end
+                end
+              end
             (* Construction *)
             | (Construct SAsc, ZExp.CursorE ZExp.On e)
             | (Construct SAsc, ZExp.CursorE ZExp.After e) =>
-              Some (ZExp.RightAsc e (ZTyp.CursorT ty), ty, u_gen)
-            | (Construct (SVar x), ZExp.CursorE _ (UHExp.EmptyHole _)) (* SAConVar *) =>
+              Some (ZExp.Deeper UHExp.NotInHole (ZExp.RightAsc e (ZTyp.CursorT ty)), ty, u_gen)
+            | (Construct (SVar x), ZExp.CursorE _ (UHExp.Tm _ (UHExp.EmptyHole _))) (* SAConVar *) =>
               match Ctx.lookup ctx x with
-              | Some xty => Some (ZExp.CursorE ZExp.After (UHExp.Var x), xty, u_gen)
+              | Some xty => Some (ZExp.CursorE ZExp.After 
+                (UHExp.Tm UHExp.NotInHole (UHExp.Var x)), 
+                xty, u_gen)
               | None => None
               end
             | (Construct (SLet x), ZExp.CursorE _ e) =>
               match e with
-                | UHExp.EmptyHole u =>
-                  let (u', u_gen') := MetaVar.next u_gen in 
-                  Some ((ZExp.LetZ1 x (ZExp.CursorE ZExp.Before e) (UHExp.EmptyHole u'), HTyp.Hole, u_gen'))
+                | UHExp.Tm _ (UHExp.EmptyHole u) =>
+                  let (new_hole, u_gen') := UHExp.new_EmptyHole u_gen in 
+                  Some (ZExp.Deeper UHExp.NotInHole 
+                    (ZExp.LetZ1 
+                      x (ZExp.CursorE ZExp.Before e) 
+                      new_hole),
+                    HTyp.Hole, 
+                    u_gen')
                 | _ =>
-                  let (u', u_gen') := MetaVar.next u_gen in 
-                  Some ((ZExp.LetZ2 x e (ZExp.CursorE ZExp.Before (UHExp.EmptyHole u')), HTyp.Hole, u_gen'))
+                  let (new_hole, u_gen') := UHExp.new_EmptyHole u_gen in 
+                  Some (ZExp.Deeper UHExp.NotInHole 
+                    (ZExp.LetZ2 
+                      x e 
+                      (ZExp.CursorE ZExp.Before new_hole)), 
+                    HTyp.Hole, 
+                    u_gen')
               end
-            | (Construct (SLam x), ZExp.CursorE _ (UHExp.EmptyHole u)) (* SAConLam *) =>
-              let (u', u_gen') := MetaVar.next u_gen in 
-              Some (ZExp.RightAsc
-                  (UHExp.Lam x (UHExp.EmptyHole u'))
-                  (ZTyp.LeftArrow (ZTyp.CursorT HTyp.Hole) HTyp.Hole),
+            | (Construct (SLam x), ZExp.CursorE _ (UHExp.Tm _ (UHExp.EmptyHole u))) (* SAConLam *) =>
+              let (new_hole, u_gen') := UHExp.new_EmptyHole u_gen in 
+              Some (ZExp.Deeper UHExp.NotInHole (ZExp.RightAsc
+                  (UHExp.Tm UHExp.NotInHole (UHExp.Lam x new_hole))
+                  (ZTyp.LeftArrow (ZTyp.CursorT HTyp.Hole) HTyp.Hole)),
                (HTyp.Arrow HTyp.Hole HTyp.Hole), u_gen')
             | (Construct SAp, ZExp.CursorE ZExp.On e) 
             | (Construct SAp, ZExp.CursorE ZExp.After e) =>
               match HTyp.matched_arrow ty with
                 | Some (_, ty2) (* SAConApArr *) => 
-                      let (u', u_gen') := MetaVar.next u_gen in 
-                      Some (
-                        (ZExp.RightAp e (ZExp.CursorE ZExp.Before (UHExp.EmptyHole u'))),
+                      let (new_hole, u_gen') := UHExp.new_EmptyHole u_gen in 
+                      Some (ZExp.Deeper UHExp.NotInHole 
+                        (ZExp.RightAp e (ZExp.CursorE ZExp.Before new_hole)),
                       ty2, u_gen')
                 | None (* SAConApOtw *) => 
                     let (u1, u_gen') := MetaVar.next u_gen in 
-                    let (u2, u_gen'') := MetaVar.next u_gen' in 
-                    Some (
-                      (ZExp.RightAp (UHExp.NonEmptyHole u1 e) (ZExp.CursorE ZExp.Before (UHExp.EmptyHole u2))),
+                    let (new_hole, u_gen'') := UHExp.new_EmptyHole u_gen' in 
+                    Some (ZExp.Deeper UHExp.NotInHole 
+                      (ZExp.RightAp 
+                        (UHExp.put_in_hole u1 e) 
+                        (ZExp.CursorE ZExp.Before new_hole)),
                       HTyp.Hole, u_gen'')
               end
-            | (Construct (SLit n), ZExp.CursorE _ (UHExp.EmptyHole u)) (* SAConNumLit *) =>
-                Some (ZExp.CursorE ZExp.After (UHExp.NumLit n), HTyp.Num, u_gen)
-            | (Construct (SInj side), ZExp.CursorE _ (UHExp.EmptyHole u)) (* 24a *) =>
-              let (u', u_gen') := MetaVar.next u_gen in 
-              Some (
-                (ZExp.RightAsc (UHExp.Inj side (UHExp.EmptyHole u')) (ZTyp.LeftSum (ZTyp.CursorT HTyp.Hole) HTyp.Hole)),
+            | (Construct (SLit n), ZExp.CursorE _ (UHExp.Tm _ (UHExp.EmptyHole u))) (* SAConNumLit *) =>
+                Some (ZExp.CursorE ZExp.After (UHExp.Tm UHExp.NotInHole (UHExp.NumLit n)), HTyp.Num, u_gen)
+            | (Construct (SInj side), ZExp.CursorE _ (UHExp.Tm _ (UHExp.EmptyHole u))) (* 24a *) =>
+              let (new_hole, u_gen') := UHExp.new_EmptyHole u_gen in
+              Some (ZExp.Deeper UHExp.NotInHole 
+                (ZExp.RightAsc 
+                  (UHExp.Tm UHExp.NotInHole (UHExp.Inj side new_hole)) 
+                  (ZTyp.LeftSum (ZTyp.CursorT HTyp.Hole) HTyp.Hole)),
                 (HTyp.Sum HTyp.Hole HTyp.Hole), u_gen'
               )
             | (Construct (SCase x y), (ZExp.CursorE _ e)) =>
               match HTyp.matched_sum ty with
                 | Some _ (* 24b *) => 
-                    let (u1, u_gen') := MetaVar.next u_gen in 
-                    let (u2, u_gen'') := MetaVar.next u_gen' in 
-                    let casez2 := (ZExp.CaseZ2 e
-                                  (x, ZExp.CursorE ZExp.Before (UHExp.EmptyHole u1))
-                                  (y, (UHExp.EmptyHole u2))) in
-                    Some (ZExp.LeftAsc casez2 HTyp.Hole, HTyp.Hole, u_gen'')
+                    let (new_hole1, u_gen') := UHExp.new_EmptyHole u_gen in 
+                    let (new_hole2, u_gen'') := UHExp.new_EmptyHole u_gen' in 
+                    let casez2 := ZExp.Deeper UHExp.NotInHole (ZExp.CaseZ2 e
+                                  (x, ZExp.CursorE ZExp.Before new_hole1)
+                                  (y, new_hole2)) in
+                    Some (ZExp.Deeper UHExp.NotInHole (
+                      ZExp.LeftAsc casez2 HTyp.Hole), HTyp.Hole, u_gen'')
                 | None (* 24c *) => 
-                    let (u1, u_gen') := MetaVar.next u_gen in 
-                    let (u2, u_gen'') := MetaVar.next u_gen' in 
-                    let (u3, u_gen''') := MetaVar.next u_gen'' in 
+                    let (ze', u_gen') := ZExp.put_in_new_hole u_gen ze in 
+                    let (new_hole2, u_gen'') := UHExp.new_EmptyHole u_gen' in 
+                    let (new_hole3, u_gen''') := UHExp.new_EmptyHole u_gen'' in 
                     Some (
-                    (ZExp.LeftAsc
-                      (ZExp.CaseZ1 (ZExp.NonEmptyHoleZ u1 ze)
-                                    (x, UHExp.EmptyHole u2)
-                                    (y, UHExp.EmptyHole u3))
-                      HTyp.Hole
-                    ),
+                      (ZExp.Deeper UHExp.NotInHole (ZExp.LeftAsc
+                        (ZExp.Deeper UHExp.NotInHole (
+                          ZExp.CaseZ1 ze' (x, new_hole2) (y, new_hole3)))
+                        HTyp.Hole)), 
                     HTyp.Hole, u_gen''')
               end
-            | (Construct SNEHole, ZExp.CursorE _ e') (* SAConNEHole *) =>
-              let (u', u_gen') := MetaVar.next u_gen in 
-              Some (ZExp.NonEmptyHoleZ u' ze, HTyp.Hole, u_gen')
-            | (Construct (SOp op), ZExp.OpSeqZ pre (ZExp.CursorE ZExp.On e') post)
-            | (Construct (SOp op), ZExp.OpSeqZ pre (ZExp.CursorE ZExp.After e') post) => 
-              match post with 
-              | ZExp.NonEmptySuffix (AHExp.Space) seq => 
-                let pre' := match pre with 
-                | ZExp.EmptyPrefix => ZExp.NonEmptyPrefix (UHExp.BareExp e') op
-                | ZExp.NonEmptyPrefix seq' op' => ZExp.NonEmptyPrefix (UHExp.SeqOpExp seq' op' e') op
-                end in 
-                match ZExp.split 0 seq with 
-                | Some (_, e0, post') => 
-                  let ze' := ZExp.OpSeqZ pre' (ZExp.CursorE ZExp.Before e0) post' in 
-                  let ae' := associate (ZExp.erase ze') in 
-                  match hsyn fuel ctx ae' with 
-                  | Some ty => Some (ze', ty, u_gen)
-                  | None => None
+            | (Construct (SOp op), ZExp.Deeper _ (
+                ZExp.OpSeqZ _ (ZExp.CursorE ZExp.On e) surround))
+            | (Construct (SOp op), ZExp.Deeper _ (
+                ZExp.OpSeqZ _ (ZExp.CursorE ZExp.After e) surround)) => 
+              match surround with 
+              | ZExp.EmptySuffix prefix => 
+                let prefix' := ZExp.prefix_append_exp prefix e op in 
+                let surround' := ZExp.EmptySuffix prefix' in 
+                let (new_hole, u_gen') := UHExp.new_EmptyHole u_gen in 
+                let ze0' := ZExp.CursorE ZExp.Before new_hole in 
+                make_and_syn_OpSeqZ fuel ctx u_gen' ze0' surround' 
+              | ZExp.EmptyPrefix suffix => 
+                match suffix with 
+                | ZExp.ExpSuffix op' e' => 
+                  match op' with 
+                  | UHExp.Space => 
+                    (* e| e' --> e op |e' *)
+                    let prefix' := ZExp.ExpPrefix e op in 
+                    let surround' := ZExp.EmptySuffix prefix' in 
+                    let ze0' := ZExp.CursorE ZExp.Before e' in 
+                    make_and_syn_OpSeqZ fuel ctx u_gen ze0' surround'  
+                  | _ => 
+                    (* e| op' e' --> e op |_ op' e' *)
+                    let prefix' := ZExp.ExpPrefix e op in 
+                    let suffix' := ZExp.ExpSuffix op' e' in 
+                    let surround' := ZExp.BothNonEmpty prefix' suffix' in 
+                    let (new_hole, u_gen') := UHExp.new_EmptyHole u_gen in 
+                    let ze0' := ZExp.CursorE ZExp.Before new_hole in 
+                    make_and_syn_OpSeqZ fuel ctx u_gen' ze0' surround' 
                   end
-                | None => None (* should never happen *)
+                | ZExp.SeqSuffix op' seq' => 
+                  match op with 
+                  | UHExp.Space => 
+                    (* e| seq' --> e op |seq' *)
+                    let prefix' := ZExp.ExpPrefix e op in 
+                    let (e0', suffix') := ZExp.split0 seq' in 
+                    let surround' := ZExp.BothNonEmpty prefix' suffix' in 
+                    let ze0' := ZExp.CursorE ZExp.Before e0' in 
+                    make_and_syn_OpSeqZ fuel ctx u_gen ze0' surround' 
+                  | _ => 
+                    (* e| op' seq' --> e op |_ op' seq' *)
+                    let prefix' := ZExp.ExpPrefix e op in 
+                    let surround' := ZExp.BothNonEmpty prefix' suffix in 
+                    let (new_hole, u_gen') := UHExp.new_EmptyHole u_gen in 
+                    let ze0' := ZExp.CursorE ZExp.Before new_hole in 
+                    make_and_syn_OpSeqZ fuel ctx u_gen ze0' surround' 
+                  end
                 end
-              | _ => 
-                (* make new prefix *)
-                let pre' := match pre with 
-                | ZExp.EmptyPrefix => ZExp.NonEmptyPrefix (UHExp.BareExp e') op
-                | ZExp.NonEmptyPrefix seq op' => ZExp.NonEmptyPrefix (UHExp.SeqOpExp seq op' e') op
-                end in 
-                (* generate final z-expression *)
-                let (u, u_gen') := MetaVar.next u_gen in 
-                let ze' := ZExp.OpSeqZ pre' (ZExp.CursorE ZExp.Before (UHExp.EmptyHole u)) post in 
-                (* assign it a type *)
-                let ae' := associate (ZExp.erase ze') in 
-                match hsyn fuel ctx ae' with 
-                | Some ty => Some (ze', ty, u_gen')
-                | None => None
+              | ZExp.BothNonEmpty prefix suffix => 
+                match suffix with 
+                | ZExp.ExpSuffix op' e' => 
+                  match op' with 
+                  | UHExp.Space => 
+                    (* prefix e| e' --> prefix e op |e' *)
+                    let prefix' := ZExp.prefix_append_exp prefix e op in 
+                    let surround' := ZExp.EmptySuffix prefix' in 
+                    let ze0' := ZExp.CursorE ZExp.Before e' in 
+                    make_and_syn_OpSeqZ fuel ctx u_gen ze0' surround' 
+                  | _ => 
+                    (* prefix e| op' e' --> prefix e op |_ op' e' *)
+                    let prefix' := ZExp.prefix_append_exp prefix e op in 
+                    let suffix' := ZExp.ExpSuffix op' e' in 
+                    let surround' := ZExp.BothNonEmpty prefix' suffix' in 
+                    let (new_hole, u_gen') := UHExp.new_EmptyHole u_gen in 
+                    let ze0' := ZExp.CursorE ZExp.Before new_hole in 
+                    make_and_syn_OpSeqZ fuel ctx u_gen' ze0' surround' 
+                  end
+                | ZExp.SeqSuffix op' seq' => 
+                  match op with 
+                  | UHExp.Space => 
+                    (* prefix e| seq' --> prefix e op |seq' *)
+                    let prefix' := ZExp.prefix_append_exp prefix e op in 
+                    let (e0', suffix') := ZExp.split0 seq' in 
+                    let surround' := ZExp.BothNonEmpty prefix' suffix' in 
+                    let ze0' := ZExp.CursorE ZExp.Before e0' in 
+                    make_and_syn_OpSeqZ fuel ctx u_gen ze0' surround' 
+                  | _ => 
+                    (* prefix e| op' seq' --> prefix e op |_ op' seq' *)
+                    let prefix' := ZExp.prefix_append_exp prefix e op in 
+                    let surround' := ZExp.BothNonEmpty prefix' suffix in 
+                    let (new_hole, u_gen') := UHExp.new_EmptyHole u_gen in 
+                    let ze0' := ZExp.CursorE ZExp.Before new_hole in 
+                    make_and_syn_OpSeqZ fuel ctx u_gen ze0' surround'
+                  end
                 end
               end
-            | (Construct (SOp op), ZExp.OpSeqZ pre 
-                ((ZExp.CursorE ZExp.Before e') as ze0) post) => 
-              perform_Construct_SOp_OpSeqZ_Before op pre ze0 e' post fuel ctx ty u_gen associate hsyn
             | (Construct (SOp op), 
-                ZExp.OpSeqZ 
-                  pre 
-                  ((ZExp.LeftAp (ZExp.CursorE ZExp.Before e1) e2) as ze0) 
-                  post) =>
-              let e' := UHExp.Ap e1 e2 in 
-              perform_Construct_SOp_OpSeqZ_Before 
-                op pre ze0 e' post fuel ctx ty u_gen associate hsyn
+                ZExp.Deeper _ (ZExp.OpSeqZ _
+                  ((ZExp.CursorE ZExp.Before _) as ze0) surround))
+            | (Construct (SOp op), 
+                ZExp.Deeper _ (ZExp.OpSeqZ _ 
+                  ((ZExp.Deeper _ (ZExp.LeftAp (ZExp.CursorE ZExp.Before _) _)) as ze0) 
+                  surround)) =>
+                let e0 := ZExp.erase ze0 in 
+                match surround with 
+                | ZExp.EmptyPrefix suffix => 
+                    (* |ze0 ... --> |_ op e0 ... *)
+                    let suffix' := ZExp.suffix_prepend_exp suffix op e0 in 
+                    let surround' := ZExp.EmptyPrefix suffix' in 
+                    let (new_hole, u_gen') := UHExp.new_EmptyHole u_gen in 
+                    let ze0' := ZExp.CursorE ZExp.Before new_hole in 
+                    make_and_syn_OpSeqZ fuel ctx u_gen' ze0' surround' 
+                | ZExp.EmptySuffix (ZExp.ExpPrefix e1 (UHExp.Space)) => 
+                    let surround' := ZExp.EmptySuffix (ZExp.ExpPrefix e1 op) in 
+                    make_and_syn_OpSeqZ fuel ctx u_gen ze0 surround' 
+                | ZExp.EmptySuffix (ZExp.SeqPrefix seq1 (UHExp.Space)) => 
+                    let surround' := ZExp.EmptySuffix (ZExp.SeqPrefix seq1 op) in 
+                    make_and_syn_OpSeqZ fuel ctx u_gen ze0 surround' 
+                | ZExp.EmptySuffix prefix => 
+                    (* ... |ze0 --> ... |_ op e0 *)
+                    let suffix' := ZExp.ExpSuffix op e0 in 
+                    let surround' := ZExp.BothNonEmpty prefix suffix' in 
+                    let (new_hole, u_gen') := UHExp.new_EmptyHole u_gen in 
+                    let ze0' := ZExp.CursorE ZExp.Before new_hole in 
+                    make_and_syn_OpSeqZ fuel ctx u_gen' ze0' surround' 
+                | ZExp.BothNonEmpty (ZExp.ExpPrefix e1 (UHExp.Space)) suffix => 
+                    let prefix' := ZExp.ExpPrefix e1 op in 
+                    let surround' := ZExp.BothNonEmpty prefix' suffix in 
+                    make_and_syn_OpSeqZ fuel ctx u_gen ze0 surround'
+                | ZExp.BothNonEmpty (ZExp.SeqPrefix seq1 (UHExp.Space)) suffix => 
+                    let prefix' := ZExp.SeqPrefix seq1 op in 
+                    let surround' := ZExp.BothNonEmpty prefix' suffix in 
+                    make_and_syn_OpSeqZ fuel ctx u_gen ze0 surround'
+                | ZExp.BothNonEmpty prefix suffix => 
+                    let suffix' := ZExp.suffix_prepend_exp suffix op e0 in 
+                    let surround' := ZExp.BothNonEmpty prefix suffix' in 
+                    let (new_hole, u_gen') := UHExp.new_EmptyHole u_gen in 
+                    let ze0' := ZExp.CursorE ZExp.Before new_hole in 
+                    make_and_syn_OpSeqZ fuel ctx u_gen' ze0' surround' 
+                end
             | (Construct (SOp op), ZExp.CursorE ZExp.On e)
             | (Construct (SOp op), ZExp.CursorE ZExp.After e) => 
-              if HTyp.consistent ty (HTyp.Num) then
-                let pre := ZExp.NonEmptyPrefix (UHExp.BareExp e) op in 
-                let post := ZExp.EmptySuffix in 
-                let (u, u_gen') := MetaVar.next u_gen in 
-                let ze := ZExp.OpSeqZ pre (ZExp.CursorE ZExp.Before (UHExp.EmptyHole u)) post in 
-                Some (ze, HTyp.Num, u_gen')
-              else None
+              let prefix := ZExp.ExpPrefix e op in 
+              let surround := ZExp.EmptySuffix prefix in 
+              let (e0, u_gen') := UHExp.new_EmptyHole u_gen in 
+              let ze0' := ZExp.CursorE ZExp.Before e0 in
+              make_and_syn_OpSeqZ fuel ctx u_gen' ze0' surround 
             | (Construct (SOp op), ZExp.CursorE ZExp.Before e) => 
-              perform_Construct_SOp_Before op e ty u_gen
+              let suffix := ZExp.ExpSuffix op e in 
+              let surround := ZExp.EmptyPrefix suffix in 
+              let (e0, u_gen') := UHExp.new_EmptyHole u_gen in 
+              let ze0' := ZExp.CursorE ZExp.Before e0 in
+              make_and_syn_OpSeqZ fuel ctx u_gen' ze0' surround 
             | (Construct (SOp op), 
-                ZExp.LeftAp (ZExp.CursorE ZExp.Before e1) e2) => 
-              let e := UHExp.Ap e1 e2 in 
-              perform_Construct_SOp_Before op e ty u_gen
-            (* Finish *)
-            | (Finish, ZExp.CursorE _ (UHExp.NonEmptyHole u e)) =>
-              (hsyn fuel ctx (associate e)) |>
-                  map_option(fun ty' => (ZExp.CursorE ZExp.After e, ty', u_gen))
+                ZExp.Deeper err_state (ZExp.LeftAp (ZExp.CursorE ZExp.Before e1) e2)) => 
+              let e := UHExp.Tm err_state (UHExp.Ap e1 e2) in 
+              let suffix := ZExp.ExpSuffix op e in 
+              let surround := ZExp.EmptyPrefix suffix in 
+              let (e0, u_gen') := UHExp.new_EmptyHole u_gen in 
+              let ze0' := ZExp.CursorE ZExp.Before e0 in
+              make_and_syn_OpSeqZ fuel ctx u_gen' ze0' surround 
             (* Zipper Cases *)
-            | (a, ZExp.LeftAsc ze ty) (* SAZipAsc1 *) =>
-              match performAna fuel u_gen ctx a ze ty associate with 
+            | (_, ZExp.Deeper _ (ZExp.LeftAsc ze ty)) =>
+              match performAna fuel u_gen ctx a ze ty with 
+              | Some (ze', u_gen') => 
+                  Some (
+                    ZExp.Deeper UHExp.NotInHole (ZExp.LeftAsc ze' ty), 
+                    ty, 
+                    u_gen')
               | None => None
-              | Some (ze', u_gen') => Some (ZExp.LeftAsc ze' ty, ty, u_gen')
               end
-            | (a, ZExp.RightAsc e zty) (* SAZipAsc2 *) =>
+            | (_, ZExp.Deeper _ (ZExp.RightAsc e zty)) =>
               match performTyp a zty with 
-              | None => None
               | Some zty' => 
                   let ty' := ZTyp.erase zty' in
-                  let ae := associate e in 
-                  match hana fuel ctx ae ty' with 
+                  match UHExp.ana_fix_holes fuel ctx u_gen e ty' with 
                   | None => None
-                  | Some tt => 
-                      Some (ZExp.RightAsc e zty', ty', u_gen)
-                  end
-              end
-            | (a, ZExp.LetZ1 x ze1 e2) =>
-              let e1 := associate (ZExp.erase ze1) in
-              (hsyn fuel ctx e1) |>
-                  flatmap_option(fun ty1 => performSyn fuel ctx a (ze1, ty1, u_gen) associate) |>
-                  flatmap_option(fun ze_ty1' =>
-                    match ze_ty1' with
-                    | (ze1', ty1', u_gen') =>
-                      let ctx' := Ctx.extend ctx (x, ty1') in
-                      let ae2 := associate e2 in 
-                      (hsyn fuel ctx' ae2) |>
-                        map_option(fun ty2' => (ZExp.LetZ1 x ze1' e2, ty2', u_gen'))
-                    end
-                  )
-            | (a, ZExp.LetZ2 x e1 ze2) =>
-              (hsyn fuel ctx (associate e1)) |>
-                  flatmap_option(fun ty1 =>
-                    let ctx' := Ctx.extend ctx (x, ty1) in
-                    performSyn fuel ctx' a (ze2, ty, u_gen) associate
-                  ) |>
-                  map_option(fun ze_ty2' =>
-                    match ze_ty2' with
-                    | (ze2', ty2', u_gen') =>
-                      (ZExp.LetZ2 x e1 ze2', ty2', u_gen')
-                    end)
-            | (_, ZExp.LeftAp ze1 e2) (* SAZipApArr *) =>
-              let e1 := associate (ZExp.erase ze1) in
-              (hsyn fuel ctx e1) |>
-                  flatmap_option(fun ty2 => performSyn fuel ctx a (ze1, ty2, u_gen) associate) |>
-                  flatmap_option(fun ze1'_ty3 =>
-                    match ze1'_ty3 with
-                    | (ze1', ty3, u_gen') =>
-                      (HTyp.matched_arrow ty3) |>
-                          flatmap_option(fun ty4_ty5 =>
-                            match ty4_ty5 with
-                            | (ty4, ty5) =>
-                            (hana fuel ctx (associate e2) ty5) |>
-                              map_option(fun _ => (ZExp.LeftAp ze1' e2, ty5, u_gen'))
-                            end
-                          )
-                    end
-                  )
-            | (_, ZExp.RightAp e1 ze2) (* SAZipApAna *) =>
-              (hsyn fuel ctx (associate e1)) |>
-                  flatmap_option(fun ty2 => HTyp.matched_arrow ty2) |>
-                  flatmap_option(fun ty3_ty4 =>
-                    match ty3_ty4 with
-                    | (ty3, ty4) =>
-                    (performAna fuel u_gen ctx a ze2 ty3 associate) |>
-                      map_option(fun ana_out => 
-                        match ana_out with 
-                        | (ze2', u_gen') => 
-                            (ZExp.RightAp e1 ze2', ty4, u_gen')
-                        end)
-                    end
-                  )
-            | (_, ZExp.NonEmptyHoleZ u ze1) (* SAZipHole *) =>
-              let e1 := ZExp.erase ze1 in
-              (hsyn fuel ctx (associate e1)) |>
-                  flatmap_option(fun ty1 => performSyn fuel ctx a (ze1, ty1, u_gen) associate) |>
-                  map_option(fun syn_out =>
-                    match syn_out with
-                    | (ze1', _, u_gen') => (ZExp.NonEmptyHoleZ u ze1', HTyp.Hole, u_gen')
-                    end)
-            | (_, ZExp.OpSeqZ pre ze post) => 
-              (* this is gonna be a little trickier once there are base types other than num... *)
-              match performAna fuel u_gen ctx a ze (HTyp.Num) associate with
-              | Some (ze', u_gen') => 
-                  let ae := associate (ZExp.erase ze') in 
-                  match hsyn fuel ctx ae with
-                  | Some ty => 
+                  | Some (e', u_gen') => 
                       Some (
-                        ZExp.OpSeqZ pre ze' post, 
-                        ty, 
+                        ZExp.Deeper UHExp.NotInHole (ZExp.RightAsc e' zty'), 
+                        ty', 
                         u_gen')
-                  | None => None
                   end
               | None => None
+              end
+            | (_, ZExp.Deeper _ (ZExp.LetZ1 x ze1 e2)) =>
+              let e1 := ZExp.erase ze1 in
+              match UHExp.syn fuel ctx e1 with 
+              | Some ty1 => 
+                match performSyn fuel ctx a (ze1, ty1, u_gen) with
+                | Some (ze1', ty1', u_gen') => 
+                  let ctx' := Ctx.extend ctx (x, ty1') in
+                  match UHExp.syn_fix_holes fuel ctx' u_gen' e2 with 
+                  | Some (e2', ty2', u_gen'') => 
+                    Some (
+                      ZExp.Deeper UHExp.NotInHole (ZExp.LetZ1 x ze1' e2'), 
+                      ty2', 
+                      u_gen'')
+                  | None => None
+                  end
+                | None => None
+                end
+              | None => None
+              end
+            | (_, ZExp.Deeper _ (ZExp.LetZ2 x e1 ze2)) =>
+              match UHExp.syn fuel ctx e1 with 
+              | Some ty1 => 
+                let ctx' := Ctx.extend ctx (x, ty1) in
+                match performSyn fuel ctx' a (ze2, ty, u_gen) with 
+                | Some (ze2', ty2', u_gen') => 
+                  Some (
+                    ZExp.Deeper UHExp.NotInHole (ZExp.LetZ2 x e1 ze2'), 
+                    ty2', u_gen')
+                | None => None
+                end
+              | None => None
+              end
+            | (_, ZExp.Deeper _ (ZExp.LeftAp ze1 e2)) =>
+              match UHExp.syn fuel ctx (ZExp.erase ze1) with 
+              | Some ty2 => 
+                match performSyn fuel ctx a (ze1, ty2, u_gen) with 
+                | Some (ze1', ty3, u_gen') => 
+                  match HTyp.matched_arrow ty3 with
+                  | Some (ty4, ty5) => 
+                     match UHExp.ana_fix_holes fuel ctx u_gen' e2 ty5 with
+                     | Some (e2', u_gen'') => Some (
+                         ZExp.Deeper UHExp.NotInHole (ZExp.LeftAp ze1' e2'), 
+                         ty5, u_gen'')
+                     | None => None
+                     end
+                  | None => 
+                    let (ze1'', u_gen') := ZExp.put_in_new_hole u_gen ze1' in  
+                    match UHExp.ana_fix_holes fuel ctx u_gen' e2 HTyp.Hole with 
+                    | Some (e2', u_gen'') => Some (
+                        ZExp.Deeper UHExp.NotInHole (ZExp.LeftAp ze1'' e2'),
+                        HTyp.Hole, u_gen'')
+                    | None => None
+                    end
+                  end
+                | None => None
+                end
+              | None => None
+              end
+            | (_, ZExp.Deeper _ (ZExp.RightAp e1 ze2)) =>
+              match UHExp.syn fuel ctx e1 with 
+              | Some ty2 => 
+                match HTyp.matched_arrow ty2 with 
+                | Some (ty3, ty4) => 
+                  match performAna fuel u_gen ctx a ze2 ty3 with 
+                  | Some (ze2', u_gen') => 
+                      Some (
+                        ZExp.Deeper UHExp.NotInHole (ZExp.RightAp e1 ze2'), 
+                        ty4, u_gen')
+                  | None => None
+                  end
+                | None => None
+                end
+              | None => None
+              end
+            | (_, ZExp.Deeper _ (ZExp.OpSeqZ skel ze0 surround)) => 
+              let i := ZExp.surround_prefix_length surround in 
+              match ZExp.erase ze with 
+              | UHExp.Tm _ (UHExp.OpSeq skel seq) => 
+                match UHExp.syn_skel fuel ctx skel seq (Some i) with 
+                | Some (ty, Some mode) =>
+                    match mode with 
+                    | UHExp.AnalyzedAgainst ty0 => 
+                      match performAna fuel u_gen ctx a ze0 ty0 with 
+                      | Some (ze0', u_gen') => Some (
+                          ZExp.Deeper UHExp.NotInHole (ZExp.OpSeqZ skel ze0' surround), 
+                          ty, u_gen')
+                      | None => None
+                      end
+                    | UHExp.Synthesized ty0 =>
+                      match performSyn fuel ctx a (ze0, ty0, u_gen) with 
+                      | Some (ze0', ty0', u_gen') => 
+                        match make_and_syn_OpSeqZ fuel ctx u_gen' ze0' surround with
+                        | Some (ze', ty', u_gen'') => 
+                          Some (ze', ty', u_gen')
+                        | None => None
+                        end
+                      | None => None
+                      end
+                    end
+                | Some _ => None (* should never happen *)
+                | None => None (* should never happen *)
+                end
+              | _ => None (* should never happen *)
               end
             | _ => None
             end
           end
         end
       with performAna 
-        (fuel: Fuel) 
+        (fuel: Fuel.t) 
         (u_gen : MetaVar.gen) 
         (ctx: Ctx.t) 
         (a: t) 
         (ze: ZExp.t) 
         (ty: HTyp.t)
-        (associate : UHExp.t -> AHExp.t) : option (ZExp.t * MetaVar.gen) :=
+        : option (ZExp.t * MetaVar.gen) :=
         match fuel with
-        | Kicked => None
-        | More fuel =>
+        | Fuel.Kicked => None
+        | Fuel.More fuel =>
         match (a, ze) with
         (* Movement *)
         | (MoveTo path, _) => 
@@ -1227,213 +1995,259 @@ Module Core.
           | Some ze' => Some (ze', u_gen)
           | None => None
           end
-        (* Backspace & Deletion *)
+        (* Backspace & Delete *)
         | (Backspace, ZExp.CursorE ZExp.After e) => 
-          let x' := match e with 
-          | UHExp.EmptyHole u => (e, u_gen, ZExp.Before)
+          match e with 
+          | UHExp.Tm _ (UHExp.EmptyHole _) => 
+            Some (ZExp.CursorE ZExp.Before e, u_gen)
           | _ => 
-              let (u', u_gen') := MetaVar.next u_gen in 
-              (UHExp.EmptyHole u', u_gen', ZExp.Before)
-          end in
-          match x' with 
-          (e', u_gen', cursor_side) => 
-            let ze' := ZExp.CursorE cursor_side e' in 
-            Some (ze', u_gen')
+            let (e', u_gen') := UHExp.new_EmptyHole u_gen in 
+            Some (ZExp.CursorE ZExp.Before e', u_gen')
           end
-        | (Del, ZExp.CursorE ZExp.Before e) => 
-          let x' := match e with 
-          | UHExp.EmptyHole u => (e, u_gen, ZExp.After)
+        | (Delete, ZExp.CursorE ZExp.Before e) => 
+          match e with 
+          | UHExp.Tm _ (UHExp.EmptyHole _) => 
+            Some (ZExp.CursorE ZExp.After e, u_gen)
           | _ => 
-              let (u', u_gen') := MetaVar.next u_gen in 
-              (UHExp.EmptyHole u', u_gen', ZExp.Before)
-          end in 
-          match x' with 
-          (e', u_gen', cursor_side) => 
-            let ze' := ZExp.CursorE cursor_side e' in 
-            Some (ze', u_gen')
+            let (e', u_gen') := UHExp.new_EmptyHole u_gen in 
+            Some (ZExp.CursorE ZExp.Before e', u_gen)
           end
         | (Backspace, ZExp.CursorE ZExp.On e)
-        | (Del, ZExp.CursorE ZExp.On e) => 
-          let (u', u_gen') := MetaVar.next u_gen in 
-          let ze' := ZExp.CursorE ZExp.Before (UHExp.EmptyHole u') in 
+        | (Delete, ZExp.CursorE ZExp.On e) => 
+          let (e', u_gen') := UHExp.new_EmptyHole u_gen in 
+          let ze' := ZExp.CursorE ZExp.Before e' in 
           Some (ze', u_gen')
+        (* special cases for backspace/delete that can turn an opseq back into a single expression *)
+        | (Backspace, 
+            ZExp.Deeper _ 
+              (ZExp.OpSeqZ _
+                ((ZExp.CursorE ZExp.Before _) as ze0)
+                (ZExp.EmptySuffix
+                  (ZExp.ExpPrefix e1 UHExp.Space)))) 
+        | (Backspace, 
+            ZExp.Deeper _
+              (ZExp.OpSeqZ _
+                ((ZExp.Deeper _ (ZExp.LeftAp (ZExp.CursorE ZExp.Before _) _)) as ze0)
+                (ZExp.EmptySuffix
+                  (ZExp.ExpPrefix e1 UHExp.Space)))) => 
+          let ze0' := combine_for_Backspace_Space e1 ze0 in 
+          zexp_ana_fix_holes fuel ctx u_gen ze0' ty
+        | (Delete, 
+            ZExp.Deeper _
+              (ZExp.OpSeqZ _
+                ((ZExp.CursorE ZExp.After _) as ze0)
+                (ZExp.EmptyPrefix
+                  (ZExp.ExpSuffix UHExp.Space e1)))) => 
+          let ze0' := combine_for_Delete_Space ze0 e1 in 
+          zexp_ana_fix_holes fuel ctx u_gen ze0' ty
         (* Construction *)
         | (Construct SAsc, ZExp.CursorE ZExp.On e)
         | (Construct SAsc, ZExp.CursorE ZExp.After e) =>
-          Some (ZExp.RightAsc e (ZTyp.CursorT ty), u_gen)
-        | (Construct (SVar x), ZExp.CursorE ZExp.Before (UHExp.EmptyHole u)) =>
-          let ty_valid := match Ctx.lookup ctx x with
-            | Some xty => HTyp.inconsistent ty xty
-            | None => false end
-          in
-            if ty_valid then
-              Some (ZExp.NonEmptyHoleZ u (ZExp.CursorE ZExp.After (UHExp.Var x)), u_gen) else
-              performAna_subsume fuel u_gen ctx a ze ty associate
-        | (Construct (SLet x), ZExp.CursorE _ (UHExp.EmptyHole u)) =>
-          let (u', u_gen') := MetaVar.next u_gen in 
-          Some (ZExp.LetZ1 x ze (UHExp.EmptyHole u'), u_gen')
-        | (Construct (SLam x), ZExp.CursorE _ (UHExp.EmptyHole u)) =>
+          Some (
+            ZExp.Deeper (UHExp.NotInHole) 
+              (ZExp.RightAsc e (ZTyp.CursorT ty)), 
+            u_gen)
+        | (Construct (SLet x), 
+            ZExp.CursorE _ 
+              (UHExp.Tm _ (UHExp.EmptyHole u))) =>
+          let (new_hole, u_gen') := UHExp.new_EmptyHole u_gen in 
+          Some (
+            ZExp.Deeper UHExp.NotInHole
+              (ZExp.LetZ1 x ze new_hole), 
+            u_gen')
+        | (Construct (SLam x), 
+            ZExp.CursorE _ 
+              (UHExp.Tm _ (UHExp.EmptyHole u))) =>
           match HTyp.matched_arrow ty with
-            | Some _ (* AAConLam1 *) => Some (ZExp.LamZ x ze, u_gen)
-            | None (* AAConLam2 *) => 
-                let (u', u_gen') := MetaVar.next u_gen in 
+            | Some _ => 
+              Some (
+                ZExp.Deeper UHExp.NotInHole (ZExp.LamZ x ze), 
+                u_gen)
+            | None => 
+                let (new_hole, u_gen') := UHExp.new_EmptyHole u_gen in 
                 Some (
-                    ZExp.NonEmptyHoleZ u (
+                    ZExp.Deeper (UHExp.InHole u) (
                       ZExp.RightAsc
-                        (UHExp.Lam x (UHExp.EmptyHole u'))
+                        (UHExp.Tm UHExp.NotInHole (UHExp.Lam x new_hole))
                         (ZTyp.LeftArrow (ZTyp.CursorT HTyp.Hole) HTyp.Hole)
                       ), u_gen')
           end
-        | (Construct (SLit n), ZExp.CursorE _ (UHExp.EmptyHole u)) (* AAConNumLit *) =>
-          if HTyp.inconsistent ty HTyp.Num then
-            Some (ZExp.NonEmptyHoleZ u (ZExp.CursorE ZExp.After (UHExp.NumLit n)), u_gen)
-          else
-            performAna_subsume fuel u_gen ctx a ze ty associate
-        | (Construct (SInj side), ZExp.CursorE _ (UHExp.EmptyHole u)) =>
+        | (Construct (SInj side), 
+            ZExp.CursorE _ (UHExp.Tm _ (UHExp.EmptyHole u))) =>
           match HTyp.matched_sum ty with
-            | Some _ (* 23a *) => Some (ZExp.InjZ side ze, u_gen)
+            | Some _ (* 23a *) => Some (
+                ZExp.Deeper UHExp.NotInHole 
+                  (ZExp.InjZ side ze), 
+                u_gen)
             | None (* 23b *) => 
-                let (u', u_gen') := MetaVar.next u_gen in 
+                let (new_hole, u_gen') := UHExp.new_EmptyHole u_gen in 
                 Some (
-                    ZExp.NonEmptyHoleZ u (
+                    ZExp.Deeper (UHExp.InHole u) (
                       ZExp.RightAsc
-                        (UHExp.Inj side (UHExp.EmptyHole u'))
+                        (UHExp.Tm UHExp.NotInHole (UHExp.Inj side new_hole))
                         (ZTyp.LeftSum (ZTyp.CursorT HTyp.Hole) HTyp.Hole)
                     ), u_gen')
           end
-        | (Construct (SCase x y), ZExp.CursorE _ (UHExp.EmptyHole u)) (* 23c *) =>
-          let (u1, u_gen') := MetaVar.next u_gen in 
-          let (u2, u_gen'') := MetaVar.next u_gen' in 
+        | (Construct (SCase x y), 
+            ZExp.CursorE _ (UHExp.Tm _ (UHExp.EmptyHole u))) (* 23c *) =>
+          let (new_hole1, u_gen') := UHExp.new_EmptyHole u_gen in 
+          let (new_hole2, u_gen'') := UHExp.new_EmptyHole u_gen' in 
           Some (
-            ZExp.CaseZ1
-              ze 
-              (x, UHExp.EmptyHole u1)
-              (y, UHExp.EmptyHole u2),
+            ZExp.Deeper UHExp.NotInHole (
+              ZExp.CaseZ1
+                ze 
+                (x, new_hole1)
+                (y, new_hole2)),
             u_gen''
           )
-        (* Finishing *)
-        | (Finish, ZExp.CursorE _ (UHExp.NonEmptyHole u e)) =>
-          (AHExp.hana fuel ctx (associate e) ty) |>
-              map_option(fun _ => (ZExp.CursorE ZExp.After e, u_gen))
         (* Zipper Cases *)
-        | (_, ZExp.LetZ1 x ze1 e2) =>
-          let e1 := associate (ZExp.erase ze1) in
-          (AHExp.hsyn fuel ctx e1) |>
-              flatmap_option(fun ty1 => performSyn fuel ctx a (ze1, ty1, u_gen) associate) |>
-              flatmap_option(fun syn_out =>
-                match syn_out with
-                | (ze1', ty1', u_gen') =>
-                  let ctx' := Ctx.extend ctx (x, ty1') in
-                  (AHExp.hana fuel ctx' (associate e2) ty) |>
-                    map_option(fun _ => (ZExp.LetZ1 x ze1' e2, u_gen'))
-                end)
-        | (_, ZExp.LetZ2 x e1 ze2) =>
-          (AHExp.hsyn fuel ctx (associate e1)) |>
-              flatmap_option(fun ty1 =>
-                let ctx' := Ctx.extend ctx (x, ty1) in
-                performAna fuel u_gen ctx' a ze2 ty associate) |>
-              map_option(fun ana_out => 
-                match ana_out with 
-                | (ze2', u_gen') => (ZExp.LetZ2 x e1 ze2', u_gen')
-                end)
-        | (_, ZExp.LamZ x ze') =>
-          (HTyp.matched_arrow ty) |>
-              flatmap_option(fun ty1_ty2 => match ty1_ty2 with
-              | (ty1, ty2) =>
-                let ctx' := Ctx.extend ctx (x, ty1) in
-                performAna fuel u_gen ctx' a ze' ty2 associate
-              end) |>
-              map_option(fun ana_out => 
-                match ana_out with 
-                | (ze'', u_gen') => (ZExp.LamZ x ze'', u_gen')
-                end)
-        | (_, ZExp.InjZ side ze) =>
-          (HTyp.matched_sum ty) |>
-              flatmap_option(fun ty1_ty2 => match ty1_ty2 with
-              | (ty1, ty2) =>
-                performAna fuel u_gen ctx a ze
-                  (AHExp.pick_side side ty1 ty2) associate
-              end) |>
-              map_option(fun ana_out => 
-                match ana_out with 
-                | (ze', u_gen') => (ZExp.InjZ side ze', u_gen')
-                end)
-        | (_, ZExp.CaseZ1 ze (x, e1) (y, e2)) =>
-          let e0 := associate (ZExp.erase ze) in
-          match AHExp.hsyn fuel ctx e0 with 
+        | (_, ZExp.Deeper _ (ZExp.LetZ1 x ze1 e2)) =>
+          match UHExp.syn fuel ctx (ZExp.erase ze1) with 
+          | Some ty1 => 
+            match performSyn fuel ctx a (ze1, ty1, u_gen) with 
+            | Some (ze1', ty1', u_gen') => 
+              let ctx' := Ctx.extend ctx (x, ty1') in
+              match UHExp.ana_fix_holes fuel ctx' u_gen' e2 ty with 
+              | Some (e2', u_gen'') => 
+                Some (ZExp.Deeper (UHExp.NotInHole) (
+                  ZExp.LetZ1 x ze1' e2'), u_gen'')
+              | None => None
+              end
+            | None => None
+            end
+          | None => None
+          end
+        | (_, ZExp.Deeper _ (ZExp.LetZ2 x e1 ze2)) =>
+          match UHExp.syn fuel ctx e1 with 
+          | Some ty1 => 
+            let ctx' := Ctx.extend ctx (x, ty1) in
+            match performAna fuel u_gen ctx' a ze2 ty with
+            | Some (ze2', u_gen') => 
+              Some (ZExp.Deeper (UHExp.NotInHole) (
+                ZExp.LetZ2 x e1 ze2'), u_gen')
+            | None => None
+            end
+         | None => None
+          end
+        | (_, ZExp.Deeper _ (ZExp.LamZ x ze')) =>
+          match HTyp.matched_arrow ty with 
+          | Some (ty1, ty2) => 
+            let ctx' := Ctx.extend ctx (x, ty1) in
+            match performAna fuel u_gen ctx' a ze' ty2 with 
+            | Some (ze'', u_gen') => Some (
+                ZExp.Deeper (UHExp.NotInHole) (ZExp.LamZ x ze''), 
+                u_gen')
+            | None => None
+            end
+          | None => None
+          end
+        | (_, ZExp.Deeper _ (ZExp.InjZ side ze)) =>
+          match HTyp.matched_sum ty with 
+          | Some (ty1, ty2) => 
+            let picked := UHExp.pick_side side ty1 ty2 in 
+            match performAna fuel u_gen ctx a ze picked with 
+            | Some (ze', u_gen') => Some (
+                ZExp.Deeper (UHExp.NotInHole) (
+                  ZExp.InjZ side ze'), u_gen')
+            | None => None
+            end
+          | None => None
+          end
+        | (_, ZExp.Deeper _ (ZExp.CaseZ1 ze (x, e1) (y, e2))) =>
+          match UHExp.syn fuel ctx (ZExp.erase ze) with 
           | None => None
           | Some ty0 => 
-              match performSyn fuel ctx a (ze, ty0, u_gen) associate with 
+              match performSyn fuel ctx a (ze, ty0, u_gen) with 
               | None => None
               | Some (ze', ty0', u_gen') => 
                 match HTyp.matched_sum ty0' with 
                 | None => None
                 | Some (ty1, ty2) =>
                   let ctx1 := Ctx.extend ctx (x, ty1) in
-                  match AHExp.hana fuel ctx1 (associate e1) ty with 
+                  match UHExp.ana_fix_holes fuel ctx1 u_gen' e1 ty with 
                   | None => None
-                  | Some _ => 
+                  | Some (e1', u_gen'') => 
                       let ctx2 := Ctx.extend ctx (y, ty2) in
-                      match AHExp.hana fuel ctx2 (associate e2) ty with 
+                      match UHExp.ana_fix_holes fuel ctx2 u_gen'' e2 ty with 
                       | None => None
-                      | Some _ => 
-                          Some (ZExp.CaseZ1 ze' (x, e1) (y, e2), u_gen')
+                      | Some (e2', u_gen''') => 
+                          Some (
+                            ZExp.Deeper (UHExp.NotInHole) (
+                              ZExp.CaseZ1 ze' (x, e1') (y, e2')), 
+                            u_gen''')
                       end
                   end
                 end
               end
           end
-        | (_, ZExp.CaseZ2 e0 (x, ze1) (y, e2)) =>
-          (AHExp.hsyn fuel ctx (associate e0)) |>
-              flatmap_option(fun ty0 => HTyp.matched_sum ty0) |>
-              flatmap_option(fun ty1_ty2 => match ty1_ty2 with
-              | (ty1, ty2) =>
-                let ctx1 := Ctx.extend ctx (x, ty1) in
-                performAna fuel u_gen ctx1 a ze1 ty associate
-              end) |>
-              map_option(fun ana_out => 
-                  match ana_out with 
-                  | (ze1', u_gen') => (ZExp.CaseZ2 e0 (x, ze1') (y, e2), u_gen')
-                  end)
-        | (_, ZExp.CaseZ3 e0 (x, e1) (y, ze2)) =>
-          (AHExp.hsyn fuel ctx (associate e0)) |>
-              flatmap_option(fun ty0 => HTyp.matched_sum ty0) |>
-              flatmap_option(fun ty1_ty2 => match ty1_ty2 with
-              | (ty1, ty2) =>
-                let ctx2 := Ctx.extend ctx (y, ty2) in
-                performAna fuel u_gen ctx2 a ze2 ty associate
-              end) |>
-              map_option(fun ana_out => 
-                  match ana_out with 
-                  | (ze2', u_gen') => (ZExp.CaseZ3 e0 (x, e1) (y, ze2'), u_gen')
-                  end)
+        | (_, ZExp.Deeper err_state (ZExp.CaseZ2 e0 (x, ze1) (y, e2))) =>
+          match UHExp.syn fuel ctx e0 with 
+          | Some ty0 => 
+            match HTyp.matched_sum ty0 with 
+            | Some (ty1, ty2) => 
+              let ctx1 := Ctx.extend ctx (x, ty1) in
+              match performAna fuel u_gen ctx1 a ze1 ty with 
+              | Some (ze1', u_gen') => 
+                Some (
+                  ZExp.Deeper 
+                    err_state 
+                    (ZExp.CaseZ2 e0 (x, ze1') (y, e2)), 
+                  u_gen')
+              | None => None
+              end
+            | None => None
+            end
+          | None => None
+          end
+        | (_, ZExp.Deeper err_state (ZExp.CaseZ3 e0 (x, e1) (y, ze2))) =>
+          match UHExp.syn fuel ctx e0 with 
+          | Some ty0 => 
+            match HTyp.matched_sum ty0 with
+            | Some (ty1, ty2) => 
+              let ctx2 := Ctx.extend ctx (y, ty2) in
+              match performAna fuel u_gen ctx2 a ze2 ty with 
+              | Some (ze2', u_gen') => 
+                Some (
+                  ZExp.Deeper err_state 
+                    (ZExp.CaseZ3 e0 (x, e1) (y, ze2')), 
+                  u_gen')
+              | None => None
+              end
+            | None => None
+            end
+          | None => None
+          end
         (* Subsumption *)
         | _ (* AASubsume *) =>
-          performAna_subsume fuel u_gen ctx a ze ty associate
+          performAna_subsume fuel u_gen ctx a ze ty
         end
         end
       with performAna_subsume 
-        (fuel : Fuel) 
+        (fuel : Fuel.t) 
         (u_gen : MetaVar.gen) 
         (ctx : Ctx.t) 
         (a : t) 
         (ze : ZExp.t) 
         (ty : HTyp.t)
-        (associate : UHExp.t -> AHExp.t) : option (ZExp.t * MetaVar.gen) :=
+        : option (ZExp.t * MetaVar.gen) :=
         match fuel with
-        | Kicked => None
-        | More fuel =>
-          let e := associate (ZExp.erase ze) in
-          (AHExp.hsyn fuel ctx e) |>
-            flatmap_option(fun ty1 => performSyn fuel ctx a (ze, ty1, u_gen) associate) |>
-            flatmap_option(fun syn_out =>
-              match syn_out with
-              | (ze', ty1', u_gen') =>
-                if HTyp.consistent ty ty1' then Some (ze', u_gen') else None
-              end
-            )
+        | Fuel.Kicked => None
+        | Fuel.More fuel =>
+          match UHExp.syn fuel ctx (ZExp.erase ze) with 
+          | Some ty1 => 
+            match performSyn fuel ctx a (ze, ty1, u_gen) with 
+            | Some (ze', ty1', u_gen') => 
+              if HTyp.consistent ty ty1' then 
+                Some (ze', u_gen') 
+              else 
+                let (ze'', u_gen'') := ZExp.put_in_new_hole u_gen' ze' in 
+                Some (ze'', u_gen'')
+            | None => None
+            end
+          | None => None
+          end
         end.
-    End Action.
+    End FAction.
 
     Module Dynamics.
         Module Environment.
@@ -1471,583 +2285,777 @@ Module Core.
         End MetaVarCtx.            
 
         Module DHExp.
-            Inductive eval_state : Type := 
-            | Evaled : eval_state
-            | Unevaled : eval_state.
+          Inductive bin_num_op : Type := 
+          | Plus : bin_num_op
+          | Times : bin_num_op.
 
-            Inductive t : Type := 
-            | Var : Var.t -> t
-            | Let : Var.t -> t -> t -> t
-            | Lam : Var.t -> HTyp.t -> t -> t
-            | Ap  : t -> t -> t
-            | NumLit : nat -> t
-            | BinOp : AHExp.op -> t -> t -> t
-            | Inj : HTyp.t -> AHExp.inj_side -> t -> t
-            | Case : HTyp.t -> t -> (Var.t * t) -> (Var.t * t) -> t
-            | EmptyHole : MetaVar.t -> eval_state -> Environment.t(t) -> t 
-            | NonEmptyHole : MetaVar.t -> eval_state -> Environment.t(t) -> t -> t
-            | Cast : HTyp.t -> t -> t.
+          Definition of_op op := 
+            match op with 
+            | UHExp.Plus => Some Plus
+            | UHExp.Times => Some Times
+            | _ => None
+            end.
 
-            (* closed substitution [d1/x]d2*)
-            Fixpoint subst (fuel : Fuel) (d1 : t) (x : Var.t) (d2 : t) : t := 
-                match fuel with 
-                | More fuel => let subst := subst fuel in 
-                    match d2 with 
-                    | Var y => if Var.equal x y then d1 else d2
-                    | Let y d3 d4 =>
-                        let d3' := subst d1 x d3 in 
-                        let d4' := if Var.equal x y then d4 else subst d1 x d4 in 
-                        Let y d3' d4'
-                    | Lam y ty d3 => 
-                        if Var.equal x y then d2 else 
-                        let d3' := subst d1 x d3 in 
-                        Lam y ty d3'
-                    | Ap d3 d4 => 
-                        let d3' := subst d1 x d3 in 
-                        let d4' := subst d1 x d4 in 
-                        Ap d3' d4'
-                    | NumLit _ => d2
-                    | BinOp op d3 d4 => 
-                        let d3' := subst d1 x d3 in 
-                        let d4' := subst d1 x d4 in 
-                        BinOp op d3' d4'
-                    | Inj ty side d3 => 
-                        let d3' := subst d1 x d3 in 
-                        Inj ty side d3' 
-                    | Case ty d3 (y4, d4) (y5, d5) => 
-                        let d3' := subst d1 x d3 in 
-                        let d4' := if Var.equal x y4 then d4 else subst d1 x d4 in 
-                        let d5' := if Var.equal x y5 then d5 else subst d1 x d5 in 
-                        Case ty d3' (y4, d4') (y5, d5')
-                    | EmptyHole u m sigma => 
-                        let sigma' := env_subst fuel d1 x sigma in 
-                        EmptyHole u m sigma' 
-                    | NonEmptyHole u m sigma d3 => 
-                        let d3' := subst d1 x d3 in 
-                        let sigma' := env_subst fuel d1 x sigma in 
-                        NonEmptyHole u m sigma' d3'
-                    | Cast ty d => 
-                        let d' := subst d1 x d in 
-                        Cast ty d' 
-                    end
-                | Kicked => d2
+          Inductive t : Type := 
+          | Var : Var.t -> t
+          | Let : Var.t -> t -> t -> t
+          | Lam : Var.t -> HTyp.t -> t -> t
+          | Ap  : t -> t -> t
+          | NumLit : nat -> t
+          | BinNumOp : bin_num_op -> t -> t -> t
+          | Inj : HTyp.t -> UHExp.inj_side -> t -> t
+          | Case : t -> (Var.t * t) -> (Var.t * t) -> t
+          | EmptyHole : MetaVar.t -> Environment.t(t) -> t 
+          | NonEmptyHole : MetaVar.t -> Environment.t(t) -> t -> t
+          | Cast : t -> HTyp.t -> HTyp.t -> t.
+
+          (* closed substitution [d1/x]d2*)
+          Fixpoint subst (fuel : Fuel.t) (d1 : t) (x : Var.t) (d2 : t) : t := 
+            match fuel with 
+            | Fuel.Kicked => d2
+            | Fuel.More fuel => let subst := subst fuel in 
+              match d2 with 
+              | Var y => if Var.equal x y then d1 else d2
+              | Let y d3 d4 =>
+                let d3' := subst d1 x d3 in 
+                let d4' := if Var.equal x y then d4 else subst d1 x d4 in 
+                Let y d3' d4'
+              | Lam y ty d3 => 
+                if Var.equal x y then d2 else 
+                let d3' := subst d1 x d3 in 
+                Lam y ty d3'
+              | Ap d3 d4 => 
+                let d3' := subst d1 x d3 in 
+                let d4' := subst d1 x d4 in 
+                Ap d3' d4'
+              | NumLit _ => d2
+              | BinNumOp op d3 d4 => 
+                let d3' := subst d1 x d3 in 
+                let d4' := subst d1 x d4 in 
+                BinNumOp op d3' d4'
+              | Inj ty side d3 => 
+                let d3' := subst d1 x d3 in 
+                Inj ty side d3' 
+              | Case d3 (y4, d4) (y5, d5) => 
+                let d3' := subst d1 x d3 in 
+                let d4' := if Var.equal x y4 then d4 else subst d1 x d4 in 
+                let d5' := if Var.equal x y5 then d5 else subst d1 x d5 in 
+                Case d3' (y4, d4') (y5, d5')
+              | EmptyHole u sigma => 
+                let sigma' := env_subst fuel d1 x sigma in 
+                EmptyHole u sigma' 
+              | NonEmptyHole u sigma d3 => 
+                let d3' := subst d1 x d3 in 
+                let sigma' := env_subst fuel d1 x sigma in 
+                NonEmptyHole u sigma' d3'
+              | Cast d ty1 ty2 => 
+                let d' := subst d1 x d in 
+                Cast d' ty1 ty2 
+              end
+            end
+          with env_subst (fuel : Fuel.t) (d1 : t) (x : Var.t) (sigma : Environment.t(t)) := 
+            match fuel with 
+            | Fuel.Kicked => sigma
+            | Fuel.More fuel => 
+              Coq.Lists.List.map 
+                (fun xd : Var.t * t => 
+                  let (y, d) := xd in
+                  (y, subst fuel d1 x d)) 
+                sigma
+            end.
+
+          Inductive type_result : Type := 
+          | WellTyped : HTyp.t -> type_result
+          | IllTyped.
+
+          Fixpoint assign_type 
+            (fuel : Fuel.t) 
+            (gamma : Ctx.t) (delta : MetaVarCtx.t) 
+            (d : t) 
+            : type_result := 
+              match fuel with 
+              | Fuel.Kicked => IllTyped
+              | Fuel.More fuel' => 
+              let assign_type := assign_type fuel' in 
+              match d with 
+              | Var x => 
+                match Ctx.lookup gamma x with 
+                | Some ty => WellTyped ty
+                | None => IllTyped
                 end
-            with env_subst (fuel : Fuel) (d1 : t) (x : Var.t) (sigma : Environment.t(t)) := 
-                match fuel with 
-                | More fuel => 
-                    Coq.Lists.List.map (
-                      fun xd : Var.t * t => 
-                          let (y, d) := xd in
-                          (y, subst fuel d1 x d)) 
-                      sigma
-                | Kicked => sigma
-                end.
-
-            Inductive type_result : Type := 
-            | WellTyped : HTyp.t -> type_result
-            | IllTyped.
-
-            Fixpoint assign_type 
-                (fuel : Fuel) 
-                (gamma : Ctx.t) (delta : MetaVarCtx.t) 
-                (d : t) : type_result := 
-                match fuel with 
-                | More fuel' => 
-                    let assign_type := assign_type fuel' in 
-                    match d with 
-                    | Var x => 
-                        match Ctx.lookup gamma x with 
-                        | Some ty => WellTyped ty
-                        | None => IllTyped
-                        end
-                    | Let x d1 d2 => 
-                        match assign_type gamma delta d1 with 
-                        | WellTyped ty1 => 
-                            let gamma' := Ctx.extend gamma (x, ty1) in 
-                            assign_type gamma' delta d2
-                        | IllTyped => IllTyped
-                        end
-                    | Lam x ty1 d1 => 
-                        let gamma' := Ctx.extend gamma (x, ty1) in 
-                        match assign_type gamma' delta d1 with 
-                        | WellTyped ty2 => WellTyped (HTyp.Arrow ty1 ty2)
-                        | IllTyped => IllTyped
-                        end
-                    | Ap d1 d2 => 
-                        match assign_type gamma delta d1 with 
-                        | WellTyped ty1 => 
-                            match HTyp.matched_arrow ty1 with 
-                            | Some (ty2, ty) => 
-                                match assign_type gamma delta d2 with 
-                                | WellTyped ty2' => 
-                                    if HTyp.consistent ty2 ty2' then 
-                                        WellTyped ty
-                                     else IllTyped
-                                | IllTyped => IllTyped
-                                end
-                            | None => IllTyped
-                            end
-                        | IllTyped => IllTyped
-                        end
-                    | NumLit _ => WellTyped HTyp.Num
-                    | BinOp _ d1 d2 => 
-                        match (assign_type gamma delta d1, 
-                               assign_type gamma delta d2) with 
-                        | (WellTyped ty1, WellTyped ty2) => 
-                            if HTyp.consistent ty1 HTyp.Num && 
-                               HTyp.consistent ty2 HTyp.Num then 
-                                 WellTyped HTyp.Num 
-                            else IllTyped
-                        | _ => IllTyped
-                        end
-                    | Inj other_ty side d1 => 
-                        match assign_type gamma delta d1 with
-                        | IllTyped => IllTyped
-                        | WellTyped ty1 => 
-                            match side with 
-                            | AHExp.L => WellTyped (HTyp.Sum ty1 other_ty)
-                            | AHExp.R => WellTyped (HTyp.Sum other_ty ty1)
-                            end
-                        end
-                    | Case ty d1 (x, d2) (y, d3) => 
-                        match assign_type gamma delta d1 with 
-                        | IllTyped => IllTyped
-                        | WellTyped ty1 => 
-                            match HTyp.matched_sum ty1 with 
-                            | None => IllTyped
-                            | Some (ty1L, ty1R) => 
-                                let gammaL := Ctx.extend gamma (x, ty1L) in 
-                                match assign_type gammaL delta d2 with 
-                                | IllTyped => IllTyped
-                                | WellTyped ty2 => 
-                                    if HTyp.consistent ty2 ty
-                                    then 
-                                        let gammaR := Ctx.extend gamma (y, ty1R) in 
-                                        match assign_type gammaR delta d3 with 
-                                        | IllTyped => IllTyped
-                                        | WellTyped ty3 => 
-                                            if HTyp.consistent ty3 ty then 
-                                                WellTyped ty
-                                             else IllTyped
-                                        end
-                                    else IllTyped
-                                end
-                            end
-                        end
-                    | EmptyHole u m sigma => 
-                        match MetaVarCtx.lookup delta u with 
-                        | Some (ty, gamma') => 
-                            if check_type_env fuel' gamma delta sigma gamma' then 
-                                WellTyped ty
-                            else IllTyped
-                        | None => IllTyped
-                        end
-                    | NonEmptyHole u m sigma d1 => 
-                        match assign_type gamma delta d1 with 
-                        | WellTyped _ => 
-                            match MetaVarCtx.lookup delta u with 
-                            | Some (ty, gamma') => 
-                                if check_type_env fuel' gamma delta sigma gamma' then
-                                    WellTyped ty
-                                else IllTyped
-                            | None => IllTyped
-                            end
-                        | IllTyped => IllTyped
-                        end
-                    | Cast ty d1 => 
-                        match assign_type gamma delta d1 with 
-                        | WellTyped ty' => 
-                            if HTyp.consistent ty ty' then 
-                                WellTyped ty
-                            else IllTyped
-                        | IllTyped => IllTyped
-                        end
-                    end
-                | Kicked => IllTyped
+              | Let x d1 d2 => 
+                match assign_type gamma delta d1 with 
+                | WellTyped ty1 => 
+                  let gamma' := Ctx.extend gamma (x, ty1) in 
+                  assign_type gamma' delta d2
+                | IllTyped => IllTyped
                 end
-            with check_type_env (fuel : Fuel)
-                    (gamma : Ctx.t) (delta : MetaVarCtx.t) 
-                    (sigma : Environment.t(t)) 
-                    (gamma' : Ctx.t) : bool := 
-                match fuel with 
-                | More fuel' => 
-                    Coq.Lists.List.forallb  
-                      (fun xd : Var.t * t => 
-                        let (x, d) := xd in 
-                        match assign_type fuel' gamma delta d with 
-                        | WellTyped ty => 
-                          match Ctx.lookup gamma' x with 
-                          | Some ty' => HTyp.consistent ty ty'
-                          | None => false
-                          end
-                        | IllTyped => false
-                        end)
-                      sigma
-                | Kicked => false
-                end.
-            
-            Inductive expand_result : Type := 
-            | Expands : t -> HTyp.t -> MetaVarCtx.t -> expand_result
-            | DoesNotExpand.
+              | Lam x ty1 d1 => 
+                let gamma' := Ctx.extend gamma (x, ty1) in 
+                match assign_type gamma' delta d1 with 
+                | WellTyped ty2 => WellTyped (HTyp.Arrow ty1 ty2)
+                | IllTyped => IllTyped
+                end
+              | Ap d1 d2 => 
+                match assign_type gamma delta d1 with 
+                | IllTyped => IllTyped
+                | WellTyped (HTyp.Arrow ty2 ty) => 
+                  match assign_type gamma delta d2 with 
+                  | IllTyped => IllTyped
+                  | WellTyped ty2' => 
+                    if HTyp.eq ty2 ty2' then WellTyped ty
+                    else IllTyped
+                  end
+                | WellTyped _ => IllTyped
+                end
+              | NumLit _ => WellTyped HTyp.Num
+              | BinNumOp _ d1 d2 => 
+                match (assign_type gamma delta d1, 
+                       assign_type gamma delta d2) with 
+                | (WellTyped HTyp.Num, WellTyped HTyp.Num) => 
+                  WellTyped HTyp.Num
+                | _ => IllTyped
+                end
+              | Inj other_ty side d1 => 
+                match assign_type gamma delta d1 with
+                | IllTyped => IllTyped
+                | WellTyped ty1 => 
+                  match side with 
+                  | UHExp.L => WellTyped (HTyp.Sum ty1 other_ty)
+                  | UHExp.R => WellTyped (HTyp.Sum other_ty ty1)
+                  end
+                end
+              | Case d1 (x, d2) (y, d3) => 
+                match assign_type gamma delta d1 with 
+                | IllTyped => IllTyped
+                | WellTyped (HTyp.Sum ty11 ty12) => 
+                  let gamma1 := Ctx.extend gamma (x, ty11) in 
+                  let gamma2 := Ctx.extend gamma (y, ty12) in 
+                  match (assign_type gamma1 delta d2,
+                         assign_type gamma2 delta d3) with 
+                  | (WellTyped ty2, WellTyped ty3) => 
+                    if HTyp.eq ty2 ty3 then WellTyped ty2
+                    else IllTyped
+                  | _ => IllTyped
+                  end
+                | WellTyped _ => IllTyped
+                end
+              | EmptyHole u sigma => 
+                match MetaVarCtx.lookup delta u with 
+                | Some (ty, gamma') => 
+                    if check_type_env fuel' gamma delta sigma gamma' then 
+                      WellTyped ty
+                    else IllTyped
+                | None => IllTyped
+                end
+              | NonEmptyHole u sigma d1 => 
+                match assign_type gamma delta d1 with 
+                | WellTyped _ => 
+                  match MetaVarCtx.lookup delta u with 
+                  | Some (ty, gamma') => 
+                    if check_type_env fuel' gamma delta sigma gamma' then
+                      WellTyped ty
+                    else IllTyped
+                  | None => IllTyped
+                  end
+                | IllTyped => IllTyped
+                end
+              | Cast d1 ty1 ty2 => 
+                match assign_type gamma delta d1 with 
+                | IllTyped => IllTyped
+                | WellTyped ty1' => 
+                  if HTyp.eq ty1 ty1' && 
+                     HTyp.consistent ty1 ty2
+                  then WellTyped ty2
+                  else IllTyped
+                end
+              end
+              end
+          with check_type_env (fuel : Fuel.t)
+                  (gamma : Ctx.t) (delta : MetaVarCtx.t) 
+                  (sigma : Environment.t(t)) 
+                  (gamma' : Ctx.t) : bool := 
+              match fuel with 
+              | Fuel.More fuel' => 
+                  Coq.Lists.List.forallb  
+                    (fun xd : Var.t * t => 
+                      let (x, d) := xd in 
+                      match assign_type fuel' gamma delta d with 
+                      | WellTyped ty => 
+                        match Ctx.lookup gamma' x with 
+                        | Some ty' => HTyp.consistent ty ty'
+                        | None => false
+                        end
+                      | IllTyped => false
+                      end)
+                    sigma
+              | Fuel.Kicked => false
+              end.
+          
+          Inductive expand_result : Type := 
+          | Expands : t -> HTyp.t -> MetaVarCtx.t -> expand_result
+          | DoesNotExpand.
 
-            Definition id_env (gamma : Ctx.t) : Environment.t(t) := 
-                Ctx.map (Var.t * t) (
-                  fun xt : Var.t * HTyp.t => 
-                      let (x, t) := xt in 
-                      (x, DHExp.Var x)) gamma.
+          Definition id_env (gamma : Ctx.t) : Environment.t(t) := 
+            Ctx.map (Var.t * t) 
+              (fun xt : Var.t * HTyp.t => 
+                let (x, t) := xt in 
+                (x, DHExp.Var x)) 
+              gamma.
 
-            Fixpoint syn_expand (fuel : Fuel) (gamma : Ctx.t) (e : AHExp.t) : expand_result := 
-                match fuel with 
-                | Kicked => DoesNotExpand
-                | More fuel => let syn_expand := syn_expand fuel in 
-                    match e with 
-                    | AHExp.Asc e1 ty => 
-                        match ana_expand fuel gamma e1 ty with 
-                        | Expands d1 ty' delta => 
-                            let d := 
-                                if HTyp.eq ty ty' then d1
-                                else Cast ty d1 in 
-                            Expands d ty delta 
-                        | DoesNotExpand => DoesNotExpand
-                        end
-                    | AHExp.Var x => 
-                        match Ctx.lookup gamma x with 
-                        | Some ty => Expands (DHExp.Var x) ty MetaVarCtx.empty
-                        | None => DoesNotExpand
-                        end
-                    | AHExp.Let x e1 e2 => 
-                        match syn_expand gamma e1 with 
-                        | Expands d1 ty1 delta1 => 
-                            let gamma' := Ctx.extend gamma (x, ty1) in 
-                            match syn_expand gamma' e2 with 
-                            | Expands d2 ty delta2 => 
-                                let d := Let x d1 d2 in 
-                                let delta12 := MetaVarCtx.union delta1 delta2 in 
-                                Expands d ty delta12 
-                            | DoesNotExpand => DoesNotExpand
-                            end
-                        | DoesNotExpand => DoesNotExpand
-                        end
-                    | AHExp.Lam x e1 => DoesNotExpand
-                    | AHExp.Ap e1 e2 => 
-                        match AHExp.hsyn fuel gamma e1 with 
-                        | Some HTyp.Hole => 
-                            match ana_expand fuel gamma e2 HTyp.Hole with 
-                            | Expands d2 ty2 delta2 => 
-                                let ty2h := HTyp.Arrow ty2 HTyp.Hole in 
-                                match ana_expand fuel gamma e1 ty2h with 
-                                | Expands d1 ty1 delta1 => 
-                                    let f := Cast ty2h d1 in 
-                                    let d := Ap f d2 in 
-                                    let delta12 := MetaVarCtx.union delta1 delta2 in 
-                                    Expands d HTyp.Hole delta12
-                                | DoesNotExpand => DoesNotExpand
-                                end
-                           | DoesNotExpand => DoesNotExpand
-                            end
-                        | Some (HTyp.Arrow ty2 ty) => 
-                            match syn_expand gamma e1 with 
-                            | Expands d1 _ delta1 => 
-                                match ana_expand fuel gamma e2 ty2 with 
-                                | Expands d2 ty2' delta2 => 
-                                    let arg := 
-                                        if HTyp.eq ty2 ty2' then d2
-                                        else Cast ty2 d2 in 
-                                    let d := Ap d1 arg in 
-                                    let delta12 := MetaVarCtx.union delta1 delta2 in 
-                                    Expands d ty delta12
-                                | DoesNotExpand => DoesNotExpand
-                                end
-                            | DoesNotExpand => DoesNotExpand
-                            end
-                        | _ => DoesNotExpand
-                        end
-                    | AHExp.NumLit n => 
-                        Expands (DHExp.NumLit n) HTyp.Num MetaVarCtx.empty 
-                    | AHExp.BinOp op e1 e2 => 
-                        match ana_expand fuel gamma e1 HTyp.Num with 
-                        | Expands d1 ty1 delta1 => 
-                            match ana_expand fuel gamma e2 HTyp.Num with 
-                            | Expands d2 ty2 delta2 => 
-                                let d1' := 
-                                    if HTyp.eq ty1 HTyp.Num then d1 
-                                    else Cast HTyp.Num d1 in 
-                                let d2' := 
-                                    if HTyp.eq ty2 HTyp.Num then d2
-                                    else Cast HTyp.Num d2 in 
-                                let d := BinOp op d1' d2' in 
-                                let delta12 := MetaVarCtx.union delta1 delta2 in 
-                                Expands d HTyp.Num delta12
-                            | DoesNotExpand => DoesNotExpand
-                            end
-                        | DoesNotExpand => DoesNotExpand
-                        end
-                    | AHExp.Inj _ _ => DoesNotExpand
-                    | AHExp.Case _ _ _ => DoesNotExpand
-                    | AHExp.EmptyHole u => 
-                        let sigma := id_env gamma in 
-                        let d := DHExp.EmptyHole u Unevaled sigma in 
-                        let ty := HTyp.Hole in 
-                        let delta := MetaVarCtx.extend MetaVarCtx.empty 
-                                     (u, ty, gamma) in 
+          Fixpoint syn_expand 
+            (fuel : Fuel.t) 
+            (gamma : Ctx.t) 
+            (e : UHExp.t) 
+            : expand_result := 
+              match fuel with 
+              | Fuel.Kicked => DoesNotExpand
+              | Fuel.More fuel => 
+              match e with 
+              | UHExp.Tm (UHExp.NotInHole) e' => syn_expand' fuel gamma e'
+              | UHExp.Tm (UHExp.InHole u) e' => 
+                match syn_expand' fuel gamma e' with 
+                | Expands d _ delta => 
+                  let sigma := id_env gamma in 
+                  let delta' := MetaVarCtx.extend delta (u, HTyp.Hole, gamma) in 
+                  Expands 
+                    (NonEmptyHole u sigma d)
+                    (HTyp.Hole)
+                    (delta')
+                | DoesNotExpand => DoesNotExpand
+                end
+              end
+              end
+          with syn_expand'
+            (fuel : Fuel.t)
+            (gamma : Ctx.t)
+            (e : UHExp.t')
+            : expand_result := 
+              match fuel with 
+              | Fuel.Kicked => DoesNotExpand
+              | Fuel.More fuel => 
+              match e with 
+              | UHExp.Asc e1 ty => 
+                match ana_expand fuel gamma e1 ty with 
+                | DoesNotExpand => DoesNotExpand
+                | Expands d1 ty' delta => 
+                  Expands 
+                    (Cast d1 ty' ty)
+                    ty 
+                    delta
+                end
+              | UHExp.Var x => 
+                match Ctx.lookup gamma x with 
+                | Some ty => Expands (DHExp.Var x) ty MetaVarCtx.empty
+                | None => DoesNotExpand
+                end
+              | UHExp.Let x e1 e2 => 
+                match syn_expand fuel gamma e1 with 
+                | DoesNotExpand => DoesNotExpand
+                | Expands d1 ty1 delta1 => 
+                  let gamma' := Ctx.extend gamma (x, ty1) in 
+                  match syn_expand fuel gamma' e2 with 
+                  | DoesNotExpand => DoesNotExpand
+                  | Expands d2 ty delta2 => 
+                    let d := Let x d1 d2 in 
+                    let delta12 := MetaVarCtx.union delta1 delta2 in 
+                    Expands d ty delta12 
+                  end
+                end
+              | UHExp.Ap e1 e2 => 
+                match UHExp.syn fuel gamma e1 with 
+                | None => DoesNotExpand
+                | Some ty1 => 
+                  match HTyp.matched_arrow ty1 with 
+                  | None => DoesNotExpand
+                  | Some (ty2, ty) => 
+                    let ty2_arrow_ty := HTyp.Arrow ty2 ty in 
+                    match ana_expand fuel gamma e1 ty2_arrow_ty with 
+                    | DoesNotExpand => DoesNotExpand
+                    | Expands d1 ty1' delta1 => 
+                      match ana_expand fuel gamma e2 ty2 with 
+                      | DoesNotExpand => DoesNotExpand
+                      | Expands d2 ty2' delta2 => 
+                        let delta := MetaVarCtx.union delta1 delta2 in 
+                        let dc1 := Cast d1 ty1' ty2_arrow_ty in 
+                        let dc2 := Cast d2 ty2' ty2 in 
+                        let d := Ap dc1 dc2 in 
                         Expands d ty delta
-                    | AHExp.NonEmptyHole u e1 => 
-                        let sigma := id_env gamma in 
-                        match syn_expand gamma e1 with 
-                        | Expands d1 _ delta1 => 
-                            let d := DHExp.NonEmptyHole u Unevaled sigma d1 in 
-                            let ty := HTyp.Hole in 
-                            let delta := MetaVarCtx.extend delta1
-                                          (u, ty, gamma) in 
-                            Expands d ty delta
-                        | DoesNotExpand => DoesNotExpand
-                        end
-                     end
-                end
-            with ana_expand (fuel : Fuel) 
-                            (gamma : Ctx.t) (e : AHExp.t) (ty : HTyp.t) : expand_result := 
-                match fuel with 
-                | Kicked => DoesNotExpand
-                | More fuel => let ana_expand := ana_expand fuel in 
-                    match e with 
-                    | AHExp.Lam x e1 => 
-                        match ty with 
-                        | HTyp.Arrow ty1 ty2 =>
-                            let gamma' := Ctx.extend gamma (x, ty1) in 
-                            match ana_expand gamma' e1 ty2 with 
-                            | Expands d1 ty2' delta => 
-                                let d := Lam x ty1 d1 in 
-                                let ty' := HTyp.Arrow ty1 ty2' in 
-                                Expands d ty' delta
-                            | DoesNotExpand => DoesNotExpand
-                            end
-                        | HTyp.Hole => 
-                            let gamma' := Ctx.extend gamma (x, HTyp.Hole) in 
-                            match ana_expand gamma' e1 HTyp.Hole with 
-                            | Expands d1 ty2' delta => 
-                                let d := Lam x HTyp.Hole d1 in 
-                                let ty' := HTyp.Arrow HTyp.Hole ty2' in 
-                                Expands d ty' delta 
-                            | DoesNotExpand => DoesNotExpand
-                            end
-                        | _ => DoesNotExpand
-                        end
-                    | AHExp.Inj side e1 => 
-                        match HTyp.matched_sum ty with 
-                        | None => DoesNotExpand
-                        | Some (ty1, ty2) => 
-                            let e1ty := AHExp.pick_side side ty1 ty2 in 
-                            match ana_expand gamma e1 e1ty with 
-                            | DoesNotExpand => DoesNotExpand
-                            | Expands d1 e1ty' delta => 
-                                let (ann_ty, ty) := 
-                                    match side with 
-                                    | AHExp.L => (ty2, HTyp.Sum e1ty' ty2) 
-                                    | AHExp.R => (ty1, HTyp.Sum ty1 e1ty')
-                                    end in 
-                                let d := Inj ann_ty side d1 in 
-                                Expands d ty delta
-                            end
-                        end
-                    | AHExp.Case e1 (x, e2) (y, e3) => 
-                        match syn_expand fuel gamma e1 with 
-                        | DoesNotExpand => DoesNotExpand
-                        | Expands d1 ty1 delta1 => 
-                            match HTyp.matched_sum ty1 with 
-                            | None => DoesNotExpand
-                            | Some (ty1L, ty1R) => 
-                                let gammaL := Ctx.extend gamma (x, ty1L) in 
-                                match ana_expand gammaL e2 ty with 
-                                | DoesNotExpand => DoesNotExpand
-                                | Expands d2 _ delta2 => 
-                                    let gammaR := Ctx.extend gamma (y, ty1R) in 
-                                    match ana_expand gammaR e3 ty with 
-                                    | DoesNotExpand => DoesNotExpand
-                                    | Expands d3 _ delta3 => 
-                                        let d := Case ty d1 (x, d2) (y, d3) in 
-                                        let delta := delta1 ++ delta2 ++ delta3 in 
-                                        Expands d ty delta
-                                    end
-                                end
-                            end
-                        end
-                    | AHExp.EmptyHole u => 
-                        let sigma := id_env gamma in 
-                        let d := EmptyHole u Unevaled sigma in 
-                        let delta := MetaVarCtx.extend MetaVarCtx.empty (u, ty, gamma) in 
-                        Expands d ty delta
-                    | AHExp.NonEmptyHole u e1 => 
-                        let sigma := id_env gamma in 
-                        match syn_expand fuel gamma e1 with 
-                        | Expands d1 _ delta1 => 
-                            let d := DHExp.NonEmptyHole u Unevaled sigma d1 in 
-                            let delta := MetaVarCtx.extend delta1
-                                          (u, ty, gamma) in 
-                            Expands d ty delta
-                        | DoesNotExpand => DoesNotExpand
-                        end
-                    | AHExp.Asc _ _ 
-                    | AHExp.Var _ 
-                    | AHExp.Let _ _ _ 
-                    | AHExp.Ap _ _
-                    | AHExp.NumLit _
-                    | AHExp.BinOp _ _ _ => 
-                        match syn_expand fuel gamma e with 
-                        | DoesNotExpand => DoesNotExpand
-                        | (Expands d ty' delta) as result => 
-                            if HTyp.consistent ty ty'  
-                            then result
-                            else DoesNotExpand
-                        end
+                      end
                     end
-                end.
+                  end
+                end
+              | UHExp.NumLit n => 
+                Expands (NumLit n) HTyp.Num MetaVarCtx.empty 
+              | UHExp.EmptyHole u => 
+                let sigma := id_env gamma in 
+                let d := DHExp.EmptyHole u sigma in 
+                let ty := HTyp.Hole in 
+                let delta := MetaVarCtx.extend MetaVarCtx.empty 
+                             (u, ty, gamma) in 
+                Expands d ty delta
+              | UHExp.OpSeq skel seq => 
+                syn_expand_skel fuel gamma skel seq
+              | UHExp.Lam _ _ => DoesNotExpand
+              | UHExp.Inj _ _ => DoesNotExpand
+              | UHExp.Case _ _ _ => DoesNotExpand
+              end
+              end
+          with syn_expand_skel 
+            (fuel : Fuel.t)
+            (gamma : Ctx.t)
+            (skel : UHExp.Skel.t)
+            (seq : UHExp.opseq)
+            : expand_result := 
+              match fuel with 
+              | Fuel.Kicked => DoesNotExpand
+              | Fuel.More fuel => 
+              match skel with 
+              | UHExp.Skel.Placeholder n => 
+                match UHExp.seq_nth n seq with 
+                | None => DoesNotExpand
+                | Some en => syn_expand fuel gamma en
+                end
+              | UHExp.Skel.BinOp (UHExp.InHole u) op skel1 skel2 => 
+                let skel_not_in_hole := UHExp.Skel.BinOp UHExp.NotInHole op skel1 skel2 in 
+                match syn_expand_skel fuel gamma skel_not_in_hole seq with 
+                | DoesNotExpand => DoesNotExpand
+                | Expands d _ delta => 
+                  let sigma := id_env gamma in 
+                  let delta' := MetaVarCtx.extend delta (u, HTyp.Hole, gamma) in 
+                  Expands
+                    (NonEmptyHole u sigma d)
+                    HTyp.Hole delta'
+                end
+              | UHExp.Skel.BinOp UHExp.NotInHole UHExp.Space skel1 skel2 => 
+                match UHExp.syn_skel fuel gamma skel1 seq None with 
+                | None => DoesNotExpand
+                | Some (ty1, _) => 
+                  match HTyp.matched_arrow ty1 with 
+                  | None => DoesNotExpand
+                  | Some (ty2, ty) => 
+                    let ty2_arrow_ty := HTyp.Arrow ty2 ty in 
+                    match ana_expand_skel fuel gamma skel1 seq ty2_arrow_ty with 
+                    | DoesNotExpand => DoesNotExpand
+                    | Expands d1 ty1' delta1 => 
+                      match ana_expand_skel fuel gamma skel2 seq ty2 with 
+                      | DoesNotExpand => DoesNotExpand
+                      | Expands d2 ty2' delta2 => 
+                        let delta := MetaVarCtx.union delta1 delta2 in 
+                        let dc1 := Cast d1 ty1' ty2_arrow_ty in 
+                        let dc2 := Cast d2 ty2' ty2 in 
+                        let d := Ap dc1 dc2 in 
+                        Expands d ty delta
+                      end
+                    end
+                  end
+                end
+              | UHExp.Skel.BinOp UHExp.NotInHole (UHExp.Plus as op) skel1 skel2
+              | UHExp.Skel.BinOp UHExp.NotInHole (UHExp.Times as op) skel1 skel2 => 
+                match (ana_expand_skel fuel gamma skel1 seq HTyp.Num,
+                       ana_expand_skel fuel gamma skel2 seq HTyp.Num) with 
+                | (Expands d1 ty1 delta1, Expands d2 ty2 delta2) => 
+                  let delta := MetaVarCtx.union delta1 delta2 in 
+                  let dc1 := Cast d1 ty1 HTyp.Num in 
+                  let dc2 := Cast d2 ty2 HTyp.Num in 
+                  match of_op op with 
+                  | None => DoesNotExpand (* should not happen due to pattern matching above *)
+                  | Some op' => 
+                    let d := BinNumOp op' dc1 dc2 in 
+                    Expands d HTyp.Num delta
+                  end
+                | _ => DoesNotExpand
+                end
+              end
+              end
+          with ana_expand 
+            (fuel : Fuel.t) 
+            (gamma : Ctx.t) 
+            (e : UHExp.t)
+            (ty : HTyp.t) 
+            : expand_result := 
+              match fuel with 
+              | Fuel.Kicked => DoesNotExpand
+              | Fuel.More fuel => 
+              match e with 
+              | UHExp.Tm (UHExp.InHole u) e' =>
+                match syn_expand' fuel gamma e' with 
+                | DoesNotExpand => DoesNotExpand
+                | Expands d _ delta => 
+                  let sigma := id_env gamma in 
+                  let delta' := MetaVarCtx.extend delta (u, ty, gamma) in 
+                  Expands 
+                    (NonEmptyHole u sigma d)
+                    ty
+                    delta'
+                end
+              | UHExp.Tm UHExp.NotInHole e' => ana_expand' fuel gamma e' ty
+              end
+              end
+          with ana_expand'
+            (fuel : Fuel.t)
+            (gamma : Ctx.t)
+            (e : UHExp.t')
+            (ty : HTyp.t) 
+            : expand_result := 
+              match fuel with 
+              | Fuel.Kicked => DoesNotExpand
+              | Fuel.More fuel => 
+              match e with 
+              | UHExp.Lam x e1 => 
+                match HTyp.matched_arrow ty with 
+                | None => DoesNotExpand
+                | Some (ty1, ty2) => 
+                  let gamma' := Ctx.extend gamma (x, ty1) in 
+                  match ana_expand fuel gamma' e1 ty2 with 
+                  | DoesNotExpand => DoesNotExpand
+                  | Expands d1 ty2' delta => 
+                    let ty := HTyp.Arrow ty1 ty2' in 
+                    let d := Lam x ty1 d1 in 
+                    Expands d ty delta
+                  end
+                end
+              | UHExp.Inj side e1 => 
+                match HTyp.matched_sum ty with 
+                | None => DoesNotExpand
+                | Some (ty1, ty2) => 
+                  let e1ty := UHExp.pick_side side ty1 ty2 in 
+                  match ana_expand fuel gamma e1 e1ty with 
+                  | DoesNotExpand => DoesNotExpand
+                  | Expands d1 e1ty' delta => 
+                    let (ann_ty, ty) := 
+                      match side with 
+                      | UHExp.L => (ty2, HTyp.Sum e1ty' ty2) 
+                      | UHExp.R => (ty1, HTyp.Sum ty1 e1ty')
+                      end in 
+                    let d := Inj ann_ty side d1 in 
+                    Expands d ty delta
+                  end
+                end
+              | UHExp.Case e1 (x, e2) (y, e3) => 
+                match syn_expand fuel gamma e1 with 
+                | DoesNotExpand => DoesNotExpand
+                | Expands d1 ty1 delta1 => 
+                  match HTyp.matched_sum ty1 with 
+                  | None => DoesNotExpand
+                  | Some (ty1L, ty1R) => 
+                    let gammaL := Ctx.extend gamma (x, ty1L) in 
+                    let gammaR := Ctx.extend gamma (y, ty1R) in 
+                    match (ana_expand fuel gammaL e2 ty,
+                           ana_expand fuel gammaR e3 ty) with 
+                    | (Expands d2 ty2 delta2, Expands d3 ty3 delta3) => 
+                      match HTyp.join ty2 ty3 with
+                      | None => DoesNotExpand
+                      | Some ty' => 
+                        let d := Case  
+                          (Cast d1 ty1 (HTyp.Sum ty1L ty1R))
+                          (x, (Cast d2 ty2 ty')) 
+                          (y, (Cast d3 ty3 ty')) in 
+                        let delta := 
+                          MetaVarCtx.union 
+                            (MetaVarCtx.union delta1 delta2) delta3 in 
+                        Expands d ty delta
+                      end
+                    | _ => DoesNotExpand
+                    end
+                  end
+                end
+              | UHExp.EmptyHole u => 
+                let sigma := id_env gamma in 
+                let d := EmptyHole u sigma in 
+                let delta := MetaVarCtx.extend MetaVarCtx.empty (u, ty, gamma) in 
+                Expands d ty delta
+              | UHExp.Asc _ _ 
+              | UHExp.Var _ 
+              | UHExp.Let _ _ _ 
+              | UHExp.Ap _ _
+              | UHExp.NumLit _
+              | UHExp.OpSeq _ _ => 
+                (* subsumption *)
+                match syn_expand' fuel gamma e with 
+                | DoesNotExpand => DoesNotExpand
+                | (Expands d ty' delta) as result => 
+                  if HTyp.consistent ty ty'  
+                  then result
+                  else DoesNotExpand
+                end
+              end
+              end
+          with ana_expand_skel
+            (fuel : Fuel.t)
+            (gamma : Ctx.t)
+            (skel : UHExp.Skel.t)
+            (seq : UHExp.opseq)
+            (ty : HTyp.t)
+            : expand_result := 
+              match fuel with 
+              | Fuel.Kicked => DoesNotExpand
+              | Fuel.More fuel => 
+              match skel with 
+              | UHExp.Skel.Placeholder n => 
+                match UHExp.seq_nth n seq with 
+                | None => DoesNotExpand
+                | Some en => ana_expand fuel gamma en ty
+                end
+              | _ => 
+                match syn_expand_skel fuel gamma skel seq with 
+                | DoesNotExpand => DoesNotExpand
+                | Expands d ty' delta => 
+                  if HTyp.consistent ty ty' then 
+                    Expands d ty' delta
+                  else DoesNotExpand
+                end
+              end
+              end.
         End DHExp.
 
         Module Evaluator.
             Inductive result := 
             | InvalidInput : result (* not well-typed or otherwise invalid *)
             | CastError : result
-            | Value : DHExp.t -> result
+            | BoxedValue : DHExp.t -> result
             | Indet : DHExp.t -> result.
 
-            Fixpoint evaluate (fuel : Fuel) (delta : MetaVarCtx.t) (d : DHExp.t) : result := 
+            Inductive ground_cases := 
+            | Hole : ground_cases
+            | Ground : ground_cases
+            | NotGroundOrHole : HTyp.t -> ground_cases. (* the argument is the corresponding ground type *)
+
+            Definition grounded_Arrow := NotGroundOrHole (HTyp.Arrow HTyp.Hole HTyp.Hole).
+            Definition grounded_Sum := NotGroundOrHole (HTyp.Sum HTyp.Hole HTyp.Hole).
+
+            Definition ground_cases_of ty := 
+              match ty with 
+              | HTyp.Hole => Hole
+              | HTyp.Num => Ground
+              | HTyp.Arrow HTyp.Hole HTyp.Hole => Ground
+              | HTyp.Sum HTyp.Hole HTyp.Hole => Ground
+              | HTyp.Arrow _ _ => grounded_Arrow
+              | HTyp.Sum _ _ => grounded_Sum
+              end.
+
+            Definition eval_bin_num_op op n1 n2 :=
+              match op with 
+              | DHExp.Plus => n1 + n2
+              | DHExp.Times => n1 * n2
+              end.
+
+            Fixpoint evaluate 
+              (fuel : Fuel.t) 
+              (d : DHExp.t) 
+              : result := 
                 match fuel with 
-                | Kicked => InvalidInput
-                | More(fuel') => 
-                    match d with 
-                    | DHExp.Var _ => InvalidInput
-                    | DHExp.Let x d1 d2 => 
-                        match evaluate fuel' delta d1 with 
-                        | InvalidInput => InvalidInput
-                        | CastError => CastError
-                        | Value d1' | Indet d1' => 
-                                evaluate fuel' delta (DHExp.subst fuel d1' x d2)
-                        end
-                    | DHExp.Lam _ _ _ => Value d
-                    | DHExp.Ap d1 d2 => 
-                        match evaluate fuel' delta d1 with 
-                        | InvalidInput => InvalidInput
-                        | CastError => CastError
-                        | Value (DHExp.Lam x tau d1') => 
-                            match evaluate fuel' delta d2 with 
-                            | InvalidInput => InvalidInput
-                            | CastError => CastError
-                            | Value d2' | Indet d2' => 
-                                    evaluate fuel' delta (DHExp.subst fuel d2' x d1')
-                            end
-                        | Value _ => InvalidInput
-                        | Indet d1' => 
-                            match evaluate fuel' delta d2 with 
-                            | InvalidInput => InvalidInput
-                            | CastError => CastError
-                            | Value d2' | Indet d2' => 
-                                    Indet (DHExp.Ap d1' d2')
-                            end
-                        end
-                    | DHExp.NumLit _ => Value d
-                    | DHExp.BinOp (AHExp.Plus as op) d1 d2 => 
-                        match evaluate fuel' delta d1 with 
-                        | InvalidInput => InvalidInput
-                        | CastError => CastError
-                        | Value (DHExp.NumLit n1 as d1')  => 
-                            match evaluate fuel' delta d2 with 
-                            | InvalidInput => InvalidInput
-                            | CastError => CastError
-                            | Value (DHExp.NumLit n2) => 
-                                Value (DHExp.NumLit (n1 + n2))
-                            | Value _ => InvalidInput
-                            | Indet d2' => 
-                                    Indet (DHExp.BinOp op d1' d2')
-                            end
-                        | Value _ => InvalidInput
-                        | Indet d1' => 
-                            match evaluate fuel' delta d2 with 
-                            | InvalidInput => InvalidInput
-                            | CastError => CastError
-                            | Value d2' | Indet d2' => 
-                                Indet (DHExp.BinOp op d1' d2')
-                            end
-                        end
-                    | DHExp.BinOp (AHExp.Times as op) d1 d2
-                    | DHExp.BinOp (AHExp.Space as op) d1 d2 => 
-                        match evaluate fuel' delta d1 with 
-                        | InvalidInput => InvalidInput
-                        | CastError => CastError
-                        | Value (DHExp.NumLit n1 as d1')  => 
-                            match evaluate fuel' delta d2 with 
-                            | InvalidInput => InvalidInput
-                            | CastError => CastError
-                            | Value (DHExp.NumLit n2) => 
-                                Value (DHExp.NumLit (n1 * n2))
-                            | Value _ => InvalidInput
-                            | Indet d2' => 
-                                    Indet (DHExp.BinOp op d1' d2')
-                            end
-                        | Value _ => InvalidInput
-                        | Indet d1' => 
-                            match evaluate fuel' delta d2 with 
-                            | InvalidInput => InvalidInput
-                            | CastError => CastError
-                            | Value d2' | Indet d2' => 
-                                Indet (DHExp.BinOp op d1' d2')
-                            end
-                        end
-                    | DHExp.Inj ty side d1 => 
-                        match evaluate fuel' delta d1 with 
-                        | InvalidInput => InvalidInput
-                        | CastError => CastError
-                        | Value d1' => Value (DHExp.Inj ty side d1')
-                        | Indet d1' => Indet (DHExp.Inj ty side d1')
-                        end
-                    | DHExp.Case ty d1 (x, d2) (y, d3) =>
-                        match evaluate fuel' delta d1 with 
-                        | InvalidInput => InvalidInput
-                        | CastError => CastError
-                        | Value d1' => 
-                            match d1' with 
-                            | DHExp.Inj _ side d1'' => 
-                                let (xb, db) := AHExp.pick_side side (x, d2) (y, d3) in
-                                let branch := DHExp.subst fuel' d1'' xb db in 
-                                evaluate fuel' delta branch
-                            | _ => InvalidInput
-                            end
-                        | Indet d1' => 
-                            match d1' with 
-                            | DHExp.Inj _ side d1'' => 
-                                let (xb, db) := AHExp.pick_side side (x, d2) (y, d3) in 
-                                let branch := DHExp.subst fuel' d1'' xb db in 
-                                evaluate fuel' delta branch
-                            | _ => Indet (DHExp.Case ty d1' (x, d2) (y, d3))
-                            end
-                        end
-                    | DHExp.EmptyHole u _ sigma => Indet (DHExp.EmptyHole u (DHExp.Evaled) sigma)  
-                    | DHExp.NonEmptyHole u _ sigma d1 => 
-                        match evaluate fuel' delta d1 with 
-                        | InvalidInput => InvalidInput
-                        | CastError => CastError
-                        | Value d1' | Indet d1' => 
-                                Indet (DHExp.NonEmptyHole u (DHExp.Evaled) sigma d1')
-                        end
-                    | DHExp.Cast ty1 d1 => 
-                        match evaluate fuel' delta d1 with 
-                        | InvalidInput => InvalidInput
-                        | CastError => CastError
-                        | (Value d1' as res) | (Indet d1' as res) => 
-                            match DHExp.assign_type fuel' Ctx.empty delta d1' with 
-                            | DHExp.IllTyped => CastError
-                            | DHExp.WellTyped ty2 => 
-                                if HTyp.consistent ty1 ty2 
-                                then res
-                                else CastError
-                            end
-                        end
+                | Fuel.Kicked => InvalidInput
+                | Fuel.More(fuel') => 
+                match d with 
+                | DHExp.Var _ => InvalidInput
+                | DHExp.Let x d1 d2 => 
+                  match evaluate fuel' d1 with 
+                  | InvalidInput => InvalidInput
+                  | CastError => CastError
+                  | BoxedValue d1' | Indet d1' => 
+                    evaluate fuel' (DHExp.subst fuel' d1' x d2)
+                  end
+                | DHExp.Lam _ _ _ => BoxedValue d
+                | DHExp.Ap d1 d2 => 
+                  match evaluate fuel' d1 with 
+                  | InvalidInput => InvalidInput
+                  | CastError => CastError
+                  | BoxedValue (DHExp.Lam x tau d1') => 
+                    match evaluate fuel' d2 with 
+                    | InvalidInput => InvalidInput
+                    | CastError => CastError
+                    | BoxedValue d2' | Indet d2' => 
+                      (* beta rule *)
+                      evaluate fuel' (DHExp.subst fuel d2' x d1')
                     end
+                  | BoxedValue (DHExp.Cast d1' (HTyp.Arrow ty1 ty2) (HTyp.Arrow ty1' ty2'))
+                  | Indet (DHExp.Cast d1' (HTyp.Arrow ty1 ty2) (HTyp.Arrow ty1' ty2')) => 
+                    match evaluate fuel' d2 with 
+                    | InvalidInput => InvalidInput
+                    | CastError => CastError
+                    | BoxedValue d2' | Indet d2' => 
+                      (* ap cast rule *)
+                      evaluate fuel'  
+                        (DHExp.Cast 
+                          (DHExp.Ap 
+                            d1'
+                            (DHExp.Cast
+                              d2' ty1' ty1))
+                          ty2 ty2')
+                    end
+                  | BoxedValue _ => InvalidInput
+                  | Indet d1' => 
+                    match evaluate fuel' d2 with 
+                    | InvalidInput => InvalidInput
+                    | CastError => CastError
+                    | BoxedValue d2' | Indet d2' => 
+                      Indet (DHExp.Ap d1' d2')
+                    end
+                  end
+                | DHExp.NumLit _ => BoxedValue d
+                | DHExp.BinNumOp op d1 d2 => 
+                  match evaluate fuel' d1 with 
+                  | InvalidInput => InvalidInput
+                  | CastError => CastError
+                  | BoxedValue (DHExp.NumLit n1 as d1')  => 
+                    match evaluate fuel' d2 with 
+                    | InvalidInput => InvalidInput
+                    | CastError => CastError
+                    | BoxedValue (DHExp.NumLit n2) => 
+                      BoxedValue (DHExp.NumLit (eval_bin_num_op op n1 n2))
+                    | BoxedValue _ => InvalidInput
+                    | Indet d2' => 
+                      Indet (DHExp.BinNumOp op d1' d2')
+                    end
+                  | BoxedValue _ => InvalidInput
+                  | Indet d1' => 
+                    match evaluate fuel' d2 with 
+                    | InvalidInput => InvalidInput
+                    | CastError => CastError
+                    | BoxedValue d2' | Indet d2' => 
+                      Indet (DHExp.BinNumOp op d1' d2')
+                    end
+                  end
+                | DHExp.Inj ty side d1 => 
+                  match evaluate fuel' d1 with 
+                  | InvalidInput => InvalidInput
+                  | CastError => CastError
+                  | BoxedValue d1' => BoxedValue (DHExp.Inj ty side d1')
+                  | Indet d1' => Indet (DHExp.Inj ty side d1')
+                  end
+                | DHExp.Case d1 (x, d2) (y, d3) =>
+                  match evaluate fuel' d1 with 
+                  | InvalidInput => InvalidInput
+                  | CastError => CastError
+                  | BoxedValue d1' => 
+                    match d1' with 
+                    | DHExp.Inj _ side d1'' => 
+                      let (xb, db) := UHExp.pick_side side (x, d2) (y, d3) in
+                      let branch := DHExp.subst fuel' d1'' xb db in 
+                      evaluate fuel' branch
+                    | DHExp.Cast d1'' (HTyp.Sum ty1 ty2) (HTyp.Sum ty1' ty2') => 
+                      let d' := 
+                        DHExp.Case d1'' 
+                          (x, DHExp.subst fuel' (DHExp.Cast (DHExp.Var x) ty1 ty1') x d2)
+                          (y, DHExp.subst fuel' (DHExp.Cast (DHExp.Var y) ty2 ty2') y d3) in 
+                      evaluate fuel' d'
+                    | _ => InvalidInput
+                    end
+                  | Indet d1' => 
+                    match d1' with 
+                    | DHExp.Inj _ side d1'' => 
+                        let (xb, db) := UHExp.pick_side side (x, d2) (y, d3) in 
+                        let branch := DHExp.subst fuel' d1'' xb db in 
+                        evaluate fuel' branch
+                    | DHExp.Cast d1'' (HTyp.Sum ty1 ty2) (HTyp.Sum ty1' ty2') => 
+                      let d' := 
+                        DHExp.Case d1'' 
+                          (x, DHExp.subst fuel' (DHExp.Cast (DHExp.Var x) ty1 ty1') x d2)
+                          (y, DHExp.subst fuel' (DHExp.Cast (DHExp.Var y) ty2 ty2') y d3) in 
+                      evaluate fuel' d'
+                    | _ => Indet (DHExp.Case d1' (x, d2) (y, d3))
+                    end
+                  end
+                | DHExp.EmptyHole u sigma => 
+                  Indet (DHExp.EmptyHole u sigma)  
+                | DHExp.NonEmptyHole u sigma d1 => 
+                  match evaluate fuel' d1 with 
+                  | InvalidInput => InvalidInput
+                  | CastError => CastError
+                  | BoxedValue d1' | Indet d1' => 
+                    Indet (DHExp.NonEmptyHole u sigma d1')
+                  end
+                | DHExp.Cast d1 ty ty' => 
+                  match evaluate fuel' d1 with 
+                  | InvalidInput => InvalidInput
+                  | CastError => CastError
+                  | (BoxedValue d1' as result) => 
+                    match (ground_cases_of ty, ground_cases_of ty') with 
+                    | (Hole, Hole) => result
+                    | (Ground, Ground) =>  
+                      (* if two types are ground and consistent, then they are equal *)
+                      result
+                    | (Ground, Hole) => 
+                      (* can't remove the cast or do anything else here, so we're done *)
+                      BoxedValue d
+                    | (Hole, Ground) => 
+                      (* by canonical forms, d1' must be of the form d<ty'' => ?> *)
+                      match d1' with 
+                      | DHExp.Cast d1'' ty'' HTyp.Hole => 
+                        if HTyp.eq ty'' ty' then BoxedValue d1''
+                        else CastError
+                      | _ => InvalidInput
+                      end
+                    | (Hole, NotGroundOrHole ty'_grounded) => 
+                      (* ITExpand rule *)
+                      let d' := 
+                        DHExp.Cast
+                          (DHExp.Cast d1 ty ty'_grounded)
+                          ty'_grounded ty' in 
+                      evaluate fuel' d'
+                    | (NotGroundOrHole ty_grounded, Hole) => 
+                      (* ITGround rule *)
+                       let d' := 
+                         DHExp.Cast
+                           (DHExp.Cast d1 ty ty_grounded)
+                           ty_grounded ty' in 
+                       evaluate fuel' d'
+                    | (Ground, NotGroundOrHole _)  
+                    | (NotGroundOrHole _, Ground) => 
+                      (* can't do anything when casting between disequal, non-hole types *)
+                      BoxedValue d
+                    | (NotGroundOrHole _, NotGroundOrHole _) => 
+                      (* they might be equal in this case, so remove cast if so *)
+                      if HTyp.eq ty ty' then result else BoxedValue d
+                    end
+                  | (Indet d1' as result) => 
+                    match (ground_cases_of ty, ground_cases_of ty') with 
+                    | (Hole, Hole) => result
+                    | (Ground, Ground) =>  
+                      (* if two types are ground and consistent, then they are equal *)
+                      result
+                    | (Ground, Hole) => 
+                      (* can't remove the cast or do anything else here, so we're done *)
+                      Indet d
+                    | (Hole, Ground) => 
+                      match d1' with 
+                      | DHExp.Cast d1'' ty'' HTyp.Hole => 
+                        if HTyp.eq ty'' ty' then BoxedValue d1''
+                        else CastError
+                      | _ => 
+                        Indet d
+                      end
+                    | (Hole, NotGroundOrHole ty'_grounded) => 
+                      (* ITExpand rule *)
+                      let d' := 
+                        DHExp.Cast
+                          (DHExp.Cast d1 ty ty'_grounded)
+                          ty'_grounded ty' in 
+                      evaluate fuel' d'
+                    | (NotGroundOrHole ty_grounded, Hole) => 
+                      (* ITGround rule *)
+                       let d' := 
+                         DHExp.Cast
+                           (DHExp.Cast d1 ty ty_grounded)
+                           ty_grounded ty' in 
+                       evaluate fuel' d'
+                    | (Ground, NotGroundOrHole _)  
+                    | (NotGroundOrHole _, Ground) => 
+                      (* can't do anything when casting between disequal, non-hole types *)
+                      Indet d
+                    | (NotGroundOrHole _, NotGroundOrHole _) => 
+                      (* it might be equal in this case, so remove cast if so *)
+                      if HTyp.eq ty ty' then result else Indet d
+                    end
+                  end
+                end
                 end.
         End Evaluator.
     End Dynamics.
 
   Extract Constant str_eqb => "String.equal".
-  Extract Inductive Fuel => "unit" [ "()" "()" ] "(fun fMore _ fKicked -> fMore ())".
+  Extract Inductive Fuel.t => "unit" [ "()" "()" ] "(fun fMore _ fKicked -> fMore ())".
 End Core.
 
 Extract Inductive Coq.Strings.String.string => "string" ["""""" "String"].
@@ -2061,6 +3069,5 @@ Extract Inductive prod => "( * )" ["(,)"].
 Extract Inductive list => "list" [ "[]" "(::)" ].
 Extract Inductive nat => int [ "0" "((+) 1)" ]
        "(fun fO fS n -> if n=0 then fO () else fS (n-1))".
-(*Extract Inlined Constant pipe_forward => "(|>)".*)
 
 Extraction Core.

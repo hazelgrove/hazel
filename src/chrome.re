@@ -13,7 +13,7 @@ let view ((ms, es, do_action): Model.mt) => {
     React.S.map
       (
         fun e => {
-          let view = PPView.of_hexp [] e;
+          let view = View.of_hexp [] e;
           /* returns a pair of a doc and rev_paths table */
           Pretty.PP.sdoc_of_doc pp_view_width view
         }
@@ -129,7 +129,7 @@ let view ((ms, es, do_action): Model.mt) => {
   let set_cursor () => {
     let ((ze, _), _) = React.S.value ms;
     let (cursor_path, cursor_side) = Semantics.Core.Path.of_zexp ze;
-    let id = PPView.id_of_rev_path (List.rev cursor_path);
+    let id = View.id_of_rev_path (List.rev cursor_path);
     let cursor_elem = Js_util.forceGetElementById id;
     let cursor_node: Js.t Dom.node = Js.Unsafe.coerce cursor_elem;
     switch cursor_side {
@@ -676,7 +676,7 @@ let view ((ms, es, do_action): Model.mt) => {
                 let path = List.rev rev_path;
                 let cursor_side = determine_cursor_side selection anchor cur_element;
                 Js_util.log (string_of_cursor_side cursor_side);
-                do_action (Semantics.Core.Action.MoveTo (path, cursor_side));
+                do_action (Action.MoveTo (path, cursor_side));
                 clear_cursors ();
                 let elem = Js_util.forceGetElementById cur_id;
                 elem##.classList##add (Js.string "cursor")
@@ -696,7 +696,7 @@ let view ((ms, es, do_action): Model.mt) => {
     React.S.map
       (
         fun ((_, htype), _) => {
-          let pp_view = PPView.of_htype [] htype;
+          let pp_view = View.of_htype [] htype;
           let (sdoc, _) = Pretty.PP.sdoc_of_doc pp_view_width pp_view;
           let prettified = Pretty.HTML_Of_SDoc.html_of_sdoc sdoc;
           [prettified]
@@ -709,18 +709,18 @@ let view ((ms, es, do_action): Model.mt) => {
     React.S.map
       (
         fun ((zexp, _), _) => {
-          let e = Associator.associate (ZExp.erase zexp);
+          let e = ZExp.erase zexp;
           let expanded = Dynamics.DHExp.syn_expand () Ctx.empty e;
           switch expanded {
           | Dynamics.DHExp.DoesNotExpand => [Html5.(pcdata "(does not expand)")] /* should never happen! */
           | Dynamics.DHExp.Expands d ty delta =>
-            let result = Dynamics.Evaluator.evaluate () delta d;
+            let result = Dynamics.Evaluator.evaluate () d;
             switch result {
             | Dynamics.Evaluator.InvalidInput => [Html5.pcdata "(internal error: invalid input)"]
             | Dynamics.Evaluator.CastError => [Html5.pcdata "(cast error)"]
-            | Dynamics.Evaluator.Value d_val
+            | Dynamics.Evaluator.BoxedValue d_val
             | Dynamics.Evaluator.Indet d_val =>
-              let pp_view = PPView.of_dhexp [] d_val;
+              let pp_view = View.of_dhexp UHExp.NotInHole [] d_val;
               let (sdoc, _) = Pretty.PP.sdoc_of_doc pp_view_width pp_view;
               let prettified = Pretty.HTML_Of_SDoc.html_of_sdoc sdoc;
               [prettified]

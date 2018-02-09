@@ -1,5 +1,4 @@
 {
-  open Skel
   open Skelparser
 }
 

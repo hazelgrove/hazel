@@ -206,6 +206,10 @@ button:disabled {
 	border: 1px dashed red;
 }
 
+.in_err_hole {
+  border: 1px dashed red;
+}
+
 .result-view {
   font-size: 175%;
 }

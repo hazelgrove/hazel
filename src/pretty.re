@@ -11,14 +11,14 @@ module PP: {
   let nestRelative: int => doc 'a => doc 'a;
   let nestAbsolute: int => doc 'a => doc 'a;
   let text: cls => string => doc 'a;
-  let tagged: cls => option (id, 'a) => doc 'a => doc 'a;
+  let tagged: list cls => option (id, 'a) => doc 'a => doc 'a;
   let blockBoundary: doc 'a;
   let optionalBreak: string => doc 'a;
   let mandatoryBreak: doc 'a;
   type sdoc =
     | SEmpty
     | SText cls string sdoc
-    | STagStart cls (option id) sdoc
+    | STagStart (list cls) (option id) sdoc
     | STagEnd sdoc
     | SLine int sdoc;
   let sdoc_of_doc: int => doc 'a => (sdoc, Hashtbl.t id 'a);
@@ -32,7 +32,7 @@ module PP: {
     | NestRelative int (doc 'a)
     | NestAbsolute int (doc 'a)
     | Text cls string
-    | TagStart cls (option (id, 'a))
+    | TagStart (list cls) (option (id, 'a))
     | TagEnd
     | BlockBoundary
     | OptionalBreak string
@@ -49,7 +49,7 @@ module PP: {
   type sdoc =
     | SEmpty
     | SText cls string sdoc
-    | STagStart cls (option id) sdoc
+    | STagStart (list cls) (option id) sdoc
     | STagEnd sdoc
     | SLine int sdoc;
   let strlen s =>
@@ -70,7 +70,7 @@ module PP: {
       | NestRelative n x' => sdoc_of_doc' table width k [(n + k, x'), ...zs']
       | NestAbsolute n x' => sdoc_of_doc' table width k [(n + i, x'), ...zs']
       | Text cls s => SText cls s (sdoc_of_doc' table width (k + strlen s) zs')
-      | TagStart tag metadata =>
+      | TagStart tags metadata =>
         let id =
           switch metadata {
           | Some (id, data) =>
@@ -78,7 +78,7 @@ module PP: {
             Some id
           | _ => None
           };
-        STagStart tag id (sdoc_of_doc' table width k zs')
+        STagStart tags id (sdoc_of_doc' table width k zs')
       | TagEnd => STagEnd (sdoc_of_doc' table width k zs')
       | BlockBoundary =>
         if (i === k) {
@@ -120,7 +120,7 @@ module HTML_Of_SDoc = {
       let (h, x'') = html_of_sdoc'' x';
       let h' = [Html5.(span a::[a_class ["SText", cls]] [pcdata s]), ...h];
       (h', x'')
-    | STagStart cls id x' =>
+    | STagStart tags id x' =>
       let (h, x'') = html_of_sdoc'' x';
       let (tl, rem) =
         switch x'' {
@@ -129,8 +129,8 @@ module HTML_Of_SDoc = {
         };
       let attrs_lst =
         switch id {
-        | Some id => Html5.[a_id id, a_class [cls]]
-        | None => Html5.[a_class [cls]]
+        | Some id => Html5.[a_id id, a_class tags]
+        | None => Html5.[a_class tags]
         };
       let h' = [Html5.(span a::attrs_lst h), ...tl];
       (h', rem)

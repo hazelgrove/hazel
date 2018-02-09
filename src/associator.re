@@ -5,26 +5,28 @@ let parse s => {
   Skelparser.skel Skellexer.read lexbuf
 };
 
-let string_of_op (op: AHExp.op) =>
+let string_of_op (op: UHExp.op) =>
   switch op {
-  | AHExp.Plus => "+"
-  | AHExp.Times => "*"
-  | AHExp.Space => "_"
+  | UHExp.Plus => "+"
+  | UHExp.Times => "*"
+  | UHExp.Space => "_"
   };
 
 let rec make_skel_str' (seq: UHExp.opseq) (counter: ref int) (ph_map: Hashtbl.t int UHExp.t) =>
   switch seq {
-  | UHExp.BareExp ue =>
+  | UHExp.ExpOpExp e1 op e2 =>
     let n = !counter;
-    counter := n + 1;
-    Hashtbl.add ph_map n ue;
-    string_of_int n
-  | UHExp.SeqOpExp seq' op ue =>
+    counter := n + 2;
+    Hashtbl.add ph_map n e1;
+    Hashtbl.add ph_map (n + 1) e2;
+    let op_str = string_of_op op;
+    string_of_int n ^ op_str ^ string_of_int (n + 1)
+  | UHExp.SeqOpExp seq' op e =>
     let skel_str = make_skel_str' seq' counter ph_map;
     let op_str = string_of_op op;
     let n = !counter;
     counter := n + 1;
-    Hashtbl.add ph_map n ue;
+    Hashtbl.add ph_map n e;
     skel_str ^ op_str ^ string_of_int n
   };
 
@@ -35,31 +37,7 @@ let make_skel_str (seq: UHExp.opseq) => {
   (skel_str, ph_map)
 };
 
-let rec associate (ue: UHExp.t) =>
-  switch ue {
-  | UHExp.Asc ue1 ty => AHExp.Asc (associate ue1) ty
-  | UHExp.Var x => AHExp.Var x
-  | UHExp.Let x ue1 ue2 => AHExp.Let x (associate ue1) (associate ue2)
-  | UHExp.Lam x ue1 => AHExp.Lam x (associate ue1)
-  | UHExp.Ap ue1 ue2 => AHExp.Ap (associate ue1) (associate ue2)
-  | UHExp.NumLit n => AHExp.NumLit n
-  | UHExp.Inj side ue1 => AHExp.Inj side (associate ue1)
-  | UHExp.Case ue1 (x, ue2) (y, ue3) =>
-    AHExp.Case (associate ue1) (x, associate ue2) (y, associate ue3)
-  | UHExp.EmptyHole u => AHExp.EmptyHole u
-  | UHExp.NonEmptyHole u ue1 => AHExp.NonEmptyHole u (associate ue1)
-  | UHExp.OpSeq seq =>
-    let (skel_str, ph_map) = make_skel_str seq;
-    let skel = parse skel_str;
-    ahexp_of skel ph_map
-  }
-and ahexp_of skel ph_map =>
-  switch skel {
-  | Skel.Placeholder n =>
-    let ue = Hashtbl.find ph_map n;
-    associate ue
-  | Skel.BinOp (op, skel1, skel2) =>
-    let ae1 = ahexp_of skel1 ph_map;
-    let ae2 = ahexp_of skel2 ph_map;
-    AHExp.BinOp op ae1 ae2
-  };
+let rec associate (seq: UHExp.opseq) => {
+  let (skel_str, ph_map) = make_skel_str seq;
+  parse skel_str
+};

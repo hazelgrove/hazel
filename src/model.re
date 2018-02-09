@@ -3,14 +3,15 @@ open Semantics.Core;
 /* a z-expression + it's type + the current metavar generator */
 type t = ((ZExp.t, HTyp.t), MetaVar.gen);
 
-/* empty model is the empty hole */
 let u_gen0: MetaVar.gen = MetaVar.new_gen;
 
 let (u, u_gen1) = MetaVar.next u_gen0;
 
-let empty: t = ((ZExp.CursorE ZExp.Before (UHExp.EmptyHole u), HTyp.Hole), u_gen1);
+let empty_ze = ZExp.CursorE ZExp.Before (UHExp.Tm UHExp.NotInHole (UHExp.EmptyHole u));
 
-let empty_erasure = UHExp.EmptyHole u;
+let empty: t = ((empty_ze, HTyp.Hole), u_gen1);
+
+let empty_erasure = ZExp.erase empty_ze;
 
 /* convenient type synonyms */
 type ms = React.signal t; /* reactive signal */
@@ -27,7 +28,7 @@ let new_model () => {
   let (ms, mf) = React.S.create empty;
   let (es, ef) = React.S.create empty_erasure;
   let do_action action =>
-    switch (Action.performSyn () Ctx.empty action (React.S.value ms) Associator.associate) {
+    switch (Action.performSyn () Ctx.empty action (React.S.value ms)) {
     | Some ((ze, ty), ugen) =>
       mf ((ze, ty), ugen);
       switch action {
