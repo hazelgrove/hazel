@@ -346,7 +346,7 @@ let make_palette ((ms, es, do_action): Model.mt) set_cursor => {
       "lam_input"
       KCs.backslash
       "Enter var + press Enter";
-  let constructAp = action_button (Action.Construct Action.SAp) "construct ap" KCs.openParens;
+  let constructAp = action_button (Action.Construct Action.SAp) "construct parens ap" KCs.openParens;
   let constructLit =
     action_input_button
       (fun n => Action.Construct (Action.SLit n))
@@ -370,7 +370,7 @@ let make_palette ((ms, es, do_action): Model.mt) set_cursor => {
     action_button
       (Action.Construct (Action.SOp UHExp.Times)) "construct explicit times" KCs.asterisk;
   let constructSpace =
-    action_button (Action.Construct (Action.SOp UHExp.Space)) "construct implicit times" KCs.space;
+    action_button (Action.Construct (Action.SOp UHExp.Space)) "construct space ap" KCs.space;
   let constructInjL =
     action_button (Action.Construct (Action.SInj UHExp.L)) "construct inj L" KCs.l;
   let constructInjR =
