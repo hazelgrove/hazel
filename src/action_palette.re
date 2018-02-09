@@ -346,7 +346,8 @@ let make_palette ((ms, es, do_action): Model.mt) set_cursor => {
       "lam_input"
       KCs.backslash
       "Enter var + press Enter";
-  let constructAp = action_button (Action.Construct Action.SAp) "construct parens ap" KCs.openParens;
+  let constructAp =
+    action_button (Action.Construct Action.SAp) "construct parens ap" KCs.openParens;
   let constructLit =
     action_input_button
       (fun n => Action.Construct (Action.SLit n))

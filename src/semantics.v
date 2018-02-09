@@ -2978,7 +2978,7 @@ Module Core.
                       result
                     | (Ground, Hole) => 
                       (* can't remove the cast or do anything else here, so we're done *)
-                      BoxedValue d
+                      BoxedValue (DHExp.Cast d1' ty ty')
                     | (Hole, Ground) => 
                       (* by canonical forms, d1' must be of the form d<ty'' => ?> *)
                       match d1' with 
@@ -3004,10 +3004,11 @@ Module Core.
                     | (Ground, NotGroundOrHole _)  
                     | (NotGroundOrHole _, Ground) => 
                       (* can't do anything when casting between disequal, non-hole types *)
-                      BoxedValue d
+                      BoxedValue (DHExp.Cast d1' ty ty')
                     | (NotGroundOrHole _, NotGroundOrHole _) => 
                       (* they might be equal in this case, so remove cast if so *)
-                      if HTyp.eq ty ty' then result else BoxedValue d
+                      if HTyp.eq ty ty' then result 
+                      else BoxedValue (DHExp.Cast d1' ty ty')
                     end
                   | (Indet d1' as result) => 
                     match (ground_cases_of ty, ground_cases_of ty') with 
@@ -3017,14 +3018,14 @@ Module Core.
                       result
                     | (Ground, Hole) => 
                       (* can't remove the cast or do anything else here, so we're done *)
-                      Indet d
+                      Indet (DHExp.Cast d1' ty ty')
                     | (Hole, Ground) => 
                       match d1' with 
                       | DHExp.Cast d1'' ty'' HTyp.Hole => 
                         if HTyp.eq ty'' ty' then BoxedValue d1''
                         else CastError
                       | _ => 
-                        Indet d
+                        Indet (DHExp.Cast d1' ty ty')
                       end
                     | (Hole, NotGroundOrHole ty'_grounded) => 
                       (* ITExpand rule *)
@@ -3043,10 +3044,10 @@ Module Core.
                     | (Ground, NotGroundOrHole _)  
                     | (NotGroundOrHole _, Ground) => 
                       (* can't do anything when casting between disequal, non-hole types *)
-                      Indet d
+                      Indet (DHExp.Cast d1' ty ty')
                     | (NotGroundOrHole _, NotGroundOrHole _) => 
                       (* it might be equal in this case, so remove cast if so *)
-                      if HTyp.eq ty ty' then result else Indet d
+                      if HTyp.eq ty ty' then result else Indet (DHExp.Cast d1' ty ty')
                     end
                   end
                 end
