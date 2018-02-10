@@ -216,10 +216,7 @@ let of_Cast err_status rev_path r1 rty1 rty2 =>
     err_status
     rev_path
     "Cast"
-    (
-      parens "(" ^^
-      r1 ^^ parens ")" ^^ parens "<" ^^ rty1 ^^ op " \226\135\168 " ^^ rty2 ^^ parens ">"
-    );
+    (r1 ^^ parens "<" ^^ rty1 ^^ op " \226\135\168 " ^^ rty2 ^^ parens ">");
 
 let of_FailedCast err_status rev_path r1 rty1 rty2 =>
   term
@@ -227,9 +224,7 @@ let of_FailedCast err_status rev_path r1 rty1 rty2 =>
     rev_path
     "FailedCast"
     (
-      parens "(" ^^
       r1 ^^
-      parens ")" ^^
       parens "<" ^^ rty1 ^^ taggedText "failed-cast-arrow" " \226\135\168 " ^^ rty2 ^^ parens ">"
     );
 
@@ -249,7 +244,16 @@ let rec of_op op =>
   | UHExp.Space => PP.tagged ["seq-op", "op-Space"] None (taggedText "op-no-margin" " ")
   };
 
+let rec of_bin_num_op op =>
+  switch op {
+  | Dynamics.DHExp.Plus => taggedText "bin_num_op" " + "
+  | Dynamics.DHExp.Times => taggedText "bin_num_op" "*"
+  };
+
 let of_Skel_BinOp err_status op r1 r2 => PP.tagged ["skel-binop"] None (r1 ^^ of_op op ^^ r2);
+
+let of_BinNumOp err_status rev_path op r1 r2 =>
+  term err_status rev_path "BinNumOp" (parens "(" ^^ r1 ^^ of_bin_num_op op ^^ r2 ^^ parens ")");
 
 let rec of_hexp rev_path e => {
   let UHExp.Tm err_status e' = e;
@@ -332,19 +336,12 @@ let rec of_dhexp err_status rev_path d =>
       let r2 = of_dhexp UHExp.NotInHole rev_path2 d2;
       of_Ap err_status rev_path r1 r2
     | NumLit n => of_NumLit err_status rev_path n
-    | BinNumOp Plus d1 d2 =>
+    | BinNumOp op d1 d2 =>
       let rev_path1 = [0, ...rev_path];
       let rev_path2 = [1, ...rev_path];
       let r1 = of_dhexp UHExp.NotInHole rev_path1 d1;
       let r2 = of_dhexp UHExp.NotInHole rev_path2 d2;
-      of_Skel_BinOp UHExp.NotInHole UHExp.Plus r1 r2
-    /* if we ever need paths within dynamic terms, this will need to be updated */
-    | BinNumOp Times d1 d2 =>
-      let rev_path1 = [0, ...rev_path];
-      let rev_path2 = [1, ...rev_path];
-      let r1 = of_dhexp UHExp.NotInHole rev_path1 d1;
-      let r2 = of_dhexp UHExp.NotInHole rev_path2 d2;
-      of_Skel_BinOp UHExp.NotInHole UHExp.Times r1 r2
+      of_BinNumOp err_status rev_path op r1 r2
     | Inj ty side d1 =>
       let rev_path1 = [0, ...rev_path];
       let rev_path2 = [1, ...rev_path];
