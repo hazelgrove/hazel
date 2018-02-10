@@ -218,7 +218,19 @@ let of_Cast err_status rev_path r1 rty1 rty2 =>
     "Cast"
     (
       parens "(" ^^
-      r1 ^^ parens ")" ^^ parens "<" ^^ rty1 ^^ op "\226\135\168" ^^ rty2 ^^ parens ">"
+      r1 ^^ parens ")" ^^ parens "<" ^^ rty1 ^^ op " \226\135\168 " ^^ rty2 ^^ parens ">"
+    );
+
+let of_FailedCast err_status rev_path r1 rty1 rty2 =>
+  term
+    err_status
+    rev_path
+    "FailedCast"
+    (
+      parens "(" ^^
+      r1 ^^
+      parens ")" ^^
+      parens "<" ^^ rty1 ^^ taggedText "failed-cast-arrow" " \226\135\168 " ^^ rty2 ^^ parens ">"
     );
 
 let rec of_op op =>
@@ -376,6 +388,14 @@ let rec of_dhexp err_status rev_path d =>
       let r2 = of_htype rev_path2 ty1;
       let r3 = of_htype rev_path3 ty2;
       of_Cast err_status rev_path r1 r2 r3
+    | FailedCast d1 ty1 ty2 =>
+      let rev_path1 = [0, ...rev_path];
+      let rev_path2 = [1, ...rev_path];
+      let rev_path3 = [2, ...rev_path];
+      let r1 = of_dhexp UHExp.NotInHole rev_path1 d1;
+      let r2 = of_htype rev_path2 ty1;
+      let r3 = of_htype rev_path3 ty2;
+      of_FailedCast err_status rev_path r1 r2 r3
     }
   )
 and of_sigma rev_path sigma => {

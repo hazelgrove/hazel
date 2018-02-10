@@ -293,3 +293,12 @@ button:disabled {
 	user-select: none;
 } */
 
+.failed-cast-arrow {
+  color: red;
+  font-weight: bold;
+}
+
+.FailedCast {
+  background-color: rgba(255, 0, 0, 0.1);
+}
+

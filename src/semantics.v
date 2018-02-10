@@ -2307,7 +2307,8 @@ Module Core.
           | Case : t -> (Var.t * t) -> (Var.t * t) -> t
           | EmptyHole : MetaVar.t -> Environment.t(t) -> t 
           | NonEmptyHole : MetaVar.t -> Environment.t(t) -> t -> t
-          | Cast : t -> HTyp.t -> HTyp.t -> t.
+          | Cast : t -> HTyp.t -> HTyp.t -> t
+          | FailedCast : t -> HTyp.t -> HTyp.t -> t.
 
           (* closed substitution [d1/x]d2*)
           Fixpoint subst (fuel : Fuel.t) (d1 : t) (x : Var.t) (d2 : t) : t := 
@@ -2351,6 +2352,9 @@ Module Core.
               | Cast d ty1 ty2 => 
                 let d' := subst d1 x d in 
                 Cast d' ty1 ty2 
+              | FailedCast d ty1 ty2 => 
+                let d' := subst d1 x d in 
+                FailedCast d' ty1 ty2
               end
             end
           with env_subst (fuel : Fuel.t) (d1 : t) (x : Var.t) (sigma : Environment.t(t)) := 
@@ -2443,9 +2447,9 @@ Module Core.
               | EmptyHole u sigma => 
                 match MetaVarCtx.lookup delta u with 
                 | Some (ty, gamma') => 
-                    if check_type_env fuel' gamma delta sigma gamma' then 
-                      WellTyped ty
-                    else IllTyped
+                  if check_type_env fuel' gamma delta sigma gamma' then 
+                    WellTyped ty
+                  else IllTyped
                 | None => IllTyped
                 end
               | NonEmptyHole u sigma d1 => 
@@ -2460,12 +2464,13 @@ Module Core.
                   end
                 | IllTyped => IllTyped
                 end
-              | Cast d1 ty1 ty2 => 
+              | Cast d1 ty1 ty2 
+              | FailedCast d1 ty1 ty2 => 
                 match assign_type gamma delta d1 with 
                 | IllTyped => IllTyped
                 | WellTyped ty1' => 
                   if HTyp.eq ty1 ty1' && 
-                     HTyp.consistent ty1 ty2
+                   HTyp.consistent ty1 ty2
                   then WellTyped ty2
                   else IllTyped
                 end
@@ -2812,7 +2817,6 @@ Module Core.
         Module Evaluator.
             Inductive result := 
             | InvalidInput : result (* not well-typed or otherwise invalid *)
-            | CastError : result
             | BoxedValue : DHExp.t -> result
             | Indet : DHExp.t -> result.
 
@@ -2852,7 +2856,6 @@ Module Core.
                 | DHExp.Let x d1 d2 => 
                   match evaluate fuel' d1 with 
                   | InvalidInput => InvalidInput
-                  | CastError => CastError
                   | BoxedValue d1' | Indet d1' => 
                     evaluate fuel' (DHExp.subst fuel' d1' x d2)
                   end
@@ -2860,11 +2863,9 @@ Module Core.
                 | DHExp.Ap d1 d2 => 
                   match evaluate fuel' d1 with 
                   | InvalidInput => InvalidInput
-                  | CastError => CastError
                   | BoxedValue (DHExp.Lam x tau d1') => 
                     match evaluate fuel' d2 with 
                     | InvalidInput => InvalidInput
-                    | CastError => CastError
                     | BoxedValue d2' | Indet d2' => 
                       (* beta rule *)
                       evaluate fuel' (DHExp.subst fuel d2' x d1')
@@ -2873,7 +2874,6 @@ Module Core.
                   | Indet (DHExp.Cast d1' (HTyp.Arrow ty1 ty2) (HTyp.Arrow ty1' ty2')) => 
                     match evaluate fuel' d2 with 
                     | InvalidInput => InvalidInput
-                    | CastError => CastError
                     | BoxedValue d2' | Indet d2' => 
                       (* ap cast rule *)
                       evaluate fuel'  
@@ -2888,7 +2888,6 @@ Module Core.
                   | Indet d1' => 
                     match evaluate fuel' d2 with 
                     | InvalidInput => InvalidInput
-                    | CastError => CastError
                     | BoxedValue d2' | Indet d2' => 
                       Indet (DHExp.Ap d1' d2')
                     end
@@ -2897,11 +2896,9 @@ Module Core.
                 | DHExp.BinNumOp op d1 d2 => 
                   match evaluate fuel' d1 with 
                   | InvalidInput => InvalidInput
-                  | CastError => CastError
                   | BoxedValue (DHExp.NumLit n1 as d1')  => 
                     match evaluate fuel' d2 with 
                     | InvalidInput => InvalidInput
-                    | CastError => CastError
                     | BoxedValue (DHExp.NumLit n2) => 
                       BoxedValue (DHExp.NumLit (eval_bin_num_op op n1 n2))
                     | BoxedValue _ => InvalidInput
@@ -2912,7 +2909,6 @@ Module Core.
                   | Indet d1' => 
                     match evaluate fuel' d2 with 
                     | InvalidInput => InvalidInput
-                    | CastError => CastError
                     | BoxedValue d2' | Indet d2' => 
                       Indet (DHExp.BinNumOp op d1' d2')
                     end
@@ -2920,14 +2916,12 @@ Module Core.
                 | DHExp.Inj ty side d1 => 
                   match evaluate fuel' d1 with 
                   | InvalidInput => InvalidInput
-                  | CastError => CastError
                   | BoxedValue d1' => BoxedValue (DHExp.Inj ty side d1')
                   | Indet d1' => Indet (DHExp.Inj ty side d1')
                   end
                 | DHExp.Case d1 (x, d2) (y, d3) =>
                   match evaluate fuel' d1 with 
                   | InvalidInput => InvalidInput
-                  | CastError => CastError
                   | BoxedValue d1' => 
                     match d1' with 
                     | DHExp.Inj _ side d1'' => 
@@ -2962,14 +2956,12 @@ Module Core.
                 | DHExp.NonEmptyHole u sigma d1 => 
                   match evaluate fuel' d1 with 
                   | InvalidInput => InvalidInput
-                  | CastError => CastError
                   | BoxedValue d1' | Indet d1' => 
                     Indet (DHExp.NonEmptyHole u sigma d1')
                   end
                 | DHExp.Cast d1 ty ty' => 
                   match evaluate fuel' d1 with 
                   | InvalidInput => InvalidInput
-                  | CastError => CastError
                   | (BoxedValue d1' as result) => 
                     match (ground_cases_of ty, ground_cases_of ty') with 
                     | (Hole, Hole) => result
@@ -2984,21 +2976,21 @@ Module Core.
                       match d1' with 
                       | DHExp.Cast d1'' ty'' HTyp.Hole => 
                         if HTyp.eq ty'' ty' then BoxedValue d1''
-                        else CastError
+                        else Indet (DHExp.FailedCast d1' ty ty')
                       | _ => InvalidInput
                       end
                     | (Hole, NotGroundOrHole ty'_grounded) => 
                       (* ITExpand rule *)
                       let d' := 
                         DHExp.Cast
-                          (DHExp.Cast d1 ty ty'_grounded)
+                          (DHExp.Cast d1' ty ty'_grounded)
                           ty'_grounded ty' in 
                       evaluate fuel' d'
                     | (NotGroundOrHole ty_grounded, Hole) => 
                       (* ITGround rule *)
                        let d' := 
                          DHExp.Cast
-                           (DHExp.Cast d1 ty ty_grounded)
+                           (DHExp.Cast d1' ty ty_grounded)
                            ty_grounded ty' in 
                        evaluate fuel' d'
                     | (Ground, NotGroundOrHole _)  
@@ -3023,7 +3015,7 @@ Module Core.
                       match d1' with 
                       | DHExp.Cast d1'' ty'' HTyp.Hole => 
                         if HTyp.eq ty'' ty' then BoxedValue d1''
-                        else CastError
+                        else Indet (DHExp.FailedCast d1' ty ty')
                       | _ => 
                         Indet (DHExp.Cast d1' ty ty')
                       end
@@ -3031,14 +3023,14 @@ Module Core.
                       (* ITExpand rule *)
                       let d' := 
                         DHExp.Cast
-                          (DHExp.Cast d1 ty ty'_grounded)
+                          (DHExp.Cast d1' ty ty'_grounded)
                           ty'_grounded ty' in 
                       evaluate fuel' d'
                     | (NotGroundOrHole ty_grounded, Hole) => 
                       (* ITGround rule *)
                        let d' := 
                          DHExp.Cast
-                           (DHExp.Cast d1 ty ty_grounded)
+                           (DHExp.Cast d1' ty ty_grounded)
                            ty_grounded ty' in 
                        evaluate fuel' d'
                     | (Ground, NotGroundOrHole _)  
@@ -3049,6 +3041,12 @@ Module Core.
                       (* it might be equal in this case, so remove cast if so *)
                       if HTyp.eq ty ty' then result else Indet (DHExp.Cast d1' ty ty')
                     end
+                  end
+                | DHExp.FailedCast d1 ty ty' => 
+                  match evaluate fuel' d1 with 
+                  | InvalidInput => InvalidInput
+                  | BoxedValue d1' | Indet d1' => 
+                    Indet (DHExp.FailedCast d1' ty ty')
                   end
                 end
                 end.

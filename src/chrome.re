@@ -654,7 +654,6 @@ let view ((ms, es, do_action): Model.mt) => {
             let result = Dynamics.Evaluator.evaluate () d;
             switch result {
             | Dynamics.Evaluator.InvalidInput => [Html5.pcdata "(internal error: invalid input)"]
-            | Dynamics.Evaluator.CastError => [Html5.pcdata "(cast error)"]
             | Dynamics.Evaluator.BoxedValue d_val
             | Dynamics.Evaluator.Indet d_val =>
               let pp_view = View.of_dhexp UHExp.NotInHole [] d_val;
