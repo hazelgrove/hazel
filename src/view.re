@@ -211,21 +211,35 @@ let of_CaseAnn err_status rev_path r1 x r2 y r3 =>
       var y ^^ parens ")" ^^ space ^^ op "\226\135\146" ^^ optionalBreakSp ^^ PP.nestAbsolute 2 r3
     );
 
+let cast_arrow = op " \226\135\168 ";
+
 let of_Cast err_status rev_path r1 rty1 rty2 =>
+  term err_status rev_path "Cast" (r1 ^^ parens "<" ^^ rty1 ^^ cast_arrow ^^ rty2 ^^ parens ">");
+
+let of_chained_Cast err_status rev_path r1 rty1 rty2 rty4 =>
   term
     err_status
     rev_path
     "Cast"
-    (r1 ^^ parens "<" ^^ rty1 ^^ op " \226\135\168 " ^^ rty2 ^^ parens ">");
+    (r1 ^^ parens "<" ^^ rty1 ^^ cast_arrow ^^ rty2 ^^ cast_arrow ^^ rty4 ^^ parens ">");
+
+let failed_cast_arrow = taggedText "failed-cast-arrow" " \226\135\168 ";
 
 let of_FailedCast err_status rev_path r1 rty1 rty2 =>
   term
     err_status
     rev_path
     "FailedCast"
+    (r1 ^^ parens "<" ^^ rty1 ^^ failed_cast_arrow ^^ rty2 ^^ parens ">");
+
+let of_chained_FailedCast err_status rev_path r1 rty1 rty2 rty4 =>
+  term
+    err_status
+    rev_path
+    "FailedCast"
     (
       r1 ^^
-      parens "<" ^^ rty1 ^^ taggedText "failed-cast-arrow" " \226\135\168 " ^^ rty2 ^^ parens ">"
+      parens "<" ^^ rty1 ^^ failed_cast_arrow ^^ rty2 ^^ failed_cast_arrow ^^ rty4 ^^ parens ">"
     );
 
 let rec of_op op =>
@@ -377,6 +391,18 @@ let rec of_dhexp err_status rev_path d =>
           PP.tagged
             ["hole-decorations"] None (PP.tagged ["environment"] None (of_sigma rev_path sigma))
         )
+    | Cast (Cast d1 ty1 ty2) ty3 ty4 when HTyp.eq ty2 ty3 =>
+      let rev_path1 = [0, ...rev_path];
+      let inner_rev_path1 = [0, ...rev_path1];
+      let inner_rev_path2 = [1, ...rev_path1];
+      let inner_rev_path3 = [2, ...rev_path1];
+      /* no rev_path2 because we're not showing them separately */
+      let rev_path3 = [2, ...rev_path];
+      let r1 = of_dhexp UHExp.NotInHole inner_rev_path1 d1;
+      let r2 = of_htype inner_rev_path2 ty1;
+      let r3 = of_htype inner_rev_path3 ty2;
+      let r5 = of_htype rev_path3 ty4;
+      of_chained_Cast err_status rev_path r1 r2 r3 r5
     | Cast d1 ty1 ty2 =>
       let rev_path1 = [0, ...rev_path];
       let rev_path2 = [1, ...rev_path];
@@ -385,6 +411,17 @@ let rec of_dhexp err_status rev_path d =>
       let r2 = of_htype rev_path2 ty1;
       let r3 = of_htype rev_path3 ty2;
       of_Cast err_status rev_path r1 r2 r3
+    | FailedCast (Cast d1 ty1 ty2) ty3 ty4 when HTyp.eq ty2 ty3 =>
+      let rev_path1 = [0, ...rev_path];
+      let inner_rev_path1 = [0, ...rev_path1];
+      let inner_rev_path2 = [1, ...rev_path1];
+      let inner_rev_path3 = [2, ...rev_path1];
+      let rev_path3 = [2, ...rev_path];
+      let r1 = of_dhexp UHExp.NotInHole inner_rev_path1 d1;
+      let r2 = of_htype inner_rev_path2 ty1;
+      let r3 = of_htype inner_rev_path3 ty2;
+      let r5 = of_htype rev_path3 ty4;
+      of_chained_FailedCast err_status rev_path r1 r2 r3 r5
     | FailedCast d1 ty1 ty2 =>
       let rev_path1 = [0, ...rev_path];
       let rev_path2 = [1, ...rev_path];
