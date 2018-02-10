@@ -238,13 +238,6 @@ button:disabled {
 	line-height: initial;
 }
 
-.nonEmptyHoleName {
-	vertical-align: bottom;
-	font-size: 65%;
-	color: red;
-	line-height: initial;
-}
-
 .hide-hole-names .holeName {
 	display: none !important;
 }

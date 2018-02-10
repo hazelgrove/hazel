@@ -211,18 +211,6 @@ let of_CaseAnn err_status rev_path r1 x r2 y r3 =>
       var y ^^ parens ")" ^^ space ^^ op "\226\135\146" ^^ optionalBreakSp ^^ PP.nestAbsolute 2 r3
     );
 
-/* let of_NonEmptyHole rev_path u r =>
-   term
-     "NonEmptyHole"
-     rev_path
-     (
-       PP.tagged
-         "NonEmptyHoleTerm"
-         None
-         (r ^^ taggedText "nonEmptyHole-after-inner" "\226\128\139\226\128\139") ^^
-       taggedText "nonEmptyHoleName" (string_of_int u) ^^
-       taggedText "nonEmptyHole-after-outer" "\226\128\139\226\128\139\226\128\139"
-     ); TODO remove this */
 let of_Cast err_status rev_path r1 rty1 rty2 =>
   term
     err_status
@@ -371,7 +359,15 @@ let rec of_dhexp err_status rev_path d =>
         )
     | NonEmptyHole u sigma d1 =>
       let rev_path1 = [0, ...rev_path];
-      of_dhexp (UHExp.InHole u) rev_path1 d1
+      term
+        err_status
+        rev_path
+        "NonEmptyHole"
+        (
+          of_dhexp (UHExp.InHole u) rev_path1 d1 ^^
+          PP.tagged
+            ["hole-decorations"] None (PP.tagged ["environment"] None (of_sigma rev_path sigma))
+        )
     | Cast d1 ty1 ty2 =>
       let rev_path1 = [0, ...rev_path];
       let rev_path2 = [1, ...rev_path];

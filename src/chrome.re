@@ -432,65 +432,6 @@ let view ((ms, es, do_action): Model.mt) => {
           }
         }
       } else if (
-        has_class "nonEmptyHole-after-inner"
-      ) {
-        let anchor_offset = selection##.anchorOffset;
-        if (anchor_offset > 0) {
-          switch (Js.Opt.to_option parent_elem##.parentNode) {
-          | Some grandparent =>
-            switch (Js.Opt.to_option grandparent##.parentNode) {
-            | Some grandparent' =>
-              switch (Js.Opt.to_option grandparent'##.lastChild) {
-              | Some lastChild => move_cursor_after lastChild
-              | None => ()
-              }
-            | None => ()
-            }
-          | None => ()
-          }
-        }
-      } else if (
-        has_class "nonEmptyHole-after-outer"
-      ) {
-        let anchor_offset = selection##.anchorOffset;
-        if (anchor_offset == 2) {
-          switch (Js.Opt.to_option parent_elem##.parentNode) {
-          | Some grandparent =>
-            switch (Js.Opt.to_option grandparent##.firstChild) {
-            | Some firstChild =>
-              switch (Js.Opt.to_option firstChild##.firstChild) {
-              | Some firstChild => move_cursor_after firstChild
-              | _ => ()
-              }
-            | _ => ()
-            }
-          | _ => ()
-          }
-        }
-      } else if (
-        has_class "nonEmptyHoleName"
-      ) {
-        let anchor_offset = selection##.anchorOffset;
-        if (anchor_offset == 0) {
-          switch (Js.Opt.to_option parent_elem##.parentNode) {
-          | Some grandparent =>
-            switch (Js.Opt.to_option grandparent##.firstChild) {
-            | Some firstChild =>
-              switch (Js.Opt.to_option firstChild##.firstChild) {
-              | Some firstChild => move_cursor_after firstChild
-              | _ => ()
-              }
-            | _ => ()
-            }
-          | _ => ()
-          }
-        } else {
-          switch (Js.Opt.to_option parent_elem##.nextSibling) {
-          | Some sibling => move_cursor_after sibling
-          | None => ()
-          }
-        }
-      } else if (
         has_class "seq-op"
       ) {
         let anchorOffset = selection##.anchorOffset;
@@ -610,10 +551,6 @@ let view ((ms, es, do_action): Model.mt) => {
       } else {
         ZExp.On
       }
-    } else if (
-      ast_has_class "NonEmptyHole"
-    ) {
-      ZExp.After
     } else if (
       ast_has_class "EmptyHole" || ast_has_class "Hole"
     ) {
