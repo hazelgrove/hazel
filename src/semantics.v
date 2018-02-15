@@ -1707,75 +1707,117 @@ Module Core.
               | ZExp.EmptyPrefix suffix => 
                 match suffix with 
                 | ZExp.ExpSuffix op' e' => 
-                  match op' with 
+                  match op with 
                   | UHExp.Space => 
-                    (* e| e' --> e op |e' *)
-                    let prefix' := ZExp.ExpPrefix e op in 
-                    let surround' := ZExp.EmptySuffix prefix' in 
-                    let ze0' := ZExp.CursorE ZExp.Before e' in 
-                    make_and_syn_OpSeqZ fuel ctx u_gen ze0' surround'  
-                  | _ => 
-                    (* e| op' e' --> e op |_ op' e' *)
+                    (* e| op' e' --> e |_ op' e' *)
                     let prefix' := ZExp.ExpPrefix e op in 
                     let suffix' := ZExp.ExpSuffix op' e' in 
                     let surround' := ZExp.BothNonEmpty prefix' suffix' in 
                     let (new_hole, u_gen') := UHExp.new_EmptyHole u_gen in 
                     let ze0' := ZExp.CursorE ZExp.Before new_hole in 
                     make_and_syn_OpSeqZ fuel ctx u_gen' ze0' surround' 
+                  | _ =>                     
+                    match op' with 
+                    | UHExp.Space => 
+                      (* e| e' --> e op |e' *)
+                      let prefix' := ZExp.ExpPrefix e op in 
+                      let surround' := ZExp.EmptySuffix prefix' in 
+                      let ze0' := ZExp.CursorE ZExp.Before e' in 
+                      make_and_syn_OpSeqZ fuel ctx u_gen ze0' surround'  
+                    | _ => 
+                      (* e| op' e' --> e op |_ op' e' *)
+                      let prefix' := ZExp.ExpPrefix e op in 
+                      let suffix' := ZExp.ExpSuffix op' e' in 
+                      let surround' := ZExp.BothNonEmpty prefix' suffix' in 
+                      let (new_hole, u_gen') := UHExp.new_EmptyHole u_gen in 
+                      let ze0' := ZExp.CursorE ZExp.Before new_hole in 
+                      make_and_syn_OpSeqZ fuel ctx u_gen' ze0' surround' 
+                    end
                   end
                 | ZExp.SeqSuffix op' seq' => 
                   match op with 
                   | UHExp.Space => 
-                    (* e| seq' --> e op |seq' *)
-                    let prefix' := ZExp.ExpPrefix e op in 
-                    let (e0', suffix') := ZExp.split0 seq' in 
-                    let surround' := ZExp.BothNonEmpty prefix' suffix' in 
-                    let ze0' := ZExp.CursorE ZExp.Before e0' in 
-                    make_and_syn_OpSeqZ fuel ctx u_gen ze0' surround' 
-                  | _ => 
-                    (* e| op' seq' --> e op |_ op' seq' *)
+                    (* e| seq' --> e |_ op' seq' *)
                     let prefix' := ZExp.ExpPrefix e op in 
                     let surround' := ZExp.BothNonEmpty prefix' suffix in 
                     let (new_hole, u_gen') := UHExp.new_EmptyHole u_gen in 
                     let ze0' := ZExp.CursorE ZExp.Before new_hole in 
-                    make_and_syn_OpSeqZ fuel ctx u_gen ze0' surround' 
+                    make_and_syn_OpSeqZ fuel ctx u_gen' ze0' surround'
+                  | _ => 
+                    match op' with 
+                    | UHExp.Space => 
+                      (* e| seq' --> e op |seq' *)
+                      let prefix' := ZExp.ExpPrefix e op in 
+                      let (e0', suffix') := ZExp.split0 seq' in 
+                      let surround' := ZExp.BothNonEmpty prefix' suffix' in 
+                      let ze0' := ZExp.CursorE ZExp.Before e0' in 
+                      make_and_syn_OpSeqZ fuel ctx u_gen ze0' surround' 
+                    | _ => 
+                      (* e| op' seq' --> e op |_ op' seq' *)
+                      let prefix' := ZExp.ExpPrefix e op in 
+                      let surround' := ZExp.BothNonEmpty prefix' suffix in 
+                      let (new_hole, u_gen') := UHExp.new_EmptyHole u_gen in 
+                      let ze0' := ZExp.CursorE ZExp.Before new_hole in 
+                      make_and_syn_OpSeqZ fuel ctx u_gen' ze0' surround' 
+                    end
                   end
                 end
               | ZExp.BothNonEmpty prefix suffix => 
                 match suffix with 
                 | ZExp.ExpSuffix op' e' => 
-                  match op' with 
+                  match op with 
                   | UHExp.Space => 
-                    (* prefix e| e' --> prefix e op |e' *)
-                    let prefix' := ZExp.prefix_append_exp prefix e op in 
-                    let surround' := ZExp.EmptySuffix prefix' in 
-                    let ze0' := ZExp.CursorE ZExp.Before e' in 
-                    make_and_syn_OpSeqZ fuel ctx u_gen ze0' surround' 
-                  | _ => 
-                    (* prefix e| op' e' --> prefix e op |_ op' e' *)
+                    (* prefix e| op' e' --> prefix e |_ op' e' *)
                     let prefix' := ZExp.prefix_append_exp prefix e op in 
                     let suffix' := ZExp.ExpSuffix op' e' in 
                     let surround' := ZExp.BothNonEmpty prefix' suffix' in 
                     let (new_hole, u_gen') := UHExp.new_EmptyHole u_gen in 
                     let ze0' := ZExp.CursorE ZExp.Before new_hole in 
                     make_and_syn_OpSeqZ fuel ctx u_gen' ze0' surround' 
+                  | _ => 
+                    match op' with 
+                    | UHExp.Space => 
+                      (* prefix e| e' --> prefix e op |e' *)
+                      let prefix' := ZExp.prefix_append_exp prefix e op in 
+                      let surround' := ZExp.EmptySuffix prefix' in 
+                      let ze0' := ZExp.CursorE ZExp.Before e' in 
+                      make_and_syn_OpSeqZ fuel ctx u_gen ze0' surround' 
+                    | _ => 
+                      (* prefix e| op' e' --> prefix e op |_ op' e' *)
+                      let prefix' := ZExp.prefix_append_exp prefix e op in 
+                      let suffix' := ZExp.ExpSuffix op' e' in 
+                      let surround' := ZExp.BothNonEmpty prefix' suffix' in 
+                      let (new_hole, u_gen') := UHExp.new_EmptyHole u_gen in 
+                      let ze0' := ZExp.CursorE ZExp.Before new_hole in 
+                      make_and_syn_OpSeqZ fuel ctx u_gen' ze0' surround' 
+                    end
                   end
                 | ZExp.SeqSuffix op' seq' => 
                   match op with 
                   | UHExp.Space => 
-                    (* prefix e| seq' --> prefix e op |seq' *)
-                    let prefix' := ZExp.prefix_append_exp prefix e op in 
-                    let (e0', suffix') := ZExp.split0 seq' in 
-                    let surround' := ZExp.BothNonEmpty prefix' suffix' in 
-                    let ze0' := ZExp.CursorE ZExp.Before e0' in 
-                    make_and_syn_OpSeqZ fuel ctx u_gen ze0' surround' 
-                  | _ => 
-                    (* prefix e| op' seq' --> prefix e op |_ op' seq' *)
+                    (* prefix e| op' seq' --> prefix e |_ op' seq' *)
                     let prefix' := ZExp.prefix_append_exp prefix e op in 
                     let surround' := ZExp.BothNonEmpty prefix' suffix in 
                     let (new_hole, u_gen') := UHExp.new_EmptyHole u_gen in 
                     let ze0' := ZExp.CursorE ZExp.Before new_hole in 
-                    make_and_syn_OpSeqZ fuel ctx u_gen ze0' surround'
+                    make_and_syn_OpSeqZ fuel ctx u_gen' ze0' surround'
+                  | _ => 
+                    match op' with 
+                    | UHExp.Space => 
+                      (* prefix e| seq' --> prefix e op |seq' *)
+                      let prefix' := ZExp.prefix_append_exp prefix e op in 
+                      let (e0', suffix') := ZExp.split0 seq' in 
+                      let surround' := ZExp.BothNonEmpty prefix' suffix' in 
+                      let ze0' := ZExp.CursorE ZExp.Before e0' in 
+                      make_and_syn_OpSeqZ fuel ctx u_gen ze0' surround' 
+                    | _ => 
+                      (* prefix e| op' seq' --> prefix e op |_ op' seq' *)
+                      let prefix' := ZExp.prefix_append_exp prefix e op in 
+                      let surround' := ZExp.BothNonEmpty prefix' suffix in 
+                      let (new_hole, u_gen') := UHExp.new_EmptyHole u_gen in 
+                      let ze0' := ZExp.CursorE ZExp.Before new_hole in 
+                      make_and_syn_OpSeqZ fuel ctx u_gen' ze0' surround'
+                    end
                   end
                 end
               end
@@ -1786,43 +1828,94 @@ Module Core.
                 ZExp.Deeper _ (ZExp.OpSeqZ _ 
                   ((ZExp.Deeper _ (ZExp.LeftAp (ZExp.CursorE ZExp.Before _) _)) as ze0) 
                   surround)) =>
+              match surround with 
+              | ZExp.EmptyPrefix suffix => 
+                (* |ze0 ... --> |_ op e0 ... *)
                 let e0 := ZExp.erase ze0 in 
-                match surround with 
-                | ZExp.EmptyPrefix suffix => 
-                    (* |ze0 ... --> |_ op e0 ... *)
-                    let suffix' := ZExp.suffix_prepend_exp suffix op e0 in 
-                    let surround' := ZExp.EmptyPrefix suffix' in 
-                    let (new_hole, u_gen') := UHExp.new_EmptyHole u_gen in 
-                    let ze0' := ZExp.CursorE ZExp.Before new_hole in 
-                    make_and_syn_OpSeqZ fuel ctx u_gen' ze0' surround' 
-                | ZExp.EmptySuffix (ZExp.ExpPrefix e1 (UHExp.Space)) => 
-                    let surround' := ZExp.EmptySuffix (ZExp.ExpPrefix e1 op) in 
-                    make_and_syn_OpSeqZ fuel ctx u_gen ze0 surround' 
-                | ZExp.EmptySuffix (ZExp.SeqPrefix seq1 (UHExp.Space)) => 
-                    let surround' := ZExp.EmptySuffix (ZExp.SeqPrefix seq1 op) in 
-                    make_and_syn_OpSeqZ fuel ctx u_gen ze0 surround' 
-                | ZExp.EmptySuffix prefix => 
-                    (* ... |ze0 --> ... |_ op e0 *)
-                    let suffix' := ZExp.ExpSuffix op e0 in 
-                    let surround' := ZExp.BothNonEmpty prefix suffix' in 
-                    let (new_hole, u_gen') := UHExp.new_EmptyHole u_gen in 
-                    let ze0' := ZExp.CursorE ZExp.Before new_hole in 
-                    make_and_syn_OpSeqZ fuel ctx u_gen' ze0' surround' 
-                | ZExp.BothNonEmpty (ZExp.ExpPrefix e1 (UHExp.Space)) suffix => 
-                    let prefix' := ZExp.ExpPrefix e1 op in 
-                    let surround' := ZExp.BothNonEmpty prefix' suffix in 
-                    make_and_syn_OpSeqZ fuel ctx u_gen ze0 surround'
-                | ZExp.BothNonEmpty (ZExp.SeqPrefix seq1 (UHExp.Space)) suffix => 
-                    let prefix' := ZExp.SeqPrefix seq1 op in 
-                    let surround' := ZExp.BothNonEmpty prefix' suffix in 
-                    make_and_syn_OpSeqZ fuel ctx u_gen ze0 surround'
-                | ZExp.BothNonEmpty prefix suffix => 
-                    let suffix' := ZExp.suffix_prepend_exp suffix op e0 in 
-                    let surround' := ZExp.BothNonEmpty prefix suffix' in 
-                    let (new_hole, u_gen') := UHExp.new_EmptyHole u_gen in 
-                    let ze0' := ZExp.CursorE ZExp.Before new_hole in 
-                    make_and_syn_OpSeqZ fuel ctx u_gen' ze0' surround' 
+                let suffix' := ZExp.suffix_prepend_exp suffix op e0 in 
+                let surround' := ZExp.EmptyPrefix suffix' in 
+                let (new_hole, u_gen') := UHExp.new_EmptyHole u_gen in 
+                let ze0' := ZExp.CursorE ZExp.Before new_hole in 
+                make_and_syn_OpSeqZ fuel ctx u_gen' ze0' surround' 
+              | ZExp.EmptySuffix ((ZExp.ExpPrefix e1 (UHExp.Space)) as prefix) => 
+                match op with 
+                | UHExp.Space => 
+                  (* e1 |ze0 --> e1 |_ e0 *)
+                  let e0 := ZExp.erase ze0 in 
+                  let suffix' := ZExp.ExpSuffix UHExp.Space e0 in 
+                  let surround' := ZExp.BothNonEmpty prefix suffix' in 
+                  let (new_hole, u_gen') := UHExp.new_EmptyHole u_gen in 
+                  let ze0' := ZExp.CursorE ZExp.Before new_hole in 
+                  make_and_syn_OpSeqZ fuel ctx u_gen' ze0' surround' 
+                | _ => 
+                  (* e1 |ze0 --> e1 op |ze0 *)
+                  let surround' := ZExp.EmptySuffix (ZExp.ExpPrefix e1 op) in 
+                  make_and_syn_OpSeqZ fuel ctx u_gen ze0 surround' 
                 end
+              | ZExp.EmptySuffix ((ZExp.SeqPrefix seq1 (UHExp.Space)) as prefix) => 
+                match op with 
+                | UHExp.Space => 
+                  (* seq1 |ze0 --> seq1 |_ e0 *)
+                  let e0 := ZExp.erase ze0 in 
+                  let suffix' := ZExp.ExpSuffix UHExp.Space e0 in 
+                  let surround' := ZExp.BothNonEmpty prefix suffix' in 
+                  let (new_hole, u_gen') := UHExp.new_EmptyHole u_gen in 
+                  let ze0' := ZExp.CursorE ZExp.Before new_hole in 
+                  make_and_syn_OpSeqZ fuel ctx u_gen' ze0' surround'
+                | _ => 
+                  (* seq1 |ze0 --> seq1 op |ze0 *)
+                  let surround' := ZExp.EmptySuffix (ZExp.SeqPrefix seq1 op) in 
+                  make_and_syn_OpSeqZ fuel ctx u_gen ze0 surround' 
+                end
+              | ZExp.EmptySuffix prefix => 
+                (* prefix [^ ] |ze0 --> prefix |_ op e0 *)
+                let e0 := ZExp.erase ze0 in 
+                let suffix' := ZExp.ExpSuffix op e0 in 
+                let surround' := ZExp.BothNonEmpty prefix suffix' in 
+                let (new_hole, u_gen') := UHExp.new_EmptyHole u_gen in 
+                let ze0' := ZExp.CursorE ZExp.Before new_hole in 
+                make_and_syn_OpSeqZ fuel ctx u_gen' ze0' surround' 
+              | ZExp.BothNonEmpty ((ZExp.ExpPrefix e1 (UHExp.Space)) as prefix) suffix => 
+                match op with 
+                | UHExp.Space => 
+                  (* e1 |ze0 suffix --> e1 |_ e0 suffix *)
+                  let e0 := ZExp.erase ze0 in 
+                  let suffix' := ZExp.suffix_prepend_exp suffix UHExp.Space e0 in 
+                  let surround' := ZExp.BothNonEmpty prefix suffix' in 
+                  let (new_hole, u_gen') := UHExp.new_EmptyHole u_gen in 
+                  let ze0' := ZExp.CursorE ZExp.Before new_hole in 
+                  make_and_syn_OpSeqZ fuel ctx u_gen' ze0' surround'
+                | _ => 
+                  (* e1 |ze0 suffix --> e1 op |ze0 suffix *)
+                  let prefix' := ZExp.ExpPrefix e1 op in 
+                  let surround' := ZExp.BothNonEmpty prefix' suffix in 
+                  make_and_syn_OpSeqZ fuel ctx u_gen ze0 surround'
+                end
+              | ZExp.BothNonEmpty ((ZExp.SeqPrefix seq1 (UHExp.Space)) as prefix) suffix => 
+                match op with 
+                | UHExp.Space => 
+                  (* seq1 |ze0 suffix --> seq1 |_ e0 suffix *)
+                  let e0 := ZExp.erase ze0 in 
+                  let suffix' := ZExp.suffix_prepend_exp suffix UHExp.Space e0 in 
+                  let surround' := ZExp.BothNonEmpty prefix suffix' in 
+                  let (new_hole, u_gen') := UHExp.new_EmptyHole u_gen in 
+                  let ze0' := ZExp.CursorE ZExp.Before new_hole in 
+                  make_and_syn_OpSeqZ fuel ctx u_gen' ze0' surround'
+                | _ => 
+                  (* seq1 |ze0 suffix --> seq1 op |ze0 suffix *)
+                  let prefix' := ZExp.SeqPrefix seq1 op in 
+                  let surround' := ZExp.BothNonEmpty prefix' suffix in 
+                  make_and_syn_OpSeqZ fuel ctx u_gen ze0 surround'
+                end
+              | ZExp.BothNonEmpty prefix suffix => 
+                (* prefix [^ ] |ze0 suffix --> prefix |_ op e0 suffix *)
+                let e0 := ZExp.erase ze0 in 
+                let suffix' := ZExp.suffix_prepend_exp suffix op e0 in 
+                let surround' := ZExp.BothNonEmpty prefix suffix' in 
+                let (new_hole, u_gen') := UHExp.new_EmptyHole u_gen in 
+                let ze0' := ZExp.CursorE ZExp.Before new_hole in 
+                make_and_syn_OpSeqZ fuel ctx u_gen' ze0' surround' 
+              end
             | (Construct (SOp op), ZExp.CursorE ZExp.On e)
             | (Construct (SOp op), ZExp.CursorE ZExp.After e) => 
               let prefix := ZExp.ExpPrefix e op in 
