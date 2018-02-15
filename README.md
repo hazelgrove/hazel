@@ -76,6 +76,9 @@ From a fresh checkout, `make` does three things:
 2. Compiles the `hazel.re` file to OCaml bytecode, `hazel.byte`, with the `rebuild` command.
 3. Compiles the `www/hazel.js` file from `hazel.byte`, with the `js_of_ocaml` compiler.
 
+## Debugging
+You can use `make debug` instead of `make`. This differs only in that we pass the --debuginfo flag to `js_of_ocaml`, which causes the insertion of comments mapping locations in the generated JS to locations in the source files. This is useful for debugging purposes, but causes a substantial increase in compilation time and file size, so it is disabled by default.
+
 ## Results
 You can now open src/www/hazel.html in a browser to see Hazel in action.
 
