@@ -1384,10 +1384,6 @@ Module Core.
  
       Definition combine_for_Backspace_Space e1 ze0 := 
         match (e1, ze0) with 
-        | (UHExp.Tm _ (UHExp.EmptyHole _),
-           ZExp.CursorE _ (UHExp.Tm _ (UHExp.EmptyHole _))) => 
-          (* _ |_ --> |_ *)
-          ze0
         | (_, ZExp.CursorE _ (UHExp.Tm _ (UHExp.EmptyHole _))) => 
           (* e1 |_ --> e1| *)
           ZExp.CursorE ZExp.After e1
