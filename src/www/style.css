@@ -310,11 +310,5 @@ button:disabled {
 
 .OpSeq:hover .skel-binop {
   background-color: rgba(255, 195, 10, 0.20);
-  border: 1px solid orange;
-  border-radius: 3px;
-  margin: -1px;
 }
 
-.seq-op {
-  cursor: default;
-}
