@@ -461,7 +461,7 @@ let view ((ms, es, do_action): Model.mt) => {
         | None => ()
         }
       } else if (
-        has_class "lambda-dot"
+        has_class "lambda-dot" || has_class "paren"
       ) {
         let anchorOffset = selection##.anchorOffset;
         if (anchorOffset == 1) {
