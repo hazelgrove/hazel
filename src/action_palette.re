@@ -146,6 +146,7 @@ let make_palette ((ms, es, do_action): Model.mt) set_cursor => {
               key == KC.key KCs.esc
             ) {
               i_dom##blur;
+              set_cursor ();
               Js._false
             } else {
               Js._true
@@ -153,6 +154,16 @@ let make_palette ((ms, es, do_action): Model.mt) set_cursor => {
           }
         );
     /* stop propagation of keys when focus is in input box */
+    let _ =
+      Js_util.listen_to
+        Ev.keydown
+        i_dom
+        (
+          fun evt => {
+            Dom_html.stopPropagation evt;
+            Js._true
+          }
+        );
     let _ =
       Js_util.listen_to
         Ev.keypress
