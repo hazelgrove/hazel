@@ -302,3 +302,15 @@ button:disabled {
   background-color: rgba(255, 0, 0, 0.1);
 }
 
+/* .OpSeq:hover .skel-binop {
+  background-color: rgba(255, 195, 10, 0.20);
+} */
+
+.skel-binop:hover {
+  background-color: rgba(255, 195, 10, 0.30);
+  border: 1px solid orange;
+  border-radius: 3px;
+  box-sizing: border-box;
+  margin: -1px;
+}
+
