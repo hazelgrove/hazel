@@ -1578,7 +1578,7 @@ Module Core.
                     (* e| op seq --> e| seq *)
                     let suffix' := ZExp.SeqSuffix UHExp.Space seq in 
                     let surround' := ZExp.EmptyPrefix suffix' in 
-                    make_and_syn_OpSeqZ fuel ctx u_gen ze0 surround 
+                    make_and_syn_OpSeqZ fuel ctx u_gen ze0 surround' 
                   end
                 end
               | ZExp.BothNonEmpty prefix suffix => 
@@ -1605,7 +1605,7 @@ Module Core.
                     (* prefix e| op seq --> e| seq *)
                     let suffix' := ZExp.SeqSuffix UHExp.Space seq in 
                     let surround' := ZExp.BothNonEmpty prefix suffix' in 
-                    make_and_syn_OpSeqZ fuel ctx u_gen ze0 surround
+                    make_and_syn_OpSeqZ fuel ctx u_gen ze0 surround'
                   end
                 end
               end
