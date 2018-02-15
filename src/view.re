@@ -99,11 +99,7 @@ let of_Let err_status rev_path x r1 r2 =>
     );
 
 let of_Lam err_status rev_path x r =>
-  term
-    err_status
-    rev_path
-    "Lam"
-    (kw "\206\187" ^^ var x ^^ taggedText "lambda-dot" "." ^^ PP.nestAbsolute 4 r);
+  term err_status rev_path "Lam" (kw "\206\187" ^^ var x ^^ taggedText "lambda-dot" "." ^^ r);
 
 let of_LamAnn err_status rev_path x rty r1 =>
   term

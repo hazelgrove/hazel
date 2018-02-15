@@ -716,8 +716,15 @@ Module Core.
           | Tm _ (Case e1 (x, e2) (y, e3)) => 
             match syn_fix_holes fuel ctx u_gen e1 with 
             | Some (e1', ty1, u_gen1) => 
-              match HTyp.matched_sum ty1 with 
-              | Some (ty2, ty3) => 
+              match 
+                match HTyp.matched_sum ty1 with 
+                | Some (ty2, ty3) => (e1', u_gen1, ty2, ty3)
+                | None => 
+                  let (e1'', u_gen1') := put_in_new_hole u_gen1 e1' in
+                  let (ty2, ty3) := (HTyp.Hole, HTyp.Hole) in 
+                  (e1'', u_gen1', ty2, ty3)
+                end with 
+              | (e1', u_gen1, ty2, ty3) => 
                 let ctx2 := Ctx.extend ctx (x, ty2) in 
                 match ana_fix_holes fuel ctx2 u_gen1 e2 ty with 
                 | Some (e2', u_gen2) => 
@@ -732,7 +739,6 @@ Module Core.
                   end
                 | None => None
                 end
-              | None => None
               end
             | None => None
             end
@@ -2242,32 +2248,17 @@ Module Core.
             end
           | None => None
           end
-        | (_, ZExp.Deeper _ (ZExp.CaseZ1 ze (x, e1) (y, e2))) =>
-          match UHExp.syn fuel ctx (ZExp.erase ze) with 
+        | (_, ZExp.Deeper _ (ZExp.CaseZ1 ze0 (x, e1) (y, e2))) =>
+          match UHExp.syn fuel ctx (ZExp.erase ze0) with 
           | None => None
           | Some ty0 => 
-              match performSyn fuel ctx a (ze, ty0, u_gen) with 
-              | None => None
-              | Some (ze', ty0', u_gen') => 
-                match HTyp.matched_sum ty0' with 
-                | None => None
-                | Some (ty1, ty2) =>
-                  let ctx1 := Ctx.extend ctx (x, ty1) in
-                  match UHExp.ana_fix_holes fuel ctx1 u_gen' e1 ty with 
-                  | None => None
-                  | Some (e1', u_gen'') => 
-                      let ctx2 := Ctx.extend ctx (y, ty2) in
-                      match UHExp.ana_fix_holes fuel ctx2 u_gen'' e2 ty with 
-                      | None => None
-                      | Some (e2', u_gen''') => 
-                          Some (
-                            ZExp.Deeper (UHExp.NotInHole) (
-                              ZExp.CaseZ1 ze' (x, e1') (y, e2')), 
-                            u_gen''')
-                      end
-                  end
-                end
-              end
+            match performSyn fuel ctx a (ze0, ty0, u_gen) with 
+            | None => None
+            | Some (ze0', ty0', u_gen') => 
+              let ze' := ZExp.Deeper UHExp.NotInHole (
+                ZExp.CaseZ1 ze0' (x, e1) (y, e2)) in 
+              zexp_ana_fix_holes fuel ctx u_gen' ze' ty 
+            end
           end
         | (_, ZExp.Deeper err_state (ZExp.CaseZ2 e0 (x, ze1) (y, e2))) =>
           match UHExp.syn fuel ctx e0 with 
