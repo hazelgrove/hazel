@@ -309,6 +309,7 @@ button:disabled {
 /* .skel-binop:hover { */
 
 .OpSeq:hover .skel-binop {
-  background-color: rgba(255, 195, 10, 0.20);
+  background-color: rgba(255, 195, 0, 0.20);
+  border-top: 1px solid rgba(255, 195, 0, 0.20);
 }
 
