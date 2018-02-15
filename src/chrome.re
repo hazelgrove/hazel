@@ -460,6 +460,16 @@ let view ((ms, es, do_action): Model.mt) => {
           }
         | None => ()
         }
+      } else if (
+        has_class "lambda-dot"
+      ) {
+        let anchorOffset = selection##.anchorOffset;
+        if (anchorOffset == 1) {
+          switch (Js.Opt.to_option parent_elem##.nextSibling) {
+          | Some sibling => move_cursor_before sibling
+          | None => ()
+          }
+        }
       }
     | None => ()
     }
