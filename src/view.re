@@ -242,20 +242,36 @@ let of_chained_FailedCast err_status rev_path r1 rty1 rty2 rty4 =>
       parens "<" ^^ rty1 ^^ failed_cast_arrow ^^ rty2 ^^ failed_cast_arrow ^^ rty4 ^^ parens ">"
     );
 
+let rec str_of_op op =>
+  switch op {
+  | UHExp.Plus => ("+", "op-Plus")
+  | UHExp.Times => ("*", "op-Times")
+  | UHExp.Space => (" ", "op-Space")
+  };
+
+let rec of_op_with_space op => {
+  let (op_s, op_cls) = str_of_op op;
+  PP.tagged
+    ["seq-op", op_cls]
+    None
+    (
+      taggedText "op-before-1" "\226\128\139\226\128\139" ^^
+      taggedText "op-before-2" "\226\128\140" ^^
+      taggedText "op-center" (" " ^ op_s ^ " ") ^^
+      taggedText "op-after-1" "\226\128\139" ^^ taggedText "op-after-2" "\226\128\139"
+    )
+};
+
+let rec of_op_no_space op => {
+  let (op_s, op_cls) = str_of_op op;
+  PP.tagged ["seq-op", op_cls] None (taggedText "op-no-margin" op_s)
+};
+
 let rec of_op op =>
   switch op {
-  | UHExp.Plus =>
-    PP.tagged
-      ["seq-op", "op-Plus"]
-      None
-      (
-        taggedText "op-before-1" "\226\128\139\226\128\139" ^^
-        taggedText "op-before-2" "\226\128\140" ^^
-        taggedText "op-center" " + " ^^
-        taggedText "op-after-1" "\226\128\139" ^^ taggedText "op-after-2" "\226\128\139"
-      )
-  | UHExp.Times => PP.tagged ["seq-op", "op-Times"] None (taggedText "op-no-margin" "*")
-  | UHExp.Space => PP.tagged ["seq-op", "op-Space"] None (taggedText "op-no-margin" " ")
+  | UHExp.Plus => of_op_with_space op
+  | UHExp.Times => of_op_no_space op
+  | UHExp.Space => of_op_no_space op
   };
 
 let rec of_bin_num_op op =>
@@ -263,8 +279,6 @@ let rec of_bin_num_op op =>
   | Dynamics.DHExp.Plus => taggedText "bin_num_op" " + "
   | Dynamics.DHExp.Times => taggedText "bin_num_op" "*"
   };
-
-let of_Skel_BinOp err_status op r1 r2 => PP.tagged ["skel-binop"] None (r1 ^^ of_op op ^^ r2);
 
 let of_BinNumOp err_status rev_path op r1 r2 =>
   term err_status rev_path "BinNumOp" (parens "(" ^^ r1 ^^ of_bin_num_op op ^^ r2 ^^ parens ")");
@@ -324,7 +338,13 @@ and of_skel rev_path skel seq =>
   | UHExp.Skel.BinOp err_status op skel1 skel2 =>
     let r1 = of_skel rev_path skel1 seq;
     let r2 = of_skel rev_path skel2 seq;
-    of_Skel_BinOp err_status op r1 r2
+    let op_pp =
+      switch (skel1, op, skel2) {
+      | (UHExp.Skel.BinOp _ UHExp.Space _ _, UHExp.Times, _)
+      | (_, UHExp.Times, UHExp.Skel.BinOp _ UHExp.Space _ _) => of_op_with_space op
+      | _ => of_op op
+      };
+    PP.tagged ["skel-binop"] None (r1 ^^ op_pp ^^ r2)
   };
 
 let rec of_dhexp err_status rev_path d =>
