@@ -3157,5 +3157,10 @@ Extract Inductive prod => "( * )" ["(,)"].
 Extract Inductive list => "list" [ "[]" "(::)" ].
 Extract Inductive nat => int [ "0" "((+) 1)" ]
        "(fun fO fS n -> if n=0 then fO () else fS (n-1))".
+Extract Constant plus => "(+)".
+Extract Constant mult => "( * )".
+Extract Constant Nat.eqb => "(=)".
+Extract Constant Nat.leb => "(<=)".
+Extract Constant Nat.ltb => "(<)".
 
 Extraction Core.
