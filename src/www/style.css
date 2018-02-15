@@ -184,8 +184,19 @@ button:disabled {
   color: #a040a0;
 }
 
+.OpSeq:hover .skel-binop {
+  background-color: rgba(255, 195, 0, 0.20);
+  border-top: 1px solid rgba(255, 195, 0, 0.20);
+  /* box-shadow: 0px 0px 0px 2px rgba(75, 50, 50, 0.20); */
+}
+
+.OpSeq:hover .Ap {
+  background-color: rgba(255, 195, 0, 0.20);
+  border-top: 1px solid rgba(255, 195, 0, 0.20);
+}
+
 .cursor {
-	background-color: rgb(229, 255, 229);
+	background-color: rgb(229, 255, 229) !important;
 }
 
 .SIndentation {
@@ -307,10 +318,4 @@ button:disabled {
 } */
 
 /* .skel-binop:hover { */
-
-.OpSeq:hover .skel-binop {
-  background-color: rgba(255, 195, 0, 0.20);
-  border-top: 1px solid rgba(255, 195, 0, 0.20);
-  box-shadow: 2px 2px rgba(255, 195, 0, 0.20);
-}
 
