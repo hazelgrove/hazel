@@ -416,6 +416,7 @@ let rec of_dhexp err_status rev_path d =>
       let inner_rev_path1 = [0, ...rev_path1];
       let inner_rev_path2 = [1, ...rev_path1];
       let inner_rev_path3 = [2, ...rev_path1];
+      /* no rev_path2 because we're not showing them separately */
       let rev_path3 = [2, ...rev_path];
       let r1 = of_dhexp UHExp.NotInHole inner_rev_path1 d1;
       let r2 = of_htype inner_rev_path2 ty1;

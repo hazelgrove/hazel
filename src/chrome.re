@@ -441,6 +441,25 @@ let view ((ms, es, do_action): Model.mt) => {
           | None => ()
           }
         }
+      } else if (
+        has_class "op-no-margin"
+      ) {
+        switch (Js.Opt.to_option parent_elem##.parentNode) {
+        | Some grandparent =>
+          let anchorOffset = selection##.anchorOffset;
+          if (anchorOffset == 0) {
+            switch (Js.Opt.to_option grandparent##.previousSibling) {
+            | Some sibling => move_cursor_after sibling
+            | None => ()
+            }
+          } else {
+            switch (Js.Opt.to_option grandparent##.nextSibling) {
+            | Some sibling => move_cursor_before sibling
+            | None => ()
+            }
+          }
+        | None => ()
+        }
       }
     | None => ()
     }
