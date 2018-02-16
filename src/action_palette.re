@@ -51,10 +51,10 @@ let make_palette ((ms, es, do_action): Model.mt) set_cursor => {
               S.map
                 (
                   fun m =>
-                    /* switch (Action.performSyn () Ctx.empty action m) {
-                       | Some _ => false
-                       | None => true
-                       } */ false
+                    switch (Action.performSyn () Ctx.empty action m) {
+                    | Some _ => false
+                    | None => true
+                    }
                 )
                 ms
             )
@@ -314,6 +314,8 @@ let make_palette ((ms, es, do_action): Model.mt) set_cursor => {
   let constructNum = action_button (Action.Construct Action.SNum) "construct num" KCs.n;
   let constructSum = action_button (Action.Construct Action.SSum) "construct sum" KCs.s;
   /* expression construction */
+  let constructParenthesized =
+    action_button (Action.Construct Action.SParenthesized) "parenthesize" KCs.openParens;
   let constructAsc = action_button (Action.Construct Action.SAsc) "construct asc" KCs.colon;
   let constructLet =
     action_input_button
@@ -357,8 +359,6 @@ let make_palette ((ms, es, do_action): Model.mt) set_cursor => {
       "lam_input"
       KCs.backslash
       "Enter var + press Enter";
-  let constructAp =
-    action_button (Action.Construct Action.SAp) "construct parens ap" KCs.openParens;
   let constructLit =
     action_input_button
       (fun n => Action.Construct (Action.SLit n))
@@ -382,7 +382,7 @@ let make_palette ((ms, es, do_action): Model.mt) set_cursor => {
     action_button
       (Action.Construct (Action.SOp UHExp.Times)) "construct explicit times" KCs.asterisk;
   let constructSpace =
-    action_button (Action.Construct (Action.SOp UHExp.Space)) "construct space ap" KCs.space;
+    action_button (Action.Construct (Action.SOp UHExp.Space)) "construct ap" KCs.space;
   let constructInjL =
     action_button (Action.Construct (Action.SInj UHExp.L)) "construct inj L" KCs.l;
   let constructInjR =
@@ -437,23 +437,22 @@ let make_palette ((ms, es, do_action): Model.mt) set_cursor => {
           div
             a::[a_class ["panel-body"]]
             [
+              constructParenthesized,
+              br (),
               constructAsc,
               br (),
               constructLet,
               br (),
               constructVar,
               constructLam,
-              constructAp,
+              constructSpace,
               br (),
               constructLit,
               constructPlus,
               constructTimes,
-              constructSpace,
               br (),
               constructInjL,
-              br (),
               constructInjR,
-              br (),
               constructCase
             ]
         ]

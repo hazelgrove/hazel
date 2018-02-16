@@ -80,6 +80,13 @@ let rec of_htype rev_path ty =>
   };
 
 /* h-exps and z-exps */
+let of_Parenthesized rev_path r1 =>
+  term
+    UHExp.NotInHole
+    rev_path
+    "Parenthesized"
+    (taggedText "openParens" "(" ^^ r1 ^^ taggedText "closeParens" ")");
+
 let of_Asc err_status rev_path r1 r2 =>
   term err_status rev_path "Asc" (r1 ^^ space ^^ op ":" ^^ space ^^ r2);
 
@@ -279,49 +286,48 @@ let rec of_bin_num_op op =>
 let of_BinNumOp err_status rev_path op r1 r2 =>
   term err_status rev_path "BinNumOp" (parens "(" ^^ r1 ^^ of_bin_num_op op ^^ r2 ^^ parens ")");
 
-let rec of_hexp rev_path e => {
-  let UHExp.Tm err_status e' = e;
-  switch e' {
-  | UHExp.Asc e1 ty =>
+let rec of_hexp rev_path e =>
+  switch e {
+  | UHExp.Parenthesized e1 =>
     let rev_path1 = [0, ...rev_path];
-    let rev_path2 = [1, ...rev_path];
     let r1 = of_hexp rev_path1 e1;
-    let r2 = of_htype rev_path2 ty;
-    of_Asc err_status rev_path r1 r2
-  | UHExp.Var x => of_Var err_status rev_path x
-  | UHExp.Let x e e' =>
-    let rev_path1 = [0, ...rev_path];
-    let rev_path2 = [1, ...rev_path];
-    let r1 = of_hexp rev_path1 e;
-    let r2 = of_hexp rev_path2 e';
-    of_Let err_status rev_path x r1 r2
-  | UHExp.Lam x e' =>
-    let rev_path1 = [0, ...rev_path];
-    let r1 = of_hexp rev_path1 e';
-    of_Lam err_status rev_path x r1
-  | UHExp.Ap e1 e2 =>
-    let rev_path1 = [0, ...rev_path];
-    let rev_path2 = [1, ...rev_path];
-    let r1 = of_hexp rev_path1 e1;
-    let r2 = of_hexp rev_path2 e2;
-    of_Ap err_status rev_path r1 r2
-  | UHExp.NumLit n => of_NumLit err_status rev_path n
-  | UHExp.Inj side e =>
-    let rev_path1 = [0, ...rev_path];
-    let r1 = of_hexp rev_path1 e;
-    of_Inj err_status rev_path side r1
-  | UHExp.Case e1 (x, e2) (y, e3) =>
-    let rev_path1 = [0, ...rev_path];
-    let rev_path2 = [1, ...rev_path];
-    let rev_path3 = [2, ...rev_path];
-    let r1 = of_hexp rev_path1 e1;
-    let r2 = of_hexp rev_path2 e2;
-    let r3 = of_hexp rev_path3 e3;
-    of_Case err_status rev_path r1 x r2 y r3
-  | UHExp.EmptyHole u => of_Hole err_status rev_path "EmptyHole" (string_of_int u)
-  | UHExp.OpSeq skel seq => term err_status rev_path "OpSeq" (of_skel rev_path skel seq)
+    of_Parenthesized rev_path r1
+  | UHExp.Tm err_status e' =>
+    switch e' {
+    | UHExp.Asc e1 ty =>
+      let rev_path1 = [0, ...rev_path];
+      let rev_path2 = [1, ...rev_path];
+      let r1 = of_hexp rev_path1 e1;
+      let r2 = of_htype rev_path2 ty;
+      of_Asc err_status rev_path r1 r2
+    | UHExp.Var x => of_Var err_status rev_path x
+    | UHExp.Let x e e' =>
+      let rev_path1 = [0, ...rev_path];
+      let rev_path2 = [1, ...rev_path];
+      let r1 = of_hexp rev_path1 e;
+      let r2 = of_hexp rev_path2 e';
+      of_Let err_status rev_path x r1 r2
+    | UHExp.Lam x e' =>
+      let rev_path1 = [0, ...rev_path];
+      let r1 = of_hexp rev_path1 e';
+      of_Lam err_status rev_path x r1
+    | UHExp.NumLit n => of_NumLit err_status rev_path n
+    | UHExp.Inj side e =>
+      let rev_path1 = [0, ...rev_path];
+      let r1 = of_hexp rev_path1 e;
+      of_Inj err_status rev_path side r1
+    | UHExp.Case e1 (x, e2) (y, e3) =>
+      let rev_path1 = [0, ...rev_path];
+      let rev_path2 = [1, ...rev_path];
+      let rev_path3 = [2, ...rev_path];
+      let r1 = of_hexp rev_path1 e1;
+      let r2 = of_hexp rev_path2 e2;
+      let r3 = of_hexp rev_path3 e3;
+      of_Case err_status rev_path r1 x r2 y r3
+    | UHExp.EmptyHole u => of_Hole err_status rev_path "EmptyHole" (string_of_int u)
+    | UHExp.OpSeq skel seq => term err_status rev_path "OpSeq" (of_skel rev_path skel seq)
+    }
   }
-}
 and of_skel rev_path skel seq =>
   switch skel {
   | UHExp.Skel.Placeholder n =>

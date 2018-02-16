@@ -461,12 +461,22 @@ let view ((ms, es, do_action): Model.mt) => {
         | None => ()
         }
       } else if (
-        has_class "lambda-dot" || has_class "paren"
+        has_class "lambda-dot" || has_class "openParens"
       ) {
         let anchorOffset = selection##.anchorOffset;
         if (anchorOffset == 1) {
           switch (Js.Opt.to_option parent_elem##.nextSibling) {
           | Some sibling => move_cursor_before sibling
+          | None => ()
+          }
+        }
+      } else if (
+        has_class "closeParens"
+      ) {
+        let anchorOffset = selection##.anchorOffset;
+        if (anchorOffset == 0) {
+          switch (Js.Opt.to_option parent_elem##.previousSibling) {
+          | Some sibling => move_cursor_after sibling
           | None => ()
           }
         }
@@ -489,9 +499,21 @@ let view ((ms, es, do_action): Model.mt) => {
       (ast_elem: Js.t Dom_html.element) => {
     let classList = ast_elem##.classList;
     let ast_has_class = has_class classList;
-    if (ast_has_class "Asc") {
+    if (ast_has_class "Parenthesized") {
+      let anchor_elem = get_anchor_elem anchor;
+      let anchor_classList = anchor_elem##.classList;
+      if (has_class anchor_classList "openParens") {
+        ZExp.Before
+      } else {
+        ZExp.After
+      }
+    } else if (
+      ast_has_class "Asc"
+    ) {
       ZExp.On
-    } else if (ast_has_class "Let") {
+    } else if (
+      ast_has_class "Let"
+    ) {
       let anchor_elem = get_anchor_elem anchor;
       let anchorOffset = selection##.anchorOffset;
       if (anchorOffset == 0) {
