@@ -263,6 +263,23 @@ Module Core.
     | ExpOpExp : t -> op -> t -> opseq (* need at least one op to be an op seq *)
     | SeqOpExp : opseq -> op -> t -> opseq.
 
+    Definition is_bidelimited (e : t) := 
+      match e with 
+      | Parenthesized _ => true
+      | Tm _ (Asc _ _) => false
+      | Tm _ (Var _) => true
+      | Tm _ (Let _ _ _) => false
+      | Tm _ (Lam _ _) => false
+      | Tm _ (NumLit _) => true
+      | Tm _ (Inj _ _) => true
+      | Tm _ (Case _ _ _) => false
+      | Tm _ (EmptyHole _) => true
+      | Tm _ (OpSeq _ _) => false
+      end.
+
+    Definition bidelimit (e : t) := 
+      if is_bidelimited e then e else Parenthesized e.
+
     Fixpoint seq_op_seq (seq1 : opseq) (op : op) (seq2 : opseq) : opseq := 
       match seq2 with 
       | ExpOpExp e1 op1 e2 => SeqOpExp (SeqOpExp seq1 op e1) op1 e2 
@@ -380,10 +397,12 @@ Module Core.
         | Fuel.More fuel =>
           match e with 
           | Asc e1 ty =>
-             match ana fuel ctx e1 ty with 
-             | None => None
-             | Some _ => Some ty
-             end
+             if is_bidelimited e1 then 
+               match ana fuel ctx e1 ty with 
+               | None => None
+               | Some _ => Some ty
+               end
+             else None
           | Var x => 
              Ctx.lookup ctx x 
           | Let x e1 e2 =>
@@ -497,18 +516,20 @@ Module Core.
         | Skel.Placeholder n => 
           match seq_nth n seq with 
           | Some en => 
-            match syn fuel ctx en with
-            | Some ty => 
-              let mode := 
-                match monitor with 
-                | Some n' => 
-                  if Nat.eqb n n' then Some (Synthesized ty)
-                  else None
-                | None => None
-                end in 
-              Some (ty, mode)
-            | None => None
-            end
+            if is_bidelimited en then 
+              match syn fuel ctx en with
+              | Some ty => 
+                let mode := 
+                  match monitor with 
+                  | Some n' => 
+                    if Nat.eqb n n' then Some (Synthesized ty)
+                    else None
+                  | None => None
+                  end in 
+                Some (ty, mode)
+              | None => None
+              end
+            else None
           | None => None
           end
         | Skel.BinOp (InHole u) op skel1 skel2 => 
@@ -566,6 +587,7 @@ Module Core.
         | Skel.Placeholder n => 
           match seq_nth n seq with 
           | Some en => 
+            if is_bidelimited en then   
               match ana fuel ctx en ty with 
               | Some _ => 
                 match monitor with 
@@ -577,6 +599,7 @@ Module Core.
                 end
               | None => None
               end
+            else None
           | None => None
           end
         | _ => 
@@ -623,10 +646,12 @@ Module Core.
         | Fuel.More fuel => 
         match e with 
         | Asc e1 ty => 
-          match ana_fix_holes fuel ctx u_gen e1 ty with 
-          | Some (e1', u_gen') => Some (Asc e1' ty, ty, u_gen')
-          | None => None
-          end
+          if is_bidelimited e1 then 
+            match ana_fix_holes fuel ctx u_gen e1 ty with 
+            | Some (e1', u_gen') => Some (Asc e1' ty, ty, u_gen')
+            | None => None
+            end
+          else None
         | Var x => 
           match Ctx.lookup ctx x with 
           | Some ty => Some (e, ty, u_gen)
@@ -780,15 +805,17 @@ Module Core.
         | Skel.Placeholder n => 
           match seq_nth n seq with
           | Some en => 
-            match syn_fix_holes fuel ctx u_gen en with 
-            | Some (en', ty, u_gen') => 
-              match seq_update_nth n seq en' with
-              | Some seq' => 
-                Some (skel, seq', ty, u_gen')
+            if is_bidelimited en then 
+              match syn_fix_holes fuel ctx u_gen en with 
+              | Some (en', ty, u_gen') => 
+                match seq_update_nth n seq en' with
+                | Some seq' => 
+                  Some (skel, seq', ty, u_gen')
+                | None => None
+                end
               | None => None
               end
-            | None => None
-            end
+            else None
           | None => None
           end
         | Skel.BinOp _ (Plus as op) skel1 skel2 
@@ -842,14 +869,16 @@ Module Core.
           | Skel.Placeholder n => 
             match seq_nth n seq with
             | Some en => 
-              match ana_fix_holes fuel ctx u_gen en ty with 
-              | Some (en', u_gen') => 
-                match seq_update_nth n seq en' with 
-                | Some seq' => Some (skel, seq', u_gen')
+              if is_bidelimited en then 
+                match ana_fix_holes fuel ctx u_gen en ty with 
+                | Some (en', u_gen') => 
+                  match seq_update_nth n seq en' with 
+                  | Some seq' => Some (skel, seq', u_gen')
+                  | None => None
+                  end
                 | None => None
                 end
-              | None => None
-              end
+              else None
             | None => None
             end
           | _ => 
@@ -920,6 +949,24 @@ Module Core.
     (* analagous to opseq_prefix *)
     | ExpSuffix : UHExp.op -> UHExp.t -> opseq_suffix 
     | SeqSuffix : UHExp.op -> UHExp.opseq -> opseq_suffix.
+
+    Definition bidelimit ze := 
+      match ze with 
+      | CursorE cursor_side e => 
+        CursorE cursor_side (UHExp.bidelimit e)
+      | ParenthesizedZ _ 
+      | Deeper _ (InjZ _ _) => ze
+      | Deeper _ (AscZ1 _ _) 
+      | Deeper _ (AscZ2 _ _)  
+      | Deeper _ (LetZ1 _ _ _)
+      | Deeper _ (LetZ2 _ _ _)
+      | Deeper _ (LamZ _ _)
+      | Deeper _ (CaseZ1 _ _ _)
+      | Deeper _ (CaseZ2 _ _ _)
+      | Deeper _ (CaseZ3 _ _ _)
+      | Deeper _ (OpSeqZ _ _ _) => 
+        ParenthesizedZ ze
+      end.
 
     Fixpoint put_in_new_hole 
       (u_gen : MetaVar.gen)
@@ -1611,7 +1658,12 @@ Module Core.
               u_gen)
           | (Construct SAsc, ZExp.CursorE ZExp.On e)
           | (Construct SAsc, ZExp.CursorE ZExp.After e) =>
-            Some (ZExp.Deeper UHExp.NotInHole (ZExp.AscZ2 e (ZTyp.CursorT ty)), ty, u_gen)
+            let e' := UHExp.bidelimit e in 
+            Some (
+              ZExp.Deeper UHExp.NotInHole 
+                (ZExp.AscZ2 e' (ZTyp.CursorT ty)), 
+              ty, 
+              u_gen)
           | (Construct (SVar x), ZExp.CursorE _ (UHExp.Tm _ (UHExp.EmptyHole _))) (* SAConVar *) =>
             match Ctx.lookup ctx x with
             | Some xty => Some (ZExp.CursorE ZExp.After 
@@ -1896,13 +1948,15 @@ Module Core.
             end
           | (Construct (SOp op), ZExp.CursorE ZExp.On e)
           | (Construct (SOp op), ZExp.CursorE ZExp.After e) => 
-            let prefix := ZExp.ExpPrefix e op in 
+            let e' := UHExp.bidelimit e in 
+            let prefix := ZExp.ExpPrefix e' op in 
             let surround := ZExp.EmptySuffix prefix in 
             let (e0, u_gen') := UHExp.new_EmptyHole u_gen in 
             let ze0' := ZExp.CursorE ZExp.Before e0 in
             make_and_syn_OpSeqZ fuel ctx u_gen' ze0' surround 
           | (Construct (SOp op), ZExp.CursorE ZExp.Before e) => 
-            let suffix := ZExp.ExpSuffix op e in 
+            let e' := UHExp.bidelimit e in 
+            let suffix := ZExp.ExpSuffix op e' in 
             let surround := ZExp.EmptyPrefix suffix in 
             let (e0, u_gen') := UHExp.new_EmptyHole u_gen in 
             let ze0' := ZExp.CursorE ZExp.Before e0 in
@@ -1920,24 +1974,25 @@ Module Core.
           | (_, ZExp.Deeper _ (ZExp.AscZ1 ze ty)) =>
             match performAna fuel u_gen ctx a ze ty with 
             | Some (ze', u_gen') => 
-                Some (
-                  ZExp.Deeper UHExp.NotInHole (ZExp.AscZ1 ze' ty), 
-                  ty, 
-                  u_gen')
+              let ze'' := ZExp.bidelimit ze' in 
+              Some (
+                ZExp.Deeper UHExp.NotInHole (ZExp.AscZ1 ze'' ty), 
+                ty, 
+                u_gen')
             | None => None
             end
           | (_, ZExp.Deeper _ (ZExp.AscZ2 e zty)) =>
             match performTyp a zty with 
             | Some zty' => 
-                let ty' := ZTyp.erase zty' in
-                match UHExp.ana_fix_holes fuel ctx u_gen e ty' with 
-                | None => None
-                | Some (e', u_gen') => 
-                    Some (
-                      ZExp.Deeper UHExp.NotInHole (ZExp.AscZ2 e' zty'), 
-                      ty', 
-                      u_gen')
-                end
+              let ty' := ZTyp.erase zty' in
+              match UHExp.ana_fix_holes fuel ctx u_gen e ty' with 
+              | None => None
+              | Some (e', u_gen') => 
+                  Some (
+                    ZExp.Deeper UHExp.NotInHole (ZExp.AscZ2 e' zty'), 
+                    ty', 
+                    u_gen')
+              end
             | None => None
             end
           | (_, ZExp.Deeper _ (ZExp.LetZ1 x ze1 e2)) =>
@@ -1981,15 +2036,18 @@ Module Core.
                   match mode with 
                   | UHExp.AnalyzedAgainst ty0 => 
                     match performAna fuel u_gen ctx a ze0 ty0 with 
-                    | Some (ze0', u_gen') => Some (
-                        ZExp.Deeper UHExp.NotInHole (ZExp.OpSeqZ skel ze0' surround), 
+                    | Some (ze0', u_gen') => 
+                      let ze0'' := ZExp.bidelimit ze0' in  
+                      Some (
+                        ZExp.Deeper UHExp.NotInHole (ZExp.OpSeqZ skel ze0'' surround), 
                         ty, u_gen')
                     | None => None
                     end
                   | UHExp.Synthesized ty0 =>
                     match performSyn fuel ctx a (ze0, ty0, u_gen) with 
                     | Some (ze0', ty0', u_gen') => 
-                      match make_and_syn_OpSeqZ fuel ctx u_gen' ze0' surround with
+                      let ze0'' := ZExp.bidelimit ze0' in 
+                      match make_and_syn_OpSeqZ fuel ctx u_gen' ze0'' surround with
                       | Some (ze', ty', u_gen'') => 
                         Some (ze', ty', u_gen')
                       | None => None
@@ -2071,9 +2129,10 @@ Module Core.
           u_gen)
       | (Construct SAsc, ZExp.CursorE ZExp.On e)
       | (Construct SAsc, ZExp.CursorE ZExp.After e) =>
+        let e' := UHExp.bidelimit e in 
         Some (
           ZExp.Deeper (UHExp.NotInHole) 
-            (ZExp.AscZ2 e (ZTyp.CursorT ty)), 
+            (ZExp.AscZ2 e' (ZTyp.CursorT ty)), 
           u_gen)
       | (Construct (SLet x), 
           ZExp.CursorE _ 
