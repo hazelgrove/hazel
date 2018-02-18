@@ -331,7 +331,7 @@ let rec of_hexp rev_path e =>
 and of_skel rev_path skel seq =>
   switch skel {
   | UHExp.Skel.Placeholder n =>
-    switch (UHExp.seq_nth n seq) {
+    switch (OperatorSeq.seq_nth n seq) {
     | Some en =>
       let rev_path_n = [n, ...rev_path];
       of_hexp rev_path_n en

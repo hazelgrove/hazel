@@ -5,7 +5,244 @@ Require Coq.Lists.List. Open Scope list_scope.
 Require Import BinInt.
 Require Extraction.
 
+Set Implicit Arguments.
+
 Module Core.
+  Module OperatorSeq.
+    Inductive opseq (tm : Type) (op : Type) : Type := 
+    | ExpOpExp : tm -> op -> tm -> opseq tm op
+    | SeqOpExp : opseq tm op -> op -> tm -> opseq tm op.
+
+    (* concatenates two opseqs *)
+    Fixpoint seq_op_seq {tm op : Type} 
+      (seq1 : opseq tm op) (op1 : op) (seq2 : opseq tm op) 
+      : opseq tm op := 
+      match seq2 with 
+      | ExpOpExp e1 op2 e2 => SeqOpExp (SeqOpExp seq1 op1 e1) op2 e2 
+      | SeqOpExp seq2' op2 ue' => 
+          SeqOpExp (seq_op_seq seq1 op1 seq2') op2 ue'
+      end.
+
+    (* prepends an expression to seq *)
+    Fixpoint exp_op_seq {tm op : Type} 
+      (e1 : tm) (op1 : op) (seq : opseq tm op) 
+      : opseq tm op := 
+      match seq with 
+      | ExpOpExp e2 op2 e3 => 
+        SeqOpExp (ExpOpExp e1 op1 e2) op2 e3
+      | SeqOpExp seq' op' e' => 
+        SeqOpExp (exp_op_seq e1 op1 seq') op' e'
+      end.
+
+    (* returns number of expressions in seq (not ops) *)
+    Fixpoint seq_length {tm op : Type} 
+      (seq : opseq tm op) : nat := 
+      match seq with 
+      | ExpOpExp _ _ _ => S(S(O))
+      | SeqOpExp seq' _ _ => S(seq_length seq')
+      end.
+
+    (* nth expression in seq, if it exists *) 
+    Fixpoint seq_nth {tm op : Type}
+      (n : nat) (seq : opseq tm op) : option(tm) := 
+      match (n, seq) with 
+      | (O, ExpOpExp e1 _ _) => Some e1
+      | (S O, ExpOpExp _ _ e2) => Some e2
+      | (_, ExpOpExp _ _ _) => None
+      | (_, SeqOpExp seq' _ e) => 
+        let len := seq_length seq' in 
+        if Nat.eqb n len then Some e else seq_nth n seq' 
+      end.
+
+    (* update the nth expression in seq, if it exists *)
+    Fixpoint seq_update_nth {tm op : Type}
+      (n : nat) (seq : opseq tm op) (e : tm) : option(opseq tm op) := 
+      match (n, seq) with 
+      | (O, ExpOpExp _ op e2) => Some (ExpOpExp e op e2)
+      | (S O, ExpOpExp e1 op _) => Some (ExpOpExp e1 op e)
+      | (_, ExpOpExp _ _ _) => None
+      | (_, SeqOpExp seq' op e') => 
+        let len := seq_length seq' in 
+        if Nat.eqb n len then Some (SeqOpExp seq' op e) 
+        else match seq_update_nth n seq' e with 
+        | Some seq'' => Some (SeqOpExp seq'' op e')
+        | None => None
+        end
+      end.
+
+    Inductive opseq_surround (tm : Type) (op : Type) : Type := 
+    (* set up this way to enforce the requirement that there be at least one op *)
+    (* if the prefix is empty, there must be a non-empty suffix *)
+    | EmptyPrefix : opseq_suffix tm op -> opseq_surround tm op
+    (* if the suffix is empty, there must be a non-empty prefix *)
+    | EmptySuffix : opseq_prefix tm op -> opseq_surround tm op
+    (* both can be non-empty *)
+    | BothNonEmpty : opseq_prefix tm op -> opseq_suffix tm op -> opseq_surround tm op 
+    with opseq_prefix (tm : Type) (op : Type) : Type := 
+    (* a non-empty prefix is either one that contains a single expression *)
+    | ExpPrefix : tm -> op -> opseq_prefix tm op 
+    (* or one that contains two or more expressions, i.e. another opseq *)
+    | SeqPrefix : opseq tm op -> op -> opseq_prefix tm op 
+    with opseq_suffix (tm : Type) (op : Type) : Type :=
+    (* analagous to opseq_prefix *)
+    | ExpSuffix : op -> tm -> opseq_suffix tm op 
+    | SeqSuffix : op -> opseq tm op -> opseq_suffix tm op.
+
+    (* append an exp to a prefix *)
+    Definition prefix_append_exp {tm op : Type}
+      (prefix : opseq_prefix tm op)
+      (e : tm)
+      (op2 : op)
+      : opseq_prefix tm op := 
+      match prefix with 
+      | ExpPrefix e1 op1 => 
+        SeqPrefix (OperatorSeq.ExpOpExp e1 op1 e) op2
+      | SeqPrefix seq1 op1 => 
+        SeqPrefix (OperatorSeq.SeqOpExp seq1 op1 e) op2
+      end.
+
+    (* prepend an exp to a suffix *)
+    Definition suffix_prepend_exp {tm op : Type}
+      (suffix : opseq_suffix tm op)
+      (op1 : op)
+      (e : tm)
+      : opseq_suffix tm op :=
+      match suffix with 
+      | ExpSuffix op2 e' => 
+        SeqSuffix op1 (OperatorSeq.ExpOpExp e op2 e')
+      | SeqSuffix op2 seq' => 
+        SeqSuffix op1 (OperatorSeq.exp_op_seq e op2 seq')
+      end.
+
+    (* append an exp to a suffix *)
+    Definition suffix_append_exp {tm op : Type}
+      (suffix : opseq_suffix tm op)
+      (op2 : op)
+      (e : tm)
+      : opseq_suffix tm op := 
+      match suffix with 
+      | ExpSuffix op1 e' => 
+          SeqSuffix op1 (OperatorSeq.ExpOpExp e' op2 e)
+      | SeqSuffix op1 seq => 
+          SeqSuffix op1 (OperatorSeq.SeqOpExp seq op2 e)
+      end.
+
+    (* append an exp to the suffix of a surround *)
+    Definition surround_suffix_append_exp {tm op : Type}
+      (surround : opseq_surround tm op)
+      (op1 : op)
+      (e : tm)
+      : opseq_surround tm op := 
+        match surround with 
+        | EmptyPrefix suffix => 
+          let suffix' := suffix_append_exp suffix op1 e in 
+          EmptyPrefix suffix'
+        | EmptySuffix prefix => 
+          let suffix' := ExpSuffix op1 e in 
+          BothNonEmpty prefix suffix' 
+        | BothNonEmpty prefix suffix => 
+          let suffix' := suffix_append_exp suffix op1 e in 
+          BothNonEmpty prefix suffix'
+        end.
+
+    Fixpoint split {tm op : Type}
+      (n : nat) (seq : opseq tm op) 
+      : option(tm * opseq_surround tm op) := 
+      match (n, seq) with 
+      | (O, OperatorSeq.ExpOpExp e1 op e2) => 
+        Some (e1, EmptyPrefix (ExpSuffix op e2))
+      | (S O, OperatorSeq.ExpOpExp e1 op e2) => 
+        Some (e2, EmptySuffix (ExpPrefix e1 op))
+      | (_, OperatorSeq.ExpOpExp _ _ _) => 
+        None
+      | (_, OperatorSeq.SeqOpExp seq' op e) => 
+        let length' := OperatorSeq.seq_length seq' in 
+        if Nat.ltb n length' then 
+          match split n seq' with 
+          | Some (e', surround) => 
+            let surround' := surround_suffix_append_exp surround op e in 
+            Some (e', surround')
+          | None => None
+          end
+        else if Nat.eqb n length' then 
+          let prefix' := SeqPrefix seq' op in 
+          let surround' := EmptySuffix prefix' in 
+          Some (e, surround')
+        else None
+      end.
+
+    Fixpoint split0 {tm op : Type}
+      (seq : opseq tm op) 
+      : tm * opseq_suffix tm op := 
+      match seq with 
+      | OperatorSeq.ExpOpExp e1 op e2 => 
+        (e1, ExpSuffix op e2)
+      | OperatorSeq.SeqOpExp seq' op e => 
+        let (e0, suffix') := split0 seq' in
+        (e0, suffix_append_exp suffix' op e)
+      end.
+
+    Definition split_tail {tm op : Type}
+      (seq : opseq tm op) : tm * opseq_prefix tm op := 
+      match seq with 
+      | OperatorSeq.ExpOpExp e1 op e2 => 
+        (e2, ExpPrefix e1 op)
+      | OperatorSeq.SeqOpExp seq' op e => 
+        (e, SeqPrefix seq' op)
+      end.
+
+    Definition prefix_length {tm op : Type}
+      (prefix : opseq_prefix tm op) : nat := 
+      match prefix with 
+      | ExpPrefix _ _ => S(O)
+      | SeqPrefix seq _ => OperatorSeq.seq_length seq
+      end.
+
+    Definition surround_prefix_length {tm op : Type}
+      (surround : opseq_surround tm op)
+      : nat := 
+      match surround with 
+      | EmptyPrefix _ => O
+      | EmptySuffix prefix
+      | BothNonEmpty prefix _ => prefix_length prefix
+      end.
+
+    Definition opseq_of_exp_and_surround {tm op : Type}
+      (e : tm)
+      (surround : opseq_surround tm op)
+      : opseq tm op := 
+      match surround with 
+      | EmptyPrefix suffix => 
+        match suffix with 
+        | ExpSuffix op e2 => OperatorSeq.ExpOpExp e op e2
+        | SeqSuffix op seq => OperatorSeq.exp_op_seq e op seq
+        end
+      | EmptySuffix prefix => 
+        match prefix with 
+        | ExpPrefix e1 op => OperatorSeq.ExpOpExp e1 op e
+        | SeqPrefix seq op => OperatorSeq.SeqOpExp seq op e
+        end
+      | BothNonEmpty prefix suffix => 
+        match (prefix, suffix) with 
+        | (ExpPrefix e1 op1, ExpSuffix op2 e2) => 
+            OperatorSeq.SeqOpExp
+              (OperatorSeq.ExpOpExp e1 op1 e)
+              op2 e2
+        | (ExpPrefix e1 op1, SeqSuffix op2 seq2) => 
+            OperatorSeq.seq_op_seq
+              (OperatorSeq.ExpOpExp e1 op1 e)
+              op2 seq2
+        | (SeqPrefix seq1 op1, ExpSuffix op2 e2) => 
+            OperatorSeq.SeqOpExp 
+              (OperatorSeq.SeqOpExp seq1 op1 e) op2 e2
+        | (SeqPrefix seq1 op1, SeqSuffix op2 seq2) => 
+            OperatorSeq.seq_op_seq
+              (OperatorSeq.SeqOpExp seq1 op1 e) op2 seq2
+        end
+      end.
+  End OperatorSeq.
+
+
   Module HTyp.
     (* types with holes *)
     Inductive t : Type :=
@@ -258,83 +495,46 @@ Module Core.
     | Inj : inj_side -> t -> t'
     | Case : t -> (Var.t * t) -> (Var.t * t) -> t'
     | EmptyHole : MetaVar.t -> t'
-    | OpSeq : Skel.t -> opseq -> t'
-    with opseq : Type := 
-    | ExpOpExp : t -> op -> t -> opseq (* need at least one op to be an op seq *)
-    | SeqOpExp : opseq -> op -> t -> opseq.
+    | OpSeq : Skel.t -> OperatorSeq.opseq t op -> t'.
 
+    Definition opseq := OperatorSeq.opseq t op.
+
+    (* bidelimited expressions are those that don't have 
+     * sub-expressions at their outer left or right edge
+     * in the concrete syntax *)
     Definition is_bidelimited (e : t) := 
       match e with 
+      (* bidelimited cases *)
       | Parenthesized _ => true
-      | Tm _ (Asc _ _) => false
       | Tm _ (Var _) => true
+      | Tm _ (NumLit _) => true
+      | Tm _ (EmptyHole _) => true
+      | Tm _ (Inj _ _) => true
+      (* non-bidelimited cases *)
+      | Tm _ (Asc _ _) => false
       | Tm _ (Let _ _ _) => false
       | Tm _ (Lam _ _) => false
-      | Tm _ (NumLit _) => true
-      | Tm _ (Inj _ _) => true
       | Tm _ (Case _ _ _) => false
-      | Tm _ (EmptyHole _) => true
       | Tm _ (OpSeq _ _) => false
       end.
 
+    (* if e is not bidelimited, bidelimit e parenthesizes it *)
     Definition bidelimit (e : t) := 
       if is_bidelimited e then e else Parenthesized e.
 
-    Fixpoint seq_op_seq (seq1 : opseq) (op : op) (seq2 : opseq) : opseq := 
-      match seq2 with 
-      | ExpOpExp e1 op1 e2 => SeqOpExp (SeqOpExp seq1 op e1) op1 e2 
-      | SeqOpExp seq2' op' ue' => 
-          SeqOpExp (seq_op_seq seq1 op seq2') op' ue'
-      end.
-
-    Fixpoint exp_op_seq (e1 : t) (op1 : op) (seq : opseq) : opseq := 
-      match seq with 
-      | ExpOpExp e2 op2 e3 => SeqOpExp (ExpOpExp e1 op1 e2) op2 e3
-      | SeqOpExp seq' op' e' => 
-          SeqOpExp (exp_op_seq e1 op1 seq') op' e'
-      end.
-
-    (* returns number of expressions in seq (not ops) *)
-    Fixpoint seq_length (seq : opseq) : nat := 
-      match seq with 
-      | ExpOpExp _ _ _ => S(S(O))
-      | SeqOpExp seq' _ _ => S(seq_length seq')
-      end.
-
-    Fixpoint seq_nth (n : nat) (seq : opseq) : option(t) := 
-      match (n, seq) with 
-      | (O, ExpOpExp e1 _ _) => Some e1
-      | (S O, ExpOpExp _ _ e2) => Some e2
-      | (_, ExpOpExp _ _ _) => None
-      | (_, SeqOpExp seq' _ e) => 
-        let len := seq_length seq' in 
-        if Nat.eqb n len then Some e else seq_nth n seq' 
-      end.
-
-    Fixpoint seq_update_nth (n : nat) (seq : opseq) (e : t) : option(opseq) := 
-      match (n, seq) with 
-      | (O, ExpOpExp _ op e2) => Some (ExpOpExp e op e2)
-      | (S O, ExpOpExp e1 op _) => Some (ExpOpExp e1 op e)
-      | (_, ExpOpExp _ _ _) => None
-      | (_, SeqOpExp seq' op e') => 
-        let len := seq_length seq' in 
-        if Nat.eqb n len then Some (SeqOpExp seq' op e) 
-        else match seq_update_nth n seq' e with 
-        | Some seq'' => Some (SeqOpExp seq'' op e')
-        | None => None
-        end
-      end.
-
+    (* helper function for constructing a new empty hole *)
     Definition new_EmptyHole (u_gen : MetaVar.gen) : t * MetaVar.gen :=
       let (u', u_gen') := MetaVar.next u_gen in 
       (Tm NotInHole (EmptyHole u'), u_gen').
 
+    (* put e in the specified hole *)
     Fixpoint put_in_hole (u : MetaVar.t) (e : t) := 
       match e with 
       | Tm _ e' => Tm (InHole u) e'
       | Parenthesized e' => Parenthesized (put_in_hole u e')
       end.
 
+    (* put e in a new hole, if it is not already in a hole *)
     Fixpoint put_in_new_hole (u_gen : MetaVar.gen) (e : t) := 
       match e with
       | Tm NotInHole e' => 
@@ -347,13 +547,14 @@ Module Core.
         end
       end.
 
+    (* put skel in a new hole, if it is not already in a hole *)
     Definition put_skel_in_new_hole (u_gen : MetaVar.gen) (skel : Skel.t) (seq : opseq) := 
       match skel with 
       | Skel.Placeholder n => 
-        match seq_nth n seq with 
+        match OperatorSeq.seq_nth n seq with 
         | Some en => 
           let (en', u_gen') := put_in_new_hole u_gen en in 
-          match seq_update_nth n seq en' with 
+          match OperatorSeq.seq_update_nth n seq en' with 
           | Some seq' => Some (skel, seq', u_gen')
           | None => None
           end
@@ -365,10 +566,12 @@ Module Core.
         Some (Skel.BinOp (InHole u') op skel1 skel2, seq, u_gen')
       end.
 
+    (* see syn_skel and ana_skel below *) 
     Inductive type_mode : Type := 
     | AnalyzedAgainst : HTyp.t -> type_mode
     | Synthesized : HTyp.t -> type_mode.
 
+    (* synthesize a type, if possible, for e *)
     Fixpoint syn
       (fuel : Fuel.t) 
       (ctx : Ctx.t)
@@ -514,7 +717,7 @@ Module Core.
         | Fuel.More fuel => 
         match skel with 
         | Skel.Placeholder n => 
-          match seq_nth n seq with 
+          match OperatorSeq.seq_nth n seq with 
           | Some en => 
             if is_bidelimited en then 
               match syn fuel ctx en with
@@ -585,7 +788,7 @@ Module Core.
         | Fuel.More fuel => 
         match skel with 
         | Skel.Placeholder n => 
-          match seq_nth n seq with 
+          match OperatorSeq.seq_nth n seq with 
           | Some en => 
             if is_bidelimited en then   
               match ana fuel ctx en ty with 
@@ -803,12 +1006,12 @@ Module Core.
         | Fuel.More fuel => 
         match skel with 
         | Skel.Placeholder n => 
-          match seq_nth n seq with
+          match OperatorSeq.seq_nth n seq with
           | Some en => 
             if is_bidelimited en then 
               match syn_fix_holes fuel ctx u_gen en with 
               | Some (en', ty, u_gen') => 
-                match seq_update_nth n seq en' with
+                match OperatorSeq.seq_update_nth n seq en' with
                 | Some seq' => 
                   Some (skel, seq', ty, u_gen')
                 | None => None
@@ -867,12 +1070,12 @@ Module Core.
         | Fuel.More fuel => 
           match skel with 
           | Skel.Placeholder n => 
-            match seq_nth n seq with
+            match OperatorSeq.seq_nth n seq with
             | Some en => 
               if is_bidelimited en then 
                 match ana_fix_holes fuel ctx u_gen en ty with 
                 | Some (en', u_gen') => 
-                  match seq_update_nth n seq en' with 
+                  match OperatorSeq.seq_update_nth n seq en' with 
                   | Some seq' => Some (skel, seq', u_gen')
                   | None => None
                   end
@@ -931,24 +1134,11 @@ Module Core.
     | CaseZ1 : t -> (Var.t * UHExp.t) -> (Var.t * UHExp.t) -> t'
     | CaseZ2 : UHExp.t -> (Var.t * t) -> (Var.t * UHExp.t) -> t'
     | CaseZ3 : UHExp.t -> (Var.t * UHExp.t) -> (Var.t * t) -> t'
-    | OpSeqZ : UHExp.Skel.t -> t -> opseq_surround -> t'
-    with opseq_surround : Type := 
-    (* set up this way to enforce the requirement that there be at least one op *)
-    (* if the prefix is empty, there must be a non-empty suffix *)
-    | EmptyPrefix : opseq_suffix -> opseq_surround
-    (* if the suffix is empty, there must be a non-empty prefix *)
-    | EmptySuffix : opseq_prefix -> opseq_surround
-    (* both can be non-empty *)
-    | BothNonEmpty : opseq_prefix -> opseq_suffix -> opseq_surround
-    with opseq_prefix : Type := 
-    (* a non-empty prefix is either one that contains a single expression *)
-    | ExpPrefix : UHExp.t -> UHExp.op -> opseq_prefix
-    (* or one that contains two or more expressions, i.e. another opseq *)
-    | SeqPrefix : UHExp.opseq -> UHExp.op -> opseq_prefix
-    with opseq_suffix : Type :=
-    (* analagous to opseq_prefix *)
-    | ExpSuffix : UHExp.op -> UHExp.t -> opseq_suffix 
-    | SeqSuffix : UHExp.op -> UHExp.opseq -> opseq_suffix.
+    | OpSeqZ : UHExp.Skel.t -> t -> OperatorSeq.opseq_surround UHExp.t UHExp.op -> t'.
+
+    Definition opseq_surround : Type := OperatorSeq.opseq_surround UHExp.t UHExp.op.
+    Definition opseq_prefix : Type := OperatorSeq.opseq_prefix UHExp.t UHExp.op.
+    Definition opseq_suffix : Type := OperatorSeq.opseq_suffix UHExp.t UHExp.op.
 
     Definition bidelimit ze := 
       match ze with 
@@ -986,154 +1176,6 @@ Module Core.
           (ParenthesizedZ ze1, u_gen')
         end.
 
-    (* append an exp to a prefix *)
-    Definition prefix_append_exp
-      (prefix : opseq_prefix)
-      (e : UHExp.t)
-      (op : UHExp.op)
-      : opseq_prefix := 
-        match prefix with 
-        | ExpPrefix e1 op1 => 
-          SeqPrefix (UHExp.ExpOpExp e1 op1 e) op
-        | SeqPrefix seq1 op1 => 
-          SeqPrefix (UHExp.SeqOpExp seq1 op1 e) op
-        end.
-
-    (* prepend an exp to a suffix *)
-    Definition suffix_prepend_exp
-      (suffix : opseq_suffix)
-      (op : UHExp.op)
-      (e : UHExp.t)
-      : opseq_suffix :=
-        match suffix with 
-        | ExpSuffix op' e' => 
-          SeqSuffix op (UHExp.ExpOpExp e op' e')
-        | SeqSuffix op' seq' => 
-          SeqSuffix op (UHExp.exp_op_seq e op' seq')
-        end.
-
-    (* append an exp to a suffix *)
-    Definition suffix_append_exp
-      (suffix : opseq_suffix)
-      (op : UHExp.op)
-      (e : UHExp.t)
-      : opseq_suffix := 
-        match suffix with 
-        | ExpSuffix op' e' => 
-            SeqSuffix op' (UHExp.ExpOpExp e' op e)
-        | SeqSuffix op' seq => 
-            SeqSuffix op' (UHExp.SeqOpExp seq op e)
-        end.
-
-    (* append an exp to the suffix of a surround *)
-    Definition surround_suffix_append_exp
-      (surround : opseq_surround)
-      (op : UHExp.op)
-      (e : UHExp.t)
-      : opseq_surround := 
-        match surround with 
-        | EmptyPrefix suffix => 
-          let suffix' := suffix_append_exp suffix op e in 
-          EmptyPrefix suffix'
-        | EmptySuffix prefix => 
-          let suffix' := ExpSuffix op e in 
-          BothNonEmpty prefix suffix' 
-        | BothNonEmpty prefix suffix => 
-          let suffix' := suffix_append_exp suffix op e in 
-          BothNonEmpty prefix suffix'
-        end.
-
-    Fixpoint split (n : nat) (seq : UHExp.opseq) 
-        : option(UHExp.t * opseq_surround) := 
-      match (n, seq) with 
-      | (O, UHExp.ExpOpExp e1 op e2) => 
-          Some (e1, EmptyPrefix (ExpSuffix op e2))
-      | (S O, UHExp.ExpOpExp e1 op e2) => 
-          Some (e2, EmptySuffix (ExpPrefix e1 op))
-      | (_, UHExp.ExpOpExp _ _ _) => 
-          None
-      | (_, UHExp.SeqOpExp seq' op e) => 
-          let length' := UHExp.seq_length seq' in 
-          if Nat.ltb n length' then 
-            match split n seq' with 
-            | Some (e', surround) => 
-              let surround' := surround_suffix_append_exp surround op e in 
-              Some (e', surround')
-            | None => None
-            end
-          else if Nat.eqb n length' then 
-            let prefix' := SeqPrefix seq' op in 
-            let surround' := EmptySuffix prefix' in 
-            Some (e, surround')
-          else None
-      end.
-
-    Fixpoint split0 (seq : UHExp.opseq) : UHExp.t * opseq_suffix := 
-      match seq with 
-      | UHExp.ExpOpExp e1 op e2 => 
-        (e1, ExpSuffix op e2)
-      | UHExp.SeqOpExp seq' op e => 
-        let (e0, suffix') := split0 seq' in
-        (e0, suffix_append_exp suffix' op e)
-      end.
-
-    Definition split_tail (seq : UHExp.opseq) : UHExp.t * opseq_prefix := 
-      match seq with 
-      | UHExp.ExpOpExp e1 op e2 => 
-        (e2, ExpPrefix e1 op)
-      | UHExp.SeqOpExp seq' op e => 
-        (e, SeqPrefix seq' op)
-      end.
-
-    Definition prefix_length (prefix : opseq_prefix) : nat := 
-      match prefix with 
-      | ExpPrefix _ _ => S(O)
-      | SeqPrefix seq _ => UHExp.seq_length seq
-      end.
-
-    Definition surround_prefix_length
-      (surround : opseq_surround)
-      : nat := 
-        match surround with 
-        | EmptyPrefix _ => O
-        | EmptySuffix prefix
-        | BothNonEmpty prefix _ => prefix_length prefix
-        end.
-
-    Definition opseq_of_exp_and_surround
-      (e : UHExp.t)
-      (surround : opseq_surround)
-      : UHExp.opseq := 
-         match surround with 
-         | EmptyPrefix suffix => 
-           match suffix with 
-           | ExpSuffix op e2 => UHExp.ExpOpExp e op e2
-           | SeqSuffix op seq => UHExp.exp_op_seq e op seq
-           end
-         | EmptySuffix prefix => 
-           match prefix with 
-           | ExpPrefix e1 op => UHExp.ExpOpExp e1 op e
-           | SeqPrefix seq op => UHExp.SeqOpExp seq op e
-           end
-         | BothNonEmpty prefix suffix => 
-           match (prefix, suffix) with 
-           | (ExpPrefix e1 op1, ExpSuffix op2 e2) => 
-               UHExp.SeqOpExp
-                 (UHExp.ExpOpExp e1 op1 e)
-                 op2 e2
-           | (ExpPrefix e1 op1, SeqSuffix op2 seq2) => 
-               UHExp.seq_op_seq
-                 (UHExp.ExpOpExp e1 op1 e)
-                 op2 seq2
-           | (SeqPrefix seq1 op1, ExpSuffix op2 e2) => 
-               UHExp.SeqOpExp 
-                 (UHExp.SeqOpExp seq1 op1 e) op2 e2
-           | (SeqPrefix seq1 op1, SeqSuffix op2 seq2) => 
-               UHExp.seq_op_seq
-                 (UHExp.SeqOpExp seq1 op1 e) op2 seq2
-           end
-         end.
-
     Fixpoint erase (ze : t) : UHExp.t :=
       match ze with
       | CursorE _ e => e
@@ -1156,7 +1198,7 @@ Module Core.
       | CaseZ3 e branch1 (y, ze) => UHExp.Case e branch1 (y, (erase ze))
       | OpSeqZ skel ze' surround => 
          let e := erase ze' in 
-         UHExp.OpSeq skel (opseq_of_exp_and_surround e surround)
+         UHExp.OpSeq skel (OperatorSeq.opseq_of_exp_and_surround e surround)
       end.
   End ZExp.
 
@@ -1193,12 +1235,12 @@ Module Core.
       | ZExp.CaseZ2 _ (_, ze') _ => cons' (S O) (of_zexp ze')
       | ZExp.CaseZ3 _ _ (_, ze') => cons' (S (S O)) (of_zexp ze')
       | ZExp.OpSeqZ _ ze' surround => 
-        let n := ZExp.surround_prefix_length surround in 
+        let n := OperatorSeq.surround_prefix_length surround in 
         cons' n (of_zexp ze')
       end.
 
-    Definition of_OpSeqZ ze surround := 
-      let n := ZExp.surround_prefix_length surround in 
+    Definition of_OpSeqZ (ze : ZExp.t) (surround : ZExp.opseq_surround) := 
+      let n := OperatorSeq.surround_prefix_length surround in 
       cons' n (of_zexp ze).
 
     Fixpoint follow_ty (path : t) (ty : HTyp.t) : option(ZTyp.t) := 
@@ -1307,7 +1349,7 @@ Module Core.
             | (_, UHExp.Case _ _ _) => None
             | (_, UHExp.EmptyHole _) => None
             | (n, UHExp.OpSeq skel seq) => 
-                match ZExp.split n seq with 
+                match OperatorSeq.split n seq with 
                 | Some (e, surround) => 
                     match follow_e (xs, cursor_side) e with 
                     | Some ze => 
@@ -1436,7 +1478,7 @@ Module Core.
          * logic specific to Z-exps) *)
         let path0 := Path.of_OpSeqZ ze0 surround in 
         let e0 := ZExp.erase ze0 in 
-        let seq := ZExp.opseq_of_exp_and_surround e0 surround in 
+        let seq := OperatorSeq.opseq_of_exp_and_surround e0 surround in 
         let skel := Associator.associate seq in 
         match UHExp.syn_skel_fix_holes fuel ctx u_gen skel seq with 
         | Some (skel', seq', ty, u_gen') => 
@@ -1514,16 +1556,16 @@ Module Core.
           | (Backspace, ZExp.Deeper _
               (ZExp.OpSeqZ _
                 ((ZExp.CursorE ZExp.Before _) as ze0) 
-                ((ZExp.EmptySuffix _) as surround)))
+                ((OperatorSeq.EmptySuffix _) as surround)))
           | (Backspace, ZExp.Deeper _
               (ZExp.OpSeqZ _
                 ((ZExp.CursorE ZExp.Before _) as ze0) 
-                ((ZExp.BothNonEmpty _ _) as surround))) =>
+                ((OperatorSeq.BothNonEmpty _ _) as surround))) =>
               match surround with 
-              | ZExp.EmptyPrefix _ => None (* precluded by pattern match above *)
-              | ZExp.EmptySuffix prefix => 
+              | OperatorSeq.EmptyPrefix _ => None (* precluded by pattern match above *)
+              | OperatorSeq.EmptySuffix prefix => 
                 match prefix with 
-                | ZExp.ExpPrefix e1 op1 => 
+                | OperatorSeq.ExpPrefix e1 op1 => 
                   (* e1 op1 |ze0 *)
                   match op1 with 
                   | UHExp.Space => 
@@ -1532,53 +1574,53 @@ Module Core.
                     zexp_syn_fix_holes fuel ctx u_gen ze0' 
                   | _ => 
                     (* e1 op1 |ze0 --> e1 |ze0 *)
-                    let surround' := ZExp.EmptySuffix (ZExp.ExpPrefix e1 UHExp.Space) in 
+                    let surround' := OperatorSeq.EmptySuffix (OperatorSeq.ExpPrefix e1 UHExp.Space) in 
                     make_and_syn_OpSeqZ fuel ctx u_gen ze0 surround' 
                   end
-                | ZExp.SeqPrefix seq1 op1 => 
+                | OperatorSeq.SeqPrefix seq1 op1 => 
                   (* seq1 op1 |ze0 *)
                   match op1 with 
                   | UHExp.Space =>
                     (* seq1 |ze0 *)
-                    let (e1, prefix') := ZExp.split_tail seq1 in 
-                    let surround' := ZExp.EmptySuffix prefix' in 
+                    let (e1, prefix') := OperatorSeq.split_tail seq1 in 
+                    let surround' := OperatorSeq.EmptySuffix prefix' in 
                     let ze0' := combine_for_Backspace_Space e1 ze0 in 
                     make_and_syn_OpSeqZ fuel ctx u_gen ze0' surround'
                   | _ => 
                     (* seq1 op1 |ze0 --> seq1 |ze0 *)
-                    let prefix' := ZExp.SeqPrefix seq1 (UHExp.Space) in 
-                    let surround' := ZExp.EmptySuffix prefix' in 
+                    let prefix' := OperatorSeq.SeqPrefix seq1 (UHExp.Space) in 
+                    let surround' := OperatorSeq.EmptySuffix prefix' in 
                     make_and_syn_OpSeqZ fuel ctx u_gen ze0 surround' 
                   end
                 end
-              | ZExp.BothNonEmpty prefix suffix => 
+              | OperatorSeq.BothNonEmpty prefix suffix => 
                 match prefix with 
-                | ZExp.ExpPrefix e1 op1 => 
+                | OperatorSeq.ExpPrefix e1 op1 => 
                   (* e1 op1 |ze0 ...suffix *)
                   match op1 with 
                   | UHExp.Space => 
                     (* e1 |ze0 ...suffix *)
                     let ze0' := combine_for_Backspace_Space e1 ze0 in  
-                    let surround' := ZExp.EmptyPrefix suffix in 
+                    let surround' := OperatorSeq.EmptyPrefix suffix in 
                     make_and_syn_OpSeqZ fuel ctx u_gen ze0' surround'
                   | _ => 
                     (* e1 op1 |ze0 --> e1 |ze0 ...suffix *)
-                    let surround' := ZExp.BothNonEmpty (ZExp.ExpPrefix e1 UHExp.Space) suffix in 
+                    let surround' := OperatorSeq.BothNonEmpty (OperatorSeq.ExpPrefix e1 UHExp.Space) suffix in 
                     make_and_syn_OpSeqZ fuel ctx u_gen ze0 surround' 
                   end
-                | ZExp.SeqPrefix seq1 op1 => 
+                | OperatorSeq.SeqPrefix seq1 op1 => 
                   (* seq1 op1 |ze0 ...suffix *)
                   match op1 with 
                   | UHExp.Space =>
                     (* seq1 |ze0 ...suffix *)
-                    let (e1, prefix') := ZExp.split_tail seq1 in 
+                    let (e1, prefix') := OperatorSeq.split_tail seq1 in 
                     let ze0' :=  combine_for_Backspace_Space e1 ze0 in  
-                    let surround' := ZExp.BothNonEmpty prefix' suffix in 
+                    let surround' := OperatorSeq.BothNonEmpty prefix' suffix in 
                     make_and_syn_OpSeqZ fuel ctx u_gen ze0' surround'
                   | _ => 
                     (* seq1 op1 |ze0 --> seq1 |ze0 ...suffix *)
-                    let prefix' := ZExp.SeqPrefix seq1 (UHExp.Space) in 
-                    let surround' := ZExp.BothNonEmpty prefix' suffix in 
+                    let prefix' := OperatorSeq.SeqPrefix seq1 (UHExp.Space) in 
+                    let surround' := OperatorSeq.BothNonEmpty prefix' suffix in 
                     make_and_syn_OpSeqZ fuel ctx u_gen ze0 surround' 
                   end
                 end
@@ -1586,66 +1628,66 @@ Module Core.
           | (Delete, ZExp.Deeper _
               (ZExp.OpSeqZ _
                 ((ZExp.CursorE ZExp.After e0) as ze0)
-                ((ZExp.EmptyPrefix _) as surround)))
+                ((OperatorSeq.EmptyPrefix _) as surround)))
           | (Delete, ZExp.Deeper _ 
               (ZExp.OpSeqZ _
                 ((ZExp.CursorE ZExp.After e0) as ze0)
-                ((ZExp.BothNonEmpty _ _) as surround))) => 
+                ((OperatorSeq.BothNonEmpty _ _) as surround))) => 
             match surround with 
-            | ZExp.EmptySuffix _ => None (* precluded by pattern match above *)
-            | ZExp.EmptyPrefix suffix => 
+            | OperatorSeq.EmptySuffix _ => None (* precluded by pattern match above *)
+            | OperatorSeq.EmptyPrefix suffix => 
               match suffix with 
-              | ZExp.ExpSuffix op e => 
+              | OperatorSeq.ExpSuffix op e => 
                 match op with 
                 | UHExp.Space => 
                   let ze0' := combine_for_Delete_Space ze0 e in 
                   zexp_syn_fix_holes fuel ctx u_gen ze0'  
                 | _ => 
                   (* e0| op e --> e0| e *)
-                  let surround' := ZExp.EmptyPrefix (ZExp.ExpSuffix UHExp.Space e) in 
+                  let surround' := OperatorSeq.EmptyPrefix (OperatorSeq.ExpSuffix UHExp.Space e) in 
                   match make_and_syn_OpSeqZ fuel ctx u_gen ze0 surround' with 
                   | Some (ze, ty, u_gen') => Some (ze, ty, u_gen')
                   | None => None
                   end
                 end
-              | ZExp.SeqSuffix op seq => 
+              | OperatorSeq.SeqSuffix op seq => 
                 match op with 
                 | UHExp.Space => 
-                  let (e, suffix') := ZExp.split0 seq in
-                  let surround' := ZExp.EmptyPrefix suffix' in 
+                  let (e, suffix') := OperatorSeq.split0 seq in
+                  let surround' := OperatorSeq.EmptyPrefix suffix' in 
                   let ze0' := combine_for_Delete_Space ze0 e in 
                   make_and_syn_OpSeqZ fuel ctx u_gen ze0' surround'
                 | _ => 
                   (* e| op seq --> e| seq *)
-                  let suffix' := ZExp.SeqSuffix UHExp.Space seq in 
-                  let surround' := ZExp.EmptyPrefix suffix' in 
+                  let suffix' := OperatorSeq.SeqSuffix UHExp.Space seq in 
+                  let surround' := OperatorSeq.EmptyPrefix suffix' in 
                   make_and_syn_OpSeqZ fuel ctx u_gen ze0 surround' 
                 end
               end
-            | ZExp.BothNonEmpty prefix suffix => 
+            | OperatorSeq.BothNonEmpty prefix suffix => 
               match suffix with 
-              | ZExp.ExpSuffix op e => 
+              | OperatorSeq.ExpSuffix op e => 
                 match op with 
                 | UHExp.Space => 
                   let ze0' := combine_for_Delete_Space ze0 e in 
-                  let surround' := ZExp.EmptySuffix prefix in 
+                  let surround' := OperatorSeq.EmptySuffix prefix in 
                   make_and_syn_OpSeqZ fuel ctx u_gen ze0' surround'
                 | _ => 
                   (* e0| op e --> e0| e *)
-                  let surround' := ZExp.BothNonEmpty prefix (ZExp.ExpSuffix UHExp.Space e) in 
+                  let surround' := OperatorSeq.BothNonEmpty prefix (OperatorSeq.ExpSuffix UHExp.Space e) in 
                   make_and_syn_OpSeqZ fuel ctx u_gen ze0 surround'
                 end
-              | ZExp.SeqSuffix op seq => 
+              | OperatorSeq.SeqSuffix op seq => 
                 match op with 
                 | UHExp.Space => 
-                  let (e, suffix') := ZExp.split0 seq in 
+                  let (e, suffix') := OperatorSeq.split0 seq in 
                   let ze0' := combine_for_Delete_Space ze0 e in 
-                  let surround' := ZExp.BothNonEmpty prefix suffix' in 
+                  let surround' := OperatorSeq.BothNonEmpty prefix suffix' in 
                   make_and_syn_OpSeqZ fuel ctx u_gen ze0' surround'
                 | _ => 
                   (* prefix e| op seq --> e| seq *)
-                  let suffix' := ZExp.SeqSuffix UHExp.Space seq in 
-                  let surround' := ZExp.BothNonEmpty prefix suffix' in 
+                  let suffix' := OperatorSeq.SeqSuffix UHExp.Space seq in 
+                  let surround' := OperatorSeq.BothNonEmpty prefix suffix' in 
                   make_and_syn_OpSeqZ fuel ctx u_gen ze0 surround'
                 end
               end
@@ -1732,21 +1774,21 @@ Module Core.
           | (Construct (SOp op), ZExp.Deeper _ (
               ZExp.OpSeqZ _ (ZExp.CursorE ZExp.After e) surround)) => 
             match surround with 
-            | ZExp.EmptySuffix prefix => 
-              let prefix' := ZExp.prefix_append_exp prefix e op in 
-              let surround' := ZExp.EmptySuffix prefix' in 
+            | OperatorSeq.EmptySuffix prefix => 
+              let prefix' := OperatorSeq.prefix_append_exp prefix e op in 
+              let surround' := OperatorSeq.EmptySuffix prefix' in 
               let (new_hole, u_gen') := UHExp.new_EmptyHole u_gen in 
               let ze0' := ZExp.CursorE ZExp.Before new_hole in 
               make_and_syn_OpSeqZ fuel ctx u_gen' ze0' surround' 
-            | ZExp.EmptyPrefix suffix => 
+            | OperatorSeq.EmptyPrefix suffix => 
               match suffix with 
-              | ZExp.ExpSuffix op' e' => 
+              | OperatorSeq.ExpSuffix op' e' => 
                 match op with 
                 | UHExp.Space => 
                   (* e| op' e' --> e |_ op' e' *)
-                  let prefix' := ZExp.ExpPrefix e op in 
-                  let suffix' := ZExp.ExpSuffix op' e' in 
-                  let surround' := ZExp.BothNonEmpty prefix' suffix' in 
+                  let prefix' := OperatorSeq.ExpPrefix e op in 
+                  let suffix' := OperatorSeq.ExpSuffix op' e' in 
+                  let surround' := OperatorSeq.BothNonEmpty prefix' suffix' in 
                   let (new_hole, u_gen') := UHExp.new_EmptyHole u_gen in 
                   let ze0' := ZExp.CursorE ZExp.Before new_hole in 
                   make_and_syn_OpSeqZ fuel ctx u_gen' ze0' surround' 
@@ -1754,26 +1796,26 @@ Module Core.
                   match op' with 
                   | UHExp.Space => 
                     (* e| e' --> e op |e' *)
-                    let prefix' := ZExp.ExpPrefix e op in 
-                    let surround' := ZExp.EmptySuffix prefix' in 
+                    let prefix' := OperatorSeq.ExpPrefix e op in 
+                    let surround' := OperatorSeq.EmptySuffix prefix' in 
                     let ze0' := ZExp.CursorE ZExp.Before e' in 
                     make_and_syn_OpSeqZ fuel ctx u_gen ze0' surround'  
                   | _ => 
                     (* e| op' e' --> e op |_ op' e' *)
-                    let prefix' := ZExp.ExpPrefix e op in 
-                    let suffix' := ZExp.ExpSuffix op' e' in 
-                    let surround' := ZExp.BothNonEmpty prefix' suffix' in 
+                    let prefix' := OperatorSeq.ExpPrefix e op in 
+                    let suffix' := OperatorSeq.ExpSuffix op' e' in 
+                    let surround' := OperatorSeq.BothNonEmpty prefix' suffix' in 
                     let (new_hole, u_gen') := UHExp.new_EmptyHole u_gen in 
                     let ze0' := ZExp.CursorE ZExp.Before new_hole in 
                     make_and_syn_OpSeqZ fuel ctx u_gen' ze0' surround' 
                   end
                 end
-              | ZExp.SeqSuffix op' seq' => 
+              | OperatorSeq.SeqSuffix op' seq' => 
                 match op with 
                 | UHExp.Space => 
                   (* e| seq' --> e |_ op' seq' *)
-                  let prefix' := ZExp.ExpPrefix e op in 
-                  let surround' := ZExp.BothNonEmpty prefix' suffix in 
+                  let prefix' := OperatorSeq.ExpPrefix e op in 
+                  let surround' := OperatorSeq.BothNonEmpty prefix' suffix in 
                   let (new_hole, u_gen') := UHExp.new_EmptyHole u_gen in 
                   let ze0' := ZExp.CursorE ZExp.Before new_hole in 
                   make_and_syn_OpSeqZ fuel ctx u_gen' ze0' surround'
@@ -1781,30 +1823,30 @@ Module Core.
                   match op' with 
                   | UHExp.Space => 
                     (* e| seq' --> e op |seq' *)
-                    let prefix' := ZExp.ExpPrefix e op in 
-                    let (e0', suffix') := ZExp.split0 seq' in 
-                    let surround' := ZExp.BothNonEmpty prefix' suffix' in 
+                    let prefix' := OperatorSeq.ExpPrefix e op in 
+                    let (e0', suffix') := OperatorSeq.split0 seq' in 
+                    let surround' := OperatorSeq.BothNonEmpty prefix' suffix' in 
                     let ze0' := ZExp.CursorE ZExp.Before e0' in 
                     make_and_syn_OpSeqZ fuel ctx u_gen ze0' surround' 
                   | _ => 
                     (* e| op' seq' --> e op |_ op' seq' *)
-                    let prefix' := ZExp.ExpPrefix e op in 
-                    let surround' := ZExp.BothNonEmpty prefix' suffix in 
+                    let prefix' := OperatorSeq.ExpPrefix e op in 
+                    let surround' := OperatorSeq.BothNonEmpty prefix' suffix in 
                     let (new_hole, u_gen') := UHExp.new_EmptyHole u_gen in 
                     let ze0' := ZExp.CursorE ZExp.Before new_hole in 
                     make_and_syn_OpSeqZ fuel ctx u_gen' ze0' surround' 
                   end
                 end
               end
-            | ZExp.BothNonEmpty prefix suffix => 
+            | OperatorSeq.BothNonEmpty prefix suffix => 
               match suffix with 
-              | ZExp.ExpSuffix op' e' => 
+              | OperatorSeq.ExpSuffix op' e' => 
                 match op with 
                 | UHExp.Space => 
                   (* prefix e| op' e' --> prefix e |_ op' e' *)
-                  let prefix' := ZExp.prefix_append_exp prefix e op in 
-                  let suffix' := ZExp.ExpSuffix op' e' in 
-                  let surround' := ZExp.BothNonEmpty prefix' suffix' in 
+                  let prefix' := OperatorSeq.prefix_append_exp prefix e op in 
+                  let suffix' := OperatorSeq.ExpSuffix op' e' in 
+                  let surround' := OperatorSeq.BothNonEmpty prefix' suffix' in 
                   let (new_hole, u_gen') := UHExp.new_EmptyHole u_gen in 
                   let ze0' := ZExp.CursorE ZExp.Before new_hole in 
                   make_and_syn_OpSeqZ fuel ctx u_gen' ze0' surround' 
@@ -1812,26 +1854,26 @@ Module Core.
                   match op' with 
                   | UHExp.Space => 
                     (* prefix e| e' --> prefix e op |e' *)
-                    let prefix' := ZExp.prefix_append_exp prefix e op in 
-                    let surround' := ZExp.EmptySuffix prefix' in 
+                    let prefix' := OperatorSeq.prefix_append_exp prefix e op in 
+                    let surround' := OperatorSeq.EmptySuffix prefix' in 
                     let ze0' := ZExp.CursorE ZExp.Before e' in 
                     make_and_syn_OpSeqZ fuel ctx u_gen ze0' surround' 
                   | _ => 
                     (* prefix e| op' e' --> prefix e op |_ op' e' *)
-                    let prefix' := ZExp.prefix_append_exp prefix e op in 
-                    let suffix' := ZExp.ExpSuffix op' e' in 
-                    let surround' := ZExp.BothNonEmpty prefix' suffix' in 
+                    let prefix' := OperatorSeq.prefix_append_exp prefix e op in 
+                    let suffix' := OperatorSeq.ExpSuffix op' e' in 
+                    let surround' := OperatorSeq.BothNonEmpty prefix' suffix' in 
                     let (new_hole, u_gen') := UHExp.new_EmptyHole u_gen in 
                     let ze0' := ZExp.CursorE ZExp.Before new_hole in 
                     make_and_syn_OpSeqZ fuel ctx u_gen' ze0' surround' 
                   end
                 end
-              | ZExp.SeqSuffix op' seq' => 
+              | OperatorSeq.SeqSuffix op' seq' => 
                 match op with 
                 | UHExp.Space => 
                   (* prefix e| op' seq' --> prefix e |_ op' seq' *)
-                  let prefix' := ZExp.prefix_append_exp prefix e op in 
-                  let surround' := ZExp.BothNonEmpty prefix' suffix in 
+                  let prefix' := OperatorSeq.prefix_append_exp prefix e op in 
+                  let surround' := OperatorSeq.BothNonEmpty prefix' suffix in 
                   let (new_hole, u_gen') := UHExp.new_EmptyHole u_gen in 
                   let ze0' := ZExp.CursorE ZExp.Before new_hole in 
                   make_and_syn_OpSeqZ fuel ctx u_gen' ze0' surround'
@@ -1839,15 +1881,15 @@ Module Core.
                   match op' with 
                   | UHExp.Space => 
                     (* prefix e| seq' --> prefix e op |seq' *)
-                    let prefix' := ZExp.prefix_append_exp prefix e op in 
-                    let (e0', suffix') := ZExp.split0 seq' in 
-                    let surround' := ZExp.BothNonEmpty prefix' suffix' in 
+                    let prefix' := OperatorSeq.prefix_append_exp prefix e op in 
+                    let (e0', suffix') := OperatorSeq.split0 seq' in 
+                    let surround' := OperatorSeq.BothNonEmpty prefix' suffix' in 
                     let ze0' := ZExp.CursorE ZExp.Before e0' in 
                     make_and_syn_OpSeqZ fuel ctx u_gen ze0' surround' 
                   | _ => 
                     (* prefix e| op' seq' --> prefix e op |_ op' seq' *)
-                    let prefix' := ZExp.prefix_append_exp prefix e op in 
-                    let surround' := ZExp.BothNonEmpty prefix' suffix in 
+                    let prefix' := OperatorSeq.prefix_append_exp prefix e op in 
+                    let surround' := OperatorSeq.BothNonEmpty prefix' suffix in 
                     let (new_hole, u_gen') := UHExp.new_EmptyHole u_gen in 
                     let ze0' := ZExp.CursorE ZExp.Before new_hole in 
                     make_and_syn_OpSeqZ fuel ctx u_gen' ze0' surround'
@@ -1859,89 +1901,89 @@ Module Core.
               ZExp.Deeper _ (ZExp.OpSeqZ _
                 ((ZExp.CursorE ZExp.Before _) as ze0) surround)) =>
             match surround with 
-            | ZExp.EmptyPrefix suffix => 
+            | OperatorSeq.EmptyPrefix suffix => 
               (* |ze0 ... --> |_ op e0 ... *)
               let e0 := ZExp.erase ze0 in 
-              let suffix' := ZExp.suffix_prepend_exp suffix op e0 in 
-              let surround' := ZExp.EmptyPrefix suffix' in 
+              let suffix' := OperatorSeq.suffix_prepend_exp suffix op e0 in 
+              let surround' := OperatorSeq.EmptyPrefix suffix' in 
               let (new_hole, u_gen') := UHExp.new_EmptyHole u_gen in 
               let ze0' := ZExp.CursorE ZExp.Before new_hole in 
               make_and_syn_OpSeqZ fuel ctx u_gen' ze0' surround' 
-            | ZExp.EmptySuffix ((ZExp.ExpPrefix e1 (UHExp.Space)) as prefix) => 
+            | OperatorSeq.EmptySuffix ((OperatorSeq.ExpPrefix e1 (UHExp.Space)) as prefix) => 
               match op with 
               | UHExp.Space => 
                 (* e1 |ze0 --> e1 |_ e0 *)
                 let e0 := ZExp.erase ze0 in 
-                let suffix' := ZExp.ExpSuffix UHExp.Space e0 in 
-                let surround' := ZExp.BothNonEmpty prefix suffix' in 
+                let suffix' := OperatorSeq.ExpSuffix UHExp.Space e0 in 
+                let surround' := OperatorSeq.BothNonEmpty prefix suffix' in 
                 let (new_hole, u_gen') := UHExp.new_EmptyHole u_gen in 
                 let ze0' := ZExp.CursorE ZExp.Before new_hole in 
                 make_and_syn_OpSeqZ fuel ctx u_gen' ze0' surround' 
               | _ => 
                 (* e1 |ze0 --> e1 op |ze0 *)
-                let surround' := ZExp.EmptySuffix (ZExp.ExpPrefix e1 op) in 
+                let surround' := OperatorSeq.EmptySuffix (OperatorSeq.ExpPrefix e1 op) in 
                 make_and_syn_OpSeqZ fuel ctx u_gen ze0 surround' 
               end
-            | ZExp.EmptySuffix ((ZExp.SeqPrefix seq1 (UHExp.Space)) as prefix) => 
+            | OperatorSeq.EmptySuffix ((OperatorSeq.SeqPrefix seq1 (UHExp.Space)) as prefix) => 
               match op with 
               | UHExp.Space => 
                 (* seq1 |ze0 --> seq1 |_ e0 *)
                 let e0 := ZExp.erase ze0 in 
-                let suffix' := ZExp.ExpSuffix UHExp.Space e0 in 
-                let surround' := ZExp.BothNonEmpty prefix suffix' in 
+                let suffix' := OperatorSeq.ExpSuffix UHExp.Space e0 in 
+                let surround' := OperatorSeq.BothNonEmpty prefix suffix' in 
                 let (new_hole, u_gen') := UHExp.new_EmptyHole u_gen in 
                 let ze0' := ZExp.CursorE ZExp.Before new_hole in 
                 make_and_syn_OpSeqZ fuel ctx u_gen' ze0' surround'
               | _ => 
                 (* seq1 |ze0 --> seq1 op |ze0 *)
-                let surround' := ZExp.EmptySuffix (ZExp.SeqPrefix seq1 op) in 
+                let surround' := OperatorSeq.EmptySuffix (OperatorSeq.SeqPrefix seq1 op) in 
                 make_and_syn_OpSeqZ fuel ctx u_gen ze0 surround' 
               end
-            | ZExp.EmptySuffix prefix => 
+            | OperatorSeq.EmptySuffix prefix => 
               (* prefix [^ ] |ze0 --> prefix |_ op e0 *)
               let e0 := ZExp.erase ze0 in 
-              let suffix' := ZExp.ExpSuffix op e0 in 
-              let surround' := ZExp.BothNonEmpty prefix suffix' in 
+              let suffix' := OperatorSeq.ExpSuffix op e0 in 
+              let surround' := OperatorSeq.BothNonEmpty prefix suffix' in 
               let (new_hole, u_gen') := UHExp.new_EmptyHole u_gen in 
               let ze0' := ZExp.CursorE ZExp.Before new_hole in 
               make_and_syn_OpSeqZ fuel ctx u_gen' ze0' surround' 
-            | ZExp.BothNonEmpty ((ZExp.ExpPrefix e1 (UHExp.Space)) as prefix) suffix => 
+            | OperatorSeq.BothNonEmpty ((OperatorSeq.ExpPrefix e1 (UHExp.Space)) as prefix) suffix => 
               match op with 
               | UHExp.Space => 
                 (* e1 |ze0 suffix --> e1 |_ e0 suffix *)
                 let e0 := ZExp.erase ze0 in 
-                let suffix' := ZExp.suffix_prepend_exp suffix UHExp.Space e0 in 
-                let surround' := ZExp.BothNonEmpty prefix suffix' in 
+                let suffix' := OperatorSeq.suffix_prepend_exp suffix UHExp.Space e0 in 
+                let surround' := OperatorSeq.BothNonEmpty prefix suffix' in 
                 let (new_hole, u_gen') := UHExp.new_EmptyHole u_gen in 
                 let ze0' := ZExp.CursorE ZExp.Before new_hole in 
                 make_and_syn_OpSeqZ fuel ctx u_gen' ze0' surround'
               | _ => 
                 (* e1 |ze0 suffix --> e1 op |ze0 suffix *)
-                let prefix' := ZExp.ExpPrefix e1 op in 
-                let surround' := ZExp.BothNonEmpty prefix' suffix in 
+                let prefix' := OperatorSeq.ExpPrefix e1 op in 
+                let surround' := OperatorSeq.BothNonEmpty prefix' suffix in 
                 make_and_syn_OpSeqZ fuel ctx u_gen ze0 surround'
               end
-            | ZExp.BothNonEmpty ((ZExp.SeqPrefix seq1 (UHExp.Space)) as prefix) suffix => 
+            | OperatorSeq.BothNonEmpty ((OperatorSeq.SeqPrefix seq1 (UHExp.Space)) as prefix) suffix => 
               match op with 
               | UHExp.Space => 
                 (* seq1 |ze0 suffix --> seq1 |_ e0 suffix *)
                 let e0 := ZExp.erase ze0 in 
-                let suffix' := ZExp.suffix_prepend_exp suffix UHExp.Space e0 in 
-                let surround' := ZExp.BothNonEmpty prefix suffix' in 
+                let suffix' := OperatorSeq.suffix_prepend_exp suffix UHExp.Space e0 in 
+                let surround' := OperatorSeq.BothNonEmpty prefix suffix' in 
                 let (new_hole, u_gen') := UHExp.new_EmptyHole u_gen in 
                 let ze0' := ZExp.CursorE ZExp.Before new_hole in 
                 make_and_syn_OpSeqZ fuel ctx u_gen' ze0' surround'
               | _ => 
                 (* seq1 |ze0 suffix --> seq1 op |ze0 suffix *)
-                let prefix' := ZExp.SeqPrefix seq1 op in 
-                let surround' := ZExp.BothNonEmpty prefix' suffix in 
+                let prefix' := OperatorSeq.SeqPrefix seq1 op in 
+                let surround' := OperatorSeq.BothNonEmpty prefix' suffix in 
                 make_and_syn_OpSeqZ fuel ctx u_gen ze0 surround'
               end
-            | ZExp.BothNonEmpty prefix suffix => 
+            | OperatorSeq.BothNonEmpty prefix suffix => 
               (* prefix [^ ] |ze0 suffix --> prefix |_ op e0 suffix *)
               let e0 := ZExp.erase ze0 in 
-              let suffix' := ZExp.suffix_prepend_exp suffix op e0 in 
-              let surround' := ZExp.BothNonEmpty prefix suffix' in 
+              let suffix' := OperatorSeq.suffix_prepend_exp suffix op e0 in 
+              let surround' := OperatorSeq.BothNonEmpty prefix suffix' in 
               let (new_hole, u_gen') := UHExp.new_EmptyHole u_gen in 
               let ze0' := ZExp.CursorE ZExp.Before new_hole in 
               make_and_syn_OpSeqZ fuel ctx u_gen' ze0' surround' 
@@ -1949,15 +1991,15 @@ Module Core.
           | (Construct (SOp op), ZExp.CursorE ZExp.On e)
           | (Construct (SOp op), ZExp.CursorE ZExp.After e) => 
             let e' := UHExp.bidelimit e in 
-            let prefix := ZExp.ExpPrefix e' op in 
-            let surround := ZExp.EmptySuffix prefix in 
+            let prefix := OperatorSeq.ExpPrefix e' op in 
+            let surround := OperatorSeq.EmptySuffix prefix in 
             let (e0, u_gen') := UHExp.new_EmptyHole u_gen in 
             let ze0' := ZExp.CursorE ZExp.Before e0 in
             make_and_syn_OpSeqZ fuel ctx u_gen' ze0' surround 
           | (Construct (SOp op), ZExp.CursorE ZExp.Before e) => 
             let e' := UHExp.bidelimit e in 
-            let suffix := ZExp.ExpSuffix op e' in 
-            let surround := ZExp.EmptyPrefix suffix in 
+            let suffix := OperatorSeq.ExpSuffix op e' in 
+            let surround := OperatorSeq.EmptyPrefix suffix in 
             let (e0, u_gen') := UHExp.new_EmptyHole u_gen in 
             let ze0' := ZExp.CursorE ZExp.Before e0 in
             make_and_syn_OpSeqZ fuel ctx u_gen' ze0' surround 
@@ -2028,7 +2070,7 @@ Module Core.
             | None => None
             end
           | (_, ZExp.Deeper _ (ZExp.OpSeqZ skel ze0 surround)) => 
-            let i := ZExp.surround_prefix_length surround in 
+            let i := OperatorSeq.surround_prefix_length surround in 
             match ZExp.erase ze with 
             | UHExp.Tm _ (UHExp.OpSeq skel seq) => 
               match UHExp.syn_skel fuel ctx skel seq (Some i) with 
@@ -2110,16 +2152,16 @@ Module Core.
           ZExp.Deeper _ 
             (ZExp.OpSeqZ _
               ((ZExp.CursorE ZExp.Before _) as ze0)
-              (ZExp.EmptySuffix
-                (ZExp.ExpPrefix e1 UHExp.Space)))) => 
+              (OperatorSeq.EmptySuffix
+                (OperatorSeq.ExpPrefix e1 UHExp.Space)))) => 
         let ze0' := combine_for_Backspace_Space e1 ze0 in 
         zexp_ana_fix_holes fuel ctx u_gen ze0' ty
       | (Delete, 
           ZExp.Deeper _
             (ZExp.OpSeqZ _
               ((ZExp.CursorE ZExp.After _) as ze0)
-              (ZExp.EmptyPrefix
-                (ZExp.ExpSuffix UHExp.Space e1)))) => 
+              (OperatorSeq.EmptyPrefix
+                (OperatorSeq.ExpSuffix UHExp.Space e1)))) => 
         let ze0' := combine_for_Delete_Space ze0 e1 in 
         zexp_ana_fix_holes fuel ctx u_gen ze0' ty
       (* Construction *)
@@ -2582,7 +2624,7 @@ Module Core.
         | DoesNotExpand.
 
         Definition id_env (gamma : Ctx.t) : Environment.t(t) := 
-          Ctx.map (Var.t * t) 
+          Ctx.map
             (fun xt : Var.t * HTyp.t => 
               let (x, t) := xt in 
               (x, DHExp.Var x)) 
@@ -2675,7 +2717,7 @@ Module Core.
             | Fuel.More fuel => 
             match skel with 
             | UHExp.Skel.Placeholder n => 
-              match UHExp.seq_nth n seq with 
+              match OperatorSeq.seq_nth n seq with 
               | None => DoesNotExpand
               | Some en => syn_expand fuel gamma en
               end
@@ -2856,7 +2898,7 @@ Module Core.
             | Fuel.More fuel => 
             match skel with 
             | UHExp.Skel.Placeholder n => 
-              match UHExp.seq_nth n seq with 
+              match OperatorSeq.seq_nth n seq with 
               | None => DoesNotExpand
               | Some en => ana_expand fuel gamma en ty
               end

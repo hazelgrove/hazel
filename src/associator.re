@@ -14,14 +14,14 @@ let string_of_op (op: UHExp.op) =>
 
 let rec make_skel_str' (seq: UHExp.opseq) (counter: ref int) (ph_map: Hashtbl.t int UHExp.t) =>
   switch seq {
-  | UHExp.ExpOpExp e1 op e2 =>
+  | OperatorSeq.ExpOpExp e1 op e2 =>
     let n = !counter;
     counter := n + 2;
     Hashtbl.add ph_map n e1;
     Hashtbl.add ph_map (n + 1) e2;
     let op_str = string_of_op op;
     string_of_int n ^ op_str ^ string_of_int (n + 1)
-  | UHExp.SeqOpExp seq' op e =>
+  | OperatorSeq.SeqOpExp seq' op e =>
     let skel_str = make_skel_str' seq' counter ph_map;
     let op_str = string_of_op op;
     let n = !counter;
