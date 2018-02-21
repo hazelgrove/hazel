@@ -1923,11 +1923,11 @@ Module Core.
             Some (ze', HTyp.Hole, u_gen')
           | (Backspace, ZExp.Deeper _
               (ZExp.OpSeqZ _
-                ((ZExp.CursorE Before _) as ze0) 
+                ((ZExp.CursorE Before e0) as ze0) 
                 ((OperatorSeq.EmptySuffix _) as surround)))
           | (Backspace, ZExp.Deeper _
               (ZExp.OpSeqZ _
-                ((ZExp.CursorE Before _) as ze0) 
+                ((ZExp.CursorE Before e0) as ze0) 
                 ((OperatorSeq.BothNonEmpty _ _) as surround))) =>
               match surround with 
               | OperatorSeq.EmptyPrefix _ => None (* precluded by pattern match above *)
@@ -1941,9 +1941,26 @@ Module Core.
                     let ze0' := combine_for_Backspace_Space e1 ze0 in  
                     zexp_syn_fix_holes fuel ctx u_gen ze0' 
                   | _ => 
-                    (* e1 op1 |ze0 --> e1 |ze0 *)
-                    let surround' := OperatorSeq.EmptySuffix (OperatorSeq.ExpPrefix e1 UHExp.Space) in 
-                    make_and_syn_OpSeqZ fuel ctx u_gen ze0 surround' 
+                    match (e1, e0) with 
+                    | (UHExp.Tm _ (UHExp.EmptyHole _), 
+                       UHExp.Tm _ (UHExp.EmptyHole _)) => 
+                      (* _1 op1 |_0 --> _1| *)
+                      let ze0' := ZExp.CursorE After e1 in 
+                      Some (ze0', HTyp.Hole, u_gen)
+                    | (UHExp.Tm _ (UHExp.EmptyHole _), _) => 
+                      (* _1 op1 |e0 --> |e0 *)
+                      zexp_syn_fix_holes fuel ctx u_gen ze0
+                    | (_, UHExp.Tm _ (UHExp.EmptyHole _)) => 
+                      (* e1 op1 |_0 --> e1| *)
+                      let ze0' := ZExp.CursorE After e1 in 
+                      zexp_syn_fix_holes fuel ctx u_gen ze0'
+                    | _ => 
+                      (* e1 op1 |ze0 --> e1 |ze0 *)
+                      let surround' := 
+                        OperatorSeq.EmptySuffix 
+                          (OperatorSeq.ExpPrefix e1 UHExp.Space) in 
+                      make_and_syn_OpSeqZ fuel ctx u_gen ze0 surround' 
+                    end
                   end
                 | OperatorSeq.SeqPrefix seq1 op1 => 
                   (* seq1 op1 |ze0 *)
@@ -1955,10 +1972,23 @@ Module Core.
                     let ze0' := combine_for_Backspace_Space e1 ze0 in 
                     make_and_syn_OpSeqZ fuel ctx u_gen ze0' surround'
                   | _ => 
-                    (* seq1 op1 |ze0 --> seq1 |ze0 *)
-                    let prefix' := OperatorSeq.SeqPrefix seq1 (UHExp.Space) in 
-                    let surround' := OperatorSeq.EmptySuffix prefix' in 
-                    make_and_syn_OpSeqZ fuel ctx u_gen ze0 surround' 
+                    let (e1, prefix') := OperatorSeq.split_tail seq1 in 
+                    match (e1, e0) with 
+                    | (_, UHExp.Tm _ (UHExp.EmptyHole _)) => 
+                      (* prefix' e1 op1 |_0 --> prefix' e1| *)
+                      let surround' := OperatorSeq.EmptySuffix prefix' in 
+                      let ze0' := ZExp.CursorE After e1 in 
+                      make_and_syn_OpSeqZ fuel ctx u_gen ze0' surround'
+                    | (UHExp.Tm _ (UHExp.EmptyHole _), _) => 
+                      (* prefix' _1 op1 |e0 --> prefix' |e0 *)
+                      let surround' := OperatorSeq.EmptySuffix prefix' in 
+                      make_and_syn_OpSeqZ fuel ctx u_gen ze0 surround'
+                    | _ => 
+                      (* seq1 op1 |ze0 --> seq1 |ze0 *)
+                      let prefix' := OperatorSeq.SeqPrefix seq1 (UHExp.Space) in 
+                      let surround' := OperatorSeq.EmptySuffix prefix' in 
+                      make_and_syn_OpSeqZ fuel ctx u_gen ze0 surround' 
+                    end
                   end
                 end
               | OperatorSeq.BothNonEmpty prefix suffix => 
@@ -1972,9 +2002,24 @@ Module Core.
                     let surround' := OperatorSeq.EmptyPrefix suffix in 
                     make_and_syn_OpSeqZ fuel ctx u_gen ze0' surround'
                   | _ => 
+                    match (e1, e0) with 
+                    | (_, UHExp.Tm _ (UHExp.EmptyHole _)) => 
+                      (* e1 op1 |_0 suffix --> e1| suffix *)
+                      let surround' := OperatorSeq.EmptyPrefix suffix in 
+                      let ze0' := ZExp.CursorE After e1 in 
+                      make_and_syn_OpSeqZ fuel ctx u_gen ze0' surround'
+                    | (UHExp.Tm _ (UHExp.EmptyHole _), _) => 
+                      (* _1 op1 |e0 suffix --> |e0 suffix *)
+                      let surround' := OperatorSeq.EmptyPrefix suffix in 
+                      make_and_syn_OpSeqZ fuel ctx u_gen ze0 surround'
+                    | _ => 
                     (* e1 op1 |ze0 --> e1 |ze0 ...suffix *)
-                    let surround' := OperatorSeq.BothNonEmpty (OperatorSeq.ExpPrefix e1 UHExp.Space) suffix in 
-                    make_and_syn_OpSeqZ fuel ctx u_gen ze0 surround' 
+                      let surround' := 
+                        OperatorSeq.BothNonEmpty 
+                          (OperatorSeq.ExpPrefix e1 UHExp.Space) 
+                          suffix in 
+                      make_and_syn_OpSeqZ fuel ctx u_gen ze0 surround' 
+                    end
                   end
                 | OperatorSeq.SeqPrefix seq1 op1 => 
                   (* seq1 op1 |ze0 ...suffix *)
@@ -1986,10 +2031,23 @@ Module Core.
                     let surround' := OperatorSeq.BothNonEmpty prefix' suffix in 
                     make_and_syn_OpSeqZ fuel ctx u_gen ze0' surround'
                   | _ => 
-                    (* seq1 op1 |ze0 --> seq1 |ze0 ...suffix *)
-                    let prefix' := OperatorSeq.SeqPrefix seq1 (UHExp.Space) in 
-                    let surround' := OperatorSeq.BothNonEmpty prefix' suffix in 
-                    make_and_syn_OpSeqZ fuel ctx u_gen ze0 surround' 
+                    let (e1, prefix') := OperatorSeq.split_tail seq1 in 
+                    match (e1, e0) with 
+                    | (_, UHExp.Tm _ (UHExp.EmptyHole _)) => 
+                      (* prefix' e1 op1 |_0 suffix --> prefix' e1| suffix *)
+                      let surround' := OperatorSeq.BothNonEmpty prefix' suffix in 
+                      let ze0' := ZExp.CursorE After e1 in 
+                      make_and_syn_OpSeqZ fuel ctx u_gen ze0' surround'
+                    | (UHExp.Tm _ (UHExp.EmptyHole _), _) => 
+                      (* prefix' _1 op1 |e0 suffix --> prefix' |e0 suffix *)
+                      let surround' := OperatorSeq.BothNonEmpty prefix' suffix in 
+                      make_and_syn_OpSeqZ fuel ctx u_gen ze0 surround'
+                    | _ => 
+                      (* seq1 op1 |ze0 suffix --> seq1 |ze0 suffix *)
+                      let prefix' := OperatorSeq.SeqPrefix seq1 (UHExp.Space) in 
+                      let surround' := OperatorSeq.BothNonEmpty prefix' suffix in 
+                      make_and_syn_OpSeqZ fuel ctx u_gen ze0 surround' 
+                    end
                   end
                 end
               end
@@ -2005,17 +2063,30 @@ Module Core.
             | OperatorSeq.EmptySuffix _ => None (* precluded by pattern match above *)
             | OperatorSeq.EmptyPrefix suffix => 
               match suffix with 
-              | OperatorSeq.ExpSuffix op e => 
+              | OperatorSeq.ExpSuffix op e1 => 
                 match op with 
                 | UHExp.Space => 
-                  let ze0' := combine_for_Delete_Space ze0 e in 
+                  let ze0' := combine_for_Delete_Space ze0 e1 in 
                   zexp_syn_fix_holes fuel ctx u_gen ze0'  
                 | _ => 
-                  (* e0| op e --> e0| e *)
-                  let surround' := OperatorSeq.EmptyPrefix (OperatorSeq.ExpSuffix UHExp.Space e) in 
-                  match make_and_syn_OpSeqZ fuel ctx u_gen ze0 surround' with 
-                  | Some (ze, ty, u_gen') => Some (ze, ty, u_gen')
-                  | None => None
+                  match (e0, e1) with 
+                  | (UHExp.Tm _ (UHExp.EmptyHole _), 
+                     UHExp.Tm _ (UHExp.EmptyHole _)) => 
+                    (* _0| op _1 --> _0| *)
+                    Some (ze0, HTyp.Hole, u_gen)
+                  | (UHExp.Tm _ (UHExp.EmptyHole _), _) => 
+                    (* _0| op e1 --> |e1 *)
+                    let ze1 := ZExp.CursorE Before e1  in 
+                    zexp_syn_fix_holes fuel ctx u_gen ze1
+                  | (_, UHExp.Tm _ (UHExp.EmptyHole _)) => 
+                    (* e0| op _ --> e0| *)
+                    zexp_syn_fix_holes fuel ctx u_gen ze0
+                  | _ => 
+                    (* e0| op e1 --> e0| e1 *)
+                    let surround' := 
+                      OperatorSeq.EmptyPrefix 
+                        (OperatorSeq.ExpSuffix UHExp.Space e1) in 
+                    make_and_syn_OpSeqZ fuel ctx u_gen ze0 surround' 
                   end
                 end
               | OperatorSeq.SeqSuffix op seq => 
@@ -2026,24 +2097,51 @@ Module Core.
                   let ze0' := combine_for_Delete_Space ze0 e in 
                   make_and_syn_OpSeqZ fuel ctx u_gen ze0' surround'
                 | _ => 
-                  (* e| op seq --> e| seq *)
-                  let suffix' := OperatorSeq.SeqSuffix UHExp.Space seq in 
-                  let surround' := OperatorSeq.EmptyPrefix suffix' in 
-                  make_and_syn_OpSeqZ fuel ctx u_gen ze0 surround' 
+                  let (e1, suffix') := OperatorSeq.split0 seq in 
+                  match (e0, e1) with 
+                  | (_, UHExp.Tm _ (UHExp.EmptyHole _)) => 
+                    (* e0| op _ suffix' --> e0| suffix' *)
+                    let surround' := OperatorSeq.EmptyPrefix suffix' in 
+                    make_and_syn_OpSeqZ fuel ctx u_gen ze0 surround'
+                  | (UHExp.Tm _ (UHExp.EmptyHole _), _) => 
+                    (* _0| op e1 suffix' --> |e1 suffix' *)
+                    let surround' := OperatorSeq.EmptyPrefix suffix' in 
+                    let ze1 := ZExp.CursorE Before e1  in 
+                    make_and_syn_OpSeqZ fuel ctx u_gen ze1 surround'
+                  | _ => 
+                    (* e0| op seq --> e0| seq *)
+                    let suffix' := OperatorSeq.SeqSuffix UHExp.Space seq in 
+                    let surround' := OperatorSeq.EmptyPrefix suffix' in 
+                    make_and_syn_OpSeqZ fuel ctx u_gen ze0 surround' 
+                  end
                 end
               end
             | OperatorSeq.BothNonEmpty prefix suffix => 
               match suffix with 
-              | OperatorSeq.ExpSuffix op e => 
+              | OperatorSeq.ExpSuffix op e1 => 
                 match op with 
                 | UHExp.Space => 
-                  let ze0' := combine_for_Delete_Space ze0 e in 
+                  let ze0' := combine_for_Delete_Space ze0 e1 in 
                   let surround' := OperatorSeq.EmptySuffix prefix in 
                   make_and_syn_OpSeqZ fuel ctx u_gen ze0' surround'
                 | _ => 
-                  (* e0| op e --> e0| e *)
-                  let surround' := OperatorSeq.BothNonEmpty prefix (OperatorSeq.ExpSuffix UHExp.Space e) in 
-                  make_and_syn_OpSeqZ fuel ctx u_gen ze0 surround'
+                  match (e0, e1) with 
+                  | (_, UHExp.Tm _ (UHExp.EmptyHole _)) => 
+                    (* prefix e0| op _ --> prefix e0| *)
+                    let surround' := OperatorSeq.EmptySuffix prefix in 
+                    make_and_syn_OpSeqZ fuel ctx u_gen ze0 surround'
+                  | (UHExp.Tm _ (UHExp.EmptyHole _), _) => 
+                    (* prefix _0| op e1 --> prefix |e1 *)
+                    let surround' := OperatorSeq.EmptySuffix prefix in 
+                    let ze1 := ZExp.CursorE Before e1  in 
+                    make_and_syn_OpSeqZ fuel ctx u_gen ze1 surround'
+                  | _ => 
+                    (* prefix e0| op e1 --> e0| e1 *)
+                    let surround' := 
+                      OperatorSeq.BothNonEmpty prefix 
+                        (OperatorSeq.ExpSuffix UHExp.Space e1) in 
+                    make_and_syn_OpSeqZ fuel ctx u_gen ze0 surround'
+                  end
                 end
               | OperatorSeq.SeqSuffix op seq => 
                 match op with 
@@ -2053,10 +2151,23 @@ Module Core.
                   let surround' := OperatorSeq.BothNonEmpty prefix suffix' in 
                   make_and_syn_OpSeqZ fuel ctx u_gen ze0' surround'
                 | _ => 
-                  (* prefix e| op seq --> e| seq *)
-                  let suffix' := OperatorSeq.SeqSuffix UHExp.Space seq in 
-                  let surround' := OperatorSeq.BothNonEmpty prefix suffix' in 
-                  make_and_syn_OpSeqZ fuel ctx u_gen ze0 surround'
+                  let (e1, suffix') := OperatorSeq.split0 seq in 
+                  match (e0, e1) with 
+                  | (_, UHExp.Tm _ (UHExp.EmptyHole _)) => 
+                    (* prefix e0| op _ suffix' --> prefix e0| suffix' *)
+                    let surround' := OperatorSeq.BothNonEmpty prefix suffix' in 
+                    make_and_syn_OpSeqZ fuel ctx u_gen ze0 surround'
+                  | (UHExp.Tm _ (UHExp.EmptyHole _), _) => 
+                    (* prefix _0| op e1 suffix' --> prefix |e1 suffix' *)
+                    let surround' := OperatorSeq.BothNonEmpty prefix suffix' in 
+                    let ze1 := ZExp.CursorE Before e1  in 
+                    make_and_syn_OpSeqZ fuel ctx u_gen ze1 surround'
+                  | _ => 
+                    (* prefix e| op seq --> e| seq *)
+                    let suffix' := OperatorSeq.SeqSuffix UHExp.Space seq in 
+                    let surround' := OperatorSeq.BothNonEmpty prefix suffix' in 
+                    make_and_syn_OpSeqZ fuel ctx u_gen ze0 surround'
+                  end
                 end
               end
             end
@@ -2397,7 +2508,7 @@ Module Core.
               let uty' := ZTyp.erase zty' in
               let ty' := UHTyp.expand fuel uty' in 
               match UHExp.ana_fix_holes fuel ctx u_gen e ty' with 
-              | None => None (* TODO remove: Associator.none_A (ZExp.t * HTyp.t * MetaVar.gen) tt *)
+              | None => None
               | Some (e', u_gen') => 
                 Some (
                   ZExp.Deeper NotInHole (ZExp.AscZ2 e' zty'), 
@@ -2517,15 +2628,39 @@ Module Core.
         let (e', u_gen') := UHExp.new_EmptyHole u_gen in 
         let ze' := ZExp.CursorE Before e' in 
         Some (ze', u_gen')
-      (* special cases for backspace/delete that can turn an opseq back into a single expression *)
+      (* special cases for backspace/delete that can turn 
+       * an opseq back into a single expression *)
       | (Backspace, 
-          ZExp.Deeper _ 
-            (ZExp.OpSeqZ _
-              ((ZExp.CursorE Before _) as ze0)
-              (OperatorSeq.EmptySuffix
-                (OperatorSeq.ExpPrefix e1 UHExp.Space)))) => 
+          ZExp.Deeper _ (ZExp.OpSeqZ _
+            ((ZExp.CursorE Before _) as ze0)
+            (OperatorSeq.EmptySuffix
+              (OperatorSeq.ExpPrefix e1 UHExp.Space)))) => 
         let ze0' := combine_for_Backspace_Space e1 ze0 in 
         zexp_ana_fix_holes fuel ctx u_gen ze0' ty
+      | (Backspace, 
+          ZExp.Deeper _ (ZExp.OpSeqZ _
+            ((ZExp.CursorE Before 
+              (UHExp.Tm _ (UHExp.EmptyHole _))) as ze0)
+            (OperatorSeq.EmptySuffix 
+              (OperatorSeq.ExpPrefix 
+                ((UHExp.Tm _ (UHExp.EmptyHole _)) as e1) _)))) => 
+        let ze1 := ZExp.CursorE After e1 in 
+        Some (ze1, u_gen)
+      | (Backspace, 
+          ZExp.Deeper _ (ZExp.OpSeqZ _
+            ((ZExp.CursorE Before _) as ze0)
+            (OperatorSeq.EmptySuffix 
+              (OperatorSeq.ExpPrefix 
+                (UHExp.Tm _ (UHExp.EmptyHole _)) _)))) => 
+        zexp_ana_fix_holes fuel ctx u_gen ze0 ty
+      | (Backspace, 
+          ZExp.Deeper _ (ZExp.OpSeqZ _
+            ((ZExp.CursorE Before 
+              (UHExp.Tm _ (UHExp.EmptyHole _))) as ze0)
+            (OperatorSeq.EmptySuffix 
+              (OperatorSeq.ExpPrefix e1 _)))) => 
+        let ze1 := ZExp.CursorE After e1 in 
+        zexp_ana_fix_holes fuel ctx u_gen ze1 ty
       | (Delete, 
           ZExp.Deeper _
             (ZExp.OpSeqZ _
@@ -2534,6 +2669,29 @@ Module Core.
                 (OperatorSeq.ExpSuffix UHExp.Space e1)))) => 
         let ze0' := combine_for_Delete_Space ze0 e1 in 
         zexp_ana_fix_holes fuel ctx u_gen ze0' ty
+      | (Delete, 
+          ZExp.Deeper _ (ZExp.OpSeqZ _
+            ((ZExp.CursorE After 
+              (UHExp.Tm _ (UHExp.EmptyHole _))) as ze0)
+            (OperatorSeq.EmptyPrefix 
+              (OperatorSeq.ExpSuffix _ 
+                ((UHExp.Tm _ (UHExp.EmptyHole _)) as e1))))) => 
+        Some (ze0, u_gen)
+      | (Delete, 
+          ZExp.Deeper _ (ZExp.OpSeqZ _
+            ((ZExp.CursorE After 
+              (UHExp.Tm _ (UHExp.EmptyHole _))) as ze0)
+            (OperatorSeq.EmptyPrefix 
+              (OperatorSeq.ExpSuffix _ e1)))) => 
+        let ze1 := ZExp.CursorE Before e1 in 
+        zexp_ana_fix_holes fuel ctx u_gen ze1 ty
+      | (Delete, 
+          ZExp.Deeper _ (ZExp.OpSeqZ _
+            ((ZExp.CursorE After _) as ze0)
+            (OperatorSeq.EmptyPrefix 
+              (OperatorSeq.ExpSuffix _ 
+                (UHExp.Tm _ (UHExp.EmptyHole _)))))) => 
+        zexp_ana_fix_holes fuel ctx u_gen ze0 ty
       (* Construction *)
       | (Construct SParenthesized, ZExp.CursorE _ e) => 
         Some (

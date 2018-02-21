@@ -26,7 +26,7 @@ let make_palette ((ms, es, do_action): Model.mt) set_cursor => {
         (
           fun evt => {
             let key = Js_util.get_key evt;
-            Js_util.log key;
+            /* Js_util.log key; */
             if (key == KC.key key_combo) {
               doAction action;
               Dom.preventDefault evt
