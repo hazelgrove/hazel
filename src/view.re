@@ -27,8 +27,8 @@ let rec id_of_rev_path rev_path =>
 
 let cls_from err_status cls =>
   switch err_status {
-  | UHExp.InHole u => [cls, "in_err_hole", "in_err_hole_" ^ string_of_int u]
-  | UHExp.NotInHole => [cls]
+  | InHole u => [cls, "in_err_hole", "in_err_hole_" ^ string_of_int u]
+  | NotInHole => [cls]
   };
 
 let term err_status rev_path cls doc => {
@@ -39,6 +39,57 @@ let term err_status rev_path cls doc => {
 let optionalBreakSp = PP.optionalBreak " ";
 
 let optionalBreakNSp = PP.optionalBreak "";
+
+let of_Parenthesized rev_path r1 =>
+  term
+    NotInHole
+    rev_path
+    "Parenthesized"
+    (taggedText "openParens" "(" ^^ r1 ^^ taggedText "closeParens" ")");
+
+let rec str_of_expr_op op =>
+  switch op {
+  | UHExp.Plus => ("+", "op-Plus")
+  | UHExp.Times => ("*", "op-Times")
+  | UHExp.Space => (" ", "op-Space")
+  };
+
+let rec str_of_ty_op op =>
+  switch op {
+  | UHTyp.Sum => ("|", "op-Sum")
+  | UHTyp.Arrow => ("\226\134\146", "op-Arrow")
+  };
+
+let rec of_op_with_space str_of_op op => {
+  let (op_s, op_cls) = str_of_op op;
+  PP.tagged
+    ["seq-op", op_cls]
+    None
+    (
+      taggedText "op-before-1" "\226\128\139\226\128\139" ^^
+      taggedText "op-before-2" "\226\128\140" ^^
+      taggedText "op-center" (" " ^ op_s ^ " ") ^^
+      taggedText "op-after-1" "\226\128\139" ^^ taggedText "op-after-2" "\226\128\139"
+    )
+};
+
+let of_expr_op_with_space = of_op_with_space str_of_expr_op;
+
+let of_ty_op_with_space = of_op_with_space str_of_ty_op;
+
+let rec of_op_no_space str_of_op op => {
+  let (op_s, op_cls) = str_of_op op;
+  PP.tagged ["seq-op", op_cls] None (taggedText "op-no-margin" op_s)
+};
+
+let of_expr_op_no_space = of_op_no_space str_of_expr_op;
+
+let rec of_expr_op op =>
+  switch op {
+  | UHExp.Plus => of_expr_op_with_space op
+  | UHExp.Times => of_expr_op_no_space op
+  | UHExp.Space => of_expr_op_no_space op
+  };
 
 /* empty holes */
 let of_Hole err_status rev_path cls hole_name =>
@@ -54,39 +105,60 @@ let of_Hole err_status rev_path cls hole_name =>
     );
 
 /* types */
+let of_Num rev_path => term NotInHole rev_path "Num" (kw "num");
+
 let rec of_ty_op cls op_s err_status rev_path r1 r2 =>
   term err_status rev_path cls (r1 ^^ optionalBreakSp ^^ op op_s ^^ optionalBreakSp ^^ r2);
 
 let of_Arrow = of_ty_op "Arrow" "\226\134\146";
 
-let of_Sum = of_ty_op "Sum" "+";
+let of_Sum = of_ty_op "Sum" "|";
 
 let rec of_htype rev_path ty =>
   switch ty {
-  | HTyp.Num => term UHExp.NotInHole rev_path "Num" (kw "num")
+  | HTyp.Num => of_Num rev_path
   | HTyp.Arrow ty1 ty2 =>
     let rev_path1 = [0, ...rev_path];
     let rev_path2 = [1, ...rev_path];
     let r1 = of_htype rev_path1 ty1;
     let r2 = of_htype rev_path2 ty2;
-    of_Arrow UHExp.NotInHole rev_path r1 r2
+    of_Arrow NotInHole rev_path r1 r2
   | HTyp.Sum ty1 ty2 =>
     let rev_path1 = [0, ...rev_path];
     let rev_path2 = [1, ...rev_path];
     let r1 = of_htype rev_path1 ty1;
     let r2 = of_htype rev_path2 ty2;
-    of_Sum UHExp.NotInHole rev_path r1 r2
-  | HTyp.Hole => of_Hole UHExp.NotInHole rev_path "Hole" "?"
+    of_Sum NotInHole rev_path r1 r2
+  | HTyp.Hole => of_Hole NotInHole rev_path "Hole" "?"
+  };
+
+let rec of_uhtyp rev_path uty =>
+  switch uty {
+  | UHTyp.Parenthesized uty1 =>
+    let rev_path1 = [0, ...rev_path];
+    let r1 = of_uhtyp rev_path1 uty1;
+    of_Parenthesized rev_path r1
+  | UHTyp.Num => of_Num rev_path
+  | UHTyp.OpSeq skel seq => term NotInHole rev_path "OpSeq" (of_uhtyp_skel rev_path skel seq)
+  | UHTyp.Hole => of_Hole NotInHole rev_path "Hole" "?"
+  }
+and of_uhtyp_skel rev_path skel seq =>
+  switch skel {
+  | Skel.Placeholder n =>
+    switch (OperatorSeq.seq_nth n seq) {
+    | Some utyn =>
+      let rev_path_n = [n, ...rev_path];
+      of_uhtyp rev_path_n utyn
+    | None => raise InvariantViolated
+    }
+  | Skel.BinOp _ op skel1 skel2 =>
+    let r1 = of_uhtyp_skel rev_path skel1 seq;
+    let r2 = of_uhtyp_skel rev_path skel2 seq;
+    let op_pp = of_ty_op_with_space op;
+    PP.tagged ["skel-binop"] None (r1 ^^ op_pp ^^ r2)
   };
 
 /* h-exps and z-exps */
-let of_Parenthesized rev_path r1 =>
-  term
-    UHExp.NotInHole
-    rev_path
-    "Parenthesized"
-    (taggedText "openParens" "(" ^^ r1 ^^ taggedText "closeParens" ")");
-
 let of_Asc err_status rev_path r1 r2 =>
   term err_status rev_path "Asc" (r1 ^^ space ^^ op ":" ^^ space ^^ r2);
 
@@ -245,47 +317,6 @@ let of_chained_FailedCast err_status rev_path r1 rty1 rty2 rty4 =>
       parens "<" ^^ rty1 ^^ failed_cast_arrow ^^ rty2 ^^ failed_cast_arrow ^^ rty4 ^^ parens ">"
     );
 
-let rec str_of_op op =>
-  switch op {
-  | UHExp.Plus => ("+", "op-Plus")
-  | UHExp.Times => ("*", "op-Times")
-  | UHExp.Space => (" ", "op-Space")
-  };
-
-let rec of_op_with_space op => {
-  let (op_s, op_cls) = str_of_op op;
-  PP.tagged
-    ["seq-op", op_cls]
-    None
-    (
-      taggedText "op-before-1" "\226\128\139\226\128\139" ^^
-      taggedText "op-before-2" "\226\128\140" ^^
-      taggedText "op-center" (" " ^ op_s ^ " ") ^^
-      taggedText "op-after-1" "\226\128\139" ^^ taggedText "op-after-2" "\226\128\139"
-    )
-};
-
-let rec of_op_no_space op => {
-  let (op_s, op_cls) = str_of_op op;
-  PP.tagged ["seq-op", op_cls] None (taggedText "op-no-margin" op_s)
-};
-
-let rec of_op op =>
-  switch op {
-  | UHExp.Plus => of_op_with_space op
-  | UHExp.Times => of_op_no_space op
-  | UHExp.Space => of_op_no_space op
-  };
-
-let rec of_bin_num_op op =>
-  switch op {
-  | Dynamics.DHExp.Plus => taggedText "bin_num_op" " + "
-  | Dynamics.DHExp.Times => taggedText "bin_num_op" "*"
-  };
-
-let of_BinNumOp err_status rev_path op r1 r2 =>
-  term err_status rev_path "BinNumOp" (parens "(" ^^ r1 ^^ of_bin_num_op op ^^ r2 ^^ parens ")");
-
 let rec of_hexp rev_path e =>
   switch e {
   | UHExp.Parenthesized e1 =>
@@ -298,7 +329,7 @@ let rec of_hexp rev_path e =>
       let rev_path1 = [0, ...rev_path];
       let rev_path2 = [1, ...rev_path];
       let r1 = of_hexp rev_path1 e1;
-      let r2 = of_htype rev_path2 ty;
+      let r2 = of_uhtyp rev_path2 ty;
       of_Asc err_status rev_path r1 r2
     | UHExp.Var x => of_Var err_status rev_path x
     | UHExp.Let x e e' =>
@@ -330,24 +361,35 @@ let rec of_hexp rev_path e =>
   }
 and of_skel rev_path skel seq =>
   switch skel {
-  | UHExp.Skel.Placeholder n =>
+  | Skel.Placeholder n =>
     switch (OperatorSeq.seq_nth n seq) {
     | Some en =>
       let rev_path_n = [n, ...rev_path];
       of_hexp rev_path_n en
     | None => raise InvariantViolated
     }
-  | UHExp.Skel.BinOp err_status op skel1 skel2 =>
+  | Skel.BinOp err_status op skel1 skel2 =>
     let r1 = of_skel rev_path skel1 seq;
     let r2 = of_skel rev_path skel2 seq;
     let op_pp =
       switch (skel1, op, skel2) {
-      | (UHExp.Skel.BinOp _ UHExp.Space _ _, UHExp.Times, _)
-      | (_, UHExp.Times, UHExp.Skel.BinOp _ UHExp.Space _ _) => of_op_with_space op
-      | _ => of_op op
+      | (Skel.BinOp _ UHExp.Space _ _, UHExp.Times, _)
+      | (_, UHExp.Times, Skel.BinOp _ UHExp.Space _ _) => of_expr_op_with_space op
+      | _ => of_expr_op op
       };
-    PP.tagged ["skel-binop"] None (r1 ^^ op_pp ^^ r2)
+    let cls = "skel-binop";
+    let cls' = cls_from err_status cls;
+    PP.tagged cls' None (r1 ^^ op_pp ^^ r2)
   };
+
+let rec of_bin_num_op op =>
+  switch op {
+  | Dynamics.DHExp.Plus => taggedText "bin_num_op" " + "
+  | Dynamics.DHExp.Times => taggedText "bin_num_op" "*"
+  };
+
+let of_BinNumOp err_status rev_path op r1 r2 =>
+  term err_status rev_path "BinNumOp" (parens "(" ^^ r1 ^^ of_bin_num_op op ^^ r2 ^^ parens ")");
 
 let rec of_dhexp err_status rev_path d =>
   Dynamics.DHExp.(
@@ -356,41 +398,41 @@ let rec of_dhexp err_status rev_path d =>
     | Let x d1 d2 =>
       let rev_path1 = [0, ...rev_path];
       let rev_path2 = [1, ...rev_path];
-      let r1 = of_dhexp UHExp.NotInHole rev_path1 d1;
-      let r2 = of_dhexp UHExp.NotInHole rev_path2 d2;
+      let r1 = of_dhexp NotInHole rev_path1 d1;
+      let r2 = of_dhexp NotInHole rev_path2 d2;
       of_Let err_status rev_path x r1 r2
     | Lam x ty d1 =>
       let rev_path1 = [0, ...rev_path];
       let rev_path2 = [1, ...rev_path];
       let r1 = of_htype rev_path1 ty;
-      let r2 = of_dhexp UHExp.NotInHole rev_path2 d1;
+      let r2 = of_dhexp NotInHole rev_path2 d1;
       of_LamAnn err_status rev_path x r1 r2
     | Ap d1 d2 =>
       let rev_path1 = [0, ...rev_path];
       let rev_path2 = [1, ...rev_path];
-      let r1 = of_dhexp UHExp.NotInHole rev_path1 d1;
-      let r2 = of_dhexp UHExp.NotInHole rev_path2 d2;
+      let r1 = of_dhexp NotInHole rev_path1 d1;
+      let r2 = of_dhexp NotInHole rev_path2 d2;
       of_Ap err_status rev_path r1 r2
     | NumLit n => of_NumLit err_status rev_path n
     | BinNumOp op d1 d2 =>
       let rev_path1 = [0, ...rev_path];
       let rev_path2 = [1, ...rev_path];
-      let r1 = of_dhexp UHExp.NotInHole rev_path1 d1;
-      let r2 = of_dhexp UHExp.NotInHole rev_path2 d2;
+      let r1 = of_dhexp NotInHole rev_path1 d1;
+      let r2 = of_dhexp NotInHole rev_path2 d2;
       of_BinNumOp err_status rev_path op r1 r2
     | Inj ty side d1 =>
       let rev_path1 = [0, ...rev_path];
       let rev_path2 = [1, ...rev_path];
       let r1 = of_htype rev_path1 ty;
-      let r2 = of_dhexp UHExp.NotInHole rev_path2 d1;
+      let r2 = of_dhexp NotInHole rev_path2 d1;
       of_InjAnn err_status rev_path r1 side r2
     | Case d1 (x, d2) (y, d3) =>
       let rev_path1 = [0, ...rev_path];
       let rev_path2 = [1, ...rev_path];
       let rev_path3 = [2, ...rev_path];
-      let r1 = of_dhexp UHExp.NotInHole rev_path1 d1;
-      let r2 = of_dhexp UHExp.NotInHole rev_path2 d2;
-      let r3 = of_dhexp UHExp.NotInHole rev_path3 d3;
+      let r1 = of_dhexp NotInHole rev_path1 d1;
+      let r2 = of_dhexp NotInHole rev_path2 d2;
+      let r3 = of_dhexp NotInHole rev_path3 d3;
       of_CaseAnn err_status rev_path r1 x r2 y r3
     | EmptyHole u sigma =>
       term
@@ -409,7 +451,7 @@ let rec of_dhexp err_status rev_path d =>
         rev_path
         "NonEmptyHole"
         (
-          of_dhexp (UHExp.InHole u) rev_path1 d1 ^^
+          of_dhexp (InHole u) rev_path1 d1 ^^
           PP.tagged
             ["hole-decorations"] None (PP.tagged ["environment"] None (of_sigma rev_path sigma))
         )
@@ -420,7 +462,7 @@ let rec of_dhexp err_status rev_path d =>
       let inner_rev_path3 = [2, ...rev_path1];
       /* no rev_path2 because we're not showing them separately */
       let rev_path3 = [2, ...rev_path];
-      let r1 = of_dhexp UHExp.NotInHole inner_rev_path1 d1;
+      let r1 = of_dhexp NotInHole inner_rev_path1 d1;
       let r2 = of_htype inner_rev_path2 ty1;
       let r3 = of_htype inner_rev_path3 ty2;
       let r5 = of_htype rev_path3 ty4;
@@ -429,7 +471,7 @@ let rec of_dhexp err_status rev_path d =>
       let rev_path1 = [0, ...rev_path];
       let rev_path2 = [1, ...rev_path];
       let rev_path3 = [2, ...rev_path];
-      let r1 = of_dhexp UHExp.NotInHole rev_path1 d1;
+      let r1 = of_dhexp NotInHole rev_path1 d1;
       let r2 = of_htype rev_path2 ty1;
       let r3 = of_htype rev_path3 ty2;
       of_Cast err_status rev_path r1 r2 r3
@@ -440,7 +482,7 @@ let rec of_dhexp err_status rev_path d =>
       let inner_rev_path3 = [2, ...rev_path1];
       /* no rev_path2 because we're not showing them separately */
       let rev_path3 = [2, ...rev_path];
-      let r1 = of_dhexp UHExp.NotInHole inner_rev_path1 d1;
+      let r1 = of_dhexp NotInHole inner_rev_path1 d1;
       let r2 = of_htype inner_rev_path2 ty1;
       let r3 = of_htype inner_rev_path3 ty2;
       let r5 = of_htype rev_path3 ty4;
@@ -449,14 +491,14 @@ let rec of_dhexp err_status rev_path d =>
       let rev_path1 = [0, ...rev_path];
       let rev_path2 = [1, ...rev_path];
       let rev_path3 = [2, ...rev_path];
-      let r1 = of_dhexp UHExp.NotInHole rev_path1 d1;
+      let r1 = of_dhexp NotInHole rev_path1 d1;
       let r2 = of_htype rev_path2 ty1;
       let r3 = of_htype rev_path3 ty2;
       of_FailedCast err_status rev_path r1 r2 r3
     }
   )
 and of_sigma rev_path sigma => {
-  let map_f (x, d) => of_dhexp UHExp.NotInHole rev_path d ^^ kw "/" ^^ PP.text "" x;
+  let map_f (x, d) => of_dhexp NotInHole rev_path d ^^ kw "/" ^^ PP.text "" x;
   let docs = List.map map_f sigma;
   let doc' =
     switch docs {

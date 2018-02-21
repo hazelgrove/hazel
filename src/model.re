@@ -7,7 +7,7 @@ let u_gen0: MetaVar.gen = MetaVar.new_gen;
 
 let (u, u_gen1) = MetaVar.next u_gen0;
 
-let empty_ze = ZExp.CursorE ZExp.Before (UHExp.Tm UHExp.NotInHole (UHExp.EmptyHole u));
+let empty_ze = ZExp.CursorE Before (UHExp.Tm NotInHole (UHExp.EmptyHole u));
 
 let empty: t = ((empty_ze, HTyp.Hole), u_gen1);
 

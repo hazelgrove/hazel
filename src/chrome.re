@@ -133,9 +133,9 @@ let view ((ms, es, do_action): Model.mt) => {
     let cursor_elem = Js_util.forceGetElementById id;
     let cursor_node: Js.t Dom.node = Js.Unsafe.coerce cursor_elem;
     switch cursor_side {
-    | ZExp.Before
-    | ZExp.On => move_cursor_before (first_leaf cursor_node)
-    | ZExp.After => move_cursor_after (last_leaf cursor_node)
+    | Before
+    | On => move_cursor_before (first_leaf cursor_node)
+    | After => move_cursor_after (last_leaf cursor_node)
     }
   };
   /* Construct a simple DOM change listener to trigger cursor
@@ -503,14 +503,14 @@ let view ((ms, es, do_action): Model.mt) => {
       let anchor_elem = get_anchor_elem anchor;
       let anchor_classList = anchor_elem##.classList;
       if (has_class anchor_classList "openParens") {
-        ZExp.Before
+        Before
       } else {
-        ZExp.After
+        After
       }
     } else if (
       ast_has_class "Asc"
     ) {
-      ZExp.On
+      On
     } else if (
       ast_has_class "Let"
     ) {
@@ -519,12 +519,12 @@ let view ((ms, es, do_action): Model.mt) => {
       if (anchorOffset == 0) {
         let innerHTML = Js.to_string anchor_elem##.innerHTML;
         if (String.equal innerHTML "let") {
-          ZExp.Before
+          Before
         } else {
-          ZExp.On
+          On
         }
       } else {
-        ZExp.On
+        On
       }
     } else if (
       ast_has_class "Var" ||
@@ -533,15 +533,15 @@ let view ((ms, es, do_action): Model.mt) => {
       let anchorOffset = selection##.anchorOffset;
       Js_util.log anchorOffset;
       if (anchorOffset == 0) {
-        ZExp.Before
+        Before
       } else {
         let anchor_elem = get_anchor_elem anchor;
         let innerText = Js.to_string anchor_elem##.innerHTML;
         let length = String.length innerText;
         if (anchorOffset == length) {
-          ZExp.After
+          After
         } else {
-          ZExp.On
+          On
         }
       }
     } else if (
@@ -552,17 +552,17 @@ let view ((ms, es, do_action): Model.mt) => {
       if (anchorOffset == 0) {
         let innerHTML = Js.to_string anchor_elem##.innerHTML;
         if (String.equal innerHTML "\206\187") {
-          ZExp.Before
+          Before
         } else {
-          ZExp.On
+          On
         }
       } else {
-        ZExp.On
+        On
       }
     } else if (
       ast_has_class "Ap"
     ) {
-      ZExp.After
+      After
     } else if (
       ast_has_class "Inj"
     ) {
@@ -571,21 +571,21 @@ let view ((ms, es, do_action): Model.mt) => {
       if (anchorOffset == 0) {
         let innerHTML = Js.to_string anchor_elem##.innerHTML;
         if (String.equal innerHTML "inj") {
-          ZExp.Before
+          Before
         } else {
-          ZExp.On
+          On
         }
       } else if (
         anchorOffset == 1
       ) {
         let innerHTML = Js.to_string anchor_elem##.innerHTML;
         if (String.equal innerHTML ")") {
-          ZExp.After
+          After
         } else {
-          ZExp.On
+          On
         }
       } else {
-        ZExp.On
+        On
       }
     } else if (
       ast_has_class "Case"
@@ -595,12 +595,12 @@ let view ((ms, es, do_action): Model.mt) => {
       if (anchorOffset == 0) {
         let innerHTML = Js.to_string anchor_elem##.innerHTML;
         if (String.equal innerHTML "case") {
-          ZExp.Before
+          Before
         } else {
-          ZExp.On
+          On
         }
       } else {
-        ZExp.On
+        On
       }
     } else if (
       ast_has_class "EmptyHole" || ast_has_class "Hole"
@@ -608,32 +608,32 @@ let view ((ms, es, do_action): Model.mt) => {
       let anchor_elem = get_anchor_elem anchor;
       let anchor_has_class = has_class anchor_elem##.classList;
       if (anchor_has_class "hole-before-1") {
-        ZExp.Before
+        Before
       } else if (anchor_has_class "hole-after-2") {
-        ZExp.After
+        After
       } else {
         Js_util.log "weird hole cursor position";
-        ZExp.After
+        After
       }
     } else if (
       ast_has_class "Arrow"
     ) {
-      ZExp.On
+      On
     } else if (
       ast_has_class "Sum"
     ) {
-      ZExp.On
+      On
     } else {
       Js_util.log "Unknown ast element!";
       Js_util.log classList;
-      ZExp.On
+      On
     }
   };
   let string_of_cursor_side cursor_side =>
     switch cursor_side {
-    | ZExp.On => "On"
-    | ZExp.Before => "Before"
-    | ZExp.After => "After"
+    | On => "On"
+    | Before => "Before"
+    | After => "After"
     };
   let _ =
     Js_util.listen_to_t
@@ -707,7 +707,7 @@ let view ((ms, es, do_action): Model.mt) => {
             | Dynamics.Evaluator.InvalidInput => [Html5.pcdata "(internal error: invalid input)"]
             | Dynamics.Evaluator.BoxedValue d_val
             | Dynamics.Evaluator.Indet d_val =>
-              let pp_view = View.of_dhexp UHExp.NotInHole [] d_val;
+              let pp_view = View.of_dhexp NotInHole [] d_val;
               let (sdoc, _) = Pretty.PP.sdoc_of_doc pp_view_width pp_view;
               let prettified = Pretty.HTML_Of_SDoc.html_of_sdoc sdoc;
               [prettified]

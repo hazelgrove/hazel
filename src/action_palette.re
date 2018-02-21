@@ -26,7 +26,7 @@ let make_palette ((ms, es, do_action): Model.mt) set_cursor => {
         (
           fun evt => {
             let key = Js_util.get_key evt;
-            /* Js_util.log key; */
+            Js_util.log key;
             if (key == KC.key key_combo) {
               doAction action;
               Dom.preventDefault evt
@@ -309,10 +309,12 @@ let make_palette ((ms, es, do_action): Model.mt) set_cursor => {
   let delete = action_button Action.Delete "delete" KCs.del;
   let backspace = action_button Action.Backspace "backspace" KCs.backspace;
   /* type construction */
+  let constructNum = action_button (Action.Construct Action.SNum) "construct num type" KCs.n;
   let constructArrow =
-    action_button (Action.Construct Action.SArrow) "construct arrow" KCs.greaterThan;
-  let constructNum = action_button (Action.Construct Action.SNum) "construct num" KCs.n;
-  let constructSum = action_button (Action.Construct Action.SSum) "construct sum" KCs.s;
+    action_button
+      (Action.Construct (Action.STyOp UHTyp.Arrow)) "construct arrow type" KCs.greaterThan;
+  let constructSum =
+    action_button (Action.Construct (Action.STyOp UHTyp.Sum)) "construct sum type" KCs.vbar;
   /* expression construction */
   let constructParenthesized =
     action_button (Action.Construct Action.SParenthesized) "parenthesize" KCs.openParens;
@@ -379,8 +381,7 @@ let make_palette ((ms, es, do_action): Model.mt) set_cursor => {
   let constructPlus =
     action_button (Action.Construct (Action.SOp UHExp.Plus)) "construct plus" KCs.plus;
   let constructTimes =
-    action_button
-      (Action.Construct (Action.SOp UHExp.Times)) "construct explicit times" KCs.asterisk;
+    action_button (Action.Construct (Action.SOp UHExp.Times)) "construct times" KCs.asterisk;
   let constructSpace =
     action_button (Action.Construct (Action.SOp UHExp.Space)) "construct ap" KCs.space;
   let constructInjL =
@@ -425,7 +426,7 @@ let make_palette ((ms, es, do_action): Model.mt) set_cursor => {
           div a::[a_class ["panel-title"]] [pcdata "Type Construction"],
           div
             a::[a_class ["panel-body"]]
-            [constructArrow, br (), constructNum, br (), constructSum, br ()]
+            [constructNum, br (), constructArrow, br (), constructSum, br ()]
         ]
     );
   let expressionConstructionActions =
@@ -440,17 +441,13 @@ let make_palette ((ms, es, do_action): Model.mt) set_cursor => {
               constructParenthesized,
               br (),
               constructAsc,
-              br (),
               constructLet,
-              br (),
               constructVar,
               constructLam,
               constructSpace,
-              br (),
               constructLit,
               constructPlus,
               constructTimes,
-              br (),
               constructInjL,
               constructInjR,
               constructCase

@@ -1,18 +1,33 @@
 open Semantics.Core;
 
-let parse s => {
+let parse_expr s => {
   let lexbuf = Lexing.from_string s;
-  Skelparser.skel Skellexer.read lexbuf
+  SkelExprParser.skel_expr SkelExprLexer.read lexbuf
 };
 
-let string_of_op (op: UHExp.op) =>
+let parse_typ s => {
+  let lexbuf = Lexing.from_string s;
+  SkelTypParser.skel_typ SkelTypLexer.read lexbuf
+};
+
+let string_of_expr_op (op: UHExp.op) =>
   switch op {
   | UHExp.Plus => "+"
   | UHExp.Times => "*"
   | UHExp.Space => "_"
   };
 
-let rec make_skel_str' (seq: UHExp.opseq) (counter: ref int) (ph_map: Hashtbl.t int UHExp.t) =>
+let string_of_ty_op (op: UHTyp.op) =>
+  switch op {
+  | UHTyp.Sum => "|"
+  | UHTyp.Arrow => "->"
+  };
+
+let rec make_skel_str'
+        (string_of_op: 'op => string)
+        (seq: OperatorSeq.opseq 'tm 'op)
+        (counter: ref int)
+        (ph_map: Hashtbl.t int 'tm) =>
   switch seq {
   | OperatorSeq.ExpOpExp e1 op e2 =>
     let n = !counter;
@@ -22,7 +37,7 @@ let rec make_skel_str' (seq: UHExp.opseq) (counter: ref int) (ph_map: Hashtbl.t 
     let op_str = string_of_op op;
     string_of_int n ^ op_str ^ string_of_int (n + 1)
   | OperatorSeq.SeqOpExp seq' op e =>
-    let skel_str = make_skel_str' seq' counter ph_map;
+    let skel_str = make_skel_str' string_of_op seq' counter ph_map;
     let op_str = string_of_op op;
     let n = !counter;
     counter := n + 1;
@@ -30,14 +45,30 @@ let rec make_skel_str' (seq: UHExp.opseq) (counter: ref int) (ph_map: Hashtbl.t 
     skel_str ^ op_str ^ string_of_int n
   };
 
-let make_skel_str (seq: UHExp.opseq) => {
+let make_skel_str (seq: OperatorSeq.opseq 'tm 'op) (string_of_op: 'op => string) => {
   let counter = ref 0;
   let ph_map = Hashtbl.create 8;
-  let skel_str = make_skel_str' seq counter ph_map;
+  let skel_str = make_skel_str' string_of_op seq counter ph_map;
   (skel_str, ph_map)
 };
 
-let rec associate (seq: UHExp.opseq) => {
-  let (skel_str, ph_map) = make_skel_str seq;
-  parse skel_str
+let rec associate_exp (seq: UHExp.opseq) => {
+  let (skel_str, _) = make_skel_str seq string_of_expr_op;
+  parse_expr skel_str
+};
+
+let rec associate_ty (seq: UHTyp.opseq) => {
+  let (skel_str, _) = make_skel_str seq string_of_ty_op;
+  parse_typ skel_str
+};
+
+/* debug stuff for use in the Coq */
+let some_A x => {
+  Js_util.log "A- SOME";
+  Some x
+};
+
+let none_A () => {
+  Js_util.log "A- NONE";
+  None
 };

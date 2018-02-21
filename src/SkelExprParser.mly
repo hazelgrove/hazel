@@ -14,32 +14,33 @@
 %left TIMES
 %left SPACEOP
 
-%start <Semantics.Core.UHExp.Skel.t> skel
+%start <Semantics.Core.UHExp.op Semantics.Core.Skel.t> skel_expr
 
 (* %% ends the declarations section of the grammar definition *)
 
 %%
 
-skel: 
+skel_expr: 
   | e = expr; EOF { e }
   ;
 
 expr: 
-  | n = PLACEHOLDER { UHExp.Skel.Placeholder n }
+  | n = PLACEHOLDER { Skel.Placeholder n }
   | e1 = expr; PLUS; e2 = expr { 
-    UHExp.Skel.BinOp(
-      UHExp.NotInHole, 
+    Skel.BinOp(
+      NotInHole, 
       UHExp.Plus, 
       e1, e2) }
   | e1 = expr; TIMES; e2 = expr { 
-    UHExp.Skel.BinOp(
-      UHExp.NotInHole,
+    Skel.BinOp(
+      NotInHole,
       UHExp.Times, 
       e1, e2) }
   | e1 = expr; SPACEOP; e2 = expr { 
-    UHExp.Skel.BinOp(
-      UHExp.NotInHole,
+    Skel.BinOp(
+      NotInHole,
       UHExp.Space, 
       e1, e2) }
   ;
+
 

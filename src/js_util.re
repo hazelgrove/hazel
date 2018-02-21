@@ -4,9 +4,18 @@ open React;
 
 module Ev = Dom_html.Event;
 
+let log x => Firebug.console##log x;
+
 let forceGetElementById id => {
   let doc = Dom_html.document;
-  Js.Opt.get (doc##getElementById (Js.string id)) (fun () => assert false)
+  Js.Opt.get
+    (doc##getElementById (Js.string id))
+    (
+      fun () => {
+        log id;
+        assert false
+      }
+    )
 };
 
 let listen_to ev elem f => Dom_html.addEventListener elem ev (Dom_html.handler f) Js._false;
@@ -89,6 +98,7 @@ module KeyCombos = {
   let c = _kc "c" "c";
   let qmark = _kc "?" "?";
   let equals = _kc "=" "=";
+  let vbar = _kc "|" "|";
 };
 
 let get_which (evt: Js.t Dom_html.keyboardEvent) =>
@@ -96,5 +106,3 @@ let get_which (evt: Js.t Dom_html.keyboardEvent) =>
 
 let get_key (evt: Js.t Dom_html.keyboardEvent) =>
   Js.to_string (Js.Optdef.get evt##.key (fun () => assert false));
-
-let log x => Firebug.console##log x;

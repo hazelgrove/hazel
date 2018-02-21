@@ -1,5 +1,5 @@
 {
-  open Skelparser
+  open SkelExprParser
 }
 
 let white = [' ']+
