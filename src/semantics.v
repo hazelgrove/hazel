@@ -275,6 +275,26 @@ Module Core.
     Inductive t (op : Type) : Type := 
     | Placeholder : nat -> t op
     | BinOp : err_status -> op -> t op -> t op -> t op.
+
+    Fixpoint leftmost_op {op : Type} (skel : t op) : option(op) := 
+      match skel with 
+      | Placeholder _ _ => None
+      | BinOp _ op skel1 _ => 
+        match leftmost_op skel1 with 
+        | (Some op) as result => result
+        | None => Some op
+        end
+      end.
+
+    Fixpoint rightmost_op {op : Type} (skel : t op) : option(op) := 
+      match skel with 
+      | Placeholder _ _ => None
+      | BinOp _ op _ skel2 => 
+        match rightmost_op skel2 with 
+        | (Some op) as result => result
+        | None => Some op
+        end
+      end.
   End Skel.
 
   Module HTyp.

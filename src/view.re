@@ -372,9 +372,16 @@ and of_skel rev_path skel seq =>
     let r1 = of_skel rev_path skel1 seq;
     let r2 = of_skel rev_path skel2 seq;
     let op_pp =
-      switch (skel1, op, skel2) {
-      | (Skel.BinOp _ UHExp.Space _ _, UHExp.Times, _)
-      | (_, UHExp.Times, Skel.BinOp _ UHExp.Space _ _) => of_expr_op_with_space op
+      switch op {
+      | UHExp.Times =>
+        switch (Skel.rightmost_op skel1) {
+        | Some UHExp.Space => of_expr_op_with_space op
+        | _ =>
+          switch (Skel.leftmost_op skel2) {
+          | Some UHExp.Space => of_expr_op_with_space op
+          | _ => of_expr_op op
+          }
+        }
       | _ => of_expr_op op
       };
     let cls = "skel-binop";
