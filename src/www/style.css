@@ -184,14 +184,26 @@ button:disabled {
   color: #a040a0;
 }
 
+.OpSeq:hover .skel-binop {
+  background-color: rgba(255, 195, 0, 0.20);
+  border-top: 1px solid rgba(255, 195, 0, 0.20);
+  /* box-shadow: 0px 0px 0px 2px rgba(75, 50, 50, 0.20); */
+}
+
+.OpSeq:hover .Ap {
+  background-color: rgba(255, 195, 0, 0.20);
+  border-top: 1px solid rgba(255, 195, 0, 0.20);
+}
+
 .cursor {
-	background-color: rgb(229, 255, 229);
+	background-color: rgb(229, 255, 229) !important;
 }
 
 .SIndentation {
   white-space: pre;
 	background-color: rgba(0, 0, 0, 0);
 	margin-right: 2px;
+	margin-left: -2px;
 }
 
 .NonEmptyHole {
@@ -203,6 +215,10 @@ button:disabled {
 	/* margin-bottom: -1px; */
 	margin-right: 2px;
 	border: 1px dashed red;
+}
+
+.in_err_hole {
+  border: 1px dashed red;
 }
 
 .result-view {
@@ -230,13 +246,6 @@ button:disabled {
 	padding-right: 2px;
 	/* border-bottom: 1px solid #a040a0; */
 	margin-bottom: -3px;
-	line-height: initial;
-}
-
-.nonEmptyHoleName {
-	vertical-align: bottom;
-	font-size: 65%;
-	color: red;
 	line-height: initial;
 }
 
@@ -294,4 +303,19 @@ button:disabled {
   -webkit-user-select: text;
 	user-select: none;
 } */
+
+.failed-cast-arrow {
+  color: red;
+  font-weight: bold;
+}
+
+.FailedCast {
+  background-color: rgba(255, 0, 0, 0.1);
+}
+
+/* .OpSeq:hover .skel-binop {
+  background-color: rgba(255, 195, 10, 0.20);
+} */
+
+/* .skel-binop:hover { */
 

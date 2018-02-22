@@ -1,652 +1,577 @@
-module PPView = {
-  module PP = Pretty.PP;
-  open Semantics.Core;
-  let (^^) = PP.(^^);
-  /* Utility functions */
-  let taggedText cls s => PP.text cls s;
-  let kw = taggedText "kw";
-  let parens = taggedText "paren";
-  let op = taggedText "op";
-  let var s => taggedText "var" s;
-  let space = taggedText "space" " ";
-  let rec id_of_rev_path rev_path =>
-    switch rev_path {
-    | [] => "path_"
-    | [x, ...xs] => id_of_rev_path xs ^ string_of_int x
-    };
-  let term cls rev_path doc => {
-    let id' = id_of_rev_path rev_path;
-    PP.tagged cls (Some (id', rev_path)) doc
+exception InvariantViolated;
+
+/* Utility functions */
+module PP = Pretty.PP;
+
+open Semantics.Core;
+
+let (^^) = PP.(^^);
+
+let taggedText cls s => PP.text cls s;
+
+let kw = taggedText "kw";
+
+let parens = taggedText "paren";
+
+let op = taggedText "op";
+
+let var s => taggedText "var" s;
+
+let space = taggedText "space" " ";
+
+let rec id_of_rev_path rev_path =>
+  switch rev_path {
+  | [] => "path_"
+  | [x, ...xs] => id_of_rev_path xs ^ "_" ^ string_of_int x
   };
-  let optionalBreakSp = PP.optionalBreak " ";
-  /* # types */
-  let rec of_Arrow rev_path r1 r2 =>
-    term "Arrow" rev_path (r1 ^^ optionalBreakSp ^^ op "\226\134\146" ^^ optionalBreakSp ^^ r2);
-  let rec of_Sum rev_path r1 r2 =>
-    term "Sum" rev_path (r1 ^^ optionalBreakSp ^^ op "+" ^^ optionalBreakSp ^^ r2);
-  /* ## parenthesization helpers */
-  let num_precedence = 0;
-  let hole_precedence = 0;
-  let sum_precedence = 1;
-  let arrow_precedence = 2;
-  let h_precedence tau =>
-    switch tau {
-    | HTyp.Num => num_precedence
-    | HTyp.Hole => hole_precedence
-    | HTyp.Sum _ => sum_precedence
-    | HTyp.Arrow _ => arrow_precedence
-    };
-  /* let z_precedence ztau =>
-     switch ztau {
-     | ZTyp.CursorT tau => h_precedence tau
-     | ZTyp.LeftArrow _
-     | ZTyp.RightArrow _ => arrow_precedence
-     | ZTyp.LeftSum _
-     | ZTyp.RightSum _ => sum_precedence
-     }; */
-  /* parenthesize binary right-associative type operators */
-  let parenthesize_bi_r_tau prec prec1 prec2 => {
-    let paren1 = prec1 !== prec && prec1 !== 0;
-    let paren2 = prec2 !== prec && prec2 !== 0;
-    (paren1, paren2)
+
+let cls_from err_status cls =>
+  switch err_status {
+  | InHole u => [cls, "in_err_hole", "in_err_hole_" ^ string_of_int u]
+  | NotInHole => [cls]
   };
-  let rec of_htype' rev_path tau paren =>
-    if paren {
-      parens "(" ^^ PP.nestRelative 0 (of_htype rev_path tau) ^^ parens ")"
-    } else {
-      of_htype rev_path tau
-    }
-  and of_htype rev_path tau =>
-    switch tau {
-    | HTyp.Num => term "Num" rev_path (kw "num")
-    | HTyp.Arrow tau1 tau2 =>
-      let (paren1, paren2) =
-        parenthesize_bi_r_tau arrow_precedence (h_precedence tau1) (h_precedence tau2);
-      let rev_path1 = [0, ...rev_path];
-      let rev_path2 = [1, ...rev_path];
-      let r1 = of_htype' rev_path1 tau1 paren1;
-      let r2 = of_htype' rev_path2 tau2 paren2;
-      of_Arrow rev_path r1 r2
-    | HTyp.Sum tau1 tau2 =>
-      let (paren1, paren2) =
-        parenthesize_bi_r_tau sum_precedence (h_precedence tau1) (h_precedence tau2);
-      let rev_path1 = [0, ...rev_path];
-      let rev_path2 = [1, ...rev_path];
-      let r1 = of_htype' rev_path1 tau1 paren1;
-      let r2 = of_htype' rev_path2 tau2 paren2;
-      of_Sum rev_path r1 r2
-    | HTyp.Hole =>
-      term
-        "Hole"
-        rev_path
-        (
-          taggedText "hole-before-1" "\226\128\139\226\128\139" ^^
-          taggedText "hole-before-2" "\226\128\140" ^^
-          /* taggedText "hole" "_" */
-          taggedText "holeName" "?" ^^
-          taggedText "hole-after-1" "\226\128\140" ^^ taggedText "hole-after-2" "\226\128\140"
-        )
-    };
-  /* let rec of_ztype' rev_path ztau paren =>
-       switch ztau {
-       | ZTyp.CursorT tau => (of_htype' rev_path tau paren, rev_path)
-       | _ =>
-         if paren {
-           let (r, cursor_rev_path) = of_ztype rev_path ztau;
-           let v = parens "(" ^^ PP.nestRelative 0 r ^^ parens ")";
-           (v, cursor_rev_path)
-         } else {
-           of_ztype rev_path ztau
-         }
-       }
-     and of_ztype rev_path ztau =>
-       switch ztau {
-       | ZTyp.CursorT tau => (of_htype rev_path tau, rev_path)
-       | ZTyp.LeftArrow ztau tau =>
-         let (paren1, paren2) =
-           parenthesize_bi_r_tau arrow_precedence (z_precedence ztau) (h_precedence tau);
-         let rev_path1 = [0, ...rev_path];
-         let rev_path2 = [1, ...rev_path];
-         let (r1, cursor_rev_path) = of_ztype' rev_path1 ztau paren1;
-         let r2 = of_htype' rev_path2 tau paren2;
-         (of_Arrow rev_path r1 r2, cursor_rev_path)
-       | ZTyp.RightArrow tau ztau =>
-         let (paren1, paren2) =
-           parenthesize_bi_r_tau arrow_precedence (h_precedence tau) (z_precedence ztau);
-         let rev_path1 = [0, ...rev_path];
-         let rev_path2 = [1, ...rev_path];
-         let r1 = of_htype' rev_path1 tau paren1;
-         let (r2, cursor_rev_path) = of_ztype' rev_path2 ztau paren2;
-         (of_Arrow rev_path r1 r2, cursor_rev_path)
-       | ZTyp.LeftSum ztau tau =>
-         let (paren1, paren2) =
-           parenthesize_bi_r_tau sum_precedence (z_precedence ztau) (h_precedence tau);
-         let rev_path1 = [0, ...rev_path];
-         let rev_path2 = [1, ...rev_path];
-         let (r1, cursor_rev_path) = of_ztype' rev_path1 ztau paren1;
-         let r2 = of_htype' rev_path2 tau paren2;
-         (of_Sum rev_path r1 r2, cursor_rev_path)
-       | ZTyp.RightSum tau ztau =>
-         let (paren1, paren2) =
-           parenthesize_bi_r_tau sum_precedence (h_precedence tau) (z_precedence ztau);
-         let rev_path1 = [0, ...rev_path];
-         let rev_path2 = [1, ...rev_path];
-         let r1 = of_htype' rev_path1 tau paren1;
-         let (r2, cursor_rev_path) = of_ztype' rev_path2 ztau paren2;
-         (of_Sum rev_path r1 r2, cursor_rev_path)
-       }; */
-  /* h-exps and z-exps */
-  let string_of_side side =>
-    switch side {
-    | HExp.L => "L"
-    | HExp.R => "R"
-    };
-  let of_Asc rev_path r1 r2 => term "Asc" rev_path (r1 ^^ space ^^ op ":" ^^ space ^^ r2);
-  let of_Let rev_path x r1 r2 =>
-    term
-      "Let"
-      rev_path
-      (
-        PP.blockBoundary ^^
-        kw "let" ^^
-        space ^^
-        var x ^^
-        space ^^ op "=" ^^ PP.nestAbsolute 2 (optionalBreakSp ^^ r1) ^^ PP.mandatoryBreak ^^ r2
-      );
-  let of_Lam rev_path x r =>
-    term
-      "Lam"
-      rev_path
-      (kw "\206\187" ^^ var x ^^ kw "." ^^ PP.optionalBreak "" ^^ PP.nestRelative 4 r);
-  let of_LamAnn rev_path x rty r1 =>
-    term
-      "LamAnn"
-      rev_path
-      (
-        kw "\206\187" ^^
-        var x ^^ kw ":" ^^ rty ^^ kw "." ^^ PP.optionalBreak "" ^^ PP.nestRelative 4 r1
-      );
-  let of_Ap rev_path r1 r2 => term "Ap" rev_path (r1 ^^ optionalBreakSp ^^ r2);
-  let of_Plus rev_path r1 r2 =>
-    term "Plus" rev_path (r1 ^^ optionalBreakSp ^^ op "+" ^^ optionalBreakSp ^^ r2);
-  let of_Inj rev_path side r =>
-    term
-      "Inj"
-      rev_path
-      (
-        kw "inj" ^^
-        parens "[" ^^
-        kw (string_of_side side) ^^
-        parens "]" ^^ parens "(" ^^ PP.optionalBreak "" ^^ r ^^ parens ")"
-      );
-  let of_InjAnn rev_path rty side r =>
-    term
-      "Inj"
-      rev_path
-      (
-        kw "inj" ^^
-        parens "[" ^^
-        kw (string_of_side side) ^^
-        kw "," ^^
-        optionalBreakSp ^^
-        rty ^^ parens "]" ^^ parens "(" ^^ PP.optionalBreak "" ^^ r ^^ parens ")"
-      );
-  let of_Case rev_path r1 x r2 y r3 =>
-    term
-      "Case"
-      rev_path
-      (
-        PP.blockBoundary ^^
-        kw "case" ^^
-        space ^^
-        r1 ^^
-        PP.mandatoryBreak ^^
-        kw "L" ^^
-        parens "(" ^^
-        var x ^^
-        parens ")" ^^
-        space ^^
-        op "\226\135\146" ^^
-        optionalBreakSp ^^
-        PP.nestAbsolute 2 r2 ^^
-        PP.mandatoryBreak ^^
-        kw "R" ^^
-        parens "(" ^^
-        var y ^^
-        parens ")" ^^ space ^^ op "\226\135\146" ^^ optionalBreakSp ^^ PP.nestAbsolute 2 r3
-      );
-  let of_CaseAnn rev_path rty r1 x r2 y r3 =>
-    term
-      "Case"
-      rev_path
-      (
-        PP.blockBoundary ^^
-        kw "case" ^^
-        parens "[" ^^
-        rty ^^
-        parens "]" ^^
-        space ^^
-        r1 ^^
-        PP.mandatoryBreak ^^
-        kw "L" ^^
-        parens "(" ^^
-        var x ^^
-        parens ")" ^^
-        space ^^
-        op "\226\135\146" ^^
-        optionalBreakSp ^^
-        PP.nestAbsolute 2 r2 ^^
-        PP.mandatoryBreak ^^
-        kw "R" ^^
-        parens "(" ^^
-        var y ^^
-        parens ")" ^^ space ^^ op "\226\135\146" ^^ optionalBreakSp ^^ PP.nestAbsolute 2 r3
-      );
-  let of_NonEmptyHole rev_path u r =>
-    term
-      "NonEmptyHole"
-      rev_path
-      (
-        PP.tagged
-          "NonEmptyHoleTerm"
-          None
-          (r ^^ taggedText "nonEmptyHole-after-inner" "\226\128\139\226\128\139") ^^
-        taggedText "nonEmptyHoleName" (string_of_int u) ^^
-        taggedText "nonEmptyHole-after-outer" "\226\128\139\226\128\139\226\128\139"
-      );
-  let of_Cast rev_path rty r1 =>
-    term
-      "Cast"
-      rev_path
-      (parens "<" ^^ rty ^^ parens ">(" ^^ PP.optionalBreak "" ^^ r1 ^^ parens ")");
-  let asc_precedence = 1;
-  let var_precedence = 0;
-  let let_precedence = 1;
-  let lam_precedence = 1;
-  let ap_precedence = 3;
-  let numlit_precedence = 0;
-  let plus_precedence = 2;
-  let inj_precedence = 0;
-  let case_precedence = 1;
-  let empty_hole_precedence = 0;
-  let non_empty_hole_precedence = 0;
-  let cast_precedence = 1;
-  let hexp_precedence e =>
-    HExp.(
-      switch e {
-      | Asc _ => asc_precedence
-      | Var _ => var_precedence
-      | Let _ => let_precedence
-      | Lam _ => lam_precedence
-      | Ap _ => ap_precedence
-      | NumLit _ => numlit_precedence
-      | Plus _ => plus_precedence
-      | Inj _ => inj_precedence
-      | Case _ => case_precedence
-      | EmptyHole _ => empty_hole_precedence
-      | NonEmptyHole _ _ => non_empty_hole_precedence
-      }
+
+let term err_status rev_path cls doc => {
+  let id' = id_of_rev_path rev_path;
+  PP.tagged (cls_from err_status cls) (Some (id', rev_path)) doc
+};
+
+let optionalBreakSp = PP.optionalBreak " ";
+
+let optionalBreakNSp = PP.optionalBreak "";
+
+let of_Parenthesized rev_path r1 =>
+  term
+    NotInHole
+    rev_path
+    "Parenthesized"
+    (taggedText "openParens" "(" ^^ r1 ^^ taggedText "closeParens" ")");
+
+let rec str_of_expr_op op =>
+  switch op {
+  | UHExp.Plus => ("+", "op-Plus")
+  | UHExp.Times => ("*", "op-Times")
+  | UHExp.Space => (" ", "op-Space")
+  };
+
+let rec str_of_ty_op op =>
+  switch op {
+  | UHTyp.Sum => ("|", "op-Sum")
+  | UHTyp.Arrow => ("\226\134\146", "op-Arrow")
+  };
+
+let rec of_op_with_space str_of_op op => {
+  let (op_s, op_cls) = str_of_op op;
+  PP.tagged
+    ["seq-op", op_cls]
+    None
+    (
+      taggedText "op-before-1" "\226\128\139\226\128\139" ^^
+      taggedText "op-before-2" "\226\128\140" ^^
+      taggedText "op-center" (" " ^ op_s ^ " ") ^^
+      taggedText "op-after-1" "\226\128\139" ^^ taggedText "op-after-2" "\226\128\139"
+    )
+};
+
+let of_expr_op_with_space = of_op_with_space str_of_expr_op;
+
+let of_ty_op_with_space = of_op_with_space str_of_ty_op;
+
+let rec of_op_no_space str_of_op op => {
+  let (op_s, op_cls) = str_of_op op;
+  PP.tagged ["seq-op", op_cls] None (taggedText "op-no-margin" op_s)
+};
+
+let of_expr_op_no_space = of_op_no_space str_of_expr_op;
+
+let rec of_expr_op op =>
+  switch op {
+  | UHExp.Plus => of_expr_op_with_space op
+  | UHExp.Times => of_expr_op_no_space op
+  | UHExp.Space => of_expr_op_no_space op
+  };
+
+/* empty holes */
+let of_Hole err_status rev_path cls hole_name =>
+  term
+    err_status
+    rev_path
+    cls
+    (
+      taggedText "hole-before-1" "\226\128\139\226\128\139" ^^
+      taggedText "hole-before-2" "\226\128\139" ^^
+      taggedText "holeName" hole_name ^^
+      taggedText "hole-after-1" "\226\128\139" ^^ taggedText "hole-after-2" "\226\128\139"
     );
-  /* let zexp_precedence ze =>
-     ZExp.(
-       switch ze {
-       | CursorE e => hexp_precedence e
-       | LeftAsc _
-       | RightAsc _ => asc_precedence
-       | LetZ1 _
-       | LetZ2 _ => let_precedence
-       | LamZ _ => lam_precedence
-       | LeftAp _
-       | RightAp _ => ap_precedence
-       | LeftPlus _
-       | RightPlus _ => plus_precedence
-       | InjZ _ => inj_precedence
-       | CaseZ1 _
-       | CaseZ2 _
-       | CaseZ3 _ => case_precedence
-       | NonEmptyHoleZ _ _ => non_empty_hole_precedence
-       }
-     ); */
-  let dhexp_precedence e =>
-    Dynamics.DHExp.(
-      switch e {
-      | Var _ => var_precedence
-      | Let _ _ _ => let_precedence
-      | Lam _ _ _ => lam_precedence
-      | Ap _ _ => ap_precedence
-      | NumLit _ => numlit_precedence
-      | Plus _ _ => plus_precedence
-      | Inj _ _ _ => inj_precedence
-      | Case _ _ _ _ => case_precedence
-      | EmptyHole _ _ _ => empty_hole_precedence
-      | NonEmptyHole _ _ _ _ => non_empty_hole_precedence
-      | Cast _ _ => cast_precedence
-      }
-    );
-  let rec of_hexp' rev_path e paren =>
-    if paren {
-      parens "(" ^^ PP.nestRelative 0 (of_hexp rev_path e) ^^ parens ")"
-    } else {
-      of_hexp rev_path e
-    }
-  and of_hexp rev_path e =>
-    switch e {
-    | HExp.Asc e' tau =>
-      let prec1 = hexp_precedence e';
-      let paren1 = prec1 !== 0;
+
+/* types */
+let precedence_const = 0;
+
+let precedence_Sum = 1;
+
+let precedence_Arrow = 2;
+
+let precedence_ty ty =>
+  switch ty {
+  | HTyp.Num => precedence_const
+  | HTyp.Hole => precedence_const
+  | HTyp.Sum _ _ => precedence_Sum
+  | HTyp.Arrow _ _ => precedence_Arrow
+  };
+
+let of_Num rev_path => term NotInHole rev_path "Num" (kw "num");
+
+let rec of_ty_op cls op_s err_status rev_path r1 r2 =>
+  term err_status rev_path cls (r1 ^^ optionalBreakSp ^^ op op_s ^^ optionalBreakSp ^^ r2);
+
+let of_Arrow = of_ty_op "Arrow" "\226\134\146";
+
+let of_Sum = of_ty_op "Sum" "|";
+
+let rec of_htype parenthesize rev_path ty => {
+  let d =
+    switch ty {
+    | HTyp.Num => of_Num rev_path
+    | HTyp.Arrow ty1 ty2 =>
       let rev_path1 = [0, ...rev_path];
       let rev_path2 = [1, ...rev_path];
-      let r1 = of_hexp' rev_path1 e' paren1;
-      let r2 = of_htype rev_path2 tau;
-      of_Asc rev_path r1 r2
-    | HExp.Var x => term "Var" rev_path (var x)
-    | HExp.Let x e e' =>
+      let paren1 = precedence_ty ty1 >= precedence_Arrow;
+      let paren2 = precedence_ty ty2 > precedence_Arrow;
+      let r1 = of_htype paren1 rev_path1 ty1;
+      let r2 = of_htype paren2 rev_path2 ty2;
+      of_Arrow NotInHole rev_path r1 r2
+    | HTyp.Sum ty1 ty2 =>
+      let rev_path1 = [0, ...rev_path];
+      let rev_path2 = [1, ...rev_path];
+      let paren1 = precedence_ty ty1 >= precedence_Sum;
+      let paren2 = precedence_ty ty2 > precedence_Sum;
+      let r1 = of_htype paren1 rev_path1 ty1;
+      let r2 = of_htype paren2 rev_path2 ty2;
+      of_Sum NotInHole rev_path r1 r2
+    | HTyp.Hole => of_Hole NotInHole rev_path "Hole" "?"
+    };
+  parenthesize ? parens "(" ^^ d ^^ parens ")" : d
+};
+
+let rec of_uhtyp rev_path uty =>
+  switch uty {
+  | UHTyp.Parenthesized uty1 =>
+    let rev_path1 = [0, ...rev_path];
+    let r1 = of_uhtyp rev_path1 uty1;
+    of_Parenthesized rev_path r1
+  | UHTyp.Num => of_Num rev_path
+  | UHTyp.OpSeq skel seq => term NotInHole rev_path "OpSeq" (of_uhtyp_skel rev_path skel seq)
+  | UHTyp.Hole => of_Hole NotInHole rev_path "Hole" "?"
+  }
+and of_uhtyp_skel rev_path skel seq =>
+  switch skel {
+  | Skel.Placeholder n =>
+    switch (OperatorSeq.seq_nth n seq) {
+    | Some utyn =>
+      let rev_path_n = [n, ...rev_path];
+      of_uhtyp rev_path_n utyn
+    | None => raise InvariantViolated
+    }
+  | Skel.BinOp _ op skel1 skel2 =>
+    let r1 = of_uhtyp_skel rev_path skel1 seq;
+    let r2 = of_uhtyp_skel rev_path skel2 seq;
+    let op_pp = of_ty_op_with_space op;
+    PP.tagged ["skel-binop"] None (r1 ^^ op_pp ^^ r2)
+  };
+
+/* h-exps and z-exps */
+let of_Asc err_status rev_path r1 r2 =>
+  term err_status rev_path "Asc" (r1 ^^ space ^^ op ":" ^^ space ^^ r2);
+
+let of_Var err_status rev_path x => term err_status rev_path "Var" (var x);
+
+let of_Let err_status rev_path x r1 r2 =>
+  term
+    err_status
+    rev_path
+    "Let"
+    (
+      PP.blockBoundary ^^
+      kw "let" ^^
+      space ^^
+      var x ^^
+      space ^^ op "=" ^^ PP.nestAbsolute 2 (optionalBreakSp ^^ r1) ^^ PP.mandatoryBreak ^^ r2
+    );
+
+let of_Lam err_status rev_path x r =>
+  term err_status rev_path "Lam" (kw "\206\187" ^^ var x ^^ taggedText "lambda-dot" "." ^^ r);
+
+let of_LamAnn err_status rev_path x rty r1 =>
+  term
+    err_status
+    rev_path
+    "LamAnn"
+    (
+      kw "\206\187" ^^
+      var x ^^ kw ":" ^^ rty ^^ kw "." ^^ PP.optionalBreak "" ^^ PP.nestRelative 4 r1
+    );
+
+let of_Ap err_status rev_path r1 r2 => term err_status rev_path "Ap" (r1 ^^ space ^^ r2);
+
+let of_NumLit err_status rev_path n =>
+  term err_status rev_path "NumLit" (taggedText "number" (string_of_int n));
+
+let of_Plus err_status rev_path r1 r2 =>
+  term err_status rev_path "Plus" (r1 ^^ optionalBreakNSp ^^ op " +" ^^ optionalBreakSp ^^ r2);
+
+let of_Times err_status rev_path r1 r2 =>
+  term err_status rev_path "Times" (r1 ^^ op "*" ^^ optionalBreakNSp ^^ r2);
+
+let of_Space err_status rev_path r1 r2 =>
+  term err_status rev_path "Space" (r1 ^^ op " " ^^ optionalBreakNSp ^^ r2);
+
+let string_of_side side =>
+  switch side {
+  | UHExp.L => "L"
+  | UHExp.R => "R"
+  };
+
+let of_Inj err_status rev_path side r =>
+  term
+    err_status
+    rev_path
+    "Inj"
+    (
+      kw "inj" ^^
+      parens "[" ^^
+      kw (string_of_side side) ^^
+      parens "]" ^^ parens "(" ^^ PP.optionalBreak "" ^^ r ^^ parens ")"
+    );
+
+let of_InjAnn err_status rev_path rty side r =>
+  term
+    err_status
+    rev_path
+    "Inj"
+    (
+      kw "inj" ^^
+      parens "[" ^^
+      kw (string_of_side side) ^^
+      kw "," ^^
+      optionalBreakSp ^^ rty ^^ parens "]" ^^ parens "(" ^^ PP.optionalBreak "" ^^ r ^^ parens ")"
+    );
+
+let of_Case err_status rev_path r1 x r2 y r3 =>
+  term
+    err_status
+    rev_path
+    "Case"
+    (
+      PP.blockBoundary ^^
+      kw "case" ^^
+      space ^^
+      r1 ^^
+      PP.mandatoryBreak ^^
+      kw "L" ^^
+      parens "(" ^^
+      var x ^^
+      parens ")" ^^
+      space ^^
+      op "\226\135\146" ^^
+      optionalBreakSp ^^
+      PP.nestAbsolute 2 r2 ^^
+      PP.mandatoryBreak ^^
+      kw "R" ^^
+      parens "(" ^^
+      var y ^^ parens ")" ^^ space ^^ op "\226\135\146" ^^ optionalBreakSp ^^ PP.nestAbsolute 2 r3
+    );
+
+let of_CaseAnn err_status rev_path r1 x r2 y r3 =>
+  term
+    err_status
+    rev_path
+    "Case"
+    (
+      PP.blockBoundary ^^
+      kw "case" ^^
+      space ^^
+      r1 ^^
+      PP.mandatoryBreak ^^
+      kw "L" ^^
+      parens "(" ^^
+      var x ^^
+      parens ")" ^^
+      space ^^
+      op "\226\135\146" ^^
+      optionalBreakSp ^^
+      PP.nestAbsolute 2 r2 ^^
+      PP.mandatoryBreak ^^
+      kw "R" ^^
+      parens "(" ^^
+      var y ^^ parens ")" ^^ space ^^ op "\226\135\146" ^^ optionalBreakSp ^^ PP.nestAbsolute 2 r3
+    );
+
+let cast_arrow = op " \226\135\168 ";
+
+let of_Cast err_status rev_path r1 rty1 rty2 =>
+  term err_status rev_path "Cast" (r1 ^^ parens "<" ^^ rty1 ^^ cast_arrow ^^ rty2 ^^ parens ">");
+
+let of_chained_Cast err_status rev_path r1 rty1 rty2 rty4 =>
+  term
+    err_status
+    rev_path
+    "Cast"
+    (r1 ^^ parens "<" ^^ rty1 ^^ cast_arrow ^^ rty2 ^^ cast_arrow ^^ rty4 ^^ parens ">");
+
+let failed_cast_arrow = taggedText "failed-cast-arrow" " \226\135\168 ";
+
+let of_FailedCast err_status rev_path r1 rty1 rty2 =>
+  term
+    err_status
+    rev_path
+    "FailedCast"
+    (r1 ^^ parens "<" ^^ rty1 ^^ failed_cast_arrow ^^ rty2 ^^ parens ">");
+
+let of_chained_FailedCast err_status rev_path r1 rty1 rty2 rty4 =>
+  term
+    err_status
+    rev_path
+    "FailedCast"
+    (
+      r1 ^^
+      parens "<" ^^ rty1 ^^ failed_cast_arrow ^^ rty2 ^^ failed_cast_arrow ^^ rty4 ^^ parens ">"
+    );
+
+let rec of_hexp rev_path e =>
+  switch e {
+  | UHExp.Parenthesized e1 =>
+    let rev_path1 = [0, ...rev_path];
+    let r1 = of_hexp rev_path1 e1;
+    of_Parenthesized rev_path r1
+  | UHExp.Tm err_status e' =>
+    switch e' {
+    | UHExp.Asc e1 ty =>
+      let rev_path1 = [0, ...rev_path];
+      let rev_path2 = [1, ...rev_path];
+      let r1 = of_hexp rev_path1 e1;
+      let r2 = of_uhtyp rev_path2 ty;
+      of_Asc err_status rev_path r1 r2
+    | UHExp.Var x => of_Var err_status rev_path x
+    | UHExp.Let x e e' =>
       let rev_path1 = [0, ...rev_path];
       let rev_path2 = [1, ...rev_path];
       let r1 = of_hexp rev_path1 e;
       let r2 = of_hexp rev_path2 e';
-      of_Let rev_path x r1 r2
-    | HExp.Lam x e' =>
+      of_Let err_status rev_path x r1 r2
+    | UHExp.Lam x e' =>
       let rev_path1 = [0, ...rev_path];
       let r1 = of_hexp rev_path1 e';
-      of_Lam rev_path x r1
-    | HExp.Ap e1 e2 =>
-      let rev_path1 = [0, ...rev_path];
-      let rev_path2 = [1, ...rev_path];
-      let prec1 = hexp_precedence e1;
-      let paren1 = prec1 !== 0 && prec1 < ap_precedence;
-      let r1 = of_hexp' rev_path1 e1 paren1;
-      let prec2 = hexp_precedence e2;
-      let paren2 = prec2 !== 0 && prec2 <= ap_precedence;
-      let r2 = of_hexp' rev_path2 e2 paren2;
-      of_Ap rev_path r1 r2
-    | HExp.NumLit n => term "NumLit" rev_path (taggedText "number" (string_of_int n))
-    | HExp.Plus e1 e2 =>
-      let rev_path1 = [0, ...rev_path];
-      let rev_path2 = [1, ...rev_path];
-      let prec1 = hexp_precedence e1;
-      let paren1 = prec1 > 0 && prec1 !== plus_precedence;
-      let r1 = of_hexp' rev_path1 e1 paren1;
-      let prec2 = hexp_precedence e2;
-      let paren2 = prec2 > 0 && prec2 !== plus_precedence;
-      let r2 = of_hexp' rev_path2 e2 paren2;
-      of_Plus rev_path r1 r2
-    | HExp.Inj side e =>
+      of_Lam err_status rev_path x r1
+    | UHExp.NumLit n => of_NumLit err_status rev_path n
+    | UHExp.Inj side e =>
       let rev_path1 = [0, ...rev_path];
       let r1 = of_hexp rev_path1 e;
-      of_Inj rev_path side r1
-    | HExp.Case e1 (x, e2) (y, e3) =>
+      of_Inj err_status rev_path side r1
+    | UHExp.Case e1 (x, e2) (y, e3) =>
       let rev_path1 = [0, ...rev_path];
       let rev_path2 = [1, ...rev_path];
       let rev_path3 = [2, ...rev_path];
       let r1 = of_hexp rev_path1 e1;
       let r2 = of_hexp rev_path2 e2;
       let r3 = of_hexp rev_path3 e3;
-      of_Case rev_path r1 x r2 y r3
-    | HExp.EmptyHole u =>
-      term
-        "EmptyHole"
-        rev_path
-        (
-          taggedText "hole-before-1" "\226\128\139\226\128\139" ^^
-          taggedText "hole-before-2" "\226\128\140" ^^
-          /* taggedText "hole" "_" */
-          taggedText "holeName" (string_of_int u) ^^
-          taggedText "hole-after-1" "\226\128\140" ^^ taggedText "hole-after-2" "\226\128\140"
-        )
-    /* (taggedText "hole" "\226\144\163" ^^ taggedText "holeName" (string_of_int u)) */
-    | HExp.NonEmptyHole u e =>
-      let rev_path1 = [0, ...rev_path];
-      let r1 = of_hexp rev_path1 e;
-      of_NonEmptyHole rev_path u r1
-    };
-  /* let rec of_zexp' rev_path ze paren =>
-       switch ze {
-       | ZExp.CursorE e => (of_hexp' rev_path e paren, rev_path)
-       | _ =>
-         if paren {
-           let (r, cursor_rev_path) = of_zexp rev_path ze;
-           (parens "(" ^^ PP.nestRelative 0 r ^^ parens ")", cursor_rev_path)
-         } else {
-           of_zexp rev_path ze
-         }
-       }
-     and of_zexp rev_path ze =>
-       switch ze {
-       | ZExp.CursorE e => (of_hexp rev_path e, rev_path)
-       | ZExp.LeftAsc ze tau =>
-         let rev_path1 = [0, ...rev_path];
-         let rev_path2 = [1, ...rev_path];
-         let prec1 = zexp_precedence ze;
-         let paren1 = prec1 !== 0;
-         let (r1, cursor_rev_path) = of_zexp' rev_path1 ze paren1;
-         let r2 = of_htype rev_path2 tau;
-         (of_Asc rev_path r1 r2, cursor_rev_path)
-       | ZExp.RightAsc e ztau =>
-         let rev_path1 = [0, ...rev_path];
-         let rev_path2 = [1, ...rev_path];
-         let prec1 = hexp_precedence e;
-         let paren1 = prec1 !== 0;
-         let r1 = of_hexp' rev_path1 e paren1;
-         let (r2, cursor_rev_path) = of_ztype rev_path2 ztau;
-         (of_Asc rev_path r1 r2, cursor_rev_path)
-       | ZExp.LetZ1 x ze e =>
-         let rev_path1 = [0, ...rev_path];
-         let rev_path2 = [1, ...rev_path];
-         let (r1, cursor_rev_path) = of_zexp rev_path1 ze;
-         let r2 = of_hexp rev_path2 e;
-         (of_Let rev_path x r1 r2, cursor_rev_path)
-       | ZExp.LetZ2 x e ze =>
-         let rev_path1 = [0, ...rev_path];
-         let rev_path2 = [1, ...rev_path];
-         let r1 = of_hexp rev_path1 e;
-         let (r2, cursor_rev_path) = of_zexp rev_path2 ze;
-         (of_Let rev_path x r1 r2, cursor_rev_path)
-       | ZExp.LamZ x ze =>
-         let rev_path1 = [0, ...rev_path];
-         let (r1, cursor_rev_path) = of_zexp rev_path1 ze;
-         (of_Lam rev_path x r1, cursor_rev_path)
-       | ZExp.LeftAp ze e =>
-         let rev_path1 = [0, ...rev_path];
-         let rev_path2 = [1, ...rev_path];
-         let prec1 = zexp_precedence ze;
-         let paren1 = prec1 !== 0 && prec1 < ap_precedence;
-         let (r1, cursor_rev_path) = of_zexp' rev_path1 ze paren1;
-         let prec2 = hexp_precedence e;
-         let paren2 = prec2 !== 0 && prec2 <= ap_precedence;
-         let r2 = of_hexp' rev_path2 e paren2;
-         (of_Ap rev_path r1 r2, cursor_rev_path)
-       | ZExp.RightAp e ze =>
-         let rev_path1 = [0, ...rev_path];
-         let rev_path2 = [1, ...rev_path];
-         let prec1 = hexp_precedence e;
-         let paren1 = prec1 !== 0 && prec1 < ap_precedence;
-         let r1 = of_hexp' rev_path1 e paren1;
-         let prec2 = zexp_precedence ze;
-         let paren2 = prec2 !== 0 && prec2 <= ap_precedence;
-         let (r2, cursor_rev_path) = of_zexp' rev_path2 ze paren2;
-         (of_Ap rev_path r1 r2, cursor_rev_path)
-       | ZExp.LeftPlus ze e =>
-         let rev_path1 = [0, ...rev_path];
-         let rev_path2 = [1, ...rev_path];
-         let prec1 = zexp_precedence ze;
-         let paren1 = prec1 > 0 && prec1 !== plus_precedence;
-         let (r1, cursor_rev_path) = of_zexp' rev_path1 ze paren1;
-         let prec2 = hexp_precedence e;
-         let paren2 = prec2 > 0 && prec2 !== plus_precedence;
-         let r2 = of_hexp' rev_path2 e paren2;
-         (of_Plus rev_path r1 r2, cursor_rev_path)
-       | ZExp.RightPlus e ze =>
-         let rev_path1 = [0, ...rev_path];
-         let rev_path2 = [1, ...rev_path];
-         let prec1 = hexp_precedence e;
-         let paren1 = prec1 > 0 && prec1 !== plus_precedence;
-         let r1 = of_hexp' rev_path1 e paren1;
-         let prec2 = zexp_precedence ze;
-         let paren2 = prec2 > 0 && prec2 !== plus_precedence;
-         let (r2, cursor_rev_path) = of_zexp' rev_path2 ze paren2;
-         (of_Plus rev_path r1 r2, cursor_rev_path)
-       | ZExp.InjZ side ze =>
-         let rev_path1 = [0, ...rev_path];
-         let (r, cursor_rev_path) = of_zexp rev_path1 ze;
-         (of_Inj rev_path side r, cursor_rev_path)
-       | ZExp.CaseZ1 ze (x, e2) (y, e3) =>
-         let rev_path1 = [0, ...rev_path];
-         let rev_path2 = [1, ...rev_path];
-         let rev_path3 = [2, ...rev_path];
-         let (r1, cursor_rev_path) = of_zexp rev_path1 ze;
-         let r2 = of_hexp rev_path2 e2;
-         let r3 = of_hexp rev_path3 e3;
-         (of_Case rev_path r1 x r2 y r3, cursor_rev_path)
-       | ZExp.CaseZ2 e1 (x, ze) (y, e3) =>
-         let rev_path1 = [0, ...rev_path];
-         let rev_path2 = [1, ...rev_path];
-         let rev_path3 = [2, ...rev_path];
-         let r1 = of_hexp rev_path1 e1;
-         let (r2, cursor_rev_path) = of_zexp rev_path2 ze;
-         let r3 = of_hexp rev_path3 e3;
-         (of_Case rev_path r1 x r2 y r3, cursor_rev_path)
-       | ZExp.CaseZ3 e1 (x, e2) (y, ze) =>
-         let rev_path1 = [0, ...rev_path];
-         let rev_path2 = [1, ...rev_path];
-         let rev_path3 = [2, ...rev_path];
-         let r1 = of_hexp rev_path1 e1;
-         let r2 = of_hexp rev_path2 e2;
-         let (r3, cursor_rev_path) = of_zexp rev_path3 ze;
-         (of_Case rev_path r1 x r2 y r3, cursor_rev_path)
-       | ZExp.NonEmptyHoleZ u ze =>
-         let rev_path1 = [0, ...rev_path];
-         let (r, cursor_rev_path) = of_zexp rev_path1 ze;
-         (of_NonEmptyHole rev_path u r, cursor_rev_path)
-       }; */
-  let rec of_dhexp' rev_path d paren =>
-    if paren {
-      parens "(" ^^ PP.nestRelative 0 (of_dhexp rev_path d) ^^ parens ")"
-    } else {
-      of_dhexp rev_path d
+      of_Case err_status rev_path r1 x r2 y r3
+    | UHExp.EmptyHole u => of_Hole err_status rev_path "EmptyHole" (string_of_int u)
+    | UHExp.OpSeq skel seq => term err_status rev_path "OpSeq" (of_skel rev_path skel seq)
     }
-  and of_dhexp rev_path d =>
-    Dynamics.(
-      DHExp.(
-        switch d {
-        | Var x => term "Var" rev_path (var x)
-        | Let x d1 d2 =>
-          let rev_path1 = [0, ...rev_path];
-          let rev_path2 = [1, ...rev_path];
-          let r1 = of_dhexp rev_path1 d1;
-          let r2 = of_dhexp rev_path2 d2;
-          of_Let rev_path x r1 r2
-        | Lam x ty d1 =>
-          let rev_path1 = [0, ...rev_path];
-          let rev_path2 = [1, ...rev_path];
-          let r1 = of_htype rev_path1 ty;
-          let r2 = of_dhexp rev_path2 d1;
-          of_LamAnn rev_path x r1 r2
-        | Ap d1 d2 =>
-          let rev_path1 = [0, ...rev_path];
-          let rev_path2 = [1, ...rev_path];
-          let prec1 = dhexp_precedence d1;
-          let paren1 = prec1 !== 0 && prec1 < ap_precedence;
-          let r1 = of_dhexp' rev_path1 d1 paren1;
-          let prec2 = dhexp_precedence d2;
-          let paren2 = prec2 !== 0 && prec2 <= ap_precedence;
-          let r2 = of_dhexp' rev_path2 d2 paren2;
-          of_Ap rev_path r1 r2
-        | NumLit n => term "NumLit" rev_path (taggedText "number" (string_of_int n))
-        | Plus d1 d2 =>
-          let rev_path1 = [0, ...rev_path];
-          let rev_path2 = [1, ...rev_path];
-          let prec1 = dhexp_precedence d1;
-          let paren1 = prec1 > 0 && prec1 !== plus_precedence;
-          let r1 = of_dhexp' rev_path1 d1 paren1;
-          let prec2 = dhexp_precedence d2;
-          let paren2 = prec2 > 0 && prec2 !== plus_precedence;
-          let r2 = of_dhexp' rev_path2 d2 paren2;
-          of_Plus rev_path r1 r2
-        | Inj ty side d1 =>
-          let rev_path1 = [0, ...rev_path];
-          let rev_path2 = [1, ...rev_path];
-          let r1 = of_htype rev_path1 ty;
-          let r2 = of_dhexp rev_path2 d1;
-          of_InjAnn rev_path r1 side r2
-        | Case ty d1 (x, d2) (y, d3) =>
-          let rev_path1 = [0, ...rev_path];
-          let rev_path2 = [1, ...rev_path];
-          let rev_path3 = [2, ...rev_path];
-          let rev_path4 = [3, ...rev_path];
-          let r1 = of_htype rev_path1 ty;
-          let r2 = of_dhexp rev_path2 d1;
-          let r3 = of_dhexp rev_path3 d2;
-          let r4 = of_dhexp rev_path4 d3;
-          of_CaseAnn rev_path r1 r2 x r3 y r4
-        | EmptyHole u m sigma =>
-          term
-            "EmptyHole"
-            rev_path
-            (
-              /* taggedText "hole-before-1" "\226\128\139\226\128\139" ^^
-                 taggedText "hole-before-2" "\226\128\140" ^^ */
-              /* taggedText "hole" "_" */
-              taggedText "holeName" (string_of_int u) ^^
-              PP.tagged
-                "hole-decorations" None (PP.tagged "environment" None (of_sigma rev_path sigma))
-              /* taggedText "hole-after-1" "\226\128\140" ^^ taggedText "hole-after-2" "\226\128\140" */
-            )
-        /* let hole_string =
-             switch m {
-             | Unevaled => "\226\144\163"
-             | Evaled => "\226\144\163"
-             };
-           term
-             "EmptyHole"
-             rev_path
-             (
-               taggedText "hole" hole_string ^^
-               PP.tagged
-                 "hole-decorations"
-                 None
-                 (
-                   taggedText "holeName" (string_of_int u) ^^
-                   PP.tagged "environment" None (of_sigma rev_path sigma)
-                 )
-             ) */
-        | NonEmptyHole u m sigma d1 =>
-          let rev_path1 = [0, ...rev_path];
-          let r = of_dhexp rev_path1 d1;
-          of_NonEmptyHole rev_path u r
-        /* let hole_class =
-             switch m {
-             | Unevaled => "unevaled-ne-hole"
-             | Evaled => "evaled-ne-hole"
-             };
-           let r = of_dhexp rev_path1 d1;
-           term "NonEmptyHole" rev_path (PP.tagged hole_class None r) ^^
-           PP.tagged
-             "hole-decorations"
-             None
-             (
-               taggedText "holeName" (string_of_int u) ^^
-               PP.tagged "environment" None (of_sigma rev_path sigma)
-             ) */
-        | Cast ty d1 =>
-          let rev_path1 = [0, ...rev_path];
-          let rev_path2 = [1, ...rev_path];
-          let r1 = of_htype rev_path1 ty;
-          let r2 = of_dhexp rev_path2 d1;
-          of_Cast rev_path r1 r2
+  }
+and of_skel rev_path skel seq =>
+  switch skel {
+  | Skel.Placeholder n =>
+    switch (OperatorSeq.seq_nth n seq) {
+    | Some en =>
+      let rev_path_n = [n, ...rev_path];
+      of_hexp rev_path_n en
+    | None => raise InvariantViolated
+    }
+  | Skel.BinOp err_status op skel1 skel2 =>
+    let r1 = of_skel rev_path skel1 seq;
+    let r2 = of_skel rev_path skel2 seq;
+    let op_pp =
+      switch op {
+      | UHExp.Times =>
+        switch (Skel.rightmost_op skel1) {
+        | Some UHExp.Space => of_expr_op_with_space op
+        | _ =>
+          switch (Skel.leftmost_op skel2) {
+          | Some UHExp.Space => of_expr_op_with_space op
+          | _ => of_expr_op op
+          }
         }
-      )
-    )
-  and of_sigma rev_path sigma => {
-    let map_f (x, d) => of_dhexp rev_path d ^^ kw "/" ^^ PP.text "" x;
-    let docs = List.map map_f sigma;
-    let doc' =
-      switch docs {
-      | [] => PP.empty
-      | [x, ...xs] =>
-        let fold_f doc doc' => doc ^^ kw ", " ^^ doc';
-        List.fold_left fold_f x xs
+      | _ => of_expr_op op
       };
-    parens "[" ^^ doc' ^^ parens "]"
+    let cls = "skel-binop";
+    let cls' = cls_from err_status cls;
+    PP.tagged cls' None (r1 ^^ op_pp ^^ r2)
   };
+
+let rec of_bin_num_op op =>
+  switch op {
+  | Dynamics.DHExp.Plus => taggedText "bin_num_op" " + "
+  | Dynamics.DHExp.Times => taggedText "bin_num_op" "*"
+  };
+
+let of_BinNumOp err_status rev_path op r1 r2 =>
+  term err_status rev_path "BinNumOp" (r1 ^^ of_bin_num_op op ^^ r2);
+
+let precedence_Ap = 1;
+
+let precedence_Times = 2;
+
+let precedence_Plus = 3;
+
+let precedence_max = 4;
+
+let rec precedence_dhexp d =>
+  Dynamics.DHExp.(
+    switch d {
+    | Var _
+    | NumLit _
+    | Inj _ _ _
+    | EmptyHole _ _
+    | Cast _ _ _
+    | FailedCast _ _ _ => precedence_const
+    | Let _ _ _
+    | Lam _ _ _
+    | Case _ _ _ => precedence_max
+    | Ap _ _ => precedence_Ap
+    | BinNumOp Times _ _ => precedence_Times
+    | BinNumOp Plus _ _ => precedence_Plus
+    | NonEmptyHole _ _ d1 => precedence_dhexp d1
+    }
+  );
+
+let rec of_dhexp parenthesize err_status rev_path d => {
+  let doc =
+    Dynamics.DHExp.(
+      switch d {
+      | Var x => of_Var err_status rev_path x
+      | Let x d1 d2 =>
+        let rev_path1 = [0, ...rev_path];
+        let rev_path2 = [1, ...rev_path];
+        let r1 = of_dhexp false NotInHole rev_path1 d1;
+        let r2 = of_dhexp false NotInHole rev_path2 d2;
+        of_Let err_status rev_path x r1 r2
+      | Lam x ty d1 =>
+        let rev_path1 = [0, ...rev_path];
+        let rev_path2 = [1, ...rev_path];
+        let r1 = of_htype false rev_path1 ty;
+        let r2 = of_dhexp false NotInHole rev_path2 d1;
+        of_LamAnn err_status rev_path x r1 r2
+      | Ap d1 d2 =>
+        let rev_path1 = [0, ...rev_path];
+        let rev_path2 = [1, ...rev_path];
+        let paren1 = precedence_dhexp d1 > precedence_Ap;
+        let paren2 = precedence_dhexp d2 >= precedence_Ap;
+        let r1 = of_dhexp paren1 NotInHole rev_path1 d1;
+        let r2 = of_dhexp paren2 NotInHole rev_path2 d2;
+        of_Ap err_status rev_path r1 r2
+      | NumLit n => of_NumLit err_status rev_path n
+      | BinNumOp op d1 d2 =>
+        let rev_path1 = [0, ...rev_path];
+        let rev_path2 = [1, ...rev_path];
+        let prec_d = precedence_dhexp d;
+        let paren1 = precedence_dhexp d1 > prec_d;
+        let paren2 = precedence_dhexp d2 >= prec_d;
+        let r1 = of_dhexp paren1 NotInHole rev_path1 d1;
+        let r2 = of_dhexp paren2 NotInHole rev_path2 d2;
+        of_BinNumOp err_status rev_path op r1 r2
+      | Inj ty side d1 =>
+        let rev_path1 = [0, ...rev_path];
+        let rev_path2 = [1, ...rev_path];
+        let r1 = of_htype false rev_path1 ty;
+        let r2 = of_dhexp false NotInHole rev_path2 d1;
+        of_InjAnn err_status rev_path r1 side r2
+      | Case d1 (x, d2) (y, d3) =>
+        let rev_path1 = [0, ...rev_path];
+        let rev_path2 = [1, ...rev_path];
+        let rev_path3 = [2, ...rev_path];
+        let r1 = of_dhexp false NotInHole rev_path1 d1;
+        let r2 = of_dhexp false NotInHole rev_path2 d2;
+        let r3 = of_dhexp false NotInHole rev_path3 d3;
+        of_CaseAnn err_status rev_path r1 x r2 y r3
+      | EmptyHole u sigma =>
+        term
+          err_status
+          rev_path
+          "EmptyHole"
+          (
+            taggedText "holeName" (string_of_int u) ^^
+            PP.tagged
+              ["hole-decorations"] None (PP.tagged ["environment"] None (of_sigma rev_path sigma))
+          )
+      | NonEmptyHole u sigma d1 =>
+        let rev_path1 = [0, ...rev_path];
+        term
+          err_status
+          rev_path
+          "NonEmptyHole"
+          (
+            of_dhexp false (InHole u) rev_path1 d1 ^^
+            PP.tagged
+              ["hole-decorations"] None (PP.tagged ["environment"] None (of_sigma rev_path sigma))
+          )
+      | Cast (Cast d1 ty1 ty2) ty3 ty4 when HTyp.eq ty2 ty3 =>
+        let rev_path1 = [0, ...rev_path];
+        let inner_rev_path1 = [0, ...rev_path1];
+        let inner_rev_path2 = [1, ...rev_path1];
+        let inner_rev_path3 = [2, ...rev_path1];
+        /* no rev_path2 because we're not showing them separately */
+        let rev_path3 = [2, ...rev_path];
+        let paren1 = precedence_dhexp d1 > precedence_const;
+        let r1 = of_dhexp paren1 NotInHole inner_rev_path1 d1;
+        let r2 = of_htype false inner_rev_path2 ty1;
+        let r3 = of_htype false inner_rev_path3 ty2;
+        let r5 = of_htype false rev_path3 ty4;
+        of_chained_Cast err_status rev_path r1 r2 r3 r5
+      | Cast d1 ty1 ty2 =>
+        let rev_path1 = [0, ...rev_path];
+        let rev_path2 = [1, ...rev_path];
+        let rev_path3 = [2, ...rev_path];
+        let paren1 = precedence_dhexp d1 > precedence_const;
+        let r1 = of_dhexp paren1 NotInHole rev_path1 d1;
+        let r2 = of_htype false rev_path2 ty1;
+        let r3 = of_htype false rev_path3 ty2;
+        of_Cast err_status rev_path r1 r2 r3
+      | FailedCast (Cast d1 ty1 ty2) ty3 ty4 when HTyp.eq ty2 ty3 =>
+        let rev_path1 = [0, ...rev_path];
+        let inner_rev_path1 = [0, ...rev_path1];
+        let inner_rev_path2 = [1, ...rev_path1];
+        let inner_rev_path3 = [2, ...rev_path1];
+        /* no rev_path2 because we're not showing them separately */
+        let rev_path3 = [2, ...rev_path];
+        let paren1 = precedence_dhexp d1 > precedence_const;
+        let r1 = of_dhexp paren1 NotInHole inner_rev_path1 d1;
+        let r2 = of_htype false inner_rev_path2 ty1;
+        let r3 = of_htype false inner_rev_path3 ty2;
+        let r5 = of_htype false rev_path3 ty4;
+        of_chained_FailedCast err_status rev_path r1 r2 r3 r5
+      | FailedCast d1 ty1 ty2 =>
+        let rev_path1 = [0, ...rev_path];
+        let rev_path2 = [1, ...rev_path];
+        let rev_path3 = [2, ...rev_path];
+        let paren1 = precedence_dhexp d1 > precedence_const;
+        let r1 = of_dhexp paren1 NotInHole rev_path1 d1;
+        let r2 = of_htype false rev_path2 ty1;
+        let r3 = of_htype false rev_path3 ty2;
+        of_FailedCast err_status rev_path r1 r2 r3
+      }
+    );
+  parenthesize ? parens "(" ^^ doc ^^ parens ")" : doc
+}
+and of_sigma rev_path sigma => {
+  let map_f (x, d) => of_dhexp false NotInHole rev_path d ^^ kw "/" ^^ PP.text "" x;
+  let docs = List.map map_f sigma;
+  let doc' =
+    switch docs {
+    | [] => PP.empty
+    | [x, ...xs] =>
+      let fold_f doc doc' => doc ^^ kw ", " ^^ doc';
+      List.fold_left fold_f x xs
+    };
+  parens "[" ^^ doc' ^^ parens "]"
 };
