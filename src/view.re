@@ -40,12 +40,18 @@ let optionalBreakSp = PP.optionalBreak " ";
 
 let optionalBreakNSp = PP.optionalBreak "";
 
-let of_Parenthesized rev_path r1 =>
+let of_Parenthesized is_block rev_path r1 =>
   term
     NotInHole
     rev_path
     "Parenthesized"
-    (taggedText "openParens" "(" ^^ r1 ^^ taggedText "closeParens" ")");
+    (
+      is_block ?
+        PP.mandatoryBreak ^^
+        taggedText "openParens" "(" ^^
+        PP.nestAbsolute 2 r1 ^^ PP.mandatoryBreak ^^ taggedText "closeParens" ")" :
+        taggedText "openParens" "(" ^^ r1 ^^ taggedText "closeParens" ")"
+    );
 
 let rec str_of_expr_op op =>
   switch op {
@@ -158,7 +164,7 @@ let rec of_uhtyp rev_path uty =>
   | UHTyp.Parenthesized uty1 =>
     let rev_path1 = [0, ...rev_path];
     let r1 = of_uhtyp rev_path1 uty1;
-    of_Parenthesized rev_path r1
+    of_Parenthesized false rev_path r1
   | UHTyp.Num => of_Num rev_path
   | UHTyp.OpSeq skel seq => term NotInHole rev_path "OpSeq" (of_uhtyp_skel rev_path skel seq)
   | UHTyp.Hole => of_Hole NotInHole rev_path "Hole" "?"
@@ -193,9 +199,7 @@ let of_Let err_status rev_path x r1 r2 =>
     (
       PP.blockBoundary ^^
       kw "let" ^^
-      space ^^
-      var x ^^
-      space ^^ op "=" ^^ PP.nestAbsolute 2 (optionalBreakSp ^^ r1) ^^ PP.mandatoryBreak ^^ r2
+      space ^^ var x ^^ space ^^ op "=" ^^ space ^^ PP.nestAbsolute 2 r1 ^^ PP.mandatoryBreak ^^ r2
     );
 
 let of_Lam err_status rev_path x r =>
@@ -273,12 +277,12 @@ let of_Case err_status rev_path r1 x r2 y r3 =>
       parens ")" ^^
       space ^^
       op "\226\135\146" ^^
-      optionalBreakSp ^^
+      space ^^
       PP.nestAbsolute 2 r2 ^^
       PP.mandatoryBreak ^^
       kw "R" ^^
       parens "(" ^^
-      var y ^^ parens ")" ^^ space ^^ op "\226\135\146" ^^ optionalBreakSp ^^ PP.nestAbsolute 2 r3
+      var y ^^ parens ")" ^^ space ^^ op "\226\135\146" ^^ space ^^ PP.nestAbsolute 2 r3
     );
 
 let of_CaseAnn err_status rev_path r1 x r2 y r3 =>
@@ -298,12 +302,12 @@ let of_CaseAnn err_status rev_path r1 x r2 y r3 =>
       parens ")" ^^
       space ^^
       op "\226\135\146" ^^
-      optionalBreakSp ^^
+      space ^^
       PP.nestAbsolute 2 r2 ^^
       PP.mandatoryBreak ^^
       kw "R" ^^
       parens "(" ^^
-      var y ^^ parens ")" ^^ space ^^ op "\226\135\146" ^^ optionalBreakSp ^^ PP.nestAbsolute 2 r3
+      var y ^^ parens ")" ^^ space ^^ op "\226\135\146" ^^ space ^^ PP.nestAbsolute 2 r3
     );
 
 let cast_arrow = op " \226\135\168 ";
@@ -337,12 +341,19 @@ let of_chained_FailedCast err_status rev_path r1 rty1 rty2 rty4 =>
       parens "<" ^^ rty1 ^^ failed_cast_arrow ^^ rty2 ^^ failed_cast_arrow ^^ rty4 ^^ parens ">"
     );
 
+let is_block e =>
+  switch e {
+  | UHExp.Tm _ (UHExp.Let _ _ _) => true
+  | UHExp.Tm _ (UHExp.Case _ _ _) => true
+  | _ => false
+  };
+
 let rec of_hexp rev_path e =>
   switch e {
   | UHExp.Parenthesized e1 =>
     let rev_path1 = [0, ...rev_path];
     let r1 = of_hexp rev_path1 e1;
-    of_Parenthesized rev_path r1
+    of_Parenthesized (is_block e1) rev_path r1
   | UHExp.Tm err_status e' =>
     switch e' {
     | UHExp.Asc e1 ty =>
