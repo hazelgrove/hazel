@@ -684,7 +684,7 @@ let view ((ms, es, do_action): Model.mt) => {
     React.S.map
       (
         fun ((_, htype), _) => {
-          let pp_view = View.of_htype [] htype;
+          let pp_view = View.of_htype false [] htype;
           let (sdoc, _) = Pretty.PP.sdoc_of_doc pp_view_width pp_view;
           let prettified = Pretty.HTML_Of_SDoc.html_of_sdoc sdoc;
           [prettified]
@@ -707,7 +707,7 @@ let view ((ms, es, do_action): Model.mt) => {
             | Dynamics.Evaluator.InvalidInput => [Html5.pcdata "(internal error: invalid input)"]
             | Dynamics.Evaluator.BoxedValue d_val
             | Dynamics.Evaluator.Indet d_val =>
-              let pp_view = View.of_dhexp NotInHole [] d_val;
+              let pp_view = View.of_dhexp false NotInHole [] d_val;
               let (sdoc, _) = Pretty.PP.sdoc_of_doc pp_view_width pp_view;
               let prettified = Pretty.HTML_Of_SDoc.html_of_sdoc sdoc;
               [prettified]
