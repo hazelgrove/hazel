@@ -2278,24 +2278,28 @@ Module Core.
             )
           | (Construct (SCase x y), (ZExp.CursorE _ e)) =>
             match HTyp.matched_sum ty with
-              | Some _ (* 24b *) => 
-                  let (new_hole1, u_gen') := UHExp.new_EmptyHole u_gen in 
-                  let (new_hole2, u_gen'') := UHExp.new_EmptyHole u_gen' in 
-                  let casez2 := ZExp.Deeper NotInHole (ZExp.CaseZ2 e
-                                (x, ZExp.CursorE Before new_hole1)
-                                (y, new_hole2)) in
-                  Some (ZExp.Deeper NotInHole (
-                    ZExp.AscZ1 casez2 UHTyp.Hole), HTyp.Hole, u_gen'')
-              | None (* 24c *) => 
-                  let (ze', u_gen') := ZExp.put_in_new_hole u_gen ze in 
-                  let (new_hole2, u_gen'') := UHExp.new_EmptyHole u_gen' in 
-                  let (new_hole3, u_gen''') := UHExp.new_EmptyHole u_gen'' in 
-                  Some (
-                    (ZExp.Deeper NotInHole (ZExp.AscZ1
-                      (ZExp.Deeper NotInHole (
-                        ZExp.CaseZ1 ze' (x, new_hole2) (y, new_hole3)))
-                      UHTyp.Hole)), 
-                  HTyp.Hole, u_gen''')
+            | Some _ => 
+              let (new_hole1, u_gen') := UHExp.new_EmptyHole u_gen in 
+              let (new_hole2, u_gen'') := UHExp.new_EmptyHole u_gen' in 
+              let casez2 := 
+                ZExp.Deeper NotInHole 
+                  (ZExp.CaseZ2 e
+                    (x, ZExp.CursorE Before new_hole1)
+                    (y, new_hole2)) in
+              Some (
+                ZExp.Deeper NotInHole (
+                  ZExp.AscZ1 (ZExp.ParenthesizedZ casez2) UHTyp.Hole), 
+                HTyp.Hole, u_gen'')
+            | None => 
+              let (ze', u_gen') := ZExp.put_in_new_hole u_gen ze in 
+              let (new_hole2, u_gen'') := UHExp.new_EmptyHole u_gen' in 
+              let (new_hole3, u_gen''') := UHExp.new_EmptyHole u_gen'' in 
+              Some (
+                (ZExp.Deeper NotInHole (ZExp.AscZ1
+                  (ZExp.ParenthesizedZ (ZExp.Deeper NotInHole (
+                    ZExp.CaseZ1 ze' (x, new_hole2) (y, new_hole3))))
+                  UHTyp.Hole)), 
+              HTyp.Hole, u_gen''')
             end
           | (Construct (SOp op), ZExp.Deeper _ (
               ZExp.OpSeqZ _ (ZExp.CursorE On e) surround))
