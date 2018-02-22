@@ -11,24 +11,29 @@ module Util = General_util;
 let make_palette ((ms, es, do_action): Model.mt) set_cursor => {
   /* start by defining a bunch of helpers */
   /* performs the top-level action and updates the signal */
-  let doAction action => do_action action;
-  /* set_cursor () */
+  let doAction action => {
+    do_action action;
+    set_cursor ()
+  };
   module KC = Js_util.KeyCombo;
   module KCs = Js_util.KeyCombos;
   /* helper function for constructing action buttons with no textbox */
   let action_button action btn_label key_combo => {
     let _ =
       Js_util.listen_to_t
-        Ev.keypress
+        Ev.keydown
         Dom_html.document
         (
-          fun evt =>
-            if (Js_util.get_keyCode evt == KC.keyCode key_combo) {
+          fun evt => {
+            let key = Js_util.get_key evt;
+            /* Js_util.log key; */
+            if (key == KC.key key_combo) {
               doAction action;
               Dom.preventDefault evt
             } else {
               ()
             }
+          }
         );
     Html5.(
       button
@@ -54,7 +59,7 @@ let make_palette ((ms, es, do_action): Model.mt) set_cursor => {
                 ms
             )
         ]
-        [pcdata (btn_label ^ " [" ^ KC.to_string key_combo ^ "]")]
+        [pcdata (btn_label ^ " [" ^ KC.name key_combo ^ "]")]
     )
   };
   /* actions that take an input. the conversion function
@@ -104,7 +109,7 @@ let make_palette ((ms, es, do_action): Model.mt) set_cursor => {
                   ms
               )
           ]
-          [pcdata (btn_label ^ " [" ^ KC.to_string key_combo ^ "]")]
+          [pcdata (btn_label ^ " [" ^ KC.name key_combo ^ "]")]
       );
     let button_dom = To_dom.of_button button_elt;
     /* listen for the key combo at the document level */
@@ -114,9 +119,9 @@ let make_palette ((ms, es, do_action): Model.mt) set_cursor => {
         Dom_html.document
         (
           fun evt => {
-            let evt_key = Js_util.get_keyCode evt;
+            let key = Js_util.get_key evt;
             /* let _ = Firebug.console##log evt_key in */
-            if (evt_key == KC.keyCode key_combo) {
+            if (key == KC.key key_combo) {
               i_dom##focus;
               Dom_html.stopPropagation evt;
               Js._false
@@ -132,15 +137,16 @@ let make_palette ((ms, es, do_action): Model.mt) set_cursor => {
         i_dom
         (
           fun evt => {
-            let evt_key = Js_util.get_keyCode evt;
-            if (evt_key == KC.keyCode KCs.enter) {
+            let key = Js_util.get_key evt;
+            if (key == KC.key KCs.enter) {
               button_dom##click;
               i_dom##blur;
               Js._false
             } else if (
-              evt_key == KC.keyCode KCs.esc
+              key == KC.key KCs.esc
             ) {
               i_dom##blur;
+              set_cursor ();
               Js._false
             } else {
               Js._true
@@ -148,6 +154,16 @@ let make_palette ((ms, es, do_action): Model.mt) set_cursor => {
           }
         );
     /* stop propagation of keys when focus is in input box */
+    let _ =
+      Js_util.listen_to
+        Ev.keydown
+        i_dom
+        (
+          fun evt => {
+            Dom_html.stopPropagation evt;
+            Js._true
+          }
+        );
     let _ =
       Js_util.listen_to
         Ev.keypress
@@ -221,7 +237,7 @@ let make_palette ((ms, es, do_action): Model.mt) set_cursor => {
                   ms
               )
           ]
-          [pcdata (btn_label ^ " [" ^ KC.to_string key_combo ^ "]")]
+          [pcdata (btn_label ^ " [" ^ KC.name key_combo ^ "]")]
       );
     let button_dom = To_dom.of_button button_elt;
     let _ =
@@ -230,8 +246,8 @@ let make_palette ((ms, es, do_action): Model.mt) set_cursor => {
         Dom_html.document
         (
           fun evt => {
-            let evt_key = Js_util.get_keyCode evt;
-            if (evt_key == KC.keyCode key_combo) {
+            let key = Js_util.get_key evt;
+            if (key == KC.key key_combo) {
               Firebug.console##log "in c";
               i_dom_1##focus;
               Dom_html.stopPropagation evt;
@@ -247,13 +263,13 @@ let make_palette ((ms, es, do_action): Model.mt) set_cursor => {
         i_dom
         (
           fun evt => {
-            let evt_key = Js_util.get_keyCode evt;
-            if (evt_key == KC.keyCode KCs.enter) {
+            let key = Js_util.get_key evt;
+            if (key == KC.key KCs.enter) {
               button_dom##click;
               i_dom##blur;
               Js._false
             } else if (
-              evt_key == KC.keyCode KCs.esc
+              key == KC.key KCs.esc
             ) {
               i_dom##blur;
               Js._false
@@ -290,15 +306,18 @@ let make_palette ((ms, es, do_action): Model.mt) set_cursor => {
      let moveChild3 = action_button (Action.Move (Action.Child 3)) "move child 3" KCs.number_3;
      let moveParent = action_button (Action.Move Action.Parent) "move parent" KCs.p; */
   /* deletion */
-  let delete = action_button Action.Del "del" KCs.x;
+  let delete = action_button Action.Delete "delete" KCs.del;
+  let backspace = action_button Action.Backspace "backspace" KCs.backspace;
   /* type construction */
+  let constructNum = action_button (Action.Construct Action.SNum) "construct num type" KCs.n;
   let constructArrow =
-    action_button (Action.Construct Action.SArrow) "construct arrow" KCs.greaterThan;
-  let constructNum = action_button (Action.Construct Action.SNum) "construct num" KCs.n;
-  let constructSum = action_button (Action.Construct Action.SSum) "construct sum" KCs.s;
-  /* finishing */
-  let finish = action_button Action.Finish "finish" KCs.dot;
+    action_button
+      (Action.Construct (Action.STyOp UHTyp.Arrow)) "construct arrow type" KCs.greaterThan;
+  let constructSum =
+    action_button (Action.Construct (Action.STyOp UHTyp.Sum)) "construct sum type" KCs.vbar;
   /* expression construction */
+  let constructParenthesized =
+    action_button (Action.Construct Action.SParenthesized) "parenthesize" KCs.openParens;
   let constructAsc = action_button (Action.Construct Action.SAsc) "construct asc" KCs.colon;
   let constructLet =
     action_input_button
@@ -342,7 +361,6 @@ let make_palette ((ms, es, do_action): Model.mt) set_cursor => {
       "lam_input"
       KCs.backslash
       "Enter var + press Enter";
-  let constructAp = action_button (Action.Construct Action.SAp) "construct ap" KCs.openParens;
   let constructLit =
     action_input_button
       (fun n => Action.Construct (Action.SLit n))
@@ -360,11 +378,16 @@ let make_palette ((ms, es, do_action): Model.mt) set_cursor => {
       "lit_input"
       KCs.pound
       "Enter num + press Enter";
-  let constructPlus = action_button (Action.Construct Action.SPlus) "construct plus" KCs.plus;
+  let constructPlus =
+    action_button (Action.Construct (Action.SOp UHExp.Plus)) "construct plus" KCs.plus;
+  let constructTimes =
+    action_button (Action.Construct (Action.SOp UHExp.Times)) "construct times" KCs.asterisk;
+  let constructSpace =
+    action_button (Action.Construct (Action.SOp UHExp.Space)) "construct ap" KCs.space;
   let constructInjL =
-    action_button (Action.Construct (Action.SInj HExp.L)) "construct inj L" KCs.l;
+    action_button (Action.Construct (Action.SInj UHExp.L)) "construct inj L" KCs.l;
   let constructInjR =
-    action_button (Action.Construct (Action.SInj HExp.R)) "construct inj R" KCs.r;
+    action_button (Action.Construct (Action.SInj UHExp.R)) "construct inj R" KCs.r;
   let constructCase =
     action_input_input_button
       (fun (v1, v2) => Action.Construct (Action.SCase v1 v2 [@implicit_arity]))
@@ -384,8 +407,6 @@ let make_palette ((ms, es, do_action): Model.mt) set_cursor => {
       KCs.c
       "Enter var + press Tab"
       "Enter var + press Enter";
-  let constructNEHole =
-    action_button (Action.Construct Action.SNEHole) "construct neHole" KCs.qmark;
   /* let movementActions =
      Html5.(
        div
@@ -405,7 +426,7 @@ let make_palette ((ms, es, do_action): Model.mt) set_cursor => {
           div a::[a_class ["panel-title"]] [pcdata "Type Construction"],
           div
             a::[a_class ["panel-body"]]
-            [constructArrow, br (), constructNum, br (), constructSum, br ()]
+            [constructNum, br (), constructArrow, br (), constructSum, br ()]
         ]
     );
   let expressionConstructionActions =
@@ -417,23 +438,19 @@ let make_palette ((ms, es, do_action): Model.mt) set_cursor => {
           div
             a::[a_class ["panel-body"]]
             [
+              constructParenthesized,
+              br (),
               constructAsc,
-              br (),
               constructLet,
-              br (),
               constructVar,
               constructLam,
-              constructAp,
-              br (),
+              constructSpace,
               constructLit,
               constructPlus,
-              br (),
+              constructTimes,
               constructInjL,
-              br (),
               constructInjR,
-              br (),
-              constructCase,
-              constructNEHole
+              constructCase
             ]
         ]
     );
@@ -443,16 +460,7 @@ let make_palette ((ms, es, do_action): Model.mt) set_cursor => {
         a::[a_class ["panel", "panel-default"]]
         [
           div a::[a_class ["panel-title"]] [pcdata "Deletion"],
-          div a::[a_class ["panel-body"]] [delete]
-        ]
-    );
-  let finishingActions =
-    Html5.(
-      div
-        a::[a_class ["panel", "panel-default"]]
-        [
-          div a::[a_class ["panel-title"]] [pcdata "Finishing"],
-          div a::[a_class ["panel-body"]] [finish]
+          div a::[a_class ["panel-body"]] [delete, backspace]
         ]
     );
   /* finally, put it all together into the action palette */
@@ -463,8 +471,7 @@ let make_palette ((ms, es, do_action): Model.mt) set_cursor => {
         /* movementActions, */
         typeConstructionActions,
         expressionConstructionActions,
-        deleteActions,
-        finishingActions
+        deleteActions
       ]
   )
 };
