@@ -1921,6 +1921,18 @@ Module Core.
             let (e', u_gen') := UHExp.new_EmptyHole u_gen in 
             let ze' := ZExp.CursorE Before e' in 
             Some (ze', HTyp.Hole, u_gen')
+          | (Backspace, 
+              ZExp.Deeper _ (ZExp.AscZ2 e1 
+                (ZTyp.CursorT Before uty1))) => 
+            let ze' := ZExp.CursorE After e1 in 
+            zexp_syn_fix_holes fuel ctx u_gen ze'
+          | (Backspace,
+              ZExp.Deeper _ (ZExp.AscZ2 e1 
+                (ZTyp.OpSeqZ _ 
+                  (ZTyp.CursorT Before _)
+                  (OperatorSeq.EmptyPrefix _)))) => 
+            let ze' := ZExp.CursorE After e1 in 
+            zexp_syn_fix_holes fuel ctx u_gen ze'
           | (Backspace, ZExp.Deeper _
               (ZExp.OpSeqZ _
                 ((ZExp.CursorE Before e0) as ze0) 
@@ -2628,6 +2640,18 @@ Module Core.
         let (e', u_gen') := UHExp.new_EmptyHole u_gen in 
         let ze' := ZExp.CursorE Before e' in 
         Some (ze', u_gen')
+      | (Backspace, 
+          ZExp.Deeper _ (ZExp.AscZ2 e1 
+            (ZTyp.CursorT Before uty1))) => 
+        let ze' := ZExp.CursorE After e1 in 
+        zexp_ana_fix_holes fuel ctx u_gen ze' ty
+      | (Backspace,
+          ZExp.Deeper _ (ZExp.AscZ2 e1 
+            (ZTyp.OpSeqZ _ 
+              (ZTyp.CursorT Before _)
+              (OperatorSeq.EmptyPrefix _)))) => 
+        let ze' := ZExp.CursorE After e1 in 
+        zexp_ana_fix_holes fuel ctx u_gen ze' ty
       (* special cases for backspace/delete that can turn 
        * an opseq back into a single expression *)
       | (Backspace, 

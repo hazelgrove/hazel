@@ -169,13 +169,13 @@ let view ((ms, es, do_action): Model.mt) => {
   /* listen to selection change events and respond */
   let rev_paths_rs = React.S.map (fun (_, rev_paths) => rev_paths) view_rs;
   let fix_anchor selection anchor => {
+    let anchorOffset = selection##.anchorOffset;
     let anchor' =
       switch anchor##.nodeType {
       | Dom.TEXT =>
         let anchor' = Js.Opt.get (Dom.CoerceTo.text anchor) (fun () => assert false);
         let length = anchor'##.length;
-        let anchor_offset = selection##.anchorOffset;
-        if (anchor_offset == length) {
+        if (anchorOffset == length) {
           switch (Js.Opt.to_option anchor##.parentNode) {
           | Some parent =>
             switch parent##.nodeType {
@@ -188,18 +188,18 @@ let view ((ms, es, do_action): Model.mt) => {
               let is_op = Js.to_bool (classList##contains (Js.string "seq-op"));
               if (is_space || is_indentation || is_op) {
                 switch (Js.Opt.to_option parent##.nextSibling) {
-                | Some sibling => first_leaf sibling
-                | None => anchor
+                | Some sibling => (first_leaf sibling, 0)
+                | None => (anchor, anchorOffset)
                 }
               } else {
-                anchor
+                (anchor, anchorOffset)
               }
-            | _ => anchor
+            | _ => (anchor, anchorOffset)
             }
-          | None => anchor
+          | None => (anchor, anchorOffset)
           }
         } else if (
-          anchor_offset == 0
+          anchorOffset == 0
         ) {
           switch (Js.Opt.to_option anchor##.parentNode) {
           | Some parent =>
@@ -212,24 +212,25 @@ let view ((ms, es, do_action): Model.mt) => {
               let is_op = Js.to_bool (classList##contains (Js.string "seq-op"));
               if (is_space || is_op) {
                 switch (Js.Opt.to_option parent##.previousSibling) {
-                | Some sibling => last_leaf sibling
-                | None => anchor
+                | Some sibling =>
+                  let anchor' = last_leaf sibling;
+                  (anchor', node_length anchor')
+                | None => (anchor, anchorOffset)
                 }
               } else {
-                anchor
+                (anchor, anchorOffset)
               }
-            | _ => anchor
+            | _ => (anchor, anchorOffset)
             }
-          | None => anchor
+          | None => (anchor, anchorOffset)
           }
         } else {
-          anchor
+          (anchor, anchorOffset)
         }
       | Dom.ELEMENT =>
         let anchor_elem = Js.Opt.get (Dom_html.CoerceTo.element anchor) (fun () => assert false);
         let classList = anchor_elem##.classList;
         if (not (Js.to_bool (classList##contains (Js.string "SText")))) {
-          let anchorOffset = selection##.anchorOffset;
           let children = anchor##.childNodes;
           let child_opt = children##item anchorOffset;
           switch (Js.Opt.to_option child_opt) {
@@ -239,20 +240,22 @@ let view ((ms, es, do_action): Model.mt) => {
               let tagName = Js.to_string child_element##.tagName;
               if (String.equal tagName "BR") {
                 switch (Js.Opt.to_option child_element##.previousSibling) {
-                | Some sibling => last_leaf sibling
-                | None => first_leaf child
+                | Some sibling =>
+                  let anchor' = last_leaf sibling;
+                  (anchor', node_length anchor')
+                | None => (first_leaf child, 0)
                 }
               } else {
-                anchor
+                (anchor, anchorOffset)
               }
-            | None => anchor
+            | None => (anchor, anchorOffset)
             }
-          | None => anchor
+          | None => (anchor, anchorOffset)
           }
         } else {
-          anchor
+          (anchor, anchorOffset)
         }
-      | _ => anchor
+      | _ => (anchor, anchorOffset)
       };
     anchor'
   };
@@ -461,7 +464,7 @@ let view ((ms, es, do_action): Model.mt) => {
         | None => ()
         }
       } else if (
-        has_class "lambda-dot" || has_class "openParens"
+        has_class "lambda-dot" || has_class "openParens" || has_class "space"
       ) {
         let anchorOffset = selection##.anchorOffset;
         if (anchorOffset == 1) {
@@ -496,8 +499,11 @@ let view ((ms, es, do_action): Model.mt) => {
   let determine_cursor_side
       (selection: Js.t Dom_html.selection)
       (anchor: Js.t Dom.node)
+      (anchorOffset: int)
       (ast_elem: Js.t Dom_html.element) => {
     let classList = ast_elem##.classList;
+    Js_util.log "classList = ";
+    Js_util.log classList;
     let ast_has_class = has_class classList;
     if (ast_has_class "Parenthesized") {
       let anchor_elem = get_anchor_elem anchor;
@@ -515,7 +521,6 @@ let view ((ms, es, do_action): Model.mt) => {
       ast_has_class "Let"
     ) {
       let anchor_elem = get_anchor_elem anchor;
-      let anchorOffset = selection##.anchorOffset;
       if (anchorOffset == 0) {
         let innerHTML = Js.to_string anchor_elem##.innerHTML;
         if (String.equal innerHTML "let") {
@@ -530,8 +535,6 @@ let view ((ms, es, do_action): Model.mt) => {
       ast_has_class "Var" ||
       ast_has_class "NumLit" || ast_has_class "Num" || ast_has_class "number"
     ) {
-      let anchorOffset = selection##.anchorOffset;
-      Js_util.log anchorOffset;
       if (anchorOffset == 0) {
         Before
       } else {
@@ -548,7 +551,6 @@ let view ((ms, es, do_action): Model.mt) => {
       ast_has_class "Lam"
     ) {
       let anchor_elem = get_anchor_elem anchor;
-      let anchorOffset = selection##.anchorOffset;
       if (anchorOffset == 0) {
         let innerHTML = Js.to_string anchor_elem##.innerHTML;
         if (String.equal innerHTML "\206\187") {
@@ -567,7 +569,6 @@ let view ((ms, es, do_action): Model.mt) => {
       ast_has_class "Inj"
     ) {
       let anchor_elem = get_anchor_elem anchor;
-      let anchorOffset = selection##.anchorOffset;
       if (anchorOffset == 0) {
         let innerHTML = Js.to_string anchor_elem##.innerHTML;
         if (String.equal innerHTML "inj") {
@@ -591,7 +592,6 @@ let view ((ms, es, do_action): Model.mt) => {
       ast_has_class "Case"
     ) {
       let anchor_elem = get_anchor_elem anchor;
-      let anchorOffset = selection##.anchorOffset;
       if (anchorOffset == 0) {
         let innerHTML = Js.to_string anchor_elem##.innerHTML;
         if (String.equal innerHTML "case") {
@@ -645,7 +645,7 @@ let view ((ms, es, do_action): Model.mt) => {
           do_transport ();
           /* get effective anchor node (where selection began) */
           let selection = Dom_html.window##getSelection;
-          let anchor = fix_anchor selection selection##.anchorNode;
+          let (anchor, anchorOffset) = fix_anchor selection selection##.anchorNode;
           /* get current paths hash table */
           let rev_paths = React.S.value rev_paths_rs;
           /* traverse up the DOM until we find an element with an id in the paths table */
@@ -662,7 +662,7 @@ let view ((ms, es, do_action): Model.mt) => {
               | rev_path =>
                 found := true;
                 let path = List.rev rev_path;
-                let cursor_side = determine_cursor_side selection anchor cur_element;
+                let cursor_side = determine_cursor_side selection anchor anchorOffset cur_element;
                 Js_util.log (string_of_cursor_side cursor_side);
                 do_action (Action.MoveTo (path, cursor_side));
                 clear_cursors ();
