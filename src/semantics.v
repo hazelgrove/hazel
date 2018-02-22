@@ -554,10 +554,28 @@ Module Core.
 
     Definition empty : t := nil.
 
+    Fixpoint update (ctx : t) (x : Var.t) (ty : HTyp.t) : option t := 
+      match ctx with 
+      | nil => None
+      | cons (y, ty') ctx' => 
+        match Var.equal x y with 
+        | true => Some (cons (y, ty) ctx')
+        | false => 
+          match update ctx' x ty with 
+          | Some ctx' => Some (cons (y, ty') ctx')
+          | None => None
+          end
+        end
+      end.
+
     Definition extend (ctx : t) (x : Var.t * HTyp.t)
       : t :=
       match x with
-      | (x, ty) => cons (x, ty) ctx
+      | (x, ty) => 
+        match update ctx x ty with 
+        | Some ctx' => ctx'
+        | None => cons (x, ty) ctx
+        end
       end.
 
     Fixpoint lookup (ctx : t) (x : Var.t) : option HTyp.t :=
