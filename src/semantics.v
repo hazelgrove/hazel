@@ -2600,6 +2600,39 @@ Module Core.
               end
             | None => None
             end
+          | (_, ZExp.Deeper _ (ZExp.LamZ x ze1)) => 
+            match HTyp.matched_arrow ty with 
+            | None => None
+            | Some (ty1, ty2) => 
+              let ctx' := Ctx.extend ctx (x, ty1) in 
+              match performSyn fuel ctx' a (ze1, ty2, u_gen) with 
+              | None => None
+              | Some (ze1', ty2', u_gen') => 
+                Some (
+                  (ZExp.Deeper NotInHole (ZExp.LamZ x ze1')),
+                  HTyp.Arrow ty1 ty2',
+                  u_gen')
+              end
+            end
+          | (_, ZExp.Deeper _ (ZExp.InjZ side ze1)) => 
+            match ty with 
+            | HTyp.Sum ty1 ty2 => 
+              let ty_side := UHExp.pick_side side ty1 ty2 in 
+              match performSyn fuel ctx a (ze1, ty_side, u_gen) with 
+              | None => None
+              | Some (ze1', ty_side', u_gen') => 
+                let ty' := 
+                  match side with 
+                  | UHExp.L => HTyp.Sum ty_side' ty2
+                  | UHExp.R => HTyp.Sum ty1 ty_side'
+                  end in 
+                Some (
+                  ZExp.Deeper NotInHole (ZExp.InjZ side ze1'),
+                  ty',
+                  u_gen')
+              end
+            | _ => None (* should never happen *)
+            end
           | (_, ZExp.Deeper _ (ZExp.OpSeqZ skel ze0 surround)) => 
             let i := OperatorSeq.surround_prefix_length surround in 
             match ZExp.erase ze with 
