@@ -693,6 +693,12 @@ Module Core.
         Some (Skel.BinOp (InHole u') op skel1 skel2, seq, u_gen')
       end.
 
+    Fixpoint drop_outer_parentheses (e : t) : t := 
+      match e with 
+      | Tm _ _ => e
+      | Parenthesized e' => drop_outer_parentheses e'
+      end.
+
     (* see syn_skel and ana_skel below *) 
     Inductive type_mode : Type := 
     | AnalyzedAgainst : HTyp.t -> type_mode
@@ -1399,6 +1405,13 @@ Module Core.
           (ParenthesizedZ ze1, u_gen')
         end.
 
+    Fixpoint cursor_on_outer_expr (ze : t) : option(UHExp.t) := 
+      match ze with 
+      | CursorE _ e => Some (UHExp.drop_outer_parentheses e)
+      | ParenthesizedZ ze' => cursor_on_outer_expr ze'
+      | Deeper _ _ => None
+      end.
+
     Fixpoint erase (ze : t) : UHExp.t :=
       match ze with
       | CursorE _ e => e
@@ -1604,25 +1617,28 @@ Module Core.
           ana_cursor_mode fuel ctx ze1 
             (UHExp.pick_side side ty1 ty2)
         end
-      | CaseZ1 (ZExp.CursorE _ (UHExp.Tm (InHole _) e1)) _ _ => 
-        match UHExp.syn' fuel ctx e1 with  
-        | Some ty => 
-          Some (SynErrorSum (HTyp.Sum HTyp.Hole HTyp.Hole) ty) 
-        | None => None
-        end
-      | CaseZ1 (ZExp.CursorE _ e1) (x, e2) (y, e3) => 
-        match UHExp.syn fuel ctx e1 with 
-        | None => None
-        | Some ty1 => 
-          match HTyp.matched_sum ty1 with 
+      | CaseZ1 ze1 _ _ => 
+        match cursor_on_outer_expr ze1 with 
+        | Some (UHExp.Tm (InHole _) e1) => 
+          match UHExp.syn' fuel ctx e1 with  
+          | Some ty => 
+            Some (SynErrorSum (HTyp.Sum HTyp.Hole HTyp.Hole) ty) 
           | None => None
-          | Some (ty11, ty12) => 
-            let matched_ty := HTyp.Sum ty11 ty12 in 
-            Some (SynMatchingSum ty1 matched_ty)
           end
+        | Some e1 => 
+          match UHExp.syn fuel ctx e1 with 
+          | None => None
+          | Some ty1 => 
+            match HTyp.matched_sum ty1 with 
+            | None => None
+            | Some (ty11, ty12) => 
+              let matched_ty := HTyp.Sum ty11 ty12 in 
+              Some (SynMatchingSum ty1 matched_ty)
+            end
+          end
+        | None => 
+          syn_cursor_mode fuel ctx ze1
         end
-      | CaseZ1 ze1 (x, e2) (y, e3) => 
-        syn_cursor_mode fuel ctx ze1
       | CaseZ2 e1 (x, ze2) (y, e3) => 
         match UHExp.syn fuel ctx e1 with 
         | None => None
@@ -1675,13 +1691,13 @@ Module Core.
         end
       | Skel.BinOp _ UHExp.Space ((Skel.Placeholder _ n') as skel1) skel2 => 
         if Nat.eqb n n' then 
-          match ze_n with 
-          | CursorE _ (UHExp.Tm (InHole u) e_n') => 
+          match cursor_on_outer_expr ze_n with 
+          | Some (UHExp.Tm (InHole u) e_n') => 
             match UHExp.syn' fuel ctx e_n' with 
             | Some ty => Some (SynErrorArrow (HTyp.Arrow HTyp.Hole HTyp.Hole) ty)
             | None => None
             end
-          | CursorE _ e_n => 
+          | Some e_n => 
             match UHExp.syn fuel ctx e_n with 
             | Some ty => 
               match HTyp.matched_arrow ty with 
@@ -1691,7 +1707,7 @@ Module Core.
               end
             | None => None
             end
-          | _ => 
+          | None => 
             syn_cursor_mode fuel ctx ze_n
           end
         else
