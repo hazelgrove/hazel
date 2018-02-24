@@ -86,7 +86,7 @@ let of_cursor_mode (cursor_mode: ZExp.cursor_mode) => {
       let ind2 = got_ty_indicator ty;
       (ind1, ind2, OK)
     | ZExp.SynErrorArrow expected_ty got_ty =>
-      let ind1 = expected_msg_indicator "arrow type";
+      let ind1 = expected_msg_indicator "function type";
       let ind2 = got_inconsistent_matched_indicator got_ty expected_ty;
       (ind1, ind2, Error)
     | ZExp.SynErrorSum expected_ty got_ty =>
@@ -94,7 +94,7 @@ let of_cursor_mode (cursor_mode: ZExp.cursor_mode) => {
       let ind2 = got_inconsistent_matched_indicator got_ty expected_ty;
       (ind1, ind2, Error)
     | ZExp.SynMatchingArrow syn_ty matched_ty =>
-      let ind1 = expected_msg_indicator "arrow type";
+      let ind1 = expected_msg_indicator "function type";
       let ind2 =
         switch syn_ty {
         | HTyp.Hole =>
