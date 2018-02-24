@@ -6,7 +6,7 @@ open Semantics.Core;
 
 let view ((ms, es, do_action): Model.mt) => {
   /* helpers */
-  let kc = Js_util.KeyCombo.key;
+  let kc = JSUtil.KeyCombo.key;
   /* # pretty printed view */
   let pp_view_width = 50;
   let view_rs =
@@ -43,9 +43,9 @@ let view ((ms, es, do_action): Model.mt) => {
           a_onkeydown (
             fun evt => {
               /* prevent backspace and delete, which doesn't trigger keypress */
-              let key = Js_util.get_key evt;
-              let is_backspace = key == kc Js_util.KeyCombos.backspace;
-              let is_del = key == kc Js_util.KeyCombos.del;
+              let key = JSUtil.get_key evt;
+              let is_backspace = key == kc JSUtil.KeyCombos.backspace;
+              let is_del = key == kc JSUtil.KeyCombos.del;
               if (is_backspace || is_del) {
                 Dom.preventDefault evt;
                 false
@@ -70,8 +70,8 @@ let view ((ms, es, do_action): Model.mt) => {
     Dom.preventDefault evt;
     false
   };
-  let _ = Js_util.listen_to_t (Dom.Event.make "paste") pp_view_dom preventDefault_handler;
-  let _ = Js_util.listen_to_t (Dom.Event.make "cut") pp_view_dom preventDefault_handler;
+  let _ = JSUtil.listen_to_t (Dom.Event.make "paste") pp_view_dom preventDefault_handler;
+  let _ = JSUtil.listen_to_t (Dom.Event.make "cut") pp_view_dom preventDefault_handler;
   let pp_view_parent = Html5.(div a::[a_id "pp_view", a_class ["ModelExp"]] [pp_view]);
   /* set_cursor is called when we need to put the cursor at the appropriate place given
      the current Z-expression */
@@ -105,8 +105,8 @@ let view ((ms, es, do_action): Model.mt) => {
   };
   let move_cursor_before node => {
     let cursor_leaf = first_leaf node;
-    /* Js_util.log "moving_cursor_before "; */
-    /* Js_util.log cursor_leaf; */
+    /* JSUtil.log "moving_cursor_before "; */
+    /* JSUtil.log cursor_leaf; */
     let selection = Dom_html.window##getSelection;
     let range = Dom_html.document##createRange;
     range##setStart cursor_leaf 0;
@@ -116,8 +116,8 @@ let view ((ms, es, do_action): Model.mt) => {
   };
   let move_cursor_after node => {
     let cursor_leaf = last_leaf node;
-    /* Js_util.log "moving_cursor_after "; */
-    /* Js_util.log cursor_leaf; */
+    /* JSUtil.log "moving_cursor_after "; */
+    /* JSUtil.log cursor_leaf; */
     let selection = Dom_html.window##getSelection;
     let range = Dom_html.document##createRange;
     let len = node_length cursor_leaf;
@@ -130,7 +130,7 @@ let view ((ms, es, do_action): Model.mt) => {
     let ((ze, _), _) = React.S.value ms;
     let (cursor_path, cursor_side) = Semantics.Core.Path.of_zexp ze;
     let id = View.id_of_rev_path (List.rev cursor_path);
-    let cursor_elem = Js_util.forceGetElementById id;
+    let cursor_elem = JSUtil.forceGetElementById id;
     let cursor_node: Js.t Dom.node = Js.Unsafe.coerce cursor_elem;
     switch cursor_side {
     | Before
@@ -270,7 +270,7 @@ let view ((ms, es, do_action): Model.mt) => {
   let has_class classList cls => Js.to_bool (classList##contains (Js.string cls));
   let do_transport () => {
     let selection = Dom_html.window##getSelection;
-    Js_util.log selection;
+    JSUtil.log selection;
     let anchor = selection##.anchorNode;
     let parent_elem =
       switch anchor##.nodeType {
@@ -281,14 +281,14 @@ let view ((ms, es, do_action): Model.mt) => {
         }
       | Dom.ELEMENT => Js.Opt.to_option (Dom_html.CoerceTo.element anchor)
       | _ =>
-        Js_util.log "BAD ANCHOR";
+        JSUtil.log "BAD ANCHOR";
         None
       };
     switch parent_elem {
     | Some parent_elem =>
       let classList = parent_elem##.classList;
       let has_class = has_class classList; /* partially applied for convenience */
-      Js_util.log parent_elem##.className;
+      JSUtil.log parent_elem##.className;
       if (has_class "hole-before-1") {
         let anchorOffset = selection##.anchorOffset;
         if (anchorOffset == 1) {
@@ -502,8 +502,6 @@ let view ((ms, es, do_action): Model.mt) => {
       (anchorOffset: int)
       (ast_elem: Js.t Dom_html.element) => {
     let classList = ast_elem##.classList;
-    Js_util.log "classList = ";
-    Js_util.log classList;
     let ast_has_class = has_class classList;
     if (ast_has_class "Parenthesized") {
       let anchor_elem = get_anchor_elem anchor;
@@ -612,7 +610,7 @@ let view ((ms, es, do_action): Model.mt) => {
       } else if (anchor_has_class "hole-after-2") {
         After
       } else {
-        Js_util.log "weird hole cursor position";
+        JSUtil.log "weird hole cursor position";
         After
       }
     } else if (
@@ -624,8 +622,8 @@ let view ((ms, es, do_action): Model.mt) => {
     ) {
       On
     } else {
-      Js_util.log "Unknown ast element!";
-      Js_util.log classList;
+      JSUtil.log "Unknown ast element!";
+      JSUtil.log classList;
       On
     }
   };
@@ -636,7 +634,7 @@ let view ((ms, es, do_action): Model.mt) => {
     | After => "After"
     };
   let _ =
-    Js_util.listen_to_t
+    JSUtil.listen_to_t
       (Dom.Event.make "selectionchange")
       Dom_html.document
       (
@@ -663,10 +661,10 @@ let view ((ms, es, do_action): Model.mt) => {
                 found := true;
                 let path = List.rev rev_path;
                 let cursor_side = determine_cursor_side selection anchor anchorOffset cur_element;
-                Js_util.log (string_of_cursor_side cursor_side);
+                JSUtil.log (string_of_cursor_side cursor_side);
                 do_action (Action.MoveTo (path, cursor_side));
                 clear_cursors ();
-                let elem = Js_util.forceGetElementById cur_id;
+                let elem = JSUtil.forceGetElementById cur_id;
                 elem##.classList##add (Js.string "cursor")
               | exception Not_found => ()
               };
@@ -719,7 +717,7 @@ let view ((ms, es, do_action): Model.mt) => {
   let result_view = R.Html5.div (ReactiveData.RList.from_signal result_rs);
   /* checkboxes */
   let ((show_hole_envs_checkbox_rs, _), show_hole_envs_checkbox, _) =
-    Js_util.r_checkbox "show_hole_envs_checkbox" "Show hole environments" false;
+    JSUtil.r_checkbox "show_hole_envs_checkbox" "Show hole environments" false;
   let root_classes =
     React.S.l1
       (
@@ -730,6 +728,28 @@ let view ((ms, es, do_action): Model.mt) => {
       )
       show_hole_envs_checkbox_rs;
   /* final chrome */
+  let the_cursor_inspector_panel = CursorInspector.cursor_inspector ms;
+  /* let the_context_inspector_panel =
+     Html5.(div a::[a_class ["context-inspector"]] [pcdata "TODO: Live Context Inspector"]); */
+  let the_action_panel = ActionPanel.make_palette (ms, es, do_action) set_cursor;
+  let the_options_panel =
+    Html5.(
+      div
+        a::[a_class ["options"]]
+        [div a::[a_class ["panel-title"]] [pcdata "Options"], show_hole_envs_checkbox]
+    );
+  let the_sidebar =
+    Html5.(
+      div
+        a::[a_class ["sidebar"]]
+        [
+          the_cursor_inspector_panel,
+          /* the_context_inspector_panel, */
+          the_action_panel,
+          the_options_panel
+          /* num_changes_counter */
+        ]
+    );
   let chrome =
     Tyxml_js.To_dom.of_div
       Html5.(
@@ -768,14 +788,7 @@ let view ((ms, es, do_action): Model.mt) => {
                         div a::[a_class ["result-view"]] [result_view]
                       ]
                   ],
-                div
-                  a::[a_class ["sidebar"]]
-                  [
-                    Action_palette.make_palette (ms, es, do_action) set_cursor,
-                    div a::[a_class ["panel-title"]] [pcdata "Options"],
-                    show_hole_envs_checkbox
-                    /* num_changes_counter */
-                  ]
+                the_sidebar
               ]
           ]
       );

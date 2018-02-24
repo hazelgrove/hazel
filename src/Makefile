@@ -1,14 +1,30 @@
 all: www/hazel.js
-debug: hazel.byte
-	js_of_ocaml +weak.js --debuginfo -o www/hazel.js hazel.byte
-www/hazel.js: hazel.byte
-	js_of_ocaml +weak.js -o www/hazel.js hazel.byte
-hazel.byte: hazel.re semantics.re action.re chrome.re action_palette.re view.re general_util.re js_util.re model.re pretty.re associator.re SkelExprLexer.mll SkelExprParser.mly SkelTypLexer.mll SkelTypParser.mly 
+debug: Hazel.byte
+	js_of_ocaml +weak.js --debuginfo -o www/hazel.js Hazel.byte
+www/hazel.js: Hazel.byte
+	js_of_ocaml +weak.js -o www/hazel.js Hazel.byte
+Hazel.byte: \
+	Hazel.re \
+	Semantics.re \
+	Action.re \
+	Chrome.re \
+	CursorInspector.re \
+  ActionPanel.re \
+	View.re \
+	GeneralUtil.re \
+	JSUtil.re \
+	Model.re \
+	Pretty.re \
+	Associator.re \
+	SkelExprLexer.mll \
+	SkelExprParser.mly \
+	SkelTypLexer.mll \
+	SkelTypParser.mly 
 	scripts/refmt.sh
-	rebuild -use-menhir -use-ocamlfind -cflag -g -lflag -g -pkgs js_of_ocaml,js_of_ocaml.ppx,js_of_ocaml.tyxml,tyxml,react,reactiveData,camomile hazel.byte
-semantics.re: semantics.v
+	rebuild -use-menhir -use-ocamlfind -cflag -g -lflag -g -pkgs js_of_ocaml,js_of_ocaml.ppx,js_of_ocaml.tyxml,tyxml,react,reactiveData,camomile Hazel.byte
+Semantics.re: Semantics.v
 	scripts/extract-coq.sh
 clean:
 	rm -rf _build
-	rm -f *.glob *.vo *.byte www/hazel.js semantics.re
+	rm -f *.glob *.vo *.byte www/hazel.js Semantics.re
 

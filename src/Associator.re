@@ -64,11 +64,11 @@ let rec associate_ty (seq: UHTyp.opseq) => {
 
 /* debug stuff for use in the Coq */
 let some_A x => {
-  Js_util.log "A- SOME";
+  JSUtil.log "A- SOME";
   Some x
 };
 
 let none_A () => {
-  Js_util.log "A- NONE";
+  JSUtil.log "A- NONE";
   None
 };

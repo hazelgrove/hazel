@@ -6,7 +6,7 @@ open Tyxml_js;
 
 open React;
 
-module Util = General_util;
+module Util = GeneralUtil;
 
 let make_palette ((ms, es, do_action): Model.mt) set_cursor => {
   /* start by defining a bunch of helpers */
@@ -15,18 +15,18 @@ let make_palette ((ms, es, do_action): Model.mt) set_cursor => {
     do_action action;
     set_cursor ()
   };
-  module KC = Js_util.KeyCombo;
-  module KCs = Js_util.KeyCombos;
+  module KC = JSUtil.KeyCombo;
+  module KCs = JSUtil.KeyCombos;
   /* helper function for constructing action buttons with no textbox */
   let action_button action btn_label key_combo => {
     let _ =
-      Js_util.listen_to_t
+      JSUtil.listen_to_t
         Ev.keydown
         Dom_html.document
         (
           fun evt => {
-            let key = Js_util.get_key evt;
-            /* Js_util.log key; */
+            let key = JSUtil.get_key evt;
+            /* JSUtil.log key; */
             if (key == KC.key key_combo) {
               doAction action;
               Dom.preventDefault evt
@@ -67,7 +67,7 @@ let make_palette ((ms, es, do_action): Model.mt) set_cursor => {
    * where arg is the action argument. */
   let action_input_button action conv btn_label input_id key_combo placeholder_str => {
     /* create reactive input box */
-    let ((i_rs, i_rf), i_elt, i_dom) = Js_util.r_input input_id placeholder_str;
+    let ((i_rs, i_rf), i_elt, i_dom) = JSUtil.r_input input_id placeholder_str;
     let clear_input () => {
       i_dom##.value := Js.string "";
       i_rf "" /* need to manually update rf because r_input only reacts to UI input */
@@ -114,12 +114,12 @@ let make_palette ((ms, es, do_action): Model.mt) set_cursor => {
     let button_dom = To_dom.of_button button_elt;
     /* listen for the key combo at the document level */
     let _ =
-      Js_util.listen_to
+      JSUtil.listen_to
         Ev.keypress
         Dom_html.document
         (
           fun evt => {
-            let key = Js_util.get_key evt;
+            let key = JSUtil.get_key evt;
             /* let _ = Firebug.console##log evt_key in */
             if (key == KC.key key_combo) {
               i_dom##focus;
@@ -132,12 +132,12 @@ let make_palette ((ms, es, do_action): Model.mt) set_cursor => {
         );
     /* respond to enter and esc inside the input box */
     let _ =
-      Js_util.listen_to
+      JSUtil.listen_to
         Ev.keyup
         i_dom
         (
           fun evt => {
-            let key = Js_util.get_key evt;
+            let key = JSUtil.get_key evt;
             if (key == KC.key KCs.enter) {
               button_dom##click;
               i_dom##blur;
@@ -155,7 +155,7 @@ let make_palette ((ms, es, do_action): Model.mt) set_cursor => {
         );
     /* stop propagation of keys when focus is in input box */
     let _ =
-      Js_util.listen_to
+      JSUtil.listen_to
         Ev.keydown
         i_dom
         (
@@ -165,7 +165,7 @@ let make_palette ((ms, es, do_action): Model.mt) set_cursor => {
           }
         );
     let _ =
-      Js_util.listen_to
+      JSUtil.listen_to
         Ev.keypress
         i_dom
         (
@@ -193,8 +193,8 @@ let make_palette ((ms, es, do_action): Model.mt) set_cursor => {
      * could define an n-ary version of this, but this is probably more clear for now */
     let input_id_1 = input_id ^ "_1";
     let input_id_2 = input_id ^ "_2";
-    let ((i_rs_1, i_rf_1), i_elt_1, i_dom_1) = Js_util.r_input input_id_1 placeholder_str_1;
-    let ((i_rs_2, i_rf_2), i_elt_2, i_dom_2) = Js_util.r_input input_id_2 placeholder_str_2;
+    let ((i_rs_1, i_rf_1), i_elt_1, i_dom_1) = JSUtil.r_input input_id_1 placeholder_str_1;
+    let ((i_rs_2, i_rf_2), i_elt_2, i_dom_2) = JSUtil.r_input input_id_2 placeholder_str_2;
     let clear_input () => {
       i_dom_1##.value := Js.string "";
       i_rf_1 "";
@@ -241,12 +241,12 @@ let make_palette ((ms, es, do_action): Model.mt) set_cursor => {
       );
     let button_dom = To_dom.of_button button_elt;
     let _ =
-      Js_util.listen_to
+      JSUtil.listen_to
         Ev.keypress
         Dom_html.document
         (
           fun evt => {
-            let key = Js_util.get_key evt;
+            let key = JSUtil.get_key evt;
             if (key == KC.key key_combo) {
               Firebug.console##log "in c";
               i_dom_1##focus;
@@ -258,12 +258,12 @@ let make_palette ((ms, es, do_action): Model.mt) set_cursor => {
           }
         );
     let i_keyup_listener i_dom =>
-      Js_util.listen_to
+      JSUtil.listen_to
         Ev.keyup
         i_dom
         (
           fun evt => {
-            let key = Js_util.get_key evt;
+            let key = JSUtil.get_key evt;
             if (key == KC.key KCs.enter) {
               button_dom##click;
               i_dom##blur;
@@ -282,7 +282,7 @@ let make_palette ((ms, es, do_action): Model.mt) set_cursor => {
     let _ = i_keyup_listener i_dom_1;
     let _ = i_keyup_listener i_dom_2;
     let i_keypress_listener i_dom =>
-      Js_util.listen_to
+      JSUtil.listen_to
         Ev.keypress
         i_dom
         (
