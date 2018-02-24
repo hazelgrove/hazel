@@ -29,7 +29,7 @@ setup.log
 *.glob
 *.vo
 *.vo.aux
-semantics.re
+Semantics.re
 
 # www artifacts
 hazel.js

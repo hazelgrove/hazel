@@ -50,9 +50,62 @@ html, body {
 	width: 275px;
 	background: rgb(144, 184, 96);
 	vertical-align: top;
-	padding: 5px;
 	height: 100%;
 	border-left: 5px solid darkgreen;
+	border-right: 5px solid darkgreen;
+}
+
+.cursor-inspector {
+  border-bottom: 5px solid darkgreen;
+}
+
+/* .cursor-OK .cursor-inspector-body { */
+/*   background-color: #84A347; */ 
+/* } */
+
+/* .cursor-Error .cursor-inspector-body { */
+/*   background-color: #47A384; */
+/* } */
+
+.titlebar {
+  text-transform: uppercase;
+  color: #1C2A00;
+  padding: 3px;
+  font-size: 10pt;
+}
+
+.cursor-OK .titlebar {
+  background-color: #84A347; 
+}
+
+.cursor-Error .titlebar {
+  background-color: #C96659;
+}
+
+.typebar, .infobar {
+  padding: 5px;
+  font-size: 12pt;
+}
+
+.cursor-OK .typebar, .cursor-OK .infobar {
+  background-color: #FEFEEA;
+}
+
+.cursor-Error .typebar, .cursor-Error .infobar {
+  background-color: #FFF6F5;
+}
+
+.matched-type-bar > div {
+  display: inline-block;
+}
+
+.matched-connective {
+  padding-left: 5px;
+  padding-right: 5px;
+}
+
+.context-inspector {
+  border-bottom: 5px solid darkgreen;
 }
 
 .page {
