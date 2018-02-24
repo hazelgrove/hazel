@@ -2,7 +2,7 @@ open Semantics.Core;
 
 open Tyxml_js;
 
-let titlebar (title_text: string) => Html5.(div a::[a_class ["titlebar"]] [pcdata title_text]);
+let titlebar = PanelUtils.titlebar;
 
 let typebar_width = 30;
 
@@ -145,6 +145,7 @@ let cursor_inspector (ms: Model.ms) => {
       ms;
   R.Html5.(
     div
-      a::[Html5.a_class ["cursor-inspector"]] (ReactiveData.RList.from_signal cursor_inspector_rs)
+      a::[Html5.a_class ["panel", "cursor-inspector"]]
+      (ReactiveData.RList.from_signal cursor_inspector_rs)
   )
 };

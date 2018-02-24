@@ -16,6 +16,7 @@ Hazel.byte: \
 	Model.re \
 	Pretty.re \
 	Associator.re \
+	PanelUtils.re \
 	SkelExprLexer.mll \
 	SkelExprParser.mly \
 	SkelTypLexer.mll \
