@@ -141,6 +141,10 @@ h1 {
 	padding: 3px;
 	display: inline-block;
 	padding-right: 5px;
+  text-transform: uppercase;
+  font-weight: bold;
+  font-size: 11pt;
+  color: gray;
 }
 
 .htype-view {

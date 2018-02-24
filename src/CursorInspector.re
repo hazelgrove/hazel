@@ -53,6 +53,9 @@ let got_as_expected_ty_indicator ty => got_indicator "Got as expected" (typebar 
 
 let got_inconsistent_indicator got_ty => got_indicator "Got inconsistent type" (typebar got_ty);
 
+let got_inconsistent_matched_indicator got_ty matched_ty =>
+  got_indicator "Got inconsistent type \226\150\182 assumed " (matched_ty_bar got_ty matched_ty);
+
 let got_consistent_indicator got_ty => got_indicator "Got consistent type" (typebar got_ty);
 
 let got_a_type_indicator = got_indicator "Got" (special_msg_bar "a type");
@@ -84,18 +87,18 @@ let of_cursor_mode (cursor_mode: ZExp.cursor_mode) => {
       (ind1, ind2, OK)
     | ZExp.SynErrorArrow expected_ty got_ty =>
       let ind1 = expected_msg_indicator "arrow type";
-      let ind2 = got_inconsistent_indicator got_ty;
+      let ind2 = got_inconsistent_matched_indicator got_ty expected_ty;
       (ind1, ind2, Error)
     | ZExp.SynErrorSum expected_ty got_ty =>
-      let ind1 = expected_msg_indicator "arrow type";
-      let ind2 = got_inconsistent_indicator got_ty;
+      let ind1 = expected_msg_indicator "sum type";
+      let ind2 = got_inconsistent_matched_indicator got_ty expected_ty;
       (ind1, ind2, Error)
     | ZExp.SynMatchingArrow syn_ty matched_ty =>
       let ind1 = expected_msg_indicator "arrow type";
       let ind2 =
         switch syn_ty {
         | HTyp.Hole =>
-          got_indicator "Got \226\150\182 matched to" (matched_ty_bar syn_ty matched_ty)
+          got_indicator "Got type \226\150\182 matched to" (matched_ty_bar syn_ty matched_ty)
         | _ => got_indicator "Got" (typebar syn_ty)
         };
       (ind1, ind2, OK)
@@ -103,7 +106,7 @@ let of_cursor_mode (cursor_mode: ZExp.cursor_mode) => {
       let ind1 = expected_msg_indicator "sum type";
       let ind2 =
         switch syn_ty {
-        | HTyp.Hole => got_indicator "Got > matched to" (matched_ty_bar syn_ty matched_ty)
+        | HTyp.Hole => got_indicator "Got type > matched to" (matched_ty_bar syn_ty matched_ty)
         | _ => got_indicator "Got" (typebar syn_ty)
         };
       (ind1, ind2, OK)

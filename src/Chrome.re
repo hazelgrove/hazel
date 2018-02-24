@@ -780,7 +780,7 @@ let view ((ms, es, do_action): Model.mt) => {
                             div
                               a::[a_class ["type-indicator"]]
                               [
-                                div a::[a_class ["type-label"]] [pcdata "Result of type "],
+                                div a::[a_class ["type-label"]] [pcdata "Result of type: "],
                                 div a::[a_class ["htype-view"]] [htype_view]
                               ]
                           ],
