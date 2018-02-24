@@ -25,7 +25,7 @@ html, body {
 .top-bar {
 	padding: 10px;
 	vertical-align: middle;
-	background-color: #006633;
+	background-color: darkgreen;
 	color: white;
 	font-weight: bold;
 	font-size: 14pt;
@@ -59,27 +59,20 @@ html, body {
   border-bottom: 5px solid darkgreen;
 }
 
-/* .cursor-OK .cursor-inspector-body { */
-/*   background-color: #84A347; */ 
-/* } */
-
-/* .cursor-Error .cursor-inspector-body { */
-/*   background-color: #47A384; */
-/* } */
-
 .titlebar {
   text-transform: uppercase;
-  color: #1C2A00;
+  color: white;
   padding: 3px;
   font-size: 10pt;
+  font-weight: bold;
 }
 
 .cursor-OK .titlebar {
-  background-color: #84A347; 
+  background-color: #073f24; 
 }
 
 .cursor-Error .titlebar {
-  background-color: #C96659;
+  background-color: #8e0000;
 }
 
 .typebar, .infobar {
@@ -92,7 +85,7 @@ html, body {
 }
 
 .cursor-Error .typebar, .cursor-Error .infobar {
-  background-color: #FFF6F5;
+  background-color: #ffe0e0;
 }
 
 .matched-type-bar > div {
@@ -125,8 +118,6 @@ h1 {
 }
 
 .cell-status {
-	display: grid;
-	grid-template-columns: 30px 1fr;
 	background-color: #EEE;
 }
 
@@ -141,7 +132,6 @@ h1 {
 }
 
 .type-indicator {
-	text-align: right;
 	width: 100%;
 	font-size: 12pt;
 }
