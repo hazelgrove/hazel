@@ -36,7 +36,7 @@ html, body {
 	width: 100%;
 	height: 100%;
 	display: grid;
-	grid-template-columns: 1fr 275px;
+	grid-template-columns: 1fr 280px;
 }
 
 .page-area {
@@ -47,16 +47,17 @@ html, body {
 }
 
 .sidebar {
-	width: 275px;
-	background: rgb(144, 184, 96);
+  background-color: darkgreen;
 	vertical-align: top;
 	height: 100%;
-	border-left: 5px solid darkgreen;
-	border-right: 5px solid darkgreen;
+	padding-left: 7px;
+	padding-right: 7px;
+  display: grid;
+  grid-template-rows: auto 1fr auto;
 }
 
-.cursor-inspector {
-  border-bottom: 5px solid darkgreen;
+.panel {
+  margin-bottom: 7px;
 }
 
 .titlebar {
@@ -99,6 +100,23 @@ html, body {
 
 .context-inspector {
   border-bottom: 5px solid darkgreen;
+}
+
+.action-panel {
+  background-color: #B6C7D9;
+}
+
+.action-panel .titlebar {
+  /* background-color: #331757; */
+  background-color: #163454;
+}
+
+.options-panel {
+  background-color: #EEE;
+}
+
+.options-panel .titlebar {
+  background-color: #444;
 }
 
 .page {
@@ -153,7 +171,7 @@ h1 {
 	display: inline-block;
 }
 
-.panel-title{
+.sub-panel-title {
 	text-align: center;
 	/* background-color: seagreen; */
 	color: black;

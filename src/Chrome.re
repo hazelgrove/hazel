@@ -731,12 +731,12 @@ let view ((ms, es, do_action): Model.mt) => {
   let the_cursor_inspector_panel = CursorInspector.cursor_inspector ms;
   /* let the_context_inspector_panel =
      Html5.(div a::[a_class ["context-inspector"]] [pcdata "TODO: Live Context Inspector"]); */
-  let the_action_panel = ActionPanel.make_palette (ms, es, do_action) set_cursor;
+  let the_action_panel = ActionPanel.make (ms, es, do_action) set_cursor;
   let the_options_panel =
     Html5.(
       div
-        a::[a_class ["options"]]
-        [div a::[a_class ["panel-title"]] [pcdata "Options"], show_hole_envs_checkbox]
+        a::[a_class ["panel", "options-panel"]]
+        [PanelUtils.titlebar "Options", show_hole_envs_checkbox]
     );
   let the_sidebar =
     Html5.(

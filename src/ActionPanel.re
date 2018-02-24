@@ -1,22 +1,20 @@
-open Semantics.Core;
-
-module Ev = Dom_html.Event;
-
 open Tyxml_js;
 
 open React;
 
-module Util = GeneralUtil;
+open Semantics.Core;
 
-let make_palette ((ms, es, do_action): Model.mt) set_cursor => {
+let make ((ms, es, do_action): Model.mt) set_cursor => {
+  module Util = GeneralUtil;
+  module Ev = Dom_html.Event;
+  module KC = JSUtil.KeyCombo;
+  module KCs = JSUtil.KeyCombos;
   /* start by defining a bunch of helpers */
   /* performs the top-level action and updates the signal */
   let doAction action => {
     do_action action;
     set_cursor ()
   };
-  module KC = JSUtil.KeyCombo;
-  module KCs = JSUtil.KeyCombos;
   /* helper function for constructing action buttons with no textbox */
   let action_button action btn_label key_combo => {
     let _ =
@@ -299,7 +297,7 @@ let make_palette ((ms, es, do_action): Model.mt) set_cursor => {
         [span a::[a_class ["input-group-btn"]] [button_elt], i_elt_1, i_elt_2]
     )
   };
-  /* now construct the action palette entries*/
+  /* now construct the action panel entries*/
   /* movement */
   /* let moveChild1 = action_button (Action.Move (Action.Child 1)) "move child 1" KCs.number_1;
      let moveChild2 = action_button (Action.Move (Action.Child 2)) "move child 2" KCs.number_2;
@@ -421,22 +419,22 @@ let make_palette ((ms, es, do_action): Model.mt) set_cursor => {
   let typeConstructionActions =
     Html5.(
       div
-        a::[a_class ["panel", "panel-default"]]
+        a::[a_class ["sub-panel", "sub-panel-default"]]
         [
-          div a::[a_class ["panel-title"]] [pcdata "Type Construction"],
+          div a::[a_class ["sub-panel-title"]] [pcdata "Type Construction"],
           div
-            a::[a_class ["panel-body"]]
+            a::[a_class ["sub-panel-body"]]
             [constructNum, br (), constructArrow, br (), constructSum, br ()]
         ]
     );
   let expressionConstructionActions =
     Html5.(
       div
-        a::[a_class ["panel", "panel-default"]]
+        a::[a_class ["sub-panel", "sub-panel-default"]]
         [
-          div a::[a_class ["panel-title"]] [pcdata "Expression Construction"],
+          div a::[a_class ["sub-panel-title"]] [pcdata "Expression Construction"],
           div
-            a::[a_class ["panel-body"]]
+            a::[a_class ["sub-panel-body"]]
             [
               constructParenthesized,
               br (),
@@ -457,17 +455,18 @@ let make_palette ((ms, es, do_action): Model.mt) set_cursor => {
   let deleteActions =
     Html5.(
       div
-        a::[a_class ["panel", "panel-default"]]
+        a::[a_class ["sub-panel", "sub-panel-default"]]
         [
-          div a::[a_class ["panel-title"]] [pcdata "Deletion"],
-          div a::[a_class ["panel-body"]] [delete, backspace]
+          div a::[a_class ["sub-panel-title"]] [pcdata "Deletion"],
+          div a::[a_class ["sub-panel-body"]] [delete, backspace]
         ]
     );
-  /* finally, put it all together into the action palette */
+  /* finally, put it all together into the action panel */
   Html5.(
     div
-      a::[a_class ["action-palette"]]
+      a::[a_class ["panel", "action-panel"]]
       [
+        PanelUtils.titlebar "Edit Actions",
         /* movementActions, */
         typeConstructionActions,
         expressionConstructionActions,
