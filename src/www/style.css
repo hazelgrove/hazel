@@ -36,7 +36,7 @@ html, body {
 	width: 100%;
 	height: 100%;
 	display: grid;
-	grid-template-columns: 1fr 280px;
+	grid-template-columns: 280px 1fr;
 }
 
 .page-area {
@@ -47,19 +47,28 @@ html, body {
 }
 
 .sidebar {
-  background-color: darkgreen;
+  background-color: tan;
 	vertical-align: top;
 	height: 100%;
 	padding-left: 7px;
 	padding-right: 7px;
+  padding-top: 7px;
   display: grid;
   grid-template-rows: auto 1fr auto;
-  border-left: 2px solid #073f24;
+  /* border-left: 2px solid #073f24; */
 }
 
 .panel {
   margin-bottom: 7px;
+  box-shadow: 2px 2px 0px 0px #af8e63;
+}
+
+.cursor-OK.cursor-inspector {
   border: 1px solid #073f24;
+}
+
+.cursor-Error.cursor-inspector {
+  border: 1px solid #8e0000;
 }
 
 .titlebar {
@@ -100,12 +109,9 @@ html, body {
   padding-right: 5px;
 }
 
-.context-inspector {
-  border-bottom: 5px solid darkgreen;
-}
-
 .action-panel {
   background-color: #B6C7D9;
+  border: 1px solid #163454;
 }
 
 .action-panel .titlebar {
@@ -115,6 +121,7 @@ html, body {
 
 .options-panel {
   background-color: #EEE;
+  border: 1px solid #444;
 }
 
 .options-panel .titlebar {
@@ -125,7 +132,7 @@ html, body {
 	border-radius: 5px;
 	background-color: white;
 	padding: 0.25in;
-	box-shadow: 4px 4px #555;
+	box-shadow: 3px 3px tan;
 	max-width: 10in;
 	margin-right: 0.25in;
 }
@@ -177,7 +184,7 @@ h1 {
 	text-align: center;
 	/* background-color: seagreen; */
 	color: black;
-	border-bottom: 1px solid darkgreen;
+	border-bottom: 1px solid #163454;
 	margin-bottom: 10px;
 }
 

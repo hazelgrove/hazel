@@ -9,11 +9,12 @@ let view ((ms, es, do_action): Model.mt) => {
   let kc = JSUtil.KeyCombo.key;
   /* # pretty printed view */
   let pp_view_width = 50;
+  let prefix = "view";
   let view_rs =
     React.S.map
       (
         fun e => {
-          let view = View.of_hexp [] e;
+          let view = View.of_hexp prefix [] e;
           /* returns a pair of a doc and rev_paths table */
           Pretty.PP.sdoc_of_doc pp_view_width view
         }
@@ -129,7 +130,7 @@ let view ((ms, es, do_action): Model.mt) => {
   let set_cursor () => {
     let ((ze, _), _) = React.S.value ms;
     let (cursor_path, cursor_side) = Semantics.Core.Path.of_zexp ze;
-    let id = View.id_of_rev_path (List.rev cursor_path);
+    let id = View.id_of_rev_path prefix (List.rev cursor_path);
     let cursor_elem = JSUtil.forceGetElementById id;
     let cursor_node: Js.t Dom.node = Js.Unsafe.coerce cursor_elem;
     switch cursor_side {
@@ -682,7 +683,7 @@ let view ((ms, es, do_action): Model.mt) => {
     React.S.map
       (
         fun ((_, htype), _) => {
-          let pp_view = View.of_htype false [] htype;
+          let pp_view = View.of_htype false "result-type" [] htype;
           let (sdoc, _) = Pretty.PP.sdoc_of_doc pp_view_width pp_view;
           let prettified = Pretty.HTML_Of_SDoc.html_of_sdoc sdoc;
           [prettified]
@@ -705,7 +706,7 @@ let view ((ms, es, do_action): Model.mt) => {
             | Dynamics.Evaluator.InvalidInput => [Html5.pcdata "(internal error: invalid input)"]
             | Dynamics.Evaluator.BoxedValue d_val
             | Dynamics.Evaluator.Indet d_val =>
-              let pp_view = View.of_dhexp false NotInHole [] d_val;
+              let pp_view = View.of_dhexp false "result-exp" NotInHole [] d_val;
               let (sdoc, _) = Pretty.PP.sdoc_of_doc pp_view_width pp_view;
               let prettified = Pretty.HTML_Of_SDoc.html_of_sdoc sdoc;
               [prettified]
@@ -760,15 +761,16 @@ let view ((ms, es, do_action): Model.mt) => {
             div
               a::[a_class ["main-area"]]
               [
+                the_sidebar,
                 div
                   a::[a_class ["page-area"]]
                   [
                     div
                       a::[a_class ["page"]]
                       [
-                        h1 [pcdata "Welcome to Hazel"],
-                        hr (),
-                        p [
+                        /* h1 [pcdata "Welcome to Hazel"], */
+                        /* hr (), */
+                        div [
                           pcdata "Hazel is an experiment in ",
                           strong [pcdata "hole-driven development"],
                           pcdata ". Use the actions on the right to construct a lambda term. Navigate using the standard text cursor."
@@ -786,8 +788,7 @@ let view ((ms, es, do_action): Model.mt) => {
                           ],
                         div a::[a_class ["result-view"]] [result_view]
                       ]
-                  ],
-                the_sidebar
+                  ]
               ]
           ]
       );

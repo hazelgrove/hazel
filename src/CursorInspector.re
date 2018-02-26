@@ -6,20 +6,20 @@ let titlebar = PanelUtils.titlebar;
 
 let typebar_width = 30;
 
-let html_of_ty ty => {
-  let ty_doc = View.of_htype false [] ty;
+let html_of_ty prefix ty => {
+  let ty_doc = View.of_htype false prefix [] ty;
   let (ty_sdoc, _) = Pretty.PP.sdoc_of_doc typebar_width ty_doc;
   Pretty.HTML_Of_SDoc.html_of_sdoc ty_sdoc
 };
 
-let typebar ty => {
-  let ty_html = html_of_ty ty;
+let typebar prefix ty => {
+  let ty_html = html_of_ty prefix ty;
   Html5.(div a::[a_class ["infobar", "typebar"]] [ty_html])
 };
 
-let matched_ty_bar ty1 ty2 => {
-  let ty1_html = html_of_ty ty1;
-  let ty2_html = html_of_ty ty2;
+let matched_ty_bar prefix ty1 ty2 => {
+  let ty1_html = html_of_ty (prefix ^ "-ty1-") ty1;
+  let ty2_html = html_of_ty (prefix ^ "-ty2-") ty2;
   Html5.(
     div
       a::[a_class ["infobar", "matched-type-bar"]]
@@ -35,7 +35,7 @@ let expected_indicator title_text type_div =>
 
 let expected_ty_title = "Expecting an expression of type";
 
-let expected_ty_indicator ty => expected_indicator expected_ty_title (typebar ty);
+let expected_ty_indicator ty => expected_indicator expected_ty_title (typebar "expected" ty);
 
 let expected_msg_indicator msg =>
   expected_indicator "Expecting an expression of " (special_msg_bar msg);
@@ -47,16 +47,18 @@ let expected_a_type_indicator = expected_indicator "Expecting " (special_msg_bar
 let got_indicator title_text type_div =>
   Html5.(div a::[a_class ["indicator", "got-indicator"]] [titlebar title_text, type_div]);
 
-let got_ty_indicator ty => got_indicator "Got type" (typebar ty);
+let got_ty_indicator ty => got_indicator "Got type" (typebar "got" ty);
 
-let got_as_expected_ty_indicator ty => got_indicator "Got as expected" (typebar ty);
+let got_as_expected_ty_indicator ty => got_indicator "Got as expected" (typebar "got" ty);
 
-let got_inconsistent_indicator got_ty => got_indicator "Got inconsistent type" (typebar got_ty);
+let got_inconsistent_indicator got_ty =>
+  got_indicator "Got inconsistent type" (typebar "got" got_ty);
 
 let got_inconsistent_matched_indicator got_ty matched_ty =>
-  got_indicator "Got inconsistent type \226\150\182 assumed " (matched_ty_bar got_ty matched_ty);
+  got_indicator
+    "Got inconsistent type \226\150\182 assumed " (matched_ty_bar "got" got_ty matched_ty);
 
-let got_consistent_indicator got_ty => got_indicator "Got consistent type" (typebar got_ty);
+let got_consistent_indicator got_ty => got_indicator "Got consistent type" (typebar "got" got_ty);
 
 let got_a_type_indicator = got_indicator "Got" (special_msg_bar "a type");
 
@@ -98,16 +100,17 @@ let of_cursor_mode (cursor_mode: ZExp.cursor_mode) => {
       let ind2 =
         switch syn_ty {
         | HTyp.Hole =>
-          got_indicator "Got type \226\150\182 matched to" (matched_ty_bar syn_ty matched_ty)
-        | _ => got_indicator "Got" (typebar syn_ty)
+          got_indicator "Got type \226\150\182 matched to" (matched_ty_bar "got" syn_ty matched_ty)
+        | _ => got_indicator "Got" (typebar "got" syn_ty)
         };
       (ind1, ind2, OK)
     | ZExp.SynMatchingSum syn_ty matched_ty =>
       let ind1 = expected_msg_indicator "sum type";
       let ind2 =
         switch syn_ty {
-        | HTyp.Hole => got_indicator "Got type > matched to" (matched_ty_bar syn_ty matched_ty)
-        | _ => got_indicator "Got" (typebar syn_ty)
+        | HTyp.Hole =>
+          got_indicator "Got type > matched to" (matched_ty_bar "got" syn_ty matched_ty)
+        | _ => got_indicator "Got" (typebar "got" syn_ty)
         };
       (ind1, ind2, OK)
     | ZExp.TypePosition =>
@@ -120,7 +123,7 @@ let of_cursor_mode (cursor_mode: ZExp.cursor_mode) => {
     | Error => "cursor-Error"
     | OK => "cursor-OK"
     };
-  Html5.(div a::[a_class ["cursor-inspector-body", cls_of_err_state_b]] [ind1, ind2])
+  Html5.(div a::[a_class ["panel", "cursor-inspector", cls_of_err_state_b]] [ind1, ind2])
 };
 
 let no_cursor_mode =
@@ -143,9 +146,5 @@ let cursor_inspector (ms: Model.ms) => {
         }
       )
       ms;
-  R.Html5.(
-    div
-      a::[Html5.a_class ["panel", "cursor-inspector"]]
-      (ReactiveData.RList.from_signal cursor_inspector_rs)
-  )
+  R.Html5.(div (ReactiveData.RList.from_signal cursor_inspector_rs))
 };
