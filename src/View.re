@@ -19,10 +19,10 @@ let var s => taggedText "var" s;
 
 let space = taggedText "space" " ";
 
-let rec id_of_rev_path rev_path =>
+let rec id_of_rev_path prefix rev_path =>
   switch rev_path {
-  | [] => "path_"
-  | [x, ...xs] => id_of_rev_path xs ^ "_" ^ string_of_int x
+  | [] => prefix ^ "path_"
+  | [x, ...xs] => id_of_rev_path prefix xs ^ "_" ^ string_of_int x
   };
 
 let cls_from err_status cls =>
@@ -31,8 +31,8 @@ let cls_from err_status cls =>
   | NotInHole => [cls]
   };
 
-let term err_status rev_path cls doc => {
-  let id' = id_of_rev_path rev_path;
+let term prefix err_status rev_path cls doc => {
+  let id' = id_of_rev_path prefix rev_path;
   PP.tagged (cls_from err_status cls) (Some (id', rev_path)) doc
 };
 
@@ -40,8 +40,9 @@ let optionalBreakSp = PP.optionalBreak " ";
 
 let optionalBreakNSp = PP.optionalBreak "";
 
-let of_Parenthesized is_block rev_path r1 =>
+let of_Parenthesized is_block prefix rev_path r1 =>
   term
+    prefix
     NotInHole
     rev_path
     "Parenthesized"
@@ -98,8 +99,9 @@ let rec of_expr_op op =>
   };
 
 /* empty holes */
-let of_Hole err_status rev_path cls hole_name =>
+let of_Hole prefix err_status rev_path cls hole_name =>
   term
+    prefix
     err_status
     rev_path
     cls
@@ -125,74 +127,76 @@ let precedence_ty ty =>
   | HTyp.Arrow _ _ => precedence_Arrow
   };
 
-let of_Num rev_path => term NotInHole rev_path "Num" (kw "num");
+let of_Num prefix rev_path => term prefix NotInHole rev_path "Num" (kw "num");
 
-let rec of_ty_op cls op_s err_status rev_path r1 r2 =>
-  term err_status rev_path cls (r1 ^^ optionalBreakSp ^^ op op_s ^^ optionalBreakSp ^^ r2);
+let rec of_ty_op cls op_s prefix err_status rev_path r1 r2 =>
+  term prefix err_status rev_path cls (r1 ^^ optionalBreakSp ^^ op op_s ^^ optionalBreakSp ^^ r2);
 
 let of_Arrow = of_ty_op "Arrow" "\226\134\146";
 
 let of_Sum = of_ty_op "Sum" "|";
 
-let rec of_htype parenthesize rev_path ty => {
+let rec of_htype parenthesize prefix rev_path ty => {
   let d =
     switch ty {
-    | HTyp.Num => of_Num rev_path
+    | HTyp.Num => of_Num prefix rev_path
     | HTyp.Arrow ty1 ty2 =>
       let rev_path1 = [0, ...rev_path];
       let rev_path2 = [1, ...rev_path];
       let paren1 = precedence_ty ty1 >= precedence_Arrow;
       let paren2 = precedence_ty ty2 > precedence_Arrow;
-      let r1 = of_htype paren1 rev_path1 ty1;
-      let r2 = of_htype paren2 rev_path2 ty2;
-      of_Arrow NotInHole rev_path r1 r2
+      let r1 = of_htype paren1 prefix rev_path1 ty1;
+      let r2 = of_htype paren2 prefix rev_path2 ty2;
+      of_Arrow prefix NotInHole rev_path r1 r2
     | HTyp.Sum ty1 ty2 =>
       let rev_path1 = [0, ...rev_path];
       let rev_path2 = [1, ...rev_path];
       let paren1 = precedence_ty ty1 >= precedence_Sum;
       let paren2 = precedence_ty ty2 > precedence_Sum;
-      let r1 = of_htype paren1 rev_path1 ty1;
-      let r2 = of_htype paren2 rev_path2 ty2;
-      of_Sum NotInHole rev_path r1 r2
-    | HTyp.Hole => of_Hole NotInHole rev_path "Hole" "?"
+      let r1 = of_htype paren1 prefix rev_path1 ty1;
+      let r2 = of_htype paren2 prefix rev_path2 ty2;
+      of_Sum prefix NotInHole rev_path r1 r2
+    | HTyp.Hole => of_Hole prefix NotInHole rev_path "Hole" "?"
     };
   parenthesize ? parens "(" ^^ d ^^ parens ")" : d
 };
 
-let rec of_uhtyp rev_path uty =>
+let rec of_uhtyp prefix rev_path uty =>
   switch uty {
   | UHTyp.Parenthesized uty1 =>
     let rev_path1 = [0, ...rev_path];
-    let r1 = of_uhtyp rev_path1 uty1;
-    of_Parenthesized false rev_path r1
-  | UHTyp.Num => of_Num rev_path
-  | UHTyp.OpSeq skel seq => term NotInHole rev_path "OpSeq" (of_uhtyp_skel rev_path skel seq)
-  | UHTyp.Hole => of_Hole NotInHole rev_path "Hole" "?"
+    let r1 = of_uhtyp prefix rev_path1 uty1;
+    of_Parenthesized false prefix rev_path r1
+  | UHTyp.Num => of_Num prefix rev_path
+  | UHTyp.OpSeq skel seq =>
+    term prefix NotInHole rev_path "OpSeq" (of_uhtyp_skel prefix rev_path skel seq)
+  | UHTyp.Hole => of_Hole prefix NotInHole rev_path "Hole" "?"
   }
-and of_uhtyp_skel rev_path skel seq =>
+and of_uhtyp_skel prefix rev_path skel seq =>
   switch skel {
   | Skel.Placeholder n =>
     switch (OperatorSeq.seq_nth n seq) {
     | Some utyn =>
       let rev_path_n = [n, ...rev_path];
-      of_uhtyp rev_path_n utyn
+      of_uhtyp prefix rev_path_n utyn
     | None => raise InvariantViolated
     }
   | Skel.BinOp _ op skel1 skel2 =>
-    let r1 = of_uhtyp_skel rev_path skel1 seq;
-    let r2 = of_uhtyp_skel rev_path skel2 seq;
+    let r1 = of_uhtyp_skel prefix rev_path skel1 seq;
+    let r2 = of_uhtyp_skel prefix rev_path skel2 seq;
     let op_pp = of_ty_op_with_space op;
     PP.tagged ["skel-binop"] None (r1 ^^ op_pp ^^ r2)
   };
 
 /* h-exps and z-exps */
-let of_Asc err_status rev_path r1 r2 =>
-  term err_status rev_path "Asc" (r1 ^^ space ^^ op ":" ^^ space ^^ r2);
+let of_Asc prefix err_status rev_path r1 r2 =>
+  term prefix err_status rev_path "Asc" (r1 ^^ space ^^ op ":" ^^ space ^^ r2);
 
-let of_Var err_status rev_path x => term err_status rev_path "Var" (var x);
+let of_Var prefix err_status rev_path x => term prefix err_status rev_path "Var" (var x);
 
-let of_Let err_status rev_path x r1 r2 =>
+let of_Let prefix err_status rev_path x r1 r2 =>
   term
+    prefix
     err_status
     rev_path
     "Let"
@@ -202,11 +206,13 @@ let of_Let err_status rev_path x r1 r2 =>
       space ^^ var x ^^ space ^^ op "=" ^^ space ^^ PP.nestAbsolute 2 r1 ^^ PP.mandatoryBreak ^^ r2
     );
 
-let of_Lam err_status rev_path x r =>
-  term err_status rev_path "Lam" (kw "\206\187" ^^ var x ^^ taggedText "lambda-dot" "." ^^ r);
-
-let of_LamAnn err_status rev_path x rty r1 =>
+let of_Lam prefix err_status rev_path x r =>
   term
+    prefix err_status rev_path "Lam" (kw "\206\187" ^^ var x ^^ taggedText "lambda-dot" "." ^^ r);
+
+let of_LamAnn prefix err_status rev_path x rty r1 =>
+  term
+    prefix
     err_status
     rev_path
     "LamAnn"
@@ -215,19 +221,21 @@ let of_LamAnn err_status rev_path x rty r1 =>
       var x ^^ kw ":" ^^ rty ^^ kw "." ^^ PP.optionalBreak "" ^^ PP.nestRelative 4 r1
     );
 
-let of_Ap err_status rev_path r1 r2 => term err_status rev_path "Ap" (r1 ^^ space ^^ r2);
+let of_Ap prefix err_status rev_path r1 r2 =>
+  term prefix err_status rev_path "Ap" (r1 ^^ space ^^ r2);
 
-let of_NumLit err_status rev_path n =>
-  term err_status rev_path "NumLit" (taggedText "number" (string_of_int n));
+let of_NumLit prefix err_status rev_path n =>
+  term prefix err_status rev_path "NumLit" (taggedText "number" (string_of_int n));
 
-let of_Plus err_status rev_path r1 r2 =>
-  term err_status rev_path "Plus" (r1 ^^ optionalBreakNSp ^^ op " +" ^^ optionalBreakSp ^^ r2);
+let of_Plus prefix err_status rev_path r1 r2 =>
+  term
+    prefix err_status rev_path "Plus" (r1 ^^ optionalBreakNSp ^^ op " +" ^^ optionalBreakSp ^^ r2);
 
-let of_Times err_status rev_path r1 r2 =>
-  term err_status rev_path "Times" (r1 ^^ op "*" ^^ optionalBreakNSp ^^ r2);
+let of_Times prefix err_status rev_path r1 r2 =>
+  term prefix err_status rev_path "Times" (r1 ^^ op "*" ^^ optionalBreakNSp ^^ r2);
 
-let of_Space err_status rev_path r1 r2 =>
-  term err_status rev_path "Space" (r1 ^^ op " " ^^ optionalBreakNSp ^^ r2);
+let of_Space prefix err_status rev_path r1 r2 =>
+  term prefix err_status rev_path "Space" (r1 ^^ op " " ^^ optionalBreakNSp ^^ r2);
 
 let string_of_side side =>
   switch side {
@@ -235,8 +243,9 @@ let string_of_side side =>
   | UHExp.R => "R"
   };
 
-let of_Inj err_status rev_path side r =>
+let of_Inj prefix err_status rev_path side r =>
   term
+    prefix
     err_status
     rev_path
     "Inj"
@@ -247,8 +256,9 @@ let of_Inj err_status rev_path side r =>
       parens "]" ^^ parens "(" ^^ PP.optionalBreak "" ^^ r ^^ parens ")"
     );
 
-let of_InjAnn err_status rev_path rty side r =>
+let of_InjAnn prefix err_status rev_path rty side r =>
   term
+    prefix
     err_status
     rev_path
     "Inj"
@@ -260,8 +270,9 @@ let of_InjAnn err_status rev_path rty side r =>
       optionalBreakSp ^^ rty ^^ parens "]" ^^ parens "(" ^^ PP.optionalBreak "" ^^ r ^^ parens ")"
     );
 
-let of_Case err_status rev_path r1 x r2 y r3 =>
+let of_Case prefix err_status rev_path r1 x r2 y r3 =>
   term
+    prefix
     err_status
     rev_path
     "Case"
@@ -285,8 +296,9 @@ let of_Case err_status rev_path r1 x r2 y r3 =>
       var y ^^ parens ")" ^^ space ^^ op "\226\135\146" ^^ space ^^ PP.nestAbsolute 2 r3
     );
 
-let of_CaseAnn err_status rev_path r1 x r2 y r3 =>
+let of_CaseAnn prefix err_status rev_path r1 x r2 y r3 =>
   term
+    prefix
     err_status
     rev_path
     "Case"
@@ -312,11 +324,17 @@ let of_CaseAnn err_status rev_path r1 x r2 y r3 =>
 
 let cast_arrow = op " \226\135\168 ";
 
-let of_Cast err_status rev_path r1 rty1 rty2 =>
-  term err_status rev_path "Cast" (r1 ^^ parens "<" ^^ rty1 ^^ cast_arrow ^^ rty2 ^^ parens ">");
-
-let of_chained_Cast err_status rev_path r1 rty1 rty2 rty4 =>
+let of_Cast prefix err_status rev_path r1 rty1 rty2 =>
   term
+    prefix
+    err_status
+    rev_path
+    "Cast"
+    (r1 ^^ parens "<" ^^ rty1 ^^ cast_arrow ^^ rty2 ^^ parens ">");
+
+let of_chained_Cast prefix err_status rev_path r1 rty1 rty2 rty4 =>
+  term
+    prefix
     err_status
     rev_path
     "Cast"
@@ -324,15 +342,17 @@ let of_chained_Cast err_status rev_path r1 rty1 rty2 rty4 =>
 
 let failed_cast_arrow = taggedText "failed-cast-arrow" " \226\135\168 ";
 
-let of_FailedCast err_status rev_path r1 rty1 rty2 =>
+let of_FailedCast prefix err_status rev_path r1 rty1 rty2 =>
   term
+    prefix
     err_status
     rev_path
     "FailedCast"
     (r1 ^^ parens "<" ^^ rty1 ^^ failed_cast_arrow ^^ rty2 ^^ parens ">");
 
-let of_chained_FailedCast err_status rev_path r1 rty1 rty2 rty4 =>
+let of_chained_FailedCast prefix err_status rev_path r1 rty1 rty2 rty4 =>
   term
+    prefix
     err_status
     rev_path
     "FailedCast"
@@ -348,60 +368,61 @@ let is_block e =>
   | _ => false
   };
 
-let rec of_hexp rev_path e =>
+let rec of_hexp prefix rev_path e =>
   switch e {
   | UHExp.Parenthesized e1 =>
     let rev_path1 = [0, ...rev_path];
-    let r1 = of_hexp rev_path1 e1;
-    of_Parenthesized (is_block e1) rev_path r1
+    let r1 = of_hexp prefix rev_path1 e1;
+    of_Parenthesized (is_block e1) prefix rev_path r1
   | UHExp.Tm err_status e' =>
     switch e' {
     | UHExp.Asc e1 ty =>
       let rev_path1 = [0, ...rev_path];
       let rev_path2 = [1, ...rev_path];
-      let r1 = of_hexp rev_path1 e1;
-      let r2 = of_uhtyp rev_path2 ty;
-      of_Asc err_status rev_path r1 r2
-    | UHExp.Var x => of_Var err_status rev_path x
+      let r1 = of_hexp prefix rev_path1 e1;
+      let r2 = of_uhtyp prefix rev_path2 ty;
+      of_Asc prefix err_status rev_path r1 r2
+    | UHExp.Var x => of_Var prefix err_status rev_path x
     | UHExp.Let x e e' =>
       let rev_path1 = [0, ...rev_path];
       let rev_path2 = [1, ...rev_path];
-      let r1 = of_hexp rev_path1 e;
-      let r2 = of_hexp rev_path2 e';
-      of_Let err_status rev_path x r1 r2
+      let r1 = of_hexp prefix rev_path1 e;
+      let r2 = of_hexp prefix rev_path2 e';
+      of_Let prefix err_status rev_path x r1 r2
     | UHExp.Lam x e' =>
       let rev_path1 = [0, ...rev_path];
-      let r1 = of_hexp rev_path1 e';
-      of_Lam err_status rev_path x r1
-    | UHExp.NumLit n => of_NumLit err_status rev_path n
+      let r1 = of_hexp prefix rev_path1 e';
+      of_Lam prefix err_status rev_path x r1
+    | UHExp.NumLit n => of_NumLit prefix err_status rev_path n
     | UHExp.Inj side e =>
       let rev_path1 = [0, ...rev_path];
-      let r1 = of_hexp rev_path1 e;
-      of_Inj err_status rev_path side r1
+      let r1 = of_hexp prefix rev_path1 e;
+      of_Inj prefix err_status rev_path side r1
     | UHExp.Case e1 (x, e2) (y, e3) =>
       let rev_path1 = [0, ...rev_path];
       let rev_path2 = [1, ...rev_path];
       let rev_path3 = [2, ...rev_path];
-      let r1 = of_hexp rev_path1 e1;
-      let r2 = of_hexp rev_path2 e2;
-      let r3 = of_hexp rev_path3 e3;
-      of_Case err_status rev_path r1 x r2 y r3
-    | UHExp.EmptyHole u => of_Hole err_status rev_path "EmptyHole" (string_of_int u)
-    | UHExp.OpSeq skel seq => term err_status rev_path "OpSeq" (of_skel rev_path skel seq)
+      let r1 = of_hexp prefix rev_path1 e1;
+      let r2 = of_hexp prefix rev_path2 e2;
+      let r3 = of_hexp prefix rev_path3 e3;
+      of_Case prefix err_status rev_path r1 x r2 y r3
+    | UHExp.EmptyHole u => of_Hole prefix err_status rev_path "EmptyHole" (string_of_int u)
+    | UHExp.OpSeq skel seq =>
+      term prefix err_status rev_path "OpSeq" (of_skel prefix rev_path skel seq)
     }
   }
-and of_skel rev_path skel seq =>
+and of_skel prefix rev_path skel seq =>
   switch skel {
   | Skel.Placeholder n =>
     switch (OperatorSeq.seq_nth n seq) {
     | Some en =>
       let rev_path_n = [n, ...rev_path];
-      of_hexp rev_path_n en
+      of_hexp prefix rev_path_n en
     | None => raise InvariantViolated
     }
   | Skel.BinOp err_status op skel1 skel2 =>
-    let r1 = of_skel rev_path skel1 seq;
-    let r2 = of_skel rev_path skel2 seq;
+    let r1 = of_skel prefix rev_path skel1 seq;
+    let r2 = of_skel prefix rev_path skel2 seq;
     let op_pp =
       switch op {
       | UHExp.Times =>
@@ -426,8 +447,8 @@ let rec of_bin_num_op op =>
   | Dynamics.DHExp.Times => taggedText "bin_num_op" "*"
   };
 
-let of_BinNumOp err_status rev_path op r1 r2 =>
-  term err_status rev_path "BinNumOp" (r1 ^^ of_bin_num_op op ^^ r2);
+let of_BinNumOp prefix err_status rev_path op r1 r2 =>
+  term prefix err_status rev_path "BinNumOp" (r1 ^^ of_bin_num_op op ^^ r2);
 
 let precedence_Ap = 1;
 
@@ -456,75 +477,81 @@ let rec precedence_dhexp d =>
     }
   );
 
-let rec of_dhexp parenthesize err_status rev_path d => {
+let rec of_dhexp parenthesize prefix err_status rev_path d => {
   let doc =
     Dynamics.DHExp.(
       switch d {
-      | Var x => of_Var err_status rev_path x
+      | Var x => of_Var prefix err_status rev_path x
       | Let x d1 d2 =>
         let rev_path1 = [0, ...rev_path];
         let rev_path2 = [1, ...rev_path];
-        let r1 = of_dhexp false NotInHole rev_path1 d1;
-        let r2 = of_dhexp false NotInHole rev_path2 d2;
-        of_Let err_status rev_path x r1 r2
+        let r1 = of_dhexp false prefix NotInHole rev_path1 d1;
+        let r2 = of_dhexp false prefix NotInHole rev_path2 d2;
+        of_Let prefix err_status rev_path x r1 r2
       | Lam x ty d1 =>
         let rev_path1 = [0, ...rev_path];
         let rev_path2 = [1, ...rev_path];
-        let r1 = of_htype false rev_path1 ty;
-        let r2 = of_dhexp false NotInHole rev_path2 d1;
-        of_LamAnn err_status rev_path x r1 r2
+        let r1 = of_htype false prefix rev_path1 ty;
+        let r2 = of_dhexp false prefix NotInHole rev_path2 d1;
+        of_LamAnn prefix err_status rev_path x r1 r2
       | Ap d1 d2 =>
         let rev_path1 = [0, ...rev_path];
         let rev_path2 = [1, ...rev_path];
         let paren1 = precedence_dhexp d1 > precedence_Ap;
         let paren2 = precedence_dhexp d2 >= precedence_Ap;
-        let r1 = of_dhexp paren1 NotInHole rev_path1 d1;
-        let r2 = of_dhexp paren2 NotInHole rev_path2 d2;
-        of_Ap err_status rev_path r1 r2
-      | NumLit n => of_NumLit err_status rev_path n
+        let r1 = of_dhexp paren1 prefix NotInHole rev_path1 d1;
+        let r2 = of_dhexp paren2 prefix NotInHole rev_path2 d2;
+        of_Ap prefix err_status rev_path r1 r2
+      | NumLit n => of_NumLit prefix err_status rev_path n
       | BinNumOp op d1 d2 =>
         let rev_path1 = [0, ...rev_path];
         let rev_path2 = [1, ...rev_path];
         let prec_d = precedence_dhexp d;
         let paren1 = precedence_dhexp d1 > prec_d;
         let paren2 = precedence_dhexp d2 >= prec_d;
-        let r1 = of_dhexp paren1 NotInHole rev_path1 d1;
-        let r2 = of_dhexp paren2 NotInHole rev_path2 d2;
-        of_BinNumOp err_status rev_path op r1 r2
+        let r1 = of_dhexp paren1 prefix NotInHole rev_path1 d1;
+        let r2 = of_dhexp paren2 prefix NotInHole rev_path2 d2;
+        of_BinNumOp prefix err_status rev_path op r1 r2
       | Inj ty side d1 =>
         let rev_path1 = [0, ...rev_path];
         let rev_path2 = [1, ...rev_path];
-        let r1 = of_htype false rev_path1 ty;
-        let r2 = of_dhexp false NotInHole rev_path2 d1;
-        of_InjAnn err_status rev_path r1 side r2
+        let r1 = of_htype false prefix rev_path1 ty;
+        let r2 = of_dhexp false prefix NotInHole rev_path2 d1;
+        of_InjAnn prefix err_status rev_path r1 side r2
       | Case d1 (x, d2) (y, d3) =>
         let rev_path1 = [0, ...rev_path];
         let rev_path2 = [1, ...rev_path];
         let rev_path3 = [2, ...rev_path];
-        let r1 = of_dhexp false NotInHole rev_path1 d1;
-        let r2 = of_dhexp false NotInHole rev_path2 d2;
-        let r3 = of_dhexp false NotInHole rev_path3 d3;
-        of_CaseAnn err_status rev_path r1 x r2 y r3
+        let r1 = of_dhexp false prefix NotInHole rev_path1 d1;
+        let r2 = of_dhexp false prefix NotInHole rev_path2 d2;
+        let r3 = of_dhexp false prefix NotInHole rev_path3 d3;
+        of_CaseAnn prefix err_status rev_path r1 x r2 y r3
       | EmptyHole u sigma =>
         term
+          prefix
           err_status
           rev_path
           "EmptyHole"
           (
             taggedText "holeName" (string_of_int u) ^^
             PP.tagged
-              ["hole-decorations"] None (PP.tagged ["environment"] None (of_sigma rev_path sigma))
+              ["hole-decorations"]
+              None
+              (PP.tagged ["environment"] None (of_sigma prefix rev_path sigma))
           )
       | NonEmptyHole u sigma d1 =>
         let rev_path1 = [0, ...rev_path];
         term
+          prefix
           err_status
           rev_path
           "NonEmptyHole"
           (
-            of_dhexp false (InHole u) rev_path1 d1 ^^
+            of_dhexp false prefix (InHole u) rev_path1 d1 ^^
             PP.tagged
-              ["hole-decorations"] None (PP.tagged ["environment"] None (of_sigma rev_path sigma))
+              ["hole-decorations"]
+              None
+              (PP.tagged ["environment"] None (of_sigma prefix rev_path sigma))
           )
       | Cast (Cast d1 ty1 ty2) ty3 ty4 when HTyp.eq ty2 ty3 =>
         let rev_path1 = [0, ...rev_path];
@@ -534,20 +561,20 @@ let rec of_dhexp parenthesize err_status rev_path d => {
         /* no rev_path2 because we're not showing them separately */
         let rev_path3 = [2, ...rev_path];
         let paren1 = precedence_dhexp d1 > precedence_const;
-        let r1 = of_dhexp paren1 NotInHole inner_rev_path1 d1;
-        let r2 = of_htype false inner_rev_path2 ty1;
-        let r3 = of_htype false inner_rev_path3 ty2;
-        let r5 = of_htype false rev_path3 ty4;
-        of_chained_Cast err_status rev_path r1 r2 r3 r5
+        let r1 = of_dhexp paren1 prefix NotInHole inner_rev_path1 d1;
+        let r2 = of_htype false prefix inner_rev_path2 ty1;
+        let r3 = of_htype false prefix inner_rev_path3 ty2;
+        let r5 = of_htype false prefix rev_path3 ty4;
+        of_chained_Cast prefix err_status rev_path r1 r2 r3 r5
       | Cast d1 ty1 ty2 =>
         let rev_path1 = [0, ...rev_path];
         let rev_path2 = [1, ...rev_path];
         let rev_path3 = [2, ...rev_path];
         let paren1 = precedence_dhexp d1 > precedence_const;
-        let r1 = of_dhexp paren1 NotInHole rev_path1 d1;
-        let r2 = of_htype false rev_path2 ty1;
-        let r3 = of_htype false rev_path3 ty2;
-        of_Cast err_status rev_path r1 r2 r3
+        let r1 = of_dhexp paren1 prefix NotInHole rev_path1 d1;
+        let r2 = of_htype false prefix rev_path2 ty1;
+        let r3 = of_htype false prefix rev_path3 ty2;
+        of_Cast prefix err_status rev_path r1 r2 r3
       | FailedCast (Cast d1 ty1 ty2) ty3 ty4 when HTyp.eq ty2 ty3 =>
         let rev_path1 = [0, ...rev_path];
         let inner_rev_path1 = [0, ...rev_path1];
@@ -556,26 +583,26 @@ let rec of_dhexp parenthesize err_status rev_path d => {
         /* no rev_path2 because we're not showing them separately */
         let rev_path3 = [2, ...rev_path];
         let paren1 = precedence_dhexp d1 > precedence_const;
-        let r1 = of_dhexp paren1 NotInHole inner_rev_path1 d1;
-        let r2 = of_htype false inner_rev_path2 ty1;
-        let r3 = of_htype false inner_rev_path3 ty2;
-        let r5 = of_htype false rev_path3 ty4;
-        of_chained_FailedCast err_status rev_path r1 r2 r3 r5
+        let r1 = of_dhexp paren1 prefix NotInHole inner_rev_path1 d1;
+        let r2 = of_htype false prefix inner_rev_path2 ty1;
+        let r3 = of_htype false prefix inner_rev_path3 ty2;
+        let r5 = of_htype false prefix rev_path3 ty4;
+        of_chained_FailedCast prefix err_status rev_path r1 r2 r3 r5
       | FailedCast d1 ty1 ty2 =>
         let rev_path1 = [0, ...rev_path];
         let rev_path2 = [1, ...rev_path];
         let rev_path3 = [2, ...rev_path];
         let paren1 = precedence_dhexp d1 > precedence_const;
-        let r1 = of_dhexp paren1 NotInHole rev_path1 d1;
-        let r2 = of_htype false rev_path2 ty1;
-        let r3 = of_htype false rev_path3 ty2;
-        of_FailedCast err_status rev_path r1 r2 r3
+        let r1 = of_dhexp paren1 prefix NotInHole rev_path1 d1;
+        let r2 = of_htype false prefix rev_path2 ty1;
+        let r3 = of_htype false prefix rev_path3 ty2;
+        of_FailedCast prefix err_status rev_path r1 r2 r3
       }
     );
   parenthesize ? parens "(" ^^ doc ^^ parens ")" : doc
 }
-and of_sigma rev_path sigma => {
-  let map_f (x, d) => of_dhexp false NotInHole rev_path d ^^ kw "/" ^^ PP.text "" x;
+and of_sigma prefix rev_path sigma => {
+  let map_f (x, d) => of_dhexp false prefix NotInHole rev_path d ^^ kw "/" ^^ PP.text "" x;
   let docs = List.map map_f sigma;
   let doc' =
     switch docs {
