@@ -2316,6 +2316,16 @@ Module Core.
                   (OperatorSeq.EmptyPrefix _)))) => 
             let ze' := ZExp.CursorE After e1 in 
             zexp_syn_fix_holes fuel ctx u_gen ze'
+          | (Delete,
+              ZExp.Deeper _ (ZExp.AscZ1
+                (ZExp.CursorE After e1)
+                _)) => 
+            match UHExp.syn_fix_holes fuel ctx u_gen e1 with 
+            | Some (e1', ty', u_gen) => 
+              let ze' := ZExp.CursorE After e1' in 
+              Some (ze', ty', u_gen)
+            | None => None
+            end
           | (Backspace, ZExp.Deeper _
               (ZExp.OpSeqZ _
                 ((ZExp.CursorE Before e0) as ze0) 
@@ -3087,6 +3097,16 @@ Module Core.
               (OperatorSeq.EmptyPrefix _)))) => 
         let ze' := ZExp.CursorE After e1 in 
         zexp_ana_fix_holes fuel ctx u_gen ze' ty
+      | (Delete,
+          ZExp.Deeper _ (ZExp.AscZ1
+            (ZExp.CursorE After e1)
+            _)) => 
+        match UHExp.ana_fix_holes fuel ctx u_gen e1 ty with 
+        | Some (e1', u_gen) => 
+          let ze' := ZExp.CursorE After e1' in 
+          Some (ze', u_gen)
+        | None => None
+        end
       (* special cases for backspace/delete that can turn 
        * an opseq back into a single expression *)
       | (Backspace, 

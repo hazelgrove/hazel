@@ -54,10 +54,12 @@ html, body {
 	padding-right: 7px;
   display: grid;
   grid-template-rows: auto 1fr auto;
+  border-left: 2px solid #073f24;
 }
 
 .panel {
   margin-bottom: 7px;
+  border: 1px solid #073f24;
 }
 
 .titlebar {
