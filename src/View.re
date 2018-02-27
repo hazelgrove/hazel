@@ -11,7 +11,9 @@ let taggedText cls s => PP.text cls s;
 
 let kw = taggedText "kw";
 
-let parens = taggedText "paren";
+let lparen = taggedText "lparen";
+
+let rparen = taggedText "rparen";
 
 let op = taggedText "op";
 
@@ -158,7 +160,7 @@ let rec of_htype parenthesize prefix rev_path ty => {
       of_Sum prefix NotInHole rev_path r1 r2
     | HTyp.Hole => of_Hole prefix NotInHole rev_path "Hole" "?"
     };
-  parenthesize ? parens "(" ^^ d ^^ parens ")" : d
+  parenthesize ? lparen "(" ^^ d ^^ rparen ")" : d
 };
 
 let rec of_uhtyp prefix rev_path uty =>
@@ -251,9 +253,7 @@ let of_Inj prefix err_status rev_path side r =>
     "Inj"
     (
       kw "inj" ^^
-      parens "[" ^^
-      kw (string_of_side side) ^^
-      parens "]" ^^ parens "(" ^^ PP.optionalBreak "" ^^ r ^^ parens ")"
+      lparen "[" ^^ kw (string_of_side side) ^^ rparen "]" ^^ lparen "(" ^^ r ^^ rparen ")"
     );
 
 let of_InjAnn prefix err_status rev_path rty side r =>
@@ -264,10 +264,10 @@ let of_InjAnn prefix err_status rev_path rty side r =>
     "Inj"
     (
       kw "inj" ^^
-      parens "[" ^^
+      lparen "[" ^^
       kw (string_of_side side) ^^
       kw "," ^^
-      optionalBreakSp ^^ rty ^^ parens "]" ^^ parens "(" ^^ PP.optionalBreak "" ^^ r ^^ parens ")"
+      optionalBreakSp ^^ rty ^^ rparen "]" ^^ lparen "(" ^^ PP.optionalBreak "" ^^ r ^^ rparen ")"
     );
 
 let of_Case prefix err_status rev_path r1 x r2 y r3 =>
@@ -283,17 +283,17 @@ let of_Case prefix err_status rev_path r1 x r2 y r3 =>
       r1 ^^
       PP.mandatoryBreak ^^
       kw "L" ^^
-      parens "(" ^^
+      lparen "(" ^^
       var x ^^
-      parens ")" ^^
+      rparen ")" ^^
       space ^^
       op "\226\135\146" ^^
       space ^^
       PP.nestAbsolute 2 r2 ^^
       PP.mandatoryBreak ^^
       kw "R" ^^
-      parens "(" ^^
-      var y ^^ parens ")" ^^ space ^^ op "\226\135\146" ^^ space ^^ PP.nestAbsolute 2 r3
+      lparen "(" ^^
+      var y ^^ rparen ")" ^^ space ^^ op "\226\135\146" ^^ space ^^ PP.nestAbsolute 2 r3
     );
 
 let of_CaseAnn prefix err_status rev_path r1 x r2 y r3 =>
@@ -309,17 +309,17 @@ let of_CaseAnn prefix err_status rev_path r1 x r2 y r3 =>
       r1 ^^
       PP.mandatoryBreak ^^
       kw "L" ^^
-      parens "(" ^^
+      lparen "(" ^^
       var x ^^
-      parens ")" ^^
+      rparen ")" ^^
       space ^^
       op "\226\135\146" ^^
       space ^^
       PP.nestAbsolute 2 r2 ^^
       PP.mandatoryBreak ^^
       kw "R" ^^
-      parens "(" ^^
-      var y ^^ parens ")" ^^ space ^^ op "\226\135\146" ^^ space ^^ PP.nestAbsolute 2 r3
+      lparen "(" ^^
+      var y ^^ rparen ")" ^^ space ^^ op "\226\135\146" ^^ space ^^ PP.nestAbsolute 2 r3
     );
 
 let cast_arrow = op " \226\135\168 ";
@@ -330,7 +330,7 @@ let of_Cast prefix err_status rev_path r1 rty1 rty2 =>
     err_status
     rev_path
     "Cast"
-    (r1 ^^ parens "<" ^^ rty1 ^^ cast_arrow ^^ rty2 ^^ parens ">");
+    (r1 ^^ lparen "<" ^^ rty1 ^^ cast_arrow ^^ rty2 ^^ rparen ">");
 
 let of_chained_Cast prefix err_status rev_path r1 rty1 rty2 rty4 =>
   term
@@ -338,7 +338,7 @@ let of_chained_Cast prefix err_status rev_path r1 rty1 rty2 rty4 =>
     err_status
     rev_path
     "Cast"
-    (r1 ^^ parens "<" ^^ rty1 ^^ cast_arrow ^^ rty2 ^^ cast_arrow ^^ rty4 ^^ parens ">");
+    (r1 ^^ lparen "<" ^^ rty1 ^^ cast_arrow ^^ rty2 ^^ cast_arrow ^^ rty4 ^^ rparen ">");
 
 let failed_cast_arrow = taggedText "failed-cast-arrow" " \226\135\168 ";
 
@@ -348,7 +348,7 @@ let of_FailedCast prefix err_status rev_path r1 rty1 rty2 =>
     err_status
     rev_path
     "FailedCast"
-    (r1 ^^ parens "<" ^^ rty1 ^^ failed_cast_arrow ^^ rty2 ^^ parens ">");
+    (r1 ^^ lparen "<" ^^ rty1 ^^ failed_cast_arrow ^^ rty2 ^^ rparen ">");
 
 let of_chained_FailedCast prefix err_status rev_path r1 rty1 rty2 rty4 =>
   term
@@ -358,7 +358,7 @@ let of_chained_FailedCast prefix err_status rev_path r1 rty1 rty2 rty4 =>
     "FailedCast"
     (
       r1 ^^
-      parens "<" ^^ rty1 ^^ failed_cast_arrow ^^ rty2 ^^ failed_cast_arrow ^^ rty4 ^^ parens ">"
+      lparen "<" ^^ rty1 ^^ failed_cast_arrow ^^ rty2 ^^ failed_cast_arrow ^^ rty4 ^^ rparen ">"
     );
 
 let is_block e =>
@@ -599,7 +599,7 @@ let rec of_dhexp parenthesize prefix err_status rev_path d => {
         of_FailedCast prefix err_status rev_path r1 r2 r3
       }
     );
-  parenthesize ? parens "(" ^^ doc ^^ parens ")" : doc
+  parenthesize ? lparen "(" ^^ doc ^^ rparen ")" : doc
 }
 and of_sigma prefix rev_path sigma => {
   let map_f (x, d) => of_dhexp false prefix NotInHole rev_path d ^^ kw "/" ^^ PP.text "" x;
@@ -611,5 +611,5 @@ and of_sigma prefix rev_path sigma => {
       let fold_f doc doc' => doc ^^ kw ", " ^^ doc';
       List.fold_left fold_f x xs
     };
-  parens "[" ^^ doc' ^^ parens "]"
+  lparen "[" ^^ doc' ^^ rparen "]"
 };
