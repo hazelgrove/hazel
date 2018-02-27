@@ -50,7 +50,7 @@ let of_Parenthesized is_block prefix rev_path r1 =>
     "Parenthesized"
     (
       is_block ?
-        PP.mandatoryBreak ^^
+        PP.blockBoundary ^^
         taggedText "openParens" "(" ^^
         PP.nestAbsolute 2 r1 ^^ PP.mandatoryBreak ^^ taggedText "closeParens" ")" :
         taggedText "openParens" "(" ^^ r1 ^^ taggedText "closeParens" ")"
