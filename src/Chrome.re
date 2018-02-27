@@ -742,14 +742,14 @@ let view ((ms, es, do_action): Model.mt) => {
         a::[a_class ["panel", "options-panel"]]
         [PanelUtils.titlebar "Options", show_hole_envs_checkbox]
     );
-  let the_sidebar =
+  let the_leftbar = Html5.(div a::[a_class ["sidebar", "leftbar"]] [the_action_panel]);
+  let the_rightbar =
     Html5.(
       div
-        a::[a_class ["sidebar"]]
+        a::[a_class ["sidebar", "rightbar"]]
         [
           the_cursor_inspector_panel,
           /* the_context_inspector_panel, */
-          the_action_panel,
           the_options_panel
           /* num_changes_counter */
         ]
@@ -764,7 +764,7 @@ let view ((ms, es, do_action): Model.mt) => {
             div
               a::[a_class ["main-area"]]
               [
-                the_sidebar,
+                the_leftbar,
                 div
                   a::[a_class ["page-area"]]
                   [
@@ -776,7 +776,7 @@ let view ((ms, es, do_action): Model.mt) => {
                         div [
                           pcdata "Hazel is an experiment in ",
                           strong [pcdata "hole-driven development"],
-                          pcdata ". Use the actions on the left to construct a lambda term. Navigate using the standard text cursor."
+                          pcdata ". Use the actions on the right to construct a lambda term. Navigate using the standard text cursor."
                         ],
                         pp_view_parent,
                         div
@@ -791,7 +791,8 @@ let view ((ms, es, do_action): Model.mt) => {
                           ],
                         div a::[a_class ["result-view"]] [result_view]
                       ]
-                  ]
+                  ],
+                the_rightbar
               ]
           ]
       );

@@ -8,7 +8,10 @@ let make ((ms, es, do_action): Model.mt) set_cursor => {
   module Util = GeneralUtil;
   module Ev = Dom_html.Event;
   module KC = JSUtil.KeyCombo;
-  module KCs = JSUtil.KeyCombos;
+  module KCs = JSUtil.KeyCombos /* uncomment to log key information to the console */; /**/
+  let _ =
+    JSUtil.listen_to_t Ev.keydown Dom_html.document (fun evt => JSUtil.log (JSUtil.get_key evt));
+  /**/
   /* start by defining a bunch of helpers */
   /* performs the top-level action and updates the signal */
   let doAction action => {
@@ -16,7 +19,7 @@ let make ((ms, es, do_action): Model.mt) set_cursor => {
     set_cursor ()
   };
   /* helper function for constructing action buttons with no textbox */
-  let action_button action btn_label key_combo => {
+  let action_button action lbl_body key_combo => {
     let _ =
       JSUtil.listen_to_t
         Ev.keydown
@@ -24,7 +27,6 @@ let make ((ms, es, do_action): Model.mt) set_cursor => {
         (
           fun evt => {
             let key = JSUtil.get_key evt;
-            /* JSUtil.log key; */
             if (key == KC.key key_combo) {
               doAction action;
               Dom.preventDefault evt
@@ -33,83 +35,59 @@ let make ((ms, es, do_action): Model.mt) set_cursor => {
             }
           }
         );
-    Html5.(
-      button
-        a::[
-          a_class ["btn", "btn-outline-primary"],
-          a_onclick (
-            fun _ => {
-              doAction action;
-              true
+    let onclick_handler evt => {
+      doAction action;
+      true
+    };
+    let lbl_div = Html5.(div a::[a_class ["action-label"], a_onclick onclick_handler] [lbl_body]);
+    let keyboard_shortcut_div =
+      Html5.(
+        div
+          a::[a_class ["keyboard-shortcut"], a_onclick onclick_handler]
+          [pcdata (KC.name key_combo)]
+      );
+    let can_perform_rs =
+      S.map
+        (
+          fun m =>
+            switch (Action.performSyn () Ctx.empty action m) {
+            | Some _ => ["action-panel-entry", "action-enabled"]
+            | None => ["action-panel-entry", "action-disabled"]
             }
-          ),
-          R.filter_attrib
-            (a_disabled ())
-            (
-              S.map
-                (
-                  fun m =>
-                    switch (Action.performSyn () Ctx.empty action m) {
-                    | Some _ => false
-                    | None => true
-                    }
-                )
-                ms
-            )
-        ]
-        [pcdata (btn_label ^ " [" ^ KC.name key_combo ^ "]")]
-    )
+        )
+        ms;
+    Html5.(div a::[R.Html5.a_class can_perform_rs] [lbl_div, keyboard_shortcut_div])
   };
   /* actions that take an input. the conversion function
    * goes from a string (the input value) to an arg option
    * where arg is the action argument. */
-  let action_input_button action conv btn_label input_id key_combo placeholder_str => {
+  let action_input_button action conv lbl_body input_id key_combo placeholder_str => {
     /* create reactive input box */
     let ((i_rs, i_rf), i_elt, i_dom) = JSUtil.r_input input_id placeholder_str;
     let clear_input () => {
       i_dom##.value := Js.string "";
       i_rf "" /* need to manually update rf because r_input only reacts to UI input */
     };
-    let button_elt =
+    let onclick_handler _ => {
+      let converted = conv (React.S.value i_rs);
+      switch converted {
+      | Some arg =>
+        doAction (action arg);
+        clear_input ();
+        true
+      | None => true
+      }
+    };
+    let lbl_div =
       Html5.(
-        button
-          a::[
-            a_class ["btn", "btn-default"],
-            a_id (input_id ^ "_button"),
-            a_onclick (
-              fun _ => {
-                let arg = Util.force_opt (conv (React.S.value i_rs));
-                doAction (action arg);
-                clear_input ();
-                true
-              }
-            ),
-            R.filter_attrib /* filters out the disabled attribute */
-              (a_disabled ())
-              (
-                S.l2
-                  (
-                    fun s m => {
-                      /* S.l2 creates a signal from two signals */
-                      let converted = conv s;
-                      switch converted {
-                      | Some arg =>
-                        switch (Action.performSyn () Ctx.empty (action arg) m) {
-                        | Some _ => false
-                        | None =>
-                          true /* filter disbled attr out if invalid action */
-                        }
-                      | _ => true
-                      }
-                    }
-                  )
-                  i_rs
-                  ms
-              )
+        div
+          a::[a_class ["action-label", "action-label-with-input"], a_onclick onclick_handler]
+          [
+            div a::[a_class ["action-label-text"]] [lbl_body],
+            div a::[a_class ["action-input"]] [i_elt]
           ]
-          [pcdata (btn_label ^ " [" ^ KC.name key_combo ^ "]")]
       );
-    let button_dom = To_dom.of_button button_elt;
+    let lbl_dom = To_dom.of_div lbl_div;
     /* listen for the key combo at the document level */
     let _ =
       JSUtil.listen_to
@@ -118,8 +96,8 @@ let make ((ms, es, do_action): Model.mt) set_cursor => {
         (
           fun evt => {
             let key = JSUtil.get_key evt;
-            /* let _ = Firebug.console##log evt_key in */
             if (key == KC.key key_combo) {
+              clear_input ();
               i_dom##focus;
               Dom_html.stopPropagation evt;
               Js._false
@@ -137,12 +115,13 @@ let make ((ms, es, do_action): Model.mt) set_cursor => {
           fun evt => {
             let key = JSUtil.get_key evt;
             if (key == KC.key KCs.enter) {
-              button_dom##click;
+              lbl_dom##click;
               i_dom##blur;
               Js._false
             } else if (
               key == KC.key KCs.esc
             ) {
+              clear_input ();
               i_dom##blur;
               set_cursor ();
               Js._false
@@ -172,9 +151,13 @@ let make ((ms, es, do_action): Model.mt) set_cursor => {
             Js._true
           }
         );
-    Html5.(
-      div a::[a_class ["input-group"]] [span a::[a_class ["input-group-btn"]] [button_elt], i_elt]
-    )
+    let keyboard_shortcut_div =
+      Html5.(
+        div
+          a::[a_class ["keyboard-shortcut"], a_onclick onclick_handler]
+          [pcdata (KC.name key_combo)]
+      );
+    Html5.(div a::[a_class ["action-panel-entry"]] [lbl_div, keyboard_shortcut_div])
   };
   /* actions that take two inputs. the conversion function
    * goes from a pair of strings to an arg option where arg is
@@ -182,7 +165,7 @@ let make ((ms, es, do_action): Model.mt) set_cursor => {
   let action_input_input_button
       action
       conv
-      btn_label
+      lbl_body
       input_id
       key_combo
       placeholder_str_1
@@ -199,45 +182,28 @@ let make ((ms, es, do_action): Model.mt) set_cursor => {
       i_dom_2##.value := Js.string "";
       i_rf_2 ""
     };
-    let button_elt =
+    let onclick_handler _ => {
+      let converted = conv (React.S.value i_rs_1) (React.S.value i_rs_2);
+      switch converted {
+      | Some arg =>
+        doAction (action arg);
+        clear_input ();
+        true
+      | None => true
+      }
+    };
+    let lbl_div =
       Html5.(
-        button
-          a::[
-            a_class ["btn", "btn-default"],
-            a_id (input_id ^ "_button"),
-            a_onclick (
-              fun _ => {
-                let i1 = React.S.value i_rs_1;
-                let i2 = React.S.value i_rs_2;
-                let arg = Util.force_opt (conv (i1, i2));
-                doAction (action arg);
-                clear_input ();
-                true
-              }
-            ),
-            R.filter_attrib
-              (a_disabled ())
-              (
-                S.l3
-                  (
-                    fun s1 s2 m =>
-                      switch (conv (s1, s2)) {
-                      | Some arg =>
-                        switch (Action.performSyn () Ctx.empty (action arg) m) {
-                        | Some _ => false
-                        | None => true
-                        }
-                      | None => true
-                      }
-                  )
-                  i_rs_1
-                  i_rs_2
-                  ms
-              )
+        div
+          a::[a_class ["action-label", "action-label-with-two-inputs"], a_onclick onclick_handler]
+          [
+            div a::[a_class ["action-label-text"]] [lbl_body],
+            div a::[a_class ["action-input", "action-input-1"]] [i_elt_1],
+            div a::[a_class ["action-input", "action-input-2"]] [i_elt_2]
           ]
-          [pcdata (btn_label ^ " [" ^ KC.name key_combo ^ "]")]
       );
-    let button_dom = To_dom.of_button button_elt;
+    let lbl_dom = To_dom.of_div lbl_div;
+    /* listen for the key combo at the document level */
     let _ =
       JSUtil.listen_to
         Ev.keypress
@@ -246,7 +212,7 @@ let make ((ms, es, do_action): Model.mt) set_cursor => {
           fun evt => {
             let key = JSUtil.get_key evt;
             if (key == KC.key key_combo) {
-              Firebug.console##log "in c";
+              clear_input ();
               i_dom_1##focus;
               Dom_html.stopPropagation evt;
               Js._false
@@ -255,6 +221,7 @@ let make ((ms, es, do_action): Model.mt) set_cursor => {
             }
           }
         );
+    /* respond to enter and esc inside the input box */
     let i_keyup_listener i_dom =>
       JSUtil.listen_to
         Ev.keyup
@@ -263,13 +230,15 @@ let make ((ms, es, do_action): Model.mt) set_cursor => {
           fun evt => {
             let key = JSUtil.get_key evt;
             if (key == KC.key KCs.enter) {
-              button_dom##click;
+              lbl_dom##click;
               i_dom##blur;
               Js._false
             } else if (
               key == KC.key KCs.esc
             ) {
+              clear_input ();
               i_dom##blur;
+              set_cursor ();
               Js._false
             } else {
               Dom_html.stopPropagation evt;
@@ -279,22 +248,42 @@ let make ((ms, es, do_action): Model.mt) set_cursor => {
         );
     let _ = i_keyup_listener i_dom_1;
     let _ = i_keyup_listener i_dom_2;
-    let i_keypress_listener i_dom =>
-      JSUtil.listen_to
-        Ev.keypress
-        i_dom
-        (
-          fun evt => {
-            Dom_html.stopPropagation evt;
-            Js._true
-          }
-        );
+    /* stop propagation of keys when focus is in input box */
+    let i_keypress_listener i_dom => {
+      let _ =
+        JSUtil.listen_to
+          Ev.keydown
+          i_dom
+          (
+            fun evt => {
+              Dom_html.stopPropagation evt;
+              Js._true
+            }
+          );
+      let _ =
+        JSUtil.listen_to
+          Ev.keypress
+          i_dom
+          (
+            fun evt => {
+              Dom_html.stopPropagation evt;
+              Js._true
+            }
+          );
+      ()
+    };
     let _ = i_keypress_listener i_dom_1;
     let _ = i_keypress_listener i_dom_2;
+    let keyboard_shortcut_div =
+      Html5.(
+        div
+          a::[a_class ["keyboard-shortcut"], a_onclick onclick_handler]
+          [pcdata (KC.name key_combo)]
+      );
     Html5.(
       div
-        a::[a_class ["input-group"]]
-        [span a::[a_class ["input-group-btn"]] [button_elt], i_elt_1, i_elt_2]
+        a::[a_class ["action-panel-entry"], a_onclick onclick_handler]
+        [lbl_div, keyboard_shortcut_div]
     )
   };
   /* now construct the action panel entries*/
@@ -304,19 +293,33 @@ let make ((ms, es, do_action): Model.mt) set_cursor => {
      let moveChild3 = action_button (Action.Move (Action.Child 3)) "move child 3" KCs.number_3;
      let moveParent = action_button (Action.Move Action.Parent) "move parent" KCs.p; */
   /* deletion */
-  let delete = action_button Action.Delete "delete" KCs.del;
-  let backspace = action_button Action.Backspace "backspace" KCs.backspace;
+  let backspace = action_button Action.Backspace (Html5.pcdata "backspace") KCs.backspace;
+  let delete = action_button Action.Delete (Html5.pcdata "delete") KCs.del;
   /* type construction */
-  let constructNum = action_button (Action.Construct Action.SNum) "construct num type" KCs.n;
+  let threepiece cls pre_txt code_txt post_txt =>
+    Html5.(
+      span [pcdata pre_txt, span a::[a_class ["code", cls]] [pcdata code_txt], pcdata post_txt]
+    );
+  let threepiece_op = threepiece "op";
+  let threepiece_kw = threepiece "kw";
+  let constructNum =
+    action_button (Action.Construct Action.SNum) (threepiece_kw "" "num" " type") KCs.n;
   let constructArrow =
     action_button
-      (Action.Construct (Action.STyOp UHTyp.Arrow)) "construct arrow type" KCs.greaterThan;
+      (Action.Construct (Action.STyOp UHTyp.Arrow))
+      (threepiece_op "insert " "\226\134\146" " type operator")
+      KCs.greaterThan;
   let constructSum =
-    action_button (Action.Construct (Action.STyOp UHTyp.Sum)) "construct sum type" KCs.vbar;
+    action_button
+      (Action.Construct (Action.STyOp UHTyp.Sum))
+      (threepiece_op "insert " "|" " type operator")
+      KCs.vbar;
   /* expression construction */
   let constructParenthesized =
-    action_button (Action.Construct Action.SParenthesized) "parenthesize" KCs.openParens;
-  let constructAsc = action_button (Action.Construct Action.SAsc) "construct asc" KCs.colon;
+    action_button
+      (Action.Construct Action.SParenthesized) (Html5.pcdata "parenthesize") KCs.openParens;
+  let constructAsc =
+    action_button (Action.Construct Action.SAsc) (Html5.pcdata "type ascription") KCs.colon;
   let constructLet =
     action_input_button
       (fun v => Action.Construct (Action.SLet v))
@@ -327,10 +330,10 @@ let make ((ms, es, do_action): Model.mt) set_cursor => {
           | _ => Some s
           }
       )
-      "construct let"
-      "var_input"
+      (Html5.div [threepiece_kw "" "let" ""])
+      "let_input"
       KCs.equals
-      "Enter var + press Enter";
+      "enter var";
   let constructVar =
     action_input_button
       (fun v => Action.Construct (Action.SVar v))
@@ -341,10 +344,10 @@ let make ((ms, es, do_action): Model.mt) set_cursor => {
           | _ => Some s
           }
       )
-      "construct var"
+      (Html5.pcdata "var")
       "var_input"
       KCs.v
-      "Enter var + press Enter";
+      "enter var";
   let constructLam =
     action_input_button
       (fun v => Action.Construct (Action.SLam v))
@@ -355,10 +358,10 @@ let make ((ms, es, do_action): Model.mt) set_cursor => {
           | _ => Some s
           }
       )
-      "construct lam"
+      (Html5.pcdata "\206\187")
       "lam_input"
       KCs.backslash
-      "Enter var + press Enter";
+      "enter var";
   let constructLit =
     action_input_button
       (fun n => Action.Construct (Action.SLit n))
@@ -372,25 +375,34 @@ let make ((ms, es, do_action): Model.mt) set_cursor => {
             }
           }
       )
-      "construct lit"
+      (Html5.pcdata "number")
       "lit_input"
       KCs.pound
-      "Enter num + press Enter";
+      "enter number";
   let constructPlus =
-    action_button (Action.Construct (Action.SOp UHExp.Plus)) "construct plus" KCs.plus;
+    action_button
+      (Action.Construct (Action.SOp UHExp.Plus))
+      (threepiece_op "insert " "+" " operator")
+      KCs.plus;
   let constructTimes =
-    action_button (Action.Construct (Action.SOp UHExp.Times)) "construct times" KCs.asterisk;
+    action_button
+      (Action.Construct (Action.SOp UHExp.Times))
+      (threepiece_op "insert " "*" " operator")
+      KCs.asterisk;
   let constructSpace =
-    action_button (Action.Construct (Action.SOp UHExp.Space)) "construct ap" KCs.space;
+    action_button
+      (Action.Construct (Action.SOp UHExp.Space))
+      (Html5.pcdata "insert application operator")
+      KCs.space;
   let constructInjL =
-    action_button (Action.Construct (Action.SInj UHExp.L)) "construct inj L" KCs.l;
+    action_button (Action.Construct (Action.SInj UHExp.L)) (Html5.pcdata "left injection") KCs.l;
   let constructInjR =
-    action_button (Action.Construct (Action.SInj UHExp.R)) "construct inj R" KCs.r;
+    action_button (Action.Construct (Action.SInj UHExp.R)) (Html5.pcdata "right injection") KCs.r;
   let constructCase =
     action_input_input_button
       (fun (v1, v2) => Action.Construct (Action.SCase v1 v2 [@implicit_arity]))
       (
-        fun (s1, s2) => {
+        fun s1 s2 => {
           let s1_empty = String.compare s1 "";
           let s2_empty = String.compare s2 "";
           switch (s1_empty, s2_empty) {
@@ -400,31 +412,18 @@ let make ((ms, es, do_action): Model.mt) set_cursor => {
           }
         }
       )
-      "construct case"
+      (threepiece_kw "" "case" "")
       "case_input"
       KCs.c
-      "Enter var + press Tab"
-      "Enter var + press Enter";
-  /* let movementActions =
-     Html5.(
-       div
-         a::[a_class ["panel", "panel-default"]]
-         [
-           div a::[a_class ["panel-title"]] [pcdata "Movement"],
-           div
-             a::[a_class ["panel-body"]]
-             [moveChild1, br (), moveChild2, br (), moveChild3, br (), moveParent]
-         ]
-     ); */
+      "enter var 1"
+      "enter var 2";
   let typeConstructionActions =
     Html5.(
       div
         a::[a_class ["sub-panel", "sub-panel-default"]]
         [
           div a::[a_class ["sub-panel-title"]] [pcdata "Type Construction"],
-          div
-            a::[a_class ["sub-panel-body"]]
-            [constructNum, br (), constructArrow, br (), constructSum, br ()]
+          div a::[a_class ["sub-panel-body"]] [constructNum, constructArrow, constructSum]
         ]
     );
   let expressionConstructionActions =
@@ -436,9 +435,6 @@ let make ((ms, es, do_action): Model.mt) set_cursor => {
           div
             a::[a_class ["sub-panel-body"]]
             [
-              constructParenthesized,
-              br (),
-              constructAsc,
               constructLet,
               constructVar,
               constructLam,
@@ -448,17 +444,18 @@ let make ((ms, es, do_action): Model.mt) set_cursor => {
               constructTimes,
               constructInjL,
               constructInjR,
-              constructCase
+              constructCase,
+              constructAsc
             ]
         ]
     );
-  let deleteActions =
+  let generalActions =
     Html5.(
       div
         a::[a_class ["sub-panel", "sub-panel-default"]]
         [
-          div a::[a_class ["sub-panel-title"]] [pcdata "Deletion"],
-          div a::[a_class ["sub-panel-body"]] [delete, backspace]
+          div a::[a_class ["sub-panel-title"]] [pcdata "General"],
+          div a::[a_class ["sub-panel-body"]] [constructParenthesized, backspace, delete]
         ]
     );
   /* finally, put it all together into the action panel */
@@ -468,9 +465,9 @@ let make ((ms, es, do_action): Model.mt) set_cursor => {
       [
         PanelUtils.titlebar "Edit Actions",
         /* movementActions, */
-        typeConstructionActions,
+        generalActions,
         expressionConstructionActions,
-        deleteActions
+        typeConstructionActions
       ]
   )
 };

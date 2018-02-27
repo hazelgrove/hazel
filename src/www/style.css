@@ -25,10 +25,11 @@ html, body {
 .top-bar {
 	padding: 10px;
 	vertical-align: middle;
-	background-color: darkgreen;
+	background-color: #073f24;
 	color: white;
 	font-weight: bold;
 	font-size: 14pt;
+  /* border-bottom: 2px solid #4e7c66; */
 }
 
 .main-area {
@@ -36,7 +37,7 @@ html, body {
 	width: 100%;
 	height: 100%;
 	display: grid;
-	grid-template-columns: 280px 1fr;
+	grid-template-columns:  280px 1fr 280px;
 }
 
 .page-area {
@@ -53,9 +54,17 @@ html, body {
 	padding-left: 7px;
 	padding-right: 7px;
   padding-top: 7px;
-  display: grid;
-  grid-template-rows: auto 1fr auto;
   /* border-left: 2px solid #073f24; */
+}
+
+.leftbar {
+  display: grid;
+  grid-template-rows: 1fr;
+}
+
+.rightbar {
+  display: grid;
+  grid-template-rows: auto auto 1fr;
 }
 
 .panel {
@@ -110,13 +119,17 @@ html, body {
 }
 
 .action-panel {
-  background-color: #B6C7D9;
-  border: 1px solid #163454;
+  /* background-color: #B6C7D9; */
+  /* border: 1px solid #163454; */
+  background-color: #073f24;
+  /* border: 1px solid #073f24; */
+  cursor: default;
 }
 
 .action-panel .titlebar {
   /* background-color: #331757; */
-  background-color: #163454;
+  /* background-color: #163454; */
+  background-color: #073f24;
 }
 
 .options-panel {
@@ -182,10 +195,15 @@ h1 {
 
 .sub-panel-title {
 	text-align: center;
-	/* background-color: seagreen; */
-	color: black;
-	border-bottom: 1px solid #163454;
-	margin-bottom: 10px;
+  /* background-color: #163454; */
+  background-color: #073f24;
+  text-transform: uppercase;
+  line-height: 30px;
+	color: white;
+  font-size: 8pt;
+}
+
+.sub-panel-body {
 }
 
 .ModelExp {
@@ -231,10 +249,77 @@ button:disabled {
 	float:left;
 }
 
-.btn-outline-primary {
-	margin-bottom: 10px;
-	margin-right:20px;
-	}
+.action-panel-entry {
+  display: grid;
+  grid-template-columns: 1fr auto;
+}
+
+.action-label {
+  padding-left: 5px;
+  background-color: #41392c;
+  border: 1px outset #624c2a;
+  border-left: 0px;
+}
+
+.keyboard-shortcut {
+  padding-left: 5px;
+  padding-right: 5px;
+  min-width: 30px;
+  text-align: center;
+  font-family: sans-serif;
+  background-color: #8b6040;
+  border: 1px outset #a08458;
+  border-right: 0px;
+}
+
+.action-label,
+.keyboard-shortcut {
+  line-height: 30px;
+  font-size: 10pt;
+  color: white;
+}
+
+.action-disabled .action-label,
+.action-disabled .keyboard-shortcut {
+  /* background-color: #888; */
+  /* border: 1px outset #999; */
+  color: #BBB;
+}
+
+.action-label-with-input {
+  display: grid;
+  grid-template-columns: auto 1fr;
+}
+
+.action-label-with-two-inputs {
+  display: grid;
+  grid-template-columns: auto 1fr 1fr;
+}
+
+.action-input {
+  width: 100%;
+  margin-left: 5px;
+  padding-right: 10px;
+}
+
+.action-input input {
+  width: 100%;
+  box-sizing: border-box;
+  border: 0px;
+  border-bottom: 1px solid #ffffff47;
+  background-color: rgba(0,0,0,0);
+  color: white;
+  font-family: monospace;
+  font-style: italic;
+}
+
+.action-input input:focus {
+  outline: 0px solid white;
+}
+
+#lit_input {
+  font-style: normal !important;
+}
 
 .input-group{
 	margin-bottom: 10px;
@@ -244,6 +329,14 @@ button:disabled {
 
 .SDoc {
 	font-family: monospace;
+}
+
+.code {
+  font-family: monospace;
+}
+
+.code.op {
+  font-size: 125%;
 }
 
 .kw {
