@@ -184,10 +184,12 @@ let view ((ms, es, do_action): Model.mt) => {
               let parent_elem =
                 Js.Opt.get (Dom_html.CoerceTo.element parent) (fun () => assert false);
               let classList = parent_elem##.classList;
+              JSUtil.log classList;
               let is_space = Js.to_bool (classList##contains (Js.string "space"));
               let is_indentation = Js.to_bool (classList##contains (Js.string "SIndentation"));
               let is_op = Js.to_bool (classList##contains (Js.string "seq-op"));
-              if (is_space || is_indentation || is_op) {
+              let is_paren = Js.to_bool (classList##contains (Js.string "lparen"));
+              if (is_space || is_indentation || is_op || is_paren) {
                 switch (Js.Opt.to_option parent##.nextSibling) {
                 | Some sibling => (first_leaf sibling, 0)
                 | None => (anchor, anchorOffset)
@@ -211,7 +213,8 @@ let view ((ms, es, do_action): Model.mt) => {
               let classList = parent_elem##.classList;
               let is_space = Js.to_bool (classList##contains (Js.string "space"));
               let is_op = Js.to_bool (classList##contains (Js.string "seq-op"));
-              if (is_space || is_op) {
+              let is_paren = Js.to_bool (classList##contains (Js.string "rparen"));
+              if (is_space || is_op || is_paren) {
                 switch (Js.Opt.to_option parent##.previousSibling) {
                 | Some sibling =>
                   let anchor' = last_leaf sibling;
@@ -773,7 +776,7 @@ let view ((ms, es, do_action): Model.mt) => {
                         div [
                           pcdata "Hazel is an experiment in ",
                           strong [pcdata "hole-driven development"],
-                          pcdata ". Use the actions on the right to construct a lambda term. Navigate using the standard text cursor."
+                          pcdata ". Use the actions on the left to construct a lambda term. Navigate using the standard text cursor."
                         ],
                         pp_view_parent,
                         div
