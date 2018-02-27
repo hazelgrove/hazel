@@ -2623,14 +2623,16 @@ Module Core.
              HTyp.Arrow HTyp.Hole HTyp.Hole, u_gen')
           | (Construct (SLit n), ZExp.CursorE _ (UHExp.Tm _ (UHExp.EmptyHole u))) (* SAConNumLit *) =>
               Some (ZExp.CursorE After (UHExp.Tm NotInHole (UHExp.NumLit n)), HTyp.Num, u_gen)
-          | (Construct (SInj side), ZExp.CursorE _ (UHExp.Tm _ (UHExp.EmptyHole u))) (* 24a *) =>
-            let (new_hole, u_gen') := UHExp.new_EmptyHole u_gen in
-            Some (ZExp.Deeper NotInHole 
-              (ZExp.AscZ2 
-                (UHExp.Tm NotInHole (UHExp.Inj side new_hole)) 
-                ZTyp.ZHole_Sum_Hole),
-              (HTyp.Sum HTyp.Hole HTyp.Hole), u_gen'
-            )
+          | (Construct (SInj side), (ZExp.CursorE _ e)) => 
+            let ze' := 
+              ZExp.Deeper NotInHole 
+                (ZExp.InjZ side ze) in 
+            let ty' := 
+              match side with 
+              | UHExp.L => HTyp.Sum ty HTyp.Hole
+              | UHExp.R => HTyp.Sum HTyp.Hole ty 
+              end in 
+            Some (ze', ty', u_gen)
           | (Construct (SCase x y), (ZExp.CursorE _ e)) =>
             match HTyp.matched_sum ty with
             | Some _ => 
@@ -3197,19 +3199,6 @@ Module Core.
               ZExp.Deeper (InHole u) 
                 (ZExp.LamZ x ze)
             , u_gen)
-        end
-      | (Construct (SInj side), 
-          ZExp.CursorE _ (UHExp.Tm _ (UHExp.EmptyHole u))) =>
-        match HTyp.matched_sum ty with
-        | Some _ => Some (
-          ZExp.Deeper NotInHole 
-            (ZExp.InjZ side ze), 
-          u_gen)
-        | None => 
-          Some (
-            ZExp.Deeper (InHole u) 
-              (ZExp.InjZ side ze),
-            u_gen)
         end
       | (Construct (SCase x y), 
           ZExp.CursorE _ (UHExp.Tm _ (UHExp.EmptyHole u))) (* 23c *) =>

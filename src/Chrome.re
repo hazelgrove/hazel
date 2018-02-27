@@ -776,7 +776,7 @@ let view ((ms, es, do_action): Model.mt) => {
                         div [
                           pcdata "Hazel is an experiment in ",
                           strong [pcdata "hole-driven development"],
-                          pcdata ". Use the actions on the right to construct a lambda term. Navigate using the standard text cursor."
+                          pcdata ". Use the actions on the left to construct a lambda term. Navigate using the standard text cursor."
                         ],
                         pp_view_parent,
                         div
