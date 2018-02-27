@@ -358,7 +358,7 @@ let make ((ms, es, do_action): Model.mt) set_cursor => {
           | _ => Some s
           }
       )
-      (Html5.pcdata "\206\187")
+      (threepiece_kw "" "\206\187" "")
       "lam_input"
       KCs.backslash
       "enter var";
