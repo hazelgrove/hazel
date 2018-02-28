@@ -4,7 +4,7 @@ open React;
 
 open Semantics.Core;
 
-let make ((ms, es, do_action): Model.mt) set_cursor => {
+let make ((ms, es, cursor_info_rs, do_action): Model.mt) set_cursor => {
   module Util = GeneralUtil;
   module Ev = Dom_html.Event;
   module KC = JSUtil.KeyCombo;
@@ -61,7 +61,7 @@ let make ((ms, es, do_action): Model.mt) set_cursor => {
   /* actions that take an input. the conversion function
    * goes from a string (the input value) to an arg option
    * where arg is the action argument. */
-  let action_input_button action conv lbl_body input_id key_combo placeholder_str => {
+  let action_input_button action conv can_perform_rs lbl_body input_id key_combo placeholder_str => {
     /* create reactive input box */
     let ((i_rs, i_rf), i_elt, i_dom) = JSUtil.r_input input_id placeholder_str;
     let clear_input () => {
@@ -182,7 +182,15 @@ let make ((ms, es, do_action): Model.mt) set_cursor => {
           a::[a_class ["keyboard-shortcut"], a_onclick onclick_handler]
           [pcdata (KC.name key_combo)]
       );
-    Html5.(div a::[a_class ["action-panel-entry"]] [lbl_div, keyboard_shortcut_div])
+    let cls_rs =
+      S.map
+        (
+          fun can_perform =>
+            can_perform ?
+              ["action-panel-entry", "action-enabled"] : ["action-panel-entry", "action-disabled"]
+        )
+        can_perform_rs;
+    Html5.(div a::[R.Html5.a_class cls_rs] [lbl_div, keyboard_shortcut_div])
   };
   /* actions that take two inputs. the conversion function
    * goes from a pair of strings to an arg option where arg is
@@ -190,6 +198,7 @@ let make ((ms, es, do_action): Model.mt) set_cursor => {
   let action_input_input_button
       action
       conv
+      can_perform_rs
       lbl_body
       input_id
       key_combo
@@ -331,12 +340,38 @@ let make ((ms, es, do_action): Model.mt) set_cursor => {
           a::[a_class ["keyboard-shortcut"], a_onclick onclick_handler]
           [pcdata (KC.name key_combo)]
       );
+    let cls_rs =
+      S.map
+        (
+          fun can_perform =>
+            can_perform ?
+              ["action-panel-entry", "action-enabled"] : ["action-panel-entry", "action-disabled"]
+        )
+        can_perform_rs;
     Html5.(
-      div
-        a::[a_class ["action-panel-entry"], a_onclick onclick_handler]
-        [lbl_div, keyboard_shortcut_div]
+      div a::[R.Html5.a_class cls_rs, a_onclick onclick_handler] [lbl_div, keyboard_shortcut_div]
     )
   };
+  let is_hole_rs =
+    S.l1
+      (
+        fun {ZExp.mode: _, ZExp.form: form, ZExp.ctx: _} =>
+          switch form {
+          | ZExp.IsHole _ => true
+          | ZExp.IsNotHole => false
+          }
+      )
+      cursor_info_rs;
+  let can_insert_var_rs =
+    S.l1
+      (
+        fun {ZExp.mode: _, ZExp.form: form, ZExp.ctx: ctx} =>
+          switch form {
+          | ZExp.IsHole _ => Ctx.length ctx > 0
+          | ZExp.IsNotHole => false
+          }
+      )
+      cursor_info_rs;
   /* now construct the action panel entries*/
   /* movement */
   /* let moveChild1 = action_button (Action.Move (Action.Child 1)) "move child 1" KCs.number_1;
@@ -381,6 +416,7 @@ let make ((ms, es, do_action): Model.mt) set_cursor => {
           | _ => Some s
           }
       )
+      is_hole_rs
       (Html5.div [threepiece_kw "" "let" ""])
       "let_input"
       KCs.equals
@@ -395,6 +431,7 @@ let make ((ms, es, do_action): Model.mt) set_cursor => {
           | _ => Some s
           }
       )
+      can_insert_var_rs
       (Html5.pcdata "var")
       "var_input"
       KCs.v
@@ -409,6 +446,7 @@ let make ((ms, es, do_action): Model.mt) set_cursor => {
           | _ => Some s
           }
       )
+      is_hole_rs
       (threepiece_kw "" "\206\187" "")
       "lam_input"
       KCs.backslash
@@ -426,6 +464,7 @@ let make ((ms, es, do_action): Model.mt) set_cursor => {
             }
           }
       )
+      is_hole_rs
       (Html5.pcdata "number")
       "lit_input"
       KCs.pound
@@ -463,6 +502,7 @@ let make ((ms, es, do_action): Model.mt) set_cursor => {
           }
         }
       )
+      is_hole_rs
       (threepiece_kw "" "case" "")
       "case_input"
       KCs.c

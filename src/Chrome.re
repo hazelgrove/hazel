@@ -4,7 +4,7 @@ open Tyxml_js;
 
 open Semantics.Core;
 
-let view ((ms, es, do_action): Model.mt) => {
+let view ((ms, es, cursor_info_rs, do_action): Model.mt) => {
   /* helpers */
   let kc = JSUtil.KeyCombo.key;
   /* # pretty printed view */
@@ -732,10 +732,10 @@ let view ((ms, es, do_action): Model.mt) => {
       )
       show_hole_envs_checkbox_rs;
   /* final chrome */
-  let the_cursor_inspector_panel = CursorInspector.cursor_inspector ms;
+  let the_cursor_inspector_panel = CursorInspector.cursor_inspector cursor_info_rs;
   /* let the_context_inspector_panel =
      Html5.(div a::[a_class ["context-inspector"]] [pcdata "TODO: Live Context Inspector"]); */
-  let the_action_panel = ActionPanel.make (ms, es, do_action) set_cursor;
+  let the_action_panel = ActionPanel.make (ms, es, cursor_info_rs, do_action) set_cursor;
   let the_options_panel =
     Html5.(
       div
