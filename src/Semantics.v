@@ -548,6 +548,7 @@ Module Core.
     Parameter lookup : t -> Var.t -> option HTyp.t.
     Parameter map : forall U : Type, (Var.t * HTyp.t -> U) -> t -> (list U).
     Parameter length : t -> nat.
+    Parameter to_list : t -> list (Var.t * HTyp.t).
   End CTX.
 
   Module Ctx <: CTX.
@@ -597,6 +598,8 @@ Module Core.
        | nil => O
        | cons _ ctx' => S (length ctx')
        end.
+
+     Definition to_list (ctx : t) := ctx.
   End Ctx.
 
   Module UHExp. (* unassociated H-expressions *)

@@ -732,9 +732,8 @@ let view ((ms, es, cursor_info_rs, do_action): Model.mt) => {
       )
       show_hole_envs_checkbox_rs;
   /* final chrome */
-  let the_cursor_inspector_panel = CursorInspector.cursor_inspector cursor_info_rs;
-  /* let the_context_inspector_panel =
-     Html5.(div a::[a_class ["context-inspector"]] [pcdata "TODO: Live Context Inspector"]); */
+  let the_cursor_inspector_panel = CursorInspector.mk cursor_info_rs;
+  let the_context_inspector_panel = ContextInspector.mk cursor_info_rs;
   let the_action_panel = ActionPanel.make (ms, es, cursor_info_rs, do_action) set_cursor;
   let the_options_panel =
     Html5.(
@@ -749,7 +748,7 @@ let view ((ms, es, cursor_info_rs, do_action): Model.mt) => {
         a::[a_class ["sidebar", "rightbar"]]
         [
           the_cursor_inspector_panel,
-          /* the_context_inspector_panel, */
+          the_context_inspector_panel,
           the_options_panel
           /* num_changes_counter */
         ]

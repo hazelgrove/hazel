@@ -6,11 +6,7 @@ let titlebar = PanelUtils.titlebar;
 
 let typebar_width = 30;
 
-let html_of_ty prefix ty => {
-  let ty_doc = View.of_htype false prefix [] ty;
-  let (ty_sdoc, _) = Pretty.PP.sdoc_of_doc typebar_width ty_doc;
-  Pretty.HTML_Of_SDoc.html_of_sdoc ty_sdoc
-};
+let html_of_ty = View.html_of_ty typebar_width;
 
 let typebar prefix ty => {
   let ty_html = html_of_ty prefix ty;
@@ -133,7 +129,7 @@ let no_cursor_mode =
       [pcdata "Not well typed! This is a bug. Please report."]
   );
 
-let cursor_inspector (cursor_info_rs: Model.cursor_info_rs) => {
+let mk (cursor_info_rs: Model.cursor_info_rs) => {
   let cursor_inspector_rs =
     React.S.map
       (fun {ZExp.mode: cursor_mode, ZExp.form: _, ZExp.ctx: _} => [of_cursor_mode cursor_mode])
