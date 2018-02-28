@@ -250,14 +250,22 @@ html, body {
   background-color: #FEFEEA; 
 }
 
-.environment-entry {
+.context-is-empty-msg {
+  margin-top: 10px;
+  opacity: 0.50;
+  text-align: center;
+  /* text-transform: uppercase; */
+  font-size: 75%;
+}
+
+.context-entry {
   font-size: 125%;
   padding: 5px;
   background-color: #f0fff3;
   border: 1px outset #ffffff;
 }
 
-.environment-entry .SDoc {
+.context-entry .SDoc {
   display: inline-block;
 }
 
