@@ -22,11 +22,25 @@ type es = React.signal UHExp.t; /* derivative reactive signal that only updates 
 
 type ef = step::React.step? => UHExp.t => unit;
 
+type cursor_info_rs = React.signal ZExp.cursor_info;
+
 exception InvalidAction;
+
+exception MissingCursorInfo;
 
 let new_model () => {
   let (ms, mf) = React.S.create empty;
   let (es, ef) = React.S.create empty_erasure;
+  let cursor_info_rs =
+    React.S.l1
+      (
+        fun ((ze, _), _) =>
+          switch (ZExp.syn_cursor_info () Ctx.empty ze) {
+          | Some cursor_info => cursor_info
+          | None => raise MissingCursorInfo
+          }
+      )
+      ms;
   let do_action action =>
     switch (Action.performSyn () Ctx.empty action (React.S.value ms)) {
     | Some ((ze, ty), ugen) =>
@@ -37,7 +51,7 @@ let new_model () => {
       }
     | None => raise InvalidAction
     };
-  (ms, es, do_action)
+  (ms, es, cursor_info_rs, do_action)
 };
 
-type mt = (ms, es, Action.t => unit);
+type mt = (ms, es, cursor_info_rs, Action.t => unit);

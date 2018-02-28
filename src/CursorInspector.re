@@ -133,18 +133,10 @@ let no_cursor_mode =
       [pcdata "Not well typed! This is a bug. Please report."]
   );
 
-let cursor_inspector (ms: Model.ms) => {
+let cursor_inspector (cursor_info_rs: Model.cursor_info_rs) => {
   let cursor_inspector_rs =
     React.S.map
-      (
-        fun model => {
-          let ((ze, _), _) = model;
-          switch (ZExp.syn_cursor_mode () Ctx.empty ze) {
-          | Some cursor_mode => [of_cursor_mode cursor_mode]
-          | None => [no_cursor_mode]
-          }
-        }
-      )
-      ms;
+      (fun {ZExp.mode: cursor_mode, ZExp.form: _, ZExp.ctx: _} => [of_cursor_mode cursor_mode])
+      cursor_info_rs;
   R.Html5.(div (ReactiveData.RList.from_signal cursor_inspector_rs))
 };
