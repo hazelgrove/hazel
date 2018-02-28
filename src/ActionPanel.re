@@ -78,13 +78,38 @@ let make ((ms, es, do_action): Model.mt) set_cursor => {
       | None => true
       }
     };
+    let invalid = [Html5.(div a::[a_class ["invalid-mark"]] [pcdata "\226\156\151"])];
+    let valid = [Html5.(div a::[a_class ["valid-mark"]] [pcdata "\226\156\148"])];
+    let validity_rs =
+      React.S.l2
+        (
+          fun m i_str =>
+            switch (conv i_str) {
+            | None => invalid
+            | Some arg =>
+              let a = action arg;
+              switch (Action.performSyn () Ctx.empty a m) {
+              | Some _ => valid
+              | None => invalid
+              }
+            }
+        )
+        ms
+        i_rs;
+    let validity_div =
+      R.Html5.(
+        div
+          a::[Html5.a_class ["action-validity-indicator"]]
+          (ReactiveData.RList.from_signal validity_rs)
+      );
     let lbl_div =
       Html5.(
         div
           a::[a_class ["action-label", "action-label-with-input"], a_onclick onclick_handler]
           [
             div a::[a_class ["action-label-text"]] [lbl_body],
-            div a::[a_class ["action-input"]] [i_elt]
+            div a::[a_class ["action-input"]] [i_elt],
+            validity_div
           ]
       );
     let lbl_dom = To_dom.of_div lbl_div;
@@ -192,6 +217,31 @@ let make ((ms, es, do_action): Model.mt) set_cursor => {
       | None => true
       }
     };
+    let invalid = [Html5.(div a::[a_class ["invalid-mark"]] [pcdata "\226\156\151"])];
+    let valid = [Html5.(div a::[a_class ["valid-mark"]] [pcdata "\226\156\148"])];
+    let validity_rs =
+      React.S.l3
+        (
+          fun m i_str_1 i_str_2 =>
+            switch (conv i_str_1 i_str_2) {
+            | None => invalid
+            | Some arg =>
+              let a = action arg;
+              switch (Action.performSyn () Ctx.empty a m) {
+              | Some _ => valid
+              | None => invalid
+              }
+            }
+        )
+        ms
+        i_rs_1
+        i_rs_2;
+    let validity_div =
+      R.Html5.(
+        div
+          a::[Html5.a_class ["action-validity-indicator"]]
+          (ReactiveData.RList.from_signal validity_rs)
+      );
     let lbl_div =
       Html5.(
         div
@@ -199,7 +249,8 @@ let make ((ms, es, do_action): Model.mt) set_cursor => {
           [
             div a::[a_class ["action-label-text"]] [lbl_body],
             div a::[a_class ["action-input", "action-input-1"]] [i_elt_1],
-            div a::[a_class ["action-input", "action-input-2"]] [i_elt_2]
+            div a::[a_class ["action-input", "action-input-2"]] [i_elt_2],
+            validity_div
           ]
       );
     let lbl_dom = To_dom.of_div lbl_div;
@@ -415,8 +466,8 @@ let make ((ms, es, do_action): Model.mt) set_cursor => {
       (threepiece_kw "" "case" "")
       "case_input"
       KCs.c
-      "enter var 1"
-      "enter var 2";
+      "enter var1"
+      "enter var2";
   let typeConstructionActions =
     Html5.(
       div

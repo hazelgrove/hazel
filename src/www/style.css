@@ -288,18 +288,23 @@ button:disabled {
 
 .action-label-with-input {
   display: grid;
-  grid-template-columns: auto 1fr;
+  grid-template-columns: auto 1fr auto;
 }
 
 .action-label-with-two-inputs {
   display: grid;
-  grid-template-columns: auto 1fr 1fr;
+  grid-template-columns: auto 1fr 1fr auto;
 }
 
 .action-input {
   width: 100%;
   margin-left: 5px;
   padding-right: 10px;
+}
+
+.action-input-2 {
+  margin-left: 0px;
+  padding-right: 5px;
 }
 
 .action-input input {
@@ -319,6 +324,14 @@ button:disabled {
 
 #lit_input {
   font-style: normal !important;
+}
+
+.action-validity-indicator {
+  padding-right: 3px;
+}
+
+.action-validity-indicator .invalid-mark {
+  opacity: 0.5;
 }
 
 .input-group{
