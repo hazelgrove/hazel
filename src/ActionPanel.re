@@ -8,10 +8,10 @@ let make ((ms, es, cursor_info_rs, do_action): Model.mt) set_cursor => {
   module Util = GeneralUtil;
   module Ev = Dom_html.Event;
   module KC = JSUtil.KeyCombo;
-  module KCs = JSUtil.KeyCombos /* uncomment to log key information to the console */; /**/
+  module KCs = JSUtil.KeyCombos;
+  /* uncomment to log key information to the console */
   let _ =
     JSUtil.listen_to_t Ev.keydown Dom_html.document (fun evt => JSUtil.log (JSUtil.get_key evt));
-  /**/
   /* start by defining a bunch of helpers */
   /* performs the top-level action and updates the signal */
   let doAction action => {
@@ -141,13 +141,13 @@ let make ((ms, es, cursor_info_rs, do_action): Model.mt) set_cursor => {
             let key = JSUtil.get_key evt;
             if (key == KC.key KCs.enter) {
               lbl_dom##click;
-              i_dom##blur;
+              clear_input ();
+              set_cursor ();
               Js._false
             } else if (
               key == KC.key KCs.esc
             ) {
               clear_input ();
-              i_dom##blur;
               set_cursor ();
               Js._false
             } else {
@@ -291,13 +291,13 @@ let make ((ms, es, cursor_info_rs, do_action): Model.mt) set_cursor => {
             let key = JSUtil.get_key evt;
             if (key == KC.key KCs.enter) {
               lbl_dom##click;
-              i_dom##blur;
+              clear_input ();
+              set_cursor ();
               Js._false
             } else if (
               key == KC.key KCs.esc
             ) {
               clear_input ();
-              i_dom##blur;
               set_cursor ();
               Js._false
             } else {
@@ -486,9 +486,11 @@ let make ((ms, es, cursor_info_rs, do_action): Model.mt) set_cursor => {
       (Html5.pcdata "insert application operator")
       KCs.space;
   let constructInjL =
-    action_button (Action.Construct (Action.SInj UHExp.L)) (Html5.pcdata "left injection") KCs.l;
+    action_button
+      (Action.Construct (Action.SInj UHExp.L)) (Html5.pcdata "left injection") KCs.capitalL;
   let constructInjR =
-    action_button (Action.Construct (Action.SInj UHExp.R)) (Html5.pcdata "right injection") KCs.r;
+    action_button
+      (Action.Construct (Action.SInj UHExp.R)) (Html5.pcdata "right injection") KCs.capitalR;
   let constructCase =
     action_input_input_button
       (fun (v1, v2) => Action.Construct (Action.SCase v1 v2 [@implicit_arity]))

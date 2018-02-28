@@ -93,8 +93,8 @@ module KeyCombos = {
   let pound = _kc "#" "#";
   let plus = _kc "+" "+";
   let asterisk = _kc "*" "*";
-  let l = _kc "l" "l";
-  let r = _kc "r" "r";
+  let capitalL = _kc "L" "L";
+  let capitalR = _kc "R" "R";
   let c = _kc "c" "c";
   let qmark = _kc "?" "?";
   let equals = _kc "=" "=";
