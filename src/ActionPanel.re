@@ -352,6 +352,7 @@ let make ((ms, es, cursor_info_rs, do_action): Model.mt) set_cursor => {
       div a::[R.Html5.a_class cls_rs, a_onclick onclick_handler] [lbl_div, keyboard_shortcut_div]
     )
   };
+  let true_rs = S.const true;
   let is_hole_rs =
     S.l1
       (
@@ -416,7 +417,7 @@ let make ((ms, es, cursor_info_rs, do_action): Model.mt) set_cursor => {
           | _ => Some s
           }
       )
-      is_hole_rs
+      true_rs
       (Html5.div [threepiece_kw "" "let" ""])
       "let_input"
       KCs.equals
@@ -502,7 +503,7 @@ let make ((ms, es, cursor_info_rs, do_action): Model.mt) set_cursor => {
           }
         }
       )
-      is_hole_rs
+      true_rs
       (threepiece_kw "" "case" "")
       "case_input"
       KCs.c
