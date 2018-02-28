@@ -9,6 +9,7 @@ Hazel.byte: \
 	Action.re \
 	Chrome.re \
 	CursorInspector.re \
+	ContextInspector.re \
   ActionPanel.re \
 	View.re \
 	GeneralUtil.re \

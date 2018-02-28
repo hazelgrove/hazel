@@ -1,6 +1,9 @@
+/* general */
 div {
 	box-sizing: border-box;
 }
+
+/* top level */
 
 html, body {
 	margin: 0px;
@@ -22,6 +25,8 @@ html, body {
 	grid-template-columns: 1fr;
 }
 
+/* top bar */
+
 .top-bar {
 	padding: 10px;
 	vertical-align: middle;
@@ -31,6 +36,8 @@ html, body {
 	font-size: 14pt;
   /* border-bottom: 2px solid #4e7c66; */
 }
+
+/* arrangement of main area */
 
 .main-area {
 	background-color: wheat;
@@ -46,6 +53,8 @@ html, body {
 	padding-top: 0.25in;
 	padding-bottom: 0.75in;
 }
+
+/* sidebars */
 
 .sidebar {
   background-color: tan;
@@ -64,20 +73,14 @@ html, body {
 
 .rightbar {
   display: grid;
-  grid-template-rows: auto auto 1fr;
+  grid-template-rows: auto 1fr auto;
 }
+
+/* panels */
 
 .panel {
   margin-bottom: 7px;
   box-shadow: 2px 2px 0px 0px #af8e63;
-}
-
-.cursor-OK.cursor-inspector {
-  border: 1px solid #073f24;
-}
-
-.cursor-Error.cursor-inspector {
-  border: 1px solid #8e0000;
 }
 
 .titlebar {
@@ -86,6 +89,17 @@ html, body {
   padding: 3px;
   font-size: 10pt;
   font-weight: bold;
+  background-color: #073f24;
+}
+
+/* cursor inspector */
+
+.cursor-OK.cursor-inspector {
+  border: 1px solid #073f24;
+}
+
+.cursor-Error.cursor-inspector {
+  border: 1px solid #8e0000;
 }
 
 .cursor-OK .titlebar {
@@ -118,11 +132,10 @@ html, body {
   padding-right: 5px;
 }
 
+/* action panel */
+
 .action-panel {
-  /* background-color: #B6C7D9; */
-  /* border: 1px solid #163454; */
   background-color: #073f24;
-  /* border: 1px solid #073f24; */
   cursor: default;
 }
 
@@ -130,67 +143,6 @@ html, body {
   /* background-color: #331757; */
   /* background-color: #163454; */
   background-color: #073f24;
-}
-
-.options-panel {
-  background-color: #EEE;
-  border: 1px solid #444;
-}
-
-.options-panel .titlebar {
-  background-color: #444;
-}
-
-.page {
-	border-radius: 5px;
-	background-color: white;
-	padding: 0.25in;
-	box-shadow: 3px 3px tan;
-	max-width: 10in;
-	margin-right: 0.25in;
-}
-
-h1 {
-	margin-top: 0pt;
-	padding-top: 0pt;
-	margin-bottom: 0pt;
-	color: #444;
-}
-
-.cell-status {
-	background-color: #EEE;
-}
-
-.result-label {
-	padding: 3px
-}
-
-.result-view {
-	padding-left: 25px;
-	padding-bottom: 5px;
-	background-color: #EEE;
-}
-
-.type-indicator {
-	width: 100%;
-	font-size: 12pt;
-}
-
-.type-label {
-	background-color: #EEE;
-	padding: 3px;
-	display: inline-block;
-	padding-right: 5px;
-  text-transform: uppercase;
-  font-weight: bold;
-  font-size: 11pt;
-  color: gray;
-}
-
-.htype-view {
-	padding: 3px;
-	background-color: #EEE;
-	display: inline-block;
 }
 
 .sub-panel-title {
@@ -204,49 +156,6 @@ h1 {
 }
 
 .sub-panel-body {
-}
-
-.ModelExp {
-	padding: 10px;
-	font-size: 175%;
-	margin-top: 20px;
-	background-color: white;
-	border: 2px solid #CCC;
-	line-height: 100%;
-}
-
-.ModelExp :focus {
-	outline: 0px;
-}
-
-.ModelType {
-  font-size: large;
-	width:100%
-}
-
-.typeLbl {
-	font-weight: bold;
-	font-size: 12pt;
-}
-
-#num_input_id{
-	width:70%;
-}
-
-button:disabled {
-
-}
-
-.HZElem{
-	float: left;
-}
-
-.HZElem img{
-	float: left;
-}
-
-.Model{
-	float:left;
 }
 
 .action-panel-entry {
@@ -332,6 +241,132 @@ button:disabled {
 
 .action-validity-indicator .invalid-mark {
   opacity: 0.5;
+}
+
+/* context inspector */
+
+.context-inspector-panel {
+  border: 1px solid #073f24;
+  background-color: #FEFEEA; 
+}
+
+.environment-entry {
+  font-size: 125%;
+  padding: 5px;
+  background-color: #f0fff3;
+  border: 1px outset #ffffff;
+}
+
+.environment-entry .SDoc {
+  display: inline-block;
+}
+
+/* options panel */
+
+.options-panel {
+  background-color: #EEE;
+  border: 1px solid #444;
+}
+
+.options-panel .titlebar {
+  background-color: #444;
+}
+
+/* page */
+
+.page {
+	border-radius: 5px;
+	background-color: white;
+	padding: 0.25in;
+	box-shadow: 3px 3px tan;
+	max-width: 10in;
+	margin-right: 0.25in;
+}
+
+h1 {
+	margin-top: 0pt;
+	padding-top: 0pt;
+	margin-bottom: 0pt;
+	color: #444;
+}
+
+.cell-status {
+	background-color: #EEE;
+}
+
+.result-label {
+	padding: 3px
+}
+
+.result-view {
+	padding-left: 25px;
+	padding-bottom: 5px;
+	background-color: #EEE;
+}
+
+.type-indicator {
+	width: 100%;
+	font-size: 12pt;
+}
+
+.type-label {
+	background-color: #EEE;
+	padding: 3px;
+	display: inline-block;
+	padding-right: 5px;
+  text-transform: uppercase;
+  font-weight: bold;
+  font-size: 11pt;
+  color: gray;
+}
+
+.htype-view {
+	padding: 3px;
+	background-color: #EEE;
+	display: inline-block;
+}
+
+.ModelExp {
+	padding: 10px;
+	font-size: 175%;
+	margin-top: 20px;
+	background-color: white;
+	border: 2px solid #CCC;
+	line-height: 100%;
+}
+
+.ModelExp :focus {
+	outline: 0px;
+}
+
+.ModelType {
+  font-size: large;
+	width:100%
+}
+
+.typeLbl {
+	font-weight: bold;
+	font-size: 12pt;
+}
+
+#num_input_id{
+	width:70%;
+}
+
+button:disabled {
+
+}
+
+.HZElem{
+	float: left;
+}
+
+.HZElem img{
+	float: left;
+}
+
+.Model{
+	float:left;
 }
 
 .input-group{

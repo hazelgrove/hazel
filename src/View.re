@@ -613,3 +613,10 @@ and of_sigma prefix rev_path sigma => {
     };
   lparen "[" ^^ doc' ^^ rparen "]"
 };
+
+/* Utilities */
+let html_of_ty width prefix ty => {
+  let ty_doc = of_htype false prefix [] ty;
+  let (ty_sdoc, _) = Pretty.PP.sdoc_of_doc width ty_doc;
+  Pretty.HTML_Of_SDoc.html_of_sdoc ty_sdoc
+};
