@@ -1,3 +1,6 @@
+/* TODO for code cleanup
+ * - normalize CSS classes to use dashes instead of underscores
+ */
 exception InvariantViolated;
 
 /* Utility functions */
@@ -35,7 +38,7 @@ let cls_from err_status cls =>
 
 let term prefix err_status rev_path cls doc => {
   let id' = id_of_rev_path prefix rev_path;
-  PP.tagged (cls_from err_status cls) (Some (id', rev_path)) doc
+  PP.tagged (cls_from err_status cls) (Some (id', rev_path)) None doc
 };
 
 let optionalBreakSp = PP.optionalBreak " ";
@@ -52,7 +55,8 @@ let of_Parenthesized is_block prefix rev_path r1 =>
       is_block ?
         PP.blockBoundary ^^
         taggedText "openParens" "(" ^^
-        PP.nestAbsolute 2 r1 ^^ PP.mandatoryBreak ^^ taggedText "closeParens" ")" :
+        PP.nestAbsolute 2 r1 ^^
+        PP.mandatoryBreak ^^ taggedText "closeParens" ")" :
         taggedText "openParens" "(" ^^ r1 ^^ taggedText "closeParens" ")"
     );
 
@@ -74,11 +78,13 @@ let rec of_op_with_space str_of_op op => {
   PP.tagged
     ["seq-op", op_cls]
     None
+    None
     (
       taggedText "op-before-1" "\226\128\139\226\128\139" ^^
       taggedText "op-before-2" "\226\128\140" ^^
       taggedText "op-center" (" " ^ op_s ^ " ") ^^
-      taggedText "op-after-1" "\226\128\139" ^^ taggedText "op-after-2" "\226\128\139"
+      taggedText "op-after-1" "\226\128\139" ^^
+      taggedText "op-after-2" "\226\128\139"
     )
 };
 
@@ -88,7 +94,7 @@ let of_ty_op_with_space = of_op_with_space str_of_ty_op;
 
 let rec of_op_no_space str_of_op op => {
   let (op_s, op_cls) = str_of_op op;
-  PP.tagged ["seq-op", op_cls] None (taggedText "op-no-margin" op_s)
+  PP.tagged ["seq-op", op_cls] None None (taggedText "op-no-margin" op_s)
 };
 
 let of_expr_op_no_space = of_op_no_space str_of_expr_op;
@@ -111,7 +117,8 @@ let of_Hole prefix err_status rev_path cls hole_name =>
       taggedText "hole-before-1" "\226\128\139\226\128\139" ^^
       taggedText "hole-before-2" "\226\128\139" ^^
       taggedText "holeName" hole_name ^^
-      taggedText "hole-after-1" "\226\128\139" ^^ taggedText "hole-after-2" "\226\128\139"
+      taggedText "hole-after-1" "\226\128\139" ^^
+      taggedText "hole-after-2" "\226\128\139"
     );
 
 /* types */
@@ -132,7 +139,12 @@ let precedence_ty ty =>
 let of_Num prefix rev_path => term prefix NotInHole rev_path "Num" (kw "num");
 
 let rec of_ty_op cls op_s prefix err_status rev_path r1 r2 =>
-  term prefix err_status rev_path cls (r1 ^^ optionalBreakSp ^^ op op_s ^^ optionalBreakSp ^^ r2);
+  term
+    prefix
+    err_status
+    rev_path
+    cls
+    (r1 ^^ optionalBreakSp ^^ op op_s ^^ optionalBreakSp ^^ r2);
 
 let of_Arrow = of_ty_op "Arrow" "\226\134\146";
 
@@ -171,7 +183,12 @@ let rec of_uhtyp prefix rev_path uty =>
     of_Parenthesized false prefix rev_path r1
   | UHTyp.Num => of_Num prefix rev_path
   | UHTyp.OpSeq skel seq =>
-    term prefix NotInHole rev_path "OpSeq" (of_uhtyp_skel prefix rev_path skel seq)
+    term
+      prefix
+      NotInHole
+      rev_path
+      "OpSeq"
+      (of_uhtyp_skel prefix rev_path skel seq)
   | UHTyp.Hole => of_Hole prefix NotInHole rev_path "Hole" "?"
   }
 and of_uhtyp_skel prefix rev_path skel seq =>
@@ -187,14 +204,15 @@ and of_uhtyp_skel prefix rev_path skel seq =>
     let r1 = of_uhtyp_skel prefix rev_path skel1 seq;
     let r2 = of_uhtyp_skel prefix rev_path skel2 seq;
     let op_pp = of_ty_op_with_space op;
-    PP.tagged ["skel-binop"] None (r1 ^^ op_pp ^^ r2)
+    PP.tagged ["skel-binop"] None None (r1 ^^ op_pp ^^ r2)
   };
 
 /* h-exps and z-exps */
 let of_Asc prefix err_status rev_path r1 r2 =>
   term prefix err_status rev_path "Asc" (r1 ^^ space ^^ op ":" ^^ space ^^ r2);
 
-let of_Var prefix err_status rev_path x => term prefix err_status rev_path "Var" (var x);
+let of_Var prefix err_status rev_path x =>
+  term prefix err_status rev_path "Var" (var x);
 
 let of_Let prefix err_status rev_path x r1 r2 =>
   term
@@ -205,12 +223,19 @@ let of_Let prefix err_status rev_path x r1 r2 =>
     (
       PP.blockBoundary ^^
       kw "let" ^^
-      space ^^ var x ^^ space ^^ op "=" ^^ space ^^ PP.nestAbsolute 2 r1 ^^ PP.mandatoryBreak ^^ r2
+      space ^^
+      var x ^^
+      space ^^
+      op "=" ^^ space ^^ PP.nestAbsolute 2 r1 ^^ PP.mandatoryBreak ^^ r2
     );
 
 let of_Lam prefix err_status rev_path x r =>
   term
-    prefix err_status rev_path "Lam" (kw "\206\187" ^^ var x ^^ taggedText "lambda-dot" "." ^^ r);
+    prefix
+    err_status
+    rev_path
+    "Lam"
+    (kw "\206\187" ^^ var x ^^ taggedText "lambda-dot" "." ^^ r);
 
 let of_LamAnn prefix err_status rev_path x rty r1 =>
   term
@@ -220,24 +245,43 @@ let of_LamAnn prefix err_status rev_path x rty r1 =>
     "LamAnn"
     (
       kw "\206\187" ^^
-      var x ^^ kw ":" ^^ rty ^^ kw "." ^^ PP.optionalBreak "" ^^ PP.nestRelative 4 r1
+      var x ^^ kw ":" ^^ rty ^^ taggedText "lambda-dot" "." ^^ r1
     );
 
 let of_Ap prefix err_status rev_path r1 r2 =>
   term prefix err_status rev_path "Ap" (r1 ^^ space ^^ r2);
 
 let of_NumLit prefix err_status rev_path n =>
-  term prefix err_status rev_path "NumLit" (taggedText "number" (string_of_int n));
+  term
+    prefix
+    err_status
+    rev_path
+    "NumLit"
+    (taggedText "number" (string_of_int n));
 
 let of_Plus prefix err_status rev_path r1 r2 =>
   term
-    prefix err_status rev_path "Plus" (r1 ^^ optionalBreakNSp ^^ op " +" ^^ optionalBreakSp ^^ r2);
+    prefix
+    err_status
+    rev_path
+    "Plus"
+    (r1 ^^ optionalBreakNSp ^^ op " +" ^^ optionalBreakSp ^^ r2);
 
 let of_Times prefix err_status rev_path r1 r2 =>
-  term prefix err_status rev_path "Times" (r1 ^^ op "*" ^^ optionalBreakNSp ^^ r2);
+  term
+    prefix
+    err_status
+    rev_path
+    "Times"
+    (r1 ^^ op "*" ^^ optionalBreakNSp ^^ r2);
 
 let of_Space prefix err_status rev_path r1 r2 =>
-  term prefix err_status rev_path "Space" (r1 ^^ op " " ^^ optionalBreakNSp ^^ r2);
+  term
+    prefix
+    err_status
+    rev_path
+    "Space"
+    (r1 ^^ op " " ^^ optionalBreakNSp ^^ r2);
 
 let string_of_side side =>
   switch side {
@@ -253,7 +297,8 @@ let of_Inj prefix err_status rev_path side r =>
     "Inj"
     (
       kw "inj" ^^
-      lparen "[" ^^ kw (string_of_side side) ^^ rparen "]" ^^ lparen "(" ^^ r ^^ rparen ")"
+      lparen "[" ^^
+      kw (string_of_side side) ^^ rparen "]" ^^ lparen "(" ^^ r ^^ rparen ")"
     );
 
 let of_InjAnn prefix err_status rev_path rty side r =>
@@ -267,7 +312,8 @@ let of_InjAnn prefix err_status rev_path rty side r =>
       lparen "[" ^^
       kw (string_of_side side) ^^
       kw "," ^^
-      optionalBreakSp ^^ rty ^^ rparen "]" ^^ lparen "(" ^^ PP.optionalBreak "" ^^ r ^^ rparen ")"
+      optionalBreakSp ^^
+      rty ^^ rparen "]" ^^ lparen "(" ^^ PP.optionalBreak "" ^^ r ^^ rparen ")"
     );
 
 let of_Case prefix err_status rev_path r1 x r2 y r3 =>
@@ -293,7 +339,8 @@ let of_Case prefix err_status rev_path r1 x r2 y r3 =>
       PP.mandatoryBreak ^^
       kw "R" ^^
       lparen "(" ^^
-      var y ^^ rparen ")" ^^ space ^^ op "\226\135\146" ^^ space ^^ PP.nestAbsolute 2 r3
+      var y ^^
+      rparen ")" ^^ space ^^ op "\226\135\146" ^^ space ^^ PP.nestAbsolute 2 r3
     );
 
 let of_CaseAnn prefix err_status rev_path r1 x r2 y r3 =>
@@ -319,7 +366,8 @@ let of_CaseAnn prefix err_status rev_path r1 x r2 y r3 =>
       PP.mandatoryBreak ^^
       kw "R" ^^
       lparen "(" ^^
-      var y ^^ rparen ")" ^^ space ^^ op "\226\135\146" ^^ space ^^ PP.nestAbsolute 2 r3
+      var y ^^
+      rparen ")" ^^ space ^^ op "\226\135\146" ^^ space ^^ PP.nestAbsolute 2 r3
     );
 
 let cast_arrow = op " \226\135\168 ";
@@ -338,7 +386,11 @@ let of_chained_Cast prefix err_status rev_path r1 rty1 rty2 rty4 =>
     err_status
     rev_path
     "Cast"
-    (r1 ^^ lparen "<" ^^ rty1 ^^ cast_arrow ^^ rty2 ^^ cast_arrow ^^ rty4 ^^ rparen ">");
+    (
+      r1 ^^
+      lparen "<" ^^
+      rty1 ^^ cast_arrow ^^ rty2 ^^ cast_arrow ^^ rty4 ^^ rparen ">"
+    );
 
 let failed_cast_arrow = taggedText "failed-cast-arrow" " \226\135\168 ";
 
@@ -358,7 +410,9 @@ let of_chained_FailedCast prefix err_status rev_path r1 rty1 rty2 rty4 =>
     "FailedCast"
     (
       r1 ^^
-      lparen "<" ^^ rty1 ^^ failed_cast_arrow ^^ rty2 ^^ failed_cast_arrow ^^ rty4 ^^ rparen ">"
+      lparen "<" ^^
+      rty1 ^^
+      failed_cast_arrow ^^ rty2 ^^ failed_cast_arrow ^^ rty4 ^^ rparen ">"
     );
 
 let is_block e =>
@@ -406,9 +460,11 @@ let rec of_hexp prefix rev_path e =>
       let r2 = of_hexp prefix rev_path2 e2;
       let r3 = of_hexp prefix rev_path3 e3;
       of_Case prefix err_status rev_path r1 x r2 y r3
-    | UHExp.EmptyHole u => of_Hole prefix err_status rev_path "EmptyHole" (string_of_int u)
+    | UHExp.EmptyHole u =>
+      of_Hole prefix err_status rev_path "EmptyHole" (string_of_int (u + 1))
     | UHExp.OpSeq skel seq =>
-      term prefix err_status rev_path "OpSeq" (of_skel prefix rev_path skel seq)
+      term
+        prefix err_status rev_path "OpSeq" (of_skel prefix rev_path skel seq)
     }
   }
 and of_skel prefix rev_path skel seq =>
@@ -438,13 +494,15 @@ and of_skel prefix rev_path skel seq =>
       };
     let cls = "skel-binop";
     let cls' = cls_from err_status cls;
-    PP.tagged cls' None (r1 ^^ op_pp ^^ r2)
+    PP.tagged cls' None None (r1 ^^ op_pp ^^ r2)
   };
+
+open Dynamics;
 
 let rec of_bin_num_op op =>
   switch op {
-  | Dynamics.DHExp.Plus => taggedText "bin_num_op" " + "
-  | Dynamics.DHExp.Times => taggedText "bin_num_op" "*"
+  | DHExp.Plus => taggedText "bin_num_op" " + "
+  | DHExp.Times => taggedText "bin_num_op" "*"
   };
 
 let of_BinNumOp prefix err_status rev_path op r1 r2 =>
@@ -459,12 +517,12 @@ let precedence_Plus = 3;
 let precedence_max = 4;
 
 let rec precedence_dhexp d =>
-  Dynamics.DHExp.(
+  DHExp.(
     switch d {
     | Var _
     | NumLit _
     | Inj _ _ _
-    | EmptyHole _ _
+    | EmptyHole _ _ _
     | Cast _ _ _
     | FailedCast _ _ _ => precedence_const
     | Let _ _ _
@@ -473,34 +531,40 @@ let rec precedence_dhexp d =>
     | Ap _ _ => precedence_Ap
     | BinNumOp Times _ _ => precedence_Times
     | BinNumOp Plus _ _ => precedence_Plus
-    | NonEmptyHole _ _ d1 => precedence_dhexp d1
+    | NonEmptyHole _ _ _ d1 => precedence_dhexp d1
     }
   );
 
-let rec of_dhexp parenthesize prefix err_status rev_path d => {
+let hole_label_s (u, i) => string_of_int (u + 1) ^ ":" ^ string_of_int (i + 1);
+
+let hole_label_of inst => taggedText "holeName" (hole_label_s inst);
+
+let dbg_SHOW_SIGMAS = false;
+
+let rec of_dhexp' parenthesize prefix err_status rev_path d => {
   let doc =
-    Dynamics.DHExp.(
+    DHExp.(
       switch d {
       | Var x => of_Var prefix err_status rev_path x
       | Let x d1 d2 =>
         let rev_path1 = [0, ...rev_path];
         let rev_path2 = [1, ...rev_path];
-        let r1 = of_dhexp false prefix NotInHole rev_path1 d1;
-        let r2 = of_dhexp false prefix NotInHole rev_path2 d2;
+        let r1 = of_dhexp' false prefix NotInHole rev_path1 d1;
+        let r2 = of_dhexp' false prefix NotInHole rev_path2 d2;
         of_Let prefix err_status rev_path x r1 r2
       | Lam x ty d1 =>
         let rev_path1 = [0, ...rev_path];
         let rev_path2 = [1, ...rev_path];
         let r1 = of_htype false prefix rev_path1 ty;
-        let r2 = of_dhexp false prefix NotInHole rev_path2 d1;
+        let r2 = of_dhexp' false prefix NotInHole rev_path2 d1;
         of_LamAnn prefix err_status rev_path x r1 r2
       | Ap d1 d2 =>
         let rev_path1 = [0, ...rev_path];
         let rev_path2 = [1, ...rev_path];
         let paren1 = precedence_dhexp d1 > precedence_Ap;
         let paren2 = precedence_dhexp d2 >= precedence_Ap;
-        let r1 = of_dhexp paren1 prefix NotInHole rev_path1 d1;
-        let r2 = of_dhexp paren2 prefix NotInHole rev_path2 d2;
+        let r1 = of_dhexp' paren1 prefix NotInHole rev_path1 d1;
+        let r2 = of_dhexp' paren2 prefix NotInHole rev_path2 d2;
         of_Ap prefix err_status rev_path r1 r2
       | NumLit n => of_NumLit prefix err_status rev_path n
       | BinNumOp op d1 d2 =>
@@ -509,50 +573,34 @@ let rec of_dhexp parenthesize prefix err_status rev_path d => {
         let prec_d = precedence_dhexp d;
         let paren1 = precedence_dhexp d1 > prec_d;
         let paren2 = precedence_dhexp d2 >= prec_d;
-        let r1 = of_dhexp paren1 prefix NotInHole rev_path1 d1;
-        let r2 = of_dhexp paren2 prefix NotInHole rev_path2 d2;
+        let r1 = of_dhexp' paren1 prefix NotInHole rev_path1 d1;
+        let r2 = of_dhexp' paren2 prefix NotInHole rev_path2 d2;
         of_BinNumOp prefix err_status rev_path op r1 r2
       | Inj ty side d1 =>
         let rev_path1 = [0, ...rev_path];
         let rev_path2 = [1, ...rev_path];
         let r1 = of_htype false prefix rev_path1 ty;
-        let r2 = of_dhexp false prefix NotInHole rev_path2 d1;
+        let r2 = of_dhexp' false prefix NotInHole rev_path2 d1;
         of_InjAnn prefix err_status rev_path r1 side r2
       | Case d1 (x, d2) (y, d3) =>
         let rev_path1 = [0, ...rev_path];
         let rev_path2 = [1, ...rev_path];
         let rev_path3 = [2, ...rev_path];
-        let r1 = of_dhexp false prefix NotInHole rev_path1 d1;
-        let r2 = of_dhexp false prefix NotInHole rev_path2 d2;
-        let r3 = of_dhexp false prefix NotInHole rev_path3 d3;
+        let r1 = of_dhexp' false prefix NotInHole rev_path1 d1;
+        let r2 = of_dhexp' false prefix NotInHole rev_path2 d2;
+        let r3 = of_dhexp' false prefix NotInHole rev_path3 d3;
         of_CaseAnn prefix err_status rev_path r1 x r2 y r3
-      | EmptyHole u sigma =>
-        term
-          prefix
-          err_status
-          rev_path
-          "EmptyHole"
-          (
-            taggedText "holeName" (string_of_int u) ^^
-            PP.tagged
-              ["hole-decorations"]
-              None
-              (PP.tagged ["environment"] None (of_sigma prefix rev_path sigma))
-          )
-      | NonEmptyHole u sigma d1 =>
+      | EmptyHole u i sigma =>
+        let hole_label = hole_label_of (u, i);
+        let r =
+          dbg_SHOW_SIGMAS ?
+            hole_label ^^ of_sigma prefix rev_path sigma : hole_label;
+        term prefix err_status rev_path "EmptyHole" r
+      | NonEmptyHole u i sigma d1 =>
         let rev_path1 = [0, ...rev_path];
-        term
-          prefix
-          err_status
-          rev_path
-          "NonEmptyHole"
-          (
-            of_dhexp false prefix (InHole u) rev_path1 d1 ^^
-            PP.tagged
-              ["hole-decorations"]
-              None
-              (PP.tagged ["environment"] None (of_sigma prefix rev_path sigma))
-          )
+        let r1 = of_dhexp' false prefix (InHole u) rev_path1 d1;
+        let r = dbg_SHOW_SIGMAS ? r1 ^^ of_sigma prefix rev_path sigma : r1;
+        term prefix err_status rev_path "NonEmptyHole" r
       | Cast (Cast d1 ty1 ty2) ty3 ty4 when HTyp.eq ty2 ty3 =>
         let rev_path1 = [0, ...rev_path];
         let inner_rev_path1 = [0, ...rev_path1];
@@ -561,7 +609,7 @@ let rec of_dhexp parenthesize prefix err_status rev_path d => {
         /* no rev_path2 because we're not showing them separately */
         let rev_path3 = [2, ...rev_path];
         let paren1 = precedence_dhexp d1 > precedence_const;
-        let r1 = of_dhexp paren1 prefix NotInHole inner_rev_path1 d1;
+        let r1 = of_dhexp' paren1 prefix NotInHole inner_rev_path1 d1;
         let r2 = of_htype false prefix inner_rev_path2 ty1;
         let r3 = of_htype false prefix inner_rev_path3 ty2;
         let r5 = of_htype false prefix rev_path3 ty4;
@@ -571,7 +619,7 @@ let rec of_dhexp parenthesize prefix err_status rev_path d => {
         let rev_path2 = [1, ...rev_path];
         let rev_path3 = [2, ...rev_path];
         let paren1 = precedence_dhexp d1 > precedence_const;
-        let r1 = of_dhexp paren1 prefix NotInHole rev_path1 d1;
+        let r1 = of_dhexp' paren1 prefix NotInHole rev_path1 d1;
         let r2 = of_htype false prefix rev_path2 ty1;
         let r3 = of_htype false prefix rev_path3 ty2;
         of_Cast prefix err_status rev_path r1 r2 r3
@@ -583,7 +631,7 @@ let rec of_dhexp parenthesize prefix err_status rev_path d => {
         /* no rev_path2 because we're not showing them separately */
         let rev_path3 = [2, ...rev_path];
         let paren1 = precedence_dhexp d1 > precedence_const;
-        let r1 = of_dhexp paren1 prefix NotInHole inner_rev_path1 d1;
+        let r1 = of_dhexp' paren1 prefix NotInHole inner_rev_path1 d1;
         let r2 = of_htype false prefix inner_rev_path2 ty1;
         let r3 = of_htype false prefix inner_rev_path3 ty2;
         let r5 = of_htype false prefix rev_path3 ty4;
@@ -593,7 +641,7 @@ let rec of_dhexp parenthesize prefix err_status rev_path d => {
         let rev_path2 = [1, ...rev_path];
         let rev_path3 = [2, ...rev_path];
         let paren1 = precedence_dhexp d1 > precedence_const;
-        let r1 = of_dhexp paren1 prefix NotInHole rev_path1 d1;
+        let r1 = of_dhexp' paren1 prefix NotInHole rev_path1 d1;
         let r2 = of_htype false prefix rev_path2 ty1;
         let r3 = of_htype false prefix rev_path3 ty2;
         of_FailedCast prefix err_status rev_path r1 r2 r3
@@ -602,7 +650,8 @@ let rec of_dhexp parenthesize prefix err_status rev_path d => {
   parenthesize ? lparen "(" ^^ doc ^^ rparen ")" : doc
 }
 and of_sigma prefix rev_path sigma => {
-  let map_f (x, d) => of_dhexp false prefix NotInHole rev_path d ^^ kw "/" ^^ PP.text "" x;
+  let map_f (x, d) =>
+    of_dhexp' false prefix NotInHole rev_path d ^^ kw "/" ^^ PP.text "" x;
   let docs = List.map map_f sigma;
   let doc' =
     switch docs {
@@ -614,9 +663,47 @@ and of_sigma prefix rev_path sigma => {
   lparen "[" ^^ doc' ^^ rparen "]"
 };
 
+let of_dhexp prefix d => of_dhexp' false prefix NotInHole [] d;
+
 /* Utilities */
 let html_of_ty width prefix ty => {
   let ty_doc = of_htype false prefix [] ty;
   let (ty_sdoc, _) = Pretty.PP.sdoc_of_doc width ty_doc;
   Pretty.HTML_Of_SDoc.html_of_sdoc ty_sdoc
 };
+
+let html_of_dhexp width prefix d => {
+  let dhexp_doc = of_dhexp prefix d;
+  let (dhexp_sdoc, _) = Pretty.PP.sdoc_of_doc width dhexp_doc;
+  Pretty.HTML_Of_SDoc.html_of_sdoc dhexp_sdoc
+};
+
+let html_of_var width prefix x => html_of_dhexp width prefix (DHExp.Var x);
+
+let html_of_hole_instance width prefix (u, i) => {
+  let d = Dynamics.DHExp.EmptyHole u i [];
+  html_of_dhexp width prefix d
+};
+
+/* Debugging */
+let of_hii (hii: Dynamics.DHExp.HoleInstanceInfo.t) (u: MetaVar.t) => {
+  let doc0 = hole_label_of (u, (-1));
+  let doc =
+    switch (MetaVarMap.lookup hii u) {
+    | Some instances =>
+      List.fold_left
+        (fun acc (env, _) => acc ^^ kw "; " ^^ of_sigma "dbg" [] env)
+        doc0
+        instances
+    | None => doc0
+    };
+  let (sdoc, _) = Pretty.PP.sdoc_of_doc 80 doc;
+  Pretty.HTML_Of_SDoc.html_of_sdoc sdoc
+};
+
+let string_of_cursor_side cursor_side =>
+  switch cursor_side {
+  | On => "On"
+  | Before => "Before"
+  | After => "After"
+  };

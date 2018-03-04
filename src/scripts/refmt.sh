@@ -1,6 +1,6 @@
 for f in `find .. -name '*.re'` ; \
 do ( \
-refmt --in-place $f; \
+refmt -w 80 --in-place $f; \
 ); \
 done
 

@@ -45,7 +45,9 @@ let rec make_skel_str'
     skel_str ^ op_str ^ string_of_int n
   };
 
-let make_skel_str (seq: OperatorSeq.opseq 'tm 'op) (string_of_op: 'op => string) => {
+let make_skel_str
+    (seq: OperatorSeq.opseq 'tm 'op)
+    (string_of_op: 'op => string) => {
   let counter = ref 0;
   let ph_map = Hashtbl.create 8;
   let skel_str = make_skel_str' string_of_op seq counter ph_map;
