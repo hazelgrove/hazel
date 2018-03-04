@@ -3,6 +3,16 @@ div {
 	box-sizing: border-box;
 }
 
+.noselect {
+  -webkit-touch-callout: none; /* iOS Safari */
+    -webkit-user-select: none; /* Safari */
+     -khtml-user-select: none; /* Konqueror HTML */
+       -moz-user-select: none; /* Firefox */
+        -ms-user-select: none; /* Internet Explorer/Edge */
+            user-select: none; /* Non-prefixed version, currently
+                                  supported by Chrome and Opera */
+}
+
 /* top level */
 
 html, body {
@@ -44,13 +54,13 @@ html, body {
 	width: 100%;
 	height: 100%;
 	display: grid;
-	grid-template-columns:  280px 1fr 280px;
+	grid-template-columns:  290px 1fr 290px;
 }
 
 .page-area {
 	height: 100%;
-	padding-left: 0.25in;
-	padding-top: 0.25in;
+	padding-left: 14px;
+	padding-top: 14px;
 	padding-bottom: 0.75in;
 }
 
@@ -87,6 +97,7 @@ html, body {
   text-transform: uppercase;
   color: white;
   padding: 3px;
+  padding-right: 0px;
   font-size: 10pt;
   font-weight: bold;
   background-color: #073f24;
@@ -111,8 +122,17 @@ html, body {
 }
 
 .typebar, .infobar {
+  font-size: 150%;
   padding: 5px;
+  min-height: 35px;
+  display: flex;
+  align-items: center;
+}
+
+.special-msg-bar {
   font-size: 12pt;
+  display: flex;
+  align-items: center;
 }
 
 .cursor-OK .typebar, .cursor-OK .infobar {
@@ -247,7 +267,22 @@ html, body {
 
 .context-inspector-panel {
   border: 1px solid #073f24;
-  background-color: #FEFEEA; 
+  background-color: #FEFEEA;
+  display: grid;
+}
+
+.context-inspector-panel>div {
+  display: grid;
+  grid-template-rows: 
+    auto /* .titlebar */ 
+    1fr /* .context-inspector-body */;
+}
+
+.context-inspector-body {
+  display: grid;
+  grid-template-rows: 
+    1fr /* .the-context */
+    auto /* .the-path-view */;
 }
 
 .context-is-empty-msg {
@@ -259,15 +294,145 @@ html, body {
 }
 
 .context-entry {
-  font-size: 125%;
-  padding: 5px;
-  background-color: #f0fff3;
+  font-size: 150%;
   border: 1px outset #ffffff;
+  border-left: 0px;
+  border-right: 0px;
+}
+
+.instructional-msg {
+  background-color: #073f24;
+  padding: 5px;
+  color: white;
+  font-size: 10pt;
+}
+
+.static-info {
+  background-color: #f0fff3;
+  padding: 5px;
+}
+
+.dynamic-info {
+  background-color: #f0fff3;
+  padding-top: 0px;
+  padding-left: 18px;
+  padding-right: 5px;
+  padding-bottom: 5px;
 }
 
 .context-entry .SDoc {
   display: inline-block;
 }
+
+.the-path-viewer {
+}
+
+.path-area-parent {
+  min-height: 35px;
+  display: flex;
+  align-items: center;
+  padding-left: 5px;
+  padding-right: 5px;
+}
+
+.path-area {
+  /* background-color: #f0fff3; */
+  display: inline-block;
+  padding-top: 0px;
+  padding-bottom: 0px;
+  font-size: 150%;
+}
+
+.path-item,
+.path-item .inst,
+.path-item .inst-var-separator, 
+.path-item .path-var 
+{
+  display: inline-block;
+}
+
+.path-item .inst-var-separator {
+  font-weight: bold;
+  margin-left: 2px;
+  margin-right: 2px;
+}
+
+.path-item-separator {
+  display: inline-block;
+  margin-left: 5px;
+  margin-right: 5px;
+  font-weight: bold;
+  color: #CCC;
+}
+
+.trailing-inst {
+  display: inline-block;
+}
+
+.path-summary {
+  /* text-transform: uppercase; */
+  /* font-size: 80%; */
+  /* color: #444; */
+  /* text-align: center; */
+  /* padding: 5px; */
+  display: grid;
+  grid-template-columns: 1fr auto;
+}
+
+.instance-info {
+  padding: 5px;
+  padding-top: 0px;
+  display: flex;
+  align-items: center;
+  font-size: 10pt;
+}
+
+.instance-controls {
+  display: grid;
+  grid-template-columns: auto auto;
+}
+
+.prev-instance,
+.next-instance {
+  padding: 5px;
+  padding-top: 0px;
+  display: flex;
+  align-items: center;
+}
+
+.has-prev,
+.has-next {
+  cursor: pointer;
+}
+
+.no-prev,
+.no-next {
+  opacity: 0.15;
+  cursor: default; 
+}
+
+.hole-name-normal-txt,
+.inst-number-normal-txt {
+  font-weight: bold;
+  /* font-family: monospace; */
+}
+
+.hii-summary-inst {
+  display: inline-block;
+  font-size: 150%;
+}
+
+.special-msg {
+  font-size: 10pt;
+  display: flex;
+  align-items: center;
+}
+
+/* .path-summary { */
+/*   background-color: #073f24; */
+/*   color: white; */
+/*   padding: 3px; */
+/* } */
 
 /* options panel */
 
@@ -283,10 +448,10 @@ html, body {
 /* page */
 
 .page {
-	border-radius: 5px;
 	background-color: white;
 	padding: 0.25in;
 	box-shadow: 3px 3px tan;
+  /* border: 1px solid tan; */
 	max-width: 10in;
 	margin-right: 0.25in;
 }
@@ -392,7 +557,7 @@ button:disabled {
 }
 
 .code.op {
-  font-size: 125%;
+  font-size: 150%;
 }
 
 .kw {
@@ -470,6 +635,12 @@ button:disabled {
 	/* border-bottom: 1px solid #a040a0; */
 	margin-bottom: -3px;
 	line-height: initial;
+}
+
+.hole-inst-num {
+  vertical-align: super;
+  font-size: 50%;
+  color: #BBB;
 }
 
 .hide-hole-names .holeName {

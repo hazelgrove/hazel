@@ -18,7 +18,8 @@ let forceGetElementById id => {
     )
 };
 
-let listen_to ev elem f => Dom_html.addEventListener elem ev (Dom_html.handler f) Js._false;
+let listen_to ev elem f =>
+  Dom_html.addEventListener elem ev (Dom_html.handler f) Js._false;
 
 let listen_to_t ev elem f =>
   listen_to
@@ -36,15 +37,21 @@ let listen_to_t ev elem f =>
 let r_input id placeholder_str => {
   let (rs, rf) = S.create "";
   let i_elt =
-    Html5.(input a::[a_id id, a_class ["form-control"], a_placeholder placeholder_str] ());
+    Html5.(
+      input
+        a::[a_id id, a_class ["form-control"], a_placeholder placeholder_str]
+        ()
+    );
   let i_dom = To_dom.of_input i_elt;
-  let _ = listen_to_t Ev.input i_dom (fun _ => rf (Js.to_string i_dom##.value));
+  let _ =
+    listen_to_t Ev.input i_dom (fun _ => rf (Js.to_string i_dom##.value));
   ((rs, rf), i_elt, i_dom)
 };
 
 let r_checkbox id label_str default_val => {
   let (rs, rf) = S.create default_val;
-  let checkbox_elt_attrs_base = Html5.[a_input_type `Checkbox, a_id id, a_class ["r-checkbox"]];
+  let checkbox_elt_attrs_base =
+    Html5.[a_input_type `Checkbox, a_id id, a_class ["r-checkbox"]];
   let checkbox_elt_attrs =
     if default_val {
       Html5.[a_checked (), ...checkbox_elt_attrs_base]
@@ -55,7 +62,9 @@ let r_checkbox id label_str default_val => {
   let label_elt = Html5.(label a::[a_label_for id] [pcdata label_str]);
   let control_elt = Html5.(div [checkbox_elt, label_elt]);
   let checkbox_dom = To_dom.of_input checkbox_elt;
-  let _ = listen_to_t Ev.change checkbox_dom (fun _ => rf (Js.to_bool checkbox_dom##.checked));
+  let _ =
+    listen_to_t
+      Ev.change checkbox_dom (fun _ => rf (Js.to_bool checkbox_dom##.checked));
   let control_dom = To_dom.of_div control_elt;
   ((rs, rf), control_elt, control_dom)
 };
@@ -99,6 +108,8 @@ module KeyCombos = {
   let qmark = _kc "?" "?";
   let equals = _kc "=" "=";
   let vbar = _kc "|" "|";
+  let q = _kc "q" "q";
+  let w = _kc "w" "w";
 };
 
 let get_which (evt: Js.t Dom_html.keyboardEvent) =>
@@ -106,3 +117,29 @@ let get_which (evt: Js.t Dom_html.keyboardEvent) =>
 
 let get_key (evt: Js.t Dom_html.keyboardEvent) =>
   Js.to_string (Js.Optdef.get evt##.key (fun () => assert false));
+
+let listen_for_key k f =>
+  listen_to_t
+    Ev.keydown
+    Dom_html.document
+    (
+      fun evt => {
+        let key = get_key evt;
+        if (key == KeyCombo.key k) {
+          f evt;
+          ()
+        } else {
+          ()
+        }
+      }
+    );
+
+type div_element = Js.t Dom_html.divElement;
+
+type node = Js.t Dom.node;
+
+let div_contains_node (parent: div_element) (child: node) :bool => {
+  let result: Js.t bool =
+    Js.Unsafe.meth_call parent "contains" [|Js.Unsafe.inject child|];
+  Js.to_bool result
+};

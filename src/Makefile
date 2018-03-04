@@ -14,6 +14,7 @@ Hazel.byte: \
 	View.re \
 	GeneralUtil.re \
 	JSUtil.re \
+	HTMLUtil.re \
 	Model.re \
 	Pretty.re \
 	Associator.re \
