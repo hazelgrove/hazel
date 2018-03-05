@@ -132,6 +132,7 @@ let view (model: Model.t) => {
       Js.Opt.get (Dom.CoerceTo.text node) (fun () => assert false);
     text_node##.length
   };
+  let suppress: ref int = ref 0;
   let move_cursor_before node => {
     let cursor_leaf = first_leaf node;
     /* JSUtil.log "moving_cursor_before "; */
@@ -155,6 +156,12 @@ let view (model: Model.t) => {
     selection##removeAllRanges;
     selection##addRange range
   };
+  let move_cursor_before_suppress node =>
+    /* suppress := !suppress + 2; */
+    move_cursor_before node;
+  let move_cursor_after_suppress node =>
+    /* suppress := !suppress + 2; */
+    move_cursor_after node;
   let set_cursor_to (cursor_path, cursor_side) => {
     let id = View.id_of_rev_path prefix (List.rev cursor_path);
     let cursor_elem = JSUtil.forceGetElementById id;
@@ -170,36 +177,6 @@ let view (model: Model.t) => {
     let (cursor_path, cursor_side) = Semantics.Core.Path.of_zexp ze;
     set_cursor_to (cursor_path, cursor_side)
   };
-  /* Construct a simple DOM change listener to trigger cursor
-     movements. we could also just listen directly to the DOM
-     changes for pp_view, but this avoids the browser needlessly
-     computing the diffs for us. instead we make a simple hidden
-     counter div that increments on every change to the erasure */
-  let num_changes = ref 0;
-  let num_changes_str_rs =
-    React.S.map
-      (
-        fun _ => {
-          let num_changes' = !num_changes + 1;
-          num_changes := num_changes';
-          string_of_int num_changes'
-        }
-      )
-      e_rs;
-  let num_changes_counter =
-    Html5.(
-      div a::[a_id "num_changes_counter"] [R.Html5.pcdata num_changes_str_rs]
-    );
-  let num_changes_counter_dom = Tyxml_js.To_dom.of_div num_changes_counter;
-  let _ =
-    MutationObserver.observe
-      child_list::false
-      attributes::false
-      node::num_changes_counter_dom
-      subtree::true
-      character_data::true
-      f::(fun _ _ => set_cursor ())
-      ();
   /* listen to selection change events and respond */
   let rev_paths_rs = React.S.map (fun (_, rev_paths) => rev_paths) view_rs;
   let fix_anchor selection anchor => {
@@ -349,7 +326,7 @@ let view (model: Model.t) => {
           switch (Js.Opt.to_option parent_elem##.parentNode) {
           | Some grandparent =>
             switch (Js.Opt.to_option grandparent##.lastChild) {
-            | Some lastChild => move_cursor_after lastChild
+            | Some lastChild => move_cursor_after_suppress lastChild
             | None => ()
             }
           | None => ()
@@ -361,7 +338,7 @@ let view (model: Model.t) => {
           switch (Js.Opt.to_option parent_elem##.parentNode) {
           | Some grandparent =>
             switch (Js.Opt.to_option grandparent##.firstChild) {
-            | Some firstChild => move_cursor_before firstChild
+            | Some firstChild => move_cursor_before_suppress firstChild
             | None => ()
             }
           | None => ()
@@ -376,7 +353,7 @@ let view (model: Model.t) => {
           switch (Js.Opt.to_option parent_elem##.parentNode) {
           | Some grandparent =>
             switch (Js.Opt.to_option grandparent##.nextSibling) {
-            | Some sibling => move_cursor_before sibling
+            | Some sibling => move_cursor_before_suppress sibling
             | None => ()
             }
           | None => ()
@@ -388,7 +365,7 @@ let view (model: Model.t) => {
           switch (Js.Opt.to_option parent_elem##.parentNode) {
           | Some grandparent =>
             switch (Js.Opt.to_option grandparent##.previousSibling) {
-            | Some sibling => move_cursor_after sibling
+            | Some sibling => move_cursor_after_suppress sibling
             | None => ()
             }
           | None => ()
@@ -402,7 +379,7 @@ let view (model: Model.t) => {
           switch (Js.Opt.to_option parent_elem##.parentNode) {
           | Some grandparent =>
             switch (Js.Opt.to_option grandparent##.firstChild) {
-            | Some firstChild => move_cursor_before firstChild
+            | Some firstChild => move_cursor_before_suppress firstChild
             | None => ()
             }
           | None => ()
@@ -411,7 +388,7 @@ let view (model: Model.t) => {
           switch (Js.Opt.to_option parent_elem##.parentNode) {
           | Some grandparent =>
             switch (Js.Opt.to_option grandparent##.lastChild) {
-            | Some lastChild => move_cursor_after lastChild
+            | Some lastChild => move_cursor_after_suppress lastChild
             | None => ()
             }
           | None => ()
@@ -426,7 +403,7 @@ let view (model: Model.t) => {
           switch (Js.Opt.to_option parent_elem##.parentNode) {
           | Some grandparent =>
             switch (Js.Opt.to_option grandparent##.previousSibling) {
-            | Some sibling => move_cursor_after sibling
+            | Some sibling => move_cursor_after_suppress sibling
             | None => ()
             }
           | None => ()
@@ -436,7 +413,7 @@ let view (model: Model.t) => {
           switch (Js.Opt.to_option parent_elem##.parentNode) {
           | Some grandparent =>
             switch (Js.Opt.to_option grandparent##.nextSibling) {
-            | Some sibling => move_cursor_before sibling
+            | Some sibling => move_cursor_before_suppress sibling
             | None => ()
             }
           | None => ()
@@ -448,7 +425,7 @@ let view (model: Model.t) => {
         switch (Js.Opt.to_option parent_elem##.parentNode) {
         | Some grandparent =>
           switch (Js.Opt.to_option grandparent##.firstChild) {
-          | Some firstChild => move_cursor_before firstChild
+          | Some firstChild => move_cursor_before_suppress firstChild
           | None => ()
           }
         | None => ()
@@ -459,7 +436,7 @@ let view (model: Model.t) => {
         switch (Js.Opt.to_option parent_elem##.parentNode) {
         | Some grandparent =>
           switch (Js.Opt.to_option grandparent##.previousSibling) {
-          | Some sibling => move_cursor_after sibling
+          | Some sibling => move_cursor_after_suppress sibling
           | None => ()
           }
         | None => ()
@@ -472,7 +449,7 @@ let view (model: Model.t) => {
           switch (Js.Opt.to_option parent_elem##.parentNode) {
           | Some grandparent =>
             switch (Js.Opt.to_option grandparent##.previousSibling) {
-            | Some sibling => move_cursor_after sibling
+            | Some sibling => move_cursor_after_suppress sibling
             | None => ()
             }
           | None => ()
@@ -481,7 +458,7 @@ let view (model: Model.t) => {
           switch (Js.Opt.to_option parent_elem##.parentNode) {
           | Some grandparent =>
             switch (Js.Opt.to_option grandparent##.nextSibling) {
-            | Some sibling => move_cursor_before sibling
+            | Some sibling => move_cursor_before_suppress sibling
             | None => ()
             }
           | None => ()
@@ -493,7 +470,7 @@ let view (model: Model.t) => {
         let anchorOffset = selection##.anchorOffset;
         if (anchorOffset == 1) {
           switch (Js.Opt.to_option parent_elem##.nextSibling) {
-          | Some sibling => move_cursor_before sibling
+          | Some sibling => move_cursor_before_suppress sibling
           | None => ()
           }
         }
@@ -505,12 +482,12 @@ let view (model: Model.t) => {
           let anchorOffset = selection##.anchorOffset;
           if (anchorOffset == 0) {
             switch (Js.Opt.to_option grandparent##.previousSibling) {
-            | Some sibling => move_cursor_after sibling
+            | Some sibling => move_cursor_after_suppress sibling
             | None => ()
             }
           } else {
             switch (Js.Opt.to_option grandparent##.nextSibling) {
-            | Some sibling => move_cursor_before sibling
+            | Some sibling => move_cursor_before_suppress sibling
             | None => ()
             }
           }
@@ -522,7 +499,7 @@ let view (model: Model.t) => {
         let anchorOffset = selection##.anchorOffset;
         if (anchorOffset == 1) {
           switch (Js.Opt.to_option parent_elem##.nextSibling) {
-          | Some sibling => move_cursor_before sibling
+          | Some sibling => move_cursor_before_suppress sibling
           | None => ()
           }
         }
@@ -532,7 +509,7 @@ let view (model: Model.t) => {
         let anchorOffset = selection##.anchorOffset;
         if (anchorOffset == 0) {
           switch (Js.Opt.to_option parent_elem##.previousSibling) {
-          | Some sibling => move_cursor_after sibling
+          | Some sibling => move_cursor_after_suppress sibling
           | None => ()
           }
         }
@@ -692,51 +669,56 @@ let view (model: Model.t) => {
       (Dom.Event.make "selectionchange")
       Dom_html.document
       (
-        fun evt => {
-          /* get effective anchor node (where selection began) */
-          let selection = Dom_html.window##getSelection;
-          let anchorNode = selection##.anchorNode;
-          if (JSUtil.div_contains_node pp_view_dom anchorNode) {
-            let (anchor, anchorOffset) =
-              fix_anchor selection selection##.anchorNode;
-            /* transport */
-            do_transport ();
-            /* get current paths hash table */
-            let rev_paths = React.S.value rev_paths_rs;
-            /* traverse up the DOM until we find an element with an id in the paths table */
-            let cur = ref (Js.some anchor);
-            let found = ref false;
-            while (Js.Opt.test !cur && not !found) {
-              let cur_node = Js.Opt.get !cur (fun () => assert false);
-              switch cur_node##.nodeType {
-              | Dom.ELEMENT =>
-                let cur_element' = Dom_html.CoerceTo.element cur_node;
-                let cur_element =
-                  Js.Opt.get cur_element' (fun () => assert false);
-                let cur_id = Js.to_string cur_element##.id;
-                switch (Hashtbl.find rev_paths cur_id) {
-                | rev_path =>
-                  found := true;
-                  let path = List.rev rev_path;
-                  let cursor_side =
-                    determine_cursor_side
-                      selection anchor anchorOffset cur_element;
-                  /* JSUtil.log (string_of_cursor_side cursor_side); */
-                  do_action (Action.MoveTo (path, cursor_side));
-                  clear_cursors ();
-                  let elem = JSUtil.forceGetElementById cur_id;
-                  elem##.classList##add (Js.string "cursor")
-                | exception Not_found => ()
+        fun evt =>
+          if (!suppress > 0) {
+            /* this doesn't do anything yet but eventually need to figure out how to stop triggering this listener three times per transport */
+            suppress :=
+              !suppress - 1
+          } else {
+            /* get effective anchor node (where selection began) */
+            let selection = Dom_html.window##getSelection;
+            let anchorNode = selection##.anchorNode;
+            if (JSUtil.div_contains_node pp_view_dom anchorNode) {
+              let (anchor, anchorOffset) =
+                fix_anchor selection selection##.anchorNode;
+              /* transport */
+              do_transport ();
+              /* get current paths hash table */
+              let rev_paths = React.S.value rev_paths_rs;
+              /* traverse up the DOM until we find an element with an id in the paths table */
+              let cur = ref (Js.some anchor);
+              let found = ref false;
+              while (Js.Opt.test !cur && not !found) {
+                let cur_node = Js.Opt.get !cur (fun () => assert false);
+                switch cur_node##.nodeType {
+                | Dom.ELEMENT =>
+                  let cur_element' = Dom_html.CoerceTo.element cur_node;
+                  let cur_element =
+                    Js.Opt.get cur_element' (fun () => assert false);
+                  let cur_id = Js.to_string cur_element##.id;
+                  switch (Hashtbl.find rev_paths cur_id) {
+                  | rev_path =>
+                    found := true;
+                    let path = List.rev rev_path;
+                    let cursor_side =
+                      determine_cursor_side
+                        selection anchor anchorOffset cur_element;
+                    /* JSUtil.log (string_of_cursor_side cursor_side); */
+                    do_action (Action.MoveTo (path, cursor_side));
+                    clear_cursors ();
+                    let elem = JSUtil.forceGetElementById cur_id;
+                    elem##.classList##add (Js.string "cursor")
+                  | exception Not_found => ()
+                  };
+                  ()
+                | _ => ()
                 };
+                cur := cur_node##.parentNode;
                 ()
-              | _ => ()
               };
-              cur := cur_node##.parentNode;
               ()
-            };
-            ()
+            }
           }
-        }
       );
   /* type view */
   let htype_rs =
@@ -784,6 +766,64 @@ let view (model: Model.t) => {
       result_rs;
   let result_view =
     R.Html5.div (ReactiveData.RList.from_signal result_view_rs);
+  /* highlight isntances in current path */
+  let path_instance_cls = "path-instance";
+  let selected_instance_cls = "selected-instance";
+  let set_selected_instances () => {
+    let (_, hii, _) = React.S.value result_rs;
+    let selected_instance = React.S.value selected_instance_rs;
+    JSUtil.remove_cls_from_all path_instance_cls "hole-instance";
+    JSUtil.remove_cls_from_all selected_instance_cls "hole-instance";
+    switch selected_instance {
+    | Some inst =>
+      switch (Dynamics.DHExp.HoleInstanceInfo.lookup hii inst) {
+      | Some (_, path) =>
+        let cls_of_inst = View.cls_of_inst inst;
+        JSUtil.add_cls_to_all path_instance_cls cls_of_inst;
+        JSUtil.add_cls_to_all selected_instance_cls cls_of_inst;
+        List.iter
+          (
+            fun (inst', _) => {
+              let cls_of_inst = View.cls_of_inst inst';
+              JSUtil.add_cls_to_all path_instance_cls cls_of_inst
+            }
+          )
+          path
+      | None => ()
+      }
+    | None => ()
+    }
+  };
+  let num_changes_si = ref 0;
+  let num_changes_si_str_rs =
+    React.S.l4
+      (
+        fun _ _ _ _ => {
+          let num_changes' = !num_changes_si + 1;
+          num_changes_si := num_changes';
+          string_of_int num_changes'
+        }
+      )
+      result_rs
+      selected_instance_rs
+      cursor_info_rs
+      edit_state_rs;
+  let num_changes_counter =
+    Html5.(
+      div
+        a::[a_id "num_changes_counter_si"]
+        [R.Html5.pcdata num_changes_si_str_rs]
+    );
+  let num_changes_si_counter_dom = Tyxml_js.To_dom.of_div num_changes_counter;
+  let _ =
+    MutationObserver.observe
+      child_list::false
+      attributes::false
+      node::num_changes_si_counter_dom
+      subtree::true
+      character_data::true
+      f::(fun _ _ => set_selected_instances ())
+      ();
   /* checkboxes */
   /* let ((show_hole_envs_checkbox_rs, _), show_hole_envs_checkbox, _) = */
   /*   JSUtil.r_checkbox "show_hole_envs_checkbox" "Show hole environments" false; */
@@ -796,6 +836,36 @@ let view (model: Model.t) => {
   /*       } */
   /*     ) */
   /*     show_hole_envs_checkbox_rs; */
+  /* Construct a simple DOM change listener to trigger cursor
+     movements. we could also just listen directly to the DOM
+     changes for pp_view, but this avoids the browser needlessly
+     computing the diffs for us. instead we make a simple hidden
+     counter div that increments on every change to the erasure */
+  let num_changes = ref 0;
+  let num_changes_str_rs =
+    React.S.l1
+      (
+        fun _ => {
+          let num_changes' = !num_changes + 1;
+          num_changes := num_changes';
+          string_of_int num_changes'
+        }
+      )
+      e_rs;
+  let num_changes_counter =
+    Html5.(
+      div a::[a_id "num_changes_counter"] [R.Html5.pcdata num_changes_str_rs]
+    );
+  let num_changes_counter_dom = Tyxml_js.To_dom.of_div num_changes_counter;
+  let _ =
+    MutationObserver.observe
+      child_list::false
+      attributes::false
+      node::num_changes_counter_dom
+      subtree::true
+      character_data::true
+      f::(fun _ _ => set_cursor ())
+      ();
   /* final chrome */
   let the_cursor_inspector_panel = CursorInspector.mk cursor_info_rs;
   let the_context_inspector_panel =

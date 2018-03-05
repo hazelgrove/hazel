@@ -325,7 +325,7 @@ let mk
               ]
             }
           | ZExp.IsNotHole => [
-              instructional_msg "Move cursor to a hole, or click a hole instance in the result, to see  values."
+              instructional_msg "Move cursor to a hole, or click a hole instance in the result, to see  closures."
             ]
           };
         Html5.(div a::[a_class ["the-path-viewer"]] children)

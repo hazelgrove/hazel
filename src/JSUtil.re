@@ -143,3 +143,25 @@ let div_contains_node (parent: div_element) (child: node) :bool => {
     Js.Unsafe.meth_call parent "contains" [|Js.Unsafe.inject child|];
   Js.to_bool result
 };
+
+let remove_cls_from_all cls_to_remove cls_to_remove_from => {
+  let cls_to_remove_j = Js.string cls_to_remove;
+  let elts =
+    Dom_html.document##getElementsByClassName (Js.string cls_to_remove_from);
+  let num_elts = elts##.length;
+  for i in 0 to (num_elts - 1) {
+    let elt = Js.Opt.get (elts##item i) (fun () => assert false);
+    elt##.classList##remove cls_to_remove_j
+  }
+};
+
+let add_cls_to_all cls_to_add cls_to_add_to => {
+  let cls_to_add_j = Js.string cls_to_add;
+  let elts =
+    Dom_html.document##getElementsByClassName (Js.string cls_to_add_to);
+  let num_elts = elts##.length;
+  for i in 0 to (num_elts - 1) {
+    let elt = Js.Opt.get (elts##item i) (fun () => assert false);
+    elt##.classList##add cls_to_add_j
+  }
+};
