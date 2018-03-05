@@ -27,6 +27,19 @@ type result_rs =
 
 type hole_instance_info_rs = React.signal DHExp.HoleInstanceInfo.t;
 
+module UserSelectedInstances = {
+  type t = MetaVarMap.t DHExp.inst_num;
+  type rs = React.signal t;
+  type rf = step::React.step? => MetaVarMap.t DHExp.inst_num => unit;
+  let update usi inst => MetaVarMap.insert_or_update usi inst;
+};
+
+type instance_click_fn = DHExp.HoleInstance.t => unit;
+
+type user_selected_instances_rs = UserSelectedInstances.rs;
+
+type user_selected_instances_rf = UserSelectedInstances.rf;
+
 type selected_instance_rs = React.signal (option DHExp.HoleInstance.t);
 
 type selected_instance_rf =
@@ -44,10 +57,12 @@ exception InvalidInput;
 
 type t = {
   edit_state_rs, /* changes whenever the edit state changes */
-  cursor_info_rs, /* ZExp.cursor_info computed from z_rs */
+  cursor_info_rs, /* ZExp.cursor_info computed from edit_state_rs */
   e_rs, /* changes only for non-movement actions */
   result_rs, /* computed result */
-  selected_instance_rs,
+  user_selected_instances_rs,
+  user_selected_instances_rf,
+  selected_instance_rs, /* the currently selected instance itself */
   selected_instance_rf,
   monitors,
   do_action: Action.t => unit /* function to perform actions */
@@ -91,28 +106,50 @@ let new_model () :t => {
         }
       )
       e_rs;
-  let (selected_instance_rs, selected_instance_rf) = React.S.create None;
-  /* when cursor is on a hole, set the instance path to the default for that hole */
-  let instance_at_cursor_monitor =
-    React.S.l2
+  let (user_selected_instances_rs, user_selected_instances_rf) =
+    React.S.create MetaVarMap.empty;
+  /* when result changes, reset USI */
+  let usi_monitor =
+    React.S.l1
       (
-        fun {ZExp.mode: _, ZExp.form: form, ZExp.ctx: _} (_, hii, _) => {
+        fun _ => {
+          JSUtil.log "Resetting USI";
+          user_selected_instances_rf MetaVarMap.empty
+        }
+      )
+      result_rs;
+  let (selected_instance_rs, selected_instance_rf) = React.S.create None;
+  /* when cursor is on a hole, set the instance path to the usi value,
+     or if not available, the default for that hole */
+  let instance_at_cursor_monitor =
+    React.S.l1
+      (
+        fun {ZExp.mode: _, ZExp.form: form, ZExp.ctx: _} => {
           let new_path =
             switch form {
             | ZExp.IsHole u =>
-              switch (DHExp.HoleInstanceInfo.default_instance hii u) {
-              | Some (u, i) as inst => inst
-              | None => None
+              let usi = React.S.value user_selected_instances_rs;
+              switch (MetaVarMap.lookup usi u) {
+              | Some i =>
+                JSUtil.log (
+                  "FOUND SOMETHING " ^ string_of_int u ^ " " ^ string_of_int i
+                );
+                Some (u, i)
+              | None =>
+                let (_, hii, _) = React.S.value result_rs;
+                switch (DHExp.HoleInstanceInfo.default_instance hii u) {
+                | Some (u, i) as inst => inst
+                | None => None
+                }
               }
             | _ => None
             };
           selected_instance_rf new_path
         }
       )
-      cursor_info_rs
-      result_rs;
+      cursor_info_rs;
   /* Keep monitors around in the state to stop them from being garbage collected */
-  let monitors = [instance_at_cursor_monitor];
+  let monitors = [instance_at_cursor_monitor, usi_monitor];
   let do_action action =>
     switch (
       Action.performSyn () Ctx.empty action (React.S.value edit_state_rs)
@@ -130,6 +167,8 @@ let new_model () :t => {
     cursor_info_rs,
     e_rs,
     result_rs,
+    user_selected_instances_rs,
+    user_selected_instances_rf,
     selected_instance_rs,
     selected_instance_rf,
     monitors,

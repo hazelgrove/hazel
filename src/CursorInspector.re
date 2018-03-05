@@ -4,7 +4,7 @@ open Tyxml_js;
 
 let titlebar = PanelUtils.titlebar;
 
-let typebar_width = 30;
+let typebar_width = 80000;
 
 let html_of_ty = View.html_of_ty typebar_width;
 

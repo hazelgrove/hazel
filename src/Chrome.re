@@ -12,7 +12,10 @@ let view (model: Model.t) => {
     cursor_info_rs,
     e_rs,
     result_rs,
+    user_selected_instances_rs,
+    user_selected_instances_rf,
     selected_instance_rs,
+    selected_instance_rf,
     do_action
   } = model;
   /* helpers */
@@ -152,9 +155,7 @@ let view (model: Model.t) => {
     selection##removeAllRanges;
     selection##addRange range
   };
-  let set_cursor () => {
-    let ((ze, _), _) = React.S.value edit_state_rs;
-    let (cursor_path, cursor_side) = Semantics.Core.Path.of_zexp ze;
+  let set_cursor_to (cursor_path, cursor_side) => {
     let id = View.id_of_rev_path prefix (List.rev cursor_path);
     let cursor_elem = JSUtil.forceGetElementById id;
     let cursor_node: Js.t Dom.node = Js.Unsafe.coerce cursor_elem;
@@ -163,6 +164,11 @@ let view (model: Model.t) => {
     | On => move_cursor_before (first_leaf cursor_node)
     | After => move_cursor_after (last_leaf cursor_node)
     }
+  };
+  let set_cursor () => {
+    let ((ze, _), _) = React.S.value edit_state_rs;
+    let (cursor_path, cursor_side) = Semantics.Core.Path.of_zexp ze;
+    set_cursor_to (cursor_path, cursor_side)
   };
   /* Construct a simple DOM change listener to trigger cursor
      movements. we could also just listen directly to the DOM
@@ -747,6 +753,20 @@ let view (model: Model.t) => {
       e_rs;
   let htype_view = R.Html5.div (ReactiveData.RList.from_signal htype_rs);
   /* result view */
+  let move_to_hole u =>
+    switch (Path.path_to_hole () (React.S.value e_rs) u) {
+    | Some hole_path =>
+      do_action (Action.MoveTo hole_path);
+      set_cursor ()
+    | None => JSUtil.log "Path not found!!"
+    };
+  let instance_click_fn ((u, i) as inst) => {
+    /* JSUtil.log "CLICK"; */
+    let usi = React.S.value user_selected_instances_rs;
+    user_selected_instances_rf (UserSelectedInstances.update usi inst);
+    move_to_hole u;
+    selected_instance_rf (Some inst)
+  };
   let result_view_rs =
     React.S.l1
       (
@@ -755,7 +775,7 @@ let view (model: Model.t) => {
           | Dynamics.Evaluator.InvalidInput n => [Html5.pcdata "(internal error: expansion or evaluation invariant violated)"] /* should never happen! */
           | Dynamics.Evaluator.BoxedValue d
           | Dynamics.Evaluator.Indet d =>
-            let pp_view = View.of_dhexp "result-exp" d;
+            let pp_view = View.of_dhexp instance_click_fn "result-exp" d;
             let (sdoc, _) = Pretty.PP.sdoc_of_doc pp_view_width pp_view;
             let prettified = Pretty.HTML_Of_SDoc.html_of_sdoc sdoc;
             [prettified]
@@ -778,7 +798,8 @@ let view (model: Model.t) => {
   /*     show_hole_envs_checkbox_rs; */
   /* final chrome */
   let the_cursor_inspector_panel = CursorInspector.mk cursor_info_rs;
-  let the_context_inspector_panel = ContextInspector.mk model;
+  let the_context_inspector_panel =
+    ContextInspector.mk model instance_click_fn;
   let the_action_panel = ActionPanel.make model set_cursor;
   /* let the_options_panel = */
   /*   Html5.( */
