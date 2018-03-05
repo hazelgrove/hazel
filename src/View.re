@@ -30,15 +30,30 @@ let rec id_of_rev_path prefix rev_path =>
   | [x, ...xs] => id_of_rev_path prefix xs ^ "_" ^ string_of_int x
   };
 
+let cls_from_classes err_status classes =>
+  switch err_status {
+  | InHole u => ["in_err_hole", "in_err_hole_" ^ string_of_int u, ...classes]
+  | NotInHole => classes
+  };
+
 let cls_from err_status cls =>
   switch err_status {
-  | InHole u => [cls, "in_err_hole", "in_err_hole_" ^ string_of_int u]
+  | InHole u => ["in_err_hole", "in_err_hole_" ^ string_of_int u, cls]
   | NotInHole => [cls]
   };
 
 let term prefix err_status rev_path cls doc => {
   let id' = id_of_rev_path prefix rev_path;
   PP.tagged (cls_from err_status cls) (Some (id', rev_path)) None doc
+};
+
+let term_with_attrs prefix err_status rev_path classes attrs doc => {
+  let id' = id_of_rev_path prefix rev_path;
+  PP.tagged
+    (cls_from_classes err_status classes)
+    (Some (id', rev_path))
+    (Some attrs)
+    doc
 };
 
 let optionalBreakSp = PP.optionalBreak " ";
@@ -541,7 +556,7 @@ let hole_label_of inst => taggedText "holeName" (hole_label_s inst);
 
 let dbg_SHOW_SIGMAS = false;
 
-let rec of_dhexp' parenthesize prefix err_status rev_path d => {
+let rec of_dhexp' instance_click_fn parenthesize prefix err_status rev_path d => {
   let doc =
     DHExp.(
       switch d {
@@ -549,22 +564,27 @@ let rec of_dhexp' parenthesize prefix err_status rev_path d => {
       | Let x d1 d2 =>
         let rev_path1 = [0, ...rev_path];
         let rev_path2 = [1, ...rev_path];
-        let r1 = of_dhexp' false prefix NotInHole rev_path1 d1;
-        let r2 = of_dhexp' false prefix NotInHole rev_path2 d2;
+        let r1 =
+          of_dhexp' instance_click_fn false prefix NotInHole rev_path1 d1;
+        let r2 =
+          of_dhexp' instance_click_fn false prefix NotInHole rev_path2 d2;
         of_Let prefix err_status rev_path x r1 r2
       | Lam x ty d1 =>
         let rev_path1 = [0, ...rev_path];
         let rev_path2 = [1, ...rev_path];
         let r1 = of_htype false prefix rev_path1 ty;
-        let r2 = of_dhexp' false prefix NotInHole rev_path2 d1;
+        let r2 =
+          of_dhexp' instance_click_fn false prefix NotInHole rev_path2 d1;
         of_LamAnn prefix err_status rev_path x r1 r2
       | Ap d1 d2 =>
         let rev_path1 = [0, ...rev_path];
         let rev_path2 = [1, ...rev_path];
         let paren1 = precedence_dhexp d1 > precedence_Ap;
         let paren2 = precedence_dhexp d2 >= precedence_Ap;
-        let r1 = of_dhexp' paren1 prefix NotInHole rev_path1 d1;
-        let r2 = of_dhexp' paren2 prefix NotInHole rev_path2 d2;
+        let r1 =
+          of_dhexp' instance_click_fn paren1 prefix NotInHole rev_path1 d1;
+        let r2 =
+          of_dhexp' instance_click_fn paren2 prefix NotInHole rev_path2 d2;
         of_Ap prefix err_status rev_path r1 r2
       | NumLit n => of_NumLit prefix err_status rev_path n
       | BinNumOp op d1 d2 =>
@@ -573,33 +593,52 @@ let rec of_dhexp' parenthesize prefix err_status rev_path d => {
         let prec_d = precedence_dhexp d;
         let paren1 = precedence_dhexp d1 > prec_d;
         let paren2 = precedence_dhexp d2 >= prec_d;
-        let r1 = of_dhexp' paren1 prefix NotInHole rev_path1 d1;
-        let r2 = of_dhexp' paren2 prefix NotInHole rev_path2 d2;
+        let r1 =
+          of_dhexp' instance_click_fn paren1 prefix NotInHole rev_path1 d1;
+        let r2 =
+          of_dhexp' instance_click_fn paren2 prefix NotInHole rev_path2 d2;
         of_BinNumOp prefix err_status rev_path op r1 r2
       | Inj ty side d1 =>
         let rev_path1 = [0, ...rev_path];
         let rev_path2 = [1, ...rev_path];
         let r1 = of_htype false prefix rev_path1 ty;
-        let r2 = of_dhexp' false prefix NotInHole rev_path2 d1;
+        let r2 =
+          of_dhexp' instance_click_fn false prefix NotInHole rev_path2 d1;
         of_InjAnn prefix err_status rev_path r1 side r2
       | Case d1 (x, d2) (y, d3) =>
         let rev_path1 = [0, ...rev_path];
         let rev_path2 = [1, ...rev_path];
         let rev_path3 = [2, ...rev_path];
-        let r1 = of_dhexp' false prefix NotInHole rev_path1 d1;
-        let r2 = of_dhexp' false prefix NotInHole rev_path2 d2;
-        let r3 = of_dhexp' false prefix NotInHole rev_path3 d3;
+        let r1 =
+          of_dhexp' instance_click_fn false prefix NotInHole rev_path1 d1;
+        let r2 =
+          of_dhexp' instance_click_fn false prefix NotInHole rev_path2 d2;
+        let r3 =
+          of_dhexp' instance_click_fn false prefix NotInHole rev_path3 d3;
         of_CaseAnn prefix err_status rev_path r1 x r2 y r3
       | EmptyHole u i sigma =>
         let hole_label = hole_label_of (u, i);
         let r =
           dbg_SHOW_SIGMAS ?
-            hole_label ^^ of_sigma prefix rev_path sigma : hole_label;
-        term prefix err_status rev_path "EmptyHole" r
+            hole_label ^^ of_sigma instance_click_fn prefix rev_path sigma :
+            hole_label;
+        let attrs = [
+          Tyxml_js.Html5.a_onclick (
+            fun _ => {
+              instance_click_fn (u, i);
+              true
+            }
+          )
+        ];
+        term_with_attrs
+          prefix err_status rev_path ["EmptyHole", "hole-instance"] attrs r
       | NonEmptyHole u i sigma d1 =>
         let rev_path1 = [0, ...rev_path];
-        let r1 = of_dhexp' false prefix (InHole u) rev_path1 d1;
-        let r = dbg_SHOW_SIGMAS ? r1 ^^ of_sigma prefix rev_path sigma : r1;
+        let r1 =
+          of_dhexp' instance_click_fn false prefix (InHole u) rev_path1 d1;
+        let r =
+          dbg_SHOW_SIGMAS ?
+            r1 ^^ of_sigma instance_click_fn prefix rev_path sigma : r1;
         term prefix err_status rev_path "NonEmptyHole" r
       | Cast (Cast d1 ty1 ty2) ty3 ty4 when HTyp.eq ty2 ty3 =>
         let rev_path1 = [0, ...rev_path];
@@ -609,7 +648,9 @@ let rec of_dhexp' parenthesize prefix err_status rev_path d => {
         /* no rev_path2 because we're not showing them separately */
         let rev_path3 = [2, ...rev_path];
         let paren1 = precedence_dhexp d1 > precedence_const;
-        let r1 = of_dhexp' paren1 prefix NotInHole inner_rev_path1 d1;
+        let r1 =
+          of_dhexp'
+            instance_click_fn paren1 prefix NotInHole inner_rev_path1 d1;
         let r2 = of_htype false prefix inner_rev_path2 ty1;
         let r3 = of_htype false prefix inner_rev_path3 ty2;
         let r5 = of_htype false prefix rev_path3 ty4;
@@ -619,7 +660,8 @@ let rec of_dhexp' parenthesize prefix err_status rev_path d => {
         let rev_path2 = [1, ...rev_path];
         let rev_path3 = [2, ...rev_path];
         let paren1 = precedence_dhexp d1 > precedence_const;
-        let r1 = of_dhexp' paren1 prefix NotInHole rev_path1 d1;
+        let r1 =
+          of_dhexp' instance_click_fn paren1 prefix NotInHole rev_path1 d1;
         let r2 = of_htype false prefix rev_path2 ty1;
         let r3 = of_htype false prefix rev_path3 ty2;
         of_Cast prefix err_status rev_path r1 r2 r3
@@ -631,7 +673,9 @@ let rec of_dhexp' parenthesize prefix err_status rev_path d => {
         /* no rev_path2 because we're not showing them separately */
         let rev_path3 = [2, ...rev_path];
         let paren1 = precedence_dhexp d1 > precedence_const;
-        let r1 = of_dhexp' paren1 prefix NotInHole inner_rev_path1 d1;
+        let r1 =
+          of_dhexp'
+            instance_click_fn paren1 prefix NotInHole inner_rev_path1 d1;
         let r2 = of_htype false prefix inner_rev_path2 ty1;
         let r3 = of_htype false prefix inner_rev_path3 ty2;
         let r5 = of_htype false prefix rev_path3 ty4;
@@ -641,7 +685,8 @@ let rec of_dhexp' parenthesize prefix err_status rev_path d => {
         let rev_path2 = [1, ...rev_path];
         let rev_path3 = [2, ...rev_path];
         let paren1 = precedence_dhexp d1 > precedence_const;
-        let r1 = of_dhexp' paren1 prefix NotInHole rev_path1 d1;
+        let r1 =
+          of_dhexp' instance_click_fn paren1 prefix NotInHole rev_path1 d1;
         let r2 = of_htype false prefix rev_path2 ty1;
         let r3 = of_htype false prefix rev_path3 ty2;
         of_FailedCast prefix err_status rev_path r1 r2 r3
@@ -649,9 +694,10 @@ let rec of_dhexp' parenthesize prefix err_status rev_path d => {
     );
   parenthesize ? lparen "(" ^^ doc ^^ rparen ")" : doc
 }
-and of_sigma prefix rev_path sigma => {
+and of_sigma instance_click_fn prefix rev_path sigma => {
   let map_f (x, d) =>
-    of_dhexp' false prefix NotInHole rev_path d ^^ kw "/" ^^ PP.text "" x;
+    of_dhexp' instance_click_fn false prefix NotInHole rev_path d ^^
+    kw "/" ^^ PP.text "" x;
   let docs = List.map map_f sigma;
   let doc' =
     switch docs {
@@ -663,7 +709,8 @@ and of_sigma prefix rev_path sigma => {
   lparen "[" ^^ doc' ^^ rparen "]"
 };
 
-let of_dhexp prefix d => of_dhexp' false prefix NotInHole [] d;
+let of_dhexp instance_click_fn prefix d =>
+  of_dhexp' instance_click_fn false prefix NotInHole [] d;
 
 /* Utilities */
 let html_of_ty width prefix ty => {
@@ -672,35 +719,35 @@ let html_of_ty width prefix ty => {
   Pretty.HTML_Of_SDoc.html_of_sdoc ty_sdoc
 };
 
-let html_of_dhexp width prefix d => {
-  let dhexp_doc = of_dhexp prefix d;
+let html_of_dhexp instance_click_fn width prefix d => {
+  let dhexp_doc = of_dhexp instance_click_fn prefix d;
   let (dhexp_sdoc, _) = Pretty.PP.sdoc_of_doc width dhexp_doc;
   Pretty.HTML_Of_SDoc.html_of_sdoc dhexp_sdoc
 };
 
-let html_of_var width prefix x => html_of_dhexp width prefix (DHExp.Var x);
+let html_of_var width prefix x =>
+  html_of_dhexp (fun _ => ()) width prefix (DHExp.Var x);
 
-let html_of_hole_instance width prefix (u, i) => {
+let html_of_hole_instance instance_click_fn width prefix (u, i) => {
   let d = Dynamics.DHExp.EmptyHole u i [];
-  html_of_dhexp width prefix d
+  html_of_dhexp instance_click_fn width prefix d
 };
 
 /* Debugging */
-let of_hii (hii: Dynamics.DHExp.HoleInstanceInfo.t) (u: MetaVar.t) => {
-  let doc0 = hole_label_of (u, (-1));
-  let doc =
-    switch (MetaVarMap.lookup hii u) {
-    | Some instances =>
-      List.fold_left
-        (fun acc (env, _) => acc ^^ kw "; " ^^ of_sigma "dbg" [] env)
-        doc0
-        instances
-    | None => doc0
-    };
-  let (sdoc, _) = Pretty.PP.sdoc_of_doc 80 doc;
-  Pretty.HTML_Of_SDoc.html_of_sdoc sdoc
-};
-
+/* let of_hii (hii: Dynamics.DHExp.HoleInstanceInfo.t) (u: MetaVar.t) => {
+     let doc0 = hole_label_of (u, (-1));
+     let doc =
+       switch (MetaVarMap.lookup hii u) {
+       | Some instances =>
+         List.fold_left
+           (fun acc (env, _) => acc ^^ kw "; " ^^ of_sigma "dbg" [] env)
+           doc0
+           instances
+       | None => doc0
+       };
+     let (sdoc, _) = Pretty.PP.sdoc_of_doc 80 doc;
+     Pretty.HTML_Of_SDoc.html_of_sdoc sdoc
+   }; */
 let string_of_cursor_side cursor_side =>
   switch cursor_side {
   | On => "On"
