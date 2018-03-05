@@ -111,32 +111,21 @@ let new_model () :t => {
   /* when result changes, reset USI */
   let usi_monitor =
     React.S.l1
-      (
-        fun _ => {
-          JSUtil.log "Resetting USI";
-          user_selected_instances_rf MetaVarMap.empty
-        }
-      )
-      result_rs;
+      (fun _ => user_selected_instances_rf MetaVarMap.empty) result_rs;
   let (selected_instance_rs, selected_instance_rf) = React.S.create None;
   /* when cursor is on a hole, set the instance path to the usi value,
      or if not available, the default for that hole */
   let instance_at_cursor_monitor =
-    React.S.l1
+    React.S.l2
       (
-        fun {ZExp.mode: _, ZExp.form: form, ZExp.ctx: _} => {
+        fun {ZExp.mode: _, ZExp.form: form, ZExp.ctx: _} (_, hii, _) => {
           let new_path =
             switch form {
             | ZExp.IsHole u =>
               let usi = React.S.value user_selected_instances_rs;
               switch (MetaVarMap.lookup usi u) {
-              | Some i =>
-                JSUtil.log (
-                  "FOUND SOMETHING " ^ string_of_int u ^ " " ^ string_of_int i
-                );
-                Some (u, i)
+              | Some i => Some (u, i)
               | None =>
-                let (_, hii, _) = React.S.value result_rs;
                 switch (DHExp.HoleInstanceInfo.default_instance hii u) {
                 | Some (u, i) as inst => inst
                 | None => None
@@ -147,7 +136,8 @@ let new_model () :t => {
           selected_instance_rf new_path
         }
       )
-      cursor_info_rs;
+      cursor_info_rs
+      result_rs;
   /* Keep monitors around in the state to stop them from being garbage collected */
   let monitors = [instance_at_cursor_monitor, usi_monitor];
   let do_action action =>

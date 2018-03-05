@@ -554,6 +554,9 @@ let hole_label_s (u, i) => string_of_int (u + 1) ^ ":" ^ string_of_int (i + 1);
 
 let hole_label_of inst => taggedText "holeName" (hole_label_s inst);
 
+let cls_of_inst (u, i) =>
+  "hole-instance-" ^ string_of_int u ^ "-" ^ string_of_int i;
+
 let dbg_SHOW_SIGMAS = false;
 
 let rec of_dhexp' instance_click_fn parenthesize prefix err_status rev_path d => {
@@ -617,7 +620,8 @@ let rec of_dhexp' instance_click_fn parenthesize prefix err_status rev_path d =>
           of_dhexp' instance_click_fn false prefix NotInHole rev_path3 d3;
         of_CaseAnn prefix err_status rev_path r1 x r2 y r3
       | EmptyHole u i sigma =>
-        let hole_label = hole_label_of (u, i);
+        let inst = (u, i);
+        let hole_label = hole_label_of inst;
         let r =
           dbg_SHOW_SIGMAS ?
             hole_label ^^ of_sigma instance_click_fn prefix rev_path sigma :
@@ -625,13 +629,19 @@ let rec of_dhexp' instance_click_fn parenthesize prefix err_status rev_path d =>
         let attrs = [
           Tyxml_js.Html5.a_onclick (
             fun _ => {
-              instance_click_fn (u, i);
+              instance_click_fn inst;
               true
             }
           )
         ];
+        let inst_cls = cls_of_inst inst;
         term_with_attrs
-          prefix err_status rev_path ["EmptyHole", "hole-instance"] attrs r
+          prefix
+          err_status
+          rev_path
+          ["EmptyHole", "hole-instance", "selected-instance", inst_cls]
+          attrs
+          r
       | NonEmptyHole u i sigma d1 =>
         let rev_path1 = [0, ...rev_path];
         let r1 =

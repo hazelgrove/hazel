@@ -381,7 +381,6 @@ html, body {
 
 .instance-info {
   padding: 5px;
-  padding-top: 0px;
   display: flex;
   align-items: center;
   font-size: 10pt;
@@ -623,10 +622,26 @@ button:disabled {
 }
 
 .hole-instance {
+  border-left: 1px solid rgba(0, 0, 0, 0);
+  border-right: 1px solid rgba(0, 0, 0, 0);
+  border-top: 1px solid rgba(0, 0, 0, 0);
+  margin-left: -1px;
+  margin-right: -1px;
   cursor: pointer;
 }
 
+.path-instance {
+  border: 1px dashed #a040a0;
+}
+
+.selected-instance {
+  border: 1px solid #a040a0;
+}
+
 .hole-instance:hover {
+  border-left: 1px solid #a040a0;
+  border-right: 1px solid #a040a0;
+  border-top: 1px solid #a040a0;
 }
 
 .Hole {
