@@ -642,6 +642,7 @@ button:disabled {
   border-left: 1px solid #a040a0;
   border-right: 1px solid #a040a0;
   border-top: 1px solid #a040a0;
+  border-bottom: 1px solid #a040a0;
 }
 
 .Hole {

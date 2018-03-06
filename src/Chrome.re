@@ -132,7 +132,7 @@ let view (model: Model.t) => {
       Js.Opt.get (Dom.CoerceTo.text node) (fun () => assert false);
     text_node##.length
   };
-  let suppress: ref int = ref 0;
+  /* let suppress: ref int = ref 0; */
   let move_cursor_before node => {
     let cursor_leaf = first_leaf node;
     /* JSUtil.log "moving_cursor_before "; */
@@ -156,12 +156,16 @@ let view (model: Model.t) => {
     selection##removeAllRanges;
     selection##addRange range
   };
-  let move_cursor_before_suppress node =>
-    /* suppress := !suppress + 2; */
+  let move_cursor_before_suppress node => {
     move_cursor_before node;
-  let move_cursor_after_suppress node =>
-    /* suppress := !suppress + 2; */
+    /* suppress := !suppress + 2 */
+    true
+  };
+  let move_cursor_after_suppress node => {
     move_cursor_after node;
+    /* suppress := !suppress + 2 */
+    true
+  };
   let set_cursor_to (cursor_path, cursor_side) => {
     let id = View.id_of_rev_path prefix (List.rev cursor_path);
     let cursor_elem = JSUtil.forceGetElementById id;
@@ -296,7 +300,7 @@ let view (model: Model.t) => {
   };
   let has_class classList cls =>
     Js.to_bool (classList##contains (Js.string cls));
-  let do_transport () => {
+  let do_transport () :bool => {
     let selection = Dom_html.window##getSelection;
     /* JSUtil.log selection; */
     let anchor = selection##.anchorNode;
@@ -327,9 +331,9 @@ let view (model: Model.t) => {
           | Some grandparent =>
             switch (Js.Opt.to_option grandparent##.lastChild) {
             | Some lastChild => move_cursor_after_suppress lastChild
-            | None => ()
+            | None => false
             }
-          | None => ()
+          | None => false
           }
         } else if (
           anchorOffset == 2
@@ -339,10 +343,12 @@ let view (model: Model.t) => {
           | Some grandparent =>
             switch (Js.Opt.to_option grandparent##.firstChild) {
             | Some firstChild => move_cursor_before_suppress firstChild
-            | None => ()
+            | None => false
             }
-          | None => ()
+          | None => false
           }
+        } else {
+          false
         }
       } else if (
         has_class "op-before-1"
@@ -354,9 +360,9 @@ let view (model: Model.t) => {
           | Some grandparent =>
             switch (Js.Opt.to_option grandparent##.nextSibling) {
             | Some sibling => move_cursor_before_suppress sibling
-            | None => ()
+            | None => false
             }
-          | None => ()
+          | None => false
           }
         } else if (
           anchorOffset == 2
@@ -366,10 +372,12 @@ let view (model: Model.t) => {
           | Some grandparent =>
             switch (Js.Opt.to_option grandparent##.previousSibling) {
             | Some sibling => move_cursor_after_suppress sibling
-            | None => ()
+            | None => false
             }
-          | None => ()
+          | None => false
           }
+        } else {
+          false
         }
       } else if (
         has_class "holeName"
@@ -380,18 +388,18 @@ let view (model: Model.t) => {
           | Some grandparent =>
             switch (Js.Opt.to_option grandparent##.firstChild) {
             | Some firstChild => move_cursor_before_suppress firstChild
-            | None => ()
+            | None => false
             }
-          | None => ()
+          | None => false
           }
         } else {
           switch (Js.Opt.to_option parent_elem##.parentNode) {
           | Some grandparent =>
             switch (Js.Opt.to_option grandparent##.lastChild) {
             | Some lastChild => move_cursor_after_suppress lastChild
-            | None => ()
+            | None => false
             }
-          | None => ()
+          | None => false
           }
         }
       } else if (
@@ -404,9 +412,9 @@ let view (model: Model.t) => {
           | Some grandparent =>
             switch (Js.Opt.to_option grandparent##.previousSibling) {
             | Some sibling => move_cursor_after_suppress sibling
-            | None => ()
+            | None => false
             }
-          | None => ()
+          | None => false
           }
         } else {
           /* clicked after the + */
@@ -414,9 +422,9 @@ let view (model: Model.t) => {
           | Some grandparent =>
             switch (Js.Opt.to_option grandparent##.nextSibling) {
             | Some sibling => move_cursor_before_suppress sibling
-            | None => ()
+            | None => false
             }
-          | None => ()
+          | None => false
           }
         }
       } else if (
@@ -426,9 +434,9 @@ let view (model: Model.t) => {
         | Some grandparent =>
           switch (Js.Opt.to_option grandparent##.firstChild) {
           | Some firstChild => move_cursor_before_suppress firstChild
-          | None => ()
+          | None => false
           }
-        | None => ()
+        | None => false
         }
       } else if (
         has_class "op-before-2" || has_class "op-after-1"
@@ -437,9 +445,9 @@ let view (model: Model.t) => {
         | Some grandparent =>
           switch (Js.Opt.to_option grandparent##.previousSibling) {
           | Some sibling => move_cursor_after_suppress sibling
-          | None => ()
+          | None => false
           }
-        | None => ()
+        | None => false
         }
       } else if (
         has_class "op-after-2"
@@ -450,18 +458,18 @@ let view (model: Model.t) => {
           | Some grandparent =>
             switch (Js.Opt.to_option grandparent##.previousSibling) {
             | Some sibling => move_cursor_after_suppress sibling
-            | None => ()
+            | None => false
             }
-          | None => ()
+          | None => false
           }
         } else {
           switch (Js.Opt.to_option parent_elem##.parentNode) {
           | Some grandparent =>
             switch (Js.Opt.to_option grandparent##.nextSibling) {
             | Some sibling => move_cursor_before_suppress sibling
-            | None => ()
+            | None => false
             }
-          | None => ()
+          | None => false
           }
         }
       } else if (
@@ -471,8 +479,10 @@ let view (model: Model.t) => {
         if (anchorOffset == 1) {
           switch (Js.Opt.to_option parent_elem##.nextSibling) {
           | Some sibling => move_cursor_before_suppress sibling
-          | None => ()
+          | None => false
           }
+        } else {
+          false
         }
       } else if (
         has_class "op-no-margin"
@@ -483,15 +493,15 @@ let view (model: Model.t) => {
           if (anchorOffset == 0) {
             switch (Js.Opt.to_option grandparent##.previousSibling) {
             | Some sibling => move_cursor_after_suppress sibling
-            | None => ()
+            | None => false
             }
           } else {
             switch (Js.Opt.to_option grandparent##.nextSibling) {
             | Some sibling => move_cursor_before_suppress sibling
-            | None => ()
+            | None => false
             }
           }
-        | None => ()
+        | None => false
         }
       } else if (
         has_class "lambda-dot" || has_class "openParens" || has_class "space"
@@ -500,8 +510,10 @@ let view (model: Model.t) => {
         if (anchorOffset == 1) {
           switch (Js.Opt.to_option parent_elem##.nextSibling) {
           | Some sibling => move_cursor_before_suppress sibling
-          | None => ()
+          | None => false
           }
+        } else {
+          false
         }
       } else if (
         has_class "closeParens"
@@ -510,11 +522,15 @@ let view (model: Model.t) => {
         if (anchorOffset == 0) {
           switch (Js.Opt.to_option parent_elem##.previousSibling) {
           | Some sibling => move_cursor_after_suppress sibling
-          | None => ()
+          | None => false
           }
+        } else {
+          false
         }
+      } else {
+        false
       }
-    | None => ()
+    | None => false
     }
   };
   let get_anchor_elem (anchor: Js.t Dom.node) =>
@@ -669,20 +685,26 @@ let view (model: Model.t) => {
       (Dom.Event.make "selectionchange")
       Dom_html.document
       (
-        fun evt =>
-          if (!suppress > 0) {
-            /* this doesn't do anything yet but eventually need to figure out how to stop triggering this listener three times per transport */
-            suppress :=
-              !suppress - 1
-          } else {
-            /* get effective anchor node (where selection began) */
-            let selection = Dom_html.window##getSelection;
-            let anchorNode = selection##.anchorNode;
-            if (JSUtil.div_contains_node pp_view_dom anchorNode) {
-              let (anchor, anchorOffset) =
-                fix_anchor selection selection##.anchorNode;
-              /* transport */
-              do_transport ();
+        fun evt => {
+          /* if (!suppress > 0) {
+               /* this doesn't do anything yet but eventually need to figure out how to stop triggering this listener  */
+               suppress := !suppress - 1;
+               /* JSUtil.log "suppressed" */
+             } else { */
+          /* get effective anchor node (where selection began) */
+          /* JSUtil.log "selection changed"; */
+          let selection = Dom_html.window##getSelection;
+          let anchorNode = selection##.anchorNode;
+          if (JSUtil.div_contains_node pp_view_dom anchorNode) {
+            let (anchor, anchorOffset) =
+              fix_anchor selection selection##.anchorNode;
+            /* transport */
+            let did_transport = do_transport ();
+            if did_transport {
+              /* JSUtil.log "did transport"; */
+              ()
+            } else {
+              /* JSUtil.log "headed move-a-way"; */
               /* get current paths hash table */
               let rev_paths = React.S.value rev_paths_rs;
               /* traverse up the DOM until we find an element with an id in the paths table */
@@ -719,6 +741,8 @@ let view (model: Model.t) => {
               ()
             }
           }
+          /* } */
+        }
       );
   /* type view */
   let htype_rs =
