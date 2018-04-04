@@ -28,7 +28,7 @@
 %token TYPE_ARROW
 %token EOF
 
-%start <Semantics.Core.HExp.t> parse_hexp
+%start <Semantics.Core.UHExp.t> parse_uhexp
 
 %%
 
@@ -62,9 +62,9 @@ opseqtyp:
 
 tyop:
   | TYPE_ARROW
-    { UHExp.Arrow }
+    { UHTyp.Arrow }
   | BAR
-    { UHExp.Sum }
+    { UHTyp.Sum }
   ;
 
 uhexp:
