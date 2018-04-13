@@ -39,7 +39,7 @@ parse_uhexp:
 uhtyp:
   | t = bidelim_typ
     { t }
-  | os = opseqtyp
+  | os = ty_opseq
     { UHTyp.OpSeq(Associator.associate_ty os, os) }
   ;
 
@@ -52,12 +52,11 @@ bidelim_typ:
     { UHTyp.Hole }
   ;
 
-opseqtyp:
+ty_opseq:
   | t1 = bidelim_typ; o = tyop; t2 = bidelim_typ
     { OperatorSeq.ExpOpExp(t1, o, t2) }
-  (* TODO: inefficient - should use left recursion then reverse the result *)
-  | t = bidelim_typ; o = tyop; os = opseqtyp
-    { OperatorSeq.exp_op_seq t o os }
+  | os = ty_opseq; o = tyop; t = bidelim_typ
+    { OperatorSeq.SeqOpExp(os, o, t) }
   ;
 
 tyop:
@@ -68,33 +67,43 @@ tyop:
   ;
 
 uhexp:
+  | e = left_delim_exp
+  | e = asc_exp
+  | e = opseq_exp
   | e = bidelim_exp
-  | e = norm_exp
     { e }
   ;
 
-non_paren_exp(T):
+nonparen_exp(T):
   | e = T
     { UHExp.Tm(NotInHole, e) }
   | LCBRACE; n = NATURAL; BAR; e = T; RCBRACE
     { UHExp.Tm(InHole(n), e) }
   ;
 
-norm_exp:
-  | e = non_paren_exp(norm_term)
+left_delim_exp:
+  | e = nonparen_exp(left_delim_term)
+    { e }
+  ;
+
+asc_exp:
+  | e = nonparen_exp(asc_term)
+    { e }
+  ;
+
+opseq_exp:
+  | e = nonparen_exp(opseq_term)
     { e }
   ;
 
 bidelim_exp:
-  | e = non_paren_exp(bidelim_term)
+  | e = nonparen_exp(bidelim_term)
     { e }
   | LPAREN; e = uhexp; RPAREN
     { UHExp.Parenthesized(e) }
   ;
 
-norm_term:
-  | e = bidelim_exp; COLON; t = uhtyp
-    { UHExp.Asc(e, t) }
+left_delim_term:
   | LET; v = ID; EQUAL; e1 = uhexp; IN; e2 = uhexp
     { UHExp.Let(v, e1, e2) }
   | LAMBDA; v = ID; DOT; e = uhexp
@@ -103,25 +112,16 @@ norm_term:
     LEFT; LPAREN; vL = ID; RPAREN; CASE_ARROW; eL = uhexp;
     RIGHT; LPAREN; vR = ID; RPAREN; CASE_ARROW; eR = uhexp
     { UHExp.Case(e, (vL, eL), (vR, eR)) }
-  | os = opseqterm
+  ;
+
+asc_term:
+  | e = bidelim_or_parenthesize_exp(asc_exp); COLON; t = uhtyp
+    { UHExp.Asc(e, t) }
+  ;
+
+opseq_term:
+  | os = exp_opseq
     { UHExp.OpSeq(Associator.associate_exp os, os) }
-  ;
-
-opseqterm:
-  | e1 = bidelim_exp; o = expop; e2 = bidelim_exp
-    { OperatorSeq.ExpOpExp(e1, o, e2) }
-  (* TODO: inefficient - should use left recursion then reverse the result *)
-  | e = bidelim_exp; o = expop; os = opseqterm
-    { OperatorSeq.exp_op_seq e o os }
-  ;
-
-expop:
-  | PLUS
-    { UHExp.Plus }
-  | TIMES
-    { UHExp.Times }
-  |
-    { UHExp.Space }
   ;
 
 bidelim_term:
@@ -133,6 +133,44 @@ bidelim_term:
     { UHExp.Inj(s, e) }
   | LCBRACE; n = NATURAL; RCBRACE
     { UHExp.EmptyHole n }
+  ;
+
+exp_opseq:
+  | os = exp_opseq_rec
+  | os = exp_opseq_ending_in(parenthesize_exp(left_delim_exp))
+    { os }
+  ;
+
+exp_opseq_rec:
+  | os = exp_opseq_ending_in(bidelim_or_parenthesize_exp(asc_exp))
+    { os }
+  ;
+
+exp_opseq_ending_in(E):
+  | e1 = bidelim_or_parenthesize_exp(asc_exp); o = expop; e2 = E
+    { OperatorSeq.ExpOpExp(e1, o, e2) }
+  | os = exp_opseq_rec; o = expop; e = E
+    { OperatorSeq.SeqOpExp(os, o, e) }
+  ;
+
+bidelim_or_parenthesize_exp(E):
+  | e = bidelim_exp
+  | e = parenthesize_exp(E)
+    { e }
+  ;
+
+parenthesize_exp(E):
+  | e = E
+    { UHExp.Parenthesized(e) }
+  ;
+
+expop:
+  | PLUS
+    { UHExp.Plus }
+  | TIMES
+    { UHExp.Times }
+  |
+    { UHExp.Space }
   ;
 
 left_or_right:
