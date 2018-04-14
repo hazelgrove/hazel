@@ -77,8 +77,6 @@ uhexp:
 nonparen_exp(T):
   | e = T
     { UHExp.Tm(NotInHole, e) }
-  | LCBRACE; n = NATURAL; BAR; e = T; RCBRACE
-    { UHExp.Tm(InHole(n), e) }
   ;
 
 left_delim_exp:
