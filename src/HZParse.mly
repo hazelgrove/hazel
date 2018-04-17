@@ -129,8 +129,8 @@ bidelim_term:
     { UHExp.NumLit n }
   | INJECT; LBRACKET; s = left_or_right; RBRACKET; LPAREN; e = uhexp; RPAREN
     { UHExp.Inj(s, e) }
-  | LCBRACE; n = NATURAL; RCBRACE
-    { UHExp.EmptyHole n }
+  | LCBRACE; RCBRACE
+    { UHExp.EmptyHole(0) }
   ;
 
 exp_opseq:
