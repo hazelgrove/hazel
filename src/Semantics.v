@@ -1052,10 +1052,11 @@ Module Core.
         end
         end.
 
-    Fixpoint syn_fix_holes
+    Fixpoint syn_fix_holes_internal'
       (fuel : Fuel.t)
       (ctx : Ctx.t)
       (u_gen : MetaVar.gen)
+      (should_renumber_empty_holes : bool)
       (e : t)
       : option(t * HTyp.t * MetaVar.gen) := 
         match fuel with 
@@ -1063,13 +1064,13 @@ Module Core.
         | Fuel.More fuel => 
         match e with 
         | Tm _ e' => 
-          match syn_fix_holes' fuel ctx u_gen e' with 
+          match syn_fix_holes' fuel ctx u_gen should_renumber_empty_holes e' with 
           | Some (e'', ty, u_gen') => 
             Some (Tm NotInHole e'', ty, u_gen')
           | None => None
           end
         | Parenthesized e1 => 
-          match syn_fix_holes fuel ctx u_gen e1 with 
+          match syn_fix_holes_internal' fuel ctx u_gen should_renumber_empty_holes e1 with 
           | Some (e1', ty, u_gen') => 
             Some (Parenthesized e1', ty, u_gen')
           | None => None
@@ -1080,6 +1081,7 @@ Module Core.
       (fuel : Fuel.t)
       (ctx : Ctx.t)
       (u_gen : MetaVar.gen)
+      (should_renumber_empty_holes : bool)
       (e : t')
       : option(t' * HTyp.t * MetaVar.gen) := 
         match fuel with 
@@ -1089,7 +1091,7 @@ Module Core.
         | Asc e1 uty => 
           if is_bidelimited e1 then 
             let ty := UHTyp.expand fuel uty in 
-            match ana_fix_holes fuel ctx u_gen e1 ty with 
+            match ana_fix_holes_internal' fuel ctx u_gen should_renumber_empty_holes e1 ty with 
             | Some (e1', u_gen') => Some (Asc e1' uty, ty, u_gen')
             | None => None
             end
@@ -1102,17 +1104,17 @@ Module Core.
         | Lam x e1 => 
           let ctx' := VarMap.extend ctx (x, HTyp.Hole) in 
           Var.check_valid x
-          match syn_fix_holes fuel ctx' u_gen e1 with 
+          match syn_fix_holes_internal' fuel ctx' u_gen should_renumber_empty_holes e1 with 
           | Some (e1', ty2, u_gen') => 
             Some (Lam x e1', HTyp.Arrow HTyp.Hole ty2, u_gen')
           | None => None
           end
         | Let x e1 e2 => 
           Var.check_valid x
-          match syn_fix_holes fuel ctx u_gen e1 with 
+          match syn_fix_holes_internal' fuel ctx u_gen should_renumber_empty_holes e1 with 
           | Some (e1', ty1, u_gen1) => 
             let ctx1 := VarMap.extend ctx (x, ty1) in 
-            match syn_fix_holes fuel ctx1 u_gen1 e2 with 
+            match syn_fix_holes_internal' fuel ctx1 u_gen1 should_renumber_empty_holes e2 with 
             | Some (e2', ty2, u_gen2) => 
               Some (Let x e1' e2', ty2, u_gen2)
             | None => None
@@ -1120,15 +1122,20 @@ Module Core.
           | None => None
           end
         | NumLit i => Some (e, HTyp.Num, u_gen)
-        | EmptyHole u => Some (e, HTyp.Hole, u_gen)
+        | EmptyHole u =>
+          if should_renumber_empty_holes then
+            let (u', u_gen'') := MetaVar.next u_gen in 
+            Some (EmptyHole u', HTyp.Hole, u_gen'')
+          else
+            Some (EmptyHole u, HTyp.Hole, u_gen)
         | OpSeq skel seq => 
-          match syn_skel_fix_holes fuel ctx u_gen skel seq with 
+          match syn_skel_fix_holes_internal' fuel ctx u_gen should_renumber_empty_holes skel seq with 
           | Some (skel', seq', ty, u_gen') => 
             Some (OpSeq skel' seq', ty, u_gen')
           | None => None
           end
         | Inj side e1 => 
-          match syn_fix_holes fuel ctx u_gen e1 with 
+          match syn_fix_holes_internal' fuel ctx u_gen should_renumber_empty_holes e1 with 
           | Some (e1', ty1, u_gen') => 
             let e' := Inj side e1' in 
             let ty' := 
@@ -1142,10 +1149,11 @@ Module Core.
         | Case _ _ _ => None
         end
         end
-    with ana_fix_holes
+    with ana_fix_holes_internal'
       (fuel : Fuel.t)
       (ctx : Ctx.t)
       (u_gen : MetaVar.gen)
+      (should_renumber_empty_holes : bool)
       (e : t)
       (ty : HTyp.t)
       : option(t * MetaVar.gen) := 
@@ -1154,13 +1162,13 @@ Module Core.
         | Fuel.More fuel => 
         match e with 
         | Tm _ e1 => 
-          match ana_fix_holes' fuel ctx u_gen e1 ty with 
+          match ana_fix_holes' fuel ctx u_gen should_renumber_empty_holes e1 ty with 
           | Some (err_status, e1', u_gen') => 
             Some (Tm err_status e1', u_gen')
           | None => None
           end
         | Parenthesized e1 => 
-          match ana_fix_holes fuel ctx u_gen e1 ty with 
+          match ana_fix_holes_internal' fuel ctx u_gen should_renumber_empty_holes e1 ty with 
           | Some (e1', u_gen') => 
             Some (Parenthesized e1', u_gen')
           | None => None
@@ -1168,7 +1176,7 @@ Module Core.
         end
         end
     with ana_fix_holes'
-      (fuel : Fuel.t) (ctx : Ctx.t) (u_gen : MetaVar.gen)
+      (fuel : Fuel.t) (ctx : Ctx.t) (u_gen : MetaVar.gen) (should_renumber_empty_holes : bool)
       (e : t') (ty : HTyp.t)
       : option(err_status * t' * MetaVar.gen) := 
         match fuel with 
@@ -1177,10 +1185,10 @@ Module Core.
         match e with 
         | Let x e1 e2 => 
           Var.check_valid x
-          match syn_fix_holes fuel ctx u_gen e1 with 
+          match syn_fix_holes_internal' fuel ctx u_gen should_renumber_empty_holes e1 with 
           | Some (e1', ty1, u_gen1) => 
             let ctx1 := VarMap.extend ctx (x, ty1) in 
-            match ana_fix_holes fuel ctx1 u_gen1 e2 ty with 
+            match ana_fix_holes_internal' fuel ctx1 u_gen1 should_renumber_empty_holes e2 ty with 
             | Some (e2', u_gen2) => 
               Some (NotInHole, Let x e1' e2', u_gen2)
             | None => None
@@ -1192,13 +1200,13 @@ Module Core.
           match HTyp.matched_arrow ty with 
           | Some (ty1, ty2) => 
             let ctx' := VarMap.extend ctx (x, ty1) in 
-            match ana_fix_holes fuel ctx' u_gen e1 ty2 with 
+            match ana_fix_holes_internal' fuel ctx' u_gen should_renumber_empty_holes e1 ty2 with 
             | Some (e1', u_gen') => 
               Some (NotInHole, Lam x e1', u_gen')
             | None => None
             end
           | None => 
-            match syn_fix_holes' fuel ctx u_gen e with 
+            match syn_fix_holes' fuel ctx u_gen should_renumber_empty_holes e with 
             | Some (e', ty', u_gen') => 
               if HTyp.consistent ty ty' then 
                 Some (NotInHole, e', u_gen')
@@ -1211,13 +1219,13 @@ Module Core.
         | Inj side e1 => 
           match HTyp.matched_sum ty with 
           | Some (ty1, ty2) => 
-            match ana_fix_holes fuel ctx u_gen e1 (pick_side side ty1 ty2) with 
+            match ana_fix_holes_internal' fuel ctx u_gen should_renumber_empty_holes e1 (pick_side side ty1 ty2) with 
             | Some (e1', u_gen') => 
               Some (NotInHole, Inj side e1', u_gen')
             | None => None
             end
           | None => 
-            match syn_fix_holes' fuel ctx u_gen e with 
+            match syn_fix_holes' fuel ctx u_gen should_renumber_empty_holes e with 
             | Some (e', ty', u_gen') => 
               if HTyp.consistent ty ty' then 
                 Some (NotInHole, e', u_gen')
@@ -1229,7 +1237,7 @@ Module Core.
           end
         | Case e1 (x, e2) (y, e3) => 
           Var.check_both_valid x y
-          match syn_fix_holes fuel ctx u_gen e1 with 
+          match syn_fix_holes_internal' fuel ctx u_gen should_renumber_empty_holes e1 with 
           | Some (e1', ty1, u_gen1) => 
             match 
               match HTyp.matched_sum ty1 with 
@@ -1241,10 +1249,10 @@ Module Core.
               end with 
             | (e1', u_gen1, ty2, ty3) => 
               let ctx2 := VarMap.extend ctx (x, ty2) in 
-              match ana_fix_holes fuel ctx2 u_gen1 e2 ty with 
+              match ana_fix_holes_internal' fuel ctx2 u_gen1 should_renumber_empty_holes e2 ty with 
               | Some (e2', u_gen2) => 
                 let ctx3 := VarMap.extend ctx (y, ty3) in 
-                match ana_fix_holes fuel ctx3 u_gen2 e3 ty with 
+                match ana_fix_holes_internal' fuel ctx3 u_gen2 should_renumber_empty_holes e3 ty with 
                 | Some (e3', u_gen3) => 
                   Some (
                     NotInHole, 
@@ -1262,7 +1270,7 @@ Module Core.
         | NumLit _ 
         | EmptyHole _ 
         | OpSeq _ _ => 
-          match syn_fix_holes' fuel ctx u_gen e with 
+          match syn_fix_holes' fuel ctx u_gen should_renumber_empty_holes e with 
           | Some (e', ty', u_gen') => 
             if HTyp.consistent ty ty' then 
               Some (NotInHole, e', u_gen')
@@ -1273,10 +1281,11 @@ Module Core.
           end
         end
         end
-    with syn_skel_fix_holes
+    with syn_skel_fix_holes_internal'
       (fuel : Fuel.t)
       (ctx : Ctx.t)
       (u_gen : MetaVar.gen)
+      (should_renumber_empty_holes : bool)
       (skel : skel_t)
       (seq : opseq)
       : option(skel_t * opseq * HTyp.t * MetaVar.gen) := 
@@ -1288,7 +1297,7 @@ Module Core.
           match OperatorSeq.seq_nth n seq with
           | Some en => 
             if is_bidelimited en then 
-              match syn_fix_holes fuel ctx u_gen en with 
+              match syn_fix_holes_internal' fuel ctx u_gen should_renumber_empty_holes en with 
               | Some (en', ty, u_gen') => 
                 match OperatorSeq.seq_update_nth n seq en' with
                 | Some seq' => 
@@ -1302,9 +1311,9 @@ Module Core.
           end
         | Skel.BinOp _ (Plus as op) skel1 skel2 
         | Skel.BinOp _ (Times as op) skel1 skel2 => 
-          match ana_skel_fix_holes fuel ctx u_gen skel1 seq HTyp.Num with 
+          match ana_skel_fix_holes_internal' fuel ctx u_gen skel1 should_renumber_empty_holes seq HTyp.Num with 
           | Some (skel1', seq1, u_gen1) => 
-            match ana_skel_fix_holes fuel ctx u_gen1 skel2 seq1 HTyp.Num with 
+            match ana_skel_fix_holes_internal' fuel ctx u_gen1 skel2 should_renumber_empty_holes seq1 HTyp.Num with 
             | Some (skel2', seq2, u_gen2) => 
               Some (Skel.BinOp NotInHole op skel1' skel2', seq2, HTyp.Num, u_gen2)
             | None => None
@@ -1312,17 +1321,17 @@ Module Core.
           | None => None
           end
         | Skel.BinOp _ Space skel1 skel2 => 
-          match syn_skel_fix_holes fuel ctx u_gen skel1 seq with 
+          match syn_skel_fix_holes_internal' fuel ctx u_gen should_renumber_empty_holes skel1 seq with 
           | Some (skel1', seq1, ty1, u_gen1) => 
             match HTyp.matched_arrow ty1 with 
             | Some (ty2, ty) => 
-              match ana_skel_fix_holes fuel ctx u_gen1 skel2 seq1 ty2 with 
+              match ana_skel_fix_holes_internal' fuel ctx u_gen1 skel2 should_renumber_empty_holes seq1 ty2 with 
               | Some (skel2', seq2, u_gen2) => 
                 Some (Skel.BinOp NotInHole Space skel1' skel2', seq2, ty, u_gen2)
               | None => None
               end
             | None =>
-              match ana_skel_fix_holes fuel ctx u_gen1 skel2 seq1 HTyp.Hole with 
+              match ana_skel_fix_holes_internal' fuel ctx u_gen1 skel2 should_renumber_empty_holes seq1 HTyp.Hole with 
               | Some (skel2', seq2, u_gen2) => 
                 match UHExp.put_skel_in_new_hole u_gen2 skel1' seq2 with 
                 | Some (skel1'', seq3, u_gen3) => 
@@ -1336,11 +1345,12 @@ Module Core.
           end
         end
         end
-    with ana_skel_fix_holes
+    with ana_skel_fix_holes_internal'
       (fuel : Fuel.t)
       (ctx : Ctx.t)
       (u_gen : MetaVar.gen)
       (skel : skel_t)
+      (should_renumber_empty_holes : bool)
       (seq : opseq)
       (ty : HTyp.t)
       : option(skel_t * opseq * MetaVar.gen) := 
@@ -1352,7 +1362,7 @@ Module Core.
             match OperatorSeq.seq_nth n seq with
             | Some en => 
               if is_bidelimited en then 
-                match ana_fix_holes fuel ctx u_gen en ty with 
+                match ana_fix_holes_internal' fuel ctx u_gen should_renumber_empty_holes en ty with 
                 | Some (en', u_gen') => 
                   match OperatorSeq.seq_update_nth n seq en' with 
                   | Some seq' => Some (skel, seq', u_gen')
@@ -1364,7 +1374,7 @@ Module Core.
             | None => None
             end
           | _ => 
-            match syn_skel_fix_holes fuel ctx u_gen skel seq with 
+            match syn_skel_fix_holes_internal' fuel ctx u_gen should_renumber_empty_holes skel seq with 
             | Some (skel', seq', ty', u_gen') => 
               if HTyp.consistent ty ty' then Some (skel', seq', u_gen')
               else 
@@ -1373,6 +1383,38 @@ Module Core.
             end
           end
         end.
+
+    Definition syn_fix_holes
+      (fuel : Fuel.t)
+      (ctx : Ctx.t)
+      (u_gen : MetaVar.gen)
+      (e : t)
+      : option(t * HTyp.t * MetaVar.gen) := 
+      syn_fix_holes_internal' fuel ctx u_gen false e.
+
+    Definition ana_fix_holes
+      (fuel : Fuel.t)
+      (ctx : Ctx.t)
+      (u_gen : MetaVar.gen)
+      (e : t)
+      (ty : HTyp.t)
+      : option(t * MetaVar.gen) := 
+      ana_fix_holes_internal' fuel ctx u_gen false e ty.
+
+    Definition syn_skel_fix_holes
+      (fuel : Fuel.t)
+      (ctx : Ctx.t)
+      (u_gen : MetaVar.gen)
+      (skel : skel_t)
+      (seq : opseq)
+      : option(skel_t * opseq * HTyp.t * MetaVar.gen) := 
+      syn_skel_fix_holes_internal' fuel ctx u_gen false skel seq.
+
+    Definition fix_and_renumber_holes
+      (fuel : Fuel.t)
+      (e : t)
+      : option(t * HTyp.t * MetaVar.gen) := 
+      syn_fix_holes_internal' fuel Ctx.empty MetaVar.new_gen true e.
   End UHExp.
 
   Inductive cursor_side : Type := 
