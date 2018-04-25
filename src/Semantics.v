@@ -1410,6 +1410,7 @@ Module Core.
       : option(skel_t * opseq * HTyp.t * MetaVar.gen) := 
       syn_skel_fix_holes_internal' fuel ctx u_gen false skel seq.
 
+    (* Only to be used on top-level expressions, as it starts hole renumbering at 0 *)
     Definition fix_and_renumber_holes
       (fuel : Fuel.t)
       (e : t)
