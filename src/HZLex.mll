@@ -2,6 +2,8 @@
   open HZParse
 }
 
+(* TODO: find a way to have the token literals depend on LangUtil.re *)
+
 let space = [' ' '\t' '\r' '\n']
 let whitespace = space+
 let digit = ['0'-'9']
