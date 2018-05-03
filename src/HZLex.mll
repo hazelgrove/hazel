@@ -39,3 +39,4 @@ rule read =
   | natural { NATURAL (int_of_string (Lexing.lexeme lexbuf)) }
   | id { ID (Lexing.lexeme lexbuf) }
   | eof { EOF }
+  | _ {raise (LangUtil.InvalidSyntax ("Unexpected char: " ^ Lexing.lexeme lexbuf))}
