@@ -24,6 +24,8 @@ Hazel.byte: \
 	SkelExprParser.mly \
 	SkelTypLexer.mll \
 	SkelTypParser.mly \
+	Transpile.re \
+	Transpile.rei \
 	HZLex.mll \
 	HZParse.mly
 	scripts/refmt.sh
