@@ -3,7 +3,7 @@
 Hazel is a structure editor rooted in the principles of type theory. It is 
 based on Hazelnut, a structure editor calculus described in our paper at
 POPL 2017, and is the primary artifact of the research vision outlined in 
-our paper at SNAPL 2017. You can find these papers at [the Hazel Grove website](http://www.hazelgrove.org/).
+our paper at SNAPL 2017. You can find these papers at [the Hazel website](http://www.hazel.org/).
 
 # Building Hazel
 You can build Hazel using the following instructions.
