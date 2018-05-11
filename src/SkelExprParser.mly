@@ -1,4 +1,7 @@
 (* associator parser definition (we use menhir) *)
+(* another approach would be to use, e.g., the shunting yard algorithm,
+ *   https://en.wikipedia.org/wiki/Shunting-yard_algorithm
+ * but this is easy and fast enough so far *)
 
 %{
   open Semantics.Core
