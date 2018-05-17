@@ -2266,8 +2266,6 @@ Module Core.
      * initially, there are no errors marked in the skel. *)
     Parameter associate_exp : UHExp.opseq -> UHExp.skel_t.
     Parameter associate_ty : UHTyp.opseq -> UHTyp.skel_t.
-    Parameter some_A : forall (A : Type), A -> option(A).
-    Parameter none_A : forall (A : Type), unit -> option(A).
   End ASSOCIATOR.
 
   Module FAction (Associator : ASSOCIATOR).
@@ -2328,7 +2326,7 @@ Module Core.
             ((ZTyp.CursorT Before uty0) as zty0)
             surround) => 
         match surround with 
-        | OperatorSeq.EmptyPrefix _ => Associator.none_A ZTyp.t tt
+        | OperatorSeq.EmptyPrefix _ => None
         | OperatorSeq.EmptySuffix prefix => 
           match prefix with 
           | OperatorSeq.ExpPrefix uty1 op1 => 
