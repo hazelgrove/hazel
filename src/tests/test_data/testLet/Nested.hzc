@@ -1,0 +1,3 @@
+let x = v1 in
+let y = v2 in
+x
