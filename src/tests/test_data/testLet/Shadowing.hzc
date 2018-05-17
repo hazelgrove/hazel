@@ -1,0 +1,3 @@
+let a = v in
+let a = a in
+a
