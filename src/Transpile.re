@@ -17,7 +17,7 @@ let ensure_well_typed_for_parsing uhexp =>
 
 let string_of_tyop op =>
   switch op {
-  | UHTyp.Arrow => "->"
+  | UHTyp.Arrow => typeArrowSym
   | UHTyp.Sum => "|"
   };
 
