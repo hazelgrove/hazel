@@ -1,7 +1,0 @@
-let vNum = {} : num in
-let _plus = (λn_.lambda n_2'.n_ : num+n_2' : num) : num→num→num in
-(let l001 = inj[L](_plus) : (num→num->num)|num in
-let r = (((inj[R](vNum))) : (num→num→num)|{}) in
-_plus 3 case l001
-L(l2) ⇒ l2 (l2 7 2*(6+3)+vNum*{}) 0
-R(r2) => r2 : {} : num)
