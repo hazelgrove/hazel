@@ -141,203 +141,6 @@ let (>:::%) group_name checks =>
     )
     checks;
 
-let thorough' = {
-  let numnumnum =
-    tyOpSeqOfEZOpTree UHTyp.(Op Arrow (V Num) (Op Arrow (V Num) (V Num)));
-  let longestOpSeq =
-    expOpSeqOfEZOpTree
-      UHExp.(
-        Op
-          Space
-          (
-            Op
-              Space
-              (V (nihVar "l2"))
-              (
-                V (
-                  Parenthesized (
-                    expOpSeqOfEZOpTree (
-                      Op
-                        Plus
-                        (
-                          Op
-                            Times
-                            (
-                              Op
-                                Space
-                                (
-                                  Op
-                                    Space
-                                    (V (nihVar "l2"))
-                                    (V (nih (NumLit 7)))
-                                )
-                                (V (nih (NumLit 2)))
-                            )
-                            (
-                              V (
-                                Parenthesized (
-                                  expOpSeqOfEZOpTree (
-                                    Op
-                                      Plus
-                                      (V (nih (NumLit 6)))
-                                      (V (nih (NumLit 3)))
-                                  )
-                                )
-                              )
-                            )
-                        )
-                        (Op Times (V (nihVar "vNum")) (V (nih (EmptyHole 11))))
-                    )
-                  )
-                )
-              )
-          )
-          (V (nih (NumLit 0)))
-      );
-  nih
-    UHExp.(
-      Let
-        "vNum"
-        (nih (Asc (nih (EmptyHole 10)) UHTyp.Num))
-        (
-          nih (
-            Let
-              "_plus"
-              (
-                nih (
-                  Asc
-                    (
-                      Parenthesized (
-                        nih (
-                          Lam
-                            "n_"
-                            (
-                              nih (
-                                Lam
-                                  "n_2'"
-                                  (
-                                    expOpSeqOfEZOpTree (
-                                      Op
-                                        Plus
-                                        (
-                                          V (
-                                            Parenthesized (
-                                              nih (Asc (nihVar "n_") UHTyp.Num)
-                                            )
-                                          )
-                                        )
-                                        (
-                                          V (
-                                            Parenthesized (
-                                              nih (
-                                                Asc (nihVar "n_2'") UHTyp.Num
-                                              )
-                                            )
-                                          )
-                                        )
-                                    )
-                                  )
-                              )
-                            )
-                        )
-                      )
-                    )
-                    numnumnum
-                )
-              )
-              (
-                Parenthesized (
-                  nih (
-                    Let
-                      "l001"
-                      (
-                        nih (
-                          Asc
-                            (nih (Inj L (nihVar "_plus")))
-                            (
-                              tyOpSeqOfEZOpTree
-                                UHTyp.(
-                                  Op Sum (V (Parenthesized numnumnum)) (V Num)
-                                )
-                            )
-                        )
-                      )
-                      (
-                        nih (
-                          Let
-                            "r"
-                            (
-                              Parenthesized (
-                                nih (
-                                  Asc
-                                    (
-                                      Parenthesized (
-                                        Parenthesized (
-                                          nih (Inj R (nihVar "vNum"))
-                                        )
-                                      )
-                                    )
-                                    (
-                                      tyOpSeqOfEZOpTree
-                                        UHTyp.(
-                                          Op
-                                            Sum
-                                            (V (Parenthesized numnumnum))
-                                            (V Hole)
-                                        )
-                                    )
-                                )
-                              )
-                            )
-                            (
-                              expOpSeqOfEZOpTree (
-                                Op
-                                  Space
-                                  (
-                                    Op
-                                      Space
-                                      (V (nihVar "_plus"))
-                                      (V (nih (NumLit 3)))
-                                  )
-                                  (
-                                    V (
-                                      Parenthesized (
-                                        nih (
-                                          Case
-                                            (nihVar "l001")
-                                            ("l2", longestOpSeq)
-                                            (
-                                              "r2",
-                                              nih (
-                                                Asc
-                                                  (
-                                                    Parenthesized (
-                                                      nih (
-                                                        Asc
-                                                          (nihVar "r2")
-                                                          UHTyp.Hole
-                                                      )
-                                                    )
-                                                  )
-                                                  UHTyp.Num
-                                              )
-                                            )
-                                        )
-                                      )
-                                    )
-                                  )
-                              )
-                            )
-                        )
-                      )
-                  )
-                )
-              )
-          )
-        )
-    )
-};
-
 
 /**
  * The test cases are layed out as such:
@@ -372,6 +175,43 @@ let tests = {
     nih UHExp.(Case var' ("l", nihVar "l") ("r", nihVar "r"));
   let basicLamUHExp = nih UHExp.(Lam "a" var');
   "Transpile tests" >::: [
+    "testAscParens" >:::% [
+      "AutoParens" |=>
+      nih
+        UHExp.(
+          UHTyp.(
+            Asc
+              (
+                Parenthesized (
+                  nih (Asc (Parenthesized (nih (Asc var' Num))) Hole)
+                )
+              )
+              Num
+          )
+        ) >=> "AutoParensOut",
+      "ExplicitParens" <=>
+      nih
+        UHExp.(
+          Asc
+            var'
+            UHTyp.(
+              tyOpSeqOfEZOpTree (
+                Op
+                  Arrow
+                  (V (Parenthesized Num))
+                  (
+                    V (
+                      Parenthesized (
+                        Parenthesized (
+                          tyOpSeqOfEZOpTree (Op Sum (V Hole) (V Hole))
+                        )
+                      )
+                    )
+                  )
+              )
+            )
+        )
+    ],
     "testAscHole" >:::% ["Basic" <=> nih UHExp.(Asc var' UHTyp.Hole)],
     "testAscNum" >:::% ["Basic" <=> nih UHExp.(Asc var' UHTyp.Num)],
     "testAscOpSeq" >:::% [
@@ -456,6 +296,11 @@ let tests = {
               "r",
               nih (Case (nihVar "r") ("rl", nihVar "rl") ("rr", nihVar "rr"))
             )
+        ),
+      "WithAsc" <=>
+      nih
+        UHExp.(
+          Case var' ("l", nihVar "l") ("r", nih (Asc (nihVar "r") UHTyp.Num))
         )
     ],
     "testEmptyHole" >:::% ["Basic" <=> nih UHExp.(EmptyHole 10)],
@@ -530,6 +375,94 @@ let tests = {
           Op Plus (V (varN' 1)) (Op Times (V (varN' 2)) (V (varN' 3)))
         )
       ),
+      "AutoParens" |=>
+      UHExp.(
+        expOpSeqOfEZOpTree (
+          Op
+            Plus
+            (V (Parenthesized (nih (Asc var' UHTyp.Num))))
+            (
+              V (
+                Parenthesized (
+                  nih (
+                    Let
+                      "x"
+                      var'
+                      (
+                        expOpSeqOfEZOpTree (
+                          Op
+                            Plus
+                            (V var')
+                            (
+                              V (
+                                Parenthesized (
+                                  Tm
+                                    (InHole 10)
+                                    (
+                                      Lam
+                                        "y"
+                                        (
+                                          expOpSeqOfEZOpTree (
+                                            Op
+                                              Plus
+                                              (V var')
+                                              (
+                                                V (
+                                                  Parenthesized (
+                                                    nih (
+                                                      Case
+                                                        var'
+                                                        ("l", nihVar "l")
+                                                        ("r", nihVar "r")
+                                                    )
+                                                  )
+                                                )
+                                              )
+                                          )
+                                        )
+                                    )
+                                )
+                              )
+                            )
+                        )
+                      )
+                  )
+                )
+              )
+            )
+        )
+      ) >=> "AutoParensOut",
+      "ExplicitParens" <=>
+      UHExp.(
+        Parenthesized (
+          Parenthesized (
+            expOpSeqOfEZOpTree (
+              Op
+                Plus
+                (
+                  Op
+                    Plus
+                    (Op Plus (V var') (V (nih (NumLit 1))))
+                    (V (Parenthesized (nih (NumLit 2))))
+                )
+                (
+                  Op
+                    Times
+                    (
+                      V (
+                        Parenthesized (
+                          Parenthesized (
+                            expOpSeqOfEZOpTree (Op Plus (V var') (V var'))
+                          )
+                        )
+                      )
+                    )
+                    (V var')
+                )
+            )
+          )
+        )
+      ),
       "Thorough" <=>
       UHExp.(
         expOpSeqOfEZOpTree (
@@ -565,7 +498,9 @@ let tests = {
         )
       )
     ],
-    "testThorough" >:::% ["Thorough" |=> thorough' >=> "ThoroughOut"],
-    "testVar" >:::% ["Basic" <=> var']
+    "testVar" >:::% ["Basic" <=> var'],
+    "testNonEmptyHoles" >:::% [
+      "Basic" <=> nih UHExp.(Asc (Tm (InHole 10) (Inj L var')) UHTyp.Num)
+    ]
   ]
 };
