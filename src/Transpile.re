@@ -1,8 +1,9 @@
 open Semantics.Core;
 
+open Format;
+
 open LangUtil;
 
-/* TODO: use Formatter's fancy box stuff for lines and indentation */
 let ensure_well_typed_for_serialization uhexp =>
   switch (UHExp.syn () Ctx.empty uhexp) {
   | None => raise (IllFormed uhexp)
@@ -17,90 +18,117 @@ let ensure_well_typed_for_parsing uhexp =>
 
 let string_of_tyop op =>
   switch op {
-  | UHTyp.Arrow => typeArrowSym
-  | UHTyp.Sum => "|"
+  | UHTyp.Arrow => " " ^ typeArrowSym
+  | UHTyp.Sum => " |"
   };
 
 let string_of_expop op =>
   switch op {
-  | UHExp.Plus => "+"
-  | UHExp.Times => "*"
-  | UHExp.Space => " "
+  | UHExp.Plus => " +"
+  | UHExp.Times => " *"
+  | UHExp.Space => ""
   };
 
-let hz_serialize fmtr uhexp => {
-  let print s => Format.pp_print_string fmtr s;
-  let printf fmt arg1 => Format.fprintf fmtr fmt arg1;
-  let printf2 fmt arg1 arg2 => Format.fprintf fmtr fmt arg1 arg2;
-  let print_int n => Format.pp_print_int fmtr n;
-  let rec print_opseq print_term print_op seq =>
+let hz_serialize ::fmtr=std_formatter ::line_length=100 ::indent=2 uhexp => {
+  pp_set_margin fmtr line_length;
+  let rec print_opseq' fmtr print_term string_of_op seq => {
+    let print_rest op tm2 =>
+      fprintf fmtr "%s@ %a" (string_of_op op) print_term tm2;
     switch seq {
     | OperatorSeq.ExpOpExp tm1 op tm2 =>
-      print_term tm1;
-      print_op op;
-      print_term tm2
+      print_term fmtr tm1;
+      print_rest op tm2
     | OperatorSeq.SeqOpExp seq' op tm2 =>
-      print_opseq print_term print_op seq';
-      print_op op;
-      print_term tm2
-    };
-  let rec print_htyp tau =>
+      print_opseq' fmtr print_term string_of_op seq';
+      print_rest op tm2
+    }
+  };
+  /* An opseq must either fit entirely on one line, or it will be broken up
+     into one term-op pair per line. */
+  let print_opseq fmtr print_term string_of_op seq =>
+    fprintf
+      fmtr
+      "@[<hv %d>%t@]"
+      indent
+      (fun fmtr => print_opseq' fmtr print_term string_of_op seq);
+  /* A compact style of parenthesization - the opening parenthesis and the
+     first term always share a line. */
+  let print_parenthesized fmtr print_value =>
+    fprintf fmtr "@[<hov %d>(%t@,)@]" indent print_value;
+  let rec print_htyp fmtr tau =>
     switch tau {
     | UHTyp.Parenthesized tau1 =>
-      print "(";
-      print_htyp tau1;
-      print ")"
-    | UHTyp.Num => print "num"
-    | UHTyp.Hole => print "{}"
-    | UHTyp.OpSeq skel seq =>
-      print_opseq print_htyp (GeneralUtil.compose print string_of_tyop) seq
+      print_parenthesized fmtr (fun fmtr => print_htyp fmtr tau1)
+    | UHTyp.Num => fprintf fmtr "num"
+    | UHTyp.Hole => fprintf fmtr "{}"
+    | UHTyp.OpSeq skel seq => print_opseq fmtr print_htyp string_of_tyop seq
     };
-  let rec print_uhexp e =>
+  let rec print_uhexp fmtr e =>
     switch e {
     | UHExp.Parenthesized e' =>
-      print "(";
-      print_uhexp e';
-      print ")"
+      print_parenthesized fmtr (fun fmtr => print_uhexp fmtr e')
     | UHExp.Tm _ tm =>
       switch tm {
       | UHExp.Asc e' tau =>
-        print_uhexp e';
-        print " : ";
-        print_htyp tau
-      | UHExp.Var x => print x
+        fprintf
+          fmtr "@[<hov %d>%a :@ %a@]" indent print_uhexp e' print_htyp tau
+      | UHExp.Var x => fprintf fmtr "%s" x
       | UHExp.Let x e1 e2 =>
-        printf "let %s = " x;
-        print_uhexp e1;
-        print " in\n";
-        print_uhexp e2
+        fprintf
+          fmtr
+          "@[<v>@[<hov %d>let %s =@ %a in@]@ %a@]"
+          indent
+          x
+          print_uhexp
+          e1
+          print_uhexp
+          e2
       | UHExp.Lam x e' =>
-        printf2 "%s%s." lamSym x;
-        print_uhexp e'
-      | UHExp.NumLit n => print_int n
+        fprintf fmtr "@[<hov %d>%s%s.@,%a@]" indent lamSym x print_uhexp e'
+      | UHExp.NumLit n => fprintf fmtr "%d" n
       | UHExp.Inj side e' =>
-        printf "inj[%s](" (string_of_side side);
-        print_uhexp e';
-        print ")"
+        /* In this case, the injected value might not be on the same line as the
+           opening parenthesis, and the closing parenthesis can have its own
+           line, which is less compact but which emphasizes the structure */
+        fprintf
+          fmtr
+          "@[<%d>inj[%s](@,%a@,)@]"
+          indent
+          (string_of_side side)
+          print_uhexp
+          e'
       | UHExp.Case e' (vL, eL) (vR, eR) =>
-        print "case ";
-        print_uhexp e';
-        printf2 "\nL(%s) %s " vL caseArrowSym;
-        print_uhexp eL;
-        printf2 "\nR(%s) %s " vR caseArrowSym;
-        print_uhexp eR
-      | UHExp.EmptyHole u => print "{}"
+        let print_side fmtr side_str side_v side_exp =>
+          fprintf
+            fmtr
+            "@[<hov %d>%s(%s) %s@ %a@]"
+            indent
+            side_str
+            side_v
+            caseArrowSym
+            print_uhexp
+            side_exp;
+        fprintf
+          fmtr
+          "@[<v>case %a@ %t@ %t@]"
+          print_uhexp
+          e'
+          (fun fmtr => print_side fmtr "L" vL eL)
+          (fun fmtr => print_side fmtr "R" vR eR)
+      | UHExp.EmptyHole u => fprintf fmtr "{}"
       | UHExp.OpSeq skel seq =>
-        print_opseq print_uhexp (GeneralUtil.compose print string_of_expop) seq
+        print_opseq fmtr print_uhexp string_of_expop seq
       }
     };
-  print_uhexp (ensure_well_typed_for_serialization uhexp)
+  print_uhexp fmtr (ensure_well_typed_for_serialization uhexp);
+  pp_print_newline fmtr ()
 };
 
 let string_of_uhexp hexp => {
   let buf = Buffer.create 32;
-  let fmtr = Format.formatter_of_buffer buf;
-  hz_serialize fmtr hexp;
-  Format.pp_print_flush fmtr ();
+  let fmtr = formatter_of_buffer buf;
+  hz_serialize ::fmtr hexp;
+  pp_print_flush fmtr ();
   Buffer.contents buf
 };
 

@@ -16,7 +16,7 @@ Semantics.re: Semantics.v
 	scripts/extract-coq.sh
 tests/RunTests.byte: $(source) $(wildcard tests/*.rei?) $(shell find tests/test_data)
 	scripts/refmt.sh
-	rebuild $(build_opts) -X tests/test_data -pkgs oUnit tests/RunTests.byte
+	rebuild $(build_opts) -X tests/test_data -pkgs oUnit,str tests/RunTests.byte
 run_tests: tests/RunTests.byte
 	RunTests.byte
 clean:

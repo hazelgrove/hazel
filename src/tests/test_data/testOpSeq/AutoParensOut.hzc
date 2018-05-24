@@ -1,4 +1,4 @@
-(v : num)+(let x = v in
-v+(λy.v+(case v
-L(l) ⇒ l
-R(r) ⇒ r)))
+(v : num) + (let x = v in
+             v + (λy.v + (case v
+                           L(l) ⇒ l
+                           R(r) ⇒ r)))
