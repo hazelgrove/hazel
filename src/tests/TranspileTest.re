@@ -66,6 +66,22 @@ let (>=>) (inName, uhexp, _) outName => (inName, uhexp, Some outName);
 
 let (<=>) name uhexp => (name, uhexp, Some name);
 
+let trim_trailing_newline s => {
+  let last_ind = String.length s - 1;
+  let last_char = s.[last_ind];
+  assert_equal
+    msg::(
+      sprintf
+        "%s should have ended in a new line but instead ends in %c" s last_char
+    )
+    '\n'
+    last_char;
+  String.sub s 0 last_ind
+};
+
+let increase_indent s indent =>
+  Str.global_replace (Str.regexp "\n") ("\n" ^ String.make indent ' ') s;
+
 let (>:::%) group_name checks =>
   group_name >:::
   List.map
@@ -84,12 +100,11 @@ let (>:::%) group_name checks =>
                 );
               let filecontents = really_input_string tf (in_channel_length tf);
               close_in tf;
-              /* we need to remove the trailing newline from the file contents */
-              String.sub filecontents 0 (String.length filecontents - 1)
+              trim_trailing_newline filecontents
             };
             /* contextualize wraps the concrete and abstract syntax with definitions for the
                variables `v` and `vstart` through `vend'` */
-            let rec contextualize start end' (uhexp', fcontents') =>
+            let rec contextualize' start end' (uhexp', fcontents') =>
               if (start == end') {
                 (
                   UHExp.(
@@ -100,11 +115,14 @@ let (>:::%) group_name checks =>
                         (nih (Asc (Parenthesized uhexp') UHTyp.Hole))
                     )
                   ),
-                  sprintf "let v = {} in\n(%s) : {}" fcontents'
+                  /* it is necessary to add one extra space of indentation to
+                     fcontents' due to the box-style formatting */
+                  sprintf
+                    "let v = {} in\n(%s) : {}\n" (increase_indent fcontents' 1)
                 )
               } else {
                 let (uhexp'', fcontents'') =
-                  contextualize (start + 1) end' (uhexp', fcontents');
+                  contextualize' (start + 1) end' (uhexp', fcontents');
                 (
                   UHExp.(
                     nih (
@@ -117,8 +135,10 @@ let (>:::%) group_name checks =>
                   sprintf "let v%d = {} in\n%s" start fcontents''
                 )
               };
+            let contextualize uhexp' fcontents' =>
+              contextualize' 1 10 (uhexp', fcontents');
             let inContents = getContents inName;
-            let (uhexp', inContents') = contextualize 1 10 (uhexp, inContents);
+            let (uhexp', inContents') = contextualize uhexp inContents;
             assert_equal
               msg::"parse failed"
               uhexp'
@@ -127,8 +147,7 @@ let (>:::%) group_name checks =>
             | Some outName =>
               let outContents' =
                 inName == outName ?
-                  inContents' :
-                  snd (contextualize 1 10 (uhexp, getContents outName));
+                  inContents' : snd (contextualize uhexp (getContents outName));
               assert_equal
                 printer::(fun x => x)
                 msg::"serialization failed"
@@ -167,6 +186,11 @@ let (>:::%) group_name checks =>
  * variable that is referred to must be defined, or else an IllFormed exception will be raised.
  *
  * Because of the context variables, EmptyHole numbers in the uhexps should start at 10.
+ *
+ * Note that some of the test data have too much indentation on some lines. This is likely
+ * because the unicode characters trick the formatter about how long lines are, causing some
+ * subsequent lines to have excess indentation. The test cases that exhibit this issue
+ * document its present status as a won't-fix.
  */
 let tests = {
   let basicArrowUHExp =
