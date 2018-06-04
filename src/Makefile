@@ -18,7 +18,7 @@ tests/RunTests.byte: $(source) $(wildcard tests/*.rei?) $(shell find tests/test_
 	scripts/refmt.sh
 	rebuild $(build_opts) -X tests/test_data -pkgs oUnit,str tests/RunTests.byte
 run_tests: tests/RunTests.byte
-	RunTests.byte
+	./RunTests.byte
 clean:
 	rm -rf _build
 	rm -f *.glob *.vo *.byte www/hazel.js Semantics.re
