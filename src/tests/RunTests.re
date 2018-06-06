@@ -1,1 +1,1 @@
-OUnit2.run_test_tt_main TranspileTest.tests;
+OUnit2.run_test_tt_main SerializationTest.tests;

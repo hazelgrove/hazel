@@ -1,5 +1,5 @@
 {
-  open HZParse
+  open HazelParse
 }
 
 (* TODO: find a way to have the token literals depend on LangUtil.re *)
