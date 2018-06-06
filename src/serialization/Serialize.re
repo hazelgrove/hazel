@@ -4,16 +4,10 @@ open Format;
 
 open LangUtil;
 
-let ensure_well_typed_for_serialization uhexp =>
+let ensure_well_typed_before_serialization uhexp =>
   switch (UHExp.syn () Ctx.empty uhexp) {
   | None => raise (IllFormed uhexp)
   | _ => uhexp
-  };
-
-let ensure_well_typed_for_parsing uhexp =>
-  switch (UHExp.fix_and_renumber_holes () uhexp) {
-  | None => raise (IllFormed uhexp)
-  | Some ((e, t), mv) => (e, t, mv)
   };
 
 let string_of_tyop op =>
@@ -29,7 +23,7 @@ let string_of_expop op =>
   | UHExp.Space => ""
   };
 
-let hz_serialize ::fmtr=std_formatter ::line_length=100 ::indent=2 uhexp => {
+let serialize ::fmtr=std_formatter ::line_length=100 ::indent=2 uhexp => {
   pp_set_margin fmtr line_length;
   let rec print_opseq' fmtr print_term string_of_op seq => {
     let print_rest op tm2 =>
@@ -120,30 +114,14 @@ let hz_serialize ::fmtr=std_formatter ::line_length=100 ::indent=2 uhexp => {
         print_opseq fmtr print_uhexp string_of_expop seq
       }
     };
-  print_uhexp fmtr (ensure_well_typed_for_serialization uhexp);
+  print_uhexp fmtr (ensure_well_typed_before_serialization uhexp);
   pp_print_newline fmtr ()
 };
 
 let string_of_uhexp hexp => {
   let buf = Buffer.create 32;
   let fmtr = formatter_of_buffer buf;
-  hz_serialize ::fmtr hexp;
+  serialize ::fmtr hexp;
   pp_print_flush fmtr ();
   Buffer.contents buf
 };
-
-let parse' lexbuf => HZParse.parse_uhexp HZLex.read lexbuf;
-
-let hz_parse i_channel =>
-  try (ensure_well_typed_for_parsing (parse' (Lexing.from_channel i_channel))) {
-  | HZParse.Error => raise (InvalidSyntax "Syntax error")
-  };
-
-let uhexp_of_string s =>
-  try (
-    switch (ensure_well_typed_for_parsing (parse' (Lexing.from_string s))) {
-    | (e, _, _) => e
-    }
-  ) {
-  | HZParse.Error => raise (InvalidSyntax s)
-  };
