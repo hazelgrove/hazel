@@ -140,9 +140,9 @@ let (>:::%) group_name checks =>
             let inContents = getContents inName;
             let (uhexp', inContents') = contextualize uhexp inContents;
             assert_equal
-              msg::"parse failed"
+              msg::"deserialization failed"
               uhexp'
-              (Transpile.uhexp_of_string inContents');
+              (Deserialize.uhexp_of_string inContents');
             switch outNameOpt {
             | Some outName =>
               let outContents' =
@@ -152,7 +152,7 @@ let (>:::%) group_name checks =>
                 printer::(fun x => x)
                 msg::"serialization failed"
                 outContents'
-                (Transpile.string_of_uhexp uhexp')
+                (Serialize.string_of_uhexp uhexp')
             | None => ()
             }
           }
@@ -172,18 +172,19 @@ let (>:::%) group_name checks =>
  * ...
  *
  * `"TestName1" <=> uhexp1` asserts that the concrete syntax in
- * 'tests/test_data/testFolder/TestName1.re' should parse to uhexp1, and that uhexp1 should
+ * 'tests/test_data/testFolder/TestName1.re' should deserialize to uhexp1, and that uhexp1 should
  * serialize to the exact contents of that file.
  *
- * `"TestName2" |=> uhexp2` asserts only that "TestName2" must parse to uhexp2, but doesn't test
- * the serialization of uhexp2.
+ * `"TestName2" |=> uhexp2` asserts only that "TestName2" must deserialize to uhexp2, but doesn't
+ * test the serialization of uhexp2.
  *
- * `"TestName3" |=> uhexp3 >=> "TestName3Out"` asserts that "TestName3" must parse to uhexp3,
+ * `"TestName3" |=> uhexp3 >=> "TestName3Out"` asserts that "TestName3" must deserialize to uhexp3,
  * which must serialize to the exact contents of "TestName3Out"
  *
  * Each UHExp can use `var'` or `(varN' d)` (0 < d < 10) to refer to variables `v` and `v1`
  * through `v9` - these variables can be referred to without having to be defined. Any other
- * variable that is referred to must be defined, or else an IllFormed exception will be raised.
+ * variable that is referred to must be defined, or else a LangUtil.IllFormed exception will be
+ * raised.
  *
  * Because of the context variables, EmptyHole numbers in the uhexps should start at 10.
  *
@@ -198,7 +199,7 @@ let tests = {
   let basicCaseUHExp =
     nih UHExp.(Case var' ("l", nihVar "l") ("r", nihVar "r"));
   let basicLamUHExp = nih UHExp.(Lam "a" var');
-  "Transpile tests" >::: [
+  "Serialization tests" >::: [
     "testAscParens" >:::% [
       "AutoParens" |=>
       nih

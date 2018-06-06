@@ -1,6 +1,6 @@
 pkgs :=js_of_ocaml,js_of_ocaml.ppx,js_of_ocaml.tyxml,tyxml,react,reactiveData,camomile
-source :=Semantics.re $(wildcard *.rei?) $(wildcard *.ml[ly])
-build_opts :=-use-menhir -use-ocamlfind -cflag -g -lflag -g
+source :=Semantics.re $(wildcard *.rei?) $(wildcard *.ml[ly]) $(wildcard serialization/*.rei?) $(wildcard serialization/*.ml[ly])
+build_opts :=-use-menhir -use-ocamlfind -cflag -g -lflag -g -I serialization
 
 .PHONY : all clean debug run_tests
 
