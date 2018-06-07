@@ -96,7 +96,7 @@ let (>:::%) group_name checks =>
                  seem sensible */
               let tf =
                 open_in (
-                  "tests/test_data/" ^ group_name ^ "/" ^ name ^ ".hzc"
+                  "tests/test_data/" ^ group_name ^ "/" ^ name ^ ".hazel"
                 );
               let filecontents = really_input_string tf (in_channel_length tf);
               close_in tf;
