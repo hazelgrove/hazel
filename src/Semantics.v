@@ -1052,6 +1052,10 @@ Module Core.
         end
         end.
 
+    (* If should_renumber_empty_holes is true, then the metavars in empty holes will be assigned
+     * new values in the same namespace as non-empty holes. Non-empty holes are renumbered
+     * regardless.
+     *)
     Fixpoint syn_fix_holes_internal'
       (fuel : Fuel.t)
       (ctx : Ctx.t)
