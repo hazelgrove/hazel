@@ -1,3 +1,4 @@
+let v = {} in
 v : num +
   let x = v in
   v +

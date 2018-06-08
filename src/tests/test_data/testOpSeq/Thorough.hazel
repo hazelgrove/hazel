@@ -1,1 +1,11 @@
-v1 + v2 * v3 * v4 v5 + v6 v7 * v8 + v9 + v
+let v0 = {} in
+let v1 = {} in
+let v2 = {} in
+let v3 = {} in
+let v4 = {} in
+let v5 = {} in
+let v6 = {} in
+let v7 = {} in
+let v8 = {} in
+let v9 = {} in
+v0 + v1 * v2 * v3 v4 + v5 v6 * v7 + v8 + v9

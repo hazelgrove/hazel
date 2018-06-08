@@ -1,1 +1,4 @@
-v1 * v2 v3
+let v0 = {} in
+let v1 = {} in
+let v2 = {} in
+v0 * v1 v2
