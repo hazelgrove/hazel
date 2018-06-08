@@ -1,7 +1,8 @@
-case v
-L(l) ⇒ case l
-         L(ll) ⇒ ll
-         R(lr) ⇒ lr
-R(r) ⇒ case r
-         L(rl) ⇒ rl
-         R(rr) ⇒ rr
+(let v = {} in
+ case v
+ L(l) ⇒ case l
+          L(ll) ⇒ ll
+          R(lr) ⇒ lr
+ R(r) ⇒ case r
+          L(rl) ⇒ rl
+          R(rr) ⇒ rr) : {}

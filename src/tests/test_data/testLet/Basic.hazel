@@ -1,2 +1,2 @@
-let x = v in
-v1
+let x = {} in
+x

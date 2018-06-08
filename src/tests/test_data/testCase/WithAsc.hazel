@@ -1,3 +1,4 @@
-case v
-L(l) ⇒ l
-R(r) ⇒ r : num
+(let v = {} in
+ case v
+ L(l) ⇒ l
+ R(r) ⇒ r : num) : num
