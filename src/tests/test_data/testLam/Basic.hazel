@@ -1,2 +1,2 @@
 let v = {} in
-λa.v
+lambda a.v

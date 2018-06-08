@@ -12,7 +12,7 @@ let ensure_well_typed_before_serialization uhexp =>
 
 let string_of_tyop op =>
   switch op {
-  | UHTyp.Arrow => " " ^ typeArrowSym
+  | UHTyp.Arrow => " ->"
   | UHTyp.Sum => " |"
   };
 
@@ -78,7 +78,7 @@ let serialize ::fmtr=std_formatter ::line_length=100 ::indent=2 uhexp => {
           print_uhexp
           e2
       | UHExp.Lam x e' =>
-        fprintf fmtr "@[<hov %d>%s%s.@,%a@]" indent lamSym x print_uhexp e'
+        fprintf fmtr "@[<hov %d>lambda %s.@,%a@]" indent x print_uhexp e'
       | UHExp.NumLit n => fprintf fmtr "%d" n
       | UHExp.Inj side e' =>
         /* In this case, the injected value might not be on the same line as the
@@ -95,11 +95,10 @@ let serialize ::fmtr=std_formatter ::line_length=100 ::indent=2 uhexp => {
         let print_side fmtr side_str side_v side_exp =>
           fprintf
             fmtr
-            "@[<hov %d>%s(%s) %s@ %a@]"
+            "@[<hov %d>%s(%s) =>@ %a@]"
             indent
             side_str
             side_v
-            caseArrowSym
             print_uhexp
             side_exp;
         fprintf
