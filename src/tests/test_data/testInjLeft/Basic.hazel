@@ -1,1 +1,2 @@
+let v = {} in
 inj[L](v)
