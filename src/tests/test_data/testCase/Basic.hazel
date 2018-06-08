@@ -1,4 +1,4 @@
 (let v = {} in
  case v
- L(l) ⇒ l
- R(r) ⇒ r) : {}
+ L(l) => l
+ R(r) => r) : {}

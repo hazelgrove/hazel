@@ -151,32 +151,8 @@ let (>:::%) group_name checks =>
  *
  * `"TestName3" |=> uhexp3 >=> "TestName3Out"` asserts that "TestName3" must deserialize to uhexp3,
  * which must serialize to the exact contents of "TestName3Out"
- *
- * Note that some of the test data have too much indentation on some lines. This is likely
- * because the unicode characters trick the formatter about how long lines are, causing some
- * subsequent lines to have excess indentation. The test cases that exhibit this issue
- * document its present status as a won't-fix.
  */
-let tests = {
-  let basicArrowUHExp =
-    contextualize_v (
-      nih
-        UHExp.(Asc var' (tyOpSeqOfEZOpTree UHTyp.(Op Arrow (V Num) (V Hole))))
-    );
-  let basicCaseUHExp =
-    nih
-      UHExp.(
-        Asc
-          (
-            Parenthesized (
-              contextualize_v (
-                nih (Case var' ("l", nihVar "l") ("r", nihVar "r"))
-              )
-            )
-          )
-          UHTyp.Hole
-      );
-  let basicLamUHExp = contextualize_v (nih UHExp.(Lam "a" var'));
+let tests =
   "Serialization tests" >::: [
     "testAscParens" >:::% [
       "AutoParens" |=>
@@ -226,8 +202,13 @@ let tests = {
       "Basic" <=> contextualize_v (nih UHExp.(Asc var' UHTyp.Num))
     ],
     "testAscOpSeq" >:::% [
-      "BasicArrow" <=> basicArrowUHExp,
-      "BasicArrowWithKeyword" |=> basicArrowUHExp >=> "BasicArrow",
+      "BasicArrow" <=>
+      contextualize_v (
+        nih
+          UHExp.(
+            Asc var' (tyOpSeqOfEZOpTree UHTyp.(Op Arrow (V Num) (V Hole)))
+          )
+      ),
       "BasicSum" <=>
       contextualize_v (
         nih UHExp.(Asc var' (tyOpSeqOfEZOpTree UHTyp.(Op Sum (V Num) (V Num))))
@@ -304,8 +285,19 @@ let tests = {
       )
     ],
     "testCase" >:::% [
-      "Basic" <=> basicCaseUHExp,
-      "BasicWithKeyword" |=> basicCaseUHExp >=> "Basic",
+      "Basic" <=>
+      nih
+        UHExp.(
+          Asc
+            (
+              Parenthesized (
+                contextualize_v (
+                  nih (Case var' ("l", nihVar "l") ("r", nihVar "r"))
+                )
+              )
+            )
+            UHTyp.Hole
+        ),
       "Deep" <=>
       nih
         UHExp.(
@@ -369,8 +361,7 @@ let tests = {
       "Deep" <=> contextualize_v (nih UHExp.(Inj R (nih (Inj L var'))))
     ],
     "testLam" >:::% [
-      "Basic" <=> basicLamUHExp,
-      "BasicWithKeyword" |=> basicLamUHExp >=> "Basic",
+      "Basic" <=> contextualize_v (nih UHExp.(Lam "a" var')),
       "Deep" <=> nih UHExp.(Lam "a" (nih (Lam "b" (nihVar "b")))),
       "Shadow" <=> nih UHExp.(Lam "a" (nih (Lam "a" (nihVar "a"))))
     ],
@@ -585,5 +576,4 @@ let tests = {
       "Basic" <=>
       contextualize_v (nih UHExp.(Asc (Tm (InHole 1) (Inj L var')) UHTyp.Num))
     ]
-  ]
-};
+  ];

@@ -1,2 +1,2 @@
 let v = {} in
-v : {} → num | num
+v : {} -> num | num

@@ -2,8 +2,6 @@
   open HazelParse
 }
 
-(* TODO: find a way to have the token literals depend on LangUtil.re *)
-
 let space = [' ' '\t' '\r' '\n']
 let whitespace = space+
 let digit = ['0'-'9']
@@ -18,7 +16,7 @@ rule read =
   | "let" { LET }
   | "in" { IN }
   | "inj" { INJECT }
-  | ("lambda" | "\206\187") { LAMBDA }
+  | "lambda" { LAMBDA }
   | "case" { CASE }
   | "L" { LEFT }
   | "R" { RIGHT }
@@ -34,8 +32,8 @@ rule read =
   | "]" { RBRACKET }
   | "{" { LCBRACE }
   | "}" { RCBRACE }
-  | ("=>" | "\226\135\146") { CASE_ARROW }
-  | ("->" | "\226\134\146") { TYPE_ARROW }
+  | "=>" { CASE_ARROW }
+  | "->" { TYPE_ARROW }
   | natural { NATURAL (int_of_string (Lexing.lexeme lexbuf)) }
   | id { ID (Lexing.lexeme lexbuf) }
   | eof { EOF }
