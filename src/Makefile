@@ -6,9 +6,9 @@ build_opts :=-use-menhir -use-ocamlfind -cflag -g -lflag -g -I serialization
 
 all: www/hazel.js run_tests
 debug: Hazel.byte
-	js_of_ocaml +weak.js --debuginfo -o www/hazel.js Hazel.byte
+	js_of_ocaml --debuginfo -o www/hazel.js Hazel.byte
 www/hazel.js: Hazel.byte
-	js_of_ocaml +weak.js -o www/hazel.js Hazel.byte
+	js_of_ocaml -o www/hazel.js Hazel.byte
 Hazel.byte: $(source)
 	scripts/refmt.sh
 	rebuild $(build_opts) -X tests -pkgs $(pkgs) Hazel.byte
