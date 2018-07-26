@@ -1,1 +1,1 @@
-include Semantics.Core.FAction Associator;
+include Semantics.Core.FAction(Associator);
