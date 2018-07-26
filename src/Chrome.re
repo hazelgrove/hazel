@@ -599,7 +599,7 @@ let view (model: Model.t) => {
       let anchor_elem = get_anchor_elem anchor;
       if (anchorOffset == 0) {
         let innerHTML = Js.to_string anchor_elem##.innerHTML;
-        if (String.equal innerHTML "\206\187") {
+        if (String.equal innerHTML LangUtil.lamSym) {
           Before
         } else {
           On

@@ -8,6 +8,7 @@ PKG js_of_ocaml.ppx
 PKG lwt.syntax
 PKG lwt.ppx
 PKG camomile
+PKG oUnit
 EXT js
 B _build
 
