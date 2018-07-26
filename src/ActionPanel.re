@@ -430,7 +430,7 @@ let make
   let constructArrow =
     action_button
       (Action.Construct (Action.STyOp UHTyp.Arrow))
-      (threepiece_op "insert " "\226\134\146" " type operator")
+      (threepiece_op "insert " LangUtil.typeArrowSym " type operator")
       KCs.greaterThan;
   let constructSum =
     action_button
@@ -489,7 +489,7 @@ let make
           }
       )
       is_hole_rs
-      (threepiece_kw "" "\206\187" "")
+      (threepiece_kw "" LangUtil.lamSym "")
       "lam_input"
       KCs.backslash
       "enter var";

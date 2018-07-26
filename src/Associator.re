@@ -63,14 +63,3 @@ let rec associate_ty (seq: UHTyp.opseq) => {
   let (skel_str, _) = make_skel_str seq string_of_ty_op;
   parse_typ skel_str
 };
-
-/* debug stuff for use in the Coq */
-let some_A x => {
-  JSUtil.log "A- SOME";
-  Some x
-};
-
-let none_A () => {
-  JSUtil.log "A- NONE";
-  None
-};

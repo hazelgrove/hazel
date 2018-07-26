@@ -1,0 +1,3 @@
+let v0 = {} in
+let v1 = {} in
+v0 v1

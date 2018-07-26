@@ -85,7 +85,7 @@ let rec str_of_expr_op op =>
 let rec str_of_ty_op op =>
   switch op {
   | UHTyp.Sum => ("|", "op-Sum")
-  | UHTyp.Arrow => ("\226\134\146", "op-Arrow")
+  | UHTyp.Arrow => (LangUtil.typeArrowSym, "op-Arrow")
   };
 
 let rec of_op_with_space str_of_op op => {
@@ -161,7 +161,7 @@ let rec of_ty_op cls op_s prefix err_status rev_path r1 r2 =>
     cls
     (r1 ^^ optionalBreakSp ^^ op op_s ^^ optionalBreakSp ^^ r2);
 
-let of_Arrow = of_ty_op "Arrow" "\226\134\146";
+let of_Arrow = of_ty_op "Arrow" LangUtil.typeArrowSym;
 
 let of_Sum = of_ty_op "Sum" "|";
 
@@ -250,7 +250,7 @@ let of_Lam prefix err_status rev_path x r =>
     err_status
     rev_path
     "Lam"
-    (kw "\206\187" ^^ var x ^^ taggedText "lambda-dot" "." ^^ r);
+    (kw LangUtil.lamSym ^^ var x ^^ taggedText "lambda-dot" "." ^^ r);
 
 let of_LamAnn prefix err_status rev_path x rty r1 =>
   term
@@ -259,7 +259,7 @@ let of_LamAnn prefix err_status rev_path x rty r1 =>
     rev_path
     "LamAnn"
     (
-      kw "\206\187" ^^
+      kw LangUtil.lamSym ^^
       var x ^^ kw ":" ^^ rty ^^ taggedText "lambda-dot" "." ^^ r1
     );
 
@@ -298,12 +298,6 @@ let of_Space prefix err_status rev_path r1 r2 =>
     "Space"
     (r1 ^^ op " " ^^ optionalBreakNSp ^^ r2);
 
-let string_of_side side =>
-  switch side {
-  | UHExp.L => "L"
-  | UHExp.R => "R"
-  };
-
 let of_Inj prefix err_status rev_path side r =>
   term
     prefix
@@ -313,7 +307,8 @@ let of_Inj prefix err_status rev_path side r =>
     (
       kw "inj" ^^
       lparen "[" ^^
-      kw (string_of_side side) ^^ rparen "]" ^^ lparen "(" ^^ r ^^ rparen ")"
+      kw (LangUtil.string_of_side side) ^^
+      rparen "]" ^^ lparen "(" ^^ r ^^ rparen ")"
     );
 
 let of_InjAnn prefix err_status rev_path rty side r =>
@@ -325,7 +320,7 @@ let of_InjAnn prefix err_status rev_path rty side r =>
     (
       kw "inj" ^^
       lparen "[" ^^
-      kw (string_of_side side) ^^
+      kw (LangUtil.string_of_side side) ^^
       kw "," ^^
       optionalBreakSp ^^
       rty ^^ rparen "]" ^^ lparen "(" ^^ PP.optionalBreak "" ^^ r ^^ rparen ")"
@@ -348,14 +343,15 @@ let of_Case prefix err_status rev_path r1 x r2 y r3 =>
       var x ^^
       rparen ")" ^^
       space ^^
-      op "\226\135\146" ^^
+      op LangUtil.caseArrowSym ^^
       space ^^
       PP.nestAbsolute 2 r2 ^^
       PP.mandatoryBreak ^^
       kw "R" ^^
       lparen "(" ^^
       var y ^^
-      rparen ")" ^^ space ^^ op "\226\135\146" ^^ space ^^ PP.nestAbsolute 2 r3
+      rparen ")" ^^
+      space ^^ op LangUtil.caseArrowSym ^^ space ^^ PP.nestAbsolute 2 r3
     );
 
 let of_CaseAnn prefix err_status rev_path r1 x r2 y r3 =>
@@ -375,14 +371,15 @@ let of_CaseAnn prefix err_status rev_path r1 x r2 y r3 =>
       var x ^^
       rparen ")" ^^
       space ^^
-      op "\226\135\146" ^^
+      op LangUtil.caseArrowSym ^^
       space ^^
       PP.nestAbsolute 2 r2 ^^
       PP.mandatoryBreak ^^
       kw "R" ^^
       lparen "(" ^^
       var y ^^
-      rparen ")" ^^ space ^^ op "\226\135\146" ^^ space ^^ PP.nestAbsolute 2 r3
+      rparen ")" ^^
+      space ^^ op LangUtil.caseArrowSym ^^ space ^^ PP.nestAbsolute 2 r3
     );
 
 let cast_arrow = op " \226\135\168 ";
