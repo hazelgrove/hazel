@@ -850,7 +850,12 @@ let view = (model: Model.t) => {
           [
             div(
               ~a=[a_class(["top-bar"])],
-              [span(~a=[a_class(["logo-text"])], [pcdata("Hazel")])],
+              [
+                a(
+                  ~a=[a_class(["logo-text"]), a_href("http://hazel.org/")],
+                  [pcdata("Hazel")],
+                ),
+              ],
             ),
             div(
               ~a=[a_class(["main-area"])],
