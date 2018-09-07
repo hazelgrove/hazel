@@ -2295,6 +2295,8 @@ Module Core.
 
     Inductive t : Type :=
     | MoveTo : Path.t -> t
+    | MoveToNextHole : t
+    | MoveToPrevHole : t
     | Delete : t
     | Backspace : t
     | Construct : shape -> t.
@@ -3834,6 +3836,9 @@ Module Core.
         | Cast : t -> HTyp.t -> HTyp.t -> t
         | FailedCast : t -> HTyp.t -> HTyp.t -> t.
 
+        Definition cast (d : t) (t1 : HTyp.t) (t2 : HTyp.t) : t := 
+          if HTyp.eq t1 t2 then d else Cast d t1 t2.
+
         Module Environment.
           Definition t : Type := VarMap.t_(t).
           Include VarMap.
@@ -4074,7 +4079,7 @@ Module Core.
               | DoesNotExpand => DoesNotExpand
               | Expands d1 ty' delta => 
                 Expands 
-                  (Cast d1 ty' ty)
+                  (cast d1 ty' ty)
                   ty 
                   delta
               end
@@ -4171,8 +4176,8 @@ Module Core.
                     | DoesNotExpand => DoesNotExpand
                     | Expands d2 ty2' delta2 => 
                       let delta := MetaVarMap.union delta1 delta2 in 
-                      let dc1 := Cast d1 ty1' ty2_arrow_ty in 
-                      let dc2 := Cast d2 ty2' ty2 in 
+                      let dc1 := cast d1 ty1' ty2_arrow_ty in 
+                      let dc2 := cast d2 ty2' ty2 in 
                       let d := Ap dc1 dc2 in 
                       Expands d ty delta
                     end
@@ -4185,8 +4190,8 @@ Module Core.
                      ana_expand_skel fuel gamma skel2 seq HTyp.Num) with 
               | (Expands d1 ty1 delta1, Expands d2 ty2 delta2) => 
                 let delta := MetaVarMap.union delta1 delta2 in 
-                let dc1 := Cast d1 ty1 HTyp.Num in 
-                let dc2 := Cast d2 ty2 HTyp.Num in 
+                let dc1 := cast d1 ty1 HTyp.Num in 
+                let dc2 := cast d2 ty2 HTyp.Num in 
                 match of_op op with 
                 | None => DoesNotExpand (* should not happen due to pattern matching above *)
                 | Some op' => 
@@ -4277,9 +4282,9 @@ Module Core.
                     | None => DoesNotExpand
                     | Some ty' => 
                       let d := Case  
-                        (Cast d1 ty1 (HTyp.Sum ty1L ty1R))
-                        (x, (Cast d2 ty2 ty')) 
-                        (y, (Cast d3 ty3 ty')) in 
+                        (cast d1 ty1 (HTyp.Sum ty1L ty1R))
+                        (x, (cast d2 ty2 ty')) 
+                        (y, (cast d3 ty3 ty')) in 
                       let delta := 
                         MetaVarMap.union 
                           (MetaVarMap.union delta1 delta2) delta3 in 

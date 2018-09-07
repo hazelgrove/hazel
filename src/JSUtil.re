@@ -128,7 +128,7 @@ let listen_for_key = (k, f) =>
 
 type div_element = Js.t(Dom_html.divElement);
 type node = Js.t(Dom.node);
-let div_contains_node = (parent: div_element, child: node) : bool => {
+let div_contains_node = (parent: div_element, child: node): bool => {
   let result: Js.t(bool) = (
     Js.Unsafe.meth_call(parent, "contains", [|Js.Unsafe.inject(child)|]):
       Js.t(bool)

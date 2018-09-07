@@ -42,7 +42,7 @@ type t = {
   monitors,
   do_action: Action.t => unit,
 };
-let new_model = () : t => {
+let new_model = (): t => {
   let (edit_state_rs, edit_state_rf) = React.S.create(empty);
   let (e_rs, e_rf) = React.S.create(empty_erasure);
   let cursor_info_rs =
