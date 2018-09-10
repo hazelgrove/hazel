@@ -741,3 +741,7 @@ button:disabled {
 
 /* .skel-binop:hover { */
 
+.elided {
+  color: #AAA;
+  font-size: 80%;
+}

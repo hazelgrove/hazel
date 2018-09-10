@@ -386,7 +386,7 @@ let of_Cast = (prefix, err_status, rev_path, r1, rty1, rty2) =>
     err_status,
     rev_path,
     "Cast",
-    r1 ^^ lparen("<") ^^ rty1 ^^ cast_arrow ^^ rty2 ^^ rparen(">"),
+    r1 ^^ lparen("⟨") ^^ rty1 ^^ cast_arrow ^^ rty2 ^^ rparen("⟩"),
   );
 
 let of_chained_Cast = (prefix, err_status, rev_path, r1, rty1, rty2, rty4) =>
@@ -684,8 +684,8 @@ let rec of_dhexp' =
         of_InjAnn(prefix, err_status, rev_path, r1, side, r2);
       | Case(d1, (x, d2), (y, d3)) =>
         let rev_path1 = [0, ...rev_path];
-        let rev_path2 = [1, ...rev_path];
-        let rev_path3 = [2, ...rev_path];
+        /* let rev_path2 = [1, ...rev_path];
+           let rev_path3 = [2, ...rev_path]; */
         let r1 =
           of_dhexp'(
             instance_click_fn,
@@ -696,27 +696,29 @@ let rec of_dhexp' =
             d1,
           );
 
-        let r2 =
-          of_dhexp'(
-            instance_click_fn,
-            false,
-            prefix,
-            NotInHole,
-            rev_path2,
-            d2,
-          );
+        /* let r2 =
+             of_dhexp'(
+               instance_click_fn,
+               false,
+               prefix,
+               NotInHole,
+               rev_path2,
+               d2,
+             );
 
-        let r3 =
-          of_dhexp'(
-            instance_click_fn,
-            false,
-            prefix,
-            NotInHole,
-            rev_path3,
-            d3,
-          );
+           let r3 =
+             of_dhexp'(
+               instance_click_fn,
+               false,
+               prefix,
+               NotInHole,
+               rev_path3,
+               d3,
+             ); */
 
-        of_CaseAnn(prefix, err_status, rev_path, r1, x, r2, y, r3);
+        let elided = taggedText("elided", "...");
+
+        of_CaseAnn(prefix, err_status, rev_path, r1, x, elided, y, elided);
       | EmptyHole(u, i, sigma) =>
         let inst = (u, i);
         let hole_label = hole_label_of(inst);
