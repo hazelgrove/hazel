@@ -398,7 +398,6 @@ let make =
     );
   };
 
-  let true_rs = S.const(true);
   let is_hole_rs =
     S.l1(
       ({ZExp.mode: _, ZExp.form, ZExp.ctx: _}) =>
@@ -415,6 +414,16 @@ let make =
         switch (form) {
         | ZExp.IsHole(_) => Ctx.length(ctx) > 0
         | ZExp.IsNotHole => false
+        },
+      cursor_info_rs,
+    );
+
+  let can_insert_let_case_rs =
+    S.l1(
+      ({ZExp.mode, ZExp.form, ZExp.ctx}) =>
+        switch (mode) {
+        | ZExp.TypePosition => false
+        | _ => true
         },
       cursor_info_rs,
     );
@@ -481,7 +490,7 @@ let make =
         | 0 => None
         | _ => Some(s)
         },
-      true_rs,
+      can_insert_let_case_rs,
       Html5.div([threepiece_kw("", "let", "")]),
       "let_input",
       KCs.equals,
@@ -584,7 +593,7 @@ let make =
         | _ => Some((s1, s2))
         };
       },
-      true_rs,
+      can_insert_let_case_rs,
       threepiece_kw("", "case", ""),
       "case_input",
       KCs.c,
