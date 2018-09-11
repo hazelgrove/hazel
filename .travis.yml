@@ -11,10 +11,8 @@ install:
  - sudo apt-get update -qq
  - sudo apt-get install -qq ocaml opam
  - export OPAMYES=1 && opam init && eval `opam config env`
- - opam switch 4.04.2
+ - opam switch 4.06.1
  - eval `opam config env`
- - opam pin add reason-parser 2.0.0
- - opam pin add reason 2.0.0
  - opam install reason reason-parser js_of_ocaml tyxml deriving ppx_deriving reactiveData ocp-indent camomile js_of_ocaml-tyxml
  - opam install coq
 
