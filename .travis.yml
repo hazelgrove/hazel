@@ -13,7 +13,7 @@ install:
  - export OPAMYES=1 && opam init && eval `opam config env`
  - opam switch 4.05.0
  - eval `opam config env`
- - opam install reason reason-parser js_of_ocaml tyxml deriving ppx_deriving reactiveData ocp-indent camomile js_of_ocaml-tyxml
+ - opam install reason js_of_ocaml tyxml deriving ppx_deriving reactiveData ocp-indent camomile js_of_ocaml-tyxml
  - opam install coq
 
 script:
