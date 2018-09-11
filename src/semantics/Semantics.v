@@ -2269,11 +2269,7 @@ Module Core.
       | UHExp.Tm _ (UHExp.Let x e1 e2) => 
         match path_to_hole' fuel e1 u with 
         | Some steps => Some (cons 0 steps) 
-        | None => 
-          match path_to_hole' fuel e2 u with 
-          | Some steps => Some (cons 1 steps)
-          | None => None
-          end
+        | None => cons_opt 1 (path_to_hole' fuel e2 u)
         end
       | UHExp.Tm _ (UHExp.Case e1 (_, e2) (_, e3)) => 
         match path_to_hole' fuel e1 u with 
@@ -2281,11 +2277,7 @@ Module Core.
         | None => 
           match path_to_hole' fuel e2 u with 
           | Some steps => Some(cons 1 steps)
-          | None => 
-            match path_to_hole' fuel e3 u with 
-            | Some steps => Some(cons 2 steps)
-            | None => None
-            end
+          | None => cons_opt 2 (path_to_hole' fuel e3 u)
           end
         end
       | UHExp.Tm _ (UHExp.OpSeq skel seq) => 
@@ -2300,22 +2292,12 @@ Module Core.
       | OperatorSeq.ExpOpExp e1 _ e2 => 
         match path_to_hole' fuel e1 u with 
         | Some steps => Some (cons 0 steps)
-        | None => 
-          match path_to_hole' fuel e2 u with
-          | Some steps => Some (cons 1 steps) 
-          | None => None
-          end
+        | None => cons_opt 1 (path_to_hole' fuel e2 u)
         end
       | OperatorSeq.SeqOpExp seq1 op e1 => 
         match path_to_hole_seq fuel seq1 u with 
         | (Some steps) as path => path
-        | None => 
-          match path_to_hole' fuel e1 u with  
-          | Some steps => 
-            let length := OperatorSeq.seq_length seq1 in 
-            Some(cons length steps)
-          | None => None
-          end
+        | None => cons_opt (OperatorSeq.seq_length seq1) (path_to_hole' fuel e1 u)
         end
       end
       end.
