@@ -2373,6 +2373,19 @@ Module Core.
         let skel := Associator.associate_ty seq in 
         ZTyp.OpSeqZ skel zty0 surround.
 
+    Fixpoint first_hole_path (uhty : UHTyp.t) : option Path.t := None.
+
+    Fixpoint next_hole_path (zty : ZTyp.t) : option Path.t :=
+      let p := Path.of_ztyp zty in
+      (next_hole_path' zty p)
+    with next_hole_path' (zty : ZTyp.t) (p : Path.t) : option Path.t :=
+      match p with
+      | (_, After) =>
+      | (_, On) => None
+      | (nil, Before) => first_hole_path (ZTyp.erase zty)
+      | (cons x xs, After)
+      end
+
     Fixpoint performTyp (fuel : Fuel.t) (a : t) (zty : ZTyp.t) : option ZTyp.t :=
       match (a, zty) with
       (* Movement *)
