@@ -1425,7 +1425,7 @@ Module Core.
   Inductive cursor_side : Type := 
   | Before : cursor_side
   | After : cursor_side
-  | On : cursor_side.
+  | In : nat -> cursor_side.
 
   Module ZTyp.
     Definition cursor_side : Type := cursor_side.
@@ -1548,9 +1548,9 @@ Module Core.
           (ParenthesizedZ ze1, u_gen')
         end.
 
-    Fixpoint cursor_on_outer_expr (ze : t) : option(UHExp.t) := 
+    Fixpoint cursor_on_outer_expr (ze : t) : option(UHExp.t * cursor_side) := 
       match ze with 
-      | CursorE _ e => Some (UHExp.drop_outer_parentheses e)
+      | CursorE side e => Some ((UHExp.drop_outer_parentheses e), side)
       | ParenthesizedZ ze' => cursor_on_outer_expr ze'
       | Deeper _ _ => None
       end.
@@ -1596,42 +1596,44 @@ Module Core.
 
     Inductive cursor_form := 
     | IsHole : MetaVar.t -> cursor_form
-    | IsNotHole : cursor_form.
+    | IsNumLit : cursor_form
+    | IsVar : cursor_form
+    | IsOtherForm : cursor_form.
     
     Definition form_of'(e : UHExp.t') := 
       match e with 
       | UHExp.EmptyHole u => IsHole u
-      | _ => IsNotHole
+      | UHExp.NumLit _ => IsNumLit
+      | UHExp.Var _ => IsVar
+      | _ => IsOtherForm
       end.
 
     Definition form_of(e : UHExp.t) := 
       match e with 
       | UHExp.Tm _ (UHExp.EmptyHole u) => IsHole u
-      | _ => IsNotHole
-      end.
-
-    Definition form_of_z(ze : t) := 
-      match ze with 
-      | CursorE _ e => form_of e
-      | _ => IsNotHole
+      | UHExp.Tm _ (UHExp.NumLit _) => IsNumLit
+      | UHExp.Tm _ (UHExp.Var _) => IsVar
+      | _ => IsOtherForm
       end.
 
     Record cursor_info : Type := mk_cursor_info {
       mode : cursor_mode;
       form : cursor_form;
+      side : cursor_side;
       ctx : Ctx.t
     }.
 
     Fixpoint ana_cursor_found
       (fuel : Fuel.t) (ctx : Ctx.t)
       (e : UHExp.t) (ty : HTyp.t) 
+      (side : cursor_side)
       : option(cursor_info) := 
       match fuel with 
       | Fuel.Kicked => None
       | Fuel.More fuel => 
       match e with
       | UHExp.Parenthesized e' => 
-        ana_cursor_found fuel ctx e' ty
+        ana_cursor_found fuel ctx e' ty side
       | UHExp.Tm (InHole _) e' => 
         match UHExp.syn' fuel ctx e' with 
         | None => None 
@@ -1640,6 +1642,7 @@ Module Core.
             mk_cursor_info 
               (TypeInconsistent ty ty')
               (form_of' e')
+              side
               ctx
           )
         end
@@ -1648,6 +1651,7 @@ Module Core.
           mk_cursor_info 
             (Subsumed ty HTyp.Hole)
             (IsHole u)
+            side
             ctx
         )
       | UHExp.Tm NotInHole (UHExp.Let _ _ _)
@@ -1655,20 +1659,22 @@ Module Core.
         Some (
           mk_cursor_info 
             (AnaOnly ty)
-            IsNotHole
+            IsOtherForm
+            side
             ctx
         )
-      | UHExp.Tm NotInHole (UHExp.Asc _ _)
-      | UHExp.Tm NotInHole (UHExp.Var _)
-      | UHExp.Tm NotInHole (UHExp.NumLit _)  
-      | UHExp.Tm NotInHole (UHExp.OpSeq _ _) =>
+      | UHExp.Tm NotInHole ((UHExp.Asc _ _) as e')
+      | UHExp.Tm NotInHole ((UHExp.Var _) as e')
+      | UHExp.Tm NotInHole ((UHExp.NumLit _) as e')  
+      | UHExp.Tm NotInHole ((UHExp.OpSeq _ _) as e') =>
         match UHExp.syn fuel ctx e with
         | Some ty' =>
           if HTyp.consistent ty ty' then 
             Some (
               mk_cursor_info 
                 (Subsumed ty ty')
-                IsNotHole
+                (form_of' e')
+                side
                 ctx
             )
           else None
@@ -1680,7 +1686,8 @@ Module Core.
           Some (
             mk_cursor_info 
               (AnaOnly ty)
-              IsNotHole
+              IsOtherForm
+              side
               ctx
           )
         | _ => 
@@ -1690,7 +1697,8 @@ Module Core.
               Some (
                 mk_cursor_info 
                   (Subsumed ty ty')
-                  IsNotHole
+                  IsOtherForm
+                  side
                   ctx
               )
             else None
@@ -1698,7 +1706,8 @@ Module Core.
             Some (
               mk_cursor_info
                 (AnaOnly ty)
-                IsNotHole
+                IsOtherForm
+                side
                 ctx
             )
           end
@@ -1709,7 +1718,8 @@ Module Core.
           Some (
             mk_cursor_info
               (AnaOnly ty)
-              IsNotHole
+              IsOtherForm
+              side
               ctx
           )
         | _ => 
@@ -1719,7 +1729,8 @@ Module Core.
               Some (
                 mk_cursor_info
                   (Subsumed ty ty')
-                  IsNotHole
+                  IsOtherForm
+                  side
                   ctx
               )
             else None
@@ -1727,7 +1738,8 @@ Module Core.
             Some 
               (mk_cursor_info
                 (AnaOnly ty)
-                IsNotHole
+                IsOtherForm
+                side
                 ctx
               )
           end
@@ -1742,13 +1754,14 @@ Module Core.
       | Fuel.Kicked => None
       | Fuel.More fuel => 
       match ze with 
-      | CursorE _ e => 
+      | CursorE side e => 
         match UHExp.syn fuel ctx e with 
         | Some ty => 
           Some (
             mk_cursor_info
               (SynOnly ty)
               (form_of e)
+              side
               ctx
           )
         | None => None
@@ -1766,10 +1779,10 @@ Module Core.
       | Fuel.Kicked => None
       | Fuel.More fuel => 
       match ze with 
-      | CursorE _ e =>
+      | CursorE side e =>
         match UHExp.ana fuel ctx e ty with 
         | None => None
-        | Some _ => ana_cursor_found fuel ctx e ty
+        | Some _ => ana_cursor_found fuel ctx e ty side
         end
       | ParenthesizedZ ze1 => 
         ana_cursor_info fuel ctx ze1 ty 
@@ -1796,7 +1809,8 @@ Module Core.
         Some 
           (mk_cursor_info
             TypePosition
-            IsNotHole
+            IsOtherForm
+            Before (* TODO fix this once we use cursor info in type position! *)
             ctx)
       | LetZ1 x ze1 e2 => 
         Var.check_valid x
@@ -1861,17 +1875,18 @@ Module Core.
       | CaseZ1 ze1 (x, _) (y, _) => 
         Var.check_both_valid x y
         match cursor_on_outer_expr ze1 with 
-        | Some (UHExp.Tm (InHole _) e1) => 
+        | Some ((UHExp.Tm (InHole _) e1), side) => 
           match UHExp.syn' fuel ctx e1 with  
           | Some ty => 
             Some 
               (mk_cursor_info
                 (SynErrorSum (HTyp.Sum HTyp.Hole HTyp.Hole) ty)
-                (form_of_z ze1)
+                (form_of' e1)
+                side
                 ctx)
           | None => None
           end
-        | Some e1 => 
+        | Some (e1, side) => 
           match UHExp.syn fuel ctx e1 with 
           | None => None
           | Some ty1 => 
@@ -1882,7 +1897,8 @@ Module Core.
               Some 
                 (mk_cursor_info
                   (SynMatchingSum ty1 matched_ty)
-                  (form_of_z ze1) 
+                  (form_of e1) 
+                  side
                   ctx)
             end
           end
@@ -1944,16 +1960,17 @@ Module Core.
       | Skel.BinOp _ UHExp.Space ((Skel.Placeholder _ n') as skel1) skel2 => 
         if Nat.eqb n n' then 
           match cursor_on_outer_expr ze_n with 
-          | Some (UHExp.Tm (InHole u) e_n') => 
+          | Some ((UHExp.Tm (InHole u) e_n'), side) => 
             match UHExp.syn' fuel ctx e_n' with 
             | Some ty => Some 
                 (mk_cursor_info
                   (SynErrorArrow (HTyp.Arrow HTyp.Hole HTyp.Hole) ty)
-                  (form_of_z ze_n)
+                  (form_of' e_n')
+                  side
                   ctx)
             | None => None
             end
-          | Some e_n => 
+          | Some (e_n, side) => 
             match UHExp.syn fuel ctx e_n with 
             | Some ty => 
               match HTyp.matched_arrow ty with 
@@ -1961,7 +1978,8 @@ Module Core.
                 Some 
                   (mk_cursor_info 
                     (SynMatchingArrow ty (HTyp.Arrow ty1 ty2))
-                    (form_of_z ze_n)
+                    (form_of e_n)
+                    side
                     ctx)
               | None => None
               end
@@ -2288,7 +2306,7 @@ Module Core.
     | SLet : Var.t -> shape
     | SVar : Var.t -> shape
     | SLam : Var.t -> shape
-    | SLit : nat -> shape
+    | SLit : nat -> ZExp.cursor_side -> shape
     | SInj : UHExp.inj_side -> shape
     | SCase : Var.t -> Var.t -> shape
     | SOp : UHExp.op -> shape.
@@ -2317,10 +2335,10 @@ Module Core.
         Path.follow_ty fuel path ty
       (* Backspace and Delete *)
       | (Backspace, ZTyp.CursorT After uty) 
-      | (Backspace, ZTyp.CursorT On uty) => 
+      | (Backspace, ZTyp.CursorT (In _) uty) => 
         Some (ZTyp.CursorT Before UHTyp.Hole)
       | (Delete, ZTyp.CursorT Before uty) 
-      | (Delete, ZTyp.CursorT On uty) => 
+      | (Delete, ZTyp.CursorT (In _) uty) => 
         match uty with 
         | UHTyp.Hole => 
           Some (ZTyp.CursorT After uty)
@@ -2453,7 +2471,7 @@ Module Core.
       | (Construct SNum, ZTyp.CursorT _ UHTyp.Hole) => 
         Some (ZTyp.CursorT After UHTyp.Num)
       | (Construct (STyOp op), ZTyp.CursorT After uty1) 
-      | (Construct (STyOp op), ZTyp.CursorT On uty1) => 
+      | (Construct (STyOp op), ZTyp.CursorT (In _) uty1) => 
         let surround := OperatorSeq.EmptySuffix (OperatorSeq.ExpPrefix uty1 op) in 
         let zty0 := ZTyp.CursorT Before UHTyp.Hole in 
         Some (make_ty_OpSeqZ zty0 surround)
@@ -2467,7 +2485,7 @@ Module Core.
             surround)
       | (Construct (STyOp op), 
           ZTyp.OpSeqZ _ 
-            ((ZTyp.CursorT On uty0) as zty0)
+            ((ZTyp.CursorT (In _) uty0) as zty0)
             surround) => 
         match surround with 
         | OperatorSeq.EmptyPrefix suffix => 
@@ -2971,8 +2989,9 @@ Module Core.
             (UHExp.Parenthesized (UHExp.Tm NotInHole (UHExp.Lam x new_hole)))
             ZTyp.ZHole_Arrow_Hole), 
          HTyp.Arrow HTyp.Hole HTyp.Hole, u_gen'))
-      | (Construct (SLit n), ZExp.CursorE _ (UHExp.Tm _ (UHExp.EmptyHole u))) (* SAConNumLit *) =>
-          Some (ZExp.CursorE After (UHExp.Tm NotInHole (UHExp.NumLit n)), HTyp.Num, u_gen)
+      | (Construct (SLit n side), ZExp.CursorE _ (UHExp.Tm _ (UHExp.EmptyHole _)))
+      | (Construct (SLit n side), ZExp.CursorE _ (UHExp.Tm _ (UHExp.NumLit _))) =>
+          Some (ZExp.CursorE side (UHExp.Tm NotInHole (UHExp.NumLit n)), HTyp.Num, u_gen)
       | (Construct (SInj side), (ZExp.CursorE _ e)) => 
         let ze' := 
           ZExp.Deeper NotInHole 
@@ -3010,7 +3029,7 @@ Module Core.
           HTyp.Hole, u_gen''')
         end
       | (Construct (SOp op), ZExp.Deeper _ (
-          ZExp.OpSeqZ _ (ZExp.CursorE On e) surround))
+          ZExp.OpSeqZ _ (ZExp.CursorE (In _) e) surround))
       | (Construct (SOp op), ZExp.Deeper _ (
           ZExp.OpSeqZ _ (ZExp.CursorE After e) surround)) => 
         match surround with 
@@ -3228,7 +3247,7 @@ Module Core.
           let ze0' := ZExp.CursorE Before new_hole in 
           make_and_syn_OpSeqZ fuel ctx u_gen' ze0' surround' 
         end
-      | (Construct (SOp op), ZExp.CursorE On e)
+      | (Construct (SOp op), ZExp.CursorE (In _) e)
       | (Construct (SOp op), ZExp.CursorE After e) => 
         let e' := UHExp.bidelimit e in 
         let prefix := OperatorSeq.ExpPrefix e' op in 

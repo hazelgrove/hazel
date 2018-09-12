@@ -403,7 +403,7 @@ let make =
       ({ZExp.mode: _, ZExp.form, ZExp.ctx: _}) =>
         switch (form) {
         | ZExp.IsHole(_) => true
-        | ZExp.IsNotHole => false
+        | _ => false
         },
       cursor_info_rs,
     );
@@ -413,7 +413,7 @@ let make =
       ({ZExp.mode: _, ZExp.form, ZExp.ctx}) =>
         switch (form) {
         | ZExp.IsHole(_) => Ctx.length(ctx) > 0
-        | ZExp.IsNotHole => false
+        | _ => false
         },
       cursor_info_rs,
     );
@@ -529,7 +529,7 @@ let make =
 
   let constructLit =
     action_input_button(
-      n => Action.Construct(Action.SLit(n)),
+      n => Action.Construct(Action.SLit(n, After)),
       s =>
         switch (String.compare(s, "")) {
         | 0 => None

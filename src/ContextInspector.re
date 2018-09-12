@@ -420,7 +420,7 @@ let mk =
                 instructional_msg("Click on a hole instance in the result"),
               ]
             }
-          | ZExp.IsNotHole => [
+          | _ => [
               instructional_msg(
                 "Move cursor to a hole, or click a hole instance in the result, to see  closures.",
               ),
