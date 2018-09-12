@@ -136,6 +136,11 @@ let div_contains_node = (parent: div_element, child: node): bool => {
   Js.to_bool(result);
 };
 
+let is_connected = (node: node) => {
+  let result: Js.t(bool) = Js.Unsafe.get(node, "isConnected");
+  Js.to_bool(result);
+};
+
 let remove_cls_from_all = (cls_to_remove, cls_to_remove_from) => {
   let cls_to_remove_j = Js.string(cls_to_remove);
   let elts =

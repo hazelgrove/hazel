@@ -880,7 +880,7 @@ let html_of_hole_instance = (instance_click_fn, width, prefix, (u, i)) => {
 };
 let string_of_cursor_side = cursor_side =>
   switch (cursor_side) {
-  | On => "On"
+  | In(n) => "In(" ++ string_of_int(n) ++ ")"
   | Before => "Before"
   | After => "After"
   };
