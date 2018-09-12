@@ -2093,6 +2093,8 @@ Module Core.
         cons' n (of_ztyp zty1)
       end.
 
+    Fixpoint child_of_ztyp (zty : ZTyp.t) (n : nat) : option ZTyp.t :=
+
     Fixpoint of_zexp (ze : ZExp.t) : t := 
       match ze with 
       | ZExp.CursorE cursor_side _ => (nil, cursor_side)
@@ -2373,18 +2375,19 @@ Module Core.
         let skel := Associator.associate_ty seq in 
         ZTyp.OpSeqZ skel zty0 surround.
 
-    Fixpoint first_hole_path (uhty : UHTyp.t) : option Path.t := None.
+    Fixpoint first_hole_path (hty : UHTyp.t) (n : nat) : option Path.t := None.
 
     Fixpoint next_hole_path (zty : ZTyp.t) : option Path.t :=
       let p := Path.of_ztyp zty in
       (next_hole_path' zty p)
     with next_hole_path' (zty : ZTyp.t) (p : Path.t) : option Path.t :=
       match p with
-      | (_, After) =>
-      | (_, On) => None
-      | (nil, Before) => first_hole_path (ZTyp.erase zty)
-      | (cons x xs, After)
-      end
+      | (nil, Before) => first_hole_path (ZTyp.erase zty) O
+      | (nil, In _) => (* can only be In a ZTyp when the ZTyp is a type identifier *)
+      | (nil, After) => None
+      | (cons x xs, cursor_side) =>
+
+      end.
 
     Fixpoint performTyp (fuel : Fuel.t) (a : t) (zty : ZTyp.t) : option ZTyp.t :=
       match (a, zty) with
