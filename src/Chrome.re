@@ -93,11 +93,14 @@ let view = (model: Model.t) => {
                 let anchorOffset = selection##.anchorOffset;
                 let newNodeValue =
                   string_insert(nodeValue, anchorOffset, key);
-                let new_n = int_of_string(newNodeValue);
-                let new_side =
-                  side_of_str_offset(newNodeValue, anchorOffset + 1);
                 Dom.preventDefault(evt);
-                do_action(Action.Construct(Action.SLit(new_n, new_side)));
+                switch (int_of_string_opt(newNodeValue)) {
+                | Some(new_n) =>
+                  let new_side =
+                    side_of_str_offset(newNodeValue, anchorOffset + 1);
+                  do_action(Action.Construct(Action.SLit(new_n, new_side)));
+                | None => ()
+                };
                 true;
               | _ =>
                 Dom.preventDefault(evt);
