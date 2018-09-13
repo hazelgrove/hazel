@@ -124,7 +124,7 @@ opseq_term:
 
 bidelim_term:
   | v = ID
-    { UHExp.Var v }
+    { UHExp.Var(NotInVHole, v) }
   | n = NATURAL
     { UHExp.NumLit n }
   | INJECT; LBRACKET; s = left_or_right; RBRACKET; LPAREN; e = uhexp; RPAREN

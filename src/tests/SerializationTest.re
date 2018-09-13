@@ -2,7 +2,7 @@ open OUnit2;
 open Printf;
 open Semantics.Core;
 let nih = tm => UHExp.Tm(NotInHole, tm);
-let nihVar = s => nih(UHExp.Var(s));
+let nihVar = s => nih(UHExp.Var(NotInVHole, s));
 let var' = nihVar("v");
 let varN' = n => nihVar(sprintf("v%d", n));
 type ezOpTree('op, 'v) =

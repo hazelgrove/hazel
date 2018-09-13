@@ -94,6 +94,10 @@ Module Core.
   | NotInHole : err_status
   | InHole : MetaVar.t -> err_status.
 
+  Inductive var_err_status : Type := 
+  | NotInVHole : var_err_status
+  | InVHole : MetaVar.t -> var_err_status.
+
   Module OperatorSeq.
     Inductive opseq (tm : Type) (op : Type) : Type := 
     | ExpOpExp : tm -> op -> tm -> opseq tm op
@@ -701,7 +705,7 @@ Module Core.
     | Parenthesized : t -> t
     with t' : Type := 
     | Asc : t -> UHTyp.t -> t'
-    | Var : Var.t -> t'
+    | Var : var_err_status -> Var.t -> t'
     | Let : Var.t -> t -> t -> t'
     | Lam : Var.t -> t -> t'
     | NumLit : nat -> t'
@@ -719,7 +723,7 @@ Module Core.
       match e with 
       (* bidelimited cases *)
       | Parenthesized _ => true
-      | Tm _ (Var _) => true
+      | Tm _ (Var _ _) => true
       | Tm _ (NumLit _) => true
       | Tm _ (EmptyHole _) => true
       | Tm _ (Inj _ _) => true
@@ -826,8 +830,10 @@ Module Core.
               | Some _ => Some ty
               end
             else None
-          | Var x => 
+          | Var NotInVHole x => 
             VarMap.lookup ctx x 
+          | Var (InVHole _) _ =>
+            Some (HTyp.Hole)
           | Lam x e1 => 
             let ctx' := VarMap.extend ctx (x, HTyp.Hole) in 
             Var.check_valid x
@@ -931,7 +937,7 @@ Module Core.
             end
           end
         | Asc _ _
-        | Var _
+        | Var _ _
         | NumLit _ 
         | EmptyHole _
         | OpSeq _ _ =>
@@ -1100,10 +1106,16 @@ Module Core.
             | None => None
             end
           else None
-        | Var x => 
+        | Var var_err_status x => 
           match VarMap.lookup ctx x with 
-          | Some ty => Some (e, ty, u_gen)
-          | None => None
+          | Some ty => Some (Var NotInVHole x, ty, u_gen)
+          | None => 
+            match var_err_status with 
+            | InVHole u => Some (e, HTyp.Hole, u_gen)
+            | NotInVHole => 
+              let (u, u_gen) := MetaVar.next u_gen in 
+              Some (Var (InVHole u) x, HTyp.Hole, u_gen)
+            end
           end
         | Lam x e1 => 
           let ctx' := VarMap.extend ctx (x, HTyp.Hole) in 
@@ -1270,7 +1282,7 @@ Module Core.
           | None => None
           end
         | Asc _ _
-        | Var _ 
+        | Var _ _ 
         | NumLit _ 
         | EmptyHole _ 
         | OpSeq _ _ => 
@@ -1584,9 +1596,11 @@ Module Core.
     (* cursor in analytic position *)
     | AnaOnly : HTyp.t -> cursor_mode
     | TypeInconsistent : HTyp.t -> HTyp.t -> cursor_mode
+    | AnaUnbound : HTyp.t -> cursor_mode
     | Subsumed : HTyp.t -> HTyp.t -> cursor_mode
     (* cursor in synthetic position *)
     | SynOnly : HTyp.t -> cursor_mode
+    | SynUnbound : cursor_mode
     | SynErrorArrow : HTyp.t (* expected *) -> HTyp.t (* got *) -> cursor_mode
     | SynErrorSum : HTyp.t (* expected *) -> HTyp.t (* got *) -> cursor_mode
     | SynMatchingArrow : HTyp.t -> HTyp.t -> cursor_mode
@@ -1604,7 +1618,7 @@ Module Core.
       match e with 
       | UHExp.EmptyHole u => IsHole u
       | UHExp.NumLit _ => IsNumLit
-      | UHExp.Var _ => IsVar
+      | UHExp.Var _ _ => IsVar
       | _ => IsOtherForm
       end.
 
@@ -1612,7 +1626,7 @@ Module Core.
       match e with 
       | UHExp.Tm _ (UHExp.EmptyHole u) => IsHole u
       | UHExp.Tm _ (UHExp.NumLit _) => IsNumLit
-      | UHExp.Tm _ (UHExp.Var _) => IsVar
+      | UHExp.Tm _ (UHExp.Var _ _) => IsVar
       | _ => IsOtherForm
       end.
 
@@ -1646,6 +1660,14 @@ Module Core.
               ctx
           )
         end
+      | UHExp.Tm _ (UHExp.Var (InVHole _) _) => 
+        Some (
+          mk_cursor_info
+            (AnaUnbound ty)
+            (form_of e)
+            side
+            ctx
+        )
       | UHExp.Tm NotInHole (UHExp.EmptyHole u) => 
         Some (
           mk_cursor_info 
@@ -1664,7 +1686,7 @@ Module Core.
             ctx
         )
       | UHExp.Tm NotInHole ((UHExp.Asc _ _) as e')
-      | UHExp.Tm NotInHole ((UHExp.Var _) as e')
+      | UHExp.Tm NotInHole ((UHExp.Var NotInVHole _) as e')
       | UHExp.Tm NotInHole ((UHExp.NumLit _) as e')  
       | UHExp.Tm NotInHole ((UHExp.OpSeq _ _) as e') =>
         match UHExp.syn fuel ctx e with
@@ -1754,6 +1776,14 @@ Module Core.
       | Fuel.Kicked => None
       | Fuel.More fuel => 
       match ze with 
+      | CursorE side (UHExp.Tm _ (UHExp.Var (InVHole _) _) as e) => 
+        Some (
+          mk_cursor_info
+            SynUnbound
+            (form_of e)
+            side
+            ctx
+        )
       | CursorE side e => 
         match UHExp.syn fuel ctx e with 
         | Some ty => 
@@ -2137,7 +2167,7 @@ Module Core.
             | None => None
             end
           | (_, UHExp.Asc _ _) => None
-          | (_, UHExp.Var _) => None
+          | (_, UHExp.Var _ _) => None
           | (O, UHExp.Let x e1 e2) => 
             Var.check_valid x
             match follow_e (xs, cursor_side) e1 with 
@@ -2215,7 +2245,7 @@ Module Core.
         if MetaVar.equal u u' then 
           Some nil
         else None
-      | UHExp.Tm _ (UHExp.Var _) => None
+      | UHExp.Tm _ (UHExp.Var _ _) => None
       | UHExp.Tm _ (UHExp.NumLit _) => None
       | UHExp.Parenthesized e1  
       | UHExp.Tm _ (UHExp.Asc e1 _)  
@@ -2304,7 +2334,7 @@ Module Core.
     (* expression shapes *)
     | SAsc : shape
     | SLet : Var.t -> shape
-    | SVar : Var.t -> shape
+    | SVar : Var.t -> ZExp.cursor_side -> shape
     | SLam : Var.t -> shape
     | SLit : nat -> ZExp.cursor_side -> shape
     | SInj : UHExp.inj_side -> shape
@@ -2955,12 +2985,18 @@ Module Core.
             (ZExp.AscZ2 e' (ZTyp.CursorT Before UHTyp.Hole)), 
           ty, 
           u_gen)
-      | (Construct (SVar x), ZExp.CursorE _ (UHExp.Tm _ (UHExp.EmptyHole _))) (* SAConVar *) =>
+      | (Construct (SVar x side), ZExp.CursorE _ (UHExp.Tm _ (UHExp.EmptyHole _))) 
+      | (Construct (SVar x side), ZExp.CursorE _ (UHExp.Tm _ (UHExp.Var _ _)))
+      | (Construct (SVar x side), ZExp.CursorE _ (UHExp.Tm _ (UHExp.NumLit _))) =>
         match VarMap.lookup ctx x with
-        | Some xty => Some (ZExp.CursorE After 
-          (UHExp.Tm NotInHole (UHExp.Var x)), 
+        | Some xty => Some (ZExp.CursorE side 
+          (UHExp.Tm NotInHole (UHExp.Var NotInVHole x)), 
           xty, u_gen)
-        | None => None
+        | None => 
+          let (u, u_gen) := MetaVar.next u_gen in 
+          Some (ZExp.CursorE side
+            (UHExp.Tm NotInHole (UHExp.Var (InVHole u) x)),
+            HTyp.Hole, u_gen)
         end
       | (Construct (SLet x), ZExp.CursorE _ e) =>
         Var.check_valid x
@@ -3842,7 +3878,8 @@ Module Core.
         Definition inst_num : Type := nat.
 
         Inductive t : Type := 
-        | Var : Var.t -> t
+        | BoundVar : Var.t -> t
+        | UnboundVar : MetaVar.t -> inst_num -> VarMap.t_(t) -> Var.t -> t
         | Let : Var.t -> t -> t -> t
         | Lam : Var.t -> HTyp.t -> t -> t
         | Ap  : t -> t -> t
@@ -3869,7 +3906,8 @@ Module Core.
           | Fuel.Kicked => d2
           | Fuel.More fuel => let subst := subst fuel in 
             match d2 with 
-            | Var y => if Var.equal x y then d1 else d2
+            | BoundVar y => if Var.equal x y then d1 else d2
+            | UnboundVar _ _ _ _ => d2
             | Let y d3 d4 =>
               let d3' := subst d1 x d3 in 
               let d4' := if Var.equal x y then d4 else subst d1 x d4 in 
@@ -3935,11 +3973,21 @@ Module Core.
             | Fuel.More fuel' => 
             let assign_type := assign_type fuel' in 
             match d with 
-            | Var x => 
+            | BoundVar x => 
               match (Var.is_valid x, VarMap.lookup gamma x) with 
               | (true, Some ty) => WellTyped ty
               | _ => IllTyped
               end
+            | UnboundVar u _ sigma x => 
+              if (Var.is_valid x) then 
+                match MetaVarMap.lookup delta u with 
+                | Some (ty, gamma') => 
+                  if check_type_env fuel' gamma delta sigma gamma' then
+                    WellTyped ty
+                  else IllTyped
+                | None => IllTyped
+                end
+              else IllTyped
             | Let x d1 d2 => 
               match (Var.is_valid x, assign_type gamma delta d1) with 
               | (true, WellTyped ty1) => 
@@ -4056,7 +4104,7 @@ Module Core.
         Definition id_env (gamma : Ctx.t) : Environment.t := 
           VarMap.map
             (fun xt : Var.t * HTyp.t => 
-              let (x, _) := xt in DHExp.Var x)
+              let (x, _) := xt in DHExp.BoundVar x)
             gamma.
 
         Fixpoint syn_expand 
@@ -4102,11 +4150,18 @@ Module Core.
                   ty 
                   delta
               end
-            | UHExp.Var x => 
+            | UHExp.Var (NotInVHole) x => 
               match VarMap.lookup gamma x with 
-              | Some ty => Expands (DHExp.Var x) ty MetaVarMap.empty
+              | Some ty => Expands (DHExp.BoundVar x) ty MetaVarMap.empty
               | None => DoesNotExpand
               end
+            | UHExp.Var (InVHole u) x => 
+              let sigma := id_env gamma in 
+              let delta := MetaVarMap.extend (MetaVarMap.empty) (u, (HTyp.Hole, gamma)) in 
+              Expands
+                (DHExp.UnboundVar u 0 sigma x)
+                (HTyp.Hole)
+                delta
             | UHExp.Lam x e1 => 
               let gamma' := VarMap.extend gamma (x, HTyp.Hole) in 
               match (Var.is_valid x, syn_expand fuel gamma' e1) with 
@@ -4319,8 +4374,15 @@ Module Core.
               let d := EmptyHole u 0 sigma in 
               let delta := MetaVarMap.extend MetaVarMap.empty (u, (ty, gamma)) in 
               Expands d ty delta
+            | UHExp.Var (InVHole u) x => 
+              let sigma := id_env gamma in 
+              let delta := MetaVarMap.extend (MetaVarMap.empty) (u, (ty, gamma)) in 
+              Expands 
+                (UnboundVar u 0 sigma x)
+                ty
+                delta
             | UHExp.Asc _ _ 
-            | UHExp.Var _ 
+            | UHExp.Var NotInVHole _ 
             | UHExp.Let _ _ _ 
             | UHExp.NumLit _
             | UHExp.OpSeq _ _ => 
@@ -4427,7 +4489,7 @@ Module Core.
           (path : InstancePath.t) (hii : HoleInstanceInfo.t) (d : DHExp.t) 
           : (DHExp.t * HoleInstanceInfo.t) := 
           match d with 
-          | Var _
+          | BoundVar _
           | NumLit _ => (d, hii)
           | Let x d1 d2 => 
             let (d1, hii) := renumber_result_only path hii d1 in 
@@ -4459,6 +4521,9 @@ Module Core.
             let (i, hii) := HoleInstanceInfo.next hii u sigma path in 
             let (d1, hii) := renumber_result_only path hii d1 in 
             (NonEmptyHole u i sigma d1, hii)
+          | UnboundVar u _ sigma x => 
+            let (i, hii) := HoleInstanceInfo.next hii u sigma path in 
+            (UnboundVar u i sigma x, hii)
           | Cast d1 ty1 ty2 => 
             let (d1, hii) := renumber_result_only path hii d1 in 
             (Cast d1 ty1 ty2, hii)
@@ -4474,7 +4539,7 @@ Module Core.
           | Fuel.Kicked => (d, hii)
           | Fuel.More fuel => 
           match d with 
-          | Var _
+          | BoundVar _
           | NumLit _ => (d, hii)
           | Let x d1 d2 => 
             let (d1, hii) := renumber_sigmas_only fuel path hii d1 in 
@@ -4508,6 +4573,10 @@ Module Core.
             let hii := HoleInstanceInfo.update_environment hii (u, i) sigma in 
             let (d1, hii) := renumber_sigmas_only fuel path hii d1 in 
             (NonEmptyHole u i sigma d1, hii)
+          | UnboundVar u i sigma x => 
+            let (sigma, hii) := renumber_sigma fuel path u i hii sigma in 
+            let hii := HoleInstanceInfo.update_environment hii (u, i) sigma in 
+            (UnboundVar u i sigma x, hii)
           | Cast d1 ty1 ty2 => 
             let (d1, hii) := renumber_sigmas_only fuel path hii d1 in 
             (Cast d1 ty1 ty2, hii)
@@ -4607,7 +4676,7 @@ Module Core.
             | Fuel.Kicked => InvalidInput 0
             | Fuel.More(fuel') => 
             match d with 
-            | DHExp.Var _ => InvalidInput 1
+            | DHExp.BoundVar _ => InvalidInput 1
             | DHExp.Let x d1 d2 => 
               if Var.is_valid x then
                 match evaluate fuel' d1 with 
@@ -4694,8 +4763,8 @@ Module Core.
                   | DHExp.Cast d1'' (HTyp.Sum ty1 ty2) (HTyp.Sum ty1' ty2') => 
                     let d' := 
                       DHExp.Case d1'' 
-                        (x, DHExp.subst fuel' (DHExp.Cast (DHExp.Var x) ty1 ty1') x d2)
-                        (y, DHExp.subst fuel' (DHExp.Cast (DHExp.Var y) ty2 ty2') y d3) in 
+                        (x, DHExp.subst fuel' (DHExp.Cast (DHExp.BoundVar x) ty1 ty1') x d2)
+                        (y, DHExp.subst fuel' (DHExp.Cast (DHExp.BoundVar y) ty2 ty2') y d3) in 
                       evaluate fuel' d'
                   | _ => InvalidInput 5
                   end
@@ -4708,8 +4777,8 @@ Module Core.
                   | DHExp.Cast d1'' (HTyp.Sum ty1 ty2) (HTyp.Sum ty1' ty2') => 
                     let d' := 
                       DHExp.Case d1'' 
-                        (x, DHExp.subst fuel' (DHExp.Cast (DHExp.Var x) ty1 ty1') x d2)
-                        (y, DHExp.subst fuel' (DHExp.Cast (DHExp.Var y) ty2 ty2') y d3) in 
+                        (x, DHExp.subst fuel' (DHExp.Cast (DHExp.BoundVar x) ty1 ty1') x d2)
+                        (y, DHExp.subst fuel' (DHExp.Cast (DHExp.BoundVar y) ty2 ty2') y d3) in 
                     evaluate fuel' d'
                   | _ => Indet (DHExp.Case d1' (x, d2) (y, d3))
                   end
@@ -4724,6 +4793,8 @@ Module Core.
               | BoxedValue d1' | Indet d1' => 
                 Indet (DHExp.NonEmptyHole u i sigma d1')
               end
+            | DHExp.UnboundVar u i sigma x => 
+              Indet d
             | DHExp.Cast d1 ty ty' => 
               match evaluate fuel' d1 with 
               | InvalidInput msg => InvalidInput msg

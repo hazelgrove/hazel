@@ -51,7 +51,7 @@ let mk =
             )
           ),
         )
-      | Some(Dynamics.DHExp.Var(x')) when Var.equal(x, x') => None
+      | Some(Dynamics.DHExp.BoundVar(x')) when Var.equal(x, x') => None
       | Some(d) =>
         let dhexp_html =
           View.html_of_dhexp(

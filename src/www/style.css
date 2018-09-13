@@ -114,16 +114,24 @@ html, body {
   border: 1px solid #073f24;
 }
 
-.cursor-Error.cursor-inspector {
+.cursor-TypeInconsistency.cursor-inspector {
   border: 1px solid #8e0000;
+}
+
+.cursor-BindingError.cursor-inspector {
+  border: 1px solid #ce5f00;
 }
 
 .cursor-OK .titlebar {
   background-color: #073f24; 
 }
 
-.cursor-Error .titlebar {
+.cursor-TypeInconsistency .titlebar {
   background-color: #8e0000;
+}
+
+.cursor-BindingError .titlebar {
+  background-color: #ce5f00;
 }
 
 .typebar, .infobar {
@@ -144,8 +152,12 @@ html, body {
   background-color: #FEFEEA;
 }
 
-.cursor-Error .typebar, .cursor-Error .infobar {
+.cursor-TypeInconsistency .typebar, .cursor-TypeInconsistency .infobar {
   background-color: #ffe0e0;
+}
+
+.cursor-BindingError .typebar, .cursor-BindingError .infobar {
+  background-color: #fef6ea;
 }
 
 .matched-type-bar > div {
@@ -611,6 +623,10 @@ button:disabled {
 
 .in_err_hole {
   border: 1px dashed red;
+}
+
+.InVHole {
+  border: 1px dashed #ce5f00;
 }
 
 .result-view {

@@ -65,7 +65,7 @@ let serialize = (~fmtr=std_formatter, ~line_length=100, ~indent=2, uhexp) => {
           print_htyp,
           tau,
         )
-      | UHExp.Var(x) => fprintf(fmtr, "%s", x)
+      | UHExp.Var(_, x) => fprintf(fmtr, "%s", x)
       | UHExp.Let(x, e1, e2) =>
         fprintf(
           fmtr,

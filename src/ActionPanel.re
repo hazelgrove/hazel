@@ -412,7 +412,9 @@ let make =
     S.l1(
       ({ZExp.mode: _, ZExp.form, ZExp.ctx}) =>
         switch (form) {
-        | ZExp.IsHole(_) => Ctx.length(ctx) > 0
+        | ZExp.IsHole(_)
+        | ZExp.IsVar
+        | ZExp.IsNumLit => true
         | _ => false
         },
       cursor_info_rs,
@@ -499,7 +501,7 @@ let make =
 
   let constructVar =
     action_input_button(
-      v => Action.Construct(Action.SVar(v)),
+      v => Action.Construct(Action.SVar(v, After)),
       s =>
         switch (String.compare(s, "")) {
         | 0 => None
