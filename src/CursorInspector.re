@@ -122,18 +122,34 @@ let of_cursor_mode = (cursor_mode: ZExp.cursor_mode) => {
         | _ => got_indicator("Got", typebar("got", syn_ty))
         };
       (ind1, ind2, OK);
+    | ZExp.SynUnboundArrow(matched_ty) =>
+      let ind1 = expected_msg_indicator("function type");
+      let ind2 =
+        got_indicator(
+          "Got unbound var ▶ matched to",
+          matched_ty_bar("got", HTyp.Hole, matched_ty),
+        );
+      (ind1, ind2, BindingError);
     | ZExp.SynMatchingSum(syn_ty, matched_ty) =>
       let ind1 = expected_msg_indicator("sum type");
       let ind2 =
         switch (syn_ty) {
         | HTyp.Hole =>
           got_indicator(
-            "Got type > matched to",
+            "Got type ▶ matched to",
             matched_ty_bar("got", syn_ty, matched_ty),
           )
         | _ => got_indicator("Got", typebar("got", syn_ty))
         };
       (ind1, ind2, OK);
+    | ZExp.SynUnboundSum(matched_ty) =>
+      let ind1 = expected_msg_indicator("sum type");
+      let ind2 =
+        got_indicator(
+          "Got unbound var ▶ matched to",
+          matched_ty_bar("got", HTyp.Hole, matched_ty),
+        );
+      (ind1, ind2, BindingError);
     | ZExp.TypePosition =>
       let ind1 = expected_a_type_indicator;
       let ind2 = got_a_type_indicator;

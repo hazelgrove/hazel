@@ -1604,7 +1604,9 @@ Module Core.
     | SynErrorArrow : HTyp.t (* expected *) -> HTyp.t (* got *) -> cursor_mode
     | SynErrorSum : HTyp.t (* expected *) -> HTyp.t (* got *) -> cursor_mode
     | SynMatchingArrow : HTyp.t -> HTyp.t -> cursor_mode
+    | SynUnboundArrow : HTyp.t -> cursor_mode
     | SynMatchingSum : HTyp.t -> HTyp.t -> cursor_mode
+    | SynUnboundSum : HTyp.t -> cursor_mode
     (* cursor in type position *)
     | TypePosition : cursor_mode.
 
@@ -1916,6 +1918,13 @@ Module Core.
                 ctx)
           | None => None
           end
+        | Some ((UHExp.Tm _ (UHExp.Var (InVHole _) _)) as e1, side) => 
+          Some 
+            (mk_cursor_info
+              (SynUnboundSum (HTyp.Sum HTyp.Hole HTyp.Hole))
+              (form_of e1)
+              side
+              ctx)
         | Some (e1, side) => 
           match UHExp.syn fuel ctx e1 with 
           | None => None
@@ -2000,6 +2009,13 @@ Module Core.
                   ctx)
             | None => None
             end
+          | Some (((UHExp.Tm _ (UHExp.Var (InVHole _) _)) as e_n), side) => 
+            Some 
+              (mk_cursor_info
+                (SynUnboundArrow (HTyp.Arrow HTyp.Hole HTyp.Hole))
+                (form_of e_n)
+                side
+                ctx)
           | Some (e_n, side) => 
             match UHExp.syn fuel ctx e_n with 
             | Some ty => 
