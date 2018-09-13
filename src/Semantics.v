@@ -1596,17 +1596,17 @@ Module Core.
     (* cursor in analytic position *)
     | AnaOnly : HTyp.t -> cursor_mode
     | TypeInconsistent : HTyp.t -> HTyp.t -> cursor_mode
-    | AnaUnbound : HTyp.t -> cursor_mode
+    | AnaFree : HTyp.t -> cursor_mode
     | Subsumed : HTyp.t -> HTyp.t -> cursor_mode
     (* cursor in synthetic position *)
     | SynOnly : HTyp.t -> cursor_mode
-    | SynUnbound : cursor_mode
+    | SynFree : cursor_mode
     | SynErrorArrow : HTyp.t (* expected *) -> HTyp.t (* got *) -> cursor_mode
     | SynErrorSum : HTyp.t (* expected *) -> HTyp.t (* got *) -> cursor_mode
     | SynMatchingArrow : HTyp.t -> HTyp.t -> cursor_mode
-    | SynUnboundArrow : HTyp.t -> cursor_mode
+    | SynFreeArrow : HTyp.t -> cursor_mode
     | SynMatchingSum : HTyp.t -> HTyp.t -> cursor_mode
-    | SynUnboundSum : HTyp.t -> cursor_mode
+    | SynFreeSum : HTyp.t -> cursor_mode
     (* cursor in type position *)
     | TypePosition : cursor_mode.
 
@@ -1665,7 +1665,7 @@ Module Core.
       | UHExp.Tm _ (UHExp.Var (InVHole _) _) => 
         Some (
           mk_cursor_info
-            (AnaUnbound ty)
+            (AnaFree ty)
             (form_of e)
             side
             ctx
@@ -1781,7 +1781,7 @@ Module Core.
       | CursorE side (UHExp.Tm _ (UHExp.Var (InVHole _) _) as e) => 
         Some (
           mk_cursor_info
-            SynUnbound
+            SynFree
             (form_of e)
             side
             ctx
@@ -1921,7 +1921,7 @@ Module Core.
         | Some ((UHExp.Tm _ (UHExp.Var (InVHole _) _)) as e1, side) => 
           Some 
             (mk_cursor_info
-              (SynUnboundSum (HTyp.Sum HTyp.Hole HTyp.Hole))
+              (SynFreeSum (HTyp.Sum HTyp.Hole HTyp.Hole))
               (form_of e1)
               side
               ctx)
@@ -2012,7 +2012,7 @@ Module Core.
           | Some (((UHExp.Tm _ (UHExp.Var (InVHole _) _)) as e_n), side) => 
             Some 
               (mk_cursor_info
-                (SynUnboundArrow (HTyp.Arrow HTyp.Hole HTyp.Hole))
+                (SynFreeArrow (HTyp.Arrow HTyp.Hole HTyp.Hole))
                 (form_of e_n)
                 side
                 ctx)
@@ -3895,7 +3895,7 @@ Module Core.
 
         Inductive t : Type := 
         | BoundVar : Var.t -> t
-        | UnboundVar : MetaVar.t -> inst_num -> VarMap.t_(t) -> Var.t -> t
+        | FreeVar : MetaVar.t -> inst_num -> VarMap.t_(t) -> Var.t -> t
         | Let : Var.t -> t -> t -> t
         | Lam : Var.t -> HTyp.t -> t -> t
         | Ap  : t -> t -> t
@@ -3923,7 +3923,7 @@ Module Core.
           | Fuel.More fuel => let subst := subst fuel in 
             match d2 with 
             | BoundVar y => if Var.equal x y then d1 else d2
-            | UnboundVar _ _ _ _ => d2
+            | FreeVar _ _ _ _ => d2
             | Let y d3 d4 =>
               let d3' := subst d1 x d3 in 
               let d4' := if Var.equal x y then d4 else subst d1 x d4 in 
@@ -3994,7 +3994,7 @@ Module Core.
               | (true, Some ty) => WellTyped ty
               | _ => IllTyped
               end
-            | UnboundVar u _ sigma x => 
+            | FreeVar u _ sigma x => 
               if (Var.is_valid x) then 
                 match MetaVarMap.lookup delta u with 
                 | Some (ty, gamma') => 
@@ -4175,7 +4175,7 @@ Module Core.
               let sigma := id_env gamma in 
               let delta := MetaVarMap.extend (MetaVarMap.empty) (u, (HTyp.Hole, gamma)) in 
               Expands
-                (DHExp.UnboundVar u 0 sigma x)
+                (DHExp.FreeVar u 0 sigma x)
                 (HTyp.Hole)
                 delta
             | UHExp.Lam x e1 => 
@@ -4394,7 +4394,7 @@ Module Core.
               let sigma := id_env gamma in 
               let delta := MetaVarMap.extend (MetaVarMap.empty) (u, (ty, gamma)) in 
               Expands 
-                (UnboundVar u 0 sigma x)
+                (FreeVar u 0 sigma x)
                 ty
                 delta
             | UHExp.Asc _ _ 
@@ -4537,9 +4537,9 @@ Module Core.
             let (i, hii) := HoleInstanceInfo.next hii u sigma path in 
             let (d1, hii) := renumber_result_only path hii d1 in 
             (NonEmptyHole u i sigma d1, hii)
-          | UnboundVar u _ sigma x => 
+          | FreeVar u _ sigma x => 
             let (i, hii) := HoleInstanceInfo.next hii u sigma path in 
-            (UnboundVar u i sigma x, hii)
+            (FreeVar u i sigma x, hii)
           | Cast d1 ty1 ty2 => 
             let (d1, hii) := renumber_result_only path hii d1 in 
             (Cast d1 ty1 ty2, hii)
@@ -4589,10 +4589,10 @@ Module Core.
             let hii := HoleInstanceInfo.update_environment hii (u, i) sigma in 
             let (d1, hii) := renumber_sigmas_only fuel path hii d1 in 
             (NonEmptyHole u i sigma d1, hii)
-          | UnboundVar u i sigma x => 
+          | FreeVar u i sigma x => 
             let (sigma, hii) := renumber_sigma fuel path u i hii sigma in 
             let hii := HoleInstanceInfo.update_environment hii (u, i) sigma in 
-            (UnboundVar u i sigma x, hii)
+            (FreeVar u i sigma x, hii)
           | Cast d1 ty1 ty2 => 
             let (d1, hii) := renumber_sigmas_only fuel path hii d1 in 
             (Cast d1 ty1 ty2, hii)
@@ -4809,7 +4809,7 @@ Module Core.
               | BoxedValue d1' | Indet d1' => 
                 Indet (DHExp.NonEmptyHole u i sigma d1')
               end
-            | DHExp.UnboundVar u i sigma x => 
+            | DHExp.FreeVar u i sigma x => 
               Indet d
             | DHExp.Cast d1 ty ty' => 
               match evaluate fuel' d1 with 

@@ -62,8 +62,8 @@ let got_inconsistent_matched_indicator = (got_ty, matched_ty) =>
     matched_ty_bar("got", got_ty, matched_ty),
   );
 
-let got_unbound_indicator =
-  got_indicator("Got unbound variable", typebar("got", HTyp.Hole));
+let got_free_indicator =
+  got_indicator("Got a free variable", typebar("got", HTyp.Hole));
 
 let got_consistent_indicator = got_ty =>
   got_indicator("Got consistent type", typebar("got", got_ty));
@@ -83,9 +83,9 @@ let of_cursor_mode = (cursor_mode: ZExp.cursor_mode) => {
       let ind1 = expected_ty_indicator(expected_ty);
       let ind2 = got_inconsistent_indicator(got_ty);
       (ind1, ind2, TypeInconsistency);
-    | ZExp.AnaUnbound(expected_ty) =>
+    | ZExp.AnaFree(expected_ty) =>
       let ind1 = expected_ty_indicator(expected_ty);
-      let ind2 = got_unbound_indicator;
+      let ind2 = got_free_indicator;
       (ind1, ind2, BindingError);
     | ZExp.Subsumed(expected_ty, got_ty) =>
       let ind1 = expected_ty_indicator(expected_ty);
@@ -98,9 +98,9 @@ let of_cursor_mode = (cursor_mode: ZExp.cursor_mode) => {
       let ind1 = expected_any_indicator;
       let ind2 = got_ty_indicator(ty);
       (ind1, ind2, OK);
-    | ZExp.SynUnbound =>
+    | ZExp.SynFree =>
       let ind1 = expected_any_indicator;
-      let ind2 = got_unbound_indicator;
+      let ind2 = got_free_indicator;
       (ind1, ind2, BindingError);
     | ZExp.SynErrorArrow(expected_ty, got_ty) =>
       let ind1 = expected_msg_indicator("function type");
@@ -122,11 +122,11 @@ let of_cursor_mode = (cursor_mode: ZExp.cursor_mode) => {
         | _ => got_indicator("Got", typebar("got", syn_ty))
         };
       (ind1, ind2, OK);
-    | ZExp.SynUnboundArrow(matched_ty) =>
+    | ZExp.SynFreeArrow(matched_ty) =>
       let ind1 = expected_msg_indicator("function type");
       let ind2 =
         got_indicator(
-          "Got unbound var ▶ matched to",
+          "Got a free variable ▶ matched to",
           matched_ty_bar("got", HTyp.Hole, matched_ty),
         );
       (ind1, ind2, BindingError);
@@ -142,11 +142,11 @@ let of_cursor_mode = (cursor_mode: ZExp.cursor_mode) => {
         | _ => got_indicator("Got", typebar("got", syn_ty))
         };
       (ind1, ind2, OK);
-    | ZExp.SynUnboundSum(matched_ty) =>
+    | ZExp.SynFreeSum(matched_ty) =>
       let ind1 = expected_msg_indicator("sum type");
       let ind2 =
         got_indicator(
-          "Got unbound var ▶ matched to",
+          "Got a free variable ▶ matched to",
           matched_ty_bar("got", HTyp.Hole, matched_ty),
         );
       (ind1, ind2, BindingError);

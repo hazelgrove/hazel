@@ -570,7 +570,7 @@ let rec precedence_dhexp = d =>
   DHExp.(
     switch (d) {
     | BoundVar(_)
-    | UnboundVar(_, _, _, _)
+    | FreeVar(_, _, _, _)
     | NumLit(_)
     | Inj(_, _, _)
     | EmptyHole(_, _, _)
@@ -598,7 +598,7 @@ let rec of_dhexp' =
     DHExp.(
       switch (d) {
       | BoundVar(x) => of_Var(prefix, err_status, NotInVHole, rev_path, x)
-      | UnboundVar(u, _, _, x) =>
+      | FreeVar(u, _, _, x) =>
         of_Var(prefix, err_status, InVHole(u), rev_path, x)
       | Let(x, d1, d2) =>
         let rev_path1 = [0, ...rev_path];
