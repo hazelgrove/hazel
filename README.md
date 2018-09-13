@@ -17,7 +17,7 @@ Hazel is implemented in Coq and Reason/OCaml, and is compiled to Javascript for 
     > opam update
   ```
 
-  - You need a version 4.04.2+ of the OCaml compiler. First check the current version used by `opam`:
+  - You need a version 4.05.0+ of the OCaml compiler. First check the current version used by `opam`:
 
     ```sh
     > opam switch
@@ -34,6 +34,7 @@ Hazel is implemented in Coq and Reason/OCaml, and is compiled to Javascript for 
 		--     -- 4.04.0  Official 4.04.0 release
     --     -- 4.04.1  Official 4.04.1 release
     --     -- 4.04.2  Official 4.04.2 release
+    --     -- 4.05.0  Official 4.05.0 release
     --     -- 4.06.0  Official 4.06.0 release
     --     -- 4.06.1  Official 4.06.1 release
     system  C system  System compiler (4.02.1)
@@ -42,7 +43,7 @@ Hazel is implemented in Coq and Reason/OCaml, and is compiled to Javascript for 
     The `C` marks the current compiler. Here version 4.02.1 is installed. We can see that a more recent version is available (4.06.1). So we will install it as follows:
 
     ```sh
-    > opam switch 4.04.2
+    > opam switch 4.06.1
     > eval `opam config env`
     ```
 
@@ -57,7 +58,7 @@ Hazel is implemented in Coq and Reason/OCaml, and is compiled to Javascript for 
   - Finally, we can now install the necessary OCaml dependencies:
 
     ```sh
-    > opam install reason reason-parser js_of_ocaml tyxml deriving ppx_deriving reactiveData js_of_ocaml-tyxml camomile menhir oUnit
+    > opam install reason js_of_ocaml tyxml deriving ppx_deriving reactiveData js_of_ocaml-tyxml camomile menhir oUnit
     ```
     
 ### Compilation
