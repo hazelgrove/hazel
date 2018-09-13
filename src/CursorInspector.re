@@ -62,11 +62,15 @@ let got_inconsistent_matched_indicator = (got_ty, matched_ty) =>
     matched_ty_bar("got", got_ty, matched_ty),
   );
 
+let got_unbound_indicator =
+  got_indicator("Got unbound variable", typebar("got", HTyp.Hole));
+
 let got_consistent_indicator = got_ty =>
   got_indicator("Got consistent type", typebar("got", got_ty));
 let got_a_type_indicator = got_indicator("Got", special_msg_bar("a type"));
 type err_state_b =
-  | Error
+  | TypeInconsistency
+  | BindingError
   | OK;
 let of_cursor_mode = (cursor_mode: ZExp.cursor_mode) => {
   let (ind1, ind2, err_state_b) =
@@ -78,7 +82,11 @@ let of_cursor_mode = (cursor_mode: ZExp.cursor_mode) => {
     | ZExp.TypeInconsistent(expected_ty, got_ty) =>
       let ind1 = expected_ty_indicator(expected_ty);
       let ind2 = got_inconsistent_indicator(got_ty);
-      (ind1, ind2, Error);
+      (ind1, ind2, TypeInconsistency);
+    | ZExp.AnaUnbound(expected_ty) =>
+      let ind1 = expected_ty_indicator(expected_ty);
+      let ind2 = got_unbound_indicator;
+      (ind1, ind2, BindingError);
     | ZExp.Subsumed(expected_ty, got_ty) =>
       let ind1 = expected_ty_indicator(expected_ty);
       let ind2 =
@@ -90,14 +98,18 @@ let of_cursor_mode = (cursor_mode: ZExp.cursor_mode) => {
       let ind1 = expected_any_indicator;
       let ind2 = got_ty_indicator(ty);
       (ind1, ind2, OK);
+    | ZExp.SynUnbound =>
+      let ind1 = expected_any_indicator;
+      let ind2 = got_unbound_indicator;
+      (ind1, ind2, BindingError);
     | ZExp.SynErrorArrow(expected_ty, got_ty) =>
       let ind1 = expected_msg_indicator("function type");
       let ind2 = got_inconsistent_matched_indicator(got_ty, expected_ty);
-      (ind1, ind2, Error);
+      (ind1, ind2, TypeInconsistency);
     | ZExp.SynErrorSum(expected_ty, got_ty) =>
       let ind1 = expected_msg_indicator("sum type");
       let ind2 = got_inconsistent_matched_indicator(got_ty, expected_ty);
-      (ind1, ind2, Error);
+      (ind1, ind2, TypeInconsistency);
     | ZExp.SynMatchingArrow(syn_ty, matched_ty) =>
       let ind1 = expected_msg_indicator("function type");
       let ind2 =
@@ -130,7 +142,8 @@ let of_cursor_mode = (cursor_mode: ZExp.cursor_mode) => {
 
   let cls_of_err_state_b =
     switch (err_state_b) {
-    | Error => "cursor-Error"
+    | TypeInconsistency => "cursor-TypeInconsistency"
+    | BindingError => "cursor-BindingError"
     | OK => "cursor-OK"
     };
 

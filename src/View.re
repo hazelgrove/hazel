@@ -28,6 +28,15 @@ let cls_from = (err_status, cls) =>
   | InHole(u) => ["in_err_hole", "in_err_hole_" ++ string_of_int(u), cls]
   | NotInHole => [cls]
   };
+let term_classes = (prefix, err_status, rev_path, classes, doc) => {
+  let id' = id_of_rev_path(prefix, rev_path);
+  PP.tagged(
+    cls_from_classes(err_status, classes),
+    Some((id', rev_path)),
+    None,
+    doc,
+  );
+};
 let term = (prefix, err_status, rev_path, cls, doc) => {
   let id' = id_of_rev_path(prefix, rev_path);
   PP.tagged(cls_from(err_status, cls), Some((id', rev_path)), None, doc);
@@ -204,8 +213,21 @@ let of_Asc = (prefix, err_status, rev_path, r1, r2) =>
     r1 ^^ space ^^ op(":") ^^ space ^^ r2,
   );
 
-let of_Var = (prefix, err_status, rev_path, x) =>
-  term(prefix, err_status, rev_path, "Var", var(x));
+let classes_of_var_err_status = var_err_status =>
+  switch (var_err_status) {
+  | InVHole(u) => ["InVHole", "InVHole_" ++ string_of_int(u)]
+  | NotInVHole => []
+  };
+
+let of_Var = (prefix, err_status, var_err_status, rev_path, x) =>
+  term_classes(
+    prefix,
+    err_status,
+    rev_path,
+    ["Var", ...classes_of_var_err_status(var_err_status)],
+    var(x),
+  );
+
 let of_Let = (prefix, err_status, rev_path, x, r1, r2) =>
   term(
     prefix,
@@ -452,7 +474,8 @@ let rec of_hexp = (prefix, rev_path, e) =>
       let r1 = of_hexp(prefix, rev_path1, e1);
       let r2 = of_uhtyp(prefix, rev_path2, ty);
       of_Asc(prefix, err_status, rev_path, r1, r2);
-    | UHExp.Var(x) => of_Var(prefix, err_status, rev_path, x)
+    | UHExp.Var(var_err_status, x) =>
+      of_Var(prefix, err_status, var_err_status, rev_path, x)
     | UHExp.Let(x, e, e') =>
       let rev_path1 = [0, ...rev_path];
       let rev_path2 = [1, ...rev_path];
@@ -546,7 +569,8 @@ let precedence_max = 4;
 let rec precedence_dhexp = d =>
   DHExp.(
     switch (d) {
-    | Var(_)
+    | BoundVar(_)
+    | UnboundVar(_, _, _, _)
     | NumLit(_)
     | Inj(_, _, _)
     | EmptyHole(_, _, _)
@@ -573,7 +597,9 @@ let rec of_dhexp' =
   let doc =
     DHExp.(
       switch (d) {
-      | Var(x) => of_Var(prefix, err_status, rev_path, x)
+      | BoundVar(x) => of_Var(prefix, err_status, NotInVHole, rev_path, x)
+      | UnboundVar(u, _, _, x) =>
+        of_Var(prefix, err_status, InVHole(u), rev_path, x)
       | Let(x, d1, d2) =>
         let rev_path1 = [0, ...rev_path];
         let rev_path2 = [1, ...rev_path];
@@ -872,7 +898,7 @@ let html_of_dhexp = (instance_click_fn, width, prefix, d) => {
   Pretty.HTML_Of_SDoc.html_of_sdoc(dhexp_sdoc);
 };
 let html_of_var = (width, prefix, x) =>
-  html_of_dhexp(_ => (), width, prefix, DHExp.Var(x));
+  html_of_dhexp(_ => (), width, prefix, DHExp.BoundVar(x));
 
 let html_of_hole_instance = (instance_click_fn, width, prefix, (u, i)) => {
   let d = Dynamics.DHExp.EmptyHole(u, i, []);
