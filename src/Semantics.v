@@ -2375,18 +2375,41 @@ Module Core.
         let skel := Associator.associate_ty seq in 
         ZTyp.OpSeqZ skel zty0 surround.
 
-    Fixpoint first_hole_path (hty : UHTyp.t) (n : nat) : option Path.t := None.
+    Fixpoint first_hole_path (uty : UHTyp.t) (n : nat) : option list(nat) :=
+      match uty with
+      | Num => None
+      | Hole => Some nil
+      | OpSeq _ opseq =>
+        if n <? OperatorSeq.seq_length opseq
+        then None
+        else
+          match OperatorSeq.seq_nth n opseq with
+          | None => None (* degenerate case *)
+          | Some uty' =>
+            match first_hole_path uty' 0 with
+            | None => first_hole_path uty (S n)
+            | Some ns => Path.cons_opt n ns
+            end
+          end
+      end.
 
     Fixpoint next_hole_path (zty : ZTyp.t) : option Path.t :=
-      let p := Path.of_ztyp zty in
-      (next_hole_path' zty p)
-    with next_hole_path' (zty : ZTyp.t) (p : Path.t) : option Path.t :=
-      match p with
-      | (nil, Before) => first_hole_path (ZTyp.erase zty) O
-      | (nil, In _) => (* can only be In a ZTyp when the ZTyp is a type identifier *)
-      | (nil, After) => None
-      | (cons x xs, cursor_side) =>
-
+      match next_hole_path' zty with
+      | None => None
+      | Some path => (path, Before)
+      end
+    with next_hole_path' (zty : ZTyp.t) : option list(nat) :=
+      match zty with
+      | ZTyp.CursorT cursor_side uty =>
+        match cursor_side with
+        | Before => first_hole_path uty 0
+        | In _ => (* not currently possible for types *)
+        | After => None
+        end
+      | ZTyp.ParenthesizedZ zty' => Path.cons_opt O (next_hole_path zty')
+      | ZTyp.OpSeqZ _ zty' surround as opseq =>
+        let n := OperatorSeq.surround_prefix_length surround in
+        first_hole_path (ZTyp.erase opseq) n
       end.
 
     Fixpoint performTyp (fuel : Fuel.t) (a : t) (zty : ZTyp.t) : option ZTyp.t :=
