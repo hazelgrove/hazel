@@ -2093,8 +2093,6 @@ Module Core.
         cons' n (of_ztyp zty1)
       end.
 
-    Fixpoint child_of_ztyp (zty : ZTyp.t) (n : nat) : option ZTyp.t :=
-
     Fixpoint of_zexp (ze : ZExp.t) : t := 
       match ze with 
       | ZExp.CursorE cursor_side _ => (nil, cursor_side)
