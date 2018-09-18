@@ -2396,20 +2396,21 @@ Module Core.
           end
       end.
 
+
     Fixpoint first_hole_path_e (fuel : Fuel.t) (ue : UHExp.t) (n : nat) : option (list nat) :=
       match fuel with
       | Fuel.Kicked => None
       | Fuel.More fuel =>
       match ue with
-      | Parenthesized ue1 => Path.cons_opt O (first_hole_path_e fuel ue1 O)
-      | Tm _ ue' =>
+      | UHExp.Parenthesized ue1 => Path.cons_opt O (first_hole_path_e fuel ue1 O)
+      | UHExp.Tm _ ue' =>
         match ue' with
-        | Asc ue1 uty =>
+        | UHExp.Asc ue1 uty =>
           match first_hole_path_e fuel ue1 O with
           | Some ns => Some (cons O ns)
           | None => first_hole_path_t fuel uty O
           end
-        | Var
+        | _ => None (* TODO *)
         end
       end
       end.
@@ -2441,6 +2442,7 @@ Module Core.
         | Some ns => Some (cons n ns)
         | None => first_hole_path_t fuel (ZTyp.erase zty) (S n)
       end
+      end
       end.
 
     Fixpoint next_hole_path_e (fuel : Fuel.t) (ze : ZExp.t) : option Path.t :=
@@ -2450,27 +2452,44 @@ Module Core.
       match next_hole_path_e' fuel ze with
       | None => None
       | Some path => Some (path, Before)
+      end
+      end
     with next_hole_path_e' (fuel : Fuel.t) (ze : ZExp.t) : option (list nat) :=
+      match fuel with
+      | Fuel.Kicked => None
+      | Fuel.More fuel =>
       match ze with
       | ZExp.CursorE cursor_side ue =>
         match cursor_side with
         | After => None
         | Before => first_hole_path_e fuel ue 0
-        | In _ =>
+        | In k =>
           match ue with
-          | Asc _ _ => first_hole_path_e fuel ue 1
-          | Let _ _ _ => first_hole_path_e fuel ue 1
-          | Lam _ _ => first_hole_path_e fuel ue 1
-          | Inj _ _ => first_hole_path_e fuel ue 1
-          | Case _ _ _ =>
+          | UHExp.Parenthesized _ => None (* cannot be In Parenthesized term *)
+          | UHExp.Tm err ue' =>
+            match err with
+            | InHole _ =>
+              match next_hole_path_e' fuel (ZExp.CursorE (In k) (UHExp.Tm NotInHole ue')) with
+              | Some ns => Some ns
+              | None => Some nil (* treat surrounding hole as last hole of expression *)
+              end
+            | NotInHole =>
+              match ue' with
+              | UHExp.Asc _ _ => first_hole_path_e fuel ue 1
+              | UHExp.Let _ _ _ => first_hole_path_e fuel ue 1
+              | UHExp.Lam _ _ => first_hole_path_e fuel ue 1
+              | UHExp.Inj _ _ => first_hole_path_e fuel ue 1
+              | UHExp.Case _ _ _ =>
             (* assumes cursor is on 'case' token though it may not be *)
             first_hole_path_e fuel ue 0
           | _ => None (* cannot be In any other expression *)
           end
         end
+          end
+        end
       | ZExp.Deeper err ze' =>
         match err with
-        | InHole =>
+        | InHole _ =>
           match next_hole_path_e' fuel (ZExp.Deeper NotInHole ze') with
           | Some ns => Some ns
           | None => Some nil (* treat surrounding hole as last hole of expression *)
@@ -2482,7 +2501,7 @@ Module Core.
             | Some ns => Some (cons 0 ns)
             | None => first_hole_path_e fuel (ZExp.erase ze) 1
             end
-          | ZExp.AscZ2 _ zty => Path.cons_opt 1 (next_hole_path_t fuel zty)
+          | ZExp.AscZ2 _ zty => Path.cons_opt 1 (next_hole_path_t' fuel zty)
           | ZExp.LetZ1 _ ze1 _ =>
             match next_hole_path_e' fuel ze1 with
             | Some ns => Some (cons 1 ns)
@@ -2502,14 +2521,15 @@ Module Core.
             | None => first_hole_path_e fuel (ZExp.erase ze) 2
             end
           | ZExp.CaseZ3 _ _ (_,ze1) => next_hole_path_e' fuel ze1
-          | OpSeqZ _ ze1 surround =>
+          | ZExp.OpSeqZ _ ze1 surround =>
             let n := OperatorSeq.surround_prefix_length surround in
-            match next_hole_path_e' with
+            match next_hole_path_e' fuel ze1 with
             | Some ns => Some (cons n ns)
             | None => first_hole_path_e fuel (ZExp.erase ze) (S n)
             end
           end
         end
+      | ZExp.ParenthesizedZ ze1 => Path.cons_opt 0 (next_hole_path_e' fuel ze1)
       end
       end.
 
