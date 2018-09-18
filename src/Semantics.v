@@ -2435,9 +2435,11 @@ Module Core.
         | After => None
         end
       | ZTyp.ParenthesizedZ zty' => Path.cons_opt O (next_hole_path_t' fuel zty')
-      | ZTyp.OpSeqZ _ zty' surround as opseq =>
+      | ZTyp.OpSeqZ _ zty1 surround =>
         let n := OperatorSeq.surround_prefix_length surround in
-        first_hole_path_t fuel (ZTyp.erase opseq) n
+        match next_hole_path_t' fuel zty1 with
+        | Some ns => Some (cons n ns)
+        | None => first_hole_path_t fuel (ZTyp.erase zty) (S n)
       end
       end.
 
@@ -2456,24 +2458,13 @@ Module Core.
         | Before => first_hole_path_e fuel ue 0
         | In _ =>
           match ue with
-          | Asc _ uty => first_hole_path_t fuel uty 0
-          | Let _ ue1 ue2 =>
-            match first_hole_path_e fuel ue1 1 with
-            | Some ns => Some ns
-            | None => first_hole_path_e fuel ue2 2
-            end
-          | Lam _ ue1 => first_hole_path_e fuel ue1 1
-          | Inj _ ue1 => first_hole_path_e fuel ue1 1
-          | Case ue1 (_, ue2) (_, ue3) =>
+          | Asc _ _ => first_hole_path_e fuel ue 1
+          | Let _ _ _ => first_hole_path_e fuel ue 1
+          | Lam _ _ => first_hole_path_e fuel ue 1
+          | Inj _ _ => first_hole_path_e fuel ue 1
+          | Case _ _ _ =>
             (* assumes cursor is on 'case' token though it may not be *)
-            match first_hole_path_e fuel ue1 0 with
-            | Some ns => Some ns
-            | None =>
-              match first_hole_path_e fuel ue2 1 with
-              | Some ns => Some ns
-              | None => first_hole_path_e fuel ue3 2
-              end
-            end
+            first_hole_path_e fuel ue 0
           | _ => None (* cannot be In any other expression *)
           end
         end
@@ -2486,12 +2477,37 @@ Module Core.
           end
         | NotInHole =>
           match ze' with
-          | AscZ1 ze1 uty =>
+          | ZExp.AscZ1 ze1 _ =>
             match next_hole_path_e' fuel ze1 with
             | Some ns => Some (cons 0 ns)
-            | None => Path.cons_opt 1 (first_hole_path_t fuel uty 0)
+            | None => first_hole_path_e fuel (ZExp.erase ze) 1
             end
-          | AscZ2 _ zty => Path.cons_opt 1 next_hole_path_t fuel zty
+          | ZExp.AscZ2 _ zty => Path.cons_opt 1 (next_hole_path_t fuel zty)
+          | ZExp.LetZ1 _ ze1 _ =>
+            match next_hole_path_e' fuel ze1 with
+            | Some ns => Some (cons 1 ns)
+            | None => first_hole_path_e fuel (ZExp.erase ze) 2
+            end
+          | ZExp.LetZ2 _ _ ze1 => Path.cons_opt 2 (next_hole_path_e' fuel ze1)
+          | ZExp.LamZ _ ze1 => Path.cons_opt 1 (next_hole_path_e' fuel ze1)
+          | ZExp.InjZ _ ze1 => Path.cons_opt 1 (next_hole_path_e' fuel ze1)
+          | ZExp.CaseZ1 ze1 _ _ =>
+            match next_hole_path_e' fuel ze1 with
+            | Some ns => Some (cons 0 ns)
+            | None => first_hole_path_e fuel (ZExp.erase ze) 1
+            end
+          | ZExp.CaseZ2 _ (_,ze1) _ =>
+            match next_hole_path_e' fuel ze1 with
+            | Some ns => Some (cons 1 ns)
+            | None => first_hole_path_e fuel (ZExp.erase ze) 2
+            end
+          | ZExp.CaseZ3 _ _ (_,ze1) => next_hole_path_e' fuel ze1
+          | OpSeqZ _ ze1 surround =>
+            let n := OperatorSeq.surround_prefix_length surround in
+            match next_hole_path_e' with
+            | Some ns => Some (cons n ns)
+            | None => first_hole_path_e fuel (ZExp.erase ze) (S n)
+            end
           end
         end
       end
