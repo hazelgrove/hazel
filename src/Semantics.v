@@ -2563,11 +2563,19 @@ Module Core.
       end.
 
     Fixpoint performTyp (fuel : Fuel.t) (a : t) (zty : ZTyp.t) : option ZTyp.t :=
+      match fuel with
+      | Fuel.Kicked => None
+      | Fuel.More fuel =>
       match (a, zty) with
       (* Movement *)
       | (MoveTo path, _) => 
         let ty := ZTyp.erase zty in 
         Path.follow_ty fuel path ty
+      | (MoveToNextHole, _) =>
+        match next_hole_path_t fuel zty with
+        | None => None
+        | Some path => performTyp fuel (MoveTo path) zty
+        end
       (* Backspace and Delete *)
       | (Backspace, ZTyp.CursorT After uty) 
       | (Backspace, ZTyp.CursorT (In _) uty) => 
@@ -2780,6 +2788,7 @@ Module Core.
         | None => None
         end
       | _ => None
+      end
       end.
 
     Definition zexp_syn_fix_holes
@@ -2882,6 +2891,11 @@ Module Core.
         match Path.follow_e fuel path e with
         | Some ze' => Some (ze', ty, u_gen)
         | None => None
+        end
+      | (MoveToNextHole, _) =>
+        match next_hole_path_e fuel ze with
+        | None => None
+        | Some path => performSyn fuel ctx (MoveTo path) ze_ty
         end
       (* Backspace & Deletion *)
       | (Backspace, ZExp.CursorE After e) => 
@@ -3678,6 +3692,11 @@ Module Core.
         match Path.follow_e fuel path e with
         | Some ze' => Some (ze', u_gen)
         | None => None
+        end
+      | (MoveToNextHole, _) =>
+        match next_hole_path_e fuel ze with
+        | None => None
+        | Some path => performAna fuel u_gen ctx (MoveTo path) ze ty
         end
       (* Backspace & Delete *)
       | (Backspace, ZExp.CursorE After e) => 
