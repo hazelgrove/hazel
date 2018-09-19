@@ -2382,7 +2382,7 @@ Module Core.
       | UHTyp.Num => None
       | UHTyp.Hole => Some nil
       | UHTyp.OpSeq _ opseq =>
-        if Nat.ltb n (OperatorSeq.seq_length opseq)
+        if Nat.leb (OperatorSeq.seq_length opseq) n
         then None
         else
           match OperatorSeq.seq_nth n opseq with
@@ -2396,21 +2396,50 @@ Module Core.
           end
       end.
 
-
     Fixpoint first_hole_path_e (fuel : Fuel.t) (ue : UHExp.t) (n : nat) : option (list nat) :=
       match fuel with
       | Fuel.Kicked => None
       | Fuel.More fuel =>
       match ue with
-      | UHExp.Parenthesized ue1 => Path.cons_opt O (first_hole_path_e fuel ue1 O)
+      | UHExp.Parenthesized ue1 => Path.cons_opt 0 (first_hole_path_e fuel ue1 0)
       | UHExp.Tm _ ue' =>
         match ue' with
         | UHExp.Asc ue1 uty =>
-          match first_hole_path_e fuel ue1 O with
-          | Some ns => Some (cons O ns)
-          | None => first_hole_path_t fuel uty O
+          match first_hole_path_e fuel ue1 0 with
+          | Some ns => Some (cons 0 ns)
+          | None => Path.cons_opt 1 (first_hole_path_t fuel uty 0)
           end
-        | _ => None (* TODO *)
+        | UHExp.Var _ => None
+        | UHExp.Let _ ue1 ue2 =>
+          match first_hole_path_e fuel ue1 0 with
+          | Some ns => Some (cons 0 ns)
+          | None => Path.cons_opt 1 (first_hole_path_e fuel ue1 0)
+          end
+        | UHExp.Lam _ ue1 => Path.cons_opt 0 (first_hole_path_e fuel ue1 0)
+        | UHExp.NumLit _ => None
+        | UHExp.Inj _ ue1 => Path.cons_opt 0 (first_hole_path_e fuel ue1 0)
+        | UHExp.Case ue1 (_,ue2) (_,ue3) =>
+          match first_hole_path_e fuel ue1 0 with
+          | Some ns => Some (cons 0 ns)
+          | None =>
+            match first_hole_path_e fuel ue2 0 with
+            | Some ns => Some (cons 1 ns)
+            | None => Path.cons_opt 2 (first_hole_path_e fuel ue3 0)
+            end
+          end
+        | UHExp.EmptyHole _ => Some nil
+        | UHExp.OpSeq _ opseq =>
+          if Nat.leb (OperatorSeq.seq_length opseq) n
+          then None
+          else
+            match OperatorSeq.seq_nth n opseq with
+            | None => None
+            | Some ue1 =>
+              match first_hole_path_e fuel ue1 0 with
+              | Some ns => Some (cons n ns)
+              | None => first_hole_path_e fuel ue1 (n+1)
+              end
+          end
         end
       end
       end.
