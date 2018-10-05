@@ -2469,10 +2469,11 @@ Module Core.
       | Fuel.More fuel =>
       match zty with
       | ZTyp.CursorT cursor_side uty =>
-        match cursor_side with
-        | Before => first_hole_path_t fuel uty
-        | In _ => None
-        | After => None
+        match cursor_side, uty with
+        | _, UHTyp.Hole => None
+        | Before, _ => first_hole_path_t fuel uty
+        | After, _ => None
+        | In _, _ => None
         end
       | ZTyp.ParenthesizedZ zty' => Path.cons_opt 0 (next_hole_path_t' fuel zty')
       | ZTyp.OpSeqZ _ zty' surround =>
@@ -2502,10 +2503,11 @@ Module Core.
       | Fuel.More fuel =>
       match ze with
       | ZExp.CursorE cursor_side ue =>
-        match cursor_side with
-        | After => None
-        | Before => first_hole_path_e fuel ue
-        | In k =>
+        match cursor_side, ue with
+        | _, (UHExp.Tm _ (UHExp.EmptyHole _)) => None
+        | After, _ => None
+        | Before, _ => first_hole_path_e fuel ue
+        | In k, _ =>
           match ue with
           | UHExp.Parenthesized _ => None (* cannot be In Parenthesized term *)
           | UHExp.Tm err ue' =>
