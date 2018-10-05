@@ -447,6 +447,8 @@ let make =
       ])
     );
 
+  let moveToNextHole = action_button(Action.MoveToNextHole, Html5.pcdata("move to next hole"), KCs.tab);
+
   let threepiece_op = threepiece("op");
   let threepiece_kw = threepiece("kw");
   let constructNum =
@@ -657,7 +659,7 @@ let make =
           div(~a=[a_class(["sub-panel-title"])], [pcdata("General")]),
           div(
             ~a=[a_class(["sub-panel-body"])],
-            [constructParenthesized, backspace, delete],
+            [constructParenthesized, backspace, delete, moveToNextHole],
           ),
         ],
       )

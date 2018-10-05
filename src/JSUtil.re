@@ -84,6 +84,7 @@ module KeyCombos = {
   let esc = _kc("Esc", "Escape");
   let backspace = _kc("Backspace", "Backspace");
   let del = _kc("Delete", "Delete");
+  let tab = _kc("Tab", "Tab");
   let space = _kc("Space", " ");
   let p = _kc("p", "p");
   let x = _kc("x", "x");
