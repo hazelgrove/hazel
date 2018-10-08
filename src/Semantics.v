@@ -2414,7 +2414,7 @@ Module Core.
           | Some ns => Some (cons 0 ns)
           | None => Path.cons_opt 1 (first_hole_path_t fuel uty)
           end
-        | UHExp.Var _ => None
+        | UHExp.Var _ _ => None
         | UHExp.Let _ ue1 ue2 =>
           match first_hole_path_e fuel ue1 with
           | Some ns => Some (cons 0 ns)
