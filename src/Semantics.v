@@ -2336,7 +2336,11 @@ Module Core.
     Parameter associate_ty : UHTyp.opseq -> UHTyp.skel_t.
   End ASSOCIATOR.
 
-  Module FAction (Associator : ASSOCIATOR).
+  Module Type HELPER.
+    Parameter log_path : Path.t -> Path.t.
+  End HELPER.
+
+  Module FAction (Associator : ASSOCIATOR) (Helper : HELPER).
     Inductive direction : Type :=
     | Child : nat -> direction
     | Parent : direction.
@@ -2511,15 +2515,6 @@ Module Core.
           match ue with
           | UHExp.Parenthesized _ => None (* cannot be In Parenthesized term *)
           | UHExp.Tm err ue' =>
-            match err with
-            | InHole _ =>
-              (* treat surrounding hole as last hole of expression *)
-              let not_in_hole := ZExp.CursorE (In k) (UHExp.Tm NotInHole ue') in
-              match next_hole_path_e' fuel not_in_hole with
-              | Some ns => Some ns
-              | None => Some nil
-              end
-            | NotInHole =>
               match ue' with
               | UHExp.Asc _ uty => Path.cons_opt 1 (first_hole_path_t fuel uty)
               | UHExp.Let _ ue'' _ => Path.cons_opt 1 (first_hole_path_e fuel ue'')
@@ -2538,22 +2533,12 @@ Module Core.
           end
         end
           end
-        end
-      | ZExp.Deeper err ze' =>
-        match err with
-        | InHole _ =>
-          (* treat surrounding hole as last hole of expression *)
-          let not_in_hole := ZExp.Deeper NotInHole ze' in
-          match next_hole_path_e' fuel not_in_hole with
-          | Some ns => Some ns
-          | None => Some nil
-          end
-        | NotInHole =>
+      | ZExp.Deeper _ ze' =>
           match ze' with
           | ZExp.AscZ1 ze'' uty =>
             match next_hole_path_e' fuel ze'' with
             | Some ns => Some (cons 0 ns)
-            | None => first_hole_path_t fuel uty
+            | None => Path.cons_opt 1 (first_hole_path_t fuel uty)
             end
           | ZExp.AscZ2 _ zty => Path.cons_opt 1 (next_hole_path_t' fuel zty)
           | ZExp.LetZ1 _ ze'' ue =>
@@ -2562,8 +2547,8 @@ Module Core.
             | None => Path.cons_opt 2 (first_hole_path_e fuel ue)
             end
           | ZExp.LetZ2 _ _ ze'' => Path.cons_opt 2 (next_hole_path_e' fuel ze'')
-          | ZExp.LamZ _ ze'' => Path.cons_opt 1 (next_hole_path_e' fuel ze'')
-          | ZExp.InjZ _ ze'' => Path.cons_opt 1 (next_hole_path_e' fuel ze'')
+          | ZExp.LamZ _ ze'' => Path.cons_opt 0 (next_hole_path_e' fuel ze'')
+          | ZExp.InjZ _ ze'' => Path.cons_opt 0 (next_hole_path_e' fuel ze'')
           | ZExp.CaseZ1 ze'' (_,ue1) (_,ue2) =>
             match next_hole_path_e' fuel ze'' with
             | Some ns => Some (cons 0 ns)
@@ -2588,11 +2573,12 @@ Module Core.
               let opseq := OperatorSeq.opseq_of_exp_and_surround ue'' surround in
               first_hole_path_e_opseq fuel opseq (n+1)
             end
-          end
         end
       | ZExp.ParenthesizedZ ze' => Path.cons_opt 0 (next_hole_path_e' fuel ze')
       end
       end.
+
+
 
     Fixpoint performTyp (fuel : Fuel.t) (a : t) (zty : ZTyp.t) : option ZTyp.t :=
       match fuel with
@@ -2606,7 +2592,9 @@ Module Core.
       | (MoveToNextHole, _) =>
         match next_hole_path_t fuel zty with
         | None => None
-        | Some path => performTyp fuel (MoveTo path) zty
+        | Some path =>
+          (* [debug] let path := Helper.log_path path in *)
+          performTyp fuel (MoveTo path) zty
         end
       (* Backspace and Delete *)
       | (Backspace, ZTyp.CursorT After uty) 
@@ -2927,7 +2915,9 @@ Module Core.
       | (MoveToNextHole, _) =>
         match next_hole_path_e fuel ze with
         | None => None
-        | Some path => performSyn fuel ctx (MoveTo path) ze_ty
+        | Some path =>
+          (* [debug] let path := Helper.log_path path in *)
+          performSyn fuel ctx (MoveTo path) ze_ty
         end
       (* Backspace & Deletion *)
       | (Backspace, ZExp.CursorE After e) => 
@@ -3728,7 +3718,9 @@ Module Core.
       | (MoveToNextHole, _) =>
         match next_hole_path_e fuel ze with
         | None => None
-        | Some path => performAna fuel u_gen ctx (MoveTo path) ze ty
+        | Some path =>
+          (* [debug] let path := Helper.log_path path in *)
+          performAna fuel u_gen ctx (MoveTo path) ze ty
         end
       (* Backspace & Delete *)
       | (Backspace, ZExp.CursorE After e) => 
