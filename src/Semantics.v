@@ -2578,6 +2578,211 @@ Module Core.
       end
       end.
 
+    Fixpoint last_hole_path_t (fuel : Fuel.t) (uty : UHTyp.t) : option (list nat) :=
+      match fuel with
+      | Fuel.Kicked => None
+      | Fuel.More fuel =>
+      match uty with
+      | UHTyp.Parenthesized uty' => Path.cons_opt 0 (last_hole_path_t fuel uty')
+      | UHTyp.Num => None
+      | UHTyp.Hole => Some nil
+      | UHTyp.OpSeq _ opseq =>
+        let l := OperatorSeq.seq_length opseq in
+        last_hole_path_t_opseq fuel opseq (l-1)
+      end
+      end
+    with last_hole_path_t_opseq (fuel : Fuel.t) (opseq : OperatorSeq.opseq UHTyp.t UHTyp.op) (n : nat) : option (list nat) :=
+      match fuel with
+      | Fuel.Kicked => None
+      | Fuel.More fuel =>
+        if Nat.ltb n 0
+        then None
+        else
+          match OperatorSeq.seq_nth n opseq with
+          | None => None (* degenerate case *)
+          | Some uty' =>
+            match last_hole_path_t fuel uty' with
+            | Some ns => Some (cons n ns)
+            | None => last_hole_path_t_opseq fuel opseq (n-1)
+            end
+          end
+      end.
+
+    Fixpoint last_hole_path_e (fuel : Fuel.t) (ue : UHExp.t) : option (list nat) :=
+      match fuel with
+      | Fuel.Kicked => None
+      | Fuel.More fuel =>
+      match ue with
+      | UHExp.Parenthesized ue1 => Path.cons_opt 0 (last_hole_path_e fuel ue1)
+      | UHExp.Tm _ ue' =>
+        match ue' with
+        | UHExp.Asc ue1 uty =>
+          match last_hole_path_t fuel uty with
+          | Some ns => Some (cons 1 ns)
+          | None => Path.cons_opt 0 (last_hole_path_e fuel ue1)
+          end
+        | UHExp.Var _ _ => None
+        | UHExp.Let _ ue1 ue2 =>
+          match last_hole_path_e fuel ue2 with
+          | Some ns => Some (cons 1 ns)
+          | None => Path.cons_opt 0 (last_hole_path_e fuel ue1)
+          end
+        | UHExp.Lam _ ue1 => Path.cons_opt 0 (last_hole_path_e fuel ue1)
+        | UHExp.NumLit _ => None
+        | UHExp.Inj _ ue1 => Path.cons_opt 0 (last_hole_path_e fuel ue1)
+        | UHExp.Case ue1 (_,ue2) (_,ue3) =>
+          match last_hole_path_e fuel ue3 with
+          | Some ns => Some (cons 2 ns)
+          | None =>
+            match last_hole_path_e fuel ue1 with
+            | Some ns => Some (cons 1 ns)
+            | None => Path.cons_opt 0 (last_hole_path_e fuel ue1)
+            end
+          end
+        | UHExp.EmptyHole _ => Some nil
+        | UHExp.OpSeq _ opseq =>
+          let l := OperatorSeq.seq_length opseq in
+          last_hole_path_e_opseq fuel opseq (l-1)
+        end
+      end
+      end
+    with last_hole_path_e_opseq (fuel : Fuel.t) (opseq : OperatorSeq.opseq UHExp.t UHExp.op) (n : nat) : option (list nat) :=
+      match fuel with
+      | Fuel.Kicked => None
+      | Fuel.More fuel =>
+        if Nat.ltb n 0
+        then None
+        else
+          match OperatorSeq.seq_nth n opseq with
+          | None => None
+          | Some ue =>
+            match last_hole_path_e fuel ue with
+            | Some ns => Some (cons n ns)
+            | None => last_hole_path_e_opseq fuel opseq (n-1)
+            end
+          end
+      end.
+
+    Fixpoint prev_hole_path_t (fuel : Fuel.t) (zty : ZTyp.t) : option Path.t :=
+      match fuel with
+      | Fuel.Kicked => None
+      | Fuel.More fuel =>
+      match prev_hole_path_t' fuel zty with
+      | None => None
+      | Some path => Some (path, Before)
+      end
+      end
+    with prev_hole_path_t' (fuel : Fuel.t) (zty : ZTyp.t) : option (list nat) :=
+      match fuel with
+      | Fuel.Kicked => None
+      | Fuel.More fuel =>
+      match zty with
+      | ZTyp.CursorT cursor_side uty =>
+        match cursor_side, uty with
+        | _, UHTyp.Hole => None
+        | Before, _ => None
+        | After, _ => last_hole_path_t fuel uty
+        | In _, _ => None
+        end
+      | ZTyp.ParenthesizedZ zty' => Path.cons_opt 0 (prev_hole_path_t' fuel zty')
+      | ZTyp.OpSeqZ _ zty' surround =>
+        let n := OperatorSeq.surround_prefix_length surround in
+        match prev_hole_path_t' fuel zty' with
+        | Some ns => Some (cons n ns)
+        | None =>
+          let uty' := ZTyp.erase zty' in
+          let opseq := OperatorSeq.opseq_of_exp_and_surround uty' surround in
+          last_hole_path_t_opseq fuel opseq (n-1)
+        end
+      end
+      end.
+
+    Fixpoint prev_hole_path_e (fuel : Fuel.t) (ze : ZExp.t) : option Path.t :=
+      match fuel with
+      | Fuel.Kicked => None
+      | Fuel.More fuel =>
+      match prev_hole_path_e' fuel ze with
+      | None => None
+      | Some path => Some (path, Before)
+      end
+      end
+    with prev_hole_path_e' (fuel : Fuel.t) (ze : ZExp.t) : option (list nat) :=
+      match fuel with
+      | Fuel.Kicked => None
+      | Fuel.More fuel =>
+      match ze with
+      | ZExp.CursorE cursor_side ue =>
+        match cursor_side, ue with
+        | _, (UHExp.Tm _ (UHExp.EmptyHole _)) => None
+        | After, _ => last_hole_path_e fuel ue
+        | Before, _ => None
+        | In k, _ =>
+          match ue with
+          | UHExp.Parenthesized _ => None (* cannot be In Parenthesized term *)
+          | UHExp.Tm err ue' =>
+            match ue' with
+            | UHExp.Asc ue'' _ => Path.cons_opt 0 (last_hole_path_e fuel ue'')
+            | UHExp.Let _ _ _ => None
+            | UHExp.Lam _ _ => None
+            | UHExp.Inj _ _ => None
+            | UHExp.Case ue1 (_,ue2) (_,ue3) =>
+              match last_hole_path_e fuel ue3 with
+              | Some ns => Some (cons 2 ns)
+              | None =>
+                match last_hole_path_e fuel ue2 with
+                | Some ns => Some (cons 1 ns)
+                | None => Path.cons_opt 0 (last_hole_path_e fuel ue1)
+                end
+              end
+            | _ => None (* cannot be In any other expression *)
+            end
+          end
+        end
+      | ZExp.Deeper _ ze' =>
+        match ze' with
+        | ZExp.AscZ1 ze0 _ => Path.cons_opt 0 (prev_hole_path_e' fuel ze0)
+        | ZExp.AscZ2 ue0 zty1 =>
+          match prev_hole_path_t' fuel zty1 with
+          | Some ns => Some (cons 1 ns)
+          | None => Path.cons_opt 0 (last_hole_path_e fuel ue0)
+          end
+        | ZExp.LetZ1 _ ze0 ue1 => Path.cons_opt 0 (prev_hole_path_e' fuel ze0)
+        | ZExp.LetZ2 _ ue0 ze1 => 
+          match prev_hole_path_e' fuel ze1 with
+          | Some ns => Some (cons 1 ns)
+          | None => Path.cons_opt 0 (last_hole_path_e fuel ue0)
+          end
+        | ZExp.LamZ _ ze0 => Path.cons_opt 0 (prev_hole_path_e' fuel ze0)
+        | ZExp.InjZ _ ze0 => Path.cons_opt 0 (prev_hole_path_e' fuel ze0)
+        | ZExp.CaseZ1 ze0 _ _ => Path.cons_opt 0 (prev_hole_path_e' fuel ze0)
+        | ZExp.CaseZ2 ue0 (_,ze1) _ =>
+          match prev_hole_path_e' fuel ze1 with
+          | Some ns => Some (cons 1 ns)
+          | None => Path.cons_opt 0 (last_hole_path_e fuel ue0)
+          end
+        | ZExp.CaseZ3 ue0 (_,ue1) (_,ze2) => 
+          match next_hole_path_e' fuel ze2 with
+          | Some ns => Some (cons 2 ns)
+          | None =>
+            match last_hole_path_e fuel ue1 with
+            | Some ns => Some (cons 1 ns)
+            | None => Path.cons_opt 0 (last_hole_path_e fuel ue0)
+            end
+          end
+        | ZExp.OpSeqZ _ ze_n surround =>
+          let n := OperatorSeq.surround_prefix_length surround in
+          match prev_hole_path_e' fuel ze_n with
+          | Some ns => Some (cons n ns)
+          | None =>
+            let ue_n := ZExp.erase ze_n in
+            let opseq := OperatorSeq.opseq_of_exp_and_surround ue_n surround in
+            last_hole_path_e_opseq fuel opseq (n-1)
+          end
+        end
+      | ZExp.ParenthesizedZ ze0 => Path.cons_opt 0 (prev_hole_path_e' fuel ze0)
+      end
+      end.
+
     Fixpoint performTyp (fuel : Fuel.t) (a : t) (zty : ZTyp.t) : option ZTyp.t :=
       match fuel with
       | Fuel.Kicked => None
@@ -2587,6 +2792,11 @@ Module Core.
       | (MoveTo path, _) => 
         let ty := ZTyp.erase zty in 
         Path.follow_ty fuel path ty
+      | (MoveToPrevHole, _) =>
+        match prev_hole_path_t fuel zty with
+        | None => None
+        | Some path => performTyp fuel (MoveTo path) zty
+        end
       | (MoveToNextHole, _) =>
         match next_hole_path_t fuel zty with
         | None => None
@@ -2909,6 +3119,11 @@ Module Core.
         match Path.follow_e fuel path e with
         | Some ze' => Some (ze', ty, u_gen)
         | None => None
+        end
+      | (MoveToPrevHole, _) =>
+        match prev_hole_path_e fuel ze with
+        | None => None
+        | Some path => performSyn fuel ctx (MoveTo path) ze_ty
         end
       | (MoveToNextHole, _) =>
         match next_hole_path_e fuel ze with
@@ -3712,6 +3927,11 @@ Module Core.
         match Path.follow_e fuel path e with
         | Some ze' => Some (ze', u_gen)
         | None => None
+        end
+      | (MoveToPrevHole, _) =>
+        match prev_hole_path_e fuel ze with
+        | None => None
+        | Some path => performAna fuel u_gen ctx (MoveTo path) ze ty
         end
       | (MoveToNextHole, _) =>
         match next_hole_path_e fuel ze with

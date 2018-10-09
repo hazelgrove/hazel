@@ -447,7 +447,19 @@ let make =
       ])
     );
 
-  let moveToNextHole = action_button(Action.MoveToNextHole, Html5.pcdata("move to next hole"), KCs.tab);
+  let moveToPrevHole =
+    action_button(
+      Action.MoveToPrevHole,
+      Html5.pcdata("move to previous hole"),
+      KCs.backtab,
+    );
+
+  let moveToNextHole =
+    action_button(
+      Action.MoveToNextHole,
+      Html5.pcdata("move to next hole"),
+      KCs.tab,
+    );
 
   let threepiece_op = threepiece("op");
   let threepiece_kw = threepiece("kw");
@@ -659,7 +671,13 @@ let make =
           div(~a=[a_class(["sub-panel-title"])], [pcdata("General")]),
           div(
             ~a=[a_class(["sub-panel-body"])],
-            [constructParenthesized, backspace, delete, moveToNextHole],
+            [
+              constructParenthesized,
+              backspace,
+              delete,
+              moveToPrevHole,
+              moveToNextHole,
+            ],
           ),
         ],
       )
