@@ -2422,7 +2422,7 @@ Module Core.
         | UHExp.Let _ ue1 ue2 =>
           match first_hole_path_e fuel ue1 with
           | Some ns => Some (cons 0 ns)
-          | None => Path.cons_opt 1 (first_hole_path_e fuel ue1)
+          | None => Path.cons_opt 1 (first_hole_path_e fuel ue2)
           end
         | UHExp.Lam _ ue1 => Path.cons_opt 0 (first_hole_path_e fuel ue1)
         | UHExp.NumLit _ => None
