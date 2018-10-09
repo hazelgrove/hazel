@@ -85,6 +85,7 @@ module KeyCombos = {
   let backspace = _kc("Backspace", "Backspace");
   let del = _kc("Delete", "Delete");
   let tab = _kc("Tab", "Tab");
+  let backtab = _kc("Shift-Tab", "Shift-Tab");
   let space = _kc("Space", " ");
   let p = _kc("p", "p");
   let x = _kc("x", "x");
@@ -110,8 +111,15 @@ module KeyCombos = {
 };
 let get_which = (evt: Js.t(Dom_html.keyboardEvent)) =>
   Js.Optdef.get(evt##.which, () => assert(false));
-let get_key = (evt: Js.t(Dom_html.keyboardEvent)) =>
-  Js.to_string(Js.Optdef.get(evt##.key, () => assert(false)));
+let get_key = (evt: Js.t(Dom_html.keyboardEvent)) => {
+  let shift =
+    if (Js.to_bool(evt##.shiftKey)) {
+      "Shift-";
+    } else {
+      "";
+    };
+  shift ++ Js.to_string(Js.Optdef.get(evt##.key, () => assert(false)));
+};
 let listen_for_key = (k, f) =>
   listen_to_t(
     Ev.keydown,
