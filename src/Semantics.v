@@ -2543,10 +2543,10 @@ Module Core.
         | ZExp.AscZ2 _ zty => Path.cons_opt 1 (next_hole_path_t' fuel zty)
         | ZExp.LetZ1 _ ze'' ue =>
           match next_hole_path_e' fuel ze'' with
-          | Some ns => Some (cons 1 ns)
-          | None => Path.cons_opt 2 (first_hole_path_e fuel ue)
+          | Some ns => Some (cons 0 ns)
+          | None => Path.cons_opt 1 (first_hole_path_e fuel ue)
           end
-        | ZExp.LetZ2 _ _ ze'' => Path.cons_opt 2 (next_hole_path_e' fuel ze'')
+        | ZExp.LetZ2 _ _ ze'' => Path.cons_opt 1 (next_hole_path_e' fuel ze'')
         | ZExp.LamZ _ ze'' => Path.cons_opt 0 (next_hole_path_e' fuel ze'')
         | ZExp.InjZ _ ze'' => Path.cons_opt 0 (next_hole_path_e' fuel ze'')
         | ZExp.CaseZ1 ze'' (_,ue1) (_,ue2) =>
