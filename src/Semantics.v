@@ -2613,30 +2613,30 @@ Module Core.
       | Fuel.Kicked => None
       | Fuel.More fuel =>
       match ue with
-      | UHExp.Parenthesized ue1 => Path.cons_opt 0 (last_hole_path_e fuel ue1)
+      | UHExp.Parenthesized ue' => Path.cons_opt 0 (last_hole_path_e fuel ue')
       | UHExp.Tm _ ue' =>
         match ue' with
-        | UHExp.Asc ue1 uty =>
-          match last_hole_path_t fuel uty with
+        | UHExp.Asc ue0 uty1 =>
+          match last_hole_path_t fuel uty1 with
           | Some ns => Some (cons 1 ns)
-          | None => Path.cons_opt 0 (last_hole_path_e fuel ue1)
+          | None => Path.cons_opt 0 (last_hole_path_e fuel ue0)
           end
         | UHExp.Var _ _ => None
-        | UHExp.Let _ ue1 ue2 =>
-          match last_hole_path_e fuel ue2 with
+        | UHExp.Let _ ue0 ue1 =>
+          match last_hole_path_e fuel ue1 with
           | Some ns => Some (cons 1 ns)
-          | None => Path.cons_opt 0 (last_hole_path_e fuel ue1)
+          | None => Path.cons_opt 0 (last_hole_path_e fuel ue0)
           end
-        | UHExp.Lam _ ue1 => Path.cons_opt 0 (last_hole_path_e fuel ue1)
+        | UHExp.Lam _ ue0 => Path.cons_opt 0 (last_hole_path_e fuel ue0)
         | UHExp.NumLit _ => None
-        | UHExp.Inj _ ue1 => Path.cons_opt 0 (last_hole_path_e fuel ue1)
-        | UHExp.Case ue1 (_,ue2) (_,ue3) =>
-          match last_hole_path_e fuel ue3 with
+        | UHExp.Inj _ ue0 => Path.cons_opt 0 (last_hole_path_e fuel ue0)
+        | UHExp.Case ue0 (_,ue1) (_,ue2) =>
+          match last_hole_path_e fuel ue2 with
           | Some ns => Some (cons 2 ns)
           | None =>
             match last_hole_path_e fuel ue1 with
             | Some ns => Some (cons 1 ns)
-            | None => Path.cons_opt 0 (last_hole_path_e fuel ue1)
+            | None => Path.cons_opt 0 (last_hole_path_e fuel ue0)
             end
           end
         | UHExp.EmptyHole _ => Some nil
