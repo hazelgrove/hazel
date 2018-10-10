@@ -2746,7 +2746,7 @@ Module Core.
           | Some ns => Some (cons 1 ns)
           | None => Path.cons_opt 0 (last_hole_path_e fuel ue0)
           end
-        | ZExp.LetZ1 _ ze0 ue1 => Path.cons_opt 0 (prev_hole_path_e' fuel ze0)
+        | ZExp.LetZ1 _ ze0 _ => Path.cons_opt 0 (prev_hole_path_e' fuel ze0)
         | ZExp.LetZ2 _ ue0 ze1 => 
           match prev_hole_path_e' fuel ze1 with
           | Some ns => Some (cons 1 ns)
@@ -2761,7 +2761,7 @@ Module Core.
           | None => Path.cons_opt 0 (last_hole_path_e fuel ue0)
           end
         | ZExp.CaseZ3 ue0 (_,ue1) (_,ze2) => 
-          match next_hole_path_e' fuel ze2 with
+          match prev_hole_path_e' fuel ze2 with
           | Some ns => Some (cons 2 ns)
           | None =>
             match last_hole_path_e fuel ue1 with
