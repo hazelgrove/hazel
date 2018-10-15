@@ -108,17 +108,16 @@ module KeyCombos = {
   let vbar = _kc("|", "|");
   let q = _kc("q", "q");
   let w = _kc("w", "w");
+
+  let shiftable = ["Tab"];
+  let is_shiftable = key => List.exists(k => k == key, shiftable);
 };
 let get_which = (evt: Js.t(Dom_html.keyboardEvent)) =>
   Js.Optdef.get(evt##.which, () => assert(false));
 let get_key = (evt: Js.t(Dom_html.keyboardEvent)) => {
-  let shift =
-    if (Js.to_bool(evt##.shiftKey)) {
-      "Shift-";
-    } else {
-      "";
-    };
-  shift ++ Js.to_string(Js.Optdef.get(evt##.key, () => assert(false)));
+  let key = Js.to_string(Js.Optdef.get(evt##.key, () => assert(false)));
+  KeyCombos.is_shiftable(key) && Js.to_bool(evt##.shiftKey) ?
+    "Shift-" ++ key : key;
 };
 let listen_for_key = (k, f) =>
   listen_to_t(
