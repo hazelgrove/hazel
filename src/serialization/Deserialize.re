@@ -1,7 +1,13 @@
 open Semantics.Core;
 open LangUtil;
 let ensure_well_typed_after_parsing = uhexp =>
-  switch (UHExp.fix_and_renumber_holes((), uhexp)) {
+  switch (
+    UHExp.fix_and_renumber_holes(
+      (),
+      (Ctx.empty, Palettes.initial_palette_ctx),
+      uhexp,
+    )
+  ) {
   | None => raise(IllFormed(uhexp))
   | Some(((e, t), mv)) => (e, t, mv)
   };

@@ -432,7 +432,7 @@ let mk =
 
     let panel =
         (
-          {ZExp.mode: _, ZExp.form, ZExp.ctx},
+          {ZExp.mode: _, ZExp.form, ZExp.ctx: (ctx, _)},
           (_, hii, _),
           selected_instance,
           selected_instance_rf,

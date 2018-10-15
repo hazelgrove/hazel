@@ -2,7 +2,7 @@ open Semantics.Core;
 open Format;
 open LangUtil;
 let ensure_well_typed_before_serialization = uhexp =>
-  switch (UHExp.syn((), Ctx.empty, uhexp)) {
+  switch (UHExp.syn((), (Ctx.empty, Palettes.initial_palette_ctx), uhexp)) {
   | None => raise(IllFormed(uhexp))
   | _ => uhexp
   };
@@ -119,6 +119,8 @@ let serialize = (~fmtr=std_formatter, ~line_length=100, ~indent=2, uhexp) => {
       | UHExp.EmptyHole(u) => fprintf(fmtr, "{}")
       | UHExp.OpSeq(skel, seq) =>
         print_opseq(fmtr, print_uhexp, string_of_expop, seq)
+      | UHExp.ApPalette(name, serialized_model) =>
+        fprintf(fmtr, "%s \"%s\"", name, String.escaped(serialized_model))
       }
     };
 

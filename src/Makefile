@@ -1,5 +1,5 @@
 pkgs :=js_of_ocaml,js_of_ocaml.ppx,js_of_ocaml.tyxml,tyxml,react,reactiveData,camomile
-source :=Semantics.re $(wildcard *.rei?) $(wildcard *.ml[ly]) $(wildcard serialization/*.rei?) $(wildcard serialization/*.ml[ly])
+source :=Semantics.ml $(wildcard *.rei?) $(wildcard *.ml[ly]) $(wildcard serialization/*.rei?) $(wildcard serialization/*.ml[ly])
 build_opts :=-use-menhir -use-ocamlfind -cflag -g -lflag -g -I serialization
 
 .PHONY : all clean debug run_tests
@@ -12,7 +12,7 @@ www/hazel.js: Hazel.byte
 Hazel.byte: $(source)
 	scripts/refmt.sh
 	rebuild $(build_opts) -X tests -pkgs $(pkgs) Hazel.byte
-Semantics.re: Semantics.v
+Semantics.ml: Semantics.v
 	scripts/extract-coq.sh
 tests/RunTests.byte: $(source) $(wildcard tests/*.rei?) $(shell find tests/test_data)
 	scripts/refmt.sh
@@ -21,6 +21,6 @@ run_tests: tests/RunTests.byte
 	./RunTests.byte
 clean:
 	rm -rf _build
-	rm -f *.glob *.vo *.byte www/hazel.js Semantics.re
+	rm -f *.glob *.vo *.byte www/hazel.js Semantics.ml
 	rm -f tests/*.byte
 

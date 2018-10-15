@@ -48,7 +48,13 @@ let new_model = (): t => {
   let cursor_info_rs =
     React.S.l1(
       (((ze, _), _)) =>
-        switch (ZExp.syn_cursor_info((), Ctx.empty, ze)) {
+        switch (
+          ZExp.syn_cursor_info(
+            (),
+            (Ctx.empty, Palettes.initial_palette_ctx),
+            ze,
+          )
+        ) {
         | Some(cursor_info) => cursor_info
         | None => raise(MissingCursorInfo)
         },
@@ -58,7 +64,8 @@ let new_model = (): t => {
   let result_rs =
     React.S.l1(
       e => {
-        let expanded = DHExp.syn_expand((), Ctx.empty, e);
+        let expanded =
+          DHExp.syn_expand((), (Ctx.empty, Palettes.initial_palette_ctx), e);
         switch (expanded) {
         | DHExp.DoesNotExpand => raise(DoesNotExpand)
         | DHExp.Expands(d, _, _) =>
@@ -112,7 +119,12 @@ let new_model = (): t => {
   let monitors = [instance_at_cursor_monitor, usi_monitor];
   let do_action = action =>
     switch (
-      Action.performSyn((), Ctx.empty, action, React.S.value(edit_state_rs))
+      Action.performSyn(
+        (),
+        (Ctx.empty, Palettes.initial_palette_ctx),
+        action,
+        React.S.value(edit_state_rs),
+      )
     ) {
     | Some(((ze, ty), ugen)) =>
       edit_state_rf(((ze, ty), ugen));
