@@ -297,6 +297,22 @@ Module Core.
       | BothNonEmpty prefix _ => prefix_length prefix
       end.
 
+    Definition suffix_length {tm op : Type}
+      (suffix : opseq_suffix tm op) : nat :=
+      match suffix with
+      | ExpSuffix _ _ => S(O)
+      | SeqSuffix _ seq => OperatorSeq.seq_length seq
+      end.
+
+    Definition surround_suffix_length {tm op : Type}
+      (surround : opseq_surround tm op)
+      : nat :=
+      match surround with
+      | EmptySuffix _ => O
+      | EmptyPrefix suffix
+      | BothNonEmpty _ suffix => suffix_length suffix
+      end.
+
     Definition opseq_of_exp_and_surround {tm op : Type}
       (e : tm)
       (surround : opseq_surround tm op)
@@ -2595,15 +2611,17 @@ Module Core.
       match fuel with
       | Fuel.Kicked => None
       | Fuel.More fuel =>
-        if Nat.ltb n 0
+        let l := OperatorSeq.seq_length opseq in
+        if Nat.leb l n
         then None
         else
-          match OperatorSeq.seq_nth n opseq with
+          let m := l-n-1 in
+          match OperatorSeq.seq_nth m opseq with
           | None => None (* degenerate case *)
           | Some uty' =>
             match last_hole_path_t fuel uty' with
-            | Some ns => Some (cons n ns)
-            | None => last_hole_path_t_opseq fuel opseq (n-1)
+            | Some ms => Some (cons m ms)
+            | None => last_hole_path_t_opseq fuel opseq (n+1)
             end
           end
       end.
@@ -2686,13 +2704,14 @@ Module Core.
         end
       | ZTyp.ParenthesizedZ zty' => Path.cons_opt 0 (prev_hole_path_t' fuel zty')
       | ZTyp.OpSeqZ _ zty' surround =>
-        let n := OperatorSeq.surround_prefix_length surround in
+        let m := OperatorSeq.surround_prefix_length surround in
         match prev_hole_path_t' fuel zty' with
-        | Some ns => Some (cons n ns)
+        | Some ms => Some (cons m ms)
         | None =>
           let uty' := ZTyp.erase zty' in
           let opseq := OperatorSeq.opseq_of_exp_and_surround uty' surround in
-          last_hole_path_t_opseq fuel opseq (n-1)
+          let n := OperatorSeq.surround_suffix_length surround in
+          last_hole_path_t_opseq fuel opseq (n+1)
         end
       end
       end.
