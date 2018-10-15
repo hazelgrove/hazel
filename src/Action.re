@@ -9,6 +9,10 @@ module Helper: Semantics.Core.HELPER = {
     JSUtil.log(path_to_string(path));
     path;
   };
+  let log_nat = n => {
+    JSUtil.log(n);
+    n;
+  };
 };
 
 include Semantics.Core.FAction(Associator, Helper);
