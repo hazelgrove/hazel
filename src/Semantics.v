@@ -2603,9 +2603,7 @@ Module Core.
       | UHTyp.Parenthesized uty' => Path.cons_opt 0 (last_hole_path_t fuel uty')
       | UHTyp.Num => None
       | UHTyp.Hole => Some nil
-      | UHTyp.OpSeq _ opseq =>
-        let l := OperatorSeq.seq_length opseq in
-        last_hole_path_t_opseq fuel opseq (l-1)
+      | UHTyp.OpSeq _ opseq => last_hole_path_t_opseq fuel opseq 0
       end
       end
     with last_hole_path_t_opseq (fuel : Fuel.t) (opseq : OperatorSeq.opseq UHTyp.t UHTyp.op) (n : nat) : option (list nat) :=
@@ -2659,9 +2657,7 @@ Module Core.
             end
           end
         | UHExp.EmptyHole _ => Some nil
-        | UHExp.OpSeq _ opseq =>
-          let l := OperatorSeq.seq_length opseq in
-          last_hole_path_e_opseq fuel opseq (l-1)
+        | UHExp.OpSeq _ opseq => last_hole_path_e_opseq fuel opseq 0
         end
       end
       end
