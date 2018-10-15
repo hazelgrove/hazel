@@ -2669,15 +2669,17 @@ Module Core.
       match fuel with
       | Fuel.Kicked => None
       | Fuel.More fuel =>
-        if Nat.ltb n 0
+        let l := OperatorSeq.seq_length opseq in
+        if Nat.leb l n
         then None
         else
-          match OperatorSeq.seq_nth n opseq with
+          let m := l-n-1 in
+          match OperatorSeq.seq_nth m opseq with
           | None => None
           | Some ue =>
             match last_hole_path_e fuel ue with
-            | Some ns => Some (cons n ns)
-            | None => last_hole_path_e_opseq fuel opseq (n-1)
+            | Some ms => Some (cons m ms)
+            | None => last_hole_path_e_opseq fuel opseq (n+1)
             end
           end
       end.
@@ -2796,7 +2798,8 @@ Module Core.
           | None =>
             let ue_n := ZExp.erase ze_n in
             let opseq := OperatorSeq.opseq_of_exp_and_surround ue_n surround in
-            last_hole_path_e_opseq fuel opseq (n-1)
+            let m := OperatorSeq.surround_suffix_length surround in
+            last_hole_path_e_opseq fuel opseq (m+1)
           end
         end
       | ZExp.ParenthesizedZ ze0 => Path.cons_opt 0 (prev_hole_path_e' fuel ze0)
