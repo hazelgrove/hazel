@@ -8,6 +8,8 @@ let digit = ['0'-'9']
 let natural = digit+
 (* should be equivalent to the OCaml rules: "[_a-z][_a-zA-Z0-9']*" *)
 let id = ['_' 'a'-'z'] (['_' 'a'-'z' 'A'-'Z' '''] | digit)*
+let palette_name = '$' id 
+let palette_model = '"' ([^ '\\' '"'] | '\\' '"' | '\\' '\\')* '"' 
 
 rule read = 
   parse
@@ -36,5 +38,8 @@ rule read =
   | "->" { TYPE_ARROW }
   | natural { NATURAL (int_of_string (Lexing.lexeme lexbuf)) }
   | id { ID (Lexing.lexeme lexbuf) }
+  | palette_name { PALETTE_NAME (Lexing.lexeme lexbuf) }
+  | palette_model { PALETTE_MODEL (Lexing.lexeme lexbuf) }
   | eof { EOF }
   | _ {raise (LangUtil.InvalidSyntax ("Unexpected char: " ^ Lexing.lexeme lexbuf))}
+

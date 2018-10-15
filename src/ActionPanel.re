@@ -48,7 +48,14 @@ let make =
     let can_perform_rs =
       S.map(
         edit_state =>
-          switch (Action.performSyn((), Ctx.empty, action, edit_state)) {
+          switch (
+            Action.performSyn(
+              (),
+              (Ctx.empty, Palettes.initial_palette_ctx),
+              action,
+              edit_state,
+            )
+          ) {
           | Some(_) => ["action-panel-entry", "action-enabled"]
           | None => ["action-panel-entry", "action-disabled"]
           },
@@ -105,7 +112,14 @@ let make =
           | None => invalid
           | Some(arg) =>
             let a = action(arg);
-            switch (Action.performSyn((), Ctx.empty, a, m)) {
+            switch (
+              Action.performSyn(
+                (),
+                (Ctx.empty, Palettes.initial_palette_ctx),
+                a,
+                m,
+              )
+            ) {
             | Some(_) => valid
             | None => invalid
             };
@@ -266,7 +280,14 @@ let make =
           | None => invalid
           | Some(arg) =>
             let a = action(arg);
-            switch (Action.performSyn((), Ctx.empty, a, m)) {
+            switch (
+              Action.performSyn(
+                (),
+                (Ctx.empty, Palettes.initial_palette_ctx),
+                a,
+                m,
+              )
+            ) {
             | Some(_) => valid
             | None => invalid
             };
@@ -420,6 +441,16 @@ let make =
       cursor_info_rs,
     );
 
+  let can_insert_ap_palette_rs =
+    S.l1(
+      ({ZExp.mode: _, ZExp.form, ZExp.ctx: (_, palette_ctx)}) =>
+        switch (form) {
+        | ZExp.IsHole(_) => true
+        | _ => false
+        },
+      cursor_info_rs,
+    );
+
   let can_insert_let_case_rs =
     S.l1(
       ({ZExp.mode, ZExp.form, ZExp.ctx}) =>
@@ -502,16 +533,26 @@ let make =
   let constructVar =
     action_input_button(
       v => Action.Construct(Action.SVar(v, After)),
-      s =>
-        switch (String.compare(s, "")) {
-        | 0 => None
-        | _ => Some(s)
-        },
+      s => Var.is_valid(s) ? Some(s) : None,
       can_insert_var_rs,
       Html5.pcdata("var"),
       "var_input",
       KCs.v,
       "enter var",
+    );
+
+  let constructApPalette =
+    action_input_button(
+      v => {
+        JSUtil.log(v);
+        Action.Construct(Action.SApPalette("$" ++ v));
+      },
+      s => PaletteName.is_valid("$" ++ s) ? Some(s) : None,
+      can_insert_ap_palette_rs,
+      Html5.pcdata("apply palette"),
+      "ap_palette_input",
+      KCs.dollar,
+      "enter palette name",
     );
 
   let constructLam =
@@ -634,6 +675,7 @@ let make =
             [
               constructLet,
               constructVar,
+              constructApPalette,
               constructLam,
               constructSpace,
               constructLit,

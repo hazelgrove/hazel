@@ -8,6 +8,7 @@ let lparen = taggedText("lparen");
 let rparen = taggedText("rparen");
 let op = taggedText("op");
 let var = s => taggedText("var", s);
+let paletteName = s => taggedText("paletteName", s);
 let space = taggedText("space", " ");
 let rec id_of_rev_path = (prefix, rev_path) =>
   switch (rev_path) {
@@ -515,6 +516,8 @@ let rec of_hexp = (prefix, rev_path, e) =>
         "OpSeq",
         of_skel(prefix, rev_path, skel, seq),
       )
+    | UHExp.ApPalette(name, _) =>
+      term(prefix, err_status, rev_path, "ApPalette", paletteName(name))
     }
   }
 and of_skel = (prefix, rev_path, skel, seq) =>

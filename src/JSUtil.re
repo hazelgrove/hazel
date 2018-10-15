@@ -106,6 +106,7 @@ module KeyCombos = {
   let vbar = _kc("|", "|");
   let q = _kc("q", "q");
   let w = _kc("w", "w");
+  let dollar = _kc("$", "$");
 };
 let get_which = (evt: Js.t(Dom_html.keyboardEvent)) =>
   Js.Optdef.get(evt##.which, () => assert(false));

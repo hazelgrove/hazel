@@ -26,12 +26,10 @@ Fixpoint update_nth {a : Type} (n : nat) (xs : list a) (f : a -> a) :=
 Module Helpers.
     Definition char_le_b (ch1 ch2 : Coq.Strings.Ascii.ascii) : bool :=
         Nat.leb (Coq.Strings.Ascii.nat_of_ascii ch1) (Coq.Strings.Ascii.nat_of_ascii ch2).
+    Definition char_eq_b (ch1 ch2 : Coq.Strings.Ascii.ascii) : bool :=
+        Nat.eqb (Coq.Strings.Ascii.nat_of_ascii ch1) (Coq.Strings.Ascii.nat_of_ascii ch2).
     Definition char_in_range_b (ch s e : Coq.Strings.Ascii.ascii) : bool :=
         (char_le_b s ch) && (char_le_b ch e).
-    Definition char_is_underscore_b (ch : Coq.Strings.Ascii.ascii) : bool :=
-        char_in_range_b ch "_" "_".
-    Definition char_is_prime_b (ch : Coq.Strings.Ascii.ascii) : bool :=
-        char_in_range_b ch "'" "'".
 End Helpers.
 
 Module Core.
@@ -52,11 +50,11 @@ Module Core.
         | Coq.Strings.String.EmptyString => true
         | Coq.Strings.String.String ch rest =>
           (
-            (Helpers.char_is_underscore_b ch) ||
+            (Helpers.char_eq_b ch "_") ||
             (Helpers.char_in_range_b ch "a" "z") ||
             (Helpers.char_in_range_b ch "A" "Z") ||
             (Helpers.char_in_range_b ch "0" "9") ||
-            (Helpers.char_is_prime_b ch)
+            (Helpers.char_eq_b ch "'")
           ) && _is_valid_internal rest
         end.
     (* TODO: var name rules should disallow keywords *)
@@ -65,7 +63,7 @@ Module Core.
         match s with
         | Coq.Strings.String.EmptyString => false
         | Coq.Strings.String.String first_char rest =>
-          ((Helpers.char_is_underscore_b first_char) || (Helpers.char_in_range_b first_char "a" "z")) &&
+          ((Helpers.char_eq_b first_char "_") || (Helpers.char_in_range_b first_char "a" "z")) &&
           _is_valid_internal rest
         end.
     Definition check_valid {A : Type}
@@ -653,7 +651,6 @@ Module Core.
       cons xa (drop ctx x).
 
     Fixpoint lookup {a : Type} (ctx : t_ a) (x : Var.t) : option a :=
-      Var.check_valid x
       match ctx with
       | nil => None
       | cons (y, elt) ctx' =>
@@ -682,10 +679,34 @@ Module Core.
     Include VarMap.
   End Ctx.
 
-  Module Palettes.
-    Definition name : Type := Var.t.
-    Definition serialized_model : Type := Coq.Strings.String.string.
-  End Palettes.
+  Module PaletteName.
+    Definition t := Coq.Strings.String.string.
+    Definition equal (x : t) (y : t) : bool := str_eqb x y.
+    Fixpoint _is_valid_internal (s : t) : bool := 
+      Var.is_valid s.
+    Definition is_valid (s : t) : bool :=
+        (* should be equivalent to the OCaml rules: "[_a-z][_a-zA-Z0-9']*" *)
+        match s with
+        | Coq.Strings.String.EmptyString => false
+        | Coq.Strings.String.String first_char rest =>
+          (Helpers.char_eq_b first_char "$") &&
+          _is_valid_internal rest
+        end.
+    Definition check_valid {A : Type}
+        (s : t)
+        (result : option(A))
+        : option(A) :=
+        if is_valid s then result else None.
+    Definition check_both_valid {A : Type}
+        (s1 s2 : t)
+        (result : option(A))
+        : option(A) :=
+        check_valid s1 (check_valid s2 result).
+  End PaletteName.
+
+  Module PaletteSerializedModel.
+    Definition t : Type := Coq.Strings.String.string.
+  End PaletteSerializedModel.
 
   Module UHExp. (* unassociated H-expressions *) (* TODO change to HExp again *)
     Inductive inj_side : Type :=
@@ -718,12 +739,13 @@ Module Core.
     | Case : t -> (Var.t * t) -> (Var.t * t) -> t'
     | EmptyHole : MetaVar.t -> t'
     | OpSeq : skel_t -> OperatorSeq.opseq t op -> t'
-    | ApPalette : Palettes.name -> Palettes.serialized_model -> t'.
+    | ApPalette : PaletteName.t -> PaletteSerializedModel.t -> t'.
 
     Module PaletteDefinition.
       Record t : Type := MkPalette {
         expansion_ty : HTyp.t;
-        to_exp : Palettes.serialized_model -> UHExp.t;
+        initial_model : PaletteSerializedModel.t;
+        to_exp : PaletteSerializedModel.t -> UHExp.t;
       }.
     End PaletteDefinition.
 
@@ -1489,6 +1511,7 @@ Module Core.
   End UHExp.
 
   Module Contexts := UHExp.Contexts.
+  Module PaletteCtx := UHExp.PaletteCtx.
 
   Inductive cursor_side : Type := 
   | Before : cursor_side
@@ -1546,7 +1569,7 @@ Module Core.
 
     Inductive t : Type := 
     | CursorE : cursor_side -> UHExp.t -> t
-    (* | CursorPalette : Palette.name -> Palette.serialized_model -> hole_ref -> t -> t *)
+    (* | CursorPalette : PaletteName.t -> PaletteSerializedModel.t -> hole_ref -> t -> t *)
     | Deeper : err_status -> t' -> t
     | ParenthesizedZ : t -> t
     with t' : Type := 
@@ -2415,7 +2438,8 @@ Module Core.
     | SLit : nat -> ZExp.cursor_side -> shape
     | SInj : UHExp.inj_side -> shape
     | SCase : Var.t -> Var.t -> shape
-    | SOp : UHExp.op -> shape.
+    | SOp : UHExp.op -> shape
+    | SApPalette : PaletteName.t -> shape.
 
     Inductive t : Type :=
     | MoveTo : Path.t -> t
@@ -3375,6 +3399,16 @@ Module Core.
         let (e0, u_gen') := UHExp.new_EmptyHole u_gen in 
         let ze0' := ZExp.CursorE Before e0 in
         make_and_syn_OpSeqZ fuel ctx u_gen' ze0' surround 
+      | (Construct (SApPalette name), ZExp.CursorE _ (UHExp.Tm _ (UHExp.EmptyHole _))) => 
+        let (_, palette_ctx) := ctx in 
+        match PaletteCtx.lookup palette_ctx name with 
+        | Some palette_defn => 
+          let initial_model := UHExp.PaletteDefinition.initial_model palette_defn in 
+          let expansion_ty := UHExp.PaletteDefinition.expansion_ty palette_defn in
+          Some (ZExp.CursorE After (UHExp.Tm NotInHole (UHExp.ApPalette name initial_model)), 
+                expansion_ty, u_gen)
+        | None => Some (ZExp.CursorE After (UHExp.Tm NotInHole (UHExp.NumLit 42)), HTyp.Num, u_gen)
+        end
       (* Zipper Cases *)
       | (_, ZExp.ParenthesizedZ ze1) => 
         match performSyn fuel ctx a (ze1, ty, u_gen) with 
