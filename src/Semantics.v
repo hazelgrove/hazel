@@ -2354,6 +2354,7 @@ Module Core.
 
   Module Type HELPER.
     Parameter log_path : Path.t -> Path.t.
+    Parameter log_nat : nat -> nat.
   End HELPER.
 
   Module FAction (Associator : ASSOCIATOR) (Helper : HELPER).
