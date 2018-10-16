@@ -72,6 +72,11 @@ module KeyCombo: {
   let make: (string, string, option(bool)) => t;
   let name: t => string;
   let key: t => string;
+  /**
+   * - Some(true) means shift key must be held
+   * - Some(false) means shift key must not be held
+   * - None means it does not matter if shift key is held
+   */
   let shiftKey: t => option(bool);
 } = {
   type t = (string, string, option(bool));
