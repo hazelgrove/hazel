@@ -123,10 +123,10 @@ let mk =
       Html5.(div(~a=[a_class(["instructional-msg"])], [pcdata(msg)]));
     let html_of_path_item = ((inst, x)) =>
       Html5.(
-        span(
+        div(
           ~a=[a_class(["path-item"])],
           [
-            span(
+            div(
               ~a=[a_class(["inst"])],
               [
                 View.html_of_hole_instance(
@@ -137,8 +137,8 @@ let mk =
                 ),
               ],
             ),
-            span(~a=[a_class(["inst-var-separator"])], [pcdata("·")]),
-            span(
+            div(~a=[a_class(["inst-var-separator"])], [pcdata("·")]),
+            div(
               ~a=[a_class(["path-var"])],
               [View.html_of_var(80, "path-view", x)],
             ),

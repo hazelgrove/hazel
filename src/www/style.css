@@ -528,6 +528,10 @@ h1 {
 	outline: 0px;
 }
 
+.SDoc div {
+  display: inline;
+}
+
 .ModelType {
   font-size: large;
 	width:100%

@@ -1,4 +1,5 @@
 type span_attribs = HTMLUtil.span_attribs;
+type palette_view_rs = React.signal(Palettes.view_type);
 module PP: {
   type doc('a);
   type cls = string;
@@ -11,6 +12,7 @@ module PP: {
   let tagged:
     (list(cls), option((id, 'a)), option(span_attribs), doc('a)) =>
     doc('a);
+  let palette: (string, palette_view_rs) => doc('a);
   let blockBoundary: doc('a);
   let optionalBreak: string => doc('a);
   let mandatoryBreak: doc('a);
@@ -19,9 +21,9 @@ module PP: {
     | SText(cls, string, sdoc)
     | STagStart(list(cls), option(id), option(span_attribs), sdoc)
     | STagEnd(sdoc)
+    | SPalette(string, palette_view_rs)
     | SLine(int, sdoc);
   let sdoc_of_doc: (int, doc('a)) => (sdoc, Hashtbl.t(id, 'a));
-  let string_of_sdoc: sdoc => string;
 } = {
   type cls = string;
   type id = string;
@@ -35,7 +37,8 @@ module PP: {
     | TagEnd
     | BlockBoundary
     | OptionalBreak(string)
-    | MandatoryBreak;
+    | MandatoryBreak
+    | Palette(string, palette_view_rs);
   let empty = Empty;
   let (^^) = (x, y) => Concat(x, y);
   let nestRelative = (n, x) => NestRelative(n, x);
@@ -46,11 +49,13 @@ module PP: {
   let blockBoundary = BlockBoundary;
   let optionalBreak = s => OptionalBreak(s);
   let mandatoryBreak = MandatoryBreak;
+  let palette = (name, view) => Palette(name, view);
   type sdoc =
     | SEmpty
     | SText(cls, string, sdoc)
     | STagStart(list(cls), option(id), option(span_attribs), sdoc)
     | STagEnd(sdoc)
+    | SPalette(string, palette_view_rs)
     | SLine(int, sdoc);
   let strlen = s =>
     if (String.equal(s, "​​") || String.equal(s, "‌")) {
@@ -95,6 +100,7 @@ module PP: {
           SText("space", s, sdoc_of_doc'(table, width, k + strlen(s), zs'));
         }
       | MandatoryBreak => SLine(i, sdoc_of_doc'(table, width, i, zs'))
+      | Palette(name, view) => SPalette(name, view)
       }
     };
 
@@ -103,14 +109,6 @@ module PP: {
     let sdoc = sdoc_of_doc'(table, width, 0, [(0, x)]);
     (sdoc, table);
   };
-  let rec string_of_sdoc = x =>
-    switch (x) {
-    | SEmpty => ""
-    | SText(cls, s, x') => s ++ string_of_sdoc(x')
-    | STagStart(_, _, _, x') => string_of_sdoc(x')
-    | STagEnd(x') => string_of_sdoc(x')
-    | SLine(n, x') => "\n" ++ String.make(n, ' ') ++ string_of_sdoc(x')
-    };
 };
 module HTML_Of_SDoc = {
   open Tyxml_js;
@@ -156,6 +154,7 @@ module HTML_Of_SDoc = {
       let (tl, rem) = html_of_sdoc''(x');
       let h = [newline, indentation, ...tl];
       (h, rem);
+    | SPalette(name, view) => raise(Not_found)
     };
 
   let rec html_of_sdoc = x => {

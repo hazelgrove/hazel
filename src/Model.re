@@ -47,6 +47,7 @@ let new_model = (): t => {
   let (e_rs, e_rf) = React.S.create(empty_erasure);
   let cursor_info_rs =
     React.S.l1(
+      ~eq=(_, _) => false, /* palette contexts have functions in them! */
       (((ze, _), _)) =>
         switch (
           ZExp.syn_cursor_info(

@@ -543,10 +543,7 @@ let make =
 
   let constructApPalette =
     action_input_button(
-      v => {
-        JSUtil.log(v);
-        Action.Construct(Action.SApPalette("$" ++ v));
-      },
+      v => Action.Construct(Action.SApPalette("$" ++ v)),
       s => PaletteName.is_valid("$" ++ s) ? Some(s) : None,
       can_insert_ap_palette_rs,
       Html5.pcdata("apply palette"),

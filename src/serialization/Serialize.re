@@ -2,7 +2,7 @@ open Semantics.Core;
 open Format;
 open LangUtil;
 let ensure_well_typed_before_serialization = uhexp =>
-  switch (UHExp.syn((), (Ctx.empty, Palettes.initial_palette_ctx), uhexp)) {
+  switch (UHExp.syn((), (Ctx.empty, PaletteCtx.empty), uhexp)) {
   | None => raise(IllFormed(uhexp))
   | _ => uhexp
   };

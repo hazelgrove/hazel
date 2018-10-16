@@ -2443,8 +2443,7 @@ Module Core.
 
     Inductive t : Type :=
     | MoveTo : Path.t -> t
-    | MoveToNextHole : t
-    | MoveToPrevHole : t
+    | UpdateApPalette : PaletteSerializedModel.t -> t
     | Delete : t
     | Backspace : t
     | Construct : shape -> t.
@@ -3405,9 +3404,28 @@ Module Core.
         | Some palette_defn => 
           let initial_model := UHExp.PaletteDefinition.initial_model palette_defn in 
           let expansion_ty := UHExp.PaletteDefinition.expansion_ty palette_defn in
-          Some (ZExp.CursorE After (UHExp.Tm NotInHole (UHExp.ApPalette name initial_model)), 
-                expansion_ty, u_gen)
+          let expansion := (UHExp.PaletteDefinition.to_exp palette_defn) initial_model in 
+          match (UHExp.ana fuel ctx expansion expansion_ty) with 
+          | Some _ => 
+            Some (ZExp.CursorE After (UHExp.Tm NotInHole (UHExp.ApPalette name initial_model)), 
+                  expansion_ty, u_gen)
+          | None => None
+          end
         | None => Some (ZExp.CursorE After (UHExp.Tm NotInHole (UHExp.NumLit 42)), HTyp.Num, u_gen)
+        end
+      | (UpdateApPalette serialized_model, ZExp.CursorE _ (UHExp.Tm _ (UHExp.ApPalette name _))) => 
+        let (_, palette_ctx) := ctx in 
+        match PaletteCtx.lookup palette_ctx name with 
+        | Some palette_defn => 
+          let expansion_ty := UHExp.PaletteDefinition.expansion_ty palette_defn in
+          let expansion := (UHExp.PaletteDefinition.to_exp palette_defn) serialized_model in 
+          match (UHExp.ana fuel ctx expansion expansion_ty) with 
+          | Some _ => 
+            Some (ZExp.CursorE After (UHExp.Tm NotInHole (UHExp.ApPalette name serialized_model)), 
+                  expansion_ty, u_gen)
+          | None => None
+          end
+        | None => None
         end
       (* Zipper Cases *)
       | (_, ZExp.ParenthesizedZ ze1) => 
