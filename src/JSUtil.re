@@ -69,23 +69,27 @@ let r_checkbox = (id, label_str, default_val) => {
 };
 module KeyCombo: {
   type t;
-  let make: (string, string) => t;
+  let make: (string, string, option(bool)) => t;
   let name: t => string;
   let key: t => string;
+  let shiftKey: t => option(bool);
 } = {
-  type t = (string, string);
-  let make = (name, key) => (name, key);
-  let name = ((name, key)) => name;
-  let key = ((name, key)) => key;
+  type t = (string, string, option(bool));
+  let make = (name, key, shiftKey) => (name, key, shiftKey);
+  let name = ((name, _, _)) => name;
+  let key = ((_, key, _)) => key;
+  let shiftKey = ((_, _, shiftKey)) => shiftKey;
 };
 module KeyCombos = {
-  let _kc = KeyCombo.make;
+  let _kc = (name, key) => KeyCombo.make(name, key, None);
+  let _kc_shift = (name, key, shiftKey) =>
+    KeyCombo.make(name, key, Some(shiftKey));
   let enter = _kc("Enter", "Enter");
   let esc = _kc("Esc", "Escape");
   let backspace = _kc("Backspace", "Backspace");
   let del = _kc("Delete", "Delete");
-  let tab = _kc("Tab", "Tab");
-  let backtab = _kc("Shift-Tab", "Shift-Tab");
+  let tab = _kc_shift("Tab", "Tab", false);
+  let backtab = _kc_shift("Shift-Tab", "Tab", true);
   let space = _kc("Space", " ");
   let p = _kc("p", "p");
   let x = _kc("x", "x");
@@ -108,24 +112,23 @@ module KeyCombos = {
   let vbar = _kc("|", "|");
   let q = _kc("q", "q");
   let w = _kc("w", "w");
-
-  let shiftable = ["Tab"];
-  let is_shiftable = key => List.exists(k => k == key, shiftable);
 };
 let get_which = (evt: Js.t(Dom_html.keyboardEvent)) =>
   Js.Optdef.get(evt##.which, () => assert(false));
-let get_key = (evt: Js.t(Dom_html.keyboardEvent)) => {
-  let key = Js.to_string(Js.Optdef.get(evt##.key, () => assert(false)));
-  KeyCombos.is_shiftable(key) && Js.to_bool(evt##.shiftKey) ?
-    "Shift-" ++ key : key;
-};
+let get_key = (evt: Js.t(Dom_html.keyboardEvent)) =>
+  Js.to_string(Js.Optdef.get(evt##.key, () => assert(false)));
 let listen_for_key = (k, f) =>
   listen_to_t(
     Ev.keydown,
     Dom_html.document,
     evt => {
       let key = get_key(evt);
-      if (key == KeyCombo.key(k)) {
+      let matchesShiftKey =
+        switch (KeyCombo.shiftKey(k)) {
+        | None => true
+        | Some(shiftKey) => shiftKey == Js.to_bool(evt##.shiftKey)
+        };
+      if (key == KeyCombo.key(k) && matchesShiftKey) {
         f(evt);
         ();
       } else {
