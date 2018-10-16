@@ -2405,6 +2405,7 @@ Module Core.
       | UHTyp.OpSeq _ opseq => first_hole_path_t_opseq fuel opseq 0
       end
       end
+    (* return an optional path of the first hole in opseq starting with the nth term *)
     with first_hole_path_t_opseq (fuel : Fuel.t) (opseq : OperatorSeq.opseq UHTyp.t UHTyp.op) (n : nat) : option (list nat) :=
       match fuel with
       | Fuel.Kicked => None
@@ -2458,6 +2459,7 @@ Module Core.
         end
       end
       end
+    (* return an optional path of the first hole in opseq starting with the nth term )*)
     with first_hole_path_e_opseq (fuel : Fuel.t) (opseq : OperatorSeq.opseq UHExp.t UHExp.op) (n : nat) : option (list nat) :=
       match fuel with
       | Fuel.Kicked => None
@@ -2606,21 +2608,23 @@ Module Core.
       | UHTyp.OpSeq _ opseq => last_hole_path_t_opseq fuel opseq 0
       end
       end
-    with last_hole_path_t_opseq (fuel : Fuel.t) (opseq : OperatorSeq.opseq UHTyp.t UHTyp.op) (n : nat) : option (list nat) :=
+    (* return an optional path of the last hole in opseq starting with the mth term from the end
+       (e.g., the 0th and 1st term from the end of `1 + 2 + 3` are 3 and 2 respectively) *)
+    with last_hole_path_t_opseq (fuel : Fuel.t) (opseq : OperatorSeq.opseq UHTyp.t UHTyp.op) (m : nat) : option (list nat) :=
       match fuel with
       | Fuel.Kicked => None
       | Fuel.More fuel =>
         let l := OperatorSeq.seq_length opseq in
-        if Nat.leb l n
+        if Nat.leb l m
         then None
         else
-          let m := l-n-1 in
-          match OperatorSeq.seq_nth m opseq with
+          let n := l-m-1 in
+          match OperatorSeq.seq_nth n opseq with
           | None => None (* degenerate case *)
           | Some uty' =>
             match last_hole_path_t fuel uty' with
-            | Some ms => Some (cons m ms)
-            | None => last_hole_path_t_opseq fuel opseq (n+1)
+            | Some ns => Some (cons n ns)
+            | None => last_hole_path_t_opseq fuel opseq (m+1)
             end
           end
       end.
@@ -2661,21 +2665,23 @@ Module Core.
         end
       end
       end
-    with last_hole_path_e_opseq (fuel : Fuel.t) (opseq : OperatorSeq.opseq UHExp.t UHExp.op) (n : nat) : option (list nat) :=
+    (* return an optional path of the last hole in opseq starting with the mth term from the end
+       (e.g., the 0th and 1st term from the end of `1 + 2 + 3` are 3 and 2 respectively) *)
+    with last_hole_path_e_opseq (fuel : Fuel.t) (opseq : OperatorSeq.opseq UHExp.t UHExp.op) (m : nat) : option (list nat) :=
       match fuel with
       | Fuel.Kicked => None
       | Fuel.More fuel =>
         let l := OperatorSeq.seq_length opseq in
-        if Nat.leb l n
+        if Nat.leb l m
         then None
         else
-          let m := l-n-1 in
-          match OperatorSeq.seq_nth m opseq with
+          let n := l-m-1 in
+          match OperatorSeq.seq_nth n opseq with
           | None => None
           | Some ue =>
             match last_hole_path_e fuel ue with
-            | Some ms => Some (cons m ms)
-            | None => last_hole_path_e_opseq fuel opseq (n+1)
+            | Some ns => Some (cons n ns)
+            | None => last_hole_path_e_opseq fuel opseq (m+1)
             end
           end
       end.
@@ -2703,14 +2709,14 @@ Module Core.
         end
       | ZTyp.ParenthesizedZ zty' => Path.cons_opt 0 (prev_hole_path_t' fuel zty')
       | ZTyp.OpSeqZ _ zty' surround =>
-        let m := OperatorSeq.surround_prefix_length surround in
+        let n := OperatorSeq.surround_prefix_length surround in
         match prev_hole_path_t' fuel zty' with
-        | Some ms => Some (cons m ms)
+        | Some ns => Some (cons n ns)
         | None =>
           let uty' := ZTyp.erase zty' in
           let opseq := OperatorSeq.opseq_of_exp_and_surround uty' surround in
-          let n := OperatorSeq.surround_suffix_length surround in
-          last_hole_path_t_opseq fuel opseq (n+1)
+          let m := OperatorSeq.surround_suffix_length surround in
+          last_hole_path_t_opseq fuel opseq (m+1)
         end
       end
       end.
