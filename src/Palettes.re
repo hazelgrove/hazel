@@ -1,80 +1,111 @@
 open Semantics.Core;
 open Tyxml_js;
 
-type view_type = Js_of_ocaml.Js.t(Js_of_ocaml.Dom_html.divElement);
+type view_type = Tyxml_js.Html5.elt([ Html_types.span]);
 
-module BooleanPalette = {
-  /* name */
+module type PALETTE = {
+  let name: string;
+  let expansion_ty: HTyp.t;
+
+  type model;
+  let init_model: model;
+
+  type model_updater = model => unit;
+  let view: (model, model_updater) => view_type;
+
+  let expand: model => UHExp.t;
+
+  let serialize: model => PaletteSerializedModel.t;
+  let deserialize: PaletteSerializedModel.t => model;
+};
+
+module CheckboxPalette: PALETTE = {
   let name = "$checkbox";
+  let expansion_ty = HTyp.Sum(HTyp.Num, HTyp.Num);
 
-  /* expansion type */
-  let bool_ty: HTyp.t = HTyp.Sum(HTyp.Num, HTyp.Num); /* TODO change to unit */
-
-  /* model */
   type model = bool;
   let init_model = false;
-  let (model_rs, model_rf) = React.S.create(init_model);
+  type model_updater = model => unit;
 
-  /* view */
-  let listen_to = (ev, elem, f) =>
-    Dom_html.addEventListener(elem, ev, Dom_html.handler(f), Js._false);
-  let view: React.signal(view_type) =
-    React.S.l1(
-      model => {
-        let input_elt =
-          Html5.(
-            input(~a=[a_input_type(`Checkbox), a_value("checked")], ())
-          );
-        let input_dom = Tyxml_js.To_dom.of_input(input_elt);
-        let view_div = Html5.(div([input_elt]));
-        let view_dom = Tyxml_js.To_dom.of_div(view_div);
-        let _ =
-          listen_to(
-            Dom_html.Event.input,
-            view_dom,
-            _ => {
-              let value = input_dom##.value;
-              let value_str = Js.to_string(value);
-              let new_model = String.equal(value_str, "checked");
-              model_rf(new_model);
-              Js._true;
-            },
-          );
-        view_dom;
-      },
-      model_rs,
-    );
+  let view = (model, model_updater) => {
+    let checked_state = model ? [Html5.a_checked()] : [];
+    let input_elt =
+      Html5.(input(~a=[a_input_type(`Checkbox), ...checked_state], ()));
+    let input_dom = Tyxml_js.To_dom.of_input(input_elt);
+    let view_span = Html5.(span([input_elt]));
+    let _ =
+      JSUtil.listen_to(
+        Dom_html.Event.input,
+        input_dom,
+        _ => {
+          let is_checked = Js.to_bool(input_dom##.checked);
+          model_updater(is_checked);
+          Js._true;
+        },
+      );
+    view_span;
+  };
 
-  /* to_exp */
-  let dummy_num: UHExp.t = UHExp.Tm(NotInHole, UHExp.NumLit(0));
-  let true_exp: UHExp.t = UHExp.Tm(NotInHole, UHExp.Inj(UHExp.L, dummy_num));
-  let false_exp: UHExp.t =
-    UHExp.Tm(NotInHole, UHExp.Inj(UHExp.R, dummy_num));
-  let to_hexp: model => UHExp.t =
-    model => if (model) {true_exp} else {false_exp};
+  let dummy_num = UHExp.Tm(NotInHole, UHExp.NumLit(0));
+  let true_exp = UHExp.Tm(NotInHole, UHExp.Inj(UHExp.L, dummy_num));
+  let false_exp = UHExp.Tm(NotInHole, UHExp.Inj(UHExp.R, dummy_num));
+  let expand = model => model ? true_exp : false_exp;
 
-  /* serialization and deserialization */
-  let serialize: model => PaletteSerializedModel.t =
-    model => if (model) {"T"} else {"F"};
-  let deserialize: PaletteSerializedModel.t => model =
-    serialized =>
-      if (String.equal(serialized, "T")) {
-        true;
-      } else {
-        false;
-      };
+  let serialize = model => model ? "T" : "F";
+  let deserialize = serialized =>
+    String.equal(serialized, "T") ? true : false;
+};
 
-  /* generate palette definition for Semantics */
-  let palette_defn =
-    UHExp.PaletteDefinition.{
-      expansion_ty: bool_ty,
-      initial_model: serialize(init_model),
-      to_exp: serialized_model => to_hexp(deserialize(serialized_model)),
+/* ----------
+   stuff below is infrastructure
+   ---------- */
+
+module PaletteDefinition = UHExp.PaletteDefinition;
+
+type model_updater = PaletteSerializedModel.t => unit;
+type serialized_view_fn =
+  (PaletteSerializedModel.t, model_updater) => view_type;
+
+module PaletteViewCtx = {
+  type t = VarMap.t_(serialized_view_fn);
+  include VarMap;
+};
+
+module PaletteContexts = {
+  type t = (PaletteCtx.t, PaletteViewCtx.t);
+  let empty = (PaletteViewCtx.empty, PaletteCtx.empty);
+  let extend:
+    (t, (PaletteName.t, PaletteDefinition.t, serialized_view_fn)) => t =
+    ((palette_ctx, palette_view_ctx), (name, defn, view_fn)) => {
+      let palette_view_ctx' =
+        PaletteViewCtx.extend(palette_view_ctx, (name, view_fn));
+      let palette_ctx' = PaletteCtx.extend(palette_ctx, (name, defn));
+      (palette_ctx', palette_view_ctx');
     };
 };
 
-let initial_palette_ctx: PaletteCtx.t =
-  PaletteCtx.extend(
-    PaletteCtx.empty,
-    (BooleanPalette.name, BooleanPalette.palette_defn),
+module PaletteAdapter = (P: PALETTE) => {
+  /* generate palette definition for Semantics */
+  let palette_defn =
+    PaletteDefinition.{
+      expansion_ty: P.expansion_ty,
+      initial_model: P.serialize(P.init_model),
+      to_exp: serialized_model => P.expand(P.deserialize(serialized_model)),
+    };
+
+  let serialized_view_fn = (serialized_model, update_fn) =>
+    P.view(P.deserialize(serialized_model), model =>
+      update_fn(P.serialize(model))
+    );
+
+  let contexts_entry = (P.name, palette_defn, serialized_view_fn);
+};
+
+module CheckboxPaletteAdapter = PaletteAdapter(CheckboxPalette);
+
+let empty_palette_contexts = PaletteContexts.empty;
+let (initial_palette_ctx, initial_palette_view_ctx) =
+  PaletteContexts.extend(
+    empty_palette_contexts,
+    CheckboxPaletteAdapter.contexts_entry,
   );

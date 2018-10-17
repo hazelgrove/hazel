@@ -20,7 +20,12 @@ let view = (model: Model.t) => {
   let view_rs =
     React.S.map(
       e => {
-        let view = View.of_hexp(prefix, [], e);
+        let palette_stuff =
+          View.{
+            palette_view_ctx: Palettes.initial_palette_view_ctx,
+            do_action,
+          };
+        let view = View.of_hexp(palette_stuff, prefix, [], e);
         Pretty.PP.sdoc_of_doc(pp_view_width, view);
       },
       e_rs,
