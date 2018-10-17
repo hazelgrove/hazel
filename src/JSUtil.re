@@ -67,28 +67,66 @@ let r_checkbox = (id, label_str, default_val) => {
   let control_dom = To_dom.of_div(control_elt);
   ((rs, rf), control_elt, control_dom);
 };
+module ModifierKeys: {
+  type t;
+
+  let make: (option(bool), option(bool), option(bool)) => t;
+  let withShift: bool => t;
+  let withCtrl: bool => t;
+  let withAlt: bool => t;
+
+  /**
+   * Some(true) means the modifier key must be held
+   * Some(false) means the modifier key must not be held
+   * None means it does not matter if the modifier key is held
+   */
+  let shift: t => option(bool);
+  let ctrl: t => option(bool);
+  let alt: t => option(bool);
+
+  let matches: (t, (bool, bool, bool)) => bool;
+} = {
+  type t = (option(bool), option(bool), option(bool));
+
+  let make = (shift, ctrl, alt) => (shift, ctrl, alt);
+  let withShift = shift => make(Some(shift), None, None);
+  let withCtrl = ctrl => make(None, Some(ctrl), None);
+  let withAlt = alt => make(None, None, Some(alt));
+
+  let shift = ((shift, _, _)) => shift;
+  let ctrl = ((_, ctrl, _)) => ctrl;
+  let alt = ((_, _, alt)) => alt;
+
+  let matches = (modKeys, (isShiftHeld, isCtrlHeld, isAltHeld)) => {
+    let _matches = (requiredHeld, isHeld) =>
+      switch (requiredHeld) {
+      | None => true
+      | Some(held) => held == isHeld
+      };
+
+    _matches(shift(modKeys), isShiftHeld)
+    && _matches(ctrl(modKeys), isCtrlHeld)
+    && _matches(alt(modKeys), isAltHeld);
+  };
+};
 module KeyCombo: {
   type t;
-  let make: (string, string, option(bool)) => t;
+  let make: (string, string, ModifierKeys.t) => t;
   let name: t => string;
   let key: t => string;
-  /**
-   * - Some(true) means shift key must be held
-   * - Some(false) means shift key must not be held
-   * - None means it does not matter if shift key is held
-   */
-  let shiftKey: t => option(bool);
+  let modKeys: t => ModifierKeys.t;
 } = {
-  type t = (string, string, option(bool));
-  let make = (name, key, shiftKey) => (name, key, shiftKey);
+  type t = (string, string, ModifierKeys.t);
+  let make = (name, key, modKeys) => (name, key, modKeys);
   let name = ((name, _, _)) => name;
   let key = ((_, key, _)) => key;
-  let shiftKey = ((_, _, shiftKey)) => shiftKey;
+  let modKeys = ((_, _, modKeys)) => modKeys;
 };
 module KeyCombos = {
-  let _kc = (name, key) => KeyCombo.make(name, key, None);
-  let _kc_shift = (name, key, shiftKey) =>
-    KeyCombo.make(name, key, Some(shiftKey));
+  let _kc = (name, key) =>
+    KeyCombo.make(name, key, ModifierKeys.make(None, None, None));
+  let _kc_shift = (name, key, shift) =>
+    KeyCombo.make(name, key, ModifierKeys.withShift(shift));
   let enter = _kc("Enter", "Enter");
   let esc = _kc("Esc", "Escape");
   let backspace = _kc("Backspace", "Backspace");
@@ -127,13 +165,17 @@ let listen_for_key = (k, f) =>
     Ev.keydown,
     Dom_html.document,
     evt => {
-      let key = get_key(evt);
-      let matchesShiftKey =
-        switch (KeyCombo.shiftKey(k)) {
-        | None => true
-        | Some(shiftKey) => shiftKey == Js.to_bool(evt##.shiftKey)
-        };
-      if (key == KeyCombo.key(k) && matchesShiftKey) {
+      let matchesKey = get_key(evt) == KeyCombo.key(k);
+      let matchesModKeys =
+        ModifierKeys.matches(
+          KeyCombo.modKeys(k),
+          (
+            Js.to_bool(evt##.shiftKey),
+            Js.to_bool(evt##.ctrlKey),
+            Js.to_bool(evt##.altKey),
+          ),
+        );
+      if (matchesKey && matchesModKeys) {
         f(evt);
         ();
       } else {
