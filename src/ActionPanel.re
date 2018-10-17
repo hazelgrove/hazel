@@ -20,8 +20,8 @@ let make =
       JSUtil.listen_for_key(
         key_combo,
         evt => {
-          doAction(action);
           Dom.preventDefault(evt);
+          doAction(action);
         },
       );
 
