@@ -738,7 +738,7 @@ Module Core.
     | Inj : inj_side -> t -> t'
     | Case : t -> (Var.t * t) -> (Var.t * t) -> t'
     | EmptyHole : MetaVar.t -> t'
-    | OpSeq : skel_t -> OperatorSeq.opseq t op -> t'
+    | OpSeq : skel_t -> OperatorSeq.opseq t op -> t' (* invariant: skeleton is consistent with opseq *)
     | ApPalette : PaletteName.t -> PaletteSerializedModel.t -> t'.
 
     Module PaletteDefinition.
@@ -3411,7 +3411,7 @@ Module Core.
                   expansion_ty, u_gen)
           | None => None
           end
-        | None => Some (ZExp.CursorE After (UHExp.Tm NotInHole (UHExp.NumLit 42)), HTyp.Num, u_gen)
+        | None => None
         end
       | (UpdateApPalette serialized_model, ZExp.CursorE _ (UHExp.Tm _ (UHExp.ApPalette name _))) => 
         let (_, palette_ctx) := ctx in 

@@ -26,6 +26,7 @@ type selected_instance_rs = React.signal(option(DHExp.HoleInstance.t));
 type selected_instance_rf =
   (~step: React.step=?, option(DHExp.HoleInstance.t)) => unit;
 type monitors = list(React.signal(unit));
+type do_action_t = Action.t => unit;
 exception InvalidAction;
 exception MissingCursorInfo;
 exception DoesNotExpand;
@@ -40,7 +41,7 @@ type t = {
   selected_instance_rs,
   selected_instance_rf,
   monitors,
-  do_action: Action.t => unit,
+  do_action: do_action_t,
 };
 let new_model = (): t => {
   let (edit_state_rs, edit_state_rf) = React.S.create(empty);

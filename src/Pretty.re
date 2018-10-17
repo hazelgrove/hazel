@@ -1,5 +1,4 @@
 type span_attribs = HTMLUtil.span_attribs;
-type palette_view_rs = React.signal(Palettes.view_type);
 module PP: {
   type doc('a);
   type cls = string;
@@ -12,7 +11,7 @@ module PP: {
   let tagged:
     (list(cls), option((id, 'a)), option(span_attribs), doc('a)) =>
     doc('a);
-  let palette: (string, palette_view_rs) => doc('a);
+  let paletteView: Palettes.view_type => doc('a);
   let blockBoundary: doc('a);
   let optionalBreak: string => doc('a);
   let mandatoryBreak: doc('a);
@@ -21,7 +20,7 @@ module PP: {
     | SText(cls, string, sdoc)
     | STagStart(list(cls), option(id), option(span_attribs), sdoc)
     | STagEnd(sdoc)
-    | SPalette(string, palette_view_rs)
+    | SPaletteView(Palettes.view_type, sdoc)
     | SLine(int, sdoc);
   let sdoc_of_doc: (int, doc('a)) => (sdoc, Hashtbl.t(id, 'a));
 } = {
@@ -38,7 +37,7 @@ module PP: {
     | BlockBoundary
     | OptionalBreak(string)
     | MandatoryBreak
-    | Palette(string, palette_view_rs);
+    | PaletteView(Palettes.view_type);
   let empty = Empty;
   let (^^) = (x, y) => Concat(x, y);
   let nestRelative = (n, x) => NestRelative(n, x);
@@ -49,13 +48,13 @@ module PP: {
   let blockBoundary = BlockBoundary;
   let optionalBreak = s => OptionalBreak(s);
   let mandatoryBreak = MandatoryBreak;
-  let palette = (name, view) => Palette(name, view);
+  let paletteView = view => PaletteView(view);
   type sdoc =
     | SEmpty
     | SText(cls, string, sdoc)
     | STagStart(list(cls), option(id), option(span_attribs), sdoc)
     | STagEnd(sdoc)
-    | SPalette(string, palette_view_rs)
+    | SPaletteView(Palettes.view_type, sdoc)
     | SLine(int, sdoc);
   let strlen = s =>
     if (String.equal(s, "​​") || String.equal(s, "‌")) {
@@ -100,7 +99,8 @@ module PP: {
           SText("space", s, sdoc_of_doc'(table, width, k + strlen(s), zs'));
         }
       | MandatoryBreak => SLine(i, sdoc_of_doc'(table, width, i, zs'))
-      | Palette(name, view) => SPalette(name, view)
+      | PaletteView(view) =>
+        SPaletteView(view, sdoc_of_doc'(table, width, k, zs'))
       }
     };
 
@@ -154,7 +154,11 @@ module HTML_Of_SDoc = {
       let (tl, rem) = html_of_sdoc''(x');
       let h = [newline, indentation, ...tl];
       (h, rem);
-    | SPalette(name, view) => raise(Not_found)
+    | SPaletteView(view, x') =>
+      let palette_view =
+        Html5.(span(~a=[a_class(["SPaletteView"])], [view]));
+      let (tl, rem) = html_of_sdoc''(x');
+      ([palette_view, ...tl], rem);
     };
 
   let rec html_of_sdoc = x => {
