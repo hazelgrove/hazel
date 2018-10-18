@@ -63,11 +63,11 @@ module CheckboxPalette: PALETTE = {
 module PaletteDefinition = UHExp.PaletteDefinition;
 
 type model_updater = PaletteSerializedModel.t => unit;
-type serialized_view_fn =
+type serialized_view_fn_t =
   (PaletteSerializedModel.t, model_updater) => view_type;
 
 module PaletteViewCtx = {
-  type t = VarMap.t_(serialized_view_fn);
+  type t = VarMap.t_(serialized_view_fn_t);
   include VarMap;
 };
 
@@ -75,7 +75,7 @@ module PaletteContexts = {
   type t = (PaletteCtx.t, PaletteViewCtx.t);
   let empty = (PaletteViewCtx.empty, PaletteCtx.empty);
   let extend:
-    (t, (PaletteName.t, PaletteDefinition.t, serialized_view_fn)) => t =
+    (t, (PaletteName.t, PaletteDefinition.t, serialized_view_fn_t)) => t =
     ((palette_ctx, palette_view_ctx), (name, defn, view_fn)) => {
       let palette_view_ctx' =
         PaletteViewCtx.extend(palette_view_ctx, (name, view_fn));
