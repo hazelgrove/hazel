@@ -3,5 +3,4 @@ let force_opt = opt =>
   | Some(x) => x
   | _ => assert(false)
   };
-
 let compose = (f, g, x) => f(g(x));
