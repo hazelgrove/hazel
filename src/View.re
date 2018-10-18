@@ -529,8 +529,12 @@ let rec of_hexp = (palette_stuff, prefix, rev_path, e) =>
         Palettes.PaletteViewCtx.lookup(palette_stuff.palette_view_ctx, name)
       ) {
       | Some(serialized_view_fn) =>
-        let updater = serialized_model =>
+        let updater = serialized_model => {
+          palette_stuff.do_action(
+            Action.MoveTo((List.rev(rev_path), Before)),
+          );
           palette_stuff.do_action(Action.UpdateApPalette(serialized_model));
+        };
         let view = serialized_view_fn(serialized_model, updater);
         let paletteView = PP.paletteView(view);
         paletteName ^^ paletteView;
