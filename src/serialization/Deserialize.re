@@ -1,7 +1,5 @@
 open Semantics.Core;
-
 open LangUtil;
-
 let ensure_well_typed_after_parsing = uhexp =>
   switch (
     UHExp.fix_and_renumber_holes((), (Ctx.empty, PaletteCtx.empty), uhexp)
@@ -9,9 +7,7 @@ let ensure_well_typed_after_parsing = uhexp =>
   | None => raise(IllFormed(uhexp))
   | Some(((e, t), mv)) => (e, t, mv)
   };
-
 let parse' = lexbuf => HazelParse.parse_uhexp(HazelLex.read, lexbuf);
-
 let deserialize = i_channel =>
   try (
     ensure_well_typed_after_parsing(parse'(Lexing.from_channel(i_channel)))
