@@ -29,9 +29,3 @@ setup.log
 *.glob
 *.vo
 *.vo.aux
-
-# build artifacts
-hazel.js
-Semantics.re
-Semantics.ml
-
