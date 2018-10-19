@@ -13,9 +13,9 @@ Hazel is implemented in Coq and Reason/OCaml, and is compiled to Javascript for 
 
   - Make sure opam is updated:
 
-  ```sh
+    ```sh
     > opam update
-  ```
+    ```
 
   - You need a version 4.05.0+ of the OCaml compiler. First check the current version used by `opam`:
 
@@ -76,6 +76,10 @@ From a fresh checkout, `dune build --auto-promote` does four things:
 2. Generates some parsers using `menhir`.
 3. Auto-formats all reason code, using `refmt` (this is why we need `auto-promote`).
 4. Compiles the reason code to `src/_build/default/www/hazel.js`.
+
+If writing `dune build --auto-promote` is annoying, we put that command into the `Makefile`, so you can also just run `make`.
+
+If something weird is going on, it sometimes helps to do a `dune clean` to delete the various files being generated.
 
 ### Debugging
 You can use `dune build --profile debug --auto-promote` instead of `dune build --auto-promote`. This differs only in that we pass the `--debuginfo` flag to `js_of_ocaml`, which causes the insertion of comments mapping locations in the generated JS to locations in the source files. This is useful for debugging purposes, but causes a substantial increase in compilation time and file size, so it is disabled by default.
