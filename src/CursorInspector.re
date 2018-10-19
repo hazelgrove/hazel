@@ -182,7 +182,7 @@ let no_cursor_mode =
 let mk = (cursor_info_rs: Model.cursor_info_rs) => {
   let cursor_inspector_rs =
     React.S.map(
-      ({ZExp.mode: cursor_mode, ZExp.form: _, ZExp.ctx: _}) => [
+      ({ZExp.mode: cursor_mode, ZExp.form: _, ZExp.ctx: _, _}) => [
         of_cursor_mode(cursor_mode),
       ],
       cursor_info_rs,

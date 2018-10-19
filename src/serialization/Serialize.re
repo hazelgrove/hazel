@@ -45,7 +45,7 @@ let serialize = (~fmtr=std_formatter, ~line_length=100, ~indent=2, uhexp) => {
       print_parenthesized(fmtr, fmtr => print_htyp(fmtr, tau1))
     | UHTyp.Num => fprintf(fmtr, "num")
     | UHTyp.Hole => fprintf(fmtr, "{}")
-    | UHTyp.OpSeq(skel, seq) =>
+    | UHTyp.OpSeq(_, seq) =>
       print_opseq(fmtr, print_htyp, string_of_tyop, seq)
     };
 
@@ -116,8 +116,8 @@ let serialize = (~fmtr=std_formatter, ~line_length=100, ~indent=2, uhexp) => {
           fmtr => print_side(fmtr, "L", vL, eL),
           fmtr => print_side(fmtr, "R", vR, eR),
         );
-      | UHExp.EmptyHole(u) => fprintf(fmtr, "{}")
-      | UHExp.OpSeq(skel, seq) =>
+      | UHExp.EmptyHole(_) => fprintf(fmtr, "{}")
+      | UHExp.OpSeq(_, seq) =>
         print_opseq(fmtr, print_uhexp, string_of_expop, seq)
       | UHExp.ApPalette(name, serialized_model) =>
         fprintf(fmtr, "%s \"%s\"", name, String.escaped(serialized_model))

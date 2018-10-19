@@ -69,18 +69,18 @@ let of_Parenthesized = (is_block, prefix, rev_path, r1) =>
       taggedText("openParens", "(") ^^ r1 ^^ taggedText("closeParens", ")"),
   );
 
-let rec str_of_expr_op = op =>
+let str_of_expr_op = op =>
   switch (op) {
   | UHExp.Plus => ("+", "op-Plus")
   | UHExp.Times => ("*", "op-Times")
   | UHExp.Space => (" ", "op-Space")
   };
-let rec str_of_ty_op = op =>
+let str_of_ty_op = op =>
   switch (op) {
   | UHTyp.Sum => ("|", "op-Sum")
   | UHTyp.Arrow => (LangUtil.typeArrowSym, "op-Arrow")
   };
-let rec of_op_with_space = (str_of_op, op) => {
+let of_op_with_space = (str_of_op, op) => {
   let (op_s, op_cls) = str_of_op(op);
   PP.tagged(
     ["seq-op", op_cls],
@@ -96,7 +96,7 @@ let rec of_op_with_space = (str_of_op, op) => {
 
 let of_expr_op_with_space = of_op_with_space(str_of_expr_op);
 let of_ty_op_with_space = of_op_with_space(str_of_ty_op);
-let rec of_op_no_space = (str_of_op, op) => {
+let of_op_no_space = (str_of_op, op) => {
   let (op_s, op_cls) = str_of_op(op);
   PP.tagged(
     ["seq-op", op_cls],
@@ -106,7 +106,7 @@ let rec of_op_no_space = (str_of_op, op) => {
   );
 };
 let of_expr_op_no_space = of_op_no_space(str_of_expr_op);
-let rec of_expr_op = op =>
+let of_expr_op = op =>
   switch (op) {
   | UHExp.Plus => of_expr_op_with_space(op)
   | UHExp.Times => of_expr_op_no_space(op)
@@ -137,7 +137,7 @@ let precedence_ty = ty =>
   };
 let of_Num = (prefix, rev_path) =>
   term(prefix, NotInHole, rev_path, "Num", kw("num"));
-let rec of_ty_op = (cls, op_s, prefix, err_status, rev_path, r1, r2) =>
+let of_ty_op = (cls, op_s, prefix, err_status, rev_path, r1, r2) =>
   term(
     prefix,
     err_status,
@@ -573,7 +573,7 @@ and of_skel = (palette_stuff, prefix, rev_path, skel, seq) =>
   };
 
 open Dynamics;
-let rec of_bin_num_op = op =>
+let of_bin_num_op = op =>
   switch (op) {
   | DHExp.Plus => taggedText("bin_num_op", " + ")
   | DHExp.Times => taggedText("bin_num_op", "*")
@@ -733,7 +733,8 @@ let rec of_dhexp' =
           );
 
         of_InjAnn(prefix, err_status, rev_path, r1, side, r2);
-      | Case(d1, (x, d2), (y, d3)) =>
+      | Case(d1, (x, _), (y, _)) =>
+        /* | Case(d1, (x, d2), (y, d3)) => */
         let rev_path1 = [0, ...rev_path];
         /* let rev_path2 = [1, ...rev_path];
            let rev_path3 = [2, ...rev_path]; */
@@ -793,7 +794,7 @@ let rec of_dhexp' =
           attrs,
           r,
         );
-      | NonEmptyHole(u, i, sigma, d1) =>
+      | NonEmptyHole(u, _, sigma, d1) =>
         let rev_path1 = [0, ...rev_path];
         let r1 =
           of_dhexp'(

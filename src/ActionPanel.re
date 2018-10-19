@@ -3,10 +3,7 @@ open React;
 open Semantics.Core;
 open Model;
 let make =
-    (
-      {edit_state_rs, cursor_info_rs, e_rs, result_rs, do_action}: Model.t,
-      set_cursor,
-    ) => {
+    ({edit_state_rs, cursor_info_rs, do_action, _}: Model.t, set_cursor) => {
   module Util = GeneralUtil;
   module Ev = Dom_html.Event;
   module KC = JSUtil.KeyCombo;
@@ -20,12 +17,12 @@ let make =
       JSUtil.listen_for_key(
         key_combo,
         evt => {
-          doAction(action);
           Dom.preventDefault(evt);
+          doAction(action);
         },
       );
 
-    let onclick_handler = evt => {
+    let onclick_handler = _ => {
       doAction(action);
       true;
     };
@@ -421,7 +418,7 @@ let make =
 
   let is_hole_rs =
     S.l1(
-      ({ZExp.mode: _, ZExp.form, ZExp.ctx: _}) =>
+      ({ZExp.mode: _, ZExp.form, ZExp.ctx: _, _}) =>
         switch (form) {
         | ZExp.IsHole(_) => true
         | _ => false
@@ -431,7 +428,7 @@ let make =
 
   let can_insert_var_rs =
     S.l1(
-      ({ZExp.mode: _, ZExp.form, ZExp.ctx}) =>
+      ({ZExp.mode: _, ZExp.form, _}) =>
         switch (form) {
         | ZExp.IsHole(_)
         | ZExp.IsVar
@@ -453,7 +450,7 @@ let make =
 
   let can_insert_let_case_rs =
     S.l1(
-      ({ZExp.mode, ZExp.form, ZExp.ctx}) =>
+      ({ZExp.mode, _}) =>
         switch (mode) {
         | ZExp.TypePosition => false
         | _ => true
@@ -476,6 +473,20 @@ let make =
         span(~a=[a_class(["code", cls])], [pcdata(code_txt)]),
         pcdata(post_txt),
       ])
+    );
+
+  let moveToPrevHole =
+    action_button(
+      Action.MoveToPrevHole,
+      Html5.pcdata("move to previous hole"),
+      KCs.backtab,
+    );
+
+  let moveToNextHole =
+    action_button(
+      Action.MoveToNextHole,
+      Html5.pcdata("move to next hole"),
+      KCs.tab,
     );
 
   let threepiece_op = threepiece("op");
@@ -696,7 +707,13 @@ let make =
           div(~a=[a_class(["sub-panel-title"])], [pcdata("General")]),
           div(
             ~a=[a_class(["sub-panel-body"])],
-            [constructParenthesized, backspace, delete],
+            [
+              constructParenthesized,
+              backspace,
+              delete,
+              moveToPrevHole,
+              moveToNextHole,
+            ],
           ),
         ],
       )
