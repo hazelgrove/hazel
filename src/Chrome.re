@@ -1,4 +1,3 @@
-open View;
 open Tyxml_js;
 open Semantics.Core;
 open Model;
@@ -13,6 +12,7 @@ let view = (model: Model.t) => {
     selected_instance_rs,
     selected_instance_rf,
     do_action,
+    _,
   } = model;
   let kc = JSUtil.KeyCombo.key;
   let pp_view_width = 50;
@@ -187,7 +187,7 @@ let view = (model: Model.t) => {
   let pp_view_dom = Tyxml_js.To_dom.of_div(pp_view);
   let preventDefault_handler = evt => {
     Dom.preventDefault(evt);
-    false;
+    ();
   };
   let _ =
     JSUtil.listen_to_t(
@@ -634,7 +634,6 @@ let view = (model: Model.t) => {
     };
   let determine_cursor_side =
       (
-        selection: Js.t(Dom_html.selection),
         anchor: Js.t(Dom.node),
         anchorOffset: int,
         ast_elem: Js.t(Dom_html.element),
@@ -752,7 +751,7 @@ let view = (model: Model.t) => {
     JSUtil.listen_to_t(
       Dom.Event.make("selectionchange"),
       Dom_html.document,
-      evt => {
+      _ => {
         let selection = Dom_html.window##getSelection;
         let anchorNode = selection##.anchorNode;
         if (JSUtil.div_contains_node(pp_view_dom, anchorNode)) {
@@ -781,12 +780,7 @@ let view = (model: Model.t) => {
                   found := true;
                   let path = List.rev(rev_path);
                   let cursor_side =
-                    determine_cursor_side(
-                      selection,
-                      anchor,
-                      anchorOffset,
-                      cur_element,
-                    );
+                    determine_cursor_side(anchor, anchorOffset, cur_element);
 
                   do_action(Action.MoveTo((path, cursor_side)));
                   clear_cursors();
@@ -827,7 +821,7 @@ let view = (model: Model.t) => {
       set_cursor();
     | None => JSUtil.log("Path not found!!")
     };
-  let instance_click_fn = ((u, i) as inst) => {
+  let instance_click_fn = ((u, _) as inst) => {
     let usi = React.S.value(user_selected_instances_rs);
     user_selected_instances_rf(UserSelectedInstances.update(usi, inst));
     move_to_hole(u);
@@ -835,9 +829,9 @@ let view = (model: Model.t) => {
   };
   let result_view_rs =
     React.S.l1(
-      ((d, hii, result)) =>
+      ((_, _, result)) =>
         switch (result) {
-        | Dynamics.Evaluator.InvalidInput(n) => [
+        | Dynamics.Evaluator.InvalidInput(_) => [
             Html5.pcdata(
               "(internal error: expansion or evaluation invariant violated)",
             ),

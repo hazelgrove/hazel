@@ -88,7 +88,7 @@ let new_model = (): t => {
   let (selected_instance_rs, selected_instance_rf) = React.S.create(None);
   let instance_at_cursor_monitor =
     React.S.l2(
-      ({ZExp.mode: _, ZExp.form, ZExp.ctx: _}, (_, hii, _)) => {
+      ({ZExp.mode: _, ZExp.form, ZExp.ctx: _, ZExp.side: _}, (_, hii, _)) => {
         let new_path =
           switch (form) {
           | ZExp.IsHole(u) =>
@@ -97,7 +97,7 @@ let new_model = (): t => {
             | Some(i) => Some((u, i))
             | None =>
               switch (DHExp.HoleInstanceInfo.default_instance(hii, u)) {
-              | Some((u, i)) as inst => inst
+              | Some(_) as inst => inst
               | None => None
               }
             };
