@@ -10,6 +10,7 @@ let mk =
         user_selected_instances_rf,
         selected_instance_rs,
         selected_instance_rf,
+        _,
       },
       instance_click_fn,
     ) => {
@@ -87,7 +88,7 @@ let mk =
         switch (selected_instance) {
         | Some(inst) =>
           switch (Dynamics.DHExp.HoleInstanceInfo.lookup(hii, inst)) {
-          | Some((sigma, path)) => sigma
+          | Some((sigma, _)) => sigma
           | None => raise(InvalidInstance)
           }
         | None => Dynamics.DHExp.id_env(ctx)
@@ -213,8 +214,6 @@ let mk =
       option(Dynamics.DHExp.HoleInstance.t),
       option(Dynamics.DHExp.HoleInstance.t),
     );
-    type next_prev_state_rs = React.signal(next_prev_state);
-    type next_prev_state_rf = (~step: React.step=?, next_prev_state) => unit;
     let next_prev_state_initial: next_prev_state = (
       (None, None): next_prev_state
     );
@@ -232,7 +231,7 @@ let mk =
       let _ =
         JSUtil.listen_for_key(
           next_key,
-          evt => {
+          _ => {
             let (next_state, _) = React.S.value(next_prev_state_rs);
             switch (next_state) {
             | Some(inst) => update_instance(inst)
@@ -244,7 +243,7 @@ let mk =
       let _ =
         JSUtil.listen_for_key(
           prev_key,
-          evt => {
+          _ => {
             let (_, prev_state) = React.S.value(next_prev_state_rs);
             switch (prev_state) {
             | Some(inst) => update_instance(inst)
@@ -255,14 +254,7 @@ let mk =
 
       next_prev_state_rf;
     };
-    let hii_summary =
-        (
-          hii,
-          (u_, i_) as inst,
-          form,
-          selected_instance_rf,
-          next_prev_state_rf,
-        ) => {
+    let hii_summary = (hii, (u_, i_) as inst, next_prev_state_rf) => {
       let num_instances =
         Dynamics.DHExp.HoleInstanceInfo.num_instances(hii, u_);
       let msg =
@@ -321,7 +313,7 @@ let mk =
         "Next instance (" ++ JSUtil.KeyCombo.name(next_key) ++ ")";
       let prev_btn =
         switch (prev_state) {
-        | Some(inst) =>
+        | Some(_) =>
           let prev_cls = ["prev-instance", "has-prev", "noselect"];
           let prev_onclick = onclick(prev_state);
           Html5.(
@@ -346,7 +338,7 @@ let mk =
 
       let next_btn =
         switch (next_state) {
-        | Some(inst) =>
+        | Some(_) =>
           let next_cls = ["next-instance", "has-next", "noselect"];
           let next_onclick = onclick(next_state);
           Html5.(
@@ -377,15 +369,7 @@ let mk =
       Html5.(div(~a=[a_class(["path-summary"])], [msg, controls]));
     };
 
-    let path_viewer =
-        (
-          hii,
-          selected_instance,
-          form,
-          ctx,
-          selected_instance_rf,
-          next_prev_state_rf,
-        ) =>
+    let path_viewer = (hii, selected_instance, form, ctx, next_prev_state_rf) =>
       if (VarMap.is_empty(ctx)) {
         Html5.div([]);
       } else {
@@ -393,18 +377,12 @@ let mk =
           switch (form) {
           | ZExp.IsHole(u) =>
             switch (selected_instance) {
-            | Some((u', i) as inst) =>
+            | Some((u', _) as inst) =>
               if (MetaVar.equal(u, u')) {
                 switch (Dynamics.DHExp.HoleInstanceInfo.lookup(hii, inst)) {
-                | Some((sigma, path)) => [
+                | Some((_, path)) => [
                     path_view_titlebar,
-                    hii_summary(
-                      hii,
-                      inst,
-                      form,
-                      selected_instance_rf,
-                      next_prev_state_rf,
-                    ),
+                    hii_summary(hii, inst, next_prev_state_rf),
                     path_view(inst, path),
                   ]
                 | None => raise(InvalidInstance)
@@ -435,19 +413,11 @@ let mk =
           {ZExp.mode: _, ZExp.form, ZExp.ctx: (ctx, _)},
           (_, hii, _),
           selected_instance,
-          selected_instance_rf,
           next_prev_state_rf,
         ) => {
       let the_context_view = context_view(ctx, hii, selected_instance);
       let the_path_viewer =
-        path_viewer(
-          hii,
-          selected_instance,
-          form,
-          ctx,
-          selected_instance_rf,
-          next_prev_state_rf,
-        );
+        path_viewer(hii, selected_instance, form, ctx, next_prev_state_rf);
 
       Html5.(
         div([
@@ -466,13 +436,7 @@ let mk =
   let context_inspector_rs =
     React.S.l3(
       (cursor_info, result, selected_instance) => [
-        panel(
-          cursor_info,
-          result,
-          selected_instance,
-          selected_instance_rf,
-          next_prev_state_rf,
-        ),
+        panel(cursor_info, result, selected_instance, next_prev_state_rf),
       ],
       cursor_info_rs,
       result_rs,

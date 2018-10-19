@@ -161,7 +161,7 @@ module HTML_Of_SDoc = {
       ([palette_view, ...tl], rem);
     };
 
-  let rec html_of_sdoc = x => {
+  let html_of_sdoc = x => {
     let (h, _) = html_of_sdoc''(x);
     Html5.(span(~a=[a_class(["SDoc"])], h));
   };

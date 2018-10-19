@@ -67,23 +67,70 @@ let r_checkbox = (id, label_str, default_val) => {
   let control_dom = To_dom.of_div(control_elt);
   ((rs, rf), control_elt, control_dom);
 };
+module ModKeyReqs: {
+  type t;
+  type heldReq =
+    | MustBeHeld
+    | MustNotBeHeld
+    | DoesNotMatter;
+
+  let make: (heldReq, heldReq, heldReq) => t;
+  let none: t;
+  let withShift: heldReq => t;
+  let withCtrl: heldReq => t;
+  let withAlt: heldReq => t;
+
+  let matches: (t, (bool, bool, bool)) => bool;
+} = {
+  type heldReq =
+    | MustBeHeld
+    | MustNotBeHeld
+    | DoesNotMatter;
+  type t = (heldReq, heldReq, heldReq);
+
+  let make = (shift, ctrl, alt) => (shift, ctrl, alt);
+  let none = make(DoesNotMatter, DoesNotMatter, DoesNotMatter);
+  let withShift = req => make(req, DoesNotMatter, DoesNotMatter);
+  let withCtrl = req => make(DoesNotMatter, req, DoesNotMatter);
+  let withAlt = req => make(DoesNotMatter, DoesNotMatter, req);
+
+  let matches = (modKeyReqs, (isShiftHeld, isCtrlHeld, isAltHeld)) => {
+    let (shiftReq, ctrlReq, altReq) = modKeyReqs;
+
+    let _matches = (heldReq, isHeld) =>
+      switch (heldReq) {
+      | DoesNotMatter => true
+      | MustBeHeld => isHeld
+      | MustNotBeHeld => !isHeld
+      };
+
+    _matches(shiftReq, isShiftHeld)
+    && _matches(ctrlReq, isCtrlHeld)
+    && _matches(altReq, isAltHeld);
+  };
+};
 module KeyCombo: {
   type t;
-  let make: (string, string) => t;
+  let make: (string, string, ModKeyReqs.t) => t;
   let name: t => string;
   let key: t => string;
+  let modKeyReqs: t => ModKeyReqs.t;
 } = {
-  type t = (string, string);
-  let make = (name, key) => (name, key);
-  let name = ((name, key)) => name;
-  let key = ((name, key)) => key;
+  type t = (string, string, ModKeyReqs.t);
+  let make = (name, key, modKeyReqs) => (name, key, modKeyReqs);
+  let name = ((name, _, _)) => name;
+  let key = ((_, key, _)) => key;
+  let modKeyReqs = ((_, _, modKeyReqs)) => modKeyReqs;
 };
 module KeyCombos = {
-  let _kc = KeyCombo.make;
+  let _kc = (name, key) => KeyCombo.make(name, key, ModKeyReqs.none);
+  let _kcm = (name, key, modKeyReqs) => KeyCombo.make(name, key, modKeyReqs);
   let enter = _kc("Enter", "Enter");
   let esc = _kc("Esc", "Escape");
   let backspace = _kc("Backspace", "Backspace");
   let del = _kc("Delete", "Delete");
+  let tab = _kcm("Tab", "Tab", ModKeyReqs.withShift(MustNotBeHeld));
+  let backtab = _kcm("Shift-Tab", "Tab", ModKeyReqs.withShift(MustBeHeld));
   let space = _kc("Space", " ");
   let p = _kc("p", "p");
   let x = _kc("x", "x");
@@ -117,8 +164,17 @@ let listen_for_key = (k, f) =>
     Ev.keydown,
     Dom_html.document,
     evt => {
-      let key = get_key(evt);
-      if (key == KeyCombo.key(k)) {
+      let matchesKey = get_key(evt) == KeyCombo.key(k);
+      let matchesModKeys =
+        ModKeyReqs.matches(
+          KeyCombo.modKeyReqs(k),
+          (
+            Js.to_bool(evt##.shiftKey),
+            Js.to_bool(evt##.ctrlKey),
+            Js.to_bool(evt##.altKey),
+          ),
+        );
+      if (matchesKey && matchesModKeys) {
         f(evt);
         ();
       } else {

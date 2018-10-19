@@ -1,0 +1,39 @@
+; to build: dune build
+; to build with refmt: dune build --auto-promote
+; debug build: dune build --profile debug [--auto-promote]
+
+(include_subdirs unqualified) ; does not include dirs that specify `(include_subdirs no)`
+
+(env
+  (_
+    (flags (:standard -g -I serialization)))
+  (default
+    (flags :standard))
+  (debug
+    (flags :standard)))
+
+(alias
+  (name default)
+  (deps (alias fmt) (glob_files www/*)))
+
+(executable
+  (name hazel)
+  (js_of_ocaml (flags (:standard (:include js-of-ocaml-flags-%{profile}))))
+  (libraries Semantics js_of_ocaml.tyxml tyxml react reactiveData camomile)
+  (preprocess (pps js_of_ocaml.ppx)))
+
+(rule
+  (write-file js-of-ocaml-flags-debug --debuginfo))
+
+(rule
+  (write-file js-of-ocaml-flags-dev "()"))
+
+(rule
+  (write-file js-of-ocaml-flags-default "()"))
+
+(ocamllex
+  (modules SkelExprLexer SkelTypLexer))
+
+(menhir
+  (infer false)
+  (modules SkelExprParser SkelTypParser))
