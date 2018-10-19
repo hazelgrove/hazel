@@ -101,7 +101,7 @@ module ModKeyReqs: {
       switch (heldReq) {
       | DoesNotMatter => true
       | MustBeHeld => isHeld
-      | MustNotBeHeld => ! isHeld
+      | MustNotBeHeld => !isHeld
       };
 
     _matches(shiftReq, isShiftHeld)
