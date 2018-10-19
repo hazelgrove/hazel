@@ -2477,16 +2477,7 @@ Module Core.
           end
       end.
 
-    Fixpoint next_hole_path_t (fuel : Fuel.t) (zty : ZTyp.t) : option Path.t :=
-      match fuel with
-      | Fuel.Kicked => None
-      | Fuel.More fuel =>
-      match next_hole_path_t' fuel zty with
-      | None => None
-      | Some path => Some (path, Before)
-      end
-      end
-    with next_hole_path_t' (fuel : Fuel.t) (zty : ZTyp.t) : option (list nat) :=
+    Fixpoint next_hole_path_t' (fuel : Fuel.t) (zty : ZTyp.t) : option (list nat) :=
       match fuel with
       | Fuel.Kicked => None
       | Fuel.More fuel =>
@@ -2511,16 +2502,17 @@ Module Core.
       end
       end.
 
-    Fixpoint next_hole_path_e (fuel : Fuel.t) (ze : ZExp.t) : option Path.t :=
+    Fixpoint next_hole_path_t (fuel : Fuel.t) (zty : ZTyp.t) : option Path.t :=
       match fuel with
       | Fuel.Kicked => None
       | Fuel.More fuel =>
-      match next_hole_path_e' fuel ze with
+      match next_hole_path_t' fuel zty with
       | None => None
       | Some path => Some (path, Before)
       end
-      end
-    with next_hole_path_e' (fuel : Fuel.t) (ze : ZExp.t) : option (list nat) :=
+      end.
+
+    Fixpoint next_hole_path_e' (fuel : Fuel.t) (ze : ZExp.t) : option (list nat) :=
       match fuel with
       | Fuel.Kicked => None
       | Fuel.More fuel =>
@@ -2594,6 +2586,16 @@ Module Core.
           end
         end
       | ZExp.ParenthesizedZ ze' => Path.cons_opt 0 (next_hole_path_e' fuel ze')
+      end
+      end.
+
+    Fixpoint next_hole_path_e (fuel : Fuel.t) (ze : ZExp.t) : option Path.t :=
+      match fuel with
+      | Fuel.Kicked => None
+      | Fuel.More fuel =>
+      match next_hole_path_e' fuel ze with
+      | None => None
+      | Some path => Some (path, Before)
       end
       end.
 
@@ -2686,16 +2688,8 @@ Module Core.
           end
       end.
 
-    Fixpoint prev_hole_path_t (fuel : Fuel.t) (zty : ZTyp.t) : option Path.t :=
-      match fuel with
-      | Fuel.Kicked => None
-      | Fuel.More fuel =>
-      match prev_hole_path_t' fuel zty with
-      | None => None
-      | Some path => Some (path, Before)
-      end
-      end
-    with prev_hole_path_t' (fuel : Fuel.t) (zty : ZTyp.t) : option (list nat) :=
+
+    Fixpoint prev_hole_path_t' (fuel : Fuel.t) (zty : ZTyp.t) : option (list nat) :=
       match fuel with
       | Fuel.Kicked => None
       | Fuel.More fuel =>
@@ -2721,16 +2715,17 @@ Module Core.
       end
       end.
 
-    Fixpoint prev_hole_path_e (fuel : Fuel.t) (ze : ZExp.t) : option Path.t :=
+    Fixpoint prev_hole_path_t (fuel : Fuel.t) (zty : ZTyp.t) : option Path.t :=
       match fuel with
       | Fuel.Kicked => None
       | Fuel.More fuel =>
-      match prev_hole_path_e' fuel ze with
+      match prev_hole_path_t' fuel zty with
       | None => None
       | Some path => Some (path, Before)
       end
-      end
-    with prev_hole_path_e' (fuel : Fuel.t) (ze : ZExp.t) : option (list nat) :=
+      end.
+
+    Fixpoint prev_hole_path_e' (fuel : Fuel.t) (ze : ZExp.t) : option (list nat) :=
       match fuel with
       | Fuel.Kicked => None
       | Fuel.More fuel =>
@@ -2805,6 +2800,16 @@ Module Core.
           end
         end
       | ZExp.ParenthesizedZ ze0 => Path.cons_opt 0 (prev_hole_path_e' fuel ze0)
+      end
+      end.
+
+    Fixpoint prev_hole_path_e (fuel : Fuel.t) (ze : ZExp.t) : option Path.t :=
+      match fuel with
+      | Fuel.Kicked => None
+      | Fuel.More fuel =>
+      match prev_hole_path_e' fuel ze with
+      | None => None
+      | Some path => Some (path, Before)
       end
       end.
 
