@@ -106,7 +106,7 @@ module PP: {
   let rec string_of_sdoc = x =>
     switch (x) {
     | SEmpty => ""
-    | SText(cls, s, x') => s ++ string_of_sdoc(x')
+    | SText(_, s, x') => s ++ string_of_sdoc(x')
     | STagStart(_, _, _, x') => string_of_sdoc(x')
     | STagEnd(x') => string_of_sdoc(x')
     | SLine(n, x') => "\n" ++ String.make(n, ' ') ++ string_of_sdoc(x')
@@ -158,7 +158,7 @@ module HTML_Of_SDoc = {
       (h, rem);
     };
 
-  let rec html_of_sdoc = x => {
+  let html_of_sdoc = x => {
     let (h, _) = html_of_sdoc''(x);
     Html5.(span(~a=[a_class(["SDoc"])], h));
   };

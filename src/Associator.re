@@ -49,11 +49,11 @@ let make_skel_str =
   let skel_str = make_skel_str'(string_of_op, seq, counter, ph_map);
   (skel_str, ph_map);
 };
-let rec associate_exp = (seq: UHExp.opseq) => {
+let associate_exp = (seq: UHExp.opseq) => {
   let (skel_str, _) = make_skel_str(seq, string_of_expr_op);
   parse_expr(skel_str);
 };
-let rec associate_ty = (seq: UHTyp.opseq) => {
+let associate_ty = (seq: UHTyp.opseq) => {
   let (skel_str, _) = make_skel_str(seq, string_of_ty_op);
   parse_typ(skel_str);
 };

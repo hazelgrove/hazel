@@ -1,4 +1,3 @@
-open Tyxml_js;
 JSUtil.listen_to_t(
   Dom_html.Event.domContentLoaded,
   Dom_html.document,
