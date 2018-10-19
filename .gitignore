@@ -8,6 +8,11 @@
 *.cmxs
 *.cmxa
 
+.merlin
+
+# auto-generated
+Semantics.ml
+
 # ocamlbuild working directory
 _build/
 
