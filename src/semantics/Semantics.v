@@ -88,6 +88,116 @@ Module Core.
       let n := S(x) in (x, n).
   End MetaVar.
 
+  Module Type NATMAP.
+    Parameter t : Type -> Type.
+    Parameter empty : forall (A : Type), t A.
+    Parameter extend : forall (A : Type), t A -> nat * A -> t A.
+    Parameter drop : forall A : Type, t A -> nat -> option (t A * A).
+    Parameter union : forall (A : Type), t A -> t A -> t A.
+    Parameter lookup : forall (A : Type), t A -> nat -> option A.
+    Parameter insert_or_update : forall (A : Type), t A -> nat * A -> t A.
+    Parameter insert_or_map : forall (A : Type), t A -> nat -> (unit -> A) -> (A -> A) -> A * t A.
+    Parameter map : forall (A B : Type), (A -> B) -> t A -> t B.
+    Parameter update_with : forall (A : Type), (A -> A) -> nat -> t A -> A -> (A * t A).
+    Parameter length : forall (A : Type), t A -> nat.
+    Parameter to_list : forall (A : Type), t A -> list (nat * A).
+  End NATMAP.
+
+  Module NatMap <: NATMAP.
+    Definition t (A : Type) := list (nat * A).
+
+    Definition empty {A : Type} : t A := nil.
+
+    Definition extend {A : Type} (delta : t A) (x : nat * A)
+      : t A := cons x delta.
+
+    Fixpoint drop {A : Type} (delta : t A) (n : nat) : option (t A * A) :=
+      match delta with 
+      | nil => None
+      | cons (y, a) delta' => 
+        match Nat.eqb n y with 
+        | true => Some (delta', a)
+        | false => drop delta' n
+        end
+      end.
+
+    Definition union {A : Type} (delta1 : t A) (delta2 : t A) : t A := delta1 ++ delta2.
+
+    Fixpoint lookup {A : Type} (delta : t A) (x : nat) : option A :=
+      match delta with
+      | nil => None
+      | cons (y, a) delta' =>
+        match Nat.eqb x y with
+        | true => Some a
+        | false => lookup delta' x
+        end
+      end.
+    
+    Fixpoint insert_or_update {A : Type} (delta : t A) (x : nat * A) : t A := 
+      let (u, a) := x in 
+      match delta with 
+      | nil => cons x delta
+      | cons (u', a') delta' => 
+        match MetaVar.equal u u' with 
+        | true => cons (u', a) delta'
+        | false => cons (u', a') (insert_or_update delta' x)
+        end
+      end.
+
+    Fixpoint insert_or_map {A : Type} (delta : t A) (u : nat) 
+      (a0 : unit -> A) (f : A -> A) : A * t A := 
+      match delta with 
+      | nil => 
+        let a0 := a0 tt in 
+        (a0, cons (u, a0) delta)
+      | cons (u', a) delta' => 
+        if MetaVar.equal u u' then 
+          let a' := f a in 
+          (a', cons (u', a') delta')
+        else
+          let (a', delta'') := insert_or_map delta' u a0 f in 
+          (a', cons (u', a) delta'')
+      end.
+
+    Fixpoint map {A B : Type} (f : A -> B) (delta : t A) : t B := 
+      match delta with 
+      | nil => nil
+      | cons (u, a) delta' => cons (u, f a) (map f delta')
+      end.
+
+    Fixpoint update_with {A : Type} (f : A -> A) (u : nat) (delta : t A) (u_nil : A) : (A * t A) := 
+      match delta with 
+      | nil => (u_nil, delta)
+      | cons (u', a) delta' => 
+        match MetaVar.equal u u' with 
+        | true => 
+          let a' := f a in 
+          (a', cons (u', a') delta')
+        | false => 
+          let (a', delta'') := update_with f u delta' u_nil in 
+          (a', cons (u', a) delta'')
+        end
+      end.
+
+    Definition length {A : Type} (delta : t A) := List.length delta.
+    Definition to_list {A : Type} (delta : t A) := delta.
+
+    Definition fold {A B : Type} (delta : t A) (f : (B -> (nat * A) -> B)) (b : B) : B := 
+      List.fold_left f delta b.
+  End NatMap.            
+
+  Module ZNatMap.
+    Definition t (A Z : Type) : Type := NatMap.t(A) * (nat * Z). 
+    Definition new {A Z : Type} (m : NatMap.t(A)) (nz : nat * Z) : option(t A Z) :=
+      let (n, z) := nz in 
+      match NatMap.lookup m n with 
+      | Some _ => None
+      | None => Some (m, nz)
+      end.
+  End ZNatMap.
+
+  Module MetaVarMap := NatMap.
+
   Inductive err_status : Type := 
   | NotInHole : err_status
   | InHole : MetaVar.t -> err_status.
@@ -755,7 +865,31 @@ Module Core.
     | Case : t -> (Var.t * t) -> (Var.t * t) -> t'
     | EmptyHole : MetaVar.t -> t'
     | OpSeq : skel_t -> OperatorSeq.opseq t op -> t' (* invariant: skeleton is consistent with opseq *)
-    | ApPalette : PaletteName.t -> PaletteSerializedModel.t -> t'.
+    | ApPalette : PaletteName.t -> 
+                  PaletteSerializedModel.t -> 
+                  (nat * NatMap.t(HTyp.t * t)) (* = PaletteHoleData.t *) -> 
+                  t'.
+
+    (* helper function for constructing a new empty hole *)
+    Definition new_EmptyHole (u_gen : MetaVar.gen) : t * MetaVar.gen :=
+      let (u', u_gen') := MetaVar.next u_gen in 
+      (Tm NotInHole (EmptyHole u'), u_gen').
+
+    Module PaletteHoleData.
+      Definition hole_ref_lbl : Type := nat.
+      Definition hole_map : Type := NatMap.t(HTyp.t * t).
+      Definition t : Type := (hole_ref_lbl * hole_map).
+      Definition next_ref_lbl (x : hole_ref_lbl) := S(x).
+      Definition new_hole_ref 
+        (u_gen : MetaVar.gen) 
+        (hd : t) 
+        (ty : HTyp.t) : (hole_ref_lbl * t * MetaVar.gen) :=
+          let (cur_ref_lbl, cur_map) := hd in 
+          let next_ref_lbl := next_ref_lbl(cur_ref_lbl) in 
+          let (initial_exp, u_gen) := UHExp.new_EmptyHole u_gen in 
+          let next_map := NatMap.extend cur_map (cur_ref_lbl, (ty, initial_exp)) in 
+          (cur_ref_lbl, (next_ref_lbl, next_map), u_gen).
+    End PaletteHoleData.
 
     Module PaletteDefinition.
       Record t : Type := MkPalette {
@@ -800,17 +934,12 @@ Module Core.
       | Tm _ (Lam _ _) => false
       | Tm _ (Case _ _ _) => false
       | Tm _ (OpSeq _ _) => false
-      | Tm _ (ApPalette _ _) => true
+      | Tm _ (ApPalette _ _ _) => true
       end.
 
     (* if e is not bidelimited, bidelimit e parenthesizes it *)
     Definition bidelimit (e : t) := 
       if is_bidelimited e then e else Parenthesized e.
-
-    (* helper function for constructing a new empty hole *)
-    Definition new_EmptyHole (u_gen : MetaVar.gen) : t * MetaVar.gen :=
-      let (u', u_gen') := MetaVar.next u_gen in 
-      (Tm NotInHole (EmptyHole u'), u_gen').
 
     (* put e in the specified hole *)
     Fixpoint put_in_hole (u : MetaVar.t) (e : t) := 
@@ -936,21 +1065,42 @@ Module Core.
             | None => None
             end
           | Case _ _ _ => None
-          | ApPalette name serialized_model => 
+          | ApPalette name serialized_model hole_data => 
               let (_, palette_ctx) := ctx in 
               match (VarMap.lookup palette_ctx name) with
               | Some palette_defn => 
-                let expansion_ty := PaletteDefinition.expansion_ty palette_defn in  
-                let to_exp := PaletteDefinition.to_exp palette_defn in 
-                let expansion := to_exp serialized_model in 
-                match ana fuel ctx expansion expansion_ty with
-                | Some _ => 
-                  Some expansion_ty
+                match (ana_hole_data fuel ctx hole_data) with 
                 | None => None
+                | Some _ => 
+                  let expansion_ty := PaletteDefinition.expansion_ty palette_defn in  
+                  let to_exp := PaletteDefinition.to_exp palette_defn in 
+                  let expansion := to_exp serialized_model in 
+                  match ana fuel ctx expansion expansion_ty with
+                  | Some _ => 
+                    Some expansion_ty
+                  | None => None
+                  end
                 end
               | None => None
               end
           end
+        end
+    with ana_hole_data
+      (fuel : Fuel.t)
+      (ctx : Contexts.t)
+      (hole_data : PaletteHoleData.t)
+      : option(unit) :=
+        match fuel with 
+        | Fuel.Kicked => None
+        | Fuel.More fuel => 
+          let (_, hole_map) := hole_data in 
+          NatMap.fold hole_map (fun c v => 
+            let (_, ty_e) := v in
+            let (ty, e) := ty_e in 
+            match c with 
+            | None => None
+            | Some _ => ana fuel ctx e ty
+            end) (Some tt)
         end
     with ana
       (fuel : Fuel.t)
@@ -1024,7 +1174,7 @@ Module Core.
         | NumLit _ 
         | EmptyHole _
         | OpSeq _ _
-        | ApPalette _ _ =>
+        | ApPalette _ _ _ =>
           match syn' fuel ctx e with
           | Some ty' =>
             if HTyp.consistent ty ty' then (Some tt) else None
@@ -1248,12 +1398,55 @@ Module Core.
           | None => None
           end
         | Case _ _ _ => None
-        | ApPalette name serialized_model => 
-          match syn' fuel ctx e with 
-          | Some expansion_ty => Some (e, expansion_ty, u_gen)
+        | ApPalette name serialized_model hole_data => 
+          let (_, palette_ctx) := ctx in 
+          match (VarMap.lookup palette_ctx name) with
           | None => None
+          | Some palette_defn => 
+            match (ana_fix_holes_hole_data fuel ctx u_gen should_renumber_empty_holes hole_data) with 
+            | None => None
+            | Some (hole_data', u_gen') => 
+              let expansion_ty := PaletteDefinition.expansion_ty palette_defn in  
+              let to_exp := PaletteDefinition.to_exp palette_defn in 
+              let expansion := to_exp serialized_model in 
+              match ana fuel ctx expansion expansion_ty with
+              | Some _ => 
+                Some (ApPalette name serialized_model hole_data', expansion_ty, u_gen')
+              | None => None
+              end
+            end
           end
         end
+        end
+    with ana_fix_holes_hole_data
+      (fuel : Fuel.t)
+      (ctx : Contexts.t)
+      (u_gen : MetaVar.gen)
+      (should_renumber_empty_holes : bool)
+      (hole_data : PaletteHoleData.t)
+      : option(PaletteHoleData.t * MetaVar.gen) := 
+        match fuel with 
+        | Fuel.Kicked => None
+        | Fuel.More fuel => 
+          let (next_ref, hole_map) := hole_data in 
+          let init : (PaletteHoleData.hole_map * MetaVar.gen) := (NatMap.empty, u_gen) in 
+          let hole_map_opt' := NatMap.fold hole_map (fun (c : option(PaletteHoleData.hole_map * MetaVar.gen)) v => 
+            let (i, ty_e) := v in 
+            let (ty, e) := ty_e in 
+            match c with 
+            | None => None
+            | Some (xs, u_gen) => 
+              match (ana_fix_holes_internal' fuel ctx u_gen should_renumber_empty_holes e ty) with 
+              | Some (e', u_gen') => 
+                let xs' := NatMap.extend xs (i, (ty, e')) in 
+                Some (xs', u_gen')
+              | None => None
+              end
+            end) (Some init) in 
+          match hole_map_opt' with 
+          | Some (hole_map', u_gen') => Some ((next_ref, hole_map'), u_gen')
+          | None => None
+          end
         end
     with ana_fix_holes_internal'
       (fuel : Fuel.t)
@@ -1376,7 +1569,7 @@ Module Core.
         | NumLit _ 
         | EmptyHole _ 
         | OpSeq _ _ 
-        | ApPalette _ _ =>  
+        | ApPalette _ _ _ =>  
           match syn_fix_holes' fuel ctx u_gen should_renumber_empty_holes e with 
           | Some (e', ty', u_gen') => 
             if HTyp.consistent ty ty' then 
@@ -1583,6 +1776,7 @@ Module Core.
   Module ZExp.
     Definition cursor_side : Type := cursor_side.
 
+
     Inductive t : Type := 
     | CursorE : cursor_side -> UHExp.t -> t
     (* | CursorPalette : PaletteName.t -> PaletteSerializedModel.t -> hole_ref -> t -> t *)
@@ -1598,7 +1792,18 @@ Module Core.
     | CaseZ1 : t -> (Var.t * UHExp.t) -> (Var.t * UHExp.t) -> t'
     | CaseZ2 : UHExp.t -> (Var.t * t) -> (Var.t * UHExp.t) -> t'
     | CaseZ3 : UHExp.t -> (Var.t * UHExp.t) -> (Var.t * t) -> t'
-    | OpSeqZ : UHExp.skel_t -> t -> OperatorSeq.opseq_surround UHExp.t UHExp.op -> t'.
+    | OpSeqZ : UHExp.skel_t -> t -> OperatorSeq.opseq_surround UHExp.t UHExp.op -> t'
+    | ApPaletteZ : PaletteName.t -> 
+                   PaletteSerializedModel.t -> 
+                   (UHExp.PaletteHoleData.hole_ref_lbl * ZNatMap.t (HTyp.t * UHExp.t) (HTyp.t * t)) -> (* = ZPaletteHoleData.t *)
+                   t'.
+
+
+    Module ZPaletteHoleData.
+      Definition z_hole_map : Type := ZNatMap.t (HTyp.t * t) (HTyp.t * ZExp.t).
+      Definition t : Type := (UHExp.PaletteHoleData.hole_ref_lbl * 
+                              ZNatMap.t (HTyp.t * UHExp.t) (HTyp.t * ZExp.t)).
+    End ZPaletteHoleData.
 
     Definition opseq_surround : Type := OperatorSeq.opseq_surround UHExp.t UHExp.op.
     Definition opseq_prefix : Type := OperatorSeq.opseq_prefix UHExp.t UHExp.op.
@@ -1609,7 +1814,8 @@ Module Core.
       | CursorE cursor_side e => 
         CursorE cursor_side (UHExp.bidelimit e)
       | ParenthesizedZ _ 
-      | Deeper _ (InjZ _ _) => ze
+      | Deeper _ (InjZ _ _)
+      | Deeper _ (ApPaletteZ _ _ _) => ze
       | Deeper _ (AscZ1 _ _) 
       | Deeper _ (AscZ2 _ _)  
       | Deeper _ (LetZ1 _ _ _)
@@ -1686,6 +1892,14 @@ Module Core.
       | OpSeqZ skel ze' surround => 
          let e := erase ze' in 
          UHExp.OpSeq skel (OperatorSeq.opseq_of_exp_and_surround e surround)
+      | ApPaletteZ palette_name serialized_model zhole_data => 
+         let (next_hole_ref, zholemap) := zhole_data in 
+         let (holemap, z) := zholemap in 
+         let (hole_ref, tz) := z in
+         let (ty, ze) := tz in 
+         let holemap' := NatMap.extend holemap (hole_ref, (ty, erase ze)) in 
+         let hole_data' := (next_hole_ref, holemap') in 
+         UHExp.ApPalette palette_name serialized_model hole_data'
       end.
 
     Inductive cursor_mode := 
@@ -1787,7 +2001,7 @@ Module Core.
       | UHExp.Tm NotInHole ((UHExp.Var NotInVHole _) as e')
       | UHExp.Tm NotInHole ((UHExp.NumLit _) as e')  
       | UHExp.Tm NotInHole ((UHExp.OpSeq _ _) as e')
-      | UHExp.Tm NotInHole ((UHExp.ApPalette _ _) as e') =>
+      | UHExp.Tm NotInHole ((UHExp.ApPalette _ _ _) as e') =>
         match UHExp.syn fuel ctx e with
         | Some ty' =>
           if HTyp.consistent ty ty' then 
@@ -1966,6 +2180,12 @@ Module Core.
         let seq := OperatorSeq.opseq_of_exp_and_surround e0 surround in 
         let n := OperatorSeq.surround_prefix_length surround in 
         syn_skel_cursor_info fuel ctx skel seq n ze0 
+      | ApPaletteZ _ _ zholedata => 
+        let (_, zholemap) := zholedata in 
+        let (_, tz) := zholemap in 
+        let (_, tz') := tz in
+        let (ty, ze) := tz' in 
+        ana_cursor_info fuel ctx ze ty 
       end
       end
     with ana_cursor_info'
@@ -2067,7 +2287,8 @@ Module Core.
         end
       | AscZ1 _ _ 
       | AscZ2 _ _ 
-      | OpSeqZ _ _ _ => 
+      | OpSeqZ _ _ _
+      | ApPaletteZ _ _ _ => 
         syn_cursor_info' fuel ctx ze 
       end
       end
@@ -2210,6 +2431,12 @@ Module Core.
       | ZExp.OpSeqZ _ ze' surround => 
         let n := OperatorSeq.surround_prefix_length surround in 
         cons' n (of_zexp ze')
+      | ZExp.ApPaletteZ _ _ zholedata => 
+        let (_, zholemap) := zholedata in 
+        let (_, tz) := zholemap in 
+        let (n, tz') := tz in
+        let (_, ze') := tz' in 
+        cons' n (of_zexp ze')
       end.
 
     Definition of_OpSeqZ (ze : ZExp.t) (surround : ZExp.opseq_surround) := 
@@ -2338,7 +2565,20 @@ Module Core.
                 end
             | None => None
             end
-          | (_, UHExp.ApPalette _ _) => None
+          | (hole_ref, UHExp.ApPalette name serialized_model hole_data) => 
+            let (next_hole_ref, holemap) := hole_data in 
+            match NatMap.drop holemap hole_ref with
+            | None => None
+            | Some (holemap', te) =>
+              let (ty, e') := te in 
+              match follow_e (xs, cursor_side) e' with 
+              | None => None
+              | Some ze => 
+                let zholemap := (holemap', (hole_ref, (ty, ze))) in 
+                let zholedata := (next_hole_ref, zholemap) in 
+                Some (ZExp.Deeper NotInHole (ZExp.ApPaletteZ name serialized_model zholedata))
+              end
+            end
           end
         end
       end
@@ -2390,7 +2630,17 @@ Module Core.
         end
       | UHExp.Tm _ (UHExp.OpSeq skel seq) => 
         path_to_hole_seq fuel seq u  
-      | UHExp.Tm _ (UHExp.ApPalette _ _) => None
+      | UHExp.Tm _ (UHExp.ApPalette _ _ holedata) => 
+        let (_, holemap) := holedata in 
+        NatMap.fold holemap (fun c v => 
+          match c with 
+          | Some _ => c
+          | None => 
+            let (_, te) := v in
+            let (_, e) := te in 
+            path_to_hole' fuel e u 
+          end
+        ) None
       end
       end
     with path_to_hole_seq (fuel : Fuel.t) (seq : UHExp.opseq) (u : MetaVar.t) : option(list(nat)) :=  
@@ -2541,7 +2791,7 @@ Module Core.
           end
         | UHExp.EmptyHole _ => Some nil
         | UHExp.OpSeq _ opseq => first_hole_path_e_opseq fuel opseq 0
-        | UHExp.ApPalette _ _ => None
+        | UHExp.ApPalette _ _ _ => None (* TODO figure out tab order protocol *)
         end
       end
       end
@@ -2670,6 +2920,7 @@ Module Core.
             let opseq := OperatorSeq.opseq_of_exp_and_surround ue'' surround in
             first_hole_path_e_opseq fuel opseq (n+1)
           end
+        | ZExp.ApPaletteZ _ _ _ => None (* TODO figure out tab order protocol *)
         end
       | ZExp.ParenthesizedZ ze' => Path.cons_opt 0 (next_hole_path_e' fuel ze')
       end
@@ -2750,7 +3001,7 @@ Module Core.
           end
         | UHExp.EmptyHole _ => Some nil
         | UHExp.OpSeq _ opseq => last_hole_path_e_opseq fuel opseq 0
-        | UHExp.ApPalette _ _ => None
+        | UHExp.ApPalette _ _ _ => None (* TODO figure out tab order protocol *)
         end
       end
       end
@@ -2885,6 +3136,7 @@ Module Core.
             let m := OperatorSeq.surround_suffix_length surround in
             last_hole_path_e_opseq fuel opseq (m+1)
           end
+        | ZExp.ApPaletteZ _ _ _ => None (* TODO figure out tab order protocol *)
         end
       | ZExp.ParenthesizedZ ze0 => Path.cons_opt 0 (prev_hole_path_e' fuel ze0)
       end
@@ -4386,90 +4638,6 @@ Module Core.
   End FAction.
 
   Module Dynamics.
-      Module Type METAVARMAP.
-        Parameter t : Type -> Type.
-        Parameter empty : forall (A : Type), t A.
-        Parameter extend : forall (A : Type), t A -> MetaVar.t * A -> t A.
-        Parameter union : forall (A : Type), t A -> t A -> t A.
-        Parameter lookup : forall (A : Type), t A -> MetaVar.t -> option A.
-        Parameter insert_or_update : forall (A : Type), t A -> MetaVar.t * A -> t A.
-        Parameter insert_or_map : forall (A : Type), t A -> MetaVar.t -> (unit -> A) -> (A -> A) -> A * t A.
-        Parameter map : forall (A B : Type), (A -> B) -> t A -> t B.
-        Parameter update_with : forall (A : Type), (A -> A) -> MetaVar.t -> t A -> A -> (A * t A).
-        Parameter length : forall (A : Type), t A -> nat.
-        Parameter to_list : forall (A : Type), t A -> list (MetaVar.t * A).
-      End METAVARMAP.
-
-      Module MetaVarMap <: METAVARMAP.
-        Definition t (A : Type) := list (MetaVar.t * A).
-
-        Definition empty {A : Type} : t A := nil.
-
-        Definition extend {A : Type} (delta : t A) (x : MetaVar.t * A)
-          : t A := cons x delta.
-
-        Definition union {A : Type} (delta1 : t A) (delta2 : t A) : t A := delta1 ++ delta2.
-
-        Fixpoint lookup {A : Type} (delta : t A) (x : MetaVar.t) : option A :=
-          match delta with
-          | nil => None
-          | cons (y, a) delta' =>
-            match MetaVar.equal x y with
-            | true => Some a
-            | false => lookup delta' x
-            end
-          end.
-        
-        Fixpoint insert_or_update {A : Type} (delta : t A) (x : MetaVar.t * A) : t A := 
-          let (u, a) := x in 
-          match delta with 
-          | nil => cons x delta
-          | cons (u', a') delta' => 
-            match MetaVar.equal u u' with 
-            | true => cons (u', a) delta'
-            | false => cons (u', a') (insert_or_update delta' x)
-            end
-          end.
-
-        Fixpoint insert_or_map {A : Type} (delta : t A) (u : MetaVar.t) 
-          (a0 : unit -> A) (f : A -> A) : A * t A := 
-          match delta with 
-          | nil => 
-            let a0 := a0 tt in 
-            (a0, cons (u, a0) delta)
-          | cons (u', a) delta' => 
-            if MetaVar.equal u u' then 
-              let a' := f a in 
-              (a', cons (u', a') delta')
-            else
-              let (a', delta'') := insert_or_map delta' u a0 f in 
-              (a', cons (u', a) delta'')
-          end.
-
-        Fixpoint map {A B : Type} (f : A -> B) (delta : t A) : t B := 
-          match delta with 
-          | nil => nil
-          | cons (u, a) delta' => cons (u, f a) (map f delta')
-          end.
-
-        Fixpoint update_with {A : Type} (f : A -> A) (u : MetaVar.t) (delta : t A) (u_nil : A) : (A * t A) := 
-          match delta with 
-          | nil => (u_nil, delta)
-          | cons (u', a) delta' => 
-            match MetaVar.equal u u' with 
-            | true => 
-              let a' := f a in 
-              (a', cons (u', a') delta')
-            | false => 
-              let (a', delta'') := update_with f u delta' u_nil in 
-              (a', cons (u', a) delta'')
-            end
-          end.
-
-        Definition length {A : Type} (delta : t A) := List.length delta.
-        Definition to_list {A : Type} (delta : t A) := delta.
-      End MetaVarMap.            
-
       Module Delta.
         Definition t : Type := MetaVarMap.t (HTyp.t * Ctx.t).
       End Delta.

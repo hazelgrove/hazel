@@ -1,6 +1,15 @@
 open Semantics.Core;
 open Tyxml_js;
 
+/* Hole Ref Generator */
+modu;
+
+/* Hole Refs in HTML */
+let x = Html5.(span(~a=[a_id("holeName"), a_class(["holeRef"])], []));
+let x' = Tyxml_js.To_dom.of_span(x);
+x'##.classList##contains(Js.string("holeRef"));
+x'##.id;
+
 type view_type = Tyxml_js.Html5.elt([ Html_types.span]);
 
 module type PALETTE = {
