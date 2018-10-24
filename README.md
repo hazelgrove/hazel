@@ -87,3 +87,5 @@ You can use `dune build --profile debug --auto-promote` instead of `dune build -
 ### Results
 You can now open `src/_build/default/www/hazel.html` in a browser to see Hazel in action.
 
+For the purposes of POPL 2019 artifact evaluation, we included a pre-built version at `popl19aec-www/hazel.html`. Tested with Chromium (64-bit) version 70.0.3538.67.
+
