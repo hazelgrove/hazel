@@ -1,5 +1,7 @@
 open Semantics.Core;
 open Tyxml_js;
+open Printf;
+open Scanf;
 
 type view_type = Tyxml_js.Html5.elt([ Html_types.span]);
 
@@ -56,6 +58,102 @@ module CheckboxPalette: PALETTE = {
     String.equal(serialized, "T") ? true : false;
 };
 
+/* overflow paranoia */
+let maxSliderValue = 1000 * 1000 * 1000;
+let cropSliderValue = value => max(0, min(maxSliderValue, value));
+
+module SliderPalette: PALETTE = {
+  let name = "$slider";
+  let expansion_ty = HTyp.Num;
+
+  type model = (int, int);
+  type model_updater = model => unit;
+  let init_model = (5, 10);
+
+  let view = ((value, sliderMax), model_updater) => {
+    let curValString = curVal => Printf.sprintf("%d/%d", curVal, sliderMax);
+    let changeMaxButton = (desc, f) =>
+      Html5.(
+        button(
+          ~a=[
+            a_onclick(_ => {
+              let newSliderMax = f(sliderMax);
+              let newValue = min(value, newSliderMax);
+              model_updater((newValue, newSliderMax));
+              true;
+            }),
+          ],
+          [pcdata(desc)],
+        )
+      );
+    let input_elt =
+      Html5.(
+        input(
+          ~a=[
+            a_input_type(`Range),
+            a_input_min(`Number(0)),
+            a_input_max(`Number(cropSliderValue(sliderMax))),
+            a_value(string_of_int(cropSliderValue(value))),
+          ],
+          (),
+        )
+      );
+    let input_dom = Tyxml_js.To_dom.of_input(input_elt);
+    let label_elt = Html5.(label([pcdata(curValString(value))]));
+    let label_dom = Tyxml_js.To_dom.of_label(label_elt);
+    let decrease_range_button_elt =
+      changeMaxButton("Max/10", m => max(10, m / 10));
+    let increase_range_button_elt =
+      changeMaxButton("Max*10", m => cropSliderValue(m * 10));
+    let view_span =
+      Html5.(
+        span([
+          decrease_range_button_elt,
+          input_elt,
+          label_elt,
+          increase_range_button_elt,
+        ])
+      );
+    let _ =
+      JSUtil.listen_to(
+        Dom_html.Event.input,
+        input_dom,
+        _ => {
+          let _ =
+            label_dom##.innerHTML :=
+              Js.string(
+                curValString(
+                  int_of_string(Js.to_string(input_dom##.value)),
+                ),
+              );
+          Js._true;
+        },
+      );
+    let _ =
+      JSUtil.listen_to(
+        Dom_html.Event.change,
+        input_dom,
+        _ => {
+          let newValue =
+            cropSliderValue(int_of_string(Js.to_string(input_dom##.value)));
+          model_updater((newValue, sliderMax));
+          Js._true;
+        },
+      );
+    view_span;
+  };
+
+  let expand = ((value, _)) =>
+    UHExp.Tm(NotInHole, UHExp.NumLit(cropSliderValue(value)));
+
+  /* sprintf/sscanf are magical and treat string literals specially -
+     attempt to factor out the format string at your own peril */
+  let serialize = ((value, sliderMax)) =>
+    sprintf("(%d,%d)", value, sliderMax);
+  let deserialize = serialized =>
+    sscanf(serialized, "(%d,%d)", (value, sliderMax) => (value, sliderMax));
+};
+
 /* ----------
    stuff below is infrastructure
    ---------- */
@@ -102,10 +200,14 @@ module PaletteAdapter = (P: PALETTE) => {
 };
 
 module CheckboxPaletteAdapter = PaletteAdapter(CheckboxPalette);
+module SliderPaletteAdapter = PaletteAdapter(SliderPalette);
 
 let empty_palette_contexts = PaletteContexts.empty;
 let (initial_palette_ctx, initial_palette_view_ctx) =
   PaletteContexts.extend(
-    empty_palette_contexts,
-    CheckboxPaletteAdapter.contexts_entry,
+    PaletteContexts.extend(
+      empty_palette_contexts,
+      CheckboxPaletteAdapter.contexts_entry,
+    ),
+    SliderPaletteAdapter.contexts_entry,
   );
