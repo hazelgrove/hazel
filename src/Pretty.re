@@ -1,4 +1,6 @@
-type span_attribs = HTMLUtil.span_attribs;
+open Tyxml_js;
+open Html5;
+type div_attribs = list(Html5.attrib(Html_types.div_attrib));
 module PP: {
   type doc('a);
   type cls = string;
@@ -9,7 +11,7 @@ module PP: {
   let nestAbsolute: (int, doc('a)) => doc('a);
   let text: (cls, string) => doc('a);
   let tagged:
-    (list(cls), option((id, 'a)), option(span_attribs), doc('a)) =>
+    (list(cls), option((id, 'a)), option(div_attribs), doc('a)) =>
     doc('a);
   let paletteView: Palettes.view_type => doc('a);
   let blockBoundary: doc('a);
@@ -18,7 +20,7 @@ module PP: {
   type sdoc =
     | SEmpty
     | SText(cls, string, sdoc)
-    | STagStart(list(cls), option(id), option(span_attribs), sdoc)
+    | STagStart(list(cls), option(id), option(div_attribs), sdoc)
     | STagEnd(sdoc)
     | SPaletteView(Palettes.view_type, sdoc)
     | SLine(int, sdoc);
@@ -32,7 +34,7 @@ module PP: {
     | NestRelative(int, doc('a))
     | NestAbsolute(int, doc('a))
     | Text(cls, string)
-    | TagStart(list(cls), option((id, 'a)), option(span_attribs))
+    | TagStart(list(cls), option((id, 'a)), option(div_attribs))
     | TagEnd
     | BlockBoundary
     | OptionalBreak(string)
@@ -52,7 +54,7 @@ module PP: {
   type sdoc =
     | SEmpty
     | SText(cls, string, sdoc)
-    | STagStart(list(cls), option(id), option(span_attribs), sdoc)
+    | STagStart(list(cls), option(id), option(div_attribs), sdoc)
     | STagEnd(sdoc)
     | SPaletteView(Palettes.view_type, sdoc)
     | SLine(int, sdoc);
@@ -130,15 +132,16 @@ module HTML_Of_SDoc = {
         | Some(x'') => html_of_sdoc''(x'')
         | None => ([], None)
         };
+      let attrs_classes = Html5.a_class(["inline-div", ...tags]);
       let attrs_lst =
         switch (id, attribs) {
         | (Some(id), Some(attribs)) =>
-          Html5.[a_id(id), a_class(tags), ...attribs]
-        | (Some(id), None) => Html5.[a_id(id), a_class(tags)]
-        | (None, Some(attribs)) => Html5.[a_class(tags), ...attribs]
-        | (None, None) => Html5.[a_class(tags)]
+          Html5.[a_id(id), attrs_classes, ...attribs]
+        | (Some(id), None) => Html5.[a_id(id), attrs_classes]
+        | (None, Some(attribs)) => Html5.[attrs_classes, ...attribs]
+        | (None, None) => Html5.[attrs_classes]
         };
-      let h' = [Html5.(span(~a=attrs_lst, h)), ...tl];
+      let h' = [Html5.(div(~a=attrs_lst, h)), ...tl];
       (h', rem);
     | STagEnd(x') => ([], Some(x'))
     | SLine(n, x') =>
@@ -156,13 +159,13 @@ module HTML_Of_SDoc = {
       (h, rem);
     | SPaletteView(view, x') =>
       let palette_view =
-        Html5.(span(~a=[a_class(["SPaletteView"])], [view]));
+        Html5.(div(~a=[a_class(["inline-div", "SPaletteView"])], [view]));
       let (tl, rem) = html_of_sdoc''(x');
       ([palette_view, ...tl], rem);
     };
 
   let html_of_sdoc = x => {
     let (h, _) = html_of_sdoc''(x);
-    Html5.(span(~a=[a_class(["SDoc"])], h));
+    Html5.(div(~a=[a_class(["inline-div", "SDoc"])], h));
   };
 };
