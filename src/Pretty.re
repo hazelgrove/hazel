@@ -159,7 +159,11 @@ module HTML_Of_SDoc = {
       (h, rem);
     | SPaletteView(view, x') =>
       let palette_view =
-        Html5.(div(~a=[a_class(["inline-div", "SPaletteView"])], [view]));
+        switch (view) {
+        | Inline(view_span) =>
+          Html5.(div(~a=[a_class(["inline-div"])], [view_span]))
+        | MultiLine(view_div) => view_div
+        };
       let (tl, rem) = html_of_sdoc''(x');
       ([palette_view, ...tl], rem);
     };

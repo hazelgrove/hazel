@@ -3,6 +3,7 @@ module PP = Pretty.PP;
 open Semantics.Core;
 let (^^) = PP.(^^);
 let taggedText = (cls, s) => PP.text(cls, s);
+let dollar = taggedText("dollar", "$");
 let kw = taggedText("kw");
 let lparen = taggedText("lparen");
 let rparen = taggedText("rparen");
@@ -523,8 +524,6 @@ let rec of_hexp = (palette_stuff, prefix, rev_path, e) =>
         of_skel(palette_stuff, prefix, rev_path, skel, seq),
       )
     | UHExp.ApPalette(name, serialized_model) =>
-      let paletteName =
-        term(prefix, err_status, rev_path, "ApPalette", paletteName(name));
       switch (
         Palettes.PaletteViewCtx.lookup(palette_stuff.palette_view_ctx, name)
       ) {
@@ -536,10 +535,23 @@ let rec of_hexp = (palette_stuff, prefix, rev_path, e) =>
           palette_stuff.do_action(Action.UpdateApPalette(serialized_model));
         };
         let view = serialized_view_fn(serialized_model, updater);
-        let paletteView = PP.paletteView(view);
-        paletteName ^^ paletteView;
+        let paletteName =
+          term(prefix, err_status, rev_path, "ApPalette", paletteName(name));
+        let paletteDelim =
+          term(prefix, err_status, rev_path, "ApPalette", dollar);
+        let palettePrefix =
+          switch (view) {
+          | Inline(_) => paletteName
+          | MultiLine(_) => paletteName ^^ PP.mandatoryBreak
+          };
+        let paletteSuffix =
+          switch (view) {
+          | Inline(_) => paletteDelim
+          | MultiLine(_) => paletteDelim ^^ PP.mandatoryBreak
+          };
+        palettePrefix ^^ PP.paletteView(view) ^^ paletteSuffix;
       | None => raise(InvariantViolated)
-      };
+      }
     }
   }
 and of_skel = (palette_stuff, prefix, rev_path, skel, seq) =>

@@ -12,7 +12,9 @@ let x' = Tyxml_js.To_dom.of_span(x);
 x'##.classList##contains(Js.string("holeRef"));
 x'##.id;
 
-type view_type = Tyxml_js.Html5.elt([ Html_types.div]);
+type view_type =
+  | Inline(Tyxml_js.Html5.elt([ Html_types.span]))
+  | MultiLine(Tyxml_js.Html5.elt([ Html_types.div_content_fun]));
 
 module type PALETTE = {
   let name: string;
@@ -43,7 +45,7 @@ module CheckboxPalette: PALETTE = {
     let input_elt =
       Html5.(input(~a=[a_input_type(`Checkbox), ...checked_state], ()));
     let input_dom = Tyxml_js.To_dom.of_input(input_elt);
-    let view_div = Html5.(div(~a=[a_class(["inline-div"])], [input_elt]));
+    let view_span = Html5.(span([input_elt]));
     let _ =
       JSUtil.listen_to(
         Dom_html.Event.input,
@@ -54,7 +56,7 @@ module CheckboxPalette: PALETTE = {
           Js._true;
         },
       );
-    view_div;
+    Inline(view_span);
   };
 
   let dummy_num = UHExp.Tm(NotInHole, UHExp.NumLit(0));
@@ -114,17 +116,14 @@ module SliderPalette: PALETTE = {
       changeMaxButton("Max/10", m => max(10, m / 10));
     let increase_range_button_elt =
       changeMaxButton("Max*10", m => cropSliderValue(m * 10));
-    let view_div =
+    let view_span =
       Html5.(
-        div(
-          ~a=[a_class(["inline-div"])],
-          [
-            decrease_range_button_elt,
-            input_elt,
-            label_elt,
-            increase_range_button_elt,
-          ],
-        )
+        span([
+          decrease_range_button_elt,
+          input_elt,
+          label_elt,
+          increase_range_button_elt,
+        ])
       );
     let _ =
       JSUtil.listen_to(
@@ -152,7 +151,7 @@ module SliderPalette: PALETTE = {
           Js._true;
         },
       );
-    view_div;
+    Inline(view_span);
   };
 
   let expand = ((value, _)) =>
