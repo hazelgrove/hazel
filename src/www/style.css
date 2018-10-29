@@ -3,6 +3,10 @@ div {
 	box-sizing: border-box;
 }
 
+div .inline-div {
+        display: inline;
+}
+
 .noselect {
   -webkit-touch-callout: none; /* iOS Safari */
     -webkit-user-select: none; /* Safari */
