@@ -879,6 +879,7 @@ Module Core.
       Definition hole_ref_lbl : Type := nat.
       Definition hole_map : Type := NatMap.t(HTyp.t * t).
       Definition t : Type := (hole_ref_lbl * hole_map).
+      Definition empty : t := (0, NatMap.empty).
       Definition next_ref_lbl (x : hole_ref_lbl) := S(x).
       Definition new_hole_ref 
         (u_gen : MetaVar.gen) 
@@ -891,10 +892,62 @@ Module Core.
           (cur_ref_lbl, (next_ref_lbl, next_map), u_gen).
     End PaletteHoleData.
 
+    Module Type HOLEREFS.
+      Parameter hole_ref : Type.
+      Parameter lbl_of : hole_ref -> PaletteHoleData.hole_ref_lbl.
+      Parameter type_of : hole_ref -> HTyp.t.
+
+      Parameter m_hole_ref : Type -> Type.
+      Parameter new_hole_ref : HTyp.t -> m_hole_ref(hole_ref).
+      Parameter bind : forall (A B : Type), m_hole_ref(A) -> (A -> m_hole_ref(B)) -> m_hole_ref(B).
+      Parameter ret : forall (A : Type), A -> m_hole_ref(A).
+
+      Parameter exec : forall (A : Type), m_hole_ref(A) -> 
+        PaletteHoleData.t -> 
+        MetaVar.gen -> 
+        A * PaletteHoleData.t * MetaVar.gen. 
+    End HOLEREFS.
+
+    Module HoleRefs : HOLEREFS.
+      Definition hole_ref : Type := (PaletteHoleData.hole_ref_lbl * HTyp.t).
+      Definition lbl_of (hr : hole_ref) := 
+        let (lbl, _) := hr in lbl.
+      Definition type_of (hr : hole_ref) := 
+        let (_, ty) := hr in ty.
+
+      (* cant define m_hole_ref using Inductive due to Coq limitation *)
+      Inductive m_hole_ref' : Type -> Type := 
+      | NewHoleRef : HTyp.t -> m_hole_ref'(hole_ref)
+      | Bnd : forall (A B : Type), m_hole_ref'(A) -> (A -> m_hole_ref'(B)) -> m_hole_ref'(B)
+      | Ret : forall (A : Type), A -> m_hole_ref'(A).
+      Definition m_hole_ref := m_hole_ref'. 
+      Definition new_hole_ref := NewHoleRef.
+      Definition bind := Bnd.
+      Definition ret := Ret.
+      
+      Fixpoint exec {A : Type} 
+        (mhr : m_hole_ref(A)) 
+        (phd : UHExp.PaletteHoleData.t) 
+        (u_gen : MetaVar.gen) 
+        : (A * UHExp.PaletteHoleData.t * MetaVar.gen) := 
+          match mhr with 
+          | NewHoleRef ty => 
+            let (q, u_gen') := UHExp.PaletteHoleData.new_hole_ref u_gen phd ty in 
+            let (lbl, phd') := q in 
+            ((lbl, ty), phd', u_gen')
+          | Bnd mhra f => 
+            let (q, u_gen') := exec mhra phd u_gen in 
+            let (x, phd') := q in 
+            let mhrb := f x in 
+            exec mhrb phd' u_gen'
+          | Ret x => (x, phd, u_gen)
+          end.
+    End HoleRefs.
+
     Module PaletteDefinition.
       Record t : Type := MkPalette {
         expansion_ty : HTyp.t;
-        initial_model : PaletteSerializedModel.t;
+        initial_model : HoleRefs.m_hole_ref(PaletteSerializedModel.t);
         to_exp : PaletteSerializedModel.t -> UHExp.t;
       }.
     End PaletteDefinition.
@@ -2716,7 +2769,7 @@ Module Core.
     | MoveTo : Path.t -> t
     | MoveToNextHole : t
     | MoveToPrevHole : t
-    | UpdateApPalette : PaletteSerializedModel.t -> t
+    | UpdateApPalette : UHExp.HoleRefs.m_hole_ref(PaletteSerializedModel.t) -> t
     | Delete : t
     | Backspace : t
     | Construct : shape -> t.
@@ -4126,26 +4179,31 @@ Module Core.
         let (_, palette_ctx) := ctx in 
         match PaletteCtx.lookup palette_ctx name with 
         | Some palette_defn => 
-          let initial_model := UHExp.PaletteDefinition.initial_model palette_defn in 
+          let m_initial_model := UHExp.PaletteDefinition.initial_model palette_defn in 
+          let (q, u_gen) := UHExp.HoleRefs.exec m_initial_model (UHExp.PaletteHoleData.empty) u_gen in 
+          let (initial_model, initial_hole_data) := q in  
           let expansion_ty := UHExp.PaletteDefinition.expansion_ty palette_defn in
           let expansion := (UHExp.PaletteDefinition.to_exp palette_defn) initial_model in 
           match (UHExp.ana fuel ctx expansion expansion_ty) with 
           | Some _ => 
-            Some (ZExp.CursorE After (UHExp.Tm NotInHole (UHExp.ApPalette name initial_model)), 
+            Some (ZExp.CursorE After (UHExp.Tm NotInHole (UHExp.ApPalette name initial_model initial_hole_data)), 
                   expansion_ty, u_gen)
           | None => None
           end
         | None => None
         end
-      | (UpdateApPalette serialized_model, ZExp.CursorE _ (UHExp.Tm _ (UHExp.ApPalette name _))) => 
+      | (UpdateApPalette monad, 
+          ZExp.CursorE _ (UHExp.Tm _ (UHExp.ApPalette name _ hole_data))) => 
         let (_, palette_ctx) := ctx in 
         match PaletteCtx.lookup palette_ctx name with 
         | Some palette_defn => 
+          let (q, u_gen') := UHExp.HoleRefs.exec monad hole_data u_gen in
+          let (serialized_model, hole_data') := q in 
           let expansion_ty := UHExp.PaletteDefinition.expansion_ty palette_defn in
           let expansion := (UHExp.PaletteDefinition.to_exp palette_defn) serialized_model in 
           match (UHExp.ana fuel ctx expansion expansion_ty) with 
           | Some _ => 
-            Some (ZExp.CursorE After (UHExp.Tm NotInHole (UHExp.ApPalette name serialized_model)), 
+            Some (ZExp.CursorE After (UHExp.Tm NotInHole (UHExp.ApPalette name serialized_model hole_data')), 
                   expansion_ty, u_gen)
           | None => None
           end
@@ -4992,14 +5050,24 @@ Module Core.
                 Expands d ty delta1
               end
             | UHExp.Case _ _ _ => DoesNotExpand
-            | UHExp.ApPalette name serialized_model => 
+            | UHExp.ApPalette name serialized_model hole_data => 
               let (_, palette_ctx) := ctx in 
               match (VarMap.lookup palette_ctx name) with
               | Some palette_defn => 
                 let expansion_ty := UHExp.PaletteDefinition.expansion_ty palette_defn in  
                 let to_exp := UHExp.PaletteDefinition.to_exp palette_defn in 
                 let expansion := to_exp serialized_model in 
-                ana_expand fuel ctx expansion expansion_ty
+                let (gamma, palette_ctx) := ctx in 
+                let gamma' := UHExp.PaletteDefinition.add_holes_to_gamma gamma hole_data in (* TODO impl *)
+                match ana_expand fuel (gamma', palette_ctx) expansion expansion_ty with 
+                | DoesNotExpand => DoesNotExpand
+                | Expands d1 ty1 delta1 => 
+                  (* TODO wrap in lambda *)
+                  (* TODO recursively expand the holes in the hole map *)
+                  (* TODO apply lambda with recursive expansions *)
+                  (* TODO combine the deltas *)
+                  (* TODO return something *)
+                end
               | None => DoesNotExpand
               end
             end
