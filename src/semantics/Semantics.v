@@ -454,10 +454,6 @@ Module Core.
               (OperatorSeq.SeqOpExp seq1 op1 e) op2 seq2
         end
       end.
-
-    (* TODO *)
-    Definition list_to_opseq {tm op : Type} (es : list tm) (o : op) : option (opseq tm op) := None.
-
   End OperatorSeq.
 
   Module Skel.
@@ -4699,7 +4695,11 @@ Module Core.
       end.
   End FAction.
 
-  Module Dynamics.
+  Module Type HOLEREF.
+    Parameter to_var : nat -> Var.t.
+  End HOLEREF.
+
+  Module Dynamics (HoleRef : HOLEREF) (Associator : ASSOCIATOR).
       Module Delta.
         Definition t : Type := MetaVarMap.t (HTyp.t * Ctx.t).
       End Delta.
@@ -4950,20 +4950,6 @@ Module Core.
               let (x, _) := xt in DHExp.BoundVar x)
             ctx.
 
-        (* search through tree for any variable named something based on hole_ref_no,
-           bind to lambda arg and return lambda exp if that var is found *)
-        Fixpoint wrap_lambda (e : UHExp.t) (hole_ref_no : nat) : option UHExp.t := None.
-
-        Fixpoint wrap_completely (e : UHExp.t) (hole_data_map : NatMap.t (HTyp.t * UHExp.t)) : UHExp.t :=
-          match hole_data_map with
-          | nil => e
-          | cons (n, (htyp, hexp)) map_rest =>
-            match wrap_lambda e n with
-            | None => e (* degenerate case *)
-            | Some e' => wrap_completely e' map_rest
-            end
-          end.
-
         Fixpoint syn_expand 
           (fuel : Fuel.t) 
           (ctx : Contexts.t) 
@@ -5068,54 +5054,35 @@ Module Core.
                 Expands d ty delta1
               end
             | UHExp.Case _ _ _ => DoesNotExpand
-            | UHExp.ApPalette name serialized_model hole_data => 
+            | UHExp.ApPalette name serialized_model hole_data =>
               let (_, palette_ctx) := ctx in 
               match (VarMap.lookup palette_ctx name) with
               | Some palette_defn => 
                 let expansion_ty := UHExp.PaletteDefinition.expansion_ty palette_defn in  
-                let to_exp := UHExp.PaletteDefinition.to_exp palette_defn in 
+                let to_exp := UHExp.PaletteDefinition.to_exp palette_defn in
                 let expansion := to_exp serialized_model in 
-                let (gamma, palette_ctx) := ctx in 
-                let gamma' := UHExp.PaletteDefinition.add_holes_to_gamma gamma hole_data in (* TODO impl *)
-                match ana_expand fuel (gamma', palette_ctx) expansion expansion_ty with 
-                | DoesNotExpand => DoesNotExpand
-                | Expands d1 ty1 delta1 =>
-                  (* TODO wrap in lambda
-                     -- bind each free variable in expansion to an arg in a lambda expression
-                     -- let (_, nm) := hole_data in 
-                     -- let lam := wrap_completely expansion nm in
-                   *)
-
-                  (* TODO recursively elaborate the holes in the hole_data map
-                     -- let elabs := map ((htyp, hexp) => ana_expand fuel ctx hexp htyp) nm in
-                     -- let combined_delta := List.fold_left
-                        (fun b elab => match (b, elab) with
-                                       | (None, _) => None
-                                       | (_, DoesNotExpand) => None
-                                       | (Some del, Expands _ _ delta) => Some (MetaVarMap.union del delta)
-                                       end
-                        ) elabs true
-                     -- match combined_delta with
-                        | None => DoesNotExpand
-                        | Some delta =>
-                          rest of stuff
-                          - let d := exp_op_seq stuff in
-                          - finally return Expands d (some type) delta
-                   *)
-                  
-                  (* TODO apply lambda with recursive elaborations
-                     -- exp_op_seq (lam) (UHExp.Space) (reverse (list_to_seq elabs UHExp.Space))
-                     -- ^ not quite correct, need to pull out the d1s from the elabs
-                   *)
-
-                  (* TODO combine the deltas
-                     -- see above in the fold_left
-                   *)
-
-                  (* TODO return something
-                     -- see above in the fold_left
-                   *)
-
+                let (_, hole_map) := hole_data in
+                (* bind each free variable in expansion by wrapping expansion
+                 * in lambda, then apply lambda to args in hole data
+                 *)
+                let bound_expansion :=
+                    NatMap.fold hole_map
+                      (fun bound entry =>
+                         match bound with
+                         | None => None
+                         | Some bound =>
+                           let (n, typ_exp) := entry in
+                           let (htyp, hexp) := typ_exp in
+                           let lam := UHExp.Tm NotInHole (UHExp.Lam (HoleRef.to_var n) bound) in
+                           let opseq := OperatorSeq.ExpOpExp lam UHExp.Space hexp in
+                           let ap := UHExp.OpSeq (Associator.associate_exp opseq) opseq in
+                           Some (UHExp.Tm NotInHole ap)
+                         end)
+                      (Some expansion) in
+                match bound_expansion with
+                | None => DoesNotExpand
+                | Some bound_expansion =>
+                  ana_expand fuel ctx bound_expansion expansion_ty
                 end
               | None => DoesNotExpand
               end
@@ -5302,7 +5269,7 @@ Module Core.
             | UHExp.Let _ _ _ 
             | UHExp.NumLit _
             | UHExp.OpSeq _ _
-            | UHExp.ApPalette _ _ => 
+            | UHExp.ApPalette _ _ _ => 
               (* subsumption *)
               match syn_expand' fuel ctx e with 
               | DoesNotExpand => DoesNotExpand
