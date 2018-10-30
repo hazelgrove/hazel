@@ -454,6 +454,10 @@ Module Core.
               (OperatorSeq.SeqOpExp seq1 op1 e) op2 seq2
         end
       end.
+
+    (* TODO *)
+    Definition list_to_opseq {tm op : Type} (es : list tm) (o : op) : option (opseq tm op) := None.
+
   End OperatorSeq.
 
   Module Skel.
@@ -4946,6 +4950,20 @@ Module Core.
               let (x, _) := xt in DHExp.BoundVar x)
             ctx.
 
+        (* search through tree for any variable named something based on hole_ref_no,
+           bind to lambda arg and return lambda exp if that var is found *)
+        Fixpoint wrap_lambda (e : UHExp.t) (hole_ref_no : nat) : option UHExp.t := None.
+
+        Fixpoint wrap_completely (e : UHExp.t) (hole_data_map : NatMap.t (HTyp.t * UHExp.t)) : UHExp.t :=
+          match hole_data_map with
+          | nil => e
+          | cons (n, (htyp, hexp)) map_rest =>
+            match wrap_lambda e n with
+            | None => e (* degenerate case *)
+            | Some e' => wrap_completely e' map_rest
+            end
+          end.
+
         Fixpoint syn_expand 
           (fuel : Fuel.t) 
           (ctx : Contexts.t) 
@@ -5061,12 +5079,43 @@ Module Core.
                 let gamma' := UHExp.PaletteDefinition.add_holes_to_gamma gamma hole_data in (* TODO impl *)
                 match ana_expand fuel (gamma', palette_ctx) expansion expansion_ty with 
                 | DoesNotExpand => DoesNotExpand
-                | Expands d1 ty1 delta1 => 
-                  (* TODO wrap in lambda *)
-                  (* TODO recursively expand the holes in the hole map *)
-                  (* TODO apply lambda with recursive expansions *)
-                  (* TODO combine the deltas *)
-                  (* TODO return something *)
+                | Expands d1 ty1 delta1 =>
+                  (* TODO wrap in lambda
+                     -- bind each free variable in expansion to an arg in a lambda expression
+                     -- let (_, nm) := hole_data in 
+                     -- let lam := wrap_completely expansion nm in
+                   *)
+
+                  (* TODO recursively elaborate the holes in the hole_data map
+                     -- let elabs := map ((htyp, hexp) => ana_expand fuel ctx hexp htyp) nm in
+                     -- let combined_delta := List.fold_left
+                        (fun b elab => match (b, elab) with
+                                       | (None, _) => None
+                                       | (_, DoesNotExpand) => None
+                                       | (Some del, Expands _ _ delta) => Some (MetaVarMap.union del delta)
+                                       end
+                        ) elabs true
+                     -- match combined_delta with
+                        | None => DoesNotExpand
+                        | Some delta =>
+                          rest of stuff
+                          - let d := exp_op_seq stuff in
+                          - finally return Expands d (some type) delta
+                   *)
+                  
+                  (* TODO apply lambda with recursive elaborations
+                     -- exp_op_seq (lam) (UHExp.Space) (reverse (list_to_seq elabs UHExp.Space))
+                     -- ^ not quite correct, need to pull out the d1s from the elabs
+                   *)
+
+                  (* TODO combine the deltas
+                     -- see above in the fold_left
+                   *)
+
+                  (* TODO return something
+                     -- see above in the fold_left
+                   *)
+
                 end
               | None => DoesNotExpand
               end
