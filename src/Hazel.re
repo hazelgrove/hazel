@@ -5,7 +5,7 @@ JSUtil.listen_to_t(
   _ => {
     let model = Model.new_model();
     let parent = JSUtil.forceGetElementById("container");
-    let (chrome, set_cursor) = Chrome.view(model);
+    let (chrome, set_cursor) = Chrome.view(model, true);
     Dom.appendChild(parent, chrome);
     set_cursor();
   },

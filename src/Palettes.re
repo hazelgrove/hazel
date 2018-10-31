@@ -4,10 +4,10 @@ open Printf;
 open Scanf;
 
 /* Hole Ref Generator */
-modu;
+module HoleRefGenerator
 
 /* Hole Refs in HTML */
-let x = Html5.(span(~a=[a_id("holeName"), a_class(["holeRef"])], []));
+let x = Html5.(span(~a=[a_id("hole_ref_" ++ hr.hole_ref_label), a_class(["holeRef"])], []));
 let x' = Tyxml_js.To_dom.of_span(x);
 x'##.classList##contains(Js.string("holeRef"));
 x'##.id;
@@ -30,6 +30,39 @@ module type PALETTE = {
 
   let serialize: model => PaletteSerializedModel.t;
   let deserialize: PaletteSerializedModel.t => model;
+};
+
+/*
+let model = Model.new_model();
+let parent = JSUtil.forceGetElementById("container");
+let (chrome, set_cursor) = Chrome.view(model, true);
+Dom.appendChild(parent, chrome);
+set_cursor();
+*/
+
+let init_model = {
+  let leftModel = Model.new_model();
+  let rightModel = Model.new_model();
+  let (leftCell, leftSet) = Chrome.view(leftModel, false);
+  let (rightCell, rightSet) = Chrome.view(rightModel, false);
+  leftSet();
+  rightSet();
+  /* monad stuff to generate actual hole refs */
+  /* somehow hook up signals from leftModel and rightModel to the hole refs */
+  /* return the monad return value */
+}
+
+let view = (model, model_updater) => {
+  let (cell_input, set_cursor) = Chrome.view(model, false);
+  let _ =
+    JSUtil.listen_to(
+      Dom_html.Event.input, /* ? maybe Chrome.re has defined a special event for edits*/
+      cell_input,
+      _ => {
+
+      }
+
+    )
 };
 
 module CheckboxPalette: PALETTE = {
