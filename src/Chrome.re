@@ -1,7 +1,7 @@
 open Tyxml_js;
 open Semantics.Core;
 open Model;
-let view = (model: Model.t) => {
+let view = (model: Model.t, isEntirePage: bool) => {
   let {
     edit_state_rs,
     cursor_info_rs,
@@ -1031,5 +1031,5 @@ let view = (model: Model.t) => {
       ),
     );
 
-  (chrome, set_cursor);
+  isEntirePage ? (chrome, set_cursor) : (pp_view_parent, set_cursor);
 };
