@@ -3,11 +3,14 @@ open Tyxml_js;
 open Printf;
 open Scanf;
 
-/* Hole Ref Generator */
-module HoleRefGenerator
-
 /* Hole Refs in HTML */
-let x = Html5.(span(~a=[a_id("hole_ref_" ++ hr.hole_ref_label), a_class(["holeRef"])], []));
+let x =
+  Html5.(
+    span(
+      ~a=[a_id("hole_ref_" ++ hr.hole_ref_label), a_class(["holeRef"])],
+      [],
+    )
+  );
 let x' = Tyxml_js.To_dom.of_span(x);
 x'##.classList##contains(Js.string("holeRef"));
 x'##.id;
@@ -33,36 +36,95 @@ module type PALETTE = {
 };
 
 /*
-let model = Model.new_model();
-let parent = JSUtil.forceGetElementById("container");
-let (chrome, set_cursor) = Chrome.view(model, true);
-Dom.appendChild(parent, chrome);
-set_cursor();
-*/
+ let model = Model.new_model();
+ let parent = JSUtil.forceGetElementById("container");
+ let (chrome, set_cursor) = Chrome.view(model, true);
+ Dom.appendChild(parent, chrome);
+ set_cursor();
+ */
 
-let init_model = {
-  let leftModel = Model.new_model();
-  let rightModel = Model.new_model();
-  let (leftCell, leftSet) = Chrome.view(leftModel, false);
-  let (rightCell, rightSet) = Chrome.view(rightModel, false);
-  leftSet();
-  rightSet();
-  /* monad stuff to generate actual hole refs */
-  /* somehow hook up signals from leftModel and rightModel to the hole refs */
-  /* return the monad return value */
-}
+module PairPalette: PALETTE = {
+  let name = "$pair";
+  let expansion_ty = HTyp.(Arrow(Sum(Num, Num), Hole));
 
-let view = (model, model_updater) => {
-  let (cell_input, set_cursor) = Chrome.view(model, false);
-  let _ =
-    JSUtil.listen_to(
-      Dom_html.Event.input, /* ? maybe Chrome.re has defined a special event for edits*/
-      cell_input,
-      _ => {
+  /* I don't hink we need to pass around the hole_data after all - see how
+     expand is defined And if we did have it in teh model, we'd have to
+     serrialize it. But to do that, the serialize function would have to invoke
+     the serialize functions of any palettes inside of the cell, and also be able
+     to serialize generic HExps. This is definitely beyond the scope of what
+     serialize is meant to do. I think it should only serialize shape, since
+     the AST stores all the hole_data directly.
+     That said, we do need the left and right IDs so that we know how to refer
+     to the correct cells - see the definition of expand.
+   */
+  type model = (int, int);
+  let init_model = {
+    /* I think instead of explicitly calling Model.newModel and Chrome.view,
+       we should have a HTMLHoles generator, which takes care of all this stuff
+       for us. There is also a cyclic dependency we'll eventually have to deal
+       eith: Palttes depend on Chrome and Model but those depend on the
+       initial palette context which in turn depends on the particular paleettes.
+       */
+    let leftUIModel = Model.new_model();
+    let rightUIModel = Model.new_model();
+    let (leftCell, leftSetCursor) = Chrome.view(leftUIModel, false);
+    let (rightCell, _) = Chrome.view(rightUIModel, false);
+    /* I think there is only one cursor so we can only set it once? */
+    leftSetCursor();
+    /* TODO */
+    /* monad stuff to generate actual hole refs */
+    /* somehow hook up signals from leftModel and rightModel to the hole refs */
+    /* return the monad return value */
+  };
+  type model_updater = model => unit;
 
-      }
+  let view = (model, model_updater) => {
+    /* TODO */
+    /* we should abstract this to be a generator for HTMLHoles, perhaps passed in,
+       to deal with cyclic deps
+    */
+    let (cell_input, set_cursor) = Chrome.view(Model.new_model(), false);
+    /* We shouldn't need a listener in the view function, since the view should just
+       output HTML for the shape, and an HTMLHole for each cell, and when the HTMLHole
+       is generated, it maps the e_rs of the corresponding Model.t to a signal that
+       will update the corresponding cell in hole_data appropriately. But the view
+       code doesn't actually need to be aware of any of this. */
+    let _ =
+      JSUtil.listen_to(
+        Dom_html.Event.input, /* ? maybe Chrome.re has defined a special event for edits*/
+        cell_input,
+        _ =>
+        {}
+      );
+    (); /* ? maybe Chrome.re has defined a special event for edits*/
+  };
 
-    )
+  let expand = ((leftID, rightID)) => {
+    let to_uhvar = id =>
+      UHExp.Tm(NotInHole, UHExp.Var(NotInVHole, HoleRef.to_var(id)));
+    let selectorName = "selector";
+    UHExp.Tm(
+      NotInHole,
+      UHExp.Lam(
+        selectorName,
+        UHExp.Tm(
+          NotInHole,
+          UHExp.Case(
+            UHExp.Tm(NotInHole, UHExp.Var(NotInVHole, selectorName)),
+            ("_", to_uhvar(leftID)),
+            ("_", to_uhvar(rightID)),
+          ),
+        ),
+      ),
+    );
+  };
+
+  /* sprintf/sscanf are magical and treat string literals specially -
+     attempt to factor out the format string at your own peril */
+  let serialize = ((leftID, rightID)) =>
+    sprintf("(%d,%d)", leftID, rightID);
+  let deserialize = serialized =>
+    sscanf(serialized, "(%d,%d)", (leftID, rightID) => (leftID, rightID));
 };
 
 module CheckboxPalette: PALETTE = {
