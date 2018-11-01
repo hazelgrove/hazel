@@ -36,15 +36,25 @@ module type PALETTE = {
 };
 
 /* hack to persist around Model.t objects for each cell across view updates */
-let modelts = Hashtbl.create 10;
+let modelts = Hashtbl.create(10);
 
 module PairPalette: PALETTE = {
   let name = "$pair";
   let expansion_ty = HTyp.(Arrow(Sum(Num, Num), Hole));
 
   type model = (int, int);
-  let init_model = {
-    /* create a Model.t for each cell here, then make sure it's accessible in view */
+  /* TODO actually, not sure about anything i said below. it's hard to reason
+     about the interface between coq and reason */
+  /* TODO i think maybe init_model, and possibly view, need to be passed in an
+     update_hole_data function, that when called on the hole data returned by
+     the monad, will add that data to the current hole map (which is empty in the
+     initial case).
+     the update_hole_data function is a also effectively an rf, so when invoked,
+     it will perform some sort of `do_action` on the AST that goes and modifies
+     the actual hole_data residing in the actual AST.
+     update_hole_data will essentially wrap NatMap.union
+     */
+  let init_model = update_hole_data => {
     let m_hole_ref =
       HoleRefs.bind(HoleRefs.new_hole_ref(HTyp.Hole), leftID =>
         HoleRefs.bind(HoleRefs.new_hole_ref(HTyp.Hole), rightID =>
@@ -53,19 +63,41 @@ module PairPalette: PALETTE = {
       );
     let (model, palette_hole_data, _) = HoleRefs.exec(m_hole_ref);
 
+    /* create a Model.t for each cell here, then make sure it's accessible in view */
     let (n1, n2) = model;
     let leftUIModel = Model.new_model();
     let rightUIModel = Model.new_model();
     Hashtbl.add(modelts, n1, leftUIModel);
     Hashtbl.add(modelts, n2, rightUIModel);
 
-    let (phd_rs, phd_rf) = React.S.create(palette_hole_data);
-    React.S.l3((phd, left, right) => {
-      let (m, hole_map) = phd;
-      let hole_map_1 = NatMap.extend(hole_map, (n1, left));
-      let hole_map_2 = NatMap.extend(hole_map_1, (n2, right));
-      phd_rf((m, hole_map_2)); /* this can't be right... */
-    }, phd_rs, leftUIModel.e_rs, rightUIModel.e_rs);
+    update_hole_data(palette_hole_data);
+    /* TODO delete - i think this way of doing things is not necessary
+         let update_hole_map = ((m, hole_map), left, right) =>
+           switch (NatMap.drop(hole_map, n1)) {
+           | Some(hole_map) =>
+             switch (NatMap.drop(hole_map, n2)) {
+             | Some(hole_map) =>
+               let hole_map_1 = NatMap.extend(hole_map, (n1, left));
+               let hole_map_2 = NatMap.extend(hole_map_1, (n2, right));
+               (m, hole_map_2);
+             | None =>
+               /* degenerate */
+               (m, hole_map)
+             }
+           | None =>
+             /* degenerate */
+             (m, hole_map)
+           };
+         /* TODO now we need to set it up so whenever phd_rs changes, doAction is invoked
+            with an action that can edit the appropriate hole_map inside the AST */
+         /* see erratique.ch/software/react/doc/React ,section "Mutual and self reference" */
+         let fixed = phd => {
+           let phd' =
+             React.S.l3(update_hole_map, phd, leftUIModel.e_rs, rightUIModel.e_rs);
+           (phd', phd');
+         };
+         let phd_rs = React.S.fix(palette_hole_data, fixed);
+       */
 
     model;
   };
@@ -73,12 +105,12 @@ module PairPalette: PALETTE = {
 
   let view = (model, model_updater) => {
     /*
-      if we create a Model.t during init_model
-      then we have to pass the model.t outside of init_model
-      cuz init_model won't get called again, the next time view gets called
-      when view gets called, it's passed the model.t
-      and passes that to chrome.view
-    */
+       if we create a Model.t during init_model
+       then we have to pass the model.t outside of init_model
+       cuz init_model won't get called again, the next time view gets called
+       when view gets called, it's passed the model.t
+       and passes that to chrome.view
+     */
 
     /* We shouldn't need a listener in the view function, since the view should just
        output HTML for the shape, and an HTMLHole for each cell, and when the HTMLHole
