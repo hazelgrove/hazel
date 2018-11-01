@@ -35,30 +35,16 @@ module type PALETTE = {
   let deserialize: PaletteSerializedModel.t => model;
 };
 
-/*
- let model = Model.new_model();
- let parent = JSUtil.forceGetElementById("container");
- let (chrome, set_cursor) = Chrome.view(model, true);
- Dom.appendChild(parent, chrome);
- set_cursor();
- */
+/* hack to persist around Model.t objects for each cell across view updates */
+let modelts = Hashtbl.create 10;
 
 module PairPalette: PALETTE = {
   let name = "$pair";
   let expansion_ty = HTyp.(Arrow(Sum(Num, Num), Hole));
 
-  /* I don't hink we need to pass around the hole_data after all - see how
-       expand is defined And if we did have it in teh model, we'd have to
-       serrialize it. But to do that, the serialize function would have to invoke
-       the serialize functions of any palettes inside of the cell, and also be able
-       to serialize generic HExps. This is definitely beyond the scope of what
-       serialize is meant to do. I think it should only serialize shape, since
-       the AST stores all the hole_data directly.
-       That said, we do need the left and right IDs so that we know how to refer
-       to the correct cells - see the definition of expand.
-     */
   type model = (int, int);
   let init_model = {
+    /* create a Model.t for each cell here, then make sure it's accessible in view */
     let m_hole_ref =
       HoleRefs.bind(HoleRefs.new_hole_ref(HTyp.Hole), leftID =>
         HoleRefs.bind(HoleRefs.new_hole_ref(HTyp.Hole), rightID =>
@@ -66,25 +52,34 @@ module PairPalette: PALETTE = {
         )
       );
     let (model, palette_hole_data, _) = HoleRefs.exec(m_hole_ref);
-    /* TODO */
-    /* somehow hook up signals from leftModel and rightModel to the hole refs */
+
+    let (n1, n2) = model;
+    let leftUIModel = Model.new_model();
+    let rightUIModel = Model.new_model();
+    Hashtbl.add(modelts, n1, leftUIModel);
+    Hashtbl.add(modelts, n2, rightUIModel);
+
+    let (phd_rs, phd_rf) = React.S.create(palette_hole_data);
+    React.S.l3((phd, left, right) => {
+      let (m, hole_map) = phd;
+      let hole_map_1 = NatMap.extend(hole_map, (n1, left));
+      let hole_map_2 = NatMap.extend(hole_map_1, (n2, right));
+      phd_rf((m, hole_map_2)); /* this can't be right... */
+    }, phd_rs, leftUIModel.e_rs, rightUIModel.e_rs);
+
     model;
   };
   type model_updater = model => unit;
 
   let view = (model, model_updater) => {
-    /* I think instead of explicitly calling Model.newModel and Chrome.view,
-       we should have a HTMLHoles generator, which takes care of all this stuff
-       for us. There is also a cyclic dependency we'll eventually have to deal
-       eith: Palttes depend on Chrome and Model but those depend on the
-       initial palette context which in turn depends on the particular paleettes.
-       */
-    let leftUIModel = Model.new_model();
-    let rightUIModel = Model.new_model();
-    let (leftCell, leftSetCursor) = Chrome.view(leftUIModel, false);
-    let (rightCell, _) = Chrome.view(rightUIModel, false);
-    /* I think there is only one cursor so we can only set it once? */
-    leftSetCursor();
+    /*
+      if we create a Model.t during init_model
+      then we have to pass the model.t outside of init_model
+      cuz init_model won't get called again, the next time view gets called
+      when view gets called, it's passed the model.t
+      and passes that to chrome.view
+    */
+
     /* We shouldn't need a listener in the view function, since the view should just
        output HTML for the shape, and an HTMLHole for each cell, and when the HTMLHole
        is generated, it maps the e_rs of the corresponding Model.t to a signal that
