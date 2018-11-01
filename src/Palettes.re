@@ -48,17 +48,31 @@ module PairPalette: PALETTE = {
   let expansion_ty = HTyp.(Arrow(Sum(Num, Num), Hole));
 
   /* I don't hink we need to pass around the hole_data after all - see how
-     expand is defined And if we did have it in teh model, we'd have to
-     serrialize it. But to do that, the serialize function would have to invoke
-     the serialize functions of any palettes inside of the cell, and also be able
-     to serialize generic HExps. This is definitely beyond the scope of what
-     serialize is meant to do. I think it should only serialize shape, since
-     the AST stores all the hole_data directly.
-     That said, we do need the left and right IDs so that we know how to refer
-     to the correct cells - see the definition of expand.
-   */
+       expand is defined And if we did have it in teh model, we'd have to
+       serrialize it. But to do that, the serialize function would have to invoke
+       the serialize functions of any palettes inside of the cell, and also be able
+       to serialize generic HExps. This is definitely beyond the scope of what
+       serialize is meant to do. I think it should only serialize shape, since
+       the AST stores all the hole_data directly.
+       That said, we do need the left and right IDs so that we know how to refer
+       to the correct cells - see the definition of expand.
+     */
   type model = (int, int);
   let init_model = {
+    let m_hole_ref =
+      HoleRefs.bind(HoleRefs.new_hole_ref(HTyp.Hole), leftID =>
+        HoleRefs.bind(HoleRefs.new_hole_ref(HTyp.Hole), rightID =>
+          HoleRefs.ret((leftID, rightID))
+        )
+      );
+    let (model, palette_hole_data, _) = HoleRefs.exec(m_hole_ref);
+    /* TODO */
+    /* somehow hook up signals from leftModel and rightModel to the hole refs */
+    model;
+  };
+  type model_updater = model => unit;
+
+  let view = (model, model_updater) => {
     /* I think instead of explicitly calling Model.newModel and Chrome.view,
        we should have a HTMLHoles generator, which takes care of all this stuff
        for us. There is also a cyclic dependency we'll eventually have to deal
@@ -71,19 +85,6 @@ module PairPalette: PALETTE = {
     let (rightCell, _) = Chrome.view(rightUIModel, false);
     /* I think there is only one cursor so we can only set it once? */
     leftSetCursor();
-    /* TODO */
-    /* monad stuff to generate actual hole refs */
-    /* somehow hook up signals from leftModel and rightModel to the hole refs */
-    /* return the monad return value */
-  };
-  type model_updater = model => unit;
-
-  let view = (model, model_updater) => {
-    /* TODO */
-    /* we should abstract this to be a generator for HTMLHoles, perhaps passed in,
-       to deal with cyclic deps
-    */
-    let (cell_input, set_cursor) = Chrome.view(Model.new_model(), false);
     /* We shouldn't need a listener in the view function, since the view should just
        output HTML for the shape, and an HTMLHole for each cell, and when the HTMLHole
        is generated, it maps the e_rs of the corresponding Model.t to a signal that

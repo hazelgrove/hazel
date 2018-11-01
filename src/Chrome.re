@@ -380,7 +380,7 @@ let view = (model: Model.t, isEntirePage: bool) => {
           Js.Opt.get(Dom_html.CoerceTo.element(anchor), () => assert(false));
 
         let classList = anchor_elem##.classList;
-        if (!Js.to_bool(classList##contains(Js.string("SText")))) {
+        if (! Js.to_bool(classList##contains(Js.string("SText")))) {
           let children = anchor##.childNodes;
           let child_opt = children##item(anchorOffset);
           switch (Js.Opt.to_option(child_opt)) {
@@ -422,7 +422,7 @@ let view = (model: Model.t, isEntirePage: bool) => {
   };
   let has_class = (classList, cls) =>
     Js.to_bool(classList##contains(Js.string(cls)));
-  let do_transport = (): bool => {
+  let do_transport = () : bool => {
     let selection = Dom_html.window##getSelection;
     JSUtil.log(selection);
     let anchor = selection##.anchorNode;
@@ -799,7 +799,7 @@ let view = (model: Model.t, isEntirePage: bool) => {
                 ();
               | _ => ()
               };
-              cur :=  cur_node##.parentNode;
+              cur := cur_node##.parentNode;
               ();
             };
             ();
