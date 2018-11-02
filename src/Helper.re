@@ -5,6 +5,7 @@ module Helper: Semantics.Core.HELPER = {
     | [a, ...rest] => string_of_int(a) ++ ", " ++ list_to_string(rest)
     };
   let path_to_string = ((lst, _)) => "[" ++ list_to_string(lst) ++ "]";
+  let to_var = n => "__hole_ref_" ++ string_of_int(n) ++ "__";
   let log_path = path => {
     JSUtil.log(path_to_string(path));
     path;
