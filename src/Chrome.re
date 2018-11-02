@@ -25,7 +25,13 @@ let view = (model: Model.t, isEntirePage: bool) => {
             palette_view_ctx: Palettes.initial_palette_view_ctx,
             do_action,
           };
-        let view = View.of_hexp(palette_stuff, prefix, [], e);
+        let mk_html_cell = parent_dom => {
+          let new_model = Model.new_model();
+          let (new_html_cell, _) = view(new_model, false);
+          Dom.appendChild(parent, new_html_cell);
+          (new_html_cell, new_model.e_rs);
+        };
+        let view = View.of_hexp(mk_html_cell, palette_stuff, prefix, [], e);
         Pretty.PP.sdoc_of_doc(pp_view_width, view);
       },
       e_rs,

@@ -1,3 +1,4 @@
+open Semantics.Core;
 open Tyxml_js;
 open Html5;
 type div_attribs = list(Html5.attrib(Html_types.div_attrib));
@@ -13,7 +14,14 @@ module PP: {
   let tagged:
     (list(cls), option((id, 'a)), option(div_attribs), doc('a)) =>
     doc('a);
-  let paletteView: Palettes.view_type => doc('a);
+  let paletteView:
+    (
+      Palettes.view_type,
+      NatMap.t((HTyp.t, UHExp.t)),
+      Js.t(Dom_html.element) =>
+      Js_of_ocaml.Js.t(Js_of_ocaml.Dom_html.divElement)
+    ) =>
+    doc('a);
   let blockBoundary: doc('a);
   let optionalBreak: string => doc('a);
   let mandatoryBreak: doc('a);
@@ -22,7 +30,13 @@ module PP: {
     | SText(cls, string, sdoc)
     | STagStart(list(cls), option(id), option(div_attribs), sdoc)
     | STagEnd(sdoc)
-    | SPaletteView(Palettes.view_type, sdoc)
+    | SPaletteView(
+        Palettes.view_type,
+        NatMap.t((HTyp.t, UHExp.t)),
+        Js.t(Dom_html.element) =>
+        Js_of_ocaml.Js.t(Js_of_ocaml.Dom_html.divElement),
+        sdoc,
+      )
     | SLine(int, sdoc);
   let sdoc_of_doc: (int, doc('a)) => (sdoc, Hashtbl.t(id, 'a));
 } = {
@@ -39,7 +53,12 @@ module PP: {
     | BlockBoundary
     | OptionalBreak(string)
     | MandatoryBreak
-    | PaletteView(Palettes.view_type);
+    | PaletteView(
+        Palettes.view_type,
+        NatMap.t((HTyp.t, UHExp.t)),
+        Js.t(Dom_html.element) =>
+        Js_of_ocaml.Js.t(Js_of_ocaml.Dom_html.divElement),
+      );
   let empty = Empty;
   let (^^) = (x, y) => Concat(x, y);
   let nestRelative = (n, x) => NestRelative(n, x);
@@ -50,13 +69,20 @@ module PP: {
   let blockBoundary = BlockBoundary;
   let optionalBreak = s => OptionalBreak(s);
   let mandatoryBreak = MandatoryBreak;
-  let paletteView = view => PaletteView(view);
+  let paletteView = (view, hole_map, mk_html_cell) =>
+    PaletteView(view, hole_map, mk_html_cell);
   type sdoc =
     | SEmpty
     | SText(cls, string, sdoc)
     | STagStart(list(cls), option(id), option(div_attribs), sdoc)
     | STagEnd(sdoc)
-    | SPaletteView(Palettes.view_type, sdoc)
+    | SPaletteView(
+        Palettes.view_type,
+        NatMap.t((HTyp.t, UHExp.t)),
+        Js.t(Dom_html.element) =>
+        Js_of_ocaml.Js.t(Js_of_ocaml.Dom_html.divElement),
+        sdoc,
+      )
     | SLine(int, sdoc);
   let strlen = s =>
     if (String.equal(s, "​​") || String.equal(s, "‌")) {
@@ -101,8 +127,13 @@ module PP: {
           SText("space", s, sdoc_of_doc'(table, width, k + strlen(s), zs'));
         }
       | MandatoryBreak => SLine(i, sdoc_of_doc'(table, width, i, zs'))
-      | PaletteView(view) =>
-        SPaletteView(view, sdoc_of_doc'(table, width, k, zs'))
+      | PaletteView(view, hole_map, mk_html_cell) =>
+        SPaletteView(
+          view,
+          hole_map,
+          mk_html_cell,
+          sdoc_of_doc'(table, width, k, zs'),
+        )
       }
     };
 
@@ -157,12 +188,18 @@ module HTML_Of_SDoc = {
       let (tl, rem) = html_of_sdoc''(x');
       let h = [newline, indentation, ...tl];
       (h, rem);
-    | SPaletteView(view, x') =>
+    | SPaletteView(view, hole_map, mk_html_cell, x') =>
       let palette_view =
         switch (view) {
         | Inline(view_span) =>
           Html5.(div(~a=[a_class(["inline-div"])], [view_span]))
-        | MultiLine(view_div) => view_div
+        | MultiLine(view_div_monad) =>
+          let resolve_view_monad = view_monad =>
+            switch(view_monad) {
+              | NewCellFor(id) => ??
+            };
+          let (view_div, ??) = resolve_view_monad(view_div_monad);
+        view_div
         };
       let (tl, rem) = html_of_sdoc''(x');
       ([palette_view, ...tl], rem);

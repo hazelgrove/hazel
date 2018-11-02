@@ -468,18 +468,18 @@ type palette_info = {
   do_action: Action.t => unit,
 };
 
-let rec of_hexp = (palette_stuff, prefix, rev_path, e) =>
+let rec of_hexp = (mk_html_cell, palette_stuff, prefix, rev_path, e) =>
   switch (e) {
   | UHExp.Parenthesized(e1) =>
     let rev_path1 = [0, ...rev_path];
-    let r1 = of_hexp(palette_stuff, prefix, rev_path1, e1);
+    let r1 = of_hexp(mk_html_cell, palette_stuff, prefix, rev_path1, e1);
     of_Parenthesized(is_block(e1), prefix, rev_path, r1);
   | UHExp.Tm(err_status, e') =>
     switch (e') {
     | UHExp.Asc(e1, ty) =>
       let rev_path1 = [0, ...rev_path];
       let rev_path2 = [1, ...rev_path];
-      let r1 = of_hexp(palette_stuff, prefix, rev_path1, e1);
+      let r1 = of_hexp(mk_html_cell, palette_stuff, prefix, rev_path1, e1);
       let r2 = of_uhtyp(prefix, rev_path2, ty);
       of_Asc(prefix, err_status, rev_path, r1, r2);
     | UHExp.Var(var_err_status, x) =>
@@ -487,25 +487,25 @@ let rec of_hexp = (palette_stuff, prefix, rev_path, e) =>
     | UHExp.Let(x, e, e') =>
       let rev_path1 = [0, ...rev_path];
       let rev_path2 = [1, ...rev_path];
-      let r1 = of_hexp(palette_stuff, prefix, rev_path1, e);
-      let r2 = of_hexp(palette_stuff, prefix, rev_path2, e');
+      let r1 = of_hexp(mk_html_cell, palette_stuff, prefix, rev_path1, e);
+      let r2 = of_hexp(mk_html_cell, palette_stuff, prefix, rev_path2, e');
       of_Let(prefix, err_status, rev_path, x, r1, r2);
     | UHExp.Lam(x, e') =>
       let rev_path1 = [0, ...rev_path];
-      let r1 = of_hexp(palette_stuff, prefix, rev_path1, e');
+      let r1 = of_hexp(mk_html_cell, palette_stuff, prefix, rev_path1, e');
       of_Lam(prefix, err_status, rev_path, x, r1);
     | UHExp.NumLit(n) => of_NumLit(prefix, err_status, rev_path, n)
     | UHExp.Inj(side, e) =>
       let rev_path1 = [0, ...rev_path];
-      let r1 = of_hexp(palette_stuff, prefix, rev_path1, e);
+      let r1 = of_hexp(mk_html_cell, palette_stuff, prefix, rev_path1, e);
       of_Inj(prefix, err_status, rev_path, side, r1);
     | UHExp.Case(e1, (x, e2), (y, e3)) =>
       let rev_path1 = [0, ...rev_path];
       let rev_path2 = [1, ...rev_path];
       let rev_path3 = [2, ...rev_path];
-      let r1 = of_hexp(palette_stuff, prefix, rev_path1, e1);
-      let r2 = of_hexp(palette_stuff, prefix, rev_path2, e2);
-      let r3 = of_hexp(palette_stuff, prefix, rev_path3, e3);
+      let r1 = of_hexp(mk_html_cell, palette_stuff, prefix, rev_path1, e1);
+      let r2 = of_hexp(mk_html_cell, palette_stuff, prefix, rev_path2, e2);
+      let r3 = of_hexp(mk_html_cell, palette_stuff, prefix, rev_path3, e3);
       of_Case(prefix, err_status, rev_path, r1, x, r2, y, r3);
     | UHExp.EmptyHole(u) =>
       of_Hole(
@@ -521,9 +521,9 @@ let rec of_hexp = (palette_stuff, prefix, rev_path, e) =>
         err_status,
         rev_path,
         "OpSeq",
-        of_skel(palette_stuff, prefix, rev_path, skel, seq),
+        of_skel(mk_html_cell, palette_stuff, prefix, rev_path, skel, seq),
       )
-    | UHExp.ApPalette(name, serialized_model) =>
+    | UHExp.ApPalette(name, serialized_model, (_, hole_map)) =>
       switch (
         Palettes.PaletteViewCtx.lookup(palette_stuff.palette_view_ctx, name)
       ) {
@@ -549,23 +549,27 @@ let rec of_hexp = (palette_stuff, prefix, rev_path, e) =>
           | Inline(_) => paletteDelim
           | MultiLine(_) => paletteDelim ^^ PP.mandatoryBreak
           };
-        palettePrefix ^^ PP.paletteView(view) ^^ paletteSuffix;
+        palettePrefix
+        ^^ PP.paletteView(view, hole_map, mk_html_cell)
+        ^^ paletteSuffix;
       | None => raise(InvariantViolated)
       }
     }
   }
-and of_skel = (palette_stuff, prefix, rev_path, skel, seq) =>
+and of_skel = (mk_html_cell, palette_stuff, prefix, rev_path, skel, seq) =>
   switch (skel) {
   | Skel.Placeholder(n) =>
     switch (OperatorSeq.seq_nth(n, seq)) {
     | Some(en) =>
       let rev_path_n = [n, ...rev_path];
-      of_hexp(palette_stuff, prefix, rev_path_n, en);
+      of_hexp(mk_html_cell, palette_stuff, prefix, rev_path_n, en);
     | None => raise(InvariantViolated)
     }
   | Skel.BinOp(err_status, op, skel1, skel2) =>
-    let r1 = of_skel(palette_stuff, prefix, rev_path, skel1, seq);
-    let r2 = of_skel(palette_stuff, prefix, rev_path, skel2, seq);
+    let r1 =
+      of_skel(mk_html_cell, palette_stuff, prefix, rev_path, skel1, seq);
+    let r2 =
+      of_skel(mk_html_cell, palette_stuff, prefix, rev_path, skel2, seq);
     let op_pp =
       switch (op) {
       | UHExp.Times =>
