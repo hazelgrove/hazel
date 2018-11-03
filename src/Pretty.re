@@ -18,8 +18,7 @@ module PP: {
     (
       Palettes.view_type,
       NatMap.t((HTyp.t, UHExp.t)),
-      Js.t(Dom_html.element) =>
-      Js_of_ocaml.Js.t(Js_of_ocaml.Dom_html.divElement)
+      UHExp.t => Palettes.div_type
     ) =>
     doc('a);
   let blockBoundary: doc('a);
@@ -33,8 +32,7 @@ module PP: {
     | SPaletteView(
         Palettes.view_type,
         NatMap.t((HTyp.t, UHExp.t)),
-        Js.t(Dom_html.element) =>
-        Js_of_ocaml.Js.t(Js_of_ocaml.Dom_html.divElement),
+        UHExp.t => Palettes.div_type,
         sdoc,
       )
     | SLine(int, sdoc);
@@ -56,8 +54,7 @@ module PP: {
     | PaletteView(
         Palettes.view_type,
         NatMap.t((HTyp.t, UHExp.t)),
-        Js.t(Dom_html.element) =>
-        Js_of_ocaml.Js.t(Js_of_ocaml.Dom_html.divElement),
+        UHExp.t => Palettes.div_type,
       );
   let empty = Empty;
   let (^^) = (x, y) => Concat(x, y);
@@ -79,8 +76,7 @@ module PP: {
     | SPaletteView(
         Palettes.view_type,
         NatMap.t((HTyp.t, UHExp.t)),
-        Js.t(Dom_html.element) =>
-        Js_of_ocaml.Js.t(Js_of_ocaml.Dom_html.divElement),
+        UHExp.t => Palettes.div_type,
         sdoc,
       )
     | SLine(int, sdoc);
@@ -189,20 +185,24 @@ module HTML_Of_SDoc = {
       let h = [newline, indentation, ...tl];
       (h, rem);
     | SPaletteView(view, hole_map, mk_html_cell, x') =>
-      let palette_view =
-        switch (view) {
-        | Inline(view_span) =>
-          Html5.(div(~a=[a_class(["inline-div"])], [view_span]))
-        | MultiLine(view_div_monad) =>
-          let resolve_view_monad = view_monad =>
-            switch(view_monad) {
-              | NewCellFor(id) => ??
-            };
-          let (view_div, ??) = resolve_view_monad(view_div_monad);
-        view_div
-        };
       let (tl, rem) = html_of_sdoc''(x');
-      ([palette_view, ...tl], rem);
+      switch (view) {
+      | Inline(view_span) =>
+        let palette_view =
+          Html5.(div(~a=[a_class(["inline-div"])], [view_span]));
+        ([palette_view, ...tl], rem);
+      | MultiLine(view_div_monad) =>
+        let palette_view =
+          Palettes.HTMLWithCells.resolve(
+            view_div_monad,
+            hole_map,
+            mk_html_cell,
+          );
+        /* TODO WTF */
+        let palette_view_2 =
+          Html5.(div(~a=[a_class(["inline-div"])], [palette_view]));
+        ([palette_view_2, ...tl], rem);
+      };
     };
 
   let html_of_sdoc = x => {

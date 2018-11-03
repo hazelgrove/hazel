@@ -3,36 +3,31 @@ open Tyxml_js;
 open Printf;
 open Scanf;
 
-/* Hole Refs in HTML */
-/* TODO
-   let x =
-     Html5.(
-       span(
-         ~a=[a_id("hole_ref_" ++ hr.hole_ref_label), a_class(["holeRef"])],
-         [],
-       )
-     );
-   let x' = Tyxml_js.To_dom.of_span(x);
-   x'##.classList##contains(Js.string("holeRef"));
-   x'##.id;
-   */
+type div_type = Html5.elt(Html_types.div);
 
-/* TODO
-   module HTMLWithCells = {
-     type m_html_with_cells('base) =
-       | NewCellFor(int)
-       | Bind(m_html_with_cells(__), __ => m_html_with_cells('base))
-       | Ret('base);
-   };
-   */
+module HTMLWithCells = {
+  type m_html_with_cells =
+    | NewCellFor(int)
+    | Bind(m_html_with_cells, div_type => m_html_with_cells)
+    | Ret(div_type);
+
+  let rec resolve = (view_monad, hole_map, mk_html_cell) =>
+    switch (view_monad) {
+    | NewCellFor(id') =>
+      switch (NatMap.lookup(hole_map, id')) {
+      | Some((_, hexp)) => mk_html_cell(hexp)
+      | None => Html5.(div(~a=[a_class(["inline-div"])], []))
+      }
+    | Bind(in_monad, f) =>
+      let in_html = resolve(in_monad, hole_map, mk_html_cell);
+      resolve(f(in_html), hole_map, mk_html_cell);
+    | Ret(v) => v
+    };
+};
 
 type view_type =
-  | Inline(Tyxml_js.Html5.elt([ Html_types.span]))
-  | MultiLine(
-      HTMLWithCells.m_html_with_cells(
-        Tyxml_js.Html5.elt([ Html_types.div_content_fun]),
-      ),
-    );
+  | Inline(Html5.elt([ Html_types.span]))
+  | MultiLine(HTMLWithCells.m_html_with_cells);
 
 module type PALETTE = {
   let name: string;
@@ -42,6 +37,7 @@ module type PALETTE = {
   let init_model: UHExp.HoleRefs.m_hole_ref(model);
 
   type model_updater = model => unit;
+  /* model_updater must _not_ be invoked until well after view has completed */
   let view: (model, model_updater) => view_type;
 
   let expand: model => UHExp.t;
@@ -64,28 +60,6 @@ module PairPalette: PALETTE = {
   type model_updater = model => unit;
 
   let view = (model, model_updater) =>
-    /*
-       if we create a Model.t during init_model
-       then we have to pass the model.t outside of init_model
-       cuz init_model won't get called again, the next time view gets called
-       when view gets called, it's passed the model.t
-       and passes that to chrome.view
-     */
-    /* We shouldn't need a listener in the view function, since the view should just
-       output HTML for the shape, and an HTMLHole for each cell, and when the HTMLHole
-       is generated, it maps the e_rs of the corresponding Model.t to a signal that
-       will update the corresponding cell in hole_data appropriately. But the view
-       code doesn't actually need to be aware of any of this. */
-    /* TODO
-       let _ =
-         JSUtil.listen_to(
-           Dom_html.Event.input, /* ? maybe Chrome.re has defined a special event for edits*/
-           cell_input,
-           _ =>
-           {}
-         );
-       (); /* ? maybe Chrome.re has defined a special event for edits*/
-       */
     MultiLine(
       HTMLWithCells.Ret(Html5.(div(~a=[a_class(["inline-div"])], []))),
     );
@@ -123,18 +97,18 @@ module ColorPalette: PALETTE = {
   let expansion_ty = HTyp.Num;
 
   type model = (int, int, int); /* RGB */
-  let init_model = (7, 63, 36);
+  let init_model = UHExp.HoleRefs.ret((7, 63, 36));
 
   type model_updater = model => unit;
 
-  let hex_to_model = (hex) => {
-    let (r,g,b) = sscanf(hex, "#%.2s%.2s%.2s", (r,g,b) => (r,g,b));
-    let to_decimal = (hex) => int_of_string("0x" ++ hex);
+  let hex_to_model = hex => {
+    let (r, g, b) = sscanf(hex, "#%.2s%.2s%.2s", (r, g, b) => (r, g, b));
+    let to_decimal = hex => int_of_string("0x" ++ hex);
     (to_decimal(r), to_decimal(g), to_decimal(b));
   };
 
-  let model_to_hex = ((r,g,b)) => {
-    let to_hex = (dec) => sprintf("%.2x", dec);
+  let model_to_hex = ((r, g, b)) => {
+    let to_hex = dec => sprintf("%.2x", dec);
     "#" ++ to_hex(r) ++ to_hex(g) ++ to_hex(b);
   };
 
@@ -155,18 +129,18 @@ module ColorPalette: PALETTE = {
           let new_model = hex_to_model(hex);
           model_updater(new_model);
           Js._true;
-        }
+        },
       );
-    view_div;
+    MultiLine(HTMLWithCells.Ret(view_div));
   };
 
-  let expand = ((r, g, b)) => UHExp.Tm(NotInHole, UHExp.NumLit(1000000*r + 1000*g + b));
+  let expand = ((r, g, b)) =>
+    UHExp.Tm(NotInHole, UHExp.NumLit(1000000 * r + 1000 * g + b));
 
-  let serialize = ((r, g, b)) =>
-    sprintf("(%d,%d,%d)", r, g, b);
+  let serialize = ((r, g, b)) => sprintf("(%d,%d,%d)", r, g, b);
   let deserialize = serialized =>
-    sscanf(serialized, "(%d,%d,%d)", (r,g,b) => (r,g,b));
-}
+    sscanf(serialized, "(%d,%d,%d)", (r, g, b) => (r, g, b));
+};
 
 module CheckboxPalette: PALETTE = {
   let name = "$checkbox";
@@ -352,16 +326,20 @@ module PaletteAdapter = (P: PALETTE) => {
 module CheckboxPaletteAdapter = PaletteAdapter(CheckboxPalette);
 module SliderPaletteAdapter = PaletteAdapter(SliderPalette);
 module ColorPaletteAdapter = PaletteAdapter(ColorPalette);
+module PairPaletteAdapter = PaletteAdapter(PairPalette);
 
 let empty_palette_contexts = PaletteContexts.empty;
 let (initial_palette_ctx, initial_palette_view_ctx) =
   PaletteContexts.extend(
     PaletteContexts.extend(
       PaletteContexts.extend(
-        empty_palette_contexts,
-        CheckboxPaletteAdapter.contexts_entry,
+        PaletteContexts.extend(
+          empty_palette_contexts,
+          CheckboxPaletteAdapter.contexts_entry,
+        ),
+        SliderPaletteAdapter.contexts_entry,
       ),
-      SliderPaletteAdapter.contexts_entry,
+      ColorPaletteAdapter.contexts_entry,
     ),
-    ColorPaletteAdapter.contexts_entry,
+    PairPaletteAdapter.contexts_entry,
   );

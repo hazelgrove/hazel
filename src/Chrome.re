@@ -1,7 +1,7 @@
 open Tyxml_js;
 open Semantics.Core;
 open Model;
-let view = (model: Model.t, isEntirePage: bool) => {
+let view = (model: Model.t) => {
   let {
     edit_state_rs,
     cursor_info_rs,
@@ -14,7 +14,6 @@ let view = (model: Model.t, isEntirePage: bool) => {
     do_action,
     _,
   } = model;
-  let kc = JSUtil.KeyCombo.key;
   let pp_view_width = 50;
   let prefix = "view";
   let view_rs =
@@ -25,195 +24,30 @@ let view = (model: Model.t, isEntirePage: bool) => {
             palette_view_ctx: Palettes.initial_palette_view_ctx,
             do_action,
           };
-        let mk_html_cell = parent_dom => {
-          let new_model = Model.new_model();
-          let (new_html_cell, _) = view(new_model, false);
-          Dom.appendChild(parent, new_html_cell);
-          (new_html_cell, new_model.e_rs);
+        let rec mk_html_cell = (prefix', rev_path, hexp) => {
+          let view =
+            View.of_hexp(
+              (prefix', rev_path, hexp) =>
+                fst(mk_html_cell(prefix', rev_path, hexp)),
+              palette_stuff,
+              prefix',
+              rev_path,
+              hexp,
+            );
+          let (sdoc, rev_paths) = Pretty.PP.sdoc_of_doc(pp_view_width, view);
+          let html_result =
+            EditorBox.view(model, Pretty.HTML_Of_SDoc.html_of_sdoc(sdoc));
+          (html_result, rev_paths);
         };
-        let view = View.of_hexp(mk_html_cell, palette_stuff, prefix, [], e);
-        Pretty.PP.sdoc_of_doc(pp_view_width, view);
+        mk_html_cell(prefix, [], e);
       },
       e_rs,
     );
 
-  let pp_rs =
-    React.S.map(
-      ((sdoc, _)) => [Pretty.HTML_Of_SDoc.html_of_sdoc(sdoc)],
-      view_rs,
-    );
-
-  let side_of_str_offset = (s, offset) =>
-    if (offset == 0) {
-      Before;
-    } else if (offset == String.length(s)) {
-      After;
-    } else {
-      In(offset);
-    };
-
-  let string_insert = (s1, offset, s2) => {
-    let prefix = String.sub(s1, 0, offset);
-    let length = String.length(s1);
-    let suffix = String.sub(s1, offset, length - offset);
-    prefix ++ s2 ++ suffix;
-  };
-
-  let string_backspace = (s, offset, ctrlKey) => {
-    let prefix = ctrlKey ? "" : String.sub(s, 0, offset - 1);
-    let length = String.length(s);
-    let suffix = String.sub(s, offset, length - offset);
-    let offset' = ctrlKey ? 0 : offset - 1;
-    (prefix ++ suffix, offset');
-  };
-
-  let string_delete = (s, offset, ctrlKey) => {
-    let prefix = String.sub(s, 0, offset);
-    let length = String.length(s);
-    let suffix =
-      ctrlKey ? "" : String.sub(s, offset + 1, length - offset - 1);
-    (prefix ++ suffix, offset);
-  };
-
-  let pp_view =
-    R.Html5.div(
-      ~a=
-        Html5.[
-          a_contenteditable(true),
-          a_onkeypress(evt => {
-            let charCode = Js.Optdef.get(evt##.charCode, () => assert(false));
-
-            let key =
-              Js.to_string(Js.Optdef.get(evt##.key, () => assert(false)));
-
-            switch (int_of_string_opt(key)) {
-            | Some(n) =>
-              let cursor_info = React.S.value(cursor_info_rs);
-              switch (cursor_info.form) {
-              | ZExp.IsHole(_) =>
-                Dom.preventDefault(evt);
-                do_action(Action.Construct(Action.SLit(n, After)));
-                true;
-              | ZExp.IsNumLit =>
-                let selection = Dom_html.window##getSelection;
-                let anchorNode = selection##.anchorNode;
-                let nodeValue =
-                  Js.to_string(
-                    Js.Opt.get(anchorNode##.nodeValue, () => assert(false)),
-                  );
-                let anchorOffset = selection##.anchorOffset;
-                let newNodeValue =
-                  string_insert(nodeValue, anchorOffset, key);
-                Dom.preventDefault(evt);
-                switch (int_of_string_opt(newNodeValue)) {
-                | Some(new_n) =>
-                  let new_side =
-                    side_of_str_offset(newNodeValue, anchorOffset + 1);
-                  do_action(Action.Construct(Action.SLit(new_n, new_side)));
-                | None => ()
-                };
-                true;
-              | _ =>
-                Dom.preventDefault(evt);
-                true;
-              };
-            | None =>
-              if (charCode != 0
-                  || String.equal(key, "Enter")
-                  || String.equal(key, "Tab")) {
-                Dom.preventDefault(evt);
-                true;
-              } else {
-                true;
-              }
-            };
-          }),
-          a_onkeydown(evt => {
-            let key = JSUtil.get_key(evt);
-
-            let is_backspace = key == kc(JSUtil.KeyCombos.backspace);
-            let is_del = key == kc(JSUtil.KeyCombos.del);
-            if (is_backspace || is_del) {
-              let cursor_info = React.S.value(cursor_info_rs);
-              switch (cursor_info.form) {
-              | ZExp.IsNumLit =>
-                let side = cursor_info.side;
-                let is_Before =
-                  switch (side) {
-                  | Before => true
-                  | _ => false
-                  };
-                let is_After =
-                  switch (side) {
-                  | After => true
-                  | _ => false
-                  };
-                if (is_backspace && is_Before || is_del && is_After) {
-                  Dom.preventDefault(evt);
-                  false;
-                } else {
-                  let selection = Dom_html.window##getSelection;
-                  Dom_html.stopPropagation(evt);
-                  Dom.preventDefault(evt);
-                  let anchorNode = selection##.anchorNode;
-                  let anchorOffset = selection##.anchorOffset;
-                  let nodeValue =
-                    Js.to_string(
-                      Js.Opt.get(anchorNode##.nodeValue, () => assert(false)),
-                    );
-                  let ctrlKey = Js.to_bool(evt##.ctrlKey);
-                  let (nodeValue', anchorOffset') =
-                    is_backspace ?
-                      string_backspace(nodeValue, anchorOffset, ctrlKey) :
-                      string_delete(nodeValue, anchorOffset, ctrlKey);
-                  if (String.equal(nodeValue', "")) {
-                    if (is_Before) {
-                      do_action(Action.Delete);
-                    } else {
-                      do_action(Action.Backspace);
-                    };
-                  } else {
-                    let n = int_of_string(nodeValue');
-                    let side = side_of_str_offset(nodeValue', anchorOffset');
-                    do_action(Action.Construct(Action.SLit(n, side)));
-                  };
-                  false;
-                };
-              | _ =>
-                Dom.preventDefault(evt);
-                false;
-              };
-            } else {
-              true;
-            };
-          }),
-          a_ondrop(evt => {
-            Dom.preventDefault(evt);
-            false;
-          }),
-        ],
-      ReactiveData.RList.from_signal(pp_rs),
-    );
-
+  let pp_view' = React.S.map(((view_html, _)) => [view_html], view_rs);
+  /* TODO WTF */
+  let pp_view = R.Html5.(div(ReactiveData.RList.from_signal(pp_view')));
   let pp_view_dom = Tyxml_js.To_dom.of_div(pp_view);
-  let preventDefault_handler = evt => {
-    Dom.preventDefault(evt);
-    ();
-  };
-  let _ =
-    JSUtil.listen_to_t(
-      Dom.Event.make("paste"),
-      pp_view_dom,
-      preventDefault_handler,
-    );
-
-  let _ =
-    JSUtil.listen_to_t(
-      Dom.Event.make("cut"),
-      pp_view_dom,
-      preventDefault_handler,
-    );
-
   let pp_view_parent =
     Html5.(div(~a=[a_id("pp_view"), a_class(["ModelExp"])], [pp_view]));
 
@@ -298,6 +132,7 @@ let view = (model: Model.t, isEntirePage: bool) => {
     let (cursor_path, cursor_side) = Semantics.Core.Path.of_zexp(ze);
     set_cursor_to((cursor_path, cursor_side));
   };
+  /* TODO not sure if the rev_paths are complete anymore in light of palettes */
   let rev_paths_rs = React.S.map(((_, rev_paths)) => rev_paths, view_rs);
 
   let fix_anchor = (selection, anchor) => {
@@ -1037,5 +872,5 @@ let view = (model: Model.t, isEntirePage: bool) => {
       ),
     );
 
-  isEntirePage ? (chrome, set_cursor) : (pp_view_parent, set_cursor);
+  (chrome, set_cursor);
 };

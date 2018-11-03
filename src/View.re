@@ -532,7 +532,9 @@ let rec of_hexp = (mk_html_cell, palette_stuff, prefix, rev_path, e) =>
           palette_stuff.do_action(
             Action.MoveTo((List.rev(rev_path), Before)),
           );
-          palette_stuff.do_action(Action.UpdateApPalette(serialized_model));
+          palette_stuff.do_action(
+            Action.UpdateApPalette(UHExp.HoleRefs.ret(serialized_model)),
+          );
         };
         let view = serialized_view_fn(serialized_model, updater);
         let paletteName =
@@ -550,7 +552,7 @@ let rec of_hexp = (mk_html_cell, palette_stuff, prefix, rev_path, e) =>
           | MultiLine(_) => paletteDelim ^^ PP.mandatoryBreak
           };
         palettePrefix
-        ^^ PP.paletteView(view, hole_map, mk_html_cell)
+        ^^ PP.paletteView(view, hole_map, mk_html_cell(prefix, rev_path))
         ^^ paletteSuffix;
       | None => raise(InvariantViolated)
       }
