@@ -805,14 +805,6 @@ Module Core.
     Include VarMap.
   End Ctx.
 
-  (* I couldn't get the reason typechecker to accept this, so i stuffed it in here :( *)
-  Module HTMLWithCells.
-    Inductive m_html_with_cells : Type -> Type :=
-    | NewCellFor : forall (A : Type), nat -> m_html_with_cells(A)
-    | Bind : forall (A B : Type), m_html_with_cells(A) -> (A -> m_html_with_cells(B)) -> m_html_with_cells(B)
-    | Ret : forall (A : Type), A -> m_html_with_cells(A).
-  End HTMLWithCells.
-
   Module PaletteName.
     Definition t := Coq.Strings.String.string.
     Definition equal (x : t) (y : t) : bool := str_eqb x y.
