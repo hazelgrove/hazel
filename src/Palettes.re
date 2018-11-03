@@ -118,6 +118,56 @@ module PairPalette: PALETTE = {
     sscanf(serialized, "(%d,%d)", (leftID, rightID) => (leftID, rightID));
 };
 
+module ColorPalette: PALETTE = {
+  let name = "$color";
+  let expansion_ty = HTyp.Num;
+
+  type model = (int, int, int); /* RGB */
+  let init_model = (7, 63, 36);
+
+  type model_updater = model => unit;
+
+  let hex_to_model = (hex) => {
+    let (r,g,b) = sscanf(hex, "#%.2s%.2s%.2s", (r,g,b) => (r,g,b));
+    let to_decimal = (hex) => int_of_string("0x" ++ hex);
+    (to_decimal(r), to_decimal(g), to_decimal(b));
+  };
+
+  let model_to_hex = ((r,g,b)) => {
+    let to_hex = (dec) => sprintf("%.2x", dec);
+    "#" ++ to_hex(r) ++ to_hex(g) ++ to_hex(b);
+  };
+
+  let view = (model, model_updater) => {
+    let value = model_to_hex(model);
+    JSUtil.log("value = " ++ value);
+    let input_elt =
+      Html5.(input(~a=[a_input_type(`Color), a_value(value)], ()));
+    let input_dom = Tyxml_js.To_dom.of_input(input_elt);
+    let view_div = Html5.(div(~a=[a_class(["inline-div"])], [input_elt]));
+    let _ =
+      JSUtil.listen_to(
+        Dom_html.Event.change,
+        input_dom,
+        _ => {
+          let hex = Js.to_string(input_dom##.value);
+          JSUtil.log("hex = " ++ hex);
+          let new_model = hex_to_model(hex);
+          model_updater(new_model);
+          Js._true;
+        }
+      );
+    view_div;
+  };
+
+  let expand = ((r, g, b)) => UHExp.Tm(NotInHole, UHExp.NumLit(1000000*r + 1000*g + b));
+
+  let serialize = ((r, g, b)) =>
+    sprintf("(%d,%d,%d)", r, g, b);
+  let deserialize = serialized =>
+    sscanf(serialized, "(%d,%d,%d)", (r,g,b) => (r,g,b));
+}
+
 module CheckboxPalette: PALETTE = {
   let name = "$checkbox";
   let expansion_ty = HTyp.Sum(HTyp.Num, HTyp.Num);
@@ -301,13 +351,17 @@ module PaletteAdapter = (P: PALETTE) => {
 
 module CheckboxPaletteAdapter = PaletteAdapter(CheckboxPalette);
 module SliderPaletteAdapter = PaletteAdapter(SliderPalette);
+module ColorPaletteAdapter = PaletteAdapter(ColorPalette);
 
 let empty_palette_contexts = PaletteContexts.empty;
 let (initial_palette_ctx, initial_palette_view_ctx) =
   PaletteContexts.extend(
     PaletteContexts.extend(
-      empty_palette_contexts,
-      CheckboxPaletteAdapter.contexts_entry,
+      PaletteContexts.extend(
+        empty_palette_contexts,
+        CheckboxPaletteAdapter.contexts_entry,
+      ),
+      SliderPaletteAdapter.contexts_entry,
     ),
-    SliderPaletteAdapter.contexts_entry,
+    ColorPaletteAdapter.contexts_entry,
   );
