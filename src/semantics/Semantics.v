@@ -705,7 +705,8 @@ Module FCore(Helper : HELPER).
         let skel :=
           (Skel.BinOp NotInHole op' (ph 0) (ph 1))
         in
-        OpSeq skel (OperatorSeq.ExpOpExp a op' b)
+        Parenthesized
+          (OpSeq skel (OperatorSeq.ExpOpExp a op' b))
         (* Save it for another day
         match (a, b) with
           | (OpSeq skelA opseqA, OpSeq skelB opseqB) =>
@@ -5122,8 +5123,8 @@ Module FCore(Helper : HELPER).
                         let (n, typ_exp) := entry in
                         let (htyp, hexp) := typ_exp in
                         let lam := UHExp.Tm NotInHole (UHExp.Lam (UHExp.PaletteHoleData.mk_hole_ref_var_name n) bound) in
-                        let hexp_ann := UHExp.Tm NotInHole (UHExp.Asc hexp (UHTyp.contract htyp)) in
-                        let opseq := OperatorSeq.ExpOpExp lam UHExp.Space hexp_ann in
+                        let hexp_ann := UHExp.Tm NotInHole (UHExp.Asc (UHExp.Parenthesized hexp) (UHTyp.contract htyp)) in
+                        let opseq := OperatorSeq.ExpOpExp (UHExp.Parenthesized lam) UHExp.Space (UHExp.Parenthesized hexp_ann) in
                         let ap := UHExp.OpSeq (Associator.associate_exp opseq) opseq in
                         UHExp.Tm NotInHole ap
                       )

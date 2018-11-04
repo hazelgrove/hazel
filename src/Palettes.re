@@ -46,15 +46,15 @@ module type PALETTE = {
   let deserialize: PaletteSerializedModel.t => model;
 };
 
-module NumPairPalette: PALETTE = {
-  let name = "$numpair";
-  let expansion_ty = HTyp.(Arrow(Arrow(Num, Arrow(Num, Num)), Num));
+module PairPalette: PALETTE = {
+  let name = "$pair";
+  let expansion_ty = HTyp.(Arrow(Arrow(Hole, Arrow(Hole, Hole)), Hole));
 
   type model = (int, int);
   let init_model =
-    UHExp.HoleRefs.bind(UHExp.HoleRefs.new_hole_ref(HTyp.Num), left_hole_ref =>
+    UHExp.HoleRefs.bind(UHExp.HoleRefs.new_hole_ref(HTyp.Hole), left_hole_ref =>
       UHExp.HoleRefs.bind(
-        UHExp.HoleRefs.new_hole_ref(HTyp.Num),
+        UHExp.HoleRefs.new_hole_ref(HTyp.Hole),
         right_hole_ref => {
           let leftID = UHExp.HoleRefs.lbl_of(left_hole_ref);
           let rightID = UHExp.HoleRefs.lbl_of(right_hole_ref);
@@ -344,7 +344,7 @@ module PaletteAdapter = (P: PALETTE) => {
 module CheckboxPaletteAdapter = PaletteAdapter(CheckboxPalette);
 module SliderPaletteAdapter = PaletteAdapter(SliderPalette);
 module ColorPaletteAdapter = PaletteAdapter(ColorPalette);
-module NumPairPaletteAdapter = PaletteAdapter(NumPairPalette);
+module PairPaletteAdapter = PaletteAdapter(PairPalette);
 
 let empty_palette_contexts = PaletteContexts.empty;
 let (initial_palette_ctx, initial_palette_view_ctx) =
@@ -359,5 +359,5 @@ let (initial_palette_ctx, initial_palette_view_ctx) =
       ),
       ColorPaletteAdapter.contexts_entry,
     ),
-    NumPairPaletteAdapter.contexts_entry,
+    PairPaletteAdapter.contexts_entry,
   );
