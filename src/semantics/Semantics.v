@@ -23,6 +23,9 @@ Fixpoint update_nth {a : Type} (n : nat) (xs : list a) (f : a -> a) :=
   | (S n, cons x xs) => cons x (update_nth n xs f)
   end.
 
+Definition str_eqb (s1 s2 : Coq.Strings.String.string) : bool := 
+  if Coq.Strings.String.string_dec s1 s2 then true else false.
+
 Module Helpers.
     Definition char_le_b (ch1 ch2 : Coq.Strings.Ascii.ascii) : bool :=
         Nat.leb (Coq.Strings.Ascii.nat_of_ascii ch1) (Coq.Strings.Ascii.nat_of_ascii ch2).
@@ -32,15 +35,18 @@ Module Helpers.
         (char_le_b s ch) && (char_le_b ch e).
 End Helpers.
 
-Module Core.
-  Module Fuel.
-    Inductive t : Type :=
-    | More : t -> t
-    | Kicked : t.
-  End Fuel.
+Module Type HELPER.
+  Parameter log_nat : nat -> nat.
+  Parameter string_of_nat : nat -> Coq.Strings.String.string.
+End HELPER.
 
-  Definition str_eqb (s1 s2 : Coq.Strings.String.string) : bool := 
-    if Coq.Strings.String.string_dec s1 s2 then true else false.
+Module Fuel.
+  Inductive t : Type :=
+  | More : t -> t
+  | Kicked : t.
+End Fuel.
+
+Module FCore(Helper : HELPER).
 
   Module Var.
     Definition t := Coq.Strings.String.string.
@@ -876,10 +882,14 @@ Module Core.
       (Tm NotInHole (EmptyHole u'), u_gen').
 
     Module PaletteHoleData.
+      Local Open Scope string_scope.
       Definition hole_ref_lbl : Type := nat.
       Definition hole_map : Type := NatMap.t(HTyp.t * t).
       Definition t : Type := (hole_ref_lbl * hole_map).
       Definition empty : t := (0, NatMap.empty).
+      Definition mk_hole_ref_var_name (lbl : hole_ref_lbl) : Var.t :=
+        Coq.Strings.String.append "__hole_ref_"
+          (Coq.Strings.String.append (Helper.string_of_nat lbl) "__").
       Definition next_ref_lbl (x : hole_ref_lbl) := S(x).
       Definition new_hole_ref 
         (u_gen : MetaVar.gen) 
@@ -890,19 +900,18 @@ Module Core.
           let (initial_exp, u_gen) := UHExp.new_EmptyHole u_gen in 
           let next_map := NatMap.extend cur_map (cur_ref_lbl, (ty, initial_exp)) in 
           (cur_ref_lbl, (next_ref_lbl, next_map), u_gen).
-      Definition extend_gamma
+      Definition extend_gamma_with_hole_map
         (gamma : Ctx.t)
         (hm : hole_map)
-        (id_map : nat -> Var.t)
         : Ctx.t :=
           NatMap.fold hm
             (fun gamma hole_mapping =>
-              let (id, htyp) := hole_mapping in
-              let var_name := id_map id in
+              let (id, v) := hole_mapping in
+              let (htyp, _) := v in
+              let var_name := mk_hole_ref_var_name id in
               Ctx.extend gamma (var_name, htyp)
             )
-            gamma
-      end.
+            gamma.
     End PaletteHoleData.
 
     Module Type HOLEREFS.
@@ -2751,13 +2760,7 @@ Module Core.
     Parameter associate_ty : UHTyp.opseq -> UHTyp.skel_t.
   End ASSOCIATOR.
 
-  Module Type HELPER.
-    Parameter log_path : Path.t -> Path.t.
-    Parameter log_nat : nat -> nat.
-    Parameter to_var : nat -> Var.t.
-  End HELPER.
-
-  Module FAction (Associator : ASSOCIATOR) (Helper : HELPER).
+  Module FAction (Associator : ASSOCIATOR).
     Inductive direction : Type :=
     | Child : nat -> direction
     | Parent : direction.
@@ -4709,7 +4712,7 @@ Module Core.
       end.
   End FAction.
 
-  Module FDynamics (Associator : ASSOCIATOR) (Helper : HELPER).
+  Module FDynamics (Associator : ASSOCIATOR).
       Module Delta.
         Definition t : Type := MetaVarMap.t (HTyp.t * Ctx.t).
       End Delta.
@@ -5083,7 +5086,7 @@ Module Core.
                          | Some bound =>
                            let (n, typ_exp) := entry in
                            let (htyp, hexp) := typ_exp in
-                           let lam := UHExp.Tm NotInHole (UHExp.Lam (Helper.to_var n) bound) in
+                           let lam := UHExp.Tm NotInHole (UHExp.Lam (UHExp.PaletteHoleData.mk_hole_ref_var_name n) bound) in
                            let opseq := OperatorSeq.ExpOpExp lam UHExp.Space hexp in
                            let ap := UHExp.OpSeq (Associator.associate_exp opseq) opseq in
                            Some (UHExp.Tm NotInHole ap)
@@ -5782,11 +5785,12 @@ Module Core.
             end.
       End Evaluator.
   End FDynamics.
-End Core.
+End FCore.
 
-Extract Constant Core.str_eqb => "String.equal".
+Extract Constant str_eqb => "String.equal".
+Extract Constant Coq.Strings.String.append => "(^)".
 Extract Inductive Coq.Strings.String.string => "string"
-       ["""""" "(fun c s -> (String.make 1 c) ^ s)"]
+       ["""""" "(fun (c, s) -> (String.make 1 c) ^ s)"]
        "(fun fES fS s -> if s="""" then fES () else fS s.[0] (String.sub s 1 (String.length s - 1)))".
 (* TODO: stolen from Coq.extraction.ExtrOcamlString, but I don't know how to import only
    some of the `Extract` clauses in that library without importing others, so for now I'm
@@ -5797,7 +5801,7 @@ Extract Inductive Coq.Strings.Ascii.ascii => "char"
            "(fun (b0,b1,b2,b3,b4,b5,b6,b7) -> let f b i = if b then 1 lsl i else 0 in Char.chr (f b0 0 + f b1 1 + f b2 2 + f b3 3 + f b4 4 + f b5 5 + f b6 6 + f b7 7))"
        ]
        "(fun f c -> let n = Char.code c in let h i = (n land (1 lsl i)) <> 0 in f (h 0) (h 1) (h 2) (h 3) (h 4) (h 5) (h 6) (h 7))".
-Extract Inductive Core.Fuel.t => "unit" [ "()" "()" ] "(fun fMore _ fKicked -> fMore ())".
+Extract Inductive Fuel.t => "unit" [ "()" "()" ] "(fun fMore _ fKicked -> fMore ())".
 Extract Inductive bool => "bool" ["true" "false"].
 Extract Inductive unit => "unit" ["()"].
 Extract Constant negb => "not".
@@ -5814,4 +5818,4 @@ Extract Constant Nat.eqb => "(=)".
 Extract Constant Nat.leb => "(<=)".
 Extract Constant Nat.ltb => "(<)".
 
-Extraction Core.
+Extraction FCore.

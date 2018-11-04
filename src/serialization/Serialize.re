@@ -1,4 +1,4 @@
-open Semantics.Core;
+open SemanticsCore;
 open Format;
 open LangUtil;
 let ensure_well_typed_before_serialization = uhexp =>

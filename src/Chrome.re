@@ -1,5 +1,5 @@
 open Tyxml_js;
-open Semantics.Core;
+open SemanticsCore;
 open Model;
 let view = (model: Model.t) => {
   let {
@@ -129,7 +129,7 @@ let view = (model: Model.t) => {
   };
   let set_cursor = () => {
     let ((ze, _), _) = React.S.value(edit_state_rs);
-    let (cursor_path, cursor_side) = Semantics.Core.Path.of_zexp(ze);
+    let (cursor_path, cursor_side) = SemanticsCore.Path.of_zexp(ze);
     set_cursor_to((cursor_path, cursor_side));
   };
   /* TODO not sure if the rev_paths are complete anymore in light of palettes */
