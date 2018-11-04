@@ -129,68 +129,54 @@ module ColorPalette: PALETTE = {
   let name = "$color";
   let expansion_ty = HTyp.Num;
 
-  type model = (int, int, int); /* RGB */
-  let init_model = UHExp.HoleRefs.ret((7, 63, 36));
+  type model = string;
+  let init_model = UHExp.HoleRefs.ret("#FF0000");
 
   type model_updater = model => unit;
 
-  let hex_to_model = hex => {
-    let (r, g, b) = sscanf(hex, "#%.2s%.2s%.2s", (r, g, b) => (r, g, b));
-    let to_decimal = hex => int_of_string("0x" ++ hex);
-    (to_decimal(r), to_decimal(g), to_decimal(b));
-  };
-
-  let model_to_hex = ((r, g, b)) => {
-    let to_hex = dec => sprintf("%.2x", dec);
-    "#" ++ to_hex(r) ++ to_hex(g) ++ to_hex(b);
-  };
+  let colors = [
+    "#FF0000",
+    "#FF00FF",
+    "#8000FF",
+    "#0040FF",
+    "#00FFFF",
+    "#00FF40",
+    "#0BED00",
+    "#FFFF00",
+  ];
 
   let view = (model, model_updater) => {
-    let value = model_to_hex(model);
-    JSUtil.log("value = " ++ value);
 
-    let color_picker =
-      Html5.(div(~a=[a_id("mycolorpicker"), a_class(["cp-default"])], []));
-    let dom_color_picker = Tyxml_js.To_dom.of_div(color_picker);
+    let mk_color_elt = (color, selected_color) => {
+      let selected = color == selected_color ? ["selected"] : [];
+      Html5.(div(~a=[a_class(["color", ...selected]), a_style("background-color:"++color)], []));
+    };
 
-    let cp = Js.Unsafe.global##.ColorPicker;
-    cp(dom_color_picker, (hex, hsv, rgb) => { JSUtil.log("HAHAHAHA")});
-
-    /*
-    let input_elt =
-      Html5.(input(~a=[a_input_type(`Color), a_value(value)], ()));
-    let input_dom = Tyxml_js.To_dom.of_input(input_elt);
-    let view_div = Html5.(div(~a=[a_class(["inline-div"])], [input_elt]));
-    let _ =
+    let color_elts = List.map(c => { mk_color_elt(c, model); }, colors);
+    let _ = List.map2((c, elt) => {
+      let elt_dom = Tyxml_js.To_dom.of_div(elt);
       JSUtil.listen_to(
-        Dom_html.Event.change,
-        input_dom,
+        Dom_html.Event.click,
+        elt_dom,
         _ => {
-          let hex = Js.to_string(input_dom##.value);
-          JSUtil.log("hex = " ++ hex);
-          let new_model = hex_to_model(hex);
-          model_updater(new_model);
+          model_updater(c);
           Js._true;
         },
       );
-    */
+    }, colors, color_elts);
 
-    let cp_script = Html5.(script(pcdata("
-      ColorPicker(document.getElementById('mycolorpicker'), function(hex, hsv, rgb) {
-          console.log(\"yoyoyo\");
-      });
-    ")));
-
-    let view_div = Html5.(div(~a=[a_class(["inline-div"])], [color_picker, cp_script]));
-    MultiLine(HTMLWithCells.Ret(view_div));
+    let picker = Html5.(div(~a=[a_class(["color-picker"])], color_elts));
+    MultiLine(HTMLWithCells.Ret(picker));
   };
 
-  let expand = ((r, g, b)) =>
+  let expand = rgb_hex => {
+    let to_decimal = hex => int_of_string("0x" ++ hex);
+    let (r, g, b) = sscanf(rgb_hex, "#%.2s%.2s%.2s", (r, g, b) => (to_decimal(r), to_decimal(g), to_decimal(b)));
     UHExp.Tm(NotInHole, UHExp.NumLit(1000000 * r + 1000 * g + b));
+  };
 
-  let serialize = ((r, g, b)) => sprintf("(%d,%d,%d)", r, g, b);
-  let deserialize = serialized =>
-    sscanf(serialized, "(%d,%d,%d)", (r, g, b) => (r, g, b));
+  let serialize = model => model;
+  let deserialize = serialized => serialized;
 };
 
 module CheckboxPalette: PALETTE = {
