@@ -148,6 +148,15 @@ module ColorPalette: PALETTE = {
   let view = (model, model_updater) => {
     let value = model_to_hex(model);
     JSUtil.log("value = " ++ value);
+
+    let color_picker =
+      Html5.(div(~a=[a_id("mycolorpicker"), a_class(["cp-default"])], []));
+    let dom_color_picker = Tyxml_js.To_dom.of_div(color_picker);
+
+    let cp = Js.Unsafe.global##.ColorPicker;
+    cp(dom_color_picker, (hex, hsv, rgb) => { JSUtil.log("HAHAHAHA")});
+
+    /*
     let input_elt =
       Html5.(input(~a=[a_input_type(`Color), a_value(value)], ()));
     let input_dom = Tyxml_js.To_dom.of_input(input_elt);
@@ -164,6 +173,15 @@ module ColorPalette: PALETTE = {
           Js._true;
         },
       );
+    */
+
+    let cp_script = Html5.(script(pcdata("
+      ColorPicker(document.getElementById('mycolorpicker'), function(hex, hsv, rgb) {
+          console.log(\"yoyoyo\");
+      });
+    ")));
+
+    let view_div = Html5.(div(~a=[a_class(["inline-div"])], [color_picker, cp_script]));
     MultiLine(HTMLWithCells.Ret(view_div));
   };
 
