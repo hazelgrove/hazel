@@ -10,4 +10,8 @@ module Helper: Semantics.HELPER = {
     JSUtil.log(n);
     n;
   };
+  let log_string = s => {
+    JSUtil.log(s);
+    s;
+  };
 };

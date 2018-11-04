@@ -37,6 +37,7 @@ End Helpers.
 
 Module Type HELPER.
   Parameter log_nat : nat -> nat.
+  Parameter log_string : Coq.Strings.String.string -> Coq.Strings.String.string.
   Parameter string_of_nat : nat -> Coq.Strings.String.string.
 End HELPER.
 
@@ -698,6 +699,30 @@ Module FCore(Helper : HELPER).
       end
       end.
 
+    Fixpoint contract (hty : HTyp.t) : t :=
+      let mk_opseq (op' : op) (a b : t) :=
+        let ph n := Skel.Placeholder op n in
+        let skel :=
+          (Skel.BinOp NotInHole op' (ph 0) (ph 1))
+        in
+        OpSeq skel (OperatorSeq.ExpOpExp a op' b)
+        (* Save it for another day
+        match (a, b) with
+          | (OpSeq skelA opseqA, OpSeq skelB opseqB) =>
+          | (OpSeq skelA opseqA, _) =>
+          | (_, OpSeq skelB opseqB) =>
+          | (_, _) =>
+            OpSeq (Skel.BinOp NotInHole op' ?? ??) (OperatorSeq.ExpOpExp a op' b)
+        end
+        *)
+      in
+      match hty with
+        | HTyp.Num       => Num
+        | HTyp.Arrow a b => mk_opseq Arrow (contract a) (contract b)
+        | HTyp.Sum a b   => mk_opseq Sum (contract a) (contract b)
+        | HTyp.Hole      => Hole
+      end.
+
     Fixpoint expand (fuel : Fuel.t) (uty : t) : HTyp.t := 
       match fuel with 
       | Fuel.Kicked => HTyp.Hole
@@ -900,18 +925,23 @@ Module FCore(Helper : HELPER).
           let (initial_exp, u_gen) := UHExp.new_EmptyHole u_gen in 
           let next_map := NatMap.extend cur_map (cur_ref_lbl, (ty, initial_exp)) in 
           (cur_ref_lbl, (next_ref_lbl, next_map), u_gen).
-      Definition extend_gamma_with_hole_map
-        (gamma : Ctx.t)
+      Definition extend_ctx_with_hole_map
+        {A : Type}
+        (ctx : Ctx.t * A)
         (hm : hole_map)
-        : Ctx.t :=
-          NatMap.fold hm
-            (fun gamma hole_mapping =>
-              let (id, v) := hole_mapping in
-              let (htyp, _) := v in
-              let var_name := mk_hole_ref_var_name id in
-              Ctx.extend gamma (var_name, htyp)
-            )
-            gamma.
+        : Ctx.t * A :=
+          let (gamma, palette_ctx) := ctx in
+          let gamma' :=
+            NatMap.fold hm
+              (fun gamma hole_mapping =>
+                let (id, v) := hole_mapping in
+                let (htyp, _) := v in
+                let var_name := mk_hole_ref_var_name id in
+                Ctx.extend gamma (var_name, htyp)
+              )
+              gamma
+          in
+          (gamma', palette_ctx).
     End PaletteHoleData.
 
     Module Type HOLEREFS.
@@ -1150,7 +1180,9 @@ Module FCore(Helper : HELPER).
                   let expansion_ty := PaletteDefinition.expansion_ty palette_defn in  
                   let to_exp := PaletteDefinition.to_exp palette_defn in 
                   let expansion := to_exp serialized_model in 
-                  match ana fuel ctx expansion expansion_ty with
+                  let (_, hole_map) := hole_data in
+                  let expansion_ctx := PaletteHoleData.extend_ctx_with_hole_map ctx hole_map in
+                  match ana fuel expansion_ctx expansion expansion_ty with
                   | Some _ => 
                     Some expansion_ty
                   | None => None
@@ -1484,7 +1516,9 @@ Module FCore(Helper : HELPER).
               let expansion_ty := PaletteDefinition.expansion_ty palette_defn in  
               let to_exp := PaletteDefinition.to_exp palette_defn in 
               let expansion := to_exp serialized_model in 
-              match ana fuel ctx expansion expansion_ty with
+              let (_, hole_map) := hole_data in
+              let expansion_ctx := PaletteHoleData.extend_ctx_with_hole_map ctx hole_map in
+              match ana fuel expansion_ctx expansion expansion_ty with
               | Some _ => 
                 Some (ApPalette name serialized_model hole_data', expansion_ty, u_gen')
               | None => None
@@ -4201,7 +4235,9 @@ Module FCore(Helper : HELPER).
           let (initial_model, initial_hole_data) := q in  
           let expansion_ty := UHExp.PaletteDefinition.expansion_ty palette_defn in
           let expansion := (UHExp.PaletteDefinition.to_exp palette_defn) initial_model in 
-          match (UHExp.ana fuel ctx expansion expansion_ty) with 
+          let (_, initial_hole_map) := initial_hole_data in
+          let expansion_ctx := UHExp.PaletteHoleData.extend_ctx_with_hole_map ctx initial_hole_map in
+          match (UHExp.ana fuel expansion_ctx expansion expansion_ty) with 
           | Some _ => 
             Some (ZExp.CursorE After (UHExp.Tm NotInHole (UHExp.ApPalette name initial_model initial_hole_data)), 
                   expansion_ty, u_gen)
@@ -4218,7 +4254,9 @@ Module FCore(Helper : HELPER).
           let (serialized_model, hole_data') := q in 
           let expansion_ty := UHExp.PaletteDefinition.expansion_ty palette_defn in
           let expansion := (UHExp.PaletteDefinition.to_exp palette_defn) serialized_model in 
-          match (UHExp.ana fuel ctx expansion expansion_ty) with 
+          let (_, hole_map') := hole_data' in
+          let expansion_ctx := UHExp.PaletteHoleData.extend_ctx_with_hole_map ctx hole_map' in
+          match (UHExp.ana fuel expansion_ctx expansion expansion_ty) with 
           | Some _ => 
             Some (ZExp.CursorE After (UHExp.Tm NotInHole (UHExp.ApPalette name serialized_model hole_data')), 
                   expansion_ty, u_gen)
@@ -5081,22 +5119,16 @@ Module FCore(Helper : HELPER).
                 let bound_expansion :=
                     NatMap.fold hole_map
                       (fun bound entry =>
-                         match bound with
-                         | None => None
-                         | Some bound =>
-                           let (n, typ_exp) := entry in
-                           let (htyp, hexp) := typ_exp in
-                           let lam := UHExp.Tm NotInHole (UHExp.Lam (UHExp.PaletteHoleData.mk_hole_ref_var_name n) bound) in
-                           let opseq := OperatorSeq.ExpOpExp lam UHExp.Space hexp in
-                           let ap := UHExp.OpSeq (Associator.associate_exp opseq) opseq in
-                           Some (UHExp.Tm NotInHole ap)
-                         end)
-                      (Some expansion) in
-                match bound_expansion with
-                | None => DoesNotExpand
-                | Some bound_expansion =>
-                  ana_expand fuel ctx bound_expansion expansion_ty
-                end
+                        let (n, typ_exp) := entry in
+                        let (htyp, hexp) := typ_exp in
+                        let lam := UHExp.Tm NotInHole (UHExp.Lam (UHExp.PaletteHoleData.mk_hole_ref_var_name n) bound) in
+                        let hexp_ann := UHExp.Tm NotInHole (UHExp.Asc hexp (UHTyp.contract htyp)) in
+                        let opseq := OperatorSeq.ExpOpExp lam UHExp.Space hexp_ann in
+                        let ap := UHExp.OpSeq (Associator.associate_exp opseq) opseq in
+                        UHExp.Tm NotInHole ap
+                      )
+                      expansion in
+                ana_expand fuel ctx bound_expansion expansion_ty
               | None => DoesNotExpand
               end
             end
