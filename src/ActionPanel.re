@@ -1,6 +1,6 @@
 open Tyxml_js;
 open React;
-open Semantics.Core;
+open SemanticsCore;
 open Model;
 let make =
     ({edit_state_rs, cursor_info_rs, do_action, _}: Model.t, set_cursor) => {

@@ -1,4 +1,4 @@
-open Semantics.Core;
+open SemanticsCore;
 open Tyxml_js;
 open Model;
 let mk =

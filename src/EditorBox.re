@@ -1,5 +1,5 @@
 open Tyxml_js;
-open Semantics.Core;
+open SemanticsCore;
 let view =
     (
       model: Model.t,

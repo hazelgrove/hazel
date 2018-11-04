@@ -1,6 +1,6 @@
 exception InvariantViolated;
 module PP = Pretty.PP;
-open Semantics.Core;
+open SemanticsCore;
 let (^^) = PP.(^^);
 let taggedText = (cls, s) => PP.text(cls, s);
 let dollar = taggedText("dollar", "$");

@@ -1,4 +1,4 @@
-open Semantics.Core;
+open SemanticsCore;
 open Tyxml_js;
 open Printf;
 open Scanf;
@@ -70,37 +70,7 @@ module NumPairPalette: PALETTE = {
       HTMLWithCells.Ret(Html5.(div(~a=[a_class(["inline-div"])], []))),
     );
 
-  let expand = ((leftID, rightID)) => UHExp.(Tm(NotInHole, NumLit(leftID))) /*
-  {
-    let to_uhvar = (id) => UHExp.(Tm(NotInHole, Var(NotInVHole, Helper.Helper.to_var(id))));
-    let fVarName = "f";
-    let apOpSeq =
-      UHExp.(
-        OperatorSeq.(
-          exp_op_seq(
-            Tm(NotInHole, Var(NotInVHole, fVarName)),
-            Space,
-            ExpOpExp(
-              Tm(NotInHole, to_uhvar(leftID)),
-              Space,
-              Tm(NotInHole, to_uhvar(rightID)),
-            ),
-          )
-        )
-      );
-    UHExp.(
-      Tm(
-        NotInHole,
-        Lam(
-          fVarName,
-          Tm(
-            NotInHole,
-            UHExp.OpSeq(Associator.associate_exp(apOpSeq), apOpSeq),
-          ),
-        ),
-      )
-    );
-  }*/;
+  let expand = ((leftID, rightID)) => UHExp.(Tm(NotInHole, NumLit(leftID))) /* {   let to_uhvar = (id) => UHExp.(Tm(NotInHole, Var(NotInVHole, PaletteHoleData.mk_hole_ref_var_name(id))));   let fVarName = "f";   let apOpSeq =     UHExp.(       OperatorSeq.(         exp_op_seq(           Tm(NotInHole, Var(NotInVHole, fVarName)),           Space,           ExpOpExp(             Tm(NotInHole, to_uhvar(leftID)),             Space,             Tm(NotInHole, to_uhvar(rightID)),           ),         )       )     );   UHExp.(     Tm(       NotInHole,       Lam(         fVarName,         Tm(           NotInHole,           UHExp.OpSeq(Associator.associate_exp(apOpSeq), apOpSeq),         ),       ),     )   ); }*/;
 
   /* sprintf/sscanf are magical and treat string literals specially -
      attempt to factor out the format string at your own peril */
