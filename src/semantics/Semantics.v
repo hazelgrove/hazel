@@ -890,6 +890,19 @@ Module Core.
           let (initial_exp, u_gen) := UHExp.new_EmptyHole u_gen in 
           let next_map := NatMap.extend cur_map (cur_ref_lbl, (ty, initial_exp)) in 
           (cur_ref_lbl, (next_ref_lbl, next_map), u_gen).
+      Definition extend_gamma
+        (gamma : Ctx.t)
+        (hm : hole_map)
+        (id_map : nat -> Var.t)
+        : Ctx.t :=
+          NatMap.fold hm
+            (fun gamma hole_mapping =>
+              let (id, htyp) := hole_mapping in
+              let var_name := id_map id in
+              Ctx.extend gamma (var_name, htyp)
+            )
+            gamma
+      end.
     End PaletteHoleData.
 
     Module Type HOLEREFS.
