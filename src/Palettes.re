@@ -46,15 +46,21 @@ module type PALETTE = {
   let deserialize: PaletteSerializedModel.t => model;
 };
 
-module PairPalette: PALETTE = {
-  let name = "$pair";
-  let expansion_ty = HTyp.(Arrow(Sum(Num, Num), Hole));
+module NumPairPalette: PALETTE = {
+  let name = "$numpair";
+  /* let expansion_ty = HTyp.(Arrow(Arrow(Num, Arrow(Num, Num)), Num)); */
+  let expansion_ty = HTyp.Num;
 
   type model = (int, int);
   let init_model =
-    UHExp.HoleRefs.bind(UHExp.HoleRefs.new_hole_ref(HTyp.Hole), leftID =>
-      UHExp.HoleRefs.bind(UHExp.HoleRefs.new_hole_ref(HTyp.Hole), rightID =>
-        UHExp.HoleRefs.ret((leftID, rightID))
+    UHExp.HoleRefs.bind(UHExp.HoleRefs.new_hole_ref(HTyp.Num), left_hole_ref =>
+      UHExp.HoleRefs.bind(
+        UHExp.HoleRefs.new_hole_ref(HTyp.Num),
+        right_hole_ref => {
+          let leftID = UHExp.HoleRefs.lbl_of(left_hole_ref);
+          let rightID = UHExp.HoleRefs.lbl_of(right_hole_ref);
+          UHExp.HoleRefs.ret((leftID, rightID));
+        },
       )
     );
   type model_updater = model => unit;
@@ -64,25 +70,37 @@ module PairPalette: PALETTE = {
       HTMLWithCells.Ret(Html5.(div(~a=[a_class(["inline-div"])], []))),
     );
 
-  let expand = ((leftID, rightID)) => {
-    let to_uhvar = id =>
-      UHExp.Tm(NotInHole, UHExp.Var(NotInVHole, Helper.Helper.to_var(id)));
-    let selectorName = "selector";
-    UHExp.Tm(
-      NotInHole,
-      UHExp.Lam(
-        selectorName,
-        UHExp.Tm(
-          NotInHole,
-          UHExp.Case(
-            UHExp.Tm(NotInHole, UHExp.Var(NotInVHole, selectorName)),
-            ("_", to_uhvar(leftID)),
-            ("_", to_uhvar(rightID)),
+  let expand = ((leftID, rightID)) => UHExp.(Tm(NotInHole, NumLit(leftID))) /*
+  {
+    let to_uhvar = (id) => UHExp.(Tm(NotInHole, Var(NotInVHole, Helper.Helper.to_var(id))));
+    let fVarName = "f";
+    let apOpSeq =
+      UHExp.(
+        OperatorSeq.(
+          exp_op_seq(
+            Tm(NotInHole, Var(NotInVHole, fVarName)),
+            Space,
+            ExpOpExp(
+              Tm(NotInHole, to_uhvar(leftID)),
+              Space,
+              Tm(NotInHole, to_uhvar(rightID)),
+            ),
+          )
+        )
+      );
+    UHExp.(
+      Tm(
+        NotInHole,
+        Lam(
+          fVarName,
+          Tm(
+            NotInHole,
+            UHExp.OpSeq(Associator.associate_exp(apOpSeq), apOpSeq),
           ),
         ),
-      ),
+      )
     );
-  };
+  }*/;
 
   /* sprintf/sscanf are magical and treat string literals specially -
      attempt to factor out the format string at your own peril */
@@ -326,7 +344,7 @@ module PaletteAdapter = (P: PALETTE) => {
 module CheckboxPaletteAdapter = PaletteAdapter(CheckboxPalette);
 module SliderPaletteAdapter = PaletteAdapter(SliderPalette);
 module ColorPaletteAdapter = PaletteAdapter(ColorPalette);
-module PairPaletteAdapter = PaletteAdapter(PairPalette);
+module NumPairPaletteAdapter = PaletteAdapter(NumPairPalette);
 
 let empty_palette_contexts = PaletteContexts.empty;
 let (initial_palette_ctx, initial_palette_view_ctx) =
@@ -341,5 +359,5 @@ let (initial_palette_ctx, initial_palette_view_ctx) =
       ),
       ColorPaletteAdapter.contexts_entry,
     ),
-    PairPaletteAdapter.contexts_entry,
+    NumPairPaletteAdapter.contexts_entry,
   );
