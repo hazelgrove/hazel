@@ -64,9 +64,24 @@ module PairPalette: PALETTE = {
     );
   type model_updater = model => unit;
 
-  let view = (model, model_updater) =>
+  let view = ((leftID, rightID), model_updater) =>
     MultiLine(
-      HTMLWithCells.Ret(Html5.(div(~a=[a_class(["inline-div"])], []))),
+      HTMLWithCells.Bind(
+        HTMLWithCells.NewCellFor(leftID),
+        left_cell_div =>
+          HTMLWithCells.Bind(
+            HTMLWithCells.NewCellFor(rightID),
+            right_cell_div =>
+              HTMLWithCells.Ret(
+                Html5.(
+                  div(
+                    ~a=[a_class(["inline-div"])],
+                    [left_cell_div, right_cell_div],
+                  )
+                ),
+              ),
+          ),
+      ),
     );
 
   let expand = ((leftID, rightID)) => {
