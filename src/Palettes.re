@@ -48,8 +48,7 @@ module type PALETTE = {
 
 module NumPairPalette: PALETTE = {
   let name = "$numpair";
-  /* let expansion_ty = HTyp.(Arrow(Arrow(Num, Arrow(Num, Num)), Num)); */
-  let expansion_ty = HTyp.Num;
+  let expansion_ty = HTyp.(Arrow(Arrow(Num, Arrow(Num, Num)), Num));
 
   type model = (int, int);
   let init_model =
@@ -70,7 +69,38 @@ module NumPairPalette: PALETTE = {
       HTMLWithCells.Ret(Html5.(div(~a=[a_class(["inline-div"])], []))),
     );
 
-  let expand = ((leftID, rightID)) => UHExp.(Tm(NotInHole, NumLit(leftID))) /* {   let to_uhvar = (id) => UHExp.(Tm(NotInHole, Var(NotInVHole, PaletteHoleData.mk_hole_ref_var_name(id))));   let fVarName = "f";   let apOpSeq =     UHExp.(       OperatorSeq.(         exp_op_seq(           Tm(NotInHole, Var(NotInVHole, fVarName)),           Space,           ExpOpExp(             Tm(NotInHole, to_uhvar(leftID)),             Space,             Tm(NotInHole, to_uhvar(rightID)),           ),         )       )     );   UHExp.(     Tm(       NotInHole,       Lam(         fVarName,         Tm(           NotInHole,           UHExp.OpSeq(Associator.associate_exp(apOpSeq), apOpSeq),         ),       ),     )   ); }*/;
+  let expand = ((leftID, rightID)) => {
+    let to_uhvar = id =>
+      UHExp.(
+        Tm(
+          NotInHole,
+          Var(NotInVHole, PaletteHoleData.mk_hole_ref_var_name(id)),
+        )
+      );
+    let fVarName = "f";
+    let apOpSeq =
+      UHExp.(
+        OperatorSeq.(
+          exp_op_seq(
+            Tm(NotInHole, Var(NotInVHole, fVarName)),
+            Space,
+            ExpOpExp(to_uhvar(leftID), Space, to_uhvar(rightID)),
+          )
+        )
+      );
+    UHExp.(
+      Tm(
+        NotInHole,
+        Lam(
+          fVarName,
+          Tm(
+            NotInHole,
+            UHExp.OpSeq(Associator.associate_exp(apOpSeq), apOpSeq),
+          ),
+        ),
+      )
+    );
+  };
 
   /* sprintf/sscanf are magical and treat string literals specially -
      attempt to factor out the format string at your own peril */
