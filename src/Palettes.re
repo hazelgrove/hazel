@@ -127,7 +127,7 @@ module PairPalette: PALETTE = {
 
 module ColorPalette: PALETTE = {
   let name = "$color";
-  let expansion_ty = HTyp.Num;
+  let expansion_ty = HTyp.(Arrow(Arrow(Num, Arrow(Num, Arrow(Num, Hole))), Hole));
 
   type model = string;
   let init_model = UHExp.HoleRefs.ret("#FF0000");
@@ -172,7 +172,32 @@ module ColorPalette: PALETTE = {
   let expand = rgb_hex => {
     let to_decimal = hex => int_of_string("0x" ++ hex);
     let (r, g, b) = sscanf(rgb_hex, "#%.2s%.2s%.2s", (r, g, b) => (to_decimal(r), to_decimal(g), to_decimal(b)));
-    UHExp.Tm(NotInHole, UHExp.NumLit(1000000 * r + 1000 * g + b));
+    let f = "f";
+    let r_num = UHExp.(Tm(NotInHole, NumLit(r)));
+    let g_num = UHExp.(Tm(NotInHole, NumLit(g)));
+    let b_num = UHExp.(Tm(NotInHole, NumLit(b)));
+    let body =
+      UHExp.(
+        OperatorSeq.(
+          exp_op_seq(
+            Tm(NotInHole, Var(NotInVHole, f)),
+            Space,
+            exp_op_seq(r_num, Space, ExpOpExp(g_num, Space, b_num))
+          )
+        )
+      );
+    UHExp.(
+      Tm(
+        NotInHole,
+        Lam(
+          f,
+          Tm(
+            NotInHole,
+            OpSeq(Associator.associate_exp(body), body)
+          )
+        )
+      )
+    );
   };
 
   let serialize = model => model;
