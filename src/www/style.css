@@ -784,3 +784,10 @@ button:disabled {
 .color.selected {
 	border: 1.5px solid black;
 }
+
+.palette-view {
+  background-color: #EEE;
+  border: 1px solid #444;
+  padding: 4px;
+  margin-left: 5px;
+}

@@ -189,7 +189,9 @@ module HTML_Of_SDoc = {
       switch (view) {
       | Inline(view_span) =>
         let palette_view =
-          Html5.(div(~a=[a_class(["inline-div"])], [view_span]));
+          Html5.(
+            div(~a=[a_class(["palette-view", "inline-div"])], [view_span])
+          );
         ([palette_view, ...tl], rem);
       | MultiLine(view_div_monad) =>
         let palette_view =
@@ -200,7 +202,12 @@ module HTML_Of_SDoc = {
           );
         /* TODO WTF */
         let palette_view_2 =
-          Html5.(div(~a=[a_class(["inline-div"])], [palette_view]));
+          Html5.(
+            div(
+              ~a=[a_class(["palette-view", "inline-div"])],
+              [palette_view],
+            )
+          );
         ([palette_view_2, ...tl], rem);
       };
     };
