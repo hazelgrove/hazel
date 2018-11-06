@@ -130,19 +130,17 @@ module ColorPalette: PALETTE = {
   let expansion_ty = HTyp.(Arrow(Arrow(Num, Arrow(Num, Arrow(Num, Hole))), Hole));
 
   type model = string;
-  let init_model = UHExp.HoleRefs.ret("#FF0000");
+  let init_model = UHExp.HoleRefs.ret("#c94d4d");
 
   type model_updater = model => unit;
 
   let colors = [
-    "#FF0000",
-    "#FF00FF",
-    "#8000FF",
-    "#0040FF",
-    "#00FFFF",
-    "#00FF40",
-    "#0BED00",
-    "#FFFF00",
+    "#c94d4d",
+    "#d8832b",
+    "#dab71f",
+    "#446648",
+    "#165f99",
+    "#242551",
   ];
 
   let view = (model, model_updater) => {
