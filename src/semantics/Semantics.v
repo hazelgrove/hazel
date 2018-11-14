@@ -5130,6 +5130,10 @@ Module Core.
         | BoxedValue : DHExp.t -> result
         | Indet : DHExp.t -> result.
 
+        (* add step_result type
+           either a result or a steps
+         *)
+
         (* 
           0 = out of fuel
           1 = free or invalid variable
@@ -5158,12 +5162,202 @@ Module Core.
           | HTyp.Sum _ _ => grounded_Sum
           end.
 
+        Definition is_ground ty :=
+          match ground_cases_of ty with
+          | Ground => true
+          | _ => false
+          end.
+
         Definition eval_bin_num_op op n1 n2 :=
           match op with 
           | DHExp.Plus => n1 + n2
           | DHExp.Times => n1 * n2
           end.
 
+        (* EvalCtx datatype *)
+        Module EvalCtx.
+          Inductive t :=
+          | Outer : t
+          | Ap1 : t -> DHExp.t -> t
+          | Ap2 : DHExp.t -> t -> t
+          | Let1 : t -> DHExp.t -> t
+          | Let2 : DHExp.t -> t -> t
+          | BinNumOp1 : t -> DHExp.t -> t
+          | BinNumOp2 : DHExp.t -> t -> t
+          | Inj : t -> t
+          | Case1 : t -> DHExp.t -> DHExp.t -> t
+          | Case2 : DHExp.t -> t -> DHExp.t -> t
+          | Case3 : DHExp.t -> DHExp.t -> t -> t
+          | NonEmptyHole : MetaVar.t -> VarMap.t_ DHExp.t -> t -> t
+          | Cast : t -> HTyp.t -> HTyp.t -> t
+          | FailedCast : t -> HTyp.t -> HTyp.t -> t.
+        End EvalCtx.
+
+        Fixpoint is_boxed_val (d : DHExp.t) : bool :=
+          match d with
+          | DHExp.NumLit _
+          | DHExp.Lam _ _ _ => true
+          | DHExp.Cast d t1 t2 =>
+            match (t1, t2) with
+            | (HTyp.Arrow _ _, HTyp.Arrow _ _) =>
+              andb (negb (HTyp.eq t1 t2)) (is_boxed_val d)
+            | (t1, HTyp.Hole) => is_ground t1
+            | _ => false
+            end
+          | _ => false
+          end.
+
+        Fixpoint is_final (fuel : Fuel.t) (d : DHExp.t) : bool :=
+          match fuel with
+          | Fuel.Kicked => false
+          | Fuel.More fuel => is_boxed_val d || is_indet fuel d
+          end
+        with is_indet (fuel : Fuel.t) (d : DHExp.t) : bool :=
+          match fuel with
+          | Fuel.Kicked => false
+          | Fuel.More fuel =>
+          match d with
+          | DHExp.EmptyHole _ _ _ => true
+          | DHExp.NonEmptyHole _ _ _ d => is_final fuel d
+          | DHExp.Ap d1 d2 =>
+            let d1_cast_arrow :=
+              match d1 with
+              | DHExp.Cast _ (HTyp.Arrow _ _) (HTyp.Arrow _ _) => true
+              | _ => false
+              end
+            in
+            negb d1_cast_arrow && is_indet fuel d1 && is_final fuel d2
+          | DHExp.Cast d t HTyp.Hole => is_indet fuel d && is_ground t
+          | DHExp.Cast d HTyp.Hole t =>
+            let d_cast_to_hole :=
+              match d with
+              | DHExp.Cast _ _ HTyp.Hole => true
+              | _ => false
+              end
+            in
+            negb d_cast_to_hole && is_indet fuel d && is_ground t
+          | DHExp.Cast d (HTyp.Arrow _ _ as t1) (HTyp.Arrow _ _ as t2) =>
+            negb (HTyp.eq t1 t2) && is_indet fuel d
+          | DHExp.FailedCast d t1 t2 => is_final fuel d && is_ground t1 && is_ground t2 && negb (HTyp.eq t1 t2)
+          | _ => false
+          end
+          end.
+
+        (* decompose function from d to EvalCtx, DHExp *)
+        Fixpoint decompose (fuel : Fuel.t) (d : DHExp.t) : EvalCtx.t * DHExp.t :=
+          match fuel with
+          | Fuel.Kicked => (EvalCtx.Outer, d)
+          | Fuel.More fuel =>
+          match d with
+          | DHExp.BoundVar _
+          | DHExp.FreeVar _ _ _ _
+          | DHExp.Lam _ _ _
+          | DHExp.NumLit _
+          | DHExp.EmptyHole _ _ _ => (EvalCtx.Outer, d)
+          | DHExp.Let _ d1 d2 =>
+            match is_final fuel d1 with
+            | false =>
+              let (ctx, d') := decompose fuel d1 in
+              (EvalCtx.Let1 ctx d2, d')
+            | true =>
+              match is_final fuel d2 with
+              | false =>
+                let (ctx, d') := decompose fuel d2 in
+                (EvalCtx.Let2 d1 ctx, d')
+              | true => (EvalCtx.Outer, d)
+              end
+            end
+          | DHExp.Ap d1 d2 =>
+            match is_final fuel d1 with
+            | false =>
+              let (ctx, d') := decompose fuel d1 in
+              (EvalCtx.Ap1 ctx d2, d')
+            | true =>
+              match is_final fuel d2 with
+              | false =>
+                let (ctx, d') := decompose fuel d2 in
+                (EvalCtx.Ap2 d1 ctx, d')
+              | true => (EvalCtx.Outer, d)
+              end
+            end
+          | DHExp.BinNumOp _ d1 d2 =>
+            match is_final fuel d1 with
+            | false =>
+              let (ctx, d') := decompose fuel d1 in
+              (EvalCtx.BinNumOp1 ctx d2, d')
+            | true =>
+              match is_final fuel d2 with
+              | false =>
+                let (ctx, d') := decompose fuel d2 in
+                (EvalCtx.BinNumOp2 d1 ctx, d')
+              | true => (EvalCtx.Outer, d)
+              end
+            end
+          | DHExp.Inj _ _ d1 =>
+            match is_final fuel d1 with
+            | false =>
+              let (ctx, d') := decompose fuel d1 in
+              (EvalCtx.Inj ctx, d')
+            | true => (EvalCtx.Outer, d)
+            end
+          | DHExp.Case d1 (_,d2) (_,d3) =>
+            match is_final fuel d1 with
+            | false =>
+              let (ctx, d') := decompose fuel d1 in
+              (EvalCtx.Case1 ctx d2 d3, d')
+            | true =>
+              match is_final fuel d2 with
+              | false =>
+                let (ctx, d') := decompose fuel d2 in
+                (EvalCtx.Case2 d1 ctx d3, d')
+              | true =>
+                match is_final fuel d3 with
+                | false =>
+                  let (ctx, d') := decompose fuel d3 in
+                  (EvalCtx.Case3 d1 d2 ctx, d')                   
+                | true => (EvalCtx.Outer, d)
+                end
+              end
+            end
+          | DHExp.NonEmptyHole u _ sigma d1 =>
+            match is_final fuel d1 with
+            | false =>
+              let (ctx, d') := decompose fuel d1 in
+              (EvalCtx.NonEmptyHole u sigma ctx, d')
+            | true => (EvalCtx.Outer, d)
+            end
+          | DHExp.Cast d1 t1 t2 =>
+            match is_final fuel d1 with
+            | false =>
+              let (ctx, d') := decompose fuel d1 in
+              (EvalCtx.Cast ctx t1 t2, d')
+            | true => (EvalCtx.Outer, d)
+            end
+          | DHExp.FailedCast d1 t1 t2 =>
+            match is_final fuel d1 with
+            | false =>
+              let (ctx, d') := decompose fuel d1 in
+              (EvalCtx.FailedCast ctx t1 t2, d')
+            | true => (EvalCtx.Outer, d)
+            end
+          end
+          end.
+
+        (* pick an evaluation order, pick left to right *)
+
+        (* recompose function from EvalCtx, DHExp to DHExp *)
+
+        (* instruction_step that transitions d to d' *)
+        Definition instruction_step (d : DHExp.t) : DHExp.t :=
+          match d with
+          | DHExp.BoundVar _ =>
+          end.
+
+
+        (* Fixpoint step (fuel : Fuel.t) (d : DHExp.t) : step_result := *)
+
+        (* don't replace this *)
+        (* can use this as a check for step *)
         Fixpoint evaluate 
           (fuel : Fuel.t) 
           (d : DHExp.t) 
