@@ -5180,15 +5180,15 @@ Module Core.
           | Outer : t
           | Ap1 : t -> DHExp.t -> t
           | Ap2 : DHExp.t -> t -> t
-          | Let1 : t -> DHExp.t -> t
-          | Let2 : DHExp.t -> t -> t
-          | BinNumOp1 : t -> DHExp.t -> t
-          | BinNumOp2 : DHExp.t -> t -> t
-          | Inj : t -> t
-          | Case1 : t -> DHExp.t -> DHExp.t -> t
-          | Case2 : DHExp.t -> t -> DHExp.t -> t
-          | Case3 : DHExp.t -> DHExp.t -> t -> t
-          | NonEmptyHole : MetaVar.t -> VarMap.t_ DHExp.t -> t -> t
+          | Let1 : Var.t -> t -> DHExp.t -> t
+          | Let2 : Var.t -> DHExp.t -> t -> t
+          | BinNumOp1 : DHExp.bin_num_op -> t -> DHExp.t -> t
+          | BinNumOp2 : DHExp.bin_num_op -> DHExp.t -> t -> t
+          | Inj : HTyp.t -> UHExp.inj_side -> t -> t
+          | Case1 : t -> Var.t * DHExp.t -> Var.t * DHExp.t -> t
+          | Case2 : DHExp.t -> Var.t * t -> Var.t * DHExp.t -> t
+          | Case3 : DHExp.t -> Var.t * DHExp.t -> Var.t * t -> t
+          | NonEmptyHole : MetaVar.t -> DHExp.inst_num -> VarMap.t_ DHExp.t -> t -> t
           | Cast : t -> HTyp.t -> HTyp.t -> t
           | FailedCast : t -> HTyp.t -> HTyp.t -> t.
         End EvalCtx.
@@ -5244,6 +5244,7 @@ Module Core.
           end.
 
         (* decompose function from d to EvalCtx, DHExp *)
+        (* pick an evaluation order, pick left to right *)
         Fixpoint decompose (fuel : Fuel.t) (d : DHExp.t) : EvalCtx.t * DHExp.t :=
           match fuel with
           | Fuel.Kicked => (EvalCtx.Outer, d)
@@ -5254,16 +5255,16 @@ Module Core.
           | DHExp.Lam _ _ _
           | DHExp.NumLit _
           | DHExp.EmptyHole _ _ _ => (EvalCtx.Outer, d)
-          | DHExp.Let _ d1 d2 =>
+          | DHExp.Let x d1 d2 =>
             match is_final fuel d1 with
             | false =>
               let (ctx, d') := decompose fuel d1 in
-              (EvalCtx.Let1 ctx d2, d')
+              (EvalCtx.Let1 x ctx d2, d')
             | true =>
               match is_final fuel d2 with
               | false =>
                 let (ctx, d') := decompose fuel d2 in
-                (EvalCtx.Let2 d1 ctx, d')
+                (EvalCtx.Let2 x d1 ctx, d')
               | true => (EvalCtx.Outer, d)
               end
             end
@@ -5280,50 +5281,50 @@ Module Core.
               | true => (EvalCtx.Outer, d)
               end
             end
-          | DHExp.BinNumOp _ d1 d2 =>
+          | DHExp.BinNumOp op d1 d2 =>
             match is_final fuel d1 with
             | false =>
               let (ctx, d') := decompose fuel d1 in
-              (EvalCtx.BinNumOp1 ctx d2, d')
+              (EvalCtx.BinNumOp1 op ctx d2, d')
             | true =>
               match is_final fuel d2 with
               | false =>
                 let (ctx, d') := decompose fuel d2 in
-                (EvalCtx.BinNumOp2 d1 ctx, d')
+                (EvalCtx.BinNumOp2 op d1 ctx, d')
               | true => (EvalCtx.Outer, d)
               end
             end
-          | DHExp.Inj _ _ d1 =>
+          | DHExp.Inj t inj_side d1 =>
             match is_final fuel d1 with
             | false =>
               let (ctx, d') := decompose fuel d1 in
-              (EvalCtx.Inj ctx, d')
+              (EvalCtx.Inj t inj_side ctx, d')
             | true => (EvalCtx.Outer, d)
             end
-          | DHExp.Case d1 (_,d2) (_,d3) =>
+          | DHExp.Case d1 (x,d2) (y,d3) =>
             match is_final fuel d1 with
             | false =>
               let (ctx, d') := decompose fuel d1 in
-              (EvalCtx.Case1 ctx d2 d3, d')
+              (EvalCtx.Case1 ctx (x,d2) (y,d3), d')
             | true =>
               match is_final fuel d2 with
               | false =>
                 let (ctx, d') := decompose fuel d2 in
-                (EvalCtx.Case2 d1 ctx d3, d')
+                (EvalCtx.Case2 d1 (x,ctx) (y,d3), d')
               | true =>
                 match is_final fuel d3 with
                 | false =>
                   let (ctx, d') := decompose fuel d3 in
-                  (EvalCtx.Case3 d1 d2 ctx, d')                   
+                  (EvalCtx.Case3 d1 (x,d2) (y,ctx), d')
                 | true => (EvalCtx.Outer, d)
                 end
               end
             end
-          | DHExp.NonEmptyHole u _ sigma d1 =>
+          | DHExp.NonEmptyHole u i sigma d1 =>
             match is_final fuel d1 with
             | false =>
               let (ctx, d') := decompose fuel d1 in
-              (EvalCtx.NonEmptyHole u sigma ctx, d')
+              (EvalCtx.NonEmptyHole u i sigma ctx, d')
             | true => (EvalCtx.Outer, d)
             end
           | DHExp.Cast d1 t1 t2 =>
@@ -5343,9 +5344,24 @@ Module Core.
           end
           end.
 
-        (* pick an evaluation order, pick left to right *)
-
         (* recompose function from EvalCtx, DHExp to DHExp *)
+        Fixpoint compose (ctx : EvalCtx.t) (d : DHExp.t) : DHExp.t :=
+          match ctx with
+          | EvalCtx.Outer => d
+          | EvalCtx.Ap1 ctx d2 => DHExp.Ap (compose ctx d) d2
+          | EvalCtx.Ap2 d1 ctx => DHExp.Ap d1 (compose ctx d)
+          | EvalCtx.Let1 x ctx d2 => DHExp.Let x (compose ctx d) d2
+          | EvalCtx.Let2 x d1 ctx => DHExp.Let x d1 (compose ctx d)
+          | EvalCtx.BinNumOp1 op ctx d2 => DHExp.BinNumOp op (compose ctx d) d2
+          | EvalCtx.BinNumOp2 op d1 ctx => DHExp.BinNumOp op d1 (compose ctx d)
+          | EvalCtx.Inj t inj_side ctx => DHExp.Inj t inj_side (compose ctx d)
+          | EvalCtx.Case1 ctx (x,d2) (y,d3) => DHExp.Case (compose ctx d) (x,d2) (y,d3)
+          | EvalCtx.Case2 d1 (x,ctx) (y,d3) => DHExp.Case d1 (x,(compose ctx d)) (y,d3)
+          | EvalCtx.Case3 d1 (x,d2) (y,ctx) => DHExp.Case d1 (x,d2) (y,(compose ctx d))
+          | EvalCtx.NonEmptyHole u i sigma ctx => DHExp.NonEmptyHole u i sigma (compose ctx d)
+          | EvalCtx.Cast ctx t1 t2 => DHExp.Cast (compose ctx d) t1 t2
+          | EvalCtx.FailedCast ctx t1 t2 => DHExp.FailedCast (compose ctx d) t1 t2
+          end.
 
         (* instruction_step that transitions d to d' *)
         Definition instruction_step (d : DHExp.t) : DHExp.t :=
