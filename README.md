@@ -4,6 +4,9 @@ Hazel is a live functional programming environment rooted in the principles
 of type theory. You can find the relevant papers and more motivation at
 [the Hazel website](http://hazel.org/).
 
+## Pre-Built Snapshot
+For ease of use, this artifact contains a pre-built snapshot of Hazel in the `www` directory. Open your browser (tested with Chromium and Firefox) to `www/hazel.html`.
+
 ## Building Hazel
 You can build Hazel using the following instructions.
 
