@@ -1,47 +1,49 @@
 open Tyxml_js;
 open SemanticsCore;
-let view =
-    (
-      model: Model.t,
-      contents: Tyxml_js.Html5.elt([ Html_types.div_content_fun]),
-    ) => {
+type t = {
+  e: UHExp.t,
+  pp_view: unit,
+  pp_view_dom: unit,
+};
+
+let string_insert = (s1, offset, s2) => {
+  let prefix = String.sub(s1, 0, offset);
+  let length = String.length(s1);
+  let suffix = String.sub(s1, offset, length - offset);
+  prefix ++ s2 ++ suffix;
+};
+
+let string_backspace = (s, offset, ctrlKey) => {
+  let prefix = ctrlKey ? "" : String.sub(s, 0, offset - 1);
+  let length = String.length(s);
+  let suffix = String.sub(s, offset, length - offset);
+  let offset' = ctrlKey ? 0 : offset - 1;
+  (prefix ++ suffix, offset');
+};
+
+let string_delete = (s, offset, ctrlKey) => {
+  let prefix = String.sub(s, 0, offset);
+  let length = String.length(s);
+  let suffix = ctrlKey ? "" : String.sub(s, offset + 1, length - offset - 1);
+  (prefix ++ suffix, offset);
+};
+
+let side_of_str_offset = (s, offset) =>
+  if (offset == 0) {
+    Before;
+  } else if (offset == String.length(s)) {
+    After;
+  } else {
+    In(offset);
+  };
+
+exception InvalidExpression;
+let view = (mk_html_cell, prefix, rev_path, model: Model.t, e: UHExp.t): t => {
   let cursor_info_rs = model.cursor_info_rs;
   let do_action = model.do_action;
-
   let kc = JSUtil.KeyCombo.key;
 
-  let string_insert = (s1, offset, s2) => {
-    let prefix = String.sub(s1, 0, offset);
-    let length = String.length(s1);
-    let suffix = String.sub(s1, offset, length - offset);
-    prefix ++ s2 ++ suffix;
-  };
-
-  let string_backspace = (s, offset, ctrlKey) => {
-    let prefix = ctrlKey ? "" : String.sub(s, 0, offset - 1);
-    let length = String.length(s);
-    let suffix = String.sub(s, offset, length - offset);
-    let offset' = ctrlKey ? 0 : offset - 1;
-    (prefix ++ suffix, offset');
-  };
-
-  let string_delete = (s, offset, ctrlKey) => {
-    let prefix = String.sub(s, 0, offset);
-    let length = String.length(s);
-    let suffix =
-      ctrlKey ? "" : String.sub(s, offset + 1, length - offset - 1);
-    (prefix ++ suffix, offset);
-  };
-
-  let side_of_str_offset = (s, offset) =>
-    if (offset == 0) {
-      Before;
-    } else if (offset == String.length(s)) {
-      After;
-    } else {
-      In(offset);
-    };
-
+  let edit_state = (e, ty);
   let pp_view =
     Html5.div(
       ~a=
@@ -96,8 +98,8 @@ let view =
             };
           }),
           a_onkeydown(evt => {
+            /* TODO we should use a more general matches function */
             let key = JSUtil.get_key(evt);
-
             let is_backspace = key == kc(JSUtil.KeyCombos.backspace);
             let is_del = key == kc(JSUtil.KeyCombos.del);
             if (is_backspace || is_del) {
@@ -159,7 +161,7 @@ let view =
             false;
           }),
         ],
-      [contents],
+      [View.of_hexp(mk_html_cell, palette_stuff, prefix, rev_path, e)],
     );
 
   let pp_view_dom = Tyxml_js.To_dom.of_div(pp_view);
@@ -181,7 +183,8 @@ let view =
       preventDefault_handler,
     );
 
-  pp_view;
+  let edit_box = {edit_state_rs, e_rs, pp_view, pp_view_dom};
+  ();
   /* TODO whatever calls this should wrap it in a div of class "ModelExp"
      Html5.(div(~a=[a_class(["ModelExp"])], [pp_view]));
      */

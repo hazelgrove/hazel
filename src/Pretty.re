@@ -66,8 +66,8 @@ module PP: {
   let blockBoundary = BlockBoundary;
   let optionalBreak = s => OptionalBreak(s);
   let mandatoryBreak = MandatoryBreak;
-  let paletteView = (view, hole_map, mk_html_cell) =>
-    PaletteView(view, hole_map, mk_html_cell);
+  let paletteView = (view, hole_map, mk_html_cell_partially_applied) =>
+    PaletteView(view, hole_map, mk_html_cell_partially_applied);
   type sdoc =
     | SEmpty
     | SText(cls, string, sdoc)
@@ -123,11 +123,11 @@ module PP: {
           SText("space", s, sdoc_of_doc'(table, width, k + strlen(s), zs'));
         }
       | MandatoryBreak => SLine(i, sdoc_of_doc'(table, width, i, zs'))
-      | PaletteView(view, hole_map, mk_html_cell) =>
+      | PaletteView(view, hole_map, mk_html_cell_partially_applied) =>
         SPaletteView(
           view,
           hole_map,
-          mk_html_cell,
+          mk_html_cell_partially_applied,
           sdoc_of_doc'(table, width, k, zs'),
         )
       }
@@ -184,10 +184,11 @@ module HTML_Of_SDoc = {
       let (tl, rem) = html_of_sdoc''(x');
       let h = [newline, indentation, ...tl];
       (h, rem);
-    | SPaletteView(view, hole_map, mk_html_cell, x') =>
+    | SPaletteView(view, hole_map, mk_html_cell_partially_applied, x') =>
       let (tl, rem) = html_of_sdoc''(x');
       switch (view) {
       | Inline(view_span) =>
+        /* TODO support cells inline */
         let palette_view =
           Html5.(
             div(~a=[a_class(["palette-view", "inline-div"])], [view_span])
@@ -198,7 +199,7 @@ module HTML_Of_SDoc = {
           Palettes.HTMLWithCells.resolve(
             view_div_monad,
             hole_map,
-            mk_html_cell,
+            mk_html_cell_partially_applied,
           );
         /* TODO WTF */
         let palette_view_2 =

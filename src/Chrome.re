@@ -16,36 +16,11 @@ let view = (model: Model.t) => {
   } = model;
   let pp_view_width = 50;
   let prefix = "view";
-  let view_rs =
-    React.S.map(
-      e => {
-        let palette_stuff =
-          View.{
-            palette_view_ctx: Palettes.initial_palette_view_ctx,
-            do_action,
-          };
-        let rec mk_html_cell = (prefix', rev_path, hexp) => {
-          let view =
-            View.of_hexp(
-              (prefix', rev_path, hexp) =>
-                fst(mk_html_cell(prefix', rev_path, hexp)),
-              palette_stuff,
-              prefix',
-              rev_path,
-              hexp,
-            );
-          let (sdoc, rev_paths) = Pretty.PP.sdoc_of_doc(pp_view_width, view);
-          let html_result =
-            EditorBox.view(model, Pretty.HTML_Of_SDoc.html_of_sdoc(sdoc));
-          (html_result, rev_paths);
-        };
-        mk_html_cell(prefix, [], e);
-      },
-      e_rs,
-    );
+  let rec mk_html_cell = (rev_path, e') =>
+    EditorBox.view(mk_html_cell, prefix, rev_path, model, e');
+  let view_rs = React.S.map(e => mk_html_cell([], e), e_rs);
 
   let pp_view' = React.S.map(((view_html, _)) => [view_html], view_rs);
-  /* TODO WTF */
   let pp_view = R.Html5.(div(ReactiveData.RList.from_signal(pp_view')));
   let pp_view_dom = Tyxml_js.To_dom.of_div(pp_view);
   let pp_view_parent =
