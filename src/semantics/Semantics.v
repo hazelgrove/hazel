@@ -1886,7 +1886,6 @@ Module FCore(Helper : HELPER).
   Module ZExp.
     Definition cursor_side : Type := cursor_side.
 
-
     Inductive t : Type := 
     | CursorE : cursor_side -> UHExp.t -> t
     (* | CursorPalette : PaletteName.t -> PaletteSerializedModel.t -> hole_ref -> t -> t *)
@@ -4402,6 +4401,20 @@ Module FCore(Helper : HELPER).
           | None => None (* should never happen *)
           end
         | _ => None (* should never happen *)
+        end
+      | (_, ZExp.Deeper _ (ZExp.ApPaletteZ name serialized_model z_hole_data)) => 
+        let (next_lbl, z_nat_map) := z_hole_data in 
+        let (rest_map, z_data) := z_nat_map in 
+        let (cell_lbl, cell_data) := z_data in
+        let (cell_ty, cell_ze) := cell_data in 
+        match performAna fuel u_gen ctx a cell_ze cell_ty with 
+        | None => None
+        | Some(cell_ze', u_gen') => 
+            let z_hole_data' := (next_lbl, (rest_map, (cell_lbl, (cell_ty, cell_ze')))) in 
+            Some(
+              ZExp.Deeper NotInHole (ZExp.ApPaletteZ name serialized_model z_hole_data'),
+              ty, 
+              u_gen')
         end
       | _ => None
       end
