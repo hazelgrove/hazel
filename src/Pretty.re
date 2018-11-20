@@ -2,59 +2,63 @@ open SemanticsCore;
 open Tyxml_js;
 open Html5;
 type div_attribs = list(Html5.attrib(Html_types.div_attrib));
+type rev_path = EditorBoxTypes.rev_path;
+type rev_paths = EditorBoxTypes.rev_paths;
 module PP: {
-  type doc('a);
+  type doc;
   type cls = string;
   type id = string;
-  let empty: doc('a);
-  let (^^): (doc('a), doc('a)) => doc('a);
-  let nestRelative: (int, doc('a)) => doc('a);
-  let nestAbsolute: (int, doc('a)) => doc('a);
-  let text: (cls, string) => doc('a);
+  let empty: doc;
+  let (^^): (doc, doc) => doc;
+  let nestRelative: (int, doc) => doc;
+  let nestAbsolute: (int, doc) => doc;
+  let text: (cls, string) => doc;
   let tagged:
-    (list(cls), option((id, 'a)), option(div_attribs), doc('a)) =>
-    doc('a);
+    (list(cls), option((id, rev_path)), option(div_attribs), doc) => doc;
   let paletteView:
     (
+      rev_path,
       Palettes.view_type,
       NatMap.t((HTyp.t, UHExp.t)),
-      UHExp.t => Palettes.div_type
+      EditorBoxTypes.mk_editor_box
     ) =>
-    doc('a);
-  let blockBoundary: doc('a);
-  let optionalBreak: string => doc('a);
-  let mandatoryBreak: doc('a);
+    doc;
+  let blockBoundary: doc;
+  let optionalBreak: string => doc;
+  let mandatoryBreak: doc;
   type sdoc =
     | SEmpty
     | SText(cls, string, sdoc)
     | STagStart(list(cls), option(id), option(div_attribs), sdoc)
     | STagEnd(sdoc)
     | SPaletteView(
+        rev_path,
         Palettes.view_type,
         NatMap.t((HTyp.t, UHExp.t)),
-        UHExp.t => Palettes.div_type,
+        EditorBoxTypes.mk_editor_box,
         sdoc,
       )
     | SLine(int, sdoc);
-  let sdoc_of_doc: (int, doc('a)) => (sdoc, Hashtbl.t(id, 'a));
+  let sdoc_of_doc: (int, doc, rev_paths) => sdoc;
 } = {
   type cls = string;
   type id = string;
-  type doc('a) =
+  type doc =
     | Empty
-    | Concat(doc('a), doc('a))
-    | NestRelative(int, doc('a))
-    | NestAbsolute(int, doc('a))
+    | Concat(doc, doc)
+    | NestRelative(int, doc)
+    | NestAbsolute(int, doc)
     | Text(cls, string)
-    | TagStart(list(cls), option((id, 'a)), option(div_attribs))
+    | TagStart(list(cls), option((id, rev_path)), option(div_attribs))
     | TagEnd
     | BlockBoundary
     | OptionalBreak(string)
     | MandatoryBreak
     | PaletteView(
+        rev_path,
         Palettes.view_type,
         NatMap.t((HTyp.t, UHExp.t)),
-        UHExp.t => Palettes.div_type,
+        EditorBoxTypes.mk_editor_box,
       );
   let empty = Empty;
   let (^^) = (x, y) => Concat(x, y);
@@ -66,17 +70,18 @@ module PP: {
   let blockBoundary = BlockBoundary;
   let optionalBreak = s => OptionalBreak(s);
   let mandatoryBreak = MandatoryBreak;
-  let paletteView = (view, hole_map, mk_html_cell_partially_applied) =>
-    PaletteView(view, hole_map, mk_html_cell_partially_applied);
+  let paletteView = (rev_path, view, hole_map, mk_editor_box) =>
+    PaletteView(rev_path, view, hole_map, mk_editor_box);
   type sdoc =
     | SEmpty
     | SText(cls, string, sdoc)
     | STagStart(list(cls), option(id), option(div_attribs), sdoc)
     | STagEnd(sdoc)
     | SPaletteView(
+        rev_path,
         Palettes.view_type,
         NatMap.t((HTyp.t, UHExp.t)),
-        UHExp.t => Palettes.div_type,
+        EditorBoxTypes.mk_editor_box,
         sdoc,
       )
     | SLine(int, sdoc);
@@ -123,40 +128,66 @@ module PP: {
           SText("space", s, sdoc_of_doc'(table, width, k + strlen(s), zs'));
         }
       | MandatoryBreak => SLine(i, sdoc_of_doc'(table, width, i, zs'))
-      | PaletteView(view, hole_map, mk_html_cell_partially_applied) =>
+      | PaletteView(rev_path, view, hole_map, mk_editor_box) =>
         SPaletteView(
+          rev_path,
           view,
           hole_map,
-          mk_html_cell_partially_applied,
+          mk_editor_box,
           sdoc_of_doc'(table, width, k, zs'),
         )
       }
     };
 
-  let sdoc_of_doc = (width, x) => {
-    let table = Hashtbl.create(64);
-    let sdoc = sdoc_of_doc'(table, width, 0, [(0, x)]);
-    (sdoc, table);
-  };
+  let sdoc_of_doc = (width, x, rev_paths) =>
+    sdoc_of_doc'(rev_paths, width, 0, [(0, x)]);
 };
 module HTML_Of_SDoc = {
   open Tyxml_js;
   open PP;
-  let rec html_of_sdoc'' = x =>
+  exception InvalidLbl;
+  let rec resolve =
+          (
+            rev_path,
+            rev_paths,
+            view_monad,
+            hole_map,
+            mk_editor_box: EditorBoxTypes.mk_editor_box,
+          )
+          : Palettes.div_type =>
+    Palettes.HTMLWithCells.(
+      switch (view_monad) {
+      | NewCellFor(lbl) =>
+        switch (NatMap.lookup(hole_map, lbl)) {
+        | Some((_, e)) =>
+          EditorBoxTypes.(
+            mk_editor_box([lbl, ...rev_path], rev_paths, e).pp_view
+          )
+        | None => raise(InvalidLbl)
+        }
+      | Bind(in_monad, f) =>
+        let pp_view =
+          resolve(rev_path, rev_paths, in_monad, hole_map, mk_editor_box);
+        resolve(rev_path, rev_paths, f(pp_view), hole_map, mk_editor_box);
+      | Ret(v) => v
+      }
+    );
+
+  let rec html_of_sdoc'' = (x, rev_paths) =>
     switch (x) {
     | SEmpty => ([Html5.(span(~a=[a_class(["SEmpty"])], []))], None)
     | SText(cls, s, x') =>
-      let (h, x'') = html_of_sdoc''(x');
+      let (h, x'') = html_of_sdoc''(x', rev_paths);
       let h' = [
         Html5.(span(~a=[a_class(["SText", cls])], [pcdata(s)])),
         ...h,
       ];
       (h', x'');
     | STagStart(tags, id, attribs, x') =>
-      let (h, x'') = html_of_sdoc''(x');
+      let (h, x'') = html_of_sdoc''(x', rev_paths);
       let (tl, rem) =
         switch (x'') {
-        | Some(x'') => html_of_sdoc''(x'')
+        | Some(x'') => html_of_sdoc''(x'', rev_paths)
         | None => ([], None)
         };
       let attrs_classes = Html5.a_class(["inline-div", ...tags]);
@@ -181,11 +212,11 @@ module HTML_Of_SDoc = {
           )
         );
 
-      let (tl, rem) = html_of_sdoc''(x');
+      let (tl, rem) = html_of_sdoc''(x', rev_paths);
       let h = [newline, indentation, ...tl];
       (h, rem);
-    | SPaletteView(view, hole_map, mk_html_cell_partially_applied, x') =>
-      let (tl, rem) = html_of_sdoc''(x');
+    | SPaletteView(rev_path, view, hole_map, mk_editor_box, x') =>
+      let (tl, rem) = html_of_sdoc''(x', rev_paths);
       switch (view) {
       | Inline(view_span) =>
         /* TODO support cells inline */
@@ -195,26 +226,25 @@ module HTML_Of_SDoc = {
           );
         ([palette_view, ...tl], rem);
       | MultiLine(view_div_monad) =>
-        let palette_view =
-          Palettes.HTMLWithCells.resolve(
+        let pp_view =
+          resolve(
+            rev_path,
+            rev_paths,
             view_div_monad,
             hole_map,
-            mk_html_cell_partially_applied,
+            mk_editor_box,
           );
         /* TODO WTF */
         let palette_view_2 =
           Html5.(
-            div(
-              ~a=[a_class(["palette-view", "inline-div"])],
-              [palette_view],
-            )
+            div(~a=[a_class(["palette-view", "inline-div"])], [pp_view])
           );
         ([palette_view_2, ...tl], rem);
       };
     };
 
-  let html_of_sdoc = x => {
-    let (h, _) = html_of_sdoc''(x);
+  let html_of_sdoc = (x, rev_paths) => {
+    let (h, _) = html_of_sdoc''(x, rev_paths);
     Html5.(div(~a=[a_class(["inline-div", "SDoc"])], h));
   };
 };

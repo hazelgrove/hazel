@@ -16,11 +16,15 @@ let view = (model: Model.t) => {
   } = model;
   let pp_view_width = 50;
   let prefix = "view";
-  let rec mk_html_cell = (rev_path, e') =>
-    EditorBox.view(mk_html_cell, prefix, rev_path, model, e');
-  let view_rs = React.S.map(e => mk_html_cell([], e), e_rs);
+  let rec mk_editor_box:
+    (EditorBox.rev_path, EditorBox.rev_paths, UHExp.t) => EditorBox.t =
+    (rev_path, rev_paths, e') =>
+      EditorBox.mk(mk_editor_box, prefix, rev_path, rev_paths, model, e');
+  let editor_box_rs: React.signal(EditorBox.t) =
+    React.S.map(e => mk_editor_box([], EditorBox.mk_rev_paths(), e), e_rs);
 
-  let pp_view' = React.S.map(((view_html, _)) => [view_html], view_rs);
+  let pp_view' =
+    React.S.map(({EditorBox.pp_view, _}) => [pp_view], editor_box_rs);
   let pp_view = R.Html5.(div(ReactiveData.RList.from_signal(pp_view')));
   let pp_view_dom = Tyxml_js.To_dom.of_div(pp_view);
   let pp_view_parent =
@@ -108,7 +112,8 @@ let view = (model: Model.t) => {
     set_cursor_to((cursor_path, cursor_side));
   };
   /* TODO not sure if the rev_paths are complete anymore in light of palettes */
-  let rev_paths_rs = React.S.map(((_, rev_paths)) => rev_paths, view_rs);
+  let rev_paths_rs =
+    React.S.map(({EditorBox.rev_paths, _}) => rev_paths, editor_box_rs);
 
   let fix_anchor = (selection, anchor) => {
     let anchorOffset = selection##.anchorOffset;
@@ -628,9 +633,7 @@ let view = (model: Model.t) => {
     React.S.map(
       _ => {
         let ((_, ty), _) = React.S.value(edit_state_rs);
-        let pp_view = View.of_htype(false, "result-type", [], ty);
-        let (sdoc, _) = Pretty.PP.sdoc_of_doc(pp_view_width, pp_view);
-        let prettified = Pretty.HTML_Of_SDoc.html_of_sdoc(sdoc);
+        let prettified = View.html_of_ty(pp_view_width, "result-type", ty);
         [prettified];
       },
       e_rs,
@@ -661,9 +664,13 @@ let view = (model: Model.t) => {
           ]
         | Dynamics.Evaluator.BoxedValue(d)
         | Dynamics.Evaluator.Indet(d) =>
-          let pp_view = View.of_dhexp(instance_click_fn, "result-exp", d);
-          let (sdoc, _) = Pretty.PP.sdoc_of_doc(pp_view_width, pp_view);
-          let prettified = Pretty.HTML_Of_SDoc.html_of_sdoc(sdoc);
+          let prettified =
+            View.html_of_dhexp(
+              instance_click_fn,
+              pp_view_width,
+              "result-exp",
+              d,
+            );
           [prettified];
         },
       result_rs,

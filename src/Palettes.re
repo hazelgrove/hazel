@@ -5,25 +5,11 @@ open Scanf;
 
 type div_type = Html5.elt(Html_types.div);
 
-exception InvalidLbl;
 module HTMLWithCells = {
   type m_html_with_cells =
     | NewCellFor(UHExp.PaletteHoleData.hole_ref_lbl)
     | Bind(m_html_with_cells, div_type => m_html_with_cells)
     | Ret(div_type);
-
-  let rec resolve = (view_monad, hole_map, mk_html_cell_partially_applied) =>
-    switch (view_monad) {
-    | NewCellFor(lbl) =>
-      switch (NatMap.lookup(hole_map, lbl)) {
-      | Some((_, e)) => mk_html_cell_partially_applied(e)
-      | None => raise(InvalidLbl)
-      }
-    | Bind(in_monad, f) =>
-      let in_html = resolve(in_monad, hole_map, mk_html_cell);
-      resolve(f(in_html), hole_map, mk_html_cell);
-    | Ret(v) => v
-    };
 };
 
 type view_type =

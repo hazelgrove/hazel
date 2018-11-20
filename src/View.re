@@ -463,18 +463,23 @@ let is_block = e =>
   | _ => false
   };
 
-let rec of_hexp = (mk_html_cell, prefix, rev_path, e) =>
+type palette_stuff = {
+  palette_view_ctx: Palettes.PaletteViewCtx.t,
+  mk_editor_box: EditorBoxTypes.mk_editor_box,
+  do_action: Action.t => unit,
+};
+let rec of_hexp = (palette_stuff, prefix, rev_path, e) =>
   switch (e) {
   | UHExp.Parenthesized(e1) =>
     let rev_path1 = [0, ...rev_path];
-    let r1 = of_hexp(mk_html_cell, prefix, rev_path1, e1);
+    let r1 = of_hexp(palette_stuff, prefix, rev_path1, e1);
     of_Parenthesized(is_block(e1), prefix, rev_path, r1);
   | UHExp.Tm(err_status, e') =>
     switch (e') {
     | UHExp.Asc(e1, ty) =>
       let rev_path1 = [0, ...rev_path];
       let rev_path2 = [1, ...rev_path];
-      let r1 = of_hexp(mk_html_cell, prefix, rev_path1, e1);
+      let r1 = of_hexp(palette_stuff, prefix, rev_path1, e1);
       let r2 = of_uhtyp(prefix, rev_path2, ty);
       of_Asc(prefix, err_status, rev_path, r1, r2);
     | UHExp.Var(var_err_status, x) =>
@@ -482,25 +487,25 @@ let rec of_hexp = (mk_html_cell, prefix, rev_path, e) =>
     | UHExp.Let(x, e, e') =>
       let rev_path1 = [0, ...rev_path];
       let rev_path2 = [1, ...rev_path];
-      let r1 = of_hexp(mk_html_cell, prefix, rev_path1, e);
-      let r2 = of_hexp(mk_html_cell, prefix, rev_path2, e');
+      let r1 = of_hexp(palette_stuff, prefix, rev_path1, e);
+      let r2 = of_hexp(palette_stuff, prefix, rev_path2, e');
       of_Let(prefix, err_status, rev_path, x, r1, r2);
     | UHExp.Lam(x, e') =>
       let rev_path1 = [0, ...rev_path];
-      let r1 = of_hexp(mk_html_cell, prefix, rev_path1, e');
+      let r1 = of_hexp(palette_stuff, prefix, rev_path1, e');
       of_Lam(prefix, err_status, rev_path, x, r1);
     | UHExp.NumLit(n) => of_NumLit(prefix, err_status, rev_path, n)
     | UHExp.Inj(side, e) =>
       let rev_path1 = [0, ...rev_path];
-      let r1 = of_hexp(mk_html_cell, prefix, rev_path1, e);
+      let r1 = of_hexp(palette_stuff, prefix, rev_path1, e);
       of_Inj(prefix, err_status, rev_path, side, r1);
     | UHExp.Case(e1, (x, e2), (y, e3)) =>
       let rev_path1 = [0, ...rev_path];
       let rev_path2 = [1, ...rev_path];
       let rev_path3 = [2, ...rev_path];
-      let r1 = of_hexp(mk_html_cell, prefix, rev_path1, e1);
-      let r2 = of_hexp(mk_html_cell, prefix, rev_path2, e2);
-      let r3 = of_hexp(mk_html_cell, prefix, rev_path3, e3);
+      let r1 = of_hexp(palette_stuff, prefix, rev_path1, e1);
+      let r2 = of_hexp(palette_stuff, prefix, rev_path2, e2);
+      let r3 = of_hexp(palette_stuff, prefix, rev_path3, e3);
       of_Case(prefix, err_status, rev_path, r1, x, r2, y, r3);
     | UHExp.EmptyHole(u) =>
       of_Hole(
@@ -516,7 +521,7 @@ let rec of_hexp = (mk_html_cell, prefix, rev_path, e) =>
         err_status,
         rev_path,
         "OpSeq",
-        of_skel(mk_html_cell, prefix, rev_path, skel, seq),
+        of_skel(palette_stuff, prefix, rev_path, skel, seq),
       )
     | UHExp.ApPalette(name, serialized_model, (_, hole_map)) =>
       switch (
@@ -547,24 +552,29 @@ let rec of_hexp = (mk_html_cell, prefix, rev_path, e) =>
           | MultiLine(_) => paletteDelim ^^ PP.mandatoryBreak
           };
         palettePrefix
-        ^^ PP.paletteView(view, hole_map, mk_html_cell(rev_path))
+        ^^ PP.paletteView(
+             rev_path,
+             view,
+             hole_map,
+             palette_stuff.mk_editor_box,
+           )
         ^^ paletteSuffix;
       | None => raise(InvariantViolated)
       }
     }
   }
-and of_skel = (mk_html_cell, prefix, rev_path, skel, seq) =>
+and of_skel = (palette_stuff, prefix, rev_path, skel, seq) =>
   switch (skel) {
   | Skel.Placeholder(n) =>
     switch (OperatorSeq.seq_nth(n, seq)) {
     | Some(en) =>
       let rev_path_n = [n, ...rev_path];
-      of_hexp(mk_html_cell, prefix, rev_path_n, en);
+      of_hexp(palette_stuff, prefix, rev_path_n, en);
     | None => raise(InvariantViolated)
     }
   | Skel.BinOp(err_status, op, skel1, skel2) =>
-    let r1 = of_skel(mk_html_cell, prefix, rev_path, skel1, seq);
-    let r2 = of_skel(mk_html_cell, prefix, rev_path, skel2, seq);
+    let r1 = of_skel(palette_stuff, prefix, rev_path, skel1, seq);
+    let r2 = of_skel(palette_stuff, prefix, rev_path, skel2, seq);
     let op_pp =
       switch (op) {
       | UHExp.Times =>
@@ -926,13 +936,15 @@ let of_dhexp = (instance_click_fn, prefix, d) =>
   of_dhexp'(instance_click_fn, false, prefix, NotInHole, [], d);
 let html_of_ty = (width, prefix, ty) => {
   let ty_doc = of_htype(false, prefix, [], ty);
-  let (ty_sdoc, _) = Pretty.PP.sdoc_of_doc(width, ty_doc);
-  Pretty.HTML_Of_SDoc.html_of_sdoc(ty_sdoc);
+  let rev_paths = EditorBoxTypes.mk_rev_paths();
+  let ty_sdoc = Pretty.PP.sdoc_of_doc(width, ty_doc, rev_paths);
+  Pretty.HTML_Of_SDoc.html_of_sdoc(ty_sdoc, rev_paths);
 };
 let html_of_dhexp = (instance_click_fn, width, prefix, d) => {
   let dhexp_doc = of_dhexp(instance_click_fn, prefix, d);
-  let (dhexp_sdoc, _) = Pretty.PP.sdoc_of_doc(width, dhexp_doc);
-  Pretty.HTML_Of_SDoc.html_of_sdoc(dhexp_sdoc);
+  let rev_paths = EditorBoxTypes.mk_rev_paths();
+  let dhexp_sdoc = Pretty.PP.sdoc_of_doc(width, dhexp_doc, rev_paths);
+  Pretty.HTML_Of_SDoc.html_of_sdoc(dhexp_sdoc, rev_paths);
 };
 let html_of_var = (width, prefix, x) =>
   html_of_dhexp(_ => (), width, prefix, DHExp.BoundVar(x));
