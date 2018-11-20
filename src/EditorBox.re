@@ -1,10 +1,6 @@
 open Tyxml_js;
 open SemanticsCore;
-type t = {
-  e: UHExp.t,
-  pp_view: unit,
-  pp_view_dom: unit,
-};
+include EditorBoxTypes;
 
 let string_insert = (s1, offset, s2) => {
   let prefix = String.sub(s1, 0, offset);
@@ -38,12 +34,24 @@ let side_of_str_offset = (s, offset) =>
   };
 
 exception InvalidExpression;
-let view = (mk_html_cell, prefix, rev_path, model: Model.t, e: UHExp.t): t => {
+let mk =
+    (mk_editor_box, prefix, rev_path, rev_paths, model: Model.t, e: UHExp.t)
+    : t => {
   let cursor_info_rs = model.cursor_info_rs;
   let do_action = model.do_action;
   let kc = JSUtil.KeyCombo.key;
+  let palette_stuff =
+    View.{
+      palette_view_ctx: Palettes.initial_palette_view_ctx,
+      mk_editor_box,
+      do_action,
+    };
 
-  let edit_state = (e, ty);
+  /* TODO figure out width stuff */
+  let width = 80;
+  let doc = View.of_hexp(palette_stuff, prefix, rev_path, e);
+  let sdoc = Pretty.PP.sdoc_of_doc(width, doc, rev_paths);
+  let view = Pretty.HTML_Of_SDoc.html_of_sdoc(sdoc, rev_paths);
   let pp_view =
     Html5.div(
       ~a=
@@ -161,7 +169,7 @@ let view = (mk_html_cell, prefix, rev_path, model: Model.t, e: UHExp.t): t => {
             false;
           }),
         ],
-      [View.of_hexp(mk_html_cell, palette_stuff, prefix, rev_path, e)],
+      [view],
     );
 
   let pp_view_dom = Tyxml_js.To_dom.of_div(pp_view);
@@ -183,8 +191,7 @@ let view = (mk_html_cell, prefix, rev_path, model: Model.t, e: UHExp.t): t => {
       preventDefault_handler,
     );
 
-  let edit_box = {edit_state_rs, e_rs, pp_view, pp_view_dom};
-  ();
+  {e, pp_view, pp_view_dom, rev_paths};
   /* TODO whatever calls this should wrap it in a div of class "ModelExp"
      Html5.(div(~a=[a_class(["ModelExp"])], [pp_view]));
      */

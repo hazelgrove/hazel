@@ -1,6 +1,5 @@
 open SemanticsCore;
-type u_gen = MetaVar.gen;
-type u_gen_rs = React.signal(u_gen);
+type edit_state = ((ZExp.t, HTyp.t), MetaVar.gen);
 let u_gen0: MetaVar.gen = (MetaVar.new_gen: MetaVar.gen);
 let (u, u_gen1) = MetaVar.next(u_gen0);
 let empty_ze =
@@ -8,6 +7,7 @@ let empty_ze =
 let empty: edit_state = (((empty_ze, HTyp.Hole), u_gen1): edit_state);
 let empty_erasure = ZExp.erase(empty_ze);
 type edit_state_rs = React.signal(edit_state);
+type e_rs = React.signal(UHExp.t);
 type cursor_info_rs = React.signal(ZExp.cursor_info);
 open Dynamics;
 type result_rs =
@@ -32,9 +32,9 @@ exception MissingCursorInfo;
 exception DoesNotExpand;
 exception InvalidInput;
 type t = {
-  u_gen_rs,
-  top_level_e : UHExp.t,
+  edit_state_rs,
   cursor_info_rs,
+  e_rs,
   result_rs,
   user_selected_instances_rs,
   user_selected_instances_rf,
@@ -131,7 +131,9 @@ let new_model = (): t => {
     | Some(((ze, ty), ugen)) =>
       edit_state_rf(((ze, ty), ugen));
       switch (action) {
-      | Action.MoveTo(_) => ()
+      | Action.MoveTo(_)
+      | Action.MoveToNextHole
+      | Action.MoveToPrevHole => ()
       | _ => e_rf(ZExp.erase(ze))
       };
     | None => raise(InvalidAction)
