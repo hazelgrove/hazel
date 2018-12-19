@@ -140,9 +140,10 @@ let make =
       JSUtil.listen_for_key(
         key_combo,
         evt => {
+          Dom_html.stopPropagation(evt);
+          Dom.preventDefault(evt);
           clear_input();
           i_dom##focus;
-          Dom_html.stopPropagation(evt);
           Js._false;
         },
       );
