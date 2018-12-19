@@ -369,13 +369,13 @@ let mk =
       Html5.(div(~a=[a_class(["path-summary"])], [msg, controls]));
     };
 
-    let path_viewer = (hii, selected_instance, form, ctx, next_prev_state_rf) =>
+    let path_viewer = (hii, selected_instance, sort, ctx, next_prev_state_rf) =>
       if (VarMap.is_empty(ctx)) {
         Html5.div([]);
       } else {
         let children =
-          switch (form) {
-          | ZExp.IsHole(u) =>
+          switch (sort) {
+          | ZExp.IsExpr(UHExp.Tm(_, UHExp.EmptyHole(u))) =>
             switch (selected_instance) {
             | Some((u', _) as inst) =>
               if (MetaVar.equal(u, u')) {
@@ -410,14 +410,14 @@ let mk =
 
     let panel =
         (
-          {ZExp.mode: _, ZExp.form, ZExp.ctx, _},
+          {ZExp.sort, ZExp.ctx, _},
           (_, hii, _),
           selected_instance,
           next_prev_state_rf,
         ) => {
       let the_context_view = context_view(ctx, hii, selected_instance);
       let the_path_viewer =
-        path_viewer(hii, selected_instance, form, ctx, next_prev_state_rf);
+        path_viewer(hii, selected_instance, sort, ctx, next_prev_state_rf);
 
       Html5.(
         div([
