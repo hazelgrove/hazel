@@ -464,7 +464,7 @@ let make =
     action_button(
       Action.Construct(Action.SNum),
       threepiece_kw("", "num", " type"),
-      KCs.n,
+      KCs.pound,
     );
 
   let constructArrow =
@@ -521,7 +521,7 @@ let make =
       can_insert_var_rs,
       Html5.pcdata("var"),
       "var_input",
-      KCs.v,
+      KCs.alt_V,
       "enter var",
     );
 
@@ -538,24 +538,6 @@ let make =
       "lam_input",
       KCs.backslash,
       "enter var",
-    );
-
-  let constructLit =
-    action_input_button(
-      n => Action.Construct(Action.SLit(n, After)),
-      s =>
-        switch (String.compare(s, "")) {
-        | 0 => None
-        | _ =>
-          try (Some(int_of_string(s))) {
-          | _ => None
-          }
-        },
-      is_hole_rs,
-      Html5.pcdata("number"),
-      "lit_input",
-      KCs.pound,
-      "enter number",
     );
 
   let constructPlus =
@@ -583,14 +565,14 @@ let make =
     action_button(
       Action.Construct(Action.SInj(UHExp.L)),
       Html5.pcdata("left injection"),
-      KCs.capitalL,
+      KCs.alt_L,
     );
 
   let constructInjR =
     action_button(
       Action.Construct(Action.SInj(UHExp.R)),
       Html5.pcdata("right injection"),
-      KCs.capitalR,
+      KCs.alt_R,
     );
 
   let constructCase =
@@ -609,7 +591,7 @@ let make =
       can_insert_let_case_rs,
       threepiece_kw("", "case", ""),
       "case_input",
-      KCs.c,
+      KCs.alt_C,
       "enter var1",
       "enter var2",
     );
@@ -647,7 +629,6 @@ let make =
               constructVar,
               constructLam,
               constructSpace,
-              constructLit,
               constructPlus,
               constructTimes,
               constructInjL,
