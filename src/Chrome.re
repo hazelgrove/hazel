@@ -14,7 +14,7 @@ let view = (model: Model.t) => {
     do_action,
     _,
   } = model;
-  let kc = JSUtil.KeyCombo.key;
+  let key_of = JSUtil.KeyCombo.key;
   let pp_view_width = 50;
   let prefix = "view";
   let view_rs =
@@ -69,21 +69,22 @@ let view = (model: Model.t) => {
       ~a=
         Html5.[
           a_contenteditable(true),
-          a_onkeypress(evt => {
-            let charCode = Js.Optdef.get(evt##.charCode, () => assert(false));
-
-            let key =
-              Js.to_string(Js.Optdef.get(evt##.key, () => assert(false)));
-
-            switch (int_of_string_opt(key)) {
-            | Some(n) =>
+          a_onkeypress(evt =>
+            switch (JSUtil.is_single_key(evt)) {
+            | Some(single_key) =>
               let cursor_info = React.S.value(cursor_info_rs);
-              switch (cursor_info.form) {
-              | ZExp.IsHole(_) =>
+              switch (cursor_info.sort) {
+              | ZExp.IsExpr(UHExp.Tm(_, UHExp.EmptyHole(_))) =>
                 Dom.preventDefault(evt);
-                do_action(Action.Construct(Action.SLit(n, After)));
+                let shape =
+                  switch (single_key) {
+                  | JSUtil.Number(n) => Action.SLit(n, After)
+                  | JSUtil.Letter(x) => Action.SVar(x, After)
+                  };
+                do_action(Action.Construct(shape));
                 true;
-              | ZExp.IsNumLit =>
+              | ZExp.IsExpr(UHExp.Tm(_, UHExp.NumLit(_)))
+              | ZExp.IsExpr(UHExp.Tm(_, UHExp.Var(_, _))) =>
                 let selection = Dom_html.window##getSelection;
                 let anchorNode = selection##.anchorNode;
                 let nodeValue =
@@ -91,15 +92,27 @@ let view = (model: Model.t) => {
                     Js.Opt.get(anchorNode##.nodeValue, () => assert(false)),
                   );
                 let anchorOffset = selection##.anchorOffset;
+                let key_string = JSUtil.single_key_string(single_key);
                 let newNodeValue =
-                  string_insert(nodeValue, anchorOffset, key);
+                  string_insert(nodeValue, anchorOffset, key_string);
                 Dom.preventDefault(evt);
                 switch (int_of_string_opt(newNodeValue)) {
                 | Some(new_n) =>
                   let new_side =
                     side_of_str_offset(newNodeValue, anchorOffset + 1);
                   do_action(Action.Construct(Action.SLit(new_n, new_side)));
-                | None => ()
+                | None =>
+                  Var.is_valid(newNodeValue) ?
+                    {
+                      let new_side =
+                        side_of_str_offset(newNodeValue, anchorOffset + 1);
+                      do_action(
+                        Action.Construct(
+                          Action.SVar(newNodeValue, new_side),
+                        ),
+                      );
+                    } :
+                    ()
                 };
                 true;
               | _ =>
@@ -107,25 +120,26 @@ let view = (model: Model.t) => {
                 true;
               };
             | None =>
-              if (charCode != 0
-                  || String.equal(key, "Enter")
-                  || String.equal(key, "Tab")) {
+              let key = JSUtil.get_key(evt);
+              if (String.equal(key, key_of(JSUtil.KeyCombos.enter))
+                  || String.equal(key, key_of(JSUtil.KeyCombos.esc))) {
                 Dom.preventDefault(evt);
                 true;
               } else {
                 true;
-              }
-            };
-          }),
+              };
+            }
+          ),
           a_onkeydown(evt => {
             let key = JSUtil.get_key(evt);
-
-            let is_backspace = key == kc(JSUtil.KeyCombos.backspace);
-            let is_del = key == kc(JSUtil.KeyCombos.del);
+            let is_backspace =
+              String.equal(key, key_of(JSUtil.KeyCombos.backspace));
+            let is_del = String.equal(key, key_of(JSUtil.KeyCombos.del));
             if (is_backspace || is_del) {
               let cursor_info = React.S.value(cursor_info_rs);
-              switch (cursor_info.form) {
-              | ZExp.IsNumLit =>
+              switch (cursor_info.sort) {
+              | ZExp.IsExpr(UHExp.Tm(_, UHExp.NumLit(_)))
+              | ZExp.IsExpr(UHExp.Tm(_, UHExp.Var(_, _))) =>
                 let side = cursor_info.side;
                 let is_Before =
                   switch (side) {
@@ -162,9 +176,26 @@ let view = (model: Model.t) => {
                       do_action(Action.Backspace);
                     };
                   } else {
-                    let n = int_of_string(nodeValue');
-                    let side = side_of_str_offset(nodeValue', anchorOffset');
-                    do_action(Action.Construct(Action.SLit(n, side)));
+                    switch (int_of_string_opt(nodeValue')) {
+                    | Some(new_n) =>
+                      let new_side =
+                        side_of_str_offset(nodeValue', anchorOffset');
+                      do_action(
+                        Action.Construct(Action.SLit(new_n, new_side)),
+                      );
+                    | None =>
+                      Var.is_valid(nodeValue') ?
+                        {
+                          let new_side =
+                            side_of_str_offset(nodeValue', anchorOffset');
+                          do_action(
+                            Action.Construct(
+                              Action.SVar(nodeValue', new_side),
+                            ),
+                          );
+                        } :
+                        ()
+                    };
                   };
                   false;
                 };

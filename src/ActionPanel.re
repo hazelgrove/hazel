@@ -387,9 +387,9 @@ let make =
 
   let is_hole_rs =
     S.l1(
-      ({ZExp.mode: _, ZExp.form, ZExp.ctx: _, _}) =>
-        switch (form) {
-        | ZExp.IsHole(_) => true
+      ({ZExp.sort, _}) =>
+        switch (sort) {
+        | ZExp.IsExpr(UHExp.Tm(_, UHExp.EmptyHole(_))) => true
         | _ => false
         },
       cursor_info_rs,
@@ -397,12 +397,10 @@ let make =
 
   let can_insert_var_rs =
     S.l1(
-      ({ZExp.mode: _, ZExp.form, _}) =>
-        switch (form) {
-        | ZExp.IsHole(_)
-        | ZExp.IsVar
-        | ZExp.IsNumLit => true
-        | _ => false
+      ({ZExp.sort, _}) =>
+        switch (sort) {
+        | ZExp.IsExpr(_) => true
+        | ZExp.IsType => false
         },
       cursor_info_rs,
     );
