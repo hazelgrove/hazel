@@ -135,20 +135,15 @@ let make =
       );
 
     let lbl_dom = To_dom.of_div(lbl_div);
+
     let _ =
-      JSUtil.listen_to(
-        Ev.keypress,
-        Dom_html.document,
+      JSUtil.listen_for_key(
+        key_combo,
         evt => {
-          let key = JSUtil.get_key(evt);
-          if (key == KC.key(key_combo)) {
-            clear_input();
-            i_dom##focus;
-            Dom_html.stopPropagation(evt);
-            Js._false;
-          } else {
-            Js._true;
-          };
+          clear_input();
+          i_dom##focus;
+          Dom_html.stopPropagation(evt);
+          Js._false;
         },
       );
 
@@ -304,20 +299,15 @@ let make =
       );
 
     let lbl_dom = To_dom.of_div(lbl_div);
+
     let _ =
-      JSUtil.listen_to(
-        Ev.keypress,
-        Dom_html.document,
+      JSUtil.listen_for_key(
+        key_combo,
         evt => {
-          let key = JSUtil.get_key(evt);
-          if (key == KC.key(key_combo)) {
-            clear_input();
-            i_dom_1##focus;
-            Dom_html.stopPropagation(evt);
-            Js._false;
-          } else {
-            Js._true;
-          };
+          clear_input();
+          i_dom_1##focus;
+          Dom_html.stopPropagation(evt);
+          Js._false;
         },
       );
 
