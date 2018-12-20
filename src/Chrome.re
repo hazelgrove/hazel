@@ -120,14 +120,8 @@ let view = (model: Model.t) => {
                 true;
               };
             | None =>
-              let key = JSUtil.get_key(evt);
-              if (String.equal(key, key_of(JSUtil.KeyCombos.enter))
-                  || String.equal(key, key_of(JSUtil.KeyCombos.esc))) {
-                Dom.preventDefault(evt);
-                true;
-              } else {
-                true;
-              };
+              Dom.preventDefault(evt);
+              true;
             }
           ),
           a_onkeydown(evt => {
