@@ -386,6 +386,14 @@ let make =
     );
   };
 
+  let info_button = msg =>
+    Html5.(
+      div(
+        ~a=[a_class(["action-panel-entry", "action-enabled"])],
+        [div(~a=[a_class(["action-label"])], [msg])],
+      )
+    );
+
   let is_hole_rs =
     S.l1(
       ({ZExp.sort, _}) =>
@@ -396,15 +404,15 @@ let make =
       cursor_info_rs,
     );
 
-  let can_insert_var_rs =
-    S.l1(
-      ({ZExp.sort, _}) =>
-        switch (sort) {
-        | ZExp.IsExpr(_) => true
-        | ZExp.IsType => false
-        },
-      cursor_info_rs,
-    );
+  /* let can_insert_var_rs =
+     S.l1(
+       ({ZExp.sort, _}) =>
+         switch (sort) {
+         | ZExp.IsExpr(_) => true
+         | ZExp.IsType => false
+         },
+       cursor_info_rs,
+     ); */
 
   let can_insert_let_case_rs =
     S.l1(
@@ -499,20 +507,7 @@ let make =
       "enter var",
     );
 
-  let constructVar =
-    action_input_button(
-      v => Action.Construct(Action.SVar(v, After)),
-      s =>
-        switch (String.compare(s, "")) {
-        | 0 => None
-        | _ => Some(s)
-        },
-      can_insert_var_rs,
-      Html5.pcdata("var"),
-      "var_input",
-      KCs.alt_V,
-      "enter var",
-    );
+  let constructVar = info_button(Html5.pcdata("enter variables directly"));
 
   let constructLam =
     action_input_button(
@@ -528,6 +523,9 @@ let make =
       KCs.backslash,
       "enter var",
     );
+
+  let constructLit =
+    info_button(Html5.pcdata("enter number literals directly"));
 
   let constructPlus =
     action_button(
@@ -614,10 +612,11 @@ let make =
           div(
             ~a=[a_class(["sub-panel-body"])],
             [
-              constructLet,
               constructVar,
+              constructLet,
               constructLam,
               constructSpace,
+              constructLit,
               constructPlus,
               constructTimes,
               constructInjL,
