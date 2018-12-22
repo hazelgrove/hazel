@@ -39,6 +39,9 @@ Module Type HELPER.
   Parameter log_nat : nat -> nat.
   Parameter log_string : Coq.Strings.String.string -> Coq.Strings.String.string.
   Parameter string_of_nat : nat -> Coq.Strings.String.string.
+  Parameter log_path : forall A : Type, (list(nat) * A) -> (list(nat) * A).
+  Parameter log_natlist : list(nat) -> list(nat).
+  Parameter log_a : forall A : Type, nat -> A -> A.
 End HELPER.
 
 Module Fuel.
@@ -1894,6 +1897,7 @@ Module FCore(Helper : HELPER).
     with t' : Type := 
     | AscZ1 : t -> UHTyp.t -> t'
     | AscZ2 : UHExp.t -> ZTyp.t -> t'
+    | LetZV : Var.t -> cursor_side -> UHExp.t -> UHExp.t -> t'
     | LetZ1 : Var.t -> t -> UHExp.t -> t'
     | LetZ2 : Var.t -> UHExp.t -> t -> t'
     | LamZ : Var.t -> t -> t'
@@ -1927,6 +1931,7 @@ Module FCore(Helper : HELPER).
       | Deeper _ (ApPaletteZ _ _ _) => ze
       | Deeper _ (AscZ1 _ _) 
       | Deeper _ (AscZ2 _ _)  
+      | Deeper _ (LetZV _ _ _ _) 
       | Deeper _ (LetZ1 _ _ _)
       | Deeper _ (LetZ2 _ _ _)
       | Deeper _ (LamZ _ _)
@@ -1991,6 +1996,7 @@ Module FCore(Helper : HELPER).
       match ze with 
       | AscZ1 ze' ty => (UHExp.Asc (erase ze') ty)
       | AscZ2 e' zty => UHExp.Asc e' (ZTyp.erase zty)
+      | LetZV x _ e1 e2 => UHExp.Let x e1 e2
       | LetZ1 x ze e => UHExp.Let x (erase ze) e
       | LetZ2 x e ze => UHExp.Let x e (erase ze)
       | LamZ x ze' => UHExp.Lam x (erase ze')
@@ -2027,11 +2033,14 @@ Module FCore(Helper : HELPER).
     | SynMatchingSum : HTyp.t -> HTyp.t -> cursor_mode
     | SynFreeSum : HTyp.t -> cursor_mode
     (* cursor in type position *)
-    | TypePosition : cursor_mode.
+    | TypePosition : cursor_mode
+    (* cursor in binder position *)
+    | BinderPosition : cursor_mode.
 
     Inductive cursor_sort := 
     | IsExpr : UHExp.t -> cursor_sort
-    | IsType : cursor_sort.
+    | IsType : cursor_sort
+    | IsBinder : cursor_sort.
     
     Record cursor_info : Type := mk_cursor_info {
       mode : cursor_mode;
@@ -2246,6 +2255,13 @@ Module FCore(Helper : HELPER).
             IsType 
             Before (* TODO fix this once we use cursor info in type position! *)
             ctx)
+      | LetZV x side e1 e2 => 
+        Some
+          (mk_cursor_info
+            BinderPosition
+            IsBinder
+            side
+            ctx)
       | LetZ1 x ze1 e2 => 
         Var.check_valid x
         (syn_cursor_info fuel ctx ze1)
@@ -2286,6 +2302,13 @@ Module FCore(Helper : HELPER).
       | Fuel.Kicked => None
       | Fuel.More fuel => 
       match ze with 
+      | LetZV x side e1 e2 => 
+        Some
+          (mk_cursor_info
+            BinderPosition
+            IsBinder
+            side
+            ctx)
       | LetZ1 x ze1 e2 => 
         Var.check_valid x
         (syn_cursor_info fuel ctx ze1)
@@ -2512,8 +2535,9 @@ Module FCore(Helper : HELPER).
       match ze with 
       | ZExp.AscZ1 ze' _ => cons' O (of_zexp ze')
       | ZExp.AscZ2 _ ze' => cons' (S O) (of_ztyp ze')
-      | ZExp.LetZ1 _ ze' _ => cons' O (of_zexp ze') 
-      | ZExp.LetZ2 _ _ ze' => cons' (S O) (of_zexp ze')
+      | ZExp.LetZV _ cursor_side _ _ => (cons O nil, cursor_side)
+      | ZExp.LetZ1 _ ze' _ => cons' (S O) (of_zexp ze') 
+      | ZExp.LetZ2 _ _ ze' => cons' (S (S O)) (of_zexp ze')
       | ZExp.LamZ _ ze' => cons' O (of_zexp ze')
       | ZExp.InjZ _ ze' => cons' O (of_zexp ze')
       | ZExp.CaseZ1 ze' _ _ => cons' O (of_zexp ze')
@@ -2599,13 +2623,15 @@ Module FCore(Helper : HELPER).
             end
           | (_, UHExp.Asc _ _) => None
           | (_, UHExp.Var _ _) => None
-          | (O, UHExp.Let x e1 e2) => 
+          | (O, UHExp.Let x e1  e2) => 
+            Some (ZExp.Deeper err_status (ZExp.LetZV x cursor_side e1 e2))
+          | (S(O), UHExp.Let x e1 e2) => 
             Var.check_valid x
             match follow_e (xs, cursor_side) e1 with 
             | Some ze => Some (ZExp.Deeper err_status (ZExp.LetZ1 x ze e2))
             | None => None
             end
-          | (S(O), UHExp.Let x e1 e2) => 
+          | (S(S(O)), UHExp.Let x e1 e2) => 
             Var.check_valid x
             match follow_e (xs, cursor_side) e2 with 
             | Some ze => Some (ZExp.Deeper err_status (ZExp.LetZ2 x e1 ze))
@@ -2699,10 +2725,10 @@ Module FCore(Helper : HELPER).
         cons_opt O (path_to_hole' fuel e1 u)
       | UHExp.Tm _ (UHExp.Let x e1 e2) => 
         match path_to_hole' fuel e1 u with 
-        | Some steps => Some (cons 0 steps) 
+        | Some steps => Some (cons 1 steps) 
         | None => 
           match path_to_hole' fuel e2 u with 
-          | Some steps => Some (cons 1 steps)
+          | Some steps => Some (cons 2 steps)
           | None => None
           end
         end
@@ -2860,8 +2886,8 @@ Module FCore(Helper : HELPER).
         | UHExp.Var _ _ => None
         | UHExp.Let _ ue1 ue2 =>
           match first_hole_path_e fuel ue1 with
-          | Some ns => Some (cons 0 ns)
-          | None => Path.cons_opt 1 (first_hole_path_e fuel ue2)
+          | Some ns => Some (cons 1 ns)
+          | None => Path.cons_opt 2 (first_hole_path_e fuel ue2)
           end
         | UHExp.Lam _ ue1 => Path.cons_opt 0 (first_hole_path_e fuel ue1)
         | UHExp.NumLit _ => None
@@ -2946,12 +2972,18 @@ Module FCore(Helper : HELPER).
         | Before, _ => first_hole_path_e fuel ue
         | In k, _ =>
           match ue with
-          | UHExp.Parenthesized _ => None (* cannot be In Parenthesized term *)
+          | UHExp.Parenthesized _ => None
           | UHExp.Tm err ue' =>
             match ue' with
             | UHExp.Asc _ uty => Path.cons_opt 1 (first_hole_path_t fuel uty)
-            | UHExp.Let _ ue'' _ => Path.cons_opt 1 (first_hole_path_e fuel ue'')
+            | UHExp.Var _ _ => None
+            | UHExp.Let _ ue1 ue2 => 
+              match first_hole_path_e fuel ue1 with 
+              | Some ns => Some (Helper.log_natlist (cons 1 ns))
+              | None => Path.cons_opt 2 (first_hole_path_e fuel ue2)
+              end
             | UHExp.Lam _ ue'' => Path.cons_opt 1 (first_hole_path_e fuel ue'')
+            | UHExp.NumLit _ => None
             | UHExp.Inj _ ue'' => Path.cons_opt 1 (first_hole_path_e fuel ue'')
             | UHExp.Case ue1 (_,ue2) (_,ue3) =>
               match first_hole_path_e fuel ue1 with
@@ -2962,7 +2994,9 @@ Module FCore(Helper : HELPER).
                 | None => Path.cons_opt 2 (first_hole_path_e fuel ue3)
                 end
               end
-            | _ => None (* cannot be In any other expression *)
+            | UHExp.EmptyHole _ => None
+            | UHExp.OpSeq _ _ => None
+            | UHExp.ApPalette _ _ _ => None (* TODO move into palette holes *)
             end
           end
         end
@@ -2974,12 +3008,17 @@ Module FCore(Helper : HELPER).
           | None => Path.cons_opt 1 (first_hole_path_t fuel uty)
           end
         | ZExp.AscZ2 _ zty => Path.cons_opt 1 (next_hole_path_t' fuel zty)
+        | ZExp.LetZV _ _ ue1 ue2 => 
+          match first_hole_path_e fuel ue1 with 
+          | Some ns => Some (cons 1 ns)
+          | None => Path.cons_opt 2 (first_hole_path_e fuel ue2)
+          end
         | ZExp.LetZ1 _ ze'' ue =>
           match next_hole_path_e' fuel ze'' with
-          | Some ns => Some (cons 0 ns)
-          | None => Path.cons_opt 1 (first_hole_path_e fuel ue)
+          | Some ns => Some (cons 1 ns)
+          | None => Path.cons_opt 2 (first_hole_path_e fuel ue)
           end
-        | ZExp.LetZ2 _ _ ze'' => Path.cons_opt 1 (next_hole_path_e' fuel ze'')
+        | ZExp.LetZ2 _ _ ze'' => Path.cons_opt 2 (next_hole_path_e' fuel ze'')
         | ZExp.LamZ _ ze'' => Path.cons_opt 0 (next_hole_path_e' fuel ze'')
         | ZExp.InjZ _ ze'' => Path.cons_opt 0 (next_hole_path_e' fuel ze'')
         | ZExp.CaseZ1 ze'' (_,ue1) (_,ue2) =>
@@ -3070,8 +3109,8 @@ Module FCore(Helper : HELPER).
         | UHExp.Var _ _ => None
         | UHExp.Let _ ue0 ue1 =>
           match last_hole_path_e fuel ue1 with
-          | Some ns => Some (cons 1 ns)
-          | None => Path.cons_opt 0 (last_hole_path_e fuel ue0)
+          | Some ns => Some (cons 2 ns)
+          | None => Path.cons_opt 1 (last_hole_path_e fuel ue0)
           end
         | UHExp.Lam _ ue0 => Path.cons_opt 0 (last_hole_path_e fuel ue0)
         | UHExp.NumLit _ => None
@@ -3165,8 +3204,10 @@ Module FCore(Helper : HELPER).
           | UHExp.Tm err ue' =>
             match ue' with
             | UHExp.Asc ue'' _ => Path.cons_opt 0 (last_hole_path_e fuel ue'')
+            | UHExp.Var _ _ => None
             | UHExp.Let _ _ _ => None
             | UHExp.Lam _ _ => None
+            | UHExp.NumLit _ => None
             | UHExp.Inj _ _ => None
             | UHExp.Case ue1 (_,ue2) (_,ue3) =>
               match last_hole_path_e fuel ue3 with
@@ -3177,7 +3218,9 @@ Module FCore(Helper : HELPER).
                 | None => Path.cons_opt 0 (last_hole_path_e fuel ue1)
                 end
               end
-            | _ => None (* cannot be In any other expression *)
+            | UHExp.EmptyHole _ => None
+            | UHExp.OpSeq _ _ => None
+            | UHExp.ApPalette _ _ _ => None (* TODO *)
             end
           end
         end
@@ -3189,11 +3232,12 @@ Module FCore(Helper : HELPER).
           | Some ns => Some (cons 1 ns)
           | None => Path.cons_opt 0 (last_hole_path_e fuel ue0)
           end
-        | ZExp.LetZ1 _ ze0 _ => Path.cons_opt 0 (prev_hole_path_e' fuel ze0)
+        | ZExp.LetZV _ _ _ _ => None 
+        | ZExp.LetZ1 _ ze0 _ => Path.cons_opt 1 (prev_hole_path_e' fuel ze0)
         | ZExp.LetZ2 _ ue0 ze1 => 
           match prev_hole_path_e' fuel ze1 with
-          | Some ns => Some (cons 1 ns)
-          | None => Path.cons_opt 0 (last_hole_path_e fuel ue0)
+          | Some ns => Some (cons 2 ns)
+          | None => Path.cons_opt 1 (last_hole_path_e fuel ue0)
           end
         | ZExp.LamZ _ ze0 => Path.cons_opt 0 (prev_hole_path_e' fuel ze0)
         | ZExp.InjZ _ ze0 => Path.cons_opt 0 (prev_hole_path_e' fuel ze0)
@@ -3584,7 +3628,7 @@ Module FCore(Helper : HELPER).
         match next_hole_path_e fuel ze with
         | None => None
         | Some path =>
-          (* [debug] let path := Helper.log_path path in *)
+          (* let path := Helper.log_path path in *)
           performSyn fuel ctx (MoveTo path) ze_ty
         end
       (* Backspace & Deletion *)
