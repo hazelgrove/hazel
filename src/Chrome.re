@@ -14,6 +14,7 @@ let view = (model: Model.t) => {
     do_action,
     _,
   } = model;
+  let key_of = JSUtil.KeyCombo.key;
   let pp_view_width = 50;
   let prefix = "view";
   let rec mk_editor_box:

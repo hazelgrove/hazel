@@ -149,20 +149,16 @@ let make =
       );
 
     let lbl_dom = To_dom.of_div(lbl_div);
+
     let _ =
-      JSUtil.listen_to(
-        Ev.keypress,
-        Dom_html.document,
+      JSUtil.listen_for_key(
+        key_combo,
         evt => {
-          let key = JSUtil.get_key(evt);
-          if (key == KC.key(key_combo)) {
-            clear_input();
-            i_dom##focus;
-            Dom_html.stopPropagation(evt);
-            Js._false;
-          } else {
-            Js._true;
-          };
+          Dom_html.stopPropagation(evt);
+          Dom.preventDefault(evt);
+          clear_input();
+          i_dom##focus;
+          Js._false;
         },
       );
 
@@ -325,20 +321,15 @@ let make =
       );
 
     let lbl_dom = To_dom.of_div(lbl_div);
+
     let _ =
-      JSUtil.listen_to(
-        Ev.keypress,
-        Dom_html.document,
+      JSUtil.listen_for_key(
+        key_combo,
         evt => {
-          let key = JSUtil.get_key(evt);
-          if (key == KC.key(key_combo)) {
-            clear_input();
-            i_dom_1##focus;
-            Dom_html.stopPropagation(evt);
-            Js._false;
-          } else {
-            Js._true;
-          };
+          clear_input();
+          i_dom_1##focus;
+          Dom_html.stopPropagation(evt);
+          Js._false;
         },
       );
 
@@ -416,23 +407,19 @@ let make =
     );
   };
 
-  let is_hole_rs =
-    S.l1(
-      ({ZExp.mode: _, ZExp.form, ZExp.ctx: _, _}) =>
-        switch (form) {
-        | ZExp.IsHole(_) => true
-        | _ => false
-        },
-      cursor_info_rs,
+  let info_button = msg =>
+    Html5.(
+      div(
+        ~a=[a_class(["action-panel-entry", "action-enabled"])],
+        [div(~a=[a_class(["action-label"])], [msg])],
+      )
     );
 
-  let can_insert_var_rs =
+  let is_hole_rs =
     S.l1(
-      ({ZExp.mode: _, ZExp.form, _}) =>
-        switch (form) {
-        | ZExp.IsHole(_)
-        | ZExp.IsVar
-        | ZExp.IsNumLit => true
+      ({ZExp.sort, _}) =>
+        switch (sort) {
+        | ZExp.IsExpr(UHExp.Tm(_, UHExp.EmptyHole(_))) => true
         | _ => false
         },
       cursor_info_rs,
@@ -440,9 +427,9 @@ let make =
 
   let can_insert_ap_palette_rs =
     S.l1(
-      ({ZExp.mode: _, ZExp.form, ZExp.ctx: (_, palette_ctx)}) =>
-        switch (form) {
-        | ZExp.IsHole(_) => true
+      ({ZExp.sort, ZExp.ctx: (_, palette_ctx), _}) =>
+        switch (sort) {
+        | ZExp.IsExpr(UHExp.Tm(_, UHExp.EmptyHole(_))) => true
         | _ => false
         },
       cursor_info_rs,
@@ -495,7 +482,7 @@ let make =
     action_button(
       Action.Construct(Action.SNum),
       threepiece_kw("", "num", " type"),
-      KCs.n,
+      KCs.pound,
     );
 
   let constructArrow =
@@ -541,16 +528,7 @@ let make =
       "enter var",
     );
 
-  let constructVar =
-    action_input_button(
-      v => Action.Construct(Action.SVar(v, After)),
-      s => Var.is_valid(s) ? Some(s) : None,
-      can_insert_var_rs,
-      Html5.pcdata("var"),
-      "var_input",
-      KCs.v,
-      "enter var",
-    );
+  let constructVar = info_button(Html5.pcdata("enter variables directly"));
 
   let constructApPalette =
     action_input_button(
@@ -579,22 +557,7 @@ let make =
     );
 
   let constructLit =
-    action_input_button(
-      n => Action.Construct(Action.SLit(n, After)),
-      s =>
-        switch (String.compare(s, "")) {
-        | 0 => None
-        | _ =>
-          try (Some(int_of_string(s))) {
-          | _ => None
-          }
-        },
-      is_hole_rs,
-      Html5.pcdata("number"),
-      "lit_input",
-      KCs.pound,
-      "enter number",
-    );
+    info_button(Html5.pcdata("enter number literals directly"));
 
   let constructPlus =
     action_button(
@@ -621,14 +584,14 @@ let make =
     action_button(
       Action.Construct(Action.SInj(UHExp.L)),
       Html5.pcdata("left injection"),
-      KCs.capitalL,
+      KCs.alt_L,
     );
 
   let constructInjR =
     action_button(
       Action.Construct(Action.SInj(UHExp.R)),
       Html5.pcdata("right injection"),
-      KCs.capitalR,
+      KCs.alt_R,
     );
 
   let constructCase =
@@ -647,7 +610,7 @@ let make =
       can_insert_let_case_rs,
       threepiece_kw("", "case", ""),
       "case_input",
-      KCs.c,
+      KCs.alt_C,
       "enter var1",
       "enter var2",
     );
@@ -681,9 +644,9 @@ let make =
           div(
             ~a=[a_class(["sub-panel-body"])],
             [
-              constructLet,
               constructVar,
               constructApPalette,
+              constructLet,
               constructLam,
               constructSpace,
               constructLit,

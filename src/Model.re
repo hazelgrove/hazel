@@ -97,10 +97,10 @@ let new_model = (): t => {
   let (selected_instance_rs, selected_instance_rf) = React.S.create(None);
   let instance_at_cursor_monitor =
     React.S.l2(
-      ({ZExp.mode: _, ZExp.form, ZExp.ctx: _, ZExp.side: _}, (_, hii, _)) => {
+      ({ZExp.mode: _, ZExp.sort, ZExp.ctx: _, ZExp.side: _}, (_, hii, _)) => {
         let new_path =
-          switch (form) {
-          | ZExp.IsHole(u) =>
+          switch (sort) {
+          | ZExp.IsExpr(UHExp.Tm(_, UHExp.EmptyHole(u))) =>
             let usi = React.S.value(user_selected_instances_rs);
             switch (MetaVarMap.lookup(usi, u)) {
             | Some(i) => Some((u, i))

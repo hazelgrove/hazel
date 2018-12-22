@@ -130,7 +130,7 @@ module KeyCombos = {
   let backspace = _kc("Backspace", "Backspace");
   let del = _kc("Delete", "Delete");
   let tab = _kcm("Tab", "Tab", ModKeyReqs.withShift(MustNotBeHeld));
-  let backtab = _kcm("Shift-Tab", "Tab", ModKeyReqs.withShift(MustBeHeld));
+  let backtab = _kcm("Shift + Tab", "Tab", ModKeyReqs.withShift(MustBeHeld));
   let space = _kc("Space", " ");
   let p = _kc("p", "p");
   let x = _kc("x", "x");
@@ -139,15 +139,15 @@ module KeyCombos = {
   let s = _kc("s", "s");
   let dot = _kc(".", ".");
   let colon = _kc(":", ":");
-  let v = _kc("v", "v");
+  let alt_V = _kcm("Alt + V", "v", ModKeyReqs.withAlt(MustBeHeld));
   let backslash = _kc("\\", "\\");
   let openParens = _kc("(", "(");
   let pound = _kc("#", "#");
   let plus = _kc("+", "+");
   let asterisk = _kc("*", "*");
-  let capitalL = _kc("L", "L");
-  let capitalR = _kc("R", "R");
-  let c = _kc("c", "c");
+  let alt_L = _kcm("Alt + L", "l", ModKeyReqs.withAlt(MustBeHeld));
+  let alt_R = _kcm("Alt + R", "r", ModKeyReqs.withAlt(MustBeHeld));
+  let alt_C = _kcm("Alt + C", "c", ModKeyReqs.withAlt(MustBeHeld));
   let qmark = _kc("?", "?");
   let equals = _kc("=", "=");
   let vbar = _kc("|", "|");
@@ -182,6 +182,37 @@ let listen_for_key = (k, f) =>
       };
     },
   );
+
+type single_key =
+  | Number(int)
+  | Letter(string);
+let letter_regexp = Regexp.regexp("[a-zA-Z_]");
+
+let is_single_key: Js.t(Dom_html.keyboardEvent) => option(single_key) =
+  evt => {
+    let ctrlKey = Js.to_bool(evt##.ctrlKey);
+    let altKey = Js.to_bool(evt##.altKey);
+    if (ctrlKey || altKey) {
+      None;
+    } else {
+      let key = get_key(evt);
+      switch (int_of_string_opt(key)) {
+      | Some(n) => Some(Number(n))
+      | None =>
+        switch (Regexp.string_match(letter_regexp, key, 0)) {
+        | Some(_) => Some(Letter(key))
+        | None => None
+        }
+      };
+    };
+  };
+
+let single_key_string: single_key => string =
+  single_key =>
+    switch (single_key) {
+    | Number(n) => string_of_int(n)
+    | Letter(x) => x
+    };
 
 type div_element = Js.t(Dom_html.divElement);
 type node = Js.t(Dom.node);

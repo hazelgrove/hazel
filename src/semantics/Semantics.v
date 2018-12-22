@@ -829,7 +829,7 @@ Module FCore(Helper : HELPER).
        | cons _ ctx' => S (length ctx')
        end.
 
-     Definition to_list {a : Type} (ctx : t_ a) := ctx.
+     Definition to_list {a : Type} (ctx : t_ a) : list(Var.t * a) := ctx.
   End VarMap.
 
   Module Ctx.
@@ -2029,31 +2029,13 @@ Module FCore(Helper : HELPER).
     (* cursor in type position *)
     | TypePosition : cursor_mode.
 
-    Inductive cursor_form := 
-    | IsHole : MetaVar.t -> cursor_form
-    | IsNumLit : cursor_form
-    | IsVar : cursor_form
-    | IsOtherForm : cursor_form.
+    Inductive cursor_sort := 
+    | IsExpr : UHExp.t -> cursor_sort
+    | IsType : cursor_sort.
     
-    Definition form_of'(e : UHExp.t') := 
-      match e with 
-      | UHExp.EmptyHole u => IsHole u
-      | UHExp.NumLit _ => IsNumLit
-      | UHExp.Var _ _ => IsVar
-      | _ => IsOtherForm
-      end.
-
-    Definition form_of(e : UHExp.t) := 
-      match e with 
-      | UHExp.Tm _ (UHExp.EmptyHole u) => IsHole u
-      | UHExp.Tm _ (UHExp.NumLit _) => IsNumLit
-      | UHExp.Tm _ (UHExp.Var _ _) => IsVar
-      | _ => IsOtherForm
-      end.
-
     Record cursor_info : Type := mk_cursor_info {
       mode : cursor_mode;
-      form : cursor_form;
+      sort : cursor_sort;
       side : cursor_side;
       ctx : Contexts.t
     }.
@@ -2076,7 +2058,7 @@ Module FCore(Helper : HELPER).
           Some (
             mk_cursor_info 
               (TypeInconsistent ty ty')
-              (form_of' e')
+              (IsExpr e)
               side
               ctx
           )
@@ -2085,7 +2067,7 @@ Module FCore(Helper : HELPER).
         Some (
           mk_cursor_info
             (AnaFree ty)
-            (form_of e)
+            (IsExpr e)
             side
             ctx
         )
@@ -2093,7 +2075,7 @@ Module FCore(Helper : HELPER).
         Some (
           mk_cursor_info 
             (Subsumed ty HTyp.Hole)
-            (IsHole u)
+            (IsExpr e)
             side
             ctx
         )
@@ -2102,7 +2084,7 @@ Module FCore(Helper : HELPER).
         Some (
           mk_cursor_info 
             (AnaOnly ty)
-            IsOtherForm
+            (IsExpr e)
             side
             ctx
         )
@@ -2117,7 +2099,7 @@ Module FCore(Helper : HELPER).
             Some (
               mk_cursor_info 
                 (Subsumed ty ty')
-                (form_of' e')
+                (IsExpr e)
                 side
                 ctx
             )
@@ -2130,7 +2112,7 @@ Module FCore(Helper : HELPER).
           Some (
             mk_cursor_info 
               (AnaOnly ty)
-              IsOtherForm
+              (IsExpr e)
               side
               ctx
           )
@@ -2141,7 +2123,7 @@ Module FCore(Helper : HELPER).
               Some (
                 mk_cursor_info 
                   (Subsumed ty ty')
-                  IsOtherForm
+                  (IsExpr e)
                   side
                   ctx
               )
@@ -2150,7 +2132,7 @@ Module FCore(Helper : HELPER).
             Some (
               mk_cursor_info
                 (AnaOnly ty)
-                IsOtherForm
+                (IsExpr e)
                 side
                 ctx
             )
@@ -2162,7 +2144,7 @@ Module FCore(Helper : HELPER).
           Some (
             mk_cursor_info
               (AnaOnly ty)
-              IsOtherForm
+              (IsExpr e)
               side
               ctx
           )
@@ -2173,7 +2155,7 @@ Module FCore(Helper : HELPER).
               Some (
                 mk_cursor_info
                   (Subsumed ty ty')
-                  IsOtherForm
+                  (IsExpr e)
                   side
                   ctx
               )
@@ -2182,7 +2164,7 @@ Module FCore(Helper : HELPER).
             Some 
               (mk_cursor_info
                 (AnaOnly ty)
-                IsOtherForm
+                (IsExpr e)
                 side
                 ctx
               )
@@ -2202,7 +2184,7 @@ Module FCore(Helper : HELPER).
         Some (
           mk_cursor_info
             SynFree
-            (form_of e)
+            (IsExpr e)
             side
             ctx
         )
@@ -2212,7 +2194,7 @@ Module FCore(Helper : HELPER).
           Some (
             mk_cursor_info
               (SynOnly ty)
-              (form_of e)
+              (IsExpr e)
               side
               ctx
           )
@@ -2261,7 +2243,7 @@ Module FCore(Helper : HELPER).
         Some 
           (mk_cursor_info
             TypePosition
-            IsOtherForm
+            IsType 
             Before (* TODO fix this once we use cursor info in type position! *)
             ctx)
       | LetZ1 x ze1 e2 => 
@@ -2333,26 +2315,26 @@ Module FCore(Helper : HELPER).
       | CaseZ1 ze1 (x, _) (y, _) => 
         Var.check_both_valid x y
         match cursor_on_outer_expr ze1 with 
-        | Some ((UHExp.Tm (InHole _) e1), side) => 
+        | Some ((UHExp.Tm (InHole _) e1) as e, side) => 
           match UHExp.syn' fuel ctx e1 with  
           | Some ty => 
             Some 
               (mk_cursor_info
                 (SynErrorSum (HTyp.Sum HTyp.Hole HTyp.Hole) ty)
-                (form_of' e1)
+                (IsExpr e)
                 side
                 ctx)
           | None => None
           end
-        | Some ((UHExp.Tm _ (UHExp.Var (InVHole _) _)) as e1, side) => 
+        | Some ((UHExp.Tm _ (UHExp.Var (InVHole _) _)) as e, side) => 
           Some 
             (mk_cursor_info
               (SynFreeSum (HTyp.Sum HTyp.Hole HTyp.Hole))
-              (form_of e1)
+              (IsExpr e)
               side
               ctx)
-        | Some (e1, side) => 
-          match UHExp.syn fuel ctx e1 with 
+        | Some (e, side) => 
+          match UHExp.syn fuel ctx e with 
           | None => None
           | Some ty1 => 
             match HTyp.matched_sum ty1 with 
@@ -2362,7 +2344,7 @@ Module FCore(Helper : HELPER).
               Some 
                 (mk_cursor_info
                   (SynMatchingSum ty1 matched_ty)
-                  (form_of e1) 
+                  (IsExpr e)
                   side
                   ctx)
             end
@@ -2426,12 +2408,12 @@ Module FCore(Helper : HELPER).
       | Skel.BinOp _ UHExp.Space ((Skel.Placeholder _ n') as skel1) skel2 => 
         if Nat.eqb n n' then 
           match cursor_on_outer_expr ze_n with 
-          | Some ((UHExp.Tm (InHole u) e_n'), side) => 
+          | Some ((UHExp.Tm (InHole u) e_n') as e_n, side) => 
             match UHExp.syn' fuel ctx e_n' with 
             | Some ty => Some 
                 (mk_cursor_info
                   (SynErrorArrow (HTyp.Arrow HTyp.Hole HTyp.Hole) ty)
-                  (form_of' e_n')
+                  (IsExpr e_n)
                   side
                   ctx)
             | None => None
@@ -2440,7 +2422,7 @@ Module FCore(Helper : HELPER).
             Some 
               (mk_cursor_info
                 (SynFreeArrow (HTyp.Arrow HTyp.Hole HTyp.Hole))
-                (form_of e_n)
+                (IsExpr e_n)
                 side
                 ctx)
           | Some (e_n, side) => 
@@ -2451,7 +2433,7 @@ Module FCore(Helper : HELPER).
                 Some 
                   (mk_cursor_info 
                     (SynMatchingArrow ty (HTyp.Arrow ty1 ty2))
-                    (form_of e_n)
+                    (IsExpr e_n)
                     side
                     ctx)
               | None => None
@@ -3954,7 +3936,8 @@ Module FCore(Helper : HELPER).
             ZTyp.ZHole_Arrow_Hole), 
          HTyp.Arrow HTyp.Hole HTyp.Hole, u_gen'))
       | (Construct (SLit n side), ZExp.CursorE _ (UHExp.Tm _ (UHExp.EmptyHole _)))
-      | (Construct (SLit n side), ZExp.CursorE _ (UHExp.Tm _ (UHExp.NumLit _))) =>
+      | (Construct (SLit n side), ZExp.CursorE _ (UHExp.Tm _ (UHExp.NumLit _)))
+      | (Construct (SLit n side), ZExp.CursorE _ (UHExp.Tm _ (UHExp.Var _ _))) =>
           Some (ZExp.CursorE side (UHExp.Tm NotInHole (UHExp.NumLit n)), HTyp.Num, u_gen)
       | (Construct (SInj side), (ZExp.CursorE _ e)) => 
         let ze' := 
