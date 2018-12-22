@@ -144,7 +144,7 @@ let make =
           Dom.preventDefault(evt);
           clear_input();
           i_dom##focus;
-          Js._false;
+          ();
         },
       );
 
@@ -308,7 +308,7 @@ let make =
           clear_input();
           i_dom_1##focus;
           Dom_html.stopPropagation(evt);
-          Js._false;
+          ();
         },
       );
 
