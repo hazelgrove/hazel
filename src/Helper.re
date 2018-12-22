@@ -14,4 +14,16 @@ module Helper: Semantics.HELPER = {
     JSUtil.log(s);
     s;
   };
+  let log_path = path => {
+    JSUtil.log(path_to_string(path));
+    path;
+  };
+  let log_natlist = xs => {
+    JSUtil.log(path_to_string((xs, 0)));
+    xs;
+  };
+  let log_a = (n, a) => {
+    log_nat(n);
+    a;
+  };
 };

@@ -485,8 +485,8 @@ let rec of_hexp = (palette_stuff, prefix, rev_path, e) =>
     | UHExp.Var(var_err_status, x) =>
       of_Var(prefix, err_status, var_err_status, rev_path, x)
     | UHExp.Let(x, e, e') =>
-      let rev_path1 = [0, ...rev_path];
-      let rev_path2 = [1, ...rev_path];
+      let rev_path1 = [1, ...rev_path];
+      let rev_path2 = [2, ...rev_path];
       let r1 = of_hexp(palette_stuff, prefix, rev_path1, e);
       let r2 = of_hexp(palette_stuff, prefix, rev_path2, e');
       of_Let(prefix, err_status, rev_path, x, r1, r2);
@@ -647,8 +647,8 @@ let rec of_dhexp' =
       | FreeVar(u, _, _, x) =>
         of_Var(prefix, err_status, InVHole(u), rev_path, x)
       | Let(x, d1, d2) =>
-        let rev_path1 = [0, ...rev_path];
-        let rev_path2 = [1, ...rev_path];
+        let rev_path1 = [1, ...rev_path];
+        let rev_path2 = [2, ...rev_path];
         let r1 =
           of_dhexp'(
             instance_click_fn,

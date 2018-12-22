@@ -179,7 +179,7 @@ module HTML_Of_SDoc = {
     | SText(cls, s, x') =>
       let (h, x'') = html_of_sdoc''(x', rev_paths);
       let h' = [
-        Html5.(span(~a=[a_class(["SText", cls])], [pcdata(s)])),
+        Html5.(span(~a=[a_class(["SText", cls])], [txt(s)])),
         ...h,
       ];
       (h', x'');
@@ -208,7 +208,7 @@ module HTML_Of_SDoc = {
         Html5.(
           span(
             ~a=[a_class(["SIndentation"])],
-            [pcdata(String.make(n, ' '))],
+            [txt(String.make(n, ' '))],
           )
         );
 

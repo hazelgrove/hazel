@@ -1,6 +1,9 @@
 open Tyxml_js;
 open SemanticsCore;
 include EditorBoxTypes;
+module Dom_html = Js_of_ocaml.Dom_html;
+module Dom = Js_of_ocaml.Dom;
+module Js = Js_of_ocaml.Js;
 
 let string_insert = (s1, offset, s2) => {
   let prefix = String.sub(s1, 0, offset);

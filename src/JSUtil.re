@@ -1,7 +1,10 @@
 open Tyxml_js;
 open React;
+module Js = Js_of_ocaml.Js;
+module Dom = Js_of_ocaml.Dom;
+module Dom_html = Js_of_ocaml.Dom_html;
 module Ev = Dom_html.Event;
-let log = x => Firebug.console##log(x);
+let log = x => Js_of_ocaml.Firebug.console##log(x);
 let forceGetElementById = id => {
   let doc = Dom_html.document;
   Js.Opt.get(
@@ -55,8 +58,7 @@ let r_checkbox = (id, label_str, default_val) => {
       checkbox_elt_attrs_base;
     };
   let checkbox_elt = Html5.(input(~a=checkbox_elt_attrs, ()));
-  let label_elt =
-    Html5.(label(~a=[a_label_for(id)], [pcdata(label_str)]));
+  let label_elt = Html5.(label(~a=[a_label_for(id)], [txt(label_str)]));
   let control_elt = Html5.(div([checkbox_elt, label_elt]));
   let checkbox_dom = To_dom.of_input(checkbox_elt);
   let _ =
@@ -186,7 +188,7 @@ let listen_for_key = (k, f) =>
 type single_key =
   | Number(int)
   | Letter(string);
-let letter_regexp = Regexp.regexp("[a-zA-Z_]");
+let letter_regexp = Js_of_ocaml.Regexp.regexp("[a-zA-Z_]");
 
 let is_single_key: Js.t(Dom_html.keyboardEvent) => option(single_key) =
   evt => {
@@ -199,7 +201,7 @@ let is_single_key: Js.t(Dom_html.keyboardEvent) => option(single_key) =
       switch (int_of_string_opt(key)) {
       | Some(n) => Some(Number(n))
       | None =>
-        switch (Regexp.string_match(letter_regexp, key, 0)) {
+        switch (Js_of_ocaml.Regexp.string_match(letter_regexp, key, 0)) {
         | Some(_) => Some(Letter(key))
         | None => None
         }

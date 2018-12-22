@@ -15,7 +15,7 @@ let matched_ty_bar = (prefix, ty1, ty2) => {
       ~a=[a_class(["infobar", "matched-type-bar"])],
       [
         ty1_html,
-        span(~a=[a_class(["matched-connective"])], [pcdata(" ▶ ")]),
+        span(~a=[a_class(["matched-connective"])], [txt(" ▶ ")]),
         ty2_html,
       ],
     )
@@ -23,9 +23,7 @@ let matched_ty_bar = (prefix, ty1, ty2) => {
 };
 
 let special_msg_bar = (msg: string) =>
-  Html5.(
-    div(~a=[a_class(["infobar", "special-msg-bar"])], [pcdata(msg)])
-  );
+  Html5.(div(~a=[a_class(["infobar", "special-msg-bar"])], [txt(msg)]));
 
 let expected_indicator = (title_text, type_div) =>
   Html5.(
@@ -175,7 +173,7 @@ let no_cursor_mode =
   Html5.(
     div(
       ~a=[a_class(["cursor-inspector-body"])],
-      [pcdata("Not well typed! This is a bug. Please report.")],
+      [txt("Not well typed! This is a bug. Please report.")],
     )
   );
 

@@ -26,8 +26,8 @@ let mk =
             div(
               ~a=[a_class(["code"])],
               [
-                span(~a=[a_class(["var"])], [pcdata(x)]),
-                pcdata(" : "),
+                span(~a=[a_class(["var"])], [txt(x)]),
+                txt(" : "),
                 ty_html,
               ],
             ),
@@ -44,10 +44,7 @@ let mk =
             div(
               ~a=[a_class(["dynamic-info"])],
               [
-                div(
-                  ~a=[a_class(["code"])],
-                  [span([pcdata("NONE!!!!!!")])],
-                ),
+                div(~a=[a_class(["code"])], [span([txt("NONE!!!!!!")])]),
               ],
             )
           ),
@@ -102,7 +99,7 @@ let mk =
               Html5.(
                 div(
                   ~a=[a_class(["context-is-empty-msg"])],
-                  [pcdata("no variables in scope")],
+                  [txt("no variables in scope")],
                 )
               ),
             ],
@@ -121,7 +118,7 @@ let mk =
     let path_view_titlebar =
       PanelUtils.titlebar("Closure above observed at ");
     let instructional_msg = msg =>
-      Html5.(div(~a=[a_class(["instructional-msg"])], [pcdata(msg)]));
+      Html5.(div(~a=[a_class(["instructional-msg"])], [txt(msg)]));
     let html_of_path_item = ((inst, x)) =>
       Html5.(
         div(
@@ -138,7 +135,7 @@ let mk =
                 ),
               ],
             ),
-            div(~a=[a_class(["inst-var-separator"])], [pcdata("·")]),
+            div(~a=[a_class(["inst-var-separator"])], [txt("·")]),
             div(
               ~a=[a_class(["path-var"])],
               [View.html_of_var(80, "path-view", x)],
@@ -156,7 +153,7 @@ let mk =
               Html5.(
                 div(
                   ~a=[a_class(["special-msg"])],
-                  [div([pcdata("immediately")])],
+                  [div([txt("immediately")])],
                 )
               ),
             ],
@@ -170,7 +167,7 @@ let mk =
                 Html5.(
                   span(
                     ~a=[a_class(["path-item-separator"])],
-                    [Html5.pcdata(" 〉 ")],
+                    [Html5.txt(" 〉 ")],
                   )
                 ),
                 ...acc,
@@ -274,20 +271,20 @@ let mk =
                     ),
                   ],
                 ),
-                pcdata(" = hole "),
+                txt(" = hole "),
                 span(
                   ~a=[a_class(["hole-name-normal-txt"])],
-                  [pcdata(string_of_int(u_ + 1))],
+                  [txt(string_of_int(u_ + 1))],
                 ),
-                pcdata(" instance "),
+                txt(" instance "),
                 span(
                   ~a=[a_class(["inst-number-normal-txt"])],
-                  [pcdata(string_of_int(i_ + 1))],
+                  [txt(string_of_int(i_ + 1))],
                 ),
-                pcdata(" of "),
+                txt(" of "),
                 span(
                   ~a=[a_class(["inst-number-normal-txt"])],
-                  [pcdata(string_of_int(num_instances))],
+                  [txt(string_of_int(num_instances))],
                 ),
               ]),
             ],
@@ -323,7 +320,7 @@ let mk =
                 a_title(prev_title),
                 a_onclick(prev_onclick),
               ],
-              [pcdata("◂")],
+              [txt("◂")],
             )
           );
         | None =>
@@ -331,7 +328,7 @@ let mk =
           Html5.(
             div(
               ~a=[a_class(prev_cls), a_title(prev_title)],
-              [pcdata("◂")],
+              [txt("◂")],
             )
           );
         };
@@ -348,7 +345,7 @@ let mk =
                 a_title(next_title),
                 a_onclick(next_onclick),
               ],
-              [pcdata("▸")],
+              [txt("▸")],
             )
           );
         | None =>
@@ -356,7 +353,7 @@ let mk =
           Html5.(
             div(
               ~a=[a_class(next_cls), a_title(next_title)],
-              [pcdata("▸")],
+              [txt("▸")],
             )
           );
         };

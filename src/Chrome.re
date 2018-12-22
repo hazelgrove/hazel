@@ -1,6 +1,9 @@
 open Tyxml_js;
 open SemanticsCore;
 open Model;
+module Js = Js_of_ocaml.Js;
+module Dom = Js_of_ocaml.Dom;
+module Dom_html = Js_of_ocaml.Dom_html;
 let view = (model: Model.t) => {
   let {
     edit_state_rs,
@@ -14,7 +17,6 @@ let view = (model: Model.t) => {
     do_action,
     _,
   } = model;
-  let key_of = JSUtil.KeyCombo.key;
   let pp_view_width = 50;
   let prefix = "view";
   let rec mk_editor_box:
@@ -659,7 +661,7 @@ let view = (model: Model.t) => {
       ((_, _, result)) =>
         switch (result) {
         | Dynamics.Evaluator.InvalidInput(_) => [
-            Html5.pcdata(
+            Html5.txt(
               "(internal error: expansion or evaluation invariant violated)",
             ),
           ]
@@ -724,7 +726,7 @@ let view = (model: Model.t) => {
     Html5.(
       div(
         ~a=[a_id("num_changes_counter_si")],
-        [R.Html5.pcdata(num_changes_si_str_rs)],
+        [R.Html5.txt(num_changes_si_str_rs)],
       )
     );
 
@@ -732,7 +734,7 @@ let view = (model: Model.t) => {
     Tyxml_js.To_dom.of_div(num_changes_counter);
 
   let _ =
-    MutationObserver.observe(
+    Js_of_ocaml.MutationObserver.observe(
       ~child_list=false,
       ~attributes=false,
       ~node=num_changes_si_counter_dom,
@@ -757,14 +759,14 @@ let view = (model: Model.t) => {
     Html5.(
       div(
         ~a=[a_id("num_changes_counter")],
-        [R.Html5.pcdata(num_changes_str_rs)],
+        [R.Html5.txt(num_changes_str_rs)],
       )
     );
 
   let num_changes_counter_dom = Tyxml_js.To_dom.of_div(num_changes_counter);
 
   let _ =
-    MutationObserver.observe(
+    Js_of_ocaml.MutationObserver.observe(
       ~child_list=false,
       ~attributes=false,
       ~node=num_changes_counter_dom,
@@ -800,7 +802,7 @@ let view = (model: Model.t) => {
               [
                 a(
                   ~a=[a_class(["logo-text"]), a_href("http://hazel.org/")],
-                  [pcdata("Hazel")],
+                  [txt("Hazel")],
                 ),
               ],
             ),
@@ -815,11 +817,11 @@ let view = (model: Model.t) => {
                       ~a=[a_class(["page"])],
                       [
                         div([
-                          pcdata("Hazel is an experiment in "),
-                          strong([pcdata("live functional programming")]),
-                          pcdata(" with "),
-                          strong([pcdata("typed holes")]),
-                          pcdata(
+                          txt("Hazel is an experiment in "),
+                          strong([txt("live functional programming")]),
+                          txt(" with "),
+                          strong([txt("typed holes")]),
+                          txt(
                             ". Use the actions on the left to construct an expression. Navigate using the text cursor in the usual way.",
                           ),
                         ]),
@@ -832,7 +834,7 @@ let view = (model: Model.t) => {
                               [
                                 div(
                                   ~a=[a_class(["type-label"])],
-                                  [pcdata("Result of type: ")],
+                                  [txt("Result of type: ")],
                                 ),
                                 div(
                                   ~a=[a_class(["htype-view"])],
