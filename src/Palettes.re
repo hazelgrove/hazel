@@ -2,6 +2,9 @@ open SemanticsCore;
 open Tyxml_js;
 open Printf;
 open Scanf;
+module Dom_html = Js_of_ocaml.Dom_html;
+module Dom = Js_of_ocaml.Dom;
+module Js = Js_of_ocaml.Js;
 
 type div_type = Html5.elt(Html_types.div);
 
@@ -261,7 +264,7 @@ module SliderPalette: PALETTE = {
               true;
             }),
           ],
-          [pcdata(desc)],
+          [txt(desc)],
         )
       );
     let input_elt =
@@ -277,7 +280,7 @@ module SliderPalette: PALETTE = {
         )
       );
     let input_dom = Tyxml_js.To_dom.of_input(input_elt);
-    let label_elt = Html5.(label([pcdata(curValString(value))]));
+    let label_elt = Html5.(label([txt(curValString(value))]));
     let label_dom = Tyxml_js.To_dom.of_label(label_elt);
     let decrease_range_button_elt =
       changeMaxButton("/ 10", m => max(10, m / 10));

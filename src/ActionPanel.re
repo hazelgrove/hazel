@@ -2,6 +2,9 @@ open Tyxml_js;
 open React;
 open SemanticsCore;
 open Model;
+module Dom_html = Js_of_ocaml.Dom_html;
+module Dom = Js_of_ocaml.Dom;
+module Js = Js_of_ocaml.Js;
 let make =
     ({edit_state_rs, cursor_info_rs, do_action, _}: Model.t, set_cursor) => {
   module Util = GeneralUtil;
@@ -38,7 +41,7 @@ let make =
       Html5.(
         div(
           ~a=[a_class(["keyboard-shortcut"]), a_onclick(onclick_handler)],
-          [pcdata(KC.name(key_combo))],
+          [txt(KC.name(key_combo))],
         )
       );
 
@@ -95,11 +98,11 @@ let make =
       };
     };
     let invalid = [
-      Html5.(div(~a=[a_class(["invalid-mark"])], [pcdata("✗")])),
+      Html5.(div(~a=[a_class(["invalid-mark"])], [txt("✗")])),
     ];
 
     let valid = [
-      Html5.(div(~a=[a_class(["valid-mark"])], [pcdata("✔")])),
+      Html5.(div(~a=[a_class(["valid-mark"])], [txt("✔")])),
     ];
 
     let validity_rs =
@@ -207,7 +210,7 @@ let make =
       Html5.(
         div(
           ~a=[a_class(["keyboard-shortcut"]), a_onclick(onclick_handler)],
-          [pcdata(KC.name(key_combo))],
+          [txt(KC.name(key_combo))],
         )
       );
 
@@ -259,11 +262,11 @@ let make =
       };
     };
     let invalid = [
-      Html5.(div(~a=[a_class(["invalid-mark"])], [pcdata("✗")])),
+      Html5.(div(~a=[a_class(["invalid-mark"])], [txt("✗")])),
     ];
 
     let valid = [
-      Html5.(div(~a=[a_class(["valid-mark"])], [pcdata("✔")])),
+      Html5.(div(~a=[a_class(["valid-mark"])], [txt("✔")])),
     ];
 
     let validity_rs =
@@ -386,7 +389,7 @@ let make =
       Html5.(
         div(
           ~a=[a_class(["keyboard-shortcut"]), a_onclick(onclick_handler)],
-          [pcdata(KC.name(key_combo))],
+          [txt(KC.name(key_combo))],
         )
       );
 
@@ -446,33 +449,29 @@ let make =
     );
 
   let backspace =
-    action_button(
-      Action.Backspace,
-      Html5.pcdata("backspace"),
-      KCs.backspace,
-    );
+    action_button(Action.Backspace, Html5.txt("backspace"), KCs.backspace);
 
-  let delete = action_button(Action.Delete, Html5.pcdata("delete"), KCs.del);
+  let delete = action_button(Action.Delete, Html5.txt("delete"), KCs.del);
   let threepiece = (cls, pre_txt, code_txt, post_txt) =>
     Html5.(
       span([
-        pcdata(pre_txt),
-        span(~a=[a_class(["code", cls])], [pcdata(code_txt)]),
-        pcdata(post_txt),
+        txt(pre_txt),
+        span(~a=[a_class(["code", cls])], [txt(code_txt)]),
+        txt(post_txt),
       ])
     );
 
   let moveToPrevHole =
     action_button(
       Action.MoveToPrevHole,
-      Html5.pcdata("move to previous hole"),
+      Html5.txt("move to previous hole"),
       KCs.backtab,
     );
 
   let moveToNextHole =
     action_button(
       Action.MoveToNextHole,
-      Html5.pcdata("move to next hole"),
+      Html5.txt("move to next hole"),
       KCs.tab,
     );
 
@@ -502,14 +501,14 @@ let make =
   let constructParenthesized =
     action_button(
       Action.Construct(Action.SParenthesized),
-      Html5.pcdata("parenthesize"),
+      Html5.txt("parenthesize"),
       KCs.openParens,
     );
 
   let constructAsc =
     action_button(
       Action.Construct(Action.SAsc),
-      Html5.pcdata("type ascription"),
+      Html5.txt("type ascription"),
       KCs.colon,
     );
 
@@ -528,14 +527,14 @@ let make =
       "enter var",
     );
 
-  let constructVar = info_button(Html5.pcdata("enter variables directly"));
+  let constructVar = info_button(Html5.txt("enter variables directly"));
 
   let constructApPalette =
     action_input_button(
       v => Action.Construct(Action.SApPalette("$" ++ v)),
       s => PaletteName.is_valid("$" ++ s) ? Some(s) : None,
       can_insert_ap_palette_rs,
-      Html5.pcdata("apply palette"),
+      Html5.txt("apply palette"),
       "ap_palette_input",
       KCs.dollar,
       "enter palette name",
@@ -557,7 +556,7 @@ let make =
     );
 
   let constructLit =
-    info_button(Html5.pcdata("enter number literals directly"));
+    info_button(Html5.txt("enter number literals directly"));
 
   let constructPlus =
     action_button(
@@ -576,21 +575,21 @@ let make =
   let constructSpace =
     action_button(
       Action.Construct(Action.SOp(UHExp.Space)),
-      Html5.pcdata("insert application operator"),
+      Html5.txt("insert application operator"),
       KCs.space,
     );
 
   let constructInjL =
     action_button(
       Action.Construct(Action.SInj(UHExp.L)),
-      Html5.pcdata("left injection"),
+      Html5.txt("left injection"),
       KCs.alt_L,
     );
 
   let constructInjR =
     action_button(
       Action.Construct(Action.SInj(UHExp.R)),
-      Html5.pcdata("right injection"),
+      Html5.txt("right injection"),
       KCs.alt_R,
     );
 
@@ -622,7 +621,7 @@ let make =
         [
           div(
             ~a=[a_class(["sub-panel-title"])],
-            [pcdata("Type Construction")],
+            [txt("Type Construction")],
           ),
           div(
             ~a=[a_class(["sub-panel-body"])],
@@ -639,7 +638,7 @@ let make =
         [
           div(
             ~a=[a_class(["sub-panel-title"])],
-            [pcdata("Expression Construction")],
+            [txt("Expression Construction")],
           ),
           div(
             ~a=[a_class(["sub-panel-body"])],
@@ -667,7 +666,7 @@ let make =
       div(
         ~a=[a_class(["sub-panel", "sub-panel-default"])],
         [
-          div(~a=[a_class(["sub-panel-title"])], [pcdata("General")]),
+          div(~a=[a_class(["sub-panel-title"])], [txt("General")]),
           div(
             ~a=[a_class(["sub-panel-body"])],
             [
