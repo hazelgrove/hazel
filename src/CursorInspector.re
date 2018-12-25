@@ -48,6 +48,9 @@ let got_indicator = (title_text, type_div) =>
       [titlebar(title_text), type_div],
     )
   );
+let expected_pat_title = "Expecting a pattern of type";
+let expected_pat_indicator = ty =>
+  expected_indicator(expected_pat_title, typebar("expected", ty));
 
 let got_ty_indicator = ty => got_indicator("Got type", typebar("got", ty));
 let got_as_expected_ty_indicator = ty =>
@@ -75,7 +78,7 @@ let of_cursor_mode = (cursor_mode: ZExp.cursor_mode) => {
     switch (cursor_mode) {
     | ZExp.AnaOnly(ty) =>
       let ind1 = expected_ty_indicator(ty);
-      let ind2 = got_indicator("Check", special_msg_bar("successful"));
+      let ind2 = got_indicator("Got", special_msg_bar("as expected"));
       (ind1, ind2, OK);
     | ZExp.TypeInconsistent(expected_ty, got_ty) =>
       let ind1 = expected_ty_indicator(expected_ty);
@@ -151,6 +154,10 @@ let of_cursor_mode = (cursor_mode: ZExp.cursor_mode) => {
     | ZExp.TypePosition =>
       let ind1 = expected_a_type_indicator;
       let ind2 = got_a_type_indicator;
+      (ind1, ind2, OK);
+    | ZExp.BinderPosition(expected_ty) =>
+      let ind1 = expected_pat_indicator(expected_ty);
+      let ind2 = got_indicator("Got", special_msg_bar("as expected"));
       (ind1, ind2, OK);
     };
 

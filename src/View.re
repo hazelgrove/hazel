@@ -53,6 +53,16 @@ let term_with_attrs = (prefix, err_status, rev_path, classes, attrs, doc) => {
   );
 };
 
+let of_var_binding = (prefix, rev_path, x) => {
+  let id = id_of_rev_path(prefix, rev_path);
+  PP.tagged(
+    ["var_binding"],
+    Some((id, rev_path)),
+    None,
+    taggedText("var", x),
+  );
+};
+
 let optionalBreakSp = PP.optionalBreak(" ");
 let optionalBreakNSp = PP.optionalBreak("");
 let of_Parenthesized = (is_block, prefix, rev_path, r1) =>
@@ -63,11 +73,11 @@ let of_Parenthesized = (is_block, prefix, rev_path, r1) =>
     "Parenthesized",
     is_block ?
       PP.blockBoundary
-      ^^ taggedText("openParens", "(")
+      ^^ lparen("(")
       ^^ PP.nestAbsolute(2, r1)
       ^^ PP.mandatoryBreak
-      ^^ taggedText("closeParens", ")") :
-      taggedText("openParens", "(") ^^ r1 ^^ taggedText("closeParens", ")"),
+      ^^ rparen(")") :
+      lparen("(") ^^ r1 ^^ rparen(")"),
   );
 
 let str_of_expr_op = op =>
@@ -81,8 +91,7 @@ let str_of_ty_op = op =>
   | UHTyp.Sum => ("|", "op-Sum")
   | UHTyp.Arrow => (LangUtil.typeArrowSym, "op-Arrow")
   };
-let of_op_with_space = (str_of_op, op) => {
-  let (op_s, op_cls) = str_of_op(op);
+let of_str_op_with_space = (op_s, op_cls) =>
   PP.tagged(
     ["seq-op", op_cls],
     None,
@@ -93,6 +102,10 @@ let of_op_with_space = (str_of_op, op) => {
     ^^ taggedText("op-after-1", "​")
     ^^ taggedText("op-after-2", "​"),
   );
+
+let of_op_with_space = (str_of_op, op) => {
+  let (op_s, op_cls) = str_of_op(op);
+  of_str_op_with_space(op_s, op_cls);
 };
 
 let of_expr_op_with_space = of_op_with_space(str_of_expr_op);
@@ -230,7 +243,7 @@ let of_Var = (prefix, err_status, var_err_status, rev_path, x) =>
     var(x),
   );
 
-let of_Let = (prefix, err_status, rev_path, x, r1, r2) =>
+let of_Let = (prefix, err_status, rev_path, rx, r1, r2) =>
   term(
     prefix,
     err_status,
@@ -239,32 +252,33 @@ let of_Let = (prefix, err_status, rev_path, x, r1, r2) =>
     PP.blockBoundary
     ^^ kw("let")
     ^^ space
-    ^^ var(x)
-    ^^ space
-    ^^ op("=")
-    ^^ space
+    ^^ rx
+    ^^ of_str_op_with_space("=", "let-equals")
     ^^ PP.nestAbsolute(2, r1)
     ^^ PP.mandatoryBreak
     ^^ r2,
   );
 
-let of_Lam = (prefix, err_status, rev_path, x, r) =>
+let of_Lam = (prefix, err_status, rev_path, rx, r) =>
   term(
     prefix,
     err_status,
     rev_path,
     "Lam",
-    kw(LangUtil.lamSym) ^^ var(x) ^^ taggedText("lambda-dot", ".") ^^ r,
+    taggedText("lambda-sym", LangUtil.lamSym)
+    ^^ rx
+    ^^ taggedText("lambda-dot", ".")
+    ^^ r,
   );
 
-let of_LamAnn = (prefix, err_status, rev_path, x, rty, r1) =>
+let of_LamAnn = (prefix, err_status, rev_path, rx, rty, r1) =>
   term(
     prefix,
     err_status,
     rev_path,
     "LamAnn",
     kw(LangUtil.lamSym)
-    ^^ var(x)
+    ^^ rx
     ^^ kw(":")
     ^^ rty
     ^^ taggedText("lambda-dot", ".")
@@ -343,7 +357,7 @@ let of_InjAnn = (prefix, err_status, rev_path, rty, side, r) =>
     ^^ rparen(")"),
   );
 
-let of_Case = (prefix, err_status, rev_path, r1, x, r2, y, r3) =>
+let of_Case = (prefix, err_status, rev_path, r1, rx, r2, ry, r3) =>
   term(
     prefix,
     err_status,
@@ -356,24 +370,20 @@ let of_Case = (prefix, err_status, rev_path, r1, x, r2, y, r3) =>
     ^^ PP.mandatoryBreak
     ^^ kw("L")
     ^^ lparen("(")
-    ^^ var(x)
+    ^^ rx
     ^^ rparen(")")
-    ^^ space
-    ^^ op(LangUtil.caseArrowSym)
-    ^^ space
+    ^^ of_str_op_with_space(LangUtil.caseArrowSym, "case-arrow")
     ^^ PP.nestAbsolute(2, r2)
     ^^ PP.mandatoryBreak
     ^^ kw("R")
     ^^ lparen("(")
-    ^^ var(y)
+    ^^ ry
     ^^ rparen(")")
-    ^^ space
-    ^^ op(LangUtil.caseArrowSym)
-    ^^ space
+    ^^ of_str_op_with_space(LangUtil.caseArrowSym, "case-arrow")
     ^^ PP.nestAbsolute(2, r3),
   );
 
-let of_CaseAnn = (prefix, err_status, rev_path, r1, x, r2, y, r3) =>
+let of_CaseAnn = (prefix, err_status, rev_path, r1, rx, r2, ry, r3) =>
   term(
     prefix,
     err_status,
@@ -386,20 +396,16 @@ let of_CaseAnn = (prefix, err_status, rev_path, r1, x, r2, y, r3) =>
     ^^ PP.mandatoryBreak
     ^^ kw("L")
     ^^ lparen("(")
-    ^^ var(x)
+    ^^ rx
     ^^ rparen(")")
-    ^^ space
-    ^^ op(LangUtil.caseArrowSym)
-    ^^ space
+    ^^ of_str_op_with_space(LangUtil.caseArrowSym, "case-arrow")
     ^^ PP.nestAbsolute(2, r2)
     ^^ PP.mandatoryBreak
     ^^ kw("R")
     ^^ lparen("(")
-    ^^ var(y)
+    ^^ ry
     ^^ rparen(")")
-    ^^ space
-    ^^ op(LangUtil.caseArrowSym)
-    ^^ space
+    ^^ of_str_op_with_space(LangUtil.caseArrowSym, "case-arrow")
     ^^ PP.nestAbsolute(2, r3),
   );
 
@@ -485,15 +491,19 @@ let rec of_hexp = (palette_stuff, prefix, rev_path, e) =>
     | UHExp.Var(var_err_status, x) =>
       of_Var(prefix, err_status, var_err_status, rev_path, x)
     | UHExp.Let(x, e, e') =>
+      let rev_pathx = [0, ...rev_path];
       let rev_path1 = [1, ...rev_path];
       let rev_path2 = [2, ...rev_path];
+      let rx = of_var_binding(prefix, rev_pathx, x);
       let r1 = of_hexp(palette_stuff, prefix, rev_path1, e);
       let r2 = of_hexp(palette_stuff, prefix, rev_path2, e');
-      of_Let(prefix, err_status, rev_path, x, r1, r2);
+      of_Let(prefix, err_status, rev_path, rx, r1, r2);
     | UHExp.Lam(x, e') =>
-      let rev_path1 = [0, ...rev_path];
+      let rev_pathx = [0, ...rev_path];
+      let rev_path1 = [1, ...rev_path];
+      let rx = of_var_binding(prefix, rev_pathx, x);
       let r1 = of_hexp(palette_stuff, prefix, rev_path1, e');
-      of_Lam(prefix, err_status, rev_path, x, r1);
+      of_Lam(prefix, err_status, rev_path, rx, r1);
     | UHExp.NumLit(n) => of_NumLit(prefix, err_status, rev_path, n)
     | UHExp.Inj(side, e) =>
       let rev_path1 = [0, ...rev_path];
@@ -501,12 +511,16 @@ let rec of_hexp = (palette_stuff, prefix, rev_path, e) =>
       of_Inj(prefix, err_status, rev_path, side, r1);
     | UHExp.Case(e1, (x, e2), (y, e3)) =>
       let rev_path1 = [0, ...rev_path];
-      let rev_path2 = [1, ...rev_path];
-      let rev_path3 = [2, ...rev_path];
+      let rev_pathx = [1, ...rev_path];
+      let rev_path2 = [2, ...rev_path];
+      let rev_pathy = [3, ...rev_path];
+      let rev_path3 = [4, ...rev_path];
       let r1 = of_hexp(palette_stuff, prefix, rev_path1, e1);
+      let rx = of_var_binding(prefix, rev_pathx, x);
       let r2 = of_hexp(palette_stuff, prefix, rev_path2, e2);
+      let ry = of_var_binding(prefix, rev_pathy, y);
       let r3 = of_hexp(palette_stuff, prefix, rev_path3, e3);
-      of_Case(prefix, err_status, rev_path, r1, x, r2, y, r3);
+      of_Case(prefix, err_status, rev_path, r1, rx, r2, ry, r3);
     | UHExp.EmptyHole(u) =>
       of_Hole(
         prefix,
@@ -647,8 +661,10 @@ let rec of_dhexp' =
       | FreeVar(u, _, _, x) =>
         of_Var(prefix, err_status, InVHole(u), rev_path, x)
       | Let(x, d1, d2) =>
+        let rev_pathx = [0, ...rev_path];
         let rev_path1 = [1, ...rev_path];
         let rev_path2 = [2, ...rev_path];
+        let rx = of_var_binding(prefix, rev_pathx, x);
         let r1 =
           of_dhexp'(
             instance_click_fn,
@@ -658,7 +674,6 @@ let rec of_dhexp' =
             rev_path1,
             d1,
           );
-
         let r2 =
           of_dhexp'(
             instance_click_fn,
@@ -668,11 +683,12 @@ let rec of_dhexp' =
             rev_path2,
             d2,
           );
-
-        of_Let(prefix, err_status, rev_path, x, r1, r2);
+        of_Let(prefix, err_status, rev_path, rx, r1, r2);
       | Lam(x, ty, d1) =>
-        let rev_path1 = [0, ...rev_path];
-        let rev_path2 = [1, ...rev_path];
+        let rev_pathx = [0, ...rev_path];
+        let rev_path1 = [1, ...rev_path];
+        let rev_path2 = [2, ...rev_path];
+        let rx = of_var_binding(prefix, rev_pathx, x);
         let r1 = of_htype(false, prefix, rev_path1, ty);
         let r2 =
           of_dhexp'(
@@ -683,8 +699,7 @@ let rec of_dhexp' =
             rev_path2,
             d1,
           );
-
-        of_LamAnn(prefix, err_status, rev_path, x, r1, r2);
+        of_LamAnn(prefix, err_status, rev_path, rx, r1, r2);
       | Ap(d1, d2) =>
         let rev_path1 = [0, ...rev_path];
         let rev_path2 = [1, ...rev_path];
@@ -757,6 +772,8 @@ let rec of_dhexp' =
       | Case(d1, (x, _), (y, _)) =>
         /* | Case(d1, (x, d2), (y, d3)) => */
         let rev_path1 = [0, ...rev_path];
+        let rev_pathx = [1, ...rev_path];
+        let rev_pathy = [2, ...rev_path];
         /* let rev_path2 = [1, ...rev_path];
            let rev_path3 = [2, ...rev_path]; */
         let r1 =
@@ -768,7 +785,8 @@ let rec of_dhexp' =
             rev_path1,
             d1,
           );
-
+        let rx = of_var_binding(prefix, rev_pathx, x);
+        let ry = of_var_binding(prefix, rev_pathy, y);
         /* let r2 =
              of_dhexp'(
                instance_click_fn,
@@ -791,7 +809,7 @@ let rec of_dhexp' =
 
         let elided = taggedText("elided", "...");
 
-        of_CaseAnn(prefix, err_status, rev_path, r1, x, elided, y, elided);
+        of_CaseAnn(prefix, err_status, rev_path, r1, rx, elided, ry, elided);
       | EmptyHole(u, i, sigma) =>
         let inst = (u, i);
         let hole_label = hole_label_of(inst);
