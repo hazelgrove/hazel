@@ -580,7 +580,7 @@ button:disabled {
   font-size: 150%;
 }
 
-.kw {
+.kw, .lambda-sym {
 	font-weight: bold;
 }
 

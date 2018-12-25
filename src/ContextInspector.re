@@ -214,8 +214,8 @@ let mk =
     let next_prev_state_initial: next_prev_state = (
       (None, None): next_prev_state
     );
-    let next_key = JSUtil.KeyCombos.w;
-    let prev_key = JSUtil.KeyCombos.q;
+    let next_key = JSUtil.KeyCombos.alt_PageDown;
+    let prev_key = JSUtil.KeyCombos.alt_PageUp;
     let update_instance = inst => {
       let usi = React.S.value(user_selected_instances_rs);
       let usi' = UserSelectedInstances.update(usi, inst);

@@ -114,126 +114,6 @@ let view = (model: Model.t) => {
     let (cursor_path, cursor_side) = SemanticsCore.Path.of_zexp(ze);
     set_cursor_to((cursor_path, cursor_side));
   };
-  /* TODO not sure if the rev_paths are complete anymore in light of palettes */
-  let rev_paths_rs =
-    React.S.map(({EditorBox.rev_paths, _}) => rev_paths, editor_box_rs);
-
-  let fix_anchor = (selection, anchor) => {
-    let anchorOffset = selection##.anchorOffset;
-    let anchor' =
-      switch (anchor##.nodeType) {
-      | Dom.TEXT =>
-        let anchor' =
-          Js.Opt.get(Dom.CoerceTo.text(anchor), () => assert(false));
-
-        let length = anchor'##.length;
-        if (anchorOffset == length) {
-          switch (Js.Opt.to_option(anchor##.parentNode)) {
-          | Some(parent) =>
-            switch (parent##.nodeType) {
-            | Dom.ELEMENT =>
-              let parent_elem =
-                Js.Opt.get(Dom_html.CoerceTo.element(parent), () =>
-                  assert(false)
-                );
-
-              let classList = parent_elem##.classList;
-              let is_space =
-                Js.to_bool(classList##contains(Js.string("space")));
-
-              let is_indentation =
-                Js.to_bool(classList##contains(Js.string("SIndentation")));
-
-              let is_op =
-                Js.to_bool(classList##contains(Js.string("seq-op")));
-
-              let is_paren =
-                Js.to_bool(classList##contains(Js.string("lparen")));
-
-              if (is_space || is_indentation || is_op || is_paren) {
-                switch (Js.Opt.to_option(parent##.nextSibling)) {
-                | Some(sibling) => (first_leaf(sibling), 0)
-                | None => (anchor, anchorOffset)
-                };
-              } else {
-                (anchor, anchorOffset);
-              };
-            | _ => (anchor, anchorOffset)
-            }
-          | None => (anchor, anchorOffset)
-          };
-        } else if (anchorOffset == 0) {
-          switch (Js.Opt.to_option(anchor##.parentNode)) {
-          | Some(parent) =>
-            switch (parent##.nodeType) {
-            | Dom.ELEMENT =>
-              let parent_elem =
-                Js.Opt.get(Dom_html.CoerceTo.element(parent), () =>
-                  assert(false)
-                );
-
-              let classList = parent_elem##.classList;
-              let is_space =
-                Js.to_bool(classList##contains(Js.string("space")));
-
-              let is_op =
-                Js.to_bool(classList##contains(Js.string("seq-op")));
-
-              let is_paren =
-                Js.to_bool(classList##contains(Js.string("rparen")));
-
-              if (is_space || is_op || is_paren) {
-                switch (Js.Opt.to_option(parent##.previousSibling)) {
-                | Some(sibling) =>
-                  let anchor' = last_leaf(sibling);
-                  (anchor', node_length(anchor'));
-                | None => (anchor, anchorOffset)
-                };
-              } else {
-                (anchor, anchorOffset);
-              };
-            | _ => (anchor, anchorOffset)
-            }
-          | None => (anchor, anchorOffset)
-          };
-        } else {
-          (anchor, anchorOffset);
-        };
-      | Dom.ELEMENT =>
-        let anchor_elem =
-          Js.Opt.get(Dom_html.CoerceTo.element(anchor), () => assert(false));
-
-        let classList = anchor_elem##.classList;
-        if (!Js.to_bool(classList##contains(Js.string("SText")))) {
-          let children = anchor##.childNodes;
-          let child_opt = children##item(anchorOffset);
-          switch (Js.Opt.to_option(child_opt)) {
-          | Some(child) =>
-            switch (Js.Opt.to_option(Dom_html.CoerceTo.element(child))) {
-            | Some(child_element) =>
-              let tagName = Js.to_string(child_element##.tagName);
-
-              if (String.equal(tagName, "BR")) {
-                switch (Js.Opt.to_option(child_element##.previousSibling)) {
-                | Some(sibling) =>
-                  let anchor' = last_leaf(sibling);
-                  (anchor', node_length(anchor'));
-                | None => (first_leaf(child), 0)
-                };
-              } else {
-                (anchor, anchorOffset);
-              };
-            | None => (anchor, anchorOffset)
-            }
-          | None => (anchor, anchorOffset)
-          };
-        } else {
-          (anchor, anchorOffset);
-        };
-      | _ => (anchor, anchorOffset)
-      };
-    anchor';
-  };
   let clear_cursors = () => {
     let cursors =
       Dom_html.document##getElementsByClassName(Js.string("cursor"));
@@ -244,8 +124,10 @@ let view = (model: Model.t) => {
       cursor##.classList##remove(Js.string("cursor"));
     };
   };
-  let has_class = (classList, cls) =>
-    Js.to_bool(classList##contains(Js.string(cls)));
+  /* TODO not sure if the rev_paths are complete anymore in light of palettes */
+  let has_class = JSUtil.has_class;
+  let rev_paths_rs =
+    React.S.map(({EditorBox.rev_paths, _}) => rev_paths, editor_box_rs);
   let do_transport = (): bool => {
     let selection = Dom_html.window##getSelection;
     JSUtil.log(selection);
@@ -264,10 +146,37 @@ let view = (model: Model.t) => {
         None;
       };
     switch (parent_elem) {
+    | None => false
     | Some(parent_elem) =>
       let classList = parent_elem##.classList;
       let has_class = has_class(classList);
-      if (has_class("hole-before-1")) {
+      if (has_class("SIndentation")) {
+        switch (Js.Opt.to_option(parent_elem##.nextSibling)) {
+        | Some(sibling) => move_cursor_before_suppress(sibling)
+        | None => false
+        };
+      } else if (!has_class("SText")) {
+        /* odd case in Firefox where cursor doesn't end up in text */
+        let children = anchor##.childNodes;
+        let anchorOffset = selection##.anchorOffset;
+        switch (Js.Opt.to_option(children##item(anchorOffset))) {
+        | Some(child) =>
+          switch (Js.Opt.to_option(Dom_html.CoerceTo.element(child))) {
+          | Some(child_element) =>
+            let tagName = Js.to_string(child_element##.tagName);
+            if (String.equal(tagName, "BR")) {
+              switch (Js.Opt.to_option(child_element##.previousSibling)) {
+              | Some(sibling) => move_cursor_after_suppress(sibling)
+              | None => move_cursor_before_suppress(child)
+              };
+            } else {
+              move_cursor_before_suppress(child);
+            };
+          | None => move_cursor_before_suppress(child)
+          }
+        | None => false
+        };
+      } else if (has_class("hole-before-1")) {
         let anchorOffset = selection##.anchorOffset;
         if (anchorOffset == 1) {
           switch (Js.Opt.to_option(parent_elem##.parentNode)) {
@@ -423,7 +332,8 @@ let view = (model: Model.t) => {
         | None => false
         };
       } else if (has_class("lambda-dot")
-                 || has_class("openParens")
+                 || has_class("lambda-sym")
+                 || has_class("lparen")
                  || has_class("space")) {
         let anchorOffset = selection##.anchorOffset;
 
@@ -435,12 +345,25 @@ let view = (model: Model.t) => {
         } else {
           false;
         };
-      } else if (has_class("closeParens")) {
+      } else if (has_class("rparen")) {
         let anchorOffset = selection##.anchorOffset;
 
         if (anchorOffset == 0) {
           switch (Js.Opt.to_option(parent_elem##.previousSibling)) {
-          | Some(sibling) => move_cursor_after_suppress(sibling)
+          | Some(sibling) =>
+            switch (Js.Opt.to_option(Dom_html.CoerceTo.element(sibling))) {
+            | None => false
+            | Some(sibling_element) =>
+              if (!
+                    JSUtil.has_class(
+                      sibling_element##.classList,
+                      "SIndentation",
+                    )) {
+                move_cursor_after_suppress(sibling);
+              } else {
+                false;
+              }
+            }
           | None => false
           };
         } else {
@@ -449,7 +372,6 @@ let view = (model: Model.t) => {
       } else {
         false;
       };
-    | None => false
     };
   };
 
@@ -473,7 +395,7 @@ let view = (model: Model.t) => {
     if (ast_has_class("Parenthesized")) {
       let anchor_elem = get_anchor_elem(anchor);
       let anchor_classList = anchor_elem##.classList;
-      if (has_class(anchor_classList, "openParens")) {
+      if (has_class(anchor_classList, "lparen")) {
         Before;
       } else {
         After;
@@ -482,17 +404,18 @@ let view = (model: Model.t) => {
       In(0);
     } else if (ast_has_class("Let")) {
       let anchor_elem = get_anchor_elem(anchor);
-      if (anchorOffset == 0) {
-        let innerHTML = Js.to_string(anchor_elem##.innerHTML);
-        if (String.equal(innerHTML, "let")) {
+      let innerHTML = Js.to_string(anchor_elem##.innerHTML);
+      if (String.equal(innerHTML, "let")) {
+        if (anchorOffset == 0) {
           Before;
         } else {
-          After;
+          In(0);
         };
       } else {
-        After;
+        In(1);
       };
     } else if (ast_has_class("Var")
+               || ast_has_class("var_binding")
                || ast_has_class("NumLit")
                || ast_has_class("Num")
                || ast_has_class("number")
@@ -584,10 +507,11 @@ let view = (model: Model.t) => {
       Dom_html.document,
       _ => {
         let selection = Dom_html.window##getSelection;
-        let anchorNode = selection##.anchorNode;
-        if (JSUtil.div_contains_node(pp_view_dom, anchorNode)) {
-          let (anchor, anchorOffset) =
-            fix_anchor(selection, selection##.anchorNode);
+        let anchor = selection##.anchorNode;
+        let anchorOffset = selection##.anchorOffset;
+        if (JSUtil.div_contains_node(pp_view_dom, anchor)) {
+          /* let (anchor, anchorOffset) = */
+          /*   fix_anchor(selection, selection##.anchorNode); */
           let did_transport = do_transport();
           if (did_transport) {
             ();

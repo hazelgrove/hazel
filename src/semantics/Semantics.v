@@ -54,7 +54,13 @@ Module FCore(Helper : HELPER).
 
   Module Var.
     Definition t := Coq.Strings.String.string.
+    Definition empty_binder : t := Coq.Strings.String.EmptyString.
     Definition equal (x : t) (y : t) : bool := str_eqb x y.
+    Definition is_empty (x : t) : bool := 
+      match x with 
+      | Coq.Strings.String.EmptyString => true
+      | _ => false
+      end.
     Fixpoint _is_valid_internal (s : t) : bool :=
         match s with
         | Coq.Strings.String.EmptyString => true
@@ -76,16 +82,18 @@ Module FCore(Helper : HELPER).
           ((Helpers.char_eq_b first_char "_") || (Helpers.char_in_range_b first_char "a" "z")) &&
           _is_valid_internal rest
         end.
+    Definition is_valid_binder (s : t) : bool := 
+      (is_valid s) || (is_empty s). 
     Definition check_valid {A : Type}
         (s : t)
         (result : option(A))
         : option(A) :=
         if is_valid s then result else None.
-    Definition check_both_valid {A : Type}
-        (s1 s2 : t)
+    Definition check_valid_binder {A : Type}
+        (s : t)
         (result : option(A))
         : option(A) :=
-        check_valid s1 (check_valid s2 result).
+        if is_valid_binder s then result else None.
   End Var.
 
   Module MetaVar.
@@ -246,7 +254,7 @@ Module FCore(Helper : HELPER).
     Fixpoint seq_length {tm op : Type} 
       (seq : opseq tm op) : nat := 
       match seq with 
-      | ExpOpExp _ _ _ => S(S(O))
+      | ExpOpExp _ _ _ => 2
       | SeqOpExp seq' _ _ => S(seq_length seq')
       end.
 
@@ -402,7 +410,7 @@ Module FCore(Helper : HELPER).
     Definition prefix_length {tm op : Type}
       (prefix : opseq_prefix tm op) : nat := 
       match prefix with 
-      | ExpPrefix _ _ => S(O)
+      | ExpPrefix _ _ => 1
       | SeqPrefix seq _ => OperatorSeq.seq_length seq
       end.
 
@@ -418,7 +426,7 @@ Module FCore(Helper : HELPER).
     Definition suffix_length {tm op : Type}
       (suffix : opseq_suffix tm op) : nat :=
       match suffix with
-      | ExpSuffix _ _ => S(O)
+      | ExpSuffix _ _ => 1
       | SeqSuffix _ seq => OperatorSeq.seq_length seq
       end.
 
@@ -634,13 +642,13 @@ Module FCore(Helper : HELPER).
       | (HTyp.Num, HTyp.Num) => Some ty1
       | (_, HTyp.Hole) => Some ty1
       | (HTyp.Hole, _) => Some ty2
-      | (HTyp.Arrow ty11 ty12, HTyp.Arrow ty21 ty22) => 
-        match (join ty11 ty21, join ty12 ty22) with 
+      | (HTyp.Arrow tyL tyR, HTyp.Arrow ty21 ty22) => 
+        match (join tyL ty21, join tyR ty22) with 
         | (Some ty1, Some ty2) => Some (HTyp.Arrow ty1 ty2)
         | _ => None
         end
-      | (HTyp.Sum ty11 ty12, HTyp.Sum ty21 ty22) => 
-        match (join ty11 ty21, join ty12 ty22) with 
+      | (HTyp.Sum tyL tyR, HTyp.Sum ty21 ty22) => 
+        match (join tyL ty21, join tyR ty22) with 
         | (Some ty1, Some ty2) => Some (HTyp.Sum ty1 ty2)
         | _ => None
         end
@@ -858,11 +866,6 @@ Module FCore(Helper : HELPER).
         (result : option(A))
         : option(A) :=
         if is_valid s then result else None.
-    Definition check_both_valid {A : Type}
-        (s1 s2 : t)
-        (result : option(A))
-        : option(A) :=
-        check_valid s1 (check_valid s2 result).
   End PaletteName.
 
   Module PaletteSerializedModel.
@@ -1142,12 +1145,12 @@ Module FCore(Helper : HELPER).
           | Var (InVHole _) _ =>
             Some (HTyp.Hole)
           | Lam x e1 => 
+            Var.check_valid_binder x (
             let ctx' := (Contexts.extend_gamma ctx (x, HTyp.Hole)) in 
-            Var.check_valid x
             match syn fuel ctx' e1 with 
             | Some ty2 => Some (HTyp.Arrow HTyp.Hole ty2)
             | None => None
-            end
+            end)
           | Inj side e1 => 
             match syn fuel ctx e1 with 
             | None => None
@@ -1158,7 +1161,7 @@ Module FCore(Helper : HELPER).
               end
             end
           | Let x e1 e2 =>
-            Var.check_valid x
+            Var.check_valid_binder x
             match syn fuel ctx e1 with 
             | None => None
             | Some ty1 => 
@@ -1242,7 +1245,7 @@ Module FCore(Helper : HELPER).
       | Fuel.More fuel =>
         match e with
         | Let x e1 e2 =>
-          Var.check_valid x
+          Var.check_valid_binder x
           match syn fuel ctx e1 with 
           | None => None
           | Some ty1 => 
@@ -1250,7 +1253,7 @@ Module FCore(Helper : HELPER).
               ana fuel ctx' e2 ty
           end
         | Lam x e' =>
-          Var.check_valid x
+          Var.check_valid_binder x
           match HTyp.matched_arrow ty with
           | None => None
           | Some (ty1, ty2) =>
@@ -1264,7 +1267,8 @@ Module FCore(Helper : HELPER).
             ana fuel ctx e' (pick_side side ty1 ty2)
           end
         | Case e' (x, e1) (y, e2) =>
-          Var.check_both_valid x y
+          Var.check_valid_binder x (
+          Var.check_valid_binder y 
           match syn fuel ctx e' with 
           | None => None
           | Some e'_ty =>
@@ -1279,7 +1283,7 @@ Module FCore(Helper : HELPER).
                 ana fuel ctx2 e2 ty 
               end
             end
-          end
+          end)
         | Asc _ _
         | Var _ _
         | NumLit _ 
@@ -1465,14 +1469,14 @@ Module FCore(Helper : HELPER).
           end
         | Lam x e1 => 
           let ctx' := (Contexts.extend_gamma ctx (x, HTyp.Hole)) in 
-          Var.check_valid x
+          Var.check_valid_binder x
           match syn_fix_holes_internal' fuel ctx' u_gen should_renumber_empty_holes e1 with 
           | Some (e1', ty2, u_gen') => 
             Some (Lam x e1', HTyp.Arrow HTyp.Hole ty2, u_gen')
           | None => None
           end
         | Let x e1 e2 => 
-          Var.check_valid x
+          Var.check_valid_binder x
           match syn_fix_holes_internal' fuel ctx u_gen should_renumber_empty_holes e1 with 
           | Some (e1', ty1, u_gen1) => 
             let ctx1 := (Contexts.extend_gamma ctx (x, ty1)) in 
@@ -1596,7 +1600,7 @@ Module FCore(Helper : HELPER).
         | Fuel.More fuel => 
         match e with 
         | Let x e1 e2 => 
-          Var.check_valid x
+          Var.check_valid_binder x
           match syn_fix_holes_internal' fuel ctx u_gen should_renumber_empty_holes e1 with 
           | Some (e1', ty1, u_gen1) => 
             let ctx1 := (Contexts.extend_gamma ctx (x, ty1)) in 
@@ -1608,7 +1612,7 @@ Module FCore(Helper : HELPER).
           | None => None
           end
         | Lam x e1 => 
-          Var.check_valid x
+          Var.check_valid_binder x
           match HTyp.matched_arrow ty with 
           | Some (ty1, ty2) => 
             let ctx' := (Contexts.extend_gamma ctx (x, ty1)) in 
@@ -1648,7 +1652,8 @@ Module FCore(Helper : HELPER).
             end
           end
         | Case e1 (x, e2) (y, e3) => 
-          Var.check_both_valid x y
+          Var.check_valid_binder x (
+          Var.check_valid_binder y ( 
           match syn_fix_holes_internal' fuel ctx u_gen should_renumber_empty_holes e1 with 
           | Some (e1', ty1, u_gen1) => 
             match 
@@ -1676,7 +1681,7 @@ Module FCore(Helper : HELPER).
               end
             end
           | None => None
-          end
+          end))
         | Asc _ _
         | Var _ _ 
         | NumLit _ 
@@ -1860,7 +1865,7 @@ Module FCore(Helper : HELPER).
       OpSeqZ 
         (Skel.BinOp NotInHole UHTyp.Arrow
           (Skel.Placeholder _ O)
-          (Skel.Placeholder _ (S O)))
+          (Skel.Placeholder _ 1))
         (CursorT Before UHTyp.Hole)
         (OperatorSeq.EmptyPrefix
           (OperatorSeq.ExpSuffix UHTyp.Arrow UHTyp.Hole)).
@@ -1870,7 +1875,7 @@ Module FCore(Helper : HELPER).
       OpSeqZ 
         (Skel.BinOp NotInHole UHTyp.Sum
           (Skel.Placeholder _ O)
-          (Skel.Placeholder _ (S O)))
+          (Skel.Placeholder _ 1))
         (CursorT Before UHTyp.Hole)
         (OperatorSeq.EmptyPrefix
           (OperatorSeq.ExpSuffix UHTyp.Sum UHTyp.Hole)).
@@ -1900,8 +1905,11 @@ Module FCore(Helper : HELPER).
     | LetZV : Var.t -> cursor_side -> UHExp.t -> UHExp.t -> t'
     | LetZ1 : Var.t -> t -> UHExp.t -> t'
     | LetZ2 : Var.t -> UHExp.t -> t -> t'
+    | LamZV : Var.t -> cursor_side -> UHExp.t -> t'
     | LamZ : Var.t -> t -> t'
     | InjZ : UHExp.inj_side -> t -> t'
+    | CaseZV1 : UHExp.t -> (Var.t * cursor_side * UHExp.t) -> (Var.t * UHExp.t) -> t'
+    | CaseZV2 : UHExp.t -> (Var.t * UHExp.t) -> (Var.t * cursor_side * UHExp.t) -> t'
     | CaseZ1 : t -> (Var.t * UHExp.t) -> (Var.t * UHExp.t) -> t'
     | CaseZ2 : UHExp.t -> (Var.t * t) -> (Var.t * UHExp.t) -> t'
     | CaseZ3 : UHExp.t -> (Var.t * UHExp.t) -> (Var.t * t) -> t'
@@ -1934,7 +1942,10 @@ Module FCore(Helper : HELPER).
       | Deeper _ (LetZV _ _ _ _) 
       | Deeper _ (LetZ1 _ _ _)
       | Deeper _ (LetZ2 _ _ _)
+      | Deeper _ (LamZV _ _ _)
       | Deeper _ (LamZ _ _)
+      | Deeper _ (CaseZV1 _ _ _)
+      | Deeper _ (CaseZV2 _ _ _)
       | Deeper _ (CaseZ1 _ _ _)
       | Deeper _ (CaseZ2 _ _ _)
       | Deeper _ (CaseZ3 _ _ _)
@@ -1999,8 +2010,11 @@ Module FCore(Helper : HELPER).
       | LetZV x _ e1 e2 => UHExp.Let x e1 e2
       | LetZ1 x ze e => UHExp.Let x (erase ze) e
       | LetZ2 x e ze => UHExp.Let x e (erase ze)
+      | LamZV x _ e => UHExp.Lam x e
       | LamZ x ze' => UHExp.Lam x (erase ze')
       | InjZ side ze => UHExp.Inj side (erase ze)
+      | CaseZV1 e1 (x, _, e2) (y, e3) => UHExp.Case e1 (x, e2) (y, e3)
+      | CaseZV2 e1 (x, e2) (y, _, e3) => UHExp.Case e1 (x, e2) (y, e3)
       | CaseZ1 ze branch1 branch2 => UHExp.Case (erase ze) branch1 branch2
       | CaseZ2 e (x, ze) branch2 => UHExp.Case e (x, (erase ze)) branch2
       | CaseZ3 e branch1 (y, ze) => UHExp.Case e branch1 (y, (erase ze))
@@ -2035,12 +2049,12 @@ Module FCore(Helper : HELPER).
     (* cursor in type position *)
     | TypePosition : cursor_mode
     (* cursor in binder position *)
-    | BinderPosition : cursor_mode.
+    | BinderPosition : HTyp.t -> cursor_mode.
 
     Inductive cursor_sort := 
     | IsExpr : UHExp.t -> cursor_sort
     | IsType : cursor_sort
-    | IsBinder : cursor_sort.
+    | IsBinder : Var.t -> cursor_sort.
     
     Record cursor_info : Type := mk_cursor_info {
       mode : cursor_mode;
@@ -2255,30 +2269,43 @@ Module FCore(Helper : HELPER).
             IsType 
             Before (* TODO fix this once we use cursor info in type position! *)
             ctx)
-      | LetZV x side e1 e2 => 
-        Some
-          (mk_cursor_info
-            BinderPosition
-            IsBinder
-            side
-            ctx)
+      | LetZV x cursor_side e1 e2 => 
+        match UHExp.syn fuel ctx e1 with 
+        | None => None
+        | Some ty => 
+          Some
+            (mk_cursor_info
+              (BinderPosition ty)
+              (IsBinder x)
+              cursor_side
+              ctx)
+        end
       | LetZ1 x ze1 e2 => 
-        Var.check_valid x
+        Var.check_valid_binder x
         (syn_cursor_info fuel ctx ze1)
       | LetZ2 x e1 ze2 => 
-        Var.check_valid x
+        Var.check_valid_binder x
         match UHExp.syn fuel ctx e1 with 
         | None => None
         | Some ty1 => 
           let ctx' := (Contexts.extend_gamma ctx (x, ty1)) in 
           syn_cursor_info fuel ctx' ze2
         end
+      | LamZV x cursor_side e => 
+        Some 
+          (mk_cursor_info
+            (BinderPosition HTyp.Hole)
+            (IsBinder x)
+            cursor_side
+            ctx)
       | LamZ x ze1 => 
         let ctx' := (Contexts.extend_gamma ctx (x, HTyp.Hole)) in 
-        Var.check_valid x
+        Var.check_valid_binder x
         (syn_cursor_info fuel ctx' ze1)
       | InjZ side ze1 => 
         syn_cursor_info fuel ctx ze1
+      | CaseZV1 _ _ _
+      | CaseZV2 _ _ _
       | CaseZ1 _ _ _
       | CaseZ2 _ _ _
       | CaseZ3 _ _ _ => None
@@ -2302,26 +2329,42 @@ Module FCore(Helper : HELPER).
       | Fuel.Kicked => None
       | Fuel.More fuel => 
       match ze with 
-      | LetZV x side e1 e2 => 
-        Some
-          (mk_cursor_info
-            BinderPosition
-            IsBinder
-            side
-            ctx)
+      | LetZV x cursor_side e1 e2 => 
+        match UHExp.syn fuel ctx e1 with 
+        | None => None
+        | Some ty => 
+          Some
+            (mk_cursor_info
+              (BinderPosition ty)
+              (IsBinder x)
+              cursor_side
+              ctx)
+        end
       | LetZ1 x ze1 e2 => 
-        Var.check_valid x
+        Var.check_valid_binder x
         (syn_cursor_info fuel ctx ze1)
       | LetZ2 x e1 ze2 => 
-        Var.check_valid x
+        Var.check_valid_binder x
         match UHExp.syn fuel ctx e1 with 
         | None => None
         | Some ty1 => 
           let ctx' := (Contexts.extend_gamma ctx (x, ty1)) in 
           ana_cursor_info fuel ctx' ze2 ty
         end
+      | LamZV x cursor_side e => 
+        match HTyp.matched_arrow ty with 
+        | None => None
+        | Some (ty1, ty2) => 
+          let ty := HTyp.Arrow ty1 ty2 in 
+           Some
+             (mk_cursor_info
+                (BinderPosition ty)
+                (IsBinder x)
+                cursor_side
+                ctx)
+        end
       | LamZ x ze1 => 
-        Var.check_valid x
+        Var.check_valid_binder x
         match HTyp.matched_arrow ty with 
         | None => None
         | Some (ty1, ty2) => 
@@ -2335,8 +2378,39 @@ Module FCore(Helper : HELPER).
           ana_cursor_info fuel ctx ze1 
             (UHExp.pick_side side ty1 ty2)
         end
+      | CaseZV1 e1 (x, cursor_side, _) _ => 
+        match UHExp.syn fuel ctx e1 with 
+        | None => None
+        | Some ty1 => 
+          match HTyp.matched_sum ty1 with 
+          | None => None
+          | Some (tyL, _) => 
+            Some 
+              (mk_cursor_info 
+                (BinderPosition tyL)
+                (IsBinder x)
+                cursor_side
+                ctx)
+          end
+        end
+      | CaseZV2 e1 _ (y, cursor_side, _) => 
+        match UHExp.syn fuel ctx e1 with 
+        | None => None
+        | Some ty1 => 
+          match HTyp.matched_sum ty1 with 
+          | None => None
+          | Some (_, tyR) => 
+            Some 
+              (mk_cursor_info 
+                (BinderPosition tyR)
+                (IsBinder y)
+                cursor_side
+                ctx)
+          end
+        end
       | CaseZ1 ze1 (x, _) (y, _) => 
-        Var.check_both_valid x y
+        Var.check_valid_binder x (
+        Var.check_valid_binder y (
         match cursor_on_outer_expr ze1 with 
         | Some ((UHExp.Tm (InHole _) e1) as e, side) => 
           match UHExp.syn' fuel ctx e1 with  
@@ -2362,8 +2436,8 @@ Module FCore(Helper : HELPER).
           | Some ty1 => 
             match HTyp.matched_sum ty1 with 
             | None => None
-            | Some (ty11, ty12) => 
-              let matched_ty := HTyp.Sum ty11 ty12 in 
+            | Some (tyL, tyR) => 
+              let matched_ty := HTyp.Sum tyL tyR in 
               Some 
                 (mk_cursor_info
                   (SynMatchingSum ty1 matched_ty)
@@ -2374,31 +2448,33 @@ Module FCore(Helper : HELPER).
           end
         | None => 
           syn_cursor_info fuel ctx ze1
-        end
+        end))
       | CaseZ2 e1 (x, ze2) (y, e3) => 
-        Var.check_both_valid x y
+        Var.check_valid_binder x (
+        Var.check_valid_binder y (
         match UHExp.syn fuel ctx e1 with 
         | None => None
         | Some ty1 => 
           match HTyp.matched_sum ty1 with 
           | None => None
-          | Some (ty11, ty12) => 
-            let ctx' := (Contexts.extend_gamma ctx (x, ty11)) in 
+          | Some (tyL, tyR) => 
+            let ctx' := (Contexts.extend_gamma ctx (x, tyL)) in 
             ana_cursor_info fuel ctx' ze2 ty
           end
-        end
+        end))
       | CaseZ3 e1 (x, e2) (y, ze3) => 
-        Var.check_both_valid x y
+        Var.check_valid_binder x (
+        Var.check_valid_binder y (
         match UHExp.syn fuel ctx e1 with 
         | None => None
         | Some ty1 => 
           match HTyp.matched_sum ty1 with 
           | None => None
-          | Some (ty11, ty12) => 
-            let ctx' := (Contexts.extend_gamma ctx (y, ty12)) in 
+          | Some (tyL, tyR) => 
+            let ctx' := (Contexts.extend_gamma ctx (y, tyR)) in 
             ana_cursor_info fuel ctx' ze3 ty
           end
-        end
+        end))
       | AscZ1 _ _ 
       | AscZ2 _ _ 
       | OpSeqZ _ _ _
@@ -2534,15 +2610,18 @@ Module FCore(Helper : HELPER).
     with of_zexp' (ze : ZExp.t') : t := 
       match ze with 
       | ZExp.AscZ1 ze' _ => cons' O (of_zexp ze')
-      | ZExp.AscZ2 _ ze' => cons' (S O) (of_ztyp ze')
+      | ZExp.AscZ2 _ ze' => cons' 1 (of_ztyp ze')
       | ZExp.LetZV _ cursor_side _ _ => (cons O nil, cursor_side)
-      | ZExp.LetZ1 _ ze' _ => cons' (S O) (of_zexp ze') 
-      | ZExp.LetZ2 _ _ ze' => cons' (S (S O)) (of_zexp ze')
-      | ZExp.LamZ _ ze' => cons' O (of_zexp ze')
+      | ZExp.LetZ1 _ ze' _ => cons' 1 (of_zexp ze') 
+      | ZExp.LetZ2 _ _ ze' => cons' 2 (of_zexp ze')
+      | ZExp.LamZV _ cursor_side _ => (cons O nil, cursor_side)
+      | ZExp.LamZ _ ze' => cons' 1 (of_zexp ze')
       | ZExp.InjZ _ ze' => cons' O (of_zexp ze')
       | ZExp.CaseZ1 ze' _ _ => cons' O (of_zexp ze')
-      | ZExp.CaseZ2 _ (_, ze') _ => cons' (S O) (of_zexp ze')
-      | ZExp.CaseZ3 _ _ (_, ze') => cons' (S (S O)) (of_zexp ze')
+      | ZExp.CaseZV1 _ (_, cursor_side, _) _ => (cons 1 nil, cursor_side)
+      | ZExp.CaseZ2 _ (_, ze') _ => cons' 2 (of_zexp ze')
+      | ZExp.CaseZV2 _ _ (_, cursor_side, _) => (cons 3 nil, cursor_side)
+      | ZExp.CaseZ3 _ _ (_, ze') => cons' 4 (of_zexp ze')
       | ZExp.OpSeqZ _ ze' surround => 
         let n := OperatorSeq.surround_prefix_length surround in 
         cons' n (of_zexp ze')
@@ -2616,7 +2695,7 @@ Module FCore(Helper : HELPER).
             | Some ze => Some (ZExp.Deeper err_status (ZExp.AscZ1 ze ty))
             | None => None
             end
-          | (S(O), UHExp.Asc e1 ty) => 
+          | (1, UHExp.Asc e1 ty) => 
             match follow_ty fuel (xs, cursor_side) ty with 
             | Some ztau => Some (ZExp.Deeper err_status (ZExp.AscZ2 e1 ztau))
             | None => None
@@ -2625,21 +2704,22 @@ Module FCore(Helper : HELPER).
           | (_, UHExp.Var _ _) => None
           | (O, UHExp.Let x e1  e2) => 
             Some (ZExp.Deeper err_status (ZExp.LetZV x cursor_side e1 e2))
-          | (S(O), UHExp.Let x e1 e2) => 
-            Var.check_valid x
+          | (1, UHExp.Let x e1 e2) => 
+            Var.check_valid_binder x
             match follow_e (xs, cursor_side) e1 with 
             | Some ze => Some (ZExp.Deeper err_status (ZExp.LetZ1 x ze e2))
             | None => None
             end
-          | (S(S(O)), UHExp.Let x e1 e2) => 
-            Var.check_valid x
+          | (2, UHExp.Let x e1 e2) => 
+            Var.check_valid_binder x
             match follow_e (xs, cursor_side) e2 with 
             | Some ze => Some (ZExp.Deeper err_status (ZExp.LetZ2 x e1 ze))
             | None => None
             end
           | (_, UHExp.Let _ _ _) => None
           | (O, UHExp.Lam x e1) => 
-            Var.check_valid x
+            Some (ZExp.Deeper err_status (ZExp.LamZV x cursor_side e1))
+          | (1, UHExp.Lam x e1) => 
             match follow_e (xs, cursor_side) e1 with 
             | Some ze => Some (ZExp.Deeper err_status (ZExp.LamZ x ze))
             | None => None
@@ -2653,19 +2733,20 @@ Module FCore(Helper : HELPER).
             end
           | (_, UHExp.Inj _ _) => None
           | (O, UHExp.Case e1 (x, e2) (y, e3)) => 
-            Var.check_both_valid x y
             match follow_e (xs, cursor_side) e1 with 
             | Some ze => Some (ZExp.Deeper err_status (ZExp.CaseZ1 ze (x, e2) (y, e3)))
             | None => None
             end
-          | (S(O), UHExp.Case e1 (x, e2) (y, e3)) => 
-            Var.check_both_valid x y
+          | (1, UHExp.Case e1 (x, e2) (y, e3)) => 
+            Some (ZExp.Deeper err_status (ZExp.CaseZV1 e1 (x, cursor_side, e2) (y, e3)))
+          | (2, UHExp.Case e1 (x, e2) (y, e3)) => 
             match follow_e (xs, cursor_side) e2 with 
             | Some ze => Some (ZExp.Deeper err_status (ZExp.CaseZ2 e1 (x, ze) (y, e3)))
             | None => None
             end
-          | (S(S(O)), UHExp.Case e1 (x, e2) (y, e3)) => 
-            Var.check_both_valid x y
+          | (3, UHExp.Case e1 (x, e2) (y, e3)) => 
+            Some (ZExp.Deeper err_status (ZExp.CaseZV2 e1 (x, e2) (y, cursor_side, e3)))
+          | (4, UHExp.Case e1 (x, e2) (y, e3)) => 
             match follow_e (xs, cursor_side) e3 with 
             | Some ze => Some (ZExp.Deeper err_status (ZExp.CaseZ3 e1 (x, e2) (y, ze)))
             | None => None
@@ -2720,9 +2801,10 @@ Module FCore(Helper : HELPER).
       | UHExp.Tm _ (UHExp.NumLit _) => None
       | UHExp.Parenthesized e1  
       | UHExp.Tm _ (UHExp.Asc e1 _)  
-      | UHExp.Tm _ (UHExp.Lam _ e1)  
       | UHExp.Tm _ (UHExp.Inj _ e1) => 
         cons_opt O (path_to_hole' fuel e1 u)
+      | UHExp.Tm _ (UHExp.Lam _ e1) => 
+        cons_opt 1 (path_to_hole' fuel e1 u) 
       | UHExp.Tm _ (UHExp.Let x e1 e2) => 
         match path_to_hole' fuel e1 u with 
         | Some steps => Some (cons 1 steps) 
@@ -2737,10 +2819,10 @@ Module FCore(Helper : HELPER).
         | Some steps => Some(cons 0 steps) 
         | None => 
           match path_to_hole' fuel e2 u with 
-          | Some steps => Some(cons 1 steps)
+          | Some steps => Some(cons 2 steps)
           | None => 
             match path_to_hole' fuel e3 u with 
-            | Some steps => Some(cons 2 steps)
+            | Some steps => Some(cons 4 steps)
             | None => None
             end
           end
@@ -2815,12 +2897,12 @@ Module FCore(Helper : HELPER).
     | STyOp : UHTyp.op -> shape
     (* expression shapes *)
     | SAsc : shape
-    | SLet : Var.t -> shape
+    | SLet : shape
     | SVar : Var.t -> ZExp.cursor_side -> shape
-    | SLam : Var.t -> shape
+    | SLam : shape
     | SLit : nat -> ZExp.cursor_side -> shape
     | SInj : UHExp.inj_side -> shape
-    | SCase : Var.t -> Var.t -> shape
+    | SCase : shape
     | SOp : UHExp.op -> shape
     | SApPalette : PaletteName.t -> shape.
 
@@ -3019,23 +3101,30 @@ Module FCore(Helper : HELPER).
           | None => Path.cons_opt 2 (first_hole_path_e fuel ue)
           end
         | ZExp.LetZ2 _ _ ze'' => Path.cons_opt 2 (next_hole_path_e' fuel ze'')
-        | ZExp.LamZ _ ze'' => Path.cons_opt 0 (next_hole_path_e' fuel ze'')
+        | ZExp.LamZV _ _ e1 => Path.cons_opt 1 (first_hole_path_e fuel e1)
+        | ZExp.LamZ _ ze'' => Path.cons_opt 1 (next_hole_path_e' fuel ze'')
         | ZExp.InjZ _ ze'' => Path.cons_opt 0 (next_hole_path_e' fuel ze'')
-        | ZExp.CaseZ1 ze'' (_,ue1) (_,ue2) =>
+        | ZExp.CaseZ1 ze'' (_, ue1) (_, ue2) =>
           match next_hole_path_e' fuel ze'' with
           | Some ns => Some (cons 0 ns)
           | None =>
             match first_hole_path_e fuel ue1 with
-            | Some ns => Some (cons 1 ns)
-            | None => Path.cons_opt 2 (first_hole_path_e fuel ue2)
+            | Some ns => Some (cons 2 ns)
+            | None => Path.cons_opt 4 (first_hole_path_e fuel ue2)
             end
           end
-        | ZExp.CaseZ2 _ (_,ze'') (_,ue) =>
-          match next_hole_path_e' fuel ze'' with
-          | Some ns => Some (cons 1 ns)
-          | None => Path.cons_opt 2 (first_hole_path_e fuel ue)
+        | ZExp.CaseZV1 _ (_, _, e1) (_, e2) => 
+          match first_hole_path_e fuel e1 with 
+          | Some ns => Some (cons 2 ns)
+          | None => Path.cons_opt 4 (first_hole_path_e fuel e2)
           end
-        | ZExp.CaseZ3 _ _ (_,ze'') => Path.cons_opt 2 (next_hole_path_e' fuel ze'')
+        | ZExp.CaseZ2 _ (_, ze'') (_, ue) =>
+          match next_hole_path_e' fuel ze'' with
+          | Some ns => Some (cons 2 ns)
+          | None => Path.cons_opt 4 (first_hole_path_e fuel ue)
+          end
+        | ZExp.CaseZV2 _ _ (_, _, e2) => Path.cons_opt 4 (first_hole_path_e fuel e2)
+        | ZExp.CaseZ3 _ _ (_, ze'') => Path.cons_opt 4 (next_hole_path_e' fuel ze'')
         | ZExp.OpSeqZ _ ze'' surround =>
           let n := OperatorSeq.surround_prefix_length surround in
           match next_hole_path_e' fuel ze'' with
@@ -3239,20 +3328,27 @@ Module FCore(Helper : HELPER).
           | Some ns => Some (cons 2 ns)
           | None => Path.cons_opt 1 (last_hole_path_e fuel ue0)
           end
-        | ZExp.LamZ _ ze0 => Path.cons_opt 0 (prev_hole_path_e' fuel ze0)
+        | ZExp.LamZV _ _ e1 => None
+        | ZExp.LamZ _ ze0 => Path.cons_opt 1 (prev_hole_path_e' fuel ze0)
         | ZExp.InjZ _ ze0 => Path.cons_opt 0 (prev_hole_path_e' fuel ze0)
         | ZExp.CaseZ1 ze0 _ _ => Path.cons_opt 0 (prev_hole_path_e' fuel ze0)
+        | ZExp.CaseZV1 e1 _ _ => Path.cons_opt 0 (last_hole_path_e fuel e1)
         | ZExp.CaseZ2 ue0 (_,ze1) _ =>
           match prev_hole_path_e' fuel ze1 with
-          | Some ns => Some (cons 1 ns)
+          | Some ns => Some (cons 2 ns)
           | None => Path.cons_opt 0 (last_hole_path_e fuel ue0)
+          end
+        | ZExp.CaseZV2 e1 (x, e2) _ => 
+          match last_hole_path_e fuel e2 with 
+          | Some ns => Some (cons 2 ns)
+          | None => Path.cons_opt 0 (last_hole_path_e fuel e1)
           end
         | ZExp.CaseZ3 ue0 (_,ue1) (_,ze2) => 
           match prev_hole_path_e' fuel ze2 with
-          | Some ns => Some (cons 2 ns)
+          | Some ns => Some (cons 4 ns)
           | None =>
             match last_hole_path_e fuel ue1 with
-            | Some ns => Some (cons 1 ns)
+            | Some ns => Some (cons 2 ns)
             | None => Path.cons_opt 0 (last_hole_path_e fuel ue0)
             end
           end
@@ -3648,8 +3744,8 @@ Module FCore(Helper : HELPER).
           let (e', u_gen') := UHExp.new_EmptyHole u_gen in 
           Some (ZExp.CursorE Before e', HTyp.Hole, u_gen)
         end
-      | (Backspace, ZExp.CursorE On e)
-      | (Delete, ZExp.CursorE On e) => 
+      | (Backspace, ZExp.CursorE (In _) e)
+      | (Delete, ZExp.CursorE (In _) e) => 
         let (e', u_gen') := UHExp.new_EmptyHole u_gen in 
         let ze' := ZExp.CursorE Before e' in 
         Some (ze', HTyp.Hole, u_gen')
@@ -3674,6 +3770,27 @@ Module FCore(Helper : HELPER).
           let ze' := ZExp.CursorE After e1' in 
           Some (ze', ty', u_gen)
         | None => None
+        end
+      | (Backspace, ZExp.Deeper _ 
+          (ZExp.LetZV x After _ _)) 
+      | (Backspace, ZExp.Deeper _ 
+          (ZExp.LetZV x (In _) _ _)) 
+      | (Delete, ZExp.Deeper _ 
+          (ZExp.LetZV x Before _ _)) 
+      | (Delete, ZExp.Deeper _ 
+          (ZExp.LetZV x (In _) _ _)) 
+      | (Backspace, ZExp.Deeper _ 
+          (ZExp.LamZV x After _)) 
+      | (Backspace, ZExp.Deeper _ 
+          (ZExp.LamZV x (In _) _)) 
+      | (Delete, ZExp.Deeper _ 
+          (ZExp.LamZV x Before _)) 
+      | (Delete, ZExp.Deeper _ 
+          (ZExp.LamZV x (In _) _)) => 
+        match Var.is_empty x with 
+        | true => None
+        | false => 
+          performSyn fuel ctx (Construct (SVar Var.empty_binder Before)) (ze, ty, u_gen)
         end
       | (Backspace, ZExp.Deeper _
           (ZExp.OpSeqZ _
@@ -3941,6 +4058,7 @@ Module FCore(Helper : HELPER).
       | (Construct (SVar x side), ZExp.CursorE _ (UHExp.Tm _ (UHExp.EmptyHole _))) 
       | (Construct (SVar x side), ZExp.CursorE _ (UHExp.Tm _ (UHExp.Var _ _)))
       | (Construct (SVar x side), ZExp.CursorE _ (UHExp.Tm _ (UHExp.NumLit _))) =>
+        Var.check_valid x ( 
         let (gamma, _) := ctx in 
         match VarMap.lookup gamma x with
         | Some xty => Some (ZExp.CursorE side 
@@ -3951,34 +4069,45 @@ Module FCore(Helper : HELPER).
           Some (ZExp.CursorE side
             (UHExp.Tm NotInHole (UHExp.Var (InVHole u) x)),
             HTyp.Hole, u_gen)
+        end)
+      | (Construct (SVar x side), ZExp.Deeper _ (ZExp.LetZV _ _ e1 e2)) => 
+        Var.check_valid_binder x
+        match UHExp.syn fuel ctx e1 with
+        | None => None
+        | Some ty1 => 
+          let ctx' := Contexts.extend_gamma ctx (x, ty1) in 
+          match UHExp.syn_fix_holes fuel ctx' u_gen e2 with 
+          | None => None
+          | Some(e2', ty2, u_gen) => 
+            let ze := ZExp.Deeper NotInHole (ZExp.LetZV x side e1 e2') in 
+            Some (ze, ty2, u_gen)
+          end
         end
-      | (Construct (SLet x), ZExp.CursorE _ e) =>
-        Var.check_valid x
-        match e with
-        | UHExp.Tm _ (UHExp.EmptyHole u) =>
-          let (new_hole, u_gen') := UHExp.new_EmptyHole u_gen in 
-          Some (ZExp.Deeper NotInHole 
-            (ZExp.LetZ1 
-              x (ZExp.CursorE Before e) 
-              new_hole),
-            HTyp.Hole, 
-            u_gen')
-        | _ =>
-          let (new_hole, u_gen') := UHExp.new_EmptyHole u_gen in 
-          Some (ZExp.Deeper NotInHole 
-            (ZExp.LetZ2 
-              x e 
-              (ZExp.CursorE Before new_hole)), 
-            HTyp.Hole, 
-            u_gen')
-        end
-      | (Construct (SLam x), ZExp.CursorE _ (UHExp.Tm _ (UHExp.EmptyHole u))) =>
-        Var.check_valid x
-        (let (new_hole, u_gen') := UHExp.new_EmptyHole u_gen in
-        Some (ZExp.Deeper NotInHole (ZExp.AscZ2
-            (UHExp.Parenthesized (UHExp.Tm NotInHole (UHExp.Lam x new_hole)))
-            ZTyp.ZHole_Arrow_Hole), 
-         HTyp.Arrow HTyp.Hole HTyp.Hole, u_gen'))
+      | (Construct (SVar x side), ZExp.Deeper _ (ZExp.LamZV _ _ e1)) => 
+        Var.check_valid_binder x (
+        let ctx' := Contexts.extend_gamma ctx (x, HTyp.Hole) in 
+        match UHExp.syn_fix_holes fuel ctx' u_gen e1 with 
+        | None => None
+        | Some(e1', ty1, u_gen) => 
+          let ze := ZExp.Deeper NotInHole (ZExp.LamZV x side e1') in 
+          let ty := HTyp.Arrow HTyp.Hole ty1 in 
+          Some (ze, ty, u_gen)
+        end)
+      | (Construct SLet, ZExp.CursorE _ e) =>
+        let x := Var.empty_binder in 
+        let (new_hole, u_gen') := UHExp.new_EmptyHole u_gen in 
+        let ze := ZExp.Deeper NotInHole 
+          (ZExp.LetZV x Before e new_hole) in 
+        Some (ze, HTyp.Hole, u_gen)
+      | (Construct SLam, ZExp.CursorE _ e) =>
+        let x := Var.empty_binder in 
+        let ze := ZExp.Deeper NotInHole 
+                    (ZExp.AscZ1
+                      (ZExp.ParenthesizedZ (ZExp.Deeper NotInHole 
+                        (ZExp.LamZV x Before e)))
+                      (UHTyp.contract (HTyp.Arrow HTyp.Hole ty))) in  
+        let ty := HTyp.Arrow HTyp.Hole ty in 
+        Some (ze, ty, u_gen)
       | (Construct (SLit n side), ZExp.CursorE _ (UHExp.Tm _ (UHExp.EmptyHole _)))
       | (Construct (SLit n side), ZExp.CursorE _ (UHExp.Tm _ (UHExp.NumLit _)))
       | (Construct (SLit n side), ZExp.CursorE _ (UHExp.Tm _ (UHExp.Var _ _))) =>
@@ -3993,31 +4122,33 @@ Module FCore(Helper : HELPER).
           | UHExp.R => HTyp.Sum HTyp.Hole ty 
           end in 
         Some (ze', ty', u_gen)
-      | (Construct (SCase x y), (ZExp.CursorE _ e)) =>
-        Var.check_both_valid x y
+      | (Construct SCase, (ZExp.CursorE _ e)) =>
+        let x := Var.empty_binder in 
         match HTyp.matched_sum ty with
         | Some _ => 
-          let (new_hole1, u_gen') := UHExp.new_EmptyHole u_gen in 
-          let (new_hole2, u_gen'') := UHExp.new_EmptyHole u_gen' in 
-          let casez2 := 
-            ZExp.Deeper NotInHole 
-              (ZExp.CaseZ2 e
-                (x, ZExp.CursorE Before new_hole1)
-                (y, new_hole2)) in
-          Some (
-            ZExp.Deeper NotInHole (
-              ZExp.AscZ1 (ZExp.ParenthesizedZ casez2) UHTyp.Hole), 
-            HTyp.Hole, u_gen'')
+          let (new_hole1, u_gen) := UHExp.new_EmptyHole u_gen in 
+          let (new_hole2, u_gen) := UHExp.new_EmptyHole u_gen in 
+          let caseze := match e with 
+          | UHExp.Tm _ (UHExp.EmptyHole _) => 
+            ZExp.Deeper NotInHole (ZExp.CaseZ1 ze (x, new_hole1) (x, new_hole2))
+          | _ => 
+            ZExp.Deeper NotInHole (ZExp.CaseZV1 e (x, Before, new_hole1) (x, new_hole2))
+          end in 
+          let ze := ZExp.Deeper NotInHole (
+            ZExp.AscZ1 
+              (ZExp.ParenthesizedZ caseze) 
+              (UHTyp.Hole)) in 
+          Some (ze, HTyp.Hole, u_gen)
         | None => 
-          let (ze', u_gen') := ZExp.put_in_new_hole u_gen ze in 
-          let (new_hole2, u_gen'') := UHExp.new_EmptyHole u_gen' in 
-          let (new_hole3, u_gen''') := UHExp.new_EmptyHole u_gen'' in 
-          Some (
-            (ZExp.Deeper NotInHole (ZExp.AscZ1
-              (ZExp.ParenthesizedZ (ZExp.Deeper NotInHole (
-                ZExp.CaseZ1 ze' (x, new_hole2) (y, new_hole3))))
-              UHTyp.Hole)), 
-          HTyp.Hole, u_gen''')
+          let (ze', u_gen) := ZExp.put_in_new_hole u_gen ze in 
+          let (new_hole1, u_gen) := UHExp.new_EmptyHole u_gen in 
+          let (new_hole2, u_gen) := UHExp.new_EmptyHole u_gen in 
+          let caseze := ZExp.Deeper NotInHole (ZExp.CaseZ1 ze' (x, new_hole1) (x, new_hole2)) in 
+          let ze := ZExp.Deeper NotInHole
+            (ZExp.AscZ1
+              (ZExp.ParenthesizedZ caseze)
+              (UHTyp.Hole)) in 
+          Some (ze, HTyp.Hole, u_gen)
         end
       | (Construct (SOp op), ZExp.Deeper _ (
           ZExp.OpSeqZ _ (ZExp.CursorE (In _) e) surround))
@@ -4330,7 +4461,7 @@ Module FCore(Helper : HELPER).
         end
       | (_, ZExp.Deeper _ (ZExp.LetZ1 x ze1 e2)) =>
         let e1 := ZExp.erase ze1 in
-        Var.check_valid x
+        Var.check_valid_binder x
         match UHExp.syn fuel ctx e1 with 
         | Some ty1 => 
           match performSyn fuel ctx a (ze1, ty1, u_gen) with
@@ -4349,7 +4480,6 @@ Module FCore(Helper : HELPER).
         | None => None
         end
       | (_, ZExp.Deeper _ (ZExp.LetZ2 x e1 ze2)) =>
-        Var.check_valid x
         match UHExp.syn fuel ctx e1 with 
         | Some ty1 => 
           let ctx' := Contexts.extend_gamma ctx (x, ty1) in
@@ -4363,7 +4493,6 @@ Module FCore(Helper : HELPER).
         | None => None
         end
       | (_, ZExp.Deeper _ (ZExp.LamZ x ze1)) => 
-        Var.check_valid x
         match HTyp.matched_arrow ty with 
         | None => None
         | Some (ty1, ty2) => 
@@ -4510,8 +4639,8 @@ Module FCore(Helper : HELPER).
           let (e', u_gen') := UHExp.new_EmptyHole u_gen in 
           Some (ZExp.CursorE Before e', u_gen)
         end
-      | (Backspace, ZExp.CursorE On e)
-      | (Delete, ZExp.CursorE On e) => 
+      | (Backspace, ZExp.CursorE (In _) e)
+      | (Delete, ZExp.CursorE (In _) e) => 
         let (e', u_gen') := UHExp.new_EmptyHole u_gen in 
         let ze' := ZExp.CursorE Before e' in 
         Some (ze', u_gen')
@@ -4536,6 +4665,43 @@ Module FCore(Helper : HELPER).
           let ze' := ZExp.CursorE After e1' in 
           Some (ze', u_gen)
         | None => None
+        end
+      | (Backspace, ZExp.Deeper _ 
+          (ZExp.LetZV x After _ _)) 
+      | (Backspace, ZExp.Deeper _ 
+          (ZExp.LetZV x (In _) _ _)) 
+      | (Delete, ZExp.Deeper _ 
+          (ZExp.LetZV x Before _ _)) 
+      | (Delete, ZExp.Deeper _ 
+          (ZExp.LetZV x (In _) _ _)) 
+      | (Backspace, ZExp.Deeper _ 
+          (ZExp.LamZV x After _)) 
+      | (Backspace, ZExp.Deeper _ 
+          (ZExp.LamZV x (In _) _)) 
+      | (Delete, ZExp.Deeper _ 
+          (ZExp.LamZV x Before _)) 
+      | (Delete, ZExp.Deeper _ 
+          (ZExp.LamZV x (In _) _)) 
+      | (Backspace, ZExp.Deeper _ 
+          (ZExp.CaseZV1 _ (x, After, _) _)) 
+      | (Backspace, ZExp.Deeper _ 
+          (ZExp.CaseZV1 _ (x, (In _), _) _)) 
+      | (Delete, ZExp.Deeper _ 
+          (ZExp.CaseZV1 _ (x, Before, _) _)) 
+      | (Delete, ZExp.Deeper _ 
+          (ZExp.CaseZV1 _ (x, (In _), _) _)) 
+      | (Backspace, ZExp.Deeper _ 
+          (ZExp.CaseZV2 _ _ (x, After, _))) 
+      | (Backspace, ZExp.Deeper _ 
+          (ZExp.CaseZV2 _ _ (x, (In _), _))) 
+      | (Delete, ZExp.Deeper _ 
+          (ZExp.CaseZV2 _ _ (x, Before, _)))  
+      | (Delete, ZExp.Deeper _ 
+          (ZExp.CaseZV2 _ _ (x, (In _), _))) =>  
+        match Var.is_empty x with 
+        | true => None
+        | false => 
+          performAna fuel u_gen ctx (Construct (SVar Var.empty_binder Before)) ze ty
         end
       (* special cases for backspace/delete that can turn 
        * an opseq back into a single expression *)
@@ -4606,43 +4772,118 @@ Module FCore(Helper : HELPER).
         Some (
           ZExp.ParenthesizedZ ze, 
           u_gen)
-      | (Construct (SLet x), 
-          ZExp.CursorE _ 
-            (UHExp.Tm _ (UHExp.EmptyHole u))) =>
-        Var.check_valid x
-        (let (new_hole, u_gen') := UHExp.new_EmptyHole u_gen in
-        Some (
-          ZExp.Deeper NotInHole
-            (ZExp.LetZ1 x ze new_hole), 
-          u_gen'))
-      | (Construct (SLam x), 
-          ZExp.CursorE _ 
-            (UHExp.Tm _ (UHExp.EmptyHole u))) =>
-        Var.check_valid x
-        match HTyp.matched_arrow ty with
-        | Some _ => 
-          Some (
-            ZExp.Deeper NotInHole (ZExp.LamZ x ze), 
-            u_gen)
-        | None => 
-            Some (
-              ZExp.Deeper (InHole u) 
-                (ZExp.LamZ x ze)
-            , u_gen)
+      | (Construct (SVar x side), ZExp.Deeper _ (ZExp.LetZV _ _ e1 e2)) => 
+        Var.check_valid_binder x
+        match UHExp.syn fuel ctx e1 with
+        | None => None
+        | Some ty1 => 
+          let ctx' := Contexts.extend_gamma ctx (x, ty1) in 
+          match UHExp.ana_fix_holes fuel ctx' u_gen e2 ty with 
+          | None => None
+          | Some(e2', u_gen) => 
+            let ze := ZExp.Deeper NotInHole (ZExp.LetZV x side e1 e2') in 
+            Some (ze, u_gen)
+          end
         end
-      | (Construct (SCase x y), 
-          ZExp.CursorE _ (UHExp.Tm _ (UHExp.EmptyHole u))) (* 23c *) =>
-        let (new_hole1, u_gen') := UHExp.new_EmptyHole u_gen in 
-        let (new_hole2, u_gen'') := UHExp.new_EmptyHole u_gen' in 
-        Var.check_both_valid x y
-        (Some (
-          ZExp.Deeper NotInHole (
-            ZExp.CaseZ1
-              ze 
-              (x, new_hole1)
-              (y, new_hole2)),
-          u_gen''
-        ))
+      | (Construct (SVar x side), ZExp.Deeper _ (ZExp.LamZV _ _ e1)) => 
+        Var.check_valid_binder x 
+        match HTyp.matched_arrow ty with 
+        | None => None
+        | Some (ty1, ty2) => 
+          let ctx' := Contexts.extend_gamma ctx (x, ty1) in 
+          match UHExp.ana_fix_holes fuel ctx' u_gen e1 ty2 with 
+          | None => None
+          | Some(e1', u_gen) => 
+            let ze := ZExp.Deeper NotInHole (ZExp.LamZV x side e1') in 
+            Some (ze, u_gen)
+          end
+        end
+      | (Construct (SVar x side), ZExp.Deeper _ (ZExp.CaseZV1 e1 (_, _, e2) branch2)) => 
+        Var.check_valid_binder x 
+        match UHExp.syn fuel ctx e1 with 
+        | None => None
+        | Some ty1 => 
+          match HTyp.matched_sum ty1 with 
+          | None => None
+          | Some (tyL, tyR) => 
+            let ctxL := Contexts.extend_gamma ctx (x, tyL) in 
+            match UHExp.ana_fix_holes fuel ctxL u_gen e2 ty with 
+            | None => None
+            | Some (e2', u_gen) => 
+              let ze := ZExp.Deeper NotInHole (ZExp.CaseZV1 e1 (x, side, e2') branch2) in 
+              Some (ze, u_gen)
+            end
+          end
+        end
+      | (Construct (SVar x side), ZExp.Deeper _ (ZExp.CaseZV2 e1 branch1 (_, _, e3))) => 
+        Var.check_valid_binder x 
+        match UHExp.syn fuel ctx e1 with 
+        | None => None
+        | Some ty1 => 
+          match HTyp.matched_sum ty1 with 
+          | None => None
+          | Some (tyL, tyR) => 
+            let ctxR := Contexts.extend_gamma ctx (x, tyR) in 
+            match UHExp.ana_fix_holes fuel ctxR u_gen e3 ty with 
+            | None => None
+            | Some (e3', u_gen) => 
+              let ze := ZExp.Deeper NotInHole (ZExp.CaseZV2 e1 branch1 (x, side, e3')) in 
+              Some (ze, u_gen)
+            end
+          end
+        end
+      | (Construct SLet, ZExp.CursorE _ e) => 
+        let x := Var.empty_binder in 
+        match UHExp.syn fuel ctx e with 
+        | None => None
+        | Some _ => 
+          let (new_hole, u_gen) := UHExp.new_EmptyHole u_gen in
+          let ze := ZExp.Deeper NotInHole (ZExp.LetZV x Before e new_hole) in 
+          Some (ze, u_gen)
+        end
+      | (Construct SLam, ZExp.CursorE _ e) => 
+        let x := Var.empty_binder in 
+        match HTyp.matched_arrow ty with 
+        | Some (_, ty2) => 
+          match UHExp.ana_fix_holes fuel ctx u_gen e ty with 
+          | None => None
+          | Some (e', u_gen) => 
+            let ze := ZExp.Deeper NotInHole (ZExp.LamZV x Before e') in 
+            Some (ze, u_gen)
+          end
+        | None => 
+          match UHExp.syn fuel ctx e with 
+          | None => None
+          | Some _ => 
+            let (u, u_gen) := MetaVar.next u_gen in 
+            let ze := ZExp.Deeper (InHole u) (ZExp.LamZV x Before e) in 
+            Some (ze, u_gen)
+          end
+        end
+      | (Construct SCase, ZExp.CursorE _ e) => 
+        match UHExp.syn fuel ctx e with 
+        | None => None
+        | Some ty => 
+          let x := Var.empty_binder in 
+          match HTyp.matched_sum ty with 
+          | Some _ => 
+            let (new_hole1, u_gen) := UHExp.new_EmptyHole u_gen in 
+            let (new_hole2, u_gen) := UHExp.new_EmptyHole u_gen in 
+            let ze := match e with 
+            | UHExp.Tm _ (UHExp.EmptyHole _) => 
+              ZExp.Deeper NotInHole (ZExp.CaseZ1 ze (x, new_hole1) (x, new_hole2))
+            | _ => 
+              ZExp.Deeper NotInHole (ZExp.CaseZV1 e (x, Before, new_hole1) (x, new_hole2))
+            end in 
+            Some (ze, u_gen)
+          | None => 
+            let (ze', u_gen) := ZExp.put_in_new_hole u_gen ze in 
+            let (new_hole1, u_gen) := UHExp.new_EmptyHole u_gen in 
+            let (new_hole2, u_gen) := UHExp.new_EmptyHole u_gen in 
+            let ze := ZExp.Deeper NotInHole (ZExp.CaseZ1 ze' (x, new_hole1) (x, new_hole2)) in  
+            Some (ze, u_gen)
+          end
+        end
       (* Zipper Cases *)
       | (_, ZExp.ParenthesizedZ ze1) => 
         match performAna fuel u_gen ctx a ze1 ty with 
@@ -4653,7 +4894,7 @@ Module FCore(Helper : HELPER).
         | None => None
         end
       | (_, ZExp.Deeper _ (ZExp.LetZ1 x ze1 e2)) =>
-        Var.check_valid x
+        Var.check_valid_binder x
         match UHExp.syn fuel ctx (ZExp.erase ze1) with 
         | Some ty1 => 
           match performSyn fuel ctx a (ze1, ty1, u_gen) with 
@@ -4670,7 +4911,7 @@ Module FCore(Helper : HELPER).
         | None => None
         end
       | (_, ZExp.Deeper _ (ZExp.LetZ2 x e1 ze2)) =>
-        Var.check_valid x
+        Var.check_valid_binder x
         match UHExp.syn fuel ctx e1 with 
         | Some ty1 => 
           let ctx' := Contexts.extend_gamma ctx (x, ty1) in
@@ -4683,7 +4924,7 @@ Module FCore(Helper : HELPER).
        | None => None
         end
       | (_, ZExp.Deeper _ (ZExp.LamZ x ze')) =>
-        Var.check_valid x
+        Var.check_valid_binder x
         match HTyp.matched_arrow ty with 
         | Some (ty1, ty2) => 
           let ctx' := Contexts.extend_gamma ctx (x, ty1) in
@@ -4708,7 +4949,8 @@ Module FCore(Helper : HELPER).
         | None => None
         end
       | (_, ZExp.Deeper _ (ZExp.CaseZ1 ze0 (x, e1) (y, e2))) =>
-        Var.check_both_valid x y
+        Var.check_valid_binder x (
+        Var.check_valid_binder y (
         match UHExp.syn fuel ctx (ZExp.erase ze0) with 
         | None => None
         | Some ty0 => 
@@ -4719,9 +4961,10 @@ Module FCore(Helper : HELPER).
               ZExp.CaseZ1 ze0' (x, e1) (y, e2)) in 
             zexp_ana_fix_holes fuel ctx u_gen' ze' ty 
           end
-        end
+        end))
       | (_, ZExp.Deeper err_state (ZExp.CaseZ2 e0 (x, ze1) (y, e2))) =>
-        Var.check_both_valid x y
+        Var.check_valid_binder x (
+        Var.check_valid_binder y (
         match UHExp.syn fuel ctx e0 with 
         | Some ty0 => 
           match HTyp.matched_sum ty0 with 
@@ -4739,9 +4982,10 @@ Module FCore(Helper : HELPER).
           | None => None
           end
         | None => None
-        end
+        end))
       | (_, ZExp.Deeper err_state (ZExp.CaseZ3 e0 (x, e1) (y, ze2))) =>
-        Var.check_both_valid x y
+        Var.check_valid_binder x (
+        Var.check_valid_binder y (
         match UHExp.syn fuel ctx e0 with 
         | Some ty0 => 
           match HTyp.matched_sum ty0 with
@@ -4758,7 +5002,7 @@ Module FCore(Helper : HELPER).
           | None => None
           end
         | None => None
-        end
+        end))
       (* Subsumption *)
       | _ =>
         performAna_subsume fuel u_gen ctx a ze ty
@@ -4924,7 +5168,7 @@ Module FCore(Helper : HELPER).
                 end
               else IllTyped
             | Let x d1 d2 => 
-              match (Var.is_valid x, assign_type gamma delta d1) with 
+              match (Var.is_valid_binder x, assign_type gamma delta d1) with 
               | (true, WellTyped ty1) => 
                 let gamma' := VarMap.extend gamma (x, ty1) in 
                 assign_type gamma' delta d2
@@ -4932,7 +5176,7 @@ Module FCore(Helper : HELPER).
               end
             | Lam x ty1 d1 => 
               let gamma' := VarMap.extend gamma (x, ty1) in 
-              match (Var.is_valid x, assign_type gamma' delta d1) with 
+              match (Var.is_valid_binder x, assign_type gamma' delta d1) with 
               | (true, WellTyped ty2) => WellTyped (HTyp.Arrow ty1 ty2)
               | _ => IllTyped
               end
@@ -4966,10 +5210,10 @@ Module FCore(Helper : HELPER).
                 end
               end
             | Case d1 (x, d2) (y, d3) => 
-              match ((Var.is_valid x) && (Var.is_valid y), assign_type gamma delta d1) with 
-              | (true, WellTyped (HTyp.Sum ty11 ty12)) => 
-                let gamma1 := VarMap.extend gamma (x, ty11) in 
-                let gamma2 := VarMap.extend gamma (y, ty12) in 
+              match ((Var.is_valid_binder x) && (Var.is_valid_binder y), assign_type gamma delta d1) with 
+              | (true, WellTyped (HTyp.Sum tyL tyR)) => 
+                let gamma1 := VarMap.extend gamma (x, tyL) in 
+                let gamma2 := VarMap.extend gamma (y, tyR) in 
                 match (assign_type gamma1 delta d2,
                        assign_type gamma2 delta d3) with 
                 | (WellTyped ty2, WellTyped ty3) => 
@@ -5102,14 +5346,14 @@ Module FCore(Helper : HELPER).
                 delta
             | UHExp.Lam x e1 => 
               let ctx' := Contexts.extend_gamma ctx (x, HTyp.Hole) in 
-              match (Var.is_valid x, syn_expand fuel ctx' e1) with 
+              match (Var.is_valid_binder x, syn_expand fuel ctx' e1) with 
               | (true, Expands d1 ty2 delta1) => 
                 let d := Lam x HTyp.Hole d1 in 
                 Expands d (HTyp.Arrow HTyp.Hole ty2) delta1
               | _ => DoesNotExpand
               end
             | UHExp.Let x e1 e2 => 
-              match (Var.is_valid x, syn_expand fuel ctx e1) with 
+              match (Var.is_valid_binder x, syn_expand fuel ctx e1) with 
               | (true, Expands d1 ty1 delta1) => 
                 let ctx' := Contexts.extend_gamma ctx (x, ty1) in 
                 match syn_expand fuel ctx' e2 with 
@@ -5279,7 +5523,7 @@ Module FCore(Helper : HELPER).
             | Fuel.More fuel => 
             match e with 
             | UHExp.Lam x e1 => 
-              match (Var.is_valid x, HTyp.matched_arrow ty) with 
+              match (Var.is_valid_binder x, HTyp.matched_arrow ty) with 
               | (true, Some (ty1, ty2)) => 
                 let ctx' := Contexts.extend_gamma ctx (x, ty1) in 
                 match ana_expand fuel ctx' e1 ty2 with 
@@ -5309,7 +5553,7 @@ Module FCore(Helper : HELPER).
                 end
               end
             | UHExp.Case e1 (x, e2) (y, e3) => 
-              match ((Var.is_valid x) && (Var.is_valid x), syn_expand fuel ctx e1) with 
+              match ((Var.is_valid_binder x) && (Var.is_valid_binder x), syn_expand fuel ctx e1) with 
               | (true, Expands d1 ty1 delta1) => 
                 match HTyp.matched_sum ty1 with 
                 | None => DoesNotExpand
@@ -5648,7 +5892,7 @@ Module FCore(Helper : HELPER).
             match d with 
             | DHExp.BoundVar _ => InvalidInput 1
             | DHExp.Let x d1 d2 => 
-              if Var.is_valid x then
+              if Var.is_valid_binder x then
                 match evaluate fuel' d1 with 
                 | InvalidInput msg => InvalidInput msg
                 | BoxedValue d1' | Indet d1' => 
@@ -5657,12 +5901,12 @@ Module FCore(Helper : HELPER).
               else
                 InvalidInput 1
             | DHExp.Lam x _ _ =>
-              if Var.is_valid x then BoxedValue d else InvalidInput 1
+              if Var.is_valid_binder x then BoxedValue d else InvalidInput 1
             | DHExp.Ap d1 d2 => 
               match evaluate fuel' d1 with 
               | InvalidInput msg => InvalidInput msg
               | BoxedValue (DHExp.Lam x tau d1') => 
-                if Var.is_valid x then
+                if Var.is_valid_binder x then
                   match evaluate fuel' d2 with 
                   | InvalidInput msg => InvalidInput msg
                   | BoxedValue d2' | Indet d2' => 
@@ -5721,7 +5965,7 @@ Module FCore(Helper : HELPER).
               | Indet d1' => Indet (DHExp.Inj ty side d1')
               end
             | DHExp.Case d1 (x, d2) (y, d3) =>
-              if (Var.is_valid x) && (Var.is_valid y) then
+              if (Var.is_valid_binder x) && (Var.is_valid_binder y) then
                 match evaluate fuel' d1 with 
                 | InvalidInput msg => InvalidInput msg
                 | BoxedValue d1' => 

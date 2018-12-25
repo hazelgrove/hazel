@@ -63,10 +63,11 @@ let mk =
           a_onkeypress(evt =>
             switch (JSUtil.is_single_key(evt)) {
             | Some(single_key) =>
+              Dom.preventDefault(evt);
               let cursor_info = React.S.value(cursor_info_rs);
               switch (cursor_info.sort) {
-              | ZExp.IsExpr(UHExp.Tm(_, UHExp.EmptyHole(_))) =>
-                Dom.preventDefault(evt);
+              | ZExp.IsExpr(UHExp.Tm(_, UHExp.EmptyHole(_)))
+              | ZExp.IsBinder("") =>
                 let shape =
                   switch (single_key) {
                   | JSUtil.Number(n) => Action.SLit(n, After)
@@ -75,7 +76,8 @@ let mk =
                 do_action(Action.Construct(shape));
                 true;
               | ZExp.IsExpr(UHExp.Tm(_, UHExp.NumLit(_)))
-              | ZExp.IsExpr(UHExp.Tm(_, UHExp.Var(_, _))) =>
+              | ZExp.IsExpr(UHExp.Tm(_, UHExp.Var(_, _)))
+              | ZExp.IsBinder(_) =>
                 let selection = Dom_html.window##getSelection;
                 let anchorNode = selection##.anchorNode;
                 let nodeValue =
@@ -86,7 +88,6 @@ let mk =
                 let key_string = JSUtil.single_key_string(single_key);
                 let newNodeValue =
                   string_insert(nodeValue, anchorOffset, key_string);
-                Dom.preventDefault(evt);
                 switch (int_of_string_opt(newNodeValue)) {
                 | Some(new_n) =>
                   let new_side =
@@ -106,13 +107,15 @@ let mk =
                     ()
                 };
                 true;
-              | _ =>
-                Dom.preventDefault(evt);
-                true;
+              | _ => true
               };
             | None =>
-              Dom.preventDefault(evt);
-              true;
+              JSUtil.is_movement_key(evt) ?
+                true :
+                {
+                  Dom.preventDefault(evt);
+                  true;
+                }
             }
           ),
           a_onkeydown(evt => {
@@ -124,7 +127,8 @@ let mk =
               let cursor_info = React.S.value(cursor_info_rs);
               switch (cursor_info.sort) {
               | ZExp.IsExpr(UHExp.Tm(_, UHExp.NumLit(_)))
-              | ZExp.IsExpr(UHExp.Tm(_, UHExp.Var(_, _))) =>
+              | ZExp.IsExpr(UHExp.Tm(_, UHExp.Var(_, _)))
+              | ZExp.IsBinder(_) =>
                 let side = cursor_info.side;
                 let is_Before =
                   switch (side) {

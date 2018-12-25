@@ -150,6 +150,10 @@ module KeyCombos = {
   let alt_L = _kcm("Alt + L", "l", ModKeyReqs.withAlt(MustBeHeld));
   let alt_R = _kcm("Alt + R", "r", ModKeyReqs.withAlt(MustBeHeld));
   let alt_C = _kcm("Alt + C", "c", ModKeyReqs.withAlt(MustBeHeld));
+  let alt_PageUp =
+    _kcm("Alt + PageUp", "PageUp", ModKeyReqs.withAlt(MustBeHeld));
+  let alt_PageDown =
+    _kcm("Alt + PageDown", "PageDown", ModKeyReqs.withAlt(MustBeHeld));
   let qmark = _kc("?", "?");
   let equals = _kc("=", "=");
   let vbar = _kc("|", "|");
@@ -188,7 +192,7 @@ let listen_for_key = (k, f) =>
 type single_key =
   | Number(int)
   | Letter(string);
-let letter_regexp = Js_of_ocaml.Regexp.regexp("[a-zA-Z_]");
+let letter_regexp = Js_of_ocaml.Regexp.regexp("^[a-zA-Z_]$");
 
 let is_single_key: Js.t(Dom_html.keyboardEvent) => option(single_key) =
   evt => {
@@ -215,6 +219,22 @@ let single_key_string: single_key => string =
     | Number(n) => string_of_int(n)
     | Letter(x) => x
     };
+
+let is_movement_key: Js.t(Dom_html.keyboardEvent) => bool =
+  evt => {
+    let key = get_key(evt);
+    switch (key) {
+    | "ArrowLeft"
+    | "ArrowRight"
+    | "ArrowUp"
+    | "ArrowDown"
+    | "PageUp"
+    | "PageDown"
+    | "Home"
+    | "End" => true
+    | _ => false
+    };
+  };
 
 type div_element = Js.t(Dom_html.divElement);
 type node = Js.t(Dom.node);
@@ -253,3 +273,5 @@ let add_cls_to_all = (cls_to_add, cls_to_add_to) => {
     elt##.classList##add(cls_to_add_j);
   };
 };
+let has_class = (classList, cls) =>
+  Js.to_bool(classList##contains(Js.string(cls)));
