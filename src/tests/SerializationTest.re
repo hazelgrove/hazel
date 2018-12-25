@@ -1,6 +1,6 @@
 open OUnit2;
 open Printf;
-open Semantics.Core;
+open SemanticsCore;
 let nih = tm => UHExp.Tm(NotInHole, tm);
 let nihVar = s => nih(UHExp.Var(NotInVHole, s));
 let var' = nihVar("v");

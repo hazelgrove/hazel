@@ -1,4 +1,4 @@
-open Semantics.Core;
+open SemanticsCore;
 open Tyxml_js;
 let titlebar = PanelUtils.titlebar;
 let typebar_width = 80000;
@@ -15,7 +15,7 @@ let matched_ty_bar = (prefix, ty1, ty2) => {
       ~a=[a_class(["infobar", "matched-type-bar"])],
       [
         ty1_html,
-        span(~a=[a_class(["matched-connective"])], [pcdata(" ▶ ")]),
+        span(~a=[a_class(["matched-connective"])], [txt(" ▶ ")]),
         ty2_html,
       ],
     )
@@ -23,9 +23,7 @@ let matched_ty_bar = (prefix, ty1, ty2) => {
 };
 
 let special_msg_bar = (msg: string) =>
-  Html5.(
-    div(~a=[a_class(["infobar", "special-msg-bar"])], [pcdata(msg)])
-  );
+  Html5.(div(~a=[a_class(["infobar", "special-msg-bar"])], [txt(msg)]));
 
 let expected_indicator = (title_text, type_div) =>
   Html5.(
@@ -50,6 +48,9 @@ let got_indicator = (title_text, type_div) =>
       [titlebar(title_text), type_div],
     )
   );
+let expected_pat_title = "Expecting a pattern of type";
+let expected_pat_indicator = ty =>
+  expected_indicator(expected_pat_title, typebar("expected", ty));
 
 let got_ty_indicator = ty => got_indicator("Got type", typebar("got", ty));
 let got_as_expected_ty_indicator = ty =>
@@ -77,7 +78,7 @@ let of_cursor_mode = (cursor_mode: ZExp.cursor_mode) => {
     switch (cursor_mode) {
     | ZExp.AnaOnly(ty) =>
       let ind1 = expected_ty_indicator(ty);
-      let ind2 = got_indicator("Check", special_msg_bar("successful"));
+      let ind2 = got_indicator("Got", special_msg_bar("as expected"));
       (ind1, ind2, OK);
     | ZExp.TypeInconsistent(expected_ty, got_ty) =>
       let ind1 = expected_ty_indicator(expected_ty);
@@ -154,6 +155,10 @@ let of_cursor_mode = (cursor_mode: ZExp.cursor_mode) => {
       let ind1 = expected_a_type_indicator;
       let ind2 = got_a_type_indicator;
       (ind1, ind2, OK);
+    | ZExp.BinderPosition(expected_ty) =>
+      let ind1 = expected_pat_indicator(expected_ty);
+      let ind2 = got_indicator("Got", special_msg_bar("as expected"));
+      (ind1, ind2, OK);
     };
 
   let cls_of_err_state_b =
@@ -175,7 +180,7 @@ let no_cursor_mode =
   Html5.(
     div(
       ~a=[a_class(["cursor-inspector-body"])],
-      [pcdata("Not well typed! This is a bug. Please report.")],
+      [txt("Not well typed! This is a bug. Please report.")],
     )
   );
 

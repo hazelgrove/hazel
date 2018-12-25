@@ -1,6 +1,9 @@
 open Tyxml_js;
-open Semantics.Core;
+open SemanticsCore;
 open Model;
+module Js = Js_of_ocaml.Js;
+module Dom = Js_of_ocaml.Dom;
+module Dom_html = Js_of_ocaml.Dom_html;
 let view = (model: Model.t) => {
   let {
     edit_state_rs,
@@ -14,220 +17,19 @@ let view = (model: Model.t) => {
     do_action,
     _,
   } = model;
-  let key_of = JSUtil.KeyCombo.key;
   let pp_view_width = 50;
   let prefix = "view";
-  let view_rs =
-    React.S.map(
-      e => {
-        let view = View.of_hexp(prefix, [], e);
-        Pretty.PP.sdoc_of_doc(pp_view_width, view);
-      },
-      e_rs,
-    );
+  let rec mk_editor_box:
+    (EditorBox.rev_path, EditorBox.rev_paths, UHExp.t) => EditorBox.t =
+    (rev_path, rev_paths, e') =>
+      EditorBox.mk(mk_editor_box, prefix, rev_path, rev_paths, model, e');
+  let editor_box_rs: React.signal(EditorBox.t) =
+    React.S.map(e => mk_editor_box([], EditorBox.mk_rev_paths(), e), e_rs);
 
-  let pp_rs =
-    React.S.map(
-      ((sdoc, _)) => [Pretty.HTML_Of_SDoc.html_of_sdoc(sdoc)],
-      view_rs,
-    );
-
-  let side_of_str_offset = (s, offset) =>
-    if (offset == 0) {
-      Before;
-    } else if (offset == String.length(s)) {
-      After;
-    } else {
-      In(offset);
-    };
-
-  let string_insert = (s1, offset, s2) => {
-    let prefix = String.sub(s1, 0, offset);
-    let length = String.length(s1);
-    let suffix = String.sub(s1, offset, length - offset);
-    prefix ++ s2 ++ suffix;
-  };
-
-  let string_backspace = (s, offset, ctrlKey) => {
-    let prefix = ctrlKey ? "" : String.sub(s, 0, offset - 1);
-    let length = String.length(s);
-    let suffix = String.sub(s, offset, length - offset);
-    let offset' = ctrlKey ? 0 : offset - 1;
-    (prefix ++ suffix, offset');
-  };
-
-  let string_delete = (s, offset, ctrlKey) => {
-    let prefix = String.sub(s, 0, offset);
-    let length = String.length(s);
-    let suffix =
-      ctrlKey ? "" : String.sub(s, offset + 1, length - offset - 1);
-    (prefix ++ suffix, offset);
-  };
-
-  let pp_view =
-    R.Html5.div(
-      ~a=
-        Html5.[
-          a_contenteditable(true),
-          a_onkeypress(evt =>
-            switch (JSUtil.is_single_key(evt)) {
-            | Some(single_key) =>
-              let cursor_info = React.S.value(cursor_info_rs);
-              switch (cursor_info.sort) {
-              | ZExp.IsExpr(UHExp.Tm(_, UHExp.EmptyHole(_))) =>
-                Dom.preventDefault(evt);
-                let shape =
-                  switch (single_key) {
-                  | JSUtil.Number(n) => Action.SLit(n, After)
-                  | JSUtil.Letter(x) => Action.SVar(x, After)
-                  };
-                do_action(Action.Construct(shape));
-                true;
-              | ZExp.IsExpr(UHExp.Tm(_, UHExp.NumLit(_)))
-              | ZExp.IsExpr(UHExp.Tm(_, UHExp.Var(_, _))) =>
-                let selection = Dom_html.window##getSelection;
-                let anchorNode = selection##.anchorNode;
-                let nodeValue =
-                  Js.to_string(
-                    Js.Opt.get(anchorNode##.nodeValue, () => assert(false)),
-                  );
-                let anchorOffset = selection##.anchorOffset;
-                let key_string = JSUtil.single_key_string(single_key);
-                let newNodeValue =
-                  string_insert(nodeValue, anchorOffset, key_string);
-                Dom.preventDefault(evt);
-                switch (int_of_string_opt(newNodeValue)) {
-                | Some(new_n) =>
-                  let new_side =
-                    side_of_str_offset(newNodeValue, anchorOffset + 1);
-                  do_action(Action.Construct(Action.SLit(new_n, new_side)));
-                | None =>
-                  Var.is_valid(newNodeValue) ?
-                    {
-                      let new_side =
-                        side_of_str_offset(newNodeValue, anchorOffset + 1);
-                      do_action(
-                        Action.Construct(
-                          Action.SVar(newNodeValue, new_side),
-                        ),
-                      );
-                    } :
-                    ()
-                };
-                true;
-              | _ =>
-                Dom.preventDefault(evt);
-                true;
-              };
-            | None =>
-              Dom.preventDefault(evt);
-              true;
-            }
-          ),
-          a_onkeydown(evt => {
-            let key = JSUtil.get_key(evt);
-            let is_backspace =
-              String.equal(key, key_of(JSUtil.KeyCombos.backspace));
-            let is_del = String.equal(key, key_of(JSUtil.KeyCombos.del));
-            if (is_backspace || is_del) {
-              let cursor_info = React.S.value(cursor_info_rs);
-              switch (cursor_info.sort) {
-              | ZExp.IsExpr(UHExp.Tm(_, UHExp.NumLit(_)))
-              | ZExp.IsExpr(UHExp.Tm(_, UHExp.Var(_, _))) =>
-                let side = cursor_info.side;
-                let is_Before =
-                  switch (side) {
-                  | Before => true
-                  | _ => false
-                  };
-                let is_After =
-                  switch (side) {
-                  | After => true
-                  | _ => false
-                  };
-                if (is_backspace && is_Before || is_del && is_After) {
-                  Dom.preventDefault(evt);
-                  false;
-                } else {
-                  let selection = Dom_html.window##getSelection;
-                  Dom_html.stopPropagation(evt);
-                  Dom.preventDefault(evt);
-                  let anchorNode = selection##.anchorNode;
-                  let anchorOffset = selection##.anchorOffset;
-                  let nodeValue =
-                    Js.to_string(
-                      Js.Opt.get(anchorNode##.nodeValue, () => assert(false)),
-                    );
-                  let ctrlKey = Js.to_bool(evt##.ctrlKey);
-                  let (nodeValue', anchorOffset') =
-                    is_backspace ?
-                      string_backspace(nodeValue, anchorOffset, ctrlKey) :
-                      string_delete(nodeValue, anchorOffset, ctrlKey);
-                  if (String.equal(nodeValue', "")) {
-                    if (is_Before) {
-                      do_action(Action.Delete);
-                    } else {
-                      do_action(Action.Backspace);
-                    };
-                  } else {
-                    switch (int_of_string_opt(nodeValue')) {
-                    | Some(new_n) =>
-                      let new_side =
-                        side_of_str_offset(nodeValue', anchorOffset');
-                      do_action(
-                        Action.Construct(Action.SLit(new_n, new_side)),
-                      );
-                    | None =>
-                      Var.is_valid(nodeValue') ?
-                        {
-                          let new_side =
-                            side_of_str_offset(nodeValue', anchorOffset');
-                          do_action(
-                            Action.Construct(
-                              Action.SVar(nodeValue', new_side),
-                            ),
-                          );
-                        } :
-                        ()
-                    };
-                  };
-                  false;
-                };
-              | _ =>
-                Dom.preventDefault(evt);
-                false;
-              };
-            } else {
-              true;
-            };
-          }),
-          a_ondrop(evt => {
-            Dom.preventDefault(evt);
-            false;
-          }),
-        ],
-      ReactiveData.RList.from_signal(pp_rs),
-    );
-
+  let pp_view' =
+    React.S.map(({EditorBox.pp_view, _}) => [pp_view], editor_box_rs);
+  let pp_view = R.Html5.(div(ReactiveData.RList.from_signal(pp_view')));
   let pp_view_dom = Tyxml_js.To_dom.of_div(pp_view);
-  let preventDefault_handler = evt => {
-    Dom.preventDefault(evt);
-    ();
-  };
-  let _ =
-    JSUtil.listen_to_t(
-      Dom.Event.make("paste"),
-      pp_view_dom,
-      preventDefault_handler,
-    );
-
-  let _ =
-    JSUtil.listen_to_t(
-      Dom.Event.make("cut"),
-      pp_view_dom,
-      preventDefault_handler,
-    );
-
   let pp_view_parent =
     Html5.(div(~a=[a_id("pp_view"), a_class(["ModelExp"])], [pp_view]));
 
@@ -309,126 +111,8 @@ let view = (model: Model.t) => {
   };
   let set_cursor = () => {
     let ((ze, _), _) = React.S.value(edit_state_rs);
-    let (cursor_path, cursor_side) = Semantics.Core.Path.of_zexp(ze);
+    let (cursor_path, cursor_side) = SemanticsCore.Path.of_zexp(ze);
     set_cursor_to((cursor_path, cursor_side));
-  };
-  let rev_paths_rs = React.S.map(((_, rev_paths)) => rev_paths, view_rs);
-
-  let fix_anchor = (selection, anchor) => {
-    let anchorOffset = selection##.anchorOffset;
-    let anchor' =
-      switch (anchor##.nodeType) {
-      | Dom.TEXT =>
-        let anchor' =
-          Js.Opt.get(Dom.CoerceTo.text(anchor), () => assert(false));
-
-        let length = anchor'##.length;
-        if (anchorOffset == length) {
-          switch (Js.Opt.to_option(anchor##.parentNode)) {
-          | Some(parent) =>
-            switch (parent##.nodeType) {
-            | Dom.ELEMENT =>
-              let parent_elem =
-                Js.Opt.get(Dom_html.CoerceTo.element(parent), () =>
-                  assert(false)
-                );
-
-              let classList = parent_elem##.classList;
-              let is_space =
-                Js.to_bool(classList##contains(Js.string("space")));
-
-              let is_indentation =
-                Js.to_bool(classList##contains(Js.string("SIndentation")));
-
-              let is_op =
-                Js.to_bool(classList##contains(Js.string("seq-op")));
-
-              let is_paren =
-                Js.to_bool(classList##contains(Js.string("lparen")));
-
-              if (is_space || is_indentation || is_op || is_paren) {
-                switch (Js.Opt.to_option(parent##.nextSibling)) {
-                | Some(sibling) => (first_leaf(sibling), 0)
-                | None => (anchor, anchorOffset)
-                };
-              } else {
-                (anchor, anchorOffset);
-              };
-            | _ => (anchor, anchorOffset)
-            }
-          | None => (anchor, anchorOffset)
-          };
-        } else if (anchorOffset == 0) {
-          switch (Js.Opt.to_option(anchor##.parentNode)) {
-          | Some(parent) =>
-            switch (parent##.nodeType) {
-            | Dom.ELEMENT =>
-              let parent_elem =
-                Js.Opt.get(Dom_html.CoerceTo.element(parent), () =>
-                  assert(false)
-                );
-
-              let classList = parent_elem##.classList;
-              let is_space =
-                Js.to_bool(classList##contains(Js.string("space")));
-
-              let is_op =
-                Js.to_bool(classList##contains(Js.string("seq-op")));
-
-              let is_paren =
-                Js.to_bool(classList##contains(Js.string("rparen")));
-
-              if (is_space || is_op || is_paren) {
-                switch (Js.Opt.to_option(parent##.previousSibling)) {
-                | Some(sibling) =>
-                  let anchor' = last_leaf(sibling);
-                  (anchor', node_length(anchor'));
-                | None => (anchor, anchorOffset)
-                };
-              } else {
-                (anchor, anchorOffset);
-              };
-            | _ => (anchor, anchorOffset)
-            }
-          | None => (anchor, anchorOffset)
-          };
-        } else {
-          (anchor, anchorOffset);
-        };
-      | Dom.ELEMENT =>
-        let anchor_elem =
-          Js.Opt.get(Dom_html.CoerceTo.element(anchor), () => assert(false));
-
-        let classList = anchor_elem##.classList;
-        if (!Js.to_bool(classList##contains(Js.string("SText")))) {
-          let children = anchor##.childNodes;
-          let child_opt = children##item(anchorOffset);
-          switch (Js.Opt.to_option(child_opt)) {
-          | Some(child) =>
-            switch (Js.Opt.to_option(Dom_html.CoerceTo.element(child))) {
-            | Some(child_element) =>
-              let tagName = Js.to_string(child_element##.tagName);
-
-              if (String.equal(tagName, "BR")) {
-                switch (Js.Opt.to_option(child_element##.previousSibling)) {
-                | Some(sibling) =>
-                  let anchor' = last_leaf(sibling);
-                  (anchor', node_length(anchor'));
-                | None => (first_leaf(child), 0)
-                };
-              } else {
-                (anchor, anchorOffset);
-              };
-            | None => (anchor, anchorOffset)
-            }
-          | None => (anchor, anchorOffset)
-          };
-        } else {
-          (anchor, anchorOffset);
-        };
-      | _ => (anchor, anchorOffset)
-      };
-    anchor';
   };
   let clear_cursors = () => {
     let cursors =
@@ -440,10 +124,13 @@ let view = (model: Model.t) => {
       cursor##.classList##remove(Js.string("cursor"));
     };
   };
-  let has_class = (classList, cls) =>
-    Js.to_bool(classList##contains(Js.string(cls)));
+  /* TODO not sure if the rev_paths are complete anymore in light of palettes */
+  let has_class = JSUtil.has_class;
+  let rev_paths_rs =
+    React.S.map(({EditorBox.rev_paths, _}) => rev_paths, editor_box_rs);
   let do_transport = (): bool => {
     let selection = Dom_html.window##getSelection;
+    JSUtil.log(selection);
     let anchor = selection##.anchorNode;
     let parent_elem =
       switch (anchor##.nodeType) {
@@ -459,10 +146,37 @@ let view = (model: Model.t) => {
         None;
       };
     switch (parent_elem) {
+    | None => false
     | Some(parent_elem) =>
       let classList = parent_elem##.classList;
       let has_class = has_class(classList);
-      if (has_class("hole-before-1")) {
+      if (has_class("SIndentation")) {
+        switch (Js.Opt.to_option(parent_elem##.nextSibling)) {
+        | Some(sibling) => move_cursor_before_suppress(sibling)
+        | None => false
+        };
+      } else if (!has_class("SText")) {
+        /* odd case in Firefox where cursor doesn't end up in text */
+        let children = anchor##.childNodes;
+        let anchorOffset = selection##.anchorOffset;
+        switch (Js.Opt.to_option(children##item(anchorOffset))) {
+        | Some(child) =>
+          switch (Js.Opt.to_option(Dom_html.CoerceTo.element(child))) {
+          | Some(child_element) =>
+            let tagName = Js.to_string(child_element##.tagName);
+            if (String.equal(tagName, "BR")) {
+              switch (Js.Opt.to_option(child_element##.previousSibling)) {
+              | Some(sibling) => move_cursor_after_suppress(sibling)
+              | None => move_cursor_before_suppress(child)
+              };
+            } else {
+              move_cursor_before_suppress(child);
+            };
+          | None => move_cursor_before_suppress(child)
+          }
+        | None => false
+        };
+      } else if (has_class("hole-before-1")) {
         let anchorOffset = selection##.anchorOffset;
         if (anchorOffset == 1) {
           switch (Js.Opt.to_option(parent_elem##.parentNode)) {
@@ -618,7 +332,8 @@ let view = (model: Model.t) => {
         | None => false
         };
       } else if (has_class("lambda-dot")
-                 || has_class("openParens")
+                 || has_class("lambda-sym")
+                 || has_class("lparen")
                  || has_class("space")) {
         let anchorOffset = selection##.anchorOffset;
 
@@ -630,12 +345,25 @@ let view = (model: Model.t) => {
         } else {
           false;
         };
-      } else if (has_class("closeParens")) {
+      } else if (has_class("rparen")) {
         let anchorOffset = selection##.anchorOffset;
 
         if (anchorOffset == 0) {
           switch (Js.Opt.to_option(parent_elem##.previousSibling)) {
-          | Some(sibling) => move_cursor_after_suppress(sibling)
+          | Some(sibling) =>
+            switch (Js.Opt.to_option(Dom_html.CoerceTo.element(sibling))) {
+            | None => false
+            | Some(sibling_element) =>
+              if (!
+                    JSUtil.has_class(
+                      sibling_element##.classList,
+                      "SIndentation",
+                    )) {
+                move_cursor_after_suppress(sibling);
+              } else {
+                false;
+              }
+            }
           | None => false
           };
         } else {
@@ -644,7 +372,6 @@ let view = (model: Model.t) => {
       } else {
         false;
       };
-    | None => false
     };
   };
 
@@ -668,7 +395,7 @@ let view = (model: Model.t) => {
     if (ast_has_class("Parenthesized")) {
       let anchor_elem = get_anchor_elem(anchor);
       let anchor_classList = anchor_elem##.classList;
-      if (has_class(anchor_classList, "openParens")) {
+      if (has_class(anchor_classList, "lparen")) {
         Before;
       } else {
         After;
@@ -677,20 +404,22 @@ let view = (model: Model.t) => {
       In(0);
     } else if (ast_has_class("Let")) {
       let anchor_elem = get_anchor_elem(anchor);
-      if (anchorOffset == 0) {
-        let innerHTML = Js.to_string(anchor_elem##.innerHTML);
-        if (String.equal(innerHTML, "let")) {
+      let innerHTML = Js.to_string(anchor_elem##.innerHTML);
+      if (String.equal(innerHTML, "let")) {
+        if (anchorOffset == 0) {
           Before;
         } else {
-          After;
+          In(0);
         };
       } else {
-        After;
+        In(1);
       };
     } else if (ast_has_class("Var")
+               || ast_has_class("var_binding")
                || ast_has_class("NumLit")
                || ast_has_class("Num")
-               || ast_has_class("number")) {
+               || ast_has_class("number")
+               || ast_has_class("ApPalette")) {
       if (anchorOffset == 0) {
         Before;
       } else {
@@ -778,10 +507,11 @@ let view = (model: Model.t) => {
       Dom_html.document,
       _ => {
         let selection = Dom_html.window##getSelection;
-        let anchorNode = selection##.anchorNode;
-        if (JSUtil.div_contains_node(pp_view_dom, anchorNode)) {
-          let (anchor, anchorOffset) =
-            fix_anchor(selection, selection##.anchorNode);
+        let anchor = selection##.anchorNode;
+        let anchorOffset = selection##.anchorOffset;
+        if (JSUtil.div_contains_node(pp_view_dom, anchor)) {
+          /* let (anchor, anchorOffset) = */
+          /*   fix_anchor(selection, selection##.anchorNode); */
           let did_transport = do_transport();
           if (did_transport) {
             ();
@@ -830,9 +560,7 @@ let view = (model: Model.t) => {
     React.S.map(
       _ => {
         let ((_, ty), _) = React.S.value(edit_state_rs);
-        let pp_view = View.of_htype(false, "result-type", [], ty);
-        let (sdoc, _) = Pretty.PP.sdoc_of_doc(pp_view_width, pp_view);
-        let prettified = Pretty.HTML_Of_SDoc.html_of_sdoc(sdoc);
+        let prettified = View.html_of_ty(pp_view_width, "result-type", ty);
         [prettified];
       },
       e_rs,
@@ -857,15 +585,19 @@ let view = (model: Model.t) => {
       ((_, _, result)) =>
         switch (result) {
         | Dynamics.Evaluator.InvalidInput(_) => [
-            Html5.pcdata(
+            Html5.txt(
               "(internal error: expansion or evaluation invariant violated)",
             ),
           ]
         | Dynamics.Evaluator.BoxedValue(d)
         | Dynamics.Evaluator.Indet(d) =>
-          let pp_view = View.of_dhexp(instance_click_fn, "result-exp", d);
-          let (sdoc, _) = Pretty.PP.sdoc_of_doc(pp_view_width, pp_view);
-          let prettified = Pretty.HTML_Of_SDoc.html_of_sdoc(sdoc);
+          let prettified =
+            View.html_of_dhexp(
+              instance_click_fn,
+              pp_view_width,
+              "result-exp",
+              d,
+            );
           [prettified];
         },
       result_rs,
@@ -918,7 +650,7 @@ let view = (model: Model.t) => {
     Html5.(
       div(
         ~a=[a_id("num_changes_counter_si")],
-        [R.Html5.pcdata(num_changes_si_str_rs)],
+        [R.Html5.txt(num_changes_si_str_rs)],
       )
     );
 
@@ -926,7 +658,7 @@ let view = (model: Model.t) => {
     Tyxml_js.To_dom.of_div(num_changes_counter);
 
   let _ =
-    MutationObserver.observe(
+    Js_of_ocaml.MutationObserver.observe(
       ~child_list=false,
       ~attributes=false,
       ~node=num_changes_si_counter_dom,
@@ -951,14 +683,14 @@ let view = (model: Model.t) => {
     Html5.(
       div(
         ~a=[a_id("num_changes_counter")],
-        [R.Html5.pcdata(num_changes_str_rs)],
+        [R.Html5.txt(num_changes_str_rs)],
       )
     );
 
   let num_changes_counter_dom = Tyxml_js.To_dom.of_div(num_changes_counter);
 
   let _ =
-    MutationObserver.observe(
+    Js_of_ocaml.MutationObserver.observe(
       ~child_list=false,
       ~attributes=false,
       ~node=num_changes_counter_dom,
@@ -994,7 +726,7 @@ let view = (model: Model.t) => {
               [
                 a(
                   ~a=[a_class(["logo-text"]), a_href("http://hazel.org/")],
-                  [pcdata("Hazel")],
+                  [txt("Hazel")],
                 ),
               ],
             ),
@@ -1009,11 +741,11 @@ let view = (model: Model.t) => {
                       ~a=[a_class(["page"])],
                       [
                         div([
-                          pcdata("Hazel is an experiment in "),
-                          strong([pcdata("live functional programming")]),
-                          pcdata(" with "),
-                          strong([pcdata("typed holes")]),
-                          pcdata(
+                          txt("Hazel is an experiment in "),
+                          strong([txt("live functional programming")]),
+                          txt(" with "),
+                          strong([txt("typed holes")]),
+                          txt(
                             ". Use the actions on the left to construct an expression. Navigate using the text cursor in the usual way.",
                           ),
                         ]),
@@ -1026,7 +758,7 @@ let view = (model: Model.t) => {
                               [
                                 div(
                                   ~a=[a_class(["type-label"])],
-                                  [pcdata("Result of type: ")],
+                                  [txt("Result of type: ")],
                                 ),
                                 div(
                                   ~a=[a_class(["htype-view"])],

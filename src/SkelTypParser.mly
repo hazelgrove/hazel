@@ -1,7 +1,7 @@
 (* associator parser definition (we use menhir) *)
 
 %{
-  open Semantics.Core
+  open SemanticsCore
 %}
 
 %token <int> PLACEHOLDER
@@ -12,7 +12,7 @@
 %right ARROW
 %right VBAR
 
-%start <Semantics.Core.UHTyp.op Semantics.Core.Skel.t> skel_typ
+%start <SemanticsCore.UHTyp.op SemanticsCore.Skel.t> skel_typ
 
 (* %% ends the declarations section of the grammar definition *)
 
