@@ -1,9 +1,11 @@
 %{
-  open Semantics.Core
+  open SemanticsCore
 %}
 
 %token <int> NATURAL
 %token <string> ID
+%token <string> PALETTE_NAME
+%token <string> PALETTE_MODEL
 %token NUM_TYPE
 %token LET
 %token IN
@@ -28,7 +30,7 @@
 %token TYPE_ARROW
 %token EOF
 
-%start <Semantics.Core.UHExp.t> parse_uhexp
+%start <SemanticsCore.UHExp.t> parse_uhexp
 
 %%
 
@@ -125,6 +127,12 @@ opseq_term:
 bidelim_term:
   | v = ID
     { UHExp.Var(NotInVHole, v) }
+  | palette_name = PALETTE_NAME; palette_model = PALETTE_MODEL 
+    { 
+      let model = String.sub palette_model 1 ((String.length palette_model) - 2) in 
+      let model = Scanf.unescaped model in 
+      UHExp.ApPalette(palette_name, model)
+    }
   | n = NATURAL
     { UHExp.NumLit n }
   | INJECT; LBRACKET; s = left_or_right; RBRACKET; LPAREN; e = uhexp; RPAREN

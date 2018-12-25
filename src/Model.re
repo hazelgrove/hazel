@@ -1,4 +1,4 @@
-open Semantics.Core;
+open SemanticsCore;
 type edit_state = ((ZExp.t, HTyp.t), MetaVar.gen);
 let u_gen0: MetaVar.gen = (MetaVar.new_gen: MetaVar.gen);
 let (u, u_gen1) = MetaVar.next(u_gen0);
@@ -26,6 +26,7 @@ type selected_instance_rs = React.signal(option(DHExp.HoleInstance.t));
 type selected_instance_rf =
   (~step: React.step=?, option(DHExp.HoleInstance.t)) => unit;
 type monitors = list(React.signal(unit));
+type do_action_t = Action.t => unit;
 exception InvalidAction;
 exception MissingCursorInfo;
 exception DoesNotExpand;
@@ -40,15 +41,22 @@ type t = {
   selected_instance_rs,
   selected_instance_rf,
   monitors,
-  do_action: Action.t => unit,
+  do_action: do_action_t,
 };
 let new_model = (): t => {
   let (edit_state_rs, edit_state_rf) = React.S.create(empty);
   let (e_rs, e_rf) = React.S.create(empty_erasure);
   let cursor_info_rs =
     React.S.l1(
+      ~eq=(_, _) => false, /* palette contexts have functions in them! */
       (((ze, _), _)) =>
-        switch (ZExp.syn_cursor_info((), Ctx.empty, ze)) {
+        switch (
+          ZExp.syn_cursor_info(
+            (),
+            (Ctx.empty, Palettes.initial_palette_ctx),
+            ze,
+          )
+        ) {
         | Some(cursor_info) => cursor_info
         | None => raise(MissingCursorInfo)
         },
@@ -58,7 +66,8 @@ let new_model = (): t => {
   let result_rs =
     React.S.l1(
       e => {
-        let expanded = DHExp.syn_expand((), Ctx.empty, e);
+        let expanded =
+          DHExp.syn_expand((), (Ctx.empty, Palettes.initial_palette_ctx), e);
         switch (expanded) {
         | DHExp.DoesNotExpand => raise(DoesNotExpand)
         | DHExp.Expands(d, _, _) =>
@@ -112,12 +121,19 @@ let new_model = (): t => {
   let monitors = [instance_at_cursor_monitor, usi_monitor];
   let do_action = action =>
     switch (
-      Action.performSyn((), Ctx.empty, action, React.S.value(edit_state_rs))
+      Action.performSyn(
+        (),
+        (Ctx.empty, Palettes.initial_palette_ctx),
+        action,
+        React.S.value(edit_state_rs),
+      )
     ) {
     | Some(((ze, ty), ugen)) =>
       edit_state_rf(((ze, ty), ugen));
       switch (action) {
-      | Action.MoveTo(_) => ()
+      | Action.MoveTo(_)
+      | Action.MoveToNextHole
+      | Action.MoveToPrevHole => ()
       | _ => e_rf(ZExp.erase(ze))
       };
     | None => raise(InvalidAction)

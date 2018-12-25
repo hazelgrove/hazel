@@ -3,6 +3,10 @@ div {
 	box-sizing: border-box;
 }
 
+div .inline-div {
+        display: inline;
+}
+
 .noselect {
   -webkit-touch-callout: none; /* iOS Safari */
     -webkit-user-select: none; /* Safari */
@@ -123,7 +127,7 @@ html, body {
 }
 
 .cursor-OK .titlebar {
-  background-color: #073f24; 
+  background-color: #073f24;
 }
 
 .cursor-TypeInconsistency .titlebar {
@@ -290,14 +294,14 @@ html, body {
 
 .context-inspector-panel>div {
   display: grid;
-  grid-template-rows: 
-    auto /* .titlebar */ 
+  grid-template-rows:
+    auto /* .titlebar */
     1fr /* .context-inspector-body */;
 }
 
 .context-inspector-body {
   display: grid;
-  grid-template-rows: 
+  grid-template-rows:
     1fr /* .the-context */
     auto /* .the-path-view */;
 }
@@ -362,8 +366,8 @@ html, body {
 
 .path-item,
 .path-item .inst,
-.path-item .inst-var-separator, 
-.path-item .path-var 
+.path-item .inst-var-separator,
+.path-item .path-var
 {
   display: inline-block;
 }
@@ -424,7 +428,7 @@ html, body {
 .no-prev,
 .no-next {
   opacity: 0.15;
-  cursor: default; 
+  cursor: default;
 }
 
 .hole-name-normal-txt,
@@ -576,7 +580,7 @@ button:disabled {
   font-size: 150%;
 }
 
-.kw {
+.kw, .lambda-sym {
 	font-weight: bold;
 }
 
@@ -760,4 +764,30 @@ button:disabled {
 .elided {
   color: #AAA;
   font-size: 80%;
+}
+
+.color-picker {
+	background-color: rgb(230, 230, 230);
+	border-radius: 4px;
+	display: inline-block;
+	padding: 4px;
+}
+
+.color {
+	width: 16px;
+	height: 16px;
+	margin: 2px;
+	border-radius: 4px;
+	float: left;
+}
+
+.color.selected {
+	border: 1.5px solid black;
+}
+
+.palette-view {
+  background-color: #EEE;
+  border: 1px solid #444;
+  padding: 4px;
+  margin-left: 5px;
 }
