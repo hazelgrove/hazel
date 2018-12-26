@@ -2961,7 +2961,7 @@ Module FCore(Helper : HELPER).
           | Some ns => Some (cons 1 ns)
           | None => Path.cons_opt 2 (first_hole_path_e fuel ue2)
           end
-        | UHExp.Lam _ ue1 => Path.cons_opt 0 (first_hole_path_e fuel ue1)
+        | UHExp.Lam _ ue1 => Path.cons_opt 1 (first_hole_path_e fuel ue1)
         | UHExp.NumLit _ => None
         | UHExp.Inj _ ue1 => Path.cons_opt 0 (first_hole_path_e fuel ue1)
         | UHExp.Case ue1 (_,ue2) (_,ue3) =>
@@ -2969,8 +2969,8 @@ Module FCore(Helper : HELPER).
           | Some ns => Some (cons 0 ns)
           | None =>
             match first_hole_path_e fuel ue2 with
-            | Some ns => Some (cons 1 ns)
-            | None => Path.cons_opt 2 (first_hole_path_e fuel ue3)
+            | Some ns => Some (cons 2 ns)
+            | None => Path.cons_opt 4 (first_hole_path_e fuel ue3)
             end
           end
         | UHExp.EmptyHole _ => Some nil
@@ -3062,8 +3062,8 @@ Module FCore(Helper : HELPER).
               | Some ns => Some (cons 0 ns)
               | None =>
                 match first_hole_path_e fuel ue2 with
-                | Some ns => Some (cons 1 ns)
-                | None => Path.cons_opt 2 (first_hole_path_e fuel ue3)
+                | Some ns => Some (cons 2 ns)
+                | None => Path.cons_opt 4 (first_hole_path_e fuel ue3)
                 end
               end
             | UHExp.EmptyHole _ => None
@@ -3191,15 +3191,15 @@ Module FCore(Helper : HELPER).
           | Some ns => Some (cons 2 ns)
           | None => Path.cons_opt 1 (last_hole_path_e fuel ue0)
           end
-        | UHExp.Lam _ ue0 => Path.cons_opt 0 (last_hole_path_e fuel ue0)
+        | UHExp.Lam _ ue0 => Path.cons_opt 1 (last_hole_path_e fuel ue0)
         | UHExp.NumLit _ => None
         | UHExp.Inj _ ue0 => Path.cons_opt 0 (last_hole_path_e fuel ue0)
         | UHExp.Case ue0 (_,ue1) (_,ue2) =>
           match last_hole_path_e fuel ue2 with
-          | Some ns => Some (cons 2 ns)
+          | Some ns => Some (cons 4 ns)
           | None =>
             match last_hole_path_e fuel ue1 with
-            | Some ns => Some (cons 1 ns)
+            | Some ns => Some (cons 2 ns)
             | None => Path.cons_opt 0 (last_hole_path_e fuel ue0)
             end
           end
@@ -3290,10 +3290,10 @@ Module FCore(Helper : HELPER).
             | UHExp.Inj _ _ => None
             | UHExp.Case ue1 (_,ue2) (_,ue3) =>
               match last_hole_path_e fuel ue3 with
-              | Some ns => Some (cons 2 ns)
+              | Some ns => Some (cons 4 ns)
               | None =>
                 match last_hole_path_e fuel ue2 with
-                | Some ns => Some (cons 1 ns)
+                | Some ns => Some (cons 2 ns)
                 | None => Path.cons_opt 0 (last_hole_path_e fuel ue1)
                 end
               end
@@ -4856,16 +4856,23 @@ Module FCore(Helper : HELPER).
         | Some ty => 
           let x := Var.empty_binder in 
           match HTyp.matched_sum ty with 
-          | Some _ => 
+          | Some (tyL, tyR) => 
             let (new_hole1, u_gen) := UHExp.new_EmptyHole u_gen in 
             let (new_hole2, u_gen) := UHExp.new_EmptyHole u_gen in 
-            let ze := match e with 
+            match e with 
             | UHExp.Tm _ (UHExp.EmptyHole _) => 
-              ZExp.Deeper NotInHole (ZExp.CaseZ1 ze (x, new_hole1) (x, new_hole2))
+              let ze := ZExp.Deeper NotInHole (ZExp.CaseZ1 ze (x, new_hole1) (x, new_hole2)) in 
+              Some (ze, u_gen)
             | _ => 
-              ZExp.Deeper NotInHole (ZExp.CaseZV1 e (x, Before, new_hole1) (x, new_hole2))
-            end in 
-            Some (ze, u_gen)
+              let ty := HTyp.Sum tyL tyR in 
+              match UHExp.ana_fix_holes fuel ctx u_gen e ty with 
+              | None => None
+              | Some (e, u_gen) => 
+                let ze := 
+                  ZExp.Deeper NotInHole (ZExp.CaseZV1 e (x, Before, new_hole1) (x, new_hole2)) in 
+                Some (ze, u_gen)
+              end
+            end 
           | None => 
             let (ze', u_gen) := ZExp.put_in_new_hole u_gen ze in 
             let (new_hole1, u_gen) := UHExp.new_EmptyHole u_gen in 
