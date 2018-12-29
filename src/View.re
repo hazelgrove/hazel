@@ -102,7 +102,13 @@ let of_str_op_with_space = (op_s, op_cls) =>
     ^^ taggedText("op-after-1", "​")
     ^^ taggedText("op-after-2", "​"),
   );
-
+let of_str_op_no_space = (op_s, op_cls) =>
+  PP.tagged(
+    ["seq-op", op_cls],
+    None,
+    None,
+    taggedText("op-no-margin", op_s),
+  );
 let of_op_with_space = (str_of_op, op) => {
   let (op_s, op_cls) = str_of_op(op);
   of_str_op_with_space(op_s, op_cls);
@@ -112,12 +118,7 @@ let of_expr_op_with_space = of_op_with_space(str_of_expr_op);
 let of_ty_op_with_space = of_op_with_space(str_of_ty_op);
 let of_op_no_space = (str_of_op, op) => {
   let (op_s, op_cls) = str_of_op(op);
-  PP.tagged(
-    ["seq-op", op_cls],
-    None,
-    None,
-    taggedText("op-no-margin", op_s),
-  );
+  of_str_op_no_space(op_s, op_cls);
 };
 let of_expr_op_no_space = of_op_no_space(str_of_expr_op);
 let of_expr_op = op =>
@@ -243,47 +244,33 @@ let of_Var = (prefix, err_status, var_err_status, rev_path, x) =>
     var(x),
   );
 
-let of_Let = (prefix, err_status, rev_path, rx, r1, r2) =>
-  term(
-    prefix,
-    err_status,
-    rev_path,
-    "Let",
-    PP.blockBoundary
-    ^^ kw("let")
-    ^^ space
-    ^^ rx
-    ^^ of_str_op_with_space("=", "let-equals")
+let of_Let = (prefix, err_status, rev_path, rx, rann, r1, r2) => {
+  let first_part = PP.blockBoundary ^^ kw("let") ^^ space ^^ rx;
+  let second_part =
+    of_str_op_with_space("=", "let-equals")
     ^^ PP.nestAbsolute(2, r1)
     ^^ PP.mandatoryBreak
-    ^^ r2,
-  );
+    ^^ r2;
+  let view =
+    switch (rann) {
+    | Some(r) =>
+      first_part ^^ of_str_op_with_space(":", "ann") ^^ r ^^ second_part
+    | None => first_part ^^ second_part
+    };
+  term(prefix, err_status, rev_path, "Let", view);
+};
 
-let of_Lam = (prefix, err_status, rev_path, rx, r) =>
-  term(
-    prefix,
-    err_status,
-    rev_path,
-    "Lam",
-    taggedText("lambda-sym", LangUtil.lamSym)
-    ^^ rx
-    ^^ taggedText("lambda-dot", ".")
-    ^^ r,
-  );
-
-let of_LamAnn = (prefix, err_status, rev_path, rx, rty, r1) =>
-  term(
-    prefix,
-    err_status,
-    rev_path,
-    "LamAnn",
-    kw(LangUtil.lamSym)
-    ^^ rx
-    ^^ kw(":")
-    ^^ rty
-    ^^ taggedText("lambda-dot", ".")
-    ^^ r1,
-  );
+let of_Lam = (prefix, err_status, rev_path, rx, rann, r1) => {
+  let first_part = taggedText("lambda-sym", LangUtil.lamSym) ^^ rx;
+  let second_part = taggedText("lambda-dot", ".") ^^ r1;
+  let view =
+    switch (rann) {
+    | Some(r) =>
+      first_part ^^ of_str_op_no_space(":", "ann") ^^ r ^^ second_part
+    | None => first_part ^^ second_part
+    };
+  term(prefix, err_status, rev_path, "Lam", view);
+};
 
 let of_Ap = (prefix, err_status, rev_path, r1, r2) =>
   term(prefix, err_status, rev_path, "Ap", r1 ^^ space ^^ r2);
@@ -464,7 +451,7 @@ let of_chained_FailedCast =
 
 let is_block = e =>
   switch (e) {
-  | UHExp.Tm(_, UHExp.Let(_, _, _)) => true
+  | UHExp.Tm(_, UHExp.Let(_, _, _, _)) => true
   | UHExp.Tm(_, UHExp.Case(_, _, _)) => true
   | _ => false
   };
@@ -490,20 +477,25 @@ let rec of_hexp = (palette_stuff, prefix, rev_path, e) =>
       of_Asc(prefix, err_status, rev_path, r1, r2);
     | UHExp.Var(var_err_status, x) =>
       of_Var(prefix, err_status, var_err_status, rev_path, x)
-    | UHExp.Let(x, e, e') =>
-      let rev_pathx = [0, ...rev_path];
-      let rev_path1 = [1, ...rev_path];
-      let rev_path2 = [2, ...rev_path];
-      let rx = of_var_binding(prefix, rev_pathx, x);
-      let r1 = of_hexp(palette_stuff, prefix, rev_path1, e);
-      let r2 = of_hexp(palette_stuff, prefix, rev_path2, e');
-      of_Let(prefix, err_status, rev_path, rx, r1, r2);
-    | UHExp.Lam(x, e') =>
-      let rev_pathx = [0, ...rev_path];
-      let rev_path1 = [1, ...rev_path];
-      let rx = of_var_binding(prefix, rev_pathx, x);
-      let r1 = of_hexp(palette_stuff, prefix, rev_path1, e');
-      of_Lam(prefix, err_status, rev_path, rx, r1);
+    | UHExp.Let(x, ann, e1, e2) =>
+      let rx = of_var_binding(prefix, [0, ...rev_path], x);
+      let rann =
+        switch (ann) {
+        | Some(uty1) => Some(of_uhtyp(prefix, [1, ...rev_path], uty1))
+        | None => None
+        };
+      let r1 = of_hexp(palette_stuff, prefix, [2, ...rev_path], e1);
+      let r2 = of_hexp(palette_stuff, prefix, [3, ...rev_path], e2);
+      of_Let(prefix, err_status, rev_path, rx, rann, r1, r2);
+    | UHExp.Lam(x, ann, e1) =>
+      let rx = of_var_binding(prefix, [0, ...rev_path], x);
+      let rann =
+        switch (ann) {
+        | Some(uty1) => Some(of_uhtyp(prefix, [1, ...rev_path], uty1))
+        | None => None
+        };
+      let r1 = of_hexp(palette_stuff, prefix, [2, ...rev_path], e1);
+      of_Lam(prefix, err_status, rev_path, rx, rann, r1);
     | UHExp.NumLit(n) => of_NumLit(prefix, err_status, rev_path, n)
     | UHExp.Inj(side, e) =>
       let rev_path1 = [0, ...rev_path];
@@ -683,23 +675,20 @@ let rec of_dhexp' =
             rev_path2,
             d2,
           );
-        of_Let(prefix, err_status, rev_path, rx, r1, r2);
-      | Lam(x, ty, d1) =>
-        let rev_pathx = [0, ...rev_path];
-        let rev_path1 = [1, ...rev_path];
-        let rev_path2 = [2, ...rev_path];
-        let rx = of_var_binding(prefix, rev_pathx, x);
-        let r1 = of_htype(false, prefix, rev_path1, ty);
-        let r2 =
+        of_Let(prefix, err_status, rev_path, rx, None, r1, r2);
+      | Lam(x, ann, d1) =>
+        let rx = of_var_binding(prefix, [0, ...rev_path], x);
+        let rann = Some(of_htype(false, prefix, [1, ...rev_path], ann));
+        let r1 =
           of_dhexp'(
             instance_click_fn,
             false,
             prefix,
             NotInHole,
-            rev_path2,
+            [2, ...rev_path],
             d1,
           );
-        of_LamAnn(prefix, err_status, rev_path, rx, r1, r2);
+        of_Lam(prefix, err_status, rev_path, rx, rann, r1);
       | Ap(d1, d2) =>
         let rev_path1 = [0, ...rev_path];
         let rev_path2 = [1, ...rev_path];
