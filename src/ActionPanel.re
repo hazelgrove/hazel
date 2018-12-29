@@ -351,14 +351,14 @@ let make =
       KCs.openParens,
     );
 
-  let is_expr_rs =
+  let can_ascribe_rs =
     ZExp.(
       S.map(
         ({sort, _}) =>
           switch (sort) {
           | IsExpr(_) => true
-          | IsType
-          | IsBinder(_) => false
+          | IsType => false
+          | IsBinder(_) => true
           },
         cursor_info_rs,
       )
@@ -367,7 +367,7 @@ let make =
   let constructAsc =
     action_button(
       Action.Construct(Action.SAsc),
-      is_expr_rs,
+      can_ascribe_rs,
       Html5.txt("type ascription"),
       KCs.colon,
     );

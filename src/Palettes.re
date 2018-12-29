@@ -98,6 +98,7 @@ module PairPalette: PALETTE = {
         NotInHole,
         Lam(
           fVarName,
+          None,
           Tm(
             NotInHole,
             UHExp.OpSeq(Associator.associate_exp(apOpSeq), apOpSeq),
@@ -193,7 +194,11 @@ module ColorPalette: PALETTE = {
     UHExp.(
       Tm(
         NotInHole,
-        Lam(f, Tm(NotInHole, OpSeq(Associator.associate_exp(body), body))),
+        Lam(
+          f,
+          None,
+          Tm(NotInHole, OpSeq(Associator.associate_exp(body), body)),
+        ),
       )
     );
   };
