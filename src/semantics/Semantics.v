@@ -4090,6 +4090,44 @@ Module FCore(Helper : HELPER).
         | false => 
           performSyn fuel ctx (Construct (SVar Var.empty_binder Before)) (ze, ty, u_gen)
         end
+      | (Backspace, ZExp.Deeper _ 
+          (ZExp.LetZA x (ZTyp.CursorT Before _) e1 e2))
+      | (Backspace, ZExp.Deeper _
+          (ZExp.LetZA x  
+            (ZTyp.OpSeqZ _
+              (ZTyp.CursorT Before _)
+              (OperatorSeq.EmptyPrefix _)) e1 e2)) 
+      | (Delete, ZExp.Deeper _
+          (ZExp.LetZV x After (Some _) e1 e2)) => 
+        match UHExp.syn_fix_holes fuel ctx u_gen e1 with 
+        | None => None
+        | Some (e1, ty1, u_gen) => 
+          let ctx := Contexts.extend_gamma ctx (x, ty1) in 
+          match UHExp.syn_fix_holes fuel ctx u_gen e2 with 
+          | None => None
+          | Some (e2, ty, u_gen) => 
+            let ze := 
+              ZExp.Deeper NotInHole
+                (ZExp.LetZV x After None e1 e2) in 
+            Some (ze, ty, u_gen)
+          end
+        end
+      | (Backspace, ZExp.Deeper _ 
+          (ZExp.LamZA x (ZTyp.CursorT Before _) e1))
+      | (Backspace, ZExp.Deeper _
+          (ZExp.LamZA x 
+            (ZTyp.OpSeqZ _
+              (ZTyp.CursorT Before _)
+              (OperatorSeq.EmptyPrefix _)) e1)) 
+      | (Delete, ZExp.Deeper _
+          (ZExp.LamZV x After (Some _) e1)) => 
+        let ctx := Contexts.extend_gamma ctx (x, HTyp.Hole) in 
+        match UHExp.syn_fix_holes fuel ctx u_gen e1 with 
+        | None => None
+        | Some (e1, ty2, u_gen) => 
+          let ze := ZExp.Deeper NotInHole (ZExp.LamZV x After None e1) in 
+          Some (ze, HTyp.Arrow HTyp.Hole ty2, u_gen)
+        end
       | (Backspace, ZExp.Deeper _
           (ZExp.OpSeqZ _
             ((ZExp.CursorE Before e0) as ze0) 
@@ -5071,6 +5109,48 @@ Module FCore(Helper : HELPER).
         | true => None
         | false => 
           performAna fuel u_gen ctx (Construct (SVar Var.empty_binder Before)) ze ty
+        end
+      | (Backspace, ZExp.Deeper _ 
+          (ZExp.LetZA x (ZTyp.CursorT Before _) e1 e2))
+      | (Backspace, ZExp.Deeper _
+          (ZExp.LetZA x  
+            (ZTyp.OpSeqZ _
+              (ZTyp.CursorT Before _)
+              (OperatorSeq.EmptyPrefix _)) e1 e2)) 
+      | (Delete, ZExp.Deeper _
+          (ZExp.LetZV x After (Some _) e1 e2)) => 
+        match UHExp.syn_fix_holes fuel ctx u_gen e1 with 
+        | None => None
+        | Some (e1, ty1, u_gen) => 
+          let ctx := Contexts.extend_gamma ctx (x, ty1) in 
+          match UHExp.ana_fix_holes fuel ctx u_gen e2 ty with 
+          | None => None
+          | Some (e2, u_gen) => 
+            let ze := 
+              ZExp.Deeper NotInHole
+                (ZExp.LetZV x After None e1 e2) in 
+            Some (ze, u_gen)
+          end
+        end
+      | (Backspace, ZExp.Deeper _ 
+          (ZExp.LamZA x (ZTyp.CursorT Before _) e1))
+      | (Backspace, ZExp.Deeper _
+          (ZExp.LamZA x 
+            (ZTyp.OpSeqZ _
+              (ZTyp.CursorT Before _)
+              (OperatorSeq.EmptyPrefix _)) e1)) 
+      | (Delete, ZExp.Deeper _
+          (ZExp.LamZV x After (Some _) e1)) => 
+        match HTyp.matched_arrow ty with
+        | None => None
+        | Some (ty1, ty2) => 
+          let ctx := Contexts.extend_gamma ctx (x, ty1) in 
+          match UHExp.ana_fix_holes fuel ctx u_gen e1 ty2 with 
+          | None => None
+          | Some (e1, u_gen) => 
+            let ze := ZExp.Deeper NotInHole (ZExp.LamZV x After None e1) in 
+            Some (ze, u_gen)
+          end
         end
       (* special cases for backspace/delete that can turn 
        * an opseq back into a single expression *)

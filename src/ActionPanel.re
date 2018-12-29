@@ -378,6 +378,7 @@ let make =
         ({mode, _}) =>
           switch (mode) {
           | AnaOnly(_) => false
+          | AnaAnnotatedLambda(_, _)
           | TypeInconsistent(_, _)
           | AnaFree(_)
           | Subsumed(_, _)
