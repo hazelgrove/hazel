@@ -80,6 +80,13 @@ let of_cursor_mode = (cursor_mode: ZExp.cursor_mode) => {
       let ind1 = expected_ty_indicator(ty);
       let ind2 = got_indicator("Got", special_msg_bar("as expected"));
       (ind1, ind2, OK);
+    | ZExp.AnaAnnotatedLambda(expected_ty, got_ty) =>
+      let ind1 = expected_ty_indicator(expected_ty);
+      let ind2 =
+        HTyp.eq(expected_ty, got_ty) ?
+          got_as_expected_ty_indicator(got_ty) :
+          got_consistent_indicator(got_ty);
+      (ind1, ind2, OK);
     | ZExp.TypeInconsistent(expected_ty, got_ty) =>
       let ind1 = expected_ty_indicator(expected_ty);
       let ind2 = got_inconsistent_indicator(got_ty);
