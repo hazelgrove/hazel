@@ -7,11 +7,9 @@ before_install:
   -in deploy-key.enc -out deploy-key -d
 
 install:
- - docker pull ocaml/opam2
- - docker run -it ocaml/opam2 ls
-   # - opam install --unlock-base ocaml-base-compiler.4.07.1
-   #- opam install dune reason js_of_ocaml tyxml deriving ppx_deriving reactiveData ocp-indent camomile js_of_ocaml-tyxml menhir oUnit
-   #- opam install coq
+ - sh <(curl -sL https://raw.githubusercontent.com/ocaml/opam/master/shell/install.sh)
+ - opam install dune reason js_of_ocaml tyxml deriving ppx_deriving reactiveData ocp-indent camomile js_of_ocaml-tyxml menhir oUnit
+ - opam install coq
 
 script:
   - bash .travis-ci.sh
