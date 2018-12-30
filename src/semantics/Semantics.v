@@ -1103,6 +1103,36 @@ Module FCore(Helper : HELPER).
     | AnalyzedAgainst : HTyp.t -> type_mode
     | Synthesized : HTyp.t -> type_mode.
 
+    Definition ctx_for_let
+      (ctx : Contexts.t)
+      (x   : Var.t)
+      (ty1 : HTyp.t)
+      (e1  : UHExp.t)
+      : Contexts.t := 
+        match e1 with 
+        | Tm _ (Lam _ _ _) => 
+          match HTyp.matched_arrow ty1 with 
+          | Some _ => Contexts.extend_gamma ctx (x, ty1) 
+          | None => ctx
+          end
+        | _ => ctx
+        end.
+
+    Definition ctx_for_let'
+      (ctx : Contexts.t)
+      (x   : Var.t)
+      (ty1 : HTyp.t)
+      (e1  : UHExp.t)
+      : Contexts.t * bool := 
+        match e1 with 
+        | Tm _ (Lam _ _ _) => 
+          match HTyp.matched_arrow ty1 with 
+          | Some _ => (Contexts.extend_gamma ctx (x, ty1), true)
+          | None => (ctx, false)
+          end
+        | _ => (ctx, false)
+        end.
+
     (* synthesize a type, if possible, for e *)
     Fixpoint syn
       (fuel : Fuel.t) 
@@ -1170,11 +1200,12 @@ Module FCore(Helper : HELPER).
             match ann with 
             | Some uty1 => 
               let ty1 := UHTyp.expand fuel uty1 in 
-              match ana fuel ctx e1 ty1 with 
+              let ctx1 := ctx_for_let ctx x ty1 e1 in   
+              match ana fuel ctx1 e1 ty1 with 
               | None => None
               | Some _ => 
-                let ctx' := Contexts.extend_gamma ctx (x, ty1) in 
-                syn fuel ctx' e2
+                let ctx2 := Contexts.extend_gamma ctx (x, ty1) in 
+                syn fuel ctx2 e2
               end
             | None => 
               match syn fuel ctx e1 with 
@@ -1265,18 +1296,19 @@ Module FCore(Helper : HELPER).
           match ann with 
           | Some uty1 => 
             let ty1 := UHTyp.expand fuel uty1 in 
-            match ana fuel ctx e1 ty1 with 
+            let ctx1 := ctx_for_let ctx x ty1 e1 in   
+            match ana fuel ctx1 e1 ty1 with 
             | None => None
             | Some _ => 
-              let ctx' := Contexts.extend_gamma ctx (x, ty1) in 
-              ana fuel ctx' e2 ty
+              let ctx2 := Contexts.extend_gamma ctx (x, ty1) in 
+              ana fuel ctx2 e2 ty
             end
           | None => 
             match syn fuel ctx e1 with 
             | None => None
             | Some ty1 => 
-              let ctx' := Contexts.extend_gamma ctx (x, ty1) in 
-              ana fuel ctx' e2 ty 
+              let ctx2 := Contexts.extend_gamma ctx (x, ty1) in 
+              ana fuel ctx2 e2 ty 
             end
           end
         | Lam x ann e' =>
@@ -1523,10 +1555,11 @@ Module FCore(Helper : HELPER).
           match ann with 
           | Some uty1 => 
             let ty1 := UHTyp.expand fuel uty1 in 
-            match ana_fix_holes_internal' fuel ctx u_gen renumber_empty_holes e1 ty1 with
+            let ctx1 := ctx_for_let ctx x ty1 e1 in 
+            match ana_fix_holes_internal' fuel ctx1 u_gen renumber_empty_holes e1 ty1 with
             | None => None
             | Some (e1, u_gen) => 
-              let ctx := Contexts.extend_gamma ctx (x, ty1) in 
+              let ctx2 := Contexts.extend_gamma ctx (x, ty1) in 
               match syn_fix_holes_internal' fuel ctx u_gen renumber_empty_holes e2 with 
               | Some (e2, ty, u_gen) => 
                 Some (Let x ann e1 e2, ty, u_gen)
@@ -1662,11 +1695,12 @@ Module FCore(Helper : HELPER).
           match ann with 
           | Some uty1 => 
             let ty1 := UHTyp.expand fuel uty1 in 
-            match ana_fix_holes_internal' fuel ctx u_gen renumber_empty_holes e1 ty1 with
+            let ctx1 := ctx_for_let ctx x ty1 e1 in 
+            match ana_fix_holes_internal' fuel ctx1 u_gen renumber_empty_holes e1 ty1 with
             | None => None
             | Some (e1, u_gen) => 
-              let ctx := Contexts.extend_gamma ctx (x, ty1) in 
-              match ana_fix_holes_internal' fuel ctx u_gen renumber_empty_holes e2 ty with 
+              let ctx2 := Contexts.extend_gamma ctx (x, ty1) in 
+              match ana_fix_holes_internal' fuel ctx2 u_gen renumber_empty_holes e2 ty with 
               | None => None
               | Some (e2, u_gen) => 
                 Some (NotInHole, Let x ann e1 e2, u_gen)
@@ -1676,8 +1710,8 @@ Module FCore(Helper : HELPER).
             match syn_fix_holes_internal' fuel ctx u_gen renumber_empty_holes e1 with 
             | None => None
             | Some (e1, ty1, u_gen) => 
-              let ctx := Contexts.extend_gamma ctx (x, ty1) in 
-              match ana_fix_holes_internal' fuel ctx u_gen renumber_empty_holes e2 ty with 
+              let ctx2 := Contexts.extend_gamma ctx (x, ty1) in 
+              match ana_fix_holes_internal' fuel ctx2 u_gen renumber_empty_holes e2 ty with 
               | None => None
               | Some (e2, u_gen) => 
                 Some (NotInHole, Let x ann e1 e2, u_gen)
@@ -2396,21 +2430,22 @@ Module FCore(Helper : HELPER).
         match ann with 
         | Some uty1 => 
           let ty1 := UHTyp.expand fuel uty1 in 
-          ana_cursor_info fuel ctx ze1 ty1
+          let ctx1 := UHExp.ctx_for_let ctx x ty1 (erase ze1) in 
+          ana_cursor_info fuel ctx1 ze1 ty1
         | None => syn_cursor_info fuel ctx ze1
         end
       | LetZE2 x ann e1 ze2 => 
         match ann with 
         | Some uty1 => 
           let ty1 := UHTyp.expand fuel uty1 in 
-          let ctx := Contexts.extend_gamma ctx (x, ty1) in 
-          syn_cursor_info fuel ctx ze2
+          let ctx2 := Contexts.extend_gamma ctx (x, ty1) in 
+          syn_cursor_info fuel ctx2 ze2
         | None => 
           match UHExp.syn fuel ctx e1 with 
           | None => None
           | Some ty1 => 
-            let ctx' := (Contexts.extend_gamma ctx (x, ty1)) in 
-            syn_cursor_info fuel ctx' ze2
+            let ctx2 := (Contexts.extend_gamma ctx (x, ty1)) in 
+            syn_cursor_info fuel ctx2 ze2
           end
         end
       | LamZV x cursor_side ann _ => 
@@ -2500,21 +2535,22 @@ Module FCore(Helper : HELPER).
         match ann with 
         | Some uty1 => 
           let ty1 := UHTyp.expand fuel uty1 in 
-          ana_cursor_info fuel ctx ze1 ty1
+          let ctx1 := UHExp.ctx_for_let ctx x ty1 (erase ze1) in 
+          ana_cursor_info fuel ctx1 ze1 ty1
         | None => syn_cursor_info fuel ctx ze1
         end
       | LetZE2 x ann e1 ze2 => 
         match ann with 
         | Some uty1 => 
           let ty1 := UHTyp.expand fuel uty1 in 
-          let ctx := Contexts.extend_gamma ctx (x, ty1) in 
-          ana_cursor_info fuel ctx ze2 ty
+          let ctx2 := Contexts.extend_gamma ctx (x, ty1) in 
+          ana_cursor_info fuel ctx2 ze2 ty
         | None => 
           match UHExp.syn fuel ctx e1 with 
           | None => None
           | Some ty1 => 
-            let ctx := (Contexts.extend_gamma ctx (x, ty1)) in 
-            ana_cursor_info fuel ctx ze2 ty
+            let ctx2 := Contexts.extend_gamma ctx (x, ty1) in 
+            ana_cursor_info fuel ctx2 ze2 ty
           end
         end
       | LamZV x cursor_side ann e => 
@@ -2856,8 +2892,8 @@ Module FCore(Helper : HELPER).
     Fixpoint follow_e (fuel : Fuel.t) (path : t) (e : UHExp.t) : option(ZExp.t) := 
       match fuel with 
       | Fuel.Kicked => None
-      | Fuel.More fuel' => 
-      let follow_e := follow_e fuel' in  
+      | Fuel.More fuel => 
+      let follow_e := follow_e fuel in  
       match path with 
       | (nil, cursor_side) => Some (ZExp.CursorE cursor_side e)
       | (cons x xs, cursor_side) => 
@@ -3511,7 +3547,6 @@ Module FCore(Helper : HELPER).
             end
           end
       end.
-
 
     Fixpoint prev_hole_path_t' (fuel : Fuel.t) (zty : ZTyp.t) : option (list nat) :=
       match fuel with
@@ -4395,10 +4430,15 @@ Module FCore(Helper : HELPER).
         match UHExp.syn fuel ctx e1 with 
         | None => None
         | Some ty1 => 
-          let uty1 := UHTyp.contract ty1 in 
-          let ze := ZExp.Deeper err_status 
-            (ZExp.LetZA x (ZTyp.CursorT Before uty1) e1 e2) in 
-          Some (ze, ty, u_gen)
+          let ctx1 := UHExp.ctx_for_let ctx x ty1 e1 in 
+          match UHExp.ana_fix_holes fuel ctx1 u_gen e1 ty1 with 
+          | None => None
+          | Some (e1, u_gen) => 
+            let uty1 := UHTyp.contract ty1 in 
+            let ze := ZExp.Deeper err_status 
+              (ZExp.LetZA x (ZTyp.CursorT Before uty1) e1 e2) in 
+            Some (ze, ty, u_gen)
+          end
         end
       | (Construct SAsc, ZExp.Deeper err_status (ZExp.LamZV x _ None e1)) => 
         let ze := ZExp.Deeper err_status 
@@ -4430,22 +4470,34 @@ Module FCore(Helper : HELPER).
             HTyp.Hole, u_gen)
         end)
       | (Construct (SVar x side), ZExp.Deeper _ (ZExp.LetZV _ _ ann e1 e2)) => 
-        let ty1 := 
-          match ann with 
-          | Some uty1 => Some (UHTyp.expand fuel uty1)
-          | None => UHExp.syn fuel ctx e1
-          end in 
-        match ty1 with 
-        | None => None
-        | Some ty1 => 
-          Var.check_valid_binder x
-          (let ctx' := Contexts.extend_gamma ctx (x, ty1) in 
-          match UHExp.syn_fix_holes fuel ctx' u_gen e2 with 
+        Var.check_valid_binder x
+        match ann with 
+        | Some uty1 => 
+          let ty1 := UHTyp.expand fuel uty1 in 
+          let ctx1 := UHExp.ctx_for_let ctx x ty1 e1 in 
+          match UHExp.ana_fix_holes fuel ctx1 u_gen e1 ty1 with 
           | None => None
-          | Some(e2', ty2, u_gen) => 
-            let ze := ZExp.Deeper NotInHole (ZExp.LetZV x side ann e1 e2') in 
-            Some (ze, ty2, u_gen)
-          end)
+          | Some (e1, u_gen) => 
+            let ctx2 := Contexts.extend_gamma ctx (x, ty1) in 
+            match UHExp.syn_fix_holes fuel ctx2 u_gen e2 with 
+            | None => None
+            | Some (e2, ty, u_gen) => 
+              let ze := ZExp.Deeper NotInHole (ZExp.LetZV x side ann e1 e2) in 
+              Some (ze, ty, u_gen)
+            end
+          end
+        | None => 
+          match UHExp.syn fuel ctx e1 with 
+          | None => None
+          | Some ty1 => 
+            let ctx2 := Contexts.extend_gamma ctx (x, ty1) in 
+            match UHExp.syn_fix_holes fuel ctx2 u_gen e2 with 
+            | None => None
+            | Some(e2, ty, u_gen) => 
+              let ze := ZExp.Deeper NotInHole (ZExp.LetZV x side ann e1 e2) in 
+              Some (ze, ty, u_gen)
+            end
+          end
         end
       | (Construct (SVar x side), ZExp.Deeper _ (ZExp.LamZV _ _ ann e1)) => 
         Var.check_valid_binder x (
@@ -4829,16 +4881,17 @@ Module FCore(Helper : HELPER).
       | (_, ZExp.Deeper _ (ZExp.LetZA x zann e1 e2)) => 
         match performTyp fuel a zann with 
         | None => None
-        | Some zann' => 
-          let ty1 := UHTyp.expand fuel (ZTyp.erase zann') in 
-          match UHExp.ana_fix_holes fuel ctx u_gen e1 ty1 with 
+        | Some zann => 
+          let ty1 := UHTyp.expand fuel (ZTyp.erase zann) in 
+          let ctx1 := UHExp.ctx_for_let ctx x ty1 e1 in 
+          match UHExp.ana_fix_holes fuel ctx1 u_gen e1 ty1 with 
           | None => None
           | Some (e1, u_gen) => 
-            let ctx := Contexts.extend_gamma ctx (x, ty1) in 
-            match UHExp.syn_fix_holes fuel ctx u_gen e2 with 
+            let ctx2 := Contexts.extend_gamma ctx (x, ty1) in 
+            match UHExp.syn_fix_holes fuel ctx2 u_gen e2 with 
             | None => None
             | Some (e2, ty, u_gen) => 
-              let ze := ZExp.Deeper NotInHole (ZExp.LetZA x zann' e1 e2) in 
+              let ze := ZExp.Deeper NotInHole (ZExp.LetZA x zann e1 e2) in 
               Some (ze, ty, u_gen)
             end
           end
@@ -4847,7 +4900,8 @@ Module FCore(Helper : HELPER).
         match ann with 
         | Some ann_ty => 
           let ty1 := UHTyp.expand fuel ann_ty in 
-          match performAna fuel u_gen ctx a ze1 ty1 with 
+          let ctx1 := UHExp.ctx_for_let ctx x ty1 (ZExp.erase ze1) in  
+          match performAna fuel u_gen ctx1 a ze1 ty1 with 
           | None => None
           | Some (ze1, u_gen) => 
             let ze := ZExp.Deeper NotInHole (ZExp.LetZE1 x ann ze1 e2) in 
@@ -5222,22 +5276,34 @@ Module FCore(Helper : HELPER).
           ZExp.ParenthesizedZ ze, 
           u_gen)
       | (Construct (SVar x side), ZExp.Deeper _ (ZExp.LetZV _ _ ann e1 e2)) => 
-        let ty1 := 
-          match ann with 
-          | Some uty1 => Some (UHTyp.expand fuel uty1)
-          | None => UHExp.syn fuel ctx e1
-          end in 
-        match ty1 with 
-        | None => None
-        | Some ty1 => 
-          Var.check_valid_binder x
-          (let ctx' := Contexts.extend_gamma ctx (x, ty1) in 
-          match UHExp.ana_fix_holes fuel ctx' u_gen e2 ty with 
+        Var.check_valid_binder x
+        match ann with 
+        | Some uty1 => 
+          let ty1 := UHTyp.expand fuel uty1 in 
+          let ctx1 := UHExp.ctx_for_let ctx x ty1 e1 in 
+          match UHExp.ana_fix_holes fuel ctx1 u_gen e1 ty1 with 
           | None => None
-          | Some(e2', u_gen) => 
-            let ze := ZExp.Deeper NotInHole (ZExp.LetZV x side ann e1 e2') in 
-            Some (ze, u_gen)
-          end)
+          | Some (e1, u_gen) => 
+            let ctx2 := Contexts.extend_gamma ctx (x, ty1) in 
+            match UHExp.ana_fix_holes fuel ctx2 u_gen e2 ty with 
+            | None => None
+            | Some (e2, u_gen) => 
+              let ze := ZExp.Deeper NotInHole (ZExp.LetZV x side ann e1 e2) in 
+              Some (ze, u_gen)
+            end
+          end
+        | None => 
+          match UHExp.syn fuel ctx e1 with 
+          | None => None
+          | Some ty1 => 
+            let ctx2 := Contexts.extend_gamma ctx (x, ty1) in 
+            match UHExp.ana_fix_holes fuel ctx2 u_gen e2 ty with 
+            | None => None
+            | Some(e2, u_gen) => 
+              let ze := ZExp.Deeper NotInHole (ZExp.LetZV x side ann e1 e2) in 
+              Some (ze, u_gen)
+            end
+          end
         end
       | (Construct (SVar x side), ZExp.Deeper _ (ZExp.LamZV _ _ ann e1)) => 
         Var.check_valid_binder x 
@@ -5362,16 +5428,17 @@ Module FCore(Helper : HELPER).
       | (_, ZExp.Deeper _ (ZExp.LetZA x zann e1 e2)) => 
         match performTyp fuel a zann with 
         | None => None
-        | Some zann' => 
-          let ty1 := UHTyp.expand fuel (ZTyp.erase zann') in 
-          match UHExp.ana_fix_holes fuel ctx u_gen e1 ty1 with 
+        | Some zann => 
+          let ty1 := UHTyp.expand fuel (ZTyp.erase zann) in 
+          let ctx1 := UHExp.ctx_for_let ctx x ty1 e1 in 
+          match UHExp.ana_fix_holes fuel ctx1 u_gen e1 ty1 with 
           | None => None
           | Some (e1, u_gen) => 
-            let ctx := Contexts.extend_gamma ctx (x, ty1) in 
-            match UHExp.ana_fix_holes fuel ctx u_gen e2 ty with 
+            let ctx2 := Contexts.extend_gamma ctx (x, ty1) in 
+            match UHExp.ana_fix_holes fuel ctx2 u_gen e2 ty with 
             | None => None
             | Some (e2, u_gen) => 
-              let ze := ZExp.Deeper NotInHole (ZExp.LetZA x zann' e1 e2) in 
+              let ze := ZExp.Deeper NotInHole (ZExp.LetZA x zann e1 e2) in 
               Some (ze, u_gen)
             end
           end
@@ -5380,7 +5447,8 @@ Module FCore(Helper : HELPER).
         match ann with 
         | Some ann_ty => 
           let ty1 := UHTyp.expand fuel ann_ty in 
-          match performAna fuel u_gen ctx a ze1 ty1 with 
+          let ctx1 := UHExp.ctx_for_let ctx x ty1 (ZExp.erase ze1) in  
+          match performAna fuel u_gen ctx1 a ze1 ty1 with 
           | None => None
           | Some (ze1, u_gen) => 
             let ze := ZExp.Deeper NotInHole (ZExp.LetZE1 x ann ze1 e2) in 
@@ -5590,6 +5658,7 @@ Module FCore(Helper : HELPER).
         | BoundVar : Var.t -> t
         | FreeVar : MetaVar.t -> inst_num -> VarMap.t_(t) -> Var.t -> t
         | Let : Var.t -> t -> t -> t
+        | FixF : Var.t -> HTyp.t -> t -> t
         | Lam : Var.t -> HTyp.t -> t -> t
         | Ap  : t -> t -> t
         | NumLit : nat -> t
@@ -5621,6 +5690,9 @@ Module FCore(Helper : HELPER).
               let d3' := subst d1 x d3 in 
               let d4' := if Var.equal x y then d4 else subst d1 x d4 in 
               Let y d3' d4'
+            | FixF y ty d3 => 
+              let d3' := if Var.equal x y then d3 else subst d1 x d3 in 
+              FixF y ty d3'
             | Lam y ty d3 => 
               if Var.equal x y then d2 else 
               let d3' := subst d1 x d3 in 
@@ -5679,8 +5751,8 @@ Module FCore(Helper : HELPER).
           : type_result := 
             match fuel with 
             | Fuel.Kicked => IllTyped
-            | Fuel.More fuel' => 
-            let assign_type := assign_type fuel' in 
+            | Fuel.More fuel => 
+            let assign_type := assign_type fuel in 
             match d with 
             | BoundVar x => 
               match (Var.is_valid x, VarMap.lookup gamma x) with 
@@ -5691,7 +5763,7 @@ Module FCore(Helper : HELPER).
               if (Var.is_valid x) then 
                 match MetaVarMap.lookup delta u with 
                 | Some (ty, gamma') => 
-                  if check_type_env fuel' gamma delta sigma gamma' then
+                  if check_type_env fuel gamma delta sigma gamma' then
                     WellTyped ty
                   else IllTyped
                 | None => IllTyped
@@ -5704,6 +5776,14 @@ Module FCore(Helper : HELPER).
                 assign_type gamma' delta d2
               | _ => IllTyped
               end
+            | FixF x ((HTyp.Arrow _ _) as ty1) d1 => 
+              let gamma' := VarMap.extend gamma (x, ty1) in 
+              match (Var.is_valid_binder x, assign_type gamma' delta d1) with 
+              | (true, WellTyped ty2) => 
+                if HTyp.eq ty1 ty2 then WellTyped ty2 else IllTyped
+              | _ => IllTyped
+              end
+            | FixF x _ d1 => IllTyped
             | Lam x ty1 d1 => 
               let gamma' := VarMap.extend gamma (x, ty1) in 
               match (Var.is_valid_binder x, assign_type gamma' delta d1) with 
@@ -5756,7 +5836,7 @@ Module FCore(Helper : HELPER).
             | EmptyHole u _ sigma => 
               match MetaVarMap.lookup delta u with 
               | Some (ty, gamma') => 
-                if check_type_env fuel' gamma delta sigma gamma' then 
+                if check_type_env fuel gamma delta sigma gamma' then 
                   WellTyped ty
                 else IllTyped
               | None => IllTyped
@@ -5766,7 +5846,7 @@ Module FCore(Helper : HELPER).
               | WellTyped _ => 
                 match MetaVarMap.lookup delta u with 
                 | Some (ty, gamma') => 
-                  if check_type_env fuel' gamma delta sigma gamma' then
+                  if check_type_env fuel gamma delta sigma gamma' then
                     WellTyped ty
                   else IllTyped
                 | None => IllTyped
@@ -5790,11 +5870,11 @@ Module FCore(Helper : HELPER).
                 (sigma : Environment.t) 
                 (gamma' : Ctx.t) : bool := 
             match fuel with 
-            | Fuel.More fuel' => 
+            | Fuel.More fuel => 
                 Coq.Lists.List.forallb  
                   (fun xd : Var.t * t => 
                     let (x, d) := xd in 
-                    match assign_type fuel' gamma delta d with 
+                    match assign_type fuel gamma delta d with 
                     | WellTyped ty => 
                       match VarMap.lookup gamma' x with 
                       | Some ty' => HTyp.consistent ty ty'
@@ -5898,11 +5978,13 @@ Module FCore(Helper : HELPER).
                 match ann with 
                 | Some uty1 => 
                   let ty1 := UHTyp.expand fuel uty1 in 
-                  match ana_expand fuel ctx e1 ty1 with 
+                  let (ctx1, is_recursive_fn) := UHExp.ctx_for_let' ctx x ty1 e1 in 
+                  match ana_expand fuel ctx1 e1 ty1 with 
                   | DoesNotExpand => DoesNotExpand
                   | Expands d1 ty1 delta1 => 
-                    let ctx' := Contexts.extend_gamma ctx (x, ty1) in 
-                    match syn_expand fuel ctx' e2 with 
+                    let d1 := if is_recursive_fn then FixF x ty1 d1 else d1 in 
+                    let ctx2 := Contexts.extend_gamma ctx (x, ty1) in 
+                    match syn_expand fuel ctx2 e2 with 
                     | DoesNotExpand => DoesNotExpand
                     | Expands d2 ty delta2 => 
                       let d := Let x d1 d2 in 
@@ -6312,6 +6394,9 @@ Module FCore(Helper : HELPER).
             let (d1, hii) := renumber_result_only path hii d1 in 
             let (d2, hii) := renumber_result_only path hii d2 in 
             (Let x d1 d2, hii)
+          | FixF x ty d1 => 
+            let (d1, hii) := renumber_result_only path hii d1 in 
+            (FixF x ty d1, hii)
           | Lam x ty d1 => 
             let (d1, hii) := renumber_result_only path hii d1 in 
             (Lam x ty d1, hii)
@@ -6362,6 +6447,9 @@ Module FCore(Helper : HELPER).
             let (d1, hii) := renumber_sigmas_only fuel path hii d1 in 
             let (d2, hii) := renumber_sigmas_only fuel path hii d2 in 
             (Let x d1 d2, hii)
+          | FixF x ty d1 => 
+            let (d1, hii) := renumber_sigmas_only fuel path hii d1 in 
+            (FixF x ty d1, hii)
           | Lam x ty d1 => 
             let (d1, hii) := renumber_sigmas_only fuel path hii d1 in 
             (Lam x ty d1, hii)
@@ -6491,40 +6579,36 @@ Module FCore(Helper : HELPER).
           : result := 
             match fuel with 
             | Fuel.Kicked => InvalidInput 0
-            | Fuel.More(fuel') => 
+            | Fuel.More(fuel) => 
             match d with 
             | DHExp.BoundVar _ => InvalidInput 1
             | DHExp.Let x d1 d2 => 
-              if Var.is_valid_binder x then
-                match evaluate fuel' d1 with 
-                | InvalidInput msg => InvalidInput msg
-                | BoxedValue d1' | Indet d1' => 
-                  evaluate fuel' (DHExp.subst fuel' d1' x d2)
-                end
-              else
-                InvalidInput 1
+              match evaluate fuel d1 with 
+              | InvalidInput msg => InvalidInput msg
+              | BoxedValue d1' | Indet d1' => 
+                evaluate fuel (DHExp.subst fuel d1' x d2)
+              end
+            | DHExp.FixF x ty d1 => 
+              evaluate fuel (DHExp.subst fuel d x d1)
             | DHExp.Lam x _ _ =>
-              if Var.is_valid_binder x then BoxedValue d else InvalidInput 1
+              BoxedValue d
             | DHExp.Ap d1 d2 => 
-              match evaluate fuel' d1 with 
+              match evaluate fuel d1 with 
               | InvalidInput msg => InvalidInput msg
               | BoxedValue (DHExp.Lam x tau d1') => 
-                if Var.is_valid_binder x then
-                  match evaluate fuel' d2 with 
-                  | InvalidInput msg => InvalidInput msg
-                  | BoxedValue d2' | Indet d2' => 
-                    (* beta rule *)
-                    evaluate fuel' (DHExp.subst fuel d2' x d1')
-                  end
-                else
-                  InvalidInput 1
+                match evaluate fuel d2 with 
+                | InvalidInput msg => InvalidInput msg
+                | BoxedValue d2' | Indet d2' => 
+                  (* beta rule *)
+                  evaluate fuel (DHExp.subst fuel d2' x d1')
+                end
               | BoxedValue (DHExp.Cast d1' (HTyp.Arrow ty1 ty2) (HTyp.Arrow ty1' ty2'))
               | Indet (DHExp.Cast d1' (HTyp.Arrow ty1 ty2) (HTyp.Arrow ty1' ty2')) => 
-                match evaluate fuel' d2 with 
+                match evaluate fuel d2 with 
                 | InvalidInput msg => InvalidInput msg
                 | BoxedValue d2' | Indet d2' => 
                   (* ap cast rule *)
-                  evaluate fuel'  
+                  evaluate fuel  
                     (DHExp.Cast 
                       (DHExp.Ap 
                         d1'
@@ -6534,7 +6618,7 @@ Module FCore(Helper : HELPER).
                 end
               | BoxedValue _ => InvalidInput 2
               | Indet d1' => 
-                match evaluate fuel' d2 with 
+                match evaluate fuel d2 with 
                 | InvalidInput msg => InvalidInput msg
                 | BoxedValue d2' | Indet d2' => 
                   Indet (DHExp.Ap d1' d2')
@@ -6542,10 +6626,10 @@ Module FCore(Helper : HELPER).
               end
             | DHExp.NumLit _ => BoxedValue d
             | DHExp.BinNumOp op d1 d2 => 
-              match evaluate fuel' d1 with 
+              match evaluate fuel d1 with 
               | InvalidInput msg => InvalidInput msg
               | BoxedValue (DHExp.NumLit n1 as d1')  => 
-                match evaluate fuel' d2 with 
+                match evaluate fuel d2 with 
                 | InvalidInput msg => InvalidInput msg
                 | BoxedValue (DHExp.NumLit n2) => 
                   BoxedValue (DHExp.NumLit (eval_bin_num_op op n1 n2))
@@ -6555,48 +6639,48 @@ Module FCore(Helper : HELPER).
                 end
               | BoxedValue _ => InvalidInput 4
               | Indet d1' => 
-                match evaluate fuel' d2 with 
+                match evaluate fuel d2 with 
                 | InvalidInput msg => InvalidInput msg
                 | BoxedValue d2' | Indet d2' => 
                   Indet (DHExp.BinNumOp op d1' d2')
                 end
               end
             | DHExp.Inj ty side d1 => 
-              match evaluate fuel' d1 with 
+              match evaluate fuel d1 with 
               | InvalidInput msg => InvalidInput msg
               | BoxedValue d1' => BoxedValue (DHExp.Inj ty side d1')
               | Indet d1' => Indet (DHExp.Inj ty side d1')
               end
             | DHExp.Case d1 (x, d2) (y, d3) =>
               if (Var.is_valid_binder x) && (Var.is_valid_binder y) then
-                match evaluate fuel' d1 with 
+                match evaluate fuel d1 with 
                 | InvalidInput msg => InvalidInput msg
                 | BoxedValue d1' => 
                   match d1' with 
                   | DHExp.Inj _ side d1'' => 
                     let (xb, db) := UHExp.pick_side side (x, d2) (y, d3) in
-                    let branch := DHExp.subst fuel' d1'' xb db in 
-                    evaluate fuel' branch
+                    let branch := DHExp.subst fuel d1'' xb db in 
+                    evaluate fuel branch
                   | DHExp.Cast d1'' (HTyp.Sum ty1 ty2) (HTyp.Sum ty1' ty2') => 
                     let d' := 
                       DHExp.Case d1'' 
-                        (x, DHExp.subst fuel' (DHExp.Cast (DHExp.BoundVar x) ty1 ty1') x d2)
-                        (y, DHExp.subst fuel' (DHExp.Cast (DHExp.BoundVar y) ty2 ty2') y d3) in 
-                      evaluate fuel' d'
+                        (x, DHExp.subst fuel (DHExp.Cast (DHExp.BoundVar x) ty1 ty1') x d2)
+                        (y, DHExp.subst fuel (DHExp.Cast (DHExp.BoundVar y) ty2 ty2') y d3) in 
+                      evaluate fuel d'
                   | _ => InvalidInput 5
                   end
                 | Indet d1' => 
                   match d1' with 
                   | DHExp.Inj _ side d1'' => 
                       let (xb, db) := UHExp.pick_side side (x, d2) (y, d3) in 
-                      let branch := DHExp.subst fuel' d1'' xb db in 
-                      evaluate fuel' branch
+                      let branch := DHExp.subst fuel d1'' xb db in 
+                      evaluate fuel branch
                   | DHExp.Cast d1'' (HTyp.Sum ty1 ty2) (HTyp.Sum ty1' ty2') => 
                     let d' := 
                       DHExp.Case d1'' 
-                        (x, DHExp.subst fuel' (DHExp.Cast (DHExp.BoundVar x) ty1 ty1') x d2)
-                        (y, DHExp.subst fuel' (DHExp.Cast (DHExp.BoundVar y) ty2 ty2') y d3) in 
-                    evaluate fuel' d'
+                        (x, DHExp.subst fuel (DHExp.Cast (DHExp.BoundVar x) ty1 ty1') x d2)
+                        (y, DHExp.subst fuel (DHExp.Cast (DHExp.BoundVar y) ty2 ty2') y d3) in 
+                    evaluate fuel d'
                   | _ => Indet (DHExp.Case d1' (x, d2) (y, d3))
                   end
                 end
@@ -6605,7 +6689,7 @@ Module FCore(Helper : HELPER).
             | DHExp.EmptyHole u i sigma => 
               Indet d  
             | DHExp.NonEmptyHole u i sigma d1 => 
-              match evaluate fuel' d1 with 
+              match evaluate fuel d1 with 
               | InvalidInput msg => InvalidInput msg
               | BoxedValue d1' | Indet d1' => 
                 Indet (DHExp.NonEmptyHole u i sigma d1')
@@ -6613,7 +6697,7 @@ Module FCore(Helper : HELPER).
             | DHExp.FreeVar u i sigma x => 
               Indet d
             | DHExp.Cast d1 ty ty' => 
-              match evaluate fuel' d1 with 
+              match evaluate fuel d1 with 
               | InvalidInput msg => InvalidInput msg
               | (BoxedValue d1' as result) => 
                 match (ground_cases_of ty, ground_cases_of ty') with 
@@ -6638,14 +6722,14 @@ Module FCore(Helper : HELPER).
                     DHExp.Cast
                       (DHExp.Cast d1' ty ty'_grounded)
                       ty'_grounded ty' in 
-                  evaluate fuel' d'
+                  evaluate fuel d'
                 | (NotGroundOrHole ty_grounded, Hole) => 
                   (* ITGround rule *)
                    let d' := 
                      DHExp.Cast
                        (DHExp.Cast d1' ty ty_grounded)
                        ty_grounded ty' in 
-                   evaluate fuel' d'
+                   evaluate fuel d'
                 | (Ground, NotGroundOrHole _)  
                 | (NotGroundOrHole _, Ground) => 
                   (* can't do anything when casting between disequal, non-hole types *)
@@ -6678,14 +6762,14 @@ Module FCore(Helper : HELPER).
                     DHExp.Cast
                       (DHExp.Cast d1' ty ty'_grounded)
                       ty'_grounded ty' in 
-                  evaluate fuel' d'
+                  evaluate fuel d'
                 | (NotGroundOrHole ty_grounded, Hole) => 
                   (* ITGround rule *)
                    let d' := 
                      DHExp.Cast
                        (DHExp.Cast d1' ty ty_grounded)
                        ty_grounded ty' in 
-                   evaluate fuel' d'
+                   evaluate fuel d'
                 | (Ground, NotGroundOrHole _)  
                 | (NotGroundOrHole _, Ground) => 
                   (* can't do anything when casting between disequal, non-hole types *)
@@ -6696,7 +6780,7 @@ Module FCore(Helper : HELPER).
                 end
               end
             | DHExp.FailedCast d1 ty ty' => 
-              match evaluate fuel' d1 with 
+              match evaluate fuel d1 with 
               | InvalidInput msg => InvalidInput msg
               | BoxedValue d1' | Indet d1' => 
                 Indet (DHExp.FailedCast d1' ty ty')

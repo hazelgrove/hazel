@@ -260,6 +260,18 @@ let of_Let = (prefix, err_status, rev_path, rx, rann, r1, r2) => {
   term(prefix, err_status, rev_path, "Let", view);
 };
 
+let of_FixF = (prefix, err_status, rev_path, rx, rty, r1) => {
+  let view =
+    kw("fix")
+    ^^ space
+    ^^ rx
+    ^^ of_str_op_no_space(":", "ann")
+    ^^ rty
+    ^^ taggedText("lambda-dot", ".")
+    ^^ r1;
+  term(prefix, err_status, rev_path, "Lam", view);
+};
+
 let of_Lam = (prefix, err_status, rev_path, rx, rann, r1) => {
   let first_part = taggedText("lambda-sym", LangUtil.lamSym) ^^ rx;
   let second_part = taggedText("lambda-dot", ".") ^^ r1;
@@ -629,6 +641,7 @@ let rec precedence_dhexp = d =>
     | Cast(_, _, _)
     | FailedCast(_, _, _) => precedence_const
     | Let(_, _, _)
+    | FixF(_, _, _)
     | Lam(_, _, _)
     | Case(_, _, _) => precedence_max
     | Ap(_, _) => precedence_Ap
@@ -676,6 +689,19 @@ let rec of_dhexp' =
             d2,
           );
         of_Let(prefix, err_status, rev_path, rx, None, r1, r2);
+      | FixF(x, ty, d1) =>
+        let rx = of_var_binding(prefix, [0, ...rev_path], x);
+        let rty = of_htype(false, prefix, [1, ...rev_path], ty);
+        let r1 =
+          of_dhexp'(
+            instance_click_fn,
+            false,
+            prefix,
+            NotInHole,
+            [2, ...rev_path],
+            d1,
+          );
+        of_FixF(prefix, err_status, rev_path, rx, rty, r1);
       | Lam(x, ann, d1) =>
         let rx = of_var_binding(prefix, [0, ...rev_path], x);
         let rann = Some(of_htype(false, prefix, [1, ...rev_path], ann));
