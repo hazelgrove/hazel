@@ -7,8 +7,8 @@ before_install:
   -in deploy-key.enc -out deploy-key -d
 
 install:
- - wget https://github.com/ocaml/opam/releases/download/2.0.2/opam-2.0.2-arm64-linux
- - sudo cp ./opam-2.0.2-arm64-linux /usr/local/bin/opam
+ - wget https://github.com/ocaml/opam/releases/download/2.0.2/opam-2.0.2-x86_64-linux
+ - sudo cp ./opam-2.0.2-x86_64-linux /usr/local/bin/opam
  - sudo chmod a+x /usr/local/bin/opam
  - opam init
  - opam install dune reason js_of_ocaml tyxml deriving ppx_deriving reactiveData ocp-indent camomile js_of_ocaml-tyxml menhir oUnit
