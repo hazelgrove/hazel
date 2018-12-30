@@ -7,9 +7,9 @@ before_install:
   -in deploy-key.enc -out deploy-key -d
 
 install:
- - sudo add-apt-repository ppa:ansible/bubblewrap
+ - sudo add-apt-repository -y ppa:ansible/bubblewrap
  - sudo apt-get update
- - sudo apt-get install bubblewrap
+ - sudo apt-get  --assume-yes install bubblewrap
  - wget https://github.com/ocaml/opam/releases/download/2.0.2/opam-2.0.2-x86_64-linux
  - sudo cp ./opam-2.0.2-x86_64-linux /usr/local/bin/opam
  - sudo chmod a+x /usr/local/bin/opam
