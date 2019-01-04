@@ -20,12 +20,26 @@ Module Util.
 
   Section ListUtil.
 
-  Fixpoint update_nth {a : Type} (n : nat) (xs : list a) (f : a -> a) := 
+  Fixpoint update_nth {A : Type} (n : nat) (xs : list A) (f : A -> A) := 
     match (n, xs) with 
     | (_, nil) => nil
     | (0, cons x xs) => cons (f x) xs
     | (S n, cons x xs) => cons x (update_nth n xs f)
     end.
+
+  Fixpoint _findmapi {A B : Type} (i : nat) (xs : list A) (f : nat -> A -> option B) : option(B) := 
+    match xs with 
+    | nil => None
+    | cons x xs => 
+      match f i x with 
+      | (Some b) as result => result
+      | None => 
+        _findmapi (i + 1) xs f 
+      end
+    end.
+
+  Definition findmapi {A B : Type} (xs : list A) (f : nat -> A -> option B) : option(B) := 
+    _findmapi 0 xs f.
 
   End ListUtil.
 
@@ -885,6 +899,8 @@ Module FCore(Debug : DEBUG).
                   t'
     with rule : Type := 
     | Rule : UHPat.t -> t -> rule.
+
+    Definition rules : Type := list(rule).
 
     (* helper function for constructing a new empty hole *)
     Definition new_EmptyHole (u_gen : MetaVarGen.t) : t * MetaVarGen.t :=
@@ -2283,6 +2299,48 @@ Module FCore(Debug : DEBUG).
   Module ZList.
     Definition t (Z A : Type) : Type := list(A) * Z * list(A).
 
+    Fixpoint split_at {A : Type} (n : nat) (xs : list A) : option(t A A) := 
+      match (n, xs) with 
+      | (_, nil) => None
+      | (0, cons x xs) => 
+        let prefix := nil in 
+        let suffix := xs in 
+        Some ((prefix, x), suffix)
+      | (S n', cons x xs) => 
+        match split_at n' xs with 
+        | None => None
+        | Some ((prefix, z), suffix) => 
+          let prefix' := cons x prefix in 
+          Some ((prefix', z), suffix)
+        end
+      end.
+
+    Fixpoint optmap_z {A Z1 Z2 : Type} 
+      (f : Z1 -> option(Z2))
+      (zs : t Z1 A)
+      : option(t Z2 A) := 
+        match zs with 
+        | ((prefix, z), suffix) => 
+          match f z with 
+          | None => None
+          | Some z' => Some ((prefix, z'), suffix)
+          end
+        end.
+
+    Definition prj_prefix {Z A : Type} (zxs : t Z A) : list(A) := 
+      let (az, _) := zxs in 
+      let (prefix, _) := az in 
+      prefix.
+
+    Definition prj_z {Z A : Type} (zxs : t Z A) : Z := 
+      let (az, _) := zxs in 
+      let (_, z) := az in 
+      z.
+
+    Definition prj_suffix {Z A : Type} (zxs : t Z A) : list(A) := 
+      let (_, suffix) := zxs in 
+      suffix.
+
     Definition erase {Z A : Type} (xs : t Z A) (erase_z : Z -> A) := 
       let (az, xs_after) := xs in 
       let (xs_before, z) := az in 
@@ -2389,6 +2447,7 @@ Module FCore(Debug : DEBUG).
     | ZRulePat : ZPat.t -> UHExp.t -> zrule
     | ZRuleE : UHPat.t -> t -> zrule.
 
+    Definition zrules : Type := ZList.t zrule UHExp.rule.
 
     Module ZPaletteHoleData.
       Definition z_hole_map : Type := ZNatMap.t (HTyp.t * t) (HTyp.t * ZExp.t).
@@ -2526,11 +2585,8 @@ Module FCore(Debug : DEBUG).
     | SynOnly : HTyp.t -> cursor_mode
     | SynFree : cursor_mode
     | SynErrorArrow : HTyp.t (* expected *) -> HTyp.t (* got *) -> cursor_mode
-    | SynErrorSum : HTyp.t (* expected *) -> HTyp.t (* got *) -> cursor_mode
     | SynMatchingArrow : HTyp.t -> HTyp.t -> cursor_mode
     | SynFreeArrow : HTyp.t -> cursor_mode
-    | SynMatchingSum : HTyp.t -> HTyp.t -> cursor_mode
-    | SynFreeSum : HTyp.t -> cursor_mode
     (* cursor in type position *)
     | TypePosition : cursor_mode
     (* cursor in analytic pattern position *)
@@ -2570,8 +2626,11 @@ Module FCore(Debug : DEBUG).
         | Fuel.More fuel => 
         match p with 
         | UHPat.Parenthesized p1 =>
-          let ci := ana_pat_cursor_found fuel ctx p1 ty side in 
-          update_sort ci (IsPat p)
+          match ana_pat_cursor_found fuel ctx p1 ty side with
+          | None => None
+          | Some ci => 
+            Some (update_sort ci (IsPat p))
+          end
         | UHPat.Pat (InHole _) p' => 
           match UHExp.syn_pat' fuel ctx p' with 
           | None => None
@@ -2583,9 +2642,42 @@ Module FCore(Debug : DEBUG).
                 side
                 ctx)
           end
-        | UHPat.Pat NotInHole (
+        | UHPat.Pat NotInHole UHPat.Wild
+        | UHPat.Pat NotInHole (UHPat.Var _) =>
+          Some
+            (mk_cursor_info
+              (PatAnaOnly ty)
+              (IsPat p)
+              side
+              ctx)
+        | UHPat.Pat NotInHole (UHPat.NumLit _) => 
+          Some
+            (mk_cursor_info
+              (PatSubsumed ty HTyp.Num)
+              (IsPat p)
+              side
+              ctx)
+        | UHPat.Pat NotInHole (UHPat.Inj _ _) => 
+          match UHExp.syn_pat fuel ctx p with 
+          | None => None
+          | Some (ty', _) => 
+            Some
+              (mk_cursor_info
+                (PatSubsumed ty ty')
+                (IsPat p)
+                side
+                ctx)
+          end
+        | UHPat.Pat NotInHole (UHPat.EmptyHole _) => 
+          Some 
+            (mk_cursor_info
+              (PatSubsumed ty HTyp.Hole)
+              (IsPat p)
+              side
+              ctx)
         end
         end.
+
     Fixpoint syn_pat_cursor_info
       (fuel : Fuel.t)
       (ctx : Contexts.t)
@@ -2612,7 +2704,20 @@ Module FCore(Debug : DEBUG).
           syn_pat_cursor_info fuel ctx zp1
         end
         end
-    with ana_pat_cursor_info
+    with syn_pat_cursor_info'
+      (fuel : Fuel.t)
+      (ctx : Contexts.t)
+      (zp' : ZPat.t')
+      : option(cursor_info) := 
+        match fuel with 
+        | Fuel.Kicked => None
+        | Fuel.More fuel => 
+        match zp' with 
+        | ZPat.InjZ side zp1 => syn_pat_cursor_info fuel ctx zp1
+        end 
+        end.
+    
+    Fixpoint ana_pat_cursor_info
       (fuel : Fuel.t)
       (ctx : Contexts.t)
       (zp : ZPat.t) 
@@ -2627,20 +2732,10 @@ Module FCore(Debug : DEBUG).
         | ZPat.Deeper (InHole u) zp' => 
           syn_pat_cursor_info' fuel ctx zp'
         | ZPat.Deeper NotInHole zp' => 
-          ana_pat_cursor_info' fuel ctx zp'
+          ana_pat_cursor_info' fuel ctx zp' ty
+        | ZPat.ParenthesizedZ zp => 
+          ana_pat_cursor_info fuel ctx zp ty
         end
-        end
-    with syn_pat_cursor_info'
-      (fuel : Fuel.t)
-      (ctx : Contexts.t)
-      (zp' : ZPat.t')
-      : option(cursor_info) := 
-        match fuel with 
-        | Fuel.Kicked => None
-        | Fuel.More fuel => 
-        match zp' with 
-        | InjZ side zp1 => syn_pat_cursor_info fuel ctx zp1
-        end 
         end
     with ana_pat_cursor_info'
       (fuel : Fuel.t)
@@ -2652,7 +2747,7 @@ Module FCore(Debug : DEBUG).
         | Fuel.Kicked => None
         | Fuel.More fuel => 
         match zp' with 
-        | InjZ side zp1 => 
+        | ZPat.InjZ side zp1 => 
           match HTyp.matched_sum ty with 
           | None => None
           | Some (tyL, tyR) => 
@@ -2672,8 +2767,11 @@ Module FCore(Debug : DEBUG).
       | Fuel.More fuel => 
       match e with
       | UHExp.Parenthesized e' => 
-        let ci := ana_cursor_found fuel ctx e' ty side in 
-        update_sort ci (IsExpr e)
+        match ana_cursor_found fuel ctx e' ty side with
+        | None => None
+        | Some ci => 
+          Some (update_sort ci (IsExpr e))
+        end
       | UHExp.Tm (InHole _) e' => 
         match UHExp.syn' fuel ctx e' with 
         | None => None 
@@ -2694,13 +2792,6 @@ Module FCore(Debug : DEBUG).
             side
             ctx
         )
-        Some (
-          mk_cursor_info 
-            (Subsumed ty HTyp.Hole)
-            (IsExpr e)
-            side
-            ctx
-        )
       | UHExp.Tm NotInHole (UHExp.Let _ _ _ _)
       | UHExp.Tm NotInHole (UHExp.Case _ _) =>
         Some (
@@ -2715,7 +2806,7 @@ Module FCore(Debug : DEBUG).
       | UHExp.Tm NotInHole (UHExp.NumLit _)
       | UHExp.Tm NotInHole (UHExp.OpSeq _ _)
       | UHExp.Tm NotInHole (UHExp.ApPalette _ _ _)
-      | UHExp.Tm NotInHole (UHExp.EmptyHole u) => 
+      | UHExp.Tm NotInHole (UHExp.EmptyHole _) => 
         match UHExp.syn fuel ctx e with
         | Some ty' =>
           if HTyp.consistent ty ty' then 
@@ -2873,47 +2964,48 @@ Module FCore(Debug : DEBUG).
           | Some ty1 => ana_pat_cursor_info fuel ctx zp ty1 
           end
         end
-      | LetZA x zann e1 e2 => 
+      | LetZA p zann e1 e2 => 
         Some
           (mk_cursor_info
             TypePosition
             IsType
             Before (* TODO fix this once we use cursor info in type position! *)
             ctx)
-      | LetZE1 x ann ze1 e2 => 
+      | LetZE1 p ann ze1 e2 => 
         match ann with 
         | Some uty1 => 
           let ty1 := UHTyp.expand fuel uty1 in 
-          let ctx1 := UHExp.ctx_for_let ctx x ty1 (erase ze1) in 
+          let ctx1 := UHExp.ctx_for_let ctx p ty1 (erase ze1) in 
           ana_cursor_info fuel ctx1 ze1 ty1
         | None => syn_cursor_info fuel ctx ze1
         end
-      | LetZE2 x ann e1 ze2 => 
+      | LetZE2 p ann e1 ze2 => 
         match ann with 
         | Some uty1 => 
           let ty1 := UHTyp.expand fuel uty1 in 
-          let ctx2 := Contexts.extend_gamma ctx (x, ty1) in 
-          syn_cursor_info fuel ctx2 ze2
+          match UHExp.ana_pat fuel ctx p ty1 with 
+          | None => None
+          | Some ctx2 => 
+            syn_cursor_info fuel ctx2 ze2
+          end
         | None => 
           match UHExp.syn fuel ctx e1 with 
           | None => None
           | Some ty1 => 
-            let ctx2 := (Contexts.extend_gamma ctx (x, ty1)) in 
-            syn_cursor_info fuel ctx2 ze2
+            match UHExp.ana_pat fuel ctx p ty1 with 
+            | None => None
+            | Some ctx2 => 
+              syn_cursor_info fuel ctx2 ze2
+            end
           end
         end
-      | LamZV x cursor_side ann _ => 
+      | LamZP zp ann _ => 
         let ty1 := 
           match ann with 
           | Some uty1 => UHTyp.expand fuel uty1
           | None => HTyp.Hole
           end in 
-        Some 
-          (mk_cursor_info
-            (BinderPosition ty1)
-            (IsBinder x)
-            cursor_side
-            ctx)
+        ana_pat_cursor_info fuel ctx zp ty1
       | LamZA _ zann _ => 
         Some
           (mk_cursor_info
@@ -2921,21 +3013,21 @@ Module FCore(Debug : DEBUG).
             IsType
             Before (* TODO fix this once we use cursor info in type position *)
             ctx)
-      | LamZE x ann ze1 => 
+      | LamZE p ann ze1 => 
         let ty1 := 
           match ann with 
           | Some uty1 => UHTyp.expand fuel uty1
           | None => HTyp.Hole
           end in 
-        let ctx := Contexts.extend_gamma ctx (x, ty1) in 
-        syn_cursor_info fuel ctx ze1
+        match UHExp.ana_pat fuel ctx p ty1 with 
+        | None => None
+        | Some ctx1 => 
+          syn_cursor_info fuel ctx1 ze1
+        end
       | InjZ side ze1 => 
         syn_cursor_info fuel ctx ze1
-      | CaseZV1 _ _ _
-      | CaseZV2 _ _ _
-      | CaseZ1 _ _ _
-      | CaseZ2 _ _ _
-      | CaseZ3 _ _ _ => None
+      | CaseZE _ _
+      | CaseZR _ _ => None
       | OpSeqZ skel ze0 surround => 
         let e0 := erase ze0 in 
         let seq := OperatorSeq.opseq_of_exp_and_surround e0 surround in 
@@ -2956,58 +3048,54 @@ Module FCore(Debug : DEBUG).
       | Fuel.Kicked => None
       | Fuel.More fuel => 
       match ze with 
-      | LetZV x cursor_side ann e1 e2 => 
+      | LetZP zp ann e1 e2 => 
         match ann with 
         | Some uty1 => 
           let ty1 := UHTyp.expand fuel uty1 in 
-          Some 
-            (mk_cursor_info
-              (BinderPosition ty1)
-              (IsBinder x)
-              cursor_side
-              ctx)
+          ana_pat_cursor_info fuel ctx zp ty1 
         | None =>  
           match UHExp.syn fuel ctx e1 with 
           | None => None
           | Some ty1 => 
-            Some
-              (mk_cursor_info
-                (BinderPosition ty1)
-                (IsBinder x)
-                cursor_side
-                ctx)
+            ana_pat_cursor_info fuel ctx zp ty1 
           end
         end
-      | LetZA x zann e1 e2 => 
+      | LetZA _ zann e1 e2 => 
         Some
           (mk_cursor_info
             TypePosition
             IsType
             Before (* TODO fix this once we use cursor info in type position! *)
             ctx)
-      | LetZE1 x ann ze1 e2 => 
+      | LetZE1 p ann ze1 e2 => 
         match ann with 
         | Some uty1 => 
           let ty1 := UHTyp.expand fuel uty1 in 
-          let ctx1 := UHExp.ctx_for_let ctx x ty1 (erase ze1) in 
+          let ctx1 := UHExp.ctx_for_let ctx p ty1 (erase ze1) in 
           ana_cursor_info fuel ctx1 ze1 ty1
         | None => syn_cursor_info fuel ctx ze1
         end
-      | LetZE2 x ann e1 ze2 => 
+      | LetZE2 p ann e1 ze2 => 
         match ann with 
         | Some uty1 => 
           let ty1 := UHTyp.expand fuel uty1 in 
-          let ctx2 := Contexts.extend_gamma ctx (x, ty1) in 
-          ana_cursor_info fuel ctx2 ze2 ty
+          match UHExp.ana_pat fuel ctx p ty1 with 
+          | None => None
+          | Some ctx2 => 
+            ana_cursor_info fuel ctx2 ze2 ty
+          end
         | None => 
           match UHExp.syn fuel ctx e1 with 
           | None => None
           | Some ty1 => 
-            let ctx2 := Contexts.extend_gamma ctx (x, ty1) in 
-            ana_cursor_info fuel ctx2 ze2 ty
+            match UHExp.ana_pat fuel ctx p ty1 with 
+            | None => None
+            | Some ctx2 => 
+              ana_cursor_info fuel ctx2 ze2 ty
+            end
           end
         end
-      | LamZV x cursor_side ann e => 
+      | LamZP p ann e => 
         match HTyp.matched_arrow ty with 
         | None => None
         | Some (ty1_given, ty2) => 
@@ -3016,12 +3104,7 @@ Module FCore(Debug : DEBUG).
             | Some uty1 => UHTyp.expand fuel uty1
             | None => ty1_given
             end in 
-            Some
-              (mk_cursor_info
-                 (BinderPosition ty1)
-                 (IsBinder x)
-                 cursor_side
-                 ctx)
+          ana_pat_cursor_info fuel ctx p ty1
         end
       | LamZA _ zann _ => 
         Some
@@ -3030,7 +3113,7 @@ Module FCore(Debug : DEBUG).
             IsType
             Before (* TODO fix this once we use cursor info in type position *)
             ctx)
-      | LamZE x ann ze1 => 
+      | LamZE p ann ze1 => 
         match HTyp.matched_arrow ty with 
         | None => None
         | Some (ty1_given, ty2) => 
@@ -3039,118 +3122,54 @@ Module FCore(Debug : DEBUG).
             | Some uty1 => UHTyp.expand fuel uty1
             | None => ty1_given
             end in 
-          let ctx := Contexts.extend_gamma ctx (x, ty1) in 
-          ana_cursor_info fuel ctx ze1 ty2
+          match UHExp.ana_pat fuel ctx p ty1 with 
+          | None => None
+          | Some ctx => 
+            ana_cursor_info fuel ctx ze1 ty2
+          end
         end
       | InjZ side ze1 => 
         match HTyp.matched_sum ty with 
         | None => None
         | Some (ty1, ty2) => 
           ana_cursor_info fuel ctx ze1 
-            (UHExp.pick_side side ty1 ty2)
+            (pick_side side ty1 ty2)
         end
-      | CaseZV1 e1 (x, cursor_side, _) _ => 
+      | CaseZE ze1 rules => 
+        syn_cursor_info fuel ctx ze1
+      | CaseZR e1 zrules => 
         match UHExp.syn fuel ctx e1 with 
         | None => None
         | Some ty1 => 
-          match HTyp.matched_sum ty1 with 
-          | None => None
-          | Some (tyL, _) => 
-            Some 
-              (mk_cursor_info 
-                (BinderPosition tyL)
-                (IsBinder x)
-                cursor_side
-                ctx)
-          end
+          let zrule := ZList.prj_z zrules in 
+          ana_rule_cursor_info fuel ctx zrule ty1 ty
         end
-      | CaseZV2 e1 _ (y, cursor_side, _) => 
-        match UHExp.syn fuel ctx e1 with 
-        | None => None
-        | Some ty1 => 
-          match HTyp.matched_sum ty1 with 
-          | None => None
-          | Some (_, tyR) => 
-            Some 
-              (mk_cursor_info 
-                (BinderPosition tyR)
-                (IsBinder y)
-                cursor_side
-                ctx)
-          end
-        end
-      | CaseZ1 ze1 (x, _) (y, _) => 
-        Var.check_valid_binder x (
-        Var.check_valid_binder y (
-        match cursor_on_outer_expr ze1 with 
-        | Some ((UHExp.Tm (InHole _) e1) as e, side) => 
-          match UHExp.syn' fuel ctx e1 with  
-          | Some ty => 
-            Some 
-              (mk_cursor_info
-                (SynErrorSum (HTyp.Sum HTyp.Hole HTyp.Hole) ty)
-                (IsExpr e)
-                side
-                ctx)
-          | None => None
-          end
-        | Some ((UHExp.Tm _ (UHExp.Var (InVHole _) _)) as e, side) => 
-          Some 
-            (mk_cursor_info
-              (SynFreeSum (HTyp.Sum HTyp.Hole HTyp.Hole))
-              (IsExpr e)
-              side
-              ctx)
-        | Some (e, side) => 
-          match UHExp.syn fuel ctx e with 
-          | None => None
-          | Some ty1 => 
-            match HTyp.matched_sum ty1 with 
-            | None => None
-            | Some (tyL, tyR) => 
-              let matched_ty := HTyp.Sum tyL tyR in 
-              Some 
-                (mk_cursor_info
-                  (SynMatchingSum ty1 matched_ty)
-                  (IsExpr e)
-                  side
-                  ctx)
-            end
-          end
-        | None => 
-          syn_cursor_info fuel ctx ze1
-        end))
-      | CaseZ2 e1 (x, ze2) (y, e3) => 
-        Var.check_valid_binder x (
-        Var.check_valid_binder y (
-        match UHExp.syn fuel ctx e1 with 
-        | None => None
-        | Some ty1 => 
-          match HTyp.matched_sum ty1 with 
-          | None => None
-          | Some (tyL, tyR) => 
-            let ctx' := (Contexts.extend_gamma ctx (x, tyL)) in 
-            ana_cursor_info fuel ctx' ze2 ty
-          end
-        end))
-      | CaseZ3 e1 (x, e2) (y, ze3) => 
-        Var.check_valid_binder x (
-        Var.check_valid_binder y (
-        match UHExp.syn fuel ctx e1 with 
-        | None => None
-        | Some ty1 => 
-          match HTyp.matched_sum ty1 with 
-          | None => None
-          | Some (tyL, tyR) => 
-            let ctx' := (Contexts.extend_gamma ctx (y, tyR)) in 
-            ana_cursor_info fuel ctx' ze3 ty
-          end
-        end))
       | AscZ1 _ _ 
       | AscZ2 _ _ 
       | OpSeqZ _ _ _
       | ApPaletteZ _ _ _ => 
         syn_cursor_info' fuel ctx ze 
+      end
+      end
+    with ana_rule_cursor_info
+      (fuel : Fuel.t)
+      (ctx : Contexts.t)
+      (zrule : ZExp.zrule)
+      (pat_ty : HTyp.t)
+      (clause_ty : HTyp.t)
+      : option(cursor_info) := 
+      match fuel with 
+      | Fuel.Kicked => None
+      | Fuel.More fuel => 
+      match zrule with 
+      | ZRulePat zp e => 
+        ana_pat_cursor_info fuel ctx zp pat_ty
+      | ZRuleE p ze => 
+        match UHExp.ana_pat fuel ctx p pat_ty with  
+        | None => None
+        | Some ctx => 
+          ana_cursor_info fuel ctx ze clause_ty
+        end
       end
       end
     with syn_skel_cursor_info
@@ -3272,6 +3291,17 @@ Module FCore(Debug : DEBUG).
         cons' n (of_ztyp zty1)
       end.
 
+    Fixpoint of_zpat (zp : ZPat.t) : t := 
+      match zp with 
+      | ZPat.CursorP cursor_side _ => (nil, cursor_side)
+      | ZPat.Deeper _ zp' => of_zpat' zp'
+      | ZPat.ParenthesizedZ zp1 => cons' 0 (of_zpat zp1)
+      end
+    with of_zpat' (zp' : ZPat.t') : t := 
+      match zp' with 
+      | ZPat.InjZ _ zp1 => cons' 0 (of_zpat zp1)
+      end. 
+
     Fixpoint of_zexp (ze : ZExp.t) : t := 
       match ze with 
       | ZExp.CursorE cursor_side _ => (nil, cursor_side)
@@ -3282,19 +3312,19 @@ Module FCore(Debug : DEBUG).
       match ze with 
       | ZExp.AscZ1 ze' _ => cons' O (of_zexp ze')
       | ZExp.AscZ2 _ zty => cons' 1 (of_ztyp zty)
-      | ZExp.LetZV _ cursor_side _ _ _ => (cons O nil, cursor_side)
+      | ZExp.LetZP zp _ _ _ => cons' O (of_zpat zp) 
       | ZExp.LetZA _ zann _ _ => cons' 1 (of_ztyp zann)
       | ZExp.LetZE1 _ _ ze1 _ => cons' 2 (of_zexp ze1) 
       | ZExp.LetZE2 _ _ _ ze2 => cons' 3 (of_zexp ze2)
-      | ZExp.LamZV _ cursor_side _ _ => (cons O nil, cursor_side)
+      | ZExp.LamZP zp _ _ => cons' O (of_zpat zp)
       | ZExp.LamZA _ zann _ => cons' 1 (of_ztyp zann)
       | ZExp.LamZE _ ann ze' => cons' 2 (of_zexp ze')
       | ZExp.InjZ _ ze' => cons' O (of_zexp ze')
-      | ZExp.CaseZ1 ze' _ _ => cons' O (of_zexp ze')
-      | ZExp.CaseZV1 _ (_, cursor_side, _) _ => (cons 1 nil, cursor_side)
-      | ZExp.CaseZ2 _ (_, ze') _ => cons' 2 (of_zexp ze')
-      | ZExp.CaseZV2 _ _ (_, cursor_side, _) => (cons 3 nil, cursor_side)
-      | ZExp.CaseZ3 _ _ (_, ze') => cons' 4 (of_zexp ze')
+      | ZExp.CaseZE ze1 _ => cons' O (of_zexp ze1)
+      | ZExp.CaseZR _ zrules => 
+        let prefix_len := List.length (ZList.prj_prefix zrules) in 
+        let zrule := ZList.prj_z zrules in 
+        cons' (S prefix_len) (of_zrule zrule) 
       | ZExp.OpSeqZ _ ze' surround => 
         let n := OperatorSeq.surround_prefix_length surround in 
         cons' n (of_zexp ze')
@@ -3304,6 +3334,11 @@ Module FCore(Debug : DEBUG).
         let (n, tz') := tz in
         let (_, ze') := tz' in 
         cons' n (of_zexp ze')
+      end
+    with of_zrule (zrule : ZExp.zrule) : t := 
+      match zrule with 
+      | ZExp.ZRulePat zp _ => cons' O (of_zpat zp)
+      | ZExp.ZRuleE _ ze => cons' 1 (of_zexp ze)
       end.
 
     Definition of_OpSeqZ (ze : ZExp.t) (surround : ZExp.opseq_surround) := 
@@ -3343,6 +3378,41 @@ Module FCore(Debug : DEBUG).
       end
       end.
 
+    Fixpoint follow_pat (fuel : Fuel.t) (path : t) (p : UHPat.t) : option(ZPat.t) := 
+      match fuel with 
+      | Fuel.Kicked => None
+      | Fuel.More fuel => 
+      let follow_pat := follow_pat fuel in  
+      match path with 
+      | (nil, cursor_side) => Some (ZPat.CursorP cursor_side p)
+      | (cons x xs, cursor_side) => 
+        match p with 
+        | UHPat.Parenthesized p1 => 
+          match x with 
+          | 0 => 
+            match follow_pat (xs, cursor_side) p1 with 
+            | None => None
+            | Some zp1 => Some (ZPat.ParenthesizedZ zp1)
+            end
+          | _ => None
+          end
+        | UHPat.Pat err_status p' => 
+          match (x, p') with 
+          | (_, UHPat.Wild)
+          | (_, UHPat.Var _)
+          | (_, UHPat.NumLit _)
+          | (_, UHPat.EmptyHole _) => None
+          | (0, UHPat.Inj side p1) => 
+            match follow_pat (xs, cursor_side) p1 with 
+            | None => None
+            | Some zp1 => Some (ZPat.Deeper err_status (ZPat.InjZ side zp1))
+            end
+          | (_, UHPat.Inj _ _) => None
+          end
+        end
+      end
+      end.
+
     Fixpoint follow_e (fuel : Fuel.t) (path : t) (e : UHExp.t) : option(ZExp.t) := 
       match fuel with 
       | Fuel.Kicked => None
@@ -3375,44 +3445,52 @@ Module FCore(Debug : DEBUG).
             end
           | (_, UHExp.Asc _ _) => None
           | (_, UHExp.Var _ _) => None
-          | (O, UHExp.Let x ann e1  e2) => 
-            Some (ZExp.Deeper err_status (ZExp.LetZV x cursor_side ann e1 e2))
-          | (1, UHExp.Let x ann e1 e2) => 
+          | (O, UHExp.Let p ann e1  e2) => 
+            match follow_pat fuel (xs, cursor_side) p with 
+            | None => None
+            | Some zp => 
+              Some (ZExp.Deeper err_status (ZExp.LetZP zp ann e1 e2))
+            end
+          | (1, UHExp.Let p ann e1 e2) => 
             match ann with 
             | None => None
             | Some ann_ty => 
               match follow_ty fuel (xs, cursor_side) ann_ty with 
               | None => None
-              | Some zann => Some (ZExp.Deeper err_status (ZExp.LetZA x zann e1 e2)) 
+              | Some zann => Some (ZExp.Deeper err_status (ZExp.LetZA p zann e1 e2)) 
               end
             end
-          | (2, UHExp.Let x ann e1 e2) => 
+          | (2, UHExp.Let p ann e1 e2) => 
             match follow_e (xs, cursor_side) e1 with 
-            | Some ze1 => Some (ZExp.Deeper err_status (ZExp.LetZE1 x ann ze1 e2))
+            | Some ze1 => Some (ZExp.Deeper err_status (ZExp.LetZE1 p ann ze1 e2))
             | None => None
             end
-          | (3, UHExp.Let x ann e1 e2) => 
+          | (3, UHExp.Let p ann e1 e2) => 
             match follow_e (xs, cursor_side) e2 with 
-            | Some ze2 => Some (ZExp.Deeper err_status (ZExp.LetZE2 x ann e1 ze2))
+            | Some ze2 => Some (ZExp.Deeper err_status (ZExp.LetZE2 p ann e1 ze2))
             | None => None
             end
           | (_, UHExp.Let _ _ _ _) => None
-          | (O, UHExp.Lam x ann e1) => 
-            Some (ZExp.Deeper err_status (ZExp.LamZV x cursor_side ann e1))
-          | (1, UHExp.Lam x ann e1) => 
+          | (O, UHExp.Lam p ann e1) => 
+            match follow_pat fuel (xs, cursor_side) p with 
+            | None => None
+            | Some zp => 
+              Some (ZExp.Deeper err_status (ZExp.LamZP zp ann e1))
+            end
+          | (1, UHExp.Lam p ann e1) => 
             match ann with 
             | None => None
             | Some ann_ty => 
               match follow_ty fuel (xs, cursor_side) ann_ty with 
               | None => None
               | Some zann => 
-                Some (ZExp.Deeper err_status (ZExp.LamZA x zann e1))
+                Some (ZExp.Deeper err_status (ZExp.LamZA p zann e1))
               end
             end
-          | (2, UHExp.Lam x ann e1) => 
+          | (2, UHExp.Lam p ann e1) => 
             match follow_e (xs, cursor_side) e1 with 
             | None => None
-            | Some ze => Some (ZExp.Deeper err_status (ZExp.LamZE x ann ze))
+            | Some ze => Some (ZExp.Deeper err_status (ZExp.LamZE p ann ze))
             end
           | (_, UHExp.Lam _ _ _) => None
           | (_, UHExp.NumLit _) => None
@@ -3422,26 +3500,21 @@ Module FCore(Debug : DEBUG).
             | None => None
             end
           | (_, UHExp.Inj _ _) => None
-          | (O, UHExp.Case e1 (x, e2) (y, e3)) => 
+          | (O, UHExp.Case e1 rules) => 
             match follow_e (xs, cursor_side) e1 with 
-            | Some ze => Some (ZExp.Deeper err_status (ZExp.CaseZ1 ze (x, e2) (y, e3)))
+            | Some ze => Some (ZExp.Deeper err_status (ZExp.CaseZE ze rules))
             | None => None
             end
-          | (1, UHExp.Case e1 (x, e2) (y, e3)) => 
-            Some (ZExp.Deeper err_status (ZExp.CaseZV1 e1 (x, cursor_side, e2) (y, e3)))
-          | (2, UHExp.Case e1 (x, e2) (y, e3)) => 
-            match follow_e (xs, cursor_side) e2 with 
-            | Some ze => Some (ZExp.Deeper err_status (ZExp.CaseZ2 e1 (x, ze) (y, e3)))
+          | (S x, UHExp.Case e1 rules) => 
+            match ZList.split_at x rules with 
             | None => None
+            | Some split_rules => 
+              match ZList.optmap_z (follow_rule fuel (xs, cursor_side)) split_rules with 
+              | None => None
+              | Some zrules => 
+                Some (ZExp.Deeper err_status (ZExp.CaseZR e1 zrules))
+              end
             end
-          | (3, UHExp.Case e1 (x, e2) (y, e3)) => 
-            Some (ZExp.Deeper err_status (ZExp.CaseZV2 e1 (x, e2) (y, cursor_side, e3)))
-          | (4, UHExp.Case e1 (x, e2) (y, e3)) => 
-            match follow_e (xs, cursor_side) e3 with 
-            | Some ze => Some (ZExp.Deeper err_status (ZExp.CaseZ3 e1 (x, e2) (y, ze)))
-            | None => None
-            end
-          | (_, UHExp.Case _ _ _) => None
           | (_, UHExp.EmptyHole _) => None
           | (n, UHExp.OpSeq skel seq) => 
             match OperatorSeq.split n seq with 
@@ -3470,6 +3543,28 @@ Module FCore(Debug : DEBUG).
           end
         end
       end
+      end
+    with follow_rule (fuel : Fuel.t) (path : t) (rule : UHExp.rule) : option(ZExp.zrule) := 
+      match fuel with 
+      | Fuel.Kicked => None
+      | Fuel.More fuel => 
+      match rule with 
+      | UHExp.Rule p e => 
+        match path with 
+        | (nil, _) => None
+        | (cons 0 xs, cursor_side) => 
+          match follow_pat fuel (xs, cursor_side) p with 
+          | None => None
+          | Some zp => Some (ZExp.ZRulePat zp e)
+          end
+        | (cons 1 xs, cursor_side) => 
+          match follow_e fuel (xs, cursor_side) e with 
+          | None => None
+          | Some ze => Some (ZExp.ZRuleE p ze)
+          end
+        | (cons _ _, _) => None
+        end
+      end
       end.
 
     Definition cons_opt (n : nat) (x : option(list(nat))) : option(list(nat)) := 
@@ -3478,7 +3573,26 @@ Module FCore(Debug : DEBUG).
       | Some xs => Some (cons n xs)
       end.
 
-    Fixpoint path_to_hole' (fuel : Fuel.t) (e : UHExp.t) (u : MetaVar.t) : option(list(nat)) := 
+    Fixpoint steps_to_hole_pat (fuel : Fuel.t) (p : UHPat.t) (u : MetaVar.t) : option(list(nat)) := 
+      match fuel with 
+      | Fuel.Kicked => None
+      | Fuel.More fuel => 
+      match p with 
+      | UHPat.Pat _ (UHPat.EmptyHole u') => 
+        if MetaVar.eq u u' then 
+          Some nil
+        else None
+      | UHPat.Parenthesized p1 => 
+        cons_opt 0 (steps_to_hole_pat fuel p1 u)
+      | UHPat.Pat _ UHPat.Wild
+      | UHPat.Pat _ (UHPat.Var _) 
+      | UHPat.Pat _ (UHPat.NumLit _) => None
+      | UHPat.Pat _ (UHPat.Inj _ p1) => 
+        cons_opt 0 (steps_to_hole_pat fuel p1 u)
+      end
+      end.
+
+    Fixpoint steps_to_hole (fuel : Fuel.t) (e : UHExp.t) (u : MetaVar.t) : option(list(nat)) := 
       match fuel with 
       | Fuel.Kicked => None
       | Fuel.More fuel => 
@@ -3487,38 +3601,49 @@ Module FCore(Debug : DEBUG).
         if MetaVar.eq u u' then 
           Some nil
         else None
+      | UHExp.Parenthesized e1 =>   
+        cons_opt O (steps_to_hole fuel e1 u)
       | UHExp.Tm _ (UHExp.Var _ _) => None
       | UHExp.Tm _ (UHExp.NumLit _) => None
-      | UHExp.Parenthesized e1  
       | UHExp.Tm _ (UHExp.Asc e1 _)  
       | UHExp.Tm _ (UHExp.Inj _ e1) => 
-        cons_opt O (path_to_hole' fuel e1 u)
-      | UHExp.Tm _ (UHExp.Lam _ _ e1) => 
-        cons_opt 2 (path_to_hole' fuel e1 u) 
-      | UHExp.Tm _ (UHExp.Let x ann e1 e2) => 
-        match path_to_hole' fuel e1 u with 
-        | Some steps => Some (cons 2 steps) 
+        cons_opt O (steps_to_hole fuel e1 u)
+      | UHExp.Tm _ (UHExp.Lam p _ e1) => 
+        match steps_to_hole_pat fuel p u with 
+        | Some steps => Some (cons 0 steps)
         | None => 
-          match path_to_hole' fuel e2 u with 
-          | Some steps => Some (cons 3 steps)
-          | None => None
+          cons_opt 2 (steps_to_hole fuel e1 u) 
+        end
+      | UHExp.Tm _ (UHExp.Let p ann e1 e2) => 
+        match steps_to_hole_pat fuel p u with 
+        | Some steps => Some (cons 0 steps)
+        | None => 
+          match steps_to_hole fuel e1 u with 
+          | Some steps => Some (cons 2 steps) 
+          | None => 
+            cons_opt 3 (steps_to_hole fuel e2 u) 
           end
         end
-      | UHExp.Tm _ (UHExp.Case e1 (_, e2) (_, e3)) => 
-        match path_to_hole' fuel e1 u with 
+      | UHExp.Tm _ (UHExp.Case e1 rules) => 
+        match steps_to_hole fuel e1 u with 
         | Some steps => Some(cons 0 steps) 
         | None => 
-          match path_to_hole' fuel e2 u with 
-          | Some steps => Some(cons 2 steps)
-          | None => 
-            match path_to_hole' fuel e3 u with 
-            | Some steps => Some(cons 4 steps)
-            | None => None
-            end
-          end
+          Util.findmapi rules (
+            fun i rule => 
+              match rule with 
+              | UHExp.Rule p e => 
+                match steps_to_hole_pat fuel p u with 
+                | Some steps => Some (cons (S i) (cons 0 steps))
+                | None => 
+                  match steps_to_hole fuel e u with 
+                  | Some steps => Some (cons (S i) (cons 1 steps))
+                  | None => None
+                  end
+                end
+              end) 
         end
       | UHExp.Tm _ (UHExp.OpSeq skel seq) => 
-        path_to_hole_seq fuel seq u  
+        steps_to_hole_seq fuel seq u  
       | UHExp.Tm _ (UHExp.ApPalette _ _ holedata) => 
         let (_, holemap) := holedata in 
         NatMap.fold holemap (fun c v => 
@@ -3527,33 +3652,639 @@ Module FCore(Debug : DEBUG).
           | None => 
             let (_, te) := v in
             let (_, e) := te in 
-            path_to_hole' fuel e u 
+            steps_to_hole fuel e u 
           end
         ) None
       end
       end
-    with path_to_hole_seq (fuel : Fuel.t) (seq : UHExp.opseq) (u : MetaVar.t) : option(list(nat)) :=  
+    with steps_to_hole_seq (fuel : Fuel.t) (seq : UHExp.opseq) (u : MetaVar.t) : option(list(nat)) :=  
       match fuel with 
       | Fuel.Kicked => None
       | Fuel.More fuel => 
       match seq with 
       | OperatorSeq.ExpOpExp e1 _ e2 => 
-        match path_to_hole' fuel e1 u with 
+        match steps_to_hole fuel e1 u with 
         | Some steps => Some (cons 0 steps)
-        | None => cons_opt 1 (path_to_hole' fuel e2 u)
+        | None => cons_opt 1 (steps_to_hole fuel e2 u)
         end
       | OperatorSeq.SeqOpExp seq1 op e1 => 
-        match path_to_hole_seq fuel seq1 u with 
+        match steps_to_hole_seq fuel seq1 u with 
         | (Some steps) as path => path
-        | None => cons_opt (OperatorSeq.seq_length seq1) (path_to_hole' fuel e1 u)
+        | None => cons_opt (OperatorSeq.seq_length seq1) (steps_to_hole fuel e1 u)
         end
       end
       end.
 
     Definition path_to_hole (fuel : Fuel.t) (e : UHExp.t) (u : MetaVar.t) : option(t) := 
-      match path_to_hole' fuel e u with 
+      match steps_to_hole fuel e u with 
       | Some steps => Some (steps, Before)
       | None => None
+      end.
+
+    Fixpoint first_hole_steps_ty (fuel : Fuel.t) (uty : UHTyp.t) : option (list nat) :=
+      match fuel with
+      | Fuel.Kicked => None
+      | Fuel.More fuel =>
+      match uty with
+      | UHTyp.Parenthesized uty' => Path.cons_opt O (first_hole_steps_ty fuel uty')
+      | UHTyp.Num => None
+      | UHTyp.Hole => Some nil
+      | UHTyp.OpSeq _ opseq => first_hole_steps_ty_opseq fuel opseq 0
+      end
+      end
+    (* return an optional path of the first hole in opseq starting with the nth term *)
+    with first_hole_steps_ty_opseq (fuel : Fuel.t) (opseq : OperatorSeq.opseq UHTyp.t UHTyp.op) (n : nat) : option (list nat) :=
+      match fuel with
+      | Fuel.Kicked => None
+      | Fuel.More fuel =>
+        if Nat.leb (OperatorSeq.seq_length opseq) n
+        then None
+        else
+          match OperatorSeq.seq_nth n opseq with
+          | None => None (* degenerate case *)
+          | Some uty' =>
+            match first_hole_steps_ty fuel uty' with
+            | Some ns => Some (cons n ns)
+            | None => first_hole_steps_ty_opseq fuel opseq (n+1)
+            end
+          end
+      end.
+
+    Fixpoint first_hole_steps_pat (fuel : Fuel.t) (p : UHPat.t) : option(list nat) := 
+      match fuel with
+      | Fuel.Kicked => None
+      | Fuel.More fuel =>
+      match p with 
+      | UHPat.Parenthesized p1 => Path.cons_opt 0 (first_hole_steps_pat fuel p1)
+      | UHPat.Pat _ UHPat.Wild
+      | UHPat.Pat _ (UHPat.Var _)
+      | UHPat.Pat _ (UHPat.NumLit _) => None
+      | UHPat.Pat _ (UHPat.Inj _ p1) => Path.cons_opt 0 (first_hole_steps_pat fuel p1)
+      | UHPat.Pat _ (UHPat.EmptyHole _) => Some nil
+      end
+      end.
+
+    Fixpoint first_hole_steps (fuel : Fuel.t) (ue : UHExp.t) : option (list nat) :=
+      match fuel with
+      | Fuel.Kicked => None
+      | Fuel.More fuel =>
+      match ue with
+      | UHExp.Parenthesized ue1 => Path.cons_opt 0 (first_hole_steps fuel ue1)
+      | UHExp.Tm _ ue' =>
+        match ue' with
+        | UHExp.Asc ue1 uty =>
+          match first_hole_steps fuel ue1 with
+          | Some ns => Some (cons 0 ns)
+          | None => Path.cons_opt 1 (first_hole_steps_ty fuel uty)
+          end
+        | UHExp.Var _ _ => None
+        | UHExp.Let p ann ue1 ue2 =>
+          match first_hole_steps_pat fuel p with 
+          | Some ns => Some (cons 0 ns)
+          | None => 
+            match ann with 
+            | Some ann_ty => 
+              match first_hole_steps_ty fuel ann_ty with 
+              | Some ns => Some (cons 1 ns)
+              | None => 
+                match first_hole_steps fuel ue1 with
+                | Some ns => Some (cons 2 ns)
+                | None => Path.cons_opt 3 (first_hole_steps fuel ue2)
+                end
+              end
+            | None => 
+              match first_hole_steps fuel ue1 with
+              | Some ns => Some (cons 2 ns)
+              | None => Path.cons_opt 3 (first_hole_steps fuel ue2)
+              end
+            end
+          end
+        | UHExp.Lam p ann e1 => 
+          match first_hole_steps_pat fuel p with 
+          | Some ns => Some (cons 0 ns)
+          | None => 
+            match ann with 
+            | Some uty => 
+              match first_hole_steps_ty fuel uty with 
+              | Some ns => Some (cons 1 ns)
+              | None => Path.cons_opt 2 (first_hole_steps fuel e1)
+              end
+            | None => Path.cons_opt 2 (first_hole_steps fuel e1)
+            end
+          end
+        | UHExp.NumLit _ => None
+        | UHExp.Inj _ e1 => Path.cons_opt 0 (first_hole_steps fuel e1)
+        | UHExp.Case e1 rules =>
+          match first_hole_steps fuel e1 with
+          | Some ns => Some (cons 0 ns)
+          | None =>
+            Util.findmapi rules (
+              fun i rule => 
+                match rule with 
+                | UHExp.Rule p e => 
+                  match first_hole_steps_pat fuel p with 
+                  | Some ns => Some (cons (S i) (cons 0 ns))
+                  | None => 
+                    match first_hole_steps fuel e with 
+                    | Some ns => Some (cons (S i) (cons 1 ns))
+                    | None => None
+                    end
+                  end
+                end)
+          end
+        | UHExp.EmptyHole _ => Some nil
+        | UHExp.OpSeq _ opseq => first_hole_steps_opseq fuel opseq 0
+        | UHExp.ApPalette _ _ _ => None (* TODO figure out tab order protocol *)
+        end
+      end
+      end
+    (* return an optional path of the first hole in opseq starting with the nth term )*)
+    with first_hole_steps_opseq (fuel : Fuel.t) (opseq : OperatorSeq.opseq UHExp.t UHExp.op) (n : nat) : option (list nat) :=
+      match fuel with
+      | Fuel.Kicked => None
+      | Fuel.More fuel =>
+        if Nat.leb (OperatorSeq.seq_length opseq) n
+        then None
+        else
+          match OperatorSeq.seq_nth n opseq with
+          | None => None
+          | Some ue =>
+            match first_hole_steps fuel ue with
+            | Some ns => Some (cons n ns)
+            | None => first_hole_steps_opseq fuel opseq (n+1)
+            end
+          end
+      end.
+
+    Fixpoint next_hole_steps_ty (fuel : Fuel.t) (zty : ZTyp.t) : option (list nat) :=
+      match fuel with
+      | Fuel.Kicked => None
+      | Fuel.More fuel =>
+      match zty with
+      | ZTyp.CursorT cursor_side uty =>
+        match cursor_side, uty with
+        | _, UHTyp.Hole => None
+        | Before, _ => first_hole_steps_ty fuel uty
+        | After, _ => None
+        | In _, _ => None
+        end
+      | ZTyp.ParenthesizedZ zty' => Path.cons_opt 0 (next_hole_steps_ty fuel zty')
+      | ZTyp.OpSeqZ _ zty' surround =>
+        let n := OperatorSeq.surround_prefix_length surround in
+        match next_hole_steps_ty fuel zty' with
+        | Some ns => Some (cons n ns)
+        | None =>
+          let uty' := ZTyp.erase zty' in
+          let opseq := OperatorSeq.opseq_of_exp_and_surround uty' surround in
+          first_hole_steps_ty_opseq fuel opseq (n+1)
+        end
+      end
+      end.
+
+    Fixpoint next_hole_path_ty (fuel : Fuel.t) (zty : ZTyp.t) : option Path.t :=
+      match fuel with
+      | Fuel.Kicked => None
+      | Fuel.More fuel =>
+      match next_hole_steps_ty fuel zty with
+      | None => None
+      | Some path => Some (path, Before)
+      end
+      end.
+
+    Fixpoint next_hole_steps_pat (fuel : Fuel.t) (zp : ZPat.t) : option(list nat) := 
+      match fuel with
+      | Fuel.Kicked => None
+      | Fuel.More fuel =>
+      match zp with 
+      | ZPat.ParenthesizedZ zp1 => Path.cons_opt 0 (next_hole_steps_pat fuel zp1)
+      | ZPat.CursorP cursor_side p => 
+        match cursor_side, p with 
+        | _, (UHPat.Pat (UHPat.EmptyHole _)) => None
+        | After, _ => None
+        | Before, _ => first_hole_steps_pat fuel p
+        | In k, _ => 
+          match p with 
+          | UHPat.Parenthesized _ => None
+          | UHPat.Pat err p' => 
+            match p' with 
+            | UHPat.Wild
+            | UHPat.Var _
+            | UHPat.NumLit _ => None
+            | UHPat.Inj _ p1 => first_hole_steps_pat fuel p1 
+            | UHPat.EmptyHole _ => None
+            end
+          end
+        end
+      | ZPat.Deeper _ (UHPat.Inj _ p1) => Path.cons_opt 0 (first_hole_steps_pat fuel p1)
+      | UHPat.Pat _ (UHPat.EmptyHole _) => Some nil
+      end
+      end.
+
+    Fixpoint next_hole_steps (fuel : Fuel.t) (ze : ZExp.t) : option (list nat) :=
+      match fuel with
+      | Fuel.Kicked => None
+      | Fuel.More fuel =>
+      match ze with
+      | ZExp.CursorE cursor_side ue =>
+        match cursor_side, ue with
+        | _, (UHExp.Tm _ (UHExp.EmptyHole _)) => None
+        | After, _ => None
+        | Before, _ => first_hole_steps fuel ue
+        | In k, _ =>
+          match ue with
+          | UHExp.Parenthesized _ => None
+          | UHExp.Tm err ue' =>
+            match ue' with
+            | UHExp.Asc _ uty => Path.cons_opt 1 (first_hole_steps_ty fuel uty)
+            | UHExp.Var _ _ => None
+            | UHExp.Let p ann ue1 ue2 => 
+              first_hole_steps fuel ue 
+            | UHExp.Lam _ _ _ => 
+              first_hole_steps fuel ue
+            | UHExp.NumLit _ => None
+            | UHExp.Inj _ ue'' => 
+              first_hole_steps fuel ue 
+            | UHExp.Case e1 rules => 
+              first_hole_steps fuel ue 
+            | UHExp.EmptyHole _ => None
+            | UHExp.OpSeq _ _ => None
+            | UHExp.ApPalette _ _ _ => None (* TODO move into palette holes *)
+            end
+          end
+        end
+      | ZExp.Deeper _ ze' =>
+        match ze' with
+        | ZExp.AscZ1 ze'' uty =>
+          match next_hole_steps fuel ze'' with
+          | Some ns => Some (cons 0 ns)
+          | None => Path.cons_opt 1 (first_hole_steps_ty fuel uty)
+          end
+        | ZExp.AscZ2 _ zty => Path.cons_opt 1 (next_hole_steps_ty fuel zty)
+        | ZExp.LetZP zp ann ue1 ue2 => 
+          match next_hole_steps_pat fuel zp with 
+          | Some ns => Some (cons 0 ns)
+          | None => 
+            match ann with 
+            | Some ann_ty => 
+              match first_hole_steps_ty fuel ann_ty with 
+              | Some ns => Some (cons 1 ns)
+              | None => 
+                match first_hole_steps fuel ue1 with 
+                | Some ns => Some (cons 2 ns)
+                | None => Path.cons_opt 3 (first_hole_steps fuel ue2)
+                end
+              end
+            | None => 
+              match first_hole_steps fuel ue1 with 
+              | Some ns => Some (cons 2 ns)
+              | None => Path.cons_opt 3 (first_hole_steps fuel ue2)
+              end
+            end
+          end
+        | ZExp.LetZA _ zann e1 e2 => 
+          match next_hole_steps_ty fuel zann with 
+          | Some ns => Some (cons 1 ns)
+          | None => 
+            match first_hole_steps fuel e1 with 
+            | Some ns => Some (cons 2 ns)
+            | None => Path.cons_opt 3 (first_hole_steps fuel e2)
+            end
+          end
+        | ZExp.LetZE1 _ _ ze1 e2 =>
+          match next_hole_steps fuel ze1 with
+          | Some ns => Some (cons 2 ns)
+          | None => Path.cons_opt 3 (first_hole_steps fuel e2)
+          end
+        | ZExp.LetZE2 _ _ _ ze2 => Path.cons_opt 3 (next_hole_steps fuel ze2)
+        | ZExp.LamZV _ _ ann e1 => 
+          match ann with 
+          | Some uty => 
+            match first_hole_steps_ty fuel uty with 
+            | Some ns => Some (cons 1 ns)
+            | None => Path.cons_opt 2 (first_hole_steps fuel e1)
+            end
+          | None => Path.cons_opt 2 (first_hole_steps fuel e1)
+          end
+        | ZExp.LamZA _ zann e1 => 
+          match next_hole_steps_ty fuel zann with 
+          | Some ns => Some (cons 1 ns)
+          | None => Path.cons_opt 2 (first_hole_steps fuel e1)
+          end
+        | ZExp.LamZE _ _ ze1 => Path.cons_opt 2 (next_hole_steps fuel ze1)
+        | ZExp.InjZ _ ze'' => Path.cons_opt 0 (next_hole_steps fuel ze'')
+        | ZExp.CaseZ1 ze'' (_, ue1) (_, ue2) =>
+          match next_hole_steps fuel ze'' with
+          | Some ns => Some (cons 0 ns)
+          | None =>
+            match first_hole_steps fuel ue1 with
+            | Some ns => Some (cons 2 ns)
+            | None => Path.cons_opt 4 (first_hole_steps fuel ue2)
+            end
+          end
+        | ZExp.CaseZV1 _ (_, _, e1) (_, e2) => 
+          match first_hole_steps fuel e1 with 
+          | Some ns => Some (cons 2 ns)
+          | None => Path.cons_opt 4 (first_hole_steps fuel e2)
+          end
+        | ZExp.CaseZ2 _ (_, ze'') (_, ue) =>
+          match next_hole_steps fuel ze'' with
+          | Some ns => Some (cons 2 ns)
+          | None => Path.cons_opt 4 (first_hole_steps fuel ue)
+          end
+        | ZExp.CaseZV2 _ _ (_, _, e2) => Path.cons_opt 4 (first_hole_steps fuel e2)
+        | ZExp.CaseZ3 _ _ (_, ze'') => Path.cons_opt 4 (next_hole_steps fuel ze'')
+        | ZExp.OpSeqZ _ ze'' surround =>
+          let n := OperatorSeq.surround_prefix_length surround in
+          match next_hole_steps fuel ze'' with
+          | Some ns => Some (cons n ns)
+          | None =>
+            let ue'' := ZExp.erase ze'' in
+            let opseq := OperatorSeq.opseq_of_exp_and_surround ue'' surround in
+            first_hole_steps_opseq fuel opseq (n+1)
+          end
+        | ZExp.ApPaletteZ _ _ _ => None (* TODO figure out tab order protocol *)
+        end
+      | ZExp.ParenthesizedZ ze' => Path.cons_opt 0 (next_hole_steps fuel ze')
+      end
+      end.
+
+    Fixpoint next_hole_path (fuel : Fuel.t) (ze : ZExp.t) : option Path.t :=
+      match fuel with
+      | Fuel.Kicked => None
+      | Fuel.More fuel =>
+      match next_hole_steps fuel ze with
+      | None => None
+      | Some path => Some (path, Before)
+      end
+      end.
+
+    Fixpoint last_hole_steps_ty (fuel : Fuel.t) (uty : UHTyp.t) : option (list nat) :=
+      match fuel with
+      | Fuel.Kicked => None
+      | Fuel.More fuel =>
+      match uty with
+      | UHTyp.Parenthesized uty' => Path.cons_opt 0 (last_hole_steps_ty fuel uty')
+      | UHTyp.Num => None
+      | UHTyp.Hole => Some nil
+      | UHTyp.OpSeq _ opseq => last_hole_steps_ty_opseq fuel opseq 0
+      end
+      end
+    (* return an optional path of the last hole in opseq starting with the mth term from the end
+       (e.g., the 0th and 1st term from the end of `1 + 2 + 3` are 3 and 2 respectively) *)
+    with last_hole_steps_ty_opseq (fuel : Fuel.t) (opseq : OperatorSeq.opseq UHTyp.t UHTyp.op) (m : nat) : option (list nat) :=
+      match fuel with
+      | Fuel.Kicked => None
+      | Fuel.More fuel =>
+        let l := OperatorSeq.seq_length opseq in
+        if Nat.leb l m
+        then None
+        else
+          let n := l-m-1 in
+          match OperatorSeq.seq_nth n opseq with
+          | None => None (* degenerate case *)
+          | Some uty' =>
+            match last_hole_steps_ty fuel uty' with
+            | Some ns => Some (cons n ns)
+            | None => last_hole_steps_ty_opseq fuel opseq (m+1)
+            end
+          end
+      end.
+
+    Fixpoint last_hole_steps (fuel : Fuel.t) (ue : UHExp.t) : option (list nat) :=
+      match fuel with
+      | Fuel.Kicked => None
+      | Fuel.More fuel =>
+      match ue with
+      | UHExp.Parenthesized ue' => Path.cons_opt 0 (last_hole_steps fuel ue')
+      | UHExp.Tm _ ue' =>
+        match ue' with
+        | UHExp.Asc ue0 uty1 =>
+          match last_hole_steps_ty fuel uty1 with
+          | Some ns => Some (cons 1 ns)
+          | None => Path.cons_opt 0 (last_hole_steps fuel ue0)
+          end
+        | UHExp.Var _ _ => None
+        | UHExp.Let _ ann e1 e2 =>
+          match last_hole_steps fuel e2 with
+          | Some ns => Some (cons 3 ns)
+          | None => 
+            match last_hole_steps fuel e1 with 
+            | Some ns => Some (cons 2 ns) 
+            | None => 
+              match ann with 
+              | Some ann_ty => Path.cons_opt 1 (last_hole_steps_ty fuel ann_ty)
+              | None => None
+              end
+            end 
+          end
+        | UHExp.Lam _ ann e1 => 
+          match last_hole_steps fuel e1 with
+          | Some ns => Some (cons 2 ns)
+          | None => 
+            match ann with 
+            | None => None
+            | Some uty1 => Path.cons_opt 1 (last_hole_steps_ty fuel uty1)
+            end
+          end
+        | UHExp.NumLit _ => None
+        | UHExp.Inj _ ue0 => Path.cons_opt 0 (last_hole_steps fuel ue0)
+        | UHExp.Case ue0 (_,ue1) (_,ue2) =>
+          match last_hole_steps fuel ue2 with
+          | Some ns => Some (cons 4 ns)
+          | None =>
+            match last_hole_steps fuel ue1 with
+            | Some ns => Some (cons 2 ns)
+            | None => Path.cons_opt 0 (last_hole_steps fuel ue0)
+            end
+          end
+        | UHExp.EmptyHole _ => Some nil
+        | UHExp.OpSeq _ opseq => last_hole_steps_opseq fuel opseq 0
+        | UHExp.ApPalette _ _ _ => None (* TODO figure out tab order protocol *)
+        end
+      end
+      end
+    (* return an optional path of the last hole in opseq starting with the mth term from the end
+       (e.g., the 0th and 1st term from the end of `1 + 2 + 3` are 3 and 2 respectively) *)
+    with last_hole_steps_opseq (fuel : Fuel.t) (opseq : OperatorSeq.opseq UHExp.t UHExp.op) (m : nat) : option (list nat) :=
+      match fuel with
+      | Fuel.Kicked => None
+      | Fuel.More fuel =>
+        let l := OperatorSeq.seq_length opseq in
+        if Nat.leb l m
+        then None
+        else
+          let n := l-m-1 in
+          match OperatorSeq.seq_nth n opseq with
+          | None => None
+          | Some ue =>
+            match last_hole_steps fuel ue with
+            | Some ns => Some (cons n ns)
+            | None => last_hole_steps_opseq fuel opseq (m+1)
+            end
+          end
+      end.
+
+    Fixpoint prev_hole_steps_ty (fuel : Fuel.t) (zty : ZTyp.t) : option (list nat) :=
+      match fuel with
+      | Fuel.Kicked => None
+      | Fuel.More fuel =>
+      match zty with
+      | ZTyp.CursorT cursor_side uty =>
+        match cursor_side, uty with
+        | _, UHTyp.Hole => None
+        | Before, _ => None
+        | After, _ => last_hole_steps_ty fuel uty
+        | In _, _ => None
+        end
+      | ZTyp.ParenthesizedZ zty' => Path.cons_opt 0 (prev_hole_steps_ty fuel zty')
+      | ZTyp.OpSeqZ _ zty' surround =>
+        let n := OperatorSeq.surround_prefix_length surround in
+        match prev_hole_steps_ty fuel zty' with
+        | Some ns => Some (cons n ns)
+        | None =>
+          let uty' := ZTyp.erase zty' in
+          let opseq := OperatorSeq.opseq_of_exp_and_surround uty' surround in
+          let m := OperatorSeq.surround_suffix_length surround in
+          last_hole_steps_ty_opseq fuel opseq (m+1)
+        end
+      end
+      end.
+
+    Fixpoint prev_hole_path_ty (fuel : Fuel.t) (zty : ZTyp.t) : option Path.t :=
+      match fuel with
+      | Fuel.Kicked => None
+      | Fuel.More fuel =>
+      match prev_hole_steps_ty fuel zty with
+      | None => None
+      | Some path => Some (path, Before)
+      end
+      end.
+
+    Fixpoint prev_hole_steps (fuel : Fuel.t) (ze : ZExp.t) : option (list nat) :=
+      match fuel with
+      | Fuel.Kicked => None
+      | Fuel.More fuel =>
+      match ze with
+      | ZExp.CursorE cursor_side ue =>
+        match cursor_side, ue with
+        | _, (UHExp.Tm _ (UHExp.EmptyHole _)) => None
+        | After, _ => last_hole_steps fuel ue
+        | Before, _ => None
+        | In k, _ =>
+          match ue with
+          | UHExp.Parenthesized _ => None (* cannot be In Parenthesized term *)
+          | UHExp.Tm err ue' =>
+            match ue' with
+            | UHExp.Asc ue'' _ => Path.cons_opt 0 (last_hole_steps fuel ue'')
+            | UHExp.Var _ _ => None
+            | UHExp.Let _ _ _ _ => None
+            | UHExp.Lam _ _ _ => None
+            | UHExp.NumLit _ => None
+            | UHExp.Inj _ _ => None
+            | UHExp.Case ue1 (_,ue2) (_,ue3) =>
+              match last_hole_steps fuel ue3 with
+              | Some ns => Some (cons 4 ns)
+              | None =>
+                match last_hole_steps fuel ue2 with
+                | Some ns => Some (cons 2 ns)
+                | None => Path.cons_opt 0 (last_hole_steps fuel ue1)
+                end
+              end
+            | UHExp.EmptyHole _ => None
+            | UHExp.OpSeq _ _ => None
+            | UHExp.ApPalette _ _ _ => None (* TODO *)
+            end
+          end
+        end
+      | ZExp.Deeper _ ze' =>
+        match ze' with
+        | ZExp.AscZ1 ze0 _ => Path.cons_opt 0 (prev_hole_steps fuel ze0)
+        | ZExp.AscZ2 ue0 zty1 =>
+          match prev_hole_steps_ty fuel zty1 with
+          | Some ns => Some (cons 1 ns)
+          | None => Path.cons_opt 0 (last_hole_steps fuel ue0)
+          end
+        | ZExp.LetZV _ _ _ _ _ => None 
+        | ZExp.LetZA _ zann _ _ => Path.cons_opt 1 (prev_hole_steps_ty fuel zann)
+        | ZExp.LetZE1 _ ann ze1 _ => 
+          match prev_hole_steps fuel ze1 with
+          | Some ns => Some (cons 2 ns)
+          | None => 
+            match ann with 
+            | Some ann_ty => Path.cons_opt 1 (last_hole_steps_ty fuel ann_ty)
+            | None => None
+            end
+          end
+        | ZExp.LetZE2 _ ann e1 ze2 => 
+          match prev_hole_steps fuel ze2 with
+          | Some ns => Some (cons 3 ns)
+          | None => 
+            match last_hole_steps fuel e1 with 
+            | Some ns => Some (cons 2 ns)
+            | None => 
+              match ann with 
+              | Some ann_ty => Path.cons_opt 1 (last_hole_steps_ty fuel ann_ty)
+              | None => None
+              end
+            end
+          end
+        | ZExp.LamZV _ _ _ _ => None
+        | ZExp.LamZA _ zann _ => Path.cons_opt 1 (prev_hole_steps_ty fuel zann)
+        | ZExp.LamZE _ ann ze1 => 
+          match prev_hole_steps fuel ze1 with 
+          | Some ns => Some (cons 2 ns)
+          | None => 
+            match ann with 
+            | None => None
+            | Some uty1 => Path.cons_opt 1 (last_hole_steps_ty fuel uty1)
+            end
+          end
+        | ZExp.InjZ _ ze0 => Path.cons_opt 0 (prev_hole_steps fuel ze0)
+        | ZExp.CaseZ1 ze0 _ _ => Path.cons_opt 0 (prev_hole_steps fuel ze0)
+        | ZExp.CaseZV1 e1 _ _ => Path.cons_opt 0 (last_hole_steps fuel e1)
+        | ZExp.CaseZ2 ue0 (_,ze1) _ =>
+          match prev_hole_steps fuel ze1 with
+          | Some ns => Some (cons 2 ns)
+          | None => Path.cons_opt 0 (last_hole_steps fuel ue0)
+          end
+        | ZExp.CaseZV2 e1 (x, e2) _ => 
+          match last_hole_steps fuel e2 with 
+          | Some ns => Some (cons 2 ns)
+          | None => Path.cons_opt 0 (last_hole_steps fuel e1)
+          end
+        | ZExp.CaseZ3 ue0 (_,ue1) (_,ze2) => 
+          match prev_hole_steps fuel ze2 with
+          | Some ns => Some (cons 4 ns)
+          | None =>
+            match last_hole_steps fuel ue1 with
+            | Some ns => Some (cons 2 ns)
+            | None => Path.cons_opt 0 (last_hole_steps fuel ue0)
+            end
+          end
+        | ZExp.OpSeqZ _ ze_n surround =>
+          let n := OperatorSeq.surround_prefix_length surround in
+          match prev_hole_steps fuel ze_n with
+          | Some ns => Some (cons n ns)
+          | None =>
+            let ue_n := ZExp.erase ze_n in
+            let opseq := OperatorSeq.opseq_of_exp_and_surround ue_n surround in
+            let m := OperatorSeq.surround_suffix_length surround in
+            last_hole_steps_opseq fuel opseq (m+1)
+          end
+        | ZExp.ApPaletteZ _ _ _ => None (* TODO figure out tab order protocol *)
+        end
+      | ZExp.ParenthesizedZ ze0 => Path.cons_opt 0 (prev_hole_steps fuel ze0)
+      end
+      end.
+
+    Fixpoint prev_hole_path (fuel : Fuel.t) (ze : ZExp.t) : option Path.t :=
+      match fuel with
+      | Fuel.Kicked => None
+      | Fuel.More fuel =>
+      match prev_hole_steps fuel ze with
+      | None => None
+      | Some path => Some (path, Before)
+      end
       end.
   End Path.
 
@@ -3581,8 +4312,9 @@ Module FCore(Debug : DEBUG).
     | SVar : Var.t -> ZExp.cursor_side -> shape
     | SLam : shape
     | SLit : nat -> ZExp.cursor_side -> shape
-    | SInj : UHExp.inj_side -> shape
+    | SInj : inj_side -> shape
     | SCase : shape
+    | SRule : shape
     | SOp : UHExp.op -> shape
     | SApPalette : PaletteName.t -> shape.
 
@@ -3603,568 +4335,6 @@ Module FCore(Debug : DEBUG).
         let skel := Associator.associate_ty seq in 
         ZTyp.OpSeqZ skel zty0 surround.
 
-    Fixpoint first_hole_path_t (fuel : Fuel.t) (uty : UHTyp.t) : option (list nat) :=
-      match fuel with
-      | Fuel.Kicked => None
-      | Fuel.More fuel =>
-      match uty with
-      | UHTyp.Parenthesized uty' => Path.cons_opt O (first_hole_path_t fuel uty')
-      | UHTyp.Num => None
-      | UHTyp.Hole => Some nil
-      | UHTyp.OpSeq _ opseq => first_hole_path_t_opseq fuel opseq 0
-      end
-      end
-    (* return an optional path of the first hole in opseq starting with the nth term *)
-    with first_hole_path_t_opseq (fuel : Fuel.t) (opseq : OperatorSeq.opseq UHTyp.t UHTyp.op) (n : nat) : option (list nat) :=
-      match fuel with
-      | Fuel.Kicked => None
-      | Fuel.More fuel =>
-        if Nat.leb (OperatorSeq.seq_length opseq) n
-        then None
-        else
-          match OperatorSeq.seq_nth n opseq with
-          | None => None (* degenerate case *)
-          | Some uty' =>
-            match first_hole_path_t fuel uty' with
-            | Some ns => Some (cons n ns)
-            | None => first_hole_path_t_opseq fuel opseq (n+1)
-            end
-          end
-      end.
-
-    Fixpoint first_hole_path_e (fuel : Fuel.t) (ue : UHExp.t) : option (list nat) :=
-      match fuel with
-      | Fuel.Kicked => None
-      | Fuel.More fuel =>
-      match ue with
-      | UHExp.Parenthesized ue1 => Path.cons_opt 0 (first_hole_path_e fuel ue1)
-      | UHExp.Tm _ ue' =>
-        match ue' with
-        | UHExp.Asc ue1 uty =>
-          match first_hole_path_e fuel ue1 with
-          | Some ns => Some (cons 0 ns)
-          | None => Path.cons_opt 1 (first_hole_path_t fuel uty)
-          end
-        | UHExp.Var _ _ => None
-        | UHExp.Let _ ann ue1 ue2 =>
-          match ann with 
-          | Some ann_ty => 
-            match first_hole_path_t fuel ann_ty with 
-            | Some ns => Some (cons 1 ns)
-            | None => 
-              match first_hole_path_e fuel ue1 with
-              | Some ns => Some (cons 2 ns)
-              | None => Path.cons_opt 3 (first_hole_path_e fuel ue2)
-              end
-            end
-          | None => 
-            match first_hole_path_e fuel ue1 with
-            | Some ns => Some (cons 2 ns)
-            | None => Path.cons_opt 3 (first_hole_path_e fuel ue2)
-            end
-          end
-        | UHExp.Lam _ ann e1 => 
-          match ann with 
-          | Some uty => 
-            match first_hole_path_t fuel uty with 
-            | Some ns => Some (cons 1 ns)
-            | None => Path.cons_opt 2 (first_hole_path_e fuel e1)
-            end
-          | None => Path.cons_opt 2 (first_hole_path_e fuel e1)
-          end
-        | UHExp.NumLit _ => None
-        | UHExp.Inj _ ue1 => Path.cons_opt 0 (first_hole_path_e fuel ue1)
-        | UHExp.Case ue1 (_,ue2) (_,ue3) =>
-          match first_hole_path_e fuel ue1 with
-          | Some ns => Some (cons 0 ns)
-          | None =>
-            match first_hole_path_e fuel ue2 with
-            | Some ns => Some (cons 2 ns)
-            | None => Path.cons_opt 4 (first_hole_path_e fuel ue3)
-            end
-          end
-        | UHExp.EmptyHole _ => Some nil
-        | UHExp.OpSeq _ opseq => first_hole_path_e_opseq fuel opseq 0
-        | UHExp.ApPalette _ _ _ => None (* TODO figure out tab order protocol *)
-        end
-      end
-      end
-    (* return an optional path of the first hole in opseq starting with the nth term )*)
-    with first_hole_path_e_opseq (fuel : Fuel.t) (opseq : OperatorSeq.opseq UHExp.t UHExp.op) (n : nat) : option (list nat) :=
-      match fuel with
-      | Fuel.Kicked => None
-      | Fuel.More fuel =>
-        if Nat.leb (OperatorSeq.seq_length opseq) n
-        then None
-        else
-          match OperatorSeq.seq_nth n opseq with
-          | None => None
-          | Some ue =>
-            match first_hole_path_e fuel ue with
-            | Some ns => Some (cons n ns)
-            | None => first_hole_path_e_opseq fuel opseq (n+1)
-            end
-          end
-      end.
-
-    Fixpoint next_hole_path_t' (fuel : Fuel.t) (zty : ZTyp.t) : option (list nat) :=
-      match fuel with
-      | Fuel.Kicked => None
-      | Fuel.More fuel =>
-      match zty with
-      | ZTyp.CursorT cursor_side uty =>
-        match cursor_side, uty with
-        | _, UHTyp.Hole => None
-        | Before, _ => first_hole_path_t fuel uty
-        | After, _ => None
-        | In _, _ => None
-        end
-      | ZTyp.ParenthesizedZ zty' => Path.cons_opt 0 (next_hole_path_t' fuel zty')
-      | ZTyp.OpSeqZ _ zty' surround =>
-        let n := OperatorSeq.surround_prefix_length surround in
-        match next_hole_path_t' fuel zty' with
-        | Some ns => Some (cons n ns)
-        | None =>
-          let uty' := ZTyp.erase zty' in
-          let opseq := OperatorSeq.opseq_of_exp_and_surround uty' surround in
-          first_hole_path_t_opseq fuel opseq (n+1)
-        end
-      end
-      end.
-
-    Fixpoint next_hole_path_t (fuel : Fuel.t) (zty : ZTyp.t) : option Path.t :=
-      match fuel with
-      | Fuel.Kicked => None
-      | Fuel.More fuel =>
-      match next_hole_path_t' fuel zty with
-      | None => None
-      | Some path => Some (path, Before)
-      end
-      end.
-
-    Fixpoint next_hole_path_e' (fuel : Fuel.t) (ze : ZExp.t) : option (list nat) :=
-      match fuel with
-      | Fuel.Kicked => None
-      | Fuel.More fuel =>
-      match ze with
-      | ZExp.CursorE cursor_side ue =>
-        match cursor_side, ue with
-        | _, (UHExp.Tm _ (UHExp.EmptyHole _)) => None
-        | After, _ => None
-        | Before, _ => first_hole_path_e fuel ue
-        | In k, _ =>
-          match ue with
-          | UHExp.Parenthesized _ => None
-          | UHExp.Tm err ue' =>
-            match ue' with
-            | UHExp.Asc _ uty => Path.cons_opt 1 (first_hole_path_t fuel uty)
-            | UHExp.Var _ _ => None
-            | UHExp.Let _ ann ue1 ue2 => 
-              match ann with 
-              | Some ann_ty => 
-                match first_hole_path_t fuel ann_ty with 
-                | Some ns => Some (cons 1 ns)
-                | None => 
-                  match first_hole_path_e fuel ue1 with 
-                  | Some ns => Some (cons 2 ns)
-                  | None => Path.cons_opt 3 (first_hole_path_e fuel ue2)
-                  end
-                end
-              | None => 
-                match first_hole_path_e fuel ue1 with 
-                | Some ns => Some (cons 2 ns)
-                | None => Path.cons_opt 3 (first_hole_path_e fuel ue2)
-                end
-              end
-            | UHExp.Lam _ _ _ => first_hole_path_e fuel ue
-            | UHExp.NumLit _ => None
-            | UHExp.Inj _ ue'' => Path.cons_opt 1 (first_hole_path_e fuel ue'')
-            | UHExp.Case ue1 (_,ue2) (_,ue3) =>
-              match first_hole_path_e fuel ue1 with
-              | Some ns => Some (cons 0 ns)
-              | None =>
-                match first_hole_path_e fuel ue2 with
-                | Some ns => Some (cons 2 ns)
-                | None => Path.cons_opt 4 (first_hole_path_e fuel ue3)
-                end
-              end
-            | UHExp.EmptyHole _ => None
-            | UHExp.OpSeq _ _ => None
-            | UHExp.ApPalette _ _ _ => None (* TODO move into palette holes *)
-            end
-          end
-        end
-      | ZExp.Deeper _ ze' =>
-        match ze' with
-        | ZExp.AscZ1 ze'' uty =>
-          match next_hole_path_e' fuel ze'' with
-          | Some ns => Some (cons 0 ns)
-          | None => Path.cons_opt 1 (first_hole_path_t fuel uty)
-          end
-        | ZExp.AscZ2 _ zty => Path.cons_opt 1 (next_hole_path_t' fuel zty)
-        | ZExp.LetZV _ _ ann ue1 ue2 => 
-          match ann with 
-          | Some ann_ty => 
-            match first_hole_path_t fuel ann_ty with 
-            | Some ns => Some (cons 1 ns)
-            | None => 
-              match first_hole_path_e fuel ue1 with 
-              | Some ns => Some (cons 2 ns)
-              | None => Path.cons_opt 3 (first_hole_path_e fuel ue2)
-              end
-            end
-          | None => 
-            match first_hole_path_e fuel ue1 with 
-            | Some ns => Some (cons 2 ns)
-            | None => Path.cons_opt 3 (first_hole_path_e fuel ue2)
-            end
-          end
-        | ZExp.LetZA _ zann e1 e2 => 
-          match next_hole_path_t' fuel zann with 
-          | Some ns => Some (cons 1 ns)
-          | None => 
-            match first_hole_path_e fuel e1 with 
-            | Some ns => Some (cons 2 ns)
-            | None => Path.cons_opt 3 (first_hole_path_e fuel e2)
-            end
-          end
-        | ZExp.LetZE1 _ _ ze1 e2 =>
-          match next_hole_path_e' fuel ze1 with
-          | Some ns => Some (cons 2 ns)
-          | None => Path.cons_opt 3 (first_hole_path_e fuel e2)
-          end
-        | ZExp.LetZE2 _ _ _ ze2 => Path.cons_opt 3 (next_hole_path_e' fuel ze2)
-        | ZExp.LamZV _ _ ann e1 => 
-          match ann with 
-          | Some uty => 
-            match first_hole_path_t fuel uty with 
-            | Some ns => Some (cons 1 ns)
-            | None => Path.cons_opt 2 (first_hole_path_e fuel e1)
-            end
-          | None => Path.cons_opt 2 (first_hole_path_e fuel e1)
-          end
-        | ZExp.LamZA _ zann e1 => 
-          match next_hole_path_t' fuel zann with 
-          | Some ns => Some (cons 1 ns)
-          | None => Path.cons_opt 2 (first_hole_path_e fuel e1)
-          end
-        | ZExp.LamZE _ _ ze1 => Path.cons_opt 2 (next_hole_path_e' fuel ze1)
-        | ZExp.InjZ _ ze'' => Path.cons_opt 0 (next_hole_path_e' fuel ze'')
-        | ZExp.CaseZ1 ze'' (_, ue1) (_, ue2) =>
-          match next_hole_path_e' fuel ze'' with
-          | Some ns => Some (cons 0 ns)
-          | None =>
-            match first_hole_path_e fuel ue1 with
-            | Some ns => Some (cons 2 ns)
-            | None => Path.cons_opt 4 (first_hole_path_e fuel ue2)
-            end
-          end
-        | ZExp.CaseZV1 _ (_, _, e1) (_, e2) => 
-          match first_hole_path_e fuel e1 with 
-          | Some ns => Some (cons 2 ns)
-          | None => Path.cons_opt 4 (first_hole_path_e fuel e2)
-          end
-        | ZExp.CaseZ2 _ (_, ze'') (_, ue) =>
-          match next_hole_path_e' fuel ze'' with
-          | Some ns => Some (cons 2 ns)
-          | None => Path.cons_opt 4 (first_hole_path_e fuel ue)
-          end
-        | ZExp.CaseZV2 _ _ (_, _, e2) => Path.cons_opt 4 (first_hole_path_e fuel e2)
-        | ZExp.CaseZ3 _ _ (_, ze'') => Path.cons_opt 4 (next_hole_path_e' fuel ze'')
-        | ZExp.OpSeqZ _ ze'' surround =>
-          let n := OperatorSeq.surround_prefix_length surround in
-          match next_hole_path_e' fuel ze'' with
-          | Some ns => Some (cons n ns)
-          | None =>
-            let ue'' := ZExp.erase ze'' in
-            let opseq := OperatorSeq.opseq_of_exp_and_surround ue'' surround in
-            first_hole_path_e_opseq fuel opseq (n+1)
-          end
-        | ZExp.ApPaletteZ _ _ _ => None (* TODO figure out tab order protocol *)
-        end
-      | ZExp.ParenthesizedZ ze' => Path.cons_opt 0 (next_hole_path_e' fuel ze')
-      end
-      end.
-
-    Fixpoint next_hole_path_e (fuel : Fuel.t) (ze : ZExp.t) : option Path.t :=
-      match fuel with
-      | Fuel.Kicked => None
-      | Fuel.More fuel =>
-      match next_hole_path_e' fuel ze with
-      | None => None
-      | Some path => Some (path, Before)
-      end
-      end.
-
-    Fixpoint last_hole_path_t (fuel : Fuel.t) (uty : UHTyp.t) : option (list nat) :=
-      match fuel with
-      | Fuel.Kicked => None
-      | Fuel.More fuel =>
-      match uty with
-      | UHTyp.Parenthesized uty' => Path.cons_opt 0 (last_hole_path_t fuel uty')
-      | UHTyp.Num => None
-      | UHTyp.Hole => Some nil
-      | UHTyp.OpSeq _ opseq => last_hole_path_t_opseq fuel opseq 0
-      end
-      end
-    (* return an optional path of the last hole in opseq starting with the mth term from the end
-       (e.g., the 0th and 1st term from the end of `1 + 2 + 3` are 3 and 2 respectively) *)
-    with last_hole_path_t_opseq (fuel : Fuel.t) (opseq : OperatorSeq.opseq UHTyp.t UHTyp.op) (m : nat) : option (list nat) :=
-      match fuel with
-      | Fuel.Kicked => None
-      | Fuel.More fuel =>
-        let l := OperatorSeq.seq_length opseq in
-        if Nat.leb l m
-        then None
-        else
-          let n := l-m-1 in
-          match OperatorSeq.seq_nth n opseq with
-          | None => None (* degenerate case *)
-          | Some uty' =>
-            match last_hole_path_t fuel uty' with
-            | Some ns => Some (cons n ns)
-            | None => last_hole_path_t_opseq fuel opseq (m+1)
-            end
-          end
-      end.
-
-    Fixpoint last_hole_path_e (fuel : Fuel.t) (ue : UHExp.t) : option (list nat) :=
-      match fuel with
-      | Fuel.Kicked => None
-      | Fuel.More fuel =>
-      match ue with
-      | UHExp.Parenthesized ue' => Path.cons_opt 0 (last_hole_path_e fuel ue')
-      | UHExp.Tm _ ue' =>
-        match ue' with
-        | UHExp.Asc ue0 uty1 =>
-          match last_hole_path_t fuel uty1 with
-          | Some ns => Some (cons 1 ns)
-          | None => Path.cons_opt 0 (last_hole_path_e fuel ue0)
-          end
-        | UHExp.Var _ _ => None
-        | UHExp.Let _ ann e1 e2 =>
-          match last_hole_path_e fuel e2 with
-          | Some ns => Some (cons 3 ns)
-          | None => 
-            match last_hole_path_e fuel e1 with 
-            | Some ns => Some (cons 2 ns) 
-            | None => 
-              match ann with 
-              | Some ann_ty => Path.cons_opt 1 (last_hole_path_t fuel ann_ty)
-              | None => None
-              end
-            end 
-          end
-        | UHExp.Lam _ ann e1 => 
-          match last_hole_path_e fuel e1 with
-          | Some ns => Some (cons 2 ns)
-          | None => 
-            match ann with 
-            | None => None
-            | Some uty1 => Path.cons_opt 1 (last_hole_path_t fuel uty1)
-            end
-          end
-        | UHExp.NumLit _ => None
-        | UHExp.Inj _ ue0 => Path.cons_opt 0 (last_hole_path_e fuel ue0)
-        | UHExp.Case ue0 (_,ue1) (_,ue2) =>
-          match last_hole_path_e fuel ue2 with
-          | Some ns => Some (cons 4 ns)
-          | None =>
-            match last_hole_path_e fuel ue1 with
-            | Some ns => Some (cons 2 ns)
-            | None => Path.cons_opt 0 (last_hole_path_e fuel ue0)
-            end
-          end
-        | UHExp.EmptyHole _ => Some nil
-        | UHExp.OpSeq _ opseq => last_hole_path_e_opseq fuel opseq 0
-        | UHExp.ApPalette _ _ _ => None (* TODO figure out tab order protocol *)
-        end
-      end
-      end
-    (* return an optional path of the last hole in opseq starting with the mth term from the end
-       (e.g., the 0th and 1st term from the end of `1 + 2 + 3` are 3 and 2 respectively) *)
-    with last_hole_path_e_opseq (fuel : Fuel.t) (opseq : OperatorSeq.opseq UHExp.t UHExp.op) (m : nat) : option (list nat) :=
-      match fuel with
-      | Fuel.Kicked => None
-      | Fuel.More fuel =>
-        let l := OperatorSeq.seq_length opseq in
-        if Nat.leb l m
-        then None
-        else
-          let n := l-m-1 in
-          match OperatorSeq.seq_nth n opseq with
-          | None => None
-          | Some ue =>
-            match last_hole_path_e fuel ue with
-            | Some ns => Some (cons n ns)
-            | None => last_hole_path_e_opseq fuel opseq (m+1)
-            end
-          end
-      end.
-
-    Fixpoint prev_hole_path_t' (fuel : Fuel.t) (zty : ZTyp.t) : option (list nat) :=
-      match fuel with
-      | Fuel.Kicked => None
-      | Fuel.More fuel =>
-      match zty with
-      | ZTyp.CursorT cursor_side uty =>
-        match cursor_side, uty with
-        | _, UHTyp.Hole => None
-        | Before, _ => None
-        | After, _ => last_hole_path_t fuel uty
-        | In _, _ => None
-        end
-      | ZTyp.ParenthesizedZ zty' => Path.cons_opt 0 (prev_hole_path_t' fuel zty')
-      | ZTyp.OpSeqZ _ zty' surround =>
-        let n := OperatorSeq.surround_prefix_length surround in
-        match prev_hole_path_t' fuel zty' with
-        | Some ns => Some (cons n ns)
-        | None =>
-          let uty' := ZTyp.erase zty' in
-          let opseq := OperatorSeq.opseq_of_exp_and_surround uty' surround in
-          let m := OperatorSeq.surround_suffix_length surround in
-          last_hole_path_t_opseq fuel opseq (m+1)
-        end
-      end
-      end.
-
-    Fixpoint prev_hole_path_t (fuel : Fuel.t) (zty : ZTyp.t) : option Path.t :=
-      match fuel with
-      | Fuel.Kicked => None
-      | Fuel.More fuel =>
-      match prev_hole_path_t' fuel zty with
-      | None => None
-      | Some path => Some (path, Before)
-      end
-      end.
-
-    Fixpoint prev_hole_path_e' (fuel : Fuel.t) (ze : ZExp.t) : option (list nat) :=
-      match fuel with
-      | Fuel.Kicked => None
-      | Fuel.More fuel =>
-      match ze with
-      | ZExp.CursorE cursor_side ue =>
-        match cursor_side, ue with
-        | _, (UHExp.Tm _ (UHExp.EmptyHole _)) => None
-        | After, _ => last_hole_path_e fuel ue
-        | Before, _ => None
-        | In k, _ =>
-          match ue with
-          | UHExp.Parenthesized _ => None (* cannot be In Parenthesized term *)
-          | UHExp.Tm err ue' =>
-            match ue' with
-            | UHExp.Asc ue'' _ => Path.cons_opt 0 (last_hole_path_e fuel ue'')
-            | UHExp.Var _ _ => None
-            | UHExp.Let _ _ _ _ => None
-            | UHExp.Lam _ _ _ => None
-            | UHExp.NumLit _ => None
-            | UHExp.Inj _ _ => None
-            | UHExp.Case ue1 (_,ue2) (_,ue3) =>
-              match last_hole_path_e fuel ue3 with
-              | Some ns => Some (cons 4 ns)
-              | None =>
-                match last_hole_path_e fuel ue2 with
-                | Some ns => Some (cons 2 ns)
-                | None => Path.cons_opt 0 (last_hole_path_e fuel ue1)
-                end
-              end
-            | UHExp.EmptyHole _ => None
-            | UHExp.OpSeq _ _ => None
-            | UHExp.ApPalette _ _ _ => None (* TODO *)
-            end
-          end
-        end
-      | ZExp.Deeper _ ze' =>
-        match ze' with
-        | ZExp.AscZ1 ze0 _ => Path.cons_opt 0 (prev_hole_path_e' fuel ze0)
-        | ZExp.AscZ2 ue0 zty1 =>
-          match prev_hole_path_t' fuel zty1 with
-          | Some ns => Some (cons 1 ns)
-          | None => Path.cons_opt 0 (last_hole_path_e fuel ue0)
-          end
-        | ZExp.LetZV _ _ _ _ _ => None 
-        | ZExp.LetZA _ zann _ _ => Path.cons_opt 1 (prev_hole_path_t' fuel zann)
-        | ZExp.LetZE1 _ ann ze1 _ => 
-          match prev_hole_path_e' fuel ze1 with
-          | Some ns => Some (cons 2 ns)
-          | None => 
-            match ann with 
-            | Some ann_ty => Path.cons_opt 1 (last_hole_path_t fuel ann_ty)
-            | None => None
-            end
-          end
-        | ZExp.LetZE2 _ ann e1 ze2 => 
-          match prev_hole_path_e' fuel ze2 with
-          | Some ns => Some (cons 3 ns)
-          | None => 
-            match last_hole_path_e fuel e1 with 
-            | Some ns => Some (cons 2 ns)
-            | None => 
-              match ann with 
-              | Some ann_ty => Path.cons_opt 1 (last_hole_path_t fuel ann_ty)
-              | None => None
-              end
-            end
-          end
-        | ZExp.LamZV _ _ _ _ => None
-        | ZExp.LamZA _ zann _ => Path.cons_opt 1 (prev_hole_path_t' fuel zann)
-        | ZExp.LamZE _ ann ze1 => 
-          match prev_hole_path_e' fuel ze1 with 
-          | Some ns => Some (cons 2 ns)
-          | None => 
-            match ann with 
-            | None => None
-            | Some uty1 => Path.cons_opt 1 (last_hole_path_t fuel uty1)
-            end
-          end
-        | ZExp.InjZ _ ze0 => Path.cons_opt 0 (prev_hole_path_e' fuel ze0)
-        | ZExp.CaseZ1 ze0 _ _ => Path.cons_opt 0 (prev_hole_path_e' fuel ze0)
-        | ZExp.CaseZV1 e1 _ _ => Path.cons_opt 0 (last_hole_path_e fuel e1)
-        | ZExp.CaseZ2 ue0 (_,ze1) _ =>
-          match prev_hole_path_e' fuel ze1 with
-          | Some ns => Some (cons 2 ns)
-          | None => Path.cons_opt 0 (last_hole_path_e fuel ue0)
-          end
-        | ZExp.CaseZV2 e1 (x, e2) _ => 
-          match last_hole_path_e fuel e2 with 
-          | Some ns => Some (cons 2 ns)
-          | None => Path.cons_opt 0 (last_hole_path_e fuel e1)
-          end
-        | ZExp.CaseZ3 ue0 (_,ue1) (_,ze2) => 
-          match prev_hole_path_e' fuel ze2 with
-          | Some ns => Some (cons 4 ns)
-          | None =>
-            match last_hole_path_e fuel ue1 with
-            | Some ns => Some (cons 2 ns)
-            | None => Path.cons_opt 0 (last_hole_path_e fuel ue0)
-            end
-          end
-        | ZExp.OpSeqZ _ ze_n surround =>
-          let n := OperatorSeq.surround_prefix_length surround in
-          match prev_hole_path_e' fuel ze_n with
-          | Some ns => Some (cons n ns)
-          | None =>
-            let ue_n := ZExp.erase ze_n in
-            let opseq := OperatorSeq.opseq_of_exp_and_surround ue_n surround in
-            let m := OperatorSeq.surround_suffix_length surround in
-            last_hole_path_e_opseq fuel opseq (m+1)
-          end
-        | ZExp.ApPaletteZ _ _ _ => None (* TODO figure out tab order protocol *)
-        end
-      | ZExp.ParenthesizedZ ze0 => Path.cons_opt 0 (prev_hole_path_e' fuel ze0)
-      end
-      end.
-
-    Fixpoint prev_hole_path_e (fuel : Fuel.t) (ze : ZExp.t) : option Path.t :=
-      match fuel with
-      | Fuel.Kicked => None
-      | Fuel.More fuel =>
-      match prev_hole_path_e' fuel ze with
-      | None => None
-      | Some path => Some (path, Before)
-      end
-      end.
-
     Fixpoint performTyp (fuel : Fuel.t) (a : t) (zty : ZTyp.t) : option ZTyp.t :=
       match fuel with
       | Fuel.Kicked => None
@@ -4175,12 +4345,12 @@ Module FCore(Debug : DEBUG).
         let ty := ZTyp.erase zty in 
         Path.follow_ty fuel path ty
       | (MoveToPrevHole, _) =>
-        match prev_hole_path_t fuel zty with
+        match prev_hole_path_ty fuel zty with
         | None => None
         | Some path => performTyp fuel (MoveTo path) zty
         end
       | (MoveToNextHole, _) =>
-        match next_hole_path_t fuel zty with
+        match next_hole_path_ty fuel zty with
         | None => None
         | Some path =>
           (* [debug] let path := Helper.log_path path in *)
@@ -4503,12 +4673,12 @@ Module FCore(Debug : DEBUG).
         | None => None
         end
       | (MoveToPrevHole, _) =>
-        match prev_hole_path_e fuel ze with
+        match prev_hole_path fuel ze with
         | None => None
         | Some path => performSyn fuel ctx (MoveTo path) ze_ty
         end
       | (MoveToNextHole, _) =>
-        match next_hole_path_e fuel ze with
+        match next_hole_path fuel ze with
         | None => None
         | Some path =>
           (* let path := Helper.log_path path in *)
@@ -5526,12 +5696,12 @@ Module FCore(Debug : DEBUG).
         | None => None
         end
       | (MoveToPrevHole, _) =>
-        match prev_hole_path_e fuel ze with
+        match prev_hole_path fuel ze with
         | None => None
         | Some path => performAna fuel u_gen ctx (MoveTo path) ze ty
         end
       | (MoveToNextHole, _) =>
-        match next_hole_path_e fuel ze with
+        match next_hole_path fuel ze with
         | None => None
         | Some path =>
           (* [debug] let path := Helper.log_path path in *)
