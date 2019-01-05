@@ -870,6 +870,30 @@ Module FCore(Debug : DEBUG).
     | NumLit : nat -> t'
     | Inj : inj_side -> t -> t'
     | EmptyHole : MetaVar.t -> t'.
+
+    (* helper function for constructing a new empty hole *)
+    Definition new_EmptyHole (u_gen : MetaVarGen.t) : t * MetaVarGen.t :=
+      let (u, u_gen) := MetaVarGen.next u_gen in 
+      (Pat NotInHole (EmptyHole u), u_gen).
+
+    Fixpoint put_in_hole (u : MetaVar.t) (p : t) := 
+      match p with 
+      | Pat _ p' => Pat (InHole u) p'
+      | Parenthesized p1 => Parenthesized (put_in_hole u p1)
+      end.
+
+    (* put p in a new hole, if it is not already in a hole *)
+    Fixpoint put_in_new_hole (u_gen : MetaVarGen.t) (p : t) := 
+      match p with
+      | Pat NotInHole p' => 
+        let (u, u_gen) := MetaVarGen.next u_gen in 
+        (Pat (InHole u) p', u_gen)
+      | Pat (InHole _) _ => (p, u_gen)
+      | Parenthesized p1 => 
+        match put_in_new_hole u_gen p1 with 
+        | (p1, u_gen) => (Parenthesized p1, u_gen)
+        end
+      end.
   End UHPat.
 
   Module UHExp. (* unassociated H-expressions *) 
@@ -906,6 +930,13 @@ Module FCore(Debug : DEBUG).
     Definition new_EmptyHole (u_gen : MetaVarGen.t) : t * MetaVarGen.t :=
       let (u', u_gen') := MetaVarGen.next u_gen in 
       (Tm NotInHole (EmptyHole u'), u_gen').
+
+
+    Definition empty_rule (u_gen : MetaVarGen.t) : rule * MetaVarGen.t := 
+      let (rule_p, u_gen) := UHPat.new_EmptyHole u_gen in 
+      let (rule_e, u_gen) := UHExp.new_EmptyHole u_gen in  
+      let rule := UHExp.Rule rule_p rule_e in 
+      (rule, u_gen).
 
     Module PaletteHoleData.
       Local Open Scope string_scope.
@@ -1715,10 +1746,10 @@ Module FCore(Debug : DEBUG).
         (rule : UHExp.rule)
         (pat_ty : HTyp.t)
         (clause_ty : HTyp.t)
-        (* need to pass a reference to the ana_fix_holes_internal' function here
+        (* need to pass a reference to the ana_fix_holes_internal function here
          * rather than defining it mutually to avoid a stack overflow error seemingly
          * related to too many mutually recursive definitions in Coq *)
-        (ana_fix_holes_internal' : Fuel.t -> Contexts.t -> MetaVarGen.t -> bool -> UHExp.t -> HTyp.t -> option(UHExp.t * MetaVarGen.t))
+        (ana_fix_holes_internal : Fuel.t -> Contexts.t -> MetaVarGen.t -> bool -> UHExp.t -> HTyp.t -> option(UHExp.t * MetaVarGen.t))
         : option(UHExp.rule * MetaVarGen.t) :=
           match fuel with 
           | Fuel.Kicked => None
@@ -1728,7 +1759,7 @@ Module FCore(Debug : DEBUG).
               match ana_pat_fix_holes fuel ctx u_gen renumber_empty_holes pat pat_ty with 
               | None => None
               | Some ((pat', ctx), u_gen) => 
-                match ana_fix_holes_internal' fuel ctx u_gen renumber_empty_holes e clause_ty with 
+                match ana_fix_holes_internal fuel ctx u_gen renumber_empty_holes e clause_ty with 
                 | None => None
                 | Some (e', u_gen) => Some(Rule pat' e', u_gen)
                 end
@@ -1736,7 +1767,7 @@ Module FCore(Debug : DEBUG).
             end
           end.
       
-      Definition ana_rules_fix_holes 
+      Definition ana_rules_fix_holes_internal 
         (fuel : Fuel.t)
         (ctx : Contexts.t)
         (u_gen : MetaVarGen.t) 
@@ -1745,7 +1776,7 @@ Module FCore(Debug : DEBUG).
         (pat_ty : HTyp.t)
         (clause_ty : HTyp.t)
         (* see above *)
-        (ana_fix_holes_internal' : Fuel.t -> Contexts.t -> MetaVarGen.t -> bool -> UHExp.t -> HTyp.t -> option(UHExp.t * MetaVarGen.t))
+        (ana_fix_holes_internal : Fuel.t -> Contexts.t -> MetaVarGen.t -> bool -> UHExp.t -> HTyp.t -> option(UHExp.t * MetaVarGen.t))
         : option(list(UHExp.rule) * MetaVarGen.t) :=
           match fuel with 
           | Fuel.Kicked => None
@@ -1754,7 +1785,7 @@ Module FCore(Debug : DEBUG).
             match b with
             | None => None
             | Some (rules, u_gen) => 
-              match ana_rule_fix_holes fuel ctx u_gen renumber_empty_holes r pat_ty clause_ty ana_fix_holes_internal' with 
+              match ana_rule_fix_holes fuel ctx u_gen renumber_empty_holes r pat_ty clause_ty ana_fix_holes_internal with 
               | None => None
               | Some (r, u_gen) => Some (cons r rules, u_gen)
               end
@@ -1765,7 +1796,7 @@ Module FCore(Debug : DEBUG).
      * new values in the same namespace as non-empty holes. Non-empty holes are renumbered
      * regardless.
      *)
-    Fixpoint syn_fix_holes_internal'
+    Fixpoint syn_fix_holes_internal
       (fuel : Fuel.t)
       (ctx : Contexts.t)
       (u_gen : MetaVarGen.t)
@@ -1783,7 +1814,7 @@ Module FCore(Debug : DEBUG).
           | None => None
           end
         | Parenthesized e1 => 
-          match syn_fix_holes_internal' fuel ctx u_gen renumber_empty_holes e1 with 
+          match syn_fix_holes_internal fuel ctx u_gen renumber_empty_holes e1 with 
           | Some (e1', ty, u_gen') => 
             Some (Parenthesized e1', ty, u_gen')
           | None => None
@@ -1804,7 +1835,7 @@ Module FCore(Debug : DEBUG).
         | Asc e1 uty => 
           if is_bidelimited e1 then 
             let ty := UHTyp.expand fuel uty in 
-            match ana_fix_holes_internal' fuel ctx u_gen renumber_empty_holes e1 ty with 
+            match ana_fix_holes_internal fuel ctx u_gen renumber_empty_holes e1 ty with 
             | Some (e1', u_gen') => Some (Asc e1' uty, ty, u_gen')
             | None => None
             end
@@ -1830,7 +1861,7 @@ Module FCore(Debug : DEBUG).
           match ana_pat_fix_holes fuel ctx u_gen renumber_empty_holes p ty1 with 
           | None => None
           | Some (p, ctx1, u_gen) => 
-            match syn_fix_holes_internal' fuel ctx1 u_gen renumber_empty_holes e1 with 
+            match syn_fix_holes_internal fuel ctx1 u_gen renumber_empty_holes e1 with 
             | None => None
             | Some (e1, ty2, u_gen) => 
               Some (Lam p ann e1, HTyp.Arrow ty1 ty2, u_gen)
@@ -1841,13 +1872,13 @@ Module FCore(Debug : DEBUG).
           | Some uty1 => 
             let ty1 := UHTyp.expand fuel uty1 in 
             let ctx1 := ctx_for_let ctx p ty1 e1 in 
-            match ana_fix_holes_internal' fuel ctx1 u_gen renumber_empty_holes e1 ty1 with
+            match ana_fix_holes_internal fuel ctx1 u_gen renumber_empty_holes e1 ty1 with
             | None => None
             | Some (e1, u_gen) => 
               match ana_pat_fix_holes fuel ctx u_gen renumber_empty_holes p ty1 with 
               | None => None
               | Some (p, ctx2, u_gen) => 
-                match syn_fix_holes_internal' fuel ctx u_gen renumber_empty_holes e2 with 
+                match syn_fix_holes_internal fuel ctx u_gen renumber_empty_holes e2 with 
                 | Some (e2, ty, u_gen) => 
                   Some (Let p ann e1 e2, ty, u_gen)
                 | None => None
@@ -1855,12 +1886,12 @@ Module FCore(Debug : DEBUG).
               end
             end
           | None => 
-            match syn_fix_holes_internal' fuel ctx u_gen renumber_empty_holes e1 with 
+            match syn_fix_holes_internal fuel ctx u_gen renumber_empty_holes e1 with 
             | Some (e1, ty1, u_gen) => 
               match ana_pat_fix_holes fuel ctx u_gen renumber_empty_holes p ty1 with 
               | None => None
               | Some (p, ctx2, u_gen) => 
-                match syn_fix_holes_internal' fuel ctx2 u_gen renumber_empty_holes e2 with 
+                match syn_fix_holes_internal fuel ctx2 u_gen renumber_empty_holes e2 with 
                 | Some (e2, ty, u_gen) => 
                   Some (Let p ann e1 e2, ty, u_gen)
                 | None => None
@@ -1883,7 +1914,7 @@ Module FCore(Debug : DEBUG).
           | None => None
           end
         | Inj side e1 => 
-          match syn_fix_holes_internal' fuel ctx u_gen renumber_empty_holes e1 with 
+          match syn_fix_holes_internal fuel ctx u_gen renumber_empty_holes e1 with 
           | Some (e1', ty1, u_gen') => 
             let e' := Inj side e1' in 
             let ty' := 
@@ -1935,7 +1966,7 @@ Module FCore(Debug : DEBUG).
             match c with 
             | None => None
             | Some (xs, u_gen) => 
-              match (ana_fix_holes_internal' fuel ctx u_gen renumber_empty_holes e ty) with 
+              match (ana_fix_holes_internal fuel ctx u_gen renumber_empty_holes e ty) with 
               | Some (e', u_gen') => 
                 let xs' := NatMap.extend xs (i, (ty, e')) in 
                 Some (xs', u_gen')
@@ -1947,7 +1978,7 @@ Module FCore(Debug : DEBUG).
           | None => None
           end
         end
-    with ana_fix_holes_internal'
+    with ana_fix_holes_internal
       (fuel : Fuel.t)
       (ctx : Contexts.t)
       (u_gen : MetaVarGen.t)
@@ -1966,7 +1997,7 @@ Module FCore(Debug : DEBUG).
           | None => None
           end
         | Parenthesized e1 => 
-          match ana_fix_holes_internal' fuel ctx u_gen renumber_empty_holes e1 ty with 
+          match ana_fix_holes_internal fuel ctx u_gen renumber_empty_holes e1 ty with 
           | Some (e1', u_gen') => 
             Some (Parenthesized e1', u_gen')
           | None => None
@@ -1986,13 +2017,13 @@ Module FCore(Debug : DEBUG).
           | Some uty1 => 
             let ty1 := UHTyp.expand fuel uty1 in 
             let ctx1 := ctx_for_let ctx p ty1 e1 in 
-            match ana_fix_holes_internal' fuel ctx1 u_gen renumber_empty_holes e1 ty1 with
+            match ana_fix_holes_internal fuel ctx1 u_gen renumber_empty_holes e1 ty1 with
             | None => None
             | Some (e1, u_gen) => 
               match ana_pat_fix_holes fuel ctx u_gen renumber_empty_holes p ty1 with 
               | None => None
               | Some (p, ctx2, u_gen) => 
-                match ana_fix_holes_internal' fuel ctx u_gen renumber_empty_holes e2 ty with 
+                match ana_fix_holes_internal fuel ctx u_gen renumber_empty_holes e2 ty with 
                 | Some (e2, u_gen) => 
                   Some (NotInHole, Let p ann e1 e2, u_gen)
                 | None => None
@@ -2000,12 +2031,12 @@ Module FCore(Debug : DEBUG).
               end
             end
           | None => 
-            match syn_fix_holes_internal' fuel ctx u_gen renumber_empty_holes e1 with 
+            match syn_fix_holes_internal fuel ctx u_gen renumber_empty_holes e1 with 
             | Some (e1, ty1, u_gen) => 
               match ana_pat_fix_holes fuel ctx u_gen renumber_empty_holes p ty1 with 
               | None => None
               | Some (p, ctx2, u_gen) => 
-                match ana_fix_holes_internal' fuel ctx2 u_gen renumber_empty_holes e2 ty with 
+                match ana_fix_holes_internal fuel ctx2 u_gen renumber_empty_holes e2 ty with 
                 | Some (e2, u_gen) => 
                   Some (NotInHole, Let p ann e1 e2, u_gen)
                 | None => None
@@ -2025,7 +2056,7 @@ Module FCore(Debug : DEBUG).
                 match ana_pat_fix_holes fuel ctx u_gen renumber_empty_holes p ty1_ann with 
                 | None => None
                 | Some (p, ctx, u_gen) => 
-                  match ana_fix_holes_internal' fuel ctx u_gen renumber_empty_holes e1 ty2 with 
+                  match ana_fix_holes_internal fuel ctx u_gen renumber_empty_holes e1 ty2 with 
                   | None => None
                   | Some (e1, u_gen) => 
                     Some (NotInHole, Lam p ann e1, u_gen)
@@ -2043,7 +2074,7 @@ Module FCore(Debug : DEBUG).
               match ana_pat_fix_holes fuel ctx u_gen renumber_empty_holes p ty1_given with 
               | None => None
               | Some (p, ctx, u_gen) => 
-                match ana_fix_holes_internal' fuel ctx u_gen renumber_empty_holes e1 ty2 with 
+                match ana_fix_holes_internal fuel ctx u_gen renumber_empty_holes e1 ty2 with 
                 | Some (e1, u_gen) => 
                   Some (NotInHole, Lam p ann e1, u_gen)
                 | None => None
@@ -2061,7 +2092,7 @@ Module FCore(Debug : DEBUG).
         | Inj side e1 => 
           match HTyp.matched_sum ty with 
           | Some (ty1, ty2) => 
-            match ana_fix_holes_internal' fuel ctx u_gen renumber_empty_holes e1 (pick_side side ty1 ty2) with 
+            match ana_fix_holes_internal fuel ctx u_gen renumber_empty_holes e1 (pick_side side ty1 ty2) with 
             | Some (e1', u_gen') => 
               Some (NotInHole, Inj side e1', u_gen')
             | None => None
@@ -2078,10 +2109,11 @@ Module FCore(Debug : DEBUG).
             end
           end
         | Case e1 rules => 
-          match syn_fix_holes_internal' fuel ctx u_gen renumber_empty_holes e1 with 
+          match syn_fix_holes_internal fuel ctx u_gen renumber_empty_holes e1 with 
           | None => None
           | Some (e1', ty1, u_gen) => 
-            match ana_rules_fix_holes fuel ctx u_gen renumber_empty_holes rules ty1 ty ana_fix_holes_internal' with 
+            match ana_rules_fix_holes_internal fuel ctx u_gen renumber_empty_holes rules ty1 ty 
+                    ana_fix_holes_internal with 
             | None => None
             | Some (rules', u_gen) => 
               Some (NotInHole, Case e1' rules', u_gen)
@@ -2104,52 +2136,6 @@ Module FCore(Debug : DEBUG).
           end
         end
         end
-    (* with ana_rules_fix_holes 
-      (fuel : Fuel.t)
-      (ctx : Contexts.t)
-      (u_gen : MetaVarGen.t) 
-      (renumber_empty_holes : bool)
-      (rules : list(UHExp.rule))
-      (pat_ty : HTyp.t)
-      (clause_ty : HTyp.t)
-      : option(list(UHExp.rule) * MetaVarGen.t) :=
-        match fuel with 
-        | Fuel.Kicked => None
-        | Fuel.More fuel => 
-        List.fold_right (fun r b =>  
-          match b with
-          | None => None
-          | Some (rules, u_gen) => 
-            match ana_rule_fix_holes fuel ctx u_gen renumber_empty_holes r pat_ty clause_ty with 
-            | None => None
-            | Some (r, u_gen) => Some (cons r rules, u_gen)
-            end
-          end) (Some (nil, u_gen)) rules
-        end
-    with ana_rule_fix_holes
-      (fuel : Fuel.t)
-      (ctx : Contexts.t)
-      (u_gen : MetaVarGen.t) 
-      (renumber_empty_holes : bool)
-      (rule : UHExp.rule)
-      (pat_ty : HTyp.t)
-      (clause_ty : HTyp.t)
-      : option(UHExp.rule * MetaVarGen.t) :=
-        match fuel with 
-        | Fuel.Kicked => None
-        | Fuel.More fuel => 
-          match rule with 
-          | Rule pat e => 
-            match ana_pat_fix_holes fuel ctx u_gen renumber_empty_holes pat pat_ty with 
-            | None => None
-            | Some (pat', u_gen) => 
-              match ana_fix_holes_internal' fuel ctx u_gen renumber_empty_holes e clause_ty with 
-              | None => None
-              | Some (e', u_gen) => Some(Rule pat' e', u_gen)
-              end
-            end
-          end
-        end *)
     with syn_skel_fix_holes_internal'
       (fuel : Fuel.t)
       (ctx : Contexts.t)
@@ -2166,7 +2152,7 @@ Module FCore(Debug : DEBUG).
           match OperatorSeq.seq_nth n seq with
           | Some en => 
             if is_bidelimited en then 
-              match syn_fix_holes_internal' fuel ctx u_gen renumber_empty_holes en with 
+              match syn_fix_holes_internal fuel ctx u_gen renumber_empty_holes en with 
               | Some (en', ty, u_gen') => 
                 match OperatorSeq.seq_update_nth n seq en' with
                 | Some seq' => 
@@ -2231,7 +2217,7 @@ Module FCore(Debug : DEBUG).
             match OperatorSeq.seq_nth n seq with
             | Some en => 
               if is_bidelimited en then 
-                match ana_fix_holes_internal' fuel ctx u_gen renumber_empty_holes en ty with 
+                match ana_fix_holes_internal fuel ctx u_gen renumber_empty_holes en ty with 
                 | Some (en', u_gen') => 
                   match OperatorSeq.seq_update_nth n seq en' with 
                   | Some seq' => Some (skel, seq', u_gen')
@@ -2259,7 +2245,7 @@ Module FCore(Debug : DEBUG).
       (u_gen : MetaVarGen.t)
       (e : t)
       : option(t * HTyp.t * MetaVarGen.t) := 
-      syn_fix_holes_internal' fuel ctx u_gen false e.
+      syn_fix_holes_internal fuel ctx u_gen false e.
 
     Definition ana_fix_holes
       (fuel : Fuel.t)
@@ -2268,7 +2254,18 @@ Module FCore(Debug : DEBUG).
       (e : t)
       (ty : HTyp.t)
       : option(t * MetaVarGen.t) := 
-      ana_fix_holes_internal' fuel ctx u_gen false e ty.
+      ana_fix_holes_internal fuel ctx u_gen false e ty.
+    
+    Definition ana_rules_fix_holes 
+      (fuel : Fuel.t)
+      (ctx : Contexts.t)
+      (u_gen : MetaVarGen.t) 
+      (renumber_empty_holes : bool)
+      (rules : list(UHExp.rule))
+      (pat_ty : HTyp.t)
+      (clause_ty : HTyp.t) := 
+        ana_rules_fix_holes_internal fuel ctx u_gen renumber_empty_holes rules pat_ty clause_ty
+          ana_fix_holes_internal.
 
     Definition syn_skel_fix_holes
       (fuel : Fuel.t)
@@ -2285,7 +2282,7 @@ Module FCore(Debug : DEBUG).
       (ctx : Contexts.t)
       (e : t)
       : option(t * HTyp.t * MetaVarGen.t) := 
-      syn_fix_holes_internal' fuel ctx MetaVarGen.init true e.
+      syn_fix_holes_internal fuel ctx MetaVarGen.init true e.
   End UHExp.
 
   Module Contexts := UHExp.Contexts.
@@ -2298,6 +2295,9 @@ Module FCore(Debug : DEBUG).
  
   Module ZList.
     Definition t (Z A : Type) : Type := list(A) * Z * list(A).
+
+    Definition singleton {A Z : Type} (z : Z) : t Z A := 
+      (nil, z, nil).
 
     Fixpoint split_at {A : Type} (n : nat) (xs : list A) : option(t A A) := 
       match (n, xs) with 
@@ -2314,6 +2314,14 @@ Module FCore(Debug : DEBUG).
           Some ((prefix', z), suffix)
         end
       end.
+
+    Fixpoint replace_z {A Z : Type} 
+      (zs : t Z A)
+      (z : Z) 
+      : t Z A := 
+        match zs with 
+        | ((prefix, _), suffix) => ((prefix, z), suffix)
+        end.
 
     Fixpoint optmap_z {A Z1 Z2 : Type} 
       (f : Z1 -> option(Z2))
@@ -2375,6 +2383,28 @@ Module FCore(Debug : DEBUG).
     Definition opseq_suffix : Type :=
       OperatorSeq.opseq_suffix UHTyp.t UHTyp.op.
 
+    Definition place_Before (uty : UHTyp.t) : t := 
+      match uty with 
+      | UHTyp.Parenthesized _
+      | UHTyp.Num
+      | UHTyp.Hole => CursorT Before uty
+      | UHTyp.OpSeq skel seq => 
+        let (uty0, suffix) := OperatorSeq.split0 seq in 
+        let surround := OperatorSeq.EmptyPrefix suffix in 
+        OpSeqZ skel (CursorT Before uty0) surround
+      end.
+
+    Definition place_After (uty : UHTyp.t) : t := 
+      match uty with 
+      | UHTyp.Parenthesized _
+      | UHTyp.Num
+      | UHTyp.Hole => CursorT After uty
+      | UHTyp.OpSeq skel seq => 
+        let (uty0, prefix) := OperatorSeq.split_tail seq in 
+        let surround := OperatorSeq.EmptySuffix prefix in 
+        OpSeqZ skel (CursorT After uty0) surround
+      end.
+
     (* |_ -> _ *)
     Definition ZHole_Arrow_Hole : t := 
       OpSeqZ 
@@ -2415,6 +2445,62 @@ Module FCore(Debug : DEBUG).
     | ParenthesizedZ : t -> t
     with t' : Type := 
     | InjZ : inj_side -> t -> t'.
+
+    (* helper function for constructing a new empty hole *)
+    Definition new_EmptyHole (u_gen : MetaVarGen.t) : t * MetaVarGen.t :=
+      let (hole, u_gen) := UHPat.new_EmptyHole u_gen in 
+      (CursorP Before hole, u_gen).
+
+    Fixpoint put_in_hole
+      (u : MetaVar.t)
+      (zp : t)
+      : t :=
+        match zp with 
+        | CursorP cursor_side p => 
+          let p := UHPat.put_in_hole u p in 
+          (CursorP cursor_side p)
+        | Deeper (InHole _) zp' => 
+          Deeper (InHole u) zp'
+        | Deeper NotInHole zp' => 
+          Deeper (InHole u) zp'
+        | ParenthesizedZ zp1 => 
+          ParenthesizedZ (put_in_hole u zp1)
+        end.
+
+    Fixpoint put_in_new_hole 
+      (u_gen : MetaVarGen.t)
+      (zp : t) 
+      : (t * MetaVarGen.t) := 
+        match zp with 
+        | CursorP cursor_side p => 
+          let (p, u_gen) := UHPat.put_in_new_hole u_gen p in  
+          (CursorP cursor_side p, u_gen)
+        | Deeper (InHole _) _ => 
+          (zp, u_gen)
+        | Deeper NotInHole zp' => 
+          let (u, u_gen) := MetaVarGen.next u_gen in 
+          (Deeper (InHole u) zp', u_gen)
+        | ParenthesizedZ zp1 => 
+          let (zp1, u_gen) := put_in_new_hole u_gen zp1 in 
+          (ParenthesizedZ zp1, u_gen)
+        end.
+
+    Fixpoint erase (zp : ZPat.t) : UHPat.t := 
+      match zp with 
+      | ZPat.CursorP _ p => p
+      | ZPat.Deeper err_status zp' => UHPat.Pat err_status (erase' zp')
+      | ZPat.ParenthesizedZ zp => UHPat.Parenthesized (erase zp)
+      end
+    with erase' (zp' : ZPat.t') : UHPat.t' := 
+      match zp' with 
+      | ZPat.InjZ side zp1 => UHPat.Inj side (erase zp1)
+      end.
+
+    Definition place_Before (p : UHPat.t) : ZPat.t := 
+      CursorP Before p.
+
+    Definition place_After (p : UHPat.t) : ZPat.t := 
+      CursorP After p.
   End ZPat.
 
   Module ZExp.
@@ -2444,8 +2530,8 @@ Module FCore(Debug : DEBUG).
                    (UHExp.PaletteHoleData.hole_ref_lbl * ZNatMap.t (HTyp.t * UHExp.t) (HTyp.t * t)) -> (* = ZPaletteHoleData.t *)
                    t'
     with zrule : Type := 
-    | ZRulePat : ZPat.t -> UHExp.t -> zrule
-    | ZRuleE : UHPat.t -> t -> zrule.
+    | RuleZP : ZPat.t -> UHExp.t -> zrule
+    | RuleZE : UHPat.t -> t -> zrule.
 
     Definition zrules : Type := ZList.t zrule UHExp.rule.
 
@@ -2522,16 +2608,11 @@ Module FCore(Debug : DEBUG).
       | Deeper _ _ => None
       end.
 
-    Fixpoint erase_pat (zp : ZPat.t) : UHPat.t := 
-      match zp with 
-      | ZPat.CursorP _ p => p
-      | ZPat.Deeper err_status zp' => UHPat.Pat err_status (erase_pat' zp')
-      | ZPat.ParenthesizedZ zp => UHPat.Parenthesized (erase_pat zp)
-      end
-    with erase_pat' (zp' : ZPat.t') : UHPat.t' := 
-      match zp' with 
-      | ZPat.InjZ side zp1 => UHPat.Inj side (erase_pat zp1)
-      end.
+    Definition empty_zrule (u_gen : MetaVarGen.t) : zrule * MetaVarGen.t:= 
+      let (zp, u_gen) := ZPat.new_EmptyHole u_gen in 
+      let (rule_e, u_gen) := UHExp.new_EmptyHole u_gen in 
+      let zrule := ZExp.RuleZP zp rule_e in  
+      (zrule, u_gen).
 
     Fixpoint erase (ze : t) : UHExp.t :=
       match ze with
@@ -2546,11 +2627,11 @@ Module FCore(Debug : DEBUG).
       match ze with 
       | AscZ1 ze' ty => (UHExp.Asc (erase ze') ty)
       | AscZ2 e' zty => UHExp.Asc e' (ZTyp.erase zty)
-      | LetZP zp ann e1 e2 => UHExp.Let (erase_pat zp) ann e1 e2
+      | LetZP zp ann e1 e2 => UHExp.Let (ZPat.erase zp) ann e1 e2
       | LetZA p zann e1 e2 => UHExp.Let p (Some (ZTyp.erase zann)) e1 e2 
       | LetZE1 p ann ze e => UHExp.Let p ann (erase ze) e
       | LetZE2 p ann e ze => UHExp.Let p ann e (erase ze)
-      | LamZP zp ann e1 => UHExp.Lam (erase_pat zp) ann e1
+      | LamZP zp ann e1 => UHExp.Lam (ZPat.erase zp) ann e1
       | LamZA p zann e1 => UHExp.Lam p (Some (ZTyp.erase zann)) e1
       | LamZE p ann ze1 => UHExp.Lam p ann (erase ze1)
       | InjZ side ze => UHExp.Inj side (erase ze)
@@ -2570,8 +2651,8 @@ Module FCore(Debug : DEBUG).
       end
     with erase_rule (zr : zrule) : UHExp.rule := 
       match zr with 
-      | ZRulePat zp e => UHExp.Rule (erase_pat zp) e
-      | ZRuleE p ze => UHExp.Rule p (erase ze)
+      | RuleZP zp e => UHExp.Rule (ZPat.erase zp) e
+      | RuleZE p ze => UHExp.Rule p (erase ze)
       end.
 
     Inductive cursor_mode := 
@@ -3162,9 +3243,9 @@ Module FCore(Debug : DEBUG).
       | Fuel.Kicked => None
       | Fuel.More fuel => 
       match zrule with 
-      | ZRulePat zp e => 
+      | RuleZP zp e => 
         ana_pat_cursor_info fuel ctx zp pat_ty
-      | ZRuleE p ze => 
+      | RuleZE p ze => 
         match UHExp.ana_pat fuel ctx p pat_ty with  
         | None => None
         | Some ctx => 
@@ -3337,8 +3418,8 @@ Module FCore(Debug : DEBUG).
       end
     with of_zrule (zrule : ZExp.zrule) : t := 
       match zrule with 
-      | ZExp.ZRulePat zp _ => cons' O (of_zpat zp)
-      | ZExp.ZRuleE _ ze => cons' 1 (of_zexp ze)
+      | ZExp.RuleZP zp _ => cons' O (of_zpat zp)
+      | ZExp.RuleZE _ ze => cons' 1 (of_zexp ze)
       end.
 
     Definition of_OpSeqZ (ze : ZExp.t) (surround : ZExp.opseq_surround) := 
@@ -3555,12 +3636,12 @@ Module FCore(Debug : DEBUG).
         | (cons 0 xs, cursor_side) => 
           match follow_pat fuel (xs, cursor_side) p with 
           | None => None
-          | Some zp => Some (ZExp.ZRulePat zp e)
+          | Some zp => Some (ZExp.RuleZP zp e)
           end
         | (cons 1 xs, cursor_side) => 
           match follow_e fuel (xs, cursor_side) e with 
           | None => None
-          | Some ze => Some (ZExp.ZRuleE p ze)
+          | Some ze => Some (ZExp.RuleZE p ze)
           end
         | (cons _ _, _) => None
         end
@@ -4004,7 +4085,7 @@ Module FCore(Debug : DEBUG).
           let zr := ZList.prj_z zrules in 
           let prefix_len := List.length (ZList.prj_prefix zrules) in 
           match zr with 
-          | ZExp.ZRulePat zp e => 
+          | ZExp.RuleZP zp e => 
             match next_hole_steps_pat fuel zp with 
             | Some ns => Some (cons (S prefix_len) (cons 0 ns))
             | None => 
@@ -4019,7 +4100,7 @@ Module FCore(Debug : DEBUG).
                 end
               end
             end
-          | ZExp.ZRuleE _ ze => 
+          | ZExp.RuleZE _ ze => 
             match next_hole_steps fuel ze with 
             | Some ns => Some (cons (S prefix_len) (cons 1 ns))
             | None => 
@@ -4366,12 +4447,12 @@ Module FCore(Debug : DEBUG).
           let prefix := ZList.prj_prefix zrules in 
           let prefix_len := List.length prefix in 
           match zr with 
-          | ZExp.ZRulePat zp e => 
+          | ZExp.RuleZP zp e => 
             match prev_hole_steps_pat fuel zp with 
             | Some ns => Some (cons (S prefix_len) (cons 0 ns)) 
             | None => last_hole_steps_rules fuel prefix 
             end
-          | ZExp.ZRuleE p ze => 
+          | ZExp.RuleZE p ze => 
             match prev_hole_steps fuel ze with 
             | Some ns => Some (cons (S prefix_len) (cons 1 ns))
             | None => 
@@ -4436,7 +4517,9 @@ Module FCore(Debug : DEBUG).
     | SCase : shape
     | SRule : shape
     | SOp : UHExp.op -> shape
-    | SApPalette : PaletteName.t -> shape.
+    | SApPalette : PaletteName.t -> shape
+    (* pattern-only shapes *)
+    | SWild : shape.
 
     Inductive t : Type :=
     | MoveTo : Path.t -> t
@@ -4447,6 +4530,54 @@ Module FCore(Debug : DEBUG).
     | Backspace : t
     | Construct : shape -> t.
 
+    (* 
+      | (Construct (SVar x side), ZExp.Deeper _ (ZExp.LetZV _ _ ann e1 e2)) => 
+        Var.check_valid_binder x
+        match ann with 
+        | Some uty1 => 
+          let ty1 := UHTyp.expand fuel uty1 in 
+          let ctx1 := UHExp.ctx_for_let ctx x ty1 e1 in 
+          match UHExp.ana_fix_holes fuel ctx1 u_gen e1 ty1 with 
+          | None => None
+          | Some (e1, u_gen) => 
+            let ctx2 := Contexts.extend_gamma ctx (x, ty1) in 
+            match UHExp.syn_fix_holes fuel ctx2 u_gen e2 with 
+            | None => None
+            | Some (e2, ty, u_gen) => 
+              let ze := ZExp.Deeper NotInHole (ZExp.LetZV x side ann e1 e2) in 
+              Some (ze, ty, u_gen)
+            end
+          end
+        | None => 
+          match UHExp.syn fuel ctx e1 with 
+          | None => None
+          | Some ty1 => 
+            let ctx2 := Contexts.extend_gamma ctx (x, ty1) in 
+            match UHExp.syn_fix_holes fuel ctx2 u_gen e2 with 
+            | None => None
+            | Some(e2, ty, u_gen) => 
+              let ze := ZExp.Deeper NotInHole (ZExp.LetZV x side ann e1 e2) in 
+              Some (ze, ty, u_gen)
+            end
+          end
+        end
+      | (Construct (SVar x side), ZExp.Deeper _ (ZExp.LamZV _ _ ann e1)) => 
+        Var.check_valid_binder x (
+        let ty1 := 
+          match ann with 
+          | Some uty1 => UHTyp.expand fuel uty1
+          | None => HTyp.Hole
+          end in 
+        let ctx := Contexts.extend_gamma ctx (x, ty1) in 
+        match UHExp.syn_fix_holes fuel ctx u_gen e1 with 
+        | None => None
+        | Some(e1, ty2, u_gen) => 
+          let ze := ZExp.Deeper NotInHole (ZExp.LamZV x side ann e1) in 
+          let ty := HTyp.Arrow ty1 ty2 in 
+          Some (ze, ty, u_gen)
+        end)
+    *)
+
     Definition make_ty_OpSeqZ 
       (zty0 : ZTyp.t) (surround : ZTyp.opseq_surround)
       : ZTyp.t := 
@@ -4455,7 +4586,7 @@ Module FCore(Debug : DEBUG).
         let skel := Associator.associate_ty seq in 
         ZTyp.OpSeqZ skel zty0 surround.
 
-    Fixpoint performTyp (fuel : Fuel.t) (a : t) (zty : ZTyp.t) : option ZTyp.t :=
+    Fixpoint perform_ty (fuel : Fuel.t) (a : t) (zty : ZTyp.t) : option ZTyp.t :=
       match fuel with
       | Fuel.Kicked => None
       | Fuel.More fuel =>
@@ -4467,14 +4598,14 @@ Module FCore(Debug : DEBUG).
       | (MoveToPrevHole, _) =>
         match Path.prev_hole_path_ty fuel zty with
         | None => None
-        | Some path => performTyp fuel (MoveTo path) zty
+        | Some path => perform_ty fuel (MoveTo path) zty
         end
       | (MoveToNextHole, _) =>
         match Path.next_hole_path_ty fuel zty with
         | None => None
         | Some path =>
           (* [debug] let path := Helper.log_path path in *)
-          performTyp fuel (MoveTo path) zty
+          perform_ty fuel (MoveTo path) zty
         end
       (* Backspace and Delete *)
       | (Backspace, ZTyp.CursorT After uty) 
@@ -4676,13 +4807,13 @@ Module FCore(Debug : DEBUG).
         end
       (* Zipper Cases *)
       | (a, ZTyp.ParenthesizedZ zty1) => 
-        match performTyp fuel a zty1 with 
+        match perform_ty fuel a zty1 with 
         | Some zty1' => 
           Some (ZTyp.ParenthesizedZ zty1')
         | None => None
         end
       | (a, ZTyp.OpSeqZ skel zty0 surround) => 
-        match performTyp fuel a zty0 with 
+        match perform_ty fuel a zty0 with 
         | Some zty0' => 
           Some (ZTyp.OpSeqZ skel zty0' surround)
         | None => None
@@ -4773,7 +4904,219 @@ Module FCore(Debug : DEBUG).
         ze0
       end.
 
-    Fixpoint performSyn 
+    Fixpoint perform_syn_pat
+      (fuel : Fuel.t)
+      (ctx : Contexts.t)
+      (u_gen : MetaVarGen.t)
+      (a : t)
+      (zp : ZPat.t)
+      : option(ZPat.t * HTyp.t * Contexts.t * MetaVarGen.t) := 
+      match fuel with
+      | Fuel.Kicked => None
+      | Fuel.More fuel =>
+      match (a, zp) with
+      (* don't need to handle movement actions here,
+       * it's handled at the expression level *)
+      | (MoveTo _, _) => None
+      | (MoveToNextHole, _) => None
+      | (MoveToPrevHole, _) => None
+      (* Backspace and Delete *)
+      | (Backspace, ZPat.CursorP After p) => 
+        match p with 
+        | UHPat.Pat _ (UHPat.EmptyHole _) => 
+          Some (ZPat.CursorP Before p, HTyp.Hole, ctx, u_gen)
+        | _ => 
+          let (p, u_gen) := UHPat.new_EmptyHole u_gen in 
+          Some (ZPat.CursorP Before p, HTyp.Hole, ctx, u_gen)
+        end
+      | (Delete, ZPat.CursorP Before p) => 
+        match p with 
+        | UHPat.Pat _ (UHPat.EmptyHole _) => 
+          Some (ZPat.CursorP After p, HTyp.Hole, ctx, u_gen)
+        | _ => 
+          let (e', u_gen') := UHExp.new_EmptyHole u_gen in 
+          Some (ZPat.CursorP Before p, HTyp.Hole, ctx, u_gen)
+        end
+      | (Backspace, ZPat.CursorP (In _) _)
+      | (Delete, ZPat.CursorP (In _) _) => 
+        let (p, u_gen) := UHPat.new_EmptyHole u_gen in 
+        let zp := ZPat.CursorP Before p in 
+        Some (zp, HTyp.Hole, ctx, u_gen)
+      (* Construct *)
+      | (Construct (SLit n side), ZPat.CursorP _ (UHPat.Pat _ (UHPat.EmptyHole _))) 
+      | (Construct (SLit n side), ZPat.CursorP _ (UHPat.Pat _ (UHPat.Var _)))
+      | (Construct (SLit n side), ZPat.CursorP _ (UHPat.Pat _ (UHPat.NumLit _))) =>
+        Some
+          (ZPat.CursorP side (UHPat.Pat NotInHole (UHPat.NumLit n)), 
+           HTyp.Num, 
+           ctx, 
+           u_gen)
+      | (Construct (SInj side), ZPat.CursorP _ p1) => 
+        match UHExp.syn_pat fuel ctx p1 with 
+        | None => None
+        | Some (ty1, ctx) => 
+          let zp := ZPat.Deeper NotInHole 
+            (ZPat.InjZ side zp) in 
+          let ty := 
+            match side with 
+            | L => HTyp.Sum ty1 HTyp.Hole
+            | R => HTyp.Sum HTyp.Hole ty1
+            end in 
+          Some (zp, ty, ctx, u_gen)
+        end
+      (* Zipper *)
+      | (_, ZPat.Deeper _ (ZPat.InjZ side zp1)) => 
+        match perform_syn_pat fuel ctx u_gen a zp1 with 
+        | None => None
+        | Some (zp1, ty1, ctx, u_gen) => 
+          let zp := ZPat.Deeper NotInHole 
+            (ZPat.InjZ side zp1) in 
+          let ty := 
+            match side with 
+            | L => HTyp.Sum ty1 HTyp.Hole
+            | R => HTyp.Sum HTyp.Hole ty1
+            end in 
+          Some (zp, ty, ctx, u_gen)
+        end
+      | _ => None
+      end
+      end.
+
+    Fixpoint perform_ana_pat 
+      (fuel : Fuel.t)
+      (ctx : Contexts.t)
+      (u_gen : MetaVarGen.t)
+      (a : t)
+      (zp : ZPat.t)
+      (ty : HTyp.t)
+      : option(ZPat.t * Contexts.t * MetaVarGen.t) := 
+      match fuel with
+      | Fuel.Kicked => None
+      | Fuel.More fuel =>
+      match (a, zp) with
+      (* don't need to handle movement actions here,
+       * it's handled at the expression level *)
+      | (MoveTo _, _) => None
+      | (MoveToNextHole, _) => None
+      | (MoveToPrevHole, _) => None
+      (* switch to synthesis if in a hole *)
+      | (_, ZPat.Deeper (InHole u) zp1) => 
+        let zp1_not_in_hole := ZPat.Deeper NotInHole zp1 in 
+        let p1 := ZPat.erase zp1_not_in_hole in 
+        match UHExp.syn_pat fuel ctx p1 with 
+        | None => None
+        | Some (ty1, _) => 
+          match perform_syn_pat fuel ctx u_gen a zp1_not_in_hole with 
+          | None => None
+          | Some (zp1, ty', ctx, u_gen) => 
+            if HTyp.consistent ty ty' then 
+              Some (zp1, ctx, u_gen)
+            else 
+              Some (ZPat.put_in_hole u zp1, ctx, u_gen)
+          end
+        end
+      (* Backspace and Delete *)
+      | (Backspace, ZPat.CursorP After p) => 
+        match p with 
+        | UHPat.Pat _ (UHPat.EmptyHole _) => 
+          Some (ZPat.CursorP Before p, ctx, u_gen)
+        | _ => 
+          let (p, u_gen) := UHPat.new_EmptyHole u_gen in 
+          Some (ZPat.CursorP Before p, ctx, u_gen)
+        end
+      | (Delete, ZPat.CursorP Before p) => 
+        match p with 
+        | UHPat.Pat _ (UHPat.EmptyHole _) => 
+          Some (ZPat.CursorP After p, ctx, u_gen)
+        | _ => 
+          let (e', u_gen') := UHExp.new_EmptyHole u_gen in 
+          Some (ZPat.CursorP Before p, ctx, u_gen)
+        end
+      | (Backspace, ZPat.CursorP (In _) _)
+      | (Delete, ZPat.CursorP (In _) _) => 
+        let (p, u_gen) := UHPat.new_EmptyHole u_gen in 
+        let zp := ZPat.CursorP Before p in 
+        Some (zp, ctx, u_gen)
+      (* Construct *)
+      | (Construct SParenthesized, ZPat.CursorP _ p) => 
+        match UHExp.ana_pat fuel ctx p ty with 
+        | None => None
+        | Some ctx => 
+          Some (
+            ZPat.ParenthesizedZ zp, 
+            ctx,
+            u_gen)
+        end
+      | (Construct (SVar x side), ZPat.CursorP _ (UHPat.Pat _ (UHPat.EmptyHole _))) 
+      | (Construct (SVar x side), ZPat.CursorP _ (UHPat.Pat _ (UHPat.Var _)))
+      | (Construct (SVar x side), ZPat.CursorP _ (UHPat.Pat _ (UHPat.NumLit _))) =>
+        Var.check_valid x (
+        let ctx := Contexts.extend_gamma ctx (x, ty) in 
+        Some
+          (ZPat.CursorP side (UHPat.Pat NotInHole (UHPat.Var x)), 
+           ctx, 
+           u_gen)
+        )
+      | (Construct SWild, ZPat.CursorP _ (UHPat.Pat _ (UHPat.EmptyHole _))) 
+      | (Construct SWild, ZPat.CursorP _ (UHPat.Pat _ (UHPat.Var _)))
+      | (Construct SWild, ZPat.CursorP _ (UHPat.Pat _ (UHPat.NumLit _))) =>
+        Some
+          (ZPat.CursorP After (UHPat.Pat NotInHole UHPat.Wild), 
+           ctx, 
+           u_gen)
+      | (Construct (SInj side), ZPat.CursorP cursor_side p1) => 
+        match HTyp.matched_sum ty with 
+        | Some (tyL, tyR) => 
+          let ty1 := pick_side side tyL tyR in 
+          match UHExp.ana_pat_fix_holes fuel ctx u_gen false p1 ty1 with 
+          | None => None
+          | Some (p1, ctx, u_gen) => 
+            let zp := 
+              ZPat.Deeper NotInHole
+                (ZPat.InjZ side 
+                  (ZPat.CursorP cursor_side p1)) in 
+            Some (zp, ctx, u_gen)
+          end
+        | None => 
+          match UHExp.syn_pat_fix_holes fuel ctx u_gen false p1 with 
+          | None => None
+          | Some (p1, _, ctx, u_gen) => 
+            let (u, u_gen) := MetaVarGen.next u_gen in 
+            let zp := 
+              ZPat.Deeper (InHole u)
+                (ZPat.InjZ side 
+                  (ZPat.CursorP cursor_side p1)) in 
+            Some (zp, ctx, u_gen)
+          end
+        end
+      (* Zipper *)
+      | (_, ZPat.Deeper _ (ZPat.InjZ side zp1)) => 
+        match HTyp.matched_sum ty with 
+        | None => None
+        | Some (tyL, tyR) => 
+          let ty1 := pick_side side tyL tyR in 
+          match perform_ana_pat fuel ctx u_gen a zp1 ty1 with 
+          | None => None
+          | Some (zp1, ctx, u_gen) => 
+            let zp := ZPat.Deeper NotInHole (ZPat.InjZ side zp1) in 
+            Some (zp, ctx, u_gen)
+          end
+        end
+      (* Subsumption *)
+      | _ => 
+        match perform_syn_pat fuel ctx u_gen a zp with 
+        | None => None
+        | Some (zp, ty', ctx, u_gen) => 
+          if HTyp.consistent ty ty' then 
+            Some (zp, ctx, u_gen)
+          else 
+            let (zp, u_gen) := ZPat.put_in_new_hole u_gen zp in
+            Some (zp, ctx, u_gen)
+        end
+      end
+      end.
+      
+    Fixpoint perform_syn 
         (fuel: Fuel.t) 
         (ctx: Contexts.t) 
         (a: t) 
@@ -4795,14 +5138,14 @@ Module FCore(Debug : DEBUG).
       | (MoveToPrevHole, _) =>
         match Path.prev_hole_path fuel ze with
         | None => None
-        | Some path => performSyn fuel ctx (MoveTo path) ze_ty
+        | Some path => perform_syn fuel ctx (MoveTo path) ze_ty
         end
       | (MoveToNextHole, _) =>
         match Path.next_hole_path fuel ze with
         | None => None
         | Some path =>
           (* let path := Helper.log_path path in *)
-          performSyn fuel ctx (MoveTo path) ze_ty
+          perform_syn fuel ctx (MoveTo path) ze_ty
         end
       (* Backspace & Deletion *)
       | (Backspace, ZExp.CursorE After e) => 
@@ -4844,63 +5187,49 @@ Module FCore(Debug : DEBUG).
         | None => None
         end
       | (Backspace, ZExp.Deeper _ 
-          (ZExp.LetZV x After _ _ _)) 
-      | (Backspace, ZExp.Deeper _ 
-          (ZExp.LetZV x (In _) _ _ _)) 
-      | (Delete, ZExp.Deeper _ 
-          (ZExp.LetZV x Before _ _ _)) 
-      | (Delete, ZExp.Deeper _ 
-          (ZExp.LetZV x (In _) _ _ _)) 
-      | (Backspace, ZExp.Deeper _ 
-          (ZExp.LamZV x After _ _)) 
-      | (Backspace, ZExp.Deeper _ 
-          (ZExp.LamZV x (In _) _ _)) 
-      | (Delete, ZExp.Deeper _ 
-          (ZExp.LamZV x Before _ _)) 
-      | (Delete, ZExp.Deeper _ 
-          (ZExp.LamZV x (In _) _ _)) => 
-        match Var.is_empty x with 
-        | true => None
-        | false => 
-          performSyn fuel ctx (Construct (SVar Var.empty_binder Before)) (ze, ty, u_gen)
-        end
-      | (Backspace, ZExp.Deeper _ 
-          (ZExp.LetZA x (ZTyp.CursorT Before _) e1 e2))
+          (ZExp.LetZA p (ZTyp.CursorT Before _) e1 e2))
       | (Backspace, ZExp.Deeper _
-          (ZExp.LetZA x  
+          (ZExp.LetZA p  
             (ZTyp.OpSeqZ _
               (ZTyp.CursorT Before _)
               (OperatorSeq.EmptyPrefix _)) e1 e2)) 
       | (Delete, ZExp.Deeper _
-          (ZExp.LetZV x After (Some _) e1 e2)) => 
+          (ZExp.LetZP (ZPat.CursorP After p) (Some _) e1 e2)) => 
         match UHExp.syn_fix_holes fuel ctx u_gen e1 with 
         | None => None
         | Some (e1, ty1, u_gen) => 
-          let ctx := Contexts.extend_gamma ctx (x, ty1) in 
-          match UHExp.syn_fix_holes fuel ctx u_gen e2 with 
+          match UHExp.ana_pat_fix_holes fuel ctx u_gen false p ty1 with 
           | None => None
-          | Some (e2, ty, u_gen) => 
-            let ze := 
-              ZExp.Deeper NotInHole
-                (ZExp.LetZV x After None e1 e2) in 
-            Some (ze, ty, u_gen)
+          | Some (p, ctx, u_gen) => 
+            match UHExp.syn_fix_holes fuel ctx u_gen e2 with 
+            | None => None
+            | Some (e2, ty, u_gen) => 
+              let ze := 
+                ZExp.Deeper NotInHole
+                  (ZExp.LetZP (ZPat.CursorP After p) None e1 e2) in 
+              Some (ze, ty, u_gen)
+            end
           end
         end
       | (Backspace, ZExp.Deeper _ 
-          (ZExp.LamZA x (ZTyp.CursorT Before _) e1))
+          (ZExp.LamZA p (ZTyp.CursorT Before _) e1))
       | (Backspace, ZExp.Deeper _
-          (ZExp.LamZA x 
+          (ZExp.LamZA p 
             (ZTyp.OpSeqZ _
               (ZTyp.CursorT Before _)
               (OperatorSeq.EmptyPrefix _)) e1)) 
       | (Delete, ZExp.Deeper _
-          (ZExp.LamZV x After (Some _) e1)) => 
-        let ctx := Contexts.extend_gamma ctx (x, HTyp.Hole) in 
-        match UHExp.syn_fix_holes fuel ctx u_gen e1 with 
+          (ZExp.LamZP (ZPat.CursorP After p) (Some _) e1)) => 
+        match UHExp.ana_pat_fix_holes fuel ctx u_gen false p HTyp.Hole with 
         | None => None
-        | Some (e1, ty2, u_gen) => 
-          let ze := ZExp.Deeper NotInHole (ZExp.LamZV x After None e1) in 
-          Some (ze, HTyp.Arrow HTyp.Hole ty2, u_gen)
+        | Some (p, ctx, u_gen) => 
+          match UHExp.syn_fix_holes fuel ctx u_gen e1 with 
+          | None => None
+          | Some (e1, ty2, u_gen) => 
+            let ze := ZExp.Deeper NotInHole 
+              (ZExp.LamZP (ZPat.CursorP After p) None e1) in 
+            Some (ze, HTyp.Arrow HTyp.Hole ty2, u_gen)
+          end
         end
       | (Backspace, ZExp.Deeper _
           (ZExp.OpSeqZ _
@@ -5170,33 +5499,28 @@ Module FCore(Debug : DEBUG).
             (ZExp.AscZ2 e' (ZTyp.CursorT Before UHTyp.Hole)), 
           ty, 
           u_gen)
-      | (Construct SAsc, ZExp.Deeper err_status (ZExp.LetZV x _ None e1 e2)) => 
+      | (Construct SAsc, ZExp.Deeper err_status (ZExp.LetZP zp None e1 e2)) => 
         match UHExp.syn fuel ctx e1 with 
         | None => None
         | Some ty1 => 
-          let ctx1 := UHExp.ctx_for_let ctx x ty1 e1 in 
-          match UHExp.ana_fix_holes fuel ctx1 u_gen e1 ty1 with 
-          | None => None
-          | Some (e1, u_gen) => 
-            let uty1 := UHTyp.contract ty1 in 
-            let ze := ZExp.Deeper err_status 
-              (ZExp.LetZA x (ZTyp.CursorT Before uty1) e1 e2) in 
-            Some (ze, ty, u_gen)
-          end
+          let uty1 := UHTyp.contract ty1 in 
+          let ze := ZExp.Deeper err_status 
+            (ZExp.LetZA (ZPat.erase zp) (ZTyp.CursorT Before uty1) e1 e2) in 
+          Some (ze, ty, u_gen)
         end
-      | (Construct SAsc, ZExp.Deeper err_status (ZExp.LamZV x _ None e1)) => 
+      | (Construct SAsc, ZExp.Deeper err_status (ZExp.LamZP zp None e1)) => 
         let ze := ZExp.Deeper err_status 
-          (ZExp.LamZA x (ZTyp.CursorT Before UHTyp.Hole) e1) in 
+          (ZExp.LamZA (ZPat.erase zp) (ZTyp.CursorT Before UHTyp.Hole) e1) in 
         Some (ze, ty, u_gen)
-      | (Construct SAsc, ZExp.Deeper err_status (ZExp.LetZV x _ (Some uty1) e1 e2)) => 
+      | (Construct SAsc, ZExp.Deeper err_status (ZExp.LetZP zp (Some uty1) e1 e2)) => 
         (* just move the cursor over if there is already an ascription *)
         let ze := ZExp.Deeper err_status
-          (ZExp.LetZA x (ZTyp.CursorT Before uty1) e1 e2) in 
+          (ZExp.LetZA (ZPat.erase zp) (ZTyp.place_Before uty1) e1 e2) in 
         Some (ze, ty, u_gen)
-      | (Construct SAsc, ZExp.Deeper err_status (ZExp.LamZV x _ (Some uty1) e1)) => 
+      | (Construct SAsc, ZExp.Deeper err_status (ZExp.LamZP zp (Some uty1) e1)) => 
         (* just move the cursor over if there is already an ascription *)
         let ze := ZExp.Deeper err_status
-          (ZExp.LamZA x (ZTyp.CursorT Before uty1) e1) in 
+          (ZExp.LamZA (ZPat.erase zp) (ZTyp.place_Before uty1) e1) in 
         Some (ze, ty, u_gen)
       | (Construct (SVar x side), ZExp.CursorE _ (UHExp.Tm _ (UHExp.EmptyHole _))) 
       | (Construct (SVar x side), ZExp.CursorE _ (UHExp.Tm _ (UHExp.Var _ _)))
@@ -5213,62 +5537,17 @@ Module FCore(Debug : DEBUG).
             (UHExp.Tm NotInHole (UHExp.Var (InVHole u) x)),
             HTyp.Hole, u_gen)
         end)
-      | (Construct (SVar x side), ZExp.Deeper _ (ZExp.LetZV _ _ ann e1 e2)) => 
-        Var.check_valid_binder x
-        match ann with 
-        | Some uty1 => 
-          let ty1 := UHTyp.expand fuel uty1 in 
-          let ctx1 := UHExp.ctx_for_let ctx x ty1 e1 in 
-          match UHExp.ana_fix_holes fuel ctx1 u_gen e1 ty1 with 
-          | None => None
-          | Some (e1, u_gen) => 
-            let ctx2 := Contexts.extend_gamma ctx (x, ty1) in 
-            match UHExp.syn_fix_holes fuel ctx2 u_gen e2 with 
-            | None => None
-            | Some (e2, ty, u_gen) => 
-              let ze := ZExp.Deeper NotInHole (ZExp.LetZV x side ann e1 e2) in 
-              Some (ze, ty, u_gen)
-            end
-          end
-        | None => 
-          match UHExp.syn fuel ctx e1 with 
-          | None => None
-          | Some ty1 => 
-            let ctx2 := Contexts.extend_gamma ctx (x, ty1) in 
-            match UHExp.syn_fix_holes fuel ctx2 u_gen e2 with 
-            | None => None
-            | Some(e2, ty, u_gen) => 
-              let ze := ZExp.Deeper NotInHole (ZExp.LetZV x side ann e1 e2) in 
-              Some (ze, ty, u_gen)
-            end
-          end
-        end
-      | (Construct (SVar x side), ZExp.Deeper _ (ZExp.LamZV _ _ ann e1)) => 
-        Var.check_valid_binder x (
-        let ty1 := 
-          match ann with 
-          | Some uty1 => UHTyp.expand fuel uty1
-          | None => HTyp.Hole
-          end in 
-        let ctx := Contexts.extend_gamma ctx (x, ty1) in 
-        match UHExp.syn_fix_holes fuel ctx u_gen e1 with 
-        | None => None
-        | Some(e1, ty2, u_gen) => 
-          let ze := ZExp.Deeper NotInHole (ZExp.LamZV x side ann e1) in 
-          let ty := HTyp.Arrow ty1 ty2 in 
-          Some (ze, ty, u_gen)
-        end)
-      | (Construct SLet, ZExp.CursorE _ e) =>
-        let x := Var.empty_binder in 
-        let (new_hole, u_gen') := UHExp.new_EmptyHole u_gen in 
+      | (Construct SLet, ZExp.CursorE _ e1) =>
+        let (zp, u_gen) := ZPat.new_EmptyHole u_gen in 
+        let (e2, u_gen) := UHExp.new_EmptyHole u_gen in 
         let ze := ZExp.Deeper NotInHole 
-          (ZExp.LetZV x Before None e new_hole) in 
+          (ZExp.LetZP zp None e1 e2) in 
         Some (ze, HTyp.Hole, u_gen)
       | (Construct SLam, ZExp.CursorE _ e1) =>
-        let x := Var.empty_binder in 
+        let (zp, u_gen) := ZPat.new_EmptyHole u_gen in 
         let ze := 
           ZExp.Deeper NotInHole 
-            (ZExp.LamZV x Before (Some UHTyp.Hole) e1) in 
+            (ZExp.LamZP zp (Some UHTyp.Hole) e1) in 
         let ty' := HTyp.Arrow HTyp.Hole ty in 
         Some (ze, ty', u_gen)
       | (Construct (SLit n side), ZExp.CursorE _ (UHExp.Tm _ (UHExp.EmptyHole _)))
@@ -5281,38 +5560,29 @@ Module FCore(Debug : DEBUG).
             (ZExp.InjZ side ze) in 
         let ty' := 
           match side with 
-          | UHExp.L => HTyp.Sum ty HTyp.Hole
-          | UHExp.R => HTyp.Sum HTyp.Hole ty 
+          | L => HTyp.Sum ty HTyp.Hole
+          | R => HTyp.Sum HTyp.Hole ty 
           end in 
         Some (ze', ty', u_gen)
-      | (Construct SCase, (ZExp.CursorE _ e)) =>
-        let x := Var.empty_binder in 
-        match HTyp.matched_sum ty with
-        | Some _ => 
-          let (new_hole1, u_gen) := UHExp.new_EmptyHole u_gen in 
-          let (new_hole2, u_gen) := UHExp.new_EmptyHole u_gen in 
-          let caseze := match e with 
-          | UHExp.Tm _ (UHExp.EmptyHole _) => 
-            ZExp.Deeper NotInHole (ZExp.CaseZ1 ze (x, new_hole1) (x, new_hole2))
-          | _ => 
-            ZExp.Deeper NotInHole (ZExp.CaseZV1 e (x, Before, new_hole1) (x, new_hole2))
-          end in 
-          let ze := ZExp.Deeper NotInHole (
-            ZExp.AscZ1 
-              (ZExp.ParenthesizedZ caseze) 
-              (UHTyp.Hole)) in 
-          Some (ze, HTyp.Hole, u_gen)
-        | None => 
-          let (ze', u_gen) := ZExp.put_in_new_hole u_gen ze in 
-          let (new_hole1, u_gen) := UHExp.new_EmptyHole u_gen in 
-          let (new_hole2, u_gen) := UHExp.new_EmptyHole u_gen in 
-          let caseze := ZExp.Deeper NotInHole (ZExp.CaseZ1 ze' (x, new_hole1) (x, new_hole2)) in 
-          let ze := ZExp.Deeper NotInHole
-            (ZExp.AscZ1
-              (ZExp.ParenthesizedZ caseze)
-              (UHTyp.Hole)) in 
-          Some (ze, HTyp.Hole, u_gen)
-        end
+      | (Construct SCase, (ZExp.CursorE _ e1)) =>
+        match e1 with 
+        | UHExp.Tm _ (UHExp.EmptyHole _) => 
+          let (rule_p, u_gen) := UHPat.new_EmptyHole u_gen in 
+          let (rule_e, u_gen) := UHExp.new_EmptyHole u_gen in  
+          let rule := UHExp.Rule rule_p rule_e in 
+          let rules := cons rule nil in 
+          let caseze := ZExp.Deeper NotInHole (ZExp.CaseZE ze rules) in 
+          let ze := ZExp.Deeper NotInHole (ZExp.AscZ1 caseze (UHTyp.Hole)) in 
+          Some (ze, HTyp.Hole, u_gen) 
+        | _ => 
+          let (zp, u_gen) := ZPat.new_EmptyHole u_gen in 
+          let (rule_e, u_gen) := UHExp.new_EmptyHole u_gen in 
+          let zrule := ZExp.RuleZP zp rule_e in  
+          let zrules := ZList.singleton zrule in 
+          let caseze := ZExp.Deeper NotInHole (ZExp.CaseZR e1 zrules) in 
+          let ze := ZExp.Deeper NotInHole (ZExp.AscZ1 caseze (UHTyp.Hole)) in 
+          Some (ze, HTyp.Hole, u_gen) 
+        end  
       | (Construct (SOp op), ZExp.Deeper _ (
           ZExp.OpSeqZ _ (ZExp.CursorE (In _) e) surround))
       | (Construct (SOp op), ZExp.Deeper _ (
@@ -5587,7 +5857,7 @@ Module FCore(Debug : DEBUG).
         end
       (* Zipper Cases *)
       | (_, ZExp.ParenthesizedZ ze1) => 
-        match performSyn fuel ctx a (ze1, ty, u_gen) with 
+        match perform_syn fuel ctx a (ze1, ty, u_gen) with 
         | Some (ze1', ty', u_gen') => 
           Some (
             ZExp.ParenthesizedZ ze1',
@@ -5597,7 +5867,7 @@ Module FCore(Debug : DEBUG).
         end
       | (_, ZExp.Deeper _ (ZExp.AscZ1 ze uty1)) =>
         let ty1 := UHTyp.expand fuel uty1 in 
-        match performAna fuel u_gen ctx a ze ty1 with 
+        match perform_ana fuel u_gen ctx a ze ty1 with 
         | Some (ze', u_gen') => 
           let ze'' := ZExp.bidelimit ze' in 
           Some (
@@ -5607,7 +5877,7 @@ Module FCore(Debug : DEBUG).
         | None => None
         end
       | (_, ZExp.Deeper _ (ZExp.AscZ2 e zty)) =>
-        match performTyp fuel a zty with 
+        match perform_ty fuel a zty with 
         | Some zty' => 
           let uty' := ZTyp.erase zty' in
           let ty' := UHTyp.expand fuel uty' in 
@@ -5622,33 +5892,73 @@ Module FCore(Debug : DEBUG).
         | None => 
           None
         end
-      | (_, ZExp.Deeper _ (ZExp.LetZA x zann e1 e2)) => 
-        match performTyp fuel a zann with 
+      | (_, ZExp.Deeper _ (ZExp.LetZP zp ann e1 e2)) => 
+        match ann with 
+        | Some uty1 => 
+          let ty1 := UHTyp.expand fuel uty1 in 
+          match perform_ana_pat fuel ctx u_gen a zp ty1 with 
+          | None => None
+          | Some (zp, ctx2, u_gen) => 
+            let p := ZPat.erase zp in 
+            let ctx1 := UHExp.ctx_for_let ctx p ty1 e1 in 
+            match UHExp.ana_fix_holes fuel ctx1 u_gen e1 ty1 with 
+            | None => None
+            | Some (e1, u_gen) => 
+              match UHExp.syn_fix_holes fuel ctx2 u_gen e2 with 
+              | None => None
+              | Some (e2, ty, u_gen) => 
+                let ze := ZExp.Deeper NotInHole (ZExp.LetZP zp ann e1 e2) in 
+                Some (ze, ty, u_gen)
+              end
+            end
+          end
+        | None => 
+          match UHExp.syn fuel ctx e1 with
+          | None => None
+          | Some ty1 => 
+            match perform_ana_pat fuel ctx u_gen a zp ty1 with 
+            | None => None
+            | Some (zp, ctx2, u_gen) => 
+              match UHExp.syn_fix_holes fuel ctx2 u_gen e2 with 
+              | None => None
+              | Some (e2, ty, u_gen) => 
+                let ze := ZExp.Deeper NotInHole (ZExp.LetZP zp ann e1 e2) in 
+                Some (ze, ty, u_gen)
+              end
+            end
+          end
+        end 
+      | (_, ZExp.Deeper _ (ZExp.LetZA p zann e1 e2)) => 
+        (* (ctx) let p (ctx2) : ty = (ctx1) e1 in (ctx2) e2 *) 
+        match perform_ty fuel a zann with 
         | None => None
         | Some zann => 
           let ty1 := UHTyp.expand fuel (ZTyp.erase zann) in 
-          let ctx1 := UHExp.ctx_for_let ctx x ty1 e1 in 
-          match UHExp.ana_fix_holes fuel ctx1 u_gen e1 ty1 with 
+          match UHExp.ana_pat_fix_holes fuel ctx u_gen false p ty1 with 
           | None => None
-          | Some (e1, u_gen) => 
-            let ctx2 := Contexts.extend_gamma ctx (x, ty1) in 
-            match UHExp.syn_fix_holes fuel ctx2 u_gen e2 with 
+          | Some (p, ctx2, u_gen) => 
+            let ctx1 := UHExp.ctx_for_let ctx p ty1 e1 in 
+            match UHExp.ana_fix_holes fuel ctx1 u_gen e1 ty1 with 
             | None => None
-            | Some (e2, ty, u_gen) => 
-              let ze := ZExp.Deeper NotInHole (ZExp.LetZA x zann e1 e2) in 
-              Some (ze, ty, u_gen)
+            | Some (e1, u_gen) => 
+              match UHExp.syn_fix_holes fuel ctx2 u_gen e2 with 
+              | None => None
+              | Some (e2, ty, u_gen) => 
+                let ze := ZExp.Deeper NotInHole (ZExp.LetZA p zann e1 e2) in 
+                Some (ze, ty, u_gen)
+              end
             end
           end
         end
-      | (_, ZExp.Deeper _ (ZExp.LetZE1 x ann ze1 e2)) =>
+      | (_, ZExp.Deeper _ (ZExp.LetZE1 p ann ze1 e2)) =>
         match ann with 
         | Some ann_ty => 
           let ty1 := UHTyp.expand fuel ann_ty in 
-          let ctx1 := UHExp.ctx_for_let ctx x ty1 (ZExp.erase ze1) in  
-          match performAna fuel u_gen ctx1 a ze1 ty1 with 
+          let ctx1 := UHExp.ctx_for_let ctx p ty1 (ZExp.erase ze1) in  
+          match perform_ana fuel u_gen ctx1 a ze1 ty1 with 
           | None => None
           | Some (ze1, u_gen) => 
-            let ze := ZExp.Deeper NotInHole (ZExp.LetZE1 x ann ze1 e2) in 
+            let ze := ZExp.Deeper NotInHole (ZExp.LetZE1 p ann ze1 e2) in 
             Some (ze, ty, u_gen)
           end
         | None => 
@@ -5656,20 +5966,23 @@ Module FCore(Debug : DEBUG).
           match UHExp.syn fuel ctx e1 with 
           | None => None
           | Some ty1 => 
-            match performSyn fuel ctx a (ze1, ty1, u_gen) with
+            match perform_syn fuel ctx a (ze1, ty1, u_gen) with
             | None => None
             | Some (ze1, ty1, u_gen) => 
-              let ctx := Contexts.extend_gamma ctx (x, ty1) in
-              match UHExp.syn_fix_holes fuel ctx u_gen e2 with 
+              match UHExp.ana_pat_fix_holes fuel ctx u_gen false p ty1 with 
               | None => None
-              | Some (e2, ty, u_gen) => 
-                let ze := ZExp.Deeper NotInHole (ZExp.LetZE1 x ann ze1 e2) in 
-                Some (ze, ty, u_gen)
+              | Some (p, ctx2, u_gen) => 
+                match UHExp.syn_fix_holes fuel ctx2 u_gen e2 with 
+                | None => None
+                | Some (e2, ty, u_gen) => 
+                  let ze := ZExp.Deeper NotInHole (ZExp.LetZE1 p ann ze1 e2) in 
+                  Some (ze, ty, u_gen)
+                end
               end
             end
           end
         end
-      | (_, ZExp.Deeper _ (ZExp.LetZE2 x ann e1 ze2)) =>
+      | (_, ZExp.Deeper _ (ZExp.LetZE2 p ann e1 ze2)) =>
         let ty1 := 
           match ann with 
           | Some uty1 => Some (UHTyp.expand fuel uty1) 
@@ -5678,50 +5991,81 @@ Module FCore(Debug : DEBUG).
         match ty1 with 
         | None => None
         | Some ty1 => 
-          let ctx := Contexts.extend_gamma ctx (x, ty1) in
-          match performSyn fuel ctx a (ze2, ty, u_gen) with 
+          match UHExp.ana_pat fuel ctx p ty1 with 
           | None => None
-          | Some (ze2, ty, u_gen) => 
-            let ze := ZExp.Deeper NotInHole (ZExp.LetZE2 x ann e1 ze2) in 
-            Some (ze, ty, u_gen)
+          | Some ctx2 => 
+            match perform_syn fuel ctx2 a (ze2, ty, u_gen) with 
+            | None => None
+            | Some (ze2, ty, u_gen) => 
+              let ze := ZExp.Deeper NotInHole (ZExp.LetZE2 p ann e1 ze2) in 
+              Some (ze, ty, u_gen)
+            end
           end
         end
-      | (_, ZExp.Deeper _ (ZExp.LamZA x zann e1)) => 
-        match performTyp fuel a zann with 
+      | (_, ZExp.Deeper _ (ZExp.LamZP zp ann e1)) => 
+        let ty1 := 
+          match ann with 
+          | Some uty1 => UHTyp.expand fuel uty1
+          | None => HTyp.Hole
+          end in 
+        match perform_ana_pat fuel ctx u_gen a zp ty1 with 
         | None => None
-        | Some zann => 
-          let ty1 := UHTyp.expand fuel (ZTyp.erase zann) in 
-          let ctx := Contexts.extend_gamma ctx (x, ty1) in 
+        | Some (zp, ctx, u_gen) => 
           match UHExp.syn_fix_holes fuel ctx u_gen e1 with 
           | None => None
           | Some (e1, ty2, u_gen) => 
-            let ze := ZExp.Deeper NotInHole (ZExp.LamZA x zann e1) in 
-            Some (ze, HTyp.Arrow ty1 ty2, u_gen)
+            let ty := HTyp.Arrow ty1 ty2 in 
+            let ze := ZExp.Deeper NotInHole (ZExp.LamZP zp ann e1) in 
+            Some (ze, ty, u_gen)
           end
         end
-      | (_, ZExp.Deeper _ (ZExp.LamZE x ann ze1)) => 
-        match HTyp.matched_arrow ty with 
+      | (_, ZExp.Deeper _ (ZExp.LamZA p zann e1)) => 
+        match perform_ty fuel a zann with 
         | None => None
-        | Some (ty1, ty2) => 
-          let ctx := Contexts.extend_gamma ctx (x, ty1) in 
-          match performSyn fuel ctx a (ze1, ty2, u_gen) with 
+        | Some zann => 
+          let ty1 := UHTyp.expand fuel (ZTyp.erase zann) in 
+          match UHExp.ana_pat_fix_holes fuel ctx u_gen false p ty1 with 
           | None => None
-          | Some (ze1, ty2, u_gen) => 
-            let ze := ZExp.Deeper NotInHole (ZExp.LamZE x ann ze1) in 
-            Some (ze, HTyp.Arrow ty1 ty2, u_gen)
+          | Some (p, ctx, u_gen) => 
+            match UHExp.syn_fix_holes fuel ctx u_gen e1 with 
+            | None => None
+            | Some (e1, ty2, u_gen) => 
+              let ze := ZExp.Deeper NotInHole (ZExp.LamZA p zann e1) in 
+              Some (ze, HTyp.Arrow ty1 ty2, u_gen)
+            end
+          end
+        end
+      | (_, ZExp.Deeper _ (ZExp.LamZE p ann ze1)) => 
+        match HTyp.matched_arrow ty with 
+        | None => None 
+        | Some (_, ty2) => 
+          let ty1 := 
+            match ann with 
+            | Some uty1 => UHTyp.expand fuel uty1
+            | None => HTyp.Hole
+            end in 
+          match UHExp.ana_pat fuel ctx p ty1 with 
+          | None => None
+          | Some ctx => 
+            match perform_syn fuel ctx a (ze1, ty2, u_gen) with 
+            | None => None
+            | Some (ze1, ty2, u_gen) => 
+              let ze := ZExp.Deeper NotInHole (ZExp.LamZE p ann ze1) in 
+              Some (ze, HTyp.Arrow ty1 ty2, u_gen)
+            end
           end
         end
       | (_, ZExp.Deeper _ (ZExp.InjZ side ze1)) => 
         match ty with 
         | HTyp.Sum ty1 ty2 => 
-          let ty_side := UHExp.pick_side side ty1 ty2 in 
-          match performSyn fuel ctx a (ze1, ty_side, u_gen) with 
+          let ty_side := pick_side side ty1 ty2 in 
+          match perform_syn fuel ctx a (ze1, ty_side, u_gen) with 
           | None => None
           | Some (ze1', ty_side', u_gen') => 
             let ty' := 
               match side with 
-              | UHExp.L => HTyp.Sum ty_side' ty2
-              | UHExp.R => HTyp.Sum ty1 ty_side'
+              | L => HTyp.Sum ty_side' ty2
+              | R => HTyp.Sum ty1 ty_side'
               end in 
             Some (
               ZExp.Deeper NotInHole (ZExp.InjZ side ze1'),
@@ -5738,7 +6082,7 @@ Module FCore(Debug : DEBUG).
           | Some (ty, Some mode) =>
               match mode with 
               | UHExp.AnalyzedAgainst ty0 => 
-                match performAna fuel u_gen ctx a ze0 ty0 with 
+                match perform_ana fuel u_gen ctx a ze0 ty0 with 
                 | Some (ze0', u_gen') => 
                   let ze0'' := ZExp.bidelimit ze0' in  
                   Some (
@@ -5747,7 +6091,7 @@ Module FCore(Debug : DEBUG).
                 | None => None
                 end
               | UHExp.Synthesized ty0 =>
-                match performSyn fuel ctx a (ze0, ty0, u_gen) with 
+                match perform_syn fuel ctx a (ze0, ty0, u_gen) with 
                 | Some (ze0', ty0', u_gen') => 
                   let ze0'' := ZExp.bidelimit ze0' in 
                   match make_and_syn_OpSeqZ fuel ctx u_gen' ze0'' surround with
@@ -5768,7 +6112,7 @@ Module FCore(Debug : DEBUG).
         let (rest_map, z_data) := z_nat_map in 
         let (cell_lbl, cell_data) := z_data in
         let (cell_ty, cell_ze) := cell_data in 
-        match performAna fuel u_gen ctx a cell_ze cell_ty with 
+        match perform_ana fuel u_gen ctx a cell_ze cell_ty with 
         | None => None
         | Some(cell_ze', u_gen') => 
             let z_hole_data' := (next_lbl, (rest_map, (cell_lbl, (cell_ty, cell_ze')))) in 
@@ -5781,7 +6125,7 @@ Module FCore(Debug : DEBUG).
       end
       end
       end
-    with performAna 
+    with perform_ana 
       (fuel: Fuel.t) 
       (u_gen : MetaVarGen.t) 
       (ctx: Contexts.t) 
@@ -5798,7 +6142,7 @@ Module FCore(Debug : DEBUG).
         let e' := ZExp.erase ze' in 
         match UHExp.syn fuel ctx e' with
         | Some ty1 => 
-          match performSyn fuel ctx a (ze', ty1, u_gen) with 
+          match perform_syn fuel ctx a (ze', ty1, u_gen) with 
           | Some (ze', ty1', u_gen') => 
             if HTyp.consistent ty1' ty then 
               Some (ze', u_gen')
@@ -5816,16 +6160,16 @@ Module FCore(Debug : DEBUG).
         | None => None
         end
       | (MoveToPrevHole, _) =>
-        match prev_hole_path fuel ze with
+        match Path.prev_hole_path fuel ze with
         | None => None
-        | Some path => performAna fuel u_gen ctx (MoveTo path) ze ty
+        | Some path => perform_ana fuel u_gen ctx (MoveTo path) ze ty
         end
       | (MoveToNextHole, _) =>
-        match next_hole_path fuel ze with
+        match Path.next_hole_path fuel ze with
         | None => None
         | Some path =>
           (* [debug] let path := Helper.log_path path in *)
-          performAna fuel u_gen ctx (MoveTo path) ze ty
+          perform_ana fuel u_gen ctx (MoveTo path) ze ty
         end
       (* Backspace & Delete *)
       | (Backspace, ZExp.CursorE After e) => 
@@ -5833,22 +6177,22 @@ Module FCore(Debug : DEBUG).
         | UHExp.Tm _ (UHExp.EmptyHole _) => 
           Some (ZExp.CursorE Before e, u_gen)
         | _ => 
-          let (e', u_gen') := UHExp.new_EmptyHole u_gen in 
-          Some (ZExp.CursorE Before e', u_gen')
+          let (e', u_gen) := UHExp.new_EmptyHole u_gen in 
+          Some (ZExp.CursorE Before e', u_gen)
         end
       | (Delete, ZExp.CursorE Before e) => 
         match e with 
         | UHExp.Tm _ (UHExp.EmptyHole _) => 
           Some (ZExp.CursorE After e, u_gen)
         | _ => 
-          let (e', u_gen') := UHExp.new_EmptyHole u_gen in 
+          let (e', u_gen) := UHExp.new_EmptyHole u_gen in 
           Some (ZExp.CursorE Before e', u_gen)
         end
       | (Backspace, ZExp.CursorE (In _) e)
       | (Delete, ZExp.CursorE (In _) e) => 
-        let (e', u_gen') := UHExp.new_EmptyHole u_gen in 
+        let (e', u_gen) := UHExp.new_EmptyHole u_gen in 
         let ze' := ZExp.CursorE Before e' in 
-        Some (ze', u_gen')
+        Some (ze', u_gen)
       | (Backspace, 
           ZExp.Deeper _ (ZExp.AscZ2 e1 
             (ZTyp.CursorT Before uty1))) => 
@@ -5872,83 +6216,87 @@ Module FCore(Debug : DEBUG).
         | None => None
         end
       | (Backspace, ZExp.Deeper _ 
-          (ZExp.LetZV x After _ _ _)) 
-      | (Backspace, ZExp.Deeper _ 
-          (ZExp.LetZV x (In _) _ _ _)) 
-      | (Delete, ZExp.Deeper _ 
-          (ZExp.LetZV x Before _ _ _)) 
-      | (Delete, ZExp.Deeper _ 
-          (ZExp.LetZV x (In _) _ _ _)) 
-      | (Backspace, ZExp.Deeper _ 
-          (ZExp.LamZV x After _ _)) 
-      | (Backspace, ZExp.Deeper _ 
-          (ZExp.LamZV x (In _) _ _)) 
-      | (Delete, ZExp.Deeper _ 
-          (ZExp.LamZV x Before _ _)) 
-      | (Delete, ZExp.Deeper _ 
-          (ZExp.LamZV x (In _) _ _)) 
-      | (Backspace, ZExp.Deeper _ 
-          (ZExp.CaseZV1 _ (x, After, _) _)) 
-      | (Backspace, ZExp.Deeper _ 
-          (ZExp.CaseZV1 _ (x, (In _), _) _)) 
-      | (Delete, ZExp.Deeper _ 
-          (ZExp.CaseZV1 _ (x, Before, _) _)) 
-      | (Delete, ZExp.Deeper _ 
-          (ZExp.CaseZV1 _ (x, (In _), _) _)) 
-      | (Backspace, ZExp.Deeper _ 
-          (ZExp.CaseZV2 _ _ (x, After, _))) 
-      | (Backspace, ZExp.Deeper _ 
-          (ZExp.CaseZV2 _ _ (x, (In _), _))) 
-      | (Delete, ZExp.Deeper _ 
-          (ZExp.CaseZV2 _ _ (x, Before, _)))  
-      | (Delete, ZExp.Deeper _ 
-          (ZExp.CaseZV2 _ _ (x, (In _), _))) =>  
-        match Var.is_empty x with 
-        | true => None
-        | false => 
-          performAna fuel u_gen ctx (Construct (SVar Var.empty_binder Before)) ze ty
-        end
-      | (Backspace, ZExp.Deeper _ 
-          (ZExp.LetZA x (ZTyp.CursorT Before _) e1 e2))
+          (ZExp.LetZA p (ZTyp.CursorT Before _) e1 e2))
       | (Backspace, ZExp.Deeper _
-          (ZExp.LetZA x  
+          (ZExp.LetZA p  
             (ZTyp.OpSeqZ _
               (ZTyp.CursorT Before _)
               (OperatorSeq.EmptyPrefix _)) e1 e2)) 
       | (Delete, ZExp.Deeper _
-          (ZExp.LetZV x After (Some _) e1 e2)) => 
+          (ZExp.LetZP (ZPat.CursorP After p) (Some _) e1 e2)) => 
         match UHExp.syn_fix_holes fuel ctx u_gen e1 with 
         | None => None
         | Some (e1, ty1, u_gen) => 
-          let ctx := Contexts.extend_gamma ctx (x, ty1) in 
-          match UHExp.ana_fix_holes fuel ctx u_gen e2 ty with 
+          match UHExp.ana_pat_fix_holes fuel ctx u_gen false p ty1 with 
           | None => None
-          | Some (e2, u_gen) => 
-            let ze := 
-              ZExp.Deeper NotInHole
-                (ZExp.LetZV x After None e1 e2) in 
-            Some (ze, u_gen)
+          | Some (p, ctx, u_gen) => 
+            match UHExp.ana_fix_holes fuel ctx u_gen e2 ty with 
+            | None => None
+            | Some (e2, u_gen) => 
+              let ze := 
+                ZExp.Deeper NotInHole
+                  (ZExp.LetZP (ZPat.CursorP After p) None e1 e2) in 
+              Some (ze, u_gen)
+            end
           end
         end
       | (Backspace, ZExp.Deeper _ 
-          (ZExp.LamZA x (ZTyp.CursorT Before _) e1))
+          (ZExp.LamZA p (ZTyp.CursorT Before _) e1))
       | (Backspace, ZExp.Deeper _
-          (ZExp.LamZA x 
+          (ZExp.LamZA p 
             (ZTyp.OpSeqZ _
               (ZTyp.CursorT Before _)
               (OperatorSeq.EmptyPrefix _)) e1)) 
       | (Delete, ZExp.Deeper _
-          (ZExp.LamZV x After (Some _) e1)) => 
+          (ZExp.LamZP (ZPat.CursorP After p) (Some _) e1)) => 
         match HTyp.matched_arrow ty with
         | None => None
         | Some (ty1, ty2) => 
-          let ctx := Contexts.extend_gamma ctx (x, ty1) in 
-          match UHExp.ana_fix_holes fuel ctx u_gen e1 ty2 with 
+          match UHExp.ana_pat_fix_holes fuel ctx u_gen false p ty1 with 
           | None => None
-          | Some (e1, u_gen) => 
-            let ze := ZExp.Deeper NotInHole (ZExp.LamZV x After None e1) in 
+          | Some (p, ctx, u_gen) => 
+            match UHExp.ana_fix_holes fuel ctx u_gen e1 ty2 with 
+            | None => None
+            | Some (e1, u_gen) => 
+              let zp := ZPat.place_After p in 
+              let ze := ZExp.Deeper NotInHole (ZExp.LamZP zp None e1) in 
+              Some (ze, u_gen)
+            end
+          end
+        end
+      | (Backspace, 
+          ZExp.Deeper _ 
+            (ZExp.CaseZR e1 
+              (prefix, 
+                ZExp.RuleZE p 
+                  ((ZExp.CursorE After _) as rze),
+              suffix))) => 
+        match suffix with 
+        | nil => 
+          match List.rev prefix with 
+          | nil => 
+            let (zrule, u_gen) := ZExp.empty_zrule u_gen in  
+            let zrules := ZList.singleton zrule in 
+            let ze := 
+              ZExp.Deeper NotInHole
+                (ZExp.CaseZR e1 zrules) in 
+            Some (ze, u_gen)
+          | cons (UHExp.Rule p e) tl => 
+            let zrule := ZExp.RuleZP (ZPat.place_Before p) e in 
+            let rules := List.rev tl in 
+            let zrules := (rules, zrule, suffix) in 
+            let ze := 
+              ZExp.Deeper NotInHole
+                (ZExp.CaseZR e1 zrules) in 
             Some (ze, u_gen)
           end
+        | cons (UHExp.Rule p e) suffix => 
+          let zrule := ZExp.RuleZP (ZPat.place_Before p) e in 
+          let zrules := (prefix, zrule, suffix) in 
+          let ze := 
+            ZExp.Deeper NotInHole
+              (ZExp.CaseZR e1 zrules) in 
+          Some (ze, u_gen)
         end
       (* special cases for backspace/delete that can turn 
        * an opseq back into a single expression *)
@@ -6019,183 +6367,203 @@ Module FCore(Debug : DEBUG).
         Some (
           ZExp.ParenthesizedZ ze, 
           u_gen)
-      | (Construct (SVar x side), ZExp.Deeper _ (ZExp.LetZV _ _ ann e1 e2)) => 
-        Var.check_valid_binder x
-        match ann with 
-        | Some uty1 => 
-          let ty1 := UHTyp.expand fuel uty1 in 
-          let ctx1 := UHExp.ctx_for_let ctx x ty1 e1 in 
-          match UHExp.ana_fix_holes fuel ctx1 u_gen e1 ty1 with 
-          | None => None
-          | Some (e1, u_gen) => 
-            let ctx2 := Contexts.extend_gamma ctx (x, ty1) in 
-            match UHExp.ana_fix_holes fuel ctx2 u_gen e2 ty with 
-            | None => None
-            | Some (e2, u_gen) => 
-              let ze := ZExp.Deeper NotInHole (ZExp.LetZV x side ann e1 e2) in 
-              Some (ze, u_gen)
-            end
-          end
+      | (Construct SLet, ZExp.CursorE _ e1) => 
+        match UHExp.syn_fix_holes fuel ctx u_gen e1 with 
+        | Some (e1, ty1, u_gen) => 
+          let (zp, u_gen) := ZPat.new_EmptyHole u_gen in 
+          let (e2, u_gen) := UHExp.new_EmptyHole u_gen in 
+          let ze := ZExp.Deeper NotInHole 
+            (ZExp.LetZP zp None e1 e2) in 
+          Some (ze, u_gen)
         | None => 
-          match UHExp.syn fuel ctx e1 with 
-          | None => None
-          | Some ty1 => 
-            let ctx2 := Contexts.extend_gamma ctx (x, ty1) in 
-            match UHExp.ana_fix_holes fuel ctx2 u_gen e2 ty with 
-            | None => None
-            | Some(e2, u_gen) => 
-              let ze := ZExp.Deeper NotInHole (ZExp.LetZV x side ann e1 e2) in 
-              Some (ze, u_gen)
-            end
-          end
-        end
-      | (Construct (SVar x side), ZExp.Deeper _ (ZExp.LamZV _ _ ann e1)) => 
-        Var.check_valid_binder x 
-        match HTyp.matched_arrow ty with 
-        | None => None
-        | Some (ty1_given, ty2) => 
-          let ty1 :=
-            match ann with
-            | Some uty1 => UHTyp.expand fuel uty1
-            | None => ty1_given
-            end in 
-          let ctx := Contexts.extend_gamma ctx (x, ty1) in 
-          match UHExp.ana_fix_holes fuel ctx u_gen e1 ty2 with 
-          | None => None
-          | Some(e1, u_gen) => 
-            let ze := ZExp.Deeper NotInHole (ZExp.LamZV x side ann e1) in 
-            Some (ze, u_gen)
-          end
-        end
-      | (Construct (SVar x side), ZExp.Deeper _ (ZExp.CaseZV1 e1 (_, _, e2) branch2)) => 
-        Var.check_valid_binder x 
-        match UHExp.syn fuel ctx e1 with 
-        | None => None
-        | Some ty1 => 
-          match HTyp.matched_sum ty1 with 
-          | None => None
-          | Some (tyL, tyR) => 
-            let ctxL := Contexts.extend_gamma ctx (x, tyL) in 
-            match UHExp.ana_fix_holes fuel ctxL u_gen e2 ty with 
-            | None => None
-            | Some (e2', u_gen) => 
-              let ze := ZExp.Deeper NotInHole (ZExp.CaseZV1 e1 (x, side, e2') branch2) in 
-              Some (ze, u_gen)
-            end
-          end
-        end
-      | (Construct (SVar x side), ZExp.Deeper _ (ZExp.CaseZV2 e1 branch1 (_, _, e3))) => 
-        Var.check_valid_binder x 
-        match UHExp.syn fuel ctx e1 with 
-        | None => None
-        | Some ty1 => 
-          match HTyp.matched_sum ty1 with 
-          | None => None
-          | Some (tyL, tyR) => 
-            let ctxR := Contexts.extend_gamma ctx (x, tyR) in 
-            match UHExp.ana_fix_holes fuel ctxR u_gen e3 ty with 
-            | None => None
-            | Some (e3', u_gen) => 
-              let ze := ZExp.Deeper NotInHole (ZExp.CaseZV2 e1 branch1 (x, side, e3')) in 
-              Some (ze, u_gen)
-            end
-          end
-        end
-      | (Construct SLet, ZExp.CursorE _ e) => 
-        let x := Var.empty_binder in 
-        match UHExp.syn fuel ctx e with 
-        | None => None
-        | Some _ => 
-          let (new_hole, u_gen) := UHExp.new_EmptyHole u_gen in
-          let ze := ZExp.Deeper NotInHole (ZExp.LetZV x Before None e new_hole) in 
+          let (zp, u_gen) := ZPat.new_EmptyHole u_gen in 
+          let (e2, u_gen) := UHExp.new_EmptyHole u_gen in 
+          let ann := Some (UHTyp.contract ty) in 
+          let ze := ZExp.Deeper NotInHole 
+            (ZExp.LetZP zp ann e1 e2) in 
           Some (ze, u_gen)
         end
       | (Construct SLam, ZExp.CursorE _ e) => 
-        let x := Var.empty_binder in 
         match HTyp.matched_arrow ty with 
         | Some (_, ty2) => 
           match UHExp.ana_fix_holes fuel ctx u_gen e ty2 with 
           | None => None
-          | Some (e', u_gen) => 
-            let ze := ZExp.Deeper NotInHole (ZExp.LamZV x Before None e') in 
+          | Some (e, u_gen) => 
+            let (zp, u_gen) := ZPat.new_EmptyHole u_gen in 
+            let ze := ZExp.Deeper NotInHole (ZExp.LamZP zp None e) in 
             Some (ze, u_gen)
           end
         | None => 
-          match UHExp.syn fuel ctx e with 
+          match UHExp.syn_fix_holes fuel ctx u_gen e with 
           | None => None
-          | Some _ => 
+          | Some (e, _, u_gen) => 
+            let (zp, u_gen) := ZPat.new_EmptyHole u_gen in 
             let (u, u_gen) := MetaVarGen.next u_gen in 
-            let ze := ZExp.Deeper (InHole u) (ZExp.LamZV x Before None e) in 
+            let ze := ZExp.Deeper (InHole u) (ZExp.LamZP zp None e) in 
             Some (ze, u_gen)
           end
         end
-      | (Construct SCase, ZExp.CursorE _ e) => 
-        match UHExp.syn fuel ctx e with 
-        | None => None
-        | Some ty => 
-          let x := Var.empty_binder in 
-          match HTyp.matched_sum ty with 
-          | Some (tyL, tyR) => 
-            let (new_hole1, u_gen) := UHExp.new_EmptyHole u_gen in 
-            let (new_hole2, u_gen) := UHExp.new_EmptyHole u_gen in 
-            match e with 
-            | UHExp.Tm _ (UHExp.EmptyHole _) => 
-              let ze := ZExp.Deeper NotInHole (ZExp.CaseZ1 ze (x, new_hole1) (x, new_hole2)) in 
-              Some (ze, u_gen)
-            | _ => 
-              let ty := HTyp.Sum tyL tyR in 
-              match UHExp.ana_fix_holes fuel ctx u_gen e ty with 
-              | None => None
-              | Some (e, u_gen) => 
-                let ze := 
-                  ZExp.Deeper NotInHole (ZExp.CaseZV1 e (x, Before, new_hole1) (x, new_hole2)) in 
-                Some (ze, u_gen)
-              end
-            end 
-          | None => 
-            let (ze', u_gen) := ZExp.put_in_new_hole u_gen ze in 
-            let (new_hole1, u_gen) := UHExp.new_EmptyHole u_gen in 
-            let (new_hole2, u_gen) := UHExp.new_EmptyHole u_gen in 
-            let ze := ZExp.Deeper NotInHole (ZExp.CaseZ1 ze' (x, new_hole1) (x, new_hole2)) in  
+      | (Construct (SInj side), ZExp.CursorE cursor_side e1) => 
+        match HTyp.matched_sum ty with 
+        | Some (tyL, tyR) => 
+           let ty1 := pick_side side tyL tyR in 
+           match UHExp.ana_fix_holes fuel ctx u_gen e1 ty1 with 
+           | None => None
+           | Some (e1, u_gen) => 
+             let ze := ZExp.Deeper NotInHole 
+               (ZExp.InjZ side (ZExp.CursorE cursor_side e1)) in 
+             Some (ze, u_gen) 
+           end
+        | None => 
+          match UHExp.syn_fix_holes fuel ctx u_gen e1 with 
+          | None => None
+          | Some (e1, _, u_gen) => 
+            let (u, u_gen) := MetaVarGen.next u_gen in 
+            let ze := ZExp.Deeper (InHole u) 
+              (ZExp.InjZ side 
+                (ZExp.CursorE cursor_side e1)) in 
             Some (ze, u_gen)
           end
         end
+      | (Construct SCase, ZExp.CursorE _ e1) => 
+        match e1 with 
+        | UHExp.Tm _ (UHExp.EmptyHole _) => 
+          let (rule, u_gen) := UHExp.empty_rule u_gen in 
+          let rules := cons rule nil in 
+          let ze := ZExp.Deeper NotInHole (ZExp.CaseZE ze rules) in 
+          Some (ze, u_gen) 
+        | _ => 
+          let (zrule, u_gen) := ZExp.empty_zrule u_gen in 
+          let zrules := ZList.singleton zrule in 
+          match UHExp.syn_fix_holes fuel ctx u_gen e1 with 
+          | None => None
+          | Some (e1, _, u_gen) =>  
+            let ze := ZExp.Deeper NotInHole (ZExp.CaseZR e1 zrules) in 
+            Some (ze, u_gen) 
+          end
+        end  
+      | (Construct SRule, 
+          ZExp.Deeper _ 
+            (ZExp.CaseZR e1 
+              (prefix, 
+                ZExp.RuleZP 
+                  (ZPat.CursorP Before p) re,
+              suffix))) => 
+        let (zrule, u_gen) := ZExp.empty_zrule u_gen in 
+        let prev_rule := UHExp.Rule p re in 
+        let suffix := cons prev_rule suffix in 
+        let ze := 
+          ZExp.Deeper NotInHole 
+            (ZExp.CaseZR e1 
+              (prefix, 
+               zrule, 
+               suffix)) in 
+        Some (ze, u_gen)
+      | (Construct SRule, 
+          ZExp.Deeper _ 
+            (ZExp.CaseZR e1 
+              (prefix, 
+                ZExp.RuleZE p 
+                  ((ZExp.CursorE After _) as rze),
+              suffix)))
+      | (Construct SRule, 
+          ZExp.Deeper _ 
+            (ZExp.CaseZR e1 
+              (prefix, 
+                ZExp.RuleZE p 
+                  ((ZExp.Deeper _ (ZExp.OpSeqZ _ 
+                    (ZExp.CursorE After _)
+                    (OperatorSeq.EmptySuffix _))) as rze),
+              suffix))) => 
+        let (zp, u_gen) := ZPat.new_EmptyHole u_gen in 
+        let (rule_e, u_gen) := UHExp.new_EmptyHole u_gen in 
+        let zrule := ZExp.RuleZP zp rule_e in  
+        let re := ZExp.erase rze in 
+        let prev_rule := UHExp.Rule p re in 
+        let prefix := prefix ++ (cons prev_rule nil) in 
+        let ze := 
+          ZExp.Deeper NotInHole
+            (ZExp.CaseZR e1 
+              (prefix, 
+               zrule,
+               suffix)) in 
+        Some (ze, u_gen)
       (* Zipper Cases *)
       | (_, ZExp.ParenthesizedZ ze1) => 
-        match performAna fuel u_gen ctx a ze1 ty with 
+        match perform_ana fuel u_gen ctx a ze1 ty with 
         | Some (ze1', u_gen') => 
           Some (
             ZExp.ParenthesizedZ ze1',
             u_gen')
         | None => None
         end
-      | (_, ZExp.Deeper _ (ZExp.LetZA x zann e1 e2)) => 
-        match performTyp fuel a zann with 
+      | (_, ZExp.Deeper _ (ZExp.LetZP zp ann e1 e2)) => 
+        match ann with 
+        | Some uty1 => 
+          let ty1 := UHTyp.expand fuel uty1 in 
+          match perform_ana_pat fuel ctx u_gen a zp ty1 with 
+          | None => None
+          | Some (zp, ctx2, u_gen) => 
+            let p := ZPat.erase zp in 
+            let ctx1 := UHExp.ctx_for_let ctx p ty1 e1 in 
+            match UHExp.ana_fix_holes fuel ctx1 u_gen e1 ty1 with 
+            | None => None
+            | Some (e1, u_gen) => 
+              match UHExp.ana_fix_holes fuel ctx2 u_gen e2 ty with 
+              | None => None
+              | Some (e2, u_gen) => 
+                let ze := ZExp.Deeper NotInHole (ZExp.LetZP zp ann e1 e2) in 
+                Some (ze, u_gen)
+              end
+            end
+          end
+        | None => 
+          match UHExp.syn fuel ctx e1 with
+          | None => None
+          | Some ty1 => 
+            match perform_ana_pat fuel ctx u_gen a zp ty1 with 
+            | None => None
+            | Some (zp, ctx2, u_gen) => 
+              match UHExp.ana_fix_holes fuel ctx2 u_gen e2 ty with 
+              | None => None
+              | Some (e2, u_gen) => 
+                let ze := ZExp.Deeper NotInHole (ZExp.LetZP zp ann e1 e2) in 
+                Some (ze, u_gen)
+              end
+            end
+          end
+        end 
+      | (_, ZExp.Deeper _ (ZExp.LetZA p zann e1 e2)) => 
+        (* (ctx) let p (ctx2) : ty = (ctx1) e1 in (ctx2) e2 *) 
+        match perform_ty fuel a zann with 
         | None => None
         | Some zann => 
           let ty1 := UHTyp.expand fuel (ZTyp.erase zann) in 
-          let ctx1 := UHExp.ctx_for_let ctx x ty1 e1 in 
-          match UHExp.ana_fix_holes fuel ctx1 u_gen e1 ty1 with 
+          match UHExp.ana_pat_fix_holes fuel ctx u_gen false p ty1 with 
           | None => None
-          | Some (e1, u_gen) => 
-            let ctx2 := Contexts.extend_gamma ctx (x, ty1) in 
-            match UHExp.ana_fix_holes fuel ctx2 u_gen e2 ty with 
+          | Some (p, ctx2, u_gen) => 
+            let ctx1 := UHExp.ctx_for_let ctx p ty1 e1 in 
+            match UHExp.ana_fix_holes fuel ctx1 u_gen e1 ty1 with 
             | None => None
-            | Some (e2, u_gen) => 
-              let ze := ZExp.Deeper NotInHole (ZExp.LetZA x zann e1 e2) in 
-              Some (ze, u_gen)
+            | Some (e1, u_gen) => 
+              match UHExp.ana_fix_holes fuel ctx2 u_gen e2 ty with 
+              | None => None
+              | Some (e2, u_gen) => 
+                let ze := ZExp.Deeper NotInHole (ZExp.LetZA p zann e1 e2) in 
+                Some (ze, u_gen)
+              end
             end
           end
         end
-      | (_, ZExp.Deeper _ (ZExp.LetZE1 x ann ze1 e2)) =>
+      | (_, ZExp.Deeper _ (ZExp.LetZE1 p ann ze1 e2)) =>
         match ann with 
         | Some ann_ty => 
           let ty1 := UHTyp.expand fuel ann_ty in 
-          let ctx1 := UHExp.ctx_for_let ctx x ty1 (ZExp.erase ze1) in  
-          match performAna fuel u_gen ctx1 a ze1 ty1 with 
+          let ctx1 := UHExp.ctx_for_let ctx p ty1 (ZExp.erase ze1) in  
+          match perform_ana fuel u_gen ctx1 a ze1 ty1 with 
           | None => None
           | Some (ze1, u_gen) => 
-            let ze := ZExp.Deeper NotInHole (ZExp.LetZE1 x ann ze1 e2) in 
+            let ze := ZExp.Deeper NotInHole (ZExp.LetZE1 p ann ze1 e2) in 
             Some (ze, u_gen)
           end
         | None => 
@@ -6203,20 +6571,23 @@ Module FCore(Debug : DEBUG).
           match UHExp.syn fuel ctx e1 with 
           | None => None
           | Some ty1 => 
-            match performSyn fuel ctx a (ze1, ty1, u_gen) with
+            match perform_syn fuel ctx a (ze1, ty1, u_gen) with
             | None => None
             | Some (ze1, ty1, u_gen) => 
-              let ctx := Contexts.extend_gamma ctx (x, ty1) in
-              match UHExp.ana_fix_holes fuel ctx u_gen e2 ty with 
+              match UHExp.ana_pat_fix_holes fuel ctx u_gen false p ty1 with 
               | None => None
-              | Some (e2, u_gen) => 
-                let ze := ZExp.Deeper NotInHole (ZExp.LetZE1 x ann ze1 e2) in 
-                Some (ze, u_gen)
+              | Some (p, ctx2, u_gen) => 
+                match UHExp.ana_fix_holes fuel ctx2 u_gen e2 ty with 
+                | None => None
+                | Some (e2, u_gen) => 
+                  let ze := ZExp.Deeper NotInHole (ZExp.LetZE1 p ann ze1 e2) in 
+                  Some (ze, u_gen)
+                end
               end
             end
           end
         end
-      | (_, ZExp.Deeper _ (ZExp.LetZE2 x ann e1 ze2)) =>
+      | (_, ZExp.Deeper _ (ZExp.LetZE2 p ann e1 ze2)) =>
         let ty1 := 
           match ann with 
           | Some uty1 => Some (UHTyp.expand fuel uty1) 
@@ -6225,43 +6596,18 @@ Module FCore(Debug : DEBUG).
         match ty1 with 
         | None => None
         | Some ty1 => 
-          let ctx := Contexts.extend_gamma ctx (x, ty1) in
-          match performAna fuel u_gen ctx a ze2 ty with 
+          match UHExp.ana_pat fuel ctx p ty1 with 
           | None => None
-          | Some (ze2, u_gen) => 
-            let ze := ZExp.Deeper NotInHole (ZExp.LetZE2 x ann e1 ze2) in 
-            Some (ze, u_gen)
-          end
-        end
-      | (_, ZExp.Deeper _ (ZExp.LamZA x zann e1)) => 
-        match HTyp.matched_arrow ty with 
-        | None => None
-        | Some (ty1_given, ty2) => 
-          match performTyp fuel a zann with 
-          | None => None
-          | Some zann => 
-            let ty1_ann := UHTyp.expand fuel (ZTyp.erase zann) in 
-            let ctx := Contexts.extend_gamma ctx (x, ty1_ann) in 
-            match HTyp.consistent ty1_ann ty1_given with 
-            | true => 
-              match UHExp.ana_fix_holes fuel ctx u_gen e1 ty2 with 
-              | None => None
-              | Some (e1, u_gen) => 
-                let ze := ZExp.Deeper NotInHole (ZExp.LamZA x zann e1) in 
-                Some (ze, u_gen)
-              end
-            | false => 
-              match UHExp.syn_fix_holes fuel ctx u_gen e1 with 
-              | None => None
-              | Some (e1, _, u_gen) => 
-                let (u, u_gen) := MetaVarGen.next u_gen in 
-                let ze := ZExp.Deeper (InHole u) (ZExp.LamZA x zann e1) in 
-                Some (ze, u_gen)
-              end
+          | Some ctx2 => 
+            match perform_ana fuel u_gen ctx2 a ze2 ty with 
+            | None => None
+            | Some (ze2, u_gen) => 
+              let ze := ZExp.Deeper NotInHole (ZExp.LetZE2 p ann e1 ze2) in 
+              Some (ze, u_gen)
             end
           end
         end
-      | (_, ZExp.Deeper _ (ZExp.LamZE x ann ze1)) =>
+      | (_, ZExp.Deeper _ (ZExp.LamZP zp ann e1)) => 
         match HTyp.matched_arrow ty with 
         | None => None
         | Some (ty1_given, ty2) => 
@@ -6270,19 +6616,77 @@ Module FCore(Debug : DEBUG).
             | Some uty1 => UHTyp.expand fuel uty1
             | None => ty1_given
             end in 
-          let ctx := Contexts.extend_gamma ctx (x, ty1) in
-          match performAna fuel u_gen ctx a ze1 ty2 with 
+          match perform_ana_pat fuel ctx u_gen a zp ty1 with 
           | None => None
-          | Some (ze1, u_gen) => 
-            let ze := ZExp.Deeper NotInHole (ZExp.LamZE x ann ze1) in 
-            Some (ze, u_gen)
+          | Some (zp, ctx, u_gen) => 
+            match UHExp.ana_fix_holes fuel ctx u_gen e1 ty2 with 
+            | None => None
+            | Some (e1, u_gen) => 
+              let ze := ZExp.Deeper NotInHole (ZExp.LamZP zp ann e1) in 
+              Some (ze, u_gen)
+            end
+          end
+        end
+      | (_, ZExp.Deeper _ (ZExp.LamZA p zann e1)) => 
+        match HTyp.matched_arrow ty with 
+        | None => None
+        | Some (ty1_given, ty2) => 
+          match perform_ty fuel a zann with 
+          | None => None
+          | Some zann => 
+            let ty1 := UHTyp.expand fuel (ZTyp.erase zann) in 
+            match HTyp.consistent ty1 ty1_given with 
+            | true => 
+              match UHExp.ana_pat_fix_holes fuel ctx u_gen false p ty1 with 
+              | None => None
+              | Some (p, ctx, u_gen) => 
+                match UHExp.ana_fix_holes fuel ctx u_gen e1 ty2 with 
+                | None => None
+                | Some (e1, u_gen) => 
+                  let ze := ZExp.Deeper NotInHole (ZExp.LamZA p zann e1) in 
+                  Some (ze, u_gen)
+                end
+              end
+            | false => 
+              match UHExp.ana_pat_fix_holes fuel ctx u_gen false p ty1 with 
+              | None => None
+              | Some (p, ctx, u_gen) => 
+                match UHExp.syn_fix_holes fuel ctx u_gen e1 with 
+                | None => None
+                | Some (e1, _, u_gen) => 
+                  let (u, u_gen) := MetaVarGen.next u_gen in 
+                  let ze := ZExp.Deeper (InHole u) (ZExp.LamZA p zann e1) in 
+                  Some (ze, u_gen)
+                end
+              end
+            end
+          end
+        end
+      | (_, ZExp.Deeper _ (ZExp.LamZE p ann ze1)) => 
+        match HTyp.matched_arrow ty with 
+        | None => None 
+        | Some (_, ty2) => 
+          let ty1 := 
+            match ann with 
+            | Some uty1 => UHTyp.expand fuel uty1
+            | None => HTyp.Hole
+            end in 
+          match UHExp.ana_pat fuel ctx p ty1 with 
+          | None => None
+          | Some ctx => 
+            match perform_ana fuel u_gen ctx a ze1 ty2 with 
+            | None => None
+            | Some (ze1, u_gen) => 
+              let ze := ZExp.Deeper NotInHole (ZExp.LamZE p ann ze1) in 
+              Some (ze, u_gen)
+            end
           end
         end
       | (_, ZExp.Deeper _ (ZExp.InjZ side ze)) =>
         match HTyp.matched_sum ty with 
         | Some (ty1, ty2) => 
-          let picked := UHExp.pick_side side ty1 ty2 in 
-          match performAna fuel u_gen ctx a ze picked with 
+          let picked := pick_side side ty1 ty2 in 
+          match perform_ana fuel u_gen ctx a ze picked with 
           | Some (ze', u_gen') => Some (
               ZExp.Deeper (NotInHole) (
                 ZExp.InjZ side ze'), u_gen')
@@ -6290,67 +6694,60 @@ Module FCore(Debug : DEBUG).
           end
         | None => None
         end
-      | (_, ZExp.Deeper _ (ZExp.CaseZ1 ze0 (x, e1) (y, e2))) =>
-        Var.check_valid_binder x (
-        Var.check_valid_binder y (
-        match UHExp.syn fuel ctx (ZExp.erase ze0) with 
+      | (_, ZExp.Deeper _ (ZExp.CaseZE ze1 rules)) =>
+        match UHExp.syn fuel ctx (ZExp.erase ze1) with 
         | None => None
-        | Some ty0 => 
-          match performSyn fuel ctx a (ze0, ty0, u_gen) with 
+        | Some ty1 => 
+          match perform_syn fuel ctx a (ze1, ty1, u_gen) with 
           | None => None
-          | Some (ze0', ty0', u_gen') => 
-            let ze' := ZExp.Deeper NotInHole (
-              ZExp.CaseZ1 ze0' (x, e1) (y, e2)) in 
-            zexp_ana_fix_holes fuel ctx u_gen' ze' ty 
-          end
-        end))
-      | (_, ZExp.Deeper err_state (ZExp.CaseZ2 e0 (x, ze1) (y, e2))) =>
-        Var.check_valid_binder x (
-        Var.check_valid_binder y (
-        match UHExp.syn fuel ctx e0 with 
-        | Some ty0 => 
-          match HTyp.matched_sum ty0 with 
-          | Some (ty1, ty2) => 
-            let ctx1 := Contexts.extend_gamma ctx (x, ty1) in
-            match performAna fuel u_gen ctx1 a ze1 ty with 
-            | Some (ze1', u_gen') => 
-              Some (
-                ZExp.Deeper 
-                  err_state 
-                  (ZExp.CaseZ2 e0 (x, ze1') (y, e2)), 
-                u_gen')
+          | Some (ze1, ty1, u_gen) => 
+            match UHExp.ana_rules_fix_holes fuel ctx u_gen false rules ty1 ty with 
             | None => None
+            | Some (rules, u_gen) => 
+              let ze := ZExp.Deeper NotInHole (ZExp.CaseZE ze1 rules) in 
+              Some (ze, u_gen)
             end
-          | None => None
           end
+        end
+      | (_, ZExp.Deeper _ (ZExp.CaseZR e1 zrules)) => 
+        match UHExp.syn fuel ctx e1 with 
         | None => None
-        end))
-      | (_, ZExp.Deeper err_state (ZExp.CaseZ3 e0 (x, e1) (y, ze2))) =>
-        Var.check_valid_binder x (
-        Var.check_valid_binder y (
-        match UHExp.syn fuel ctx e0 with 
-        | Some ty0 => 
-          match HTyp.matched_sum ty0 with
-          | Some (ty1, ty2) => 
-            let ctx2 := Contexts.extend_gamma ctx (y, ty2) in
-            match performAna fuel u_gen ctx2 a ze2 ty with 
-            | Some (ze2', u_gen') => 
-              Some (
-                ZExp.Deeper err_state 
-                  (ZExp.CaseZ3 e0 (x, e1) (y, ze2')), 
-                u_gen')
+        | Some ty1 => 
+          match ZList.prj_z zrules with 
+          | ZExp.RuleZP zp e => 
+            match perform_ana_pat fuel ctx u_gen a zp ty1 with 
             | None => None
+            | Some(zp, ctx, u_gen) => 
+              match UHExp.ana_fix_holes fuel ctx u_gen e ty with 
+              | None => None
+              | Some (e, u_gen) => 
+                let zrule := ZExp.RuleZP zp e in 
+                let ze := ZExp.Deeper NotInHole 
+                  (ZExp.CaseZR e1 (ZList.replace_z zrules zrule)) in 
+                Some (ze, u_gen)
+              end
             end
-          | None => None
+          | ZExp.RuleZE p ze =>
+            match UHExp.ana_pat fuel ctx p ty1 with 
+            | None => None
+            | Some ctx => 
+              match perform_ana fuel u_gen ctx a ze ty with 
+              | None => None
+              | Some (ze, u_gen) => 
+                let zrule := ZExp.RuleZE p ze in 
+                let ze := ZExp.Deeper NotInHole 
+                  (ZExp.CaseZR e1 (ZList.replace_z zrules zrule)) in 
+                Some (ze, u_gen)
+              end
+            end
           end
-        | None => None
-        end))
+        end
       (* Subsumption *)
       | _ =>
-        performAna_subsume fuel u_gen ctx a ze ty
+        perform_ana_subsume fuel u_gen ctx a ze ty
       end
       end
-    with performAna_subsume 
+    with perform_ana_subsume 
       (fuel : Fuel.t) 
       (u_gen : MetaVarGen.t) 
       (ctx : Contexts.t) 
@@ -6363,7 +6760,7 @@ Module FCore(Debug : DEBUG).
       | Fuel.More fuel =>
         match UHExp.syn fuel ctx (ZExp.erase ze) with 
         | Some ty1 => 
-          match performSyn fuel ctx a (ze, ty1, u_gen) with 
+          match perform_syn fuel ctx a (ze, ty1, u_gen) with 
           | Some (ze', ty1', u_gen') => 
             if HTyp.consistent ty ty1' then 
               Some (ze', u_gen') 
@@ -6407,7 +6804,7 @@ Module FCore(Debug : DEBUG).
         | Ap  : t -> t -> t
         | NumLit : nat -> t
         | BinNumOp : bin_num_op -> t -> t -> t
-        | Inj : HTyp.t -> UHExp.inj_side -> t -> t
+        | Inj : HTyp.t -> inj_side -> t -> t
         | Case : t -> (Var.t * t) -> (Var.t * t) -> t
         | EmptyHole : MetaVar.t -> inst_num -> VarMap.t_(t) -> t 
         | NonEmptyHole : MetaVar.t -> inst_num -> VarMap.t_(t) -> t -> t
@@ -6559,8 +6956,8 @@ Module FCore(Debug : DEBUG).
               | IllTyped => IllTyped
               | WellTyped ty1 => 
                 match side with 
-                | UHExp.L => WellTyped (HTyp.Sum ty1 other_ty)
-                | UHExp.R => WellTyped (HTyp.Sum other_ty ty1)
+                | L => WellTyped (HTyp.Sum ty1 other_ty)
+                | R => WellTyped (HTyp.Sum other_ty ty1)
                 end
               end
             | Case d1 (x, d2) (y, d3) => 
@@ -6770,8 +7167,8 @@ Module FCore(Debug : DEBUG).
                 let d := DHExp.Inj HTyp.Hole side d1 in 
                 let ty := 
                   match side with 
-                  | UHExp.L => HTyp.Sum ty1 HTyp.Hole
-                  | UHExp.R => HTyp.Sum HTyp.Hole ty1
+                  | L => HTyp.Sum ty1 HTyp.Hole
+                  | R => HTyp.Sum HTyp.Hole ty1
                   end in 
                 Expands d ty delta1
               end
@@ -6935,14 +7332,14 @@ Module FCore(Debug : DEBUG).
               match HTyp.matched_sum ty with 
               | None => DoesNotExpand
               | Some (ty1, ty2) => 
-                let e1ty := UHExp.pick_side side ty1 ty2 in 
+                let e1ty := pick_side side ty1 ty2 in 
                 match ana_expand fuel ctx e1 e1ty with 
                 | DoesNotExpand => DoesNotExpand
                 | Expands d1 e1ty' delta => 
                   let (ann_ty, ty) := 
                     match side with 
-                    | UHExp.L => (ty2, HTyp.Sum e1ty' ty2) 
-                    | UHExp.R => (ty1, HTyp.Sum ty1 e1ty')
+                    | L => (ty2, HTyp.Sum e1ty' ty2) 
+                    | R => (ty1, HTyp.Sum ty1 e1ty')
                     end in 
                   let d := Inj ann_ty side d1 in 
                   Expands d ty delta
@@ -7402,7 +7799,7 @@ Module FCore(Debug : DEBUG).
                 | BoxedValue d1' => 
                   match d1' with 
                   | DHExp.Inj _ side d1'' => 
-                    let (xb, db) := UHExp.pick_side side (x, d2) (y, d3) in
+                    let (xb, db) := pick_side side (x, d2) (y, d3) in
                     let branch := DHExp.subst fuel d1'' xb db in 
                     evaluate fuel branch
                   | DHExp.Cast d1'' (HTyp.Sum ty1 ty2) (HTyp.Sum ty1' ty2') => 
@@ -7416,7 +7813,7 @@ Module FCore(Debug : DEBUG).
                 | Indet d1' => 
                   match d1' with 
                   | DHExp.Inj _ side d1'' => 
-                      let (xb, db) := UHExp.pick_side side (x, d2) (y, d3) in 
+                      let (xb, db) := pick_side side (x, d2) (y, d3) in 
                       let branch := DHExp.subst fuel d1'' xb db in 
                       evaluate fuel branch
                   | DHExp.Cast d1'' (HTyp.Sum ty1 ty2) (HTyp.Sum ty1' ty2') => 
