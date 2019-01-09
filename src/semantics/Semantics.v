@@ -7911,6 +7911,8 @@ Module FCore(Debug : DEBUG).
         | WellTyped : HTyp.t -> type_result
         | IllTyped.
 
+        (* Implementation of type assignment judgment in POPL 2019 paper.
+         * Not actually called anywhere, now stale.
         Fixpoint assign_type 
           (fuel : Fuel.t) 
           (gamma : VarCtx.t) (delta : Delta.t) 
@@ -8052,6 +8054,7 @@ Module FCore(Debug : DEBUG).
                   sigma
             | Fuel.Kicked => false
             end.
+        *)
         
         Inductive expand_result : Type := 
         | Expands : t -> HTyp.t -> Delta.t -> expand_result
