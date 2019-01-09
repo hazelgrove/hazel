@@ -7765,6 +7765,40 @@ Module FCore(Debug : DEBUG).
         Definition t : Type := MetaVarMap.t (HTyp.t * VarCtx.t).
       End Delta.
 
+      (* hole instance numbers are all 0 after expansion and during evaluation --
+       * renumbering is done on the final result (see below) *)
+      Definition inst_num : Type := nat.
+
+      Module DHPat.
+        Inductive bin_op : Type :=
+        | Comma : bin_op.
+
+        Inductive t : Type :=
+        | EmptyHole : MetaVar.t -> inst_num -> t
+        | NonEmptyHole : MetaVar.t -> inst_num -> t -> t
+        | Wild : t
+        | Var : Var.t -> t
+        | NumLit : nat -> t
+        | BoolLit : bool -> t
+        | Inj : inj_side -> t -> t
+        | BinOp : bin_op -> t -> t -> t.
+
+        (* whether dp contains the variable x outside of a hole *)
+        Fixpoint binds_var (x : Var.t) (dp : t) : bool :=
+          match dp with
+          | EmptyHole _ _
+          | NonEmptyHole _ _ _
+          | Wild
+          | NumLit _
+          | BoolLit _ => false
+          | Var y => Var.eq x y
+          | Inj _ dp1 => binds_var x dp1
+          | BinOp _ dp1 dp2 => binds_var x dp1 || binds_var x dp2
+          end.
+
+        Fixpoint has_valid_binders (dp : t) : bool := false. (* TODO *)
+      End DHPat.
+
       Module DHExp.
         Inductive bin_num_op : Type := 
         | Plus : bin_num_op
@@ -7777,25 +7811,23 @@ Module FCore(Debug : DEBUG).
           | _ => None
           end.
 
-        (* hole instance numbers are all 0 after expansion and during evaluation -- 
-         * renumbering is done on the final result (see below) *)
-        Definition inst_num : Type := nat.
-
         Inductive t : Type := 
         | BoundVar : Var.t -> t
         | FreeVar : MetaVar.t -> inst_num -> VarMap.t_(t) -> Var.t -> t
-        | Let : Var.t -> t -> t -> t
+        | Let : DHPat.t -> t -> t -> t
         | FixF : Var.t -> HTyp.t -> t -> t
-        | Lam : Var.t -> HTyp.t -> t -> t
+        | Lam : DHPat.t -> HTyp.t -> t -> t
         | Ap  : t -> t -> t
         | NumLit : nat -> t
         | BinNumOp : bin_num_op -> t -> t -> t
         | Inj : HTyp.t -> inj_side -> t -> t
-        | Case : t -> (Var.t * t) -> (Var.t * t) -> t
+        | Case : t -> list(rule) -> t
         | EmptyHole : MetaVar.t -> inst_num -> VarMap.t_(t) -> t 
         | NonEmptyHole : MetaVar.t -> inst_num -> VarMap.t_(t) -> t -> t
         | Cast : t -> HTyp.t -> HTyp.t -> t
-        | FailedCast : t -> HTyp.t -> HTyp.t -> t.
+        | FailedCast : t -> HTyp.t -> HTyp.t -> t
+        with rule : Type :=
+        | Rule : DHPat.t -> t -> rule.
 
         Definition cast (d : t) (t1 : HTyp.t) (t2 : HTyp.t) : t := 
           if HTyp.eq t1 t2 then d else Cast d t1 t2.
@@ -7813,34 +7845,33 @@ Module FCore(Debug : DEBUG).
             match d2 with 
             | BoundVar y => if Var.eq x y then d1 else d2
             | FreeVar _ _ _ _ => d2
-            | Let y d3 d4 =>
-              let d3' := subst d1 x d3 in 
-              let d4' := if Var.eq x y then d4 else subst d1 x d4 in 
-              Let y d3' d4'
+            | Let dp d3 d4 =>
+              let d3 := subst d1 x d3 in
+              let d4 := if DHPat.binds_var x dp then d4 else subst d1 x d4 in
+              Let dp d3 d4
             | FixF y ty d3 => 
-              let d3' := if Var.eq x y then d3 else subst d1 x d3 in 
-              FixF y ty d3'
-            | Lam y ty d3 => 
-              if Var.eq x y then d2 else 
-              let d3' := subst d1 x d3 in 
-              Lam y ty d3'
+              let d3 := if Var.eq x y then d3 else subst d1 x d3 in
+              FixF y ty d3
+            | Lam dp ty d3 =>
+              if DHPat.binds_var x dp then d2 else
+              let d3 := subst d1 x d3 in
+              Lam dp ty d3
             | Ap d3 d4 => 
-              let d3' := subst d1 x d3 in 
-              let d4' := subst d1 x d4 in 
-              Ap d3' d4'
+              let d3 := subst d1 x d3 in
+              let d4 := subst d1 x d4 in
+              Ap d3 d4
             | NumLit _ => d2
             | BinNumOp op d3 d4 => 
-              let d3' := subst d1 x d3 in 
-              let d4' := subst d1 x d4 in 
-              BinNumOp op d3' d4'
+              let d3 := subst d1 x d3 in
+              let d4 := subst d1 x d4 in
+              BinNumOp op d3 d4
             | Inj ty side d3 => 
-              let d3' := subst d1 x d3 in 
-              Inj ty side d3' 
-            | Case d3 (y4, d4) (y5, d5) => 
-              let d3' := subst d1 x d3 in 
-              let d4' := if Var.eq x y4 then d4 else subst d1 x d4 in 
-              let d5' := if Var.eq x y5 then d5 else subst d1 x d5 in 
-              Case d3' (y4, d4') (y5, d5')
+              let d3 := subst d1 x d3 in
+              Inj ty side d3
+            | Case d3 rules =>
+              let d3 := subst d1 x d3 in
+              let rules := rules_subst fuel d1 x d2 rules in
+              Case d3 rules
             | EmptyHole u i sigma => 
               let sigma' := env_subst fuel d1 x sigma in 
               EmptyHole u i sigma' 
@@ -7855,6 +7886,15 @@ Module FCore(Debug : DEBUG).
               let d' := subst d1 x d in 
               FailedCast d' ty1 ty2
             end
+          end
+        with rules_subst (fuel : Fuel.t) (d1 : t) (x : Var.t) (d2 : t) (rules : list(rule)) :=
+          match fuel with
+          | Fuel.Kicked => rules
+          | Fuel.More fuel =>
+            List.map (fun (r : rule) =>
+              match r with
+              | Rule dp d3 => if DHPat.binds_var x dp then Rule dp (subst fuel d1 x d3) else r
+              end) rules
           end
         with env_subst (fuel : Fuel.t) (d1 : t) (x : Var.t) (sigma : Environment.t) := 
           match fuel with 
