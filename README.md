@@ -30,7 +30,7 @@ Hazel is implemented in Coq and Reason/OCaml, and is compiled to Javascript for 
     > opam install dune reason js_of_ocaml tyxml deriving ppx_deriving reactiveData js_of_ocaml-tyxml camomile menhir oUnit
     ```
 
-  - We also need Coq: 
+  - We also need Coq:
 
     ```sh
     > opam install coq
