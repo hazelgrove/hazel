@@ -8744,7 +8744,11 @@ Module FCore(Debug : DEBUG).
                          (u, (ty, gamma)) in
             Expands dp ty delta
           | UHPat.Wild => Expands Wild HTyp.Hole MetaVarMap.empty
-          | UHPat.Var x => Expands (Var x) HTyp.Hole MetaVarMap.empty
+          | UHPat.Var x =>
+            if Var.is_valid x then
+              Expands (Var x) HTyp.Hole MetaVarMap.empty
+            else
+              DoesNotExpand
           | UHPat.NumLit n => Expands (NumLit n) HTyp.Num MetaVarMap.empty
           | UHPat.BoolLit b => Expands (BoolLit b) HTyp.Bool MetaVarMap.empty
           | UHPat.Inj side p =>
