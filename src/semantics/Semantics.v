@@ -7771,7 +7771,8 @@ Module FCore(Debug : DEBUG).
 
       Module DHPat.
         Inductive bin_op : Type :=
-        | Comma : bin_op.
+        | Comma : bin_op
+        | Space : bin_op.
 
         Inductive t : Type :=
         | EmptyHole : MetaVar.t -> inst_num -> t
