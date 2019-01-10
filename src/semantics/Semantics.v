@@ -1376,7 +1376,6 @@ Module FCore(Debug : DEBUG).
         | Fuel.Kicked => None
         | Fuel.More fuel => 
         match p with 
-        | UHPat.Wild => Some ctx
         | UHPat.Var x => 
           Var.check_valid x (
           Some (Contexts.extend_gamma ctx (x, ty)))
@@ -1385,6 +1384,7 @@ Module FCore(Debug : DEBUG).
           | None => None
           | Some (ctx, _) => Some ctx
           end
+        | UHPat.Wild
         | UHPat.NumLit _ 
         | UHPat.BoolLit _ 
         | UHPat.Inj _ _ 
