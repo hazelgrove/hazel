@@ -1395,7 +1395,6 @@ Module FCore(Debug : DEBUG).
         | Fuel.Kicked => None
         | Fuel.More fuel => 
         match p with 
-        | UHPat.Wild => Some ctx
         | UHPat.Var x => 
           Var.check_valid x (
           Some (Contexts.extend_gamma ctx (x, ty)))
@@ -1404,6 +1403,7 @@ Module FCore(Debug : DEBUG).
           | None => None
           | Some (ctx, _) => Some ctx
           end
+        | UHPat.Wild
         | UHPat.NumLit _ 
         | UHPat.BoolLit _ 
         | UHPat.Inj _ _ 
@@ -8407,6 +8407,275 @@ Module FCore(Debug : DEBUG).
         Definition t : Type := MetaVarMap.t (HTyp.t * VarCtx.t).
       End Delta.
 
+      (* hole instance numbers are all 0 after expansion and during evaluation --
+       * renumbering is done on the final result (see below) *)
+      Definition inst_num : Type := nat.
+
+      Module DHPat.
+        Inductive bin_op : Type :=
+        | Comma : bin_op
+        | Space : bin_op.
+
+        Inductive t : Type :=
+        | EmptyHole : MetaVar.t -> inst_num -> t
+        | NonEmptyHole : MetaVar.t -> inst_num -> t -> t
+        | Wild : t
+        | Var : Var.t -> t
+        | NumLit : nat -> t
+        | BoolLit : bool -> t
+        | Inj : inj_side -> t -> t
+        | BinOp : bin_op -> t -> t -> t.
+
+        (* whether dp contains the variable x outside of a hole *)
+        Fixpoint binds_var (x : Var.t) (dp : t) : bool :=
+          match dp with
+          | EmptyHole _ _
+          | NonEmptyHole _ _ _
+          | Wild
+          | NumLit _
+          | BoolLit _ => false
+          | Var y => Var.eq x y
+          | Inj _ dp1 => binds_var x dp1
+          | BinOp _ dp1 dp2 => binds_var x dp1 || binds_var x dp2
+          end.
+
+        Fixpoint has_valid_binders (dp : t) : bool := false. (* TODO *)
+
+        Inductive expand_result : Type :=
+        | Expands : t -> HTyp.t -> Delta.t -> expand_result
+        | DoesNotExpand : expand_result.
+
+        Fixpoint syn_expand
+          (fuel : Fuel.t)
+          (ctx : Contexts.t)
+          (p : UHPat.t)
+          : expand_result :=
+          match fuel with
+          | Fuel.Kicked => DoesNotExpand
+          | Fuel.More fuel => let syn_expand := syn_expand fuel in
+          match p with
+          | UHPat.Parenthesized p1 => syn_expand ctx p1
+          | UHPat.Pat NotInHole p' => syn_expand' fuel ctx p'
+          | UHPat.Pat (InHole u) p' =>
+            match syn_expand' fuel ctx p' with
+            | DoesNotExpand => DoesNotExpand
+            | Expands dp _ delta =>
+              let (gamma, _) := ctx in
+              let delta := MetaVarMap.extend delta (u, (HTyp.Hole, gamma)) in
+              Expands
+                (NonEmptyHole u 0 dp)
+                HTyp.Hole
+                delta
+            end
+          end
+          end
+        with syn_expand'
+          (fuel : Fuel.t)
+          (ctx : Contexts.t)
+          (p' : UHPat.t')
+          : expand_result :=
+          match fuel with
+          | Fuel.Kicked => DoesNotExpand
+          | Fuel.More fuel => let syn_expand' := syn_expand' fuel in
+          match p' with
+          | UHPat.EmptyHole u =>
+            let gamma := Contexts.gamma ctx in
+            let dp := EmptyHole u 0 in
+            let ty := HTyp.Hole in
+            let delta := MetaVarMap.extend MetaVarMap.empty
+                         (u, (ty, gamma)) in
+            Expands dp ty delta
+          | UHPat.Wild => Expands Wild HTyp.Hole MetaVarMap.empty
+          | UHPat.Var x => Expands (Var x) HTyp.Hole MetaVarMap.empty
+          | UHPat.NumLit n => Expands (NumLit n) HTyp.Num MetaVarMap.empty
+          | UHPat.BoolLit b => Expands (BoolLit b) HTyp.Bool MetaVarMap.empty
+          | UHPat.Inj side p =>
+            match syn_expand fuel ctx p with
+            | DoesNotExpand => DoesNotExpand
+            | Expands dp1 ty1 delta =>
+              let dp := Inj side dp1 in
+              let ty :=
+                match side with
+                | L => HTyp.Sum ty1 HTyp.Hole
+                | R => HTyp.Sum HTyp.Hole ty1
+                end in
+              Expands dp ty delta
+            end
+          | UHPat.OpSeq skel seq => syn_expand_skel fuel ctx skel seq
+          end
+          end
+        with syn_expand_skel
+          (fuel : Fuel.t)
+          (ctx : Contexts.t)
+          (skel : UHPat.skel_t)
+          (seq : UHPat.opseq)
+          : expand_result :=
+            match fuel with
+            | Fuel.Kicked => DoesNotExpand
+            | Fuel.More fuel => let syn_expand_skel := syn_expand_skel fuel in
+            match skel with
+            | Skel.Placeholder _ n =>
+              match OperatorSeq.seq_nth n seq with
+              | None => DoesNotExpand
+              | Some pn =>
+                if UHPat.bidelimited pn then
+                  syn_expand fuel ctx pn
+                else
+                  DoesNotExpand
+              end
+            | Skel.BinOp (InHole u) op skel1 skel2 =>
+              let skel_not_in_hole := Skel.BinOp NotInHole op skel1 skel2 in
+              match syn_expand_skel ctx skel_not_in_hole seq with
+              | DoesNotExpand => DoesNotExpand
+              | Expands dp _ delta =>
+                let gamma := Contexts.gamma ctx in
+                let delta := MetaVarMap.extend delta (u, (HTyp.Hole, gamma)) in
+                Expands
+                  (NonEmptyHole u 0 dp)
+                  HTyp.Hole
+                  delta
+              end
+            | Skel.BinOp NotInHole UHPat.Comma skel1 skel2 =>
+              match (syn_expand_skel ctx skel1 seq,
+                     syn_expand_skel ctx skel2 seq) with
+              | (Expands dp1 ty1 delta1, Expands dp2 ty2 delta2) =>
+                let delta := MetaVarMap.union delta1 delta2 in
+                let dp := BinOp DHPat.Comma dp1 dp2 in
+                Expands dp (HTyp.Prod ty1 ty2) delta
+              | _ => DoesNotExpand
+              end
+            | Skel.BinOp NotInHole UHPat.Space skel1 skel2 =>
+              match syn_expand_skel ctx skel1 seq with
+              | DoesNotExpand => DoesNotExpand
+              | Expands dp1 ty1 delta1 =>
+                match HTyp.matched_arrow ty1 with
+                | None => DoesNotExpand
+                | Some (ty2, ty) =>
+                  match ana_expand_skel fuel ctx skel2 seq ty2 with
+                  | DoesNotExpand => DoesNotExpand
+                  | Expands dp2 ty2 delta2 =>
+                    let dp := BinOp Space dp1 dp2 in
+                    let delta := MetaVarMap.union delta1 delta2 in
+                    Expands dp ty delta
+                  end
+                end
+              end
+            end
+            end
+        with ana_expand_skel
+          (fuel : Fuel.t)
+          (ctx : Contexts.t)
+          (skel : UHPat.skel_t)
+          (seq : UHPat.opseq)
+          (ty : HTyp.t)
+          : expand_result :=
+            match fuel with
+            | Fuel.Kicked => DoesNotExpand
+            | Fuel.More fuel => let ana_expand_skel := ana_expand_skel fuel in
+            match skel with
+            | Skel.Placeholder _ n =>
+              match OperatorSeq.seq_nth n seq with
+              | None => DoesNotExpand
+              | Some pn =>
+                if UHPat.bidelimited pn then
+                  ana_expand fuel ctx pn ty
+                else
+                  DoesNotExpand
+              end
+            | Skel.BinOp (InHole u) op skel1 skel2 =>
+              let skel_not_in_hole := Skel.BinOp NotInHole op skel1 skel2 in
+              match syn_expand_skel fuel ctx skel_not_in_hole seq with
+              | DoesNotExpand => DoesNotExpand
+              | Expands dp1 _ delta1 =>
+                let dp := DHPat.NonEmptyHole u 0 dp1 in
+                let gamma := Contexts.gamma ctx in
+                let delta := MetaVarMap.extend delta1 (u, (ty, gamma)) in
+                Expands dp ty delta
+              end
+            | Skel.BinOp NotInHole UHPat.Comma skel1 skel2 =>
+              match HTyp.matched_prod ty with
+              | None => DoesNotExpand
+              | Some (ty1, ty2) =>
+                match ana_expand_skel ctx skel1 seq ty1 with
+                | DoesNotExpand => DoesNotExpand
+                | Expands dp1 ty1 delta1 =>
+                  match ana_expand_skel ctx skel2 seq ty2 with
+                  | DoesNotExpand => DoesNotExpand
+                  | Expands dp2 ty2 delta2 =>
+                    let dp := BinOp Comma dp1 dp2 in
+                    let delta := MetaVarMap.union delta1 delta2 in
+                    Expands dp ty delta
+                  end
+                end
+              end
+            | Skel.BinOp NotInHole UHPat.Space skel1 skel2 => DoesNotExpand (* TODO *)
+            end
+            end
+        with ana_expand
+          (fuel : Fuel.t)
+          (ctx : Contexts.t)
+          (p : UHPat.t)
+          (ty : HTyp.t)
+          : expand_result :=
+            match fuel with
+            | Fuel.Kicked => DoesNotExpand
+            | Fuel.More fuel => let ana_expand := ana_expand fuel in
+            match p with
+            | UHPat.Parenthesized p1 => ana_expand ctx p1 ty
+            | UHPat.Pat NotInHole p' => ana_expand' fuel ctx p' ty
+            | UHPat.Pat (InHole u) p' =>
+              match syn_expand' fuel ctx p' with
+              | DoesNotExpand => DoesNotExpand
+              | Expands dp1 _ delta =>
+                let dp := NonEmptyHole u 0 dp1 in
+                let (gamma, _) := ctx in
+                let delta := MetaVarMap.extend delta (u, (ty, gamma)) in
+                Expands dp ty delta
+              end
+            end
+            end
+        with ana_expand'
+          (fuel : Fuel.t)
+          (ctx : Contexts.t)
+          (p' : UHPat.t')
+          (ty : HTyp.t)
+          : expand_result :=
+            match fuel with
+            | Fuel.Kicked => DoesNotExpand
+            | Fuel.More fuel => let ana_expand' := ana_expand' fuel in
+            match p' with
+            | UHPat.EmptyHole u =>
+              let gamma := Contexts.gamma ctx in
+              let dp := EmptyHole u 0 in
+              let delta := MetaVarMap.extend MetaVarMap.empty
+                                             (u, (ty, gamma)) in
+              Expands dp ty delta
+            | UHPat.Var x =>
+              if Var.is_valid x then
+                Expands (DHPat.Var x) ty MetaVarMap.empty
+              else
+                DoesNotExpand
+            | UHPat.Inj side p =>
+              match HTyp.matched_sum ty with
+              | None => DoesNotExpand
+              | Some (tyL, tyR) => ana_expand fuel ctx p (pick_side side tyL tyR)
+              end
+            | UHPat.Wild
+            | UHPat.NumLit _
+            | UHPat.BoolLit _ =>
+              match syn_expand' fuel ctx p' with
+              | DoesNotExpand => DoesNotExpand
+              | Expands dp ty1 delta =>
+                if HTyp.consistent ty ty1 then
+                  Expands dp ty1 delta (* TODO: ty or ty1? *)
+                else
+                  DoesNotExpand
+              end
+            | UHPat.OpSeq skel seq => ana_expand_skel fuel ctx skel seq ty
+            end
+            end.
+      End DHPat.
+
       Module DHExp.
         Inductive bin_num_op : Type := 
         | Plus : bin_num_op
@@ -8419,25 +8688,23 @@ Module FCore(Debug : DEBUG).
           | _ => None
           end.
 
-        (* hole instance numbers are all 0 after expansion and during evaluation -- 
-         * renumbering is done on the final result (see below) *)
-        Definition inst_num : Type := nat.
-
         Inductive t : Type := 
         | BoundVar : Var.t -> t
         | FreeVar : MetaVar.t -> inst_num -> VarMap.t_(t) -> Var.t -> t
-        | Let : Var.t -> t -> t -> t
+        | Let : DHPat.t -> t -> t -> t
         | FixF : Var.t -> HTyp.t -> t -> t
-        | Lam : Var.t -> HTyp.t -> t -> t
+        | Lam : DHPat.t -> HTyp.t -> t -> t
         | Ap  : t -> t -> t
         | NumLit : nat -> t
         | BinNumOp : bin_num_op -> t -> t -> t
         | Inj : HTyp.t -> inj_side -> t -> t
-        | Case : t -> (Var.t * t) -> (Var.t * t) -> t
+        | Case : t -> list(rule) -> t
         | EmptyHole : MetaVar.t -> inst_num -> VarMap.t_(t) -> t 
         | NonEmptyHole : MetaVar.t -> inst_num -> VarMap.t_(t) -> t -> t
         | Cast : t -> HTyp.t -> HTyp.t -> t
-        | FailedCast : t -> HTyp.t -> HTyp.t -> t.
+        | FailedCast : t -> HTyp.t -> HTyp.t -> t
+        with rule : Type :=
+        | Rule : DHPat.t -> t -> rule.
 
         Definition cast (d : t) (t1 : HTyp.t) (t2 : HTyp.t) : t := 
           if HTyp.eq t1 t2 then d else Cast d t1 t2.
@@ -8455,34 +8722,33 @@ Module FCore(Debug : DEBUG).
             match d2 with 
             | BoundVar y => if Var.eq x y then d1 else d2
             | FreeVar _ _ _ _ => d2
-            | Let y d3 d4 =>
-              let d3' := subst d1 x d3 in 
-              let d4' := if Var.eq x y then d4 else subst d1 x d4 in 
-              Let y d3' d4'
+            | Let dp d3 d4 =>
+              let d3 := subst d1 x d3 in
+              let d4 := if DHPat.binds_var x dp then d4 else subst d1 x d4 in
+              Let dp d3 d4
             | FixF y ty d3 => 
-              let d3' := if Var.eq x y then d3 else subst d1 x d3 in 
-              FixF y ty d3'
-            | Lam y ty d3 => 
-              if Var.eq x y then d2 else 
-              let d3' := subst d1 x d3 in 
-              Lam y ty d3'
+              let d3 := if Var.eq x y then d3 else subst d1 x d3 in
+              FixF y ty d3
+            | Lam dp ty d3 =>
+              if DHPat.binds_var x dp then d2 else
+              let d3 := subst d1 x d3 in
+              Lam dp ty d3
             | Ap d3 d4 => 
-              let d3' := subst d1 x d3 in 
-              let d4' := subst d1 x d4 in 
-              Ap d3' d4'
+              let d3 := subst d1 x d3 in
+              let d4 := subst d1 x d4 in
+              Ap d3 d4
             | NumLit _ => d2
             | BinNumOp op d3 d4 => 
-              let d3' := subst d1 x d3 in 
-              let d4' := subst d1 x d4 in 
-              BinNumOp op d3' d4'
+              let d3 := subst d1 x d3 in
+              let d4 := subst d1 x d4 in
+              BinNumOp op d3 d4
             | Inj ty side d3 => 
-              let d3' := subst d1 x d3 in 
-              Inj ty side d3' 
-            | Case d3 (y4, d4) (y5, d5) => 
-              let d3' := subst d1 x d3 in 
-              let d4' := if Var.eq x y4 then d4 else subst d1 x d4 in 
-              let d5' := if Var.eq x y5 then d5 else subst d1 x d5 in 
-              Case d3' (y4, d4') (y5, d5')
+              let d3 := subst d1 x d3 in
+              Inj ty side d3
+            | Case d3 rules =>
+              let d3 := subst d1 x d3 in
+              let rules := rules_subst fuel d1 x d2 rules in
+              Case d3 rules
             | EmptyHole u i sigma => 
               let sigma' := env_subst fuel d1 x sigma in 
               EmptyHole u i sigma' 
@@ -8497,6 +8763,15 @@ Module FCore(Debug : DEBUG).
               let d' := subst d1 x d in 
               FailedCast d' ty1 ty2
             end
+          end
+        with rules_subst (fuel : Fuel.t) (d1 : t) (x : Var.t) (d2 : t) (rules : list(rule)) :=
+          match fuel with
+          | Fuel.Kicked => rules
+          | Fuel.More fuel =>
+            List.map (fun (r : rule) =>
+              match r with
+              | Rule dp d3 => if DHPat.binds_var x dp then Rule dp (subst fuel d1 x d3) else r
+              end) rules
           end
         with env_subst (fuel : Fuel.t) (d1 : t) (x : Var.t) (sigma : Environment.t) := 
           match fuel with 
@@ -8513,6 +8788,8 @@ Module FCore(Debug : DEBUG).
         | WellTyped : HTyp.t -> type_result
         | IllTyped.
 
+        (* Implementation of type assignment judgment in POPL 2019 paper.
+         * Not actually called anywhere, now stale.
         Fixpoint assign_type 
           (fuel : Fuel.t) 
           (gamma : VarCtx.t) (delta : Delta.t) 
@@ -8654,6 +8931,7 @@ Module FCore(Debug : DEBUG).
                   sigma
             | Fuel.Kicked => false
             end.
+        *)
         
         Inductive expand_result : Type := 
         | Expands : t -> HTyp.t -> Delta.t -> expand_result
