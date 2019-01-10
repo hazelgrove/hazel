@@ -6563,15 +6563,15 @@ Module FCore(Debug : DEBUG).
           end
         | _ => None (* should never happen *)
         end
-      | (FAction.UpdateApPalette _, _) => None
-      | (FAction.Construct (FAction.SApPalette _), _) => None
-      | (FAction.Construct FAction.SNum, _) => None
-      | (FAction.Construct FAction.SBool, _) => None
-      | (FAction.Construct FAction.SAsc, _) => None
-      | (FAction.Construct FAction.SLet, _) => None
-      | (FAction.Construct FAction.SLam, _) => None
-      | (FAction.Construct FAction.SCase, _) => None 
-      | (FAction.Construct FAction.SRule, _) => None
+      | (UpdateApPalette _, _)
+      | (Construct (SApPalette _), _)
+      | (Construct SNum, _) 
+      | (Construct SBool, _)
+      | (Construct SAsc, _) 
+      | (Construct SLet, _) 
+      | (Construct SLam, _) 
+      | (Construct SCase, _)
+      | (Construct SRule, _) => None
       end
       end
     with perform_ana_pat 

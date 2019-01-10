@@ -3,6 +3,10 @@ let parse_expr = s => {
   let lexbuf = Lexing.from_string(s);
   SkelExprParser.skel_expr(SkelExprLexer.read, lexbuf);
 };
+let parse_pat = s => {
+  let lexbuf = Lexing.from_string(s);
+  SkelPatParser.skel_pat(SkelPatLexer.read, lexbuf);
+};
 let parse_typ = s => {
   let lexbuf = Lexing.from_string(s);
   SkelTypParser.skel_typ(SkelTypLexer.read, lexbuf);
@@ -12,10 +16,17 @@ let string_of_expr_op = (op: UHExp.op) =>
   | UHExp.Plus => "+"
   | UHExp.Times => "*"
   | UHExp.Space => "_"
+  | UHExp.Comma => ","
+  };
+let string_of_pat_op = (op: UHPat.op) => 
+  switch (op) {
+  | UHPat.Space => "_"
+  | UHPat.Comma => ","
   };
 let string_of_ty_op = (op: UHTyp.op) =>
   switch (op) {
   | UHTyp.Sum => "|"
+  | UHTyp.Prod => ","
   | UHTyp.Arrow => "->"
   };
 let rec make_skel_str' =
@@ -52,6 +63,10 @@ let make_skel_str =
 let associate_exp = (seq: UHExp.opseq) => {
   let (skel_str, _) = make_skel_str(seq, string_of_expr_op);
   parse_expr(skel_str);
+};
+let associate_pat = (seq: UHPat.opseq) => {
+  let (skel_str, _) = make_skel_str(seq, string_of_pat_op);
+  parse_pat(skel_str);
 };
 let associate_ty = (seq: UHTyp.opseq) => {
   let (skel_str, _) = make_skel_str(seq, string_of_ty_op);
