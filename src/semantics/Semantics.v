@@ -603,7 +603,8 @@ Module FCore(Debug : DEBUG).
     | Bool : t
     | Arrow : t -> t -> t
     | Prod : t -> t -> t
-    | Sum : t -> t -> t.
+    | Sum : t -> t -> t
+    | List : t -> t.
 
     (* eqity *)
     Fixpoint eq (ty1 : t) (ty2 : t) : bool :=
@@ -623,6 +624,9 @@ Module FCore(Debug : DEBUG).
       | (Sum ty1 ty2, Sum ty1' ty2') =>
         andb (eq ty1 ty1') (eq ty2 ty2')
       | (Sum _ _, _) => false
+      | (List ty, List ty') => 
+        eq ty ty'
+      | (List _, _) => false
       end.
 
     (* type consistency *)
@@ -641,6 +645,9 @@ Module FCore(Debug : DEBUG).
       | (Arrow _ _, _) => false
       | (Prod _ _, _) => false
       | (Sum _ _, _) => false
+      | (List ty, List ty') => 
+        consistent ty ty'
+      | (List _, _) => false
       end.
 
     Definition inconsistent (ty1 : t) (ty2 : t) : bool :=
@@ -702,6 +709,21 @@ Module FCore(Debug : DEBUG).
       | _ => false
       end.
 
+    (* matched sum types *)
+    Definition matched_list (ty : t) : option t :=
+      match ty with
+      | List ty => Some ty
+      | Hole => Some Hole
+      | _ => None
+      end.
+
+    Definition has_matched_list (ty : t) : bool :=
+      match ty with
+      | List ty => true
+      | Hole => true
+      | _ => false
+      end.
+
     (* complete (i.e. does not have any holes) *)
     Fixpoint complete (ty : t) : bool :=
       match ty with
@@ -712,6 +734,7 @@ Module FCore(Debug : DEBUG).
       | Prod ty1 ty2 
       | Sum ty1 ty2 
         => andb (complete ty1) (complete ty2)
+      | List ty => complete ty
       end.
     
     Fixpoint join ty1 ty2 := 
@@ -740,6 +763,12 @@ Module FCore(Debug : DEBUG).
         | _ => None
         end
       | (Sum _ _, _) => None
+      | (List ty, List ty') => 
+        match join ty ty' with 
+        | Some ty => Some (List ty)
+        | None => None
+        end
+      | (List ty, _) => None
       end.
   End HTyp.
 
@@ -756,6 +785,7 @@ Module FCore(Debug : DEBUG).
     | Hole : t
     | Num : t
     | Bool : t
+    | List : t -> t
     | OpSeq : skel_t -> OperatorSeq.opseq t op -> t.
 
     Definition opseq : Type := OperatorSeq.opseq t op.
@@ -766,6 +796,7 @@ Module FCore(Debug : DEBUG).
       | Bool 
       | Hole
       | Parenthesized _ => true
+      | List ty => true
       | OpSeq _ _ => false
       end.
 
@@ -778,6 +809,7 @@ Module FCore(Debug : DEBUG).
       | Num => true
       | Bool => true
       | Parenthesized uty1 => well_formed fuel uty1
+      | List uty1 => well_formed fuel uty1
       | OpSeq skel seq => 
         (* NOTE: does not check that skel is the valid parse of seq *)
         well_formed_skel fuel skel seq
@@ -802,7 +834,7 @@ Module FCore(Debug : DEBUG).
       end.
 
     (* TODO fix this to only parenthesize when necessary *)
-    Fixpoint contract (hty : HTyp.t) : t :=
+    Fixpoint contract (ty : HTyp.t) : t :=
       let mk_opseq (op' : op) (a b : t) :=
         let ph n := Skel.Placeholder op n in
         let skel :=
@@ -820,13 +852,14 @@ Module FCore(Debug : DEBUG).
         end
         *)
       in
-      match hty with
-        | HTyp.Num       => Num
-        | HTyp.Bool      => Bool
-        | HTyp.Arrow ty1 ty2 => mk_opseq Arrow (contract ty1) (contract ty2)
-        | HTyp.Prod  ty1 ty2 => mk_opseq Prod  (contract ty1) (contract ty2)
-        | HTyp.Sum   ty1 ty2 => mk_opseq Sum   (contract ty1) (contract ty2)
-        | HTyp.Hole      => Hole
+      match ty with
+      | HTyp.Hole      => Hole
+      | HTyp.Num       => Num
+      | HTyp.Bool      => Bool
+      | HTyp.Arrow ty1 ty2 => mk_opseq Arrow (contract ty1) (contract ty2)
+      | HTyp.Prod  ty1 ty2 => mk_opseq Prod  (contract ty1) (contract ty2)
+      | HTyp.Sum   ty1 ty2 => mk_opseq Sum   (contract ty1) (contract ty2)
+      | HTyp.List ty1 => List (contract ty1)
       end.
 
     Fixpoint expand (fuel : Fuel.t) (uty : t) : HTyp.t := 
@@ -838,6 +871,7 @@ Module FCore(Debug : DEBUG).
       | Num => HTyp.Num
       | Bool => HTyp.Bool
       | Parenthesized uty1 => expand fuel uty1
+      | List uty1 => HTyp.List (expand fuel uty1)
       | OpSeq skel seq => expand_skel fuel skel seq
       end
       end
@@ -929,6 +963,7 @@ Module FCore(Debug : DEBUG).
     | NumLit : nat -> t'
     | BoolLit : bool -> t'
     | Inj : inj_side -> t -> t'
+    | ListLit : list(t) -> t'
     | OpSeq : skel_t -> OperatorSeq.opseq t op -> t'.
 
     Definition opseq : Type := OperatorSeq.opseq t op.
@@ -944,6 +979,7 @@ Module FCore(Debug : DEBUG).
       | Pat _ (NumLit _) 
       | Pat _ (BoolLit _)
       | Pat _ (Inj _ _) 
+      | Pat _ (ListLit _)
       | Parenthesized _ => true
       | Pat _ (OpSeq _ _) => false
       end.
@@ -1010,6 +1046,7 @@ Module FCore(Debug : DEBUG).
     | BoolLit : bool -> t'
     | Inj : inj_side -> t -> t'
     | Case : t -> list(rule) -> t'
+    | ListLit : list(t) -> t'
     | EmptyHole : MetaVar.t -> t'
     | OpSeq : skel_t -> OperatorSeq.opseq t op -> t' (* invariant: skeleton is consistent with opseq *)
     | ApPalette : PaletteName.t -> 
@@ -1170,6 +1207,7 @@ Module FCore(Debug : DEBUG).
       | Tm _ (BoolLit _)
       | Tm _ (Inj _ _)
       | Tm _ (Case _ _)
+      | Tm _ (ListLit _) 
       | Tm _ (ApPalette _ _ _)
       | Parenthesized _ => true
       (* non-bidelimited cases *)
@@ -1281,6 +1319,7 @@ Module FCore(Debug : DEBUG).
               end in 
             Some (ty, ctx)
           end
+        | UHPat.ListLit ps => None 
         | UHPat.OpSeq skel seq => 
           match syn_skel_pat fuel ctx skel seq None with 
           | None => None
@@ -1403,11 +1442,10 @@ Module FCore(Debug : DEBUG).
           | None => None
           | Some (ctx, _) => Some ctx
           end
-        | UHPat.Wild
+        | UHPat.EmptyHole _
+        | UHPat.Wild => Some ctx
         | UHPat.NumLit _ 
-        | UHPat.BoolLit _ 
-        | UHPat.Inj _ _ 
-        | UHPat.EmptyHole _ => 
+        | UHPat.BoolLit _ => 
           match syn_pat' fuel ctx p with 
           | None => None
           | Some (ty', ctx) =>
@@ -1415,6 +1453,23 @@ Module FCore(Debug : DEBUG).
             | true => Some ctx
             | false => None
             end
+          end
+        | UHPat.Inj side p1 => 
+          match HTyp.matched_sum ty with 
+          | None => None
+          | Some (tyL, tyR) => 
+            let ty1 := pick_side side tyL tyR in 
+            ana_pat fuel ctx p1 ty1  
+          end
+        | UHPat.ListLit ps => 
+          match HTyp.matched_list ty with 
+          | None => None
+          | Some ty_elem => 
+            List.fold_left (fun optctx p => 
+              match optctx with 
+              | None => None
+              | Some ctx => ana_pat fuel ctx p ty_elem 
+              end) ps (Some ctx)
           end
         end
         end
@@ -1589,6 +1644,7 @@ Module FCore(Debug : DEBUG).
             end
           | NumLit _ => Some HTyp.Num
           | BoolLit _ => Some HTyp.Bool
+          | ListLit _ => None
           | OpSeq skel seq => 
             (* NOTE: doesn't check if skel is the correct parse of seq!!! *)
             match syn_skel fuel ctx skel seq None with 
@@ -1713,6 +1769,16 @@ Module FCore(Debug : DEBUG).
           | None => None
           | Some (ty1, ty2) => 
             ana fuel ctx e' (pick_side side ty1 ty2)
+          end
+        | ListLit es => 
+          match HTyp.matched_list ty with 
+          | None => None
+          | Some ty_elem => 
+            List.fold_left (fun optresult elem => 
+              match optresult with 
+              | None => None
+              | Some _ => ana fuel ctx elem ty_elem 
+              end) es (Some tt)
           end
         | Case e1 rules =>
           match syn fuel ctx e1 with 
@@ -1974,6 +2040,7 @@ Module FCore(Debug : DEBUG).
               end in 
             Some (UHPat.Inj side p1, ty, ctx, u_gen)
           end
+        | UHPat.ListLit _ => None
         | UHPat.OpSeq skel seq => 
           match syn_skel_pat_fix_holes fuel ctx u_gen renumber_empty_holes skel seq with 
           | None => None
@@ -2092,8 +2159,7 @@ Module FCore(Debug : DEBUG).
           end
         | UHPat.EmptyHole _  
         | UHPat.NumLit _ 
-        | UHPat.BoolLit _ 
-        | UHPat.Inj _ _ => 
+        | UHPat.BoolLit _ =>  
           match syn_pat_fix_holes' fuel ctx u_gen renumber_empty_holes p with 
           | None => None
           | Some (p', ty', ctx, u_gen) => 
@@ -2103,6 +2169,44 @@ Module FCore(Debug : DEBUG).
               let (u, u_gen) := MetaVarGen.next u_gen in 
               Some (InHole u, p', ctx, u_gen)
             end
+          end
+        | UHPat.Inj side p1 => 
+          match HTyp.matched_sum ty with 
+          | Some (tyL, tyR) => 
+            let ty1 := pick_side side tyL tyR in 
+            match ana_pat_fix_holes fuel ctx u_gen renumber_empty_holes p1 ty1 with 
+            | None => None
+            | Some (p1, ctx, u_gen) => 
+              Some (NotInHole, UHPat.Inj side p1, ctx, u_gen)
+            end
+          | None => 
+            match syn_pat_fix_holes fuel ctx u_gen renumber_empty_holes p1 with 
+            | None => None
+            | Some (p1, ty, ctx, u_gen) => 
+              let (u, u_gen) := MetaVarGen.next u_gen in 
+              Some (InHole u, UHPat.Inj side p1, ctx, u_gen)
+            end
+          end
+        | UHPat.ListLit ps => 
+          match HTyp.matched_list ty with 
+          | Some ty_elem => 
+            let ps_result := 
+              List.fold_left (fun opt_result elem => 
+                match opt_result with 
+                | None => None
+                | Some (ps, ctx, u_gen) => 
+                  match ana_pat_fix_holes fuel ctx u_gen renumber_empty_holes elem ty_elem with
+                  | None => None
+                  | Some (elem, ctx, u_gen) => 
+                    Some (cons elem ps, ctx, u_gen)
+                  end
+                end) ps (Some (nil, ctx, u_gen)) in 
+            match ps_result with 
+            | None => None
+            | Some (ps, ctx, u_gen) => 
+              Some (NotInHole, UHPat.ListLit ps, ctx, u_gen)
+            end
+          | None => None
           end
         end
         end
@@ -2348,6 +2452,7 @@ Module FCore(Debug : DEBUG).
           end
         | NumLit i => Some (e, HTyp.Num, u_gen)
         | BoolLit b => Some (e, HTyp.Bool, u_gen)
+        | ListLit _ => None
         | OpSeq skel seq => 
           match syn_skel_fix_holes fuel ctx u_gen renumber_empty_holes skel seq with 
           | None => None
@@ -2549,6 +2654,25 @@ Module FCore(Debug : DEBUG).
                 Some (InHole u, e', u_gen'')
             | None => None
             end
+          end
+        | ListLit es => 
+          match HTyp.matched_list ty with 
+          | Some ty_elem => 
+            let opt_es := List.fold_left (fun opt_result elem => 
+              match opt_result with 
+              | None => None
+              | Some (es, u_gen) => 
+                match ana_fix_holes_internal fuel ctx u_gen renumber_empty_holes elem ty_elem with 
+                | None => None
+                | Some (elem, u_gen) => 
+                  Some (cons elem es, u_gen)
+                end
+              end) es (Some (nil, u_gen)) in 
+            match opt_es with 
+            | None => None
+            | Some (es, u_gen) => Some (NotInHole, ListLit es, u_gen)
+            end
+          | None => None
           end
         | Case e1 rules => 
           match syn_fix_holes_internal fuel ctx u_gen renumber_empty_holes e1 with 
@@ -2824,6 +2948,9 @@ Module FCore(Debug : DEBUG).
       let (prefix, _) := az in 
       prefix.
 
+    Definition prefix_length {Z A : Type} (zxs : t Z A) : nat := 
+      List.length (prj_prefix zxs).
+
     Definition prj_z {Z A : Type} (zxs : t Z A) : Z := 
       let (az, _) := zxs in 
       let (_, z) := az in 
@@ -2858,6 +2985,7 @@ Module FCore(Debug : DEBUG).
     Inductive t : Type :=
     | CursorT : cursor_side -> UHTyp.t -> t
     | ParenthesizedZ : t -> t
+    | ListZ : t -> t
     | OpSeqZ : UHTyp.skel_t -> t -> OperatorSeq.opseq_surround UHTyp.t UHTyp.op -> t.
 
     Definition opseq_surround : Type := 
@@ -2869,10 +2997,11 @@ Module FCore(Debug : DEBUG).
 
     Definition place_Before (uty : UHTyp.t) : t := 
       match uty with 
+      | UHTyp.Hole
       | UHTyp.Parenthesized _
       | UHTyp.Num
       | UHTyp.Bool
-      | UHTyp.Hole => CursorT Before uty
+      | UHTyp.List _ => CursorT Before uty
       | UHTyp.OpSeq skel seq => 
         let (uty0, suffix) := OperatorSeq.split0 seq in 
         let surround := OperatorSeq.EmptyPrefix suffix in 
@@ -2881,10 +3010,11 @@ Module FCore(Debug : DEBUG).
 
     Definition place_After (uty : UHTyp.t) : t := 
       match uty with 
+      | UHTyp.Hole 
       | UHTyp.Parenthesized _
       | UHTyp.Num
       | UHTyp.Bool 
-      | UHTyp.Hole => CursorT After uty
+      | UHTyp.List _ => CursorT After uty
       | UHTyp.OpSeq skel seq => 
         let (uty0, prefix) := OperatorSeq.split_tail seq in 
         let surround := OperatorSeq.EmptySuffix prefix in 
@@ -2915,6 +3045,7 @@ Module FCore(Debug : DEBUG).
       match zty with
       | CursorT _ ty => ty
       | ParenthesizedZ zty1 => UHTyp.Parenthesized (erase zty1)
+      | ListZ zty1 => UHTyp.List (erase zty1) 
       | OpSeqZ skel zty1 surround => 
         let uty1 := erase zty1 in 
         UHTyp.OpSeq skel 
@@ -2931,6 +3062,7 @@ Module FCore(Debug : DEBUG).
     | Deeper : err_status -> t' -> t
     with t' : Type := 
     | InjZ : inj_side -> t -> t'
+    | ListLitZ : ZList.t t UHPat.t -> t'
     | OpSeqZ : UHPat.skel_t -> t -> OperatorSeq.opseq_surround UHPat.t UHPat.op -> t'.
 
     Definition opseq_surround : Type := OperatorSeq.opseq_surround UHPat.t UHPat.op.
@@ -2942,7 +3074,8 @@ Module FCore(Debug : DEBUG).
       | CursorP cursor_side p => 
         CursorP cursor_side (UHPat.bidelimit p)
       | ParenthesizedZ _ 
-      | Deeper _ (InjZ _ _) => zp
+      | Deeper _ (InjZ _ _)
+      | Deeper _ (ListLitZ _) => zp
       | Deeper _ (OpSeqZ _ _ _) => ParenthesizedZ zp
       end.
 
@@ -2994,6 +3127,7 @@ Module FCore(Debug : DEBUG).
     with erase' (zp' : ZPat.t') : UHPat.t' := 
       match zp' with 
       | ZPat.InjZ side zp1 => UHPat.Inj side (erase zp1)
+      | ZPat.ListLitZ zps => UHPat.ListLit (ZList.erase zps erase)
       | ZPat.OpSeqZ skel zp1 surround => 
         let p1 := erase zp1 in 
         UHPat.OpSeq skel (OperatorSeq.opseq_of_exp_and_surround p1 surround)
@@ -3007,7 +3141,8 @@ Module FCore(Debug : DEBUG).
       | UHPat.Pat _ (UHPat.Var _)
       | UHPat.Pat _ (UHPat.NumLit _)
       | UHPat.Pat _ (UHPat.BoolLit _)
-      | UHPat.Pat _ (UHPat.Inj _ _) => CursorP Before p
+      | UHPat.Pat _ (UHPat.Inj _ _) 
+      | UHPat.Pat _ (UHPat.ListLit _) => CursorP Before p
       | UHPat.Pat err (UHPat.OpSeq skel seq) => 
         let (p0, suffix) := OperatorSeq.split0 seq in 
         let surround := OperatorSeq.EmptyPrefix suffix in 
@@ -3022,7 +3157,8 @@ Module FCore(Debug : DEBUG).
       | UHPat.Pat _ (UHPat.Var _)
       | UHPat.Pat _ (UHPat.NumLit _)
       | UHPat.Pat _ (UHPat.BoolLit _)
-      | UHPat.Pat _ (UHPat.Inj _ _) => CursorP After p
+      | UHPat.Pat _ (UHPat.Inj _ _) 
+      | UHPat.Pat _ (UHPat.ListLit _) => CursorP After p
       | UHPat.Pat err (UHPat.OpSeq skel seq) => 
         let (p0, prefix) := OperatorSeq.split_tail seq in 
         let surround := OperatorSeq.EmptySuffix prefix in 
@@ -3049,6 +3185,7 @@ Module FCore(Debug : DEBUG).
     | LamZA : UHPat.t -> ZTyp.t -> UHExp.t -> t'
     | LamZE : UHPat.t -> option(UHTyp.t) -> t -> t'
     | InjZ : inj_side -> t -> t'
+    | ListLitZ : ZList.t t UHExp.t -> t'
     | CaseZE : t -> list(UHExp.rule) -> t'
     | CaseZR : UHExp.t -> ZList.t zrule UHExp.rule -> t'
     | OpSeqZ : UHExp.skel_t -> t -> OperatorSeq.opseq_surround UHExp.t UHExp.op -> t'
@@ -3080,7 +3217,8 @@ Module FCore(Debug : DEBUG).
       | Deeper _ (InjZ _ _)
       | Deeper _ (ApPaletteZ _ _ _)
       | Deeper _ (CaseZE _ _) 
-      | Deeper _ (CaseZR _ _) => ze
+      | Deeper _ (CaseZR _ _) 
+      | Deeper _ (ListLitZ _) => ze
       | Deeper _ (AscZ1 _ _) 
       | Deeper _ (AscZ2 _ _)  
       | Deeper _ (LetZP _ _ _ _) 
@@ -3166,6 +3304,7 @@ Module FCore(Debug : DEBUG).
       | LamZA p zann e1 => UHExp.Lam p (Some (ZTyp.erase zann)) e1
       | LamZE p ann ze1 => UHExp.Lam p ann (erase ze1)
       | InjZ side ze => UHExp.Inj side (erase ze)
+      | ListLitZ zes => UHExp.ListLit (ZList.erase zes erase)  
       | CaseZE ze1 rules => UHExp.Case (erase ze1) rules
       | CaseZR e1 zrules => UHExp.Case e1 (ZList.erase zrules erase_rule)
       | OpSeqZ skel ze' surround => 
@@ -3294,6 +3433,13 @@ Module FCore(Debug : DEBUG).
                 side
                 ctx)
           end
+        | UHPat.Pat NotInHole (UHPat.ListLit _) => 
+          Some
+            (mk_cursor_info
+              (PatAnaOnly ty)
+              (IsPat p)
+              side
+              ctx)
         | UHPat.Pat NotInHole (UHPat.OpSeq (Skel.BinOp NotInHole Comma skel1 skel2) seq) => 
           Some
             (mk_cursor_info 
@@ -3342,6 +3488,7 @@ Module FCore(Debug : DEBUG).
         | Fuel.More fuel => 
         match zp' with 
         | ZPat.InjZ side zp1 => syn_pat_cursor_info fuel ctx zp1
+        | ZPat.ListLitZ _ => None
         | ZPat.OpSeqZ skel zp1 surround => 
           let p1 := ZPat.erase zp1 in 
           let seq := OperatorSeq.opseq_of_exp_and_surround p1 surround in 
@@ -3409,6 +3556,13 @@ Module FCore(Debug : DEBUG).
           | Some (tyL, tyR) => 
             let ty1 := pick_side side tyL tyR in 
             ana_pat_cursor_info fuel ctx zp1 ty1
+          end
+        | ZPat.ListLitZ zps => 
+          match HTyp.matched_list ty with 
+          | None => None
+          | Some ty_elem => 
+            let zp := ZList.prj_z zps in 
+            ana_pat_cursor_info fuel ctx zp ty_elem
           end
         | ZPat.OpSeqZ skel zp1 surround => 
           let p1 := ZPat.erase zp1 in 
@@ -3495,7 +3649,8 @@ Module FCore(Debug : DEBUG).
             ctx
         )
       | UHExp.Tm NotInHole (UHExp.Let _ _ _ _)
-      | UHExp.Tm NotInHole (UHExp.Case _ _) =>
+      | UHExp.Tm NotInHole (UHExp.Case _ _) 
+      | UHExp.Tm NotInHole (UHExp.ListLit _) =>
         Some (
           mk_cursor_info 
             (AnaOnly ty)
@@ -3740,6 +3895,7 @@ Module FCore(Debug : DEBUG).
         end
       | InjZ side ze1 => 
         syn_cursor_info fuel ctx ze1
+      | ListLitZ _ => None
       | CaseZE _ _
       | CaseZR _ _ => None
       | OpSeqZ skel ze0 surround => 
@@ -3848,6 +4004,13 @@ Module FCore(Debug : DEBUG).
         | Some (ty1, ty2) => 
           ana_cursor_info fuel ctx ze1 
             (pick_side side ty1 ty2)
+        end
+      | ListLitZ zes => 
+        match HTyp.matched_list ty with 
+        | None => None
+        | Some ty_elem => 
+          let ze0 := ZList.prj_z zes in  
+          ana_cursor_info fuel ctx ze0 ty_elem
         end
       | CaseZE ze1 rules => 
         syn_cursor_info fuel ctx ze1
@@ -4026,6 +4189,7 @@ Module FCore(Debug : DEBUG).
       match zty with 
       | ZTyp.CursorT cursor_side _ => (nil, cursor_side)
       | ZTyp.ParenthesizedZ zty1 => cons' O (of_ztyp zty1)
+      | ZTyp.ListZ zty1 => cons' O (of_ztyp zty1)
       | ZTyp.OpSeqZ _ zty1 surround => 
         let n := OperatorSeq.surround_prefix_length surround in 
         cons' n (of_ztyp zty1)
@@ -4040,6 +4204,10 @@ Module FCore(Debug : DEBUG).
     with of_zpat' (zp' : ZPat.t') : t := 
       match zp' with 
       | ZPat.InjZ _ zp1 => cons' 0 (of_zpat zp1)
+      | ZPat.ListLitZ zps => 
+        let prefix_length := ZList.prefix_length zps in 
+        let zp0 := ZList.prj_z zps in 
+        cons' prefix_length (of_zpat zp0)
       | ZPat.OpSeqZ _ zp1 surround => 
         let n := OperatorSeq.surround_prefix_length surround in 
         cons' n (of_zpat zp1)
@@ -4063,6 +4231,10 @@ Module FCore(Debug : DEBUG).
       | ZExp.LamZA _ zann _ => cons' 1 (of_ztyp zann)
       | ZExp.LamZE _ ann ze' => cons' 2 (of_zexp ze')
       | ZExp.InjZ _ ze' => cons' O (of_zexp ze')
+      | ZExp.ListLitZ zes => 
+        let prefix_length := ZList.prefix_length zes in 
+        let ze0 := ZList.prj_z zes in 
+        cons' prefix_length (of_zexp ze0)
       | ZExp.CaseZE ze1 _ => cons' O (of_zexp ze1)
       | ZExp.CaseZR _ zrules => 
         let prefix_len := List.length (ZList.prj_prefix zrules) in 
@@ -4112,6 +4284,15 @@ Module FCore(Debug : DEBUG).
             end
           | _ => None
           end
+        | UHTyp.List uty1 => 
+          match x with 
+          | O => 
+            match follow_ty fuel (xs, cursor_side) uty1 with 
+            | None => None
+            | Some zty => Some (ZTyp.ListZ zty)
+            end
+          | _ => None
+          end
         | UHTyp.OpSeq skel seq => 
           match OperatorSeq.split x seq with 
           | Some (uty_n, surround) => 
@@ -4151,6 +4332,16 @@ Module FCore(Debug : DEBUG).
           | (_, UHPat.Var _)
           | (_, UHPat.NumLit _)
           | (_, UHPat.BoolLit _) => None
+          | (n, UHPat.ListLit ps) => 
+            match ZList.split_at n ps with 
+            | None => None
+            | Some psz => 
+              match ZList.optmap_z (follow_pat (xs, cursor_side)) psz with 
+              | None => None
+              | Some zps => 
+                Some (ZPat.Deeper err_status (ZPat.ListLitZ zps))
+              end
+            end
           | (0, UHPat.Inj side p1) => 
             match follow_pat (xs, cursor_side) p1 with 
             | None => None
@@ -4261,6 +4452,16 @@ Module FCore(Debug : DEBUG).
             | None => None
             end
           | (_, UHExp.Inj _ _) => None
+          | (n, UHExp.ListLit es) => 
+            match ZList.split_at n es with 
+            | None => None
+            | Some esz => 
+              match ZList.optmap_z (follow_e (xs, cursor_side)) esz with 
+              | None => None
+              | Some zes => 
+                Some (ZExp.Deeper err_status (ZExp.ListLitZ zes))
+              end
+            end
           | (O, UHExp.Case e1 rules) => 
             match follow_e (xs, cursor_side) e1 with 
             | Some ze => Some (ZExp.Deeper err_status (ZExp.CaseZE ze rules))
@@ -4379,6 +4580,12 @@ Module FCore(Debug : DEBUG).
       | UHPat.Pat _ (UHPat.Var _) 
       | UHPat.Pat _ (UHPat.NumLit _) 
       | UHPat.Pat _ (UHPat.BoolLit _) => None
+      | UHPat.Pat _ (UHPat.ListLit ps) => 
+        Util.findmapi ps (fun i p => 
+          match steps_to_hole_pat fuel p u with 
+          | None => None
+          | Some ns => Some (cons i ns)
+          end)
       | UHPat.Pat _ (UHPat.Inj _ p1) => 
         cons_opt 0 (steps_to_hole_pat fuel p1 u)
       | UHPat.Pat _ (UHPat.OpSeq skel seq) => 
@@ -4419,6 +4626,12 @@ Module FCore(Debug : DEBUG).
       | UHExp.Tm _ (UHExp.Asc e1 _)  
       | UHExp.Tm _ (UHExp.Inj _ e1) => 
         cons_opt O (steps_to_hole fuel e1 u)
+      | UHExp.Tm _ (UHExp.ListLit es) => 
+        Util.findmapi es (fun i e => 
+          match steps_to_hole fuel e u with 
+          | None => None
+          | Some ns => Some (cons i ns)
+          end)
       | UHExp.Tm _ (UHExp.Lam p _ e1) => 
         cons_opt2 
           0 (steps_to_hole_pat fuel p u)
@@ -4493,6 +4706,7 @@ Module FCore(Debug : DEBUG).
       | UHTyp.Num 
       | UHTyp.Bool => None
       | UHTyp.Hole => Some nil
+      | UHTyp.List uty1 => cons_opt 0 (first_hole_steps_ty fuel uty1)
       | UHTyp.OpSeq _ opseq => first_hole_steps_ty_opseq fuel opseq 0
       end
       end
@@ -4526,6 +4740,12 @@ Module FCore(Debug : DEBUG).
       | UHPat.Pat _ (UHPat.NumLit _) 
       | UHPat.Pat _ (UHPat.BoolLit _) => None
       | UHPat.Pat _ (UHPat.Inj _ p1) => cons_opt 0 (first_hole_steps_pat fuel p1)
+      | UHPat.Pat _ (UHPat.ListLit ps) => 
+        Util.findmapi ps (fun i p => 
+          match first_hole_steps_pat fuel p with 
+          | None => None
+          | Some ns => Some (cons i ns)
+          end)
       | UHPat.Pat _ (UHPat.OpSeq _ seq) => first_hole_steps_opseq_pat fuel seq 0
       end
       end
@@ -4590,6 +4810,12 @@ Module FCore(Debug : DEBUG).
           end
         | UHExp.NumLit _ => None
         | UHExp.BoolLit _ => None
+        | UHExp.ListLit es => 
+          Util.findmapi es (fun i e => 
+            match first_hole_steps fuel e with 
+            | None => None
+            | Some ns => Some (cons i ns)
+            end)
         | UHExp.Inj _ e1 => cons_opt 0 (first_hole_steps fuel e1)
         | UHExp.Case e1 rules =>
           match first_hole_steps fuel e1 with
@@ -4650,6 +4876,7 @@ Module FCore(Debug : DEBUG).
         | In _, _ => None
         end
       | ZTyp.ParenthesizedZ zty' => cons_opt 0 (next_hole_steps_ty fuel zty')
+      | ZTyp.ListZ zty1 => cons_opt 0 (next_hole_steps_ty fuel zty1) 
       | ZTyp.OpSeqZ _ zty' surround =>
         let n := OperatorSeq.surround_prefix_length surround in
         match next_hole_steps_ty fuel zty' with
@@ -4692,6 +4919,7 @@ Module FCore(Debug : DEBUG).
             | UHPat.Var _
             | UHPat.NumLit _
             | UHPat.BoolLit _ 
+            | UHPat.ListLit _
             | UHPat.OpSeq _ _ => None
             | UHPat.Inj _ p1 => first_hole_steps_pat fuel p1 
             | UHPat.EmptyHole _ => None
@@ -4699,6 +4927,20 @@ Module FCore(Debug : DEBUG).
           end
         end
       | ZPat.Deeper _ (ZPat.InjZ _ zp1) => cons_opt 0 (next_hole_steps_pat fuel zp1)
+      | ZPat.Deeper _ (ZPat.ListLitZ zps) => 
+        let prefix_length := ZList.prefix_length zps in 
+        let zp0 := ZList.prj_z zps in 
+        match next_hole_steps_pat fuel zp0 with 
+        | Some ns => 
+          Some (cons prefix_length ns)
+        | None =>
+          let suffix := ZList.prj_suffix zps in 
+          Util.findmapi suffix (fun i p => 
+            match first_hole_steps_pat fuel p with 
+            | None => None
+            | Some ns => Some (cons (prefix_length + i + 1) ns)
+            end)
+        end
       | ZPat.Deeper _ (ZPat.OpSeqZ _ zp1 surround) =>
         let n := OperatorSeq.surround_prefix_length surround in
         match next_hole_steps_pat fuel zp1 with
@@ -4743,7 +4985,8 @@ Module FCore(Debug : DEBUG).
             | UHExp.Lam _ _ _ => 
               first_hole_steps fuel ue
             | UHExp.NumLit _
-            | UHExp.BoolLit _ => None
+            | UHExp.BoolLit _
+            | UHExp.ListLit _ => None
             | UHExp.Inj _ ue'' => 
               first_hole_steps fuel ue 
             | UHExp.Case e1 rules => 
@@ -4817,6 +5060,20 @@ Module FCore(Debug : DEBUG).
         | ZExp.InjZ _ ze'' => 
           cons_opt 
             0 (next_hole_steps fuel ze'')
+        | ZExp.ListLitZ zes => 
+          let prefix_length := ZList.prefix_length zes in 
+          let ze0 := ZList.prj_z zes in 
+          match next_hole_steps fuel ze0 with 
+          | Some ns => 
+            Some (cons prefix_length ns)
+          | None =>
+            let suffix := ZList.prj_suffix zes in 
+            Util.findmapi suffix (fun i e => 
+              match first_hole_steps fuel e with 
+              | None => None
+              | Some ns => Some (cons (prefix_length + i + 1) ns)
+              end)
+          end
         | ZExp.CaseZE ze1 rules =>
           match next_hole_steps fuel ze1 with
           | Some ns => Some (cons 0 ns)
@@ -4883,10 +5140,11 @@ Module FCore(Debug : DEBUG).
       | Fuel.Kicked => None
       | Fuel.More fuel =>
       match uty with
+      | UHTyp.Hole => Some nil
       | UHTyp.Parenthesized uty' => cons_opt 0 (last_hole_steps_ty fuel uty')
       | UHTyp.Num 
       | UHTyp.Bool => None
-      | UHTyp.Hole => Some nil
+      | UHTyp.List uty1 => cons_opt 0 (last_hole_steps_ty fuel uty1)
       | UHTyp.OpSeq _ opseq => last_hole_steps_ty_opseq fuel opseq 0
       end
       end

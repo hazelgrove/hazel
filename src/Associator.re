@@ -18,7 +18,7 @@ let string_of_expr_op = (op: UHExp.op) =>
   | UHExp.Space => "_"
   | UHExp.Comma => ","
   };
-let string_of_pat_op = (op: UHPat.op) => 
+let string_of_pat_op = (op: UHPat.op) =>
   switch (op) {
   | UHPat.Space => "_"
   | UHPat.Comma => ","
