@@ -1,5 +1,5 @@
 {
-  open SkelTypParser
+  open SkelPatParser
 }
 
 let white = [' ']+
@@ -9,8 +9,7 @@ let placeholder = digit+
 rule read = 
   parse
   | white { read lexbuf }
-  | "|" { VBAR }
-  | "->" { ARROW }
+  | "_" { SPACEOP }
   | "," { COMMA }
   | placeholder { PLACEHOLDER (int_of_string (Lexing.lexeme lexbuf)) }
   | eof { EOF }

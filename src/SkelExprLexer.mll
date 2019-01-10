@@ -12,6 +12,7 @@ rule read =
   | "+" { PLUS }
   | "*" { TIMES }
   | "_" { SPACEOP }
+  | "," { COMMA }
   | placeholder { PLACEHOLDER (int_of_string (Lexing.lexeme lexbuf)) }
   | eof { EOF }
 

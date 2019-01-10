@@ -9,48 +9,34 @@
 
 %token <int> PLACEHOLDER
 %token COMMA
-%token PLUS
-%token TIMES
 %token SPACEOP
 %token EOF
 
 %left COMMA
-%left PLUS
-%left TIMES
 %left SPACEOP
 
-%start <SemanticsCore.UHExp.op SemanticsCore.Skel.t> skel_expr
+%start <SemanticsCore.UHPat.op SemanticsCore.Skel.t> skel_pat
 
 (* %% ends the declarations section of the grammar definition *)
 
 %%
 
-skel_expr: 
-  | e = expr; EOF { e }
+skel_pat: 
+  | p = pat; EOF { p }
   ;
 
-expr: 
+pat: 
   | n = PLACEHOLDER { Skel.Placeholder n }
-  | e1 = expr; COMMA; e2 = expr {
+  | p1 = pat; COMMA; p2 = pat {
     Skel.BinOp(
       NotInHole,
-      UHExp.Comma,
-      e1, e2) }
-  | e1 = expr; PLUS; e2 = expr { 
-    Skel.BinOp(
-      NotInHole, 
-      UHExp.Plus, 
-      e1, e2) }
-  | e1 = expr; TIMES; e2 = expr { 
+      UHPat.Comma,
+      p1, p2) }
+  | p1 = pat; SPACEOP; p2 = pat { 
     Skel.BinOp(
       NotInHole,
-      UHExp.Times, 
-      e1, e2) }
-  | e1 = expr; SPACEOP; e2 = expr { 
-    Skel.BinOp(
-      NotInHole,
-      UHExp.Space, 
-      e1, e2) }
+      UHPat.Space, 
+      p1, p2) }
   ;
 
 

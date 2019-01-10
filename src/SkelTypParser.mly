@@ -5,10 +5,12 @@
 %}
 
 %token <int> PLACEHOLDER
+%token COMMA
 %token VBAR
 %token ARROW
 %token EOF
 
+%left COMMA
 %right ARROW
 %right VBAR
 
@@ -24,6 +26,11 @@ skel_typ:
 
 ty: 
   | n = PLACEHOLDER { Skel.Placeholder n }
+  | ty1 = ty; COMMA; ty2 = ty {
+    Skel.BinOp(
+      NotInHole,
+      UHTyp.Prod,
+      ty1, ty2) }
   | ty1 = ty; ARROW; ty2 = ty { 
     Skel.BinOp(
       NotInHole,
