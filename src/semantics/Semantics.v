@@ -8689,10 +8689,6 @@ Module FCore(Debug : DEBUG).
       Definition inst_num : Type := nat.
 
       Module DHPat.
-        Inductive bin_op : Type :=
-        | Comma : bin_op
-        | Space : bin_op.
-
         Inductive t : Type :=
         | EmptyHole : MetaVar.t -> inst_num -> t
         | NonEmptyHole : MetaVar.t -> inst_num -> t -> t
@@ -8701,7 +8697,8 @@ Module FCore(Debug : DEBUG).
         | NumLit : nat -> t
         | BoolLit : bool -> t
         | Inj : inj_side -> t -> t
-        | BinOp : bin_op -> t -> t -> t.
+        | Pair : t -> t -> t
+        | Ap : t -> t -> t.
 
         (* whether dp contains the variable x outside of a hole *)
         Fixpoint binds_var (x : Var.t) (dp : t) : bool :=
@@ -8713,7 +8710,8 @@ Module FCore(Debug : DEBUG).
           | BoolLit _ => false
           | Var y => Var.eq x y
           | Inj _ dp1 => binds_var x dp1
-          | BinOp _ dp1 dp2 => binds_var x dp1 || binds_var x dp2
+          | Pair dp1 dp2
+          | Ap dp1 dp2 => binds_var x dp1 || binds_var x dp2
           end.
 
         Inductive expand_result : Type :=
@@ -8826,7 +8824,7 @@ Module FCore(Debug : DEBUG).
                 | DoesNotExpand => DoesNotExpand
                 | Expands dp2 ty2 ctx delta2 =>
                   let delta := MetaVarMap.union delta1 delta2 in
-                  let dp := BinOp DHPat.Comma dp1 dp2 in
+                  let dp := Pair dp1 dp2 in
                   Expands dp (HTyp.Prod ty1 ty2) ctx delta
                 end
               end
@@ -8840,7 +8838,7 @@ Module FCore(Debug : DEBUG).
                   match ana_expand_skel fuel ctx skel2 seq ty2 with
                   | DoesNotExpand => DoesNotExpand
                   | Expands dp2 ty2 ctx delta2 =>
-                    let dp := BinOp Space dp1 dp2 in
+                    let dp := Ap dp1 dp2 in
                     let delta := MetaVarMap.union delta1 delta2 in
                     Expands dp ty ctx delta
                   end
@@ -8888,7 +8886,7 @@ Module FCore(Debug : DEBUG).
                   match ana_expand_skel ctx skel2 seq ty2 with
                   | DoesNotExpand => DoesNotExpand
                   | Expands dp2 ty2 ctx delta2 =>
-                    let dp := BinOp Comma dp1 dp2 in
+                    let dp := Pair dp1 dp2 in
                     let delta := MetaVarMap.union delta1 delta2 in
                     Expands dp ty ctx delta
                   end
