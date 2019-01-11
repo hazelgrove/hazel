@@ -8716,8 +8716,6 @@ Module FCore(Debug : DEBUG).
           | BinOp _ dp1 dp2 => binds_var x dp1 || binds_var x dp2
           end.
 
-        Fixpoint has_valid_binders (dp : t) : bool := false. (* TODO *)
-
         Inductive expand_result : Type :=
         | Expands : t -> HTyp.t -> Contexts.t -> Delta.t -> expand_result
         | DoesNotExpand : expand_result.
