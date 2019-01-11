@@ -8829,6 +8829,7 @@ Module FCore(Debug : DEBUG).
                 end
               end
             | Skel.BinOp NotInHole UHPat.Space skel1 skel2 =>
+              (* TODO: need to review this re: casts *)
               match syn_expand_skel ctx skel1 seq with
               | DoesNotExpand => DoesNotExpand
               | Expands dp1 ty1 ctx delta1 =>
