@@ -8987,7 +8987,7 @@ Module FCore(Debug : DEBUG).
         | BinNumOp : bin_num_op -> t -> t -> t
         | Inj : HTyp.t -> inj_side -> t -> t
         | Pair : t -> t -> t
-        | Case : t -> list(rule) -> t
+        | Case : t -> list(rule) -> nat -> t
         | EmptyHole : MetaVar.t -> inst_num -> VarMap.t_(t) -> t 
         | NonEmptyHole : MetaVar.t -> inst_num -> VarMap.t_(t) -> t -> t
         | Cast : t -> HTyp.t -> HTyp.t -> t
@@ -9004,79 +9004,97 @@ Module FCore(Debug : DEBUG).
         End Environment.
 
         (* closed substitution [d1/x]d2*)
-        Fixpoint subst (fuel : Fuel.t) (d1 : t) (x : Var.t) (d2 : t) : t := 
+        Fixpoint subst_var (fuel : Fuel.t) (d1 : t) (x : Var.t) (d2 : t) : t :=
           match fuel with 
           | Fuel.Kicked => d2
-          | Fuel.More fuel => let subst := subst fuel in 
+          | Fuel.More fuel => let subst_var := subst_var fuel in
             match d2 with 
             | BoundVar y => if Var.eq x y then d1 else d2
             | FreeVar _ _ _ _ => d2
             | Let dp d3 d4 =>
-              let d3 := subst d1 x d3 in
-              let d4 := if DHPat.binds_var x dp then d4 else subst d1 x d4 in
+              let d3 := subst_var d1 x d3 in
+              let d4 := if DHPat.binds_var x dp then d4 else subst_var d1 x d4 in
               Let dp d3 d4
             | FixF y ty d3 => 
-              let d3 := if Var.eq x y then d3 else subst d1 x d3 in
+              let d3 := if Var.eq x y then d3 else subst_var d1 x d3 in
               FixF y ty d3
             | Lam dp ty d3 =>
               if DHPat.binds_var x dp then d2 else
-              let d3 := subst d1 x d3 in
+              let d3 := subst_var d1 x d3 in
               Lam dp ty d3
             | Ap d3 d4 => 
-              let d3 := subst d1 x d3 in
-              let d4 := subst d1 x d4 in
+              let d3 := subst_var d1 x d3 in
+              let d4 := subst_var d1 x d4 in
               Ap d3 d4
             | BoolLit _
             | NumLit _ => d2
             | BinNumOp op d3 d4 => 
-              let d3 := subst d1 x d3 in
-              let d4 := subst d1 x d4 in
+              let d3 := subst_var d1 x d3 in
+              let d4 := subst_var d1 x d4 in
               BinNumOp op d3 d4
             | Inj ty side d3 => 
-              let d3 := subst d1 x d3 in
+              let d3 := subst_var d1 x d3 in
               Inj ty side d3
             | Pair d3 d4 =>
-              let d3 := subst d1 x d3 in
-              let d4 := subst d1 x d4 in
+              let d3 := subst_var d1 x d3 in
+              let d4 := subst_var d1 x d4 in
               Pair d3 d4
-            | Case d3 rules =>
-              let d3 := subst d1 x d3 in
-              let rules := rules_subst fuel d1 x d2 rules in
-              Case d3 rules
+            | Case d3 rules n =>
+              let d3 := subst_var d1 x d3 in
+              let rules := subst_var_rules fuel d1 x d2 rules in
+              Case d3 rules n
             | EmptyHole u i sigma => 
-              let sigma' := env_subst fuel d1 x sigma in 
+              let sigma' := subst_var_env fuel d1 x sigma in
               EmptyHole u i sigma' 
             | NonEmptyHole u i sigma d3 => 
-              let d3' := subst d1 x d3 in 
-              let sigma' := env_subst fuel d1 x sigma in 
+              let d3' := subst_var d1 x d3 in
+              let sigma' := subst_var_env fuel d1 x sigma in
               NonEmptyHole u i sigma' d3'
             | Cast d ty1 ty2 => 
-              let d' := subst d1 x d in 
+              let d' := subst_var d1 x d in
               Cast d' ty1 ty2 
             | FailedCast d ty1 ty2 => 
-              let d' := subst d1 x d in 
+              let d' := subst_var d1 x d in
               FailedCast d' ty1 ty2
             end
           end
-        with rules_subst (fuel : Fuel.t) (d1 : t) (x : Var.t) (d2 : t) (rules : list(rule)) :=
+        with subst_var_rules (fuel : Fuel.t) (d1 : t) (x : Var.t) (d2 : t) (rules : list(rule)) :=
           match fuel with
           | Fuel.Kicked => rules
           | Fuel.More fuel =>
             List.map (fun (r : rule) =>
               match r with
-              | Rule dp d3 => if DHPat.binds_var x dp then Rule dp (subst fuel d1 x d3) else r
+              | Rule dp d3 => if DHPat.binds_var x dp then Rule dp (subst_var fuel d1 x d3) else r
               end) rules
           end
-        with env_subst (fuel : Fuel.t) (d1 : t) (x : Var.t) (sigma : Environment.t) := 
+        with subst_var_env (fuel : Fuel.t) (d1 : t) (x : Var.t) (sigma : Environment.t) :=
           match fuel with 
           | Fuel.Kicked => sigma
           | Fuel.More fuel => 
             Coq.Lists.List.map 
               (fun xd : Var.t * t => 
                 let (y, d) := xd in
-                (y, subst fuel d1 x d)) 
+                (y, subst_var fuel d1 x d))
               sigma
           end.
+
+        Fixpoint subst
+          (fuel : Fuel.t)
+          (env : Environment.t)
+          (d : t)
+          : t :=
+          match fuel with
+          | Fuel.Kicked => d
+          | Fuel.More fuel => let subst := subst fuel in d (* TODO *)
+          end.
+
+        Inductive match_result : Type :=
+        | Matches : Environment.t -> match_result
+        | DoesNotMatch : match_result
+        | Indet : match_result.
+
+        (* TODO *)
+        Fixpoint matches (dp : DHPat.t) (d : t) : match_result := DoesNotMatch.
 
         Inductive type_result : Type := 
         | WellTyped : HTyp.t -> type_result
@@ -9857,10 +9875,10 @@ Module FCore(Debug : DEBUG).
             let (d1, hii) := renumber_result_only path hii d1 in
             let (d2, hii) := renumber_result_only path hii d2 in
             (Pair d1 d2, hii)
-          | Case d1 rules => 
+          | Case d1 rules n =>
             let (d1, hii) := renumber_result_only path hii d1 in
             let (drules, hii) := renumber_result_only_rules fuel path hii rules in 
-            (Case d1 drules, hii)
+            (Case d1 drules n, hii)
           | EmptyHole u _ sigma => 
             let (i, hii) := HoleInstanceInfo.next hii u sigma path in 
             (EmptyHole u i sigma, hii)
@@ -9933,10 +9951,10 @@ Module FCore(Debug : DEBUG).
             let (d1, hii) := renumber_sigmas_only fuel path hii d1 in
             let (d2, hii) := renumber_sigmas_only fuel path hii d2 in 
             (Pair d1 d2, hii)
-          | Case d1 rules =>
-            let (d1, hii) := renumber_sigmas_only fuel path hii d1 with
+          | Case d1 rules n =>
+            let (d1, hii) := renumber_sigmas_only fuel path hii d1 in
             let (rules, hii) := renumber_sigmas_only_rules fuel path hii rules in
-            (Case d1 rules, hii)
+            (Case d1 rules n, hii)
           | EmptyHole u i sigma => 
             let (sigma, hii) := renumber_sigma fuel path u i hii sigma in
             let hii := HoleInstanceInfo.update_environment hii (u, i) sigma in 
@@ -10031,8 +10049,9 @@ Module FCore(Debug : DEBUG).
           2 = ap invalid boxed function val
           3 = boxed value not a number literal 2
           4 = boxed value not a number literal 1
-          5 = Case scrutinee bad
+          5 = bad pattern match
           6 = Cast BV Hole Ground
+          7 = non-exhaustive Case
         *)
 
         Inductive ground_cases := 
@@ -10043,14 +10062,19 @@ Module FCore(Debug : DEBUG).
         Definition grounded_Arrow := NotGroundOrHole (HTyp.Arrow HTyp.Hole HTyp.Hole).
         Definition grounded_Sum := NotGroundOrHole (HTyp.Sum HTyp.Hole HTyp.Hole).
 
+        Definition grounded_Prod := NotGroundOrHole (HTyp.Prod HTyp.Hole HTyp.Hole).
+
         Definition ground_cases_of ty := 
           match ty with 
           | HTyp.Hole => Hole
-          | HTyp.Num => Ground
-          | HTyp.Arrow HTyp.Hole HTyp.Hole => Ground
-          | HTyp.Sum HTyp.Hole HTyp.Hole => Ground
+          | HTyp.Bool
+          | HTyp.Num
+          | HTyp.Arrow HTyp.Hole HTyp.Hole
+          | HTyp.Sum HTyp.Hole HTyp.Hole
+          | HTyp.Prod HTyp.Hole HTyp.Hole => Ground
           | HTyp.Arrow _ _ => grounded_Arrow
           | HTyp.Sum _ _ => grounded_Sum
+          | HTyp.Prod _ _ => grounded_Prod
           end.
 
         Definition eval_bin_num_op op n1 n2 :=
@@ -10068,25 +10092,34 @@ Module FCore(Debug : DEBUG).
             | Fuel.More(fuel) => 
             match d with 
             | DHExp.BoundVar _ => InvalidInput 1
-            | DHExp.Let x d1 d2 => 
+            | DHExp.Let dp d1 d2 =>
               match evaluate fuel d1 with 
               | InvalidInput msg => InvalidInput msg
-              | BoxedValue d1' | Indet d1' => 
-                evaluate fuel (DHExp.subst fuel d1' x d2)
+              | BoxedValue d1 | Indet d1 =>
+                match DHExp.matches dp d1 with
+                | DHExp.Indet => Indet d
+                | DHExp.DoesNotMatch => InvalidInput 5
+                | DHExp.Matches env => evaluate fuel (DHExp.subst fuel env d2)
+                end
               end
             | DHExp.FixF x ty d1 => 
-              evaluate fuel (DHExp.subst fuel d x d1)
-            | DHExp.Lam x _ _ =>
+              evaluate fuel (DHExp.subst_var fuel d x d1)
+            | DHExp.Lam _ _ _ =>
               BoxedValue d
             | DHExp.Ap d1 d2 => 
               match evaluate fuel d1 with 
               | InvalidInput msg => InvalidInput msg
-              | BoxedValue (DHExp.Lam x tau d1') => 
-                match evaluate fuel d2 with 
+              | BoxedValue ((DHExp.Lam dp tau d3) as d1) =>
+                match evaluate fuel d2 with
                 | InvalidInput msg => InvalidInput msg
-                | BoxedValue d2' | Indet d2' => 
-                  (* beta rule *)
-                  evaluate fuel (DHExp.subst fuel d2' x d1')
+                | BoxedValue d2 | Indet d2 =>
+                  match DHExp.matches dp d2 with
+                  | DHExp.DoesNotMatch => InvalidInput 5
+                  | DHExp.Indet => Indet (DHExp.Ap d1 d2)
+                  | DHExp.Matches env =>
+                    (* beta rule *)
+                    evaluate fuel (DHExp.subst fuel env d3)
+                  end
                 end
               | BoxedValue (DHExp.Cast d1' (HTyp.Arrow ty1 ty2) (HTyp.Arrow ty1' ty2'))
               | Indet (DHExp.Cast d1' (HTyp.Arrow ty1 ty2) (HTyp.Arrow ty1' ty2')) => 
@@ -10110,6 +10143,7 @@ Module FCore(Debug : DEBUG).
                   Indet (DHExp.Ap d1' d2')
                 end
               end
+            | DHExp.BoolLit _
             | DHExp.NumLit _ => BoxedValue d
             | DHExp.BinNumOp op d1 d2 => 
               match evaluate fuel d1 with 
@@ -10137,41 +10171,17 @@ Module FCore(Debug : DEBUG).
               | BoxedValue d1' => BoxedValue (DHExp.Inj ty side d1')
               | Indet d1' => Indet (DHExp.Inj ty side d1')
               end
-            | DHExp.Case d1 (x, d2) (y, d3) =>
-              if (Var.is_valid_binder x) && (Var.is_valid_binder y) then
-                match evaluate fuel d1 with 
-                | InvalidInput msg => InvalidInput msg
-                | BoxedValue d1' => 
-                  match d1' with 
-                  | DHExp.Inj _ side d1'' => 
-                    let (xb, db) := pick_side side (x, d2) (y, d3) in
-                    let branch := DHExp.subst fuel d1'' xb db in 
-                    evaluate fuel branch
-                  | DHExp.Cast d1'' (HTyp.Sum ty1 ty2) (HTyp.Sum ty1' ty2') => 
-                    let d' := 
-                      DHExp.Case d1'' 
-                        (x, DHExp.subst fuel (DHExp.Cast (DHExp.BoundVar x) ty1 ty1') x d2)
-                        (y, DHExp.subst fuel (DHExp.Cast (DHExp.BoundVar y) ty2 ty2') y d3) in 
-                      evaluate fuel d'
-                  | _ => InvalidInput 5
-                  end
-                | Indet d1' => 
-                  match d1' with 
-                  | DHExp.Inj _ side d1'' => 
-                      let (xb, db) := pick_side side (x, d2) (y, d3) in 
-                      let branch := DHExp.subst fuel d1'' xb db in 
-                      evaluate fuel branch
-                  | DHExp.Cast d1'' (HTyp.Sum ty1 ty2) (HTyp.Sum ty1' ty2') => 
-                    let d' := 
-                      DHExp.Case d1'' 
-                        (x, DHExp.subst fuel (DHExp.Cast (DHExp.BoundVar x) ty1 ty1') x d2)
-                        (y, DHExp.subst fuel (DHExp.Cast (DHExp.BoundVar y) ty2 ty2') y d3) in 
-                    evaluate fuel d'
-                  | _ => Indet (DHExp.Case d1' (x, d2) (y, d3))
-                  end
-                end
-              else
-                InvalidInput 1
+            | DHExp.Pair d1 d2 =>
+              match (evaluate fuel d1,
+                     evaluate fuel d2) with
+              | (InvalidInput msg, _)
+              | (_, InvalidInput msg) => InvalidInput msg
+              | (Indet d1, Indet d2)
+              | (Indet d1, BoxedValue d2)
+              | (BoxedValue d1, Indet d2) => Indet (DHExp.Pair d1 d2)
+              | (BoxedValue d1, BoxedValue d2) => BoxedValue (DHExp.Pair d1 d2)
+              end
+            | DHExp.Case d1 rules n => evaluate_case fuel d1 rules n
             | DHExp.EmptyHole u i sigma => 
               Indet d  
             | DHExp.NonEmptyHole u i sigma d1 => 
@@ -10272,7 +10282,60 @@ Module FCore(Debug : DEBUG).
                 Indet (DHExp.FailedCast d1' ty ty')
               end
             end
-            end.
+            end
+        with evaluate_case
+          (fuel : Fuel.t)
+          (scrut : DHExp.t)
+          (rules : list(DHExp.rule))
+          (current_rule_index : nat)
+          : result :=
+          match fuel with
+          | Fuel.Kicked => InvalidInput 0
+          | Fuel.More fuel =>
+          match evaluate fuel scrut with
+          | InvalidInput msg => InvalidInput msg
+          | BoxedValue scrut | Indet scrut =>
+            match List.nth_error rules current_rule_index with
+            | None => InvalidInput 7
+            | Some (DHExp.Rule dp d) =>
+              match DHExp.matches dp scrut with
+              | DHExp.Indet => Indet (DHExp.Case scrut rules current_rule_index)
+              | DHExp.Matches env => evaluate fuel (DHExp.subst fuel env d)
+              | DHExp.DoesNotMatch => evaluate_case fuel scrut rules (current_rule_index+1)
+              end
+            end
+          end
+          end.
+(*                
+                match d1 with
+                | DHExp.Inj _ side d1'' => 
+                  let (xb, db) := pick_side side (x, d2) (y, d3) in
+                  let branch := DHExp.subst fuel d1'' xb db in 
+                  evaluate fuel branch
+                | DHExp.Cast d1'' (HTyp.Sum ty1 ty2) (HTyp.Sum ty1' ty2') => 
+                  let d' := 
+                      DHExp.Case d1'' 
+                                 (x, DHExp.subst fuel (DHExp.Cast (DHExp.BoundVar x) ty1 ty1') x d2)
+                                 (y, DHExp.subst fuel (DHExp.Cast (DHExp.BoundVar y) ty2 ty2') y d3) in 
+                  evaluate fuel d'
+                | _ => InvalidInput 5
+                end
+              | Indet d1' => 
+                match d1' with 
+                | DHExp.Inj _ side d1'' => 
+                  let (xb, db) := pick_side side (x, d2) (y, d3) in 
+                  let branch := DHExp.subst fuel d1'' xb db in 
+                  evaluate fuel branch
+                | DHExp.Cast d1'' (HTyp.Sum ty1 ty2) (HTyp.Sum ty1' ty2') => 
+                  let d' := 
+                      DHExp.Case d1'' 
+                                 (x, DHExp.subst fuel (DHExp.Cast (DHExp.BoundVar x) ty1 ty1') x d2)
+                                 (y, DHExp.subst fuel (DHExp.Cast (DHExp.BoundVar y) ty2 ty2') y d3) in 
+                  evaluate fuel d'
+                | _ => Indet (DHExp.Case d1' (x, d2) (y, d3))
+                end
+              end
+*)
       End Evaluator.
   End FDynamics.
 End FCore.
