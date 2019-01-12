@@ -8945,7 +8945,9 @@ Module FCore(Debug : DEBUG).
                   end
                 end
               end
-            | Skel.BinOp NotInHole UHPat.Space skel1 skel2 => DoesNotExpand (* TODO *)
+            | Skel.BinOp NotInHole UHPat.Space skel1 skel2 =>
+              (* TODO once we have inductive datatypes *)
+              DoesNotExpand
             end
             end.
       End DHPat.
