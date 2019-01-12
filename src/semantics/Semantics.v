@@ -9094,10 +9094,37 @@ Module FCore(Debug : DEBUG).
         Inductive match_result : Type :=
         | Matches : Environment.t -> match_result
         | DoesNotMatch : match_result
-        | Indet : match_result.
+        | Indet : match_result. (* when pattern shape matches but contains hole *)
 
-        (* TODO *)
-        Fixpoint matches (dp : DHPat.t) (d : t) : match_result := DoesNotMatch.
+        Fixpoint matches (dp : DHPat.t) (d : t) : match_result :=
+          match (dp, d) with
+          | (DHPat.EmptyHole _ _, _)
+          | (DHPat.NonEmptyHole _ _ _, _) => Indet
+          | (DHPat.Wild, _) => Matches Environment.empty
+          | (DHPat.Var x, _) =>
+            let env := Environment.extend Environment.empty (x, d) in
+            Matches env
+          | (DHPat.BoolLit b1, BoolLit b2) =>
+            if Bool.eqb b1 b2 then Matches Environment.empty else DoesNotMatch
+          | (DHPat.NumLit n1, NumLit n2) =>
+            if Nat.eqb n1 n2 then Matches Environment.empty else DoesNotMatch
+          | (DHPat.Inj side1 dp, Inj _ side2 d) =>
+            match (side1, side2) with
+            | (L, L) | (R, R) => matches dp d
+            | _ => DoesNotMatch
+            end
+          | (DHPat.Pair dp1 dp2, Pair d1 d2) =>
+            match (matches dp1 d1, matches dp2 d2) with
+            | (DoesNotMatch, _)
+            | (_, DoesNotMatch) => DoesNotMatch
+            | (Indet, Indet)
+            | (Indet, Matches _)
+            | (Matches _, Indet) => Indet
+            | (Matches env1, Matches env2) => Matches (Environment.union env1 env2)
+            end
+          (* TODO: handle Ap *)
+          | _ => DoesNotMatch
+          end.
 
         Inductive type_result : Type := 
         | WellTyped : HTyp.t -> type_result
