@@ -9085,7 +9085,10 @@ Module FCore(Debug : DEBUG).
           : t :=
           match fuel with
           | Fuel.Kicked => d
-          | Fuel.More fuel => let subst := subst fuel in d (* TODO *)
+          | Fuel.More fuel =>
+          List.fold_left (fun d2 (xd : Var.t * t) =>
+            let (x, d1) := xd in
+            subst_var fuel d1 x d2) env d
           end.
 
         Inductive match_result : Type :=
