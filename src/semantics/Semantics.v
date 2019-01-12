@@ -9933,10 +9933,10 @@ Module FCore(Debug : DEBUG).
             let (d1, hii) := renumber_sigmas_only fuel path hii d1 in
             let (d2, hii) := renumber_sigmas_only fuel path hii d2 in 
             (Pair d1 d2, hii)
-          | Case dp rules =>
-            (* pattern holes don't have environments *)
+          | Case d1 rules =>
+            let (d1, hii) := renumber_sigmas_only fuel path hii d1 with
             let (rules, hii) := renumber_sigmas_only_rules fuel path hii rules in
-            (Case dp rules, hii)
+            (Case d1 rules, hii)
           | EmptyHole u i sigma => 
             let (sigma, hii) := renumber_sigma fuel path u i hii sigma in
             let hii := HoleInstanceInfo.update_environment hii (u, i) sigma in 
@@ -9971,6 +9971,7 @@ Module FCore(Debug : DEBUG).
             let (rs, hii) := b in
             match r with
             | Rule dp d =>
+              (* pattern holes don't have environments *)
               let (d, hii) := renumber_sigmas_only fuel path hii d in
               (rs ++ (cons (Rule dp d) nil), hii)
             end) rules (nil, hii)
@@ -10013,7 +10014,7 @@ Module FCore(Debug : DEBUG).
           match fuel with 
           | Fuel.Kicked => (d, hii)
           | Fuel.More fuel => 
-          let (d, hii) := renumber_result_only fuel path hii d in 
+          let (d, hii) := renumber_result_only fuel path hii d in
           renumber_sigmas_only fuel path hii d
           end.
       End DHExp.
