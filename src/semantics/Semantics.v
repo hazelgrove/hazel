@@ -10013,7 +10013,7 @@ Module FCore(Debug : DEBUG).
           match fuel with 
           | Fuel.Kicked => (d, hii)
           | Fuel.More fuel => 
-          let (d, hii) := renumber_result_only path hii d in 
+          let (d, hii) := renumber_result_only fuel path hii d in 
           renumber_sigmas_only fuel path hii d
           end.
       End DHExp.
