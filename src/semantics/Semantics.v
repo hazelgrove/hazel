@@ -9111,7 +9111,6 @@ Module FCore(Debug : DEBUG).
             | (Matches _, Indet) => Indet
             | (Matches env1, Matches env2) => Matches (Environment.union env1 env2)
             end
-          (* TODO: handle Ap *)
           | _ => DoesNotMatch
           end.
 
