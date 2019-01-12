@@ -9030,7 +9030,7 @@ Module FCore(Debug : DEBUG).
               Pair d3 d4
             | Case d3 rules n =>
               let d3 := subst_var d1 x d3 in
-              let rules := subst_var_rules fuel d1 x d2 rules in
+              let rules := subst_var_rules fuel d1 x rules in
               Case d3 rules n
             | EmptyHole u i sigma => 
               let sigma' := subst_var_env fuel d1 x sigma in
@@ -9047,13 +9047,13 @@ Module FCore(Debug : DEBUG).
               FailedCast d' ty1 ty2
             end
           end
-        with subst_var_rules (fuel : Fuel.t) (d1 : t) (x : Var.t) (d2 : t) (rules : list(rule)) :=
+        with subst_var_rules (fuel : Fuel.t) (d1 : t) (x : Var.t) (rules : list(rule)) :=
           match fuel with
           | Fuel.Kicked => rules
           | Fuel.More fuel =>
             List.map (fun (r : rule) =>
               match r with
-              | Rule dp d3 => if DHPat.binds_var x dp then Rule dp (subst_var fuel d1 x d3) else r
+              | Rule dp d2 => if DHPat.binds_var x dp then Rule dp (subst_var fuel d1 x d2) else r
               end) rules
           end
         with subst_var_env (fuel : Fuel.t) (d1 : t) (x : Var.t) (sigma : Environment.t) :=
