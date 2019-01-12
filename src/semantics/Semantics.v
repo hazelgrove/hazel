@@ -8837,6 +8837,67 @@ Module FCore(Debug : DEBUG).
               (* TODO: once we have inductive datatypes *)
               DoesNotExpand
             end
+            end.
+
+        Fixpoint ana_expand
+          (fuel : Fuel.t)
+          (ctx : Contexts.t)
+          (p : UHPat.t)
+          (ty : HTyp.t)
+          : expand_result :=
+            match fuel with
+            | Fuel.Kicked => DoesNotExpand
+            | Fuel.More fuel => let ana_expand := ana_expand fuel in
+            match p with
+            | UHPat.Parenthesized p1 => ana_expand ctx p1 ty
+            | UHPat.Pat NotInHole p' => ana_expand' fuel ctx p' ty
+            | UHPat.Pat (InHole u) p' =>
+              match syn_expand' fuel ctx p' with
+              | DoesNotExpand => DoesNotExpand
+              | Expands dp1 _ ctx delta =>
+                let dp := NonEmptyHole u 0 dp1 in
+                let (gamma, _) := ctx in
+                let delta := MetaVarMap.extend delta (u, (ty, gamma)) in
+                Expands dp ty ctx delta
+              end
+            end
+            end
+        with ana_expand'
+          (fuel : Fuel.t)
+          (ctx : Contexts.t)
+          (p' : UHPat.t')
+          (ty : HTyp.t)
+          : expand_result :=
+            match fuel with
+            | Fuel.Kicked => DoesNotExpand
+            | Fuel.More fuel => let ana_expand' := ana_expand' fuel in
+            match p' with
+            | UHPat.EmptyHole u =>
+              let gamma := Contexts.gamma ctx in
+              let dp := EmptyHole u 0 in
+              let delta := MetaVarMap.extend MetaVarMap.empty
+                                             (u, (ty, gamma)) in
+              Expands dp ty ctx delta
+            | UHPat.Var x =>
+              if Var.is_valid x && Bool.negb (Contexts.gamma_contains ctx x) then
+                let ctx := Contexts.extend_gamma ctx (x, ty) in
+                Expands (DHPat.Var x) ty ctx MetaVarMap.empty
+              else
+                DoesNotExpand
+            | UHPat.Wild
+            | UHPat.NumLit _
+            | UHPat.BoolLit _
+            | UHPat.Inj _ _ =>
+              match syn_expand' fuel ctx p' with
+              | DoesNotExpand => DoesNotExpand
+              | Expands dp ty1 ctx delta =>
+                if HTyp.consistent ty ty1 then
+                  Expands dp ty1 ctx delta
+                else
+                  DoesNotExpand
+              end
+            | UHPat.OpSeq skel seq => ana_expand_skel fuel ctx skel seq ty
+            end
             end
         with ana_expand_skel
           (fuel : Fuel.t)
@@ -8885,70 +8946,6 @@ Module FCore(Debug : DEBUG).
                 end
               end
             | Skel.BinOp NotInHole UHPat.Space skel1 skel2 => DoesNotExpand (* TODO *)
-            end
-            end
-        with ana_expand
-          (fuel : Fuel.t)
-          (ctx : Contexts.t)
-          (p : UHPat.t)
-          (ty : HTyp.t)
-          : expand_result :=
-            match fuel with
-            | Fuel.Kicked => DoesNotExpand
-            | Fuel.More fuel => let ana_expand := ana_expand fuel in
-            match p with
-            | UHPat.Parenthesized p1 => ana_expand ctx p1 ty
-            | UHPat.Pat NotInHole p' => ana_expand' fuel ctx p' ty
-            | UHPat.Pat (InHole u) p' =>
-              match syn_expand' fuel ctx p' with
-              | DoesNotExpand => DoesNotExpand
-              | Expands dp1 _ ctx delta =>
-                let dp := NonEmptyHole u 0 dp1 in
-                let (gamma, _) := ctx in
-                let delta := MetaVarMap.extend delta (u, (ty, gamma)) in
-                Expands dp ty ctx delta
-              end
-            end
-            end
-        with ana_expand'
-          (fuel : Fuel.t)
-          (ctx : Contexts.t)
-          (p' : UHPat.t')
-          (ty : HTyp.t)
-          : expand_result :=
-            match fuel with
-            | Fuel.Kicked => DoesNotExpand
-            | Fuel.More fuel => let ana_expand' := ana_expand' fuel in
-            match p' with
-            | UHPat.EmptyHole u =>
-              let gamma := Contexts.gamma ctx in
-              let dp := EmptyHole u 0 in
-              let delta := MetaVarMap.extend MetaVarMap.empty
-                                             (u, (ty, gamma)) in
-              Expands dp ty ctx delta
-            | UHPat.Var x =>
-              if Var.is_valid x && Bool.negb (Contexts.gamma_contains ctx x) then
-                let ctx := Contexts.extend_gamma ctx (x, ty) in
-                Expands (DHPat.Var x) ty ctx MetaVarMap.empty
-              else
-                DoesNotExpand
-            | UHPat.Inj side p =>
-              match HTyp.matched_sum ty with
-              | None => DoesNotExpand
-              | Some (tyL, tyR) => ana_expand fuel ctx p (pick_side side tyL tyR)
-              end
-            | UHPat.Wild
-            | UHPat.NumLit _
-            | UHPat.BoolLit _ =>
-              match syn_expand' fuel ctx p' with
-              | DoesNotExpand => DoesNotExpand
-              | Expands dp ty1 ctx delta =>
-                if HTyp.consistent ty ty1 then
-                  Expands dp ty1 ctx delta
-                else
-                  DoesNotExpand
-              end
-            | UHPat.OpSeq skel seq => ana_expand_skel fuel ctx skel seq ty
             end
             end.
       End DHPat.
