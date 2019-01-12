@@ -9340,7 +9340,7 @@ Module FCore(Debug : DEBUG).
               match DHPat.ana_expand fuel ctx p ty1 with
               | DHPat.DoesNotExpand => DoesNotExpand
               | DHPat.Expands dp ty1 ctx deltap =>
-                match syn_expand fuel ctx e1 with 
+                match syn_expand fuel ctx e1 with
                 | DoesNotExpand => DoesNotExpand
                 | Expands d1 ty2 delta1 =>
                   let d := Lam dp ty1 d1 in
@@ -9363,8 +9363,8 @@ Module FCore(Debug : DEBUG).
                     end in
                   match DHPat.ana_expand fuel ctx p ty1 with
                   | DHPat.DoesNotExpand => DoesNotExpand
-                  | DHPat.Expands dp ty1 ctx2 deltap =>
-                    match syn_expand fuel ctx2 e2 with 
+                  | DHPat.Expands dp _ ctx2 deltap =>
+                    match syn_expand fuel ctx2 e2 with
                     | DoesNotExpand => DoesNotExpand
                     | Expands d2 ty delta2 => 
                       let d := Let dp d1 d2 in
@@ -9380,8 +9380,8 @@ Module FCore(Debug : DEBUG).
                 | Expands d1 ty1 delta1 =>
                   match DHPat.ana_expand fuel ctx p ty1 with
                   | DHPat.DoesNotExpand => DoesNotExpand
-                  | DHPat.Expands dp ty1 ctx' deltap =>
-                    match syn_expand fuel ctx' e2 with 
+                  | DHPat.Expands dp ty1 ctx deltap =>
+                    match syn_expand fuel ctx e2 with
                     | DoesNotExpand => DoesNotExpand
                     | Expands d2 ty delta2 => 
                       let d := Let dp d1 d2 in
@@ -9569,21 +9569,38 @@ Module FCore(Debug : DEBUG).
               match HTyp.matched_arrow ty with
               | None => DoesNotExpand
               | Some (ty1_given, ty2) =>
-                let ty1 :=
-                    match ann with 
-                    | Some uty1 => UHTyp.expand fuel uty1
-                    | None => ty1_given
-                    end in
-                match DHPat.ana_expand fuel ctx p ty1 with
-                | DHPat.DoesNotExpand => DoesNotExpand
-                | DHPat.Expands dp ty1 ctx deltap =>
-                  match ana_expand fuel ctx e1 ty2 with
-                  | DoesNotExpand => DoesNotExpand
-                  | Expands d1 ty2 delta1 =>
-                    let ty := HTyp.Arrow ty1 ty2 in
-                    let d := Lam dp ty1 d1 in
-                    let delta := MetaVarMap.union deltap delta1 in
-                    Expands d ty delta
+                match ann with
+                | Some uty1 =>
+                  let ty1_ann := UHTyp.expand fuel uty1 in
+                  match HTyp.consistent ty1_ann ty1_given with
+                  | false => DoesNotExpand
+                  | true =>
+                    match DHPat.ana_expand fuel ctx p ty1_ann with
+                    | DHPat.DoesNotExpand => DoesNotExpand
+                    | DHPat.Expands dp ty1 ctx deltap =>
+                      match ana_expand fuel ctx e1 ty2 with
+                      | DoesNotExpand => DoesNotExpand
+                      | Expands d1 ty2 delta1 =>
+                        (* TODO: ty1 or ty1_ann? *)
+                        let ty := HTyp.Arrow ty1 ty2 in
+                        let d := Lam dp ty1 d1 in
+                        let delta := MetaVarMap.union deltap delta1 in
+                        Expands d ty delta
+                      end
+                    end
+                  end
+                | None =>
+                  match DHPat.ana_expand fuel ctx p ty1_given with
+                  | DHPat.DoesNotExpand => DoesNotExpand
+                  | DHPat.Expands dp ty1 ctx deltap =>
+                    match ana_expand fuel ctx e1 ty2 with
+                    | DoesNotExpand => DoesNotExpand
+                    | Expands d1 ty2 delta1 =>
+                      let ty := HTyp.Arrow ty1 ty2 in
+                      let d := Lam dp ty1 d1 in
+                      let delta := MetaVarMap.union deltap delta1 in
+                      Expands d ty delta
+                    end
                   end
                 end
               end
@@ -9634,19 +9651,21 @@ Module FCore(Debug : DEBUG).
               match ann with
               | Some uty1 =>
                 let ty1 := UHTyp.expand fuel uty1 in
-                (* TODO: is there a reason we don't handle recursive functions here? *)
-                match ana_expand fuel ctx e1 ty1 with
+                let ctx1 := UHExp.ctx_for_let' ctx p ty1 e1 in
+                match ana_expand fuel ctx1 e1 ty1 with
                 | DoesNotExpand => DoesNotExpand
-                | Expands d1 ty1 delta1 =>
+                | Expands d1 _ delta1 =>
+                  (* TODO: is it fine to ignore produced type here? *)
                   match DHPat.ana_expand fuel ctx p ty1 with
                   | DHPat.DoesNotExpand => DoesNotExpand
-                  | DHPat.Expands dp ty1 ctx2 deltap =>
+                  | DHPat.Expands dp _ ctx2 deltap =>
                     match ana_expand fuel ctx2 e2 ty with
                     | DoesNotExpand => DoesNotExpand
                     | Expands d2 ty2 delta2 =>
                       let d := Let dp d1 d2 in
                       let delta12 := MetaVarMap.union delta1 delta2 in
                       let delta := MetaVarMap.union delta12 deltap in
+                      (* TODO: ty or ty2? *)
                       Expands d ty2 delta
                     end
                   end
