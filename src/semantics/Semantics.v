@@ -281,18 +281,24 @@ Module FCore(Debug : DEBUG).
         end
       end.
 
-     Definition map {a b : Type} (f : Var.t * a -> b) (xs : t_ a) := 
-       Coq.Lists.List.map (fun (xa : Var.t * a) => 
-         let (x, _) := xa in 
-         (x, f xa)) xs.
+    Definition contains {a : Type} (ctx : t_ a) (x : Var.t) : bool :=
+      match lookup ctx x with
+      | None => false
+      | Some _ => true
+      end.
 
-     Fixpoint length {a : Type} (ctx : t_ a) : nat := 
-       match ctx with 
-       | nil => O
-       | cons _ ctx' => S (length ctx')
-       end.
+    Definition map {a b : Type} (f : Var.t * a -> b) (xs : t_ a) :=
+      Coq.Lists.List.map (fun (xa : Var.t * a) =>
+        let (x, _) := xa in
+        (x, f xa)) xs.
 
-     Definition to_list {a : Type} (ctx : t_ a) : list(Var.t * a) := ctx.
+    Fixpoint length {a : Type} (ctx : t_ a) : nat :=
+      match ctx with
+      | nil => O
+      | cons _ ctx' => S (length ctx')
+      end.
+
+    Definition to_list {a : Type} (ctx : t_ a) : list(Var.t * a) := ctx.
   End VarMap.
 
   (* Metavariables, a.k.a. hole names *)
@@ -1191,6 +1197,8 @@ Module FCore(Debug : DEBUG).
         let (gamma, palette_ctx) := contexts in 
         let gamma'' := VarCtx.union gamma gamma' in 
         (gamma'', palette_ctx).
+      Definition gamma_contains (contexts : t) (x : Var.t) : bool :=
+        VarCtx.contains (gamma contexts) x.
     End Contexts.
 
     Definition opseq := OperatorSeq.opseq t op.
@@ -8759,8 +8767,7 @@ Module FCore(Debug : DEBUG).
             Expands dp ty ctx delta
           | UHPat.Wild => Expands Wild HTyp.Hole ctx MetaVarMap.empty
           | UHPat.Var x =>
-            (* TODO: add linearity check *)
-            if Var.is_valid x then
+            if Var.is_valid x && Bool.negb (Contexts.gamma_contains ctx x) then
               let ctx := Contexts.extend_gamma ctx (x, HTyp.Hole) in
               Expands (Var x) HTyp.Hole ctx MetaVarMap.empty
             else
@@ -8920,8 +8927,7 @@ Module FCore(Debug : DEBUG).
                                              (u, (ty, gamma)) in
               Expands dp ty ctx delta
             | UHPat.Var x =>
-              (* TODO: add linearity check *)
-              if Var.is_valid x then
+              if Var.is_valid x && Bool.negb (Contexts.gamma_contains ctx x) then
                 let ctx := Contexts.extend_gamma ctx (x, ty) in
                 Expands (DHPat.Var x) ty ctx MetaVarMap.empty
               else
