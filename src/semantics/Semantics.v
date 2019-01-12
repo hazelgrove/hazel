@@ -9785,11 +9785,52 @@ Module FCore(Debug : DEBUG).
             end.
         End HoleInstanceInfo.
 
-        Fixpoint renumber_result_only 
+        Fixpoint renumber_result_only_pat
+          (path : InstancePath.t)
+          (hii : HoleInstanceInfo.t)
+          (dp : DHPat.t)
+          : (DHPat.t * HoleInstanceInfo.t) :=
+          match dp with
+          | DHPat.Wild
+          | DHPat.Var _
+          | DHPat.NumLit _
+          | DHPat.BoolLit _ => (dp, hii)
+          | DHPat.EmptyHole u _ =>
+            (* TODO: Pattern holes don't need environments. Maybe this calls
+             * for a refactoring of types to reflect this, e.g., a separate
+             * PatHoleInstance type. Passing in an empty environment for now. *)
+            let sigma := Environment.empty in
+            let (i, hii) := HoleInstanceInfo.next hii u sigma path in
+            (DHPat.EmptyHole u i, hii)
+          | DHPat.NonEmptyHole u _ dp1 =>
+            (* TODO: see above *)
+            let sigma := Environment.empty in
+            let (i, hii) := HoleInstanceInfo.next hii u sigma path in
+            let (dp1, hii) := renumber_result_only_pat path hii dp1 in
+            (DHPat.NonEmptyHole u i dp1, hii)
+          | DHPat.Inj side dp1 =>
+            let (dp1, hii) := renumber_result_only_pat path hii dp1 in
+            (DHPat.Inj side dp1, hii)
+          | DHPat.Pair dp1 dp2 =>
+            let (dp1, hii) := renumber_result_only_pat path hii dp1 in
+            let (dp2, hii) := renumber_result_only_pat path hii dp2 in
+            (DHPat.Pair dp1 dp2, hii)
+          | DHPat.Ap dp1 dp2 =>
+            let (dp1, hii) := renumber_result_only_pat path hii dp1 in
+            let (dp2, hii) := renumber_result_only_pat path hii dp2 in
+            (DHPat.Ap dp1 dp2, hii)
+          end.
+
+        Fixpoint renumber_result_only
+          (fuel : Fuel.t)
           (path : InstancePath.t) (hii : HoleInstanceInfo.t) (d : DHExp.t) 
-          : (DHExp.t * HoleInstanceInfo.t) := 
+          : (DHExp.t * HoleInstanceInfo.t) :=
+          match fuel with
+          | Fuel.Kicked => (d, hii)
+          | Fuel.More fuel => let renumber_result_only := renumber_result_only fuel in
           match d with 
           | BoundVar _
+          | BoolLit _
           | NumLit _ => (d, hii)
           | Let x d1 d2 => 
             let (d1, hii) := renumber_result_only path hii d1 in 
@@ -9812,11 +9853,14 @@ Module FCore(Debug : DEBUG).
           | Inj ty side d1 => 
             let (d1, hii) := renumber_result_only path hii d1 in 
             (Inj ty side d1, hii)
-          | Case d1 (x, d2) (y, d3) => 
+          | Pair d1 d2 =>
             let (d1, hii) := renumber_result_only path hii d1 in
-            let (d2, hii) := renumber_result_only path hii d2 in 
-            let (d3, hii) := renumber_result_only path hii d3 in 
-            (Case d1 (x, d2) (y, d3), hii)
+            let (d2, hii) := renumber_result_only path hii d2 in
+            (Pair d1 d2, hii)
+          | Case d1 rules => 
+            let (d1, hii) := renumber_result_only path hii d1 in
+            let (drules, hii) := renumber_result_only_rules fuel path hii rules in 
+            (Case d1 drules, hii)
           | EmptyHole u _ sigma => 
             let (i, hii) := HoleInstanceInfo.next hii u sigma path in 
             (EmptyHole u i sigma, hii)
@@ -9833,8 +9877,27 @@ Module FCore(Debug : DEBUG).
           | FailedCast d1 ty1 ty2 => 
             let (d1, hii) := renumber_result_only path hii d1 in 
             (FailedCast d1 ty1 ty2, hii)
+          end
+          end
+        with renumber_result_only_rules
+          (fuel : Fuel.t)
+          (path : InstancePath.t)
+          (hii : HoleInstanceInfo.t)
+          (rules : list(rule))
+          : (list(rule) * HoleInstanceInfo.t) :=
+          match fuel with
+          | Fuel.Kicked => (rules, hii)
+          | Fuel.More fuel =>
+          List.fold_left (fun (b : list(rule) * HoleInstanceInfo.t) r =>
+            let (rs, hii) := b in
+            match r with
+            | Rule dp d =>
+              let (dp, hii) := renumber_result_only_pat path hii dp in
+              let (d, hii) := renumber_result_only fuel path hii d in
+              (rs ++ (cons (Rule dp d) nil), hii)
+            end) rules (nil, hii)
           end.
-        
+
         Fixpoint renumber_sigmas_only (fuel : Fuel.t) 
           (path : InstancePath.t) (hii : HoleInstanceInfo.t) (d : DHExp.t) 
           : (DHExp.t * HoleInstanceInfo.t) := 
@@ -9843,6 +9906,7 @@ Module FCore(Debug : DEBUG).
           | Fuel.More fuel => 
           match d with 
           | BoundVar _
+          | BoolLit _
           | NumLit _ => (d, hii)
           | Let x d1 d2 => 
             let (d1, hii) := renumber_sigmas_only fuel path hii d1 in 
@@ -9865,11 +9929,14 @@ Module FCore(Debug : DEBUG).
           | Inj ty side d1 => 
             let (d1, hii) := renumber_sigmas_only fuel path hii d1 in 
             (Inj ty side d1, hii)
-          | Case d1 (x, d2) (y, d3) => 
+          | Pair d1 d2 => 
             let (d1, hii) := renumber_sigmas_only fuel path hii d1 in
             let (d2, hii) := renumber_sigmas_only fuel path hii d2 in 
-            let (d3, hii) := renumber_sigmas_only fuel path hii d3 in 
-            (Case d1 (x, d2) (y, d3), hii)
+            (Pair d1 d2, hii)
+          | Case dp rules =>
+            (* pattern holes don't have environments *)
+            let (rules, hii) := renumber_sigmas_only_rules fuel path hii rules in
+            (Case dp rules, hii)
           | EmptyHole u i sigma => 
             let (sigma, hii) := renumber_sigma fuel path u i hii sigma in
             let hii := HoleInstanceInfo.update_environment hii (u, i) sigma in 
@@ -9891,6 +9958,23 @@ Module FCore(Debug : DEBUG).
             (FailedCast d1 ty1 ty2, hii)
           end
           end
+        with renumber_sigmas_only_rules
+          (fuel : Fuel.t)
+          (path : InstancePath.t)
+          (hii : HoleInstanceInfo.t)
+          (rules : list(rule))
+          : (list(rule) * HoleInstanceInfo.t) :=
+          match fuel with
+          | Fuel.Kicked => (rules, hii)
+          | Fuel.More fuel =>
+          List.fold_left (fun (b : list(rule) * HoleInstanceInfo.t) r =>
+            let (rs, hii) := b in
+            match r with
+            | Rule dp d =>
+              let (d, hii) := renumber_sigmas_only fuel path hii d in
+              (rs ++ (cons (Rule dp d) nil), hii)
+            end) rules (nil, hii)
+          end
         with renumber_sigma (fuel : Fuel.t) 
           (path : InstancePath.t) (u : MetaVar.t) (i : inst_num)
           (hii : HoleInstanceInfo.t) (sigma : DHExp.Environment.t) 
@@ -9903,7 +9987,7 @@ Module FCore(Debug : DEBUG).
               let (x, d) := xd in 
               let (sigma_in, hii) := acc in 
               let path := cons (u, i, x) path in 
-              let (d, hii) := renumber_result_only path hii d in 
+              let (d, hii) := renumber_result_only fuel path hii d in 
               let sigma_out := cons (x, d) sigma_in in 
               (sigma_out, hii)
             )
