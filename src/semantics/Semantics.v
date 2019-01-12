@@ -8697,8 +8697,7 @@ Module FCore(Debug : DEBUG).
         | NumLit : nat -> t
         | BoolLit : bool -> t
         | Inj : inj_side -> t -> t
-        | Pair : t -> t -> t
-        | Ap : t -> t -> t.
+        | Pair : t -> t -> t.
 
         (* whether dp contains the variable x outside of a hole *)
         Fixpoint binds_var (x : Var.t) (dp : t) : bool :=
@@ -8710,8 +8709,7 @@ Module FCore(Debug : DEBUG).
           | BoolLit _ => false
           | Var y => Var.eq x y
           | Inj _ dp1 => binds_var x dp1
-          | Pair dp1 dp2
-          | Ap dp1 dp2 => binds_var x dp1 || binds_var x dp2
+          | Pair dp1 dp2 => binds_var x dp1 || binds_var x dp2
           end.
 
         Inductive expand_result : Type :=
@@ -8829,22 +8827,8 @@ Module FCore(Debug : DEBUG).
                 end
               end
             | Skel.BinOp NotInHole UHPat.Space skel1 skel2 =>
-              (* TODO: need to review this re: casts *)
-              match syn_expand_skel ctx skel1 seq with
-              | DoesNotExpand => DoesNotExpand
-              | Expands dp1 ty1 ctx delta1 =>
-                match HTyp.matched_arrow ty1 with
-                | None => DoesNotExpand
-                | Some (ty2, ty) =>
-                  match ana_expand_skel fuel ctx skel2 seq ty2 with
-                  | DoesNotExpand => DoesNotExpand
-                  | Expands dp2 ty2 ctx delta2 =>
-                    let dp := Ap dp1 dp2 in
-                    let delta := MetaVarMap.union delta1 delta2 in
-                    Expands dp ty ctx delta
-                  end
-                end
-              end
+              (* TODO: once we have inductive datatypes *)
+              DoesNotExpand
             end
             end
         with ana_expand_skel
@@ -9863,10 +9847,6 @@ Module FCore(Debug : DEBUG).
             let (dp1, hii) := renumber_result_only_pat path hii dp1 in
             let (dp2, hii) := renumber_result_only_pat path hii dp2 in
             (DHPat.Pair dp1 dp2, hii)
-          | DHPat.Ap dp1 dp2 =>
-            let (dp1, hii) := renumber_result_only_pat path hii dp1 in
-            let (dp2, hii) := renumber_result_only_pat path hii dp2 in
-            (DHPat.Ap dp1 dp2, hii)
           end.
 
         Fixpoint renumber_result_only
