@@ -9305,8 +9305,16 @@ Module FCore(Debug : DEBUG).
         | DoesNotMatch : match_result
         | Indet : match_result. (* when pattern shape matches but contains hole *)
 
-        Fixpoint matches (dp : DHPat.t) (d : t) : match_result :=
+        Fixpoint matches
+          (fuel : Fuel.t)
+          (dp : DHPat.t)
+          (d : t)
+          : match_result :=
+          match fuel with
+          | Fuel.Kicked => DoesNotMatch
+          | Fuel.More fuel => let matches := matches fuel in
           match (dp, d) with
+          | (_, Cast d ty1 ty2) => matches_cast fuel dp d ty1 ty2
           | (DHPat.EmptyHole _ _, _)
           | (DHPat.NonEmptyHole _ _ _, _) => Indet
           | (DHPat.Wild, _) => Matches Environment.empty
@@ -9315,13 +9323,16 @@ Module FCore(Debug : DEBUG).
             Matches env
           | (DHPat.BoolLit b1, BoolLit b2) =>
             if Bool.eqb b1 b2 then Matches Environment.empty else DoesNotMatch
+          | (DHPat.BoolLit _, _) => DoesNotMatch
           | (DHPat.NumLit n1, NumLit n2) =>
             if Nat.eqb n1 n2 then Matches Environment.empty else DoesNotMatch
+          | (DHPat.NumLit _, _) => DoesNotMatch
           | (DHPat.Inj side1 dp, Inj _ side2 d) =>
             match (side1, side2) with
             | (L, L) | (R, R) => matches dp d
             | _ => DoesNotMatch
             end
+          | (DHPat.Inj _ _, _) => DoesNotMatch
           | (DHPat.Pair dp1 dp2, Pair d1 d2) =>
             match (matches dp1 d1, matches dp2 d2) with
             | (DoesNotMatch, _)
@@ -9331,7 +9342,56 @@ Module FCore(Debug : DEBUG).
             | (Matches _, Indet) => Indet
             | (Matches env1, Matches env2) => Matches (Environment.union env1 env2)
             end
-          | _ => DoesNotMatch
+          | (DHPat.Pair _ _, _) => DoesNotMatch
+          end
+          end
+        with matches_cast
+          (fuel : Fuel.t)
+          (dp : DHPat.t)
+          (d : t)
+          (ty1 : HTyp.t)
+          (ty2 : HTyp.t)
+          : match_result :=
+          match fuel with
+          | Fuel.Kicked => DoesNotMatch
+          | Fuel.More fuel => let matches_cast := matches_cast fuel in
+          match (dp, d, ty1, ty2) with
+          | (DHPat.EmptyHole _ _, _, _, _)
+          | (DHPat.NonEmptyHole _ _ _, _, _, _)
+          | (DHPat.Wild, _, _, _)
+          | (DHPat.Var _, _, _, _)
+          | (DHPat.BoolLit _, _, _, _)
+          | (DHPat.NumLit _, _, _, _) =>
+            match matches fuel dp d with
+            | Indet => Indet
+            | DoesNotMatch => DoesNotMatch
+            | Matches env =>
+              let cast_env := List.map (fun (xd : Var.t * t) =>
+                let (x, d) := xd in
+                (x, Cast d ty1 ty2)) env in
+              Matches cast_env
+            end
+          | (DHPat.Inj side1 dp, Inj _ side2 d, HTyp.Sum ty11 ty12, HTyp.Sum ty21 ty22) =>
+            match (side1, side2) with
+            | (L, L) => matches_cast dp d ty11 ty21
+            | (R, R) => matches_cast dp d ty12 ty22
+            | _ => DoesNotMatch
+            end
+          | (DHPat.Inj _ _, _, _, _) => DoesNotMatch
+          | (DHPat.Pair dp1 dp2, Pair d1 d2, HTyp.Prod ty11 ty12, HTyp.Prod ty21 ty22) =>
+            match matches_cast dp1 d1 ty11 ty21 with
+            | Indet => Indet
+            | DoesNotMatch => DoesNotMatch
+            | Matches env1 =>
+              match matches_cast dp2 d2 ty12 ty22 with
+              | Indet => Indet
+              | DoesNotMatch => DoesNotMatch
+              | Matches env2 =>
+                Matches (Environment.union env1 env2)
+              end
+            end
+          | (DHPat.Pair _ _, _, _, _) => DoesNotMatch
+          end
           end.
 
         Inductive type_result : Type := 
@@ -10354,7 +10414,7 @@ Module FCore(Debug : DEBUG).
               match evaluate fuel d1 with 
               | InvalidInput msg => InvalidInput msg
               | BoxedValue d1 | Indet d1 =>
-                match DHExp.matches dp d1 with
+                match DHExp.matches fuel dp d1 with
                 | DHExp.Indet => Indet d
                 | DHExp.DoesNotMatch => InvalidInput 5
                 | DHExp.Matches env => evaluate fuel (DHExp.subst fuel env d2)
@@ -10371,7 +10431,7 @@ Module FCore(Debug : DEBUG).
                 match evaluate fuel d2 with
                 | InvalidInput msg => InvalidInput msg
                 | BoxedValue d2 | Indet d2 =>
-                  match DHExp.matches dp d2 with
+                  match DHExp.matches fuel dp d2 with
                   | DHExp.DoesNotMatch => InvalidInput 5
                   | DHExp.Indet => Indet (DHExp.Ap d1 d2)
                   | DHExp.Matches env =>
@@ -10556,7 +10616,7 @@ Module FCore(Debug : DEBUG).
             match List.nth_error rules current_rule_index with
             | None => InvalidInput 7
             | Some (DHExp.Rule dp d) =>
-              match DHExp.matches dp scrut with
+              match DHExp.matches fuel dp scrut with
               | DHExp.Indet => Indet (DHExp.Case scrut rules current_rule_index)
               | DHExp.Matches env => evaluate fuel (DHExp.subst fuel env d)
               | DHExp.DoesNotMatch => evaluate_case fuel scrut rules (current_rule_index+1)
