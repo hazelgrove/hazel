@@ -9797,13 +9797,12 @@ Module FCore(Debug : DEBUG).
                   | true =>
                     match DHPat.ana_expand fuel ctx p ty1_ann with
                     | DHPat.DoesNotExpand => DoesNotExpand
-                    | DHPat.Expands dp ty1 ctx deltap =>
+                    | DHPat.Expands dp _ ctx deltap =>
                       match ana_expand fuel ctx e1 ty2 with
                       | DoesNotExpand => DoesNotExpand
                       | Expands d1 ty2 delta1 =>
-                        (* TODO: ty1 or ty1_ann? *)
-                        let ty := HTyp.Arrow ty1 ty2 in
-                        let d := Lam dp ty1 d1 in
+                        let ty := HTyp.Arrow ty1_ann ty2 in
+                        let d := Lam dp ty1_ann d1 in
                         let delta := MetaVarMap.union deltap delta1 in
                         Expands d ty delta
                       end
