@@ -9106,8 +9106,7 @@ Module FCore(Debug : DEBUG).
                 DoesNotExpand
             | UHPat.Wild
             | UHPat.NumLit _
-            | UHPat.BoolLit _
-            | UHPat.Inj _ _ =>
+            | UHPat.BoolLit _ =>
               match syn_expand' fuel ctx p' with
               | DoesNotExpand => DoesNotExpand
               | Expands dp ty1 ctx delta =>
@@ -9115,6 +9114,13 @@ Module FCore(Debug : DEBUG).
                   Expands dp ty1 ctx delta
                 else
                   DoesNotExpand
+              end
+            | UHPat.Inj side p1 =>
+              match HTyp.matched_sum ty with
+              | None => DoesNotExpand
+              | Some (tyL, tyR) =>
+                let ty1 := pick_side side tyL tyR in
+                ana_expand fuel ctx p1 ty1
               end
             | UHPat.OpSeq skel seq => ana_expand_skel fuel ctx skel seq ty
             end
