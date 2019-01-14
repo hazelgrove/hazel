@@ -8925,7 +8925,8 @@ Module FCore(Debug : DEBUG).
         | NumLit : nat -> t
         | BoolLit : bool -> t
         | Inj : inj_side -> t -> t
-        | Pair : t -> t -> t.
+        | Pair : t -> t -> t
+        | Spaced : t -> t -> t.
 
         (* whether dp contains the variable x outside of a hole *)
         Fixpoint binds_var (x : Var.t) (dp : t) : bool :=
@@ -8938,6 +8939,7 @@ Module FCore(Debug : DEBUG).
           | Var y => Var.eq x y
           | Inj _ dp1 => binds_var x dp1
           | Pair dp1 dp2 => binds_var x dp1 || binds_var x dp2
+          | Spaced dp1 dp2 => false
           end.
 
         Inductive expand_result : Type :=
@@ -9054,8 +9056,17 @@ Module FCore(Debug : DEBUG).
                 end
               end
             | Skel.BinOp NotInHole UHPat.Space skel1 skel2 =>
-              (* TODO: once we have inductive datatypes *)
-              DoesNotExpand
+              match syn_expand_skel ctx skel1 seq with
+              | DoesNotExpand => DoesNotExpand
+              | Expands dp1 ty1 ctx delta1 =>
+                match syn_expand_skel ctx skel2 seq with
+                | DoesNotExpand => DoesNotExpand
+                | Expands dp2 ty2 ctx delta2 =>
+                  let delta := MetaVarMap.union delta1 delta2 in
+                  let dp := Spaced dp1 dp2 in
+                  Expands dp HTyp.Hole ctx delta
+                end
+              end
             end
             end.
 
@@ -9171,9 +9182,7 @@ Module FCore(Debug : DEBUG).
                   end
                 end
               end
-            | Skel.BinOp NotInHole UHPat.Space skel1 skel2 =>
-              (* TODO once we have inductive datatypes *)
-              DoesNotExpand
+            | Skel.BinOp NotInHole UHPat.Space skel1 skel2 => DoesNotExpand
             end
             end.
       End DHPat.
@@ -9349,6 +9358,7 @@ Module FCore(Debug : DEBUG).
             | (Matches env1, Matches env2) => Matches (Environment.union env1 env2)
             end
           | (DHPat.Pair _ _, _) => DoesNotMatch
+          | (DHPat.Spaced _ _, _) => DoesNotMatch
           end
           end
         with matches_cast
@@ -9397,6 +9407,7 @@ Module FCore(Debug : DEBUG).
               end
             end
           | (DHPat.Pair _ _, _, _, _) => DoesNotMatch
+          | (DHPat.Spaced _ _, _, _, _) => DoesNotMatch
           end
           end.
 
@@ -10161,6 +10172,10 @@ Module FCore(Debug : DEBUG).
             let (dp1, hii) := renumber_result_only_pat path hii dp1 in
             let (dp2, hii) := renumber_result_only_pat path hii dp2 in
             (DHPat.Pair dp1 dp2, hii)
+          | DHPat.Spaced dp1 dp2 =>
+            let (dp1, hii) := renumber_result_only_pat path hii dp1 in
+            let (dp2, hii) := renumber_result_only_pat path hii dp2 in
+            (DHPat.Pair dp1 dp2, hii) 
           end.
 
         Fixpoint renumber_result_only
@@ -10630,36 +10645,6 @@ Module FCore(Debug : DEBUG).
             end
           end
           end.
-(*                
-                match d1 with
-                | DHExp.Inj _ side d1'' => 
-                  let (xb, db) := pick_side side (x, d2) (y, d3) in
-                  let branch := DHExp.subst fuel d1'' xb db in 
-                  evaluate fuel branch
-                | DHExp.Cast d1'' (HTyp.Sum ty1 ty2) (HTyp.Sum ty1' ty2') => 
-                  let d' := 
-                      DHExp.Case d1'' 
-                                 (x, DHExp.subst fuel (DHExp.Cast (DHExp.BoundVar x) ty1 ty1') x d2)
-                                 (y, DHExp.subst fuel (DHExp.Cast (DHExp.BoundVar y) ty2 ty2') y d3) in 
-                  evaluate fuel d'
-                | _ => InvalidInput 5
-                end
-              | Indet d1' => 
-                match d1' with 
-                | DHExp.Inj _ side d1'' => 
-                  let (xb, db) := pick_side side (x, d2) (y, d3) in 
-                  let branch := DHExp.subst fuel d1'' xb db in 
-                  evaluate fuel branch
-                | DHExp.Cast d1'' (HTyp.Sum ty1 ty2) (HTyp.Sum ty1' ty2') => 
-                  let d' := 
-                      DHExp.Case d1'' 
-                                 (x, DHExp.subst fuel (DHExp.Cast (DHExp.BoundVar x) ty1 ty1') x d2)
-                                 (y, DHExp.subst fuel (DHExp.Cast (DHExp.BoundVar y) ty2 ty2') y d3) in 
-                  evaluate fuel d'
-                | _ => Indet (DHExp.Case d1' (x, d2) (y, d3))
-                end
-              end
-*)
       End Evaluator.
   End FDynamics.
 End FCore.
