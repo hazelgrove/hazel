@@ -9875,7 +9875,6 @@ Module FCore(Debug : DEBUG).
                 match ana_expand fuel ctx1 e1 ty1 with
                 | DoesNotExpand => DoesNotExpand
                 | Expands d1 _ delta1 =>
-                  (* TODO: is it fine to ignore produced type here? *)
                   match DHPat.ana_expand fuel ctx p ty1 with
                   | DHPat.DoesNotExpand => DoesNotExpand
                   | DHPat.Expands dp _ ctx2 deltap =>
@@ -9885,7 +9884,6 @@ Module FCore(Debug : DEBUG).
                       let d := Let dp d1 d2 in
                       let delta12 := MetaVarMap.union delta1 delta2 in
                       let delta := MetaVarMap.union delta12 deltap in
-                      (* TODO: ty or ty2? *)
                       Expands d ty2 delta
                     end
                   end
