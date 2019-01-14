@@ -9871,10 +9871,15 @@ Module FCore(Debug : DEBUG).
               match ann with
               | Some uty1 =>
                 let ty1 := UHTyp.expand fuel uty1 in
-                let ctx1 := UHExp.ctx_for_let' ctx p ty1 e1 in
+                let (ctx1, is_recursive_fn) := UHExp.ctx_for_let' ctx p ty1 e1 in
                 match ana_expand fuel ctx1 e1 ty1 with
                 | DoesNotExpand => DoesNotExpand
                 | Expands d1 _ delta1 =>
+                  let d1 :=
+                    match is_recursive_fn with
+                    | None => d1
+                    | Some x => FixF x ty1 d1
+                    end in
                   match DHPat.ana_expand fuel ctx p ty1 with
                   | DHPat.DoesNotExpand => DoesNotExpand
                   | DHPat.Expands dp _ ctx2 deltap =>
