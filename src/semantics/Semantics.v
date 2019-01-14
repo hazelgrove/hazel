@@ -9847,10 +9847,10 @@ Module FCore(Debug : DEBUG).
               | Expands d1 ty1 delta1 =>
                 match ana_expand_rules fuel ctx rules ty1 ty with
                 | None => DoesNotExpand
-                | Some (drs, delta2) =>
+                | Some (drs, clauses_ty, delta2) =>
                   let d := Case d1 drs in
                   let delta := MetaVarMap.union delta1 delta2 in
-                  Expands d1 ty delta
+                  Expands d1 clauses_ty delta
                 end
               end
             | UHExp.EmptyHole u => 
@@ -9933,23 +9933,27 @@ Module FCore(Debug : DEBUG).
           (rules : list(UHExp.rule))
           (pat_ty : HTyp.t)
           (clause_ty : HTyp.t)
-          : option(list(rule) * Delta.t) :=
+          : option(list(rule) * HTyp.t * Delta.t) :=
           match fuel with
           | Fuel.Kicked => None
           | Fuel.More fuel =>
             List.fold_left (fun b r =>
               match b with
               | None => None
-              | Some (drs, delta) =>
+              | Some (drs, joined_ty, delta) =>
                 match ana_expand_rule fuel ctx r pat_ty clause_ty with
                 | None => None
-                | Some (dr, deltar) =>
-                  (* TODO: make faster *)
-                  let drs := drs ++ (cons dr nil) in
-                  let delta := MetaVarMap.union delta deltar in
-                  Some (drs, delta)
+                | Some ((dr, ty), deltar) =>
+                  match HTyp.join joined_ty ty with
+                  | None => None
+                  | Some joined_ty =>
+                    (* TODO: make faster *)
+                    let drs := drs ++ (cons dr nil) in
+                    let delta := MetaVarMap.union delta deltar in
+                    Some ((drs, joined_ty), delta)
+                  end
                 end
-              end) rules (Some (nil, MetaVarMap.empty))
+              end) rules (Some ((nil, HTyp.Hole), MetaVarMap.empty))
           end
         with ana_expand_rule
           (fuel : Fuel.t)
@@ -9957,20 +9961,19 @@ Module FCore(Debug : DEBUG).
           (r : UHExp.rule)
           (pat_ty : HTyp.t)
           (clause_ty : HTyp.t)
-          : option(rule * Delta.t) :=
+          : option(rule * HTyp.t * Delta.t) :=
           match fuel with
           | Fuel.Kicked => None
           | Fuel.More fuel =>
             let (p, e) := r in
             match DHPat.ana_expand fuel ctx p pat_ty with
             | DHPat.DoesNotExpand => None
-            | DHPat.Expands dp _ ctx delta1 =>
+            | DHPat.Expands dp _ ctx deltap =>
               match ana_expand fuel ctx e clause_ty with
               | DoesNotExpand => None
-              | Expands d _ delta2 =>
-                (* TODO: is it fine to ignore the type here? maybe necessary if case expression is in a cast? if so, not sure what to do with all the expanded clause types *)
-                let delta := MetaVarMap.union delta1 delta2 in
-                Some (Rule dp d, delta)
+              | Expands d1 ty1 delta1 =>
+                let delta := MetaVarMap.union deltap delta1 in
+                Some ((Rule dp d1, ty1), delta)
               end
             end
           end
