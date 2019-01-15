@@ -9155,6 +9155,8 @@ Module FCore(Debug : DEBUG).
         | NumLit : nat -> t
         | BoolLit : bool -> t
         | Inj : inj_side -> t -> t
+        | ListNil : t
+        | Cons : t -> t -> t
         | Pair : t -> t -> t
         | Spaced : t -> t -> t.
 
@@ -9165,10 +9167,12 @@ Module FCore(Debug : DEBUG).
           | NonEmptyHole _ _ _
           | Wild
           | NumLit _
-          | BoolLit _ => false
+          | BoolLit _
+          | ListNil => false
           | Var y => Var.eq x y
           | Inj _ dp1 => binds_var x dp1
           | Pair dp1 dp2 => binds_var x dp1 || binds_var x dp2
+          | Cons dp1 dp2 => binds_var x dp1 || binds_var x dp2
           | Spaced dp1 dp2 => false
           end.
 
@@ -9238,6 +9242,7 @@ Module FCore(Debug : DEBUG).
                 end in
               Expands dp ty ctx delta
             end
+          | UHPat.ListNil => Expands ListNil (HTyp.List HTyp.Hole) ctx MetaVarMap.empty
           | UHPat.OpSeq skel seq => syn_expand_skel fuel ctx skel seq
           end
           end
@@ -9297,10 +9302,22 @@ Module FCore(Debug : DEBUG).
                   Expands dp HTyp.Hole ctx delta
                 end
               end
+            | Skel.BinOp NotInHole UHPat.Cons skel1 skel2 =>
+              match syn_expand_skel ctx skel1 seq with
+              | DoesNotExpand => DoesNotExpand
+              | Expands dp1 ty1 ctx delta1 =>
+                let ty := HTyp.List ty1 in
+                match ana_expand_skel fuel ctx skel2 seq ty with
+                | DoesNotExpand => DoesNotExpand
+                | Expands dp2 _ ctx delta2 =>
+                  let delta := MetaVarMap.union delta1 delta2 in
+                  let dp := Cons dp1 dp2 in
+                  Expands dp ty ctx delta
+                end
+              end
             end
-            end.
-
-        Fixpoint ana_expand
+            end
+        with ana_expand
           (fuel : Fuel.t)
           (ctx : Contexts.t)
           (p : UHPat.t)
@@ -9363,6 +9380,11 @@ Module FCore(Debug : DEBUG).
                 let ty1 := pick_side side tyL tyR in
                 ana_expand fuel ctx p1 ty1
               end
+            | UHPat.ListNil =>
+              match HTyp.matched_list ty with
+              | None => DoesNotExpand
+              | Some ty_elt => Expands ListNil (HTyp.List ty_elt) ctx MetaVarMap.empty
+              end
             | UHPat.OpSeq skel seq => ana_expand_skel fuel ctx skel seq ty
             end
             end
@@ -9413,6 +9435,23 @@ Module FCore(Debug : DEBUG).
                 end
               end
             | Skel.BinOp NotInHole UHPat.Space skel1 skel2 => DoesNotExpand
+            | Skel.BinOp NotInHole UHPat.Cons skel1 skel2 =>
+              match HTyp.matched_list ty with
+              | None => DoesNotExpand
+              | Some ty_elt =>
+                match ana_expand_skel ctx skel1 seq ty_elt with
+                | DoesNotExpand => DoesNotExpand
+                | Expands dp1 _ ctx delta1 =>
+                  let ty_list := HTyp.List ty_elt in
+                  match ana_expand_skel ctx skel2 seq ty_list with
+                  | DoesNotExpand => DoesNotExpand
+                  | Expands dp2 _ ctx delta2 =>
+                    let delta := MetaVarMap.union delta1 delta2 in
+                    let dp := Cons dp1 dp2 in
+                    Expands dp ty_list ctx delta
+                  end
+                end
+              end
             end
             end.
       End DHPat.
@@ -9420,12 +9459,14 @@ Module FCore(Debug : DEBUG).
       Module DHExp.
         Inductive bin_num_op : Type := 
         | Plus : bin_num_op
-        | Times : bin_num_op.
+        | Times : bin_num_op
+        | LessThan : bin_num_op.
 
         Definition of_op op := 
           match op with 
-          | UHExp.Plus => Some Plus
-          | UHExp.Times => Some Times
+          | UHExp.Plus => Some (Plus, HTyp.Num)
+          | UHExp.Times => Some (Times, HTyp.Num)
+          | UHExp.LessThan => Some (LessThan, HTyp.Bool)
           | _ => None
           end.
 
@@ -9439,6 +9480,8 @@ Module FCore(Debug : DEBUG).
         | BoolLit : bool -> t
         | NumLit : nat -> t
         | BinNumOp : bin_num_op -> t -> t -> t
+        | ListNil : t
+        | Cons : t -> t -> t
         | Inj : HTyp.t -> inj_side -> t -> t
         | Pair : t -> t -> t
         | Case : t -> list(rule) -> nat -> t
@@ -9481,7 +9524,12 @@ Module FCore(Debug : DEBUG).
               let d4 := subst_var d1 x d4 in
               Ap d3 d4
             | BoolLit _
-            | NumLit _ => d2
+            | NumLit _
+            | ListNil => d2
+            | Cons d3 d4 =>
+              let d3 := subst_var d1 x d3 in
+              let d4 := subst_var d1 x d4 in
+              Cons d3 d4
             | BinNumOp op d3 d4 => 
               let d3 := subst_var d1 x d3 in
               let d4 := subst_var d1 x d4 in
@@ -9588,6 +9636,21 @@ Module FCore(Debug : DEBUG).
             | (Matches env1, Matches env2) => Matches (Environment.union env1 env2)
             end
           | (DHPat.Pair _ _, _) => DoesNotMatch
+          | (DHPat.ListNil, ListNil) => Matches Environment.empty
+          | (DHPat.ListNil, _) => DoesNotMatch
+          | (DHPat.Cons dp1 dp2, Cons d1 d2) =>
+            match matches dp1 d1 with
+            | Indet => Indet
+            | DoesNotMatch => DoesNotMatch
+            | Matches env1 =>
+              match matches dp2 d2 with
+              | Indet => Indet
+              | DoesNotMatch => DoesNotMatch
+              | Matches env2 =>
+                Matches (Environment.union env1 env2)
+              end
+            end
+          | (DHPat.Cons _ _, _) => DoesNotMatch
           | (DHPat.Spaced _ _, _) => DoesNotMatch
           end
           end
@@ -9607,7 +9670,8 @@ Module FCore(Debug : DEBUG).
           | (DHPat.Wild, _, _, _)
           | (DHPat.Var _, _, _, _)
           | (DHPat.BoolLit _, _, _, _)
-          | (DHPat.NumLit _, _, _, _) =>
+          | (DHPat.NumLit _, _, _, _)
+          | (DHPat.ListNil, _, _, _) =>
             match matches fuel dp d with
             | Indet => Indet
             | DoesNotMatch => DoesNotMatch
@@ -9637,6 +9701,19 @@ Module FCore(Debug : DEBUG).
               end
             end
           | (DHPat.Pair _ _, _, _, _) => DoesNotMatch
+          | (DHPat.Cons dp1 dp2, Cons d1 d2, HTyp.List ty11, HTyp.List ty21) =>
+            match matches_cast dp1 d1 ty11 ty21 with
+            | Indet => Indet
+            | DoesNotMatch => DoesNotMatch
+            | Matches env1 =>
+              match matches_cast dp2 d2 ty1 ty2 with
+              | Indet => Indet
+              | DoesNotMatch => DoesNotMatch
+              | Matches env2 =>
+                Matches (Environment.union env1 env2)
+              end
+            end
+          | (DHPat.Cons _ _, _, _, _) => DoesNotMatch
           | (DHPat.Spaced _ _, _, _, _) => DoesNotMatch
           end
           end.
@@ -9945,6 +10022,7 @@ Module FCore(Debug : DEBUG).
                   end in 
                 Expands d ty delta1
               end
+            | UHExp.ListNil => Expands ListNil (HTyp.List HTyp.Hole) MetaVarMap.empty
             | UHExp.Case _ _ => DoesNotExpand
             | UHExp.ApPalette name serialized_model hole_data => DoesNotExpand
               (* TODO fix me *)
@@ -10038,8 +10116,22 @@ Module FCore(Debug : DEBUG).
                   Expands d ty delta
                 end
               end
+            | Skel.BinOp NotInHole UHExp.Cons skel1 skel2 =>
+              match syn_expand_skel fuel ctx skel1 seq with
+              | DoesNotExpand => DoesNotExpand
+              | Expands d1 ty1 delta1 =>
+                let ty := HTyp.List ty1 in
+                match ana_expand_skel fuel ctx skel2 seq ty with
+                | DoesNotExpand => DoesNotExpand
+                | Expands d2 _ delta2 =>
+                  let d := Cons d1 d2 in
+                  let delta := MetaVarMap.union delta1 delta2 in
+                  Expands d ty delta
+                end
+              end
             | Skel.BinOp NotInHole (UHExp.Plus as op) skel1 skel2
-            | Skel.BinOp NotInHole (UHExp.Times as op) skel1 skel2 => 
+            | Skel.BinOp NotInHole (UHExp.Times as op) skel1 skel2
+            | Skel.BinOp NotInHole (UHExp.LessThan as op) skel1 skel2 =>
               match (ana_expand_skel fuel ctx skel1 seq HTyp.Num,
                      ana_expand_skel fuel ctx skel2 seq HTyp.Num) with 
               | (Expands d1 ty1 delta1, Expands d2 ty2 delta2) => 
@@ -10048,9 +10140,9 @@ Module FCore(Debug : DEBUG).
                 let dc2 := cast d2 ty2 HTyp.Num in 
                 match of_op op with 
                 | None => DoesNotExpand (* should not happen due to pattern matching above *)
-                | Some op' => 
-                  let d := BinNumOp op' dc1 dc2 in 
-                  Expands d HTyp.Num delta
+                | Some (op, ty) => 
+                  let d := BinNumOp op dc1 dc2 in 
+                  Expands d ty delta
                 end
               | _ => DoesNotExpand
               end
@@ -10146,6 +10238,11 @@ Module FCore(Debug : DEBUG).
                   let d := Inj ann_ty side d1 in 
                   Expands d ty delta
                 end
+              end
+            | UHExp.ListNil =>
+              match HTyp.matched_list ty with
+              | None => DoesNotExpand
+              | Some _ => Expands ListNil ty MetaVarMap.empty
               end
             | UHExp.Case e1 rules =>
               match syn_expand fuel ctx e1 with
@@ -10381,7 +10478,8 @@ Module FCore(Debug : DEBUG).
           | DHPat.Wild
           | DHPat.Var _
           | DHPat.NumLit _
-          | DHPat.BoolLit _ => (dp, hii)
+          | DHPat.BoolLit _
+          | DHPat.ListNil => (dp, hii)
           | DHPat.EmptyHole u _ =>
             (* TODO: Pattern holes don't need environments. Maybe this calls
              * for a refactoring of types to reflect this, e.g., a separate
@@ -10402,6 +10500,10 @@ Module FCore(Debug : DEBUG).
             let (dp1, hii) := renumber_result_only_pat path hii dp1 in
             let (dp2, hii) := renumber_result_only_pat path hii dp2 in
             (DHPat.Pair dp1 dp2, hii)
+          | DHPat.Cons dp1 dp2 =>
+            let (dp1, hii) := renumber_result_only_pat path hii dp1 in
+            let (dp2, hii) := renumber_result_only_pat path hii dp2 in
+            (DHPat.Cons dp1 dp2, hii)
           | DHPat.Spaced dp1 dp2 =>
             let (dp1, hii) := renumber_result_only_pat path hii dp1 in
             let (dp2, hii) := renumber_result_only_pat path hii dp2 in
@@ -10418,7 +10520,8 @@ Module FCore(Debug : DEBUG).
           match d with 
           | BoundVar _
           | BoolLit _
-          | NumLit _ => (d, hii)
+          | NumLit _
+          | ListNil => (d, hii)
           | Let x d1 d2 => 
             let (d1, hii) := renumber_result_only path hii d1 in 
             let (d2, hii) := renumber_result_only path hii d2 in 
@@ -10444,6 +10547,10 @@ Module FCore(Debug : DEBUG).
             let (d1, hii) := renumber_result_only path hii d1 in
             let (d2, hii) := renumber_result_only path hii d2 in
             (Pair d1 d2, hii)
+          | Cons d1 d2 =>
+            let (d1, hii) := renumber_result_only path hii d1 in
+            let (d2, hii) := renumber_result_only path hii d2 in
+            (Cons d1 d2, hii)
           | Case d1 rules n =>
             let (d1, hii) := renumber_result_only path hii d1 in
             let (drules, hii) := renumber_result_only_rules fuel path hii rules in 
@@ -10494,7 +10601,8 @@ Module FCore(Debug : DEBUG).
           match d with 
           | BoundVar _
           | BoolLit _
-          | NumLit _ => (d, hii)
+          | NumLit _
+          | ListNil => (d, hii)
           | Let x d1 d2 => 
             let (d1, hii) := renumber_sigmas_only fuel path hii d1 in 
             let (d2, hii) := renumber_sigmas_only fuel path hii d2 in 
@@ -10516,10 +10624,14 @@ Module FCore(Debug : DEBUG).
           | Inj ty side d1 => 
             let (d1, hii) := renumber_sigmas_only fuel path hii d1 in 
             (Inj ty side d1, hii)
-          | Pair d1 d2 => 
+          | Pair d1 d2 =>
             let (d1, hii) := renumber_sigmas_only fuel path hii d1 in
-            let (d2, hii) := renumber_sigmas_only fuel path hii d2 in 
+            let (d2, hii) := renumber_sigmas_only fuel path hii d2 in
             (Pair d1 d2, hii)
+          | Cons d1 d2 =>
+            let (d1, hii) := renumber_sigmas_only fuel path hii d1 in
+            let (d2, hii) := renumber_sigmas_only fuel path hii d2 in
+            (Cons d1 d2, hii)
           | Case d1 rules n =>
             let (d1, hii) := renumber_sigmas_only fuel path hii d1 in
             let (rules, hii) := renumber_sigmas_only_rules fuel path hii rules in
@@ -10633,6 +10745,8 @@ Module FCore(Debug : DEBUG).
 
         Definition grounded_Prod := NotGroundOrHole (HTyp.Prod HTyp.Hole HTyp.Hole).
 
+        Definition grounded_List := NotGroundOrHole (HTyp.List HTyp.Hole).
+
         Definition ground_cases_of ty := 
           match ty with 
           | HTyp.Hole => Hole
@@ -10644,12 +10758,14 @@ Module FCore(Debug : DEBUG).
           | HTyp.Arrow _ _ => grounded_Arrow
           | HTyp.Sum _ _ => grounded_Sum
           | HTyp.Prod _ _ => grounded_Prod
+          | HTyp.List _ => grounded_List
           end.
 
         Definition eval_bin_num_op op n1 n2 :=
           match op with 
-          | DHExp.Plus => n1 + n2
-          | DHExp.Times => n1 * n2
+          | DHExp.Plus => DHExp.NumLit (n1 + n2)
+          | DHExp.Times => DHExp.NumLit (n1 * n2)
+          | DHExp.LessThan => DHExp.BoolLit (Nat.ltb n1 n2)
           end.
 
         Fixpoint evaluate 
@@ -10712,6 +10828,7 @@ Module FCore(Debug : DEBUG).
                   Indet (DHExp.Ap d1' d2')
                 end
               end
+            | DHExp.ListNil
             | DHExp.BoolLit _
             | DHExp.NumLit _ => BoxedValue d
             | DHExp.BinNumOp op d1 d2 => 
@@ -10721,7 +10838,7 @@ Module FCore(Debug : DEBUG).
                 match evaluate fuel d2 with 
                 | InvalidInput msg => InvalidInput msg
                 | BoxedValue (DHExp.NumLit n2) => 
-                  BoxedValue (DHExp.NumLit (eval_bin_num_op op n1 n2))
+                  BoxedValue (eval_bin_num_op op n1 n2)
                 | BoxedValue _ => InvalidInput 3 
                 | Indet d2' => 
                   Indet (DHExp.BinNumOp op d1' d2')
@@ -10749,6 +10866,16 @@ Module FCore(Debug : DEBUG).
               | (Indet d1, BoxedValue d2)
               | (BoxedValue d1, Indet d2) => Indet (DHExp.Pair d1 d2)
               | (BoxedValue d1, BoxedValue d2) => BoxedValue (DHExp.Pair d1 d2)
+              end
+            | DHExp.Cons d1 d2 =>
+              match (evaluate fuel d1,
+                     evaluate fuel d2) with
+              | (InvalidInput msg, _)
+              | (_, InvalidInput msg) => InvalidInput msg
+              | (Indet d1, Indet d2)
+              | (Indet d1, BoxedValue d2)
+              | (BoxedValue d1, Indet d2) => Indet (DHExp.Cons d1 d2)
+              | (BoxedValue d1, BoxedValue d2) => BoxedValue (DHExp.Cons d1 d2)
               end
             | DHExp.Case d1 rules n => evaluate_case fuel d1 rules n
             | DHExp.EmptyHole u i sigma => 
