@@ -83,6 +83,7 @@ module PairPalette: PALETTE = {
         )
       );
     let fVarName = "f";
+    let fVarPat = UHPat.Pat(NotInHole, UHPat.Var(fVarName));
     let apOpSeq =
       UHExp.(
         OperatorSeq.(
@@ -97,7 +98,7 @@ module PairPalette: PALETTE = {
       Tm(
         NotInHole,
         Lam(
-          fVarName,
+          fVarPat,
           None,
           Tm(
             NotInHole,
@@ -177,7 +178,8 @@ module ColorPalette: PALETTE = {
       sscanf(rgb_hex, "#%.2s%.2s%.2s", (r, g, b) =>
         (to_decimal(r), to_decimal(g), to_decimal(b))
       );
-    let f = "f";
+    let fVarName = "f";
+    let fPat = UHPat.(Pat(NotInHole, Var(fVarName)));
     let r_num = UHExp.(Tm(NotInHole, NumLit(r)));
     let g_num = UHExp.(Tm(NotInHole, NumLit(g)));
     let b_num = UHExp.(Tm(NotInHole, NumLit(b)));
@@ -185,7 +187,7 @@ module ColorPalette: PALETTE = {
       UHExp.(
         OperatorSeq.(
           exp_op_seq(
-            Tm(NotInHole, Var(NotInVHole, f)),
+            Tm(NotInHole, Var(NotInVHole, fVarName)),
             Space,
             exp_op_seq(r_num, Space, ExpOpExp(g_num, Space, b_num)),
           )
@@ -195,7 +197,7 @@ module ColorPalette: PALETTE = {
       Tm(
         NotInHole,
         Lam(
-          f,
+          fPat,
           None,
           Tm(NotInHole, OpSeq(Associator.associate_exp(body), body)),
         ),
@@ -235,8 +237,8 @@ module CheckboxPalette: PALETTE = {
   };
 
   let dummy_num = UHExp.Tm(NotInHole, UHExp.NumLit(0));
-  let true_exp = UHExp.Tm(NotInHole, UHExp.Inj(UHExp.L, dummy_num));
-  let false_exp = UHExp.Tm(NotInHole, UHExp.Inj(UHExp.R, dummy_num));
+  let true_exp = UHExp.Tm(NotInHole, UHExp.Inj(L, dummy_num));
+  let false_exp = UHExp.Tm(NotInHole, UHExp.Inj(R, dummy_num));
   let expand = model => model ? true_exp : false_exp;
 
   let serialize = model => model ? "T" : "F";
