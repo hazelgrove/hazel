@@ -4,7 +4,7 @@ Require Coq.Strings.Ascii. Open Scope char_scope.
 Require Coq.Arith.PeanoNat. Open Scope nat_scope.
 Require Coq.Lists.List. Open Scope list_scope.
 Require Import BinInt.
-(* Require Extraction. *)
+Require Extraction.
 
 Set Implicit Arguments.
 Unset Elimination Schemes.
@@ -11006,7 +11006,7 @@ Module FCore(Debug : DEBUG).
   End FDynamics.
 End FCore.
 
-(* Extract Constant Util.str_eqb => "String.equal".
+Extract Constant Util.str_eqb => "String.equal".
 Extract Constant Coq.Strings.String.append => "(^)".
 Extract Inductive Coq.Strings.String.string => "string"
        ["""""" "(fun (c, s) -> (String.make 1 c) ^ s)"]
@@ -11037,4 +11037,4 @@ Extract Constant Nat.eqb => "(=)".
 Extract Constant Nat.leb => "(<=)".
 Extract Constant Nat.ltb => "(<)".
 
-Extraction FCore. *)
+Extraction FCore.
