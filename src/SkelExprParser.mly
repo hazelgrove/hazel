@@ -9,12 +9,14 @@
 
 %token <int> PLACEHOLDER
 %token COMMA
+%token CONS
 %token PLUS
 %token TIMES
 %token SPACEOP
 %token EOF
 
 %left COMMA
+%right CONS
 %left PLUS
 %left TIMES
 %left SPACEOP
@@ -35,6 +37,11 @@ expr:
     Skel.BinOp(
       NotInHole,
       UHExp.Comma,
+      e1, e2) }
+  | e1 = expr; CONS; e2 = expr {
+    Skel.BinOp(
+      NotInHole,
+      UHExp.Cons,
       e1, e2) }
   | e1 = expr; PLUS; e2 = expr { 
     Skel.BinOp(

@@ -9,10 +9,12 @@
 
 %token <int> PLACEHOLDER
 %token COMMA
+%token CONS
 %token SPACEOP
 %token EOF
 
 %left COMMA
+%right CONS
 %left SPACEOP
 
 %start <SemanticsCore.UHPat.op SemanticsCore.Skel.t> skel_pat
@@ -31,6 +33,11 @@ pat:
     Skel.BinOp(
       NotInHole,
       UHPat.Comma,
+      p1, p2) }
+  | p1 = pat; CONS; p2 = pat {
+    Skel.BinOp(
+      NotInHole,
+      UHPat.Cons,
       p1, p2) }
   | p1 = pat; SPACEOP; p2 = pat { 
     Skel.BinOp(
