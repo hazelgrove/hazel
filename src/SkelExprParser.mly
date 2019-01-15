@@ -40,6 +40,11 @@ expr:
       NotInHole,
       UHExp.Comma,
       e1, e2) }
+  | e1 = expr; LT; e2 = expr {
+    Skel.BinOp(
+      NotInHole,
+      UHExp.LessThan,
+      e1, e2) }
   | e1 = expr; CONS; e2 = expr {
     Skel.BinOp(
       NotInHole,
