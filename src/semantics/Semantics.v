@@ -1032,6 +1032,7 @@ Module FCore(Debug : DEBUG).
     Inductive op : Type := 
     | Plus : op
     | Times : op
+    | LessThan : op
     | Space : op
     | Comma : op
     | Cons : op.
@@ -1965,11 +1966,17 @@ Module FCore(Debug : DEBUG).
           | Some mode1 => 
             match ana_skel fuel ctx skel2 seq HTyp.Num monitor with 
             | Some mode2 => 
-              let ty := HTyp.Num in 
-              match mode1 with 
-              | Some _ => Some (ty, mode1)
-              | None => Some (ty, mode2)
-              end
+              Some (HTyp.Num, combine_modes mode1 mode2)
+            | None => None
+            end
+          | None => None
+          end
+        | Skel.BinOp NotInHole UHExp.LessThan skel1 skel2 => 
+          match ana_skel fuel ctx skel1 seq HTyp.Num monitor with 
+          | Some mode1 => 
+            match ana_skel fuel ctx skel2 seq HTyp.Num monitor with 
+            | Some mode2 => 
+              Some (HTyp.Bool, combine_modes mode1 mode2)
             | None => None
             end
           | None => None
@@ -2076,6 +2083,7 @@ Module FCore(Debug : DEBUG).
         | Skel.BinOp (InHole _) _ _ _
         | Skel.BinOp NotInHole UHExp.Plus _ _ 
         | Skel.BinOp NotInHole UHExp.Times _ _ 
+        | Skel.BinOp NotInHole UHExp.LessThan _ _
         | Skel.BinOp NotInHole UHExp.Space _ _ => 
           match syn_skel fuel ctx skel seq monitor with 
           | Some (ty', mode) => 
@@ -2951,10 +2959,20 @@ Module FCore(Debug : DEBUG).
         | Skel.BinOp _ (UHExp.Plus as op) skel1 skel2 
         | Skel.BinOp _ (UHExp.Times as op) skel1 skel2 => 
           match ana_skel_fix_holes fuel ctx u_gen renumber_empty_holes skel1 seq HTyp.Num with 
-          | Some (skel1', seq1, u_gen1) => 
-            match ana_skel_fix_holes fuel ctx u_gen1 renumber_empty_holes skel2 seq1 HTyp.Num with 
-            | Some (skel2', seq2, u_gen2) => 
-              Some (Skel.BinOp NotInHole op skel1' skel2', seq2, HTyp.Num, u_gen2)
+          | Some (skel1, seq, u_gen) => 
+            match ana_skel_fix_holes fuel ctx u_gen renumber_empty_holes skel seq HTyp.Num with 
+            | Some (skel2, seq, u_gen) => 
+              Some (Skel.BinOp NotInHole op skel1 skel2, seq, HTyp.Num, u_gen)
+            | None => None
+            end
+          | None => None
+          end
+        | Skel.BinOp _ (UHExp.LessThan as op) skel1 skel2 => 
+          match ana_skel_fix_holes fuel ctx u_gen renumber_empty_holes skel1 seq HTyp.Num with 
+          | Some (skel1, seq, u_gen) => 
+            match ana_skel_fix_holes fuel ctx u_gen renumber_empty_holes skel seq HTyp.Num with 
+            | Some (skel2, seq, u_gen) => 
+              Some (Skel.BinOp NotInHole op skel1 skel2, seq, HTyp.Bool, u_gen)
             | None => None
             end
           | None => None
@@ -3094,6 +3112,7 @@ Module FCore(Debug : DEBUG).
           end
         | Skel.BinOp _ UHExp.Plus _ _  
         | Skel.BinOp _ UHExp.Times _ _
+        | Skel.BinOp _ UHExp.LessThan _ _
         | Skel.BinOp _ UHExp.Space _ _ =>  
           match syn_skel_fix_holes fuel ctx u_gen renumber_empty_holes skel seq with 
           | Some (skel', seq', ty', u_gen') => 
@@ -3976,6 +3995,7 @@ Module FCore(Debug : DEBUG).
             ctx)
       | UHExp.Tm NotInHole (UHExp.OpSeq (Skel.BinOp NotInHole UHExp.Plus _ _) _) 
       | UHExp.Tm NotInHole (UHExp.OpSeq (Skel.BinOp NotInHole UHExp.Times _ _) _)
+      | UHExp.Tm NotInHole (UHExp.OpSeq (Skel.BinOp NotInHole UHExp.LessThan _ _) _)
       | UHExp.Tm NotInHole (UHExp.OpSeq (Skel.BinOp NotInHole UHExp.Space _ _) _)
       | UHExp.Tm NotInHole (UHExp.EmptyHole _)
       | UHExp.Tm NotInHole (UHExp.Asc _ _)
@@ -4363,6 +4383,7 @@ Module FCore(Debug : DEBUG).
         ana_skel_cursor_info fuel ctx skel seq n ze0 ty 
       | OpSeqZ (Skel.BinOp NotInHole UHExp.Plus _ _) _ _
       | OpSeqZ (Skel.BinOp NotInHole UHExp.Times _ _) _ _ 
+      | OpSeqZ (Skel.BinOp NotInHole UHExp.LessThan _ _) _ _ 
       | OpSeqZ (Skel.BinOp NotInHole UHExp.Space _ _) _ _ 
       | AscZ1 _ _ 
       | AscZ2 _ _ 
@@ -4406,7 +4427,8 @@ Module FCore(Debug : DEBUG).
           syn_cursor_info fuel ctx ze_n
         else None
       | Skel.BinOp _ UHExp.Plus skel1 skel2 
-      | Skel.BinOp _ UHExp.Times skel1 skel2 => 
+      | Skel.BinOp _ UHExp.Times skel1 skel2 
+      | Skel.BinOp _ UHExp.LessThan skel1 skel2 => 
         match ana_skel_cursor_info fuel ctx skel1 seq n ze_n HTyp.Num with 
         | (Some _) as result => result
         | None =>
@@ -4530,6 +4552,7 @@ Module FCore(Debug : DEBUG).
       | Skel.BinOp (InHole _) _ _ _
       | Skel.BinOp _ UHExp.Plus _ _
       | Skel.BinOp _ UHExp.Times _ _
+      | Skel.BinOp _ UHExp.LessThan _ _
       | Skel.BinOp _ UHExp.Space _ _ =>  
         syn_skel_cursor_info fuel ctx skel seq n ze_n 
       end
@@ -5943,6 +5966,7 @@ Module FCore(Debug : DEBUG).
     Inductive op_shape : Type := 
     | SPlus : op_shape
     | STimes : op_shape
+    | SLessThan : op_shape
     | SSpace : op_shape
     | SComma : op_shape
     | SArrow : op_shape
@@ -5956,6 +5980,7 @@ Module FCore(Debug : DEBUG).
       | SVBar => Some UHTyp.Sum
       | SPlus
       | STimes
+      | SLessThan 
       | SSpace
       | SCons => None
       end.
@@ -5974,6 +5999,7 @@ Module FCore(Debug : DEBUG).
       | SCons => Some UHPat.Cons
       | SPlus
       | STimes
+      | SLessThan
       | SArrow 
       | SVBar => None
       end.
@@ -5989,6 +6015,7 @@ Module FCore(Debug : DEBUG).
       match os with 
       | SPlus => Some UHExp.Plus
       | STimes => Some UHExp.Times
+      | SLessThan => Some UHExp.LessThan
       | SSpace => Some UHExp.Space
       | SComma => Some UHExp.Comma
       | SCons => Some UHExp.Cons
@@ -6000,6 +6027,7 @@ Module FCore(Debug : DEBUG).
       match op with 
       | UHExp.Plus => SPlus
       | UHExp.Times => STimes
+      | UHExp.LessThan => SLessThan
       | UHExp.Space => SSpace
       | UHExp.Comma => SComma
       | UHExp.Cons => SCons

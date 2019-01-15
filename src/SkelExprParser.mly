@@ -9,6 +9,7 @@
 
 %token <int> PLACEHOLDER
 %token COMMA
+%token LT
 %token CONS
 %token PLUS
 %token TIMES
@@ -16,6 +17,7 @@
 %token EOF
 
 %left COMMA
+%left LT
 %right CONS
 %left PLUS
 %left TIMES

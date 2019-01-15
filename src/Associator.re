@@ -15,13 +15,16 @@ let string_of_expr_op = (op: UHExp.op) =>
   switch (op) {
   | UHExp.Plus => "+"
   | UHExp.Times => "*"
+  | UHExp.LessThan => "<"
   | UHExp.Space => "_"
   | UHExp.Comma => ","
+  | UHExp.Cons => "::"
   };
 let string_of_pat_op = (op: UHPat.op) =>
   switch (op) {
   | UHPat.Space => "_"
   | UHPat.Comma => ","
+  | UHPat.Cons => "::"
   };
 let string_of_ty_op = (op: UHTyp.op) =>
   switch (op) {
