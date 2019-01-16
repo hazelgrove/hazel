@@ -2,7 +2,7 @@ open SemanticsCore;
 open Format;
 open LangUtil;
 let ensure_well_typed_before_serialization = uhexp =>
-  switch (UHExp.syn((), (Ctx.empty, PaletteCtx.empty), uhexp)) {
+  switch (UHExp.syn((), (VarMap.empty, PaletteCtx.empty), uhexp)) {
   | None => raise(IllFormed(uhexp))
   | _ => uhexp
   };
@@ -82,7 +82,7 @@ let serialize = (~fmtr=std_formatter, ~line_length=100, ~indent=2, uhexp) => {
           fmtr,
           "@[<%d>inj[%s](@,%a@,)@]",
           indent,
-          string_of_side(side),
+          string_of_side(s),
           print_uhpat,
           p',
         )
@@ -92,11 +92,11 @@ let serialize = (~fmtr=std_formatter, ~line_length=100, ~indent=2, uhexp) => {
       }
     };
 
-  let print_half_ann = (fmtr, annOpt);
-  switch (annOpt) {
-  | None => fprintf(fmtr, "") /\/ NOOP
-  | Some(ann) => fprintf(fmtr, "@ : %a", print_uhtyp, ann)
-  };
+  let print_half_ann = (fmtr, annOpt) =>
+    switch (annOpt) {
+    | None => fprintf(fmtr, "") /* NOOP */
+    | Some(ann) => fprintf(fmtr, "@ : %a", print_uhtyp, ann)
+    };
 
   let rec print_uhexp = (fmtr, e) =>
     switch (e) {
@@ -153,7 +153,7 @@ let serialize = (~fmtr=std_formatter, ~line_length=100, ~indent=2, uhexp) => {
           e',
         )
       | UHExp.Case(e', rules) =>
-        let print_rule = (fmtr, Rule(pr, er)) =>
+        let print_rule = (fmtr, UHExp.Rule(pr, er)) =>
           fprintf(
             fmtr,
             "@[<hov %d>@ || %a =>@ %a@]",
@@ -170,17 +170,15 @@ let serialize = (~fmtr=std_formatter, ~line_length=100, ~indent=2, uhexp) => {
           print_uhexp,
           e',
           fmtr => {
-            List.map;
-            print_rule(fmtr);
-            rules;
-            fprintf(fmtr, "") /\/ NOOP;
+            let _ = List.map(print_rule(fmtr), rules);
+            fprintf(fmtr, "" /* NOOP */);
           },
         );
       | UHExp.ListNil => print_list_nil(fmtr)
       | UHExp.EmptyHole(_) => fprintf(fmtr, "{}")
       | UHExp.OpSeq(_, seq) =>
         print_opseq(fmtr, print_uhexp, string_of_expop, seq)
-      | UHExp.ApPalette(name, serialized_model) =>
+      | UHExp.ApPalette(name, serialized_model, cells) =>
         fprintf(fmtr, "%s \"%s\"", name, String.escaped(serialized_model))
       }
     };
