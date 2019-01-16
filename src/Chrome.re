@@ -715,6 +715,11 @@ let view = (model: Model.t) => {
       )
     );
 
+  let serialize_onclick_handler = _ => {
+    JSUtil.log(Serialize.string_of_uhexp(React.S.value(e_rs)));
+    true;
+  };
+
   let chrome =
     Tyxml_js.To_dom.of_div(
       Html5.(
@@ -771,11 +776,10 @@ let view = (model: Model.t) => {
                         div(~a=[a_class(["result-view"])], [result_view]),
                       ],
                     ),
-                    /*
-                     div(
-                             ?
-                       )
-                       */
+                    button(
+                      ~a=[a_onclick(serialize_onclick_handler)],
+                      [txt("Serialize")],
+                    ),
                   ],
                 ),
                 the_rightbar,
