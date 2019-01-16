@@ -5915,7 +5915,11 @@ Module FCore(Debug : DEBUG).
           | ZExp.RuleZP zp e => 
             match prev_hole_steps_pat fuel zp with 
             | Some ns => Some (cons (S prefix_len) (cons 0 ns)) 
-            | None => last_hole_steps_rules fuel prefix 
+            | None =>
+              match last_hole_steps_rules fuel prefix with
+              | Some ns => Some ns
+              | None => Path.cons_opt 0 (last_hole_steps fuel e)
+              end
             end
           | ZExp.RuleZE p ze => 
             match prev_hole_steps fuel ze with 
