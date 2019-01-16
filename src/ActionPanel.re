@@ -102,9 +102,9 @@ let make =
           | Some(arg) =>
             let a = action(arg);
             switch (
-              Action.performSyn(
+              Action.perform_syn(
                 (),
-                (Ctx.empty, Palettes.initial_palette_ctx),
+                (VarCtx.empty, Palettes.initial_palette_ctx),
                 a,
                 m,
               )
@@ -248,9 +248,9 @@ let make =
     S.map(
       edit_state =>
         switch (
-          Action.performSyn(
+          Action.perform_syn(
             (),
-            (Ctx.empty, Palettes.initial_palette_ctx),
+            (VarCtx.empty, Palettes.initial_palette_ctx),
             action,
             edit_state,
           )
@@ -308,7 +308,7 @@ let make =
           switch (sort) {
           | IsType => true
           | IsExpr(_)
-          | IsBinder(_) => false
+          | IsPat(_) => false
           },
         cursor_info_rs,
       )
@@ -316,7 +316,7 @@ let make =
 
   let constructArrow =
     action_button(
-      Action.Construct(Action.STyOp(UHTyp.Arrow)),
+      Action.(Construct(SOp(SArrow))),
       is_type_rs,
       twopiece_lbl_op(LangUtil.typeArrowSym, " type operator"),
       KCs.greaterThan,
@@ -324,18 +324,18 @@ let make =
 
   let constructSum =
     action_button(
-      Action.Construct(Action.STyOp(UHTyp.Sum)),
+      Action.(Construct(SOp(SVBar))),
       is_type_rs,
       twopiece_lbl_op("|", " type operator"),
       KCs.vbar,
     );
 
-  let is_not_binder_rs =
+  let is_not_pat_rs =
     ZExp.(
       S.map(
         ({sort, _}) =>
           switch (sort) {
-          | IsBinder(_) => false
+          | IsPat(_) => false
           | IsType
           | IsExpr(_) => true
           },
@@ -346,7 +346,7 @@ let make =
   let constructParenthesized =
     action_button(
       Action.Construct(Action.SParenthesized),
-      is_not_binder_rs,
+      is_not_pat_rs,
       Html5.txt("parenthesize"),
       KCs.openParens,
     );
@@ -358,7 +358,7 @@ let make =
           switch (sort) {
           | IsExpr(_) => true
           | IsType => false
-          | IsBinder(_) => true
+          | IsPat(_) => true
           },
         cursor_info_rs,
       )
@@ -385,13 +385,13 @@ let make =
           | SynOnly(_)
           | SynFree
           | SynErrorArrow(_)
-          | SynErrorSum(_)
           | SynMatchingArrow(_, _)
-          | SynFreeArrow(_)
-          | SynMatchingSum(_, _)
-          | SynFreeSum(_) => true
+          | SynFreeArrow(_) => true
           | TypePosition => false
-          | BinderPosition(_) => false
+          | PatAnaOnly(_)
+          | PatTypeInconsistent(_, _)
+          | PatSubsumed(_, _)
+          | PatSynOnly(_) => false
           },
         cursor_info_rs,
       )
@@ -412,7 +412,7 @@ let make =
           switch (sort) {
           | IsExpr(UHExp.Tm(_, UHExp.Var(_, _)))
           | IsExpr(UHExp.Tm(_, UHExp.EmptyHole(_)))
-          | IsBinder(_) => true
+          | IsPat(_) => true /* TODO */
           | IsExpr(UHExp.Tm(_, UHExp.NumLit(_))) =>
             switch (side) {
             | Before => true
@@ -455,7 +455,7 @@ let make =
           | IsExpr(UHExp.Tm(_, UHExp.NumLit(_)))
           | IsExpr(UHExp.Tm(_, UHExp.EmptyHole(_))) => true
           | IsExpr(_)
-          | IsBinder(_)
+          | IsPat(_) /* TODO */
           | IsType => false
           },
         cursor_info_rs,
@@ -469,7 +469,7 @@ let make =
 
   let constructPlus =
     action_button(
-      Action.Construct(Action.SOp(UHExp.Plus)),
+      Action.(Construct(SOp(SPlus))),
       expr_not_ana_only_rs,
       twopiece_lbl_op("+", " operator"),
       KCs.plus,
@@ -477,7 +477,7 @@ let make =
 
   let constructTimes =
     action_button(
-      Action.Construct(Action.SOp(UHExp.Times)),
+      Action.(Construct(SOp(STimes))),
       expr_not_ana_only_rs,
       twopiece_lbl_op("*", " operator"),
       KCs.asterisk,
@@ -485,7 +485,7 @@ let make =
 
   let constructSpace =
     action_button(
-      Action.Construct(Action.SOp(UHExp.Space)),
+      Action.(Construct(SOp(SSpace))),
       expr_not_ana_only_rs,
       Html5.txt("apply"),
       KCs.space,
@@ -493,7 +493,7 @@ let make =
 
   let constructInjL =
     action_button(
-      Action.Construct(Action.SInj(UHExp.L)),
+      Action.Construct(Action.SInj(L)),
       expr_not_ana_only_rs,
       Html5.txt("left injection"),
       KCs.alt_L,
@@ -501,7 +501,7 @@ let make =
 
   let constructInjR =
     action_button(
-      Action.Construct(Action.SInj(UHExp.R)),
+      Action.Construct(Action.SInj(R)),
       expr_not_ana_only_rs,
       Html5.txt("right injection"),
       KCs.alt_R,

@@ -114,10 +114,6 @@ let of_cursor_mode = (cursor_mode: ZExp.cursor_mode) => {
       let ind1 = expected_msg_indicator("function type");
       let ind2 = got_inconsistent_matched_indicator(got_ty, expected_ty);
       (ind1, ind2, TypeInconsistency);
-    | ZExp.SynErrorSum(expected_ty, got_ty) =>
-      let ind1 = expected_msg_indicator("sum type");
-      let ind2 = got_inconsistent_matched_indicator(got_ty, expected_ty);
-      (ind1, ind2, TypeInconsistency);
     | ZExp.SynMatchingArrow(syn_ty, matched_ty) =>
       let ind1 = expected_msg_indicator("function type");
       let ind2 =
@@ -138,33 +134,28 @@ let of_cursor_mode = (cursor_mode: ZExp.cursor_mode) => {
           matched_ty_bar("got", HTyp.Hole, matched_ty),
         );
       (ind1, ind2, BindingError);
-    | ZExp.SynMatchingSum(syn_ty, matched_ty) =>
-      let ind1 = expected_msg_indicator("sum type");
-      let ind2 =
-        switch (syn_ty) {
-        | HTyp.Hole =>
-          got_indicator(
-            "Got type ▶ matched to",
-            matched_ty_bar("got", syn_ty, matched_ty),
-          )
-        | _ => got_indicator("Got", typebar("got", syn_ty))
-        };
-      (ind1, ind2, OK);
-    | ZExp.SynFreeSum(matched_ty) =>
-      let ind1 = expected_msg_indicator("sum type");
-      let ind2 =
-        got_indicator(
-          "Got a free variable ▶ matched to",
-          matched_ty_bar("got", HTyp.Hole, matched_ty),
-        );
-      (ind1, ind2, BindingError);
     | ZExp.TypePosition =>
       let ind1 = expected_a_type_indicator;
       let ind2 = got_a_type_indicator;
       (ind1, ind2, OK);
-    | ZExp.BinderPosition(expected_ty) =>
-      let ind1 = expected_pat_indicator(expected_ty);
+    | ZExp.PatAnaOnly(ty) =>
+      let ind1 = expected_ty_indicator(ty);
       let ind2 = got_indicator("Got", special_msg_bar("as expected"));
+      (ind1, ind2, OK);
+    | ZExp.PatTypeInconsistent(expected_ty, got_ty) =>
+      let ind1 = expected_ty_indicator(expected_ty);
+      let ind2 = got_inconsistent_indicator(got_ty);
+      (ind1, ind2, TypeInconsistency);
+    | ZExp.PatSubsumed(expected_ty, got_ty) =>
+      let ind1 = expected_ty_indicator(expected_ty);
+      let ind2 =
+        HTyp.eq(expected_ty, got_ty) ?
+          got_as_expected_ty_indicator(got_ty) :
+          got_consistent_indicator(got_ty);
+      (ind1, ind2, OK);
+    | ZExp.PatSynOnly(ty) =>
+      let ind1 = expected_any_indicator;
+      let ind2 = got_ty_indicator(ty);
       (ind1, ind2, OK);
     };
 
