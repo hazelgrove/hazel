@@ -34,7 +34,9 @@ rule read =
   | "." { DOT }
   | "+" { PLUS }
   | "*" { TIMES }
+  | "<" { LESS_THAN }
   | "|" { BAR }
+  | "||" { DOUBLE_BAR }
   | "&" { AMP }
   | "(" { LPAREN }
   | ")" { RPAREN }
