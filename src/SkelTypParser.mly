@@ -7,12 +7,14 @@
 %token <int> PLACEHOLDER
 %token COMMA
 %token VBAR
+%token AMP
 %token ARROW
 %token EOF
 
 %left COMMA
 %right ARROW
 %right VBAR
+%right AMP
 
 %start <SemanticsCore.UHTyp.op SemanticsCore.Skel.t> skel_typ
 
@@ -40,6 +42,11 @@ ty:
     Skel.BinOp(
       NotInHole, 
       UHTyp.Sum, 
+      ty1, ty2) }
+  | ty1 = ty; AMP; ty2 = ty { 
+    Skel.BinOp(
+      NotInHole, 
+      UHTyp.Prod, 
       ty1, ty2) }
   ;
 

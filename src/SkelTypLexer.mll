@@ -10,6 +10,7 @@ rule read =
   parse
   | white { read lexbuf }
   | "|" { VBAR }
+  | "&" { Amp }
   | "->" { ARROW }
   | "," { COMMA }
   | placeholder { PLACEHOLDER (int_of_string (Lexing.lexeme lexbuf)) }
