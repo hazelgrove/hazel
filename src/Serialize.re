@@ -29,8 +29,8 @@ let string_of_patop = op =>
   };
 
 let serialize = (~fmtr=std_formatter, ~line_length=100, ~indent=2, uhexp) => {
-    pp_set_margin(fmtr, line_length);
-    let rec print_opseq' = (fmtr, print_term, string_of_op, seq) => {
+  pp_set_margin(fmtr, line_length);
+  let rec print_opseq' = (fmtr, print_term, string_of_op, seq) => {
     let print_rest = (op, tm2) =>
       fprintf(fmtr, "%s@ %a", string_of_op(op), print_term, tm2);
     switch (seq) {
@@ -51,8 +51,7 @@ let serialize = (~fmtr=std_formatter, ~line_length=100, ~indent=2, uhexp) => {
   let print_parenthesized = (fmtr, print_value) =>
     fprintf(fmtr, "@[<hov %d>(%t@,)@]", indent, print_value);
 
-  let print_list_nil = (fmtr) =>
-    fprintf(fmtr, "[]");
+  let print_list_nil = fmtr => fprintf(fmtr, "[]");
 
   let rec print_uhtyp = (fmtr, tau) =>
     switch (tau) {
@@ -61,48 +60,43 @@ let serialize = (~fmtr=std_formatter, ~line_length=100, ~indent=2, uhexp) => {
     | UHTyp.Num => fprintf(fmtr, "num")
     | UHTyp.Bool => fprintf(fmtr, "bool")
     | UHTyp.List(t) =>
-      fprintf(fmtr, "@[<hov %d>[%a@,]@]", indent, print_uhtyp, t);
+      fprintf(fmtr, "@[<hov %d>[%a@,]@]", indent, print_uhtyp, t)
     | UHTyp.Hole => fprintf(fmtr, "{}")
     | UHTyp.OpSeq(_, seq) =>
       print_opseq(fmtr, print_uhtyp, string_of_tyop, seq)
     };
 
   let rec print_uhpat = (fmtr, p) =>
-          switch(p) {
-                  | UHPat.Parenthesized(p') =>
-                    print_parenthesized(fmtr, fmtr => print_uhpat(fmtr, p'))
-                  | UHPat.Pat(_, pat) =>
-                    switch(pat) {
-                      | UHPat.EmptyHole(_) =>
-                        fprintf(fmtr, "{}")
-                      | UHPat.Wild =>
-                      fprintf(fmtr, "_")
-                      | UHPat.Var(x) =>
-                      fprintf(fmtr, "%s", x)
-                      | UHPat.NumLit(n) =>
-                      fprintf(fmtr, "%d", n)
-                      | UHPat.BoolLit(b) =>
-                      fprintf(fmtr, if (b) {"true"} else {"false"})
-                      | UHPat.Inj(s, p') =>
-                      fprintf(
+    switch (p) {
+    | UHPat.Parenthesized(p') =>
+      print_parenthesized(fmtr, fmtr => print_uhpat(fmtr, p'))
+    | UHPat.Pat(_, pat) =>
+      switch (pat) {
+      | UHPat.EmptyHole(_) => fprintf(fmtr, "{}")
+      | UHPat.Wild => fprintf(fmtr, "_")
+      | UHPat.Var(x) => fprintf(fmtr, "%s", x)
+      | UHPat.NumLit(n) => fprintf(fmtr, "%d", n)
+      | UHPat.BoolLit(b) => fprintf(fmtr, if (b) {"true"} else {"false"})
+      | UHPat.Inj(s, p') =>
+        fprintf(
           fmtr,
           "@[<%d>inj[%s](@,%a@,)@]",
           indent,
           string_of_side(side),
           print_uhpat,
-          p'
+          p',
         )
-                      | UHPat.ListNil =>
-                        print_list_nil(fmtr)
-                      | UHPat.OpSeq(_, seq) =>
+      | UHPat.ListNil => print_list_nil(fmtr)
+      | UHPat.OpSeq(_, seq) =>
         print_opseq(fmtr, print_uhpat, string_of_patop, seq)
-          }};
+      }
+    };
 
-  let print_half_ann = (fmtr, annOpt)
-            switch (annOpt) {
-                    | None => fprintf(fmtr, "") // NOOP
-                    | Some(ann) => fprintf(fmtr, "@ : %a", print_uhtyp, ann)
-            };
+  let print_half_ann = (fmtr, annOpt);
+  switch (annOpt) {
+  | None => fprintf(fmtr, "") /\/ NOOP
+  | Some(ann) => fprintf(fmtr, "@ : %a", print_uhtyp, ann)
+  };
 
   let rec print_uhexp = (fmtr, e) =>
     switch (e) {
@@ -148,8 +142,7 @@ let serialize = (~fmtr=std_formatter, ~line_length=100, ~indent=2, uhexp) => {
           e',
         )
       | UHExp.NumLit(n) => fprintf(fmtr, "%d", n)
-      | UHExp.BoolLit(b) =>
-                      fprintf(fmtr, if (b) {"true"} else {"false"})
+      | UHExp.BoolLit(b) => fprintf(fmtr, if (b) {"true"} else {"false"})
       | UHExp.Inj(side, e') =>
         fprintf(
           fmtr,
@@ -168,7 +161,7 @@ let serialize = (~fmtr=std_formatter, ~line_length=100, ~indent=2, uhexp) => {
             print_uhpat,
             pr,
             print_uhexp,
-            er
+            er,
           );
 
         fprintf(
@@ -176,8 +169,12 @@ let serialize = (~fmtr=std_formatter, ~line_length=100, ~indent=2, uhexp) => {
           "@[<v>case %a%t;@]",
           print_uhexp,
           e',
-          fmtr => {List.map print_rule(fmtr) rules; fprintf(fmtr, "") // NOOP
-          }
+          fmtr => {
+            List.map;
+            print_rule(fmtr);
+            rules;
+            fprintf(fmtr, "") /\/ NOOP;
+          },
         );
       | UHExp.ListNil => print_list_nil(fmtr)
       | UHExp.EmptyHole(_) => fprintf(fmtr, "{}")
