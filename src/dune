@@ -36,4 +36,4 @@
 
 (menhir
   (infer false)
-  (modules SkelExprParser SkelPatParser SkelTypParser))
+  (modules SkelExprParser SkelPatParser SkelTypParser HazelParse))

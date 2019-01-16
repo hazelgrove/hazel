@@ -771,6 +771,11 @@ let view = (model: Model.t) => {
                         div(~a=[a_class(["result-view"])], [result_view]),
                       ],
                     ),
+                    /*
+                     div(
+                             ?
+                       )
+                       */
                   ],
                 ),
                 the_rightbar,
