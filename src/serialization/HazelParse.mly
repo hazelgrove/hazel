@@ -7,6 +7,10 @@
 %token <string> PALETTE_NAME
 %token <string> PALETTE_MODEL
 %token NUM_TYPE
+%token BOOL_TYPE
+%token TRUE
+%token FALSE
+%token WILDCARD
 %token LET
 %token IN
 %token INJECT
@@ -15,11 +19,15 @@
 %token LEFT
 %token RIGHT
 %token COLON
+%token DOUBLE_COLON
+%token SEMICOLON
 %token EQUAL
 %token DOT
+%token COMMA
 %token PLUS
 %token TIMES
 %token BAR
+%token AMP
 %token LPAREN
 %token RPAREN
 %token LBRACKET
@@ -42,7 +50,7 @@ uhtyp:
   | t = bidelim_typ
     { t }
   | os = ty_opseq
-    { UHTyp.OpSeq(Associator.associate_ty os, os) }
+    { UHTyp.OpSeq(Associator.associate_ty(os), os) }
   ;
 
 bidelim_typ:
@@ -50,6 +58,10 @@ bidelim_typ:
     { UHTyp.Parenthesized(t) }
   | NUM_TYPE
     { UHTyp.Num }
+  | BOOL_TYPE
+    { UHTyp.Bool }
+  | LBRACKET; t = uhtyp; RBRACKET
+    { UHTyp.List(t) }
   | LCBRACE; RCBRACE
     { UHTyp.Hole }
   ;
@@ -66,6 +78,50 @@ tyop:
     { UHTyp.Arrow }
   | BAR
     { UHTyp.Sum }
+  | AMP
+    { UHTyp.Prod }
+  ;
+
+uhpat:
+  | LPAREN; p = uhpat; RPAREN
+    { UHPat.Parenthesized(p) }
+  | p = uhpat_
+    { UHPat.Pat(NotInHole, p) }
+
+uhpat_:
+  | LCBRACE; RCBRACE
+    { UHPat.EmptyHole(0) }
+  | WILDCARD
+    { UHPat.Wild }
+  | v = ID
+    { UHPat.Var(v) }
+  | n = NATURAL
+    { UHPat.NumLit(n) }
+  | TRUE
+    { UHPat.BoolLit(true) }
+  | FALSE
+    { UHPat.BoolLit(false) }
+  | INJECT; LBRACKET; s = left_or_right; RBRACKET; LPAREN; p = uhpat; RPAREN
+    { UHPat.Inj(s, p) }
+  | LBRACKET; l = separated_list(SEMICOLON, uhexp); RBRACKET
+    { UHPat.ListLit(l) }
+  | os = pat_opseq
+    { UHPat.OpSeq(Associator.associate_pat(os), os) }
+
+pat_opseq:
+  | p1 = uhpat; o = patop; p2 = uhpat
+    { OperatorSeq.ExpOpExp(p1, o, p2) }
+  | os = pat_opseq; o = patop; p = uhpat
+    { OperatorSeq.SeqOpExp(os, o, p) }
+  ;
+
+patop:
+  | COMMA
+    { UHPat.Comma }
+  |
+    { UHTyp.Space }
+  | DOUBLE_COLON
+    { UHTyp.Cons }
   ;
 
 uhexp:
@@ -104,14 +160,22 @@ bidelim_exp:
   ;
 
 left_delim_term:
-  | LET; v = ID; EQUAL; e1 = uhexp; IN; e2 = uhexp
-    { UHExp.Let(v, e1, e2) }
-  | LAMBDA; v = ID; DOT; e = uhexp
-    { UHExp.Lam(v, e) }
-  | CASE; e = uhexp;
-    LEFT; LPAREN; vL = ID; RPAREN; CASE_ARROW; eL = uhexp;
-    RIGHT; LPAREN; vR = ID; RPAREN; CASE_ARROW; eR = uhexp
-    { UHExp.Case(e, (vL, eL), (vR, eR)) }
+  | LET; p = uhpat; ann = half_ann?; EQUAL; e1 = uhexp; IN; e2 = uhexp
+    { UHExp.Let(p, ann, e1, e2) }
+  | LAMBDA; p = uhpat; ann = half_ann?; DOT; e = uhexp
+    { UHExp.Lam(p, ann, e) }
+  | CASE; e = uhexp; rules = rule+
+    { UHExp.Case(e, rules) }
+  ;
+
+half_ann:
+  | COLON; t = uhtyp
+    { t }
+  ;
+
+rule:
+  | BAR; p = uhpat; CASE_ARROW; e = uhexp
+    { UHExp.Rule(p, e) }
   ;
 
 asc_term:
@@ -127,16 +191,22 @@ opseq_term:
 bidelim_term:
   | v = ID
     { UHExp.Var(NotInVHole, v) }
-  | palette_name = PALETTE_NAME; palette_model = PALETTE_MODEL 
-    { 
-      let model = String.sub palette_model 1 ((String.length palette_model) - 2) in 
-      let model = Scanf.unescaped model in 
+  | palette_name = PALETTE_NAME; palette_model = PALETTE_MODEL
+    {
+      let model = String.sub palette_model 1 ((String.length palette_model) - 2) in
+      let model = Scanf.unescaped model in
       UHExp.ApPalette(palette_name, model)
     }
   | n = NATURAL
     { UHExp.NumLit n }
+  | TRUE
+    { UHExp.BoolLit(true) }
+  | FALSE
+    { UHExp.BoolLit(false) }
   | INJECT; LBRACKET; s = left_or_right; RBRACKET; LPAREN; e = uhexp; RPAREN
     { UHExp.Inj(s, e) }
+  | LBRACKET; l = separated_list(SEMICOLON, uhexp); RBRACKET
+    { UHExp.ListLit(l) }
   | LCBRACE; RCBRACE
     { UHExp.EmptyHole(0) }
   ;
@@ -177,6 +247,8 @@ expop:
     { UHExp.Times }
   |
     { UHExp.Space }
+  | COMMA
+    { UHExp.Comma }
   ;
 
 left_or_right:

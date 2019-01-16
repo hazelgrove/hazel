@@ -31,6 +31,7 @@ let string_of_ty_op = (op: UHTyp.op) =>
   | UHTyp.Sum => "|"
   | UHTyp.Prod => ","
   | UHTyp.Arrow => "->"
+  | UHTyp.Prod => "&"
   };
 let rec make_skel_str' =
         (
