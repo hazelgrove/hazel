@@ -432,8 +432,9 @@ let of_Case = (prefix, err_status, rev_path, r1, rpcs) => {
     List.fold_left(
       (rrs, rpc) => {
         let (rp, rc) = rpc;
+        let line_break = rrs == PP.empty ? PP.empty : PP.mandatoryBreak;
         rrs
-        ^^ PP.mandatoryBreak
+        ^^ line_break
         ^^ ruleBar
         ^^ space
         ^^ rp
