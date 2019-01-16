@@ -26,7 +26,9 @@
 %token COMMA
 %token PLUS
 %token TIMES
+%token LESS_THAN
 %token BAR
+%token DOUBLE_BAR
 %token AMP
 %token LPAREN
 %token RPAREN
@@ -83,12 +85,17 @@ tyop:
   ;
 
 uhpat:
+  | p = bidelim_pat
+  | p = opseq_pat
+    { p }
+
+bidelim_pat:
   | LPAREN; p = uhpat; RPAREN
     { UHPat.Parenthesized(p) }
-  | p = uhpat_
+  | p = bidelim_pat_term
     { UHPat.Pat(NotInHole, p) }
 
-uhpat_:
+bidelim_pat_term:
   | LCBRACE; RCBRACE
     { UHPat.EmptyHole(0) }
   | WILDCARD
@@ -103,15 +110,17 @@ uhpat_:
     { UHPat.BoolLit(false) }
   | INJECT; LBRACKET; s = left_or_right; RBRACKET; LPAREN; p = uhpat; RPAREN
     { UHPat.Inj(s, p) }
-  | LBRACKET; l = separated_list(SEMICOLON, uhexp); RBRACKET
-    { UHPat.ListLit(l) }
+  | LBRACKET; RBRACKET
+    { UHPat.ListNil }
+
+opseq_pat:
   | os = pat_opseq
-    { UHPat.OpSeq(Associator.associate_pat(os), os) }
+    { UHPat.Pat(NotInHole, UHPat.OpSeq(Associator.associate_pat(os), os)) }
 
 pat_opseq:
-  | p1 = uhpat; o = patop; p2 = uhpat
+  | p1 = bidelim_pat; o = patop; p2 = bidelim_pat
     { OperatorSeq.ExpOpExp(p1, o, p2) }
-  | os = pat_opseq; o = patop; p = uhpat
+  | os = pat_opseq; o = patop; p = bidelim_pat
     { OperatorSeq.SeqOpExp(os, o, p) }
   ;
 
@@ -119,9 +128,9 @@ patop:
   | COMMA
     { UHPat.Comma }
   |
-    { UHTyp.Space }
+    { UHPat.Space }
   | DOUBLE_COLON
-    { UHTyp.Cons }
+    { UHPat.Cons }
   ;
 
 uhexp:
@@ -164,8 +173,6 @@ left_delim_term:
     { UHExp.Let(p, ann, e1, e2) }
   | LAMBDA; p = uhpat; ann = half_ann?; DOT; e = uhexp
     { UHExp.Lam(p, ann, e) }
-  | CASE; e = uhexp; rules = rule+
-    { UHExp.Case(e, rules) }
   ;
 
 half_ann:
@@ -174,7 +181,7 @@ half_ann:
   ;
 
 rule:
-  | BAR; p = uhpat; CASE_ARROW; e = uhexp
+  | DOUBLE_BAR; p = uhpat; CASE_ARROW; e = uhexp
     { UHExp.Rule(p, e) }
   ;
 
@@ -205,10 +212,12 @@ bidelim_term:
     { UHExp.BoolLit(false) }
   | INJECT; LBRACKET; s = left_or_right; RBRACKET; LPAREN; e = uhexp; RPAREN
     { UHExp.Inj(s, e) }
-  | LBRACKET; l = separated_list(SEMICOLON, uhexp); RBRACKET
-    { UHExp.ListLit(l) }
+  | LBRACKET; RBRACKET
+    { UHExp.ListNil }
   | LCBRACE; RCBRACE
     { UHExp.EmptyHole(0) }
+  | CASE; e = uhexp; rules = rule+; SEMICOLON
+    { UHExp.Case(e, rules) }
   ;
 
 exp_opseq:
@@ -245,10 +254,14 @@ expop:
     { UHExp.Plus }
   | TIMES
     { UHExp.Times }
+  | LESS_THAN
+    { UHExp.LessThan }
   |
     { UHExp.Space }
   | COMMA
     { UHExp.Comma }
+  | DOUBLE_COLON
+    { UHExp.Cons }
   ;
 
 left_or_right:
