@@ -1,7 +1,7 @@
 open SemanticsCore;
-type edit_state = ((ZExp.t, HTyp.t), MetaVar.gen);
-let u_gen0: MetaVar.gen = (MetaVar.new_gen: MetaVar.gen);
-let (u, u_gen1) = MetaVar.next(u_gen0);
+type edit_state = ((ZExp.t, HTyp.t), MetaVarGen.t);
+let u_gen0: MetaVarGen.t = (MetaVarGen.init: MetaVar.t);
+let (u, u_gen1) = MetaVarGen.next(u_gen0);
 let empty_ze =
   ZExp.CursorE(Before, UHExp.Tm(NotInHole, UHExp.EmptyHole(u)));
 let empty: edit_state = (((empty_ze, HTyp.Hole), u_gen1): edit_state);
@@ -14,9 +14,9 @@ type result_rs =
   React.signal((DHExp.t, DHExp.HoleInstanceInfo.t, Evaluator.result));
 type hole_instance_info_rs = React.signal(DHExp.HoleInstanceInfo.t);
 module UserSelectedInstances = {
-  type t = MetaVarMap.t(DHExp.inst_num);
+  type t = MetaVarMap.t(inst_num);
   type rs = React.signal(t);
-  type rf = (~step: React.step=?, MetaVarMap.t(DHExp.inst_num)) => unit;
+  type rf = (~step: React.step=?, MetaVarMap.t(inst_num)) => unit;
   let update = (usi, inst) => MetaVarMap.insert_or_update(usi, inst);
 };
 type instance_click_fn = DHExp.HoleInstance.t => unit;
@@ -53,7 +53,7 @@ let new_model = (): t => {
         switch (
           ZExp.syn_cursor_info(
             (),
-            (Ctx.empty, Palettes.initial_palette_ctx),
+            (VarCtx.empty, Palettes.initial_palette_ctx),
             ze,
           )
         ) {
@@ -67,7 +67,11 @@ let new_model = (): t => {
     React.S.l1(
       e => {
         let expanded =
-          DHExp.syn_expand((), (Ctx.empty, Palettes.initial_palette_ctx), e);
+          DHExp.syn_expand(
+            (),
+            (VarCtx.empty, Palettes.initial_palette_ctx),
+            e,
+          );
         switch (expanded) {
         | DHExp.DoesNotExpand => raise(DoesNotExpand)
         | DHExp.Expands(d, _, _) =>
@@ -121,9 +125,9 @@ let new_model = (): t => {
   let monitors = [instance_at_cursor_monitor, usi_monitor];
   let do_action = action =>
     switch (
-      Action.performSyn(
+      Action.perform_syn(
         (),
-        (Ctx.empty, Palettes.initial_palette_ctx),
+        (VarCtx.empty, Palettes.initial_palette_ctx),
         action,
         React.S.value(edit_state_rs),
       )

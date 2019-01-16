@@ -67,17 +67,17 @@ let mk =
               let cursor_info = React.S.value(cursor_info_rs);
               switch (cursor_info.sort) {
               | ZExp.IsExpr(UHExp.Tm(_, UHExp.EmptyHole(_)))
-              | ZExp.IsBinder("") =>
+              | ZExp.IsPat(UHPat.Pat(_, UHPat.Var(""))) =>
                 let shape =
                   switch (single_key) {
-                  | JSUtil.Number(n) => Action.SLit(n, After)
+                  | JSUtil.Number(n) => Action.SNumLit(n, After)
                   | JSUtil.Letter(x) => Action.SVar(x, After)
                   };
                 do_action(Action.Construct(shape));
                 true;
               | ZExp.IsExpr(UHExp.Tm(_, UHExp.NumLit(_)))
               | ZExp.IsExpr(UHExp.Tm(_, UHExp.Var(_, _)))
-              | ZExp.IsBinder(_) =>
+              | ZExp.IsPat(UHPat.Pat(_, UHPat.Var(_))) =>
                 let selection = Dom_html.window##getSelection;
                 let anchorNode = selection##.anchorNode;
                 let nodeValue =
@@ -92,7 +92,9 @@ let mk =
                 | Some(new_n) =>
                   let new_side =
                     side_of_str_offset(newNodeValue, anchorOffset + 1);
-                  do_action(Action.Construct(Action.SLit(new_n, new_side)));
+                  do_action(
+                    Action.Construct(Action.SNumLit(new_n, new_side)),
+                  );
                 | None =>
                   Var.is_valid(newNodeValue) ?
                     {
@@ -128,7 +130,7 @@ let mk =
               switch (cursor_info.sort) {
               | ZExp.IsExpr(UHExp.Tm(_, UHExp.NumLit(_)))
               | ZExp.IsExpr(UHExp.Tm(_, UHExp.Var(_, _)))
-              | ZExp.IsBinder(_) =>
+              | ZExp.IsPat(UHPat.Pat(_, UHPat.Var(_))) =>
                 let side = cursor_info.side;
                 let is_Before =
                   switch (side) {
@@ -170,7 +172,7 @@ let mk =
                       let new_side =
                         side_of_str_offset(nodeValue', anchorOffset');
                       do_action(
-                        Action.Construct(Action.SLit(new_n, new_side)),
+                        Action.Construct(Action.SNumLit(new_n, new_side)),
                       );
                     | None =>
                       Var.is_valid(nodeValue') ?
