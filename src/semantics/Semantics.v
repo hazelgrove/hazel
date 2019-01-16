@@ -10251,9 +10251,9 @@ Module FCore(Debug : DEBUG).
                 match ana_expand_rules fuel ctx rules ty1 ty with
                 | None => DoesNotExpand
                 | Some (drs, clauses_ty, delta2) =>
-                  let d := Case d1 drs in
+                  let d := Case d1 drs 0 in
                   let delta := MetaVarMap.union delta1 delta2 in
-                  Expands d1 clauses_ty delta
+                  Expands d clauses_ty delta
                 end
               end
             | UHExp.EmptyHole u => 
