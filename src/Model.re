@@ -27,6 +27,7 @@ type selected_instance_rf =
   (~step: React.step=?, option(DHExp.HoleInstance.t)) => unit;
 type monitors = list(React.signal(unit));
 type do_action_t = Action.t => unit;
+type replace_e = UHExp.t => unit;
 exception InvalidAction;
 exception MissingCursorInfo;
 exception DoesNotExpand;
@@ -42,6 +43,7 @@ type t = {
   selected_instance_rf,
   monitors,
   do_action: do_action_t,
+  replace_e,
 };
 let new_model = (): t => {
   let (edit_state_rs, edit_state_rf) = React.S.create(empty);
@@ -142,6 +144,21 @@ let new_model = (): t => {
       };
     | None => raise(InvalidAction)
     };
+  let replace_e = new_uhexp => {
+    let new_edit_state_opt =
+      Action.zexp_syn_fix_holes(
+        (),
+        (VarCtx.empty, PaletteCtx.empty),
+        MetaVarGen.init,
+        ZExp.CursorE(Before, new_uhexp),
+      );
+    switch (new_edit_state_opt) {
+    | Some(new_edit_state) =>
+      edit_state_rf(new_edit_state);
+      e_rf(new_uhexp);
+    | None => JSUtil.log("Replacement uhexp didn't type-check")
+    };
+  };
   {
     edit_state_rs,
     cursor_info_rs,
@@ -153,5 +170,6 @@ let new_model = (): t => {
     selected_instance_rf,
     monitors,
     do_action,
+    replace_e,
   };
 };
