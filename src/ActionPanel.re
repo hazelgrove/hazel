@@ -563,6 +563,14 @@ let make =
       KCs.alt_C,
     );
 
+  let constructRule =
+    action_button(
+      Action.Construct(Action.SRule),
+      check_action_rs(Action.Construct(Action.SRule)),
+      Html5.txt("add rule"),
+      KCs.enter,
+    );
+
   let constructApPalette =
     action_input_button(
       v => Action.Construct(Action.SApPalette("$" ++ v)),
@@ -618,6 +626,7 @@ let make =
               constructInjL,
               constructInjR,
               constructCase,
+              constructRule,
               constructAsc,
               constructApPalette,
             ],
