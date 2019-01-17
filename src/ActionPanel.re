@@ -330,6 +330,14 @@ let make =
       KCs.vbar,
     );
 
+  let constructList =
+    action_button(
+      Action.(Construct(SList)),
+      is_type_rs,
+      twopiece_lbl_kw("List", " type"),
+      KCs.list,
+    );
+
   let is_not_pat_rs =
     ZExp.(
       S.map(
@@ -577,7 +585,7 @@ let make =
           ),
           div(
             ~a=[a_class(["sub-panel-body"])],
-            [constructNum, constructArrow, constructSum],
+            [constructNum, constructList, constructArrow, constructSum],
           ),
         ],
       )
