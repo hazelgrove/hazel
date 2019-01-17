@@ -10736,7 +10736,6 @@ Module FCore(Debug : DEBUG).
           4 = boxed value not a number literal 1
           5 = bad pattern match
           6 = Cast BV Hole Ground
-          7 = non-exhaustive Case
         *)
 
         Inductive ground_cases := 
@@ -10996,7 +10995,7 @@ Module FCore(Debug : DEBUG).
           | InvalidInput msg => InvalidInput msg
           | BoxedValue scrut | Indet scrut =>
             match List.nth_error rules current_rule_index with
-            | None => InvalidInput 7
+            | None => Indet (DHExp.Case scrut rules current_rule_index)
             | Some (DHExp.Rule dp d) =>
               match DHExp.matches fuel dp scrut with
               | DHExp.Indet => Indet (DHExp.Case scrut rules current_rule_index)
