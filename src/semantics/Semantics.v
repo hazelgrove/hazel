@@ -7135,7 +7135,7 @@ Module FCore(Debug : DEBUG).
            ctx, 
            u_gen)
         )
-      | (Construct (SVar _ _), _) => None
+      | (Construct (SVar _ _), ZPat.CursorP _ _) => None
       | (Construct SWild, ZPat.CursorP _ (UHPat.Pat _ (UHPat.EmptyHole _))) 
       | (Construct SWild, ZPat.CursorP _ (UHPat.Pat _ UHPat.Wild))
       | (Construct SWild, ZPat.CursorP _ (UHPat.Pat _ (UHPat.Var _)))
@@ -7146,7 +7146,7 @@ Module FCore(Debug : DEBUG).
            HTyp.Hole,
            ctx, 
            u_gen)
-      | (Construct SWild, _) => None
+      | (Construct SWild, ZPat.CursorP _ _) => None
       | (Construct (SNumLit n side), ZPat.CursorP _ (UHPat.Pat _ (UHPat.EmptyHole _))) 
       | (Construct (SNumLit n side), ZPat.CursorP _ (UHPat.Pat _ UHPat.Wild))
       | (Construct (SNumLit n side), ZPat.CursorP _ (UHPat.Pat _ (UHPat.Var _)))
@@ -7157,7 +7157,7 @@ Module FCore(Debug : DEBUG).
            HTyp.Num, 
            ctx, 
            u_gen)
-      | (Construct (SNumLit _ _), _) => None
+      | (Construct (SNumLit _ _), ZPat.CursorP _ _) => None
       | (Construct (SBoolLit b side), ZPat.CursorP _ (UHPat.Pat _ (UHPat.EmptyHole _))) 
       | (Construct (SBoolLit b side), ZPat.CursorP _ (UHPat.Pat _ UHPat.Wild))  
       | (Construct (SBoolLit b side), ZPat.CursorP _ (UHPat.Pat _ (UHPat.Var _)))  
@@ -7168,7 +7168,7 @@ Module FCore(Debug : DEBUG).
            HTyp.Bool, 
            ctx, 
            u_gen)
-      | (Construct (SBoolLit _ _), _) => None
+      | (Construct (SBoolLit _ _), ZPat.CursorP _ _) => None
       | (Construct (SInj side), ZPat.CursorP _ p1) => 
         match UHExp.syn_pat fuel ctx p1 with 
         | None => None
@@ -7186,7 +7186,7 @@ Module FCore(Debug : DEBUG).
         let zp := ZPat.CursorP After (UHPat.Pat NotInHole UHPat.ListNil) in 
         let ty := HTyp.List HTyp.Hole in 
         Some (zp, ty, ctx, u_gen)
-      | (Construct SListNil, _) => None
+      | (Construct SListNil, ZPat.CursorP _ _) => None
       | (Construct (SOp os), ZPat.Deeper _ (
           ZPat.OpSeqZ _ (ZPat.CursorP (In _) p) surround))
       | (Construct (SOp os), ZPat.Deeper _ (
@@ -7397,7 +7397,7 @@ Module FCore(Debug : DEBUG).
            ctx, 
            u_gen)
         )
-      | (Construct (SVar _ _), _) => None
+      | (Construct (SVar _ _), ZPat.CursorP _ _) => None
       | (Construct SWild, ZPat.CursorP _ (UHPat.Pat _ (UHPat.EmptyHole _))) 
       | (Construct SWild, ZPat.CursorP _ (UHPat.Pat _ UHPat.Wild))
       | (Construct SWild, ZPat.CursorP _ (UHPat.Pat _ (UHPat.Var _)))
@@ -7407,7 +7407,7 @@ Module FCore(Debug : DEBUG).
           (ZPat.CursorP After (UHPat.Pat NotInHole UHPat.Wild), 
            ctx, 
            u_gen)
-      | (Construct SWild, _) => None
+      | (Construct SWild, ZPat.CursorP _ _) => None
       | (Construct (SInj side), ZPat.CursorP cursor_side p1) => 
         match HTyp.matched_sum ty with 
         | Some (tyL, tyR) => 
@@ -7921,7 +7921,7 @@ Module FCore(Debug : DEBUG).
             (UHExp.Tm NotInHole (UHExp.Var (InVHole u) x)),
             HTyp.Hole, u_gen)
         end)
-      | (Construct (SVar _ _), _) => None
+      | (Construct (SVar _ _), ZExp.CursorE _ _) => None
       | (Construct SLet, ZExp.CursorE _ e1) =>
         let (zp, u_gen) := ZPat.new_EmptyHole u_gen in 
         let (e2, u_gen) := UHExp.new_EmptyHole u_gen in 
@@ -7940,13 +7940,13 @@ Module FCore(Debug : DEBUG).
       | (Construct (SNumLit n side), ZExp.CursorE _ (UHExp.Tm _ (UHExp.BoolLit _)))
       | (Construct (SNumLit n side), ZExp.CursorE _ (UHExp.Tm _ (UHExp.Var _ _))) =>
           Some (ZExp.CursorE side (UHExp.Tm NotInHole (UHExp.NumLit n)), HTyp.Num, u_gen)
-      | (Construct (SNumLit _ _), _) => None
+      | (Construct (SNumLit _ _), ZExp.CursorE _ _) => None
       | (Construct (SBoolLit b side), ZExp.CursorE _ (UHExp.Tm _ (UHExp.EmptyHole _)))
       | (Construct (SBoolLit b side), ZExp.CursorE _ (UHExp.Tm _ (UHExp.NumLit _)))
       | (Construct (SBoolLit b side), ZExp.CursorE _ (UHExp.Tm _ (UHExp.BoolLit _)))
       | (Construct (SBoolLit b side), ZExp.CursorE _ (UHExp.Tm _ (UHExp.Var _ _))) =>
           Some (ZExp.CursorE side (UHExp.Tm NotInHole (UHExp.BoolLit b)), HTyp.Num, u_gen)
-      | (Construct (SBoolLit _ _), _) => None
+      | (Construct (SBoolLit _ _), ZExp.CursorE _ _) => None
       | (Construct (SInj side), (ZExp.CursorE _ e)) => 
         let ze' := 
           ZExp.Deeper NotInHole 
@@ -7961,7 +7961,7 @@ Module FCore(Debug : DEBUG).
         let ze := ZExp.CursorE After (UHExp.Tm NotInHole UHExp.ListNil) in 
         let ty := HTyp.List HTyp.Hole in 
         Some (ze, ty, u_gen)
-      | (Construct SListNil, _) => None
+      | (Construct SListNil, ZExp.CursorE _ _) => None
       | (Construct SCase, (ZExp.CursorE _ e1)) =>
         match e1 with 
         | UHExp.Tm _ (UHExp.EmptyHole _) => 
@@ -8032,7 +8032,7 @@ Module FCore(Debug : DEBUG).
             make_and_syn_OpSeqZ
             fuel ctx u_gen e op
         end
-      | (Construct SRule, _) => None
+      | (Construct SRule, ZExp.CursorE _ _) => None
       | (Construct (SApPalette name), ZExp.CursorE _ (UHExp.Tm _ (UHExp.EmptyHole _))) => 
         let (_, palette_ctx) := ctx in 
         match PaletteCtx.lookup palette_ctx name with 
@@ -8052,7 +8052,7 @@ Module FCore(Debug : DEBUG).
           end
         | None => None
         end
-      | (Construct (SApPalette _), _) => None
+      | (Construct (SApPalette _), ZExp.CursorE _ _) => None
       | (UpdateApPalette monad, 
           ZExp.CursorE _ (UHExp.Tm _ (UHExp.ApPalette name _ hole_data))) => 
         let (_, palette_ctx) := ctx in 
@@ -8072,7 +8072,7 @@ Module FCore(Debug : DEBUG).
           end
         | None => None
         end
-      | (UpdateApPalette _, _) => None
+      | (UpdateApPalette _, ZExp.CursorE _ _) => None
       (* Zipper Cases *)
       | (_, ZExp.ParenthesizedZ ze1) => 
         match perform_syn fuel ctx a (ze1, ty, u_gen) with 
@@ -8757,7 +8757,7 @@ Module FCore(Debug : DEBUG).
                zrule,
                suffix)) in 
         Some (ze, u_gen)
-      | (Construct SRule, _) => None
+      | (Construct SRule, ZExp.CursorE _ _) => None
       | (Construct (SOp os), ZExp.Deeper _ (
           ZExp.OpSeqZ _ (ZExp.CursorE (In _) e) surround))
       | (Construct (SOp os), ZExp.Deeper _ (
