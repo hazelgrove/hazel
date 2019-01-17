@@ -156,6 +156,8 @@ module KeyCombos = {
     _kcm("Alt + PageUp", "PageUp", ModKeyReqs.withAlt(MustBeHeld));
   let alt_PageDown =
     _kcm("Alt + PageDown", "PageDown", ModKeyReqs.withAlt(MustBeHeld));
+  let _true = _kcm("Alt + T", "t", ModKeyReqs.withAlt(MustBeHeld));
+  let _false = _kcm("Alt + F", "f", ModKeyReqs.withAlt(MustBeHeld));
   let qmark = _kc("?", "?");
   let equals = _kc("=", "=");
   let vbar = _kc("|", "|");
