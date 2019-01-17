@@ -191,8 +191,9 @@ let listen_for_key = (k, f) =>
 
 type single_key =
   | Number(int)
-  | Letter(string);
-let letter_regexp = Js_of_ocaml.Regexp.regexp("^[a-zA-Z_]$");
+  | Letter(string)
+  | Underscore;
+let letter_regexp = Js_of_ocaml.Regexp.regexp("^[a-zA-Z]$");
 
 let is_single_key: Js.t(Dom_html.keyboardEvent) => option(single_key) =
   evt => {
@@ -207,7 +208,7 @@ let is_single_key: Js.t(Dom_html.keyboardEvent) => option(single_key) =
       | None =>
         switch (Js_of_ocaml.Regexp.string_match(letter_regexp, key, 0)) {
         | Some(_) => Some(Letter(key))
-        | None => None
+        | None => key == "_" ? Some(Underscore) : None
         }
       };
     };
@@ -218,6 +219,7 @@ let single_key_string: single_key => string =
     switch (single_key) {
     | Number(n) => string_of_int(n)
     | Letter(x) => x
+    | Underscore => "_"
     };
 
 let is_movement_key: Js.t(Dom_html.keyboardEvent) => bool =

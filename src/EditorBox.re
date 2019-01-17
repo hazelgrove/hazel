@@ -73,6 +73,7 @@ let mk =
                   switch (single_key) {
                   | JSUtil.Number(n) => Action.SNumLit(n, After)
                   | JSUtil.Letter(x) => Action.SVar(x, After)
+                  | JSUtil.Underscore => Action.SWild
                   };
                 do_action(Action.Construct(shape));
                 true;
