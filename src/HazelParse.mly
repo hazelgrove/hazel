@@ -202,7 +202,7 @@ bidelim_term:
     {
       let model = String.sub palette_model 1 ((String.length palette_model) - 2) in
       let model = Scanf.unescaped model in
-      UHExp.ApPalette(palette_name, model)
+      UHExp.ApPalette(palette_name, model, (0, Semantics.Util.NatMap.empty))
     }
   | n = NATURAL
     { UHExp.NumLit n }
@@ -265,6 +265,6 @@ expop:
   ;
 
 left_or_right:
-  | LEFT { UHExp.L }
-  | RIGHT { UHExp.R }
+  | LEFT { L }
+  | RIGHT { R }
   ;
