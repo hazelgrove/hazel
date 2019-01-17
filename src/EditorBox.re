@@ -67,6 +67,7 @@ let mk =
               let cursor_info = React.S.value(cursor_info_rs);
               switch (cursor_info.sort) {
               | ZExp.IsExpr(UHExp.Tm(_, UHExp.EmptyHole(_)))
+              | ZExp.IsPat(UHPat.Pat(_, UHPat.EmptyHole(_)))
               | ZExp.IsPat(UHPat.Pat(_, UHPat.Var(""))) =>
                 let shape =
                   switch (single_key) {
