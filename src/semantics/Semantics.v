@@ -6236,10 +6236,10 @@ Module FCore(Debug : DEBUG).
         Some (ZTyp.ParenthesizedZ zty) 
       | (Construct SNum, ZTyp.CursorT _ UHTyp.Hole) => 
         Some (ZTyp.CursorT After UHTyp.Num)
-      | (Construct SNum, _) => None
+      | (Construct SNum, ZTyp.CursorT _ _) => None
       | (Construct SBool, ZTyp.CursorT _ UHTyp.Hole) => 
         Some (ZTyp.CursorT After UHTyp.Bool)
-      | (Construct SBool, _) => None
+      | (Construct SBool, ZTyp.CursorT _ _) => None
       | (Construct SList, ZTyp.CursorT _ ty1) => 
         Some (ZTyp.ListZ zty)
       | (Construct (SOp os), ZTyp.CursorT After uty1) 
