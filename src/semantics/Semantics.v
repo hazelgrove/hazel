@@ -7945,7 +7945,7 @@ Module FCore(Debug : DEBUG).
       | (Construct (SBoolLit b side), ZExp.CursorE _ (UHExp.Tm _ (UHExp.NumLit _)))
       | (Construct (SBoolLit b side), ZExp.CursorE _ (UHExp.Tm _ (UHExp.BoolLit _)))
       | (Construct (SBoolLit b side), ZExp.CursorE _ (UHExp.Tm _ (UHExp.Var _ _))) =>
-          Some (ZExp.CursorE side (UHExp.Tm NotInHole (UHExp.BoolLit b)), HTyp.Num, u_gen)
+          Some (ZExp.CursorE side (UHExp.Tm NotInHole (UHExp.BoolLit b)), HTyp.Bool, u_gen)
       | (Construct (SBoolLit _ _), ZExp.CursorE _ _) => None
       | (Construct (SInj side), (ZExp.CursorE _ e)) => 
         let ze' := 
