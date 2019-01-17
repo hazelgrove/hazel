@@ -491,6 +491,22 @@ let make =
       KCs.space,
     );
 
+  let constructNil =
+    action_button(
+      Action.(Construct(SListNil)),
+      expr_not_ana_only_rs,
+      Html5.txt("nil"),
+      KCs.nil,
+    );
+
+  let constructCons =
+    action_button(
+      Action.(Construct(SOp(SCons))),
+      expr_not_ana_only_rs,
+      twopiece_lbl_op(";", " operator"),
+      KCs.cons,
+    );
+
   let constructInjL =
     action_button(
       Action.Construct(Action.SInj(L)),
@@ -562,6 +578,8 @@ let make =
               constructLit,
               constructPlus,
               constructTimes,
+              constructNil,
+              constructCons,
               constructInjL,
               constructInjR,
               constructCase,
