@@ -507,6 +507,22 @@ let make =
       KCs.cons,
     );
 
+  let constructTrue =
+    action_button(
+      Action.(Construct(SBoolLit(true, After))),
+      expr_not_ana_only_rs,
+      Html5.txt("true"),
+      KCs._true,
+    );
+
+  let constructFalse =
+    action_button(
+      Action.(Construct(SBoolLit(false, After))),
+      expr_not_ana_only_rs,
+      Html5.txt("false"),
+      KCs._false,
+    );
+
   let constructInjL =
     action_button(
       Action.Construct(Action.SInj(L)),
@@ -578,6 +594,8 @@ let make =
               constructLit,
               constructPlus,
               constructTimes,
+              constructTrue,
+              constructFalse,
               constructNil,
               constructCons,
               constructInjL,
