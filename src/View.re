@@ -8,8 +8,6 @@ let kw = taggedText("kw");
 let lparen = taggedText("lparen");
 let rparen = taggedText("rparen");
 let ruleBar = taggedText("ruleBar", "|");
-let wild = taggedText("wild", "_");
-let listNil = taggedText("listNil", "nil");
 let op = taggedText("op");
 let var = s => taggedText("var", s);
 let paletteName = s => taggedText("paletteName", s);
@@ -294,6 +292,9 @@ let classes_of_var_err_status = var_err_status =>
   | NotInVHole => []
   };
 
+let of_Wild = (prefix, err_status, rev_path) =>
+  term(prefix, err_status, rev_path, "Wild", var("_"));
+
 let of_Var = (prefix, err_status, var_err_status, rev_path, x) =>
   term_classes(
     prefix,
@@ -379,6 +380,9 @@ let of_Times = (prefix, err_status, rev_path, r1, r2) =>
     "Times",
     r1 ^^ op("*") ^^ optionalBreakNSp ^^ r2,
   );
+
+let of_ListNil = (prefix, err_status, rev_path) =>
+  term(prefix, err_status, rev_path, "ListNil", kw("[]"));
 
 let of_Cons = (prefix, err_status, rev_path, r1, r2) =>
   term(prefix, err_status, rev_path, "Cons", r1 ^^ op("::") ^^ r2);
@@ -544,7 +548,7 @@ let rec of_hpat = (prefix, rev_path, p) =>
         "EmptyHole",
         string_of_int(u + 1),
       )
-    | UHPat.Wild => wild
+    | UHPat.Wild => of_Wild(prefix, err_status, rev_path)
     | UHPat.Var(x) => of_Var(prefix, err_status, NotInVHole, rev_path, x)
     | UHPat.NumLit(n) => of_NumLit(prefix, err_status, rev_path, n)
     | UHPat.BoolLit(b) => of_BoolLit(prefix, err_status, rev_path, b)
@@ -552,7 +556,7 @@ let rec of_hpat = (prefix, rev_path, p) =>
       let rev_path1 = [0, ...rev_path];
       let r1 = of_hpat(prefix, rev_path1, p1);
       of_Inj(prefix, err_status, rev_path, side, r1);
-    | UHPat.ListNil => listNil
+    | UHPat.ListNil => of_ListNil(prefix, err_status, rev_path)
     | UHPat.OpSeq(skel, seq) =>
       term(
         prefix,
@@ -617,7 +621,7 @@ let rec of_hexp = (palette_stuff, prefix, rev_path, e) =>
       of_Lam(prefix, err_status, rev_path, rp, rann, r1);
     | UHExp.BoolLit(b) => of_BoolLit(prefix, err_status, rev_path, b)
     | UHExp.NumLit(n) => of_NumLit(prefix, err_status, rev_path, n)
-    | UHExp.ListNil => listNil
+    | UHExp.ListNil => of_ListNil(prefix, err_status, rev_path)
     | UHExp.Inj(side, e) =>
       let rev_path1 = [0, ...rev_path];
       let r1 = of_hexp(palette_stuff, prefix, rev_path1, e);
@@ -835,7 +839,7 @@ let rec of_dhpat' =
             dp1,
           );
         term(prefix, err_status, rev_path, "NonEmptyHole", r);
-      | Wild => wild
+      | Wild => of_Wild(prefix, err_status, rev_path)
       | Var(x) => of_Var(prefix, err_status, NotInVHole, rev_path, x)
       | BoolLit(b) => of_BoolLit(prefix, err_status, rev_path, b)
       | NumLit(n) => of_NumLit(prefix, err_status, rev_path, n)
@@ -852,7 +856,7 @@ let rec of_dhpat' =
             dp1,
           );
         of_Inj(prefix, err_status, rev_path, side, r1);
-      | ListNil => listNil
+      | ListNil => of_ListNil(prefix, err_status, rev_path)
       | Cons(dp1, dp2) =>
         let rev_path1 = [0, ...rev_path];
         let rev_path2 = [1, ...rev_path];
@@ -1080,7 +1084,7 @@ let rec of_dhexp' =
             d2,
           );
         of_Pair(prefix, err_status, rev_path, r1, r2);
-      | ListNil => listNil
+      | ListNil => of_ListNil(prefix, err_status, rev_path)
       | Cons(d1, d2) =>
         let rev_path1 = [0, ...rev_path];
         let rev_path2 = [1, ...rev_path];
