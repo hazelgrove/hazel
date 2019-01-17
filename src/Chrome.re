@@ -721,6 +721,11 @@ let view = (model: Model.t) => {
     true;
   };
 
+  let deserialize_onclick_handler = (serialized, _) => {
+    replace_e(Deserialize.uhexp_of_string(serialized));
+    true;
+  };
+
   let chrome =
     Tyxml_js.To_dom.of_div(
       Html5.(
@@ -781,6 +786,18 @@ let view = (model: Model.t) => {
                       ~a=[a_onclick(serialize_onclick_handler)],
                       [txt("Serialize")],
                     ),
+                    div([
+                      button(
+                        ~a=[
+                          a_onclick(
+                            deserialize_onclick_handler(
+                              "(lambda {} : {}. {}) {}\n",
+                            ),
+                          ),
+                        ],
+                        [txt("Basic holey lambda example")],
+                      ),
+                    ]),
                   ],
                 ),
                 the_rightbar,
