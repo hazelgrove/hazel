@@ -148,6 +148,7 @@ module KeyCombos = {
   let plus = _kc("+", "+");
   let asterisk = _kc("*", "*");
   let cons = _kc("::", ";");
+  let lt = _kc("<", "<");
   let nil = _kc("[", "[");
   let alt_L = _kcm("Alt + L", "l", ModKeyReqs.withAlt(MustBeHeld));
   let alt_R = _kcm("Alt + R", "r", ModKeyReqs.withAlt(MustBeHeld));
@@ -164,6 +165,7 @@ module KeyCombos = {
   let q = _kc("q", "q");
   let w = _kc("w", "w");
   let dollar = _kc("$", "$");
+  let list = _kc("&", "&");
 };
 let get_which = (evt: Js.t(Dom_html.keyboardEvent)) =>
   Js.Optdef.get(evt##.which, () => assert(false));
