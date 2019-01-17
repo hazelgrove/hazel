@@ -2970,7 +2970,7 @@ Module FCore(Debug : DEBUG).
         | Skel.BinOp _ (UHExp.LessThan as op) skel1 skel2 => 
           match ana_skel_fix_holes fuel ctx u_gen renumber_empty_holes skel1 seq HTyp.Num with 
           | Some (skel1, seq, u_gen) => 
-            match ana_skel_fix_holes fuel ctx u_gen renumber_empty_holes skel seq HTyp.Num with 
+            match ana_skel_fix_holes fuel ctx u_gen renumber_empty_holes skel2 seq HTyp.Num with 
             | Some (skel2, seq, u_gen) => 
               Some (Skel.BinOp NotInHole op skel1 skel2, seq, HTyp.Bool, u_gen)
             | None => None

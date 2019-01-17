@@ -483,6 +483,14 @@ let make =
       KCs.asterisk,
     );
 
+  let constructLessThan =
+    action_button(
+      Action.(Construct(SOp(SLessThan))),
+      expr_not_ana_only_rs,
+      twopiece_lbl_op("<", " operator"),
+      KCs.lt,
+    );
+
   let constructSpace =
     action_button(
       Action.(Construct(SOp(SSpace))),
@@ -594,6 +602,7 @@ let make =
               constructLit,
               constructPlus,
               constructTimes,
+              constructLessThan,
               constructTrue,
               constructFalse,
               constructNil,
