@@ -503,7 +503,7 @@ let make =
     action_button(
       Action.(Construct(SOp(SCons))),
       expr_not_ana_only_rs,
-      twopiece_lbl_op(";", " operator"),
+      twopiece_lbl_op("::", " operator"),
       KCs.cons,
     );
 
