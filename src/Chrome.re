@@ -15,6 +15,7 @@ let view = (model: Model.t) => {
     selected_instance_rs,
     selected_instance_rf,
     do_action,
+    replace_e,
     _,
   } = model;
   let pp_view_width = 50;
