@@ -9612,6 +9612,8 @@ Module FCore(Debug : DEBUG).
           | Fuel.More fuel => let matches := matches fuel in
           match (dp, d) with
           | (_, Cast d ty1 ty2) => matches_cast fuel dp d ty1 ty2
+          | (_, EmptyHole _ _ _)
+          | (_, NonEmptyHole _ _ _ _)
           | (DHPat.EmptyHole _ _, _)
           | (DHPat.NonEmptyHole _ _ _, _) => Indet
           | (DHPat.Wild, _) => Matches Environment.empty
