@@ -474,7 +474,7 @@ let of_Cast = (prefix, err_status, rev_path, r1, rty1, rty2) =>
     err_status,
     rev_path,
     "Cast",
-    r1 ^^ lparen("⟨") ^^ rty1 ^^ cast_arrow ^^ rty2 ^^ rparen("⟩"),
+    r1 /* ^^ lparen("⟨") ^^ rty1 ^^ cast_arrow ^^ rty2 ^^ rparen("⟩") */,
   );
 
 let of_chained_Cast = (prefix, err_status, rev_path, r1, rty1, rty2, rty4) =>
@@ -483,14 +483,14 @@ let of_chained_Cast = (prefix, err_status, rev_path, r1, rty1, rty2, rty4) =>
     err_status,
     rev_path,
     "Cast",
-    r1
+    r1 /*
     ^^ lparen("<")
     ^^ rty1
     ^^ cast_arrow
     ^^ rty2
     ^^ cast_arrow
     ^^ rty4
-    ^^ rparen(">"),
+    ^^ rparen(">"), */
   );
 
 let failed_cast_arrow = taggedText("failed-cast-arrow", " ⇨ ");

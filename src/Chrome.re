@@ -782,22 +782,22 @@ let view = (model: Model.t) => {
                         div(~a=[a_class(["result-view"])], [result_view]),
                       ],
                     ),
-                    button(
-                      ~a=[a_onclick(serialize_onclick_handler)],
-                      [txt("Serialize")],
-                    ),
-                    div([
-                      button(
-                        ~a=[
-                          a_onclick(
-                            deserialize_onclick_handler(
-                              "(lambda {} : {}. {}) {}\n",
-                            ),
-                          ),
-                        ],
-                        [txt("Basic holey lambda example")],
-                      ),
-                    ]),
+                    /* button(
+                         ~a=[a_onclick(serialize_onclick_handler)],
+                         [txt("Serialize")],
+                       ),
+                       div([
+                         button(
+                           ~a=[
+                             a_onclick(
+                               deserialize_onclick_handler(
+                                 "(lambda {} : {}. {}) {}\n",
+                               ),
+                             ),
+                           ],
+                           [txt("Basic holey lambda example")],
+                         ),
+                       ]), */
                   ],
                 ),
                 the_rightbar,

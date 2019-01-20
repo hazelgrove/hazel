@@ -147,7 +147,8 @@ module KeyCombos = {
   let pound = _kc("#", "#");
   let plus = _kc("+", "+");
   let asterisk = _kc("*", "*");
-  let cons = _kc("::", ";");
+  let semicolon = _kc("::", ";");
+  let comma = _kc(",", ",");
   let lt = _kc("<", "<");
   let nil = _kc("[", "[");
   let alt_L = _kcm("Alt + L", "l", ModKeyReqs.withAlt(MustBeHeld));
@@ -157,8 +158,8 @@ module KeyCombos = {
     _kcm("Alt + PageUp", "PageUp", ModKeyReqs.withAlt(MustBeHeld));
   let alt_PageDown =
     _kcm("Alt + PageDown", "PageDown", ModKeyReqs.withAlt(MustBeHeld));
-  let _true = _kcm("Alt + T", "t", ModKeyReqs.withAlt(MustBeHeld));
-  let _false = _kcm("Alt + F", "f", ModKeyReqs.withAlt(MustBeHeld));
+  let alt_T = _kcm("Alt + T", "t", ModKeyReqs.withAlt(MustBeHeld));
+  let alt_F = _kcm("Alt + F", "f", ModKeyReqs.withAlt(MustBeHeld));
   let qmark = _kc("?", "?");
   let equals = _kc("=", "=");
   let vbar = _kc("|", "|");
