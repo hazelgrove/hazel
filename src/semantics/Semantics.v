@@ -9139,6 +9139,126 @@ Module FCore(Debug : DEBUG).
         | None => None
         end
       end.
+
+    Definition can_perform
+      (fuel : Fuel.t)
+      (ctx : Contexts.t)
+      (edit_state : (ZExp.t * HTyp.t) * MetaVarGen.t) 
+      (ci : ZExp.cursor_info)
+      (a  : t)
+      : bool := 
+        match a with 
+        | Construct SParenthesized => true
+        | Construct SAsc => 
+          let sort := ZExp.sort ci in 
+          match sort with 
+          | ZExp.IsExpr _ => true
+          | ZExp.IsPat _ => true
+          | ZExp.IsType => false
+          end
+        | Construct SLet  
+        | Construct SLam
+        | Construct (SInj _)
+        | Construct SCase => 
+          match ZExp.mode ci with 
+          | ZExp.AnaOnly _ => false
+          | ZExp.AnaAnnotatedLambda _ _
+          | ZExp.TypeInconsistent _ _
+          | ZExp.AnaFree _
+          | ZExp.Subsumed _ _
+          | ZExp.SynOnly _
+          | ZExp.SynFree
+          | ZExp.SynErrorArrow _ _
+          | ZExp.SynMatchingArrow _ _
+          | ZExp.SynFreeArrow _ => true
+          | ZExp.TypePosition => false
+          | ZExp.PatAnaOnly _
+          | ZExp.PatTypeInconsistent _ _
+          | ZExp.PatSubsumed _ _
+          | ZExp.PatSynOnly _ => false
+          end
+        | Construct SListNil
+        | Construct (SApPalette _)
+        => 
+          match ZExp.sort ci with
+          | ZExp.IsExpr (UHExp.Tm _ (UHExp.EmptyHole _)) => true
+          | ZExp.IsExpr _ => false
+          | ZExp.IsPat (UHPat.Pat _ (UHPat.EmptyHole _)) => true
+          | ZExp.IsPat _ => false
+          | ZExp.IsType => false
+          end
+        | (Construct (SOp SArrow))
+        | (Construct (SOp SVBar))
+        | Construct SList => 
+          match ZExp.sort ci with 
+          | ZExp.IsType => true
+          | ZExp.IsExpr _ 
+          | ZExp.IsPat _ => false
+          end
+        | Construct (SVar _ _) (* see can_enter_varchar below *) 
+        | Construct SWild
+        | Construct (SNumLit _ _) (* see can_enter_numeral below *)
+        | Construct (SBoolLit _ _)
+        | Construct SRule
+        | Construct (SOp _)
+        | Construct SNum  (* TODO enrich cursor_info to allow simplifying these type cases *)
+        | Construct SBool (* TODO enrich cursor_info to allow simplifying these type cases *)
+        | MoveTo _
+        | MoveToNextHole
+        | MoveToPrevHole
+        | UpdateApPalette _
+        | Delete
+        | Backspace => 
+          match perform_syn fuel ctx a edit_state with 
+          | Some _ => true
+          | None => false
+          end
+        end.
+
+    Definition can_enter_varchar 
+      (ci : ZExp.cursor_info)
+      : bool :=
+        match ZExp.sort ci with 
+        | ZExp.IsExpr (UHExp.Tm _ (UHExp.Var _ _))
+        | ZExp.IsExpr (UHExp.Tm _ (UHExp.EmptyHole _))
+        | ZExp.IsExpr (UHExp.Tm _ (UHExp.BoolLit _))
+        | ZExp.IsPat (UHPat.Pat _ (UHPat.Var _))
+        | ZExp.IsPat (UHPat.Pat _ (UHPat.EmptyHole _))
+        | ZExp.IsPat (UHPat.Pat _ (UHPat.BoolLit _))
+        => true
+        | ZExp.IsExpr (UHExp.Tm _ (UHExp.NumLit _))
+        | ZExp.IsPat (UHPat.Pat _ (UHPat.NumLit _))
+        => 
+          match ZExp.side ci with 
+          | Before => true
+          | In _ | After => false
+          end
+        | ZExp.IsExpr _
+        | ZExp.IsPat _
+        | ZExp.IsType 
+        => false
+        end.
+
+    Definition can_enter_numeral
+      (ci : ZExp.cursor_info)
+      : bool := 
+        match ZExp.sort ci with 
+        | ZExp.IsExpr (UHExp.Tm _ (UHExp.NumLit _))
+        | ZExp.IsExpr (UHExp.Tm _ (UHExp.EmptyHole _))
+        | ZExp.IsPat (UHPat.Pat _ (UHPat.NumLit _))
+        | ZExp.IsPat (UHPat.Pat _ (UHPat.EmptyHole _)) => true
+        | ZExp.IsExpr _ 
+        | ZExp.IsPat _
+        | ZExp.IsType => false
+        end.
+     
+    Definition can_construct_palette
+      (ci : ZExp.cursor_info)
+      : bool := 
+        match ZExp.sort ci with 
+        | ZExp.IsExpr (UHExp.Tm _ (UHExp.EmptyHole _)) => true
+        | _ => false
+        end.
   End FAction.
 
   Module FDynamics (Associator : ASSOCIATOR).

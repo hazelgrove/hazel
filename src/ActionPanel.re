@@ -245,207 +245,99 @@ let make =
   let twopiece_lbl_kw = twopiece_lbl("kw");
 
   let check_action_rs = action =>
-    S.map(
-      edit_state =>
-        switch (
-          Action.perform_syn(
-            (),
-            (VarCtx.empty, Palettes.initial_palette_ctx),
-            action,
-            edit_state,
-          )
-        ) {
-        | Some(_) => true
-        | None => false
-        },
+    S.l2(
+      (edit_state, cursor_info) =>
+        Action.can_perform(
+          (),
+          (VarCtx.empty, Palettes.initial_palette_ctx),
+          edit_state,
+          cursor_info,
+          action,
+        ),
       edit_state_rs,
+      cursor_info_rs,
     );
 
+  let checked_action_button = (a, lbl, kc) =>
+    action_button(a, check_action_rs(a), lbl, kc);
+
   let backspace =
-    action_button(
+    checked_action_button(
       Action.Backspace,
-      check_action_rs(Action.Backspace),
       Html5.txt("backspace"),
       KCs.backspace,
     );
 
   let delete =
-    action_button(
-      Action.Delete,
-      check_action_rs(Action.Delete),
-      Html5.txt("delete"),
-      KCs.del,
-    );
+    checked_action_button(Action.Delete, Html5.txt("delete"), KCs.del);
 
   let moveToPrevHole =
-    action_button(
+    checked_action_button(
       Action.MoveToPrevHole,
-      check_action_rs(Action.MoveToPrevHole),
       Html5.txt("move to previous hole"),
       KCs.backtab,
     );
 
   let moveToNextHole =
-    action_button(
+    checked_action_button(
       Action.MoveToNextHole,
-      check_action_rs(Action.MoveToNextHole),
       Html5.txt("move to next hole"),
       KCs.tab,
     );
 
   let constructNum =
-    action_button(
+    checked_action_button(
       Action.Construct(Action.SNum),
-      check_action_rs(Action.Construct(Action.SNum)),
       twopiece_lbl_kw("num", " type"),
       KCs.pound,
     );
 
-  let is_type_rs =
-    ZExp.(
-      S.map(
-        ({sort, _}) =>
-          switch (sort) {
-          | IsType => true
-          | IsExpr(_)
-          | IsPat(_) => false
-          },
-        cursor_info_rs,
-      )
-    );
-
   let constructArrow =
-    action_button(
+    checked_action_button(
       Action.(Construct(SOp(SArrow))),
-      is_type_rs,
       twopiece_lbl_op(LangUtil.typeArrowSym, " type operator"),
       KCs.greaterThan,
     );
 
   let constructSum =
-    action_button(
+    checked_action_button(
       Action.(Construct(SOp(SVBar))),
-      is_type_rs,
       twopiece_lbl_op("|", " type operator"),
       KCs.vbar,
     );
 
   let constructList =
-    action_button(
+    checked_action_button(
       Action.(Construct(SList)),
-      is_type_rs,
       twopiece_lbl_kw("List", " type"),
       KCs.list,
     );
 
-  let is_not_pat_rs =
-    ZExp.(
-      S.map(
-        ({sort, _}) =>
-          switch (sort) {
-          | IsPat(_) => false
-          | IsType
-          | IsExpr(_) => true
-          },
-        cursor_info_rs,
-      )
-    );
-
   let constructParenthesized =
-    action_button(
+    checked_action_button(
       Action.Construct(Action.SParenthesized),
-      is_not_pat_rs,
       Html5.txt("parenthesize"),
       KCs.openParens,
     );
 
-  let can_ascribe_rs =
-    ZExp.(
-      S.map(
-        ({sort, _}) =>
-          switch (sort) {
-          | IsExpr(_) => true
-          | IsType => false
-          | IsPat(_) => true
-          },
-        cursor_info_rs,
-      )
-    );
-
   let constructAsc =
-    action_button(
+    checked_action_button(
       Action.Construct(Action.SAsc),
-      can_ascribe_rs,
       Html5.txt("type ascription"),
       KCs.colon,
     );
 
-  let expr_not_ana_only_rs =
-    ZExp.(
-      S.map(
-        ({mode, _}) =>
-          switch (mode) {
-          | AnaOnly(_) => false
-          | AnaAnnotatedLambda(_, _)
-          | TypeInconsistent(_, _)
-          | AnaFree(_)
-          | Subsumed(_, _)
-          | SynOnly(_)
-          | SynFree
-          | SynErrorArrow(_)
-          | SynMatchingArrow(_, _)
-          | SynFreeArrow(_) => true
-          | TypePosition => false
-          | PatAnaOnly(_)
-          | PatTypeInconsistent(_, _)
-          | PatSubsumed(_, _)
-          | PatSynOnly(_) => false
-          },
-        cursor_info_rs,
-      )
-    );
-
   let constructLet =
-    action_button(
+    checked_action_button(
       Action.Construct(Action.SLet),
-      expr_not_ana_only_rs,
       twopiece_lbl_kw("let", ""),
       KCs.equals,
     );
 
-  let can_enter_var_rs =
-    ZExp.(
-      S.map(
-        ({sort, side, _}) =>
-          switch (sort) {
-          | IsExpr(UHExp.Tm(_, UHExp.Var(_, _)))
-          | IsExpr(UHExp.Tm(_, UHExp.EmptyHole(_)))
-          | IsPat(_) => true /* TODO */
-          | IsExpr(UHExp.Tm(_, UHExp.NumLit(_))) =>
-            switch (side) {
-            | Before => true
-            | In(_)
-            | After => false
-            }
-          | IsExpr(_)
-          | IsType => false
-          },
-        cursor_info_rs,
-      )
-    );
+  let can_enter_varchar_rs = S.map(Action.can_enter_varchar, cursor_info_rs);
 
   let constructVar =
-    info_button(Html5.txt("enter variables directly"), can_enter_var_rs);
-
-  let can_insert_ap_palette_rs =
-    S.l1(
-      ({ZExp.sort, ZExp.ctx: (_, palette_ctx), _}) =>
-        switch (sort) {
-        | ZExp.IsExpr(UHExp.Tm(_, UHExp.EmptyHole(_))) => true
-        | _ => false
-        },
-      cursor_info_rs,
-    );
+    info_button(Html5.txt("enter variables directly"), can_enter_varchar_rs);
 
   let constructLam =
     action_button(
@@ -455,121 +347,107 @@ let make =
       KCs.backslash,
     );
 
-  let is_lit_or_hole_rs =
-    ZExp.(
-      S.map(
-        ({sort, _}) =>
-          switch (sort) {
-          | IsExpr(UHExp.Tm(_, UHExp.NumLit(_)))
-          | IsExpr(UHExp.Tm(_, UHExp.EmptyHole(_))) => true
-          | IsExpr(_)
-          | IsPat(_) /* TODO */
-          | IsType => false
-          },
-        cursor_info_rs,
-      )
-    );
+  let can_enter_numeral_rs = S.map(Action.can_enter_numeral, cursor_info_rs);
+
   let constructLit =
     info_button(
       Html5.txt("enter number literals directly"),
-      is_lit_or_hole_rs,
+      can_enter_numeral_rs,
     );
 
   let constructPlus =
-    action_button(
+    checked_action_button(
       Action.(Construct(SOp(SPlus))),
-      expr_not_ana_only_rs,
       twopiece_lbl_op("+", " operator"),
       KCs.plus,
     );
 
   let constructTimes =
-    action_button(
+    checked_action_button(
       Action.(Construct(SOp(STimes))),
-      expr_not_ana_only_rs,
       twopiece_lbl_op("*", " operator"),
       KCs.asterisk,
     );
 
   let constructLessThan =
-    action_button(
+    checked_action_button(
       Action.(Construct(SOp(SLessThan))),
-      expr_not_ana_only_rs,
       twopiece_lbl_op("<", " operator"),
       KCs.lt,
     );
 
   let constructSpace =
-    action_button(
+    checked_action_button(
       Action.(Construct(SOp(SSpace))),
-      expr_not_ana_only_rs,
       Html5.txt("apply"),
       KCs.space,
     );
 
+  let constructComma =
+    checked_action_button(
+      Action.(Construct(SOp(SComma))),
+      twopiece_lbl_op(",", " operator"),
+      KCs.comma,
+    );
+
   let constructNil =
-    action_button(
+    checked_action_button(
       Action.(Construct(SListNil)),
-      expr_not_ana_only_rs,
       Html5.txt("nil"),
       KCs.nil,
     );
 
   let constructCons =
-    action_button(
+    checked_action_button(
       Action.(Construct(SOp(SCons))),
-      expr_not_ana_only_rs,
       twopiece_lbl_op("::", " operator"),
-      KCs.cons,
+      KCs.semicolon,
     );
 
   let constructTrue =
-    action_button(
+    checked_action_button(
       Action.(Construct(SBoolLit(true, After))),
-      expr_not_ana_only_rs,
       Html5.txt("true"),
-      KCs._true,
+      KCs.alt_T,
     );
 
   let constructFalse =
-    action_button(
+    checked_action_button(
       Action.(Construct(SBoolLit(false, After))),
-      expr_not_ana_only_rs,
       Html5.txt("false"),
-      KCs._false,
+      KCs.alt_F,
     );
 
   let constructInjL =
-    action_button(
+    checked_action_button(
       Action.Construct(Action.SInj(L)),
-      expr_not_ana_only_rs,
       Html5.txt("left injection"),
       KCs.alt_L,
     );
 
   let constructInjR =
-    action_button(
+    checked_action_button(
       Action.Construct(Action.SInj(R)),
-      expr_not_ana_only_rs,
       Html5.txt("right injection"),
       KCs.alt_R,
     );
 
   let constructCase =
-    action_button(
+    checked_action_button(
       Action.Construct(Action.SCase),
-      expr_not_ana_only_rs,
       twopiece_lbl_kw("case", ""),
       KCs.alt_C,
     );
 
   let constructRule =
-    action_button(
+    checked_action_button(
       Action.Construct(Action.SRule),
-      check_action_rs(Action.Construct(Action.SRule)),
       Html5.txt("add rule"),
       KCs.enter,
     );
+
+  let can_insert_ap_palette_rs =
+    S.l1(Action.can_construct_palette, cursor_info_rs);
 
   let constructApPalette =
     action_input_button(
@@ -621,6 +499,7 @@ let make =
               constructLessThan,
               constructTrue,
               constructFalse,
+              constructComma,
               constructNil,
               constructCons,
               constructInjL,
