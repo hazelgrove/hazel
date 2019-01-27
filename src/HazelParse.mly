@@ -8,6 +8,7 @@
 %token <string> PALETTE_MODEL
 %token NUM_TYPE
 %token BOOL_TYPE
+%token UNIT_TYPE
 %token TRUE
 %token FALSE
 %token WILDCARD
@@ -62,6 +63,8 @@ bidelim_typ:
     { UHTyp.Num }
   | BOOL_TYPE
     { UHTyp.Bool }
+  | UNIT_TYPE 
+    { UHTyp.Unit }
   | LBRACKET; t = uhtyp; RBRACKET
     { UHTyp.List(t) }
   | LCBRACE; RCBRACE

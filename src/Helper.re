@@ -6,6 +6,10 @@ module Helper: Semantics.DEBUG = {
     };
   let path_to_string = ((lst, _)) => "[" ++ list_to_string(lst) ++ "]";
   let string_of_nat = n => string_of_int(n);
+  let log_nat_opt = (n, v) => {
+    JSUtil.log(n);
+    v;
+  };
   let log_nat = n => {
     JSUtil.log(n);
     n;

@@ -34,8 +34,11 @@ let expected_indicator = (title_text, type_div) =>
   );
 
 let expected_ty_title = "Expecting an expression of type";
+let expected_ty_title_pat = "Expecting a pattern of type";
 let expected_ty_indicator = ty =>
   expected_indicator(expected_ty_title, typebar("expected", ty));
+let expected_ty_indicator_pat = ty =>
+  expected_indicator(expected_ty_title_pat, typebar("expected", ty));
 let expected_msg_indicator = msg =>
   expected_indicator("Expecting an expression of ", special_msg_bar(msg));
 let expected_any_indicator = expected_msg_indicator("any type");
@@ -87,15 +90,29 @@ let of_cursor_mode = (cursor_mode: ZExp.cursor_mode) => {
           got_as_expected_ty_indicator(got_ty) :
           got_consistent_indicator(got_ty);
       (ind1, ind2, OK);
-    | ZExp.TypeInconsistent(expected_ty, got_ty) =>
+    | ZExp.AnaTypeInconsistent(expected_ty, got_ty) =>
       let ind1 = expected_ty_indicator(expected_ty);
       let ind2 = got_inconsistent_indicator(got_ty);
+      (ind1, ind2, TypeInconsistency);
+    | ZExp.AnaWrongLength(expected_len, got_len, expected_ty) =>
+      let expected_msg = string_of_int(expected_len) ++ "-tuple";
+      let ind1 =
+        expected_indicator(
+          "Expecting an expression of type",
+          special_msg_bar(expected_msg),
+        );
+      let got_msg = string_of_int(got_len) ++ "-tuple";
+      let ind2 =
+        got_indicator(
+          "Got tuple of the wrong length",
+          special_msg_bar(got_msg),
+        );
       (ind1, ind2, TypeInconsistency);
     | ZExp.AnaFree(expected_ty) =>
       let ind1 = expected_ty_indicator(expected_ty);
       let ind2 = got_free_indicator;
       (ind1, ind2, BindingError);
-    | ZExp.Subsumed(expected_ty, got_ty) =>
+    | ZExp.AnaSubsumed(expected_ty, got_ty) =>
       let ind1 = expected_ty_indicator(expected_ty);
       let ind2 =
         HTyp.eq(expected_ty, got_ty) ?
@@ -142,12 +159,26 @@ let of_cursor_mode = (cursor_mode: ZExp.cursor_mode) => {
       let ind1 = expected_ty_indicator(ty);
       let ind2 = got_indicator("Got", special_msg_bar("as expected"));
       (ind1, ind2, OK);
-    | ZExp.PatTypeInconsistent(expected_ty, got_ty) =>
-      let ind1 = expected_ty_indicator(expected_ty);
+    | ZExp.PatAnaTypeInconsistent(expected_ty, got_ty) =>
+      let ind1 = expected_ty_indicator_pat(expected_ty);
       let ind2 = got_inconsistent_indicator(got_ty);
       (ind1, ind2, TypeInconsistency);
-    | ZExp.PatSubsumed(expected_ty, got_ty) =>
-      let ind1 = expected_ty_indicator(expected_ty);
+    | ZExp.PatAnaWrongLength(expected_len, got_len, expected_ty) =>
+      let expected_msg = string_of_int(expected_len) ++ "-tuple";
+      let ind1 =
+        expected_indicator(
+          "Expecting an expression of type",
+          special_msg_bar(expected_msg),
+        );
+      let got_msg = string_of_int(got_len) ++ "-tuple";
+      let ind2 =
+        got_indicator(
+          "Got tuple of the wrong length",
+          special_msg_bar(got_msg),
+        );
+      (ind1, ind2, TypeInconsistency);
+    | ZExp.PatAnaSubsumed(expected_ty, got_ty) =>
+      let ind1 = expected_ty_indicator_pat(expected_ty);
       let ind2 =
         HTyp.eq(expected_ty, got_ty) ?
           got_as_expected_ty_indicator(got_ty) :
