@@ -11,7 +11,7 @@
 %token ARROW
 %token EOF
 
-%left COMMA
+%right COMMA
 %right ARROW
 %right VBAR
 %right AMP

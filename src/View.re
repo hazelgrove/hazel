@@ -19,7 +19,7 @@ let rec id_of_rev_path = (prefix, rev_path) =>
   };
 let cls_from_classes = (err_status, classes) =>
   switch (err_status) {
-  | InHole(u) => [
+  | InHole(_, u) => [
       "in_err_hole",
       "in_err_hole_" ++ string_of_int(u),
       ...classes,
@@ -28,7 +28,7 @@ let cls_from_classes = (err_status, classes) =>
   };
 let cls_from = (err_status, cls) =>
   switch (err_status) {
-  | InHole(u) => ["in_err_hole", "in_err_hole_" ++ string_of_int(u), cls]
+  | InHole(_, u) => ["in_err_hole", "in_err_hole_" ++ string_of_int(u), cls]
   | NotInHole => [cls]
   };
 let term_classes = (prefix, err_status, rev_path, classes, doc) => {
@@ -173,6 +173,7 @@ let precedence_ty = ty =>
   | HTyp.Num
   | HTyp.Bool
   | HTyp.Hole
+  | HTyp.Unit
   | HTyp.List(_) => precedence_const
   | HTyp.Prod(_, _) => precedence_Prod
   | HTyp.Sum(_, _) => precedence_Sum
@@ -182,6 +183,8 @@ let of_Bool = (prefix, rev_path) =>
   term(prefix, NotInHole, rev_path, "Bool", kw("bool"));
 let of_Num = (prefix, rev_path) =>
   term(prefix, NotInHole, rev_path, "Num", kw("num"));
+let of_Unit = (prefix, rev_path) =>
+  term(prefix, NotInHole, rev_path, "Unit", kw("unit"));
 let of_ty_op = (cls, op_s, prefix, err_status, rev_path, r1, r2) =>
   term(
     prefix,
@@ -207,6 +210,7 @@ let rec of_htype = (parenthesize, prefix, rev_path, ty) => {
     switch (ty) {
     | HTyp.Bool => of_Bool(prefix, rev_path)
     | HTyp.Num => of_Num(prefix, rev_path)
+    | HTyp.Unit => of_Unit(prefix, rev_path)
     | HTyp.List(ty1) =>
       let rev_path1 = [0, ...rev_path];
       let r1 = of_htype(false, prefix, rev_path1, ty1);
@@ -247,6 +251,7 @@ let rec of_uhtyp = (prefix, rev_path, uty) =>
     of_Parenthesized(false, prefix, rev_path, r1);
   | UHTyp.Bool => of_Bool(prefix, rev_path)
   | UHTyp.Num => of_Num(prefix, rev_path)
+  | UHTyp.Unit => of_Unit(prefix, rev_path)
   | UHTyp.List(uty1) =>
     let rev_path1 = [0, ...rev_path];
     let r1 = of_uhtyp(prefix, rev_path1, uty1);
@@ -362,6 +367,8 @@ let of_NumLit = (prefix, err_status, rev_path, n) =>
     "NumLit",
     taggedText("number", string_of_int(n)),
   );
+let of_Triv = (prefix, err_status, rev_path) =>
+  term(prefix, err_status, rev_path, "Triv", taggedText("triv", "()"));
 
 let of_Plus = (prefix, err_status, rev_path, r1, r2) =>
   term(
@@ -757,16 +764,17 @@ let rec precedence_dhpat = dp =>
   DHPat.(
     switch (dp) {
     | EmptyHole(_)
-    | NonEmptyHole(_, _, _)
+    | NonEmptyHole(_, _, _, _)
     | Wild
     | Var(_)
     | NumLit(_)
     | BoolLit(_)
     | Inj(_, _)
+    | Triv
     | ListNil
     | Pair(_, _) => precedence_const
     | Cons(_, _) => precedence_Cons
-    | Spaced(_, _) => precedence_Ap
+    | Ap(_, _) => precedence_Ap
     }
   );
 let rec precedence_dhexp = d =>
@@ -781,6 +789,7 @@ let rec precedence_dhexp = d =>
     | Pair(_, _)
     | EmptyHole(_, _, _)
     | Cast(_, _, _)
+    | Triv
     | FailedCast(_, _, _) => precedence_const
     | Let(_, _, _)
     | FixF(_, _, _)
@@ -791,7 +800,7 @@ let rec precedence_dhexp = d =>
     | BinNumOp(Plus, _, _) => precedence_Plus
     | BinNumOp(LessThan, _, _) => precedence_LessThan
     | Cons(_, _) => precedence_Cons
-    | NonEmptyHole(_, _, _, d1) => precedence_dhexp(d1)
+    | NonEmptyHole(_, _, _, _, d1) => precedence_dhexp(d1)
     }
   );
 
@@ -827,14 +836,14 @@ let rec of_dhpat' =
           attrs,
           r,
         );
-      | NonEmptyHole(u, i, dp1) =>
+      | NonEmptyHole(reason, u, i, dp1) =>
         let rev_path1 = [0, ...rev_path];
         let r =
           of_dhpat'(
             instance_click_fn,
             false,
             prefix,
-            InHole(u),
+            InHole(reason, u),
             rev_path1,
             dp1,
           );
@@ -843,6 +852,7 @@ let rec of_dhpat' =
       | Var(x) => of_Var(prefix, err_status, NotInVHole, rev_path, x)
       | BoolLit(b) => of_BoolLit(prefix, err_status, rev_path, b)
       | NumLit(n) => of_NumLit(prefix, err_status, rev_path, n)
+      | Triv => of_Triv(prefix, err_status, rev_path)
       | Inj(side, dp1) =>
         /* TODO: pattern inj doesn't need a type, does this cause issues with rev_path? */
         let rev_path1 = [0, ...rev_path];
@@ -903,7 +913,7 @@ let rec of_dhpat' =
             dp2,
           );
         of_Pair(prefix, err_status, rev_path, r1, r2);
-      | Spaced(dp1, dp2) =>
+      | Ap(dp1, dp2) =>
         let rev_path1 = [0, ...rev_path];
         let rev_path2 = [1, ...rev_path];
         let paren1 = precedence_dhpat(dp1) > precedence_Ap;
@@ -1021,6 +1031,7 @@ let rec of_dhexp' =
         of_Ap(prefix, err_status, rev_path, r1, r2);
       | BoolLit(b) => of_BoolLit(prefix, err_status, rev_path, b)
       | NumLit(n) => of_NumLit(prefix, err_status, rev_path, n)
+      | Triv => of_Triv(prefix, err_status, rev_path)
       | BinNumOp(op, d1, d2) =>
         let rev_path1 = [0, ...rev_path];
         let rev_path2 = [1, ...rev_path];
@@ -1160,14 +1171,14 @@ let rec of_dhexp' =
           attrs,
           r,
         );
-      | NonEmptyHole(u, _, sigma, d1) =>
+      | NonEmptyHole(reason, u, _, sigma, d1) =>
         let rev_path1 = [0, ...rev_path];
         let r1 =
           of_dhexp'(
             instance_click_fn,
             false,
             prefix,
-            InHole(u),
+            InHole(reason, u),
             rev_path1,
             d1,
           );

@@ -16,6 +16,7 @@ rule read =
   | whitespace { read lexbuf }
   | "num" { NUM_TYPE }
   | "bool" { BOOL_TYPE }
+  | "unit" { UNIT_TYPE }
   | "true" { TRUE }
   | "false" { FALSE }
   | "_" { WILDCARD }

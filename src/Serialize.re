@@ -59,6 +59,7 @@ let serialize = (~fmtr=std_formatter, ~line_length=100, ~indent=2, uhexp) => {
       print_parenthesized(fmtr, fmtr => print_uhtyp(fmtr, tau1))
     | UHTyp.Num => fprintf(fmtr, "num")
     | UHTyp.Bool => fprintf(fmtr, "bool")
+    | UHTyp.Unit => fprintf(fmtr, "unit")
     | UHTyp.List(t) =>
       fprintf(fmtr, "@[<hov %d>[%a@,]@]", indent, print_uhtyp, t)
     | UHTyp.Hole => fprintf(fmtr, "{}")

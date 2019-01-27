@@ -72,6 +72,7 @@ let new_model = (): t => {
           DHExp.syn_expand(
             (),
             (VarCtx.empty, Palettes.initial_palette_ctx),
+            Delta.empty,
             e,
           );
         switch (expanded) {

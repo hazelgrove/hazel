@@ -41,6 +41,25 @@ Module Util.
   Definition findmapi {A B : Type} (xs : list A) (f : nat -> A -> option B) : option(B) := 
     _findmapi 0 xs f.
 
+  Fixpoint zip_eq {A B : Type} (xs : list A) (ys : list B) : option(list (A * B)) := 
+    match (xs, ys) with 
+    | (nil, nil) => Some nil
+    | (cons x xs, cons y ys) => 
+      match zip_eq xs ys with 
+      | None => None
+      | Some tail => Some (cons (x, y) tail)
+      end
+    | (cons _ _, nil) => None
+    | (nil, cons _ _) => None
+    end.
+
+  Fixpoint unzip {A B : Type} (xs : list (A * B)) : (list A * list B) := 
+    match xs with 
+    | nil => (nil, nil)
+    | cons (x, y) xys => 
+      let (xs, ys) := unzip xys in 
+      (cons x xs, cons y ys)
+    end.
   End ListUtil.
 
   Section StringUtil.
@@ -168,6 +187,7 @@ End Fuel.
 
 (* Debugging aids that are implemented on the OCaml side *)
 Module Type DEBUG.
+  Parameter log_nat_opt : forall A : Type, nat -> option A -> option A.
   Parameter log_nat : nat -> nat.
   Parameter log_string : Coq.Strings.String.string -> Coq.Strings.String.string.
   Parameter string_of_nat : nat -> Coq.Strings.String.string.
@@ -317,9 +337,13 @@ Module FCore(Debug : DEBUG).
 
   Module MetaVarMap := Util.NatMap.
 
+  Inductive in_hole_reason : Type := 
+  | TypeInconsistent : in_hole_reason
+  | WrongLength : in_hole_reason.
+
   Inductive err_status : Type := 
   | NotInHole : err_status
-  | InHole : MetaVar.t -> err_status.
+  | InHole : in_hole_reason -> MetaVar.t -> err_status.
 
   Inductive var_err_status : Type := 
   | NotInVHole : var_err_status
@@ -605,6 +629,7 @@ Module FCore(Debug : DEBUG).
     (* types with holes *)
     Inductive t : Type :=
     | Hole : t
+    | Unit : t
     | Num : t
     | Bool : t
     | Arrow : t -> t -> t
@@ -617,6 +642,8 @@ Module FCore(Debug : DEBUG).
       match (ty1, ty2) with
       | (Hole, Hole) => true
       | (Hole, _) => false
+      | (Unit, Unit) => true
+      | (Unit, _) => false
       | (Num, Num) => true
       | (Num, _) => false
       | (Bool, Bool) => true
@@ -640,6 +667,8 @@ Module FCore(Debug : DEBUG).
       match (x, y) with
       | (Hole, _)
       | (_, Hole) =>  true
+      | (Unit, Unit) => true
+      | (Unit, _) => false
       | (Num, Num) => true
       | (Num, _) => false
       | (Bool, Bool) => true
@@ -700,6 +729,43 @@ Module FCore(Debug : DEBUG).
       | _ => false
       end.
 
+    Fixpoint get_tuple 
+      (ty1 : HTyp.t)
+      (ty2 : HTyp.t)
+      : list(HTyp.t) := 
+        match ty2 with 
+        | HTyp.Prod ty21 ty22 => 
+          cons ty1 (get_tuple ty21 ty22)
+        | _ => 
+          cons ty1 (cons ty2 nil)
+        end.
+
+    Fixpoint make_tuple
+      (tys : list HTyp.t)
+      : HTyp.t := 
+        match tys with 
+        | cons ty1 (cons ty2 nil) => Prod ty1 ty2
+        | cons ty1 nil => ty1
+        | cons ty1 tys => 
+          let ty2 := make_tuple tys in
+          Prod ty1 ty2
+        | nil => Unit
+        end.
+
+    Fixpoint zip_with_skels 
+      {op : Type}
+      (skels : list(Skel.t op))
+      (types : list(t))
+      : (list(Skel.t op * t) * list(Skel.t op)) := 
+        match (skels, types) with 
+        | (nil, nil) => (nil, nil)
+        | (cons skel skels, cons ty tys) => 
+          let (tail, remainder) := zip_with_skels skels tys in 
+          (cons (skel, ty) tail, remainder)
+        | (cons _ _, nil) => (nil, skels)
+        | (nil, cons _ _) => (nil, nil)
+        end.
+
     (* matched sum types *)
     Definition matched_sum (ty : t) : option (t * t) :=
       match ty with
@@ -734,6 +800,7 @@ Module FCore(Debug : DEBUG).
     Fixpoint complete (ty : t) : bool :=
       match ty with
       | Hole => false
+      | Unit => true
       | Num => true
       | Bool => true
       | Arrow ty1 ty2
@@ -747,6 +814,8 @@ Module FCore(Debug : DEBUG).
       match (ty1, ty2) with
       | (_, Hole) => Some ty1
       | (Hole, _) => Some ty2
+      | (Unit, Unit) => Some ty1
+      | (Unit, _) => None
       | (Num, Num) => Some ty1
       | (Num, _) => None
       | (Bool, Bool) => Some ty1
@@ -789,6 +858,7 @@ Module FCore(Debug : DEBUG).
     Inductive t : Type := 
     | Parenthesized : t -> t
     | Hole : t
+    | Unit : t
     | Num : t
     | Bool : t
     | List : t -> t
@@ -798,9 +868,10 @@ Module FCore(Debug : DEBUG).
 
     Definition bidelimited (uty : t) : bool := 
       match uty with 
+      | Hole
+      | Unit
       | Num
       | Bool 
-      | Hole
       | Parenthesized _ => true
       | List ty => true
       | OpSeq _ _ => false
@@ -812,6 +883,7 @@ Module FCore(Debug : DEBUG).
       | Fuel.More fuel => 
       match uty with 
       | Hole => true
+      | Unit => true
       | Num => true
       | Bool => true
       | Parenthesized uty1 => well_formed fuel uty1
@@ -835,7 +907,8 @@ Module FCore(Debug : DEBUG).
       | Skel.BinOp NotInHole _ skel1 skel2 => 
         well_formed_skel fuel skel1 seq 
         && well_formed_skel fuel skel2 seq
-      | Skel.BinOp (InHole _) _ _ _ => false (* no type-level non-empty holes *)
+      | Skel.BinOp (InHole TypeInconsistent _) _ _ _ => false (* no type-level non-empty holes *)
+      | Skel.BinOp (InHole WrongLength _) _ _ _ => false (* the type is assumed to be the true length *)
       end
       end.
 
@@ -860,6 +933,7 @@ Module FCore(Debug : DEBUG).
       in
       match ty with
       | HTyp.Hole      => Hole
+      | HTyp.Unit      => Unit
       | HTyp.Num       => Num
       | HTyp.Bool      => Bool
       | HTyp.Arrow ty1 ty2 => mk_opseq Arrow (contract ty1) (contract ty2)
@@ -874,6 +948,7 @@ Module FCore(Debug : DEBUG).
       | Fuel.More fuel => 
       match uty with 
       | Hole => HTyp.Hole
+      | Unit => HTyp.Unit
       | Num => HTyp.Num
       | Bool => HTyp.Bool
       | Parenthesized uty1 => expand fuel uty1
@@ -976,6 +1051,33 @@ Module FCore(Debug : DEBUG).
 
     Definition opseq : Type := OperatorSeq.opseq t op.
 
+    Fixpoint get_tuple 
+      (skel1 : skel_t)
+      (skel2 : skel_t) 
+      : list(skel_t) := 
+        match skel2 with 
+        | Skel.BinOp _ Comma skel21 skel22 => 
+          cons skel1 (get_tuple skel21 skel22)
+        | Skel.BinOp _ _ _ _ 
+        | Skel.Placeholder _ _ => 
+          cons skel1 (cons skel2 nil)
+        end.
+
+    Fixpoint make_tuple
+      (err   : err_status)
+      (skels : list(skel_t))
+      : option(skel_t) := 
+        match skels with 
+        | cons skel1 (cons skel2 nil) => 
+          Some (Skel.BinOp err Comma skel1 skel2)
+        | cons skel1 skels => 
+          match make_tuple NotInHole skels with 
+          | None => None
+          | Some skel2 => Some (Skel.BinOp err Comma skel1 skel2)
+          end
+        | nil => None
+        end.
+
     (* bidelimited patterns are those that don't have 
      * sub-patterns at their outer left or right edge
      * in the concrete syntax *)
@@ -1008,21 +1110,22 @@ Module FCore(Debug : DEBUG).
       | _ => false
       end.
 
-    Fixpoint put_in_hole (u : MetaVar.t) (p : t) := 
+    Fixpoint set_inconsistent (u : MetaVar.t) (p : t) := 
       match p with 
-      | Pat _ p' => Pat (InHole u) p'
-      | Parenthesized p1 => Parenthesized (put_in_hole u p1)
+      | Pat _ p' => Pat (InHole TypeInconsistent u) p'
+      | Parenthesized p1 => Parenthesized (set_inconsistent u p1)
       end.
 
     (* put p in a new hole, if it is not already in a hole *)
-    Fixpoint put_in_new_hole (u_gen : MetaVarGen.t) (p : t) := 
+    Fixpoint make_inconsistent (u_gen : MetaVarGen.t) (p : t) := 
       match p with
-      | Pat NotInHole p' => 
+      | Pat NotInHole p' 
+      | Pat (InHole WrongLength _) p' => 
         let (u, u_gen) := MetaVarGen.next u_gen in 
-        (Pat (InHole u) p', u_gen)
-      | Pat (InHole _) _ => (p, u_gen)
+        (Pat (InHole TypeInconsistent u) p', u_gen)
+      | Pat (InHole TypeInconsistent _) _ => (p, u_gen)
       | Parenthesized p1 => 
-        match put_in_new_hole u_gen p1 with 
+        match make_inconsistent u_gen p1 with 
         | (p1, u_gen) => (Parenthesized p1, u_gen)
         end
       end.
@@ -1069,6 +1172,33 @@ Module FCore(Debug : DEBUG).
     | Rule : UHPat.t -> t -> rule.
 
     Definition rules : Type := list(rule).
+
+    Fixpoint get_tuple 
+      (skel1 : skel_t)
+      (skel2 : skel_t) 
+      : list(skel_t) := 
+        match skel2 with 
+        | Skel.BinOp _ Comma skel21 skel22 => 
+          cons skel1 (get_tuple skel21 skel22)
+        | Skel.BinOp _ _ _ _ 
+        | Skel.Placeholder _ _ => 
+          cons skel1 (cons skel2 nil)
+        end.
+
+    Fixpoint make_tuple
+      (err   : err_status)
+      (skels : list(skel_t))
+      : option(skel_t) := 
+        match skels with 
+        | cons skel1 (cons skel2 nil) => 
+          Some (Skel.BinOp err Comma skel1 skel2)
+        | cons skel1 skels => 
+          match make_tuple NotInHole skels with 
+          | None => None
+          | Some skel2 => Some (Skel.BinOp err Comma skel1 skel2)
+          end
+        | nil => None
+        end.
 
     (* helper function for constructing a new empty hole *)
     Definition new_EmptyHole (u_gen : MetaVarGen.t) : t * MetaVarGen.t :=
@@ -1237,42 +1367,44 @@ Module FCore(Debug : DEBUG).
       if bidelimited e then e else Parenthesized e.
 
     (* put e in the specified hole *)
-    Fixpoint put_in_hole (u : MetaVar.t) (e : t) := 
+    Fixpoint set_inconsistent (u : MetaVar.t) (e : t) := 
       match e with 
-      | Tm _ e' => Tm (InHole u) e'
-      | Parenthesized e' => Parenthesized (put_in_hole u e')
+      | Tm _ e' => Tm (InHole TypeInconsistent u) e'
+      | Parenthesized e' => Parenthesized (set_inconsistent u e')
       end.
 
     (* put e in a new hole, if it is not already in a hole *)
-    Fixpoint put_in_new_hole (u_gen : MetaVarGen.t) (e : t) := 
+    Fixpoint make_inconsistent (u_gen : MetaVarGen.t) (e : t) := 
       match e with
-      | Tm NotInHole e' => 
+      | Tm NotInHole e' 
+      | Tm (InHole WrongLength _) e' => 
         let (u, u_gen') := MetaVarGen.next u_gen in 
-        (Tm (InHole u) e', u_gen')
-      | Tm (InHole _) _ => (e, u_gen)
+        (Tm (InHole TypeInconsistent u) e', u_gen')
+      | Tm (InHole TypeInconsistent _) _ => (e, u_gen)
       | Parenthesized e1 => 
-        match put_in_new_hole u_gen e1 with 
+        match make_inconsistent u_gen e1 with 
         | (e1', u_gen') => (Parenthesized e1', u_gen')
         end
       end.
 
     (* put skel in a new hole, if it is not already in a hole *)
-    Definition put_skel_in_new_hole (u_gen : MetaVarGen.t) (skel : skel_t) (seq : opseq) := 
+    Definition make_skel_inconsistent (u_gen : MetaVarGen.t) (skel : skel_t) (seq : opseq) := 
       match skel with 
       | Skel.Placeholder _ n => 
         match OperatorSeq.seq_nth n seq with 
         | Some en => 
-          let (en', u_gen') := put_in_new_hole u_gen en in 
+          let (en', u_gen') := make_inconsistent u_gen en in 
           match OperatorSeq.seq_update_nth n seq en' with 
           | Some seq' => Some (skel, seq', u_gen')
           | None => None
           end
         | None => None
         end
-      | Skel.BinOp (InHole _) _ _ _ => Some (skel, seq, u_gen)
-      | Skel.BinOp NotInHole op skel1 skel2 => 
+      | Skel.BinOp (InHole TypeInconsistent _) _ _ _ => Some (skel, seq, u_gen)
+      | Skel.BinOp NotInHole op skel1 skel2
+      | Skel.BinOp (InHole WrongLength _) op skel1 skel2 => 
         let (u', u_gen') := MetaVarGen.next u_gen in 
-        Some (Skel.BinOp (InHole u') op skel1 skel2, seq, u_gen')
+        Some (Skel.BinOp (InHole TypeInconsistent u') op skel1 skel2, seq, u_gen')
       end.
 
     Fixpoint drop_outer_parentheses (e : t) : t := 
@@ -1302,11 +1434,14 @@ Module FCore(Debug : DEBUG).
         | Fuel.Kicked => None
         | Fuel.More fuel => 
         match p with 
-        | UHPat.Pat (InHole _) p' => 
+        | UHPat.Pat (InHole TypeInconsistent _) p' 
+        | UHPat.Pat (InHole WrongLength _) 
+            ((UHPat.OpSeq (Skel.BinOp (InHole WrongLength _) UHPat.Comma _ _) _) as p') => 
           match syn_pat' fuel ctx p' with 
           | None => None
           | Some (_, gamma) => Some(HTyp.Hole, gamma)
           end
+        | UHPat.Pat (InHole WrongLength _) _ => None
         | UHPat.Pat NotInHole p' => 
           syn_pat' fuel ctx p'
         | UHPat.Parenthesized p => 
@@ -1325,7 +1460,6 @@ Module FCore(Debug : DEBUG).
         | UHPat.EmptyHole _ => Some (HTyp.Hole, ctx) 
         | UHPat.Wild => Some (HTyp.Hole, ctx)
         | UHPat.Var x =>
-          (* TODO: add linearity check *)
           Var.check_valid x (
           Some (HTyp.Hole, 
                 Contexts.extend_gamma ctx (x, HTyp.Hole)))
@@ -1397,12 +1531,14 @@ Module FCore(Debug : DEBUG).
               end
             end
           end
-        | Skel.BinOp (InHole u) op skel1 skel2 => 
+        | Skel.BinOp (InHole TypeInconsistent u) op skel1 skel2  
+        | Skel.BinOp (InHole WrongLength u) (UHPat.Comma as op) skel1 skel2 => 
           let skel_not_in_hole := Skel.BinOp NotInHole op skel1 skel2 in 
           match syn_skel_pat fuel ctx skel_not_in_hole seq monitor with 
           | None => None
-          | Some (ty, ctx, mode) => Some (HTyp.Hole, ctx, mode)
+          | Some (_, ctx, mode) => Some (HTyp.Hole, ctx, mode)
           end
+        | Skel.BinOp (InHole WrongLength u) _ _ _ => None
         | Skel.BinOp NotInHole UHPat.Comma skel1 skel2 => 
           match syn_skel_pat fuel ctx skel1 seq monitor with 
           | None => None
@@ -1451,13 +1587,15 @@ Module FCore(Debug : DEBUG).
         | Fuel.Kicked => None
         | Fuel.More fuel => 
         match p with 
-        | UHPat.Pat (InHole _) p' => 
+        | UHPat.Pat (InHole TypeInconsistent _) p' =>   
           match syn_pat' fuel ctx p' with 
           | None => None
           | Some (_, ctx) => Some ctx
           end
+        | UHPat.Pat (InHole WrongLength _) ((UHPat.OpSeq (Skel.BinOp (InHole WrongLength _) UHPat.Comma _ _) _) as p')  
         | UHPat.Pat NotInHole p' => 
           ana_pat' fuel ctx p' ty
+        | UHPat.Pat (InHole WrongLength _) _ => None
         | UHPat.Parenthesized p => 
           ana_pat fuel ctx p ty
         end
@@ -1473,14 +1611,8 @@ Module FCore(Debug : DEBUG).
         | Fuel.More fuel => 
         match p with 
         | UHPat.Var x =>
-          (* TODO: add linearity check *)
           Var.check_valid x (
           Some (Contexts.extend_gamma ctx (x, ty)))
-        | UHPat.OpSeq skel seq => 
-          match ana_skel_pat fuel ctx skel seq ty None with 
-          | None => None
-          | Some (ctx, _) => Some ctx
-          end
         | UHPat.EmptyHole _
         | UHPat.Wild => Some ctx
         | UHPat.NumLit _ 
@@ -1515,6 +1647,11 @@ Module FCore(Debug : DEBUG).
               | Some ctx => ana_pat fuel ctx p ty_elts 
               end) ps (Some ctx)
           end *)
+        | UHPat.OpSeq skel seq => 
+          match ana_skel_pat fuel ctx skel seq ty None with 
+          | None => None
+          | Some (ctx, _) => Some ctx
+          end
         end
         end
     with ana_skel_pat
@@ -1551,27 +1688,89 @@ Module FCore(Debug : DEBUG).
               end
             end
           end
-        | Skel.BinOp (InHole u) op skel1 skel2 => 
+        | Skel.BinOp (InHole TypeInconsistent u) op skel1 skel2 => 
           let skel_not_in_hole := Skel.BinOp NotInHole op skel1 skel2 in 
           match syn_skel_pat fuel ctx skel_not_in_hole seq monitor with 
           | None => None
           | Some (_, ctx, mode) => Some (ctx, mode)
           end
         | Skel.BinOp NotInHole UHPat.Comma skel1 skel2 => 
-          match HTyp.matched_prod ty with 
-          | None => None
-          | Some (ty1, ty2) => 
-            match ana_skel_pat fuel ctx skel1 seq ty1 monitor with 
+          match ty with 
+          | HTyp.Hole => 
+            match ana_skel_pat fuel ctx skel1 seq HTyp.Hole monitor with 
             | None => None
             | Some (ctx, mode1) => 
-              match ana_skel_pat fuel ctx skel2 seq ty2 monitor with 
+              match ana_skel_pat fuel ctx skel2 seq HTyp.Hole monitor with 
               | None => None
               | Some (ctx, mode2) => 
                 let mode := combine_modes mode1 mode2 in 
                 Some (ctx, mode)
               end
             end
+          | HTyp.Prod ty1 ty2 => 
+            let types := HTyp.get_tuple ty1 ty2 in 
+            let skels := UHPat.get_tuple skel1 skel2 in 
+            match Util.zip_eq skels types with 
+            | None => None
+            | Some zipped => 
+              List.fold_left (fun opt_result (skel_ty : UHPat.skel_t * HTyp.t) => 
+                match opt_result with 
+                | None => None
+                | Some (ctx, mode) => 
+                  let (skel, ty) := skel_ty in 
+                  match ana_skel_pat fuel ctx skel seq ty monitor with 
+                  | None => None
+                  | Some (ctx, mode') => 
+                    let mode := combine_modes mode mode' in 
+                    Some (ctx, mode)
+                  end
+                end) zipped (Some (ctx, None))
+            end
+          | _ => None
           end
+        | Skel.BinOp (InHole WrongLength u) (UHPat.Comma as op) skel1 skel2 => 
+          match ty with 
+          | HTyp.Prod ty1 ty2 => 
+            let types := HTyp.get_tuple ty1 ty2 in 
+            let skels := UHPat.get_tuple skel1 skel2 in 
+            let n_types := List.length types in 
+            let n_skels := List.length skels in 
+            match Nat.eqb n_types n_skels with 
+            | true => None (* make sure the lengths are actually different *)
+            | false => 
+              let (zipped, remainder) := HTyp.zip_with_skels skels types in 
+              let ana_zipped : option (Contexts.t * option(type_mode)) := 
+                List.fold_left (fun opt_result (skel_ty : UHPat.skel_t * HTyp.t) => 
+                  match opt_result with 
+                  | None => None
+                  | Some (ctx, mode) => 
+                    let (skel, ty) := skel_ty in 
+                    match ana_skel_pat fuel ctx skel seq ty monitor with 
+                    | None => None
+                    | Some (ctx, mode') => 
+                      let mode := combine_modes mode mode' in 
+                      Some (ctx, mode)
+                    end
+                  end) zipped (Some (ctx, None)) in 
+              match ana_zipped with 
+              | None => None
+              | Some (ctx, mode) => 
+                List.fold_left (fun opt_result skel => 
+                  match opt_result with 
+                  | None => None
+                  | Some (ctx, mode) => 
+                    match syn_skel_pat fuel ctx skel seq monitor with 
+                    | None => None
+                    | Some (_, ctx, mode') => 
+                      let mode := combine_modes mode mode' in 
+                      Some (ctx, mode)
+                    end
+                  end) remainder (Some (ctx, mode))
+              end
+            end
+          | _ => None
+          end
+        | Skel.BinOp (InHole WrongLength _) _ _ _ => None
         | Skel.BinOp NotInHole UHPat.Space skel1 skel2 => 
           None
         | Skel.BinOp NotInHole UHPat.Cons skel1 skel2 => 
@@ -1636,11 +1835,13 @@ Module FCore(Debug : DEBUG).
         | Fuel.Kicked => None
         | Fuel.More fuel => 
         match e with
-        | Tm (InHole _) e' => 
+        | Tm (InHole TypeInconsistent _) e'
+        | Tm (InHole WrongLength _) ((UHExp.OpSeq (Skel.BinOp (InHole WrongLength _) UHExp.Comma _ _) _) as e') => 
           match syn' fuel ctx e' with 
           | Some _ => Some HTyp.Hole
           | None => None
           end
+        | Tm (InHole WrongLength _) _ => None
         | Tm NotInHole e' => syn' fuel ctx e'
         | Parenthesized e1 => syn fuel ctx e1 
         end
@@ -1783,12 +1984,15 @@ Module FCore(Debug : DEBUG).
         | Fuel.Kicked => None
         | Fuel.More fuel => 
         match e with 
-        | Tm (InHole _) e' => 
+        | Tm (InHole TypeInconsistent _) e' => 
           match syn' fuel ctx e' with 
           | Some _ => Some tt (* this is a consequence of subsumption and hole universality *)
           | None => None
           end
-        | Tm NotInHole e' => ana' fuel ctx e' ty
+        | Tm (InHole WrongLength _) ((UHExp.OpSeq (Skel.BinOp (InHole WrongLength _) UHExp.Comma _ _) _) as e')
+        | Tm NotInHole e' => 
+          ana' fuel ctx e' ty
+        | Tm (InHole WrongLength _) _ => None
         | Parenthesized e1 => ana fuel ctx e1 ty
         end
         end
@@ -1954,12 +2158,14 @@ Module FCore(Debug : DEBUG).
             else None
           | None => None
           end
-        | Skel.BinOp (InHole u) op skel1 skel2 => 
+        | Skel.BinOp (InHole TypeInconsistent u) op skel1 skel2
+        | Skel.BinOp (InHole WrongLength u) (UHExp.Comma as op) skel1 skel2 => 
           let skel_not_in_hole := Skel.BinOp NotInHole op skel1 skel2 in 
           match syn_skel fuel ctx skel_not_in_hole seq monitor with 
           | None => None
           | Some (ty, mode) => Some (HTyp.Hole, mode)
           end
+        | Skel.BinOp (InHole WrongLength _) _ _ _ => None
         | Skel.BinOp NotInHole UHExp.Plus skel1 skel2
         | Skel.BinOp NotInHole UHExp.Times skel1 skel2 => 
           match ana_skel fuel ctx skel1 seq HTyp.Num monitor with 
@@ -2051,20 +2257,82 @@ Module FCore(Debug : DEBUG).
           | None => None
           end
         | Skel.BinOp NotInHole UHExp.Comma skel1 skel2 => 
-          match HTyp.matched_prod ty with 
-          | None => None
-          | Some (ty1, ty2) => 
-            match ana_skel fuel ctx skel1 seq ty1 monitor with 
+          match ty with 
+          | HTyp.Hole => 
+            match ana_skel fuel ctx skel1 seq HTyp.Hole monitor with 
             | None => None
             | Some mode1 => 
-              match ana_skel fuel ctx skel2 seq ty2 monitor with 
+              match ana_skel fuel ctx skel2 seq HTyp.Hole monitor with 
               | None => None
               | Some mode2 => 
                 let mode := combine_modes mode1 mode2 in 
                 Some mode
               end
             end
+          | HTyp.Prod ty1 ty2 => 
+            let types := HTyp.get_tuple ty1 ty2 in 
+            let skels := UHExp.get_tuple skel1 skel2 in 
+            match Util.zip_eq skels types with 
+            | None => None
+            | Some zipped => 
+              List.fold_left (fun opt_result (skel_ty : UHExp.skel_t * HTyp.t) => 
+                match opt_result with 
+                | None => None
+                | Some mode => 
+                  let (skel, ty) := skel_ty in 
+                  match ana_skel fuel ctx skel seq ty monitor with 
+                  | None => None
+                  | Some mode' => 
+                    let mode := combine_modes mode mode' in 
+                    Some mode
+                  end
+                end) zipped (Some None)
+            end
+          | _ => None
           end
+        | Skel.BinOp (InHole WrongLength u) (UHExp.Comma as op) skel1 skel2 => 
+          match ty with 
+          | HTyp.Prod ty1 ty2 => 
+            let types := HTyp.get_tuple ty1 ty2 in 
+            let skels := UHExp.get_tuple skel1 skel2 in 
+            let n_types := List.length types in 
+            let n_skels := List.length skels in 
+            match Nat.eqb n_types n_skels with 
+            | true => None (* make sure the lengths are actually different *)
+            | false => 
+              let (zipped, remainder) := HTyp.zip_with_skels skels types in 
+              let ana_zipped : option(option(type_mode)) := 
+                List.fold_left (fun opt_result (skel_ty : UHExp.skel_t * HTyp.t) => 
+                  match opt_result with 
+                  | None => None
+                  | Some (mode) => 
+                    let (skel, ty) := skel_ty in 
+                    match ana_skel fuel ctx skel seq ty monitor with 
+                    | None => None
+                    | Some mode' => 
+                      let mode := combine_modes mode mode' in 
+                      Some (mode)
+                    end
+                  end) zipped (Some None) in 
+              match ana_zipped with 
+              | None => None
+              | Some mode => 
+                List.fold_left (fun opt_result skel => 
+                  match opt_result with 
+                  | None => None
+                  | Some mode => 
+                    match syn_skel fuel ctx skel seq monitor with 
+                    | None => None
+                    | Some (_, mode') => 
+                      let mode := combine_modes mode mode' in 
+                      Some mode
+                    end
+                  end) remainder (Some mode)
+              end
+            end
+          | _ => None
+          end
+        | Skel.BinOp (InHole WrongLength _) _ _ _ => None
         | Skel.BinOp NotInHole UHExp.Cons skel1 skel2 => 
           match HTyp.matched_list ty with 
           | None => None
@@ -2080,7 +2348,7 @@ Module FCore(Debug : DEBUG).
               end
             end
           end
-        | Skel.BinOp (InHole _) _ _ _
+        | Skel.BinOp (InHole TypeInconsistent _) _ _ _
         | Skel.BinOp NotInHole UHExp.Plus _ _ 
         | Skel.BinOp NotInHole UHExp.Times _ _ 
         | Skel.BinOp NotInHole UHExp.LessThan _ _
@@ -2298,14 +2566,6 @@ Module FCore(Debug : DEBUG).
           Var.check_valid x (
           let ctx := Contexts.extend_gamma ctx (x, ty) in 
           Some (NotInHole, p, ctx, u_gen))
-        | UHPat.OpSeq skel seq => 
-          match ana_skel_pat_fix_holes fuel ctx u_gen renumber_empty_holes skel seq ty with 
-          | None => None
-          | Some (Skel.Placeholder _ _, _, _, _) => None 
-          | Some ((Skel.BinOp err _ _ _) as skel, seq, ctx, u_gen) =>  
-            let p := UHPat.OpSeq skel seq in 
-            Some (err, p, ctx, u_gen)
-          end
         | UHPat.EmptyHole _  
         | UHPat.NumLit _ 
         | UHPat.BoolLit _ =>  
@@ -2316,7 +2576,7 @@ Module FCore(Debug : DEBUG).
             | true => Some (NotInHole, p', ctx, u_gen)
             | false => 
               let (u, u_gen) := MetaVarGen.next u_gen in 
-              Some (InHole u, p', ctx, u_gen)
+              Some (InHole TypeInconsistent u, p', ctx, u_gen)
             end
           end
         | UHPat.Inj side p1 => 
@@ -2333,7 +2593,7 @@ Module FCore(Debug : DEBUG).
             | None => None
             | Some (p1, ty, ctx, u_gen) => 
               let (u, u_gen) := MetaVarGen.next u_gen in 
-              Some (InHole u, UHPat.Inj side p1, ctx, u_gen)
+              Some (InHole TypeInconsistent u, UHPat.Inj side p1, ctx, u_gen)
             end
           end
         | UHPat.ListNil => 
@@ -2341,7 +2601,7 @@ Module FCore(Debug : DEBUG).
           | Some _ => Some (NotInHole, p, ctx, u_gen)
           | None => 
             let (u, u_gen) := MetaVarGen.next u_gen in 
-            Some (InHole u, p, ctx, u_gen)
+            Some (InHole TypeInconsistent u, p, ctx, u_gen)
           end
         (* | UHPat.ListLit ps => 
           match HTyp.matched_list ty with 
@@ -2364,6 +2624,14 @@ Module FCore(Debug : DEBUG).
             end
           | None => None (* TODO should return InHole *)
           end *)
+        | UHPat.OpSeq skel seq => 
+          match ana_skel_pat_fix_holes fuel ctx u_gen renumber_empty_holes skel seq ty with 
+          | None => None
+          | Some (Skel.Placeholder _ _, _, _, _) => None 
+          | Some ((Skel.BinOp err _ _ _) as skel, seq, ctx, u_gen) =>  
+            let p := UHPat.OpSeq skel seq in 
+            Some (err, p, ctx, u_gen)
+          end
         end
         end
     with ana_skel_pat_fix_holes
@@ -2397,19 +2665,84 @@ Module FCore(Debug : DEBUG).
             end
           end
         | Skel.BinOp _ UHPat.Comma skel1 skel2 => 
-          match HTyp.matched_prod ty with 
-          | Some (ty1, ty2) => 
-            match ana_skel_pat_fix_holes fuel ctx u_gen renumber_empty_holes skel1 seq ty1 with 
+          match ty with 
+          | HTyp.Hole => 
+            match ana_skel_pat_fix_holes fuel ctx u_gen renumber_empty_holes skel1 seq HTyp.Hole with 
             | None => None
             | Some (skel1, seq, ctx, u_gen) => 
-              match ana_skel_pat_fix_holes fuel ctx u_gen renumber_empty_holes skel2 seq ty2 with 
+              match ana_skel_pat_fix_holes fuel ctx u_gen renumber_empty_holes skel2 seq HTyp.Hole with 
               | None => None
               | Some (skel2, seq, ctx, u_gen) => 
                 let skel := Skel.BinOp NotInHole UHPat.Comma skel1 skel2 in 
                 Some (skel, seq, ctx, u_gen)
               end
             end
-          | None => 
+          | HTyp.Prod ty1 ty2 => 
+            let types := HTyp.get_tuple ty1 ty2 in 
+            let skels := UHPat.get_tuple skel1 skel2 in 
+            match Util.zip_eq skels types with 
+            | Some zipped => 
+              let fixed := 
+                List.fold_right (fun (skel_ty : UHPat.skel_t * HTyp.t) opt_result => 
+                  match opt_result with 
+                  | None => None
+                  | Some (skels, seq, ctx, u_gen) => 
+                    let (skel, ty) := skel_ty in 
+                    match ana_skel_pat_fix_holes fuel ctx u_gen renumber_empty_holes skel seq ty with 
+                    | None => None
+                    | Some (skel, seq, ctx, u_gen) => 
+                      Some (cons skel skels, seq, ctx, u_gen)
+                    end
+                  end) (Some (nil, seq, ctx, u_gen)) zipped in 
+              match fixed with 
+              | None => None
+              | Some (skels, seq, ctx, u_gen) => 
+                match UHPat.make_tuple NotInHole skels with 
+                | None => None
+                | Some skel => Some (skel, seq, ctx, u_gen)
+                end
+              end
+            | None => 
+              let (zipped, remainder) := HTyp.zip_with_skels skels types in 
+              let fixed1 := 
+                List.fold_right (fun (skel_ty : UHPat.skel_t * HTyp.t) opt_result => 
+                  match opt_result with 
+                  | None => None
+                  | Some (skels, seq, ctx, u_gen) => 
+                    let (skel, ty) := skel_ty in 
+                    match ana_skel_pat_fix_holes fuel ctx u_gen renumber_empty_holes skel seq ty with 
+                    | None => None
+                    | Some (skel, seq, ctx, u_gen) => 
+                      Some (cons skel skels, seq, ctx, u_gen)
+                    end
+                  end) (Some (nil, seq, ctx, u_gen)) zipped in 
+              match fixed1 with 
+              | None => None
+              | Some (skels1, seq, ctx, u_gen) => 
+                let fixed2 := 
+                  List.fold_right (fun (skel : UHPat.skel_t) opt_result => 
+                    match opt_result with 
+                    | None => None
+                    | Some (skels, seq, ctx, u_gen) => 
+                      match syn_skel_pat_fix_holes fuel ctx u_gen renumber_empty_holes skel seq with 
+                      | None => None
+                      | Some (skel, seq, ty, ctx, u_gen) => 
+                        Some (cons skel skels, seq, ctx, u_gen)
+                      end
+                    end) (Some (nil, seq, ctx, u_gen)) remainder in 
+                match fixed2 with 
+                | None => None
+                | Some (skels2, seq, ctx, u_gen) => 
+                  let skels := skels1 ++ skels2 in 
+                  let (u, u_gen) := MetaVarGen.next u_gen in 
+                  match UHPat.make_tuple (InHole WrongLength u) skels with
+                  | None => None
+                  | Some skel => Some (skel, seq, ctx, u_gen)
+                  end
+                end
+              end
+            end
+          | _ => 
             match syn_skel_pat_fix_holes fuel ctx u_gen renumber_empty_holes skel1 seq with 
             | None => None
             | Some (skel1, seq, _, ctx, u_gen) => 
@@ -2417,7 +2750,7 @@ Module FCore(Debug : DEBUG).
               | None => None
               | Some (skel2, seq, _, ctx, u_gen) => 
                 let (u, u_gen) := MetaVarGen.next u_gen in 
-                let skel := Skel.BinOp (InHole u) UHPat.Comma skel1 skel2 in 
+                let skel := Skel.BinOp (InHole TypeInconsistent u) UHPat.Comma skel1 skel2 in 
                 Some (skel, seq, ctx, u_gen)
               end
             end
@@ -2430,7 +2763,7 @@ Module FCore(Debug : DEBUG).
             | None => None
             | Some (skel2, seq, _, ctx, u_gen) => 
               let (u, u_gen) := MetaVarGen.next u_gen in 
-              let skel := Skel.BinOp (InHole u) UHPat.Space skel1 skel2 in 
+              let skel := Skel.BinOp (InHole TypeInconsistent u) UHPat.Space skel1 skel2 in 
               Some (skel, seq, ctx, u_gen)
             end
           end
@@ -2457,7 +2790,7 @@ Module FCore(Debug : DEBUG).
               | None => None
               | Some (skel2, seq, ctx, u_gen) => 
                 let (u, u_gen) := MetaVarGen.next u_gen in 
-                let skel := Skel.BinOp (InHole u) UHPat.Cons skel1 skel2 in 
+                let skel := Skel.BinOp (InHole TypeInconsistent u) UHPat.Cons skel1 skel2 in 
                 Some (skel, seq, ctx, u_gen)
               end
             end
@@ -2668,7 +3001,7 @@ Module FCore(Debug : DEBUG).
           | None => None
           | Some (Skel.Placeholder _ _, _, _, _) => None
           | Some (skel, seq, ty, u_gen) => 
-            Some (OpSeq skel seq, ty, u_gen)
+            Debug.log_nat_opt 9 (Some (OpSeq skel seq, ty, u_gen))
           end
         | Inj side e1 => 
           match syn_fix_holes_internal fuel ctx u_gen renumber_empty_holes e1 with 
@@ -2749,14 +3082,14 @@ Module FCore(Debug : DEBUG).
         match e with 
         | Tm _ e1 => 
           match ana_fix_holes' fuel ctx u_gen renumber_empty_holes e1 ty with 
-          | Some (err_status, e1', u_gen') => 
-            Some (Tm err_status e1', u_gen')
+          | Some (err_status, e1, u_gen) => 
+            Some (Tm err_status e1, u_gen)
           | None => None
           end
         | Parenthesized e1 => 
           match ana_fix_holes_internal fuel ctx u_gen renumber_empty_holes e1 ty with 
-          | Some (e1', u_gen') => 
-            Some (Parenthesized e1', u_gen')
+          | Some (e1, u_gen) => 
+            Some (Parenthesized e1, u_gen)
           | None => None
           end
         end
@@ -2824,7 +3157,7 @@ Module FCore(Debug : DEBUG).
                 | None => None
                 | Some (e, ty, u_gen) => 
                   let (u, u_gen) := MetaVarGen.next u_gen in 
-                  Some (InHole u, e, u_gen)
+                  Some (InHole TypeInconsistent u, e, u_gen)
                 end
               end
             | None => 
@@ -2843,7 +3176,7 @@ Module FCore(Debug : DEBUG).
             | None => None
             | Some (e, ty', u_gen) => 
               let (u, u_gen) := MetaVarGen.next u_gen in 
-              Some (InHole u, e, u_gen)
+              Some (InHole TypeInconsistent u, e, u_gen)
             end
           end
         | Inj side e1 => 
@@ -2861,7 +3194,7 @@ Module FCore(Debug : DEBUG).
                 Some (NotInHole, e', u_gen')
               else 
                 let (u, u_gen'') := MetaVarGen.next u_gen' in 
-                Some (InHole u, e', u_gen'')
+                Some (InHole TypeInconsistent u, e', u_gen'')
             | None => None
             end
           end
@@ -2870,7 +3203,7 @@ Module FCore(Debug : DEBUG).
           | Some _ => Some (NotInHole, e, u_gen)
           | None => 
             let (u, u_gen) := MetaVarGen.next u_gen in 
-            Some (InHole u, e, u_gen)
+            Some (InHole TypeInconsistent u, e, u_gen)
           end
         (* | ListLit es => 
           match HTyp.matched_list ty with 
@@ -2903,11 +3236,19 @@ Module FCore(Debug : DEBUG).
             end
           end
         | OpSeq skel seq =>  
+          Debug.log_nat_opt 11 
           match ana_skel_fix_holes fuel ctx u_gen renumber_empty_holes skel seq ty with 
           | None => None
           | Some (Skel.Placeholder _ _, _, _) => None
           | Some ((Skel.BinOp err _ _ _) as skel, seq, u_gen) => 
-            Some (err, OpSeq skel seq, u_gen)
+            match err with 
+            | NotInHole => 
+              Debug.log_nat_opt 4 (Some (err, OpSeq skel seq, u_gen))
+            | (InHole WrongLength _) => 
+              Debug.log_nat_opt 5 (Some (err, OpSeq skel seq, u_gen))
+            | (InHole _ _) => 
+              Debug.log_nat_opt 6 (Some (err, OpSeq skel seq, u_gen))
+            end
           end
         | EmptyHole _ 
         | Asc _ _
@@ -2921,7 +3262,7 @@ Module FCore(Debug : DEBUG).
               Some (NotInHole, e', u_gen')
             else 
               let (u, u_gen'') := MetaVarGen.next u_gen' in 
-              Some (InHole u, e', u_gen'')
+              Some (InHole TypeInconsistent u, e', u_gen'')
           | None => None
           end
         end
@@ -2990,7 +3331,7 @@ Module FCore(Debug : DEBUG).
             | None =>
               match ana_skel_fix_holes fuel ctx u_gen1 renumber_empty_holes skel2 seq1 HTyp.Hole with 
               | Some (skel2', seq2, u_gen2) => 
-                match UHExp.put_skel_in_new_hole u_gen2 skel1' seq2 with 
+                match UHExp.make_skel_inconsistent u_gen2 skel1' seq2 with 
                 | Some (skel1'', seq3, u_gen3) => 
                   Some (Skel.BinOp NotInHole Space skel1'' skel2', seq3, HTyp.Hole, u_gen3)
                 | None => None
@@ -3057,27 +3398,94 @@ Module FCore(Debug : DEBUG).
             end
           end
         | Skel.BinOp _ UHExp.Comma skel1 skel2 => 
-          match HTyp.matched_prod ty with 
-          | Some (ty1, ty2) => 
-            match ana_skel_fix_holes fuel ctx u_gen renumber_empty_holes skel1 seq ty1 with 
+          match ty with 
+          | HTyp.Hole => 
+            match ana_skel_fix_holes fuel ctx u_gen renumber_empty_holes skel1 seq HTyp.Hole with 
             | None => None
             | Some (skel1, seq, u_gen) => 
-              match ana_skel_fix_holes fuel ctx u_gen renumber_empty_holes skel2 seq ty2 with 
+              match ana_skel_fix_holes fuel ctx u_gen renumber_empty_holes skel2 seq HTyp.Hole with 
               | None => None
               | Some (skel2, seq, u_gen) => 
-                let skel := Skel.BinOp NotInHole Comma skel1 skel2 in 
+                let skel := Skel.BinOp NotInHole UHExp.Comma skel1 skel2 in 
                 Some (skel, seq, u_gen)
               end
             end
-          | None => 
+          | HTyp.Prod ty1 ty2 => 
+            let types := HTyp.get_tuple ty1 ty2 in 
+            let skels := UHExp.get_tuple skel1 skel2 in 
+            let num_types := Debug.log_nat(List.length types) in 
+            let num_skels := Debug.log_nat(List.length skels) in 
+            match Util.zip_eq skels types with 
+            | Some zipped => 
+              let fixed := 
+                List.fold_right (fun (skel_ty : UHExp.skel_t * HTyp.t) opt_result => 
+                  match opt_result with 
+                  | None => None
+                  | Some (skels, seq, u_gen) => 
+                    let (skel, ty) := skel_ty in 
+                    match ana_skel_fix_holes fuel ctx u_gen renumber_empty_holes skel seq ty with 
+                    | None => None
+                    | Some (skel, seq, u_gen) => 
+                      Some (cons skel skels, seq, u_gen)
+                    end
+                  end) (Some (nil, seq, u_gen)) zipped in 
+              match fixed with 
+              | None => None
+              | Some (skels, seq, u_gen) => 
+                match UHExp.make_tuple NotInHole skels with 
+                | None => None
+                | Some skel => Some (skel, seq, u_gen)
+                end
+              end
+            | None => 
+              let (zipped, remainder) := HTyp.zip_with_skels skels types in 
+              let fixed1 := 
+                List.fold_right (fun (skel_ty : UHExp.skel_t * HTyp.t) opt_result => 
+                  match opt_result with 
+                  | None => None
+                  | Some (skels, seq, u_gen) => 
+                    let (skel, ty) := skel_ty in 
+                    match ana_skel_fix_holes fuel ctx u_gen renumber_empty_holes skel seq ty with 
+                    | None => None
+                    | Some (skel, seq, u_gen) => 
+                      Some (cons skel skels, seq, u_gen)
+                    end
+                  end) (Some (nil, seq, u_gen)) zipped in 
+              match fixed1 with 
+              | None => None
+              | Some (skels1, seq, u_gen) => 
+                let fixed2 := 
+                  List.fold_right (fun (skel : UHExp.skel_t) opt_result => 
+                    match opt_result with 
+                    | None => None
+                    | Some (skels, seq, u_gen) => 
+                      match syn_skel_fix_holes fuel ctx u_gen renumber_empty_holes skel seq with 
+                      | None => None
+                      | Some (skel, seq, ty, u_gen) => 
+                        Some (cons skel skels, seq, u_gen)
+                      end
+                    end) (Some (nil, seq, u_gen)) remainder in 
+                match fixed2 with 
+                | None => None
+                | Some (skels2, seq, u_gen) => 
+                  let skels := skels1 ++ skels2 in 
+                  let (u, u_gen) := MetaVarGen.next u_gen in 
+                  match UHExp.make_tuple (InHole WrongLength u) skels with
+                  | None => None
+                  | Some skel => Some (skel, seq, u_gen)
+                  end
+                end
+              end
+            end
+          | _ => 
             match syn_skel_fix_holes fuel ctx u_gen renumber_empty_holes skel1 seq with 
             | None => None
             | Some (skel1, seq, _, u_gen) => 
               match syn_skel_fix_holes fuel ctx u_gen renumber_empty_holes skel2 seq with 
               | None => None
-              | Some (skel2, seq, _, u_gen) =>
+              | Some (skel2, seq, _, u_gen) => 
                 let (u, u_gen) := MetaVarGen.next u_gen in 
-                let skel := Skel.BinOp (InHole u) Comma skel1 skel2 in 
+                let skel := Skel.BinOp (InHole TypeInconsistent u) UHExp.Comma skel1 skel2 in 
                 Some (skel, seq, u_gen)
               end
             end
@@ -3105,7 +3513,7 @@ Module FCore(Debug : DEBUG).
               | None => None
               | Some (skel2, seq, u_gen) => 
                 let (u, u_gen) := MetaVarGen.next u_gen in 
-                let skel := Skel.BinOp (InHole u) Cons skel1 skel2 in 
+                let skel := Skel.BinOp (InHole TypeInconsistent u) Cons skel1 skel2 in 
                 Some (skel, seq, u_gen)
               end
             end
@@ -3118,7 +3526,7 @@ Module FCore(Debug : DEBUG).
           | Some (skel', seq', ty', u_gen') => 
             if HTyp.consistent ty ty' then Some (skel', seq', u_gen')
             else 
-              put_skel_in_new_hole u_gen' skel' seq'
+              make_skel_inconsistent u_gen' skel' seq'
           | None => None
           end
         end
@@ -3267,6 +3675,7 @@ Module FCore(Debug : DEBUG).
       match uty with 
       | UHTyp.Hole
       | UHTyp.Parenthesized _
+      | UHTyp.Unit
       | UHTyp.Num
       | UHTyp.Bool
       | UHTyp.List _ => CursorT Before uty
@@ -3280,6 +3689,7 @@ Module FCore(Debug : DEBUG).
       match uty with 
       | UHTyp.Hole 
       | UHTyp.Parenthesized _
+      | UHTyp.Unit
       | UHTyp.Num
       | UHTyp.Bool 
       | UHTyp.List _ => CursorT After uty
@@ -3353,37 +3763,35 @@ Module FCore(Debug : DEBUG).
       let (hole, u_gen) := UHPat.new_EmptyHole u_gen in 
       (CursorP Before hole, u_gen).
 
-    Fixpoint put_in_hole
+    Fixpoint set_inconsistent
       (u : MetaVar.t)
       (zp : t)
       : t :=
         match zp with 
         | CursorP cursor_side p => 
-          let p := UHPat.put_in_hole u p in 
+          let p := UHPat.set_inconsistent u p in 
           (CursorP cursor_side p)
-        | Deeper (InHole _) zp' => 
-          Deeper (InHole u) zp'
-        | Deeper NotInHole zp' => 
-          Deeper (InHole u) zp'
+        | Deeper _ zp' => 
+          Deeper (InHole TypeInconsistent u) zp'
         | ParenthesizedZ zp1 => 
-          ParenthesizedZ (put_in_hole u zp1)
+          ParenthesizedZ (set_inconsistent u zp1)
         end.
 
-    Fixpoint put_in_new_hole 
+    Fixpoint make_inconsistent 
       (u_gen : MetaVarGen.t)
       (zp : t) 
       : (t * MetaVarGen.t) := 
         match zp with 
         | CursorP cursor_side p => 
-          let (p, u_gen) := UHPat.put_in_new_hole u_gen p in  
+          let (p, u_gen) := UHPat.make_inconsistent u_gen p in  
           (CursorP cursor_side p, u_gen)
-        | Deeper (InHole _) _ => 
+        | Deeper (InHole TypeInconsistent _) _ => 
           (zp, u_gen)
-        | Deeper NotInHole zp' => 
+        | Deeper _ zp' => 
           let (u, u_gen) := MetaVarGen.next u_gen in 
-          (Deeper (InHole u) zp', u_gen)
+          (Deeper (InHole TypeInconsistent u) zp', u_gen)
         | ParenthesizedZ zp1 => 
-          let (zp1, u_gen) := put_in_new_hole u_gen zp1 in 
+          let (zp1, u_gen) := make_inconsistent u_gen zp1 in 
           (ParenthesizedZ zp1, u_gen)
         end.
 
@@ -3505,37 +3913,35 @@ Module FCore(Debug : DEBUG).
         ParenthesizedZ ze
       end.
 
-    Fixpoint put_in_hole
+    Fixpoint set_inconsistent
       (u : MetaVar.t)
       (ze : t)
       : t :=
         match ze with 
         | CursorE cursor_side e => 
-          let e' := UHExp.put_in_hole u e in 
+          let e' := UHExp.set_inconsistent u e in 
           (CursorE cursor_side e')
-        | Deeper (InHole _) ze' => 
-          Deeper (InHole u) ze'
-        | Deeper NotInHole ze' => 
-          Deeper (InHole u) ze'
+        | Deeper _ ze' => 
+          Deeper (InHole TypeInconsistent u) ze'
         | ParenthesizedZ ze1 => 
-          ParenthesizedZ (put_in_hole u ze1)
+          ParenthesizedZ (set_inconsistent u ze1)
         end.
 
-    Fixpoint put_in_new_hole 
+    Fixpoint make_inconsistent 
       (u_gen : MetaVarGen.t)
       (ze : t) 
       : (t * MetaVarGen.t) := 
         match ze with 
         | CursorE cursor_side e => 
-          let (e', u_gen') := UHExp.put_in_new_hole u_gen e in  
+          let (e', u_gen') := UHExp.make_inconsistent u_gen e in  
           (CursorE cursor_side e', u_gen')
-        | Deeper (InHole _) _ => 
+        | Deeper (InHole TypeInconsistent _) _ => 
           (ze, u_gen)
-        | Deeper NotInHole ze' => 
+        | Deeper _ ze' => 
           let (u', u_gen') := MetaVarGen.next u_gen in 
-          (Deeper (InHole u') ze', u_gen')
+          (Deeper (InHole TypeInconsistent u') ze', u_gen')
         | ParenthesizedZ ze1 => 
-          let (ze1', u_gen') := put_in_new_hole u_gen ze1 in 
+          let (ze1', u_gen') := make_inconsistent u_gen ze1 in 
           (ParenthesizedZ ze1, u_gen')
         end.
 
@@ -3602,9 +4008,12 @@ Module FCore(Debug : DEBUG).
     (* cursor in analytic position *)
     | AnaOnly : HTyp.t -> cursor_mode
     | AnaAnnotatedLambda : HTyp.t -> HTyp.t -> cursor_mode 
-    | TypeInconsistent : HTyp.t -> HTyp.t -> cursor_mode
+    | AnaTypeInconsistent : HTyp.t -> HTyp.t -> cursor_mode
+    | AnaWrongLength : 
+        nat (* expected length *) -> nat (* got length *) 
+        -> HTyp.t (* expected type *) -> cursor_mode 
     | AnaFree : HTyp.t -> cursor_mode
-    | Subsumed : HTyp.t -> HTyp.t -> cursor_mode
+    | AnaSubsumed : HTyp.t -> HTyp.t -> cursor_mode
     (* cursor in synthetic position *)
     | SynOnly : HTyp.t -> cursor_mode
     | SynFree : cursor_mode
@@ -3615,8 +4024,11 @@ Module FCore(Debug : DEBUG).
     | TypePosition : cursor_mode
     (* cursor in analytic pattern position *)
     | PatAnaOnly : HTyp.t -> cursor_mode
-    | PatTypeInconsistent : HTyp.t -> HTyp.t -> cursor_mode
-    | PatSubsumed : HTyp.t -> HTyp.t -> cursor_mode
+    | PatAnaTypeInconsistent : HTyp.t -> HTyp.t -> cursor_mode
+    | PatAnaWrongLength : 
+        nat (* expected length *) -> nat (* got length *) 
+        -> HTyp.t (* expected type *) -> cursor_mode 
+    | PatAnaSubsumed : HTyp.t -> HTyp.t -> cursor_mode
     (* cursor in synthetic pattern position *)
     | PatSynOnly : HTyp.t -> cursor_mode.
 
@@ -3655,13 +4067,13 @@ Module FCore(Debug : DEBUG).
           | Some ci => 
             Some (update_sort ci (IsPat p))
           end
-        | UHPat.Pat (InHole _) p' => 
+        | UHPat.Pat (InHole TypeInconsistent _) p' => 
           match UHExp.syn_pat' fuel ctx p' with 
           | None => None
           | Some (ty', _) => 
             Some 
               (mk_cursor_info
-                (PatTypeInconsistent ty ty')
+                (PatAnaTypeInconsistent ty ty')
                 (IsPat p)
                 side
                 ctx)
@@ -3669,7 +4081,7 @@ Module FCore(Debug : DEBUG).
         | UHPat.Pat NotInHole (UHPat.EmptyHole _) => 
           Some 
             (mk_cursor_info
-              (PatSubsumed ty HTyp.Hole)
+              (PatAnaSubsumed ty HTyp.Hole)
               (IsPat p)
               side
               ctx)
@@ -3684,28 +4096,24 @@ Module FCore(Debug : DEBUG).
         | UHPat.Pat NotInHole (UHPat.NumLit _) => 
           Some
             (mk_cursor_info
-              (PatSubsumed ty HTyp.Num)
+              (PatAnaSubsumed ty HTyp.Num)
               (IsPat p)
               side
               ctx)
         | UHPat.Pat NotInhole (UHPat.BoolLit _) => 
           Some
             (mk_cursor_info 
-              (PatSubsumed ty HTyp.Bool)
+              (PatAnaSubsumed ty HTyp.Bool)
               (IsPat p)
               side
               ctx)
         | UHPat.Pat NotInHole (UHPat.Inj _ _) => 
-          match UHExp.syn_pat fuel ctx p with 
-          | None => None
-          | Some (ty', _) => 
             Some
               (mk_cursor_info
-                (PatSubsumed ty ty')
+                (PatAnaOnly ty)
                 (IsPat p)
                 side
                 ctx)
-          end
         | UHPat.Pat NotInHole UHPat.ListNil => 
           Some
             (mk_cursor_info 
@@ -3727,7 +4135,21 @@ Module FCore(Debug : DEBUG).
               (IsPat p)
               side
               ctx)
-        | UHPat.Pat NotInHole (UHPat.OpSeq (Skel.BinOp (InHole_) Comma skel1 skel2) seq) => None 
+        | UHPat.Pat (InHole WrongLength _) (UHPat.OpSeq (Skel.BinOp (InHole WrongLength _) Comma skel1 skel2) _) => 
+          match ty with 
+          | HTyp.Prod ty1 ty2 => 
+            let n_elts := List.length (UHPat.get_tuple skel1 skel2) in 
+            let n_types := List.length (HTyp.get_tuple ty1 ty2) in  
+            Some
+              (mk_cursor_info
+                (PatAnaWrongLength n_types n_elts ty)
+                (IsPat p)
+                side
+                ctx)
+          | _ => None
+          end
+        | UHPat.Pat (InHole WrongLength _) _ => None
+        | UHPat.Pat NotInHole (UHPat.OpSeq (Skel.BinOp (InHole _ _) Comma skel1 skel2) seq) => None 
         | UHPat.Pat NotInHole (UHPat.OpSeq (Skel.Placeholder _ _) _) => None
         end
         end.
@@ -3821,7 +4243,7 @@ Module FCore(Debug : DEBUG).
           if Nat.eqb n n' then 
             syn_pat_cursor_info fuel ctx zp1
           else None
-        | Skel.BinOp _ (UHPat.Comma) skel1 skel2 => 
+        | Skel.BinOp _ UHPat.Comma skel1 skel2 => 
           match syn_skel_pat_cursor_info fuel ctx skel1 seq n zp1 with 
           | (Some _) as result => result
           | None => syn_skel_pat_cursor_info fuel ctx skel2 seq n zp1 
@@ -3856,10 +4278,12 @@ Module FCore(Debug : DEBUG).
         match zp with  
         | ZPat.CursorP side p => 
           ana_pat_cursor_found fuel ctx p ty side
-        | ZPat.Deeper (InHole u) zp' => 
+        | ZPat.Deeper (InHole TypeInconsistent u) zp' => 
           syn_pat_cursor_info' fuel ctx zp'
-        | ZPat.Deeper NotInHole zp' => 
+        | ZPat.Deeper NotInHole zp' 
+        | ZPat.Deeper (InHole WrongLength _) ((ZPat.OpSeqZ (Skel.BinOp _ UHPat.Comma _ _) _ _) as zp') => 
           ana_pat_cursor_info' fuel ctx zp' ty
+        | ZPat.Deeper (InHole WrongLength _) _ => None
         | ZPat.ParenthesizedZ zp => 
           ana_pat_cursor_info fuel ctx zp ty
         end
@@ -3912,19 +4336,57 @@ Module FCore(Debug : DEBUG).
           if Nat.eqb n n' then 
             ana_pat_cursor_info fuel ctx zp1 ty
           else None
-        | Skel.BinOp (InHole _) _ skel1 skel2
-        | Skel.BinOp NotInHole UHPat.Space skel1 skel2 => 
+        | Skel.BinOp (InHole TypeInconsistent _) _ skel1 skel2 => 
           syn_skel_pat_cursor_info fuel ctx skel seq n zp1 
         | Skel.BinOp NotInHole UHPat.Comma skel1 skel2 => 
-          match HTyp.matched_prod ty with 
-          | None => None
-          | Some (ty1, ty2) => 
-            match ana_skel_pat_cursor_info fuel ctx skel1 seq n zp1 ty1 with 
+          match ty with 
+          | HTyp.Hole => 
+            match ana_skel_pat_cursor_info fuel ctx skel1 seq n zp1 HTyp.Hole with 
+            | (Some _) as result => result
+            | None => ana_skel_pat_cursor_info fuel ctx skel2 seq n zp1 HTyp.Hole 
+            end
+          | HTyp.Prod ty1 ty2 => 
+            let types := HTyp.get_tuple ty1 ty2 in 
+            let skels := UHPat.get_tuple skel1 skel2 in 
+            match Util.zip_eq skels types with 
+            | None => None
+            | Some zipped => 
+              List.fold_left (fun opt_result (skel_ty : UHPat.skel_t * HTyp.t) => 
+                match opt_result with 
+                | (Some _) as result => result
+                | None => 
+                  let (skel, ty) := skel_ty in 
+                  ana_skel_pat_cursor_info fuel ctx skel seq n zp1 ty
+                end) zipped None
+            end
+          | _ => None
+          end
+        | Skel.BinOp (InHole WrongLength _) UHPat.Comma skel1 skel2 => 
+          match ty with 
+          | HTyp.Prod ty1 ty2 =>  
+            let types := HTyp.get_tuple ty1 ty2 in 
+            let skels := UHPat.get_tuple skel1 skel2 in 
+            let (zipped, remainder) := HTyp.zip_with_skels skels types in 
+            let ana_zipped := 
+              List.fold_left (fun opt_result (skel_ty : UHPat.skel_t * HTyp.t) => 
+                match opt_result with 
+                | (Some _) as result => result
+                | None => 
+                  let (skel, ty) := skel_ty in 
+                  ana_skel_pat_cursor_info fuel ctx skel seq n zp1 ty
+                end) zipped None in 
+            match ana_zipped with 
             | (Some _) as result => result
             | None => 
-              ana_skel_pat_cursor_info fuel ctx skel2 seq n zp1 ty2
+              List.fold_left (fun opt_result skel => 
+                match opt_result with 
+                | (Some _) as result => result
+                | None => syn_skel_pat_cursor_info fuel ctx skel seq n zp1
+                end) remainder None
             end
+          | _ => None
           end
+        | Skel.BinOp (InHole WrongLength _) _ _ _ => None
         | Skel.BinOp NotInHole UHPat.Cons skel1 skel2 => 
           match HTyp.matched_list ty with 
           | None => None
@@ -3936,6 +4398,8 @@ Module FCore(Debug : DEBUG).
               ana_skel_pat_cursor_info fuel ctx skel2 seq n zp1 ty_list 
             end
           end
+        | Skel.BinOp NotInHole UHPat.Space _ _ => 
+          syn_skel_pat_cursor_info fuel ctx skel seq n zp1 
         end
         end.
 
@@ -3954,13 +4418,25 @@ Module FCore(Debug : DEBUG).
         | Some ci => 
           Some (update_sort ci (IsExpr e))
         end
-      | UHExp.Tm (InHole _) e' => 
+      | UHExp.Tm (InHole TypeInconsistent _) (UHExp.OpSeq (Skel.BinOp _ op skel1 skel2) surround) => 
+        let e' := UHExp.OpSeq (Skel.BinOp NotInHole op skel1 skel2) surround in 
+        match UHExp.syn' fuel ctx e' with 
+        | None => None
+        | Some ty' => 
+          Some 
+            (mk_cursor_info 
+              (AnaTypeInconsistent ty ty')
+              (IsExpr e)
+              side
+              ctx)
+        end
+      | UHExp.Tm (InHole TypeInconsistent _) e' => 
         match UHExp.syn' fuel ctx e' with 
         | None => None 
         | Some ty' => 
           Some (
             mk_cursor_info 
-              (TypeInconsistent ty ty')
+              (AnaTypeInconsistent ty ty')
               (IsExpr e)
               side
               ctx
@@ -3993,6 +4469,20 @@ Module FCore(Debug : DEBUG).
             (IsExpr e)
             side
             ctx)
+      | UHExp.Tm (InHole WrongLength _) (UHExp.OpSeq (Skel.BinOp (InHole WrongLength _) UHExp.Comma skel1 skel2) _) => 
+        match ty with 
+        | HTyp.Prod ty1 ty2 => 
+          let n_elts := List.length (UHExp.get_tuple skel1 skel2) in 
+          let n_types := List.length (HTyp.get_tuple ty1 ty2) in 
+          Some (mk_cursor_info
+            (AnaWrongLength n_types n_elts ty)
+            (IsExpr e)
+            side
+            ctx)
+        | _ => None
+        end
+      | UHExp.Tm (InHole WrongLength _) _ => None
+      | UHExp.Tm NotInHole (UHExp.OpSeq (Skel.BinOp (InHole WrongLength _) _ _ _) _) => None
       | UHExp.Tm NotInHole (UHExp.OpSeq (Skel.BinOp NotInHole UHExp.Plus _ _) _) 
       | UHExp.Tm NotInHole (UHExp.OpSeq (Skel.BinOp NotInHole UHExp.Times _ _) _)
       | UHExp.Tm NotInHole (UHExp.OpSeq (Skel.BinOp NotInHole UHExp.LessThan _ _) _)
@@ -4008,7 +4498,7 @@ Module FCore(Debug : DEBUG).
           if HTyp.consistent ty ty' then 
             Some (
               mk_cursor_info 
-                (Subsumed ty ty')
+                (AnaSubsumed ty ty')
                 (IsExpr e)
                 side
                 ctx
@@ -4054,29 +4544,9 @@ Module FCore(Debug : DEBUG).
               side
               ctx
           )
-        | _ => 
-          match UHExp.syn fuel ctx e with 
-          | Some ty' => 
-            if HTyp.consistent ty ty' then 
-              Some (
-                mk_cursor_info
-                  (Subsumed ty ty')
-                  (IsExpr e)
-                  side
-                  ctx
-              )
-            else None
-          | None => 
-            Some 
-              (mk_cursor_info
-                (AnaOnly ty)
-                (IsExpr e)
-                side
-                ctx
-              )
-          end
+        | _ => None 
         end
-      | UHExp.Tm NotInHole (UHExp.OpSeq (Skel.BinOp (InHole _) _ _ _) surround) => None
+      | UHExp.Tm NotInHole (UHExp.OpSeq (Skel.BinOp (InHole TypeInconsistent _) _ _ _) surround) => None
       | UHExp.Tm NotInHole (UHExp.OpSeq (Skel.Placeholder _ _) surround) => None
       end
       end.
@@ -4125,10 +4595,12 @@ Module FCore(Debug : DEBUG).
         ana_cursor_found fuel ctx e ty side
       | ParenthesizedZ ze1 => 
         ana_cursor_info fuel ctx ze1 ty 
-      | Deeper (InHole u) ze1' => 
+      | Deeper (InHole TypeInconsistent u) ze1' => 
         syn_cursor_info' fuel ctx ze1'
+      | Deeper (InHole WrongLength _) ((ZExp.OpSeqZ (Skel.BinOp _ UHExp.Comma _ _) _ _) as ze1') 
       | Deeper NotInHole ze1' => 
         ana_cursor_info' fuel ctx ze1' ty 
+      | Deeper (InHole WrongLength _) _ => None
       end
       end
     with syn_cursor_info'
@@ -4375,22 +4847,15 @@ Module FCore(Debug : DEBUG).
           let zrule := ZList.prj_z zrules in 
           ana_rule_cursor_info fuel ctx zrule ty1 ty
         end
-      | OpSeqZ ((Skel.BinOp NotInHole UHExp.Comma _ _) as skel) ze0 surround
-      | OpSeqZ ((Skel.BinOp NotInHole UHExp.Cons _ _) as skel) ze0 surround =>
+      | OpSeqZ skel ze0 surround => 
         let e0 := erase ze0 in 
         let seq := OperatorSeq.opseq_of_exp_and_surround e0 surround in 
         let n := OperatorSeq.surround_prefix_length surround in 
         ana_skel_cursor_info fuel ctx skel seq n ze0 ty 
-      | OpSeqZ (Skel.BinOp NotInHole UHExp.Plus _ _) _ _
-      | OpSeqZ (Skel.BinOp NotInHole UHExp.Times _ _) _ _ 
-      | OpSeqZ (Skel.BinOp NotInHole UHExp.LessThan _ _) _ _ 
-      | OpSeqZ (Skel.BinOp NotInHole UHExp.Space _ _) _ _ 
       | AscZ1 _ _ 
       | AscZ2 _ _ 
       | ApPaletteZ _ _ _ => 
         syn_cursor_info' fuel ctx ze 
-      | OpSeqZ (Skel.BinOp (InHole _) _ _ _) _ _
-      | OpSeqZ (Skel.Placeholder _ _) _ _ => None
       end
       end
     with ana_rule_cursor_info
@@ -4440,7 +4905,7 @@ Module FCore(Debug : DEBUG).
       | Skel.BinOp _ UHExp.Space ((Skel.Placeholder _ n') as skel1) skel2 => 
         if Nat.eqb n n' then 
           match cursor_on_outer_expr ze_n with 
-          | Some ((UHExp.Tm (InHole u) e_n') as e_n, side) => 
+          | Some ((UHExp.Tm (InHole TypeInconsistent u) e_n') as e_n, side) => 
             match UHExp.syn' fuel ctx e_n' with 
             | Some ty => Some 
                 (mk_cursor_info
@@ -4529,15 +4994,57 @@ Module FCore(Debug : DEBUG).
         if Nat.eqb n n' then 
           ana_cursor_info fuel ctx ze_n ty 
         else None
+      | Skel.BinOp (InHole TypeInconsistent _) _ _ _ => 
+        syn_skel_cursor_info fuel ctx skel seq n ze_n 
       | Skel.BinOp NotInHole UHExp.Comma skel1 skel2 => 
-        match HTyp.matched_prod ty with 
-        | None => None
-        | Some (ty1, ty2) => 
-          match ana_skel_cursor_info fuel ctx skel1 seq n ze_n ty1 with 
+        match ty with 
+        | HTyp.Hole => 
+          match ana_skel_cursor_info fuel ctx skel1 seq n ze_n HTyp.Hole with 
           | (Some _) as result => result
-          | None => ana_skel_cursor_info fuel ctx skel2 seq n ze_n ty2 
+          | None => ana_skel_cursor_info fuel ctx skel2 seq n ze_n HTyp.Hole 
           end
+        | HTyp.Prod ty1 ty2 => 
+          let types := HTyp.get_tuple ty1 ty2 in 
+          let skels := UHExp.get_tuple skel1 skel2 in 
+          match Util.zip_eq skels types with 
+          | None => None
+          | Some zipped => 
+            List.fold_left (fun opt_result (skel_ty : UHExp.skel_t * HTyp.t) => 
+              match opt_result with 
+              | (Some _) as result => result
+              | None => 
+                let (skel, ty) := skel_ty in 
+                ana_skel_cursor_info fuel ctx skel seq n ze_n ty
+              end) zipped None
+          end
+        | _ => None
         end
+      | Skel.BinOp (InHole WrongLength _) UHExp.Comma skel1 skel2 => 
+        match ty with 
+        | HTyp.Prod ty1 ty2 =>  
+          let types := HTyp.get_tuple ty1 ty2 in 
+          let skels := UHExp.get_tuple skel1 skel2 in 
+          let (zipped, remainder) := HTyp.zip_with_skels skels types in 
+          let ana_zipped := 
+            List.fold_left (fun opt_result (skel_ty : UHExp.skel_t * HTyp.t) => 
+              match opt_result with 
+              | (Some _) as result => result
+              | None => 
+                let (skel, ty) := skel_ty in 
+                ana_skel_cursor_info fuel ctx skel seq n ze_n ty
+              end) zipped None in 
+          match ana_zipped with 
+          | (Some _) as result => result
+          | None => 
+            List.fold_left (fun opt_result skel => 
+              match opt_result with 
+              | (Some _) as result => result
+              | None => syn_skel_cursor_info fuel ctx skel seq n ze_n
+              end) remainder None
+          end
+        | _ => None
+        end
+      | Skel.BinOp (InHole WrongLength _) _ _ _ => None
       | Skel.BinOp NotInHole UHExp.Cons skel1 skel2 => 
         match HTyp.matched_list ty with 
         | None => None
@@ -4549,7 +5056,6 @@ Module FCore(Debug : DEBUG).
             ana_skel_cursor_info fuel ctx skel2 seq n ze_n ty_list
           end
         end
-      | Skel.BinOp (InHole _) _ _ _
       | Skel.BinOp _ UHExp.Plus _ _
       | Skel.BinOp _ UHExp.Times _ _
       | Skel.BinOp _ UHExp.LessThan _ _
@@ -4653,6 +5159,7 @@ Module FCore(Debug : DEBUG).
       | (cons x xs, cursor_side) => 
         match uty with 
         | UHTyp.Hole
+        | UHTyp.Unit
         | UHTyp.Num
         | UHTyp.Bool => None
         | UHTyp.Parenthesized uty1 => 
@@ -5087,6 +5594,7 @@ Module FCore(Debug : DEBUG).
       | Fuel.More fuel =>
       match uty with
       | UHTyp.Parenthesized uty' => cons_opt O (first_hole_steps_ty fuel uty')
+      | UHTyp.Unit
       | UHTyp.Num 
       | UHTyp.Bool => None
       | UHTyp.Hole => Some nil
@@ -5530,6 +6038,7 @@ Module FCore(Debug : DEBUG).
       match uty with
       | UHTyp.Hole => Some nil
       | UHTyp.Parenthesized uty' => cons_opt 0 (last_hole_steps_ty fuel uty')
+      | UHTyp.Unit
       | UHTyp.Num 
       | UHTyp.Bool => None
       | UHTyp.List uty1 => cons_opt 0 (last_hole_steps_ty fuel uty1)
@@ -6985,12 +7494,13 @@ Module FCore(Debug : DEBUG).
         let seq := OperatorSeq.opseq_of_exp_and_surround p0 surround in 
         let skel := Associator.associate_pat seq in 
         match UHExp.ana_skel_pat_fix_holes fuel ctx u_gen false skel seq ty with 
-        | Some (skel, seq, ctx, u_gen) => 
-          let p := UHPat.Pat NotInHole (UHPat.OpSeq skel seq) in 
+        | Some ((Skel.BinOp err _ _ _) as skel, seq, ctx, u_gen) => 
+          let p := UHPat.Pat err (UHPat.OpSeq skel seq) in 
           match Path.follow_pat fuel path0 p with 
           | Some zp => Some (zp, ctx, u_gen)
           | None => None
           end
+        | Some (Skel.Placeholder _ _, _, _, _) 
         | None => None
         end.
 
@@ -7336,7 +7846,7 @@ Module FCore(Debug : DEBUG).
         | Some path => perform_ana_pat fuel ctx u_gen (MoveTo path) zp ty
         end
       (* switch to synthesis if in a hole *)
-      | (_, ZPat.Deeper (InHole u) zp1) => 
+      | (_, ZPat.Deeper (InHole TypeInconsistent u) zp1) => 
         let zp1_not_in_hole := ZPat.Deeper NotInHole zp1 in 
         let p1 := ZPat.erase zp1_not_in_hole in 
         match UHExp.syn_pat fuel ctx p1 with 
@@ -7348,7 +7858,7 @@ Module FCore(Debug : DEBUG).
             if HTyp.consistent ty ty' then 
               Some (zp1, ctx, u_gen)
             else 
-              Some (ZPat.put_in_hole u zp1, ctx, u_gen)
+              Some (ZPat.set_inconsistent u zp1, ctx, u_gen)
           end
         end
       (* Backspace and Delete *)
@@ -7427,7 +7937,7 @@ Module FCore(Debug : DEBUG).
           | Some (p1, _, ctx, u_gen) => 
             let (u, u_gen) := MetaVarGen.next u_gen in 
             let zp := 
-              ZPat.Deeper (InHole u)
+              ZPat.Deeper (InHole TypeInconsistent u)
                 (ZPat.InjZ side 
                   (ZPat.CursorP cursor_side p1)) in 
             Some (zp, ctx, u_gen)
@@ -7549,7 +8059,7 @@ Module FCore(Debug : DEBUG).
           if HTyp.consistent ty ty' then 
             Some (zp, ctx, u_gen)
           else 
-            let (zp, u_gen) := ZPat.put_in_new_hole u_gen zp in
+            let (zp, u_gen) := ZPat.make_inconsistent u_gen zp in
             Some (zp, ctx, u_gen)
         end
       (* Invalid actions at the pattern level *)
@@ -7643,12 +8153,13 @@ Module FCore(Debug : DEBUG).
         let seq := OperatorSeq.opseq_of_exp_and_surround e0 surround in 
         let skel := Associator.associate_exp seq in 
         match UHExp.ana_skel_fix_holes fuel ctx u_gen false skel seq ty with 
-        | Some (skel', seq', u_gen') => 
-          let e' := UHExp.Tm NotInHole (UHExp.OpSeq skel' seq') in 
-          match Path.follow_e fuel path0 e' with 
-          | Some ze' => Some (ze', u_gen')
+        | Some ((Skel.BinOp err _ _ _) as skel, seq, u_gen) => 
+          let e := UHExp.Tm err (UHExp.OpSeq skel seq) in 
+          match Path.follow_e fuel path0 e with 
+          | Some ze => Some (ze, u_gen)
           | None => None
           end
+        | Some (Skel.Placeholder _ _, _, _)  
         | None => None
         end.
 
@@ -8357,7 +8868,7 @@ Module FCore(Debug : DEBUG).
       | Fuel.Kicked => None
       | Fuel.More fuel =>
       match (a, ze) with
-      | (_, ZExp.Deeper (InHole u) ze1') => 
+      | (_, ZExp.Deeper (InHole TypeInconsistent u) ze1') => 
         let ze' := ZExp.Deeper NotInHole ze1' in 
         let e' := ZExp.erase ze' in 
         match UHExp.syn fuel ctx e' with
@@ -8367,7 +8878,7 @@ Module FCore(Debug : DEBUG).
             if HTyp.consistent ty1' ty then 
               Some (ze', u_gen')
             else 
-              Some (ZExp.put_in_hole u ze', u_gen')
+              Some (ZExp.set_inconsistent u ze', u_gen')
           | None => None
           end
         | None => None
@@ -8668,7 +9179,7 @@ Module FCore(Debug : DEBUG).
           | Some (e, _, u_gen) => 
             let (zp, u_gen) := ZPat.new_EmptyHole u_gen in 
             let (u, u_gen) := MetaVarGen.next u_gen in 
-            let ze := ZExp.Deeper (InHole u) (ZExp.LamZP zp None e) in 
+            let ze := ZExp.Deeper (InHole TypeInconsistent u) (ZExp.LamZP zp None e) in 
             Some (ze, u_gen)
           end
         end
@@ -8688,7 +9199,7 @@ Module FCore(Debug : DEBUG).
           | None => None
           | Some (e1, _, u_gen) => 
             let (u, u_gen) := MetaVarGen.next u_gen in 
-            let ze := ZExp.Deeper (InHole u) 
+            let ze := ZExp.Deeper (InHole TypeInconsistent u) 
               (ZExp.InjZ side 
                 (ZExp.CursorE cursor_side e1)) in 
             Some (ze, u_gen)
@@ -8980,7 +9491,7 @@ Module FCore(Debug : DEBUG).
                 | None => None
                 | Some (e1, _, u_gen) => 
                   let (u, u_gen) := MetaVarGen.next u_gen in 
-                  let ze := ZExp.Deeper (InHole u) (ZExp.LamZA p zann e1) in 
+                  let ze := ZExp.Deeper (InHole TypeInconsistent u) (ZExp.LamZA p zann e1) in 
                   Some (ze, u_gen)
                 end
               end
@@ -9132,7 +9643,7 @@ Module FCore(Debug : DEBUG).
             if HTyp.consistent ty ty1' then 
               Some (ze', u_gen') 
             else 
-              let (ze'', u_gen'') := ZExp.put_in_new_hole u_gen' ze' in 
+              let (ze'', u_gen'') := ZExp.make_inconsistent u_gen' ze' in 
               Some (ze'', u_gen'')
           | None => None
           end
@@ -9163,9 +9674,10 @@ Module FCore(Debug : DEBUG).
           match ZExp.mode ci with 
           | ZExp.AnaOnly _ => false
           | ZExp.AnaAnnotatedLambda _ _
-          | ZExp.TypeInconsistent _ _
+          | ZExp.AnaTypeInconsistent _ _
+          | ZExp.AnaWrongLength _ _ _
           | ZExp.AnaFree _
-          | ZExp.Subsumed _ _
+          | ZExp.AnaSubsumed _ _
           | ZExp.SynOnly _
           | ZExp.SynFree
           | ZExp.SynErrorArrow _ _
@@ -9173,8 +9685,9 @@ Module FCore(Debug : DEBUG).
           | ZExp.SynFreeArrow _ => true
           | ZExp.TypePosition => false
           | ZExp.PatAnaOnly _
-          | ZExp.PatTypeInconsistent _ _
-          | ZExp.PatSubsumed _ _
+          | ZExp.PatAnaTypeInconsistent _ _
+          | ZExp.PatAnaWrongLength _ _ _ 
+          | ZExp.PatAnaSubsumed _ _
           | ZExp.PatSynOnly _ => false
           end
         | Construct SListNil
@@ -9262,8 +9775,13 @@ Module FCore(Debug : DEBUG).
   End FAction.
 
   Module FDynamics (Associator : ASSOCIATOR).
+      Inductive hole_sort := 
+      | ExpressionHole : hole_sort
+      | PatternHole : hole_sort.
+
       Module Delta.
-        Definition t : Type := MetaVarMap.t (HTyp.t * VarCtx.t).
+        Definition t : Type := MetaVarMap.t (hole_sort * HTyp.t * VarCtx.t).
+        Definition empty : t := MetaVarMap.empty.
       End Delta.
 
       (* hole instance numbers are all 0 after expansion and during evaluation --
@@ -9273,7 +9791,7 @@ Module FCore(Debug : DEBUG).
       Module DHPat.
         Inductive t : Type :=
         | EmptyHole : MetaVar.t -> inst_num -> t
-        | NonEmptyHole : MetaVar.t -> inst_num -> t -> t
+        | NonEmptyHole : in_hole_reason -> MetaVar.t -> inst_num -> t -> t
         | Wild : t
         | Var : Var.t -> t
         | NumLit : nat -> t
@@ -9282,22 +9800,36 @@ Module FCore(Debug : DEBUG).
         | ListNil : t
         | Cons : t -> t -> t
         | Pair : t -> t -> t
-        | Spaced : t -> t -> t.
+        | Triv : t (* unit intro *)
+        | Ap : t -> t -> t.
+
+        Fixpoint make_tuple
+          (ds : list(t))
+          : t := 
+            match ds with 
+            | cons d1 (cons d2 nil) => Pair d1 d2
+            | cons d1 nil => d1
+            | cons d1 ds => 
+              let d2 := make_tuple ds in 
+              Pair d1 d2
+            | nil => Triv
+            end.
 
         (* whether dp contains the variable x outside of a hole *)
         Fixpoint binds_var (x : Var.t) (dp : t) : bool :=
           match dp with
           | EmptyHole _ _
-          | NonEmptyHole _ _ _
+          | NonEmptyHole _ _ _ _
           | Wild
           | NumLit _
           | BoolLit _
+          | Triv
           | ListNil => false
           | Var y => Var.eq x y
           | Inj _ dp1 => binds_var x dp1
           | Pair dp1 dp2 => binds_var x dp1 || binds_var x dp2
           | Cons dp1 dp2 => binds_var x dp1 || binds_var x dp2
-          | Spaced dp1 dp2 => false
+          | Ap dp1 dp2 => false
           end.
 
         Inductive expand_result : Type :=
@@ -9307,31 +9839,36 @@ Module FCore(Debug : DEBUG).
         Fixpoint syn_expand
           (fuel : Fuel.t)
           (ctx : Contexts.t)
+          (delta : Delta.t)
           (p : UHPat.t)
           : expand_result :=
           match fuel with
           | Fuel.Kicked => DoesNotExpand
           | Fuel.More fuel => let syn_expand := syn_expand fuel in
           match p with
-          | UHPat.Parenthesized p1 => syn_expand ctx p1
-          | UHPat.Pat NotInHole p' => syn_expand' fuel ctx p'
-          | UHPat.Pat (InHole u) p' =>
-            match syn_expand' fuel ctx p' with
+          | UHPat.Pat (InHole (TypeInconsistent as reason) u) p'
+          | UHPat.Pat (InHole (WrongLength as reason) u) 
+              ((UHPat.OpSeq (Skel.BinOp (InHole WrongLength _) UHPat.Comma _ _) _) as p') =>
+            match syn_expand' fuel ctx delta p' with
             | DoesNotExpand => DoesNotExpand
             | Expands dp _ ctx delta =>
-              let (gamma, _) := ctx in
-              let delta := MetaVarMap.extend delta (u, (HTyp.Hole, gamma)) in
+              let gamma := Contexts.gamma ctx in 
+              let delta := MetaVarMap.extend delta (u, (PatternHole, HTyp.Hole, gamma)) in
               Expands
-                (NonEmptyHole u 0 dp)
+                (NonEmptyHole reason u 0 dp)
                 HTyp.Hole
                 ctx
                 delta
             end
+          | UHPat.Pat (InHole WrongLength _) _ => DoesNotExpand
+          | UHPat.Pat NotInHole p' => syn_expand' fuel ctx delta p'
+          | UHPat.Parenthesized p1 => syn_expand ctx delta p1
           end
           end
         with syn_expand'
           (fuel : Fuel.t)
           (ctx : Contexts.t)
+          (delta : Delta.t)
           (p' : UHPat.t')
           : expand_result :=
           match fuel with
@@ -9342,20 +9879,16 @@ Module FCore(Debug : DEBUG).
             let gamma := Contexts.gamma ctx in
             let dp := EmptyHole u 0 in
             let ty := HTyp.Hole in
-            let delta := MetaVarMap.extend MetaVarMap.empty
-                         (u, (ty, gamma)) in
+            let delta := MetaVarMap.extend delta (u, (PatternHole, ty, gamma)) in
             Expands dp ty ctx delta
-          | UHPat.Wild => Expands Wild HTyp.Hole ctx MetaVarMap.empty
+          | UHPat.Wild => Expands Wild HTyp.Hole ctx delta
           | UHPat.Var x =>
-            if Var.is_valid x then
-              let ctx := Contexts.extend_gamma ctx (x, HTyp.Hole) in
-              Expands (Var x) HTyp.Hole ctx MetaVarMap.empty
-            else
-              DoesNotExpand
-          | UHPat.NumLit n => Expands (NumLit n) HTyp.Num ctx MetaVarMap.empty
-          | UHPat.BoolLit b => Expands (BoolLit b) HTyp.Bool ctx MetaVarMap.empty
+            let ctx := Contexts.extend_gamma ctx (x, HTyp.Hole) in
+            Expands (Var x) HTyp.Hole ctx delta
+          | UHPat.NumLit n => Expands (NumLit n) HTyp.Num ctx delta
+          | UHPat.BoolLit b => Expands (BoolLit b) HTyp.Bool ctx delta
           | UHPat.Inj side p =>
-            match syn_expand fuel ctx p with
+            match syn_expand fuel ctx delta p with
             | DoesNotExpand => DoesNotExpand
             | Expands dp1 ty1 ctx delta =>
               let dp := Inj side dp1 in
@@ -9366,13 +9899,14 @@ Module FCore(Debug : DEBUG).
                 end in
               Expands dp ty ctx delta
             end
-          | UHPat.ListNil => Expands ListNil (HTyp.List HTyp.Hole) ctx MetaVarMap.empty
-          | UHPat.OpSeq skel seq => syn_expand_skel fuel ctx skel seq
+          | UHPat.ListNil => Expands ListNil (HTyp.List HTyp.Hole) ctx delta
+          | UHPat.OpSeq skel seq => syn_expand_skel fuel ctx delta skel seq
           end
           end
         with syn_expand_skel
           (fuel : Fuel.t)
           (ctx : Contexts.t)
+          (delta : Delta.t)
           (skel : UHPat.skel_t)
           (seq : UHPat.opseq)
           : expand_result :=
@@ -9384,59 +9918,59 @@ Module FCore(Debug : DEBUG).
               match OperatorSeq.seq_nth n seq with
               | None => DoesNotExpand
               | Some pn =>
-                if UHPat.bidelimited pn then
-                  syn_expand fuel ctx pn
-                else
-                  DoesNotExpand
+                syn_expand fuel ctx delta pn
               end
-            | Skel.BinOp (InHole u) op skel1 skel2 =>
+            | Skel.BinOp (InHole (TypeInconsistent as reason) u) op skel1 skel2 
+            | Skel.BinOp (InHole (WrongLength as reason) u) (UHPat.Comma as op) skel1 skel2 => 
               let skel_not_in_hole := Skel.BinOp NotInHole op skel1 skel2 in
-              match syn_expand_skel ctx skel_not_in_hole seq with
+              match syn_expand_skel ctx delta skel_not_in_hole seq with
               | DoesNotExpand => DoesNotExpand
               | Expands dp _ ctx delta =>
                 let gamma := Contexts.gamma ctx in
-                let delta := MetaVarMap.extend delta (u, (HTyp.Hole, gamma)) in
+                let delta := MetaVarMap.extend delta (u, (PatternHole, HTyp.Hole, gamma)) in
                 Expands
-                  (NonEmptyHole u 0 dp)
+                  (NonEmptyHole reason u 0 dp)
                   HTyp.Hole
                   ctx
                   delta
               end
+            | Skel.BinOp (InHole WrongLength _) _ _ _ => DoesNotExpand
             | Skel.BinOp NotInHole UHPat.Comma skel1 skel2 =>
-              match syn_expand_skel ctx skel1 seq with
+              match syn_expand_skel ctx delta skel1 seq with
               | DoesNotExpand => DoesNotExpand
-              | Expands dp1 ty1 ctx delta1 =>
-                match syn_expand_skel ctx skel2 seq with
+              | Expands dp1 ty1 ctx delta =>
+                match syn_expand_skel ctx delta skel2 seq with
                 | DoesNotExpand => DoesNotExpand
-                | Expands dp2 ty2 ctx delta2 =>
-                  let delta := MetaVarMap.union delta1 delta2 in
+                | Expands dp2 ty2 ctx delta =>
                   let dp := Pair dp1 dp2 in
                   Expands dp (HTyp.Prod ty1 ty2) ctx delta
                 end
               end
             | Skel.BinOp NotInHole UHPat.Space skel1 skel2 =>
-              match syn_expand_skel ctx skel1 seq with
+              match syn_expand_skel ctx delta skel1 seq with
               | DoesNotExpand => DoesNotExpand
-              | Expands dp1 ty1 ctx delta1 =>
-                match syn_expand_skel ctx skel2 seq with
+              | Expands dp1 ty1 ctx delta =>
+                match syn_expand_skel ctx delta skel2 seq with
                 | DoesNotExpand => DoesNotExpand
-                | Expands dp2 ty2 ctx delta2 =>
-                  let delta := MetaVarMap.union delta1 delta2 in
-                  let dp := Spaced dp1 dp2 in
+                | Expands dp2 ty2 ctx delta =>
+                  let dp := Ap dp1 dp2 in
                   Expands dp HTyp.Hole ctx delta
                 end
               end
             | Skel.BinOp NotInHole UHPat.Cons skel1 skel2 =>
-              match syn_expand_skel ctx skel1 seq with
+              match syn_expand_skel ctx delta skel1 seq with
               | DoesNotExpand => DoesNotExpand
-              | Expands dp1 ty1 ctx delta1 =>
+              | Expands dp1 ty1 ctx delta =>
                 let ty := HTyp.List ty1 in
-                match ana_expand_skel fuel ctx skel2 seq ty with
+                match ana_expand_skel fuel ctx delta skel2 seq ty with
                 | DoesNotExpand => DoesNotExpand
-                | Expands dp2 _ ctx delta2 =>
-                  let delta := MetaVarMap.union delta1 delta2 in
-                  let dp := Cons dp1 dp2 in
-                  Expands dp ty ctx delta
+                | Expands dp2 ty' ctx delta =>
+                  match HTyp.join ty ty' with 
+                  | None => DoesNotExpand
+                  | Some ty => 
+                    let dp := Cons dp1 dp2 in
+                    Expands dp ty ctx delta
+                  end
                 end
               end
             end
@@ -9444,29 +9978,43 @@ Module FCore(Debug : DEBUG).
         with ana_expand
           (fuel : Fuel.t)
           (ctx : Contexts.t)
+          (delta : Delta.t)
           (p : UHPat.t)
           (ty : HTyp.t)
           : expand_result :=
             match fuel with
             | Fuel.Kicked => DoesNotExpand
-            | Fuel.More fuel => let ana_expand := ana_expand fuel in
+            | Fuel.More fuel => 
             match p with
-            | UHPat.Parenthesized p1 => ana_expand ctx p1 ty
-            | UHPat.Pat NotInHole p' => ana_expand' fuel ctx p' ty
-            | UHPat.Pat (InHole u) p' =>
-              match syn_expand' fuel ctx p' with
+            | UHPat.Pat NotInHole p' => 
+              ana_expand' fuel ctx delta p' ty
+            | UHPat.Pat (InHole (TypeInconsistent as reason) u) p' =>
+              match syn_expand' fuel ctx delta p' with
               | DoesNotExpand => DoesNotExpand
               | Expands dp1 _ ctx delta =>
-                let dp := NonEmptyHole u 0 dp1 in
-                let (gamma, _) := ctx in
-                let delta := MetaVarMap.extend delta (u, (ty, gamma)) in
+                let dp := NonEmptyHole reason u 0 dp1 in
+                let gamma := Contexts.gamma ctx in 
+                let delta := MetaVarMap.extend delta (u, (PatternHole, ty, gamma)) in
                 Expands dp ty ctx delta
               end
+            | UHPat.Pat (InHole (WrongLength as reason) u) 
+                ((UHPat.OpSeq (Skel.BinOp (InHole WrongLength _) UHPat.Comma _ _) _) as p') => 
+              match ana_expand' fuel ctx delta p' ty with 
+              | DoesNotExpand => DoesNotExpand
+              | Expands dp1 _ ctx delta => 
+                let dp := NonEmptyHole reason u 0 dp1 in 
+                let gamma := Contexts.gamma ctx in 
+                let delta := MetaVarMap.extend delta (u, (PatternHole, ty, gamma)) in 
+                Expands dp ty ctx delta
+              end
+            | UHPat.Pat (InHole WrongLength _) _ => DoesNotExpand
+            | UHPat.Parenthesized p => ana_expand fuel ctx delta p ty
             end
             end
         with ana_expand'
           (fuel : Fuel.t)
           (ctx : Contexts.t)
+          (delta : Delta.t)
           (p' : UHPat.t')
           (ty : HTyp.t)
           : expand_result :=
@@ -9477,102 +10025,145 @@ Module FCore(Debug : DEBUG).
             | UHPat.EmptyHole u =>
               let gamma := Contexts.gamma ctx in
               let dp := EmptyHole u 0 in
-              let delta := MetaVarMap.extend MetaVarMap.empty
-                                             (u, (ty, gamma)) in
+              let delta := MetaVarMap.extend delta (u, (PatternHole, ty, gamma)) in
               Expands dp ty ctx delta
             | UHPat.Var x =>
-              if Var.is_valid x then
-                let ctx := Contexts.extend_gamma ctx (x, ty) in
-                Expands (DHPat.Var x) ty ctx MetaVarMap.empty
-              else
-                DoesNotExpand
-            | UHPat.Wild
+              let ctx := Contexts.extend_gamma ctx (x, ty) in
+              Expands (DHPat.Var x) ty ctx delta
+            | UHPat.Wild => 
+              Expands DHPat.Wild ty ctx delta
             | UHPat.NumLit _
-            | UHPat.BoolLit _ =>
-              match syn_expand' fuel ctx p' with
-              | DoesNotExpand => DoesNotExpand
-              | Expands dp ty1 ctx delta =>
-                if HTyp.consistent ty ty1 then
-                  Expands dp ty1 ctx delta
-                else
-                  DoesNotExpand
-              end
+            | UHPat.BoolLit _ => syn_expand' fuel ctx delta p'
             | UHPat.Inj side p1 =>
               match HTyp.matched_sum ty with
               | None => DoesNotExpand
               | Some (tyL, tyR) =>
                 let ty1 := pick_side side tyL tyR in
-                ana_expand fuel ctx p1 ty1
+                match ana_expand fuel ctx delta p1 ty1 with 
+                | DoesNotExpand => DoesNotExpand
+                | Expands dp1 ty1 ctx delta => 
+                  let ty := 
+                    match side with 
+                    | L => HTyp.Sum ty1 tyR
+                    | R => HTyp.Sum tyL ty1
+                    end in 
+                  Expands (DHPat.Inj side dp1) ty ctx delta
+                end
               end
             | UHPat.ListNil =>
               match HTyp.matched_list ty with
               | None => DoesNotExpand
-              | Some ty_elt => Expands ListNil (HTyp.List ty_elt) ctx MetaVarMap.empty
+              | Some ty_elt => Expands ListNil (HTyp.List ty_elt) ctx delta
               end
-            | UHPat.OpSeq skel seq => ana_expand_skel fuel ctx skel seq ty
+            | UHPat.OpSeq skel seq => ana_expand_skel fuel ctx delta skel seq ty
             end
             end
         with ana_expand_skel
           (fuel : Fuel.t)
           (ctx : Contexts.t)
+          (delta : Delta.t)
           (skel : UHPat.skel_t)
           (seq : UHPat.opseq)
           (ty : HTyp.t)
           : expand_result :=
             match fuel with
             | Fuel.Kicked => DoesNotExpand
-            | Fuel.More fuel => let ana_expand_skel := ana_expand_skel fuel in
+            | Fuel.More fuel => 
             match skel with
             | Skel.Placeholder _ n =>
               match OperatorSeq.seq_nth n seq with
               | None => DoesNotExpand
-              | Some pn =>
-                if UHPat.bidelimited pn then
-                  ana_expand fuel ctx pn ty
-                else
-                  DoesNotExpand
+              | Some pn => ana_expand fuel ctx delta pn ty
               end
-            | Skel.BinOp (InHole u) op skel1 skel2 =>
+            | Skel.BinOp (InHole (TypeInconsistent as reason) u) op skel1 skel2 =>
               let skel_not_in_hole := Skel.BinOp NotInHole op skel1 skel2 in
-              match syn_expand_skel fuel ctx skel_not_in_hole seq with
+              match syn_expand_skel fuel ctx delta skel_not_in_hole seq with
               | DoesNotExpand => DoesNotExpand
-              | Expands dp1 _ ctx delta1 =>
-                let dp := DHPat.NonEmptyHole u 0 dp1 in
+              | Expands dp1 _ ctx delta =>
+                let dp := DHPat.NonEmptyHole reason u 0 dp1 in
                 let gamma := Contexts.gamma ctx in
-                let delta := MetaVarMap.extend delta1 (u, (ty, gamma)) in
+                let delta := MetaVarMap.extend delta (u, (PatternHole, ty, gamma)) in
                 Expands dp ty ctx delta
               end
             | Skel.BinOp NotInHole UHPat.Comma skel1 skel2 =>
               match HTyp.matched_prod ty with
               | None => DoesNotExpand
               | Some (ty1, ty2) =>
-                match ana_expand_skel ctx skel1 seq ty1 with
+                match ana_expand_skel fuel ctx delta skel1 seq ty1 with
                 | DoesNotExpand => DoesNotExpand
-                | Expands dp1 ty1 ctx delta1 =>
-                  match ana_expand_skel ctx skel2 seq ty2 with
+                | Expands dp1 ty1 ctx delta =>
+                  match ana_expand_skel fuel ctx delta skel2 seq ty2 with
                   | DoesNotExpand => DoesNotExpand
-                  | Expands dp2 ty2 ctx delta2 =>
+                  | Expands dp2 ty2 ctx delta =>
                     let dp := Pair dp1 dp2 in
-                    let delta := MetaVarMap.union delta1 delta2 in
-                    Expands dp ty ctx delta
+                    Expands dp (HTyp.Prod ty1 ty2) ctx delta
                   end
                 end
               end
+            | Skel.BinOp (InHole WrongLength u) (UHPat.Comma as op) skel1 skel2 => 
+              match ty with 
+              | HTyp.Prod ty1 ty2 => 
+                let types := HTyp.get_tuple ty1 ty2 in 
+                let skels := UHPat.get_tuple skel1 skel2 in 
+                let (zipped, remainder) := HTyp.zip_with_skels skels types in 
+                let processed1 := 
+                  List.fold_right (fun (skel_ty : UHPat.skel_t * HTyp.t) opt_result => 
+                    match opt_result with 
+                    | None => None
+                    | Some (elts, ctx, delta) => 
+                      let (skel, ty) := skel_ty in 
+                      match ana_expand_skel fuel ctx delta skel seq ty with 
+                      | DoesNotExpand => None
+                      | Expands dp ty ctx delta => 
+                        Some (cons (dp, ty) elts, ctx, delta)
+                      end
+                    end) (Some (nil, ctx, delta)) zipped in 
+                match processed1 with 
+                | None => DoesNotExpand
+                | Some (elts1, ctx, delta) => 
+                  let processed2 := 
+                    List.fold_right (fun (skel : UHPat.skel_t) opt_result => 
+                      match opt_result with 
+                      | None => None
+                      | Some (elts, ctx, delta) => 
+                        match syn_expand_skel fuel ctx delta skel seq with 
+                        | DoesNotExpand => None
+                        | Expands dp ty ctx delta => 
+                          Some (cons (dp, ty) elts, ctx, delta)
+                        end
+                      end) (Some (nil, ctx, delta)) remainder in 
+                  match processed2 with 
+                  | None => DoesNotExpand
+                  | Some (elts2, ctx, delta) => 
+                    let (ds, tys) := Util.unzip (elts1 ++ elts2) in 
+                    let d := make_tuple ds in 
+                    let ty := HTyp.make_tuple tys in 
+                    Expands d ty ctx delta
+                  end
+                end
+              | _ => DoesNotExpand
+              end
+            | Skel.BinOp (InHole WrongLength _) _ _ _ => DoesNotExpand
             | Skel.BinOp NotInHole UHPat.Space skel1 skel2 => DoesNotExpand
             | Skel.BinOp NotInHole UHPat.Cons skel1 skel2 =>
               match HTyp.matched_list ty with
               | None => DoesNotExpand
               | Some ty_elt =>
-                match ana_expand_skel ctx skel1 seq ty_elt with
+                match ana_expand_skel fuel ctx delta skel1 seq ty_elt with
                 | DoesNotExpand => DoesNotExpand
-                | Expands dp1 _ ctx delta1 =>
+                | Expands dp1 ty_elt' ctx delta =>
                   let ty_list := HTyp.List ty_elt in
-                  match ana_expand_skel ctx skel2 seq ty_list with
+                  match ana_expand_skel fuel ctx delta skel2 seq ty_list with
                   | DoesNotExpand => DoesNotExpand
-                  | Expands dp2 _ ctx delta2 =>
-                    let delta := MetaVarMap.union delta1 delta2 in
-                    let dp := Cons dp1 dp2 in
-                    Expands dp ty_list ctx delta
+                  | Expands dp2 (HTyp.List ty_elt'') ctx delta =>
+                    match HTyp.join ty_elt' ty_elt'' with 
+                    | None => DoesNotExpand
+                    | Some ty_elt => 
+                      let ty := HTyp.List ty_elt in 
+                      let dp := Cons dp1 dp2 in
+                      Expands dp ty ctx delta
+                    end
+                  | Expands _ _ _ _ => DoesNotExpand 
                   end
                 end
               end
@@ -9591,12 +10182,16 @@ Module FCore(Debug : DEBUG).
           | UHExp.Plus => Some (Plus, HTyp.Num)
           | UHExp.Times => Some (Times, HTyp.Num)
           | UHExp.LessThan => Some (LessThan, HTyp.Bool)
-          | _ => None
+          | UHExp.Space 
+          | UHExp.Cons 
+          | UHExp.Comma => None
           end.
 
         Inductive t : Type := 
-        | BoundVar : Var.t -> t
+        | EmptyHole : MetaVar.t -> inst_num -> VarMap.t_(t) -> t 
+        | NonEmptyHole : in_hole_reason -> MetaVar.t -> inst_num -> VarMap.t_(t) -> t -> t
         | FreeVar : MetaVar.t -> inst_num -> VarMap.t_(t) -> Var.t -> t
+        | BoundVar : Var.t -> t
         | Let : DHPat.t -> t -> t -> t
         | FixF : Var.t -> HTyp.t -> t -> t
         | Lam : DHPat.t -> HTyp.t -> t -> t
@@ -9608,16 +10203,32 @@ Module FCore(Debug : DEBUG).
         | Cons : t -> t -> t
         | Inj : HTyp.t -> inj_side -> t -> t
         | Pair : t -> t -> t
+        | Triv : t
         | Case : t -> list(rule) -> nat -> t
-        | EmptyHole : MetaVar.t -> inst_num -> VarMap.t_(t) -> t 
-        | NonEmptyHole : MetaVar.t -> inst_num -> VarMap.t_(t) -> t -> t
         | Cast : t -> HTyp.t -> HTyp.t -> t
         | FailedCast : t -> HTyp.t -> HTyp.t -> t
         with rule : Type :=
         | Rule : DHPat.t -> t -> rule.
 
+        Fixpoint make_tuple
+          (ds : list(t))
+          : t := 
+            match ds with 
+            | cons d1 (cons d2 nil) => Pair d1 d2
+            | cons d1 nil => d1
+            | cons d1 ds => 
+              let d2 := make_tuple ds in 
+              Pair d1 d2
+            | nil => Triv
+            end.
+
         Definition cast (d : t) (t1 : HTyp.t) (t2 : HTyp.t) : t := 
           if HTyp.eq t1 t2 then d else Cast d t1 t2.
+
+        Definition apply_casts (d : t) (casts : list(HTyp.t * HTyp.t)) : t := 
+          List.fold_left (fun d (c : HTyp.t * HTyp.t) => 
+            let (ty1, ty2) := c in 
+            cast d ty1 ty2) casts d.
 
         Module Environment.
           Definition t : Type := VarMap.t_(t).
@@ -9649,7 +10260,8 @@ Module FCore(Debug : DEBUG).
               Ap d3 d4
             | BoolLit _
             | NumLit _
-            | ListNil => d2
+            | ListNil
+            | Triv => d2
             | Cons d3 d4 =>
               let d3 := subst_var d1 x d3 in
               let d4 := subst_var d1 x d4 in
@@ -9672,10 +10284,10 @@ Module FCore(Debug : DEBUG).
             | EmptyHole u i sigma => 
               let sigma' := subst_var_env fuel d1 x sigma in
               EmptyHole u i sigma' 
-            | NonEmptyHole u i sigma d3 => 
+            | NonEmptyHole reason u i sigma d3 => 
               let d3' := subst_var d1 x d3 in
               let sigma' := subst_var_env fuel d1 x sigma in
-              NonEmptyHole u i sigma' d3'
+              NonEmptyHole reason u i sigma' d3'
             | Cast d ty1 ty2 => 
               let d' := subst_var d1 x d in
               Cast d' ty1 ty2 
@@ -9729,127 +10341,247 @@ Module FCore(Debug : DEBUG).
           : match_result :=
           match fuel with
           | Fuel.Kicked => DoesNotMatch
-          | Fuel.More fuel => let matches := matches fuel in
+          | Fuel.More fuel => 
           match (dp, d) with
-          | (_, Cast d ty1 ty2) => matches_cast fuel dp d ty1 ty2
-          | (_, EmptyHole _ _ _)
-          | (_, NonEmptyHole _ _ _ _)
+          | (_, BoundVar _) => DoesNotMatch
           | (DHPat.EmptyHole _ _, _)
-          | (DHPat.NonEmptyHole _ _ _, _) => Indet
+          | (DHPat.NonEmptyHole _ _ _ _, _) => Indet
           | (DHPat.Wild, _) => Matches Environment.empty
           | (DHPat.Var x, _) =>
             let env := Environment.extend Environment.empty (x, d) in
             Matches env
+          | (_, EmptyHole _ _ _) => Indet
+          | (_, NonEmptyHole _ _ _ _ _) => Indet
+          | (_, FailedCast _ _ _) => Indet
+          | (_, FreeVar _ _ _ _) => Indet
+          | (_, Let _ _ _) => Indet
+          | (_, FixF _ _ _) => DoesNotMatch
+          | (_, Lam _ _ _) => DoesNotMatch
+          | (_, Ap _ _) => Indet
+          | (_, BinNumOp _ _ _) => Indet
+          | (_, Case _ _ _) => Indet
           | (DHPat.BoolLit b1, BoolLit b2) =>
             if Bool.eqb b1 b2 then Matches Environment.empty else DoesNotMatch
+          | (DHPat.BoolLit _, Cast d HTyp.Bool HTyp.Hole) => matches fuel dp d 
+          | (DHPat.BoolLit _, Cast d HTyp.Hole HTyp.Bool) => matches fuel dp d
           | (DHPat.BoolLit _, _) => DoesNotMatch
           | (DHPat.NumLit n1, NumLit n2) =>
             if Nat.eqb n1 n2 then Matches Environment.empty else DoesNotMatch
+          | (DHPat.NumLit _, Cast d HTyp.Num HTyp.Hole) => matches fuel dp d 
+          | (DHPat.NumLit _, Cast d HTyp.Hole HTyp.Num) => matches fuel dp d
           | (DHPat.NumLit _, _) => DoesNotMatch
           | (DHPat.Inj side1 dp, Inj _ side2 d) =>
             match (side1, side2) with
-            | (L, L) | (R, R) => matches dp d
+            | (L, L) | (R, R) => matches fuel dp d
             | _ => DoesNotMatch
             end
+          | (DHPat.Inj side dp, Cast d (HTyp.Sum tyL1 tyR1) (HTyp.Sum tyL2 tyR2)) => 
+            matches_cast_Inj fuel side dp d (cons (tyL1, tyR1, tyL2, tyR2) nil) 
+          | (DHPat.Inj _ _, Cast d (HTyp.Sum _ _) HTyp.Hole) => matches fuel dp d
+          | (DHPat.Inj _ _, Cast d HTyp.Hole (HTyp.Sum _ _)) => matches fuel dp d
           | (DHPat.Inj _ _, _) => DoesNotMatch
           | (DHPat.Pair dp1 dp2, Pair d1 d2) =>
-            match (matches dp1 d1, matches dp2 d2) with
-            | (DoesNotMatch, _)
-            | (_, DoesNotMatch) => DoesNotMatch
-            | (Indet, Indet)
-            | (Indet, Matches _)
-            | (Matches _, Indet) => Indet
-            | (Matches env1, Matches env2) => Matches (Environment.union env1 env2)
+            match matches fuel dp1 d1 with 
+            | DoesNotMatch => DoesNotMatch
+            | Indet => Indet
+            | Matches env1 => 
+              match matches fuel dp2 d2 with 
+              | DoesNotMatch => DoesNotMatch
+              | Indet => Indet
+              | Matches env2 => 
+                Matches (Environment.union env1 env2)
+              end
             end
+          | (DHPat.Pair dp1 dp2, Cast d (HTyp.Prod tyL1 tyR1) (HTyp.Prod tyL2 tyR2)) => 
+            matches_cast_Pair fuel dp1 dp2 d (cons (tyL1, tyL2) nil) (cons (tyR1, tyR2) nil)
+          | (DHPat.Pair dp1 dp2, Cast d HTyp.Hole (HTyp.Prod _ _)) => matches fuel dp d
+          | (DHPat.Pair dp1 dp2, Cast d (HTyp.Prod _ _) HTyp.Hole) => matches fuel dp d
           | (DHPat.Pair _ _, _) => DoesNotMatch
+          | (DHPat.Triv, Triv) => Matches Environment.empty
+          | (DHPat.Triv, Cast d HTyp.Hole HTyp.Unit) => matches fuel dp d
+          | (DHPat.Triv, Cast d HTyp.Unit HTyp.Hole) => matches fuel dp d
+          | (DHPat.Triv, _) => DoesNotMatch
           | (DHPat.ListNil, ListNil) => Matches Environment.empty
+          | (DHPat.ListNil, Cast d HTyp.Hole (HTyp.List _)) => matches fuel dp d
+          | (DHPat.ListNil, Cast d (HTyp.List _) HTyp.Hole) => matches fuel dp d
           | (DHPat.ListNil, _) => DoesNotMatch
           | (DHPat.Cons dp1 dp2, Cons d1 d2) =>
-            match matches dp1 d1 with
-            | Indet => Indet
+            match matches fuel dp1 d1 with
             | DoesNotMatch => DoesNotMatch
+            | Indet => Indet
             | Matches env1 =>
-              match matches dp2 d2 with
-              | Indet => Indet
+              match matches fuel dp2 d2 with
               | DoesNotMatch => DoesNotMatch
+              | Indet => Indet
               | Matches env2 =>
                 Matches (Environment.union env1 env2)
               end
             end
+          | (DHPat.Cons dp1 dp2, Cast d (HTyp.List ty1) (HTyp.List ty2)) => 
+            matches_cast_Cons fuel dp1 dp2 d (cons (ty1, ty2) nil)
+          | (DHPat.Cons _ _, Cast d HTyp.Hole (HTyp.List _)) => matches fuel dp d
+          | (DHPat.Cons _ _, Cast d (HTyp.List _) HTyp.Hole) => matches fuel dp d 
           | (DHPat.Cons _ _, _) => DoesNotMatch
-          | (DHPat.Spaced _ _, _) => DoesNotMatch
+          | (DHPat.Ap _ _, _) => DoesNotMatch
           end
           end
-        with matches_cast
+        with matches_cast_Inj
           (fuel : Fuel.t)
+          (side : inj_side) 
           (dp : DHPat.t)
           (d : t)
-          (ty1 : HTyp.t)
-          (ty2 : HTyp.t)
-          : match_result :=
-          match fuel with
-          | Fuel.Kicked => DoesNotMatch
-          | Fuel.More fuel => let matches_cast := matches_cast fuel in
-          match (dp, d, ty1, ty2) with
-          | (DHPat.EmptyHole _ _, _, _, _)
-          | (DHPat.NonEmptyHole _ _ _, _, _, _)
-          | (DHPat.Wild, _, _, _)
-          | (DHPat.Var _, _, _, _)
-          | (DHPat.BoolLit _, _, _, _)
-          | (DHPat.NumLit _, _, _, _)
-          | (DHPat.ListNil, _, _, _) =>
-            match matches fuel dp d with
-            | Indet => Indet
-            | DoesNotMatch => DoesNotMatch
-            | Matches env =>
-              let cast_env := List.map (fun (xd : Var.t * t) =>
-                let (x, d) := xd in
-                (x, Cast d ty1 ty2)) env in
-              Matches cast_env
-            end
-          | (DHPat.Inj side1 dp, Inj _ side2 d, HTyp.Sum ty11 ty12, HTyp.Sum ty21 ty22) =>
-            match (side1, side2) with
-            | (L, L) => matches_cast dp d ty11 ty21
-            | (R, R) => matches_cast dp d ty12 ty22
-            | _ => DoesNotMatch
-            end
-          | (DHPat.Inj _ _, _, _, _) => DoesNotMatch
-          | (DHPat.Pair dp1 dp2, Pair d1 d2, HTyp.Prod ty11 ty12, HTyp.Prod ty21 ty22) =>
-            match matches_cast dp1 d1 ty11 ty21 with
-            | Indet => Indet
-            | DoesNotMatch => DoesNotMatch
-            | Matches env1 =>
-              match matches_cast dp2 d2 ty12 ty22 with
-              | Indet => Indet
-              | DoesNotMatch => DoesNotMatch
-              | Matches env2 =>
-                Matches (Environment.union env1 env2)
+          (casts : list(HTyp.t * HTyp.t * HTyp.t * HTyp.t))
+          : match_result := 
+            match fuel with
+            | Fuel.Kicked => DoesNotMatch
+            | Fuel.More fuel => 
+            match d with 
+            | Inj _ side' d' => 
+              match (side, side') with 
+              | (L, L) | (R, R) => 
+                let side_casts := 
+                  List.map (fun (c : HTyp.t * HTyp.t * HTyp.t * HTyp.t) => 
+                    let '(tyL1, tyR1, tyL2, tyR2) := c in 
+                    match side with 
+                    | L => (tyL1, tyL2)
+                    | R => (tyR1, tyR2)
+                    end) casts in 
+                matches fuel dp (apply_casts d' side_casts)
+              | _ => DoesNotMatch
               end
+            | Cast d' (HTyp.Sum tyL1 tyR1) (HTyp.Sum tyL2 tyR2) => 
+              matches_cast_Inj fuel side dp d' (cons (tyL1, tyR1, tyL2, tyR2) casts)
+            | Cast d' (HTyp.Sum _ _) (HTyp.Hole)
+            | Cast d' HTyp.Hole (HTyp.Sum _ _) => 
+              matches_cast_Inj fuel side dp d' casts
+            | Cast _ _ _ => DoesNotMatch
+            | BoundVar _ => DoesNotMatch
+            | FreeVar _ _ _ _ => Indet
+            | Let _ _ _ => Indet
+            | FixF _ _ _ => DoesNotMatch
+            | Lam _ _ _ => DoesNotMatch
+            | Ap _ _ => Indet
+            | BinNumOp _ _ _ => Indet
+            | BoolLit _ => DoesNotMatch
+            | NumLit _ => DoesNotMatch
+            | ListNil => DoesNotMatch
+            | Cons _ _ => DoesNotMatch
+            | Pair _ _ => DoesNotMatch
+            | Triv => DoesNotMatch
+            | Case _ _ _ => Indet
+            | EmptyHole _ _ _ => Indet
+            | NonEmptyHole _ _ _ _ _ => Indet
+            | FailedCast _ _ _ => Indet
             end
-          | (DHPat.Pair _ _, _, _, _) => DoesNotMatch
-          | (DHPat.Cons dp1 dp2, Cons d1 d2, HTyp.List ty11, HTyp.List ty21) =>
-            match matches_cast dp1 d1 ty11 ty21 with
-            | Indet => Indet
-            | DoesNotMatch => DoesNotMatch
-            | Matches env1 =>
-              match matches_cast dp2 d2 ty1 ty2 with
-              | Indet => Indet
+            end
+        with matches_cast_Pair
+          (fuel : Fuel.t)
+          (dp1 dp2 : DHPat.t)
+          (d : t)
+          (left_casts : list(HTyp.t * HTyp.t))
+          (right_casts : list(HTyp.t * HTyp.t))
+          : match_result := 
+            match fuel with
+            | Fuel.Kicked => DoesNotMatch
+            | Fuel.More fuel => 
+            match d with 
+            | Pair d1 d2 => 
+              match matches fuel dp1 (apply_casts d1 left_casts) with 
               | DoesNotMatch => DoesNotMatch
-              | Matches env2 =>
-                Matches (Environment.union env1 env2)
+              | Indet => Indet
+              | Matches env1 => 
+                match matches fuel dp2 (apply_casts d2 right_casts) with 
+                | DoesNotMatch => DoesNotMatch
+                | Indet => Indet
+                | Matches env2 => 
+                  Matches (Environment.union env1 env2)
+                end
               end
+            | Cast d' (HTyp.Prod tyL1 tyR1) (HTyp.Prod tyL2 tyR2) => 
+              matches_cast_Pair fuel dp1 dp2 d' 
+                (cons (tyL1, tyL2) left_casts)
+                (cons (tyR1, tyR2) right_casts)
+            | Cast d' (HTyp.Prod _ _) HTyp.Hole  
+            | Cast d' HTyp.Hole (HTyp.Prod _ _) => 
+              matches_cast_Pair fuel dp1 dp2 d' left_casts right_casts
+            | Cast _ _ _ => DoesNotMatch
+            | BoundVar _ => DoesNotMatch
+            | FreeVar _ _ _ _ => Indet
+            | Let _ _ _ => Indet
+            | FixF _ _ _ => DoesNotMatch
+            | Lam _ _ _ => DoesNotMatch
+            | Ap _ _ => Indet
+            | BinNumOp _ _ _ => Indet
+            | BoolLit _ => DoesNotMatch
+            | NumLit _ => DoesNotMatch
+            | Inj _ _ _ => DoesNotMatch
+            | ListNil => DoesNotMatch
+            | Cons _ _ => DoesNotMatch
+            | Triv => DoesNotMatch
+            | Case _ _ _ => Indet
+            | EmptyHole _ _ _ => Indet
+            | NonEmptyHole _ _ _ _ _ => Indet
+            | FailedCast _ _ _ => Indet
             end
-          | (DHPat.Cons _ _, _, _, _) => DoesNotMatch
-          | (DHPat.Spaced _ _, _, _, _) => DoesNotMatch
-          end
-          end.
+            end
+        with matches_cast_Cons
+          (fuel : Fuel.t)
+          (dp1 dp2 : DHPat.t)
+          (d : t)
+          (elt_casts : list(HTyp.t * HTyp.t))
+          : match_result := 
+            match fuel with
+            | Fuel.Kicked => DoesNotMatch
+            | Fuel.More fuel => 
+            match d with 
+            | Cons d1 d2 => 
+              match matches fuel dp1 (apply_casts d1 elt_casts) with 
+              | DoesNotMatch => DoesNotMatch
+              | Indet => Indet
+              | Matches env1 => 
+                let list_casts := List.map (fun (c : HTyp.t * HTyp.t) => 
+                  let (ty1, ty2) := c in 
+                  (HTyp.List ty1, HTyp.List ty2)) elt_casts in 
+                match matches fuel dp2 (apply_casts d2 list_casts) with 
+                | DoesNotMatch => DoesNotMatch
+                | Indet => Indet
+                | Matches env2 => 
+                  Matches (Environment.union env1 env2)
+                end
+              end
+            | Cast d' (HTyp.List ty1) (HTyp.List ty2) => 
+              matches_cast_Cons fuel dp1 dp2 d' (cons (ty1, ty2) elt_casts)
+            | Cast d' (HTyp.List _) HTyp.Hole => 
+              matches_cast_Cons fuel dp1 dp2 d' elt_casts
+            | Cast d' HTyp.Hole (HTyp.List _) => 
+              matches_cast_Cons fuel dp1 dp2 d' elt_casts
+            | Cast _ _ _ => DoesNotMatch
+            | BoundVar _ => DoesNotMatch
+            | FreeVar _ _ _ _ => Indet
+            | Let _ _ _ => Indet
+            | FixF _ _ _ => DoesNotMatch
+            | Lam _ _ _ => DoesNotMatch
+            | Ap _ _ => Indet
+            | BinNumOp _ _ _ => Indet
+            | BoolLit _ => DoesNotMatch
+            | NumLit _ => DoesNotMatch
+            | Inj _ _ _ => DoesNotMatch
+            | ListNil => DoesNotMatch
+            | Pair _ _ => DoesNotMatch
+            | Triv => DoesNotMatch
+            | Case _ _ _ => Indet
+            | EmptyHole _ _ _ => Indet
+            | NonEmptyHole _ _ _ _ _ => Indet
+            | FailedCast _ _ _ => Indet
+            end
+            end.
 
+        (* Implementation of type assignment judgment in POPL 2019 paper.
+         * Not actually called anywhere, now stale.
         Inductive type_result : Type := 
         | WellTyped : HTyp.t -> type_result
         | IllTyped.
 
-        (* Implementation of type assignment judgment in POPL 2019 paper.
-         * Not actually called anywhere, now stale.
         Fixpoint assign_type 
           (fuel : Fuel.t) 
           (gamma : VarCtx.t) (delta : Delta.t) 
@@ -9947,7 +10679,7 @@ Module FCore(Debug : DEBUG).
                 else IllTyped
               | None => IllTyped
               end
-            | NonEmptyHole u _ sigma d1 => 
+            | NonEmptyHole reason u _ sigma d1 => 
               match assign_type gamma delta d1 with 
               | WellTyped _ => 
                 match MetaVarMap.lookup delta u with 
@@ -10006,40 +10738,52 @@ Module FCore(Debug : DEBUG).
         Fixpoint syn_expand 
           (fuel : Fuel.t) 
           (ctx : Contexts.t) 
+          (delta : Delta.t)
           (e : UHExp.t) 
           : expand_result := 
             match fuel with 
             | Fuel.Kicked => DoesNotExpand
             | Fuel.More fuel => 
             match e with 
-            | UHExp.Tm (NotInHole) e' => syn_expand' fuel ctx e'
-            | UHExp.Tm (InHole u) e' => 
-              match syn_expand' fuel ctx e' with 
+            | UHExp.Parenthesized e1 => syn_expand fuel ctx delta e1
+            | UHExp.Tm (NotInHole) e' => syn_expand' fuel ctx delta e'
+            | UHExp.Tm (InHole (TypeInconsistent as reason) u) e'  
+            | UHExp.Tm (InHole (WrongLength as reason) u) 
+              ((UHExp.OpSeq (Skel.BinOp (InHole WrongLength _) UHExp.Comma _ _) _) as e') =>
+              match syn_expand' fuel ctx delta e' with 
               | Expands d _ delta => 
-                let (gamma, _) := ctx in 
+                let gamma := Contexts.gamma ctx in 
                 let sigma := id_env gamma in 
-                let delta' := MetaVarMap.extend delta (u, (HTyp.Hole, gamma)) in 
+                let delta := MetaVarMap.extend delta (u, (ExpressionHole, HTyp.Hole, gamma)) in 
                 Expands 
-                  (NonEmptyHole u 0 sigma d)
+                  (NonEmptyHole reason u 0 sigma d)
                   (HTyp.Hole)
-                  (delta')
+                  (delta)
               | DoesNotExpand => DoesNotExpand
               end
-            | UHExp.Parenthesized e1 => syn_expand fuel ctx e1
+            | UHExp.Tm (InHole WrongLength _) _ => DoesNotExpand
             end
             end
         with syn_expand'
           (fuel : Fuel.t)
           (ctx : Contexts.t)
+          (delta : Delta.t)
           (e : UHExp.t')
           : expand_result := 
             match fuel with 
             | Fuel.Kicked => DoesNotExpand
             | Fuel.More fuel => 
             match e with 
+            | UHExp.EmptyHole u => 
+              let gamma := Contexts.gamma ctx in 
+              let sigma := id_env gamma in 
+              let d := DHExp.EmptyHole u 0 sigma in 
+              let ty := HTyp.Hole in 
+              let delta := MetaVarMap.extend delta (u, (ExpressionHole, ty, gamma)) in 
+              Expands d ty delta
             | UHExp.Asc e1 uty => 
               let ty := UHTyp.expand fuel uty in 
-              match ana_expand fuel ctx e1 ty with 
+              match ana_expand fuel ctx delta e1 ty with 
               | DoesNotExpand => DoesNotExpand
               | Expands d1 ty' delta => 
                 Expands 
@@ -10048,15 +10792,15 @@ Module FCore(Debug : DEBUG).
                   delta
               end
             | UHExp.Var (NotInVHole) x => 
-              let (gamma, _) := ctx in 
+              let gamma := Contexts.gamma ctx in 
               match VarMap.lookup gamma x with 
-              | Some ty => Expands (DHExp.BoundVar x) ty MetaVarMap.empty
+              | Some ty => Expands (DHExp.BoundVar x) ty delta
               | None => DoesNotExpand
               end
             | UHExp.Var (InVHole u) x => 
               let gamma := Contexts.gamma ctx in 
               let sigma := id_env gamma in 
-              let delta := MetaVarMap.extend (MetaVarMap.empty) (u, (HTyp.Hole, gamma)) in 
+              let delta := MetaVarMap.extend delta (u, (ExpressionHole, HTyp.Hole, gamma)) in 
               Expands
                 (DHExp.FreeVar u 0 sigma x)
                 (HTyp.Hole)
@@ -10067,14 +10811,13 @@ Module FCore(Debug : DEBUG).
                 | Some uty1 => UHTyp.expand fuel uty1
                 | None => HTyp.Hole
                 end in
-              match DHPat.ana_expand fuel ctx p ty1 with
+              match DHPat.ana_expand fuel ctx delta p ty1 with
               | DHPat.DoesNotExpand => DoesNotExpand
-              | DHPat.Expands dp ty1 ctx deltap =>
-                match syn_expand fuel ctx e1 with
+              | DHPat.Expands dp ty1 ctx delta =>
+                match syn_expand fuel ctx delta e1 with
                 | DoesNotExpand => DoesNotExpand
-                | Expands d1 ty2 delta1 =>
+                | Expands d1 ty2 delta =>
                   let d := Lam dp ty1 d1 in
-                  let delta := MetaVarMap.union deltap delta1 in
                   Expands d (HTyp.Arrow ty1 ty2) delta
                 end
               end
@@ -10083,73 +10826,61 @@ Module FCore(Debug : DEBUG).
               | Some uty1 =>
                 let ty1 := UHTyp.expand fuel uty1 in
                 let (ctx1, is_recursive_fn) := UHExp.ctx_for_let' ctx p ty1 e1 in
-                match ana_expand fuel ctx1 e1 ty1 with
+                match ana_expand fuel ctx1 delta e1 ty1 with
                 | DoesNotExpand => DoesNotExpand
-                | Expands d1 ty1 delta1 =>
+                | Expands d1 ty1 delta =>
                   let d1 :=
                     match is_recursive_fn with
                     | None => d1
                     | Some x => FixF x ty1 d1
                     end in
-                  match DHPat.ana_expand fuel ctx p ty1 with
+                  match DHPat.ana_expand fuel ctx delta p ty1 with
                   | DHPat.DoesNotExpand => DoesNotExpand
-                  | DHPat.Expands dp _ ctx2 deltap =>
-                    match syn_expand fuel ctx2 e2 with
+                  | DHPat.Expands dp typ ctx delta =>
+                    match syn_expand fuel ctx delta e2 with
                     | DoesNotExpand => DoesNotExpand
-                    | Expands d2 ty delta2 => 
+                    | Expands d2 ty delta => 
                       let d := Let dp d1 d2 in
-                      let delta12 := MetaVarMap.union delta1 delta2 in
-                      let delta := MetaVarMap.union delta12 deltap in
                       Expands d ty delta
                     end
                   end
                 end
               | None =>
-                match syn_expand fuel ctx e1 with
+                match syn_expand fuel ctx delta e1 with
                 | DoesNotExpand => DoesNotExpand
-                | Expands d1 ty1 delta1 =>
-                  match DHPat.ana_expand fuel ctx p ty1 with
+                | Expands d1 ty1 delta =>
+                  match DHPat.ana_expand fuel ctx delta p ty1 with
                   | DHPat.DoesNotExpand => DoesNotExpand
-                  | DHPat.Expands dp ty1 ctx deltap =>
-                    match syn_expand fuel ctx e2 with
+                  | DHPat.Expands dp ty1 ctx delta =>
+                    match syn_expand fuel ctx delta e2 with
                     | DoesNotExpand => DoesNotExpand
                     | Expands d2 ty delta2 => 
                       let d := Let dp d1 d2 in
-                      let delta12 := MetaVarMap.union delta1 delta2 in
-                      let delta := MetaVarMap.union delta12 deltap in
                       Expands d ty delta
                     end
                   end
                 end
               end
             | UHExp.NumLit n => 
-              Expands (NumLit n) HTyp.Num MetaVarMap.empty
+              Expands (NumLit n) HTyp.Num delta 
             | UHExp.BoolLit b =>
-              Expands (BoolLit b) HTyp.Bool MetaVarMap.empty
-            | UHExp.EmptyHole u => 
-              let gamma := Contexts.gamma ctx in 
-              let sigma := id_env gamma in 
-              let d := DHExp.EmptyHole u 0 sigma in 
-              let ty := HTyp.Hole in 
-              let delta := MetaVarMap.extend MetaVarMap.empty 
-                           (u, (ty, gamma)) in 
-              Expands d ty delta
-            | UHExp.OpSeq skel seq => 
-              syn_expand_skel fuel ctx skel seq
+              Expands (BoolLit b) HTyp.Bool delta 
             | UHExp.Inj side e1 => 
-              match syn_expand fuel ctx e1 with 
+              match syn_expand fuel ctx delta e1 with 
               | DoesNotExpand => DoesNotExpand
-              | Expands d1 ty1 delta1 => 
+              | Expands d1 ty1 delta => 
                 let d := DHExp.Inj HTyp.Hole side d1 in 
                 let ty := 
                   match side with 
                   | L => HTyp.Sum ty1 HTyp.Hole
                   | R => HTyp.Sum HTyp.Hole ty1
                   end in 
-                Expands d ty delta1
+                Expands d ty delta
               end
-            | UHExp.ListNil => Expands ListNil (HTyp.List HTyp.Hole) MetaVarMap.empty
+            | UHExp.ListNil => Expands ListNil (HTyp.List HTyp.Hole) delta
             | UHExp.Case _ _ => DoesNotExpand
+            | UHExp.OpSeq skel seq => 
+              syn_expand_skel fuel ctx delta skel seq
             | UHExp.ApPalette name serialized_model hole_data => DoesNotExpand
               (* TODO fix me *)
               (* let (_, palette_ctx) := ctx in 
@@ -10182,6 +10913,7 @@ Module FCore(Debug : DEBUG).
         with syn_expand_skel 
           (fuel : Fuel.t)
           (ctx : Contexts.t)
+          (delta : Delta.t)
           (skel : UHExp.skel_t)
           (seq : UHExp.opseq)
           : expand_result := 
@@ -10192,20 +10924,22 @@ Module FCore(Debug : DEBUG).
             | Skel.Placeholder _ n => 
               match OperatorSeq.seq_nth n seq with 
               | None => DoesNotExpand
-              | Some en => syn_expand fuel ctx en
+              | Some en => syn_expand fuel ctx delta en
               end
-            | Skel.BinOp (InHole u) op skel1 skel2 => 
+            | Skel.BinOp (InHole (TypeInconsistent as reason) u) op skel1 skel2  
+            | Skel.BinOp (InHole (WrongLength as reason) u) (UHExp.Comma as op) skel1 skel2 => 
               let skel_not_in_hole := Skel.BinOp NotInHole op skel1 skel2 in 
-              match syn_expand_skel fuel ctx skel_not_in_hole seq with 
+              match syn_expand_skel fuel ctx delta skel_not_in_hole seq with 
               | DoesNotExpand => DoesNotExpand
               | Expands d _ delta => 
                 let gamma := Contexts.gamma ctx in 
                 let sigma := id_env gamma in 
-                let delta' := MetaVarMap.extend delta (u, (HTyp.Hole, gamma)) in 
+                let delta := MetaVarMap.extend delta (u, (ExpressionHole, HTyp.Hole, gamma)) in 
                 Expands
-                  (NonEmptyHole u 0 sigma d)
-                  HTyp.Hole delta'
+                  (NonEmptyHole reason u 0 sigma d)
+                  HTyp.Hole delta
               end
+            | Skel.BinOp (InHole WrongLength _) _ _ _ => DoesNotExpand
             | Skel.BinOp NotInHole UHExp.Space skel1 skel2 => 
               match UHExp.syn_skel fuel ctx skel1 seq None with 
               | None => DoesNotExpand
@@ -10214,13 +10948,12 @@ Module FCore(Debug : DEBUG).
                 | None => DoesNotExpand
                 | Some (ty2, ty) => 
                   let ty2_arrow_ty := HTyp.Arrow ty2 ty in 
-                  match ana_expand_skel fuel ctx skel1 seq ty2_arrow_ty with 
+                  match ana_expand_skel fuel ctx delta skel1 seq ty2_arrow_ty with 
                   | DoesNotExpand => DoesNotExpand
-                  | Expands d1 ty1' delta1 => 
-                    match ana_expand_skel fuel ctx skel2 seq ty2 with 
+                  | Expands d1 ty1' delta => 
+                    match ana_expand_skel fuel ctx delta skel2 seq ty2 with 
                     | DoesNotExpand => DoesNotExpand
-                    | Expands d2 ty2' delta2 => 
-                      let delta := MetaVarMap.union delta1 delta2 in 
+                    | Expands d2 ty2' delta => 
                       let dc1 := cast d1 ty1' ty2_arrow_ty in 
                       let dc2 := cast d2 ty2' ty2 in 
                       let d := Ap dc1 dc2 in 
@@ -10230,53 +10963,58 @@ Module FCore(Debug : DEBUG).
                 end
               end
             | Skel.BinOp NotInHole UHExp.Comma skel1 skel2 =>
-              match syn_expand_skel fuel ctx skel1 seq  with
+              match syn_expand_skel fuel ctx delta skel1 seq  with
               | DoesNotExpand => DoesNotExpand
-              | Expands d1 ty1 delta1 =>
-                match syn_expand_skel fuel ctx skel2 seq with
+              | Expands d1 ty1 delta =>
+                match syn_expand_skel fuel ctx delta skel2 seq with
                 | DoesNotExpand => DoesNotExpand
-                | Expands d2 ty2 delta2 =>
+                | Expands d2 ty2 delta =>
                   let d := Pair d1 d2 in
                   let ty := HTyp.Prod ty1 ty2 in
-                  let delta := MetaVarMap.union delta1 delta2 in
                   Expands d ty delta
                 end
               end
             | Skel.BinOp NotInHole UHExp.Cons skel1 skel2 =>
-              match syn_expand_skel fuel ctx skel1 seq with
+              match syn_expand_skel fuel ctx delta skel1 seq with
               | DoesNotExpand => DoesNotExpand
-              | Expands d1 ty1 delta1 =>
+              | Expands d1 ty1 delta =>
                 let ty := HTyp.List ty1 in
-                match ana_expand_skel fuel ctx skel2 seq ty with
+                match ana_expand_skel fuel ctx delta skel2 seq ty with
                 | DoesNotExpand => DoesNotExpand
-                | Expands d2 _ delta2 =>
-                  let d := Cons d1 d2 in
-                  let delta := MetaVarMap.union delta1 delta2 in
-                  Expands d ty delta
+                | Expands d2 ty' delta =>
+                  match HTyp.join ty ty' with 
+                  | None => DoesNotExpand
+                  | Some ty => 
+                    let d := Cons d1 d2 in
+                    Expands d ty delta
+                  end
                 end
               end
             | Skel.BinOp NotInHole (UHExp.Plus as op) skel1 skel2
             | Skel.BinOp NotInHole (UHExp.Times as op) skel1 skel2
             | Skel.BinOp NotInHole (UHExp.LessThan as op) skel1 skel2 =>
-              match (ana_expand_skel fuel ctx skel1 seq HTyp.Num,
-                     ana_expand_skel fuel ctx skel2 seq HTyp.Num) with 
-              | (Expands d1 ty1 delta1, Expands d2 ty2 delta2) => 
-                let delta := MetaVarMap.union delta1 delta2 in 
-                let dc1 := cast d1 ty1 HTyp.Num in 
-                let dc2 := cast d2 ty2 HTyp.Num in 
-                match of_op op with 
-                | None => DoesNotExpand (* should not happen due to pattern matching above *)
-                | Some (op, ty) => 
-                  let d := BinNumOp op dc1 dc2 in 
-                  Expands d ty delta
+              match ana_expand_skel fuel ctx delta skel1 seq HTyp.Num with 
+              | DoesNotExpand => DoesNotExpand
+              | Expands d1 ty1 delta => 
+                match ana_expand_skel fuel ctx delta skel2 seq HTyp.Num with 
+                | DoesNotExpand => DoesNotExpand
+                | Expands d2 ty2 delta => 
+                  let dc1 := cast d1 ty1 HTyp.Num in 
+                  let dc2 := cast d2 ty2 HTyp.Num in 
+                  match of_op op with 
+                  | None => DoesNotExpand
+                  | Some (op, ty) => 
+                    let d := BinNumOp op dc1 dc2 in 
+                    Expands d ty delta
+                  end
                 end
-              | _ => DoesNotExpand
               end
             end
             end
         with ana_expand 
           (fuel : Fuel.t) 
           (ctx : Contexts.t) 
+          (delta : Delta.t)
           (e : UHExp.t)
           (ty : HTyp.t) 
           : expand_result := 
@@ -10284,25 +11022,38 @@ Module FCore(Debug : DEBUG).
             | Fuel.Kicked => DoesNotExpand
             | Fuel.More fuel => 
             match e with 
-            | UHExp.Tm (InHole u) e' =>
-              match syn_expand' fuel ctx e' with 
+            | UHExp.Tm NotInHole e' => ana_expand' fuel ctx delta e' ty
+            | UHExp.Tm (InHole (TypeInconsistent as reason) u) e' =>
+              match syn_expand' fuel ctx delta e' with 
               | DoesNotExpand => DoesNotExpand
               | Expands d _ delta => 
                 let gamma := Contexts.gamma ctx in 
                 let sigma := id_env gamma in 
-                let delta' := MetaVarMap.extend delta (u, (ty, gamma)) in 
+                let delta := MetaVarMap.extend delta (u, (ExpressionHole, ty, gamma)) in 
                 Expands 
-                  (NonEmptyHole u 0 sigma d)
+                  (NonEmptyHole reason u 0 sigma d)
                   ty
-                  delta'
+                  delta
               end
-            | UHExp.Tm NotInHole e' => ana_expand' fuel ctx e' ty
-            | UHExp.Parenthesized e1 => ana_expand fuel ctx e1 ty
+            | UHExp.Tm (InHole (WrongLength as reason) u) 
+                ((UHExp.OpSeq (Skel.BinOp (InHole WrongLength _) UHExp.Comma _ _) _) as e') => 
+              match ana_expand' fuel ctx delta e' ty with 
+              | DoesNotExpand => DoesNotExpand
+              | Expands d1 _ delta => 
+                let gamma := Contexts.gamma ctx in 
+                let sigma := id_env gamma in  
+                let delta := MetaVarMap.extend delta (u, (ExpressionHole, ty, gamma)) in 
+                let d := NonEmptyHole reason u 0 sigma d1 in 
+                Expands d ty delta
+              end
+            | UHExp.Tm (InHole WrongLength _) _ => DoesNotExpand
+            | UHExp.Parenthesized e1 => ana_expand fuel ctx delta e1 ty
             end
             end
         with ana_expand'
           (fuel : Fuel.t)
           (ctx : Contexts.t)
+          (delta : Delta.t)
           (e : UHExp.t')
           (ty : HTyp.t) 
           : expand_result := 
@@ -10310,6 +11061,60 @@ Module FCore(Debug : DEBUG).
             | Fuel.Kicked => DoesNotExpand
             | Fuel.More fuel => 
             match e with 
+            | UHExp.EmptyHole u => 
+              let gamma := Contexts.gamma ctx in 
+              let sigma := id_env gamma in 
+              let d := EmptyHole u 0 sigma in 
+              let delta := MetaVarMap.extend delta (u, (ExpressionHole, ty, gamma)) in 
+              Expands d ty delta
+            | UHExp.Var (InVHole u) x => 
+              let gamma := Contexts.gamma ctx in 
+              let sigma := id_env gamma in 
+              let delta := MetaVarMap.extend delta (u, (ExpressionHole, ty, gamma)) in 
+              Expands 
+                (FreeVar u 0 sigma x)
+                ty
+                delta
+            | UHExp.Let p ann e1 e2 =>
+              match ann with
+              | Some uty1 =>
+                let ty1 := UHTyp.expand fuel uty1 in
+                let (ctx1, is_recursive_fn) := UHExp.ctx_for_let' ctx p ty1 e1 in
+                match ana_expand fuel ctx1 delta e1 ty1 with
+                | DoesNotExpand => DoesNotExpand
+                | Expands d1 ty1 delta =>
+                  let d1 :=
+                    match is_recursive_fn with
+                    | None => d1
+                    | Some x => FixF x ty1 d1
+                    end in
+                  match DHPat.ana_expand fuel ctx delta p ty1 with
+                  | DHPat.DoesNotExpand => DoesNotExpand
+                  | DHPat.Expands dp _ ctx delta =>
+                    match ana_expand fuel ctx delta e2 ty with
+                    | DoesNotExpand => DoesNotExpand
+                    | Expands d2 ty delta =>
+                      let d := Let dp d1 d2 in
+                      Expands d ty delta
+                    end
+                  end
+                end
+              | None =>
+                match syn_expand fuel ctx delta e1 with
+                | DoesNotExpand => DoesNotExpand
+                | Expands d1 ty1 delta =>
+                  match DHPat.ana_expand fuel ctx delta p ty1 with
+                  | DHPat.DoesNotExpand => DoesNotExpand
+                  | DHPat.Expands dp ty1 ctx delta =>
+                    match ana_expand fuel ctx delta e2 ty with
+                    | DoesNotExpand => DoesNotExpand
+                    | Expands d2 ty delta =>
+                      let d := Let dp d1 d2 in
+                      Expands d ty delta
+                    end
+                  end
+                end
+              end
             | UHExp.Lam p ann e1 =>
               match HTyp.matched_arrow ty with
               | None => DoesNotExpand
@@ -10320,29 +11125,27 @@ Module FCore(Debug : DEBUG).
                   match HTyp.consistent ty1_ann ty1_given with
                   | false => DoesNotExpand
                   | true =>
-                    match DHPat.ana_expand fuel ctx p ty1_ann with
+                    match DHPat.ana_expand fuel ctx delta p ty1_ann with
                     | DHPat.DoesNotExpand => DoesNotExpand
-                    | DHPat.Expands dp _ ctx deltap =>
-                      match ana_expand fuel ctx e1 ty2 with
+                    | DHPat.Expands dp ty1p ctx delta =>
+                      match ana_expand fuel ctx delta e1 ty2 with
                       | DoesNotExpand => DoesNotExpand
-                      | Expands d1 ty2 delta1 =>
-                        let ty := HTyp.Arrow ty1_ann ty2 in
-                        let d := Lam dp ty1_ann d1 in
-                        let delta := MetaVarMap.union deltap delta1 in
+                      | Expands d1 ty2 delta =>
+                        let ty := HTyp.Arrow ty1p ty2 in
+                        let d := Lam dp ty1p d1 in
                         Expands d ty delta
                       end
                     end
                   end
                 | None =>
-                  match DHPat.ana_expand fuel ctx p ty1_given with
+                  match DHPat.ana_expand fuel ctx delta p ty1_given with
                   | DHPat.DoesNotExpand => DoesNotExpand
-                  | DHPat.Expands dp ty1 ctx deltap =>
-                    match ana_expand fuel ctx e1 ty2 with
+                  | DHPat.Expands dp ty1 ctx delta =>
+                    match ana_expand fuel ctx delta e1 ty2 with
                     | DoesNotExpand => DoesNotExpand
-                    | Expands d1 ty2 delta1 =>
+                    | Expands d1 ty2 delta =>
                       let ty := HTyp.Arrow ty1 ty2 in
                       let d := Lam dp ty1 d1 in
-                      let delta := MetaVarMap.union deltap delta1 in
                       Expands d ty delta
                     end
                   end
@@ -10353,7 +11156,7 @@ Module FCore(Debug : DEBUG).
               | None => DoesNotExpand
               | Some (ty1, ty2) => 
                 let e1ty := pick_side side ty1 ty2 in 
-                match ana_expand fuel ctx e1 e1ty with 
+                match ana_expand fuel ctx delta e1 e1ty with 
                 | DoesNotExpand => DoesNotExpand
                 | Expands d1 e1ty' delta => 
                   let (ann_ty, ty) := 
@@ -10368,97 +11171,33 @@ Module FCore(Debug : DEBUG).
             | UHExp.ListNil =>
               match HTyp.matched_list ty with
               | None => DoesNotExpand
-              | Some _ => Expands ListNil ty MetaVarMap.empty
+              | Some _ => Expands ListNil ty delta
               end
             | UHExp.Case e1 rules =>
-              match syn_expand fuel ctx e1 with
+              match syn_expand fuel ctx delta e1 with
               | DoesNotExpand => DoesNotExpand
-              | Expands d1 ty1 delta1 =>
-                match ana_expand_rules fuel ctx rules ty1 ty with
+              | Expands d1 ty1 delta =>
+                match ana_expand_rules fuel ctx delta rules ty1 ty with
                 | None => DoesNotExpand
-                | Some (drs, clauses_ty, delta2) =>
+                | Some (drs, clauses_ty, delta) =>
                   let d := Case d1 drs 0 in
-                  let delta := MetaVarMap.union delta1 delta2 in
                   Expands d clauses_ty delta
                 end
               end
-            | UHExp.EmptyHole u => 
-              let gamma := Contexts.gamma ctx in 
-              let sigma := id_env gamma in 
-              let d := EmptyHole u 0 sigma in 
-              let delta := MetaVarMap.extend MetaVarMap.empty (u, (ty, gamma)) in 
-              Expands d ty delta
-            | UHExp.Var (InVHole u) x => 
-              let gamma := Contexts.gamma ctx in 
-              let sigma := id_env gamma in 
-              let delta := MetaVarMap.extend (MetaVarMap.empty) (u, (ty, gamma)) in 
-              Expands 
-                (FreeVar u 0 sigma x)
-                ty
-                delta
-            | UHExp.Let p ann e1 e2 =>
-              match ann with
-              | Some uty1 =>
-                let ty1 := UHTyp.expand fuel uty1 in
-                let (ctx1, is_recursive_fn) := UHExp.ctx_for_let' ctx p ty1 e1 in
-                match ana_expand fuel ctx1 e1 ty1 with
-                | DoesNotExpand => DoesNotExpand
-                | Expands d1 _ delta1 =>
-                  let d1 :=
-                    match is_recursive_fn with
-                    | None => d1
-                    | Some x => FixF x ty1 d1
-                    end in
-                  match DHPat.ana_expand fuel ctx p ty1 with
-                  | DHPat.DoesNotExpand => DoesNotExpand
-                  | DHPat.Expands dp _ ctx2 deltap =>
-                    match ana_expand fuel ctx2 e2 ty with
-                    | DoesNotExpand => DoesNotExpand
-                    | Expands d2 ty2 delta2 =>
-                      let d := Let dp d1 d2 in
-                      let delta12 := MetaVarMap.union delta1 delta2 in
-                      let delta := MetaVarMap.union delta12 deltap in
-                      Expands d ty2 delta
-                    end
-                  end
-                end
-              | None =>
-                match syn_expand fuel ctx e1 with
-                | DoesNotExpand => DoesNotExpand
-                | Expands d1 ty1 delta1 =>
-                  match DHPat.ana_expand fuel ctx p ty1 with
-                  | DHPat.DoesNotExpand => DoesNotExpand
-                  | DHPat.Expands dp ty1 ctx2 deltap =>
-                    match ana_expand fuel ctx2 e2 ty with
-                    | DoesNotExpand => DoesNotExpand
-                    | Expands d2 ty2 delta2 =>
-                      let d := Let dp d1 d2 in
-                      let delta12 := MetaVarMap.union delta1 delta2 in
-                      let delta := MetaVarMap.union delta12 deltap in
-                      Expands d ty2 delta
-                    end
-                  end
-                end
-              end
+            | UHExp.OpSeq skel seq => ana_expand_skel fuel ctx delta skel seq ty
             | UHExp.Asc _ _ 
             | UHExp.Var NotInVHole _
             | UHExp.BoolLit _
             | UHExp.NumLit _
-            | UHExp.OpSeq _ _
             | UHExp.ApPalette _ _ _ => 
               (* subsumption *)
-              match syn_expand' fuel ctx e with 
-              | DoesNotExpand => DoesNotExpand
-              | (Expands d ty' delta) as result => 
-                if HTyp.consistent ty ty'  
-                then result
-                else DoesNotExpand
-              end
+              syn_expand' fuel ctx delta e
             end
             end
         with ana_expand_rules
           (fuel : Fuel.t)
           (ctx : Contexts.t)
+          (delta : Delta.t)
           (rules : list(UHExp.rule))
           (pat_ty : HTyp.t)
           (clause_ty : HTyp.t)
@@ -10470,23 +11209,22 @@ Module FCore(Debug : DEBUG).
               match b with
               | None => None
               | Some (drs, joined_ty, delta) =>
-                match ana_expand_rule fuel ctx r pat_ty clause_ty with
+                match ana_expand_rule fuel ctx delta r pat_ty clause_ty with
                 | None => None
-                | Some ((dr, ty), deltar) =>
+                | Some ((dr, ty), delta) =>
                   match HTyp.join joined_ty ty with
                   | None => None
                   | Some joined_ty =>
-                    (* TODO: make faster *)
                     let drs := drs ++ (cons dr nil) in
-                    let delta := MetaVarMap.union delta deltar in
                     Some ((drs, joined_ty), delta)
                   end
                 end
-              end) rules (Some ((nil, HTyp.Hole), MetaVarMap.empty))
+              end) rules (Some ((nil, clause_ty), delta))
           end
         with ana_expand_rule
           (fuel : Fuel.t)
           (ctx : Contexts.t)
+          (delta : Delta.t)
           (r : UHExp.rule)
           (pat_ty : HTyp.t)
           (clause_ty : HTyp.t)
@@ -10495,13 +11233,12 @@ Module FCore(Debug : DEBUG).
           | Fuel.Kicked => None
           | Fuel.More fuel =>
             let (p, e) := r in
-            match DHPat.ana_expand fuel ctx p pat_ty with
+            match DHPat.ana_expand fuel ctx delta p pat_ty with
             | DHPat.DoesNotExpand => None
-            | DHPat.Expands dp _ ctx deltap =>
-              match ana_expand fuel ctx e clause_ty with
+            | DHPat.Expands dp _ ctx delta =>
+              match ana_expand fuel ctx delta e clause_ty with
               | DoesNotExpand => None
-              | Expands d1 ty1 delta1 =>
-                let delta := MetaVarMap.union deltap delta1 in
+              | Expands d1 ty1 delta =>
                 Some ((Rule dp d1, ty1), delta)
               end
             end
@@ -10509,6 +11246,7 @@ Module FCore(Debug : DEBUG).
         with ana_expand_skel
           (fuel : Fuel.t)
           (ctx : Contexts.t)
+          (delta : Delta.t)
           (skel : UHExp.skel_t)
           (seq : UHExp.opseq)
           (ty : HTyp.t)
@@ -10520,10 +11258,105 @@ Module FCore(Debug : DEBUG).
             | Skel.Placeholder _ n => 
               match OperatorSeq.seq_nth n seq with 
               | None => DoesNotExpand
-              | Some en => ana_expand fuel ctx en ty
+              | Some en => ana_expand fuel ctx delta en ty
               end
-            | _ => 
-              match syn_expand_skel fuel ctx skel seq with 
+            | Skel.BinOp (InHole (TypeInconsistent as reason) u) op skel1 skel2 =>
+              let skel_not_in_hole := Skel.BinOp NotInHole op skel1 skel2 in
+              match syn_expand_skel fuel ctx delta skel_not_in_hole seq with
+              | DoesNotExpand => DoesNotExpand
+              | Expands d1 _ delta =>
+                let gamma := Contexts.gamma ctx in
+                let sigma := id_env gamma in 
+                let delta := MetaVarMap.extend delta (u, (ExpressionHole, ty, gamma)) in
+                let d := DHExp.NonEmptyHole reason u 0 sigma d1 in
+                Expands d ty delta
+              end
+            | Skel.BinOp NotInHole UHExp.Comma skel1 skel2 =>
+              match HTyp.matched_prod ty with
+              | None => DoesNotExpand
+              | Some (ty1, ty2) =>
+                match ana_expand_skel fuel ctx delta skel1 seq ty1 with
+                | DoesNotExpand => DoesNotExpand
+                | Expands d1 ty1 delta =>
+                  match ana_expand_skel fuel ctx delta skel2 seq ty2 with
+                  | DoesNotExpand => DoesNotExpand
+                  | Expands d2 ty2 delta =>
+                    let d := Pair d1 d2 in
+                    Expands d (HTyp.Prod ty1 ty2) delta
+                  end
+                end
+              end
+            | Skel.BinOp (InHole WrongLength u) (UHExp.Comma as op) skel1 skel2 => 
+              match ty with 
+              | HTyp.Prod ty1 ty2 => 
+                let types := HTyp.get_tuple ty1 ty2 in 
+                let skels := UHExp.get_tuple skel1 skel2 in 
+                let (zipped, remainder) := HTyp.zip_with_skels skels types in 
+                let processed1 := 
+                  List.fold_right (fun (skel_ty : UHExp.skel_t * HTyp.t) opt_result => 
+                    match opt_result with 
+                    | None => None
+                    | Some (elts, delta) => 
+                      let (skel, ty) := skel_ty in 
+                      match ana_expand_skel fuel ctx delta skel seq ty with 
+                      | DoesNotExpand => None
+                      | Expands d ty delta => 
+                        Some (cons (d, ty) elts, delta)
+                      end
+                    end) (Some (nil, delta)) zipped in 
+                match processed1 with 
+                | None => DoesNotExpand
+                | Some (elts1, delta) => 
+                  let processed2 := 
+                    List.fold_right (fun (skel : UHExp.skel_t) opt_result => 
+                      match opt_result with 
+                      | None => None
+                      | Some (elts, delta) => 
+                        match syn_expand_skel fuel ctx delta skel seq with 
+                        | DoesNotExpand => None
+                        | Expands d ty delta => 
+                          Some (cons (d, ty) elts, delta)
+                        end
+                      end) (Some (nil, delta)) remainder in 
+                  match processed2 with 
+                  | None => DoesNotExpand
+                  | Some (elts2, delta) => 
+                    let (ds, tys) := Util.unzip (elts1 ++ elts2) in 
+                    let d := DHExp.make_tuple ds in 
+                    let ty := HTyp.make_tuple tys in 
+                    Expands d ty delta
+                  end
+                end
+              | _ => DoesNotExpand
+              end
+            | Skel.BinOp (InHole WrongLength _) _ _ _ => DoesNotExpand
+            | Skel.BinOp NotInHole UHExp.Cons skel1 skel2 =>
+              match HTyp.matched_list ty with
+              | None => DoesNotExpand
+              | Some ty_elt =>
+                match ana_expand_skel fuel ctx delta skel1 seq ty_elt with
+                | DoesNotExpand => DoesNotExpand
+                | Expands d1 ty_elt' delta =>
+                  let ty_list := HTyp.List ty_elt in
+                  match ana_expand_skel fuel ctx delta skel2 seq ty_list with
+                  | DoesNotExpand => DoesNotExpand
+                  | Expands d2 (HTyp.List ty_elt'') delta =>
+                    match HTyp.join ty_elt' ty_elt'' with 
+                    | None => DoesNotExpand
+                    | Some ty_elt => 
+                      let ty := HTyp.List ty_elt in 
+                      let d := Cons d1 d2 in
+                      Expands d ty delta
+                    end
+                  | Expands _ _ _ => DoesNotExpand 
+                  end
+                end
+              end
+            | Skel.BinOp _ UHExp.Plus _ _ 
+            | Skel.BinOp _ UHExp.Times _ _
+            | Skel.BinOp _ UHExp.LessThan _ _ 
+            | Skel.BinOp _ UHExp.Space _ _ => 
+              match syn_expand_skel fuel ctx delta skel seq with 
               | DoesNotExpand => DoesNotExpand
               | Expands d ty' delta => 
                 if HTyp.consistent ty ty' then 
@@ -10605,7 +11438,8 @@ Module FCore(Debug : DEBUG).
           | DHPat.Var _
           | DHPat.NumLit _
           | DHPat.BoolLit _
-          | DHPat.ListNil => (dp, hii)
+          | DHPat.ListNil
+          | DHPat.Triv => (dp, hii)
           | DHPat.EmptyHole u _ =>
             (* TODO: Pattern holes don't need environments. Maybe this calls
              * for a refactoring of types to reflect this, e.g., a separate
@@ -10613,12 +11447,12 @@ Module FCore(Debug : DEBUG).
             let sigma := Environment.empty in
             let (i, hii) := HoleInstanceInfo.next hii u sigma path in
             (DHPat.EmptyHole u i, hii)
-          | DHPat.NonEmptyHole u _ dp1 =>
+          | DHPat.NonEmptyHole reason u _ dp1 =>
             (* TODO: see above *)
             let sigma := Environment.empty in
             let (i, hii) := HoleInstanceInfo.next hii u sigma path in
             let (dp1, hii) := renumber_result_only_pat path hii dp1 in
-            (DHPat.NonEmptyHole u i dp1, hii)
+            (DHPat.NonEmptyHole reason u i dp1, hii)
           | DHPat.Inj side dp1 =>
             let (dp1, hii) := renumber_result_only_pat path hii dp1 in
             (DHPat.Inj side dp1, hii)
@@ -10630,7 +11464,7 @@ Module FCore(Debug : DEBUG).
             let (dp1, hii) := renumber_result_only_pat path hii dp1 in
             let (dp2, hii) := renumber_result_only_pat path hii dp2 in
             (DHPat.Cons dp1 dp2, hii)
-          | DHPat.Spaced dp1 dp2 =>
+          | DHPat.Ap dp1 dp2 =>
             let (dp1, hii) := renumber_result_only_pat path hii dp1 in
             let (dp2, hii) := renumber_result_only_pat path hii dp2 in
             (DHPat.Pair dp1 dp2, hii) 
@@ -10647,7 +11481,8 @@ Module FCore(Debug : DEBUG).
           | BoundVar _
           | BoolLit _
           | NumLit _
-          | ListNil => (d, hii)
+          | ListNil
+          | Triv => (d, hii)
           | Let x d1 d2 => 
             let (d1, hii) := renumber_result_only path hii d1 in 
             let (d2, hii) := renumber_result_only path hii d2 in 
@@ -10684,10 +11519,10 @@ Module FCore(Debug : DEBUG).
           | EmptyHole u _ sigma => 
             let (i, hii) := HoleInstanceInfo.next hii u sigma path in 
             (EmptyHole u i sigma, hii)
-          | NonEmptyHole u _ sigma d1 => 
+          | NonEmptyHole reason u _ sigma d1 => 
             let (i, hii) := HoleInstanceInfo.next hii u sigma path in 
             let (d1, hii) := renumber_result_only path hii d1 in 
-            (NonEmptyHole u i sigma d1, hii)
+            (NonEmptyHole reason u i sigma d1, hii)
           | FreeVar u _ sigma x => 
             let (i, hii) := HoleInstanceInfo.next hii u sigma path in 
             (FreeVar u i sigma x, hii)
@@ -10728,7 +11563,8 @@ Module FCore(Debug : DEBUG).
           | BoundVar _
           | BoolLit _
           | NumLit _
-          | ListNil => (d, hii)
+          | ListNil
+          | Triv => (d, hii)
           | Let x d1 d2 => 
             let (d1, hii) := renumber_sigmas_only fuel path hii d1 in 
             let (d2, hii) := renumber_sigmas_only fuel path hii d2 in 
@@ -10766,11 +11602,11 @@ Module FCore(Debug : DEBUG).
             let (sigma, hii) := renumber_sigma fuel path u i hii sigma in
             let hii := HoleInstanceInfo.update_environment hii (u, i) sigma in 
             (EmptyHole u i sigma, hii)
-          | NonEmptyHole u i sigma d1 => 
+          | NonEmptyHole reason u i sigma d1 => 
             let (sigma, hii) := renumber_sigma fuel path u i hii sigma in 
             let hii := HoleInstanceInfo.update_environment hii (u, i) sigma in 
             let (d1, hii) := renumber_sigmas_only fuel path hii d1 in 
-            (NonEmptyHole u i sigma d1, hii)
+            (NonEmptyHole reason u i sigma d1, hii)
           | FreeVar u i sigma x => 
             let (sigma, hii) := renumber_sigma fuel path u i hii sigma in 
             let hii := HoleInstanceInfo.update_environment hii (u, i) sigma in 
@@ -10877,6 +11713,7 @@ Module FCore(Debug : DEBUG).
           | HTyp.Hole => Hole
           | HTyp.Bool
           | HTyp.Num
+          | HTyp.Unit
           | HTyp.Arrow HTyp.Hole HTyp.Hole
           | HTyp.Sum HTyp.Hole HTyp.Hole
           | HTyp.Prod HTyp.Hole HTyp.Hole => Ground
@@ -10955,7 +11792,8 @@ Module FCore(Debug : DEBUG).
               end
             | DHExp.ListNil
             | DHExp.BoolLit _
-            | DHExp.NumLit _ => BoxedValue d
+            | DHExp.NumLit _
+            | DHExp.Triv => BoxedValue d
             | DHExp.BinNumOp op d1 d2 => 
               match evaluate fuel d1 with 
               | InvalidInput msg => InvalidInput msg
@@ -11005,11 +11843,11 @@ Module FCore(Debug : DEBUG).
             | DHExp.Case d1 rules n => evaluate_case fuel d1 rules n
             | DHExp.EmptyHole u i sigma => 
               Indet d  
-            | DHExp.NonEmptyHole u i sigma d1 => 
+            | DHExp.NonEmptyHole reason u i sigma d1 => 
               match evaluate fuel d1 with 
               | InvalidInput msg => InvalidInput msg
               | BoxedValue d1' | Indet d1' => 
-                Indet (DHExp.NonEmptyHole u i sigma d1')
+                Indet (DHExp.NonEmptyHole reason u i sigma d1')
               end
             | DHExp.FreeVar u i sigma x => 
               Indet d
