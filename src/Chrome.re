@@ -131,7 +131,7 @@ let view = (model: Model.t) => {
     React.S.map(({EditorBox.rev_paths, _}) => rev_paths, editor_box_rs);
   let do_transport = (): bool => {
     let selection = Dom_html.window##getSelection;
-    JSUtil.log(selection);
+    /* JSUtil.log(selection); */
     let anchor = selection##.anchorNode;
     let parent_elem =
       switch (anchor##.nodeType) {
@@ -417,6 +417,7 @@ let view = (model: Model.t) => {
       };
     } else if (ast_has_class("Var")
                || ast_has_class("var_binding")
+               || ast_has_class("ListNil")
                || ast_has_class("NumLit")
                || ast_has_class("Num")
                || ast_has_class("number")
