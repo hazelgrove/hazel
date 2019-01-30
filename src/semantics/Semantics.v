@@ -1,6 +1,6 @@
 Require Coq.Bool.Bool. Open Scope bool.
-Require Coq.Strings.String. Open Scope string_scope.
-Require Coq.Strings.Ascii. Open Scope char_scope.
+Require Import String.
+Require Import Coq.Strings.Ascii. Open Scope char_scope.
 Require Coq.Arith.PeanoNat. Open Scope nat_scope.
 Require Coq.Lists.List. Open Scope list_scope.
 Require Import BinInt.
@@ -187,7 +187,6 @@ End Fuel.
 
 (* Debugging aids that are implemented on the OCaml side *)
 Module Type DEBUG.
-  Parameter log_nat_opt : forall A : Type, nat -> option A -> option A.
   Parameter log_nat : nat -> nat.
   Parameter log_string : Coq.Strings.String.string -> Coq.Strings.String.string.
   Parameter string_of_nat : nat -> Coq.Strings.String.string.
@@ -3001,7 +3000,7 @@ Module FCore(Debug : DEBUG).
           | None => None
           | Some (Skel.Placeholder _ _, _, _, _) => None
           | Some (skel, seq, ty, u_gen) => 
-            Debug.log_nat_opt 9 (Some (OpSeq skel seq, ty, u_gen))
+            Some (OpSeq skel seq, ty, u_gen)
           end
         | Inj side e1 => 
           match syn_fix_holes_internal fuel ctx u_gen renumber_empty_holes e1 with 
@@ -3236,18 +3235,17 @@ Module FCore(Debug : DEBUG).
             end
           end
         | OpSeq skel seq =>  
-          Debug.log_nat_opt 11 
           match ana_skel_fix_holes fuel ctx u_gen renumber_empty_holes skel seq ty with 
           | None => None
           | Some (Skel.Placeholder _ _, _, _) => None
           | Some ((Skel.BinOp err _ _ _) as skel, seq, u_gen) => 
             match err with 
             | NotInHole => 
-              Debug.log_nat_opt 4 (Some (err, OpSeq skel seq, u_gen))
+              Some (err, OpSeq skel seq, u_gen)
             | (InHole WrongLength _) => 
-              Debug.log_nat_opt 5 (Some (err, OpSeq skel seq, u_gen))
+              Some (err, OpSeq skel seq, u_gen)
             | (InHole _ _) => 
-              Debug.log_nat_opt 6 (Some (err, OpSeq skel seq, u_gen))
+              Some (err, OpSeq skel seq, u_gen)
             end
           end
         | EmptyHole _ 
@@ -10302,7 +10300,7 @@ Module FCore(Debug : DEBUG).
           | Fuel.More fuel =>
             List.map (fun (r : rule) =>
               match r with
-              | Rule dp d2 => if DHPat.binds_var x dp then Rule dp (subst_var fuel d1 x d2) else r
+              | Rule dp d2 => if DHPat.binds_var x dp then r else Rule dp (subst_var fuel d1 x d2)
               end) rules
           end
         with subst_var_env (fuel : Fuel.t) (d1 : t) (x : Var.t) (sigma : Environment.t) :=
@@ -11179,9 +11177,9 @@ Module FCore(Debug : DEBUG).
               | Expands d1 ty1 delta =>
                 match ana_expand_rules fuel ctx delta rules ty1 ty with
                 | None => DoesNotExpand
-                | Some (drs, clauses_ty, delta) =>
+                | Some (drs, delta) =>
                   let d := Case d1 drs 0 in
-                  Expands d clauses_ty delta
+                  Expands d ty delta
                 end
               end
             | UHExp.OpSeq skel seq => ana_expand_skel fuel ctx delta skel seq ty
@@ -11201,25 +11199,21 @@ Module FCore(Debug : DEBUG).
           (rules : list(UHExp.rule))
           (pat_ty : HTyp.t)
           (clause_ty : HTyp.t)
-          : option(list(rule) * HTyp.t * Delta.t) :=
+          : option(list(rule) * Delta.t) :=
           match fuel with
           | Fuel.Kicked => None
           | Fuel.More fuel =>
             List.fold_left (fun b r =>
               match b with
               | None => None
-              | Some (drs, joined_ty, delta) =>
+              | Some (drs, delta) =>
                 match ana_expand_rule fuel ctx delta r pat_ty clause_ty with
                 | None => None
-                | Some ((dr, ty), delta) =>
-                  match HTyp.join joined_ty ty with
-                  | None => None
-                  | Some joined_ty =>
-                    let drs := drs ++ (cons dr nil) in
-                    Some ((drs, joined_ty), delta)
-                  end
+                | Some (dr, delta) =>
+                  let drs := drs ++ (cons dr nil) in
+                  Some (drs, delta)
                 end
-              end) rules (Some ((nil, clause_ty), delta))
+              end) rules (Some (nil, delta))
           end
         with ana_expand_rule
           (fuel : Fuel.t)
@@ -11228,7 +11222,7 @@ Module FCore(Debug : DEBUG).
           (r : UHExp.rule)
           (pat_ty : HTyp.t)
           (clause_ty : HTyp.t)
-          : option(rule * HTyp.t * Delta.t) :=
+          : option(rule * Delta.t) :=
           match fuel with
           | Fuel.Kicked => None
           | Fuel.More fuel =>
@@ -11239,7 +11233,7 @@ Module FCore(Debug : DEBUG).
               match ana_expand fuel ctx delta e clause_ty with
               | DoesNotExpand => None
               | Expands d1 ty1 delta =>
-                Some ((Rule dp d1, ty1), delta)
+                Some (Rule dp (cast d1 ty1 clause_ty), delta)
               end
             end
           end
@@ -11716,7 +11710,8 @@ Module FCore(Debug : DEBUG).
           | HTyp.Unit
           | HTyp.Arrow HTyp.Hole HTyp.Hole
           | HTyp.Sum HTyp.Hole HTyp.Hole
-          | HTyp.Prod HTyp.Hole HTyp.Hole => Ground
+          | HTyp.Prod HTyp.Hole HTyp.Hole
+          | HTyp.List HTyp.Hole => Ground
           | HTyp.Arrow _ _ => grounded_Arrow
           | HTyp.Sum _ _ => grounded_Sum
           | HTyp.Prod _ _ => grounded_Prod
@@ -11745,7 +11740,7 @@ Module FCore(Debug : DEBUG).
               | BoxedValue d1 | Indet d1 =>
                 match DHExp.matches fuel dp d1 with
                 | DHExp.Indet => Indet d
-                | DHExp.DoesNotMatch => InvalidInput 5
+                | DHExp.DoesNotMatch => Indet d
                 | DHExp.Matches env => evaluate fuel (DHExp.subst fuel env d2)
                 end
               end
@@ -11761,8 +11756,8 @@ Module FCore(Debug : DEBUG).
                 | InvalidInput msg => InvalidInput msg
                 | BoxedValue d2 | Indet d2 =>
                   match DHExp.matches fuel dp d2 with
-                  | DHExp.DoesNotMatch => InvalidInput 5
-                  | DHExp.Indet => Indet (DHExp.Ap d1 d2)
+                  | DHExp.DoesNotMatch => Indet d
+                  | DHExp.Indet => Indet d
                   | DHExp.Matches env =>
                     (* beta rule *)
                     evaluate fuel (DHExp.subst fuel env d3)
