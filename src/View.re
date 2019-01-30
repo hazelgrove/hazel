@@ -1,3 +1,4 @@
+let _SHOW_CASTS = true;
 exception InvariantViolated;
 module PP = Pretty.PP;
 open SemanticsCore;
@@ -481,7 +482,8 @@ let of_Cast = (prefix, err_status, rev_path, r1, rty1, rty2) =>
     err_status,
     rev_path,
     "Cast",
-    r1 /* ^^ lparen("⟨") ^^ rty1 ^^ cast_arrow ^^ rty2 ^^ rparen("⟩") */,
+    _SHOW_CASTS ?
+      r1 : r1 ^^ lparen("⟨") ^^ rty1 ^^ cast_arrow ^^ rty2 ^^ rparen("⟩"),
   );
 
 let of_chained_Cast = (prefix, err_status, rev_path, r1, rty1, rty2, rty4) =>

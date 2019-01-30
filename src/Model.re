@@ -126,7 +126,8 @@ let new_model = (): t => {
     );
 
   let monitors = [instance_at_cursor_monitor, usi_monitor];
-  let do_action = action =>
+  let do_action = action => {
+    JSUtil.log("Doing action...");
     switch (
       Action.perform_syn(
         (),
@@ -136,6 +137,7 @@ let new_model = (): t => {
       )
     ) {
     | Some(((ze, ty), ugen)) =>
+      JSUtil.log("Got result...");
       edit_state_rf(((ze, ty), ugen));
       switch (action) {
       | Action.MoveTo(_)
@@ -145,6 +147,7 @@ let new_model = (): t => {
       };
     | None => raise(InvalidAction)
     };
+  };
   let replace_e = new_uhexp => {
     let new_edit_state_opt =
       Action.zexp_syn_fix_holes(
