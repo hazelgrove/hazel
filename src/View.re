@@ -1,7 +1,11 @@
 let _SHOW_CASTS = true;
+
+/* Imports */
 exception InvariantViolated;
 module PP = Pretty.PP;
 open SemanticsCore;
+
+/* Conveniences */
 let (^^) = PP.(^^);
 let taggedText = (cls, s) => PP.text(cls, s);
 let dollar = taggedText("dollar", "$");
@@ -13,11 +17,14 @@ let op = taggedText("op");
 let var = s => taggedText("var", s);
 let paletteName = s => taggedText("paletteName", s);
 let space = taggedText("space", " ");
+
+/* Helpers */
 let rec id_of_rev_path = (prefix, rev_path) =>
   switch (rev_path) {
   | [] => prefix ++ "path_"
   | [x, ...xs] => id_of_rev_path(prefix, xs) ++ "_" ++ string_of_int(x)
   };
+
 let cls_from_classes = (err_status, classes) =>
   switch (err_status) {
   | InHole(_, u) => [
@@ -27,11 +34,13 @@ let cls_from_classes = (err_status, classes) =>
     ]
   | NotInHole => classes
   };
+
 let cls_from = (err_status, cls) =>
   switch (err_status) {
   | InHole(_, u) => ["in_err_hole", "in_err_hole_" ++ string_of_int(u), cls]
   | NotInHole => [cls]
   };
+
 let term_classes = (prefix, err_status, rev_path, classes, doc) => {
   let id' = id_of_rev_path(prefix, rev_path);
   PP.tagged(
@@ -41,10 +50,12 @@ let term_classes = (prefix, err_status, rev_path, classes, doc) => {
     doc,
   );
 };
+
 let term = (prefix, err_status, rev_path, cls, doc) => {
   let id' = id_of_rev_path(prefix, rev_path);
   PP.tagged(cls_from(err_status, cls), Some((id', rev_path)), None, doc);
 };
+
 let term_with_attrs = (prefix, err_status, rev_path, classes, attrs, doc) => {
   let id' = id_of_rev_path(prefix, rev_path);
   PP.tagged(
@@ -67,6 +78,8 @@ let of_var_binding = (prefix, rev_path, x) => {
 
 let optionalBreakSp = PP.optionalBreak(" ");
 let optionalBreakNSp = PP.optionalBreak("");
+
+/* Parenthesized */
 let of_Parenthesized = (is_block, prefix, rev_path, r1) =>
   term(
     prefix,
@@ -82,76 +95,40 @@ let of_Parenthesized = (is_block, prefix, rev_path, r1) =>
       lparen("(") ^^ r1 ^^ rparen(")"),
   );
 
-let str_of_pat_op = op =>
-  switch (op) {
-  | UHPat.Comma => (",", "op-Comma")
-  | UHPat.Space => (" ", "op-Space")
-  | UHPat.Cons => ("::", "op-Cons")
-  };
-let str_of_expr_op = op =>
-  switch (op) {
-  | UHExp.Plus => ("+", "op-Plus")
-  | UHExp.Times => ("*", "op-Times")
-  | UHExp.Space => (" ", "op-Space")
-  | UHExp.Comma => (",", "op-Comma")
-  | UHExp.Cons => ("::", "op-Cons")
-  | UHExp.LessThan => ("<", "op-LessThan")
-  };
-let str_of_ty_op = op =>
-  switch (op) {
-  | UHTyp.Sum => ("|", "op-Sum")
-  | UHTyp.Prod => ("*", "op-Prod")
-  | UHTyp.Arrow => (LangUtil.typeArrowSym, "op-Arrow")
-  };
-let of_str_op_with_space = (op_s, op_cls) =>
+/* Generic operator printing */
+let of_op = (op_s, op_cls) =>
   PP.tagged(
     ["seq-op", op_cls],
     None,
     None,
-    taggedText("op-before-1", "​​")
-    ^^ taggedText("op-before-2", "‌")
-    ^^ taggedText("op-center", " " ++ op_s ++ " ")
-    ^^ taggedText("op-after-1", "​")
-    ^^ taggedText("op-after-2", "​"),
+    String.length(op_s) == 1 ?
+      taggedText("op-no-margin", op_s) :
+      optionalBreakNSp
+      ^^ taggedText("op-before-1", "​​")
+      ^^ taggedText("op-before-2", "‌")
+      ^^ taggedText("op-center", op_s)
+      ^^ taggedText("op-after-1", "​")
+      ^^ taggedText("op-after-2", "​")
+      ^^ optionalBreakNSp,
   );
-let of_str_op_no_space = (op_s, op_cls) =>
-  PP.tagged(
-    ["seq-op", op_cls],
-    None,
-    None,
-    taggedText("op-no-margin", op_s),
-  );
-let of_op_with_space = (str_of_op, op) => {
-  let (op_s, op_cls) = str_of_op(op);
-  of_str_op_with_space(op_s, op_cls);
-};
 
-let of_expr_op_with_space = of_op_with_space(str_of_expr_op);
-let of_ty_op_with_space = of_op_with_space(str_of_ty_op);
-let of_op_no_space = (str_of_op, op) => {
-  let (op_s, op_cls) = str_of_op(op);
-  of_str_op_no_space(op_s, op_cls);
-};
-
-let of_pat_op_with_space = of_op_with_space(str_of_pat_op);
-let of_pat_op_no_space = of_op_no_space(str_of_pat_op);
-let of_pat_op = op =>
+/* Types */
+let string_of_ty_op = op =>
   switch (op) {
-  | UHPat.Cons => of_pat_op_with_space(op)
-  | UHPat.Comma
-  | UHPat.Space => of_pat_op_no_space(op)
+  | UHTyp.Arrow => "Arrow"
+  | UHTyp.Sum => "Sum"
+  | UHTyp.Prod => "Prod"
   };
 
-let of_expr_op_no_space = of_op_no_space(str_of_expr_op);
-let of_expr_op = op =>
+let of_ty_op = op => {
+  let op_cls = "op-" ++ string_of_ty_op(op);
   switch (op) {
-  | UHExp.LessThan
-  | UHExp.Plus
-  | UHExp.Cons => of_expr_op_with_space(op)
-  | UHExp.Comma
-  | UHExp.Times
-  | UHExp.Space => of_expr_op_no_space(op)
+  | UHTyp.Arrow => of_op(" " ++ LangUtil.typeArrowSym ++ " ", op_cls)
+  | UHTyp.Sum => of_op(" | ", op_cls)
+  | UHTyp.Prod => of_op(", ", op_cls)
   };
+};
+
 let of_Hole = (prefix, err_status, rev_path, cls, hole_name) =>
   term(
     prefix,
@@ -181,23 +158,19 @@ let precedence_ty = ty =>
   | HTyp.Arrow(_, _) => precedence_Arrow
   };
 let of_Bool = (prefix, rev_path) =>
-  term(prefix, NotInHole, rev_path, "Bool", kw("bool"));
+  term(prefix, NotInHole, rev_path, "Bool", kw("Bool"));
 let of_Num = (prefix, rev_path) =>
-  term(prefix, NotInHole, rev_path, "Num", kw("num"));
+  term(prefix, NotInHole, rev_path, "Num", kw("Num"));
 let of_Unit = (prefix, rev_path) =>
-  term(prefix, NotInHole, rev_path, "Unit", kw("unit"));
-let of_ty_op = (cls, op_s, prefix, err_status, rev_path, r1, r2) =>
+  term(prefix, NotInHole, rev_path, "Unit", kw("Unit"));
+let of_ty_BinOp = (prefix, err_status, rev_path, r1, op, r2) =>
   term(
     prefix,
     err_status,
     rev_path,
-    cls,
-    r1 ^^ optionalBreakSp ^^ op(op_s) ^^ optionalBreakSp ^^ r2,
+    string_of_ty_op(op),
+    r1 ^^ of_ty_op(op) ^^ r2,
   );
-
-let of_Arrow = of_ty_op("Arrow", LangUtil.typeArrowSym);
-let of_Sum = of_ty_op("Sum", "|");
-let of_Prod = of_ty_op("Prod", "*");
 let of_List = (prefix, rev_path, r1) =>
   term(
     prefix,
@@ -223,7 +196,7 @@ let rec of_htype = (parenthesize, prefix, rev_path, ty) => {
       let paren2 = precedence_ty(ty2) > precedence_Arrow;
       let r1 = of_htype(paren1, prefix, rev_path1, ty1);
       let r2 = of_htype(paren2, prefix, rev_path2, ty2);
-      of_Arrow(prefix, NotInHole, rev_path, r1, r2);
+      of_ty_BinOp(prefix, NotInHole, rev_path, r1, UHTyp.Arrow, r2);
     | HTyp.Sum(ty1, ty2) =>
       let rev_path1 = [0, ...rev_path];
       let rev_path2 = [1, ...rev_path];
@@ -231,7 +204,7 @@ let rec of_htype = (parenthesize, prefix, rev_path, ty) => {
       let paren2 = precedence_ty(ty2) > precedence_Sum;
       let r1 = of_htype(paren1, prefix, rev_path1, ty1);
       let r2 = of_htype(paren2, prefix, rev_path2, ty2);
-      of_Sum(prefix, NotInHole, rev_path, r1, r2);
+      of_ty_BinOp(prefix, NotInHole, rev_path, r1, UHTyp.Sum, r2);
     | HTyp.Prod(ty1, ty2) =>
       let rev_path1 = [0, ...rev_path];
       let rev_path2 = [1, ...rev_path];
@@ -239,7 +212,7 @@ let rec of_htype = (parenthesize, prefix, rev_path, ty) => {
       let paren2 = precedence_ty(ty2) > precedence_Prod;
       let r1 = of_htype(paren1, prefix, rev_path1, ty1);
       let r2 = of_htype(paren2, prefix, rev_path2, ty2);
-      of_Prod(prefix, NotInHole, rev_path, r1, r2);
+      of_ty_BinOp(prefix, NotInHole, rev_path, r1, UHTyp.Prod, r2);
     | HTyp.Hole => of_Hole(prefix, NotInHole, rev_path, "Hole", "?")
     };
   parenthesize ? lparen("(") ^^ d ^^ rparen(")") : d;
@@ -279,9 +252,10 @@ and of_uhtyp_skel = (prefix, rev_path, skel, seq) =>
   | Skel.BinOp(_, op, skel1, skel2) =>
     let r1 = of_uhtyp_skel(prefix, rev_path, skel1, seq);
     let r2 = of_uhtyp_skel(prefix, rev_path, skel2, seq);
-    let op_pp = of_ty_op_with_space(op);
-    PP.tagged(["skel-binop"], None, None, r1 ^^ op_pp ^^ r2);
+    of_ty_BinOp(prefix, NotInHole, rev_path, r1, op, r2);
   };
+
+/* Expressions and Patterns */
 
 let of_Asc = (prefix, err_status, rev_path, r1, r2) =>
   term(
@@ -313,14 +287,13 @@ let of_Var = (prefix, err_status, var_err_status, rev_path, x) =>
 let of_Let = (prefix, err_status, rev_path, rx, rann, r1, r2) => {
   let first_part = PP.blockBoundary ^^ kw("let") ^^ space ^^ rx;
   let second_part =
-    of_str_op_with_space("=", "let-equals")
+    of_op(" = ", "let-equals")
     ^^ PP.nestAbsolute(2, r1)
     ^^ PP.mandatoryBreak
     ^^ r2;
   let view =
     switch (rann) {
-    | Some(r) =>
-      first_part ^^ of_str_op_with_space(":", "ann") ^^ r ^^ second_part
+    | Some(r) => first_part ^^ of_op(" : ", "ann") ^^ r ^^ second_part
     | None => first_part ^^ second_part
     };
   term(prefix, err_status, rev_path, "Let", view);
@@ -331,9 +304,9 @@ let of_FixF = (prefix, err_status, rev_path, rx, rty, r1) => {
     kw("fix")
     ^^ space
     ^^ rx
-    ^^ of_str_op_no_space(":", "ann")
+    ^^ of_op(":", "ann")
     ^^ rty
-    ^^ taggedText("lambda-dot", ".")
+    ^^ of_op(".", "lambda-dot")
     ^^ r1;
   term(prefix, err_status, rev_path, "Lam", view);
 };
@@ -343,15 +316,12 @@ let of_Lam = (prefix, err_status, rev_path, rx, rann, r1) => {
   let second_part = taggedText("lambda-dot", ".") ^^ r1;
   let view =
     switch (rann) {
-    | Some(r) =>
-      first_part ^^ of_str_op_no_space(":", "ann") ^^ r ^^ second_part
+    | Some(r) => first_part ^^ of_op(":", "ann") ^^ r ^^ second_part
     | None => first_part ^^ second_part
     };
   term(prefix, err_status, rev_path, "Lam", view);
 };
 
-let of_Ap = (prefix, err_status, rev_path, r1, r2) =>
-  term(prefix, err_status, rev_path, "Ap", r1 ^^ space ^^ r2);
 let of_BoolLit = (prefix, err_status, rev_path, b) =>
   term(
     prefix,
@@ -371,39 +341,8 @@ let of_NumLit = (prefix, err_status, rev_path, n) =>
 let of_Triv = (prefix, err_status, rev_path) =>
   term(prefix, err_status, rev_path, "Triv", taggedText("triv", "()"));
 
-let of_Plus = (prefix, err_status, rev_path, r1, r2) =>
-  term(
-    prefix,
-    err_status,
-    rev_path,
-    "Plus",
-    r1 ^^ optionalBreakNSp ^^ op(" +") ^^ optionalBreakSp ^^ r2,
-  );
-
-let of_Times = (prefix, err_status, rev_path, r1, r2) =>
-  term(
-    prefix,
-    err_status,
-    rev_path,
-    "Times",
-    r1 ^^ op("*") ^^ optionalBreakNSp ^^ r2,
-  );
-
 let of_ListNil = (prefix, err_status, rev_path) =>
   term(prefix, err_status, rev_path, "ListNil", kw("[]"));
-
-let of_Cons = (prefix, err_status, rev_path, r1, r2) =>
-  term(prefix, err_status, rev_path, "Cons", r1 ^^ op("::") ^^ r2);
-
-let of_Pair = (prefix, err_status, rev_path, r1, r2) =>
-  term(
-    prefix,
-    err_status,
-    rev_path,
-    "Pair",
-    /* TODO: review this */
-    lparen("(") ^^ r1 ^^ op(",") ^^ optionalBreakSp ^^ r2 ^^ rparen(")"),
-  );
 
 let of_Inj = (prefix, err_status, rev_path, side, r) =>
   term(
@@ -450,7 +389,7 @@ let of_Case = (prefix, err_status, rev_path, r1, rpcs) => {
         ^^ ruleBar
         ^^ space
         ^^ rp
-        ^^ of_str_op_with_space(LangUtil.caseArrowSym, "case-arrow")
+        ^^ of_op(" " ++ LangUtil.caseArrowSym ++ " ", "case-arrow")
         ^^ PP.nestAbsolute(2, rc);
       },
       PP.empty,
@@ -492,14 +431,16 @@ let of_chained_Cast = (prefix, err_status, rev_path, r1, rty1, rty2, rty4) =>
     err_status,
     rev_path,
     "Cast",
-    _SHOW_CASTS ? r1 
-    ^^ lparen("<")
-    ^^ rty1
-    ^^ cast_arrow
-    ^^ rty2
-    ^^ cast_arrow
-    ^^ rty4
-    ^^ rparen(">") : r1
+    _SHOW_CASTS ?
+      r1
+      ^^ lparen("<")
+      ^^ rty1
+      ^^ cast_arrow
+      ^^ rty2
+      ^^ cast_arrow
+      ^^ rty4
+      ^^ rparen(">") :
+      r1,
   );
 
 let failed_cast_arrow = taggedText("failed-cast-arrow", " ⇨ ");
@@ -541,6 +482,32 @@ type palette_stuff = {
   mk_editor_box: EditorBoxTypes.mk_editor_box,
   do_action: Action.t => unit,
 };
+
+let string_of_pat_op = op =>
+  switch (op) {
+  | UHPat.Comma => "Comma"
+  | UHPat.Space => "Space"
+  | UHPat.Cons => "Cons"
+  };
+
+let of_pat_op = op => {
+  let op_cls = "op-" ++ string_of_pat_op(op);
+  switch (op) {
+  | UHPat.Comma => of_op(", ", op_cls)
+  | UHPat.Space => of_op(" ", op_cls)
+  | UHPat.Cons => of_op("::", op_cls)
+  };
+};
+
+let of_pat_BinOp = (prefix, err_status, rev_path, r1, op, r2) =>
+  term(
+    prefix,
+    err_status,
+    rev_path,
+    string_of_pat_op(op),
+    r1 ^^ of_pat_op(op) ^^ r2,
+  );
+
 let rec of_hpat = (prefix, rev_path, p) =>
   switch (p) {
   | UHPat.Parenthesized(p1) =>
@@ -588,11 +555,50 @@ and of_skel_pat = (prefix, rev_path, skel, seq) =>
   | Skel.BinOp(err_status, op, skel1, skel2) =>
     let r1 = of_skel_pat(prefix, rev_path, skel1, seq);
     let r2 = of_skel_pat(prefix, rev_path, skel2, seq);
-    let op_pp = of_pat_op(op);
-    let cls = "skel-binop";
-    let cls' = cls_from(err_status, cls);
-    PP.tagged(cls', None, None, r1 ^^ op_pp ^^ r2);
+    of_pat_BinOp(prefix, err_status, rev_path, r1, op, r2);
   };
+
+let string_of_exp_op = op =>
+  switch (op) {
+  | UHExp.Plus => "Plus"
+  | UHExp.Times => "Times"
+  | UHExp.LessThan => "LessThan"
+  | UHExp.Space => "Space"
+  | UHExp.Comma => "Comma"
+  | UHExp.Cons => "Cons"
+  };
+
+let of_exp_op = op => {
+  let op_cls = "op-" ++ string_of_exp_op(op);
+  switch (op) {
+  | UHExp.Plus => of_op(" + ", op_cls)
+  | UHExp.Times => of_op("*", op_cls)
+  | UHExp.LessThan => of_op(" < ", op_cls)
+  | UHExp.Space => of_op(" ", op_cls)
+  | UHExp.Comma => of_op(", ", op_cls)
+  | UHExp.Cons => of_op("::", op_cls)
+  };
+};
+
+let of_exp_BinOp = (prefix, err_status, rev_path, r1, op, r2) =>
+  term(
+    prefix,
+    err_status,
+    rev_path,
+    string_of_exp_op(op),
+    r1 ^^ of_exp_op(op) ^^ r2,
+  );
+
+/* special cased below */
+let of_Times_with_space = (prefix, err_status, rev_path, r1, op, r2) =>
+  term(
+    prefix,
+    err_status,
+    rev_path,
+    string_of_exp_op(op),
+    r1 ^^ of_op(" * ", "op-Times") ^^ r2,
+  );
+
 let rec of_hexp = (palette_stuff, prefix, rev_path, e) =>
   switch (e) {
   | UHExp.Parenthesized(e1) =>
@@ -719,49 +725,33 @@ and of_skel = (palette_stuff, prefix, rev_path, skel, seq) =>
       of_hexp(palette_stuff, prefix, rev_path_n, en);
     | None => raise(InvariantViolated)
     }
+  | Skel.BinOp(err_status, UHExp.Times as op, skel1, skel2) =>
+    let r1 = of_skel(palette_stuff, prefix, rev_path, skel1, seq);
+    let r2 = of_skel(palette_stuff, prefix, rev_path, skel2, seq);
+    switch (Skel.rightmost_op(skel1)) {
+    | Some(UHExp.Space) =>
+      of_Times_with_space(prefix, err_status, rev_path, r1, op, r2)
+    | _ =>
+      switch (Skel.leftmost_op(skel2)) {
+      | Some(UHExp.Space) =>
+        of_Times_with_space(prefix, err_status, rev_path, r1, op, r2)
+      | _ => of_exp_BinOp(prefix, err_status, rev_path, r1, op, r2)
+      }
+    };
   | Skel.BinOp(err_status, op, skel1, skel2) =>
     let r1 = of_skel(palette_stuff, prefix, rev_path, skel1, seq);
     let r2 = of_skel(palette_stuff, prefix, rev_path, skel2, seq);
-    let op_pp =
-      switch (op) {
-      | UHExp.Times =>
-        switch (Skel.rightmost_op(skel1)) {
-        | Some(UHExp.Space) => of_expr_op_with_space(op)
-        | _ =>
-          switch (Skel.leftmost_op(skel2)) {
-          | Some(UHExp.Space) => of_expr_op_with_space(op)
-          | _ => of_expr_op(op)
-          }
-        }
-      | _ => of_expr_op(op)
-      };
-    let cls = "skel-binop";
-    let cls' = cls_from(err_status, cls);
-    PP.tagged(cls', None, None, r1 ^^ op_pp ^^ r2);
+    of_exp_BinOp(prefix, err_status, rev_path, r1, op, r2);
   };
 
 open Dynamics;
-let of_bin_num_op = op =>
-  switch (op) {
-  | DHExp.Plus => taggedText("bin_num_op", " + ")
-  | DHExp.Times => taggedText("bin_num_op", "*")
-  | DHExp.LessThan => taggedText("bin_num_op", " < ")
-  };
-let of_BinNumOp = (prefix, err_status, rev_path, op, r1, r2) =>
-  term(
-    prefix,
-    err_status,
-    rev_path,
-    "BinNumOp",
-    r1 ^^ of_bin_num_op(op) ^^ r2,
-  );
-
 let precedence_Ap = 1;
 let precedence_Times = 2;
 let precedence_Plus = 3;
 let precedence_Cons = 4;
 let precedence_LessThan = 5;
-let precedence_max = 6;
+let precedence_Comma = 6;
+let precedence_max = 7;
 let rec precedence_dhpat = dp =>
   DHPat.(
     switch (dp) {
@@ -892,7 +882,7 @@ let rec of_dhpat' =
             rev_path2,
             dp2,
           );
-        of_Cons(prefix, err_status, rev_path, r1, r2);
+        of_exp_BinOp(prefix, err_status, rev_path, r1, UHExp.Cons, r2);
       | Pair(dp1, dp2) =>
         let rev_path1 = [0, ...rev_path];
         let rev_path2 = [1, ...rev_path];
@@ -914,7 +904,7 @@ let rec of_dhpat' =
             rev_path2,
             dp2,
           );
-        of_Pair(prefix, err_status, rev_path, r1, r2);
+        of_exp_BinOp(prefix, err_status, rev_path, r1, UHExp.Comma, r2);
       | Ap(dp1, dp2) =>
         let rev_path1 = [0, ...rev_path];
         let rev_path2 = [1, ...rev_path];
@@ -938,7 +928,7 @@ let rec of_dhpat' =
             rev_path2,
             dp2,
           );
-        of_Ap(prefix, err_status, rev_path, r1, r2);
+        of_exp_BinOp(prefix, err_status, rev_path, r1, UHExp.Space, r2);
       }
     );
   parenthesize ? lparen("(") ^^ doc ^^ rparen(")") : doc;
@@ -1030,7 +1020,7 @@ let rec of_dhexp' =
             d2,
           );
 
-        of_Ap(prefix, err_status, rev_path, r1, r2);
+        of_exp_BinOp(prefix, err_status, rev_path, r1, UHExp.Space, r2);
       | BoolLit(b) => of_BoolLit(prefix, err_status, rev_path, b)
       | NumLit(n) => of_NumLit(prefix, err_status, rev_path, n)
       | Triv => of_Triv(prefix, err_status, rev_path)
@@ -1060,7 +1050,7 @@ let rec of_dhexp' =
             d2,
           );
 
-        of_BinNumOp(prefix, err_status, rev_path, op, r1, r2);
+        of_exp_BinOp(prefix, err_status, rev_path, r1, DHExp.to_op(op), r2);
       | Inj(ty, side, d1) =>
         let rev_path1 = [0, ...rev_path];
         let rev_path2 = [1, ...rev_path];
@@ -1078,31 +1068,8 @@ let rec of_dhexp' =
       | Pair(d1, d2) =>
         let rev_path1 = [0, ...rev_path];
         let rev_path2 = [1, ...rev_path];
-        let r1 =
-          of_dhexp'(
-            instance_click_fn,
-            false,
-            prefix,
-            NotInHole,
-            rev_path1,
-            d1,
-          );
-        let r2 =
-          of_dhexp'(
-            instance_click_fn,
-            false,
-            prefix,
-            NotInHole,
-            rev_path2,
-            d2,
-          );
-        of_Pair(prefix, err_status, rev_path, r1, r2);
-      | ListNil => of_ListNil(prefix, err_status, rev_path)
-      | Cons(d1, d2) =>
-        let rev_path1 = [0, ...rev_path];
-        let rev_path2 = [1, ...rev_path];
-        let paren1 = precedence_dhexp(d1) > precedence_Cons;
-        let paren2 = precedence_dhexp(d2) >= precedence_Cons;
+        let paren1 = precedence_dhexp(d1) >= precedence_Comma;
+        let paren2 = precedence_dhexp(d2) > precedence_Comma;
         let r1 =
           of_dhexp'(
             instance_click_fn,
@@ -1121,7 +1088,32 @@ let rec of_dhexp' =
             rev_path2,
             d2,
           );
-        of_Cons(prefix, err_status, rev_path, r1, r2);
+        of_exp_BinOp(prefix, err_status, rev_path, r1, UHExp.Comma, r2);
+      | ListNil => of_ListNil(prefix, err_status, rev_path)
+      | Cons(d1, d2) =>
+        let rev_path1 = [0, ...rev_path];
+        let rev_path2 = [1, ...rev_path];
+        let paren1 = precedence_dhexp(d1) >= precedence_Cons;
+        let paren2 = precedence_dhexp(d2) > precedence_Cons;
+        let r1 =
+          of_dhexp'(
+            instance_click_fn,
+            paren1,
+            prefix,
+            NotInHole,
+            rev_path1,
+            d1,
+          );
+        let r2 =
+          of_dhexp'(
+            instance_click_fn,
+            paren2,
+            prefix,
+            NotInHole,
+            rev_path2,
+            d2,
+          );
+        of_exp_BinOp(prefix, err_status, rev_path, r1, UHExp.Cons, r2);
       | Case(d1, rules, _) =>
         /* TODO: probably need to do something with current rule */
         /* | Case(d1, (x, d2), (y, d3)) => */
