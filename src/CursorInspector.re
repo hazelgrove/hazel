@@ -41,7 +41,10 @@ let expected_ty_indicator_pat = ty =>
   expected_indicator(expected_ty_title_pat, typebar("expected", ty));
 let expected_msg_indicator = msg =>
   expected_indicator("Expecting an expression of ", special_msg_bar(msg));
+let expected_msg_indicator_pat = msg =>
+  expected_indicator("Expecting a pattern of ", special_msg_bar(msg));
 let expected_any_indicator = expected_msg_indicator("any type");
+let expected_any_indicator_pat = expected_msg_indicator_pat("any type");
 let expected_a_type_indicator =
   expected_indicator("Expecting ", special_msg_bar("a type"));
 let got_indicator = (title_text, type_div) =>
@@ -156,7 +159,7 @@ let of_cursor_mode = (cursor_mode: ZExp.cursor_mode) => {
       let ind2 = got_a_type_indicator;
       (ind1, ind2, OK);
     | ZExp.PatAnaOnly(ty) =>
-      let ind1 = expected_ty_indicator(ty);
+      let ind1 = expected_ty_indicator_pat(ty);
       let ind2 = got_indicator("Got", special_msg_bar("as expected"));
       (ind1, ind2, OK);
     | ZExp.PatAnaTypeInconsistent(expected_ty, got_ty) =>
@@ -167,7 +170,7 @@ let of_cursor_mode = (cursor_mode: ZExp.cursor_mode) => {
       let expected_msg = string_of_int(expected_len) ++ "-tuple";
       let ind1 =
         expected_indicator(
-          "Expecting an expression of type",
+          "Expecting a pattern of form",
           special_msg_bar(expected_msg),
         );
       let got_msg = string_of_int(got_len) ++ "-tuple";
@@ -185,7 +188,7 @@ let of_cursor_mode = (cursor_mode: ZExp.cursor_mode) => {
           got_consistent_indicator(got_ty);
       (ind1, ind2, OK);
     | ZExp.PatSynOnly(ty) =>
-      let ind1 = expected_any_indicator;
+      let ind1 = expected_any_indicator_pat;
       let ind2 = got_ty_indicator(ty);
       (ind1, ind2, OK);
     };
