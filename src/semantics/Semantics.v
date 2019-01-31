@@ -10184,6 +10184,13 @@ Module FCore(Debug : DEBUG).
           | UHExp.Cons 
           | UHExp.Comma => None
           end.
+        
+        Definition to_op bno := 
+          match bno with 
+          | Plus => UHExp.Plus
+          | Times => UHExp.Times
+          | LessThan => UHExp.LessThan
+          end.
 
         Inductive t : Type := 
         | EmptyHole : MetaVar.t -> inst_num -> VarMap.t_(t) -> t 
