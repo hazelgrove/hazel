@@ -419,7 +419,9 @@ let view = (model: Model.t) => {
                || ast_has_class("var_binding")
                || ast_has_class("ListNil")
                || ast_has_class("NumLit")
+               || ast_has_class("BoolLit")
                || ast_has_class("Num")
+               || ast_has_class("Bool")
                || ast_has_class("number")
                || ast_has_class("ApPalette")) {
       if (anchorOffset == 0) {

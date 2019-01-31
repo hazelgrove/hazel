@@ -288,8 +288,15 @@ let make =
   let constructNum =
     checked_action_button(
       Action.Construct(Action.SNum),
-      twopiece_lbl_kw("num", " type"),
+      twopiece_lbl_kw("Num", " type"),
       KCs.pound,
+    );
+
+  let constructBool =
+    checked_action_button(
+      Action.Construct(Action.SBool),
+      twopiece_lbl_kw("Bool", " type"),
+      KCs.qmark,
     );
 
   let constructArrow =
@@ -393,7 +400,7 @@ let make =
   let constructNil =
     checked_action_button(
       Action.(Construct(SListNil)),
-      Html5.txt("nil"),
+      twopiece_lbl_op("[]", " (nil)"),
       KCs.nil,
     );
 
@@ -407,14 +414,14 @@ let make =
   let constructTrue =
     checked_action_button(
       Action.(Construct(SBoolLit(true, After))),
-      Html5.txt("true"),
+      Html5.txt("True"),
       KCs.alt_T,
     );
 
   let constructFalse =
     checked_action_button(
       Action.(Construct(SBoolLit(false, After))),
-      Html5.txt("false"),
+      Html5.txt("False"),
       KCs.alt_F,
     );
 
@@ -471,7 +478,13 @@ let make =
           ),
           div(
             ~a=[a_class(["sub-panel-body"])],
-            [constructNum, constructList, constructArrow, constructSum],
+            [
+              constructNum,
+              constructBool,
+              constructList,
+              constructArrow,
+              constructSum,
+            ],
           ),
         ],
       )
