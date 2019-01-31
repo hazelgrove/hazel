@@ -6414,7 +6414,7 @@ Module FCore(Debug : DEBUG).
           end *)
         | ZExp.CaseZE ze rules => 
           cons_opt 0 (prev_hole_steps fuel ze)
-        | ZExp.CaseZR e zrules => 
+        | ZExp.CaseZR e1 zrules => 
           let zr := ZList.prj_z zrules in 
           let prefix := ZList.prj_prefix zrules in 
           let prefix_len := List.length prefix in 
@@ -6425,7 +6425,7 @@ Module FCore(Debug : DEBUG).
             | None =>
               match last_hole_steps_rules fuel prefix with
               | Some ns => Some ns
-              | None => Path.cons_opt 0 (last_hole_steps fuel e)
+              | None => Path.cons_opt 0 (last_hole_steps fuel e1)
               end
             end
           | ZExp.RuleZE p ze => 
@@ -6434,7 +6434,11 @@ Module FCore(Debug : DEBUG).
             | None => 
               match last_hole_steps_pat fuel p with 
               | Some ns => Some (cons (S prefix_len) (cons 0 ns))
-              | None => last_hole_steps_rules fuel prefix 
+              | None => 
+                match last_hole_steps_rules fuel prefix with 
+                | Some ns => Some ns
+                | None => Path.cons_opt 0 (last_hole_steps fuel e1)
+                end
               end
             end
           end
