@@ -417,6 +417,7 @@ let view = (model: Model.t) => {
       };
     } else if (ast_has_class("Var")
                || ast_has_class("var_binding")
+               || ast_has_class("Wild")
                || ast_has_class("ListNil")
                || ast_has_class("NumLit")
                || ast_has_class("BoolLit")
