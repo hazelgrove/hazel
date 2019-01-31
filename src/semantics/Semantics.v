@@ -2942,7 +2942,7 @@ Module FCore(Debug : DEBUG).
             | Some (e1, u_gen) => 
               match ana_pat_fix_holes fuel ctx u_gen renumber_empty_holes p ty1 with 
               | None => None
-              | Some (p, ctx2, u_gen) => 
+              | Some (p, ctx, u_gen) => 
                 match syn_fix_holes_internal fuel ctx u_gen renumber_empty_holes e2 with 
                 | Some (e2, ty, u_gen) => 
                   Some (Let p ann e1 e2, ty, u_gen)
@@ -2955,8 +2955,8 @@ Module FCore(Debug : DEBUG).
             | Some (e1, ty1, u_gen) => 
               match ana_pat_fix_holes fuel ctx u_gen renumber_empty_holes p ty1 with 
               | None => None
-              | Some (p, ctx2, u_gen) => 
-                match syn_fix_holes_internal fuel ctx2 u_gen renumber_empty_holes e2 with 
+              | Some (p, ctx, u_gen) => 
+                match syn_fix_holes_internal fuel ctx u_gen renumber_empty_holes e2 with 
                 | Some (e2, ty, u_gen) => 
                   Some (Let p ann e1 e2, ty, u_gen)
                 | None => None
@@ -3111,7 +3111,7 @@ Module FCore(Debug : DEBUG).
             | Some (e1, u_gen) => 
               match ana_pat_fix_holes fuel ctx u_gen renumber_empty_holes p ty1 with 
               | None => None
-              | Some (p, ctx2, u_gen) => 
+              | Some (p, ctx, u_gen) => 
                 match ana_fix_holes_internal fuel ctx u_gen renumber_empty_holes e2 ty with 
                 | Some (e2, u_gen) => 
                   Some (NotInHole, Let p ann e1 e2, u_gen)
@@ -3124,8 +3124,8 @@ Module FCore(Debug : DEBUG).
             | Some (e1, ty1, u_gen) => 
               match ana_pat_fix_holes fuel ctx u_gen renumber_empty_holes p ty1 with 
               | None => None
-              | Some (p, ctx2, u_gen) => 
-                match ana_fix_holes_internal fuel ctx2 u_gen renumber_empty_holes e2 ty with 
+              | Some (p, ctx, u_gen) => 
+                match ana_fix_holes_internal fuel ctx u_gen renumber_empty_holes e2 ty with 
                 | Some (e2, u_gen) => 
                   Some (NotInHole, Let p ann e1 e2, u_gen)
                 | None => None
