@@ -3411,8 +3411,8 @@ Module FCore(Debug : DEBUG).
           | HTyp.Prod ty1 ty2 => 
             let types := HTyp.get_tuple ty1 ty2 in 
             let skels := UHExp.get_tuple skel1 skel2 in 
-            let num_types := Debug.log_nat(List.length types) in 
-            let num_skels := Debug.log_nat(List.length skels) in 
+            let num_types := List.length types in 
+            let num_skels := List.length skels in 
             match Util.zip_eq skels types with 
             | Some zipped => 
               let fixed := 
@@ -3823,7 +3823,7 @@ Module FCore(Debug : DEBUG).
       | UHPat.Pat err (UHPat.OpSeq skel seq) => 
         let (p0, suffix) := OperatorSeq.split0 seq in 
         let surround := OperatorSeq.EmptyPrefix suffix in 
-        Deeper err (OpSeqZ skel (CursorP Before p) surround)
+        Deeper err (OpSeqZ skel (CursorP Before p0) surround)
       end.
 
     Definition place_After (p : UHPat.t) : t := 
@@ -9042,38 +9042,45 @@ Module FCore(Debug : DEBUG).
             end
           end
         end
-      | (Backspace, 
-          ZExp.Deeper _ 
+      | (Backspace,
+          ZExp.Deeper _
             (ZExp.CaseZR e1 
-              (prefix, 
-                ZExp.RuleZE p 
-                  ((ZExp.CursorE After _) as rze),
-              suffix))) => 
+              (prefix, ZExp.RuleZP (ZPat.CursorP Before _) _, suffix)))
+      | (Backspace,
+          ZExp.Deeper _
+            (ZExp.CaseZR e1
+              (prefix, ZExp.RuleZP 
+                (ZPat.Deeper _
+                  (ZPat.OpSeqZ _ 
+                    (ZPat.CursorP Before _)
+                    (OperatorSeq.EmptyPrefix _))) 
+                _, suffix))) => 
         match suffix with 
         | nil => 
-          match List.rev prefix with 
+          match prefix with 
           | nil => 
             let (zrule, u_gen) := ZExp.empty_zrule u_gen in  
-            let zrules := ZList.singleton zrule in 
-            let ze := 
-              ZExp.Deeper NotInHole
-                (ZExp.CaseZR e1 zrules) in 
+            let ze := ZExp.Deeper NotInHole 
+              (ZExp.CaseZR e1 
+                (prefix, zrule, suffix)) in 
             Some (ze, u_gen)
-          | cons (UHExp.Rule p e) tl => 
-            let zrule := ZExp.RuleZP (ZPat.place_Before p) e in 
-            let rules := List.rev tl in 
-            let zrules := (rules, zrule, suffix) in 
-            let ze := 
-              ZExp.Deeper NotInHole
-                (ZExp.CaseZR e1 zrules) in 
-            Some (ze, u_gen)
+          | cons _ _ => 
+            match List.rev prefix with 
+            | nil => None
+            | cons (UHExp.Rule p2 e2) rev_prefix' => 
+              let prefix' := List.rev rev_prefix' in 
+              let zrule := ZExp.RuleZP (ZPat.place_Before p2) e2 in 
+              let ze := ZExp.Deeper NotInHole 
+                (ZExp.CaseZR e1 
+                  (prefix', zrule, suffix)) in 
+              Some (ze, u_gen)
+            end
           end
-        | cons (UHExp.Rule p e) suffix => 
-          let zrule := ZExp.RuleZP (ZPat.place_Before p) e in 
-          let zrules := (prefix, zrule, suffix) in 
-          let ze := 
-            ZExp.Deeper NotInHole
-              (ZExp.CaseZR e1 zrules) in 
+        | cons (UHExp.Rule p2 e2) suffix' => 
+          let zrule := ZExp.RuleZP (ZPat.place_Before p2) e2 in 
+          let ze := ZExp.Deeper NotInHole
+            (ZExp.CaseZR e1 
+              (prefix, zrule, suffix')) in 
           Some (ze, u_gen)
         end
       | (Backspace, ZExp.Deeper _
@@ -9245,23 +9252,38 @@ Module FCore(Debug : DEBUG).
           ZExp.Deeper _ 
             (ZExp.CaseZR e1 
               (prefix, 
-                ZExp.RuleZE p 
-                  ((ZExp.CursorE After _) as rze),
+                (ZExp.RuleZE _ 
+                  ((ZExp.CursorE After _))) as zrule,
               suffix)))
       | (Construct SRule, 
           ZExp.Deeper _ 
             (ZExp.CaseZR e1 
               (prefix, 
-                ZExp.RuleZE p 
-                  ((ZExp.Deeper _ (ZExp.OpSeqZ _ 
+                (ZExp.RuleZE _ 
+                  (ZExp.Deeper _ (ZExp.OpSeqZ _ 
                     (ZExp.CursorE After _)
-                    (OperatorSeq.EmptySuffix _))) as rze),
-              suffix))) => 
-        let (zp, u_gen) := ZPat.new_EmptyHole u_gen in 
-        let (rule_e, u_gen) := UHExp.new_EmptyHole u_gen in 
-        let zrule := ZExp.RuleZP zp rule_e in  
-        let re := ZExp.erase rze in 
-        let prev_rule := UHExp.Rule p re in 
+                    (OperatorSeq.EmptySuffix _)))) as zrule,
+              suffix))) 
+      | (Construct SRule,
+          ZExp.Deeper _
+            (ZExp.CaseZR e1
+              (prefix,
+                (ZExp.RuleZP 
+                  (ZPat.CursorP After _)
+                  _) as zrule, suffix)))
+      | (Construct SRule,
+          ZExp.Deeper _
+            (ZExp.CaseZR e1
+              (prefix,
+                (ZExp.RuleZP 
+                  ((ZPat.Deeper _
+                    (ZPat.OpSeqZ _ 
+                      (ZPat.CursorP After _)
+                      (OperatorSeq.EmptySuffix _))))
+                  _) as zrule, suffix)))
+      => 
+        let prev_rule := ZExp.erase_rule zrule in 
+        let (zrule, u_gen) := ZExp.empty_zrule u_gen in  
         let prefix := prefix ++ (cons prev_rule nil) in 
         let ze := 
           ZExp.Deeper NotInHole
