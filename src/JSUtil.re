@@ -151,9 +151,9 @@ module KeyCombos = {
   let comma = _kc(",", ",");
   let lt = _kc("<", "<");
   let nil = _kc("[", "[");
-  let alt_L = _kcm("Alt + L", "l", ModKeyReqs.withAlt(MustBeHeld));
-  let alt_R = _kcm("Alt + R", "r", ModKeyReqs.withAlt(MustBeHeld));
-  let alt_C = _kcm("Alt + C", "c", ModKeyReqs.withAlt(MustBeHeld));
+  let alt_L = _kcm("Alt + L", "¬", ModKeyReqs.withAlt(MustBeHeld));
+  let alt_R = _kcm("Alt + R", "®", ModKeyReqs.withAlt(MustBeHeld));
+  let alt_C = _kcm("Alt + C", "ç", ModKeyReqs.withAlt(MustBeHeld));
   let alt_PageUp =
     _kcm("Alt + PageUp", "PageUp", ModKeyReqs.withAlt(MustBeHeld));
   let alt_PageDown =
