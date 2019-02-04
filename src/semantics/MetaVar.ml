@@ -1,3 +1,4 @@
+(* Metavariables, a.k.a. hole names *)
 module MetaVar =
  struct
   type t = int
