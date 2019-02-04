@@ -1,3 +1,4 @@
+(* A simple metavariable generator *)
 module MetaVarGen =
  struct
   type t = MetaVar.t
