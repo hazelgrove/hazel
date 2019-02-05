@@ -45,6 +45,64 @@ module Util =
 
   (* End ListUtil *)
 
+  module ZList = struct
+    type ('z, 'a) t = 'a list * 'z * 'a list
+
+    let singleton (z : 'z) : ('z, 'a) t = 
+      ([], z, [])
+
+    let rec split_at (n : nat) (xs : 'a list) : (('a, 'a) t) option = 
+      begin match (n, xs) with 
+      | (_, []) -> None
+      | (0, x :: xs) -> 
+        let prefix = [] in 
+        let suffix = xs in 
+        Some (prefix, x, suffix)
+      | (_, x :: xs) -> 
+        let n' = n - 1 in 
+        begin match split_at n' xs with 
+        | None -> None
+        | Some (prefix, z, suffix) -> 
+          let prefix' = x :: prefix in 
+          Some (prefix', z, suffix)
+        end
+      end
+
+    let rec replace_z 
+      (zs : ('z, 'a) t)
+      (z : 'z) 
+      : ('z, 'a) t = 
+        let (prefix, _, suffix) = zs in 
+        (prefix, z, suffix)
+
+    let optmap_z 
+      (f : 'z1 -> ('z2 option))
+      (zs : ('z1, 'a) t)
+      : ('z2, 'a) t option =  
+        let (prefix, z, suffix) = zs in 
+        begin match f z with 
+        | None -> None
+        | Some z' -> Some (prefix, z', suffix)
+        end
+
+    let prj_prefix (zxs : ('z, 'a) t) : 'a list = 
+      let (prefix, _, _) = zxs in prefix
+
+    let prefix_length (zxs : ('z, 'a) t) : nat = 
+      List.length (prj_prefix zxs)
+
+    let prj_z (zxs : ('z, 'a) t) : 'z = 
+      let (_, z, _) = zxs in z
+
+    let prj_suffix (zxs : ('z, 'a) t) : 'a list = 
+      let (_, _, suffix) = zxs in suffix
+
+    let erase (xs : ('z, 'a) t) (erase_z : 'z -> 'a) = 
+      let (prefix, z, suffix) = xs in 
+      let a = erase_z z in 
+      prefix @ (a :: suffix)
+  end
+
   (* Section StringUtil *)
 
   let str_eqb = String.equal
@@ -123,4 +181,16 @@ module Util =
     let fold delta f b =
       fold_left f delta b
    end
- end
+
+  (* Zippered finite map over nats, used with Z expressions 
+   * i.e. there is a selected element of type Z and the rest is a nat map of type A *)
+  module ZNatMap = 
+    struct
+      type ('a, 'z) t = 'a NatMap.t * (nat * 'z) 
+      let make (m : 'a NatMap.t) ((n, z) as nz : nat * 'z) : (('a, 'z) t) option =
+        begin match NatMap.lookup m n with 
+        | Some _ -> None
+        | None -> Some (m, nz)
+        end
+    end
+end
