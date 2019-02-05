@@ -37,9 +37,10 @@ let rec make_tuple err = function
 | [skel1; skel2] ->
   Some (Skel.BinOp (err, Comma, skel1, skel2))
 | skel1::skels ->
-  match make_tuple NotInHole skels with
+  begin match make_tuple NotInHole skels with
   | None -> None
   | Some skel2 -> Some (Skel.BinOp (err, Comma, skel1, skel2))
+  end
 | nil -> None
 
 (* bidelimited patterns are those that don't have
@@ -67,7 +68,6 @@ let new_EmptyHole u_gen =
   (Pat (NotInHole, (EmptyHole u))), u_gen
 
 let is_EmptyHole = function
-match p with
 | Pat (_, (EmptyHole _)) -> true
 | _ -> false
 
@@ -77,12 +77,12 @@ let rec set_inconsistent u = function
 
 (* put p in a new hole, if it is not already in a hole *)
 let rec make_inconsistent u_gen p = match p with
-  match p with
   | Pat NotInHole p'
   | Pat ((InHole (WrongLength, _)), p') ->
     let u, u_gen = MetaVarGen.next u_gen in
     (Pat ((InHole (TypeInconsistent, u)), p'), u_gen)
   | Pat ((InHole (TypeInconsistent, _)), _) -> (p, u_gen)
   | Parenthesized p1 ->
-    match make_inconsistent u_gen p1 with
+    begin match make_inconsistent u_gen p1 with
     | (p1, u_gen) -> (Parenthesized p1, u_gen)
+    end
