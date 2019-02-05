@@ -1,1 +1,1 @@
-module MetaVarMap = Util.NatMap
+include Util.NatMap

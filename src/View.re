@@ -12,7 +12,6 @@ let dollar = taggedText("dollar", "$");
 let kw = taggedText("kw");
 let lparen = taggedText("lparen");
 let rparen = taggedText("rparen");
-let ruleBar = taggedText("ruleBar", "|");
 let op = taggedText("op");
 let var = s => taggedText("var", s);
 let paletteName = s => taggedText("paletteName", s);
@@ -388,8 +387,7 @@ let of_Case = (prefix, err_status, rev_path, r1, rpcs) => {
         let line_break = rrs == PP.empty ? PP.empty : PP.mandatoryBreak;
         rrs
         ^^ line_break
-        ^^ ruleBar
-        ^^ space
+        ^^ of_op("| ", "rule-bar")
         ^^ rp
         ^^ of_op(" " ++ LangUtil.caseArrowSym ++ " ", "case-arrow")
         ^^ PP.nestAbsolute(2, rc);
