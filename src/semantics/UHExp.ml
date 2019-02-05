@@ -121,33 +121,17 @@ module HoleRefs =
   let type_of = function
   | _,ty -> ty
 
+  (* cant define m_hole_ref using Inductive due to Coq limitation *)
   type 'x m_hole_ref' =
   | NewHoleRef of HTyp.t
-  | Bnd of __ m_hole_ref' * (__ -> 'x m_hole_ref')
-  | Ret of 'x
-
+  | Bnd of 'a m_hole_ref' * ('b -> 'x m_hole_ref')
+  | Ret of 'a
   type 'x m_hole_ref = 'x m_hole_ref'
+  let new_hole_ref = NewHoleRef
+  let bind = Bnd
+  let ret = Ret
 
-  (** val new_hole_ref : HTyp.t -> hole_ref m_hole_ref' **)
-
-  let new_hole_ref x =
-    NewHoleRef x
-
-  (** val bind :
-      'a1 m_hole_ref' -> ('a1 -> 'a2 m_hole_ref') -> 'a2 m_hole_ref' **)
-
-  let bind x x0 =
-    Bnd ((Obj.magic x), (Obj.magic x0))
-
-  (** val ret : 'a1 -> 'a1 m_hole_ref' **)
-
-  let ret x =
-    Ret x
-
-  (** val exec :
-      'a1 m_hole_ref -> PaletteHoleData.t -> MetaVarGen.t ->
-      ('a1 * PaletteHoleData.t) * MetaVarGen.t **)
-
+  (* TODO: restructure m_hole_ref type to avoid use of Obj.magic below *)
   let rec exec mhr phd u_gen =
     match mhr with
     | NewHoleRef ty ->
@@ -164,20 +148,10 @@ module PaletteDefinition =
   type t = { expansion_ty : HTyp.t;
              initial_model : PaletteSerializedModel.t HoleRefs.m_hole_ref;
              to_exp : (PaletteSerializedModel.t -> Coq__2.t) }
-
-  (** val expansion_ty : t -> HTyp.t **)
-
   let expansion_ty t0 =
     t0.expansion_ty
-
-  (** val initial_model :
-      t -> PaletteSerializedModel.t HoleRefs.m_hole_ref **)
-
   let initial_model t0 =
     t0.initial_model
-
-  (** val to_exp : t -> PaletteSerializedModel.t -> Coq__2.t **)
-
   let to_exp t0 =
     t0.to_exp
  end
@@ -185,370 +159,257 @@ module PaletteDefinition =
 module PaletteCtx =
  struct
   type t = PaletteDefinition.t VarMap.t_
-
-  type 'a t_ = (Var.t * 'a) list
-
-  (** val empty : 'a1 t_ **)
-
-  let empty =
-    []
-
-  (** val is_empty : 'a1 t_ -> bool **)
-
-  let is_empty = function
-  | [] -> true
-  | _::_ -> false
-
-  (** val drop : 'a1 t_ -> Var.t -> 'a1 t_ **)
-
-  let rec drop ctx0 x =
-    match ctx0 with
-    | [] -> ctx0
-    | p::ctx' ->
-      let y,elt = p in if Var.eq x y then ctx' else (y,elt)::(drop ctx' x)
-
-  (** val extend : 'a1 t_ -> (Var.t * 'a1) -> 'a1 t_ **)
-
-  let extend ctx0 xa = match xa with
-  | x,_ -> xa::(drop ctx0 x)
-
-  (** val union : 'a1 t_ -> 'a1 t_ -> 'a1 t_ **)
-
-  let union ctx1 ctx2 =
-    fold_left extend ctx2 ctx1
-
-  (** val lookup : 'a1 t_ -> Var.t -> 'a1 option **)
-
-  let rec lookup ctx0 x =
-    match ctx0 with
-    | [] -> None
-    | p::ctx' ->
-      let y,elt = p in if Var.eq x y then Some elt else lookup ctx' x
-
-  (** val contains : 'a1 t_ -> Var.t -> bool **)
-
-  let contains ctx0 x =
-    match lookup ctx0 x with
-    | Some _ -> true
-    | None -> false
-
-  (** val map : ((Var.t * 'a1) -> 'a2) -> 'a1 t_ -> (Var.t * 'a2) list **)
-
-  let map f xs =
-    map (fun xa -> let x,_ = xa in x,(f xa)) xs
-
-  (** val length : 'a1 t_ -> int **)
-
-  let rec length = function
-  | [] -> 0
-  | _::ctx' -> ((+) 1) (length ctx')
-
-  (** val to_list : 'a1 t_ -> (Var.t * 'a1) list **)
-
-  let to_list ctx0 =
-    ctx0
+  include VarMap
  end
 
 module Contexts =
  struct
   type t = VarCtx.t * PaletteCtx.t
-
-  (** val gamma : t -> VarCtx.t **)
-
   let gamma = function
-  | gamma0,_ -> gamma0
-
-  (** val extend_gamma : t -> (Var.t * HTyp.t) -> t **)
-
+  | gamma,_ -> gamma
   let extend_gamma contexts binding =
-    let gamma0,palette_ctx = contexts in
-    let gamma' = VarCtx.extend gamma0 binding in gamma',palette_ctx
-
-  (** val gamma_union : t -> VarCtx.t -> t **)
-
+    let gamma,palette_ctx = contexts in
+    let gamma' = VarCtx.extend gamma binding in
+    gamma',palette_ctx
   let gamma_union contexts gamma' =
-    let gamma0,palette_ctx = contexts in
-    let gamma'' = VarCtx.union gamma0 gamma' in gamma'',palette_ctx
-
-  (** val gamma_contains : t -> Var.t -> bool **)
-
+    let gamma,palette_ctx = contexts in
+    let gamma'' = VarCtx.union gamma gamma' in
+    gamma'',palette_ctx
   let gamma_contains contexts x =
     VarCtx.contains (gamma contexts) x
  end
 
 type opseq = (t, op) OperatorSeq.opseq
 
-(** val bidelimited : t -> bool **)
-
+(* bidelimited expressions are those that don't have
+ * sub-expressions at their outer left or right edge
+ * in the concrete syntax *)
 let bidelimited = function
-| Tm (_, t0) ->
-  (match t0 with
-   | Asc (_, _) -> false
-   | Let (_, _, _, _) -> false
-   | Lam (_, _, _) -> false
-   | OpSeq (_, _) -> false
-   | _ -> true)
+(* bidelimited cases *)
+| Tm (_, (EmptyHole _))
+| Tm (_, (Var (_, _)))
+| Tm (_, (NumLit _))
+| Tm (_, (BoolLit _))
+| Tm (_, (Inj (_, _)))
+| Tm (_, (Case (_, _)))
+| Tm (_, ListNil)
+(* | Tm _ (ListLit _) *)
+| Tm _ (ApPalette (_, _, _))
 | Parenthesized _ -> true
+(* non-bidelimited cases *)
+| Tm (_, (Asc (_, _)))
+| Tm (_, (Let (_, _, _, _)))
+| Tm (_, (Lam (_, _, _)))
+| Tm (_, (OpSeq (_, _))) -> false
 
-(** val bidelimit : t -> t **)
-
+(* if e is not bidelimited, bidelimit e parenthesizes it *)
 let bidelimit e =
   if bidelimited e then e else Parenthesized e
 
-(** val set_inconsistent : MetaVar.t -> t -> t **)
-
+(* put e in the specified hole *)
 let rec set_inconsistent u = function
 | Tm (_, e') -> Tm ((InHole (TypeInconsistent, u)), e')
 | Parenthesized e' -> Parenthesized (set_inconsistent u e')
 
-(** val make_inconsistent : MetaVarGen.t -> t -> t * MetaVarGen.t **)
-
+(* put e in a new hole, if it is not already in a hole *)
 let rec make_inconsistent u_gen e = match e with
-| Tm (e0, e') ->
-  (match e0 with
-   | NotInHole ->
-     let u,u_gen' = MetaVarGen.next u_gen in
-     (Tm ((InHole (TypeInconsistent, u)), e')),u_gen'
-   | InHole (i, _) ->
-     (match i with
-      | TypeInconsistent -> e,u_gen
-      | WrongLength ->
-        let u,u_gen' = MetaVarGen.next u_gen in
-        (Tm ((InHole (TypeInconsistent, u)), e')),u_gen'))
+| Tm (NotInHole, e')
+| Tm ((InHole (WrongLength, _)), e') ->
+  let u, u_gen = MetaVarGen.next u_gen in
+  Tm ((InHole (TypeInconsistent, u)) e'), u_gen
+| Tm ((InHole (TypeInconsistent, _)), _) -> (e, u_gen)
 | Parenthesized e1 ->
-  let e1',u_gen' = make_inconsistent u_gen e1 in
-  (Parenthesized e1'),u_gen'
+  begin match make_inconsistent u_gen e1 with
+  | (e1', u_gen') -> (Parenthesized e1', u_gen')
+  end
 
-(** val make_skel_inconsistent :
-    MetaVarGen.t -> skel_t -> opseq -> ((skel_t * (t, op)
-    OperatorSeq.opseq) * MetaVarGen.t) option **)
-
+(* put skel in a new hole, if it is not already in a hole *)
 let make_skel_inconsistent u_gen skel seq =
   match skel with
-  | Skel.Placeholder n0 ->
-    (match OperatorSeq.seq_nth n0 seq with
-     | Some en ->
-       let en',u_gen' = make_inconsistent u_gen en in
-       (match OperatorSeq.seq_update_nth n0 seq en' with
-        | Some seq' -> Some ((skel,seq'),u_gen')
-        | None -> None)
-     | None -> None)
-  | Skel.BinOp (e, op0, skel1, skel2) ->
-    (match e with
-     | NotInHole ->
-       let u',u_gen' = MetaVarGen.next u_gen in
-       Some (((Skel.BinOp ((InHole (TypeInconsistent, u')), op0, skel1,
-       skel2)),seq),u_gen')
-     | InHole (i, _) ->
-       (match i with
-        | TypeInconsistent -> Some ((skel,seq),u_gen)
-        | WrongLength ->
-          let u',u_gen' = MetaVarGen.next u_gen in
-          Some (((Skel.BinOp ((InHole (TypeInconsistent, u')), op0,
-          skel1, skel2)),seq),u_gen')))
-
-(** val drop_outer_parentheses : t -> t **)
+  | Skel.Placeholder n ->
+    begin match OperatorSeq.seq_nth n seq with
+    | Some en ->
+      let (en', u_gen') := make_inconsistent u_gen en in
+      begin match OperatorSeq.seq_update_nth n seq en' with
+      | Some seq' -> Some (skel, seq', u_gen')
+      | None -> None
+      end
+    | None -> None
+    end
+  | Skel.BinOp ((InHole (TypeInconsistent, _)), _, _, _) -> Some (skel, seq, u_gen)
+  | Skel.BinOp (NotInHole, op, skel1, skel2)
+  | Skel.BinOp ((InHole (WrongLength, _)), op, skel1, skel2) ->
+    let (u', u_gen') := MetaVarGen.next u_gen in
+    Some (Skel.BinOp ((InHole (TypeInconsistent, u')), op, skel1, skel2), seq, u_gen')
 
 let rec drop_outer_parentheses e = match e with
 | Tm (_, _) -> e
 | Parenthesized e' -> drop_outer_parentheses e'
 
+(* see syn_skel and ana_skel below *)
 type type_mode =
 | AnalyzedAgainst of HTyp.t
 | Synthesized of HTyp.t
 
-(** val combine_modes :
-    type_mode option -> type_mode option -> type_mode option **)
-
 let combine_modes mode1 mode2 =
-  match mode1 with
-  | Some _ -> mode1
-  | None -> (match mode2 with
-             | Some _ -> mode2
-             | None -> None)
+  match (mode1, mode2) with
+  | (Some _, _) -> mode1
+  | (_, Some _) -> mode2
+  | (None, None) -> None
 
-(** val syn_pat :
-    unit -> Contexts.t -> UHPat.t -> (HTyp.t * Contexts.t) option **)
+let rec syn_pat ctx0 p =
+  match p with
+  | UHPat.Pat (InHole TypeInconsistent _) p'
+  | UHPat.Pat (InHole WrongLength _)
+      ((UHPat.OpSeq ((Skel.BinOp ((InHole (WrongLength, _)), UHPat.Comma, _, _)), _)) as p') ->
+    begin match syn_pat' ctx p' with
+    | None -> None
+    | Some (_, gamma) -> Some (HTyp.Hole, gamma)
+    end
+  | UHPat.Pat ((InHole (WrongLength, _)), _) -> None
+  | UHPat.Pat (NotInHole, p') ->
+    syn_pat' ctx p'
+  | UHPat.Parenthesized p ->
+    syn_pat ctx p
+and syn_pat' ctx p =
+  match p with
+  | UHPat.EmptyHole _ -> Some (HTyp.Hole, ctx)
+  | UHPat.Wild -> Some (HTyp.Hole, ctx)
+  | UHPat.Var x ->
+    Var.check_valid x (Some
+      (HTyp.Hole,(Contexts.extend_gamma ctx (x,HTyp.Hole))))
+  | UHPat.NumLit _ -> Some (HTyp.Num,ctx)
+  | UHPat.BoolLit _ -> Some (HTyp.Bool,ctx)
+  | UHPat.Inj (side, p1) ->
+    (match syn_pat ctx p1 with
+     | Some (ty1, ctx) ->
+       let ty =
+         (match side with
+         | L -> HTyp.Sum (ty1, HTyp.Hole)
+         | R -> HTyp.Sum (HTyp.Hole, ty1))
+       in
+       Some (ty,ctx)
+     | None -> None)
+  | UHPat.ListNil -> Some ((HTyp.List HTyp.Hole),ctx)
+  (* | UHPat.ListLit ps =>
+    List.fold_left (fun opt_result elt =>
+      match opt_result with
+      | None => None
+      | Some (ty, ctx) =>
+        match syn_pat fuel ctx elt with
+        | None => None
+        | Some (ty_elt, ctx) =>
+          match HTyp.join ty ty_elt with
+          | Some ty => Some (ty, ctx)
+          | None => None
+          end
+        end
+      end) ps (Some (HTyp.Hole, ctx)) *)
+  | UHPat.OpSeq (skel, seq) ->
+    (match syn_skel_pat ctx skel seq None with
+     | Some (ty, ctx, _) -> Some (ty, ctx)
+     | None -> None)
+and syn_skel_pat ctx skel seq monitor =
+  match skel with
+  | Skel.Placeholder n ->
+    (match OperatorSeq.seq_nth n seq with
+     | None -> None
+     | Some pn ->
+       (match UHPat.bidelimited pn with
+        | false -> None
+        | true ->
+          (match syn_pat ctx pn with
+           | None -> None
+           | Some p ->
+             let ty,ctx1 = p in
+             let mode =
+               match monitor with
+               | Some n' ->
+                 if eqb n n' then Some (Synthesized ty) else None
+               | None -> None
+             in
+             Some ((ty,ctx1),mode)))
+  | Skel.BinOp (e, op0, skel1, skel2) ->
+    (match e with
+     | NotInHole ->
+       (match op0 with
+        | UHPat.Comma ->
+          (match syn_skel_pat ctx skel1 seq monitor with
+           | Some p ->
+             let p0,mode1 = p in
+             let ty1,ctx1 = p0 in
+             (match syn_skel_pat ctx1 skel2 seq monitor with
+              | Some p1 ->
+                let p2,mode2 = p1 in
+                let ty2,ctx2 = p2 in
+                let ty = HTyp.Prod (ty1, ty2) in
+                let mode0 = combine_modes mode1 mode2 in
+                Some ((ty,ctx2),mode0)
+              | None -> None)
+           | None -> None)
+        | UHPat.Space ->
+          (match syn_skel_pat ctx skel1 seq monitor with
+           | Some p ->
+             let p0,mode1 = p in
+             let _,ctx1 = p0 in
+             (match syn_skel_pat ctx1 skel2 seq monitor with
+              | Some p1 ->
+                let p2,mode2 = p1 in
+                let _,ctx2 = p2 in
+                let ty = HTyp.Hole in
+                let mode0 = combine_modes mode1 mode2 in
+                Some ((ty,ctx2),mode0)
+              | None -> None)
+           | None -> None)
+        | UHPat.Cons ->
+          (match syn_skel_pat ctx skel1 seq monitor with
+           | Some p ->
+             let p0,mode1 = p in
+             let ty1,ctx1 = p0 in
+             let ty = HTyp.List ty1 in
+             (match ana_skel_pat ctx1 skel2 seq ty monitor with
+              | Some p1 ->
+                let ctx2,mode2 = p1 in
+                let mode0 = combine_modes mode1 mode2 in
+                Some ((ty,ctx2),mode0)
+              | None -> None)
+           | None -> None))
+     | InHole (i, _) ->
+       (match i with
+        | TypeInconsistent ->
+          let skel_not_in_hole = Skel.BinOp (NotInHole, op0, skel1,
+            skel2)
+          in
+          (match syn_skel_pat ctx skel_not_in_hole seq monitor with
+           | Some p ->
+             let p0,mode0 = p in
+             let _,ctx1 = p0 in Some ((HTyp.Hole,ctx1),mode0)
+           | None -> None)
+        | WrongLength ->
+          (match op0 with
+           | UHPat.Comma ->
+             let skel_not_in_hole = Skel.BinOp (NotInHole, op0, skel1,
+               skel2)
+             in
+             (match syn_skel_pat ctx skel_not_in_hole seq monitor with
+              | Some p ->
+                let p0,mode0 = p in
+                let _,ctx1 = p0 in Some ((HTyp.Hole,ctx1),mode0)
+              | None -> None)
+           | _ -> None))))
 
-let rec syn_pat fuel ctx0 p =
+
+and ana_pat ctx0 p ty =
   (fun fMore _ fKicked -> fMore ())
-    (fun fuel0 ->
+    (fun ->
     match p with
     | UHPat.Pat (e, p') ->
       (match e with
-       | NotInHole -> syn_pat' fuel0 ctx0 p'
+       | NotInHole -> ana_pat' ctx0 p' ty
        | InHole (i, _) ->
          (match i with
           | TypeInconsistent ->
-            (match syn_pat' fuel0 ctx0 p' with
-             | Some p0 -> let _,gamma0 = p0 in Some (HTyp.Hole,gamma0)
-             | None -> None)
-          | WrongLength ->
-            (match p' with
-             | UHPat.OpSeq (s, _) ->
-               (match s with
-                | Skel.Placeholder _ -> None
-                | Skel.BinOp (e0, o, _, _) ->
-                  (match e0 with
-                   | NotInHole -> None
-                   | InHole (i0, _) ->
-                     (match i0 with
-                      | TypeInconsistent -> None
-                      | WrongLength ->
-                        (match o with
-                         | UHPat.Comma ->
-                           (match syn_pat' fuel0 ctx0 p' with
-                            | Some p0 ->
-                              let _,gamma0 = p0 in Some (HTyp.Hole,gamma0)
-                            | None -> None)
-                         | _ -> None))))
-             | _ -> None)))
-    | UHPat.Parenthesized p0 -> syn_pat fuel0 ctx0 p0)
-    (fun _ -> None)
-    fuel
-
-(** val syn_pat' :
-    unit -> Contexts.t -> UHPat.t' -> (HTyp.t * Contexts.t) option **)
-
-and syn_pat' fuel ctx0 p =
-  (fun fMore _ fKicked -> fMore ())
-    (fun fuel0 ->
-    match p with
-    | UHPat.Var x ->
-      Var.check_valid x (Some
-        (HTyp.Hole,(Contexts.extend_gamma ctx0 (x,HTyp.Hole))))
-    | UHPat.NumLit _ -> Some (HTyp.Num,ctx0)
-    | UHPat.BoolLit _ -> Some (HTyp.Bool,ctx0)
-    | UHPat.Inj (side0, p1) ->
-      (match syn_pat fuel0 ctx0 p1 with
-       | Some p0 ->
-         let ty1,ctx1 = p0 in
-         let ty =
-           match side0 with
-           | L -> HTyp.Sum (ty1, HTyp.Hole)
-           | R -> HTyp.Sum (HTyp.Hole, ty1)
-         in
-         Some (ty,ctx1)
-       | None -> None)
-    | UHPat.ListNil -> Some ((HTyp.List HTyp.Hole),ctx0)
-    | UHPat.OpSeq (skel, seq) ->
-      (match syn_skel_pat fuel0 ctx0 skel seq None with
-       | Some p0 -> let p1,_ = p0 in Some p1
-       | None -> None)
-    | _ -> Some (HTyp.Hole,ctx0))
-    (fun _ -> None)
-    fuel
-
-(** val syn_skel_pat :
-    unit -> Contexts.t -> UHPat.skel_t -> UHPat.opseq -> int option ->
-    ((HTyp.t * Contexts.t) * type_mode option) option **)
-
-and syn_skel_pat fuel ctx0 skel seq monitor =
-  (fun fMore _ fKicked -> fMore ())
-    (fun fuel0 ->
-    match skel with
-    | Skel.Placeholder n0 ->
-      (match OperatorSeq.seq_nth n0 seq with
-       | Some pn ->
-         if UHPat.bidelimited pn
-         then (match syn_pat fuel0 ctx0 pn with
-               | Some p ->
-                 let ty,ctx1 = p in
-                 let mode0 =
-                   match monitor with
-                   | Some n' ->
-                     if eqb n0 n' then Some (Synthesized ty) else None
-                   | None -> None
-                 in
-                 Some ((ty,ctx1),mode0)
-               | None -> None)
-         else None
-       | None -> None)
-    | Skel.BinOp (e, op0, skel1, skel2) ->
-      (match e with
-       | NotInHole ->
-         (match op0 with
-          | UHPat.Comma ->
-            (match syn_skel_pat fuel0 ctx0 skel1 seq monitor with
-             | Some p ->
-               let p0,mode1 = p in
-               let ty1,ctx1 = p0 in
-               (match syn_skel_pat fuel0 ctx1 skel2 seq monitor with
-                | Some p1 ->
-                  let p2,mode2 = p1 in
-                  let ty2,ctx2 = p2 in
-                  let ty = HTyp.Prod (ty1, ty2) in
-                  let mode0 = combine_modes mode1 mode2 in
-                  Some ((ty,ctx2),mode0)
-                | None -> None)
-             | None -> None)
-          | UHPat.Space ->
-            (match syn_skel_pat fuel0 ctx0 skel1 seq monitor with
-             | Some p ->
-               let p0,mode1 = p in
-               let _,ctx1 = p0 in
-               (match syn_skel_pat fuel0 ctx1 skel2 seq monitor with
-                | Some p1 ->
-                  let p2,mode2 = p1 in
-                  let _,ctx2 = p2 in
-                  let ty = HTyp.Hole in
-                  let mode0 = combine_modes mode1 mode2 in
-                  Some ((ty,ctx2),mode0)
-                | None -> None)
-             | None -> None)
-          | UHPat.Cons ->
-            (match syn_skel_pat fuel0 ctx0 skel1 seq monitor with
-             | Some p ->
-               let p0,mode1 = p in
-               let ty1,ctx1 = p0 in
-               let ty = HTyp.List ty1 in
-               (match ana_skel_pat fuel0 ctx1 skel2 seq ty monitor with
-                | Some p1 ->
-                  let ctx2,mode2 = p1 in
-                  let mode0 = combine_modes mode1 mode2 in
-                  Some ((ty,ctx2),mode0)
-                | None -> None)
-             | None -> None))
-       | InHole (i, _) ->
-         (match i with
-          | TypeInconsistent ->
-            let skel_not_in_hole = Skel.BinOp (NotInHole, op0, skel1,
-              skel2)
-            in
-            (match syn_skel_pat fuel0 ctx0 skel_not_in_hole seq monitor with
-             | Some p ->
-               let p0,mode0 = p in
-               let _,ctx1 = p0 in Some ((HTyp.Hole,ctx1),mode0)
-             | None -> None)
-          | WrongLength ->
-            (match op0 with
-             | UHPat.Comma ->
-               let skel_not_in_hole = Skel.BinOp (NotInHole, op0, skel1,
-                 skel2)
-               in
-               (match syn_skel_pat fuel0 ctx0 skel_not_in_hole seq monitor with
-                | Some p ->
-                  let p0,mode0 = p in
-                  let _,ctx1 = p0 in Some ((HTyp.Hole,ctx1),mode0)
-                | None -> None)
-             | _ -> None))))
-    (fun _ -> None)
-    fuel
-
-(** val ana_pat :
-    unit -> Contexts.t -> UHPat.t -> HTyp.t -> Contexts.t option **)
-
-and ana_pat fuel ctx0 p ty =
-  (fun fMore _ fKicked -> fMore ())
-    (fun fuel0 ->
-    match p with
-    | UHPat.Pat (e, p') ->
-      (match e with
-       | NotInHole -> ana_pat' fuel0 ctx0 p' ty
-       | InHole (i, _) ->
-         (match i with
-          | TypeInconsistent ->
-            (match syn_pat' fuel0 ctx0 p' with
+            (match syn_pat' ctx0 p' with
              | Some p0 -> let _,ctx1 = p0 in Some ctx1
              | None -> None)
           | WrongLength ->
@@ -564,19 +425,19 @@ and ana_pat fuel ctx0 p ty =
                       | TypeInconsistent -> None
                       | WrongLength ->
                         (match o with
-                         | UHPat.Comma -> ana_pat' fuel0 ctx0 p' ty
+                         | UHPat.Comma -> ana_pat' ctx0 p' ty
                          | _ -> None))))
              | _ -> None)))
-    | UHPat.Parenthesized p0 -> ana_pat fuel0 ctx0 p0 ty)
+    | UHPat.Parenthesized p0 -> ana_pat ctx0 p0 ty)
     (fun _ -> None)
     fuel
 
 (** val ana_pat' :
     unit -> Contexts.t -> UHPat.t' -> HTyp.t -> Contexts.t option **)
 
-and ana_pat' fuel ctx0 p ty =
+and ana_pat' ctx0 p ty =
   (fun fMore _ fKicked -> fMore ())
-    (fun fuel0 ->
+    (fun ->
     match p with
     | UHPat.EmptyHole _ -> Some ctx0
     | UHPat.Wild -> Some ctx0
@@ -586,18 +447,18 @@ and ana_pat' fuel ctx0 p ty =
       (match HTyp.matched_sum ty with
        | Some p0 ->
          let tyL,tyR = p0 in
-         let ty1 = pick_side side0 tyL tyR in ana_pat fuel0 ctx0 p1 ty1
+         let ty1 = pick_side side0 tyL tyR in ana_pat ctx0 p1 ty1
        | None -> None)
     | UHPat.ListNil ->
       (match HTyp.matched_list ty with
        | Some _ -> Some ctx0
        | None -> None)
     | UHPat.OpSeq (skel, seq) ->
-      (match ana_skel_pat fuel0 ctx0 skel seq ty None with
+      (match ana_skel_pat ctx0 skel seq ty None with
        | Some p0 -> let ctx1,_ = p0 in Some ctx1
        | None -> None)
     | _ ->
-      (match syn_pat' fuel0 ctx0 p with
+      (match syn_pat' ctx0 p with
        | Some p0 ->
          let ty',ctx1 = p0 in
          if HTyp.consistent ty ty' then Some ctx1 else None
@@ -609,15 +470,15 @@ and ana_pat' fuel ctx0 p ty =
     unit -> Contexts.t -> UHPat.skel_t -> UHPat.opseq -> HTyp.t -> int
     option -> (Contexts.t * type_mode option) option **)
 
-and ana_skel_pat fuel ctx0 skel seq ty monitor =
+and ana_skel_pat ctx0 skel seq ty monitor =
   (fun fMore _ fKicked -> fMore ())
-    (fun fuel0 ->
+    (fun ->
     match skel with
     | Skel.Placeholder n0 ->
       (match OperatorSeq.seq_nth n0 seq with
        | Some pn ->
          if UHPat.bidelimited pn
-         then (match ana_pat fuel0 ctx0 pn ty with
+         then (match ana_pat ctx0 pn ty with
                | Some ctx1 ->
                  let mode0 =
                    match monitor with
@@ -636,10 +497,10 @@ and ana_skel_pat fuel ctx0 skel seq ty monitor =
           | UHPat.Comma ->
             (match ty with
              | HTyp.Hole ->
-               (match ana_skel_pat fuel0 ctx0 skel1 seq HTyp.Hole monitor with
+               (match ana_skel_pat ctx0 skel1 seq HTyp.Hole monitor with
                 | Some p ->
                   let ctx1,mode1 = p in
-                  (match ana_skel_pat fuel0 ctx1 skel2 seq HTyp.Hole
+                  (match ana_skel_pat ctx1 skel2 seq HTyp.Hole
                            monitor with
                    | Some p0 ->
                      let ctx2,mode2 = p0 in
@@ -657,7 +518,7 @@ and ana_skel_pat fuel ctx0 skel seq ty monitor =
                     | Some y ->
                       let ctx1,mode0 = y in
                       let skel0,ty0 = skel_ty in
-                      (match ana_skel_pat fuel0 ctx1 skel0 seq ty0 monitor with
+                      (match ana_skel_pat ctx1 skel0 seq ty0 monitor with
                        | Some p ->
                          let ctx2,mode' = p in
                          let mode1 = combine_modes mode0 mode' in
@@ -670,11 +531,11 @@ and ana_skel_pat fuel ctx0 skel seq ty monitor =
           | UHPat.Cons ->
             (match HTyp.matched_list ty with
              | Some ty_elt ->
-               (match ana_skel_pat fuel0 ctx0 skel1 seq ty_elt monitor with
+               (match ana_skel_pat ctx0 skel1 seq ty_elt monitor with
                 | Some p ->
                   let ctx1,mode1 = p in
                   let ty_list = HTyp.List ty_elt in
-                  (match ana_skel_pat fuel0 ctx1 skel2 seq ty_list monitor with
+                  (match ana_skel_pat ctx1 skel2 seq ty_list monitor with
                    | Some p0 ->
                      let ctx2,mode2 = p0 in
                      let mode0 = combine_modes mode1 mode2 in
@@ -688,7 +549,7 @@ and ana_skel_pat fuel ctx0 skel seq ty monitor =
             let skel_not_in_hole = Skel.BinOp (NotInHole, op0, skel1,
               skel2)
             in
-            (match syn_skel_pat fuel0 ctx0 skel_not_in_hole seq monitor with
+            (match syn_skel_pat ctx0 skel_not_in_hole seq monitor with
              | Some p ->
                let p0,mode0 = p in let _,ctx1 = p0 in Some (ctx1,mode0)
              | None -> None)
@@ -712,7 +573,7 @@ and ana_skel_pat fuel ctx0 skel seq ty monitor =
                            | Some y ->
                              let ctx1,mode0 = y in
                              let skel0,ty0 = skel_ty in
-                             (match ana_skel_pat fuel0 ctx1 skel0 seq ty0
+                             (match ana_skel_pat ctx1 skel0 seq ty0
                                       monitor with
                               | Some p ->
                                 let ctx2,mode' = p in
@@ -727,7 +588,7 @@ and ana_skel_pat fuel ctx0 skel seq ty monitor =
                             match opt_result with
                             | Some y ->
                               let ctx1,mode0 = y in
-                              (match syn_skel_pat fuel0 ctx1 skel0 seq
+                              (match syn_skel_pat ctx1 skel0 seq
                                        monitor with
                                | Some p0 ->
                                  let p1,mode' = p0 in
@@ -784,17 +645,17 @@ let ctx_for_let' ctx0 p ty1 e1 =
 
 (** val syn : unit -> Contexts.t -> t -> HTyp.t option **)
 
-let rec syn fuel ctx0 e =
+let rec syn ctx0 e =
   (fun fMore _ fKicked -> fMore ())
-    (fun fuel0 ->
+    (fun ->
     match e with
     | Tm (e0, e') ->
       (match e0 with
-       | NotInHole -> syn' fuel0 ctx0 e'
+       | NotInHole -> syn' ctx0 e'
        | InHole (i, _) ->
          (match i with
           | TypeInconsistent ->
-            (match syn' fuel0 ctx0 e' with
+            (match syn' ctx0 e' with
              | Some _ -> Some HTyp.Hole
              | None -> None)
           | WrongLength ->
@@ -811,25 +672,25 @@ let rec syn fuel ctx0 e =
                       | WrongLength ->
                         (match o with
                          | Comma ->
-                           (match syn' fuel0 ctx0 e' with
+                           (match syn' ctx0 e' with
                             | Some _ -> Some HTyp.Hole
                             | None -> None)
                          | _ -> None))))
              | _ -> None)))
-    | Parenthesized e1 -> syn fuel0 ctx0 e1)
+    | Parenthesized e1 -> syn ctx0 e1)
     (fun _ -> None)
     fuel
 
 (** val syn' : unit -> Contexts.t -> t' -> HTyp.t option **)
 
-and syn' fuel ctx0 e =
+and syn' ctx0 e =
   (fun fMore _ fKicked -> fMore ())
-    (fun fuel0 ->
+    (fun ->
     match e with
     | Asc (e1, uty) ->
-      let ty = UHTyp.expand fuel0 uty in
+      let ty = UHTyp.expand uty in
       if bidelimited e1
-      then (match ana fuel0 ctx0 e1 ty with
+      then (match ana ctx0 e1 ty with
             | Some _ -> Some ty
             | None -> None)
       else None
@@ -840,37 +701,37 @@ and syn' fuel ctx0 e =
     | Let (p, ann, e1, e2) ->
       (match ann with
        | Some uty1 ->
-         let ty1 = UHTyp.expand fuel0 uty1 in
+         let ty1 = UHTyp.expand uty1 in
          let ctx1 = ctx_for_let ctx0 p ty1 e1 in
-         (match ana fuel0 ctx1 e1 ty1 with
+         (match ana ctx1 e1 ty1 with
           | Some _ ->
-            (match ana_pat fuel0 ctx0 p ty1 with
-             | Some ctx2 -> syn fuel0 ctx2 e2
+            (match ana_pat ctx0 p ty1 with
+             | Some ctx2 -> syn ctx2 e2
              | None -> None)
           | None -> None)
        | None ->
-         (match syn fuel0 ctx0 e1 with
+         (match syn ctx0 e1 with
           | Some ty1 ->
-            (match ana_pat fuel0 ctx0 p ty1 with
-             | Some ctx2 -> syn fuel0 ctx2 e2
+            (match ana_pat ctx0 p ty1 with
+             | Some ctx2 -> syn ctx2 e2
              | None -> None)
           | None -> None))
     | Lam (p, ann, e1) ->
       let ty1 =
         match ann with
-        | Some uty -> UHTyp.expand fuel0 uty
+        | Some uty -> UHTyp.expand uty
         | None -> HTyp.Hole
       in
-      (match ana_pat fuel0 ctx0 p ty1 with
+      (match ana_pat ctx0 p ty1 with
        | Some ctx1 ->
-         (match syn fuel0 ctx1 e1 with
+         (match syn ctx1 e1 with
           | Some ty2 -> Some (HTyp.Arrow (ty1, ty2))
           | None -> None)
        | None -> None)
     | NumLit _ -> Some HTyp.Num
     | BoolLit _ -> Some HTyp.Bool
     | Inj (side0, e1) ->
-      (match syn fuel0 ctx0 e1 with
+      (match syn ctx0 e1 with
        | Some ty1 ->
          (match side0 with
           | L -> Some (HTyp.Sum (ty1, HTyp.Hole))
@@ -880,14 +741,14 @@ and syn' fuel ctx0 e =
     | ListNil -> Some (HTyp.List HTyp.Hole)
     | EmptyHole _ -> Some HTyp.Hole
     | OpSeq (skel, seq) ->
-      (match syn_skel fuel0 ctx0 skel seq None with
+      (match syn_skel ctx0 skel seq None with
        | Some p -> let ty,_ = p in Some ty
        | None -> None)
     | ApPalette (name, serialized_model, hole_data) ->
       let _,palette_ctx = ctx0 in
       (match VarMap.lookup palette_ctx name with
        | Some palette_defn ->
-         (match ana_hole_data fuel0 ctx0 hole_data with
+         (match ana_hole_data ctx0 hole_data with
           | Some _ ->
             let expansion_ty0 =
               PaletteDefinition.expansion_ty palette_defn
@@ -898,7 +759,7 @@ and syn' fuel ctx0 e =
             let expansion_ctx =
               PaletteHoleData.extend_ctx_with_hole_map ctx0 hole_map0
             in
-            (match ana fuel0 expansion_ctx expansion expansion_ty0 with
+            (match ana expansion_ctx expansion expansion_ty0 with
              | Some _ -> Some expansion_ty0
              | None -> None)
           | None -> None)
@@ -909,32 +770,32 @@ and syn' fuel ctx0 e =
 (** val ana_hole_data :
     unit -> Contexts.t -> PaletteHoleData.t -> unit option **)
 
-and ana_hole_data fuel ctx0 hole_data =
+and ana_hole_data ctx0 hole_data =
   (fun fMore _ fKicked -> fMore ())
-    (fun fuel0 ->
+    (fun ->
     let _,hole_map0 = hole_data in
     NatMap.fold hole_map0 (fun c v ->
       let _,ty_e = v in
       let ty,e = ty_e in
       (match c with
-       | Some _ -> ana fuel0 ctx0 e ty
+       | Some _ -> ana ctx0 e ty
        | None -> None)) (Some ()))
     (fun _ -> None)
     fuel
 
 (** val ana : unit -> Contexts.t -> t -> HTyp.t -> unit option **)
 
-and ana fuel ctx0 e ty =
+and ana ctx0 e ty =
   (fun fMore _ fKicked -> fMore ())
-    (fun fuel0 ->
+    (fun ->
     match e with
     | Tm (e0, e') ->
       (match e0 with
-       | NotInHole -> ana' fuel0 ctx0 e' ty
+       | NotInHole -> ana' ctx0 e' ty
        | InHole (i, _) ->
          (match i with
           | TypeInconsistent ->
-            (match syn' fuel0 ctx0 e' with
+            (match syn' ctx0 e' with
              | Some _ -> Some ()
              | None -> None)
           | WrongLength ->
@@ -950,35 +811,35 @@ and ana fuel ctx0 e ty =
                       | TypeInconsistent -> None
                       | WrongLength ->
                         (match o with
-                         | Comma -> ana' fuel0 ctx0 e' ty
+                         | Comma -> ana' ctx0 e' ty
                          | _ -> None))))
              | _ -> None)))
-    | Parenthesized e1 -> ana fuel0 ctx0 e1 ty)
+    | Parenthesized e1 -> ana ctx0 e1 ty)
     (fun _ -> None)
     fuel
 
 (** val ana' : unit -> Contexts.t -> t' -> HTyp.t -> unit option **)
 
-and ana' fuel ctx0 e ty =
+and ana' ctx0 e ty =
   (fun fMore _ fKicked -> fMore ())
-    (fun fuel0 ->
+    (fun ->
     match e with
     | Let (p, ann, e1, e2) ->
       (match ann with
        | Some uty1 ->
-         let ty1 = UHTyp.expand fuel0 uty1 in
+         let ty1 = UHTyp.expand uty1 in
          let ctx1 = ctx_for_let ctx0 p ty1 e1 in
-         (match ana fuel0 ctx1 e1 ty1 with
+         (match ana ctx1 e1 ty1 with
           | Some _ ->
-            (match ana_pat fuel0 ctx0 p ty1 with
-             | Some ctx2 -> ana fuel0 ctx2 e2 ty
+            (match ana_pat ctx0 p ty1 with
+             | Some ctx2 -> ana ctx2 e2 ty
              | None -> None)
           | None -> None)
        | None ->
-         (match syn fuel0 ctx0 e1 with
+         (match syn ctx0 e1 with
           | Some ty1 ->
-            (match ana_pat fuel0 ctx0 p ty1 with
-             | Some ctx2 -> ana fuel0 ctx2 e2 ty
+            (match ana_pat ctx0 p ty1 with
+             | Some ctx2 -> ana ctx2 e2 ty
              | None -> None)
           | None -> None))
     | Lam (p, ann, e1) ->
@@ -987,36 +848,36 @@ and ana' fuel ctx0 e ty =
          let ty1_given,ty2 = p0 in
          (match ann with
           | Some uty1 ->
-            let ty1_ann = UHTyp.expand fuel0 uty1 in
+            let ty1_ann = UHTyp.expand uty1 in
             if HTyp.consistent ty1_ann ty1_given
-            then (match ana_pat fuel0 ctx0 p ty1_ann with
-                  | Some ctx1 -> ana fuel0 ctx1 e1 ty2
+            then (match ana_pat ctx0 p ty1_ann with
+                  | Some ctx1 -> ana ctx1 e1 ty2
                   | None -> None)
             else None
           | None ->
-            (match ana_pat fuel0 ctx0 p ty1_given with
-             | Some ctx1 -> ana fuel0 ctx1 e1 ty2
+            (match ana_pat ctx0 p ty1_given with
+             | Some ctx1 -> ana ctx1 e1 ty2
              | None -> None))
        | None -> None)
     | Inj (side0, e') ->
       (match HTyp.matched_sum ty with
        | Some p ->
-         let ty1,ty2 = p in ana fuel0 ctx0 e' (pick_side side0 ty1 ty2)
+         let ty1,ty2 = p in ana ctx0 e' (pick_side side0 ty1 ty2)
        | None -> None)
     | Case (e1, rules0) ->
-      (match syn fuel0 ctx0 e1 with
-       | Some ty1 -> ana_rules fuel0 ctx0 rules0 ty1 ty
+      (match syn ctx0 e1 with
+       | Some ty1 -> ana_rules ctx0 rules0 ty1 ty
        | None -> None)
     | ListNil ->
       (match HTyp.matched_list ty with
        | Some _ -> Some ()
        | None -> None)
     | OpSeq (skel, seq) ->
-      (match ana_skel fuel0 ctx0 skel seq ty None with
+      (match ana_skel ctx0 skel seq ty None with
        | Some _ -> Some ()
        | None -> None)
     | _ ->
-      (match syn' fuel0 ctx0 e with
+      (match syn' ctx0 e with
        | Some ty' -> if HTyp.consistent ty ty' then Some () else None
        | None -> None))
     (fun _ -> None)
@@ -1025,12 +886,12 @@ and ana' fuel ctx0 e ty =
 (** val ana_rules :
     unit -> Contexts.t -> rule list -> HTyp.t -> HTyp.t -> unit option **)
 
-and ana_rules fuel ctx0 rules0 pat_ty clause_ty =
+and ana_rules ctx0 rules0 pat_ty clause_ty =
   (fun fMore _ fKicked -> fMore ())
-    (fun fuel0 ->
+    (fun ->
     fold_left (fun b r ->
       match b with
-      | Some _ -> ana_rule fuel0 ctx0 r pat_ty clause_ty
+      | Some _ -> ana_rule ctx0 r pat_ty clause_ty
       | None -> None) rules0 (Some ()))
     (fun _ -> None)
     fuel
@@ -1038,12 +899,12 @@ and ana_rules fuel ctx0 rules0 pat_ty clause_ty =
 (** val ana_rule :
     unit -> Contexts.t -> rule -> HTyp.t -> HTyp.t -> unit option **)
 
-and ana_rule fuel ctx0 rule0 pat_ty clause_ty =
+and ana_rule ctx0 rule0 pat_ty clause_ty =
   (fun fMore _ fKicked -> fMore ())
-    (fun fuel0 ->
+    (fun ->
     let Rule (p, e) = rule0 in
-    (match ana_pat fuel0 ctx0 p pat_ty with
-     | Some ctx1 -> ana fuel0 ctx1 e clause_ty
+    (match ana_pat ctx0 p pat_ty with
+     | Some ctx1 -> ana ctx1 e clause_ty
      | None -> None))
     (fun _ -> None)
     fuel
@@ -1052,15 +913,15 @@ and ana_rule fuel ctx0 rule0 pat_ty clause_ty =
     unit -> Contexts.t -> skel_t -> opseq -> int option ->
     (HTyp.t * type_mode option) option **)
 
-and syn_skel fuel ctx0 skel seq monitor =
+and syn_skel ctx0 skel seq monitor =
   (fun fMore _ fKicked -> fMore ())
-    (fun fuel0 ->
+    (fun ->
     match skel with
     | Skel.Placeholder n0 ->
       (match OperatorSeq.seq_nth n0 seq with
        | Some en ->
          if bidelimited en
-         then (match syn fuel0 ctx0 en with
+         then (match syn ctx0 en with
                | Some ty ->
                  let mode0 =
                    match monitor with
@@ -1077,30 +938,30 @@ and syn_skel fuel ctx0 skel seq monitor =
        | NotInHole ->
          (match op0 with
           | LessThan ->
-            (match ana_skel fuel0 ctx0 skel1 seq HTyp.Num monitor with
+            (match ana_skel ctx0 skel1 seq HTyp.Num monitor with
              | Some mode1 ->
-               (match ana_skel fuel0 ctx0 skel2 seq HTyp.Num monitor with
+               (match ana_skel ctx0 skel2 seq HTyp.Num monitor with
                 | Some mode2 ->
                   Some (HTyp.Bool,(combine_modes mode1 mode2))
                 | None -> None)
              | None -> None)
           | Space ->
-            (match syn_skel fuel0 ctx0 skel1 seq monitor with
+            (match syn_skel ctx0 skel1 seq monitor with
              | Some p ->
                let ty1,mode1 = p in
                (match HTyp.matched_arrow ty1 with
                 | Some p0 ->
                   let ty2,ty = p0 in
-                  (match ana_skel fuel0 ctx0 skel2 seq ty2 monitor with
+                  (match ana_skel ctx0 skel2 seq ty2 monitor with
                    | Some mode2 -> Some (ty,(combine_modes mode1 mode2))
                    | None -> None)
                 | None -> None)
              | None -> None)
           | Comma ->
-            (match syn_skel fuel0 ctx0 skel1 seq monitor with
+            (match syn_skel ctx0 skel1 seq monitor with
              | Some p ->
                let ty1,mode1 = p in
-               (match syn_skel fuel0 ctx0 skel2 seq monitor with
+               (match syn_skel ctx0 skel2 seq monitor with
                 | Some p0 ->
                   let ty2,mode2 = p0 in
                   let mode0 = combine_modes mode1 mode2 in
@@ -1108,18 +969,18 @@ and syn_skel fuel ctx0 skel seq monitor =
                 | None -> None)
              | None -> None)
           | Cons ->
-            (match syn_skel fuel0 ctx0 skel1 seq monitor with
+            (match syn_skel ctx0 skel1 seq monitor with
              | Some p ->
                let ty1,mode1 = p in
                let ty = HTyp.List ty1 in
-               (match ana_skel fuel0 ctx0 skel2 seq ty monitor with
+               (match ana_skel ctx0 skel2 seq ty monitor with
                 | Some mode2 -> Some (ty,(combine_modes mode1 mode2))
                 | None -> None)
              | None -> None)
           | _ ->
-            (match ana_skel fuel0 ctx0 skel1 seq HTyp.Num monitor with
+            (match ana_skel ctx0 skel1 seq HTyp.Num monitor with
              | Some mode1 ->
-               (match ana_skel fuel0 ctx0 skel2 seq HTyp.Num monitor with
+               (match ana_skel ctx0 skel2 seq HTyp.Num monitor with
                 | Some mode2 ->
                   Some (HTyp.Num,(combine_modes mode1 mode2))
                 | None -> None)
@@ -1130,7 +991,7 @@ and syn_skel fuel ctx0 skel seq monitor =
             let skel_not_in_hole = Skel.BinOp (NotInHole, op0, skel1,
               skel2)
             in
-            (match syn_skel fuel0 ctx0 skel_not_in_hole seq monitor with
+            (match syn_skel ctx0 skel_not_in_hole seq monitor with
              | Some p -> let _,mode0 = p in Some (HTyp.Hole,mode0)
              | None -> None)
           | WrongLength ->
@@ -1139,7 +1000,7 @@ and syn_skel fuel ctx0 skel seq monitor =
                let skel_not_in_hole = Skel.BinOp (NotInHole, op0, skel1,
                  skel2)
                in
-               (match syn_skel fuel0 ctx0 skel_not_in_hole seq monitor with
+               (match syn_skel ctx0 skel_not_in_hole seq monitor with
                 | Some p -> let _,mode0 = p in Some (HTyp.Hole,mode0)
                 | None -> None)
              | _ -> None))))
@@ -1150,15 +1011,15 @@ and syn_skel fuel ctx0 skel seq monitor =
     unit -> Contexts.t -> skel_t -> opseq -> HTyp.t -> int option ->
     type_mode option option **)
 
-and ana_skel fuel ctx0 skel seq ty monitor =
+and ana_skel ctx0 skel seq ty monitor =
   (fun fMore _ fKicked -> fMore ())
-    (fun fuel0 ->
+    (fun ->
     match skel with
     | Skel.Placeholder n0 ->
       (match OperatorSeq.seq_nth n0 seq with
        | Some en ->
          if bidelimited en
-         then (match ana fuel0 ctx0 en ty with
+         then (match ana ctx0 en ty with
                | Some _ ->
                  (match monitor with
                   | Some n' ->
@@ -1176,9 +1037,9 @@ and ana_skel fuel ctx0 skel seq ty monitor =
           | Comma ->
             (match ty with
              | HTyp.Hole ->
-               (match ana_skel fuel0 ctx0 skel1 seq HTyp.Hole monitor with
+               (match ana_skel ctx0 skel1 seq HTyp.Hole monitor with
                 | Some mode1 ->
-                  (match ana_skel fuel0 ctx0 skel2 seq HTyp.Hole monitor with
+                  (match ana_skel ctx0 skel2 seq HTyp.Hole monitor with
                    | Some mode2 ->
                      let mode0 = combine_modes mode1 mode2 in Some mode0
                    | None -> None)
@@ -1192,7 +1053,7 @@ and ana_skel fuel ctx0 skel seq ty monitor =
                     match opt_result with
                     | Some mode0 ->
                       let skel0,ty0 = skel_ty in
-                      (match ana_skel fuel0 ctx0 skel0 seq ty0 monitor with
+                      (match ana_skel ctx0 skel0 seq ty0 monitor with
                        | Some mode' ->
                          let mode1 = combine_modes mode0 mode' in
                          Some mode1
@@ -1203,16 +1064,16 @@ and ana_skel fuel ctx0 skel seq ty monitor =
           | Cons ->
             (match HTyp.matched_list ty with
              | Some ty_elt ->
-               (match ana_skel fuel0 ctx0 skel1 seq ty_elt monitor with
+               (match ana_skel ctx0 skel1 seq ty_elt monitor with
                 | Some mode1 ->
                   let ty_list = HTyp.List ty_elt in
-                  (match ana_skel fuel0 ctx0 skel2 seq ty_list monitor with
+                  (match ana_skel ctx0 skel2 seq ty_list monitor with
                    | Some mode2 -> Some (combine_modes mode1 mode2)
                    | None -> None)
                 | None -> None)
              | None -> None)
           | _ ->
-            (match syn_skel fuel0 ctx0 skel seq monitor with
+            (match syn_skel ctx0 skel seq monitor with
              | Some p ->
                let ty',mode0 = p in
                if HTyp.consistent ty ty' then Some mode0 else None
@@ -1220,7 +1081,7 @@ and ana_skel fuel ctx0 skel seq ty monitor =
        | InHole (i, _) ->
          (match i with
           | TypeInconsistent ->
-            (match syn_skel fuel0 ctx0 skel seq monitor with
+            (match syn_skel ctx0 skel seq monitor with
              | Some p ->
                let ty',mode0 = p in
                if HTyp.consistent ty ty' then Some mode0 else None
@@ -1244,7 +1105,7 @@ and ana_skel fuel ctx0 skel seq ty monitor =
                            match opt_result with
                            | Some mode0 ->
                              let skel0,ty0 = skel_ty in
-                             (match ana_skel fuel0 ctx0 skel0 seq ty0
+                             (match ana_skel ctx0 skel0 seq ty0
                                       monitor with
                               | Some mode' ->
                                 let mode1 = combine_modes mode0 mode' in
@@ -1257,7 +1118,7 @@ and ana_skel fuel ctx0 skel seq ty monitor =
                           fold_left (fun opt_result skel0 ->
                             match opt_result with
                             | Some mode1 ->
-                              (match syn_skel fuel0 ctx0 skel0 seq monitor with
+                              (match syn_skel ctx0 skel0 seq monitor with
                                | Some p ->
                                  let _,mode' = p in
                                  let mode2 = combine_modes mode1 mode' in
@@ -1274,12 +1135,12 @@ and ana_skel fuel ctx0 skel seq ty monitor =
     unit -> Contexts.t -> MetaVarGen.t -> bool -> UHPat.t ->
     (((UHPat.t * HTyp.t) * Contexts.t) * MetaVarGen.t) option **)
 
-let rec syn_pat_fix_holes fuel ctx0 u_gen renumber_empty_holes p =
+let rec syn_pat_fix_holes ctx0 u_gen renumber_empty_holes p =
   (fun fMore _ fKicked -> fMore ())
-    (fun fuel0 ->
+    (fun ->
     match p with
     | UHPat.Pat (_, p') ->
-      (match syn_pat_fix_holes' fuel0 ctx0 u_gen renumber_empty_holes p' with
+      (match syn_pat_fix_holes' ctx0 u_gen renumber_empty_holes p' with
        | Some p0 ->
          let p1,u_gen0 = p0 in
          let p2,ctx1 = p1 in
@@ -1287,7 +1148,7 @@ let rec syn_pat_fix_holes fuel ctx0 u_gen renumber_empty_holes p =
          Some ((((UHPat.Pat (NotInHole, p'0)),ty),ctx1),u_gen0)
        | None -> None)
     | UHPat.Parenthesized p0 ->
-      (match syn_pat_fix_holes fuel0 ctx0 u_gen renumber_empty_holes p0 with
+      (match syn_pat_fix_holes ctx0 u_gen renumber_empty_holes p0 with
        | Some p1 ->
          let p2,u_gen0 = p1 in
          let p3,ctx1 = p2 in
@@ -1301,9 +1162,9 @@ let rec syn_pat_fix_holes fuel ctx0 u_gen renumber_empty_holes p =
     unit -> Contexts.t -> MetaVarGen.t -> bool -> UHPat.t' ->
     (((UHPat.t' * HTyp.t) * Contexts.t) * MetaVarGen.t) option **)
 
-and syn_pat_fix_holes' fuel ctx0 u_gen renumber_empty_holes p =
+and syn_pat_fix_holes' ctx0 u_gen renumber_empty_holes p =
   (fun fMore _ fKicked -> fMore ())
-    (fun fuel0 ->
+    (fun ->
     match p with
     | UHPat.EmptyHole _ ->
       if renumber_empty_holes
@@ -1318,7 +1179,7 @@ and syn_pat_fix_holes' fuel ctx0 u_gen renumber_empty_holes p =
     | UHPat.NumLit _ -> Some (((p,HTyp.Num),ctx0),u_gen)
     | UHPat.BoolLit _ -> Some (((p,HTyp.Bool),ctx0),u_gen)
     | UHPat.Inj (side0, p1) ->
-      (match syn_pat_fix_holes fuel0 ctx0 u_gen renumber_empty_holes p1 with
+      (match syn_pat_fix_holes ctx0 u_gen renumber_empty_holes p1 with
        | Some p0 ->
          let p2,u_gen0 = p0 in
          let p3,ctx1 = p2 in
@@ -1332,7 +1193,7 @@ and syn_pat_fix_holes' fuel ctx0 u_gen renumber_empty_holes p =
        | None -> None)
     | UHPat.ListNil -> Some (((p,(HTyp.List HTyp.Hole)),ctx0),u_gen)
     | UHPat.OpSeq (skel, seq) ->
-      (match syn_skel_pat_fix_holes fuel0 ctx0 u_gen renumber_empty_holes
+      (match syn_skel_pat_fix_holes ctx0 u_gen renumber_empty_holes
                skel seq with
        | Some p0 ->
          let p1,u_gen0 = p0 in
@@ -1350,15 +1211,15 @@ and syn_pat_fix_holes' fuel ctx0 u_gen renumber_empty_holes p =
     ((((UHPat.skel_t * UHPat.opseq) * HTyp.t) * Contexts.t) * MetaVarGen.t)
     option **)
 
-and syn_skel_pat_fix_holes fuel ctx0 u_gen renumber_empty_holes skel seq =
+and syn_skel_pat_fix_holes ctx0 u_gen renumber_empty_holes skel seq =
   (fun fMore _ fKicked -> fMore ())
-    (fun fuel0 ->
+    (fun ->
     match skel with
     | Skel.Placeholder n0 ->
       (match OperatorSeq.seq_nth n0 seq with
        | Some pn ->
          if UHPat.bidelimited pn
-         then (match syn_pat_fix_holes fuel0 ctx0 u_gen
+         then (match syn_pat_fix_holes ctx0 u_gen
                        renumber_empty_holes pn with
                | Some p ->
                  let p0,u_gen0 = p in
@@ -1373,14 +1234,14 @@ and syn_skel_pat_fix_holes fuel ctx0 u_gen renumber_empty_holes skel seq =
     | Skel.BinOp (_, o, skel1, skel2) ->
       (match o with
        | UHPat.Comma ->
-         (match syn_skel_pat_fix_holes fuel0 ctx0 u_gen
+         (match syn_skel_pat_fix_holes ctx0 u_gen
                   renumber_empty_holes skel1 seq with
           | Some p ->
             let p0,u_gen0 = p in
             let p1,ctx1 = p0 in
             let p2,ty1 = p1 in
             let skel3,seq0 = p2 in
-            (match syn_skel_pat_fix_holes fuel0 ctx1 u_gen0
+            (match syn_skel_pat_fix_holes ctx1 u_gen0
                      renumber_empty_holes skel2 seq0 with
              | Some p3 ->
                let p4,u_gen1 = p3 in
@@ -1395,14 +1256,14 @@ and syn_skel_pat_fix_holes fuel ctx0 u_gen renumber_empty_holes skel seq =
              | None -> None)
           | None -> None)
        | UHPat.Space ->
-         (match syn_skel_pat_fix_holes fuel0 ctx0 u_gen
+         (match syn_skel_pat_fix_holes ctx0 u_gen
                   renumber_empty_holes skel1 seq with
           | Some p ->
             let p0,u_gen0 = p in
             let p1,ctx1 = p0 in
             let p2,_ = p1 in
             let skel3,seq0 = p2 in
-            (match syn_skel_pat_fix_holes fuel0 ctx1 u_gen0
+            (match syn_skel_pat_fix_holes ctx1 u_gen0
                      renumber_empty_holes skel2 seq0 with
              | Some p3 ->
                let p4,u_gen1 = p3 in
@@ -1417,7 +1278,7 @@ and syn_skel_pat_fix_holes fuel ctx0 u_gen renumber_empty_holes skel seq =
              | None -> None)
           | None -> None)
        | UHPat.Cons ->
-         (match syn_skel_pat_fix_holes fuel0 ctx0 u_gen
+         (match syn_skel_pat_fix_holes ctx0 u_gen
                   renumber_empty_holes skel1 seq with
           | Some p ->
             let p0,u_gen0 = p in
@@ -1425,7 +1286,7 @@ and syn_skel_pat_fix_holes fuel ctx0 u_gen renumber_empty_holes skel seq =
             let p2,ty_elt = p1 in
             let skel3,seq0 = p2 in
             let ty = HTyp.List ty_elt in
-            (match ana_skel_pat_fix_holes fuel0 ctx1 u_gen0
+            (match ana_skel_pat_fix_holes ctx1 u_gen0
                      renumber_empty_holes skel2 seq0 ty with
              | Some p3 ->
                let p4,u_gen1 = p3 in
@@ -1444,12 +1305,12 @@ and syn_skel_pat_fix_holes fuel ctx0 u_gen renumber_empty_holes skel seq =
     unit -> Contexts.t -> MetaVarGen.t -> bool -> UHPat.t -> HTyp.t ->
     ((UHPat.t * Contexts.t) * MetaVarGen.t) option **)
 
-and ana_pat_fix_holes fuel ctx0 u_gen renumber_empty_holes p ty =
+and ana_pat_fix_holes ctx0 u_gen renumber_empty_holes p ty =
   (fun fMore _ fKicked -> fMore ())
-    (fun fuel0 ->
+    (fun ->
     match p with
     | UHPat.Pat (_, p') ->
-      (match ana_pat_fix_holes' fuel0 ctx0 u_gen renumber_empty_holes p'
+      (match ana_pat_fix_holes' ctx0 u_gen renumber_empty_holes p'
                ty with
        | Some p0 ->
          let p1,u_gen0 = p0 in
@@ -1458,7 +1319,7 @@ and ana_pat_fix_holes fuel ctx0 u_gen renumber_empty_holes p ty =
          Some (((UHPat.Pat (err_status0, p'0)),ctx1),u_gen0)
        | None -> None)
     | UHPat.Parenthesized p0 ->
-      (match ana_pat_fix_holes fuel0 ctx0 u_gen renumber_empty_holes p0 ty with
+      (match ana_pat_fix_holes ctx0 u_gen renumber_empty_holes p0 ty with
        | Some p1 ->
          let p2,u_gen0 = p1 in
          let p3,ctx1 = p2 in Some (((UHPat.Parenthesized p3),ctx1),u_gen0)
@@ -1470,9 +1331,9 @@ and ana_pat_fix_holes fuel ctx0 u_gen renumber_empty_holes p ty =
     unit -> Contexts.t -> MetaVarGen.t -> bool -> UHPat.t' -> HTyp.t ->
     (((err_status * UHPat.t') * Contexts.t) * MetaVarGen.t) option **)
 
-and ana_pat_fix_holes' fuel ctx0 u_gen renumber_empty_holes p ty =
+and ana_pat_fix_holes' ctx0 u_gen renumber_empty_holes p ty =
   (fun fMore _ fKicked -> fMore ())
-    (fun fuel0 ->
+    (fun ->
     match p with
     | UHPat.Wild -> Some (((NotInHole,p),ctx0),u_gen)
     | UHPat.Var x ->
@@ -1484,7 +1345,7 @@ and ana_pat_fix_holes' fuel ctx0 u_gen renumber_empty_holes p ty =
        | Some p0 ->
          let tyL,tyR = p0 in
          let ty1 = pick_side side0 tyL tyR in
-         (match ana_pat_fix_holes fuel0 ctx0 u_gen renumber_empty_holes
+         (match ana_pat_fix_holes ctx0 u_gen renumber_empty_holes
                   p1 ty1 with
           | Some p2 ->
             let p3,u_gen0 = p2 in
@@ -1492,7 +1353,7 @@ and ana_pat_fix_holes' fuel ctx0 u_gen renumber_empty_holes p ty =
             Some (((NotInHole,(UHPat.Inj (side0, p4))),ctx1),u_gen0)
           | None -> None)
        | None ->
-         (match syn_pat_fix_holes fuel0 ctx0 u_gen renumber_empty_holes p1 with
+         (match syn_pat_fix_holes ctx0 u_gen renumber_empty_holes p1 with
           | Some p0 ->
             let p2,u_gen0 = p0 in
             let p3,ctx1 = p2 in
@@ -1508,7 +1369,7 @@ and ana_pat_fix_holes' fuel ctx0 u_gen renumber_empty_holes p ty =
          let u,u_gen0 = MetaVarGen.next u_gen in
          Some ((((InHole (TypeInconsistent, u)),p),ctx0),u_gen0))
     | UHPat.OpSeq (skel, seq) ->
-      (match ana_skel_pat_fix_holes fuel0 ctx0 u_gen renumber_empty_holes
+      (match ana_skel_pat_fix_holes ctx0 u_gen renumber_empty_holes
                skel seq ty with
        | Some p0 ->
          let p1,u_gen0 = p0 in
@@ -1521,7 +1382,7 @@ and ana_pat_fix_holes' fuel ctx0 u_gen renumber_empty_holes p ty =
             Some (((err,p3),ctx1),u_gen0))
        | None -> None)
     | _ ->
-      (match syn_pat_fix_holes' fuel0 ctx0 u_gen renumber_empty_holes p with
+      (match syn_pat_fix_holes' ctx0 u_gen renumber_empty_holes p with
        | Some p0 ->
          let p1,u_gen0 = p0 in
          let p2,ctx1 = p1 in
@@ -1539,15 +1400,15 @@ and ana_pat_fix_holes' fuel ctx0 u_gen renumber_empty_holes p ty =
     UHPat.opseq -> HTyp.t ->
     (((UHPat.skel_t * UHPat.opseq) * Contexts.t) * MetaVarGen.t) option **)
 
-and ana_skel_pat_fix_holes fuel ctx0 u_gen renumber_empty_holes skel seq ty =
+and ana_skel_pat_fix_holes ctx0 u_gen renumber_empty_holes skel seq ty =
   (fun fMore _ fKicked -> fMore ())
-    (fun fuel0 ->
+    (fun ->
     match skel with
     | Skel.Placeholder n0 ->
       (match OperatorSeq.seq_nth n0 seq with
        | Some pn ->
          if UHPat.bidelimited pn
-         then (match ana_pat_fix_holes fuel0 ctx0 u_gen
+         then (match ana_pat_fix_holes ctx0 u_gen
                        renumber_empty_holes pn ty with
                | Some p ->
                  let p0,u_gen0 = p in
@@ -1563,13 +1424,13 @@ and ana_skel_pat_fix_holes fuel ctx0 u_gen renumber_empty_holes skel seq ty =
        | UHPat.Comma ->
          (match ty with
           | HTyp.Hole ->
-            (match ana_skel_pat_fix_holes fuel0 ctx0 u_gen
+            (match ana_skel_pat_fix_holes ctx0 u_gen
                      renumber_empty_holes skel1 seq HTyp.Hole with
              | Some p ->
                let p0,u_gen0 = p in
                let p1,ctx1 = p0 in
                let skel3,seq0 = p1 in
-               (match ana_skel_pat_fix_holes fuel0 ctx1 u_gen0
+               (match ana_skel_pat_fix_holes ctx1 u_gen0
                         renumber_empty_holes skel2 seq0 HTyp.Hole with
                 | Some p2 ->
                   let p3,u_gen1 = p2 in
@@ -1594,7 +1455,7 @@ and ana_skel_pat_fix_holes fuel ctx0 u_gen renumber_empty_holes skel seq ty =
                      let y1,ctx1 = y0 in
                      let skels0,seq0 = y1 in
                      let skel0,ty0 = skel_ty in
-                     (match ana_skel_pat_fix_holes fuel0 ctx1 u_gen0
+                     (match ana_skel_pat_fix_holes ctx1 u_gen0
                               renumber_empty_holes skel0 seq0 ty0 with
                       | Some p ->
                         let p0,u_gen1 = p in
@@ -1623,7 +1484,7 @@ and ana_skel_pat_fix_holes fuel ctx0 u_gen renumber_empty_holes skel seq ty =
                      let y1,ctx1 = y0 in
                      let skels0,seq0 = y1 in
                      let skel0,ty0 = skel_ty in
-                     (match ana_skel_pat_fix_holes fuel0 ctx1 u_gen0
+                     (match ana_skel_pat_fix_holes ctx1 u_gen0
                               renumber_empty_holes skel0 seq0 ty0 with
                       | Some p ->
                         let p0,u_gen1 = p in
@@ -1645,7 +1506,7 @@ and ana_skel_pat_fix_holes fuel ctx0 u_gen renumber_empty_holes skel seq ty =
                         let y0,u_gen1 = y in
                         let y1,ctx2 = y0 in
                         let skels0,seq1 = y1 in
-                        (match syn_skel_pat_fix_holes fuel0 ctx2 u_gen1
+                        (match syn_skel_pat_fix_holes ctx2 u_gen1
                                  renumber_empty_holes skel0 seq1 with
                          | Some p2 ->
                            let p3,u_gen2 = p2 in
@@ -1671,14 +1532,14 @@ and ana_skel_pat_fix_holes fuel ctx0 u_gen renumber_empty_holes skel seq ty =
                    | None -> None)
                 | None -> None))
           | _ ->
-            (match syn_skel_pat_fix_holes fuel0 ctx0 u_gen
+            (match syn_skel_pat_fix_holes ctx0 u_gen
                      renumber_empty_holes skel1 seq with
              | Some p ->
                let p0,u_gen0 = p in
                let p1,ctx1 = p0 in
                let p2,_ = p1 in
                let skel3,seq0 = p2 in
-               (match syn_skel_pat_fix_holes fuel0 ctx1 u_gen0
+               (match syn_skel_pat_fix_holes ctx1 u_gen0
                         renumber_empty_holes skel2 seq0 with
                 | Some p3 ->
                   let p4,u_gen1 = p3 in
@@ -1693,14 +1554,14 @@ and ana_skel_pat_fix_holes fuel ctx0 u_gen renumber_empty_holes skel seq ty =
                 | None -> None)
              | None -> None))
        | UHPat.Space ->
-         (match syn_skel_pat_fix_holes fuel0 ctx0 u_gen
+         (match syn_skel_pat_fix_holes ctx0 u_gen
                   renumber_empty_holes skel1 seq with
           | Some p ->
             let p0,u_gen0 = p in
             let p1,ctx1 = p0 in
             let p2,_ = p1 in
             let skel3,seq0 = p2 in
-            (match syn_skel_pat_fix_holes fuel0 ctx1 u_gen0
+            (match syn_skel_pat_fix_holes ctx1 u_gen0
                      renumber_empty_holes skel2 seq0 with
              | Some p3 ->
                let p4,u_gen1 = p3 in
@@ -1717,14 +1578,14 @@ and ana_skel_pat_fix_holes fuel ctx0 u_gen renumber_empty_holes skel seq ty =
        | UHPat.Cons ->
          (match HTyp.matched_list ty with
           | Some ty_elt ->
-            (match ana_skel_pat_fix_holes fuel0 ctx0 u_gen
+            (match ana_skel_pat_fix_holes ctx0 u_gen
                      renumber_empty_holes skel1 seq ty_elt with
              | Some p ->
                let p0,u_gen0 = p in
                let p1,ctx1 = p0 in
                let skel3,seq0 = p1 in
                let ty_list = HTyp.List ty_elt in
-               (match ana_skel_pat_fix_holes fuel0 ctx1 u_gen0
+               (match ana_skel_pat_fix_holes ctx1 u_gen0
                         renumber_empty_holes skel2 seq0 ty_list with
                 | Some p2 ->
                   let p3,u_gen1 = p2 in
@@ -1737,7 +1598,7 @@ and ana_skel_pat_fix_holes fuel ctx0 u_gen renumber_empty_holes skel seq ty =
                 | None -> None)
              | None -> None)
           | None ->
-            (match syn_skel_pat_fix_holes fuel0 ctx0 u_gen
+            (match syn_skel_pat_fix_holes ctx0 u_gen
                      renumber_empty_holes skel1 seq with
              | Some p ->
                let p0,u_gen0 = p in
@@ -1745,7 +1606,7 @@ and ana_skel_pat_fix_holes fuel ctx0 u_gen renumber_empty_holes skel seq ty =
                let p2,ty_elt = p1 in
                let skel3,seq0 = p2 in
                let ty_list = HTyp.List ty_elt in
-               (match ana_skel_pat_fix_holes fuel0 ctx1 u_gen0
+               (match ana_skel_pat_fix_holes ctx1 u_gen0
                         renumber_empty_holes skel2 seq0 ty_list with
                 | Some p3 ->
                   let p4,u_gen1 = p3 in
@@ -1766,16 +1627,16 @@ and ana_skel_pat_fix_holes fuel ctx0 u_gen renumber_empty_holes skel seq ty =
     HTyp.t -> (unit -> Contexts.t -> MetaVarGen.t -> bool -> t -> HTyp.t
     -> (t * MetaVarGen.t) option) -> (rule * MetaVarGen.t) option **)
 
-let ana_rule_fix_holes fuel ctx0 u_gen renumber_empty_holes rule0 pat_ty clause_ty ana_fix_holes_internal0 =
+let ana_rule_fix_holes ctx0 u_gen renumber_empty_holes rule0 pat_ty clause_ty ana_fix_holes_internal0 =
   (fun fMore _ fKicked -> fMore ())
-    (fun fuel0 ->
+    (fun ->
     let Rule (pat, e) = rule0 in
-    (match ana_pat_fix_holes fuel0 ctx0 u_gen renumber_empty_holes pat
+    (match ana_pat_fix_holes ctx0 u_gen renumber_empty_holes pat
              pat_ty with
      | Some p ->
        let p0,u_gen0 = p in
        let pat',ctx1 = p0 in
-       (match ana_fix_holes_internal0 fuel0 ctx1 u_gen0
+       (match ana_fix_holes_internal0 ctx1 u_gen0
                 renumber_empty_holes e clause_ty with
         | Some p1 -> let e',u_gen1 = p1 in Some ((Rule (pat', e')),u_gen1)
         | None -> None)
@@ -1788,14 +1649,14 @@ let ana_rule_fix_holes fuel ctx0 u_gen renumber_empty_holes rule0 pat_ty clause_
     HTyp.t -> (unit -> Contexts.t -> MetaVarGen.t -> bool -> t -> HTyp.t
     -> (t * MetaVarGen.t) option) -> (rule list * MetaVarGen.t) option **)
 
-let ana_rules_fix_holes_internal fuel ctx0 u_gen renumber_empty_holes rules0 pat_ty clause_ty ana_fix_holes_internal0 =
+let ana_rules_fix_holes_internal ctx0 u_gen renumber_empty_holes rules0 pat_ty clause_ty ana_fix_holes_internal0 =
   (fun fMore _ fKicked -> fMore ())
-    (fun fuel0 ->
+    (fun ->
     fold_right (fun r b ->
       match b with
       | Some y ->
         let rules1,u_gen0 = y in
-        (match ana_rule_fix_holes fuel0 ctx0 u_gen0 renumber_empty_holes
+        (match ana_rule_fix_holes ctx0 u_gen0 renumber_empty_holes
                  r pat_ty clause_ty ana_fix_holes_internal0 with
          | Some p -> let r0,u_gen1 = p in Some ((r0::rules1),u_gen1)
          | None -> None)
@@ -1807,18 +1668,18 @@ let ana_rules_fix_holes_internal fuel ctx0 u_gen renumber_empty_holes rules0 pat
     unit -> Contexts.t -> MetaVarGen.t -> bool -> t ->
     ((t * HTyp.t) * MetaVarGen.t) option **)
 
-let rec syn_fix_holes_internal fuel ctx0 u_gen renumber_empty_holes e =
+let rec syn_fix_holes_internal ctx0 u_gen renumber_empty_holes e =
   (fun fMore _ fKicked -> fMore ())
-    (fun fuel0 ->
+    (fun ->
     match e with
     | Tm (_, e') ->
-      (match syn_fix_holes' fuel0 ctx0 u_gen renumber_empty_holes e' with
+      (match syn_fix_holes' ctx0 u_gen renumber_empty_holes e' with
        | Some p ->
          let p0,u_gen' = p in
          let e'',ty = p0 in Some (((Tm (NotInHole, e'')),ty),u_gen')
        | None -> None)
     | Parenthesized e1 ->
-      (match syn_fix_holes_internal fuel0 ctx0 u_gen renumber_empty_holes
+      (match syn_fix_holes_internal ctx0 u_gen renumber_empty_holes
                e1 with
        | Some p ->
          let p0,u_gen' = p in
@@ -1831,14 +1692,14 @@ let rec syn_fix_holes_internal fuel ctx0 u_gen renumber_empty_holes e =
     unit -> Contexts.t -> MetaVarGen.t -> bool -> t' ->
     ((t' * HTyp.t) * MetaVarGen.t) option **)
 
-and syn_fix_holes' fuel ctx0 u_gen renumber_empty_holes e =
+and syn_fix_holes' ctx0 u_gen renumber_empty_holes e =
   (fun fMore _ fKicked -> fMore ())
-    (fun fuel0 ->
+    (fun ->
     match e with
     | Asc (e1, uty) ->
       if bidelimited e1
-      then let ty = UHTyp.expand fuel0 uty in
-           (match ana_fix_holes_internal fuel0 ctx0 u_gen
+      then let ty = UHTyp.expand uty in
+           (match ana_fix_holes_internal ctx0 u_gen
                     renumber_empty_holes e1 ty with
             | Some p ->
               let e1',u_gen' = p in Some (((Asc (e1', uty)),ty),u_gen')
@@ -1857,18 +1718,18 @@ and syn_fix_holes' fuel ctx0 u_gen renumber_empty_holes e =
     | Let (p, ann, e1, e2) ->
       (match ann with
        | Some uty1 ->
-         let ty1 = UHTyp.expand fuel0 uty1 in
+         let ty1 = UHTyp.expand uty1 in
          let ctx1 = ctx_for_let ctx0 p ty1 e1 in
-         (match ana_fix_holes_internal fuel0 ctx1 u_gen
+         (match ana_fix_holes_internal ctx1 u_gen
                   renumber_empty_holes e1 ty1 with
           | Some p0 ->
             let e3,u_gen0 = p0 in
-            (match ana_pat_fix_holes fuel0 ctx0 u_gen0
+            (match ana_pat_fix_holes ctx0 u_gen0
                      renumber_empty_holes p ty1 with
              | Some p1 ->
                let p2,u_gen1 = p1 in
                let p3,ctx2 = p2 in
-               (match syn_fix_holes_internal fuel0 ctx2 u_gen1
+               (match syn_fix_holes_internal ctx2 u_gen1
                         renumber_empty_holes e2 with
                 | Some p4 ->
                   let p5,u_gen2 = p4 in
@@ -1878,17 +1739,17 @@ and syn_fix_holes' fuel ctx0 u_gen renumber_empty_holes e =
              | None -> None)
           | None -> None)
        | None ->
-         (match syn_fix_holes_internal fuel0 ctx0 u_gen
+         (match syn_fix_holes_internal ctx0 u_gen
                   renumber_empty_holes e1 with
           | Some p0 ->
             let p1,u_gen0 = p0 in
             let e3,ty1 = p1 in
-            (match ana_pat_fix_holes fuel0 ctx0 u_gen0
+            (match ana_pat_fix_holes ctx0 u_gen0
                      renumber_empty_holes p ty1 with
              | Some p2 ->
                let p3,u_gen1 = p2 in
                let p4,ctx1 = p3 in
-               (match syn_fix_holes_internal fuel0 ctx1 u_gen1
+               (match syn_fix_holes_internal ctx1 u_gen1
                         renumber_empty_holes e2 with
                 | Some p5 ->
                   let p6,u_gen2 = p5 in
@@ -1900,14 +1761,14 @@ and syn_fix_holes' fuel ctx0 u_gen renumber_empty_holes e =
     | Lam (p, ann, e1) ->
       let ty1 =
         match ann with
-        | Some uty1 -> UHTyp.expand fuel0 uty1
+        | Some uty1 -> UHTyp.expand uty1
         | None -> HTyp.Hole
       in
-      (match ana_pat_fix_holes fuel0 ctx0 u_gen renumber_empty_holes p ty1 with
+      (match ana_pat_fix_holes ctx0 u_gen renumber_empty_holes p ty1 with
        | Some p0 ->
          let p1,u_gen0 = p0 in
          let p2,ctx1 = p1 in
-         (match syn_fix_holes_internal fuel0 ctx1 u_gen0
+         (match syn_fix_holes_internal ctx1 u_gen0
                   renumber_empty_holes e1 with
           | Some p3 ->
             let p4,u_gen1 = p3 in
@@ -1918,7 +1779,7 @@ and syn_fix_holes' fuel ctx0 u_gen renumber_empty_holes e =
     | NumLit _ -> Some ((e,HTyp.Num),u_gen)
     | BoolLit _ -> Some ((e,HTyp.Bool),u_gen)
     | Inj (side0, e1) ->
-      (match syn_fix_holes_internal fuel0 ctx0 u_gen renumber_empty_holes
+      (match syn_fix_holes_internal ctx0 u_gen renumber_empty_holes
                e1 with
        | Some p ->
          let p0,u_gen' = p in
@@ -1939,7 +1800,7 @@ and syn_fix_holes' fuel ctx0 u_gen renumber_empty_holes e =
            Some (((EmptyHole u'),HTyp.Hole),u_gen'')
       else Some (((EmptyHole u),HTyp.Hole),u_gen)
     | OpSeq (skel, seq) ->
-      (match syn_skel_fix_holes fuel0 ctx0 u_gen renumber_empty_holes
+      (match syn_skel_fix_holes ctx0 u_gen renumber_empty_holes
                skel seq with
        | Some p ->
          let p0,u_gen0 = p in
@@ -1954,7 +1815,7 @@ and syn_fix_holes' fuel ctx0 u_gen renumber_empty_holes e =
       let _,palette_ctx = ctx0 in
       (match VarMap.lookup palette_ctx name with
        | Some palette_defn ->
-         (match ana_fix_holes_hole_data fuel0 ctx0 u_gen
+         (match ana_fix_holes_hole_data ctx0 u_gen
                   renumber_empty_holes hole_data with
           | Some p ->
             let hole_data',u_gen' = p in
@@ -1967,7 +1828,7 @@ and syn_fix_holes' fuel ctx0 u_gen renumber_empty_holes e =
             let expansion_ctx =
               PaletteHoleData.extend_ctx_with_hole_map ctx0 hole_map0
             in
-            (match ana fuel0 expansion_ctx expansion expansion_ty0 with
+            (match ana expansion_ctx expansion expansion_ty0 with
              | Some _ ->
                Some (((ApPalette (name, serialized_model,
                  hole_data')),expansion_ty0),u_gen')
@@ -1981,9 +1842,9 @@ and syn_fix_holes' fuel ctx0 u_gen renumber_empty_holes e =
     unit -> Contexts.t -> MetaVarGen.t -> bool -> PaletteHoleData.t ->
     (PaletteHoleData.t * MetaVarGen.t) option **)
 
-and ana_fix_holes_hole_data fuel ctx0 u_gen renumber_empty_holes hole_data =
+and ana_fix_holes_hole_data ctx0 u_gen renumber_empty_holes hole_data =
   (fun fMore _ fKicked -> fMore ())
-    (fun fuel0 ->
+    (fun ->
     let next_ref,hole_map0 = hole_data in
     let init0 = NatMap.empty,u_gen in
     let hole_map_opt' =
@@ -1993,7 +1854,7 @@ and ana_fix_holes_hole_data fuel ctx0 u_gen renumber_empty_holes hole_data =
         (match c with
          | Some p ->
            let xs,u_gen0 = p in
-           (match ana_fix_holes_internal fuel0 ctx0 u_gen0
+           (match ana_fix_holes_internal ctx0 u_gen0
                     renumber_empty_holes e ty with
             | Some p0 ->
               let e',u_gen' = p0 in
@@ -2012,18 +1873,18 @@ and ana_fix_holes_hole_data fuel ctx0 u_gen renumber_empty_holes hole_data =
     unit -> Contexts.t -> MetaVarGen.t -> bool -> t -> HTyp.t ->
     (t * MetaVarGen.t) option **)
 
-and ana_fix_holes_internal fuel ctx0 u_gen renumber_empty_holes e ty =
+and ana_fix_holes_internal ctx0 u_gen renumber_empty_holes e ty =
   (fun fMore _ fKicked -> fMore ())
-    (fun fuel0 ->
+    (fun ->
     match e with
     | Tm (_, e1) ->
-      (match ana_fix_holes' fuel0 ctx0 u_gen renumber_empty_holes e1 ty with
+      (match ana_fix_holes' ctx0 u_gen renumber_empty_holes e1 ty with
        | Some p ->
          let p0,u_gen0 = p in
          let err_status0,e2 = p0 in Some ((Tm (err_status0, e2)),u_gen0)
        | None -> None)
     | Parenthesized e1 ->
-      (match ana_fix_holes_internal fuel0 ctx0 u_gen renumber_empty_holes
+      (match ana_fix_holes_internal ctx0 u_gen renumber_empty_holes
                e1 ty with
        | Some p -> let e2,u_gen0 = p in Some ((Parenthesized e2),u_gen0)
        | None -> None))
@@ -2034,25 +1895,25 @@ and ana_fix_holes_internal fuel ctx0 u_gen renumber_empty_holes e ty =
     unit -> Contexts.t -> MetaVarGen.t -> bool -> t' -> HTyp.t ->
     ((err_status * t') * MetaVarGen.t) option **)
 
-and ana_fix_holes' fuel ctx0 u_gen renumber_empty_holes e ty =
+and ana_fix_holes' ctx0 u_gen renumber_empty_holes e ty =
   (fun fMore _ fKicked -> fMore ())
-    (fun fuel0 ->
+    (fun ->
     match e with
     | Let (p, ann, e1, e2) ->
       (match ann with
        | Some uty1 ->
-         let ty1 = UHTyp.expand fuel0 uty1 in
+         let ty1 = UHTyp.expand uty1 in
          let ctx1 = ctx_for_let ctx0 p ty1 e1 in
-         (match ana_fix_holes_internal fuel0 ctx1 u_gen
+         (match ana_fix_holes_internal ctx1 u_gen
                   renumber_empty_holes e1 ty1 with
           | Some p0 ->
             let e3,u_gen0 = p0 in
-            (match ana_pat_fix_holes fuel0 ctx0 u_gen0
+            (match ana_pat_fix_holes ctx0 u_gen0
                      renumber_empty_holes p ty1 with
              | Some p1 ->
                let p2,u_gen1 = p1 in
                let p3,ctx2 = p2 in
-               (match ana_fix_holes_internal fuel0 ctx2 u_gen1
+               (match ana_fix_holes_internal ctx2 u_gen1
                         renumber_empty_holes e2 ty with
                 | Some p4 ->
                   let e4,u_gen2 = p4 in
@@ -2061,17 +1922,17 @@ and ana_fix_holes' fuel ctx0 u_gen renumber_empty_holes e ty =
              | None -> None)
           | None -> None)
        | None ->
-         (match syn_fix_holes_internal fuel0 ctx0 u_gen
+         (match syn_fix_holes_internal ctx0 u_gen
                   renumber_empty_holes e1 with
           | Some p0 ->
             let p1,u_gen0 = p0 in
             let e3,ty1 = p1 in
-            (match ana_pat_fix_holes fuel0 ctx0 u_gen0
+            (match ana_pat_fix_holes ctx0 u_gen0
                      renumber_empty_holes p ty1 with
              | Some p2 ->
                let p3,u_gen1 = p2 in
                let p4,ctx1 = p3 in
-               (match ana_fix_holes_internal fuel0 ctx1 u_gen1
+               (match ana_fix_holes_internal ctx1 u_gen1
                         renumber_empty_holes e2 ty with
                 | Some p5 ->
                   let e4,u_gen2 = p5 in
@@ -2085,21 +1946,21 @@ and ana_fix_holes' fuel ctx0 u_gen renumber_empty_holes e ty =
          let ty1_given,ty2 = p0 in
          (match ann with
           | Some uty1 ->
-            let ty1_ann = UHTyp.expand fuel0 uty1 in
+            let ty1_ann = UHTyp.expand uty1 in
             if HTyp.consistent ty1_ann ty1_given
-            then (match ana_pat_fix_holes fuel0 ctx0 u_gen
+            then (match ana_pat_fix_holes ctx0 u_gen
                           renumber_empty_holes p ty1_ann with
                   | Some p1 ->
                     let p2,u_gen0 = p1 in
                     let p3,ctx1 = p2 in
-                    (match ana_fix_holes_internal fuel0 ctx1 u_gen0
+                    (match ana_fix_holes_internal ctx1 u_gen0
                              renumber_empty_holes e1 ty2 with
                      | Some p4 ->
                        let e2,u_gen1 = p4 in
                        Some ((NotInHole,(Lam (p3, ann, e2))),u_gen1)
                      | None -> None)
                   | None -> None)
-            else (match syn_fix_holes' fuel0 ctx0 u_gen
+            else (match syn_fix_holes' ctx0 u_gen
                           renumber_empty_holes e with
                   | Some p1 ->
                     let p2,u_gen0 = p1 in
@@ -2108,12 +1969,12 @@ and ana_fix_holes' fuel ctx0 u_gen renumber_empty_holes e ty =
                     Some (((InHole (TypeInconsistent, u)),e0),u_gen1)
                   | None -> None)
           | None ->
-            (match ana_pat_fix_holes fuel0 ctx0 u_gen
+            (match ana_pat_fix_holes ctx0 u_gen
                      renumber_empty_holes p ty1_given with
              | Some p1 ->
                let p2,u_gen0 = p1 in
                let p3,ctx1 = p2 in
-               (match ana_fix_holes_internal fuel0 ctx1 u_gen0
+               (match ana_fix_holes_internal ctx1 u_gen0
                         renumber_empty_holes e1 ty2 with
                 | Some p4 ->
                   let e2,u_gen1 = p4 in
@@ -2121,7 +1982,7 @@ and ana_fix_holes' fuel ctx0 u_gen renumber_empty_holes e ty =
                 | None -> None)
              | None -> None))
        | None ->
-         (match syn_fix_holes' fuel0 ctx0 u_gen renumber_empty_holes e with
+         (match syn_fix_holes' ctx0 u_gen renumber_empty_holes e with
           | Some p0 ->
             let p1,u_gen0 = p0 in
             let e0,_ = p1 in
@@ -2132,14 +1993,14 @@ and ana_fix_holes' fuel ctx0 u_gen renumber_empty_holes e ty =
       (match HTyp.matched_sum ty with
        | Some p ->
          let ty1,ty2 = p in
-         (match ana_fix_holes_internal fuel0 ctx0 u_gen
+         (match ana_fix_holes_internal ctx0 u_gen
                   renumber_empty_holes e1 (pick_side side0 ty1 ty2) with
           | Some p0 ->
             let e1',u_gen' = p0 in
             Some ((NotInHole,(Inj (side0, e1'))),u_gen')
           | None -> None)
        | None ->
-         (match syn_fix_holes' fuel0 ctx0 u_gen renumber_empty_holes e with
+         (match syn_fix_holes' ctx0 u_gen renumber_empty_holes e with
           | Some p ->
             let p0,u_gen' = p in
             let e',ty' = p0 in
@@ -2149,12 +2010,12 @@ and ana_fix_holes' fuel ctx0 u_gen renumber_empty_holes e ty =
                  Some (((InHole (TypeInconsistent, u)),e'),u_gen'')
           | None -> None))
     | Case (e1, rules0) ->
-      (match syn_fix_holes_internal fuel0 ctx0 u_gen renumber_empty_holes
+      (match syn_fix_holes_internal ctx0 u_gen renumber_empty_holes
                e1 with
        | Some p ->
          let p0,u_gen0 = p in
          let e1',ty1 = p0 in
-         (match ana_rules_fix_holes_internal fuel0 ctx0 u_gen0
+         (match ana_rules_fix_holes_internal ctx0 u_gen0
                   renumber_empty_holes rules0 ty1 ty
                   ana_fix_holes_internal with
           | Some p1 ->
@@ -2169,7 +2030,7 @@ and ana_fix_holes' fuel ctx0 u_gen renumber_empty_holes e ty =
          let u,u_gen0 = MetaVarGen.next u_gen in
          Some (((InHole (TypeInconsistent, u)),e),u_gen0))
     | OpSeq (skel, seq) ->
-      (match ana_skel_fix_holes fuel0 ctx0 u_gen renumber_empty_holes
+      (match ana_skel_fix_holes ctx0 u_gen renumber_empty_holes
                skel seq ty with
        | Some p ->
          let p0,u_gen0 = p in
@@ -2180,7 +2041,7 @@ and ana_fix_holes' fuel ctx0 u_gen renumber_empty_holes e ty =
             Some ((err,(OpSeq (skel0, seq0))),u_gen0))
        | None -> None)
     | _ ->
-      (match syn_fix_holes' fuel0 ctx0 u_gen renumber_empty_holes e with
+      (match syn_fix_holes' ctx0 u_gen renumber_empty_holes e with
        | Some p ->
          let p0,u_gen' = p in
          let e',ty' = p0 in
@@ -2196,15 +2057,15 @@ and ana_fix_holes' fuel ctx0 u_gen renumber_empty_holes e ty =
     unit -> Contexts.t -> MetaVarGen.t -> bool -> skel_t -> opseq ->
     (((skel_t * opseq) * HTyp.t) * MetaVarGen.t) option **)
 
-and syn_skel_fix_holes fuel ctx0 u_gen renumber_empty_holes skel seq =
+and syn_skel_fix_holes ctx0 u_gen renumber_empty_holes skel seq =
   (fun fMore _ fKicked -> fMore ())
-    (fun fuel0 ->
+    (fun ->
     match skel with
     | Skel.Placeholder n0 ->
       (match OperatorSeq.seq_nth n0 seq with
        | Some en ->
          if bidelimited en
-         then (match syn_fix_holes_internal fuel0 ctx0 u_gen
+         then (match syn_fix_holes_internal ctx0 u_gen
                        renumber_empty_holes en with
                | Some p ->
                  let p0,u_gen0 = p in
@@ -2218,12 +2079,12 @@ and syn_skel_fix_holes fuel ctx0 u_gen renumber_empty_holes skel seq =
     | Skel.BinOp (_, op0, skel1, skel2) ->
       (match op0 with
        | LessThan ->
-         (match ana_skel_fix_holes fuel0 ctx0 u_gen renumber_empty_holes
+         (match ana_skel_fix_holes ctx0 u_gen renumber_empty_holes
                   skel1 seq HTyp.Num with
           | Some p ->
             let p0,u_gen0 = p in
             let skel3,seq0 = p0 in
-            (match ana_skel_fix_holes fuel0 ctx0 u_gen0
+            (match ana_skel_fix_holes ctx0 u_gen0
                      renumber_empty_holes skel2 seq0 HTyp.Num with
              | Some p1 ->
                let p2,u_gen1 = p1 in
@@ -2233,7 +2094,7 @@ and syn_skel_fix_holes fuel ctx0 u_gen renumber_empty_holes skel seq =
              | None -> None)
           | None -> None)
        | Space ->
-         (match syn_skel_fix_holes fuel0 ctx0 u_gen renumber_empty_holes
+         (match syn_skel_fix_holes ctx0 u_gen renumber_empty_holes
                   skel1 seq with
           | Some p ->
             let p0,u_gen1 = p in
@@ -2242,7 +2103,7 @@ and syn_skel_fix_holes fuel ctx0 u_gen renumber_empty_holes skel seq =
             (match HTyp.matched_arrow ty1 with
              | Some p2 ->
                let ty2,ty = p2 in
-               (match ana_skel_fix_holes fuel0 ctx0 u_gen1
+               (match ana_skel_fix_holes ctx0 u_gen1
                         renumber_empty_holes skel2 seq1 ty2 with
                 | Some p3 ->
                   let p4,u_gen2 = p3 in
@@ -2251,7 +2112,7 @@ and syn_skel_fix_holes fuel ctx0 u_gen renumber_empty_holes skel seq =
                   skel2')),seq2),ty),u_gen2)
                 | None -> None)
              | None ->
-               (match ana_skel_fix_holes fuel0 ctx0 u_gen1
+               (match ana_skel_fix_holes ctx0 u_gen1
                         renumber_empty_holes skel2 seq1 HTyp.Hole with
                 | Some p2 ->
                   let p3,u_gen2 = p2 in
@@ -2266,13 +2127,13 @@ and syn_skel_fix_holes fuel ctx0 u_gen renumber_empty_holes skel seq =
                 | None -> None))
           | None -> None)
        | Comma ->
-         (match syn_skel_fix_holes fuel0 ctx0 u_gen renumber_empty_holes
+         (match syn_skel_fix_holes ctx0 u_gen renumber_empty_holes
                   skel1 seq with
           | Some p ->
             let p0,u_gen0 = p in
             let p1,ty1 = p0 in
             let skel3,seq0 = p1 in
-            (match syn_skel_fix_holes fuel0 ctx0 u_gen0
+            (match syn_skel_fix_holes ctx0 u_gen0
                      renumber_empty_holes skel2 seq0 with
              | Some p2 ->
                let p3,u_gen1 = p2 in
@@ -2284,14 +2145,14 @@ and syn_skel_fix_holes fuel ctx0 u_gen renumber_empty_holes skel seq =
              | None -> None)
           | None -> None)
        | Cons ->
-         (match syn_skel_fix_holes fuel0 ctx0 u_gen renumber_empty_holes
+         (match syn_skel_fix_holes ctx0 u_gen renumber_empty_holes
                   skel1 seq with
           | Some p ->
             let p0,u_gen0 = p in
             let p1,ty_elt = p0 in
             let skel3,seq0 = p1 in
             let ty = HTyp.List ty_elt in
-            (match ana_skel_fix_holes fuel0 ctx0 u_gen0
+            (match ana_skel_fix_holes ctx0 u_gen0
                      renumber_empty_holes skel2 seq0 ty with
              | Some p2 ->
                let p3,u_gen1 = p2 in
@@ -2301,12 +2162,12 @@ and syn_skel_fix_holes fuel ctx0 u_gen renumber_empty_holes skel seq =
              | None -> None)
           | None -> None)
        | _ ->
-         (match ana_skel_fix_holes fuel0 ctx0 u_gen renumber_empty_holes
+         (match ana_skel_fix_holes ctx0 u_gen renumber_empty_holes
                   skel1 seq HTyp.Num with
           | Some p ->
             let p0,u_gen0 = p in
             let skel3,seq0 = p0 in
-            (match ana_skel_fix_holes fuel0 ctx0 u_gen0
+            (match ana_skel_fix_holes ctx0 u_gen0
                      renumber_empty_holes skel2 seq0 HTyp.Num with
              | Some p1 ->
                let p2,u_gen1 = p1 in
@@ -2322,15 +2183,15 @@ and syn_skel_fix_holes fuel ctx0 u_gen renumber_empty_holes skel seq =
     unit -> Contexts.t -> MetaVarGen.t -> bool -> skel_t -> opseq ->
     HTyp.t -> ((skel_t * opseq) * MetaVarGen.t) option **)
 
-and ana_skel_fix_holes fuel ctx0 u_gen renumber_empty_holes skel seq ty =
+and ana_skel_fix_holes ctx0 u_gen renumber_empty_holes skel seq ty =
   (fun fMore _ fKicked -> fMore ())
-    (fun fuel0 ->
+    (fun ->
     match skel with
     | Skel.Placeholder n0 ->
       (match OperatorSeq.seq_nth n0 seq with
        | Some en ->
          if bidelimited en
-         then (match ana_fix_holes_internal fuel0 ctx0 u_gen
+         then (match ana_fix_holes_internal ctx0 u_gen
                        renumber_empty_holes en ty with
                | Some p ->
                  let en0,u_gen0 = p in
@@ -2345,12 +2206,12 @@ and ana_skel_fix_holes fuel ctx0 u_gen renumber_empty_holes skel seq ty =
        | Comma ->
          (match ty with
           | HTyp.Hole ->
-            (match ana_skel_fix_holes fuel0 ctx0 u_gen
+            (match ana_skel_fix_holes ctx0 u_gen
                      renumber_empty_holes skel1 seq HTyp.Hole with
              | Some p ->
                let p0,u_gen0 = p in
                let skel3,seq0 = p0 in
-               (match ana_skel_fix_holes fuel0 ctx0 u_gen0
+               (match ana_skel_fix_holes ctx0 u_gen0
                         renumber_empty_holes skel2 seq0 HTyp.Hole with
                 | Some p1 ->
                   let p2,u_gen1 = p1 in
@@ -2372,7 +2233,7 @@ and ana_skel_fix_holes fuel ctx0 u_gen renumber_empty_holes skel seq ty =
                      let y0,u_gen0 = y in
                      let skels0,seq0 = y0 in
                      let skel0,ty0 = skel_ty in
-                     (match ana_skel_fix_holes fuel0 ctx0 u_gen0
+                     (match ana_skel_fix_holes ctx0 u_gen0
                               renumber_empty_holes skel0 seq0 ty0 with
                       | Some p ->
                         let p0,u_gen1 = p in
@@ -2398,7 +2259,7 @@ and ana_skel_fix_holes fuel ctx0 u_gen renumber_empty_holes skel seq ty =
                      let y0,u_gen0 = y in
                      let skels0,seq0 = y0 in
                      let skel0,ty0 = skel_ty in
-                     (match ana_skel_fix_holes fuel0 ctx0 u_gen0
+                     (match ana_skel_fix_holes ctx0 u_gen0
                               renumber_empty_holes skel0 seq0 ty0 with
                       | Some p ->
                         let p0,u_gen1 = p in
@@ -2417,7 +2278,7 @@ and ana_skel_fix_holes fuel ctx0 u_gen renumber_empty_holes skel seq ty =
                       | Some y ->
                         let y0,u_gen1 = y in
                         let skels0,seq1 = y0 in
-                        (match syn_skel_fix_holes fuel0 ctx0 u_gen1
+                        (match syn_skel_fix_holes ctx0 u_gen1
                                  renumber_empty_holes skel0 seq1 with
                          | Some p1 ->
                            let p2,u_gen2 = p1 in
@@ -2439,13 +2300,13 @@ and ana_skel_fix_holes fuel ctx0 u_gen renumber_empty_holes skel seq ty =
                    | None -> None)
                 | None -> None))
           | _ ->
-            (match syn_skel_fix_holes fuel0 ctx0 u_gen
+            (match syn_skel_fix_holes ctx0 u_gen
                      renumber_empty_holes skel1 seq with
              | Some p ->
                let p0,u_gen0 = p in
                let p1,_ = p0 in
                let skel3,seq0 = p1 in
-               (match syn_skel_fix_holes fuel0 ctx0 u_gen0
+               (match syn_skel_fix_holes ctx0 u_gen0
                         renumber_empty_holes skel2 seq0 with
                 | Some p2 ->
                   let p3,u_gen1 = p2 in
@@ -2461,13 +2322,13 @@ and ana_skel_fix_holes fuel ctx0 u_gen renumber_empty_holes skel seq ty =
        | Cons ->
          (match HTyp.matched_list ty with
           | Some ty_elt ->
-            (match ana_skel_fix_holes fuel0 ctx0 u_gen
+            (match ana_skel_fix_holes ctx0 u_gen
                      renumber_empty_holes skel1 seq ty_elt with
              | Some p ->
                let p0,u_gen0 = p in
                let skel3,seq0 = p0 in
                let ty_list = HTyp.List ty_elt in
-               (match ana_skel_fix_holes fuel0 ctx0 u_gen0
+               (match ana_skel_fix_holes ctx0 u_gen0
                         renumber_empty_holes skel2 seq0 ty_list with
                 | Some p1 ->
                   let p2,u_gen1 = p1 in
@@ -2478,14 +2339,14 @@ and ana_skel_fix_holes fuel ctx0 u_gen renumber_empty_holes skel seq ty =
                 | None -> None)
              | None -> None)
           | None ->
-            (match syn_skel_fix_holes fuel0 ctx0 u_gen
+            (match syn_skel_fix_holes ctx0 u_gen
                      renumber_empty_holes skel1 seq with
              | Some p ->
                let p0,u_gen0 = p in
                let p1,ty_elt = p0 in
                let skel3,seq0 = p1 in
                let ty_list = HTyp.List ty_elt in
-               (match ana_skel_fix_holes fuel0 ctx0 u_gen0
+               (match ana_skel_fix_holes ctx0 u_gen0
                         renumber_empty_holes skel2 seq0 ty_list with
                 | Some p2 ->
                   let p3,u_gen1 = p2 in
@@ -2498,7 +2359,7 @@ and ana_skel_fix_holes fuel ctx0 u_gen renumber_empty_holes skel seq ty =
                 | None -> None)
              | None -> None))
        | _ ->
-         (match syn_skel_fix_holes fuel0 ctx0 u_gen renumber_empty_holes
+         (match syn_skel_fix_holes ctx0 u_gen renumber_empty_holes
                   skel seq with
           | Some p ->
             let p0,u_gen' = p in
@@ -2515,26 +2376,26 @@ and ana_skel_fix_holes fuel ctx0 u_gen renumber_empty_holes skel seq ty =
     unit -> Contexts.t -> MetaVarGen.t -> t ->
     ((t * HTyp.t) * MetaVarGen.t) option **)
 
-let syn_fix_holes fuel ctx0 u_gen e =
-  syn_fix_holes_internal fuel ctx0 u_gen false e
+let syn_fix_holes ctx0 u_gen e =
+  syn_fix_holes_internal ctx0 u_gen false e
 
 (** val ana_fix_holes :
     unit -> Contexts.t -> MetaVarGen.t -> t -> HTyp.t ->
     (t * MetaVarGen.t) option **)
 
-let ana_fix_holes fuel ctx0 u_gen e ty =
-  ana_fix_holes_internal fuel ctx0 u_gen false e ty
+let ana_fix_holes ctx0 u_gen e ty =
+  ana_fix_holes_internal ctx0 u_gen false e ty
 
 (** val ana_rules_fix_holes :
     unit -> Contexts.t -> MetaVarGen.t -> bool -> rule list -> HTyp.t ->
     HTyp.t -> (rule list * MetaVarGen.t) option **)
 
-let ana_rules_fix_holes fuel ctx0 u_gen renumber_empty_holes rules0 pat_ty clause_ty =
-  ana_rules_fix_holes_internal fuel ctx0 u_gen renumber_empty_holes
+let ana_rules_fix_holes ctx0 u_gen renumber_empty_holes rules0 pat_ty clause_ty =
+  ana_rules_fix_holes_internal ctx0 u_gen renumber_empty_holes
     rules0 pat_ty clause_ty ana_fix_holes_internal
 
 (** val fix_and_renumber_holes :
     unit -> Contexts.t -> t -> ((t * HTyp.t) * MetaVarGen.t) option **)
 
-let fix_and_renumber_holes fuel ctx0 e =
-  syn_fix_holes_internal fuel ctx0 MetaVarGen.init true e
+let fix_and_renumber_holes ctx0 e =
+  syn_fix_holes_internal ctx0 MetaVarGen.init true e
