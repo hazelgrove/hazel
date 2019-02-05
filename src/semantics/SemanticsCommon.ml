@@ -1,5 +1,7 @@
 module SemanticsCommon =
  struct
+  type nat = int
+
   type in_hole_reason =
   | TypeInconsistent
   | WrongLength
@@ -20,4 +22,9 @@ module SemanticsCommon =
     match side with
     | L -> l
     | R -> r
+
+  type cursor_side = 
+  | Before 
+  | After 
+  | In of nat 
  end

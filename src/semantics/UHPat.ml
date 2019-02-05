@@ -48,7 +48,6 @@ module UHPat =
    * sub-patterns at their outer left or right edge
    * in the concrete syntax *)
   let bidelimited = function
-  match p with
   | Pat (_, (EmptyHole _))
   | Pat (_, Wild)
   | Pat (_, (Var _))
