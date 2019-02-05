@@ -1,4 +1,1 @@
-module PaletteSerializedModel =
- struct
-  type t = string
- end
+type t = string
