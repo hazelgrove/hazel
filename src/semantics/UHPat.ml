@@ -1,3 +1,5 @@
+open SemanticsCommon
+
 type op =
 | Comma
 | Space
