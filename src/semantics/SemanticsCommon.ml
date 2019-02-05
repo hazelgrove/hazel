@@ -11,4 +11,13 @@ module SemanticsCommon =
   type var_err_status =
   | NotInVHole
   | InVHole of MetaVar.t
+
+  type inj_side =
+  | L
+  | R
+
+  let pick_side side l r =
+    match side with
+    | L -> l
+    | R -> r
  end
