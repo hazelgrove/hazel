@@ -89,8 +89,8 @@ module HTyp =
   let rec make_tuple = function
   | [ty1; ty2] -> Prod (ty1, ty2)
   | [ty1] -> ty1
-  | ty1::tys ->
-    let ty2 := make_tuple tys in
+  | ty1 :: tys ->
+    let ty2 = make_tuple tys in
     Prod (ty1, ty2)
   | [] -> Unit
 

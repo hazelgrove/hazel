@@ -10,7 +10,7 @@ module Var =
     then true
     else
       let ch = s.[0] in
-      let rest = (String.sub s 1 (String.length s - 1))) in
+      let rest = (String.sub s 1 (String.length s - 1)) in
       (
         (Util.char_eq_b ch '_') ||
         (Util.char_in_range_b ch 'a' 'z') ||
@@ -26,7 +26,7 @@ module Var =
     then false
     else
       let first_char = s.[0] in
-      let suffix = (String.sub s 1 (String.length s - 1))) in
+      let suffix = (String.sub s 1 (String.length s - 1)) in
       (
         (Util.char_eq_b first_char '_') ||
         (Util.char_in_range_b first_char 'a' 'z')
