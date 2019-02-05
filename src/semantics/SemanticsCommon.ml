@@ -1,30 +1,27 @@
-module SemanticsCommon =
- struct
-  type nat = int
+type nat = int
 
-  type in_hole_reason =
-  | TypeInconsistent
-  | WrongLength
+type in_hole_reason =
+| TypeInconsistent
+| WrongLength
 
-  type err_status =
-  | NotInHole
-  | InHole of in_hole_reason * MetaVar.t
+type err_status =
+| NotInHole
+| InHole of in_hole_reason * MetaVar.t
 
-  type var_err_status =
-  | NotInVHole
-  | InVHole of MetaVar.t
+type var_err_status =
+| NotInVHole
+| InVHole of MetaVar.t
 
-  type inj_side =
-  | L
-  | R
+type inj_side =
+| L
+| R
 
-  let pick_side side l r =
-    match side with
-    | L -> l
-    | R -> r
+let pick_side side l r =
+  match side with
+  | L -> l
+  | R -> r
 
-  type cursor_side = 
-  | Before 
-  | After 
-  | In of nat 
- end
+type cursor_side =
+| Before
+| After
+| In of nat

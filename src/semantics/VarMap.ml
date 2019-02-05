@@ -18,7 +18,7 @@ let extend ctx xa =
   xa::(drop ctx x)
 
 let union ctx1 ctx2 =
-  fold_left extend ctx2 ctx1
+  List.fold_left extend ctx2 ctx1
 
 let rec lookup ctx x =
   match ctx with
@@ -32,7 +32,7 @@ let contains ctx x =
   | None -> false
 
 let map f xs =
-  map
+  List.map
     (fun xa -> let x,_ = xa in x,(f xa))
     xs
 
