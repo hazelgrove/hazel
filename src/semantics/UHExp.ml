@@ -1009,25 +1009,23 @@ let rec syn_pat_fix_holes ctx u_gen renumber_empty_holes p =
      | None -> None
      | Some (p, ty, ctx, u_gen) ->
        Some (UHPat.Parenthesized p,ty,ctx,u_gen))
-
-  (* TODO: continue here *)
 and syn_pat_fix_holes' ctx u_gen renumber_empty_holes p =
   match p with
   | UHPat.EmptyHole _ ->
     if renumber_empty_holes
     then
       let u,u_gen = MetaVarGen.next u_gen in
-      Some ((((UHPat.EmptyHole u),HTyp.Hole),ctx),u_gen)
+      Some (UHPat.EmptyHole u,HTyp.Hole,ctx,u_gen)
     else
-      Some (((p,HTyp.Hole),ctx),u_gen)
-  | UHPat.Wild -> Some (((p,HTyp.Hole),ctx),u_gen)
+      Some (p,HTyp.Hole,ctx,u_gen)
+  | UHPat.Wild -> Some (p,HTyp.Hole,ctx,u_gen)
   | UHPat.Var x ->
     Var.check_valid x
       (let ctx = Contexts.extend_gamma ctx (x,HTyp.Hole) in
-       Some (((p,HTyp.Hole),ctx),u_gen))
-  | UHPat.NumLit _ -> Some (((p,HTyp.Num),ctx),u_gen)
-  | UHPat.BoolLit _ -> Some (((p,HTyp.Bool),ctx),u_gen)
-  | UHPat.ListNil -> Some (((p,(HTyp.List HTyp.Hole)),ctx),u_gen)
+       Some (p,HTyp.Hole,ctx,u_gen))
+  | UHPat.NumLit _ -> Some (p,HTyp.Num,ctx,u_gen)
+  | UHPat.BoolLit _ -> Some (p,HTyp.Bool,ctx,u_gen)
+  | UHPat.ListNil -> Some (p,HTyp.List HTyp.Hole,ctx,u_gen)
   (* | UHPat.ListLit ps ->
     let opt_result = List.fold_left (fun opt_result p ->
       match opt_result with
@@ -1064,13 +1062,13 @@ and syn_pat_fix_holes' ctx u_gen renumber_empty_holes p =
          | L -> HTyp.Sum (ty1, HTyp.Hole)
          | R -> HTyp.Sum (HTyp.Hole, ty1)
        in
-       Some ((((UHPat.Inj (side, p1)),ty),ctx),u_gen))
+       Some (UHPat.Inj (side, p1),ty,ctx,u_gen))
   | UHPat.OpSeq (skel, seq) ->
     (match syn_skel_pat_fix_holes ctx u_gen renumber_empty_holes
              skel seq with
      | None -> None
      | Some (skel, seq, ty, ctx, u_gen) ->
-       Some ((((UHPat.OpSeq (skel, seq)),ty),ctx),u_gen))
+       Some (UHPat.OpSeq (skel, seq),ty,ctx,u_gen))
 and syn_skel_pat_fix_holes ctx u_gen renumber_empty_holes skel seq =
   begin match skel with
   | Skel.Placeholder n ->
@@ -1135,19 +1133,19 @@ and ana_pat_fix_holes ctx u_gen renumber_empty_holes p ty =
              ty with
      | None -> None
      | Some (err_status, p', ctx, u_gen) ->
-       Some (((UHPat.Pat (err_status, p')),ctx),u_gen))
+       Some (UHPat.Pat (err_status, p'),ctx,u_gen))
   | UHPat.Parenthesized p ->
     (match ana_pat_fix_holes ctx u_gen renumber_empty_holes p ty with
      | None -> None
      | Some (p, ctx, u_gen) ->
-       Some (((UHPat.Parenthesized p),ctx),u_gen))
+       Some (UHPat.Parenthesized p,ctx,u_gen))
 and ana_pat_fix_holes' ctx u_gen renumber_empty_holes p ty =
   match p with
-  | UHPat.Wild -> Some (((NotInHole,p),ctx),u_gen)
+  | UHPat.Wild -> Some (NotInHole,p,ctx,u_gen)
   | UHPat.Var x ->
     Var.check_valid x
       (let ctx = Contexts.extend_gamma ctx (x,ty) in
-       Some (((NotInHole,p),ctx),u_gen))
+       Some (NotInHole,p,ctx,u_gen))
   | UHPat.EmptyHole _
   | UHPat.NumLit _
   | UHPat.BoolLit _ ->
@@ -1155,10 +1153,10 @@ and ana_pat_fix_holes' ctx u_gen renumber_empty_holes p ty =
      | None -> None
      | Some (p', ty', ctx, u_gen) ->
       if HTyp.consistent ty ty'
-      then Some (((NotInHole,p'),ctx),u_gen)
+      then Some (NotInHole,p',ctx,u_gen)
       else
         let u,u_gen = MetaVarGen.next u_gen in
-        Some ((((InHole (TypeInconsistent, u)),p'),ctx),u_gen))
+        Some (InHole (TypeInconsistent, u),p',ctx,u_gen))
   | UHPat.Inj (side, p1) ->
     (match HTyp.matched_sum ty with
      | Some (tyL, tyR) ->
@@ -1166,19 +1164,19 @@ and ana_pat_fix_holes' ctx u_gen renumber_empty_holes p ty =
        (match ana_pat_fix_holes ctx u_gen renumber_empty_holes p1 ty1 with
         | None -> None
         | Some (p1, ctx, u_gen) ->
-          Some (((NotInHole,(UHPat.Inj (side, p1))),ctx),u_gen))
+          Some (NotInHole,UHPat.Inj (side, p1),ctx,u_gen))
      | None ->
        (match syn_pat_fix_holes ctx u_gen renumber_empty_holes p1 with
         | None -> None
         | Some (p1, ty, ctx, u_gen) ->
-          Some ((((InHole (TypeInconsistent, u)),(UHPat.Inj (side, p1))),ctx),u_gen)))
+          Some (InHole (TypeInconsistent, u),UHPat.Inj (side, p1),ctx,u_gen)))
   | UHPat.ListNil ->
     (match HTyp.matched_list ty with
-     | Some _ -> Some (((NotInHole,p),ctx),u_gen)
+     | Some _ -> Some (NotInHole,p,ctx,u_gen)
      | None ->
        let u,u_gen = MetaVarGen.next u_gen in
-       Some ((((InHole (TypeInconsistent, u)),p),ctx),u_gen))
-  (* | UHPat.ListLit ps ->
+       Some (InHole (TypeInconsistent, u),p,ctx,u_gen))
+   (* | UHPat.ListLit ps ->
     match HTyp.matched_list ty with
     | Some ty_elt ->
       let ps_result =
@@ -1204,9 +1202,9 @@ and ana_pat_fix_holes' ctx u_gen renumber_empty_holes p ty =
      | None -> None
      | Some (Skel.Placeholder (_, _), _, _, _) -> None
      | Some ((Skel.BinOp (err, _, _, _)) as skel, seq, ctx, u_gen) ->
-       let p = UHPat.OpSeq skel seq in
+       let p = UHPat.OpSeq (skel, seq) in
        Some (err, p, ctx, u_gen))
-and ana_skel_pat_fix_holes ctx0 u_gen renumber_empty_holes skel seq ty =
+and ana_skel_pat_fix_holes ctx u_gen renumber_empty_holes skel seq ty =
   begin match skel with
   | Skel.Placeholder n ->
     begin match OperatorSeq.seq_nth n seq with
@@ -1252,9 +1250,9 @@ and ana_skel_pat_fix_holes ctx0 u_gen renumber_empty_holes skel seq ty =
               begin match ana_skel_pat_fix_holes ctx u_gen renumber_empty_holes skel seq ty with
               | None -> None
               | Some (skel, seq, ctx, u_gen) ->
-                Some (cons skel skels, seq, ctx, u_gen)
+                Some (skel::skels, seq, ctx, u_gen)
               end
-            end) (Some ([], seq, ctx, u_gen)) zipped in
+            end) zipped (Some ([], seq, ctx, u_gen)) in
         begin match fixed with
         | None -> None
         | Some (skels, seq, ctx, u_gen) ->
@@ -1274,9 +1272,9 @@ and ana_skel_pat_fix_holes ctx0 u_gen renumber_empty_holes skel seq ty =
               begin match ana_skel_pat_fix_holes ctx u_gen renumber_empty_holes skel seq ty with
               | None -> None
               | Some (skel, seq, ctx, u_gen) ->
-                Some (cons skel skels, seq, ctx, u_gen)
+                Some (skel::skels, seq, ctx, u_gen)
               end
-            end) (Some ([], seq, ctx, u_gen)) zipped in
+            end) zipped (Some ([], seq, ctx, u_gen)) in
         begin match fixed1 with
         | None -> None
         | Some (skels1, seq, ctx, u_gen) ->
@@ -1288,15 +1286,15 @@ and ana_skel_pat_fix_holes ctx0 u_gen renumber_empty_holes skel seq ty =
                 begin match syn_skel_pat_fix_holes ctx u_gen renumber_empty_holes skel seq with
                 | None -> None
                 | Some (skel, seq, ty, ctx, u_gen) ->
-                  Some (cons skel skels, seq, ctx, u_gen)
+                  Some (skel::skels, seq, ctx, u_gen)
                 end
-              end) (Some ([], seq, ctx, u_gen)) remainder in
+              end) remainder (Some ([], seq, ctx, u_gen)) in
           begin match fixed2 with
           | None -> None
           | Some (skels2, seq, ctx, u_gen) ->
-            let skels = skels1 ++ skels2 in
+            let skels = skels1 @ skels2 in
             let (u, u_gen) = MetaVarGen.next u_gen in
-            begin match UHPat.make_tuple (InHole WrongLength u) skels with
+            begin match UHPat.make_tuple (InHole (WrongLength, u)) skels with
             | None -> None
             | Some skel -> Some (skel, seq, ctx, u_gen)
             end
@@ -1311,7 +1309,7 @@ and ana_skel_pat_fix_holes ctx0 u_gen renumber_empty_holes skel seq ty =
         | None -> None
         | Some (skel2, seq, _, ctx, u_gen) ->
           let (u, u_gen) = MetaVarGen.next u_gen in
-          let skel = Skel.BinOp ((InHole TypeInconsistent u), UHPat.Comma, skel1, skel2) in
+          let skel = Skel.BinOp ((InHole (TypeInconsistent, u)), UHPat.Comma, skel1, skel2) in
           Some (skel, seq, ctx, u_gen)
         end
       end
@@ -1369,19 +1367,19 @@ let ana_rule_fix_holes ctx u_gen renumber_empty_holes rule pat_ty clause_ty ana_
      (match ana_fix_holes_internal ctx u_gen
               renumber_empty_holes e clause_ty with
       | None -> None
-      | Some (e',u_gen) -> Some ((Rule (pat', e')),u_gen)))
+      | Some (e',u_gen) -> Some (Rule (pat', e'),u_gen)))
 
 (* see above re: ana_fix_holes_internal *)
 let ana_rules_fix_holes_internal ctx u_gen renumber_empty_holes rules pat_ty clause_ty ana_fix_holes_internal =
-  fold_right (fun r b ->
+  List.fold_right (fun r b ->
     match b with
     | None -> None
     | Some (rules, u_gen) ->
       (match ana_rule_fix_holes ctx u_gen renumber_empty_holes
-               r pat_ty clause_ty ana_fix_holes_internal0 with
+               r pat_ty clause_ty ana_fix_holes_internal with
        | None -> None
        | Some (r, u_gen) ->
-         Some (r::rules,u_gen1))) (Some ([],u_gen)) rules
+         Some (r::rules,u_gen))) rules (Some ([],u_gen))
 
 (* If renumber_empty_holes is true, then the metavars in empty holes will be assigned
  * new values in the same namespace as non-empty holes. Non-empty holes are renumbered
@@ -1393,21 +1391,21 @@ let rec syn_fix_holes_internal ctx u_gen renumber_empty_holes e =
     (match syn_fix_holes' ctx u_gen renumber_empty_holes e' with
      | None -> None
      | Some (e'', ty, u_gen') ->
-       Some (((Tm (NotInHole, e'')),ty),u_gen'))
+       Some (Tm (NotInHole, e''),ty,u_gen'))
   | Parenthesized e1 ->
     (match syn_fix_holes_internal ctx u_gen renumber_empty_holes e1 with
      | None -> None
      | Some (e1', ty, u_gen') ->
-       Some (((Parenthesized e1'),ty),u_gen'))
+       Some (Parenthesized e1',ty,u_gen'))
 and syn_fix_holes' ctx u_gen renumber_empty_holes e =
   match e with
   | EmptyHole u ->
     if renumber_empty_holes
     then
       let u',u_gen'' = MetaVarGen.next u_gen in
-      Some (((EmptyHole u'),HTyp.Hole),u_gen'')
+      Some (EmptyHole u',HTyp.Hole,u_gen'')
     else
-      Some (((EmptyHole u),HTyp.Hole),u_gen)
+      Some (EmptyHole u,HTyp.Hole,u_gen)
   | Asc (e1, uty) ->
     begin match bidelimited e1 with
     | false -> None
@@ -1416,18 +1414,18 @@ and syn_fix_holes' ctx u_gen renumber_empty_holes e =
       (match ana_fix_holes_internal ctx u_gen renumber_empty_holes e1 ty with
        | None -> None
        | Some (e1', u_gen') ->
-         let e1',u_gen' = p in Some (((Asc (e1', uty)),ty),u_gen'))
+         Some (Asc (e1', uty),ty,u_gen'))
     end
   | Var (var_err_status, x) ->
     let gamma,_ = ctx in
     (match VarMap.lookup gamma x with
-     | Some ty -> Some (((Var (NotInVHole, x)),ty),u_gen)
+     | Some ty -> Some (Var (NotInVHole, x),ty,u_gen)
      | None ->
        (match var_err_status with
-        | InVHole _ -> Some ((e,HTyp.Hole),u_gen)
+        | InVHole _ -> Some (e,HTyp.Hole,u_gen)
         | NotInVHole ->
           let u,u_gen = MetaVarGen.next u_gen in
-          Some (((Var ((InVHole u), x)),HTyp.Hole),u_gen)))
+          Some (Var ((InVHole u), x),HTyp.Hole,u_gen)))
   | Lam (p, ann, e1) ->
     let ty1 =
       match ann with
@@ -1440,7 +1438,7 @@ and syn_fix_holes' ctx u_gen renumber_empty_holes e =
        (match syn_fix_holes_internal ctx1 u_gen renumber_empty_holes e1 with
         | None -> None
         | Some (e1, ty2, u_gen) ->
-          Some (((Lam (p2, ann, e1)),(HTyp.Arrow (ty1, ty2))),u_gen)))
+          Some (Lam (p, ann, e1),HTyp.Arrow (ty1, ty2),u_gen)))
   | Let (p, ann, e1, e2) ->
     (match ann with
      | Some uty1 ->
@@ -1455,7 +1453,7 @@ and syn_fix_holes' ctx u_gen renumber_empty_holes e =
              (match syn_fix_holes_internal ctx u_gen renumber_empty_holes e2 with
               | None -> None
               | Some (e2, ty, u_gen) ->
-                Some (((Let (p, ann, e1, e2)),ty),u_gen))))
+                Some (Let (p, ann, e1, e2),ty,u_gen))))
      | None ->
        (match syn_fix_holes_internal ctx u_gen renumber_empty_holes e1 with
         | None -> None
@@ -1463,13 +1461,13 @@ and syn_fix_holes' ctx u_gen renumber_empty_holes e =
           (match ana_pat_fix_holes ctx u_gen renumber_empty_holes p ty1 with
            | None -> None
            | Some (p, ctx, u_gen) ->
-             (match syn_fix_holes_internal ctx1 u_gen renumber_empty_holes e2 with
+             (match syn_fix_holes_internal ctx u_gen renumber_empty_holes e2 with
               | None -> None
               | Some (e2, ty, u_gen) ->
-                Some (((Let (p, ann, e1, e2)),ty),u_gen)))))
-  | NumLit _ -> Some ((e,HTyp.Num),u_gen)
-  | BoolLit _ -> Some ((e,HTyp.Bool),u_gen)
-  | ListNil -> Some ((e,(HTyp.List HTyp.Hole)),u_gen)
+                Some (Let (p, ann, e1, e2),ty,u_gen)))))
+  | NumLit _ -> Some (e,HTyp.Num,u_gen)
+  | BoolLit _ -> Some (e,HTyp.Bool,u_gen)
+  | ListNil -> Some (e,HTyp.List HTyp.Hole,u_gen)
   (* | ListLit es ->
     let opt_result = List.fold_left (fun opt_result e ->
       match opt_result with
@@ -1498,10 +1496,10 @@ and syn_fix_holes' ctx u_gen renumber_empty_holes e =
       Some (UHExp.ListLit es, HTyp.List ty, u_gen)
     end *)
   | OpSeq (skel, seq) ->
-    (match syn_skel_fix_holes ctx0 u_gen renumber_empty_holes skel seq with
+    (match syn_skel_fix_holes ctx u_gen renumber_empty_holes skel seq with
      | None -> None
      | Some (Skel.Placeholder _, _, _, _) -> None
-     | Some (skel, seq, ty, u_gen) -> Some (((OpSeq (skel, seq)),ty),u_gen))
+     | Some (skel, seq, ty, u_gen) -> Some (OpSeq (skel, seq),ty,u_gen))
   | Inj (side, e1) ->
     (match syn_fix_holes_internal ctx u_gen renumber_empty_holes e1 with
      | None -> None
@@ -1512,7 +1510,7 @@ and syn_fix_holes' ctx u_gen renumber_empty_holes e =
          | L -> HTyp.Sum (ty1, HTyp.Hole)
          | R -> HTyp.Sum (HTyp.Hole, ty1)
        in
-       Some ((e',ty'),u_gen'))
+       Some (e',ty',u_gen'))
   | Case (_, _) -> None
   | ApPalette (name, serialized_model, hole_data) ->
     let _,palette_ctx = ctx in
@@ -1530,8 +1528,8 @@ and syn_fix_holes' ctx u_gen renumber_empty_holes e =
           (match ana expansion_ctx expansion expansion_ty with
            | None -> None
            | Some _ ->
-             Some (((ApPalette (name, serialized_model,
-               hole_data')),expansion_ty),u_gen'))))
+             Some (ApPalette (name, serialized_model,
+               hole_data'),expansion_ty,u_gen'))))
 and ana_fix_holes_hole_data ctx u_gen renumber_empty_holes hole_data =
   let next_ref,hole_map = hole_data in
   let init = NatMap.empty,u_gen in
@@ -1558,12 +1556,12 @@ and ana_fix_holes_internal ctx u_gen renumber_empty_holes e ty =
     (match ana_fix_holes' ctx u_gen renumber_empty_holes e1 ty with
      | None -> None
      | Some (err_status, e1, u_gen) ->
-       Some ((Tm (err_status, e1)),u_gen))
+       Some (Tm (err_status, e1),u_gen))
   | Parenthesized e1 ->
     (match ana_fix_holes_internal ctx u_gen renumber_empty_holes e1 ty with
      | None -> None
      | Some (e1, u_gen) ->
-       Some ((Parenthesized e1),u_gen))
+       Some (Parenthesized e1,u_gen))
 and ana_fix_holes' ctx u_gen renumber_empty_holes e ty =
   match e with
   | Let (p, ann, e1, e2) ->
@@ -1574,15 +1572,15 @@ and ana_fix_holes' ctx u_gen renumber_empty_holes e ty =
        (match ana_fix_holes_internal ctx1 u_gen renumber_empty_holes e1 ty1 with
         | None -> None
         | Some (e1, u_gen) ->
-          (match ana_pat_fix_holes ctx u_gen0 renumber_empty_holes p ty1 with
+          (match ana_pat_fix_holes ctx u_gen renumber_empty_holes p ty1 with
            | None -> None
            | Some (p, ctx, u_gen) ->
              (match ana_fix_holes_internal ctx u_gen renumber_empty_holes e2 ty with
               | None -> None
               | Some (e2, u_gen) ->
-                Some ((NotInHole,(Let (p, ann, e1, e2))),u_gen))))
+                Some (NotInHole,Let (p, ann, e1, e2),u_gen))))
      | None ->
-       (match syn_fix_holes_internal ctx0 u_gen
+       (match syn_fix_holes_internal ctx u_gen
                 renumber_empty_holes e1 with
         | None -> None
         | Some (e1, ty1, u_gen) ->
@@ -1592,7 +1590,7 @@ and ana_fix_holes' ctx u_gen renumber_empty_holes e ty =
              (match ana_fix_holes_internal ctx u_gen renumber_empty_holes e2 ty with
               | None -> None
               | Some (e2, u_gen) ->
-                Some ((NotInHole,(Let (p, ann, e1, e2))),u_gen)))))
+                Some (NotInHole,Let (p, ann, e1, e2),u_gen)))))
   | Lam (p, ann, e1) ->
     (match HTyp.matched_arrow ty with
      | Some (ty1_given, ty2) ->
@@ -1607,13 +1605,13 @@ and ana_fix_holes' ctx u_gen renumber_empty_holes e ty =
                   (match ana_fix_holes_internal ctx u_gen renumber_empty_holes e1 ty2 with
                    | None -> None
                    | Some (e1, u_gen) ->
-                     Some ((NotInHole,(Lam (p, ann, e1))),u_gen)))
+                     Some (NotInHole,Lam (p, ann, e1),u_gen)))
           else (match syn_fix_holes' ctx u_gen
                         renumber_empty_holes e with
                 | None -> None
                 | Some (e, ty, u_gen) ->
                   let u,u_gen = MetaVarGen.next u_gen in
-                  Some (((InHole (TypeInconsistent, u)),e),u_gen))
+                  Some (InHole (TypeInconsistent, u),e,u_gen))
         | None ->
           (match ana_pat_fix_holes ctx u_gen
                    renumber_empty_holes p ty1_given with
@@ -1623,37 +1621,37 @@ and ana_fix_holes' ctx u_gen renumber_empty_holes e ty =
                       renumber_empty_holes e1 ty2 with
               | None -> None
               | Some (e1, u_gen) ->
-                Some ((NotInHole,(Lam (p, ann, e1))),u_gen))))
+                Some (NotInHole,Lam (p, ann, e1),u_gen))))
      | None ->
        (match syn_fix_holes' ctx u_gen renumber_empty_holes e with
         | None -> None
         | Some (e, ty', u_gen) ->
           let u,u_gen = MetaVarGen.next u_gen in
-          Some (((InHole (TypeInconsistent, u)),e),u_gen)))
+          Some (InHole (TypeInconsistent, u),e,u_gen)))
   | Inj (side, e1) ->
     (match HTyp.matched_sum ty with
      | Some (ty1, ty2) ->
        (match ana_fix_holes_internal ctx u_gen
-                renumber_empty_holes e1 (pick_side side0 ty1 ty2) with
+                renumber_empty_holes e1 (pick_side side ty1 ty2) with
         | None -> None
         | Some (e1', u_gen') ->
-          Some ((NotInHole,(Inj (side, e1'))),u_gen'))
+          Some (NotInHole,Inj (side, e1'),u_gen'))
      | None ->
        (match syn_fix_holes' ctx u_gen renumber_empty_holes e with
         | None -> None
         | Some (e', ty', u_gen') ->
           if HTyp.consistent ty ty'
           then
-            Some ((NotInHole,e'),u_gen')
+            Some (NotInHole,e',u_gen')
           else
             let u,u_gen'' = MetaVarGen.next u_gen' in
-            Some (((InHole (TypeInconsistent, u)),e'),u_gen'')))
+            Some (InHole (TypeInconsistent, u),e',u_gen'')))
   | ListNil ->
     (match HTyp.matched_list ty with
-     | Some _ -> Some ((NotInHole,e),u_gen)
+     | Some _ -> Some (NotInHole,e,u_gen)
      | None ->
        let u,u_gen = MetaVarGen.next u_gen in
-       Some (((InHole (TypeInconsistent, u)),e),u_gen))
+       Some (InHole (TypeInconsistent, u),e,u_gen))
   (* | ListLit es ->
     match HTyp.matched_list ty with
     | Some ty_elt ->
@@ -1682,14 +1680,14 @@ and ana_fix_holes' ctx u_gen renumber_empty_holes e ty =
                 ana_fix_holes_internal with
         | None -> None
         | Some (rules', u_gen) ->
-          Some ((NotInHole,(Case (e1', rules'))),u_gen)))
+          Some (NotInHole,Case (e1', rules'),u_gen)))
   | OpSeq (skel, seq) ->
     (match ana_skel_fix_holes ctx u_gen renumber_empty_holes
              skel seq ty with
      | None -> None
      | Some (Skel.Placeholder _, _, _) -> None
      | Some ((Skel.BinOp (err, _, _, _) as skel), seq, u_gen) ->
-       Some ((err,(OpSeq (skel, seq))),u_gen))
+       Some (err,OpSeq (skel, seq),u_gen))
   | EmptyHole _
   | Asc (_, _)
   | Var (_, _)
@@ -1700,10 +1698,10 @@ and ana_fix_holes' ctx u_gen renumber_empty_holes e ty =
      | None -> None
      | Some (e', ty', u_gen') ->
        if HTyp.consistent ty ty'
-       then Some ((NotInHole,e'),u_gen')
+       then Some (NotInHole,e',u_gen')
        else let u,u_gen'' = MetaVarGen.next u_gen' in
-            Some (((InHole (TypeInconsistent, u)),e'),u_gen''))
-and syn_skel_fix_holes ctx0 u_gen renumber_empty_holes skel seq =
+            Some (InHole (TypeInconsistent, u),e',u_gen''))
+and syn_skel_fix_holes ctx u_gen renumber_empty_holes skel seq =
   begin match skel with
   | Skel.Placeholder n ->
     begin match OperatorSeq.seq_nth n seq with
@@ -1842,7 +1840,7 @@ and ana_skel_fix_holes ctx u_gen renumber_empty_holes skel seq ty =
               | Some (skel, seq, u_gen) ->
                 Some (skel::skels, seq, u_gen)
               end
-            end) (Some ([], seq, u_gen)) zipped in
+            end) zipped (Some ([], seq, u_gen)) in
         begin match fixed with
         | None -> None
         | Some (skels, seq, u_gen) ->
@@ -1864,7 +1862,7 @@ and ana_skel_fix_holes ctx u_gen renumber_empty_holes skel seq ty =
               | Some (skel, seq, u_gen) ->
                 Some (skel::skels, seq, u_gen)
               end
-            end) (Some ([], seq, u_gen)) zipped in
+            end) zipped (Some ([], seq, u_gen)) in
         begin match fixed1 with
         | None -> None
         | Some (skels1, seq, u_gen) ->
@@ -1878,13 +1876,13 @@ and ana_skel_fix_holes ctx u_gen renumber_empty_holes skel seq ty =
                 | Some (skel, seq, ty, u_gen) ->
                   Some (skel::skels, seq, u_gen)
                 end
-              end) (Some ([], seq, u_gen)) remainder in
+              end) remainder (Some ([], seq, u_gen)) in
           begin match fixed2 with
           | None -> None
           | Some (skels2, seq, u_gen) ->
-            let skels = skels1 ++ skels2 in
+            let skels = skels1 @ skels2 in
             let (u, u_gen) = MetaVarGen.next u_gen in
-            begin match UHExp.make_tuple (InHole WrongLength u) skels with
+            begin match UHExp.make_tuple (InHole (WrongLength, u)) skels with
             | None -> None
             | Some skel -> Some (skel, seq, u_gen)
             end
