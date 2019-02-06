@@ -4,7 +4,6 @@
  * but this is easy and fast enough so far *)
 
 %{
-  open SemanticsCore
 %}
 
 %token <int> PLACEHOLDER
@@ -23,7 +22,7 @@
 %left TIMES
 %left SPACEOP
 
-%start <SemanticsCore.UHExp.op SemanticsCore.Skel.t> skel_expr
+%start <UHExp.op Skel.t> skel_expr
 
 (* %% ends the declarations section of the grammar definition *)
 

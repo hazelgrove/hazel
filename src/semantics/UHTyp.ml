@@ -39,15 +39,16 @@ let rec well_formed uty =
 and well_formed_skel skel seq =
   match skel with
   | Skel.Placeholder n ->
-    match OperatorSeq.seq_nth n seq with
+    begin match OperatorSeq.seq_nth n seq with
     | Some uty_n ->
       bidelimited uty_n && well_formed uty_n
     | None -> false
+    end
   | Skel.BinOp (NotInHole, _, skel1, skel2) ->
     well_formed_skel skel1 seq
     && well_formed_skel skel2 seq
-  | Skel.BinOp ((InHole TypeInconsistent _), _, _, _) -> false (* no type-level non-empty holes *)
-  | Skel.BinOp ((InHole WrongLength _), _, _, _) -> false (* the type is assumed to be the true length *)
+  | Skel.BinOp ((InHole(TypeInconsistent, _)), _, _, _) -> false (* no type-level non-empty holes *)
+  | Skel.BinOp ((InHole(WrongLength, _)), _, _, _) -> false (* the type is assumed to be the true length *)
 
 (* TODO fix this to only parenthesize when necessary *)
 let rec contract ty =

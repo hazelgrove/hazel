@@ -1,5 +1,4 @@
 %{
-  open SemanticsCore
 %}
 
 %token <int> NATURAL
@@ -41,7 +40,7 @@
 %token TYPE_ARROW
 %token EOF
 
-%start <SemanticsCore.UHExp.t> parse_uhexp
+%start <UHExp.t> parse_uhexp
 
 %%
 
