@@ -53,7 +53,7 @@ let rec make_tuple err = function
   (match make_tuple NotInHole skels with
   | None -> None
   | Some skel2 -> Some (Skel.BinOp (err, Comma, skel1, skel2)))
-| nil -> None
+| [] -> None
 
 (* helper function for constructing a new empty hole *)
 let new_EmptyHole u_gen =
@@ -194,7 +194,7 @@ let bidelimited = function
 | Tm (_, (Case (_, _)))
 | Tm (_, ListNil)
 (* | Tm _ (ListLit _) *)
-| Tm _ (ApPalette (_, _, _))
+| Tm (_, (ApPalette (_, _, _)))
 | Parenthesized _ -> true
 (* non-bidelimited cases *)
 | Tm (_, (Asc (_, _)))
@@ -259,9 +259,9 @@ let combine_modes mode1 mode2 =
 
 let rec syn_pat ctx p =
   match p with
-  | UHPat.Pat (InHole (TypeInconsistent, _)) p'
-  | UHPat.Pat (InHole (WrongLength, _))
-      ((UHPat.OpSeq ((Skel.BinOp ((InHole (WrongLength, _)), UHPat.Comma, _, _)), _)) as p') ->
+  | UHPat.Pat ((InHole (TypeInconsistent, _)), p')
+  | UHPat.Pat ((InHole (WrongLength, _)),
+      ((UHPat.OpSeq ((Skel.BinOp ((InHole (WrongLength, _)), UHPat.Comma, _, _)), _)) as p')) ->
     begin match syn_pat' ctx p' with
     | None -> None
     | Some (_, gamma) -> Some (HTyp.Hole, gamma)
@@ -310,73 +310,73 @@ and syn_pat' ctx p =
      | Some (ty, ctx, _) -> Some (ty, ctx)
      | None -> None)
 and syn_skel_pat ctx skel seq monitor =
-match skel with
-| Skel.Placeholder n ->
-  begin match OperatorSeq.seq_nth n seq with
-  | None -> None
-  | Some pn ->
-    begin match UHPat.bidelimited pn with
-    | false -> None
-    | true ->
-      begin match syn_pat ctx pn with
+  match skel with
+  | Skel.Placeholder n ->
+    begin match OperatorSeq.seq_nth n seq with
+    | None -> None
+    | Some pn ->
+      begin match UHPat.bidelimited pn with
+      | false -> None
+      | true ->
+        begin match syn_pat ctx pn with
+        | None -> None
+        | Some (ty, ctx) ->
+          let mode =
+            begin match monitor with
+            | None -> None
+            | Some n' ->
+              if Nat.eqb n n'
+              then Some (Synthesized ty)
+              else None
+            end in
+          Some (ty, ctx, mode)
+        end
+      end
+    end
+  | Skel.BinOp ((InHole (TypeInconsistent, u)), op, skel1, skel2)
+  | Skel.BinOp ((InHole (WrongLength, u)), (UHPat.Comma as op), skel1, skel2) ->
+    let skel_not_in_hole = Skel.BinOp (NotInHole, op, skel1, skel2) in
+    begin match syn_skel_pat ctx skel_not_in_hole seq monitor with
+    | None -> None
+    | Some (_, ctx, mode) -> Some (HTyp.Hole, ctx, mode)
+    end
+  | Skel.BinOp ((InHole (WrongLength, u)), _, _, _) -> None
+  | Skel.BinOp (NotInHole, UHPat.Comma, skel1, skel2) ->
+    begin match syn_skel_pat ctx skel1 seq monitor with
+    | None -> None
+    | Some (ty1, ctx, mode1) ->
+      begin match syn_skel_pat ctx skel2 seq monitor with
       | None -> None
-      | Some (ty, ctx) ->
-        let mode =
-          begin match monitor with
-          | None -> None
-          | Some n' ->
-            if Nat.eqb n n'
-            then Some (Synthesized ty)
-            else None
-          end in
+      | Some (ty2, ctx, mode2) ->
+        let ty = HTyp.Prod (ty1, ty2) in
+        let mode = combine_modes mode1 mode2 in
         Some (ty, ctx, mode)
       end
     end
-  end
-| Skel.BinOp ((InHole (TypeInconsistent, u)), op, skel1, skel2)
-| Skel.BinOp ((InHole (WrongLength, u)), (UHPat.Comma as op), skel1, skel2) ->
-  let skel_not_in_hole = Skel.BinOp (NotInHole, op, skel1, skel2) in
-  begin match syn_skel_pat ctx skel_not_in_hole seq monitor with
-  | None -> None
-  | Some (_, ctx, mode) -> Some (HTyp.Hole, ctx, mode)
-  end
-| Skel.BinOp ((InHole (WrongLength, u)), _, _, _) -> None
-| Skel.BinOp (NotInHole, UHPat.Comma, skel1, skel2) ->
-  begin match syn_skel_pat ctx skel1 seq monitor with
-  | None -> None
-  | Some (ty1, ctx, mode1) ->
-    begin match syn_skel_pat ctx skel2 seq monitor with
+  | Skel.BinOp (NotInHole, UHPat.Space, skel1, skel2) ->
+    begin match syn_skel_pat ctx skel1 seq monitor with
     | None -> None
-    | Some (ty2, ctx, mode2) ->
-      let ty = HTyp.Prod ty1 ty2 in
-      let mode = combine_modes mode1 mode2 in
-      Some (ty, ctx, mode)
+    | Some (ty1, ctx, mode1) ->
+      begin match syn_skel_pat ctx skel2 seq monitor with
+      | None -> None
+      | Some (ty2, ctx, mode2) ->
+        let ty = HTyp.Hole in
+        let mode = combine_modes mode1 mode2 in
+        Some (ty, ctx, mode)
+      end
     end
-  end
-| Skel.BinOp (NotInHole, UHPat.Space, skel1, skel2) ->
-  begin match syn_skel_pat ctx skel1 seq monitor with
-  | None -> None
-  | Some (ty1, ctx, mode1) ->
-    begin match syn_skel_pat ctx skel2 seq monitor with
+  | Skel.BinOp (NotInHole, UHPat.Cons, skel1, skel2) ->
+    begin match syn_skel_pat ctx skel1 seq monitor with
     | None -> None
-    | Some (ty2, ctx, mode2) ->
-      let ty = HTyp.Hole in
-      let mode = combine_modes mode1 mode2 in
-      Some (ty, ctx, mode)
+    | Some (ty1, ctx, mode1) ->
+      let ty = HTyp.List ty1 in
+      begin match ana_skel_pat ctx skel2 seq ty monitor with
+      | None -> None
+      | Some (ctx, mode2) ->
+        let mode = combine_modes mode1 mode2 in
+        Some (ty, ctx, mode)
+      end
     end
-  end
-| Skel.BinOp (NotInHole, UHPat.Cons, skel1, skel2,) ->
-  begin match syn_skel_pat ctx skel1 seq monitor with
-  | None -> None
-  | Some (ty1, ctx, mode1) ->
-    let ty = HTyp.List ty1 in
-    begin match ana_skel_pat ctx skel2 seq ty monitor with
-    | None -> None
-    | Some (ctx, mode2) ->
-      let mode = combine_modes mode1 mode2 in
-      Some (ty, ctx, mode)
-    end
-  end
 and ana_pat ctx p ty =
   match p with
   | UHPat.Pat ((InHole (TypeInconsistent, _)), p') ->
@@ -404,13 +404,13 @@ and ana_pat' ctx p ty =
      | None -> None
      | Some p ->
        let ty',ctx1 = p in
-       if HTyp.consistent ty ty' then Some ctx1 else None))
-  | UHPat.Inj (side0, p1) ->
+       if HTyp.consistent ty ty' then Some ctx1 else None)
+  | UHPat.Inj (side, p1) ->
     (match HTyp.matched_sum ty with
      | None -> None
-     | Some p ->
-       let tyL,tyR = p in
-       let ty1 = pick_side side0 tyL tyR in ana_pat ctx p1 ty1)
+     | Some (tyL, tyR) ->
+       let ty1 = pick_side side tyL tyR in
+       ana_pat ctx p1 ty1)
   | UHPat.ListNil ->
     (match HTyp.matched_list ty with
      | Some _ -> Some ctx
@@ -427,7 +427,7 @@ and ana_pat' ctx p ty =
    end *)
   | UHPat.OpSeq (skel, seq) ->
     (match ana_skel_pat ctx skel seq ty None with
-     | Some p -> let ctx1,_ = p in Some ctx1
+     | Some (ctx, _) -> Some ctx
      | None -> None)
 and ana_skel_pat ctx skel seq ty monitor =
   match skel with
@@ -489,11 +489,11 @@ and ana_skel_pat ctx skel seq ty monitor =
               let mode = combine_modes mode mode' in
               Some (ctx, mode)
             end
-          end) zipped (Some (ctx, None))
+          end) (Some (ctx, None)) zipped
       end
     | _ -> None
     end
-  | Skel.BinOp ((InHole (WrongLength, u)), (UHPat.Comma (as, op)), skel1, skel2) ->
+  | Skel.BinOp ((InHole (WrongLength, u)), (UHPat.Comma as op), skel1, skel2) ->
     begin match ty with
     | HTyp.Prod (ty1, ty2) ->
       let types = HTyp.get_tuple ty1 ty2 in
@@ -504,7 +504,7 @@ and ana_skel_pat ctx skel seq ty monitor =
       | true -> None (* make sure the lengths are actually different *)
       | false ->
         let (zipped, remainder) = HTyp.zip_with_skels skels types in
-        let ana_zipped : option (Contexts.t * option(type_mode)) =
+        let ana_zipped : (Contexts.t * type_mode option) option =
           List.fold_left (fun opt_result (skel_ty : UHPat.skel_t * HTyp.t) ->
             begin match opt_result with
             | None -> None
@@ -530,7 +530,7 @@ and ana_skel_pat ctx skel seq ty monitor =
                 let mode = combine_modes mode mode' in
                 Some (ctx, mode)
               end
-            end) remainder (Some (ctx, mode))
+            end) (Some (ctx, mode)) remainder
         end
       end
     | _ -> None
@@ -570,7 +570,7 @@ let ctx_for_let' ctx p ty1 e1 =
   match (p, e1) with
   | (UHPat.Pat (_, (UHPat.Var x)),
      Tm (_, (Lam (_, _, _)))) ->
-    match HTyp.matched_arrow ty1 with
+    begin match HTyp.matched_arrow ty1 with
     | Some _ -> (Contexts.extend_gamma ctx (x, ty1), Some x)
     | None -> (ctx, None)
     end
@@ -585,8 +585,8 @@ let rec syn ctx e =
     | Some _ -> Some HTyp.Hole
     | None -> None
     end
-  | Tm (InHole WrongLength _) _ -> None
-  | Tm NotInHole e' -> syn' ctx e'
+  | Tm ((InHole (WrongLength, _)), _) -> None
+  | Tm (NotInHole, e') -> syn' ctx e'
   | Parenthesized e1 -> syn ctx e1
 and syn' ctx e =
   match e with
@@ -637,7 +637,7 @@ and syn' ctx e =
         | None -> None
         | Some ty1 ->
           (match ana_pat ctx p ty1 with
-           | None
+           | None -> None
            | Some ctx2 -> syn ctx2 e2)))
   | NumLit _ -> Some HTyp.Num
   | BoolLit _ -> Some HTyp.Bool
@@ -655,7 +655,7 @@ and syn' ctx e =
   | OpSeq (skel, seq) ->
     (* NOTE: doesn't check if skel is the correct parse of seq!!! *)
     (match syn_skel ctx skel seq None with
-     | Some p -> let ty,_ = p in Some ty
+     | Some (ty, _) -> Some ty
      | None -> None)
   | Case (_, _) -> None
   | ApPalette (name, serialized_model, hole_data) ->
@@ -772,10 +772,10 @@ and ana' ctx e ty =
      | None -> None
      | Some ty' -> if HTyp.consistent ty ty' then Some () else None)
 and ana_rules ctx rules pat_ty clause_ty =
-  fold_left (fun b r ->
+  List.fold_left (fun b r ->
     match b with
     | None -> None
-    | Some _ -> ana_rule ctx r pat_ty clause_ty) rules (Some ())
+    | Some _ -> ana_rule ctx r pat_ty clause_ty) (Some ()) rules
 and ana_rule ctx rule pat_ty clause_ty =
   let Rule (p, e) = rule in
   (match ana_pat ctx p pat_ty with
@@ -796,7 +796,7 @@ and syn_skel ctx skel seq monitor =
           let mode =
             begin match monitor with
             | Some n' ->
-              if Nat.eqb n n' then Some (Synthesized ty)
+              if n = n' then Some (Synthesized ty)
               else None
             | None -> None
             end in
@@ -805,7 +805,7 @@ and syn_skel ctx skel seq monitor =
       end
     end
   | Skel.BinOp ((InHole (TypeInconsistent, u)), op, skel1, skel2)
-  | Skel.BinOp ((InHole (WrongLength, u)), (UHExp.Comma (as, op)), skel1, skel2) ->
+  | Skel.BinOp ((InHole (WrongLength, u)), (UHExp.Comma as op), skel1, skel2) ->
     let skel_not_in_hole = Skel.BinOp (NotInHole, op, skel1, skel2) in
     begin match syn_skel ctx skel_not_in_hole seq monitor with
     | None -> None
@@ -837,7 +837,7 @@ and syn_skel ctx skel seq monitor =
     begin match syn_skel ctx skel1 seq monitor with
     | None -> None
     | Some (ty1, mode1) ->
-      begin match HTyp.begin matched_arrow ty1 with
+      begin match HTyp.matched_arrow ty1 with
       | None -> None
       | Some (ty2, ty) ->
         begin match ana_skel ctx skel2 seq ty2 monitor with
@@ -855,7 +855,7 @@ and syn_skel ctx skel seq monitor =
       | None -> None
       | Some (ty2, mode2) ->
         let mode = combine_modes mode1 mode2 in
-        let ty = HTyp.Prod ty1 ty2 in
+        let ty = HTyp.Prod (ty1, ty2) in
         Some (ty, mode)
       end
     end
@@ -871,7 +871,7 @@ and syn_skel ctx skel seq monitor =
       end
     end
   end
-and ana_skel ctx0 skel seq ty monitor =
+and ana_skel ctx skel seq ty monitor =
   begin match skel with
   | Skel.Placeholder n ->
     begin match OperatorSeq.seq_nth n seq with
@@ -880,7 +880,7 @@ and ana_skel ctx0 skel seq ty monitor =
       begin match bidelimited en with
       | false -> None
       | true ->
-        begin match ana fuel ctx en ty with
+        begin match ana ctx en ty with
         | None -> None
         | Some _ ->
           begin match monitor with
@@ -896,10 +896,10 @@ and ana_skel ctx0 skel seq ty monitor =
   | Skel.BinOp (NotInHole, UHExp.Comma, skel1, skel2) ->
     begin match ty with
     | HTyp.Hole ->
-      begin match ana_skel fuel ctx skel1 seq HTyp.Hole monitor with
+      begin match ana_skel ctx skel1 seq HTyp.Hole monitor with
       | None -> None
       | Some mode1 ->
-        begin match ana_skel fuel ctx skel2 seq HTyp.Hole monitor with
+        begin match ana_skel ctx skel2 seq HTyp.Hole monitor with
         | None -> None
         | Some mode2 ->
           let mode = combine_modes mode1 mode2 in
@@ -917,13 +917,13 @@ and ana_skel ctx0 skel seq ty monitor =
           | None -> None
           | Some mode ->
             let (skel, ty) = skel_ty in
-            begin match ana_skel fuel ctx skel seq ty monitor with
+            begin match ana_skel ctx skel seq ty monitor with
             | None -> None
             | Some mode' ->
               let mode = combine_modes mode mode' in
               Some mode
             end
-          end) zipped (Some None)
+          end) (Some None) zipped
       end
     | _ -> None
     end
@@ -934,17 +934,17 @@ and ana_skel ctx0 skel seq ty monitor =
       let skels = UHExp.get_tuple skel1 skel2 in
       let n_types = List.length types in
       let n_skels = List.length skels in
-      begin match Nat.eqb n_types n_skels with
+      begin match n_types = n_skels with
       | true -> None (* make sure the lengths are actually different *)
       | false ->
         let (zipped, remainder) = HTyp.zip_with_skels skels types in
-        let ana_zipped : option(option(type_mode)) =
+        let ana_zipped : (type_mode option) option =
           List.fold_left (fun opt_result (skel_ty : UHExp.skel_t * HTyp.t) ->
             begin match opt_result with
             | None -> None
             | Some (mode) ->
               let (skel, ty) = skel_ty in
-              begin match ana_skel fuel ctx skel seq ty monitor with
+              begin match ana_skel ctx skel seq ty monitor with
               | None -> None
               | Some mode' ->
                 let mode = combine_modes mode mode' in
@@ -958,13 +958,13 @@ and ana_skel ctx0 skel seq ty monitor =
             begin match opt_result with
             | None -> None
             | Some mode ->
-              begin match syn_skel fuel ctx skel seq monitor with
+              begin match syn_skel ctx skel seq monitor with
               | None -> None
               | Some (_, mode') ->
                 let mode = combine_modes mode mode' in
                 Some mode
               end
-            end) remainder (Some mode)
+            end) (Some mode) remainder
         end
       end
     | _ -> None
@@ -974,11 +974,11 @@ and ana_skel ctx0 skel seq ty monitor =
     begin match HTyp.matched_list ty with
     | None -> None
     | Some ty_elt ->
-      begin match ana_skel fuel ctx skel1 seq ty_elt monitor with
+      begin match ana_skel ctx skel1 seq ty_elt monitor with
       | None -> None
       | Some mode1 ->
         let ty_list = HTyp.List ty_elt in
-        begin match ana_skel fuel ctx skel2 seq ty_list monitor with
+        begin match ana_skel ctx skel2 seq ty_list monitor with
         | None -> None
         | Some mode2 ->
           Some (combine_modes mode1 mode2)
@@ -990,7 +990,7 @@ and ana_skel ctx0 skel seq ty monitor =
   | Skel.BinOp (NotInHole, UHExp.Times, _, _)
   | Skel.BinOp (NotInHole, UHExp.LessThan, _, _)
   | Skel.BinOp (NotInHole, UHExp.Space, _, _) ->
-    begin match syn_skel fuel ctx skel seq monitor with
+    begin match syn_skel ctx skel seq monitor with
     | None -> None
     | Some (ty', mode) ->
       if HTyp.consistent ty ty' then Some mode else None
@@ -1003,12 +1003,14 @@ let rec syn_pat_fix_holes ctx u_gen renumber_empty_holes p =
     (match syn_pat_fix_holes' ctx u_gen renumber_empty_holes p' with
      | None -> None
      | Some (p', ty, ctx, u_gen) ->
-       Some ((((UHPat.Pat (NotInHole, p')),ty),ctx),u_gen))
+       Some (UHPat.Pat (NotInHole, p'),ty,ctx,u_gen))
   | UHPat.Parenthesized p ->
     (match syn_pat_fix_holes ctx u_gen renumber_empty_holes p with
      | None -> None
      | Some (p, ty, ctx, u_gen) ->
-       Some ((((UHPat.Parenthesized p),ty),ctx),u_gen))
+       Some (UHPat.Parenthesized p,ty,ctx,u_gen))
+
+  (* TODO: continue here *)
 and syn_pat_fix_holes' ctx u_gen renumber_empty_holes p =
   match p with
   | UHPat.EmptyHole _ ->
@@ -1031,23 +1033,23 @@ and syn_pat_fix_holes' ctx u_gen renumber_empty_holes p =
       match opt_result with
       | None -> None
       | Some (ps, ty, ctx, u_gen) ->
-        match syn_pat_fix_holes fuel ctx u_gen renumber_empty_holes p with
+        match syn_pat_fix_holes ctx u_gen renumber_empty_holes p with
         | Some (p, ty', ctx, u_gen) ->
           match HTyp.join ty ty' with
           | Some ty_joined -> Some (cons p ps, ty_joined, ctx, u_gen)
           | None ->
-            match ana_pat_fix_holes fuel ctx u_gen renumber_empty_holes p ty with
+            match ana_pat_fix_holes ctx u_gen renumber_empty_holes p ty with
             | None -> None
             | Some (p, ctx, u_gen) -> Some (cons p ps, ty, ctx, u_gen)
             end
           end
         | None ->
-          match ana_pat_fix_holes fuel ctx u_gen renumber_empty_holes p ty with
+          match ana_pat_fix_holes ctx u_gen renumber_empty_holes p ty with
           | None -> None
           | Some (p, ctx, u_gen) -> Some (cons p ps, ty, ctx, u_gen)
           end
         end
-      end) ps (Some (nil, HTyp.Hole, ctx, u_gen)) in
+      end) ps (Some ([], HTyp.Hole, ctx, u_gen)) in
     match opt_result with
     | None -> None
     | Some (ps, ty, ctx, u_gen) ->
@@ -1078,7 +1080,7 @@ and syn_skel_pat_fix_holes ctx u_gen renumber_empty_holes skel seq =
       begin match UHPat.bidelimited pn with
       | false -> None
       | true ->
-        begin match syn_pat_fix_holes fuel ctx u_gen renumber_empty_holes pn with
+        begin match syn_pat_fix_holes ctx u_gen renumber_empty_holes pn with
         | None -> None
         | Some (pn, ty, ctx, u_gen) ->
           begin match OperatorSeq.seq_update_nth n seq pn with
@@ -1090,10 +1092,10 @@ and syn_skel_pat_fix_holes ctx u_gen renumber_empty_holes skel seq =
       end
     end
   | Skel.BinOp (_, UHPat.Comma, skel1, skel2) ->
-    begin match syn_skel_pat_fix_holes fuel ctx u_gen renumber_empty_holes skel1 seq with
+    begin match syn_skel_pat_fix_holes ctx u_gen renumber_empty_holes skel1 seq with
     | None -> None
     | Some (skel1, seq, ty1, ctx, u_gen) ->
-      begin match syn_skel_pat_fix_holes fuel ctx u_gen renumber_empty_holes skel2 seq with
+      begin match syn_skel_pat_fix_holes ctx u_gen renumber_empty_holes skel2 seq with
       | None -> None
       | Some (skel2, seq, ty2, ctx, u_gen) ->
         let skel = Skel.BinOp (NotInHole, UHPat.Comma, skel1, skel2) in
@@ -1102,10 +1104,10 @@ and syn_skel_pat_fix_holes ctx u_gen renumber_empty_holes skel seq =
       end
     end
   | Skel.BinOp (_, UHPat.Space, skel1, skel2) ->
-    begin match syn_skel_pat_fix_holes fuel ctx u_gen renumber_empty_holes skel1 seq with
+    begin match syn_skel_pat_fix_holes ctx u_gen renumber_empty_holes skel1 seq with
     | None -> None
     | Some (skel1, seq, ty1, ctx, u_gen) ->
-      begin match syn_skel_pat_fix_holes fuel ctx u_gen renumber_empty_holes skel2 seq with
+      begin match syn_skel_pat_fix_holes ctx u_gen renumber_empty_holes skel2 seq with
       | None -> None
       | Some (skel2, seq, ty2, ctx, u_gen) ->
         let skel = Skel.BinOp (NotInHole, UHPat.Comma, skel1, skel2) in
@@ -1114,11 +1116,11 @@ and syn_skel_pat_fix_holes ctx u_gen renumber_empty_holes skel seq =
       end
     end
   | Skel.BinOp (_, UHPat.Cons, skel1, skel2) ->
-    begin match syn_skel_pat_fix_holes fuel ctx u_gen renumber_empty_holes skel1 seq with
+    begin match syn_skel_pat_fix_holes ctx u_gen renumber_empty_holes skel1 seq with
     | None -> None
     | Some (skel1, seq, ty_elt, ctx, u_gen) ->
       let ty = HTyp.List ty_elt in
-      begin match ana_skel_pat_fix_holes fuel ctx u_gen renumber_empty_holes skel2 seq ty with
+      begin match ana_skel_pat_fix_holes ctx u_gen renumber_empty_holes skel2 seq ty with
       | None -> None
       | Some (skel2, seq, ctx, u_gen) ->
         let skel = Skel.BinOp (NotInHole, UHPat.Cons, skel1, skel2) in
@@ -1184,12 +1186,12 @@ and ana_pat_fix_holes' ctx u_gen renumber_empty_holes p ty =
           match opt_result with
           | None -> None
           | Some (ps, ctx, u_gen) ->
-            match ana_pat_fix_holes fuel ctx u_gen renumber_empty_holes elt ty_elt with
+            match ana_pat_fix_holes ctx u_gen renumber_empty_holes elt ty_elt with
             | None -> None
             | Some (elt, ctx, u_gen) ->
               Some (cons elt ps, ctx, u_gen)
             end
-          end) ps (Some (nil, ctx, u_gen)) in
+          end) ps (Some ([], ctx, u_gen)) in
       match ps_result with
       | None -> None
       | Some (ps, ctx, u_gen) ->
@@ -1213,7 +1215,7 @@ and ana_skel_pat_fix_holes ctx0 u_gen renumber_empty_holes skel seq ty =
       begin match UHPat.bidelimited pn with
       | false -> None
       | true ->
-        begin match ana_pat_fix_holes fuel ctx u_gen renumber_empty_holes pn ty with
+        begin match ana_pat_fix_holes ctx u_gen renumber_empty_holes pn ty with
         | None -> None
         | Some (pn, ctx, u_gen) ->
           begin match OperatorSeq.seq_update_nth n seq pn with
@@ -1226,10 +1228,10 @@ and ana_skel_pat_fix_holes ctx0 u_gen renumber_empty_holes skel seq ty =
   | Skel.BinOp (_, UHPat.Comma, skel1, skel2) ->
     begin match ty with
     | HTyp.Hole ->
-      begin match ana_skel_pat_fix_holes fuel ctx u_gen renumber_empty_holes skel1 seq HTyp.Hole with
+      begin match ana_skel_pat_fix_holes ctx u_gen renumber_empty_holes skel1 seq HTyp.Hole with
       | None -> None
       | Some (skel1, seq, ctx, u_gen) ->
-        begin match ana_skel_pat_fix_holes fuel ctx u_gen renumber_empty_holes skel2 seq HTyp.Hole with
+        begin match ana_skel_pat_fix_holes ctx u_gen renumber_empty_holes skel2 seq HTyp.Hole with
         | None -> None
         | Some (skel2, seq, ctx, u_gen) ->
           let skel = Skel.BinOp (NotInHole, UHPat.Comma, skel1, skel2) in
@@ -1247,12 +1249,12 @@ and ana_skel_pat_fix_holes ctx0 u_gen renumber_empty_holes skel seq ty =
             | None -> None
             | Some (skels, seq, ctx, u_gen) ->
               let (skel, ty) = skel_ty in
-              begin match ana_skel_pat_fix_holes fuel ctx u_gen renumber_empty_holes skel seq ty with
+              begin match ana_skel_pat_fix_holes ctx u_gen renumber_empty_holes skel seq ty with
               | None -> None
               | Some (skel, seq, ctx, u_gen) ->
                 Some (cons skel skels, seq, ctx, u_gen)
               end
-            end) (Some (nil, seq, ctx, u_gen)) zipped in
+            end) (Some ([], seq, ctx, u_gen)) zipped in
         begin match fixed with
         | None -> None
         | Some (skels, seq, ctx, u_gen) ->
@@ -1269,12 +1271,12 @@ and ana_skel_pat_fix_holes ctx0 u_gen renumber_empty_holes skel seq ty =
             | None -> None
             | Some (skels, seq, ctx, u_gen) ->
               let (skel, ty) = skel_ty in
-              begin match ana_skel_pat_fix_holes fuel ctx u_gen renumber_empty_holes skel seq ty with
+              begin match ana_skel_pat_fix_holes ctx u_gen renumber_empty_holes skel seq ty with
               | None -> None
               | Some (skel, seq, ctx, u_gen) ->
                 Some (cons skel skels, seq, ctx, u_gen)
               end
-            end) (Some (nil, seq, ctx, u_gen)) zipped in
+            end) (Some ([], seq, ctx, u_gen)) zipped in
         begin match fixed1 with
         | None -> None
         | Some (skels1, seq, ctx, u_gen) ->
@@ -1283,12 +1285,12 @@ and ana_skel_pat_fix_holes ctx0 u_gen renumber_empty_holes skel seq ty =
               begin match opt_result with
               | None -> None
               | Some (skels, seq, ctx, u_gen) ->
-                begin match syn_skel_pat_fix_holes fuel ctx u_gen renumber_empty_holes skel seq with
+                begin match syn_skel_pat_fix_holes ctx u_gen renumber_empty_holes skel seq with
                 | None -> None
                 | Some (skel, seq, ty, ctx, u_gen) ->
                   Some (cons skel skels, seq, ctx, u_gen)
                 end
-              end) (Some (nil, seq, ctx, u_gen)) remainder in
+              end) (Some ([], seq, ctx, u_gen)) remainder in
           begin match fixed2 with
           | None -> None
           | Some (skels2, seq, ctx, u_gen) ->
@@ -1302,10 +1304,10 @@ and ana_skel_pat_fix_holes ctx0 u_gen renumber_empty_holes skel seq ty =
         end
       end
     | _ ->
-      begin match syn_skel_pat_fix_holes fuel ctx u_gen renumber_empty_holes skel1 seq with
+      begin match syn_skel_pat_fix_holes ctx u_gen renumber_empty_holes skel1 seq with
       | None -> None
       | Some (skel1, seq, _, ctx, u_gen) ->
-        begin match syn_skel_pat_fix_holes fuel ctx u_gen renumber_empty_holes skel2 seq with
+        begin match syn_skel_pat_fix_holes ctx u_gen renumber_empty_holes skel2 seq with
         | None -> None
         | Some (skel2, seq, _, ctx, u_gen) ->
           let (u, u_gen) = MetaVarGen.next u_gen in
@@ -1315,10 +1317,10 @@ and ana_skel_pat_fix_holes ctx0 u_gen renumber_empty_holes skel seq ty =
       end
     end
   | Skel.BinOp (_, UHPat.Space, skel1, skel2) ->
-    begin match syn_skel_pat_fix_holes fuel ctx u_gen renumber_empty_holes skel1 seq with
+    begin match syn_skel_pat_fix_holes ctx u_gen renumber_empty_holes skel1 seq with
     | None -> None
     | Some (skel1, seq, _, ctx, u_gen) ->
-      begin match syn_skel_pat_fix_holes fuel ctx u_gen renumber_empty_holes skel2 seq with
+      begin match syn_skel_pat_fix_holes ctx u_gen renumber_empty_holes skel2 seq with
       | None -> None
       | Some (skel2, seq, _, ctx, u_gen) ->
         let (u, u_gen) = MetaVarGen.next u_gen in
@@ -1329,11 +1331,11 @@ and ana_skel_pat_fix_holes ctx0 u_gen renumber_empty_holes skel seq ty =
   | Skel.BinOp (_, UHPat.Cons, skel1, skel2) ->
     begin match HTyp.matched_list ty with
     | Some ty_elt ->
-      begin match ana_skel_pat_fix_holes fuel ctx u_gen renumber_empty_holes skel1 seq ty_elt with
+      begin match ana_skel_pat_fix_holes ctx u_gen renumber_empty_holes skel1 seq ty_elt with
       | None -> None
       | Some (skel1, seq, ctx, u_gen) ->
         let ty_list = HTyp.List ty_elt in
-        begin match ana_skel_pat_fix_holes fuel ctx u_gen renumber_empty_holes skel2 seq ty_list with
+        begin match ana_skel_pat_fix_holes ctx u_gen renumber_empty_holes skel2 seq ty_list with
         | None -> None
         | Some (skel2, seq, ctx, u_gen) ->
           let skel = Skel.BinOp (NotInHole, UHPat.Cons, skel1, skel2) in
@@ -1341,11 +1343,11 @@ and ana_skel_pat_fix_holes ctx0 u_gen renumber_empty_holes skel seq ty =
         end
       end
     | None ->
-      begin match syn_skel_pat_fix_holes fuel ctx u_gen renumber_empty_holes skel1 seq with
+      begin match syn_skel_pat_fix_holes ctx u_gen renumber_empty_holes skel1 seq with
       | None -> None
       | Some (skel1, seq, ty_elt, ctx, u_gen) ->
         let ty_list = HTyp.List ty_elt in
-        begin match ana_skel_pat_fix_holes fuel ctx u_gen renumber_empty_holes skel2 seq ty_list with
+        begin match ana_skel_pat_fix_holes ctx u_gen renumber_empty_holes skel2 seq ty_list with
         | None -> None
         | Some (skel2, seq, ctx, u_gen) ->
           let (u, u_gen) = MetaVarGen.next u_gen in
@@ -1468,31 +1470,31 @@ and syn_fix_holes' ctx u_gen renumber_empty_holes e =
   | NumLit _ -> Some ((e,HTyp.Num),u_gen)
   | BoolLit _ -> Some ((e,HTyp.Bool),u_gen)
   | ListNil -> Some ((e,(HTyp.List HTyp.Hole)),u_gen)
-  (* | ListLit es =>
-    let opt_result := List.fold_left (fun opt_result e =>
+  (* | ListLit es ->
+    let opt_result = List.fold_left (fun opt_result e ->
       match opt_result with
-      | None => None
-      | Some (es, ty, u_gen) =>
-        match syn_fix_holes_internal fuel ctx u_gen renumber_empty_holes e with
-        | Some (e, ty', u_gen) =>
+      | None -> None
+      | Some (es, ty, u_gen) ->
+        match syn_fix_holes_internal ctx u_gen renumber_empty_holes e with
+        | Some (e, ty', u_gen) ->
           match HTyp.join ty ty' with
-          | Some ty_joined => Some (cons e es, ty_joined, u_gen)
-          | None =>
-            match ana_fix_holes_internal fuel ctx u_gen renumber_empty_holes e ty with
-            | None => None
-            | Some (e, u_gen) => Some (cons e es, ty, u_gen)
+          | Some ty_joined -> Some (cons e es, ty_joined, u_gen)
+          | None ->
+            match ana_fix_holes_internal ctx u_gen renumber_empty_holes e ty with
+            | None -> None
+            | Some (e, u_gen) -> Some (cons e es, ty, u_gen)
             end
           end
-        | None =>
-          match ana_fix_holes_internal fuel ctx u_gen renumber_empty_holes e ty with
-          | None => None
-          | Some (e, u_gen) => Some (cons e es, ty, u_gen)
+        | None ->
+          match ana_fix_holes_internal ctx u_gen renumber_empty_holes e ty with
+          | None -> None
+          | Some (e, u_gen) -> Some (cons e es, ty, u_gen)
           end
         end
-      end) es (Some (nil, HTyp.Hole, u_gen)) in
+      end) es (Some ([], HTyp.Hole, u_gen)) in
     match opt_result with
-    | None => None
-    | Some (es, ty, u_gen) =>
+    | None -> None
+    | Some (es, ty, u_gen) ->
       Some (UHExp.ListLit es, HTyp.List ty, u_gen)
     end *)
   | OpSeq (skel, seq) ->
@@ -1652,402 +1654,307 @@ and ana_fix_holes' ctx u_gen renumber_empty_holes e ty =
      | None ->
        let u,u_gen = MetaVarGen.next u_gen in
        Some (((InHole (TypeInconsistent, u)),e),u_gen))
-  (* | ListLit es =>
+  (* | ListLit es ->
     match HTyp.matched_list ty with
-    | Some ty_elt =>
-      let opt_es := List.fold_left (fun opt_result elt =>
+    | Some ty_elt ->
+      let opt_es = List.fold_left (fun opt_result elt ->
         match opt_result with
-        | None => None
-        | Some (es, u_gen) =>
-          match ana_fix_holes_internal fuel ctx u_gen renumber_empty_holes elt ty_elt with
-          | None => None
-          | Some (elt, u_gen) =>
+        | None -> None
+        | Some (es, u_gen) ->
+          match ana_fix_holes_internal ctx u_gen renumber_empty_holes elt ty_elt with
+          | None -> None
+          | Some (elt, u_gen) ->
             Some (cons elt es, u_gen)
           end
-        end) es (Some (nil, u_gen)) in
+        end) es (Some ([], u_gen)) in
       match opt_es with
-      | None => None
-      | Some (es, u_gen) => Some (NotInHole, ListLit es, u_gen)
+      | None -> None
+      | Some (es, u_gen) -> Some (NotInHole, ListLit es, u_gen)
       end
-    | None => None (* TODO put in hole if not a list *)
+    | None -> None (* TODO put in hole if not a list *)
     end *)
-
-    (* NOTE: resume here *)
-
-  | Case (e1, rules0) ->
-    (match syn_fix_holes_internal ctx u_gen renumber_empty_holes
-             e1 with
-     | Some p ->
-       let p0,u_gen0 = p in
-       let e1',ty1 = p0 in
-       (match ana_rules_fix_holes_internal ctx0 u_gen0
-                renumber_empty_holes rules0 ty1 ty
+  | Case (e1, rules) ->
+    (match syn_fix_holes_internal ctx u_gen renumber_empty_holes e1 with
+     | None -> None
+     | Some (e1', ty1, u_gen) ->
+       (match ana_rules_fix_holes_internal ctx u_gen
+                renumber_empty_holes rules ty1 ty
                 ana_fix_holes_internal with
-        | Some p1 ->
-          let rules',u_gen1 = p1 in
-          Some ((NotInHole,(Case (e1', rules'))),u_gen1)
-        | None -> None)
-     | None -> None)
+        | None -> None
+        | Some (rules', u_gen) ->
+          Some ((NotInHole,(Case (e1', rules'))),u_gen)))
   | OpSeq (skel, seq) ->
-    (match ana_skel_fix_holes ctx0 u_gen renumber_empty_holes
+    (match ana_skel_fix_holes ctx u_gen renumber_empty_holes
              skel seq ty with
-     | Some p ->
-       let p0,u_gen0 = p in
-       let skel0,seq0 = p0 in
-       (match skel0 with
-        | Skel.Placeholder _ -> None
-        | Skel.BinOp (err, _, _, _) ->
-          Some ((err,(OpSeq (skel0, seq0))),u_gen0))
-     | None -> None)
-  | _ ->
-    (match syn_fix_holes' ctx0 u_gen renumber_empty_holes e with
-     | Some p ->
-       let p0,u_gen' = p in
-       let e',ty' = p0 in
+     | None -> None
+     | Some (Skel.Placeholder _, _, _) -> None
+     | Some ((Skel.BinOp (err, _, _, _) as skel), seq, u_gen) ->
+       Some ((err,(OpSeq (skel, seq))),u_gen))
+  | EmptyHole _
+  | Asc (_, _)
+  | Var (_, _)
+  | NumLit _
+  | BoolLit _
+  | ApPalette (_, _, _) ->
+    (match syn_fix_holes' ctx u_gen renumber_empty_holes e with
+     | None -> None
+     | Some (e', ty', u_gen') ->
        if HTyp.consistent ty ty'
        then Some ((NotInHole,e'),u_gen')
        else let u,u_gen'' = MetaVarGen.next u_gen' in
-            Some (((InHole (TypeInconsistent, u)),e'),u_gen'')
-     | None -> None))
+            Some (((InHole (TypeInconsistent, u)),e'),u_gen''))
 and syn_skel_fix_holes ctx0 u_gen renumber_empty_holes skel seq =
-  (fun fMore _ fKicked -> fMore ())
-    (fun ->
-    match skel with
-    | Skel.Placeholder n0 ->
-      (match OperatorSeq.seq_nth n0 seq with
-       | Some en ->
-         if bidelimited en
-         then (match syn_fix_holes_internal ctx0 u_gen
-                       renumber_empty_holes en with
-               | Some p ->
-                 let p0,u_gen0 = p in
-                 let en0,ty = p0 in
-                 (match OperatorSeq.seq_update_nth n0 seq en0 with
-                  | Some seq0 -> Some (((skel,seq0),ty),u_gen0)
-                  | None -> None)
-               | None -> None)
-         else None
-       | None -> None)
-    | Skel.BinOp (_, op0, skel1, skel2) ->
-      (match op0 with
-       | LessThan ->
-         (match ana_skel_fix_holes ctx0 u_gen renumber_empty_holes
-                  skel1 seq HTyp.Num with
-          | Some p ->
-            let p0,u_gen0 = p in
-            let skel3,seq0 = p0 in
-            (match ana_skel_fix_holes ctx0 u_gen0
-                     renumber_empty_holes skel2 seq0 HTyp.Num with
-             | Some p1 ->
-               let p2,u_gen1 = p1 in
-               let skel4,seq1 = p2 in
-               Some ((((Skel.BinOp (NotInHole, op0, skel3,
-               skel4)),seq1),HTyp.Bool),u_gen1)
-             | None -> None)
-          | None -> None)
-       | Space ->
-         (match syn_skel_fix_holes ctx0 u_gen renumber_empty_holes
-                  skel1 seq with
-          | Some p ->
-            let p0,u_gen1 = p in
-            let p1,ty1 = p0 in
-            let skel1',seq1 = p1 in
-            (match HTyp.matched_arrow ty1 with
-             | Some p2 ->
-               let ty2,ty = p2 in
-               (match ana_skel_fix_holes ctx0 u_gen1
-                        renumber_empty_holes skel2 seq1 ty2 with
-                | Some p3 ->
-                  let p4,u_gen2 = p3 in
-                  let skel2',seq2 = p4 in
-                  Some ((((Skel.BinOp (NotInHole, Space, skel1',
-                  skel2')),seq2),ty),u_gen2)
-                | None -> None)
-             | None ->
-               (match ana_skel_fix_holes ctx0 u_gen1
-                        renumber_empty_holes skel2 seq1 HTyp.Hole with
-                | Some p2 ->
-                  let p3,u_gen2 = p2 in
-                  let skel2',seq2 = p3 in
-                  (match make_skel_inconsistent u_gen2 skel1' seq2 with
-                   | Some p4 ->
-                     let p5,u_gen3 = p4 in
-                     let skel1'',seq3 = p5 in
-                     Some ((((Skel.BinOp (NotInHole, Space, skel1'',
-                     skel2')),seq3),HTyp.Hole),u_gen3)
-                   | None -> None)
-                | None -> None))
-          | None -> None)
-       | Comma ->
-         (match syn_skel_fix_holes ctx0 u_gen renumber_empty_holes
-                  skel1 seq with
-          | Some p ->
-            let p0,u_gen0 = p in
-            let p1,ty1 = p0 in
-            let skel3,seq0 = p1 in
-            (match syn_skel_fix_holes ctx0 u_gen0
-                     renumber_empty_holes skel2 seq0 with
-             | Some p2 ->
-               let p3,u_gen1 = p2 in
-               let p4,ty2 = p3 in
-               let skel4,seq1 = p4 in
-               let skel0 = Skel.BinOp (NotInHole, Comma, skel3, skel4) in
-               let ty = HTyp.Prod (ty1, ty2) in
-               Some (((skel0,seq1),ty),u_gen1)
-             | None -> None)
-          | None -> None)
-       | Cons ->
-         (match syn_skel_fix_holes ctx0 u_gen renumber_empty_holes
-                  skel1 seq with
-          | Some p ->
-            let p0,u_gen0 = p in
-            let p1,ty_elt = p0 in
-            let skel3,seq0 = p1 in
-            let ty = HTyp.List ty_elt in
-            (match ana_skel_fix_holes ctx0 u_gen0
-                     renumber_empty_holes skel2 seq0 ty with
-             | Some p2 ->
-               let p3,u_gen1 = p2 in
-               let skel4,seq1 = p3 in
-               let skel0 = Skel.BinOp (NotInHole, Cons, skel3, skel4) in
-               Some (((skel0,seq1),ty),u_gen1)
-             | None -> None)
-          | None -> None)
-       | _ ->
-         (match ana_skel_fix_holes ctx0 u_gen renumber_empty_holes
-                  skel1 seq HTyp.Num with
-          | Some p ->
-            let p0,u_gen0 = p in
-            let skel3,seq0 = p0 in
-            (match ana_skel_fix_holes ctx0 u_gen0
-                     renumber_empty_holes skel2 seq0 HTyp.Num with
-             | Some p1 ->
-               let p2,u_gen1 = p1 in
-               let skel4,seq1 = p2 in
-               Some ((((Skel.BinOp (NotInHole, op0, skel3,
-               skel4)),seq1),HTyp.Num),u_gen1)
-             | None -> None)
-          | None -> None)))
-    (fun _ -> None)
-    fuel
+  begin match skel with
+  | Skel.Placeholder n ->
+    begin match OperatorSeq.seq_nth n seq with
+    | None -> None
+    | Some en ->
+      begin match bidelimited en with
+      | false -> None
+      | true ->
+        begin match syn_fix_holes_internal ctx u_gen renumber_empty_holes en with
+        | None -> None
+        | Some (en, ty, u_gen) ->
+          begin match OperatorSeq.seq_update_nth n seq en with
+          | None -> None
+          | Some seq ->
+            Some (skel, seq, ty, u_gen)
+          end
+        end
+      end
+    end
+  | Skel.BinOp (_, (UHExp.Plus as op), skel1, skel2)
+  | Skel.BinOp (_, (UHExp.Times as op), skel1, skel2) ->
+    begin match ana_skel_fix_holes ctx u_gen renumber_empty_holes skel1 seq HTyp.Num with
+    | Some (skel1, seq, u_gen) ->
+      begin match ana_skel_fix_holes ctx u_gen renumber_empty_holes skel2 seq HTyp.Num with
+      | Some (skel2, seq, u_gen) ->
+        Some (Skel.BinOp (NotInHole, op, skel1, skel2), seq, HTyp.Num, u_gen)
+      | None -> None
+      end
+    | None -> None
+    end
+  | Skel.BinOp (_, (UHExp.LessThan as op), skel1, skel2) ->
+    begin match ana_skel_fix_holes ctx u_gen renumber_empty_holes skel1 seq HTyp.Num with
+    | Some (skel1, seq, u_gen) ->
+      begin match ana_skel_fix_holes ctx u_gen renumber_empty_holes skel2 seq HTyp.Num with
+      | Some (skel2, seq, u_gen) ->
+        Some (Skel.BinOp (NotInHole, op, skel1, skel2), seq, HTyp.Bool, u_gen)
+      | None -> None
+      end
+    | None -> None
+    end
+  | Skel.BinOp (_, UHExp.Space, skel1, skel2) ->
+    begin match syn_skel_fix_holes ctx u_gen renumber_empty_holes skel1 seq with
+    | Some (skel1', seq1, ty1, u_gen1) ->
+      begin match HTyp.matched_arrow ty1 with
+      | Some (ty2, ty) ->
+        begin match ana_skel_fix_holes ctx u_gen1 renumber_empty_holes skel2 seq1 ty2 with
+        | Some (skel2', seq2, u_gen2) ->
+          Some (Skel.BinOp (NotInHole, Space, skel1', skel2'), seq2, ty, u_gen2)
+        | None -> None
+        end
+      | None ->
+        begin match ana_skel_fix_holes ctx u_gen1 renumber_empty_holes skel2 seq1 HTyp.Hole with
+        | Some (skel2', seq2, u_gen2) ->
+          begin match UHExp.make_skel_inconsistent u_gen2 skel1' seq2 with
+          | Some (skel1'', seq3, u_gen3) ->
+            Some (Skel.BinOp (NotInHole, Space, skel1'', skel2'), seq3, HTyp.Hole, u_gen3)
+          | None -> None
+          end
+        | None -> None
+        end
+      end
+    | None -> None
+    end
+  | Skel.BinOp (_, UHExp.Comma, skel1, skel2) ->
+    begin match syn_skel_fix_holes ctx u_gen renumber_empty_holes skel1 seq with
+    | None -> None
+    | Some (skel1, seq, ty1, u_gen) ->
+      begin match syn_skel_fix_holes ctx u_gen renumber_empty_holes skel2 seq with
+      | None -> None
+      | Some (skel2, seq, ty2, u_gen) ->
+        let skel = Skel.BinOp (NotInHole, Comma, skel1, skel2) in
+        let ty = HTyp.Prod (ty1, ty2) in
+        Some (skel, seq, ty, u_gen)
+      end
+    end
+  | Skel.BinOp (_, UHExp.Cons, skel1, skel2) ->
+    begin match syn_skel_fix_holes ctx u_gen renumber_empty_holes skel1 seq with
+    | None -> None
+    | Some (skel1, seq, ty_elt, u_gen) ->
+      let ty = HTyp.List ty_elt in
+      begin match ana_skel_fix_holes ctx u_gen renumber_empty_holes skel2 seq ty with
+      | None -> None
+      | Some (skel2, seq, u_gen) ->
+        let skel = Skel.BinOp (NotInHole, Cons, skel1, skel2) in
+        Some (skel, seq, ty, u_gen)
+      end
+    end
+  end
+and ana_skel_fix_holes ctx u_gen renumber_empty_holes skel seq ty =
+  begin match skel with
+  | Skel.Placeholder n ->
+    begin match OperatorSeq.seq_nth n seq with
+    | None -> None
+    | Some en ->
+      begin match bidelimited en with
+      | false -> None
+      | true ->
+        begin match ana_fix_holes_internal ctx u_gen renumber_empty_holes en ty with
+        | None -> None
+        | Some (en, u_gen) ->
+          begin match OperatorSeq.seq_update_nth n seq en with
+          | Some seq -> Some (skel, seq, u_gen)
+          | None -> None
+          end
+        end
+      end
+    end
+  | Skel.BinOp (_, UHExp.Comma, skel1, skel2) ->
+    begin match ty with
+    | HTyp.Hole ->
+      begin match ana_skel_fix_holes ctx u_gen renumber_empty_holes skel1 seq HTyp.Hole with
+      | None -> None
+      | Some (skel1, seq, u_gen) ->
+        begin match ana_skel_fix_holes ctx u_gen renumber_empty_holes skel2 seq HTyp.Hole with
+        | None -> None
+        | Some (skel2, seq, u_gen) ->
+          let skel = Skel.BinOp (NotInHole, UHExp.Comma, skel1, skel2) in
+          Some (skel, seq, u_gen)
+        end
+      end
+    | HTyp.Prod (ty1, ty2) ->
+      let types = HTyp.get_tuple ty1 ty2 in
+      let skels = UHExp.get_tuple skel1 skel2 in
+      let num_types = List.length types in
+      let num_skels = List.length skels in
+      begin match Util.zip_eq skels types with
+      | Some zipped ->
+        let fixed =
+          List.fold_right (fun (skel_ty : UHExp.skel_t * HTyp.t) opt_result ->
+            begin match opt_result with
+            | None -> None
+            | Some (skels, seq, u_gen) ->
+              let (skel, ty) = skel_ty in
+              begin match ana_skel_fix_holes ctx u_gen renumber_empty_holes skel seq ty with
+              | None -> None
+              | Some (skel, seq, u_gen) ->
+                Some (skel::skels, seq, u_gen)
+              end
+            end) (Some ([], seq, u_gen)) zipped in
+        begin match fixed with
+        | None -> None
+        | Some (skels, seq, u_gen) ->
+          begin match UHExp.make_tuple NotInHole skels with
+          | None -> None
+          | Some skel -> Some (skel, seq, u_gen)
+          end
+        end
+      | None ->
+        let (zipped, remainder) = HTyp.zip_with_skels skels types in
+        let fixed1 =
+          List.fold_right (fun (skel_ty : UHExp.skel_t * HTyp.t) opt_result ->
+            begin match opt_result with
+            | None -> None
+            | Some (skels, seq, u_gen) ->
+              let (skel, ty) = skel_ty in
+              begin match ana_skel_fix_holes ctx u_gen renumber_empty_holes skel seq ty with
+              | None -> None
+              | Some (skel, seq, u_gen) ->
+                Some (skel::skels, seq, u_gen)
+              end
+            end) (Some ([], seq, u_gen)) zipped in
+        begin match fixed1 with
+        | None -> None
+        | Some (skels1, seq, u_gen) ->
+          let fixed2 =
+            List.fold_right (fun (skel : UHExp.skel_t) opt_result ->
+              begin match opt_result with
+              | None -> None
+              | Some (skels, seq, u_gen) ->
+                begin match syn_skel_fix_holes ctx u_gen renumber_empty_holes skel seq with
+                | None -> None
+                | Some (skel, seq, ty, u_gen) ->
+                  Some (skel::skels, seq, u_gen)
+                end
+              end) (Some ([], seq, u_gen)) remainder in
+          begin match fixed2 with
+          | None -> None
+          | Some (skels2, seq, u_gen) ->
+            let skels = skels1 ++ skels2 in
+            let (u, u_gen) = MetaVarGen.next u_gen in
+            begin match UHExp.make_tuple (InHole WrongLength u) skels with
+            | None -> None
+            | Some skel -> Some (skel, seq, u_gen)
+            end
+          end
+        end
+      end
+    | _ ->
+      begin match syn_skel_fix_holes ctx u_gen renumber_empty_holes skel1 seq with
+      | None -> None
+      | Some (skel1, seq, _, u_gen) ->
+        begin match syn_skel_fix_holes ctx u_gen renumber_empty_holes skel2 seq with
+        | None -> None
+        | Some (skel2, seq, _, u_gen) ->
+          let (u, u_gen) = MetaVarGen.next u_gen in
+          let skel = Skel.BinOp ((InHole (TypeInconsistent, u)), UHExp.Comma, skel1, skel2) in
+          Some (skel, seq, u_gen)
+        end
+      end
+    end
+  | Skel.BinOp (_, UHExp.Cons, skel1, skel2) ->
+    begin match HTyp.matched_list ty with
+    | Some ty_elt ->
+      begin match ana_skel_fix_holes ctx u_gen renumber_empty_holes skel1 seq ty_elt with
+      | None -> None
+      | Some (skel1, seq, u_gen) ->
+        let ty_list = HTyp.List ty_elt in
+        begin match ana_skel_fix_holes ctx u_gen renumber_empty_holes skel2 seq ty_list with
+        | None -> None
+        | Some (skel2, seq, u_gen) ->
+          let skel = Skel.BinOp (NotInHole, Cons, skel1, skel2) in
+          Some (skel, seq, u_gen)
+        end
+      end
+    | None ->
+      begin match syn_skel_fix_holes ctx u_gen renumber_empty_holes skel1 seq with
+      | None -> None
+      | Some (skel1, seq, ty_elt, u_gen) ->
+        let ty_list = HTyp.List ty_elt in
+        begin match ana_skel_fix_holes ctx u_gen renumber_empty_holes skel2 seq ty_list with
+        | None -> None
+        | Some (skel2, seq, u_gen) ->
+          let (u, u_gen) = MetaVarGen.next u_gen in
+          let skel = Skel.BinOp ((InHole (TypeInconsistent, u)), Cons, skel1, skel2) in
+          Some (skel, seq, u_gen)
+        end
+      end
+    end
+  | Skel.BinOp (_, UHExp.Plus, _, _)
+  | Skel.BinOp (_, UHExp.Times, _, _)
+  | Skel.BinOp (_, UHExp.LessThan, _, _)
+  | Skel.BinOp (_, UHExp.Space, _, _) ->
+    begin match syn_skel_fix_holes ctx u_gen renumber_empty_holes skel seq with
+    | Some (skel', seq', ty', u_gen') ->
+      if HTyp.consistent ty ty' then Some (skel', seq', u_gen')
+      else
+        make_skel_inconsistent u_gen' skel' seq'
+    | None -> None
+    end
+  end
 
-(** val ana_skel_fix_holes :
-    unit -> Contexts.t -> MetaVarGen.t -> bool -> skel_t -> opseq ->
-    HTyp.t -> ((skel_t * opseq) * MetaVarGen.t) option **)
+let syn_fix_holes ctx u_gen e =
+  syn_fix_holes_internal ctx u_gen false e
 
-and ana_skel_fix_holes ctx0 u_gen renumber_empty_holes skel seq ty =
-  (fun fMore _ fKicked -> fMore ())
-    (fun ->
-    match skel with
-    | Skel.Placeholder n0 ->
-      (match OperatorSeq.seq_nth n0 seq with
-       | Some en ->
-         if bidelimited en
-         then (match ana_fix_holes_internal ctx0 u_gen
-                       renumber_empty_holes en ty with
-               | Some p ->
-                 let en0,u_gen0 = p in
-                 (match OperatorSeq.seq_update_nth n0 seq en0 with
-                  | Some seq0 -> Some ((skel,seq0),u_gen0)
-                  | None -> None)
-               | None -> None)
-         else None
-       | None -> None)
-    | Skel.BinOp (_, o, skel1, skel2) ->
-      (match o with
-       | Comma ->
-         (match ty with
-          | HTyp.Hole ->
-            (match ana_skel_fix_holes ctx0 u_gen
-                     renumber_empty_holes skel1 seq HTyp.Hole with
-             | Some p ->
-               let p0,u_gen0 = p in
-               let skel3,seq0 = p0 in
-               (match ana_skel_fix_holes ctx0 u_gen0
-                        renumber_empty_holes skel2 seq0 HTyp.Hole with
-                | Some p1 ->
-                  let p2,u_gen1 = p1 in
-                  let skel4,seq1 = p2 in
-                  let skel0 = Skel.BinOp (NotInHole, Comma, skel3, skel4)
-                  in
-                  Some ((skel0,seq1),u_gen1)
-                | None -> None)
-             | None -> None)
-          | HTyp.Prod (ty1, ty2) ->
-            let types = HTyp.get_tuple ty1 ty2 in
-            let skels = get_tuple skel1 skel2 in
-            (match Util.zip_eq skels types with
-             | Some zipped ->
-               let fixed =
-                 fold_right (fun skel_ty opt_result ->
-                   match opt_result with
-                   | Some y ->
-                     let y0,u_gen0 = y in
-                     let skels0,seq0 = y0 in
-                     let skel0,ty0 = skel_ty in
-                     (match ana_skel_fix_holes ctx0 u_gen0
-                              renumber_empty_holes skel0 seq0 ty0 with
-                      | Some p ->
-                        let p0,u_gen1 = p in
-                        let skel3,seq1 = p0 in
-                        Some (((skel3::skels0),seq1),u_gen1)
-                      | None -> None)
-                   | None -> None) (Some (([],seq),u_gen)) zipped
-               in
-               (match fixed with
-                | Some p ->
-                  let p0,u_gen0 = p in
-                  let skels0,seq0 = p0 in
-                  (match make_tuple NotInHole skels0 with
-                   | Some skel0 -> Some ((skel0,seq0),u_gen0)
-                   | None -> None)
-                | None -> None)
-             | None ->
-               let zipped,remainder = HTyp.zip_with_skels skels types in
-               let fixed1 =
-                 fold_right (fun skel_ty opt_result ->
-                   match opt_result with
-                   | Some y ->
-                     let y0,u_gen0 = y in
-                     let skels0,seq0 = y0 in
-                     let skel0,ty0 = skel_ty in
-                     (match ana_skel_fix_holes ctx0 u_gen0
-                              renumber_empty_holes skel0 seq0 ty0 with
-                      | Some p ->
-                        let p0,u_gen1 = p in
-                        let skel3,seq1 = p0 in
-                        Some (((skel3::skels0),seq1),u_gen1)
-                      | None -> None)
-                   | None -> None) (Some (([],seq),u_gen)) zipped
-               in
-               (match fixed1 with
-                | Some p ->
-                  let p0,u_gen0 = p in
-                  let skels1,seq0 = p0 in
-                  let fixed2 =
-                    fold_right (fun skel0 opt_result ->
-                      match opt_result with
-                      | Some y ->
-                        let y0,u_gen1 = y in
-                        let skels0,seq1 = y0 in
-                        (match syn_skel_fix_holes ctx0 u_gen1
-                                 renumber_empty_holes skel0 seq1 with
-                         | Some p1 ->
-                           let p2,u_gen2 = p1 in
-                           let p3,_ = p2 in
-                           let skel3,seq2 = p3 in
-                           Some (((skel3::skels0),seq2),u_gen2)
-                         | None -> None)
-                      | None -> None) (Some (([],seq0),u_gen0)) remainder
-                  in
-                  (match fixed2 with
-                   | Some p1 ->
-                     let p2,u_gen1 = p1 in
-                     let skels2,seq1 = p2 in
-                     let skels0 = app skels1 skels2 in
-                     let u,u_gen2 = MetaVarGen.next u_gen1 in
-                     (match make_tuple (InHole (WrongLength, u)) skels0 with
-                      | Some skel0 -> Some ((skel0,seq1),u_gen2)
-                      | None -> None)
-                   | None -> None)
-                | None -> None))
-          | _ ->
-            (match syn_skel_fix_holes ctx0 u_gen
-                     renumber_empty_holes skel1 seq with
-             | Some p ->
-               let p0,u_gen0 = p in
-               let p1,_ = p0 in
-               let skel3,seq0 = p1 in
-               (match syn_skel_fix_holes ctx0 u_gen0
-                        renumber_empty_holes skel2 seq0 with
-                | Some p2 ->
-                  let p3,u_gen1 = p2 in
-                  let p4,_ = p3 in
-                  let skel4,seq1 = p4 in
-                  let u,u_gen2 = MetaVarGen.next u_gen1 in
-                  let skel0 = Skel.BinOp ((InHole (TypeInconsistent, u)),
-                    Comma, skel3, skel4)
-                  in
-                  Some ((skel0,seq1),u_gen2)
-                | None -> None)
-             | None -> None))
-       | Cons ->
-         (match HTyp.matched_list ty with
-          | Some ty_elt ->
-            (match ana_skel_fix_holes ctx0 u_gen
-                     renumber_empty_holes skel1 seq ty_elt with
-             | Some p ->
-               let p0,u_gen0 = p in
-               let skel3,seq0 = p0 in
-               let ty_list = HTyp.List ty_elt in
-               (match ana_skel_fix_holes ctx0 u_gen0
-                        renumber_empty_holes skel2 seq0 ty_list with
-                | Some p1 ->
-                  let p2,u_gen1 = p1 in
-                  let skel4,seq1 = p2 in
-                  let skel0 = Skel.BinOp (NotInHole, Cons, skel3, skel4)
-                  in
-                  Some ((skel0,seq1),u_gen1)
-                | None -> None)
-             | None -> None)
-          | None ->
-            (match syn_skel_fix_holes ctx0 u_gen
-                     renumber_empty_holes skel1 seq with
-             | Some p ->
-               let p0,u_gen0 = p in
-               let p1,ty_elt = p0 in
-               let skel3,seq0 = p1 in
-               let ty_list = HTyp.List ty_elt in
-               (match ana_skel_fix_holes ctx0 u_gen0
-                        renumber_empty_holes skel2 seq0 ty_list with
-                | Some p2 ->
-                  let p3,u_gen1 = p2 in
-                  let skel4,seq1 = p3 in
-                  let u,u_gen2 = MetaVarGen.next u_gen1 in
-                  let skel0 = Skel.BinOp ((InHole (TypeInconsistent, u)),
-                    Cons, skel3, skel4)
-                  in
-                  Some ((skel0,seq1),u_gen2)
-                | None -> None)
-             | None -> None))
-       | _ ->
-         (match syn_skel_fix_holes ctx0 u_gen renumber_empty_holes
-                  skel seq with
-          | Some p ->
-            let p0,u_gen' = p in
-            let p1,ty' = p0 in
-            let skel',seq' = p1 in
-            if HTyp.consistent ty ty'
-            then Some ((skel',seq'),u_gen')
-            else make_skel_inconsistent u_gen' skel' seq'
-          | None -> None)))
-    (fun _ -> None)
-    fuel
+let ana_fix_holes ctx u_gen e ty =
+  ana_fix_holes_internal ctx u_gen false e ty
 
-(** val syn_fix_holes :
-    unit -> Contexts.t -> MetaVarGen.t -> t ->
-    ((t * HTyp.t) * MetaVarGen.t) option **)
+let ana_rules_fix_holes ctx u_gen renumber_empty_holes rules pat_ty clause_ty =
+  ana_rules_fix_holes_internal ctx u_gen renumber_empty_holes
+    rules pat_ty clause_ty ana_fix_holes_internal
 
-let syn_fix_holes ctx0 u_gen e =
-  syn_fix_holes_internal ctx0 u_gen false e
-
-(** val ana_fix_holes :
-    unit -> Contexts.t -> MetaVarGen.t -> t -> HTyp.t ->
-    (t * MetaVarGen.t) option **)
-
-let ana_fix_holes ctx0 u_gen e ty =
-  ana_fix_holes_internal ctx0 u_gen false e ty
-
-(** val ana_rules_fix_holes :
-    unit -> Contexts.t -> MetaVarGen.t -> bool -> rule list -> HTyp.t ->
-    HTyp.t -> (rule list * MetaVarGen.t) option **)
-
-let ana_rules_fix_holes ctx0 u_gen renumber_empty_holes rules0 pat_ty clause_ty =
-  ana_rules_fix_holes_internal ctx0 u_gen renumber_empty_holes
-    rules0 pat_ty clause_ty ana_fix_holes_internal
-
-(** val fix_and_renumber_holes :
-    unit -> Contexts.t -> t -> ((t * HTyp.t) * MetaVarGen.t) option **)
-
-let fix_and_renumber_holes ctx0 e =
-  syn_fix_holes_internal ctx0 MetaVarGen.init true e
+(* Only to be used on top-level expressions, as it starts hole renumbering at 0 *)
+let fix_and_renumber_holes ctx e =
+  syn_fix_holes_internal ctx MetaVarGen.init true e
