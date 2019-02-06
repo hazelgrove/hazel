@@ -1,4 +1,5 @@
 open SemanticsCommon
+open Util
 
 type op =
 | Plus
@@ -14,29 +15,26 @@ let is_Space = function
 
 type skel_t = op Skel.t
 
-module Coq__2 = struct
- type t =
- | Tm of err_status * t'
- | Parenthesized of t
- and t' =
- | Asc of t * UHTyp.t
- | Var of var_err_status * Var.t
- | Let of UHPat.t * UHTyp.t option * t * t
- | Lam of UHPat.t * UHTyp.t option * t
- | NumLit of int
- | BoolLit of bool
- | Inj of inj_side * t
- | Case of t * rule list
- | ListNil
- (* | ListCons : list(t) -> t' *)
- | EmptyHole of MetaVar.t
- | OpSeq of skel_t * (t, op) OperatorSeq.opseq (* invariant: skeleton is consistent with opseq *)
- | ApPalette of PaletteName.t * PaletteSerializedModel.t
-    * (int * (HTyp.t * t) Util.NatMap.t) (* = PaletteHoleData.t *)
- and rule =
- | Rule of UHPat.t * t
-end
-include Coq__2
+type t =
+| Tm of err_status * t'
+| Parenthesized of t
+and t' =
+| Asc of t * UHTyp.t
+| Var of var_err_status * Var.t
+| Let of UHPat.t * UHTyp.t option * t * t
+| Lam of UHPat.t * UHTyp.t option * t
+| NumLit of int
+| BoolLit of bool
+| Inj of inj_side * t
+| Case of t * rule list
+| ListNil
+(* | ListCons : list(t) -> t' *)
+| EmptyHole of MetaVar.t
+| OpSeq of skel_t * (t, op) OperatorSeq.opseq (* invariant: skeleton is consistent with opseq *)
+| ApPalette of PaletteName.t * PaletteSerializedModel.t
+  * (int * (HTyp.t * t) Util.NatMap.t) (* = PaletteHoleData.t *)
+and rule =
+| Rule of UHPat.t * t
 
 type rules = rule list
 
@@ -62,7 +60,7 @@ let new_EmptyHole u_gen =
 
 let is_EmptyHole = function
 | Tm (_, EmptyHole _) -> true
-| Parenthesized _ -> false
+| _ -> false
 
 let empty_rule u_gen =
   let rule_p,u_gen = UHPat.new_EmptyHole u_gen in
@@ -77,7 +75,7 @@ module PaletteHoleData =
   type t = hole_ref_lbl * hole_map
   let empty = 0,NatMap.empty
   let mk_hole_ref_var_name lbl =
-    "__hole_ref__" ^ (Debug.string_of_nat lbl) ^ "__"
+    "__hole_ref__" ^ (Helper.Helper.string_of_nat lbl) ^ "__"
   let next_ref_lbl x = 1 + x
   let new_hole_ref u_gen hd ty =
     let cur_ref_lbl,cur_map = hd in
@@ -124,7 +122,7 @@ module HoleRefs =
   (* cant define m_hole_ref using Inductive due to Coq limitation *)
   type 'x m_hole_ref' =
   | NewHoleRef of HTyp.t
-  | Bnd of 'a m_hole_ref' * ('b -> 'x m_hole_ref')
+  | Bnd of ('a m_hole_ref') * ('a -> 'b m_hole_ref')
   | Ret of 'a
   type 'x m_hole_ref = 'x m_hole_ref'
   let new_hole_ref = NewHoleRef

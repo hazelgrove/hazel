@@ -1,4 +1,4 @@
-module Helper: Semantics.DEBUG = {
+module Helper = {
   let rec list_to_string = lst =>
     switch (lst) {
     | [] => ""
