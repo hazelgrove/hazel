@@ -79,11 +79,11 @@ let rec set_inconsistent u = function
 
 (* put p in a new hole, if it is not already in a hole *)
 let rec make_inconsistent u_gen p = match p with
-  | Pat NotInHole p'
-  | Pat ((InHole (WrongLength, _)), p') ->
+  | Pat(NotInHole, p')
+  | Pat((InHole (WrongLength, _)), p') ->
     let u, u_gen = MetaVarGen.next u_gen in
     (Pat ((InHole (TypeInconsistent, u)), p'), u_gen)
-  | Pat ((InHole (TypeInconsistent, _)), _) -> (p, u_gen)
+  | Pat((InHole (TypeInconsistent, _)), _) -> (p, u_gen)
   | Parenthesized p1 ->
     begin match make_inconsistent u_gen p1 with
     | (p1, u_gen) -> (Parenthesized p1, u_gen)

@@ -1,4 +1,4 @@
-type cursor_side = SemanticsCommon.cursor_side
+open SemanticsCommon
 
 type opseq_surround = (UHPat.t, UHPat.op) OperatorSeq.opseq_surround
 type opseq_prefix = (UHPat.t, UHPat.op) OperatorSeq.opseq_prefix
@@ -60,17 +60,17 @@ let rec make_inconsistent
       (ParenthesizedZ zp1, u_gen)
     end
 
-let rec erase (zp : ZPat.t) : UHPat.t = 
+let rec erase (zp : t) : UHPat.t = 
   begin match zp with 
-  | ZPat.CursorP(_, p) -> p
-  | ZPat.Deeper(err_status, zp') -> UHPat.Pat(err_status, erase' zp')
-  | ZPat.ParenthesizedZ zp -> UHPat.Parenthesized (erase zp)
+  | CursorP(_, p) -> p
+  | Deeper(err_status, zp') -> UHPat.Pat(err_status, erase' zp')
+  | ParenthesizedZ zp -> UHPat.Parenthesized (erase zp)
   end
-and erase' (zp' : ZPat.t') : UHPat.t' = 
+and erase' (zp' : t') : UHPat.t' = 
   begin match zp' with 
-  | ZPat.InjZ(side, zp1) -> UHPat.Inj(side, erase zp1)
-  (* | ZPat.ListLitZ zps -> UHPat.ListLit (ZList.erase zps erase) *)
-  | ZPat.OpSeqZ(skel, zp1, surround) -> 
+  | InjZ(side, zp1) -> UHPat.Inj(side, erase zp1)
+  (* | ListLitZ zps -> UHPat.ListLit (ZList.erase zps erase) *)
+  | OpSeqZ(skel, zp1, surround) -> 
     let p1 = erase zp1 in 
     UHPat.OpSeq(skel, (OperatorSeq.opseq_of_exp_and_surround p1 surround))
   end
