@@ -201,7 +201,7 @@ let rec make_inconsistent u_gen e = match e with
 | Tm (NotInHole, e')
 | Tm ((InHole (WrongLength, _)), e') ->
   let u, u_gen = MetaVarGen.next u_gen in
-  Tm ((InHole (TypeInconsistent, u)) e'), u_gen
+  Tm ((InHole (TypeInconsistent, u)), e'), u_gen
 | Tm ((InHole (TypeInconsistent, _)), _) -> (e, u_gen)
 | Parenthesized e1 ->
   begin match make_inconsistent u_gen e1 with
@@ -310,7 +310,7 @@ and syn_skel_pat ctx skel seq monitor =
             begin match monitor with
             | None -> None
             | Some n' ->
-              if Nat.eqb n n'
+              if n = n'
               then Some (Synthesized ty)
               else None
             end in
@@ -371,7 +371,7 @@ and ana_pat ctx p ty =
     end
   | UHPat.Pat (
       (InHole (WrongLength, _)),
-      ((UHPat.OpSeq ((Skel.BinOp ((InHole WrongLength _), UHPat.Comma, (_, _))), _)) as p'))
+      ((UHPat.OpSeq ((Skel.BinOp ((InHole (WrongLength, _)), UHPat.Comma, _, _)), _)) as p'))
   | UHPat.Pat (NotInHole, p') ->
     ana_pat' ctx p' ty
   | UHPat.Pat ((InHole (WrongLength, _)), _) -> None
