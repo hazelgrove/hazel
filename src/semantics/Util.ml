@@ -175,7 +175,7 @@ module NatMap =
   let to_list delta = delta
 
   let fold delta f b =
-    List.fold_left f delta b
+    List.fold_left f b delta
  end
 
 (* Zippered finite map over nats, used with Z expressions

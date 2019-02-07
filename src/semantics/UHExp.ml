@@ -501,7 +501,7 @@ and ana_skel_pat ctx skel seq ty monitor =
                 let mode = combine_modes mode mode' in
                 Some (ctx, mode)
               end
-            end) zipped (Some (ctx, None)) in
+            end) (Some (ctx, None)) zipped in
         begin match ana_zipped with
         | None -> None
         | Some (ctx, mode) ->
