@@ -41,12 +41,12 @@ module PairPalette: PALETTE = {
 
   type model = (int, int);
   let init_model =
-    UHExp.HoleRefs.Bnd(
-      args = (
+    UHExp.HoleRefs.Bnd({
+      args: (
         UHExp.HoleRefs.new_hole_ref(HTyp.Hole),
         left_hole_ref =>
-          UHExp.HoleRefs.Bnd(
-            args = (
+          UHExp.HoleRefs.Bnd({
+            args: (
               UHExp.HoleRefs.new_hole_ref(HTyp.Hole),
               right_hole_ref => {
                 let leftID = UHExp.HoleRefs.lbl_of(left_hole_ref);
@@ -54,9 +54,9 @@ module PairPalette: PALETTE = {
                 UHExp.HoleRefs.Ret((leftID, rightID));
               },
             ),
-          ),
+          }),
       ),
-    );
+    });
   type model_updater = model => unit;
 
   let view = ((leftID, rightID), model_updater) =>
