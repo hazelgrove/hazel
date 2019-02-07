@@ -1746,7 +1746,7 @@ and syn_fix_holes' = (ctx, u_gen, renumber_empty_holes, e) =>
       };
     }
   | Var(var_err_status, x) =>
-    let (gamma, _) = ctx;
+    let gamma = Contexts.gamma(ctx);
     switch (VarMap.lookup(gamma, x)) {
     | Some(ty) => Some((Var(NotInVHole, x), ty, u_gen))
     | None =>

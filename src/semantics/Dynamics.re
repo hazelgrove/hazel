@@ -169,13 +169,9 @@ module DHPat = {
         let ty = HTyp.List(ty1);
         switch (ana_expand_skel(ctx, delta, skel2, seq, ty)) {
         | DoesNotExpand => DoesNotExpand
-        | Expands(dp2, ty', ctx, delta) =>
-          switch (HTyp.join(ty, ty')) {
-          | None => DoesNotExpand
-          | Some(ty) =>
-            let dp = Cons(dp1, dp2);
-            Expands(dp, ty, ctx, delta);
-          }
+        | Expands(dp2, _, ctx, delta) =>
+          let dp = Cons(dp1, dp2);
+          Expands(dp, ty, ctx, delta);
         };
       }
     }
@@ -347,19 +343,13 @@ module DHPat = {
       | Some(ty_elt) =>
         switch (ana_expand_skel(ctx, delta, skel1, seq, ty_elt)) {
         | DoesNotExpand => DoesNotExpand
-        | Expands(dp1, ty_elt', ctx, delta) =>
+        | Expands(dp1, _, ctx, delta) =>
           let ty_list = HTyp.List(ty_elt);
           switch (ana_expand_skel(ctx, delta, skel2, seq, ty_list)) {
           | DoesNotExpand => DoesNotExpand
-          | Expands(dp2, HTyp.List(ty_elt''), ctx, delta) =>
-            switch (HTyp.join(ty_elt', ty_elt'')) {
-            | None => DoesNotExpand
-            | Some(ty_elt) =>
-              let ty = HTyp.List(ty_elt);
-              let dp = Cons(dp1, dp2);
-              Expands(dp, ty, ctx, delta);
-            }
-          | Expands(_, _, _, _) => DoesNotExpand
+          | Expands(dp2, _, ctx, delta) =>
+            let dp = Cons(dp1, dp2);
+            Expands(dp, ty, ctx, delta);
           };
         }
       }
@@ -1196,13 +1186,10 @@ module DHExp = {
         let ty = HTyp.List(ty1);
         switch (ana_expand_skel(ctx, delta, skel2, seq, ty)) {
         | DoesNotExpand => DoesNotExpand
-        | Expands(d2, ty', delta) =>
-          switch (HTyp.join(ty, ty')) {
-          | None => DoesNotExpand
-          | Some(ty) =>
-            let d = Cons(d1, d2);
-            Expands(d, ty, delta);
-          }
+        | Expands(d2, ty2, delta) =>
+          let d2c = cast(d2, ty2, ty);
+          let d = Cons(d1, d2c);
+          Expands(d, ty, delta);
         };
       }
     | Skel.BinOp(NotInHole, UHExp.Plus as op, skel1, skel2)
@@ -1539,18 +1526,14 @@ module DHExp = {
         switch (ana_expand_skel(ctx, delta, skel1, seq, ty_elt)) {
         | DoesNotExpand => DoesNotExpand
         | Expands(d1, ty_elt', delta) =>
+          let d1c = cast(d1, ty_elt', ty_elt);
           let ty_list = HTyp.List(ty_elt);
           switch (ana_expand_skel(ctx, delta, skel2, seq, ty_list)) {
           | DoesNotExpand => DoesNotExpand
-          | Expands(d2, HTyp.List(ty_elt''), delta) =>
-            switch (HTyp.join(ty_elt', ty_elt'')) {
-            | None => DoesNotExpand
-            | Some(ty_elt) =>
-              let ty = HTyp.List(ty_elt);
-              let d = Cons(d1, d2);
-              Expands(d, ty, delta);
-            }
-          | Expands(_, _, _) => DoesNotExpand
+          | Expands(d2, ty2, delta) =>
+            let d2c = cast(d2, ty2, ty_list);
+            let d = Cons(d1c, d2c);
+            Expands(d, ty_list, delta);
           };
         }
       }
