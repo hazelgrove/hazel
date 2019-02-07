@@ -102,85 +102,93 @@ let serialize = (~fmtr=std_formatter, ~line_length=100, ~indent=2, uhexp) => {
     switch (e) {
     | UHExp.Parenthesized(e') =>
       print_parenthesized(fmtr, fmtr => print_uhexp(fmtr, e'))
-    | UHExp.Tm(_, tm) =>
-      switch (tm) {
-      | UHExp.Asc(e', tau) =>
-        fprintf(
-          fmtr,
-          "@[<hov %d>%a :@ %a@]",
-          indent,
-          print_uhexp,
-          e',
-          print_uhtyp,
-          tau,
-        )
-      | UHExp.Var(_, x) => fprintf(fmtr, "%s", x)
-      | UHExp.Let(p, annOpt, e1, e2) =>
-        fprintf(
-          fmtr,
-          "@[<v>@[<hov %d>let %a%a@ = %a in@]@ %a@]",
-          indent,
-          print_uhpat,
-          p,
-          print_half_ann,
-          annOpt,
-          print_uhexp,
-          e1,
-          print_uhexp,
-          e2,
-        )
-      | UHExp.Lam(p, annOpt, e') =>
-        fprintf(
-          fmtr,
-          "@[<hov %d>lambda %a%a.@ %a@]",
-          indent,
-          print_uhpat,
-          p,
-          print_half_ann,
-          annOpt,
-          print_uhexp,
-          e',
-        )
-      | UHExp.NumLit(n) => fprintf(fmtr, "%d", n)
-      | UHExp.BoolLit(b) => fprintf(fmtr, if (b) {"true"} else {"false"})
-      | UHExp.Inj(side, e') =>
-        fprintf(
-          fmtr,
-          "@[<%d>inj[%s](@,%a@,)@]",
-          indent,
-          string_of_side(side),
-          print_uhexp,
-          e',
-        )
-      | UHExp.Case(e', rules) =>
-        let print_rule = (fmtr, UHExp.Rule(pr, er)) =>
-          fprintf(
-            fmtr,
-            "@[<hov %d>@ || %a =>@ %a@]",
-            indent,
-            print_uhpat,
-            pr,
-            print_uhexp,
-            er,
-          );
-
-        fprintf(
-          fmtr,
-          "@[<v>case %a%t;@]",
-          print_uhexp,
-          e',
-          fmtr => {
-            let _ = List.map(print_rule(fmtr), rules);
-            fprintf(fmtr, "" /* NOOP */);
-          },
-        );
-      | UHExp.ListNil => print_list_nil(fmtr)
-      | UHExp.EmptyHole(_) => fprintf(fmtr, "{}")
-      | UHExp.OpSeq(_, seq) =>
-        print_opseq(fmtr, print_uhexp, string_of_expop, seq)
-      | UHExp.ApPalette(name, serialized_model, cells) =>
-        fprintf(fmtr, "%s \"%s\"", name, String.escaped(serialized_model))
+    | UHExp.Tm(err_status, tm) =>
+      switch (err_status) {
+      | NotInHole => print_uhexp'(fmtr, tm)
+      | InHole(_, _) =>
+        fprintf(fmtr, "{");
+        print_uhexp'(fmtr, tm);
+        fprintf(fmtr, "}");
       }
+    }
+  and print_uhexp' = (fmtr, tm) =>
+    switch (tm) {
+    | UHExp.Asc(e', tau) =>
+      fprintf(
+        fmtr,
+        "@[<hov %d>%a :@ %a@]",
+        indent,
+        print_uhexp,
+        e',
+        print_uhtyp,
+        tau,
+      )
+    | UHExp.Var(_, x) => fprintf(fmtr, "%s", x)
+    | UHExp.Let(p, annOpt, e1, e2) =>
+      fprintf(
+        fmtr,
+        "@[<v>@[<hov %d>let %a%a@ = %a in@]@ %a@]",
+        indent,
+        print_uhpat,
+        p,
+        print_half_ann,
+        annOpt,
+        print_uhexp,
+        e1,
+        print_uhexp,
+        e2,
+      )
+    | UHExp.Lam(p, annOpt, e') =>
+      fprintf(
+        fmtr,
+        "@[<hov %d>lambda %a%a.@ %a@]",
+        indent,
+        print_uhpat,
+        p,
+        print_half_ann,
+        annOpt,
+        print_uhexp,
+        e',
+      )
+    | UHExp.NumLit(n) => fprintf(fmtr, "%d", n)
+    | UHExp.BoolLit(b) => fprintf(fmtr, if (b) {"true"} else {"false"})
+    | UHExp.Inj(side, e') =>
+      fprintf(
+        fmtr,
+        "@[<%d>inj[%s](@,%a@,)@]",
+        indent,
+        string_of_side(side),
+        print_uhexp,
+        e',
+      )
+    | UHExp.Case(e', rules) =>
+      let print_rule = (fmtr, UHExp.Rule(pr, er)) =>
+        fprintf(
+          fmtr,
+          "@[<hov %d>@ || %a =>@ %a@]",
+          indent,
+          print_uhpat,
+          pr,
+          print_uhexp,
+          er,
+        );
+
+      fprintf(
+        fmtr,
+        "@[<v>case %a%t;@]",
+        print_uhexp,
+        e',
+        fmtr => {
+          let _ = List.map(print_rule(fmtr), rules);
+          fprintf(fmtr, "" /* NOOP */);
+        },
+      );
+    | UHExp.ListNil => print_list_nil(fmtr)
+    | UHExp.EmptyHole(_) => fprintf(fmtr, "{}")
+    | UHExp.OpSeq(_, seq) =>
+      print_opseq(fmtr, print_uhexp, string_of_expop, seq)
+    | UHExp.ApPalette(name, serialized_model, cells) =>
+      fprintf(fmtr, "%s \"%s\"", name, String.escaped(serialized_model))
     };
 
   print_uhexp(fmtr, ensure_well_typed_before_serialization(uhexp));
