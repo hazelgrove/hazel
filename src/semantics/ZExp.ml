@@ -27,7 +27,7 @@ and t' =
 | InjZ of inj_side * t 
 | CaseZE of t * UHExp.rule list 
 | CaseZR of UHExp.t * (zrule, UHExp.rule) ZList.t  
-| OpSeqZ of UHExp.skel_t * t * OperatorSeq.opseq_surround UHExp.t UHExp.op 
+| OpSeqZ of UHExp.skel_t * t * (UHExp.t, UHExp.op) OperatorSeq.opseq_surround
 | ApPaletteZ of PaletteName.t * 
                PaletteSerializedModel.t * 
                (UHExp.PaletteHoleData.hole_ref_lbl * 
@@ -113,7 +113,7 @@ let rec cursor_on_outer_expr (ze : t) : (UHExp.t * cursor_side) option =
 let empty_zrule (u_gen : MetaVarGen.t) : zrule * MetaVarGen.t = 
   let (zp, u_gen) = ZPat.new_EmptyHole(u_gen) in  
   let (rule_e, u_gen) = UHExp.new_EmptyHole(u_gen) in  
-  let zrule = ZExp.RuleZP(zp, rule_e) in   
+  let zrule = RuleZP(zp, rule_e) in
   (zrule, u_gen)
 
 let rec erase (ze : t) : UHExp.t =
@@ -228,7 +228,7 @@ let rec ana_pat_cursor_found
             side
             ctx)
       end
-    | UHPat.Pat NotInHole (UHPat.EmptyHole _) -> 
+    | UHPat.Pat (NotInHole, UHPat.EmptyHole _) ->
       Some 
         (mk_cursor_info
           (PatAnaSubsumed(ty, HTyp.Hole))
@@ -236,28 +236,28 @@ let rec ana_pat_cursor_found
           side
           ctx)
     | UHPat.Pat(NotInHole, UHPat.Wild)
-    | UHPat.Pat NotInHole (UHPat.Var _) ->
+    | UHPat.Pat (NotInHole, (UHPat.Var _)) ->
       Some
         (mk_cursor_info
           (PatAnaOnly ty)
           (IsPat p)
           side
           ctx)
-    | UHPat.Pat NotInHole (UHPat.NumLit _) -> 
+    | UHPat.Pat (NotInHole, (UHPat.NumLit _)) -> 
       Some
         (mk_cursor_info
           (PatAnaSubsumed(ty, HTyp.Num))
           (IsPat p)
           side
           ctx)
-    | UHPat.Pat NotInhole (UHPat.BoolLit _) -> 
+    | UHPat.Pat (NotInHole, (UHPat.BoolLit _)) -> 
       Some
         (mk_cursor_info 
           (PatAnaSubsumed(ty, HTyp.Bool))
           (IsPat p)
           side
           ctx)
-    | UHPat.Pat NotInHole (UHPat.Inj(_, _)) -> 
+    | UHPat.Pat (NotInHole, (UHPat.Inj(_, _))) -> 
         Some
           (mk_cursor_info
             (PatAnaOnly ty)
@@ -302,7 +302,7 @@ let rec ana_pat_cursor_found
     | UHPat.Pat(InHole(WrongLength, _), _) -> None
     | UHPat.Pat(NotInHole, 
       (UHPat.OpSeq(Skel.BinOp(InHole(_, _), Comma, skel1, skel2), seq))) -> None 
-    | UHPat.Pat(NotInHole, UHPat.OpSeq(Skel.Placeholder(_, _), _)) -> None
+    | UHPat.Pat(NotInHole, UHPat.OpSeq(Skel.Placeholder _, _)) -> None
     end
 
 let rec syn_pat_cursor_info
@@ -376,8 +376,8 @@ and syn_skel_pat_cursor_info
   (zp1 : ZPat.t)
   : cursor_info option = 
     begin match skel with 
-    | Skel.Placeholder(_, n') -> 
-      if Nat.eqb n n' then 
+    | Skel.Placeholder n' -> 
+      if n = n' then 
         syn_pat_cursor_info ctx zp1
       else None
     | Skel.BinOp(_, UHPat.Comma, skel1, skel2) -> 
@@ -455,8 +455,8 @@ and ana_skel_pat_cursor_info
   (ty : HTyp.t)
   : cursor_info option = 
     begin match skel with 
-    | Skel.Placeholder(_, n') -> 
-      if Nat.eqb n n' then 
+    | Skel.Placeholder n' -> 
+      if n = n' then 
         ana_pat_cursor_info ctx zp1 ty
       else None
     | Skel.BinOp (InHole(TypeInconsistent, _), _, skel1, skel2) -> 
@@ -480,7 +480,7 @@ and ana_skel_pat_cursor_info
             | None -> 
               let (skel, ty) = skel_ty in 
               ana_skel_pat_cursor_info ctx skel seq n zp1 ty
-            end) zipped None
+            end) None zipped
         end
       | _ -> None
       end
@@ -497,7 +497,7 @@ and ana_skel_pat_cursor_info
             | None -> 
               let (skel, ty) = skel_ty in 
               ana_skel_pat_cursor_info ctx skel seq n zp1 ty
-            end) zipped None in 
+            end) None zipped in
         begin match ana_zipped with 
         | (Some _) as result -> result
         | None -> 
@@ -505,7 +505,7 @@ and ana_skel_pat_cursor_info
             begin match opt_result with 
             | (Some _) as result -> result
             | None -> syn_skel_pat_cursor_info ctx skel seq n zp1
-            end) remainder None
+            end) None remainder
         end
       | _ -> None
       end
@@ -570,8 +570,8 @@ let rec ana_cursor_found
         side
         ctx
     )
-  | UHExp.Tm NotInHole (UHExp.Let(_, _, _, _))
-  | UHExp.Tm NotInHole (UHExp.Case(_, _)) 
+  | UHExp.Tm (NotInHole, (UHExp.Let(_, _, _, _)))
+  | UHExp.Tm (NotInHole, (UHExp.Case(_, _)))
   | UHExp.Tm(NotInHole, UHExp.ListNil) 
   (* | UHExp.Tm NotInHole (UHExp.ListLit _) *) ->
     Some (
@@ -603,17 +603,17 @@ let rec ana_cursor_found
     | _ -> None
     end
   | UHExp.Tm(InHole(WrongLength, _), _) -> None
-  | UHExp.Tm(NotInHole(UHExp.OpSeq(Skel.BinOp(InHole(WrongLength, _), _, _, _), _))) -> None
-  | UHExp.Tm(NotInHole(UHExp.OpSeq(Skel.BinOp(NotInHole, UHExp.Plus, _, _), _))) 
-  | UHExp.Tm(NotInHole(UHExp.OpSeq(Skel.BinOp(NotInHole, UHExp.Times, _, _), _)))
-  | UHExp.Tm(NotInHole(UHExp.OpSeq(Skel.BinOp(NotInHole, UHExp.LessThan, _, _), _)))
-  | UHExp.Tm(NotInHole(UHExp.OpSeq(Skel.BinOp(NotInHole, UHExp.Space, _, _), _)))
-  | UHExp.Tm(NotInHole(UHExp.EmptyHole _))
-  | UHExp.Tm(NotInHole(UHExp.Asc(_, _)))
-  | UHExp.Tm(NotInHole(UHExp.Var(NotInVHole, _)))
-  | UHExp.Tm(NotInHole(UHExp.NumLit _))
-  | UHExp.Tm(NotInHole(UHExp.BoolLit _))
-  | UHExp.Tm(NotInHole(UHExp.ApPalette(_, _, _))) -> 
+  | UHExp.Tm(NotInHole, (UHExp.OpSeq(Skel.BinOp(InHole(WrongLength, _), _, _, _), _))) -> None
+  | UHExp.Tm(NotInHole, (UHExp.OpSeq(Skel.BinOp(NotInHole, UHExp.Plus, _, _), _))) 
+  | UHExp.Tm(NotInHole, (UHExp.OpSeq(Skel.BinOp(NotInHole, UHExp.Times, _, _), _)))
+  | UHExp.Tm(NotInHole, (UHExp.OpSeq(Skel.BinOp(NotInHole, UHExp.LessThan, _, _), _)))
+  | UHExp.Tm(NotInHole, (UHExp.OpSeq(Skel.BinOp(NotInHole, UHExp.Space, _, _), _)))
+  | UHExp.Tm(NotInHole, (UHExp.EmptyHole _))
+  | UHExp.Tm(NotInHole, (UHExp.Asc(_, _)))
+  | UHExp.Tm(NotInHole, (UHExp.Var(NotInVHole, _)))
+  | UHExp.Tm(NotInHole, (UHExp.NumLit _))
+  | UHExp.Tm(NotInHole, (UHExp.BoolLit _))
+  | UHExp.Tm(NotInHole, (UHExp.ApPalette(_, _, _))) -> 
     begin match UHExp.syn ctx e with
     | Some ty' ->
       if HTyp.consistent ty ty' then 
@@ -669,14 +669,14 @@ let rec ana_cursor_found
     end
   | UHExp.Tm(NotInHole, UHExp.OpSeq
       (Skel.BinOp(InHole(TypeInconsistent, _), _, _, _), surround)) -> None
-  | UHExp.Tm(NotInHole, UHExp.OpSeq(Skel.Placeholder(_, _), surround)) -> None
+  | UHExp.Tm(NotInHole, UHExp.OpSeq(Skel.Placeholder _, surround)) -> None
   end
 
 let rec syn_cursor_info
   (ctx : Contexts.t) 
   (ze : t) : cursor_info option =
   begin match ze with 
-  | CursorE(side, UHExp.Tm(_, UHExp.Var(InVHole _, _)) as e) -> 
+  | CursorE(side, ((UHExp.Tm(_, UHExp.Var(InVHole _, _))) as e)) -> 
     Some (
       mk_cursor_info
         SynFree
@@ -712,7 +712,7 @@ and ana_cursor_info
   | Deeper(InHole(TypeInconsistent, u), ze1') -> 
     syn_cursor_info' ctx ze1'
   | Deeper(InHole(WrongLength, _), 
-      (ZExp.OpSeqZ(Skel.BinOp(_, UHExp.Comma, _, _), _, _) as ze1')) 
+      (OpSeqZ(Skel.BinOp(_, UHExp.Comma, _, _), _, _) as ze1')) 
   | Deeper(NotInHole, ze1') -> 
     ana_cursor_info' ctx ze1' ty 
   | Deeper(InHole(WrongLength, _), _) -> None
@@ -966,7 +966,7 @@ and ana_cursor_info'
   end
 and ana_rule_cursor_info
   (ctx : Contexts.t)
-  (zrule : ZExp.zrule)
+  (zrule : zrule)
   (pat_ty : HTyp.t)
   (clause_ty : HTyp.t)
   : cursor_info option = 
@@ -983,10 +983,10 @@ and ana_rule_cursor_info
 and syn_skel_cursor_info
   (ctx : Contexts.t) 
   (skel : UHExp.skel_t) (seq : UHExp.opseq) 
-  (n : nat) (ze_n : ZExp.t) : cursor_info option = 
+  (n : nat) (ze_n : t) : cursor_info option = 
   begin match skel with 
-  | Skel.Placeholder(_, n') -> 
-    if Nat.eqb n n' then 
+  | Skel.Placeholder n' -> 
+    if n = n' then 
       syn_cursor_info ctx ze_n
     else None
   | Skel.BinOp(_, UHExp.Plus, skel1, skel2) 
@@ -1000,8 +1000,8 @@ and syn_skel_cursor_info
       | None -> None
       end
     end
-  | Skel.BinOp(_, UHExp.Space, (Skel.Placeholder(_, n')) as skel1, skel2) -> 
-    if Nat.eqb n n' then 
+  | Skel.BinOp(_, UHExp.Space, ((Skel.Placeholder n') as skel1), skel2) -> 
+    if n = n' then 
       begin match cursor_on_outer_expr ze_n with 
       | Some ((UHExp.Tm(InHole(TypeInconsistent, u), e_n')) as e_n, side) -> 
         begin match UHExp.syn' ctx e_n' with 
@@ -1084,8 +1084,8 @@ and ana_skel_cursor_info
   (skel : UHExp.skel_t) (seq : UHExp.opseq)
   (n : nat) (ze_n : t) (ty : HTyp.t) : cursor_info option = 
   begin match skel with 
-  | Skel.Placeholder(_, n') -> 
-    if Nat.eqb n n' then 
+  | Skel.Placeholder n' -> 
+    if n = n' then 
       ana_cursor_info ctx ze_n ty 
     else None
   | Skel.BinOp(InHole(TypeInconsistent, _), _, _, _) -> 
@@ -1109,7 +1109,7 @@ and ana_skel_cursor_info
           | None -> 
             let (skel, ty) = skel_ty in 
             ana_skel_cursor_info ctx skel seq n ze_n ty
-          end) zipped None
+          end) None zipped
       end
     | _ -> None
     end
@@ -1126,7 +1126,7 @@ and ana_skel_cursor_info
           | None -> 
             let (skel, ty) = skel_ty in 
             ana_skel_cursor_info ctx skel seq n ze_n ty
-          end) zipped None in 
+          end) None zipped in 
       begin match ana_zipped with 
       | (Some _) as result -> result
       | None -> 
@@ -1134,7 +1134,7 @@ and ana_skel_cursor_info
           begin match opt_result with 
           | (Some _) as result -> result
           | None -> syn_skel_cursor_info ctx skel seq n ze_n
-          end) remainder None
+          end) None remainder
       end
     | _ -> None
     end
