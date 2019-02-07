@@ -15,26 +15,29 @@ let is_Space = function
 
 type skel_t = op Skel.t
 
-type t =
-| Tm of err_status * t'
-| Parenthesized of t
-and t' =
-| Asc of t * UHTyp.t
-| Var of var_err_status * Var.t
-| Let of UHPat.t * UHTyp.t option * t * t
-| Lam of UHPat.t * UHTyp.t option * t
-| NumLit of int
-| BoolLit of bool
-| Inj of inj_side * t
-| Case of t * rule list
-| ListNil
-(* | ListCons : list(t) -> t' *)
-| EmptyHole of MetaVar.t
-| OpSeq of skel_t * (t, op) OperatorSeq.opseq (* invariant: skeleton is consistent with opseq *)
-| ApPalette of PaletteName.t * PaletteSerializedModel.t
-  * (int * (HTyp.t * t) Util.NatMap.t) (* = PaletteHoleData.t *)
-and rule =
-| Rule of UHPat.t * t
+module UHExp = struct
+  type t =
+  | Tm of err_status * t'
+  | Parenthesized of t
+  and t' =
+  | Asc of t * UHTyp.t
+  | Var of var_err_status * Var.t
+  | Let of UHPat.t * UHTyp.t option * t * t
+  | Lam of UHPat.t * UHTyp.t option * t
+  | NumLit of int
+  | BoolLit of bool
+  | Inj of inj_side * t
+  | Case of t * rule list
+  | ListNil
+  (* | ListCons : list(t) -> t' *)
+  | EmptyHole of MetaVar.t
+  | OpSeq of skel_t * (t, op) OperatorSeq.opseq (* invariant: skeleton is consistent with opseq *)
+  | ApPalette of PaletteName.t * PaletteSerializedModel.t
+    * (int * (HTyp.t * t) Util.NatMap.t) (* = PaletteHoleData.t *)
+  and rule =
+  | Rule of UHPat.t * t
+end
+include UHExp
 
 type rules = rule list
 
@@ -129,7 +132,7 @@ module PaletteDefinition =
  struct
   type t = { expansion_ty : HTyp.t;
              initial_model : PaletteSerializedModel.t HoleRefs.m_hole_ref;
-             to_exp : (PaletteSerializedModel.t -> Coq__2.t) }
+             to_exp : (PaletteSerializedModel.t -> UHExp.t) }
   let expansion_ty t0 =
     t0.expansion_ty
   let initial_model t0 =
