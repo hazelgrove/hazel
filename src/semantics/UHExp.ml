@@ -585,7 +585,7 @@ and syn' ctx e =
     else None
   | Var (NotInVHole, x) ->
     let gamma,_ = ctx in VarMap.lookup gamma x
-  | Var (NotInVHole, x) ->
+  | Var (InVHole _, _) ->
     Some HTyp.Hole
   | Lam (p, ann, e1) ->
     let ty1 =
@@ -1154,6 +1154,7 @@ and ana_pat_fix_holes' ctx u_gen renumber_empty_holes p ty =
        (match syn_pat_fix_holes ctx u_gen renumber_empty_holes p1 with
         | None -> None
         | Some (p1, ty, ctx, u_gen) ->
+          let u, u_gen = MetaVarGen.next u_gen in
           Some (InHole (TypeInconsistent, u),UHPat.Inj (side, p1),ctx,u_gen)))
   | UHPat.ListNil ->
     (match HTyp.matched_list ty with
@@ -1185,7 +1186,7 @@ and ana_pat_fix_holes' ctx u_gen renumber_empty_holes p ty =
   | UHPat.OpSeq (skel, seq) ->
     (match ana_skel_pat_fix_holes ctx u_gen renumber_empty_holes skel seq ty with
      | None -> None
-     | Some (Skel.Placeholder (_, _), _, _, _) -> None
+     | Some (Skel.Placeholder _, _, _, _) -> None
      | Some ((Skel.BinOp (err, _, _, _)) as skel, seq, ctx, u_gen) ->
        let p = UHPat.OpSeq (skel, seq) in
        Some (err, p, ctx, u_gen))
