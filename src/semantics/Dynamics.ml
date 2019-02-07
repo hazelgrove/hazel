@@ -1,3 +1,5 @@
+open SemanticsCommon
+
 type nat = int
 
 type hole_sort =  

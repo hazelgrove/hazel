@@ -1,4 +1,3 @@
-open SemanticsCore;
 open Tyxml_js;
 open Html5;
 type div_attribs = list(Html5.attrib(Html_types.div_attrib));

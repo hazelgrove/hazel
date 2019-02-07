@@ -1,4 +1,3 @@
-open SemanticsCore;
 open LangUtil;
 let ensure_well_typed_after_parsing = uhexp =>
   switch (

@@ -1,4 +1,3 @@
-open SemanticsCore;
 let parse_expr = s => {
   let lexbuf = Lexing.from_string(s);
   SkelExprParser.skel_expr(SkelExprLexer.read, lexbuf);

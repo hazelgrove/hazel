@@ -1,3 +1,6 @@
+open SemanticsCommon
+open Util
+
 type nat = int
 
 type cursor_side = SemanticsCommon.cursor_side

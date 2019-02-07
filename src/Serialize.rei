@@ -1,4 +1,3 @@
-open SemanticsCore;
 let serialize:
   (~fmtr: Format.formatter=?, ~line_length: int=?, ~indent: int=?, UHExp.t) =>
   unit;

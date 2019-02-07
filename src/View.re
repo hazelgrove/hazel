@@ -3,7 +3,6 @@ let _SHOW_CASTS = true;
 /* Imports */
 exception InvariantViolated;
 module PP = Pretty.PP;
-open SemanticsCore;
 
 /* Conveniences */
 let (^^) = PP.(^^);
