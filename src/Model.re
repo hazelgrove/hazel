@@ -1,4 +1,3 @@
-open SemanticsCore;
 type edit_state = ((ZExp.t, HTyp.t), MetaVarGen.t);
 let u_gen0: MetaVarGen.t = (MetaVarGen.init: MetaVar.t);
 let (u, u_gen1) = MetaVarGen.next(u_gen0);

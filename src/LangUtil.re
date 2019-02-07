@@ -1,4 +1,4 @@
-open SemanticsCore;
+open SemanticsCommon;
 exception InvalidSyntax(string);
 exception IllFormed(UHExp.t);
 let string_of_side = side =>

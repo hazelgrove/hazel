@@ -1,6 +1,5 @@
 open Tyxml_js;
 open React;
-open SemanticsCore;
 open Model;
 module Dom_html = Js_of_ocaml.Dom_html;
 module Dom = Js_of_ocaml.Dom;

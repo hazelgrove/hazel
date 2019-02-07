@@ -1,4 +1,3 @@
-open SemanticsCore;
 open Tyxml_js;
 let titlebar = PanelUtils.titlebar;
 let typebar_width = 80000;

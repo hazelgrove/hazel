@@ -1,5 +1,4 @@
 open Tyxml_js;
-open SemanticsCore;
 open Model;
 module Js = Js_of_ocaml.Js;
 module Dom = Js_of_ocaml.Dom;

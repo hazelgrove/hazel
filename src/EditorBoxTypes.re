@@ -1,5 +1,3 @@
-open SemanticsCore;
-
 type rev_path = list(int);
 type rev_paths = Hashtbl.t(string, list(int));
 let mk_rev_paths = () => Hashtbl.create(256);

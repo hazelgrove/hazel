@@ -1,4 +1,3 @@
-open SemanticsCore;
 open Tyxml_js;
 open Printf;
 open Scanf;
