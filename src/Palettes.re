@@ -42,15 +42,21 @@ module PairPalette: PALETTE = {
 
   type model = (int, int);
   let init_model =
-    UHExp.HoleRefs.bind(UHExp.HoleRefs.new_hole_ref(HTyp.Hole), left_hole_ref =>
-      UHExp.HoleRefs.bind(
+    UHExp.HoleRefs.Bnd(
+      args = (
         UHExp.HoleRefs.new_hole_ref(HTyp.Hole),
-        right_hole_ref => {
-          let leftID = UHExp.HoleRefs.lbl_of(left_hole_ref);
-          let rightID = UHExp.HoleRefs.lbl_of(right_hole_ref);
-          UHExp.HoleRefs.ret((leftID, rightID));
-        },
-      )
+        left_hole_ref =>
+          UHExp.HoleRefs.Bnd(
+            args = (
+              UHExp.HoleRefs.new_hole_ref(HTyp.Hole),
+              right_hole_ref => {
+                let leftID = UHExp.HoleRefs.lbl_of(left_hole_ref);
+                let rightID = UHExp.HoleRefs.lbl_of(right_hole_ref);
+                UHExp.HoleRefs.Ret((leftID, rightID));
+              },
+            ),
+          ),
+      ),
     );
   type model_updater = model => unit;
 
@@ -123,7 +129,7 @@ module ColorPalette: PALETTE = {
     HTyp.(Arrow(Arrow(Num, Arrow(Num, Arrow(Num, Hole))), Hole));
 
   type model = string;
-  let init_model = UHExp.HoleRefs.ret("#c94d4d");
+  let init_model = UHExp.HoleRefs.Ret("#c94d4d");
 
   type model_updater = model => unit;
 
@@ -214,7 +220,7 @@ module CheckboxPalette: PALETTE = {
   let expansion_ty = HTyp.Sum(HTyp.Num, HTyp.Num);
 
   type model = bool;
-  let init_model = UHExp.HoleRefs.ret(false);
+  let init_model = UHExp.HoleRefs.Ret(false);
   type model_updater = model => unit;
 
   let view = (model, model_updater) => {
@@ -256,7 +262,7 @@ module SliderPalette: PALETTE = {
 
   type model = (int, int);
   type model_updater = model => unit;
-  let init_model = UHExp.HoleRefs.ret((5, 10));
+  let init_model = UHExp.HoleRefs.Ret((5, 10));
 
   let view = ((value, sliderMax), model_updater) => {
     let curValString = curVal => Printf.sprintf("%d/%d", curVal, sliderMax);
@@ -376,8 +382,11 @@ module PaletteAdapter = (P: PALETTE) => {
     PaletteDefinition.{
       expansion_ty: P.expansion_ty,
       initial_model:
-        UHExp.HoleRefs.bind(P.init_model, model =>
-          UHExp.HoleRefs.ret(P.serialize(model))
+        UHExp.HoleRefs.Bnd(
+          args = (
+            P.init_model,
+            model => UHExp.HoleRefs.Ret(P.serialize(model)),
+          ),
         ),
       to_exp: serialized_model => P.expand(P.deserialize(serialized_model)),
     };

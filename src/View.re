@@ -686,7 +686,7 @@ let rec of_hexp = (palette_stuff, prefix, rev_path, e) =>
             Action.MoveTo((List.rev(rev_path), Before)),
           );
           palette_stuff.do_action(
-            Action.UpdateApPalette(UHExp.HoleRefs.ret(serialized_model)),
+            Action.UpdateApPalette(UHExp.HoleRefs.Ret(serialized_model)),
           );
         };
         let view = serialized_view_fn(serialized_model, updater);

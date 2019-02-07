@@ -95,22 +95,6 @@ module PaletteHoleData =
     gamma',palette_ctx
  end
 
-module type HOLEREFS =
- sig
-  type hole_ref
-  val lbl_of : hole_ref -> PaletteHoleData.hole_ref_lbl
-  val type_of : hole_ref -> HTyp.t
-
-  type 'x m_hole_ref
-  val new_hole_ref : HTyp.t -> hole_ref m_hole_ref
-  val bind : 'a1 m_hole_ref -> ('a1 -> 'a2 m_hole_ref) -> 'a2 m_hole_ref
-  val ret : 'a1 -> 'a1 m_hole_ref
-
-  val exec :
-    'a1 m_hole_ref -> PaletteHoleData.t -> MetaVarGen.t ->
-    ('a1 * PaletteHoleData.t) * MetaVarGen.t
- end
-
 module HoleRefs =
  struct
   type hole_ref = PaletteHoleData.hole_ref_lbl * HTyp.t
@@ -122,12 +106,12 @@ module HoleRefs =
   (* cant define m_hole_ref using Inductive due to Coq limitation *)
   type 'x m_hole_ref' =
   | NewHoleRef of HTyp.t
-  | Bnd of ('a m_hole_ref') * ('a -> 'b m_hole_ref')
-  | Ret of 'a
+  | Bnd of { args: 'a.'a m_hole_ref' * ('a -> 'x m_hole_ref') }
+  | Ret of 'x
   type 'x m_hole_ref = 'x m_hole_ref'
-  let new_hole_ref = NewHoleRef
-  let bind = Bnd
-  let ret = Ret
+  let new_hole_ref x = NewHoleRef x
+  (*let bind : ( 'a . 'a m_hole_ref' * ('a -> 'x m_hole_ref') ) -> 'x m_hole_ref' = Bnd *)
+  (*let ret = Ret *)
 
   (* TODO: restructure m_hole_ref type to avoid use of Obj.magic below *)
   let rec exec mhr phd u_gen =
@@ -135,7 +119,7 @@ module HoleRefs =
     | NewHoleRef ty ->
       let q,u_gen' = PaletteHoleData.new_hole_ref u_gen phd ty in
       let lbl,phd' = q in ((Obj.magic (lbl,ty)),phd'),u_gen'
-    | Bnd (mhra, f) ->
+    | Bnd { args=(mhra, f) } ->
       let q,u_gen' = exec (Obj.magic mhra) phd u_gen in
       let x,phd' = q in let mhrb = Obj.magic f x in exec mhrb phd' u_gen'
     | Ret x -> (x,phd),u_gen
