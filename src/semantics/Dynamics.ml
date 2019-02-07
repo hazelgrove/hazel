@@ -1832,7 +1832,7 @@ module Evaluator = struct
     : result = 
       begin match d with 
       | DHExp.BoundVar _ -> InvalidInput 1
-      | DHExp.Let(p, d1, d2) ->
+      | DHExp.Let(dp, d1, d2) ->
         begin match evaluate d1 with 
         | InvalidInput msg -> InvalidInput msg
         | BoxedValue d1 | Indet d1 ->
@@ -2042,7 +2042,7 @@ module Evaluator = struct
     begin match evaluate scrut with
     | InvalidInput msg -> InvalidInput msg
     | BoxedValue scrut | Indet scrut ->
-      begin match List.nth_error rules current_rule_index with
+      begin match List.nth_opt rules current_rule_index with
       | None -> Indet (DHExp.Case(scrut, rules, current_rule_index))
       | Some (DHExp.Rule(dp, d)) ->
         begin match DHExp.matches dp scrut with
