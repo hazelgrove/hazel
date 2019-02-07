@@ -296,7 +296,7 @@ module DHPat = struct
             end
           end
         end
-      | Skel.BinOp(InHole(WrongLength, u), (UHPat.Comma as op), skel1, skel2) -> 
+      | Skel.BinOp(InHole(WrongLength, u), UHPat.Comma, skel1, skel2) -> 
         begin match ty with 
         | HTyp.Prod(ty1, ty2) -> 
           let types = HTyp.get_tuple ty1 ty2 in 
@@ -1412,7 +1412,7 @@ module DHExp = struct
             end
           end
         end
-      | Skel.BinOp(InHole(WrongLength, u), (UHExp.Comma as op), skel1, skel2) -> 
+      | Skel.BinOp(InHole(WrongLength, u), UHExp.Comma, skel1, skel2) -> 
         begin match ty with 
         | HTyp.Prod(ty1, ty2) -> 
           let types = HTyp.get_tuple ty1 ty2 in 
@@ -1849,7 +1849,7 @@ module Evaluator = struct
       | DHExp.Ap(d1, d2) -> 
         begin match evaluate d1 with 
         | InvalidInput msg -> InvalidInput msg
-        | BoxedValue ((DHExp.Lam(dp, tau, d3) as d1)) ->
+        | BoxedValue DHExp.Lam(dp, tau, d3) ->
           begin match evaluate d2 with
           | InvalidInput msg -> InvalidInput msg
           | BoxedValue d2 | Indet d2 ->

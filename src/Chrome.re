@@ -720,15 +720,17 @@ let view = (model: Model.t) => {
       )
     );
 
-  let serialize_onclick_handler = _ => {
-    JSUtil.log(Serialize.string_of_uhexp(React.S.value(e_rs)));
-    true;
-  };
+  /*
+   let serialize_onclick_handler = _ => {
+     JSUtil.log(Serialize.string_of_uhexp(React.S.value(e_rs)));
+     true;
+   };
 
-  let deserialize_onclick_handler = (serialized, _) => {
-    replace_e(Deserialize.uhexp_of_string(serialized));
-    true;
-  };
+   let deserialize_onclick_handler = (serialized, _) => {
+     replace_e(Deserialize.uhexp_of_string(serialized));
+     true;
+   };
+   */
 
   let chrome =
     Tyxml_js.To_dom.of_div(
