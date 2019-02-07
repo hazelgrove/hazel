@@ -1,3 +1,5 @@
+open Util
+
 type nat = int
 
 type t = nat list * ZExp.cursor_side
@@ -347,7 +349,7 @@ let cons_opt2
     begin match x1 with 
     | Some xs -> Some (n1 :: xs)
     | None -> 
-      begin match x2 tt with 
+      begin match x2 () with 
       | Some xs -> Some (n2 :: xs)
       | None -> None
       end
@@ -361,10 +363,10 @@ let cons_opt3
     begin match x1 with 
     | Some xs -> Some (n1 :: xs)
     | None -> 
-      begin match x2 tt with 
+      begin match x2 () with 
       | Some xs -> Some (n2 :: xs)
       | None -> 
-        begin match x3 tt with 
+        begin match x3 () with 
         | Some xs -> Some (n3 :: xs)
         | None -> None
         end
@@ -393,9 +395,9 @@ let rec steps_to_hole_pat (p : UHPat.t) (u : MetaVar.t) : nat list option =
   | UHPat.Pat(_, (UHPat.Inj(_, p1))) -> 
     cons_opt 0 (steps_to_hole_pat p1 u)
   | UHPat.Pat(_, (UHPat.OpSeq(skel, seq))) -> 
-    steps_to_hole_seq_pat seq u  
+    steps_to_hole_seq_pat seq u
   end
-and steps_to_hole_seq_pat (fuel : Fuel.t) (seq : UHPat.opseq) (u : MetaVar.t) : nat list option =  
+and steps_to_hole_seq_pat (seq : UHPat.opseq) (u : MetaVar.t) : nat list option =  
   begin match seq with 
   | OperatorSeq.ExpOpExp(p1, _, p2) -> 
     cons_opt2
@@ -608,10 +610,10 @@ and first_hole_steps_rules (rules : UHExp.rules) : nat list option =
         begin match rule with 
         | UHExp.Rule(p, e) -> 
           begin match first_hole_steps_pat p with 
-          | Some ns -> Some (cons (i + 1) (0 :: ns))
+          | Some ns -> Some ((i + 1)::0::ns)
           | None -> 
             begin match first_hole_steps e with 
-            | Some ns -> Some (cons (i + 1) (1 :: ns))
+            | Some ns -> Some ((i + 1)::1::ns)
             | None -> None
             end
           end
@@ -652,7 +654,7 @@ let rec next_hole_steps_ty (zty : ZTyp.t) : nat list option =
     end
   end
 
-let rec next_hole_path_ty (zty : ZTyp.t) : Path.t option =
+let rec next_hole_path_ty (zty : ZTyp.t) : t option =
   begin match next_hole_steps_ty zty with
   | None -> None
   | Some path -> Some (path, Before)
@@ -709,7 +711,7 @@ let rec next_hole_steps_pat (zp : ZPat.t) : nat list option =
     end
   end
 
-let rec next_hole_path_pat (zp : ZPat.t) : Path.t option =
+let rec next_hole_path_pat (zp : ZPat.t) : t option =
   begin match next_hole_steps_pat zp with
   | None -> None
   | Some path -> Some (path, Before)
@@ -750,6 +752,7 @@ let rec next_hole_steps (ze : ZExp.t) : nat list option =
         | UHExp.ApPalette(_, _, _) -> None (* TODO(move, into, palette, holes) *)
         end
       end
+    end
   | ZExp.Deeper(_, ze') ->
     begin match ze' with
     | ZExp.AscZ1(ze'', uty) ->
@@ -834,14 +837,14 @@ let rec next_hole_steps (ze : ZExp.t) : nat list option =
       begin match zr with 
       | ZExp.RuleZP(zp, e) -> 
         begin match next_hole_steps_pat zp with 
-        | Some ns -> Some (cons (prefix_len + 1) (0 :: ns))
+        | Some ns -> Some ((prefix_len + 1)::0::ns)
         | None -> 
           begin match first_hole_steps e with 
-          | Some ns -> Some (cons (prefix_len + 1) (1 :: ns))
+          | Some ns -> Some ((prefix_len + 1)::1 :: ns)
           | None -> 
             let suffix = ZList.prj_suffix zrules in 
             begin match first_hole_steps_rules suffix with 
-            | Some (offset :: ns) -> Some (cons (prefix_len + offset + 1) ns)
+            | Some (offset :: ns) -> Some ((prefix_len + offset + 1)::ns)
             | Some [] -> None (* should never happen *)
             | None -> None
             end
@@ -849,11 +852,11 @@ let rec next_hole_steps (ze : ZExp.t) : nat list option =
         end
       | ZExp.RuleZE(_, ze) -> 
         begin match next_hole_steps ze with 
-        | Some ns -> Some (cons (prefix_len + 1) (1 :: ns))
+        | Some ns -> Some ((prefix_len + 1)::1::ns)
         | None -> 
           let suffix = ZList.prj_suffix zrules in 
           begin match first_hole_steps_rules suffix with 
-          | Some (offset :: ns) -> Some (cons (prefix_len + offset + 1) ns)
+          | Some (offset :: ns) -> Some ((prefix_len + offset + 1)::ns)
           | Some [] -> None (* should never happen *)
           | None -> None
           end
@@ -872,9 +875,8 @@ let rec next_hole_steps (ze : ZExp.t) : nat list option =
     end
   | ZExp.ParenthesizedZ ze' -> cons_opt 0 (next_hole_steps ze')
   end
-  end
 
-let rec next_hole_path (ze : ZExp.t) : Path.t option =
+let rec next_hole_path (ze : ZExp.t) : t option =
   begin match next_hole_steps ze with
   | None -> None
   | Some path -> Some (path, Before)
@@ -1011,10 +1013,10 @@ and last_hole_steps_rules
           begin match rule with 
           | UHExp.Rule(p, e) -> 
             begin match last_hole_steps e with 
-            | Some ns -> Some (cons (n_rules - i) (1 :: ns))
+            | Some ns -> Some ((n_rules - i)::1 :: ns)
             | None -> 
               begin match last_hole_steps_pat p with 
-              | Some ns -> Some (cons (n_rules - i) (0 :: ns))
+              | Some ns -> Some ((n_rules - i)::0 :: ns)
               | None -> None
               end
             end
@@ -1059,7 +1061,7 @@ let rec prev_hole_steps_ty (zty : ZTyp.t) : nat list option =
     end
   end
 
-let rec prev_hole_path_ty (zty : ZTyp.t) : Path.t option =
+let rec prev_hole_path_ty (zty : ZTyp.t) : t option =
   begin match prev_hole_steps_ty zty with
   | None -> None
   | Some path -> Some (path, Before)
@@ -1109,7 +1111,7 @@ let rec prev_hole_steps_pat (zp : ZPat.t) : nat list option =
     end
   end
 
-let rec prev_hole_path_pat (zp : ZPat.t) : Path.t option =
+let rec prev_hole_path_pat (zp : ZPat.t) : t option =
   begin match prev_hole_steps_pat zp with
   | None -> None
   | Some path -> Some (path, Before)
@@ -1224,23 +1226,23 @@ let rec prev_hole_steps (ze : ZExp.t) : nat list option =
       begin match zr with 
       | ZExp.RuleZP(zp, e) -> 
         begin match prev_hole_steps_pat zp with 
-        | Some ns -> Some (cons (prefix_len + 1) (0 :: ns)) 
+        | Some ns -> Some ((prefix_len + 1)::0 :: ns)
         | None ->
           begin match last_hole_steps_rules prefix with
           | Some ns -> Some ns
-          | None -> Path.cons_opt 0 (last_hole_steps e1)
+          | None -> cons_opt 0 (last_hole_steps e1)
           end
         end
       | ZExp.RuleZE(p, ze) -> 
         begin match prev_hole_steps ze with 
-        | Some ns -> Some (cons (prefix_len + 1) (1 :: ns))
+        | Some ns -> Some ((prefix_len + 1)::1 :: ns)
         | None -> 
           begin match last_hole_steps_pat p with 
-          | Some ns -> Some (cons (prefix_len + 1) (0 :: ns))
+          | Some ns -> Some ((prefix_len + 1)::0 :: ns)
           | None -> 
             begin match last_hole_steps_rules prefix with 
             | Some ns -> Some ns
-            | None -> Path.cons_opt 0 (last_hole_steps e1)
+            | None -> cons_opt 0 (last_hole_steps e1)
             end
           end
         end
@@ -1260,7 +1262,7 @@ let rec prev_hole_steps (ze : ZExp.t) : nat list option =
   | ZExp.ParenthesizedZ ze0 -> cons_opt 0 (prev_hole_steps ze0)
   end
 
-let rec prev_hole_path (ze : ZExp.t) : Path.t option =
+let rec prev_hole_path (ze : ZExp.t) : t option =
   begin match prev_hole_steps ze with
   | None -> None
   | Some path -> Some (path, Before)
