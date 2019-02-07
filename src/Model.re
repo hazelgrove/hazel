@@ -1,9 +1,9 @@
-type edit_state = ((ZExp.t, HTyp.t), MetaVarGen.t);
+type edit_state = (ZExp.t, HTyp.t, MetaVarGen.t);
 let u_gen0: MetaVarGen.t = (MetaVarGen.init: MetaVar.t);
 let (u, u_gen1) = MetaVarGen.next(u_gen0);
 let empty_ze =
   ZExp.CursorE(Before, UHExp.Tm(NotInHole, UHExp.EmptyHole(u)));
-let empty: edit_state = (((empty_ze, HTyp.Hole), u_gen1): edit_state);
+let empty: edit_state = ((empty_ze, HTyp.Hole, u_gen1): edit_state);
 let empty_erasure = ZExp.erase(empty_ze);
 type edit_state_rs = React.signal(edit_state);
 type e_rs = React.signal(UHExp.t);
@@ -50,10 +50,9 @@ let new_model = (): t => {
   let cursor_info_rs =
     React.S.l1(
       ~eq=(_, _) => false, /* palette contexts have functions in them! */
-      (((ze, _), _)) =>
+      ((ze, _, _)) =>
         switch (
           ZExp.syn_cursor_info(
-            (),
             (VarCtx.empty, Palettes.initial_palette_ctx),
             ze,
           )
@@ -69,7 +68,6 @@ let new_model = (): t => {
       e => {
         let expanded =
           DHExp.syn_expand(
-            (),
             (VarCtx.empty, Palettes.initial_palette_ctx),
             Delta.empty,
             e,
@@ -77,17 +75,17 @@ let new_model = (): t => {
         switch (expanded) {
         | DHExp.DoesNotExpand => raise(DoesNotExpand)
         | DHExp.Expands(d, _, _) =>
-          switch (Evaluator.evaluate((), d)) {
+          switch (Evaluator.evaluate(d)) {
           | Evaluator.InvalidInput(n) =>
             JSUtil.log("InvalidInput " ++ string_of_int(n));
             raise(InvalidInput);
           | Evaluator.BoxedValue(d) =>
             let (d_renumbered, hii) =
-              DHExp.renumber((), [], DHExp.HoleInstanceInfo.empty, d);
+              DHExp.renumber([], DHExp.HoleInstanceInfo.empty, d);
             (d_renumbered, hii, Evaluator.BoxedValue(d_renumbered));
           | Evaluator.Indet(d) =>
             let (d_renumbered, hii) =
-              DHExp.renumber((), [], DHExp.HoleInstanceInfo.empty, d);
+              DHExp.renumber([], DHExp.HoleInstanceInfo.empty, d);
             (d_renumbered, hii, Evaluator.Indet(d_renumbered));
           }
         };
@@ -128,14 +126,13 @@ let new_model = (): t => {
   let do_action = action =>
     switch (
       Action.perform_syn(
-        (),
         (VarCtx.empty, Palettes.initial_palette_ctx),
         action,
         React.S.value(edit_state_rs),
       )
     ) {
-    | Some(((ze, ty), ugen)) =>
-      edit_state_rf(((ze, ty), ugen));
+    | Some((ze, ty, ugen)) =>
+      edit_state_rf((ze, ty, ugen));
       switch (action) {
       | Action.MoveTo(_)
       | Action.MoveToNextHole
@@ -147,7 +144,6 @@ let new_model = (): t => {
   let replace_e = new_uhexp => {
     let new_edit_state_opt =
       Action.zexp_syn_fix_holes(
-        (),
         (VarCtx.empty, PaletteCtx.empty),
         MetaVarGen.init,
         ZExp.CursorE(Before, new_uhexp),
