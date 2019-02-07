@@ -102,7 +102,6 @@ let make =
             let a = action(arg);
             switch (
               Action.perform_syn(
-                (),
                 (VarCtx.empty, Palettes.initial_palette_ctx),
                 a,
                 m,
@@ -247,7 +246,6 @@ let make =
     S.l2(
       (edit_state, cursor_info) =>
         Action.can_perform(
-          (),
           (VarCtx.empty, Palettes.initial_palette_ctx),
           edit_state,
           cursor_info,
