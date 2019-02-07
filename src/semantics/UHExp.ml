@@ -109,7 +109,7 @@ module HoleRefs =
   (* cant define m_hole_ref using Inductive due to Coq limitation *)
   type 'x m_hole_ref' =
   | NewHoleRef of HTyp.t
-  | Bnd of { args: 'a.'a m_hole_ref' * ('a -> 'x m_hole_ref') }
+  | Bnd of hole_ref m_hole_ref' * (hole_ref -> 'x m_hole_ref') 
   | Ret of 'x
   type 'x m_hole_ref = 'x m_hole_ref'
   let new_hole_ref x = NewHoleRef x
@@ -122,7 +122,7 @@ module HoleRefs =
     | NewHoleRef ty ->
       let q,u_gen' = PaletteHoleData.new_hole_ref u_gen phd ty in
       let lbl,phd' = q in ((Obj.magic (lbl,ty)),phd'),u_gen'
-    | Bnd { args=(mhra, f) } ->
+    | Bnd (mhra, f) ->
       let q,u_gen' = exec (Obj.magic mhra) phd u_gen in
       let x,phd' = q in let mhrb = Obj.magic f x in exec mhrb phd' u_gen'
     | Ret x -> (x,phd),u_gen
