@@ -471,6 +471,26 @@ let view = (model: Model.t) => {
       } else {
         In(0);
       };
+    } else if (ast_has_class("List")) {
+      let anchor_elem = get_anchor_elem(anchor);
+      if (anchorOffset == 0) {
+        let innerHTML = Js.to_string(anchor_elem##.innerHTML);
+
+        if (String.equal(innerHTML, "List")) {
+          Before;
+        } else {
+          In(0);
+        };
+      } else if (anchorOffset == 1) {
+        let innerHTML = Js.to_string(anchor_elem##.innerHTML);
+        if (String.equal(innerHTML, ")")) {
+          After;
+        } else {
+          In(0);
+        };
+      } else {
+        In(0);
+      };
     } else if (ast_has_class("Case")) {
       let anchor_elem = get_anchor_elem(anchor);
       if (anchorOffset == 0) {
