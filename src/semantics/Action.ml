@@ -292,11 +292,11 @@ let rec perform_ty (a : t) (zty : ZTyp.t) : ZTyp.t option =
     end
   | (Construct (SOp os), 
       ZTyp.OpSeqZ(_,  
-        ((ZTyp.CursorT(After, uty0)) as zty0),
+        ((ZTyp.CursorT(After, uty0))),
         surround))
   | (Construct (SOp os), 
       ZTyp.OpSeqZ(_, 
-        (ZTyp.CursorT(In _, uty0) as zty0),
+        (ZTyp.CursorT(In _, uty0)),
         surround)) -> 
     begin match ty_op_of os with
     | None -> None
@@ -324,7 +324,7 @@ let rec perform_ty (a : t) (zty : ZTyp.t) : ZTyp.t option =
     end
   | (Construct (SOp os), 
       ZTyp.OpSeqZ(_,  
-        ((ZTyp.CursorT(Before, uty0)) as zty0),
+        ((ZTyp.CursorT(Before, uty0))),
         surround)) -> 
     begin match ty_op_of os with
     | None -> None
@@ -1079,7 +1079,7 @@ let rec perform_syn_pat
     | UHPat.Pat(_, UHPat.EmptyHole _) -> 
       Some (ZPat.CursorP(After, p), HTyp.Hole, ctx, u_gen)
     | _ -> 
-      let (e', u_gen') = UHExp.new_EmptyHole u_gen in 
+      let (p, u_gen) = UHPat.new_EmptyHole u_gen in 
       Some (ZPat.CursorP(Before, p), HTyp.Hole, ctx, u_gen)
     end
   | (Delete, ZPat.CursorP(After, _)) -> None
@@ -1372,7 +1372,7 @@ and perform_ana_pat
     | UHPat.Pat(_, (UHPat.EmptyHole _)) -> 
       Some (ZPat.CursorP(After, p), ctx, u_gen)
     | _ -> 
-      let (e', u_gen') = UHExp.new_EmptyHole u_gen in 
+      let (p, u_gen) = UHPat.new_EmptyHole u_gen in 
       Some (ZPat.CursorP(Before, p), ctx, u_gen)
     end
   | (Backspace, ZPat.CursorP(In _, _))

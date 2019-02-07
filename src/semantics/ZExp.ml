@@ -278,7 +278,8 @@ let rec ana_pat_cursor_found
           (IsPat p)
           side
           ctx) *)
-    | UHPat.Pat(NotInHole, (UHPat.OpSeq((Skel.BinOp(NotInHole, Comma, skel1, skel2)), seq))) -> 
+    | UHPat.Pat(NotInHole, (UHPat.OpSeq((Skel.BinOp(NotInHole, Comma, skel1, skel2)), seq)))  
+    | UHPat.Pat(NotInHole, (UHPat.OpSeq((Skel.BinOp(NotInHole, Cons, skel1, skel2)), seq))) -> 
       Some
         (mk_cursor_info 
           (PatAnaOnly ty)
@@ -301,8 +302,9 @@ let rec ana_pat_cursor_found
       end
     | UHPat.Pat(InHole(WrongLength, _), _) -> None
     | UHPat.Pat(NotInHole, 
-      (UHPat.OpSeq(Skel.BinOp(InHole(_, _), Comma, skel1, skel2), seq))) -> None 
+      (UHPat.OpSeq(Skel.BinOp(InHole(_, _), _, skel1, skel2), seq))) -> None 
     | UHPat.Pat(NotInHole, UHPat.OpSeq(Skel.Placeholder _, _)) -> None
+    | UHPat.Pat(NotInHole, UHPat.OpSeq(Skel.BinOp(_, Space, _, _), _)) -> None
     end
 
 let rec syn_pat_cursor_info

@@ -78,7 +78,7 @@ let mk =
       Html5.(div(~a=[a_class(["context-entry"])], children));
     };
     exception InvalidInstance;
-    let context_view = (ctx: SemanticsCore.VarCtx.t, hii, selected_instance) => {
+    let context_view = (ctx: VarCtx.t, hii, selected_instance) => {
       let ctx_list = VarCtx.to_list(ctx);
       let sigma =
         switch (selected_instance) {

@@ -478,7 +478,7 @@ and ana_skel_pat ctx skel seq ty monitor =
       end
     | _ -> None
     end
-  | Skel.BinOp ((InHole (WrongLength, u)), (UHPat.Comma as op), skel1, skel2) ->
+  | Skel.BinOp ((InHole (WrongLength, u)), UHPat.Comma, skel1, skel2) ->
     begin match ty with
     | HTyp.Prod (ty1, ty2) ->
       let types = HTyp.get_tuple ty1 ty2 in
@@ -912,7 +912,7 @@ and ana_skel ctx skel seq ty monitor =
       end
     | _ -> None
     end
-  | Skel.BinOp ((InHole (WrongLength, u)), (Comma as op), skel1, skel2) ->
+  | Skel.BinOp ((InHole (WrongLength, u)), Comma, skel1, skel2) ->
     begin match ty with
     | HTyp.Prod (ty1, ty2) ->
       let types = HTyp.get_tuple ty1 ty2 in
@@ -1811,8 +1811,6 @@ and ana_skel_fix_holes ctx u_gen renumber_empty_holes skel seq ty =
     | HTyp.Prod (ty1, ty2) ->
       let types = HTyp.get_tuple ty1 ty2 in
       let skels = get_tuple skel1 skel2 in
-      let num_types = List.length types in
-      let num_skels = List.length skels in
       begin match Util.zip_eq skels types with
       | Some zipped ->
         let fixed =

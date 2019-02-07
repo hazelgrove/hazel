@@ -1,5 +1,6 @@
 open Tyxml_js;
 open Model;
+open SemanticsCommon;
 module Js = Js_of_ocaml.Js;
 module Dom = Js_of_ocaml.Dom;
 module Dom_html = Js_of_ocaml.Dom_html;
@@ -110,8 +111,8 @@ let view = (model: Model.t) => {
     };
   };
   let set_cursor = () => {
-    let ((ze, _), _) = React.S.value(edit_state_rs);
-    let (cursor_path, cursor_side) = SemanticsCore.Path.of_zexp(ze);
+    let (ze, _, _) = React.S.value(edit_state_rs);
+    let (cursor_path, cursor_side) = Path.of_zexp(ze);
     set_cursor_to((cursor_path, cursor_side));
   };
   let clear_cursors = () => {
@@ -563,7 +564,7 @@ let view = (model: Model.t) => {
   let htype_rs =
     React.S.map(
       _ => {
-        let ((_, ty), _) = React.S.value(edit_state_rs);
+        let (_, ty, _) = React.S.value(edit_state_rs);
         let prettified = View.html_of_ty(pp_view_width, "result-type", ty);
         [prettified];
       },
@@ -572,7 +573,7 @@ let view = (model: Model.t) => {
 
   let htype_view = R.Html5.div(ReactiveData.RList.from_signal(htype_rs));
   let move_to_hole = u =>
-    switch (Path.path_to_hole((), React.S.value(e_rs), u)) {
+    switch (Path.path_to_hole(React.S.value(e_rs), u)) {
     | Some(hole_path) =>
       do_action(Action.MoveTo(hole_path));
       set_cursor();

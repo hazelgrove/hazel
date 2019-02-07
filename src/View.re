@@ -3,6 +3,7 @@ let _SHOW_CASTS = true;
 /* Imports */
 exception InvariantViolated;
 module PP = Pretty.PP;
+open SemanticsCommon;
 
 /* Conveniences */
 let (^^) = PP.(^^);
@@ -1049,7 +1050,14 @@ let rec of_dhexp' =
             d2,
           );
 
-        of_exp_BinOp(prefix, err_status, rev_path, r1, DHExp.to_op(op), r2);
+        of_exp_BinOp(
+          prefix,
+          err_status,
+          rev_path,
+          r1,
+          Dynamics.DHExp.to_op(op),
+          r2,
+        );
       | Inj(ty, side, d1) =>
         let rev_path1 = [0, ...rev_path];
         let rev_path2 = [1, ...rev_path];

@@ -1,5 +1,6 @@
 open Tyxml_js;
 open Html5;
+module NatMap = EditorBoxTypes.NatMap;
 type div_attribs = list(Html5.attrib(Html_types.div_attrib));
 type rev_path = EditorBoxTypes.rev_path;
 type rev_paths = EditorBoxTypes.rev_paths;
@@ -18,7 +19,7 @@ module PP: {
     (
       rev_path,
       Palettes.view_type,
-      NatMap.t((HTyp.t, UHExp.t)),
+      EditorBoxTypes.NatMap.t((HTyp.t, UHExp.t)),
       EditorBoxTypes.mk_editor_box
     ) =>
     doc;
@@ -33,7 +34,7 @@ module PP: {
     | SPaletteView(
         rev_path,
         Palettes.view_type,
-        NatMap.t((HTyp.t, UHExp.t)),
+        EditorBoxTypes.NatMap.t((HTyp.t, UHExp.t)),
         EditorBoxTypes.mk_editor_box,
         sdoc,
       )
@@ -56,7 +57,7 @@ module PP: {
     | PaletteView(
         rev_path,
         Palettes.view_type,
-        NatMap.t((HTyp.t, UHExp.t)),
+        EditorBoxTypes.NatMap.t((HTyp.t, UHExp.t)),
         EditorBoxTypes.mk_editor_box,
       );
   let empty = Empty;

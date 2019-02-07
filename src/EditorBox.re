@@ -1,4 +1,5 @@
 open Tyxml_js;
+open SemanticsCommon;
 include EditorBoxTypes;
 module Dom_html = Js_of_ocaml.Dom_html;
 module Dom = Js_of_ocaml.Dom;
