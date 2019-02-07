@@ -1,4 +1,4 @@
-let _SHOW_CASTS = true;
+let _SHOW_CASTS = false;
 
 /* Imports */
 exception InvariantViolated;
@@ -776,7 +776,7 @@ let rec precedence_dhexp = d =>
     | FreeVar(_, _, _, _)
     | BoolLit(_)
     | NumLit(_)
-    | ListNil
+    | ListNil(_)
     | Inj(_, _, _)
     | Pair(_, _)
     | EmptyHole(_, _, _)
@@ -1096,7 +1096,7 @@ let rec of_dhexp' =
             d2,
           );
         of_exp_BinOp(prefix, err_status, rev_path, r1, UHExp.Comma, r2);
-      | ListNil => of_ListNil(prefix, err_status, rev_path)
+      | ListNil(_) => of_ListNil(prefix, err_status, rev_path)
       | Cons(d1, d2) =>
         let rev_path1 = [0, ...rev_path];
         let rev_path2 = [1, ...rev_path];
