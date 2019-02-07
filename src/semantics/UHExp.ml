@@ -674,7 +674,7 @@ and ana ctx e ty =
   | Tm ((InHole (TypeInconsistent, _)), e') ->
     begin match syn' ctx e' with
     | None -> None
-    | Some _ -> Some tt (* this is a consequence of subsumption and hole universality *)
+    | Some _ -> Some () (* this is a consequence of subsumption and hole universality *)
     end
   | Tm (
       (InHole (WrongLength, _)),
@@ -935,7 +935,7 @@ and ana_skel ctx skel seq ty monitor =
                 let mode = combine_modes mode mode' in
                 Some (mode)
               end
-            end) zipped (Some None) in
+            end) (Some None) zipped in
         begin match ana_zipped with
         | None -> None
         | Some mode ->
