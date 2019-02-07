@@ -1,3 +1,6 @@
+open SemanticsCommon
+open Util
+
 type op_shape =  
 | SPlus
 | STimes
@@ -79,7 +82,7 @@ type shape =
 | SLet 
 | SVar of Var.t * ZExp.cursor_side
 | SLam
-| SNumLit of nat * ZExp.cursor_side 
+| SNumLit of int * ZExp.cursor_side 
 | SBoolLit of bool * ZExp.cursor_side 
 | SListNil
 | SInj of inj_side 
@@ -293,8 +296,8 @@ let rec perform_ty (a : t) (zty : ZTyp.t) : ZTyp.t option =
         surround))
   | (Construct (SOp os), 
       ZTyp.OpSeqZ(_, 
-        ((ZTyp.CursorT(In _, uty0) as zty0),
-        surround))) -> 
+        (ZTyp.CursorT(In _, uty0) as zty0),
+        surround)) -> 
     begin match ty_op_of os with
     | None -> None
     | Some op -> 
@@ -307,13 +310,13 @@ let rec perform_ty (a : t) (zty : ZTyp.t) : ZTyp.t option =
         Some (make_ty_OpSeqZ zty0' surround')
       | OperatorSeq.EmptySuffix prefix -> 
         (* prefix zty0| -> prefix uty0 op |_ *)
-        let prefix' = OperatorSeq.prefix_appendexp prefix uty0 op in 
+        let prefix' = OperatorSeq.prefix_append_exp prefix uty0 op in 
         let surround' = OperatorSeq.EmptySuffix prefix' in 
         let zty0' = ZTyp.CursorT(Before, UHTyp.Hole) in 
         Some (make_ty_OpSeqZ zty0' surround')
       | OperatorSeq.BothNonEmpty(prefix, suffix) -> 
         (* prefix zty0| suffix -> prefix uty0 op |_ suffix *)
-        let prefix' = OperatorSeq.prefix_appendexp prefix uty0 op in 
+        let prefix' = OperatorSeq.prefix_append_exp prefix uty0 op in 
         let surround' = OperatorSeq.BothNonEmpty(prefix', suffix) in 
         let zty0' = ZTyp.CursorT(Before, UHTyp.Hole) in 
         Some (make_ty_OpSeqZ zty0' surround')
@@ -329,7 +332,7 @@ let rec perform_ty (a : t) (zty : ZTyp.t) : ZTyp.t option =
       begin match surround with 
       | OperatorSeq.EmptyPrefix suffix -> 
         (* |zty0 suffix -> |_ op uty0 suffix *)
-        let suffix' = OperatorSeq.suffix_prependexp suffix op uty0 in 
+        let suffix' = OperatorSeq.suffix_prepend_exp suffix op uty0 in 
         let surround' = OperatorSeq.EmptyPrefix suffix' in 
         let zty0' = ZTyp.CursorT(Before, UHTyp.Hole) in 
         Some (make_ty_OpSeqZ zty0' surround')
@@ -341,7 +344,7 @@ let rec perform_ty (a : t) (zty : ZTyp.t) : ZTyp.t option =
         Some (make_ty_OpSeqZ zty0' surround')
       | OperatorSeq.BothNonEmpty(prefix, suffix) -> 
         (* prefix |zty0 suffix -> prefix |_ op uty0 suffix *)
-        let suffix' = OperatorSeq.suffix_prependexp suffix op uty0 in 
+        let suffix' = OperatorSeq.suffix_prepend_exp suffix op uty0 in 
         let surround' = OperatorSeq.BothNonEmpty(prefix, suffix') in 
         let zty0' = ZTyp.CursorT(Before, UHTyp.Hole) in 
         Some (make_ty_OpSeqZ zty0' surround')
@@ -387,7 +390,7 @@ let abs_perform_Backspace_Before_op
   (z_typecheck_fix_holes : Contexts.t -> MetaVarGen.t -> 'z -> 'm option)
   (make_and_typecheck_OpSeqZ : 
     Contexts.t -> MetaVarGen.t -> 
-    'z -> ('e, op) OperatorSeq.opseq_surround ->
+    'z -> ('e, 'op) OperatorSeq.opseq_surround ->
     'm option)
   (is_EmptyHole : 'e -> bool)
   (is_Space : 'op -> bool)
@@ -413,7 +416,7 @@ let abs_perform_Backspace_Before_op
           begin match (is_EmptyHole e1, is_EmptyHole e0) with 
           | (true, true) -> 
             (* _1 op1 |_0 --> _1| *)
-            let ze0' = Cursor(After, e1) in 
+            let ze0' = _Cursor After e1 in 
             z_typecheck_fix_holes ctx u_gen ze0'
           | (true, _) -> 
             (* _1 op1 |e0 --> |e0 *)
@@ -426,7 +429,7 @@ let abs_perform_Backspace_Before_op
             (* e1 op1 |ze0 --> e1 |ze0 *)
             let surround' = 
               OperatorSeq.EmptySuffix 
-                (OperatorSeq.ExpPrefix(e1, Space)) in 
+                (OperatorSeq.ExpPrefix(e1, _Space)) in 
             make_and_typecheck_OpSeqZ ctx u_gen ze0 surround' 
           end
       | OperatorSeq.SeqPrefix(seq1, op1) -> 
@@ -451,7 +454,7 @@ let abs_perform_Backspace_Before_op
             make_and_typecheck_OpSeqZ ctx u_gen ze0 surround'
           else
             (* seq1 op1 |ze0 --> seq1 |ze0 *)
-            let prefix' = OperatorSeq.SeqPrefix(seq1, Space) in 
+            let prefix' = OperatorSeq.SeqPrefix(seq1, _Space) in 
             let surround' = OperatorSeq.EmptySuffix prefix' in 
             make_and_typecheck_OpSeqZ ctx u_gen ze0 surround' 
         end
@@ -686,7 +689,7 @@ let abs_perform_Construct_SOp_After_surround
   : 'm option = 
     begin match surround with 
     | OperatorSeq.EmptySuffix prefix -> 
-      let prefix' = OperatorSeq.prefix_appendexp prefix e op in 
+      let prefix' = OperatorSeq.prefix_append_exp prefix e op in 
       let surround' = OperatorSeq.EmptySuffix prefix' in 
       let (ze0, u_gen) = new_EmptyHole u_gen in 
       make_and_typecheck_OpSeqZ ctx u_gen ze0 surround' 
@@ -750,7 +753,7 @@ let abs_perform_Construct_SOp_After_surround
         begin match is_Space op with 
         | true -> 
           (* prefix e| op' e' --> prefix e |_ op' e' *)
-          let prefix' = OperatorSeq.prefix_appendexp prefix e op in 
+          let prefix' = OperatorSeq.prefix_append_exp prefix e op in 
           let suffix' = OperatorSeq.ExpSuffix(op', e') in 
           let surround' = OperatorSeq.BothNonEmpty(prefix', suffix') in 
           let (ze0, u_gen) = new_EmptyHole u_gen in 
@@ -759,13 +762,13 @@ let abs_perform_Construct_SOp_After_surround
           begin match is_Space op' with 
           | true -> 
             (* prefix e| e' --> prefix e op |e' *)
-            let prefix' = OperatorSeq.prefix_appendexp prefix e op in 
+            let prefix' = OperatorSeq.prefix_append_exp prefix e op in 
             let surround' = OperatorSeq.EmptySuffix prefix' in 
             let ze0 = _Cursor Before e' in 
             make_and_typecheck_OpSeqZ ctx u_gen ze0 surround' 
           | false -> 
             (* prefix e| op' e' --> prefix e op |_ op' e' *)
-            let prefix' = OperatorSeq.prefix_appendexp prefix e op in 
+            let prefix' = OperatorSeq.prefix_append_exp prefix e op in 
             let suffix' = OperatorSeq.ExpSuffix(op', e') in 
             let surround' = OperatorSeq.BothNonEmpty(prefix', suffix') in 
             let (ze0, u_gen) = new_EmptyHole u_gen in 
@@ -776,7 +779,7 @@ let abs_perform_Construct_SOp_After_surround
         begin match is_Space op with 
         | true -> 
           (* prefix e| op' seq' --> prefix e |_ op' seq' *)
-          let prefix' = OperatorSeq.prefix_appendexp prefix e op in 
+          let prefix' = OperatorSeq.prefix_append_exp prefix e op in 
           let surround' = OperatorSeq.BothNonEmpty(prefix', suffix) in 
           let (ze0, u_gen) = new_EmptyHole u_gen in 
           make_and_typecheck_OpSeqZ ctx u_gen ze0 surround'
@@ -784,14 +787,14 @@ let abs_perform_Construct_SOp_After_surround
           begin match is_Space op' with 
           | true -> 
             (* prefix e| seq' --> prefix e op |seq' *)
-            let prefix' = OperatorSeq.prefix_appendexp prefix e op in 
+            let prefix' = OperatorSeq.prefix_append_exp prefix e op in 
             let (e0', suffix') = OperatorSeq.split0 seq' in 
             let surround' = OperatorSeq.BothNonEmpty(prefix', suffix') in 
             let ze0' = _Cursor Before e0' in 
             make_and_typecheck_OpSeqZ ctx u_gen ze0' surround' 
           | false -> 
             (* prefix e| op' seq' --> prefix e op |_ op' seq' *)
-            let prefix' = OperatorSeq.prefix_appendexp prefix e op in 
+            let prefix' = OperatorSeq.prefix_append_exp prefix e op in 
             let surround' = OperatorSeq.BothNonEmpty(prefix', suffix) in 
             let (ze0, u_gen) = new_EmptyHole u_gen in 
             make_and_typecheck_OpSeqZ ctx u_gen ze0 surround'
@@ -819,7 +822,7 @@ let abs_perform_Construct_SOp_Before_surround
     | OperatorSeq.EmptyPrefix suffix -> 
       (* |ze0 ... --> |_ op e0 ... *)
       let e0 = erase ze0 in 
-      let suffix' = OperatorSeq.suffix_prependexp suffix op e0 in 
+      let suffix' = OperatorSeq.suffix_prepend_exp suffix op e0 in 
       let surround' = OperatorSeq.EmptyPrefix suffix' in 
       let (ze0, u_gen) = new_EmptyHole u_gen in 
       make_and_typecheck_OpSeqZ ctx u_gen ze0 surround' 
@@ -830,7 +833,7 @@ let abs_perform_Construct_SOp_Before_surround
         | true -> 
           (* e1 |ze0 --> e1 |_ e0 *)
           let e0 = erase ze0 in 
-          let suffix' = OperatorSeq.ExpSuffix(Space, e0) in 
+          let suffix' = OperatorSeq.ExpSuffix(_Space, e0) in 
           let surround' = OperatorSeq.BothNonEmpty(prefix, suffix') in 
           let (ze0, u_gen) = new_EmptyHole u_gen in 
           make_and_typecheck_OpSeqZ ctx u_gen ze0 surround' 
@@ -854,7 +857,7 @@ let abs_perform_Construct_SOp_Before_surround
         | true -> 
           (* seq1 |ze0 --> seq1 |_ e0 *)
           let e0 = erase ze0 in 
-          let suffix' = OperatorSeq.ExpSuffix(Space, e0) in 
+          let suffix' = OperatorSeq.ExpSuffix(_Space, e0) in 
           let surround' = OperatorSeq.BothNonEmpty(prefix, suffix') in 
           let (ze0, u_gen) = new_EmptyHole u_gen in 
           make_and_typecheck_OpSeqZ ctx u_gen ze0 surround'
@@ -878,7 +881,7 @@ let abs_perform_Construct_SOp_Before_surround
         | true -> 
           (* e1 |ze0 suffix --> e1 |_ e0 suffix *)
           let e0 = erase ze0 in 
-          let suffix' = OperatorSeq.suffix_prependexp suffix _Space e0 in 
+          let suffix' = OperatorSeq.suffix_prepend_exp suffix _Space e0 in 
           let surround' = OperatorSeq.BothNonEmpty(prefix, suffix') in 
           let (ze0, u_gen) = new_EmptyHole u_gen in 
           make_and_typecheck_OpSeqZ ctx u_gen ze0 surround'
@@ -891,7 +894,7 @@ let abs_perform_Construct_SOp_Before_surround
       | false -> 
         (* prefix [^ ] |ze0 suffix --> prefix |_ op e0 suffix *)
         let e0 = erase ze0 in 
-        let suffix' = OperatorSeq.suffix_prependexp suffix op e0 in 
+        let suffix' = OperatorSeq.suffix_prepend_exp suffix op e0 in 
         let surround' = OperatorSeq.BothNonEmpty(prefix, suffix') in 
         let (ze0, u_gen) = new_EmptyHole u_gen in 
         make_and_typecheck_OpSeqZ ctx u_gen ze0 surround'
@@ -903,7 +906,7 @@ let abs_perform_Construct_SOp_Before_surround
         | true -> 
           (* seq1 |ze0 suffix --> seq1 |_ e0 suffix *)
           let e0 = erase ze0 in 
-          let suffix' = OperatorSeq.suffix_prependexp suffix _Space e0 in 
+          let suffix' = OperatorSeq.suffix_prepend_exp suffix _Space e0 in 
           let surround' = OperatorSeq.BothNonEmpty(prefix, suffix') in 
           let (ze0, u_gen) = new_EmptyHole u_gen in 
           make_and_typecheck_OpSeqZ ctx u_gen ze0 surround'
@@ -916,7 +919,7 @@ let abs_perform_Construct_SOp_Before_surround
       | false -> 
         (* prefix [^ ] |ze0 suffix --> prefix |_ op e0 suffix *)
         let e0 = erase ze0 in 
-        let suffix' = OperatorSeq.suffix_prependexp suffix op e0 in 
+        let suffix' = OperatorSeq.suffix_prepend_exp suffix op e0 in 
         let surround' = OperatorSeq.BothNonEmpty(prefix, suffix') in 
         let (ze0, u_gen) = new_EmptyHole u_gen in 
         make_and_typecheck_OpSeqZ ctx u_gen ze0 surround'
@@ -1002,7 +1005,7 @@ let make_and_ana_OpSeqZ_pat
       | Some zp -> Some (zp, ctx, u_gen)
       | None -> None
       end
-    | Some (Skel.Placeholder(_, _), _, _, _) 
+    | Some (Skel.Placeholder _, _, _, _) 
     | None -> None
     end
 
@@ -1100,7 +1103,7 @@ let rec perform_syn_pat
       UHPat.is_EmptyHole
       UHPat.is_Space
       UHPat.Space
-      ZPat.CursorP
+      (fun side p -> ZPat.CursorP (side, p))
       ctx u_gen p0 zp0 surround
   | (Delete, ZPat.Deeper(_, 
       (ZPat.OpSeqZ(_, 
@@ -1117,7 +1120,7 @@ let rec perform_syn_pat
       UHPat.is_EmptyHole
       UHPat.is_Space
       UHPat.Space
-      ZPat.CursorP
+      (fun side p -> ZPat.CursorP (side, p))
       ctx u_gen p0 zp0 surround
   (* Construct *)
   | (Construct SParenthesized, ZPat.CursorP(_, p)) -> 
@@ -1136,7 +1139,7 @@ let rec perform_syn_pat
   | (Construct (SVar(x, side)), ZPat.CursorP(_, (UHPat.Pat(_, (UHPat.NumLit _)))))
   | (Construct (SVar(x, side)), ZPat.CursorP(_, (UHPat.Pat(_, (UHPat.BoolLit _))))) ->
     Var.check_valid x (
-    let ctx = Contexts.extendgamma ctx (x, HTyp.Hole) in 
+    let ctx = Contexts.extend_gamma ctx (x, HTyp.Hole) in 
     Some
       (ZPat.CursorP(side, (UHPat.Pat(NotInHole, (UHPat.Var x)))), 
        HTyp.Hole,
@@ -1207,7 +1210,7 @@ let rec perform_syn_pat
         make_and_syn_OpSeqZ_pat
         UHPat.is_Space
         UHPat.Space
-        ZPat.CursorP
+        (fun side p -> ZPat.CursorP (side, p))
         ctx u_gen p op surround
     end
   | (Construct (SOp os), 
@@ -1222,11 +1225,11 @@ let rec perform_syn_pat
         make_and_syn_OpSeqZ_pat
         UHPat.is_Space
         UHPat.Space
-        ZPat.CursorP
+        (fun side p -> ZPat.CursorP (side, p))
         ctx u_gen zp0 op surround
     end
-  | (Construct((SOp os), ZPat.CursorP(In _, p)))
-  | (Construct((SOp os), ZPat.CursorP(After, p))) -> 
+  | (Construct (SOp os), ZPat.CursorP(In _, p))
+  | (Construct (SOp os), ZPat.CursorP(After, p)) -> 
     begin match pat_op_of os with 
     | None -> None
     | Some op -> 
@@ -1394,7 +1397,7 @@ and perform_ana_pat
   | (Construct (SVar(x, side)), ZPat.CursorP(_, (UHPat.Pat(_, (UHPat.NumLit _)))))
   | (Construct (SVar(x, side)), ZPat.CursorP(_, (UHPat.Pat(_, (UHPat.BoolLit _))))) -> 
     Var.check_valid x (
-    let ctx = Contexts.extendgamma ctx (x, ty) in 
+    let ctx = Contexts.extend_gamma ctx (x, ty) in 
     Some
       (ZPat.CursorP(side, (UHPat.Pat(NotInHole, (UHPat.Var x)))), 
        ctx, 
@@ -1430,14 +1433,14 @@ and perform_ana_pat
       | Some (p1, _, ctx, u_gen) -> 
         let (u, u_gen) = MetaVarGen.next u_gen in 
         let zp = 
-          ZPat.Deeper(InHole(TypeInconsistent u), 
+          ZPat.Deeper(InHole(TypeInconsistent, u), 
             (ZPat.InjZ(side,  
               (ZPat.CursorP(cursor_side, p1))))) in 
         Some (zp, ctx, u_gen)
       end
     end
   | (Construct (SOp os), ZPat.Deeper(_, (
-      ZPat.OpSeqZ(_, (ZPat.CursorP((In _, p), surround))))))
+      ZPat.OpSeqZ(_, ZPat.CursorP (In _, p), surround))))
   | (Construct (SOp os), ZPat.Deeper(_, (
       ZPat.OpSeqZ(_, (ZPat.CursorP(After, p)), surround)))) -> 
     begin match pat_op_of os with
@@ -1449,7 +1452,7 @@ and perform_ana_pat
           make_and_ana_OpSeqZ_pat ctx u_gen zp surround ty)
         UHPat.is_Space
         UHPat.Space
-        ZPat.CursorP
+        (fun side p -> ZPat.CursorP (side, p))
         ctx u_gen p op surround
     end
   | (Construct (SOp os), 
@@ -1465,7 +1468,7 @@ and perform_ana_pat
           make_and_ana_OpSeqZ_pat ctx u_gen zp surround ty)
         UHPat.is_Space
         UHPat.Space
-        ZPat.CursorP
+        (fun side p -> ZPat.CursorP (side, p))
         ctx u_gen zp0 op surround
     end
   | (Construct (SOp os), ZPat.CursorP(In _,  p))
@@ -1545,7 +1548,7 @@ and perform_ana_pat
   (* Subsumption *)
   | (Construct (SNumLit(_, _)), _)
   | (Construct (SBoolLit(_, _)), _)
-  | (Construct FAction.SListNil, _) -> 
+  | (Construct SListNil, _) -> 
     begin match perform_syn_pat ctx u_gen a zp with 
     | None -> None
     | Some (zp, ty', ctx, u_gen) -> 
@@ -1647,7 +1650,7 @@ let make_and_ana_OpSeqZ
       | Some ze -> Some (ze, u_gen)
       | None -> None
       end
-    | Some (Skel.Placeholder(_, _), _, _)  
+    | Some (Skel.Placeholder _, _, _)  
     | None -> None
     end
 
@@ -1676,8 +1679,9 @@ let combine_for_Delete_Space ze0 e =
 let rec perform_syn 
     (ctx: Contexts.t) 
     (a: t) 
-    ((ze, ty, u_gen): ZExp.t * HTyp.t * MetaVarGen.t) 
-    : ((ZExp.t * HTyp.t) * MetaVarGen.t) option =
+    (ze_ty : ZExp.t * HTyp.t * MetaVarGen.t) 
+    : (ZExp.t * HTyp.t * MetaVarGen.t) option =
+  let (ze, ty, u_gen) = ze_ty in
   begin match (a, ze) with
   (* Movement *)
   | (MoveTo path, _) -> 
@@ -1729,8 +1733,7 @@ let rec perform_syn
     zexp_syn_fix_holes ctx u_gen ze'
   | (Delete,
       ZExp.Deeper(_, (ZExp.AscZ1
-        (ZExp.CursorE(After, e1)),
-        _))) -> 
+        ((ZExp.CursorE(After, e1)), _)))) -> 
     begin match UHExp.syn_fix_holes ctx u_gen e1 with 
     | Some (e1', ty', u_gen) -> 
       let ze' = ZExp.CursorE(After, e1') in 
@@ -1738,12 +1741,13 @@ let rec perform_syn
     | None -> None
     end
   | (Backspace, ZExp.Deeper(_,  
-      (ZExp.LetZA(p, (ZTyp.CursorT(Before, _)), e1, e2))))
-  | (Backspace, ZExp.Deeper(_, 
-      (ZExp.LetZA(p,   
-        (ZTyp.OpSeqZ(_, 
-          (ZTyp.CursorT(Before, _)), 
-          (OperatorSeq.EmptyPrefix _)), e1, e2))))) ->  
+      ZExp.LetZA(p, ZTyp.CursorT(Before, _), e1, e2)))
+  | (Backspace, ZExp.Deeper(_,
+      ZExp.LetZA(
+        p,
+        ZTyp.OpSeqZ(_, ZTyp.CursorT(Before, _), OperatorSeq.EmptyPrefix _),
+        e1,
+        e2))) ->
     begin match UHExp.syn_fix_holes ctx u_gen e1 with 
     | None -> None
     | Some (e1, ty1, u_gen) -> 
@@ -1755,20 +1759,25 @@ let rec perform_syn
         | Some (e2, ty, u_gen) -> 
           let ze = 
             ZExp.Deeper(NotInHole, 
-              (ZExp.LetZP(ZPat.CursorP(After, p)), None, e1, e2)) in 
+              ZExp.LetZP(ZPat.CursorP(After, p), None, e1, e2)) in 
           Some (ze, ty, u_gen)
         end
       end
     end
   | (Delete, ZExp.Deeper(_, 
-      (ZExp.LetZP(((ZPat.CursorP(After, _)) as zp), (Some _), e1, e2))))
+      ZExp.LetZP(
+        (ZPat.CursorP(After, _) as zp),
+        Some _,
+        e1,
+        e2)))
   | (Delete, ZExp.Deeper(_,
-      (ZExp.LetZP 
-        ((ZPat.Deeper(_,  
-          (ZPat.OpSeqZ(_, (ZPat.CursorP(After, _)), 
-             (OperatorSeq.EmptySuffix _))) as zp),
-        (Some _),
-        e1, e2))))) -> 
+      (ZExp.LetZP (
+        (ZPat.Deeper(_,
+          (ZPat.OpSeqZ(_, (ZPat.CursorP(After, _)),
+             (OperatorSeq.EmptySuffix _)))) as zp),
+        Some _,
+        e1, 
+        e2)))) ->
     begin match UHExp.syn_fix_holes ctx u_gen e1 with 
     | None -> None
     | Some (e1, ty1, u_gen) -> 
@@ -1786,12 +1795,12 @@ let rec perform_syn
       end
     end
   | (Backspace, ZExp.Deeper(_,  
-      (ZExp.LamZA(p, (ZTyp.CursorT(Before, _)), e1))))
-  | (Backspace, ZExp.Deeper(_, 
-      (ZExp.LamZA(p,  
-        (ZTyp.OpSeqZ(_, 
-          (ZTyp.CursorT(Before, _)), 
-          (OperatorSeq.EmptyPrefix _)), e1))))) -> 
+      (ZExp.LamZA(p, ZTyp.CursorT(Before, _), e1))))
+  | (Backspace, ZExp.Deeper(_,
+      (ZExp.LamZA(p,
+        ZTyp.OpSeqZ(_,
+          (ZTyp.CursorT(Before, _)),
+          (OperatorSeq.EmptyPrefix _)), e1)))) -> 
     begin match UHExp.ana_pat_fix_holes ctx u_gen false p HTyp.Hole with 
     | None -> None
     | Some (p, ctx, u_gen) -> 
@@ -1804,15 +1813,18 @@ let rec perform_syn
       end
     end
   | (Delete, ZExp.Deeper(_,
-      (ZExp.LamZP(((ZPat.CursorP(After, _)) as zp), (Some _), e1))))
+      ZExp.LamZP(
+        ((ZPat.CursorP(After, _)) as zp), 
+        Some _,
+        e1)))
   | (Delete, ZExp.Deeper(_, 
-      (ZExp.LamZP
-        ((ZPat.Deeper(_,
+      ZExp.LamZP (
+        (ZPat.Deeper(_,
           (ZPat.OpSeqZ(_, 
             (ZPat.CursorP(After, _)), 
-            (OperatorSeq.EmptySuffix _))) as zp),
-        (Some _),
-        e1))))) -> 
+            (OperatorSeq.EmptySuffix _)))) as zp),
+        Some _,
+        e1))) -> 
     begin match ana_zpat_fix_holes ctx u_gen zp HTyp.Hole with 
     | None -> None
     | Some (zp, ctx, u_gen) -> 
@@ -1838,7 +1850,7 @@ let rec perform_syn
       UHExp.is_EmptyHole
       UHExp.is_Space
       UHExp.Space
-      ZExp.CursorE
+      (fun side e -> ZExp.CursorE (side, e))
       ctx u_gen e0 ze0 surround
   | (Delete, ZExp.Deeper(_, 
       (ZExp.OpSeqZ(_, 
@@ -1855,7 +1867,7 @@ let rec perform_syn
       UHExp.is_EmptyHole
       UHExp.is_Space
       UHExp.Space
-      ZExp.CursorE
+      (fun side e -> ZExp.CursorE (side, e))
       ctx u_gen e0 ze0 surround
   | (Backspace, ZExp.CursorE((In _), e))
   | (Delete, ZExp.CursorE(In _, e)) -> 
@@ -1881,7 +1893,7 @@ let rec perform_syn
     | Some ty1 -> 
       let uty1 = UHTyp.contract ty1 in 
       let ze = ZExp.Deeper(err_status,  
-        (ZExp.LetZA((ZPat.erase zp), (ZTyp.place_Before uty1), e1 e2))) in 
+        ZExp.LetZA(ZPat.erase zp, ZTyp.place_Before uty1, e1, e2)) in
       Some (ze, ty, u_gen)
     end
   | (Construct SAsc, ZExp.Deeper(err_status, (ZExp.LamZP(zp, None, e1)))) -> 
@@ -1961,7 +1973,7 @@ let rec perform_syn
       let (rule_p, u_gen) = UHPat.new_EmptyHole u_gen in 
       let (rule_e, u_gen) = UHExp.new_EmptyHole u_gen in  
       let rule = UHExp.Rule(rule_p, rule_e) in 
-      let rules = rule :: nil in 
+      let rules = [rule] in 
       let caseze = ZExp.Deeper(NotInHole, (ZExp.CaseZE(ze, rules))) in 
       let ze = ZExp.Deeper(NotInHole, (ZExp.AscZ1(caseze, (UHTyp.Hole)))) in 
       Some (ze, HTyp.Hole, u_gen) 
@@ -1975,9 +1987,9 @@ let rec perform_syn
       Some (ze, HTyp.Hole, u_gen) 
     end 
   | (Construct (SOp os), ZExp.Deeper(_, (
-      ZExp.OpSeqZ(_, (ZExp.CursorE(In _, e), surround)))))
+      ZExp.OpSeqZ(_, ZExp.CursorE(In _, e), surround))))
   | (Construct (SOp os), ZExp.Deeper(_, (
-      ZExp.OpSeqZ(_, (ZExp.CursorE(After, e)), surround)))) -> 
+      ZExp.OpSeqZ(_, ZExp.CursorE(After, e), surround)))) ->
     begin match exp_op_of os with
     | None -> None
     | Some op -> 
@@ -1986,7 +1998,7 @@ let rec perform_syn
         make_and_syn_OpSeqZ
         UHExp.is_Space
         UHExp.Space
-        ZExp.CursorE
+        (fun side e -> ZExp.CursorE (side, e))
         ctx u_gen e op surround
     end
   | (Construct (SOp os), 
@@ -2001,11 +2013,11 @@ let rec perform_syn
         make_and_syn_OpSeqZ
         UHExp.is_Space
         UHExp.Space
-        ZExp.CursorE
+        (fun side e -> ZExp.CursorE (side, e))
         ctx u_gen ze0 op surround
     end
-  | (Construct((SOp os), ZExp.CursorE(In _, e)))
-  | (Construct((SOp os), ZExp.CursorE(After, e))) -> 
+  | (Construct (SOp os), ZExp.CursorE(In _, e))
+  | (Construct (SOp os), ZExp.CursorE(After, e)) ->
     begin match exp_op_of os with 
     | None -> None
     | Some op -> 
@@ -2030,13 +2042,13 @@ let rec perform_syn
     let (_, palette_ctx) = ctx in 
     begin match PaletteCtx.lookup palette_ctx name with 
     | Some palette_defn -> 
-      let m_initial_model = UHExp.Palettelet.initial_model palette_defn in 
+      let m_initial_model = UHExp.PaletteDefinition.initial_model palette_defn in 
       let (q, u_gen) = UHExp.HoleRefs.exec m_initial_model (UHExp.PaletteHoleData.empty) u_gen in 
       let (initial_model, initial_hole_data) = q in  
-      let expansion_ty = UHExp.Palettelet.expansion_ty palette_defn in
-      let expansion = (UHExp.Palettelet.to_exp palette_defn) initial_model in 
+      let expansion_ty = UHExp.PaletteDefinition.expansion_ty palette_defn in
+      let expansion = (UHExp.PaletteDefinition.to_exp palette_defn) initial_model in 
       let (_, initial_hole_map) = initial_hole_data in
-      let expansion_ctx = UHExp.PaletteHoleData.extendctx_with_hole_map ctx initial_hole_map in
+      let expansion_ctx = UHExp.PaletteHoleData.extend_ctx_with_hole_map ctx initial_hole_map in
       begin match (UHExp.ana expansion_ctx expansion expansion_ty) with 
       | Some _ -> 
         Some (ZExp.CursorE(After, (UHExp.Tm(NotInHole, (UHExp.ApPalette(name, initial_model, initial_hole_data))))), 
@@ -2053,10 +2065,10 @@ let rec perform_syn
     | Some palette_defn -> 
       let (q, u_gen') = UHExp.HoleRefs.exec monad hole_data u_gen in
       let (serialized_model, hole_data') = q in 
-      let expansion_ty = UHExp.Palettelet.expansion_ty palette_defn in
-      let expansion = (UHExp.Palettelet.to_exp palette_defn) serialized_model in 
+      let expansion_ty = UHExp.PaletteDefinition.expansion_ty palette_defn in
+      let expansion = (UHExp.PaletteDefinition.to_exp palette_defn) serialized_model in 
       let (_, hole_map') = hole_data' in
-      let expansion_ctx = UHExp.PaletteHoleData.extendctx_with_hole_map ctx hole_map' in
+      let expansion_ctx = UHExp.PaletteHoleData.extend_ctx_with_hole_map ctx hole_map' in
       begin match (UHExp.ana expansion_ctx expansion expansion_ty) with 
       | Some _ -> 
         Some (ZExp.CursorE(After, (UHExp.Tm(NotInHole, (UHExp.ApPalette(name, serialized_model, hole_data'))))), 
@@ -2448,7 +2460,7 @@ and perform_ana
       end
     end
   | (Delete, ZExp.Deeper(_, 
-      (ZExp.LetZP ((ZPat.CursorP(After, _)) as zp), (Some _), e1, e2)))
+      ZExp.LetZP ((ZPat.CursorP(After, _) as zp), Some _, e1, e2)))
   | (Delete, ZExp.Deeper(_, 
       (ZExp.LetZP( 
         ((ZPat.Deeper(_, (ZPat.OpSeqZ(_, 
@@ -2472,11 +2484,12 @@ and perform_ana
     end
   | (Backspace, ZExp.Deeper(_,  
       (ZExp.LamZA(p, (ZTyp.CursorT(Before, _)), e1))))
-  | (Backspace, ZExp.Deeper(_, 
-      (ZExp.LamZA(p,  
-        (ZTyp.OpSeqZ(_, 
-          (ZTyp.CursorT(Before, _)), 
-          (OperatorSeq.EmptyPrefix _)), e1))))) ->  
+  | (Backspace, ZExp.Deeper(_,
+      ZExp.LamZA(p,
+        ZTyp.OpSeqZ(_,
+          ZTyp.CursorT(Before, _),
+          (OperatorSeq.EmptyPrefix _)), 
+        e1))) ->
     begin match HTyp.matched_arrow ty with
     | None -> None
     | Some (ty1, ty2) -> 
@@ -2496,11 +2509,11 @@ and perform_ana
       (ZExp.LamZP(((ZPat.CursorP(After, _)) as zp), (Some _), e1)))) 
   | (Delete, ZExp.Deeper(_,
       (ZExp.LamZP(
-        ((ZPat.Deeper(_,
-          (ZPat.OpSeqZ(_, 
-            (ZPat.CursorP(After, _)),
-            (OperatorSeq.EmptySuffix _))) as zp))), 
-        (Some _), 
+        (ZPat.Deeper(_,
+          (ZPat.OpSeqZ(_,
+            ZPat.CursorP(After, _),
+            OperatorSeq.EmptySuffix _))) as zp),
+        Some _,
         e1)))) -> 
     begin match HTyp.matched_arrow ty with
     | None -> None
@@ -2511,7 +2524,7 @@ and perform_ana
         begin match UHExp.ana_fix_holes ctx u_gen e1 ty2 with 
         | None -> None
         | Some (e1, u_gen) -> 
-          let ze = ZExp.Deeper(NotInHole, (ZExp.LamZP(zp, None e1))) in 
+          let ze = ZExp.Deeper(NotInHole, (ZExp.LamZP(zp, None, e1))) in 
           Some (ze, u_gen)
         end
       end
@@ -2574,7 +2587,7 @@ and perform_ana
       UHExp.is_EmptyHole
       UHExp.is_Space
       UHExp.Space
-      ZExp.CursorE
+      (fun side e -> ZExp.CursorE (side, e))
       ctx u_gen e0 ze0 surround
   | (Delete, ZExp.Deeper(_,
       (ZExp.OpSeqZ(_,
@@ -2593,7 +2606,7 @@ and perform_ana
       UHExp.is_EmptyHole
       UHExp.is_Space
       UHExp.Space
-      ZExp.CursorE
+      (fun side e -> ZExp.CursorE (side, e))
       ctx u_gen e0 ze0 surround
   (* Construction *)
   | (Construct SParenthesized, ZExp.CursorE(_, e)) -> 
@@ -2692,7 +2705,7 @@ and perform_ana
     begin match e1 with 
     | UHExp.Tm(_, (UHExp.EmptyHole _)) -> 
       let (rule, u_gen) = UHExp.empty_rule u_gen in 
-      let rules = cons rule nil in 
+      let rules = [rule] in 
       let ze = ZExp.Deeper(NotInHole, (ZExp.CaseZE(ze, rules))) in 
       Some (ze, u_gen) 
     | _ -> 
@@ -2714,7 +2727,7 @@ and perform_ana
           suffix))))) -> 
     let (zrule, u_gen) = ZExp.empty_zrule u_gen in 
     let prev_rule = UHExp.Rule(p, re) in 
-    let suffix = cons prev_rule suffix in 
+    let suffix = prev_rule::suffix in 
     let ze = 
       ZExp.Deeper(NotInHole,  
         (ZExp.CaseZR(e1,  
@@ -2724,19 +2737,22 @@ and perform_ana
     Some (ze, u_gen)
   | (Construct SRule, 
       ZExp.Deeper(_,  
-        (ZExp.CaseZR(e1, 
-          (prefix, 
-            (ZExp.RuleZE(_,  
-              ((ZExp.CursorE(After, _))))) as zrule,
-          suffix)))))
+        (ZExp.CaseZR(e1, (
+          prefix, 
+          (ZExp.RuleZE(_,  
+            ((ZExp.CursorE(After, _)))) as zrule),
+          suffix
+        )))
+      )
+    )
   | (Construct SRule, 
       ZExp.Deeper(_,  
-        (ZExp.CaseZR(e1,  
-          (prefix, 
-            (ZExp.RuleZE(_,  
-              (ZExp.Deeper(_, (ZExp.OpSeqZ(_,  
-                (ZExp.CursorE(After, _)),
-                (OperatorSeq.EmptySuffix _))))))) as zrule,
+        (ZExp.CaseZR(e1, (
+          prefix, 
+          (ZExp.RuleZE(_,  
+            (ZExp.Deeper(_, (ZExp.OpSeqZ(_,  
+              (ZExp.CursorE(After, _)),
+              (OperatorSeq.EmptySuffix _)))))) as zrule),
           suffix)))))
   | (Construct SRule,
       ZExp.Deeper(_, 
@@ -2744,12 +2760,12 @@ and perform_ana
           (prefix,
             (ZExp.RuleZP(
               (ZPat.CursorP(After, _)), 
-              _)) as zrule, suffix)))))
+              _) as zrule), suffix)))))
   | (Construct SRule,
       ZExp.Deeper(_,
         ZExp.CaseZR(e1,
           (prefix,
-           ZExp.RuleZP(
+           (ZExp.RuleZP(
              ZPat.Deeper(_, 
               ZPat.OpSeqZ(_,
                 ZPat.CursorP(After, _),
@@ -2757,13 +2773,13 @@ and perform_ana
               )
              ),
              _
-           ) as zrule,
+           ) as zrule),
           suffix)
         )
       )) -> 
     let prev_rule = ZExp.erase_rule zrule in 
     let (zrule, u_gen) = ZExp.empty_zrule u_gen in  
-    let prefix = prefix ++ (cons prev_rule nil) in 
+    let prefix = prefix @ [prev_rule] in 
     let ze = 
       ZExp.Deeper(NotInHole, 
         (ZExp.CaseZR(e1,  
@@ -2772,10 +2788,10 @@ and perform_ana
            suffix)))) in 
     Some (ze, u_gen)
   | (Construct SRule, ZExp.CursorE(_, _)) -> None
-  | (Construct (SOp os), ZExp.Deeper(_, (
-      ZExp.OpSeqZ(_, (ZExp.CursorE(In _, e), surround)))))
-  | (Construct (SOp os), ZExp.Deeper(_, (
-      ZExp.OpSeqZ(_, (ZExp.CursorE(After, e)), surround)))) -> 
+  | (Construct (SOp os), ZExp.Deeper(_,
+      ZExp.OpSeqZ(_, ZExp.CursorE(In _, e), surround)))
+  | (Construct (SOp os), ZExp.Deeper(_,
+      ZExp.OpSeqZ(_, ZExp.CursorE(After, e), surround))) ->
     begin match exp_op_of os with
     | None -> None
     | Some op -> 
@@ -2785,7 +2801,7 @@ and perform_ana
           make_and_ana_OpSeqZ ctx u_gen ze surround ty)
         UHExp.is_Space
         UHExp.Space
-        ZExp.CursorE
+        (fun side e -> ZExp.CursorE (side, e))
         ctx u_gen e op surround
     end
   | (Construct (SOp os), 
@@ -2801,7 +2817,7 @@ and perform_ana
           make_and_ana_OpSeqZ ctx u_gen ze surround ty)
         UHExp.is_Space
         UHExp.Space
-        ZExp.CursorE
+        (fun side e -> ZExp.CursorE (side, e))
         ctx u_gen ze0 op surround
     end
   | (Construct (SOp os), ZExp.CursorE(In _, e))
@@ -3150,14 +3166,14 @@ and perform_ana_subsume
 
 let can_perform
   (ctx : Contexts.t)
-  (edit_state : (ZExp.t * HTyp.t) * MetaVarGen.t) 
+  (edit_state : ZExp.t * HTyp.t * MetaVarGen.t) 
   (ci : ZExp.cursor_info)
   (a  : t)
   : bool = 
     begin match a with 
     | Construct SParenthesized -> true
     | Construct SAsc -> 
-      let sort = ZExp.sort ci in 
+      let sort = ci.sort in 
       begin match sort with 
       | ZExp.IsExpr _ -> true
       | ZExp.IsPat _ -> true
@@ -3167,7 +3183,7 @@ let can_perform
     | Construct SLam
     | Construct (SInj _)
     | Construct SCase -> 
-      begin match ZExp.mode ci with 
+      begin match ci.mode with 
       | ZExp.AnaOnly _ -> false
       | ZExp.AnaAnnotatedLambda(_, _)
       | ZExp.AnaTypeInconsistent(_, _)
@@ -3189,7 +3205,7 @@ let can_perform
     | Construct SListNil
     | Construct (SApPalette _)
     -> 
-      begin match ZExp.sort ci with
+      begin match ci.sort with
       | ZExp.IsExpr (UHExp.Tm(_, (UHExp.EmptyHole _))) -> true
       | ZExp.IsExpr _ -> false
       | ZExp.IsPat (UHPat.Pat(_, (UHPat.EmptyHole _))) -> true
@@ -3199,7 +3215,7 @@ let can_perform
     | (Construct (SOp SArrow))
     | (Construct (SOp SVBar))
     | Construct SList -> 
-      begin match ZExp.sort ci with 
+      begin match ci.sort with 
       | ZExp.IsType -> true
       | ZExp.IsExpr _ 
       | ZExp.IsPat _ -> false
@@ -3227,7 +3243,7 @@ let can_perform
 let can_enter_varchar 
   (ci : ZExp.cursor_info)
   : bool =
-    begin match ZExp.sort ci with 
+    begin match ci.sort with 
     | ZExp.IsExpr (UHExp.Tm(_, (UHExp.Var(_, _))))
     | ZExp.IsExpr (UHExp.Tm(_, (UHExp.EmptyHole _)))
     | ZExp.IsExpr (UHExp.Tm(_, (UHExp.BoolLit _)))
@@ -3238,7 +3254,7 @@ let can_enter_varchar
     | ZExp.IsExpr (UHExp.Tm(_, (UHExp.NumLit _)))
     | ZExp.IsPat (UHPat.Pat(_, (UHPat.NumLit _)))
     -> 
-      begin match ZExp.side ci with 
+      begin match ci.side with 
       | Before -> true
       | In _ | After -> false
       end
@@ -3251,7 +3267,7 @@ let can_enter_varchar
 let can_enter_numeral
   (ci : ZExp.cursor_info)
   : bool = 
-    begin match ZExp.sort ci with 
+    begin match ci.sort with 
     | ZExp.IsExpr (UHExp.Tm(_, (UHExp.NumLit _)))
     | ZExp.IsExpr (UHExp.Tm(_, (UHExp.EmptyHole _)))
     | ZExp.IsPat (UHPat.Pat(_, (UHPat.NumLit _)))
@@ -3264,7 +3280,7 @@ let can_enter_numeral
 let can_construct_palette
   (ci : ZExp.cursor_info)
   : bool = 
-    begin match ZExp.sort ci with 
+    begin match ci.sort with 
     | ZExp.IsExpr (UHExp.Tm(_, (UHExp.EmptyHole _))) -> true
     | _ -> false
     end
