@@ -1,10 +1,10 @@
 open LangUtil;
 let ensure_well_typed_after_parsing = uhexp =>
   switch (
-    UHExp.fix_and_renumber_holes((), (VarCtx.empty, PaletteCtx.empty), uhexp)
+    UHExp.fix_and_renumber_holes((VarCtx.empty, PaletteCtx.empty), uhexp)
   ) {
   | None => raise(IllFormed(uhexp))
-  | Some(((e, t), mv)) => (e, t, mv)
+  | Some((e, t, mv)) => (e, t, mv)
   };
 let parse' = lexbuf => HazelParse.parse_uhexp(HazelLex.read, lexbuf);
 let deserialize = i_channel =>

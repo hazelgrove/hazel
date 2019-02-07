@@ -1,7 +1,7 @@
 open Format;
 open LangUtil;
 let ensure_well_typed_before_serialization = uhexp =>
-  switch (UHExp.syn((), (VarMap.empty, PaletteCtx.empty), uhexp)) {
+  switch (UHExp.syn((VarMap.empty, PaletteCtx.empty), uhexp)) {
   | None => raise(IllFormed(uhexp))
   | _ => uhexp
   };
