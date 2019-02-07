@@ -28,7 +28,7 @@ module DHPat = struct
   | Cons of t * t
   | Pair of t * t
   | Triv (* unit intro *)
-  | Ap of t * t * t
+  | Ap of t * t
 
   let rec make_tuple (ds : t list) : t =  
     begin match ds with 
@@ -69,7 +69,7 @@ module DHPat = struct
     begin match p with
     | UHPat.Pat(InHole(TypeInconsistent as reason, u), p')
     | UHPat.Pat(InHole(WrongLength as reason, u),  
-        (UHPat.OpSeq(Skel.BinOp(InHole(WrongLength _), UHPat.Comma, _, _), _) as p')) ->
+        (UHPat.OpSeq(Skel.BinOp(InHole(WrongLength, _), UHPat.Comma, _, _), _) as p')) ->
       begin match syn_expand' ctx delta p' with
       | DoesNotExpand -> DoesNotExpand
       | Expands(dp, _, ctx, delta) ->
@@ -125,14 +125,14 @@ module DHPat = struct
     (seq : UHPat.opseq)
     : expand_result =
       begin match skel with
-      | Skel.Placeholder(_, n) ->
+      | Skel.Placeholder n ->
         begin match OperatorSeq.seq_nth n seq with
         | None -> DoesNotExpand
         | Some pn ->
           syn_expand ctx delta pn
         end
       | Skel.BinOp(InHole(TypeInconsistent as reason, u), op, skel1, skel2) 
-      | Skel.BinOp(InHole(WrongLength as reason, u), UHPat.Comma as op, skel1, skel2) -> 
+      | Skel.BinOp(InHole(WrongLength as reason, u), (UHPat.Comma as op), skel1, skel2) -> 
         let skel_not_in_hole = Skel.BinOp(NotInHole, op, skel1, skel2) in
         begin match syn_expand_skel ctx delta skel_not_in_hole seq with
         | DoesNotExpand -> DoesNotExpand
@@ -230,9 +230,9 @@ module DHPat = struct
         Expands(dp, ty, ctx, delta)
       | UHPat.Var x ->
         let ctx = Contexts.extend_gamma ctx (x, ty) in
-        Expands(DHPat.Var x, ty, ctx, delta)
+        Expands(Var x, ty, ctx, delta)
       | UHPat.Wild -> 
-        Expands(DHPat.Wild, ty, ctx, delta)
+        Expands(Wild, ty, ctx, delta)
       | UHPat.NumLit _
       | UHPat.BoolLit _ -> syn_expand' ctx delta p'
       | UHPat.Inj(side, p1) ->
@@ -248,7 +248,7 @@ module DHPat = struct
               | L -> HTyp.Sum(ty1, tyR)
               | R -> HTyp.Sum(tyL, ty1)
               end in 
-            Expands(DHPat.Inj(side, dp1), ty, ctx, delta)
+            Expands(Inj(side, dp1), ty, ctx, delta)
           end
         end
       | UHPat.ListNil ->
@@ -266,7 +266,7 @@ module DHPat = struct
     (ty : HTyp.t)
     : expand_result =
       begin match skel with
-      | Skel.Placeholder(_, n) ->
+      | Skel.Placeholder n ->
         begin match OperatorSeq.seq_nth n seq with
         | None -> DoesNotExpand
         | Some pn -> ana_expand ctx delta pn ty
@@ -276,7 +276,7 @@ module DHPat = struct
         begin match syn_expand_skel ctx delta skel_not_in_hole seq with
         | DoesNotExpand -> DoesNotExpand
         | Expands(dp1, _, ctx, delta) ->
-          let dp = DHPat.NonEmptyHole(reason, u, 0, dp1) in
+          let dp = NonEmptyHole(reason, u, 0, dp1) in
           let gamma = Contexts.gamma ctx in
           let delta = MetaVarMap.extend delta (u, (PatternHole, ty, gamma)) in
           Expands(dp, ty, ctx, delta)
@@ -296,7 +296,7 @@ module DHPat = struct
             end
           end
         end
-      | Skel.BinOp(InHole(WrongLength, u, UHPat.Comma as op, skel1, skel2)) -> 
+      | Skel.BinOp(InHole(WrongLength, u), (UHPat.Comma as op), skel1, skel2) -> 
         begin match ty with 
         | HTyp.Prod(ty1, ty2) -> 
           let types = HTyp.get_tuple ty1 ty2 in 
@@ -311,9 +311,9 @@ module DHPat = struct
                 begin match ana_expand_skel ctx delta skel seq ty with 
                 | DoesNotExpand -> None
                 | Expands(dp, ty, ctx, delta) -> 
-                  Some (cons (dp, ty) elts, ctx, delta)
+                  Some ((dp, ty)::elts, ctx, delta)
                 end
-              end) (Some (nil, ctx, delta)) zipped in 
+              end) zipped (Some ([], ctx, delta)) in
           begin match processed1 with 
           | None -> DoesNotExpand
           | Some (elts1, ctx, delta) -> 
@@ -325,13 +325,13 @@ module DHPat = struct
                   begin match syn_expand_skel ctx delta skel seq with 
                   | DoesNotExpand -> None
                   | Expands(dp, ty, ctx, delta) -> 
-                    Some (cons (dp, ty) elts, ctx, delta)
+                    Some ((dp, ty)::elts, ctx, delta)
                   end
-                end) (Some (nil, ctx, delta)) remainder in 
+                end) remainder (Some ([], ctx, delta)) in
             begin match processed2 with 
             | None -> DoesNotExpand
             | Some (elts2, ctx, delta) -> 
-              let (ds, tys) = Util.unzip (elts1 ++ elts2) in 
+              let (ds, tys) = Util.unzip (elts1 @ elts2) in 
               let d = make_tuple ds in 
               let ty = HTyp.make_tuple tys in 
               Expands(d, ty, ctx, delta)
@@ -389,28 +389,31 @@ module DHExp = struct
     | LessThan -> UHExp.LessThan
     end
 
-  type t =  
-  | EmptyHole of MetaVar.t * inst_num * t VarMap.t_ 
-  | NonEmptyHole of in_hole_reason * MetaVar.t * inst_num * t VarMap.t_ 
-  | FreeVar of MetaVar.t * inst_num * t VarMap.t_ * Var.t
-  | BoundVar of Var.t
-  | Let of DHPat.t * t * t 
-  | FixF of Var.t * HTyp.t * t
-  | Lam of DHPat.t * HTyp.t * t
-  | Ap of t * t 
-  | BoolLit of bool
-  | NumLit of nat
-  | BinNumOp of bin_num_op * t
-  | ListNil
-  | Cons of t * t
-  | Inj of HTyp.t * inj_side * t
-  | Pair of t * t * t
-  | Triv
-  | Case of t * rule list * nat
-  | Cast of t * HTyp.t * HTyp.t
-  | FailedCast of t * HTyp.t * HTyp.t
-  and rule =
-  | Rule of DHPat.t * t
+  module DHExp = struct
+    type t =  
+    | EmptyHole of MetaVar.t * inst_num * t VarMap.t_ 
+    | NonEmptyHole of in_hole_reason * MetaVar.t * inst_num * t VarMap.t_ * t
+    | FreeVar of MetaVar.t * inst_num * t VarMap.t_ * Var.t
+    | BoundVar of Var.t
+    | Let of DHPat.t * t * t 
+    | FixF of Var.t * HTyp.t * t
+    | Lam of DHPat.t * HTyp.t * t
+    | Ap of t * t 
+    | BoolLit of bool
+    | NumLit of nat
+    | BinNumOp of bin_num_op * t * t
+    | ListNil
+    | Cons of t * t
+    | Inj of HTyp.t * inj_side * t
+    | Pair of t * t
+    | Triv
+    | Case of t * rule list * nat
+    | Cast of t * HTyp.t * HTyp.t
+    | FailedCast of t * HTyp.t * HTyp.t
+    and rule =
+    | Rule of DHPat.t * t
+  end
+  include DHExp
 
   let rec make_tuple (ds : t list) : t = 
     begin match ds with 
@@ -428,10 +431,10 @@ module DHExp = struct
   let apply_casts (d : t) (casts : (HTyp.t * HTyp.t) list) : t = 
     List.fold_left (fun d (c : HTyp.t * HTyp.t) -> 
       let (ty1, ty2) = c in 
-      cast d ty1 ty2) casts d
+      cast d ty1 ty2) d casts
 
   module Environment = struct 
-    type t = t VarMap.t_
+    type t = DHExp.t VarMap.t_
     include VarMap
   end
 
@@ -505,13 +508,12 @@ module DHExp = struct
       sigma
 
   let rec subst
-    (fuel : Fuel.t)
     (env : Environment.t)
     (d : t)
     : t =
     List.fold_left (fun d2 (xd : Var.t * t) ->
       let (x, d1) = xd in
-      subst_var d1 x d2) env d
+      subst_var d1 x d2) d env
 
   type match_result =
   | Matches of Environment.t
@@ -541,12 +543,12 @@ module DHExp = struct
     | (_, BinNumOp(_, _, _)) -> Indet
     | (_, Case(_, _, _)) -> Indet
     | (DHPat.BoolLit b1, BoolLit b2) ->
-      if Bool.eqb b1 b2 then Matches Environment.empty else DoesNotMatch
+      if b1 = b2 then Matches Environment.empty else DoesNotMatch
     | (DHPat.BoolLit _, Cast(d, HTyp.Bool, HTyp.Hole)) -> matches dp d 
     | (DHPat.BoolLit _, Cast(d, HTyp.Hole, HTyp.Bool)) -> matches dp d
     | (DHPat.BoolLit _, _) -> DoesNotMatch
     | (DHPat.NumLit n1, NumLit n2) ->
-      if Nat.eqb n1 n2 then Matches Environment.empty else DoesNotMatch
+      if n1 = n2 then Matches Environment.empty else DoesNotMatch
     | (DHPat.NumLit _, Cast(d, HTyp.Num, HTyp.Hole)) -> matches dp d 
     | (DHPat.NumLit _, Cast(d, HTyp.Hole, HTyp.Num)) -> matches dp d
     | (DHPat.NumLit _, _) -> DoesNotMatch
@@ -556,7 +558,7 @@ module DHExp = struct
       | _ -> DoesNotMatch
       end
     | (DHPat.Inj(side, dp), Cast(d, HTyp.Sum(tyL1, tyR1), HTyp.Sum(tyL2, tyR2))) -> 
-      matches_cast_Inj side dp d (cons (tyL1, tyR1, tyL2, tyR2) nil) 
+      matches_cast_Inj side dp d [(tyL1, tyR1, tyL2, tyR2)]
     | (DHPat.Inj(_, _), Cast(d, HTyp.Sum(_, _), HTyp.Hole)) -> matches dp d
     | (DHPat.Inj(_, _), Cast(d, HTyp.Hole, HTyp.Sum(_, _))) -> matches dp d
     | (DHPat.Inj(_, _), _) -> DoesNotMatch
@@ -573,8 +575,8 @@ module DHExp = struct
         end
       end
     | (DHPat.Pair(dp1, dp2), Cast(d, HTyp.Prod(tyL1, tyR1), HTyp.Prod(tyL2, tyR2))) -> 
-      matches_cast_Pair(dp1, dp2) d (cons (tyL1, tyL2) nil) (cons (tyR1, tyR2) nil)
-    | (DHPat.Pair(dp1, dp2), Cast(d, HTyp.Hole(HTyp.Prod(_, _)))) -> matches dp d
+      matches_cast_Pair dp1 dp2 d [(tyL1, tyL2)] [(tyR1, tyR2)]
+    | (DHPat.Pair(dp1, dp2), Cast(d, HTyp.Hole, HTyp.Prod(_, _))) -> matches dp d
     | (DHPat.Pair(dp1, dp2), Cast(d, HTyp.Prod(_, _), HTyp.Hole)) -> matches dp d
     | (DHPat.Pair(_, _), _) -> DoesNotMatch
     | (DHPat.Triv, Triv) -> Matches Environment.empty
@@ -598,7 +600,7 @@ module DHExp = struct
         end
       end
     | (DHPat.Cons(dp1, dp2), Cast(d, HTyp.List ty1, HTyp.List ty2)) -> 
-      matches_cast_Cons dp1 dp2 d (cons (ty1, ty2) nil)
+      matches_cast_Cons dp1 dp2 d [(ty1, ty2)]
     | (DHPat.Cons(_, _), Cast(d, HTyp.Hole, HTyp.List _)) -> matches dp d
     | (DHPat.Cons(_, _), Cast(d, (HTyp.List _), HTyp.Hole)) -> matches dp d 
     | (DHPat.Cons(_, _), _) -> DoesNotMatch
@@ -625,7 +627,7 @@ module DHExp = struct
         | _ -> DoesNotMatch
         end
       | Cast(d', HTyp.Sum(tyL1, tyR1), HTyp.Sum(tyL2, tyR2)) -> 
-        matches_cast_Inj side dp d' (cons (tyL1, tyR1, tyL2, tyR2) casts)
+        matches_cast_Inj side dp d' ((tyL1, tyR1, tyL2, tyR2)::casts)
       | Cast(d', HTyp.Sum(_, _), HTyp.Hole)
       | Cast(d', HTyp.Hole, HTyp.Sum(_, _)) -> 
         matches_cast_Inj side dp d' casts
@@ -670,8 +672,8 @@ module DHExp = struct
         end
       | Cast(d', HTyp.Prod(tyL1, tyR1), HTyp.Prod(tyL2, tyR2)) -> 
         matches_cast_Pair dp1 dp2 d' 
-          (cons (tyL1, tyL2) left_casts)
-          (cons (tyR1, tyR2) right_casts)
+          ((tyL1, tyL2)::left_casts)
+          ((tyR1, tyR2)::right_casts)
       | Cast(d', HTyp.Prod(_, _), HTyp.Hole)  
       | Cast(d', HTyp.Hole, HTyp.Prod(_, _)) -> 
         matches_cast_Pair dp1 dp2 d' left_casts right_casts
@@ -717,7 +719,7 @@ module DHExp = struct
           end
         end
       | Cast(d', HTyp.List ty1, HTyp.List ty2) -> 
-        matches_cast_Cons dp1 dp2 d' (cons (ty1, ty2) elt_casts)
+        matches_cast_Cons dp1 dp2 d' ((ty1, ty2)::elt_casts)
       | Cast(d', HTyp.List _, HTyp.Hole) -> 
         matches_cast_Cons dp1 dp2 d' elt_casts
       | Cast(d', HTyp.Hole, HTyp.List _) -> 
@@ -910,8 +912,8 @@ module DHExp = struct
       | UHExp.Parenthesized e1 -> syn_expand ctx delta e1
       | UHExp.Tm(NotInHole, e') -> syn_expand' ctx delta e'
       | UHExp.Tm(InHole(TypeInconsistent as reason, u), e')  
-      | UHExp.Tm(InHole(WrongLength as reason), u),  
-        ((UHExp.OpSeq(Skel.BinOp(InHole(WrongLength, _), UHExp.Comma, _, _), _) as e')) ->
+      | UHExp.Tm(InHole((WrongLength as reason), u),
+        ((UHExp.OpSeq(Skel.BinOp(InHole(WrongLength, _), UHExp.Comma, _, _), _) as e'))) ->
         begin match syn_expand' ctx delta e' with 
         | Expands(d, _, delta) -> 
           let gamma = Contexts.gamma ctx in 
@@ -997,7 +999,7 @@ module DHExp = struct
               begin match syn_expand ctx delta e2 with
               | DoesNotExpand -> DoesNotExpand
               | Expands(d2, ty, delta) -> 
-                let d = Let(p, d1, d2) in
+                let d = Let(dp, d1, d2) in
                 Expands(d, ty, delta)
               end
             end
@@ -1012,7 +1014,7 @@ module DHExp = struct
               begin match syn_expand ctx delta e2 with
               | DoesNotExpand -> DoesNotExpand
               | Expands(d2, ty, delta2) -> 
-                let d = p d1 d2 in
+                let d = Let(dp, d1, d2) in
                 Expands(d, ty, delta)
               end
             end
@@ -1073,13 +1075,13 @@ module DHExp = struct
     (seq : UHExp.opseq)
     : expand_result = 
       begin match skel with 
-      | Skel.Placeholder(_, n) -> 
+      | Skel.Placeholder n -> 
         begin match OperatorSeq.seq_nth n seq with 
         | None -> DoesNotExpand
         | Some en -> syn_expand ctx delta en
         end
       | Skel.BinOp(InHole(TypeInconsistent as reason, u), op, skel1, skel2)  
-      | Skel.BinOp(InHole(WrongLength as reason, u), UHExp.Comma as op, skel1, skel2) -> 
+      | Skel.BinOp(InHole(WrongLength as reason, u), (UHExp.Comma as op), skel1, skel2) -> 
         let skel_not_in_hole = Skel.BinOp(NotInHole, op, skel1, skel2) in 
         begin match syn_expand_skel ctx delta skel_not_in_hole seq with 
         | DoesNotExpand -> DoesNotExpand
@@ -1143,9 +1145,9 @@ module DHExp = struct
             end
           end
         end
-      | Skel.BinOp(NotInHole, UHExp.Plus as op, skel1, skel2)
-      | Skel.BinOp(NotInHole, UHExp.Times as op, skel1, skel2)
-      | Skel.BinOp(NotInHole, UHExp.LessThan as op, skel1, skel2) ->
+      | Skel.BinOp(NotInHole, (UHExp.Plus as op), skel1, skel2)
+      | Skel.BinOp(NotInHole, (UHExp.Times as op), skel1, skel2)
+      | Skel.BinOp(NotInHole, (UHExp.LessThan as op), skel1, skel2) ->
         begin match ana_expand_skel ctx delta skel1 seq HTyp.Num with 
         | DoesNotExpand -> DoesNotExpand
         | Expands(d1, ty1, delta) -> 
@@ -1170,7 +1172,7 @@ module DHExp = struct
     (ty : HTyp.t) 
     : expand_result = 
       begin match e with 
-      | UHExp.Tm NotInHole e' -> ana_expand' ctx delta e' ty
+      | UHExp.Tm (NotInHole, e') -> ana_expand' ctx delta e' ty
       | UHExp.Tm(InHole(TypeInconsistent as reason, u), e') ->
         begin match syn_expand' ctx delta e' with 
         | DoesNotExpand -> DoesNotExpand
@@ -1218,7 +1220,7 @@ module DHExp = struct
           FreeVar(u, 0, sigma, x),
           ty,
           delta)
-      | UHExp.Let(ann, e1, e2) ->
+      | UHExp.Let(p, ann, e1, e2) ->
         begin match ann with
         | Some uty1 ->
           let ty1 = UHTyp.expand uty1 in
@@ -1237,7 +1239,7 @@ module DHExp = struct
               begin match ana_expand ctx delta e2 ty with
               | DoesNotExpand -> DoesNotExpand
               | Expands(d2, ty, delta) ->
-                let d = Let(p, d1, d2) in
+                let d = Let(dp, d1, d2) in
                 Expands(d, ty, delta)
               end
             end
@@ -1252,7 +1254,7 @@ module DHExp = struct
               begin match ana_expand ctx delta e2 ty with
               | DoesNotExpand -> DoesNotExpand
               | Expands(d2, ty, delta) ->
-                let d = Let(p, d1, d2) in
+                let d = Let(dp, d1, d2) in
                 Expands(d, ty, delta)
               end
             end
@@ -1350,10 +1352,10 @@ module DHExp = struct
           begin match ana_expand_rule ctx delta r pat_ty clause_ty with
           | None -> None
           | Some (dr, delta) ->
-            let drs = drs ++ (cons dr nil) in
+            let drs = drs @ [dr] in
             Some (drs, delta)
           end
-        end) rules (Some (nil, delta))
+        end) (Some ([], delta)) rules
   and ana_expand_rule
     (ctx : Contexts.t)
     (delta : Delta.t)
@@ -1361,14 +1363,14 @@ module DHExp = struct
     (pat_ty : HTyp.t)
     (clause_ty : HTyp.t)
     : (rule * Delta.t) option =
-      let (p, e) = r in
+      let UHExp.Rule (p, e) = r in
       begin match DHPat.ana_expand ctx delta p pat_ty with
       | DHPat.DoesNotExpand -> None
       | DHPat.Expands(dp, _, ctx, delta) ->
         begin match ana_expand ctx delta e clause_ty with
         | DoesNotExpand -> None
         | Expands(d1, ty1, delta) ->
-          Some (Rule(dp, cast d1 ty1 clause_ty, delta))
+          Some (Rule(dp, cast d1 ty1 clause_ty), delta)
         end
       end
   and ana_expand_skel
@@ -1379,7 +1381,7 @@ module DHExp = struct
     (ty : HTyp.t)
     : expand_result = 
       begin match skel with 
-      | Skel.Placeholder(_, n) -> 
+      | Skel.Placeholder n ->
         begin match OperatorSeq.seq_nth n seq with 
         | None -> DoesNotExpand
         | Some en -> ana_expand ctx delta en ty
@@ -1410,7 +1412,7 @@ module DHExp = struct
             end
           end
         end
-      | Skel.BinOp(InHole(WrongLength, u), UHExp.Comma as op, skel1, skel2) -> 
+      | Skel.BinOp(InHole(WrongLength, u), (UHExp.Comma as op), skel1, skel2) -> 
         begin match ty with 
         | HTyp.Prod(ty1, ty2) -> 
           let types = HTyp.get_tuple ty1 ty2 in 
@@ -1425,9 +1427,9 @@ module DHExp = struct
                 begin match ana_expand_skel ctx delta skel seq ty with 
                 | DoesNotExpand -> None
                 | Expands(d, ty, delta) -> 
-                  Some (cons (d, ty) elts, delta)
+                  Some ((d, ty)::elts, delta)
                 end
-              end) (Some (nil, delta)) zipped in 
+              end) zipped (Some ([], delta)) in 
           begin match processed1 with 
           | None -> DoesNotExpand
           | Some (elts1, delta) -> 
@@ -1439,14 +1441,14 @@ module DHExp = struct
                   begin match syn_expand_skel ctx delta skel seq with 
                   | DoesNotExpand -> None
                   | Expands(d, ty, delta) -> 
-                    Some (cons (d, ty) elts, delta)
+                    Some ((d, ty)::elts, delta)
                   end
-                end) (Some (nil, delta)) remainder in 
+                end) remainder (Some ([], delta)) in 
             begin match processed2 with 
             | None -> DoesNotExpand
             | Some (elts2, delta) -> 
-              let (ds, tys) = Util.unzip (elts1 ++ elts2) in 
-              let d = DHExp.make_tuple ds in 
+              let (ds, tys) = Util.unzip (elts1 @ elts2) in 
+              let d = make_tuple ds in 
               let ty = HTyp.make_tuple tys in 
               Expands(d, ty, delta)
             end
@@ -1504,9 +1506,9 @@ module DHExp = struct
 
     let next (hii : t) (u : MetaVar.t) (sigma : Environment.t) (path : InstancePath.t) : nat * t = 
       let (envs, hii) = 
-        MetaVarMap.insert_or_map hii u (fun _ -> (cons (sigma, path) nil)) (
+        MetaVarMap.insert_or_map hii u (fun _ -> [(sigma, path)]) (
           fun envs -> 
-            cons (sigma, path) envs 
+            (sigma, path)::envs 
         ) in
       ((List.length envs) - 1, hii)
 
@@ -1522,7 +1524,7 @@ module DHExp = struct
               (sigma, path)
             )
         )
-        u hii nil in 
+        u hii [] in 
       hii 
 
     let num_instances (hii : t) (u : MetaVar.t) = 
@@ -1546,7 +1548,7 @@ module DHExp = struct
       begin match MetaVarMap.lookup hii u with 
       | Some envs -> 
         let length = List.length envs in 
-        List.nth_error envs (length - i - 1)
+        List.nth_opt envs (length - i - 1)
       | None -> None
       end
   end
@@ -1602,10 +1604,10 @@ module DHExp = struct
     | NumLit _
     | ListNil
     | Triv -> (d, hii)
-    | Let(d1, d2) -> 
+    | Let(dp, d1, d2) -> 
       let (d1, hii) = renumber_result_only path hii d1 in 
       let (d2, hii) = renumber_result_only path hii d2 in 
-      (Let(d1, d2), hii)
+      (Let(dp, d1, d2), hii)
     | FixF(x, ty, d1) -> 
       let (d1, hii) = renumber_result_only path hii d1 in 
       (FixF(x, ty, d1), hii)
@@ -1663,8 +1665,8 @@ module DHExp = struct
       | Rule(dp, d) ->
         let (dp, hii) = renumber_result_only_pat path hii dp in
         let (d, hii) = renumber_result_only path hii d in
-        (rs ++ ((Rule(dp, d) :: []), hii))
-      end) rules (nil, hii)
+        (rs @ [Rule(dp, d)], hii)
+      end) ([], hii) rules
 
   let rec renumber_sigmas_only
     (path : InstancePath.t) (hii : HoleInstanceInfo.t) (d : DHExp.t) 
@@ -1675,10 +1677,10 @@ module DHExp = struct
     | NumLit _
     | ListNil
     | Triv -> (d, hii)
-    | Let(d1, d2) -> 
+    | Let(dp, d1, d2) -> 
       let (d1, hii) = renumber_sigmas_only path hii d1 in 
       let (d2, hii) = renumber_sigmas_only path hii d2 in 
-      (Let(d1, d2), hii)
+      (Let(dp, d1, d2), hii)
     | FixF(x, ty, d1) -> 
       let (d1, hii) = renumber_sigmas_only path hii d1 in 
       (FixF(x, ty, d1), hii)
@@ -1739,39 +1741,39 @@ module DHExp = struct
       | Rule(dp, d) ->
         (* pattern holes don't have environments *)
         let (d, hii) = renumber_sigmas_only path hii d in
-        (rs ++ (cons (Rule(dp, d), nil), hii))
-      end) rules (nil, hii)
+        (rs @ [Rule(dp, d)], hii)
+      end) ([], hii) rules
   and renumber_sigma
     (path : InstancePath.t) (u : MetaVar.t) (i : inst_num)
-    (hii : HoleInstanceInfo.t) (sigma : DHExp.Environment.t) 
-    : (DHExp.Environment.t * HoleInstanceInfo.t) = 
+    (hii : HoleInstanceInfo.t) (sigma : Environment.t) 
+    : (Environment.t * HoleInstanceInfo.t) = 
     let (sigma, hii) = List.fold_right 
-      (fun (xd : Var.t * DHExp.t) (acc : DHExp.Environment.t * HoleInstanceInfo.t) -> 
+      (fun (xd : Var.t * DHExp.t) (acc : Environment.t * HoleInstanceInfo.t) -> 
         let (x, d) = xd in 
         let (sigma_in, hii) = acc in 
-        let path = cons (u, i, x) path in 
+        let path = ((u, i), x)::path in
         let (d, hii) = renumber_result_only path hii d in 
-        let sigma_out = cons (x, d) sigma_in in 
+        let sigma_out = (x, d)::sigma_in in 
         (sigma_out, hii)
       )
-      (nil, hii) 
       sigma
+      ([], hii)
       in 
     List.fold_right
-      (fun (xd : Var.t * DHExp.t) (acc : DHExp.Environment.t * HoleInstanceInfo.t) -> 
+      (fun (xd : Var.t * DHExp.t) (acc : Environment.t * HoleInstanceInfo.t) -> 
         let (x, d) = xd in 
         let (sigma_in, hii) = acc in 
-        let path = cons (u, i, x) path in 
+        let path = ((u, i), x)::path in 
         let (d, hii) = renumber_sigmas_only path hii d in 
-        let sigma_out = cons (x, d) sigma_in in 
+        let sigma_out = (x, d)::sigma_in in 
         (sigma_out, hii)
       )
-      (nil, hii)
       sigma
+      ([], hii)
   
   let renumber
     (path : InstancePath.t) (hii : HoleInstanceInfo.t) (d : DHExp.t) 
-    : (DHExp.t * HoleInstanceInfo.t) = 
+    : (t * HoleInstanceInfo.t) = 
     let (d, hii) = renumber_result_only path hii d in
     renumber_sigmas_only path hii d
 end
@@ -1822,7 +1824,7 @@ module Evaluator = struct
     begin match op with 
     | DHExp.Plus -> DHExp.NumLit (n1 + n2)
     | DHExp.Times -> DHExp.NumLit (n1 * n2)
-    | DHExp.LessThan -> DHExp.BoolLit (Nat.ltb n1 n2)
+    | DHExp.LessThan -> DHExp.BoolLit (n1 < n2)
     end
 
   let rec evaluate 
