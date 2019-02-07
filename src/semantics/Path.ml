@@ -62,7 +62,7 @@ and of_zexp' (ze : ZExp.t') : t =
   | ZExp.CaseZR(_, zrules) -> 
     let prefix_len = List.length (ZList.prj_prefix zrules) in 
     let zrule = ZList.prj_z zrules in 
-    cons' ( prefix_len) (of_zrule zrule) 
+    cons' (prefix_len + 1) (of_zrule zrule) 
   | ZExp.OpSeqZ(_, ze', surround) -> 
     let n = OperatorSeq.surround_prefix_length surround in 
     cons' n (of_zexp ze')
@@ -281,7 +281,7 @@ let rec follow_e (path : t) (e : UHExp.t) : ZExp.t option =
         | None -> None
         end
       | (x, UHExp.Case(e1, rules)) -> 
-        begin match ZList.split_at x rules with 
+        begin match ZList.split_at (x - 1) rules with 
         | None -> None
         | Some split_rules -> 
           begin match ZList.optmap_z (follow_rule (xs, cursor_side)) split_rules with 
