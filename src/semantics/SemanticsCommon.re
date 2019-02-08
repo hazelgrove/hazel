@@ -8,6 +8,10 @@ type err_status =
   | NotInHole
   | InHole(in_hole_reason, MetaVar.t);
 
+let err_status_to_string = fun
+  | NotInHole => "NotInHole"
+  | InHole(reason, u) => "InHole"
+
 type var_err_status =
   | NotInVHole
   | InVHole(MetaVar.t);
