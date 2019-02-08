@@ -515,6 +515,7 @@ and ana_skel_pat_cursor_info =
 let rec ana_cursor_found =
         (ctx: Contexts.t, e: UHExp.t, ty: HTyp.t, side: cursor_side)
         : option(cursor_info) =>
+{ 
   switch (e) {
   | UHExp.Parenthesized(e') =>
     switch (ana_cursor_found(ctx, e', ty, side)) {
@@ -534,13 +535,18 @@ let rec ana_cursor_found =
       )
     };
   | UHExp.Tm(InHole(TypeInconsistent, _), e') =>
+  { 
     switch (UHExp.syn'(ctx, e')) {
-    | None => None
+    | None => 
+    { 
+      None }
     | Some(ty') =>
+    { 
       Some(
         mk_cursor_info(AnaTypeInconsistent(ty, ty'), IsExpr(e), side, ctx),
       )
     }
+    } }
   | UHExp.Tm(_, UHExp.Var(InVHole(_), _)) =>
     Some(mk_cursor_info(AnaFree(ty), IsExpr(e), side, ctx))
   | UHExp.Tm(NotInHole, UHExp.Let(_, _, _, _))
@@ -606,6 +612,7 @@ let rec ana_cursor_found =
   | UHExp.Tm(NotInHole, UHExp.NumLit(_))
   | UHExp.Tm(NotInHole, UHExp.BoolLit(_))
   | UHExp.Tm(NotInHole, UHExp.ApPalette(_, _, _)) =>
+  { 
     switch (UHExp.syn(ctx, e)) {
     | Some(ty') =>
       if (HTyp.consistent(ty, ty')) {
@@ -614,7 +621,7 @@ let rec ana_cursor_found =
         None;
       }
     | None => None
-    }
+    } }
   | UHExp.Tm(NotInHole, UHExp.Lam(_, ann, _)) =>
     switch (HTyp.matched_arrow(ty)) {
     | None => None
@@ -652,7 +659,7 @@ let rec ana_cursor_found =
     ) =>
     None
   | UHExp.Tm(NotInHole, UHExp.OpSeq(Skel.Placeholder(_), surround)) => None
-  };
+  }};
 
 let rec syn_cursor_info = (ctx: Contexts.t, ze: t): option(cursor_info) =>
   switch (ze) {
@@ -891,7 +898,8 @@ and ana_cursor_info' =
         };
       switch (UHExp.ana_pat(ctx, p, ty1)) {
       | None => None
-      | Some(ctx) => ana_cursor_info(ctx, ze1, ty2)
+      | Some(ctx) => 
+        ana_cursor_info(ctx, ze1, ty2)
       };
     }
   | InjZ(side, ze1) =>
