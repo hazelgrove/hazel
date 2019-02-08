@@ -69,13 +69,15 @@ let bidelimit = ze =>
   | Deeper(_, OpSeqZ(_, _, _)) => ParenthesizedZ(ze)
   };
 
-let rec set_inconsistent = (u: MetaVar.t, ze: t): t =>
+let rec set_err_status = (err, ze) =>
   switch (ze) {
   | CursorE(cursor_side, e) =>
-    let e' = UHExp.set_inconsistent(u, e);
-    CursorE(cursor_side, e');
-  | Deeper(_, ze') => Deeper(InHole(TypeInconsistent, u), ze')
-  | ParenthesizedZ(ze1) => ParenthesizedZ(set_inconsistent(u, ze1))
+    let e = UHExp.set_err_status(err, e);
+    CursorE(cursor_side, e);
+  | Deeper(_, OpSeqZ(Skel.BinOp(_, op, skel1, skel2), ze0, surround)) => 
+    Deeper(err, OpSeqZ(Skel.BinOp(err, op, skel1, skel2), ze0, surround))
+  | Deeper(_, ze') => Deeper(err, ze')
+  | ParenthesizedZ(ze1) => ParenthesizedZ(set_err_status(err, ze1))
   };
 
 let rec make_inconsistent = (u_gen: MetaVarGen.t, ze: t): (t, MetaVarGen.t) =>
@@ -83,10 +85,12 @@ let rec make_inconsistent = (u_gen: MetaVarGen.t, ze: t): (t, MetaVarGen.t) =>
   | CursorE(cursor_side, e) =>
     let (e', u_gen) = UHExp.make_inconsistent(u_gen, e);
     (CursorE(cursor_side, e'), u_gen);
+  | Deeper(NotInHole, ze')
+  | Deeper(InHole(WrongLength, _), ze') =>
+    let (u, u_gen) = MetaVarGen.next(u_gen);
+    let ze' = set_err_status(InHole(TypeInconsistent, u), ze);
+    (ze', u_gen)
   | Deeper(InHole(TypeInconsistent, _), _) => (ze, u_gen)
-  | Deeper(_, ze') =>
-    let (u', u_gen) = MetaVarGen.next(u_gen);
-    (Deeper(InHole(TypeInconsistent, u'), ze'), u_gen);
   | ParenthesizedZ(ze1) =>
     let (ze1', u_gen) = make_inconsistent(u_gen, ze1);
     (ParenthesizedZ(ze1), u_gen);
@@ -515,7 +519,6 @@ and ana_skel_pat_cursor_info =
 let rec ana_cursor_found =
         (ctx: Contexts.t, e: UHExp.t, ty: HTyp.t, side: cursor_side)
         : option(cursor_info) =>
-{ 
   switch (e) {
   | UHExp.Parenthesized(e') =>
     switch (ana_cursor_found(ctx, e', ty, side)) {
@@ -535,18 +538,14 @@ let rec ana_cursor_found =
       )
     };
   | UHExp.Tm(InHole(TypeInconsistent, _), e') =>
-  { 
     switch (UHExp.syn'(ctx, e')) {
     | None => 
-    { 
-      None }
+      None
     | Some(ty') =>
-    { 
       Some(
         mk_cursor_info(AnaTypeInconsistent(ty, ty'), IsExpr(e), side, ctx),
       )
     }
-    } }
   | UHExp.Tm(_, UHExp.Var(InVHole(_), _)) =>
     Some(mk_cursor_info(AnaFree(ty), IsExpr(e), side, ctx))
   | UHExp.Tm(NotInHole, UHExp.Let(_, _, _, _))
@@ -659,7 +658,7 @@ let rec ana_cursor_found =
     ) =>
     None
   | UHExp.Tm(NotInHole, UHExp.OpSeq(Skel.Placeholder(_), surround)) => None
-  }};
+  };
 
 let rec syn_cursor_info = (ctx: Contexts.t, ze: t): option(cursor_info) =>
   switch (ze) {

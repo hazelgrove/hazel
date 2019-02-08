@@ -28,13 +28,15 @@ let new_EmptyHole = (u_gen: MetaVarGen.t): (t, MetaVarGen.t) => {
   (CursorP(Before, hole), u_gen);
 };
 
-let rec set_inconsistent = (u: MetaVar.t, zp: t): t =>
+let rec set_err_status = (err, zp) => 
   switch (zp) {
   | CursorP(cursor_side, p) =>
-    let p = UHPat.set_inconsistent(u, p);
+    let p = UHPat.set_err_status(err, p);
     CursorP(cursor_side, p);
-  | Deeper(_, zp') => Deeper(InHole(TypeInconsistent, u), zp')
-  | ParenthesizedZ(zp1) => ParenthesizedZ(set_inconsistent(u, zp1))
+  | Deeper(_, OpSeqZ(Skel.BinOp(_, op, skel1, skel2), zp0, surround)) => 
+    Deeper(err, OpSeqZ(Skel.BinOp(err, op, skel1, skel2), zp0, surround))
+  | Deeper(_, ze') => Deeper(err, ze')
+  | ParenthesizedZ(zp1) => ParenthesizedZ(set_err_status(err, zp1))
   };
 
 let rec make_inconsistent = (u_gen: MetaVarGen.t, zp: t): (t, MetaVarGen.t) =>
@@ -43,7 +45,8 @@ let rec make_inconsistent = (u_gen: MetaVarGen.t, zp: t): (t, MetaVarGen.t) =>
     let (p, u_gen) = UHPat.make_inconsistent(u_gen, p);
     (CursorP(cursor_side, p), u_gen);
   | Deeper(InHole(TypeInconsistent, _), _) => (zp, u_gen)
-  | Deeper(_, zp') =>
+  | Deeper(NotInHole, zp')
+  | Deeper(InHole(WrongLength, _), zp') =>
     let (u, u_gen) = MetaVarGen.next(u_gen);
     (Deeper(InHole(TypeInconsistent, u), zp'), u_gen);
   | ParenthesizedZ(zp1) =>
