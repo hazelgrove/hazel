@@ -3596,11 +3596,11 @@ and perform_ana =
   | (_, ZExp.Deeper(_, ZExp.LamZE(p, ann, ze1))) =>
     switch (HTyp.matched_arrow(ty)) {
     | None => None
-    | Some((_, ty2)) =>
+    | Some((ty1_given, ty2)) =>
       let ty1 =
         switch (ann) {
         | Some(uty1) => UHTyp.expand(uty1)
-        | None => HTyp.Hole
+        | None => ty1_given
         };
       switch (UHExp.ana_pat(ctx, p, ty1)) {
       | None => None
