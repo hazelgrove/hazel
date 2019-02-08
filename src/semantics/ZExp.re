@@ -1028,7 +1028,7 @@ and syn_skel_cursor_info =
         switch (HTyp.matched_arrow(ty)) {
         | None => None
         | Some((ty1, ty2)) =>
-          ana_skel_cursor_info(ctx, skel2, seq, n, ze_n, ty2)
+          ana_skel_cursor_info(ctx, skel2, seq, n, ze_n, ty1)
         }
       }
     }
