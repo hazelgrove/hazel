@@ -163,11 +163,11 @@ let of_Num = (prefix, rev_path) =>
 let of_Unit = (prefix, rev_path) =>
   term(prefix, NotInHole, rev_path, "Unit", kw("Unit"));
 let of_ty_BinOp = (prefix, err_status, rev_path, r1, op, r2) =>
-  term(
+  term_classes(
     prefix,
     err_status,
     rev_path,
-    string_of_ty_op(op),
+    [string_of_ty_op(op), "skel-binop"],
     r1 ^^ of_ty_op(op) ^^ r2,
   );
 let of_List = (prefix, rev_path, r1) =>
@@ -500,11 +500,11 @@ let of_pat_op = op => {
 };
 
 let of_pat_BinOp = (prefix, err_status, rev_path, r1, op, r2) =>
-  term(
+  term_classes(
     prefix,
     err_status,
     rev_path,
-    string_of_pat_op(op),
+    [string_of_pat_op(op), "skel-binop"],
     r1 ^^ of_pat_op(op) ^^ r2,
   );
 
@@ -581,21 +581,21 @@ let of_exp_op = op => {
 };
 
 let of_exp_BinOp = (prefix, err_status, rev_path, r1, op, r2) =>
-  term(
+  term_classes(
     prefix,
     err_status,
     rev_path,
-    string_of_exp_op(op),
+    [string_of_exp_op(op), "skel-binop"],
     r1 ^^ of_exp_op(op) ^^ r2,
   );
 
 /* special cased below */
 let of_Times_with_space = (prefix, err_status, rev_path, r1, op, r2) =>
-  term(
+  term_classes(
     prefix,
     err_status,
     rev_path,
-    string_of_exp_op(op),
+    [string_of_exp_op(op), "skel-binop"],
     r1 ^^ of_op(" * ", "op-Times") ^^ r2,
   );
 
