@@ -1821,7 +1821,6 @@ let make_and_ana_OpSeqZ =
   let skel = Associator.associate_exp(seq);
   switch (UHExp.ana_skel_fix_holes(ctx, u_gen, false, skel, seq, ty)) {
   | Some((Skel.BinOp(err, _, _, _) as skel, seq, u_gen)) =>
-    JSUtil.log(err_status_to_string(err));
     let e = UHExp.Tm(err, UHExp.OpSeq(skel, seq));
     switch (Path.follow_e(path0, e)) {
     | Some(ze) => Some((ze, u_gen))
@@ -3692,19 +3691,10 @@ and perform_ana =
           | None => None
           | Some((ze0', u_gen)) =>
             let ze0'' = ZExp.bidelimit(ze0');
-            JSUtil.log("here we go");
-            let r = make_and_ana_OpSeqZ(ctx, u_gen, ze0'', surround, ty);
-            JSUtil.log("done");
-            r
-            /* switch (err) {
-            | NotInHole => JSUtil.log("NotInHole");
-            | InHole(TypeInconsistent, _) => JSUtil.log("IH TI");
-            | InHole(_, _) => JSUtil.log("other")
-            };
             Some((
               ZExp.Deeper(err, ZExp.OpSeqZ(skel, ze0'', surround)),
               u_gen,
-            )); */
+            ));
           }
         | UHExp.Synthesized(ty0) =>
           switch (perform_syn(ctx, a, (ze0, ty0, u_gen))) {
