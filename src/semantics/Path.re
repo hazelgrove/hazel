@@ -224,10 +224,14 @@ let rec follow_e = (path: t, e: UHExp.t): option(ZExp.t) =>
       | (_, UHExp.LineItems(lis, e1)) =>
         switch (ZList.split_at(x, lis)) {
         | None =>
-          if (x == List.length(lis)) {
-            follow_e((xs, cursor_side), e1);
-          } else {
-            None;
+          switch (x == List.length(lis)) {
+          | false => None
+          | true =>
+            switch (follow_e((xs, cursor_side), e1)) {
+            | None => None
+            | Some(ze) =>
+              Some(ZExp.Deeper(err_status, ZExp.LineItemsZE(lis, ze)))
+            }
           }
         | Some(split_lis) =>
           switch (
