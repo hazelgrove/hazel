@@ -79,7 +79,7 @@ and of_zexp' = (ze: ZExp.t'): t =>
   }
 and of_zline_item = (zli: ZExp.zline_item): t =>
   switch (zli) {
-  | ZExp.EmptyLineZ => ([0], Before)
+  | ZExp.EmptyLineZ => ([], Before)
   | ZExp.ExpLineZ(ze) => of_zexp(ze)
   | ZExp.LetLineZP(zp, _, _) => cons'(0, of_zpat(zp))
   | ZExp.LetLineZA(_, zann, _) => cons'(1, of_ztyp(zann))
