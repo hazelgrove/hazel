@@ -97,17 +97,11 @@ module ZList = {
     suffix;
   };
 
-  let suffix_length = (zxs: t('z, 'a)): nat =>
-    List.length(prj_suffix(zxs));
-
   let erase = (xs: t('z, 'a), erase_z: 'z => 'a) => {
     let (prefix, z, suffix) = xs;
     let a = erase_z(z);
     prefix @ [a, ...suffix];
   };
-
-  let length = (zxs: t('z, 'a)): nat =>
-    prefix_length(zxs) + 1 + suffix_length(zxs);
 };
 
 /* Section StringUtil */

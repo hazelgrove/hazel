@@ -47,13 +47,10 @@ and of_zexp' = (ze: ZExp.t'): t =>
   switch (ze) {
   | ZExp.AscZ1(ze', _) => cons'(0, of_zexp(ze'))
   | ZExp.AscZ2(_, zty) => cons'(1, of_ztyp(zty))
-  | ZExp.LineItemsZL(zlis, _) =>
-    let prefix_len = List.length(ZList.prj_prefix(zlis));
-    let zli = ZList.prj_z(zlis);
-    cons'(prefix_len, of_zline_item(zli));
-  | ZExp.LineItemsZE(lis, ze1) =>
-    let prefix_len = List.length(lis);
-    cons'(prefix_len, of_zexp(ze1));
+  | ZExp.LetZP(zp, _, _, _) => cons'(0, of_zpat(zp))
+  | ZExp.LetZA(_, zann, _, _) => cons'(1, of_ztyp(zann))
+  | ZExp.LetZE1(_, _, ze1, _) => cons'(2, of_zexp(ze1))
+  | ZExp.LetZE2(_, _, _, ze2) => cons'(3, of_zexp(ze2))
   | ZExp.LamZP(zp, _, _) => cons'(0, of_zpat(zp))
   | ZExp.LamZA(_, zann, _) => cons'(1, of_ztyp(zann))
   | ZExp.LamZE(_, ann, ze') => cons'(2, of_zexp(ze'))
@@ -76,14 +73,6 @@ and of_zexp' = (ze: ZExp.t'): t =>
     let (n, tz') = tz;
     let (_, ze') = tz';
     cons'(n, of_zexp(ze'));
-  }
-and of_zline_item = (zli: ZExp.zline_item): t =>
-  switch (zli) {
-  | ZExp.EmptyLineZ => ([0], Before)
-  | ZExp.ExpLineZ(ze) => of_zexp(ze)
-  | ZExp.LetLineZP(zp, _, _) => cons'(0, of_zpat(zp))
-  | ZExp.LetLineZA(_, zann, _) => cons'(1, of_ztyp(zann))
-  | ZExp.LetLineZE(_, _, ze) => cons'(2, of_zexp(ze))
   }
 and of_zrule = (zrule: ZExp.zrule): t =>
   switch (zrule) {
@@ -221,23 +210,35 @@ let rec follow_e = (path: t, e: UHExp.t): option(ZExp.t) =>
         }
       | (_, UHExp.Asc(_, _)) => None
       | (_, UHExp.Var(_, _)) => None
-      | (_, UHExp.LineItems(lis, e1)) =>
-        switch (ZList.split_at(x, lis)) {
-        | None =>
-          if (x == List.length(lis)) {
-            follow_e((xs, cursor_side), e1);
-          } else {
-            None;
-          }
-        | Some(split_lis) =>
-          switch (
-            ZList.optmap_z(follow_line_item((xs, cursor_side)), split_lis)
-          ) {
+      | (0, UHExp.Let(p, ann, e1, e2)) =>
+        switch (follow_pat((xs, cursor_side), p)) {
+        | None => None
+        | Some(zp) =>
+          Some(ZExp.Deeper(err_status, ZExp.LetZP(zp, ann, e1, e2)))
+        }
+      | (1, UHExp.Let(p, ann, e1, e2)) =>
+        switch (ann) {
+        | None => None
+        | Some(ann_ty) =>
+          switch (follow_ty((xs, cursor_side), ann_ty)) {
           | None => None
-          | Some(zlis) =>
-            Some(ZExp.Deeper(err_status, ZExp.LineItemsZL(zlis, e1)))
+          | Some(zann) =>
+            Some(ZExp.Deeper(err_status, ZExp.LetZA(p, zann, e1, e2)))
           }
         }
+      | (2, UHExp.Let(p, ann, e1, e2)) =>
+        switch (follow_e((xs, cursor_side), e1)) {
+        | Some(ze1) =>
+          Some(ZExp.Deeper(err_status, ZExp.LetZE1(p, ann, ze1, e2)))
+        | None => None
+        }
+      | (3, UHExp.Let(p, ann, e1, e2)) =>
+        switch (follow_e((xs, cursor_side), e2)) {
+        | Some(ze2) =>
+          Some(ZExp.Deeper(err_status, ZExp.LetZE2(p, ann, e1, ze2)))
+        | None => None
+        }
+      | (_, UHExp.Let(_, _, _, _)) => None
       | (0, UHExp.Lam(p, ann, e1)) =>
         switch (follow_pat((xs, cursor_side), p)) {
         | None => None
@@ -326,37 +327,6 @@ let rec follow_e = (path: t, e: UHExp.t): option(ZExp.t) =>
         };
       }
     }
-  }
-and follow_line_item =
-    (path: t, li: UHExp.line_item): option(ZExp.zline_item) =>
-  switch (path, li) {
-  | (([], _), UHExp.EmptyLine) => Some(ZExp.EmptyLineZ)
-  | (_, UHExp.EmptyLine) => None
-  | (_, UHExp.ExpLine(e)) =>
-    switch (follow_e(path, e)) {
-    | None => None
-    | Some(ze) => Some(ZExp.ExpLineZ(ze))
-    }
-  | (([0, ...xs], cursor_side), UHExp.LetLine(p, ann, e1)) =>
-    switch (follow_pat((xs, cursor_side), p)) {
-    | None => None
-    | Some(zp) => Some(ZExp.LetLineZP(zp, ann, e1))
-    }
-  | (([1, ...xs], cursor_side), UHExp.LetLine(p, ann, e1)) =>
-    switch (ann) {
-    | None => None
-    | Some(ann_ty) =>
-      switch (follow_ty((xs, cursor_side), ann_ty)) {
-      | None => None
-      | Some(zann) => Some(ZExp.LetLineZA(p, zann, e1))
-      }
-    }
-  | (([2, ...xs], cursor_side), UHExp.LetLine(p, ann, e1)) =>
-    switch (follow_e((xs, cursor_side), e1)) {
-    | None => None
-    | Some(ze1) => Some(ZExp.LetLineZE(p, ann, ze1))
-    }
-  | (_, UHExp.LetLine(_, _, _)) => None
   }
 and follow_rule = (path: t, rule: UHExp.rule): option(ZExp.zrule) =>
   switch (rule) {
@@ -482,20 +452,15 @@ let rec steps_to_hole = (e: UHExp.t, u: MetaVar.t): option(list(nat)) =>
        end */
   | UHExp.Tm(_, UHExp.Lam(p, _, e1)) =>
     cons_opt2(0, steps_to_hole_pat(p, u), 2, _ => steps_to_hole(e1, u))
-  | UHExp.Tm(_, UHExp.LineItems(lis, e2)) =>
-    let lis_steps =
-      Util.findmapi(lis, (i, li) =>
-        switch (li) {
-        | UHExp.EmptyLine => None
-        | UHExp.ExpLine(e) => steps_to_hole(e, u)
-        | UHExp.LetLine(p, ann, e1) =>
-          cons_opt2(0, steps_to_hole_pat(p, u), 2, _ => steps_to_hole(e1, u))
-        }
-      );
-    switch (lis_steps) {
-    | Some(steps) => Some(steps)
-    | None => steps_to_hole(e2, u)
-    };
+  | UHExp.Tm(_, UHExp.Let(p, ann, e1, e2)) =>
+    cons_opt3(
+      0,
+      steps_to_hole_pat(p, u),
+      2,
+      _ => steps_to_hole(e1, u),
+      3,
+      _ => steps_to_hole(e2, u),
+    )
   | UHExp.Tm(_, UHExp.Case(e1, rules)) =>
     switch (steps_to_hole(e1, u)) {
     | Some(steps) => Some([0, ...steps])
@@ -615,13 +580,22 @@ let rec first_hole_steps = (ue: UHExp.t): option(list(nat)) =>
     | UHExp.Asc(ue1, uty) =>
       cons_opt2(0, first_hole_steps(ue1), 1, _ => first_hole_steps_ty(uty))
     | UHExp.Var(_, _) => None
-    | UHExp.LineItems(lis, e1) =>
-      switch (first_hole_steps_line_items(lis)) {
-      | Some(ns) => Some(ns)
+    | UHExp.Let(p, ann, ue1, ue2) =>
+      switch (first_hole_steps_pat(p)) {
+      | Some(ns) => Some([0, ...ns])
       | None =>
-        switch (first_hole_steps(e1)) {
-        | None => None
-        | Some(ns) => Some([List.length(lis), ...ns])
+        switch (ann) {
+        | Some(ann_ty) =>
+          cons_opt3(
+            1,
+            first_hole_steps_ty(ann_ty),
+            2,
+            _ => first_hole_steps(ue1),
+            3,
+            _ => first_hole_steps(ue2),
+          )
+        | None =>
+          cons_opt2(2, first_hole_steps(ue1), 3, _ => first_hole_steps(ue2))
         }
       }
     | UHExp.Lam(p, ann, e1) =>
@@ -655,35 +629,6 @@ let rec first_hole_steps = (ue: UHExp.t): option(list(nat)) =>
     | UHExp.ApPalette(_, _, _) => None /* TODO figure out tab order protocol */
     }
   }
-and first_hole_steps_line_items =
-    (lis: list(UHExp.line_item)): option(list(nat)) =>
-  Util.findmapi(
-    lis,
-    (i, li) => {
-      let first_hole_steps_li =
-        switch (li) {
-        | UHExp.EmptyLine => None
-        | UHExp.ExpLine(e) => first_hole_steps(e)
-        | UHExp.LetLine(p, ann, e1) =>
-          switch (ann) {
-          | Some(ann_ty) =>
-            cons_opt3(
-              0,
-              first_hole_steps_pat(p),
-              1,
-              _ => first_hole_steps_ty(ann_ty),
-              2,
-              _ => first_hole_steps(e1),
-            )
-          | None =>
-            cons_opt2(0, first_hole_steps_pat(p), 2, _ =>
-              first_hole_steps(e1)
-            )
-          }
-        };
-      cons_opt(i, first_hole_steps_li);
-    },
-  )
 and first_hole_steps_rules = (rules: UHExp.rules): option(list(nat)) =>
   Util.findmapi(rules, (i, rule) =>
     switch (rule) {
@@ -813,7 +758,7 @@ let rec next_hole_steps = (ze: ZExp.t): option(list(nat)) =>
         switch (ue') {
         | UHExp.Asc(_, uty) => cons_opt(1, first_hole_steps_ty(uty))
         | UHExp.Var(_, _) => None
-        | UHExp.LineItems(_, _) => None
+        | UHExp.Let(p, ann, ue1, ue2) => first_hole_steps(ue)
         | UHExp.Lam(_, _, _) => first_hole_steps(ue)
         | UHExp.NumLit(_)
         | UHExp.BoolLit(_)
@@ -839,21 +784,36 @@ let rec next_hole_steps = (ze: ZExp.t): option(list(nat)) =>
     | ZExp.AscZ1(ze'', uty) =>
       cons_opt2(0, next_hole_steps(ze''), 1, _ => first_hole_steps_ty(uty))
     | ZExp.AscZ2(_, zty) => cons_opt(1, next_hole_steps_ty(zty))
-    | ZExp.LineItemsZL(zlis, e1) =>
-      let prefix_len = ZList.prefix_length(zlis);
-      let zli = ZList.prj_z(zlis);
-      switch (next_hole_steps_line_item(zli)) {
-      | Some(ns) => Some([prefix_len, ...ns])
+    | ZExp.LetZP(zp, ann, ue1, ue2) =>
+      switch (next_hole_steps_pat(zp)) {
+      | Some(ns) => Some([0, ...ns])
       | None =>
-        let suffix = ZList.prj_suffix(zlis);
-        switch (first_hole_steps_line_items(suffix)) {
-        | Some([offset, ...ns]) => Some([prefix_len + offset, ...ns])
-        | Some([]) => None /* should never happen */
-        | None => cons_opt(ZList.length(zlis), first_hole_steps(e1))
-        };
-      };
-    | ZExp.LineItemsZE(lis, ze1) =>
-      cons_opt(List.length(lis), next_hole_steps(ze1))
+        switch (ann) {
+        | Some(ann_ty) =>
+          cons_opt3(
+            1,
+            first_hole_steps_ty(ann_ty),
+            2,
+            _ => first_hole_steps(ue1),
+            3,
+            _ => first_hole_steps(ue2),
+          )
+        | None =>
+          cons_opt2(2, first_hole_steps(ue1), 3, _ => first_hole_steps(ue2))
+        }
+      }
+    | ZExp.LetZA(_, zann, e1, e2) =>
+      cons_opt3(
+        1,
+        next_hole_steps_ty(zann),
+        2,
+        _ => first_hole_steps(e1),
+        3,
+        _ => first_hole_steps(e2),
+      )
+    | ZExp.LetZE1(_, _, ze1, e2) =>
+      cons_opt2(2, next_hole_steps(ze1), 3, _ => first_hole_steps(e2))
+    | ZExp.LetZE2(_, _, _, ze2) => cons_opt(3, next_hole_steps(ze2))
     | ZExp.LamZP(zp, ann, e1) =>
       switch (next_hole_steps_pat(zp)) {
       | Some(ns) => Some([0, ...ns])
@@ -932,29 +892,8 @@ let rec next_hole_steps = (ze: ZExp.t): option(list(nat)) =>
     | ZExp.ApPaletteZ(_, _, _) => None /* TODO(figure, out, tab, order) protocol */
     }
   | ZExp.ParenthesizedZ(ze') => cons_opt(0, next_hole_steps(ze'))
-  }
-and next_hole_steps_line_item = (zli: ZExp.zline_item) =>
-  switch (zli) {
-  | EmptyLineZ => None
-  | ExpLineZ(ze) => next_hole_steps(ze)
-  | LetLineZP(zp, ann, e1) =>
-    switch (ann) {
-    | Some(ann_ty) =>
-      cons_opt3(
-        0,
-        next_hole_steps_pat(zp),
-        1,
-        _ => first_hole_steps_ty(ann_ty),
-        2,
-        _ => first_hole_steps(e1),
-      )
-    | None =>
-      cons_opt2(0, next_hole_steps_pat(zp), 2, _ => first_hole_steps(e1))
-    }
-  | LetLineZA(p, zann, e1) =>
-    cons_opt2(1, next_hole_steps_ty(zann), 2, _ => first_hole_steps(e1))
-  | LetLineZE(p, ann, ze1) => cons_opt(2, next_hole_steps(ze1))
   };
+
 let rec next_hole_path = (ze: ZExp.t): option(t) =>
   switch (next_hole_steps(ze)) {
   | None => None
@@ -1038,13 +977,20 @@ let rec last_hole_steps = (ue: UHExp.t): option(list(nat)) =>
     | UHExp.Asc(ue0, uty1) =>
       cons_opt2(1, last_hole_steps_ty(uty1), 0, _ => last_hole_steps(ue0))
     | UHExp.Var(_, _) => None
-    | UHExp.LineItems(lis, e1) =>
-      switch (last_hole_steps(e1)) {
-      | Some(ns) => Some([List.length(lis), ...ns])
+    | UHExp.Let(p, ann, e1, e2) =>
+      switch (last_hole_steps(e2)) {
+      | Some(ns) => Some([3, ...ns])
       | None =>
-        switch (last_hole_steps_line_items(lis)) {
-        | None => None
-        | Some(ns) => Some(ns)
+        switch (last_hole_steps(e1)) {
+        | Some(ns) => Some([2, ...ns])
+        | None =>
+          switch (ann) {
+          | Some(ann_ty) =>
+            cons_opt2(1, last_hole_steps_ty(ann_ty), 0, _ =>
+              last_hole_steps_pat(p)
+            )
+          | None => cons_opt(0, last_hole_steps_pat(p))
+          }
         }
       }
     | UHExp.Lam(p, ann, e1) =>
@@ -1079,35 +1025,6 @@ let rec last_hole_steps = (ue: UHExp.t): option(list(nat)) =>
     | UHExp.ApPalette(_, _, _) => None /* TODO(figure, out, tab, order) protocol */
     }
   }
-and last_hole_steps_line_items =
-    (lis: list(UHExp.line_item)): option(list(nat)) => {
-  let n_lis = List.length(lis);
-  Util.findmapi(
-    List.rev(lis),
-    (i, li) => {
-      let last_hole_steps_li =
-        switch (li) {
-        | UHExp.EmptyLine => None
-        | UHExp.ExpLine(e) => last_hole_steps(e)
-        | UHExp.LetLine(p, ann, e1) =>
-          switch (ann) {
-          | Some(ann_ty) =>
-            cons_opt3(
-              2,
-              last_hole_steps(e1),
-              1,
-              _ => last_hole_steps_ty(ann_ty),
-              0,
-              _ => last_hole_steps_pat(p),
-            )
-          | None =>
-            cons_opt2(2, last_hole_steps(e1), 0, _ => last_hole_steps_pat(p))
-          }
-        };
-      cons_opt(n_lis - i - 1, last_hole_steps_li);
-    },
-  );
-}
 and last_hole_steps_rules = (rules: UHExp.rules): option(list(nat)) => {
   let n_rules = List.length(rules);
   Util.findmapi(List.rev(rules), (i, rule) =>
@@ -1239,7 +1156,7 @@ let rec prev_hole_steps = (ze: ZExp.t): option(list(nat)) =>
         switch (ue') {
         | UHExp.Asc(ue'', _) => cons_opt(0, last_hole_steps(ue''))
         | UHExp.Var(_, _) => None
-        | UHExp.LineItems(_, _) => None
+        | UHExp.Let(_, _, _, _) => None
         | UHExp.Lam(_, _, _) => None
         | UHExp.NumLit(_)
         | UHExp.BoolLit(_)
@@ -1265,19 +1182,36 @@ let rec prev_hole_steps = (ze: ZExp.t): option(list(nat)) =>
     | ZExp.AscZ1(ze0, _) => cons_opt(0, prev_hole_steps(ze0))
     | ZExp.AscZ2(ue0, zty1) =>
       cons_opt2(1, prev_hole_steps_ty(zty1), 0, _ => last_hole_steps(ue0))
-    | ZExp.LineItemsZL(zlis, e1) =>
-      let prefix_len = ZList.prefix_length(zlis);
-      let zli = ZList.prj_z(zlis);
-      switch (prev_hole_steps_line_item(zli)) {
-      | Some(ns) => Some([prefix_len, ...ns])
-      | None =>
-        let prefix = ZList.prj_prefix(zlis);
-        last_hole_steps_line_items(prefix);
-      };
-    | ZExp.LineItemsZE(lis, ze1) =>
+    | ZExp.LetZP(zp, _, _, _) => cons_opt(0, prev_hole_steps_pat(zp))
+    | ZExp.LetZA(p, zann, _, _) =>
+      cons_opt2(1, prev_hole_steps_ty(zann), 0, _ => last_hole_steps_pat(p))
+    | ZExp.LetZE1(p, ann, ze1, _) =>
       switch (prev_hole_steps(ze1)) {
-      | Some(ns) => Some([List.length(lis), ...ns])
-      | None => last_hole_steps_line_items(lis)
+      | Some(ns) => Some([2, ...ns])
+      | None =>
+        switch (ann) {
+        | Some(ann_ty) =>
+          cons_opt2(1, last_hole_steps_ty(ann_ty), 0, _ =>
+            last_hole_steps_pat(p)
+          )
+        | None => cons_opt(0, last_hole_steps_pat(p))
+        }
+      }
+    | ZExp.LetZE2(p, ann, e1, ze2) =>
+      switch (prev_hole_steps(ze2)) {
+      | Some(ns) => Some([3, ...ns])
+      | None =>
+        switch (last_hole_steps(e1)) {
+        | Some(ns) => Some([2, ...ns])
+        | None =>
+          switch (ann) {
+          | Some(ann_ty) =>
+            cons_opt2(1, last_hole_steps_ty(ann_ty), 0, _ =>
+              last_hole_steps_pat(p)
+            )
+          | None => None
+          }
+        }
       }
     | ZExp.LamZP(zp, _, _) => prev_hole_steps_pat(zp)
     | ZExp.LamZA(p, zann, _) =>
@@ -1343,29 +1277,8 @@ let rec prev_hole_steps = (ze: ZExp.t): option(list(nat)) =>
     | ZExp.ApPaletteZ(_, _, _) => None /* TODO(figure, out, tab, order) protocol */
     }
   | ZExp.ParenthesizedZ(ze0) => cons_opt(0, prev_hole_steps(ze0))
-  }
-and prev_hole_steps_line_item = (zli: ZExp.zline_item) =>
-  switch (zli) {
-  | EmptyLineZ => None
-  | ExpLineZ(ze) => prev_hole_steps(ze)
-  | LetLineZP(zp, ann, e1) => cons_opt(0, prev_hole_steps_pat(zp))
-  | LetLineZA(p, zann, e1) =>
-    cons_opt2(1, prev_hole_steps_ty(zann), 0, _ => last_hole_steps_pat(p))
-  | LetLineZE(p, ann, ze1) =>
-    switch (ann) {
-    | Some(ann_ty) =>
-      cons_opt3(
-        2,
-        prev_hole_steps(ze1),
-        1,
-        _ => last_hole_steps_ty(ann_ty),
-        0,
-        _ => last_hole_steps_pat(p),
-      )
-    | None =>
-      cons_opt2(2, prev_hole_steps(ze1), 0, _ => last_hole_steps_pat(p))
-    }
   };
+
 let rec prev_hole_path = (ze: ZExp.t): option(t) =>
   switch (prev_hole_steps(ze)) {
   | None => None
