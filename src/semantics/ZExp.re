@@ -17,8 +17,10 @@ type t =
 and t' =
   | AscZ1(t, UHTyp.t)
   | AscZ2(UHExp.t, ZTyp.t)
-  | LineItemsZL(ZList.t(zline_item, UHExp.line_item), UHExp.t)
-  | LineItemsZE(list(UHExp.line_item), t)
+  | LetZP(ZPat.t, option(UHTyp.t), UHExp.t, UHExp.t)
+  | LetZA(UHPat.t, ZTyp.t, UHExp.t, UHExp.t)
+  | LetZE1(UHPat.t, option(UHTyp.t), t, UHExp.t)
+  | LetZE2(UHPat.t, option(UHTyp.t), UHExp.t, t)
   | LamZP(ZPat.t, option(UHTyp.t), UHExp.t)
   | LamZA(UHPat.t, ZTyp.t, UHExp.t)
   | LamZE(UHPat.t, option(UHTyp.t), t)
@@ -36,13 +38,7 @@ and t' =
     )
 and zrule =
   | RuleZP(ZPat.t, UHExp.t)
-  | RuleZE(UHPat.t, t)
-and zline_item =
-  | EmptyLineZ
-  | ExpLineZ(t)
-  | LetLineZP(ZPat.t, option(UHTyp.t), UHExp.t)
-  | LetLineZA(UHPat.t, ZTyp.t, UHExp.t)
-  | LetLineZE(UHPat.t, option(UHTyp.t), t);
+  | RuleZE(UHPat.t, t);
 
 type zrules = ZList.t(zrule, UHExp.rule);
 
@@ -63,8 +59,10 @@ let bidelimit = ze =>
     ze
   | Deeper(_, AscZ1(_, _))
   | Deeper(_, AscZ2(_, _))
-  | Deeper(_, LineItemsZL(_, _))
-  | Deeper(_, LineItemsZE(_, _))
+  | Deeper(_, LetZP(_, _, _, _))
+  | Deeper(_, LetZA(_, _, _, _))
+  | Deeper(_, LetZE1(_, _, _, _))
+  | Deeper(_, LetZE2(_, _, _, _))
   | Deeper(_, LamZP(_, _, _))
   | Deeper(_, LamZA(_, _, _))
   | Deeper(_, LamZE(_, _, _))
@@ -125,9 +123,10 @@ and erase' = (ze: t'): UHExp.t' =>
   switch (ze) {
   | AscZ1(ze', ty) => UHExp.Asc(erase(ze'), ty)
   | AscZ2(e', zty) => UHExp.Asc(e', ZTyp.erase(zty))
-  | LineItemsZL(zlis, e) =>
-    UHExp.LineItems(ZList.erase(zlis, erase_line_item), e)
-  | LineItemsZE(lis, ze) => UHExp.LineItems(lis, erase(ze))
+  | LetZP(zp, ann, e1, e2) => UHExp.Let(ZPat.erase(zp), ann, e1, e2)
+  | LetZA(p, zann, e1, e2) => UHExp.Let(p, Some(ZTyp.erase(zann)), e1, e2)
+  | LetZE1(p, ann, ze, e) => UHExp.Let(p, ann, erase(ze), e)
+  | LetZE2(p, ann, e, ze) => UHExp.Let(p, ann, e, erase(ze))
   | LamZP(zp, ann, e1) => UHExp.Lam(ZPat.erase(zp), ann, e1)
   | LamZA(p, zann, e1) => UHExp.Lam(p, Some(ZTyp.erase(zann)), e1)
   | LamZE(p, ann, ze1) => UHExp.Lam(p, ann, erase(ze1))
@@ -151,14 +150,6 @@ and erase_rule = (zr: zrule): UHExp.rule =>
   switch (zr) {
   | RuleZP(zp, e) => UHExp.Rule(ZPat.erase(zp), e)
   | RuleZE(p, ze) => UHExp.Rule(p, erase(ze))
-  }
-and erase_line_item = (zli: zline_item): UHExp.line_item =>
-  switch (zli) {
-  | EmptyLineZ => UHExp.EmptyLine
-  | ExpLineZ(ze) => UHExp.ExpLine(erase(ze))
-  | LetLineZP(zp, ann, e) => UHExp.LetLine(ZPat.erase(zp), ann, e)
-  | LetLineZA(p, zann, e) => UHExp.LetLine(p, Some(ZTyp.erase(zann)), e)
-  | LetLineZE(p, ann, ze) => UHExp.LetLine(p, ann, erase(ze))
   };
 
 type cursor_mode =
@@ -179,7 +170,6 @@ type cursor_mode =
   | SynErrorArrow(HTyp.t /* expected */, HTyp.t) /* got */
   | SynMatchingArrow(HTyp.t, HTyp.t)
   | SynFreeArrow(HTyp.t)
-  | SynEmptyLine
   /* cursor in type position */
   | TypePosition
   /* cursor in analytic pattern position */
@@ -197,8 +187,7 @@ type cursor_mode =
 type cursor_sort =
   | IsExpr(UHExp.t)
   | IsPat(UHPat.t)
-  | IsType
-  | IsEmptyLine;
+  | IsType;
 
 type cursor_info = {
   mode: cursor_mode,
@@ -554,7 +543,7 @@ let rec ana_cursor_found =
     }
   | UHExp.Tm(_, UHExp.Var(InVHole(_), _)) =>
     Some(mk_cursor_info(AnaFree(ty), IsExpr(e), side, ctx))
-  | UHExp.Tm(NotInHole, UHExp.LineItems(_, _))
+  | UHExp.Tm(NotInHole, UHExp.Let(_, _, _, _))
   | UHExp.Tm(NotInHole, UHExp.Case(_, _))
   | UHExp.Tm(NotInHole, UHExp.ListNil) =>
     /* | UHExp.Tm NotInHole (UHExp.ListLit _) */
@@ -709,11 +698,51 @@ and syn_cursor_info' = (ctx: Contexts.t, ze: t'): option(cursor_info) =>
         ctx,
       ),
     )
-  | LineItemsZL(zlis, e1) => syn_line_items_cursor_info(ctx, zlis)
-  | LineItemsZE(lis, ze1) =>
-    switch (UHExp.syn_line_items(ctx, lis)) {
-    | None => None
-    | Some(ctx) => syn_cursor_info(ctx, ze1)
+  | LetZP(zp, ann, e1, e2) =>
+    switch (ann) {
+    | Some(uty1) =>
+      let ty1 = UHTyp.expand(uty1);
+      ana_pat_cursor_info(ctx, zp, ty1);
+    | None =>
+      switch (UHExp.syn(ctx, e1)) {
+      | None => None
+      | Some(ty1) => ana_pat_cursor_info(ctx, zp, ty1)
+      }
+    }
+  | LetZA(p, zann, e1, e2) =>
+    Some(
+      mk_cursor_info(
+        TypePosition,
+        IsType,
+        Before, /* TODO fix this once we use cursor info in type position! */
+        ctx,
+      ),
+    )
+  | LetZE1(p, ann, ze1, e2) =>
+    switch (ann) {
+    | Some(uty1) =>
+      let ty1 = UHTyp.expand(uty1);
+      let ctx1 = UHExp.ctx_for_let(ctx, p, ty1, erase(ze1));
+      ana_cursor_info(ctx1, ze1, ty1);
+    | None => syn_cursor_info(ctx, ze1)
+    }
+  | LetZE2(p, ann, e1, ze2) =>
+    switch (ann) {
+    | Some(uty1) =>
+      let ty1 = UHTyp.expand(uty1);
+      switch (UHExp.ana_pat(ctx, p, ty1)) {
+      | None => None
+      | Some(ctx2) => syn_cursor_info(ctx2, ze2)
+      };
+    | None =>
+      switch (UHExp.syn(ctx, e1)) {
+      | None => None
+      | Some(ty1) =>
+        switch (UHExp.ana_pat(ctx, p, ty1)) {
+        | None => None
+        | Some(ctx2) => syn_cursor_info(ctx2, ze2)
+        }
+      }
     }
   | LamZP(zp, ann, _) =>
     let ty1 =
@@ -782,52 +811,54 @@ and syn_cursor_info' = (ctx: Contexts.t, ze: t'): option(cursor_info) =>
     let (ty, ze) = tz';
     ana_cursor_info(ctx, ze, ty);
   }
-and syn_line_items_cursor_info = (ctx, zlis) =>
-  switch (UHExp.syn_line_items(ctx, ZList.prj_prefix(zlis))) {
-  | None => None
-  | Some(ctx) =>
-    switch (ZList.prj_z(zlis)) {
-    | EmptyLineZ =>
-      Some(mk_cursor_info(SynEmptyLine, IsEmptyLine, Before, ctx))
-    | ExpLineZ(ze) => syn_cursor_info(ctx, ze)
-    | LetLineZP(zp, ann, e1) =>
-      switch (ann) {
-      | Some(uty1) =>
-        let ty1 = UHTyp.expand(uty1);
-        ana_pat_cursor_info(ctx, zp, ty1);
-      | None =>
-        switch (UHExp.syn(ctx, e1)) {
-        | None => None
-        | Some(ty1) => ana_pat_cursor_info(ctx, zp, ty1)
-        }
-      }
-    | LetLineZA(p, zann, e1) =>
-      Some(
-        mk_cursor_info(
-          TypePosition,
-          IsType,
-          Before, /* TODO fix this once we use cursor info in type position! */
-          ctx,
-        ),
-      )
-    | LetLineZE(p, ann, ze1) =>
-      switch (ann) {
-      | Some(uty1) =>
-        let ty1 = UHTyp.expand(uty1);
-        let ctx1 = UHExp.ctx_for_let(ctx, p, ty1, erase(ze1));
-        ana_cursor_info(ctx1, ze1, ty1);
-      | None => syn_cursor_info(ctx, ze1)
-      }
-    }
-  }
 and ana_cursor_info' =
     (ctx: Contexts.t, ze: t', ty: HTyp.t): option(cursor_info) =>
   switch (ze) {
-  | LineItemsZL(zlis, e1) => syn_line_items_cursor_info(ctx, zlis)
-  | LineItemsZE(lis, ze1) =>
-    switch (UHExp.syn_line_items(ctx, lis)) {
-    | None => None
-    | Some(ctx) => ana_cursor_info(ctx, ze1, ty)
+  | LetZP(zp, ann, e1, e2) =>
+    switch (ann) {
+    | Some(uty1) =>
+      let ty1 = UHTyp.expand(uty1);
+      ana_pat_cursor_info(ctx, zp, ty1);
+    | None =>
+      switch (UHExp.syn(ctx, e1)) {
+      | None => None
+      | Some(ty1) => ana_pat_cursor_info(ctx, zp, ty1)
+      }
+    }
+  | LetZA(_, zann, e1, e2) =>
+    Some(
+      mk_cursor_info(
+        TypePosition,
+        IsType,
+        Before, /* TODO fix this once we use cursor info in type position! */
+        ctx,
+      ),
+    )
+  | LetZE1(p, ann, ze1, e2) =>
+    switch (ann) {
+    | Some(uty1) =>
+      let ty1 = UHTyp.expand(uty1);
+      let ctx1 = UHExp.ctx_for_let(ctx, p, ty1, erase(ze1));
+      ana_cursor_info(ctx1, ze1, ty1);
+    | None => syn_cursor_info(ctx, ze1)
+    }
+  | LetZE2(p, ann, e1, ze2) =>
+    switch (ann) {
+    | Some(uty1) =>
+      let ty1 = UHTyp.expand(uty1);
+      switch (UHExp.ana_pat(ctx, p, ty1)) {
+      | None => None
+      | Some(ctx2) => ana_cursor_info(ctx2, ze2, ty)
+      };
+    | None =>
+      switch (UHExp.syn(ctx, e1)) {
+      | None => None
+      | Some(ty1) =>
+        switch (UHExp.ana_pat(ctx, p, ty1)) {
+        | None => None
+        | Some(ctx2) => ana_cursor_info(ctx2, ze2, ty)
+        }
+      }
     }
   | LamZP(p, ann, e) =>
     switch (HTyp.matched_arrow(ty)) {
