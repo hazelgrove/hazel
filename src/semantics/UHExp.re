@@ -1884,11 +1884,7 @@ and syn_fix_holes_line_item = (ctx, u_gen, renumber_empty_holes, li) =>
         ana_fix_holes_internal(ctx1, u_gen, renumber_empty_holes, e1, ty1)
       ) {
       | None => None
-      | Some((e1, u_gen)) =>
-        switch (ana_pat_fix_holes(ctx, u_gen, renumber_empty_holes, p, ty1)) {
-        | None => None
-        | Some((p, ctx, u_gen)) => Some((LetLine(p, ann, e1), ctx, u_gen))
-        }
+      | Some((e1, u_gen)) => Some((LetLine(p, ann, e1), ctx, u_gen))
       };
     | None =>
       switch (syn_fix_holes_internal(ctx, u_gen, renumber_empty_holes, e1)) {
