@@ -488,17 +488,24 @@ let rec steps_to_hole = (e: UHExp.t, u: MetaVar.t): option(list(nat)) =>
     cons_opt2(0, steps_to_hole_pat(p, u), 2, _ => steps_to_hole(e1, u))
   | UHExp.Tm(_, UHExp.LineItems(lis, e2)) =>
     let lis_steps =
-      Util.findmapi(lis, (i, li) =>
-        switch (li) {
-        | UHExp.EmptyLine => None
-        | UHExp.ExpLine(e) => steps_to_hole(e, u)
-        | UHExp.LetLine(p, ann, e1) =>
-          cons_opt2(0, steps_to_hole_pat(p, u), 2, _ => steps_to_hole(e1, u))
-        }
+      Util.findmapi(
+        lis,
+        (i, li) => {
+          let steps_li =
+            switch (li) {
+            | UHExp.EmptyLine => None
+            | UHExp.ExpLine(e) => steps_to_hole(e, u)
+            | UHExp.LetLine(p, ann, e1) =>
+              cons_opt2(0, steps_to_hole_pat(p, u), 2, _ =>
+                steps_to_hole(e1, u)
+              )
+            };
+          cons_opt(i, steps_li);
+        },
       );
     switch (lis_steps) {
     | Some(steps) => Some(steps)
-    | None => steps_to_hole(e2, u)
+    | None => cons_opt(List.length(lis), steps_to_hole(e2, u))
     };
   | UHExp.Tm(_, UHExp.Case(e1, rules)) =>
     switch (steps_to_hole(e1, u)) {
