@@ -23,7 +23,7 @@ module UHExp = {
   and t' =
     | Asc(t, UHTyp.t)
     | Var(var_err_status, Var.t)
-    | Let(UHPat.t, option(UHTyp.t), t, t)
+    | LineItem(line_item, t)
     | Lam(UHPat.t, option(UHTyp.t), t)
     | NumLit(int)
     | BoolLit(bool)
@@ -38,6 +38,10 @@ module UHExp = {
         PaletteSerializedModel.t,
         (int, Util.NatMap.t((HTyp.t, t))),
       ) /* = PaletteHoleData.t */
+  and line_item =
+    | EmptyLine
+    | ExpLine(t)
+    | LetLine(UHPat.t, option(UHTyp.t), t)
   and rule =
     | Rule(UHPat.t, t);
 };
@@ -205,7 +209,7 @@ let bidelimited =
   | Parenthesized(_) => true
   /* non-bidelimited cases */
   | Tm(_, Asc(_, _))
-  | Tm(_, Let(_, _, _, _))
+  | Tm(_, LineItem(_, _))
   | Tm(_, Lam(_, _, _))
   | Tm(_, OpSeq(_, _)) => false;
 
@@ -691,28 +695,10 @@ and syn' = (ctx, e) =>
       | R => Some(HTyp.Sum(HTyp.Hole, ty1))
       }
     }
-  | Let(p, ann, e1, e2) =>
-    switch (ann) {
-    | Some(uty1) =>
-      let ty1 = UHTyp.expand(uty1);
-      let ctx1 = ctx_for_let(ctx, p, ty1, e1);
-      switch (ana(ctx1, e1, ty1)) {
-      | None => None
-      | Some(_) =>
-        switch (ana_pat(ctx, p, ty1)) {
-        | None => None
-        | Some(ctx2) => syn(ctx2, e2)
-        }
-      };
-    | None =>
-      switch (syn(ctx, e1)) {
-      | None => None
-      | Some(ty1) =>
-        switch (ana_pat(ctx, p, ty1)) {
-        | None => None
-        | Some(ctx2) => syn(ctx2, e2)
-        }
-      }
+  | LineItem(li, e1) =>
+    switch (syn_line_item(ctx, li)) {
+    | None => None
+    | Some(ctx) => syn(ctx, e1)
     }
   | NumLit(_) => Some(HTyp.Num)
   | BoolLit(_) => Some(HTyp.Bool)
@@ -756,6 +742,26 @@ and syn' = (ctx, e) =>
       }
     };
   }
+and syn_line_item = (ctx, li) =>
+  switch (li) {
+  | EmptyLine => Some(ctx)
+  | ExpLine(_) => Some(ctx)
+  | LetLine(p, ann, e) =>
+    switch (ann) {
+    | Some(uty) =>
+      let ty = UHTyp.expand(uty);
+      let ctx1 = ctx_for_let(ctx, p, ty, e);
+      switch (ana(ctx1, e, ty)) {
+      | None => None
+      | Some(_) => ana_pat(ctx, p, ty)
+      };
+    | None =>
+      switch (syn(ctx, e)) {
+      | None => None
+      | Some(ty) => ana_pat(ctx, p, ty)
+      }
+    }
+  }
 and ana_hole_data = (ctx, hole_data) => {
   let (_, hole_map) = hole_data;
   NatMap.fold(
@@ -788,28 +794,10 @@ and ana = (ctx, e, ty) =>
   }
 and ana' = (ctx, e, ty) =>
   switch (e) {
-  | Let(p, ann, e1, e2) =>
-    switch (ann) {
-    | Some(uty1) =>
-      let ty1 = UHTyp.expand(uty1);
-      let ctx1 = ctx_for_let(ctx, p, ty1, e1);
-      switch (ana(ctx1, e1, ty1)) {
-      | None => None
-      | Some(_) =>
-        switch (ana_pat(ctx, p, ty1)) {
-        | None => None
-        | Some(ctx2) => ana(ctx2, e2, ty)
-        }
-      };
-    | None =>
-      switch (syn(ctx, e1)) {
-      | None => None
-      | Some(ty1) =>
-        switch (ana_pat(ctx, p, ty1)) {
-        | None => None
-        | Some(ctx2) => ana(ctx2, e2, ty)
-        }
-      }
+  | LineItem(li, e1) =>
+    switch (syn_line_item(ctx, li)) {
+    | None => None
+    | Some(ctx) => ana(ctx, e1, ty)
     }
   | Lam(p, ann, e1) =>
     switch (HTyp.matched_arrow(ty)) {
@@ -1773,41 +1761,13 @@ and syn_fix_holes' = (ctx, u_gen, renumber_empty_holes, e) =>
         Some((Lam(p, ann, e1), HTyp.Arrow(ty1, ty2), u_gen))
       }
     };
-  | Let(p, ann, e1, e2) =>
-    switch (ann) {
-    | Some(uty1) =>
-      let ty1 = UHTyp.expand(uty1);
-      let ctx1 = ctx_for_let(ctx, p, ty1, e1);
-      switch (
-        ana_fix_holes_internal(ctx1, u_gen, renumber_empty_holes, e1, ty1)
-      ) {
-      | None => None
-      | Some((e1, u_gen)) =>
-        switch (ana_pat_fix_holes(ctx, u_gen, renumber_empty_holes, p, ty1)) {
-        | None => None
-        | Some((p, ctx, u_gen)) =>
-          switch (
-            syn_fix_holes_internal(ctx, u_gen, renumber_empty_holes, e2)
-          ) {
-          | None => None
-          | Some((e2, ty, u_gen)) => Some((Let(p, ann, e1, e2), ty, u_gen))
-          }
-        }
-      };
-    | None =>
+  | LineItem(li, e1) =>
+    switch (syn_fix_holes_line_item(ctx, u_gen, renumber_empty_holes, li)) {
+    | None => None
+    | Some((li, ctx, u_gen)) =>
       switch (syn_fix_holes_internal(ctx, u_gen, renumber_empty_holes, e1)) {
       | None => None
-      | Some((e1, ty1, u_gen)) =>
-        switch (ana_pat_fix_holes(ctx, u_gen, renumber_empty_holes, p, ty1)) {
-        | None => None
-        | Some((p, ctx, u_gen)) =>
-          switch (
-            syn_fix_holes_internal(ctx, u_gen, renumber_empty_holes, e2)
-          ) {
-          | None => None
-          | Some((e2, ty, u_gen)) => Some((Let(p, ann, e1, e2), ty, u_gen))
-          }
-        }
+      | Some((e1, ty, u_gen)) => Some((LineItem(li, e1), ty, u_gen))
       }
     }
   | NumLit(_) => Some((e, HTyp.Num, u_gen))
@@ -1888,6 +1848,36 @@ and syn_fix_holes' = (ctx, u_gen, renumber_empty_holes, e) =>
       }
     };
   }
+and syn_fix_holes_line_item = (ctx, u_gen, renumber_empty_holes, li) =>
+  switch (li) {
+  | EmptyLine => Some((li, ctx, u_gen))
+  | ExpLine(e) =>
+    switch (syn_fix_holes_internal(ctx, u_gen, renumber_empty_holes, e)) {
+    | None => None
+    | Some((e, _, u_gen)) => Some((ExpLine(e), ctx, u_gen))
+    }
+  | LetLine(p, ann, e1) =>
+    switch (ann) {
+    | Some(uty1) =>
+      let ty1 = UHTyp.expand(uty1);
+      let ctx1 = ctx_for_let(ctx, p, ty1, e1);
+      switch (
+        ana_fix_holes_internal(ctx1, u_gen, renumber_empty_holes, e1, ty1)
+      ) {
+      | None => None
+      | Some((e1, u_gen)) => Some((LetLine(p, ann, e1), ctx, u_gen))
+      };
+    | None =>
+      switch (syn_fix_holes_internal(ctx, u_gen, renumber_empty_holes, e1)) {
+      | None => None
+      | Some((e1, ty1, u_gen)) =>
+        switch (ana_pat_fix_holes(ctx, u_gen, renumber_empty_holes, p, ty1)) {
+        | None => None
+        | Some((p, ctx, u_gen)) => Some((LetLine(p, ann, e1), ctx, u_gen))
+        }
+      }
+    }
+  }
 and ana_fix_holes_hole_data = (ctx, u_gen, renumber_empty_holes, hole_data) => {
   let (next_ref, hole_map) = hole_data;
   let init = (NatMap.empty, u_gen);
@@ -1933,43 +1923,15 @@ and ana_fix_holes_internal = (ctx, u_gen, renumber_empty_holes, e, ty) =>
   }
 and ana_fix_holes' = (ctx, u_gen, renumber_empty_holes, e, ty) =>
   switch (e) {
-  | Let(p, ann, e1, e2) =>
-    switch (ann) {
-    | Some(uty1) =>
-      let ty1 = UHTyp.expand(uty1);
-      let ctx1 = ctx_for_let(ctx, p, ty1, e1);
+  | LineItem(li, e1) =>
+    switch (syn_fix_holes_line_item(ctx, u_gen, renumber_empty_holes, li)) {
+    | None => None
+    | Some((li, ctx, u_gen)) =>
       switch (
-        ana_fix_holes_internal(ctx1, u_gen, renumber_empty_holes, e1, ty1)
+        ana_fix_holes_internal(ctx, u_gen, renumber_empty_holes, e1, ty)
       ) {
       | None => None
-      | Some((e1, u_gen)) =>
-        switch (ana_pat_fix_holes(ctx, u_gen, renumber_empty_holes, p, ty1)) {
-        | None => None
-        | Some((p, ctx, u_gen)) =>
-          switch (
-            ana_fix_holes_internal(ctx, u_gen, renumber_empty_holes, e2, ty)
-          ) {
-          | None => None
-          | Some((e2, u_gen)) =>
-            Some((NotInHole, Let(p, ann, e1, e2), u_gen))
-          }
-        }
-      };
-    | None =>
-      switch (syn_fix_holes_internal(ctx, u_gen, renumber_empty_holes, e1)) {
-      | None => None
-      | Some((e1, ty1, u_gen)) =>
-        switch (ana_pat_fix_holes(ctx, u_gen, renumber_empty_holes, p, ty1)) {
-        | None => None
-        | Some((p, ctx, u_gen)) =>
-          switch (
-            ana_fix_holes_internal(ctx, u_gen, renumber_empty_holes, e2, ty)
-          ) {
-          | None => None
-          | Some((e2, u_gen)) =>
-            Some((NotInHole, Let(p, ann, e1, e2), u_gen))
-          }
-        }
+      | Some((e1, u_gen)) => Some((NotInHole, LineItem(li, e1), u_gen))
       }
     }
   | Lam(p, ann, e1) =>
