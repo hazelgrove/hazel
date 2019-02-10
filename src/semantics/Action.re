@@ -1,4 +1,4 @@
-let _TEST_PERFORM = false;
+let _TEST_PERFORM = true;
 open SemanticsCommon;
 open Util;
 
@@ -1032,7 +1032,8 @@ let make_and_ana_OpSeqZ_pat =
   | Some((Skel.BinOp(err, _, _, _) as skel, seq, ctx, u_gen)) =>
     let p = UHPat.Pat(err, UHPat.OpSeq(skel, seq));
     switch (Path.follow_pat(path0, p)) {
-    | Some(zp) => Some((zp, ctx, u_gen))
+    | Some(zp) => 
+      Some((zp, ctx, u_gen))
     | None => None
     };
   | Some((Skel.Placeholder(_), _, _, _))
@@ -1514,6 +1515,80 @@ and perform_ana_pat =
     let zp = ZPat.CursorP(Before, p);
     Some((zp, ctx, u_gen));
   | (Delete, ZPat.CursorP(After, _)) => None
+  | (
+      Backspace,
+      ZPat.Deeper(
+        _,
+        ZPat.OpSeqZ(
+          _,
+          ZPat.CursorP(Before, p0) as zp0,
+          OperatorSeq.EmptySuffix(_) as surround,
+        ),
+      ),
+    )
+  | (
+      Backspace,
+      ZPat.Deeper(
+        _,
+        ZPat.OpSeqZ(
+          _,
+          ZPat.CursorP(Before, p0) as zp0,
+          OperatorSeq.BothNonEmpty(_, _) as surround,
+        ),
+      ),
+    ) =>
+    abs_perform_Backspace_Before_op(
+      combine_for_Backspace_Space_pat,
+      (ctx, u_gen, zp) => ana_zpat_fix_holes(ctx, u_gen, zp, ty),
+      (ctx, u_gen, zp, surround) => 
+        make_and_ana_OpSeqZ_pat(ctx, u_gen, zp, surround, ty),
+      UHPat.is_EmptyHole,
+      UHPat.is_Space,
+      UHPat.Space,
+      (side, p) => ZPat.CursorP(side, p),
+      ctx,
+      u_gen,
+      p0,
+      zp0,
+      surround,
+    )
+  | (
+      Delete,
+      ZPat.Deeper(
+        _,
+        ZPat.OpSeqZ(
+          _,
+          ZPat.CursorP(After, p0) as zp0,
+          OperatorSeq.EmptyPrefix(_) as surround,
+        ),
+      ),
+    )
+  | (
+      Delete,
+      ZPat.Deeper(
+        _,
+        ZPat.OpSeqZ(
+          _,
+          ZPat.CursorP(After, p0) as zp0,
+          OperatorSeq.BothNonEmpty(_, _) as surround,
+        ),
+      ),
+    ) =>
+    abs_perform_Delete_After_op(
+      combine_for_Delete_Space_pat,
+      (ctx, u_gen, zp) => ana_zpat_fix_holes(ctx, u_gen, zp, ty),
+      (ctx, u_gen, zp, surround) => 
+        make_and_ana_OpSeqZ_pat(ctx, u_gen, zp, surround, ty),
+      UHPat.is_EmptyHole,
+      UHPat.is_Space,
+      UHPat.Space,
+      (side, p) => ZPat.CursorP(side, p),
+      ctx,
+      u_gen,
+      p0,
+      zp0,
+      surround,
+    )
   /* Construct */
   | (Construct(SParenthesized), ZPat.CursorP(_, p)) =>
     switch (UHExp.ana_pat(ctx, p, ty)) {
