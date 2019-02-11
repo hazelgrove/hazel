@@ -33,8 +33,8 @@ and t' =
 | OpSeq(skel_t, opseq) /* invariant: skeleton is consistent with opseq */
 | ApPalette(
     PaletteName.t,
-    PaletteSerializedModel.t,
-    PaletteSpliceInfo.t(t)
+    SerializedModel.t,
+    SpliceInfo.t(t)
   )
 and rule =
 | Rule(UHPat.t, t)
