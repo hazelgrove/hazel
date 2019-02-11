@@ -98,7 +98,7 @@ type t =
   | MoveTo(Path.t)
   | MoveToNextHole
   | MoveToPrevHole
-  | UpdateApPalette(SpliceGenMonad.t(PaletteSerializedModel.t))
+  | UpdateApPalette(SpliceGenMonad.t(SerializedModel.t))
   | Delete
   | Backspace
   | Construct(shape);
