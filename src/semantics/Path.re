@@ -67,12 +67,12 @@ and of_zexp' = (ze: ZExp.t'): t =>
   | ZExp.OpSeqZ(_, ze', surround) =>
     let n = OperatorSeq.surround_prefix_length(surround);
     cons'(n, of_zexp(ze'));
-  | ZExp.ApPaletteZ(_, _, zholedata) =>
-    let (_, zholemap) = zholedata;
+  | ZExp.ApPaletteZ(_, _, zholedata) => ([], After)
+    /* TODO let (_, zholemap) = zholedata;
     let (_, tz) = zholemap;
     let (n, tz') = tz;
     let (_, ze') = tz';
-    cons'(n, of_zexp(ze'));
+    cons'(n, of_zexp(ze')); */
   }
 and of_zrule = (zrule: ZExp.zrule): t =>
   switch (zrule) {
@@ -306,8 +306,8 @@ let rec follow_e = (path: t, e: UHExp.t): option(ZExp.t) =>
           }
         | None => None
         }
-      | (hole_ref, UHExp.ApPalette(name, serialized_model, hole_data)) =>
-        let (next_hole_ref, holemap) = hole_data;
+      | (hole_ref, UHExp.ApPalette(name, serialized_model, hole_data)) => None
+        /* TODO let (next_hole_ref, holemap) = hole_data;
         switch (NatMap.drop(holemap, hole_ref)) {
         | None => None
         | Some((holemap', te)) =>
@@ -324,7 +324,7 @@ let rec follow_e = (path: t, e: UHExp.t): option(ZExp.t) =>
               ),
             );
           };
-        };
+        }; */
       }
     }
   }
@@ -480,8 +480,8 @@ let rec steps_to_hole = (e: UHExp.t, u: MetaVar.t): option(list(nat)) =>
       )
     }
   | UHExp.Tm(_, UHExp.OpSeq(skel, seq)) => steps_to_hole_seq(seq, u)
-  | UHExp.Tm(_, UHExp.ApPalette(_, _, holedata)) =>
-    let (_, holemap) = holedata;
+  | UHExp.Tm(_, UHExp.ApPalette(_, _, holedata)) => None
+    /* TODO let (_, holemap) = holedata;
     NatMap.fold(
       holemap,
       (c, v) =>
@@ -493,7 +493,7 @@ let rec steps_to_hole = (e: UHExp.t, u: MetaVar.t): option(list(nat)) =>
           steps_to_hole(e, u);
         },
       None,
-    );
+    ); */
   }
 and steps_to_hole_seq = (seq: UHExp.opseq, u: MetaVar.t): option(list(nat)) =>
   switch (seq) {

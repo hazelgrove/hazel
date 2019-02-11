@@ -124,7 +124,7 @@ module NatMap = {
 
   let empty = [];
 
-  let extend = (delta, x) => [x, ...delta];
+  let extend_unique = (delta, x) => [x, ...delta];
 
   let rec drop = (delta, n) =>
     switch (delta) {
@@ -213,4 +213,8 @@ module ZNatMap = {
     | Some(_) => None
     | None => Some((m, nz))
     };
+  let erase = (zmap : t('a, 'z), erase : 'z => 'a) => { 
+    let (map', (n, z)) = zmap;
+    NatMap.insert_or_update(map', (n, erase(z)));
+  };
 };

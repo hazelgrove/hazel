@@ -9,7 +9,7 @@ type div_type = Html5.elt(Html_types.div);
 
 module HTMLWithCells = {
   type m_html_with_cells =
-    | NewCellFor(UHExp.PaletteHoleData.hole_ref_lbl)
+    | NewCellFor(PaletteSpliceInfo.splice_name)
     | Bind(m_html_with_cells, div_type => m_html_with_cells)
     | Ret(div_type);
 };
@@ -23,7 +23,7 @@ module type PALETTE = {
   let expansion_ty: HTyp.t;
 
   type model;
-  let init_model: UHExp.HoleRefs.m_hole_ref(model);
+  let init_model: SpliceGenMonad.t(model);
 
   type model_updater = model => unit;
   /* model_updater must _not_ be invoked until well after view has completed */
@@ -336,8 +336,6 @@ module type PALETTE = {
    stuff below is infrastructure
    ---------- */
 
-module PaletteDefinition = UHExp.PaletteDefinition;
-
 type model_updater = PaletteSerializedModel.t => unit;
 type serialized_view_fn_t =
   (PaletteSerializedModel.t, model_updater) => view_type;
@@ -365,7 +363,7 @@ module PaletteAdapter = (P: PALETTE) => {
   let palette_defn =
     PaletteDefinition.{
       expansion_ty: P.expansion_ty,
-      initial_model: UHExp.HoleRefs.Ret(""),
+      initial_model: SpliceGenMonad.return(""),
       /* UHExp.HoleRefs.Bnd(
            args = (
              P.init_model,

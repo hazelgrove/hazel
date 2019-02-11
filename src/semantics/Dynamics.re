@@ -77,7 +77,7 @@ module DHPat = {
       | Expands(dp, _, ctx, delta) =>
         let gamma = Contexts.gamma(ctx);
         let delta =
-          MetaVarMap.extend(delta, (u, (PatternHole, HTyp.Hole, gamma)));
+          MetaVarMap.extend_unique(delta, (u, (PatternHole, HTyp.Hole, gamma)));
         Expands(NonEmptyHole(reason, u, 0, dp), HTyp.Hole, ctx, delta);
       }
     | UHPat.Pat(InHole(WrongLength, _), _) => DoesNotExpand
@@ -91,7 +91,7 @@ module DHPat = {
       let gamma = Contexts.gamma(ctx);
       let dp = EmptyHole(u, 0);
       let ty = HTyp.Hole;
-      let delta = MetaVarMap.extend(delta, (u, (PatternHole, ty, gamma)));
+      let delta = MetaVarMap.extend_unique(delta, (u, (PatternHole, ty, gamma)));
       Expands(dp, ty, ctx, delta);
     | UHPat.Wild => Expands(Wild, HTyp.Hole, ctx, delta)
     | UHPat.Var(x) =>
@@ -136,7 +136,7 @@ module DHPat = {
       | Expands(dp, _, ctx, delta) =>
         let gamma = Contexts.gamma(ctx);
         let delta =
-          MetaVarMap.extend(delta, (u, (PatternHole, HTyp.Hole, gamma)));
+          MetaVarMap.extend_unique(delta, (u, (PatternHole, HTyp.Hole, gamma)));
         Expands(NonEmptyHole(reason, u, 0, dp), HTyp.Hole, ctx, delta);
       };
     | Skel.BinOp(InHole(WrongLength, _), _, _, _) => DoesNotExpand
@@ -185,7 +185,7 @@ module DHPat = {
       | Expands(dp1, _, ctx, delta) =>
         let dp = NonEmptyHole(reason, u, 0, dp1);
         let gamma = Contexts.gamma(ctx);
-        let delta = MetaVarMap.extend(delta, (u, (PatternHole, ty, gamma)));
+        let delta = MetaVarMap.extend_unique(delta, (u, (PatternHole, ty, gamma)));
         Expands(dp, ty, ctx, delta);
       }
     | UHPat.Pat(
@@ -200,7 +200,7 @@ module DHPat = {
       | Expands(dp1, _, ctx, delta) =>
         let dp = NonEmptyHole(reason, u, 0, dp1);
         let gamma = Contexts.gamma(ctx);
-        let delta = MetaVarMap.extend(delta, (u, (PatternHole, ty, gamma)));
+        let delta = MetaVarMap.extend_unique(delta, (u, (PatternHole, ty, gamma)));
         Expands(dp, ty, ctx, delta);
       }
     | UHPat.Pat(InHole(WrongLength, _), _) => DoesNotExpand
@@ -213,7 +213,7 @@ module DHPat = {
     | UHPat.EmptyHole(u) =>
       let gamma = Contexts.gamma(ctx);
       let dp = EmptyHole(u, 0);
-      let delta = MetaVarMap.extend(delta, (u, (PatternHole, ty, gamma)));
+      let delta = MetaVarMap.extend_unique(delta, (u, (PatternHole, ty, gamma)));
       Expands(dp, ty, ctx, delta);
     | UHPat.Var(x) =>
       let ctx = Contexts.extend_gamma(ctx, (x, ty));
@@ -266,7 +266,7 @@ module DHPat = {
       | Expands(dp1, _, ctx, delta) =>
         let dp = NonEmptyHole(reason, u, 0, dp1);
         let gamma = Contexts.gamma(ctx);
-        let delta = MetaVarMap.extend(delta, (u, (PatternHole, ty, gamma)));
+        let delta = MetaVarMap.extend_unique(delta, (u, (PatternHole, ty, gamma)));
         Expands(dp, ty, ctx, delta);
       };
     | Skel.BinOp(NotInHole, UHPat.Comma, skel1, skel2) =>
@@ -1006,7 +1006,7 @@ module DHExp = {
         let gamma = Contexts.gamma(ctx);
         let sigma = id_env(gamma);
         let delta =
-          MetaVarMap.extend(delta, (u, (ExpressionHole, HTyp.Hole, gamma)));
+          MetaVarMap.extend_unique(delta, (u, (ExpressionHole, HTyp.Hole, gamma)));
         Expands(NonEmptyHole(reason, u, 0, sigma, d), HTyp.Hole, delta);
       | DoesNotExpand => DoesNotExpand
       }
@@ -1021,7 +1021,7 @@ module DHExp = {
       let d = DHExp.EmptyHole(u, 0, sigma);
       let ty = HTyp.Hole;
       let delta =
-        MetaVarMap.extend(delta, (u, (ExpressionHole, ty, gamma)));
+        MetaVarMap.extend_unique(delta, (u, (ExpressionHole, ty, gamma)));
       Expands(d, ty, delta);
     | UHExp.Asc(e1, uty) =>
       let ty = UHTyp.expand(uty);
@@ -1039,7 +1039,7 @@ module DHExp = {
       let gamma = Contexts.gamma(ctx);
       let sigma = id_env(gamma);
       let delta =
-        MetaVarMap.extend(delta, (u, (ExpressionHole, HTyp.Hole, gamma)));
+        MetaVarMap.extend_unique(delta, (u, (ExpressionHole, HTyp.Hole, gamma)));
       Expands(DHExp.FreeVar(u, 0, sigma, x), HTyp.Hole, delta);
     | UHExp.Lam(p, ann, e1) =>
       let ty1 =
@@ -1061,7 +1061,7 @@ module DHExp = {
       switch (ann) {
       | Some(uty1) =>
         let ty1 = UHTyp.expand(uty1);
-        let (ctx1, is_recursive_fn) = UHExp.ctx_for_let'(ctx, p, ty1, e1);
+        let (ctx1, is_recursive_fn) = Statics.ctx_for_let'(ctx, p, ty1, e1);
         switch (ana_expand(ctx1, delta, e1, ty1)) {
         | DoesNotExpand => DoesNotExpand
         | Expands(d1, ty1', delta) =>
@@ -1169,12 +1169,12 @@ module DHExp = {
         let gamma = Contexts.gamma(ctx);
         let sigma = id_env(gamma);
         let delta =
-          MetaVarMap.extend(delta, (u, (ExpressionHole, HTyp.Hole, gamma)));
+          MetaVarMap.extend_unique(delta, (u, (ExpressionHole, HTyp.Hole, gamma)));
         Expands(NonEmptyHole(reason, u, 0, sigma, d), HTyp.Hole, delta);
       };
     | Skel.BinOp(InHole(WrongLength, _), _, _, _) => DoesNotExpand
     | Skel.BinOp(NotInHole, UHExp.Space, skel1, skel2) =>
-      switch (UHExp.syn_skel(ctx, skel1, seq, None)) {
+      switch (Statics.syn_skel(ctx, skel1, seq, None)) {
       | None => DoesNotExpand
       | Some((ty1, _)) =>
         switch (HTyp.matched_arrow(ty1)) {
@@ -1251,7 +1251,7 @@ module DHExp = {
         let gamma = Contexts.gamma(ctx);
         let sigma = id_env(gamma);
         let delta =
-          MetaVarMap.extend(delta, (u, (ExpressionHole, ty, gamma)));
+          MetaVarMap.extend_unique(delta, (u, (ExpressionHole, ty, gamma)));
         Expands(NonEmptyHole(reason, u, 0, sigma, d), ty, delta);
       }
     | UHExp.Tm(
@@ -1267,7 +1267,7 @@ module DHExp = {
         let gamma = Contexts.gamma(ctx);
         let sigma = id_env(gamma);
         let delta =
-          MetaVarMap.extend(delta, (u, (ExpressionHole, ty, gamma)));
+          MetaVarMap.extend_unique(delta, (u, (ExpressionHole, ty, gamma)));
         let d = NonEmptyHole(reason, u, 0, sigma, d1);
         Expands(d, ty, delta);
       }
@@ -1283,19 +1283,19 @@ module DHExp = {
       let sigma = id_env(gamma);
       let d = EmptyHole(u, 0, sigma);
       let delta =
-        MetaVarMap.extend(delta, (u, (ExpressionHole, ty, gamma)));
+        MetaVarMap.extend_unique(delta, (u, (ExpressionHole, ty, gamma)));
       Expands(d, ty, delta);
     | UHExp.Var(InVHole(u), x) =>
       let gamma = Contexts.gamma(ctx);
       let sigma = id_env(gamma);
       let delta =
-        MetaVarMap.extend(delta, (u, (ExpressionHole, ty, gamma)));
+        MetaVarMap.extend_unique(delta, (u, (ExpressionHole, ty, gamma)));
       Expands(FreeVar(u, 0, sigma, x), ty, delta);
     | UHExp.Let(p, ann, e1, e2) =>
       switch (ann) {
       | Some(uty1) =>
         let ty1 = UHTyp.expand(uty1);
-        let (ctx1, is_recursive_fn) = UHExp.ctx_for_let'(ctx, p, ty1, e1);
+        let (ctx1, is_recursive_fn) = Statics.ctx_for_let'(ctx, p, ty1, e1);
         switch (ana_expand(ctx1, delta, e1, ty1)) {
         | DoesNotExpand => DoesNotExpand
         | Expands(d1, ty1', delta) =>
@@ -1477,7 +1477,7 @@ module DHExp = {
         let gamma = Contexts.gamma(ctx);
         let sigma = id_env(gamma);
         let delta =
-          MetaVarMap.extend(delta, (u, (ExpressionHole, ty, gamma)));
+          MetaVarMap.extend_unique(delta, (u, (ExpressionHole, ty, gamma)));
         let d = DHExp.NonEmptyHole(reason, u, 0, sigma, d1);
         Expands(d, ty, delta);
       };

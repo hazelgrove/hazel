@@ -676,44 +676,45 @@ let rec of_hexp = (palette_stuff, prefix, rev_path, e) =>
         "OpSeq",
         of_skel(palette_stuff, prefix, rev_path, skel, seq),
       )
-    | UHExp.ApPalette(name, serialized_model, (_, hole_map)) =>
-      switch (
-        Palettes.PaletteViewCtx.lookup(palette_stuff.palette_view_ctx, name)
-      ) {
-      | Some(serialized_view_fn) =>
-        let updater = serialized_model => {
-          palette_stuff.do_action(
-            Action.MoveTo((List.rev(rev_path), Before)),
-          );
-          palette_stuff.do_action(
-            Action.UpdateApPalette(UHExp.HoleRefs.Ret(serialized_model)),
-          );
-        };
-        let view = serialized_view_fn(serialized_model, updater);
-        let paletteName =
-          term(prefix, err_status, rev_path, "ApPalette", paletteName(name));
-        let paletteDelim =
-          term(prefix, err_status, rev_path, "ApPalette", dollar);
-        let palettePrefix =
-          switch (view) {
-          | Inline(_) => paletteName
-          | MultiLine(_) => paletteName ^^ PP.mandatoryBreak
-          };
-        let paletteSuffix =
-          switch (view) {
-          | Inline(_) => paletteDelim
-          | MultiLine(_) => paletteDelim ^^ PP.mandatoryBreak
-          };
-        palettePrefix
-        ^^ PP.paletteView(
-             rev_path,
-             view,
-             hole_map,
-             palette_stuff.mk_editor_box,
-           )
-        ^^ paletteSuffix;
-      | None => raise(InvariantViolated)
-      }
+    | UHExp.ApPalette(name, serialized_model, psi) =>
+      raise(InvariantViolated)
+    /* switch (
+         Palettes.PaletteViewCtx.lookup(palette_stuff.palette_view_ctx, name)
+       ) {
+       | Some(serialized_view_fn) =>
+         let updater = serialized_model => {
+           palette_stuff.do_action(
+             Action.MoveTo((List.rev(rev_path), Before)),
+           );
+           palette_stuff.do_action(
+             Action.UpdateApPalette(UHExp.HoleRefs.Ret(serialized_model)),
+           );
+         };
+         let view = serialized_view_fn(serialized_model, updater);
+         let paletteName =
+           term(prefix, err_status, rev_path, "ApPalette", paletteName(name));
+         let paletteDelim =
+           term(prefix, err_status, rev_path, "ApPalette", dollar);
+         let palettePrefix =
+           switch (view) {
+           | Inline(_) => paletteName
+           | MultiLine(_) => paletteName ^^ PP.mandatoryBreak
+           };
+         let paletteSuffix =
+           switch (view) {
+           | Inline(_) => paletteDelim
+           | MultiLine(_) => paletteDelim ^^ PP.mandatoryBreak
+           };
+         palettePrefix
+         ^^ PP.paletteView(
+              rev_path,
+              view,
+              hole_map,
+              palette_stuff.mk_editor_box,
+            )
+         ^^ paletteSuffix;
+       | None => raise(InvariantViolated)
+       } */
     }
   }
 and of_skel = (palette_stuff, prefix, rev_path, skel, seq) =>
