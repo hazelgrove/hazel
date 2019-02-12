@@ -1,8 +1,8 @@
 open Util;
 
 type nat = int;
-
-type t = (list(nat), ZExp.cursor_side);
+type steps = list(nat);
+type t = (steps, ZExp.cursor_side);
 
 let cons' = (step: nat, r: t): t => {
   let (steps, side) = r;
@@ -347,7 +347,7 @@ and follow_rule = (path: t, rule: UHExp.rule): option(ZExp.zrule) =>
     }
   };
 
-let cons_opt = (n: nat, x: option(list(nat))): option(list(nat)) =>
+let cons_opt = (n: nat, x: option(steps)): option(steps) =>
   switch (x) {
   | None => None
   | Some(xs) => Some([n, ...xs])
@@ -356,11 +356,11 @@ let cons_opt = (n: nat, x: option(list(nat))): option(list(nat)) =>
 let cons_opt2 =
     (
       n1: nat,
-      x1: option(list(nat)),
+      x1: option(steps),
       n2: nat,
-      x2: unit => option(list(nat)),
+      x2: unit => option(steps),
     )
-    : option(list(nat)) =>
+    : option(steps) =>
   switch (x1) {
   | Some(xs) => Some([n1, ...xs])
   | None =>
@@ -373,13 +373,13 @@ let cons_opt2 =
 let cons_opt3 =
     (
       n1: nat,
-      x1: option(list(nat)),
+      x1: option(steps),
       n2: nat,
-      x2: unit => option(list(nat)),
+      x2: unit => option(steps),
       n3: nat,
-      x3: unit => option(list(nat)),
+      x3: unit => option(steps),
     )
-    : option(list(nat)) =>
+    : option(steps) =>
   switch (x1) {
   | Some(xs) => Some([n1, ...xs])
   | None =>
@@ -393,7 +393,7 @@ let cons_opt3 =
     }
   };
 
-let rec steps_to_hole_pat = (p: UHPat.t, u: MetaVar.t): option(list(nat)) =>
+let rec steps_to_hole_pat = (p: UHPat.t, u: MetaVar.t): option(steps) =>
   switch (p) {
   | UHPat.Pat(_, UHPat.EmptyHole(u')) =>
     if (MetaVar.eq(u, u')) {
@@ -417,7 +417,7 @@ let rec steps_to_hole_pat = (p: UHPat.t, u: MetaVar.t): option(list(nat)) =>
   | UHPat.Pat(_, UHPat.OpSeq(skel, seq)) => steps_to_hole_seq_pat(seq, u)
   }
 and steps_to_hole_seq_pat =
-    (seq: UHPat.opseq, u: MetaVar.t): option(list(nat)) =>
+    (seq: UHPat.opseq, u: MetaVar.t): option(steps) =>
   switch (seq) {
   | OperatorSeq.ExpOpExp(p1, _, p2) =>
     cons_opt2(0, steps_to_hole_pat(p1, u), 1, _ => steps_to_hole_pat(p2, u))
@@ -429,7 +429,7 @@ and steps_to_hole_seq_pat =
     }
   };
 
-let rec steps_to_hole = (e: UHExp.t, u: MetaVar.t): option(list(nat)) =>
+let rec steps_to_hole = (e: UHExp.t, u: MetaVar.t): option(steps) =>
   switch (e) {
   | UHExp.Tm(_, UHExp.EmptyHole(u')) =>
     if (MetaVar.eq(u, u')) {
@@ -495,7 +495,7 @@ let rec steps_to_hole = (e: UHExp.t, u: MetaVar.t): option(list(nat)) =>
       None,
     ); */
   }
-and steps_to_hole_seq = (seq: UHExp.opseq, u: MetaVar.t): option(list(nat)) =>
+and steps_to_hole_seq = (seq: UHExp.opseq, u: MetaVar.t): option(steps) =>
   switch (seq) {
   | OperatorSeq.ExpOpExp(e1, _, e2) =>
     cons_opt2(0, steps_to_hole(e1, u), 1, _ => steps_to_hole(e2, u))
@@ -512,7 +512,7 @@ let path_to_hole = (e: UHExp.t, u: MetaVar.t): option(t) =>
   | None => None
   };
 
-let rec first_hole_steps_ty = (uty: UHTyp.t): option(list(nat)) =>
+let rec first_hole_steps_ty = (uty: UHTyp.t): option(steps) =>
   switch (uty) {
   | UHTyp.Parenthesized(uty') => cons_opt(0, first_hole_steps_ty(uty'))
   | UHTyp.Unit
@@ -524,7 +524,7 @@ let rec first_hole_steps_ty = (uty: UHTyp.t): option(list(nat)) =>
   }
 /* return an optional path of the first hole in opseq starting and the nth term */
 and first_hole_steps_ty_opseq =
-    (opseq: UHTyp.opseq, n: nat): option(list(nat)) =>
+    (opseq: UHTyp.opseq, n: nat): option(steps) =>
   if (OperatorSeq.seq_length(opseq) <= n) {
     None;
   } else {
@@ -538,7 +538,7 @@ and first_hole_steps_ty_opseq =
     };
   };
 
-let rec first_hole_steps_pat = (p: UHPat.t): option(list(nat)) =>
+let rec first_hole_steps_pat = (p: UHPat.t): option(steps) =>
   switch (p) {
   | UHPat.Parenthesized(p1) => cons_opt(0, first_hole_steps_pat(p1))
   | UHPat.Pat(_, UHPat.EmptyHole(_)) => Some([])
@@ -557,7 +557,7 @@ let rec first_hole_steps_pat = (p: UHPat.t): option(list(nat)) =>
   | UHPat.Pat(_, UHPat.OpSeq(_, seq)) => first_hole_steps_opseq_pat(seq, 0)
   }
 and first_hole_steps_opseq_pat =
-    (opseq: UHPat.opseq, n: nat): option(list(nat)) =>
+    (opseq: UHPat.opseq, n: nat): option(steps) =>
   if (OperatorSeq.seq_length(opseq) <= n) {
     None;
   } else {
@@ -571,7 +571,7 @@ and first_hole_steps_opseq_pat =
     };
   };
 
-let rec first_hole_steps = (ue: UHExp.t): option(list(nat)) =>
+let rec first_hole_steps = (ue: UHExp.t): option(steps) =>
   switch (ue) {
   | UHExp.Parenthesized(ue1) => cons_opt(0, first_hole_steps(ue1))
   | UHExp.Tm(_, ue') =>
@@ -629,7 +629,7 @@ let rec first_hole_steps = (ue: UHExp.t): option(list(nat)) =>
     | UHExp.ApPalette(_, _, _) => None /* TODO figure out tab order protocol */
     }
   }
-and first_hole_steps_rules = (rules: UHExp.rules): option(list(nat)) =>
+and first_hole_steps_rules = (rules: UHExp.rules): option(steps) =>
   Util.findmapi(rules, (i, rule) =>
     switch (rule) {
     | UHExp.Rule(p, e) =>
@@ -644,7 +644,7 @@ and first_hole_steps_rules = (rules: UHExp.rules): option(list(nat)) =>
     }
   )
 /* return an optional path of the first hole in opseq starting and the nth term )*/
-and first_hole_steps_opseq = (opseq: UHExp.opseq, n: nat): option(list(nat)) =>
+and first_hole_steps_opseq = (opseq: UHExp.opseq, n: nat): option(steps) =>
   if (OperatorSeq.seq_length(opseq) < n) {
     None;
   } else {
@@ -658,7 +658,7 @@ and first_hole_steps_opseq = (opseq: UHExp.opseq, n: nat): option(list(nat)) =>
     };
   };
 
-let rec next_hole_steps_ty = (zty: ZTyp.t): option(list(nat)) =>
+let rec next_hole_steps_ty = (zty: ZTyp.t): option(steps) =>
   switch (zty) {
   | ZTyp.CursorT(cursor_side, uty) =>
     switch (cursor_side, uty) {
@@ -686,7 +686,7 @@ let rec next_hole_path_ty = (zty: ZTyp.t): option(t) =>
   | Some(path) => Some((path, Before))
   };
 
-let rec next_hole_steps_pat = (zp: ZPat.t): option(list(nat)) =>
+let rec next_hole_steps_pat = (zp: ZPat.t): option(steps) =>
   switch (zp) {
   | ZPat.ParenthesizedZ(zp1) => cons_opt(0, next_hole_steps_pat(zp1))
   | ZPat.CursorP(cursor_side, p) =>
@@ -744,7 +744,7 @@ let rec next_hole_path_pat = (zp: ZPat.t): option(t) =>
   | Some(path) => Some((path, Before))
   };
 
-let rec next_hole_steps = (ze: ZExp.t): option(list(nat)) =>
+let rec next_hole_steps = (ze: ZExp.t): option(steps) =>
   switch (ze) {
   | ZExp.CursorE(cursor_side, ue) =>
     switch (cursor_side, ue) {
@@ -900,7 +900,7 @@ let rec next_hole_path = (ze: ZExp.t): option(t) =>
   | Some(path) => Some((path, Before))
   };
 
-let rec last_hole_steps_ty = (uty: UHTyp.t): option(list(nat)) =>
+let rec last_hole_steps_ty = (uty: UHTyp.t): option(steps) =>
   switch (uty) {
   | UHTyp.Hole => Some([])
   | UHTyp.Parenthesized(uty') => cons_opt(0, last_hole_steps_ty(uty'))
@@ -913,7 +913,7 @@ let rec last_hole_steps_ty = (uty: UHTyp.t): option(list(nat)) =>
 /* return an optional path of the last hole in opseq starting and the mth term from the end
    (e.g., the 0th and 1st term from the endof `1 + 2 + 3` are 3 and 2 respectively) */
 and last_hole_steps_ty_opseq =
-    (opseq: UHTyp.opseq, m: nat): option(list(nat)) => {
+    (opseq: UHTyp.opseq, m: nat): option(steps) => {
   let l = OperatorSeq.seq_length(opseq);
   if (l < m) {
     None;
@@ -930,7 +930,7 @@ and last_hole_steps_ty_opseq =
   };
 };
 
-let rec last_hole_steps_pat = (p: UHPat.t): option(list(nat)) =>
+let rec last_hole_steps_pat = (p: UHPat.t): option(steps) =>
   switch (p) {
   | UHPat.Parenthesized(p1) => cons_opt(0, last_hole_steps_pat(p1))
   | UHPat.Pat(_, UHPat.EmptyHole(_)) => Some([])
@@ -951,7 +951,7 @@ let rec last_hole_steps_pat = (p: UHPat.t): option(list(nat)) =>
     last_hole_steps_opseq_pat(opseq, 0)
   }
 and last_hole_steps_opseq_pat =
-    (opseq: UHPat.opseq, m: nat): option(list(nat)) => {
+    (opseq: UHPat.opseq, m: nat): option(steps) => {
   let l = OperatorSeq.seq_length(opseq);
   if (l < m) {
     None;
@@ -968,7 +968,7 @@ and last_hole_steps_opseq_pat =
   };
 };
 
-let rec last_hole_steps = (ue: UHExp.t): option(list(nat)) =>
+let rec last_hole_steps = (ue: UHExp.t): option(steps) =>
   switch (ue) {
   | UHExp.Parenthesized(ue') => cons_opt(0, last_hole_steps(ue'))
   | UHExp.Tm(_, ue') =>
@@ -1025,7 +1025,7 @@ let rec last_hole_steps = (ue: UHExp.t): option(list(nat)) =>
     | UHExp.ApPalette(_, _, _) => None /* TODO(figure, out, tab, order) protocol */
     }
   }
-and last_hole_steps_rules = (rules: UHExp.rules): option(list(nat)) => {
+and last_hole_steps_rules = (rules: UHExp.rules): option(steps) => {
   let n_rules = List.length(rules);
   Util.findmapi(List.rev(rules), (i, rule) =>
     switch (rule) {
@@ -1043,7 +1043,7 @@ and last_hole_steps_rules = (rules: UHExp.rules): option(list(nat)) => {
 }
 /* return an optional path of the last hole in opseq starting and the mth term from the end
    (e.g., the 0th and 1st term from the endof `1 + 2 + 3` are 3 and 2 respectively) */
-and last_hole_steps_opseq = (opseq: UHExp.opseq, m: nat): option(list(nat)) => {
+and last_hole_steps_opseq = (opseq: UHExp.opseq, m: nat): option(steps) => {
   let l = OperatorSeq.seq_length(opseq);
   if (l < m) {
     None;
@@ -1060,7 +1060,7 @@ and last_hole_steps_opseq = (opseq: UHExp.opseq, m: nat): option(list(nat)) => {
   };
 };
 
-let rec prev_hole_steps_ty = (zty: ZTyp.t): option(list(nat)) =>
+let rec prev_hole_steps_ty = (zty: ZTyp.t): option(steps) =>
   switch (zty) {
   | ZTyp.CursorT(cursor_side, uty) =>
     switch (cursor_side, uty) {
@@ -1089,7 +1089,7 @@ let rec prev_hole_path_ty = (zty: ZTyp.t): option(t) =>
   | Some(path) => Some((path, Before))
   };
 
-let rec prev_hole_steps_pat = (zp: ZPat.t): option(list(nat)) =>
+let rec prev_hole_steps_pat = (zp: ZPat.t): option(steps) =>
   switch (zp) {
   | ZPat.ParenthesizedZ(zp1) => cons_opt(0, prev_hole_steps_pat(zp1))
   | ZPat.CursorP(cursor_side, p) =>
@@ -1142,7 +1142,7 @@ let rec prev_hole_path_pat = (zp: ZPat.t): option(t) =>
   | Some(path) => Some((path, Before))
   };
 
-let rec prev_hole_steps = (ze: ZExp.t): option(list(nat)) =>
+let rec prev_hole_steps = (ze: ZExp.t): option(steps) =>
   switch (ze) {
   | ZExp.CursorE(cursor_side, ue) =>
     switch (cursor_side, ue) {
