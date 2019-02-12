@@ -66,9 +66,9 @@ let mk =
               Dom.preventDefault(evt);
               let cursor_info = React.S.value(cursor_info_rs);
               switch (cursor_info.sort) {
-              | ZExp.IsExpr(UHExp.Tm(_, UHExp.EmptyHole(_)))
-              | ZExp.IsPat(UHPat.Pat(_, UHPat.EmptyHole(_)))
-              | ZExp.IsPat(UHPat.Pat(_, UHPat.Var(""))) =>
+              | CursorInfo.IsExpr(UHExp.Tm(_, UHExp.EmptyHole(_)))
+              | CursorInfo.IsPat(UHPat.Pat(_, UHPat.EmptyHole(_)))
+              | CursorInfo.IsPat(UHPat.Pat(_, UHPat.Var(""))) =>
                 let shape =
                   switch (single_key) {
                   | JSUtil.Number(n) => Action.SNumLit(n, After)
@@ -77,9 +77,9 @@ let mk =
                   };
                 do_action(Action.Construct(shape));
                 true;
-              | ZExp.IsExpr(UHExp.Tm(_, UHExp.NumLit(_)))
-              | ZExp.IsExpr(UHExp.Tm(_, UHExp.Var(_, _)))
-              | ZExp.IsPat(UHPat.Pat(_, UHPat.Var(_))) =>
+              | CursorInfo.IsExpr(UHExp.Tm(_, UHExp.NumLit(_)))
+              | CursorInfo.IsExpr(UHExp.Tm(_, UHExp.Var(_, _)))
+              | CursorInfo.IsPat(UHPat.Pat(_, UHPat.Var(_))) =>
                 let selection = Dom_html.window##getSelection;
                 let anchorNode = selection##.anchorNode;
                 let nodeValue =
@@ -130,9 +130,9 @@ let mk =
             if (is_backspace || is_del) {
               let cursor_info = React.S.value(cursor_info_rs);
               switch (cursor_info.sort) {
-              | ZExp.IsExpr(UHExp.Tm(_, UHExp.NumLit(_)))
-              | ZExp.IsExpr(UHExp.Tm(_, UHExp.Var(_, _)))
-              | ZExp.IsPat(UHPat.Pat(_, UHPat.Var(_))) =>
+              | CursorInfo.IsExpr(UHExp.Tm(_, UHExp.NumLit(_)))
+              | CursorInfo.IsExpr(UHExp.Tm(_, UHExp.Var(_, _)))
+              | CursorInfo.IsPat(UHPat.Pat(_, UHPat.Var(_))) =>
                 let side = cursor_info.side;
                 let is_Before =
                   switch (side) {

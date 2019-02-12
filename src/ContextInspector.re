@@ -371,7 +371,7 @@ let mk =
       } else {
         let children =
           switch (sort) {
-          | ZExp.IsExpr(UHExp.Tm(_, UHExp.EmptyHole(u))) =>
+          | CursorInfo.IsExpr(UHExp.Tm(_, UHExp.EmptyHole(u))) =>
             switch (selected_instance) {
             | Some((u', _) as inst) =>
               if (MetaVar.eq(u, u')) {
@@ -406,7 +406,7 @@ let mk =
 
     let panel =
         (
-          {ZExp.sort, ZExp.ctx: (gamma, _), _},
+          {CursorInfo.sort, CursorInfo.ctx: (gamma, _), _},
           (_, hii, _),
           selected_instance,
           next_prev_state_rf,
