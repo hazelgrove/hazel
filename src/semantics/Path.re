@@ -1,6 +1,6 @@
+open SemanticsCommon;
 open Util;
 
-type nat = int;
 type steps = list(nat);
 type t = (steps, ZExp.cursor_side);
 
@@ -28,10 +28,6 @@ let rec of_zpat = (zp: ZPat.t): t =>
 and of_zpat' = (zp': ZPat.t'): t =>
   switch (zp') {
   | ZPat.InjZ(_, zp1) => cons'(0, of_zpat(zp1))
-  /* | ZPat.ListLitZ zps ->
-     let prefix_length = ZList.prefix_length zps in
-     let zp0 = ZList.prj_z zps in
-     cons' prefix_length (of_zpat zp0) */
   | ZPat.OpSeqZ(_, zp1, surround) =>
     let n = OperatorSeq.surround_prefix_length(surround);
     cons'(n, of_zpat(zp1));
@@ -55,10 +51,6 @@ and of_zexp' = (ze: ZExp.t'): t =>
   | ZExp.LamZA(_, zann, _) => cons'(1, of_ztyp(zann))
   | ZExp.LamZE(_, ann, ze') => cons'(2, of_zexp(ze'))
   | ZExp.InjZ(_, ze') => cons'(0, of_zexp(ze'))
-  /* | ZExp.ListLitZ zes ->
-     let prefix_length = ZList.prefix_length zes in
-     let ze0 = ZList.prj_z zes in
-     cons' prefix_length (of_zexp ze0) */
   | ZExp.CaseZE(ze1, _) => cons'(0, of_zexp(ze1))
   | ZExp.CaseZR(_, zrules) =>
     let prefix_len = List.length(ZList.prj_prefix(zrules));
@@ -67,12 +59,10 @@ and of_zexp' = (ze: ZExp.t'): t =>
   | ZExp.OpSeqZ(_, ze', surround) =>
     let n = OperatorSeq.surround_prefix_length(surround);
     cons'(n, of_zexp(ze'));
-  | ZExp.ApPaletteZ(_, _, zholedata) => ([], After)
-    /* TODO let (_, zholemap) = zholedata;
-    let (_, tz) = zholemap;
-    let (n, tz') = tz;
-    let (_, ze') = tz';
-    cons'(n, of_zexp(ze')); */
+  | ZExp.ApPaletteZ(_, _, zpsi) => 
+    let zhole_map = zpsi.zsplice_map;
+    let (n, (_, ze)) = ZNatMap.prj_z_kv(zhole_map);
+    cons'(n, of_zexp(ze)) 
   }
 and of_zrule = (zrule: ZExp.zrule): t =>
   switch (zrule) {
@@ -151,16 +141,6 @@ let rec follow_pat = (path: t, p: UHPat.t): option(ZPat.t) =>
       | (_, UHPat.NumLit(_))
       | (_, UHPat.BoolLit(_))
       | (_, UHPat.ListNil) => None
-      /* | (n, UHPat.ListLit ps) ->
-         begin match ZList.split_at n ps with
-         | None -> None
-         | Some psz ->
-           begin match ZList.optmap_z (follow_pat (xs, cursor_side)) psz with
-           | None -> None
-           | Some zps ->
-             Some (ZPat.Deeper err_status (ZPat.ListLitZ zps))
-           end
-         end*/
       | (0, UHPat.Inj(side, p1)) =>
         switch (follow_pat((xs, cursor_side), p1)) {
         | None => None
@@ -269,16 +249,6 @@ let rec follow_e = (path: t, e: UHExp.t): option(ZExp.t) =>
         }
       | (_, UHExp.Inj(_, _)) => None
       | (_, UHExp.ListNil) => None
-      /* | (n, UHExp.ListLit es) ->
-         begin match ZList.split_at n es with
-         | None -> None
-         | Some esz ->
-           begin match ZList.optmap_z (follow_e (xs, cursor_side)) esz with
-           | None -> None
-           | Some zes ->
-             Some (ZExp.Deeper err_status (ZExp.ListLitZ zes))
-           end
-         end*/
       | (0, UHExp.Case(e1, rules)) =>
         switch (follow_e((xs, cursor_side), e1)) {
         | Some(ze) => Some(ZExp.Deeper(err_status, ZExp.CaseZE(ze, rules)))
@@ -306,25 +276,19 @@ let rec follow_e = (path: t, e: UHExp.t): option(ZExp.t) =>
           }
         | None => None
         }
-      | (hole_ref, UHExp.ApPalette(name, serialized_model, hole_data)) => None
-        /* TODO let (next_hole_ref, holemap) = hole_data;
-        switch (NatMap.drop(holemap, hole_ref)) {
+      | (n, UHExp.ApPalette(name, serialized_model, splice_info)) => 
+        switch (
+          ZSpliceInfo.select_opt(splice_info, n, ((ty, e)) => 
+            switch (follow_e((xs, cursor_side), e)) {
+            | None => None
+            | Some(ze) => Some((ty, ze))
+            })
+        ) {
         | None => None
-        | Some((holemap', te)) =>
-          let (ty, e') = te;
-          switch (follow_e((xs, cursor_side), e')) {
-          | None => None
-          | Some(ze) =>
-            let zholemap = (holemap', (hole_ref, (ty, ze)));
-            let zholedata = (next_hole_ref, zholemap);
-            Some(
-              ZExp.Deeper(
-                NotInHole,
-                ZExp.ApPaletteZ(name, serialized_model, zholedata),
-              ),
-            );
-          };
-        }; */
+        | Some(zsplice_info) => 
+          Some(ZExp.Deeper(NotInHole, 
+            ZExp.ApPaletteZ(name, serialized_model, zsplice_info)))
+        };
       }
     }
   }
@@ -407,12 +371,6 @@ let rec steps_to_hole_pat = (p: UHPat.t, u: MetaVar.t): option(steps) =>
   | UHPat.Pat(_, UHPat.NumLit(_))
   | UHPat.Pat(_, UHPat.BoolLit(_))
   | UHPat.Pat(_, UHPat.ListNil) => None
-  /* | UHPat.Pat _ (UHPat.ListLit ps) ->
-     Util.findmapi ps (fun i p ->
-       begin match steps_to_hole_pat p u with
-       | None -> None
-       | Some ns -> Some (i :: ns)
-       end */
   | UHPat.Pat(_, UHPat.Inj(_, p1)) => cons_opt(0, steps_to_hole_pat(p1, u))
   | UHPat.Pat(_, UHPat.OpSeq(skel, seq)) => steps_to_hole_seq_pat(seq, u)
   }
@@ -444,12 +402,6 @@ let rec steps_to_hole = (e: UHExp.t, u: MetaVar.t): option(steps) =>
   | UHExp.Tm(_, UHExp.Asc(e1, _))
   | UHExp.Tm(_, UHExp.Inj(_, e1)) => cons_opt(0, steps_to_hole(e1, u))
   | UHExp.Tm(_, UHExp.ListNil) => None
-  /* | UHExp.Tm _ (UHExp.ListLit es) ->
-     Util.findmapi es (fun i e ->
-       begin match steps_to_hole e u with
-       | None -> None
-       | Some ns -> Some (i :: ns)
-       end */
   | UHExp.Tm(_, UHExp.Lam(p, _, e1)) =>
     cons_opt2(0, steps_to_hole_pat(p, u), 2, _ => steps_to_hole(e1, u))
   | UHExp.Tm(_, UHExp.Let(p, ann, e1, e2)) =>
@@ -548,12 +500,6 @@ let rec first_hole_steps_pat = (p: UHPat.t): option(steps) =>
   | UHPat.Pat(_, UHPat.BoolLit(_)) => None
   | UHPat.Pat(_, UHPat.Inj(_, p1)) => cons_opt(0, first_hole_steps_pat(p1))
   | UHPat.Pat(_, UHPat.ListNil) => None
-  /* | UHPat.Pat _ (UHPat.ListLit ps) ->
-     Util.findmapi ps (fun i p ->
-       begin match first_hole_steps_pat p with
-       | None -> None
-       | Some ns -> Some (i :: ns)
-       end */
   | UHPat.Pat(_, UHPat.OpSeq(_, seq)) => first_hole_steps_opseq_pat(seq, 0)
   }
 and first_hole_steps_opseq_pat =
@@ -613,12 +559,6 @@ let rec first_hole_steps = (ue: UHExp.t): option(steps) =>
     | UHExp.NumLit(_) => None
     | UHExp.BoolLit(_) => None
     | UHExp.ListNil => None
-    /* | UHExp.ListLit es ->
-       Util.findmapi es (fun i e ->
-         begin match first_hole_steps e with
-         | None -> None
-         | Some ns -> Some (i :: ns)
-         end */
     | UHExp.Inj(_, e1) => cons_opt(0, first_hole_steps(e1))
     | UHExp.Case(e1, rules) =>
       switch (first_hole_steps(e1)) {
@@ -713,20 +653,6 @@ let rec next_hole_steps_pat = (zp: ZPat.t): option(steps) =>
     }
   | ZPat.Deeper(_, ZPat.InjZ(_, zp1)) =>
     cons_opt(0, next_hole_steps_pat(zp1))
-  /* | ZPat.Deeper _ (ZPat.ListLitZ zps) ->
-     let prefix_length = ZList.prefix_length zps in
-     let zp0 = ZList.prj_z zps in
-     begin match next_hole_steps_pat zp0 with
-     | Some ns ->
-       Some (prefix_length :: ns)
-     | None ->
-       let suffix = ZList.prj_suffix zps in
-       Util.findmapi suffix (fun i p ->
-         begin match first_hole_steps_pat p with
-         | None -> None
-         | Some ns -> Some (cons (prefix_length + i + 1) ns)
-         end
-     end*/
   | ZPat.Deeper(_, ZPat.OpSeqZ(_, zp1, surround)) =>
     let n = OperatorSeq.surround_prefix_length(surround);
     switch (next_hole_steps_pat(zp1)) {
@@ -830,20 +756,6 @@ let rec next_hole_steps = (ze: ZExp.t): option(steps) =>
       cons_opt2(1, next_hole_steps_ty(zann), 2, _ => first_hole_steps(e1))
     | ZExp.LamZE(_, _, ze1) => cons_opt(2, next_hole_steps(ze1))
     | ZExp.InjZ(_, ze'') => cons_opt(0, next_hole_steps(ze''))
-    /* | ZExp.ListLitZ zes ->
-       let prefix_length = ZList.prefix_length zes in
-       let ze0 = ZList.prj_z zes in
-       begin match next_hole_steps ze0 with
-       | Some ns ->
-         Some (prefix_length :: ns)
-       | None ->
-         let suffix = ZList.prj_suffix zes in
-         Util.findmapi suffix (fun i e ->
-           begin match first_hole_steps e with
-           | None -> None
-           | Some ns -> Some (cons (prefix_length + i + 1) ns)
-           end
-       end*/
     | ZExp.CaseZE(ze1, rules) =>
       switch (next_hole_steps(ze1)) {
       | Some(ns) => Some([0, ...ns])
@@ -1009,13 +921,6 @@ let rec last_hole_steps = (ue: UHExp.t): option(steps) =>
     | UHExp.BoolLit(_) => None
     | UHExp.Inj(_, ue0) => cons_opt(0, last_hole_steps(ue0))
     | UHExp.ListNil => None
-    /* | UHExp.ListLit es ->
-       let num_elts = List.length es in
-       Util.findmapi es (fun i e ->
-         begin match last_hole_steps e with
-         | None -> None
-         | Some ns -> Some (cons (num_elts - i - 1) ns)
-         end */
     | UHExp.Case(e1, rules) =>
       switch (last_hole_steps_rules(rules)) {
       | Some(ns) as result => result
@@ -1118,12 +1023,6 @@ let rec prev_hole_steps_pat = (zp: ZPat.t): option(steps) =>
     }
   | ZPat.Deeper(_, ZPat.InjZ(_, zp1)) =>
     cons_opt(0, prev_hole_steps_pat(zp1))
-  /* | ZPat.Deeper _ (ZPat.ListLitZ ((prefix, zp0), _)) ->
-     let prefix_length = List.length prefix in
-     begin match prev_hole_steps_pat zp0 with
-     | Some ns -> Some (prefix_length :: ns)
-     | None -> last_hole_steps_pat (UHPat.Pat NotInHole (UHPat.ListLit prefix))
-     end*/
   | ZPat.Deeper(_, ZPat.OpSeqZ(_, zp1, surround)) =>
     let n = OperatorSeq.surround_prefix_length(surround);
     switch (prev_hole_steps_pat(zp1)) {
@@ -1229,12 +1128,6 @@ let rec prev_hole_steps = (ze: ZExp.t): option(steps) =>
         }
       }
     | ZExp.InjZ(_, ze0) => cons_opt(0, prev_hole_steps(ze0))
-    /* | ZExp.ListLitZ ((prefix, ze0), _) ->
-       let prefix_length = List.length prefix in
-       begin match prev_hole_steps ze0 with
-       | Some ns -> Some (prefix_length :: ns)
-       | None -> last_hole_steps (UHExp.Tm NotInHole (UHExp.ListLit prefix))
-       end*/
     | ZExp.CaseZE(ze, rules) => cons_opt(0, prev_hole_steps(ze))
     | ZExp.CaseZR(e1, zrules) =>
       let zr = ZList.prj_z(zrules);
