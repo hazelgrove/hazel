@@ -450,16 +450,6 @@ and syn' = (ctx, e) =>
   | NumLit(_) => Some(HTyp.Num)
   | BoolLit(_) => Some(HTyp.Bool)
   | ListNil => Some(HTyp.List(HTyp.Hole))
-  /* | ListLit es ->
-     List.fold_left (fun opt_result elt ->
-       match opt_result with
-       | None -> None
-       | Some ty ->
-         match syn ctx elt with
-         | None -> None
-         | Some ty_elt -> HTyp.join ty ty_elt
-         end
-       end) es (Some HTyp.Hole) */
   | OpSeq(skel, seq) =>
     /* NOTE: doesn't check if skel is the correct parse of seq!!! */
     switch (syn_skel(ctx, skel, seq, None)) {
@@ -467,41 +457,40 @@ and syn' = (ctx, e) =>
     | None => None
     }
   | Case(_, _) => None
-  | ApPalette(name, serialized_model, psi) => None
-    /* TODO let palette_ctx = Contexts.palette_ctx(ctx);
-    switch (VarMap.lookup(palette_ctx, name)) {
+  | ApPalette(name, serialized_model, psi) => 
+    let palette_ctx = Contexts.palette_ctx(ctx);
+    switch (PaletteCtx.lookup(palette_ctx, name)) {
     | None => None
-    | Some(palette_defn) =>
-      switch (ana_hole_data(ctx, hole_data)) {
+    | Some(palette_defn) => 
+      switch (ana_splice_map(ctx, SpliceInfo.splice_map(psi))) {
       | None => None
-      | Some(_) =>
-        let expansion_ty = PaletteDefinition.expansion_ty(palette_defn);
-        let to_exp = PaletteDefinition.to_exp(palette_defn);
-        let expansion = to_exp(serialized_model);
-        let (_, hole_map) = hole_data;
-        let expansion_ctx =
-          PaletteHoleData.extend_ctx_with_hole_map(ctx, hole_map);
-
-        switch (ana(expansion_ctx, expansion, expansion_ty)) {
+      | Some (splice_ctx) => 
+        let expansion_ty = palette_defn.expansion_ty;
+        let expand = palette_defn.expand;
+        let expansion = expand(serialized_model);
+        switch (ana(splice_ctx, expansion, expansion_ty)) {
         | None => None
         | Some(_) => Some(expansion_ty)
-        };
+        }
       }
-    }; */
+    }
   }
-and ana_hole_data = (ctx, hole_data) => {
-  let (_, hole_map) = hole_data;
+and ana_splice_map = (ctx, splice_map) => {
   NatMap.fold(
-    hole_map,
-    (c, v) => {
-      let (_, ty_e) = v;
-      let (ty, e) = ty_e;
+    splice_map,
+    (c, (splice_name, (ty, e))) => {
       switch (c) {
       | None => None
-      | Some(_) => ana(ctx, e, ty)
+      | Some(splice_ctx) => 
+        switch (ana(ctx, e, ty)) {
+        | None => None
+        | Some(_) => 
+          let splice_var = SpliceInfo.var_of_splice_name(splice_name);
+          Some(Contexts.extend_gamma(splice_ctx, (splice_var, ty)))
+        }
       };
     },
-    Some(),
+    Some(Contexts.empty),
   );
 }
 and ana = (ctx, e, ty) =>
@@ -1593,65 +1582,43 @@ and syn_fix_holes' = (ctx, u_gen, renumber_empty_holes, e) =>
       Some((e', ty', u_gen'));
     }
   | Case(_, _) => None
-  | ApPalette(name, serialized_model, hole_data) => None 
-    /* TODO 
-    let (_, palette_ctx) = ctx;
-    switch (VarMap.lookup(palette_ctx, name)) {
-    | None => None
-    | Some(palette_defn) =>
-      switch (
-        ana_fix_holes_hole_data(ctx, u_gen, renumber_empty_holes, hole_data)
-      ) {
+  | ApPalette(name, serialized_model, psi) => 
+    let palette_ctx = Contexts.palette_ctx(ctx);
+    switch (PaletteCtx.lookup(palette_ctx, name)) {
+    | None => None /* TODO invalid palette name hole */
+    | Some(palette_defn) => 
+      switch (ana_fix_holes_splice_map(ctx, u_gen, renumber_empty_holes, 
+                                       SpliceInfo.splice_map(psi))) {
       | None => None
-      | Some((hole_data', u_gen')) =>
-        let expansion_ty = PaletteDefinition.expansion_ty(palette_defn);
-        let to_exp = PaletteDefinition.to_exp(palette_defn);
-        let expansion = to_exp(serialized_model);
-        let (_, hole_map) = hole_data;
-        let expansion_ctx =
-          PaletteHoleData.extend_ctx_with_hole_map(ctx, hole_map);
-        switch (ana(expansion_ctx, expansion, expansion_ty)) {
-        | None => None
-        | Some(_) =>
-          Some((
-            ApPalette(name, serialized_model, hole_data'),
-            expansion_ty,
-            u_gen',
-          ))
-        };
-      } 
-    }; */
+      | Some ((splice_map, u_gen)) => 
+        let psi = SpliceInfo.update_splice_map(psi, splice_map);
+        let expansion_ty = palette_defn.expansion_ty;
+        Some((
+          ApPalette(name, serialized_model, psi),
+          expansion_ty,
+          u_gen))
+      }
+    }
   }
-and ana_fix_holes_hole_data = (ctx, u_gen, renumber_empty_holes, hole_data) => {
-  let (next_ref, hole_map) = hole_data;
-  let init = (NatMap.empty, u_gen);
-  let hole_map_opt' =
-    NatMap.fold(
-      hole_map,
-      (c, v) => {
-        let (i, ty_e) = v;
-        let (ty, e) = ty_e;
-        switch (c) {
+and ana_fix_holes_splice_map = (ctx, u_gen, renumber_empty_holes, splice_map) => 
+  NatMap.fold(
+    splice_map,
+    (c, (splice_name, (ty, e))) => {
+      switch (c) {
+      | None => None
+      | Some((splice_map, u_gen)) =>
+        switch (
+          ana_fix_holes_internal(ctx, u_gen, renumber_empty_holes, e, ty)
+        ) {
         | None => None
-        | Some((xs, u_gen)) =>
-          switch (
-            ana_fix_holes_internal(ctx, u_gen, renumber_empty_holes, e, ty)
-          ) {
-          | None => None
-          | Some((e', u_gen')) =>
-            let xs' = NatMap.insert_or_update(xs, (i, (ty, e')));
-            Some((xs', u_gen'));
-          }
-        };
-      },
-      Some(init),
-    );
-
-  switch (hole_map_opt') {
-  | None => None
-  | Some((hole_map', u_gen')) => Some(((next_ref, hole_map'), u_gen'))
-  };
-}
+        | Some((e, u_gen)) =>
+          let splice_map = NatMap.extend_unique(splice_map, (splice_name, (ty, e)));
+          Some((splice_map, u_gen));
+        }
+      };
+    },
+    Some((splice_map, u_gen)),
+  )
 and ana_fix_holes_internal = (ctx, u_gen, renumber_empty_holes, e, ty) =>
   switch (e) {
   | UHExp.Tm(_, e1) =>
@@ -1850,12 +1817,12 @@ and ana_fix_holes' = (ctx, u_gen, renumber_empty_holes, e, ty) =>
   | ApPalette(_, _, _) =>
     switch (syn_fix_holes'(ctx, u_gen, renumber_empty_holes, e)) {
     | None => None
-    | Some((e', ty', u_gen')) =>
+    | Some((e', ty', u_gen)) =>
       if (HTyp.consistent(ty, ty')) {
-        Some((NotInHole, e', u_gen'));
+        Some((NotInHole, e', u_gen));
       } else {
-        let (u, u_gen'') = MetaVarGen.next(u_gen');
-        Some((InHole(TypeInconsistent, u), e', u_gen''));
+        let (u, u_gen) = MetaVarGen.next(u_gen);
+        Some((InHole(TypeInconsistent, u), e', u_gen));
       }
     }
   }

@@ -1,6 +1,6 @@
 type t = {
   expansion_ty: HTyp.t,
-  initial_model: SpliceGenMonad.t(SerializedModel.t),
-  to_exp: SerializedModel.t => UHExp.t,
+  init_model: SpliceGenMonad.t(SerializedModel.t),
+  expand: SerializedModel.t => UHExp.t,
 };
 
