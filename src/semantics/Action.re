@@ -1,4 +1,4 @@
-let _TEST_PERFORM = true;
+let _TEST_PERFORM = false;
 open SemanticsCommon;
 open Util;
 
@@ -117,12 +117,12 @@ let rec perform_ty = (a: t, zty: ZTyp.t): option(ZTyp.t) =>
     let ty = ZTyp.erase(zty);
     Path.follow_ty(path, ty);
   | (MoveToPrevHole, _) =>
-    switch (Path.prev_hole_path_ty(zty)) {
+    switch (Path.prev_hole_path(Path.holes_zty(zty, []))) {
     | None => None
     | Some(path) => perform_ty(MoveTo(path), zty)
     }
   | (MoveToNextHole, _) =>
-    switch (Path.next_hole_path_ty(zty)) {
+    switch (Path.next_hole_path(Path.holes_zty(zty, []))) {
     | None => None
     | Some(path) =>
       /* [debug] let path = Helper.log_path path in */
@@ -1084,12 +1084,12 @@ let rec perform_syn_pat =
       }
     };
   | (MoveToPrevHole, _) =>
-    switch (Path.prev_hole_path_pat(zp)) {
+    switch (Path.prev_hole_path(Path.holes_zpat(zp, []))) {
     | None => None
     | Some(path) => perform_syn_pat(ctx, u_gen, MoveTo(path), zp)
     }
   | (MoveToNextHole, _) =>
-    switch (Path.next_hole_path_pat(zp)) {
+    switch (Path.next_hole_path(Path.holes_zpat(zp, []))) {
     | None => None
     | Some(path) => perform_syn_pat(ctx, u_gen, MoveTo(path), zp)
     }
@@ -1465,12 +1465,12 @@ and perform_ana_pat =
     | None => None
     };
   | (MoveToPrevHole, _) =>
-    switch (Path.prev_hole_path_pat(zp)) {
+    switch (Path.prev_hole_path(Path.holes_zpat(zp, []))) {
     | None => None
     | Some(path) => perform_ana_pat(ctx, u_gen, MoveTo(path), zp, ty)
     }
   | (MoveToNextHole, _) =>
-    switch (Path.next_hole_path_pat(zp)) {
+    switch (Path.next_hole_path(Path.holes_zpat(zp, []))) {
     | None => None
     | Some(path) => perform_ana_pat(ctx, u_gen, MoveTo(path), zp, ty)
     }
@@ -1941,15 +1941,17 @@ let rec perform_syn =
     | None => None
     };
   | (MoveToPrevHole, _) =>
-    switch (Path.prev_hole_path(ze)) {
+    let holes = Path.holes_ze(ze, []);
+    switch (Path.prev_hole_path(holes)) {
     | None => None
-    | Some(path) => perform_syn(ctx, MoveTo(path), ze_ty)
+    | Some(path) => 
+      perform_syn(ctx, MoveTo(path), ze_ty)
     }
   | (MoveToNextHole, _) =>
-    switch (Path.next_hole_path(ze)) {
+    let holes = Path.holes_ze(ze, []);
+    switch (Path.next_hole_path(holes)) {
     | None => None
     | Some(path) =>
-      /* let path = Helper.log_path path in */
       perform_syn(ctx, MoveTo(path), ze_ty)
     }
   /* Backspace & Deletion */
@@ -2848,12 +2850,12 @@ and perform_ana =
     | None => None
     };
   | (MoveToPrevHole, _) =>
-    switch (Path.prev_hole_path(ze)) {
+    switch (Path.prev_hole_path(Path.holes_ze(ze, []))) {
     | None => None
     | Some(path) => perform_ana(u_gen, ctx, MoveTo(path), ze, ty)
     }
   | (MoveToNextHole, _) =>
-    switch (Path.next_hole_path(ze)) {
+    switch (Path.next_hole_path(Path.holes_ze(ze, []))) {
     | None => None
     | Some(path) =>
       /* [debug] let path = Helper.log_path path in */
