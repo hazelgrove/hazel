@@ -7,7 +7,7 @@ let empty: edit_state = ((empty_ze, HTyp.Hole, u_gen1): edit_state);
 let empty_erasure = ZExp.erase(empty_ze);
 type edit_state_rs = React.signal(edit_state);
 type e_rs = React.signal(UHExp.t);
-type cursor_info_rs = React.signal(ZExp.cursor_info);
+type cursor_info_rs = React.signal(CursorInfo.t);
 open Dynamics;
 type result_rs =
   React.signal((DHExp.t, DHExp.HoleInstanceInfo.t, Evaluator.result));
@@ -52,7 +52,7 @@ let new_model = (): t => {
       ~eq=(_, _) => false, /* palette contexts have functions in them! */
       ((ze, _, _)) =>
         switch (
-          ZExp.syn_cursor_info(
+          CursorInfo.syn_cursor_info(
             (VarCtx.empty, Palettes.initial_palette_ctx),
             ze,
           )
@@ -101,10 +101,18 @@ let new_model = (): t => {
   let (selected_instance_rs, selected_instance_rf) = React.S.create(None);
   let instance_at_cursor_monitor =
     React.S.l2(
-      ({ZExp.mode: _, ZExp.sort, ZExp.ctx: _, ZExp.side: _}, (_, hii, _)) => {
+      (
+        {
+          CursorInfo.mode: _,
+          CursorInfo.sort,
+          CursorInfo.ctx: _,
+          CursorInfo.side: _,
+        },
+        (_, hii, _),
+      ) => {
         let new_path =
           switch (sort) {
-          | ZExp.IsExpr(UHExp.Tm(_, UHExp.EmptyHole(u))) =>
+          | CursorInfo.IsExpr(UHExp.Tm(_, UHExp.EmptyHole(u))) =>
             let usi = React.S.value(user_selected_instances_rs);
             switch (MetaVarMap.lookup(usi, u)) {
             | Some(i) => Some((u, i))

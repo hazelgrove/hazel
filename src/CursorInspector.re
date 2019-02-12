@@ -78,25 +78,25 @@ type err_state_b =
   | TypeInconsistency
   | BindingError
   | OK;
-let of_cursor_mode = (cursor_mode: ZExp.cursor_mode) => {
+let of_cursor_mode = (cursor_mode: CursorInfo.cursor_mode) => {
   let (ind1, ind2, err_state_b) =
     switch (cursor_mode) {
-    | ZExp.AnaOnly(ty) =>
+    | CursorInfo.AnaOnly(ty) =>
       let ind1 = expected_ty_indicator(ty);
       let ind2 = got_indicator("Got", special_msg_bar("as expected"));
       (ind1, ind2, OK);
-    | ZExp.AnaAnnotatedLambda(expected_ty, got_ty) =>
+    | CursorInfo.AnaAnnotatedLambda(expected_ty, got_ty) =>
       let ind1 = expected_ty_indicator(expected_ty);
       let ind2 =
         HTyp.eq(expected_ty, got_ty) ?
           got_as_expected_ty_indicator(got_ty) :
           got_consistent_indicator(got_ty);
       (ind1, ind2, OK);
-    | ZExp.AnaTypeInconsistent(expected_ty, got_ty) =>
+    | CursorInfo.AnaTypeInconsistent(expected_ty, got_ty) =>
       let ind1 = expected_ty_indicator(expected_ty);
       let ind2 = got_inconsistent_indicator(got_ty);
       (ind1, ind2, TypeInconsistency);
-    | ZExp.AnaWrongLength(expected_len, got_len, expected_ty) =>
+    | CursorInfo.AnaWrongLength(expected_len, got_len, expected_ty) =>
       let expected_msg = string_of_int(expected_len) ++ "-tuple";
       let ind1 =
         expected_indicator(
@@ -110,30 +110,30 @@ let of_cursor_mode = (cursor_mode: ZExp.cursor_mode) => {
           special_msg_bar(got_msg),
         );
       (ind1, ind2, TypeInconsistency);
-    | ZExp.AnaFree(expected_ty) =>
+    | CursorInfo.AnaFree(expected_ty) =>
       let ind1 = expected_ty_indicator(expected_ty);
       let ind2 = got_free_indicator;
       (ind1, ind2, BindingError);
-    | ZExp.AnaSubsumed(expected_ty, got_ty) =>
+    | CursorInfo.AnaSubsumed(expected_ty, got_ty) =>
       let ind1 = expected_ty_indicator(expected_ty);
       let ind2 =
         HTyp.eq(expected_ty, got_ty) ?
           got_as_expected_ty_indicator(got_ty) :
           got_consistent_indicator(got_ty);
       (ind1, ind2, OK);
-    | ZExp.SynOnly(ty) =>
+    | CursorInfo.SynOnly(ty) =>
       let ind1 = expected_any_indicator;
       let ind2 = got_ty_indicator(ty);
       (ind1, ind2, OK);
-    | ZExp.SynFree =>
+    | CursorInfo.SynFree =>
       let ind1 = expected_any_indicator;
       let ind2 = got_free_indicator;
       (ind1, ind2, BindingError);
-    | ZExp.SynErrorArrow(expected_ty, got_ty) =>
+    | CursorInfo.SynErrorArrow(expected_ty, got_ty) =>
       let ind1 = expected_msg_indicator("function type");
       let ind2 = got_inconsistent_matched_indicator(got_ty, expected_ty);
       (ind1, ind2, TypeInconsistency);
-    | ZExp.SynMatchingArrow(syn_ty, matched_ty) =>
+    | CursorInfo.SynMatchingArrow(syn_ty, matched_ty) =>
       let ind1 = expected_msg_indicator("function type");
       let ind2 =
         switch (syn_ty) {
@@ -145,7 +145,7 @@ let of_cursor_mode = (cursor_mode: ZExp.cursor_mode) => {
         | _ => got_indicator("Got", typebar("got", syn_ty))
         };
       (ind1, ind2, OK);
-    | ZExp.SynFreeArrow(matched_ty) =>
+    | CursorInfo.SynFreeArrow(matched_ty) =>
       let ind1 = expected_msg_indicator("function type");
       let ind2 =
         got_indicator(
@@ -153,19 +153,19 @@ let of_cursor_mode = (cursor_mode: ZExp.cursor_mode) => {
           matched_ty_bar("got", HTyp.Hole, matched_ty),
         );
       (ind1, ind2, BindingError);
-    | ZExp.TypePosition =>
+    | CursorInfo.TypePosition =>
       let ind1 = expected_a_type_indicator;
       let ind2 = got_a_type_indicator;
       (ind1, ind2, OK);
-    | ZExp.PatAnaOnly(ty) =>
+    | CursorInfo.PatAnaOnly(ty) =>
       let ind1 = expected_ty_indicator_pat(ty);
       let ind2 = got_indicator("Got", special_msg_bar("as expected"));
       (ind1, ind2, OK);
-    | ZExp.PatAnaTypeInconsistent(expected_ty, got_ty) =>
+    | CursorInfo.PatAnaTypeInconsistent(expected_ty, got_ty) =>
       let ind1 = expected_ty_indicator_pat(expected_ty);
       let ind2 = got_inconsistent_indicator(got_ty);
       (ind1, ind2, TypeInconsistency);
-    | ZExp.PatAnaWrongLength(expected_len, got_len, expected_ty) =>
+    | CursorInfo.PatAnaWrongLength(expected_len, got_len, expected_ty) =>
       let expected_msg = string_of_int(expected_len) ++ "-tuple";
       let ind1 =
         expected_indicator(
@@ -179,14 +179,14 @@ let of_cursor_mode = (cursor_mode: ZExp.cursor_mode) => {
           special_msg_bar(got_msg),
         );
       (ind1, ind2, TypeInconsistency);
-    | ZExp.PatAnaSubsumed(expected_ty, got_ty) =>
+    | CursorInfo.PatAnaSubsumed(expected_ty, got_ty) =>
       let ind1 = expected_ty_indicator_pat(expected_ty);
       let ind2 =
         HTyp.eq(expected_ty, got_ty) ?
           got_as_expected_ty_indicator(got_ty) :
           got_consistent_indicator(got_ty);
       (ind1, ind2, OK);
-    | ZExp.PatSynOnly(ty) =>
+    | CursorInfo.PatSynOnly(ty) =>
       let ind1 = expected_any_indicator_pat;
       let ind2 = got_ty_indicator(ty);
       (ind1, ind2, OK);
@@ -218,7 +218,7 @@ let no_cursor_mode =
 let mk = (cursor_info_rs: Model.cursor_info_rs) => {
   let cursor_inspector_rs =
     React.S.map(
-      ({ZExp.mode: cursor_mode, _}) => [of_cursor_mode(cursor_mode)],
+      ({CursorInfo.mode: cursor_mode, _}) => [of_cursor_mode(cursor_mode)],
       cursor_info_rs,
     );
 
