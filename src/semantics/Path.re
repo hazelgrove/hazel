@@ -398,20 +398,16 @@ let rec holes_e = (e, steps, holes) : hole_list =>
     let holes = holes_rules(rules, 0, steps, holes);
     holes_e(e1, [0, ...steps], holes);
   | UHExp.Tm(_, UHExp.OpSeq(skel, seq)) => holes_seq(seq, holes_e, 0, steps, holes)
-  | UHExp.Tm(_, UHExp.ApPalette(_, _, holedata)) => holes
-    /* TODO let (_, holemap) = holedata;
-    NatMap.fold(
-      holemap,
-      (c, v) =>
-        switch (c) {
-        | Some(_) => c
-        | None =>
-          let (_, te) = v;
-          let (_, e) = te;
-          steps_to_hole(e, u);
+  | UHExp.Tm(_, UHExp.ApPalette(_, _, psi)) => 
+    let splice_map = psi.splice_map;
+    let splice_order = psi.splice_order;
+    List.fold_right(
+      (i, holes) => 
+        switch (NatMap.lookup(splice_map, i)) {
+        | None => holes
+        | Some((_, e)) => holes_e(e, [i, ...steps], holes)
         },
-      None,
-    ); */
+      splice_order, holes)
   }
 and holes_rules = (rules, offset, steps, holes) => { 
   let (_, holes) = List.fold_right(
@@ -607,7 +603,7 @@ let rec holes_ze = (ze, steps) : zhole_list =>
               holes_after: [] }
           | _ => no_holes
           }
-        | UHExp.ApPalette(_, _, _) => no_holes /* TODO(move, into, palette, holes) */
+        | UHExp.ApPalette(_, _, _) => no_holes 
         }
       }
     }
@@ -711,7 +707,32 @@ let rec holes_ze = (ze, steps) : zhole_list =>
         holes_after }
     | ZExp.OpSeqZ(_, ze0, surround) =>
       holes_OpSeqZ(holes_e, holes_ze, ze0, surround, steps)
-    | ZExp.ApPaletteZ(_, _, _) => no_holes /* TODO(figure, out, tab, order) protocol */
+    | ZExp.ApPaletteZ(_, _, zpsi) => 
+      let zsplice_map = zpsi.zsplice_map;
+      let (n, (ty, ze)) = ZNatMap.prj_z_kv(zsplice_map);
+      let { holes_before, hole_selected, holes_after } = holes_ze(ze, [n, ...steps]);
+      let splice_order = zpsi.splice_order;
+      let splice_map = ZNatMap.prj_map(zsplice_map); 
+      let (splices_before, splices_after) = Util.split_at(splice_order, n);
+      let holes_splices_before = 
+        List.fold_left(
+          (holes, n) =>
+            switch (NatMap.lookup(splice_map, n)) {
+            | None => holes
+            | Some((_, e)) => holes @ holes_e(e, [n, ...steps], [])
+            },
+          [], splices_before);
+      let holes_splices_after = 
+        List.fold_left(
+          (holes, n) =>
+            switch (NatMap.lookup(splice_map, n)) {
+            | None => holes
+            | Some((_, e)) => holes @ holes_e(e, [n, ...steps], [])
+            },
+          [], splices_after);
+      { holes_before: holes_splices_before @ holes_before,
+        hole_selected,
+        holes_after: holes_after @ holes_splices_after }
     }
   }
 and holes_zrules = (zrules, steps) => { 
