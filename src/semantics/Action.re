@@ -2014,6 +2014,61 @@ let rec perform_syn =
         }
       }
     }
+  | (
+      Backspace,
+      ZExp.Deeper(
+        _,
+        ZExp.LineItemZE(UHExp.EmptyLine, ZExp.CursorE(Before, _) as ze1),
+      ),
+    )
+  | (
+      Backspace,
+      ZExp.Deeper(
+        _,
+        ZExp.LineItemZE(
+          UHExp.EmptyLine,
+          ZExp.Deeper(
+            _,
+            ZExp.LineItemZL(LetLineZP(ZPat.CursorP(Before, _), _, _), _),
+          ) as ze1,
+        ),
+      ),
+    )
+  | (
+      Backspace,
+      ZExp.Deeper(
+        _,
+        ZExp.LineItemZE(
+          UHExp.EmptyLine,
+          ZExp.Deeper(
+            _,
+            ZExp.LineItemZL(
+              LetLineZP(
+                ZPat.Deeper(
+                  _,
+                  ZPat.OpSeqZ(
+                    _,
+                    ZPat.CursorP(Before, _),
+                    OperatorSeq.EmptyPrefix(_),
+                  ),
+                ),
+                _,
+                _,
+              ),
+              _,
+            ),
+          ) as ze1,
+        ),
+      ),
+    )
+  | (
+      Delete,
+      ZExp.Deeper(
+        _,
+        ZExp.LineItemZL(ZExp.EmptyLineZ, _),
+      ),
+    ) =>
+    Some((ze1, ty, u_gen))
   | (Backspace, ZExp.Deeper(_, ZExp.LamZA(p, ZTyp.CursorT(Before, _), e1)))
   | (
       Backspace,
@@ -3835,7 +3890,9 @@ and perform_ana =
   | (Construct(SListNil), _)
   | (_, ZExp.Deeper(_, ZExp.AscZ1(_, _)))
   | (_, ZExp.Deeper(_, ZExp.AscZ2(_, _)))
-  | (_, ZExp.Deeper(_, ZExp.ApPaletteZ(_, _, _))) =>
+  | (_, ZExp.Deeper(_, ZExp.ApPaletteZ(_, _, _)))
+  | (Backspace, ZExp.Deeper(_, ZExp.LineItemZE(UHExp.EmptyLine, _)))
+  | (Delete, ZExp.Deeper(_, ZExp.LineItemZL(ZExp.EmptyLineZ, _))) =>
     perform_ana_subsume(u_gen, ctx, a, ze, ty)
   /* Invalid actions at expression level */
   | (Construct(SNum), _)
