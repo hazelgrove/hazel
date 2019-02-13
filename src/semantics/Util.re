@@ -41,6 +41,18 @@ let rec unzip = xs =>
     ([x, ...xs], [y, ...ys]);
   };
 
+let rec split_at = (xs, n) => 
+  switch (xs) {
+  | [] => ([], [])
+  | [y, ...ys] => 
+    switch (y == n) {  
+    | true => ([], ys)
+    | false => 
+      let (before, after) = split_at(ys, n);
+      ([y, ...before], after)
+    }
+  };
+
 let cons_opt = (n: 'a, x: option(list('a))): option(list('a)) =>
   switch (x) {
   | None => None
@@ -280,6 +292,7 @@ module ZNatMap = {
     let (map', (n, z)) = zmap;
     NatMap.insert_or_update(map', (n, erase(z)));
   };
+  let prj_map = ((map, _) : t('a, 'z)) : NatMap.t('a) => map;
   let prj_z_kv = (zmap : t('a, 'z)) : (nat, 'z) => {
     let (_, nz) = zmap;
     nz;
