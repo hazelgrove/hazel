@@ -29,10 +29,7 @@ and t' =
   | ApPaletteZ(
       PaletteName.t,
       PaletteSerializedModel.t,
-      (
-        UHExp.PaletteHoleData.hole_ref_lbl,
-        ZNatMap.t((HTyp.t, UHExp.t), (HTyp.t, t)),
-      ),
+      PaletteZSpliceInfo.t(UHExp.t, t),
     )
 and zline_item =
   | EmptyLineZ
@@ -42,14 +39,8 @@ and zline_item =
   | LetLineZE(UHPat.t, option(UHTyp.t), t)
 and zrule =
   | RuleZP(ZPat.t, UHExp.t)
-  | RuleZE(UHPat.t, t);
-
-type zrules = ZList.t(zrule, UHExp.rule);
-
-module ZPaletteHoleData = {
-  type z_hole_map = ZNatMap.t((HTyp.t, UHExp.t), (HTyp.t, t));
-  type t = (UHExp.PaletteHoleData.hole_ref_lbl, z_hole_map);
-};
+  | RuleZE(UHPat.t, t)
+and zrules = ZList.t(zrule, UHExp.rule);
 
 let bidelimit = ze =>
   switch (ze) {
@@ -76,7 +67,7 @@ let rec set_err_status = (err, ze) =>
   | CursorE(cursor_side, e) =>
     let e = UHExp.set_err_status(err, e);
     CursorE(cursor_side, e);
-  | Deeper(_, OpSeqZ(Skel.BinOp(_, op, skel1, skel2), ze0, surround)) => 
+  | Deeper(_, OpSeqZ(Skel.BinOp(_, op, skel1, skel2), ze0, surround)) =>
     Deeper(err, OpSeqZ(Skel.BinOp(err, op, skel1, skel2), ze0, surround))
   | Deeper(_, ze') => Deeper(err, ze')
   | ParenthesizedZ(ze1) => ParenthesizedZ(set_err_status(err, ze1))
@@ -91,7 +82,7 @@ let rec make_inconsistent = (u_gen: MetaVarGen.t, ze: t): (t, MetaVarGen.t) =>
   | Deeper(InHole(WrongLength, _), ze') =>
     let (u, u_gen) = MetaVarGen.next(u_gen);
     let ze' = set_err_status(InHole(TypeInconsistent, u), ze);
-    (ze', u_gen)
+    (ze', u_gen);
   | Deeper(InHole(TypeInconsistent, _), _) => (ze, u_gen)
   | ParenthesizedZ(ze1) =>
     let (ze1', u_gen) = make_inconsistent(u_gen, ze1);
@@ -141,14 +132,9 @@ and erase' = (ze: t'): UHExp.t' =>
   | OpSeqZ(skel, ze', surround) =>
     let e = erase(ze');
     UHExp.OpSeq(skel, OperatorSeq.opseq_of_exp_and_surround(e, surround));
-  | ApPaletteZ(palette_name, serialized_model, zhole_data) =>
-    let (next_hole_ref, zholemap) = zhole_data;
-    let (holemap, z) = zholemap;
-    let (hole_ref, tz) = z;
-    let (ty, ze) = tz;
-    let holemap' = NatMap.extend(holemap, (hole_ref, (ty, erase(ze))));
-    let hole_data' = (next_hole_ref, holemap');
-    UHExp.ApPalette(palette_name, serialized_model, hole_data');
+  | ApPaletteZ(palette_name, serialized_model, zpsi) =>
+    let psi = PaletteZSpliceInfo.erase(zpsi, ((ty, z)) => (ty, erase(z)));
+    UHExp.ApPalette(palette_name, serialized_model, psi);
   }
 and erase_line_item = (zli: zline_item): UHExp.line_item =>
   switch (zli) {
@@ -227,7 +213,7 @@ let rec ana_pat_cursor_found =
     | Some(ci) => Some(update_sort(ci, IsPat(p)))
     }
   | UHPat.Pat(InHole(TypeInconsistent, _), p') =>
-    switch (UHExp.syn_pat'(ctx, p')) {
+    switch (Statics.syn_pat'(ctx, p')) {
     | None => None
     | Some((ty', _)) =>
       Some(
@@ -307,7 +293,7 @@ let rec syn_pat_cursor_info =
         (ctx: Contexts.t, zp: ZPat.t): option(cursor_info) =>
   switch (zp) {
   | ZPat.CursorP(side, p) =>
-    switch (UHExp.syn_pat(ctx, p)) {
+    switch (Statics.syn_pat(ctx, p)) {
     | None => None
     | Some((ty, _)) =>
       Some(mk_cursor_info(PatSynOnly(ty), IsPat(p), side, ctx))
@@ -327,18 +313,18 @@ and syn_pat_cursor_info' =
          begin match opt_result with
          | None -> None
          | Some (ty, ctx) ->
-           begin match UHExp.syn_pat ctx p with
+           begin match Statics.syn_pat ctx p with
            | Some (ty', ctx) ->
              begin match HTyp.join ty ty' with
              | Some ty_joined -> Some (ty_joined, ctx)
              | None ->
-               begin match UHExp.ana_pat ctx p ty with
+               begin match Statics.ana_pat ctx p ty with
                | None -> None
                | Some ctx -> Some (ty, ctx)
                end
              end
            | None ->
-             begin match UHExp.ana_pat ctx p ty with
+             begin match Statics.ana_pat ctx p ty with
              | None -> None
              | Some ctx -> Some (ty, ctx)
              end
@@ -385,7 +371,7 @@ and syn_skel_pat_cursor_info =
     switch (syn_skel_pat_cursor_info(ctx, skel1, seq, n, zp1)) {
     | Some(_) as result => result
     | None =>
-      switch (UHExp.syn_skel_pat(ctx, skel1, seq, None)) {
+      switch (Statics.syn_skel_pat(ctx, skel1, seq, None)) {
       | None => None
       | Some((ty_elt, ctx, _)) =>
         let list_ty = HTyp.List(ty_elt);
@@ -540,7 +526,7 @@ let rec ana_cursor_found =
       UHExp.OpSeq(Skel.BinOp(_, op, skel1, skel2), surround),
     ) =>
     let e' = UHExp.OpSeq(Skel.BinOp(NotInHole, op, skel1, skel2), surround);
-    switch (UHExp.syn'(ctx, e')) {
+    switch (Statics.syn'(ctx, e')) {
     | None => None
     | Some(ty') =>
       Some(
@@ -548,9 +534,8 @@ let rec ana_cursor_found =
       )
     };
   | UHExp.Tm(InHole(TypeInconsistent, _), e') =>
-    switch (UHExp.syn'(ctx, e')) {
-    | None => 
-      None
+    switch (Statics.syn'(ctx, e')) {
+    | None => None
     | Some(ty') =>
       Some(
         mk_cursor_info(AnaTypeInconsistent(ty, ty'), IsExpr(e), side, ctx),
@@ -621,8 +606,7 @@ let rec ana_cursor_found =
   | UHExp.Tm(NotInHole, UHExp.NumLit(_))
   | UHExp.Tm(NotInHole, UHExp.BoolLit(_))
   | UHExp.Tm(NotInHole, UHExp.ApPalette(_, _, _)) =>
-  { 
-    switch (UHExp.syn(ctx, e)) {
+    switch (Statics.syn(ctx, e)) {
     | Some(ty') =>
       if (HTyp.consistent(ty, ty')) {
         Some(mk_cursor_info(AnaSubsumed(ty, ty'), IsExpr(e), side, ctx));
@@ -630,7 +614,7 @@ let rec ana_cursor_found =
         None;
       }
     | None => None
-    } }
+    }
   | UHExp.Tm(NotInHole, UHExp.Lam(_, ann, _)) =>
     switch (HTyp.matched_arrow(ty)) {
     | None => None
@@ -675,7 +659,7 @@ let rec syn_cursor_info = (ctx: Contexts.t, ze: t): option(cursor_info) =>
   | CursorE(side, UHExp.Tm(_, UHExp.Var(InVHole(_), _)) as e) =>
     Some(mk_cursor_info(SynFree, IsExpr(e), side, ctx))
   | CursorE(side, e) =>
-    switch (UHExp.syn(ctx, e)) {
+    switch (Statics.syn(ctx, e)) {
     | Some(ty) => Some(mk_cursor_info(SynOnly(ty), IsExpr(e), side, ctx))
     | None => None
     }
@@ -716,7 +700,7 @@ and syn_cursor_info' = (ctx: Contexts.t, ze: t'): option(cursor_info) =>
     )
   | LineItemZL(zli, e1) => syn_line_item_cursor_info(ctx, zli)
   | LineItemZE(li, ze1) =>
-    switch (UHExp.syn_line_item(ctx, li)) {
+    switch (Statics.syn_line_item(ctx, li)) {
     | None => None
     | Some(ctx) => syn_cursor_info(ctx, ze1)
     }
@@ -742,7 +726,7 @@ and syn_cursor_info' = (ctx: Contexts.t, ze: t'): option(cursor_info) =>
       | Some(uty1) => UHTyp.expand(uty1)
       | None => HTyp.Hole
       };
-    switch (UHExp.ana_pat(ctx, p, ty1)) {
+    switch (Statics.ana_pat(ctx, p, ty1)) {
     | None => None
     | Some(ctx1) => syn_cursor_info(ctx1, ze1)
     };
@@ -755,13 +739,13 @@ and syn_cursor_info' = (ctx: Contexts.t, ze: t'): option(cursor_info) =>
          begin match opt_result with
          | None -> None
          | Some ty ->
-           begin match UHExp.syn ctx e with
+           begin match Statics.syn ctx e with
            | None -> None
            | Some ty' ->
              begin match HTyp.join ty ty' with
              | Some ty_joined -> Some ty_joined
              | None ->
-               begin match UHExp.ana ctx e ty with
+               begin match Statics.ana ctx e ty with
                | None -> None
                | Some _ -> Some ty
                end
@@ -780,12 +764,14 @@ and syn_cursor_info' = (ctx: Contexts.t, ze: t'): option(cursor_info) =>
     let seq = OperatorSeq.opseq_of_exp_and_surround(e0, surround);
     let n = OperatorSeq.surround_prefix_length(surround);
     syn_skel_cursor_info(ctx, skel, seq, n, ze0);
-  | ApPaletteZ(_, _, zholedata) =>
-    let (_, zholemap) = zholedata;
-    let (_, tz) = zholemap;
-    let (_, tz') = tz;
-    let (ty, ze) = tz';
-    ana_cursor_info(ctx, ze, ty);
+  | ApPaletteZ(_, _, zholedata) => None
+  /* TODO
+     let (_, zholemap) = zholedata;
+     let (_, tz) = zholemap;
+     let (_, tz') = tz;
+     let (ty, ze) = tz';
+     ana_cursor_info(ctx, ze, ty);
+     */
   }
 and syn_line_item_cursor_info = (ctx, zli) =>
   switch (zli) {
@@ -798,7 +784,7 @@ and syn_line_item_cursor_info = (ctx, zli) =>
       let ty1 = UHTyp.expand(uty1);
       ana_pat_cursor_info(ctx, zp, ty1);
     | None =>
-      switch (UHExp.syn(ctx, e1)) {
+      switch (Statics.syn(ctx, e1)) {
       | None => None
       | Some(ty1) => ana_pat_cursor_info(ctx, zp, ty1)
       }
@@ -816,7 +802,7 @@ and syn_line_item_cursor_info = (ctx, zli) =>
     switch (ann) {
     | Some(uty1) =>
       let ty1 = UHTyp.expand(uty1);
-      let ctx1 = UHExp.ctx_for_let(ctx, p, ty1, erase(ze1));
+      let ctx1 = Statics.ctx_for_let(ctx, p, ty1, erase(ze1));
       ana_cursor_info(ctx1, ze1, ty1);
     | None => syn_cursor_info(ctx, ze1)
     }
@@ -826,7 +812,7 @@ and ana_cursor_info' =
   switch (ze) {
   | LineItemZL(zli, e1) => syn_line_item_cursor_info(ctx, zli)
   | LineItemZE(li, ze1) =>
-    switch (UHExp.syn_line_item(ctx, li)) {
+    switch (Statics.syn_line_item(ctx, li)) {
     | None => None
     | Some(ctx) => ana_cursor_info(ctx, ze1, ty)
     }
@@ -859,10 +845,9 @@ and ana_cursor_info' =
         | Some(uty1) => UHTyp.expand(uty1)
         | None => ty1_given
         };
-      switch (UHExp.ana_pat(ctx, p, ty1)) {
+      switch (Statics.ana_pat(ctx, p, ty1)) {
       | None => None
-      | Some(ctx) => 
-        ana_cursor_info(ctx, ze1, ty2)
+      | Some(ctx) => ana_cursor_info(ctx, ze1, ty2)
       };
     }
   | InjZ(side, ze1) =>
@@ -880,7 +865,7 @@ and ana_cursor_info' =
      end */
   | CaseZE(ze1, rules) => syn_cursor_info(ctx, ze1)
   | CaseZR(e1, zrules) =>
-    switch (UHExp.syn(ctx, e1)) {
+    switch (Statics.syn(ctx, e1)) {
     | None => None
     | Some(ty1) =>
       let zrule = ZList.prj_z(zrules);
@@ -901,7 +886,7 @@ and ana_rule_cursor_info =
   switch (zrule) {
   | RuleZP(zp, e) => ana_pat_cursor_info(ctx, zp, pat_ty)
   | RuleZE(p, ze) =>
-    switch (UHExp.ana_pat(ctx, p, pat_ty)) {
+    switch (Statics.ana_pat(ctx, p, pat_ty)) {
     | None => None
     | Some(ctx) => ana_cursor_info(ctx, ze, clause_ty)
     }
@@ -931,7 +916,7 @@ and syn_skel_cursor_info =
     if (n == n') {
       switch (cursor_on_outer_expr(ze_n)) {
       | Some((UHExp.Tm(InHole(TypeInconsistent, u), e_n') as e_n, side)) =>
-        switch (UHExp.syn'(ctx, e_n')) {
+        switch (Statics.syn'(ctx, e_n')) {
         | Some(ty) =>
           Some(
             mk_cursor_info(
@@ -953,7 +938,7 @@ and syn_skel_cursor_info =
           ),
         )
       | Some((e_n, side)) =>
-        switch (UHExp.syn(ctx, e_n)) {
+        switch (Statics.syn(ctx, e_n)) {
         | Some(ty) =>
           switch (HTyp.matched_arrow(ty)) {
           | Some((ty1, ty2)) =>
@@ -972,7 +957,7 @@ and syn_skel_cursor_info =
       | None => syn_cursor_info(ctx, ze_n)
       };
     } else {
-      switch (UHExp.syn_skel(ctx, skel1, seq, None)) {
+      switch (Statics.syn_skel(ctx, skel1, seq, None)) {
       | None => None
       | Some((ty, _)) =>
         switch (HTyp.matched_arrow(ty)) {
@@ -986,7 +971,7 @@ and syn_skel_cursor_info =
     switch (syn_skel_cursor_info(ctx, skel1, seq, n, ze_n)) {
     | Some(_) as result => result
     | None =>
-      switch (UHExp.syn_skel(ctx, skel1, seq, None)) {
+      switch (Statics.syn_skel(ctx, skel1, seq, None)) {
       | None => None
       | Some((ty, _)) =>
         switch (HTyp.matched_arrow(ty)) {
@@ -1005,7 +990,7 @@ and syn_skel_cursor_info =
     switch (syn_skel_cursor_info(ctx, skel1, seq, n, ze_n)) {
     | Some(_) as result => result
     | None =>
-      switch (UHExp.syn_skel(ctx, skel1, seq, None)) {
+      switch (Statics.syn_skel(ctx, skel1, seq, None)) {
       | None => None
       | Some((ty_elt, _)) =>
         let ty_list = HTyp.List(ty_elt);
