@@ -2060,15 +2060,11 @@ let rec perform_syn =
           ) as ze1,
         ),
       ),
-    )
-  | (
-      Delete,
-      ZExp.Deeper(
-        _,
-        ZExp.LineItemZL(ZExp.EmptyLineZ, _),
-      ),
     ) =>
     Some((ze1, ty, u_gen))
+  | (Delete, ZExp.Deeper(_, ZExp.LineItemZL(ZExp.EmptyLineZ, e1))) =>
+    let ze1 = ZExp.CursorE(Before, e1);
+    Some((ze1, ty, u_gen));
   | (Backspace, ZExp.Deeper(_, ZExp.LamZA(p, ZTyp.CursorT(Before, _), e1)))
   | (
       Backspace,
