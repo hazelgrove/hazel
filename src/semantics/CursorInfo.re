@@ -1,4 +1,5 @@
 open SemanticsCommon;
+open ZExp;
 
 type cursor_mode =
   /* cursor in analytic position */
@@ -614,8 +615,8 @@ and syn_cursor_info' = (ctx: Contexts.t, ze: ZExp.t'): option(cursor_info) =>
     let seq = OperatorSeq.opseq_of_exp_and_surround(e0, surround);
     let n = OperatorSeq.surround_prefix_length(surround);
     syn_skel_cursor_info(ctx, skel, seq, n, ze0);
-  | ApPaletteZ(_, _, zpsi) =>
-    let (ty, ze) = Util.ZNatMap.prj_z(zpsi.zsplice_map);
+  | ZExp.ApPaletteZ(_, _, zpsi) =>
+    let (ty, ze) = Util.ZNatMap.prj_z_v(zpsi.zsplice_map);
     ana_cursor_info(ctx, ze, ty);
   }
 and syn_line_item_cursor_info = (ctx, zli) =>

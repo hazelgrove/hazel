@@ -217,8 +217,12 @@ module ZNatMap = {
     let (map', (n, z)) = zmap;
     NatMap.insert_or_update(map', (n, erase(z)));
   };
-  let prj_z = (zmap : t('a, 'z)) : 'z => {
+  let prj_z_kv = (zmap : t('a, 'z)) : (nat, 'z) => {
+    let (_, nz) = zmap;
+    nz;
+  };
+  let prj_z_v = (zmap : t('a, 'z)) : 'z => {
     let (_, (_, z)) = zmap;
     z;
-  }
+  };
 };
