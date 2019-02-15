@@ -3839,7 +3839,6 @@ let can_perform =
     | CursorInfo.IsType => false
     };
   | Construct(SLet)
-  | Construct(SLam)
   | Construct(SInj(_))
   | Construct(SCase) =>
     switch (ci.mode) {
@@ -3878,6 +3877,8 @@ let can_perform =
     | CursorInfo.IsExpr(_)
     | CursorInfo.IsPat(_) => false
     }
+  | Construct(SLam) /* TODO check that expected type has matched
+                     * arrow to check performability on AnaOnly */
   | Construct(SVar(_, _)) /* see can_enter_varchar below */
   | Construct(SWild)
   | Construct(SNumLit(_, _)) /* see can_enter_numeral below */
