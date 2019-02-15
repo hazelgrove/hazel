@@ -79,7 +79,6 @@ type shape =
   | SList
   /* expression shapes */
   | SAsc
-  | SLet
   | SVar(Var.t, ZExp.cursor_side)
   | SLam
   | SNumLit(int, ZExp.cursor_side)
@@ -91,7 +90,10 @@ type shape =
   | SOp(op_shape)
   | SApPalette(PaletteName.t)
   /* pattern-only shapes */
-  | SWild;
+  | SWild
+  /* line item shapes */
+  | SLetLine
+  | SEmptyLine;
 
 type t =
   | MoveTo(Path.t)
@@ -364,7 +366,8 @@ let rec perform_ty = (a: t, zty: ZTyp.t): option(ZTyp.t) =>
   /* Invalid actions at the type level */
   | (UpdateApPalette(_), _)
   | (Construct(SAsc), _)
-  | (Construct(SLet), _)
+  | (Construct(SLetLine), _)
+  | (Construct(SEmptyLine), _)
   | (Construct(SVar(_, _)), _)
   | (Construct(SLam), _)
   | (Construct(SNumLit(_, _)), _)
@@ -1443,7 +1446,8 @@ let rec perform_syn_pat =
   | (Construct(SBool), _)
   | (Construct(SList), _)
   | (Construct(SAsc), _)
-  | (Construct(SLet), _)
+  | (Construct(SLetLine), _)
+  | (Construct(SEmptyLine), _)
   | (Construct(SLam), _)
   | (Construct(SCase), _)
   | (Construct(SRule), _) => None
@@ -1738,7 +1742,8 @@ and perform_ana_pat =
   | (Construct(SBool), _)
   | (Construct(SList), _)
   | (Construct(SAsc), _)
-  | (Construct(SLet), _)
+  | (Construct(SLetLine), _)
+  | (Construct(SEmptyLine), _)
   | (Construct(SLam), _)
   | (Construct(SCase), _)
   | (Construct(SRule), _) => None
@@ -2317,7 +2322,7 @@ let rec perform_syn =
       },
     )
   | (Construct(SVar(_, _)), ZExp.CursorE(_, _)) => None
-  | (Construct(SLet), ZExp.CursorE(_, e1)) =>
+  | (Construct(SLetLine), ZExp.CursorE(_, e1)) =>
     let (zp, u_gen) = ZPat.new_EmptyHole(u_gen);
     let (e2, u_gen) = UHExp.new_EmptyHole(u_gen);
     let ze =
@@ -3305,7 +3310,7 @@ and perform_ana =
         ZExp.LamZA(ZPat.erase(zp), ZTyp.place_Before(uty1), e1),
       );
     Some((ze, u_gen));
-  | (Construct(SLet), ZExp.CursorE(_, e1)) =>
+  | (Construct(SLetLine), ZExp.CursorE(_, e1)) =>
     switch (UHExp.syn_fix_holes(ctx, u_gen, e1)) {
     | Some((e1, ty1, u_gen)) =>
       let (zp, u_gen) = ZPat.new_EmptyHole(u_gen);
@@ -3931,7 +3936,7 @@ let can_perform =
     | ZExp.IsPat(_) => true
     | ZExp.IsType => false
     };
-  | Construct(SLet)
+  | Construct(SLetLine)
   | Construct(SLam)
   | Construct(SInj(_))
   | Construct(SCase) =>
