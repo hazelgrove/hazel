@@ -1948,16 +1948,14 @@ let rec perform_syn =
     let holes = Path.holes_ze(ze, []);
     switch (Path.prev_hole_path(holes)) {
     | None => None
-    | Some(path) => 
-      perform_syn(ctx, MoveTo(path), ze_ty)
-    }
+    | Some(path) => perform_syn(ctx, MoveTo(path), ze_ty)
+    };
   | (MoveToNextHole, _) =>
     let holes = Path.holes_ze(ze, []);
     switch (Path.next_hole_path(holes)) {
     | None => None
-    | Some(path) =>
-      perform_syn(ctx, MoveTo(path), ze_ty)
-    }
+    | Some(path) => perform_syn(ctx, MoveTo(path), ze_ty)
+    };
   /* Backspace & Deletion */
   | (Backspace, ZExp.CursorE(After, e)) =>
     switch (e) {
@@ -4019,7 +4017,6 @@ let can_perform =
     | CursorInfo.IsType => false
     };
   | Construct(SLetLine)
-  | Construct(SLam)
   | Construct(SInj(_))
   | Construct(SCase) =>
     switch (ci.mode) {
@@ -4058,6 +4055,8 @@ let can_perform =
     | CursorInfo.IsExpr(_)
     | CursorInfo.IsPat(_) => false
     }
+  | Construct(SLam) /* TODO check that expected type has matched
+                     * arrow to check performability on AnaOnly */
   | Construct(SVar(_, _)) /* see can_enter_varchar below */
   | Construct(SWild)
   | Construct(SNumLit(_, _)) /* see can_enter_numeral below */
