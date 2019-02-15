@@ -362,14 +362,14 @@ module PaletteAdapter = (P: PALETTE) => {
   let palette_defn =
     PaletteDefinition.{
       expansion_ty: P.expansion_ty,
-      initial_model: SpliceGenMonad.return(""),
+      init_model: SpliceGenMonad.return(""),
       /* UHExp.HoleRefs.Bnd(
            args = (
              P.init_model,
              model => UHExp.HoleRefs.Ret(P.serialize(model)),
            ),
          ), */
-      to_exp: serialized_model => P.expand(P.deserialize(serialized_model)),
+      expand: serialized_model => P.expand(P.deserialize(serialized_model)),
     };
 
   let serialized_view_fn = (serialized_model, update_fn) =>

@@ -39,7 +39,9 @@ and line_item =
 and rule =
   | Rule(UHPat.t, t)
 and rules = list(rule)
-and opseq = OperatorSeq.opseq(t, op);
+and opseq = OperatorSeq.opseq(t, op)
+and splice_info = SpliceInfo.t(t)
+and splice_map = SpliceInfo.splice_map(t);
 
 let rec get_tuple = (skel1, skel2) =>
   switch (skel2) {
