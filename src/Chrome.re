@@ -593,7 +593,7 @@ let view = (model: Model.t) => {
 
   let htype_view = R.Html5.div(ReactiveData.RList.from_signal(htype_rs));
   let move_to_hole = u =>
-    switch (Path.path_to_hole(React.S.value(e_rs), u)) {
+    switch (Path.path_to_hole(Path.holes_e(React.S.value(e_rs), [], []), u)) {
     | Some(hole_path) =>
       do_action(Action.MoveTo(hole_path));
       set_cursor();

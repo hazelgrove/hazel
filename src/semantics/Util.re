@@ -41,6 +41,67 @@ let rec unzip = xs =>
     ([x, ...xs], [y, ...ys]);
   };
 
+let cons_opt = (n: 'a, x: option(list('a))): option(list('a)) =>
+  switch (x) {
+  | None => None
+  | Some(xs) => Some([n, ...xs])
+  };
+
+let cons_opt2 =
+    (
+      n1: 'a,
+      x1: option(list('a)),
+      n2: 'a,
+      x2: unit => option(list('a)),
+    )
+    : option(list('a)) =>
+  switch (x1) {
+  | Some(xs) => Some([n1, ...xs])
+  | None =>
+    switch (x2()) {
+    | Some(xs) => Some([n2, ...xs])
+    | None => None
+    }
+  };
+
+let cons_opt3 =
+    (
+      n1: 'a,
+      x1: option(list('a)),
+      n2: 'a,
+      x2: unit => option(list('a)),
+      n3: 'a,
+      x3: unit => option(list('a)),
+    )
+    : option(list('a)) =>
+  switch (x1) {
+  | Some(xs) => Some([n1, ...xs])
+  | None =>
+    switch (x2()) {
+    | Some(xs) => Some([n2, ...xs])
+    | None =>
+      switch (x3()) {
+      | Some(xs) => Some([n3, ...xs])
+      | None => None
+      }
+    }
+  };
+
+let rec string_of_list' = (string_of_elt) => fun
+| [] => ""
+| [x] => string_of_elt(x)
+| [x, ...xs] => string_of_elt(x) ++ ", " ++ string_of_list'(string_of_elt, xs);
+
+let string_of_list = (string_of_elt, xs) => 
+  "[" ++ string_of_list'(string_of_elt, xs) ++ "]";
+
+let string_of_pair = (string_of_left, string_of_right, (left, right)) => 
+  "(" ++ string_of_left(left) ++ ", " ++ string_of_right(right) ++ ")";
+
+let string_of_opt = (string_of_elt) => fun
+| None => "None"
+| Some(elt) => "Some(" ++ string_of_elt(elt) ++ ")";
+
 /* End ListUtil */
 
 module ZList = {
@@ -78,6 +139,8 @@ module ZList = {
     | Some(z') => Some((prefix, z', suffix))
     };
   };
+
+  let prj = (zlist : t('z, 'a)) : (list('a), 'z, list('a)) => zlist;
 
   let prj_prefix = (zxs: t('z, 'a)): list('a) => {
     let (prefix, _, _) = zxs;
