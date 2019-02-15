@@ -1,3 +1,4 @@
+let _TEST_PERFORM = true;
 open SemanticsCommon;
 open Util;
 
@@ -1034,7 +1035,8 @@ let make_and_ana_OpSeqZ_pat =
   | Some((Skel.BinOp(err, _, _, _) as skel, seq, ctx, u_gen)) =>
     let p = UHPat.Pat(err, UHPat.OpSeq(skel, seq));
     switch (Path.follow_pat(path0, p)) {
-    | Some(zp) => Some((zp, ctx, u_gen))
+    | Some(zp) => 
+      Some((zp, ctx, u_gen))
     | None => None
     };
   | Some((Skel.Placeholder(_), _, _, _))
@@ -1477,19 +1479,19 @@ and perform_ana_pat =
     | Some(path) => perform_ana_pat(ctx, u_gen, MoveTo(path), zp, ty)
     }
   /* switch to synthesis if in a hole */
-  | (_, ZPat.Deeper(InHole(TypeInconsistent, u), zp1)) =>
-    let zp1_not_in_hole = ZPat.Deeper(NotInHole, zp1);
-    let p1 = ZPat.erase(zp1_not_in_hole);
-    switch (UHExp.syn_pat(ctx, p1)) {
+  | (_, ZPat.Deeper(InHole(TypeInconsistent, u) as err, zp1)) =>
+    let zp_not_in_hole = ZPat.set_err_status(NotInHole, zp);
+    let p = ZPat.erase(zp_not_in_hole);
+    switch (UHExp.syn_pat(ctx, p)) {
     | None => None
     | Some((ty1, _)) =>
-      switch (perform_syn_pat(ctx, u_gen, a, zp1_not_in_hole)) {
+      switch (perform_syn_pat(ctx, u_gen, a, zp_not_in_hole)) {
       | None => None
       | Some((zp1, ty', ctx, u_gen)) =>
         if (HTyp.consistent(ty, ty')) {
           Some((zp1, ctx, u_gen));
         } else {
-          Some((ZPat.set_inconsistent(u, zp1), ctx, u_gen));
+          Some((ZPat.set_err_status(err, zp1), ctx, u_gen));
         }
       }
     };
@@ -1517,6 +1519,80 @@ and perform_ana_pat =
     let zp = ZPat.CursorP(Before, p);
     Some((zp, ctx, u_gen));
   | (Delete, ZPat.CursorP(After, _)) => None
+  | (
+      Backspace,
+      ZPat.Deeper(
+        _,
+        ZPat.OpSeqZ(
+          _,
+          ZPat.CursorP(Before, p0) as zp0,
+          OperatorSeq.EmptySuffix(_) as surround,
+        ),
+      ),
+    )
+  | (
+      Backspace,
+      ZPat.Deeper(
+        _,
+        ZPat.OpSeqZ(
+          _,
+          ZPat.CursorP(Before, p0) as zp0,
+          OperatorSeq.BothNonEmpty(_, _) as surround,
+        ),
+      ),
+    ) =>
+    abs_perform_Backspace_Before_op(
+      combine_for_Backspace_Space_pat,
+      (ctx, u_gen, zp) => ana_zpat_fix_holes(ctx, u_gen, zp, ty),
+      (ctx, u_gen, zp, surround) => 
+        make_and_ana_OpSeqZ_pat(ctx, u_gen, zp, surround, ty),
+      UHPat.is_EmptyHole,
+      UHPat.is_Space,
+      UHPat.Space,
+      (side, p) => ZPat.CursorP(side, p),
+      ctx,
+      u_gen,
+      p0,
+      zp0,
+      surround,
+    )
+  | (
+      Delete,
+      ZPat.Deeper(
+        _,
+        ZPat.OpSeqZ(
+          _,
+          ZPat.CursorP(After, p0) as zp0,
+          OperatorSeq.EmptyPrefix(_) as surround,
+        ),
+      ),
+    )
+  | (
+      Delete,
+      ZPat.Deeper(
+        _,
+        ZPat.OpSeqZ(
+          _,
+          ZPat.CursorP(After, p0) as zp0,
+          OperatorSeq.BothNonEmpty(_, _) as surround,
+        ),
+      ),
+    ) =>
+    abs_perform_Delete_After_op(
+      combine_for_Delete_Space_pat,
+      (ctx, u_gen, zp) => ana_zpat_fix_holes(ctx, u_gen, zp, ty),
+      (ctx, u_gen, zp, surround) => 
+        make_and_ana_OpSeqZ_pat(ctx, u_gen, zp, surround, ty),
+      UHPat.is_EmptyHole,
+      UHPat.is_Space,
+      UHPat.Space,
+      (side, p) => ZPat.CursorP(side, p),
+      ctx,
+      u_gen,
+      p0,
+      zp0,
+      surround,
+    )
   /* Construct */
   | (Construct(SParenthesized), ZPat.CursorP(_, p)) =>
     switch (UHExp.ana_pat(ctx, p, ty)) {
@@ -2793,7 +2869,7 @@ let rec perform_syn =
       };
     | _ => None /* should never happen */
     }
-  | (_, ZExp.Deeper(_, ZExp.OpSeqZ(_, ze0, surround))) =>
+  | (_, ZExp.Deeper(err, ZExp.OpSeqZ(_, ze0, surround))) =>
     let i = OperatorSeq.surround_prefix_length(surround);
     switch (ZExp.erase(ze)) {
     | UHExp.Tm(_, UHExp.OpSeq(skel, seq)) =>
@@ -2806,7 +2882,7 @@ let rec perform_syn =
           | Some((ze0', u_gen)) =>
             let ze0'' = ZExp.bidelimit(ze0');
             Some((
-              ZExp.Deeper(NotInHole, ZExp.OpSeqZ(skel, ze0'', surround)),
+              ZExp.Deeper(err, ZExp.OpSeqZ(skel, ze0'', surround)),
               ty,
               u_gen,
             ));
@@ -2861,8 +2937,8 @@ and perform_ana =
     (u_gen: MetaVarGen.t, ctx: Contexts.t, a: t, ze: ZExp.t, ty: HTyp.t)
     : option((ZExp.t, MetaVarGen.t)) =>
   switch (a, ze) {
-  | (_, ZExp.Deeper(InHole(TypeInconsistent, u), ze1')) =>
-    let ze' = ZExp.Deeper(NotInHole, ze1');
+  | (_, ZExp.Deeper(InHole(TypeInconsistent, u) as err, ze1')) =>
+    let ze' = ZExp.set_err_status(NotInHole, ze);
     let e' = ZExp.erase(ze');
     switch (UHExp.syn(ctx, e')) {
     | Some(ty1) =>
@@ -2871,7 +2947,7 @@ and perform_ana =
         if (HTyp.consistent(ty1', ty)) {
           Some((ze', u_gen'));
         } else {
-          Some((ZExp.set_inconsistent(u, ze'), u_gen'));
+          Some((ZExp.set_err_status(err, ze'), u_gen'));
         }
       | None => None
       }
@@ -3770,11 +3846,11 @@ and perform_ana =
   | (_, ZExp.Deeper(_, ZExp.LamZE(p, ann, ze1))) =>
     switch (HTyp.matched_arrow(ty)) {
     | None => None
-    | Some((_, ty2)) =>
+    | Some((ty1_given, ty2)) =>
       let ty1 =
         switch (ann) {
         | Some(uty1) => UHTyp.expand(uty1)
-        | None => HTyp.Hole
+        | None => ty1_given
         };
       switch (UHExp.ana_pat(ctx, p, ty1)) {
       | None => None
@@ -3852,7 +3928,7 @@ and perform_ana =
         }
       }
     }
-  | (_, ZExp.Deeper(_, ZExp.OpSeqZ(_, ze0, surround))) =>
+  | (_, ZExp.Deeper(err, ZExp.OpSeqZ(_, ze0, surround))) =>
     let i = OperatorSeq.surround_prefix_length(surround);
     switch (ZExp.erase(ze)) {
     | UHExp.Tm(_, UHExp.OpSeq(skel, seq)) =>
@@ -3865,7 +3941,7 @@ and perform_ana =
           | Some((ze0', u_gen)) =>
             let ze0'' = ZExp.bidelimit(ze0');
             Some((
-              ZExp.Deeper(NotInHole, ZExp.OpSeqZ(skel, ze0'', surround)),
+              ZExp.Deeper(err, ZExp.OpSeqZ(skel, ze0'', surround)),
               u_gen,
             ));
           }
@@ -3990,9 +4066,13 @@ let can_perform =
   | UpdateApPalette(_)
   | Delete
   | Backspace =>
-    switch (perform_syn(ctx, a, edit_state)) {
-    | Some(_) => true
-    | None => false
+    switch (_TEST_PERFORM) {
+    | true => 
+      switch (perform_syn(ctx, a, edit_state)) {
+      | Some(_) => true
+      | None => false
+      }
+    | false => false
     }
   };
 

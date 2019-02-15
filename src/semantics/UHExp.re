@@ -222,18 +222,21 @@ let bidelimit = e =>
   };
 
 /* put e in the specified hole */
-let rec set_inconsistent = u =>
+let rec set_err_status = err =>
   fun
-  | Tm(_, e') => Tm(InHole(TypeInconsistent, u), e')
-  | Parenthesized(e') => Parenthesized(set_inconsistent(u, e'));
+  | Tm(_, OpSeq(Skel.BinOp(_, op, skel1, skel2), seq)) =>  
+    Tm(err, OpSeq(Skel.BinOp(err, op, skel1, skel2), seq))
+  | Tm(_, e') => Tm(err, e')
+  | Parenthesized(e') => Parenthesized(set_err_status(err, e'));
 
 /* put e in a new hole, if it is not already in a hole */
 let rec make_inconsistent = (u_gen, e) =>
   switch (e) {
-  | Tm(NotInHole, e')
-  | Tm(InHole(WrongLength, _), e') =>
+  | Tm(NotInHole, _)
+  | Tm(InHole(WrongLength, _), _) =>
     let (u, u_gen) = MetaVarGen.next(u_gen);
-    (Tm(InHole(TypeInconsistent, u), e'), u_gen);
+    let e = set_err_status(InHole(TypeInconsistent, u), e);
+    (e, u_gen)
   | Tm(InHole(TypeInconsistent, _), _) => (e, u_gen)
   | Parenthesized(e1) =>
     switch (make_inconsistent(u_gen, e1)) {

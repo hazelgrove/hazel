@@ -392,7 +392,7 @@ module DHExp = {
       | BoolLit(bool)
       | NumLit(nat)
       | BinNumOp(bin_num_op, t, t)
-      | ListNil
+      | ListNil(HTyp.t)
       | Cons(t, t)
       | Inj(HTyp.t, inj_side, t)
       | Pair(t, t)
@@ -404,6 +404,29 @@ module DHExp = {
       | Rule(DHPat.t, t);
   };
   include DHExp;
+
+  let rec constructor_string = d => 
+    switch (d) {
+    | EmptyHole(_, _, _) => "EmptyHole"
+    | NonEmptyHole(_, _, _, _, _) => "NonEmptyHole"
+    | FreeVar(_, _, _, _) => "FreeVar"
+    | BoundVar(_) => "BoundVar"
+    | Let(_, _, _) => "Let"
+    | FixF(_, _, _) => "FixF"
+    | Lam(_, _, _) => "Lam"
+    | Ap(_, _) => "Ap"
+    | BoolLit(_) => "BoolLit"
+    | NumLit(_) => "NumLit"
+    | BinNumOp(_, _, _) => "BinNumOp"
+    | ListNil(_) => "ListNil"
+    | Cons(_, _) => "Cons"
+    | Inj(_, _, _) => "Inj"
+    | Pair(_, _) => "Pair"
+    | Triv => "Triv"
+    | Case(_, _, _) => "Case"
+    | Cast(_, _, _) => "Cast"
+    | FailedCast(_, _, _) => "FailedCast"
+    };
 
   let rec make_tuple = (ds: list(t)): t =>
     switch (ds) {
@@ -477,7 +500,7 @@ module DHExp = {
       Ap(d3, d4);
     | BoolLit(_)
     | NumLit(_)
-    | ListNil
+    | ListNil(_)
     | Triv => d2
     | Cons(d3, d4) =>
       let d3 = subst_var(d1, x, d3);
@@ -627,9 +650,10 @@ module DHExp = {
     | (DHPat.Triv, Cast(d, HTyp.Hole, HTyp.Unit)) => matches(dp, d)
     | (DHPat.Triv, Cast(d, HTyp.Unit, HTyp.Hole)) => matches(dp, d)
     | (DHPat.Triv, _) => DoesNotMatch
-    | (DHPat.ListNil, ListNil) => Matches(Environment.empty)
+    | (DHPat.ListNil, ListNil(_)) => Matches(Environment.empty)
     | (DHPat.ListNil, Cast(d, HTyp.Hole, HTyp.List(_))) => matches(dp, d)
     | (DHPat.ListNil, Cast(d, HTyp.List(_), HTyp.Hole)) => matches(dp, d)
+    | (DHPat.ListNil, Cast(d, HTyp.List(_), HTyp.List(_))) => matches(dp, d)
     | (DHPat.ListNil, _) => DoesNotMatch
     | (DHPat.Cons(dp1, dp2), Cons(d1, d2)) =>
       switch (matches(dp1, d1)) {
@@ -693,7 +717,7 @@ module DHExp = {
     | BinNumOp(_, _, _) => Indet
     | BoolLit(_) => DoesNotMatch
     | NumLit(_) => DoesNotMatch
-    | ListNil => DoesNotMatch
+    | ListNil(_) => DoesNotMatch
     | Cons(_, _) => DoesNotMatch
     | Pair(_, _) => DoesNotMatch
     | Triv => DoesNotMatch
@@ -745,7 +769,7 @@ module DHExp = {
     | BoolLit(_) => DoesNotMatch
     | NumLit(_) => DoesNotMatch
     | Inj(_, _, _) => DoesNotMatch
-    | ListNil => DoesNotMatch
+    | ListNil(_) => DoesNotMatch
     | Cons(_, _) => DoesNotMatch
     | Triv => DoesNotMatch
     | Case(_, _, _) => Indet
@@ -793,7 +817,7 @@ module DHExp = {
     | BoolLit(_) => DoesNotMatch
     | NumLit(_) => DoesNotMatch
     | Inj(_, _, _) => DoesNotMatch
-    | ListNil => DoesNotMatch
+    | ListNil(_) => DoesNotMatch
     | Pair(_, _) => DoesNotMatch
     | Triv => DoesNotMatch
     | Case(_, _, _) => Indet
@@ -1025,7 +1049,7 @@ module DHExp = {
         };
       switch (DHPat.ana_expand(ctx, delta, p, ty1)) {
       | DHPat.DoesNotExpand => DoesNotExpand
-      | DHPat.Expands(dp, ty1, ctx, delta) =>
+      | DHPat.Expands(dp, _, ctx, delta) =>
         switch (syn_expand(ctx, delta, e1)) {
         | DoesNotExpand => DoesNotExpand
         | Expands(d1, ty2, delta) =>
@@ -1040,15 +1064,16 @@ module DHExp = {
         let (ctx1, is_recursive_fn) = UHExp.ctx_for_let'(ctx, p, ty1, e1);
         switch (ana_expand(ctx1, delta, e1, ty1)) {
         | DoesNotExpand => DoesNotExpand
-        | Expands(d1, ty1, delta) =>
+        | Expands(d1, ty1', delta) =>
           let d1 =
             switch (is_recursive_fn) {
             | None => d1
-            | Some(x) => FixF(x, ty1, d1)
+            | Some(x) => FixF(x, ty1', subst_var(cast(BoundVar(x), ty1', ty1), x, d1))
             };
+          let d1 = cast(d1, ty1', ty1);
           switch (DHPat.ana_expand(ctx, delta, p, ty1)) {
           | DHPat.DoesNotExpand => DoesNotExpand
-          | DHPat.Expands(dp, typ, ctx, delta) =>
+          | DHPat.Expands(dp, _, ctx, delta) =>
             switch (syn_expand(ctx, delta, e2)) {
             | DoesNotExpand => DoesNotExpand
             | Expands(d2, ty, delta) =>
@@ -1063,7 +1088,7 @@ module DHExp = {
         | Expands(d1, ty1, delta) =>
           switch (DHPat.ana_expand(ctx, delta, p, ty1)) {
           | DHPat.DoesNotExpand => DoesNotExpand
-          | DHPat.Expands(dp, ty1, ctx, delta) =>
+          | DHPat.Expands(dp, _, ctx, delta) =>
             switch (syn_expand(ctx, delta, e2)) {
             | DoesNotExpand => DoesNotExpand
             | Expands(d2, ty, delta2) =>
@@ -1087,7 +1112,10 @@ module DHExp = {
           };
         Expands(d, ty, delta);
       }
-    | UHExp.ListNil => Expands(ListNil, HTyp.List(HTyp.Hole), delta)
+    | UHExp.ListNil => {
+      let elt_ty = HTyp.Hole;
+      Expands(ListNil(elt_ty), HTyp.List(elt_ty), delta)
+    }
     | UHExp.Case(_, _) => DoesNotExpand
     | UHExp.OpSeq(skel, seq) => syn_expand_skel(ctx, delta, skel, seq)
     | UHExp.ApPalette(name, serialized_model, hole_data) => DoesNotExpand
@@ -1270,12 +1298,13 @@ module DHExp = {
         let (ctx1, is_recursive_fn) = UHExp.ctx_for_let'(ctx, p, ty1, e1);
         switch (ana_expand(ctx1, delta, e1, ty1)) {
         | DoesNotExpand => DoesNotExpand
-        | Expands(d1, ty1, delta) =>
+        | Expands(d1, ty1', delta) =>
           let d1 =
             switch (is_recursive_fn) {
             | None => d1
-            | Some(x) => FixF(x, ty1, d1)
+            | Some(x) => FixF(x, ty1', subst_var(cast(BoundVar(x), ty1', ty1), x, d1))
             };
+          let d1 = cast(d1, ty1', ty1);
           switch (DHPat.ana_expand(ctx, delta, p, ty1)) {
           | DHPat.DoesNotExpand => DoesNotExpand
           | DHPat.Expands(dp, _, ctx, delta) =>
@@ -1359,7 +1388,7 @@ module DHExp = {
     | UHExp.ListNil =>
       switch (HTyp.matched_list(ty)) {
       | None => DoesNotExpand
-      | Some(_) => Expands(ListNil, ty, delta)
+      | Some(elt_ty) => Expands(ListNil(elt_ty), HTyp.List(elt_ty), delta)
       }
     | UHExp.Case(e1, rules) =>
       switch (syn_expand(ctx, delta, e1)) {
@@ -1675,7 +1704,7 @@ module DHExp = {
     | BoundVar(_)
     | BoolLit(_)
     | NumLit(_)
-    | ListNil
+    | ListNil(_)
     | Triv => (d, hii)
     | Let(dp, d1, d2) =>
       let (d1, hii) = renumber_result_only(path, hii, d1);
@@ -1751,7 +1780,7 @@ module DHExp = {
     | BoundVar(_)
     | BoolLit(_)
     | NumLit(_)
-    | ListNil
+    | ListNil(_)
     | Triv => (d, hii)
     | Let(dp, d1, d2) =>
       let (d1, hii) = renumber_sigmas_only(path, hii, d1);
@@ -1975,7 +2004,7 @@ module Evaluator = {
         | Indet(d2') => Indet(DHExp.Ap(d1', d2'))
         }
       }
-    | DHExp.ListNil
+    | DHExp.ListNil(_)
     | DHExp.BoolLit(_)
     | DHExp.NumLit(_)
     | DHExp.Triv => BoxedValue(d)
@@ -2052,7 +2081,10 @@ module Evaluator = {
             } else {
               Indet(DHExp.FailedCast(d1', ty, ty'));
             }
-          | _ => InvalidInput(6)
+          | _ => {
+            JSUtil.log(DHExp.constructor_string(d1'));
+            InvalidInput(6);
+          }
           }
         | (Hole, NotGroundOrHole(ty'_grounded)) =>
           /* ITExpand rule */
