@@ -4003,7 +4003,7 @@ let can_perform =
     (
       ctx: Contexts.t,
       edit_state: (ZExp.t, HTyp.t, MetaVarGen.t),
-      ci: ZExp.cursor_info,
+      ci: CursorInfo.t,
       a: t,
     )
     : bool =>
@@ -4012,49 +4012,49 @@ let can_perform =
   | Construct(SAsc) =>
     let sort = ci.sort;
     switch (sort) {
-    | ZExp.IsExpr(_) => true
-    | ZExp.IsPat(_) => true
-    | ZExp.IsType => false
+    | CursorInfo.IsExpr(_) => true
+    | CursorInfo.IsPat(_) => true
+    | CursorInfo.IsType => false
     };
   | Construct(SLetLine)
   | Construct(SLam)
   | Construct(SInj(_))
   | Construct(SCase) =>
     switch (ci.mode) {
-    | ZExp.AnaOnly(_) => false
-    | ZExp.AnaAnnotatedLambda(_, _)
-    | ZExp.AnaTypeInconsistent(_, _)
-    | ZExp.AnaWrongLength(_, _, _)
-    | ZExp.AnaFree(_)
-    | ZExp.AnaSubsumed(_, _)
-    | ZExp.SynOnly(_)
-    | ZExp.SynFree
-    | ZExp.SynErrorArrow(_, _)
-    | ZExp.SynMatchingArrow(_, _)
-    | ZExp.SynFreeArrow(_) => true
-    | ZExp.TypePosition => false
-    | ZExp.PatAnaOnly(_)
-    | ZExp.PatAnaTypeInconsistent(_, _)
-    | ZExp.PatAnaWrongLength(_, _, _)
-    | ZExp.PatAnaSubsumed(_, _)
-    | ZExp.PatSynOnly(_) => false
+    | CursorInfo.AnaOnly(_) => false
+    | CursorInfo.AnaAnnotatedLambda(_, _)
+    | CursorInfo.AnaTypeInconsistent(_, _)
+    | CursorInfo.AnaWrongLength(_, _, _)
+    | CursorInfo.AnaFree(_)
+    | CursorInfo.AnaSubsumed(_, _)
+    | CursorInfo.SynOnly(_)
+    | CursorInfo.SynFree
+    | CursorInfo.SynErrorArrow(_, _)
+    | CursorInfo.SynMatchingArrow(_, _)
+    | CursorInfo.SynFreeArrow(_) => true
+    | CursorInfo.TypePosition => false
+    | CursorInfo.PatAnaOnly(_)
+    | CursorInfo.PatAnaTypeInconsistent(_, _)
+    | CursorInfo.PatAnaWrongLength(_, _, _)
+    | CursorInfo.PatAnaSubsumed(_, _)
+    | CursorInfo.PatSynOnly(_) => false
     }
   | Construct(SListNil)
   | Construct(SApPalette(_)) =>
     switch (ci.sort) {
-    | ZExp.IsExpr(UHExp.Tm(_, UHExp.EmptyHole(_))) => true
-    | ZExp.IsExpr(_) => false
-    | ZExp.IsPat(UHPat.Pat(_, UHPat.EmptyHole(_))) => true
-    | ZExp.IsPat(_) => false
-    | ZExp.IsType => false
+    | CursorInfo.IsExpr(UHExp.Tm(_, UHExp.EmptyHole(_))) => true
+    | CursorInfo.IsExpr(_) => false
+    | CursorInfo.IsPat(UHPat.Pat(_, UHPat.EmptyHole(_))) => true
+    | CursorInfo.IsPat(_) => false
+    | CursorInfo.IsType => false
     }
   | Construct(SOp(SArrow))
   | Construct(SOp(SVBar))
   | Construct(SList) =>
     switch (ci.sort) {
-    | ZExp.IsType => true
-    | ZExp.IsExpr(_)
-    | ZExp.IsPat(_) => false
+    | CursorInfo.IsType => true
+    | CursorInfo.IsExpr(_)
+    | CursorInfo.IsPat(_) => false
     }
   | Construct(SVar(_, _)) /* see can_enter_varchar below */
   | Construct(SWild)
@@ -4078,39 +4078,39 @@ let can_perform =
       false
   };
 
-let can_enter_varchar = (ci: ZExp.cursor_info): bool =>
+let can_enter_varchar = (ci: CursorInfo.t): bool =>
   switch (ci.sort) {
-  | ZExp.IsExpr(UHExp.Tm(_, UHExp.Var(_, _)))
-  | ZExp.IsExpr(UHExp.Tm(_, UHExp.EmptyHole(_)))
-  | ZExp.IsExpr(UHExp.Tm(_, UHExp.BoolLit(_)))
-  | ZExp.IsPat(UHPat.Pat(_, UHPat.Var(_)))
-  | ZExp.IsPat(UHPat.Pat(_, UHPat.EmptyHole(_)))
-  | ZExp.IsPat(UHPat.Pat(_, UHPat.BoolLit(_))) => true
-  | ZExp.IsExpr(UHExp.Tm(_, UHExp.NumLit(_)))
-  | ZExp.IsPat(UHPat.Pat(_, UHPat.NumLit(_))) =>
+  | CursorInfo.IsExpr(UHExp.Tm(_, UHExp.Var(_, _)))
+  | CursorInfo.IsExpr(UHExp.Tm(_, UHExp.EmptyHole(_)))
+  | CursorInfo.IsExpr(UHExp.Tm(_, UHExp.BoolLit(_)))
+  | CursorInfo.IsPat(UHPat.Pat(_, UHPat.Var(_)))
+  | CursorInfo.IsPat(UHPat.Pat(_, UHPat.EmptyHole(_)))
+  | CursorInfo.IsPat(UHPat.Pat(_, UHPat.BoolLit(_))) => true
+  | CursorInfo.IsExpr(UHExp.Tm(_, UHExp.NumLit(_)))
+  | CursorInfo.IsPat(UHPat.Pat(_, UHPat.NumLit(_))) =>
     switch (ci.side) {
     | Before => true
     | In(_)
     | After => false
     }
-  | ZExp.IsExpr(_)
-  | ZExp.IsPat(_)
-  | ZExp.IsType => false
+  | CursorInfo.IsExpr(_)
+  | CursorInfo.IsPat(_)
+  | CursorInfo.IsType => false
   };
 
-let can_enter_numeral = (ci: ZExp.cursor_info): bool =>
+let can_enter_numeral = (ci: CursorInfo.t): bool =>
   switch (ci.sort) {
-  | ZExp.IsExpr(UHExp.Tm(_, UHExp.NumLit(_)))
-  | ZExp.IsExpr(UHExp.Tm(_, UHExp.EmptyHole(_)))
-  | ZExp.IsPat(UHPat.Pat(_, UHPat.NumLit(_)))
-  | ZExp.IsPat(UHPat.Pat(_, UHPat.EmptyHole(_))) => true
-  | ZExp.IsExpr(_)
-  | ZExp.IsPat(_)
-  | ZExp.IsType => false
+  | CursorInfo.IsExpr(UHExp.Tm(_, UHExp.NumLit(_)))
+  | CursorInfo.IsExpr(UHExp.Tm(_, UHExp.EmptyHole(_)))
+  | CursorInfo.IsPat(UHPat.Pat(_, UHPat.NumLit(_)))
+  | CursorInfo.IsPat(UHPat.Pat(_, UHPat.EmptyHole(_))) => true
+  | CursorInfo.IsExpr(_)
+  | CursorInfo.IsPat(_)
+  | CursorInfo.IsType => false
   };
 
-let can_construct_palette = (ci: ZExp.cursor_info): bool =>
+let can_construct_palette = (ci: CursorInfo.t): bool =>
   switch (ci.sort) {
-  | ZExp.IsExpr(UHExp.Tm(_, UHExp.EmptyHole(_))) => true
+  | CursorInfo.IsExpr(UHExp.Tm(_, UHExp.EmptyHole(_))) => true
   | _ => false
   };
