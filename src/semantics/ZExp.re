@@ -760,14 +760,9 @@ and syn_cursor_info' = (ctx: Contexts.t, ze: t'): option(cursor_info) =>
     let seq = OperatorSeq.opseq_of_exp_and_surround(e0, surround);
     let n = OperatorSeq.surround_prefix_length(surround);
     syn_skel_cursor_info(ctx, skel, seq, n, ze0);
-  | ApPaletteZ(_, _, zholedata) => None
-  /* TODO
-     let (_, zholemap) = zholedata;
-     let (_, tz) = zholemap;
-     let (_, tz') = tz;
-     let (ty, ze) = tz';
-     ana_cursor_info(ctx, ze, ty);
-     */
+  | ApPaletteZ(_, _, zpsi) =>
+    let (ty, ze) = Util.ZNatMap.prj_z(zpsi.zsplice_map);
+    ana_cursor_info(ctx, ze, ty);
   }
 and syn_line_item_cursor_info = (ctx, zli) =>
   switch (zli) {
@@ -852,13 +847,6 @@ and ana_cursor_info' =
     | Some((ty1, ty2)) =>
       ana_cursor_info(ctx, ze1, pick_side(side, ty1, ty2))
     }
-  /* | ListLitZ zes ->
-     begin match HTyp.matched_list ty with
-     | None -> None
-     | Some ty_elt ->
-       let ze0 = ZList.prj_z zes in
-       ana_cursor_info ctx ze0 ty_elt
-     end */
   | CaseZE(ze1, rules) => syn_cursor_info(ctx, ze1)
   | CaseZR(e1, zrules) =>
     switch (Statics.syn(ctx, e1)) {
