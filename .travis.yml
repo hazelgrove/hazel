@@ -17,7 +17,6 @@ install:
  - opam init -a 
  - eval `opam env`
  - opam install dune reason js_of_ocaml tyxml deriving ppx_deriving reactiveData ocp-indent camomile js_of_ocaml-tyxml menhir oUnit
- - travis_wait opam install coq
 
 script:
   - bash .travis-ci.sh
