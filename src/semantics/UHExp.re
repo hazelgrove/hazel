@@ -29,14 +29,9 @@ and t' =
   | Inj(inj_side, t)
   | Case(t, list(rule))
   | ListNil
-  /* | ListCons : list(t) -> t' */
   | EmptyHole(MetaVar.t)
-  | OpSeq(skel_t, OperatorSeq.opseq(t, op)) /* invariant: skeleton is consistent with opseq */
-  | ApPalette(
-      PaletteName.t,
-      PaletteSerializedModel.t,
-      PaletteSpliceInfo.t(t),
-    ) /* = PaletteHoleData.t */
+  | OpSeq(skel_t, opseq) /* invariant: skeleton is consistent with opseq */
+  | ApPalette(PaletteName.t, SerializedModel.t, SpliceInfo.t(t))
 and line_item =
   | EmptyLine
   | ExpLine(t)

@@ -9,7 +9,7 @@ type div_type = Html5.elt(Html_types.div);
 
 module HTMLWithCells = {
   type m_html_with_cells =
-    | NewCellFor(PaletteSpliceInfo.splice_name)
+    | NewCellFor(SpliceInfo.splice_name)
     | Bind(m_html_with_cells, div_type => m_html_with_cells)
     | Ret(div_type);
 };
@@ -31,8 +31,8 @@ module type PALETTE = {
 
   let expand: model => UHExp.t;
 
-  let serialize: model => PaletteSerializedModel.t;
-  let deserialize: PaletteSerializedModel.t => model;
+  let serialize: model => SerializedModel.t;
+  let deserialize: SerializedModel.t => model;
 };
 
 /*
@@ -336,9 +336,8 @@ module type PALETTE = {
    stuff below is infrastructure
    ---------- */
 
-type model_updater = PaletteSerializedModel.t => unit;
-type serialized_view_fn_t =
-  (PaletteSerializedModel.t, model_updater) => view_type;
+type model_updater = SerializedModel.t => unit;
+type serialized_view_fn_t = (SerializedModel.t, model_updater) => view_type;
 
 module PaletteViewCtx = {
   type t = VarMap.t_(serialized_view_fn_t);

@@ -26,11 +26,7 @@ and t' =
   | CaseZE(t, list(UHExp.rule))
   | CaseZR(UHExp.t, ZList.t(zrule, UHExp.rule))
   | OpSeqZ(UHExp.skel_t, t, OperatorSeq.opseq_surround(UHExp.t, UHExp.op))
-  | ApPaletteZ(
-      PaletteName.t,
-      PaletteSerializedModel.t,
-      PaletteZSpliceInfo.t(UHExp.t, t),
-    )
+  | ApPaletteZ(PaletteName.t, SerializedModel.t, ZSpliceInfo.t(UHExp.t, t))
 and zline_item =
   | EmptyLineZ
   | ExpLineZ(t)
@@ -133,7 +129,7 @@ and erase' = (ze: t'): UHExp.t' =>
     let e = erase(ze');
     UHExp.OpSeq(skel, OperatorSeq.opseq_of_exp_and_surround(e, surround));
   | ApPaletteZ(palette_name, serialized_model, zpsi) =>
-    let psi = PaletteZSpliceInfo.erase(zpsi, ((ty, z)) => (ty, erase(z)));
+    let psi = ZSpliceInfo.erase(zpsi, ((ty, z)) => (ty, erase(z)));
     UHExp.ApPalette(palette_name, serialized_model, psi);
   }
 and erase_line_item = (zli: zline_item): UHExp.line_item =>
