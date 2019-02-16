@@ -113,8 +113,9 @@ let rec ana_pat_cursor_found =
     | None => None
     | Some(ci) => Some(update_sort(ci, IsPat(p)))
     }
-  | UHPat.Pat(InHole(TypeInconsistent, _), p') =>
-    switch (Statics.syn_pat'(ctx, p')) {
+  | UHPat.Pat(InHole(TypeInconsistent, _), _) =>
+    let p_nih = UHPat.set_err_status(NotInHole, p);
+    switch (Statics.syn_pat(ctx, p_nih)) {
     | None => None
     | Some((ty', _)) =>
       Some(
@@ -291,7 +292,7 @@ and ana_skel_pat_cursor_info =
     } else {
       None;
     }
-  | Skel.BinOp(InHole(TypeInconsistent, _), _, skel1, skel2) =>
+  | Skel.BinOp(InHole(TypeInconsistent, _), op, skel1, skel2) =>
     syn_skel_pat_cursor_info(ctx, skel, seq, n, zp1)
   | Skel.BinOp(NotInHole, UHPat.Comma, skel1, skel2) =>
     switch (ty) {
@@ -378,27 +379,15 @@ let rec ana_cursor_found =
     | None => None
     | Some(ci) => Some(update_sort(ci, IsExpr(e)))
     }
-  | UHExp.Tm(
-      InHole(TypeInconsistent, _),
-      UHExp.OpSeq(Skel.BinOp(_, op, skel1, skel2), surround),
-    ) =>
-    let e' = UHExp.OpSeq(Skel.BinOp(NotInHole, op, skel1, skel2), surround);
-    switch (Statics.syn'(ctx, e')) {
+  | UHExp.Tm(InHole(TypeInconsistent, _), _) => 
+    let e_nih = UHExp.set_err_status(NotInHole, e);
+    switch (Statics.syn(ctx, e_nih)) {
     | None => None
     | Some(ty') =>
       Some(
         mk_cursor_info(AnaTypeInconsistent(ty, ty'), IsExpr(e), side, ctx),
       )
     };
-  | UHExp.Tm(InHole(TypeInconsistent, _), e') =>
-    switch (Statics.syn'(ctx, e')) {
-    | None => 
-      None
-    | Some(ty') =>
-      Some(
-        mk_cursor_info(AnaTypeInconsistent(ty, ty'), IsExpr(e), side, ctx),
-      )
-    }
   | UHExp.Tm(_, UHExp.Var(InVHole(_), _)) =>
     Some(mk_cursor_info(AnaFree(ty), IsExpr(e), side, ctx))
   | UHExp.Tm(NotInHole, UHExp.Case(_, _)) => 
@@ -775,7 +764,8 @@ and syn_skel_cursor_info =
     if (n == n') {
       switch (ZExp.cursor_on_outer_expr(ze_n)) {
       | Some((UHExp.Tm(InHole(TypeInconsistent, u), e_n') as e_n, side)) =>
-        switch (Statics.syn'(ctx, e_n')) {
+        let e_n_nih = UHExp.set_err_status(NotInHole, e_n);
+        switch (Statics.syn(ctx, e_n_nih)) {
         | Some(ty) =>
           Some(
             mk_cursor_info(
@@ -874,7 +864,7 @@ and ana_skel_cursor_info =
     } else {
       None;
     }
-  | Skel.BinOp(InHole(TypeInconsistent, _), _, _, _) =>
+  | Skel.BinOp(InHole(TypeInconsistent, _), op, skel1, skel2) =>
     syn_skel_cursor_info(ctx, skel, seq, n, ze_n)
   | Skel.BinOp(NotInHole, UHExp.Comma, skel1, skel2) =>
     switch (ty) {

@@ -81,7 +81,6 @@ type err_state_b =
 let of_cursor_mode = (cursor_mode: CursorInfo.cursor_mode) => {
   let (ind1, ind2, err_state_b) =
     switch (cursor_mode) {
-    | CursorInfo.AnaOnly(ty)
     | CursorInfo.Analyzed(ty) =>
       let ind1 = expected_ty_indicator(ty);
       let ind2 = got_indicator("Got", special_msg_bar("as expected"));
