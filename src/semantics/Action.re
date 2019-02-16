@@ -2482,45 +2482,38 @@ let rec perform_syn =
   | (
       Construct(SApPalette(name)),
       ZExp.CursorE(_, UHExp.Tm(_, UHExp.EmptyHole(_))),
-    ) => None 
-    /* TODO let (_, palette_ctx) = ctx;
+    ) => 
+    let palette_ctx = Contexts.palette_ctx(ctx);
     switch (PaletteCtx.lookup(palette_ctx, name)) {
-    | Some(palette_defn) =>
-      let m_initial_model =
-        UHExp.PaletteDefinition.initial_model(palette_defn);
-      let (q, u_gen) =
-        UHExp.HoleRefs.exec(
-          m_initial_model,
-          UHExp.PaletteHoleData.empty,
-          u_gen,
-        );
-      let (initial_model, initial_hole_data) = q;
-      let expansion_ty = UHExp.PaletteDefinition.expansion_ty(palette_defn);
-      let expansion =
-        (UHExp.PaletteDefinition.to_exp(palette_defn))(initial_model);
-      let (_, initial_hole_map) = initial_hole_data;
-      let expansion_ctx =
-        UHExp.PaletteHoleData.extend_ctx_with_hole_map(ctx, initial_hole_map);
-      switch (Statics.ana(expansion_ctx, expansion, expansion_ty)) {
-      | Some(_) =>
-        Some((
-          ZExp.CursorE(
-            After,
-            UHExp.Tm(
-              NotInHole,
-              UHExp.ApPalette(name, initial_model, initial_hole_data),
-            ),
-          ),
-          expansion_ty,
-          u_gen,
-        ))
-      | None => None
-      };
     | None => None
-    }; */
+    | Some(palette_defn) => 
+      let init_model_cmd = palette_defn.init_model;
+      let (init_model, init_splice_info, u_gen) = 
+        SpliceGenMonad.exec(init_model_cmd, SpliceInfo.empty, u_gen);
+      switch (Statics.ana_splice_map(ctx, init_splice_info.splice_map)) {
+      | None => None
+      | Some(splice_ctx) => 
+        let expansion_ty = palette_defn.expansion_ty;
+        let expand = palette_defn.expand;
+        let expansion = expand(init_model);
+        switch (Statics.ana(splice_ctx, expansion, expansion_ty)) {
+        | None => None
+        | Some(_) => 
+          Some((
+            ZExp.CursorE(
+              Before,
+              UHExp.Tm(
+                NotInHole,
+                UHExp.ApPalette(name, init_model, init_splice_info)
+              )),
+            expansion_ty,
+            u_gen))
+        }
+      }
+    }
   | (Construct(SApPalette(_)), ZExp.CursorE(_, _)) => None
   | (
-      UpdateApPalette(monad),
+      UpdateApPalette(cmd),
       ZExp.CursorE(_, UHExp.Tm(_, UHExp.ApPalette(name, _, hole_data))),
     ) => None
     /* TODO let (_, palette_ctx) = ctx;

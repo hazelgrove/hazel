@@ -42,7 +42,6 @@ let mk =
     : t => {
   let cursor_info_rs = model.cursor_info_rs;
   let do_action = model.do_action;
-  let key_of = JSUtil.KeyCombo.key;
   let palette_stuff =
     View.{
       palette_view_ctx: Palettes.initial_palette_view_ctx,
@@ -123,10 +122,10 @@ let mk =
             }
           ),
           a_onkeydown(evt => {
-            let key = JSUtil.get_key(evt);
             let is_backspace =
-              String.equal(key, key_of(JSUtil.KeyCombos.backspace));
-            let is_del = String.equal(key, key_of(JSUtil.KeyCombos.del));
+              JSUtil.KeyCombo.matches(JSUtil.KeyCombos.backspace, evt);
+            let is_del =
+              JSUtil.KeyCombo.matches(JSUtil.KeyCombos.delete, evt);
             if (is_backspace || is_del) {
               let cursor_info = React.S.value(cursor_info_rs);
               switch (cursor_info.sort) {
