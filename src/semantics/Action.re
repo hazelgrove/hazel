@@ -1762,27 +1762,24 @@ and perform_ana_pat =
         Some((zp, ctx, u_gen));
       };
     }
-  | (_, ZPat.Deeper(_, ZPat.OpSeqZ(_, zp0, surround))) =>
+  | (_, ZPat.Deeper(err, ZPat.OpSeqZ(_, zp0, surround))) =>
     let i = OperatorSeq.surround_prefix_length(surround);
     switch (ZPat.erase(zp)) {
     | UHPat.Pat(_, UHPat.OpSeq(skel, seq)) =>
       switch (Statics.ana_skel_pat(ctx, skel, seq, ty, Some(i))) {
-      | Some((ctx, Some(mode))) =>
+      | Some((_, Some(mode))) =>
         switch (mode) {
         | Statics.AnalyzedAgainst(ty0) =>
           switch (perform_ana_pat(ctx, u_gen, a, zp0, ty0)) {
           | None => None
-          | Some((zp0, ctx, u_gen)) =>
+          | Some((zp0, _, u_gen)) =>
+            JSUtil.log(0);
             let zp0 = ZPat.bidelimit(zp0);
-            Some((
-              ZPat.Deeper(NotInHole, ZPat.OpSeqZ(skel, zp0, surround)),
-              ctx,
-              u_gen,
-            ));
+            make_and_ana_OpSeqZ_pat(ctx, u_gen, zp0, surround, ty);
           }
         | Statics.Synthesized(ty0) =>
           switch (perform_syn_pat(ctx, u_gen, a, zp0)) {
-          | Some((zp0, ty0, ctx, u_gen)) =>
+          | Some((zp0, ty0, _, u_gen)) =>
             let zp0 = ZPat.bidelimit(zp0);
             make_and_ana_OpSeqZ_pat(ctx, u_gen, zp0, surround, ty);
           | None => None
@@ -3623,7 +3620,7 @@ and perform_ana =
         }
       }
     };
-  | (_, ZExp.Deeper(_, ZExp.LamZP(zp, ann, e1))) =>
+  | (_, ZExp.Deeper(err, ZExp.LamZP(zp, ann, e1))) =>
     switch (HTyp.matched_arrow(ty)) {
     | None => None
     | Some((ty1_given, ty2)) =>
@@ -3638,7 +3635,7 @@ and perform_ana =
         switch (Statics.ana_fix_holes(ctx, u_gen, e1, ty2)) {
         | None => None
         | Some((e1, u_gen)) =>
-          let ze = ZExp.Deeper(NotInHole, ZExp.LamZP(zp, ann, e1));
+          let ze = ZExp.Deeper(err, ZExp.LamZP(zp, ann, e1));
           Some((ze, u_gen));
         }
       };
@@ -3681,7 +3678,7 @@ and perform_ana =
           );
       }
     }
-  | (_, ZExp.Deeper(_, ZExp.LamZE(p, ann, ze1))) =>
+  | (_, ZExp.Deeper(err, ZExp.LamZE(p, ann, ze1))) =>
     switch (HTyp.matched_arrow(ty)) {
     | None => None
     | Some((ty1_given, ty2)) =>
@@ -3696,18 +3693,18 @@ and perform_ana =
         switch (perform_ana(u_gen, ctx, a, ze1, ty2)) {
         | None => None
         | Some((ze1, u_gen)) =>
-          let ze = ZExp.Deeper(NotInHole, ZExp.LamZE(p, ann, ze1));
+          let ze = ZExp.Deeper(err, ZExp.LamZE(p, ann, ze1));
           Some((ze, u_gen));
         }
       };
     }
-  | (_, ZExp.Deeper(_, ZExp.InjZ(side, ze))) =>
+  | (_, ZExp.Deeper(err, ZExp.InjZ(side, ze))) =>
     switch (HTyp.matched_sum(ty)) {
     | Some((ty1, ty2)) =>
       let picked = pick_side(side, ty1, ty2);
       switch (perform_ana(u_gen, ctx, a, ze, picked)) {
       | Some((ze', u_gen)) =>
-        Some((ZExp.Deeper(NotInHole, ZExp.InjZ(side, ze')), u_gen))
+        Some((ZExp.Deeper(err, ZExp.InjZ(side, ze')), u_gen))
       | None => None
       };
     | None => None
