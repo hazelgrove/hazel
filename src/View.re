@@ -321,7 +321,7 @@ let of_Lam = (prefix, err_status, rev_path, rx, rann, r1) => {
   term(prefix, err_status, rev_path, "Lam", view);
 };
 
-let string_of_bool = b => b ? "True" : "False";
+let string_of_bool = b => b ? "true" : "false";
 
 let of_BoolLit = (prefix, err_status, rev_path, b) =>
   term(

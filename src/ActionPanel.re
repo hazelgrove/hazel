@@ -338,6 +338,12 @@ let make =
   let constructVar =
     info_button(Html5.txt("enter variables directly"), can_enter_varchar_rs);
 
+  let constructBoolLit =
+    info_button(
+      Html5.txt("enter bool literals (true, false) directly"),
+      can_enter_varchar_rs,
+    );
+
   let constructLam =
     action_button(
       Action.Construct(Action.SLam),
@@ -401,20 +407,6 @@ let make =
       Action.(Construct(SOp(SCons))),
       twopiece_lbl_op("::", " operator"),
       KCs.semicolon,
-    );
-
-  let constructTrue =
-    checked_action_button(
-      Action.(Construct(SBoolLit(true, After))),
-      Html5.txt("True"),
-      KCs.alt_T,
-    );
-
-  let constructFalse =
-    checked_action_button(
-      Action.(Construct(SBoolLit(false, After))),
-      Html5.txt("False"),
-      KCs.alt_F,
     );
 
   let constructInjL =
@@ -502,8 +494,7 @@ let make =
               constructPlus,
               constructTimes,
               constructLessThan,
-              constructTrue,
-              constructFalse,
+              constructBoolLit,
               constructComma,
               constructNil,
               constructCons,
