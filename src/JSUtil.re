@@ -1,10 +1,13 @@
+module U = Util;
 open Tyxml_js;
 open React;
 module Js = Js_of_ocaml.Js;
 module Dom = Js_of_ocaml.Dom;
 module Dom_html = Js_of_ocaml.Dom_html;
 module Ev = Dom_html.Event;
+
 let log = x => Js_of_ocaml.Firebug.console##log(x);
+
 let forceGetElementById = id => {
   let doc = Dom_html.document;
   Js.Opt.get(
@@ -27,6 +30,7 @@ let listen_to_t = (ev, elem, f) =>
       Js._true;
     },
   );
+
 let r_input = (id, placeholder_str) => {
   let (rs, rf) = S.create("");
   let i_elt =
@@ -46,6 +50,7 @@ let r_input = (id, placeholder_str) => {
 
   ((rs, rf), i_elt, i_dom);
 };
+
 let r_checkbox = (id, label_str, default_val) => {
   let (rs, rf) = S.create(default_val);
   let checkbox_elt_attrs_base =
@@ -69,138 +74,202 @@ let r_checkbox = (id, label_str, default_val) => {
   let control_dom = To_dom.of_div(control_elt);
   ((rs, rf), control_elt, control_dom);
 };
-module ModKeyReqs: {
-  type t;
-  type heldReq =
-    | MustBeHeld
-    | MustNotBeHeld
-    | DoesNotMatter;
 
-  let make: (heldReq, heldReq, heldReq) => t;
-  let none: t;
-  let withShift: heldReq => t;
-  let withCtrl: heldReq => t;
-  let withAlt: heldReq => t;
-
-  let matches: (t, (bool, bool, bool)) => bool;
-} = {
-  type heldReq =
-    | MustBeHeld
-    | MustNotBeHeld
-    | DoesNotMatter;
-  type t = (heldReq, heldReq, heldReq);
-
-  let make = (shift, ctrl, alt) => (shift, ctrl, alt);
-  let none = make(DoesNotMatter, DoesNotMatter, DoesNotMatter);
-  let withShift = req => make(req, DoesNotMatter, DoesNotMatter);
-  let withCtrl = req => make(DoesNotMatter, req, DoesNotMatter);
-  let withAlt = req => make(DoesNotMatter, DoesNotMatter, req);
-
-  let matches = (modKeyReqs, (isShiftHeld, isCtrlHeld, isAltHeld)) => {
-    let (shiftReq, ctrlReq, altReq) = modKeyReqs;
-
-    let _matches = (heldReq, isHeld) =>
-      switch (heldReq) {
-      | DoesNotMatter => true
-      | MustBeHeld => isHeld
-      | MustNotBeHeld => !isHeld
-      };
-
-    _matches(shiftReq, isShiftHeld)
-    && _matches(ctrlReq, isCtrlHeld)
-    && _matches(altReq, isAltHeld);
-  };
-};
-module KeyCombo: {
-  type t;
-  let make: (string, string, ModKeyReqs.t) => t;
-  let name: t => string;
-  let key: t => string;
-  let modKeyReqs: t => ModKeyReqs.t;
-} = {
-  type t = (string, string, ModKeyReqs.t);
-  let make = (name, key, modKeyReqs) => (name, key, modKeyReqs);
-  let name = ((name, _, _)) => name;
-  let key = ((_, key, _)) => key;
-  let modKeyReqs = ((_, _, modKeyReqs)) => modKeyReqs;
-};
-module KeyCombos = {
-  let _kc = (name, key) => KeyCombo.make(name, key, ModKeyReqs.none);
-  let _kcm = (name, key, modKeyReqs) => KeyCombo.make(name, key, modKeyReqs);
-  let enter = _kc("Enter", "Enter");
-  let esc = _kc("Esc", "Escape");
-  let backspace = _kc("Backspace", "Backspace");
-  let del = _kc("Delete", "Delete");
-  let tab = _kcm("Tab", "Tab", ModKeyReqs.withShift(MustNotBeHeld));
-  let backtab = _kcm("Shift + Tab", "Tab", ModKeyReqs.withShift(MustBeHeld));
-  let space = _kc("Space", " ");
-  let p = _kc("p", "p");
-  let x = _kc("x", "x");
-  let greaterThan = _kc(">", ">");
-  let n = _kc("n", "n");
-  let s = _kc("s", "s");
-  let dot = _kc(".", ".");
-  let colon = _kc(":", ":");
-  let alt_V = _kcm("Alt + V", "v", ModKeyReqs.withAlt(MustBeHeld));
-  let backslash = _kc("\\", "\\");
-  let openParens = _kc("(", "(");
-  let pound = _kc("#", "#");
-  let plus = _kc("+", "+");
-  let asterisk = _kc("*", "*");
-  let semicolon = _kc("::", ";");
-  let comma = _kc(",", ",");
-  let lt = _kc("<", "<");
-  let nil = _kc("[", "[");
-  let alt_L = _kcm("Alt + L", "l", ModKeyReqs.withAlt(MustBeHeld));
-  let alt_R = _kcm("Alt + R", "r", ModKeyReqs.withAlt(MustBeHeld));
-  let alt_C = _kcm("Alt + C", "c", ModKeyReqs.withAlt(MustBeHeld));
-  let alt_PageUp =
-    _kcm("Alt + PageUp", "PageUp", ModKeyReqs.withAlt(MustBeHeld));
-  let alt_PageDown =
-    _kcm("Alt + PageDown", "PageDown", ModKeyReqs.withAlt(MustBeHeld));
-  let alt_T = _kcm("Alt + T", "t", ModKeyReqs.withAlt(MustBeHeld));
-  let alt_F = _kcm("Alt + F", "f", ModKeyReqs.withAlt(MustBeHeld));
-  let qmark = _kc("?", "?");
-  let equals = _kc("=", "=");
-  let vbar = _kc("|", "|");
-  let q = _kc("q", "q");
-  let w = _kc("w", "w");
-  let dollar = _kc("$", "$");
-  let list = _kc("&", "&");
-};
-let get_which = (evt: Js.t(Dom_html.keyboardEvent)) =>
-  Js.Optdef.get(evt##.which, () => assert(false));
 let get_key = (evt: Js.t(Dom_html.keyboardEvent)) =>
   Js.to_string(Js.Optdef.get(evt##.key, () => assert(false)));
-let listen_for_key = (k, f) =>
-  listen_to_t(
-    Ev.keydown,
-    Dom_html.document,
-    evt => {
-      let matchesKey = get_key(evt) == KeyCombo.key(k);
-      let matchesModKeys =
-        ModKeyReqs.matches(
-          KeyCombo.modKeyReqs(k),
-          (
-            Js.to_bool(evt##.shiftKey),
-            Js.to_bool(evt##.ctrlKey),
-            Js.to_bool(evt##.altKey),
-          ),
-        );
-      if (matchesKey && matchesModKeys) {
-        f(evt);
-        ();
-      } else {
-        ();
-      };
-    },
+let get_code = (evt: Js.t(Dom_html.keyboardEvent)) =>
+  Js.to_string(Js.Optdef.get(evt##.code, () => assert(false)));
+
+module ModKey = {
+  type t =
+    | Ctrl
+    | Shift
+    | Alt;
+
+  let matches = (mk, evt: Js.t(Dom_html.keyboardEvent)) =>
+    switch (mk) {
+    | Ctrl => Js.to_bool(evt##.ctrlKey)
+    | Shift => Js.to_bool(evt##.shiftKey)
+    | Alt => Js.to_bool(evt##.altKey)
+    };
+};
+
+module ModKeys = {
+  type req =
+    | Held
+    | NotHeld
+    | Any;
+
+  let is_held =
+    fun
+    | Held => true
+    | NotHeld
+    | Any => false;
+
+  type t = {
+    c: req,
+    s: req,
+    a: req,
+  };
+
+  let not_held = {c: NotHeld, s: NotHeld, a: NotHeld};
+  let ctrl = {c: Held, s: Any, a: NotHeld};
+  let shift = {c: NotHeld, s: Held, a: NotHeld};
+  let alt = {c: NotHeld, s: Any, a: Held};
+  let no_ctrl_alt = {c: NotHeld, s: Any, a: NotHeld};
+
+  let req_matches = (req, mk, evt) =>
+    switch (req) {
+    | Any => true
+    | Held => ModKey.matches(mk, evt)
+    | NotHeld => !ModKey.matches(mk, evt)
+    };
+
+  let matches = (mks, evt: Js.t(Dom_html.keyboardEvent)) =>
+    req_matches(mks.c, ModKey.Ctrl, evt)
+    && req_matches(mks.s, ModKey.Shift, evt)
+    && req_matches(mks.a, ModKey.Alt, evt);
+
+  let mod_prefix = mk => {
+    let ctrl_held = is_held(mk.c);
+    let shift_held = is_held(mk.s);
+    let alt_held = is_held(mk.a);
+    switch (ctrl_held, shift_held, alt_held) {
+    | (false, false, false) => ""
+    | (true, false, false) => "Ctrl + "
+    | (false, true, false) => "Shift + "
+    | (false, false, true) => "Alt + "
+    | (true, true, false) => "Ctrl + Shift + "
+    | (true, false, true) => "Ctrl + Alt + "
+    | (false, true, true) => "Alt + Shift + "
+    | (true, true, true) => "Ctrl + Alt + Shift + "
+    };
+  };
+};
+
+module Key = {
+  type recognition_method =
+    | Code(string) /* corresponding to KeyboardEvent.code: https://developer.mozilla.org/en-US/docs/Web/API/KeyboardEvent/code */
+    | Key(string) /* corresponding to KeyboardEvent.key: https://developer.mozilla.org/en-US/docs/Web/API/KeyboardEvent/key */;
+
+  let code_of_letter = letter => "Key" ++ String.uppercase_ascii(letter);
+
+  type t = {
+    plain_name: string,
+    recognition_methods: list(recognition_method),
+  };
+
+  let code1 = (plain_name, code) => {
+    plain_name,
+    recognition_methods: [Code(code)],
+  };
+  let code2 = (plain_name, code1, code2) => {
+    plain_name,
+    recognition_methods: [Code(code1), Code(code2)],
+  };
+
+  let key1 = (plain_name, key) => {
+    plain_name,
+    recognition_methods: [Key(key)],
+  };
+
+  let the_letter_code = letter => code1(letter, code_of_letter(letter));
+  let the_code = code => code1(code, code);
+  let the_key = key => key1(key, key);
+
+  let recognize = (evt: Js.t(Dom_html.keyboardEvent), r) =>
+    switch (r) {
+    | Code(c) =>
+      let code = get_code(evt);
+      String.equal(code, c);
+    | Key(k) =>
+      let key = get_key(evt);
+      String.equal(key, k);
+    };
+
+  let matches = (k, evt: Js.t(Dom_html.keyboardEvent)) => {
+    let recognition_methods = k.recognition_methods;
+    U.any(recognition_methods, recognize(evt));
+  };
+};
+
+module KeyCombo = {
+  type t = {
+    mod_keys: ModKeys.t,
+    key: Key.t,
+  };
+
+  let make = (mod_keys, key) => {mod_keys, key};
+  let plain = key => {mod_keys: ModKeys.not_held, key};
+  let no_ctrl_alt = key => {mod_keys: ModKeys.no_ctrl_alt, key};
+  let shift = key => {mod_keys: ModKeys.shift, key};
+  let ctrl = key => {mod_keys: ModKeys.ctrl, key};
+  let alt = key => {mod_keys: ModKeys.alt, key};
+
+  let matches = (kc, evt: Js.t(Dom_html.keyboardEvent)) =>
+    ModKeys.matches(kc.mod_keys, evt) && Key.matches(kc.key, evt);
+
+  let name = kc => {
+    let mod_prefix = ModKeys.mod_prefix(kc.mod_keys);
+    mod_prefix ++ kc.key.plain_name;
+  };
+};
+
+module KeyCombos = {
+  let enter = KeyCombo.plain(Key.code2("Enter", "Enter", "NumpadEnter"));
+  let escape = KeyCombo.plain(Key.the_code("Escape"));
+  let backspace = KeyCombo.plain(Key.the_code("Backspace"));
+  let delete = KeyCombo.plain(Key.the_code("Delete"));
+  let tab = KeyCombo.plain(Key.the_code("Tab"));
+  let shift_tab = KeyCombo.shift(Key.the_code("Tab"));
+  let space = KeyCombo.plain(Key.the_code("Space"));
+  let lt = KeyCombo.no_ctrl_alt(Key.the_key("<"));
+  let gt = KeyCombo.no_ctrl_alt(Key.the_key(">"));
+  let colon = KeyCombo.no_ctrl_alt(Key.the_key(":"));
+  let backslash = KeyCombo.no_ctrl_alt(Key.the_key("\\"));
+  let left_parens = KeyCombo.no_ctrl_alt(Key.the_key("("));
+  let right_parens = KeyCombo.no_ctrl_alt(Key.the_key(")"));
+  let left_bracket = KeyCombo.no_ctrl_alt(Key.the_key("["));
+  let right_bracket = KeyCombo.no_ctrl_alt(Key.the_key("]"));
+  let qmark = KeyCombo.no_ctrl_alt(Key.the_key("?"));
+  let equals = KeyCombo.no_ctrl_alt(Key.the_key("="));
+  let pound = KeyCombo.no_ctrl_alt(Key.the_key("#"));
+  let plus = KeyCombo.no_ctrl_alt(Key.the_key("+"));
+  let asterisk = KeyCombo.no_ctrl_alt(Key.the_key("*"));
+  let semicolon = KeyCombo.no_ctrl_alt(Key.the_key(";"));
+  let comma = KeyCombo.no_ctrl_alt(Key.the_key(","));
+  let vbar = KeyCombo.no_ctrl_alt(Key.the_key("|"));
+  let dollar = KeyCombo.no_ctrl_alt(Key.the_key("$"));
+  let amp = KeyCombo.no_ctrl_alt(Key.the_key("&"));
+  let alt_L = KeyCombo.alt(Key.the_letter_code("l"));
+  let alt_R = KeyCombo.alt(Key.the_letter_code("r"));
+  let alt_C = KeyCombo.alt(Key.the_letter_code("c"));
+  let alt_PageUp = KeyCombo.alt(Key.the_key("PageUp"));
+  let alt_PageDown = KeyCombo.alt(Key.the_key("PageDown"));
+  let alt_T = KeyCombo.alt(Key.the_letter_code("T"));
+  let alt_F = KeyCombo.alt(Key.the_letter_code("F"));
+  let key_B = KeyCombo.no_ctrl_alt(Key.the_key("B"));
+  let key_N = KeyCombo.no_ctrl_alt(Key.the_key("N"));
+  let key_L = KeyCombo.no_ctrl_alt(Key.the_key("L"));
+};
+
+let listen_for_key = (kc, f) =>
+  listen_to_t(Ev.keydown, Dom_html.document, evt =>
+    if (KeyCombo.matches(kc, evt)) {
+      f(evt);
+      ();
+    } else {
+      ();
+    }
   );
 
 type single_key =
   | Number(int)
   | Letter(string)
   | Underscore;
-let letter_regexp = Js_of_ocaml.Regexp.regexp("^[a-zA-Z]$");
+
+let letter_regexp = Js_of_ocaml.Regexp.regexp("^[a-zA-Z']$");
+let lowercase_letter_regexp = Js_of_ocaml.Regexp.regexp("^[a-z]");
 
 let is_single_key: Js.t(Dom_html.keyboardEvent) => option(single_key) =
   evt => {

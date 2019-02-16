@@ -81,7 +81,7 @@ type err_state_b =
 let of_cursor_mode = (cursor_mode: CursorInfo.cursor_mode) => {
   let (ind1, ind2, err_state_b) =
     switch (cursor_mode) {
-    | CursorInfo.AnaOnly(ty) =>
+    | CursorInfo.Analyzed(ty) =>
       let ind1 = expected_ty_indicator(ty);
       let ind2 = got_indicator("Got", special_msg_bar("as expected"));
       (ind1, ind2, OK);
@@ -121,7 +121,7 @@ let of_cursor_mode = (cursor_mode: CursorInfo.cursor_mode) => {
           got_as_expected_ty_indicator(got_ty) :
           got_consistent_indicator(got_ty);
       (ind1, ind2, OK);
-    | CursorInfo.SynOnly(ty) =>
+    | CursorInfo.Synthesized(ty) =>
       let ind1 = expected_any_indicator;
       let ind2 = got_ty_indicator(ty);
       (ind1, ind2, OK);
@@ -157,7 +157,7 @@ let of_cursor_mode = (cursor_mode: CursorInfo.cursor_mode) => {
       let ind1 = expected_a_type_indicator;
       let ind2 = got_a_type_indicator;
       (ind1, ind2, OK);
-    | CursorInfo.PatAnaOnly(ty) =>
+    | CursorInfo.PatAnalyzed(ty) =>
       let ind1 = expected_ty_indicator_pat(ty);
       let ind2 = got_indicator("Got", special_msg_bar("as expected"));
       (ind1, ind2, OK);
@@ -186,7 +186,7 @@ let of_cursor_mode = (cursor_mode: CursorInfo.cursor_mode) => {
           got_as_expected_ty_indicator(got_ty) :
           got_consistent_indicator(got_ty);
       (ind1, ind2, OK);
-    | CursorInfo.PatSynOnly(ty) =>
+    | CursorInfo.PatSynthesized(ty) =>
       let ind1 = expected_any_indicator_pat;
       let ind2 = got_ty_indicator(ty);
       (ind1, ind2, OK);
