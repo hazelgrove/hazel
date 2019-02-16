@@ -84,7 +84,6 @@ type shape =
   | SVar(Var.t, ZExp.cursor_side)
   | SLam
   | SNumLit(int, ZExp.cursor_side)
-  | SBoolLit(bool, ZExp.cursor_side)
   | SListNil
   | SInj(inj_side)
   | SCase
@@ -369,7 +368,6 @@ let rec perform_ty = (a: t, zty: ZTyp.t): option(ZTyp.t) =>
   | (Construct(SVar(_, _)), _)
   | (Construct(SLam), _)
   | (Construct(SNumLit(_, _)), _)
-  | (Construct(SBoolLit(_, _)), _)
   | (Construct(SListNil), _)
   | (Construct(SInj(_)), _)
   | (Construct(SCase), _)
@@ -1212,18 +1210,33 @@ let rec perform_syn_pat =
       Construct(SVar(x, side)),
       ZPat.CursorP(_, UHPat.Pat(_, UHPat.BoolLit(_))),
     ) =>
-    Var.check_valid(
-      x,
-      {
-        let ctx = Contexts.extend_gamma(ctx, (x, HTyp.Hole));
-        Some((
-          ZPat.CursorP(side, UHPat.Pat(NotInHole, UHPat.Var(x))),
-          HTyp.Hole,
-          ctx,
-          u_gen,
-        ));
-      },
-    )
+    if (String.equal(x, "true")) {
+      Some((
+        ZPat.CursorP(side, UHPat.Pat(NotInHole, UHPat.BoolLit(true))),
+        HTyp.Bool,
+        ctx,
+        u_gen));
+    }
+    else if (String.equal(x, "false")) {
+      Some((
+        ZPat.CursorP(side, UHPat.Pat(NotInHole, UHPat.BoolLit(false))),
+        HTyp.Bool,
+        ctx,
+        u_gen));
+    } else {
+      Var.check_valid(
+        x,
+        {
+          let ctx = Contexts.extend_gamma(ctx, (x, HTyp.Hole));
+          Some((
+            ZPat.CursorP(side, UHPat.Pat(NotInHole, UHPat.Var(x))),
+            HTyp.Hole,
+            ctx,
+            u_gen,
+          ));
+        },
+      )
+    }
   | (Construct(SVar(_, _)), ZPat.CursorP(_, _)) => None
   | (Construct(SWild), ZPat.CursorP(_, UHPat.Pat(_, UHPat.EmptyHole(_))))
   | (Construct(SWild), ZPat.CursorP(_, UHPat.Pat(_, UHPat.Wild)))
@@ -1264,33 +1277,6 @@ let rec perform_syn_pat =
       u_gen,
     ))
   | (Construct(SNumLit(_, _)), ZPat.CursorP(_, _)) => None
-  | (
-      Construct(SBoolLit(b, side)),
-      ZPat.CursorP(_, UHPat.Pat(_, UHPat.EmptyHole(_))),
-    )
-  | (
-      Construct(SBoolLit(b, side)),
-      ZPat.CursorP(_, UHPat.Pat(_, UHPat.Wild)),
-    )
-  | (
-      Construct(SBoolLit(b, side)),
-      ZPat.CursorP(_, UHPat.Pat(_, UHPat.Var(_))),
-    )
-  | (
-      Construct(SBoolLit(b, side)),
-      ZPat.CursorP(_, UHPat.Pat(_, UHPat.NumLit(_))),
-    )
-  | (
-      Construct(SBoolLit(b, side)),
-      ZPat.CursorP(_, UHPat.Pat(_, UHPat.BoolLit(_))),
-    ) =>
-    Some((
-      ZPat.CursorP(side, UHPat.Pat(NotInHole, UHPat.BoolLit(b))),
-      HTyp.Bool,
-      ctx,
-      u_gen,
-    ))
-  | (Construct(SBoolLit(_, _)), ZPat.CursorP(_, _)) => None
   | (Construct(SInj(side)), ZPat.CursorP(_, p1)) =>
     switch (Statics.syn_pat(ctx, p1)) {
     | None => None
@@ -1595,6 +1581,18 @@ and perform_ana_pat =
     | None => None
     | Some(ctx) => Some((ZPat.ParenthesizedZ(zp), ctx, u_gen))
     }
+  | (Construct(SVar("true", side)), _)
+  | (Construct(SVar("false", side)), _) => 
+    switch (perform_syn_pat(ctx, u_gen, a, zp)) {
+    | None => None
+    | Some((zp, ty', ctx, u_gen)) =>
+      if (HTyp.consistent(ty, ty')) {
+        Some((zp, ctx, u_gen));
+      } else {
+        let (zp, u_gen) = ZPat.make_inconsistent(u_gen, zp);
+        Some((zp, ctx, u_gen));
+      }
+    }
   | (
       Construct(SVar(x, side)),
       ZPat.CursorP(_, UHPat.Pat(_, UHPat.EmptyHole(_))),
@@ -1612,17 +1610,17 @@ and perform_ana_pat =
       Construct(SVar(x, side)),
       ZPat.CursorP(_, UHPat.Pat(_, UHPat.BoolLit(_))),
     ) =>
-    Var.check_valid(
-      x,
-      {
-        let ctx = Contexts.extend_gamma(ctx, (x, ty));
-        Some((
-          ZPat.CursorP(side, UHPat.Pat(NotInHole, UHPat.Var(x))),
-          ctx,
-          u_gen,
-        ));
-      },
-    )
+      Var.check_valid(
+        x,
+        {
+          let ctx = Contexts.extend_gamma(ctx, (x, ty));
+          Some((
+            ZPat.CursorP(side, UHPat.Pat(NotInHole, UHPat.Var(x))),
+            ctx,
+            u_gen,
+          ));
+        },
+      )
   | (Construct(SVar(_, _)), ZPat.CursorP(_, _)) => None
   | (Construct(SWild), ZPat.CursorP(_, UHPat.Pat(_, UHPat.EmptyHole(_))))
   | (Construct(SWild), ZPat.CursorP(_, UHPat.Pat(_, UHPat.Wild)))
@@ -1791,7 +1789,6 @@ and perform_ana_pat =
     };
   /* Subsumption */
   | (Construct(SNumLit(_, _)), _)
-  | (Construct(SBoolLit(_, _)), _)
   | (Construct(SListNil), _) =>
     switch (perform_syn_pat(ctx, u_gen, a, zp)) {
     | None => None
@@ -2283,33 +2280,46 @@ let rec perform_syn =
       Construct(SVar(x, side)),
       ZExp.CursorE(_, UHExp.Tm(_, UHExp.BoolLit(_))),
     ) =>
-    Var.check_valid(
-      x,
-      {
-        let (gamma, _) = ctx;
-        switch (VarMap.lookup(gamma, x)) {
-        | Some(xty) =>
-          Some((
-            ZExp.CursorE(
-              side,
-              UHExp.Tm(NotInHole, UHExp.Var(NotInVHole, x)),
-            ),
-            xty,
-            u_gen,
-          ))
-        | None =>
-          let (u, u_gen) = MetaVarGen.next(u_gen);
-          Some((
-            ZExp.CursorE(
-              side,
-              UHExp.Tm(NotInHole, UHExp.Var(InVHole(u), x)),
-            ),
-            HTyp.Hole,
-            u_gen,
-          ));
-        };
-      },
-    )
+    if (String.equal(x, "true")) {
+      Some((
+        ZExp.CursorE(side, UHExp.Tm(NotInHole, UHExp.BoolLit(true))),
+        HTyp.Bool,
+        u_gen));
+    }
+    else if (String.equal(x, "false")) {
+      Some((
+        ZExp.CursorE(side, UHExp.Tm(NotInHole, UHExp.BoolLit(false))),
+        HTyp.Bool,
+        u_gen));
+    } else {
+      Var.check_valid(
+        x,
+        {
+          let gamma = Contexts.gamma(ctx);
+          switch (VarMap.lookup(gamma, x)) {
+          | Some(xty) =>
+            Some((
+              ZExp.CursorE(
+                side,
+                UHExp.Tm(NotInHole, UHExp.Var(NotInVHole, x)),
+              ),
+              xty,
+              u_gen,
+            ))
+          | None =>
+            let (u, u_gen) = MetaVarGen.next(u_gen);
+            Some((
+              ZExp.CursorE(
+                side,
+                UHExp.Tm(NotInHole, UHExp.Var(InVHole(u), x)),
+              ),
+              HTyp.Hole,
+              u_gen,
+            ));
+          };
+        },
+      )
+    }
   | (Construct(SVar(_, _)), ZExp.CursorE(_, _)) => None
   | (Construct(SLet), ZExp.CursorE(_, e1)) =>
     let (zp, u_gen) = ZPat.new_EmptyHole(u_gen);
@@ -2343,28 +2353,6 @@ let rec perform_syn =
       u_gen,
     ))
   | (Construct(SNumLit(_, _)), ZExp.CursorE(_, _)) => None
-  | (
-      Construct(SBoolLit(b, side)),
-      ZExp.CursorE(_, UHExp.Tm(_, UHExp.EmptyHole(_))),
-    )
-  | (
-      Construct(SBoolLit(b, side)),
-      ZExp.CursorE(_, UHExp.Tm(_, UHExp.NumLit(_))),
-    )
-  | (
-      Construct(SBoolLit(b, side)),
-      ZExp.CursorE(_, UHExp.Tm(_, UHExp.BoolLit(_))),
-    )
-  | (
-      Construct(SBoolLit(b, side)),
-      ZExp.CursorE(_, UHExp.Tm(_, UHExp.Var(_, _))),
-    ) =>
-    Some((
-      ZExp.CursorE(side, UHExp.Tm(NotInHole, UHExp.BoolLit(b))),
-      HTyp.Bool,
-      u_gen,
-    ))
-  | (Construct(SBoolLit(_, _)), ZExp.CursorE(_, _)) => None
   | (Construct(SInj(side)), ZExp.CursorE(_, e)) =>
     let ze' = ZExp.Deeper(NotInHole, ZExp.InjZ(side, ze));
     let ty' =
@@ -3797,7 +3785,6 @@ and perform_ana =
   | (Construct(SApPalette(_)), _)
   | (Construct(SVar(_, _)), _)
   | (Construct(SNumLit(_, _)), _)
-  | (Construct(SBoolLit(_, _)), _)
   | (Construct(SListNil), _)
   | (_, ZExp.Deeper(_, ZExp.AscZ1(_, _)))
   | (_, ZExp.Deeper(_, ZExp.AscZ2(_, _)))
@@ -3877,7 +3864,6 @@ let can_perform =
   | Construct(SVar(_, _)) /* see can_enter_varchar below */
   | Construct(SWild)
   | Construct(SNumLit(_, _)) /* see can_enter_numeral below */
-  | Construct(SBoolLit(_, _))
   | Construct(SRule)
   | Construct(SOp(_))
   | Construct(SNum) /* TODO enrich cursor_info to allow simplifying these type cases */

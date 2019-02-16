@@ -79,8 +79,11 @@ let mk =
                 do_action(Action.Construct(shape));
                 false;
               | CursorInfo.IsExpr(UHExp.Tm(_, UHExp.NumLit(_)))
+              | CursorInfo.IsExpr(UHExp.Tm(_, UHExp.BoolLit(_)))
               | CursorInfo.IsExpr(UHExp.Tm(_, UHExp.Var(_, _)))
-              | CursorInfo.IsPat(UHPat.Pat(_, UHPat.Var(_))) =>
+              | CursorInfo.IsPat(UHPat.Pat(_, UHPat.Var(_)))
+              | CursorInfo.IsPat(UHPat.Pat(_, UHPat.NumLit(_)))
+              | CursorInfo.IsPat(UHPat.Pat(_, UHPat.BoolLit(_))) =>
                 let selection = Dom_html.window##getSelection;
                 let anchorNode = selection##.anchorNode;
                 let nodeValue =
@@ -126,7 +129,10 @@ let mk =
                 let cursor_info = React.S.value(cursor_info_rs);
                 switch (cursor_info.sort) {
                 | CursorInfo.IsExpr(UHExp.Tm(_, UHExp.NumLit(_)))
+                | CursorInfo.IsExpr(UHExp.Tm(_, UHExp.BoolLit(_)))
                 | CursorInfo.IsExpr(UHExp.Tm(_, UHExp.Var(_, _)))
+                | CursorInfo.IsPat(UHPat.Pat(_, UHPat.NumLit(_)))
+                | CursorInfo.IsPat(UHPat.Pat(_, UHPat.BoolLit(_)))
                 | CursorInfo.IsPat(UHPat.Pat(_, UHPat.Var(_))) =>
                   let side = cursor_info.side;
                   let is_Before =
