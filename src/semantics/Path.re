@@ -412,10 +412,10 @@ let rec holes_e = (e, steps, holes) : hole_list =>
 and holes_rules = (rules, offset, steps, holes) => { 
   let (_, holes) = List.fold_right(
     (UHExp.Rule(p, e), (i, holes)) => {
-      let holes = holes_e(e, [i + 1, 1, ...steps], holes);
-      let holes = holes_pat(p, [i + 1, 0, ...steps], holes);
-      (i + 1, holes)
-    }, rules, (offset, holes));
+      let holes = holes_e(e, [1, i, ...steps], holes);
+      let holes = holes_pat(p, [0, i, ...steps], holes);
+      (i - 1, holes)
+    }, rules, (List.length(rules) + offset, holes));
   holes;
 };
 
@@ -751,14 +751,14 @@ and holes_zrule = (zrule, prefix_len, steps) =>
   | ZExp.RuleZP(zp, e1) =>
     let { holes_before, hole_selected, holes_after } = 
       holes_zpat(zp, [prefix_len + 1, 0, ...steps]);
-    let holes_e1 = holes_e(e1, [prefix_len + 1, 1, ...steps], []);
+    let holes_e1 = holes_e(e1, [1, prefix_len + 1, ...steps], []);
     { holes_before,
       hole_selected,
       holes_after: holes_after @ holes_e1 }
   | ZExp.RuleZE(p, ze1) =>
     let { holes_before, hole_selected, holes_after } = 
       holes_ze(ze1, [prefix_len + 1, 1, ...steps]);
-    let holes_p = holes_pat(p, [prefix_len + 1, 0, ...steps], []);
+    let holes_p = holes_pat(p, [0, prefix_len + 1, ...steps], []);
     { holes_before: holes_p @ holes_before,
       hole_selected,
       holes_after }

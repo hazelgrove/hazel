@@ -1773,7 +1773,6 @@ and perform_ana_pat =
           switch (perform_ana_pat(ctx, u_gen, a, zp0, ty0)) {
           | None => None
           | Some((zp0, _, u_gen)) =>
-            JSUtil.log(0);
             let zp0 = ZPat.bidelimit(zp0);
             make_and_ana_OpSeqZ_pat(ctx, u_gen, zp0, surround, ty);
           }
