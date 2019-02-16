@@ -1,5 +1,9 @@
 type nat = int;
 
+let opt_to_bool = fun
+| None => false
+| Some(_) => true;
+
 /* Section ListUtil */
 
 let rec update_nth = (n, xs, f) =>
@@ -20,6 +24,8 @@ let rec _findmapi = (i, xs, f) =>
   };
 
 let findmapi = (xs, f) => _findmapi(0, xs, f);
+
+let any = (xs, f) => opt_to_bool(List.find_opt(f, xs));
 
 let rec zip_eq = (xs, ys) =>
   switch (xs, ys) {

@@ -153,24 +153,19 @@ let make =
       );
 
     let _ =
-      JSUtil.listen_to(
-        Ev.keyup,
-        i_dom,
-        evt => {
-          let key = JSUtil.get_key(evt);
-          if (key == KC.key(KCs.enter)) {
-            lbl_dom##click;
-            clear_input();
-            set_cursor();
-            Js._false;
-          } else if (key == KC.key(KCs.esc)) {
-            clear_input();
-            set_cursor();
-            Js._false;
-          } else {
-            Js._true;
-          };
-        },
+      JSUtil.listen_to(Ev.keyup, i_dom, evt =>
+        if (KC.matches(KCs.enter, evt)) {
+          lbl_dom##click;
+          clear_input();
+          set_cursor();
+          Js._false;
+        } else if (KC.matches(KCs.escape, evt)) {
+          clear_input();
+          set_cursor();
+          Js._false;
+        } else {
+          Js._true;
+        }
       );
 
     let _ =
@@ -266,13 +261,13 @@ let make =
     );
 
   let delete =
-    checked_action_button(Action.Delete, Html5.txt("delete"), KCs.del);
+    checked_action_button(Action.Delete, Html5.txt("delete"), KCs.delete);
 
   let moveToPrevHole =
     checked_action_button(
       Action.MoveToPrevHole,
       Html5.txt("move to previous hole"),
-      KCs.backtab,
+      KCs.shift_tab,
     );
 
   let moveToNextHole =
@@ -300,7 +295,7 @@ let make =
     checked_action_button(
       Action.(Construct(SOp(SArrow))),
       twopiece_lbl_op(LangUtil.typeArrowSym, " type operator"),
-      KCs.greaterThan,
+      KCs.gt,
     );
 
   let constructSum =
@@ -314,14 +309,14 @@ let make =
     checked_action_button(
       Action.(Construct(SList)),
       twopiece_lbl_kw("List", " type"),
-      KCs.list,
+      KCs.semicolon,
     );
 
   let constructParenthesized =
     checked_action_button(
       Action.Construct(Action.SParenthesized),
       Html5.txt("parenthesize"),
-      KCs.openParens,
+      KCs.left_parens,
     );
 
   let constructAsc =
@@ -398,7 +393,7 @@ let make =
     checked_action_button(
       Action.(Construct(SListNil)),
       twopiece_lbl_op("[]", " (nil)"),
-      KCs.nil,
+      KCs.left_bracket,
     );
 
   let constructCons =
