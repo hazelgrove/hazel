@@ -281,14 +281,14 @@ let make =
     checked_action_button(
       Action.Construct(Action.SNum),
       twopiece_lbl_kw("Num", " type"),
-      KCs.pound,
+      KCs.key_N,
     );
 
   let constructBool =
     checked_action_button(
       Action.Construct(Action.SBool),
       twopiece_lbl_kw("Bool", " type"),
-      KCs.qmark,
+      KCs.key_B,
     );
 
   let constructArrow =
@@ -309,7 +309,7 @@ let make =
     checked_action_button(
       Action.(Construct(SList)),
       twopiece_lbl_kw("List", " type"),
-      KCs.semicolon,
+      KCs.key_L,
     );
 
   let constructParenthesized =

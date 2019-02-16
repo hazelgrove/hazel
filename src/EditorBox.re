@@ -59,7 +59,7 @@ let mk =
       ~a=
         Html5.[
           a_contenteditable(true),
-          a_onkeypress(evt =>
+          a_onkeydown(evt =>
             switch (JSUtil.is_single_key(evt)) {
             | Some(single_key) =>
               Dom.preventDefault(evt);
@@ -74,8 +74,10 @@ let mk =
                   | JSUtil.Letter(x) => Action.SVar(x, After)
                   | JSUtil.Underscore => Action.SWild
                   };
+                Dom.preventDefault(evt);
+                Dom_html.stopPropagation(evt);
                 do_action(Action.Construct(shape));
-                true;
+                false;
               | CursorInfo.IsExpr(UHExp.Tm(_, UHExp.NumLit(_)))
               | CursorInfo.IsExpr(UHExp.Tm(_, UHExp.Var(_, _)))
               | CursorInfo.IsPat(UHPat.Pat(_, UHPat.Var(_))) =>
@@ -109,96 +111,101 @@ let mk =
                     } :
                     ()
                 };
-                true;
-              | _ => true
+                Dom_html.stopPropagation(evt);
+                false;
+              | CursorInfo.IsExpr(_)
+              | CursorInfo.IsPat(_)
+              | CursorInfo.IsType => true
               };
             | None =>
-              JSUtil.is_movement_key(evt) ?
-                true :
-                {
-                  Dom.preventDefault(evt);
-                  true;
-                }
-            }
-          ),
-          a_onkeydown(evt => {
-            let is_backspace =
-              JSUtil.KeyCombo.matches(JSUtil.KeyCombos.backspace, evt);
-            let is_del =
-              JSUtil.KeyCombo.matches(JSUtil.KeyCombos.delete, evt);
-            if (is_backspace || is_del) {
-              let cursor_info = React.S.value(cursor_info_rs);
-              switch (cursor_info.sort) {
-              | CursorInfo.IsExpr(UHExp.Tm(_, UHExp.NumLit(_)))
-              | CursorInfo.IsExpr(UHExp.Tm(_, UHExp.Var(_, _)))
-              | CursorInfo.IsPat(UHPat.Pat(_, UHPat.Var(_))) =>
-                let side = cursor_info.side;
-                let is_Before =
-                  switch (side) {
-                  | Before => true
-                  | _ => false
-                  };
-                let is_After =
-                  switch (side) {
-                  | After => true
-                  | _ => false
-                  };
-                if (is_backspace && is_Before || is_del && is_After) {
-                  Dom.preventDefault(evt);
-                  false;
-                } else {
-                  let selection = Dom_html.window##getSelection;
-                  Dom_html.stopPropagation(evt);
-                  Dom.preventDefault(evt);
-                  let anchorNode = selection##.anchorNode;
-                  let anchorOffset = selection##.anchorOffset;
-                  let nodeValue =
-                    Js.to_string(
-                      Js.Opt.get(anchorNode##.nodeValue, () => assert(false)),
-                    );
-                  let ctrlKey = Js.to_bool(evt##.ctrlKey);
-                  let (nodeValue', anchorOffset') =
-                    is_backspace ?
-                      string_backspace(nodeValue, anchorOffset, ctrlKey) :
-                      string_delete(nodeValue, anchorOffset, ctrlKey);
-                  if (String.equal(nodeValue', "")) {
-                    if (is_Before) {
-                      do_action(Action.Delete);
-                    } else {
-                      do_action(Action.Backspace);
+              let is_backspace =
+                JSUtil.KeyCombo.matches(JSUtil.KeyCombos.backspace, evt);
+              let is_del =
+                JSUtil.KeyCombo.matches(JSUtil.KeyCombos.delete, evt);
+              if (is_backspace || is_del) {
+                let cursor_info = React.S.value(cursor_info_rs);
+                switch (cursor_info.sort) {
+                | CursorInfo.IsExpr(UHExp.Tm(_, UHExp.NumLit(_)))
+                | CursorInfo.IsExpr(UHExp.Tm(_, UHExp.Var(_, _)))
+                | CursorInfo.IsPat(UHPat.Pat(_, UHPat.Var(_))) =>
+                  let side = cursor_info.side;
+                  let is_Before =
+                    switch (side) {
+                    | Before => true
+                    | _ => false
                     };
+                  let is_After =
+                    switch (side) {
+                    | After => true
+                    | _ => false
+                    };
+                  if (is_backspace && is_Before || is_del && is_After) {
+                    Dom.preventDefault(evt);
+                    false;
                   } else {
-                    switch (int_of_string_opt(nodeValue')) {
-                    | Some(new_n) =>
-                      let new_side =
-                        side_of_str_offset(nodeValue', anchorOffset');
-                      do_action(
-                        Action.Construct(Action.SNumLit(new_n, new_side)),
+                    let selection = Dom_html.window##getSelection;
+                    Dom_html.stopPropagation(evt);
+                    Dom.preventDefault(evt);
+                    let anchorNode = selection##.anchorNode;
+                    let anchorOffset = selection##.anchorOffset;
+                    let nodeValue =
+                      Js.to_string(
+                        Js.Opt.get(anchorNode##.nodeValue, () =>
+                          assert(false)
+                        ),
                       );
-                    | None =>
-                      Var.is_valid(nodeValue') ?
-                        {
-                          let new_side =
-                            side_of_str_offset(nodeValue', anchorOffset');
-                          do_action(
-                            Action.Construct(
-                              Action.SVar(nodeValue', new_side),
-                            ),
-                          );
-                        } :
-                        ()
+                    let ctrlKey = Js.to_bool(evt##.ctrlKey);
+                    let (nodeValue', anchorOffset') =
+                      is_backspace ?
+                        string_backspace(nodeValue, anchorOffset, ctrlKey) :
+                        string_delete(nodeValue, anchorOffset, ctrlKey);
+                    if (String.equal(nodeValue', "")) {
+                      if (is_Before) {
+                        do_action(Action.Delete);
+                      } else {
+                        do_action(Action.Backspace);
+                      };
+                    } else {
+                      switch (int_of_string_opt(nodeValue')) {
+                      | Some(new_n) =>
+                        let new_side =
+                          side_of_str_offset(nodeValue', anchorOffset');
+                        do_action(
+                          Action.Construct(Action.SNumLit(new_n, new_side)),
+                        );
+                      | None =>
+                        Var.is_valid(nodeValue') ?
+                          {
+                            let new_side =
+                              side_of_str_offset(nodeValue', anchorOffset');
+                            do_action(
+                              Action.Construct(
+                                Action.SVar(nodeValue', new_side),
+                              ),
+                            );
+                          } :
+                          ()
+                      };
                     };
+                    false;
                   };
+                | _ =>
+                  Dom.preventDefault(evt);
                   false;
                 };
-              | _ =>
-                Dom.preventDefault(evt);
-                false;
+              } else {
+                true;
               };
-            } else {
-              true;
-            };
-          }),
+            }
+          ),
+          a_onkeypress(evt =>
+            JSUtil.is_movement_key(evt) ?
+              true :
+              {
+                Dom.preventDefault(evt);
+                true;
+              }
+          ),
           a_ondrop(evt => {
             Dom.preventDefault(evt);
             false;

@@ -224,7 +224,7 @@ module KeyCombos = {
   let shift_tab = KeyCombo.shift(Key.the_code("Tab"));
   let space = KeyCombo.plain(Key.the_code("Space"));
   let lt = KeyCombo.no_ctrl_alt(Key.the_key("<"));
-  let gt = KeyCombo.no_ctrl_alt(Key.the_key("<"));
+  let gt = KeyCombo.no_ctrl_alt(Key.the_key(">"));
   let colon = KeyCombo.no_ctrl_alt(Key.the_key(":"));
   let backslash = KeyCombo.no_ctrl_alt(Key.the_key("\\"));
   let left_parens = KeyCombo.no_ctrl_alt(Key.the_key("("));
@@ -246,8 +246,11 @@ module KeyCombos = {
   let alt_C = KeyCombo.alt(Key.the_letter_code("c"));
   let alt_PageUp = KeyCombo.alt(Key.the_key("PageUp"));
   let alt_PageDown = KeyCombo.alt(Key.the_key("PageDown"));
-  let alt_T = KeyCombo.alt(Key.the_letter_code("t"));
-  let alt_F = KeyCombo.alt(Key.the_letter_code("f"));
+  let alt_T = KeyCombo.alt(Key.the_letter_code("T"));
+  let alt_F = KeyCombo.alt(Key.the_letter_code("F"));
+  let key_B = KeyCombo.no_ctrl_alt(Key.the_key("B"));
+  let key_N = KeyCombo.no_ctrl_alt(Key.the_key("N"));
+  let key_L = KeyCombo.no_ctrl_alt(Key.the_key("L"));
 };
 
 let listen_for_key = (kc, f) =>
@@ -264,7 +267,9 @@ type single_key =
   | Number(int)
   | Letter(string)
   | Underscore;
-let letter_regexp = Js_of_ocaml.Regexp.regexp("^[a-zA-Z]$");
+
+let letter_regexp = Js_of_ocaml.Regexp.regexp("^[a-zA-Z']$");
+let lowercase_letter_regexp = Js_of_ocaml.Regexp.regexp("^[a-z]");
 
 let is_single_key: Js.t(Dom_html.keyboardEvent) => option(single_key) =
   evt => {
