@@ -3265,8 +3265,14 @@ and perform_ana =
       }
     | None =>
       switch (Statics.syn_fix_holes(ctx, u_gen, e)) {
-      | None => None
       | Some((e, _, u_gen)) =>
+        let (zp, u_gen) = ZPat.new_EmptyHole(u_gen);
+        let (u, u_gen) = MetaVarGen.next(u_gen);
+        let ze =
+          ZExp.Deeper(InHole(TypeInconsistent, u), ZExp.LamZP(zp, None, e));
+        Some((ze, u_gen));
+      | None => 
+        let e = UHExp.Tm(NotInHole, UHExp.Asc(e, UHTyp.contract(ty)));   
         let (zp, u_gen) = ZPat.new_EmptyHole(u_gen);
         let (u, u_gen) = MetaVarGen.next(u_gen);
         let ze =
@@ -3290,8 +3296,16 @@ and perform_ana =
       };
     | None =>
       switch (Statics.syn_fix_holes(ctx, u_gen, e1)) {
-      | None => None
       | Some((e1, _, u_gen)) =>
+        let (u, u_gen) = MetaVarGen.next(u_gen);
+        let ze =
+          ZExp.Deeper(
+            InHole(TypeInconsistent, u),
+            ZExp.InjZ(side, ZExp.CursorE(cursor_side, e1)),
+          );
+        Some((ze, u_gen));
+      | None => 
+        let e1 = UHExp.Tm(NotInHole, UHExp.Asc(e1, UHTyp.contract(ty)));
         let (u, u_gen) = MetaVarGen.next(u_gen);
         let ze =
           ZExp.Deeper(
@@ -3312,8 +3326,11 @@ and perform_ana =
       let (zrule, u_gen) = ZExp.empty_zrule(u_gen);
       let zrules = ZList.singleton(zrule);
       switch (Statics.syn_fix_holes(ctx, u_gen, e1)) {
-      | None => None
       | Some((e1, _, u_gen)) =>
+        let ze = ZExp.Deeper(NotInHole, ZExp.CaseZR(e1, zrules));
+        Some((ze, u_gen));
+      | None => 
+        let e1 = UHExp.Tm(NotInHole, UHExp.Asc(e1, UHTyp.contract(ty)));
         let ze = ZExp.Deeper(NotInHole, ZExp.CaseZR(e1, zrules));
         Some((ze, u_gen));
       };
@@ -3825,36 +3842,25 @@ let can_perform =
   switch (a) {
   | Construct(SParenthesized) => true
   | Construct(SAsc) =>
-    let sort = ci.sort;
-    switch (sort) {
+    switch (ci.sort) {
     | CursorInfo.IsExpr(_) => true
     | CursorInfo.IsPat(_) => true
     | CursorInfo.IsType => false
     };
   | Construct(SLet)
-  | Construct(SInj(_))
   | Construct(SCase) =>
-    switch (ci.mode) {
-    | CursorInfo.AnaOnly(_) => false
-    | CursorInfo.AnaAnnotatedLambda(_, _)
-    | CursorInfo.AnaTypeInconsistent(_, _)
-    | CursorInfo.AnaWrongLength(_, _, _)
-    | CursorInfo.AnaFree(_)
-    | CursorInfo.AnaSubsumed(_, _)
-    | CursorInfo.SynOnly(_)
-    | CursorInfo.SynFree
-    | CursorInfo.SynErrorArrow(_, _)
-    | CursorInfo.SynMatchingArrow(_, _)
-    | CursorInfo.SynFreeArrow(_) => true
-    | CursorInfo.TypePosition => false
-    | CursorInfo.PatAnaOnly(_)
-    | CursorInfo.PatAnaTypeInconsistent(_, _)
-    | CursorInfo.PatAnaWrongLength(_, _, _)
-    | CursorInfo.PatAnaSubsumed(_, _)
-    | CursorInfo.PatSynOnly(_) => false
-    }
-  | Construct(SListNil)
-  | Construct(SApPalette(_)) =>
+    switch (ci.sort) {
+    | CursorInfo.IsExpr(_) => true
+    | CursorInfo.IsPat(_) => false
+    | CursorInfo.IsType => false
+    };
+  | Construct(SInj(_)) => 
+    switch (ci.sort) {
+    | CursorInfo.IsExpr(_) => true
+    | CursorInfo.IsPat(_) => true
+    | CursorInfo.IsType => false
+    };
+  | Construct(SListNil) => 
     switch (ci.sort) {
     | CursorInfo.IsExpr(UHExp.Tm(_, UHExp.EmptyHole(_))) => true
     | CursorInfo.IsExpr(_) => false
@@ -3870,8 +3876,8 @@ let can_perform =
     | CursorInfo.IsExpr(_)
     | CursorInfo.IsPat(_) => false
     }
-  | Construct(SLam) /* TODO check that expected type has matched
-                     * arrow to check performability on AnaOnly */
+  | Construct(SApPalette(_))
+  | Construct(SLam) 
   | Construct(SVar(_, _)) /* see can_enter_varchar below */
   | Construct(SWild)
   | Construct(SNumLit(_, _)) /* see can_enter_numeral below */
@@ -3892,7 +3898,7 @@ let can_perform =
       | Some(_) => true
       | None => false
       }
-    | false => false
+    | false => true
     }
   };
 
