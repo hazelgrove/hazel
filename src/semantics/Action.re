@@ -2741,6 +2741,22 @@ let rec perform_syn =
       };
     | None => None
     }
+  | (_, ZExp.Deeper(err_status, ZExp.LineItemZL(ZExp.EmptyLineZ, e2))) =>
+    let (ze1, u_gen) = ZExp.new_EmptyHole(u_gen);
+    let ze = ZExp.(Deeper(err_status, LineItemZL(ExpLineZ(ze1), e2)));
+    perform_syn(ctx, a, (ze, ty, u_gen));
+  | (_, ZExp.Deeper(_, ZExp.LineItemZL(ZExp.ExpLineZ(ze1), e2))) =>
+    switch (Statics.syn(ctx, ZExp.erase(ze1))) {
+    | None => None
+    | Some(ty1) =>
+      switch (perform_syn(ctx, a, (ze1, ty1, u_gen))) {
+      | None => None
+      | Some((ze1, _, u_gen)) =>
+        let ze =
+          ZExp.Deeper(NotInHole, ZExp.LineItemZL(ZExp.ExpLineZ(ze1), e2));
+        Some((ze, ty, u_gen));
+      }
+    }
   | (_, ZExp.Deeper(_, ZExp.LineItemZL(ZExp.LetLineZP(zp, ann, e1), e2))) =>
     switch (ann) {
     | Some(uty1) =>
@@ -2850,6 +2866,14 @@ let rec perform_syn =
           }
         }
       };
+    }
+  | (_, ZExp.Deeper(_, ZExp.LineItemZE(UHExp.EmptyLine as li, ze2)))
+  | (_, ZExp.Deeper(_, ZExp.LineItemZE(UHExp.ExpLine(_) as li, ze2))) =>
+    switch (perform_syn(ctx, a, (ze2, ty, u_gen))) {
+    | None => None
+    | Some((ze2, ty, u_gen)) =>
+      let ze = ZExp.Deeper(NotInHole, ZExp.LineItemZE(li, ze2));
+      Some((ze, ty, u_gen));
     }
   | (_, ZExp.Deeper(_, ZExp.LineItemZE(UHExp.LetLine(p, ann, e1), ze2))) =>
     let ty1 =
@@ -3744,6 +3768,10 @@ and perform_ana =
     | Some((ze1', u_gen')) => Some((ZExp.ParenthesizedZ(ze1'), u_gen'))
     | None => None
     }
+  | (_, ZExp.Deeper(err_status, ZExp.LineItemZL(ZExp.EmptyLineZ, e2))) =>
+    let (ze1, u_gen) = ZExp.new_EmptyHole(u_gen);
+    let ze = ZExp.(Deeper(err_status, LineItemZL(ExpLineZ(ze1), e2)));
+    perform_ana(u_gen, ctx, a, ze, ty);
   | (_, ZExp.Deeper(_, ZExp.LineItemZL(ZExp.LetLineZP(zp, ann, e1), e2))) =>
     switch (ann) {
     | Some(uty1) =>
@@ -3853,6 +3881,14 @@ and perform_ana =
           }
         }
       };
+    }
+  | (_, ZExp.Deeper(_, ZExp.LineItemZE(UHExp.EmptyLine as li, ze2)))
+  | (_, ZExp.Deeper(_, ZExp.LineItemZE(UHExp.ExpLine(_) as li, ze2))) =>
+    switch (perform_ana(u_gen, ctx, a, ze2, ty)) {
+    | None => None
+    | Some((ze2, u_gen)) =>
+      let ze = ZExp.Deeper(NotInHole, ZExp.LineItemZE(li, ze2));
+      Some((ze, u_gen));
     }
   | (_, ZExp.Deeper(_, ZExp.LineItemZE(UHExp.LetLine(p, ann, e1), ze2))) =>
     let ty1 =
@@ -4063,6 +4099,7 @@ and perform_ana =
   | (_, ZExp.Deeper(_, ZExp.AscZ1(_, _)))
   | (_, ZExp.Deeper(_, ZExp.AscZ2(_, _)))
   | (_, ZExp.Deeper(_, ZExp.ApPaletteZ(_, _, _)))
+  | (_, ZExp.Deeper(_, ZExp.LineItemZL(ZExp.ExpLineZ(_), _)))
   | (Backspace, ZExp.Deeper(_, ZExp.LineItemZE(UHExp.EmptyLine, _)))
   | (Delete, ZExp.Deeper(_, ZExp.LineItemZL(ZExp.EmptyLineZ, _))) =>
     perform_ana_subsume(u_gen, ctx, a, ze, ty)
