@@ -2490,7 +2490,7 @@ let rec perform_syn =
       Construct(SEmptyLine),
       ZExp.Deeper(
         _,
-        ZExp.OpSeqZ(_, ZExp.CursorE(Before, _), OperatorSeq.EmptyPrefix(_)),
+        ZExp.OpSeqZ(_, ZExp.CursorE(After, _), OperatorSeq.EmptySuffix(_)),
       ) as ze1,
     ) =>
     let e1 = ZExp.erase(ze1);
