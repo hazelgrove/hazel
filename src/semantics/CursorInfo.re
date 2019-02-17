@@ -72,7 +72,7 @@ type cursor_sort =
   | IsType
   | IsEmptyLine;
 
-type cursor_info = {
+type t = {
   mode: cursor_mode,
   sort: cursor_sort,
   side: cursor_side,
@@ -81,14 +81,14 @@ type cursor_info = {
 
 let mk_cursor_info = (mode, sort, side, ctx) => {mode, sort, side, ctx};
 
-let update_sort = (ci: cursor_info, sort: cursor_sort): cursor_info => {
+let update_sort = (ci: t, sort: cursor_sort): t => {
   let {mode, sort: _, side, ctx} = ci;
   {mode, sort, side, ctx};
 };
 
 let rec ana_pat_cursor_found =
         (ctx: Contexts.t, p: UHPat.t, ty: HTyp.t, side: cursor_side)
-        : option(cursor_info) =>
+        : option(t) =>
   switch (p) {
   | UHPat.Parenthesized(p1) =>
     switch (ana_pat_cursor_found(ctx, p1, ty, side)) {
@@ -166,8 +166,7 @@ let rec ana_pat_cursor_found =
   | UHPat.Pat(NotInHole, UHPat.OpSeq(Skel.BinOp(_, Space, _, _), _)) => None
   };
 
-let rec syn_pat_cursor_info =
-        (ctx: Contexts.t, zp: ZPat.t): option(cursor_info) =>
+let rec syn_pat_cursor_info = (ctx: Contexts.t, zp: ZPat.t): option(t) =>
   switch (zp) {
   | ZPat.CursorP(side, p) =>
     switch (Statics.syn_pat(ctx, p)) {
@@ -178,8 +177,7 @@ let rec syn_pat_cursor_info =
   | ZPat.Deeper(_, zp') => syn_pat_cursor_info'(ctx, zp')
   | ZPat.ParenthesizedZ(zp1) => syn_pat_cursor_info(ctx, zp1)
   }
-and syn_pat_cursor_info' =
-    (ctx: Contexts.t, zp': ZPat.t'): option(cursor_info) =>
+and syn_pat_cursor_info' = (ctx: Contexts.t, zp': ZPat.t'): option(t) =>
   switch (zp') {
   | ZPat.InjZ(side, zp1) => syn_pat_cursor_info(ctx, zp1)
   | ZPat.OpSeqZ(skel, zp1, surround) =>
@@ -196,7 +194,7 @@ and syn_skel_pat_cursor_info =
       n: nat,
       zp1: ZPat.t,
     )
-    : option(cursor_info) =>
+    : option(t) =>
   switch (skel) {
   | Skel.Placeholder(n') =>
     if (n == n') {
@@ -227,7 +225,7 @@ and syn_skel_pat_cursor_info =
     }
   }
 and ana_pat_cursor_info =
-    (ctx: Contexts.t, zp: ZPat.t, ty: HTyp.t): option(cursor_info) =>
+    (ctx: Contexts.t, zp: ZPat.t, ty: HTyp.t): option(t) =>
   switch (zp) {
   | ZPat.CursorP(side, p) => ana_pat_cursor_found(ctx, p, ty, side)
   | ZPat.Deeper(InHole(TypeInconsistent, u), zp') =>
@@ -242,7 +240,7 @@ and ana_pat_cursor_info =
   | ZPat.ParenthesizedZ(zp) => ana_pat_cursor_info(ctx, zp, ty)
   }
 and ana_pat_cursor_info' =
-    (ctx: Contexts.t, zp': ZPat.t', ty: HTyp.t): option(cursor_info) =>
+    (ctx: Contexts.t, zp': ZPat.t', ty: HTyp.t): option(t) =>
   switch (zp') {
   | ZPat.InjZ(side, zp1) =>
     switch (HTyp.matched_sum(ty)) {
@@ -266,7 +264,7 @@ and ana_skel_pat_cursor_info =
       zp1: ZPat.t,
       ty: HTyp.t,
     )
-    : option(cursor_info) =>
+    : option(t) =>
   switch (skel) {
   | Skel.Placeholder(n') =>
     if (n == n') {
@@ -354,7 +352,7 @@ and ana_skel_pat_cursor_info =
 
 let rec ana_cursor_found =
         (ctx: Contexts.t, e: UHExp.t, ty: HTyp.t, side: cursor_side)
-        : option(cursor_info) =>
+        : option(t) =>
   switch (e) {
   | UHExp.Parenthesized(e') =>
     switch (ana_cursor_found(ctx, e', ty, side)) {
@@ -474,7 +472,7 @@ let rec ana_cursor_found =
     }
   };
 
-let rec syn_cursor_info = (ctx: Contexts.t, ze: ZExp.t): option(cursor_info) =>
+let rec syn_cursor_info = (ctx: Contexts.t, ze: ZExp.t): option(t) =>
   switch (ze) {
   | CursorE(side, UHExp.Tm(_, UHExp.Var(InVHole(_), _)) as e) =>
     Some(mk_cursor_info(SynFree, IsExpr(e), side, ctx))
@@ -487,8 +485,7 @@ let rec syn_cursor_info = (ctx: Contexts.t, ze: ZExp.t): option(cursor_info) =>
   | ParenthesizedZ(ze1) => syn_cursor_info(ctx, ze1)
   | Deeper(_, ze1') => syn_cursor_info'(ctx, ze1')
   }
-and ana_cursor_info =
-    (ctx: Contexts.t, ze: ZExp.t, ty: HTyp.t): option(cursor_info) =>
+and ana_cursor_info = (ctx: Contexts.t, ze: ZExp.t, ty: HTyp.t): option(t) =>
   switch (ze) {
   | CursorE(side, e) => ana_cursor_found(ctx, e, ty, side)
   | ParenthesizedZ(ze1) => ana_cursor_info(ctx, ze1, ty)
@@ -500,7 +497,7 @@ and ana_cursor_info =
   | Deeper(NotInHole, ze1') => ana_cursor_info'(ctx, ze1', ty)
   | Deeper(InHole(WrongLength, _), _) => None
   }
-and syn_cursor_info' = (ctx: Contexts.t, ze: ZExp.t'): option(cursor_info) =>
+and syn_cursor_info' = (ctx: Contexts.t, ze: ZExp.t'): option(t) =>
   switch (ze) {
   | AscZ1(ze1, uty) =>
     let ty = UHTyp.expand(uty);
@@ -602,8 +599,7 @@ and syn_line_item_cursor_info = (ctx, zli) =>
     | None => syn_cursor_info(ctx, ze1)
     }
   }
-and ana_cursor_info' =
-    (ctx: Contexts.t, ze: ZExp.t', ty: HTyp.t): option(cursor_info) =>
+and ana_cursor_info' = (ctx: Contexts.t, ze: ZExp.t', ty: HTyp.t): option(t) =>
   switch (ze) {
   | LineItemZL(zli, e1) => syn_line_item_cursor_info(ctx, zli)
   | LineItemZE(li, ze1) =>
@@ -663,7 +659,7 @@ and ana_cursor_info' =
   }
 and ana_rule_cursor_info =
     (ctx: Contexts.t, zrule: ZExp.zrule, pat_ty: HTyp.t, clause_ty: HTyp.t)
-    : option(cursor_info) =>
+    : option(t) =>
   switch (zrule) {
   | RuleZP(zp, e) => ana_pat_cursor_info(ctx, zp, pat_ty)
   | RuleZE(p, ze) =>
@@ -680,7 +676,7 @@ and syn_skel_cursor_info =
       n: nat,
       ze_n: ZExp.t,
     )
-    : option(cursor_info) =>
+    : option(t) =>
   switch (skel) {
   | Skel.Placeholder(n') =>
     if (n == n') {
@@ -795,7 +791,7 @@ and ana_skel_cursor_info =
       ze_n: ZExp.t,
       ty: HTyp.t,
     )
-    : option(cursor_info) =>
+    : option(t) =>
   switch (skel) {
   | Skel.Placeholder(n') =>
     if (n == n') {
