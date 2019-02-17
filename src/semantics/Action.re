@@ -1999,11 +1999,78 @@ let rec perform_syn =
         _,
         ZExp.LineItemZE(UHExp.EmptyLine, ZExp.CursorE(Before, _) as ze1),
       ),
+    )
+  | (
+      Backspace,
+      ZExp.Deeper(
+        _,
+        ZExp.OpSeqZ(_, ZExp.CursorE(Before, _), OperatorSeq.EmptyPrefix(_)),
+      ) as ze1,
+    )
+  | (
+      Backspace,
+      ZExp.Deeper(
+        _,
+        ZExp.LineItemZE(
+          UHExp.EmptyLine,
+          ZExp.Deeper(_, ZExp.LineItemZL(ZExp.EmptyLineZ, _)) as ze1,
+        ),
+      ),
+    )
+  | (
+      Backspace,
+      ZExp.Deeper(
+        _,
+        ZExp.LineItemZE(
+          UHExp.EmptyLine,
+          ZExp.Deeper(
+            _,
+            ZExp.LineItemZL(ZExp.ExpLineZ(ZExp.CursorE(Before, _)), _),
+          ) as ze1,
+        ),
+      ),
+    )
+  | (
+      Backspace,
+      ZExp.Deeper(
+        _,
+        ZExp.LineItemZE(
+          UHExp.EmptyLine,
+          ZExp.Deeper(
+            _,
+            ZExp.LineItemZL(
+              ZExp.ExpLineZ(
+                ZExp.Deeper(
+                  _,
+                  ZExp.OpSeqZ(
+                    _,
+                    ZExp.CursorE(Before, _),
+                    OperatorSeq.EmptyPrefix(_),
+                  ),
+                ),
+              ),
+              _,
+            ),
+          ) as ze1,
+        ),
+      ),
     ) =>
     Some((ze1, ty, u_gen))
+  | (
+      Delete,
+      ZExp.Deeper(
+        _,
+        ZExp.LineItemZL(
+          ZExp.EmptyLineZ,
+          UHExp.Tm(_, UHExp.LineItem(UHExp.EmptyLine, e1)),
+        ),
+      ),
+    ) =>
+    let ze = ZExp.Deeper(NotInHole, ZExp.LineItemZL(ZExp.EmptyLineZ, e1));
+    Some((ze, ty, u_gen));
   | (Delete, ZExp.Deeper(_, ZExp.LineItemZL(ZExp.EmptyLineZ, e1))) =>
-    let ze1 = ZExp.CursorE(Before, e1);
-    Some((ze1, ty, u_gen));
+    let ze = ZExp.CursorE(Before, e1);
+    Some((ze, ty, u_gen));
   | (
       Backspace,
       ZExp.Deeper(
