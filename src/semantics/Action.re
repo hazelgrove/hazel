@@ -1997,6 +1997,57 @@ let rec perform_syn =
       Backspace,
       ZExp.Deeper(
         _,
+        ZExp.LineItemZE(UHExp.EmptyLine, ZExp.CursorE(Before, _) as ze1),
+      ),
+    )
+  | (
+      Backspace,
+      ZExp.Deeper(
+        _,
+        ZExp.LineItemZE(
+          UHExp.EmptyLine,
+          ZExp.Deeper(
+            _,
+            ZExp.LineItemZL(LetLineZP(ZPat.CursorP(Before, _), _, _), _),
+          ) as ze1,
+        ),
+      ),
+    )
+  | (
+      Backspace,
+      ZExp.Deeper(
+        _,
+        ZExp.LineItemZE(
+          UHExp.EmptyLine,
+          ZExp.Deeper(
+            _,
+            ZExp.LineItemZL(
+              LetLineZP(
+                ZPat.Deeper(
+                  _,
+                  ZPat.OpSeqZ(
+                    _,
+                    ZPat.CursorP(Before, _),
+                    OperatorSeq.EmptyPrefix(_),
+                  ),
+                ),
+                _,
+                _,
+              ),
+              _,
+            ),
+          ) as ze1,
+        ),
+      ),
+    ) =>
+    Some((ze1, ty, u_gen))
+  | (Delete, ZExp.Deeper(_, ZExp.LineItemZL(ZExp.EmptyLineZ, e1))) =>
+    let ze1 = ZExp.CursorE(Before, e1);
+    Some((ze1, ty, u_gen));
+  | (
+      Backspace,
+      ZExp.Deeper(
+        _,
         ZExp.LineItemZL(ZExp.LetLineZA(p, ZTyp.CursorT(Before, _), e1), e2),
       ),
     )
@@ -2088,57 +2139,6 @@ let rec perform_syn =
         }
       }
     }
-  | (
-      Backspace,
-      ZExp.Deeper(
-        _,
-        ZExp.LineItemZE(UHExp.EmptyLine, ZExp.CursorE(Before, _) as ze1),
-      ),
-    )
-  | (
-      Backspace,
-      ZExp.Deeper(
-        _,
-        ZExp.LineItemZE(
-          UHExp.EmptyLine,
-          ZExp.Deeper(
-            _,
-            ZExp.LineItemZL(LetLineZP(ZPat.CursorP(Before, _), _, _), _),
-          ) as ze1,
-        ),
-      ),
-    )
-  | (
-      Backspace,
-      ZExp.Deeper(
-        _,
-        ZExp.LineItemZE(
-          UHExp.EmptyLine,
-          ZExp.Deeper(
-            _,
-            ZExp.LineItemZL(
-              LetLineZP(
-                ZPat.Deeper(
-                  _,
-                  ZPat.OpSeqZ(
-                    _,
-                    ZPat.CursorP(Before, _),
-                    OperatorSeq.EmptyPrefix(_),
-                  ),
-                ),
-                _,
-                _,
-              ),
-              _,
-            ),
-          ) as ze1,
-        ),
-      ),
-    ) =>
-    Some((ze1, ty, u_gen))
-  | (Delete, ZExp.Deeper(_, ZExp.LineItemZL(ZExp.EmptyLineZ, e1))) =>
-    let ze1 = ZExp.CursorE(Before, e1);
-    Some((ze1, ty, u_gen));
   | (Backspace, ZExp.Deeper(_, ZExp.LamZA(p, ZTyp.CursorT(Before, _), e1)))
   | (
       Backspace,
