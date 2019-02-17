@@ -1999,46 +1999,6 @@ let rec perform_syn =
         _,
         ZExp.LineItemZE(UHExp.EmptyLine, ZExp.CursorE(Before, _) as ze1),
       ),
-    )
-  | (
-      Backspace,
-      ZExp.Deeper(
-        _,
-        ZExp.LineItemZE(
-          UHExp.EmptyLine,
-          ZExp.Deeper(
-            _,
-            ZExp.LineItemZL(LetLineZP(ZPat.CursorP(Before, _), _, _), _),
-          ) as ze1,
-        ),
-      ),
-    )
-  | (
-      Backspace,
-      ZExp.Deeper(
-        _,
-        ZExp.LineItemZE(
-          UHExp.EmptyLine,
-          ZExp.Deeper(
-            _,
-            ZExp.LineItemZL(
-              LetLineZP(
-                ZPat.Deeper(
-                  _,
-                  ZPat.OpSeqZ(
-                    _,
-                    ZPat.CursorP(Before, _),
-                    OperatorSeq.EmptyPrefix(_),
-                  ),
-                ),
-                _,
-                _,
-              ),
-              _,
-            ),
-          ) as ze1,
-        ),
-      ),
     ) =>
     Some((ze1, ty, u_gen))
   | (Delete, ZExp.Deeper(_, ZExp.LineItemZL(ZExp.EmptyLineZ, e1))) =>
