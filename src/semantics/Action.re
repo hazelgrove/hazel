@@ -3789,6 +3789,81 @@ and perform_ana =
         op,
       )
     }
+  /* Subsumption (pre zipper cases) */
+  | (
+      Backspace,
+      ZExp.Deeper(
+        _,
+        ZExp.LineItemZE(UHExp.EmptyLine, ZExp.CursorE(Before, _)),
+      ),
+    )
+  | (
+      Backspace,
+      ZExp.Deeper(
+        _,
+        ZExp.OpSeqZ(_, ZExp.CursorE(Before, _), OperatorSeq.EmptyPrefix(_)),
+      ),
+    )
+  | (
+      Backspace,
+      ZExp.Deeper(
+        _,
+        ZExp.LineItemZE(
+          UHExp.EmptyLine,
+          ZExp.Deeper(_, ZExp.LineItemZL(ZExp.EmptyLineZ, _)),
+        ),
+      ),
+    )
+  | (
+      Backspace,
+      ZExp.Deeper(
+        _,
+        ZExp.LineItemZE(
+          UHExp.EmptyLine,
+          ZExp.Deeper(
+            _,
+            ZExp.LineItemZL(ZExp.ExpLineZ(ZExp.CursorE(Before, _)), _),
+          ),
+        ),
+      ),
+    )
+  | (
+      Backspace,
+      ZExp.Deeper(
+        _,
+        ZExp.LineItemZE(
+          UHExp.EmptyLine,
+          ZExp.Deeper(
+            _,
+            ZExp.LineItemZL(
+              ZExp.ExpLineZ(
+                ZExp.Deeper(
+                  _,
+                  ZExp.OpSeqZ(
+                    _,
+                    ZExp.CursorE(Before, _),
+                    OperatorSeq.EmptyPrefix(_),
+                  ),
+                ),
+              ),
+              _,
+            ),
+          ),
+        ),
+      ),
+    )
+  | (
+      Delete,
+      ZExp.Deeper(
+        _,
+        ZExp.LineItemZL(
+          ZExp.EmptyLineZ,
+          UHExp.Tm(_, UHExp.LineItem(UHExp.EmptyLine, _)),
+        ),
+      ),
+    )
+  | (Delete, ZExp.Deeper(_, ZExp.LineItemZL(ZExp.EmptyLineZ, _))) =>
+    perform_ana_subsume(u_gen, ctx, a, ze, ty)
   /* Zipper Cases */
   | (_, ZExp.ParenthesizedZ(ze1)) =>
     switch (perform_ana(u_gen, ctx, a, ze1, ty)) {
@@ -4116,7 +4191,7 @@ and perform_ana =
       }
     | _ => None /* should never happen */
     };
-  /* Subsumption */
+  /* Subsumption (post zipper cases) */
   | (UpdateApPalette(_), _)
   | (Construct(SApPalette(_)), _)
   | (Construct(SEmptyLine), _)
@@ -4126,9 +4201,8 @@ and perform_ana =
   | (_, ZExp.Deeper(_, ZExp.AscZ1(_, _)))
   | (_, ZExp.Deeper(_, ZExp.AscZ2(_, _)))
   | (_, ZExp.Deeper(_, ZExp.ApPaletteZ(_, _, _)))
-  | (_, ZExp.Deeper(_, ZExp.LineItemZL(ZExp.ExpLineZ(_), _)))
-  | (Backspace, ZExp.Deeper(_, ZExp.LineItemZE(UHExp.EmptyLine, _)))
-  | (Delete, ZExp.Deeper(_, ZExp.LineItemZL(ZExp.EmptyLineZ, _))) =>
+  /* TODO this is a zipper case in perform_syn, is it fine to cover by subsumption? */
+  | (_, ZExp.Deeper(_, ZExp.LineItemZL(ZExp.ExpLineZ(_), _))) =>
     perform_ana_subsume(u_gen, ctx, a, ze, ty)
   /* Invalid actions at expression level */
   | (Construct(SNum), _)
