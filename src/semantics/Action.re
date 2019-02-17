@@ -4347,25 +4347,30 @@ let can_perform =
   | Construct(SParenthesized) => true
   | Construct(SAsc) =>
     switch (ci.sort) {
+    | CursorInfo.IsEmptyLine => true
     | CursorInfo.IsExpr(_) => true
     | CursorInfo.IsPat(_) => true
     | CursorInfo.IsType => false
     }
+  | Construct(SEmptyLine)
   | Construct(SLetLine)
   | Construct(SCase) =>
     switch (ci.sort) {
+    | CursorInfo.IsEmptyLine => true
     | CursorInfo.IsExpr(_) => true
     | CursorInfo.IsPat(_) => false
     | CursorInfo.IsType => false
     }
   | Construct(SInj(_)) =>
     switch (ci.sort) {
+    | CursorInfo.IsEmptyLine => true
     | CursorInfo.IsExpr(_) => true
     | CursorInfo.IsPat(_) => true
     | CursorInfo.IsType => false
     }
   | Construct(SListNil) =>
     switch (ci.sort) {
+    | CursorInfo.IsEmptyLine => true
     | CursorInfo.IsExpr(UHExp.Tm(_, UHExp.EmptyHole(_))) => true
     | CursorInfo.IsExpr(_) => false
     | CursorInfo.IsPat(UHPat.Pat(_, UHPat.EmptyHole(_))) => true
@@ -4377,6 +4382,7 @@ let can_perform =
   | Construct(SList) =>
     switch (ci.sort) {
     | CursorInfo.IsType => true
+    | CursorInfo.IsEmptyLine
     | CursorInfo.IsExpr(_)
     | CursorInfo.IsPat(_) => false
     }
@@ -4405,6 +4411,7 @@ let can_perform =
 
 let can_enter_varchar = (ci: CursorInfo.t): bool =>
   switch (ci.sort) {
+  | CursorInfo.IsEmptyLine
   | CursorInfo.IsExpr(UHExp.Tm(_, UHExp.Var(_, _)))
   | CursorInfo.IsExpr(UHExp.Tm(_, UHExp.EmptyHole(_)))
   | CursorInfo.IsExpr(UHExp.Tm(_, UHExp.BoolLit(_)))
@@ -4425,6 +4432,7 @@ let can_enter_varchar = (ci: CursorInfo.t): bool =>
 
 let can_enter_numeral = (ci: CursorInfo.t): bool =>
   switch (ci.sort) {
+  | CursorInfo.IsEmptyLine
   | CursorInfo.IsExpr(UHExp.Tm(_, UHExp.NumLit(_)))
   | CursorInfo.IsExpr(UHExp.Tm(_, UHExp.EmptyHole(_)))
   | CursorInfo.IsPat(UHPat.Pat(_, UHPat.NumLit(_)))
@@ -4436,6 +4444,7 @@ let can_enter_numeral = (ci: CursorInfo.t): bool =>
 
 let can_construct_palette = (ci: CursorInfo.t): bool =>
   switch (ci.sort) {
+  | CursorInfo.IsEmptyLine
   | CursorInfo.IsExpr(UHExp.Tm(_, UHExp.EmptyHole(_))) => true
   | _ => false
   };
