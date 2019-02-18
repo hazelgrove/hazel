@@ -275,7 +275,8 @@ let is_single_key: Js.t(Dom_html.keyboardEvent) => option(single_key) =
   evt => {
     let ctrlKey = Js.to_bool(evt##.ctrlKey);
     let altKey = Js.to_bool(evt##.altKey);
-    if (ctrlKey || altKey) {
+    let metaKey = Js.to_bool(evt##.metaKey);
+    if (ctrlKey || altKey || metaKey) {
       None;
     } else {
       let key = get_key(evt);
