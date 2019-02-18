@@ -328,9 +328,16 @@ let make =
 
   let constructLet =
     checked_action_button(
-      Action.Construct(Action.SLet),
+      Action.Construct(Action.SLetLine),
       twopiece_lbl_kw("let", ""),
       KCs.equals,
+    );
+
+  let constructNewLine =
+    checked_action_button(
+      Action.Construct(Action.SEmptyLine),
+      Html5.txt("new line"),
+      KCs.enter,
     );
 
   let can_enter_varchar_rs = S.map(Action.can_enter_varchar, cursor_info_rs);
@@ -487,6 +494,7 @@ let make =
             ~a=[a_class(["sub-panel-body"])],
             [
               constructVar,
+              constructNewLine,
               constructLet,
               constructLam,
               constructSpace,
