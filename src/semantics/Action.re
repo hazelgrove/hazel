@@ -2004,8 +2004,18 @@ let rec perform_syn =
       Backspace,
       ZExp.Deeper(
         _,
-        ZExp.OpSeqZ(_, ZExp.CursorE(Before, _), OperatorSeq.EmptyPrefix(_)),
-      ) as ze1,
+        ZExp.LineItemZE(
+          UHExp.EmptyLine,
+          ZExp.Deeper(
+            _,
+            ZExp.OpSeqZ(
+              _,
+              ZExp.CursorE(Before, _),
+              OperatorSeq.EmptyPrefix(_),
+            ),
+          ) as ze1,
+        ),
+      ),
     )
   | (
       Backspace,
