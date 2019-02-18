@@ -699,11 +699,11 @@ let rec holes_ze = (ze, steps): zhole_list =>
     | ZExp.LineItemZL(zli, e2) =>
       let {holes_before, hole_selected, holes_after} =
         holes_zline_item(zli, [0, ...steps]);
-      let holes_e2 = holes_e(e2, [3, ...steps], []);
+      let holes_e2 = holes_e(e2, [1, ...steps], []);
       {holes_before, hole_selected, holes_after: holes_after @ holes_e2};
     | ZExp.LineItemZE(li, ze2) =>
       let {holes_before, hole_selected, holes_after} =
-        holes_ze(ze2, [3, ...steps]);
+        holes_ze(ze2, [1, ...steps]);
       let holes_li = holes_line_item(li, [0, ...steps], []);
       {holes_before: holes_li @ holes_before, hole_selected, holes_after};
     | ZExp.LamZP(zp, ann, e1) =>
