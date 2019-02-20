@@ -1,4 +1,3 @@
-open SemanticsCore;
 open Tyxml_js;
 open Model;
 let mk =
@@ -49,7 +48,7 @@ let mk =
             )
           ),
         )
-      | Some(Dynamics.DHExp.BoundVar(x')) when Var.equal(x, x') => None
+      | Some(Dynamics.DHExp.BoundVar(x')) when Var.eq(x, x') => None
       | Some(d) =>
         let dhexp_html =
           View.html_of_dhexp(
@@ -79,8 +78,8 @@ let mk =
       Html5.(div(~a=[a_class(["context-entry"])], children));
     };
     exception InvalidInstance;
-    let context_view = (ctx: SemanticsCore.Ctx.t, hii, selected_instance) => {
-      let ctx_list = Ctx.to_list(ctx);
+    let context_view = (ctx: VarCtx.t, hii, selected_instance) => {
+      let ctx_list = VarCtx.to_list(ctx);
       let sigma =
         switch (selected_instance) {
         | Some(inst) =>
@@ -372,10 +371,10 @@ let mk =
       } else {
         let children =
           switch (sort) {
-          | ZExp.IsExpr(UHExp.Tm(_, UHExp.EmptyHole(u))) =>
+          | CursorInfo.IsExpr(UHExp.Tm(_, UHExp.EmptyHole(u))) =>
             switch (selected_instance) {
             | Some((u', _) as inst) =>
-              if (MetaVar.equal(u, u')) {
+              if (MetaVar.eq(u, u')) {
                 switch (Dynamics.DHExp.HoleInstanceInfo.lookup(hii, inst)) {
                 | Some((_, path)) => [
                     path_view_titlebar,
@@ -407,7 +406,7 @@ let mk =
 
     let panel =
         (
-          {ZExp.sort, ZExp.ctx: (gamma, _), _},
+          {CursorInfo.sort, CursorInfo.ctx: (gamma, _), _},
           (_, hii, _),
           selected_instance,
           next_prev_state_rf,

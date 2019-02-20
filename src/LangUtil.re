@@ -1,10 +1,10 @@
-open SemanticsCore;
+open SemanticsCommon;
 exception InvalidSyntax(string);
 exception IllFormed(UHExp.t);
 let string_of_side = side =>
   switch (side) {
-  | UHExp.L => "L"
-  | UHExp.R => "R"
+  | L => "L"
+  | R => "R"
   };
 let lamSym = "λ";
 let caseArrowSym = "⇒";

@@ -1,6 +1,5 @@
 open Tyxml_js;
 open React;
-open SemanticsCore;
 open Model;
 module Dom_html = Js_of_ocaml.Dom_html;
 module Dom = Js_of_ocaml.Dom;
@@ -102,9 +101,8 @@ let make =
           | Some(arg) =>
             let a = action(arg);
             switch (
-              Action.performSyn(
-                (),
-                (Ctx.empty, Palettes.initial_palette_ctx),
+              Action.perform_syn(
+                (VarCtx.empty, Palettes.initial_palette_ctx),
                 a,
                 m,
               )
@@ -155,24 +153,19 @@ let make =
       );
 
     let _ =
-      JSUtil.listen_to(
-        Ev.keyup,
-        i_dom,
-        evt => {
-          let key = JSUtil.get_key(evt);
-          if (key == KC.key(KCs.enter)) {
-            lbl_dom##click;
-            clear_input();
-            set_cursor();
-            Js._false;
-          } else if (key == KC.key(KCs.esc)) {
-            clear_input();
-            set_cursor();
-            Js._false;
-          } else {
-            Js._true;
-          };
-        },
+      JSUtil.listen_to(Ev.keyup, i_dom, evt =>
+        if (KC.matches(KCs.enter, evt)) {
+          lbl_dom##click;
+          clear_input();
+          set_cursor();
+          Js._false;
+        } else if (KC.matches(KCs.escape, evt)) {
+          clear_input();
+          set_cursor();
+          Js._false;
+        } else {
+          Js._true;
+        }
       );
 
     let _ =
@@ -245,198 +238,110 @@ let make =
   let twopiece_lbl_kw = twopiece_lbl("kw");
 
   let check_action_rs = action =>
-    S.map(
-      edit_state =>
-        switch (
-          Action.performSyn(
-            (),
-            (Ctx.empty, Palettes.initial_palette_ctx),
-            action,
-            edit_state,
-          )
-        ) {
-        | Some(_) => true
-        | None => false
-        },
+    S.l2(
+      (edit_state, cursor_info) =>
+        Action.can_perform(
+          (VarCtx.empty, Palettes.initial_palette_ctx),
+          edit_state,
+          cursor_info,
+          action,
+        ),
       edit_state_rs,
+      cursor_info_rs,
     );
 
+  let checked_action_button = (a, lbl, kc) =>
+    action_button(a, check_action_rs(a), lbl, kc);
+
   let backspace =
-    action_button(
+    checked_action_button(
       Action.Backspace,
-      check_action_rs(Action.Backspace),
       Html5.txt("backspace"),
       KCs.backspace,
     );
 
   let delete =
-    action_button(
-      Action.Delete,
-      check_action_rs(Action.Delete),
-      Html5.txt("delete"),
-      KCs.del,
-    );
+    checked_action_button(Action.Delete, Html5.txt("delete"), KCs.delete);
 
   let moveToPrevHole =
-    action_button(
+    checked_action_button(
       Action.MoveToPrevHole,
-      check_action_rs(Action.MoveToPrevHole),
       Html5.txt("move to previous hole"),
-      KCs.backtab,
+      KCs.shift_tab,
     );
 
   let moveToNextHole =
-    action_button(
+    checked_action_button(
       Action.MoveToNextHole,
-      check_action_rs(Action.MoveToNextHole),
       Html5.txt("move to next hole"),
       KCs.tab,
     );
 
   let constructNum =
-    action_button(
+    checked_action_button(
       Action.Construct(Action.SNum),
-      check_action_rs(Action.Construct(Action.SNum)),
-      twopiece_lbl_kw("num", " type"),
-      KCs.pound,
+      twopiece_lbl_kw("Num", " type"),
+      KCs.key_N,
     );
 
-  let is_type_rs =
-    ZExp.(
-      S.map(
-        ({sort, _}) =>
-          switch (sort) {
-          | IsType => true
-          | IsExpr(_)
-          | IsBinder(_) => false
-          },
-        cursor_info_rs,
-      )
+  let constructBool =
+    checked_action_button(
+      Action.Construct(Action.SBool),
+      twopiece_lbl_kw("Bool", " type"),
+      KCs.key_B,
     );
 
   let constructArrow =
-    action_button(
-      Action.Construct(Action.STyOp(UHTyp.Arrow)),
-      is_type_rs,
+    checked_action_button(
+      Action.(Construct(SOp(SArrow))),
       twopiece_lbl_op(LangUtil.typeArrowSym, " type operator"),
-      KCs.greaterThan,
+      KCs.gt,
     );
 
   let constructSum =
-    action_button(
-      Action.Construct(Action.STyOp(UHTyp.Sum)),
-      is_type_rs,
+    checked_action_button(
+      Action.(Construct(SOp(SVBar))),
       twopiece_lbl_op("|", " type operator"),
       KCs.vbar,
     );
 
-  let is_not_binder_rs =
-    ZExp.(
-      S.map(
-        ({sort, _}) =>
-          switch (sort) {
-          | IsBinder(_) => false
-          | IsType
-          | IsExpr(_) => true
-          },
-        cursor_info_rs,
-      )
+  let constructList =
+    checked_action_button(
+      Action.(Construct(SList)),
+      twopiece_lbl_kw("List", " type"),
+      KCs.key_L,
     );
 
   let constructParenthesized =
-    action_button(
+    checked_action_button(
       Action.Construct(Action.SParenthesized),
-      is_not_binder_rs,
       Html5.txt("parenthesize"),
-      KCs.openParens,
-    );
-
-  let can_ascribe_rs =
-    ZExp.(
-      S.map(
-        ({sort, _}) =>
-          switch (sort) {
-          | IsExpr(_) => true
-          | IsType => false
-          | IsBinder(_) => true
-          },
-        cursor_info_rs,
-      )
+      KCs.left_parens,
     );
 
   let constructAsc =
-    action_button(
+    checked_action_button(
       Action.Construct(Action.SAsc),
-      can_ascribe_rs,
       Html5.txt("type ascription"),
       KCs.colon,
     );
 
-  let expr_not_ana_only_rs =
-    ZExp.(
-      S.map(
-        ({mode, _}) =>
-          switch (mode) {
-          | AnaOnly(_) => false
-          | AnaAnnotatedLambda(_, _)
-          | TypeInconsistent(_, _)
-          | AnaFree(_)
-          | Subsumed(_, _)
-          | SynOnly(_)
-          | SynFree
-          | SynErrorArrow(_)
-          | SynErrorSum(_)
-          | SynMatchingArrow(_, _)
-          | SynFreeArrow(_)
-          | SynMatchingSum(_, _)
-          | SynFreeSum(_) => true
-          | TypePosition => false
-          | BinderPosition(_) => false
-          },
-        cursor_info_rs,
-      )
-    );
-
   let constructLet =
-    action_button(
+    checked_action_button(
       Action.Construct(Action.SLet),
-      expr_not_ana_only_rs,
       twopiece_lbl_kw("let", ""),
       KCs.equals,
     );
 
-  let can_enter_var_rs =
-    ZExp.(
-      S.map(
-        ({sort, side, _}) =>
-          switch (sort) {
-          | IsExpr(UHExp.Tm(_, UHExp.Var(_, _)))
-          | IsExpr(UHExp.Tm(_, UHExp.EmptyHole(_)))
-          | IsBinder(_) => true
-          | IsExpr(UHExp.Tm(_, UHExp.NumLit(_))) =>
-            switch (side) {
-            | Before => true
-            | In(_)
-            | After => false
-            }
-          | IsExpr(_)
-          | IsType => false
-          },
-        cursor_info_rs,
-      )
-    );
+  let can_enter_varchar_rs = S.map(Action.can_enter_varchar, cursor_info_rs);
 
   let constructVar =
-    info_button(Html5.txt("enter variables directly"), can_enter_var_rs);
+    info_button(Html5.txt("enter variables directly"), can_enter_varchar_rs);
 
-  let can_insert_ap_palette_rs =
-    S.l1(
-      ({ZExp.sort, ZExp.ctx: (_, palette_ctx), _}) =>
-        switch (sort) {
-        | ZExp.IsExpr(UHExp.Tm(_, UHExp.EmptyHole(_))) => true
-        | _ => false
-        },
-      cursor_info_rs,
+  let constructBoolLit =
+    info_button(
+      Html5.txt("enter bool literals (true, false) directly"),
+      can_enter_varchar_rs,
     );
 
   let constructLam =
@@ -447,73 +352,93 @@ let make =
       KCs.backslash,
     );
 
-  let is_lit_or_hole_rs =
-    ZExp.(
-      S.map(
-        ({sort, _}) =>
-          switch (sort) {
-          | IsExpr(UHExp.Tm(_, UHExp.NumLit(_)))
-          | IsExpr(UHExp.Tm(_, UHExp.EmptyHole(_))) => true
-          | IsExpr(_)
-          | IsBinder(_)
-          | IsType => false
-          },
-        cursor_info_rs,
-      )
-    );
+  let can_enter_numeral_rs = S.map(Action.can_enter_numeral, cursor_info_rs);
+
   let constructLit =
     info_button(
       Html5.txt("enter number literals directly"),
-      is_lit_or_hole_rs,
+      can_enter_numeral_rs,
     );
 
   let constructPlus =
-    action_button(
-      Action.Construct(Action.SOp(UHExp.Plus)),
-      expr_not_ana_only_rs,
+    checked_action_button(
+      Action.(Construct(SOp(SPlus))),
       twopiece_lbl_op("+", " operator"),
       KCs.plus,
     );
 
   let constructTimes =
-    action_button(
-      Action.Construct(Action.SOp(UHExp.Times)),
-      expr_not_ana_only_rs,
+    checked_action_button(
+      Action.(Construct(SOp(STimes))),
       twopiece_lbl_op("*", " operator"),
       KCs.asterisk,
     );
 
+  let constructLessThan =
+    checked_action_button(
+      Action.(Construct(SOp(SLessThan))),
+      twopiece_lbl_op("<", " operator"),
+      KCs.lt,
+    );
+
   let constructSpace =
-    action_button(
-      Action.Construct(Action.SOp(UHExp.Space)),
-      expr_not_ana_only_rs,
+    checked_action_button(
+      Action.(Construct(SOp(SSpace))),
       Html5.txt("apply"),
       KCs.space,
     );
 
+  let constructComma =
+    checked_action_button(
+      Action.(Construct(SOp(SComma))),
+      twopiece_lbl_op(",", " operator"),
+      KCs.comma,
+    );
+
+  let constructNil =
+    checked_action_button(
+      Action.(Construct(SListNil)),
+      twopiece_lbl_op("[]", " (nil)"),
+      KCs.left_bracket,
+    );
+
+  let constructCons =
+    checked_action_button(
+      Action.(Construct(SOp(SCons))),
+      twopiece_lbl_op("::", " operator"),
+      KCs.semicolon,
+    );
+
   let constructInjL =
-    action_button(
-      Action.Construct(Action.SInj(UHExp.L)),
-      expr_not_ana_only_rs,
+    checked_action_button(
+      Action.Construct(Action.SInj(L)),
       Html5.txt("left injection"),
       KCs.alt_L,
     );
 
   let constructInjR =
-    action_button(
-      Action.Construct(Action.SInj(UHExp.R)),
-      expr_not_ana_only_rs,
+    checked_action_button(
+      Action.Construct(Action.SInj(R)),
       Html5.txt("right injection"),
       KCs.alt_R,
     );
 
   let constructCase =
-    action_button(
+    checked_action_button(
       Action.Construct(Action.SCase),
-      expr_not_ana_only_rs,
       twopiece_lbl_kw("case", ""),
       KCs.alt_C,
     );
+
+  let constructRule =
+    checked_action_button(
+      Action.Construct(Action.SRule),
+      Html5.txt("add rule"),
+      KCs.enter,
+    );
+
+  let can_insert_ap_palette_rs =
+    S.l1(Action.can_construct_palette, cursor_info_rs);
 
   let constructApPalette =
     action_input_button(
@@ -537,7 +462,13 @@ let make =
           ),
           div(
             ~a=[a_class(["sub-panel-body"])],
-            [constructNum, constructArrow, constructSum],
+            [
+              constructNum,
+              constructBool,
+              constructList,
+              constructArrow,
+              constructSum,
+            ],
           ),
         ],
       )
@@ -562,9 +493,15 @@ let make =
               constructLit,
               constructPlus,
               constructTimes,
+              constructLessThan,
+              constructBoolLit,
+              constructComma,
+              constructNil,
+              constructCons,
               constructInjL,
               constructInjR,
               constructCase,
+              constructRule,
               constructAsc,
               constructApPalette,
             ],

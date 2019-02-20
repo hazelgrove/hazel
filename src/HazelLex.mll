@@ -15,6 +15,11 @@ rule read =
   parse
   | whitespace { read lexbuf }
   | "num" { NUM_TYPE }
+  | "bool" { BOOL_TYPE }
+  | "unit" { UNIT_TYPE }
+  | "true" { TRUE }
+  | "false" { FALSE }
+  | "_" { WILDCARD }
   | "let" { LET }
   | "in" { IN }
   | "inj" { INJECT }
@@ -23,11 +28,17 @@ rule read =
   | "L" { LEFT }
   | "R" { RIGHT }
   | ":" { COLON }
+  | "::" { DOUBLE_COLON }
+  | ";" { SEMICOLON }
   | "=" { EQUAL }
+  | "," { COMMA }
   | "." { DOT }
   | "+" { PLUS }
   | "*" { TIMES }
+  | "<" { LESS_THAN }
   | "|" { BAR }
+  | "||" { DOUBLE_BAR }
+  | "&" { AMP }
   | "(" { LPAREN }
   | ")" { RPAREN }
   | "[" { LBRACKET }

@@ -1,6 +1,6 @@
 open Tyxml_js;
-open SemanticsCore;
 open Model;
+open SemanticsCommon;
 module Js = Js_of_ocaml.Js;
 module Dom = Js_of_ocaml.Dom;
 module Dom_html = Js_of_ocaml.Dom_html;
@@ -15,6 +15,7 @@ let view = (model: Model.t) => {
     selected_instance_rs,
     selected_instance_rf,
     do_action,
+    replace_e,
     _,
   } = model;
   let pp_view_width = 50;
@@ -110,8 +111,8 @@ let view = (model: Model.t) => {
     };
   };
   let set_cursor = () => {
-    let ((ze, _), _) = React.S.value(edit_state_rs);
-    let (cursor_path, cursor_side) = SemanticsCore.Path.of_zexp(ze);
+    let (ze, _, _) = React.S.value(edit_state_rs);
+    let (cursor_path, cursor_side) = Path.of_zexp(ze);
     set_cursor_to((cursor_path, cursor_side));
   };
   let clear_cursors = () => {
@@ -130,7 +131,7 @@ let view = (model: Model.t) => {
     React.S.map(({EditorBox.rev_paths, _}) => rev_paths, editor_box_rs);
   let do_transport = (): bool => {
     let selection = Dom_html.window##getSelection;
-    JSUtil.log(selection);
+    /* JSUtil.log(selection); */
     let anchor = selection##.anchorNode;
     let parent_elem =
       switch (anchor##.nodeType) {
@@ -416,8 +417,12 @@ let view = (model: Model.t) => {
       };
     } else if (ast_has_class("Var")
                || ast_has_class("var_binding")
+               || ast_has_class("Wild")
+               || ast_has_class("ListNil")
                || ast_has_class("NumLit")
+               || ast_has_class("BoolLit")
                || ast_has_class("Num")
+               || ast_has_class("Bool")
                || ast_has_class("number")
                || ast_has_class("ApPalette")) {
       if (anchorOffset == 0) {
@@ -452,6 +457,26 @@ let view = (model: Model.t) => {
         let innerHTML = Js.to_string(anchor_elem##.innerHTML);
 
         if (String.equal(innerHTML, "inj")) {
+          Before;
+        } else {
+          In(0);
+        };
+      } else if (anchorOffset == 1) {
+        let innerHTML = Js.to_string(anchor_elem##.innerHTML);
+        if (String.equal(innerHTML, ")")) {
+          After;
+        } else {
+          In(0);
+        };
+      } else {
+        In(0);
+      };
+    } else if (ast_has_class("List")) {
+      let anchor_elem = get_anchor_elem(anchor);
+      if (anchorOffset == 0) {
+        let innerHTML = Js.to_string(anchor_elem##.innerHTML);
+
+        if (String.equal(innerHTML, "List")) {
           Before;
         } else {
           In(0);
@@ -559,7 +584,7 @@ let view = (model: Model.t) => {
   let htype_rs =
     React.S.map(
       _ => {
-        let ((_, ty), _) = React.S.value(edit_state_rs);
+        let (_, ty, _) = React.S.value(edit_state_rs);
         let prettified = View.html_of_ty(pp_view_width, "result-type", ty);
         [prettified];
       },
@@ -568,7 +593,7 @@ let view = (model: Model.t) => {
 
   let htype_view = R.Html5.div(ReactiveData.RList.from_signal(htype_rs));
   let move_to_hole = u =>
-    switch (Path.path_to_hole((), React.S.value(e_rs), u)) {
+    switch (Path.path_to_hole(Path.holes_e(React.S.value(e_rs), [], []), u)) {
     | Some(hole_path) =>
       do_action(Action.MoveTo(hole_path));
       set_cursor();
@@ -715,6 +740,18 @@ let view = (model: Model.t) => {
       )
     );
 
+  /*
+   let serialize_onclick_handler = _ => {
+     JSUtil.log(Serialize.string_of_uhexp(React.S.value(e_rs)));
+     true;
+   };
+
+   let deserialize_onclick_handler = (serialized, _) => {
+     replace_e(Deserialize.uhexp_of_string(serialized));
+     true;
+   };
+   */
+
   let chrome =
     Tyxml_js.To_dom.of_div(
       Html5.(
@@ -771,6 +808,22 @@ let view = (model: Model.t) => {
                         div(~a=[a_class(["result-view"])], [result_view]),
                       ],
                     ),
+                    /* button(
+                         ~a=[a_onclick(serialize_onclick_handler)],
+                         [txt("Serialize")],
+                       ),
+                       div([
+                         button(
+                           ~a=[
+                             a_onclick(
+                               deserialize_onclick_handler(
+                                 "(lambda {} : {}. {}) {}\n",
+                               ),
+                             ),
+                           ],
+                           [txt("Basic holey lambda example")],
+                         ),
+                       ]), */
                   ],
                 ),
                 the_rightbar,

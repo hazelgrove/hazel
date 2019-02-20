@@ -19,7 +19,7 @@
 (executable
   (name hazel)
   (js_of_ocaml (flags (:standard (:include js-of-ocaml-flags-%{profile}))))
-  (libraries Semantics js_of_ocaml.tyxml tyxml react reactiveData camomile)
+  (libraries js_of_ocaml.tyxml tyxml react reactiveData camomile)
   (preprocess (pps js_of_ocaml.ppx)))
 
 (rule
@@ -32,8 +32,8 @@
   (write-file js-of-ocaml-flags-default "()"))
 
 (ocamllex
-  (modules SkelExprLexer SkelTypLexer))
+  (modules SkelExprLexer SkelPatLexer SkelTypLexer HazelLex))
 
 (menhir
   (infer false)
-  (modules SkelExprParser SkelTypParser))
+  (modules SkelExprParser SkelPatParser SkelTypParser HazelParse))

@@ -1,5 +1,3 @@
-open SemanticsCore;
-
 type rev_path = list(int);
 type rev_paths = Hashtbl.t(string, list(int));
 let mk_rev_paths = () => Hashtbl.create(256);
@@ -10,3 +8,4 @@ type t = {
   rev_paths,
 };
 type mk_editor_box = (rev_path, rev_paths, UHExp.t) => t;
+module NatMap = Util.NatMap;

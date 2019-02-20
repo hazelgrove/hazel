@@ -1,22 +1,21 @@
-open SemanticsCore;
-type edit_state = ((ZExp.t, HTyp.t), MetaVar.gen);
-let u_gen0: MetaVar.gen = (MetaVar.new_gen: MetaVar.gen);
-let (u, u_gen1) = MetaVar.next(u_gen0);
+type edit_state = (ZExp.t, HTyp.t, MetaVarGen.t);
+let u_gen0: MetaVarGen.t = (MetaVarGen.init: MetaVar.t);
+let (u, u_gen1) = MetaVarGen.next(u_gen0);
 let empty_ze =
   ZExp.CursorE(Before, UHExp.Tm(NotInHole, UHExp.EmptyHole(u)));
-let empty: edit_state = (((empty_ze, HTyp.Hole), u_gen1): edit_state);
+let empty: edit_state = ((empty_ze, HTyp.Hole, u_gen1): edit_state);
 let empty_erasure = ZExp.erase(empty_ze);
 type edit_state_rs = React.signal(edit_state);
 type e_rs = React.signal(UHExp.t);
-type cursor_info_rs = React.signal(ZExp.cursor_info);
+type cursor_info_rs = React.signal(CursorInfo.t);
 open Dynamics;
 type result_rs =
   React.signal((DHExp.t, DHExp.HoleInstanceInfo.t, Evaluator.result));
 type hole_instance_info_rs = React.signal(DHExp.HoleInstanceInfo.t);
 module UserSelectedInstances = {
-  type t = MetaVarMap.t(DHExp.inst_num);
+  type t = MetaVarMap.t(inst_num);
   type rs = React.signal(t);
-  type rf = (~step: React.step=?, MetaVarMap.t(DHExp.inst_num)) => unit;
+  type rf = (~step: React.step=?, MetaVarMap.t(inst_num)) => unit;
   let update = (usi, inst) => MetaVarMap.insert_or_update(usi, inst);
 };
 type instance_click_fn = DHExp.HoleInstance.t => unit;
@@ -27,6 +26,7 @@ type selected_instance_rf =
   (~step: React.step=?, option(DHExp.HoleInstance.t)) => unit;
 type monitors = list(React.signal(unit));
 type do_action_t = Action.t => unit;
+type replace_e = UHExp.t => unit;
 exception InvalidAction;
 exception MissingCursorInfo;
 exception DoesNotExpand;
@@ -42,6 +42,7 @@ type t = {
   selected_instance_rf,
   monitors,
   do_action: do_action_t,
+  replace_e,
 };
 let new_model = (): t => {
   let (edit_state_rs, edit_state_rf) = React.S.create(empty);
@@ -49,11 +50,10 @@ let new_model = (): t => {
   let cursor_info_rs =
     React.S.l1(
       ~eq=(_, _) => false, /* palette contexts have functions in them! */
-      (((ze, _), _)) =>
+      ((ze, _, _)) =>
         switch (
-          ZExp.syn_cursor_info(
-            (),
-            (Ctx.empty, Palettes.initial_palette_ctx),
+          CursorInfo.syn_cursor_info(
+            (VarCtx.empty, Palettes.initial_palette_ctx),
             ze,
           )
         ) {
@@ -67,21 +67,25 @@ let new_model = (): t => {
     React.S.l1(
       e => {
         let expanded =
-          DHExp.syn_expand((), (Ctx.empty, Palettes.initial_palette_ctx), e);
+          DHExp.syn_expand(
+            (VarCtx.empty, Palettes.initial_palette_ctx),
+            Delta.empty,
+            e,
+          );
         switch (expanded) {
         | DHExp.DoesNotExpand => raise(DoesNotExpand)
         | DHExp.Expands(d, _, _) =>
-          switch (Evaluator.evaluate((), d)) {
+          switch (Evaluator.evaluate(d)) {
           | Evaluator.InvalidInput(n) =>
             JSUtil.log("InvalidInput " ++ string_of_int(n));
             raise(InvalidInput);
           | Evaluator.BoxedValue(d) =>
             let (d_renumbered, hii) =
-              DHExp.renumber((), [], DHExp.HoleInstanceInfo.empty, d);
+              DHExp.renumber([], DHExp.HoleInstanceInfo.empty, d);
             (d_renumbered, hii, Evaluator.BoxedValue(d_renumbered));
           | Evaluator.Indet(d) =>
             let (d_renumbered, hii) =
-              DHExp.renumber((), [], DHExp.HoleInstanceInfo.empty, d);
+              DHExp.renumber([], DHExp.HoleInstanceInfo.empty, d);
             (d_renumbered, hii, Evaluator.Indet(d_renumbered));
           }
         };
@@ -97,10 +101,18 @@ let new_model = (): t => {
   let (selected_instance_rs, selected_instance_rf) = React.S.create(None);
   let instance_at_cursor_monitor =
     React.S.l2(
-      ({ZExp.mode: _, ZExp.sort, ZExp.ctx: _, ZExp.side: _}, (_, hii, _)) => {
+      (
+        {
+          CursorInfo.mode: _,
+          CursorInfo.sort,
+          CursorInfo.ctx: _,
+          CursorInfo.side: _,
+        },
+        (_, hii, _),
+      ) => {
         let new_path =
           switch (sort) {
-          | ZExp.IsExpr(UHExp.Tm(_, UHExp.EmptyHole(u))) =>
+          | CursorInfo.IsExpr(UHExp.Tm(_, UHExp.EmptyHole(u))) =>
             let usi = React.S.value(user_selected_instances_rs);
             switch (MetaVarMap.lookup(usi, u)) {
             | Some(i) => Some((u, i))
@@ -121,15 +133,14 @@ let new_model = (): t => {
   let monitors = [instance_at_cursor_monitor, usi_monitor];
   let do_action = action =>
     switch (
-      Action.performSyn(
-        (),
-        (Ctx.empty, Palettes.initial_palette_ctx),
+      Action.perform_syn(
+        (VarCtx.empty, Palettes.initial_palette_ctx),
         action,
         React.S.value(edit_state_rs),
       )
     ) {
-    | Some(((ze, ty), ugen)) =>
-      edit_state_rf(((ze, ty), ugen));
+    | Some((ze, ty, ugen)) =>
+      edit_state_rf((ze, ty, ugen));
       switch (action) {
       | Action.MoveTo(_)
       | Action.MoveToNextHole
@@ -138,6 +149,20 @@ let new_model = (): t => {
       };
     | None => raise(InvalidAction)
     };
+  let replace_e = new_uhexp => {
+    let new_edit_state_opt =
+      Action.zexp_syn_fix_holes(
+        (VarCtx.empty, PaletteCtx.empty),
+        MetaVarGen.init,
+        ZExp.CursorE(Before, new_uhexp),
+      );
+    switch (new_edit_state_opt) {
+    | Some(new_edit_state) =>
+      edit_state_rf(new_edit_state);
+      e_rf(new_uhexp);
+    | None => JSUtil.log("Replacement uhexp didn't type-check")
+    };
+  };
   {
     edit_state_rs,
     cursor_info_rs,
@@ -149,5 +174,6 @@ let new_model = (): t => {
     selected_instance_rf,
     monitors,
     do_action,
+    replace_e,
   };
 };
