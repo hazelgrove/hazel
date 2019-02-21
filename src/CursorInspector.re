@@ -71,6 +71,8 @@ let got_inconsistent_matched_indicator = (got_ty, matched_ty) =>
 let got_free_indicator =
   got_indicator("Got a free variable", typebar("got", HTyp.Hole));
 
+let got_empty_line_indicator = got_ty_indicator(HTyp.Hole);
+
 let got_consistent_indicator = got_ty =>
   got_indicator("Got consistent type", typebar("got", got_ty));
 let got_a_type_indicator = got_indicator("Got", special_msg_bar("a type"));
@@ -124,6 +126,10 @@ let of_cursor_mode = (cursor_mode: CursorInfo.cursor_mode) => {
     | CursorInfo.Synthesized(ty) =>
       let ind1 = expected_any_indicator;
       let ind2 = got_ty_indicator(ty);
+      (ind1, ind2, OK);
+    | CursorInfo.SynEmptyLine =>
+      let ind1 = expected_any_indicator;
+      let ind2 = got_empty_line_indicator;
       (ind1, ind2, OK);
     | CursorInfo.SynFree =>
       let ind1 = expected_any_indicator;
