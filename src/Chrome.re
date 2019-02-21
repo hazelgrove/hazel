@@ -519,6 +519,8 @@ let view = (model: Model.t) => {
       In(0);
     } else if (ast_has_class("OpSeq")) {
       In(0);
+    } else if (ast_has_class("EmptyLine")) {
+      Before;
     } else {
       JSUtil.log("Unknown ast element!");
       JSUtil.log(classList);
