@@ -855,13 +855,13 @@ and holes_zrules = (zrules, steps) => {
 and holes_zrule = (zrule, prefix_len, steps) =>
   switch (zrule) {
   | ZExp.RuleZP(zp, e1) =>
-    let {holes_before, hole_selected, holes_after} =
-      holes_zpat(zp, [prefix_len + 1, 0, ...steps]);
+    let { holes_before, hole_selected, holes_after } = 
+      holes_zpat(zp, [0, prefix_len + 1, ...steps]);
     let holes_e1 = holes_e(e1, [1, prefix_len + 1, ...steps], []);
     {holes_before, hole_selected, holes_after: holes_after @ holes_e1};
   | ZExp.RuleZE(p, ze1) =>
-    let {holes_before, hole_selected, holes_after} =
-      holes_ze(ze1, [prefix_len + 1, 1, ...steps]);
+    let { holes_before, hole_selected, holes_after } = 
+      holes_ze(ze1, [1, prefix_len + 1, ...steps]);
     let holes_p = holes_pat(p, [0, prefix_len + 1, ...steps], []);
     {holes_before: holes_p @ holes_before, hole_selected, holes_after};
   };

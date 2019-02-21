@@ -1,4 +1,4 @@
-let _TEST_PERFORM = false;
+let _TEST_PERFORM = true;
 open SemanticsCommon;
 open Util;
 
