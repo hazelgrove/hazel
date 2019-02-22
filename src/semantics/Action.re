@@ -1926,6 +1926,23 @@ let combine_for_Delete_Space = (ze0, e) =>
   | _ => ze0
   };
 
+/**
+ * Concatenates the line items of two expressions such that
+ * no line item at the top level contains a LineItem expression.
+ * Erases any standalone holes on a line in e1. Caller is
+ * responsible for fixing holes appropriately.
+ */
+let rec concat_lines = (e1: UHExp.t, ze2: ZExp.t): ZExp.t =>
+  switch (e1) {
+  | UHExp.Tm(_, UHExp.LineItem(li, e3)) =>
+    ZExp.Deeper(NotInHole, ZExp.LineItemZE(li, concat_lines(e3, ze2)))
+  | UHExp.Tm(_, UHExp.EmptyHole(_)) =>
+    ZExp.Deeper(NotInHole, ZExp.LineItemZE(UHExp.EmptyLine, ze2))
+  | UHExp.Tm(_, _)
+  | UHExp.Parenthesized(_) =>
+    ZExp.Deeper(NotInHole, ZExp.LineItemZE(UHExp.ExpLine(e1), ze2))
+  };
+
 let rec perform_syn =
         (ctx: Contexts.t, a: t, ze_ty: (ZExp.t, HTyp.t, MetaVarGen.t))
         : option((ZExp.t, HTyp.t, MetaVarGen.t)) => {
@@ -2413,14 +2430,9 @@ let rec perform_syn =
     Some((ze, ty, u_gen));
   | (Construct(SEmptyLine), ze1) when ZExp.cursor_at_end(ze1) =>
     let e1 = ZExp.erase(ze1);
-    let li =
-      switch (e1) {
-      | UHExp.Tm(_, UHExp.EmptyHole(_)) => UHExp.EmptyLine
-      | _ => UHExp.ExpLine(e1)
-      };
     let (ze2, u_gen) = ZExp.new_EmptyHole(u_gen);
-    let ze = ZExp.Deeper(NotInHole, ZExp.LineItemZE(li, ze2));
-    Some((ze, HTyp.Hole, u_gen));
+    let ze = concat_lines(e1, ze2);
+    zexp_syn_fix_holes(ctx, u_gen, ze);
   | (Construct(SEmptyLine), ZExp.CursorE(_, _)) => None
   | (Construct(SEmptyLine), ZExp.Deeper(_, ZExp.LineItemZL(zli, e2)))
       when ZExp.cursor_at_end_line_item(zli) =>
@@ -3487,6 +3499,11 @@ and perform_ana =
         ZExp.LamZA(ZPat.erase(zp), ZTyp.place_Before(uty1), e1),
       );
     Some((ze, u_gen));
+  | (Construct(SEmptyLine), ze1) when ZExp.cursor_at_end(ze1) =>
+    let e1 = ZExp.erase(ze1);
+    let (ze2, u_gen) = ZExp.new_EmptyHole(u_gen);
+    let ze = concat_lines(e1, ze2);
+    zexp_ana_fix_holes(ctx, u_gen, ze, ty);
   | (Construct(SLetLine), ZExp.CursorE(_, _) as ze1)
   | (
       Construct(SLetLine),
