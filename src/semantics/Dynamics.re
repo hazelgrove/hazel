@@ -1074,8 +1074,18 @@ module DHExp = {
           Expands(d, HTyp.Arrow(ty1, ty2), delta);
         }
       };
-    | UHExp.LineItem(UHExp.EmptyLine, e1)
-    | UHExp.LineItem(UHExp.ExpLine(_), e1) => syn_expand(ctx, delta, e1)
+    | UHExp.LineItem(UHExp.EmptyLine, e1) => syn_expand(ctx, delta, e1)
+    | UHExp.LineItem(UHExp.ExpLine(e1), e2) =>
+      switch (syn_expand(ctx, delta, e1)) {
+      | DoesNotExpand => DoesNotExpand
+      | Expands(d1, _, delta) =>
+        switch (syn_expand(ctx, delta, e2)) {
+        | DoesNotExpand => DoesNotExpand
+        | Expands(d2, ty2, delta) =>
+          let d = Let(DHPat.Wild, d1, d2);
+          Expands(d, ty2, delta);
+        }
+      }
     | UHExp.LineItem(UHExp.LetLine(p, ann, e1), e2) =>
       switch (ann) {
       | Some(uty1) =>
@@ -1313,8 +1323,18 @@ module DHExp = {
       let delta =
         MetaVarMap.extend_unique(delta, (u, (ExpressionHole, ty, gamma)));
       Expands(FreeVar(u, 0, sigma, x), ty, delta);
-    | UHExp.LineItem(UHExp.EmptyLine, e1)
-    | UHExp.LineItem(UHExp.ExpLine(_), e1) => syn_expand(ctx, delta, e1)
+    | UHExp.LineItem(UHExp.EmptyLine, e1) => syn_expand(ctx, delta, e1)
+    | UHExp.LineItem(UHExp.ExpLine(e1), e2) =>
+      switch (syn_expand(ctx, delta, e1)) {
+      | DoesNotExpand => DoesNotExpand
+      | Expands(d1, _, delta) =>
+        switch (ana_expand(ctx, delta, e2, ty)) {
+        | DoesNotExpand => DoesNotExpand
+        | Expands(d2, ty, delta) =>
+          let d = Let(DHPat.Wild, d1, d2);
+          Expands(d, ty, delta);
+        }
+      }
     | UHExp.LineItem(UHExp.LetLine(p, ann, e1), e2) =>
       switch (ann) {
       | Some(uty1) =>
