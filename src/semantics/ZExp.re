@@ -145,3 +145,124 @@ and erase_rule = (zr: zrule): UHExp.rule =>
   | RuleZP(zp, e) => UHExp.Rule(ZPat.erase(zp), e)
   | RuleZE(p, ze) => UHExp.Rule(p, erase(ze))
   };
+
+let rec cursor_at_start = (ze: t): bool =>
+  switch (ze) {
+  | CursorE(Before, _) => true
+  | CursorE(_, _) => false
+  | ParenthesizedZ(_) => false
+  | Deeper(_, AscZ1(ze1, _)) => cursor_at_start(ze1)
+  | Deeper(_, AscZ2(_, _)) => false
+  | Deeper(_, LineItemZL(zli, _)) => cursor_at_start_line_item(zli)
+  | Deeper(_, LineItemZE(_, _)) => false
+  | Deeper(_, LamZP(_, _, _))
+  | Deeper(_, LamZA(_, _, _))
+  | Deeper(_, LamZE(_, _, _)) => false
+  | Deeper(_, InjZ(_, _)) => false
+  | Deeper(_, CaseZE(_, _))
+  | Deeper(_, CaseZR(_, _)) => false
+  | Deeper(_, OpSeqZ(_, ze1, OperatorSeq.EmptyPrefix(_))) =>
+    cursor_at_start(ze1)
+  | Deeper(_, OpSeqZ(_, _, _)) => false
+  | Deeper(_, ApPaletteZ(_, _, _)) => false
+  }
+and cursor_at_start_line_item = (zli: zline_item): bool =>
+  switch (zli) {
+  | EmptyLineZ => true
+  | ExpLineZ(ze) => cursor_at_start(ze)
+  | LetLineZP(_, _, _)
+  | LetLineZA(_, _, _)
+  | LetLineZE(_, _, _) => false
+  };
+
+let rec cursor_at_end = (ze: t): bool =>
+  switch (ze) {
+  | CursorE(After, _) => true
+  | CursorE(_, _) => false
+  | ParenthesizedZ(_) => false
+  | Deeper(_, AscZ1(_, _)) => false
+  | Deeper(_, AscZ2(_, zty)) => ZTyp.cursor_at_end(zty)
+  | Deeper(_, LineItemZL(_, _)) => false
+  | Deeper(_, LineItemZE(_, ze1)) => cursor_at_end(ze1)
+  | Deeper(_, LamZP(_, _, _))
+  | Deeper(_, LamZA(_, _, _)) => false
+  | Deeper(_, LamZE(_, _, ze1)) => cursor_at_end(ze1)
+  | Deeper(_, InjZ(_, _)) => false
+  | Deeper(_, CaseZE(_, _))
+  | Deeper(_, CaseZR(_, _)) => false
+  | Deeper(_, OpSeqZ(_, ze1, OperatorSeq.EmptySuffix(_))) =>
+    cursor_at_start(ze1)
+  | Deeper(_, OpSeqZ(_, _, _)) => false
+  | Deeper(_, ApPaletteZ(_, _, _)) => false
+  };
+
+let cursor_at_end_line_item = (zli: zline_item): bool =>
+  switch (zli) {
+  | EmptyLineZ => true
+  | ExpLineZ(ze) => cursor_at_end(ze)
+  | LetLineZP(_, _, _)
+  | LetLineZA(_, _, _) => false
+  | LetLineZE(_, _, ze) => cursor_at_end(ze)
+  };
+
+let rec place_Before = (e: UHExp.t): t =>
+  switch (e) {
+  | UHExp.Tm(err_status, UHExp.Asc(e1, ty)) =>
+    let ze1 = place_Before(e1);
+    Deeper(err_status, AscZ1(ze1, ty));
+  | UHExp.Tm(err_status, UHExp.LineItem(EmptyLine, e1)) =>
+    Deeper(err_status, LineItemZL(EmptyLineZ, e1))
+  | UHExp.Tm(err_status, UHExp.LineItem(ExpLine(e1), e2)) =>
+    let ze1 = place_Before(e1);
+    Deeper(err_status, LineItemZL(ExpLineZ(ze1), e2));
+  | UHExp.Tm(err_status, UHExp.LineItem(LetLine(_, _, _), _)) =>
+    /* TODO this selects the entire block, perhaps should consider enabling selecting single line items */
+    CursorE(Before, e)
+  | UHExp.Tm(err_status, UHExp.OpSeq(skel, opseq)) =>
+    let (e1, suffix) = OperatorSeq.split0(opseq);
+    let ze1 = place_Before(e1);
+    let surround = OperatorSeq.EmptyPrefix(suffix);
+    Deeper(err_status, OpSeqZ(skel, ze1, surround));
+  | UHExp.Tm(_, UHExp.Var(_, _))
+  | UHExp.Tm(_, UHExp.Lam(_, _, _))
+  | UHExp.Tm(_, UHExp.NumLit(_))
+  | UHExp.Tm(_, UHExp.BoolLit(_))
+  | UHExp.Tm(_, UHExp.Inj(_, _))
+  | UHExp.Tm(_, UHExp.Case(_, _))
+  | UHExp.Tm(_, UHExp.ListNil)
+  | UHExp.Tm(_, UHExp.EmptyHole(_))
+  | UHExp.Tm(_, UHExp.ApPalette(_, _, _))
+  | UHExp.Parenthesized(_) => CursorE(Before, e)
+  };
+
+let rec place_After = (e: UHExp.t): t =>
+  switch (e) {
+  | UHExp.Tm(err_status, UHExp.Asc(e1, ty)) =>
+    let zty = ZTyp.place_After(ty);
+    Deeper(err_status, AscZ2(e1, zty));
+  | UHExp.Tm(err_status, UHExp.LineItem(li, e2)) =>
+    let ze2 = place_After(e2);
+    Deeper(err_status, LineItemZE(li, ze2));
+  | UHExp.Tm(err_status, UHExp.OpSeq(skel, opseq)) =>
+    let (en, prefix) = OperatorSeq.split_tail(opseq);
+    let zen = place_After(en);
+    let surround = OperatorSeq.EmptySuffix(prefix);
+    Deeper(err_status, OpSeqZ(skel, zen, surround));
+  | UHExp.Tm(_, UHExp.Var(_, _))
+  | UHExp.Tm(_, UHExp.Lam(_, _, _))
+  | UHExp.Tm(_, UHExp.NumLit(_))
+  | UHExp.Tm(_, UHExp.BoolLit(_))
+  | UHExp.Tm(_, UHExp.Inj(_, _))
+  | UHExp.Tm(_, UHExp.Case(_, _))
+  | UHExp.Tm(_, UHExp.ListNil)
+  | UHExp.Tm(_, UHExp.EmptyHole(_))
+  | UHExp.Tm(_, UHExp.ApPalette(_, _, _))
+  | UHExp.Parenthesized(_) => CursorE(After, e)
+  };
+
+let rec place_After_line_item = (li: UHExp.line_item): zline_item =>
+  switch (li) {
+  | UHExp.EmptyLine => EmptyLineZ
+  | UHExp.ExpLine(e) => ExpLineZ(place_After(e))
+  | UHExp.LetLine(p, ann, e) => LetLineZE(p, ann, place_After(e))
+  };
