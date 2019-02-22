@@ -2408,100 +2408,31 @@ let rec perform_syn =
       );
     }
   | (Construct(SVar(_, _)), ZExp.CursorE(_, _)) => None
-  | (Construct(SEmptyLine), ZExp.CursorE(Before, _) as ze2)
-  | (
-      Construct(SEmptyLine),
-      ZExp.Deeper(
-        _,
-        ZExp.OpSeqZ(_, ZExp.CursorE(Before, _), OperatorSeq.EmptyPrefix(_)),
-      ) as ze2,
-    ) =>
-    let ze = ZExp.Deeper(NotInHole, ZExp.LineItemZE(UHExp.EmptyLine, ze2));
+  | (Construct(SEmptyLine), ze1) when ZExp.cursor_at_start(ze1) =>
+    let ze = ZExp.Deeper(NotInHole, ZExp.LineItemZE(UHExp.EmptyLine, ze1));
     Some((ze, ty, u_gen));
-  | (
-      Construct(SEmptyLine),
-      ZExp.Deeper(err_status, ZExp.LineItemZL(ZExp.EmptyLineZ as zli, e2)),
-    )
-  | (
-      Construct(SEmptyLine),
-      ZExp.Deeper(
-        err_status,
-        ZExp.LineItemZL(ZExp.ExpLineZ(ZExp.CursorE(After, _)) as zli, e2),
-      ),
-    )
-  | (
-      Construct(SEmptyLine),
-      ZExp.Deeper(
-        err_status,
-        ZExp.LineItemZL(
-          ZExp.ExpLineZ(
-            ZExp.Deeper(
-              _,
-              ZExp.OpSeqZ(
-                _,
-                ZExp.CursorE(After, _),
-                OperatorSeq.EmptySuffix(_),
-              ),
-            ),
-          ) as zli,
-          e2,
-        ),
-      ),
-    )
-  | (
-      Construct(SEmptyLine),
-      ZExp.Deeper(
-        err_status,
-        ZExp.LineItemZL(
-          ZExp.LetLineZE(_, _, ZExp.CursorE(After, _)) as zli,
-          e2,
-        ),
-      ),
-    )
-  | (
-      Construct(SEmptyLine),
-      ZExp.Deeper(
-        err_status,
-        ZExp.LineItemZL(
-          ZExp.LetLineZE(
-            _,
-            _,
-            ZExp.Deeper(
-              _,
-              ZExp.OpSeqZ(
-                _,
-                ZExp.CursorE(After, _),
-                OperatorSeq.EmptySuffix(_),
-              ),
-            ),
-          ) as zli,
-          e2,
-        ),
-      ),
-    ) =>
+  | (Construct(SEmptyLine), ze1) when ZExp.cursor_at_end(ze1) =>
+    let e1 = ZExp.erase(ze1);
+    let li =
+      switch (e1) {
+      | UHExp.Tm(_, UHExp.EmptyHole(_)) => UHExp.EmptyLine
+      | _ => UHExp.ExpLine(e1)
+      };
+    let (ze2, u_gen) = ZExp.new_EmptyHole(u_gen);
+    let ze = ZExp.Deeper(NotInHole, ZExp.LineItemZE(li, ze2));
+    Some((ze, HTyp.Hole, u_gen));
+  | (Construct(SEmptyLine), ZExp.Deeper(_, ZExp.LineItemZL(zli, e2)))
+      when ZExp.cursor_at_end_line_item(zli) =>
     let li = ZExp.erase_line_item(zli);
     let ze =
       ZExp.(
         Deeper(
-          err_status,
+          NotInHole,
           LineItemZE(li, Deeper(NotInHole, LineItemZL(EmptyLineZ, e2))),
         )
       );
     Some((ze, ty, u_gen));
-  | (Construct(SEmptyLine), ZExp.CursorE(After, _) as ze1)
-  | (
-      Construct(SEmptyLine),
-      ZExp.Deeper(
-        _,
-        ZExp.OpSeqZ(_, ZExp.CursorE(After, _), OperatorSeq.EmptySuffix(_)),
-      ) as ze1,
-    ) =>
-    let e1 = ZExp.erase(ze1);
-    let (ze2, u_gen) = ZExp.new_EmptyHole(u_gen);
-    let ze =
-      ZExp.Deeper(NotInHole, ZExp.LineItemZE(UHExp.ExpLine(e1), ze2));
-    Some((ze, HTyp.Hole, u_gen));
-  | (Construct(SEmptyLine), ZExp.CursorE(In(_), _)) => None
+  | (Construct(SEmptyLine), _) => None
   | (Construct(SLetLine), ZExp.CursorE(_, _) as ze1)
   | (
       Construct(SLetLine),
