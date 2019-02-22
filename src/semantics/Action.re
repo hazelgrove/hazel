@@ -3873,75 +3873,28 @@ and perform_ana =
       )
     }
   /* Subsumption (pre zipper cases) */
-  | (
-      Backspace,
-      ZExp.Deeper(
-        _,
-        ZExp.LineItemZE(UHExp.EmptyLine, ZExp.CursorE(Before, _)),
-      ),
-    )
-  | (
-      Backspace,
-      ZExp.Deeper(
-        _,
-        ZExp.OpSeqZ(_, ZExp.CursorE(Before, _), OperatorSeq.EmptyPrefix(_)),
-      ),
-    )
-  | (
-      Backspace,
-      ZExp.Deeper(
-        _,
-        ZExp.LineItemZE(
-          UHExp.EmptyLine,
-          ZExp.Deeper(_, ZExp.LineItemZL(ZExp.EmptyLineZ, _)),
-        ),
-      ),
-    )
-  | (
-      Backspace,
-      ZExp.Deeper(
-        _,
-        ZExp.LineItemZE(
-          UHExp.EmptyLine,
-          ZExp.Deeper(
-            _,
-            ZExp.LineItemZL(ZExp.ExpLineZ(ZExp.CursorE(Before, _)), _),
-          ),
-        ),
-      ),
-    )
-  | (
-      Backspace,
-      ZExp.Deeper(
-        _,
-        ZExp.LineItemZE(
-          UHExp.EmptyLine,
-          ZExp.Deeper(
-            _,
-            ZExp.LineItemZL(
-              ZExp.ExpLineZ(
-                ZExp.Deeper(
-                  _,
-                  ZExp.OpSeqZ(
-                    _,
-                    ZExp.CursorE(Before, _),
-                    OperatorSeq.EmptyPrefix(_),
-                  ),
-                ),
-              ),
-              _,
-            ),
-          ),
-        ),
-      ),
-    )
+  | (Backspace, ZExp.Deeper(_, ZExp.LineItemZE(UHExp.EmptyLine, ze1)))
+      when ZExp.cursor_at_start(ze1) =>
+    perform_ana_subsume(u_gen, ctx, a, ze, ty)
   | (
       Delete,
       ZExp.Deeper(
         _,
         ZExp.LineItemZL(
-          ZExp.EmptyLineZ,
+          ze1,
           UHExp.Tm(_, UHExp.LineItem(UHExp.EmptyLine, _)),
+        ),
+      ),
+    )
+      when ZExp.cursor_at_end_line_item(ze1) =>
+    perform_ana_subsume(u_gen, ctx, a, ze, ty)
+  | (
+      Backspace,
+      ZExp.Deeper(
+        _,
+        ZExp.LineItemZE(
+          _,
+          ZExp.Deeper(_, ZExp.LineItemZL(ZExp.EmptyLineZ, _)),
         ),
       ),
     )
