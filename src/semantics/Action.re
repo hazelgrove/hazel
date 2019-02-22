@@ -2421,6 +2421,7 @@ let rec perform_syn =
     let (ze2, u_gen) = ZExp.new_EmptyHole(u_gen);
     let ze = ZExp.Deeper(NotInHole, ZExp.LineItemZE(li, ze2));
     Some((ze, HTyp.Hole, u_gen));
+  | (Construct(SEmptyLine), ZExp.CursorE(_, _)) => None
   | (Construct(SEmptyLine), ZExp.Deeper(_, ZExp.LineItemZL(zli, e2)))
       when ZExp.cursor_at_end_line_item(zli) =>
     let li = ZExp.erase_line_item(zli);
@@ -2432,7 +2433,6 @@ let rec perform_syn =
         )
       );
     Some((ze, ty, u_gen));
-  | (Construct(SEmptyLine), _) => None
   | (Construct(SLetLine), ZExp.CursorE(_, _) as ze1)
   | (
       Construct(SLetLine),
