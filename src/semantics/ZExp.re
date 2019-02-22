@@ -191,7 +191,7 @@ let rec cursor_at_end = (ze: t): bool =>
   | Deeper(_, CaseZE(_, _))
   | Deeper(_, CaseZR(_, _)) => false
   | Deeper(_, OpSeqZ(_, ze1, OperatorSeq.EmptySuffix(_))) =>
-    cursor_at_start(ze1)
+    cursor_at_end(ze1)
   | Deeper(_, OpSeqZ(_, _, _)) => false
   | Deeper(_, ApPaletteZ(_, _, _)) => false
   };
