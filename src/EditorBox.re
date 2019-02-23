@@ -65,6 +65,7 @@ let mk =
               Dom.preventDefault(evt);
               let cursor_info = React.S.value(cursor_info_rs);
               switch (cursor_info.sort) {
+              | CursorInfo.IsEmptyLine
               | CursorInfo.IsExpr(UHExp.Tm(_, UHExp.EmptyHole(_)))
               | CursorInfo.IsPat(UHPat.Pat(_, UHPat.EmptyHole(_)))
               | CursorInfo.IsPat(UHPat.Pat(_, UHPat.Var(""))) =>
