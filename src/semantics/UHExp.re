@@ -164,3 +164,20 @@ let rec drop_outer_parentheses = e =>
   | Tm(_, _) => e
   | Parenthesized(e') => drop_outer_parentheses(e')
   };
+
+let rec prune_single_hole_lines = e =>
+  switch (e) {
+  | Tm(err_status, LineItem(li, e1)) =>
+    let li = prune_single_hole_line(li);
+    let e1 = prune_single_hole_lines(e1);
+    Tm(err_status, LineItem(li, e1));
+  | Tm(_, _)
+  | Parenthesized(_) => e
+  }
+and prune_single_hole_line = li =>
+  switch (li) {
+  | ExpLine(Tm(_, EmptyHole(_))) => EmptyLine
+  | ExpLine(_)
+  | EmptyLine
+  | LetLine(_, _, _) => li
+  };

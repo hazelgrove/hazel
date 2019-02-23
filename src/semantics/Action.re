@@ -1929,21 +1929,18 @@ let combine_for_Delete_Space = (ze0, e) =>
 /**
  * Concatenates the line items of two expressions such that
  * no line item at the top level contains a LineItem expression.
- * Erases any standalone holes on a line in e1. Caller is
- * responsible for fixing holes appropriately.
+ * Caller is responsible for fixing holes appropriately.
  */
 let rec concat_lines = (e1: UHExp.t, ze2: ZExp.t): ZExp.t =>
   switch (e1) {
   | UHExp.Tm(_, UHExp.LineItem(li, e3)) =>
     ZExp.Deeper(NotInHole, ZExp.LineItemZE(li, concat_lines(e3, ze2)))
-  | UHExp.Tm(_, UHExp.EmptyHole(_)) =>
-    ZExp.Deeper(NotInHole, ZExp.LineItemZE(UHExp.EmptyLine, ze2))
   | UHExp.Tm(_, _)
   | UHExp.Parenthesized(_) =>
     ZExp.Deeper(NotInHole, ZExp.LineItemZE(UHExp.ExpLine(e1), ze2))
   };
 
-let rec perform_syn =
+let rec perform_syn_internal =
         (ctx: Contexts.t, a: t, ze_ty: (ZExp.t, HTyp.t, MetaVarGen.t))
         : option((ZExp.t, HTyp.t, MetaVarGen.t)) => {
   let (ze, ty, u_gen) = ze_ty;
@@ -1959,13 +1956,13 @@ let rec perform_syn =
     let holes = Path.holes_ze(ze, []);
     switch (Path.prev_hole_path(holes)) {
     | None => None
-    | Some(path) => perform_syn(ctx, MoveTo(path), ze_ty)
+    | Some(path) => perform_syn_internal(ctx, MoveTo(path), ze_ty)
     };
   | (MoveToNextHole, _) =>
     let holes = Path.holes_ze(ze, []);
     switch (Path.next_hole_path(holes)) {
     | None => None
-    | Some(path) => perform_syn(ctx, MoveTo(path), ze_ty)
+    | Some(path) => perform_syn_internal(ctx, MoveTo(path), ze_ty)
     };
   /* Backspace & Deletion */
   | (Backspace, ZExp.CursorE(After, e)) =>
@@ -2514,7 +2511,7 @@ let rec perform_syn =
     ) =>
     let (e1, u_gen) = UHExp.new_EmptyHole(u_gen);
     let ze1 = ZExp.CursorE(Before, e1);
-    switch (perform_syn(ctx, a, (ze1, HTyp.Hole, u_gen))) {
+    switch (perform_syn_internal(ctx, a, (ze1, HTyp.Hole, u_gen))) {
     | None => None
     | Some((ze1, _, u_gen)) =>
       let ze =
@@ -2729,7 +2726,7 @@ let rec perform_syn =
   | (UpdateApPalette(_), ZExp.CursorE(_, _)) => None
   /* Zipper Cases */
   | (_, ZExp.ParenthesizedZ(ze1)) =>
-    switch (perform_syn(ctx, a, (ze1, ty, u_gen))) {
+    switch (perform_syn_internal(ctx, a, (ze1, ty, u_gen))) {
     | Some((ze1', ty', u_gen')) =>
       Some((ZExp.ParenthesizedZ(ze1'), ty', u_gen'))
     | None => None
@@ -2757,12 +2754,12 @@ let rec perform_syn =
   | (_, ZExp.Deeper(err_status, ZExp.LineItemZL(ZExp.EmptyLineZ, e2))) =>
     let (ze1, u_gen) = ZExp.new_EmptyHole(u_gen);
     let ze = ZExp.(Deeper(err_status, LineItemZL(ExpLineZ(ze1), e2)));
-    perform_syn(ctx, a, (ze, ty, u_gen));
+    perform_syn_internal(ctx, a, (ze, ty, u_gen));
   | (_, ZExp.Deeper(_, ZExp.LineItemZL(ZExp.ExpLineZ(ze1), e2))) =>
     switch (Statics.syn(ctx, ZExp.erase(ze1))) {
     | None => None
     | Some(ty1) =>
-      switch (perform_syn(ctx, a, (ze1, ty1, u_gen))) {
+      switch (perform_syn_internal(ctx, a, (ze1, ty1, u_gen))) {
       | None => None
       | Some((ze1, _, u_gen)) =>
         let ze =
@@ -2860,7 +2857,7 @@ let rec perform_syn =
       switch (Statics.syn(ctx, e1)) {
       | None => None
       | Some(ty1) =>
-        switch (perform_syn(ctx, a, (ze1, ty1, u_gen))) {
+        switch (perform_syn_internal(ctx, a, (ze1, ty1, u_gen))) {
         | None => None
         | Some((ze1, ty1, u_gen)) =>
           switch (Statics.ana_pat_fix_holes(ctx, u_gen, false, p, ty1)) {
@@ -2882,7 +2879,7 @@ let rec perform_syn =
     }
   | (_, ZExp.Deeper(_, ZExp.LineItemZE(UHExp.EmptyLine as li, ze2)))
   | (_, ZExp.Deeper(_, ZExp.LineItemZE(UHExp.ExpLine(_) as li, ze2))) =>
-    switch (perform_syn(ctx, a, (ze2, ty, u_gen))) {
+    switch (perform_syn_internal(ctx, a, (ze2, ty, u_gen))) {
     | None => None
     | Some((ze2, ty, u_gen)) =>
       let ze = ZExp.Deeper(NotInHole, ZExp.LineItemZE(li, ze2));
@@ -2900,7 +2897,7 @@ let rec perform_syn =
       switch (Statics.ana_pat(ctx, p, ty1)) {
       | None => None
       | Some(ctx2) =>
-        switch (perform_syn(ctx2, a, (ze2, ty, u_gen))) {
+        switch (perform_syn_internal(ctx2, a, (ze2, ty, u_gen))) {
         | None => None
         | Some((ze2, ty, u_gen)) =>
           let ze =
@@ -2957,7 +2954,7 @@ let rec perform_syn =
       switch (Statics.ana_pat(ctx, p, ty1)) {
       | None => None
       | Some(ctx) =>
-        switch (perform_syn(ctx, a, (ze1, ty2, u_gen))) {
+        switch (perform_syn_internal(ctx, a, (ze1, ty2, u_gen))) {
         | None => None
         | Some((ze1, ty2, u_gen)) =>
           let ze = ZExp.Deeper(NotInHole, ZExp.LamZE(p, ann, ze1));
@@ -2969,7 +2966,7 @@ let rec perform_syn =
     switch (ty) {
     | HTyp.Sum(ty1, ty2) =>
       let ty_side = pick_side(side, ty1, ty2);
-      switch (perform_syn(ctx, a, (ze1, ty_side, u_gen))) {
+      switch (perform_syn_internal(ctx, a, (ze1, ty_side, u_gen))) {
       | None => None
       | Some((ze1', ty_side', u_gen')) =>
         let ty' =
@@ -3000,7 +2997,7 @@ let rec perform_syn =
             ));
           }
         | Statics.Synthesized(ty0) =>
-          switch (perform_syn(ctx, a, (ze0, ty0, u_gen))) {
+          switch (perform_syn_internal(ctx, a, (ze0, ty0, u_gen))) {
           | None => None
           | Some((ze0', ty0', u_gen)) =>
             let ze0'' = ZExp.bidelimit(ze0');
@@ -3055,7 +3052,7 @@ and perform_ana =
     let e' = ZExp.erase(ze');
     switch (Statics.syn(ctx, e')) {
     | Some(ty1) =>
-      switch (perform_syn(ctx, a, (ze', ty1, u_gen))) {
+      switch (perform_syn_internal(ctx, a, (ze', ty1, u_gen))) {
       | Some((ze', ty1', u_gen')) =>
         if (HTyp.consistent(ty1', ty)) {
           Some((ze', u_gen'));
@@ -3948,7 +3945,7 @@ and perform_ana =
       switch (Statics.syn(ctx, e1)) {
       | None => None
       | Some(ty1) =>
-        switch (perform_syn(ctx, a, (ze1, ty1, u_gen))) {
+        switch (perform_syn_internal(ctx, a, (ze1, ty1, u_gen))) {
         | None => None
         | Some((ze1, ty1, u_gen)) =>
           switch (Statics.ana_pat_fix_holes(ctx, u_gen, false, p, ty1)) {
@@ -4093,7 +4090,7 @@ and perform_ana =
     switch (Statics.syn(ctx, ZExp.erase(ze1))) {
     | None => None
     | Some(ty1) =>
-      switch (perform_syn(ctx, a, (ze1, ty1, u_gen))) {
+      switch (perform_syn_internal(ctx, a, (ze1, ty1, u_gen))) {
       | None => None
       | Some((ze1, ty1, u_gen)) =>
         switch (
@@ -4163,7 +4160,7 @@ and perform_ana =
             ));
           }
         | Statics.Synthesized(ty0) =>
-          switch (perform_syn(ctx, a, (ze0, ty0, u_gen))) {
+          switch (perform_syn_internal(ctx, a, (ze0, ty0, u_gen))) {
           | None => None
           | Some((ze0', ty0', u_gen)) =>
             let ze0'' = ZExp.bidelimit(ze0');
@@ -4185,7 +4182,7 @@ and perform_ana =
   | (_, ZExp.Deeper(_, ZExp.AscZ1(_, _)))
   | (_, ZExp.Deeper(_, ZExp.AscZ2(_, _)))
   | (_, ZExp.Deeper(_, ZExp.ApPaletteZ(_, _, _)))
-  /* TODO this is a zipper case in perform_syn, is it fine to cover by subsumption? */
+  /* TODO this is a zipper case in perform_syn_internal, is it fine to cover by subsumption? */
   | (_, ZExp.Deeper(_, ZExp.LineItemZL(ZExp.ExpLineZ(_), _))) =>
     perform_ana_subsume(u_gen, ctx, a, ze, ty)
   /* Invalid actions at expression level */
@@ -4199,7 +4196,7 @@ and perform_ana_subsume =
     : option((ZExp.t, MetaVarGen.t)) =>
   switch (Statics.syn(ctx, ZExp.erase(ze))) {
   | Some(ty1) =>
-    switch (perform_syn(ctx, a, (ze, ty1, u_gen))) {
+    switch (perform_syn_internal(ctx, a, (ze, ty1, u_gen))) {
     | Some((ze', ty1', u_gen')) =>
       if (HTyp.consistent(ty, ty1')) {
         Some((ze', u_gen'));
@@ -4210,6 +4207,18 @@ and perform_ana_subsume =
     | None => None
     }
   | None => None
+  };
+
+let perform_syn = (ctx, a, ze_ty) =>
+  switch (perform_syn_internal(ctx, a, ze_ty)) {
+  | None => None
+  | Some((ze, ty, u_gen)) =>
+    let path = Path.of_zexp(ze);
+    let e = UHExp.prune_single_hole_lines(ZExp.erase(ze));
+    switch (Path.follow_e(path, e)) {
+    | None => None
+    | Some(ze) => Some((ze, ty, u_gen))
+    };
   };
 
 let can_perform =
@@ -4279,7 +4288,7 @@ let can_perform =
   | Delete
   | Backspace =>
     _TEST_PERFORM ?
-      switch (perform_syn(ctx, a, edit_state)) {
+      switch (perform_syn_internal(ctx, a, edit_state)) {
       | Some(_) => true
       | None => false
       } :
