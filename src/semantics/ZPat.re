@@ -28,12 +28,12 @@ let new_EmptyHole = (u_gen: MetaVarGen.t): (t, MetaVarGen.t) => {
   (CursorP(Before, hole), u_gen);
 };
 
-let rec set_err_status = (err, zp) => 
+let rec set_err_status = (err, zp) =>
   switch (zp) {
   | CursorP(cursor_side, p) =>
     let p = UHPat.set_err_status(err, p);
     CursorP(cursor_side, p);
-  | Deeper(_, OpSeqZ(Skel.BinOp(_, op, skel1, skel2), zp0, surround)) => 
+  | Deeper(_, OpSeqZ(Skel.BinOp(_, op, skel1, skel2), zp0, surround)) =>
     Deeper(err, OpSeqZ(Skel.BinOp(err, op, skel1, skel2), zp0, surround))
   | Deeper(_, ze') => Deeper(err, ze')
   | ParenthesizedZ(zp1) => ParenthesizedZ(set_err_status(err, zp1))
@@ -101,4 +101,14 @@ let place_After = (p: UHPat.t): t =>
     let (p0, prefix) = OperatorSeq.split_tail(seq);
     let surround = OperatorSeq.EmptySuffix(prefix);
     Deeper(err, OpSeqZ(skel, CursorP(After, p0), surround));
+  };
+
+let rec cursor_at_end = (zp: t): bool =>
+  switch (zp) {
+  | CursorP(After, _) => true
+  | CursorP(_, _) => false
+  | ParenthesizedZ(_) => false
+  | Deeper(_, OpSeqZ(_, zp1, EmptySuffix(_))) => cursor_at_end(zp)
+  | Deeper(_, OpSeqZ(_, _, _)) => false
+  | Deeper(_, InjZ(_, _)) => false
   };
