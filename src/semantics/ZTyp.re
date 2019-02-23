@@ -53,7 +53,7 @@ let rec cursor_at_end = (zty: t): bool =>
   | CursorT(After, _) => true
   | CursorT(_, _) => false
   | ParenthesizedZ(_) => false
-  | ListZ(t) => false
-  | OpSeqZ(_, zty1, OperatorSeq.EmptySuffix(_)) => true
+  | ListZ(_) => false
+  | OpSeqZ(_, zty, OperatorSeq.EmptySuffix(_)) => cursor_at_end(zty)
   | OpSeqZ(_, _, _) => false
   };
