@@ -403,7 +403,7 @@ let view = (model: Model.t) => {
       };
     } else if (ast_has_class("Asc")) {
       In(0);
-    } else if (ast_has_class("Let")) {
+    } else if (ast_has_class("LetLine")) {
       let anchor_elem = get_anchor_elem(anchor);
       let innerHTML = Js.to_string(anchor_elem##.innerHTML);
       if (String.equal(innerHTML, "let")) {
