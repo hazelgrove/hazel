@@ -524,7 +524,7 @@ and syn_cursor_info' = (ctx: Contexts.t, ze: ZExp.t'): option(t) =>
     ana_pat_cursor_info(ctx, zp, ty1);
   | ZExp.LamZA(_, zann, _) =>
     Some(mk_cursor_info(TypePosition, IsType, Before, ctx))
-  | LamZE(p, ann, ze1) =>
+  | ZExp.LamZE(p, ann, ze1) =>
     let ty1 =
       switch (ann) {
       | Some(uty1) => UHTyp.expand(uty1)
@@ -594,7 +594,7 @@ and ana_cursor_info' = (ctx: Contexts.t, ze: ZExp.t', ty: HTyp.t): option(t) =>
     }
   | ZExp.LamZA(_, zann, _) =>
     Some(mk_cursor_info(TypePosition, IsType, Before, ctx))
-  | LamZE(p, ann, ze1) =>
+  | ZExp.LamZE(p, ann, ze1) =>
     switch (HTyp.matched_arrow(ty)) {
     | None => None
     | Some((ty1_given, ty2)) =>
@@ -629,7 +629,7 @@ and ana_cursor_info' = (ctx: Contexts.t, ze: ZExp.t', ty: HTyp.t): option(t) =>
     ana_skel_cursor_info(ctx, skel, seq, n, ze0, ty);
   | ZExp.AscZ1(_, _)
   | ZExp.AscZ2(_, _)
-  | ApPaletteZ(_, _, _) => syn_cursor_info'(ctx, ze)
+  | ZExp.ApPaletteZ(_, _, _) => syn_cursor_info'(ctx, ze)
   }
 and ana_rule_cursor_info =
     (ctx: Contexts.t, zrule: ZExp.zrule, pat_ty: HTyp.t, clause_ty: HTyp.t)
