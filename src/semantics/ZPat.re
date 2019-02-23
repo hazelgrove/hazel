@@ -103,12 +103,22 @@ let place_After = (p: UHPat.t): t =>
     Deeper(err, OpSeqZ(skel, CursorP(After, p0), surround));
   };
 
+let rec cursor_at_start = (zp: t): bool =>
+  switch (zp) {
+  | CursorP(Before, _) => true
+  | CursorP(_, _) => false
+  | ParenthesizedZ(_) => false
+  | Deeper(_, OpSeqZ(_, zp1, EmptySuffix(_))) => cursor_at_start(zp1)
+  | Deeper(_, OpSeqZ(_, _, _)) => false
+  | Deeper(_, InjZ(_, _)) => false
+  };
+
 let rec cursor_at_end = (zp: t): bool =>
   switch (zp) {
   | CursorP(After, _) => true
   | CursorP(_, _) => false
   | ParenthesizedZ(_) => false
-  | Deeper(_, OpSeqZ(_, zp1, EmptySuffix(_))) => cursor_at_end(zp)
+  | Deeper(_, OpSeqZ(_, zp1, EmptySuffix(_))) => cursor_at_end(zp1)
   | Deeper(_, OpSeqZ(_, _, _)) => false
   | Deeper(_, InjZ(_, _)) => false
   };
