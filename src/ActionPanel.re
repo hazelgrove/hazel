@@ -437,13 +437,6 @@ let make =
       KCs.alt_C,
     );
 
-  let constructRule =
-    checked_action_button(
-      Action.Construct(Action.SRule),
-      Html5.txt("add rule"),
-      KCs.enter,
-    );
-
   let can_insert_ap_palette_rs =
     S.l1(Action.can_construct_palette, cursor_info_rs);
 
@@ -509,7 +502,6 @@ let make =
               constructInjL,
               constructInjR,
               constructCase,
-              constructRule,
               constructAsc,
               constructApPalette,
             ],
