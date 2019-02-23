@@ -119,8 +119,7 @@ let mk =
                 false;
               | CursorInfo.IsExpr(_)
               | CursorInfo.IsPat(_)
-              | CursorInfo.IsType
-              | CursorInfo.IsEmptyLine => true
+              | CursorInfo.IsType => true
               };
             | None =>
               let is_backspace =
