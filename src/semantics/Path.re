@@ -66,7 +66,11 @@ and of_zexp' = (ze: ZExp.t'): t =>
   }
 and of_zline_item = (zli: ZExp.zline_item): t =>
   switch (zli) {
-  | ZExp.EmptyLineZ => ([], Before)
+  | ZExp.CursorL(side, _) => ([], side)
+  | ZExp.DeeperL(zli') => of_zline_item'(zli')
+  }
+and of_zline_item' = (zli': ZExp.zline_item'): t =>
+  switch (zli') {
   | ZExp.ExpLineZ(ze) => of_zexp(ze)
   | ZExp.LetLineZP(zp, _, _) => cons'(0, of_zpat(zp))
   | ZExp.LetLineZA(_, zann, _) => cons'(1, of_ztyp(zann))
@@ -292,17 +296,17 @@ let rec follow_e = (path: t, e: UHExp.t): option(ZExp.t) =>
 and follow_line_item =
     (path: t, li: UHExp.line_item): option(ZExp.zline_item) =>
   switch (path, li) {
-  | (([], _), UHExp.EmptyLine) => Some(ZExp.EmptyLineZ)
+  | (([], _), UHExp.EmptyLine) => Some(ZExp.CursorL(Before, UHExp.EmptyLine))
   | (_, UHExp.EmptyLine) => None
   | (_, UHExp.ExpLine(e)) =>
     switch (follow_e(path, e)) {
     | None => None
-    | Some(ze) => Some(ZExp.ExpLineZ(ze))
+    | Some(ze) => Some(ZExp.DeeperL(ZExp.ExpLineZ(ze)))
     }
   | (([0, ...xs], cursor_side), UHExp.LetLine(p, ann, e1)) =>
     switch (follow_pat((xs, cursor_side), p)) {
     | None => None
-    | Some(zp) => Some(ZExp.LetLineZP(zp, ann, e1))
+    | Some(zp) => Some(ZExp.DeeperL(ZExp.LetLineZP(zp, ann, e1)))
     }
   | (([1, ...xs], cursor_side), UHExp.LetLine(p, ann, e1)) =>
     switch (ann) {
@@ -310,13 +314,13 @@ and follow_line_item =
     | Some(ann_ty) =>
       switch (follow_ty((xs, cursor_side), ann_ty)) {
       | None => None
-      | Some(zann) => Some(ZExp.LetLineZA(p, zann, e1))
+      | Some(zann) => Some(ZExp.DeeperL(ZExp.LetLineZA(p, zann, e1)))
       }
     }
   | (([2, ...xs], cursor_side), UHExp.LetLine(p, ann, e1)) =>
     switch (follow_e((xs, cursor_side), e1)) {
     | None => None
-    | Some(ze1) => Some(ZExp.LetLineZE(p, ann, ze1))
+    | Some(ze1) => Some(ZExp.DeeperL(ZExp.LetLineZE(p, ann, ze1)))
     }
   | (_, UHExp.LetLine(_, _, _)) => None
   }
@@ -794,11 +798,27 @@ let rec holes_ze = (ze, steps): zhole_list =>
   }
 and holes_zline_item = (zli, steps) =>
   switch (zli) {
-  | ZExp.EmptyLineZ => {
+  | ZExp.CursorL(Before, li) => {
       holes_before: [],
-      hole_selected: None, /* TODO add empty line hole type */
-      holes_after: [],
+      hole_selected: None,
+      holes_after: holes_line_item(li, steps, [])
+    }  
+  | ZExp.CursorL(In(_), UHExp.EmptyLine)
+  | ZExp.CursorL(In(_), UHExp.ExpLine(_)) => no_holes
+  | ZExp.CursorL(In(_), UHExp.LetLine(_, _, _) as li) => {
+      holes_before: [],
+      hole_selected: None,
+      holes_after: holes_line_item(li, steps, [])
     }
+  | ZExp.CursorL(After, li) => {
+      holes_before: holes_line_item(li, steps, []),
+      hole_selected: None,
+      holes_after: []
+    }
+  | ZExp.DeeperL(zli') => holes_zline_item'(zli', steps)
+  }
+and holes_zline_item' = (zli', steps) =>
+  switch (zli') {
   | ZExp.ExpLineZ(ze1) => holes_ze(ze1, steps)
   | ZExp.LetLineZP(zp, ann, e1) =>
     let {holes_before, hole_selected, holes_after} =

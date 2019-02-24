@@ -28,7 +28,9 @@ and t' =
   | OpSeqZ(UHExp.skel_t, t, OperatorSeq.opseq_surround(UHExp.t, UHExp.op))
   | ApPaletteZ(PaletteName.t, SerializedModel.t, ZSpliceInfo.t(UHExp.t, t))
 and zline_item =
-  | EmptyLineZ
+  | CursorL(cursor_side, UHExp.line_item)
+  | DeeperL(zline_item')
+and zline_item' =
   | ExpLineZ(t)
   | LetLineZP(ZPat.t, option(UHTyp.t), UHExp.t)
   | LetLineZA(UHPat.t, ZTyp.t, UHExp.t)
@@ -134,7 +136,11 @@ and erase' = (ze: t'): UHExp.t' =>
   }
 and erase_line_item = (zli: zline_item): UHExp.line_item =>
   switch (zli) {
-  | EmptyLineZ => UHExp.EmptyLine
+  | CursorL(_, li) => li
+  | DeeperL(zli') => erase_line_item'(zli')
+  }
+and erase_line_item' = (zli': zline_item'): UHExp.line_item =>
+  switch (zli') {
   | ExpLineZ(ze) => UHExp.ExpLine(erase(ze))
   | LetLineZP(zp, ann, e) => UHExp.LetLine(ZPat.erase(zp), ann, e)
   | LetLineZA(p, zann, e) => UHExp.LetLine(p, Some(ZTyp.erase(zann)), e)
@@ -168,7 +174,13 @@ let rec cursor_at_start = (ze: t): bool =>
   }
 and cursor_at_start_line_item = (zli: zline_item): bool =>
   switch (zli) {
-  | EmptyLineZ => true
+  | CursorL(_, UHExp.EmptyLine) => true
+  | CursorL(Before, _) => true
+  | CursorL(_, _) => false
+  | DeeperL(zli') => cursor_at_start_line_item'(zli')
+  }
+and cursor_at_start_line_item' = (zli': zline_item'): bool =>
+  switch (zli') {
   | ExpLineZ(ze) => cursor_at_start(ze)
   | LetLineZP(_, _, _)
   | LetLineZA(_, _, _)
@@ -196,13 +208,19 @@ let rec cursor_at_end = (ze: t): bool =>
   | Deeper(_, ApPaletteZ(_, _, _)) => false
   };
 
-let cursor_at_end_line_item = (zli: zline_item): bool =>
-  switch (zli) {
-  | EmptyLineZ => true
+let cursor_at_end_line_item' = (zli': zline_item'): bool =>
+  switch (zli') {
   | ExpLineZ(ze) => cursor_at_end(ze)
   | LetLineZP(_, _, _)
   | LetLineZA(_, _, _) => false
   | LetLineZE(_, _, ze) => cursor_at_end(ze)
+  };
+let cursor_at_end_line_item = (zli: zline_item): bool =>
+  switch (zli) {
+  | CursorL(_, UHExp.EmptyLine) => true
+  | CursorL(After, _) => true
+  | CursorL(_, _) => false
+  | DeeperL(zli') => cursor_at_end_line_item'(zli')
   };
 
 let rec place_Before = (e: UHExp.t): t =>
@@ -211,10 +229,10 @@ let rec place_Before = (e: UHExp.t): t =>
     let ze1 = place_Before(e1);
     Deeper(err_status, AscZ1(ze1, ty));
   | UHExp.Tm(err_status, UHExp.LineItem(EmptyLine, e1)) =>
-    Deeper(err_status, LineItemZL(EmptyLineZ, e1))
+    Deeper(err_status, LineItemZL(CursorL(Before, UHExp.EmptyLine), e1))
   | UHExp.Tm(err_status, UHExp.LineItem(ExpLine(e1), e2)) =>
     let ze1 = place_Before(e1);
-    Deeper(err_status, LineItemZL(ExpLineZ(ze1), e2));
+    Deeper(err_status, LineItemZL(DeeperL(ExpLineZ(ze1)), e2));
   | UHExp.Tm(err_status, UHExp.LineItem(LetLine(_, _, _), _)) =>
     /* TODO this selects the entire block, perhaps should consider enabling selecting single line items */
     CursorE(Before, e)
@@ -262,7 +280,7 @@ let rec place_After = (e: UHExp.t): t =>
 
 let rec place_After_line_item = (li: UHExp.line_item): zline_item =>
   switch (li) {
-  | UHExp.EmptyLine => EmptyLineZ
-  | UHExp.ExpLine(e) => ExpLineZ(place_After(e))
-  | UHExp.LetLine(p, ann, e) => LetLineZE(p, ann, place_After(e))
+  | UHExp.EmptyLine => CursorL(After, li)
+  | UHExp.ExpLine(e) => DeeperL(ExpLineZ(place_After(e)))
+  | UHExp.LetLine(p, ann, e) => DeeperL(LetLineZE(p, ann, place_After(e)))
   };

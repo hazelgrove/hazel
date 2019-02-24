@@ -2029,6 +2029,54 @@ let rec perform_syn_internal =
       | None => HTyp.Arrow(HTyp.Hole, ty)
       };
     Some((ze, ty, u_gen));
+  | (
+      Backspace,
+      ZExp.Deeper(
+        _,
+        ZExp.LineItemZE(
+          li,
+          ZExp.Deeper(_, ZExp.LineItemZL(ZExp.CursorL(_, UHExp.EmptyLine), e2)),
+        ),
+      ),
+    ) =>
+    let zli = ZExp.place_After_line_item(li);
+    let ze = ZExp.Deeper(NotInHole, ZExp.LineItemZL(zli, e2));
+    Some((ze, ty, u_gen));
+  | (Delete, ZExp.Deeper(_, ZExp.LineItemZL(ZExp.CursorL(_, UHExp.EmptyLine), e1))) =>
+    let ze = ZExp.place_Before(e1);
+    Some((ze, ty, u_gen));
+  | (Backspace, ZExp.Deeper(_, ZExp.LineItemZL(ZExp.CursorL(Before, _), e2))) => None
+  | (Backspace, ZExp.Deeper(_, ZExp.LineItemZL(ZExp.CursorL(After, _), e2)))
+  | (Backspace, ZExp.Deeper(_, ZExp.LineItemZL(ZExp.CursorL(In(_), _), e2))) =>
+    switch (Statics.syn_fix_holes(ctx, u_gen, e2)) {
+    | None => None
+    | Some((e2, ty, u_gen)) =>
+      let ze =
+        ZExp.(Deeper(
+          NotInHole,
+          LineItemZL(
+            CursorL(After, UHExp.EmptyLine),
+            e2
+          )
+        ));
+      Some((ze, ty, u_gen));
+    }
+  | (Delete, ZExp.Deeper(_, ZExp.LineItemZL(ZExp.CursorL(Before, _), e2))) => None
+  | (Delete, ZExp.Deeper(_, ZExp.LineItemZL(ZExp.CursorL(After, _), e2)))
+  | (Delete, ZExp.Deeper(_, ZExp.LineItemZL(ZExp.CursorL(In(_), _), e2))) =>
+    switch (Statics.syn_fix_holes(ctx, u_gen, e2)) {
+    | None => None
+    | Some((e2, ty, u_gen)) =>
+      let ze =
+        ZExp.(Deeper(
+          NotInHole,
+          LineItemZL(
+            CursorL(Before, UHExp.EmptyLine),
+            e2
+          )
+        ));
+      Some((ze, ty, u_gen));
+    }
   | (Backspace, ZExp.Deeper(_, ZExp.LineItemZE(UHExp.EmptyLine, ze1)))
       when ZExp.cursor_at_start(ze1) =>
     Some((ze1, ty, u_gen))
@@ -2050,22 +2098,6 @@ let rec perform_syn_internal =
       ZExp.Deeper(
         _,
         ZExp.LineItemZE(
-          li,
-          ZExp.Deeper(_, ZExp.LineItemZL(ZExp.EmptyLineZ, e2)),
-        ),
-      ),
-    ) =>
-    let zli = ZExp.place_After_line_item(li);
-    let ze = ZExp.Deeper(NotInHole, ZExp.LineItemZL(zli, e2));
-    Some((ze, ty, u_gen));
-  | (Delete, ZExp.Deeper(_, ZExp.LineItemZL(ZExp.EmptyLineZ, e1))) =>
-    let ze = ZExp.place_Before(e1);
-    Some((ze, ty, u_gen));
-  | (
-      Backspace,
-      ZExp.Deeper(
-        _,
-        ZExp.LineItemZE(
           UHExp.ExpLine(e1),
           ZExp.CursorE(Before, UHExp.Tm(_, UHExp.EmptyHole(_))),
         ),
@@ -2081,7 +2113,7 @@ let rec perform_syn_internal =
       Delete,
       ZExp.Deeper(
         _,
-        ZExp.LineItemZL(ZExp.ExpLineZ(ze1), UHExp.Tm(_, UHExp.EmptyHole(_))),
+        ZExp.LineItemZL(ZExp.DeeperL(ZExp.ExpLineZ(ze1)), UHExp.Tm(_, UHExp.EmptyHole(_))),
       ),
     )
       when ZExp.cursor_at_end(ze1) =>
@@ -2094,7 +2126,7 @@ let rec perform_syn_internal =
       Backspace,
       ZExp.Deeper(
         _,
-        ZExp.LineItemZL(ZExp.LetLineZA(p, ZTyp.CursorT(Before, _), e1), e2),
+        ZExp.LineItemZL(ZExp.DeeperL(ZExp.LetLineZA(p, ZTyp.CursorT(Before, _), e1)), e2),
       ),
     )
   | (
@@ -2102,7 +2134,7 @@ let rec perform_syn_internal =
       ZExp.Deeper(
         _,
         ZExp.LineItemZL(
-          ZExp.LetLineZA(
+          ZExp.DeeperL(ZExp.LetLineZA(
             p,
             ZTyp.OpSeqZ(
               _,
@@ -2110,7 +2142,7 @@ let rec perform_syn_internal =
               OperatorSeq.EmptyPrefix(_),
             ),
             e1,
-          ),
+          )),
           e2,
         ),
       ),
@@ -2128,7 +2160,7 @@ let rec perform_syn_internal =
             ZExp.Deeper(
               NotInHole,
               ZExp.LineItemZL(
-                ZExp.LetLineZP(ZPat.CursorP(After, p), None, e1),
+                ZExp.DeeperL(ZExp.LetLineZP(ZPat.CursorP(After, p), None, e1)),
                 e2,
               ),
             );
@@ -2141,7 +2173,7 @@ let rec perform_syn_internal =
       ZExp.Deeper(
         _,
         ZExp.LineItemZL(
-          ZExp.LetLineZP(ZPat.CursorP(After, _) as zp, Some(_), e1),
+          ZExp.DeeperL(ZExp.LetLineZP(ZPat.CursorP(After, _) as zp, Some(_), e1)),
           e2,
         ),
       ),
@@ -2151,7 +2183,7 @@ let rec perform_syn_internal =
       ZExp.Deeper(
         _,
         ZExp.LineItemZL(
-          ZExp.LetLineZP(
+          ZExp.DeeperL(ZExp.LetLineZP(
             ZPat.Deeper(
               _,
               ZPat.OpSeqZ(
@@ -2162,7 +2194,7 @@ let rec perform_syn_internal =
             ) as zp,
             Some(_),
             e1,
-          ),
+          )),
           e2,
         ),
       ),
@@ -2179,7 +2211,7 @@ let rec perform_syn_internal =
           let ze =
             ZExp.Deeper(
               NotInHole,
-              ZExp.LineItemZL(ZExp.LetLineZP(zp, None, e1), e2),
+              ZExp.LineItemZL(ZExp.DeeperL(ZExp.LetLineZP(zp, None, e1)), e2),
             );
           Some((ze, ty, u_gen));
         }
@@ -2341,7 +2373,7 @@ let rec perform_syn_internal =
       Construct(SAsc),
       ZExp.Deeper(
         err_status,
-        ZExp.LineItemZL(ZExp.LetLineZP(zp, None, e1), e2),
+        ZExp.LineItemZL(ZExp.DeeperL(ZExp.LetLineZP(zp, None, e1)), e2),
       ),
     ) =>
     switch (Statics.syn(ctx, e1)) {
@@ -2352,7 +2384,7 @@ let rec perform_syn_internal =
         ZExp.Deeper(
           err_status,
           ZExp.LineItemZL(
-            ZExp.LetLineZA(ZPat.erase(zp), ZTyp.place_Before(uty1), e1),
+            ZExp.DeeperL(ZExp.LetLineZA(ZPat.erase(zp), ZTyp.place_Before(uty1), e1)),
             e2,
           ),
         );
@@ -2369,7 +2401,7 @@ let rec perform_syn_internal =
       Construct(SAsc),
       ZExp.Deeper(
         err_status,
-        ZExp.LineItemZL(ZExp.LetLineZP(zp, Some(uty1), e1), e2),
+        ZExp.LineItemZL(ZExp.DeeperL(ZExp.LetLineZP(zp, Some(uty1), e1)), e2),
       ),
     ) =>
     /* just move the cursor over if there is already an ascription */
@@ -2377,7 +2409,7 @@ let rec perform_syn_internal =
       ZExp.Deeper(
         err_status,
         ZExp.LineItemZL(
-          ZExp.LetLineZA(ZPat.erase(zp), ZTyp.place_Before(uty1), e1),
+          ZExp.DeeperL(ZExp.LetLineZA(ZPat.erase(zp), ZTyp.place_Before(uty1), e1)),
           e2,
         ),
       );
@@ -2467,7 +2499,7 @@ let rec perform_syn_internal =
       ZExp.(
         Deeper(
           NotInHole,
-          LineItemZE(li, Deeper(NotInHole, LineItemZL(EmptyLineZ, e2))),
+          LineItemZE(li, Deeper(NotInHole, LineItemZL(CursorL(Before, UHExp.EmptyLine), e2))),
         )
       );
     Some((ze, ty, u_gen));
@@ -2485,26 +2517,26 @@ let rec perform_syn_internal =
     let ze =
       ZExp.Deeper(
         NotInHole,
-        ZExp.LineItemZL(ZExp.LetLineZP(zp, None, e1), e2),
+        ZExp.LineItemZL(ZExp.DeeperL(ZExp.LetLineZP(zp, None, e1)), e2),
       );
     Some((ze, ty, u_gen));
   | (
       Construct(SLetLine),
-      ZExp.Deeper(_, ZExp.LineItemZL(ZExp.EmptyLineZ, e2)),
+      ZExp.Deeper(_, ZExp.LineItemZL(ZExp.CursorL(_, UHExp.EmptyLine), e2)),
     ) =>
     let (zp, u_gen) = ZPat.new_EmptyHole(u_gen);
     let (e1, u_gen) = UHExp.new_EmptyHole(u_gen);
     let ze =
       ZExp.Deeper(
         NotInHole,
-        ZExp.LineItemZL(ZExp.LetLineZP(zp, None, e1), e2),
+        ZExp.LineItemZL(ZExp.DeeperL(ZExp.LetLineZP(zp, None, e1)), e2),
       );
     Some((ze, ty, u_gen));
   | (
       Construct(SLetLine),
       ZExp.Deeper(
         _,
-        ZExp.LineItemZL(ZExp.ExpLineZ(ZExp.CursorE(_, _) as ze1), e2),
+        ZExp.LineItemZL(ZExp.DeeperL(ZExp.ExpLineZ(ZExp.CursorE(_, _) as ze1)), e2),
       ),
     )
   | (
@@ -2512,7 +2544,7 @@ let rec perform_syn_internal =
       ZExp.Deeper(
         _,
         ZExp.LineItemZL(
-          ZExp.ExpLineZ(
+          ZExp.DeeperL(ZExp.ExpLineZ(
             ZExp.Deeper(
               _,
               ZExp.OpSeqZ(
@@ -2521,7 +2553,7 @@ let rec perform_syn_internal =
                 OperatorSeq.EmptyPrefix(_),
               ),
             ) as ze1,
-          ),
+          )),
           e2,
         ),
       ),
@@ -2531,12 +2563,12 @@ let rec perform_syn_internal =
     let ze =
       ZExp.Deeper(
         NotInHole,
-        ZExp.LineItemZL(ZExp.LetLineZP(zp, None, e1), e2),
+        ZExp.LineItemZL(ZExp.DeeperL(ZExp.LetLineZP(zp, None, e1)), e2),
       );
     Some((ze, ty, u_gen));
   | (
       Construct(_) as a,
-      ZExp.Deeper(_, ZExp.LineItemZL(ZExp.EmptyLineZ, e2)),
+      ZExp.Deeper(_, ZExp.LineItemZL(ZExp.CursorL(_, UHExp.EmptyLine), e2)),
     ) =>
     let (e1, u_gen) = UHExp.new_EmptyHole(u_gen);
     let ze1 = ZExp.CursorE(Before, e1);
@@ -2544,9 +2576,53 @@ let rec perform_syn_internal =
     | None => None
     | Some((ze1, _, u_gen)) =>
       let ze =
-        ZExp.Deeper(NotInHole, ZExp.LineItemZL(ZExp.ExpLineZ(ze1), e2));
+        ZExp.Deeper(NotInHole, ZExp.LineItemZL(ZExp.DeeperL(ZExp.ExpLineZ(ze1)), e2));
       Some((ze, ty, u_gen));
     };
+  | (
+      Construct(_) as a,
+      ZExp.Deeper(_, ZExp.LineItemZL(ZExp.CursorL(side, UHExp.ExpLine(e1)), e2))
+    ) =>
+    switch (side) {
+    | In(_) => None
+    | Before =>
+      let ze1 = ZExp.place_Before(e1);
+      let ze = ZExp.(Deeper(NotInHole, LineItemZL(DeeperL(ExpLineZ(ze1)), e2)));
+      perform_syn_internal(ctx, a, (ze, ty, u_gen));
+    | After =>
+      let ze1 = ZExp.place_After(e1);
+      let ze = ZExp.(Deeper(NotInHole, LineItemZL(DeeperL(ExpLineZ(ze1)), e2)));
+      perform_syn_internal(ctx, a, (ze, ty, u_gen));      
+    }
+  | (
+      Construct(_) as a,
+      ZExp.Deeper(_, ZExp.LineItemZL(ZExp.CursorL(_, UHExp.LetLine(_, _, _) as li), e2))
+    ) =>
+    switch (Statics.syn_fix_holes(ctx, u_gen, e2)) {
+    | None => None
+    | Some((e2, ty, u_gen)) =>    
+      let (hole, u_gen) = UHExp.new_EmptyHole(u_gen);
+      let ze1 =
+        ZExp.CursorE(
+          Before,
+          UHExp.Tm(
+            NotInHole,
+            UHExp.LineItem(
+              li,
+              hole
+            )
+          )
+        );
+      let ze =
+        ZExp.(Deeper(
+          NotInHole,
+          LineItemZL(
+            DeeperL(ExpLineZ(ze1)),
+            e2
+          )
+        ));
+      perform_syn_internal(ctx, a, (ze, ty, u_gen));
+    }
   | (Construct(SLam), ZExp.CursorE(_, e1)) =>
     let (zp, u_gen) = ZPat.new_EmptyHole(u_gen);
     let ze = ZExp.Deeper(NotInHole, ZExp.LamZP(zp, Some(UHTyp.Hole), e1));
@@ -2752,7 +2828,8 @@ let rec perform_syn_internal =
        };
      | None => None
      }; */
-  | (UpdateApPalette(_), ZExp.CursorE(_, _)) => None
+  | (UpdateApPalette(_), ZExp.CursorE(_, _))
+  | (UpdateApPalette(_), ZExp.Deeper(_, ZExp.LineItemZL(ZExp.CursorL(_, _), _))) => None
   /* Zipper Cases */
   | (_, ZExp.ParenthesizedZ(ze1)) =>
     switch (perform_syn_internal(ctx, a, (ze1, ty, u_gen))) {
@@ -2780,11 +2857,7 @@ let rec perform_syn_internal =
       };
     | None => None
     }
-  | (_, ZExp.Deeper(err_status, ZExp.LineItemZL(ZExp.EmptyLineZ, e2))) =>
-    let (ze1, u_gen) = ZExp.new_EmptyHole(u_gen);
-    let ze = ZExp.(Deeper(err_status, LineItemZL(ExpLineZ(ze1), e2)));
-    perform_syn_internal(ctx, a, (ze, ty, u_gen));
-  | (_, ZExp.Deeper(_, ZExp.LineItemZL(ZExp.ExpLineZ(ze1), e2))) =>
+  | (_, ZExp.Deeper(_, ZExp.LineItemZL(ZExp.DeeperL(ZExp.ExpLineZ(ze1)), e2))) =>
     switch (Statics.syn(ctx, ZExp.erase(ze1))) {
     | None => None
     | Some(ty1) =>
@@ -2792,11 +2865,11 @@ let rec perform_syn_internal =
       | None => None
       | Some((ze1, _, u_gen)) =>
         let ze =
-          ZExp.Deeper(NotInHole, ZExp.LineItemZL(ZExp.ExpLineZ(ze1), e2));
+          ZExp.Deeper(NotInHole, ZExp.LineItemZL(ZExp.DeeperL(ZExp.ExpLineZ(ze1)), e2));
         Some((ze, ty, u_gen));
       }
     }
-  | (_, ZExp.Deeper(_, ZExp.LineItemZL(ZExp.LetLineZP(zp, ann, e1), e2))) =>
+  | (_, ZExp.Deeper(_, ZExp.LineItemZL(ZExp.DeeperL(ZExp.LetLineZP(zp, ann, e1)), e2))) =>
     switch (ann) {
     | Some(uty1) =>
       let ty1 = UHTyp.expand(uty1);
@@ -2814,7 +2887,7 @@ let rec perform_syn_internal =
             let ze =
               ZExp.Deeper(
                 NotInHole,
-                ZExp.LineItemZL(ZExp.LetLineZP(zp, ann, e1), e2),
+                ZExp.LineItemZL(ZExp.DeeperL(ZExp.LetLineZP(zp, ann, e1)), e2),
               );
             Some((ze, ty, u_gen));
           }
@@ -2833,14 +2906,14 @@ let rec perform_syn_internal =
             let ze =
               ZExp.Deeper(
                 NotInHole,
-                ZExp.LineItemZL(ZExp.LetLineZP(zp, ann, e1), e2),
+                ZExp.LineItemZL(ZExp.DeeperL(ZExp.LetLineZP(zp, ann, e1)), e2),
               );
             Some((ze, ty, u_gen));
           }
         }
       }
     }
-  | (_, ZExp.Deeper(_, ZExp.LineItemZL(ZExp.LetLineZA(p, zann, e1), e2))) =>
+  | (_, ZExp.Deeper(_, ZExp.LineItemZL(ZExp.DeeperL(ZExp.LetLineZA(p, zann, e1)), e2))) =>
     /* (ctx) let p (ctx2) : ty = (ctx1) e1 in (ctx2) e2 */
     switch (perform_ty(a, zann)) {
     | None => None
@@ -2859,14 +2932,14 @@ let rec perform_syn_internal =
             let ze =
               ZExp.Deeper(
                 NotInHole,
-                ZExp.LineItemZL(ZExp.LetLineZA(p, zann, e1), e2),
+                ZExp.LineItemZL(ZExp.DeeperL(ZExp.LetLineZA(p, zann, e1)), e2),
               );
             Some((ze, ty, u_gen));
           }
         };
       };
     }
-  | (_, ZExp.Deeper(_, ZExp.LineItemZL(ZExp.LetLineZE(p, ann, ze1), e2))) =>
+  | (_, ZExp.Deeper(_, ZExp.LineItemZL(ZExp.DeeperL(ZExp.LetLineZE(p, ann, ze1)), e2))) =>
     switch (ann) {
     | Some(ann_ty) =>
       let ty1 = UHTyp.expand(ann_ty);
@@ -2877,7 +2950,7 @@ let rec perform_syn_internal =
         let ze =
           ZExp.Deeper(
             NotInHole,
-            ZExp.LineItemZL(ZExp.LetLineZE(p, ann, ze1), e2),
+            ZExp.LineItemZL(ZExp.DeeperL(ZExp.LetLineZE(p, ann, ze1)), e2),
           );
         Some((ze, ty, u_gen));
       };
@@ -2898,7 +2971,7 @@ let rec perform_syn_internal =
               let ze =
                 ZExp.Deeper(
                   NotInHole,
-                  ZExp.LineItemZL(ZExp.LetLineZE(p, ann, ze1), e2),
+                  ZExp.LineItemZL(ZExp.DeeperL(ZExp.LetLineZE(p, ann, ze1)), e2),
                 );
               Some((ze, ty, u_gen));
             }
@@ -3166,6 +3239,65 @@ and perform_ana =
       ZExp.Deeper(
         _,
         ZExp.LineItemZE(
+          _,
+          ZExp.Deeper(_, ZExp.LineItemZL(ZExp.CursorL(_, UHExp.EmptyLine), _)),
+        ),
+      ),
+    )
+  | (Delete, ZExp.Deeper(_, ZExp.LineItemZL(ZExp.CursorL(_, UHExp.EmptyLine), _))) =>
+    perform_ana_subsume(u_gen, ctx, a, ze, ty)
+  | (Backspace, ZExp.Deeper(_, ZExp.LineItemZL(ZExp.CursorL(Before, _), e2))) => None
+  | (Backspace, ZExp.Deeper(_, ZExp.LineItemZL(ZExp.CursorL(After, _), e2)))
+  | (Backspace, ZExp.Deeper(_, ZExp.LineItemZL(ZExp.CursorL(In(_), _), e2))) =>
+    switch (Statics.ana_fix_holes(ctx, u_gen, e2, ty)) {
+    | None => None
+    | Some((e2, u_gen)) =>
+      let ze =
+        ZExp.(Deeper(
+          NotInHole,
+          LineItemZL(
+            CursorL(After, UHExp.EmptyLine),
+            e2
+          )
+        ));
+      Some((ze, u_gen));
+    }
+  | (Delete, ZExp.Deeper(_, ZExp.LineItemZL(ZExp.CursorL(Before, _), e2))) => None
+  | (Delete, ZExp.Deeper(_, ZExp.LineItemZL(ZExp.CursorL(After, _), e2)))
+  | (Delete, ZExp.Deeper(_, ZExp.LineItemZL(ZExp.CursorL(In(_), _), e2))) =>
+    switch (Statics.ana_fix_holes(ctx, u_gen, e2, ty)) {
+    | None => None
+    | Some((e2, u_gen)) =>
+      let ze =
+        ZExp.(Deeper(
+          NotInHole,
+          LineItemZL(
+            CursorL(Before, UHExp.EmptyLine),
+            e2
+          )
+        ));
+      Some((ze, u_gen));
+    }
+  | (Backspace, ZExp.Deeper(_, ZExp.LineItemZE(UHExp.EmptyLine, ze1)))
+      when ZExp.cursor_at_start(ze1) =>
+    perform_ana_subsume(u_gen, ctx, a, ze, ty)
+  | (
+      Delete,
+      ZExp.Deeper(
+        _,
+        ZExp.LineItemZL(
+          ze1,
+          UHExp.Tm(_, UHExp.LineItem(UHExp.EmptyLine, _)),
+        ),
+      ),
+    )
+      when ZExp.cursor_at_end_line_item(ze1) =>
+    perform_ana_subsume(u_gen, ctx, a, ze, ty)
+  | (
+      Backspace,
+      ZExp.Deeper(
+        _,
+        ZExp.LineItemZE(
           UHExp.ExpLine(e1),
           ZExp.CursorE(Before, UHExp.Tm(_, UHExp.EmptyHole(_))),
         ),
@@ -3181,7 +3313,7 @@ and perform_ana =
       Delete,
       ZExp.Deeper(
         _,
-        ZExp.LineItemZL(ZExp.ExpLineZ(ze1), UHExp.Tm(_, UHExp.EmptyHole(_))),
+        ZExp.LineItemZL(ZExp.DeeperL(ZExp.ExpLineZ(ze1)), UHExp.Tm(_, UHExp.EmptyHole(_))),
       ),
     )
       when ZExp.cursor_at_end(ze1) =>
@@ -3190,7 +3322,7 @@ and perform_ana =
       Backspace,
       ZExp.Deeper(
         _,
-        ZExp.LineItemZL(ZExp.LetLineZA(p, ZTyp.CursorT(Before, _), e1), e2),
+        ZExp.LineItemZL(ZExp.DeeperL(ZExp.LetLineZA(p, ZTyp.CursorT(Before, _), e1)), e2),
       ),
     )
   | (
@@ -3198,7 +3330,7 @@ and perform_ana =
       ZExp.Deeper(
         _,
         ZExp.LineItemZL(
-          ZExp.LetLineZA(
+          ZExp.DeeperL(ZExp.LetLineZA(
             p,
             ZTyp.OpSeqZ(
               _,
@@ -3206,7 +3338,7 @@ and perform_ana =
               OperatorSeq.EmptyPrefix(_),
             ),
             e1,
-          ),
+          )),
           e2,
         ),
       ),
@@ -3224,7 +3356,7 @@ and perform_ana =
             ZExp.Deeper(
               NotInHole,
               ZExp.LineItemZL(
-                ZExp.LetLineZP(ZPat.place_After(p), None, e1),
+                ZExp.DeeperL(ZExp.LetLineZP(ZPat.place_After(p), None, e1)),
                 e2,
               ),
             );
@@ -3237,7 +3369,7 @@ and perform_ana =
       ZExp.Deeper(
         _,
         ZExp.LineItemZL(
-          ZExp.LetLineZP(ZPat.CursorP(After, _) as zp, Some(_), e1),
+          ZExp.DeeperL(ZExp.LetLineZP(ZPat.CursorP(After, _) as zp, Some(_), e1)),
           e2,
         ),
       ),
@@ -3247,7 +3379,7 @@ and perform_ana =
       ZExp.Deeper(
         _,
         ZExp.LineItemZL(
-          ZExp.LetLineZP(
+          ZExp.DeeperL(ZExp.LetLineZP(
             ZPat.Deeper(
               _,
               ZPat.OpSeqZ(
@@ -3258,7 +3390,7 @@ and perform_ana =
             ) as zp,
             Some(_),
             e1,
-          ),
+          )),
           e2,
         ),
       ),
@@ -3275,7 +3407,7 @@ and perform_ana =
           let ze =
             ZExp.Deeper(
               NotInHole,
-              ZExp.LineItemZL(ZExp.LetLineZP(zp, None, e1), e2),
+              ZExp.LineItemZL(ZExp.DeeperL(ZExp.LetLineZP(zp, None, e1)), e2),
             );
           Some((ze, u_gen));
         }
@@ -3498,7 +3630,7 @@ and perform_ana =
       Construct(SAsc),
       ZExp.Deeper(
         err_status,
-        ZExp.LineItemZL(ZExp.LetLineZP(zp, None, e1), e2),
+        ZExp.LineItemZL(ZExp.DeeperL(ZExp.LetLineZP(zp, None, e1)), e2),
       ),
     ) =>
     switch (Statics.syn(ctx, e1)) {
@@ -3509,7 +3641,7 @@ and perform_ana =
         ZExp.Deeper(
           err_status,
           ZExp.LineItemZL(
-            ZExp.LetLineZA(ZPat.erase(zp), ZTyp.place_Before(uty1), e1),
+            ZExp.DeeperL(ZExp.LetLineZA(ZPat.erase(zp), ZTyp.place_Before(uty1), e1)),
             e2,
           ),
         );
@@ -3526,7 +3658,7 @@ and perform_ana =
       Construct(SAsc),
       ZExp.Deeper(
         err_status,
-        ZExp.LineItemZL(ZExp.LetLineZP(zp, Some(uty1), e1), e2),
+        ZExp.LineItemZL(ZExp.DeeperL(ZExp.LetLineZP(zp, Some(uty1), e1)), e2),
       ),
     ) =>
     /* just move the cursor over if there is already an ascription */
@@ -3534,7 +3666,7 @@ and perform_ana =
       ZExp.Deeper(
         err_status,
         ZExp.LineItemZL(
-          ZExp.LetLineZA(ZPat.erase(zp), ZTyp.place_Before(uty1), e1),
+          ZExp.DeeperL(ZExp.LetLineZA(ZPat.erase(zp), ZTyp.place_Before(uty1), e1)),
           e2,
         ),
       );
@@ -3571,7 +3703,7 @@ and perform_ana =
       let ze =
         ZExp.Deeper(
           NotInHole,
-          ZExp.LineItemZL(ZExp.LetLineZP(zp, None, e1), e2),
+          ZExp.LineItemZL(ZExp.DeeperL(ZExp.LetLineZP(zp, None, e1)), e2),
         );
       Some((ze, u_gen));
     | None =>
@@ -3579,7 +3711,7 @@ and perform_ana =
       let ze =
         ZExp.Deeper(
           NotInHole,
-          ZExp.LineItemZL(ZExp.LetLineZP(zp, ann, e1), e2),
+          ZExp.LineItemZL(ZExp.DeeperL(ZExp.LetLineZP(zp, ann, e1)), e2),
         );
       Some((ze, u_gen));
     };
@@ -3587,7 +3719,7 @@ and perform_ana =
       Construct(SLetLine),
       ZExp.Deeper(
         err_status,
-        ZExp.LineItemZL(ZExp.ExpLineZ(ZExp.CursorE(_, _) as ze1), e2),
+        ZExp.LineItemZL(ZExp.DeeperL(ZExp.ExpLineZ(ZExp.CursorE(_, _) as ze1)), e2),
       ),
     )
   | (
@@ -3595,7 +3727,7 @@ and perform_ana =
       ZExp.Deeper(
         err_status,
         ZExp.LineItemZL(
-          ZExp.ExpLineZ(
+          ZExp.DeeperL(ZExp.ExpLineZ(
             ZExp.Deeper(
               _,
               ZExp.OpSeqZ(
@@ -3604,7 +3736,7 @@ and perform_ana =
                 OperatorSeq.EmptyPrefix(_),
               ),
             ) as ze1,
-          ),
+          )),
           e2,
         ),
       ),
@@ -3614,9 +3746,53 @@ and perform_ana =
     let ze =
       ZExp.Deeper(
         err_status,
-        ZExp.LineItemZL(ZExp.LetLineZP(zp, None, e1), e2),
+        ZExp.LineItemZL(ZExp.DeeperL(ZExp.LetLineZP(zp, None, e1)), e2),
       );
     Some((ze, u_gen));
+  | (
+      Construct(_) as a,
+      ZExp.Deeper(_, ZExp.LineItemZL(ZExp.CursorL(side, UHExp.ExpLine(e1)), e2))
+    ) =>
+    switch (side) {
+    | In(_) => None
+    | Before =>
+      let ze1 = ZExp.place_Before(e1);
+      let ze = ZExp.(Deeper(NotInHole, LineItemZL(DeeperL(ExpLineZ(ze1)), e2)));
+      perform_ana(u_gen, ctx, a, ze, ty);
+    | After =>
+      let ze1 = ZExp.place_After(e1);
+      let ze = ZExp.(Deeper(NotInHole, LineItemZL(DeeperL(ExpLineZ(ze1)), e2)));
+      perform_ana(u_gen, ctx, a, ze, ty);
+    }
+  | (
+      Construct(_) as a,
+      ZExp.Deeper(_, ZExp.LineItemZL(ZExp.CursorL(_, UHExp.LetLine(_, _, _) as li), e2))
+    ) =>
+    switch (Statics.ana_fix_holes(ctx, u_gen, e2, ty)) {
+    | None => None
+    | Some((e2, u_gen)) =>    
+      let (hole, u_gen) = UHExp.new_EmptyHole(u_gen);
+      let ze1 =
+        ZExp.CursorE(
+          Before,
+          UHExp.Tm(
+            NotInHole,
+            UHExp.LineItem(
+              li,
+              hole
+            )
+          )
+        );
+      let ze =
+        ZExp.(Deeper(
+          NotInHole,
+          LineItemZL(
+            DeeperL(ExpLineZ(ze1)),
+            e2
+          )
+        ));
+      perform_ana(u_gen, ctx, a, ze, ty);
+    }
   | (Construct(SLam), ZExp.CursorE(_, e)) =>
     switch (HTyp.matched_arrow(ty)) {
     | Some((_, ty2)) =>
@@ -3871,45 +4047,17 @@ and perform_ana =
         op,
       )
     }
-  /* Subsumption (pre zipper cases) */
-  | (Backspace, ZExp.Deeper(_, ZExp.LineItemZE(UHExp.EmptyLine, ze1)))
-      when ZExp.cursor_at_start(ze1) =>
-    perform_ana_subsume(u_gen, ctx, a, ze, ty)
-  | (
-      Delete,
-      ZExp.Deeper(
-        _,
-        ZExp.LineItemZL(
-          ze1,
-          UHExp.Tm(_, UHExp.LineItem(UHExp.EmptyLine, _)),
-        ),
-      ),
-    )
-      when ZExp.cursor_at_end_line_item(ze1) =>
-    perform_ana_subsume(u_gen, ctx, a, ze, ty)
-  | (
-      Backspace,
-      ZExp.Deeper(
-        _,
-        ZExp.LineItemZE(
-          _,
-          ZExp.Deeper(_, ZExp.LineItemZL(ZExp.EmptyLineZ, _)),
-        ),
-      ),
-    )
-  | (Delete, ZExp.Deeper(_, ZExp.LineItemZL(ZExp.EmptyLineZ, _))) =>
-    perform_ana_subsume(u_gen, ctx, a, ze, ty)
   /* Zipper Cases */
   | (_, ZExp.ParenthesizedZ(ze1)) =>
     switch (perform_ana(u_gen, ctx, a, ze1, ty)) {
     | Some((ze1', u_gen')) => Some((ZExp.ParenthesizedZ(ze1'), u_gen'))
     | None => None
     }
-  | (_, ZExp.Deeper(err_status, ZExp.LineItemZL(ZExp.EmptyLineZ, e2))) =>
+  | (_, ZExp.Deeper(err_status, ZExp.LineItemZL(ZExp.CursorL(_, UHExp.EmptyLine), e2))) =>
     let (ze1, u_gen) = ZExp.new_EmptyHole(u_gen);
-    let ze = ZExp.(Deeper(err_status, LineItemZL(ExpLineZ(ze1), e2)));
+    let ze = ZExp.(Deeper(err_status, LineItemZL(ZExp.DeeperL(ExpLineZ(ze1)), e2)));
     perform_ana(u_gen, ctx, a, ze, ty);
-  | (_, ZExp.Deeper(_, ZExp.LineItemZL(ZExp.LetLineZP(zp, ann, e1), e2))) =>
+  | (_, ZExp.Deeper(_, ZExp.LineItemZL(ZExp.DeeperL(ZExp.LetLineZP(zp, ann, e1)), e2))) =>
     switch (ann) {
     | Some(uty1) =>
       let ty1 = UHTyp.expand(uty1);
@@ -3927,7 +4075,7 @@ and perform_ana =
             let ze =
               ZExp.Deeper(
                 NotInHole,
-                ZExp.LineItemZL(ZExp.LetLineZP(zp, ann, e1), e2),
+                ZExp.LineItemZL(ZExp.DeeperL(ZExp.LetLineZP(zp, ann, e1)), e2),
               );
             Some((ze, u_gen));
           }
@@ -3946,14 +4094,14 @@ and perform_ana =
             let ze =
               ZExp.Deeper(
                 NotInHole,
-                ZExp.LineItemZL(ZExp.LetLineZP(zp, ann, e1), e2),
+                ZExp.LineItemZL(ZExp.DeeperL(ZExp.LetLineZP(zp, ann, e1)), e2),
               );
             Some((ze, u_gen));
           }
         }
       }
     }
-  | (_, ZExp.Deeper(_, ZExp.LineItemZL(ZExp.LetLineZA(p, zann, e1), e2))) =>
+  | (_, ZExp.Deeper(_, ZExp.LineItemZL(ZExp.DeeperL(ZExp.LetLineZA(p, zann, e1)), e2))) =>
     /* (ctx) let p (ctx2) : ty = (ctx1) e1 in (ctx2) e2 */
     switch (perform_ty(a, zann)) {
     | None => None
@@ -3972,14 +4120,14 @@ and perform_ana =
             let ze =
               ZExp.Deeper(
                 NotInHole,
-                ZExp.LineItemZL(ZExp.LetLineZA(p, zann, e1), e2),
+                ZExp.LineItemZL(ZExp.DeeperL(ZExp.LetLineZA(p, zann, e1)), e2),
               );
             Some((ze, u_gen));
           }
         };
       };
     }
-  | (_, ZExp.Deeper(_, ZExp.LineItemZL(ZExp.LetLineZE(p, ann, ze1), e2))) =>
+  | (_, ZExp.Deeper(_, ZExp.LineItemZL(ZExp.DeeperL(ZExp.LetLineZE(p, ann, ze1)), e2))) =>
     switch (ann) {
     | Some(ann_ty) =>
       let ty1 = UHTyp.expand(ann_ty);
@@ -3990,7 +4138,7 @@ and perform_ana =
         let ze =
           ZExp.Deeper(
             NotInHole,
-            ZExp.LineItemZL(ZExp.LetLineZE(p, ann, ze1), e2),
+            ZExp.LineItemZL(ZExp.DeeperL(ZExp.LetLineZE(p, ann, ze1)), e2),
           );
         Some((ze, u_gen));
       };
@@ -4011,7 +4159,7 @@ and perform_ana =
               let ze =
                 ZExp.Deeper(
                   NotInHole,
-                  ZExp.LineItemZL(ZExp.LetLineZE(p, ann, ze1), e2),
+                  ZExp.LineItemZL(ZExp.DeeperL(ZExp.LetLineZE(p, ann, ze1)), e2),
                 );
               Some((ze, u_gen));
             }
@@ -4237,7 +4385,7 @@ and perform_ana =
   | (_, ZExp.Deeper(_, ZExp.AscZ2(_, _)))
   | (_, ZExp.Deeper(_, ZExp.ApPaletteZ(_, _, _)))
   /* TODO this is a zipper case in perform_syn_internal, is it fine to cover by subsumption? */
-  | (_, ZExp.Deeper(_, ZExp.LineItemZL(ZExp.ExpLineZ(_), _))) =>
+  | (_, ZExp.Deeper(_, ZExp.LineItemZL(ZExp.DeeperL(ZExp.ExpLineZ(_)), _))) =>
     perform_ana_subsume(u_gen, ctx, a, ze, ty)
   /* Invalid actions at expression level */
   | (Construct(SNum), _)
@@ -4287,7 +4435,7 @@ let can_perform =
   | Construct(SParenthesized) => true
   | Construct(SAsc) =>
     switch (ci.sort) {
-    | CursorInfo.IsEmptyLine => true
+    | CursorInfo.IsLineItem(_) => true
     | CursorInfo.IsExpr(_) => true
     | CursorInfo.IsPat(_) => true
     | CursorInfo.IsType => false
@@ -4296,21 +4444,23 @@ let can_perform =
   | Construct(SLetLine)
   | Construct(SCase) =>
     switch (ci.sort) {
-    | CursorInfo.IsEmptyLine => true
+    | CursorInfo.IsLineItem(_) => true
     | CursorInfo.IsExpr(_) => true
     | CursorInfo.IsPat(_) => false
     | CursorInfo.IsType => false
     }
   | Construct(SInj(_)) =>
     switch (ci.sort) {
-    | CursorInfo.IsEmptyLine => true
+    | CursorInfo.IsLineItem(_) => true
     | CursorInfo.IsExpr(_) => true
     | CursorInfo.IsPat(_) => true
     | CursorInfo.IsType => false
     }
   | Construct(SListNil) =>
     switch (ci.sort) {
-    | CursorInfo.IsEmptyLine => true
+    | CursorInfo.IsLineItem(UHExp.EmptyLine) => true
+    | CursorInfo.IsLineItem(UHExp.ExpLine(UHExp.Tm(_, UHExp.EmptyHole(_)))) => true
+    | CursorInfo.IsLineItem(_) => false
     | CursorInfo.IsExpr(UHExp.Tm(_, UHExp.EmptyHole(_))) => true
     | CursorInfo.IsExpr(_) => false
     | CursorInfo.IsPat(UHPat.Pat(_, UHPat.EmptyHole(_))) => true
@@ -4322,7 +4472,7 @@ let can_perform =
   | Construct(SList) =>
     switch (ci.sort) {
     | CursorInfo.IsType => true
-    | CursorInfo.IsEmptyLine
+    | CursorInfo.IsLineItem(_)
     | CursorInfo.IsExpr(_)
     | CursorInfo.IsPat(_) => false
     }
@@ -4351,7 +4501,8 @@ let can_perform =
 
 let can_enter_varchar = (ci: CursorInfo.t): bool =>
   switch (ci.sort) {
-  | CursorInfo.IsEmptyLine
+  | CursorInfo.IsLineItem(UHExp.EmptyLine)
+  | CursorInfo.IsLineItem(UHExp.ExpLine(UHExp.Tm(_, UHExp.EmptyHole(_))))
   | CursorInfo.IsExpr(UHExp.Tm(_, UHExp.Var(_, _)))
   | CursorInfo.IsExpr(UHExp.Tm(_, UHExp.EmptyHole(_)))
   | CursorInfo.IsExpr(UHExp.Tm(_, UHExp.BoolLit(_)))
@@ -4365,6 +4516,7 @@ let can_enter_varchar = (ci: CursorInfo.t): bool =>
     | In(_)
     | After => false
     }
+  | CursorInfo.IsLineItem(_)
   | CursorInfo.IsExpr(_)
   | CursorInfo.IsPat(_)
   | CursorInfo.IsType => false
@@ -4372,11 +4524,13 @@ let can_enter_varchar = (ci: CursorInfo.t): bool =>
 
 let can_enter_numeral = (ci: CursorInfo.t): bool =>
   switch (ci.sort) {
-  | CursorInfo.IsEmptyLine
+  | CursorInfo.IsLineItem(UHExp.EmptyLine)
+  | CursorInfo.IsLineItem(UHExp.ExpLine(UHExp.Tm(_, UHExp.EmptyHole(_))))
   | CursorInfo.IsExpr(UHExp.Tm(_, UHExp.NumLit(_)))
   | CursorInfo.IsExpr(UHExp.Tm(_, UHExp.EmptyHole(_)))
   | CursorInfo.IsPat(UHPat.Pat(_, UHPat.NumLit(_)))
   | CursorInfo.IsPat(UHPat.Pat(_, UHPat.EmptyHole(_))) => true
+  | CursorInfo.IsLineItem(_)
   | CursorInfo.IsExpr(_)
   | CursorInfo.IsPat(_)
   | CursorInfo.IsType => false
@@ -4384,7 +4538,8 @@ let can_enter_numeral = (ci: CursorInfo.t): bool =>
 
 let can_construct_palette = (ci: CursorInfo.t): bool =>
   switch (ci.sort) {
-  | CursorInfo.IsEmptyLine
+  | CursorInfo.IsLineItem(UHExp.EmptyLine)
+  | CursorInfo.IsLineItem(UHExp.ExpLine(UHExp.Tm(_, UHExp.EmptyHole(_))))
   | CursorInfo.IsExpr(UHExp.Tm(_, UHExp.EmptyHole(_))) => true
   | _ => false
   };

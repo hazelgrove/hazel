@@ -22,7 +22,7 @@ type cursor_mode =
   /* none of the above and went through subsumption */
   /*
    *  # cursor in synthetic position
-   */
+   */   
   | SynErrorArrow(HTyp.t /* expected */, HTyp.t) /* got */
   /* cursor is on the function position of an ap,
      and that expression does not synthesize a type
@@ -34,8 +34,6 @@ type cursor_mode =
   | SynFreeArrow(HTyp.t)
   /* cursor is on a free variable in the function
      position of an ap */
-  | SynEmptyLine
-  /* cursor at empty line */
   | SynFree
   /* none of the above, cursor is on a free variable */
   | Synthesized(HTyp.t)
@@ -63,13 +61,17 @@ type cursor_mode =
   /*
    * # cursor in synthetic pattern position
    */
-  | PatSynthesized(HTyp.t);
+  | PatSynthesized(HTyp.t)
+  /*
+   *  # cursor on line item
+   */
+  | LineItem;
 
 type cursor_sort =
   | IsExpr(UHExp.t)
   | IsPat(UHPat.t)
   | IsType
-  | IsEmptyLine;
+  | IsLineItem(UHExp.line_item);
 
 type t = {
   mode: cursor_mode,
@@ -548,8 +550,12 @@ and syn_cursor_info' = (ctx: Contexts.t, ze: ZExp.t'): option(t) =>
   }
 and syn_line_item_cursor_info = (ctx, zli) =>
   switch (zli) {
-  | ZExp.EmptyLineZ =>
-    Some(mk_cursor_info(SynEmptyLine, IsEmptyLine, Before, ctx))
+  | ZExp.CursorL(side, li) =>
+    Some(mk_cursor_info(LineItem, IsLineItem(li), side, ctx))
+  | ZExp.DeeperL(zli') => syn_line_item_cursor_info'(ctx, zli')
+  }
+and syn_line_item_cursor_info' = (ctx, zli') =>
+  switch (zli') {
   | ZExp.ExpLineZ(ze) => syn_cursor_info(ctx, ze)
   | ZExp.LetLineZP(zp, ann, e1) =>
     switch (ann) {
