@@ -48,6 +48,16 @@ let rec erase = (zty: t): UHTyp.t =>
     UHTyp.OpSeq(skel, OperatorSeq.opseq_of_exp_and_surround(uty1, surround));
   };
 
+let rec cursor_at_start = (zty: t): bool =>
+  switch (zty) {
+  | CursorT(Before, _) => true
+  | CursorT(_, _) => false
+  | ParenthesizedZ(_) => false
+  | ListZ(_) => false
+  | OpSeqZ(_, zty, OperatorSeq.EmptyPrefix(_)) => cursor_at_start(zty)
+  | OpSeqZ(_, _, _) => false
+  };
+
 let rec cursor_at_end = (zty: t): bool =>
   switch (zty) {
   | CursorT(After, _) => true
