@@ -284,3 +284,40 @@ let rec place_After_line_item = (li: UHExp.line_item): zline_item =>
   | UHExp.ExpLine(e) => DeeperL(ExpLineZ(place_After(e)))
   | UHExp.LetLine(p, ann, e) => DeeperL(LetLineZE(p, ann, place_After(e)))
   };
+
+let prune_single_hole_line = (zli: zline_item): zline_item =>
+  switch (zli) {
+  | CursorL(side, li) => CursorL(side, UHExp.prune_single_hole_line(li))
+  | DeeperL(ExpLineZ(CursorE(_, UHExp.Tm(_, UHExp.EmptyHole(_))))) => CursorL(Before, UHExp.EmptyLine)
+  | DeeperL(ExpLineZ(_))
+  | DeeperL(LetLineZP(_, _, _))
+  | DeeperL(LetLineZA(_, _, _))
+  | DeeperL(LetLineZE(_, _, _)) => zli
+  };
+  
+let default_NotInHole = err_status =>
+  switch (err_status) {
+  | None => NotInHole
+  | Some(e) => e
+  };
+
+let prepend_line = (~err_status=?, li: UHExp.line_item, ze: t): t =>
+  Deeper(default_NotInHole(err_status), LineItemZE(li, ze));
+  
+let prepend_zline = (~err_status=?, zli: zline_item, e: UHExp.t): t =>
+  Deeper(default_NotInHole(err_status), LineItemZL(zli, e));
+
+let prune_and_prepend_line = (~err_status=?, li: UHExp.line_item, ze: t): t =>
+  prepend_line(~err_status=default_NotInHole(err_status), UHExp.prune_single_hole_line(li), ze);
+  
+let rec prune_and_prepend_lines = (e1: UHExp.t, ze2: t): t =>
+  switch (e1) {
+  | UHExp.Tm(_, UHExp.LineItem(li, e3)) =>
+    prune_and_prepend_line(li, prune_and_prepend_lines(e3, ze2))
+  | UHExp.Tm(_, _)
+  | UHExp.Parenthesized(_) =>
+    prune_and_prepend_line(UHExp.ExpLine(e1), ze2)
+  };
+  
+let prune_and_prepend_zline = (~err_status=?, zli: zline_item, e: UHExp.t): t =>
+  prepend_zline(~err_status=default_NotInHole(err_status), prune_single_hole_line(zli), e);
