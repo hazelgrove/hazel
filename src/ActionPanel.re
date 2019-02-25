@@ -47,9 +47,9 @@ let make =
     let cls_rs =
       S.map(
         can_perform =>
-          can_perform ?
-            ["action-panel-entry", "action-enabled"] :
-            ["action-panel-entry", "action-disabled"],
+          can_perform
+            ? ["action-panel-entry", "action-enabled"]
+            : ["action-panel-entry", "action-disabled"],
         can_perform_rs,
       );
 
@@ -199,9 +199,9 @@ let make =
     let cls_rs =
       S.map(
         can_perform =>
-          can_perform ?
-            ["action-panel-entry", "action-enabled"] :
-            ["action-panel-entry", "action-disabled"],
+          can_perform
+            ? ["action-panel-entry", "action-enabled"]
+            : ["action-panel-entry", "action-disabled"],
         can_perform_rs,
       );
 
@@ -214,9 +214,9 @@ let make =
     let cls_rs =
       S.map(
         enabled =>
-          enabled ?
-            ["action-panel-entry", "action-enabled"] :
-            ["action-panel-entry", "action-disabled"],
+          enabled
+            ? ["action-panel-entry", "action-enabled"]
+            : ["action-panel-entry", "action-disabled"],
         enabled_rs,
       );
     Html5.(
