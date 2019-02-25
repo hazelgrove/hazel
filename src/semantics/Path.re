@@ -296,7 +296,7 @@ let rec follow_e = (path: t, e: UHExp.t): option(ZExp.t) =>
 and follow_line_item =
     (path: t, li: UHExp.line_item): option(ZExp.zline_item) =>
   switch (path, li) {
-  | (([], _), UHExp.EmptyLine) => Some(ZExp.CursorL(Before, UHExp.EmptyLine))
+  | (([], cursor_side), li) => Some(ZExp.CursorL(cursor_side, li))
   | (_, UHExp.EmptyLine) => None
   | (_, UHExp.ExpLine(e)) =>
     switch (follow_e(path, e)) {
