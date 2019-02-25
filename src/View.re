@@ -661,7 +661,7 @@ let rec of_hexp = (palette_stuff, prefix, rev_path, e) =>
             | None => None
             };
           let r1 = of_hexp(palette_stuff, prefix, [2, ...rev_path_li], e1);
-          of_LetLine(prefix, rev_path, rp, rann, r1);
+          of_LetLine(prefix, rev_path_li, rp, rann, r1);
         | UHExp.ExpLine(e1) =>
           let r1 = of_hexp(palette_stuff, prefix, rev_path_li, e1);
           of_ExpLine(prefix, rev_path, r1);
