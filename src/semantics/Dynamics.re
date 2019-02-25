@@ -1323,7 +1323,7 @@ module DHExp = {
       let delta =
         MetaVarMap.extend_unique(delta, (u, (ExpressionHole, ty, gamma)));
       Expands(FreeVar(u, 0, sigma, x), ty, delta);
-    | UHExp.LineItem(UHExp.EmptyLine, e1) => syn_expand(ctx, delta, e1)
+    | UHExp.LineItem(UHExp.EmptyLine, e1) => ana_expand(ctx, delta, e1, ty)
     | UHExp.LineItem(UHExp.ExpLine(e1), e2) =>
       switch (syn_expand(ctx, delta, e1)) {
       | DoesNotExpand => DoesNotExpand
