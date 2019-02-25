@@ -2493,6 +2493,24 @@ let rec perform_syn_internal =
       );
     }
   | (Construct(SVar(_, _)), ZExp.CursorE(_, _)) => None
+  | (Construct(SLine), ZExp.Deeper(_, ZExp.LineItemZL(zli, e2)))
+      when ZExp.cursor_at_end_line_item(zli) =>
+    let li = ZExp.erase_line_item(zli);
+    let ze =
+      ZExp.(Deeper(
+        NotInHole,
+        LineItemZE(
+          li,
+          Deeper(
+            NotInHole,
+            LineItemZL(
+              CursorL(Before, UHExp.EmptyLine),
+              e2
+            )
+          )
+        )
+      ));
+    Some((ze, ty, u_gen));
   | (Construct(SLine), ze1) when ZExp.cursor_at_start(ze1) =>
     let ze = ZExp.Deeper(NotInHole, ZExp.LineItemZE(UHExp.EmptyLine, ze1));
     Some((ze, ty, u_gen));
@@ -3822,6 +3840,24 @@ and perform_ana =
     let prefix = prefix @ [prev_rule];
     let ze =
       ZExp.Deeper(NotInHole, ZExp.CaseZR(e1, (prefix, zrule, suffix)));
+    Some((ze, u_gen));
+  | (Construct(SLine), ZExp.Deeper(err_status, ZExp.LineItemZL(zli, e2)))
+      when ZExp.cursor_at_end_line_item(zli) =>
+    let li = ZExp.erase_line_item(zli);
+    let ze =
+      ZExp.(Deeper(
+        err_status,
+        LineItemZE(
+          li,
+          Deeper(
+            NotInHole,
+            LineItemZL(
+              CursorL(Before, UHExp.EmptyLine),
+              e2
+            )
+          )
+        )
+      ));
     Some((ze, u_gen));
   | (Construct(SLine), ze1) when ZExp.cursor_at_start(ze1) =>
     let ze =
