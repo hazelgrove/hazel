@@ -2866,7 +2866,7 @@ let rec perform_syn_internal =
     }
   | (_, ZExp.Deeper(_, ZExp.AscZ1(ze, uty1))) =>
     let ty1 = UHTyp.expand(uty1);
-    switch (perform_ana(u_gen, ctx, a, ze, ty1)) {
+    switch (perform_ana_internal(u_gen, ctx, a, ze, ty1)) {
     | Some((ze', u_gen')) =>
       let ze'' = ZExp.bidelimit(ze');
       Some((ZExp.Deeper(NotInHole, ZExp.AscZ1(ze'', uty1)), ty, u_gen'));
@@ -2971,7 +2971,7 @@ let rec perform_syn_internal =
     | Some(ann_ty) =>
       let ty1 = UHTyp.expand(ann_ty);
       let ctx1 = Statics.ctx_for_let(ctx, p, ty1, ZExp.erase(ze1));
-      switch (perform_ana(u_gen, ctx1, a, ze1, ty1)) {
+      switch (perform_ana_internal(u_gen, ctx1, a, ze1, ty1)) {
       | None => None
       | Some((ze1, u_gen)) =>
         let ze =
@@ -3115,7 +3115,7 @@ let rec perform_syn_internal =
       | Some((ty, Some(mode))) =>
         switch (mode) {
         | Statics.AnalyzedAgainst(ty0) =>
-          switch (perform_ana(u_gen, ctx, a, ze0, ty0)) {
+          switch (perform_ana_internal(u_gen, ctx, a, ze0, ty0)) {
           | None => None
           | Some((ze0', u_gen)) =>
             let ze0'' = ZExp.bidelimit(ze0');
@@ -3147,7 +3147,7 @@ let rec perform_syn_internal =
      let (rest_map, z_data) = z_nat_map;
      let (cell_lbl, cell_data) = z_data;
      let (cell_ty, cell_ze) = cell_data;
-     switch (perform_ana(u_gen, ctx, a, cell_ze, cell_ty)) {
+     switch (perform_ana_internal(u_gen, ctx, a, cell_ze, cell_ty)) {
      | None => None
      | Some((cell_ze', u_gen')) =>
        let z_hole_data' = (
@@ -3172,7 +3172,7 @@ let rec perform_syn_internal =
   | (Construct(SWild), _) => None
   };
 }
-and perform_ana =
+and perform_ana_internal =
     (u_gen: MetaVarGen.t, ctx: Contexts.t, a: t, ze: ZExp.t, ty: HTyp.t)
     : option((ZExp.t, MetaVarGen.t)) =>
   switch (a, ze) {
@@ -3202,14 +3202,14 @@ and perform_ana =
   | (MoveToPrevHole, _) =>
     switch (Path.prev_hole_path(Path.holes_ze(ze, []))) {
     | None => None
-    | Some(path) => perform_ana(u_gen, ctx, MoveTo(path), ze, ty)
+    | Some(path) => perform_ana_internal(u_gen, ctx, MoveTo(path), ze, ty)
     }
   | (MoveToNextHole, _) =>
     switch (Path.next_hole_path(Path.holes_ze(ze, []))) {
     | None => None
     | Some(path) =>
       /* [debug] let path = Helper.log_path path in */
-      perform_ana(u_gen, ctx, MoveTo(path), ze, ty)
+      perform_ana_internal(u_gen, ctx, MoveTo(path), ze, ty)
     }
   /* Backspace & Delete */
   | (Backspace, ZExp.CursorE(After, e)) =>
@@ -3945,11 +3945,11 @@ and perform_ana =
     | Before =>
       let ze1 = ZExp.place_Before(e1);
       let ze = ZExp.(Deeper(NotInHole, LineItemZL(DeeperL(ExpLineZ(ze1)), e2)));
-      perform_ana(u_gen, ctx, a, ze, ty);
+      perform_ana_internal(u_gen, ctx, a, ze, ty);
     | After =>
       let ze1 = ZExp.place_After(e1);
       let ze = ZExp.(Deeper(NotInHole, LineItemZL(DeeperL(ExpLineZ(ze1)), e2)));
-      perform_ana(u_gen, ctx, a, ze, ty);
+      perform_ana_internal(u_gen, ctx, a, ze, ty);
     }
   | (
       Construct(_) as a,
@@ -3978,7 +3978,7 @@ and perform_ana =
             e2
           )
         ));
-      perform_ana(u_gen, ctx, a, ze, ty);
+      perform_ana_internal(u_gen, ctx, a, ze, ty);
     }
   | (Construct(SLam), ZExp.CursorE(_, e)) =>
     switch (HTyp.matched_arrow(ty)) {
@@ -4145,14 +4145,14 @@ and perform_ana =
     }
   /* Zipper Cases */
   | (_, ZExp.ParenthesizedZ(ze1)) =>
-    switch (perform_ana(u_gen, ctx, a, ze1, ty)) {
+    switch (perform_ana_internal(u_gen, ctx, a, ze1, ty)) {
     | Some((ze1', u_gen')) => Some((ZExp.ParenthesizedZ(ze1'), u_gen'))
     | None => None
     }
   | (_, ZExp.Deeper(err_status, ZExp.LineItemZL(ZExp.CursorL(_, UHExp.EmptyLine), e2))) =>
     let (ze1, u_gen) = ZExp.new_EmptyHole(u_gen);
     let ze = ZExp.(Deeper(err_status, LineItemZL(ZExp.DeeperL(ExpLineZ(ze1)), e2)));
-    perform_ana(u_gen, ctx, a, ze, ty);
+    perform_ana_internal(u_gen, ctx, a, ze, ty);
   | (_, ZExp.Deeper(_, ZExp.LineItemZL(ZExp.DeeperL(ZExp.LetLineZP(zp, ann, e1)), e2))) =>
     switch (ann) {
     | Some(uty1) =>
@@ -4228,7 +4228,7 @@ and perform_ana =
     | Some(ann_ty) =>
       let ty1 = UHTyp.expand(ann_ty);
       let ctx1 = Statics.ctx_for_let(ctx, p, ty1, ZExp.erase(ze1));
-      switch (perform_ana(u_gen, ctx1, a, ze1, ty1)) {
+      switch (perform_ana_internal(u_gen, ctx1, a, ze1, ty1)) {
       | None => None
       | Some((ze1, u_gen)) =>
         let ze =
@@ -4265,7 +4265,7 @@ and perform_ana =
     }
   | (_, ZExp.Deeper(_, ZExp.LineItemZE(UHExp.EmptyLine as li, ze2)))
   | (_, ZExp.Deeper(_, ZExp.LineItemZE(UHExp.ExpLine(_) as li, ze2))) =>
-    switch (perform_ana(u_gen, ctx, a, ze2, ty)) {
+    switch (perform_ana_internal(u_gen, ctx, a, ze2, ty)) {
     | None => None
     | Some((ze2, u_gen)) =>
       let ze = ZExp.Deeper(NotInHole, ZExp.LineItemZE(li, ze2));
@@ -4283,7 +4283,7 @@ and perform_ana =
       switch (Statics.ana_pat(ctx, p, ty1)) {
       | None => None
       | Some(ctx2) =>
-        switch (perform_ana(u_gen, ctx2, a, ze2, ty)) {
+        switch (perform_ana_internal(u_gen, ctx2, a, ze2, ty)) {
         | None => None
         | Some((ze2, u_gen)) =>
           let ze =
@@ -4365,7 +4365,7 @@ and perform_ana =
       switch (Statics.ana_pat(ctx, p, ty1)) {
       | None => None
       | Some(ctx) =>
-        switch (perform_ana(u_gen, ctx, a, ze1, ty2)) {
+        switch (perform_ana_internal(u_gen, ctx, a, ze1, ty2)) {
         | None => None
         | Some((ze1, u_gen)) =>
           let ze = ZExp.Deeper(err, ZExp.LamZE(p, ann, ze1));
@@ -4377,7 +4377,7 @@ and perform_ana =
     switch (HTyp.matched_sum(ty)) {
     | Some((ty1, ty2)) =>
       let picked = pick_side(side, ty1, ty2);
-      switch (perform_ana(u_gen, ctx, a, ze, picked)) {
+      switch (perform_ana_internal(u_gen, ctx, a, ze, picked)) {
       | Some((ze', u_gen)) =>
         Some((ZExp.Deeper(err, ZExp.InjZ(side, ze')), u_gen))
       | None => None
@@ -4426,7 +4426,7 @@ and perform_ana =
         switch (Statics.ana_pat(ctx, p, ty1)) {
         | None => None
         | Some(ctx) =>
-          switch (perform_ana(u_gen, ctx, a, ze, ty)) {
+          switch (perform_ana_internal(u_gen, ctx, a, ze, ty)) {
           | None => None
           | Some((ze, u_gen)) =>
             let zrule = ZExp.RuleZE(p, ze);
@@ -4448,7 +4448,7 @@ and perform_ana =
       | Some(Some(mode)) =>
         switch (mode) {
         | Statics.AnalyzedAgainst(ty0) =>
-          switch (perform_ana(u_gen, ctx, a, ze0, ty0)) {
+          switch (perform_ana_internal(u_gen, ctx, a, ze0, ty0)) {
           | None => None
           | Some((ze0', u_gen)) =>
             let ze0'' = ZExp.bidelimit(ze0');
@@ -4517,6 +4517,18 @@ let perform_syn = (ctx, a, ze_ty) =>
     | None => None
     | Some(ze) => Some((ze, ty, u_gen))
     };
+  };
+
+let perform_ana = (u_gen, ctx, a, ze, ty) =>
+  switch (perform_ana_internal(u_gen, ctx, a, ze, ty)) {
+  | None => None
+  | Some((ze, u_gen)) =>
+    let path = Path.of_zexp(ze);
+    let e = UHExp.prune_single_hole_lines(ZExp.erase(ze));
+    switch (Path.follow_e(path, e)) {
+    | None => None
+    | Some(ze) => Some((ze, u_gen))
+    }
   };
 
 let can_perform =
