@@ -3766,6 +3766,16 @@ and perform_ana =
     let ze =
       ZExp.Deeper(NotInHole, ZExp.CaseZR(e1, (prefix, zrule, suffix)));
     Some((ze, u_gen));
+  | (Construct(SLine), ze1) when ZExp.cursor_at_start(ze1) =>
+    let ze =
+      ZExp.(Deeper(
+        NotInHole,
+        LineItemZE(
+          UHExp.EmptyLine,
+          ze1
+        )
+      ));
+    Some((ze, u_gen));
   | (Construct(SLine), ze1) when ZExp.cursor_at_end(ze1) =>
     let e1 = ZExp.erase(ze1);
     let (ze2, u_gen) = ZExp.new_EmptyHole(u_gen);
