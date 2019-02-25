@@ -69,6 +69,15 @@ and erase' = (zp': t'): UHPat.t' =>
     UHPat.OpSeq(skel, OperatorSeq.opseq_of_exp_and_surround(p1, surround));
   };
 
+let cursor_at_end = (zp: t): bool =>
+  switch (zp) {
+  | CursorP(After, _) => true
+  | Deeper(_, OpSeqZ(_, CursorP(After, _), EmptySuffix(_))) => true
+  | CursorP(_, _)
+  | Deeper(_, _)
+  | ParenthesizedZ(_) => false
+  };
+
 let place_Before = (p: UHPat.t): t =>
   switch (p) {
   | UHPat.Parenthesized(_)

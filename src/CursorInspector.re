@@ -46,6 +46,8 @@ let expected_any_indicator = expected_msg_indicator("any type");
 let expected_any_indicator_pat = expected_msg_indicator_pat("any type");
 let expected_a_type_indicator =
   expected_indicator("Expecting ", special_msg_bar("a type"));
+let expected_a_line_item_indicator =
+  expected_indicator("Expecting ", special_msg_bar("a line item"));
 let got_indicator = (title_text, type_div) =>
   Html5.(
     div(
@@ -71,9 +73,13 @@ let got_inconsistent_matched_indicator = (got_ty, matched_ty) =>
 let got_free_indicator =
   got_indicator("Got a free variable", typebar("got", HTyp.Hole));
 
+let got_empty_line_indicator = got_ty_indicator(HTyp.Hole);
+
 let got_consistent_indicator = got_ty =>
   got_indicator("Got consistent type", typebar("got", got_ty));
 let got_a_type_indicator = got_indicator("Got", special_msg_bar("a type"));
+let got_a_line_item_indicator =
+  got_indicator("Got", special_msg_bar("a line item"));
 type err_state_b =
   | TypeInconsistency
   | BindingError
@@ -189,6 +195,10 @@ let of_cursor_mode = (cursor_mode: CursorInfo.cursor_mode) => {
     | CursorInfo.PatSynthesized(ty) =>
       let ind1 = expected_any_indicator_pat;
       let ind2 = got_ty_indicator(ty);
+      (ind1, ind2, OK);
+    | CursorInfo.LineItem =>
+      let ind1 = expected_a_line_item_indicator;
+      let ind2 = got_a_line_item_indicator;
       (ind1, ind2, OK);
     };
 
