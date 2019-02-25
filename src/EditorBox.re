@@ -106,8 +106,8 @@ let mk =
                     Action.Construct(Action.SNumLit(new_n, new_side)),
                   );
                 | None =>
-                  Var.is_valid(newNodeValue) ?
-                    {
+                  Var.is_valid(newNodeValue)
+                    ? {
                       let new_side =
                         side_of_str_offset(newNodeValue, anchorOffset + 1);
                       do_action(
@@ -115,8 +115,8 @@ let mk =
                           Action.SVar(newNodeValue, new_side),
                         ),
                       );
-                    } :
-                    ()
+                    }
+                    : ()
                 };
                 Dom_html.stopPropagation(evt);
                 false;
@@ -167,9 +167,9 @@ let mk =
                       );
                     let ctrlKey = Js.to_bool(evt##.ctrlKey);
                     let (nodeValue', anchorOffset') =
-                      is_backspace ?
-                        string_backspace(nodeValue, anchorOffset, ctrlKey) :
-                        string_delete(nodeValue, anchorOffset, ctrlKey);
+                      is_backspace
+                        ? string_backspace(nodeValue, anchorOffset, ctrlKey)
+                        : string_delete(nodeValue, anchorOffset, ctrlKey);
                     if (String.equal(nodeValue', "")) {
                       if (is_Before) {
                         do_action(Action.Delete);
@@ -185,8 +185,8 @@ let mk =
                           Action.Construct(Action.SNumLit(new_n, new_side)),
                         );
                       | None =>
-                        Var.is_valid(nodeValue') ?
-                          {
+                        Var.is_valid(nodeValue')
+                          ? {
                             let new_side =
                               side_of_str_offset(nodeValue', anchorOffset');
                             do_action(
@@ -194,8 +194,8 @@ let mk =
                                 Action.SVar(nodeValue', new_side),
                               ),
                             );
-                          } :
-                          ()
+                          }
+                          : ()
                       };
                     };
                     false;
@@ -210,9 +210,9 @@ let mk =
             }
           ),
           a_onkeypress(evt =>
-            JSUtil.is_movement_key(evt) ?
-              true :
-              {
+            JSUtil.is_movement_key(evt)
+              ? true
+              : {
                 Dom.preventDefault(evt);
                 true;
               }

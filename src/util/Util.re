@@ -52,9 +52,9 @@ let rec split_at = (xs, n) =>
   switch (xs) {
   | [] => ([], [])
   | [y, ...ys] =>
-    y == n ?
-      ([], ys) :
-      {
+    y == n
+      ? ([], ys)
+      : {
         let (before, after) = split_at(ys, n);
         ([y, ...before], after);
       }

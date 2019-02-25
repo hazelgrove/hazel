@@ -281,9 +281,9 @@ and ana_skel_pat = (ctx, skel, seq, ty, monitor) =>
       let skels = UHPat.get_tuple(skel1, skel2);
       let n_types = List.length(types);
       let n_skels = List.length(skels);
-      n_types == n_skels ?
-        None : /* make sure the lengths are actually different */
-        {
+      n_types == n_skels
+        ? None  /* make sure the lengths are actually different */
+        : {
           let (zipped, remainder) = HTyp.zip_with_skels(skels, types);
           let ana_zipped: option((Contexts.t, option(type_mode))) = (
             List.fold_left(
@@ -758,9 +758,9 @@ and ana_skel = (ctx, skel, seq, ty, monitor) =>
       let skels = UHExp.get_tuple(skel1, skel2);
       let n_types = List.length(types);
       let n_skels = List.length(skels);
-      n_types == n_skels ?
-        None : /* make sure the lengths are actually different */
-        {
+      n_types == n_skels
+        ? None  /* make sure the lengths are actually different */
+        : {
           let (zipped, remainder) = HTyp.zip_with_skels(skels, types);
           let ana_zipped: option(option(type_mode)) = (
             List.fold_left(

@@ -94,9 +94,9 @@ let of_cursor_mode = (cursor_mode: CursorInfo.cursor_mode) => {
     | CursorInfo.AnaAnnotatedLambda(expected_ty, got_ty) =>
       let ind1 = expected_ty_indicator(expected_ty);
       let ind2 =
-        HTyp.eq(expected_ty, got_ty) ?
-          got_as_expected_ty_indicator(got_ty) :
-          got_consistent_indicator(got_ty);
+        HTyp.eq(expected_ty, got_ty)
+          ? got_as_expected_ty_indicator(got_ty)
+          : got_consistent_indicator(got_ty);
       (ind1, ind2, OK);
     | CursorInfo.AnaTypeInconsistent(expected_ty, got_ty) =>
       let ind1 = expected_ty_indicator(expected_ty);
@@ -123,9 +123,9 @@ let of_cursor_mode = (cursor_mode: CursorInfo.cursor_mode) => {
     | CursorInfo.AnaSubsumed(expected_ty, got_ty) =>
       let ind1 = expected_ty_indicator(expected_ty);
       let ind2 =
-        HTyp.eq(expected_ty, got_ty) ?
-          got_as_expected_ty_indicator(got_ty) :
-          got_consistent_indicator(got_ty);
+        HTyp.eq(expected_ty, got_ty)
+          ? got_as_expected_ty_indicator(got_ty)
+          : got_consistent_indicator(got_ty);
       (ind1, ind2, OK);
     | CursorInfo.Synthesized(ty) =>
       let ind1 = expected_any_indicator;
@@ -188,9 +188,9 @@ let of_cursor_mode = (cursor_mode: CursorInfo.cursor_mode) => {
     | CursorInfo.PatAnaSubsumed(expected_ty, got_ty) =>
       let ind1 = expected_ty_indicator_pat(expected_ty);
       let ind2 =
-        HTyp.eq(expected_ty, got_ty) ?
-          got_as_expected_ty_indicator(got_ty) :
-          got_consistent_indicator(got_ty);
+        HTyp.eq(expected_ty, got_ty)
+          ? got_as_expected_ty_indicator(got_ty)
+          : got_consistent_indicator(got_ty);
       (ind1, ind2, OK);
     | CursorInfo.PatSynthesized(ty) =>
       let ind1 = expected_any_indicator_pat;

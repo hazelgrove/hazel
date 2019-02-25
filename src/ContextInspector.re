@@ -161,16 +161,17 @@ let mk =
           let titlebar_txt = "which is in the result via path";
           let path_area_children =
             List.fold_left(
-              (acc, path_item) => [
-                html_of_path_item(path_item),
-                Html5.(
-                  span(
-                    ~a=[a_class(["path-item-separator"])],
-                    [Html5.txt(" 〉 ")],
-                  )
-                ),
-                ...acc,
-              ],
+              (acc, path_item) =>
+                [
+                  html_of_path_item(path_item),
+                  Html5.(
+                    span(
+                      ~a=[a_class(["path-item-separator"])],
+                      [Html5.txt(" 〉 ")],
+                    )
+                  ),
+                  ...acc,
+                ],
               [
                 Html5.(
                   div(
@@ -431,9 +432,8 @@ let mk =
   open M;
   let context_inspector_rs =
     React.S.l3(
-      (cursor_info, result, selected_instance) => [
-        panel(cursor_info, result, selected_instance, next_prev_state_rf),
-      ],
+      (cursor_info, result, selected_instance) =>
+        [panel(cursor_info, result, selected_instance, next_prev_state_rf)],
       cursor_info_rs,
       result_rs,
       selected_instance_rs,

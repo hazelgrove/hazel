@@ -91,13 +91,13 @@ let of_Parenthesized = (is_block, prefix, rev_path, r1) =>
     NotInHole,
     rev_path,
     "Parenthesized",
-    is_block ?
-      PP.blockBoundary
-      ^^ lparen("(")
-      ^^ PP.nestAbsolute(2, r1)
-      ^^ PP.mandatoryBreak
-      ^^ rparen(")") :
-      lparen("(") ^^ r1 ^^ rparen(")"),
+    is_block
+      ? PP.blockBoundary
+        ^^ lparen("(")
+        ^^ PP.nestAbsolute(2, r1)
+        ^^ PP.mandatoryBreak
+        ^^ rparen(")")
+      : lparen("(") ^^ r1 ^^ rparen(")"),
   );
 
 /* Generic operator printing */
@@ -106,15 +106,15 @@ let of_op = (op_s, op_cls) =>
     ["seq-op", op_cls],
     None,
     None,
-    String.length(op_s) == 1 ?
-      taggedText("op-no-margin", op_s) :
-      optionalBreakNSp
-      ^^ taggedText("op-before-1", "​​")
-      ^^ taggedText("op-before-2", "‌")
-      ^^ taggedText("op-center", op_s)
-      ^^ taggedText("op-after-1", "​")
-      ^^ taggedText("op-after-2", "​")
-      ^^ optionalBreakNSp,
+    String.length(op_s) == 1
+      ? taggedText("op-no-margin", op_s)
+      : optionalBreakNSp
+        ^^ taggedText("op-before-1", "​​")
+        ^^ taggedText("op-before-2", "‌")
+        ^^ taggedText("op-center", op_s)
+        ^^ taggedText("op-after-1", "​")
+        ^^ taggedText("op-after-2", "​")
+        ^^ optionalBreakNSp,
   );
 
 /* Types */
@@ -453,8 +453,9 @@ let of_Cast = (prefix, err_status, rev_path, r1, rty1, rty2) =>
     err_status,
     rev_path,
     "Cast",
-    _SHOW_CASTS ?
-      r1 ^^ lparen("⟨") ^^ rty1 ^^ cast_arrow ^^ rty2 ^^ rparen("⟩") : r1,
+    _SHOW_CASTS
+      ? r1 ^^ lparen("⟨") ^^ rty1 ^^ cast_arrow ^^ rty2 ^^ rparen("⟩")
+      : r1,
   );
 
 let of_chained_Cast = (prefix, err_status, rev_path, r1, rty1, rty2, rty4) =>
@@ -463,16 +464,16 @@ let of_chained_Cast = (prefix, err_status, rev_path, r1, rty1, rty2, rty4) =>
     err_status,
     rev_path,
     "Cast",
-    _SHOW_CASTS ?
-      r1
-      ^^ lparen("<")
-      ^^ rty1
-      ^^ cast_arrow
-      ^^ rty2
-      ^^ cast_arrow
-      ^^ rty4
-      ^^ rparen(">") :
-      r1,
+    _SHOW_CASTS
+      ? r1
+        ^^ lparen("<")
+        ^^ rty1
+        ^^ cast_arrow
+        ^^ rty2
+        ^^ cast_arrow
+        ^^ rty4
+        ^^ rparen(">")
+      : r1,
   );
 
 let failed_cast_arrow = taggedText("failed-cast-arrow", " ⇨ ");
@@ -1197,9 +1198,10 @@ let rec of_dhexp' =
         let inst = (u, i);
         let hole_label = hole_label_of(inst);
         let r =
-          dbg_SHOW_SIGMAS ?
-            hole_label ^^ of_sigma(instance_click_fn, prefix, rev_path, sigma) :
-            hole_label;
+          dbg_SHOW_SIGMAS
+            ? hole_label
+              ^^ of_sigma(instance_click_fn, prefix, rev_path, sigma)
+            : hole_label;
         let attrs = [
           Tyxml_js.Html5.a_onclick(_ => {
             instance_click_fn(inst);
@@ -1229,8 +1231,8 @@ let rec of_dhexp' =
           );
 
         let r =
-          dbg_SHOW_SIGMAS ?
-            r1 ^^ of_sigma(instance_click_fn, prefix, rev_path, sigma) : r1;
+          dbg_SHOW_SIGMAS
+            ? r1 ^^ of_sigma(instance_click_fn, prefix, rev_path, sigma) : r1;
         term(prefix, err_status, rev_path, "NonEmptyHole", r);
       | Cast(Cast(d1, ty1, ty2), ty3, ty4) when HTyp.eq(ty2, ty3) =>
         let rev_path1 = [0, ...rev_path];
