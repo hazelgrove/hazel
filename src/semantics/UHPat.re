@@ -85,7 +85,7 @@ let is_EmptyHole =
 
 let rec set_err_status = err =>
   fun
-  | Pat(_, OpSeq(Skel.BinOp(_, op, skel1, skel2), seq)) =>  
+  | Pat(_, OpSeq(Skel.BinOp(_, op, skel1, skel2), seq)) =>
     Pat(err, OpSeq(Skel.BinOp(err, op, skel1, skel2), seq))
   | Pat(_, p') => Pat(err, p')
   | Parenthesized(p') => Parenthesized(set_err_status(err, p'));
@@ -97,7 +97,7 @@ let rec make_inconsistent = (u_gen, p) =>
   | Pat(InHole(WrongLength, _), _) =>
     let (u, u_gen) = MetaVarGen.next(u_gen);
     let p = set_err_status(InHole(TypeInconsistent, u), p);
-    (p, u_gen)
+    (p, u_gen);
   | Pat(InHole(TypeInconsistent, _), _) => (p, u_gen)
   | Parenthesized(p1) =>
     switch (make_inconsistent(u_gen, p1)) {
