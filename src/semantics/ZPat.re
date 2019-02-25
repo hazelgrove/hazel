@@ -117,7 +117,7 @@ let rec cursor_at_start = (zp: t): bool =>
   | CursorP(Before, _) => true
   | CursorP(_, _) => false
   | ParenthesizedZ(_) => false
-  | Deeper(_, OpSeqZ(_, zp1, EmptySuffix(_))) => cursor_at_start(zp1)
+  | Deeper(_, OpSeqZ(_, zp1, EmptyPrefix(_))) => cursor_at_start(zp1)
   | Deeper(_, OpSeqZ(_, _, _)) => false
   | Deeper(_, InjZ(_, _)) => false
   };
