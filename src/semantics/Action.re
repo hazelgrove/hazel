@@ -85,15 +85,13 @@ type shape =
   | SNumLit(int, ZExp.cursor_side)
   | SListNil
   | SInj(inj_side)
+  | SLet
+  | SLine
   | SCase
-  | SRule
   | SOp(op_shape)
   | SApPalette(PaletteName.t)
   /* pattern-only shapes */
-  | SWild
-  /* line item shapes */
-  | SLetLine
-  | SEmptyLine;
+  | SWild;
 
 type t =
   | MoveTo(Path.t)
@@ -366,15 +364,14 @@ let rec perform_ty = (a: t, zty: ZTyp.t): option(ZTyp.t) =>
   /* Invalid actions at the type level */
   | (UpdateApPalette(_), _)
   | (Construct(SAsc), _)
-  | (Construct(SLetLine), _)
-  | (Construct(SEmptyLine), _)
+  | (Construct(SLet), _)
+  | (Construct(SLine), _)
   | (Construct(SVar(_, _)), _)
   | (Construct(SLam), _)
   | (Construct(SNumLit(_, _)), _)
   | (Construct(SListNil), _)
   | (Construct(SInj(_)), _)
   | (Construct(SCase), _)
-  | (Construct(SRule), _)
   | (Construct(SApPalette(_)), _)
   | (Construct(SWild), _) => None
   };
@@ -1434,11 +1431,10 @@ let rec perform_syn_pat =
   | (Construct(SBool), _)
   | (Construct(SList), _)
   | (Construct(SAsc), _)
-  | (Construct(SLetLine), _)
-  | (Construct(SEmptyLine), _)
+  | (Construct(SLet), _)
+  | (Construct(SLine), _)
   | (Construct(SLam), _)
-  | (Construct(SCase), _)
-  | (Construct(SRule), _) => None
+  | (Construct(SCase), _) => None
   }
 and perform_ana_pat =
     (ctx: Contexts.t, u_gen: MetaVarGen.t, a: t, zp: ZPat.t, ty: HTyp.t)
@@ -1811,11 +1807,10 @@ and perform_ana_pat =
   | (Construct(SBool), _)
   | (Construct(SList), _)
   | (Construct(SAsc), _)
-  | (Construct(SLetLine), _)
-  | (Construct(SEmptyLine), _)
+  | (Construct(SLet), _)
+  | (Construct(SLine), _)
   | (Construct(SLam), _)
-  | (Construct(SCase), _)
-  | (Construct(SRule), _) => None
+  | (Construct(SCase), _) => None
   };
 
 let zexp_syn_fix_holes =
@@ -2483,16 +2478,16 @@ let rec perform_syn_internal =
       );
     }
   | (Construct(SVar(_, _)), ZExp.CursorE(_, _)) => None
-  | (Construct(SEmptyLine), ze1) when ZExp.cursor_at_start(ze1) =>
+  | (Construct(SLine), ze1) when ZExp.cursor_at_start(ze1) =>
     let ze = ZExp.Deeper(NotInHole, ZExp.LineItemZE(UHExp.EmptyLine, ze1));
     Some((ze, ty, u_gen));
-  | (Construct(SEmptyLine), ze1) when ZExp.cursor_at_end(ze1) =>
+  | (Construct(SLine), ze1) when ZExp.cursor_at_end(ze1) =>
     let e1 = ZExp.erase(ze1);
     let (ze2, u_gen) = ZExp.new_EmptyHole(u_gen);
     let ze = concat_lines(e1, ze2);
     zexp_syn_fix_holes(ctx, u_gen, ze);
-  | (Construct(SEmptyLine), ZExp.CursorE(_, _)) => None
-  | (Construct(SEmptyLine), ZExp.Deeper(_, ZExp.LineItemZL(zli, e2)))
+  | (Construct(SLine), ZExp.CursorE(_, _)) => None
+  | (Construct(SLine), ZExp.Deeper(_, ZExp.LineItemZL(zli, e2)))
       when ZExp.cursor_at_end_line_item(zli) =>
     let li = ZExp.erase_line_item(zli);
     let ze =
@@ -2503,9 +2498,9 @@ let rec perform_syn_internal =
         )
       );
     Some((ze, ty, u_gen));
-  | (Construct(SLetLine), ZExp.CursorE(_, _) as ze1)
+  | (Construct(SLet), ZExp.CursorE(_, _) as ze1)
   | (
-      Construct(SLetLine),
+      Construct(SLet),
       ZExp.Deeper(
         _,
         ZExp.OpSeqZ(_, ZExp.CursorE(Before, _), OperatorSeq.EmptyPrefix(_)),
@@ -2521,7 +2516,7 @@ let rec perform_syn_internal =
       );
     Some((ze, ty, u_gen));
   | (
-      Construct(SLetLine),
+      Construct(SLet),
       ZExp.Deeper(_, ZExp.LineItemZL(ZExp.CursorL(_, UHExp.EmptyLine), e2)),
     ) =>
     let (zp, u_gen) = ZPat.new_EmptyHole(u_gen);
@@ -2533,14 +2528,14 @@ let rec perform_syn_internal =
       );
     Some((ze, ty, u_gen));
   | (
-      Construct(SLetLine),
+      Construct(SLet),
       ZExp.Deeper(
         _,
         ZExp.LineItemZL(ZExp.DeeperL(ZExp.ExpLineZ(ZExp.CursorE(_, _) as ze1)), e2),
       ),
     )
   | (
-      Construct(SLetLine),
+      Construct(SLet),
       ZExp.Deeper(
         _,
         ZExp.LineItemZL(
@@ -2759,7 +2754,6 @@ let rec perform_syn_internal =
         op,
       )
     }
-  | (Construct(SRule), ZExp.CursorE(_, _)) => None
   | (
       Construct(SApPalette(name)),
       ZExp.CursorE(_, UHExp.Tm(_, UHExp.EmptyHole(_))),
@@ -3682,14 +3676,14 @@ and perform_ana =
         ZExp.LamZA(ZPat.erase(zp), ZTyp.place_Before(uty1), e1),
       );
     Some((ze, u_gen));
-  | (Construct(SEmptyLine), ze1) when ZExp.cursor_at_end(ze1) =>
+  | (Construct(SLine), ze1) when ZExp.cursor_at_end(ze1) =>
     let e1 = ZExp.erase(ze1);
     let (ze2, u_gen) = ZExp.new_EmptyHole(u_gen);
     let ze = concat_lines(e1, ze2);
     zexp_ana_fix_holes(ctx, u_gen, ze, ty);
-  | (Construct(SLetLine), ZExp.CursorE(_, _) as ze1)
+  | (Construct(SLet), ZExp.CursorE(_, _) as ze1)
   | (
-      Construct(SLetLine),
+      Construct(SLet),
       ZExp.Deeper(
         _,
         ZExp.OpSeqZ(_, ZExp.CursorE(Before, _), OperatorSeq.EmptyPrefix(_)),
@@ -3716,14 +3710,14 @@ and perform_ana =
       Some((ze, u_gen));
     };
   | (
-      Construct(SLetLine),
+      Construct(SLet),
       ZExp.Deeper(
         err_status,
         ZExp.LineItemZL(ZExp.DeeperL(ZExp.ExpLineZ(ZExp.CursorE(_, _) as ze1)), e2),
       ),
     )
   | (
-      Construct(SLetLine),
+      Construct(SLet),
       ZExp.Deeper(
         err_status,
         ZExp.LineItemZL(
@@ -3876,7 +3870,7 @@ and perform_ana =
       };
     }
   | (
-      Construct(SRule),
+      Construct(SLine),
       ZExp.Deeper(
         _,
         ZExp.CaseZR(
@@ -3892,7 +3886,7 @@ and perform_ana =
       ZExp.Deeper(NotInHole, ZExp.CaseZR(e1, (prefix, zrule, suffix)));
     Some((ze, u_gen));
   | (
-      Construct(SRule),
+      Construct(SLine),
       ZExp.Deeper(
         _,
         ZExp.CaseZR(
@@ -3902,7 +3896,7 @@ and perform_ana =
       ),
     )
   | (
-      Construct(SRule),
+      Construct(SLine),
       ZExp.Deeper(
         _,
         ZExp.CaseZR(
@@ -3926,7 +3920,7 @@ and perform_ana =
       ),
     )
   | (
-      Construct(SRule),
+      Construct(SLine),
       ZExp.Deeper(
         _,
         ZExp.CaseZR(
@@ -3936,7 +3930,7 @@ and perform_ana =
       ),
     )
   | (
-      Construct(SRule),
+      Construct(SLine),
       ZExp.Deeper(
         _,
         ZExp.CaseZR(
@@ -3965,7 +3959,7 @@ and perform_ana =
     let ze =
       ZExp.Deeper(NotInHole, ZExp.CaseZR(e1, (prefix, zrule, suffix)));
     Some((ze, u_gen));
-  | (Construct(SRule), ZExp.CursorE(_, _)) => None
+  | (Construct(SLine), ZExp.CursorE(_, _)) => None
   | (
       Construct(SOp(os)),
       ZExp.Deeper(_, ZExp.OpSeqZ(_, ZExp.CursorE(In(_), e), surround)),
@@ -4377,7 +4371,7 @@ and perform_ana =
   /* Subsumption (post zipper cases) */
   | (UpdateApPalette(_), _)
   | (Construct(SApPalette(_)), _)
-  | (Construct(SEmptyLine), _)
+  | (Construct(SLine), _)
   | (Construct(SVar(_, _)), _)
   | (Construct(SNumLit(_, _)), _)
   | (Construct(SListNil), _)
@@ -4440,8 +4434,8 @@ let can_perform =
     | CursorInfo.IsPat(_) => true
     | CursorInfo.IsType => false
     }
-  | Construct(SEmptyLine)
-  | Construct(SLetLine)
+  | Construct(SLine)
+  | Construct(SLet)
   | Construct(SCase) =>
     switch (ci.sort) {
     | CursorInfo.IsLineItem(_) => true
@@ -4481,7 +4475,6 @@ let can_perform =
   | Construct(SVar(_, _)) /* see can_enter_varchar below */
   | Construct(SWild)
   | Construct(SNumLit(_, _)) /* see can_enter_numeral below */
-  | Construct(SRule)
   | Construct(SOp(_))
   | Construct(SNum) /* TODO enrich cursor_info to allow simplifying these type cases */
   | Construct(SBool) /* TODO enrich cursor_info to allow simplifying these type cases */
