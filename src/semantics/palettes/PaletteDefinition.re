@@ -3,4 +3,3 @@ type t = {
   init_model: SpliceGenMonad.t(SerializedModel.t),
   expand: SerializedModel.t => UHExp.t,
 };
-

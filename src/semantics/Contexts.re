@@ -16,4 +16,4 @@ let gamma_union = (contexts, gamma') => {
 };
 let gamma_contains = (contexts, x) => VarCtx.contains(gamma(contexts), x);
 
-let palette_ctx = ((_, palette_ctx) : t) : PaletteCtx.t => palette_ctx;
+let palette_ctx = ((_, palette_ctx): t): PaletteCtx.t => palette_ctx;

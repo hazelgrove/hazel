@@ -4,90 +4,67 @@ type cursor_mode =
   /*
    *  # cursor in analytic position
    */
-
   | AnaAnnotatedLambda(HTyp.t, HTyp.t)
   /* cursor is on a lambda with an argument type annotation */
-
   | AnaTypeInconsistent(HTyp.t, HTyp.t)
   /* cursor is on a type inconsistent expression */
-
   | AnaWrongLength(
       nat /* expected length */,
       nat, /* got length */
       HTyp.t,
     ) /* expected type */
   /* cursor is on a tuple of the wrong length */
-
   | AnaFree(HTyp.t)
   /* cursor is on a free variable */
-
   | Analyzed(HTyp.t)
   /* none of the above and didn't go through subsumption */
-
   | AnaSubsumed(HTyp.t, HTyp.t)
   /* none of the above and went through subsumption */
-
   /*
    *  # cursor in synthetic position
    */
-
   | SynErrorArrow(HTyp.t /* expected */, HTyp.t) /* got */
   /* cursor is on the function position of an ap,
      and that expression does not synthesize a type
      with a matched arrow type */
-
   | SynMatchingArrow(HTyp.t, HTyp.t)
   /* cursor is on the function position of an ap,
      and that expression does synthesize a type
      with a matched arrow type */
-
   | SynFreeArrow(HTyp.t)
   /* cursor is on a free variable in the function
      position of an ap */
-
   | SynFree
   /* none of the above, cursor is on a free variable */
-
   | Synthesized(HTyp.t)
   /* none of the above */
-
   /*
    * # cursor in type position
    */
-
   | TypePosition
   /* (we will have a richer structure here later) */
-
   /*
    *  # cursor in analytic pattern position
    */
-
   | PatAnaTypeInconsistent(HTyp.t, HTyp.t)
   /* cursor is on a type inconsistent pattern */
-
   | PatAnaWrongLength(
       nat /* expected length */,
       nat, /* got length */
       HTyp.t,
     ) /* expected type */
   /* cursor is on a tuple pattern of the wrong length */
-
   | PatAnalyzed(HTyp.t)
   /* none of the above and didn't go through subsumption */
-
   | PatAnaSubsumed(HTyp.t, HTyp.t)
   /* none of the above and went through subsumption */
-
   /*
    * # cursor in synthetic pattern position
    */
-
   | PatSynthesized(HTyp.t)
-
   /*
    *  # cursor on line item
    */
-
   | LineItem;
 
 type cursor_sort =

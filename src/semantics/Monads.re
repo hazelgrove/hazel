@@ -1,4 +1,4 @@
-/* TODO: we might want to just use this API? 
+/* TODO: we might want to just use this API?
 
     https://github.com/rgrinberg/ocaml-mtl/blob/master/lib/mtl.ml
 
@@ -8,7 +8,6 @@
 
 module type MONAD = {
   type t('a);
-  let return : 'a => t('a);
-  let bind : (t('a), ('a => t('b))) => t('b);
+  let return: 'a => t('a);
+  let bind: (t('a), 'a => t('b)) => t('b);
 };
-

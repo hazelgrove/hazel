@@ -801,19 +801,19 @@ and holes_zline_item = (zli, steps) =>
   | ZExp.CursorL(Before, li) => {
       holes_before: [],
       hole_selected: None,
-      holes_after: holes_line_item(li, steps, [])
-    }  
+      holes_after: holes_line_item(li, steps, []),
+    }
   | ZExp.CursorL(In(_), UHExp.EmptyLine)
   | ZExp.CursorL(In(_), UHExp.ExpLine(_)) => no_holes
   | ZExp.CursorL(In(_), UHExp.LetLine(_, _, _) as li) => {
       holes_before: [],
       hole_selected: None,
-      holes_after: holes_line_item(li, steps, [])
+      holes_after: holes_line_item(li, steps, []),
     }
   | ZExp.CursorL(After, li) => {
       holes_before: holes_line_item(li, steps, []),
       hole_selected: None,
-      holes_after: []
+      holes_after: [],
     }
   | ZExp.DeeperL(zli') => holes_zline_item'(zli', steps)
   }
@@ -875,12 +875,12 @@ and holes_zrules = (zrules, steps) => {
 and holes_zrule = (zrule, prefix_len, steps) =>
   switch (zrule) {
   | ZExp.RuleZP(zp, e1) =>
-    let { holes_before, hole_selected, holes_after } = 
+    let {holes_before, hole_selected, holes_after} =
       holes_zpat(zp, [0, prefix_len + 1, ...steps]);
     let holes_e1 = holes_e(e1, [1, prefix_len + 1, ...steps], []);
     {holes_before, hole_selected, holes_after: holes_after @ holes_e1};
   | ZExp.RuleZE(p, ze1) =>
-    let { holes_before, hole_selected, holes_after } = 
+    let {holes_before, hole_selected, holes_after} =
       holes_ze(ze1, [1, prefix_len + 1, ...steps]);
     let holes_p = holes_pat(p, [0, prefix_len + 1, ...steps], []);
     {holes_before: holes_p @ holes_before, hole_selected, holes_after};
