@@ -3274,19 +3274,20 @@ and perform_ana =
     }
   | (Backspace, ZExp.Deeper(_, ZExp.LineItemZE(UHExp.EmptyLine, ze1)))
       when ZExp.cursor_at_start(ze1) =>
-    perform_ana_subsume(u_gen, ctx, a, ze, ty)
+    Some((ze1, u_gen));
   | (
       Delete,
       ZExp.Deeper(
         _,
         ZExp.LineItemZL(
-          ze1,
-          UHExp.Tm(_, UHExp.LineItem(UHExp.EmptyLine, _)),
+          zli,
+          UHExp.Tm(_, UHExp.LineItem(UHExp.EmptyLine, e2)),
         ),
       ),
     )
-      when ZExp.cursor_at_end_line_item(ze1) =>
-    perform_ana_subsume(u_gen, ctx, a, ze, ty)
+      when ZExp.cursor_at_end_line_item(zli) =>
+    let ze = ZExp.Deeper(NotInHole, ZExp.LineItemZL(zli, e2));
+    Some((ze, u_gen));
   | (
       Backspace,
       ZExp.Deeper(
