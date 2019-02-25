@@ -1982,43 +1982,6 @@ let rec perform_syn =
       ZExp.Deeper(
         _,
         ZExp.LineItemZE(
-          UHExp.ExpLine(
-            UHExp.Tm(_, UHExp.Lam(p, ann, UHExp.Tm(_, UHExp.EmptyHole(_)))),
-          ),
-          ZExp.CursorE(
-            Before,
-            UHExp.Tm(_, UHExp.LineItem(UHExp.LetLine(_, _, _), _)),
-          ) as ze1,
-        ),
-      ),
-    )
-  | (
-      Backspace,
-      ZExp.Deeper(
-        _,
-        ZExp.LineItemZE(
-          UHExp.ExpLine(
-            UHExp.Tm(_, UHExp.Lam(p, ann, UHExp.Tm(_, UHExp.EmptyHole(_)))),
-          ),
-          ZExp.Deeper(
-            _,
-            ZExp.LineItemZL(ZExp.CursorL(Before, UHExp.LetLine(_, _, _)), _)
-          ) as ze1,
-        ),
-      ),
-    ) =>
-    let ze = ZExp.Deeper(NotInHole, ZExp.LamZE(p, ann, ze1));
-    let ty =
-      switch (ann) {
-      | Some(ty_ann) => HTyp.Arrow(UHTyp.expand(ty_ann), ty)
-      | None => HTyp.Arrow(HTyp.Hole, ty)
-      };
-    Some((ze, ty, u_gen));
-  | (
-      Backspace,
-      ZExp.Deeper(
-        _,
-        ZExp.LineItemZE(
           li,
           ZExp.Deeper(_, ZExp.LineItemZL(ZExp.CursorL(_, UHExp.EmptyLine), e2)),
         ),
@@ -3119,43 +3082,6 @@ and perform_ana =
       Some((ze', u_gen));
     | None => None
     }
-  | (
-      Backspace,
-      ZExp.Deeper(
-        _,
-        ZExp.LineItemZE(
-          UHExp.ExpLine(
-            UHExp.Tm(_, UHExp.Lam(p, ann, UHExp.Tm(_, UHExp.EmptyHole(_)))),
-          ),
-          ZExp.CursorE(
-            Before,
-            UHExp.Tm(_, UHExp.LineItem(UHExp.LetLine(_, _, _), _)),
-          ) as ze1,
-        ),
-      ),
-    )
-  | (
-      Backspace,
-      ZExp.Deeper(
-        _,
-        ZExp.LineItemZE(
-          UHExp.ExpLine(
-            UHExp.Tm(_, UHExp.Lam(p, ann, UHExp.Tm(_, UHExp.EmptyHole(_)))),
-          ),
-          ZExp.Deeper(
-            _,
-            ZExp.LineItemZL(ZExp.CursorL(Before, UHExp.LetLine(_, _, _)), _)
-          ) as ze1,
-        ),
-      ),
-    ) =>
-    let ze = ZExp.Deeper(NotInHole, ZExp.LamZE(p, ann, ze1));
-    let ty =
-      switch (ann) {
-      | Some(ty_ann) => HTyp.Arrow(UHTyp.expand(ty_ann), ty)
-      | None => HTyp.Arrow(HTyp.Hole, ty)
-      };
-    zexp_ana_fix_holes(ctx, u_gen, ze, ty);
   | (
       Backspace,
       ZExp.Deeper(
