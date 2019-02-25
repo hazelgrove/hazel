@@ -39,7 +39,7 @@ We can now build the application.
 > make
 ```
 
-The `make` command simply runs `dune build --auto-promote`, which does four things:
+The `make` command simply runs `dune build @fmt --auto-promote`, which does four things:
 
 1. Generates some parsers using `menhir`.
 2. Auto-formats all reason code, using `refmt` (this is why we need `auto-promote`).
