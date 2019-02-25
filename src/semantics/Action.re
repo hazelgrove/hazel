@@ -3728,68 +3728,26 @@ and perform_ana =
         _,
         ZExp.CaseZR(
           e1,
-          (prefix, ZExp.RuleZE(_, ZExp.CursorE(After, _)) as zrule, suffix),
+          (prefix, ZExp.RuleZE(_, ze) as zrule, suffix),
         ),
       ),
-    )
+    ) when ZExp.cursor_at_end(ze) =>
+      let prev_rule = ZExp.erase_rule(zrule);
+      let (zrule, u_gen) = ZExp.empty_zrule(u_gen);
+      let prefix = prefix @ [prev_rule];
+      let ze =
+        ZExp.Deeper(NotInHole, ZExp.CaseZR(e1, (prefix, zrule, suffix)));
+      Some((ze, u_gen));
   | (
       Construct(SLine),
       ZExp.Deeper(
         _,
         ZExp.CaseZR(
           e1,
-          (
-            prefix,
-            ZExp.RuleZE(
-              _,
-              ZExp.Deeper(
-                _,
-                ZExp.OpSeqZ(
-                  _,
-                  ZExp.CursorE(After, _),
-                  OperatorSeq.EmptySuffix(_),
-                ),
-              ),
-            ) as zrule,
-            suffix,
-          ),
+          (prefix, ZExp.RuleZP(zp, _) as zrule, suffix),
         ),
       ),
-    )
-  | (
-      Construct(SLine),
-      ZExp.Deeper(
-        _,
-        ZExp.CaseZR(
-          e1,
-          (prefix, ZExp.RuleZP(ZPat.CursorP(After, _), _) as zrule, suffix),
-        ),
-      ),
-    )
-  | (
-      Construct(SLine),
-      ZExp.Deeper(
-        _,
-        ZExp.CaseZR(
-          e1,
-          (
-            prefix,
-            ZExp.RuleZP(
-              ZPat.Deeper(
-                _,
-                ZPat.OpSeqZ(
-                  _,
-                  ZPat.CursorP(After, _),
-                  OperatorSeq.EmptySuffix(_),
-                ),
-              ),
-              _,
-            ) as zrule,
-            suffix,
-          ),
-        ),
-      ),
-    ) =>
+    ) when ZPat.cursor_at_end(zp) =>
     let prev_rule = ZExp.erase_rule(zrule);
     let (zrule, u_gen) = ZExp.empty_zrule(u_gen);
     let prefix = prefix @ [prev_rule];
