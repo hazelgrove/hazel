@@ -1,8 +1,9 @@
 type nat = int;
 
-let opt_to_bool = fun
-| None => false
-| Some(_) => true;
+let opt_to_bool =
+  fun
+  | None => false
+  | Some(_) => true;
 
 /* Section ListUtil */
 
@@ -47,16 +48,16 @@ let rec unzip = xs =>
     ([x, ...xs], [y, ...ys]);
   };
 
-let rec split_at = (xs, n) => 
+let rec split_at = (xs, n) =>
   switch (xs) {
   | [] => ([], [])
-  | [y, ...ys] => 
-    switch (y == n) {  
-    | true => ([], ys)
-    | false => 
-      let (before, after) = split_at(ys, n);
-      ([y, ...before], after)
-    }
+  | [y, ...ys] =>
+    y == n ?
+      ([], ys) :
+      {
+        let (before, after) = split_at(ys, n);
+        ([y, ...before], after);
+      }
   };
 
 let cons_opt = (n: 'a, x: option(list('a))): option(list('a)) =>
@@ -66,12 +67,7 @@ let cons_opt = (n: 'a, x: option(list('a))): option(list('a)) =>
   };
 
 let cons_opt2 =
-    (
-      n1: 'a,
-      x1: option(list('a)),
-      n2: 'a,
-      x2: unit => option(list('a)),
-    )
+    (n1: 'a, x1: option(list('a)), n2: 'a, x2: unit => option(list('a)))
     : option(list('a)) =>
   switch (x1) {
   | Some(xs) => Some([n1, ...xs])
@@ -105,20 +101,23 @@ let cons_opt3 =
     }
   };
 
-let rec string_of_list' = (string_of_elt) => fun
-| [] => ""
-| [x] => string_of_elt(x)
-| [x, ...xs] => string_of_elt(x) ++ ", " ++ string_of_list'(string_of_elt, xs);
+let rec string_of_list' = string_of_elt =>
+  fun
+  | [] => ""
+  | [x] => string_of_elt(x)
+  | [x, ...xs] =>
+    string_of_elt(x) ++ ", " ++ string_of_list'(string_of_elt, xs);
 
-let string_of_list = (string_of_elt, xs) => 
+let string_of_list = (string_of_elt, xs) =>
   "[" ++ string_of_list'(string_of_elt, xs) ++ "]";
 
-let string_of_pair = (string_of_left, string_of_right, (left, right)) => 
+let string_of_pair = (string_of_left, string_of_right, (left, right)) =>
   "(" ++ string_of_left(left) ++ ", " ++ string_of_right(right) ++ ")";
 
-let string_of_opt = (string_of_elt) => fun
-| None => "None"
-| Some(elt) => "Some(" ++ string_of_elt(elt) ++ ")";
+let string_of_opt = string_of_elt =>
+  fun
+  | None => "None"
+  | Some(elt) => "Some(" ++ string_of_elt(elt) ++ ")";
 
 /* End ListUtil */
 
@@ -158,7 +157,7 @@ module ZList = {
     };
   };
 
-  let prj = (zlist : t('z, 'a)) : (list('a), 'z, list('a)) => zlist;
+  let prj = (zlist: t('z, 'a)): (list('a), 'z, list('a)) => zlist;
 
   let prj_prefix = (zxs: t('z, 'a)): list('a) => {
     let (prefix, _, _) = zxs;
@@ -294,16 +293,16 @@ module ZNatMap = {
     | Some(_) => None
     | None => Some((m, nz))
     };
-  let erase = (zmap : t('a, 'z), erase : 'z => 'a) => { 
+  let erase = (zmap: t('a, 'z), erase: 'z => 'a) => {
     let (map', (n, z)) = zmap;
     NatMap.insert_or_update(map', (n, erase(z)));
   };
-  let prj_map = ((map, _) : t('a, 'z)) : NatMap.t('a) => map;
-  let prj_z_kv = (zmap : t('a, 'z)) : (nat, 'z) => {
+  let prj_map = ((map, _): t('a, 'z)): NatMap.t('a) => map;
+  let prj_z_kv = (zmap: t('a, 'z)): (nat, 'z) => {
     let (_, nz) = zmap;
     nz;
   };
-  let prj_z_v = (zmap : t('a, 'z)) : 'z => {
+  let prj_z_v = (zmap: t('a, 'z)): 'z => {
     let (_, (_, z)) = zmap;
     z;
   };
