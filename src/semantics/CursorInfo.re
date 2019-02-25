@@ -4,72 +4,97 @@ type cursor_mode =
   /*
    *  # cursor in analytic position
    */
+
   | AnaAnnotatedLambda(HTyp.t, HTyp.t)
   /* cursor is on a lambda with an argument type annotation */
+
   | AnaTypeInconsistent(HTyp.t, HTyp.t)
   /* cursor is on a type inconsistent expression */
+
   | AnaWrongLength(
       nat /* expected length */,
       nat, /* got length */
       HTyp.t,
     ) /* expected type */
   /* cursor is on a tuple of the wrong length */
+
   | AnaFree(HTyp.t)
   /* cursor is on a free variable */
+
   | Analyzed(HTyp.t)
   /* none of the above and didn't go through subsumption */
+
   | AnaSubsumed(HTyp.t, HTyp.t)
   /* none of the above and went through subsumption */
+
   /*
    *  # cursor in synthetic position
    */
+
   | SynErrorArrow(HTyp.t /* expected */, HTyp.t) /* got */
   /* cursor is on the function position of an ap,
      and that expression does not synthesize a type
      with a matched arrow type */
+
   | SynMatchingArrow(HTyp.t, HTyp.t)
   /* cursor is on the function position of an ap,
      and that expression does synthesize a type
      with a matched arrow type */
+
   | SynFreeArrow(HTyp.t)
   /* cursor is on a free variable in the function
      position of an ap */
-  | SynEmptyLine
-  /* cursor at empty line */
+
   | SynFree
   /* none of the above, cursor is on a free variable */
+
   | Synthesized(HTyp.t)
   /* none of the above */
+
   /*
    * # cursor in type position
    */
+
   | TypePosition
   /* (we will have a richer structure here later) */
+
   /*
    *  # cursor in analytic pattern position
    */
+
   | PatAnaTypeInconsistent(HTyp.t, HTyp.t)
   /* cursor is on a type inconsistent pattern */
+
   | PatAnaWrongLength(
       nat /* expected length */,
       nat, /* got length */
       HTyp.t,
     ) /* expected type */
   /* cursor is on a tuple pattern of the wrong length */
+
   | PatAnalyzed(HTyp.t)
   /* none of the above and didn't go through subsumption */
+
   | PatAnaSubsumed(HTyp.t, HTyp.t)
   /* none of the above and went through subsumption */
+
   /*
    * # cursor in synthetic pattern position
    */
-  | PatSynthesized(HTyp.t);
+
+  | PatSynthesized(HTyp.t)
+
+  /*
+   *  # cursor on line item
+   */
+
+  | LineItem;
 
 type cursor_sort =
   | IsExpr(UHExp.t)
   | IsPat(UHPat.t)
   | IsType
-  | IsEmptyLine;
+  | IsLineItem(UHExp.line_item);
 
 type t = {
   mode: cursor_mode,
@@ -548,8 +573,12 @@ and syn_cursor_info' = (ctx: Contexts.t, ze: ZExp.t'): option(t) =>
   }
 and syn_line_item_cursor_info = (ctx, zli) =>
   switch (zli) {
-  | ZExp.EmptyLineZ =>
-    Some(mk_cursor_info(SynEmptyLine, IsEmptyLine, Before, ctx))
+  | ZExp.CursorL(side, li) =>
+    Some(mk_cursor_info(LineItem, IsLineItem(li), side, ctx))
+  | ZExp.DeeperL(zli') => syn_line_item_cursor_info'(ctx, zli')
+  }
+and syn_line_item_cursor_info' = (ctx, zli') =>
+  switch (zli') {
   | ZExp.ExpLineZ(ze) => syn_cursor_info(ctx, ze)
   | ZExp.LetLineZP(zp, ann, e1) =>
     switch (ann) {

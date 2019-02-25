@@ -328,14 +328,14 @@ let make =
 
   let constructLet =
     checked_action_button(
-      Action.Construct(Action.SLetLine),
+      Action.Construct(Action.SLet),
       twopiece_lbl_kw("let", ""),
       KCs.equals,
     );
 
   let constructNewLine =
     checked_action_button(
-      Action.Construct(Action.SEmptyLine),
+      Action.Construct(Action.SLine),
       Html5.txt("new line"),
       KCs.enter,
     );

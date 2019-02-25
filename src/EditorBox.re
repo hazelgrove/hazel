@@ -65,7 +65,10 @@ let mk =
               Dom.preventDefault(evt);
               let cursor_info = React.S.value(cursor_info_rs);
               switch (cursor_info.sort) {
-              | CursorInfo.IsEmptyLine
+              | CursorInfo.IsLineItem(UHExp.EmptyLine)
+              | CursorInfo.IsLineItem(
+                  UHExp.ExpLine(UHExp.Tm(_, UHExp.EmptyHole(_))),
+                )
               | CursorInfo.IsExpr(UHExp.Tm(_, UHExp.EmptyHole(_)))
               | CursorInfo.IsPat(UHPat.Pat(_, UHPat.EmptyHole(_)))
               | CursorInfo.IsPat(UHPat.Pat(_, UHPat.Var(""))) =>
@@ -117,6 +120,7 @@ let mk =
                 };
                 Dom_html.stopPropagation(evt);
                 false;
+              | CursorInfo.IsLineItem(_)
               | CursorInfo.IsExpr(_)
               | CursorInfo.IsPat(_)
               | CursorInfo.IsType => true
