@@ -3233,13 +3233,17 @@ and perform_ana =
       ZExp.Deeper(
         _,
         ZExp.LineItemZE(
-          _,
-          ZExp.Deeper(_, ZExp.LineItemZL(ZExp.CursorL(_, UHExp.EmptyLine), _)),
+          li,
+          ZExp.Deeper(_, ZExp.LineItemZL(ZExp.CursorL(_, UHExp.EmptyLine), e2)),
         ),
       ),
-    )
-  | (Delete, ZExp.Deeper(_, ZExp.LineItemZL(ZExp.CursorL(_, UHExp.EmptyLine), _))) =>
-    perform_ana_subsume(u_gen, ctx, a, ze, ty)
+    ) =>
+    let zli = ZExp.place_After_line_item(li);
+    let ze = ZExp.Deeper(NotInHole, ZExp.LineItemZL(zli, e2));
+    Some((ze, u_gen));
+  | (Delete, ZExp.Deeper(_, ZExp.LineItemZL(ZExp.CursorL(_, UHExp.EmptyLine), e1))) =>
+    let ze = ZExp.place_Before(e1);
+    Some((ze, u_gen));
   | (Backspace, ZExp.Deeper(_, ZExp.LineItemZL(ZExp.CursorL(Before, _), e2))) => None
   | (Backspace, ZExp.Deeper(_, ZExp.LineItemZL(ZExp.CursorL(After, _), e2)))
   | (Backspace, ZExp.Deeper(_, ZExp.LineItemZL(ZExp.CursorL(In(_), _), e2))) =>
