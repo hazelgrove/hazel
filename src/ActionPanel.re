@@ -333,6 +333,13 @@ let make =
       KCs.equals,
     );
 
+  let constructNewLine =
+    checked_action_button(
+      Action.Construct(Action.SLine),
+      Html5.txt("new line"),
+      KCs.enter,
+    );
+
   let can_enter_varchar_rs = S.map(Action.can_enter_varchar, cursor_info_rs);
 
   let constructVar =
@@ -430,13 +437,6 @@ let make =
       KCs.alt_C,
     );
 
-  let constructRule =
-    checked_action_button(
-      Action.Construct(Action.SRule),
-      Html5.txt("add rule"),
-      KCs.enter,
-    );
-
   let can_insert_ap_palette_rs =
     S.l1(Action.can_construct_palette, cursor_info_rs);
 
@@ -487,6 +487,7 @@ let make =
             ~a=[a_class(["sub-panel-body"])],
             [
               constructVar,
+              constructNewLine,
               constructLet,
               constructLam,
               constructSpace,
@@ -501,7 +502,6 @@ let make =
               constructInjL,
               constructInjR,
               constructCase,
-              constructRule,
               constructAsc,
               constructApPalette,
             ],

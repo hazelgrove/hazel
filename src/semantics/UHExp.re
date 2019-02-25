@@ -2,42 +2,42 @@ open SemanticsCommon;
 open Util;
 
 type op =
-| Plus
-| Times
-| LessThan
-| Space
-| Comma
-| Cons;
+  | Plus
+  | Times
+  | LessThan
+  | Space
+  | Comma
+  | Cons;
 
 let is_Space =
-fun
-| Space => true
-| _ => false;
+  fun
+  | Space => true
+  | _ => false;
 
 type skel_t = Skel.t(op);
 
 type t =
-| Tm(err_status, t')
-| Parenthesized(t)
+  | Tm(err_status, t')
+  | Parenthesized(t)
 and t' =
-| Asc(t, UHTyp.t)
-| Var(var_err_status, Var.t)
-| Let(UHPat.t, option(UHTyp.t), t, t)
-| Lam(UHPat.t, option(UHTyp.t), t)
-| NumLit(int)
-| BoolLit(bool)
-| Inj(inj_side, t)
-| Case(t, list(rule))
-| ListNil
-| EmptyHole(MetaVar.t)
-| OpSeq(skel_t, opseq) /* invariant: skeleton is consistent with opseq */
-| ApPalette(
-    PaletteName.t,
-    SerializedModel.t,
-    SpliceInfo.t(t)
-  )
+  | Asc(t, UHTyp.t)
+  | Var(var_err_status, Var.t)
+  | LineItem(line_item, t)
+  | Lam(UHPat.t, option(UHTyp.t), t)
+  | NumLit(int)
+  | BoolLit(bool)
+  | Inj(inj_side, t)
+  | Case(t, list(rule))
+  | ListNil
+  | EmptyHole(MetaVar.t)
+  | OpSeq(skel_t, opseq) /* invariant: skeleton is consistent with opseq */
+  | ApPalette(PaletteName.t, SerializedModel.t, SpliceInfo.t(t))
+and line_item =
+  | EmptyLine
+  | ExpLine(t)
+  | LetLine(UHPat.t, option(UHTyp.t), t)
 and rule =
-| Rule(UHPat.t, t)
+  | Rule(UHPat.t, t)
 and rules = list(rule)
 and opseq = OperatorSeq.opseq(t, op)
 and splice_info = SpliceInfo.t(t)
@@ -99,7 +99,7 @@ let bidelimited =
   | Parenthesized(_) => true
   /* non-bidelimited cases */
   | Tm(_, Asc(_, _))
-  | Tm(_, Let(_, _, _, _))
+  | Tm(_, LineItem(_, _))
   | Tm(_, Lam(_, _, _))
   | Tm(_, OpSeq(_, _)) => false;
 
@@ -114,7 +114,7 @@ let bidelimit = e =>
 /* put e in the specified hole */
 let rec set_err_status = err =>
   fun
-  | Tm(_, OpSeq(Skel.BinOp(_, op, skel1, skel2), seq)) =>  
+  | Tm(_, OpSeq(Skel.BinOp(_, op, skel1, skel2), seq)) =>
     Tm(err, OpSeq(Skel.BinOp(err, op, skel1, skel2), seq))
   | Tm(_, e') => Tm(err, e')
   | Parenthesized(e') => Parenthesized(set_err_status(err, e'));
@@ -126,7 +126,7 @@ let rec make_inconsistent = (u_gen, e) =>
   | Tm(InHole(WrongLength, _), _) =>
     let (u, u_gen) = MetaVarGen.next(u_gen);
     let e = set_err_status(InHole(TypeInconsistent, u), e);
-    (e, u_gen)
+    (e, u_gen);
   | Tm(InHole(TypeInconsistent, _), _) => (e, u_gen)
   | Parenthesized(e1) =>
     switch (make_inconsistent(u_gen, e1)) {
@@ -165,3 +165,13 @@ let rec drop_outer_parentheses = e =>
   | Parenthesized(e') => drop_outer_parentheses(e')
   };
 
+let prune_single_hole_line = li =>
+  switch (li) {
+  | ExpLine(Tm(_, EmptyHole(_))) => EmptyLine
+  | ExpLine(_)
+  | EmptyLine
+  | LetLine(_, _, _) => li
+  };
+
+let prepend_line = (li: line_item, e: t): t =>
+  Tm(NotInHole, LineItem(li, e));

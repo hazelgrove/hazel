@@ -16,6 +16,7 @@ let op = taggedText("op");
 let var = s => taggedText("var", s);
 let paletteName = s => taggedText("paletteName", s);
 let space = taggedText("space", " ");
+let empty = taggedText("", "");
 
 /* Helpers */
 let rec id_of_rev_path = (prefix, rev_path) =>
@@ -48,6 +49,11 @@ let term_classes = (prefix, err_status, rev_path, classes, doc) => {
     None,
     doc,
   );
+};
+
+let line = (prefix, rev_path, cls, doc) => {
+  let id' = id_of_rev_path(prefix, rev_path);
+  PP.tagged([cls], Some((id', rev_path)), None, doc);
 };
 
 let term = (prefix, err_status, rev_path, cls, doc) => {
@@ -283,6 +289,32 @@ let of_Var = (prefix, err_status, var_err_status, rev_path, x) =>
     var(x),
   );
 
+let of_EmptyLine = (prefix, rev_path) =>
+  line(prefix, rev_path, "EmptyLine", empty);
+
+let of_ExpLine = (prefix, rev_path, r1) =>
+  line(prefix, rev_path, "ExpLine", r1);
+
+let of_LetLine = (prefix, rev_path, rx, rann, r1) => {
+  let first_part = PP.blockBoundary ^^ kw("let") ^^ space ^^ rx;
+  let second_part = of_op(" = ", "let-equals") ^^ PP.nestAbsolute(2, r1);
+  let view =
+    switch (rann) {
+    | Some(r) => first_part ^^ of_op(" : ", "ann") ^^ r ^^ second_part
+    | None => first_part ^^ second_part
+    };
+  line(prefix, rev_path, "LetLine", view);
+};
+
+let of_LineItem = (prefix, err_status, rev_path, rli, r2) =>
+  term(
+    prefix,
+    err_status,
+    rev_path,
+    "LineItem",
+    rli ^^ PP.mandatoryBreak ^^ r2,
+  );
+
 let of_Let = (prefix, err_status, rev_path, rx, rann, r1, r2) => {
   let first_part = PP.blockBoundary ^^ kw("let") ^^ space ^^ rx;
   let second_part =
@@ -295,7 +327,7 @@ let of_Let = (prefix, err_status, rev_path, rx, rann, r1, r2) => {
     | Some(r) => first_part ^^ of_op(" : ", "ann") ^^ r ^^ second_part
     | None => first_part ^^ second_part
     };
-  term(prefix, err_status, rev_path, "Let", view);
+  line(prefix, rev_path, "LetLine", view);
 };
 
 let of_FixF = (prefix, err_status, rev_path, rx, rty, r1) => {
@@ -472,7 +504,7 @@ let of_chained_FailedCast =
 
 let is_block = e =>
   switch (e) {
-  | UHExp.Tm(_, UHExp.Let(_, _, _, _)) => true
+  | UHExp.Tm(_, UHExp.LineItem(_, _)) => true
   | UHExp.Tm(_, UHExp.Case(_, _)) => true
   | _ => false
   };
@@ -615,16 +647,27 @@ let rec of_hexp = (palette_stuff, prefix, rev_path, e) =>
       of_Asc(prefix, err_status, rev_path, r1, r2);
     | UHExp.Var(var_err_status, x) =>
       of_Var(prefix, err_status, var_err_status, rev_path, x)
-    | UHExp.Let(p, ann, e1, e2) =>
-      let rp = of_hpat(prefix, [0, ...rev_path], p);
-      let rann =
-        switch (ann) {
-        | Some(uty1) => Some(of_uhtyp(prefix, [1, ...rev_path], uty1))
-        | None => None
+    | UHExp.LineItem(li, e2) =>
+      let rev_path_li = [0, ...rev_path];
+      let rli =
+        switch (li) {
+        | UHExp.EmptyLine => of_EmptyLine(prefix, rev_path_li)
+        | UHExp.LetLine(p, ann, e1) =>
+          let rp = of_hpat(prefix, [0, ...rev_path_li], p);
+          let rann =
+            switch (ann) {
+            | Some(uty1) =>
+              Some(of_uhtyp(prefix, [1, ...rev_path_li], uty1))
+            | None => None
+            };
+          let r1 = of_hexp(palette_stuff, prefix, [2, ...rev_path_li], e1);
+          of_LetLine(prefix, rev_path_li, rp, rann, r1);
+        | UHExp.ExpLine(e1) =>
+          let r1 = of_hexp(palette_stuff, prefix, rev_path_li, e1);
+          of_ExpLine(prefix, rev_path_li, r1);
         };
-      let r1 = of_hexp(palette_stuff, prefix, [2, ...rev_path], e1);
-      let r2 = of_hexp(palette_stuff, prefix, [3, ...rev_path], e2);
-      of_Let(prefix, err_status, rev_path, rp, rann, r1, r2);
+      let r2 = of_hexp(palette_stuff, prefix, [1, ...rev_path], e2);
+      of_LineItem(prefix, err_status, rev_path, rli, r2);
     | UHExp.Lam(p, ann, e1) =>
       let rp = of_hpat(prefix, [0, ...rev_path], p);
       let rann =
