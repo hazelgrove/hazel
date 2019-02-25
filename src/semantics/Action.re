@@ -2071,8 +2071,8 @@ let rec perform_syn_internal =
         ));
       Some((ze, ty, u_gen));
     }
-  | (Delete, ZExp.Deeper(_, ZExp.LineItemZL(ZExp.CursorL(Before, _), e2))) => None
-  | (Delete, ZExp.Deeper(_, ZExp.LineItemZL(ZExp.CursorL(After, _), e2)))
+  | (Delete, ZExp.Deeper(_, ZExp.LineItemZL(ZExp.CursorL(After, _), e2))) => None
+  | (Delete, ZExp.Deeper(_, ZExp.LineItemZL(ZExp.CursorL(Before, _), e2)))
   | (Delete, ZExp.Deeper(_, ZExp.LineItemZL(ZExp.CursorL(In(_), _), e2))) =>
     switch (Statics.syn_fix_holes(ctx, u_gen, e2)) {
     | None => None
@@ -3312,8 +3312,8 @@ and perform_ana =
         ));
       Some((ze, u_gen));
     }
-  | (Delete, ZExp.Deeper(_, ZExp.LineItemZL(ZExp.CursorL(Before, _), e2))) => None
-  | (Delete, ZExp.Deeper(_, ZExp.LineItemZL(ZExp.CursorL(After, _), e2)))
+  | (Delete, ZExp.Deeper(_, ZExp.LineItemZL(ZExp.CursorL(After, _), e2))) => None
+  | (Delete, ZExp.Deeper(_, ZExp.LineItemZL(ZExp.CursorL(Before, _), e2)))
   | (Delete, ZExp.Deeper(_, ZExp.LineItemZL(ZExp.CursorL(In(_), _), e2))) =>
     switch (Statics.ana_fix_holes(ctx, u_gen, e2, ty)) {
     | None => None
