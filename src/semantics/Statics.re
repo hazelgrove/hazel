@@ -1,5 +1,5 @@
 open SemanticsCommon;
-open Util;
+open HazelUtil;
 
 /* see syn_skel and ana_skel below */
 type type_mode =
@@ -252,7 +252,7 @@ and ana_skel_pat = (ctx, skel, seq, ty, monitor) =>
     | HTyp.Prod(ty1, ty2) =>
       let types = HTyp.get_tuple(ty1, ty2);
       let skels = UHPat.get_tuple(skel1, skel2);
-      switch (Util.zip_eq(skels, types)) {
+      switch (HazelUtil.zip_eq(skels, types)) {
       | None => None
       | Some(zipped) =>
         List.fold_left(
@@ -729,7 +729,7 @@ and ana_skel = (ctx, skel, seq, ty, monitor) =>
     | HTyp.Prod(ty1, ty2) =>
       let types = HTyp.get_tuple(ty1, ty2);
       let skels = UHExp.get_tuple(skel1, skel2);
-      switch (Util.zip_eq(skels, types)) {
+      switch (HazelUtil.zip_eq(skels, types)) {
       | None => None
       | Some(zipped) =>
         List.fold_left(
@@ -1145,7 +1145,7 @@ and ana_skel_pat_fix_holes = (ctx, u_gen, renumber_empty_holes, skel, seq, ty) =
     | HTyp.Prod(ty1, ty2) =>
       let types = HTyp.get_tuple(ty1, ty2);
       let skels = UHPat.get_tuple(skel1, skel2);
-      switch (Util.zip_eq(skels, types)) {
+      switch (HazelUtil.zip_eq(skels, types)) {
       | Some(zipped) =>
         let fixed =
           List.fold_right(
@@ -2012,7 +2012,7 @@ and ana_skel_fix_holes = (ctx, u_gen, renumber_empty_holes, skel, seq, ty) =>
     | HTyp.Prod(ty1, ty2) =>
       let types = HTyp.get_tuple(ty1, ty2);
       let skels = UHExp.get_tuple(skel1, skel2);
-      switch (Util.zip_eq(skels, types)) {
+      switch (HazelUtil.zip_eq(skels, types)) {
       | Some(zipped) =>
         let fixed =
           List.fold_right(

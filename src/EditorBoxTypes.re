@@ -8,4 +8,4 @@ type t = {
   rev_paths,
 };
 type mk_editor_box = (rev_path, rev_paths, UHExp.t) => t;
-module NatMap = Util.NatMap;
+module NatMap = HazelUtil.NatMap;

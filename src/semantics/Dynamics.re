@@ -338,7 +338,7 @@ module DHPat = {
           switch (processed2) {
           | None => DoesNotExpand
           | Some((elts2, ctx, delta)) =>
-            let (ds, tys) = Util.unzip(elts1 @ elts2);
+            let (ds, tys) = HazelUtil.unzip(elts1 @ elts2);
             let d = make_tuple(ds);
             let ty = HTyp.make_tuple(tys);
             Expands(d, ty, ctx, delta);
@@ -1584,7 +1584,7 @@ module DHExp = {
           switch (processed2) {
           | None => DoesNotExpand
           | Some((elts2, delta)) =>
-            let (ds, tys) = Util.unzip(elts1 @ elts2);
+            let (ds, tys) = HazelUtil.unzip(elts1 @ elts2);
             let d = make_tuple(ds);
             let ty = HTyp.make_tuple(tys);
             Expands(d, ty, delta);
@@ -1659,7 +1659,7 @@ module DHExp = {
         MetaVarMap.update_with(
           instances => {
             let length = List.length(instances);
-            Util.update_nth(
+            HazelUtil.update_nth(
               length - i - 1,
               instances,
               (inst_info: (Environment.t, InstancePath.t)) => {
