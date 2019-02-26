@@ -285,7 +285,7 @@ and ana_skel_pat_cursor_info =
     | HTyp.Prod(ty1, ty2) =>
       let types = HTyp.get_tuple(ty1, ty2);
       let skels = UHPat.get_tuple(skel1, skel2);
-      switch (Util.zip_eq(skels, types)) {
+      switch (HazelUtil.zip_eq(skels, types)) {
       | None => None
       | Some(zipped) =>
         List.fold_left(
@@ -545,7 +545,7 @@ and syn_cursor_info' = (ctx: Contexts.t, ze: ZExp.t'): option(t) =>
     let n = OperatorSeq.surround_prefix_length(surround);
     syn_skel_cursor_info(ctx, skel, seq, n, ze0);
   | ZExp.ApPaletteZ(_, _, zpsi) =>
-    let (ty, ze) = Util.ZNatMap.prj_z_v(zpsi.zsplice_map);
+    let (ty, ze) = HazelUtil.ZNatMap.prj_z_v(zpsi.zsplice_map);
     ana_cursor_info(ctx, ze, ty);
   }
 and syn_line_item_cursor_info = (ctx, zli) =>
@@ -625,7 +625,7 @@ and ana_cursor_info' = (ctx: Contexts.t, ze: ZExp.t', ty: HTyp.t): option(t) =>
     switch (Statics.syn(ctx, e1)) {
     | None => None
     | Some(ty1) =>
-      let zrule = Util.ZList.prj_z(zrules);
+      let zrule = HazelUtil.ZList.prj_z(zrules);
       ana_rule_cursor_info(ctx, zrule, ty1, ty);
     }
   | ZExp.OpSeqZ(skel, ze0, surround) =>
@@ -791,7 +791,7 @@ and ana_skel_cursor_info =
     | HTyp.Prod(ty1, ty2) =>
       let types = HTyp.get_tuple(ty1, ty2);
       let skels = UHExp.get_tuple(skel1, skel2);
-      switch (Util.zip_eq(skels, types)) {
+      switch (HazelUtil.zip_eq(skels, types)) {
       | None => None
       | Some(zipped) =>
         List.fold_left(

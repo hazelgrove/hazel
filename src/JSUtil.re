@@ -1,4 +1,4 @@
-module U = Util;
+module U = HazelUtil;
 open Tyxml_js;
 open React;
 module Js = Js_of_ocaml.Js;
