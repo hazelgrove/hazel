@@ -1,8 +1,8 @@
 open SemanticsCommon;
-open Util;
+open HazelUtil;
 
 type steps = list(nat);
-let string_of_steps = Util.string_of_list(string_of_int);
+let string_of_steps = HazelUtil.string_of_list(string_of_int);
 
 type t = (steps, ZExp.cursor_side);
 
@@ -357,8 +357,8 @@ let string_of_hole_desc =
 type hole_list = list((hole_desc, steps));
 
 let string_of_hole_list = hole_list =>
-  Util.string_of_list(
-    Util.string_of_pair(string_of_hole_desc, string_of_steps),
+  HazelUtil.string_of_list(
+    HazelUtil.string_of_pair(string_of_hole_desc, string_of_steps),
     hole_list,
   );
 
@@ -482,8 +482,8 @@ let string_of_zhole_list = ({holes_before, hole_selected, holes_after}) =>
   ++ string_of_hole_list(holes_before)
   ++ ", \n"
   ++ "  hole_selected: "
-  ++ Util.string_of_opt(
-       Util.string_of_pair(string_of_hole_desc, string_of_steps),
+  ++ HazelUtil.string_of_opt(
+       HazelUtil.string_of_pair(string_of_hole_desc, string_of_steps),
        hole_selected,
      )
   ++ ", \n"
@@ -768,7 +768,8 @@ let rec holes_ze = (ze, steps): zhole_list =>
         holes_ze(ze, [n, ...steps]);
       let splice_order = zpsi.splice_order;
       let splice_map = ZNatMap.prj_map(zsplice_map);
-      let (splices_before, splices_after) = Util.split_at(splice_order, n);
+      let (splices_before, splices_after) =
+        HazelUtil.split_at(splice_order, n);
       let holes_splices_before =
         List.fold_left(
           (holes, n) =>

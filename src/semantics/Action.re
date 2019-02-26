@@ -1,6 +1,6 @@
 let _TEST_PERFORM = true;
 open SemanticsCommon;
-open Util;
+open HazelUtil;
 
 type op_shape =
   | SPlus
