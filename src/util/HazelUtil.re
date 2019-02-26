@@ -7,6 +7,29 @@ let opt_to_bool =
 
 /* Section ListUtil */
 
+/* repeat an element n times */
+let replicate = (n: int, e: 'a): list('a) => {
+  /* add c additional copies of e to xs */
+  let rec f = (c, xs) =>
+    if (c > 0) {
+      f(c - 1, [e, ...xs]);
+    } else {
+      xs;
+    };
+  f(n, []);
+};
+
+/* remove the first n elements from the given list */
+let rec drop = (n: int, xs: list('a)) =>
+  if (n > 0) {
+    switch (xs) {
+    | [] => []
+    | [_, ...tl] => drop(n - 1, tl)
+    };
+  } else {
+    xs;
+  };
+
 let rec update_nth = (n, xs, f) =>
   switch (n, xs) {
   | (_, []) => []

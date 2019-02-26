@@ -1,5 +1,5 @@
 open SemanticsCommon;
-open Util;
+open HazelUtil;
 
 type nat = int;
 
