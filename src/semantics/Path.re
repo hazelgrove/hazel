@@ -71,7 +71,7 @@ and of_zline_item = (zli: ZExp.zline_item): t =>
   }
 and of_zline_item' = (zli': ZExp.zline_item'): t =>
   switch (zli') {
-  | ZExp.ExpLineZ(ze) => of_zexp(ze)
+  | ZExp.ExpLineZ(ze) => cons'(0, of_zexp(ze))
   | ZExp.LetLineZP(zp, _, _) => cons'(0, of_zpat(zp))
   | ZExp.LetLineZA(_, zann, _) => cons'(1, of_ztyp(zann))
   | ZExp.LetLineZE(_, _, ze) => cons'(2, of_zexp(ze))
@@ -298,11 +298,12 @@ and follow_line_item =
   switch (path, li) {
   | (([], cursor_side), li) => Some(ZExp.CursorL(cursor_side, li))
   | (_, UHExp.EmptyLine) => None
-  | (_, UHExp.ExpLine(e)) =>
-    switch (follow_e(path, e)) {
+  | (([0, ...xs], cursor_side), UHExp.ExpLine(e)) =>
+    switch (follow_e((xs, cursor_side), e)) {
     | None => None
     | Some(ze) => Some(ZExp.DeeperL(ZExp.ExpLineZ(ze)))
     }
+  | (_, UHExp.ExpLine(_)) => None
   | (([0, ...xs], cursor_side), UHExp.LetLine(p, ann, e1)) =>
     switch (follow_pat((xs, cursor_side), p)) {
     | None => None
