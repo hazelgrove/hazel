@@ -82,6 +82,15 @@ let mk =
                 Dom_html.stopPropagation(evt);
                 do_action(Action.Construct(shape));
                 false;
+              | CursorInfo.IsLineItem(
+                  UHExp.ExpLine(UHExp.Tm(_, UHExp.NumLit(_))),
+                )
+              | CursorInfo.IsLineItem(
+                  UHExp.ExpLine(UHExp.Tm(_, UHExp.BoolLit(_))),
+                )
+              | CursorInfo.IsLineItem(
+                  UHExp.ExpLine(UHExp.Tm(_, UHExp.Var(_, _))),
+                )
               | CursorInfo.IsExpr(UHExp.Tm(_, UHExp.NumLit(_)))
               | CursorInfo.IsExpr(UHExp.Tm(_, UHExp.BoolLit(_)))
               | CursorInfo.IsExpr(UHExp.Tm(_, UHExp.Var(_, _)))
