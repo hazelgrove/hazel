@@ -329,3 +329,9 @@ let prune_and_prepend_zline = (~err_status=?, zli: zline_item, e: UHExp.t): t =>
     prune_single_hole_line(zli),
     e,
   );
+
+let is_After_keyword = (ze: t): bool =>
+  switch (ze) {
+  | CursorE(After, e) when UHExp.is_keyword(e) => true
+  | _ => false
+  };
