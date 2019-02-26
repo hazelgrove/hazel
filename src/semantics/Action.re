@@ -2233,6 +2233,90 @@ let rec perform_syn =
     let ze' = ZExp.CursorE(Before, e');
     Some((ze', HTyp.Hole, u_gen'));
   /* Construction */
+  | (
+      Construct(SOp(SSpace)),
+      ZExp.CursorE(After, UHExp.Tm(_, UHExp.Var(_, "let"))),
+    ) =>
+    let (zp, u_gen) = ZPat.new_EmptyHole(u_gen);
+    let (e1, u_gen) = UHExp.new_EmptyHole(u_gen);
+    let (e2, u_gen) = UHExp.new_EmptyHole(u_gen);
+    let ze = ZExp.(prepend_zline(DeeperL(LetLineZP(zp, None, e1)), e2));
+    Some((ze, HTyp.Hole, u_gen));
+  | (
+      Construct(SOp(SSpace)),
+      ZExp.Deeper(
+        _,
+        ZExp.OpSeqZ(
+          _,
+          ZExp.CursorE(After, UHExp.Tm(_, UHExp.Var(_, "let"))),
+          OperatorSeq.EmptyPrefix(OperatorSeq.ExpSuffix(UHExp.Space, e1)),
+        ),
+      ),
+    ) =>
+    let (zp, u_gen) = ZPat.new_EmptyHole(u_gen);
+    let (e2, u_gen) = UHExp.new_EmptyHole(u_gen);
+    let ze = ZExp.(prepend_zline(DeeperL(LetLineZP(zp, None, e1)), e2));
+    Some((ze, HTyp.Hole, u_gen));
+  | (
+      Construct(SOp(SSpace)),
+      ZExp.Deeper(
+        _,
+        ZExp.OpSeqZ(
+          _,
+          ZExp.CursorE(After, UHExp.Tm(_, UHExp.Var(_, "let"))),
+          OperatorSeq.EmptyPrefix(OperatorSeq.SeqSuffix(UHExp.Space, opseq)),
+        ),
+      ),
+    ) =>
+    let skel = Associator.associate_exp(opseq);
+    switch (Statics.syn_skel_fix_holes(ctx, u_gen, false, skel, opseq)) {
+    | None => None
+    | Some((skel, seq, ty1, u_gen)) =>
+      let (zp, u_gen) = ZPat.new_EmptyHole(u_gen);
+      let e1 = UHExp.Tm(NotInHole, UHExp.OpSeq(skel, opseq));
+      let (e2, u_gen) = UHExp.new_EmptyHole(u_gen);
+      let ze = ZExp.(prepend_zline(DeeperL(LetLineZP(zp, None, e1)), e2));
+      Some((ze, HTyp.Hole, u_gen));
+    };
+  | (
+      Construct(SOp(SSpace)),
+      ZExp.Deeper(
+        _,
+        ZExp.OpSeqZ(
+          _,
+          ZExp.CursorE(After, UHExp.Tm(_, UHExp.Var(_, "let"))),
+          surround,
+        ),
+      ),
+    ) =>
+    let (zp, u_gen) = ZPat.new_EmptyHole(u_gen);
+    let (hole, u_gen) = UHExp.new_EmptyHole(u_gen);
+    let e1 =
+      switch (surround) {
+      | EmptySuffix(_) => hole
+      | EmptyPrefix(suffix)
+      | BothNonEmpty(_, suffix) =>
+        let opseq = OperatorSeq.opseq_of_exp_and_suffix(hole, suffix);
+        let skel = Associator.associate_exp(opseq);
+        UHExp.Tm(NotInHole, UHExp.OpSeq(skel, opseq));
+      };
+    let (e2, u_gen) = UHExp.new_EmptyHole(u_gen);
+    let ze_let = ZExp.(prepend_zline(DeeperL(LetLineZP(zp, None, e1)), e2));
+    let ze =
+      switch (surround) {
+      | EmptyPrefix(_) => ze_let
+      | EmptySuffix(prefix)
+      | BothNonEmpty(prefix, _) =>
+        let ze_let = ZExp.ParenthesizedZ(ze_let);
+        let opseq =
+          OperatorSeq.opseq_of_prefix_and_exp(prefix, ZExp.erase(ze_let));
+        let skel = Associator.associate_exp(opseq);
+        ZExp.Deeper(
+          NotInHole,
+          ZExp.OpSeqZ(skel, ze_let, OperatorSeq.EmptySuffix(prefix)),
+        );
+      };
+    zexp_syn_fix_holes(ctx, u_gen, ze);
   | (Construct(SParenthesized), ZExp.CursorE(cursor_side, e)) =>
     Some((ZExp.ParenthesizedZ(ze), ty, u_gen))
   | (Construct(SAsc), ZExp.CursorE(_, e)) =>
@@ -3392,6 +3476,45 @@ and perform_ana =
       surround,
     )
   /* Construction */
+  | (
+      Construct(SOp(SSpace)),
+      ZExp.Deeper(
+        _,
+        ZExp.OpSeqZ(
+          _,
+          ZExp.CursorE(After, UHExp.Tm(_, UHExp.Var(_, "let"))),
+          surround,
+        ),
+      ),
+    ) =>
+    let (zp, u_gen) = ZPat.new_EmptyHole(u_gen);
+    let (hole, u_gen) = UHExp.new_EmptyHole(u_gen);
+    let e1 =
+      switch (surround) {
+      | EmptySuffix(_) => hole
+      | EmptyPrefix(suffix)
+      | BothNonEmpty(_, suffix) =>
+        let opseq = OperatorSeq.opseq_of_exp_and_suffix(hole, suffix);
+        let skel = Associator.associate_exp(opseq);
+        UHExp.Tm(NotInHole, UHExp.OpSeq(skel, opseq));
+      };
+    let (e2, u_gen) = UHExp.new_EmptyHole(u_gen);
+    let ze_let = ZExp.(prepend_zline(DeeperL(LetLineZP(zp, None, e1)), e2));
+    let ze =
+      switch (surround) {
+      | EmptyPrefix(_) => ze_let
+      | EmptySuffix(prefix)
+      | BothNonEmpty(prefix, _) =>
+        let ze_let = ZExp.ParenthesizedZ(ze_let);
+        let opseq =
+          OperatorSeq.opseq_of_prefix_and_exp(prefix, ZExp.erase(ze_let));
+        let skel = Associator.associate_exp(opseq);
+        ZExp.Deeper(
+          NotInHole,
+          ZExp.OpSeqZ(skel, ze_let, OperatorSeq.EmptySuffix(prefix)),
+        );
+      };
+    zexp_ana_fix_holes(ctx, u_gen, ze, ty);
   | (Construct(SParenthesized), ZExp.CursorE(_, e)) =>
     Some((ZExp.ParenthesizedZ(ze), u_gen))
   | (Construct(SAsc), ZExp.CursorE(_, e)) =>
