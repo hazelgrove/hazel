@@ -2268,73 +2268,24 @@ let rec perform_syn =
     zexp_syn_fix_holes(ctx, u_gen, ze);
   | (
       Construct(SOp(SSpace)),
-      ZExp.Deeper(
-        _,
-        ZExp.OpSeqZ(_, ze, OperatorSeq.EmptyPrefix(suffix) as surround),
-      ),
+      ZExp.Deeper(_, ZExp.OpSeqZ(_, ze, OperatorSeq.EmptyPrefix(suffix))),
     )
-  | (
-      Construct(SOp(SSpace)),
-      ZExp.Deeper(
-        _,
-        ZExp.OpSeqZ(_, ze, OperatorSeq.BothNonEmpty(_, suffix) as surround),
-      ),
-    )
-      when
-        ZExp.is_After_keyword(ze) && UHExp.suffix_starts_with_Space(suffix) =>
+      when ZExp.is_After_keyword(ze) =>
     let (zp, u_gen) = ZPat.new_EmptyHole(u_gen);
     let e1 =
       switch (suffix) {
-      | ExpSuffix(_, e) => e
-      | SeqSuffix(_, seq) =>
+      | ExpSuffix(UHExp.Space, e) => e
+      | SeqSuffix(UHExp.Space, seq) =>
         UHExp.Tm(NotInHole, UHExp.OpSeq(Associator.associate_exp(seq), seq))
-      };
-    let (e2, u_gen) = UHExp.new_EmptyHole(u_gen);
-    let ze_let = ZExp.(prepend_zline(DeeperL(LetLineZP(zp, None, e1)), e2));
-    let ze =
-      switch (surround) {
-      | EmptyPrefix(_) => ze_let
-      | EmptySuffix(prefix)
-      | BothNonEmpty(prefix, _) =>
-        let ze_let = ZExp.ParenthesizedZ(ze_let);
-        let opseq =
-          OperatorSeq.opseq_of_prefix_and_exp(prefix, ZExp.erase(ze_let));
-        let skel = Associator.associate_exp(opseq);
-        ZExp.Deeper(
-          NotInHole,
-          ZExp.OpSeqZ(skel, ze_let, OperatorSeq.EmptySuffix(prefix)),
-        );
-      };
-    zexp_syn_fix_holes(ctx, u_gen, ze);
-  | (Construct(SOp(SSpace)), ZExp.Deeper(_, ZExp.OpSeqZ(_, ze, surround)))
-      when ZExp.is_After_keyword(ze) =>
-    let (zp, u_gen) = ZPat.new_EmptyHole(u_gen);
-    let (hole, u_gen) = UHExp.new_EmptyHole(u_gen);
-    let e1 =
-      switch (surround) {
-      | EmptySuffix(_) => hole
-      | EmptyPrefix(suffix)
-      | BothNonEmpty(_, suffix) =>
+      | ExpSuffix(_, _)
+      | SeqSuffix(_, _) =>
+        let (hole, u_gen) = UHExp.new_EmptyHole(u_gen);
         let opseq = OperatorSeq.opseq_of_exp_and_suffix(hole, suffix);
         let skel = Associator.associate_exp(opseq);
         UHExp.Tm(NotInHole, UHExp.OpSeq(skel, opseq));
       };
     let (e2, u_gen) = UHExp.new_EmptyHole(u_gen);
-    let ze_let = ZExp.(prepend_zline(DeeperL(LetLineZP(zp, None, e1)), e2));
-    let ze =
-      switch (surround) {
-      | EmptyPrefix(_) => ze_let
-      | EmptySuffix(prefix)
-      | BothNonEmpty(prefix, _) =>
-        let ze_let = ZExp.ParenthesizedZ(ze_let);
-        let opseq =
-          OperatorSeq.opseq_of_prefix_and_exp(prefix, ZExp.erase(ze_let));
-        let skel = Associator.associate_exp(opseq);
-        ZExp.Deeper(
-          NotInHole,
-          ZExp.OpSeqZ(skel, ze_let, OperatorSeq.EmptySuffix(prefix)),
-        );
-      };
+    let ze = ZExp.(prepend_zline(DeeperL(LetLineZP(zp, None, e1)), e2));
     zexp_syn_fix_holes(ctx, u_gen, ze);
   | (Construct(SOp(SSpace)), ze) when ZExp.is_After_keyword(ze) =>
     let (zp, u_gen) = ZPat.new_EmptyHole(u_gen);
@@ -3536,73 +3487,24 @@ and perform_ana =
     zexp_ana_fix_holes(ctx, u_gen, ze, ty);
   | (
       Construct(SOp(SSpace)),
-      ZExp.Deeper(
-        _,
-        ZExp.OpSeqZ(_, ze, OperatorSeq.EmptyPrefix(suffix) as surround),
-      ),
+      ZExp.Deeper(_, ZExp.OpSeqZ(_, ze, OperatorSeq.EmptyPrefix(suffix))),
     )
-  | (
-      Construct(SOp(SSpace)),
-      ZExp.Deeper(
-        _,
-        ZExp.OpSeqZ(_, ze, OperatorSeq.BothNonEmpty(_, suffix) as surround),
-      ),
-    )
-      when
-        ZExp.is_After_keyword(ze) && UHExp.suffix_starts_with_Space(suffix) =>
+      when ZExp.is_After_keyword(ze) =>
     let (zp, u_gen) = ZPat.new_EmptyHole(u_gen);
     let e1 =
       switch (suffix) {
-      | ExpSuffix(_, e) => e
-      | SeqSuffix(_, seq) =>
+      | ExpSuffix(UHExp.Space, e) => e
+      | SeqSuffix(UHExp.Space, seq) =>
         UHExp.Tm(NotInHole, UHExp.OpSeq(Associator.associate_exp(seq), seq))
-      };
-    let (e2, u_gen) = UHExp.new_EmptyHole(u_gen);
-    let ze_let = ZExp.(prepend_zline(DeeperL(LetLineZP(zp, None, e1)), e2));
-    let ze =
-      switch (surround) {
-      | EmptyPrefix(_) => ze_let
-      | EmptySuffix(prefix)
-      | BothNonEmpty(prefix, _) =>
-        let ze_let = ZExp.ParenthesizedZ(ze_let);
-        let opseq =
-          OperatorSeq.opseq_of_prefix_and_exp(prefix, ZExp.erase(ze_let));
-        let skel = Associator.associate_exp(opseq);
-        ZExp.Deeper(
-          NotInHole,
-          ZExp.OpSeqZ(skel, ze_let, OperatorSeq.EmptySuffix(prefix)),
-        );
-      };
-    zexp_ana_fix_holes(ctx, u_gen, ze, ty);
-  | (Construct(SOp(SSpace)), ZExp.Deeper(_, ZExp.OpSeqZ(_, ze, surround)))
-      when ZExp.is_After_keyword(ze) =>
-    let (zp, u_gen) = ZPat.new_EmptyHole(u_gen);
-    let (hole, u_gen) = UHExp.new_EmptyHole(u_gen);
-    let e1 =
-      switch (surround) {
-      | EmptySuffix(_) => hole
-      | EmptyPrefix(suffix)
-      | BothNonEmpty(_, suffix) =>
+      | ExpSuffix(_, _)
+      | SeqSuffix(_, _) =>
+        let (hole, u_gen) = UHExp.new_EmptyHole(u_gen);
         let opseq = OperatorSeq.opseq_of_exp_and_suffix(hole, suffix);
         let skel = Associator.associate_exp(opseq);
         UHExp.Tm(NotInHole, UHExp.OpSeq(skel, opseq));
       };
     let (e2, u_gen) = UHExp.new_EmptyHole(u_gen);
-    let ze_let = ZExp.(prepend_zline(DeeperL(LetLineZP(zp, None, e1)), e2));
-    let ze =
-      switch (surround) {
-      | EmptyPrefix(_) => ze_let
-      | EmptySuffix(prefix)
-      | BothNonEmpty(prefix, _) =>
-        let ze_let = ZExp.ParenthesizedZ(ze_let);
-        let opseq =
-          OperatorSeq.opseq_of_prefix_and_exp(prefix, ZExp.erase(ze_let));
-        let skel = Associator.associate_exp(opseq);
-        ZExp.Deeper(
-          NotInHole,
-          ZExp.OpSeqZ(skel, ze_let, OperatorSeq.EmptySuffix(prefix)),
-        );
-      };
+    let ze = ZExp.(prepend_zline(DeeperL(LetLineZP(zp, None, e1)), e2));
     zexp_ana_fix_holes(ctx, u_gen, ze, ty);
   | (Construct(SOp(SSpace)), ze) when ZExp.is_After_keyword(ze) =>
     let (zp, u_gen) = ZPat.new_EmptyHole(u_gen);
