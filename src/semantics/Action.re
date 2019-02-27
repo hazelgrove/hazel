@@ -2268,6 +2268,15 @@ let rec perform_syn =
     zexp_syn_fix_holes(ctx, u_gen, ze);
   | (
       Construct(SOp(SSpace)),
+      ZExp.Deeper(_, ZExp.LineItemZL(ZExp.DeeperL(ZExp.ExpLineZ(ze)), e2)),
+    )
+      when ZExp.is_After_let_keyword(ze) =>
+    let (zp, u_gen) = ZPat.new_EmptyHole(u_gen);
+    let (e1, u_gen) = UHExp.new_EmptyHole(u_gen);
+    let ze = ZExp.(prepend_zline(DeeperL(LetLineZP(zp, None, e1)), e2));
+    zexp_syn_fix_holes(ctx, u_gen, ze);
+  | (
+      Construct(SOp(SSpace)),
       ZExp.Deeper(_, ZExp.OpSeqZ(_, ze, OperatorSeq.EmptyPrefix(suffix))),
     )
       when ZExp.is_After_let_keyword(ze) =>
@@ -3511,6 +3520,15 @@ and perform_ana =
         let skel = Associator.associate_exp(opseq);
         UHExp.Tm(NotInHole, UHExp.OpSeq(skel, opseq));
       };
+    let ze = ZExp.(prepend_zline(DeeperL(LetLineZP(zp, None, e1)), e2));
+    zexp_ana_fix_holes(ctx, u_gen, ze, ty);
+  | (
+      Construct(SOp(SSpace)),
+      ZExp.Deeper(_, ZExp.LineItemZL(ZExp.DeeperL(ZExp.ExpLineZ(ze)), e2)),
+    )
+      when ZExp.is_After_let_keyword(ze) =>
+    let (zp, u_gen) = ZPat.new_EmptyHole(u_gen);
+    let (e1, u_gen) = UHExp.new_EmptyHole(u_gen);
     let ze = ZExp.(prepend_zline(DeeperL(LetLineZP(zp, None, e1)), e2));
     zexp_ana_fix_holes(ctx, u_gen, ze, ty);
   | (
