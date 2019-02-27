@@ -2250,7 +2250,7 @@ let rec perform_syn =
         ),
       ),
     )
-      when ZExp.is_After_keyword(ze) =>
+      when ZExp.is_After_let_keyword(ze) =>
     let (zp, u_gen) = ZPat.new_EmptyHole(u_gen);
     let e1 =
       switch (suffix) {
@@ -2270,7 +2270,7 @@ let rec perform_syn =
       Construct(SOp(SSpace)),
       ZExp.Deeper(_, ZExp.OpSeqZ(_, ze, OperatorSeq.EmptyPrefix(suffix))),
     )
-      when ZExp.is_After_keyword(ze) =>
+      when ZExp.is_After_let_keyword(ze) =>
     let (zp, u_gen) = ZPat.new_EmptyHole(u_gen);
     let e1 =
       switch (suffix) {
@@ -2287,7 +2287,7 @@ let rec perform_syn =
     let (e2, u_gen) = UHExp.new_EmptyHole(u_gen);
     let ze = ZExp.(prepend_zline(DeeperL(LetLineZP(zp, None, e1)), e2));
     zexp_syn_fix_holes(ctx, u_gen, ze);
-  | (Construct(SOp(SSpace)), ze) when ZExp.is_After_keyword(ze) =>
+  | (Construct(SOp(SSpace)), ze) when ZExp.is_After_let_keyword(ze) =>
     let (zp, u_gen) = ZPat.new_EmptyHole(u_gen);
     let (e1, u_gen) = UHExp.new_EmptyHole(u_gen);
     let (e2, u_gen) = UHExp.new_EmptyHole(u_gen);
@@ -3469,7 +3469,7 @@ and perform_ana =
         ),
       ),
     )
-      when ZExp.is_After_keyword(ze) =>
+      when ZExp.is_After_let_keyword(ze) =>
     let (zp, u_gen) = ZPat.new_EmptyHole(u_gen);
     let e1 =
       switch (suffix) {
@@ -3489,7 +3489,7 @@ and perform_ana =
       Construct(SOp(SSpace)),
       ZExp.Deeper(_, ZExp.OpSeqZ(_, ze, OperatorSeq.EmptyPrefix(suffix))),
     )
-      when ZExp.is_After_keyword(ze) =>
+      when ZExp.is_After_let_keyword(ze) =>
     let (zp, u_gen) = ZPat.new_EmptyHole(u_gen);
     let e1 =
       switch (suffix) {
@@ -3506,7 +3506,7 @@ and perform_ana =
     let (e2, u_gen) = UHExp.new_EmptyHole(u_gen);
     let ze = ZExp.(prepend_zline(DeeperL(LetLineZP(zp, None, e1)), e2));
     zexp_ana_fix_holes(ctx, u_gen, ze, ty);
-  | (Construct(SOp(SSpace)), ze) when ZExp.is_After_keyword(ze) =>
+  | (Construct(SOp(SSpace)), ze) when ZExp.is_After_let_keyword(ze) =>
     let (zp, u_gen) = ZPat.new_EmptyHole(u_gen);
     let (e1, u_gen) = UHExp.new_EmptyHole(u_gen);
     let (e2, u_gen) = UHExp.new_EmptyHole(u_gen);

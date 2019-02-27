@@ -43,19 +43,16 @@ and opseq = OperatorSeq.opseq(t, op)
 and splice_info = SpliceInfo.t(t)
 and splice_map = SpliceInfo.splice_map(t);
 
-let is_keyword = (e: t): bool =>
+let is_let_keyword = (e: t): bool =>
   switch (e) {
   | Tm(_, Var(_, "let")) => true
   | _ => false
   };
 
-let suffix_starts_with_Space =
-    (suffix: OperatorSeq.opseq_suffix(t, op)): bool =>
-  switch (suffix) {
-  | OperatorSeq.ExpSuffix(Space, _) => true
-  | OperatorSeq.ExpSuffix(_, _) => false
-  | OperatorSeq.SeqSuffix(Space, _) => true
-  | OperatorSeq.SeqSuffix(_, _) => false
+let is_case_keyword = (e: t): bool =>
+  switch (e) {
+  | Tm(_, Var(_, "case")) => true
+  | _ => false
   };
 
 let rec get_tuple = (skel1, skel2) =>

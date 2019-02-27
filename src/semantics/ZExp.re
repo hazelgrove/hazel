@@ -330,8 +330,14 @@ let prune_and_prepend_zline = (~err_status=?, zli: zline_item, e: UHExp.t): t =>
     e,
   );
 
-let is_After_keyword = (ze: t): bool =>
+let is_After_let_keyword = (ze: t): bool =>
   switch (ze) {
-  | CursorE(After, e) when UHExp.is_keyword(e) => true
+  | CursorE(After, e) when UHExp.is_let_keyword(e) => true
+  | _ => false
+  };
+
+let is_After_case_keyword = (ze: t): bool =>
+  switch (ze) {
+  | CursorE(After, e) when UHExp.is_case_keyword(e) => true
   | _ => false
   };
