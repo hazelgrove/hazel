@@ -1960,7 +1960,7 @@ let rec perform_syn =
     | UHExp.Tm(_, UHExp.EmptyHole(_)) =>
       Some((ZExp.CursorE(After, e), ty, u_gen))
     | _ =>
-      let (e', u_gen') = UHExp.new_EmptyHole(u_gen);
+      let (e', u_gen) = UHExp.new_EmptyHole(u_gen);
       Some((ZExp.CursorE(Before, e'), HTyp.Hole, u_gen));
     }
   | (Delete, ZExp.CursorE(After, e)) => None
