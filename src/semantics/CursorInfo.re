@@ -209,9 +209,9 @@ and syn_skel_pat_cursor_info =
     | None => syn_skel_pat_cursor_info(ctx, skel2, seq, n, zp1)
     }
   | Skel.BinOp(_, UHPat.Space, skel1, skel2) =>
-    switch (syn_skel_pat_cursor_info(ctx, skel1, seq, n, zp1)) {
+    switch (ana_skel_pat_cursor_info(ctx, skel1, seq, n, zp1, HTyp.Hole)) {
     | Some(_) as result => result
-    | None => syn_skel_pat_cursor_info(ctx, skel2, seq, n, zp1)
+    | None => ana_skel_pat_cursor_info(ctx, skel2, seq, n, zp1, HTyp.Hole)
     }
   | Skel.BinOp(_, UHPat.Cons, skel1, skel2) =>
     switch (syn_skel_pat_cursor_info(ctx, skel1, seq, n, zp1)) {

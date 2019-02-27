@@ -1,4 +1,4 @@
-let _TEST_PERFORM = true;
+let _TEST_PERFORM = false;
 open SemanticsCommon;
 open HazelUtil;
 
@@ -999,12 +999,13 @@ let make_and_syn_OpSeqZ_pat =
   let seq = OperatorSeq.opseq_of_exp_and_surround(p0, surround);
   let skel = Associator.associate_pat(seq);
   switch (Statics.syn_skel_pat_fix_holes(ctx, u_gen, false, skel, seq)) {
-  | Some((skel, seq, ty, ctx, u_gen)) =>
-    let p = UHPat.Pat(NotInHole, UHPat.OpSeq(skel, seq));
+  | Some((Skel.BinOp(err, _, _, _) as skel, seq, ty, ctx, u_gen)) =>
+    let p = UHPat.Pat(err, UHPat.OpSeq(skel, seq));
     switch (Path.follow_pat(path0, p)) {
     | Some(zp) => Some((zp, ty, ctx, u_gen))
     | None => None
     };
+  | Some((Skel.Placeholder(_), _, _, _, _))
   | None => None
   };
 };
@@ -1393,7 +1394,7 @@ let rec perform_syn_pat =
         };
       Some((zp, ty, ctx, u_gen));
     }
-  | (_, ZPat.Deeper(_, ZPat.OpSeqZ(_, zp0, surround))) =>
+  | (_, ZPat.Deeper(err, ZPat.OpSeqZ(_, zp0, surround))) =>
     let i = OperatorSeq.surround_prefix_length(surround);
     switch (ZPat.erase(zp)) {
     | UHPat.Pat(_, UHPat.OpSeq(skel, seq)) =>
@@ -1405,12 +1406,7 @@ let rec perform_syn_pat =
           | None => None
           | Some((zp0, ctx, u_gen)) =>
             let zp0 = ZPat.bidelimit(zp0);
-            Some((
-              ZPat.Deeper(NotInHole, ZPat.OpSeqZ(skel, zp0, surround)),
-              ty,
-              ctx,
-              u_gen,
-            ));
+            make_and_syn_OpSeqZ_pat(ctx, u_gen, zp0, surround);
           }
         | Statics.Synthesized(ty0) =>
           switch (perform_syn_pat(ctx, u_gen, a, zp0)) {
