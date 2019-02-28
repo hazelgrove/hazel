@@ -501,7 +501,11 @@ let view = (model: Model.t) => {
           In(0);
         };
       } else if (String.equal(innerHTML, "end")) {
-        In(1);
+        if (anchorOffset <= 2) {
+          In(1);
+        } else {
+          After;
+        };
       } else {
         Before;
       };
