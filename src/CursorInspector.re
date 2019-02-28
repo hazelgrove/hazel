@@ -80,8 +80,8 @@ let got_consistent_indicator = got_ty =>
 let got_a_type_indicator = got_indicator("Got", special_msg_bar("a type"));
 let got_a_line_item_indicator =
   got_indicator("Got", special_msg_bar("a line item"));
-let got_keyword_indicator = keyword =>
-  got_indicator("Got", special_msg_bar("keyword " ++ keyword));
+let got_keyword_indicator =
+  got_indicator("Got a keyword", typebar("got", HTyp.Hole));
 type err_state_b =
   | TypeInconsistency
   | BindingError
@@ -132,7 +132,7 @@ let of_cursor_mode = (cursor_mode: CursorInfo.cursor_mode) => {
       (ind1, ind2, OK);
     | CursorInfo.AnaKeyword(expected_ty, keyword) =>
       let ind1 = expected_ty_indicator(expected_ty);
-      let ind2 = got_keyword_indicator(keyword);
+      let ind2 = got_keyword_indicator;
       (ind1, ind2, Keyword);
     | CursorInfo.Synthesized(ty) =>
       let ind1 = expected_any_indicator;
@@ -144,7 +144,7 @@ let of_cursor_mode = (cursor_mode: CursorInfo.cursor_mode) => {
       (ind1, ind2, BindingError);
     | CursorInfo.SynKeyword(keyword) =>
       let ind1 = expected_any_indicator;
-      let ind2 = got_keyword_indicator(keyword);
+      let ind2 = got_keyword_indicator;
       (ind1, ind2, Keyword);
     | CursorInfo.SynErrorArrow(expected_ty, got_ty) =>
       let ind1 = expected_msg_indicator("function type");
@@ -205,7 +205,7 @@ let of_cursor_mode = (cursor_mode: CursorInfo.cursor_mode) => {
       (ind1, ind2, OK);
     | CursorInfo.PatAnaKeyword(expected_ty, keyword) =>
       let ind1 = expected_ty_indicator_pat(expected_ty);
-      let ind2 = got_keyword_indicator(keyword);
+      let ind2 = got_keyword_indicator;
       (ind1, ind2, Keyword);
     | CursorInfo.PatSynthesized(ty) =>
       let ind1 = expected_any_indicator_pat;
@@ -213,7 +213,7 @@ let of_cursor_mode = (cursor_mode: CursorInfo.cursor_mode) => {
       (ind1, ind2, OK);
     | CursorInfo.PatSynKeyword(keyword) =>
       let ind1 = expected_any_indicator_pat;
-      let ind2 = got_keyword_indicator(keyword);
+      let ind2 = got_keyword_indicator;
       (ind1, ind2, Keyword);
     | CursorInfo.LineItem =>
       let ind1 = expected_a_line_item_indicator;
