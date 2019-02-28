@@ -493,15 +493,17 @@ let view = (model: Model.t) => {
       };
     } else if (ast_has_class("Case")) {
       let anchor_elem = get_anchor_elem(anchor);
-      if (anchorOffset == 0) {
-        let innerHTML = Js.to_string(anchor_elem##.innerHTML);
-        if (String.equal(innerHTML, "case")) {
+      let innerHTML = Js.to_string(anchor_elem##.innerHTML);
+      if (String.equal(innerHTML, "case")) {
+        if (anchorOffset == 0) {
           Before;
         } else {
           In(0);
         };
+      } else if (String.equal(innerHTML, "end")) {
+        In(1);
       } else {
-        In(0);
+        Before;
       };
     } else if (ast_has_class("EmptyHole") || ast_has_class("Hole")) {
       let anchor_elem = get_anchor_elem(anchor);
