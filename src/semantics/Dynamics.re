@@ -64,6 +64,9 @@ module DHPat = {
   let rec syn_expand =
           (ctx: Contexts.t, delta: Delta.t, p: UHPat.t): expand_result =>
     switch (p) {
+    | UHPat.Pat(InHole(Keyword, u), UHPat.Var(x)) when Var.is_keyword(x) =>
+      Expands(NonEmptyHole(Keyword, u, 0, Var(x)), HTyp.Hole, ctx, delta)
+    | UHPat.Pat(InHole(Keyword, _), _) => DoesNotExpand
     | UHPat.Pat(InHole(TypeInconsistent as reason, u), p')
     | UHPat.Pat(
         InHole(WrongLength as reason, u),
@@ -127,6 +130,7 @@ module DHPat = {
       | None => DoesNotExpand
       | Some(pn) => syn_expand(ctx, delta, pn)
       }
+    | Skel.BinOp(InHole(Keyword, _), _, _, _) => DoesNotExpand
     | Skel.BinOp(InHole(TypeInconsistent as reason, u), op, skel1, skel2)
     | Skel.BinOp(
         InHole(WrongLength as reason, u),
@@ -186,6 +190,9 @@ module DHPat = {
       (ctx: Contexts.t, delta: Delta.t, p: UHPat.t, ty: HTyp.t): expand_result =>
     switch (p) {
     | UHPat.Pat(NotInHole, p') => ana_expand'(ctx, delta, p', ty)
+    | UHPat.Pat(InHole(Keyword, u), UHPat.Var(x)) when Var.is_keyword(x) =>
+      Expands(NonEmptyHole(Keyword, u, 0, Var(x)), ty, ctx, delta)
+    | UHPat.Pat(InHole(Keyword, _), _) => DoesNotExpand
     | UHPat.Pat(InHole(TypeInconsistent as reason, u), p') =>
       switch (syn_expand'(ctx, delta, p')) {
       | DoesNotExpand => DoesNotExpand
@@ -269,6 +276,7 @@ module DHPat = {
       | None => DoesNotExpand
       | Some(pn) => ana_expand(ctx, delta, pn, ty)
       }
+    | Skel.BinOp(InHole(Keyword, _), _, _, _) => DoesNotExpand
     | Skel.BinOp(InHole(TypeInconsistent as reason, u), op, skel1, skel2) =>
       let skel_not_in_hole = Skel.BinOp(NotInHole, op, skel1, skel2);
       switch (syn_expand_skel(ctx, delta, skel_not_in_hole, seq)) {
@@ -1004,6 +1012,11 @@ module DHExp = {
     switch (e) {
     | UHExp.Parenthesized(e1) => syn_expand(ctx, delta, e1)
     | UHExp.Tm(NotInHole, e') => syn_expand'(ctx, delta, e')
+    | UHExp.Tm(InHole(Keyword, u), UHExp.Var(_, x)) when Var.is_keyword(x) =>
+      let gamma = Contexts.gamma(ctx);
+      let sigma = id_env(gamma);
+      Expands(FreeVar(u, 0, sigma, x), HTyp.Hole, delta);
+    | UHExp.Tm(InHole(Keyword, _), _) => DoesNotExpand
     | UHExp.Tm(InHole(TypeInconsistent as reason, u), e')
     | UHExp.Tm(
         InHole(WrongLength as reason, u),
@@ -1184,6 +1197,7 @@ module DHExp = {
       | None => DoesNotExpand
       | Some(en) => syn_expand(ctx, delta, en)
       }
+    | Skel.BinOp(InHole(Keyword, _), _, _, _) => DoesNotExpand
     | Skel.BinOp(InHole(TypeInconsistent as reason, u), op, skel1, skel2)
     | Skel.BinOp(
         InHole(WrongLength as reason, u),
@@ -1276,6 +1290,15 @@ module DHExp = {
       (ctx: Contexts.t, delta: Delta.t, e: UHExp.t, ty: HTyp.t): expand_result =>
     switch (e) {
     | UHExp.Tm(NotInHole, e') => ana_expand'(ctx, delta, e', ty)
+    | UHExp.Tm(InHole(Keyword, u), UHExp.Var(_, x)) when Var.is_keyword(x) =>
+      let gamma = Contexts.gamma(ctx);
+      let sigma = id_env(gamma);
+      Expands(
+        NonEmptyHole(Keyword, u, 0, sigma, FreeVar(u, 0, sigma, x)),
+        ty,
+        delta,
+      );
+    | UHExp.Tm(InHole(Keyword, _), _) => DoesNotExpand
     | UHExp.Tm(InHole(TypeInconsistent as reason, u), e') =>
       switch (syn_expand'(ctx, delta, e')) {
       | DoesNotExpand => DoesNotExpand
@@ -1514,6 +1537,7 @@ module DHExp = {
       | None => DoesNotExpand
       | Some(en) => ana_expand(ctx, delta, en, ty)
       }
+    | Skel.BinOp(InHole(Keyword, _), _, _, _) => DoesNotExpand
     | Skel.BinOp(InHole(TypeInconsistent as reason, u), op, skel1, skel2) =>
       let skel_not_in_hole = Skel.BinOp(NotInHole, op, skel1, skel2);
       switch (syn_expand_skel(ctx, delta, skel_not_in_hole, seq)) {

@@ -80,9 +80,12 @@ let got_consistent_indicator = got_ty =>
 let got_a_type_indicator = got_indicator("Got", special_msg_bar("a type"));
 let got_a_line_item_indicator =
   got_indicator("Got", special_msg_bar("a line item"));
+let got_keyword_indicator = keyword =>
+  got_indicator("Got", special_msg_bar("keyword " ++ keyword));
 type err_state_b =
   | TypeInconsistency
   | BindingError
+  | Keyword
   | OK;
 let of_cursor_mode = (cursor_mode: CursorInfo.cursor_mode) => {
   let (ind1, ind2, err_state_b) =
@@ -127,6 +130,10 @@ let of_cursor_mode = (cursor_mode: CursorInfo.cursor_mode) => {
           ? got_as_expected_ty_indicator(got_ty)
           : got_consistent_indicator(got_ty);
       (ind1, ind2, OK);
+    | CursorInfo.AnaKeyword(expected_ty, keyword) =>
+      let ind1 = expected_ty_indicator(expected_ty);
+      let ind2 = got_keyword_indicator(keyword);
+      (ind1, ind2, Keyword);
     | CursorInfo.Synthesized(ty) =>
       let ind1 = expected_any_indicator;
       let ind2 = got_ty_indicator(ty);
@@ -135,6 +142,10 @@ let of_cursor_mode = (cursor_mode: CursorInfo.cursor_mode) => {
       let ind1 = expected_any_indicator;
       let ind2 = got_free_indicator;
       (ind1, ind2, BindingError);
+    | CursorInfo.SynKeyword(keyword) =>
+      let ind1 = expected_any_indicator;
+      let ind2 = got_keyword_indicator(keyword);
+      (ind1, ind2, Keyword);
     | CursorInfo.SynErrorArrow(expected_ty, got_ty) =>
       let ind1 = expected_msg_indicator("function type");
       let ind2 = got_inconsistent_matched_indicator(got_ty, expected_ty);
@@ -192,10 +203,18 @@ let of_cursor_mode = (cursor_mode: CursorInfo.cursor_mode) => {
           ? got_as_expected_ty_indicator(got_ty)
           : got_consistent_indicator(got_ty);
       (ind1, ind2, OK);
+    | CursorInfo.PatAnaKeyword(expected_ty, keyword) =>
+      let ind1 = expected_ty_indicator_pat(expected_ty);
+      let ind2 = got_keyword_indicator(keyword);
+      (ind1, ind2, Keyword);
     | CursorInfo.PatSynthesized(ty) =>
       let ind1 = expected_any_indicator_pat;
       let ind2 = got_ty_indicator(ty);
       (ind1, ind2, OK);
+    | CursorInfo.PatSynKeyword(keyword) =>
+      let ind1 = expected_any_indicator_pat;
+      let ind2 = got_keyword_indicator(keyword);
+      (ind1, ind2, Keyword);
     | CursorInfo.LineItem =>
       let ind1 = expected_a_line_item_indicator;
       let ind2 = got_a_line_item_indicator;
@@ -204,6 +223,7 @@ let of_cursor_mode = (cursor_mode: CursorInfo.cursor_mode) => {
 
   let cls_of_err_state_b =
     switch (err_state_b) {
+    | Keyword => "cursor-Keyword"
     | TypeInconsistency => "cursor-TypeInconsistency"
     | BindingError => "cursor-BindingError"
     | OK => "cursor-OK"

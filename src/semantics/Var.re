@@ -16,3 +16,5 @@ let check_valid = (s, result) =>
   } else {
     None;
   };
+
+let is_keyword = s => eq(s, "let") || eq(s, "case");

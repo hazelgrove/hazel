@@ -94,6 +94,7 @@ let rec set_err_status = err =>
 let rec make_inconsistent = (u_gen, p) =>
   switch (p) {
   | Pat(NotInHole, _)
+  | Pat(InHole(Keyword, _), _) /* TODO is this right? */
   | Pat(InHole(WrongLength, _), _) =>
     let (u, u_gen) = MetaVarGen.next(u_gen);
     let p = set_err_status(InHole(TypeInconsistent, u), p);

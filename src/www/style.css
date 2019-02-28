@@ -126,6 +126,10 @@ html, body {
   border: 1px solid #ce5f00;
 }
 
+.cursor-Keyword.cursor-inspector {
+  border: 1px solid #ce5f00;
+}
+
 .cursor-OK .titlebar {
   background-color: #073f24;
 }
@@ -136,6 +140,10 @@ html, body {
 
 .cursor-BindingError .titlebar {
   background-color: #ce5f00;
+}
+
+.cursor-Keyword .titlebar {
+	background-color: #ce5f00;
 }
 
 .typebar, .infobar {
@@ -161,6 +169,10 @@ html, body {
 }
 
 .cursor-BindingError .typebar, .cursor-BindingError .infobar {
+  background-color: #fef6ea;
+}
+
+.cursor-Keyword .typebar, .cursor-Keyword .infobar {
   background-color: #fef6ea;
 }
 

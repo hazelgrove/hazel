@@ -2,7 +2,10 @@ type nat = int;
 
 type in_hole_reason =
   | TypeInconsistent
-  | WrongLength;
+  | WrongLength
+  | Keyword;
+
+exception InvalidKeywordStatus;
 
 type err_status =
   | NotInHole

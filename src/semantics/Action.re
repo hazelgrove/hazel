@@ -1223,6 +1223,14 @@ let rec perform_syn_pat =
         ctx,
         u_gen,
       ));
+    } else if (Var.is_keyword(x)) {
+      let (u, u_gen) = MetaVarGen.next(u_gen);
+      Some((
+        ZPat.CursorP(side, UHPat.Pat(InHole(Keyword, u), UHPat.Var(x))),
+        HTyp.Hole,
+        ctx,
+        u_gen,
+      ));
     } else {
       Var.check_valid(
         x,
@@ -1610,17 +1618,26 @@ and perform_ana_pat =
       Construct(SVar(x, side)),
       ZPat.CursorP(_, UHPat.Pat(_, UHPat.BoolLit(_))),
     ) =>
-    Var.check_valid(
-      x,
-      {
-        let ctx = Contexts.extend_gamma(ctx, (x, ty));
-        Some((
-          ZPat.CursorP(side, UHPat.Pat(NotInHole, UHPat.Var(x))),
-          ctx,
-          u_gen,
-        ));
-      },
-    )
+    if (Var.is_keyword(x)) {
+      let (u, u_gen) = MetaVarGen.next(u_gen);
+      Some((
+        ZPat.CursorP(side, UHPat.Pat(InHole(Keyword, u), UHPat.Var(x))),
+        ctx,
+        u_gen,
+      ));
+    } else {
+      Var.check_valid(
+        x,
+        {
+          let ctx = Contexts.extend_gamma(ctx, (x, ty));
+          Some((
+            ZPat.CursorP(side, UHPat.Pat(NotInHole, UHPat.Var(x))),
+            ctx,
+            u_gen,
+          ));
+        },
+      );
+    }
   | (Construct(SVar(_, _)), ZPat.CursorP(_, _)) => None
   | (Construct(SWild), ZPat.CursorP(_, UHPat.Pat(_, UHPat.EmptyHole(_))))
   | (Construct(SWild), ZPat.CursorP(_, UHPat.Pat(_, UHPat.Wild)))
@@ -2431,6 +2448,16 @@ let rec perform_syn =
       Some((
         ZExp.CursorE(side, UHExp.Tm(NotInHole, UHExp.BoolLit(false))),
         HTyp.Bool,
+        u_gen,
+      ));
+    } else if (Var.is_keyword(x)) {
+      let (u, u_gen) = MetaVarGen.next(u_gen);
+      Some((
+        ZExp.CursorE(
+          side,
+          UHExp.Tm(InHole(Keyword, u), UHExp.Var(NotInVHole, x)),
+        ),
+        HTyp.Hole,
         u_gen,
       ));
     } else {
