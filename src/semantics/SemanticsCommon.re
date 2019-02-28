@@ -1,3 +1,4 @@
+[@deriving show({with_path: false})]
 type nat = int;
 
 type in_hole_reason =
@@ -17,6 +18,7 @@ type var_err_status =
   | NotInVHole
   | InVHole(MetaVar.t);
 
+[@deriving show({with_path: false})]
 type inj_side =
   | L
   | R;
@@ -27,6 +29,7 @@ let pick_side = (side, l, r) =>
   | R => r
   };
 
+[@deriving show({with_path: false})]
 type cursor_side =
   | Before
   | After

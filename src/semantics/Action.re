@@ -2,6 +2,7 @@ let _TEST_PERFORM = true;
 open SemanticsCommon;
 open HazelUtil;
 
+[@deriving show({with_path: false})]
 type op_shape =
   | SPlus
   | STimes
@@ -72,6 +73,7 @@ let op_shape_of_exp_op = (op: UHExp.op): op_shape =>
   | UHExp.Cons => SCons
   };
 
+[@deriving show({with_path: false})]
 type shape =
   | SParenthesized
   /* type shapes */
@@ -93,6 +95,7 @@ type shape =
   /* pattern-only shapes */
   | SWild;
 
+[@deriving show({with_path: false})]
 type t =
   | MoveTo(Path.t)
   | MoveToNextHole

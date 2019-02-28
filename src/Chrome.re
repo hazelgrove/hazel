@@ -730,9 +730,15 @@ let view = (model: Model.t) => {
   let the_cursor_inspector_panel = CursorInspector.mk(cursor_info_rs);
   let the_context_inspector_panel =
     ContextInspector.mk(model, instance_click_fn);
+  let the_history_panel = HistoryPanel.make(model.code_history_rs);
   let the_action_panel = ActionPanel.make(model, set_cursor);
   let the_leftbar =
-    Html5.(div(~a=[a_class(["sidebar", "leftbar"])], [the_action_panel]));
+    Html5.(
+      div(
+        ~a=[a_class(["sidebar", "leftbar"])],
+        [the_action_panel, the_history_panel],
+      )
+    );
 
   let the_rightbar =
     Html5.(
