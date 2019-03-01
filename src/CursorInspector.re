@@ -81,7 +81,7 @@ let got_a_type_indicator = got_indicator("Got", special_msg_bar("a type"));
 let got_a_line_item_indicator =
   got_indicator("Got", special_msg_bar("a line item"));
 let got_keyword_indicator =
-  got_indicator("Got a keyword", typebar("got", HTyp.Hole));
+  got_indicator("Got a reserved keyword", typebar("got", HTyp.Hole));
 type err_state_b =
   | TypeInconsistency
   | BindingError
