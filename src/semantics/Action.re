@@ -1226,7 +1226,10 @@ let rec perform_syn_pat =
     } else if (Var.is_keyword(x)) {
       let (u, u_gen) = MetaVarGen.next(u_gen);
       Some((
-        ZPat.CursorP(side, UHPat.Pat(InHole(Keyword, u), UHPat.Var(x))),
+        ZPat.CursorP(
+          side,
+          UHPat.Pat(NotInHole, UHPat.Var(InVHole(Keyword, u), x)),
+        ),
         HTyp.Hole,
         ctx,
         u_gen,
@@ -1237,7 +1240,10 @@ let rec perform_syn_pat =
         {
           let ctx = Contexts.extend_gamma(ctx, (x, HTyp.Hole));
           Some((
-            ZPat.CursorP(side, UHPat.Pat(NotInHole, UHPat.Var(x))),
+            ZPat.CursorP(
+              side,
+              UHPat.Pat(NotInHole, UHPat.Var(NotInVHole, x)),
+            ),
             HTyp.Hole,
             ctx,
             u_gen,
@@ -1621,7 +1627,10 @@ and perform_ana_pat =
     if (Var.is_keyword(x)) {
       let (u, u_gen) = MetaVarGen.next(u_gen);
       Some((
-        ZPat.CursorP(side, UHPat.Pat(InHole(Keyword, u), UHPat.Var(x))),
+        ZPat.CursorP(
+          side,
+          UHPat.Pat(NotInHole, UHPat.Var(InVHole(Keyword, u), x)),
+        ),
         ctx,
         u_gen,
       ));
@@ -1631,7 +1640,10 @@ and perform_ana_pat =
         {
           let ctx = Contexts.extend_gamma(ctx, (x, ty));
           Some((
-            ZPat.CursorP(side, UHPat.Pat(NotInHole, UHPat.Var(x))),
+            ZPat.CursorP(
+              side,
+              UHPat.Pat(NotInHole, UHPat.Var(NotInVHole, x)),
+            ),
             ctx,
             u_gen,
           ));
@@ -2455,7 +2467,7 @@ let rec perform_syn =
       Some((
         ZExp.CursorE(
           side,
-          UHExp.Tm(InHole(Keyword, u), UHExp.Var(NotInVHole, x)),
+          UHExp.Tm(NotInHole, UHExp.Var(InVHole(Keyword, u), x)),
         ),
         HTyp.Hole,
         u_gen,
@@ -2480,7 +2492,7 @@ let rec perform_syn =
             Some((
               ZExp.CursorE(
                 side,
-                UHExp.Tm(NotInHole, UHExp.Var(InVHole(u), x)),
+                UHExp.Tm(NotInHole, UHExp.Var(InVHole(Free, u), x)),
               ),
               HTyp.Hole,
               u_gen,

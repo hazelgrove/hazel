@@ -47,7 +47,6 @@ and well_formed_skel = (skel, seq) =>
     }
   | Skel.BinOp(NotInHole, _, skel1, skel2) =>
     well_formed_skel(skel1, seq) && well_formed_skel(skel2, seq)
-  | Skel.BinOp(InHole(Keyword, _), _, _, _) => false
   | Skel.BinOp(InHole(TypeInconsistent, _), _, _, _) => false /* no type-level non-empty holes */
   | Skel.BinOp(InHole(WrongLength, _), _, _, _) => false
   }; /* the type is assumed to be the true length */

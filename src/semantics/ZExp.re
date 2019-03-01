@@ -77,7 +77,6 @@ let rec make_inconsistent = (u_gen: MetaVarGen.t, ze: t): (t, MetaVarGen.t) =>
     let (e', u_gen) = UHExp.make_inconsistent(u_gen, e);
     (CursorE(cursor_side, e'), u_gen);
   | Deeper(NotInHole, ze')
-  | Deeper(InHole(Keyword, _), ze') /* TODO is this right? */
   | Deeper(InHole(WrongLength, _), ze') =>
     let (u, u_gen) = MetaVarGen.next(u_gen);
     let ze' = set_err_status(InHole(TypeInconsistent, u), ze);

@@ -135,7 +135,6 @@ let rec set_err_status = err =>
 let rec make_inconsistent = (u_gen, e) =>
   switch (e) {
   | Tm(NotInHole, _)
-  | Tm(InHole(Keyword, _), _) /* TODO is this right? */
   | Tm(InHole(WrongLength, _), _) =>
     let (u, u_gen) = MetaVarGen.next(u_gen);
     let e = set_err_status(InHole(TypeInconsistent, u), e);
@@ -163,7 +162,6 @@ let make_skel_inconsistent = (u_gen, skel, seq) =>
   | Skel.BinOp(InHole(TypeInconsistent, _), _, _, _) =>
     Some((skel, seq, u_gen))
   | Skel.BinOp(NotInHole, op, skel1, skel2)
-  | Skel.BinOp(InHole(Keyword, _), op, skel1, skel2) /* TODO is this right? */
   | Skel.BinOp(InHole(WrongLength, _), op, skel1, skel2) =>
     let (u', u_gen') = MetaVarGen.next(u_gen);
     Some((

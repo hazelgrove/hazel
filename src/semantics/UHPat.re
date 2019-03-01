@@ -18,7 +18,7 @@ type t =
 and t' =
   | EmptyHole(MetaVar.t)
   | Wild
-  | Var(Var.t)
+  | Var(var_err_status, Var.t)
   | NumLit(int)
   | BoolLit(bool)
   | Inj(inj_side, t)
@@ -55,7 +55,7 @@ let bidelimited =
   fun
   | Pat(_, EmptyHole(_))
   | Pat(_, Wild)
-  | Pat(_, Var(_))
+  | Pat(_, Var(_, _))
   | Pat(_, NumLit(_))
   | Pat(_, BoolLit(_))
   | Pat(_, Inj(_, _))
@@ -94,7 +94,6 @@ let rec set_err_status = err =>
 let rec make_inconsistent = (u_gen, p) =>
   switch (p) {
   | Pat(NotInHole, _)
-  | Pat(InHole(Keyword, _), _) /* TODO is this right? */
   | Pat(InHole(WrongLength, _), _) =>
     let (u, u_gen) = MetaVarGen.next(u_gen);
     let p = set_err_status(InHole(TypeInconsistent, u), p);

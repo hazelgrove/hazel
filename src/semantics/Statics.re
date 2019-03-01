@@ -24,7 +24,6 @@ let rec syn_pat = (ctx, p) =>
     | None => None
     | Some((_, gamma)) => Some((HTyp.Hole, gamma))
     }
-  | UHPat.Pat(InHole(Keyword, _), _) => Some((HTyp.Hole, ctx))
   | UHPat.Pat(InHole(WrongLength, _), _) => None
   | UHPat.Pat(NotInHole, p') => syn_pat'(ctx, p')
   | UHPat.Parenthesized(p) => syn_pat(ctx, p)
@@ -33,7 +32,9 @@ and syn_pat' = (ctx, p) =>
   switch (p) {
   | UHPat.EmptyHole(_) => Some((HTyp.Hole, ctx))
   | UHPat.Wild => Some((HTyp.Hole, ctx))
-  | UHPat.Var(x) =>
+  | UHPat.Var(InVHole(Free, _), _) => raise(FreeVarInPat)
+  | UHPat.Var(InVHole(Keyword, _), _) => Some((HTyp.Hole, ctx))
+  | UHPat.Var(NotInVHole, x) =>
     Var.check_valid(
       x,
       Some((HTyp.Hole, Contexts.extend_gamma(ctx, (x, HTyp.Hole)))),
@@ -99,7 +100,6 @@ and syn_skel_pat = (ctx, skel, seq, monitor) =>
         }
       }
     }
-  | Skel.BinOp(InHole(Keyword, _), _, _, _) => raise(InvalidKeywordStatus)
   | Skel.BinOp(InHole(TypeInconsistent, u), op, skel1, skel2)
   | Skel.BinOp(InHole(WrongLength, u), UHPat.Comma as op, skel1, skel2) =>
     let skel_not_in_hole = Skel.BinOp(NotInHole, op, skel1, skel2);
@@ -157,13 +157,14 @@ and ana_pat = (ctx, p, ty) =>
       UHPat.OpSeq(Skel.BinOp(InHole(WrongLength, _), UHPat.Comma, _, _), _) as p',
     )
   | UHPat.Pat(NotInHole, p') => ana_pat'(ctx, p', ty)
-  | UHPat.Pat(InHole(Keyword, _), _) => Some(ctx)
   | UHPat.Pat(InHole(WrongLength, _), _) => None
   | UHPat.Parenthesized(p) => ana_pat(ctx, p, ty)
   }
 and ana_pat' = (ctx, p, ty) =>
   switch (p) {
-  | UHPat.Var(x) =>
+  | UHPat.Var(InVHole(Free, _), _) => raise(FreeVarInPat)
+  | UHPat.Var(InVHole(Keyword, _), _) => Some(ctx)
+  | UHPat.Var(NotInVHole, x) =>
     Var.check_valid(x, Some(Contexts.extend_gamma(ctx, (x, ty))))
   | UHPat.EmptyHole(_)
   | UHPat.Wild => Some(ctx)
@@ -233,7 +234,6 @@ and ana_skel_pat = (ctx, skel, seq, ty, monitor) =>
         }
       }
     }
-  | Skel.BinOp(InHole(Keyword, _), _, _, _) => raise(InvalidKeywordStatus)
   | Skel.BinOp(InHole(TypeInconsistent, u), op, skel1, skel2) =>
     let skel_not_in_hole = Skel.BinOp(NotInHole, op, skel1, skel2);
     switch (syn_skel_pat(ctx, skel_not_in_hole, seq, monitor)) {
@@ -352,7 +352,10 @@ and ana_skel_pat = (ctx, skel, seq, ty, monitor) =>
 
 let ctx_for_let = (ctx, p, ty1, e1) =>
   switch (p, e1) {
-  | (UHPat.Pat(_, UHPat.Var(x)), UHExp.Tm(_, UHExp.Lam(_, _, _))) =>
+  | (
+      UHPat.Pat(_, UHPat.Var(NotInVHole, x)),
+      UHExp.Tm(_, UHExp.Lam(_, _, _)),
+    ) =>
     switch (HTyp.matched_arrow(ty1)) {
     | Some(_) => Contexts.extend_gamma(ctx, (x, ty1))
     | None => ctx
@@ -363,7 +366,10 @@ let ctx_for_let = (ctx, p, ty1, e1) =>
 /* returns recursive ctx + name of recursively defined var */
 let ctx_for_let' = (ctx, p, ty1, e1) =>
   switch (p, e1) {
-  | (UHPat.Pat(_, UHPat.Var(x)), UHExp.Tm(_, UHExp.Lam(_, _, _))) =>
+  | (
+      UHPat.Pat(_, UHPat.Var(NotInVHole, x)),
+      UHExp.Tm(_, UHExp.Lam(_, _, _)),
+    ) =>
     switch (HTyp.matched_arrow(ty1)) {
     | Some(_) => (Contexts.extend_gamma(ctx, (x, ty1)), Some(x))
     | None => (ctx, None)
@@ -383,7 +389,6 @@ let rec syn = (ctx, e) =>
     | Some(_) => Some(HTyp.Hole)
     | None => None
     }
-  | UHExp.Tm(InHole(Keyword, _), _) => Some(HTyp.Hole)
   | UHExp.Tm(InHole(WrongLength, _), _) => None
   | UHExp.Tm(NotInHole, e') => syn'(ctx, e')
   | UHExp.Parenthesized(e1) => syn(ctx, e1)
@@ -404,7 +409,7 @@ and syn' = (ctx, e) =>
   | UHExp.Var(NotInVHole, x) =>
     let (gamma, _) = ctx;
     VarMap.lookup(gamma, x);
-  | UHExp.Var(InVHole(_), _) => Some(HTyp.Hole)
+  | UHExp.Var(InVHole(_, _), _) => Some(HTyp.Hole)
   | UHExp.Lam(p, ann, e1) =>
     let ty1 =
       switch (ann) {
@@ -510,7 +515,6 @@ and ana = (ctx, e, ty) =>
       OpSeq(Skel.BinOp(InHole(WrongLength, _), UHExp.Comma, _, _), _) as e',
     )
   | UHExp.Tm(NotInHole, e') => ana'(ctx, e', ty)
-  | UHExp.Tm(InHole(Keyword, _), _) => Some()
   | UHExp.Tm(InHole(WrongLength, _), _) => None
   | UHExp.Parenthesized(e1) => ana(ctx, e1, ty)
   }
@@ -632,7 +636,6 @@ and syn_skel = (ctx, skel, seq, monitor) =>
         }
       }
     }
-  | Skel.BinOp(InHole(Keyword, _), _, _, _) => raise(InvalidKeywordStatus)
   | Skel.BinOp(InHole(TypeInconsistent, u), op, skel1, skel2)
   | Skel.BinOp(InHole(WrongLength, u), UHExp.Comma as op, skel1, skel2) =>
     let skel_not_in_hole = Skel.BinOp(NotInHole, op, skel1, skel2);
@@ -758,7 +761,6 @@ and ana_skel = (ctx, skel, seq, ty, monitor) =>
       };
     | _ => None
     }
-  | Skel.BinOp(InHole(Keyword, _), _, _, _) => raise(InvalidKeywordStatus)
   | Skel.BinOp(InHole(WrongLength, u), UHExp.Comma, skel1, skel2) =>
     switch (ty) {
     | HTyp.Prod(ty1, ty2) =>
@@ -844,9 +846,6 @@ and ana_skel = (ctx, skel, seq, ty, monitor) =>
 
 let rec syn_pat_fix_holes = (ctx, u_gen, renumber_empty_holes, p) =>
   switch (p) {
-  | UHPat.Pat(InHole(Keyword, _), UHPat.Var(x)) when Var.is_keyword(x) =>
-    Some((p, HTyp.Hole, ctx, u_gen))
-  | UHPat.Pat(InHole(Keyword, _), _) => raise(InvalidKeywordStatus)
   | UHPat.Pat(_, p') =>
     switch (syn_pat_fix_holes'(ctx, u_gen, renumber_empty_holes, p')) {
     | None => None
@@ -870,7 +869,9 @@ and syn_pat_fix_holes' = (ctx, u_gen, renumber_empty_holes, p) =>
       Some((p, HTyp.Hole, ctx, u_gen));
     }
   | UHPat.Wild => Some((p, HTyp.Hole, ctx, u_gen))
-  | UHPat.Var(x) =>
+  | UHPat.Var(InVHole(Free, _), _) => raise(FreeVarInPat)
+  | UHPat.Var(InVHole(Keyword, _), _) => Some((p, HTyp.Hole, ctx, u_gen))
+  | UHPat.Var(NotInVHole, x) =>
     Var.check_valid(
       x,
       {
@@ -1006,9 +1007,6 @@ and syn_skel_pat_fix_holes = (ctx, u_gen, renumber_empty_holes, skel, seq) =>
   }
 and ana_pat_fix_holes = (ctx, u_gen, renumber_empty_holes, p, ty) =>
   switch (p) {
-  | UHPat.Pat(InHole(Keyword, _), UHPat.Var(x)) when Var.is_keyword(x) =>
-    Some((p, ctx, u_gen))
-  | UHPat.Pat(InHole(Keyword, _), _) => raise(InvalidKeywordStatus)
   | UHPat.Pat(_, p') =>
     switch (ana_pat_fix_holes'(ctx, u_gen, renumber_empty_holes, p', ty)) {
     | None => None
@@ -1024,7 +1022,9 @@ and ana_pat_fix_holes = (ctx, u_gen, renumber_empty_holes, p, ty) =>
 and ana_pat_fix_holes' = (ctx, u_gen, renumber_empty_holes, p, ty) =>
   switch (p) {
   | UHPat.Wild => Some((NotInHole, p, ctx, u_gen))
-  | UHPat.Var(x) =>
+  | UHPat.Var(InVHole(Free, _), _) => raise(FreeVarInPat)
+  | UHPat.Var(InVHole(Keyword, _), _) => Some((NotInHole, p, ctx, u_gen))
+  | UHPat.Var(NotInVHole, x) =>
     Var.check_valid(
       x,
       {
@@ -1431,9 +1431,6 @@ let ana_rules_fix_holes_internal =
  */
 let rec syn_fix_holes_internal = (ctx, u_gen, renumber_empty_holes, e) =>
   switch (e) {
-  | UHExp.Tm(InHole(Keyword, _), UHExp.Var(_, x)) when Var.is_keyword(x) =>
-    Some((e, HTyp.Hole, u_gen))
-  | UHExp.Tm(InHole(Keyword, _), _) => raise(InvalidKeywordStatus)
   | UHExp.Tm(_, e') =>
     switch (syn_fix_holes'(ctx, u_gen, renumber_empty_holes, e')) {
     | None => None
@@ -1474,10 +1471,11 @@ and syn_fix_holes' = (ctx, u_gen, renumber_empty_holes, e) =>
     | Some(ty) => Some((UHExp.Var(NotInVHole, x), ty, u_gen))
     | None =>
       switch (var_err_status) {
-      | InVHole(_) => Some((e, HTyp.Hole, u_gen))
+      | InVHole(_, _) => Some((e, HTyp.Hole, u_gen))
       | NotInVHole =>
         let (u, u_gen) = MetaVarGen.next(u_gen);
-        Some((Var(InVHole(u), x), HTyp.Hole, u_gen));
+        let in_vhole_reason = Var.is_keyword(x) ? Keyword : Free;
+        Some((Var(InVHole(in_vhole_reason, u), x), HTyp.Hole, u_gen));
       }
     };
   | UHExp.Lam(p, ann, e1) =>
@@ -1631,9 +1629,6 @@ and ana_fix_holes_splice_map = (ctx, u_gen, renumber_empty_holes, splice_map) =>
   )
 and ana_fix_holes_internal = (ctx, u_gen, renumber_empty_holes, e, ty) =>
   switch (e) {
-  | UHExp.Tm(InHole(Keyword, _), UHExp.Var(_, x)) when Var.is_keyword(x) =>
-    Some((e, u_gen))
-  | UHExp.Tm(InHole(Keyword, _), _) => raise(InvalidKeywordStatus)
   | UHExp.Tm(_, e1) =>
     switch (ana_fix_holes'(ctx, u_gen, renumber_empty_holes, e1, ty)) {
     | None => None

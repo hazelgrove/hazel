@@ -118,9 +118,6 @@ let rec ana_pat_cursor_found =
         ),
       )
     };
-  | UHPat.Pat(InHole(Keyword, _), UHPat.Var(x)) when Var.is_keyword(x) =>
-    Some(mk_cursor_info(PatAnaKeyword(ty, x), IsPat(p), side, ctx))
-  | UHPat.Pat(InHole(Keyword, _), _) => raise(InvalidKeywordStatus)
   | UHPat.Pat(NotInHole, UHPat.EmptyHole(_)) =>
     Some(
       mk_cursor_info(PatAnaSubsumed(ty, HTyp.Hole), IsPat(p), side, ctx),
@@ -180,18 +177,17 @@ let rec ana_pat_cursor_found =
 
 let rec syn_pat_cursor_info = (ctx: Contexts.t, zp: ZPat.t): option(t) =>
   switch (zp) {
-  | ZPat.CursorP(side, UHPat.Pat(InHole(Keyword, _), UHPat.Var(x)) as p)
-      when Var.is_keyword(x) =>
+  | ZPat.CursorP(
+      side,
+      UHPat.Pat(_, UHPat.Var(InVHole(Keyword, _), x)) as p,
+    ) =>
     Some(mk_cursor_info(PatSynKeyword(x), IsPat(p), side, ctx))
-  | ZPat.CursorP(_, UHPat.Pat(InHole(Keyword, _), _)) =>
-    raise(InvalidKeywordStatus)
   | ZPat.CursorP(side, p) =>
     switch (Statics.syn_pat(ctx, p)) {
     | None => None
     | Some((ty, _)) =>
       Some(mk_cursor_info(PatSynthesized(ty), IsPat(p), side, ctx))
     }
-  | ZPat.Deeper(InHole(Keyword, _), _) => raise(InvalidKeywordStatus)
   | ZPat.Deeper(_, zp') => syn_pat_cursor_info'(ctx, zp')
   | ZPat.ParenthesizedZ(zp1) => syn_pat_cursor_info(ctx, zp1)
   }
@@ -220,7 +216,6 @@ and syn_skel_pat_cursor_info =
     } else {
       None;
     }
-  | Skel.BinOp(InHole(Keyword, _), _, _, _) => raise(InvalidKeywordStatus)
   | Skel.BinOp(_, UHPat.Comma, skel1, skel2) =>
     switch (syn_skel_pat_cursor_info(ctx, skel1, seq, n, zp1)) {
     | Some(_) as result => result
@@ -246,8 +241,12 @@ and syn_skel_pat_cursor_info =
 and ana_pat_cursor_info =
     (ctx: Contexts.t, zp: ZPat.t, ty: HTyp.t): option(t) =>
   switch (zp) {
+  | ZPat.CursorP(
+      side,
+      UHPat.Pat(_, UHPat.Var(InVHole(Keyword, _), x)) as p,
+    ) =>
+    Some(mk_cursor_info(PatAnaKeyword(ty, x), IsPat(p), side, ctx))
   | ZPat.CursorP(side, p) => ana_pat_cursor_found(ctx, p, ty, side)
-  | ZPat.Deeper(InHole(Keyword, _), _) => raise(InvalidKeywordStatus)
   | ZPat.Deeper(InHole(TypeInconsistent, u), zp') =>
     syn_pat_cursor_info'(ctx, zp')
   | ZPat.Deeper(NotInHole, zp')
@@ -292,7 +291,6 @@ and ana_skel_pat_cursor_info =
     } else {
       None;
     }
-  | Skel.BinOp(InHole(Keyword, _), _, _, _) => raise(InvalidKeywordStatus)
   | Skel.BinOp(InHole(TypeInconsistent, _), op, skel1, skel2) =>
     syn_skel_pat_cursor_info(ctx, skel, seq, n, zp1)
   | Skel.BinOp(NotInHole, UHPat.Comma, skel1, skel2) =>
@@ -380,14 +378,6 @@ let rec ana_cursor_found =
     | None => None
     | Some(ci) => Some(update_sort(ci, IsExpr(e)))
     }
-  | UHExp.Tm(InHole(Keyword, _), UHExp.Var(_, x)) when Var.is_keyword(x) =>
-    Some(mk_cursor_info(AnaKeyword(ty, x), IsExpr(e), side, ctx))
-  | UHExp.Tm(InHole(Keyword, _), _)
-  | UHExp.Tm(
-      NotInHole,
-      UHExp.OpSeq(Skel.BinOp(InHole(Keyword, _), _, _, _), _),
-    ) =>
-    raise(InvalidKeywordStatus)
   | UHExp.Tm(InHole(TypeInconsistent, _), _) =>
     let e_nih = UHExp.set_err_status(NotInHole, e);
     switch (Statics.syn(ctx, e_nih)) {
@@ -397,7 +387,9 @@ let rec ana_cursor_found =
         mk_cursor_info(AnaTypeInconsistent(ty, ty'), IsExpr(e), side, ctx),
       )
     };
-  | UHExp.Tm(_, UHExp.Var(InVHole(_), _)) =>
+  | UHExp.Tm(_, UHExp.Var(InVHole(Keyword, _), x)) =>
+    Some(mk_cursor_info(AnaKeyword(ty, x), IsExpr(e), side, ctx))
+  | UHExp.Tm(_, UHExp.Var(InVHole(Free, _), _)) =>
     Some(mk_cursor_info(AnaFree(ty), IsExpr(e), side, ctx))
   | UHExp.Tm(NotInHole, UHExp.Case(_, _)) =>
     Some(mk_cursor_info(Analyzed(ty), IsExpr(e), side, ctx))
@@ -503,12 +495,9 @@ let rec ana_cursor_found =
 
 let rec syn_cursor_info = (ctx: Contexts.t, ze: ZExp.t): option(t) =>
   switch (ze) {
-  | ZExp.CursorE(side, UHExp.Tm(InHole(Keyword, _), UHExp.Var(_, x)) as e)
-      when Var.is_keyword(x) =>
+  | ZExp.CursorE(side, UHExp.Tm(_, UHExp.Var(InVHole(Keyword, _), x)) as e) =>
     Some(mk_cursor_info(SynKeyword(x), IsExpr(e), side, ctx))
-  | ZExp.CursorE(side, UHExp.Tm(InHole(Keyword, _), _)) =>
-    raise(InvalidKeywordStatus)
-  | ZExp.CursorE(side, UHExp.Tm(_, UHExp.Var(InVHole(_), _)) as e) =>
+  | ZExp.CursorE(side, UHExp.Tm(_, UHExp.Var(InVHole(Free, _), _)) as e) =>
     Some(mk_cursor_info(SynFree, IsExpr(e), side, ctx))
   | ZExp.CursorE(side, e) =>
     switch (Statics.syn(ctx, e)) {
@@ -517,14 +506,12 @@ let rec syn_cursor_info = (ctx: Contexts.t, ze: ZExp.t): option(t) =>
     | None => None
     }
   | ZExp.ParenthesizedZ(ze1) => syn_cursor_info(ctx, ze1)
-  | ZExp.Deeper(InHole(Keyword, _), _) => raise(InvalidKeywordStatus)
   | ZExp.Deeper(_, ze1') => syn_cursor_info'(ctx, ze1')
   }
 and ana_cursor_info = (ctx: Contexts.t, ze: ZExp.t, ty: HTyp.t): option(t) =>
   switch (ze) {
   | ZExp.CursorE(side, e) => ana_cursor_found(ctx, e, ty, side)
   | ZExp.ParenthesizedZ(ze1) => ana_cursor_info(ctx, ze1, ty)
-  | ZExp.Deeper(InHole(Keyword, _), _) => raise(InvalidKeywordStatus)
   | ZExp.Deeper(InHole(TypeInconsistent, u), ze1') =>
     syn_cursor_info'(ctx, ze1')
   | ZExp.Deeper(
@@ -699,7 +686,6 @@ and syn_skel_cursor_info =
     } else {
       None;
     }
-  | Skel.BinOp(InHole(Keyword, _), _, _, _) => raise(InvalidKeywordStatus)
   | Skel.BinOp(_, UHExp.Plus, skel1, skel2)
   | Skel.BinOp(_, UHExp.Times, skel1, skel2)
   | Skel.BinOp(_, UHExp.LessThan, skel1, skel2) =>
@@ -815,7 +801,6 @@ and ana_skel_cursor_info =
     } else {
       None;
     }
-  | Skel.BinOp(InHole(Keyword, _), _, _, _) => raise(InvalidKeywordStatus)
   | Skel.BinOp(InHole(TypeInconsistent, _), op, skel1, skel2) =>
     syn_skel_cursor_info(ctx, skel, seq, n, ze_n)
   | Skel.BinOp(NotInHole, UHExp.Comma, skel1, skel2) =>

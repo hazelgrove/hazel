@@ -2,10 +2,7 @@ type nat = int;
 
 type in_hole_reason =
   | TypeInconsistent
-  | WrongLength
-  | Keyword;
-
-exception InvalidKeywordStatus;
+  | WrongLength;
 
 type err_status =
   | NotInHole
@@ -16,9 +13,15 @@ let err_status_to_string =
   | NotInHole => "NotInHole"
   | InHole(reason, u) => "InHole";
 
+type in_vhole_reason =
+  | Free
+  | Keyword;
+
 type var_err_status =
   | NotInVHole
-  | InVHole(MetaVar.t);
+  | InVHole(in_vhole_reason, MetaVar.t);
+
+exception FreeVarInPat;
 
 type inj_side =
   | L

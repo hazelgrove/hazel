@@ -46,7 +46,6 @@ let rec make_inconsistent = (u_gen: MetaVarGen.t, zp: t): (t, MetaVarGen.t) =>
     (CursorP(cursor_side, p), u_gen);
   | Deeper(InHole(TypeInconsistent, _), _) => (zp, u_gen)
   | Deeper(NotInHole, zp')
-  | Deeper(InHole(Keyword, _), zp') /* TODO is this right? */
   | Deeper(InHole(WrongLength, _), zp') =>
     let (u, u_gen) = MetaVarGen.next(u_gen);
     (Deeper(InHole(TypeInconsistent, u), zp'), u_gen);
@@ -84,7 +83,7 @@ let place_Before = (p: UHPat.t): t =>
   | UHPat.Parenthesized(_)
   | UHPat.Pat(_, UHPat.EmptyHole(_))
   | UHPat.Pat(_, UHPat.Wild)
-  | UHPat.Pat(_, UHPat.Var(_))
+  | UHPat.Pat(_, UHPat.Var(_, _))
   | UHPat.Pat(_, UHPat.NumLit(_))
   | UHPat.Pat(_, UHPat.BoolLit(_))
   | UHPat.Pat(_, UHPat.Inj(_, _))
@@ -101,7 +100,7 @@ let place_After = (p: UHPat.t): t =>
   | UHPat.Parenthesized(_)
   | UHPat.Pat(_, UHPat.EmptyHole(_))
   | UHPat.Pat(_, UHPat.Wild)
-  | UHPat.Pat(_, UHPat.Var(_))
+  | UHPat.Pat(_, UHPat.Var(_, _))
   | UHPat.Pat(_, UHPat.NumLit(_))
   | UHPat.Pat(_, UHPat.BoolLit(_))
   | UHPat.Pat(_, UHPat.Inj(_, _))
