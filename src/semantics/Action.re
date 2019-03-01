@@ -1950,6 +1950,31 @@ let combine_for_Delete_Space = (ze0, e) =>
   | _ => ze0
   };
 
+/**
+ * Used to construct an expression from an opseq suffix that
+ * follows a keyword when the user hits space after the keyword.
+ * If the first operation is a space, then what follows the space
+ * becomes the new expression. Otherwise, a new hole is generated,
+ * prepended to the suffix, and the reuslting opseq becomes the
+ * new expression.
+ */
+let keyword_suffix_to_exp =
+    (suffix: OperatorSeq.opseq_suffix(UHExp.t, UHExp.op), u_gen)
+    : (UHExp.t, MetaVarGen.t) =>
+  switch (suffix) {
+  | ExpSuffix(UHExp.Space, e) => (e, u_gen)
+  | SeqSuffix(UHExp.Space, seq) => (
+      UHExp.Tm(NotInHole, UHExp.OpSeq(Associator.associate_exp(seq), seq)),
+      u_gen,
+    )
+  | ExpSuffix(_, _)
+  | SeqSuffix(_, _) =>
+    let (hole, u_gen) = UHExp.new_EmptyHole(u_gen);
+    let opseq = OperatorSeq.opseq_of_exp_and_suffix(hole, suffix);
+    let skel = Associator.associate_exp(opseq);
+    (UHExp.Tm(NotInHole, UHExp.OpSeq(skel, opseq)), u_gen);
+  };
+
 let rec perform_syn =
         (ctx: Contexts.t, a: t, ze_ty: (ZExp.t, HTyp.t, MetaVarGen.t))
         : option((ZExp.t, HTyp.t, MetaVarGen.t)) => {
@@ -2281,18 +2306,7 @@ let rec perform_syn =
     )
       when ZExp.is_After_let_keyword(ze) =>
     let (zp, u_gen) = ZPat.new_EmptyHole(u_gen);
-    let e1 =
-      switch (suffix) {
-      | ExpSuffix(UHExp.Space, e) => e
-      | SeqSuffix(UHExp.Space, seq) =>
-        UHExp.Tm(NotInHole, UHExp.OpSeq(Associator.associate_exp(seq), seq))
-      | ExpSuffix(_, _)
-      | SeqSuffix(_, _) =>
-        let (hole, u_gen) = UHExp.new_EmptyHole(u_gen);
-        let opseq = OperatorSeq.opseq_of_exp_and_suffix(hole, suffix);
-        let skel = Associator.associate_exp(opseq);
-        UHExp.Tm(NotInHole, UHExp.OpSeq(skel, opseq));
-      };
+    let (e1, u_gen) = keyword_suffix_to_exp(suffix, u_gen);
     let ze = ZExp.(prepend_zline(DeeperL(LetLineZP(zp, None, e1)), e2));
     zexp_syn_fix_holes(ctx, u_gen, ze);
   | (
@@ -2310,18 +2324,7 @@ let rec perform_syn =
     )
       when ZExp.is_After_let_keyword(ze) =>
     let (zp, u_gen) = ZPat.new_EmptyHole(u_gen);
-    let e1 =
-      switch (suffix) {
-      | ExpSuffix(UHExp.Space, e) => e
-      | SeqSuffix(UHExp.Space, seq) =>
-        UHExp.Tm(NotInHole, UHExp.OpSeq(Associator.associate_exp(seq), seq))
-      | ExpSuffix(_, _)
-      | SeqSuffix(_, _) =>
-        let (hole, u_gen) = UHExp.new_EmptyHole(u_gen);
-        let opseq = OperatorSeq.opseq_of_exp_and_suffix(hole, suffix);
-        let skel = Associator.associate_exp(opseq);
-        UHExp.Tm(NotInHole, UHExp.OpSeq(skel, opseq));
-      };
+    let (e1, u_gen) = keyword_suffix_to_exp(suffix, u_gen);
     let (e2, u_gen) = UHExp.new_EmptyHole(u_gen);
     let ze = ZExp.(prepend_zline(DeeperL(LetLineZP(zp, None, e1)), e2));
     zexp_syn_fix_holes(ctx, u_gen, ze);
@@ -2333,23 +2336,48 @@ let rec perform_syn =
     zexp_syn_fix_holes(ctx, u_gen, ze);
   | (
       Construct(SOp(SSpace)),
+      ZExp.Deeper(
+        _,
+        ZExp.LineItemZL(
+          ZExp.DeeperL(
+            ZExp.ExpLineZ(
+              ZExp.Deeper(
+                _,
+                ZExp.OpSeqZ(_, ze, OperatorSeq.EmptyPrefix(suffix)),
+              ),
+            ),
+          ),
+          e2,
+        ),
+      ),
+    )
+      when ZExp.is_After_case_keyword(ze) =>
+    let (e1, u_gen) = keyword_suffix_to_exp(suffix, u_gen);
+    let ze1 = ZExp.place_Before(e1);
+    let (pat_hole, u_gen) = UHPat.new_EmptyHole(u_gen);
+    let rule = UHExp.Rule(pat_hole, e2);
+    let ze_case = ZExp.Deeper(NotInHole, ZExp.CaseZE(ze1, [rule]));
+    let ze = ZExp.Deeper(NotInHole, ZExp.AscZ1(ze_case, UHTyp.Hole));
+    zexp_syn_fix_holes(ctx, u_gen, ze);
+  | (
+      Construct(SOp(SSpace)),
       ZExp.Deeper(_, ZExp.OpSeqZ(_, ze, OperatorSeq.EmptyPrefix(suffix))),
     )
       when ZExp.is_After_case_keyword(ze) =>
-    let e1 =
-      switch (suffix) {
-      | ExpSuffix(UHExp.Space, e) => e
-      | SeqSuffix(UHExp.Space, seq) =>
-        UHExp.Tm(NotInHole, UHExp.OpSeq(Associator.associate_exp(seq), seq))
-      | ExpSuffix(_, _)
-      | SeqSuffix(_, _) =>
-        let (hole, u_gen) = UHExp.new_EmptyHole(u_gen);
-        let opseq = OperatorSeq.opseq_of_exp_and_suffix(hole, suffix);
-        let skel = Associator.associate_exp(opseq);
-        UHExp.Tm(NotInHole, UHExp.OpSeq(skel, opseq));
-      };
+    let (e1, u_gen) = keyword_suffix_to_exp(suffix, u_gen);
     let ze1 = ZExp.place_Before(e1);
     let (rule, u_gen) = UHExp.empty_rule(u_gen);
+    let ze_case = ZExp.Deeper(NotInHole, ZExp.CaseZE(ze1, [rule]));
+    let ze = ZExp.Deeper(NotInHole, ZExp.AscZ1(ze_case, UHTyp.Hole));
+    zexp_syn_fix_holes(ctx, u_gen, ze);
+  | (
+      Construct(SOp(SSpace)),
+      ZExp.Deeper(_, ZExp.LineItemZL(ZExp.DeeperL(ZExp.ExpLineZ(ze)), e2)),
+    )
+      when ZExp.is_After_case_keyword(ze) =>
+    let (ze1, u_gen) = ZExp.new_EmptyHole(u_gen);
+    let (pat_hole, u_gen) = UHPat.new_EmptyHole(u_gen);
+    let rule = UHExp.Rule(pat_hole, e2);
     let ze_case = ZExp.Deeper(NotInHole, ZExp.CaseZE(ze1, [rule]));
     let ze = ZExp.Deeper(NotInHole, ZExp.AscZ1(ze_case, UHTyp.Hole));
     zexp_syn_fix_holes(ctx, u_gen, ze);
@@ -3547,18 +3575,7 @@ and perform_ana =
     )
       when ZExp.is_After_let_keyword(ze) =>
     let (zp, u_gen) = ZPat.new_EmptyHole(u_gen);
-    let e1 =
-      switch (suffix) {
-      | ExpSuffix(UHExp.Space, e) => e
-      | SeqSuffix(UHExp.Space, seq) =>
-        UHExp.Tm(NotInHole, UHExp.OpSeq(Associator.associate_exp(seq), seq))
-      | ExpSuffix(_, _)
-      | SeqSuffix(_, _) =>
-        let (hole, u_gen) = UHExp.new_EmptyHole(u_gen);
-        let opseq = OperatorSeq.opseq_of_exp_and_suffix(hole, suffix);
-        let skel = Associator.associate_exp(opseq);
-        UHExp.Tm(NotInHole, UHExp.OpSeq(skel, opseq));
-      };
+    let (e1, u_gen) = keyword_suffix_to_exp(suffix, u_gen);
     let ze = ZExp.(prepend_zline(DeeperL(LetLineZP(zp, None, e1)), e2));
     zexp_ana_fix_holes(ctx, u_gen, ze, ty);
   | (
@@ -3576,18 +3593,7 @@ and perform_ana =
     )
       when ZExp.is_After_let_keyword(ze) =>
     let (zp, u_gen) = ZPat.new_EmptyHole(u_gen);
-    let e1 =
-      switch (suffix) {
-      | ExpSuffix(UHExp.Space, e) => e
-      | SeqSuffix(UHExp.Space, seq) =>
-        UHExp.Tm(NotInHole, UHExp.OpSeq(Associator.associate_exp(seq), seq))
-      | ExpSuffix(_, _)
-      | SeqSuffix(_, _) =>
-        let (hole, u_gen) = UHExp.new_EmptyHole(u_gen);
-        let opseq = OperatorSeq.opseq_of_exp_and_suffix(hole, suffix);
-        let skel = Associator.associate_exp(opseq);
-        UHExp.Tm(NotInHole, UHExp.OpSeq(skel, opseq));
-      };
+    let (e1, u_gen) = keyword_suffix_to_exp(suffix, u_gen);
     let (e2, u_gen) = UHExp.new_EmptyHole(u_gen);
     let ze = ZExp.(prepend_zline(DeeperL(LetLineZP(zp, None, e1)), e2));
     zexp_ana_fix_holes(ctx, u_gen, ze, ty);
@@ -3599,23 +3605,46 @@ and perform_ana =
     zexp_ana_fix_holes(ctx, u_gen, ze, ty);
   | (
       Construct(SOp(SSpace)),
+      ZExp.Deeper(
+        _,
+        ZExp.LineItemZL(
+          ZExp.DeeperL(
+            ZExp.ExpLineZ(
+              ZExp.Deeper(
+                _,
+                ZExp.OpSeqZ(_, ze, OperatorSeq.EmptyPrefix(suffix)),
+              ),
+            ),
+          ),
+          e2,
+        ),
+      ),
+    )
+      when ZExp.is_After_case_keyword(ze) =>
+    let (e1, u_gen) = keyword_suffix_to_exp(suffix, u_gen);
+    let ze1 = ZExp.place_Before(e1);
+    let (pat_hole, u_gen) = UHPat.new_EmptyHole(u_gen);
+    let rule = UHExp.Rule(pat_hole, e2);
+    let ze = ZExp.Deeper(NotInHole, ZExp.CaseZE(ze1, [rule]));
+    zexp_ana_fix_holes(ctx, u_gen, ze, ty);
+  | (
+      Construct(SOp(SSpace)),
       ZExp.Deeper(_, ZExp.OpSeqZ(_, ze, OperatorSeq.EmptyPrefix(suffix))),
     )
       when ZExp.is_After_case_keyword(ze) =>
-    let e1 =
-      switch (suffix) {
-      | ExpSuffix(UHExp.Space, e) => e
-      | SeqSuffix(UHExp.Space, seq) =>
-        UHExp.Tm(NotInHole, UHExp.OpSeq(Associator.associate_exp(seq), seq))
-      | ExpSuffix(_, _)
-      | SeqSuffix(_, _) =>
-        let (hole, u_gen) = UHExp.new_EmptyHole(u_gen);
-        let opseq = OperatorSeq.opseq_of_exp_and_suffix(hole, suffix);
-        let skel = Associator.associate_exp(opseq);
-        UHExp.Tm(NotInHole, UHExp.OpSeq(skel, opseq));
-      };
+    let (e1, u_gen) = keyword_suffix_to_exp(suffix, u_gen);
     let ze1 = ZExp.place_Before(e1);
     let (rule, u_gen) = UHExp.empty_rule(u_gen);
+    let ze = ZExp.Deeper(NotInHole, ZExp.CaseZE(ze1, [rule]));
+    zexp_ana_fix_holes(ctx, u_gen, ze, ty);
+  | (
+      Construct(SOp(SSpace)),
+      ZExp.Deeper(_, ZExp.LineItemZL(ZExp.DeeperL(ZExp.ExpLineZ(ze)), e2)),
+    )
+      when ZExp.is_After_case_keyword(ze) =>
+    let (ze1, u_gen) = ZExp.new_EmptyHole(u_gen);
+    let (pat_hole, u_gen) = UHPat.new_EmptyHole(u_gen);
+    let rule = UHExp.Rule(pat_hole, e2);
     let ze = ZExp.Deeper(NotInHole, ZExp.CaseZE(ze1, [rule]));
     zexp_ana_fix_holes(ctx, u_gen, ze, ty);
   | (Construct(SOp(SSpace)), ze) when ZExp.is_After_case_keyword(ze) =>
