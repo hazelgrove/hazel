@@ -36,6 +36,8 @@ type cursor_mode =
   | SynFreeArrow(HTyp.t)
   /* cursor is on a free variable in the function
      position of an ap */
+  | SynKeywordArrow(HTyp.t)
+  /* cursor is on a keyword in the function position of an ap */
   | SynFree
   /* none of the above, cursor is on a free variable */
   | SynKeyword(String.t)
@@ -714,7 +716,16 @@ and syn_skel_cursor_info =
           )
         | None => None
         };
-      | Some((UHExp.Tm(_, UHExp.Var(InVHole(_), _)) as e_n, side)) =>
+      | Some((UHExp.Tm(_, UHExp.Var(InVHole(Keyword, _), _)) as e_n, side)) =>
+        Some(
+          mk_cursor_info(
+            SynKeywordArrow(HTyp.Arrow(HTyp.Hole, HTyp.Hole)),
+            IsExpr(e_n),
+            side,
+            ctx,
+          ),
+        )
+      | Some((UHExp.Tm(_, UHExp.Var(InVHole(Free, _), _)) as e_n, side)) =>
         Some(
           mk_cursor_info(
             SynFreeArrow(HTyp.Arrow(HTyp.Hole, HTyp.Hole)),
