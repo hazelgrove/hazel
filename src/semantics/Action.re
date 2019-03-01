@@ -2680,25 +2680,63 @@ let rec perform_syn =
     let ty = HTyp.List(HTyp.Hole);
     Some((ze, ty, u_gen));
   | (Construct(SListNil), ZExp.CursorE(_, _)) => None
-  | (Construct(SCase), ZExp.CursorE(_, e1)) =>
+  | (
+      Construct(SCase),
+      ZExp.Deeper(_, ZExp.LineItemZL(ZExp.DeeperL(ZExp.ExpLineZ(ze1)), e2)),
+    )
+      when ZExp.cursor_at_start(ze1) =>
+    let e1 = ZExp.erase(ze1);
+    switch (e1) {
+    | UHExp.Tm(_, UHExp.EmptyHole(_)) =>
+      let (rule_p, u_gen) = UHPat.new_EmptyHole(u_gen);
+      let rule = UHExp.Rule(rule_p, e2);
+      let ze_case = ZExp.Deeper(NotInHole, ZExp.CaseZE(ze, [rule]));
+      let ze = ZExp.Deeper(NotInHole, ZExp.AscZ1(ze_case, UHTyp.Hole));
+      Some((ze, HTyp.Hole, u_gen));
+    | _ =>
+      let (zp, u_gen) = ZPat.new_EmptyHole(u_gen);
+      let zrule = ZExp.RuleZP(zp, e2);
+      let zrules = ZList.singleton(zrule);
+      let ze_case = ZExp.Deeper(NotInHole, ZExp.CaseZR(e1, zrules));
+      let ze = ZExp.Deeper(NotInHole, ZExp.AscZ1(ze_case, UHTyp.Hole));
+      Some((ze, HTyp.Hole, u_gen));
+    };
+  | (Construct(SCase), ze1) when ZExp.cursor_at_start(ze1) =>
+    let e1 = ZExp.erase(ze1);
     switch (e1) {
     | UHExp.Tm(_, UHExp.EmptyHole(_)) =>
       let (rule_p, u_gen) = UHPat.new_EmptyHole(u_gen);
       let (rule_e, u_gen) = UHExp.new_EmptyHole(u_gen);
       let rule = UHExp.Rule(rule_p, rule_e);
-      let rules = [rule];
-      let caseze = ZExp.Deeper(NotInHole, ZExp.CaseZE(ze, rules));
-      let ze = ZExp.Deeper(NotInHole, ZExp.AscZ1(caseze, UHTyp.Hole));
+      let ze_case = ZExp.Deeper(NotInHole, ZExp.CaseZE(ze1, [rule]));
+      let ze = ZExp.Deeper(NotInHole, ZExp.AscZ1(ze_case, UHTyp.Hole));
       Some((ze, HTyp.Hole, u_gen));
     | _ =>
       let (zp, u_gen) = ZPat.new_EmptyHole(u_gen);
       let (rule_e, u_gen) = UHExp.new_EmptyHole(u_gen);
       let zrule = ZExp.RuleZP(zp, rule_e);
       let zrules = ZList.singleton(zrule);
-      let caseze = ZExp.Deeper(NotInHole, ZExp.CaseZR(e1, zrules));
-      let ze = ZExp.Deeper(NotInHole, ZExp.AscZ1(caseze, UHTyp.Hole));
+      let ze_case = ZExp.Deeper(NotInHole, ZExp.CaseZR(e1, zrules));
+      let ze = ZExp.Deeper(NotInHole, ZExp.AscZ1(ze_case, UHTyp.Hole));
       Some((ze, HTyp.Hole, u_gen));
-    }
+    };
+  | (Construct(SCase), CursorE(_, _)) => None
+  /* cannot construct case in middle of opseq without parens */
+  | (
+      Construct(SCase),
+      ZExp.Deeper(
+        _,
+        ZExp.OpSeqZ(_, ZExp.CursorE(_, _), OperatorSeq.BothNonEmpty(_, _)),
+      ),
+    )
+  | (
+      Construct(SCase),
+      ZExp.Deeper(
+        _,
+        ZExp.OpSeqZ(_, ZExp.CursorE(_, _), OperatorSeq.EmptySuffix(_)),
+      ),
+    ) =>
+    None
   | (
       Construct(SOp(os)),
       ZExp.Deeper(_, ZExp.OpSeqZ(_, ZExp.CursorE(In(_), e), surround)),
@@ -3925,26 +3963,71 @@ and perform_ana =
         Some((ze, u_gen));
       }
     }
-  | (Construct(SCase), ZExp.CursorE(_, e1)) =>
+  | (
+      Construct(SCase),
+      ZExp.Deeper(_, ZExp.LineItemZL(ZExp.DeeperL(ZExp.ExpLineZ(ze1)), e2)),
+    )
+      when ZExp.cursor_at_start(ze1) =>
+    let e1 = ZExp.erase(ze1);
+    switch (e1) {
+    | UHExp.Tm(_, UHExp.EmptyHole(_)) =>
+      let (rule_p, u_gen) = UHPat.new_EmptyHole(u_gen);
+      let rule = UHExp.Rule(rule_p, e2);
+      let ze = ZExp.Deeper(NotInHole, ZExp.CaseZE(ze, [rule]));
+      Some((ze, u_gen));
+    | _ =>
+      let (zp, u_gen) = ZPat.new_EmptyHole(u_gen);
+      let zrule = ZExp.RuleZP(zp, e2);
+      let zrules = ZList.singleton(zrule);
+      let (e1, u_gen) =
+        switch (Statics.syn_fix_holes(ctx, u_gen, e1)) {
+        | Some((e1, _, u_gen)) => (e1, u_gen)
+        | None => (
+            UHExp.Tm(NotInHole, UHExp.Asc(e1, UHTyp.contract(ty))),
+            u_gen,
+          )
+        };
+      let ze = ZExp.Deeper(NotInHole, ZExp.CaseZR(e1, zrules));
+      Some((ze, u_gen));
+    };
+  | (Construct(SCase), ze1) when ZExp.cursor_at_start(ze1) =>
+    let e1 = ZExp.erase(ze1);
     switch (e1) {
     | UHExp.Tm(_, UHExp.EmptyHole(_)) =>
       let (rule, u_gen) = UHExp.empty_rule(u_gen);
-      let rules = [rule];
-      let ze = ZExp.Deeper(NotInHole, ZExp.CaseZE(ze, rules));
+      let ze = ZExp.Deeper(NotInHole, ZExp.CaseZE(ze1, [rule]));
       Some((ze, u_gen));
     | _ =>
       let (zrule, u_gen) = ZExp.empty_zrule(u_gen);
       let zrules = ZList.singleton(zrule);
-      switch (Statics.syn_fix_holes(ctx, u_gen, e1)) {
-      | Some((e1, _, u_gen)) =>
-        let ze = ZExp.Deeper(NotInHole, ZExp.CaseZR(e1, zrules));
-        Some((ze, u_gen));
-      | None =>
-        let e1 = UHExp.Tm(NotInHole, UHExp.Asc(e1, UHTyp.contract(ty)));
-        let ze = ZExp.Deeper(NotInHole, ZExp.CaseZR(e1, zrules));
-        Some((ze, u_gen));
-      };
-    }
+      let (e1, u_gen) =
+        switch (Statics.syn_fix_holes(ctx, u_gen, e1)) {
+        | Some((e1, _, u_gen)) => (e1, u_gen)
+        | None => (
+            UHExp.Tm(NotInHole, UHExp.Asc(e1, UHTyp.contract(ty))),
+            u_gen,
+          )
+        };
+      let ze = ZExp.Deeper(NotInHole, ZExp.CaseZR(e1, zrules));
+      Some((ze, u_gen));
+    };
+  | (Construct(SCase), ZExp.CursorE(_, _)) => None
+  /* cannot construct case in middle of opseq without parens */
+  | (
+      Construct(SCase),
+      ZExp.Deeper(
+        _,
+        ZExp.OpSeqZ(_, ZExp.CursorE(_, _), OperatorSeq.BothNonEmpty(_, _)),
+      ),
+    )
+  | (
+      Construct(SCase),
+      ZExp.Deeper(
+        _,
+        ZExp.OpSeqZ(_, ZExp.CursorE(_, _), OperatorSeq.EmptySuffix(_)),
+      ),
+    ) =>
+    None
   | (
       Construct(SOp(os)),
       ZExp.Deeper(_, ZExp.OpSeqZ(_, ZExp.CursorE(In(_), e), surround)),
