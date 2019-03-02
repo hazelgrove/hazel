@@ -2703,40 +2703,38 @@ let rec perform_syn =
     )
       when ZExp.cursor_at_start(ze1) =>
     let e1 = ZExp.erase(ze1);
-    switch (e1) {
-    | UHExp.Tm(_, UHExp.EmptyHole(_)) =>
-      let (rule_p, u_gen) = UHPat.new_EmptyHole(u_gen);
-      let rule = UHExp.Rule(rule_p, e2);
-      let ze_case = ZExp.Deeper(NotInHole, ZExp.CaseZE(ze, [rule]));
-      let ze = ZExp.Deeper(NotInHole, ZExp.AscZ1(ze_case, UHTyp.Hole));
-      Some((ze, HTyp.Hole, u_gen));
-    | _ =>
-      let (zp, u_gen) = ZPat.new_EmptyHole(u_gen);
-      let zrule = ZExp.RuleZP(zp, e2);
-      let zrules = ZList.singleton(zrule);
-      let ze_case = ZExp.Deeper(NotInHole, ZExp.CaseZR(e1, zrules));
-      let ze = ZExp.Deeper(NotInHole, ZExp.AscZ1(ze_case, UHTyp.Hole));
-      Some((ze, HTyp.Hole, u_gen));
-    };
+    let ze_case =
+      switch (e1) {
+      | UHExp.Tm(_, UHExp.EmptyHole(_)) =>
+        let (rule_p, u_gen) = UHPat.new_EmptyHole(u_gen);
+        let rule = UHExp.Rule(rule_p, e2);
+        ZExp.Deeper(NotInHole, ZExp.CaseZE(ze, [rule]));
+      | _ =>
+        let (zp, u_gen) = ZPat.new_EmptyHole(u_gen);
+        let zrule = ZExp.RuleZP(zp, e2);
+        let zrules = ZList.singleton(zrule);
+        ZExp.Deeper(NotInHole, ZExp.CaseZR(e1, zrules));
+      };
+    let ze = ZExp.asc_z1(ze_case, UHTyp.Hole);
+    Some((ze, HTyp.Hole, u_gen));
   | (Construct(SCase), ze1) when ZExp.cursor_at_start(ze1) =>
     let e1 = ZExp.erase(ze1);
-    switch (e1) {
-    | UHExp.Tm(_, UHExp.EmptyHole(_)) =>
-      let (rule_p, u_gen) = UHPat.new_EmptyHole(u_gen);
-      let (rule_e, u_gen) = UHExp.new_EmptyHole(u_gen);
-      let rule = UHExp.Rule(rule_p, rule_e);
-      let ze_case = ZExp.Deeper(NotInHole, ZExp.CaseZE(ze1, [rule]));
-      let ze = ZExp.Deeper(NotInHole, ZExp.AscZ1(ze_case, UHTyp.Hole));
-      Some((ze, HTyp.Hole, u_gen));
-    | _ =>
-      let (zp, u_gen) = ZPat.new_EmptyHole(u_gen);
-      let (rule_e, u_gen) = UHExp.new_EmptyHole(u_gen);
-      let zrule = ZExp.RuleZP(zp, rule_e);
-      let zrules = ZList.singleton(zrule);
-      let ze_case = ZExp.Deeper(NotInHole, ZExp.CaseZR(e1, zrules));
-      let ze = ZExp.Deeper(NotInHole, ZExp.AscZ1(ze_case, UHTyp.Hole));
-      Some((ze, HTyp.Hole, u_gen));
-    };
+    let ze_case =
+      switch (e1) {
+      | UHExp.Tm(_, UHExp.EmptyHole(_)) =>
+        let (rule_p, u_gen) = UHPat.new_EmptyHole(u_gen);
+        let (rule_e, u_gen) = UHExp.new_EmptyHole(u_gen);
+        let rule = UHExp.Rule(rule_p, rule_e);
+        ZExp.Deeper(NotInHole, ZExp.CaseZE(ze1, [rule]));
+      | _ =>
+        let (zp, u_gen) = ZPat.new_EmptyHole(u_gen);
+        let (rule_e, u_gen) = UHExp.new_EmptyHole(u_gen);
+        let zrule = ZExp.RuleZP(zp, rule_e);
+        let zrules = ZList.singleton(zrule);
+        ZExp.Deeper(NotInHole, ZExp.CaseZR(e1, zrules));
+      };
+    let ze = ZExp.asc_z1(ze_case, UHTyp.Hole);
+    Some((ze, HTyp.Hole, u_gen));
   | (Construct(SCase), CursorE(_, _)) => None
   /* cannot construct case in middle of opseq without parens */
   | (Construct(SCase), ze) when is_not_Before_opseq(ze) => None
@@ -2898,12 +2896,12 @@ let rec perform_syn =
       Some((ZExp.ParenthesizedZ(ze1'), ty', u_gen'))
     | None => None
     }
-  | (_, ZExp.Deeper(_, ZExp.AscZ1(ze, uty1))) =>
+  | (_, ZExp.Deeper(_, ZExp.AscZ1(ze1, uty1))) =>
     let ty1 = UHTyp.expand(uty1);
-    switch (perform_ana(u_gen, ctx, a, ze, ty1)) {
-    | Some((ze', u_gen')) =>
-      let ze'' = ZExp.bidelimit(ze');
-      Some((ZExp.Deeper(NotInHole, ZExp.AscZ1(ze'', uty1)), ty, u_gen'));
+    switch (perform_ana(u_gen, ctx, a, ze1, ty1)) {
+    | Some((ze1, u_gen)) =>
+      let ze = ZExp.asc_z1(ze1, uty1);
+      Some((ze, ty, u_gen));
     | None => None
     };
   | (_, ZExp.Deeper(_, ZExp.AscZ2(e, zty))) =>
