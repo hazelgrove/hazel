@@ -3937,7 +3937,7 @@ and perform_ana =
     | UHExp.Tm(_, UHExp.EmptyHole(_)) =>
       let (rule_p, u_gen) = UHPat.new_EmptyHole(u_gen);
       let rule = UHExp.Rule(rule_p, e2);
-      let ze = ZExp.Deeper(NotInHole, ZExp.CaseZE(ze, [rule]));
+      let ze = ZExp.Deeper(NotInHole, ZExp.CaseZE(ze1, [rule]));
       Some((ze, u_gen));
     | _ =>
       let (zp, u_gen) = ZPat.new_EmptyHole(u_gen);
