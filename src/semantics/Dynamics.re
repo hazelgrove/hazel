@@ -20,7 +20,7 @@ module DHPat = {
     | EmptyHole(MetaVar.t, inst_num)
     | NonEmptyHole(in_hole_reason, MetaVar.t, inst_num, t)
     | Wild
-    | Keyword(MetaVar.t, inst_num, Var.t)
+    | Keyword(MetaVar.t, inst_num, keyword)
     | Var(Var.t)
     | NumLit(nat)
     | BoolLit(bool)
@@ -101,8 +101,8 @@ module DHPat = {
       Expands(dp, ty, ctx, delta);
     | UHPat.Wild => Expands(Wild, HTyp.Hole, ctx, delta)
     | UHPat.Var(InVHole(Free, _), _) => raise(FreeVarInPat)
-    | UHPat.Var(InVHole(Keyword, u), x) =>
-      Expands(Keyword(u, 0, x), HTyp.Hole, ctx, delta)
+    | UHPat.Var(InVHole(Keyword(k), u), _) =>
+      Expands(Keyword(u, 0, k), HTyp.Hole, ctx, delta)
     | UHPat.Var(NotInVHole, x) =>
       let ctx = Contexts.extend_gamma(ctx, (x, HTyp.Hole));
       Expands(Var(x), HTyp.Hole, ctx, delta);
@@ -231,8 +231,8 @@ module DHPat = {
         MetaVarMap.extend_unique(delta, (u, (PatternHole, ty, gamma)));
       Expands(dp, ty, ctx, delta);
     | UHPat.Var(InVHole(Free, _), _) => raise(FreeVarInPat)
-    | UHPat.Var(InVHole(Keyword, u), x) =>
-      Expands(Keyword(u, 0, x), ty, ctx, delta)
+    | UHPat.Var(InVHole(Keyword(k), u), _) =>
+      Expands(Keyword(u, 0, k), ty, ctx, delta)
     | UHPat.Var(NotInVHole, x) =>
       let ctx = Contexts.extend_gamma(ctx, (x, ty));
       Expands(Var(x), ty, ctx, delta);
@@ -1734,11 +1734,11 @@ module DHExp = {
       let (i, hii) = HoleInstanceInfo.next(hii, u, sigma, path);
       let (dp1, hii) = renumber_result_only_pat(path, hii, dp1);
       (DHPat.NonEmptyHole(reason, u, i, dp1), hii);
-    | DHPat.Keyword(u, _, x) =>
+    | DHPat.Keyword(u, _, k) =>
       /* TODO: see above */
       let sigma = Environment.empty;
       let (i, hii) = HoleInstanceInfo.next(hii, u, sigma, path);
-      (DHPat.Keyword(u, i, x), hii);
+      (DHPat.Keyword(u, i, k), hii);
     | DHPat.Inj(side, dp1) =>
       let (dp1, hii) = renumber_result_only_pat(path, hii, dp1);
       (DHPat.Inj(side, dp1), hii);

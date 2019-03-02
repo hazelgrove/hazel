@@ -20,7 +20,7 @@ type cursor_mode =
   /* none of the above and didn't go through subsumption */
   | AnaSubsumed(HTyp.t, HTyp.t)
   /* none of the above and went through subsumption */
-  | AnaKeyword(HTyp.t, String.t)
+  | AnaKeyword(HTyp.t, keyword)
   /* cursor is on a keyword */
   /*
    *  # cursor in synthetic position
@@ -36,11 +36,11 @@ type cursor_mode =
   | SynFreeArrow(HTyp.t)
   /* cursor is on a free variable in the function
      position of an ap */
-  | SynKeywordArrow(HTyp.t)
+  | SynKeywordArrow(HTyp.t, keyword)
   /* cursor is on a keyword in the function position of an ap */
   | SynFree
   /* none of the above, cursor is on a free variable */
-  | SynKeyword(String.t)
+  | SynKeyword(keyword)
   /* cursor is on a keyword */
   | Synthesized(HTyp.t)
   /* none of the above */
@@ -64,14 +64,14 @@ type cursor_mode =
   /* none of the above and didn't go through subsumption */
   | PatAnaSubsumed(HTyp.t, HTyp.t)
   /* none of the above and went through subsumption */
-  | PatAnaKeyword(HTyp.t, String.t)
+  | PatAnaKeyword(HTyp.t, keyword)
   /* cursor is on a keyword */
   /*
    * # cursor in synthetic pattern position
    */
   | PatSynthesized(HTyp.t)
   /* cursor is on a keyword */
-  | PatSynKeyword(String.t)
+  | PatSynKeyword(keyword)
   /*
    *  # cursor on line item
    */
@@ -181,9 +181,9 @@ let rec syn_pat_cursor_info = (ctx: Contexts.t, zp: ZPat.t): option(t) =>
   switch (zp) {
   | ZPat.CursorP(
       side,
-      UHPat.Pat(_, UHPat.Var(InVHole(Keyword, _), x)) as p,
+      UHPat.Pat(_, UHPat.Var(InVHole(Keyword(k), _), _)) as p,
     ) =>
-    Some(mk_cursor_info(PatSynKeyword(x), IsPat(p), side, ctx))
+    Some(mk_cursor_info(PatSynKeyword(k), IsPat(p), side, ctx))
   | ZPat.CursorP(side, p) =>
     switch (Statics.syn_pat(ctx, p)) {
     | None => None
@@ -245,9 +245,9 @@ and ana_pat_cursor_info =
   switch (zp) {
   | ZPat.CursorP(
       side,
-      UHPat.Pat(_, UHPat.Var(InVHole(Keyword, _), x)) as p,
+      UHPat.Pat(_, UHPat.Var(InVHole(Keyword(k), _), _)) as p,
     ) =>
-    Some(mk_cursor_info(PatAnaKeyword(ty, x), IsPat(p), side, ctx))
+    Some(mk_cursor_info(PatAnaKeyword(ty, k), IsPat(p), side, ctx))
   | ZPat.CursorP(side, p) => ana_pat_cursor_found(ctx, p, ty, side)
   | ZPat.Deeper(InHole(TypeInconsistent, u), zp') =>
     syn_pat_cursor_info'(ctx, zp')
@@ -389,8 +389,8 @@ let rec ana_cursor_found =
         mk_cursor_info(AnaTypeInconsistent(ty, ty'), IsExpr(e), side, ctx),
       )
     };
-  | UHExp.Tm(_, UHExp.Var(InVHole(Keyword, _), x)) =>
-    Some(mk_cursor_info(AnaKeyword(ty, x), IsExpr(e), side, ctx))
+  | UHExp.Tm(_, UHExp.Var(InVHole(Keyword(k), _), _)) =>
+    Some(mk_cursor_info(AnaKeyword(ty, k), IsExpr(e), side, ctx))
   | UHExp.Tm(_, UHExp.Var(InVHole(Free, _), _)) =>
     Some(mk_cursor_info(AnaFree(ty), IsExpr(e), side, ctx))
   | UHExp.Tm(NotInHole, UHExp.Case(_, _)) =>
@@ -497,8 +497,11 @@ let rec ana_cursor_found =
 
 let rec syn_cursor_info = (ctx: Contexts.t, ze: ZExp.t): option(t) =>
   switch (ze) {
-  | ZExp.CursorE(side, UHExp.Tm(_, UHExp.Var(InVHole(Keyword, _), x)) as e) =>
-    Some(mk_cursor_info(SynKeyword(x), IsExpr(e), side, ctx))
+  | ZExp.CursorE(
+      side,
+      UHExp.Tm(_, UHExp.Var(InVHole(Keyword(k), _), _)) as e,
+    ) =>
+    Some(mk_cursor_info(SynKeyword(k), IsExpr(e), side, ctx))
   | ZExp.CursorE(side, UHExp.Tm(_, UHExp.Var(InVHole(Free, _), _)) as e) =>
     Some(mk_cursor_info(SynFree, IsExpr(e), side, ctx))
   | ZExp.CursorE(side, e) =>
@@ -716,10 +719,13 @@ and syn_skel_cursor_info =
           )
         | None => None
         };
-      | Some((UHExp.Tm(_, UHExp.Var(InVHole(Keyword, _), _)) as e_n, side)) =>
+      | Some((
+          UHExp.Tm(_, UHExp.Var(InVHole(Keyword(k), _), _)) as e_n,
+          side,
+        )) =>
         Some(
           mk_cursor_info(
-            SynKeywordArrow(HTyp.Arrow(HTyp.Hole, HTyp.Hole)),
+            SynKeywordArrow(HTyp.Arrow(HTyp.Hole, HTyp.Hole), k),
             IsExpr(e_n),
             side,
             ctx,

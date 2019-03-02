@@ -33,7 +33,7 @@ and syn_pat' = (ctx, p) =>
   | UHPat.EmptyHole(_) => Some((HTyp.Hole, ctx))
   | UHPat.Wild => Some((HTyp.Hole, ctx))
   | UHPat.Var(InVHole(Free, _), _) => raise(FreeVarInPat)
-  | UHPat.Var(InVHole(Keyword, _), _) => Some((HTyp.Hole, ctx))
+  | UHPat.Var(InVHole(Keyword(_), _), _) => Some((HTyp.Hole, ctx))
   | UHPat.Var(NotInVHole, x) =>
     Var.check_valid(
       x,
@@ -163,7 +163,7 @@ and ana_pat = (ctx, p, ty) =>
 and ana_pat' = (ctx, p, ty) =>
   switch (p) {
   | UHPat.Var(InVHole(Free, _), _) => raise(FreeVarInPat)
-  | UHPat.Var(InVHole(Keyword, _), _) => Some(ctx)
+  | UHPat.Var(InVHole(Keyword(_), _), _) => Some(ctx)
   | UHPat.Var(NotInVHole, x) =>
     Var.check_valid(x, Some(Contexts.extend_gamma(ctx, (x, ty))))
   | UHPat.EmptyHole(_)
@@ -870,7 +870,7 @@ and syn_pat_fix_holes' = (ctx, u_gen, renumber_empty_holes, p) =>
     }
   | UHPat.Wild => Some((p, HTyp.Hole, ctx, u_gen))
   | UHPat.Var(InVHole(Free, _), _) => raise(FreeVarInPat)
-  | UHPat.Var(InVHole(Keyword, _), _) => Some((p, HTyp.Hole, ctx, u_gen))
+  | UHPat.Var(InVHole(Keyword(_), _), _) => Some((p, HTyp.Hole, ctx, u_gen))
   | UHPat.Var(NotInVHole, x) =>
     Var.check_valid(
       x,
@@ -1023,7 +1023,7 @@ and ana_pat_fix_holes' = (ctx, u_gen, renumber_empty_holes, p, ty) =>
   switch (p) {
   | UHPat.Wild => Some((NotInHole, p, ctx, u_gen))
   | UHPat.Var(InVHole(Free, _), _) => raise(FreeVarInPat)
-  | UHPat.Var(InVHole(Keyword, _), _) => Some((NotInHole, p, ctx, u_gen))
+  | UHPat.Var(InVHole(Keyword(_), _), _) => Some((NotInHole, p, ctx, u_gen))
   | UHPat.Var(NotInVHole, x) =>
     Var.check_valid(
       x,
@@ -1474,7 +1474,12 @@ and syn_fix_holes' = (ctx, u_gen, renumber_empty_holes, e) =>
       | InVHole(_, _) => Some((e, HTyp.Hole, u_gen))
       | NotInVHole =>
         let (u, u_gen) = MetaVarGen.next(u_gen);
-        let in_vhole_reason = Var.is_keyword(x) ? Keyword : Free;
+        let in_vhole_reason =
+          switch (Var.is_let_keyword(x), Var.is_case_keyword(x)) {
+          | (true, _) => Keyword(Let)
+          | (_, true) => Keyword(Case)
+          | _ => Free
+          };
         Some((Var(InVHole(in_vhole_reason, u), x), HTyp.Hole, u_gen));
       }
     };

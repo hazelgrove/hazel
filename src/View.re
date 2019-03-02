@@ -559,8 +559,8 @@ let rec of_hpat = (prefix, rev_path, p) =>
       )
     | UHPat.Wild => of_Wild(prefix, err_status, rev_path)
     | UHPat.Var(InVHole(Free, _), _) => raise(FreeVarInPat)
-    | UHPat.Var(InVHole(Keyword, u), x) =>
-      of_Var(prefix, err_status, InVHole(Keyword, u), rev_path, x)
+    | UHPat.Var(InVHole(Keyword(k), u), x) =>
+      of_Var(prefix, err_status, InVHole(Keyword(k), u), rev_path, x)
     | UHPat.Var(NotInVHole, x) =>
       of_Var(prefix, err_status, NotInVHole, rev_path, x)
     | UHPat.NumLit(n) => of_NumLit(prefix, err_status, rev_path, n)
@@ -891,8 +891,14 @@ let rec of_dhpat' =
           );
         term(prefix, err_status, rev_path, "NonEmptyHole", r);
       | Wild => of_Wild(prefix, err_status, rev_path)
-      | Keyword(u, _, x) =>
-        of_Var(prefix, err_status, InVHole(Keyword, u), rev_path, x)
+      | Keyword(u, _, k) =>
+        /* TODO remove */
+        let x =
+          switch (k) {
+          | Let => "let"
+          | Case => "case"
+          };
+        of_Var(prefix, err_status, InVHole(Keyword(k), u), rev_path, x);
       | Var(x) => of_Var(prefix, err_status, NotInVHole, rev_path, x)
       | BoolLit(b) => of_BoolLit(prefix, err_status, rev_path, b)
       | NumLit(n) => of_NumLit(prefix, err_status, rev_path, n)

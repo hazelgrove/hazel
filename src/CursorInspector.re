@@ -162,7 +162,7 @@ let of_cursor_mode = (cursor_mode: CursorInfo.cursor_mode) => {
         | _ => got_indicator("Got", typebar("got", syn_ty))
         };
       (ind1, ind2, OK);
-    | CursorInfo.SynKeywordArrow(matched_ty) =>
+    | CursorInfo.SynKeywordArrow(matched_ty, k) =>
       let ind1 = expected_msg_indicator("function type");
       let ind2 =
         got_indicator(

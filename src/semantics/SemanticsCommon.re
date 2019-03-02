@@ -13,9 +13,13 @@ let err_status_to_string =
   | NotInHole => "NotInHole"
   | InHole(reason, u) => "InHole";
 
+type keyword =
+  | Let
+  | Case;
+
 type in_vhole_reason =
   | Free
-  | Keyword;
+  | Keyword(keyword);
 
 type var_err_status =
   | NotInVHole

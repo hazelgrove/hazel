@@ -1209,26 +1209,37 @@ let rec perform_syn_pat =
       Construct(SVar(x, side)),
       ZPat.CursorP(_, UHPat.Pat(_, UHPat.BoolLit(_))),
     ) =>
-    if (String.equal(x, "true")) {
+    if (Var.is_true_keyword(x)) {
       Some((
         ZPat.CursorP(side, UHPat.Pat(NotInHole, UHPat.BoolLit(true))),
         HTyp.Bool,
         ctx,
         u_gen,
       ));
-    } else if (String.equal(x, "false")) {
+    } else if (Var.is_false_keyword(x)) {
       Some((
         ZPat.CursorP(side, UHPat.Pat(NotInHole, UHPat.BoolLit(false))),
         HTyp.Bool,
         ctx,
         u_gen,
       ));
-    } else if (Var.is_keyword(x)) {
+    } else if (Var.is_let_keyword(x)) {
       let (u, u_gen) = MetaVarGen.next(u_gen);
       Some((
         ZPat.CursorP(
           side,
-          UHPat.Pat(NotInHole, UHPat.Var(InVHole(Keyword, u), x)),
+          UHPat.Pat(NotInHole, UHPat.Var(InVHole(Keyword(Let), u), x)),
+        ),
+        HTyp.Hole,
+        ctx,
+        u_gen,
+      ));
+    } else if (Var.is_case_keyword(x)) {
+      let (u, u_gen) = MetaVarGen.next(u_gen);
+      Some((
+        ZPat.CursorP(
+          side,
+          UHPat.Pat(NotInHole, UHPat.Var(InVHole(Keyword(Case), u), x)),
         ),
         HTyp.Hole,
         ctx,
@@ -1624,12 +1635,22 @@ and perform_ana_pat =
       Construct(SVar(x, side)),
       ZPat.CursorP(_, UHPat.Pat(_, UHPat.BoolLit(_))),
     ) =>
-    if (Var.is_keyword(x)) {
+    if (Var.is_let_keyword(x)) {
       let (u, u_gen) = MetaVarGen.next(u_gen);
       Some((
         ZPat.CursorP(
           side,
-          UHPat.Pat(NotInHole, UHPat.Var(InVHole(Keyword, u), x)),
+          UHPat.Pat(NotInHole, UHPat.Var(InVHole(Keyword(Let), u), x)),
+        ),
+        ctx,
+        u_gen,
+      ));
+    } else if (Var.is_case_keyword(x)) {
+      let (u, u_gen) = MetaVarGen.next(u_gen);
+      Some((
+        ZPat.CursorP(
+          side,
+          UHPat.Pat(NotInHole, UHPat.Var(InVHole(Keyword(Case), u), x)),
         ),
         ctx,
         u_gen,
@@ -2002,6 +2023,12 @@ let is_not_Before_opseq = (ze: ZExp.t): bool =>
     ) =>
     true
   | _ => false
+  };
+
+let keyword_action = (k: keyword): t =>
+  switch (k) {
+  | Let => Construct(SLet)
+  | Case => Construct(SCase)
   };
 
 let rec perform_syn =
@@ -2383,41 +2410,25 @@ let rec perform_syn =
             ZExp.ExpLineZ(
               ZExp.Deeper(
                 _,
-                ZExp.OpSeqZ(_, ze, OperatorSeq.EmptyPrefix(suffix)),
+                ZExp.OpSeqZ(
+                  _,
+                  ZExp.CursorE(
+                    After,
+                    UHExp.Tm(_, UHExp.Var(InVHole(Keyword(k), _), _)),
+                  ),
+                  OperatorSeq.EmptyPrefix(suffix),
+                ),
               ),
             ),
           ),
           e2,
         ),
       ),
-    )
-      when ZExp.is_After_let_keyword(ze) =>
+    ) =>
     let (e1, u_gen) = keyword_suffix_to_exp(suffix, u_gen);
     let ze1 = ZExp.place_Before(e1);
     let ze = ZExp.(prepend_zline(DeeperL(ExpLineZ(ze1)), e2));
-    perform_syn(ctx, Construct(SLet), (ze, ty, u_gen));
-  | (
-      Construct(SOp(SSpace)),
-      ZExp.Deeper(_, ZExp.LineItemZL(ZExp.DeeperL(ZExp.ExpLineZ(ze)), e2)),
-    )
-      when ZExp.is_After_let_keyword(ze) =>
-    let ze = ZExp.(prepend_zline(CursorL(Before, UHExp.EmptyLine), e2));
-    perform_syn(ctx, Construct(SLet), (ze, ty, u_gen));
-  | (
-      Construct(SOp(SSpace)),
-      ZExp.Deeper(_, ZExp.OpSeqZ(_, ze, OperatorSeq.EmptyPrefix(suffix))),
-    )
-      when ZExp.is_After_let_keyword(ze) =>
-    let (e, u_gen) = keyword_suffix_to_exp(suffix, u_gen);
-    switch (Statics.syn(ctx, e)) {
-    | None => None
-    | Some(ty) =>
-      let ze = ZExp.place_Before(e);
-      perform_syn(ctx, Construct(SLet), (ze, ty, u_gen));
-    };
-  | (Construct(SOp(SSpace)), ze) when ZExp.is_After_let_keyword(ze) =>
-    let (ze, u_gen) = ZExp.new_EmptyHole(u_gen);
-    perform_syn(ctx, Construct(SLet), (ze, HTyp.Hole, u_gen));
+    perform_syn(ctx, keyword_action(k), (ze, ty, u_gen));
   | (
       Construct(SOp(SSpace)),
       ZExp.Deeper(
@@ -2425,52 +2436,48 @@ let rec perform_syn =
         ZExp.LineItemZL(
           ZExp.DeeperL(
             ZExp.ExpLineZ(
-              ZExp.Deeper(
-                _,
-                ZExp.OpSeqZ(_, ze, OperatorSeq.EmptyPrefix(suffix)),
+              ZExp.CursorE(
+                After,
+                UHExp.Tm(_, UHExp.Var(InVHole(Keyword(k), _), _)),
               ),
             ),
           ),
           e2,
         ),
       ),
-    )
-      when ZExp.is_After_case_keyword(ze) =>
-    let (e1, u_gen) = keyword_suffix_to_exp(suffix, u_gen);
-    let ze1 = ZExp.place_Before(e1);
-    let (pat_hole, u_gen) = UHPat.new_EmptyHole(u_gen);
-    let rule = UHExp.Rule(pat_hole, e2);
-    let ze_case = ZExp.Deeper(NotInHole, ZExp.CaseZE(ze1, [rule]));
-    let ze = ZExp.Deeper(NotInHole, ZExp.AscZ1(ze_case, UHTyp.Hole));
-    zexp_syn_fix_holes(ctx, u_gen, ze);
+    ) =>
+    let ze = ZExp.(prepend_zline(CursorL(Before, UHExp.EmptyLine), e2));
+    perform_syn(ctx, keyword_action(k), (ze, ty, u_gen));
   | (
       Construct(SOp(SSpace)),
-      ZExp.Deeper(_, ZExp.OpSeqZ(_, ze, OperatorSeq.EmptyPrefix(suffix))),
-    )
-      when ZExp.is_After_case_keyword(ze) =>
-    let (e1, u_gen) = keyword_suffix_to_exp(suffix, u_gen);
-    let ze1 = ZExp.place_Before(e1);
-    let (rule, u_gen) = UHExp.empty_rule(u_gen);
-    let ze_case = ZExp.Deeper(NotInHole, ZExp.CaseZE(ze1, [rule]));
-    let ze = ZExp.Deeper(NotInHole, ZExp.AscZ1(ze_case, UHTyp.Hole));
-    zexp_syn_fix_holes(ctx, u_gen, ze);
+      ZExp.Deeper(
+        _,
+        ZExp.OpSeqZ(
+          _,
+          ZExp.CursorE(
+            After,
+            UHExp.Tm(_, UHExp.Var(InVHole(Keyword(k), _), _)),
+          ),
+          OperatorSeq.EmptyPrefix(suffix),
+        ),
+      ),
+    ) =>
+    let (e, u_gen) = keyword_suffix_to_exp(suffix, u_gen);
+    switch (Statics.syn(ctx, e)) {
+    | None => None
+    | Some(ty) =>
+      let ze = ZExp.place_Before(e);
+      perform_syn(ctx, keyword_action(k), (ze, ty, u_gen));
+    };
   | (
       Construct(SOp(SSpace)),
-      ZExp.Deeper(_, ZExp.LineItemZL(ZExp.DeeperL(ZExp.ExpLineZ(ze)), e2)),
-    )
-      when ZExp.is_After_case_keyword(ze) =>
-    let (ze1, u_gen) = ZExp.new_EmptyHole(u_gen);
-    let (pat_hole, u_gen) = UHPat.new_EmptyHole(u_gen);
-    let rule = UHExp.Rule(pat_hole, e2);
-    let ze_case = ZExp.Deeper(NotInHole, ZExp.CaseZE(ze1, [rule]));
-    let ze = ZExp.Deeper(NotInHole, ZExp.AscZ1(ze_case, UHTyp.Hole));
-    zexp_syn_fix_holes(ctx, u_gen, ze);
-  | (Construct(SOp(SSpace)), ze) when ZExp.is_After_case_keyword(ze) =>
-    let (ze1, u_gen) = ZExp.new_EmptyHole(u_gen);
-    let (rule, u_gen) = UHExp.empty_rule(u_gen);
-    let ze_case = ZExp.Deeper(NotInHole, ZExp.CaseZE(ze1, [rule]));
-    let ze = ZExp.Deeper(NotInHole, ZExp.AscZ1(ze_case, UHTyp.Hole));
-    zexp_syn_fix_holes(ctx, u_gen, ze);
+      ZExp.CursorE(
+        After,
+        UHExp.Tm(_, UHExp.Var(InVHole(Keyword(k), _), _)),
+      ),
+    ) =>
+    let (ze, u_gen) = ZExp.new_EmptyHole(u_gen);
+    perform_syn(ctx, keyword_action(k), (ze, HTyp.Hole, u_gen));
   | (Construct(SParenthesized), ZExp.CursorE(cursor_side, e)) =>
     Some((ZExp.ParenthesizedZ(ze), ty, u_gen))
   | (Construct(SAsc), ZExp.CursorE(_, e)) =>
@@ -2574,12 +2581,22 @@ let rec perform_syn =
         HTyp.Bool,
         u_gen,
       ));
-    } else if (Var.is_keyword(x)) {
+    } else if (Var.is_let_keyword(x)) {
       let (u, u_gen) = MetaVarGen.next(u_gen);
       Some((
         ZExp.CursorE(
           side,
-          UHExp.Tm(NotInHole, UHExp.Var(InVHole(Keyword, u), x)),
+          UHExp.Tm(NotInHole, UHExp.Var(InVHole(Keyword(Let), u), x)),
+        ),
+        HTyp.Hole,
+        u_gen,
+      ));
+    } else if (Var.is_case_keyword(x)) {
+      let (u, u_gen) = MetaVarGen.next(u_gen);
+      Some((
+        ZExp.CursorE(
+          side,
+          UHExp.Tm(NotInHole, UHExp.Var(InVHole(Keyword(Case), u), x)),
         ),
         HTyp.Hole,
         u_gen,
@@ -3697,37 +3714,70 @@ and perform_ana =
             ZExp.ExpLineZ(
               ZExp.Deeper(
                 _,
-                ZExp.OpSeqZ(_, ze, OperatorSeq.EmptyPrefix(suffix)),
+                ZExp.OpSeqZ(
+                  _,
+                  ZExp.CursorE(
+                    After,
+                    UHExp.Tm(_, UHExp.Var(InVHole(Keyword(k), _), _)),
+                  ),
+                  OperatorSeq.EmptyPrefix(suffix),
+                ),
               ),
             ),
           ),
           e2,
         ),
       ),
-    )
-      when ZExp.is_After_let_keyword(ze) =>
+    ) =>
     let (e1, u_gen) = keyword_suffix_to_exp(suffix, u_gen);
     let ze1 = ZExp.place_Before(e1);
     let ze = ZExp.(prepend_zline(DeeperL(ExpLineZ(ze1)), e2));
-    perform_ana(u_gen, ctx, Construct(SLet), ze, ty);
+    perform_ana(u_gen, ctx, keyword_action(k), ze, ty);
   | (
       Construct(SOp(SSpace)),
-      ZExp.Deeper(_, ZExp.LineItemZL(ZExp.DeeperL(ZExp.ExpLineZ(ze)), e2)),
-    )
-      when ZExp.is_After_let_keyword(ze) =>
+      ZExp.Deeper(
+        _,
+        ZExp.LineItemZL(
+          ZExp.DeeperL(
+            ZExp.ExpLineZ(
+              ZExp.CursorE(
+                After,
+                UHExp.Tm(_, UHExp.Var(InVHole(Keyword(k), _), _)),
+              ),
+            ),
+          ),
+          e2,
+        ),
+      ),
+    ) =>
     let ze = ZExp.(prepend_zline(CursorL(Before, UHExp.EmptyLine), e2));
-    perform_ana(u_gen, ctx, Construct(SLet), ze, ty);
+    perform_ana(u_gen, ctx, keyword_action(k), ze, ty);
   | (
       Construct(SOp(SSpace)),
-      ZExp.Deeper(_, ZExp.OpSeqZ(_, ze, OperatorSeq.EmptyPrefix(suffix))),
-    )
-      when ZExp.is_After_let_keyword(ze) =>
+      ZExp.Deeper(
+        _,
+        ZExp.OpSeqZ(
+          _,
+          ZExp.CursorE(
+            After,
+            UHExp.Tm(_, UHExp.Var(InVHole(Keyword(k), _), _)),
+          ),
+          OperatorSeq.EmptyPrefix(suffix),
+        ),
+      ),
+    ) =>
     let (e, u_gen) = keyword_suffix_to_exp(suffix, u_gen);
     let ze = ZExp.place_Before(e);
-    perform_ana(u_gen, ctx, Construct(SLet), ze, ty);
-  | (Construct(SOp(SSpace)), ze) when ZExp.is_After_let_keyword(ze) =>
+    perform_ana(u_gen, ctx, keyword_action(k), ze, ty);
+  | (
+      Construct(SOp(SSpace)),
+      ZExp.CursorE(
+        After,
+        UHExp.Tm(_, UHExp.Var(InVHole(Keyword(k), _), _)),
+      ),
+    ) =>
     let (ze, u_gen) = ZExp.new_EmptyHole(u_gen);
-    perform_ana(u_gen, ctx, Construct(SLet), ze, ty);
+    perform_ana(u_gen, ctx, keyword_action(k), ze, ty);
   | (
       Construct(SOp(SSpace)),
       ZExp.Deeper(
