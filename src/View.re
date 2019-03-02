@@ -277,7 +277,7 @@ let classes_of_var_err_status = var_err_status =>
   | InVHole(Keyword(_), u) => [
       "InVHole",
       "InVHole_" ++ string_of_int(u),
-      "kw",
+      "Keyword",
     ]
   | NotInVHole => []
   };

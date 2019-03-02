@@ -649,6 +649,15 @@ button:disabled {
   border: 1px dashed #ce5f00;
 }
 
+.InVHole.Keyword {
+	font-weight: bold;
+	color: rgb(127, 127, 127);
+}
+
+.Keyword .var {
+	font-style: normal;
+}
+
 .result-view {
   font-size: 175%;
 }
