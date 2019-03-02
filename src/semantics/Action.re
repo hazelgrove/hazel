@@ -3778,55 +3778,6 @@ and perform_ana =
     ) =>
     let (ze, u_gen) = ZExp.new_EmptyHole(u_gen);
     perform_ana(u_gen, ctx, keyword_action(k), ze, ty);
-  | (
-      Construct(SOp(SSpace)),
-      ZExp.Deeper(
-        _,
-        ZExp.LineItemZL(
-          ZExp.DeeperL(
-            ZExp.ExpLineZ(
-              ZExp.Deeper(
-                _,
-                ZExp.OpSeqZ(_, ze, OperatorSeq.EmptyPrefix(suffix)),
-              ),
-            ),
-          ),
-          e2,
-        ),
-      ),
-    )
-      when ZExp.is_After_case_keyword(ze) =>
-    let (e1, u_gen) = keyword_suffix_to_exp(suffix, u_gen);
-    let ze1 = ZExp.place_Before(e1);
-    let (pat_hole, u_gen) = UHPat.new_EmptyHole(u_gen);
-    let rule = UHExp.Rule(pat_hole, e2);
-    let ze = ZExp.Deeper(NotInHole, ZExp.CaseZE(ze1, [rule]));
-    zexp_ana_fix_holes(ctx, u_gen, ze, ty);
-  | (
-      Construct(SOp(SSpace)),
-      ZExp.Deeper(_, ZExp.OpSeqZ(_, ze, OperatorSeq.EmptyPrefix(suffix))),
-    )
-      when ZExp.is_After_case_keyword(ze) =>
-    let (e1, u_gen) = keyword_suffix_to_exp(suffix, u_gen);
-    let ze1 = ZExp.place_Before(e1);
-    let (rule, u_gen) = UHExp.empty_rule(u_gen);
-    let ze = ZExp.Deeper(NotInHole, ZExp.CaseZE(ze1, [rule]));
-    zexp_ana_fix_holes(ctx, u_gen, ze, ty);
-  | (
-      Construct(SOp(SSpace)),
-      ZExp.Deeper(_, ZExp.LineItemZL(ZExp.DeeperL(ZExp.ExpLineZ(ze)), e2)),
-    )
-      when ZExp.is_After_case_keyword(ze) =>
-    let (ze1, u_gen) = ZExp.new_EmptyHole(u_gen);
-    let (pat_hole, u_gen) = UHPat.new_EmptyHole(u_gen);
-    let rule = UHExp.Rule(pat_hole, e2);
-    let ze = ZExp.Deeper(NotInHole, ZExp.CaseZE(ze1, [rule]));
-    zexp_ana_fix_holes(ctx, u_gen, ze, ty);
-  | (Construct(SOp(SSpace)), ze) when ZExp.is_After_case_keyword(ze) =>
-    let (ze1, u_gen) = ZExp.new_EmptyHole(u_gen);
-    let (rule, u_gen) = UHExp.empty_rule(u_gen);
-    let ze = ZExp.Deeper(NotInHole, ZExp.CaseZE(ze1, [rule]));
-    zexp_ana_fix_holes(ctx, u_gen, ze, ty);
   | (Construct(SParenthesized), ZExp.CursorE(_, e)) =>
     Some((ZExp.ParenthesizedZ(ze), u_gen))
   | (Construct(SAsc), ZExp.CursorE(_, e)) =>

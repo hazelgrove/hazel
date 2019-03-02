@@ -43,18 +43,6 @@ and opseq = OperatorSeq.opseq(t, op)
 and splice_info = SpliceInfo.t(t)
 and splice_map = SpliceInfo.splice_map(t);
 
-let is_let_keyword = (e: t): bool =>
-  switch (e) {
-  | Tm(_, Var(_, "let")) => true
-  | _ => false
-  };
-
-let is_case_keyword = (e: t): bool =>
-  switch (e) {
-  | Tm(_, Var(_, "case")) => true
-  | _ => false
-  };
-
 let rec get_tuple = (skel1, skel2) =>
   switch (skel2) {
   | Skel.BinOp(_, Comma, skel21, skel22) => [
