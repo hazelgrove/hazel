@@ -17,12 +17,10 @@ let check_valid = (s, result) =>
     None;
   };
 
-let is_true_keyword = s => eq(s, "true");
+let is_true = s => eq(s, "true");
 
-let is_false_keyword = s => eq(s, "false");
+let is_false = s => eq(s, "false");
 
-let is_let_keyword = s => eq(s, "let");
+let is_let = s => eq(s, "let");
 
-let is_case_keyword = s => eq(s, "case");
-
-let is_keyword = s => is_let_keyword(s) || is_case_keyword(s);
+let is_case = s => eq(s, "case");

@@ -1475,7 +1475,7 @@ and syn_fix_holes' = (ctx, u_gen, renumber_empty_holes, e) =>
       | NotInVHole =>
         let (u, u_gen) = MetaVarGen.next(u_gen);
         let in_vhole_reason =
-          switch (Var.is_let_keyword(x), Var.is_case_keyword(x)) {
+          switch (Var.is_let(x), Var.is_case(x)) {
           | (true, _) => Keyword(Let)
           | (_, true) => Keyword(Case)
           | _ => Free

@@ -1209,21 +1209,21 @@ let rec perform_syn_pat =
       Construct(SVar(x, side)),
       ZPat.CursorP(_, UHPat.Pat(_, UHPat.BoolLit(_))),
     ) =>
-    if (Var.is_true_keyword(x)) {
+    if (Var.is_true(x)) {
       Some((
         ZPat.CursorP(side, UHPat.Pat(NotInHole, UHPat.BoolLit(true))),
         HTyp.Bool,
         ctx,
         u_gen,
       ));
-    } else if (Var.is_false_keyword(x)) {
+    } else if (Var.is_false(x)) {
       Some((
         ZPat.CursorP(side, UHPat.Pat(NotInHole, UHPat.BoolLit(false))),
         HTyp.Bool,
         ctx,
         u_gen,
       ));
-    } else if (Var.is_let_keyword(x)) {
+    } else if (Var.is_let(x)) {
       let (u, u_gen) = MetaVarGen.next(u_gen);
       Some((
         ZPat.CursorP(
@@ -1234,7 +1234,7 @@ let rec perform_syn_pat =
         ctx,
         u_gen,
       ));
-    } else if (Var.is_case_keyword(x)) {
+    } else if (Var.is_case(x)) {
       let (u, u_gen) = MetaVarGen.next(u_gen);
       Some((
         ZPat.CursorP(
@@ -1635,7 +1635,7 @@ and perform_ana_pat =
       Construct(SVar(x, side)),
       ZPat.CursorP(_, UHPat.Pat(_, UHPat.BoolLit(_))),
     ) =>
-    if (Var.is_let_keyword(x)) {
+    if (Var.is_let(x)) {
       let (u, u_gen) = MetaVarGen.next(u_gen);
       Some((
         ZPat.CursorP(
@@ -1645,7 +1645,7 @@ and perform_ana_pat =
         ctx,
         u_gen,
       ));
-    } else if (Var.is_case_keyword(x)) {
+    } else if (Var.is_case(x)) {
       let (u, u_gen) = MetaVarGen.next(u_gen);
       Some((
         ZPat.CursorP(
@@ -2581,7 +2581,7 @@ let rec perform_syn =
         HTyp.Bool,
         u_gen,
       ));
-    } else if (Var.is_let_keyword(x)) {
+    } else if (Var.is_let(x)) {
       let (u, u_gen) = MetaVarGen.next(u_gen);
       Some((
         ZExp.CursorE(
@@ -2591,7 +2591,7 @@ let rec perform_syn =
         HTyp.Hole,
         u_gen,
       ));
-    } else if (Var.is_case_keyword(x)) {
+    } else if (Var.is_case(x)) {
       let (u, u_gen) = MetaVarGen.next(u_gen);
       Some((
         ZExp.CursorE(
