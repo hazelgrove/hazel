@@ -1,3 +1,5 @@
+open SemanticsCommon;
+
 type t = string;
 
 let eq = String.equal;
@@ -24,3 +26,9 @@ let is_false = s => eq(s, "false");
 let is_let = s => eq(s, "let");
 
 let is_case = s => eq(s, "case");
+
+let of_keyword = (k: keyword): t =>
+  switch (k) {
+  | Let => "let"
+  | Case => "case"
+  };

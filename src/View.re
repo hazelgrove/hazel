@@ -273,7 +273,12 @@ let of_Asc = (prefix, err_status, rev_path, r1, r2) =>
 
 let classes_of_var_err_status = var_err_status =>
   switch (var_err_status) {
-  | InVHole(_, u) => ["InVHole", "InVHole_" ++ string_of_int(u)]
+  | InVHole(Free, u) => ["InVHole", "InVHole_" ++ string_of_int(u)]
+  | InVHole(Keyword(_), u) => [
+      "InVHole",
+      "InVHole_" ++ string_of_int(u),
+      "kw",
+    ]
   | NotInVHole => []
   };
 
@@ -824,6 +829,7 @@ let rec precedence_dhexp = d =>
     switch (d) {
     | BoundVar(_)
     | FreeVar(_, _, _, _)
+    | Keyword(_, _, _, _)
     | BoolLit(_)
     | NumLit(_)
     | ListNil(_)
@@ -892,13 +898,13 @@ let rec of_dhpat' =
         term(prefix, err_status, rev_path, "NonEmptyHole", r);
       | Wild => of_Wild(prefix, err_status, rev_path)
       | Keyword(u, _, k) =>
-        /* TODO remove */
-        let x =
-          switch (k) {
-          | Let => "let"
-          | Case => "case"
-          };
-        of_Var(prefix, err_status, InVHole(Keyword(k), u), rev_path, x);
+        of_Var(
+          prefix,
+          err_status,
+          InVHole(Keyword(k), u),
+          rev_path,
+          Var.of_keyword(k),
+        )
       | Var(x) => of_Var(prefix, err_status, NotInVHole, rev_path, x)
       | BoolLit(b) => of_BoolLit(prefix, err_status, rev_path, b)
       | NumLit(n) => of_NumLit(prefix, err_status, rev_path, n)
@@ -1003,6 +1009,14 @@ let rec of_dhexp' =
       | BoundVar(x) => of_Var(prefix, err_status, NotInVHole, rev_path, x)
       | FreeVar(u, _, _, x) =>
         of_Var(prefix, err_status, InVHole(Free, u), rev_path, x)
+      | Keyword(u, _, _, k) =>
+        of_Var(
+          prefix,
+          err_status,
+          InVHole(Keyword(k), u),
+          rev_path,
+          Var.of_keyword(k),
+        )
       | Let(dp, d1, d2) =>
         let rev_pathp = [0, ...rev_path];
         let rev_path1 = [1, ...rev_path];
