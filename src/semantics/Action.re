@@ -2365,12 +2365,8 @@ let rec perform_syn =
     ) =>
     let (e1, u_gen) = UHExp.new_EmptyHole(u_gen);
     let ze1 = ZExp.CursorE(Before, e1);
-    switch (perform_syn(ctx, a, (ze1, HTyp.Hole, u_gen))) {
-    | None => None
-    | Some((ze1, _, u_gen)) =>
-      let ze = ZExp.(prune_and_prepend_zline(DeeperL(ExpLineZ(ze1)), e2));
-      Some((ze, ty, u_gen));
-    };
+    let ze = ZExp.(prepend_zline(DeeperL(ExpLineZ(ze1)), e2));
+    perform_syn(ctx, a, (ze, HTyp.Hole, u_gen));
   | (
       Construct(_) as a,
       ZExp.Deeper(
@@ -3661,12 +3657,8 @@ and perform_ana =
     ) =>
     let (e1, u_gen) = UHExp.new_EmptyHole(u_gen);
     let ze1 = ZExp.CursorE(Before, e1);
-    switch (perform_ana(u_gen, ctx, a, ze1, ty)) {
-    | None => None
-    | Some((ze1, u_gen)) =>
-      let ze = ZExp.(prune_and_prepend_zline(DeeperL(ExpLineZ(ze1)), e2));
-      Some((ze, u_gen));
-    };
+    let ze = ZExp.(prepend_zline(DeeperL(ExpLineZ(ze1)), e2));
+    perform_ana(u_gen, ctx, a, ze, ty);
   | (
       Construct(_) as a,
       ZExp.Deeper(
