@@ -2700,7 +2700,7 @@ let rec perform_syn =
       | UHExp.Tm(_, UHExp.EmptyHole(_)) =>
         let (rule_p, u_gen) = UHPat.new_EmptyHole(u_gen);
         let rule = UHExp.Rule(rule_p, e2);
-        ZExp.Deeper(NotInHole, ZExp.CaseZE(ze, [rule]));
+        ZExp.Deeper(NotInHole, ZExp.CaseZE(ze1, [rule]));
       | _ =>
         let (zp, u_gen) = ZPat.new_EmptyHole(u_gen);
         let zrule = ZExp.RuleZP(zp, e2);
