@@ -2392,35 +2392,32 @@ let rec perform_syn =
       ),
     )
       when ZExp.is_After_let_keyword(ze) =>
-    let (zp, u_gen) = ZPat.new_EmptyHole(u_gen);
     let (e1, u_gen) = keyword_suffix_to_exp(suffix, u_gen);
-    let ze = ZExp.(prepend_zline(DeeperL(LetLineZP(zp, None, e1)), e2));
-    zexp_syn_fix_holes(ctx, u_gen, ze);
+    let ze1 = ZExp.place_Before(e1);
+    let ze = ZExp.(prepend_zline(DeeperL(ExpLineZ(ze1)), e2));
+    perform_syn(ctx, Construct(SLet), (ze, ty, u_gen));
   | (
       Construct(SOp(SSpace)),
       ZExp.Deeper(_, ZExp.LineItemZL(ZExp.DeeperL(ZExp.ExpLineZ(ze)), e2)),
     )
       when ZExp.is_After_let_keyword(ze) =>
-    let (zp, u_gen) = ZPat.new_EmptyHole(u_gen);
-    let (e1, u_gen) = UHExp.new_EmptyHole(u_gen);
-    let ze = ZExp.(prepend_zline(DeeperL(LetLineZP(zp, None, e1)), e2));
-    zexp_syn_fix_holes(ctx, u_gen, ze);
+    let ze = ZExp.(prepend_zline(CursorL(Before, UHExp.EmptyLine), e2));
+    perform_syn(ctx, Construct(SLet), (ze, ty, u_gen));
   | (
       Construct(SOp(SSpace)),
       ZExp.Deeper(_, ZExp.OpSeqZ(_, ze, OperatorSeq.EmptyPrefix(suffix))),
     )
       when ZExp.is_After_let_keyword(ze) =>
-    let (zp, u_gen) = ZPat.new_EmptyHole(u_gen);
-    let (e1, u_gen) = keyword_suffix_to_exp(suffix, u_gen);
-    let (e2, u_gen) = UHExp.new_EmptyHole(u_gen);
-    let ze = ZExp.(prepend_zline(DeeperL(LetLineZP(zp, None, e1)), e2));
-    zexp_syn_fix_holes(ctx, u_gen, ze);
+    let (e, u_gen) = keyword_suffix_to_exp(suffix, u_gen);
+    switch (Statics.syn(ctx, e)) {
+    | None => None
+    | Some(ty) =>
+      let ze = ZExp.place_Before(e);
+      perform_syn(ctx, Construct(SLet), (ze, ty, u_gen));
+    };
   | (Construct(SOp(SSpace)), ze) when ZExp.is_After_let_keyword(ze) =>
-    let (zp, u_gen) = ZPat.new_EmptyHole(u_gen);
-    let (e1, u_gen) = UHExp.new_EmptyHole(u_gen);
-    let (e2, u_gen) = UHExp.new_EmptyHole(u_gen);
-    let ze = ZExp.(prepend_zline(DeeperL(LetLineZP(zp, None, e1)), e2));
-    zexp_syn_fix_holes(ctx, u_gen, ze);
+    let (ze, u_gen) = ZExp.new_EmptyHole(u_gen);
+    perform_syn(ctx, Construct(SLet), (ze, HTyp.Hole, u_gen));
   | (
       Construct(SOp(SSpace)),
       ZExp.Deeper(
@@ -3709,35 +3706,28 @@ and perform_ana =
       ),
     )
       when ZExp.is_After_let_keyword(ze) =>
-    let (zp, u_gen) = ZPat.new_EmptyHole(u_gen);
     let (e1, u_gen) = keyword_suffix_to_exp(suffix, u_gen);
-    let ze = ZExp.(prepend_zline(DeeperL(LetLineZP(zp, None, e1)), e2));
-    zexp_ana_fix_holes(ctx, u_gen, ze, ty);
+    let ze1 = ZExp.place_Before(e1);
+    let ze = ZExp.(prepend_zline(DeeperL(ExpLineZ(ze1)), e2));
+    perform_ana(u_gen, ctx, Construct(SLet), ze, ty);
   | (
       Construct(SOp(SSpace)),
       ZExp.Deeper(_, ZExp.LineItemZL(ZExp.DeeperL(ZExp.ExpLineZ(ze)), e2)),
     )
       when ZExp.is_After_let_keyword(ze) =>
-    let (zp, u_gen) = ZPat.new_EmptyHole(u_gen);
-    let (e1, u_gen) = UHExp.new_EmptyHole(u_gen);
-    let ze = ZExp.(prepend_zline(DeeperL(LetLineZP(zp, None, e1)), e2));
-    zexp_ana_fix_holes(ctx, u_gen, ze, ty);
+    let ze = ZExp.(prepend_zline(CursorL(Before, UHExp.EmptyLine), e2));
+    perform_ana(u_gen, ctx, Construct(SLet), ze, ty);
   | (
       Construct(SOp(SSpace)),
       ZExp.Deeper(_, ZExp.OpSeqZ(_, ze, OperatorSeq.EmptyPrefix(suffix))),
     )
       when ZExp.is_After_let_keyword(ze) =>
-    let (zp, u_gen) = ZPat.new_EmptyHole(u_gen);
-    let (e1, u_gen) = keyword_suffix_to_exp(suffix, u_gen);
-    let (e2, u_gen) = UHExp.new_EmptyHole(u_gen);
-    let ze = ZExp.(prepend_zline(DeeperL(LetLineZP(zp, None, e1)), e2));
-    zexp_ana_fix_holes(ctx, u_gen, ze, ty);
+    let (e, u_gen) = keyword_suffix_to_exp(suffix, u_gen);
+    let ze = ZExp.place_Before(e);
+    perform_ana(u_gen, ctx, Construct(SLet), ze, ty);
   | (Construct(SOp(SSpace)), ze) when ZExp.is_After_let_keyword(ze) =>
-    let (zp, u_gen) = ZPat.new_EmptyHole(u_gen);
-    let (e1, u_gen) = UHExp.new_EmptyHole(u_gen);
-    let (e2, u_gen) = UHExp.new_EmptyHole(u_gen);
-    let ze = ZExp.(prepend_zline(DeeperL(LetLineZP(zp, None, e1)), e2));
-    zexp_ana_fix_holes(ctx, u_gen, ze, ty);
+    let (ze, u_gen) = ZExp.new_EmptyHole(u_gen);
+    perform_ana(u_gen, ctx, Construct(SLet), ze, ty);
   | (
       Construct(SOp(SSpace)),
       ZExp.Deeper(
