@@ -85,10 +85,10 @@ let optionalBreakSp = PP.optionalBreak(" ");
 let optionalBreakNSp = PP.optionalBreak("");
 
 /* Parenthesized */
-let of_Parenthesized = (is_block, prefix, rev_path, r1) =>
+let of_Parenthesized = (is_block, prefix, err_status, rev_path, r1) =>
   term(
     prefix,
-    NotInHole,
+    err_status,
     rev_path,
     "Parenthesized",
     is_block
@@ -227,7 +227,7 @@ let rec of_uhtyp = (prefix, rev_path, uty) =>
   | UHTyp.Parenthesized(uty1) =>
     let rev_path1 = [0, ...rev_path];
     let r1 = of_uhtyp(prefix, rev_path1, uty1);
-    of_Parenthesized(false, prefix, rev_path, r1);
+    of_Parenthesized(false, prefix, NotInHole, rev_path, r1);
   | UHTyp.Bool => of_Bool(prefix, rev_path)
   | UHTyp.Num => of_Num(prefix, rev_path)
   | UHTyp.Unit => of_Unit(prefix, rev_path)
@@ -546,12 +546,25 @@ let of_pat_BinOp = (prefix, err_status, rev_path, r1, op, r2) =>
     r1 ^^ of_pat_op(op) ^^ r2,
   );
 
+let rec prepare_Parenthesized_pat = p =>
+  switch (p) {
+  | UHPat.Parenthesized(p1) =>
+    let (err_status, p1_not_in_hole) = prepare_Parenthesized_pat(p1);
+    (err_status, UHPat.Parenthesized(p1_not_in_hole));
+  | UHPat.Pat(NotInHole as err_status, _) => (err_status, p)
+  | UHPat.Pat(err_status, _) => (
+      err_status,
+      UHPat.set_err_status(NotInHole, p),
+    )
+  };
+
 let rec of_hpat = (prefix, rev_path, p) =>
   switch (p) {
   | UHPat.Parenthesized(p1) =>
+    let (err_status, p1_not_in_hole) = prepare_Parenthesized_pat(p1);
     let rev_path1 = [0, ...rev_path];
-    let r1 = of_hpat(prefix, rev_path1, p1);
-    of_Parenthesized(false, prefix, rev_path, r1);
+    let r1 = of_hpat(prefix, rev_path1, p1_not_in_hole);
+    of_Parenthesized(false, prefix, err_status, rev_path, r1);
   | UHPat.Pat(err_status, p') =>
     switch (p') {
     | UHPat.EmptyHole(u) =>
@@ -641,12 +654,25 @@ let of_Times_with_space = (prefix, err_status, rev_path, r1, op, r2) =>
     r1 ^^ of_op(" * ", "op-Times") ^^ r2,
   );
 
+let rec prepare_Parenthesized_exp = e =>
+  switch (e) {
+  | UHExp.Parenthesized(e1) =>
+    let (err_status, e1_not_in_hole) = prepare_Parenthesized_exp(e1);
+    (err_status, UHExp.Parenthesized(e1_not_in_hole));
+  | UHExp.Tm(NotInHole as err_status, _) => (err_status, e)
+  | UHExp.Tm(err_status, _) => (
+      err_status,
+      UHExp.set_err_status(NotInHole, e),
+    )
+  };
+
 let rec of_hexp = (palette_stuff, prefix, rev_path, e) =>
   switch (e) {
   | UHExp.Parenthesized(e1) =>
+    let (err_status, e1_not_in_hole) = prepare_Parenthesized_exp(e1);
     let rev_path1 = [0, ...rev_path];
-    let r1 = of_hexp(palette_stuff, prefix, rev_path1, e1);
-    of_Parenthesized(is_block(e1), prefix, rev_path, r1);
+    let r1 = of_hexp(palette_stuff, prefix, rev_path1, e1_not_in_hole);
+    of_Parenthesized(is_block(e1), prefix, err_status, rev_path, r1);
   | UHExp.Tm(err_status, e') =>
     switch (e') {
     | UHExp.Asc(e1, ty) =>

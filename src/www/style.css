@@ -641,6 +641,10 @@ button:disabled {
   border: 1px dashed red;
 }
 
+.in_err_hole > .in_err_hole {
+  border: 0px !important;
+}
+
 .InVHole {
   border: 1px dashed #ce5f00;
 }

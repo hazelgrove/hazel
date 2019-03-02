@@ -355,7 +355,17 @@ module DHPat = {
       | _ => DoesNotExpand
       }
     | Skel.BinOp(InHole(WrongLength, _), _, _, _) => DoesNotExpand
-    | Skel.BinOp(NotInHole, UHPat.Space, skel1, skel2) => DoesNotExpand
+    | Skel.BinOp(NotInHole, UHPat.Space, skel1, skel2) =>
+      switch (ana_expand_skel(ctx, delta, skel1, seq, HTyp.Hole)) {
+      | DoesNotExpand => DoesNotExpand
+      | Expands(dp1, ty1, ctx, delta) =>
+        switch (ana_expand_skel(ctx, delta, skel2, seq, HTyp.Hole)) {
+        | DoesNotExpand => DoesNotExpand
+        | Expands(dp2, ty2, ctx, delta) =>
+          let dp = Ap(dp1, dp2);
+          Expands(dp, HTyp.Hole, ctx, delta);
+        }
+      }
     | Skel.BinOp(NotInHole, UHPat.Cons, skel1, skel2) =>
       switch (HTyp.matched_list(ty)) {
       | None => DoesNotExpand
