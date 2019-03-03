@@ -4,6 +4,11 @@ open SemanticsCommon;
 module Js = Js_of_ocaml.Js;
 module Dom = Js_of_ocaml.Dom;
 module Dom_html = Js_of_ocaml.Dom_html;
+module StringMap = Map.Make(String);
+type example_info = {
+  serialized: string,
+  desc: string,
+};
 let view = (model: Model.t) => {
   let {
     edit_state_rs,
@@ -754,17 +759,56 @@ let view = (model: Model.t) => {
       )
     );
 
-  /*
-   let serialize_onclick_handler = _ => {
-     JSUtil.log(Serialize.string_of_uhexp(React.S.value(e_rs)));
-     true;
-   };
+  let serialize_onclick_handler = _ => {
+    JSUtil.log(Serialize.string_of_uhexp(React.S.value(e_rs)));
+    true;
+  };
 
-   let deserialize_onclick_handler = (serialized, _) => {
-     replace_e(Deserialize.uhexp_of_string(serialized));
-     true;
-   };
-   */
+  let deserialize_onclick_handler = (serialized, _) => {
+    replace_e(Deserialize.uhexp_of_string(serialized));
+    true;
+  };
+
+  let examples =
+    StringMap.add(
+      "let_line",
+      {
+        serialized: "let y = {} in\n;\nlet x = {} in\nx;\ny\n",
+        desc: "Let with extra lines example",
+      },
+      StringMap.add(
+        "basic_holey",
+        {
+          serialized: "(lambda {} : {}. {}) {}\n",
+          desc: "Basic holey lambda example",
+        },
+        StringMap.add(
+          "just_hole",
+          {serialized: "{}\n", desc: "Just a hole example"},
+          StringMap.empty,
+        ),
+      ),
+    );
+
+  let examples_select =
+    Html5.(
+      select(
+        List.map(
+          ((name, info)) => option(~a=[a_value(name)], txt(info.desc)),
+          StringMap.bindings(examples),
+        ),
+      )
+    );
+  let examples_select_dom = To_dom.of_select(examples_select);
+
+  let _ =
+    JSUtil.listen_to_t(Dom_html.Event.click, examples_select_dom, evt =>
+      deserialize_onclick_handler(
+        StringMap.find(Js.to_string(examples_select_dom##.value), examples).
+          serialized,
+        evt,
+      )
+    );
 
   let chrome =
     Tyxml_js.To_dom.of_div(
@@ -822,22 +866,11 @@ let view = (model: Model.t) => {
                         div(~a=[a_class(["result-view"])], [result_view]),
                       ],
                     ),
-                    /* button(
-                         ~a=[a_onclick(serialize_onclick_handler)],
-                         [txt("Serialize")],
-                       ),
-                       div([
-                         button(
-                           ~a=[
-                             a_onclick(
-                               deserialize_onclick_handler(
-                                 "(lambda {} : {}. {}) {}\n",
-                               ),
-                             ),
-                           ],
-                           [txt("Basic holey lambda example")],
-                         ),
-                       ]), */
+                    examples_select,
+                    button(
+                      ~a=[a_onclick(serialize_onclick_handler)],
+                      [txt("Serialize")],
+                    ),
                   ],
                 ),
                 the_rightbar,
