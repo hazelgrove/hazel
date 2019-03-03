@@ -25,6 +25,7 @@ rule read =
   | "inj" { INJECT }
   | "lambda" { LAMBDA }
   | "case" { CASE }
+  | "end" { END }
   | "L" { LEFT }
   | "R" { RIGHT }
   | ":" { COLON }
