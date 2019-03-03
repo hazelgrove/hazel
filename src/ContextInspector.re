@@ -416,24 +416,22 @@ let mk =
       let the_path_viewer =
         path_viewer(hii, selected_instance, sort, gamma, next_prev_state_rf);
 
-      Html5.(
-        div([
-          PanelUtils.titlebar("context"),
-          Html5.(
-            div(
-              ~a=[a_class(["context-inspector-body"])],
-              [the_context_view, the_path_viewer],
-            )
-          ),
-        ])
-      );
+      [
+        PanelUtils.titlebar("context"),
+        Html5.(
+          div(
+            ~a=[a_class(["panel-body", "context-inspector-body"])],
+            [the_context_view, the_path_viewer],
+          )
+        ),
+      ];
     };
   };
   open M;
   let context_inspector_rs =
     React.S.l3(
       (cursor_info, result, selected_instance) =>
-        [panel(cursor_info, result, selected_instance, next_prev_state_rf)],
+        panel(cursor_info, result, selected_instance, next_prev_state_rf),
       cursor_info_rs,
       result_rs,
       selected_instance_rs,

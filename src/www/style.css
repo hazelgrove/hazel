@@ -24,9 +24,10 @@ html, body {
 	padding: 0px;
 	font-family: Montserrat, sans-serif;
 	height: 100%;
+	overflow: hidden;
 }
 
-.container {
+#container {
 	width: 100%;
 	height: 100%;
 }
@@ -69,6 +70,7 @@ html, body {
 .page-area {
 	height: 100%;
 	padding-left: 14px;
+	padding-right: 14px;
 	padding-top: 14px;
 	padding-bottom: 0.75in;
 }
@@ -87,7 +89,7 @@ html, body {
 
 .leftbar {
   display: grid;
-  grid-template-rows: 1fr;
+  grid-template-rows: 100% 0%; /*65% 35%;*/
 }
 
 .rightbar {
@@ -98,8 +100,17 @@ html, body {
 /* panels */
 
 .panel {
+  border: 1px solid #073f24;
+  background-color: #FEFEEA;
   margin-bottom: 7px;
   box-shadow: 2px 2px 0px 0px #af8e63;
+  display: grid;
+  grid-template-rows: auto 1fr;
+}
+
+.panel-body {
+  max-height: 100%;
+  overflow-y: scroll;
 }
 
 .titlebar {
@@ -286,19 +297,6 @@ html, body {
 
 /* context inspector */
 
-.context-inspector-panel {
-  border: 1px solid #073f24;
-  background-color: #FEFEEA;
-  display: grid;
-}
-
-.context-inspector-panel>div {
-  display: grid;
-  grid-template-rows:
-    auto /* .titlebar */
-    1fr /* .context-inspector-body */;
-}
-
 .context-inspector-body {
   display: grid;
   grid-template-rows:
@@ -473,7 +471,6 @@ html, body {
 	box-shadow: 3px 3px tan;
   /* border: 1px solid tan; */
 	max-width: 10in;
-	margin-right: 0.25in;
 }
 
 h1 {

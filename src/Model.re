@@ -6,6 +6,7 @@ let empty_ze =
 let empty: edit_state = ((empty_ze, HTyp.Hole, u_gen1): edit_state);
 let empty_erasure = ZExp.erase(empty_ze);
 type edit_state_rs = React.signal(edit_state);
+type code_history_rs = React.signal(CodeHistory.t);
 type e_rs = React.signal(UHExp.t);
 type cursor_info_rs = React.signal(CursorInfo.t);
 open Dynamics;
@@ -27,12 +28,15 @@ type selected_instance_rf =
 type monitors = list(React.signal(unit));
 type do_action_t = Action.t => unit;
 type replace_e = UHExp.t => unit;
+
 exception InvalidAction;
 exception MissingCursorInfo;
 exception DoesNotExpand;
 exception InvalidInput;
+
 type t = {
   edit_state_rs,
+  code_history_rs,
   cursor_info_rs,
   e_rs,
   result_rs,
@@ -44,9 +48,12 @@ type t = {
   do_action: do_action_t,
   replace_e,
 };
+
 let new_model = (): t => {
   let (edit_state_rs, edit_state_rf) = React.S.create(empty);
+  let (code_history_rs, code_history_rf) = React.S.create(CodeHistory.empty);
   let (e_rs, e_rf) = React.S.create(empty_erasure);
+
   let cursor_info_rs =
     React.S.l1(
       ~eq=(_, _) => false, /* palette contexts have functions in them! */
@@ -95,10 +102,12 @@ let new_model = (): t => {
 
   let (user_selected_instances_rs, user_selected_instances_rf) =
     React.S.create(MetaVarMap.empty);
+
   let usi_monitor =
     React.S.l1(_ => user_selected_instances_rf(MetaVarMap.empty), result_rs);
 
   let (selected_instance_rs, selected_instance_rf) = React.S.create(None);
+
   let instance_at_cursor_monitor =
     React.S.l2(
       (
@@ -131,6 +140,7 @@ let new_model = (): t => {
     );
 
   let monitors = [instance_at_cursor_monitor, usi_monitor];
+
   let do_action = action =>
     switch (
       Action.perform_syn(
@@ -141,6 +151,14 @@ let new_model = (): t => {
     ) {
     | Some((ze, ty, ugen)) =>
       edit_state_rf((ze, ty, ugen));
+
+      /* Update the history with the new action */
+      /* Disable history tracking for now
+        let history = React.S.value(code_history_rs);
+        code_history_rf(CodeHistory.add(action, history));
+      };*/
+
+      /* Don't update the erasure if the action was a cursor move */
       switch (action) {
       | Action.MoveTo(_)
       | Action.MoveToNextHole
@@ -149,6 +167,7 @@ let new_model = (): t => {
       };
     | None => raise(InvalidAction)
     };
+
   let replace_e = new_uhexp => {
     let new_edit_state_opt =
       Action.zexp_syn_fix_holes(
@@ -163,8 +182,10 @@ let new_model = (): t => {
     | None => JSUtil.log("Replacement uhexp didn't type-check")
     };
   };
+
   {
     edit_state_rs,
+    code_history_rs,
     cursor_info_rs,
     e_rs,
     result_rs,
