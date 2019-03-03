@@ -62,7 +62,7 @@ bidelim_typ:
     { UHTyp.Num }
   | BOOL_TYPE
     { UHTyp.Bool }
-  | UNIT_TYPE 
+  | UNIT_TYPE
     { UHTyp.Unit }
   | LBRACKET; t = uhtyp; RBRACKET
     { UHTyp.List(t) }
