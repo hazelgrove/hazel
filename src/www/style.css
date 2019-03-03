@@ -89,7 +89,7 @@ html, body {
 
 .leftbar {
   display: grid;
-  grid-template-rows: 65% 35%;
+  grid-template-rows: 100% 0%; /*65% 35%;*/
 }
 
 .rightbar {

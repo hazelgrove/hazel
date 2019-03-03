@@ -153,8 +153,10 @@ let new_model = (): t => {
       edit_state_rf((ze, ty, ugen));
 
       /* Update the history with the new action */
-      let history = React.S.value(code_history_rs);
-      code_history_rf(CodeHistory.add(action, history));
+      /* Disable history tracking for now
+        let history = React.S.value(code_history_rs);
+        code_history_rf(CodeHistory.add(action, history));
+      };*/
 
       /* Don't update the erasure if the action was a cursor move */
       switch (action) {
