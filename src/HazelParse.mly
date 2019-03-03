@@ -16,6 +16,7 @@
 %token INJECT
 %token LAMBDA
 %token CASE
+%token END
 %token LEFT
 %token RIGHT
 %token COLON
@@ -136,6 +137,21 @@ patop:
   ;
 
 uhexp:
+  | e = nonparen_exp(line_uhexp)
+  | e = inline_uhexp
+    { e }
+  ;
+
+line_uhexp:
+  | LET; p = uhpat; ann = half_ann?; EQUAL; e1 = uhexp; IN; e2 = uhexp
+    { UHExp.LineItem(UHExp.LetLine(p, ann, e1), e2) }
+  | SEMICOLON; e = uhexp
+    { UHExp.LineItem(UHExp.EmptyLine, e) }
+  | li = inline_uhexp; SEMICOLON; e = uhexp
+    { UHExp.LineItem(UHExp.ExpLine(li), e) }
+  ;
+
+inline_uhexp:
   | e = left_delim_exp
   | e = asc_exp
   | e = opseq_exp
@@ -171,9 +187,7 @@ bidelim_exp:
   ;
 
 left_delim_term:
-  | LET; p = uhpat; ann = half_ann?; EQUAL; e1 = uhexp; IN; e2 = uhexp
-    { UHExp.Let(p, ann, e1, e2) }
-  | LAMBDA; p = uhpat; ann = half_ann?; DOT; e = uhexp
+  | LAMBDA; p = uhpat; ann = half_ann?; DOT; e = inline_uhexp
     { UHExp.Lam(p, ann, e) }
   ;
 
@@ -183,7 +197,7 @@ half_ann:
   ;
 
 rule:
-  | DOUBLE_BAR; p = uhpat; CASE_ARROW; e = uhexp
+  | DOUBLE_BAR; p = uhpat; CASE_ARROW; e = inline_uhexp
     { UHExp.Rule(p, e) }
   ;
 
@@ -204,7 +218,7 @@ bidelim_term:
     {
       let model = String.sub palette_model 1 ((String.length palette_model) - 2) in
       let model = Scanf.unescaped model in
-      UHExp.ApPalette(palette_name, model, (0, Util.NatMap.empty))
+      UHExp.ApPalette(palette_name, model, SpliceInfo.empty)
     }
   | n = NATURAL
     { UHExp.NumLit n }
@@ -218,7 +232,7 @@ bidelim_term:
     { UHExp.ListNil }
   | LCBRACE; RCBRACE
     { UHExp.EmptyHole(0) }
-  | CASE; e = uhexp; rules = rule+; SEMICOLON
+  | CASE; e = inline_uhexp; rules = rule+; END
     { UHExp.Case(e, rules) }
   ;
 
