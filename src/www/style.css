@@ -28,27 +28,22 @@ html, body {
 }
 
 #container {
-	width: 100%;
 	height: 100%;
 }
 
 #root {
-	width: 100%;
 	height: 100%;
-	display: grid;
-	grid-template-rows: auto 1fr;
-	grid-template-columns: 1fr;
 }
 
 /* top bar */
 
 .top-bar {
 	padding: 10px;
-	vertical-align: middle;
 	background-color: #073f24;
 	color: white;
 	font-weight: bold;
 	font-size: 14pt;
+	height: 36px; /* DO NOT CHANGE without also changing main-area height. */
   /* border-bottom: 2px solid #4e7c66; */
 }
 
@@ -60,10 +55,10 @@ html, body {
 /* arrangement of main area */
 
 .main-area {
+	height: calc(100% - 36px);
 	background-color: wheat;
-	width: 100%;
-	height: 100%;
 	display: grid;
+	grid-template-rows: 100%;
 	grid-template-columns:  290px 1fr 290px;
 }
 
@@ -78,23 +73,21 @@ html, body {
 /* sidebars */
 
 .sidebar {
+  height: 100%;
   background-color: tan;
-	vertical-align: top;
-	height: 100%;
-	padding-left: 7px;
-	padding-right: 7px;
+  padding-left: 7px;
+  padding-right: 7px;
   padding-top: 7px;
+  padding-bottom: 7px;
   /* border-left: 2px solid #073f24; */
 }
 
 .leftbar {
-  display: grid;
-  grid-template-rows: 100% 0%; /*65% 35%;*/
+
 }
 
 .rightbar {
-  display: grid;
-  grid-template-rows: auto 1fr auto;
+
 }
 
 /* panels */
@@ -102,18 +95,16 @@ html, body {
 .panel {
   border: 1px solid #073f24;
   background-color: #FEFEEA;
-  margin-bottom: 7px;
   box-shadow: 2px 2px 0px 0px #af8e63;
-  display: grid;
-  grid-template-rows: auto 1fr;
 }
 
 .panel-body {
-  max-height: 100%;
-  overflow-y: scroll;
+  height: calc(100% - 21px); /* Dependent on title bar height. */
+  overflow-y: auto;
 }
 
 .titlebar {
+  height: 21px; /* DO NOT CHANGE this without also adjusting panel-body height. */
   text-transform: uppercase;
   color: white;
   padding: 3px;
@@ -124,6 +115,12 @@ html, body {
 }
 
 /* cursor inspector */
+
+.cursor-inspector-outer {
+	/* MUST be fixed height in order for overflow to work for the context inspector below this. */
+	/* DO NOT CHANGE this without also adjusting context-inspector height. */
+	height: 121px;
+}
 
 .cursor-OK.cursor-inspector {
   border: 1px solid #073f24;
@@ -187,6 +184,7 @@ html, body {
 /* action panel */
 
 .action-panel {
+  height: 100%;
   background-color: #073f24;
   cursor: default;
 }
@@ -296,6 +294,10 @@ html, body {
 }
 
 /* context inspector */
+
+.context-inspector-panel {
+	height: calc(100% - 121px);
+}
 
 .context-inspector-body {
   display: grid;
