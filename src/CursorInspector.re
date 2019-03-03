@@ -232,5 +232,8 @@ let mk = (cursor_info_rs: Model.cursor_info_rs) => {
       cursor_info_rs,
     );
 
-  R.Html5.(div(ReactiveData.RList.from_signal(cursor_inspector_rs)));
+  R.Html5.div(
+    ~a=[Html.a_class(["cursor-inspector-outer"])],
+    ReactiveData.RList.from_signal(cursor_inspector_rs),
+  );
 };
