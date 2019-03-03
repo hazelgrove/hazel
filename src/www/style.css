@@ -88,7 +88,6 @@ html, body {
 }
 
 .leftbar {
-  max-height: 100%;
   display: grid;
   grid-template-rows: 65% 35%;
 }
@@ -110,6 +109,7 @@ html, body {
 }
 
 .panel-body {
+  max-height: 100%;
   overflow-y: scroll;
 }
 
