@@ -1,7 +1,7 @@
 open LangUtil;
 let ensure_well_typed_after_parsing = uhexp =>
   switch (
-    UHExp.fix_and_renumber_holes((VarCtx.empty, PaletteCtx.empty), uhexp)
+    Statics.fix_and_renumber_holes((VarCtx.empty, PaletteCtx.empty), uhexp)
   ) {
   | None => raise(IllFormed(uhexp))
   | Some((e, t, mv)) => (e, t, mv)
