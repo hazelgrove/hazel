@@ -535,9 +535,14 @@ let make =
       ~a=[a_class(["panel", "action-panel"])],
       [
         PanelUtils.titlebar("Edit Actions"),
-        generalActions,
-        expressionConstructionActions,
-        typeConstructionActions,
+        div(
+          ~a=[a_class(["panel-body"])],
+          [
+            generalActions,
+            expressionConstructionActions,
+            typeConstructionActions,
+          ],
+        ),
       ],
     )
   );
