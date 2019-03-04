@@ -33,18 +33,19 @@ html, body {
 
 #root {
 	height: 100%;
+	display: flex;
+	flex-direction: column;
 }
 
 /* top bar */
 
 .top-bar {
+	flex-grow: 0;
 	padding: 10px;
 	background-color: #073f24;
 	color: white;
 	font-weight: bold;
 	font-size: 14pt;
-	height: 36px; /* DO NOT CHANGE without also changing main-area height. */
-  /* border-bottom: 2px solid #4e7c66; */
 }
 
 .logo-text {
@@ -55,31 +56,40 @@ html, body {
 /* arrangement of main area */
 
 .main-area {
-	height: calc(100% - 36px);
+	flex-grow: 1;
 	background-color: wheat;
-	display: grid;
-	grid-template-rows: 100%;
-	grid-template-columns:  290px 1fr 290px;
+	display: flex;
+	flex-direction: row;
+}
+
+.flex-wrapper {
+	flex-grow: 1;
+	display: flex;
+	flex-direction: column;
 }
 
 .page-area {
-	height: 100%;
+	flex-grow: 1;
+	/* enable scroll */
+	height: 0px;
+	overflow-y: auto;
+
 	padding-left: 14px;
 	padding-right: 14px;
 	padding-top: 14px;
-	padding-bottom: 0.75in;
 }
 
 /* sidebars */
 
 .sidebar {
-  height: 100%;
+  flex: 0 0 290px;
   background-color: tan;
   padding-left: 7px;
   padding-right: 7px;
   padding-top: 7px;
   padding-bottom: 7px;
-  /* border-left: 2px solid #073f24; */
+  display: flex;
+  flex-direction: column;
 }
 
 .leftbar {
@@ -96,15 +106,19 @@ html, body {
   border: 1px solid #073f24;
   background-color: #FEFEEA;
   box-shadow: 2px 2px 0px 0px #af8e63;
+  display: flex;
+  flex-direction: column;
 }
 
 .panel-body {
-  height: calc(100% - 21px); /* Dependent on title bar height. */
+  flex-grow: 1;
+  /* enable scroll */
+  height: 0px;
   overflow-y: auto;
 }
 
 .titlebar {
-  height: 21px; /* DO NOT CHANGE this without also adjusting panel-body height. */
+  flex-grow: 0;
   text-transform: uppercase;
   color: white;
   padding: 3px;
@@ -117,9 +131,8 @@ html, body {
 /* cursor inspector */
 
 .cursor-inspector-outer {
-	/* MUST be fixed height in order for overflow to work for the context inspector below this. */
-	/* DO NOT CHANGE this without also adjusting context-inspector height. */
-	height: 121px;
+  flex-grow: 0;
+  margin-bottom: 7px;
 }
 
 .cursor-OK.cursor-inspector {
@@ -184,7 +197,7 @@ html, body {
 /* action panel */
 
 .action-panel {
-  height: 100%;
+  flex-grow: 2;
   background-color: #073f24;
   cursor: default;
 }
@@ -296,7 +309,7 @@ html, body {
 /* context inspector */
 
 .context-inspector-panel {
-	height: calc(100% - 121px);
+  flex-grow: 1;
 }
 
 .context-inspector-body {
@@ -470,6 +483,7 @@ html, body {
 .page {
 	background-color: white;
 	padding: 0.25in;
+	margin-bottom: 14px; /* to match parent padding: creates a visible gap at bottom of scroll */
 	box-shadow: 3px 3px tan;
   /* border: 1px solid tan; */
 	max-width: 10in;
