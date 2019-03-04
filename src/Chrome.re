@@ -743,19 +743,102 @@ let view = (model: Model.t) => {
     ContextInspector.mk(model, instance_click_fn);
   /*let the_history_panel = HistoryPanel.make(model.code_history_rs);*/
   let the_action_panel = ActionPanel.make(model, set_cursor);
+
+  /* Generates a handler that adds/removes a CSS class from a
+   * sidebar collapser element to trigger the show/hide animation.
+   */
+  let sidebar_collapse_handler =
+      (
+        sidebar_id: string,
+        tab_id: string,
+        tab_opened_str: string,
+        tab_closed_str: string,
+        _,
+      ) => {
+    let bar = JSUtil.forceGetElementById(sidebar_id);
+    let tab = JSUtil.forceGetElementById(tab_id);
+    let hidden_sidebar_class = Js.string("hidden-sidebar");
+
+    if (Js.to_bool(bar##.classList##contains(hidden_sidebar_class))) {
+      bar##.classList##remove(hidden_sidebar_class);
+      tab##.innerHTML := Js.string(tab_opened_str);
+    } else {
+      bar##.classList##add(hidden_sidebar_class);
+      tab##.innerHTML := Js.string(tab_closed_str);
+    };
+
+    true;
+  };
+
   let the_leftbar =
     Html5.(
       div(
-        ~a=[a_class(["sidebar", "leftbar"])],
-        [the_action_panel /*the_history_panel*/],
+        ~a=[a_class(["sidebar"])],
+        [
+          div(
+            ~a=[
+              a_id("left-bar-body-collapser"),
+              a_class(["sidebar-body-collapser"]),
+            ],
+            [
+              div(
+                ~a=[a_class(["sidebar-body"])],
+                [the_action_panel /*the_history_panel*/],
+              ),
+            ],
+          ),
+          div(
+            ~a=[
+              a_id("left-tab"),
+              a_class(["sidebar-tab"]),
+              a_onclick(
+                sidebar_collapse_handler(
+                  "left-bar-body-collapser",
+                  "left-tab",
+                  "◀",
+                  "▶",
+                ),
+              ),
+            ],
+            [txt("◀")],
+          ),
+        ],
       )
     );
 
   let the_rightbar =
     Html5.(
       div(
-        ~a=[a_class(["sidebar", "rightbar"])],
-        [the_cursor_inspector_panel, the_context_inspector_panel],
+        ~a=[a_class(["sidebar"])],
+        [
+          div(
+            ~a=[
+              a_id("right-tab"),
+              a_class(["sidebar-tab"]),
+              a_onclick(
+                sidebar_collapse_handler(
+                  "right-bar-body-collapser",
+                  "right-tab",
+                  "▶",
+                  "◀",
+                ),
+              ),
+            ],
+            [txt("▶")],
+          ),
+          div(
+            ~a=[
+              a_id("right-bar-body-collapser"),
+              a_class(["sidebar-body-collapser"]),
+            ],
+            [
+              div(
+                ~a=[a_class(["sidebar-body"])],
+                [the_cursor_inspector_panel, the_context_inspector_panel],
+              ),
+            ],
+          ),
+        ],
       )
     );
 

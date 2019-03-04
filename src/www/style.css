@@ -40,7 +40,6 @@ html, body {
 /* top bar */
 
 .top-bar {
-	flex-grow: 0;
 	padding: 10px;
 	background-color: #073f24;
 	color: white;
@@ -74,15 +73,62 @@ html, body {
 	height: 0px;
 	overflow-y: auto;
 
-	padding-left: 14px;
-	padding-right: 14px;
+	padding-left: 8px;
+	padding-right: 8px;
 	padding-top: 14px;
 }
 
 /* sidebars */
 
 .sidebar {
-  flex: 0 0 290px;
+  display: flex;
+  flex-direction: row;
+}
+
+.sidebar-tab {
+	width: 16px;
+	height: 24px;
+	background-color: tan;
+	font-size: 10px;
+	color: #41392c;
+	cursor: default;
+	display: flex;
+	align-items: center;
+}
+
+#left-tab {
+	border-radius: 0 8px 8px 0;
+	justify-content: flex-start;
+}
+
+#right-tab {
+	border-radius: 8px 0 0 8px;
+	justify-content: flex-end;
+}
+
+.sidebar-body-collapser {
+  width: 290px;
+  transition: width 0.3s ease;
+  overflow-x: hidden;
+}
+
+/* Set collapser width to zero to have the sidebar "slide away" */
+#left-bar-body-collapser {
+  direction: rtl;
+}
+
+#right-bar-body-collapser {
+
+}
+
+.hidden-sidebar {
+	width: 0px;
+}
+
+.sidebar-body {
+  direction: ltr;
+  width: 290px;
+  height: 100%;
   background-color: tan;
   padding-left: 7px;
   padding-right: 7px;
@@ -90,14 +136,6 @@ html, body {
   padding-bottom: 7px;
   display: flex;
   flex-direction: column;
-}
-
-.leftbar {
-
-}
-
-.rightbar {
-
 }
 
 /* panels */
@@ -118,7 +156,6 @@ html, body {
 }
 
 .titlebar {
-  flex-grow: 0;
   text-transform: uppercase;
   color: white;
   padding: 3px;
@@ -131,7 +168,6 @@ html, body {
 /* cursor inspector */
 
 .cursor-inspector-outer {
-  flex-grow: 0;
   margin-bottom: 7px;
 }
 
