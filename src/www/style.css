@@ -73,70 +73,103 @@ html, body {
 	height: 0px;
 	overflow-y: auto;
 
-	padding-left: 8px;
-	padding-right: 8px;
+	padding-left: 14px;
+	padding-right: 14px;
 	padding-top: 14px;
 }
 
 /* sidebars */
 
-.sidebar {
-  display: flex;
-  flex-direction: row;
-}
-
-.sidebar-tab {
-	width: 16px;
-	height: 24px;
-	background-color: tan;
-	font-size: 10px;
-	font-family: Arial, sans-serif;
-	color: #41392c;
-	cursor: default;
-	display: flex;
-	align-items: center;
-}
-
-#left-tab {
-	border-radius: 0 8px 8px 0;
-	justify-content: flex-start;
-}
-
-#right-tab {
-	border-radius: 8px 0 0 8px;
-	justify-content: flex-end;
-}
-
-.sidebar-body-collapser {
+.collapsible-sidebar {
   width: 290px;
+  flex-shrink: 0;
   transition: width 0.3s ease;
   overflow-x: hidden;
 }
 
-/* Set collapser width to zero to have the sidebar "slide away" */
-#left-bar-body-collapser {
+.collapsed-sidebar {
+	width: 20px;
+}
+
+/* Set width to zero to have the sidebar "slide away" */
+#collapsible-left-bar {
+  /* Need to reverse the text direction to make the left bar
+   * overflow to the left during its hide animation.
+   */
   direction: rtl;
 }
 
-#right-bar-body-collapser {
+#collapsible-right-bar {
 
 }
 
-.hidden-sidebar {
-	width: 5px;
+.sidebar {
+  width: 290px;
+  height: 100%;
+  direction: ltr; /* reset text direction */
+  background-color: tan;
+  display: flex;
+  flex-direction: column;
+}
+
+.sidebar-tab {
+	height: 24px;
+	font-size: 10px;
+	font-family: Arial, sans-serif;
+	color: #41392c;
+	cursor: default;
+	padding: 4px 6px 4px 6px;
+	display: flex;
+	align-items: center; /* vertical alignment */
+}
+
+#left-tab {
+	justify-content: flex-end;
+}
+
+#right-tab {
+	justify-content: flex-start;
+}
+
+.sidebar-body-slider {
+  height: 100%;
+  overflow-x: hidden;
+  display: flex;
+}
+
+#slidable-left-bar-body {
+  padding-left: 7px;
+	direction: rtl;
+}
+
+#slidable-right-bar-body {
+  padding-right: 7px;
 }
 
 .sidebar-body {
-  direction: ltr;
-  width: 290px;
+  flex-grow: 1;
   height: 100%;
-  background-color: tan;
-  padding-left: 7px;
-  padding-right: 7px;
-  padding-top: 7px;
-  padding-bottom: 7px;
+  direction: ltr; /* reset text direction */
   display: flex;
   flex-direction: column;
+}
+
+.sidebar-body-padding {
+  width: 7px;
+  transition: width 0.3s ease;
+  height: 100%;
+}
+
+#left-bar-body-padding {
+
+}
+
+#right-bar-body-padding {
+
+}
+
+.sidebar-body-padding-expanded {
+  width: 24px;
 }
 
 /* panels */
@@ -145,6 +178,7 @@ html, body {
   border: 1px solid #073f24;
   background-color: #FEFEEA;
   box-shadow: 2px 2px 0px 0px #af8e63;
+  margin-bottom: 7px;
   display: flex;
   flex-direction: column;
 }
@@ -169,7 +203,7 @@ html, body {
 /* cursor inspector */
 
 .cursor-inspector-outer {
-  margin-bottom: 7px;
+
 }
 
 .cursor-OK.cursor-inspector {
