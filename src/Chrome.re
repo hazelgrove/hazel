@@ -830,46 +830,54 @@ let view = (model: Model.t) => {
               [
                 the_leftbar,
                 div(
-                  ~a=[a_class(["page-area"])],
+                  ~a=[a_class(["flex-wrapper"])],
                   [
                     div(
-                      ~a=[a_class(["page"])],
+                      ~a=[a_class(["page-area"])],
                       [
-                        div([
-                          txt("Hazel is an experiment in "),
-                          strong([txt("live functional programming")]),
-                          txt(" with "),
-                          strong([txt("typed holes")]),
-                          txt(
-                            ". Use the actions on the left to construct an expression. Navigate using the text cursor in the usual way.",
-                          ),
-                        ]),
-                        pp_view_parent,
                         div(
-                          ~a=[a_class(["cell-status"])],
+                          ~a=[a_class(["page"])],
                           [
+                            div([
+                              txt("Hazel is an experiment in "),
+                              strong([txt("live functional programming")]),
+                              txt(" with "),
+                              strong([txt("typed holes")]),
+                              txt(
+                                ". Use the actions on the left to construct an expression. Navigate using the text cursor in the usual way.",
+                              ),
+                            ]),
+                            pp_view_parent,
                             div(
-                              ~a=[a_class(["type-indicator"])],
+                              ~a=[a_class(["cell-status"])],
                               [
                                 div(
-                                  ~a=[a_class(["type-label"])],
-                                  [txt("Result of type: ")],
-                                ),
-                                div(
-                                  ~a=[a_class(["htype-view"])],
-                                  [htype_view],
+                                  ~a=[a_class(["type-indicator"])],
+                                  [
+                                    div(
+                                      ~a=[a_class(["type-label"])],
+                                      [txt("Result of type: ")],
+                                    ),
+                                    div(
+                                      ~a=[a_class(["htype-view"])],
+                                      [htype_view],
+                                    ),
+                                  ],
                                 ),
                               ],
                             ),
+                            div(
+                              ~a=[a_class(["result-view"])],
+                              [result_view],
+                            ),
                           ],
                         ),
-                        div(~a=[a_class(["result-view"])], [result_view]),
+                        examples_select,
+                        button(
+                          ~a=[a_onclick(serialize_onclick_handler)],
+                          [txt("Serialize")],
+                        ),
                       ],
-                    ),
-                    examples_select,
-                    button(
-                      ~a=[a_onclick(serialize_onclick_handler)],
-                      [txt("Serialize")],
                     ),
                   ],
                 ),
