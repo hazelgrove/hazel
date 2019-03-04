@@ -1047,12 +1047,6 @@ module DHExp = {
       let delta =
         MetaVarMap.extend_unique(delta, (u, (ExpressionHole, ty, gamma)));
       Expands(d, ty, delta);
-    | UHExp.Asc(e1, uty) =>
-      let ty = UHTyp.expand(uty);
-      switch (ana_expand(ctx, delta, e1, ty)) {
-      | DoesNotExpand => DoesNotExpand
-      | Expands(d1, ty', delta) => Expands(cast(d1, ty', ty), ty, delta)
-      };
     | UHExp.Var(NotInVHole, x) =>
       let gamma = Contexts.gamma(ctx);
       switch (VarMap.lookup(gamma, x)) {
@@ -1155,7 +1149,19 @@ module DHExp = {
     | UHExp.ListNil =>
       let elt_ty = HTyp.Hole;
       Expands(ListNil(elt_ty), HTyp.List(elt_ty), delta);
-    | UHExp.Case(_, _) => DoesNotExpand
+    | UHExp.Case(e1, rules, Some(uty)) =>
+      let ty = UHTyp.expand(uty);
+      switch (syn_expand(ctx, delta, e1)) {
+      | DoesNotExpand => DoesNotExpand
+      | Expands(d1, ty1, delta) =>
+        switch (ana_expand_rules(ctx, delta, rules, ty1, ty)) {
+        | None => DoesNotExpand
+        | Some((drs, delta)) =>
+          let d = Case(d1, drs, 0);
+          Expands(d, ty, delta);
+        }
+      };
+    | UHExp.Case(_, _, None) => DoesNotExpand
     | UHExp.OpSeq(skel, seq) => syn_expand_skel(ctx, delta, skel, seq)
     | UHExp.ApPalette(name, serialized_model, hole_data) => DoesNotExpand
     /* TODO fix me */
@@ -1445,7 +1451,23 @@ module DHExp = {
       | None => DoesNotExpand
       | Some(elt_ty) => Expands(ListNil(elt_ty), HTyp.List(elt_ty), delta)
       }
-    | UHExp.Case(e1, rules) =>
+    | UHExp.Case(e1, rules, Some(uty)) =>
+      let ty2 = UHTyp.expand(uty);
+      switch (HTyp.consistent(ty, ty2)) {
+      | false => DoesNotExpand
+      | true =>
+        switch (syn_expand(ctx, delta, e1)) {
+        | DoesNotExpand => DoesNotExpand
+        | Expands(d1, ty1, delta) =>
+          switch (ana_expand_rules(ctx, delta, rules, ty1, ty2)) {
+          | None => DoesNotExpand
+          | Some((drs, delta)) =>
+            let d = Case(d1, drs, 0);
+            Expands(d, ty, delta);
+          }
+        }
+      };
+    | UHExp.Case(e1, rules, None) =>
       switch (syn_expand(ctx, delta, e1)) {
       | DoesNotExpand => DoesNotExpand
       | Expands(d1, ty1, delta) =>
@@ -1457,7 +1479,6 @@ module DHExp = {
         }
       }
     | UHExp.OpSeq(skel, seq) => ana_expand_skel(ctx, delta, skel, seq, ty)
-    | UHExp.Asc(_, _)
     | UHExp.Var(NotInVHole, _)
     | UHExp.BoolLit(_)
     | UHExp.NumLit(_)

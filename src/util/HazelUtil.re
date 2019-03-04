@@ -187,9 +187,6 @@ module ZList = {
     prefix;
   };
 
-  let prefix_length = (zxs: t('z, 'a)): nat =>
-    List.length(prj_prefix(zxs));
-
   let prj_z = (zxs: t('z, 'a)): 'z => {
     let (_, z, _) = zxs;
     z;
@@ -199,6 +196,15 @@ module ZList = {
     let (_, _, suffix) = zxs;
     suffix;
   };
+
+  let prefix_length = (zxs: t('z, 'a)): nat =>
+    List.length(prj_prefix(zxs));
+
+  let suffix_length = (zxs: t('z, 'a)): nat =>
+    List.length(prj_suffix(zxs));
+
+  let length = (zxs: t('z, 'a)): nat =>
+    prefix_length(zxs) + 1 + suffix_length(zxs);
 
   let erase = (xs: t('z, 'a), erase_z: 'z => 'a) => {
     let (prefix, z, suffix) = xs;

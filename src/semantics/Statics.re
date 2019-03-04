@@ -396,16 +396,6 @@ let rec syn = (ctx, e) =>
 and syn' = (ctx, e) =>
   switch (e) {
   | UHExp.EmptyHole(_) => Some(HTyp.Hole)
-  | UHExp.Asc(e1, uty) =>
-    let ty = UHTyp.expand(uty);
-    if (UHExp.bidelimited(e1)) {
-      switch (ana(ctx, e1, ty)) {
-      | Some(_) => Some(ty)
-      | None => None
-      };
-    } else {
-      None;
-    };
   | UHExp.Var(NotInVHole, x) =>
     let (gamma, _) = ctx;
     VarMap.lookup(gamma, x);
@@ -448,7 +438,8 @@ and syn' = (ctx, e) =>
     | Some((ty, _)) => Some(ty)
     | None => None
     }
-  | Case(_, _) => None
+  | Case(_, _, Some(uty)) => Some(UHTyp.expand(uty))
+  | Case(_, _, None) => None
   | ApPalette(name, serialized_model, psi) =>
     let palette_ctx = Contexts.palette_ctx(ctx);
     switch (PaletteCtx.lookup(palette_ctx, name)) {
@@ -567,7 +558,17 @@ and ana' = (ctx, e, ty) =>
          | Some _ -> ana ctx elt ty_elt
          end) es (Some tt)
      end */
-  | Case(e1, rules) =>
+  | Case(e1, rules, Some(uty)) =>
+    let ty2 = UHTyp.expand(uty);
+    if (HTyp.consistent(ty, ty2)) {
+      switch (syn(ctx, e1)) {
+      | None => None
+      | Some(ty1) => ana_rules(ctx, rules, ty1, ty2)
+      };
+    } else {
+      None;
+    };
+  | Case(e1, rules, None) =>
     switch (syn(ctx, e1)) {
     | None => None
     | Some(ty1) => ana_rules(ctx, rules, ty1, ty)
@@ -578,7 +579,6 @@ and ana' = (ctx, e, ty) =>
     | Some(_) => Some()
     }
   | UHExp.EmptyHole(_)
-  | UHExp.Asc(_, _)
   | UHExp.Var(_, _)
   | NumLit(_)
   | BoolLit(_)
@@ -1481,18 +1481,6 @@ and syn_fix_holes' = (ctx, u_gen, renumber_empty_holes, e) =>
     } else {
       Some((UHExp.EmptyHole(u), HTyp.Hole, u_gen));
     }
-  | UHExp.Asc(e1, uty) =>
-    switch (UHExp.bidelimited(e1)) {
-    | false => None
-    | true =>
-      let ty = UHTyp.expand(uty);
-      switch (
-        ana_fix_holes_internal(ctx, u_gen, renumber_empty_holes, e1, ty)
-      ) {
-      | None => None
-      | Some((e1', u_gen')) => Some((UHExp.Asc(e1', uty), ty, u_gen'))
-      };
-    }
   | UHExp.Var(var_err_status, x) =>
     let gamma = Contexts.gamma(ctx);
     switch (VarMap.lookup(gamma, x)) {
@@ -1579,7 +1567,29 @@ and syn_fix_holes' = (ctx, u_gen, renumber_empty_holes, e) =>
 
       Some((e', ty', u_gen'));
     }
-  | Case(_, _) => None
+  | Case(e1, rules, Some(uty)) =>
+    let ty = UHTyp.expand(uty);
+    switch (syn_fix_holes_internal(ctx, u_gen, renumber_empty_holes, e1)) {
+    | None => None
+    | Some((e1, ty1, u_gen)) =>
+      switch (
+        ana_rules_fix_holes_internal(
+          ctx,
+          u_gen,
+          renumber_empty_holes,
+          rules,
+          ty1,
+          ty,
+          ana_fix_holes_internal,
+        )
+      ) {
+      | None => None
+      | Some((rules, u_gen)) =>
+        Some((Case(e1, rules, Some(uty)), ty, u_gen))
+      }
+    };
+
+  | Case(_, _, None) => None
   | ApPalette(name, serialized_model, psi) =>
     let palette_ctx = Contexts.palette_ctx(ctx);
     switch (PaletteCtx.lookup(palette_ctx, name)) {
@@ -1793,7 +1803,37 @@ and ana_fix_holes' = (ctx, u_gen, renumber_empty_holes, e, ty) =>
        end
      | None -> None (* TODO put in hole if not a list *)
      end */
-  | Case(e1, rules) =>
+  | Case(e1, rules, Some(uty)) =>
+    let ty2 = UHTyp.expand(uty);
+    if (HTyp.consistent(ty, ty2)) {
+      switch (syn_fix_holes_internal(ctx, u_gen, renumber_empty_holes, e1)) {
+      | None => None
+      | Some((e1', ty1, u_gen)) =>
+        switch (
+          ana_rules_fix_holes_internal(
+            ctx,
+            u_gen,
+            renumber_empty_holes,
+            rules,
+            ty1,
+            ty,
+            ana_fix_holes_internal,
+          )
+        ) {
+        | None => None
+        | Some((rules', u_gen)) =>
+          Some((NotInHole, Case(e1', rules', Some(uty)), u_gen))
+        }
+      };
+    } else {
+      switch (syn_fix_holes'(ctx, u_gen, renumber_empty_holes, e)) {
+      | None => None
+      | Some((e, _, u_gen)) =>
+        let (u, u_gen) = MetaVarGen.next(u_gen);
+        Some((InHole(TypeInconsistent, u), e, u_gen));
+      };
+    };
+  | Case(e1, rules, None) =>
     switch (syn_fix_holes_internal(ctx, u_gen, renumber_empty_holes, e1)) {
     | None => None
     | Some((e1', ty1, u_gen)) =>
@@ -1809,7 +1849,8 @@ and ana_fix_holes' = (ctx, u_gen, renumber_empty_holes, e, ty) =>
         )
       ) {
       | None => None
-      | Some((rules', u_gen)) => Some((NotInHole, Case(e1', rules'), u_gen))
+      | Some((rules', u_gen)) =>
+        Some((NotInHole, Case(e1', rules', None), u_gen))
       }
     }
   | OpSeq(skel, seq) =>
@@ -1822,7 +1863,6 @@ and ana_fix_holes' = (ctx, u_gen, renumber_empty_holes, e, ty) =>
       Some((err, OpSeq(skel, seq), u_gen))
     }
   | UHExp.EmptyHole(_)
-  | UHExp.Asc(_, _)
   | UHExp.Var(_, _)
   | NumLit(_)
   | BoolLit(_)

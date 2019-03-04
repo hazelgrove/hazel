@@ -20,14 +20,13 @@ type t =
   | Tm(err_status, t')
   | Parenthesized(t)
 and t' =
-  | Asc(t, UHTyp.t)
   | Var(var_err_status, Var.t)
   | LineItem(line_item, t)
   | Lam(UHPat.t, option(UHTyp.t), t)
   | NumLit(int)
   | BoolLit(bool)
   | Inj(inj_side, t)
-  | Case(t, list(rule))
+  | Case(t, list(rule), option(UHTyp.t))
   | ListNil
   | EmptyHole(MetaVar.t)
   | OpSeq(skel_t, opseq) /* invariant: skeleton is consistent with opseq */
@@ -92,13 +91,12 @@ let bidelimited =
   | Tm(_, NumLit(_))
   | Tm(_, BoolLit(_))
   | Tm(_, Inj(_, _))
-  | Tm(_, Case(_, _))
+  | Tm(_, Case(_, _, _))
   | Tm(_, ListNil)
   /* | Tm _ (ListLit _) */
   | Tm(_, ApPalette(_, _, _))
   | Parenthesized(_) => true
   /* non-bidelimited cases */
-  | Tm(_, Asc(_, _))
   | Tm(_, LineItem(_, _))
   | Tm(_, Lam(_, _, _))
   | Tm(_, OpSeq(_, _)) => false;

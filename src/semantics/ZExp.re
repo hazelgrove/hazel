@@ -16,16 +16,15 @@ type t =
   | Deeper(err_status, t')
   | ParenthesizedZ(t)
 and t' =
-  | AscZ1(t, UHTyp.t)
-  | AscZ2(UHExp.t, ZTyp.t)
   | LineItemZL(zline_item, UHExp.t)
   | LineItemZE(UHExp.line_item, t)
   | LamZP(ZPat.t, option(UHTyp.t), UHExp.t)
   | LamZA(UHPat.t, ZTyp.t, UHExp.t)
   | LamZE(UHPat.t, option(UHTyp.t), t)
   | InjZ(inj_side, t)
-  | CaseZE(t, list(UHExp.rule))
-  | CaseZR(UHExp.t, ZList.t(zrule, UHExp.rule))
+  | CaseZE(t, list(UHExp.rule), option(UHTyp.t))
+  | CaseZR(UHExp.t, ZList.t(zrule, UHExp.rule), option(UHTyp.t))
+  | CaseZA(UHExp.t, list(UHExp.rule), ZTyp.t)
   | OpSeqZ(UHExp.skel_t, t, OperatorSeq.opseq_surround(UHExp.t, UHExp.op))
   | ApPaletteZ(PaletteName.t, SerializedModel.t, ZSpliceInfo.t(UHExp.t, t))
 and zline_item =
@@ -47,12 +46,11 @@ let bidelimit = ze =>
   | ParenthesizedZ(_)
   | Deeper(_, InjZ(_, _))
   | Deeper(_, ApPaletteZ(_, _, _))
-  | Deeper(_, CaseZE(_, _))
-  | Deeper(_, CaseZR(_, _)) =>
+  | Deeper(_, CaseZE(_, _, _))
+  | Deeper(_, CaseZR(_, _, _))
+  | Deeper(_, CaseZA(_, _, _)) =>
     /* | Deeper _ (ListLitZ _) */
     ze
-  | Deeper(_, AscZ1(_, _))
-  | Deeper(_, AscZ2(_, _))
   | Deeper(_, LineItemZL(_, _))
   | Deeper(_, LineItemZE(_, _))
   | Deeper(_, LamZP(_, _, _))
@@ -117,8 +115,6 @@ let rec erase = (ze: t): UHExp.t =>
   }
 and erase' = (ze: t'): UHExp.t' =>
   switch (ze) {
-  | AscZ1(ze', ty) => UHExp.Asc(erase(ze'), ty)
-  | AscZ2(e', zty) => UHExp.Asc(e', ZTyp.erase(zty))
   | LineItemZL(zli, e) => UHExp.LineItem(erase_line_item(zli), e)
   | LineItemZE(lis, ze) => UHExp.LineItem(lis, erase(ze))
   | LamZP(zp, ann, e1) => UHExp.Lam(ZPat.erase(zp), ann, e1)
@@ -126,8 +122,11 @@ and erase' = (ze: t'): UHExp.t' =>
   | LamZE(p, ann, ze1) => UHExp.Lam(p, ann, erase(ze1))
   | InjZ(side, ze) => UHExp.Inj(side, erase(ze))
   /* | ListLitZ zes -> UHExp.ListLit (ZList.erase zes erase) */
-  | CaseZE(ze1, rules) => UHExp.Case(erase(ze1), rules)
-  | CaseZR(e1, zrules) => UHExp.Case(e1, ZList.erase(zrules, erase_rule))
+  | CaseZE(ze1, rules, ann) => UHExp.Case(erase(ze1), rules, ann)
+  | CaseZR(e1, zrules, ann) =>
+    UHExp.Case(e1, ZList.erase(zrules, erase_rule), ann)
+  | CaseZA(e1, rules, zann) =>
+    UHExp.Case(e1, rules, Some(ZTyp.erase(zann)))
   | OpSeqZ(skel, ze', surround) =>
     let e = erase(ze');
     UHExp.OpSeq(skel, OperatorSeq.opseq_of_exp_and_surround(e, surround));
@@ -158,16 +157,15 @@ let rec cursor_at_start = (ze: t): bool =>
   | CursorE(Before, _) => true
   | CursorE(_, _) => false
   | ParenthesizedZ(_) => false
-  | Deeper(_, AscZ1(ze1, _)) => cursor_at_start(ze1)
-  | Deeper(_, AscZ2(_, _)) => false
   | Deeper(_, LineItemZL(zli, _)) => cursor_at_start_line_item(zli)
   | Deeper(_, LineItemZE(_, _)) => false
   | Deeper(_, LamZP(_, _, _))
   | Deeper(_, LamZA(_, _, _))
   | Deeper(_, LamZE(_, _, _)) => false
   | Deeper(_, InjZ(_, _)) => false
-  | Deeper(_, CaseZE(_, _))
-  | Deeper(_, CaseZR(_, _)) => false
+  | Deeper(_, CaseZE(_, _, _))
+  | Deeper(_, CaseZR(_, _, _))
+  | Deeper(_, CaseZA(_, _, _)) => false
   | Deeper(_, OpSeqZ(_, ze1, OperatorSeq.EmptyPrefix(_))) =>
     cursor_at_start(ze1)
   | Deeper(_, OpSeqZ(_, _, _)) => false
@@ -193,16 +191,15 @@ let rec cursor_at_end = (ze: t): bool =>
   | CursorE(After, _) => true
   | CursorE(_, _) => false
   | ParenthesizedZ(_) => false
-  | Deeper(_, AscZ1(_, _)) => false
-  | Deeper(_, AscZ2(_, zty)) => ZTyp.cursor_at_end(zty)
   | Deeper(_, LineItemZL(_, _)) => false
   | Deeper(_, LineItemZE(_, ze1)) => cursor_at_end(ze1)
   | Deeper(_, LamZP(_, _, _))
   | Deeper(_, LamZA(_, _, _)) => false
   | Deeper(_, LamZE(_, _, ze1)) => cursor_at_end(ze1)
   | Deeper(_, InjZ(_, _)) => false
-  | Deeper(_, CaseZE(_, _))
-  | Deeper(_, CaseZR(_, _)) => false
+  | Deeper(_, CaseZE(_, _, _))
+  | Deeper(_, CaseZR(_, _, _)) => false
+  | Deeper(_, CaseZA(_, _, zann)) => ZTyp.cursor_at_end(zann)
   | Deeper(_, OpSeqZ(_, ze1, OperatorSeq.EmptySuffix(_))) =>
     cursor_at_end(ze1)
   | Deeper(_, OpSeqZ(_, _, _)) => false
@@ -226,9 +223,6 @@ let cursor_at_end_line_item = (zli: zline_item): bool =>
 
 let rec place_Before = (e: UHExp.t): t =>
   switch (e) {
-  | UHExp.Tm(err_status, UHExp.Asc(e1, ty)) =>
-    let ze1 = place_Before(e1);
-    Deeper(err_status, AscZ1(ze1, ty));
   | UHExp.Tm(err_status, UHExp.LineItem(EmptyLine, e1)) =>
     Deeper(err_status, LineItemZL(CursorL(Before, UHExp.EmptyLine), e1))
   | UHExp.Tm(err_status, UHExp.LineItem(ExpLine(e1), e2)) =>
@@ -247,7 +241,7 @@ let rec place_Before = (e: UHExp.t): t =>
   | UHExp.Tm(_, UHExp.NumLit(_))
   | UHExp.Tm(_, UHExp.BoolLit(_))
   | UHExp.Tm(_, UHExp.Inj(_, _))
-  | UHExp.Tm(_, UHExp.Case(_, _))
+  | UHExp.Tm(_, UHExp.Case(_, _, _))
   | UHExp.Tm(_, UHExp.ListNil)
   | UHExp.Tm(_, UHExp.EmptyHole(_))
   | UHExp.Tm(_, UHExp.ApPalette(_, _, _))
@@ -256,9 +250,6 @@ let rec place_Before = (e: UHExp.t): t =>
 
 let rec place_After = (e: UHExp.t): t =>
   switch (e) {
-  | UHExp.Tm(err_status, UHExp.Asc(e1, ty)) =>
-    let zty = ZTyp.place_After(ty);
-    Deeper(err_status, AscZ2(e1, zty));
   | UHExp.Tm(err_status, UHExp.LineItem(li, e2)) =>
     let ze2 = place_After(e2);
     Deeper(err_status, LineItemZE(li, ze2));
@@ -267,16 +258,18 @@ let rec place_After = (e: UHExp.t): t =>
     let zen = place_After(en);
     let surround = OperatorSeq.EmptySuffix(prefix);
     Deeper(err_status, OpSeqZ(skel, zen, surround));
-  | UHExp.Tm(_, UHExp.Var(_, _))
-  | UHExp.Tm(_, UHExp.Lam(_, _, _))
-  | UHExp.Tm(_, UHExp.NumLit(_))
-  | UHExp.Tm(_, UHExp.BoolLit(_))
-  | UHExp.Tm(_, UHExp.Inj(_, _))
-  | UHExp.Tm(_, UHExp.Case(_, _))
-  | UHExp.Tm(_, UHExp.ListNil)
-  | UHExp.Tm(_, UHExp.EmptyHole(_))
-  | UHExp.Tm(_, UHExp.ApPalette(_, _, _))
-  | UHExp.Parenthesized(_) => CursorE(After, e)
+  | Tm(_, Case(e, rules, Some(ty))) =>
+    Deeper(NotInHole, CaseZA(e, rules, ZTyp.place_After(ty)))
+  | Tm(_, Case(_, _, None))
+  | Tm(_, Var(_, _))
+  | Tm(_, Lam(_, _, _))
+  | Tm(_, NumLit(_))
+  | Tm(_, BoolLit(_))
+  | Tm(_, Inj(_, _))
+  | Tm(_, ListNil)
+  | Tm(_, EmptyHole(_))
+  | Tm(_, ApPalette(_, _, _))
+  | Parenthesized(_) => CursorE(After, e)
   };
 
 let rec place_After_line_item = (li: UHExp.line_item): zline_item =>
