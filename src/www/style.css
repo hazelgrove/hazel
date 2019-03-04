@@ -90,6 +90,7 @@ html, body {
 	height: 24px;
 	background-color: tan;
 	font-size: 10px;
+	font-family: Arial, sans-serif;
 	color: #41392c;
 	cursor: default;
 	display: flex;
@@ -122,7 +123,7 @@ html, body {
 }
 
 .hidden-sidebar {
-	width: 0px;
+	width: 5px;
 }
 
 .sidebar-body {
