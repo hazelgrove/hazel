@@ -175,7 +175,7 @@ html, body {
 /* panels */
 
 .panel {
-  border: 1px solid #08100d;
+  border: 1px solid #073f24;
   background-color: #FEFEEA;
   box-shadow: 2px 2px 0px 0px #af8e63;
   margin-bottom: 7px;
@@ -195,12 +195,7 @@ html, body {
 }
 
 .panel-title-bar {
-  border: 1px outset #1b6340;
-  border-right: 0px;
-  border-left: 1px solid #1d6341;
-  border-top: 1px solid #1d6341;
-  border-right: 0px;
-  border-bottom: 1px solid #040e09;
+  
 }
 
 .panel-body {
