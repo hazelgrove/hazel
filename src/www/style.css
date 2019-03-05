@@ -84,7 +84,6 @@ html, body {
   width: 290px;
   flex-shrink: 0;
   transition: width 0.3s ease;
-  overflow-x: hidden;
 }
 
 .collapsed-sidebar {
@@ -114,6 +113,7 @@ html, body {
 
 .sidebar-tab {
   height: 24px;
+  flex-shrink: 0;
   font-size: 10px;
   font-family: Arial, sans-serif;
   color: #41392c;
@@ -133,7 +133,6 @@ html, body {
 
 .sidebar-body-slider {
   height: 100%;
-  overflow-x: hidden;
   display: flex;
 }
 
@@ -156,6 +155,7 @@ html, body {
 
 .sidebar-body-padding {
   width: 7px;
+  flex-shrink: 0;
   transition: width 0.3s ease;
   height: 100%;
 }
