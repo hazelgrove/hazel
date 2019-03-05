@@ -222,7 +222,7 @@ let make =
     Html5.(
       div(
         ~a=[R.Html5.a_class(cls_rs)],
-        [div(~a=[a_class(["action-label"])], [msg])],
+        [div(~a=[a_class(["action-label", "info-label"])], [msg])],
       )
     );
   };
@@ -534,9 +534,9 @@ let make =
     div(
       ~a=[a_class(["panel", "action-panel"])],
       [
-        PanelUtils.titlebar("Edit Actions"),
+        Panel.main_title_bar("Edit Actions"),
         div(
-          ~a=[a_class(["panel-body"])],
+          ~a=[a_class(["panel-body", "action-panel-body"])],
           [
             generalActions,
             expressionConstructionActions,

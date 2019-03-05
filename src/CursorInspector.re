@@ -1,5 +1,4 @@
 open Tyxml_js;
-let titlebar = PanelUtils.titlebar;
 let typebar_width = 80000;
 let html_of_ty = View.html_of_ty(typebar_width);
 let typebar = (prefix, ty) => {
@@ -28,7 +27,7 @@ let expected_indicator = (title_text, type_div) =>
   Html5.(
     div(
       ~a=[a_class(["indicator", "expected-indicator"])],
-      [titlebar(title_text), type_div],
+      [Panel.main_title_bar(title_text), type_div],
     )
   );
 
@@ -52,7 +51,7 @@ let got_indicator = (title_text, type_div) =>
   Html5.(
     div(
       ~a=[a_class(["indicator", "got-indicator"])],
-      [titlebar(title_text), type_div],
+      [Panel.other_title_bar(title_text), type_div],
     )
   );
 let expected_pat_title = "Expecting a pattern of type";

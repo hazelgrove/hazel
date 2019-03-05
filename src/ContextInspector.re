@@ -115,7 +115,7 @@ let mk =
     };
 
     let path_view_titlebar =
-      PanelUtils.titlebar("Closure above observed at ");
+      Panel.other_title_bar("Closure above observed at ");
     let instructional_msg = msg =>
       Html5.(div(~a=[a_class(["instructional-msg"])], [txt(msg)]));
     let html_of_path_item = ((inst, x)) =>
@@ -200,7 +200,7 @@ let mk =
         div(
           ~a=[a_class(["path-view-with-path"])],
           [
-            PanelUtils.titlebar(titlebar_txt),
+            Panel.other_title_bar(titlebar_txt),
             div(~a=[a_class(["path-area-parent"])], path_area_children),
           ],
         )
@@ -417,7 +417,7 @@ let mk =
         path_viewer(hii, selected_instance, sort, gamma, next_prev_state_rf);
 
       [
-        PanelUtils.titlebar("context"),
+        Panel.main_title_bar("context"),
         Html5.(
           div(
             ~a=[a_class(["panel-body", "context-inspector-body"])],
