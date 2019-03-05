@@ -175,22 +175,16 @@ html, body {
 /* panels */
 
 .panel {
-  border: 1px solid #073f24;
+  border: 1px solid #08100d;
   background-color: #FEFEEA;
   box-shadow: 2px 2px 0px 0px #af8e63;
   margin-bottom: 7px;
   display: flex;
   flex-direction: column;
+  overflow: hidden;
 }
 
-.panel-body {
-  flex-grow: 1;
-  /* enable scroll */
-  height: 0px;
-  overflow-y: auto;
-}
-
-.titlebar {
+.title-bar {
   text-transform: uppercase;
   color: white;
   padding: 3px;
@@ -198,6 +192,22 @@ html, body {
   font-size: 10pt;
   font-weight: bold;
   background-color: #073f24;
+}
+
+.panel-title-bar {
+  border: 1px outset #1b6340;
+  border-right: 0px;
+  border-left: 1px solid #1d6341;
+  border-top: 1px solid #1d6341;
+  border-right: 0px;
+  border-bottom: 1px solid #040e09;
+}
+
+.panel-body {
+  flex-grow: 1;
+  /* enable scroll */
+  height: 0px;
+  overflow-y: auto;
 }
 
 /* cursor inspector */
@@ -218,15 +228,15 @@ html, body {
   border: 1px solid #ce5f00;
 }
 
-.cursor-OK .titlebar {
+.cursor-OK .title-bar {
   background-color: #073f24;
 }
 
-.cursor-TypeInconsistency .titlebar {
+.cursor-TypeInconsistency .title-bar {
   background-color: #8e0000;
 }
 
-.cursor-BindingError .titlebar {
+.cursor-BindingError .title-bar {
   background-color: #ce5f00;
 }
 
@@ -273,10 +283,17 @@ html, body {
   cursor: default;
 }
 
-.action-panel .titlebar {
+.action-panel .title-bar {
   /* background-color: #331757; */
   /* background-color: #163454; */
   background-color: #073f24;
+}
+
+.action-panel-body {
+  /* Hide the bottom shadow of the last button
+   * so it aligns nicely with the panel border.
+   */
+  margin-bottom: -1px;
 }
 
 .sub-panel-title {
@@ -289,9 +306,6 @@ html, body {
   font-size: 8pt;
 }
 
-.sub-panel-body {
-}
-
 .action-panel-entry {
   display: grid;
   grid-template-columns: 1fr auto;
@@ -300,8 +314,14 @@ html, body {
 .action-label {
   padding-left: 5px;
   background-color: #41392c;
-  border: 1px outset #624c2a;
-  border-left: 0px;
+  border-left: 1px solid #624c2c;
+  border-top: 1px solid #624c2c;
+  border-right: 1px solid #0d0a05;
+  border-bottom: 1px solid #0d0a05;
+}
+
+.info-label {
+  border-right: 0px;
 }
 
 .keyboard-shortcut {
@@ -311,8 +331,10 @@ html, body {
   text-align: center;
   font-family: sans-serif;
   background-color: #8b6040;
-  border: 1px outset #a08458;
+  border-left: 1px solid #a0845b;
+  border-top: 1px solid #a0845b;
   border-right: 0px;
+  border-bottom: 1px solid #0d0a05;
 }
 
 .action-label,
@@ -545,7 +567,7 @@ html, body {
   border: 1px solid #444;
 }
 
-.options-panel .titlebar {
+.options-panel .title-bar {
   background-color: #444;
 }
 
