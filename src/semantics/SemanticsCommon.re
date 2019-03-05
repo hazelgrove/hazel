@@ -34,3 +34,5 @@ type cursor_side =
   | Before
   | After
   | In(nat);
+
+exception SkelInconsistentWithOpSeq;

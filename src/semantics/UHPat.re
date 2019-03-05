@@ -1,4 +1,5 @@
 open SemanticsCommon;
+open HazelUtil;
 
 type op =
   | Comma
@@ -28,25 +29,21 @@ and t' =
 
 type opseq = OperatorSeq.opseq(t, op);
 
-let rec get_tuple = (skel1, skel2) =>
+let rec get_tuple = (skel1: skel_t, skel2: skel_t): TupleList.t(skel_t) =>
   switch (skel2) {
-  | Skel.BinOp(_, Comma, skel21, skel22) => [
-      skel1,
-      ...get_tuple(skel21, skel22),
-    ]
+  | Skel.BinOp(_, Comma, skel21, skel22) =>
+    TupleList.Cons(skel1, get_tuple(skel21, skel22))
   | Skel.BinOp(_, _, _, _)
-  | Skel.Placeholder(_) => [skel1, skel2]
+  | Skel.Placeholder(_) => TupleList.Pair(skel1, skel2)
   };
 
-let rec make_tuple = err =>
-  fun
-  | [skel1, skel2] => Some(Skel.BinOp(err, Comma, skel1, skel2))
-  | [skel1, ...skels] =>
-    switch (make_tuple(NotInHole, skels)) {
-    | None => None
-    | Some(skel2) => Some(Skel.BinOp(err, Comma, skel1, skel2))
-    }
-  | nil => None;
+let rec make_tuple = (err: err_status, skels: TupleList.t(skel_t)) =>
+  switch (skels) {
+  | Pair(skel1, skel2) => Skel.BinOp(err, Comma, skel1, skel2)
+  | Cons(skel1, skels) =>
+    let skel2 = make_tuple(NotInHole, skels);
+    Skel.BinOp(err, Comma, skel1, skel2);
+  };
 
 /* bidelimited patterns are those that don't have
  * sub-patterns at their outer left or right edge
