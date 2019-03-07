@@ -95,58 +95,66 @@ let of_OpSeqZ_pat = (zp: ZPat.t, surround: ZPat.opseq_surround) => {
   cons'(n, of_zpat(zp));
 };
 
-let rec follow_ty = (path: t, uty: UHTyp.t): option(ZTyp.t) =>
+exception UHTypNodeNotFound(t, UHTyp.t);
+exception UHPatNodeNotFound(t, UHPat.t);
+exception UHExpNodeNotFound(t, UHExp.t);
+exception LineItemNodeNotFound(t, UHExp.line_item);
+exception RuleNodeNotFound(t, UHExp.rule);
+
+/**
+ * Place cursor in uty where specified by path. Caller is
+ * responsible for ensuring path is consistent with uty,
+ * otherwise throws one of the *NotFound exceptions above.
+ */
+let rec follow_ty = (path: t, uty: UHTyp.t): ZTyp.t =>
   switch (path) {
-  | ([], cursor_side) => Some(ZTyp.CursorT(cursor_side, uty))
+  | ([], cursor_side) => ZTyp.CursorT(cursor_side, uty)
   | ([x, ...xs], cursor_side) =>
     switch (uty) {
     | UHTyp.Hole
     | UHTyp.Unit
     | UHTyp.Num
-    | UHTyp.Bool => None
+    | UHTyp.Bool => raise(UHTypNodeNotFound(path, uty))
     | UHTyp.Parenthesized(uty1) =>
       switch (x) {
       | 0 =>
-        switch (follow_ty((xs, cursor_side), uty1)) {
-        | Some(zty) => Some(ZTyp.ParenthesizedZ(zty))
-        | None => None
-        }
-      | _ => None
+        let zty = follow_ty((xs, cursor_side), uty1);
+        ZTyp.ParenthesizedZ(zty);
+      | _ => raise(UHTypNodeNotFound(path, uty))
       }
     | UHTyp.List(uty1) =>
       switch (x) {
       | 0 =>
-        switch (follow_ty((xs, cursor_side), uty1)) {
-        | None => None
-        | Some(zty) => Some(ZTyp.ListZ(zty))
-        }
-      | _ => None
+        let zty = follow_ty((xs, cursor_side), uty1);
+        ZTyp.ListZ(zty);
+      | _ => raise(UHTypNodeNotFound(path, uty))
       }
     | UHTyp.OpSeq(skel, seq) =>
       switch (OperatorSeq.split(x, seq)) {
+      | None => raise(UHTypNodeNotFound(path, uty))
       | Some((uty_n, surround)) =>
-        switch (follow_ty((xs, cursor_side), uty_n)) {
-        | Some(zty_n) => Some(ZTyp.OpSeqZ(skel, zty_n, surround))
-        | None => None
-        }
-      | None => None
+        let zty_n = follow_ty((xs, cursor_side), uty_n);
+        ZTyp.OpSeqZ(skel, zty_n, surround);
       }
     }
   };
 
-let rec follow_pat = (path: t, p: UHPat.t): option(ZPat.t) =>
+/**
+ * Place cursor in p where specified by path. Caller is
+ * responsible for ensuring path is consistent with p,
+ * otherwise throws one of the *NotFound exceptions above.
+ */
+let rec follow_pat = (path: t, p: UHPat.t): ZPat.t =>
   switch (path) {
-  | ([], cursor_side) => Some(ZPat.CursorP(cursor_side, p))
+  | ([], cursor_side) => ZPat.CursorP(cursor_side, p)
   | ([x, ...xs], cursor_side) =>
     switch (p) {
     | UHPat.Parenthesized(p1) =>
       switch (x) {
       | 0 =>
-        switch (follow_pat((xs, cursor_side), p1)) {
-        | None => None
-        | Some(zp1) => Some(ZPat.ParenthesizedZ(zp1))
-        }
-      | _ => None
+        let zp1 = follow_pat((xs, cursor_side), p1);
+        ZPat.ParenthesizedZ(zp1);
+      | _ => raise(UHPatNodeNotFound(path, p))
       }
     | UHPat.Pat(err_status, p') =>
       switch (x, p') {
@@ -155,195 +163,152 @@ let rec follow_pat = (path: t, p: UHPat.t): option(ZPat.t) =>
       | (_, UHPat.Var(_))
       | (_, UHPat.NumLit(_))
       | (_, UHPat.BoolLit(_))
-      | (_, UHPat.ListNil) => None
+      | (_, UHPat.ListNil) => raise(UHPatNodeNotFound(path, p))
       | (0, UHPat.Inj(side, p1)) =>
-        switch (follow_pat((xs, cursor_side), p1)) {
-        | None => None
-        | Some(zp1) => Some(ZPat.Deeper(err_status, ZPat.InjZ(side, zp1)))
-        }
-      | (_, UHPat.Inj(_, _)) => None
+        let zp1 = follow_pat((xs, cursor_side), p1);
+        ZPat.Deeper(err_status, ZPat.InjZ(side, zp1));
+      | (_, UHPat.Inj(_, _)) => raise(UHPatNodeNotFound(path, p))
       | (n, UHPat.OpSeq(skel, seq)) =>
         switch (OperatorSeq.split(n, seq)) {
-        | None => None
+        | None => raise(UHPatNodeNotFound(path, p))
         | Some((p, surround)) =>
-          switch (follow_pat((xs, cursor_side), p)) {
-          | Some(zp) =>
-            Some(ZPat.Deeper(err_status, ZPat.OpSeqZ(skel, zp, surround)))
-          | None => None
-          }
+          let zp = follow_pat((xs, cursor_side), p);
+          ZPat.Deeper(err_status, ZPat.OpSeqZ(skel, zp, surround));
         }
       }
     }
   };
 
-let rec follow_e = (path: t, e: UHExp.t): option(ZExp.t) =>
+/**
+ * Place cursor in e where specified by path. Caller is
+ * responsible for ensuring path is consistent with e,
+ * otherwise throws one of the *NotFound exceptions above.
+ */
+let rec follow_e = (path: t, e: UHExp.t): ZExp.t =>
   switch (path) {
-  | ([], cursor_side) => Some(ZExp.CursorE(cursor_side, e))
+  | ([], cursor_side) => ZExp.CursorE(cursor_side, e)
   | ([x, ...xs], cursor_side) =>
     switch (e) {
     | UHExp.Parenthesized(e1) =>
       switch (x) {
       | 0 =>
-        switch (follow_e((xs, cursor_side), e1)) {
-        | Some(ze1) => Some(ZExp.ParenthesizedZ(ze1))
-        | None => None
-        }
-      | _ => None
+        let ze1 = follow_e((xs, cursor_side), e1);
+        ZExp.ParenthesizedZ(ze1);
+      | _ => raise(UHExpNodeNotFound(path, e))
       }
-    | UHExp.Tm(err_status, e) =>
-      switch (x, e) {
-      | (_, UHExp.EmptyHole(_)) => None
-      | (_, UHExp.Var(_, _)) => None
+    | UHExp.Tm(err_status, e') =>
+      switch (x, e') {
+      | (_, UHExp.EmptyHole(_))
+      | (_, UHExp.Var(_, _))
+      | (_, UHExp.NumLit(_))
+      | (_, UHExp.BoolLit(_))
+      | (_, UHExp.ListNil) => raise(UHExpNodeNotFound(path, e))
       | (0, UHExp.LineItem(li, e1)) =>
-        switch (follow_line_item((xs, cursor_side), li)) {
-        | None => None
-        | Some(zli) =>
-          Some(ZExp.Deeper(err_status, ZExp.LineItemZL(zli, e1)))
-        }
+        let zli = follow_line_item((xs, cursor_side), li);
+        ZExp.Deeper(err_status, ZExp.LineItemZL(zli, e1));
       | (1, UHExp.LineItem(li, e1)) =>
-        switch (follow_e((xs, cursor_side), e1)) {
-        | None => None
-        | Some(ze1) =>
-          Some(ZExp.Deeper(err_status, ZExp.LineItemZE(li, ze1)))
-        }
-      | (_, UHExp.LineItem(_, _)) => None
+        let ze1 = follow_e((xs, cursor_side), e1);
+        ZExp.Deeper(err_status, ZExp.LineItemZE(li, ze1));
+      | (_, UHExp.LineItem(_, _)) => raise(UHExpNodeNotFound(path, e))
       | (0, UHExp.Lam(p, ann, e1)) =>
-        switch (follow_pat((xs, cursor_side), p)) {
-        | None => None
-        | Some(zp) => Some(ZExp.Deeper(err_status, ZExp.LamZP(zp, ann, e1)))
-        }
+        let zp = follow_pat((xs, cursor_side), p);
+        ZExp.Deeper(err_status, ZExp.LamZP(zp, ann, e1));
       | (1, UHExp.Lam(p, ann, e1)) =>
         switch (ann) {
-        | None => None
+        | None => raise(UHExpNodeNotFound(path, e))
         | Some(ann_ty) =>
-          switch (follow_ty((xs, cursor_side), ann_ty)) {
-          | None => None
-          | Some(zann) =>
-            Some(ZExp.Deeper(err_status, ZExp.LamZA(p, zann, e1)))
-          }
+          let zann = follow_ty((xs, cursor_side), ann_ty);
+          ZExp.Deeper(err_status, ZExp.LamZA(p, zann, e1));
         }
       | (2, UHExp.Lam(p, ann, e1)) =>
-        switch (follow_e((xs, cursor_side), e1)) {
-        | None => None
-        | Some(ze) => Some(ZExp.Deeper(err_status, ZExp.LamZE(p, ann, ze)))
-        }
-      | (_, UHExp.Lam(_, _, _)) => None
-      | (_, UHExp.NumLit(_)) => None
-      | (_, UHExp.BoolLit(_)) => None
+        let ze = follow_e((xs, cursor_side), e1);
+        ZExp.Deeper(err_status, ZExp.LamZE(p, ann, ze));
+      | (_, UHExp.Lam(_, _, _)) => raise(UHExpNodeNotFound(path, e))
       | (0, UHExp.Inj(side, e1)) =>
-        switch (follow_e((xs, cursor_side), e1)) {
-        | Some(ze) => Some(ZExp.Deeper(err_status, ZExp.InjZ(side, ze)))
-        | None => None
-        }
-      | (_, UHExp.Inj(_, _)) => None
-      | (_, UHExp.ListNil) => None
+        let ze = follow_e((xs, cursor_side), e1);
+        ZExp.Deeper(err_status, ZExp.InjZ(side, ze));
+      | (_, UHExp.Inj(_, _)) => raise(UHExpNodeNotFound(path, e))
       | (0, UHExp.Case(e1, rules, ann)) =>
-        switch (follow_e((xs, cursor_side), e1)) {
-        | Some(ze) =>
-          Some(ZExp.Deeper(err_status, ZExp.CaseZE(ze, rules, ann)))
-        | None => None
-        }
+        let ze = follow_e((xs, cursor_side), e1);
+        ZExp.Deeper(err_status, ZExp.CaseZE(ze, rules, ann));
       | (x, UHExp.Case(e1, rules, ann)) when x === List.length(rules) + 1 =>
         switch (ann) {
-        | None => None
+        | None => raise(UHExpNodeNotFound(path, e))
         | Some(ty) =>
-          switch (follow_ty((xs, cursor_side), ty)) {
-          | None => None
-          | Some(zann) =>
-            Some(ZExp.Deeper(err_status, ZExp.CaseZA(e1, rules, zann)))
-          }
+          let zann = follow_ty((xs, cursor_side), ty);
+          ZExp.Deeper(err_status, ZExp.CaseZA(e1, rules, zann));
         }
       | (x, UHExp.Case(e1, rules, ann)) =>
         switch (ZList.split_at(x - 1, rules)) {
-        | None => None
+        | None => raise(UHExpNodeNotFound(path, e))
         | Some(split_rules) =>
-          switch (
-            ZList.optmap_z(follow_rule((xs, cursor_side)), split_rules)
-          ) {
-          | None => None
-          | Some(zrules) =>
-            Some(ZExp.Deeper(err_status, ZExp.CaseZR(e1, zrules, ann)))
-          }
+          let zrules =
+            ZList.map_z(follow_rule((xs, cursor_side)), split_rules);
+          ZExp.Deeper(err_status, ZExp.CaseZR(e1, zrules, ann));
         }
       | (n, UHExp.OpSeq(skel, seq)) =>
         switch (OperatorSeq.split(n, seq)) {
         | Some((e, surround)) =>
-          switch (follow_e((xs, cursor_side), e)) {
-          | Some(ze) =>
-            Some(ZExp.Deeper(err_status, ZExp.OpSeqZ(skel, ze, surround)))
-          | None => None
-          }
-        | None => None
+          let ze = follow_e((xs, cursor_side), e);
+          ZExp.Deeper(err_status, ZExp.OpSeqZ(skel, ze, surround));
+        | None => raise(UHExpNodeNotFound(path, e))
         }
       | (n, UHExp.ApPalette(name, serialized_model, splice_info)) =>
         switch (
-          ZSpliceInfo.select_opt(splice_info, n, ((ty, e)) =>
-            switch (follow_e((xs, cursor_side), e)) {
-            | None => None
-            | Some(ze) => Some((ty, ze))
-            }
+          ZSpliceInfo.select_opt(
+            splice_info,
+            n,
+            ((ty, e)) => {
+              let ze = follow_e((xs, cursor_side), e);
+              Some((ty, ze));
+            },
           )
         ) {
-        | None => None
+        | None => raise(UHExpNodeNotFound(path, e))
         | Some(zsplice_info) =>
-          Some(
-            ZExp.Deeper(
-              NotInHole,
-              ZExp.ApPaletteZ(name, serialized_model, zsplice_info),
-            ),
+          ZExp.Deeper(
+            NotInHole,
+            ZExp.ApPaletteZ(name, serialized_model, zsplice_info),
           )
         }
       }
     }
   }
-and follow_line_item =
-    (path: t, li: UHExp.line_item): option(ZExp.zline_item) =>
+and follow_line_item = (path: t, li: UHExp.line_item): ZExp.zline_item =>
   switch (path, li) {
-  | (([], cursor_side), li) => Some(ZExp.CursorL(cursor_side, li))
-  | (_, UHExp.EmptyLine) => None
+  | (([], cursor_side), li) => ZExp.CursorL(cursor_side, li)
+  | (_, UHExp.EmptyLine) => raise(LineItemNodeNotFound(path, li))
   | (([0, ...xs], cursor_side), UHExp.ExpLine(e)) =>
-    switch (follow_e((xs, cursor_side), e)) {
-    | None => None
-    | Some(ze) => Some(ZExp.DeeperL(ZExp.ExpLineZ(ze)))
-    }
-  | (_, UHExp.ExpLine(_)) => None
+    let ze = follow_e((xs, cursor_side), e);
+    ZExp.DeeperL(ZExp.ExpLineZ(ze));
+  | (_, UHExp.ExpLine(_)) => raise(LineItemNodeNotFound(path, li))
   | (([0, ...xs], cursor_side), UHExp.LetLine(p, ann, e1)) =>
-    switch (follow_pat((xs, cursor_side), p)) {
-    | None => None
-    | Some(zp) => Some(ZExp.DeeperL(ZExp.LetLineZP(zp, ann, e1)))
-    }
+    let zp = follow_pat((xs, cursor_side), p);
+    ZExp.DeeperL(ZExp.LetLineZP(zp, ann, e1));
   | (([1, ...xs], cursor_side), UHExp.LetLine(p, ann, e1)) =>
     switch (ann) {
-    | None => None
+    | None => raise(LineItemNodeNotFound(path, li))
     | Some(ann_ty) =>
-      switch (follow_ty((xs, cursor_side), ann_ty)) {
-      | None => None
-      | Some(zann) => Some(ZExp.DeeperL(ZExp.LetLineZA(p, zann, e1)))
-      }
+      let zann = follow_ty((xs, cursor_side), ann_ty);
+      ZExp.DeeperL(ZExp.LetLineZA(p, zann, e1));
     }
   | (([2, ...xs], cursor_side), UHExp.LetLine(p, ann, e1)) =>
-    switch (follow_e((xs, cursor_side), e1)) {
-    | None => None
-    | Some(ze1) => Some(ZExp.DeeperL(ZExp.LetLineZE(p, ann, ze1)))
-    }
-  | (_, UHExp.LetLine(_, _, _)) => None
+    let ze1 = follow_e((xs, cursor_side), e1);
+    ZExp.DeeperL(ZExp.LetLineZE(p, ann, ze1));
+  | (_, UHExp.LetLine(_, _, _)) => raise(LineItemNodeNotFound(path, li))
   }
-and follow_rule = (path: t, rule: UHExp.rule): option(ZExp.zrule) =>
+and follow_rule = (path: t, rule: UHExp.rule): ZExp.zrule =>
   switch (rule) {
   | UHExp.Rule(p, e) =>
     switch (path) {
-    | ([], _) => None
+    | ([], _) => raise(RuleNodeNotFound(path, rule))
     | ([0, ...xs], cursor_side) =>
-      switch (follow_pat((xs, cursor_side), p)) {
-      | None => None
-      | Some(zp) => Some(ZExp.RuleZP(zp, e))
-      }
+      let zp = follow_pat((xs, cursor_side), p);
+      ZExp.RuleZP(zp, e);
     | ([1, ...xs], cursor_side) =>
-      switch (follow_e((xs, cursor_side), e)) {
-      | None => None
-      | Some(ze) => Some(ZExp.RuleZE(p, ze))
-      }
-    | ([_, ..._], _) => None
+      let ze = follow_e((xs, cursor_side), e);
+      ZExp.RuleZE(p, ze);
+    | ([_, ..._], _) => raise(RuleNodeNotFound(path, rule))
     }
   };
 
