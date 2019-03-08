@@ -45,7 +45,11 @@ let add = (action: Action.t, history: t): t =>
         ...history.uncommitted_moves
            @ HazelUtil.drop(history.actions_undone, history.actions),
       ],
-      action_count: history.action_count + 1 - history.actions_undone,
+      action_count:
+        history.action_count
+        + 1
+        + List.length(history.uncommitted_moves)
+        - history.actions_undone,
       actions_undone: 0,
       undo_jumps: [],
       uncommitted_moves: [],
