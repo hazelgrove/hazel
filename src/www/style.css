@@ -87,7 +87,7 @@ html, body {
 }
 
 .collapsed-sidebar {
-  width: 20px;
+  width: 24px;
 }
 
 /* Set width to zero to have the sidebar "slide away" */
@@ -114,11 +114,7 @@ html, body {
 .sidebar-tab {
   height: 24px;
   flex-shrink: 0;
-  font-size: 10px;
-  font-family: Arial, sans-serif;
-  color: #41392c;
-  cursor: default;
-  padding: 4px 6px 4px 6px;
+  padding: 4px 7px 4px 7px;
   display: flex;
   align-items: center; /* vertical alignment */
 }
@@ -129,6 +125,14 @@ html, body {
 
 #right-tab {
   justify-content: flex-start;
+}
+
+.sidebar-tab-icon {
+  width: 9px;
+  height: 9px;
+  flex-shrink: 0;
+  fill: #41392c;
+  display: block; /* MUST do this: inline elements have in-built vertical margins */
 }
 
 .sidebar-body-slider {
@@ -195,7 +199,7 @@ html, body {
 }
 
 .panel-title-bar {
-  
+
 }
 
 .panel-body {
@@ -497,11 +501,11 @@ html, body {
   /* color: #444; */
   /* text-align: center; */
   /* padding: 5px; */
-  display: grid;
-  grid-template-columns: 1fr auto;
+  display: flex;
 }
 
 .instance-info {
+  flex-grow: 1;
   padding: 5px;
   display: flex;
   align-items: center;
@@ -509,16 +513,23 @@ html, body {
 }
 
 .instance-controls {
-  display: grid;
-  grid-template-columns: auto auto;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  padding-right: 4px;
+}
+
+.instance-button-wrapper {
+  display: flex;
+  align-items: center;
 }
 
 .prev-instance,
 .next-instance {
-  padding: 5px;
-  padding-top: 0px;
-  display: flex;
-  align-items: center;
+  width: 12px;
+  height: 12px;
+  flex-shrink: 0;
+  padding: 4px;
 }
 
 .has-prev,
