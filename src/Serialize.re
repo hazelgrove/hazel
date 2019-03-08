@@ -1,7 +1,7 @@
 open Format;
 open LangUtil;
 let ensure_well_typed_before_serialization = uhexp =>
-  switch (UHExp.syn((VarMap.empty, PaletteCtx.empty), uhexp)) {
+  switch (Statics.syn((VarMap.empty, PaletteCtx.empty), uhexp)) {
   | None => raise(IllFormed(uhexp))
   | _ => uhexp
   };
@@ -74,7 +74,7 @@ let serialize = (~fmtr=std_formatter, ~line_length=100, ~indent=2, uhexp) => {
       switch (pat) {
       | UHPat.EmptyHole(_) => fprintf(fmtr, "{}")
       | UHPat.Wild => fprintf(fmtr, "_")
-      | UHPat.Var(x) => fprintf(fmtr, "%s", x)
+      | UHPat.Var(_, x) => fprintf(fmtr, "%s", x)
       | UHPat.NumLit(n) => fprintf(fmtr, "%d", n)
       | UHPat.BoolLit(b) => fprintf(fmtr, if (b) {"true"} else {"false"})
       | UHPat.Inj(s, p') =>
@@ -124,7 +124,11 @@ let serialize = (~fmtr=std_formatter, ~line_length=100, ~indent=2, uhexp) => {
         tau,
       )
     | UHExp.Var(_, x) => fprintf(fmtr, "%s", x)
-    | UHExp.Let(p, annOpt, e1, e2) =>
+    | UHExp.LineItem(EmptyLine, e) =>
+      fprintf(fmtr, "@[<v>;@ %a@]", print_uhexp, e)
+    | UHExp.LineItem(ExpLine(li), e) =>
+      fprintf(fmtr, "@[<v>%a;@ %a@]", print_uhexp, li, print_uhexp, e)
+    | UHExp.LineItem(LetLine(p, annOpt, li), e) =>
       fprintf(
         fmtr,
         "@[<v>@[<hov %d>let %a%a@ = %a in@]@ %a@]",
@@ -134,9 +138,9 @@ let serialize = (~fmtr=std_formatter, ~line_length=100, ~indent=2, uhexp) => {
         print_half_ann,
         annOpt,
         print_uhexp,
-        e1,
+        li,
         print_uhexp,
-        e2,
+        e,
       )
     | UHExp.Lam(p, annOpt, e') =>
       fprintf(
@@ -187,7 +191,7 @@ let serialize = (~fmtr=std_formatter, ~line_length=100, ~indent=2, uhexp) => {
     | UHExp.EmptyHole(_) => fprintf(fmtr, "{}")
     | UHExp.OpSeq(_, seq) =>
       print_opseq(fmtr, print_uhexp, string_of_expop, seq)
-    | UHExp.ApPalette(name, serialized_model, cells) =>
+    | UHExp.ApPalette(name, serialized_model, _) =>
       fprintf(fmtr, "%s \"%s\"", name, String.escaped(serialized_model))
     };
 

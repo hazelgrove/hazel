@@ -1,9 +1,12 @@
 open SemanticsCommon;
 open HazelUtil;
 
+[@deriving show({with_path: false})]
 type steps = list(nat);
+
 let string_of_steps = HazelUtil.string_of_list(string_of_int);
 
+[@deriving show({with_path: false})]
 type t = (steps, ZExp.cursor_side);
 
 let cons' = (step: nat, r: t): t => {

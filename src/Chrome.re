@@ -4,6 +4,11 @@ open SemanticsCommon;
 module Js = Js_of_ocaml.Js;
 module Dom = Js_of_ocaml.Dom;
 module Dom_html = Js_of_ocaml.Dom_html;
+module StringMap = Map.Make(String);
+type example_info = {
+  serialized: string,
+  desc: string,
+};
 let view = (model: Model.t) => {
   let {
     edit_state_rs,
@@ -736,29 +741,59 @@ let view = (model: Model.t) => {
   let the_cursor_inspector_panel = CursorInspector.mk(cursor_info_rs);
   let the_context_inspector_panel =
     ContextInspector.mk(model, instance_click_fn);
+  /*let the_history_panel = HistoryPanel.make(model.code_history_rs);*/
   let the_action_panel = ActionPanel.make(model, set_cursor);
-  let the_leftbar =
-    Html5.(div(~a=[a_class(["sidebar", "leftbar"])], [the_action_panel]));
 
-  let the_rightbar =
-    Html5.(
-      div(
-        ~a=[a_class(["sidebar", "rightbar"])],
-        [the_cursor_inspector_panel, the_context_inspector_panel],
-      )
+  let serialize_onclick_handler = _ => {
+    JSUtil.log(Serialize.string_of_uhexp(React.S.value(e_rs)));
+    true;
+  };
+
+  let deserialize_onclick_handler = (serialized, _) => {
+    replace_e(Deserialize.uhexp_of_string(serialized));
+    true;
+  };
+
+  let examples =
+    StringMap.add(
+      "let_line",
+      {
+        serialized: "let y = {} in\n;\nlet x = {} in\nx;\ny\n",
+        desc: "Let with extra lines example",
+      },
+      StringMap.add(
+        "basic_holey",
+        {
+          serialized: "(lambda {} : {}. {}) {}\n",
+          desc: "Basic holey lambda example",
+        },
+        StringMap.add(
+          "just_hole",
+          {serialized: "{}\n", desc: "Just a hole example"},
+          StringMap.empty,
+        ),
+      ),
     );
 
-  /*
-   let serialize_onclick_handler = _ => {
-     JSUtil.log(Serialize.string_of_uhexp(React.S.value(e_rs)));
-     true;
-   };
+  let examples_select =
+    Html5.(
+      select(
+        List.map(
+          ((name, info)) => option(~a=[a_value(name)], txt(info.desc)),
+          StringMap.bindings(examples),
+        ),
+      )
+    );
+  let examples_select_dom = To_dom.of_select(examples_select);
 
-   let deserialize_onclick_handler = (serialized, _) => {
-     replace_e(Deserialize.uhexp_of_string(serialized));
-     true;
-   };
-   */
+  let _ =
+    JSUtil.listen_to_t(Dom_html.Event.click, examples_select_dom, evt =>
+      deserialize_onclick_handler(
+        StringMap.find(Js.to_string(examples_select_dom##.value), examples).
+          serialized,
+        evt,
+      )
+    );
 
   let chrome =
     Tyxml_js.To_dom.of_div(
@@ -778,63 +813,63 @@ let view = (model: Model.t) => {
             div(
               ~a=[a_class(["main-area"])],
               [
-                the_leftbar,
+                Sidebar.left([the_action_panel /*, the_history_panel*/]),
                 div(
-                  ~a=[a_class(["page-area"])],
+                  ~a=[a_class(["flex-wrapper"])],
                   [
                     div(
-                      ~a=[a_class(["page"])],
+                      ~a=[a_class(["page-area"])],
                       [
-                        div([
-                          txt("Hazel is an experiment in "),
-                          strong([txt("live functional programming")]),
-                          txt(" with "),
-                          strong([txt("typed holes")]),
-                          txt(
-                            ". Use the actions on the left to construct an expression. Navigate using the text cursor in the usual way.",
-                          ),
-                        ]),
-                        pp_view_parent,
                         div(
-                          ~a=[a_class(["cell-status"])],
+                          ~a=[a_class(["page"])],
                           [
+                            div([
+                              txt("Hazel is an experiment in "),
+                              strong([txt("live functional programming")]),
+                              txt(" with "),
+                              strong([txt("typed holes")]),
+                              txt(
+                                ". Use the actions on the left to construct an expression. Navigate using the text cursor in the usual way.",
+                              ),
+                            ]),
+                            pp_view_parent,
                             div(
-                              ~a=[a_class(["type-indicator"])],
+                              ~a=[a_class(["cell-status"])],
                               [
                                 div(
-                                  ~a=[a_class(["type-label"])],
-                                  [txt("Result of type: ")],
-                                ),
-                                div(
-                                  ~a=[a_class(["htype-view"])],
-                                  [htype_view],
+                                  ~a=[a_class(["type-indicator"])],
+                                  [
+                                    div(
+                                      ~a=[a_class(["type-label"])],
+                                      [txt("Result of type: ")],
+                                    ),
+                                    div(
+                                      ~a=[a_class(["htype-view"])],
+                                      [htype_view],
+                                    ),
+                                  ],
                                 ),
                               ],
                             ),
+                            div(
+                              ~a=[a_class(["result-view"])],
+                              [result_view],
+                            ),
                           ],
                         ),
-                        div(~a=[a_class(["result-view"])], [result_view]),
+                        examples_select,
+                        button(
+                          ~a=[a_onclick(serialize_onclick_handler)],
+                          [txt("Serialize")],
+                        ),
                       ],
                     ),
-                    /* button(
-                         ~a=[a_onclick(serialize_onclick_handler)],
-                         [txt("Serialize")],
-                       ),
-                       div([
-                         button(
-                           ~a=[
-                             a_onclick(
-                               deserialize_onclick_handler(
-                                 "(lambda {} : {}. {}) {}\n",
-                               ),
-                             ),
-                           ],
-                           [txt("Basic holey lambda example")],
-                         ),
-                       ]), */
                   ],
                 ),
-                the_rightbar,
+                Sidebar.right([
+                  the_cursor_inspector_panel,
+                  the_context_inspector_panel,
+                ]),
               ],
             ),
           ],
