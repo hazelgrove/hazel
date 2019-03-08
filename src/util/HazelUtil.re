@@ -51,14 +51,6 @@ let findmapi = (xs, f) => _findmapi(0, xs, f);
 
 let any = (xs, f) => opt_to_bool(List.find_opt(f, xs));
 
-let rec unzip = xs =>
-  switch (xs) {
-  | [] => ([], [])
-  | [(x, y), ...xys] =>
-    let (xs, ys) = unzip(xys);
-    ([x, ...xs], [y, ...ys]);
-  };
-
 let rec split_at = (xs, n) =>
   switch (xs) {
   | [] => ([], [])
@@ -405,5 +397,13 @@ module TupleList = {
       | Some(xys) => Some(Cons((x, y), xys))
       }
     | _ => None
+    };
+
+  let rec unzip = (xys: t(('a, 'b))): (t('a), t('b)) =>
+    switch (xys) {
+    | Pair((x1, y1), (x2, y2)) => (Pair(x1, x2), Pair(y1, y2))
+    | Cons((x, y), xys) =>
+      let (xs, ys) = unzip(xys);
+      (Cons(x, xs), Cons(y, ys));
     };
 };
