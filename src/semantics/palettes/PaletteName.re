@@ -1,4 +1,6 @@
-[@deriving show({with_path: false})]
+open Sexplib.Std;
+
+[@deriving (show({with_path: false}), sexp)]
 type t = string;
 
 let eq = (x: t, y: t) => x === y;
