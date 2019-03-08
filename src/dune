@@ -32,8 +32,8 @@
   (write-file js-of-ocaml-flags-default "()"))
 
 (ocamllex
-  (modules SkelExprLexer SkelPatLexer SkelTypLexer HazelLex))
+  (modules SkelExprLexer SkelPatLexer SkelTypLexer))
 
 (menhir
   (infer false)
-  (modules SkelExprParser SkelPatParser SkelTypParser HazelParse))
+  (modules SkelExprParser SkelPatParser SkelTypParser))
