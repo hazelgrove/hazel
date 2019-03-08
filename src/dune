@@ -19,8 +19,8 @@
 (executable
   (name hazel)
   (js_of_ocaml (flags (:standard (:include js-of-ocaml-flags-%{profile}))))
-  (libraries js_of_ocaml.tyxml tyxml react reactiveData camomile)
-  (preprocess (pps ppx_deriving.show js_of_ocaml.ppx)))
+  (libraries js_of_ocaml.tyxml tyxml react reactiveData camomile sexplib)
+  (preprocess (pps ppx_deriving.show js_of_ocaml.ppx ppx_sexp_conv)))
 
 (rule
   (write-file js-of-ocaml-flags-debug --debuginfo))
