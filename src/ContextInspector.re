@@ -311,51 +311,71 @@ let mk =
       let prev_btn =
         switch (prev_state) {
         | Some(_) =>
-          let prev_cls = ["prev-instance", "has-prev", "noselect"];
-          let prev_onclick = onclick(prev_state);
           Html5.(
             div(
               ~a=[
-                a_class(prev_cls),
                 a_title(prev_title),
-                a_onclick(prev_onclick),
+                a_class(["instance-button-wrapper"]),
+                a_onclick(onclick(prev_state)),
               ],
-              [txt("◂")],
+              [
+                SvgShapes.left_arrow(
+                  ["prev-instance", "has-prev", "noselect"],
+                  (),
+                ),
+              ],
             )
-          );
+          )
         | None =>
-          let prev_cls = ["prev-instance", "no-prev", "noselect"];
           Html5.(
             div(
-              ~a=[a_class(prev_cls), a_title(prev_title)],
-              [txt("◂")],
+              ~a=[
+                a_title(prev_title),
+                a_class(["instance-button-wrapper"]),
+              ],
+              [
+                SvgShapes.left_arrow(
+                  ["prev-instance", "no-prev", "noselect"],
+                  (),
+                ),
+              ],
             )
-          );
+          )
         };
 
       let next_btn =
         switch (next_state) {
         | Some(_) =>
-          let next_cls = ["next-instance", "has-next", "noselect"];
-          let next_onclick = onclick(next_state);
           Html5.(
             div(
               ~a=[
-                a_class(next_cls),
                 a_title(next_title),
-                a_onclick(next_onclick),
+                a_class(["instance-button-wrapper"]),
+                a_onclick(onclick(next_state)),
               ],
-              [txt("▸")],
+              [
+                SvgShapes.right_arrow(
+                  ["next-instance", "has-next", "noselect"],
+                  (),
+                ),
+              ],
             )
-          );
+          )
         | None =>
-          let next_cls = ["next-instance", "no-next", "noselect"];
           Html5.(
             div(
-              ~a=[a_class(next_cls), a_title(next_title)],
-              [txt("▸")],
+              ~a=[
+                a_title(next_title),
+                a_class(["instance-button-wrapper"]),
+              ],
+              [
+                SvgShapes.right_arrow(
+                  ["next-instance", "no-next", "noselect"],
+                  (),
+                ),
+              ],
             )
-          );
+          )
         };
 
       let controls =
