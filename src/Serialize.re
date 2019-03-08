@@ -113,16 +113,6 @@ let serialize = (~fmtr=std_formatter, ~line_length=100, ~indent=2, uhexp) => {
     }
   and print_uhexp' = (fmtr, tm) =>
     switch (tm) {
-    | UHExp.Asc(e', tau) =>
-      fprintf(
-        fmtr,
-        "@[<hov %d>%a :@ %a@]",
-        indent,
-        print_uhexp,
-        e',
-        print_uhtyp,
-        tau,
-      )
     | UHExp.Var(_, x) => fprintf(fmtr, "%s", x)
     | UHExp.LineItem(EmptyLine, e) =>
       fprintf(fmtr, "@[<v>;@ %a@]", print_uhexp, e)
@@ -165,7 +155,7 @@ let serialize = (~fmtr=std_formatter, ~line_length=100, ~indent=2, uhexp) => {
         print_uhexp,
         e',
       )
-    | UHExp.Case(e', rules) =>
+    | UHExp.Case(e', rules, annOpt) =>
       let print_rule = (fmtr, UHExp.Rule(pr, er)) =>
         fprintf(
           fmtr,
@@ -179,13 +169,15 @@ let serialize = (~fmtr=std_formatter, ~line_length=100, ~indent=2, uhexp) => {
 
       fprintf(
         fmtr,
-        "@[<v>case %a%t;@]",
+        "@[<v>case %a%t;%a@]",
         print_uhexp,
         e',
         fmtr => {
           let _ = List.map(print_rule(fmtr), rules);
           fprintf(fmtr, "" /* NOOP */);
         },
+        print_half_ann,
+        annOpt,
       );
     | UHExp.ListNil => print_list_nil(fmtr)
     | UHExp.EmptyHole(_) => fprintf(fmtr, "{}")
