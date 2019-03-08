@@ -116,9 +116,12 @@ module ModKeys = {
   };
 
   let not_held = {c: NotHeld, s: NotHeld, a: NotHeld, m: NotHeld};
-  let ctrl = {c: Held, s: Any, a: NotHeld, m: NotHeld};
+  let ctrl = {c: Held, s: NotHeld, a: NotHeld, m: NotHeld};
   let shift = {c: NotHeld, s: Held, a: NotHeld, m: NotHeld};
-  let alt = {c: NotHeld, s: Any, a: Held, m: NotHeld};
+  let alt = {c: NotHeld, s: NotHeld, a: Held, m: NotHeld};
+  let meta = {c: NotHeld, s: NotHeld, a: NotHeld, m: Held};
+  let ctrl_shift = {c: Held, s: Held, a: NotHeld, m: NotHeld};
+  let meta_shift = {c: NotHeld, s: Held, a: NotHeld, m: Held};
   let no_ctrl_alt_meta = {c: NotHeld, s: Any, a: NotHeld, m: NotHeld};
 
   let req_matches = (req, mk, evt) =>
@@ -201,6 +204,9 @@ module KeyCombo = {
   let shift = key => {mod_keys: ModKeys.shift, key};
   let ctrl = key => {mod_keys: ModKeys.ctrl, key};
   let alt = key => {mod_keys: ModKeys.alt, key};
+  let meta = key => {mod_keys: ModKeys.meta, key};
+  let ctrl_shift = key => {mod_keys: ModKeys.ctrl_shift, key};
+  let meta_shift = key => {mod_keys: ModKeys.meta_shift, key};
 
   let matches = (kc, evt: Js.t(Dom_html.keyboardEvent)) =>
     ModKeys.matches(kc.mod_keys, evt) && Key.matches(kc.key, evt);
@@ -247,6 +253,12 @@ module KeyCombos = {
   let key_B = KeyCombo.no_ctrl_alt_meta(Key.the_key("B"));
   let key_N = KeyCombo.no_ctrl_alt_meta(Key.the_key("N"));
   let key_L = KeyCombo.no_ctrl_alt_meta(Key.the_key("L"));
+  let undo_windows = KeyCombo.ctrl(Key.the_key("z"));
+  let undo_mac = KeyCombo.meta(Key.the_key("z"));
+  let redo_windows = KeyCombo.ctrl(Key.the_key("y"));
+  let redo_windows_other = KeyCombo.ctrl_shift(Key.the_key("z"));
+  let redo_mac = KeyCombo.meta_shift(Key.the_key("z"));
+  let redo_mac_other = KeyCombo.meta(Key.the_key("y"));
 };
 
 let listen_for_key = (kc, f) =>

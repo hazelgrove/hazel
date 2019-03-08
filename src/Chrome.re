@@ -741,7 +741,8 @@ let view = (model: Model.t) => {
   let the_cursor_inspector_panel = CursorInspector.mk(cursor_info_rs);
   let the_context_inspector_panel =
     ContextInspector.mk(model, instance_click_fn);
-  /*let the_history_panel = HistoryPanel.make(model.code_history_rs);*/
+  let the_history_panel =
+    HistoryPanel.make(model.code_history_rs, model.undo, model.redo);
   let the_action_panel = ActionPanel.make(model, set_cursor);
 
   let serialize_onclick_handler = _ => {
@@ -813,7 +814,7 @@ let view = (model: Model.t) => {
             div(
               ~a=[a_class(["main-area"])],
               [
-                Sidebar.left([the_action_panel /*, the_history_panel*/]),
+                Sidebar.left([the_action_panel, the_history_panel]),
                 div(
                   ~a=[a_class(["flex-wrapper"])],
                   [

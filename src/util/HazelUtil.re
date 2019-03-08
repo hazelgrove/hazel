@@ -30,6 +30,11 @@ let rec drop = (n: int, xs: list('a)) =>
     xs;
   };
 
+/* Like List.iter, but in reverse */
+let rev_iter = (f: 'a => unit, xs: list('a)) => {
+  List.fold_right((x, ()) => f(x), xs, ());
+};
+
 let rec update_nth = (n, xs, f) =>
   switch (n, xs) {
   | (_, []) => []

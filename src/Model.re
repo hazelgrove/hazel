@@ -46,6 +46,8 @@ type t = {
   selected_instance_rf,
   monitors,
   do_action: do_action_t,
+  undo: unit => unit,
+  redo: unit => unit,
   replace_e,
 };
 
@@ -141,7 +143,7 @@ let new_model = (): t => {
 
   let monitors = [instance_at_cursor_monitor, usi_monitor];
 
-  let do_action = action =>
+  let do_action_unrecorded = action =>
     switch (
       Action.perform_syn(
         (VarCtx.empty, Palettes.initial_palette_ctx),
@@ -151,22 +153,19 @@ let new_model = (): t => {
     ) {
     | Some((ze, ty, ugen)) =>
       edit_state_rf((ze, ty, ugen));
-
-      /* Update the history with the new action */
-      /* Disable history tracking for now
-        let history = React.S.value(code_history_rs);
-        code_history_rf(CodeHistory.add(action, history));
-      };*/
-
-      /* Don't update the erasure if the action was a cursor move */
-      switch (action) {
-      | Action.MoveTo(_)
-      | Action.MoveToNextHole
-      | Action.MoveToPrevHole => ()
-      | _ => e_rf(ZExp.erase(ze))
+      if (!Action.is_move(action)) {
+        e_rf(ZExp.erase(ze));
       };
     | None => raise(InvalidAction)
     };
+
+  /* Do the specified action, and add it to the history.*/
+  let do_action = action => {
+    do_action_unrecorded(action);
+    /* Update the history with the new action */
+    let history = React.S.value(code_history_rs);
+    code_history_rf(CodeHistory.add(action, history));
+  };
 
   let replace_e = new_uhexp => {
     let new_edit_state_opt =
@@ -183,6 +182,28 @@ let new_model = (): t => {
     };
   };
 
+  let undo = () => {
+    let history = React.S.value(code_history_rs);
+    switch (CodeHistory.undo(history)) {
+    | Some(new_history) =>
+      replace_e(empty_erasure);
+      code_history_rf(new_history);
+      CodeHistory.execute_actions(do_action_unrecorded, new_history);
+    | None => ()
+    };
+  };
+
+  let redo = () => {
+    let history = React.S.value(code_history_rs);
+    switch (CodeHistory.redo(history)) {
+    | Some(new_history) =>
+      replace_e(empty_erasure);
+      code_history_rf(new_history);
+      CodeHistory.execute_actions(do_action_unrecorded, new_history);
+    | None => ()
+    };
+  };
+
   {
     edit_state_rs,
     code_history_rs,
@@ -195,6 +216,8 @@ let new_model = (): t => {
     selected_instance_rf,
     monitors,
     do_action,
+    undo,
+    redo,
     replace_e,
   };
 };

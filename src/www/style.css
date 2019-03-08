@@ -398,6 +398,11 @@ html, body {
   opacity: 0.5;
 }
 
+/* history panel */
+.history-panel {
+  flex-grow: 1;
+}
+
 /* context inspector */
 
 .context-inspector-panel {

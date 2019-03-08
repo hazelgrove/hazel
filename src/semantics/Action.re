@@ -105,6 +105,13 @@ type t =
   | Backspace
   | Construct(shape);
 
+let is_move =
+  fun
+  | MoveTo(_)
+  | MoveToNextHole
+  | MoveToPrevHole => true
+  | _ => false;
+
 let make_ty_OpSeqZ = (zty0: ZTyp.t, surround: ZTyp.opseq_surround): ZTyp.t => {
   let uty0 = ZTyp.erase(zty0);
   let seq = OperatorSeq.opseq_of_exp_and_surround(uty0, surround);
