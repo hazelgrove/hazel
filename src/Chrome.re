@@ -741,8 +741,27 @@ let view = (model: Model.t) => {
   let the_cursor_inspector_panel = CursorInspector.mk(cursor_info_rs);
   let the_context_inspector_panel =
     ContextInspector.mk(model, instance_click_fn);
-  let the_history_panel =
-    HistoryPanel.make(model.code_history_rs, model.undo, model.redo);
+  /*let the_history_panel = HistoryPanel.make(model.code_history_rs);*/
+  /* Create event listeners for undo/redokeyboard shortcuts (these are side-effectful calls) */
+  let on_undo = evt => {
+    Dom.preventDefault(evt);
+    model.undo();
+  };
+  let on_redo = evt => {
+    Dom.preventDefault(evt);
+    model.redo();
+  };
+  {
+    open JSUtil;
+    let _ = listen_for_key(KeyCombos.undo_windows, on_undo);
+    let _ = listen_for_key(KeyCombos.undo_mac, on_undo);
+    let _ = listen_for_key(KeyCombos.redo_windows, on_redo);
+    let _ = listen_for_key(KeyCombos.redo_windows_other, on_redo);
+    let _ = listen_for_key(KeyCombos.redo_mac, on_redo);
+    let _ = listen_for_key(KeyCombos.redo_mac_other, on_redo);
+    ();
+  };
+
   let the_action_panel = ActionPanel.make(model, set_cursor);
 
   let serialize_onclick_handler = _ => {
@@ -814,7 +833,7 @@ let view = (model: Model.t) => {
             div(
               ~a=[a_class(["main-area"])],
               [
-                Sidebar.left([the_action_panel, the_history_panel]),
+                Sidebar.left([the_action_panel /*, the_history_panel*/]),
                 div(
                   ~a=[a_class(["flex-wrapper"])],
                   [
