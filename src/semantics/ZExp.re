@@ -44,11 +44,11 @@ let bidelimit = ze =>
   | CursorE(cursor_side, e) => CursorE(cursor_side, UHExp.bidelimit(e))
   | ParenthesizedZ(_)
   | Deeper(_, InjZ(_, _))
-  | Deeper(_, ApPaletteZ(_, _, _))
-  | Deeper(_, CaseZE(_, _))
-  | Deeper(_, CaseZR(_, _)) =>
+  | Deeper(_, ApPaletteZ(_, _, _)) =>
     /* | Deeper _ (ListLitZ _) */
     ze
+  | Deeper(_, CaseZE(_, _))
+  | Deeper(_, CaseZR(_, _))
   | Deeper(_, AscZ1(_, _))
   | Deeper(_, AscZ2(_, _))
   | Deeper(_, LineItemZL(_, _))
@@ -58,6 +58,15 @@ let bidelimit = ze =>
   | Deeper(_, LamZE(_, _, _))
   | Deeper(_, OpSeqZ(_, _, _)) => ParenthesizedZ(ze)
   };
+
+let asc_z1 = (~err_status=?, ze: t, ty: UHTyp.t): t => {
+  let err_status =
+    switch (err_status) {
+    | Some(e) => e
+    | None => NotInHole
+    };
+  Deeper(err_status, AscZ1(bidelimit(ze), ty));
+};
 
 let rec set_err_status = (err, ze) =>
   switch (ze) {

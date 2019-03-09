@@ -32,7 +32,9 @@ and syn_pat' = (ctx, p) =>
   switch (p) {
   | UHPat.EmptyHole(_) => Some((HTyp.Hole, ctx))
   | UHPat.Wild => Some((HTyp.Hole, ctx))
-  | UHPat.Var(x) =>
+  | UHPat.Var(InVHole(Free, _), _) => raise(FreeVarInPat)
+  | UHPat.Var(InVHole(Keyword(_), _), _) => Some((HTyp.Hole, ctx))
+  | UHPat.Var(NotInVHole, x) =>
     Var.check_valid(
       x,
       Some((HTyp.Hole, Contexts.extend_gamma(ctx, (x, HTyp.Hole)))),
@@ -160,7 +162,9 @@ and ana_pat = (ctx, p, ty) =>
   }
 and ana_pat' = (ctx, p, ty) =>
   switch (p) {
-  | UHPat.Var(x) =>
+  | UHPat.Var(InVHole(Free, _), _) => raise(FreeVarInPat)
+  | UHPat.Var(InVHole(Keyword(_), _), _) => Some(ctx)
+  | UHPat.Var(NotInVHole, x) =>
     Var.check_valid(x, Some(Contexts.extend_gamma(ctx, (x, ty))))
   | UHPat.EmptyHole(_)
   | UHPat.Wild => Some(ctx)
@@ -358,7 +362,10 @@ and ana_skel_pat = (ctx, skel, seq, ty, monitor) =>
 
 let ctx_for_let = (ctx, p, ty1, e1) =>
   switch (p, e1) {
-  | (UHPat.Pat(_, UHPat.Var(x)), UHExp.Tm(_, UHExp.Lam(_, _, _))) =>
+  | (
+      UHPat.Pat(_, UHPat.Var(NotInVHole, x)),
+      UHExp.Tm(_, UHExp.Lam(_, _, _)),
+    ) =>
     switch (HTyp.matched_arrow(ty1)) {
     | Some(_) => Contexts.extend_gamma(ctx, (x, ty1))
     | None => ctx
@@ -369,7 +376,10 @@ let ctx_for_let = (ctx, p, ty1, e1) =>
 /* returns recursive ctx + name of recursively defined var */
 let ctx_for_let' = (ctx, p, ty1, e1) =>
   switch (p, e1) {
-  | (UHPat.Pat(_, UHPat.Var(x)), UHExp.Tm(_, UHExp.Lam(_, _, _))) =>
+  | (
+      UHPat.Pat(_, UHPat.Var(NotInVHole, x)),
+      UHExp.Tm(_, UHExp.Lam(_, _, _)),
+    ) =>
     switch (HTyp.matched_arrow(ty1)) {
     | Some(_) => (Contexts.extend_gamma(ctx, (x, ty1)), Some(x))
     | None => (ctx, None)
@@ -409,7 +419,7 @@ and syn' = (ctx, e) =>
   | UHExp.Var(NotInVHole, x) =>
     let (gamma, _) = ctx;
     VarMap.lookup(gamma, x);
-  | UHExp.Var(InVHole(_), _) => Some(HTyp.Hole)
+  | UHExp.Var(InVHole(_, _), _) => Some(HTyp.Hole)
   | UHExp.Lam(p, ann, e1) =>
     let ty1 =
       switch (ann) {
@@ -871,7 +881,9 @@ and syn_pat_fix_holes' = (ctx, u_gen, renumber_empty_holes, p) =>
       Some((p, HTyp.Hole, ctx, u_gen));
     }
   | UHPat.Wild => Some((p, HTyp.Hole, ctx, u_gen))
-  | UHPat.Var(x) =>
+  | UHPat.Var(InVHole(Free, _), _) => raise(FreeVarInPat)
+  | UHPat.Var(InVHole(Keyword(_), _), _) => Some((p, HTyp.Hole, ctx, u_gen))
+  | UHPat.Var(NotInVHole, x) =>
     Var.check_valid(
       x,
       {
@@ -1038,7 +1050,9 @@ and ana_pat_fix_holes = (ctx, u_gen, renumber_empty_holes, p, ty) =>
 and ana_pat_fix_holes' = (ctx, u_gen, renumber_empty_holes, p, ty) =>
   switch (p) {
   | UHPat.Wild => Some((NotInHole, p, ctx, u_gen))
-  | UHPat.Var(x) =>
+  | UHPat.Var(InVHole(Free, _), _) => raise(FreeVarInPat)
+  | UHPat.Var(InVHole(Keyword(_), _), _) => Some((NotInHole, p, ctx, u_gen))
+  | UHPat.Var(NotInVHole, x) =>
     Var.check_valid(
       x,
       {
@@ -1499,10 +1513,16 @@ and syn_fix_holes' = (ctx, u_gen, renumber_empty_holes, e) =>
     | Some(ty) => Some((UHExp.Var(NotInVHole, x), ty, u_gen))
     | None =>
       switch (var_err_status) {
-      | InVHole(_) => Some((e, HTyp.Hole, u_gen))
+      | InVHole(_, _) => Some((e, HTyp.Hole, u_gen))
       | NotInVHole =>
         let (u, u_gen) = MetaVarGen.next(u_gen);
-        Some((Var(InVHole(u), x), HTyp.Hole, u_gen));
+        let in_vhole_reason =
+          switch (Var.is_let(x), Var.is_case(x)) {
+          | (true, _) => Keyword(Let)
+          | (_, true) => Keyword(Case)
+          | _ => Free
+          };
+        Some((Var(InVHole(in_vhole_reason, u), x), HTyp.Hole, u_gen));
       }
     };
   | UHExp.Lam(p, ann, e1) =>

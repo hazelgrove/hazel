@@ -168,29 +168,35 @@ let surround_suffix_length =
   | EmptySuffix(_) => 0
   | BothNonEmpty(_, suffix) => suffix_length(suffix);
 
+let opseq_of_prefix_and_exp =
+    (prefix: opseq_prefix('tm, 'op), e1: 'tm): opseq('tm, 'op) =>
+  switch (prefix) {
+  | ExpPrefix(e2, op) => ExpOpExp(e2, op, e1)
+  | SeqPrefix(seq, op) => SeqOpExp(seq, op, e1)
+  };
+
+let opseq_of_exp_and_suffix =
+    (e1: 'tm, suffix: opseq_suffix('tm, 'op)): opseq('tm, 'op) =>
+  switch (suffix) {
+  | ExpSuffix(op, e2) => ExpOpExp(e1, op, e2)
+  | SeqSuffix(op, seq) => exp_op_seq(e1, op, seq)
+  };
+
+let rec opseq_of_prefix_and_seq = (prefix, seq) =>
+  switch (prefix) {
+  | ExpPrefix(e, op) => exp_op_seq(e, op, seq)
+  | SeqPrefix(prefix_seq, op2) =>
+    let (sub_prefix, e2) =
+      switch (prefix_seq) {
+      | ExpOpExp(e1, op1, e2) => (ExpPrefix(e1, op1), e2)
+      | SeqOpExp(seq1, op1, e2) => (SeqPrefix(seq1, op1), e2)
+      };
+    opseq_of_prefix_and_seq(sub_prefix, exp_op_seq(e2, op2, seq));
+  };
+
 let opseq_of_exp_and_surround = e =>
   fun
-  | EmptyPrefix(suffix) =>
-    switch (suffix) {
-    | ExpSuffix(op, e2) => ExpOpExp(e, op, e2)
-    | SeqSuffix(op, seq) => exp_op_seq(e, op, seq)
-    }
-  | EmptySuffix(prefix) =>
-    switch (prefix) {
-    | ExpPrefix(e1, op) => ExpOpExp(e1, op, e)
-    | SeqPrefix(seq, op) => SeqOpExp(seq, op, e)
-    }
+  | EmptyPrefix(suffix) => opseq_of_exp_and_suffix(e, suffix)
+  | EmptySuffix(prefix) => opseq_of_prefix_and_exp(prefix, e)
   | BothNonEmpty(prefix, suffix) =>
-    switch (prefix) {
-    | ExpPrefix(e1, op1) =>
-      switch (suffix) {
-      | ExpSuffix(op2, e2) => SeqOpExp(ExpOpExp(e1, op1, e), op2, e2)
-      | SeqSuffix(op2, seq2) => seq_op_seq(ExpOpExp(e1, op1, e), op2, seq2)
-      }
-    | SeqPrefix(seq1, op1) =>
-      switch (suffix) {
-      | ExpSuffix(op2, e2) => SeqOpExp(SeqOpExp(seq1, op1, e), op2, e2)
-      | SeqSuffix(op2, seq2) =>
-        seq_op_seq(SeqOpExp(seq1, op1, e), op2, seq2)
-      }
-    };
+    opseq_of_prefix_and_seq(prefix, opseq_of_exp_and_suffix(e, suffix));
