@@ -3212,10 +3212,6 @@ and perform_ana =
         );
       Some((ze, u_gen));
     }
-  | (Delete, ZExp.CursorE(In(_), UHExp.Tm(_, UHExp.Case(e1, rules, ann)))) =>
-    /* disable attempt to delete type ascription after `end` delimiter
-     * until we have more fine-grained In positions for Case */
-    None
   | (
       Backspace,
       ZExp.Deeper(
