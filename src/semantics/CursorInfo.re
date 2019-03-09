@@ -9,8 +9,8 @@ type cursor_mode =
   | AnaTypeInconsistent(HTyp.t, HTyp.t)
   /* cursor is on a type inconsistent expression */
   | AnaWrongLength(
-      nat /* expected length */,
-      nat, /* got length */
+      int /* expected length */,
+      int, /* got length */
       HTyp.t,
     ) /* expected type */
   /* cursor is on a tuple of the wrong length */
@@ -49,8 +49,8 @@ type cursor_mode =
   | PatAnaTypeInconsistent(HTyp.t, HTyp.t)
   /* cursor is on a type inconsistent pattern */
   | PatAnaWrongLength(
-      nat /* expected length */,
-      nat, /* got length */
+      int /* expected length */,
+      int, /* got length */
       HTyp.t,
     ) /* expected type */
   /* cursor is on a tuple pattern of the wrong length */
@@ -192,7 +192,7 @@ and syn_skel_pat_cursor_info =
       ctx: Contexts.t,
       skel: UHPat.skel_t,
       seq: UHPat.opseq,
-      n: nat,
+      n: int,
       zp1: ZPat.t,
     )
     : option(t) =>
@@ -261,7 +261,7 @@ and ana_skel_pat_cursor_info =
       ctx: Contexts.t,
       skel: UHPat.skel_t,
       seq: UHPat.opseq,
-      n: nat,
+      n: int,
       zp1: ZPat.t,
       ty: HTyp.t,
     )
@@ -653,7 +653,7 @@ and syn_skel_cursor_info =
       ctx: Contexts.t,
       skel: UHExp.skel_t,
       seq: UHExp.opseq,
-      n: nat,
+      n: int,
       ze_n: ZExp.t,
     )
     : option(t) =>
@@ -767,7 +767,7 @@ and ana_skel_cursor_info =
       ctx: Contexts.t,
       skel: UHExp.skel_t,
       seq: UHExp.opseq,
-      n: nat,
+      n: int,
       ze_n: ZExp.t,
       ty: HTyp.t,
     )

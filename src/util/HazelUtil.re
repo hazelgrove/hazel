@@ -1,4 +1,4 @@
-type nat = int;
+open Sexplib.Std;
 
 let opt_to_bool =
   fun
@@ -149,7 +149,7 @@ module ZList = {
 
   let singleton = (z: 'z): t('z, 'a) => ([], z, []);
 
-  let rec split_at = (n: nat, xs: list('a)): option(t('a, 'a)) =>
+  let rec split_at = (n: int, xs: list('a)): option(t('a, 'a)) =>
     switch (n, xs) {
     | (_, []) => None
     | (0, [x, ...xs]) =>
@@ -187,7 +187,7 @@ module ZList = {
     prefix;
   };
 
-  let prefix_length = (zxs: t('z, 'a)): nat =>
+  let prefix_length = (zxs: t('z, 'a)): int =>
     List.length(prj_prefix(zxs));
 
   let prj_z = (zxs: t('z, 'a)): 'z => {
@@ -223,6 +223,7 @@ let char_in_range_b = (ch, s, e) =>
   };
 
 module NatMap = {
+  [@deriving sexp]
   type t('a) = list((int, 'a));
 
   let empty = [];
@@ -307,11 +308,11 @@ module NatMap = {
 };
 
 /* Zippered finite map over nats, used with Z expressions
- * i.e. there is a selected element of type Z and the rest is a nat map of type A */
+ * i.e. there is a selected element of type Z and the rest is a int map of type A */
 module ZNatMap = {
-  type t('a, 'z) = (NatMap.t('a), (nat, 'z));
+  type t('a, 'z) = (NatMap.t('a), (int, 'z));
   let make =
-      (m: NatMap.t('a), (n, z) as nz: (nat, 'z)): option(t('a, 'z)) =>
+      (m: NatMap.t('a), (n, z) as nz: (int, 'z)): option(t('a, 'z)) =>
     switch (NatMap.lookup(m, n)) {
     | Some(_) => None
     | None => Some((m, nz))
@@ -321,7 +322,7 @@ module ZNatMap = {
     NatMap.insert_or_update(map', (n, erase(z)));
   };
   let prj_map = ((map, _): t('a, 'z)): NatMap.t('a) => map;
-  let prj_z_kv = (zmap: t('a, 'z)): (nat, 'z) => {
+  let prj_z_kv = (zmap: t('a, 'z)): (int, 'z) => {
     let (_, nz) = zmap;
     nz;
   };

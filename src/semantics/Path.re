@@ -2,14 +2,14 @@ open SemanticsCommon;
 open HazelUtil;
 
 [@deriving show({with_path: false})]
-type steps = list(nat);
+type steps = list(int);
 
 let string_of_steps = HazelUtil.string_of_list(string_of_int);
 
 [@deriving show({with_path: false})]
 type t = (steps, ZExp.cursor_side);
 
-let cons' = (step: nat, r: t): t => {
+let cons' = (step: int, r: t): t => {
   let (steps, side) = r;
   ([step, ...steps], side);
 };

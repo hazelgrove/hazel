@@ -1,8 +1,6 @@
 open SemanticsCommon;
 open HazelUtil;
 
-type nat = int;
-
 [@deriving show({with_path: false})]
 type cursor_side = SemanticsCommon.cursor_side;
 

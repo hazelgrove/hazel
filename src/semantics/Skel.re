@@ -1,9 +1,9 @@
 open SemanticsCommon;
+open Sexplib.Std;
 
-type nat = int;
-
+[@deriving sexp]
 type t('op) =
-  | Placeholder(nat)
+  | Placeholder(int)
   | BinOp(err_status, 'op, t('op), t('op));
 
 let rec leftmost_op =

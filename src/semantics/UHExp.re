@@ -1,6 +1,8 @@
+open Sexplib.Std;
 open SemanticsCommon;
 open HazelUtil;
 
+[@deriving sexp]
 type op =
   | Plus
   | Times
@@ -14,8 +16,10 @@ let is_Space =
   | Space => true
   | _ => false;
 
+[@deriving sexp]
 type skel_t = Skel.t(op);
 
+[@deriving sexp]
 type t =
   | Tm(err_status, t')
   | Parenthesized(t)

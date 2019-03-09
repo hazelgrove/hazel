@@ -1,5 +1,7 @@
+open Sexplib.Std;
 open SemanticsCommon;
 
+[@deriving sexp]
 type op =
   | Comma
   | Space
@@ -10,8 +12,10 @@ let is_Space =
   | Space => true
   | _ => false;
 
+[@deriving sexp]
 type skel_t = Skel.t(op);
 
+[@deriving sexp]
 type t =
   | Pat(err_status, t')
   | Parenthesized(t)
