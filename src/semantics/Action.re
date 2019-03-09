@@ -2227,11 +2227,7 @@ let rec perform_syn =
     Some((ze, ty, u_gen));
   | (
       Construct(SAsc),
-      CursorE(Before, Tm(err_status, Case(e1, rules, Some(uty)))),
-    )
-  | (
-      Construct(SAsc),
-      CursorE(In(_), Tm(err_status, Case(e1, rules, Some(uty)))),
+      CursorE(_, Tm(err_status, Case(e1, rules, Some(uty)))),
     ) =>
     /* just move the cursor over if there is already an ascription */
     let ze =
@@ -3360,11 +3356,7 @@ and perform_ana =
     Some((ze, u_gen));
   | (
       Construct(SAsc),
-      CursorE(Before, Tm(err_status, Case(e1, rules, Some(uty)))),
-    )
-  | (
-      Construct(SAsc),
-      CursorE(In(_), Tm(err_status, Case(e1, rules, Some(uty)))),
+      CursorE(_, Tm(err_status, Case(e1, rules, Some(uty)))),
     ) =>
     /* just move the cursor over if there is already an ascription */
     let ze =
