@@ -2194,19 +2194,6 @@ let rec perform_syn =
     Some((ze, ty, u_gen));
   | (
       Construct(SAsc),
-      CursorE(Before, Tm(err_status, Case(e1, rules, None))),
-    )
-  | (
-      Construct(SAsc),
-      CursorE(In(_), Tm(err_status, Case(e1, rules, None))),
-    ) =>
-    let ze =
-      ZExp.(
-        Deeper(NotInHole, CaseZA(e1, rules, ZTyp.place_Before(UHTyp.Hole)))
-      );
-    Some((ze, ty, u_gen));
-  | (
-      Construct(SAsc),
       ZExp.Deeper(
         err_status,
         ZExp.LineItemZL(
