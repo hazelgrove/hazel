@@ -1,7 +1,5 @@
 open SemanticsCommon;
 
-type nat = int;
-
 type hole_sort =
   | ExpressionHole
   | PatternHole;
@@ -13,7 +11,7 @@ module Delta = {
 
 /* hole instance numbers are all 0 after expansion and during evaluation --
  * renumbering is done on the final result (see below) */
-type inst_num = nat;
+type inst_num = int;
 
 module DHPat = {
   type t =
@@ -22,7 +20,7 @@ module DHPat = {
     | Wild
     | Keyword(MetaVar.t, inst_num, keyword)
     | Var(Var.t)
-    | NumLit(nat)
+    | NumLit(int)
     | BoolLit(bool)
     | Inj(inj_side, t)
     | ListNil
@@ -420,14 +418,14 @@ module DHExp = {
       | Lam(DHPat.t, HTyp.t, t)
       | Ap(t, t)
       | BoolLit(bool)
-      | NumLit(nat)
+      | NumLit(int)
       | BinNumOp(bin_num_op, t, t)
       | ListNil(HTyp.t)
       | Cons(t, t)
       | Inj(HTyp.t, inj_side, t)
       | Pair(t, t)
       | Triv
-      | Case(t, list(rule), nat)
+      | Case(t, list(rule), int)
       | Cast(t, HTyp.t, HTyp.t)
       | FailedCast(t, HTyp.t, HTyp.t)
     and rule =
@@ -1676,7 +1674,7 @@ module DHExp = {
 
     let next =
         (hii: t, u: MetaVar.t, sigma: Environment.t, path: InstancePath.t)
-        : (nat, t) => {
+        : (int, t) => {
       let (envs, hii) =
         MetaVarMap.insert_or_map(
           hii,
@@ -1990,7 +1988,7 @@ module DHExp = {
 
 module Evaluator = {
   type result =
-    | InvalidInput(nat)
+    | InvalidInput(int)
     | BoxedValue(DHExp.t)
     | Indet(DHExp.t);
 
@@ -2250,7 +2248,7 @@ module Evaluator = {
       }
     }
   and evaluate_case =
-      (scrut: DHExp.t, rules: list(DHExp.rule), current_rule_index: nat)
+      (scrut: DHExp.t, rules: list(DHExp.rule), current_rule_index: int)
       : result =>
     switch (evaluate(scrut)) {
     | InvalidInput(msg) => InvalidInput(msg)

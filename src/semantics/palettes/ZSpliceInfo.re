@@ -15,7 +15,7 @@ let erase = (zpsi: t('exp, 'zexp), erase_z): SpliceInfo.t('exp) =>
 let select_opt =
     (
       splice_info: SpliceInfo.t('exp),
-      n: nat,
+      n: int,
       f: ((HTyp.t, 'exp)) => option((HTyp.t, 'zexp)),
     )
     : option(t('exp, 'zexp)) => {
