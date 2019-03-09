@@ -741,17 +741,17 @@ let view = (model: Model.t) => {
   let the_cursor_inspector_panel = CursorInspector.mk(cursor_info_rs);
   let the_context_inspector_panel =
     ContextInspector.mk(model, instance_click_fn);
-  /*let the_history_panel = HistoryPanel.make(model.code_history_rs);*/
-  /* Create event listeners for undo/redokeyboard shortcuts (these are side-effectful calls) */
-  let on_undo = evt => {
-    Dom.preventDefault(evt);
-    model.undo();
-  };
-  let on_redo = evt => {
-    Dom.preventDefault(evt);
-    model.redo();
-  };
+
   {
+    /* Create event listeners for undo/redo keyboard shortcuts (these are side-effectful calls) */
+    let on_undo = evt => {
+      Dom.preventDefault(evt);
+      model.undo();
+    };
+    let on_redo = evt => {
+      Dom.preventDefault(evt);
+      model.redo();
+    };
     open JSUtil;
     let _ = listen_for_key(KeyCombos.undo_windows, on_undo);
     let _ = listen_for_key(KeyCombos.undo_mac, on_undo);
@@ -761,6 +761,8 @@ let view = (model: Model.t) => {
     let _ = listen_for_key(KeyCombos.redo_mac_other, on_redo);
     ();
   };
+
+  /*let the_history_panel = HistoryPanel.make(model.code_history_rs);*/
 
   let the_action_panel = ActionPanel.make(model, set_cursor);
 
