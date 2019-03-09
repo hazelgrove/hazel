@@ -2233,7 +2233,7 @@ let rec perform_syn =
     let ze =
       ZExp.(Deeper(NotInHole, CaseZA(e1, rules, ZTyp.place_Before(uty))));
     Some((ze, ty, u_gen));
-  | (Construct(SAsc), _) => None
+  | (Construct(SAsc), CursorE(_, _)) => None
   | (
       Construct(SVar(x, side)),
       ZExp.CursorE(_, UHExp.Tm(_, UHExp.EmptyHole(_))),
@@ -3362,7 +3362,7 @@ and perform_ana =
     let ze =
       ZExp.(Deeper(NotInHole, CaseZA(e1, rules, ZTyp.place_Before(uty))));
     Some((ze, u_gen));
-  | (Construct(SAsc), _) => None
+  | (Construct(SAsc), CursorE(_, _)) => None
   | (
       Construct(SLine),
       ZExp.Deeper(
