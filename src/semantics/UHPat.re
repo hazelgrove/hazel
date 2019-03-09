@@ -22,7 +22,7 @@ type t =
 and t' =
   | EmptyHole(MetaVar.t)
   | Wild
-  | Var(Var.t)
+  | Var(var_err_status, Var.t)
   | NumLit(int)
   | BoolLit(bool)
   | Inj(inj_side, t)
@@ -59,7 +59,7 @@ let bidelimited =
   fun
   | Pat(_, EmptyHole(_))
   | Pat(_, Wild)
-  | Pat(_, Var(_))
+  | Pat(_, Var(_, _))
   | Pat(_, NumLit(_))
   | Pat(_, BoolLit(_))
   | Pat(_, Inj(_, _))

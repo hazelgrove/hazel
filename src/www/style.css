@@ -227,6 +227,10 @@ html, body {
   border: 1px solid #ce5f00;
 }
 
+.cursor-Keyword.cursor-inspector {
+  border: 1px solid #ce5f00;
+}
+
 .cursor-OK .title-bar {
   background-color: #073f24;
 }
@@ -237,6 +241,10 @@ html, body {
 
 .cursor-BindingError .title-bar {
   background-color: #ce5f00;
+}
+
+.cursor-Keyword .titlebar {
+	background-color: #ce5f00;
 }
 
 .typebar, .infobar {
@@ -262,6 +270,10 @@ html, body {
 }
 
 .cursor-BindingError .typebar, .cursor-BindingError .infobar {
+  background-color: #fef6ea;
+}
+
+.cursor-Keyword .typebar, .cursor-Keyword .infobar {
   background-color: #fef6ea;
 }
 
@@ -747,6 +759,15 @@ button:disabled {
 
 .InVHole {
   border: 1px dashed #ce5f00;
+}
+
+.InVHole.Keyword {
+	font-weight: bold;
+	color: rgb(127, 127, 127);
+}
+
+.Keyword .var {
+	font-style: normal;
 }
 
 .result-view {

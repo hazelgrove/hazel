@@ -14,9 +14,21 @@ let err_status_to_string =
   | InHole(reason, u) => "InHole";
 
 [@deriving sexp]
+type keyword =
+  | Let
+  | Case;
+
+[@deriving sexp]
+type in_vhole_reason =
+  | Free
+  | Keyword(keyword);
+
+[@deriving sexp]
 type var_err_status =
   | NotInVHole
-  | InVHole(MetaVar.t);
+  | InVHole(in_vhole_reason, MetaVar.t);
+
+exception FreeVarInPat;
 
 [@deriving (show({with_path: false}), sexp)]
 type inj_side =
