@@ -27,7 +27,7 @@ Hazel is implemented in Reason/OCaml, and is compiled to Javascript for the web 
   - Install the necessary OCaml dependencies:
 
     ```sh
-    > opam install dune reason js_of_ocaml tyxml deriving ppx_deriving reactiveData js_of_ocaml-tyxml camomile menhir oUnit
+    > opam install dune reason js_of_ocaml tyxml deriving ppx_deriving reactiveData js_of_ocaml-tyxml camomile menhir oUnit sexplib ppx_sexp_conv
     ```
 
 ### Compilation
