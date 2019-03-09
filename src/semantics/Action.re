@@ -3354,6 +3354,12 @@ and perform_ana =
         ZExp.LamZA(ZPat.erase(zp), ZTyp.place_Before(uty1), e1),
       );
     Some((ze, u_gen));
+  | (Construct(SAsc), CursorE(_, Tm(err_status, Case(e1, rules, None)))) =>
+    let ze =
+      ZExp.(
+        Deeper(NotInHole, CaseZA(e1, rules, ZTyp.place_Before(UHTyp.Hole)))
+      );
+    Some((ze, u_gen));
   | (
       Construct(SAsc),
       CursorE(_, Tm(err_status, Case(e1, rules, Some(uty)))),
