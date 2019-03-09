@@ -46,6 +46,8 @@ and opseq = OperatorSeq.opseq(t, op)
 and splice_info = SpliceInfo.t(t)
 and splice_map = SpliceInfo.splice_map(t);
 
+exception SkelInconsistentWithOpSeq(skel_t, opseq);
+
 let rec get_tuple = (skel1: skel_t, skel2: skel_t): TupleList.t(skel_t) =>
   switch (skel2) {
   | Skel.BinOp(_, Comma, skel21, skel22) =>
@@ -138,11 +140,11 @@ let make_skel_inconsistent =
   switch (skel) {
   | Skel.Placeholder(n) =>
     switch (OperatorSeq.seq_nth(n, seq)) {
-    | None => raise(SkelInconsistentWithOpSeq)
+    | None => raise(SkelInconsistentWithOpSeq(skel, seq))
     | Some(en) =>
       let (en', u_gen') = make_inconsistent(u_gen, en);
       switch (OperatorSeq.seq_update_nth(n, seq, en')) {
-      | None => raise(SkelInconsistentWithOpSeq)
+      | None => raise(SkelInconsistentWithOpSeq(skel, seq))
       | Some(seq') => (skel, seq', u_gen')
       };
     }

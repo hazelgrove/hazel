@@ -992,7 +992,8 @@ let make_and_syn_OpSeqZ_pat =
   let seq = OperatorSeq.opseq_of_exp_and_surround(p0, surround);
   let skel = Associator.associate_pat(seq);
   switch (Statics.syn_skel_pat_fix_holes(ctx, u_gen, false, skel, seq)) {
-  | (Skel.Placeholder(_), _, _, _, _) => raise(SkelInconsistentWithOpSeq)
+  | (Skel.Placeholder(_), _, _, _, _) =>
+    raise(UHPat.SkelInconsistentWithOpSeq(skel, seq))
   | (Skel.BinOp(err, _, _, _) as skel, seq, ty, ctx, u_gen) =>
     let p = UHPat.Pat(err, UHPat.OpSeq(skel, seq));
     let zp = Path.follow_pat_or_fail(path0, p);
@@ -1018,7 +1019,8 @@ let make_and_ana_OpSeqZ_pat =
   let seq = OperatorSeq.opseq_of_exp_and_surround(p0, surround);
   let skel = Associator.associate_pat(seq);
   switch (Statics.ana_skel_pat_fix_holes(ctx, u_gen, false, skel, seq, ty)) {
-  | (Skel.Placeholder(_), _, _, _) => raise(SkelInconsistentWithOpSeq)
+  | (Skel.Placeholder(_), _, _, _) =>
+    raise(UHPat.SkelInconsistentWithOpSeq(skel, seq))
   | (Skel.BinOp(err, _, _, _) as skel, seq, ctx, u_gen) =>
     let p = UHPat.Pat(err, UHPat.OpSeq(skel, seq));
     let zp = Path.follow_pat_or_fail(path0, p);
@@ -1861,7 +1863,8 @@ let make_and_ana_OpSeqZ =
   let seq = OperatorSeq.opseq_of_exp_and_surround(e0, surround);
   let skel = Associator.associate_exp(seq);
   switch (Statics.ana_skel_fix_holes(ctx, u_gen, false, skel, seq, ty)) {
-  | (Skel.Placeholder(_), _, _) => raise(SkelInconsistentWithOpSeq)
+  | (Skel.Placeholder(_), _, _) =>
+    raise(UHExp.SkelInconsistentWithOpSeq(skel, seq))
   | (Skel.BinOp(err, _, _, _) as skel, seq, u_gen) =>
     let e = UHExp.Tm(err, UHExp.OpSeq(skel, seq));
     let ze = Path.follow_e_or_fail(path0, e);

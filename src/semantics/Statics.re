@@ -958,12 +958,12 @@ and syn_skel_pat_fix_holes =
   switch (skel) {
   | Skel.Placeholder(n) =>
     switch (OperatorSeq.seq_nth(n, seq)) {
-    | None => raise(SkelInconsistentWithOpSeq)
+    | None => raise(UHPat.SkelInconsistentWithOpSeq(skel, seq))
     | Some(pn) =>
       let (pn, ty, ctx, u_gen) =
         syn_pat_fix_holes(ctx, u_gen, renumber_empty_holes, pn);
       switch (OperatorSeq.seq_update_nth(n, seq, pn)) {
-      | None => raise(SkelInconsistentWithOpSeq)
+      | None => raise(UHPat.SkelInconsistentWithOpSeq(skel, seq))
       | Some(seq) => (skel, seq, ty, ctx, u_gen)
       };
     }
@@ -1083,7 +1083,8 @@ and ana_pat_fix_holes' =
     switch (
       ana_skel_pat_fix_holes(ctx, u_gen, renumber_empty_holes, skel, seq, ty)
     ) {
-    | (Skel.Placeholder(_), _, _, _) => raise(SkelInconsistentWithOpSeq)
+    | (Skel.Placeholder(_), _, _, _) =>
+      raise(UHPat.SkelInconsistentWithOpSeq(skel, seq))
     | (Skel.BinOp(err, _, _, _) as skel, seq, ctx, u_gen) => (
         err,
         UHPat.OpSeq(skel, seq),
@@ -1105,12 +1106,12 @@ and ana_skel_pat_fix_holes =
   switch (skel) {
   | Skel.Placeholder(n) =>
     switch (OperatorSeq.seq_nth(n, seq)) {
-    | None => raise(SkelInconsistentWithOpSeq)
+    | None => raise(UHPat.SkelInconsistentWithOpSeq(skel, seq))
     | Some(pn) =>
       let (pn, ctx, u_gen) =
         ana_pat_fix_holes(ctx, u_gen, renumber_empty_holes, pn, ty);
       switch (OperatorSeq.seq_update_nth(n, seq, pn)) {
-      | None => raise(SkelInconsistentWithOpSeq)
+      | None => raise(UHPat.SkelInconsistentWithOpSeq(skel, seq))
       | Some(seq) => (skel, seq, ctx, u_gen)
       };
     }
@@ -1415,7 +1416,8 @@ and syn_fix_holes' =
   | ListNil => (e', HTyp.List(HTyp.Hole), u_gen)
   | OpSeq(skel, seq) =>
     switch (syn_skel_fix_holes(ctx, u_gen, renumber_empty_holes, skel, seq)) {
-    | (Skel.Placeholder(_), _, _, _) => raise(SkelInconsistentWithOpSeq)
+    | (Skel.Placeholder(_), _, _, _) =>
+      raise(UHExp.SkelInconsistentWithOpSeq(skel, seq))
     | (skel, seq, ty, u_gen) => (OpSeq(skel, seq), ty, u_gen)
     }
   | UHExp.Inj(side, e1) =>
@@ -1658,7 +1660,8 @@ and ana_fix_holes' =
     switch (
       ana_skel_fix_holes(ctx, u_gen, renumber_empty_holes, skel, seq, ty)
     ) {
-    | (Skel.Placeholder(_), _, _) => raise(SkelInconsistentWithOpSeq)
+    | (Skel.Placeholder(_), _, _) =>
+      raise(UHExp.SkelInconsistentWithOpSeq(skel, seq))
     | (Skel.BinOp(err, _, _, _) as skel, seq, u_gen) => (
         err,
         OpSeq(skel, seq),
@@ -1691,12 +1694,12 @@ and syn_skel_fix_holes =
   switch (skel) {
   | Skel.Placeholder(n) =>
     switch (OperatorSeq.seq_nth(n, seq)) {
-    | None => raise(SkelInconsistentWithOpSeq)
+    | None => raise(UHExp.SkelInconsistentWithOpSeq(skel, seq))
     | Some(en) =>
       let (en, ty, u_gen) =
         syn_fix_holes_internal(ctx, u_gen, renumber_empty_holes, en);
       switch (OperatorSeq.seq_update_nth(n, seq, en)) {
-      | None => raise(SkelInconsistentWithOpSeq)
+      | None => raise(UHExp.SkelInconsistentWithOpSeq(skel, seq))
       | Some(seq) => (skel, seq, ty, u_gen)
       };
     }
@@ -1793,12 +1796,12 @@ and ana_skel_fix_holes =
   switch (skel) {
   | Skel.Placeholder(n) =>
     switch (OperatorSeq.seq_nth(n, seq)) {
-    | None => raise(SkelInconsistentWithOpSeq)
+    | None => raise(UHExp.SkelInconsistentWithOpSeq(skel, seq))
     | Some(en) =>
       let (en, u_gen) =
         ana_fix_holes_internal(ctx, u_gen, renumber_empty_holes, en, ty);
       switch (OperatorSeq.seq_update_nth(n, seq, en)) {
-      | None => raise(SkelInconsistentWithOpSeq)
+      | None => raise(UHExp.SkelInconsistentWithOpSeq(skel, seq))
       | Some(seq) => (skel, seq, u_gen)
       };
     }

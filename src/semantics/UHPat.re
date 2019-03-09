@@ -28,10 +28,10 @@ and t' =
   | BoolLit(bool)
   | Inj(inj_side, t)
   | ListNil
-  /* | ListLit : list(t) -> t' */
-  | OpSeq(skel_t, OperatorSeq.opseq(t, op));
+  | OpSeq(skel_t, opseq)
+and opseq = OperatorSeq.opseq(t, op);
 
-type opseq = OperatorSeq.opseq(t, op);
+exception SkelInconsistentWithOpSeq(skel_t, opseq);
 
 let rec get_tuple = (skel1: skel_t, skel2: skel_t): TupleList.t(skel_t) =>
   switch (skel2) {
