@@ -3924,11 +3924,11 @@ and perform_ana =
       switch (perform_ty(a, zann)) {
       | None => None
       | Some(zann) =>
-        let ty = UHTyp.expand(ZTyp.erase(zann));
+        let ty2 = UHTyp.expand(ZTyp.erase(zann));
         let (rules, u_gen) =
-          Statics.ana_rules_fix_holes(ctx, u_gen, false, rules, ty1, ty);
+          Statics.ana_rules_fix_holes(ctx, u_gen, false, rules, ty1, ty2);
         let ze = ZExp.Deeper(NotInHole, ZExp.CaseZA(e1, rules, zann));
-        Some((ze, u_gen));
+        Some(zexp_ana_fix_holes(ctx, u_gen, ze, ty));
       }
     }
   | (_, ZExp.Deeper(err, ZExp.OpSeqZ(_, ze0, surround))) =>
