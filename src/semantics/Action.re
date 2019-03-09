@@ -4004,13 +4004,6 @@ let can_perform =
     : bool =>
   switch (a) {
   | Construct(SParenthesized) => true
-  | Construct(SAsc) =>
-    switch (ci.sort) {
-    | CursorInfo.IsLineItem(_) => true
-    | CursorInfo.IsExpr(_) => true
-    | CursorInfo.IsPat(_) => true
-    | CursorInfo.IsType => false
-    }
   | Construct(SLine)
   | Construct(SLet)
   | Construct(SCase) =>
@@ -4048,6 +4041,7 @@ let can_perform =
     | CursorInfo.IsExpr(_)
     | CursorInfo.IsPat(_) => false
     }
+  | Construct(SAsc)
   | Construct(SApPalette(_))
   | Construct(SLam)
   | Construct(SVar(_, _)) /* see can_enter_varchar below */
