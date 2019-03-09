@@ -1,10 +1,13 @@
+[@deriving sexp]
 type op =
   | Arrow
   | Prod
   | Sum;
 
+[@deriving sexp]
 type skel_t = Skel.t(op);
 
+[@deriving sexp]
 type t =
   | Parenthesized(t)
   | Hole
