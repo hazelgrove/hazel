@@ -262,15 +262,6 @@ and of_uhtyp_skel = (prefix, rev_path, skel, seq) =>
 
 /* Expressions and Patterns */
 
-let of_Asc = (prefix, err_status, rev_path, r1, r2) =>
-  term(
-    prefix,
-    err_status,
-    rev_path,
-    "Asc",
-    r1 ^^ space ^^ op(":") ^^ space ^^ r2,
-  );
-
 let classes_of_var_err_status = var_err_status =>
   switch (var_err_status) {
   | InVHole(u) => ["InVHole", "InVHole_" ++ string_of_int(u)]
