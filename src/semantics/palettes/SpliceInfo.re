@@ -1,6 +1,10 @@
+open Sexplib.Std;
 open SemanticsCommon;
-type splice_name = nat;
+[@deriving sexp]
+type splice_name = int;
+[@deriving sexp]
 type splice_map('exp) = HazelUtil.NatMap.t((HTyp.t, 'exp));
+[@deriving sexp]
 type t('exp) = {
   next: splice_name,
   splice_map: splice_map('exp),

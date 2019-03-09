@@ -1,10 +1,9 @@
-[@deriving show({with_path: false})]
-type nat = int;
-
+[@deriving sexp]
 type in_hole_reason =
   | TypeInconsistent
   | WrongLength;
 
+[@deriving sexp]
 type err_status =
   | NotInHole
   | InHole(in_hole_reason, MetaVar.t);
@@ -14,11 +13,12 @@ let err_status_to_string =
   | NotInHole => "NotInHole"
   | InHole(reason, u) => "InHole";
 
+[@deriving sexp]
 type var_err_status =
   | NotInVHole
   | InVHole(MetaVar.t);
 
-[@deriving show({with_path: false})]
+[@deriving (show({with_path: false}), sexp)]
 type inj_side =
   | L
   | R;
@@ -33,6 +33,6 @@ let pick_side = (side, l, r) =>
 type cursor_side =
   | Before
   | After
-  | In(nat);
+  | In(int);
 
 exception SkelInconsistentWithOpSeq;

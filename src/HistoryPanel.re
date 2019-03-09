@@ -25,7 +25,7 @@ let make =
     div(
       ~a=[a_class(["panel", "history-panel"])],
       [
-        div(~a=[a_class(["titlebar"])], [txt("history")]),
+        Panel.main_title_bar("history"),
         R.Html.div(
           ~a=[a_class(["panel-body"])],
           ReactiveData.RList.from_signal(action_list_rs),

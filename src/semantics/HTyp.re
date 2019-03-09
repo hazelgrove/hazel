@@ -1,6 +1,7 @@
 open HazelUtil;
 
 /* types with holes */
+[@deriving sexp]
 type t =
   | Hole
   | Unit

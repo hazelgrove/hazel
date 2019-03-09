@@ -743,21 +743,6 @@ let view = (model: Model.t) => {
     ContextInspector.mk(model, instance_click_fn);
   /*let the_history_panel = HistoryPanel.make(model.code_history_rs);*/
   let the_action_panel = ActionPanel.make(model, set_cursor);
-  let the_leftbar =
-    Html5.(
-      div(
-        ~a=[a_class(["sidebar", "leftbar"])],
-        [the_action_panel /*the_history_panel*/],
-      )
-    );
-
-  let the_rightbar =
-    Html5.(
-      div(
-        ~a=[a_class(["sidebar", "rightbar"])],
-        [the_cursor_inspector_panel, the_context_inspector_panel],
-      )
-    );
 
   let serialize_onclick_handler = _ => {
     JSUtil.log(Serialize.string_of_uhexp(React.S.value(e_rs)));
@@ -773,18 +758,21 @@ let view = (model: Model.t) => {
     StringMap.add(
       "let_line",
       {
-        serialized: "let y = {} in\n;\nlet x = {} in\nx;\ny\n",
+        serialized: "(Tm NotInHole(LineItem(LetLine(Pat NotInHole(Var y))()(Tm NotInHole(EmptyHole 0)))(Tm NotInHole(LineItem EmptyLine(Tm NotInHole(LineItem(LetLine(Pat NotInHole(Var x))()(Tm NotInHole(EmptyHole 4)))(Tm NotInHole(LineItem(ExpLine(Tm NotInHole(Var NotInVHole x)))(Tm NotInHole(Var NotInVHole y))))))))))",
         desc: "Let with extra lines example",
       },
       StringMap.add(
         "basic_holey",
         {
-          serialized: "(lambda {} : {}. {}) {}\n",
+          serialized: "(Tm NotInHole(OpSeq(BinOp NotInHole Space(Placeholder 0)(Placeholder 1))(ExpOpExp(Parenthesized(Tm NotInHole(Lam(Pat NotInHole(EmptyHole 1))(Hole)(Tm NotInHole(EmptyHole 0)))))Space(Tm NotInHole(EmptyHole 2)))))",
           desc: "Basic holey lambda example",
         },
         StringMap.add(
           "just_hole",
-          {serialized: "{}\n", desc: "Just a hole example"},
+          {
+            serialized: "(Tm NotInHole(EmptyHole 0))",
+            desc: "Just a hole example",
+          },
           StringMap.empty,
         ),
       ),
@@ -828,7 +816,7 @@ let view = (model: Model.t) => {
             div(
               ~a=[a_class(["main-area"])],
               [
-                the_leftbar,
+                Sidebar.left([the_action_panel /*, the_history_panel*/]),
                 div(
                   ~a=[a_class(["flex-wrapper"])],
                   [
@@ -881,7 +869,10 @@ let view = (model: Model.t) => {
                     ),
                   ],
                 ),
-                the_rightbar,
+                Sidebar.right([
+                  the_cursor_inspector_panel,
+                  the_context_inspector_panel,
+                ]),
               ],
             ),
           ],
