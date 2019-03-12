@@ -745,7 +745,7 @@ let view = (model: Model.t) => {
   let the_action_panel = ActionPanel.make(model, set_cursor);
 
   let serialize_onclick_handler = _ => {
-    JSUtil.log(Serialize.string_of_uhexp(React.S.value(e_rs)));
+    JSUtil.log(Js.string(Serialize.string_of_uhexp(React.S.value(e_rs))));
     true;
   };
 
@@ -756,24 +756,31 @@ let view = (model: Model.t) => {
 
   let examples =
     StringMap.add(
-      "let_line",
+      "map_example",
       {
-        serialized: "(Tm NotInHole(LineItem(LetLine(Pat NotInHole(Var y))()(Tm NotInHole(EmptyHole 0)))(Tm NotInHole(LineItem EmptyLine(Tm NotInHole(LineItem(LetLine(Pat NotInHole(Var x))()(Tm NotInHole(EmptyHole 4)))(Tm NotInHole(LineItem(ExpLine(Tm NotInHole(Var NotInVHole x)))(Tm NotInHole(Var NotInVHole y))))))))))",
-        desc: "Let with extra lines example",
+        serialized: "(Tm NotInHole(LineItem(LetLine(Pat NotInHole(Var NotInVHole map))((OpSeq(BinOp NotInHole Arrow(Placeholder 0)(BinOp NotInHole Arrow(Placeholder 1)(Placeholder 2)))(SeqOpExp(ExpOpExp(Parenthesized(OpSeq(BinOp NotInHole Arrow(Placeholder 0)(Placeholder 1))(ExpOpExp Num Arrow Num)))Arrow(List Num))Arrow(List Num))))(Tm NotInHole(Lam(Pat NotInHole(Var NotInVHole f))()(Tm NotInHole(Lam(Pat NotInHole(Var NotInVHole xs))()(Tm NotInHole(LineItem EmptyLine(Tm NotInHole(Case(Tm NotInHole(Var NotInVHole xs))((Rule(Pat NotInHole ListNil)(Tm NotInHole ListNil))(Rule(Pat NotInHole(OpSeq(BinOp NotInHole Cons(Placeholder 0)(Placeholder 1))(ExpOpExp(Pat NotInHole(Var NotInVHole y))Cons(Pat NotInHole(Var NotInVHole ys)))))(Tm NotInHole(OpSeq(BinOp NotInHole Cons(Placeholder 0)(Placeholder 1))(ExpOpExp(Parenthesized(Tm NotInHole(OpSeq(BinOp NotInHole Space(Placeholder 0)(Placeholder 1))(ExpOpExp(Tm NotInHole(Var NotInVHole f))Space(Tm NotInHole(Var NotInVHole y))))))Cons(Parenthesized(Tm NotInHole(OpSeq(BinOp NotInHole Space(BinOp NotInHole Space(Placeholder 0)(Placeholder 1))(Placeholder 2))(SeqOpExp(ExpOpExp(Tm NotInHole(Var NotInVHole map))Space(Tm NotInHole(Var NotInVHole f)))Space(Tm NotInHole(Var NotInVHole ys))))))))))))))))))))(Tm NotInHole(EmptyHole 32))))",
+        desc: "map example",
       },
       StringMap.add(
-        "basic_holey",
+        "let_line",
         {
-          serialized: "(Tm NotInHole(OpSeq(BinOp NotInHole Space(Placeholder 0)(Placeholder 1))(ExpOpExp(Parenthesized(Tm NotInHole(Lam(Pat NotInHole(EmptyHole 1))(Hole)(Tm NotInHole(EmptyHole 0)))))Space(Tm NotInHole(EmptyHole 2)))))",
-          desc: "Basic holey lambda example",
+          serialized: "(Tm NotInHole(LineItem(LetLine(Pat NotInHole(Var y))()(Tm NotInHole(EmptyHole 0)))(Tm NotInHole(LineItem EmptyLine(Tm NotInHole(LineItem(LetLine(Pat NotInHole(Var x))()(Tm NotInHole(EmptyHole 4)))(Tm NotInHole(LineItem(ExpLine(Tm NotInHole(Var NotInVHole x)))(Tm NotInHole(Var NotInVHole y))))))))))",
+          desc: "Let with extra lines example",
         },
         StringMap.add(
-          "just_hole",
+          "basic_holey",
           {
-            serialized: "(Tm NotInHole(EmptyHole 0))",
-            desc: "Just a hole example",
+            serialized: "(Tm NotInHole(OpSeq(BinOp NotInHole Space(Placeholder 0)(Placeholder 1))(ExpOpExp(Parenthesized(Tm NotInHole(Lam(Pat NotInHole(EmptyHole 1))(Hole)(Tm NotInHole(EmptyHole 0)))))Space(Tm NotInHole(EmptyHole 2)))))",
+            desc: "Basic holey lambda example",
           },
-          StringMap.empty,
+          StringMap.add(
+            "just_hole",
+            {
+              serialized: "(Tm NotInHole(EmptyHole 0))",
+              desc: "Just a hole example",
+            },
+            StringMap.empty,
+          ),
         ),
       ),
     );
@@ -863,7 +870,7 @@ let view = (model: Model.t) => {
                         examples_select,
                         button(
                           ~a=[a_onclick(serialize_onclick_handler)],
-                          [txt("Serialize")],
+                          [txt("Serialize to dev console")],
                         ),
                       ],
                     ),
