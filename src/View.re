@@ -870,9 +870,7 @@ let rec precedence_dhexp = d =>
     | FixF(_, _, _)
     | Lam(_, _, _)
     | Case(_, _, _) => precedence_max
-    | Ap(_, _) =>
-      JSUtil.log("Found ap");
-      precedence_Ap;
+    | Ap(_, _) => precedence_Ap
     | BinNumOp(Times, _, _) => precedence_Times
     | BinNumOp(Plus, _, _) => precedence_Plus
     | BinNumOp(LessThan, _, _) => precedence_LessThan
@@ -1109,7 +1107,6 @@ let rec of_dhexp' =
         let rev_path2 = [1, ...rev_path];
         let paren1 = precedence_dhexp(d1) > precedence_Ap;
         let paren2 = precedence_dhexp(d2) >= precedence_Ap;
-        JSUtil.log(paren2 ? "parenthesizing" : "not");
         let r1 =
           of_dhexp'(
             instance_click_fn,
