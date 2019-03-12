@@ -1083,7 +1083,7 @@ let rec of_dhexp' =
             );
           of_FixF(prefix, err_status, rev_path, rx, rty, r1);
         } else {
-          taggedText("fn-placeholder", "<recursive fn>");
+          taggedText("fn-placeholder", "<fn>");
         }
       | Lam(dp, ann, d1) =>
         if (_SHOW_FN_BODIES) {
