@@ -109,10 +109,11 @@ html, body {
   background-color: tan;
   display: flex;
   flex-direction: column;
+  padding-top: 7px;
 }
 
 .sidebar-tab {
-  height: 24px;
+  height: 20px;
   flex-shrink: 0;
   padding: 4px 7px 4px 7px;
   display: flex;
@@ -763,7 +764,6 @@ button:disabled {
 
 .InVHole.Keyword {
 	font-weight: bold;
-	color: rgb(127, 127, 127);
 }
 
 .Keyword .var {
