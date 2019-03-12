@@ -47,10 +47,6 @@ let make_sidebar =
           ~a=[a_class(["sidebar"])],
           [
             div(
-              ~a=[a_id(tab_id), a_class(["sidebar-tab"]), onclick],
-              [tab_opened_icon()],
-            ),
-            div(
               ~a=[a_id(slidable_body_id), a_class(["sidebar-body-slider"])],
               [
                 div(
@@ -63,6 +59,10 @@ let make_sidebar =
                 ),
                 div(~a=[a_id(body_id), a_class(["sidebar-body"])], panels),
               ],
+            ),
+            div(
+              ~a=[a_id(tab_id), a_class(["sidebar-tab"]), onclick],
+              [tab_opened_icon()],
             ),
           ],
         ),
