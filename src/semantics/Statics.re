@@ -936,9 +936,6 @@ and syn_pat_fix_holes' =
   | UHPat.Var(InVHole(Free, _), _) => raise(FreeVarInPat)
   | UHPat.Var(InVHole(Keyword(_), _), _) => (p', HTyp.Hole, ctx, u_gen)
   | UHPat.Var(NotInVHole, x) =>
-    /* TODO Review that removing variable validity check is fine.
-     * I think it should be. Edit actions should be responsible
-     * for maintaining variable validity. */
     let ctx = Contexts.extend_gamma(ctx, (x, HTyp.Hole));
     (p', HTyp.Hole, ctx, u_gen);
   | UHPat.NumLit(_) => (p', HTyp.Num, ctx, u_gen)
