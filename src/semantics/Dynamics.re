@@ -19,6 +19,7 @@ module DHPat = {
     | EmptyHole(MetaVar.t, inst_num)
     | NonEmptyHole(in_hole_reason, MetaVar.t, inst_num, t)
     | Wild
+    | Keyword(MetaVar.t, inst_num, keyword)
     | Var(Var.t)
     | NumLit(int)
     | BoolLit(bool)
@@ -46,7 +47,8 @@ module DHPat = {
     | NumLit(_)
     | BoolLit(_)
     | Triv
-    | ListNil => false
+    | ListNil
+    | Keyword(_, _, _) => false
     | Var(y) => Var.eq(x, y)
     | Inj(_, dp1) => binds_var(x, dp1)
     | Pair(dp1, dp2) => binds_var(x, dp1) || binds_var(x, dp2)
@@ -95,7 +97,10 @@ module DHPat = {
         MetaVarMap.extend_unique(delta, (u, (PatternHole, ty, gamma)));
       Expands(dp, ty, ctx, delta);
     | UHPat.Wild => Expands(Wild, HTyp.Hole, ctx, delta)
-    | UHPat.Var(x) =>
+    | UHPat.Var(InVHole(Free, _), _) => raise(FreeVarInPat)
+    | UHPat.Var(InVHole(Keyword(k), u), _) =>
+      Expands(Keyword(u, 0, k), HTyp.Hole, ctx, delta)
+    | UHPat.Var(NotInVHole, x) =>
       let ctx = Contexts.extend_gamma(ctx, (x, HTyp.Hole));
       Expands(Var(x), HTyp.Hole, ctx, delta);
     | UHPat.NumLit(n) => Expands(NumLit(n), HTyp.Num, ctx, delta)
@@ -222,7 +227,10 @@ module DHPat = {
       let delta =
         MetaVarMap.extend_unique(delta, (u, (PatternHole, ty, gamma)));
       Expands(dp, ty, ctx, delta);
-    | UHPat.Var(x) =>
+    | UHPat.Var(InVHole(Free, _), _) => raise(FreeVarInPat)
+    | UHPat.Var(InVHole(Keyword(k), u), _) =>
+      Expands(Keyword(u, 0, k), ty, ctx, delta)
+    | UHPat.Var(NotInVHole, x) =>
       let ctx = Contexts.extend_gamma(ctx, (x, ty));
       Expands(Var(x), ty, ctx, delta);
     | UHPat.Wild => Expands(Wild, ty, ctx, delta)
@@ -415,6 +423,7 @@ module DHExp = {
     type t =
       | EmptyHole(MetaVar.t, inst_num, VarMap.t_(t))
       | NonEmptyHole(in_hole_reason, MetaVar.t, inst_num, VarMap.t_(t), t)
+      | Keyword(MetaVar.t, inst_num, VarMap.t_(t), keyword)
       | FreeVar(MetaVar.t, inst_num, VarMap.t_(t), Var.t)
       | BoundVar(Var.t)
       | Let(DHPat.t, t, t)
@@ -441,6 +450,7 @@ module DHExp = {
     switch (d) {
     | EmptyHole(_, _, _) => "EmptyHole"
     | NonEmptyHole(_, _, _, _, _) => "NonEmptyHole"
+    | Keyword(_, _, _, _) => "Keyword"
     | FreeVar(_, _, _, _) => "FreeVar"
     | BoundVar(_) => "BoundVar"
     | Let(_, _, _) => "Let"
@@ -500,6 +510,7 @@ module DHExp = {
         d2;
       }
     | FreeVar(_, _, _, _) => d2
+    | Keyword(_, _, _, _) => d2
     | Let(dp, d3, d4) =>
       let d3 = subst_var(d1, x, d3);
       let d4 =
@@ -608,6 +619,7 @@ module DHExp = {
     | (DHPat.EmptyHole(_, _), _)
     | (DHPat.NonEmptyHole(_, _, _, _), _) => Indet
     | (DHPat.Wild, _) => Matches(Environment.empty)
+    | (DHPat.Keyword(_, _, _), _) => DoesNotMatch
     | (DHPat.Var(x), _) =>
       let env = Environment.extend(Environment.empty, (x, d));
       Matches(env);
@@ -740,6 +752,7 @@ module DHExp = {
     | Cast(_, _, _) => DoesNotMatch
     | BoundVar(_) => DoesNotMatch
     | FreeVar(_, _, _, _) => Indet
+    | Keyword(_, _, _, _) => Indet
     | Let(_, _, _) => Indet
     | FixF(_, _, _) => DoesNotMatch
     | Lam(_, _, _) => DoesNotMatch
@@ -791,6 +804,7 @@ module DHExp = {
     | Cast(_, _, _) => DoesNotMatch
     | BoundVar(_) => DoesNotMatch
     | FreeVar(_, _, _, _) => Indet
+    | Keyword(_, _, _, _) => Indet
     | Let(_, _, _) => Indet
     | FixF(_, _, _) => DoesNotMatch
     | Lam(_, _, _) => DoesNotMatch
@@ -839,6 +853,7 @@ module DHExp = {
     | Cast(_, _, _) => DoesNotMatch
     | BoundVar(_) => DoesNotMatch
     | FreeVar(_, _, _, _) => Indet
+    | Keyword(_, _, _, _) => Indet
     | Let(_, _, _) => Indet
     | FixF(_, _, _) => DoesNotMatch
     | Lam(_, _, _) => DoesNotMatch
@@ -1062,7 +1077,7 @@ module DHExp = {
       | Some(ty) => Expands(DHExp.BoundVar(x), ty, delta)
       | None => DoesNotExpand
       };
-    | UHExp.Var(InVHole(u), x) =>
+    | UHExp.Var(InVHole(reason, u), x) =>
       let gamma = Contexts.gamma(ctx);
       let sigma = id_env(gamma);
       let delta =
@@ -1070,7 +1085,12 @@ module DHExp = {
           delta,
           (u, (ExpressionHole, HTyp.Hole, gamma)),
         );
-      Expands(DHExp.FreeVar(u, 0, sigma, x), HTyp.Hole, delta);
+      let d =
+        switch (reason) {
+        | Free => DHExp.FreeVar(u, 0, sigma, x)
+        | Keyword(k) => DHExp.Keyword(u, 0, sigma, k)
+        };
+      Expands(d, HTyp.Hole, delta);
     | UHExp.Lam(p, ann, e1) =>
       let ty1 =
         switch (ann) {
@@ -1342,12 +1362,17 @@ module DHExp = {
       let delta =
         MetaVarMap.extend_unique(delta, (u, (ExpressionHole, ty, gamma)));
       Expands(d, ty, delta);
-    | UHExp.Var(InVHole(u), x) =>
+    | UHExp.Var(InVHole(reason, u), x) =>
       let gamma = Contexts.gamma(ctx);
       let sigma = id_env(gamma);
       let delta =
         MetaVarMap.extend_unique(delta, (u, (ExpressionHole, ty, gamma)));
-      Expands(FreeVar(u, 0, sigma, x), ty, delta);
+      let d =
+        switch (reason) {
+        | Free => FreeVar(u, 0, sigma, x)
+        | Keyword(k) => Keyword(u, 0, sigma, k)
+        };
+      Expands(d, ty, delta);
     | UHExp.LineItem(UHExp.EmptyLine, e1) => ana_expand(ctx, delta, e1, ty)
     | UHExp.LineItem(UHExp.ExpLine(e1), e2) =>
       switch (syn_expand(ctx, delta, e1)) {
@@ -1775,6 +1800,11 @@ module DHExp = {
       let (i, hii) = HoleInstanceInfo.next(hii, u, sigma, path);
       let (dp1, hii) = renumber_result_only_pat(path, hii, dp1);
       (DHPat.NonEmptyHole(reason, u, i, dp1), hii);
+    | DHPat.Keyword(u, _, k) =>
+      /* TODO: see above */
+      let sigma = Environment.empty;
+      let (i, hii) = HoleInstanceInfo.next(hii, u, sigma, path);
+      (DHPat.Keyword(u, i, k), hii);
     | DHPat.Inj(side, dp1) =>
       let (dp1, hii) = renumber_result_only_pat(path, hii, dp1);
       (DHPat.Inj(side, dp1), hii);
@@ -1844,6 +1874,9 @@ module DHExp = {
     | FreeVar(u, _, sigma, x) =>
       let (i, hii) = HoleInstanceInfo.next(hii, u, sigma, path);
       (FreeVar(u, i, sigma, x), hii);
+    | Keyword(u, _, sigma, k) =>
+      let (i, hii) = HoleInstanceInfo.next(hii, u, sigma, path);
+      (Keyword(u, i, sigma, k), hii);
     | Cast(d1, ty1, ty2) =>
       let (d1, hii) = renumber_result_only(path, hii, d1);
       (Cast(d1, ty1, ty2), hii);
@@ -1923,6 +1956,10 @@ module DHExp = {
       let (sigma, hii) = renumber_sigma(path, u, i, hii, sigma);
       let hii = HoleInstanceInfo.update_environment(hii, (u, i), sigma);
       (FreeVar(u, i, sigma, x), hii);
+    | Keyword(u, i, sigma, k) =>
+      let (sigma, hii) = renumber_sigma(path, u, i, hii, sigma);
+      let hii = HoleInstanceInfo.update_environment(hii, (u, i), sigma);
+      (Keyword(u, i, sigma, k), hii);
     | Cast(d1, ty1, ty2) =>
       let (d1, hii) = renumber_sigmas_only(path, hii, d1);
       (Cast(d1, ty1, ty2), hii);
@@ -2155,6 +2192,7 @@ module Evaluator = {
       | Indet(d1') => Indet(DHExp.NonEmptyHole(reason, u, i, sigma, d1'))
       }
     | DHExp.FreeVar(u, i, sigma, x) => Indet(d)
+    | DHExp.Keyword(u, i, sigma, k) => Indet(d)
     | DHExp.Cast(d1, ty, ty') =>
       switch (evaluate(d1)) {
       | InvalidInput(msg) => InvalidInput(msg)

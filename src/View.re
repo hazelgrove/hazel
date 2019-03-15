@@ -264,7 +264,12 @@ and of_uhtyp_skel = (prefix, rev_path, skel, seq) =>
 
 let classes_of_var_err_status = var_err_status =>
   switch (var_err_status) {
-  | InVHole(u) => ["InVHole", "InVHole_" ++ string_of_int(u)]
+  | InVHole(Free, u) => ["InVHole", "InVHole_" ++ string_of_int(u)]
+  | InVHole(Keyword(_), u) => [
+      "InVHole",
+      "InVHole_" ++ string_of_int(u),
+      "Keyword",
+    ]
   | NotInVHole => []
   };
 
@@ -560,7 +565,11 @@ let rec of_hpat = (prefix, rev_path, p) =>
         string_of_int(u + 1),
       )
     | UHPat.Wild => of_Wild(prefix, err_status, rev_path)
-    | UHPat.Var(x) => of_Var(prefix, err_status, NotInVHole, rev_path, x)
+    | UHPat.Var(InVHole(Free, _), _) => raise(FreeVarInPat)
+    | UHPat.Var(InVHole(Keyword(k), u), x) =>
+      of_Var(prefix, err_status, InVHole(Keyword(k), u), rev_path, x)
+    | UHPat.Var(NotInVHole, x) =>
+      of_Var(prefix, err_status, NotInVHole, rev_path, x)
     | UHPat.NumLit(n) => of_NumLit(prefix, err_status, rev_path, n)
     | UHPat.BoolLit(b) => of_BoolLit(prefix, err_status, rev_path, b)
     | UHPat.Inj(side, p1) =>
@@ -819,6 +828,7 @@ let rec precedence_dhpat = dp =>
     | EmptyHole(_)
     | NonEmptyHole(_, _, _, _)
     | Wild
+    | Keyword(_, _, _)
     | Var(_)
     | NumLit(_)
     | BoolLit(_)
@@ -835,6 +845,7 @@ let rec precedence_dhexp = d =>
     switch (d) {
     | BoundVar(_)
     | FreeVar(_, _, _, _)
+    | Keyword(_, _, _, _)
     | BoolLit(_)
     | NumLit(_)
     | ListNil(_)
@@ -902,6 +913,14 @@ let rec of_dhpat' =
           );
         term(prefix, err_status, rev_path, "NonEmptyHole", r);
       | Wild => of_Wild(prefix, err_status, rev_path)
+      | Keyword(u, _, k) =>
+        of_Var(
+          prefix,
+          err_status,
+          InVHole(Keyword(k), u),
+          rev_path,
+          Var.of_keyword(k),
+        )
       | Var(x) => of_Var(prefix, err_status, NotInVHole, rev_path, x)
       | BoolLit(b) => of_BoolLit(prefix, err_status, rev_path, b)
       | NumLit(n) => of_NumLit(prefix, err_status, rev_path, n)
@@ -1005,7 +1024,15 @@ let rec of_dhexp' =
       switch (d) {
       | BoundVar(x) => of_Var(prefix, err_status, NotInVHole, rev_path, x)
       | FreeVar(u, _, _, x) =>
-        of_Var(prefix, err_status, InVHole(u), rev_path, x)
+        of_Var(prefix, err_status, InVHole(Free, u), rev_path, x)
+      | Keyword(u, _, _, k) =>
+        of_Var(
+          prefix,
+          err_status,
+          InVHole(Keyword(k), u),
+          rev_path,
+          Var.of_keyword(k),
+        )
       | Let(dp, d1, d2) =>
         let rev_pathp = [0, ...rev_path];
         let rev_path1 = [1, ...rev_path];
