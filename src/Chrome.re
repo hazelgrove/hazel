@@ -23,7 +23,7 @@ let view = (model: Model.t) => {
     replace_e,
     _,
   } = model;
-  let pp_view_width = 50;
+  let pp_view_width = 80;
   let prefix = "view";
   let rec mk_editor_box:
     (EditorBox.rev_path, EditorBox.rev_paths, UHExp.t) => EditorBox.t =

@@ -1,4 +1,5 @@
 let _SHOW_CASTS = false;
+let _SHOW_FN_BODIES = false;
 
 /* Imports */
 exception InvariantViolated;
@@ -852,14 +853,16 @@ let rec precedence_dhexp = d =>
     | Inj(_, _, _)
     | Pair(_, _)
     | EmptyHole(_, _, _)
-    | Cast(_, _, _)
     | Triv
     | FailedCast(_, _, _) => precedence_const
+    | Cast(d1, _, _) => _SHOW_CASTS ? precedence_const : precedence_dhexp(d1)
     | Let(_, _, _)
     | FixF(_, _, _)
     | Lam(_, _, _)
     | Case(_, _, _) => precedence_max
-    | Ap(_, _) => precedence_Ap
+    | Ap(_, _) =>
+      JSUtil.log("Found ap");
+      precedence_Ap;
     | BinNumOp(Times, _, _) => precedence_Times
     | BinNumOp(Plus, _, _) => precedence_Plus
     | BinNumOp(LessThan, _, _) => precedence_LessThan
@@ -1058,36 +1061,45 @@ let rec of_dhexp' =
           );
         of_Let(prefix, err_status, rev_path, rp, None, r1, r2);
       | FixF(x, ty, d1) =>
-        let rx = of_var_binding(prefix, [0, ...rev_path], x);
-        let rty = of_htype(false, prefix, [1, ...rev_path], ty);
-        let r1 =
-          of_dhexp'(
-            instance_click_fn,
-            false,
-            prefix,
-            NotInHole,
-            [2, ...rev_path],
-            d1,
-          );
-        of_FixF(prefix, err_status, rev_path, rx, rty, r1);
+        if (_SHOW_FN_BODIES) {
+          let rx = of_var_binding(prefix, [0, ...rev_path], x);
+          let rty = of_htype(false, prefix, [1, ...rev_path], ty);
+          let r1 =
+            of_dhexp'(
+              instance_click_fn,
+              false,
+              prefix,
+              NotInHole,
+              [2, ...rev_path],
+              d1,
+            );
+          of_FixF(prefix, err_status, rev_path, rx, rty, r1);
+        } else {
+          taggedText("fn-placeholder", "<recursive fn>");
+        }
       | Lam(dp, ann, d1) =>
-        let rp = of_dhpat(instance_click_fn, prefix, [0, ...rev_path], dp);
-        let rann = Some(of_htype(false, prefix, [1, ...rev_path], ann));
-        let r1 =
-          of_dhexp'(
-            instance_click_fn,
-            false,
-            prefix,
-            NotInHole,
-            [2, ...rev_path],
-            d1,
-          );
-        of_Lam(prefix, err_status, rev_path, rp, rann, r1);
+        if (_SHOW_FN_BODIES) {
+          let rp = of_dhpat(instance_click_fn, prefix, [0, ...rev_path], dp);
+          let rann = Some(of_htype(false, prefix, [1, ...rev_path], ann));
+          let r1 =
+            of_dhexp'(
+              instance_click_fn,
+              false,
+              prefix,
+              NotInHole,
+              [2, ...rev_path],
+              d1,
+            );
+          of_Lam(prefix, err_status, rev_path, rp, rann, r1);
+        } else {
+          taggedText("fn-placeholder", "<fn>");
+        }
       | Ap(d1, d2) =>
         let rev_path1 = [0, ...rev_path];
         let rev_path2 = [1, ...rev_path];
         let paren1 = precedence_dhexp(d1) > precedence_Ap;
         let paren2 = precedence_dhexp(d2) >= precedence_Ap;
+        JSUtil.log(paren2 ? "parenthesizing" : "not");
         let r1 =
           of_dhexp'(
             instance_click_fn,
@@ -1277,7 +1289,8 @@ let rec of_dhexp' =
           dbg_SHOW_SIGMAS
             ? r1 ^^ of_sigma(instance_click_fn, prefix, rev_path, sigma) : r1;
         term(prefix, err_status, rev_path, "NonEmptyHole", r);
-      | Cast(Cast(d1, ty1, ty2), ty3, ty4) when HTyp.eq(ty2, ty3) =>
+      | Cast(Cast(d1, ty1, ty2), ty3, ty4)
+          when _SHOW_CASTS && HTyp.eq(ty2, ty3) =>
         let rev_path1 = [0, ...rev_path];
         let inner_rev_path1 = [0, ...rev_path1];
         let inner_rev_path2 = [1, ...rev_path1];
@@ -1299,23 +1312,35 @@ let rec of_dhexp' =
         let r5 = of_htype(false, prefix, rev_path3, ty4);
         of_chained_Cast(prefix, err_status, rev_path, r1, r2, r3, r5);
       | Cast(d1, ty1, ty2) =>
-        let rev_path1 = [0, ...rev_path];
-        let rev_path2 = [1, ...rev_path];
-        let rev_path3 = [2, ...rev_path];
-        let paren1 = precedence_dhexp(d1) > precedence_const;
-        let r1 =
+        if (_SHOW_CASTS) {
+          let rev_path1 = [0, ...rev_path];
+          let rev_path2 = [1, ...rev_path];
+          let rev_path3 = [2, ...rev_path];
+          let paren1 = precedence_dhexp(d1) > precedence_const;
+          let r1 =
+            of_dhexp'(
+              instance_click_fn,
+              paren1,
+              prefix,
+              NotInHole,
+              rev_path1,
+              d1,
+            );
+
+          let r2 = of_htype(false, prefix, rev_path2, ty1);
+          let r3 = of_htype(false, prefix, rev_path3, ty2);
+          of_Cast(prefix, err_status, rev_path, r1, r2, r3);
+        } else {
+          let rev_path1 = [0, ...rev_path];
           of_dhexp'(
             instance_click_fn,
-            paren1,
+            false,
             prefix,
-            NotInHole,
+            err_status,
             rev_path1,
             d1,
           );
-
-        let r2 = of_htype(false, prefix, rev_path2, ty1);
-        let r3 = of_htype(false, prefix, rev_path3, ty2);
-        of_Cast(prefix, err_status, rev_path, r1, r2, r3);
+        }
       | FailedCast(Cast(d1, ty1, ty2), ty3, ty4) when HTyp.eq(ty2, ty3) =>
         let rev_path1 = [0, ...rev_path];
         let inner_rev_path1 = [0, ...rev_path1];
