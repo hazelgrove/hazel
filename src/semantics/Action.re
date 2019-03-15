@@ -2630,6 +2630,25 @@ let rec perform_syn =
     let ty = HTyp.List(HTyp.Hole);
     Some((ze, ty, u_gen));
   | (Construct(SListNil), ZExp.CursorE(_, _)) => None
+  | (
+      Construct(SCase),
+      ZExp.Deeper(_, ZExp.LineItemZL(ZExp.DeeperL(ZExp.ExpLineZ(ze1)), e2)),
+    )
+      when ZExp.cursor_at_start(ze1) =>
+    let e1 = ZExp.erase(ze1);
+    let ze =
+      switch (e1) {
+      | UHExp.Tm(_, UHExp.EmptyHole(_)) =>
+        let (rule_p, u_gen) = UHPat.new_EmptyHole(u_gen);
+        let rule = UHExp.Rule(rule_p, e2);
+        ZExp.Deeper(NotInHole, ZExp.CaseZE(ze1, [rule], Some(UHTyp.Hole)));
+      | _ =>
+        let (zp, u_gen) = ZPat.new_EmptyHole(u_gen);
+        let zrule = ZExp.RuleZP(zp, e2);
+        let zrules = ZList.singleton(zrule);
+        ZExp.Deeper(NotInHole, ZExp.CaseZR(e1, zrules, Some(UHTyp.Hole)));
+      };
+    Some((ze, HTyp.Hole, u_gen));
   | (Construct(SCase), ze1) when ZExp.cursor_at_start(ze1) =>
     let e1 = ZExp.erase(ze1);
     let ze =
