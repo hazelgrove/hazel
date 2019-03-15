@@ -12,7 +12,7 @@ and t' =
   | InjZ(inj_side, t)
   | OpSeqZ(UHPat.skel_t, t, opseq_surround);
 
-let bidelimit = zp =>
+let bidelimit = (zp: t): t =>
   switch (zp) {
   | CursorP(cursor_side, p) => CursorP(cursor_side, UHPat.bidelimit(p))
   | ParenthesizedZ(_)
@@ -28,7 +28,7 @@ let new_EmptyHole = (u_gen: MetaVarGen.t): (t, MetaVarGen.t) => {
   (CursorP(Before, hole), u_gen);
 };
 
-let rec set_err_status = (err, zp) =>
+let rec set_err_status = (err: err_status, zp: t): t =>
   switch (zp) {
   | CursorP(cursor_side, p) =>
     let p = UHPat.set_err_status(err, p);
@@ -57,16 +57,15 @@ let rec make_inconsistent = (u_gen: MetaVarGen.t, zp: t): (t, MetaVarGen.t) =>
 let rec erase = (zp: t): UHPat.t =>
   switch (zp) {
   | CursorP(_, p) => p
-  | Deeper(err_status, zp') => UHPat.Pat(err_status, erase'(zp'))
-  | ParenthesizedZ(zp) => UHPat.Parenthesized(erase(zp))
+  | Deeper(err_status, zp') => Pat(err_status, erase'(zp'))
+  | ParenthesizedZ(zp) => Parenthesized(erase(zp))
   }
 and erase' = (zp': t'): UHPat.t' =>
   switch (zp') {
-  | InjZ(side, zp1) => UHPat.Inj(side, erase(zp1))
-  /* | ListLitZ zps -> UHPat.ListLit (ZList.erase zps erase) */
+  | InjZ(side, zp1) => Inj(side, erase(zp1))
   | OpSeqZ(skel, zp1, surround) =>
     let p1 = erase(zp1);
-    UHPat.OpSeq(skel, OperatorSeq.opseq_of_exp_and_surround(p1, surround));
+    OpSeq(skel, OperatorSeq.opseq_of_exp_and_surround(p1, surround));
   };
 
 let cursor_at_end = (zp: t): bool =>
@@ -80,16 +79,15 @@ let cursor_at_end = (zp: t): bool =>
 
 let place_Before = (p: UHPat.t): t =>
   switch (p) {
-  | UHPat.Parenthesized(_)
-  | UHPat.Pat(_, UHPat.EmptyHole(_))
-  | UHPat.Pat(_, UHPat.Wild)
-  | UHPat.Pat(_, UHPat.Var(_, _))
-  | UHPat.Pat(_, UHPat.NumLit(_))
-  | UHPat.Pat(_, UHPat.BoolLit(_))
-  | UHPat.Pat(_, UHPat.Inj(_, _))
-  /* | UHPat.Pat _ (UHPat.ListLit _) -> */
-  | UHPat.Pat(_, UHPat.ListNil) => CursorP(Before, p)
-  | UHPat.Pat(err, UHPat.OpSeq(skel, seq)) =>
+  | Parenthesized(_)
+  | Pat(_, EmptyHole(_))
+  | Pat(_, Wild)
+  | Pat(_, Var(_, _))
+  | Pat(_, NumLit(_))
+  | Pat(_, BoolLit(_))
+  | Pat(_, Inj(_, _))
+  | Pat(_, ListNil) => CursorP(Before, p)
+  | Pat(err, OpSeq(skel, seq)) =>
     let (p0, suffix) = OperatorSeq.split0(seq);
     let surround = OperatorSeq.EmptyPrefix(suffix);
     Deeper(err, OpSeqZ(skel, CursorP(Before, p0), surround));
@@ -97,16 +95,15 @@ let place_Before = (p: UHPat.t): t =>
 
 let place_After = (p: UHPat.t): t =>
   switch (p) {
-  | UHPat.Parenthesized(_)
-  | UHPat.Pat(_, UHPat.EmptyHole(_))
-  | UHPat.Pat(_, UHPat.Wild)
-  | UHPat.Pat(_, UHPat.Var(_, _))
-  | UHPat.Pat(_, UHPat.NumLit(_))
-  | UHPat.Pat(_, UHPat.BoolLit(_))
-  | UHPat.Pat(_, UHPat.Inj(_, _))
-  /* | UHPat.Pat _ (UHPat.ListLit _) */
-  | UHPat.Pat(_, UHPat.ListNil) => CursorP(After, p)
-  | UHPat.Pat(err, UHPat.OpSeq(skel, seq)) =>
+  | Parenthesized(_)
+  | Pat(_, EmptyHole(_))
+  | Pat(_, Wild)
+  | Pat(_, Var(_, _))
+  | Pat(_, NumLit(_))
+  | Pat(_, BoolLit(_))
+  | Pat(_, Inj(_, _))
+  | Pat(_, ListNil) => CursorP(After, p)
+  | Pat(err, OpSeq(skel, seq)) =>
     let (p0, prefix) = OperatorSeq.split_tail(seq);
     let surround = OperatorSeq.EmptySuffix(prefix);
     Deeper(err, OpSeqZ(skel, CursorP(After, p0), surround));
