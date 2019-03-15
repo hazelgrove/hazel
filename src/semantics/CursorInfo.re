@@ -1,4 +1,5 @@
 open SemanticsCommon;
+open HazelUtil;
 
 type cursor_mode =
   /*
@@ -155,8 +156,8 @@ let rec ana_pat_cursor_found =
     ) =>
     switch (ty) {
     | HTyp.Prod(ty1, ty2) =>
-      let n_elts = List.length(UHPat.get_tuple(skel1, skel2));
-      let n_types = List.length(HTyp.get_tuple(ty1, ty2));
+      let n_elts = TupleList.length(UHPat.get_tuple(skel1, skel2));
+      let n_types = TupleList.length(HTyp.get_tuple(ty1, ty2));
       Some(
         mk_cursor_info(
           PatAnaWrongLength(n_types, n_elts, ty),
@@ -305,7 +306,7 @@ and ana_skel_pat_cursor_info =
     | HTyp.Prod(ty1, ty2) =>
       let types = HTyp.get_tuple(ty1, ty2);
       let skels = UHPat.get_tuple(skel1, skel2);
-      switch (HazelUtil.zip_eq(skels, types)) {
+      switch (TupleList.zip_eq(skels, types)) {
       | None => None
       | Some(zipped) =>
         List.fold_left(
@@ -317,7 +318,7 @@ and ana_skel_pat_cursor_info =
               ana_skel_pat_cursor_info(ctx, skel, seq, n, zp1, ty);
             },
           None,
-          zipped,
+          TupleList.to_list(zipped),
         )
       };
     | _ => None
@@ -338,7 +339,7 @@ and ana_skel_pat_cursor_info =
               ana_skel_pat_cursor_info(ctx, skel, seq, n, zp1, ty);
             },
           None,
-          zipped,
+          TupleList.to_list(zipped),
         );
       switch (ana_zipped) {
       | Some(_) as result => result
@@ -393,7 +394,7 @@ let rec ana_cursor_found =
     Some(mk_cursor_info(AnaKeyword(ty, k), IsExpr(e), side, ctx))
   | UHExp.Tm(_, UHExp.Var(InVHole(Free, _), _)) =>
     Some(mk_cursor_info(AnaFree(ty), IsExpr(e), side, ctx))
-  | UHExp.Tm(NotInHole, UHExp.Case(_, _)) =>
+  | UHExp.Tm(NotInHole, UHExp.Case(_, _, _)) =>
     Some(mk_cursor_info(Analyzed(ty), IsExpr(e), side, ctx))
   | UHExp.Tm(NotInHole, UHExp.LineItem(_, _))
   | UHExp.Tm(NotInHole, UHExp.ListNil)
@@ -415,8 +416,8 @@ let rec ana_cursor_found =
     ) =>
     switch (ty) {
     | HTyp.Prod(ty1, ty2) =>
-      let n_elts = List.length(UHExp.get_tuple(skel1, skel2));
-      let n_types = List.length(HTyp.get_tuple(ty1, ty2));
+      let n_elts = TupleList.length(UHExp.get_tuple(skel1, skel2));
+      let n_types = TupleList.length(HTyp.get_tuple(ty1, ty2));
       Some(
         mk_cursor_info(
           AnaWrongLength(n_types, n_elts, ty),
@@ -483,7 +484,6 @@ let rec ana_cursor_found =
       UHExp.OpSeq(Skel.BinOp(NotInHole, UHExp.Space, _, _), _),
     )
   | UHExp.Tm(NotInHole, UHExp.EmptyHole(_))
-  | UHExp.Tm(NotInHole, UHExp.Asc(_, _))
   | UHExp.Tm(NotInHole, UHExp.Var(NotInVHole, _))
   | UHExp.Tm(NotInHole, UHExp.NumLit(_))
   | UHExp.Tm(NotInHole, UHExp.BoolLit(_))
@@ -528,16 +528,6 @@ and ana_cursor_info = (ctx: Contexts.t, ze: ZExp.t, ty: HTyp.t): option(t) =>
   }
 and syn_cursor_info' = (ctx: Contexts.t, ze: ZExp.t'): option(t) =>
   switch (ze) {
-  | ZExp.AscZ1(ze1, uty) =>
-    let ty = UHTyp.expand(uty);
-    let e1 = ZExp.erase(ze1);
-    if (UHExp.bidelimited(e1)) {
-      ana_cursor_info(ctx, ze1, ty);
-    } else {
-      None;
-    };
-  | ZExp.AscZ2(e1, zty) =>
-    Some(mk_cursor_info(TypePosition, IsType, Before, ctx))
   | ZExp.LineItemZL(zli, e1) => syn_line_item_cursor_info(ctx, zli)
   | ZExp.LineItemZE(li, ze1) =>
     switch (Statics.syn_line_item(ctx, li)) {
@@ -564,8 +554,19 @@ and syn_cursor_info' = (ctx: Contexts.t, ze: ZExp.t'): option(t) =>
     | Some(ctx1) => syn_cursor_info(ctx1, ze1)
     };
   | ZExp.InjZ(side, ze1) => syn_cursor_info(ctx, ze1)
-  | ZExp.CaseZE(_, _)
-  | ZExp.CaseZR(_, _) => None
+  | ZExp.CaseZE(_, _, None)
+  | ZExp.CaseZR(_, _, None) => None
+  | ZExp.CaseZE(ze1, _, Some(_)) => syn_cursor_info(ctx, ze1)
+  | ZExp.CaseZR(e1, zrules, Some(uty)) =>
+    let ty = UHTyp.expand(uty);
+    switch (Statics.syn(ctx, e1)) {
+    | None => None
+    | Some(ty1) =>
+      let zrule = HazelUtil.ZList.prj_z(zrules);
+      ana_rule_cursor_info(ctx, zrule, ty1, ty);
+    };
+  | ZExp.CaseZA(_, _, _) =>
+    Some(mk_cursor_info(TypePosition, IsType, Before, ctx))
   | ZExp.OpSeqZ(skel, ze0, surround) =>
     let e0 = ZExp.erase(ze0);
     let seq = OperatorSeq.opseq_of_exp_and_surround(e0, surround);
@@ -647,21 +648,21 @@ and ana_cursor_info' = (ctx: Contexts.t, ze: ZExp.t', ty: HTyp.t): option(t) =>
     | Some((ty1, ty2)) =>
       ana_cursor_info(ctx, ze1, pick_side(side, ty1, ty2))
     }
-  | ZExp.CaseZE(ze1, rules) => syn_cursor_info(ctx, ze1)
-  | ZExp.CaseZR(e1, zrules) =>
+  | ZExp.CaseZE(ze1, rules, _) => syn_cursor_info(ctx, ze1)
+  | ZExp.CaseZR(e1, zrules, _) =>
     switch (Statics.syn(ctx, e1)) {
     | None => None
     | Some(ty1) =>
       let zrule = HazelUtil.ZList.prj_z(zrules);
       ana_rule_cursor_info(ctx, zrule, ty1, ty);
     }
+  | ZExp.CaseZA(_, _, _) =>
+    Some(mk_cursor_info(TypePosition, IsType, Before, ctx))
   | ZExp.OpSeqZ(skel, ze0, surround) =>
     let e0 = ZExp.erase(ze0);
     let seq = OperatorSeq.opseq_of_exp_and_surround(e0, surround);
     let n = OperatorSeq.surround_prefix_length(surround);
     ana_skel_cursor_info(ctx, skel, seq, n, ze0, ty);
-  | ZExp.AscZ1(_, _)
-  | ZExp.AscZ2(_, _)
   | ZExp.ApPaletteZ(_, _, _) => syn_cursor_info'(ctx, ze)
   }
 and ana_rule_cursor_info =
@@ -830,7 +831,7 @@ and ana_skel_cursor_info =
     | HTyp.Prod(ty1, ty2) =>
       let types = HTyp.get_tuple(ty1, ty2);
       let skels = UHExp.get_tuple(skel1, skel2);
-      switch (HazelUtil.zip_eq(skels, types)) {
+      switch (TupleList.zip_eq(skels, types)) {
       | None => None
       | Some(zipped) =>
         List.fold_left(
@@ -842,7 +843,7 @@ and ana_skel_cursor_info =
               ana_skel_cursor_info(ctx, skel, seq, n, ze_n, ty);
             },
           None,
-          zipped,
+          TupleList.to_list(zipped),
         )
       };
     | _ => None
@@ -863,7 +864,7 @@ and ana_skel_cursor_info =
               ana_skel_cursor_info(ctx, skel, seq, n, ze_n, ty);
             },
           None,
-          zipped,
+          TupleList.to_list(zipped),
         );
       switch (ana_zipped) {
       | Some(_) as result => result
