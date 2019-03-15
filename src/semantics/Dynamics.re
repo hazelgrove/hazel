@@ -1,4 +1,5 @@
 open SemanticsCommon;
+open HazelUtil;
 
 type hole_sort =
   | ExpressionHole
@@ -29,14 +30,12 @@ module DHPat = {
     | Triv /* unit intro */
     | Ap(t, t);
 
-  let rec make_tuple = (ds: list(t)): t =>
+  let rec make_tuple = (ds: TupleList.t(t)): t =>
     switch (ds) {
-    | [d1, d2] => Pair(d1, d2)
-    | [d1] => d1
-    | [d1, ...ds] =>
+    | TupleList.Pair(d1, d2) => Pair(d1, d2)
+    | TupleList.Cons(d1, ds) =>
       let d2 = make_tuple(ds);
       Pair(d1, d2);
-    | [] => Triv
     };
 
   /* whether dp contains the variable x outside of a hole */
@@ -308,7 +307,7 @@ module DHPat = {
         let skels = UHPat.get_tuple(skel1, skel2);
         let (zipped, remainder) = HTyp.zip_with_skels(skels, types);
         let processed1 =
-          List.fold_right(
+          TupleList.fold_right(
             (skel_ty: (UHPat.skel_t, HTyp.t), opt_result) =>
               switch (opt_result) {
               | None => None
@@ -317,11 +316,24 @@ module DHPat = {
                 switch (ana_expand_skel(ctx, delta, skel, seq, ty)) {
                 | DoesNotExpand => None
                 | Expands(dp, ty, ctx, delta) =>
-                  Some(([(dp, ty), ...elts], ctx, delta))
+                  Some((TupleList.Cons((dp, ty), elts), ctx, delta))
                 };
               },
             zipped,
-            Some(([], ctx, delta)),
+            ((skel1, ty1), (skel2, ty2)) =>
+              switch (ana_expand_skel(ctx, delta, skel1, seq, ty1)) {
+              | DoesNotExpand => None
+              | Expands(dp1, ty1, ctx, delta) =>
+                switch (ana_expand_skel(ctx, delta, skel2, seq, ty2)) {
+                | DoesNotExpand => None
+                | Expands(dp2, ty2, ctx, delta) =>
+                  Some((
+                    TupleList.Pair((dp1, ty1), (dp2, ty2)),
+                    ctx,
+                    delta,
+                  ))
+                }
+              },
           );
         switch (processed1) {
         | None => DoesNotExpand
@@ -344,7 +356,8 @@ module DHPat = {
           switch (processed2) {
           | None => DoesNotExpand
           | Some((elts2, ctx, delta)) =>
-            let (ds, tys) = HazelUtil.unzip(elts1 @ elts2);
+            let elts = TupleList.append_list(elts1, elts2);
+            let (ds, tys) = TupleList.unzip(elts);
             let d = make_tuple(ds);
             let ty = HTyp.make_tuple(tys);
             Expands(d, ty, ctx, delta);
@@ -457,14 +470,12 @@ module DHExp = {
     | FailedCast(_, _, _) => "FailedCast"
     };
 
-  let rec make_tuple = (ds: list(t)): t =>
+  let rec make_tuple = (ds: TupleList.t(t)): t =>
     switch (ds) {
-    | [d1, d2] => Pair(d1, d2)
-    | [d1] => d1
-    | [d1, ...ds] =>
+    | TupleList.Pair(d1, d2) => Pair(d1, d2)
+    | TupleList.Cons(d1, ds) =>
       let d2 = make_tuple(ds);
       Pair(d1, d2);
-    | [] => Triv
     };
 
   let rec cast = (d: t, t1: HTyp.t, t2: HTyp.t): t =>
@@ -1060,12 +1071,6 @@ module DHExp = {
       let delta =
         MetaVarMap.extend_unique(delta, (u, (ExpressionHole, ty, gamma)));
       Expands(d, ty, delta);
-    | UHExp.Asc(e1, uty) =>
-      let ty = UHTyp.expand(uty);
-      switch (ana_expand(ctx, delta, e1, ty)) {
-      | DoesNotExpand => DoesNotExpand
-      | Expands(d1, ty', delta) => Expands(cast(d1, ty', ty), ty, delta)
-      };
     | UHExp.Var(NotInVHole, x) =>
       let gamma = Contexts.gamma(ctx);
       switch (VarMap.lookup(gamma, x)) {
@@ -1173,7 +1178,19 @@ module DHExp = {
     | UHExp.ListNil =>
       let elt_ty = HTyp.Hole;
       Expands(ListNil(elt_ty), HTyp.List(elt_ty), delta);
-    | UHExp.Case(_, _) => DoesNotExpand
+    | UHExp.Case(e1, rules, Some(uty)) =>
+      let ty = UHTyp.expand(uty);
+      switch (syn_expand(ctx, delta, e1)) {
+      | DoesNotExpand => DoesNotExpand
+      | Expands(d1, ty1, delta) =>
+        switch (ana_expand_rules(ctx, delta, rules, ty1, ty)) {
+        | None => DoesNotExpand
+        | Some((drs, delta)) =>
+          let d = Case(d1, drs, 0);
+          Expands(d, ty, delta);
+        }
+      };
+    | UHExp.Case(_, _, None) => DoesNotExpand
     | UHExp.OpSeq(skel, seq) => syn_expand_skel(ctx, delta, skel, seq)
     | UHExp.ApPalette(name, serialized_model, hole_data) => DoesNotExpand
     /* TODO fix me */
@@ -1468,7 +1485,23 @@ module DHExp = {
       | None => DoesNotExpand
       | Some(elt_ty) => Expands(ListNil(elt_ty), HTyp.List(elt_ty), delta)
       }
-    | UHExp.Case(e1, rules) =>
+    | UHExp.Case(e1, rules, Some(uty)) =>
+      let ty2 = UHTyp.expand(uty);
+      switch (HTyp.consistent(ty, ty2)) {
+      | false => DoesNotExpand
+      | true =>
+        switch (syn_expand(ctx, delta, e1)) {
+        | DoesNotExpand => DoesNotExpand
+        | Expands(d1, ty1, delta) =>
+          switch (ana_expand_rules(ctx, delta, rules, ty1, ty2)) {
+          | None => DoesNotExpand
+          | Some((drs, delta)) =>
+            let d = Case(d1, drs, 0);
+            Expands(d, ty, delta);
+          }
+        }
+      };
+    | UHExp.Case(e1, rules, None) =>
       switch (syn_expand(ctx, delta, e1)) {
       | DoesNotExpand => DoesNotExpand
       | Expands(d1, ty1, delta) =>
@@ -1480,7 +1513,6 @@ module DHExp = {
         }
       }
     | UHExp.OpSeq(skel, seq) => ana_expand_skel(ctx, delta, skel, seq, ty)
-    | UHExp.Asc(_, _)
     | UHExp.Var(NotInVHole, _)
     | UHExp.BoolLit(_)
     | UHExp.NumLit(_)
@@ -1581,7 +1613,7 @@ module DHExp = {
         let skels = UHExp.get_tuple(skel1, skel2);
         let (zipped, remainder) = HTyp.zip_with_skels(skels, types);
         let processed1 =
-          List.fold_right(
+          TupleList.fold_right(
             (skel_ty: (UHExp.skel_t, HTyp.t), opt_result) =>
               switch (opt_result) {
               | None => None
@@ -1590,11 +1622,20 @@ module DHExp = {
                 switch (ana_expand_skel(ctx, delta, skel, seq, ty)) {
                 | DoesNotExpand => None
                 | Expands(d, ty, delta) =>
-                  Some(([(d, ty), ...elts], delta))
+                  Some((TupleList.Cons((d, ty), elts), delta))
                 };
               },
             zipped,
-            Some(([], delta)),
+            ((skel1, ty1), (skel2, ty2)) =>
+              switch (ana_expand_skel(ctx, delta, skel1, seq, ty1)) {
+              | DoesNotExpand => None
+              | Expands(d1, ty1, delta) =>
+                switch (ana_expand_skel(ctx, delta, skel2, seq, ty2)) {
+                | DoesNotExpand => None
+                | Expands(d2, ty2, delta) =>
+                  Some((TupleList.Pair((d1, ty1), (d2, ty2)), delta))
+                }
+              },
           );
         switch (processed1) {
         | None => DoesNotExpand
@@ -1617,7 +1658,8 @@ module DHExp = {
           switch (processed2) {
           | None => DoesNotExpand
           | Some((elts2, delta)) =>
-            let (ds, tys) = HazelUtil.unzip(elts1 @ elts2);
+            let elts = TupleList.append_list(elts1, elts2);
+            let (ds, tys) = TupleList.unzip(elts);
             let d = make_tuple(ds);
             let ty = HTyp.make_tuple(tys);
             Expands(d, ty, delta);

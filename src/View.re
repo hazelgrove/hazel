@@ -263,15 +263,6 @@ and of_uhtyp_skel = (prefix, rev_path, skel, seq) =>
 
 /* Expressions and Patterns */
 
-let of_Asc = (prefix, err_status, rev_path, r1, r2) =>
-  term(
-    prefix,
-    err_status,
-    rev_path,
-    "Asc",
-    r1 ^^ space ^^ op(":") ^^ space ^^ r2,
-  );
-
 let classes_of_var_err_status = var_err_status =>
   switch (var_err_status) {
   | InVHole(Free, u) => ["InVHole", "InVHole_" ++ string_of_int(u)]
@@ -417,7 +408,7 @@ let of_InjAnn = (prefix, err_status, rev_path, rty, side, r) =>
     ^^ rparen(")"),
   );
 
-let of_Case = (prefix, err_status, rev_path, r1, rpcs) => {
+let of_Case = (prefix, err_status, rev_path, r1, rpcs, rann) => {
   let rrules =
     List.fold_left(
       (rrs, rpc) => {
@@ -433,11 +424,7 @@ let of_Case = (prefix, err_status, rev_path, r1, rpcs) => {
       PP.empty,
       rpcs,
     );
-  term(
-    prefix,
-    err_status,
-    rev_path,
-    "Case",
+  let view_case =
     PP.blockBoundary
     ^^ kw("case")
     ^^ space
@@ -445,12 +432,14 @@ let of_Case = (prefix, err_status, rev_path, r1, rpcs) => {
     ^^ PP.mandatoryBreak
     ^^ rrules
     ^^ PP.mandatoryBreak
-    ^^ kw("end"),
-  );
+    ^^ kw("end");
+  let view =
+    switch (rann) {
+    | None => view_case
+    | Some(r) => view_case ^^ of_op(" : ", "ann") ^^ r
+    };
+  term(prefix, err_status, rev_path, "Case", view);
 };
-
-let of_CaseAnn = (prefix, err_status, rev_path, r1, rpcs) =>
-  of_Case(prefix, err_status, rev_path, r1, rpcs);
 
 let cast_arrow = op(" ⇨ ");
 let of_Cast = (prefix, err_status, rev_path, r1, rty1, rty2) =>
@@ -512,7 +501,7 @@ let of_chained_FailedCast =
 let is_block = e =>
   switch (e) {
   | UHExp.Tm(_, UHExp.LineItem(_, _)) => true
-  | UHExp.Tm(_, UHExp.Case(_, _)) => true
+  | UHExp.Tm(_, UHExp.Case(_, _, _)) => true
   | _ => false
   };
 
@@ -676,12 +665,6 @@ let rec of_hexp = (palette_stuff, prefix, rev_path, e) =>
     of_Parenthesized(is_block(e1), prefix, err_status, rev_path, r1);
   | UHExp.Tm(err_status, e') =>
     switch (e') {
-    | UHExp.Asc(e1, ty) =>
-      let rev_path1 = [0, ...rev_path];
-      let rev_path2 = [1, ...rev_path];
-      let r1 = of_hexp(palette_stuff, prefix, rev_path1, e1);
-      let r2 = of_uhtyp(prefix, rev_path2, ty);
-      of_Asc(prefix, err_status, rev_path, r1, r2);
     | UHExp.Var(var_err_status, x) =>
       of_Var(prefix, err_status, var_err_status, rev_path, x)
     | UHExp.LineItem(li, e2) =>
@@ -721,7 +704,7 @@ let rec of_hexp = (palette_stuff, prefix, rev_path, e) =>
       let rev_path1 = [0, ...rev_path];
       let r1 = of_hexp(palette_stuff, prefix, rev_path1, e);
       of_Inj(prefix, err_status, rev_path, side, r1);
-    | UHExp.Case(e1, rules) =>
+    | UHExp.Case(e1, rules, ann) =>
       let rev_path1 = [0, ...rev_path];
       let r1 = of_hexp(palette_stuff, prefix, rev_path1, e1);
       let rpcs =
@@ -739,7 +722,14 @@ let rec of_hexp = (palette_stuff, prefix, rev_path, e) =>
           },
           rules,
         );
-      of_Case(prefix, err_status, rev_path, r1, rpcs);
+      let rann =
+        switch (ann) {
+        | None => None
+        | Some(uty1) =>
+          let rev_path_ann = [List.length(rules) + 1, ...rev_path];
+          Some(of_uhtyp(prefix, rev_path_ann, uty1));
+        };
+      of_Case(prefix, err_status, rev_path, r1, rpcs, rann);
     | UHExp.EmptyHole(u) =>
       of_Hole(
         prefix,
@@ -1258,7 +1248,7 @@ let rec of_dhexp' =
             },
             rules,
           );
-        of_CaseAnn(prefix, err_status, rev_path, r1, rpcs);
+        of_Case(prefix, err_status, rev_path, r1, rpcs, None);
       | EmptyHole(u, i, sigma) =>
         let inst = (u, i);
         let hole_label = hole_label_of(inst);
