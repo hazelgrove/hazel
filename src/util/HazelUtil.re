@@ -1,4 +1,4 @@
-type nat = int;
+open Sexplib.Std;
 
 let opt_to_bool =
   fun
@@ -55,26 +55,6 @@ let rec _findmapi = (i, xs, f) =>
 let findmapi = (xs, f) => _findmapi(0, xs, f);
 
 let any = (xs, f) => opt_to_bool(List.find_opt(f, xs));
-
-let rec zip_eq = (xs, ys) =>
-  switch (xs, ys) {
-  | ([], []) => Some([])
-  | ([x, ...xs], [y, ...ys]) =>
-    switch (zip_eq(xs, ys)) {
-    | None => None
-    | Some(tail) => Some([(x, y), ...tail])
-    }
-  | ([_, ..._], []) => None
-  | ([], [_, ..._]) => None
-  };
-
-let rec unzip = xs =>
-  switch (xs) {
-  | [] => ([], [])
-  | [(x, y), ...xys] =>
-    let (xs, ys) = unzip(xys);
-    ([x, ...xs], [y, ...ys]);
-  };
 
 let rec split_at = (xs, n) =>
   switch (xs) {
@@ -154,7 +134,7 @@ module ZList = {
 
   let singleton = (z: 'z): t('z, 'a) => ([], z, []);
 
-  let rec split_at = (n: nat, xs: list('a)): option(t('a, 'a)) =>
+  let rec split_at = (n: int, xs: list('a)): option(t('a, 'a)) =>
     switch (n, xs) {
     | (_, []) => None
     | (0, [x, ...xs]) =>
@@ -192,9 +172,6 @@ module ZList = {
     prefix;
   };
 
-  let prefix_length = (zxs: t('z, 'a)): nat =>
-    List.length(prj_prefix(zxs));
-
   let prj_z = (zxs: t('z, 'a)): 'z => {
     let (_, z, _) = zxs;
     z;
@@ -204,6 +181,15 @@ module ZList = {
     let (_, _, suffix) = zxs;
     suffix;
   };
+
+  let prefix_length = (zxs: t('z, 'a)): int =>
+    List.length(prj_prefix(zxs));
+
+  let suffix_length = (zxs: t('z, 'a)): int =>
+    List.length(prj_suffix(zxs));
+
+  let length = (zxs: t('z, 'a)): int =>
+    prefix_length(zxs) + 1 + suffix_length(zxs);
 
   let erase = (xs: t('z, 'a), erase_z: 'z => 'a) => {
     let (prefix, z, suffix) = xs;
@@ -228,6 +214,7 @@ let char_in_range_b = (ch, s, e) =>
   };
 
 module NatMap = {
+  [@deriving sexp]
   type t('a) = list((int, 'a));
 
   let empty = [];
@@ -312,11 +299,11 @@ module NatMap = {
 };
 
 /* Zippered finite map over nats, used with Z expressions
- * i.e. there is a selected element of type Z and the rest is a nat map of type A */
+ * i.e. there is a selected element of type Z and the rest is a int map of type A */
 module ZNatMap = {
-  type t('a, 'z) = (NatMap.t('a), (nat, 'z));
+  type t('a, 'z) = (NatMap.t('a), (int, 'z));
   let make =
-      (m: NatMap.t('a), (n, z) as nz: (nat, 'z)): option(t('a, 'z)) =>
+      (m: NatMap.t('a), (n, z) as nz: (int, 'z)): option(t('a, 'z)) =>
     switch (NatMap.lookup(m, n)) {
     | Some(_) => None
     | None => Some((m, nz))
@@ -326,7 +313,7 @@ module ZNatMap = {
     NatMap.insert_or_update(map', (n, erase(z)));
   };
   let prj_map = ((map, _): t('a, 'z)): NatMap.t('a) => map;
-  let prj_z_kv = (zmap: t('a, 'z)): (nat, 'z) => {
+  let prj_z_kv = (zmap: t('a, 'z)): (int, 'z) => {
     let (_, nz) = zmap;
     nz;
   };
@@ -334,4 +321,95 @@ module ZNatMap = {
     let (_, (_, z)) = zmap;
     z;
   };
+};
+
+/**
+ * List containing at least two elements. Used
+ * to collect and manipulate tuple elements.
+ */
+module TupleList = {
+  type t('a) =
+    | Pair('a, 'a)
+    | Cons('a, t('a));
+
+  let rec to_list = (xs: t('a)): list('a) =>
+    switch (xs) {
+    | Pair(x1, x2) => [x1, x2]
+    | Cons(x, xs) => [x, ...to_list(xs)]
+    };
+
+  exception LessThanTwoElements;
+
+  let rec to_tuple_list = (xs: list('a)): t('a) =>
+    switch (xs) {
+    | []
+    | [_] => raise(LessThanTwoElements)
+    | [x1, x2] => Pair(x1, x2)
+    | [x, ...xs] => Cons(x, to_tuple_list(xs))
+    };
+
+  let rec length = (xs: t('a)): int =>
+    switch (xs) {
+    | Pair(_, _) => 2
+    | Cons(_, xs) => 1 + length(xs)
+    };
+
+  let rec append = (xs: t('a), ys: t('a)): t('a) =>
+    switch (xs) {
+    | Pair(x1, x2) => Cons(x1, Cons(x2, ys))
+    | Cons(x, xs) => Cons(x, append(xs, ys))
+    };
+
+  let rec append_list = (xs: t('a), ys: list('a)): t('a) =>
+    switch (xs, ys) {
+    | (_, []) => xs
+    | (Pair(x1, x2), [y]) => Cons(x1, Pair(x2, y))
+    | (Cons(x, xs), [y]) => Cons(x, append_list(xs, ys))
+    | (_, _) => append(xs, to_tuple_list(ys))
+    };
+
+  /**
+   * Like List.fold_left, but the initial accumulator is a
+   * function f0 on the first two elements in the tuple list.
+   */
+  let rec fold_left = (f: ('a, 'b) => 'a, f0: ('b, 'b) => 'a, xs: t('b)): 'a =>
+    switch (xs) {
+    | Pair(x1, x2) => f0(x1, x2)
+    | Cons(x1, xs) =>
+      let (x2, ys) =
+        switch (xs) {
+        | Pair(x2, x3) => (x2, [x3])
+        | Cons(x2, xs) => (x2, to_list(xs))
+        };
+      List.fold_left(f, f0(x1, x2), ys);
+    };
+
+  /**
+   * Like List.fold_right, but the initial accumulator is a
+   * function f0 on the final two elements in the tuple list.
+   */
+  let rec fold_right = (f: ('a, 'b) => 'b, xs: t('a), f0: ('a, 'a) => 'b): 'b =>
+    switch (xs) {
+    | Pair(x1, x2) => f0(x1, x2)
+    | Cons(x, xs) => f(x, fold_right(f, xs, f0))
+    };
+
+  let rec zip_eq = (xs: t('a), ys: t('b)): option(t(('a, 'b))) =>
+    switch (xs, ys) {
+    | (Pair(x1, x2), Pair(y1, y2)) => Some(Pair((x1, y1), (x2, y2)))
+    | (Cons(x, xs), Cons(y, ys)) =>
+      switch (zip_eq(xs, ys)) {
+      | None => None
+      | Some(xys) => Some(Cons((x, y), xys))
+      }
+    | _ => None
+    };
+
+  let rec unzip = (xys: t(('a, 'b))): (t('a), t('b)) =>
+    switch (xys) {
+    | Pair((x1, y1), (x2, y2)) => (Pair(x1, x2), Pair(y1, y2))
+    | Cons((x, y), xys) =>
+      let (xs, ys) = unzip(xys);
+      (Cons(x, xs), Cons(y, ys));
+    };
 };

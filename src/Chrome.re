@@ -23,7 +23,7 @@ let view = (model: Model.t) => {
     replace_e,
     _,
   } = model;
-  let pp_view_width = 50;
+  let pp_view_width = 80;
   let prefix = "view";
   let rec mk_editor_box:
     (EditorBox.rev_path, EditorBox.rev_paths, UHExp.t) => EditorBox.t =
@@ -780,18 +780,21 @@ let view = (model: Model.t) => {
     StringMap.add(
       "let_line",
       {
-        serialized: "let y = {} in\n;\nlet x = {} in\nx;\ny\n",
+        serialized: "(Tm NotInHole(LineItem(LetLine(Pat NotInHole(Var y))()(Tm NotInHole(EmptyHole 0)))(Tm NotInHole(LineItem EmptyLine(Tm NotInHole(LineItem(LetLine(Pat NotInHole(Var x))()(Tm NotInHole(EmptyHole 4)))(Tm NotInHole(LineItem(ExpLine(Tm NotInHole(Var NotInVHole x)))(Tm NotInHole(Var NotInVHole y))))))))))",
         desc: "Let with extra lines example",
       },
       StringMap.add(
         "basic_holey",
         {
-          serialized: "(lambda {} : {}. {}) {}\n",
+          serialized: "(Tm NotInHole(OpSeq(BinOp NotInHole Space(Placeholder 0)(Placeholder 1))(ExpOpExp(Parenthesized(Tm NotInHole(Lam(Pat NotInHole(EmptyHole 1))(Hole)(Tm NotInHole(EmptyHole 0)))))Space(Tm NotInHole(EmptyHole 2)))))",
           desc: "Basic holey lambda example",
         },
         StringMap.add(
           "just_hole",
-          {serialized: "{}\n", desc: "Just a hole example"},
+          {
+            serialized: "(Tm NotInHole(EmptyHole 0))",
+            desc: "Just a hole example",
+          },
           StringMap.empty,
         ),
       ),

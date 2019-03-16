@@ -2,131 +2,130 @@ open SemanticsCommon;
 open HazelUtil;
 
 [@deriving show({with_path: false})]
-type steps = list(nat);
+type steps = list(int);
 
 let string_of_steps = HazelUtil.string_of_list(string_of_int);
 
 [@deriving show({with_path: false})]
 type t = (steps, ZExp.cursor_side);
 
-let cons' = (step: nat, r: t): t => {
+let cons' = (step: int, r: t): t => {
   let (steps, side) = r;
   ([step, ...steps], side);
 };
 
 let rec of_ztyp = (zty: ZTyp.t): t =>
   switch (zty) {
-  | ZTyp.CursorT(cursor_side, _) => ([], cursor_side)
-  | ZTyp.ParenthesizedZ(zty1) => cons'(0, of_ztyp(zty1))
-  | ZTyp.ListZ(zty1) => cons'(0, of_ztyp(zty1))
-  | ZTyp.OpSeqZ(_, zty1, surround) =>
+  | CursorT(cursor_side, _) => ([], cursor_side)
+  | ParenthesizedZ(zty1) => cons'(0, of_ztyp(zty1))
+  | ListZ(zty1) => cons'(0, of_ztyp(zty1))
+  | OpSeqZ(_, zty1, surround) =>
     let n = OperatorSeq.surround_prefix_length(surround);
     cons'(n, of_ztyp(zty1));
   };
 
 let rec of_zpat = (zp: ZPat.t): t =>
   switch (zp) {
-  | ZPat.CursorP(cursor_side, _) => ([], cursor_side)
-  | ZPat.Deeper(_, zp') => of_zpat'(zp')
-  | ZPat.ParenthesizedZ(zp1) => cons'(0, of_zpat(zp1))
+  | CursorP(cursor_side, _) => ([], cursor_side)
+  | Deeper(_, zp') => of_zpat'(zp')
+  | ParenthesizedZ(zp1) => cons'(0, of_zpat(zp1))
   }
 and of_zpat' = (zp': ZPat.t'): t =>
   switch (zp') {
-  | ZPat.InjZ(_, zp1) => cons'(0, of_zpat(zp1))
-  | ZPat.OpSeqZ(_, zp1, surround) =>
+  | InjZ(_, zp1) => cons'(0, of_zpat(zp1))
+  | OpSeqZ(_, zp1, surround) =>
     let n = OperatorSeq.surround_prefix_length(surround);
     cons'(n, of_zpat(zp1));
   };
 
 let rec of_zexp = (ze: ZExp.t): t =>
   switch (ze) {
-  | ZExp.CursorE(cursor_side, _) => ([], cursor_side)
-  | ZExp.Deeper(_, ze') => of_zexp'(ze')
-  | ZExp.ParenthesizedZ(ze1) => cons'(0, of_zexp(ze1))
+  | CursorE(cursor_side, _) => ([], cursor_side)
+  | Deeper(_, ze') => of_zexp'(ze')
+  | ParenthesizedZ(ze1) => cons'(0, of_zexp(ze1))
   }
 and of_zexp' = (ze: ZExp.t'): t =>
   switch (ze) {
-  | ZExp.AscZ1(ze', _) => cons'(0, of_zexp(ze'))
-  | ZExp.AscZ2(_, zty) => cons'(1, of_ztyp(zty))
-  | ZExp.LineItemZL(zli, _) => cons'(0, of_zline_item(zli))
-  | ZExp.LineItemZE(_, ze) => cons'(1, of_zexp(ze))
-  | ZExp.LamZP(zp, _, _) => cons'(0, of_zpat(zp))
-  | ZExp.LamZA(_, zann, _) => cons'(1, of_ztyp(zann))
-  | ZExp.LamZE(_, ann, ze') => cons'(2, of_zexp(ze'))
-  | ZExp.InjZ(_, ze') => cons'(0, of_zexp(ze'))
-  | ZExp.CaseZE(ze1, _) => cons'(0, of_zexp(ze1))
-  | ZExp.CaseZR(_, zrules) =>
+  | LineItemZL(zli, _) => cons'(0, of_zline_item(zli))
+  | LineItemZE(_, ze) => cons'(1, of_zexp(ze))
+  | LamZP(zp, _, _) => cons'(0, of_zpat(zp))
+  | LamZA(_, zann, _) => cons'(1, of_ztyp(zann))
+  | LamZE(_, ann, ze') => cons'(2, of_zexp(ze'))
+  | InjZ(_, ze') => cons'(0, of_zexp(ze'))
+  | CaseZE(ze1, _, _) => cons'(0, of_zexp(ze1))
+  | CaseZR(_, zrules, _) =>
     let prefix_len = List.length(ZList.prj_prefix(zrules));
     let zrule = ZList.prj_z(zrules);
     cons'(prefix_len + 1, of_zrule(zrule));
-  | ZExp.OpSeqZ(_, ze', surround) =>
+  | CaseZA(_, rules, zann) => cons'(List.length(rules) + 1, of_ztyp(zann))
+  | OpSeqZ(_, ze', surround) =>
     let n = OperatorSeq.surround_prefix_length(surround);
     cons'(n, of_zexp(ze'));
-  | ZExp.ApPaletteZ(_, _, zpsi) =>
+  | ApPaletteZ(_, _, zpsi) =>
     let zhole_map = zpsi.zsplice_map;
     let (n, (_, ze)) = ZNatMap.prj_z_kv(zhole_map);
     cons'(n, of_zexp(ze));
   }
 and of_zline_item = (zli: ZExp.zline_item): t =>
   switch (zli) {
-  | ZExp.CursorL(side, _) => ([], side)
-  | ZExp.DeeperL(zli') => of_zline_item'(zli')
+  | CursorL(side, _) => ([], side)
+  | DeeperL(zli') => of_zline_item'(zli')
   }
 and of_zline_item' = (zli': ZExp.zline_item'): t =>
   switch (zli') {
-  | ZExp.ExpLineZ(ze) => cons'(0, of_zexp(ze))
-  | ZExp.LetLineZP(zp, _, _) => cons'(0, of_zpat(zp))
-  | ZExp.LetLineZA(_, zann, _) => cons'(1, of_ztyp(zann))
-  | ZExp.LetLineZE(_, _, ze) => cons'(2, of_zexp(ze))
+  | ExpLineZ(ze) => cons'(0, of_zexp(ze))
+  | LetLineZP(zp, _, _) => cons'(0, of_zpat(zp))
+  | LetLineZA(_, zann, _) => cons'(1, of_ztyp(zann))
+  | LetLineZE(_, _, ze) => cons'(2, of_zexp(ze))
   }
 and of_zrule = (zrule: ZExp.zrule): t =>
   switch (zrule) {
-  | ZExp.RuleZP(zp, _) => cons'(0, of_zpat(zp))
-  | ZExp.RuleZE(_, ze) => cons'(1, of_zexp(ze))
+  | RuleZP(zp, _) => cons'(0, of_zpat(zp))
+  | RuleZE(_, ze) => cons'(1, of_zexp(ze))
   };
 
-let of_OpSeqZ = (ze: ZExp.t, surround: ZExp.opseq_surround) => {
+let of_OpSeqZ = (ze: ZExp.t, surround: ZExp.opseq_surround): t => {
   let n = OperatorSeq.surround_prefix_length(surround);
   cons'(n, of_zexp(ze));
 };
 
-let of_OpSeqZ_pat = (zp: ZPat.t, surround: ZPat.opseq_surround) => {
+let of_OpSeqZ_pat = (zp: ZPat.t, surround: ZPat.opseq_surround): t => {
   let n = OperatorSeq.surround_prefix_length(surround);
   cons'(n, of_zpat(zp));
 };
 
 let rec follow_ty = (path: t, uty: UHTyp.t): option(ZTyp.t) =>
   switch (path) {
-  | ([], cursor_side) => Some(ZTyp.CursorT(cursor_side, uty))
+  | ([], cursor_side) => Some(CursorT(cursor_side, uty))
   | ([x, ...xs], cursor_side) =>
     switch (uty) {
-    | UHTyp.Hole
-    | UHTyp.Unit
-    | UHTyp.Num
-    | UHTyp.Bool => None
-    | UHTyp.Parenthesized(uty1) =>
+    | Hole
+    | Unit
+    | Num
+    | Bool => None
+    | Parenthesized(uty1) =>
       switch (x) {
       | 0 =>
         switch (follow_ty((xs, cursor_side), uty1)) {
-        | Some(zty) => Some(ZTyp.ParenthesizedZ(zty))
+        | Some(zty) => Some(ParenthesizedZ(zty))
         | None => None
         }
       | _ => None
       }
-    | UHTyp.List(uty1) =>
+    | List(uty1) =>
       switch (x) {
       | 0 =>
         switch (follow_ty((xs, cursor_side), uty1)) {
         | None => None
-        | Some(zty) => Some(ZTyp.ListZ(zty))
+        | Some(zty) => Some(ListZ(zty))
         }
       | _ => None
       }
-    | UHTyp.OpSeq(skel, seq) =>
+    | OpSeq(skel, seq) =>
       switch (OperatorSeq.split(x, seq)) {
       | Some((uty_n, surround)) =>
         switch (follow_ty((xs, cursor_side), uty_n)) {
-        | Some(zty_n) => Some(ZTyp.OpSeqZ(skel, zty_n, surround))
+        | Some(zty_n) => Some(OpSeqZ(skel, zty_n, surround))
         | None => None
         }
       | None => None
@@ -134,41 +133,47 @@ let rec follow_ty = (path: t, uty: UHTyp.t): option(ZTyp.t) =>
     }
   };
 
+exception UHTypeNodeNotFound(t, UHTyp.t);
+let follow_ty_or_fail = (path: t, uty: UHTyp.t): ZTyp.t =>
+  switch (follow_ty(path, uty)) {
+  | None => raise(UHTypeNodeNotFound(path, uty))
+  | Some(zty) => zty
+  };
+
 let rec follow_pat = (path: t, p: UHPat.t): option(ZPat.t) =>
   switch (path) {
-  | ([], cursor_side) => Some(ZPat.CursorP(cursor_side, p))
+  | ([], cursor_side) => Some(CursorP(cursor_side, p))
   | ([x, ...xs], cursor_side) =>
     switch (p) {
-    | UHPat.Parenthesized(p1) =>
+    | Parenthesized(p1) =>
       switch (x) {
       | 0 =>
         switch (follow_pat((xs, cursor_side), p1)) {
         | None => None
-        | Some(zp1) => Some(ZPat.ParenthesizedZ(zp1))
+        | Some(zp1) => Some(ParenthesizedZ(zp1))
         }
       | _ => None
       }
-    | UHPat.Pat(err_status, p') =>
+    | Pat(err_status, p') =>
       switch (x, p') {
-      | (_, UHPat.EmptyHole(_))
-      | (_, UHPat.Wild)
-      | (_, UHPat.Var(_))
-      | (_, UHPat.NumLit(_))
-      | (_, UHPat.BoolLit(_))
-      | (_, UHPat.ListNil) => None
-      | (0, UHPat.Inj(side, p1)) =>
+      | (_, EmptyHole(_))
+      | (_, Wild)
+      | (_, Var(_))
+      | (_, NumLit(_))
+      | (_, BoolLit(_))
+      | (_, ListNil) => None
+      | (0, Inj(side, p1)) =>
         switch (follow_pat((xs, cursor_side), p1)) {
         | None => None
-        | Some(zp1) => Some(ZPat.Deeper(err_status, ZPat.InjZ(side, zp1)))
+        | Some(zp1) => Some(Deeper(err_status, InjZ(side, zp1)))
         }
-      | (_, UHPat.Inj(_, _)) => None
-      | (n, UHPat.OpSeq(skel, seq)) =>
+      | (_, Inj(_, _)) => None
+      | (n, OpSeq(skel, seq)) =>
         switch (OperatorSeq.split(n, seq)) {
         | None => None
         | Some((p, surround)) =>
           switch (follow_pat((xs, cursor_side), p)) {
-          | Some(zp) =>
-            Some(ZPat.Deeper(err_status, ZPat.OpSeqZ(skel, zp, surround)))
+          | Some(zp) => Some(Deeper(err_status, OpSeqZ(skel, zp, surround)))
           | None => None
           }
         }
@@ -176,84 +181,86 @@ let rec follow_pat = (path: t, p: UHPat.t): option(ZPat.t) =>
     }
   };
 
+exception UHPatNodeNotFound(t, UHPat.t);
+let follow_pat_or_fail = (path: t, p: UHPat.t): ZPat.t =>
+  switch (follow_pat(path, p)) {
+  | None => raise(UHPatNodeNotFound(path, p))
+  | Some(zp) => zp
+  };
+
 let rec follow_e = (path: t, e: UHExp.t): option(ZExp.t) =>
   switch (path) {
-  | ([], cursor_side) => Some(ZExp.CursorE(cursor_side, e))
+  | ([], cursor_side) => Some(CursorE(cursor_side, e))
   | ([x, ...xs], cursor_side) =>
     switch (e) {
-    | UHExp.Parenthesized(e1) =>
+    | Parenthesized(e1) =>
       switch (x) {
       | 0 =>
         switch (follow_e((xs, cursor_side), e1)) {
-        | Some(ze1) => Some(ZExp.ParenthesizedZ(ze1))
+        | Some(ze1) => Some(ParenthesizedZ(ze1))
         | None => None
         }
       | _ => None
       }
-    | UHExp.Tm(err_status, e) =>
+    | Tm(err_status, e) =>
       switch (x, e) {
-      | (_, UHExp.EmptyHole(_)) => None
-      | (0, UHExp.Asc(e1, ty)) =>
-        switch (follow_e((xs, cursor_side), e1)) {
-        | Some(ze) => Some(ZExp.Deeper(err_status, ZExp.AscZ1(ze, ty)))
-        | None => None
-        }
-      | (1, UHExp.Asc(e1, ty)) =>
-        switch (follow_ty((xs, cursor_side), ty)) {
-        | Some(ztau) => Some(ZExp.Deeper(err_status, ZExp.AscZ2(e1, ztau)))
-        | None => None
-        }
-      | (_, UHExp.Asc(_, _)) => None
-      | (_, UHExp.Var(_, _)) => None
-      | (0, UHExp.LineItem(li, e1)) =>
+      | (_, EmptyHole(_)) => None
+      | (_, Var(_, _)) => None
+      | (0, LineItem(li, e1)) =>
         switch (follow_line_item((xs, cursor_side), li)) {
         | None => None
-        | Some(zli) =>
-          Some(ZExp.Deeper(err_status, ZExp.LineItemZL(zli, e1)))
+        | Some(zli) => Some(Deeper(err_status, LineItemZL(zli, e1)))
         }
-      | (1, UHExp.LineItem(li, e1)) =>
+      | (1, LineItem(li, e1)) =>
         switch (follow_e((xs, cursor_side), e1)) {
         | None => None
-        | Some(ze1) =>
-          Some(ZExp.Deeper(err_status, ZExp.LineItemZE(li, ze1)))
+        | Some(ze1) => Some(Deeper(err_status, LineItemZE(li, ze1)))
         }
-      | (_, UHExp.LineItem(_, _)) => None
-      | (0, UHExp.Lam(p, ann, e1)) =>
+      | (_, LineItem(_, _)) => None
+      | (0, Lam(p, ann, e1)) =>
         switch (follow_pat((xs, cursor_side), p)) {
         | None => None
-        | Some(zp) => Some(ZExp.Deeper(err_status, ZExp.LamZP(zp, ann, e1)))
+        | Some(zp) => Some(Deeper(err_status, LamZP(zp, ann, e1)))
         }
-      | (1, UHExp.Lam(p, ann, e1)) =>
+      | (1, Lam(p, ann, e1)) =>
         switch (ann) {
         | None => None
         | Some(ann_ty) =>
           switch (follow_ty((xs, cursor_side), ann_ty)) {
           | None => None
-          | Some(zann) =>
-            Some(ZExp.Deeper(err_status, ZExp.LamZA(p, zann, e1)))
+          | Some(zann) => Some(Deeper(err_status, LamZA(p, zann, e1)))
           }
         }
-      | (2, UHExp.Lam(p, ann, e1)) =>
+      | (2, Lam(p, ann, e1)) =>
         switch (follow_e((xs, cursor_side), e1)) {
         | None => None
-        | Some(ze) => Some(ZExp.Deeper(err_status, ZExp.LamZE(p, ann, ze)))
+        | Some(ze) => Some(Deeper(err_status, LamZE(p, ann, ze)))
         }
-      | (_, UHExp.Lam(_, _, _)) => None
-      | (_, UHExp.NumLit(_)) => None
-      | (_, UHExp.BoolLit(_)) => None
-      | (0, UHExp.Inj(side, e1)) =>
+      | (_, Lam(_, _, _)) => None
+      | (_, NumLit(_)) => None
+      | (_, BoolLit(_)) => None
+      | (0, Inj(side, e1)) =>
         switch (follow_e((xs, cursor_side), e1)) {
-        | Some(ze) => Some(ZExp.Deeper(err_status, ZExp.InjZ(side, ze)))
+        | Some(ze) => Some(Deeper(err_status, InjZ(side, ze)))
         | None => None
         }
-      | (_, UHExp.Inj(_, _)) => None
-      | (_, UHExp.ListNil) => None
-      | (0, UHExp.Case(e1, rules)) =>
+      | (_, Inj(_, _)) => None
+      | (_, ListNil) => None
+      | (0, Case(e1, rules, ann)) =>
         switch (follow_e((xs, cursor_side), e1)) {
-        | Some(ze) => Some(ZExp.Deeper(err_status, ZExp.CaseZE(ze, rules)))
+        | Some(ze) => Some(Deeper(err_status, CaseZE(ze, rules, ann)))
         | None => None
         }
-      | (x, UHExp.Case(e1, rules)) =>
+      | (x, Case(e1, rules, ann)) when x === List.length(rules) + 1 =>
+        switch (ann) {
+        | None => None
+        | Some(ty) =>
+          switch (follow_ty((xs, cursor_side), ty)) {
+          | None => None
+          | Some(zann) => Some(Deeper(err_status, CaseZA(e1, rules, zann)))
+          }
+        }
+      | (x, Case(e1, rules, ann)) =>
         switch (ZList.split_at(x - 1, rules)) {
         | None => None
         | Some(split_rules) =>
@@ -262,20 +269,19 @@ let rec follow_e = (path: t, e: UHExp.t): option(ZExp.t) =>
           ) {
           | None => None
           | Some(zrules) =>
-            Some(ZExp.Deeper(err_status, ZExp.CaseZR(e1, zrules)))
+            Some(Deeper(err_status, CaseZR(e1, zrules, ann)))
           }
         }
-      | (n, UHExp.OpSeq(skel, seq)) =>
+      | (n, OpSeq(skel, seq)) =>
         switch (OperatorSeq.split(n, seq)) {
         | Some((e, surround)) =>
           switch (follow_e((xs, cursor_side), e)) {
-          | Some(ze) =>
-            Some(ZExp.Deeper(err_status, ZExp.OpSeqZ(skel, ze, surround)))
+          | Some(ze) => Some(Deeper(err_status, OpSeqZ(skel, ze, surround)))
           | None => None
           }
         | None => None
         }
-      | (n, UHExp.ApPalette(name, serialized_model, splice_info)) =>
+      | (n, ApPalette(name, serialized_model, splice_info)) =>
         switch (
           ZSpliceInfo.select_opt(splice_info, n, ((ty, e)) =>
             switch (follow_e((xs, cursor_side), e)) {
@@ -287,9 +293,9 @@ let rec follow_e = (path: t, e: UHExp.t): option(ZExp.t) =>
         | None => None
         | Some(zsplice_info) =>
           Some(
-            ZExp.Deeper(
+            Deeper(
               NotInHole,
-              ZExp.ApPaletteZ(name, serialized_model, zsplice_info),
+              ApPaletteZ(name, serialized_model, zsplice_info),
             ),
           )
         }
@@ -299,52 +305,59 @@ let rec follow_e = (path: t, e: UHExp.t): option(ZExp.t) =>
 and follow_line_item =
     (path: t, li: UHExp.line_item): option(ZExp.zline_item) =>
   switch (path, li) {
-  | (([], cursor_side), li) => Some(ZExp.CursorL(cursor_side, li))
-  | (_, UHExp.EmptyLine) => None
-  | (([0, ...xs], cursor_side), UHExp.ExpLine(e)) =>
+  | (([], cursor_side), li) => Some(CursorL(cursor_side, li))
+  | (_, EmptyLine) => None
+  | (([0, ...xs], cursor_side), ExpLine(e)) =>
     switch (follow_e((xs, cursor_side), e)) {
     | None => None
-    | Some(ze) => Some(ZExp.DeeperL(ZExp.ExpLineZ(ze)))
+    | Some(ze) => Some(DeeperL(ExpLineZ(ze)))
     }
-  | (_, UHExp.ExpLine(_)) => None
-  | (([0, ...xs], cursor_side), UHExp.LetLine(p, ann, e1)) =>
+  | (_, ExpLine(_)) => None
+  | (([0, ...xs], cursor_side), LetLine(p, ann, e1)) =>
     switch (follow_pat((xs, cursor_side), p)) {
     | None => None
-    | Some(zp) => Some(ZExp.DeeperL(ZExp.LetLineZP(zp, ann, e1)))
+    | Some(zp) => Some(DeeperL(LetLineZP(zp, ann, e1)))
     }
-  | (([1, ...xs], cursor_side), UHExp.LetLine(p, ann, e1)) =>
+  | (([1, ...xs], cursor_side), LetLine(p, ann, e1)) =>
     switch (ann) {
     | None => None
     | Some(ann_ty) =>
       switch (follow_ty((xs, cursor_side), ann_ty)) {
       | None => None
-      | Some(zann) => Some(ZExp.DeeperL(ZExp.LetLineZA(p, zann, e1)))
+      | Some(zann) => Some(DeeperL(LetLineZA(p, zann, e1)))
       }
     }
-  | (([2, ...xs], cursor_side), UHExp.LetLine(p, ann, e1)) =>
+  | (([2, ...xs], cursor_side), LetLine(p, ann, e1)) =>
     switch (follow_e((xs, cursor_side), e1)) {
     | None => None
-    | Some(ze1) => Some(ZExp.DeeperL(ZExp.LetLineZE(p, ann, ze1)))
+    | Some(ze1) => Some(DeeperL(LetLineZE(p, ann, ze1)))
     }
-  | (_, UHExp.LetLine(_, _, _)) => None
+  | (_, LetLine(_, _, _)) => None
   }
 and follow_rule = (path: t, rule: UHExp.rule): option(ZExp.zrule) =>
   switch (rule) {
-  | UHExp.Rule(p, e) =>
+  | Rule(p, e) =>
     switch (path) {
     | ([], _) => None
     | ([0, ...xs], cursor_side) =>
       switch (follow_pat((xs, cursor_side), p)) {
       | None => None
-      | Some(zp) => Some(ZExp.RuleZP(zp, e))
+      | Some(zp) => Some(RuleZP(zp, e))
       }
     | ([1, ...xs], cursor_side) =>
       switch (follow_e((xs, cursor_side), e)) {
       | None => None
-      | Some(ze) => Some(ZExp.RuleZE(p, ze))
+      | Some(ze) => Some(RuleZE(p, ze))
       }
     | ([_, ..._], _) => None
     }
+  };
+
+exception UHExpNodeNotFound(t, UHExp.t);
+let follow_e_or_fail = (path: t, e: UHExp.t): ZExp.t =>
+  switch (follow_e(path, e)) {
+  | None => raise(UHExpNodeNotFound(path, e))
+  | Some(ze) => ze
   };
 
 type hole_desc =
@@ -360,18 +373,26 @@ let string_of_hole_desc =
 
 type hole_list = list((hole_desc, steps));
 
-let string_of_hole_list = hole_list =>
+let string_of_hole_list = (hole_list: hole_list): string =>
   HazelUtil.string_of_list(
     HazelUtil.string_of_pair(string_of_hole_desc, string_of_steps),
     hole_list,
   );
 
-let rec holes_seq = (seq, holes_tm, offset, steps, holes): hole_list =>
+let rec holes_seq =
+        (
+          seq: OperatorSeq.opseq('tm, 'op),
+          holes_tm: ('tm, steps, hole_list) => hole_list,
+          offset: int,
+          steps: steps,
+          holes: hole_list,
+        )
+        : hole_list =>
   switch (seq) {
-  | OperatorSeq.ExpOpExp(e1, _, e2) =>
+  | ExpOpExp(e1, _, e2) =>
     let holes = holes_tm(e2, [offset + 1, ...steps], holes);
     holes_tm(e1, [offset, ...steps], holes);
-  | OperatorSeq.SeqOpExp(seq1, op, e2) =>
+  | SeqOpExp(seq1, op, e2) =>
     let holes =
       holes_tm(
         e2,
@@ -381,44 +402,40 @@ let rec holes_seq = (seq, holes_tm, offset, steps, holes): hole_list =>
     holes_seq(seq1, holes_tm, offset, steps, holes);
   };
 
-let rec holes_uty = (uty, steps, holes): hole_list =>
+let rec holes_uty = (uty: UHTyp.t, steps: steps, holes: hole_list): hole_list =>
   switch (uty) {
-  | UHTyp.Parenthesized(uty1) => holes_uty(uty1, [0, ...steps], holes)
-  | UHTyp.Hole => [(TypeHole, steps), ...holes]
-  | UHTyp.Unit => holes
-  | UHTyp.Num => holes
-  | UHTyp.Bool => holes
-  | UHTyp.List(uty1) => holes_uty(uty1, [0, ...steps], holes)
-  | UHTyp.OpSeq(_, seq) => holes_seq(seq, holes_uty, 0, steps, holes)
+  | Parenthesized(uty1) => holes_uty(uty1, [0, ...steps], holes)
+  | Hole => [(TypeHole, steps), ...holes]
+  | Unit => holes
+  | Num => holes
+  | Bool => holes
+  | List(uty1) => holes_uty(uty1, [0, ...steps], holes)
+  | OpSeq(_, seq) => holes_seq(seq, holes_uty, 0, steps, holes)
   };
 
-let rec holes_pat = (p, steps, holes): hole_list =>
+let rec holes_pat = (p: UHPat.t, steps: steps, holes: hole_list): hole_list =>
   switch (p) {
-  | UHPat.Parenthesized(p1) => holes_pat(p1, [0, ...steps], holes)
-  | UHPat.Pat(_, UHPat.EmptyHole(u)) => [(PatHole(u), steps), ...holes]
-  | UHPat.Pat(_, UHPat.Wild) => holes
-  | UHPat.Pat(_, UHPat.Var(_)) => holes
-  | UHPat.Pat(_, UHPat.NumLit(_)) => holes
-  | UHPat.Pat(_, UHPat.BoolLit(_)) => holes
-  | UHPat.Pat(_, UHPat.ListNil) => holes
-  | UHPat.Pat(_, UHPat.Inj(_, p1)) => holes_pat(p1, [0, ...steps], holes)
-  | UHPat.Pat(_, UHPat.OpSeq(skel, seq)) =>
-    holes_seq(seq, holes_pat, 0, steps, holes)
+  | Parenthesized(p1) => holes_pat(p1, [0, ...steps], holes)
+  | Pat(_, EmptyHole(u)) => [(PatHole(u), steps), ...holes]
+  | Pat(_, Wild) => holes
+  | Pat(_, Var(_)) => holes
+  | Pat(_, NumLit(_)) => holes
+  | Pat(_, BoolLit(_)) => holes
+  | Pat(_, ListNil) => holes
+  | Pat(_, Inj(_, p1)) => holes_pat(p1, [0, ...steps], holes)
+  | Pat(_, OpSeq(skel, seq)) => holes_seq(seq, holes_pat, 0, steps, holes)
   };
 
-let rec holes_e = (e, steps, holes): hole_list =>
+let rec holes_e = (e: UHExp.t, steps: steps, holes: hole_list): hole_list =>
   switch (e) {
-  | UHExp.Parenthesized(e1) => holes_e(e1, [0, ...steps], holes)
-  | UHExp.Tm(_, UHExp.EmptyHole(u)) => [(ExpHole(u), steps), ...holes]
-  | UHExp.Tm(_, UHExp.Var(_, _)) => holes
-  | UHExp.Tm(_, UHExp.NumLit(_)) => holes
-  | UHExp.Tm(_, UHExp.BoolLit(_)) => holes
-  | UHExp.Tm(_, UHExp.Asc(e1, uty)) =>
-    let holes = holes_uty(uty, [1, ...steps], holes);
-    holes_e(e1, [0, ...steps], holes);
-  | UHExp.Tm(_, UHExp.Inj(_, e1)) => holes_e(e1, [0, ...steps], holes)
-  | UHExp.Tm(_, UHExp.ListNil) => holes
-  | UHExp.Tm(_, UHExp.Lam(p, ann, e1)) =>
+  | Parenthesized(e1) => holes_e(e1, [0, ...steps], holes)
+  | Tm(_, EmptyHole(u)) => [(ExpHole(u), steps), ...holes]
+  | Tm(_, Var(_, _)) => holes
+  | Tm(_, NumLit(_)) => holes
+  | Tm(_, BoolLit(_)) => holes
+  | Tm(_, Inj(_, e1)) => holes_e(e1, [0, ...steps], holes)
+  | Tm(_, ListNil) => holes
+  | Tm(_, Lam(p, ann, e1)) =>
     let holes = holes_e(e1, [2, ...steps], holes);
     let holes =
       switch (ann) {
@@ -426,15 +443,20 @@ let rec holes_e = (e, steps, holes): hole_list =>
       | None => holes
       };
     holes_pat(p, [0, ...steps], holes);
-  | UHExp.Tm(_, UHExp.LineItem(li, e2)) =>
+  | Tm(_, LineItem(li, e2)) =>
     let holes = holes_e(e2, [1, ...steps], holes);
     holes_line_item(li, [0, ...steps], holes);
-  | UHExp.Tm(_, UHExp.Case(e1, rules)) =>
+  | Tm(_, Case(e1, rules, ann)) =>
+    let holes =
+      switch (ann) {
+      | None => holes
+      | Some(uty) =>
+        holes_uty(uty, [List.length(rules) + 1, ...steps], holes)
+      };
     let holes = holes_rules(rules, 0, steps, holes);
     holes_e(e1, [0, ...steps], holes);
-  | UHExp.Tm(_, UHExp.OpSeq(skel, seq)) =>
-    holes_seq(seq, holes_e, 0, steps, holes)
-  | UHExp.Tm(_, UHExp.ApPalette(_, _, psi)) =>
+  | Tm(_, OpSeq(skel, seq)) => holes_seq(seq, holes_e, 0, steps, holes)
+  | Tm(_, ApPalette(_, _, psi)) =>
     let splice_map = psi.splice_map;
     let splice_order = psi.splice_order;
     List.fold_right(
@@ -447,11 +469,12 @@ let rec holes_e = (e, steps, holes): hole_list =>
       holes,
     );
   }
-and holes_line_item = (li, steps, holes) =>
+and holes_line_item =
+    (li: UHExp.line_item, steps: steps, holes: hole_list): hole_list =>
   switch (li) {
-  | UHExp.EmptyLine => holes
-  | UHExp.ExpLine(e1) => holes_e(e1, steps, holes)
-  | UHExp.LetLine(p, ann, e1) =>
+  | EmptyLine => holes
+  | ExpLine(e1) => holes_e(e1, steps, holes)
+  | LetLine(p, ann, e1) =>
     let holes = holes_e(e1, [2, ...steps], holes);
     let holes =
       switch (ann) {
@@ -460,7 +483,9 @@ and holes_line_item = (li, steps, holes) =>
       };
     holes_pat(p, [0, ...steps], holes);
   }
-and holes_rules = (rules, offset, steps, holes) => {
+and holes_rules =
+    (rules: UHExp.rules, offset: int, steps: steps, holes: hole_list)
+    : hole_list => {
   let (_, holes) =
     List.fold_right(
       (UHExp.Rule(p, e), (i, holes)) => {
@@ -497,31 +522,42 @@ let string_of_zhole_list = ({holes_before, hole_selected, holes_after}) =>
 
 let no_holes = {holes_before: [], hole_selected: None, holes_after: []};
 
-let holes_prefix = (holes_fn, prefix, steps): hole_list =>
+let holes_prefix =
+    (
+      holes_fn: ('tm, steps, hole_list) => hole_list,
+      prefix: OperatorSeq.opseq_prefix('tm, 'op),
+      steps: steps,
+    )
+    : hole_list =>
   switch (prefix) {
-  | OperatorSeq.ExpPrefix(e, _) => holes_fn(e, [0, ...steps], [])
-  | OperatorSeq.SeqPrefix(seq, _) => holes_seq(seq, holes_fn, 0, steps, [])
+  | ExpPrefix(e, _) => holes_fn(e, [0, ...steps], [])
+  | SeqPrefix(seq, _) => holes_seq(seq, holes_fn, 0, steps, [])
   };
 
-let holes_suffix = (holes_fn, suffix, prefix_len, steps): hole_list =>
+let holes_suffix =
+    (
+      holes_fn: ('tm, steps, hole_list) => hole_list,
+      suffix: OperatorSeq.opseq_suffix('tm, 'op),
+      prefix_len: int,
+      steps: steps,
+    )
+    : hole_list =>
   switch (suffix) {
-  | OperatorSeq.ExpSuffix(_, e) =>
-    holes_fn(e, [prefix_len + 1, ...steps], [])
-  | OperatorSeq.SeqSuffix(_, seq) =>
-    holes_seq(seq, holes_fn, prefix_len + 1, steps, [])
+  | ExpSuffix(_, e) => holes_fn(e, [prefix_len + 1, ...steps], [])
+  | SeqSuffix(_, seq) => holes_seq(seq, holes_fn, prefix_len + 1, steps, [])
   };
 
-let holes_surround = (holes_fn, surround, steps): (hole_list, hole_list) =>
+let holes_surround =
+    (
+      holes_fn: ('tm, steps, hole_list) => hole_list,
+      surround: OperatorSeq.opseq_surround('tm, 'op),
+      steps: steps,
+    )
+    : (hole_list, hole_list) =>
   switch (surround) {
-  | OperatorSeq.EmptyPrefix(suffix) => (
-      [],
-      holes_suffix(holes_fn, suffix, 0, steps),
-    )
-  | OperatorSeq.EmptySuffix(prefix) => (
-      holes_prefix(holes_fn, prefix, steps),
-      [],
-    )
-  | OperatorSeq.BothNonEmpty(prefix, suffix) =>
+  | EmptyPrefix(suffix) => ([], holes_suffix(holes_fn, suffix, 0, steps))
+  | EmptySuffix(prefix) => (holes_prefix(holes_fn, prefix, steps), [])
+  | BothNonEmpty(prefix, suffix) =>
     let prefix_len = OperatorSeq.prefix_length(prefix);
     (
       holes_prefix(holes_fn, prefix, steps),
@@ -529,7 +565,15 @@ let holes_surround = (holes_fn, surround, steps): (hole_list, hole_list) =>
     );
   };
 
-let holes_OpSeqZ = (holes_fn, zholes_fn, z0, surround, steps) => {
+let holes_OpSeqZ =
+    (
+      holes_fn: ('tm, steps, hole_list) => hole_list,
+      zholes_fn: ('ztm, steps) => zhole_list,
+      z0: 'ztm,
+      surround: OperatorSeq.opseq_surround('tm, 'op),
+      steps: steps,
+    )
+    : zhole_list => {
   let (holes_prefix, holes_suffix) =
     holes_surround(holes_fn, surround, steps);
   let prefix_len = OperatorSeq.surround_prefix_length(surround);
@@ -540,11 +584,11 @@ let holes_OpSeqZ = (holes_fn, zholes_fn, z0, surround, steps) => {
   {holes_before, hole_selected, holes_after};
 };
 
-let rec holes_zty = (zty, steps): zhole_list =>
+let rec holes_zty = (zty: ZTyp.t, steps: steps): zhole_list =>
   switch (zty) {
-  | ZTyp.CursorT(cursor_side, uty) =>
+  | CursorT(cursor_side, uty) =>
     switch (cursor_side, uty) {
-    | (_, UHTyp.Hole) => {
+    | (_, Hole) => {
         holes_before: [],
         hole_selected: Some((TypeHole, steps)),
         holes_after: [],
@@ -561,30 +605,30 @@ let rec holes_zty = (zty, steps): zhole_list =>
       }
     | (In(_), _) =>
       switch (uty) {
-      | UHTyp.Parenthesized(_)
-      | UHTyp.Hole
-      | UHTyp.Unit
-      | UHTyp.Num
-      | UHTyp.Bool
-      | UHTyp.OpSeq(_, _) => no_holes
-      | UHTyp.List(uty1) => {
+      | Parenthesized(_)
+      | Hole
+      | Unit
+      | Num
+      | Bool
+      | OpSeq(_, _) => no_holes
+      | List(uty1) => {
           holes_before: [],
           hole_selected: None,
           holes_after: holes_uty(uty1, steps, []),
         }
       }
     }
-  | ZTyp.ParenthesizedZ(zty1) => holes_zty(zty1, [0, ...steps])
-  | ZTyp.ListZ(zty1) => holes_zty(zty1, [0, ...steps])
-  | ZTyp.OpSeqZ(_, zty0, surround) =>
+  | ParenthesizedZ(zty1) => holes_zty(zty1, [0, ...steps])
+  | ListZ(zty1) => holes_zty(zty1, [0, ...steps])
+  | OpSeqZ(_, zty0, surround) =>
     holes_OpSeqZ(holes_uty, holes_zty, zty0, surround, steps)
   };
 
-let rec holes_zpat = (zp, steps): zhole_list =>
+let rec holes_zpat = (zp: ZPat.t, steps: steps): zhole_list =>
   switch (zp) {
-  | ZPat.CursorP(cursor_side, p) =>
+  | CursorP(cursor_side, p) =>
     switch (cursor_side, p) {
-    | (_, UHPat.Pat(_, UHPat.EmptyHole(u))) => {
+    | (_, Pat(_, EmptyHole(u))) => {
         holes_before: [],
         hole_selected: Some((PatHole(u), steps)),
         holes_after: [],
@@ -601,17 +645,17 @@ let rec holes_zpat = (zp, steps): zhole_list =>
       }
     | (In(_), _) =>
       switch (p) {
-      | UHPat.Parenthesized(_) => no_holes
-      | UHPat.Pat(_, p') =>
+      | Parenthesized(_) => no_holes
+      | Pat(_, p') =>
         switch (p') {
-        | UHPat.Wild
-        | UHPat.Var(_)
-        | UHPat.NumLit(_)
-        | UHPat.BoolLit(_)
-        | UHPat.ListNil
-        | UHPat.OpSeq(_, _)
-        | UHPat.EmptyHole(_) => no_holes
-        | UHPat.Inj(_, p1) => {
+        | Wild
+        | Var(_)
+        | NumLit(_)
+        | BoolLit(_)
+        | ListNil
+        | OpSeq(_, _)
+        | EmptyHole(_) => no_holes
+        | Inj(_, p1) => {
             holes_before: [],
             hole_selected: None,
             holes_after: holes_pat(p1, [0, ...steps], []),
@@ -619,18 +663,18 @@ let rec holes_zpat = (zp, steps): zhole_list =>
         }
       }
     }
-  | ZPat.ParenthesizedZ(zp1) => holes_zpat(zp1, [0, ...steps])
-  | ZPat.Deeper(_, ZPat.InjZ(_, zp1)) => holes_zpat(zp1, [0, ...steps])
-  | ZPat.Deeper(_, ZPat.OpSeqZ(_, zp1, surround)) =>
+  | ParenthesizedZ(zp1) => holes_zpat(zp1, [0, ...steps])
+  | Deeper(_, InjZ(_, zp1)) => holes_zpat(zp1, [0, ...steps])
+  | Deeper(_, OpSeqZ(_, zp1, surround)) =>
     holes_OpSeqZ(holes_pat, holes_zpat, zp1, surround, steps)
   };
 
-let rec holes_ze = (ze, steps): zhole_list =>
+let rec holes_ze = (ze: ZExp.t, steps: steps): zhole_list =>
   switch (ze) {
-  | ZExp.ParenthesizedZ(ze1) => holes_ze(ze1, [0, ...steps])
-  | ZExp.CursorE(cursor_side, e) =>
+  | ParenthesizedZ(ze1) => holes_ze(ze1, [0, ...steps])
+  | CursorE(cursor_side, e) =>
     switch (cursor_side, e) {
-    | (_, UHExp.Tm(_, UHExp.EmptyHole(u))) => {
+    | (_, Tm(_, EmptyHole(u))) => {
         holes_before: [],
         hole_selected: Some((ExpHole(u), steps)),
         holes_after: [],
@@ -647,74 +691,58 @@ let rec holes_ze = (ze, steps): zhole_list =>
       }
     | (In(k), _) =>
       switch (e) {
-      | UHExp.Parenthesized(_) => no_holes
-      | UHExp.Tm(err, ue') =>
+      | Parenthesized(_) => no_holes
+      | Tm(err, ue') =>
         switch (ue') {
-        | UHExp.Asc(e1, uty) => {
-            holes_before: holes_e(e1, [0, ...steps], []),
-            hole_selected: None,
-            holes_after: holes_uty(uty, [1, ...steps], []),
-          }
-        | UHExp.NumLit(_)
-        | UHExp.BoolLit(_)
-        | UHExp.ListNil
-        | UHExp.Var(_, _)
-        | UHExp.EmptyHole(_)
-        | UHExp.OpSeq(_, _) => no_holes
-        | UHExp.Inj(_, _)
-        | UHExp.LineItem(_, _)
-        | UHExp.Lam(_, _, _) => {
+        | NumLit(_)
+        | BoolLit(_)
+        | ListNil
+        | Var(_, _)
+        | EmptyHole(_)
+        | OpSeq(_, _) => no_holes
+        | Inj(_, _)
+        | LineItem(_, _)
+        | Lam(_, _, _) => {
             holes_before: [],
             hole_selected: None,
             holes_after: holes_e(e, steps, []),
           }
-        | UHExp.Case(e1, rules) =>
+        | Case(e1, rules, ann) =>
           switch (k) {
           | 0 => {
               holes_before: [],
               hole_selected: None,
               holes_after: holes_e(e, steps, []),
             }
-          | 1 => {
-              holes_before: holes_e(e, steps, []),
-              hole_selected: None,
-              holes_after: [],
-            }
+          | 1 =>
+            let holes_rules = holes_rules(rules, 0, steps, []);
+            let holes_before = holes_e(e1, [0, ...steps], holes_rules);
+            let holes_after =
+              switch (ann) {
+              | None => []
+              | Some(uty) =>
+                holes_uty(uty, [List.length(rules) + 1, ...steps], [])
+              };
+            {holes_before, hole_selected: None, holes_after};
           | _ => no_holes
           }
-        | UHExp.ApPalette(_, _, _) => no_holes
+        | ApPalette(_, _, _) => no_holes
         }
       }
     }
-  | ZExp.Deeper(_, ze) =>
+  | Deeper(_, ze) =>
     switch (ze) {
-    | ZExp.AscZ1(ze1, uty) =>
-      let {holes_before, hole_selected, holes_after} =
-        holes_ze(ze1, [0, ...steps]);
-      {
-        holes_before,
-        hole_selected,
-        holes_after: holes_after @ holes_uty(uty, [1, ...steps], []),
-      };
-    | ZExp.AscZ2(e1, zty1) =>
-      let {holes_before, hole_selected, holes_after} =
-        holes_zty(zty1, [1, ...steps]);
-      {
-        holes_before: holes_e(e1, [0, ...steps], []) @ holes_before,
-        hole_selected,
-        holes_after,
-      };
-    | ZExp.LineItemZL(zli, e2) =>
+    | LineItemZL(zli, e2) =>
       let {holes_before, hole_selected, holes_after} =
         holes_zline_item(zli, [0, ...steps]);
       let holes_e2 = holes_e(e2, [1, ...steps], []);
       {holes_before, hole_selected, holes_after: holes_after @ holes_e2};
-    | ZExp.LineItemZE(li, ze2) =>
+    | LineItemZE(li, ze2) =>
       let {holes_before, hole_selected, holes_after} =
         holes_ze(ze2, [1, ...steps]);
       let holes_li = holes_line_item(li, [0, ...steps], []);
       {holes_before: holes_li @ holes_before, hole_selected, holes_after};
-    | ZExp.LamZP(zp, ann, e1) =>
+    | LamZP(zp, ann, e1) =>
       let {holes_before, hole_selected, holes_after} =
         holes_zpat(zp, [0, ...steps]);
       let holes_ann =
@@ -728,7 +756,7 @@ let rec holes_ze = (ze, steps): zhole_list =>
         hole_selected,
         holes_after: holes_after @ holes_ann @ holes_e1,
       };
-    | ZExp.LamZA(p, zann, e1) =>
+    | LamZA(p, zann, e1) =>
       let {holes_before, hole_selected, holes_after} =
         holes_zty(zann, [1, ...steps]);
       let holes_p = holes_pat(p, [0, ...steps], []);
@@ -738,7 +766,7 @@ let rec holes_ze = (ze, steps): zhole_list =>
         hole_selected,
         holes_after: holes_after @ holes_e1,
       };
-    | ZExp.LamZE(p, ann, ze1) =>
+    | LamZE(p, ann, ze1) =>
       let {holes_before, hole_selected, holes_after} =
         holes_ze(ze1, [2, ...steps]);
       let holes_p = holes_pat(p, [0, ...steps], []);
@@ -752,20 +780,50 @@ let rec holes_ze = (ze, steps): zhole_list =>
         hole_selected,
         holes_after,
       };
-    | ZExp.InjZ(_, ze1) => holes_ze(ze1, [0, ...steps])
-    | ZExp.CaseZE(ze1, rules) =>
+    | InjZ(_, ze1) => holes_ze(ze1, [0, ...steps])
+    | CaseZE(ze1, rules, ann) =>
       let {holes_before, hole_selected, holes_after} =
         holes_ze(ze1, [0, ...steps]);
       let holes_rules = holes_rules(rules, 0, steps, []);
-      {holes_before, hole_selected, holes_after: holes_after @ holes_rules};
-    | ZExp.CaseZR(e1, zrules) =>
+      let holes_ann =
+        switch (ann) {
+        | None => []
+        | Some(uty) =>
+          holes_uty(uty, [List.length(rules) + 1, ...steps], [])
+        };
+      {
+        holes_before,
+        hole_selected,
+        holes_after: holes_after @ holes_rules @ holes_ann,
+      };
+    | CaseZR(e1, zrules, ann) =>
       let {holes_before, hole_selected, holes_after} =
         holes_zrules(zrules, steps);
       let holes_e1 = holes_e(e1, [0, ...steps], []);
-      {holes_before: holes_e1 @ holes_before, hole_selected, holes_after};
-    | ZExp.OpSeqZ(_, ze0, surround) =>
+      let holes_ann =
+        switch (ann) {
+        | None => []
+        | Some(uty) =>
+          holes_uty(uty, [ZList.length(zrules) + 1, ...steps], [])
+        };
+      {
+        holes_before: holes_e1 @ holes_before,
+        hole_selected,
+        holes_after: holes_after @ holes_ann,
+      };
+    | CaseZA(e1, rules, zann) =>
+      let {holes_before, hole_selected, holes_after} =
+        holes_zty(zann, [List.length(rules) + 1, ...steps]);
+      let holes_e1 = holes_e(e1, [0, ...steps], []);
+      let holes_rules = holes_rules(rules, 0, steps, []);
+      {
+        holes_before: holes_e1 @ holes_rules @ holes_before,
+        hole_selected,
+        holes_after,
+      };
+    | OpSeqZ(_, ze0, surround) =>
       holes_OpSeqZ(holes_e, holes_ze, ze0, surround, steps)
-    | ZExp.ApPaletteZ(_, _, zpsi) =>
+    | ApPaletteZ(_, _, zpsi) =>
       let zsplice_map = zpsi.zsplice_map;
       let (n, (ty, ze)) = ZNatMap.prj_z_kv(zsplice_map);
       let {holes_before, hole_selected, holes_after} =
@@ -801,31 +859,31 @@ let rec holes_ze = (ze, steps): zhole_list =>
       };
     }
   }
-and holes_zline_item = (zli, steps) =>
+and holes_zline_item = (zli: ZExp.zline_item, steps: steps): zhole_list =>
   switch (zli) {
-  | ZExp.CursorL(Before, li) => {
+  | CursorL(Before, li) => {
       holes_before: [],
       hole_selected: None,
       holes_after: holes_line_item(li, steps, []),
     }
-  | ZExp.CursorL(In(_), UHExp.EmptyLine)
-  | ZExp.CursorL(In(_), UHExp.ExpLine(_)) => no_holes
-  | ZExp.CursorL(In(_), UHExp.LetLine(_, _, _) as li) => {
+  | CursorL(In(_), EmptyLine)
+  | CursorL(In(_), ExpLine(_)) => no_holes
+  | CursorL(In(_), LetLine(_, _, _) as li) => {
       holes_before: [],
       hole_selected: None,
       holes_after: holes_line_item(li, steps, []),
     }
-  | ZExp.CursorL(After, li) => {
+  | CursorL(After, li) => {
       holes_before: holes_line_item(li, steps, []),
       hole_selected: None,
       holes_after: [],
     }
-  | ZExp.DeeperL(zli') => holes_zline_item'(zli', steps)
+  | DeeperL(zli') => holes_zline_item'(zli', steps)
   }
-and holes_zline_item' = (zli', steps) =>
+and holes_zline_item' = (zli': ZExp.zline_item', steps: steps): zhole_list =>
   switch (zli') {
-  | ZExp.ExpLineZ(ze1) => holes_ze(ze1, steps)
-  | ZExp.LetLineZP(zp, ann, e1) =>
+  | ExpLineZ(ze1) => holes_ze(ze1, steps)
+  | LetLineZP(zp, ann, e1) =>
     let {holes_before, hole_selected, holes_after} =
       holes_zpat(zp, [0, ...steps]);
     let holes_ann =
@@ -839,7 +897,7 @@ and holes_zline_item' = (zli', steps) =>
       hole_selected,
       holes_after: holes_after @ holes_ann @ holes_e1,
     };
-  | ZExp.LetLineZA(p, zann, e1) =>
+  | LetLineZA(p, zann, e1) =>
     let {holes_before, hole_selected, holes_after} =
       holes_zty(zann, [1, ...steps]);
     let holes_p = holes_pat(p, [0, ...steps], []);
@@ -849,7 +907,7 @@ and holes_zline_item' = (zli', steps) =>
       hole_selected,
       holes_after: holes_after @ holes_e1,
     };
-  | ZExp.LetLineZE(p, ann, ze1) =>
+  | LetLineZE(p, ann, ze1) =>
     let {holes_before, hole_selected, holes_after} =
       holes_ze(ze1, [2, ...steps]);
     let holes_p = holes_pat(p, [0, ...steps], []);
@@ -864,7 +922,7 @@ and holes_zline_item' = (zli', steps) =>
       holes_after,
     };
   }
-and holes_zrules = (zrules, steps) => {
+and holes_zrules = (zrules: ZExp.zrules, steps: steps) => {
   let (prefix, zrule, suffix) = ZList.prj(zrules);
   let holes_prefix = holes_rules(prefix, 0, steps, []);
   let prefix_len = List.length(prefix);
@@ -877,21 +935,21 @@ and holes_zrules = (zrules, steps) => {
     holes_after: holes_after @ holes_suffix,
   };
 }
-and holes_zrule = (zrule, prefix_len, steps) =>
+and holes_zrule = (zrule: ZExp.zrule, prefix_len: int, steps: steps) =>
   switch (zrule) {
-  | ZExp.RuleZP(zp, e1) =>
+  | RuleZP(zp, e1) =>
     let {holes_before, hole_selected, holes_after} =
       holes_zpat(zp, [0, prefix_len + 1, ...steps]);
     let holes_e1 = holes_e(e1, [1, prefix_len + 1, ...steps], []);
     {holes_before, hole_selected, holes_after: holes_after @ holes_e1};
-  | ZExp.RuleZE(p, ze1) =>
+  | RuleZE(p, ze1) =>
     let {holes_before, hole_selected, holes_after} =
       holes_ze(ze1, [1, prefix_len + 1, ...steps]);
     let holes_p = holes_pat(p, [0, prefix_len + 1, ...steps], []);
     {holes_before: holes_p @ holes_before, hole_selected, holes_after};
   };
 
-let rec steps_to_hole = (hole_list, u): option(steps) =>
+let rec steps_to_hole = (hole_list: hole_list, u: MetaVar.t): option(steps) =>
   switch (
     List.find_opt(
       ((hole_desc, _)) =>
@@ -907,7 +965,8 @@ let rec steps_to_hole = (hole_list, u): option(steps) =>
   | Some((_, path)) => Some(path)
   };
 
-let rec steps_to_hole_z = (zhole_list, u): option(steps) => {
+let rec steps_to_hole_z =
+        (zhole_list: zhole_list, u: MetaVar.t): option(steps) => {
   let {holes_before, hole_selected, holes_after} = zhole_list;
   switch (steps_to_hole(holes_before, u)) {
   | Some(_) as steps => steps
@@ -922,18 +981,20 @@ let rec steps_to_hole_z = (zhole_list, u): option(steps) => {
   };
 };
 
-let opt_steps_to_opt_path = cursor_side =>
-  fun
+let opt_steps_to_opt_path =
+    (cursor_side: cursor_side, opt_steps: option(steps)): option(t) =>
+  switch (opt_steps) {
   | None => None
-  | Some(steps) => Some((List.rev(steps), cursor_side));
+  | Some(steps) => Some((List.rev(steps), cursor_side))
+  };
 
-let path_to_hole = (hole_list, u): option(t) =>
+let path_to_hole = (hole_list: hole_list, u: MetaVar.t): option(t) =>
   opt_steps_to_opt_path(Before, steps_to_hole(hole_list, u));
 
-let path_to_hole_z = (zhole_list, u): option(t) =>
+let path_to_hole_z = (zhole_list: zhole_list, u: MetaVar.t): option(t) =>
   opt_steps_to_opt_path(Before, steps_to_hole_z(zhole_list, u));
 
-let next_hole_steps = (zhole_list): option(steps) => {
+let next_hole_steps = (zhole_list: zhole_list): option(steps) => {
   let holes_after = zhole_list.holes_after;
   switch (holes_after) {
   | [] => None
@@ -941,10 +1002,10 @@ let next_hole_steps = (zhole_list): option(steps) => {
   };
 };
 
-let next_hole_path = zhole_list =>
+let next_hole_path = (zhole_list: zhole_list): option(t) =>
   opt_steps_to_opt_path(Before, next_hole_steps(zhole_list));
 
-let prev_hole_steps = (zhole_list): option(steps) => {
+let prev_hole_steps = (zhole_list: zhole_list): option(steps) => {
   let holes_before = zhole_list.holes_before;
   switch (List.rev(holes_before)) {
   | [] => None
@@ -952,5 +1013,5 @@ let prev_hole_steps = (zhole_list): option(steps) => {
   };
 };
 
-let prev_hole_path = zhole_list =>
+let prev_hole_path = (zhole_list: zhole_list): option(t) =>
   opt_steps_to_opt_path(Before, prev_hole_steps(zhole_list));

@@ -168,18 +168,14 @@ let new_model = (): t => {
   };
 
   let replace_e = new_uhexp => {
-    let new_edit_state_opt =
+    let new_edit_state =
       Action.zexp_syn_fix_holes(
         (VarCtx.empty, PaletteCtx.empty),
         MetaVarGen.init,
         ZExp.CursorE(Before, new_uhexp),
       );
-    switch (new_edit_state_opt) {
-    | Some(new_edit_state) =>
-      edit_state_rf(new_edit_state);
-      e_rf(new_uhexp);
-    | None => JSUtil.log("Replacement uhexp didn't type-check")
-    };
+    edit_state_rf(new_edit_state);
+    e_rf(new_uhexp);
   };
 
   let undo = () => {

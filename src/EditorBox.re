@@ -71,7 +71,7 @@ let mk =
                 )
               | CursorInfo.IsExpr(UHExp.Tm(_, UHExp.EmptyHole(_)))
               | CursorInfo.IsPat(UHPat.Pat(_, UHPat.EmptyHole(_)))
-              | CursorInfo.IsPat(UHPat.Pat(_, UHPat.Var(""))) =>
+              | CursorInfo.IsPat(UHPat.Pat(_, UHPat.Var(_, ""))) =>
                 let shape =
                   switch (single_key) {
                   | JSUtil.Number(n) => Action.SNumLit(n, After)

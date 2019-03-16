@@ -1,4 +1,7 @@
-[@deriving show({with_path: false})]
+open SemanticsCommon;
+open Sexplib.Std;
+
+[@deriving (show({with_path: false}), sexp)]
 type t = string;
 
 let eq = String.equal;
@@ -16,4 +19,18 @@ let check_valid = (s, result) =>
     result;
   } else {
     None;
+  };
+
+let is_true = s => eq(s, "true");
+
+let is_false = s => eq(s, "false");
+
+let is_let = s => eq(s, "let");
+
+let is_case = s => eq(s, "case");
+
+let of_keyword = (k: keyword): t =>
+  switch (k) {
+  | Let => "let"
+  | Case => "case"
   };
