@@ -1194,7 +1194,7 @@ and ana_skel_pat_fix_holes =
             renumber_empty_holes,
             skel2,
             seq,
-            ty,
+            ty2,
           );
         (ListMinTwo.Pair(skel1, skel2), seq, ctx, u_gen);
       };
