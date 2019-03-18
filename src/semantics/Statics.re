@@ -1880,7 +1880,7 @@ and ana_skel_fix_holes =
             ctx,
             u_gen,
             renumber_empty_holes,
-            skel1,
+            skel2,
             seq,
             ty2,
           );
