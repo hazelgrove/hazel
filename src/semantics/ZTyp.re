@@ -12,13 +12,13 @@ type t =
 
 let place_Before = (uty: UHTyp.t): t =>
   switch (uty) {
-  | UHTyp.Hole
-  | UHTyp.Parenthesized(_)
-  | UHTyp.Unit
-  | UHTyp.Num
-  | UHTyp.Bool
-  | UHTyp.List(_) => CursorT(Before, uty)
-  | UHTyp.OpSeq(skel, seq) =>
+  | Hole
+  | Parenthesized(_)
+  | Unit
+  | Num
+  | Bool
+  | List(_) => CursorT(Before, uty)
+  | OpSeq(skel, seq) =>
     let (uty0, suffix) = OperatorSeq.split0(seq);
     let surround = OperatorSeq.EmptyPrefix(suffix);
     OpSeqZ(skel, CursorT(Before, uty0), surround);
@@ -26,13 +26,13 @@ let place_Before = (uty: UHTyp.t): t =>
 
 let place_After = (uty: UHTyp.t): t =>
   switch (uty) {
-  | UHTyp.Hole
-  | UHTyp.Parenthesized(_)
-  | UHTyp.Unit
-  | UHTyp.Num
-  | UHTyp.Bool
-  | UHTyp.List(_) => CursorT(After, uty)
-  | UHTyp.OpSeq(skel, seq) =>
+  | Hole
+  | Parenthesized(_)
+  | Unit
+  | Num
+  | Bool
+  | List(_) => CursorT(After, uty)
+  | OpSeq(skel, seq) =>
     let (uty0, prefix) = OperatorSeq.split_tail(seq);
     let surround = OperatorSeq.EmptySuffix(prefix);
     OpSeqZ(skel, CursorT(After, uty0), surround);
@@ -41,9 +41,29 @@ let place_After = (uty: UHTyp.t): t =>
 let rec erase = (zty: t): UHTyp.t =>
   switch (zty) {
   | CursorT(_, ty) => ty
-  | ParenthesizedZ(zty1) => UHTyp.Parenthesized(erase(zty1))
-  | ListZ(zty1) => UHTyp.List(erase(zty1))
+  | ParenthesizedZ(zty1) => Parenthesized(erase(zty1))
+  | ListZ(zty1) => List(erase(zty1))
   | OpSeqZ(skel, zty1, surround) =>
     let uty1 = erase(zty1);
-    UHTyp.OpSeq(skel, OperatorSeq.opseq_of_exp_and_surround(uty1, surround));
+    OpSeq(skel, OperatorSeq.opseq_of_exp_and_surround(uty1, surround));
+  };
+
+let rec cursor_at_start = (zty: t): bool =>
+  switch (zty) {
+  | CursorT(Before, _) => true
+  | CursorT(_, _) => false
+  | ParenthesizedZ(_) => false
+  | ListZ(_) => false
+  | OpSeqZ(_, zty, EmptyPrefix(_)) => cursor_at_start(zty)
+  | OpSeqZ(_, _, _) => false
+  };
+
+let rec cursor_at_end = (zty: t): bool =>
+  switch (zty) {
+  | CursorT(After, _) => true
+  | CursorT(_, _) => false
+  | ParenthesizedZ(_) => false
+  | ListZ(_) => false
+  | OpSeqZ(_, zty, EmptySuffix(_)) => cursor_at_end(zty)
+  | OpSeqZ(_, _, _) => false
   };

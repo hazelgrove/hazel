@@ -1,8 +1,10 @@
 all:
-	dune build --auto-promote
+	-dune build @fmt --auto-promote
+	dune build
 
 debug:
-	dune build --profile debug --auto-promote
+	-dune build @fmt --auto-promote
+	dune build --profile debug
 
 clean:
 	dune clean

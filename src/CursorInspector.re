@@ -1,5 +1,4 @@
 open Tyxml_js;
-let titlebar = PanelUtils.titlebar;
 let typebar_width = 80000;
 let html_of_ty = View.html_of_ty(typebar_width);
 let typebar = (prefix, ty) => {
@@ -28,7 +27,7 @@ let expected_indicator = (title_text, type_div) =>
   Html5.(
     div(
       ~a=[a_class(["indicator", "expected-indicator"])],
-      [titlebar(title_text), type_div],
+      [Panel.main_title_bar(title_text), type_div],
     )
   );
 
@@ -46,11 +45,13 @@ let expected_any_indicator = expected_msg_indicator("any type");
 let expected_any_indicator_pat = expected_msg_indicator_pat("any type");
 let expected_a_type_indicator =
   expected_indicator("Expecting ", special_msg_bar("a type"));
+let expected_a_line_item_indicator =
+  expected_indicator("Expecting ", special_msg_bar("a line item"));
 let got_indicator = (title_text, type_div) =>
   Html5.(
     div(
       ~a=[a_class(["indicator", "got-indicator"])],
-      [titlebar(title_text), type_div],
+      [Panel.other_title_bar(title_text), type_div],
     )
   );
 let expected_pat_title = "Expecting a pattern of type";
@@ -71,9 +72,15 @@ let got_inconsistent_matched_indicator = (got_ty, matched_ty) =>
 let got_free_indicator =
   got_indicator("Got a free variable", typebar("got", HTyp.Hole));
 
+let got_empty_line_indicator = got_ty_indicator(HTyp.Hole);
+
 let got_consistent_indicator = got_ty =>
   got_indicator("Got consistent type", typebar("got", got_ty));
 let got_a_type_indicator = got_indicator("Got", special_msg_bar("a type"));
+let got_a_line_item_indicator =
+  got_indicator("Got", special_msg_bar("a line item"));
+let got_keyword_indicator =
+  got_indicator("Got a reserved keyword", typebar("got", HTyp.Hole));
 type err_state_b =
   | TypeInconsistency
   | BindingError
@@ -88,9 +95,9 @@ let of_cursor_mode = (cursor_mode: CursorInfo.cursor_mode) => {
     | CursorInfo.AnaAnnotatedLambda(expected_ty, got_ty) =>
       let ind1 = expected_ty_indicator(expected_ty);
       let ind2 =
-        HTyp.eq(expected_ty, got_ty) ?
-          got_as_expected_ty_indicator(got_ty) :
-          got_consistent_indicator(got_ty);
+        HTyp.eq(expected_ty, got_ty)
+          ? got_as_expected_ty_indicator(got_ty)
+          : got_consistent_indicator(got_ty);
       (ind1, ind2, OK);
     | CursorInfo.AnaTypeInconsistent(expected_ty, got_ty) =>
       let ind1 = expected_ty_indicator(expected_ty);
@@ -117,10 +124,14 @@ let of_cursor_mode = (cursor_mode: CursorInfo.cursor_mode) => {
     | CursorInfo.AnaSubsumed(expected_ty, got_ty) =>
       let ind1 = expected_ty_indicator(expected_ty);
       let ind2 =
-        HTyp.eq(expected_ty, got_ty) ?
-          got_as_expected_ty_indicator(got_ty) :
-          got_consistent_indicator(got_ty);
+        HTyp.eq(expected_ty, got_ty)
+          ? got_as_expected_ty_indicator(got_ty)
+          : got_consistent_indicator(got_ty);
       (ind1, ind2, OK);
+    | CursorInfo.AnaKeyword(expected_ty, keyword) =>
+      let ind1 = expected_ty_indicator(expected_ty);
+      let ind2 = got_keyword_indicator;
+      (ind1, ind2, BindingError);
     | CursorInfo.Synthesized(ty) =>
       let ind1 = expected_any_indicator;
       let ind2 = got_ty_indicator(ty);
@@ -128,6 +139,10 @@ let of_cursor_mode = (cursor_mode: CursorInfo.cursor_mode) => {
     | CursorInfo.SynFree =>
       let ind1 = expected_any_indicator;
       let ind2 = got_free_indicator;
+      (ind1, ind2, BindingError);
+    | CursorInfo.SynKeyword(keyword) =>
+      let ind1 = expected_any_indicator;
+      let ind2 = got_keyword_indicator;
       (ind1, ind2, BindingError);
     | CursorInfo.SynErrorArrow(expected_ty, got_ty) =>
       let ind1 = expected_msg_indicator("function type");
@@ -145,6 +160,14 @@ let of_cursor_mode = (cursor_mode: CursorInfo.cursor_mode) => {
         | _ => got_indicator("Got", typebar("got", syn_ty))
         };
       (ind1, ind2, OK);
+    | CursorInfo.SynKeywordArrow(matched_ty, k) =>
+      let ind1 = expected_msg_indicator("function type");
+      let ind2 =
+        got_indicator(
+          "Got a keyword ▶ matched to",
+          matched_ty_bar("got", HTyp.Hole, matched_ty),
+        );
+      (ind1, ind2, BindingError);
     | CursorInfo.SynFreeArrow(matched_ty) =>
       let ind1 = expected_msg_indicator("function type");
       let ind2 =
@@ -182,13 +205,25 @@ let of_cursor_mode = (cursor_mode: CursorInfo.cursor_mode) => {
     | CursorInfo.PatAnaSubsumed(expected_ty, got_ty) =>
       let ind1 = expected_ty_indicator_pat(expected_ty);
       let ind2 =
-        HTyp.eq(expected_ty, got_ty) ?
-          got_as_expected_ty_indicator(got_ty) :
-          got_consistent_indicator(got_ty);
+        HTyp.eq(expected_ty, got_ty)
+          ? got_as_expected_ty_indicator(got_ty)
+          : got_consistent_indicator(got_ty);
       (ind1, ind2, OK);
+    | CursorInfo.PatAnaKeyword(expected_ty, keyword) =>
+      let ind1 = expected_ty_indicator_pat(expected_ty);
+      let ind2 = got_keyword_indicator;
+      (ind1, ind2, BindingError);
     | CursorInfo.PatSynthesized(ty) =>
       let ind1 = expected_any_indicator_pat;
       let ind2 = got_ty_indicator(ty);
+      (ind1, ind2, OK);
+    | CursorInfo.PatSynKeyword(keyword) =>
+      let ind1 = expected_any_indicator_pat;
+      let ind2 = got_keyword_indicator;
+      (ind1, ind2, BindingError);
+    | CursorInfo.LineItem =>
+      let ind1 = expected_a_line_item_indicator;
+      let ind2 = got_a_line_item_indicator;
       (ind1, ind2, OK);
     };
 
@@ -222,5 +257,8 @@ let mk = (cursor_info_rs: Model.cursor_info_rs) => {
       cursor_info_rs,
     );
 
-  R.Html5.(div(ReactiveData.RList.from_signal(cursor_inspector_rs)));
+  R.Html5.div(
+    ~a=[Html.a_class(["cursor-inspector-outer"])],
+    ReactiveData.RList.from_signal(cursor_inspector_rs),
+  );
 };

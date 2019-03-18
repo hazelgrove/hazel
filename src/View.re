@@ -1,4 +1,5 @@
 let _SHOW_CASTS = false;
+let _SHOW_FN_BODIES = false;
 
 /* Imports */
 exception InvariantViolated;
@@ -16,6 +17,7 @@ let op = taggedText("op");
 let var = s => taggedText("var", s);
 let paletteName = s => taggedText("paletteName", s);
 let space = taggedText("space", " ");
+let empty = taggedText("", "");
 
 /* Helpers */
 let rec id_of_rev_path = (prefix, rev_path) =>
@@ -50,6 +52,11 @@ let term_classes = (prefix, err_status, rev_path, classes, doc) => {
   );
 };
 
+let line = (prefix, rev_path, cls, doc) => {
+  let id' = id_of_rev_path(prefix, rev_path);
+  PP.tagged([cls], Some((id', rev_path)), None, doc);
+};
+
 let term = (prefix, err_status, rev_path, cls, doc) => {
   let id' = id_of_rev_path(prefix, rev_path);
   PP.tagged(cls_from(err_status, cls), Some((id', rev_path)), None, doc);
@@ -79,19 +86,19 @@ let optionalBreakSp = PP.optionalBreak(" ");
 let optionalBreakNSp = PP.optionalBreak("");
 
 /* Parenthesized */
-let of_Parenthesized = (is_block, prefix, rev_path, r1) =>
+let of_Parenthesized = (is_block, prefix, err_status, rev_path, r1) =>
   term(
     prefix,
-    NotInHole,
+    err_status,
     rev_path,
     "Parenthesized",
-    is_block ?
-      PP.blockBoundary
-      ^^ lparen("(")
-      ^^ PP.nestAbsolute(2, r1)
-      ^^ PP.mandatoryBreak
-      ^^ rparen(")") :
-      lparen("(") ^^ r1 ^^ rparen(")"),
+    is_block
+      ? PP.blockBoundary
+        ^^ lparen("(")
+        ^^ PP.nestAbsolute(2, r1)
+        ^^ PP.mandatoryBreak
+        ^^ rparen(")")
+      : lparen("(") ^^ r1 ^^ rparen(")"),
   );
 
 /* Generic operator printing */
@@ -100,15 +107,15 @@ let of_op = (op_s, op_cls) =>
     ["seq-op", op_cls],
     None,
     None,
-    String.length(op_s) == 1 ?
-      taggedText("op-no-margin", op_s) :
-      optionalBreakNSp
-      ^^ taggedText("op-before-1", "​​")
-      ^^ taggedText("op-before-2", "‌")
-      ^^ taggedText("op-center", op_s)
-      ^^ taggedText("op-after-1", "​")
-      ^^ taggedText("op-after-2", "​")
-      ^^ optionalBreakNSp,
+    String.length(op_s) == 1
+      ? taggedText("op-no-margin", op_s)
+      : optionalBreakNSp
+        ^^ taggedText("op-before-1", "​​")
+        ^^ taggedText("op-before-2", "‌")
+        ^^ taggedText("op-center", op_s)
+        ^^ taggedText("op-after-1", "​")
+        ^^ taggedText("op-after-2", "​")
+        ^^ optionalBreakNSp,
   );
 
 /* Types */
@@ -221,7 +228,7 @@ let rec of_uhtyp = (prefix, rev_path, uty) =>
   | UHTyp.Parenthesized(uty1) =>
     let rev_path1 = [0, ...rev_path];
     let r1 = of_uhtyp(prefix, rev_path1, uty1);
-    of_Parenthesized(false, prefix, rev_path, r1);
+    of_Parenthesized(false, prefix, NotInHole, rev_path, r1);
   | UHTyp.Bool => of_Bool(prefix, rev_path)
   | UHTyp.Num => of_Num(prefix, rev_path)
   | UHTyp.Unit => of_Unit(prefix, rev_path)
@@ -256,18 +263,14 @@ and of_uhtyp_skel = (prefix, rev_path, skel, seq) =>
 
 /* Expressions and Patterns */
 
-let of_Asc = (prefix, err_status, rev_path, r1, r2) =>
-  term(
-    prefix,
-    err_status,
-    rev_path,
-    "Asc",
-    r1 ^^ space ^^ op(":") ^^ space ^^ r2,
-  );
-
 let classes_of_var_err_status = var_err_status =>
   switch (var_err_status) {
-  | InVHole(u) => ["InVHole", "InVHole_" ++ string_of_int(u)]
+  | InVHole(Free, u) => ["InVHole", "InVHole_" ++ string_of_int(u)]
+  | InVHole(Keyword(_), u) => [
+      "InVHole",
+      "InVHole_" ++ string_of_int(u),
+      "Keyword",
+    ]
   | NotInVHole => []
   };
 
@@ -283,6 +286,32 @@ let of_Var = (prefix, err_status, var_err_status, rev_path, x) =>
     var(x),
   );
 
+let of_EmptyLine = (prefix, rev_path) =>
+  line(prefix, rev_path, "EmptyLine", empty);
+
+let of_ExpLine = (prefix, rev_path, r1) =>
+  line(prefix, rev_path, "ExpLine", r1);
+
+let of_LetLine = (prefix, rev_path, rx, rann, r1) => {
+  let first_part = PP.blockBoundary ^^ kw("let") ^^ space ^^ rx;
+  let second_part = of_op(" = ", "let-equals") ^^ PP.nestAbsolute(2, r1);
+  let view =
+    switch (rann) {
+    | Some(r) => first_part ^^ of_op(" : ", "ann") ^^ r ^^ second_part
+    | None => first_part ^^ second_part
+    };
+  line(prefix, rev_path, "LetLine", view);
+};
+
+let of_LineItem = (prefix, err_status, rev_path, rli, r2) =>
+  term(
+    prefix,
+    err_status,
+    rev_path,
+    "LineItem",
+    rli ^^ PP.mandatoryBreak ^^ r2,
+  );
+
 let of_Let = (prefix, err_status, rev_path, rx, rann, r1, r2) => {
   let first_part = PP.blockBoundary ^^ kw("let") ^^ space ^^ rx;
   let second_part =
@@ -295,7 +324,7 @@ let of_Let = (prefix, err_status, rev_path, rx, rann, r1, r2) => {
     | Some(r) => first_part ^^ of_op(" : ", "ann") ^^ r ^^ second_part
     | None => first_part ^^ second_part
     };
-  term(prefix, err_status, rev_path, "Let", view);
+  line(prefix, rev_path, "LetLine", view);
 };
 
 let of_FixF = (prefix, err_status, rev_path, rx, rty, r1) => {
@@ -379,7 +408,7 @@ let of_InjAnn = (prefix, err_status, rev_path, rty, side, r) =>
     ^^ rparen(")"),
   );
 
-let of_Case = (prefix, err_status, rev_path, r1, rpcs) => {
+let of_Case = (prefix, err_status, rev_path, r1, rpcs, rann) => {
   let rrules =
     List.fold_left(
       (rrs, rpc) => {
@@ -395,11 +424,7 @@ let of_Case = (prefix, err_status, rev_path, r1, rpcs) => {
       PP.empty,
       rpcs,
     );
-  term(
-    prefix,
-    err_status,
-    rev_path,
-    "Case",
+  let view_case =
     PP.blockBoundary
     ^^ kw("case")
     ^^ space
@@ -407,12 +432,14 @@ let of_Case = (prefix, err_status, rev_path, r1, rpcs) => {
     ^^ PP.mandatoryBreak
     ^^ rrules
     ^^ PP.mandatoryBreak
-    ^^ kw("end"),
-  );
+    ^^ kw("end");
+  let view =
+    switch (rann) {
+    | None => view_case
+    | Some(r) => view_case ^^ of_op(" : ", "ann") ^^ r
+    };
+  term(prefix, err_status, rev_path, "Case", view);
 };
-
-let of_CaseAnn = (prefix, err_status, rev_path, r1, rpcs) =>
-  of_Case(prefix, err_status, rev_path, r1, rpcs);
 
 let cast_arrow = op(" ⇨ ");
 let of_Cast = (prefix, err_status, rev_path, r1, rty1, rty2) =>
@@ -421,8 +448,9 @@ let of_Cast = (prefix, err_status, rev_path, r1, rty1, rty2) =>
     err_status,
     rev_path,
     "Cast",
-    _SHOW_CASTS ?
-      r1 ^^ lparen("⟨") ^^ rty1 ^^ cast_arrow ^^ rty2 ^^ rparen("⟩") : r1,
+    _SHOW_CASTS
+      ? r1 ^^ lparen("⟨") ^^ rty1 ^^ cast_arrow ^^ rty2 ^^ rparen("⟩")
+      : r1,
   );
 
 let of_chained_Cast = (prefix, err_status, rev_path, r1, rty1, rty2, rty4) =>
@@ -431,16 +459,16 @@ let of_chained_Cast = (prefix, err_status, rev_path, r1, rty1, rty2, rty4) =>
     err_status,
     rev_path,
     "Cast",
-    _SHOW_CASTS ?
-      r1
-      ^^ lparen("<")
-      ^^ rty1
-      ^^ cast_arrow
-      ^^ rty2
-      ^^ cast_arrow
-      ^^ rty4
-      ^^ rparen(">") :
-      r1,
+    _SHOW_CASTS
+      ? r1
+        ^^ lparen("<")
+        ^^ rty1
+        ^^ cast_arrow
+        ^^ rty2
+        ^^ cast_arrow
+        ^^ rty4
+        ^^ rparen(">")
+      : r1,
   );
 
 let failed_cast_arrow = taggedText("failed-cast-arrow", " ⇨ ");
@@ -472,8 +500,8 @@ let of_chained_FailedCast =
 
 let is_block = e =>
   switch (e) {
-  | UHExp.Tm(_, UHExp.Let(_, _, _, _)) => true
-  | UHExp.Tm(_, UHExp.Case(_, _)) => true
+  | UHExp.Tm(_, UHExp.LineItem(_, _)) => true
+  | UHExp.Tm(_, UHExp.Case(_, _, _)) => true
   | _ => false
   };
 
@@ -508,12 +536,25 @@ let of_pat_BinOp = (prefix, err_status, rev_path, r1, op, r2) =>
     r1 ^^ of_pat_op(op) ^^ r2,
   );
 
+let rec prepare_Parenthesized_pat = p =>
+  switch (p) {
+  | UHPat.Parenthesized(p1) =>
+    let (err_status, p1_not_in_hole) = prepare_Parenthesized_pat(p1);
+    (err_status, UHPat.Parenthesized(p1_not_in_hole));
+  | UHPat.Pat(NotInHole as err_status, _) => (err_status, p)
+  | UHPat.Pat(err_status, _) => (
+      err_status,
+      UHPat.set_err_status(NotInHole, p),
+    )
+  };
+
 let rec of_hpat = (prefix, rev_path, p) =>
   switch (p) {
   | UHPat.Parenthesized(p1) =>
+    let (err_status, p1_not_in_hole) = prepare_Parenthesized_pat(p1);
     let rev_path1 = [0, ...rev_path];
-    let r1 = of_hpat(prefix, rev_path1, p1);
-    of_Parenthesized(false, prefix, rev_path, r1);
+    let r1 = of_hpat(prefix, rev_path1, p1_not_in_hole);
+    of_Parenthesized(false, prefix, err_status, rev_path, r1);
   | UHPat.Pat(err_status, p') =>
     switch (p') {
     | UHPat.EmptyHole(u) =>
@@ -525,7 +566,11 @@ let rec of_hpat = (prefix, rev_path, p) =>
         string_of_int(u + 1),
       )
     | UHPat.Wild => of_Wild(prefix, err_status, rev_path)
-    | UHPat.Var(x) => of_Var(prefix, err_status, NotInVHole, rev_path, x)
+    | UHPat.Var(InVHole(Free, _), _) => raise(FreeVarInPat)
+    | UHPat.Var(InVHole(Keyword(k), u), x) =>
+      of_Var(prefix, err_status, InVHole(Keyword(k), u), rev_path, x)
+    | UHPat.Var(NotInVHole, x) =>
+      of_Var(prefix, err_status, NotInVHole, rev_path, x)
     | UHPat.NumLit(n) => of_NumLit(prefix, err_status, rev_path, n)
     | UHPat.BoolLit(b) => of_BoolLit(prefix, err_status, rev_path, b)
     | UHPat.Inj(side, p1) =>
@@ -599,32 +644,50 @@ let of_Times_with_space = (prefix, err_status, rev_path, r1, op, r2) =>
     r1 ^^ of_op(" * ", "op-Times") ^^ r2,
   );
 
+let rec prepare_Parenthesized_exp = e =>
+  switch (e) {
+  | UHExp.Parenthesized(e1) =>
+    let (err_status, e1_not_in_hole) = prepare_Parenthesized_exp(e1);
+    (err_status, UHExp.Parenthesized(e1_not_in_hole));
+  | UHExp.Tm(NotInHole as err_status, _) => (err_status, e)
+  | UHExp.Tm(err_status, _) => (
+      err_status,
+      UHExp.set_err_status(NotInHole, e),
+    )
+  };
+
 let rec of_hexp = (palette_stuff, prefix, rev_path, e) =>
   switch (e) {
   | UHExp.Parenthesized(e1) =>
+    let (err_status, e1_not_in_hole) = prepare_Parenthesized_exp(e1);
     let rev_path1 = [0, ...rev_path];
-    let r1 = of_hexp(palette_stuff, prefix, rev_path1, e1);
-    of_Parenthesized(is_block(e1), prefix, rev_path, r1);
+    let r1 = of_hexp(palette_stuff, prefix, rev_path1, e1_not_in_hole);
+    of_Parenthesized(is_block(e1), prefix, err_status, rev_path, r1);
   | UHExp.Tm(err_status, e') =>
     switch (e') {
-    | UHExp.Asc(e1, ty) =>
-      let rev_path1 = [0, ...rev_path];
-      let rev_path2 = [1, ...rev_path];
-      let r1 = of_hexp(palette_stuff, prefix, rev_path1, e1);
-      let r2 = of_uhtyp(prefix, rev_path2, ty);
-      of_Asc(prefix, err_status, rev_path, r1, r2);
     | UHExp.Var(var_err_status, x) =>
       of_Var(prefix, err_status, var_err_status, rev_path, x)
-    | UHExp.Let(p, ann, e1, e2) =>
-      let rp = of_hpat(prefix, [0, ...rev_path], p);
-      let rann =
-        switch (ann) {
-        | Some(uty1) => Some(of_uhtyp(prefix, [1, ...rev_path], uty1))
-        | None => None
+    | UHExp.LineItem(li, e2) =>
+      let rev_path_li = [0, ...rev_path];
+      let rli =
+        switch (li) {
+        | UHExp.EmptyLine => of_EmptyLine(prefix, rev_path_li)
+        | UHExp.LetLine(p, ann, e1) =>
+          let rp = of_hpat(prefix, [0, ...rev_path_li], p);
+          let rann =
+            switch (ann) {
+            | Some(uty1) =>
+              Some(of_uhtyp(prefix, [1, ...rev_path_li], uty1))
+            | None => None
+            };
+          let r1 = of_hexp(palette_stuff, prefix, [2, ...rev_path_li], e1);
+          of_LetLine(prefix, rev_path_li, rp, rann, r1);
+        | UHExp.ExpLine(e1) =>
+          let r1 = of_hexp(palette_stuff, prefix, [0, ...rev_path_li], e1);
+          of_ExpLine(prefix, rev_path_li, r1);
         };
-      let r1 = of_hexp(palette_stuff, prefix, [2, ...rev_path], e1);
-      let r2 = of_hexp(palette_stuff, prefix, [3, ...rev_path], e2);
-      of_Let(prefix, err_status, rev_path, rp, rann, r1, r2);
+      let r2 = of_hexp(palette_stuff, prefix, [1, ...rev_path], e2);
+      of_LineItem(prefix, err_status, rev_path, rli, r2);
     | UHExp.Lam(p, ann, e1) =>
       let rp = of_hpat(prefix, [0, ...rev_path], p);
       let rann =
@@ -641,7 +704,7 @@ let rec of_hexp = (palette_stuff, prefix, rev_path, e) =>
       let rev_path1 = [0, ...rev_path];
       let r1 = of_hexp(palette_stuff, prefix, rev_path1, e);
       of_Inj(prefix, err_status, rev_path, side, r1);
-    | UHExp.Case(e1, rules) =>
+    | UHExp.Case(e1, rules, ann) =>
       let rev_path1 = [0, ...rev_path];
       let r1 = of_hexp(palette_stuff, prefix, rev_path1, e1);
       let rpcs =
@@ -659,7 +722,14 @@ let rec of_hexp = (palette_stuff, prefix, rev_path, e) =>
           },
           rules,
         );
-      of_Case(prefix, err_status, rev_path, r1, rpcs);
+      let rann =
+        switch (ann) {
+        | None => None
+        | Some(uty1) =>
+          let rev_path_ann = [List.length(rules) + 1, ...rev_path];
+          Some(of_uhtyp(prefix, rev_path_ann, uty1));
+        };
+      of_Case(prefix, err_status, rev_path, r1, rpcs, rann);
     | UHExp.EmptyHole(u) =>
       of_Hole(
         prefix,
@@ -759,6 +829,7 @@ let rec precedence_dhpat = dp =>
     | EmptyHole(_)
     | NonEmptyHole(_, _, _, _)
     | Wild
+    | Keyword(_, _, _)
     | Var(_)
     | NumLit(_)
     | BoolLit(_)
@@ -775,15 +846,16 @@ let rec precedence_dhexp = d =>
     switch (d) {
     | BoundVar(_)
     | FreeVar(_, _, _, _)
+    | Keyword(_, _, _, _)
     | BoolLit(_)
     | NumLit(_)
     | ListNil(_)
     | Inj(_, _, _)
     | Pair(_, _)
     | EmptyHole(_, _, _)
-    | Cast(_, _, _)
     | Triv
     | FailedCast(_, _, _) => precedence_const
+    | Cast(d1, _, _) => _SHOW_CASTS ? precedence_const : precedence_dhexp(d1)
     | Let(_, _, _)
     | FixF(_, _, _)
     | Lam(_, _, _)
@@ -842,6 +914,14 @@ let rec of_dhpat' =
           );
         term(prefix, err_status, rev_path, "NonEmptyHole", r);
       | Wild => of_Wild(prefix, err_status, rev_path)
+      | Keyword(u, _, k) =>
+        of_Var(
+          prefix,
+          err_status,
+          InVHole(Keyword(k), u),
+          rev_path,
+          Var.of_keyword(k),
+        )
       | Var(x) => of_Var(prefix, err_status, NotInVHole, rev_path, x)
       | BoolLit(b) => of_BoolLit(prefix, err_status, rev_path, b)
       | NumLit(n) => of_NumLit(prefix, err_status, rev_path, n)
@@ -945,7 +1025,15 @@ let rec of_dhexp' =
       switch (d) {
       | BoundVar(x) => of_Var(prefix, err_status, NotInVHole, rev_path, x)
       | FreeVar(u, _, _, x) =>
-        of_Var(prefix, err_status, InVHole(u), rev_path, x)
+        of_Var(prefix, err_status, InVHole(Free, u), rev_path, x)
+      | Keyword(u, _, _, k) =>
+        of_Var(
+          prefix,
+          err_status,
+          InVHole(Keyword(k), u),
+          rev_path,
+          Var.of_keyword(k),
+        )
       | Let(dp, d1, d2) =>
         let rev_pathp = [0, ...rev_path];
         let rev_path1 = [1, ...rev_path];
@@ -971,31 +1059,39 @@ let rec of_dhexp' =
           );
         of_Let(prefix, err_status, rev_path, rp, None, r1, r2);
       | FixF(x, ty, d1) =>
-        let rx = of_var_binding(prefix, [0, ...rev_path], x);
-        let rty = of_htype(false, prefix, [1, ...rev_path], ty);
-        let r1 =
-          of_dhexp'(
-            instance_click_fn,
-            false,
-            prefix,
-            NotInHole,
-            [2, ...rev_path],
-            d1,
-          );
-        of_FixF(prefix, err_status, rev_path, rx, rty, r1);
+        if (_SHOW_FN_BODIES) {
+          let rx = of_var_binding(prefix, [0, ...rev_path], x);
+          let rty = of_htype(false, prefix, [1, ...rev_path], ty);
+          let r1 =
+            of_dhexp'(
+              instance_click_fn,
+              false,
+              prefix,
+              NotInHole,
+              [2, ...rev_path],
+              d1,
+            );
+          of_FixF(prefix, err_status, rev_path, rx, rty, r1);
+        } else {
+          taggedText("fn-placeholder", "<fn>");
+        }
       | Lam(dp, ann, d1) =>
-        let rp = of_dhpat(instance_click_fn, prefix, [0, ...rev_path], dp);
-        let rann = Some(of_htype(false, prefix, [1, ...rev_path], ann));
-        let r1 =
-          of_dhexp'(
-            instance_click_fn,
-            false,
-            prefix,
-            NotInHole,
-            [2, ...rev_path],
-            d1,
-          );
-        of_Lam(prefix, err_status, rev_path, rp, rann, r1);
+        if (_SHOW_FN_BODIES) {
+          let rp = of_dhpat(instance_click_fn, prefix, [0, ...rev_path], dp);
+          let rann = Some(of_htype(false, prefix, [1, ...rev_path], ann));
+          let r1 =
+            of_dhexp'(
+              instance_click_fn,
+              false,
+              prefix,
+              NotInHole,
+              [2, ...rev_path],
+              d1,
+            );
+          of_Lam(prefix, err_status, rev_path, rp, rann, r1);
+        } else {
+          taggedText("fn-placeholder", "<fn>");
+        }
       | Ap(d1, d2) =>
         let rev_path1 = [0, ...rev_path];
         let rev_path2 = [1, ...rev_path];
@@ -1149,14 +1245,15 @@ let rec of_dhexp' =
             },
             rules,
           );
-        of_CaseAnn(prefix, err_status, rev_path, r1, rpcs);
+        of_Case(prefix, err_status, rev_path, r1, rpcs, None);
       | EmptyHole(u, i, sigma) =>
         let inst = (u, i);
         let hole_label = hole_label_of(inst);
         let r =
-          dbg_SHOW_SIGMAS ?
-            hole_label ^^ of_sigma(instance_click_fn, prefix, rev_path, sigma) :
-            hole_label;
+          dbg_SHOW_SIGMAS
+            ? hole_label
+              ^^ of_sigma(instance_click_fn, prefix, rev_path, sigma)
+            : hole_label;
         let attrs = [
           Tyxml_js.Html5.a_onclick(_ => {
             instance_click_fn(inst);
@@ -1186,10 +1283,11 @@ let rec of_dhexp' =
           );
 
         let r =
-          dbg_SHOW_SIGMAS ?
-            r1 ^^ of_sigma(instance_click_fn, prefix, rev_path, sigma) : r1;
+          dbg_SHOW_SIGMAS
+            ? r1 ^^ of_sigma(instance_click_fn, prefix, rev_path, sigma) : r1;
         term(prefix, err_status, rev_path, "NonEmptyHole", r);
-      | Cast(Cast(d1, ty1, ty2), ty3, ty4) when HTyp.eq(ty2, ty3) =>
+      | Cast(Cast(d1, ty1, ty2), ty3, ty4)
+          when _SHOW_CASTS && HTyp.eq(ty2, ty3) =>
         let rev_path1 = [0, ...rev_path];
         let inner_rev_path1 = [0, ...rev_path1];
         let inner_rev_path2 = [1, ...rev_path1];
@@ -1211,23 +1309,35 @@ let rec of_dhexp' =
         let r5 = of_htype(false, prefix, rev_path3, ty4);
         of_chained_Cast(prefix, err_status, rev_path, r1, r2, r3, r5);
       | Cast(d1, ty1, ty2) =>
-        let rev_path1 = [0, ...rev_path];
-        let rev_path2 = [1, ...rev_path];
-        let rev_path3 = [2, ...rev_path];
-        let paren1 = precedence_dhexp(d1) > precedence_const;
-        let r1 =
+        if (_SHOW_CASTS) {
+          let rev_path1 = [0, ...rev_path];
+          let rev_path2 = [1, ...rev_path];
+          let rev_path3 = [2, ...rev_path];
+          let paren1 = precedence_dhexp(d1) > precedence_const;
+          let r1 =
+            of_dhexp'(
+              instance_click_fn,
+              paren1,
+              prefix,
+              NotInHole,
+              rev_path1,
+              d1,
+            );
+
+          let r2 = of_htype(false, prefix, rev_path2, ty1);
+          let r3 = of_htype(false, prefix, rev_path3, ty2);
+          of_Cast(prefix, err_status, rev_path, r1, r2, r3);
+        } else {
+          let rev_path1 = [0, ...rev_path];
           of_dhexp'(
             instance_click_fn,
-            paren1,
+            false,
             prefix,
-            NotInHole,
+            err_status,
             rev_path1,
             d1,
           );
-
-        let r2 = of_htype(false, prefix, rev_path2, ty1);
-        let r3 = of_htype(false, prefix, rev_path3, ty2);
-        of_Cast(prefix, err_status, rev_path, r1, r2, r3);
+        }
       | FailedCast(Cast(d1, ty1, ty2), ty3, ty4) when HTyp.eq(ty2, ty3) =>
         let rev_path1 = [0, ...rev_path];
         let inner_rev_path1 = [0, ...rev_path1];

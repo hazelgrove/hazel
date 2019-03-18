@@ -65,9 +65,13 @@ let mk =
               Dom.preventDefault(evt);
               let cursor_info = React.S.value(cursor_info_rs);
               switch (cursor_info.sort) {
+              | CursorInfo.IsLineItem(UHExp.EmptyLine)
+              | CursorInfo.IsLineItem(
+                  UHExp.ExpLine(UHExp.Tm(_, UHExp.EmptyHole(_))),
+                )
               | CursorInfo.IsExpr(UHExp.Tm(_, UHExp.EmptyHole(_)))
               | CursorInfo.IsPat(UHPat.Pat(_, UHPat.EmptyHole(_)))
-              | CursorInfo.IsPat(UHPat.Pat(_, UHPat.Var(""))) =>
+              | CursorInfo.IsPat(UHPat.Pat(_, UHPat.Var(_, ""))) =>
                 let shape =
                   switch (single_key) {
                   | JSUtil.Number(n) => Action.SNumLit(n, After)
@@ -102,8 +106,8 @@ let mk =
                     Action.Construct(Action.SNumLit(new_n, new_side)),
                   );
                 | None =>
-                  Var.is_valid(newNodeValue) ?
-                    {
+                  Var.is_valid(newNodeValue)
+                    ? {
                       let new_side =
                         side_of_str_offset(newNodeValue, anchorOffset + 1);
                       do_action(
@@ -111,11 +115,12 @@ let mk =
                           Action.SVar(newNodeValue, new_side),
                         ),
                       );
-                    } :
-                    ()
+                    }
+                    : ()
                 };
                 Dom_html.stopPropagation(evt);
                 false;
+              | CursorInfo.IsLineItem(_)
               | CursorInfo.IsExpr(_)
               | CursorInfo.IsPat(_)
               | CursorInfo.IsType => true
@@ -162,9 +167,9 @@ let mk =
                       );
                     let ctrlKey = Js.to_bool(evt##.ctrlKey);
                     let (nodeValue', anchorOffset') =
-                      is_backspace ?
-                        string_backspace(nodeValue, anchorOffset, ctrlKey) :
-                        string_delete(nodeValue, anchorOffset, ctrlKey);
+                      is_backspace
+                        ? string_backspace(nodeValue, anchorOffset, ctrlKey)
+                        : string_delete(nodeValue, anchorOffset, ctrlKey);
                     if (String.equal(nodeValue', "")) {
                       if (is_Before) {
                         do_action(Action.Delete);
@@ -180,8 +185,8 @@ let mk =
                           Action.Construct(Action.SNumLit(new_n, new_side)),
                         );
                       | None =>
-                        Var.is_valid(nodeValue') ?
-                          {
+                        Var.is_valid(nodeValue')
+                          ? {
                             let new_side =
                               side_of_str_offset(nodeValue', anchorOffset');
                             do_action(
@@ -189,8 +194,8 @@ let mk =
                                 Action.SVar(nodeValue', new_side),
                               ),
                             );
-                          } :
-                          ()
+                          }
+                          : ()
                       };
                     };
                     false;
@@ -205,9 +210,9 @@ let mk =
             }
           ),
           a_onkeypress(evt =>
-            JSUtil.is_movement_key(evt) ?
-              true :
-              {
+            JSUtil.is_movement_key(evt)
+              ? true
+              : {
                 Dom.preventDefault(evt);
                 true;
               }

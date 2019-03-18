@@ -1,4 +1,4 @@
-module U = Util;
+module U = HazelUtil;
 open Tyxml_js;
 open React;
 module Js = Js_of_ocaml.Js;
@@ -84,13 +84,15 @@ module ModKey = {
   type t =
     | Ctrl
     | Shift
-    | Alt;
+    | Alt
+    | Meta;
 
   let matches = (mk, evt: Js.t(Dom_html.keyboardEvent)) =>
     switch (mk) {
     | Ctrl => Js.to_bool(evt##.ctrlKey)
     | Shift => Js.to_bool(evt##.shiftKey)
     | Alt => Js.to_bool(evt##.altKey)
+    | Meta => Js.to_bool(evt##.metaKey)
     };
 };
 
@@ -110,13 +112,14 @@ module ModKeys = {
     c: req,
     s: req,
     a: req,
+    m: req,
   };
 
-  let not_held = {c: NotHeld, s: NotHeld, a: NotHeld};
-  let ctrl = {c: Held, s: Any, a: NotHeld};
-  let shift = {c: NotHeld, s: Held, a: NotHeld};
-  let alt = {c: NotHeld, s: Any, a: Held};
-  let no_ctrl_alt = {c: NotHeld, s: Any, a: NotHeld};
+  let not_held = {c: NotHeld, s: NotHeld, a: NotHeld, m: NotHeld};
+  let ctrl = {c: Held, s: Any, a: NotHeld, m: NotHeld};
+  let shift = {c: NotHeld, s: Held, a: NotHeld, m: NotHeld};
+  let alt = {c: NotHeld, s: Any, a: Held, m: NotHeld};
+  let no_ctrl_alt_meta = {c: NotHeld, s: Any, a: NotHeld, m: NotHeld};
 
   let req_matches = (req, mk, evt) =>
     switch (req) {
@@ -128,22 +131,15 @@ module ModKeys = {
   let matches = (mks, evt: Js.t(Dom_html.keyboardEvent)) =>
     req_matches(mks.c, ModKey.Ctrl, evt)
     && req_matches(mks.s, ModKey.Shift, evt)
-    && req_matches(mks.a, ModKey.Alt, evt);
+    && req_matches(mks.a, ModKey.Alt, evt)
+    && req_matches(mks.m, ModKey.Meta, evt);
 
   let mod_prefix = mk => {
-    let ctrl_held = is_held(mk.c);
-    let shift_held = is_held(mk.s);
-    let alt_held = is_held(mk.a);
-    switch (ctrl_held, shift_held, alt_held) {
-    | (false, false, false) => ""
-    | (true, false, false) => "Ctrl + "
-    | (false, true, false) => "Shift + "
-    | (false, false, true) => "Alt + "
-    | (true, true, false) => "Ctrl + Shift + "
-    | (true, false, true) => "Ctrl + Alt + "
-    | (false, true, true) => "Alt + Shift + "
-    | (true, true, true) => "Ctrl + Alt + Shift + "
-    };
+    let ctrl_text = is_held(mk.c) ? "Ctrl + " : "";
+    let shift_text = is_held(mk.s) ? "Shift + " : "";
+    let alt_text = is_held(mk.a) ? "Alt + " : "";
+    let meta_text = is_held(mk.m) ? "Meta + " : "";
+    meta_text ++ ctrl_text ++ alt_text ++ shift_text;
   };
 };
 
@@ -201,7 +197,7 @@ module KeyCombo = {
 
   let make = (mod_keys, key) => {mod_keys, key};
   let plain = key => {mod_keys: ModKeys.not_held, key};
-  let no_ctrl_alt = key => {mod_keys: ModKeys.no_ctrl_alt, key};
+  let no_ctrl_alt_meta = key => {mod_keys: ModKeys.no_ctrl_alt_meta, key};
   let shift = key => {mod_keys: ModKeys.shift, key};
   let ctrl = key => {mod_keys: ModKeys.ctrl, key};
   let alt = key => {mod_keys: ModKeys.alt, key};
@@ -223,24 +219,24 @@ module KeyCombos = {
   let tab = KeyCombo.plain(Key.the_code("Tab"));
   let shift_tab = KeyCombo.shift(Key.the_code("Tab"));
   let space = KeyCombo.plain(Key.the_code("Space"));
-  let lt = KeyCombo.no_ctrl_alt(Key.the_key("<"));
-  let gt = KeyCombo.no_ctrl_alt(Key.the_key(">"));
-  let colon = KeyCombo.no_ctrl_alt(Key.the_key(":"));
-  let backslash = KeyCombo.no_ctrl_alt(Key.the_key("\\"));
-  let left_parens = KeyCombo.no_ctrl_alt(Key.the_key("("));
-  let right_parens = KeyCombo.no_ctrl_alt(Key.the_key(")"));
-  let left_bracket = KeyCombo.no_ctrl_alt(Key.the_key("["));
-  let right_bracket = KeyCombo.no_ctrl_alt(Key.the_key("]"));
-  let qmark = KeyCombo.no_ctrl_alt(Key.the_key("?"));
-  let equals = KeyCombo.no_ctrl_alt(Key.the_key("="));
-  let pound = KeyCombo.no_ctrl_alt(Key.the_key("#"));
-  let plus = KeyCombo.no_ctrl_alt(Key.the_key("+"));
-  let asterisk = KeyCombo.no_ctrl_alt(Key.the_key("*"));
-  let semicolon = KeyCombo.no_ctrl_alt(Key.the_key(";"));
-  let comma = KeyCombo.no_ctrl_alt(Key.the_key(","));
-  let vbar = KeyCombo.no_ctrl_alt(Key.the_key("|"));
-  let dollar = KeyCombo.no_ctrl_alt(Key.the_key("$"));
-  let amp = KeyCombo.no_ctrl_alt(Key.the_key("&"));
+  let lt = KeyCombo.no_ctrl_alt_meta(Key.the_key("<"));
+  let gt = KeyCombo.no_ctrl_alt_meta(Key.the_key(">"));
+  let colon = KeyCombo.no_ctrl_alt_meta(Key.the_key(":"));
+  let backslash = KeyCombo.no_ctrl_alt_meta(Key.the_key("\\"));
+  let left_parens = KeyCombo.no_ctrl_alt_meta(Key.the_key("("));
+  let right_parens = KeyCombo.no_ctrl_alt_meta(Key.the_key(")"));
+  let left_bracket = KeyCombo.no_ctrl_alt_meta(Key.the_key("["));
+  let right_bracket = KeyCombo.no_ctrl_alt_meta(Key.the_key("]"));
+  let qmark = KeyCombo.no_ctrl_alt_meta(Key.the_key("?"));
+  let equals = KeyCombo.no_ctrl_alt_meta(Key.the_key("="));
+  let pound = KeyCombo.no_ctrl_alt_meta(Key.the_key("#"));
+  let plus = KeyCombo.no_ctrl_alt_meta(Key.the_key("+"));
+  let asterisk = KeyCombo.no_ctrl_alt_meta(Key.the_key("*"));
+  let semicolon = KeyCombo.no_ctrl_alt_meta(Key.the_key(";"));
+  let comma = KeyCombo.no_ctrl_alt_meta(Key.the_key(","));
+  let vbar = KeyCombo.no_ctrl_alt_meta(Key.the_key("|"));
+  let dollar = KeyCombo.no_ctrl_alt_meta(Key.the_key("$"));
+  let amp = KeyCombo.no_ctrl_alt_meta(Key.the_key("&"));
   let alt_L = KeyCombo.alt(Key.the_letter_code("l"));
   let alt_R = KeyCombo.alt(Key.the_letter_code("r"));
   let alt_C = KeyCombo.alt(Key.the_letter_code("c"));
@@ -248,9 +244,9 @@ module KeyCombos = {
   let alt_PageDown = KeyCombo.alt(Key.the_key("PageDown"));
   let alt_T = KeyCombo.alt(Key.the_letter_code("T"));
   let alt_F = KeyCombo.alt(Key.the_letter_code("F"));
-  let key_B = KeyCombo.no_ctrl_alt(Key.the_key("B"));
-  let key_N = KeyCombo.no_ctrl_alt(Key.the_key("N"));
-  let key_L = KeyCombo.no_ctrl_alt(Key.the_key("L"));
+  let key_B = KeyCombo.no_ctrl_alt_meta(Key.the_key("B"));
+  let key_N = KeyCombo.no_ctrl_alt_meta(Key.the_key("N"));
+  let key_L = KeyCombo.no_ctrl_alt_meta(Key.the_key("L"));
 };
 
 let listen_for_key = (kc, f) =>

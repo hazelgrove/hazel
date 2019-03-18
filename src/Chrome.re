@@ -4,6 +4,11 @@ open SemanticsCommon;
 module Js = Js_of_ocaml.Js;
 module Dom = Js_of_ocaml.Dom;
 module Dom_html = Js_of_ocaml.Dom_html;
+module StringMap = Map.Make(String);
+type example_info = {
+  serialized: string,
+  desc: string,
+};
 let view = (model: Model.t) => {
   let {
     edit_state_rs,
@@ -18,7 +23,7 @@ let view = (model: Model.t) => {
     replace_e,
     _,
   } = model;
-  let pp_view_width = 50;
+  let pp_view_width = 80;
   let prefix = "view";
   let rec mk_editor_box:
     (EditorBox.rev_path, EditorBox.rev_paths, UHExp.t) => EditorBox.t =
@@ -403,7 +408,7 @@ let view = (model: Model.t) => {
       };
     } else if (ast_has_class("Asc")) {
       In(0);
-    } else if (ast_has_class("Let")) {
+    } else if (ast_has_class("LetLine")) {
       let anchor_elem = get_anchor_elem(anchor);
       let innerHTML = Js.to_string(anchor_elem##.innerHTML);
       if (String.equal(innerHTML, "let")) {
@@ -493,15 +498,21 @@ let view = (model: Model.t) => {
       };
     } else if (ast_has_class("Case")) {
       let anchor_elem = get_anchor_elem(anchor);
-      if (anchorOffset == 0) {
-        let innerHTML = Js.to_string(anchor_elem##.innerHTML);
-        if (String.equal(innerHTML, "case")) {
+      let innerHTML = Js.to_string(anchor_elem##.innerHTML);
+      if (String.equal(innerHTML, "case")) {
+        if (anchorOffset == 0) {
           Before;
         } else {
           In(0);
         };
+      } else if (String.equal(innerHTML, "end")) {
+        if (anchorOffset <= 2) {
+          In(1);
+        } else {
+          After;
+        };
       } else {
-        In(0);
+        Before;
       };
     } else if (ast_has_class("EmptyHole") || ast_has_class("Hole")) {
       let anchor_elem = get_anchor_elem(anchor);
@@ -519,6 +530,8 @@ let view = (model: Model.t) => {
       In(0);
     } else if (ast_has_class("OpSeq")) {
       In(0);
+    } else if (ast_has_class("EmptyLine")) {
+      Before;
     } else {
       JSUtil.log("Unknown ast element!");
       JSUtil.log(classList);
@@ -728,29 +741,76 @@ let view = (model: Model.t) => {
   let the_cursor_inspector_panel = CursorInspector.mk(cursor_info_rs);
   let the_context_inspector_panel =
     ContextInspector.mk(model, instance_click_fn);
+  /*let the_history_panel = HistoryPanel.make(model.code_history_rs);*/
   let the_action_panel = ActionPanel.make(model, set_cursor);
-  let the_leftbar =
-    Html5.(div(~a=[a_class(["sidebar", "leftbar"])], [the_action_panel]));
 
-  let the_rightbar =
-    Html5.(
-      div(
-        ~a=[a_class(["sidebar", "rightbar"])],
-        [the_cursor_inspector_panel, the_context_inspector_panel],
-      )
+  let serialize_onclick_handler = _ => {
+    JSUtil.log(Js.string(Serialize.string_of_uhexp(React.S.value(e_rs))));
+    true;
+  };
+
+  let deserialize_onclick_handler = (serialized, _) => {
+    replace_e(Deserialize.uhexp_of_string(serialized));
+    true;
+  };
+
+  let examples =
+    StringMap.add(
+      "qsort_example",
+      {
+        serialized: "(Tm NotInHole(LineItem(LetLine(Pat NotInHole(Var NotInVHole append))((OpSeq(BinOp NotInHole Arrow(Placeholder 0)(BinOp NotInHole Arrow(Placeholder 1)(Placeholder 2)))(SeqOpExp(ExpOpExp(List Num)Arrow(List Num))Arrow(List Num))))(Tm NotInHole(Lam(Pat NotInHole(Var NotInVHole xs))()(Tm NotInHole(Lam(Pat NotInHole(Var NotInVHole ys))()(Tm NotInHole(Case(Tm NotInHole(Var NotInVHole xs))((Rule(Pat NotInHole ListNil)(Tm NotInHole(Var NotInVHole ys)))(Rule(Pat NotInHole(OpSeq(BinOp NotInHole Cons(Placeholder 0)(Placeholder 1))(ExpOpExp(Pat NotInHole(Var NotInVHole z))Cons(Pat NotInHole(Var NotInVHole zs)))))(Tm NotInHole(OpSeq(BinOp NotInHole Cons(Placeholder 0)(Placeholder 1))(ExpOpExp(Tm NotInHole(Var NotInVHole z))Cons(Parenthesized(Tm NotInHole(OpSeq(BinOp NotInHole Space(BinOp NotInHole Space(Placeholder 0)(Placeholder 1))(Placeholder 2))(SeqOpExp(ExpOpExp(Tm NotInHole(Var NotInVHole append))Space(Tm NotInHole(Var NotInVHole zs)))Space(Tm NotInHole(Var NotInVHole ys))))))))))))))))))(Tm NotInHole(LineItem EmptyLine(Tm NotInHole(LineItem(LetLine(Pat NotInHole(Var NotInVHole partition))((OpSeq(BinOp NotInHole Arrow(Placeholder 0)(BinOp NotInHole Arrow(Placeholder 1)(Placeholder 2)))(SeqOpExp(ExpOpExp(Parenthesized(OpSeq(BinOp NotInHole Arrow(Placeholder 0)(Placeholder 1))(ExpOpExp Num Arrow Bool)))Arrow(List Num))Arrow(Parenthesized(OpSeq(BinOp NotInHole Prod(Placeholder 0)(Placeholder 1))(ExpOpExp(List Num)Prod(List Num)))))))(Tm NotInHole(Lam(Pat NotInHole(Var NotInVHole f))()(Tm NotInHole(Lam(Pat NotInHole(Var NotInVHole xs))()(Tm NotInHole(Case(Tm NotInHole(Var NotInVHole xs))((Rule(Pat NotInHole ListNil)(Parenthesized(Tm NotInHole(OpSeq(BinOp NotInHole Comma(Placeholder 0)(Placeholder 1))(ExpOpExp(Tm NotInHole ListNil)Comma(Tm NotInHole ListNil))))))(Rule(Pat NotInHole(OpSeq(BinOp NotInHole Cons(Placeholder 0)(Placeholder 1))(ExpOpExp(Pat NotInHole(Var NotInVHole y))Cons(Pat NotInHole(Var NotInVHole ys)))))(Tm NotInHole(LineItem EmptyLine(Tm NotInHole(LineItem(LetLine(Parenthesized(Pat NotInHole(OpSeq(BinOp NotInHole Comma(Placeholder 0)(Placeholder 1))(ExpOpExp(Pat NotInHole(Var NotInVHole ys1))Comma(Pat NotInHole(Var NotInVHole ys2))))))()(Tm NotInHole(OpSeq(BinOp NotInHole Space(BinOp NotInHole Space(Placeholder 0)(Placeholder 1))(Placeholder 2))(SeqOpExp(ExpOpExp(Tm NotInHole(Var NotInVHole partition))Space(Tm NotInHole(Var NotInVHole f)))Space(Tm NotInHole(Var NotInVHole ys))))))(Tm NotInHole(Case(Tm NotInHole(OpSeq(BinOp NotInHole Space(Placeholder 0)(Placeholder 1))(ExpOpExp(Tm NotInHole(Var NotInVHole f))Space(Tm NotInHole(Var NotInVHole y)))))((Rule(Pat NotInHole(BoolLit true))(Parenthesized(Tm NotInHole(OpSeq(BinOp NotInHole Comma(BinOp NotInHole Cons(Placeholder 0)(Placeholder 1))(Placeholder 2))(SeqOpExp(ExpOpExp(Tm NotInHole(Var NotInVHole y))Cons(Tm NotInHole(Var NotInVHole ys1)))Comma(Tm NotInHole(Var NotInVHole ys2)))))))(Rule(Pat NotInHole(BoolLit false))(Parenthesized(Tm NotInHole(OpSeq(BinOp NotInHole Comma(Placeholder 0)(BinOp NotInHole Cons(Placeholder 1)(Placeholder 2)))(SeqOpExp(ExpOpExp(Tm NotInHole(Var NotInVHole ys1))Comma(Tm NotInHole(Var NotInVHole y)))Cons(Tm NotInHole(Var NotInVHole ys2)))))))))))))))))))))))(Tm NotInHole(LineItem EmptyLine(Tm NotInHole(OpSeq(BinOp NotInHole Space(Placeholder 0)(Placeholder 1))(ExpOpExp(Tm NotInHole(Var(InVHole Free 521)qsort))Space(Parenthesized(Tm NotInHole(OpSeq(BinOp NotInHole Cons(Placeholder 0)(BinOp NotInHole Cons(Placeholder 1)(BinOp NotInHole Cons(Placeholder 2)(BinOp NotInHole Cons(Placeholder 3)(BinOp NotInHole Cons(Placeholder 4)(BinOp NotInHole Cons(Placeholder 5)(BinOp NotInHole Cons(Placeholder 6)(BinOp NotInHole Cons(Placeholder 7)(Placeholder 8)))))))))(SeqOpExp(SeqOpExp(SeqOpExp(SeqOpExp(SeqOpExp(SeqOpExp(SeqOpExp(ExpOpExp(Tm NotInHole(NumLit 4))Cons(Tm NotInHole(NumLit 2)))Cons(Tm NotInHole(NumLit 6)))Cons(Tm NotInHole(NumLit 5)))Cons(Tm NotInHole(NumLit 3)))Cons(Tm NotInHole(NumLit 1)))Cons(Tm NotInHole(NumLit 7)))Cons(Tm NotInHole(NumLit 8)))Cons(Tm NotInHole ListNil))))))))))))))))",
+        desc: "qsort prompt",
+      },
+      StringMap.add(
+        "map_example",
+        {
+          serialized: "(Tm NotInHole(LineItem(LetLine(Pat NotInHole(Var NotInVHole map))((OpSeq(BinOp NotInHole Arrow(Placeholder 0)(BinOp NotInHole Arrow(Placeholder 1)(Placeholder 2)))(SeqOpExp(ExpOpExp(Parenthesized(OpSeq(BinOp NotInHole Arrow(Placeholder 0)(Placeholder 1))(ExpOpExp Num Arrow Num)))Arrow(List Num))Arrow(List Num))))(Tm NotInHole(Lam(Pat NotInHole(Var NotInVHole f))()(Tm NotInHole(Lam(Pat NotInHole(Var NotInVHole xs))()(Tm NotInHole(LineItem EmptyLine(Tm NotInHole(Case(Tm NotInHole(Var NotInVHole xs))((Rule(Pat NotInHole ListNil)(Tm NotInHole ListNil))(Rule(Pat NotInHole(OpSeq(BinOp NotInHole Cons(Placeholder 0)(Placeholder 1))(ExpOpExp(Pat NotInHole(Var NotInVHole y))Cons(Pat NotInHole(Var NotInVHole ys)))))(Tm NotInHole(OpSeq(BinOp NotInHole Cons(Placeholder 0)(Placeholder 1))(ExpOpExp(Parenthesized(Tm NotInHole(OpSeq(BinOp NotInHole Space(Placeholder 0)(Placeholder 1))(ExpOpExp(Tm NotInHole(Var NotInVHole f))Space(Tm NotInHole(Var NotInVHole y))))))Cons(Parenthesized(Tm NotInHole(OpSeq(BinOp NotInHole Space(BinOp NotInHole Space(Placeholder 0)(Placeholder 1))(Placeholder 2))(SeqOpExp(ExpOpExp(Tm NotInHole(Var NotInVHole map))Space(Tm NotInHole(Var NotInVHole f)))Space(Tm NotInHole(Var NotInVHole ys))))))))))))))))))))(Tm NotInHole(EmptyHole 32))))",
+          desc: "map example",
+        },
+        StringMap.add(
+          "let_line",
+          {
+            serialized: "(Tm NotInHole(LineItem(LetLine(Pat NotInHole(Var y))()(Tm NotInHole(EmptyHole 0)))(Tm NotInHole(LineItem EmptyLine(Tm NotInHole(LineItem(LetLine(Pat NotInHole(Var x))()(Tm NotInHole(EmptyHole 4)))(Tm NotInHole(LineItem(ExpLine(Tm NotInHole(Var NotInVHole x)))(Tm NotInHole(Var NotInVHole y))))))))))",
+            desc: "Let with extra lines example",
+          },
+          StringMap.add(
+            "basic_holey",
+            {
+              serialized: "(Tm NotInHole(OpSeq(BinOp NotInHole Space(Placeholder 0)(Placeholder 1))(ExpOpExp(Parenthesized(Tm NotInHole(Lam(Pat NotInHole(EmptyHole 1))(Hole)(Tm NotInHole(EmptyHole 0)))))Space(Tm NotInHole(EmptyHole 2)))))",
+              desc: "Basic holey lambda example",
+            },
+            StringMap.add(
+              "just_hole",
+              {
+                serialized: "(Tm NotInHole(EmptyHole 0))",
+                desc: "Just a hole example",
+              },
+              StringMap.empty,
+            ),
+          ),
+        ),
+      ),
     );
 
-  /*
-   let serialize_onclick_handler = _ => {
-     JSUtil.log(Serialize.string_of_uhexp(React.S.value(e_rs)));
-     true;
-   };
+  let examples_select =
+    Html5.(
+      select(
+        List.map(
+          ((name, info)) => option(~a=[a_value(name)], txt(info.desc)),
+          StringMap.bindings(examples),
+        ),
+      )
+    );
+  let examples_select_dom = To_dom.of_select(examples_select);
 
-   let deserialize_onclick_handler = (serialized, _) => {
-     replace_e(Deserialize.uhexp_of_string(serialized));
-     true;
-   };
-   */
+  let _ =
+    JSUtil.listen_to_t(Dom_html.Event.click, examples_select_dom, evt =>
+      deserialize_onclick_handler(
+        StringMap.find(Js.to_string(examples_select_dom##.value), examples).
+          serialized,
+        evt,
+      )
+    );
 
   let chrome =
     Tyxml_js.To_dom.of_div(
@@ -770,63 +830,63 @@ let view = (model: Model.t) => {
             div(
               ~a=[a_class(["main-area"])],
               [
-                the_leftbar,
+                Sidebar.left([the_action_panel /*, the_history_panel*/]),
                 div(
-                  ~a=[a_class(["page-area"])],
+                  ~a=[a_class(["flex-wrapper"])],
                   [
                     div(
-                      ~a=[a_class(["page"])],
+                      ~a=[a_class(["page-area"])],
                       [
-                        div([
-                          txt("Hazel is an experiment in "),
-                          strong([txt("live functional programming")]),
-                          txt(" with "),
-                          strong([txt("typed holes")]),
-                          txt(
-                            ". Use the actions on the left to construct an expression. Navigate using the text cursor in the usual way.",
-                          ),
-                        ]),
-                        pp_view_parent,
                         div(
-                          ~a=[a_class(["cell-status"])],
+                          ~a=[a_class(["page"])],
                           [
+                            div([
+                              txt("Hazel is an experiment in "),
+                              strong([txt("live functional programming")]),
+                              txt(" with "),
+                              strong([txt("typed holes")]),
+                              txt(
+                                ". Use the actions on the left to construct an expression. Navigate using the text cursor in the usual way.",
+                              ),
+                            ]),
+                            pp_view_parent,
                             div(
-                              ~a=[a_class(["type-indicator"])],
+                              ~a=[a_class(["cell-status"])],
                               [
                                 div(
-                                  ~a=[a_class(["type-label"])],
-                                  [txt("Result of type: ")],
-                                ),
-                                div(
-                                  ~a=[a_class(["htype-view"])],
-                                  [htype_view],
+                                  ~a=[a_class(["type-indicator"])],
+                                  [
+                                    div(
+                                      ~a=[a_class(["type-label"])],
+                                      [txt("Result of type: ")],
+                                    ),
+                                    div(
+                                      ~a=[a_class(["htype-view"])],
+                                      [htype_view],
+                                    ),
+                                  ],
                                 ),
                               ],
                             ),
+                            div(
+                              ~a=[a_class(["result-view"])],
+                              [result_view],
+                            ),
                           ],
                         ),
-                        div(~a=[a_class(["result-view"])], [result_view]),
+                        examples_select,
+                        button(
+                          ~a=[a_onclick(serialize_onclick_handler)],
+                          [txt("Serialize to dev console")],
+                        ),
                       ],
                     ),
-                    /* button(
-                         ~a=[a_onclick(serialize_onclick_handler)],
-                         [txt("Serialize")],
-                       ),
-                       div([
-                         button(
-                           ~a=[
-                             a_onclick(
-                               deserialize_onclick_handler(
-                                 "(lambda {} : {}. {}) {}\n",
-                               ),
-                             ),
-                           ],
-                           [txt("Basic holey lambda example")],
-                         ),
-                       ]), */
                   ],
                 ),
-                the_rightbar,
+                Sidebar.right([
+                  the_cursor_inspector_panel,
+                  the_context_inspector_panel,
+                ]),
               ],
             ),
           ],

@@ -9,6 +9,9 @@
 *.cmxa
 
 .merlin
+.tags
+.tags1
+.DS_Store
 
 # auto-generated
 Semantics.ml

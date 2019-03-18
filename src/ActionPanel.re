@@ -47,9 +47,9 @@ let make =
     let cls_rs =
       S.map(
         can_perform =>
-          can_perform ?
-            ["action-panel-entry", "action-enabled"] :
-            ["action-panel-entry", "action-disabled"],
+          can_perform
+            ? ["action-panel-entry", "action-enabled"]
+            : ["action-panel-entry", "action-disabled"],
         can_perform_rs,
       );
 
@@ -199,9 +199,9 @@ let make =
     let cls_rs =
       S.map(
         can_perform =>
-          can_perform ?
-            ["action-panel-entry", "action-enabled"] :
-            ["action-panel-entry", "action-disabled"],
+          can_perform
+            ? ["action-panel-entry", "action-enabled"]
+            : ["action-panel-entry", "action-disabled"],
         can_perform_rs,
       );
 
@@ -214,15 +214,15 @@ let make =
     let cls_rs =
       S.map(
         enabled =>
-          enabled ?
-            ["action-panel-entry", "action-enabled"] :
-            ["action-panel-entry", "action-disabled"],
+          enabled
+            ? ["action-panel-entry", "action-enabled"]
+            : ["action-panel-entry", "action-disabled"],
         enabled_rs,
       );
     Html5.(
       div(
         ~a=[R.Html5.a_class(cls_rs)],
-        [div(~a=[a_class(["action-label"])], [msg])],
+        [div(~a=[a_class(["action-label", "info-label"])], [msg])],
       )
     );
   };
@@ -333,6 +333,13 @@ let make =
       KCs.equals,
     );
 
+  let constructNewLine =
+    checked_action_button(
+      Action.Construct(Action.SLine),
+      Html5.txt("new line"),
+      KCs.enter,
+    );
+
   let can_enter_varchar_rs = S.map(Action.can_enter_varchar, cursor_info_rs);
 
   let constructVar =
@@ -430,13 +437,6 @@ let make =
       KCs.alt_C,
     );
 
-  let constructRule =
-    checked_action_button(
-      Action.Construct(Action.SRule),
-      Html5.txt("add rule"),
-      KCs.enter,
-    );
-
   let can_insert_ap_palette_rs =
     S.l1(Action.can_construct_palette, cursor_info_rs);
 
@@ -487,6 +487,7 @@ let make =
             ~a=[a_class(["sub-panel-body"])],
             [
               constructVar,
+              constructNewLine,
               constructLet,
               constructLam,
               constructSpace,
@@ -501,7 +502,6 @@ let make =
               constructInjL,
               constructInjR,
               constructCase,
-              constructRule,
               constructAsc,
               constructApPalette,
             ],
@@ -534,10 +534,15 @@ let make =
     div(
       ~a=[a_class(["panel", "action-panel"])],
       [
-        PanelUtils.titlebar("Edit Actions"),
-        generalActions,
-        expressionConstructionActions,
-        typeConstructionActions,
+        Panel.main_title_bar("Edit Actions"),
+        div(
+          ~a=[a_class(["panel-body", "action-panel-body"])],
+          [
+            generalActions,
+            expressionConstructionActions,
+            typeConstructionActions,
+          ],
+        ),
       ],
     )
   );

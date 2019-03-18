@@ -27,7 +27,7 @@ Hazel is implemented in Reason/OCaml, and is compiled to Javascript for the web 
   - Install the necessary OCaml dependencies:
 
     ```sh
-    > opam install dune reason js_of_ocaml tyxml deriving ppx_deriving reactiveData js_of_ocaml-tyxml camomile menhir oUnit
+    > opam install dune reason js_of_ocaml tyxml deriving ppx_deriving reactiveData js_of_ocaml-tyxml camomile menhir oUnit sexplib ppx_sexp_conv
     ```
 
 ### Compilation
@@ -39,10 +39,10 @@ We can now build the application.
 > make
 ```
 
-The `make` command simply runs `dune build --auto-promote`, which does four things:
+The `make` command does four things:
 
-1. Generates some parsers using `menhir`.
-2. Auto-formats all reason code, using `refmt` (this is why we need `auto-promote`).
+1. Auto-formats all reason code using `refmt` (this is why we need `auto-promote`).
+2. Generates some parsers using `menhir`.
 3. Compiles the Reason code to OCaml bytecode using the OCaml compiler.
 4. Compiles the OCaml bytecode to JavaScript (`src/build/default/www/hazel.js`) using `js_of_ocaml`.
 

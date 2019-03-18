@@ -108,14 +108,14 @@ let mk =
         Html5.(
           div(
             ~a=[a_class(["the-context"])],
-            List.rev_map(context_entry(sigma), ctx_list),
+            List.map(context_entry(sigma), ctx_list),
           )
         )
       };
     };
 
     let path_view_titlebar =
-      PanelUtils.titlebar("Closure above observed at ");
+      Panel.other_title_bar("Closure above observed at ");
     let instructional_msg = msg =>
       Html5.(div(~a=[a_class(["instructional-msg"])], [txt(msg)]));
     let html_of_path_item = ((inst, x)) =>
@@ -161,16 +161,17 @@ let mk =
           let titlebar_txt = "which is in the result via path";
           let path_area_children =
             List.fold_left(
-              (acc, path_item) => [
-                html_of_path_item(path_item),
-                Html5.(
-                  span(
-                    ~a=[a_class(["path-item-separator"])],
-                    [Html5.txt(" 〉 ")],
-                  )
-                ),
-                ...acc,
-              ],
+              (acc, path_item) =>
+                [
+                  html_of_path_item(path_item),
+                  Html5.(
+                    span(
+                      ~a=[a_class(["path-item-separator"])],
+                      [Html5.txt(" 〉 ")],
+                    )
+                  ),
+                  ...acc,
+                ],
               [
                 Html5.(
                   div(
@@ -199,7 +200,7 @@ let mk =
         div(
           ~a=[a_class(["path-view-with-path"])],
           [
-            PanelUtils.titlebar(titlebar_txt),
+            Panel.other_title_bar(titlebar_txt),
             div(~a=[a_class(["path-area-parent"])], path_area_children),
           ],
         )
@@ -310,51 +311,71 @@ let mk =
       let prev_btn =
         switch (prev_state) {
         | Some(_) =>
-          let prev_cls = ["prev-instance", "has-prev", "noselect"];
-          let prev_onclick = onclick(prev_state);
           Html5.(
             div(
               ~a=[
-                a_class(prev_cls),
                 a_title(prev_title),
-                a_onclick(prev_onclick),
+                a_class(["instance-button-wrapper"]),
+                a_onclick(onclick(prev_state)),
               ],
-              [txt("◂")],
+              [
+                SvgShapes.left_arrow(
+                  ["prev-instance", "has-prev", "noselect"],
+                  (),
+                ),
+              ],
             )
-          );
+          )
         | None =>
-          let prev_cls = ["prev-instance", "no-prev", "noselect"];
           Html5.(
             div(
-              ~a=[a_class(prev_cls), a_title(prev_title)],
-              [txt("◂")],
+              ~a=[
+                a_title(prev_title),
+                a_class(["instance-button-wrapper"]),
+              ],
+              [
+                SvgShapes.left_arrow(
+                  ["prev-instance", "no-prev", "noselect"],
+                  (),
+                ),
+              ],
             )
-          );
+          )
         };
 
       let next_btn =
         switch (next_state) {
         | Some(_) =>
-          let next_cls = ["next-instance", "has-next", "noselect"];
-          let next_onclick = onclick(next_state);
           Html5.(
             div(
               ~a=[
-                a_class(next_cls),
                 a_title(next_title),
-                a_onclick(next_onclick),
+                a_class(["instance-button-wrapper"]),
+                a_onclick(onclick(next_state)),
               ],
-              [txt("▸")],
+              [
+                SvgShapes.right_arrow(
+                  ["next-instance", "has-next", "noselect"],
+                  (),
+                ),
+              ],
             )
-          );
+          )
         | None =>
-          let next_cls = ["next-instance", "no-next", "noselect"];
           Html5.(
             div(
-              ~a=[a_class(next_cls), a_title(next_title)],
-              [txt("▸")],
+              ~a=[
+                a_title(next_title),
+                a_class(["instance-button-wrapper"]),
+              ],
+              [
+                SvgShapes.right_arrow(
+                  ["next-instance", "no-next", "noselect"],
+                  (),
+                ),
+              ],
             )
-          );
+          )
         };
 
       let controls =
@@ -415,25 +436,22 @@ let mk =
       let the_path_viewer =
         path_viewer(hii, selected_instance, sort, gamma, next_prev_state_rf);
 
-      Html5.(
-        div([
-          PanelUtils.titlebar("context"),
-          Html5.(
-            div(
-              ~a=[a_class(["context-inspector-body"])],
-              [the_context_view, the_path_viewer],
-            )
-          ),
-        ])
-      );
+      [
+        Panel.main_title_bar("context"),
+        Html5.(
+          div(
+            ~a=[a_class(["panel-body", "context-inspector-body"])],
+            [the_context_view, the_path_viewer],
+          )
+        ),
+      ];
     };
   };
   open M;
   let context_inspector_rs =
     React.S.l3(
-      (cursor_info, result, selected_instance) => [
+      (cursor_info, result, selected_instance) =>
         panel(cursor_info, result, selected_instance, next_prev_state_rf),
-      ],
       cursor_info_rs,
       result_rs,
       selected_instance_rs,
