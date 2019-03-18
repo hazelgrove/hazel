@@ -30,7 +30,7 @@ module DHPat = {
     | Triv /* unit intro */
     | Ap(t, t);
 
-  let rec make_tuple = (ds: TupleList.t(t)): t =>
+  let rec make_tuple = (ds: ListMinTwo.t(t)): t =>
     switch (ds) {
     | Pair(d1, d2) => Pair(d1, d2)
     | Cons(d1, ds) =>
@@ -290,7 +290,7 @@ module DHPat = {
         let skels = UHPat.get_tuple(skel1, skel2);
         let (zipped, remainder) = HTyp.zip_with_skels(skels, types);
         let processed1 =
-          TupleList.fold_right(
+          ListMinTwo.fold_right(
             (skel_ty: (UHPat.skel_t, HTyp.t), opt_result) =>
               switch (opt_result) {
               | None => None
@@ -299,7 +299,7 @@ module DHPat = {
                 switch (ana_expand_skel(ctx, delta, skel, seq, ty)) {
                 | DoesNotExpand => None
                 | Expands(dp, ty, ctx, delta) =>
-                  Some((TupleList.Cons((dp, ty), elts), ctx, delta))
+                  Some((ListMinTwo.Cons((dp, ty), elts), ctx, delta))
                 };
               },
             zipped,
@@ -311,7 +311,7 @@ module DHPat = {
                 | DoesNotExpand => None
                 | Expands(dp2, ty2, ctx, delta) =>
                   Some((
-                    TupleList.Pair((dp1, ty1), (dp2, ty2)),
+                    ListMinTwo.Pair((dp1, ty1), (dp2, ty2)),
                     ctx,
                     delta,
                   ))
@@ -339,8 +339,8 @@ module DHPat = {
           switch (processed2) {
           | None => DoesNotExpand
           | Some((elts2, ctx, delta)) =>
-            let elts = TupleList.append_list(elts1, elts2);
-            let (ds, tys) = TupleList.unzip(elts);
+            let elts = ListMinTwo.append_list(elts1, elts2);
+            let (ds, tys) = ListMinTwo.unzip(elts);
             let d = make_tuple(ds);
             let ty = HTyp.make_tuple(tys);
             Expands(d, ty, ctx, delta);
@@ -453,7 +453,7 @@ module DHExp = {
     | FailedCast(_, _, _) => "FailedCast"
     };
 
-  let rec make_tuple = (ds: TupleList.t(t)): t =>
+  let rec make_tuple = (ds: ListMinTwo.t(t)): t =>
     switch (ds) {
     | Pair(d1, d2) => Pair(d1, d2)
     | Cons(d1, ds) =>
@@ -1418,7 +1418,7 @@ module DHExp = {
         let skels = UHExp.get_tuple(skel1, skel2);
         let (zipped, remainder) = HTyp.zip_with_skels(skels, types);
         let processed1 =
-          TupleList.fold_right(
+          ListMinTwo.fold_right(
             (skel_ty: (UHExp.skel_t, HTyp.t), opt_result) =>
               switch (opt_result) {
               | None => None
@@ -1427,7 +1427,7 @@ module DHExp = {
                 switch (ana_expand_skel(ctx, delta, skel, seq, ty)) {
                 | DoesNotExpand => None
                 | Expands(d, ty, delta) =>
-                  Some((TupleList.Cons((d, ty), elts), delta))
+                  Some((ListMinTwo.Cons((d, ty), elts), delta))
                 };
               },
             zipped,
@@ -1438,7 +1438,7 @@ module DHExp = {
                 switch (ana_expand_skel(ctx, delta, skel2, seq, ty2)) {
                 | DoesNotExpand => None
                 | Expands(d2, ty2, delta) =>
-                  Some((TupleList.Pair((d1, ty1), (d2, ty2)), delta))
+                  Some((ListMinTwo.Pair((d1, ty1), (d2, ty2)), delta))
                 }
               },
           );
@@ -1463,8 +1463,8 @@ module DHExp = {
           switch (processed2) {
           | None => DoesNotExpand
           | Some((elts2, delta)) =>
-            let elts = TupleList.append_list(elts1, elts2);
-            let (ds, tys) = TupleList.unzip(elts);
+            let elts = ListMinTwo.append_list(elts1, elts2);
+            let (ds, tys) = ListMinTwo.unzip(elts);
             let d = make_tuple(ds);
             let ty = HTyp.make_tuple(tys);
             Expands(d, ty, delta);

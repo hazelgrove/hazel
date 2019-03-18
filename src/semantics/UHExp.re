@@ -48,7 +48,7 @@ and splice_map = SpliceInfo.splice_map(t);
 
 exception SkelInconsistentWithOpSeq(skel_t, opseq);
 
-let rec get_tuple = (skel1: skel_t, skel2: skel_t): TupleList.t(skel_t) =>
+let rec get_tuple = (skel1: skel_t, skel2: skel_t): ListMinTwo.t(skel_t) =>
   switch (skel2) {
   | BinOp(_, Comma, skel21, skel22) =>
     Cons(skel1, get_tuple(skel21, skel22))
@@ -56,7 +56,7 @@ let rec get_tuple = (skel1: skel_t, skel2: skel_t): TupleList.t(skel_t) =>
   | Placeholder(_) => Pair(skel1, skel2)
   };
 
-let rec make_tuple = (err: err_status, skels: TupleList.t(skel_t)): skel_t =>
+let rec make_tuple = (err: err_status, skels: ListMinTwo.t(skel_t)): skel_t =>
   switch (skels) {
   | Pair(skel1, skel2) => BinOp(err, Comma, skel1, skel2)
   | Cons(skel1, skels) =>
