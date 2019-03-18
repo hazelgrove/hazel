@@ -37,7 +37,11 @@ and t' =
   | CaseZR(UHExp.block, zrules, option(UHTyp.t))
   | CaseZA(UHExp.block, list(UHExp.rule), ZTyp.t)
   | OpSeqZ(UHExp.skel_t, t, OperatorSeq.opseq_surround(UHExp.t, UHExp.op))
-  | ApPaletteZ(PaletteName.t, SerializedModel.t, ZSpliceInfo.t(UHExp.block, zblock))
+  | ApPaletteZ(
+      PaletteName.t,
+      SerializedModel.t,
+      ZSpliceInfo.t(UHExp.block, zblock),
+    )
 and zrules = ZList.t(zrule, UHExp.rule)
 and zrule =
   | RuleZP(ZPat.t, UHExp.block)

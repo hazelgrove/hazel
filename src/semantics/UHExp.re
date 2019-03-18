@@ -41,7 +41,7 @@ and t' =
   | Case(block, rules, option(UHTyp.t))
   | ListNil
   | ApPalette(PaletteName.t, SerializedModel.t, splice_info)
-and opseq = OperatorSeq(t, op)
+and opseq = OperatorSeq.opseq(t, op)
 and rules = list(rule)
 and rule =
   | Rule(UHPat.t, block)
