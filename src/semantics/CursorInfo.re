@@ -143,8 +143,8 @@ let rec ana_pat_cursor_found =
     ) =>
     switch (ty) {
     | Prod(ty1, ty2) =>
-      let n_elts = TupleList.length(UHPat.get_tuple(skel1, skel2));
-      let n_types = TupleList.length(HTyp.get_tuple(ty1, ty2));
+      let n_elts = ListMinTwo.length(UHPat.get_tuple(skel1, skel2));
+      let n_types = ListMinTwo.length(HTyp.get_tuple(ty1, ty2));
       Some(
         mk_cursor_info(
           PatAnaWrongLength(n_types, n_elts, ty),
@@ -284,7 +284,7 @@ and ana_skel_pat_cursor_info =
     | Prod(ty1, ty2) =>
       let types = HTyp.get_tuple(ty1, ty2);
       let skels = UHPat.get_tuple(skel1, skel2);
-      switch (TupleList.zip_eq(skels, types)) {
+      switch (ListMinTwo.zip_eq(skels, types)) {
       | None => None
       | Some(zipped) =>
         List.fold_left(
@@ -296,7 +296,7 @@ and ana_skel_pat_cursor_info =
               ana_skel_pat_cursor_info(ctx, skel, seq, n, zp1, ty);
             },
           None,
-          TupleList.to_list(zipped),
+          ListMinTwo.to_list(zipped),
         )
       };
     | _ => None
@@ -317,7 +317,7 @@ and ana_skel_pat_cursor_info =
               ana_skel_pat_cursor_info(ctx, skel, seq, n, zp1, ty);
             },
           None,
-          TupleList.to_list(zipped),
+          ListMinTwo.to_list(zipped),
         );
       switch (ana_zipped) {
       | Some(_) as result => result
@@ -385,8 +385,8 @@ let rec ana_cursor_found =
     ) =>
     switch (ty) {
     | Prod(ty1, ty2) =>
-      let n_elts = TupleList.length(UHExp.get_tuple(skel1, skel2));
-      let n_types = TupleList.length(HTyp.get_tuple(ty1, ty2));
+      let n_elts = ListMinTwo.length(UHExp.get_tuple(skel1, skel2));
+      let n_types = ListMinTwo.length(HTyp.get_tuple(ty1, ty2));
       Some(
         mk_cursor_info(
           AnaWrongLength(n_types, n_elts, ty),
@@ -774,7 +774,7 @@ and ana_skel_cursor_info =
     | Prod(ty1, ty2) =>
       let types = HTyp.get_tuple(ty1, ty2);
       let skels = UHExp.get_tuple(skel1, skel2);
-      switch (TupleList.zip_eq(skels, types)) {
+      switch (ListMinTwo.zip_eq(skels, types)) {
       | None => None
       | Some(zipped) =>
         List.fold_left(
@@ -786,7 +786,7 @@ and ana_skel_cursor_info =
               ana_skel_cursor_info(ctx, skel, seq, n, ze_n, ty);
             },
           None,
-          TupleList.to_list(zipped),
+          ListMinTwo.to_list(zipped),
         )
       };
     | _ => None
@@ -807,7 +807,7 @@ and ana_skel_cursor_info =
               ana_skel_cursor_info(ctx, skel, seq, n, ze_n, ty);
             },
           None,
-          TupleList.to_list(zipped),
+          ListMinTwo.to_list(zipped),
         );
       switch (ana_zipped) {
       | Some(_) as result => result
