@@ -8,35 +8,40 @@ type opseq_surround = OperatorSeq.opseq_surround(UHExp.t, UHExp.op);
 type opseq_prefix = OperatorSeq.opseq_prefix(UHExp.t, UHExp.op);
 type opseq_suffix = OperatorSeq.opseq_suffix(UHExp.t, UHExp.op);
 
-type t =
+type zblock =
+  | CursorB(cursor_side, UHExp.block)
+  | DeeperB(zblock')
+and zblock' =
+  | BlockZL(zlines, UHExp.t)
+  | BlockZE(UHExp.lines, t)
+and zlines = ZList.t(zline, UHExp.line)
+and zline =
+  | CursorL(cursor_side, UHExp.line)
+  | DeeperL(zline')
+and zline' =
+  | ExpLineZ(t)
+  | LetLineZP(ZPat.t, option(UHTyp.t), UHExp.block)
+  | LetLineZA(UHPat.t, ZTyp.t, UHExp.block)
+  | LetLineZE(UHPat.t, option(UHTyp.t), zblock)
+and t =
   | CursorE(cursor_side, UHExp.t)
   /* | CursorPalette : PaletteName.t -> PaletteSerializedModel.t -> hole_ref -> t -> t */
-  | Deeper(err_status, t')
-  | ParenthesizedZ(t)
+  | DeeperE(err_status, t')
+  | ParenthesizedZ(zblock)
 and t' =
-  | LineItemZL(zline_item, UHExp.t)
-  | LineItemZE(UHExp.line_item, t)
-  | LamZP(ZPat.t, option(UHTyp.t), UHExp.t)
-  | LamZA(UHPat.t, ZTyp.t, UHExp.t)
-  | LamZE(UHPat.t, option(UHTyp.t), t)
-  | InjZ(inj_side, t)
-  | CaseZE(t, list(UHExp.rule), option(UHTyp.t))
-  | CaseZR(UHExp.t, ZList.t(zrule, UHExp.rule), option(UHTyp.t))
-  | CaseZA(UHExp.t, list(UHExp.rule), ZTyp.t)
+  | LamZP(ZPat.t, option(UHTyp.t), UHExp.block)
+  | LamZA(UHPat.t, ZTyp.t, UHExp.block)
+  | LamZE(UHPat.t, option(UHTyp.t), zblock)
+  | InjZ(inj_side, zblock)
+  | CaseZE(zblock, list(UHExp.rule), option(UHTyp.t))
+  | CaseZR(UHExp.block, zrules, option(UHTyp.t))
+  | CaseZA(UHExp.block, list(UHExp.rule), ZTyp.t)
   | OpSeqZ(UHExp.skel_t, t, OperatorSeq.opseq_surround(UHExp.t, UHExp.op))
-  | ApPaletteZ(PaletteName.t, SerializedModel.t, ZSpliceInfo.t(UHExp.t, t))
-and zline_item =
-  | CursorL(cursor_side, UHExp.line_item)
-  | DeeperL(zline_item')
-and zline_item' =
-  | ExpLineZ(t)
-  | LetLineZP(ZPat.t, option(UHTyp.t), UHExp.t)
-  | LetLineZA(UHPat.t, ZTyp.t, UHExp.t)
-  | LetLineZE(UHPat.t, option(UHTyp.t), t)
+  | ApPaletteZ(PaletteName.t, SerializedModel.t, ZSpliceInfo.t(UHExp.block, zblock))
+and zrules = ZList.t(zrule, UHExp.rule)
 and zrule =
-  | RuleZP(ZPat.t, UHExp.t)
-  | RuleZE(UHPat.t, t)
-and zrules = ZList.t(zrule, UHExp.rule);
+  | RuleZP(ZPat.t, UHExp.block)
+  | RuleZE(UHPat.t, zblock);
 
 let bidelimit = (ze: t): t =>
   switch (ze) {

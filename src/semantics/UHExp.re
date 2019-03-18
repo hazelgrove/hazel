@@ -20,30 +20,32 @@ let is_Space =
 type skel_t = Skel.t(op);
 
 [@deriving sexp]
-type t =
-  | Tm(err_status, t')
-  | Parenthesized(t)
-and t' =
-  | Var(var_err_status, Var.t)
-  | LineItem(line_item, t)
-  | Lam(UHPat.t, option(UHTyp.t), t)
-  | NumLit(int)
-  | BoolLit(bool)
-  | Inj(inj_side, t)
-  | Case(t, list(rule), option(UHTyp.t))
-  | ListNil
+type block =
+  | Block(lines, t)
+and lines = list(line)
+and line =
+  | EmptyLine
+  | LetLine(UHPat.t, option(UHTyp.t), block)
+  | ExpLine(t)
+and t =
+  | Parenthesized(block)
   | EmptyHole(MetaVar.t)
   | OpSeq(skel_t, opseq) /* invariant: skeleton is consistent with opseq */
-  | ApPalette(PaletteName.t, SerializedModel.t, SpliceInfo.t(t))
-and line_item =
-  | EmptyLine
-  | ExpLine(t)
-  | LetLine(UHPat.t, option(UHTyp.t), t)
-and rule =
-  | Rule(UHPat.t, t)
+  | Tm(err_status, t')
+and t' =
+  | Var(var_err_status, Var.t)
+  | Lam(UHPat.t, option(UHTyp.t), block)
+  | NumLit(int)
+  | BoolLit(bool)
+  | Inj(inj_side, block)
+  | Case(block, rules, option(UHTyp.t))
+  | ListNil
+  | ApPalette(PaletteName.t, SerializedModel.t, splice_info)
+and opseq = OperatorSeq(t, op)
 and rules = list(rule)
-and opseq = OperatorSeq.opseq(t, op)
-and splice_info = SpliceInfo.t(t)
+and rule =
+  | Rule(UHPat.t, block)
+and splice_info = SpliceInfo.t(block)
 and splice_map = SpliceInfo.splice_map(t);
 
 exception SkelInconsistentWithOpSeq(skel_t, opseq);
