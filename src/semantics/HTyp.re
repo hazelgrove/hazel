@@ -1,3 +1,5 @@
+open HazelUtil;
+
 /* types with holes */
 [@deriving sexp]
 type t =
@@ -81,30 +83,43 @@ let has_matched_prod =
   | Prod(_, _) => true
   | _ => false;
 
-let rec get_tuple = (ty1, ty2) =>
+let rec get_tuple = (ty1: t, ty2: t): TupleList.t(t) =>
   switch (ty2) {
-  | Prod(ty21, ty22) => [ty1, ...get_tuple(ty21, ty22)]
-  | _ => [ty1, ty2]
+  | Prod(ty21, ty22) => TupleList.Cons(ty1, get_tuple(ty21, ty22))
+  | _ => TupleList.Pair(ty1, ty2)
   };
 
-let rec make_tuple =
-  fun
-  | [ty1, ty2] => Prod(ty1, ty2)
-  | [ty1] => ty1
-  | [ty1, ...tys] => {
-      let ty2 = make_tuple(tys);
-      Prod(ty1, ty2);
-    }
-  | [] => Unit;
+let rec make_tuple = (tys: TupleList.t(t)): t =>
+  switch (tys) {
+  | Pair(ty1, ty2) => Prod(ty1, ty2)
+  | Cons(ty1, tys) => Prod(ty1, make_tuple(tys))
+  };
 
-let rec zip_with_skels = (skels, types) =>
+let rec zip_with_skels =
+        (skels: TupleList.t('a), types: TupleList.t(t))
+        : (TupleList.t(('a, t)), list('a)) =>
   switch (skels, types) {
-  | ([], []) => ([], [])
-  | ([skel, ...skels], [ty, ...tys]) =>
+  | (Pair(skel1, skel2), Pair(ty1, ty2)) => (
+      Pair((skel1, ty1), (skel2, ty2)),
+      [],
+    )
+  | (Cons(skel1, skels), Pair(ty1, ty2)) =>
+    let (skel2, remainder) =
+      switch (skels) {
+      | Pair(s1, s2) => (s1, [s2])
+      | Cons(s, ss) => (s, TupleList.to_list(ss))
+      };
+    (Pair((skel1, ty1), (skel2, ty2)), remainder);
+  | (Pair(skel1, skel2), Cons(ty1, tys)) =>
+    let ty2 =
+      switch (tys) {
+      | Pair(t, _)
+      | Cons(t, _) => t
+      };
+    (Pair((skel1, ty1), (skel2, ty2)), []);
+  | (Cons(skel, skels), Cons(ty, tys)) =>
     let (tail, remainder) = zip_with_skels(skels, tys);
-    ([(skel, ty), ...tail], remainder);
-  | ([_, ..._], []) => ([], skels)
-  | ([], [_, ..._]) => ([], [])
+    (Cons((skel, ty), tail), remainder);
   };
 
 /* matched sum types */
