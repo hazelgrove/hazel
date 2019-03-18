@@ -33,15 +33,15 @@ and opseq = OperatorSeq.opseq(t, op);
 
 exception SkelInconsistentWithOpSeq(skel_t, opseq);
 
-let rec get_tuple = (skel1: skel_t, skel2: skel_t): TupleList.t(skel_t) =>
+let rec get_tuple = (skel1: skel_t, skel2: skel_t): ListMinTwo.t(skel_t) =>
   switch (skel2) {
   | Skel.BinOp(_, Comma, skel21, skel22) =>
-    TupleList.Cons(skel1, get_tuple(skel21, skel22))
+    ListMinTwo.Cons(skel1, get_tuple(skel21, skel22))
   | Skel.BinOp(_, _, _, _)
-  | Skel.Placeholder(_) => TupleList.Pair(skel1, skel2)
+  | Skel.Placeholder(_) => ListMinTwo.Pair(skel1, skel2)
   };
 
-let rec make_tuple = (err: err_status, skels: TupleList.t(skel_t)) =>
+let rec make_tuple = (err: err_status, skels: ListMinTwo.t(skel_t)) =>
   switch (skels) {
   | Pair(skel1, skel2) => Skel.BinOp(err, Comma, skel1, skel2)
   | Cons(skel1, skels) =>

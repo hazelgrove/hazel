@@ -83,21 +83,21 @@ let has_matched_prod =
   | Prod(_, _) => true
   | _ => false;
 
-let rec get_tuple = (ty1: t, ty2: t): TupleList.t(t) =>
+let rec get_tuple = (ty1: t, ty2: t): ListMinTwo.t(t) =>
   switch (ty2) {
-  | Prod(ty21, ty22) => TupleList.Cons(ty1, get_tuple(ty21, ty22))
-  | _ => TupleList.Pair(ty1, ty2)
+  | Prod(ty21, ty22) => ListMinTwo.Cons(ty1, get_tuple(ty21, ty22))
+  | _ => ListMinTwo.Pair(ty1, ty2)
   };
 
-let rec make_tuple = (tys: TupleList.t(t)): t =>
+let rec make_tuple = (tys: ListMinTwo.t(t)): t =>
   switch (tys) {
   | Pair(ty1, ty2) => Prod(ty1, ty2)
   | Cons(ty1, tys) => Prod(ty1, make_tuple(tys))
   };
 
 let rec zip_with_skels =
-        (skels: TupleList.t('a), types: TupleList.t(t))
-        : (TupleList.t(('a, t)), list('a)) =>
+        (skels: ListMinTwo.t('a), types: ListMinTwo.t(t))
+        : (ListMinTwo.t(('a, t)), list('a)) =>
   switch (skels, types) {
   | (Pair(skel1, skel2), Pair(ty1, ty2)) => (
       Pair((skel1, ty1), (skel2, ty2)),
@@ -107,7 +107,7 @@ let rec zip_with_skels =
     let (skel2, remainder) =
       switch (skels) {
       | Pair(s1, s2) => (s1, [s2])
-      | Cons(s, ss) => (s, TupleList.to_list(ss))
+      | Cons(s, ss) => (s, ListMinTwo.to_list(ss))
       };
     (Pair((skel1, ty1), (skel2, ty2)), remainder);
   | (Pair(skel1, skel2), Cons(ty1, tys)) =>
