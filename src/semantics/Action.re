@@ -1862,6 +1862,71 @@ let keyword_action = (k: keyword): t =>
   | Case => Construct(SCase)
   };
 
+let rec syn_perform_zblock =
+        (
+          ctx: Contexts.t,
+          a: t,
+          zblock_ty: (ZExp.zblock, HTyp.t, MetaVarGen.t),
+        )
+        : option((ZExp.zblock, HTyp.t, MetaVarGen.t)) => {
+  let (zblock, ty, u_gen) = zblock_ty;
+  switch (a, zblock) {
+  | (_, CursorB(_, _)) =>
+    /* TODO consider block-level actions */
+    None
+  /* Movement */
+  | (MoveTo(Path), _) =>
+    let block = ZExp.erase_block(zblock);
+    switch (Path.follow_block(path, e)) {
+    | None => None
+    | Some(zblock) => Some((zblock, ty, u_gen))
+    };
+  | (MoveToPrevHole, _) =>
+    switch (Path.prev_hole_path_zblock(zblock)) {
+    | None => None
+    | Some(path) => perform_syn(ctx, MoveTo(path), zblock_ty)
+    }
+  | (MoveToNextHole, _) =>
+    switch (Path.next_hole_path_zblock(zblock)) {
+    | None => None
+    | Some(path) => perform_syn(ctx, MoveTo(path), zblock_ty)
+    }
+  /* Backspace & Delete */
+  | (
+      Delete,
+      DeeperB(BlockZL((prefix, DeeperL(ExpLineZ(ze)), []), EmptyHole(_))),
+    )
+      when ZExp.cursor_at_end(ze) =>
+    switch (Statics.syn(ctx, ZExp.erase(ze))) {
+    | None => None
+    | Some(ty) =>
+      let zblock = ZExp.DeeperB(BlockZE(prefix, ze));
+      Some((zblock, ty, u_gen));
+    }
+  | (Backspace, DeeperB(BlockZE(lines, CursorE(Before, EmptyHole(_)))))
+      when UHExp.concludes_with_exp(lines) =>
+    switch (UHExp.split_concluding_exp(lines)) {
+    | None => None
+    | Some((lines, e)) =>
+      let zblock = ZExp.DeeperB(BlockZE(lines, e));
+      Some((zblock, ty, u_gen));
+    }
+  | (Delete, DeeperB(BlockZL((prefix, CursorL(_, EmptyLine), []), e))) =>
+    let ze = ZExp.place_Before(e);
+    let zblock = DeeperB(BlockZE(prefix, ze));
+    Some((zblock, ty, u_gen));
+  | (Backspace, DeeperB(BlockZE(lines, ze)))
+      when UHExp.concludes_with_empty(lines) =>
+    switch (UHExp.split_concluding_empty(lines)) {
+    | None => None
+    | Some((lines, _)) =>
+      let zblock = ZExp.DeeperB(BlockZE(lines, ze));
+      Some((zblock, ty, u_gen));
+    }
+  | _ => None /* TODO */
+  };
+};
+
 let rec perform_syn =
         (ctx: Contexts.t, a: t, ze_ty: (ZExp.t, HTyp.t, MetaVarGen.t))
         : option((ZExp.t, HTyp.t, MetaVarGen.t)) => {
