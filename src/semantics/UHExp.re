@@ -46,7 +46,7 @@ and rules = list(rule)
 and rule =
   | Rule(UHPat.t, block)
 and splice_info = SpliceInfo.t(block)
-and splice_map = SpliceInfo.splice_map(t);
+and splice_map = SpliceInfo.splice_map(block);
 
 exception SkelInconsistentWithOpSeq(skel_t, opseq);
 
