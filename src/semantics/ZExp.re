@@ -25,9 +25,10 @@ and zline' =
   | LetLineZE(UHPat.t, option(UHTyp.t), zblock)
 and t =
   | CursorE(cursor_side, UHExp.t)
-  /* | CursorPalette : PaletteName.t -> PaletteSerializedModel.t -> hole_ref -> t -> t */
-  | DeeperE(err_status, t')
   | ParenthesizedZ(zblock)
+  | OpSeqZ(UHExp.skel_t, t, OperatorSeq.opseq_surround(UHExp.t, UHExp.op))
+  | DeeperE(err_status, t')
+  /* | CursorPalette : PaletteName.t -> PaletteSerializedModel.t -> hole_ref -> t -> t */
 and t' =
   | LamZP(ZPat.t, option(UHTyp.t), UHExp.block)
   | LamZA(UHPat.t, ZTyp.t, UHExp.block)
@@ -36,7 +37,6 @@ and t' =
   | CaseZE(zblock, list(UHExp.rule), option(UHTyp.t))
   | CaseZR(UHExp.block, zrules, option(UHTyp.t))
   | CaseZA(UHExp.block, list(UHExp.rule), ZTyp.t)
-  | OpSeqZ(UHExp.skel_t, t, OperatorSeq.opseq_surround(UHExp.t, UHExp.op))
   | ApPaletteZ(
       PaletteName.t,
       SerializedModel.t,
