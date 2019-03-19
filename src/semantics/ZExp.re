@@ -28,7 +28,7 @@ and t =
   | ParenthesizedZ(zblock)
   | OpSeqZ(UHExp.skel_t, t, OperatorSeq.opseq_surround(UHExp.t, UHExp.op))
   | DeeperE(err_status, t')
-  /* | CursorPalette : PaletteName.t -> PaletteSerializedModel.t -> hole_ref -> t -> t */
+/* | CursorPalette : PaletteName.t -> PaletteSerializedModel.t -> hole_ref -> t -> t */
 and t' =
   | LamZP(ZPat.t, option(UHTyp.t), UHExp.block)
   | LamZA(UHPat.t, ZTyp.t, UHExp.block)
