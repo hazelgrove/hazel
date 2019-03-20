@@ -2349,13 +2349,13 @@ and syn_perform_exp =
     let holes = Path.holes_ze(ze, []);
     switch (Path.prev_hole_path(holes)) {
     | None => None
-    | Some(path) => perform_syn(ctx, MoveTo(path), ze_ty)
+    | Some(path) => syn_perform_exp(ctx, MoveTo(path), (ze, ty, u_gen))
     };
   | (MoveToNextHole, _) =>
     let holes = Path.holes_ze(ze, []);
     switch (Path.next_hole_path(holes)) {
     | None => None
-    | Some(path) => perform_syn(ctx, MoveTo(path), ze_ty)
+    | Some(path) => syn_perform_exp(ctx, MoveTo(path), (ze, ty, u_gen))
     };
   /* Backspace & Deletion */
   | (Backspace, CursorE(After, e)) =>
@@ -2694,7 +2694,7 @@ and syn_perform_exp =
   | (UpdateApPalette(_), Deeper(_, LineItemZL(CursorL(_, _), _))) => None
   /* Zipper Cases */
   | (_, ParenthesizedZ(ze1)) =>
-    switch (perform_syn(ctx, a, (ze1, ty, u_gen))) {
+    switch (syn_perform_exp(ctx, a, (ze1, ty, u_gen))) {
     | Some((ze1', ty', u_gen')) => Some((ParenthesizedZ(ze1'), ty', u_gen'))
     | None => None
     }
@@ -2735,7 +2735,7 @@ and syn_perform_exp =
       switch (Statics.ana_pat(ctx, p, ty1)) {
       | None => None
       | Some(ctx) =>
-        switch (perform_syn(ctx, a, (ze1, ty2, u_gen))) {
+        switch (syn_perform_exp(ctx, a, (ze1, ty2, u_gen))) {
         | None => None
         | Some((ze1, ty2, u_gen)) =>
           let ze = ZExp.Deeper(NotInHole, LamZE(p, ann, ze1));
@@ -2747,7 +2747,7 @@ and syn_perform_exp =
     switch (ty) {
     | Sum(ty1, ty2) =>
       let ty_side = pick_side(side, ty1, ty2);
-      switch (perform_syn(ctx, a, (ze1, ty_side, u_gen))) {
+      switch (syn_perform_exp(ctx, a, (ze1, ty_side, u_gen))) {
       | None => None
       | Some((ze1', ty_side', u_gen')) =>
         let ty' =
@@ -2774,7 +2774,7 @@ and syn_perform_exp =
             Some((Deeper(err, OpSeqZ(skel, ze0'', surround)), ty, u_gen));
           }
         | Statics.Synthesized(ty0) =>
-          switch (perform_syn(ctx, a, (ze0, ty0, u_gen))) {
+          switch (syn_perform_exp(ctx, a, (ze0, ty0, u_gen))) {
           | None => None
           | Some((ze0', ty0', u_gen)) =>
             let ze0'' = ZExp.bidelimit(ze0');
@@ -2813,7 +2813,7 @@ and syn_perform_exp =
     switch (Statics.syn(ctx, ZExp.erase(ze1))) {
     | None => None
     | Some(ty1) =>
-      switch (perform_syn(ctx, a, (ze1, ty1, u_gen))) {
+      switch (syn_perform_exp(ctx, a, (ze1, ty1, u_gen))) {
       | None => None
       | Some((ze1, ty1, u_gen)) =>
         let ty = UHTyp.expand(uty);
@@ -2890,7 +2890,7 @@ and perform_ana =
     let e' = ZExp.erase(ze');
     switch (Statics.syn(ctx, e')) {
     | Some(ty1) =>
-      switch (perform_syn(ctx, a, (ze', ty1, u_gen))) {
+      switch (syn_perform_exp(ctx, a, (ze', ty1, u_gen))) {
       | Some((ze', ty1', u_gen')) =>
         if (HTyp.consistent(ty1', ty)) {
           Some((ze', u_gen'));
@@ -3544,7 +3544,7 @@ and perform_ana =
     switch (Statics.syn(ctx, ZExp.erase(ze1))) {
     | None => None
     | Some(ty1) =>
-      switch (perform_syn(ctx, a, (ze1, ty1, u_gen))) {
+      switch (syn_perform_exp(ctx, a, (ze1, ty1, u_gen))) {
       | None => None
       | Some((ze1, _, u_gen)) =>
         let ze =
@@ -3611,7 +3611,7 @@ and perform_ana =
       switch (Statics.syn(ctx, e1)) {
       | None => None
       | Some(ty1) =>
-        switch (perform_syn(ctx, a, (ze1, ty1, u_gen))) {
+        switch (syn_perform_exp(ctx, a, (ze1, ty1, u_gen))) {
         | None => None
         | Some((ze1, ty1, u_gen)) =>
           let (p, ctx2, u_gen) =
@@ -3728,7 +3728,7 @@ and perform_ana =
     switch (Statics.syn(ctx, ZExp.erase(ze1))) {
     | None => None
     | Some(ty1) =>
-      switch (perform_syn(ctx, a, (ze1, ty1, u_gen))) {
+      switch (syn_perform_exp(ctx, a, (ze1, ty1, u_gen))) {
       | None => None
       | Some((ze1, ty1, u_gen)) =>
         let (rules, u_gen) =
@@ -3802,7 +3802,7 @@ and perform_ana =
             Some((ZExp.Deeper(err, OpSeqZ(skel, ze0'', surround)), u_gen));
           }
         | Statics.Synthesized(ty0) =>
-          switch (perform_syn(ctx, a, (ze0, ty0, u_gen))) {
+          switch (syn_perform_exp(ctx, a, (ze0, ty0, u_gen))) {
           | None => None
           | Some((ze0', ty0', u_gen)) =>
             let ze0'' = ZExp.bidelimit(ze0');
@@ -3834,7 +3834,7 @@ and perform_ana_subsume =
     : option((ZExp.t, MetaVarGen.t)) =>
   switch (Statics.syn(ctx, ZExp.erase(ze))) {
   | Some(ty1) =>
-    switch (perform_syn(ctx, a, (ze, ty1, u_gen))) {
+    switch (syn_perform_exp(ctx, a, (ze, ty1, u_gen))) {
     | Some((ze', ty1', u_gen')) =>
       if (HTyp.consistent(ty, ty1')) {
         Some((ze', u_gen'));
@@ -3909,7 +3909,7 @@ let can_perform =
   | Delete
   | Backspace =>
     _TEST_PERFORM
-      ? switch (perform_syn(ctx, a, edit_state)) {
+      ? switch (syn_perform_exp(ctx, a, edit_state)) {
         | Some(_) => true
         | None => false
         }
