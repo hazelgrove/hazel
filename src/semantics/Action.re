@@ -3558,15 +3558,15 @@ and ana_perform_exp =
   | (Construct(SNumLit(_, _)), _)
   | (Construct(SListNil), _)
   | (_, DeeperE(_, ApPaletteZ(_, _, _))) =>
-    perform_ana_subsume(u_gen, ctx, a, ze, ty)
+    ana_perform_exp_subsume(ctx, a, (ze, u_gen), ty)
   /* Invalid actions at expression level */
   | (Construct(SNum), _)
   | (Construct(SBool), _)
   | (Construct(SList), _)
   | (Construct(SWild), _) => None
   }
-and perform_ana_subsume =
-    (u_gen: MetaVarGen.t, ctx: Contexts.t, a: t, ze: ZExp.t, ty: HTyp.t)
+and ana_perform_exp_subsume =
+    (ctx: Contexts.t, a: t, (ze, u_gen): (ZExp.t, MetaVarGen.t), ty: HTyp.t)
     : option((ZExp.t, MetaVarGen.t)) =>
   switch (Statics.syn(ctx, ZExp.erase(ze))) {
   | Some(ty1) =>
