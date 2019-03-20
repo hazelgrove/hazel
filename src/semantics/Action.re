@@ -2002,39 +2002,20 @@ let rec syn_perform_block =
   | (_, DeeperB(BlockZL(zlines, e))) =>
     switch (syn_perform_lines(ctx, a, (zlines, u_gen))) {
     | None => None
-    | Some((zlines, u_gen)) =>
-      /* TODO use context returned by lines to fix holes in e */
+    | Some((zlines, ctx, u_gen)) =>
+      let (e, ty, u_gen) = Statics.syn_fix_holes(ctx, u_gen, e);
       let zblock = ZExp.DeeperB(BlockZL(zlines, e));
-      Some(syn_fix_holes_zblock(ctx, u_gen, zblock));
+      Some((zblock, ty, u_gen));
     }
   | (_, DeeperB(BlockZE(lines, ze))) =>
-    /* TODO need to produce context from lines before performing on ze */
-    /*
-         | (_, Deeper(_, LineItemZE(LetLine(p, ann, e1), ze2))) =>
-       let ty1 =
-         switch (ann) {
-         | Some(uty1) => Some(UHTyp.expand(uty1))
-         | None => Statics.syn(ctx, e1)
-         };
-       switch (ty1) {
-       | None => None
-       | Some(ty1) =>
-         switch (Statics.ana_pat(ctx, p, ty1)) {
-         | None => None
-         | Some(ctx2) =>
-           switch (perform_syn(ctx2, a, (ze2, ty, u_gen))) {
-           | None => None
-           | Some((ze2, ty, u_gen)) =>
-             let ze = ZExp.prepend_line(LetLine(p, ann, e1), ze2);
-             Some((ze, ty, u_gen));
-           }
-         }
-       };
-     */
-    switch (syn_perform_exp(ctx, a, (ze, ty, u_gen))) {
+    switch (Statics.syn_lines(ctx, lines)) {
     | None => None
-    | Some((ze, ty, u_gen)) =>
-      Some((DeeperB(BlockZE(lines, ze)), ty, u_gen))
+    | Some(ctx) =>
+      switch (syn_perform_exp(ctx, a, (ze, ty, u_gen))) {
+      | None => None
+      | Some((ze, ty, u_gen)) =>
+        Some((DeeperB(BlockZE(lines, ze)), ty, u_gen))
+      }
     }
   }
 and syn_perform_lines =
