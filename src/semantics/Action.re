@@ -2767,7 +2767,7 @@ and syn_perform_exp =
       | Some((ty, Some(mode))) =>
         switch (mode) {
         | Statics.AnalyzedAgainst(ty0) =>
-          switch (perform_ana(u_gen, ctx, a, ze0, ty0)) {
+          switch (ana_perform_exp(u_gen, ctx, a, ze0, ty0)) {
           | None => None
           | Some((ze0', u_gen)) =>
             let ze0'' = ZExp.bidelimit(ze0');
@@ -2791,7 +2791,7 @@ and syn_perform_exp =
      let (rest_map, z_data) = z_nat_map;
      let (cell_lbl, cell_data) = z_data;
      let (cell_ty, cell_ze) = cell_data;
-     switch (perform_ana(u_gen, ctx, a, cell_ze, cell_ty)) {
+     switch (ana_perform_exp(u_gen, ctx, a, cell_ze, cell_ty)) {
      | None => None
      | Some((cell_ze', u_gen')) =>
        let z_hole_data' = (
@@ -2847,7 +2847,7 @@ and syn_perform_exp =
         | None => None
         | Some(ctx) =>
           let ty = UHTyp.expand(uty);
-          switch (perform_ana(u_gen, ctx, a, ze, ty)) {
+          switch (ana_perform_exp(u_gen, ctx, a, ze, ty)) {
           | None => None
           | Some((ze, u_gen)) =>
             let zrule = ZExp.RuleZE(p, ze);
@@ -3057,14 +3057,14 @@ and ana_perform_exp =
   | (MoveToPrevHole, _) =>
     switch (Path.prev_hole_path(Path.holes_ze(ze, []))) {
     | None => None
-    | Some(path) => perform_ana(u_gen, ctx, MoveTo(path), ze, ty)
+    | Some(path) => ana_perform_exp(u_gen, ctx, MoveTo(path), ze, ty)
     }
   | (MoveToNextHole, _) =>
     switch (Path.next_hole_path(Path.holes_ze(ze, []))) {
     | None => None
     | Some(path) =>
       /* [debug] let path = Helper.log_path path in */
-      perform_ana(u_gen, ctx, MoveTo(path), ze, ty)
+      ana_perform_exp(u_gen, ctx, MoveTo(path), ze, ty)
     }
   /* Backspace & Delete */
   | (Backspace, CursorE(After, e)) =>
@@ -3353,7 +3353,7 @@ and ana_perform_exp =
     let (e1, u_gen) = UHExp.new_EmptyHole(u_gen);
     let ze1 = ZExp.CursorE(Before, e1);
     let ze = ZExp.prepend_zline(DeeperL(ExpLineZ(ze1)), e2);
-    perform_ana(u_gen, ctx, a, ze, ty);
+    ana_perform_exp(u_gen, ctx, a, ze, ty);
   | (
       Construct(_) as a,
       Deeper(err_status, LineItemZL(CursorL(side, ExpLine(e1)), e2)),
@@ -3366,14 +3366,14 @@ and ana_perform_exp =
         ZExp.(
           prune_and_prepend_zline(~err_status, DeeperL(ExpLineZ(ze1)), e2)
         );
-      perform_ana(u_gen, ctx, a, ze, ty);
+      ana_perform_exp(u_gen, ctx, a, ze, ty);
     | After =>
       let ze1 = ZExp.place_After(e1);
       let ze =
         ZExp.(
           prune_and_prepend_zline(~err_status, DeeperL(ExpLineZ(ze1)), e2)
         );
-      perform_ana(u_gen, ctx, a, ze, ty);
+      ana_perform_exp(u_gen, ctx, a, ze, ty);
     }
   | (Construct(_), Deeper(_, LineItemZL(CursorL(_, LetLine(_, _, _)), _))) =>
     None
@@ -3401,7 +3401,7 @@ and ana_perform_exp =
     let (e1, u_gen) = keyword_suffix_to_exp(suffix, u_gen);
     let ze1 = ZExp.place_Before(e1);
     let ze = ZExp.prepend_zline(DeeperL(ExpLineZ(ze1)), e2);
-    perform_ana(u_gen, ctx, keyword_action(k), ze, ty);
+    ana_perform_exp(u_gen, ctx, keyword_action(k), ze, ty);
   | (
       Construct(SOp(SSpace)),
       Deeper(
@@ -3417,7 +3417,7 @@ and ana_perform_exp =
       ),
     ) =>
     let ze = ZExp.prepend_zline(CursorL(Before, EmptyLine), e2);
-    perform_ana(u_gen, ctx, keyword_action(k), ze, ty);
+    ana_perform_exp(u_gen, ctx, keyword_action(k), ze, ty);
   | (
       Construct(SOp(SSpace)),
       Deeper(
@@ -3431,13 +3431,13 @@ and ana_perform_exp =
     ) =>
     let (e, u_gen) = keyword_suffix_to_exp(suffix, u_gen);
     let ze = ZExp.place_Before(e);
-    perform_ana(u_gen, ctx, keyword_action(k), ze, ty);
+    ana_perform_exp(u_gen, ctx, keyword_action(k), ze, ty);
   | (
       Construct(SOp(SSpace)),
       CursorE(After, Tm(_, Var(InVHole(Keyword(k), _), _))),
     ) =>
     let (ze, u_gen) = ZExp.new_EmptyHole(u_gen);
-    perform_ana(u_gen, ctx, keyword_action(k), ze, ty);
+    ana_perform_exp(u_gen, ctx, keyword_action(k), ze, ty);
   | (Construct(SParenthesized), CursorE(_, e)) =>
     Some((ParenthesizedZ(ze), u_gen))
   | (
@@ -3678,14 +3678,14 @@ and ana_perform_exp =
     }
   /* Zipper Cases */
   | (_, ParenthesizedZ(ze1)) =>
-    switch (perform_ana(u_gen, ctx, a, ze1, ty)) {
+    switch (ana_perform_exp(u_gen, ctx, a, ze1, ty)) {
     | Some((ze1', u_gen')) => Some((ParenthesizedZ(ze1'), u_gen'))
     | None => None
     }
   | (_, Deeper(err_status, LineItemZL(CursorL(_, EmptyLine), e2))) =>
     let (ze1, u_gen) = ZExp.new_EmptyHole(u_gen);
     let ze = ZExp.prepend_zline(~err_status, DeeperL(ExpLineZ(ze1)), e2);
-    perform_ana(u_gen, ctx, a, ze, ty);
+    ana_perform_exp(u_gen, ctx, a, ze, ty);
   | (_, Deeper(err_status, LineItemZL(DeeperL(ExpLineZ(ze1)), e2))) =>
     switch (Statics.syn(ctx, ZExp.erase(ze1))) {
     | None => None
@@ -3746,7 +3746,7 @@ and ana_perform_exp =
     | Some(ann_ty) =>
       let ty1 = UHTyp.expand(ann_ty);
       let ctx1 = Statics.ctx_for_let(ctx, p, ty1, ZExp.erase(ze1));
-      switch (perform_ana(u_gen, ctx1, a, ze1, ty1)) {
+      switch (ana_perform_exp(u_gen, ctx1, a, ze1, ty1)) {
       | None => None
       | Some((ze1, u_gen)) =>
         let ze = ZExp.prepend_zline(DeeperL(LetLineZE(p, ann, ze1)), e2);
@@ -3770,7 +3770,7 @@ and ana_perform_exp =
     }
   | (_, Deeper(_, LineItemZE(EmptyLine as li, ze2)))
   | (_, Deeper(_, LineItemZE(ExpLine(_) as li, ze2))) =>
-    switch (perform_ana(u_gen, ctx, a, ze2, ty)) {
+    switch (ana_perform_exp(u_gen, ctx, a, ze2, ty)) {
     | None => None
     | Some((ze2, u_gen)) =>
       let ze = ZExp.prepend_line(li, ze2);
@@ -3788,7 +3788,7 @@ and ana_perform_exp =
       switch (Statics.ana_pat(ctx, p, ty1)) {
       | None => None
       | Some(ctx2) =>
-        switch (perform_ana(u_gen, ctx2, a, ze2, ty)) {
+        switch (ana_perform_exp(u_gen, ctx2, a, ze2, ty)) {
         | None => None
         | Some((ze2, u_gen)) =>
           let ze = ZExp.prepend_line(LetLine(p, ann, e1), ze2);
@@ -3852,7 +3852,7 @@ and ana_perform_exp =
       switch (Statics.ana_pat(ctx, p, ty1)) {
       | None => None
       | Some(ctx) =>
-        switch (perform_ana(u_gen, ctx, a, ze1, ty2)) {
+        switch (ana_perform_exp(u_gen, ctx, a, ze1, ty2)) {
         | None => None
         | Some((ze1, u_gen)) =>
           let ze = ZExp.Deeper(err, LamZE(p, ann, ze1));
@@ -3864,7 +3864,7 @@ and ana_perform_exp =
     switch (HTyp.matched_sum(ty)) {
     | Some((ty1, ty2)) =>
       let picked = pick_side(side, ty1, ty2);
-      switch (perform_ana(u_gen, ctx, a, ze, picked)) {
+      switch (ana_perform_exp(u_gen, ctx, a, ze, picked)) {
       | Some((ze', u_gen)) => Some((Deeper(err, InjZ(side, ze')), u_gen))
       | None => None
       };
@@ -3905,7 +3905,7 @@ and ana_perform_exp =
         switch (Statics.ana_pat(ctx, p, ty1)) {
         | None => None
         | Some(ctx) =>
-          switch (perform_ana(u_gen, ctx, a, ze, ty)) {
+          switch (ana_perform_exp(u_gen, ctx, a, ze, ty)) {
           | None => None
           | Some((ze, u_gen)) =>
             let zrule = ZExp.RuleZE(p, ze);
@@ -3941,7 +3941,7 @@ and ana_perform_exp =
       | Some(Some(mode)) =>
         switch (mode) {
         | Statics.AnalyzedAgainst(ty0) =>
-          switch (perform_ana(u_gen, ctx, a, ze0, ty0)) {
+          switch (ana_perform_exp(u_gen, ctx, a, ze0, ty0)) {
           | None => None
           | Some((ze0', u_gen)) =>
             let ze0'' = ZExp.bidelimit(ze0');
