@@ -2358,14 +2358,6 @@ and syn_perform_exp =
     | Some(path) => syn_perform_exp(ctx, MoveTo(path), (ze, ty, u_gen))
     };
   /* Backspace & Deletion */
-  | (Backspace, CursorE(After, e)) =>
-    switch (e) {
-    | Tm(_, EmptyHole(_)) => Some((CursorE(Before, e), ty, u_gen))
-    | _ =>
-      let (e', u_gen') = UHExp.new_EmptyHole(u_gen);
-      Some((CursorE(Before, e'), Hole, u_gen'));
-    }
-  | (Backspace, CursorE(Before, e)) => None
   | (Delete, CursorE(Before, e)) =>
     switch (e) {
     | Tm(_, EmptyHole(_)) => Some((CursorE(After, e), ty, u_gen))
@@ -2374,6 +2366,19 @@ and syn_perform_exp =
       Some((CursorE(Before, e'), Hole, u_gen));
     }
   | (Delete, CursorE(After, e)) => None
+  | (Backspace, CursorE(After, e)) =>
+    switch (e) {
+    | Tm(_, EmptyHole(_)) => Some((CursorE(Before, e), ty, u_gen))
+    | _ =>
+      let (e', u_gen') = UHExp.new_EmptyHole(u_gen);
+      Some((CursorE(Before, e'), Hole, u_gen'));
+    }
+  | (Backspace, CursorE(Before, e)) => None
+  | (Delete, CursorE(In(_), _))
+  | (Backspace, CursorE(In(_), _)) =>
+    let (e, u_gen) = UHExp.new_EmptyHole(u_gen);
+    let ze = ZExp.CursorE(Before, e);
+    Some((ze, Hole, u_gen));
   | (Backspace, DeeperE(_, LamZA(p, zty, e1)))
       when ZTyp.cursor_at_start(zty) =>
     let (p, ctx, u_gen) =
@@ -2439,11 +2444,6 @@ and syn_perform_exp =
       ze0,
       surround,
     )
-  | (Backspace, CursorE(In(_), e))
-  | (Delete, CursorE(In(_), e)) =>
-    let (e', u_gen') = UHExp.new_EmptyHole(u_gen);
-    let ze' = ZExp.CursorE(Before, e');
-    Some((ze', Hole, u_gen'));
   /* Construction */
   | (Construct(SLine), CursorE(_, _))
   | (Construct(SLet), CursorE(_, _))
@@ -3020,7 +3020,7 @@ and ana_perform_block = (ctx: Contexts.t, a: t, (zblock, u_gen): (ZExp.zblock, M
     switch (Statics.syn_lines(ctx, lines)) {
     | None => None
     | Some(ctx) =>
-      switch (ana_perform_exp(a, (ze, (u_gen), ctx), ty)) {
+      switch (ana_perform_exp(ctx, a, (ze, u_gen), ty)) {
       | None => None
       | Some((ze, u_gen)) =>
         Some((DeeperB(BlockZE(lines, ze)), u_gen))
@@ -3057,14 +3057,13 @@ and ana_perform_exp =
   | (MoveToPrevHole, _) =>
     switch (Path.prev_hole_path(Path.holes_ze(ze, []))) {
     | None => None
-    | Some(path) => ana_perform_exp(u_gen, ctx, MoveTo(path), ze, ty)
+    | Some(path) => ana_perform_exp(ctx, MoveTo(path), (ze, u_gen), ty)
     }
   | (MoveToNextHole, _) =>
     switch (Path.next_hole_path(Path.holes_ze(ze, []))) {
     | None => None
     | Some(path) =>
-      /* [debug] let path = Helper.log_path path in */
-      ana_perform_exp(u_gen, ctx, MoveTo(path), ze, ty)
+      ana_perform_exp(ctx, MoveTo(path), (ze, u_gen), ty)
     }
   /* Backspace & Delete */
   | (Backspace, CursorE(After, e)) =>
@@ -3074,20 +3073,20 @@ and ana_perform_exp =
       let (e', u_gen) = UHExp.new_EmptyHole(u_gen);
       Some((CursorE(Before, e'), u_gen));
     }
-  | (Backspace, CursorE(Before, e)) => None
+  | (Backspace, CursorE(Before, _)) => None
   | (Delete, CursorE(Before, e)) =>
     switch (e) {
-    | Tm(_, EmptyHole(_)) => Some((CursorE(After, e), u_gen))
+    | Tm(_, EmptyHole(_)) => Some((CursorE(After, _), u_gen))
     | _ =>
-      let (e', u_gen) = UHExp.new_EmptyHole(u_gen);
-      Some((CursorE(Before, e'), u_gen));
+      let (e, u_gen) = UHExp.new_EmptyHole(u_gen);
+      Some((CursorE(Before, e), u_gen));
     }
-  | (Delete, CursorE(After, e)) => None
-  | (Backspace, CursorE(In(_), e))
-  | (Delete, CursorE(In(_), e)) =>
-    let (e', u_gen) = UHExp.new_EmptyHole(u_gen);
-    let ze' = ZExp.CursorE(Before, e');
-    Some((ze', u_gen));
+  | (Delete, CursorE(After, _)) => None
+  | (Backspace, CursorE(In(_), _))
+  | (Delete, CursorE(In(_), _)) =>
+    let (e, u_gen) = UHExp.new_EmptyHole(u_gen);
+    let ze = ZExp.CursorE(Before, e);
+    Some((ze, u_gen));
   | (
       Backspace,
       DeeperE(
