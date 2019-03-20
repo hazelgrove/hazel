@@ -2392,6 +2392,7 @@ and syn_perform_exp =
     let (e1, ty2, u_gen) = Statics.syn_fix_holes(ctx, u_gen, e1);
     let ze = ZExp.DeeperE(NotInHole, LamZP(zp, None, e1));
     Some((ze, Arrow(Hole, ty2), u_gen));
+  /* TODO need to add a case for deleting whole rules for case in synthetic position */
   | (Backspace, DeeperE(_, CaseZA(e1, rules, zann)))
       when ZTyp.cursor_at_start(zann) =>
     /* can't delete annotation on case in synthetic position */
