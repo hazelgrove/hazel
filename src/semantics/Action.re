@@ -1883,12 +1883,12 @@ let rec syn_perform_block =
   | (MoveToPrevHole, _) =>
     switch (Path.prev_hole_path_zblock(zblock)) {
     | None => None
-    | Some(path) => perform_syn(ctx, MoveTo(path), zblock_ty)
+    | Some(path) => perform_syn(ctx, MoveTo(path), (zblock, ty, u_gen))
     }
   | (MoveToNextHole, _) =>
     switch (Path.next_hole_path_zblock(zblock)) {
     | None => None
-    | Some(path) => perform_syn(ctx, MoveTo(path), zblock_ty)
+    | Some(path) => perform_syn(ctx, MoveTo(path), (zblock, ty, u_gen))
     }
   /* Backspace & Delete */
   | (Delete, DeeperB(BlockZL((prefix, CursorL(_, EmptyLine), []), e))) =>
@@ -1997,7 +1997,7 @@ let rec syn_perform_block =
     ) =>
     let (ze, u_gen) = ZExp.new_EmptyHole(u_gen);
     let zblock = ZExp.BlockZE(lines, ze);
-    syn_perform_block(ctx, keyword_action(k), (zblock, ty, u_gen));
+    syn_perform_block(ctx, keyword_action(k), (zblock, Hole, u_gen));
   /* Zipper Cases */
   | (_, DeeperB(BlockZL(zlines, e))) =>
     switch (syn_perform_lines(ctx, a, (zlines, u_gen))) {
