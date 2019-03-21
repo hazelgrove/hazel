@@ -295,21 +295,15 @@ let prune_single_hole_line = (zli: zline_item): zline_item =>
   | DeeperL(LetLineZE(_, _, _)) => zli
   };
 
-let default_NotInHole = (e: option(err_status)): err_status =>
-  switch (e) {
-  | None => NotInHole
-  | Some(e) => e
-  };
-
 let prepend_line = (~err_status=?, li: UHExp.line_item, ze: t): t =>
-  Deeper(default_NotInHole(err_status), LineItemZE(li, ze));
+  Deeper(default_nih(err_status), LineItemZE(li, ze));
 
 let prepend_zline = (~err_status=?, zli: zline_item, e: UHExp.t): t =>
-  Deeper(default_NotInHole(err_status), LineItemZL(zli, e));
+  Deeper(default_nih(err_status), LineItemZL(zli, e));
 
 let prune_and_prepend_line = (~err_status=?, li: UHExp.line_item, ze: t): t =>
   prepend_line(
-    ~err_status=default_NotInHole(err_status),
+    ~err_status=default_nih(err_status),
     UHExp.prune_single_hole_line(li),
     ze,
   );
@@ -324,7 +318,7 @@ let rec prune_and_prepend_lines = (e1: UHExp.t, ze2: t): t =>
 
 let prune_and_prepend_zline = (~err_status=?, zli: zline_item, e: UHExp.t): t =>
   prepend_zline(
-    ~err_status=default_NotInHole(err_status),
+    ~err_status=default_nih(err_status),
     prune_single_hole_line(zli),
     e,
   );
