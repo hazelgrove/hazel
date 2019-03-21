@@ -68,19 +68,20 @@ let rec make_tuple = (err: err_status, skels: ListMinTwo.t(skel_t)): skel_t =>
 /* helper function for constructing a new empty hole */
 let new_EmptyHole = (u_gen: MetaVarGen.t): (t, MetaVarGen.t) => {
   let (u, u_gen) = MetaVarGen.next(u_gen);
-  (Tm(NotInHole, EmptyHole(u)), u_gen);
+  (EmptyHole(u), u_gen);
 };
 
 let is_EmptyHole = (e: t): bool =>
   switch (e) {
-  | Tm(_, EmptyHole(_)) => true
+  | EmptyHole(_) => true
   | _ => false
   };
 
 let empty_rule = (u_gen: MetaVarGen.t): (rule, MetaVarGen.t) => {
-  let (rule_p, u_gen) = UHPat.new_EmptyHole(u_gen);
-  let (rule_e, u_gen) = new_EmptyHole(u_gen);
-  let rule = Rule(rule_p, rule_e);
+  let (p, u_gen) = UHPat.new_EmptyHole(u_gen);
+  let (e, u_gen) = new_EmptyHole(u_gen);
+  let block = Block([], e);
+  let rule = Rule(p, block);
   (rule, u_gen);
 };
 
@@ -102,7 +103,7 @@ let empty_rule = (u_gen: MetaVarGen.t): (rule, MetaVarGen.t) => {
 let bidelimited = (e: t): bool =>
   switch (e) {
   /* bidelimited cases */
-  | Tm(_, EmptyHole(_))
+  | EmptyHole(_)
   | Tm(_, Var(_, _))
   | Tm(_, NumLit(_))
   | Tm(_, BoolLit(_))
@@ -113,9 +114,8 @@ let bidelimited = (e: t): bool =>
   | Parenthesized(_) => true
   /* non-bidelimited cases */
   | Tm(_, Case(_, _, _))
-  | Tm(_, LineItem(_, _))
   | Tm(_, Lam(_, _, _))
-  | Tm(_, OpSeq(_, _)) => false
+  | OpSeq(_, _) => false
   };
 
 /* if e is not bidelimited, bidelimit e parenthesizes it */
@@ -123,16 +123,19 @@ let bidelimit = (e: t): t =>
   if (bidelimited(e)) {
     e;
   } else {
-    Parenthesized(e);
+    Parenthesized(Block([], e));
   };
 
 /* put e in the specified hole */
 let rec set_err_status = (err: err_status, e: t): t =>
   switch (e) {
-  | Tm(_, OpSeq(Skel.BinOp(_, op, skel1, skel2), seq)) =>
-    Tm(err, OpSeq(Skel.BinOp(err, op, skel1, skel2), seq))
   | Tm(_, e') => Tm(err, e')
-  | Parenthesized(e') => Parenthesized(set_err_status(err, e'))
+  | Parenthesized(Block(lines, e)) =>
+    Parenthesized(Block(lines, set_err_status(err, e)))
+  | OpSeq(BinOp(_, op, skel1, skel2), seq) =>
+    OpSeq(BinOp(err, op, skel1, skel2), seq)
+  | OpSeq(Placeholder(_), _) /* should never happen */
+  | EmptyHole(_) => e
   };
 
 /* put e in a new hole, if it is not already in a hole */
@@ -144,18 +147,21 @@ let rec make_inconsistent = (u_gen: MetaVarGen.t, e: t): (t, MetaVarGen.t) =>
     let e = set_err_status(InHole(TypeInconsistent, u), e);
     (e, u_gen);
   | Tm(InHole(TypeInconsistent, _), _) => (e, u_gen)
-  | Parenthesized(e1) =>
+  | Parenthesized(Block(lines, e1)) =>
     switch (make_inconsistent(u_gen, e1)) {
-    | (e1', u_gen') => (Parenthesized(e1'), u_gen')
+    | (e1, u_gen) => (Parenthesized(Block(lines, e1)), u_gen)
     }
-  };
-
+  | OpSeq(skel, seq) =>
+    let (skel, seq, u_gen) = make_skel_inconsistent(u_gen, skel, seq);
+    (OpSeq(skel, seq), u_gen);
+  | EmptyHole(_) => (e, u_gen)
+  }
 /* put skel in a new hole, if it is not already in a hole */
-let make_skel_inconsistent =
+and make_skel_inconsistent =
     (u_gen: MetaVarGen.t, skel: skel_t, seq: opseq)
     : (skel_t, opseq, MetaVarGen.t) =>
   switch (skel) {
-  | Skel.Placeholder(n) =>
+  | Placeholder(n) =>
     switch (OperatorSeq.seq_nth(n, seq)) {
     | None => raise(SkelInconsistentWithOpSeq(skel, seq))
     | Some(en) =>
@@ -165,22 +171,24 @@ let make_skel_inconsistent =
       | Some(seq') => (skel, seq', u_gen')
       };
     }
-  | Skel.BinOp(InHole(TypeInconsistent, _), _, _, _) => (skel, seq, u_gen)
-  | Skel.BinOp(NotInHole, op, skel1, skel2)
-  | Skel.BinOp(InHole(WrongLength, _), op, skel1, skel2) =>
+  | BinOp(InHole(TypeInconsistent, _), _, _, _) => (skel, seq, u_gen)
+  | BinOp(NotInHole, op, skel1, skel2)
+  | BinOp(InHole(WrongLength, _), op, skel1, skel2) =>
     let (u, u_gen) = MetaVarGen.next(u_gen);
-    (Skel.BinOp(InHole(TypeInconsistent, u), op, skel1, skel2), seq, u_gen);
+    (BinOp(InHole(TypeInconsistent, u), op, skel1, skel2), seq, u_gen);
   };
 
-let rec drop_outer_parentheses = (e: t): t =>
+let rec drop_outer_parentheses = (e: t): block =>
   switch (e) {
-  | Tm(_, _) => e
-  | Parenthesized(e') => drop_outer_parentheses(e')
+  | Tm(_, _)
+  | OpSeq(_, _)
+  | EmptyHole(_) => Block([], e)
+  | Parenthesized(block) => drop_outer_parentheses(e')
   };
 
-let prune_single_hole_line = (li: line_item): line_item =>
+let prune_single_hole_line = (li: line): line =>
   switch (li) {
-  | ExpLine(Tm(_, EmptyHole(_))) => EmptyLine
+  | ExpLine(EmptyHole(_)) => EmptyLine
   | ExpLine(_)
   | EmptyLine
   | LetLine(_, _, _) => li
