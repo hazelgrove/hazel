@@ -55,9 +55,7 @@ let bidelimit = (ze: t): t =>
   | CursorE(cursor_side, e) => CursorE(cursor_side, UHExp.bidelimit(e))
   | ParenthesizedZ(_)
   | DeeperE(_, InjZ(_, _))
-  | DeeperE(_, ApPaletteZ(_, _, _)) =>
-    /* | Deeper _ (ListLitZ _) */
-    ze
+  | DeeperE(_, ApPaletteZ(_, _, _)) => ze
   | OpSeqZ(_, _, _)
   | DeeperE(_, CaseZE(_, _, _))
   | DeeperE(_, CaseZR(_, _, _))

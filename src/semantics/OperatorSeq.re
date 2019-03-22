@@ -192,7 +192,7 @@ let suffix_nth = (n: int, suffix: opseq_suffix('tm, 'op)): option('tm) =>
   switch (n, suffix) {
   | (0, ExpSuffix(_, tm)) => Some(tm)
   | (_, ExpSuffix(_, _)) => None
-  | (_, SeqSuffix(seq, _)) => seq_nth(n, seq)
+  | (_, SeqSuffix(_, seq)) => seq_nth(n, seq)
   };
 
 let suffix_update_nth =
