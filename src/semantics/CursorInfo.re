@@ -82,7 +82,7 @@ type cursor_sort =
   | IsExpr(UHExp.t)
   | IsPat(UHPat.t)
   | IsType
-  | IsLine(UHExp.line_item);
+  | IsLine(UHExp.line);
 
 type t = {
   mode: cursor_mode,
@@ -164,21 +164,21 @@ let rec ana_pat_cursor_found =
 
 let rec syn_pat_cursor_info = (ctx: Contexts.t, zp: ZPat.t): option(t) =>
   switch (zp) {
-  | ZPat.CursorP(side, Pat(_, Var(InVHole(Keyword(k), _), _)) as p) =>
+  | CursorP(side, Pat(_, Var(InVHole(Keyword(k), _), _)) as p) =>
     Some(mk_cursor_info(PatSynKeyword(k), IsPat(p), side, ctx))
-  | ZPat.CursorP(side, p) =>
+  | CursorP(side, p) =>
     switch (Statics.syn_pat(ctx, p)) {
     | None => None
     | Some((ty, _)) =>
       Some(mk_cursor_info(PatSynthesized(ty), IsPat(p), side, ctx))
     }
-  | ZPat.Deeper(_, zp') => syn_pat_cursor_info'(ctx, zp')
-  | ZPat.ParenthesizedZ(zp1) => syn_pat_cursor_info(ctx, zp1)
+  | Deeper(_, zp') => syn_pat_cursor_info'(ctx, zp')
+  | ParenthesizedZ(zp1) => syn_pat_cursor_info(ctx, zp1)
   }
 and syn_pat_cursor_info' = (ctx: Contexts.t, zp': ZPat.t'): option(t) =>
   switch (zp') {
-  | ZPat.InjZ(side, zp1) => syn_pat_cursor_info(ctx, zp1)
-  | ZPat.OpSeqZ(skel, zp1, surround) =>
+  | InjZ(side, zp1) => syn_pat_cursor_info(ctx, zp1)
+  | OpSeqZ(skel, zp1, surround) =>
     let p1 = ZPat.erase(zp1);
     let seq = OperatorSeq.opseq_of_exp_and_surround(p1, surround);
     let n = OperatorSeq.surround_prefix_length(surround);
@@ -225,31 +225,31 @@ and syn_skel_pat_cursor_info =
 and ana_pat_cursor_info =
     (ctx: Contexts.t, zp: ZPat.t, ty: HTyp.t): option(t) =>
   switch (zp) {
-  | ZPat.CursorP(side, Pat(_, Var(InVHole(Keyword(k), _), _)) as p) =>
+  | CursorP(side, Pat(_, Var(InVHole(Keyword(k), _), _)) as p) =>
     Some(mk_cursor_info(PatAnaKeyword(ty, k), IsPat(p), side, ctx))
-  | ZPat.CursorP(side, p) => ana_pat_cursor_found(ctx, p, ty, side)
-  | ZPat.Deeper(InHole(TypeInconsistent, u), zp') =>
+  | CursorP(side, p) => ana_pat_cursor_found(ctx, p, ty, side)
+  | Deeper(InHole(TypeInconsistent, u), zp') =>
     syn_pat_cursor_info'(ctx, zp')
-  | ZPat.Deeper(NotInHole, zp')
-  | ZPat.Deeper(
+  | Deeper(NotInHole, zp')
+  | Deeper(
       InHole(WrongLength, _),
-      ZPat.OpSeqZ(BinOp(_, Comma, _, _), _, _) as zp',
+      OpSeqZ(BinOp(_, Comma, _, _), _, _) as zp',
     ) =>
     ana_pat_cursor_info'(ctx, zp', ty)
-  | ZPat.Deeper(InHole(WrongLength, _), _) => None
-  | ZPat.ParenthesizedZ(zp) => ana_pat_cursor_info(ctx, zp, ty)
+  | Deeper(InHole(WrongLength, _), _) => None
+  | ParenthesizedZ(zp) => ana_pat_cursor_info(ctx, zp, ty)
   }
 and ana_pat_cursor_info' =
     (ctx: Contexts.t, zp': ZPat.t', ty: HTyp.t): option(t) =>
   switch (zp') {
-  | ZPat.InjZ(side, zp1) =>
+  | InjZ(side, zp1) =>
     switch (HTyp.matched_sum(ty)) {
     | None => None
     | Some((tyL, tyR)) =>
       let ty1 = pick_side(side, tyL, tyR);
       ana_pat_cursor_info(ctx, zp1, ty1);
     }
-  | ZPat.OpSeqZ(skel, zp1, surround) =>
+  | OpSeqZ(skel, zp1, surround) =>
     let p1 = ZPat.erase(zp1);
     let seq = OperatorSeq.opseq_of_exp_and_surround(p1, surround);
     let n = OperatorSeq.surround_prefix_length(surround);
@@ -374,15 +374,11 @@ let rec ana_cursor_found =
     Some(mk_cursor_info(AnaFree(ty), IsExpr(e), side, ctx))
   | Tm(NotInHole, Case(_, _, _)) =>
     Some(mk_cursor_info(Analyzed(ty), IsExpr(e), side, ctx))
-  | Tm(NotInHole, LineItem(_, _))
   | Tm(NotInHole, ListNil)
-  | Tm(NotInHole, OpSeq(BinOp(NotInHole, Comma, _, _), _))
-  | Tm(NotInHole, OpSeq(BinOp(NotInHole, Cons, _, _), _)) =>
+  | OpSeq(BinOp(NotInHole, Comma, _, _), _)
+  | OpSeq(BinOp(NotInHole, Cons, _, _), _) =>
     Some(mk_cursor_info(Analyzed(ty), IsExpr(e), side, ctx))
-  | Tm(
-      InHole(WrongLength, _),
-      OpSeq(BinOp(InHole(WrongLength, _), Comma, skel1, skel2), _),
-    ) =>
+  | OpSeq(BinOp(InHole(WrongLength, _), Comma, skel1, skel2), _) =>
     switch (ty) {
     | Prod(ty1, ty2) =>
       let n_elts = ListMinTwo.length(UHExp.get_tuple(skel1, skel2));
@@ -398,7 +394,6 @@ let rec ana_cursor_found =
     | _ => None
     }
   | Tm(InHole(WrongLength, _), _) => None
-  | Tm(NotInHole, OpSeq(BinOp(InHole(WrongLength, _), _, _, _), _)) => None
   | Tm(NotInHole, Lam(_, ann, _)) =>
     switch (HTyp.matched_arrow(ty)) {
     | None => None
@@ -423,17 +418,12 @@ let rec ana_cursor_found =
     }
   | Tm(NotInHole, Inj(_, _)) =>
     Some(mk_cursor_info(Analyzed(ty), IsExpr(e), side, ctx))
-  | Tm(
-      NotInHole,
-      OpSeq(BinOp(InHole(TypeInconsistent, _), _, _, _), surround),
-    ) =>
-    None
-  | Tm(NotInHole, OpSeq(Placeholder(_), surround)) => None
-  | Tm(NotInHole, OpSeq(BinOp(NotInHole, Plus, _, _), _))
-  | Tm(NotInHole, OpSeq(BinOp(NotInHole, Times, _, _), _))
-  | Tm(NotInHole, OpSeq(BinOp(NotInHole, LessThan, _, _), _))
-  | Tm(NotInHole, OpSeq(BinOp(NotInHole, Space, _, _), _))
-  | Tm(NotInHole, EmptyHole(_))
+  | OpSeq(Placeholder(_), surround) => None
+  | OpSeq(BinOp(NotInHole, Plus, _, _), _)
+  | OpSeq(BinOp(NotInHole, Times, _, _), _)
+  | OpSeq(BinOp(NotInHole, LessThan, _, _), _)
+  | OpSeq(BinOp(NotInHole, Space, _, _), _)
+  | EmptyHole(_)
   | Tm(NotInHole, Var(NotInVHole, _))
   | Tm(NotInHole, NumLit(_))
   | Tm(NotInHole, BoolLit(_))
@@ -458,19 +448,20 @@ let rec syn_cursor_info = (ctx: Contexts.t, ze: ZExp.t): option(t) =>
     | None => None
     }
   | ParenthesizedZ(ze1) => syn_cursor_info(ctx, ze1)
-  | Deeper(_, ze1') => syn_cursor_info'(ctx, ze1')
+  | DeeperE(_, ze1') => syn_cursor_info'(ctx, ze1')
   }
 and ana_cursor_info = (ctx: Contexts.t, ze: ZExp.t, ty: HTyp.t): option(t) =>
   switch (ze) {
   | CursorE(side, e) => ana_cursor_found(ctx, e, ty, side)
   | ParenthesizedZ(ze1) => ana_cursor_info(ctx, ze1, ty)
-  | Deeper(InHole(TypeInconsistent, u), ze1') => syn_cursor_info'(ctx, ze1')
-  | Deeper(
+  | DeeperE(InHole(TypeInconsistent, u), ze1') =>
+    syn_cursor_info'(ctx, ze1')
+  | DeeperE(
       InHole(WrongLength, _),
       OpSeqZ(BinOp(_, Comma, _, _), _, _) as ze1',
     )
-  | Deeper(NotInHole, ze1') => ana_cursor_info'(ctx, ze1', ty)
-  | Deeper(InHole(WrongLength, _), _) => None
+  | DeeperE(NotInHole, ze1') => ana_cursor_info'(ctx, ze1', ty)
+  | DeeperE(InHole(WrongLength, _), _) => None
   }
 and syn_cursor_info' = (ctx: Contexts.t, ze: ZExp.t'): option(t) =>
   switch (ze) {
