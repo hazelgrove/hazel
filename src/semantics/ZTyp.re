@@ -10,7 +10,7 @@ type t =
   | ListZ(t)
   | OpSeqZ(UHTyp.skel_t, t, opseq_surround);
 
-let place_Before = (uty: UHTyp.t): t =>
+let place_before = (uty: UHTyp.t): t =>
   switch (uty) {
   | Hole
   | Parenthesized(_)
@@ -24,7 +24,7 @@ let place_Before = (uty: UHTyp.t): t =>
     OpSeqZ(skel, CursorT(Before, uty0), surround);
   };
 
-let place_After = (uty: UHTyp.t): t =>
+let place_after = (uty: UHTyp.t): t =>
   switch (uty) {
   | Hole
   | Parenthesized(_)
@@ -48,22 +48,22 @@ let rec erase = (zty: t): UHTyp.t =>
     OpSeq(skel, OperatorSeq.opseq_of_exp_and_surround(uty1, surround));
   };
 
-let rec cursor_at_start = (zty: t): bool =>
+let rec is_before = (zty: t): bool =>
   switch (zty) {
   | CursorT(Before, _) => true
   | CursorT(_, _) => false
   | ParenthesizedZ(_) => false
   | ListZ(_) => false
-  | OpSeqZ(_, zty, EmptyPrefix(_)) => cursor_at_start(zty)
+  | OpSeqZ(_, zty, EmptyPrefix(_)) => is_before(zty)
   | OpSeqZ(_, _, _) => false
   };
 
-let rec cursor_at_end = (zty: t): bool =>
+let rec is_after = (zty: t): bool =>
   switch (zty) {
   | CursorT(After, _) => true
   | CursorT(_, _) => false
   | ParenthesizedZ(_) => false
   | ListZ(_) => false
-  | OpSeqZ(_, zty, EmptySuffix(_)) => cursor_at_end(zty)
+  | OpSeqZ(_, zty, EmptySuffix(_)) => is_after(zty)
   | OpSeqZ(_, _, _) => false
   };
