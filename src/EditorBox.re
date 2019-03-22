@@ -65,8 +65,8 @@ let mk =
               Dom.preventDefault(evt);
               let cursor_info = React.S.value(cursor_info_rs);
               switch (cursor_info.sort) {
-              | CursorInfo.IsLineItem(UHExp.EmptyLine)
-              | CursorInfo.IsLineItem(
+              | CursorInfo.IsLine(UHExp.EmptyLine)
+              | CursorInfo.IsLine(
                   UHExp.ExpLine(UHExp.Tm(_, UHExp.EmptyHole(_))),
                 )
               | CursorInfo.IsExpr(UHExp.Tm(_, UHExp.EmptyHole(_)))
@@ -120,7 +120,7 @@ let mk =
                 };
                 Dom_html.stopPropagation(evt);
                 false;
-              | CursorInfo.IsLineItem(_)
+              | CursorInfo.IsLine(_)
               | CursorInfo.IsExpr(_)
               | CursorInfo.IsPat(_)
               | CursorInfo.IsType => true

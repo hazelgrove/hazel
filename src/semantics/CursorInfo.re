@@ -82,7 +82,7 @@ type cursor_sort =
   | IsExpr(UHExp.t)
   | IsPat(UHPat.t)
   | IsType
-  | IsLineItem(UHExp.line_item);
+  | IsLine(UHExp.line_item);
 
 type t = {
   mode: cursor_mode,
@@ -525,7 +525,7 @@ and syn_cursor_info' = (ctx: Contexts.t, ze: ZExp.t'): option(t) =>
 and syn_line_item_cursor_info = (ctx, zli) =>
   switch (zli) {
   | CursorL(side, li) =>
-    Some(mk_cursor_info(LineItem, IsLineItem(li), side, ctx))
+    Some(mk_cursor_info(LineItem, IsLine(li), side, ctx))
   | DeeperL(zli') => syn_line_item_cursor_info'(ctx, zli')
   }
 and syn_line_item_cursor_info' = (ctx, zli') =>

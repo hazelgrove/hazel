@@ -3580,23 +3580,23 @@ let can_perform =
   | Construct(SLet)
   | Construct(SCase) =>
     switch (ci.sort) {
-    | IsLineItem(_) => true
+    | IsLine(_) => true
     | IsExpr(_) => true
     | IsPat(_) => false
     | IsType => false
     }
   | Construct(SInj(_)) =>
     switch (ci.sort) {
-    | IsLineItem(_) => true
+    | IsLine(_) => true
     | IsExpr(_) => true
     | IsPat(_) => true
     | IsType => false
     }
   | Construct(SListNil) =>
     switch (ci.sort) {
-    | IsLineItem(EmptyLine) => true
-    | IsLineItem(ExpLine(Tm(_, EmptyHole(_)))) => true
-    | IsLineItem(_) => false
+    | IsLine(EmptyLine) => true
+    | IsLine(ExpLine(Tm(_, EmptyHole(_)))) => true
+    | IsLine(_) => false
     | IsExpr(Tm(_, EmptyHole(_))) => true
     | IsExpr(_) => false
     | IsPat(Pat(_, EmptyHole(_))) => true
@@ -3608,7 +3608,7 @@ let can_perform =
   | Construct(SList) =>
     switch (ci.sort) {
     | IsType => true
-    | IsLineItem(_)
+    | IsLine(_)
     | IsExpr(_)
     | IsPat(_) => false
     }
@@ -3637,8 +3637,8 @@ let can_perform =
 
 let can_enter_varchar = (ci: CursorInfo.t): bool =>
   switch (ci.sort) {
-  | IsLineItem(EmptyLine)
-  | IsLineItem(ExpLine(Tm(_, EmptyHole(_))))
+  | IsLine(EmptyLine)
+  | IsLine(ExpLine(Tm(_, EmptyHole(_))))
   | IsExpr(Tm(_, Var(_, _)))
   | IsExpr(Tm(_, EmptyHole(_)))
   | IsExpr(Tm(_, BoolLit(_)))
@@ -3652,7 +3652,7 @@ let can_enter_varchar = (ci: CursorInfo.t): bool =>
     | In(_)
     | After => false
     }
-  | IsLineItem(_)
+  | IsLine(_)
   | IsExpr(_)
   | IsPat(_)
   | IsType => false
@@ -3660,13 +3660,13 @@ let can_enter_varchar = (ci: CursorInfo.t): bool =>
 
 let can_enter_numeral = (ci: CursorInfo.t): bool =>
   switch (ci.sort) {
-  | IsLineItem(EmptyLine)
-  | IsLineItem(ExpLine(Tm(_, EmptyHole(_))))
+  | IsLine(EmptyLine)
+  | IsLine(ExpLine(Tm(_, EmptyHole(_))))
   | IsExpr(Tm(_, NumLit(_)))
   | IsExpr(Tm(_, EmptyHole(_)))
   | IsPat(Pat(_, NumLit(_)))
   | IsPat(Pat(_, EmptyHole(_))) => true
-  | IsLineItem(_)
+  | IsLine(_)
   | IsExpr(_)
   | IsPat(_)
   | IsType => false
@@ -3674,8 +3674,8 @@ let can_enter_numeral = (ci: CursorInfo.t): bool =>
 
 let can_construct_palette = (ci: CursorInfo.t): bool =>
   switch (ci.sort) {
-  | IsLineItem(EmptyLine)
-  | IsLineItem(ExpLine(Tm(_, EmptyHole(_))))
+  | IsLine(EmptyLine)
+  | IsLine(ExpLine(Tm(_, EmptyHole(_))))
   | IsExpr(Tm(_, EmptyHole(_))) => true
   | _ => false
   };
