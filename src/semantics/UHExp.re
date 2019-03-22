@@ -187,14 +187,3 @@ and make_skel_inconsistent =
    | Parenthesized(block) => drop_outer_parentheses(e')
    };
  */
-
-let prune_single_hole_line = (li: line): line =>
-  switch (li) {
-  | ExpLine(EmptyHole(_)) => EmptyLine
-  | ExpLine(_)
-  | EmptyLine
-  | LetLine(_, _, _) => li
-  };
-
-let prepend_line = (li: line_item, e: t): t =>
-  Tm(NotInHole, LineItem(li, e));
