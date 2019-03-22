@@ -1870,9 +1870,6 @@ let rec syn_perform_block =
         )
         : option((ZExp.zblock, HTyp.t, MetaVarGen.t)) =>
   switch (a, zblock) {
-  | (_, CursorB(_, _)) =>
-    /* TODO consider block-level actions */
-    None
   /* Movement */
   | (MoveTo(path), _) =>
     let block = ZExp.erase_block(zblock);
@@ -2891,9 +2888,6 @@ and ana_perform_block =
     )
     : option((ZExp.zblock, MetaVarGen.t)) =>
   switch (a, zblock) {
-  | (_, CursorB(_, _)) =>
-    /* TODO consider actions on whole blocks */
-    None
   /* Movement */
   | (MoveTo(path), _) =>
     let block = ZExp.erase_block(zblock);

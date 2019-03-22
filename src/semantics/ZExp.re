@@ -9,7 +9,10 @@ type opseq_prefix = OperatorSeq.opseq_prefix(UHExp.t, UHExp.op);
 type opseq_suffix = OperatorSeq.opseq_suffix(UHExp.t, UHExp.op);
 
 type zblock =
-  | CursorB(cursor_side, UHExp.block)
+  /*
+   TODO add block level cursor
+   | CursorB(cursor_side, UHExp.block)
+   */
   | DeeperB(zblock')
 and zblock' =
   | BlockZL(zlines, UHExp.t)
@@ -51,19 +54,17 @@ let bidelimit = (ze: t): t =>
   switch (ze) {
   | CursorE(cursor_side, e) => CursorE(cursor_side, UHExp.bidelimit(e))
   | ParenthesizedZ(_)
-  | Deeper(_, InjZ(_, _))
-  | Deeper(_, ApPaletteZ(_, _, _)) =>
+  | DeeperE(_, InjZ(_, _))
+  | DeeperE(_, ApPaletteZ(_, _, _)) =>
     /* | Deeper _ (ListLitZ _) */
     ze
-  | Deeper(_, CaseZE(_, _, _))
-  | Deeper(_, CaseZR(_, _, _))
-  | Deeper(_, CaseZA(_, _, _))
-  | Deeper(_, LineItemZL(_, _))
-  | Deeper(_, LineItemZE(_, _))
-  | Deeper(_, LamZP(_, _, _))
-  | Deeper(_, LamZA(_, _, _))
-  | Deeper(_, LamZE(_, _, _))
-  | Deeper(_, OpSeqZ(_, _, _)) => ParenthesizedZ(ze)
+  | OpSeqZ(_, _, _)
+  | DeeperE(_, CaseZE(_, _, _))
+  | DeeperE(_, CaseZR(_, _, _))
+  | DeeperE(_, CaseZA(_, _, _))
+  | DeeperE(_, LamZP(_, _, _))
+  | DeeperE(_, LamZA(_, _, _))
+  | DeeperE(_, LamZE(_, _, _)) => ParenthesizedZ(DeeperB(BlockZE([], ze)))
   };
 
 let rec set_err_status = (err: err_status, ze: t): t =>
@@ -71,10 +72,14 @@ let rec set_err_status = (err: err_status, ze: t): t =>
   | CursorE(cursor_side, e) =>
     let e = UHExp.set_err_status(err, e);
     CursorE(cursor_side, e);
-  | Deeper(_, OpSeqZ(BinOp(_, op, skel1, skel2), ze0, surround)) =>
-    Deeper(err, OpSeqZ(BinOp(err, op, skel1, skel2), ze0, surround))
-  | Deeper(_, ze') => Deeper(err, ze')
-  | ParenthesizedZ(ze1) => ParenthesizedZ(set_err_status(err, ze1))
+  | OpSeqZ(BinOp(_, op, skel1, skel2), ze0, surround) =>
+    OpSeqZ(BinOp(err, op, skel1, skel2), ze0, surround)
+  | OpSeqZ(Placeholder(_), _, _) => ze /* should never happen */
+  | DeeperE(_, ze') => DeeperE(err, ze')
+  | ParenthesizedZ(DeeperB(BlockZL(zlines, e))) =>
+    ParenthesizedZ(DeeperB(BlockZL(zlines, UHExp.set_err_status(err, e))))
+  | ParenthesizedZ(DeeperB(BlockZE(lines, ze))) =>
+    ParenthesizedZ(DeeperB(BlockZE(lines, set_err_status(err, ze))))
   };
 
 let rec make_inconsistent = (u_gen: MetaVarGen.t, ze: t): (t, MetaVarGen.t) =>
@@ -82,15 +87,28 @@ let rec make_inconsistent = (u_gen: MetaVarGen.t, ze: t): (t, MetaVarGen.t) =>
   | CursorE(cursor_side, e) =>
     let (e', u_gen) = UHExp.make_inconsistent(u_gen, e);
     (CursorE(cursor_side, e'), u_gen);
-  | Deeper(NotInHole, ze')
-  | Deeper(InHole(WrongLength, _), ze') =>
+  | DeeperE(NotInHole, ze')
+  | DeeperE(InHole(WrongLength, _), ze') =>
     let (u, u_gen) = MetaVarGen.next(u_gen);
     let ze' = set_err_status(InHole(TypeInconsistent, u), ze);
     (ze', u_gen);
-  | Deeper(InHole(TypeInconsistent, _), _) => (ze, u_gen)
-  | ParenthesizedZ(ze1) =>
-    let (ze1', u_gen) = make_inconsistent(u_gen, ze1);
-    (ParenthesizedZ(ze1), u_gen);
+  | DeeperE(InHole(TypeInconsistent, _), _) => (ze, u_gen)
+  | ParenthesizedZ(DeeperB(BlockZL(zlines, e))) =>
+    let (e, u_gen) = UHExp.make_inconsistent(u_gen, e);
+    (ParenthesizedZ(DeeperB(BlockZL(zlines, e))), u_gen);
+  | ParenthesizedZ(DeeperB(BlockZE(lines, ze))) =>
+    let (ze, u_gen) = make_inconsistent(u_gen, ze);
+    (ParenthesizedZ(DeeperB(BlockZE(lines, ze))), u_gen);
+  | OpSeqZ(BinOp(NotInHole, _, _, _), _, _)
+  | OpSeqZ(BinOp(InHole(WrongLength, _), _, _, _), _, _) =>
+    let (u, u_gen) = MetaVarGen.next(u_gen);
+    let ze = set_err_status(InHole(TypeInconsistent, u), ze);
+    (ze, u_gen);
+  | OpSeqZ(BinOp(InHole(TypeInconsistent, _), _, _, _), _, _) => (
+      ze,
+      u_gen,
+    )
+  | OpSeqZ(Placeholder(_), _, _) => (ze, u_gen) /* should never happen */
   };
 
 let new_EmptyHole = (u_gen: MetaVarGen.t) => {
@@ -103,62 +121,67 @@ let new_EmptyHole = (u_gen: MetaVarGen.t) => {
    switch (ze) {
    | CursorE(side, e) => Some((UHExp.drop_outer_parentheses(e), side))
    | ParenthesizedZ(ze') => cursor_on_outer_expr(ze')
-   | Deeper(_, _) => None
+   | DeeperE(_, _) => None
    };
  */
 
 let empty_zrule = (u_gen: MetaVarGen.t): (zrule, MetaVarGen.t) => {
   let (zp, u_gen) = ZPat.new_EmptyHole(u_gen);
-  let (rule_e, u_gen) = UHExp.new_EmptyHole(u_gen);
-  let zrule = RuleZP(zp, rule_e);
+  let (e, u_gen) = UHExp.new_EmptyHole(u_gen);
+  let block = UHExp.Block([], e);
+  let zrule = RuleZP(zp, block);
   (zrule, u_gen);
 };
 
-let rec erase = (ze: t): UHExp.t =>
+let rec erase_block = (zblock: zblock): UHExp.block =>
+  switch (zblock) {
+  | DeeperB(BlockZL(zlines, e)) => Block(erase_lines(zlines), e)
+  | DeeperB(BlockZE(lines, ze)) => Block(lines, erase(ze))
+  }
+and erase_lines = (zlis: zlines): UHExp.lines =>
+  ZList.erase(zlis, erase_line)
+and erase_line = (zli: zline): UHExp.line =>
+  switch (zli) {
+  | CursorL(_, li) => li
+  | DeeperL(zli') => erase_line'(zli')
+  }
+and erase_line' = (zli': zline'): UHExp.line =>
+  switch (zli') {
+  | ExpLineZ(ze) => ExpLine(erase(ze))
+  | LetLineZP(zp, ann, block) => LetLine(ZPat.erase(zp), ann, block)
+  | LetLineZA(p, zann, block) => LetLine(p, Some(ZTyp.erase(zann)), block)
+  | LetLineZE(p, ann, zblock) => LetLine(p, ann, erase_block(zblock))
+  }
+and erase = (ze: t): UHExp.t =>
   switch (ze) {
   | CursorE(_, e) => e
-  | Deeper(err_state, ze') =>
+  | DeeperE(err_state, ze') =>
     let e' = erase'(ze');
     Tm(err_state, e');
-  | ParenthesizedZ(ze1) => UHExp.Parenthesized(erase(ze1))
-  }
-and erase' = (ze: t'): UHExp.t' =>
-  switch (ze) {
-  | LineItemZL(zli, e) => LineItem(erase_line_item(zli), e)
-  | LineItemZE(lis, ze) => LineItem(lis, erase(ze))
-  | LamZP(zp, ann, e1) => Lam(ZPat.erase(zp), ann, e1)
-  | LamZA(p, zann, e1) => Lam(p, Some(ZTyp.erase(zann)), e1)
-  | LamZE(p, ann, ze1) => Lam(p, ann, erase(ze1))
-  | InjZ(side, ze) => Inj(side, erase(ze))
-  /* | ListLitZ zes -> UHExp.ListLit (ZList.erase zes erase) */
-  | CaseZE(ze1, rules, ann) => Case(erase(ze1), rules, ann)
-  | CaseZR(e1, zrules, ann) =>
-    Case(e1, ZList.erase(zrules, erase_rule), ann)
-  | CaseZA(e1, rules, zann) =>
-    UHExp.Case(e1, rules, Some(ZTyp.erase(zann)))
+  | ParenthesizedZ(zblock) => UHExp.Parenthesized(erase_block(zblock))
   | OpSeqZ(skel, ze', surround) =>
     let e = erase(ze');
     OpSeq(skel, OperatorSeq.opseq_of_exp_and_surround(e, surround));
+  }
+and erase' = (ze: t'): UHExp.t' =>
+  switch (ze) {
+  | LamZP(zp, ann, block) => Lam(ZPat.erase(zp), ann, block)
+  | LamZA(p, zann, block) => Lam(p, Some(ZTyp.erase(zann)), block)
+  | LamZE(p, ann, zblock) => Lam(p, ann, erase_block(zblock))
+  | InjZ(side, zblock) => Inj(side, erase_block(zblock))
+  | CaseZE(zblock, rules, ann) => Case(erase_block(zblock), rules, ann)
+  | CaseZR(block, zrules, ann) =>
+    Case(block, ZList.erase(zrules, erase_rule), ann)
+  | CaseZA(e1, rules, zann) =>
+    UHExp.Case(e1, rules, Some(ZTyp.erase(zann)))
   | ApPaletteZ(palette_name, serialized_model, zpsi) =>
-    let psi = ZSpliceInfo.erase(zpsi, ((ty, z)) => (ty, erase(z)));
+    let psi = ZSpliceInfo.erase(zpsi, ((ty, z)) => (ty, erase_block(z)));
     ApPalette(palette_name, serialized_model, psi);
-  }
-and erase_line_item = (zli: zline_item): UHExp.line_item =>
-  switch (zli) {
-  | CursorL(_, li) => li
-  | DeeperL(zli') => erase_line_item'(zli')
-  }
-and erase_line_item' = (zli': zline_item'): UHExp.line_item =>
-  switch (zli') {
-  | ExpLineZ(ze) => ExpLine(erase(ze))
-  | LetLineZP(zp, ann, e) => LetLine(ZPat.erase(zp), ann, e)
-  | LetLineZA(p, zann, e) => LetLine(p, Some(ZTyp.erase(zann)), e)
-  | LetLineZE(p, ann, ze) => LetLine(p, ann, erase(ze))
   }
 and erase_rule = (zr: zrule): UHExp.rule =>
   switch (zr) {
-  | RuleZP(zp, e) => Rule(ZPat.erase(zp), e)
-  | RuleZE(p, ze) => Rule(p, erase(ze))
+  | RuleZP(zp, block) => Rule(ZPat.erase(zp), block)
+  | RuleZE(p, zblock) => Rule(p, erase_block(zblock))
   };
 
 let rec cursor_at_start = (ze: t): bool =>
@@ -166,18 +189,18 @@ let rec cursor_at_start = (ze: t): bool =>
   | CursorE(Before, _) => true
   | CursorE(_, _) => false
   | ParenthesizedZ(_) => false
-  | Deeper(_, LineItemZL(zli, _)) => cursor_at_start_line_item(zli)
-  | Deeper(_, LineItemZE(_, _)) => false
-  | Deeper(_, LamZP(_, _, _))
-  | Deeper(_, LamZA(_, _, _))
-  | Deeper(_, LamZE(_, _, _)) => false
-  | Deeper(_, InjZ(_, _)) => false
-  | Deeper(_, CaseZE(_, _, _))
-  | Deeper(_, CaseZR(_, _, _))
-  | Deeper(_, CaseZA(_, _, _)) => false
-  | Deeper(_, OpSeqZ(_, ze1, EmptyPrefix(_))) => cursor_at_start(ze1)
-  | Deeper(_, OpSeqZ(_, _, _)) => false
-  | Deeper(_, ApPaletteZ(_, _, _)) => false
+  | DeeperE(_, LineItemZL(zli, _)) => cursor_at_start_line_item(zli)
+  | DeeperE(_, LineItemZE(_, _)) => false
+  | DeeperE(_, LamZP(_, _, _))
+  | DeeperE(_, LamZA(_, _, _))
+  | DeeperE(_, LamZE(_, _, _)) => false
+  | DeeperE(_, InjZ(_, _)) => false
+  | DeeperE(_, CaseZE(_, _, _))
+  | DeeperE(_, CaseZR(_, _, _))
+  | DeeperE(_, CaseZA(_, _, _)) => false
+  | DeeperE(_, OpSeqZ(_, ze1, EmptyPrefix(_))) => cursor_at_start(ze1)
+  | DeeperE(_, OpSeqZ(_, _, _)) => false
+  | DeeperE(_, ApPaletteZ(_, _, _)) => false
   }
 and cursor_at_start_line_item = (zli: zline_item): bool =>
   switch (zli) {
@@ -199,18 +222,18 @@ let rec cursor_at_end = (ze: t): bool =>
   | CursorE(After, _) => true
   | CursorE(_, _) => false
   | ParenthesizedZ(_) => false
-  | Deeper(_, LineItemZL(_, _)) => false
-  | Deeper(_, LineItemZE(_, ze1)) => cursor_at_end(ze1)
-  | Deeper(_, LamZP(_, _, _))
-  | Deeper(_, LamZA(_, _, _)) => false
-  | Deeper(_, LamZE(_, _, ze1)) => cursor_at_end(ze1)
-  | Deeper(_, InjZ(_, _)) => false
-  | Deeper(_, CaseZE(_, _, _))
-  | Deeper(_, CaseZR(_, _, _)) => false
-  | Deeper(_, CaseZA(_, _, zann)) => ZTyp.cursor_at_end(zann)
-  | Deeper(_, OpSeqZ(_, ze1, EmptySuffix(_))) => cursor_at_end(ze1)
-  | Deeper(_, OpSeqZ(_, _, _)) => false
-  | Deeper(_, ApPaletteZ(_, _, _)) => false
+  | DeeperE(_, LineItemZL(_, _)) => false
+  | DeeperE(_, LineItemZE(_, ze1)) => cursor_at_end(ze1)
+  | DeeperE(_, LamZP(_, _, _))
+  | DeeperE(_, LamZA(_, _, _)) => false
+  | DeeperE(_, LamZE(_, _, ze1)) => cursor_at_end(ze1)
+  | DeeperE(_, InjZ(_, _)) => false
+  | DeeperE(_, CaseZE(_, _, _))
+  | DeeperE(_, CaseZR(_, _, _)) => false
+  | DeeperE(_, CaseZA(_, _, zann)) => ZTyp.cursor_at_end(zann)
+  | DeeperE(_, OpSeqZ(_, ze1, EmptySuffix(_))) => cursor_at_end(ze1)
+  | DeeperE(_, OpSeqZ(_, _, _)) => false
+  | DeeperE(_, ApPaletteZ(_, _, _)) => false
   };
 
 let cursor_at_end_line_item' = (zli': zline_item'): bool =>
@@ -231,10 +254,10 @@ let cursor_at_end_line_item = (zli: zline_item): bool =>
 let rec place_Before = (e: UHExp.t): t =>
   switch (e) {
   | Tm(err_status, LineItem(EmptyLine, e1)) =>
-    Deeper(err_status, LineItemZL(CursorL(Before, EmptyLine), e1))
+    DeeperE(err_status, LineItemZL(CursorL(Before, EmptyLine), e1))
   | Tm(err_status, LineItem(ExpLine(e1), e2)) =>
     let ze1 = place_Before(e1);
-    Deeper(err_status, LineItemZL(DeeperL(ExpLineZ(ze1)), e2));
+    DeeperE(err_status, LineItemZL(DeeperL(ExpLineZ(ze1)), e2));
   | Tm(err_status, LineItem(LetLine(_, _, _), _)) =>
     /* TODO this selects the entire block, perhaps should consider enabling selecting single line items */
     CursorE(Before, e)
@@ -242,7 +265,7 @@ let rec place_Before = (e: UHExp.t): t =>
     let (e1, suffix) = OperatorSeq.split0(opseq);
     let ze1 = place_Before(e1);
     let surround = OperatorSeq.EmptyPrefix(suffix);
-    Deeper(err_status, OpSeqZ(skel, ze1, surround));
+    DeeperE(err_status, OpSeqZ(skel, ze1, surround));
   | Tm(_, Var(_, _))
   | Tm(_, Lam(_, _, _))
   | Tm(_, NumLit(_))
@@ -259,14 +282,14 @@ let rec place_After = (e: UHExp.t): t =>
   switch (e) {
   | Tm(err_status, LineItem(li, e2)) =>
     let ze2 = place_After(e2);
-    Deeper(err_status, LineItemZE(li, ze2));
+    DeeperE(err_status, LineItemZE(li, ze2));
   | Tm(err_status, OpSeq(skel, opseq)) =>
     let (en, prefix) = OperatorSeq.split_tail(opseq);
     let zen = place_After(en);
     let surround = OperatorSeq.EmptySuffix(prefix);
-    Deeper(err_status, OpSeqZ(skel, zen, surround));
+    DeeperE(err_status, OpSeqZ(skel, zen, surround));
   | Tm(_, Case(e, rules, Some(ty))) =>
-    Deeper(NotInHole, CaseZA(e, rules, ZTyp.place_After(ty)))
+    DeeperE(NotInHole, CaseZA(e, rules, ZTyp.place_After(ty)))
   | Tm(_, Case(_, _, None))
   | Tm(_, Var(_, _))
   | Tm(_, Lam(_, _, _))
@@ -298,10 +321,10 @@ let prune_single_hole_line = (zli: zline_item): zline_item =>
   };
 
 let prepend_line = (~err_status=?, li: UHExp.line_item, ze: t): t =>
-  Deeper(default_nih(err_status), LineItemZE(li, ze));
+  DeeperE(default_nih(err_status), LineItemZE(li, ze));
 
 let prepend_zline = (~err_status=?, zli: zline_item, e: UHExp.t): t =>
-  Deeper(default_nih(err_status), LineItemZL(zli, e));
+  DeeperE(default_nih(err_status), LineItemZL(zli, e));
 
 let prune_and_prepend_line = (~err_status=?, li: UHExp.line_item, ze: t): t =>
   prepend_line(
