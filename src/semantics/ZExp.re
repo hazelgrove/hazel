@@ -29,7 +29,7 @@ and zline' =
 and t =
   | CursorE(cursor_side, UHExp.t)
   | ParenthesizedZ(zblock)
-  | OpSeqZ(UHExp.skel_t, t, OperatorSeq.opseq_surround(UHExp.t, UHExp.op))
+  | OpSeqZ(UHExp.skel_t, t, opseq_surround)
   | DeeperE(err_status, t')
 /* | CursorPalette : PaletteName.t -> PaletteSerializedModel.t -> hole_ref -> t -> t */
 and t' =
@@ -82,36 +82,79 @@ let rec set_err_status = (err: err_status, ze: t): t =>
     ParenthesizedZ(DeeperB(BlockZE(lines, set_err_status(err, ze))))
   };
 
-let rec make_inconsistent = (u_gen: MetaVarGen.t, ze: t): (t, MetaVarGen.t) =>
+exception SkelInconsistentWithOpSeq;
+
+let rec make_block_inconsistent =
+        (u_gen: MetaVarGen.t, zblock: zblock): (zblock, MetaVarGen.t) =>
+  switch (zblock) {
+  | DeeperB(BlockZL(zlines, e)) =>
+    let (e, u_gen) = UHExp.make_exp_inconsistent(u_gen, e);
+    (DeeperB(BlockZL(zlines, e)), u_gen);
+  | DeeperB(BlockZE(lines, ze)) =>
+    let (ze, u_gen) = make_exp_inconsistent(u_gen, ze);
+    (DeeperB(BlockZE(lines, ze)), u_gen);
+  }
+and make_exp_inconsistent = (u_gen: MetaVarGen.t, ze: t): (t, MetaVarGen.t) =>
   switch (ze) {
   | CursorE(cursor_side, e) =>
-    let (e', u_gen) = UHExp.make_inconsistent(u_gen, e);
-    (CursorE(cursor_side, e'), u_gen);
+    let (e, u_gen) = UHExp.make_exp_inconsistent(u_gen, e);
+    (CursorE(cursor_side, e), u_gen);
   | DeeperE(NotInHole, ze')
   | DeeperE(InHole(WrongLength, _), ze') =>
     let (u, u_gen) = MetaVarGen.next(u_gen);
-    let ze' = set_err_status(InHole(TypeInconsistent, u), ze);
-    (ze', u_gen);
-  | DeeperE(InHole(TypeInconsistent, _), _) => (ze, u_gen)
-  | ParenthesizedZ(DeeperB(BlockZL(zlines, e))) =>
-    let (e, u_gen) = UHExp.make_inconsistent(u_gen, e);
-    (ParenthesizedZ(DeeperB(BlockZL(zlines, e))), u_gen);
-  | ParenthesizedZ(DeeperB(BlockZE(lines, ze))) =>
-    let (ze, u_gen) = make_inconsistent(u_gen, ze);
-    (ParenthesizedZ(DeeperB(BlockZE(lines, ze))), u_gen);
-  | OpSeqZ(BinOp(NotInHole, _, _, _), _, _)
-  | OpSeqZ(BinOp(InHole(WrongLength, _), _, _, _), _, _) =>
-    let (u, u_gen) = MetaVarGen.next(u_gen);
     let ze = set_err_status(InHole(TypeInconsistent, u), ze);
     (ze, u_gen);
-  | OpSeqZ(BinOp(InHole(TypeInconsistent, _), _, _, _), _, _) => (
-      ze,
+  | DeeperE(InHole(TypeInconsistent, _), _) => (ze, u_gen)
+  | ParenthesizedZ(zblock) =>
+    let (zblock, u_gen) = make_block_inconsistent(u_gen, zblock);
+    (ParenthesizedZ(zblock), u_gen);
+  | OpSeqZ(skel, ze_n, surround) =>
+    let (skel, ze_n, surround, u_gen) =
+      make_skel_inconsistent(u_gen, skel, ze_n, surround);
+    (OpSeqZ(skel, ze_n, surround), u_gen);
+  }
+and make_skel_inconsistent =
+    (
+      u_gen: MetaVarGen.t,
+      skel: UHExp.skel_t,
+      ze_n: t,
+      surround: opseq_surround,
+    )
+    : (UHExp.skel_t, t, opseq_surround, MetaVarGen.t) =>
+  switch (skel) {
+  | Placeholder(m) =>
+    if (m === OperatorSeq.surround_prefix_length(surround)) {
+      let (ze_n, u_gen) = make_exp_inconsistent(u_gen, ze_n);
+      (skel, ze_n, surround, u_gen);
+    } else {
+      switch (OperatorSeq.surround_nth(m, surround)) {
+      | None => raise(SkelInconsistentWithOpSeq)
+      | Some(e_m) =>
+        let (e_m, u_gen) = UHExp.make_exp_inconsistent(u_gen, e_m);
+        switch (OperatorSeq.surround_update_nth(m, surround, e_m)) {
+        | None => raise(SkelInconsistentWithOpSeq)
+        | Some(surround) => (skel, ze_n, surround, u_gen)
+        };
+      };
+    }
+  | BinOp(InHole(TypeInconsistent, _), _, _, _) => (
+      skel,
+      ze_n,
+      surround,
       u_gen,
     )
-  | OpSeqZ(Placeholder(_), _, _) => (ze, u_gen) /* should never happen */
+  | BinOp(NotInHole, op, skel1, skel2)
+  | BinOp(InHole(WrongLength, _), op, skel1, skel2) =>
+    let (u, u_gen) = MetaVarGen.next(u_gen);
+    (
+      BinOp(InHole(TypeInconsistent, u), op, skel1, skel2),
+      ze_n,
+      surround,
+      u_gen,
+    );
   };
 
-let new_EmptyHole = (u_gen: MetaVarGen.t) => {
+let new_EmptyHole = (u_gen: MetaVarGen.t): (t, MetaVarGen.t) => {
   let (e, u_gen) = UHExp.new_EmptyHole(u_gen);
   (CursorE(Before, e), u_gen);
 };

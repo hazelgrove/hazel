@@ -138,8 +138,15 @@ let rec set_err_status = (err: err_status, e: t): t =>
   | EmptyHole(_) => e
   };
 
+let rec make_block_inconsistent =
+        (u_gen: MetaVarGen.t, block: block): (block, MetaVarGen.t) =>
+  switch (block) {
+  | Block(lines, e) =>
+    let (e, u_gen) = make_exp_inconsistent(u_gen, e);
+    (Block(lines, e), u_gen);
+  }
 /* put e in a new hole, if it is not already in a hole */
-let rec make_inconsistent = (u_gen: MetaVarGen.t, e: t): (t, MetaVarGen.t) =>
+and make_exp_inconsistent = (u_gen: MetaVarGen.t, e: t): (t, MetaVarGen.t) =>
   switch (e) {
   | Tm(NotInHole, _)
   | Tm(InHole(WrongLength, _), _) =>
@@ -147,10 +154,9 @@ let rec make_inconsistent = (u_gen: MetaVarGen.t, e: t): (t, MetaVarGen.t) =>
     let e = set_err_status(InHole(TypeInconsistent, u), e);
     (e, u_gen);
   | Tm(InHole(TypeInconsistent, _), _) => (e, u_gen)
-  | Parenthesized(Block(lines, e1)) =>
-    switch (make_inconsistent(u_gen, e1)) {
-    | (e1, u_gen) => (Parenthesized(Block(lines, e1)), u_gen)
-    }
+  | Parenthesized(block) =>
+    let (block, u_gen) = make_block_inconsistent(u_gen, block);
+    (Parenthesized(block), u_gen);
   | OpSeq(skel, seq) =>
     let (skel, seq, u_gen) = make_skel_inconsistent(u_gen, skel, seq);
     (OpSeq(skel, seq), u_gen);
@@ -165,10 +171,10 @@ and make_skel_inconsistent =
     switch (OperatorSeq.seq_nth(n, seq)) {
     | None => raise(SkelInconsistentWithOpSeq(skel, seq))
     | Some(en) =>
-      let (en', u_gen') = make_inconsistent(u_gen, en);
-      switch (OperatorSeq.seq_update_nth(n, seq, en')) {
+      let (en, u_gen) = make_exp_inconsistent(u_gen, en);
+      switch (OperatorSeq.seq_update_nth(n, seq, en)) {
       | None => raise(SkelInconsistentWithOpSeq(skel, seq))
-      | Some(seq') => (skel, seq', u_gen')
+      | Some(seq) => (skel, seq, u_gen)
       };
     }
   | BinOp(InHole(TypeInconsistent, _), _, _, _) => (skel, seq, u_gen)
