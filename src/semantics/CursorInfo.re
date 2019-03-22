@@ -361,7 +361,7 @@ let rec ana_cursor_found =
     }
   | Tm(InHole(TypeInconsistent, _), _) =>
     let e_nih = UHExp.set_err_status(NotInHole, e);
-    switch (Statics.syn(ctx, e_nih)) {
+    switch (Statics.syn_exp(ctx, e_nih)) {
     | None => None
     | Some(ty') =>
       Some(
@@ -438,7 +438,7 @@ let rec ana_cursor_found =
   | Tm(NotInHole, NumLit(_))
   | Tm(NotInHole, BoolLit(_))
   | Tm(NotInHole, ApPalette(_, _, _)) =>
-    switch (Statics.syn(ctx, e)) {
+    switch (Statics.syn_exp(ctx, e)) {
     | None => None
     | Some(ty') =>
       Some(mk_cursor_info(AnaSubsumed(ty, ty'), IsExpr(e), side, ctx))
@@ -452,7 +452,7 @@ let rec syn_cursor_info = (ctx: Contexts.t, ze: ZExp.t): option(t) =>
   | CursorE(side, Tm(_, Var(InVHole(Free, _), _)) as e) =>
     Some(mk_cursor_info(SynFree, IsExpr(e), side, ctx))
   | CursorE(side, e) =>
-    switch (Statics.syn(ctx, e)) {
+    switch (Statics.syn_exp(ctx, e)) {
     | Some(ty) =>
       Some(mk_cursor_info(Synthesized(ty), IsExpr(e), side, ctx))
     | None => None
@@ -505,7 +505,7 @@ and syn_cursor_info' = (ctx: Contexts.t, ze: ZExp.t'): option(t) =>
   | CaseZE(ze1, _, Some(_)) => syn_cursor_info(ctx, ze1)
   | CaseZR(e1, zrules, Some(uty)) =>
     let ty = UHTyp.expand(uty);
-    switch (Statics.syn(ctx, e1)) {
+    switch (Statics.syn_exp(ctx, e1)) {
     | None => None
     | Some(ty1) =>
       let zrule = HazelUtil.ZList.prj_z(zrules);
@@ -537,7 +537,7 @@ and syn_line_item_cursor_info' = (ctx, zli') =>
       let ty1 = UHTyp.expand(uty1);
       ana_pat_cursor_info(ctx, zp, ty1);
     | None =>
-      switch (Statics.syn(ctx, e1)) {
+      switch (Statics.syn_exp(ctx, e1)) {
       | None => None
       | Some(ty1) => ana_pat_cursor_info(ctx, zp, ty1)
       }
@@ -596,7 +596,7 @@ and ana_cursor_info' = (ctx: Contexts.t, ze: ZExp.t', ty: HTyp.t): option(t) =>
     }
   | CaseZE(ze1, rules, _) => syn_cursor_info(ctx, ze1)
   | CaseZR(e1, zrules, _) =>
-    switch (Statics.syn(ctx, e1)) {
+    switch (Statics.syn_exp(ctx, e1)) {
     | None => None
     | Some(ty1) =>
       let zrule = HazelUtil.ZList.prj_z(zrules);
@@ -655,7 +655,7 @@ and syn_skel_cursor_info =
        switch (ZExp.cursor_on_outer_expr(ze_n)) {
        | Some((Tm(InHole(TypeInconsistent, u), e_n') as e_n, side)) =>
          let e_n_nih = UHExp.set_err_status(NotInHole, e_n);
-         switch (Statics.syn(ctx, e_n_nih)) {
+         switch (Statics.syn_exp(ctx, e_n_nih)) {
          | Some(ty) =>
            Some(
              mk_cursor_info(
@@ -686,7 +686,7 @@ and syn_skel_cursor_info =
            ),
          )
        | Some((e_n, side)) =>
-         switch (Statics.syn(ctx, e_n)) {
+         switch (Statics.syn_exp(ctx, e_n)) {
          | Some(ty) =>
            switch (HTyp.matched_arrow(ty)) {
            | Some((ty1, ty2)) =>

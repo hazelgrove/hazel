@@ -3,7 +3,7 @@ open Format;
 open LangUtil;
 
 let ensure_well_typed_before_serialization = uhexp =>
-  switch (Statics.syn((VarMap.empty, PaletteCtx.empty), uhexp)) {
+  switch (Statics.syn_exp((VarMap.empty, PaletteCtx.empty), uhexp)) {
   | None => raise(IllFormed(uhexp))
   | _ => uhexp
   };

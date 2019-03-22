@@ -931,7 +931,7 @@ let syn_zpat_fix_holes =
     : (ZPat.t, HTyp.t, Contexts.t, MetaVarGen.t) => {
   let path = Path.of_zpat(zp);
   let p = ZPat.erase(zp);
-  let (p, ty, ctx, u_gen) = Statics.syn_fix_holes_pat(ctx, u_gen, false, p);
+  let (p, ty, ctx, u_gen) = Statics.syn_fix_holes_pat(ctx, u_gen, p);
   let zp = Path.follow_pat_or_fail(path, p);
   (zp, ty, ctx, u_gen);
 };
@@ -941,7 +941,7 @@ let ana_zpat_fix_holes =
     : (ZPat.t, Contexts.t, MetaVarGen.t) => {
   let path = Path.of_zpat(zp);
   let p = ZPat.erase(zp);
-  let (p, ctx, u_gen) = Statics.ana_fix_holes_pat(ctx, u_gen, false, p, ty);
+  let (p, ctx, u_gen) = Statics.ana_fix_holes_pat(ctx, u_gen, p, ty);
   let zp = Path.follow_pat_or_fail(path, p);
   (zp, ctx, u_gen);
 };
@@ -962,7 +962,7 @@ let make_and_syn_OpSeqZ_pat =
   let p0 = ZPat.erase(zp0);
   let seq = OperatorSeq.opseq_of_exp_and_surround(p0, surround);
   let skel = Associator.associate_pat(seq);
-  switch (Statics.syn_fix_holes_pat_skel(ctx, u_gen, false, skel, seq)) {
+  switch (Statics.syn_fix_holes_pat_skel(ctx, u_gen, skel, seq)) {
   | (Placeholder(_), _, _, _, _) =>
     raise(UHPat.SkelInconsistentWithOpSeq(skel, seq))
   | (BinOp(err, _, _, _) as skel, seq, ty, ctx, u_gen) =>
@@ -989,7 +989,7 @@ let make_and_ana_OpSeqZ_pat =
   let p0 = ZPat.erase(zp0);
   let seq = OperatorSeq.opseq_of_exp_and_surround(p0, surround);
   let skel = Associator.associate_pat(seq);
-  switch (Statics.ana_fix_holes_pat_skel(ctx, u_gen, false, skel, seq, ty)) {
+  switch (Statics.ana_fix_holes_pat_skel(ctx, u_gen, skel, seq, ty)) {
   | (Placeholder(_), _, _, _) =>
     raise(UHPat.SkelInconsistentWithOpSeq(skel, seq))
   | (BinOp(err, _, _, _) as skel, seq, ctx, u_gen) =>
@@ -1551,13 +1551,11 @@ and perform_ana_pat =
     switch (HTyp.matched_sum(ty)) {
     | Some((tyL, tyR)) =>
       let ty1 = pick_side(side, tyL, tyR);
-      let (p1, ctx, u_gen) =
-        Statics.ana_fix_holes_pat(ctx, u_gen, false, p1, ty1);
+      let (p1, ctx, u_gen) = Statics.ana_fix_holes_pat(ctx, u_gen, p1, ty1);
       let zp = ZPat.Deeper(NotInHole, InjZ(side, CursorP(cursor_side, p1)));
       Some((zp, ctx, u_gen));
     | None =>
-      let (p1, _, ctx, u_gen) =
-        Statics.syn_fix_holes_pat(ctx, u_gen, false, p1);
+      let (p1, _, ctx, u_gen) = Statics.syn_fix_holes_pat(ctx, u_gen, p1);
       let (u, u_gen) = MetaVarGen.next(u_gen);
       let zp =
         ZPat.Deeper(
@@ -1760,7 +1758,7 @@ let make_and_syn_OpSeqZ =
   let seq = OperatorSeq.opseq_of_exp_and_surround(e0, surround);
   let skel = Associator.associate_exp(seq);
   let (skel, seq, ty, u_gen) =
-    Statics.syn_fix_holes_exp_skel(ctx, u_gen, false, skel, seq);
+    Statics.syn_fix_holes_exp_skel(ctx, u_gen, skel, seq);
   let e = UHExp.Tm(NotInHole, OpSeq(skel, seq));
   let ze = Path.follow_e_or_fail(path0, e);
   (ze, ty, u_gen);
@@ -1783,7 +1781,7 @@ let make_and_ana_OpSeqZ =
   let e0 = ZExp.erase(ze0);
   let seq = OperatorSeq.opseq_of_exp_and_surround(e0, surround);
   let skel = Associator.associate_exp(seq);
-  switch (Statics.ana_fix_holes_exp_skel(ctx, u_gen, false, skel, seq, ty)) {
+  switch (Statics.ana_fix_holes_exp_skel(ctx, u_gen, skel, seq, ty)) {
   | (Placeholder(_), _, _) =>
     raise(UHExp.SkelInconsistentWithOpSeq(skel, seq))
   | (BinOp(err, _, _, _) as skel, seq, u_gen) =>
@@ -1909,7 +1907,7 @@ let rec syn_perform_block =
       DeeperB(BlockZL((prefix, DeeperL(ExpLineZ(ze)), []), EmptyHole(_))),
     )
       when ZExp.is_after(ze) =>
-    switch (Statics.syn(ctx, ZExp.erase(ze))) {
+    switch (Statics.syn_exp(ctx, ZExp.erase(ze))) {
     | None => None
     | Some(ty) =>
       let zblock = ZExp.DeeperB(BlockZE(prefix, ze));
@@ -1976,7 +1974,7 @@ let rec syn_perform_block =
       ),
     ) =>
     let (e, u_gen) = keyword_suffix_to_exp(suffix, u_gen);
-    switch (Statics.syn(ctx, e)) {
+    switch (Statics.syn_exp(ctx, e)) {
     | None => None
     | Some(ty) =>
       let ze = ZExp.place_before(e);
@@ -2247,7 +2245,7 @@ and syn_perform_line =
     Some((zline, ctx, u_gen));
   /* Zipper Cases */
   | (_, DeeperL(ExpLineZ(ze))) =>
-    switch (Statics.syn(ctx, ZExp.erase(ze))) {
+    switch (Statics.syn_exp(ctx, ZExp.erase(ze))) {
     | None => None
     | Some(ty) =>
       switch (syn_perform_exp(ctx, a, (ze, ty, u_gen))) {
@@ -2801,7 +2799,7 @@ and syn_perform_exp =
   | (_, DeeperE(_, CaseZE(_, _, None)))
   | (_, DeeperE(_, CaseZR(_, _, None))) => None
   | (_, DeeperE(_, CaseZE(ze1, rules, Some(uty) as ann))) =>
-    switch (Statics.syn(ctx, ZExp.erase(ze1))) {
+    switch (Statics.syn_exp(ctx, ZExp.erase(ze1))) {
     | None => None
     | Some(ty1) =>
       switch (syn_perform_exp(ctx, a, (ze1, ty1, u_gen))) {
@@ -2815,7 +2813,7 @@ and syn_perform_exp =
       }
     }
   | (_, DeeperE(_, CaseZR(e1, zrules, Some(uty) as ann))) =>
-    switch (Statics.syn(ctx, e1)) {
+    switch (Statics.syn_exp(ctx, e1)) {
     | None => None
     | Some(ty1) =>
       switch (ZList.prj_z(zrules)) {
@@ -2853,7 +2851,7 @@ and syn_perform_exp =
       }
     }
   | (_, DeeperE(_, CaseZA(e1, rules, zann))) =>
-    switch (Statics.syn(ctx, e1)) {
+    switch (Statics.syn_exp(ctx, e1)) {
     | None => None
     | Some(ty1) =>
       switch (perform_ty(a, zann)) {
@@ -2920,7 +2918,7 @@ and ana_perform_block =
       DeeperB(BlockZL((prefix, DeeperL(ExpLineZ(ze)), []), EmptyHole(_))),
     )
       when ZExp.is_after(ze) =>
-    switch (Statics.syn(ctx, ZExp.erase(ze))) {
+    switch (Statics.syn_exp(ctx, ZExp.erase(ze))) {
     | None => None
     | Some(ty) =>
       let zblock = ZExp.DeeperB(BlockZE(prefix, ze));
@@ -3029,7 +3027,7 @@ and ana_perform_exp =
   | (_, DeeperE(InHole(TypeInconsistent, u) as err, ze1')) =>
     let ze' = ZExp.set_err_status(NotInHole, ze);
     let e' = ZExp.erase(ze');
-    switch (Statics.syn(ctx, e')) {
+    switch (Statics.syn_exp(ctx, e')) {
     | Some(ty1) =>
       switch (syn_perform_exp(ctx, a, (ze', ty1, u_gen))) {
       | Some((ze', ty1', u_gen')) =>
@@ -3136,7 +3134,7 @@ and ana_perform_exp =
     }
   | (Backspace, DeeperE(_, CaseZA(e1, rules, zann)))
       when ZTyp.is_before(zann) =>
-    switch (Statics.syn(ctx, e1)) {
+    switch (Statics.syn_exp(ctx, e1)) {
     | None => None
     | Some(ty1) =>
       let (rules, u_gen) =
@@ -3446,7 +3444,7 @@ and ana_perform_exp =
     | None => None
     }
   | (_, DeeperE(_, CaseZE(ze1, rules, ann))) =>
-    switch (Statics.syn(ctx, ZExp.erase(ze1))) {
+    switch (Statics.syn_exp(ctx, ZExp.erase(ze1))) {
     | None => None
     | Some(ty1) =>
       switch (syn_perform_exp(ctx, a, (ze1, ty1, u_gen))) {
@@ -3459,7 +3457,7 @@ and ana_perform_exp =
       }
     }
   | (_, DeeperE(_, CaseZR(e1, zrules, ann))) =>
-    switch (Statics.syn(ctx, e1)) {
+    switch (Statics.syn_exp(ctx, e1)) {
     | None => None
     | Some(ty1) =>
       switch (ZList.prj_z(zrules)) {
@@ -3495,7 +3493,7 @@ and ana_perform_exp =
       }
     }
   | (_, DeeperE(_, CaseZA(e1, rules, zann))) =>
-    switch (Statics.syn(ctx, e1)) {
+    switch (Statics.syn_exp(ctx, e1)) {
     | None => None
     | Some(ty1) =>
       switch (perform_ty(a, zann)) {
@@ -3553,7 +3551,7 @@ and ana_perform_exp =
 and ana_perform_exp_subsume =
     (ctx: Contexts.t, a: t, (ze, u_gen): (ZExp.t, MetaVarGen.t), ty: HTyp.t)
     : option((ZExp.t, MetaVarGen.t)) =>
-  switch (Statics.syn(ctx, ZExp.erase(ze))) {
+  switch (Statics.syn_exp(ctx, ZExp.erase(ze))) {
   | Some(ty1) =>
     switch (syn_perform_exp(ctx, a, (ze, ty1, u_gen))) {
     | Some((ze', ty1', u_gen')) =>
