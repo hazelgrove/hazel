@@ -98,12 +98,14 @@ let new_EmptyHole = (u_gen: MetaVarGen.t) => {
   (CursorE(Before, e), u_gen);
 };
 
-let rec cursor_on_outer_expr = (ze: t): option((UHExp.t, cursor_side)) =>
-  switch (ze) {
-  | CursorE(side, e) => Some((UHExp.drop_outer_parentheses(e), side))
-  | ParenthesizedZ(ze') => cursor_on_outer_expr(ze')
-  | Deeper(_, _) => None
-  };
+/*
+ let rec cursor_on_outer_expr = (ze: t): option((UHExp.t, cursor_side)) =>
+   switch (ze) {
+   | CursorE(side, e) => Some((UHExp.drop_outer_parentheses(e), side))
+   | ParenthesizedZ(ze') => cursor_on_outer_expr(ze')
+   | Deeper(_, _) => None
+   };
+ */
 
 let empty_zrule = (u_gen: MetaVarGen.t): (zrule, MetaVarGen.t) => {
   let (zp, u_gen) = ZPat.new_EmptyHole(u_gen);

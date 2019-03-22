@@ -178,13 +178,15 @@ and make_skel_inconsistent =
     (BinOp(InHole(TypeInconsistent, u), op, skel1, skel2), seq, u_gen);
   };
 
-let rec drop_outer_parentheses = (e: t): block =>
-  switch (e) {
-  | Tm(_, _)
-  | OpSeq(_, _)
-  | EmptyHole(_) => Block([], e)
-  | Parenthesized(block) => drop_outer_parentheses(e')
-  };
+/*
+ let rec drop_outer_parentheses = (e: t): block =>
+   switch (e) {
+   | Tm(_, _)
+   | OpSeq(_, _)
+   | EmptyHole(_) => Block([], e)
+   | Parenthesized(block) => drop_outer_parentheses(e')
+   };
+ */
 
 let prune_single_hole_line = (li: line): line =>
   switch (li) {
