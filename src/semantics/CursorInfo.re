@@ -76,13 +76,19 @@ type cursor_mode =
   /*
    *  # cursor on line item
    */
-  | LineItem;
+  | Line
+  /*
+   *  # cursor on block
+   */
+  /* TODO add more fine-grained block cursor info */
+  | Block;
 
 type cursor_sort =
   | IsExpr(UHExp.t)
   | IsPat(UHPat.t)
   | IsType
-  | IsLine(UHExp.line);
+  | IsLine(UHExp.line)
+  | IsBlock(UHExp.block);
 
 type t = {
   mode: cursor_mode,
@@ -222,7 +228,7 @@ and syn_skel_pat_cursor_info =
       }
     }
   }
-and ana_pat_cursor_info =
+and ana_cursor_info_pat =
     (ctx: Contexts.t, zp: ZPat.t, ty: HTyp.t): option(t) =>
   switch (zp) {
   | CursorP(side, Pat(_, Var(InVHole(Keyword(k), _), _)) as p) =>
@@ -235,11 +241,11 @@ and ana_pat_cursor_info =
       InHole(WrongLength, _),
       OpSeqZ(BinOp(_, Comma, _, _), _, _) as zp',
     ) =>
-    ana_pat_cursor_info'(ctx, zp', ty)
+    ana_cursor_info_pat'(ctx, zp', ty)
   | Deeper(InHole(WrongLength, _), _) => None
-  | ParenthesizedZ(zp) => ana_pat_cursor_info(ctx, zp, ty)
+  | ParenthesizedZ(zp) => ana_cursor_info_pat(ctx, zp, ty)
   }
-and ana_pat_cursor_info' =
+and ana_cursor_info_pat' =
     (ctx: Contexts.t, zp': ZPat.t', ty: HTyp.t): option(t) =>
   switch (zp') {
   | InjZ(side, zp1) =>
@@ -247,7 +253,7 @@ and ana_pat_cursor_info' =
     | None => None
     | Some((tyL, tyR)) =>
       let ty1 = pick_side(side, tyL, tyR);
-      ana_pat_cursor_info(ctx, zp1, ty1);
+      ana_cursor_info_pat(ctx, zp1, ty1);
     }
   | OpSeqZ(skel, zp1, surround) =>
     let p1 = ZPat.erase(zp1);
@@ -268,7 +274,7 @@ and ana_skel_pat_cursor_info =
   switch (skel) {
   | Placeholder(n') =>
     if (n == n') {
-      ana_pat_cursor_info(ctx, zp1, ty);
+      ana_cursor_info_pat(ctx, zp1, ty);
     } else {
       None;
     }
@@ -350,20 +356,15 @@ and ana_skel_pat_cursor_info =
     syn_skel_pat_cursor_info(ctx, skel, seq, n, zp1)
   };
 
-let rec ana_cursor_found_block = (
-  ctx: Contexts.t,
-  e: UHExp.t,
-  ty: HTyp.t,
-  side,
-  cursor_side,
-);
-
-let rec ana_cursor_found =
-        (ctx: Contexts.t, e: UHExp.t, ty: HTyp.t, side: cursor_side)
+let rec ana_cursor_found_block =
+        (ctx: Contexts.t, block: UHExp.block, ty: HTyp.t, side: cursor_side)
         : option(t) =>
+  Some(mk_cursor_info(Block, IsBlock(block), side, ctx))
+and ana_cursor_found_exp =
+    (ctx: Contexts.t, e: UHExp.t, ty: HTyp.t, side: cursor_side): option(t) =>
   switch (e) {
-  | Parenthesized(e') =>
-    switch (ana_cursor_found(ctx, e', ty, side)) {
+  | Parenthesized(block) =>
+    switch (ana_cursor_found_block(ctx, block, ty, side)) {
     | None => None
     | Some(ci) => Some(update_sort(ci, IsExpr(e)))
     }
@@ -445,7 +446,58 @@ let rec ana_cursor_found =
     }
   };
 
-let rec syn_cursor_info = (ctx: Contexts.t, ze: ZExp.t): option(t) =>
+let rec syn_cursor_info_block =
+        (ctx: Contexts.t, zblock: ZExp.zblock): option(t) =>
+  switch (zblock) {
+  | CursorB(side, block) =>
+    Some(mk_cursor_info(Block, IsBlock(block), side, ctx))
+  | DeeperB(_, zblock') => syn_cursor_info_block'(ctx, zblock')
+  }
+and syn_cursor_info_block' =
+    (ctx: Contexts.t, zblock': ZExp.zblock'): option(t) =>
+  switch (zblock') {
+  | BlockZL((prefix, zline, _), _) =>
+    switch (Statics.syn_lines(ctx, prefix)) {
+    | None => None
+    | Some(ctx) => syn_cursor_info_line(ctx, zline)
+    }
+  | BlockZE(lines, ze) =>
+    switch (Statics.syn_lines(ctx, lines)) {
+    | None => None
+    | Some(ctx) => syn_cursor_info(ctx, ze)
+    }
+  }
+and syn_cursor_info_line = (ctx: Contexts.t, zli: ZExp.zline): option(t) =>
+  switch (zli) {
+  | CursorL(side, li) => Some(mk_cursor_info(Line, IsLine(li), side, ctx))
+  | DeeperL(zli') => syn_cursor_info_line'(ctx, zli')
+  }
+and syn_cursor_info_line' = (ctx: Contexts.t, zli': ZExp.zline'): option(t) =>
+  switch (zli') {
+  | ExpLineZ(ze) => syn_cursor_info(ctx, ze)
+  | LetLineZP(zp, ann, block) =>
+    switch (ann) {
+    | Some(uty1) =>
+      let ty1 = UHTyp.expand(uty1);
+      ana_cursor_info_pat(ctx, zp, ty1);
+    | None =>
+      switch (Statics.syn_block(ctx, block)) {
+      | None => None
+      | Some(ty1) => ana_cursor_info_pat(ctx, zp, ty1)
+      }
+    }
+  | LetLineZA(_, zann, _) =>
+    Some(mk_cursor_info(TypePosition, IsType, Before, ctx))
+  | LetLineZE(p, ann, zblock) =>
+    switch (ann) {
+    | Some(uty1) =>
+      let ty1 = UHTyp.expand(uty1);
+      let ctx1 = Statics.ctx_for_let(ctx, p, ty1, ZExp.erase_block(zblock));
+      ana_cursor_info_block(ctx1, zblock, ty1);
+    | None => syn_cursor_info_block(ctx, zblock)
+    }
+  }
+and syn_cursor_info = (ctx: Contexts.t, ze: ZExp.t): option(t) =>
   switch (ze) {
   | CursorE(side, Tm(_, Var(InVHole(Keyword(k), _), _)) as e) =>
     Some(mk_cursor_info(SynKeyword(k), IsExpr(e), side, ctx))
@@ -457,40 +509,26 @@ let rec syn_cursor_info = (ctx: Contexts.t, ze: ZExp.t): option(t) =>
       Some(mk_cursor_info(Synthesized(ty), IsExpr(e), side, ctx))
     | None => None
     }
-  | ParenthesizedZ(ze1) => syn_cursor_info(ctx, ze1)
+  | ParenthesizedZ(zblock) => syn_cursor_info_block(ctx, zblock)
   | DeeperE(_, ze1') => syn_cursor_info'(ctx, ze1')
-  }
-and ana_cursor_info = (ctx: Contexts.t, ze: ZExp.t, ty: HTyp.t): option(t) =>
-  switch (ze) {
-  | CursorE(side, e) => ana_cursor_found(ctx, e, ty, side)
-  | ParenthesizedZ(ze1) => ana_cursor_info(ctx, ze1, ty)
-  | DeeperE(InHole(TypeInconsistent, u), ze1') =>
-    syn_cursor_info'(ctx, ze1')
-  | DeeperE(
-      InHole(WrongLength, _),
-      OpSeqZ(BinOp(_, Comma, _, _), _, _) as ze1',
-    )
-  | DeeperE(NotInHole, ze1') => ana_cursor_info'(ctx, ze1', ty)
-  | DeeperE(InHole(WrongLength, _), _) => None
+  | OpSeqZ(skel, ze0, surround) =>
+    let e0 = ZExp.erase(ze0);
+    let seq = OperatorSeq.opseq_of_exp_and_surround(e0, surround);
+    let n = OperatorSeq.surround_prefix_length(surround);
+    syn_cursor_info_skel(ctx, skel, seq, n, ze0);
   }
 and syn_cursor_info' = (ctx: Contexts.t, ze: ZExp.t'): option(t) =>
   switch (ze) {
-  | LineItemZL(zli, e1) => syn_line_item_cursor_info(ctx, zli)
-  | LineItemZE(li, ze1) =>
-    switch (Statics.syn_line_item(ctx, li)) {
-    | None => None
-    | Some(ctx) => syn_cursor_info(ctx, ze1)
-    }
   | LamZP(zp, ann, _) =>
     let ty1 =
       switch (ann) {
       | Some(uty1) => UHTyp.expand(uty1)
       | None => Hole
       };
-    ana_pat_cursor_info(ctx, zp, ty1);
+    ana_cursor_info_pat(ctx, zp, ty1);
   | LamZA(_, zann, _) =>
     Some(mk_cursor_info(TypePosition, IsType, Before, ctx))
-  | LamZE(p, ann, ze1) =>
+  | LamZE(p, ann, zblock) =>
     let ty1 =
       switch (ann) {
       | Some(uty1) => UHTyp.expand(uty1)
@@ -498,71 +536,64 @@ and syn_cursor_info' = (ctx: Contexts.t, ze: ZExp.t'): option(t) =>
       };
     switch (Statics.ana_pat(ctx, p, ty1)) {
     | None => None
-    | Some(ctx1) => syn_cursor_info(ctx1, ze1)
+    | Some(ctx1) => syn_cursor_info_block(ctx1, zblock)
     };
-  | InjZ(side, ze1) => syn_cursor_info(ctx, ze1)
+  | InjZ(side, zblock) => syn_cursor_info_block(ctx, zblock)
   | CaseZE(_, _, None)
   | CaseZR(_, _, None) => None
-  | CaseZE(ze1, _, Some(_)) => syn_cursor_info(ctx, ze1)
-  | CaseZR(e1, zrules, Some(uty)) =>
+  | CaseZE(zblock, _, Some(_)) => syn_cursor_info_block(ctx, zblock)
+  | CaseZR(block, zrules, Some(uty)) =>
     let ty = UHTyp.expand(uty);
-    switch (Statics.syn_exp(ctx, e1)) {
+    switch (Statics.syn_block(ctx, block)) {
     | None => None
     | Some(ty1) =>
       let zrule = HazelUtil.ZList.prj_z(zrules);
-      ana_rule_cursor_info(ctx, zrule, ty1, ty);
+      ana_cursor_info_rule(ctx, zrule, ty1, ty);
     };
   | CaseZA(_, _, _) =>
     Some(mk_cursor_info(TypePosition, IsType, Before, ctx))
+  | ApPaletteZ(_, _, zpsi) =>
+    let (ty, zblock) = HazelUtil.ZNatMap.prj_z_v(zpsi.zsplice_map);
+    ana_cursor_info_block(ctx, zblock, ty);
+  }
+and ana_cursor_info_block =
+    (ctx: Contexts.t, zblock: ZExp.zblock, ty: HTyp.t): option(t) =>
+  switch (zblock) {
+  | CursorB(side, block) =>
+    Some(mk_cursor_info(Block, IsBlock(block), side, ctx))
+  | DeeperB(_, zblock') => ana_cursor_info_block'(ctx, zblock', ty)
+  }
+and ana_cursor_info_block' =
+    (ctx: Contexts.t, zblock': ZExp.zblock', ty: HTyp.t): option(t) =>
+  switch (zblock') {
+  | BlockZL((prefix, zline, _), _) =>
+    switch (Statics.syn_lines(ctx, prefix)) {
+    | None => None
+    | Some(ctx) => syn_cursor_info_line(ctx, zline)
+    }
+  | BlockZE(lines, ze) =>
+    switch (Statics.syn_lines(ctx, lines)) {
+    | None => None
+    | Some(ctx) => ana_cursor_info(ctx, ze, ty)
+    }
+  }
+and ana_cursor_info = (ctx: Contexts.t, ze: ZExp.t, ty: HTyp.t): option(t) =>
+  switch (ze) {
+  | CursorE(side, e) => ana_cursor_found_exp(ctx, e, ty, side)
+  | ParenthesizedZ(zblock) => ana_cursor_info_block(ctx, zblock, ty)
+  | DeeperE(InHole(TypeInconsistent, u), ze1') =>
+    syn_cursor_info'(ctx, ze1')
+  | DeeperE(NotInHole, ze1') => ana_cursor_info'(ctx, ze1', ty)
+  | DeeperE(InHole(WrongLength, _), _) => None
   | OpSeqZ(skel, ze0, surround) =>
     let e0 = ZExp.erase(ze0);
     let seq = OperatorSeq.opseq_of_exp_and_surround(e0, surround);
     let n = OperatorSeq.surround_prefix_length(surround);
-    syn_skel_cursor_info(ctx, skel, seq, n, ze0);
-  | ApPaletteZ(_, _, zpsi) =>
-    let (ty, ze) = HazelUtil.ZNatMap.prj_z_v(zpsi.zsplice_map);
-    ana_cursor_info(ctx, ze, ty);
-  }
-and syn_line_item_cursor_info = (ctx, zli) =>
-  switch (zli) {
-  | CursorL(side, li) =>
-    Some(mk_cursor_info(LineItem, IsLine(li), side, ctx))
-  | DeeperL(zli') => syn_line_item_cursor_info'(ctx, zli')
-  }
-and syn_line_item_cursor_info' = (ctx, zli') =>
-  switch (zli') {
-  | ExpLineZ(ze) => syn_cursor_info(ctx, ze)
-  | LetLineZP(zp, ann, e1) =>
-    switch (ann) {
-    | Some(uty1) =>
-      let ty1 = UHTyp.expand(uty1);
-      ana_pat_cursor_info(ctx, zp, ty1);
-    | None =>
-      switch (Statics.syn_exp(ctx, e1)) {
-      | None => None
-      | Some(ty1) => ana_pat_cursor_info(ctx, zp, ty1)
-      }
-    }
-  | LetLineZA(p, zann, e1) =>
-    Some(mk_cursor_info(TypePosition, IsType, Before, ctx))
-  | LetLineZE(p, ann, ze1) =>
-    switch (ann) {
-    | Some(uty1) =>
-      let ty1 = UHTyp.expand(uty1);
-      let ctx1 = Statics.ctx_for_let(ctx, p, ty1, ZExp.erase(ze1));
-      ana_cursor_info(ctx1, ze1, ty1);
-    | None => syn_cursor_info(ctx, ze1)
-    }
+    ana_cursor_info_skel(ctx, skel, seq, n, ze0, ty);
   }
 and ana_cursor_info' = (ctx: Contexts.t, ze: ZExp.t', ty: HTyp.t): option(t) =>
   switch (ze) {
-  | LineItemZL(zli, e1) => syn_line_item_cursor_info(ctx, zli)
-  | LineItemZE(li, ze1) =>
-    switch (Statics.syn_line_item(ctx, li)) {
-    | None => None
-    | Some(ctx) => ana_cursor_info(ctx, ze1, ty)
-    }
-  | LamZP(p, ann, e) =>
+  | LamZP(zp, ann, _) =>
     switch (HTyp.matched_arrow(ty)) {
     | None => None
     | Some((ty1_given, ty2)) =>
@@ -571,11 +602,11 @@ and ana_cursor_info' = (ctx: Contexts.t, ze: ZExp.t', ty: HTyp.t): option(t) =>
         | Some(uty1) => UHTyp.expand(uty1)
         | None => ty1_given
         };
-      ana_pat_cursor_info(ctx, p, ty1);
+      ana_cursor_info_pat(ctx, zp, ty1);
     }
   | LamZA(_, zann, _) =>
     Some(mk_cursor_info(TypePosition, IsType, Before, ctx))
-  | LamZE(p, ann, ze1) =>
+  | LamZE(p, ann, zblock) =>
     switch (HTyp.matched_arrow(ty)) {
     | None => None
     | Some((ty1_given, ty2)) =>
@@ -586,44 +617,39 @@ and ana_cursor_info' = (ctx: Contexts.t, ze: ZExp.t', ty: HTyp.t): option(t) =>
         };
       switch (Statics.ana_pat(ctx, p, ty1)) {
       | None => None
-      | Some(ctx) => ana_cursor_info(ctx, ze1, ty2)
+      | Some(ctx) => ana_cursor_info_block(ctx, zblock, ty2)
       };
     }
-  | InjZ(side, ze1) =>
+  | InjZ(side, zblock) =>
     switch (HTyp.matched_sum(ty)) {
     | None => None
     | Some((ty1, ty2)) =>
-      ana_cursor_info(ctx, ze1, pick_side(side, ty1, ty2))
+      ana_cursor_info_block(ctx, zblock, pick_side(side, ty1, ty2))
     }
-  | CaseZE(ze1, rules, _) => syn_cursor_info(ctx, ze1)
-  | CaseZR(e1, zrules, _) =>
-    switch (Statics.syn_exp(ctx, e1)) {
+  | CaseZE(zblock, rules, _) => syn_cursor_info_block(ctx, zblock)
+  | CaseZR(block, zrules, _) =>
+    switch (Statics.syn_block(ctx, block)) {
     | None => None
     | Some(ty1) =>
       let zrule = HazelUtil.ZList.prj_z(zrules);
-      ana_rule_cursor_info(ctx, zrule, ty1, ty);
+      ana_cursor_info_rule(ctx, zrule, ty1, ty);
     }
   | CaseZA(_, _, _) =>
     Some(mk_cursor_info(TypePosition, IsType, Before, ctx))
-  | OpSeqZ(skel, ze0, surround) =>
-    let e0 = ZExp.erase(ze0);
-    let seq = OperatorSeq.opseq_of_exp_and_surround(e0, surround);
-    let n = OperatorSeq.surround_prefix_length(surround);
-    ana_skel_cursor_info(ctx, skel, seq, n, ze0, ty);
   | ApPaletteZ(_, _, _) => syn_cursor_info'(ctx, ze)
   }
-and ana_rule_cursor_info =
+and ana_cursor_info_rule =
     (ctx: Contexts.t, zrule: ZExp.zrule, pat_ty: HTyp.t, clause_ty: HTyp.t)
     : option(t) =>
   switch (zrule) {
-  | RuleZP(zp, e) => ana_pat_cursor_info(ctx, zp, pat_ty)
-  | RuleZE(p, ze) =>
+  | RuleZP(zp, _) => ana_cursor_info_pat(ctx, zp, pat_ty)
+  | RuleZE(p, zblock) =>
     switch (Statics.ana_pat(ctx, p, pat_ty)) {
     | None => None
-    | Some(ctx) => ana_cursor_info(ctx, ze, clause_ty)
+    | Some(ctx) => ana_cursor_info_block(ctx, zblock, clause_ty)
     }
   }
-and syn_skel_cursor_info =
+and syn_cursor_info_skel =
     (
       ctx: Contexts.t,
       skel: UHExp.skel_t,
@@ -642,10 +668,10 @@ and syn_skel_cursor_info =
   | BinOp(_, Plus, skel1, skel2)
   | BinOp(_, Times, skel1, skel2)
   | BinOp(_, LessThan, skel1, skel2) =>
-    switch (ana_skel_cursor_info(ctx, skel1, seq, n, ze_n, Num)) {
+    switch (ana_cursor_info_skel(ctx, skel1, seq, n, ze_n, Num)) {
     | Some(_) as result => result
     | None =>
-      switch (ana_skel_cursor_info(ctx, skel2, seq, n, ze_n, Num)) {
+      switch (ana_cursor_info_skel(ctx, skel2, seq, n, ze_n, Num)) {
       | Some(_) as result => result
       | None => None
       }
@@ -716,13 +742,13 @@ and syn_skel_cursor_info =
       | Some((ty, _)) =>
         switch (HTyp.matched_arrow(ty)) {
         | Some((ty1, ty2)) =>
-          ana_skel_cursor_info(ctx, skel2, seq, n, ze_n, ty1)
+          ana_cursor_info_skel(ctx, skel2, seq, n, ze_n, ty1)
         | None => None
         }
       };
     }
   | BinOp(_, Space, skel1, skel2) =>
-    switch (syn_skel_cursor_info(ctx, skel1, seq, n, ze_n)) {
+    switch (syn_cursor_info_skel(ctx, skel1, seq, n, ze_n)) {
     | Some(_) as result => result
     | None =>
       switch (Statics.syn_skel(ctx, skel1, seq, None)) {
@@ -731,28 +757,28 @@ and syn_skel_cursor_info =
         switch (HTyp.matched_arrow(ty)) {
         | None => None
         | Some((ty1, ty2)) =>
-          ana_skel_cursor_info(ctx, skel2, seq, n, ze_n, ty1)
+          ana_cursor_info_skel(ctx, skel2, seq, n, ze_n, ty1)
         }
       }
     }
   | BinOp(_, Comma, skel1, skel2) =>
-    switch (syn_skel_cursor_info(ctx, skel1, seq, n, ze_n)) {
+    switch (syn_cursor_info_skel(ctx, skel1, seq, n, ze_n)) {
     | Some(_) as result => result
-    | None => syn_skel_cursor_info(ctx, skel2, seq, n, ze_n)
+    | None => syn_cursor_info_skel(ctx, skel2, seq, n, ze_n)
     }
   | BinOp(_, Cons, skel1, skel2) =>
-    switch (syn_skel_cursor_info(ctx, skel1, seq, n, ze_n)) {
+    switch (syn_cursor_info_skel(ctx, skel1, seq, n, ze_n)) {
     | Some(_) as result => result
     | None =>
       switch (Statics.syn_skel(ctx, skel1, seq, None)) {
       | None => None
       | Some((ty_elt, _)) =>
         let ty_list = HTyp.List(ty_elt);
-        ana_skel_cursor_info(ctx, skel2, seq, n, ze_n, ty_list);
+        ana_cursor_info_skel(ctx, skel2, seq, n, ze_n, ty_list);
       }
     }
   }
-and ana_skel_cursor_info =
+and ana_cursor_info_skel =
     (
       ctx: Contexts.t,
       skel: UHExp.skel_t,
@@ -770,13 +796,13 @@ and ana_skel_cursor_info =
       None;
     }
   | BinOp(InHole(TypeInconsistent, _), op, skel1, skel2) =>
-    syn_skel_cursor_info(ctx, skel, seq, n, ze_n)
+    syn_cursor_info_skel(ctx, skel, seq, n, ze_n)
   | BinOp(NotInHole, Comma, skel1, skel2) =>
     switch (ty) {
     | Hole =>
-      switch (ana_skel_cursor_info(ctx, skel1, seq, n, ze_n, Hole)) {
+      switch (ana_cursor_info_skel(ctx, skel1, seq, n, ze_n, Hole)) {
       | Some(_) as result => result
-      | None => ana_skel_cursor_info(ctx, skel2, seq, n, ze_n, Hole)
+      | None => ana_cursor_info_skel(ctx, skel2, seq, n, ze_n, Hole)
       }
     | Prod(ty1, ty2) =>
       let types = HTyp.get_tuple(ty1, ty2);
@@ -790,7 +816,7 @@ and ana_skel_cursor_info =
             | Some(_) as result => result
             | None =>
               let (skel, ty) = skel_ty;
-              ana_skel_cursor_info(ctx, skel, seq, n, ze_n, ty);
+              ana_cursor_info_skel(ctx, skel, seq, n, ze_n, ty);
             },
           None,
           ListMinTwo.to_list(zipped),
@@ -811,7 +837,7 @@ and ana_skel_cursor_info =
             | Some(_) as result => result
             | None =>
               let (skel, ty) = skel_ty;
-              ana_skel_cursor_info(ctx, skel, seq, n, ze_n, ty);
+              ana_cursor_info_skel(ctx, skel, seq, n, ze_n, ty);
             },
           None,
           ListMinTwo.to_list(zipped),
@@ -823,7 +849,7 @@ and ana_skel_cursor_info =
           (opt_result, skel) =>
             switch (opt_result) {
             | Some(_) as result => result
-            | None => syn_skel_cursor_info(ctx, skel, seq, n, ze_n)
+            | None => syn_cursor_info_skel(ctx, skel, seq, n, ze_n)
             },
           None,
           remainder,
@@ -836,15 +862,15 @@ and ana_skel_cursor_info =
     switch (HTyp.matched_list(ty)) {
     | None => None
     | Some(ty_elt) =>
-      switch (ana_skel_cursor_info(ctx, skel1, seq, n, ze_n, ty_elt)) {
+      switch (ana_cursor_info_skel(ctx, skel1, seq, n, ze_n, ty_elt)) {
       | Some(_) as result => result
       | None =>
         let ty_list = HTyp.List(ty_elt);
-        ana_skel_cursor_info(ctx, skel2, seq, n, ze_n, ty_list);
+        ana_cursor_info_skel(ctx, skel2, seq, n, ze_n, ty_list);
       }
     }
   | BinOp(_, Plus, _, _)
   | BinOp(_, Times, _, _)
   | BinOp(_, LessThan, _, _)
-  | BinOp(_, Space, _, _) => syn_skel_cursor_info(ctx, skel, seq, n, ze_n)
+  | BinOp(_, Space, _, _) => syn_cursor_info_skel(ctx, skel, seq, n, ze_n)
   };
