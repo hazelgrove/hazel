@@ -652,7 +652,7 @@ let rec prepare_Parenthesized_exp = e =>
   | UHExp.Tm(NotInHole as err_status, _) => (err_status, e)
   | UHExp.Tm(err_status, _) => (
       err_status,
-      UHExp.set_err_status(NotInHole, e),
+      UHExp.set_err_status_t(NotInHole, e),
     )
   };
 

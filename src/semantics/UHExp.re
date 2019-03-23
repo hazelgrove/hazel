@@ -21,7 +21,7 @@ type skel_t = Skel.t(op);
 
 [@deriving sexp]
 type block =
-  | Block(lines, t)
+  | Block(err_status, lines, t)
 and lines = list(line)
 and line =
   | EmptyLine
@@ -80,7 +80,7 @@ let is_EmptyHole = (e: t): bool =>
 let empty_rule = (u_gen: MetaVarGen.t): (rule, MetaVarGen.t) => {
   let (p, u_gen) = UHPat.new_EmptyHole(u_gen);
   let (e, u_gen) = new_EmptyHole(u_gen);
-  let block = Block([], e);
+  let block = Block(NotInHole, [], e);
   let rule = Rule(p, block);
   (rule, u_gen);
 };
@@ -123,47 +123,63 @@ let bidelimit = (e: t): t =>
   if (bidelimited(e)) {
     e;
   } else {
-    Parenthesized(Block([], e));
+    Parenthesized(Block(NotInHole, [], e));
   };
 
+let set_err_status_block =
+    (err: err_status, Block(_, lines, e): block): block =>
+  Block(err, lines, e);
 /* put e in the specified hole */
-let rec set_err_status = (err: err_status, e: t): t =>
+let rec set_err_status_t = (err: err_status, e: t): t =>
   switch (e) {
   | Tm(_, e') => Tm(err, e')
-  | Parenthesized(Block(lines, e)) =>
-    Parenthesized(Block(lines, set_err_status(err, e)))
-  | OpSeq(BinOp(_, op, skel1, skel2), seq) =>
-    OpSeq(BinOp(err, op, skel1, skel2), seq)
-  | OpSeq(Placeholder(_), _) /* should never happen */
+  | Parenthesized(block) => Parenthesized(set_err_status_block(err, block))
+  | OpSeq(skel, seq) =>
+    let (skel, seq) = set_err_status_opseq(err, skel, seq);
+    OpSeq(skel, seq);
   | EmptyHole(_) => e
+  }
+and set_err_status_opseq =
+    (err: err_status, skel: skel_t, seq: opseq): (skel_t, opseq) =>
+  switch (skel) {
+  | Placeholder(n) =>
+    switch (OperatorSeq.seq_nth(n, seq)) {
+    | None => raise(SkelInconsistentWithOpSeq(skel, seq))
+    | Some(en) =>
+      let en = set_err_status_t(err, en);
+      switch (OperatorSeq.seq_update_nth(n, seq, en)) {
+      | None => raise(SkelInconsistentWithOpSeq(skel, seq))
+      | Some(seq) => (skel, seq)
+      };
+    }
+  | BinOp(_, op, skel1, skel2) => (BinOp(err, op, skel1, skel2), seq)
   };
 
 let rec make_block_inconsistent =
-        (u_gen: MetaVarGen.t, block: block): (block, MetaVarGen.t) =>
-  switch (block) {
-  | Block(lines, e) =>
-    let (e, u_gen) = make_exp_inconsistent(u_gen, e);
-    (Block(lines, e), u_gen);
-  }
+        (u_gen: MetaVarGen.t, block: block): (block, MetaVarGen.t) => {
+  let (u, u_gen) = MetaVarGen.next(u_gen);
+  let block = set_err_status_block(InHole(TypeInconsistent, u), block);
+  (block, u_gen);
+}
 /* put e in a new hole, if it is not already in a hole */
-and make_exp_inconsistent = (u_gen: MetaVarGen.t, e: t): (t, MetaVarGen.t) =>
+and make_t_inconsistent = (u_gen: MetaVarGen.t, e: t): (t, MetaVarGen.t) =>
   switch (e) {
   | Tm(NotInHole, _)
   | Tm(InHole(WrongLength, _), _) =>
     let (u, u_gen) = MetaVarGen.next(u_gen);
-    let e = set_err_status(InHole(TypeInconsistent, u), e);
+    let e = set_err_status_t(InHole(TypeInconsistent, u), e);
     (e, u_gen);
   | Tm(InHole(TypeInconsistent, _), _) => (e, u_gen)
   | Parenthesized(block) =>
     let (block, u_gen) = make_block_inconsistent(u_gen, block);
     (Parenthesized(block), u_gen);
   | OpSeq(skel, seq) =>
-    let (skel, seq, u_gen) = make_skel_inconsistent(u_gen, skel, seq);
+    let (skel, seq, u_gen) = make_opseq_inconsistent(u_gen, skel, seq);
     (OpSeq(skel, seq), u_gen);
   | EmptyHole(_) => (e, u_gen)
   }
 /* put skel in a new hole, if it is not already in a hole */
-and make_skel_inconsistent =
+and make_opseq_inconsistent =
     (u_gen: MetaVarGen.t, skel: skel_t, seq: opseq)
     : (skel_t, opseq, MetaVarGen.t) =>
   switch (skel) {
@@ -171,7 +187,7 @@ and make_skel_inconsistent =
     switch (OperatorSeq.seq_nth(n, seq)) {
     | None => raise(SkelInconsistentWithOpSeq(skel, seq))
     | Some(en) =>
-      let (en, u_gen) = make_exp_inconsistent(u_gen, en);
+      let (en, u_gen) = make_t_inconsistent(u_gen, en);
       switch (OperatorSeq.seq_update_nth(n, seq, en)) {
       | None => raise(SkelInconsistentWithOpSeq(skel, seq))
       | Some(seq) => (skel, seq, u_gen)

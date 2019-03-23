@@ -350,6 +350,14 @@ and ana_skel_pat_cursor_info =
     syn_skel_pat_cursor_info(ctx, skel, seq, n, zp1)
   };
 
+let rec ana_cursor_found_block = (
+  ctx: Contexts.t,
+  e: UHExp.t,
+  ty: HTyp.t,
+  side,
+  cursor_side,
+);
+
 let rec ana_cursor_found =
         (ctx: Contexts.t, e: UHExp.t, ty: HTyp.t, side: cursor_side)
         : option(t) =>
@@ -359,8 +367,9 @@ let rec ana_cursor_found =
     | None => None
     | Some(ci) => Some(update_sort(ci, IsExpr(e)))
     }
-  | Tm(InHole(TypeInconsistent, _), _) =>
-    let e_nih = UHExp.set_err_status(NotInHole, e);
+  | Tm(InHole(TypeInconsistent, _), _)
+  | OpSeq(BinOp(InHole(TypeInconsistent, _), _, _, _), _) =>
+    let e_nih = UHExp.set_err_status_t(NotInHole, e);
     switch (Statics.syn_exp(ctx, e_nih)) {
     | None => None
     | Some(ty') =>
@@ -375,24 +384,6 @@ let rec ana_cursor_found =
   | Tm(NotInHole, Case(_, _, _)) =>
     Some(mk_cursor_info(Analyzed(ty), IsExpr(e), side, ctx))
   | Tm(NotInHole, ListNil)
-  | OpSeq(BinOp(NotInHole, Comma, _, _), _)
-  | OpSeq(BinOp(NotInHole, Cons, _, _), _) =>
-    Some(mk_cursor_info(Analyzed(ty), IsExpr(e), side, ctx))
-  | OpSeq(BinOp(InHole(WrongLength, _), Comma, skel1, skel2), _) =>
-    switch (ty) {
-    | Prod(ty1, ty2) =>
-      let n_elts = ListMinTwo.length(UHExp.get_tuple(skel1, skel2));
-      let n_types = ListMinTwo.length(HTyp.get_tuple(ty1, ty2));
-      Some(
-        mk_cursor_info(
-          AnaWrongLength(n_types, n_elts, ty),
-          IsExpr(e),
-          side,
-          ctx,
-        ),
-      );
-    | _ => None
-    }
   | Tm(InHole(WrongLength, _), _) => None
   | Tm(NotInHole, Lam(_, ann, _)) =>
     switch (HTyp.matched_arrow(ty)) {
@@ -418,6 +409,25 @@ let rec ana_cursor_found =
     }
   | Tm(NotInHole, Inj(_, _)) =>
     Some(mk_cursor_info(Analyzed(ty), IsExpr(e), side, ctx))
+  | OpSeq(BinOp(NotInHole, Comma, _, _), _)
+  | OpSeq(BinOp(NotInHole, Cons, _, _), _) =>
+    Some(mk_cursor_info(Analyzed(ty), IsExpr(e), side, ctx))
+  | OpSeq(BinOp(InHole(WrongLength, _), Comma, skel1, skel2), _) =>
+    switch (ty) {
+    | Prod(ty1, ty2) =>
+      let n_elts = ListMinTwo.length(UHExp.get_tuple(skel1, skel2));
+      let n_types = ListMinTwo.length(HTyp.get_tuple(ty1, ty2));
+      Some(
+        mk_cursor_info(
+          AnaWrongLength(n_types, n_elts, ty),
+          IsExpr(e),
+          side,
+          ctx,
+        ),
+      );
+    | _ => None
+    }
+  | OpSeq(BinOp(InHole(WrongLength, _), _, _, _), _) => None
   | OpSeq(Placeholder(_), surround) => None
   | OpSeq(BinOp(NotInHole, Plus, _, _), _)
   | OpSeq(BinOp(NotInHole, Times, _, _), _)
@@ -645,7 +655,7 @@ and syn_skel_cursor_info =
       /*
        switch (ZExp.cursor_on_outer_expr(ze_n)) {
        | Some((Tm(InHole(TypeInconsistent, u), e_n') as e_n, side)) =>
-         let e_n_nih = UHExp.set_err_status(NotInHole, e_n);
+         let e_n_nih = UHExp.set_err_status_t(NotInHole, e_n);
          switch (Statics.syn_exp(ctx, e_n_nih)) {
          | Some(ty) =>
            Some(
