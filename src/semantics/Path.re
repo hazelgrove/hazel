@@ -1072,3 +1072,13 @@ let prev_hole_steps = (zhole_list: zhole_list): option(steps) => {
 
 let prev_hole_path = (zhole_list: zhole_list): option(t) =>
   opt_steps_to_opt_path(Before, prev_hole_steps(zhole_list));
+
+let prev_hole_path_zblock = (zblock: ZExp.zblock): option(t) => {
+  let holes = holes_zblock(zblock, []);
+  prev_hole_path(holes);
+};
+
+let next_hole_path_zblock = (zblock: ZExp.zblock): option(t) => {
+  let holes = holes_zblock(zblock, []);
+  next_hole_path(holes);
+};

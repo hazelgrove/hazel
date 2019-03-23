@@ -209,3 +209,13 @@ and make_opseq_inconsistent =
    | Parenthesized(block) => drop_outer_parentheses(e')
    };
  */
+
+let rec split_last_line = (lines: lines): option((lines, line)) =>
+  switch (lines) {
+  | [] => None
+  | [li, ...lis] =>
+    switch (split_last_line(lis)) {
+    | None => Some(([], li))
+    | Some((lis, last_li)) => Some(([li, ...lis], last_li))
+    }
+  };

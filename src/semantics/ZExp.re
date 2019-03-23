@@ -351,6 +351,13 @@ and place_before_exp = (e: UHExp.t): t =>
 let rec place_after_block =
         (Block(err_status, lines, e): UHExp.block): zblock =>
   DeeperB(err_status, BlockZE(lines, place_after_exp(e)))
+and place_after_line = (line: UHExp.line): zline =>
+  switch (line) {
+  | EmptyLine => CursorL(After, line)
+  | ExpLine(e) => DeeperL(ExpLineZ(place_after_exp(e)))
+  | LetLine(p, ann, block) =>
+    DeeperL(LetLineZE(p, ann, place_after_block(block)))
+  }
 and place_after_exp = (e: UHExp.t): t =>
   switch (e) {
   | OpSeq(skel, opseq) =>
