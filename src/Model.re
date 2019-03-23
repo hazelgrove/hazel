@@ -170,7 +170,7 @@ let new_model = (): t => {
 
   let replace_e = new_uhexp => {
     let new_edit_state =
-      Action.zexp_syn_fix_holes(
+      Statics.syn_fix_holes_zexp(
         (VarCtx.empty, PaletteCtx.empty),
         MetaVarGen.init,
         ZExp.CursorE(Before, new_uhexp),

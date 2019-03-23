@@ -45,12 +45,14 @@ let rec of_zblock = (zblock: ZExp.zblock): t =>
   }
 and of_zblock' = (zblock': ZExp.zblock'): t =>
   switch (zblock') {
-  | BlockZL(zlines, e) =>
-    let prefix_len = ZList.prefix_length(zlines);
-    let zline = ZList.prj_z(zlines);
-    cons'(prefix_len, of_zline(zline));
+  | BlockZL(zlines, e) => of_zlines(zlines)
   | BlockZE(lines, ze) => cons'(List.length(lines), of_zexp(ze))
   }
+and of_zlines = (zlines: ZExp.zlines): t => {
+  let prefix_len = ZList.prefix_length(zlines);
+  let zline = ZList.prj_z(zlines);
+  cons'(prefix_len, of_zline(zline));
+}
 and of_zline = (zline: ZExp.zline): t =>
   switch (zline) {
   | CursorL(side, _) => ([], side)

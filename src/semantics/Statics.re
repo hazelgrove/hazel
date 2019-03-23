@@ -927,6 +927,9 @@ and ana_skel =
     }
   };
 
+let syn_zlines = (ctx: Contexts.t, zlines: ZExp.zlines): option(Contexts.t) =>
+  syn_lines(ctx, ZExp.erase_lines(zlines));
+
 let rec syn_fix_holes_pat =
         (
           ctx: Contexts.t,
@@ -1338,6 +1341,26 @@ and ana_fix_holes_pat_skel =
       (skel, seq, ctx, u_gen);
     }
   };
+
+let syn_fix_holes_zpat =
+    (ctx: Contexts.t, u_gen: MetaVarGen.t, zp: ZPat.t)
+    : (ZPat.t, HTyp.t, Contexts.t, MetaVarGen.t) => {
+  let path = Path.of_zpat(zp);
+  let p = ZPat.erase(zp);
+  let (p, ty, ctx, u_gen) = syn_fix_holes_pat(ctx, u_gen, p);
+  let zp = Path.follow_pat_or_fail(path, p);
+  (zp, ty, ctx, u_gen);
+};
+
+let ana_fix_holes_zpat =
+    (ctx: Contexts.t, u_gen: MetaVarGen.t, zp: ZPat.t, ty: HTyp.t)
+    : (ZPat.t, Contexts.t, MetaVarGen.t) => {
+  let path = Path.of_zpat(zp);
+  let p = ZPat.erase(zp);
+  let (p, ctx, u_gen) = ana_fix_holes_pat(ctx, u_gen, p, ty);
+  let zp = Path.follow_pat_or_fail(path, p);
+  (zp, ctx, u_gen);
+};
 
 /* If renumber_empty_holes is true, then the metavars in empty holes will be assigned
  * new values in the same namespace as non-empty holes. Non-empty holes are renumbered
@@ -2079,6 +2102,26 @@ and ana_fix_holes_exp_skel =
       UHExp.make_opseq_inconsistent(u_gen, skel, seq);
     };
   };
+
+let syn_fix_holes_zexp =
+    (ctx: Contexts.t, u_gen: MetaVarGen.t, ze: ZExp.t)
+    : (ZExp.t, HTyp.t, MetaVarGen.t) => {
+  let path = Path.of_zexp(ze);
+  let e = ZExp.erase(ze);
+  let (e, ty, u_gen) = syn_fix_holes_exp(ctx, u_gen, e);
+  let ze = Path.follow_e_or_fail(path, e);
+  (ze, ty, u_gen);
+};
+
+let ana_fix_holes_zexp =
+    (ctx: Contexts.t, u_gen: MetaVarGen.t, ze: ZExp.t, ty: HTyp.t)
+    : (ZExp.t, MetaVarGen.t) => {
+  let path = Path.of_zexp(ze);
+  let e = ZExp.erase(ze);
+  let (e, u_gen) = ana_fix_holes_exp(ctx, u_gen, e, ty);
+  let ze = Path.follow_e_or_fail(path, e);
+  (ze, u_gen);
+};
 
 /* Only to be used on top-level expressions, as it starts hole renumbering at 0 */
 let fix_and_renumber_holes =
