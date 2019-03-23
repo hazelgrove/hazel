@@ -74,7 +74,7 @@ let new_model = (): t => {
     React.S.l1(
       e => {
         let expanded =
-          DHExp.syn_expand(
+          DHExp.syn_expand_exp(
             (VarCtx.empty, Palettes.initial_palette_ctx),
             Delta.empty,
             e,
