@@ -46,7 +46,6 @@ let rec _findmapi = (i, xs, f) =>
     | None => _findmapi(i + 1, xs, f)
     }
   };
-
 let findmapi = (xs, f) => _findmapi(0, xs, f);
 
 let any = (xs, f) => opt_to_bool(List.find_opt(f, xs));
@@ -62,6 +61,11 @@ let rec split_at = (xs, n) =>
         ([y, ...before], after);
       }
   };
+
+let rec fold_right_i = (f: ((int, 'a), 'b) => 'b, xs: list('a), acc: 'b): 'b => {
+  let ixs = List.mapi((i, x) => (i, x), xs);
+  List.fold_right(f, ixs, acc);
+};
 
 let cons_opt = (n: 'a, x: option(list('a))): option(list('a)) =>
   switch (x) {

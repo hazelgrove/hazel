@@ -38,50 +38,61 @@ and of_zpat' = (zp': ZPat.t'): t =>
     cons'(n, of_zpat(zp1));
   };
 
-let rec of_zexp = (ze: ZExp.t): t =>
+let rec of_zblock = (zblock: ZExp.zblock): t =>
+  switch (zblock) {
+  | CursorB(side, _) => ([], side)
+  | DeeperB(_, zblock') => of_zblock'(zblock')
+  }
+and of_zblock' = (zblock': ZExp.zblock'): t =>
+  switch (zblock') {
+  | BlockZL(zlines, e) =>
+    let prefix_len = ZList.prefix_length(zlines);
+    let zline = ZList.prj_z(zlines);
+    cons'(prefix_len, of_zline(zline));
+  | BlockZE(lines, ze) => cons'(List.length(lines), of_zexp(ze))
+  }
+and of_zline = (zline: ZExp.zline): t =>
+  switch (zline) {
+  | CursorL(side, _) => ([], side)
+  | DeeperL(zline') => of_zline'(zline')
+  }
+and of_zline' = (zline': ZExp.zline'): t =>
+  switch (zline') {
+  | ExpLineZ(ze) => cons'(0, of_zexp(ze))
+  | LetLineZP(zp, _, _) => cons'(0, of_zpat(zp))
+  | LetLineZA(_, zann, _) => cons'(1, of_ztyp(zann))
+  | LetLineZE(_, _, zblock) => cons'(2, of_zblock(zblock))
+  }
+and of_zexp = (ze: ZExp.t): t =>
   switch (ze) {
   | CursorE(cursor_side, _) => ([], cursor_side)
-  | Deeper(_, ze') => of_zexp'(ze')
-  | ParenthesizedZ(ze1) => cons'(0, of_zexp(ze1))
+  | DeeperE(_, ze') => of_zexp'(ze')
+  | ParenthesizedZ(zblock) => cons'(0, of_zblock(zblock))
+  | OpSeqZ(_, ze, surround) =>
+    let n = OperatorSeq.surround_prefix_length(surround);
+    cons'(n, of_zexp(ze));
   }
-and of_zexp' = (ze: ZExp.t'): t =>
-  switch (ze) {
-  | LineItemZL(zli, _) => cons'(0, of_zline_item(zli))
-  | LineItemZE(_, ze) => cons'(1, of_zexp(ze))
+and of_zexp' = (ze': ZExp.t'): t =>
+  switch (ze') {
   | LamZP(zp, _, _) => cons'(0, of_zpat(zp))
   | LamZA(_, zann, _) => cons'(1, of_ztyp(zann))
-  | LamZE(_, ann, ze') => cons'(2, of_zexp(ze'))
-  | InjZ(_, ze') => cons'(0, of_zexp(ze'))
-  | CaseZE(ze1, _, _) => cons'(0, of_zexp(ze1))
+  | LamZE(_, ann, zblock) => cons'(2, of_zblock(zblock))
+  | InjZ(_, zblock) => cons'(0, of_zblock(zblock))
+  | CaseZE(zblock, _, _) => cons'(0, of_zblock(zblock))
   | CaseZR(_, zrules, _) =>
     let prefix_len = List.length(ZList.prj_prefix(zrules));
     let zrule = ZList.prj_z(zrules);
     cons'(prefix_len + 1, of_zrule(zrule));
   | CaseZA(_, rules, zann) => cons'(List.length(rules) + 1, of_ztyp(zann))
-  | OpSeqZ(_, ze', surround) =>
-    let n = OperatorSeq.surround_prefix_length(surround);
-    cons'(n, of_zexp(ze'));
   | ApPaletteZ(_, _, zpsi) =>
     let zhole_map = zpsi.zsplice_map;
-    let (n, (_, ze)) = ZNatMap.prj_z_kv(zhole_map);
-    cons'(n, of_zexp(ze));
-  }
-and of_zline_item = (zli: ZExp.zline_item): t =>
-  switch (zli) {
-  | CursorL(side, _) => ([], side)
-  | DeeperL(zli') => of_zline_item'(zli')
-  }
-and of_zline_item' = (zli': ZExp.zline_item'): t =>
-  switch (zli') {
-  | ExpLineZ(ze) => cons'(0, of_zexp(ze))
-  | LetLineZP(zp, _, _) => cons'(0, of_zpat(zp))
-  | LetLineZA(_, zann, _) => cons'(1, of_ztyp(zann))
-  | LetLineZE(_, _, ze) => cons'(2, of_zexp(ze))
+    let (n, (_, zblock)) = ZNatMap.prj_z_kv(zhole_map);
+    cons'(n, of_zblock(zblock));
   }
 and of_zrule = (zrule: ZExp.zrule): t =>
   switch (zrule) {
   | RuleZP(zp, _) => cons'(0, of_zpat(zp))
-  | RuleZE(_, ze) => cons'(1, of_zexp(ze))
+  | RuleZE(_, zblock) => cons'(1, of_zblock(zblock))
   };
 
 let of_OpSeqZ = (ze: ZExp.t, surround: ZExp.opseq_surround): t => {
@@ -188,127 +199,33 @@ let follow_pat_or_fail = (path: t, p: UHPat.t): ZPat.t =>
   | Some(zp) => zp
   };
 
-let rec follow_e = (path: t, e: UHExp.t): option(ZExp.t) =>
+let rec follow_block = (path: t, block: UHExp.block): option(ZExp.zblock) =>
   switch (path) {
-  | ([], cursor_side) => Some(CursorE(cursor_side, e))
+  | ([], cursor_side) => Some(CursorB(cursor_side, block))
   | ([x, ...xs], cursor_side) =>
-    switch (e) {
-    | Parenthesized(e1) =>
-      switch (x) {
-      | 0 =>
-        switch (follow_e((xs, cursor_side), e1)) {
-        | Some(ze1) => Some(ParenthesizedZ(ze1))
+    let Block(err_status, lines, e) = block;
+    if (x === List.length(lines)) {
+      switch (follow_exp((xs, cursor_side), e)) {
+      | None => None
+      | Some(ze) => Some(DeeperB(err_status, BlockZE(lines, ze)))
+      };
+    } else {
+      switch (ZList.split_at(x, lines)) {
+      | None => None
+      | Some(split_lines) =>
+        switch (ZList.optmap_z(follow_line((xs, cursor_side)), split_lines)) {
         | None => None
+        | Some(zlines) => Some(DeeperB(err_status, BlockZL(zlines, e)))
         }
-      | _ => None
-      }
-    | Tm(err_status, e) =>
-      switch (x, e) {
-      | (_, EmptyHole(_)) => None
-      | (_, Var(_, _)) => None
-      | (0, LineItem(li, e1)) =>
-        switch (follow_line_item((xs, cursor_side), li)) {
-        | None => None
-        | Some(zli) => Some(Deeper(err_status, LineItemZL(zli, e1)))
-        }
-      | (1, LineItem(li, e1)) =>
-        switch (follow_e((xs, cursor_side), e1)) {
-        | None => None
-        | Some(ze1) => Some(Deeper(err_status, LineItemZE(li, ze1)))
-        }
-      | (_, LineItem(_, _)) => None
-      | (0, Lam(p, ann, e1)) =>
-        switch (follow_pat((xs, cursor_side), p)) {
-        | None => None
-        | Some(zp) => Some(Deeper(err_status, LamZP(zp, ann, e1)))
-        }
-      | (1, Lam(p, ann, e1)) =>
-        switch (ann) {
-        | None => None
-        | Some(ann_ty) =>
-          switch (follow_ty((xs, cursor_side), ann_ty)) {
-          | None => None
-          | Some(zann) => Some(Deeper(err_status, LamZA(p, zann, e1)))
-          }
-        }
-      | (2, Lam(p, ann, e1)) =>
-        switch (follow_e((xs, cursor_side), e1)) {
-        | None => None
-        | Some(ze) => Some(Deeper(err_status, LamZE(p, ann, ze)))
-        }
-      | (_, Lam(_, _, _)) => None
-      | (_, NumLit(_)) => None
-      | (_, BoolLit(_)) => None
-      | (0, Inj(side, e1)) =>
-        switch (follow_e((xs, cursor_side), e1)) {
-        | Some(ze) => Some(Deeper(err_status, InjZ(side, ze)))
-        | None => None
-        }
-      | (_, Inj(_, _)) => None
-      | (_, ListNil) => None
-      | (0, Case(e1, rules, ann)) =>
-        switch (follow_e((xs, cursor_side), e1)) {
-        | Some(ze) => Some(Deeper(err_status, CaseZE(ze, rules, ann)))
-        | None => None
-        }
-      | (x, Case(e1, rules, ann)) when x === List.length(rules) + 1 =>
-        switch (ann) {
-        | None => None
-        | Some(ty) =>
-          switch (follow_ty((xs, cursor_side), ty)) {
-          | None => None
-          | Some(zann) => Some(Deeper(err_status, CaseZA(e1, rules, zann)))
-          }
-        }
-      | (x, Case(e1, rules, ann)) =>
-        switch (ZList.split_at(x - 1, rules)) {
-        | None => None
-        | Some(split_rules) =>
-          switch (
-            ZList.optmap_z(follow_rule((xs, cursor_side)), split_rules)
-          ) {
-          | None => None
-          | Some(zrules) =>
-            Some(Deeper(err_status, CaseZR(e1, zrules, ann)))
-          }
-        }
-      | (n, OpSeq(skel, seq)) =>
-        switch (OperatorSeq.split(n, seq)) {
-        | Some((e, surround)) =>
-          switch (follow_e((xs, cursor_side), e)) {
-          | Some(ze) => Some(Deeper(err_status, OpSeqZ(skel, ze, surround)))
-          | None => None
-          }
-        | None => None
-        }
-      | (n, ApPalette(name, serialized_model, splice_info)) =>
-        switch (
-          ZSpliceInfo.select_opt(splice_info, n, ((ty, e)) =>
-            switch (follow_e((xs, cursor_side), e)) {
-            | None => None
-            | Some(ze) => Some((ty, ze))
-            }
-          )
-        ) {
-        | None => None
-        | Some(zsplice_info) =>
-          Some(
-            Deeper(
-              NotInHole,
-              ApPaletteZ(name, serialized_model, zsplice_info),
-            ),
-          )
-        }
-      }
-    }
+      };
+    };
   }
-and follow_line_item =
-    (path: t, li: UHExp.line_item): option(ZExp.zline_item) =>
-  switch (path, li) {
-  | (([], cursor_side), li) => Some(CursorL(cursor_side, li))
+and follow_line = (path: t, line: UHExp.line): option(ZExp.zline) =>
+  switch (path, line) {
+  | (([], cursor_side), _) => Some(CursorL(cursor_side, line))
   | (_, EmptyLine) => None
   | (([0, ...xs], cursor_side), ExpLine(e)) =>
-    switch (follow_e((xs, cursor_side), e)) {
+    switch (follow_exp((xs, cursor_side), e)) {
     | None => None
     | Some(ze) => Some(DeeperL(ExpLineZ(ze)))
     }
@@ -327,27 +244,132 @@ and follow_line_item =
       | Some(zann) => Some(DeeperL(LetLineZA(p, zann, e1)))
       }
     }
-  | (([2, ...xs], cursor_side), LetLine(p, ann, e1)) =>
-    switch (follow_e((xs, cursor_side), e1)) {
+  | (([2, ...xs], cursor_side), LetLine(p, ann, block)) =>
+    switch (follow_block((xs, cursor_side), block)) {
     | None => None
-    | Some(ze1) => Some(DeeperL(LetLineZE(p, ann, ze1)))
+    | Some(zblock) => Some(DeeperL(LetLineZE(p, ann, zblock)))
     }
   | (_, LetLine(_, _, _)) => None
   }
+and follow_exp = (path: t, e: UHExp.t): option(ZExp.t) =>
+  switch (path) {
+  | ([], cursor_side) => Some(CursorE(cursor_side, e))
+  | ([x, ...xs], cursor_side) =>
+    switch (e) {
+    | EmptyHole(_) => None
+    | Parenthesized(block) =>
+      switch (x) {
+      | 0 =>
+        switch (follow_block((xs, cursor_side), block)) {
+        | Some(zblock) => Some(ParenthesizedZ(zblock))
+        | None => None
+        }
+      | _ => None
+      }
+    | OpSeq(skel, seq) =>
+      switch (OperatorSeq.split(x, seq)) {
+      | Some((e, surround)) =>
+        switch (follow_exp((xs, cursor_side), e)) {
+        | Some(ze) => Some(OpSeqZ(skel, ze, surround))
+        | None => None
+        }
+      | None => None
+      }
+    | Tm(err_status, e) =>
+      switch (x, e) {
+      | (_, Var(_, _)) => None
+      | (0, Lam(p, ann, block)) =>
+        switch (follow_pat((xs, cursor_side), p)) {
+        | None => None
+        | Some(zp) => Some(DeeperE(err_status, LamZP(zp, ann, block)))
+        }
+      | (1, Lam(p, ann, block)) =>
+        switch (ann) {
+        | None => None
+        | Some(ann_ty) =>
+          switch (follow_ty((xs, cursor_side), ann_ty)) {
+          | None => None
+          | Some(zann) => Some(DeeperE(err_status, LamZA(p, zann, block)))
+          }
+        }
+      | (2, Lam(p, ann, block)) =>
+        switch (follow_block((xs, cursor_side), block)) {
+        | None => None
+        | Some(zblock) => Some(DeeperE(err_status, LamZE(p, ann, zblock)))
+        }
+      | (_, Lam(_, _, _)) => None
+      | (_, NumLit(_)) => None
+      | (_, BoolLit(_)) => None
+      | (0, Inj(side, block)) =>
+        switch (follow_block((xs, cursor_side), block)) {
+        | None => None
+        | Some(zblock) => Some(DeeperE(err_status, InjZ(side, zblock)))
+        }
+      | (_, Inj(_, _)) => None
+      | (_, ListNil) => None
+      | (0, Case(block, rules, ann)) =>
+        switch (follow_block((xs, cursor_side), block)) {
+        | None => None
+        | Some(zblock) =>
+          Some(DeeperE(err_status, CaseZE(zblock, rules, ann)))
+        }
+      | (x, Case(block, rules, ann)) when x === List.length(rules) + 1 =>
+        switch (ann) {
+        | None => None
+        | Some(ty) =>
+          switch (follow_ty((xs, cursor_side), ty)) {
+          | None => None
+          | Some(zann) =>
+            Some(DeeperE(err_status, CaseZA(block, rules, zann)))
+          }
+        }
+      | (x, Case(block, rules, ann)) =>
+        switch (ZList.split_at(x - 1, rules)) {
+        | None => None
+        | Some(split_rules) =>
+          switch (
+            ZList.optmap_z(follow_rule((xs, cursor_side)), split_rules)
+          ) {
+          | None => None
+          | Some(zrules) =>
+            Some(DeeperE(err_status, CaseZR(block, zrules, ann)))
+          }
+        }
+      | (n, ApPalette(name, serialized_model, splice_info)) =>
+        switch (
+          ZSpliceInfo.select_opt(splice_info, n, ((ty, block)) =>
+            switch (follow_block((xs, cursor_side), block)) {
+            | None => None
+            | Some(zblock) => Some((ty, zblock))
+            }
+          )
+        ) {
+        | None => None
+        | Some(zsplice_info) =>
+          Some(
+            DeeperE(
+              NotInHole,
+              ApPaletteZ(name, serialized_model, zsplice_info),
+            ),
+          )
+        }
+      }
+    }
+  }
 and follow_rule = (path: t, rule: UHExp.rule): option(ZExp.zrule) =>
   switch (rule) {
-  | Rule(p, e) =>
+  | Rule(p, block) =>
     switch (path) {
     | ([], _) => None
     | ([0, ...xs], cursor_side) =>
       switch (follow_pat((xs, cursor_side), p)) {
       | None => None
-      | Some(zp) => Some(RuleZP(zp, e))
+      | Some(zp) => Some(RuleZP(zp, block))
       }
     | ([1, ...xs], cursor_side) =>
-      switch (follow_e((xs, cursor_side), e)) {
+      switch (follow_block((xs, cursor_side), block)) {
       | None => None
-      | Some(ze) => Some(RuleZE(p, ze))
+      | Some(zblock) => Some(RuleZE(p, zblock))
       }
     | ([_, ..._], _) => None
     }
@@ -355,7 +377,7 @@ and follow_rule = (path: t, rule: UHExp.rule): option(ZExp.zrule) =>
 
 exception UHExpNodeNotFound(t, UHExp.t);
 let follow_e_or_fail = (path: t, e: UHExp.t): ZExp.t =>
-  switch (follow_e(path, e)) {
+  switch (follow_exp(path, e)) {
   | None => raise(UHExpNodeNotFound(path, e))
   | Some(ze) => ze
   };
@@ -426,36 +448,61 @@ let rec holes_pat = (p: UHPat.t, steps: steps, holes: hole_list): hole_list =>
   | Pat(_, OpSeq(skel, seq)) => holes_seq(seq, holes_pat, 0, steps, holes)
   };
 
-let rec holes_e = (e: UHExp.t, steps: steps, holes: hole_list): hole_list =>
-  switch (e) {
-  | Parenthesized(e1) => holes_e(e1, [0, ...steps], holes)
-  | Tm(_, EmptyHole(u)) => [(ExpHole(u), steps), ...holes]
-  | Tm(_, Var(_, _)) => holes
-  | Tm(_, NumLit(_)) => holes
-  | Tm(_, BoolLit(_)) => holes
-  | Tm(_, Inj(_, e1)) => holes_e(e1, [0, ...steps], holes)
-  | Tm(_, ListNil) => holes
-  | Tm(_, Lam(p, ann, e1)) =>
-    let holes = holes_e(e1, [2, ...steps], holes);
+let rec holes_block =
+        (Block(_, lines, e): UHExp.block, steps: steps, holes: hole_list)
+        : hole_list => {
+  let len = List.length(lines);
+  let holes = holes_exp(e, [len, ...steps], holes);
+  holes_lines(lines, 0, steps, holes);
+}
+and holes_lines =
+    (lines: UHExp.lines, offset: int, steps: steps, holes: hole_list)
+    : hole_list =>
+  fold_right_i(
+    ((i, line), holes) => holes_line(line, [i + offset, ...steps], holes),
+    lines,
+    holes,
+  )
+and holes_line = (line: UHExp.line, steps: steps, holes: hole_list): hole_list =>
+  switch (line) {
+  | EmptyLine => holes
+  | ExpLine(e) => holes_exp(e, [0, ...steps], holes)
+  | LetLine(p, ann, block) =>
+    let holes = holes_block(block, [2, ...steps], holes);
     let holes =
       switch (ann) {
       | Some(uty) => holes_uty(uty, [1, ...steps], holes)
       | None => holes
       };
     holes_pat(p, [0, ...steps], holes);
-  | Tm(_, LineItem(li, e2)) =>
-    let holes = holes_e(e2, [1, ...steps], holes);
-    holes_line_item(li, [0, ...steps], holes);
-  | Tm(_, Case(e1, rules, ann)) =>
+  }
+and holes_exp = (e: UHExp.t, steps: steps, holes: hole_list): hole_list =>
+  switch (e) {
+  | Parenthesized(block) => holes_block(block, [0, ...steps], holes)
+  | EmptyHole(u) => [(ExpHole(u), steps), ...holes]
+  | OpSeq(skel, seq) => holes_seq(seq, holes_exp, 0, steps, holes)
+  | Tm(_, Var(_, _)) => holes
+  | Tm(_, NumLit(_)) => holes
+  | Tm(_, BoolLit(_)) => holes
+  | Tm(_, Inj(_, block)) => holes_block(block, [0, ...steps], holes)
+  | Tm(_, ListNil) => holes
+  | Tm(_, Lam(p, ann, block)) =>
+    let holes = holes_block(block, [2, ...steps], holes);
+    let holes =
+      switch (ann) {
+      | Some(uty) => holes_uty(uty, [1, ...steps], holes)
+      | None => holes
+      };
+    holes_pat(p, [0, ...steps], holes);
+  | Tm(_, Case(block, rules, ann)) =>
     let holes =
       switch (ann) {
       | None => holes
       | Some(uty) =>
         holes_uty(uty, [List.length(rules) + 1, ...steps], holes)
       };
-    let holes = holes_rules(rules, 0, steps, holes);
-    holes_e(e1, [0, ...steps], holes);
-  | Tm(_, OpSeq(skel, seq)) => holes_seq(seq, holes_e, 0, steps, holes)
+    let holes = holes_rules(rules, 1, steps, holes);
+    holes_block(block, [0, ...steps], holes);
   | Tm(_, ApPalette(_, _, psi)) =>
     let splice_map = psi.splice_map;
     let splice_order = psi.splice_order;
@@ -463,40 +510,24 @@ let rec holes_e = (e: UHExp.t, steps: steps, holes: hole_list): hole_list =>
       (i, holes) =>
         switch (NatMap.lookup(splice_map, i)) {
         | None => holes
-        | Some((_, e)) => holes_e(e, [i, ...steps], holes)
+        | Some((_, block)) => holes_block(block, [i, ...steps], holes)
         },
       splice_order,
       holes,
     );
   }
-and holes_line_item =
-    (li: UHExp.line_item, steps: steps, holes: hole_list): hole_list =>
-  switch (li) {
-  | EmptyLine => holes
-  | ExpLine(e1) => holes_e(e1, steps, holes)
-  | LetLine(p, ann, e1) =>
-    let holes = holes_e(e1, [2, ...steps], holes);
-    let holes =
-      switch (ann) {
-      | Some(uty) => holes_uty(uty, [1, ...steps], holes)
-      | None => holes
-      };
-    holes_pat(p, [0, ...steps], holes);
-  }
 and holes_rules =
     (rules: UHExp.rules, offset: int, steps: steps, holes: hole_list)
-    : hole_list => {
-  let (_, holes) =
-    List.fold_right(
-      (UHExp.Rule(p, e), (i, holes)) => {
-        let holes = holes_e(e, [1, i, ...steps], holes);
-        let holes = holes_pat(p, [0, i, ...steps], holes);
-        (i - 1, holes);
-      },
-      rules,
-      (List.length(rules) + offset, holes),
-    );
-  holes;
+    : hole_list =>
+  fold_right_i(
+    ((i, rule), holes) => holes_rule(rule, [i + offset, ...steps], holes),
+    rules,
+    holes,
+  )
+and holes_rule =
+    (Rule(p, block): UHExp.rule, steps: steps, holes: hole_list): hole_list => {
+  let holes = holes_block(block, [1, ...steps], holes);
+  holes_pat(p, [0, ...steps], holes);
 };
 
 /* two hole lists, one for before the cursor, one for after */
@@ -669,12 +700,111 @@ let rec holes_zpat = (zp: ZPat.t, steps: steps): zhole_list =>
     holes_OpSeqZ(holes_pat, holes_zpat, zp1, surround, steps)
   };
 
-let rec holes_ze = (ze: ZExp.t, steps: steps): zhole_list =>
+let rec holes_zblock = (zblock: ZExp.zblock, steps: steps): zhole_list =>
+  switch (zblock) {
+  | CursorB(In(_), block) /* should never happen */
+  | CursorB(Before, block) => {
+      holes_before: [],
+      hole_selected: None,
+      holes_after: holes_block(block, steps, []),
+    }
+  | CursorB(After, block) => {
+      holes_before: holes_block(block, steps, []),
+      hole_selected: None,
+      holes_after: [],
+    }
+  | DeeperB(_, BlockZL(zlines, e)) =>
+    let {holes_before, hole_selected, holes_after} =
+      holes_zlines(zlines, steps);
+    let holes_e = holes_exp(e, [ZList.length(zlines), ...steps], []);
+    {holes_before, hole_selected, holes_after: holes_after @ holes_e};
+  | DeeperB(_, BlockZE(lines, ze)) =>
+    let {holes_before, hole_selected, holes_after} = holes_ze(ze, steps);
+    let holes_lines = holes_lines(lines, 0, steps, []);
+    {holes_before: holes_lines @ holes_before, hole_selected, holes_after};
+  }
+and holes_zlines =
+    ((prefix, zline, suffix): ZExp.zlines, steps: steps): zhole_list => {
+  let holes_prefix = holes_lines(prefix, 0, steps, []);
+  let {holes_before, hole_selected, holes_after} = holes_zline(zline, steps);
+  let holes_suffix = holes_lines(prefix, List.length(prefix) + 1, steps, []);
+  {
+    holes_before: holes_prefix @ holes_before,
+    hole_selected,
+    holes_after: holes_after @ holes_suffix,
+  };
+}
+and holes_zline = (zli: ZExp.zline, steps: steps): zhole_list =>
+  switch (zli) {
+  | CursorL(Before, li) => {
+      holes_before: [],
+      hole_selected: None,
+      holes_after: holes_line(li, steps, []),
+    }
+  | CursorL(In(_), EmptyLine)
+  | CursorL(In(_), ExpLine(_)) => no_holes
+  | CursorL(In(_), LetLine(_, _, _) as li) => {
+      holes_before: [],
+      hole_selected: None,
+      holes_after: holes_line(li, steps, []),
+    }
+  | CursorL(After, li) => {
+      holes_before: holes_line(li, steps, []),
+      hole_selected: None,
+      holes_after: [],
+    }
+  | DeeperL(zli') => holes_zline'(zli', steps)
+  }
+and holes_zline' = (zli': ZExp.zline', steps: steps): zhole_list =>
+  switch (zli') {
+  | ExpLineZ(ze1) => holes_ze(ze1, steps)
+  | LetLineZP(zp, ann, block) =>
+    let {holes_before, hole_selected, holes_after} =
+      holes_zpat(zp, [0, ...steps]);
+    let holes_ann =
+      switch (ann) {
+      | Some(uty) => holes_uty(uty, [1, ...steps], [])
+      | None => []
+      };
+    let holes_block = holes_block(block, [2, ...steps], []);
+    {
+      holes_before,
+      hole_selected,
+      holes_after: holes_after @ holes_ann @ holes_block,
+    };
+  | LetLineZA(p, zann, block) =>
+    let {holes_before, hole_selected, holes_after} =
+      holes_zty(zann, [1, ...steps]);
+    let holes_p = holes_pat(p, [0, ...steps], []);
+    let holes_block = holes_block(block, [2, ...steps], []);
+    {
+      holes_before: holes_p @ holes_before,
+      hole_selected,
+      holes_after: holes_after @ holes_block,
+    };
+  | LetLineZE(p, ann, zblock) =>
+    let {holes_before, hole_selected, holes_after} =
+      holes_zblock(zblock, [2, ...steps]);
+    let holes_p = holes_pat(p, [0, ...steps], []);
+    let holes_ann =
+      switch (ann) {
+      | Some(uty) => holes_uty(uty, [1, ...steps], [])
+      | None => []
+      };
+    {
+      holes_before: holes_p @ holes_ann @ holes_before,
+      hole_selected,
+      holes_after,
+    };
+  }
+and holes_ze = (ze: ZExp.t, steps: steps): zhole_list =>
   switch (ze) {
-  | ParenthesizedZ(ze1) => holes_ze(ze1, [0, ...steps])
+  | OpSeqZ(_, ze0, surround) =>
+    holes_OpSeqZ(holes_exp, holes_ze, ze0, surround, steps)
+  | ParenthesizedZ(zblock) => holes_zblock(zblock, [0, ...steps])
   | CursorE(cursor_side, e) =>
     switch (cursor_side, e) {
-    | (_, Tm(_, EmptyHole(u))) => {
+    | (_, EmptyHole(u)) => {
         holes_before: [],
         hole_selected: Some((ExpHole(u), steps)),
         holes_after: [],
@@ -682,41 +812,41 @@ let rec holes_ze = (ze: ZExp.t, steps: steps): zhole_list =>
     | (Before, _) => {
         holes_before: [],
         hole_selected: None,
-        holes_after: holes_e(e, steps, []),
+        holes_after: holes_exp(e, steps, []),
       }
     | (After, _) => {
-        holes_before: holes_e(e, steps, []),
+        holes_before: holes_exp(e, steps, []),
         hole_selected: None,
         holes_after: [],
       }
     | (In(k), _) =>
       switch (e) {
+      | OpSeq(_, _) => no_holes
       | Parenthesized(_) => no_holes
+      | EmptyHole(_) => no_holes
       | Tm(err, ue') =>
         switch (ue') {
         | NumLit(_)
         | BoolLit(_)
         | ListNil
-        | Var(_, _)
-        | EmptyHole(_)
-        | OpSeq(_, _) => no_holes
+        | Var(_, _) => no_holes
         | Inj(_, _)
-        | LineItem(_, _)
         | Lam(_, _, _) => {
             holes_before: [],
             hole_selected: None,
-            holes_after: holes_e(e, steps, []),
+            holes_after: holes_exp(e, steps, []),
           }
-        | Case(e1, rules, ann) =>
+        | Case(block, rules, ann) =>
           switch (k) {
           | 0 => {
               holes_before: [],
               hole_selected: None,
-              holes_after: holes_e(e, steps, []),
+              holes_after: holes_exp(e, steps, []),
             }
           | 1 =>
-            let holes_rules = holes_rules(rules, 0, steps, []);
-            let holes_before = holes_e(e1, [0, ...steps], holes_rules);
+            let holes_rules = holes_rules(rules, 1, steps, []);
+            let holes_before =
+              holes_block(block, [0, ...steps], holes_rules);
             let holes_after =
               switch (ann) {
               | None => []
@@ -730,19 +860,9 @@ let rec holes_ze = (ze: ZExp.t, steps: steps): zhole_list =>
         }
       }
     }
-  | Deeper(_, ze) =>
+  | DeeperE(_, ze) =>
     switch (ze) {
-    | LineItemZL(zli, e2) =>
-      let {holes_before, hole_selected, holes_after} =
-        holes_zline_item(zli, [0, ...steps]);
-      let holes_e2 = holes_e(e2, [1, ...steps], []);
-      {holes_before, hole_selected, holes_after: holes_after @ holes_e2};
-    | LineItemZE(li, ze2) =>
-      let {holes_before, hole_selected, holes_after} =
-        holes_ze(ze2, [1, ...steps]);
-      let holes_li = holes_line_item(li, [0, ...steps], []);
-      {holes_before: holes_li @ holes_before, hole_selected, holes_after};
-    | LamZP(zp, ann, e1) =>
+    | LamZP(zp, ann, block) =>
       let {holes_before, hole_selected, holes_after} =
         holes_zpat(zp, [0, ...steps]);
       let holes_ann =
@@ -750,25 +870,25 @@ let rec holes_ze = (ze: ZExp.t, steps: steps): zhole_list =>
         | Some(uty) => holes_uty(uty, [1, ...steps], [])
         | None => []
         };
-      let holes_e1 = holes_e(e1, [2, ...steps], []);
+      let holes_block = holes_block(block, [2, ...steps], []);
       {
         holes_before,
         hole_selected,
-        holes_after: holes_after @ holes_ann @ holes_e1,
+        holes_after: holes_after @ holes_ann @ holes_block,
       };
-    | LamZA(p, zann, e1) =>
+    | LamZA(p, zann, block) =>
       let {holes_before, hole_selected, holes_after} =
         holes_zty(zann, [1, ...steps]);
       let holes_p = holes_pat(p, [0, ...steps], []);
-      let holes_e1 = holes_e(e1, [2, ...steps], []);
+      let holes_block = holes_block(block, [2, ...steps], []);
       {
         holes_before: holes_p @ holes_before,
         hole_selected,
-        holes_after: holes_after @ holes_e1,
+        holes_after: holes_after @ holes_block,
       };
-    | LamZE(p, ann, ze1) =>
+    | LamZE(p, ann, zblock) =>
       let {holes_before, hole_selected, holes_after} =
-        holes_ze(ze1, [2, ...steps]);
+        holes_zblock(zblock, [2, ...steps]);
       let holes_p = holes_pat(p, [0, ...steps], []);
       let holes_ann =
         switch (ann) {
@@ -780,10 +900,10 @@ let rec holes_ze = (ze: ZExp.t, steps: steps): zhole_list =>
         hole_selected,
         holes_after,
       };
-    | InjZ(_, ze1) => holes_ze(ze1, [0, ...steps])
-    | CaseZE(ze1, rules, ann) =>
+    | InjZ(_, zblock) => holes_zblock(zblock, [0, ...steps])
+    | CaseZE(zblock, rules, ann) =>
       let {holes_before, hole_selected, holes_after} =
-        holes_ze(ze1, [0, ...steps]);
+        holes_zblock(zblock, [0, ...steps]);
       let holes_rules = holes_rules(rules, 0, steps, []);
       let holes_ann =
         switch (ann) {
@@ -796,10 +916,10 @@ let rec holes_ze = (ze: ZExp.t, steps: steps): zhole_list =>
         hole_selected,
         holes_after: holes_after @ holes_rules @ holes_ann,
       };
-    | CaseZR(e1, zrules, ann) =>
+    | CaseZR(block, zrules, ann) =>
       let {holes_before, hole_selected, holes_after} =
         holes_zrules(zrules, steps);
-      let holes_e1 = holes_e(e1, [0, ...steps], []);
+      let holes_block = holes_block(block, [0, ...steps], []);
       let holes_ann =
         switch (ann) {
         | None => []
@@ -807,27 +927,25 @@ let rec holes_ze = (ze: ZExp.t, steps: steps): zhole_list =>
           holes_uty(uty, [ZList.length(zrules) + 1, ...steps], [])
         };
       {
-        holes_before: holes_e1 @ holes_before,
+        holes_before: holes_block @ holes_before,
         hole_selected,
         holes_after: holes_after @ holes_ann,
       };
-    | CaseZA(e1, rules, zann) =>
+    | CaseZA(block, rules, zann) =>
       let {holes_before, hole_selected, holes_after} =
         holes_zty(zann, [List.length(rules) + 1, ...steps]);
-      let holes_e1 = holes_e(e1, [0, ...steps], []);
+      let holes_block = holes_block(block, [0, ...steps], []);
       let holes_rules = holes_rules(rules, 0, steps, []);
       {
-        holes_before: holes_e1 @ holes_rules @ holes_before,
+        holes_before: holes_block @ holes_rules @ holes_before,
         hole_selected,
         holes_after,
       };
-    | OpSeqZ(_, ze0, surround) =>
-      holes_OpSeqZ(holes_e, holes_ze, ze0, surround, steps)
     | ApPaletteZ(_, _, zpsi) =>
       let zsplice_map = zpsi.zsplice_map;
-      let (n, (ty, ze)) = ZNatMap.prj_z_kv(zsplice_map);
+      let (n, (ty, zblock)) = ZNatMap.prj_z_kv(zsplice_map);
       let {holes_before, hole_selected, holes_after} =
-        holes_ze(ze, [n, ...steps]);
+        holes_zblock(zblock, [n, ...steps]);
       let splice_order = zpsi.splice_order;
       let splice_map = ZNatMap.prj_map(zsplice_map);
       let (splices_before, splices_after) =
@@ -837,7 +955,8 @@ let rec holes_ze = (ze: ZExp.t, steps: steps): zhole_list =>
           (holes, n) =>
             switch (NatMap.lookup(splice_map, n)) {
             | None => holes
-            | Some((_, e)) => holes @ holes_e(e, [n, ...steps], [])
+            | Some((_, block)) =>
+              holes @ holes_block(block, [n, ...steps], [])
             },
           [],
           splices_before,
@@ -847,7 +966,8 @@ let rec holes_ze = (ze: ZExp.t, steps: steps): zhole_list =>
           (holes, n) =>
             switch (NatMap.lookup(splice_map, n)) {
             | None => holes
-            | Some((_, e)) => holes @ holes_e(e, [n, ...steps], [])
+            | Some((_, block)) =>
+              holes @ holes_block(block, [n, ...steps], [])
             },
           [],
           splices_after,
@@ -858,69 +978,6 @@ let rec holes_ze = (ze: ZExp.t, steps: steps): zhole_list =>
         holes_after: holes_after @ holes_splices_after,
       };
     }
-  }
-and holes_zline_item = (zli: ZExp.zline_item, steps: steps): zhole_list =>
-  switch (zli) {
-  | CursorL(Before, li) => {
-      holes_before: [],
-      hole_selected: None,
-      holes_after: holes_line_item(li, steps, []),
-    }
-  | CursorL(In(_), EmptyLine)
-  | CursorL(In(_), ExpLine(_)) => no_holes
-  | CursorL(In(_), LetLine(_, _, _) as li) => {
-      holes_before: [],
-      hole_selected: None,
-      holes_after: holes_line_item(li, steps, []),
-    }
-  | CursorL(After, li) => {
-      holes_before: holes_line_item(li, steps, []),
-      hole_selected: None,
-      holes_after: [],
-    }
-  | DeeperL(zli') => holes_zline_item'(zli', steps)
-  }
-and holes_zline_item' = (zli': ZExp.zline_item', steps: steps): zhole_list =>
-  switch (zli') {
-  | ExpLineZ(ze1) => holes_ze(ze1, steps)
-  | LetLineZP(zp, ann, e1) =>
-    let {holes_before, hole_selected, holes_after} =
-      holes_zpat(zp, [0, ...steps]);
-    let holes_ann =
-      switch (ann) {
-      | Some(uty) => holes_uty(uty, [1, ...steps], [])
-      | None => []
-      };
-    let holes_e1 = holes_e(e1, [2, ...steps], []);
-    {
-      holes_before,
-      hole_selected,
-      holes_after: holes_after @ holes_ann @ holes_e1,
-    };
-  | LetLineZA(p, zann, e1) =>
-    let {holes_before, hole_selected, holes_after} =
-      holes_zty(zann, [1, ...steps]);
-    let holes_p = holes_pat(p, [0, ...steps], []);
-    let holes_e1 = holes_e(e1, [2, ...steps], []);
-    {
-      holes_before: holes_p @ holes_before,
-      hole_selected,
-      holes_after: holes_after @ holes_e1,
-    };
-  | LetLineZE(p, ann, ze1) =>
-    let {holes_before, hole_selected, holes_after} =
-      holes_ze(ze1, [2, ...steps]);
-    let holes_p = holes_pat(p, [0, ...steps], []);
-    let holes_ann =
-      switch (ann) {
-      | Some(uty) => holes_uty(uty, [1, ...steps], [])
-      | None => []
-      };
-    {
-      holes_before: holes_p @ holes_ann @ holes_before,
-      hole_selected,
-      holes_after,
-    };
   }
 and holes_zrules = (zrules: ZExp.zrules, steps: steps) => {
   let (prefix, zrule, suffix) = ZList.prj(zrules);
@@ -937,14 +994,14 @@ and holes_zrules = (zrules: ZExp.zrules, steps: steps) => {
 }
 and holes_zrule = (zrule: ZExp.zrule, prefix_len: int, steps: steps) =>
   switch (zrule) {
-  | RuleZP(zp, e1) =>
+  | RuleZP(zp, block) =>
     let {holes_before, hole_selected, holes_after} =
       holes_zpat(zp, [0, prefix_len + 1, ...steps]);
-    let holes_e1 = holes_e(e1, [1, prefix_len + 1, ...steps], []);
-    {holes_before, hole_selected, holes_after: holes_after @ holes_e1};
-  | RuleZE(p, ze1) =>
+    let holes_block = holes_block(block, [1, prefix_len + 1, ...steps], []);
+    {holes_before, hole_selected, holes_after: holes_after @ holes_block};
+  | RuleZE(p, zblock) =>
     let {holes_before, hole_selected, holes_after} =
-      holes_ze(ze1, [1, prefix_len + 1, ...steps]);
+      holes_zblock(zblock, [1, prefix_len + 1, ...steps]);
     let holes_p = holes_pat(p, [0, prefix_len + 1, ...steps], []);
     {holes_before: holes_p @ holes_before, hole_selected, holes_after};
   };
