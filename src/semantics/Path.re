@@ -377,6 +377,13 @@ and follow_rule = (path: t, rule: UHExp.rule): option(ZExp.zrule) =>
     }
   };
 
+exception UHBlockNodeNotFound(t, UHExp.block);
+let follow_block_or_fail = (path: t, block: UHExp.block): ZExp.zblock =>
+  switch (follow_block(path, block)) {
+  | None => raise(UHBlockNodeNotFound(path, block))
+  | Some(zblock) => zblock
+  };
+
 exception UHExpNodeNotFound(t, UHExp.t);
 let follow_e_or_fail = (path: t, e: UHExp.t): ZExp.t =>
   switch (follow_exp(path, e)) {

@@ -29,7 +29,7 @@ module type PALETTE = {
   /* model_updater must _not_ be invoked until well after view has completed */
   let view: (model, model_updater) => view_type;
 
-  let expand: model => UHExp.t;
+  let expand: model => UHExp.block;
 
   let serialize: model => SerializedModel.t;
   let deserialize: SerializedModel.t => model;

@@ -514,7 +514,7 @@ and syn_exp' = (ctx: Contexts.t, e': UHExp.t'): option(HTyp.t) =>
         let expansion_ty = palette_defn.expansion_ty;
         let expand = palette_defn.expand;
         let expansion = expand(serialized_model);
-        switch (ana_exp(splice_ctx, expansion, expansion_ty)) {
+        switch (ana_block(splice_ctx, expansion, expansion_ty)) {
         | None => None
         | Some(_) => Some(expansion_ty)
         };
@@ -2111,6 +2111,16 @@ let syn_fix_holes_zexp =
   let (e, ty, u_gen) = syn_fix_holes_exp(ctx, u_gen, e);
   let ze = Path.follow_e_or_fail(path, e);
   (ze, ty, u_gen);
+};
+
+let ana_fix_holes_zblock =
+    (ctx: Contexts.t, u_gen: MetaVarGen.t, zblock: ZExp.zblock, ty: HTyp.t)
+    : (ZExp.zblock, MetaVarGen.t) => {
+  let path = Path.of_zblock(zblock);
+  let block = ZExp.erase_block(zblock);
+  let (block, u_gen) = ana_fix_holes_block(ctx, u_gen, block, ty);
+  let zblock = Path.follow_block_or_fail(path, block);
+  (zblock, u_gen);
 };
 
 let ana_fix_holes_zexp =
