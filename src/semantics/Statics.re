@@ -2113,6 +2113,16 @@ let syn_fix_holes_zexp =
   (ze, ty, u_gen);
 };
 
+let syn_fix_holes_zblock =
+    (ctx: Contexts.t, u_gen: MetaVarGen.t, zblock: ZExp.zblock)
+    : (ZExp.zblock, HTyp.t, MetaVarGen.t) => {
+  let path = Path.of_zblock(zblock);
+  let block = ZExp.erase_block(zblock);
+  let (block, ty, u_gen) = syn_fix_holes_block(ctx, u_gen, block);
+  let zblock = Path.follow_block_or_fail(path, block);
+  (zblock, ty, u_gen);
+};
+
 let ana_fix_holes_zblock =
     (ctx: Contexts.t, u_gen: MetaVarGen.t, zblock: ZExp.zblock, ty: HTyp.t)
     : (ZExp.zblock, MetaVarGen.t) => {
@@ -2135,5 +2145,11 @@ let ana_fix_holes_zexp =
 
 /* Only to be used on top-level expressions, as it starts hole renumbering at 0 */
 let fix_and_renumber_holes =
-    (ctx: Contexts.t, e: UHExp.t): (UHExp.t, HTyp.t, MetaVarGen.t) =>
-  syn_fix_holes_exp(ctx, MetaVarGen.init, ~renumber_empty_holes=true, e);
+    (ctx: Contexts.t, block: UHExp.block)
+    : (UHExp.block, HTyp.t, MetaVarGen.t) =>
+  syn_fix_holes_block(
+    ctx,
+    MetaVarGen.init,
+    ~renumber_empty_holes=true,
+    block,
+  );

@@ -17,7 +17,6 @@ let op = taggedText("op");
 let var = s => taggedText("var", s);
 let paletteName = s => taggedText("paletteName", s);
 let space = taggedText("space", " ");
-let empty = taggedText("", "");
 
 /* Helpers */
 let rec id_of_rev_path = (prefix, rev_path) =>
@@ -287,7 +286,7 @@ let of_Var = (prefix, err_status, var_err_status, rev_path, x) =>
   );
 
 let of_EmptyLine = (prefix, rev_path) =>
-  line(prefix, rev_path, "EmptyLine", empty);
+  line(prefix, rev_path, "EmptyLine", PP.empty);
 
 let of_ExpLine = (prefix, rev_path, r1) =>
   line(prefix, rev_path, "ExpLine", r1);
@@ -304,11 +303,15 @@ let of_LetLine = (prefix, rev_path, rx, rann, r1) => {
 };
 
 let of_lines = (prefix, rline_lst) =>
-  List.fold_left(
-    (rlines, rline) => rlines ^^ PP.mandatoryBreak ^^ rline,
-    PP.empty,
-    rline_lst,
-  );
+  switch (rline_lst) {
+  | [] => PP.empty
+  | [rli, ...rli_lst] =>
+    List.fold_left(
+      (rlines, rline) => rlines ^^ PP.mandatoryBreak ^^ rline,
+      rli,
+      rli_lst,
+    )
+  };
 
 let of_Block = (prefix, err_status, rev_path, rlines, r) =>
   term(

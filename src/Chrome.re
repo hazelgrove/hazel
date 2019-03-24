@@ -26,7 +26,7 @@ let view = (model: Model.t) => {
   let pp_view_width = 80;
   let prefix = "view";
   let rec mk_editor_box:
-    (EditorBox.rev_path, EditorBox.rev_paths, UHExp.t) => EditorBox.t =
+    (EditorBox.rev_path, EditorBox.rev_paths, UHExp.block) => EditorBox.t =
     (rev_path, rev_paths, e') =>
       EditorBox.mk(mk_editor_box, prefix, rev_path, rev_paths, model, e');
   let editor_box_rs: React.signal(EditorBox.t) =
@@ -117,7 +117,7 @@ let view = (model: Model.t) => {
   };
   let set_cursor = () => {
     let (ze, _, _) = React.S.value(edit_state_rs);
-    let (cursor_path, cursor_side) = Path.of_zexp(ze);
+    let (cursor_path, cursor_side) = Path.of_zblock(ze);
     set_cursor_to((cursor_path, cursor_side));
   };
   let clear_cursors = () => {
@@ -607,7 +607,7 @@ let view = (model: Model.t) => {
   let htype_view = R.Html5.div(ReactiveData.RList.from_signal(htype_rs));
   let move_to_hole = u =>
     switch (
-      Path.path_to_hole(Path.holes_exp(React.S.value(e_rs), [], []), u)
+      Path.path_to_hole(Path.holes_block(React.S.value(e_rs), [], []), u)
     ) {
     | Some(hole_path) =>
       do_action(Action.MoveTo(hole_path));
@@ -747,12 +747,12 @@ let view = (model: Model.t) => {
   let the_action_panel = ActionPanel.make(model, set_cursor);
 
   let serialize_onclick_handler = _ => {
-    JSUtil.log(Js.string(Serialize.string_of_uhexp(React.S.value(e_rs))));
+    JSUtil.log(Js.string(Serialize.string_of_block(React.S.value(e_rs))));
     true;
   };
 
   let deserialize_onclick_handler = (serialized, _) => {
-    replace_e(Deserialize.uhexp_of_string(serialized));
+    replace_e(Deserialize.block_of_string(serialized));
     true;
   };
 

@@ -2,13 +2,13 @@ open Sexplib;
 open Format;
 open LangUtil;
 
-let ensure_well_typed_before_serialization = uhexp =>
-  switch (Statics.syn_exp((VarMap.empty, PaletteCtx.empty), uhexp)) {
-  | None => raise(IllFormed(uhexp))
-  | _ => uhexp
+let ensure_well_typed_before_serialization = block =>
+  switch (Statics.syn_block((VarMap.empty, PaletteCtx.empty), block)) {
+  | None => raise(IllFormed(block))
+  | _ => block
   };
 
-let string_of_uhexp = e => {
-  let e = ensure_well_typed_before_serialization(e);
-  Sexp.to_string(UHExp.sexp_of_t(e));
+let string_of_block = block => {
+  let block = ensure_well_typed_before_serialization(block);
+  Sexp.to_string(UHExp.sexp_of_block(block));
 };

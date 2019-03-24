@@ -101,7 +101,7 @@ let make =
           | Some(arg) =>
             let a = action(arg);
             switch (
-              Action.syn_perform_exp(
+              Action.syn_perform_block(
                 (VarCtx.empty, Palettes.initial_palette_ctx),
                 a,
                 m,

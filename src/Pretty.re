@@ -19,7 +19,7 @@ module PP: {
     (
       rev_path,
       Palettes.view_type,
-      EditorBoxTypes.NatMap.t((HTyp.t, UHExp.t)),
+      EditorBoxTypes.NatMap.t((HTyp.t, UHExp.block)),
       EditorBoxTypes.mk_editor_box
     ) =>
     doc;
@@ -34,7 +34,7 @@ module PP: {
     | SPaletteView(
         rev_path,
         Palettes.view_type,
-        EditorBoxTypes.NatMap.t((HTyp.t, UHExp.t)),
+        EditorBoxTypes.NatMap.t((HTyp.t, UHExp.block)),
         EditorBoxTypes.mk_editor_box,
         sdoc,
       )
@@ -57,7 +57,7 @@ module PP: {
     | PaletteView(
         rev_path,
         Palettes.view_type,
-        EditorBoxTypes.NatMap.t((HTyp.t, UHExp.t)),
+        EditorBoxTypes.NatMap.t((HTyp.t, UHExp.block)),
         EditorBoxTypes.mk_editor_box,
       );
   let empty = Empty;
@@ -80,7 +80,7 @@ module PP: {
     | SPaletteView(
         rev_path,
         Palettes.view_type,
-        NatMap.t((HTyp.t, UHExp.t)),
+        NatMap.t((HTyp.t, UHExp.block)),
         EditorBoxTypes.mk_editor_box,
         sdoc,
       )

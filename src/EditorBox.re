@@ -38,7 +38,14 @@ let side_of_str_offset = (s, offset) =>
 
 exception InvalidExpression;
 let mk =
-    (mk_editor_box, prefix, rev_path, rev_paths, model: Model.t, e: UHExp.t)
+    (
+      mk_editor_box,
+      prefix,
+      rev_path,
+      rev_paths,
+      model: Model.t,
+      block: UHExp.block,
+    )
     : t => {
   let cursor_info_rs = model.cursor_info_rs;
   let do_action = model.do_action;
@@ -51,7 +58,7 @@ let mk =
 
   /* TODO figure out width stuff */
   let width = 80;
-  let doc = View.of_hexp(palette_stuff, prefix, rev_path, e);
+  let doc = View.of_hblock(palette_stuff, prefix, rev_path, block);
   let sdoc = Pretty.PP.sdoc_of_doc(width, doc, rev_paths);
   let view = Pretty.HTML_Of_SDoc.html_of_sdoc(sdoc, rev_paths);
   let pp_view =
@@ -243,7 +250,7 @@ let mk =
       preventDefault_handler,
     );
 
-  {e, pp_view, pp_view_dom, rev_paths};
+  {block, pp_view, pp_view_dom, rev_paths};
   /* TODO whatever calls this should wrap it in a div of class "ModelExp"
      Html5.(div(~a=[a_class(["ModelExp"])], [pp_view]));
      */

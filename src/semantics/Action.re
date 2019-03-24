@@ -3546,7 +3546,7 @@ and ana_perform_exp_subsume =
 let can_perform =
     (
       ctx: Contexts.t,
-      edit_state: (ZExp.t, HTyp.t, MetaVarGen.t),
+      edit_state: (ZExp.zblock, HTyp.t, MetaVarGen.t),
       ci: CursorInfo.t,
       a: t,
     )
@@ -3609,7 +3609,7 @@ let can_perform =
   | Delete
   | Backspace =>
     _TEST_PERFORM
-      ? switch (syn_perform_exp(ctx, a, edit_state)) {
+      ? switch (syn_perform_block(ctx, a, edit_state)) {
         | Some(_) => true
         | None => false
         }
