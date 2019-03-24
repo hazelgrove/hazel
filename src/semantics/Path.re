@@ -915,7 +915,7 @@ and holes_ze = (ze: ZExp.t, steps: steps): zhole_list =>
     | CaseZE(zblock, rules, ann) =>
       let {holes_before, hole_selected, holes_after} =
         holes_zblock(zblock, [0, ...steps]);
-      let holes_rules = holes_rules(rules, 0, steps, []);
+      let holes_rules = holes_rules(rules, 1, steps, []);
       let holes_ann =
         switch (ann) {
         | None => []
@@ -929,7 +929,7 @@ and holes_ze = (ze: ZExp.t, steps: steps): zhole_list =>
       };
     | CaseZR(block, zrules, ann) =>
       let {holes_before, hole_selected, holes_after} =
-        holes_zrules(zrules, steps);
+        holes_zrules(zrules, 1, steps);
       let holes_block = holes_block(block, [0, ...steps], []);
       let holes_ann =
         switch (ann) {
@@ -946,7 +946,7 @@ and holes_ze = (ze: ZExp.t, steps: steps): zhole_list =>
       let {holes_before, hole_selected, holes_after} =
         holes_zty(zann, [List.length(rules) + 1, ...steps]);
       let holes_block = holes_block(block, [0, ...steps], []);
-      let holes_rules = holes_rules(rules, 0, steps, []);
+      let holes_rules = holes_rules(rules, 1, steps, []);
       {
         holes_before: holes_block @ holes_rules @ holes_before,
         hole_selected,
@@ -990,13 +990,13 @@ and holes_ze = (ze: ZExp.t, steps: steps): zhole_list =>
       };
     }
   }
-and holes_zrules = (zrules: ZExp.zrules, steps: steps) => {
+and holes_zrules = (zrules: ZExp.zrules, offset: int, steps: steps) => {
   let (prefix, zrule, suffix) = ZList.prj(zrules);
-  let holes_prefix = holes_rules(prefix, 0, steps, []);
+  let holes_prefix = holes_rules(prefix, offset, steps, []);
   let prefix_len = List.length(prefix);
   let {holes_before, hole_selected, holes_after} =
     holes_zrule(zrule, prefix_len, steps);
-  let holes_suffix = holes_rules(suffix, prefix_len + 1, steps, []);
+  let holes_suffix = holes_rules(suffix, offset + 1 + prefix_len, steps, []);
   {
     holes_before: holes_prefix @ holes_before,
     hole_selected,
