@@ -2417,6 +2417,45 @@ and syn_perform_exp =
   | (Construct(SLet), CursorE(_, _)) =>
     /* handled at block or line level */
     None
+  | (
+      Construct(SLine),
+      DeeperE(_, CaseZR(e1, (prefix, RuleZP(zp, re), suffix), ann)),
+    )
+      when ZPat.is_before(zp) =>
+    let (zrule, u_gen) = ZExp.empty_zrule(u_gen);
+    let prev_rule = UHExp.Rule(ZPat.erase(zp), re);
+    let suffix = [prev_rule, ...suffix];
+    let ze =
+      ZExp.DeeperE(NotInHole, CaseZR(e1, (prefix, zrule, suffix), ann));
+    Some((ze, ty, u_gen));
+  | (
+      Construct(SLine),
+      DeeperE(
+        _,
+        CaseZR(e1, (prefix, RuleZE(_, ze) as zrule, suffix), ann),
+      ),
+    )
+      when ZExp.is_after_block(ze) =>
+    let prev_rule = ZExp.erase_rule(zrule);
+    let (zrule, u_gen) = ZExp.empty_zrule(u_gen);
+    let prefix = prefix @ [prev_rule];
+    let ze =
+      ZExp.DeeperE(NotInHole, CaseZR(e1, (prefix, zrule, suffix), ann));
+    Some((ze, ty, u_gen));
+  | (
+      Construct(SLine),
+      DeeperE(
+        _,
+        CaseZR(e1, (prefix, RuleZP(zp, _) as zrule, suffix), ann),
+      ),
+    )
+      when ZPat.is_after(zp) =>
+    let prev_rule = ZExp.erase_rule(zrule);
+    let (zrule, u_gen) = ZExp.empty_zrule(u_gen);
+    let prefix = prefix @ [prev_rule];
+    let ze =
+      ZExp.DeeperE(NotInHole, CaseZR(e1, (prefix, zrule, suffix), ann));
+    Some((ze, ty, u_gen));
   | (Construct(SCase), ze1) when ZExp.is_before_exp(ze1) =>
     let e1 = ZExp.erase(ze1);
     let ze =
@@ -3204,6 +3243,45 @@ and ana_perform_exp =
   | (Construct(SLet), CursorE(_, _)) =>
     /* handled at block or line level */
     None
+  | (
+      Construct(SLine),
+      DeeperE(_, CaseZR(e1, (prefix, RuleZP(zp, re), suffix), ann)),
+    )
+      when ZPat.is_before(zp) =>
+    let (zrule, u_gen) = ZExp.empty_zrule(u_gen);
+    let prev_rule = UHExp.Rule(ZPat.erase(zp), re);
+    let suffix = [prev_rule, ...suffix];
+    let ze =
+      ZExp.DeeperE(NotInHole, CaseZR(e1, (prefix, zrule, suffix), ann));
+    Some((ze, u_gen));
+  | (
+      Construct(SLine),
+      DeeperE(
+        _,
+        CaseZR(e1, (prefix, RuleZE(_, ze) as zrule, suffix), ann),
+      ),
+    )
+      when ZExp.is_after_block(ze) =>
+    let prev_rule = ZExp.erase_rule(zrule);
+    let (zrule, u_gen) = ZExp.empty_zrule(u_gen);
+    let prefix = prefix @ [prev_rule];
+    let ze =
+      ZExp.DeeperE(NotInHole, CaseZR(e1, (prefix, zrule, suffix), ann));
+    Some((ze, u_gen));
+  | (
+      Construct(SLine),
+      DeeperE(
+        _,
+        CaseZR(e1, (prefix, RuleZP(zp, _) as zrule, suffix), ann),
+      ),
+    )
+      when ZPat.is_after(zp) =>
+    let prev_rule = ZExp.erase_rule(zrule);
+    let (zrule, u_gen) = ZExp.empty_zrule(u_gen);
+    let prefix = prefix @ [prev_rule];
+    let ze =
+      ZExp.DeeperE(NotInHole, CaseZR(e1, (prefix, zrule, suffix), ann));
+    Some((ze, u_gen));
   | (Construct(SCase), ze1) when ZExp.is_before_exp(ze1) =>
     let e1 = ZExp.erase(ze1);
     let ze =
