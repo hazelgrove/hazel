@@ -2680,7 +2680,8 @@ and syn_perform_exp =
     | Some(zann) =>
       let ty1 = UHTyp.expand(ZTyp.erase(zann));
       let (p, ctx, u_gen) = Statics.ana_fix_holes_pat(ctx, u_gen, p, ty1);
-      let (e1, ty2, u_gen) = Statics.syn_fix_holes_block(ctx, u_gen, block);
+      let (block, ty2, u_gen) =
+        Statics.syn_fix_holes_block(ctx, u_gen, block);
       let ze = ZExp.DeeperE(NotInHole, LamZA(p, zann, block));
       Some((ze, Arrow(ty1, ty2), u_gen));
     }
@@ -2710,13 +2711,13 @@ and syn_perform_exp =
       let ty_side = pick_side(side, ty1, ty2);
       switch (syn_perform_block(ctx, a, (zblock, ty_side, u_gen))) {
       | None => None
-      | Some((ze1', ty_side', u_gen')) =>
+      | Some((zblock, ty_side', u_gen)) =>
         let ty' =
           switch (side) {
           | L => HTyp.Sum(ty_side', ty2)
           | R => HTyp.Sum(ty1, ty_side')
           };
-        Some((DeeperE(NotInHole, InjZ(side, ze1')), ty', u_gen'));
+        Some((DeeperE(NotInHole, InjZ(side, zblock)), ty', u_gen));
       };
     | _ => None /* should never happen */
     }
@@ -3376,7 +3377,7 @@ and ana_perform_exp =
           : {
             let (p, ctx, u_gen) =
               Statics.ana_fix_holes_pat(ctx, u_gen, p, ty1);
-            let (e1, _, u_gen) =
+            let (block, _, u_gen) =
               Statics.syn_fix_holes_block(ctx, u_gen, block);
             let (u, u_gen) = MetaVarGen.next(u_gen);
             let ze =
@@ -3402,7 +3403,7 @@ and ana_perform_exp =
       | Some(ctx) =>
         switch (ana_perform_block(ctx, a, (zblock, u_gen), ty2)) {
         | None => None
-        | Some((ze1, u_gen)) =>
+        | Some((zblock, u_gen)) =>
           let ze = ZExp.DeeperE(err, LamZE(p, ann, zblock));
           Some((ze, u_gen));
         }
@@ -3425,10 +3426,10 @@ and ana_perform_exp =
     | Some(ty1) =>
       switch (syn_perform_block(ctx, a, (zblock, ty1, u_gen))) {
       | None => None
-      | Some((ze1, ty1, u_gen)) =>
+      | Some((zblock, ty1, u_gen)) =>
         let (rules, u_gen) =
           Statics.ana_fix_holes_rules(ctx, u_gen, rules, ty1, ty);
-        let ze = ZExp.DeeperE(NotInHole, CaseZE(ze1, rules, ann));
+        let ze = ZExp.DeeperE(NotInHole, CaseZE(zblock, rules, ann));
         Some((ze, u_gen));
       }
     }
