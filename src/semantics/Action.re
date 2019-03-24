@@ -3014,15 +3014,15 @@ and ana_perform_block =
   | (_, DeeperB(_, BlockZL(zlines, e))) =>
     switch (syn_perform_lines(ctx, a, (zlines, u_gen))) {
     | None => None
-    | Some((zlines, ctx, u_gen)) =>
+    | Some((zlines, _, u_gen)) =>
       let zblock = ZExp.DeeperB(NotInHole, BlockZL(zlines, e));
       Some(Statics.ana_fix_holes_zblock(ctx, u_gen, zblock, ty));
     }
   | (_, DeeperB(_, BlockZE(lines, ze))) =>
     switch (Statics.syn_lines(ctx, lines)) {
     | None => None
-    | Some(ctx) =>
-      switch (ana_perform_exp(ctx, a, (ze, u_gen), ty)) {
+    | Some(ctx1) =>
+      switch (ana_perform_exp(ctx1, a, (ze, u_gen), ty)) {
       | None => None
       | Some((ze, u_gen)) =>
         let zblock = ZExp.DeeperB(NotInHole, BlockZE(lines, ze));
