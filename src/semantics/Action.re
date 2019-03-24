@@ -2414,10 +2414,29 @@ and syn_perform_exp =
     )
   /* Construction */
   | (Construct(SLine), CursorE(_, _))
-  | (Construct(SLet), CursorE(_, _))
-  | (Construct(SCase), CursorE(_, _)) =>
+  | (Construct(SLet), CursorE(_, _)) =>
     /* handled at block or line level */
     None
+  | (Construct(SCase), ze1) when ZExp.is_before_exp(ze1) =>
+    let e1 = ZExp.erase(ze1);
+    let ze =
+      switch (e1) {
+      | EmptyHole(_) =>
+        let (rule, u_gen) = UHExp.empty_rule(u_gen);
+        ZExp.DeeperE(
+          NotInHole,
+          CaseZE(ZExp.wrap_in_block(ze1), [rule], Some(Hole)),
+        );
+      | _ =>
+        let (zrule, u_gen) = ZExp.empty_zrule(u_gen);
+        let zrules = ZList.singleton(zrule);
+        ZExp.DeeperE(
+          NotInHole,
+          CaseZR(UHExp.wrap_in_block(e1), zrules, Some(Hole)),
+        );
+      };
+    Some((ze, Hole, u_gen));
+  | (Construct(SCase), CursorE(_, _)) => None
   | (Construct(SParenthesized), CursorE(_, _)) =>
     let zblock = ZExp.DeeperB(NotInHole, BlockZE([], ze));
     Some((ParenthesizedZ(zblock), ty, u_gen));
@@ -3182,10 +3201,29 @@ and ana_perform_exp =
     )
   /* Construction */
   | (Construct(SLine), CursorE(_, _))
-  | (Construct(SLet), CursorE(_, _))
-  | (Construct(SCase), CursorE(_, _)) =>
+  | (Construct(SLet), CursorE(_, _)) =>
     /* handled at block or line level */
     None
+  | (Construct(SCase), ze1) when ZExp.is_before_exp(ze1) =>
+    let e1 = ZExp.erase(ze1);
+    let ze =
+      switch (e1) {
+      | EmptyHole(_) =>
+        let (rule, u_gen) = UHExp.empty_rule(u_gen);
+        ZExp.DeeperE(
+          NotInHole,
+          CaseZE(ZExp.wrap_in_block(ze1), [rule], None),
+        );
+      | _ =>
+        let (zrule, u_gen) = ZExp.empty_zrule(u_gen);
+        let zrules = ZList.singleton(zrule);
+        ZExp.DeeperE(
+          NotInHole,
+          CaseZR(UHExp.wrap_in_block(e1), zrules, None),
+        );
+      };
+    Some((ze, u_gen));
+  | (Construct(SCase), CursorE(_, _)) => None
   | (Construct(SParenthesized), CursorE(_, _)) =>
     Some((ParenthesizedZ(ZExp.wrap_in_block(ze)), u_gen))
   | (Construct(SAsc), DeeperE(err_status, LamZP(zp, None, e1))) =>
