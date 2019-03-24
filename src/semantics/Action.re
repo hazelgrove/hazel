@@ -2363,7 +2363,39 @@ and syn_perform_exp =
     let (block, ty2, u_gen) = Statics.syn_fix_holes_block(ctx, u_gen, block);
     let ze = ZExp.DeeperE(NotInHole, LamZP(zp, None, block));
     Some((ze, Arrow(Hole, ty2), u_gen));
-  /* TODO need to add a case for deleting whole rules for case in synthetic position */
+  | (
+      Backspace,
+      DeeperE(_, CaseZR(e1, (prefix, RuleZP(zp, _), suffix), ann)),
+    )
+      when ZPat.is_before(zp) =>
+    switch (suffix) {
+    | [] =>
+      switch (prefix) {
+      | [] =>
+        let (zrule, u_gen) = ZExp.empty_zrule(u_gen);
+        let ze =
+          ZExp.DeeperE(NotInHole, CaseZR(e1, (prefix, zrule, suffix), ann));
+        Some((ze, ty, u_gen));
+      | [_, ..._] =>
+        switch (List.rev(prefix)) {
+        | [] => None
+        | [Rule(p2, e2), ...rev_prefix'] =>
+          let prefix' = List.rev(rev_prefix');
+          let zrule = ZExp.RuleZP(ZPat.place_before(p2), e2);
+          let ze =
+            ZExp.DeeperE(
+              NotInHole,
+              CaseZR(e1, (prefix', zrule, suffix), ann),
+            );
+          Some((ze, ty, u_gen));
+        }
+      }
+    | [Rule(p2, e2), ...suffix'] =>
+      let zrule = ZExp.RuleZP(ZPat.place_before(p2), e2);
+      let ze =
+        ZExp.DeeperE(NotInHole, CaseZR(e1, (prefix, zrule, suffix'), ann));
+      Some((ze, ty, u_gen));
+    }
   | (Backspace, DeeperE(_, CaseZA(e1, rules, zann)))
       when ZTyp.is_before(zann) =>
     /* can't delete annotation on case in synthetic position */
