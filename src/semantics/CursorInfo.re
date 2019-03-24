@@ -384,7 +384,8 @@ and ana_cursor_found_exp =
     Some(mk_cursor_info(AnaFree(ty), IsExpr(e), side, ctx))
   | Tm(NotInHole, Case(_, _, _)) =>
     Some(mk_cursor_info(Analyzed(ty), IsExpr(e), side, ctx))
-  | Tm(NotInHole, ListNil)
+  | Tm(NotInHole, ListNil) =>
+    Some(mk_cursor_info(Analyzed(ty), IsExpr(e), side, ctx))
   | Tm(InHole(WrongLength, _), _) => None
   | Tm(NotInHole, Lam(_, ann, _)) =>
     switch (HTyp.matched_arrow(ty)) {
