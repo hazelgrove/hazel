@@ -728,7 +728,8 @@ let rec holes_zblock = (zblock: ZExp.zblock, steps: steps): zhole_list =>
     let holes_e = holes_exp(e, [ZList.length(zlines), ...steps], []);
     {holes_before, hole_selected, holes_after: holes_after @ holes_e};
   | DeeperB(_, BlockZE(lines, ze)) =>
-    let {holes_before, hole_selected, holes_after} = holes_ze(ze, steps);
+    let {holes_before, hole_selected, holes_after} =
+      holes_ze(ze, [List.length(lines), ...steps]);
     let holes_lines = holes_lines(lines, 0, steps, []);
     {holes_before: holes_lines @ holes_before, hole_selected, holes_after};
   }
