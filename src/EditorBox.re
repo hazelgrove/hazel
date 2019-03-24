@@ -66,10 +66,8 @@ let mk =
               let cursor_info = React.S.value(cursor_info_rs);
               switch (cursor_info.sort) {
               | CursorInfo.IsLine(UHExp.EmptyLine)
-              | CursorInfo.IsLine(
-                  UHExp.ExpLine(UHExp.Tm(_, UHExp.EmptyHole(_))),
-                )
-              | CursorInfo.IsExpr(UHExp.Tm(_, UHExp.EmptyHole(_)))
+              | CursorInfo.IsLine(UHExp.ExpLine(UHExp.EmptyHole(_)))
+              | CursorInfo.IsExpr(UHExp.EmptyHole(_))
               | CursorInfo.IsPat(UHPat.Pat(_, UHPat.EmptyHole(_)))
               | CursorInfo.IsPat(UHPat.Pat(_, UHPat.Var(_, ""))) =>
                 let shape =
@@ -123,7 +121,8 @@ let mk =
               | CursorInfo.IsLine(_)
               | CursorInfo.IsExpr(_)
               | CursorInfo.IsPat(_)
-              | CursorInfo.IsType => true
+              | CursorInfo.IsType
+              | CursorInfo.IsBlock(_) => true
               };
             | None =>
               let is_backspace =
