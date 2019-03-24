@@ -9,6 +9,7 @@ module PP: {
   type cls = string;
   type id = string;
   let empty: doc;
+  let isEmpty: doc => bool;
   let (^^): (doc, doc) => doc;
   let nestRelative: (int, doc) => doc;
   let nestAbsolute: (int, doc) => doc;
@@ -61,6 +62,10 @@ module PP: {
         EditorBoxTypes.mk_editor_box,
       );
   let empty = Empty;
+  let isEmpty =
+    fun
+    | Empty => true
+    | _ => false;
   let (^^) = (x, y) => Concat(x, y);
   let nestRelative = (n, x) => NestRelative(n, x);
   let nestAbsolute = (n, x) => NestAbsolute(n, x);

@@ -313,14 +313,15 @@ let of_lines = (prefix, rline_lst) =>
     )
   };
 
-let of_Block = (prefix, err_status, rev_path, rlines, r) =>
-  term(
-    prefix,
-    err_status,
-    rev_path,
-    "Block",
-    rlines ^^ PP.mandatoryBreak ^^ r,
-  );
+let of_Block = (prefix, err_status, rev_path, rlines, r1) => {
+  let r =
+    if (PP.isEmpty(rlines)) {
+      r1;
+    } else {
+      rlines ^^ PP.mandatoryBreak ^^ r1;
+    };
+  term(prefix, err_status, rev_path, "Block", r);
+};
 
 let of_Let = (prefix, err_status, rev_path, rx, rann, r1, r2) => {
   let first_part = PP.blockBoundary ^^ kw("let") ^^ space ^^ rx;
