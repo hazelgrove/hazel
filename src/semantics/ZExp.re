@@ -63,6 +63,36 @@ let bidelimit = (ze: t): t =>
     ParenthesizedZ(DeeperB(NotInHole, BlockZE([], ze)))
   };
 
+exception SkelInconsistentWithOpSeq;
+
+let rec get_err_status_block = (zblock: zblock): err_status =>
+  switch (zblock) {
+  | CursorB(_, block) => UHExp.get_err_status_block(block)
+  | DeeperB(err_status, _) => err_status
+  }
+and get_err_status_t = (ze: t): err_status =>
+  switch (ze) {
+  | CursorE(_, e) => UHExp.get_err_status_t(e)
+  | ParenthesizedZ(zblock) => get_err_status_block(zblock)
+  | OpSeqZ(skel, ze_n, surround) =>
+    get_err_status_opseq(skel, ze_n, surround)
+  | DeeperE(err, _) => err
+  }
+and get_err_status_opseq =
+    (skel: UHExp.skel_t, ze_n: t, surround: opseq_surround): err_status =>
+  switch (skel) {
+  | Placeholder(m) =>
+    if (m === OperatorSeq.surround_prefix_length(surround)) {
+      get_err_status_t(ze_n);
+    } else {
+      switch (OperatorSeq.surround_nth(m, surround)) {
+      | None => raise(SkelInconsistentWithOpSeq)
+      | Some(e_m) => UHExp.get_err_status_t(e_m)
+      };
+    }
+  | BinOp(err, _, _, _) => err
+  };
+
 let rec set_err_status_block = (err: err_status, zblock: zblock): zblock =>
   switch (zblock) {
   | CursorB(side, block) =>
@@ -76,13 +106,41 @@ and set_err_status_t = (err: err_status, ze: t): t =>
   | CursorE(cursor_side, e) =>
     let e = UHExp.set_err_status_t(err, e);
     CursorE(cursor_side, e);
-  | OpSeqZ(BinOp(_, op, skel1, skel2), ze0, surround) =>
-    OpSeqZ(BinOp(err, op, skel1, skel2), ze0, surround)
-  | OpSeqZ(Placeholder(_), _, _) => ze /* should never happen */
+  | OpSeqZ(skel, ze_n, surround) =>
+    let (skel, ze_n, surround) =
+      set_err_status_opseq(err, skel, ze_n, surround);
+    OpSeqZ(skel, ze_n, surround);
   | DeeperE(_, ze') => DeeperE(err, ze')
+  }
+and set_err_status_opseq =
+    (err: err_status, skel: UHExp.skel_t, ze_n: t, surround: opseq_surround)
+    : (UHExp.skel_t, t, opseq_surround) =>
+  switch (skel) {
+  | Placeholder(m) =>
+    if (m === OperatorSeq.surround_prefix_length(surround)) {
+      let ze_n = set_err_status_t(err, ze_n);
+      (skel, ze_n, surround);
+    } else {
+      switch (OperatorSeq.surround_nth(m, surround)) {
+      | None => raise(SkelInconsistentWithOpSeq)
+      | Some(e_m) =>
+        let e_m = UHExp.set_err_status_t(err, e_m);
+        switch (OperatorSeq.surround_update_nth(m, surround, e_m)) {
+        | None => raise(SkelInconsistentWithOpSeq)
+        | Some(surround) => (skel, ze_n, surround)
+        };
+      };
+    }
+  | BinOp(_, op, skel1, skel2) =>
+    let skel = Skel.BinOp(err, op, skel1, skel2);
+    (skel, ze_n, surround);
   };
 
-exception SkelInconsistentWithOpSeq;
+let wrap_in_block = (ze: t): zblock => {
+  let err_status = get_err_status_t(ze);
+  let ze = set_err_status_t(NotInHole, ze);
+  set_err_status_block(err_status, DeeperB(NotInHole, BlockZE([], ze)));
+};
 
 let rec make_block_inconsistent =
         (u_gen: MetaVarGen.t, zblock: zblock): (zblock, MetaVarGen.t) =>

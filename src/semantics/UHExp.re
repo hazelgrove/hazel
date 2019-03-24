@@ -126,6 +126,20 @@ let bidelimit = (e: t): t =>
     Parenthesized(Block(NotInHole, [], e));
   };
 
+let rec get_err_status_block = (Block(err_status, _, _): block): err_status => err_status
+and get_err_status_t = (e: t): err_status =>
+  switch (e) {
+  | Tm(err_status, _) => err_status
+  | Parenthesized(block) => get_err_status_block(block)
+  | EmptyHole(_) => NotInHole
+  | OpSeq(BinOp(err_status, _, _, _), _) => err_status
+  | OpSeq(Placeholder(n) as skel, seq) =>
+    switch (OperatorSeq.seq_nth(n, seq)) {
+    | None => raise(SkelInconsistentWithOpSeq(skel, seq))
+    | Some(en) => get_err_status_t(en)
+    }
+  };
+
 let set_err_status_block =
     (err: err_status, Block(_, lines, e): block): block =>
   Block(err, lines, e);
@@ -219,3 +233,9 @@ let rec split_last_line = (lines: lines): option((lines, line)) =>
     | Some((lis, last_li)) => Some(([li, ...lis], last_li))
     }
   };
+
+let wrap_in_block = (e: t): block => {
+  let err_status = get_err_status_t(e);
+  let e = set_err_status_t(NotInHole, e);
+  set_err_status_block(err_status, Block(NotInHole, [], e));
+};
