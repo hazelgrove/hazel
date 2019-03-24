@@ -2814,7 +2814,7 @@ and syn_perform_exp =
         | None => None
         | Some((zp, ctx, u_gen)) =>
           let ty = UHTyp.expand(uty);
-          let (e, u_gen) =
+          let (clause, u_gen) =
             Statics.ana_fix_holes_block(ctx, u_gen, clause, ty);
           let zrule = ZExp.RuleZP(zp, clause);
           let ze =
@@ -3496,7 +3496,7 @@ and ana_perform_exp =
         | Some(ctx) =>
           switch (ana_perform_block(ctx, a, (zclause, u_gen), ty)) {
           | None => None
-          | Some((ze, u_gen)) =>
+          | Some((zclause, u_gen)) =>
             let zrule = ZExp.RuleZE(p, zclause);
             let ze =
               ZExp.DeeperE(
