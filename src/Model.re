@@ -1,9 +1,8 @@
 type edit_state = (ZExp.t, HTyp.t, MetaVarGen.t);
 let u_gen0: MetaVarGen.t = (MetaVarGen.init: MetaVar.t);
 let (u, u_gen1) = MetaVarGen.next(u_gen0);
-let empty_ze =
-  ZExp.CursorE(Before, UHExp.Tm(NotInHole, UHExp.EmptyHole(u)));
-let empty: edit_state = ((empty_ze, HTyp.Hole, u_gen1): edit_state);
+let empty_ze = ZExp.CursorE(Before, EmptyHole(u));
+let empty: edit_state = ((empty_ze, Hole, u_gen1): edit_state);
 let empty_erasure = ZExp.erase(empty_ze);
 type edit_state_rs = React.signal(edit_state);
 type code_history_rs = React.signal(CodeHistory.t);
@@ -121,7 +120,7 @@ let new_model = (): t => {
       ) => {
         let new_path =
           switch (sort) {
-          | CursorInfo.IsExpr(UHExp.Tm(_, UHExp.EmptyHole(u))) =>
+          | CursorInfo.IsExpr(EmptyHole(u)) =>
             let usi = React.S.value(user_selected_instances_rs);
             switch (MetaVarMap.lookup(usi, u)) {
             | Some(i) => Some((u, i))
@@ -143,7 +142,7 @@ let new_model = (): t => {
 
   let do_action = action =>
     switch (
-      Action.perform_syn(
+      Action.syn_perform_exp(
         (VarCtx.empty, Palettes.initial_palette_ctx),
         action,
         React.S.value(edit_state_rs),
