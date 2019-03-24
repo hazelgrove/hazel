@@ -86,13 +86,13 @@ let optionalBreakSp = PP.optionalBreak(" ");
 let optionalBreakNSp = PP.optionalBreak("");
 
 /* Parenthesized */
-let of_Parenthesized = (is_block, prefix, err_status, rev_path, r1) =>
+let of_Parenthesized = (is_multi_line, prefix, err_status, rev_path, r1) =>
   term(
     prefix,
     err_status,
     rev_path,
     "Parenthesized",
-    is_block
+    is_multi_line
       ? PP.blockBoundary
         ^^ lparen("(")
         ^^ PP.nestAbsolute(2, r1)
@@ -135,10 +135,10 @@ let of_ty_op = op => {
   };
 };
 
-let of_Hole = (prefix, err_status, rev_path, cls, hole_name) =>
+let of_Hole = (prefix, rev_path, cls, hole_name) =>
   term(
     prefix,
-    err_status,
+    NotInHole,
     rev_path,
     cls,
     taggedText("hole-before-1", "​​")
@@ -219,7 +219,7 @@ let rec of_htype = (parenthesize, prefix, rev_path, ty) => {
       let r1 = of_htype(paren1, prefix, rev_path1, ty1);
       let r2 = of_htype(paren2, prefix, rev_path2, ty2);
       of_ty_BinOp(prefix, NotInHole, rev_path, r1, UHTyp.Prod, r2);
-    | HTyp.Hole => of_Hole(prefix, NotInHole, rev_path, "Hole", "?")
+    | HTyp.Hole => of_Hole(prefix, rev_path, "Hole", "?")
     };
   parenthesize ? lparen("(") ^^ d ^^ rparen(")") : d;
 };
@@ -244,7 +244,7 @@ let rec of_uhtyp = (prefix, rev_path, uty) =>
       "OpSeq",
       of_uhtyp_skel(prefix, rev_path, skel, seq),
     )
-  | UHTyp.Hole => of_Hole(prefix, NotInHole, rev_path, "Hole", "?")
+  | UHTyp.Hole => of_Hole(prefix, rev_path, "Hole", "?")
   }
 and of_uhtyp_skel = (prefix, rev_path, skel, seq) =>
   switch (skel) {
@@ -303,13 +303,20 @@ let of_LetLine = (prefix, rev_path, rx, rann, r1) => {
   line(prefix, rev_path, "LetLine", view);
 };
 
-let of_LineItem = (prefix, err_status, rev_path, rli, r2) =>
+let of_lines = (prefix, rline_lst) =>
+  List.fold_left(
+    (rlines, rline) => rlines ^^ PP.mandatoryBreak ^^ rline,
+    PP.empty,
+    rline_lst,
+  );
+
+let of_Block = (prefix, err_status, rev_path, rlines, r) =>
   term(
     prefix,
     err_status,
     rev_path,
-    "LineItem",
-    rli ^^ PP.mandatoryBreak ^^ r2,
+    "Block",
+    rlines ^^ PP.mandatoryBreak ^^ r,
   );
 
 let of_Let = (prefix, err_status, rev_path, rx, rann, r1, r2) => {
@@ -498,11 +505,11 @@ let of_chained_FailedCast =
     ^^ rparen(">"),
   );
 
-let is_block = e =>
-  switch (e) {
-  | UHExp.Tm(_, UHExp.LineItem(_, _)) => true
-  | UHExp.Tm(_, UHExp.Case(_, _, _)) => true
-  | _ => false
+let is_multi_line = (block: UHExp.block): bool =>
+  switch (block) {
+  | Block(_, [], Tm(_, Case(_, _, _))) => true
+  | Block(_, [], e) => false
+  | Block(_, [_, ..._], _) => true
   };
 
 type palette_stuff = {
@@ -558,13 +565,7 @@ let rec of_hpat = (prefix, rev_path, p) =>
   | UHPat.Pat(err_status, p') =>
     switch (p') {
     | UHPat.EmptyHole(u) =>
-      of_Hole(
-        prefix,
-        err_status,
-        rev_path,
-        "EmptyHole",
-        string_of_int(u + 1),
-      )
+      of_Hole(prefix, rev_path, "EmptyHole", string_of_int(u + 1))
     | UHPat.Wild => of_Wild(prefix, err_status, rev_path)
     | UHPat.Var(InVHole(Free, _), _) => raise(FreeVarInPat)
     | UHPat.Var(InVHole(Keyword(k), u), x) =>
@@ -644,81 +645,99 @@ let of_Times_with_space = (prefix, err_status, rev_path, r1, op, r2) =>
     r1 ^^ of_op(" * ", "op-Times") ^^ r2,
   );
 
-let rec prepare_Parenthesized_exp = e =>
-  switch (e) {
-  | UHExp.Parenthesized(e1) =>
-    let (err_status, e1_not_in_hole) = prepare_Parenthesized_exp(e1);
-    (err_status, UHExp.Parenthesized(e1_not_in_hole));
-  | UHExp.Tm(NotInHole as err_status, _) => (err_status, e)
-  | UHExp.Tm(err_status, _) => (
-      err_status,
-      UHExp.set_err_status_t(NotInHole, e),
-    )
-  };
+let prepare_Parenthesized_block =
+    (block: UHExp.block): (err_status, UHExp.block) => (
+  UHExp.get_err_status_block(block),
+  UHExp.set_err_status_block(NotInHole, block),
+);
 
-let rec of_hexp = (palette_stuff, prefix, rev_path, e) =>
+let rec of_hblock =
+        (palette_stuff, prefix, rev_path, Block(err, lines, e): UHExp.block) => {
+  let rlines = of_hlines(palette_stuff, prefix, rev_path, lines);
+  let r =
+    of_hexp(palette_stuff, prefix, [List.length(lines), ...rev_path], e);
+  of_Block(prefix, err, rev_path, rlines, r);
+}
+and of_hlines = (palette_stuff, prefix, rev_path, lines: UHExp.lines) => {
+  let rline_lst =
+    List.mapi(
+      (i, line) => of_hline(palette_stuff, prefix, [i, ...rev_path], line),
+      lines,
+    );
+  of_lines(prefix, rline_lst);
+}
+and of_hline = (palette_stuff, prefix, rev_path, line: UHExp.line) =>
+  switch (line) {
+  | EmptyLine => of_EmptyLine(prefix, rev_path)
+  | LetLine(p, ann, e1) =>
+    let rp = of_hpat(prefix, [0, ...rev_path], p);
+    let rann =
+      switch (ann) {
+      | Some(uty1) => Some(of_uhtyp(prefix, [1, ...rev_path], uty1))
+      | None => None
+      };
+    let r1 = of_hblock(palette_stuff, prefix, [2, ...rev_path], e1);
+    of_LetLine(prefix, rev_path, rp, rann, r1);
+  | ExpLine(e1) =>
+    let r1 = of_hexp(palette_stuff, prefix, [0, ...rev_path], e1);
+    of_ExpLine(prefix, rev_path, r1);
+  }
+and of_hexp = (palette_stuff, prefix, rev_path, e: UHExp.t) =>
   switch (e) {
-  | UHExp.Parenthesized(e1) =>
-    let (err_status, e1_not_in_hole) = prepare_Parenthesized_exp(e1);
-    let rev_path1 = [0, ...rev_path];
-    let r1 = of_hexp(palette_stuff, prefix, rev_path1, e1_not_in_hole);
-    of_Parenthesized(is_block(e1), prefix, err_status, rev_path, r1);
-  | UHExp.Tm(err_status, e') =>
+  | EmptyHole(u) =>
+    of_Hole(prefix, rev_path, "EmptyHole", string_of_int(u + 1))
+  | OpSeq(skel, seq) =>
+    term(
+      prefix,
+      UHExp.get_err_status_t(e),
+      rev_path,
+      "OpSeq",
+      of_skel(palette_stuff, prefix, rev_path, skel, seq),
+    )
+  | Parenthesized(block) =>
+    let (err_status, block_not_in_hole) = prepare_Parenthesized_block(block);
+    let rev_path_block = [0, ...rev_path];
+    let r_block =
+      of_hblock(palette_stuff, prefix, rev_path_block, block_not_in_hole);
+    of_Parenthesized(
+      is_multi_line(block),
+      prefix,
+      err_status,
+      rev_path,
+      r_block,
+    );
+  | Tm(err_status, e') =>
     switch (e') {
-    | UHExp.Var(var_err_status, x) =>
+    | Var(var_err_status, x) =>
       of_Var(prefix, err_status, var_err_status, rev_path, x)
-    | UHExp.LineItem(li, e2) =>
-      let rev_path_li = [0, ...rev_path];
-      let rli =
-        switch (li) {
-        | UHExp.EmptyLine => of_EmptyLine(prefix, rev_path_li)
-        | UHExp.LetLine(p, ann, e1) =>
-          let rp = of_hpat(prefix, [0, ...rev_path_li], p);
-          let rann =
-            switch (ann) {
-            | Some(uty1) =>
-              Some(of_uhtyp(prefix, [1, ...rev_path_li], uty1))
-            | None => None
-            };
-          let r1 = of_hexp(palette_stuff, prefix, [2, ...rev_path_li], e1);
-          of_LetLine(prefix, rev_path_li, rp, rann, r1);
-        | UHExp.ExpLine(e1) =>
-          let r1 = of_hexp(palette_stuff, prefix, [0, ...rev_path_li], e1);
-          of_ExpLine(prefix, rev_path_li, r1);
-        };
-      let r2 = of_hexp(palette_stuff, prefix, [1, ...rev_path], e2);
-      of_LineItem(prefix, err_status, rev_path, rli, r2);
-    | UHExp.Lam(p, ann, e1) =>
+    | Lam(p, ann, e1) =>
       let rp = of_hpat(prefix, [0, ...rev_path], p);
       let rann =
         switch (ann) {
         | Some(uty1) => Some(of_uhtyp(prefix, [1, ...rev_path], uty1))
         | None => None
         };
-      let r1 = of_hexp(palette_stuff, prefix, [2, ...rev_path], e1);
+      let r1 = of_hblock(palette_stuff, prefix, [2, ...rev_path], e1);
       of_Lam(prefix, err_status, rev_path, rp, rann, r1);
-    | UHExp.BoolLit(b) => of_BoolLit(prefix, err_status, rev_path, b)
-    | UHExp.NumLit(n) => of_NumLit(prefix, err_status, rev_path, n)
-    | UHExp.ListNil => of_ListNil(prefix, err_status, rev_path)
-    | UHExp.Inj(side, e) =>
+    | BoolLit(b) => of_BoolLit(prefix, err_status, rev_path, b)
+    | NumLit(n) => of_NumLit(prefix, err_status, rev_path, n)
+    | ListNil => of_ListNil(prefix, err_status, rev_path)
+    | Inj(side, e) =>
       let rev_path1 = [0, ...rev_path];
-      let r1 = of_hexp(palette_stuff, prefix, rev_path1, e);
+      let r1 = of_hblock(palette_stuff, prefix, rev_path1, e);
       of_Inj(prefix, err_status, rev_path, side, r1);
-    | UHExp.Case(e1, rules, ann) =>
+    | Case(e1, rules, ann) =>
       let rev_path1 = [0, ...rev_path];
-      let r1 = of_hexp(palette_stuff, prefix, rev_path1, e1);
+      let r1 = of_hblock(palette_stuff, prefix, rev_path1, e1);
       let rpcs =
         List.mapi(
-          (i, rule) => {
+          (i, Rule(p, c): UHExp.rule) => {
             let rev_pathr = [i + 1, ...rev_path];
-            switch (rule) {
-            | UHExp.Rule(p, c) =>
-              let rev_pathp = [0, ...rev_pathr];
-              let rev_pathc = [1, ...rev_pathr];
-              let rp = of_hpat(prefix, rev_pathp, p);
-              let rc = of_hexp(palette_stuff, prefix, rev_pathc, c);
-              (rp, rc);
-            };
+            let rev_pathp = [0, ...rev_pathr];
+            let rev_pathc = [1, ...rev_pathr];
+            let rp = of_hpat(prefix, rev_pathp, p);
+            let rc = of_hblock(palette_stuff, prefix, rev_pathc, c);
+            (rp, rc);
           },
           rules,
         );
@@ -730,24 +749,7 @@ let rec of_hexp = (palette_stuff, prefix, rev_path, e) =>
           Some(of_uhtyp(prefix, rev_path_ann, uty1));
         };
       of_Case(prefix, err_status, rev_path, r1, rpcs, rann);
-    | UHExp.EmptyHole(u) =>
-      of_Hole(
-        prefix,
-        err_status,
-        rev_path,
-        "EmptyHole",
-        string_of_int(u + 1),
-      )
-    | UHExp.OpSeq(skel, seq) =>
-      term(
-        prefix,
-        err_status,
-        rev_path,
-        "OpSeq",
-        of_skel(palette_stuff, prefix, rev_path, skel, seq),
-      )
-    | UHExp.ApPalette(name, serialized_model, psi) =>
-      raise(InvariantViolated)
+    | ApPalette(name, serialized_model, psi) => raise(InvariantViolated)
     /* switch (
          Palettes.PaletteViewCtx.lookup(palette_stuff.palette_view_ctx, name)
        ) {
