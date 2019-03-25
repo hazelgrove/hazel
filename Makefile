@@ -1,9 +1,7 @@
 all:
-	-dune build src @fmt --auto-promote
-	dune build src
+	-dune build src @src/fmt --auto-promote
 
 debug:
-	-dune build src @fmt --auto-promote
 	dune build src --profile debug
 
 deps:
