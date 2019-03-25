@@ -256,10 +256,10 @@ and ana_skel_pat = (ctx, skel, seq, ty, monitor) =>
     | HTyp.Prod(ty1, ty2) =>
       let types = HTyp.get_tuple(ty1, ty2);
       let skels = UHPat.get_tuple(skel1, skel2);
-      switch (TupleList.zip_eq(skels, types)) {
+      switch (ListMinTwo.zip_eq(skels, types)) {
       | None => None
       | Some(zipped) =>
-        TupleList.fold_left(
+        ListMinTwo.fold_left(
           (opt_result, skel_ty: (UHPat.skel_t, HTyp.t)) =>
             switch (opt_result) {
             | None => None
@@ -293,14 +293,14 @@ and ana_skel_pat = (ctx, skel, seq, ty, monitor) =>
     | HTyp.Prod(ty1, ty2) =>
       let types = HTyp.get_tuple(ty1, ty2);
       let skels = UHPat.get_tuple(skel1, skel2);
-      let n_types = TupleList.length(types);
-      let n_skels = TupleList.length(skels);
+      let n_types = ListMinTwo.length(types);
+      let n_skels = ListMinTwo.length(skels);
       n_types == n_skels
         ? None  /* make sure the lengths are actually different */
         : {
           let (zipped, remainder) = HTyp.zip_with_skels(skels, types);
           let ana_zipped: option((Contexts.t, option(type_mode))) =
-            TupleList.fold_left(
+            ListMinTwo.fold_left(
               (opt_result, skel_ty: (UHPat.skel_t, HTyp.t)) =>
                 switch (opt_result) {
                 | None => None
@@ -767,10 +767,10 @@ and ana_skel = (ctx, skel, seq, ty, monitor) =>
     | HTyp.Prod(ty1, ty2) =>
       let types = HTyp.get_tuple(ty1, ty2);
       let skels = UHExp.get_tuple(skel1, skel2);
-      switch (TupleList.zip_eq(skels, types)) {
+      switch (ListMinTwo.zip_eq(skels, types)) {
       | None => None
       | Some(zipped) =>
-        TupleList.fold_left(
+        ListMinTwo.fold_left(
           (opt_result, skel_ty: (UHExp.skel_t, HTyp.t)) =>
             switch (opt_result) {
             | None => None
@@ -804,14 +804,14 @@ and ana_skel = (ctx, skel, seq, ty, monitor) =>
     | HTyp.Prod(ty1, ty2) =>
       let types = HTyp.get_tuple(ty1, ty2);
       let skels = UHExp.get_tuple(skel1, skel2);
-      let n_types = TupleList.length(types);
-      let n_skels = TupleList.length(skels);
+      let n_types = ListMinTwo.length(types);
+      let n_skels = ListMinTwo.length(skels);
       n_types == n_skels
         ? None  /* make sure the lengths are actually different */
         : {
           let (zipped, remainder) = HTyp.zip_with_skels(skels, types);
           let ana_zipped: option(option(type_mode)) = (
-            TupleList.fold_left(
+            ListMinTwo.fold_left(
               (opt_result, skel_ty: (UHExp.skel_t, HTyp.t)) =>
                 switch (opt_result) {
                 | None => None
@@ -1156,7 +1156,7 @@ and ana_skel_pat_fix_holes =
           (
             (skel, ty): (UHPat.skel_t, HTyp.t),
             (skels, seq, ctx, u_gen): (
-              TupleList.t(UHPat.skel_t),
+              ListMinTwo.t(UHPat.skel_t),
               UHPat.opseq,
               Contexts.t,
               MetaVarGen.t,
@@ -1171,7 +1171,7 @@ and ana_skel_pat_fix_holes =
             seq,
             ty,
           );
-        (TupleList.Cons(skel, skels), seq, ctx, u_gen);
+        (ListMinTwo.Cons(skel, skels), seq, ctx, u_gen);
       };
       let f0 =
           (
@@ -1194,18 +1194,18 @@ and ana_skel_pat_fix_holes =
             renumber_empty_holes,
             skel2,
             seq,
-            ty,
+            ty2,
           );
-        (TupleList.Pair(skel1, skel2), seq, ctx, u_gen);
+        (ListMinTwo.Pair(skel1, skel2), seq, ctx, u_gen);
       };
-      switch (TupleList.zip_eq(skels, types)) {
+      switch (ListMinTwo.zip_eq(skels, types)) {
       | Some(zipped) =>
-        let (skels, seq, ctx, u_gen) = TupleList.fold_right(f, zipped, f0);
+        let (skels, seq, ctx, u_gen) = ListMinTwo.fold_right(f, zipped, f0);
         let skel = UHPat.make_tuple(NotInHole, skels);
         (skel, seq, ctx, u_gen);
       | None =>
         let (zipped, remainder) = HTyp.zip_with_skels(skels, types);
-        let (skels1, seq, ctx, u_gen) = TupleList.fold_right(f, zipped, f0);
+        let (skels1, seq, ctx, u_gen) = ListMinTwo.fold_right(f, zipped, f0);
         let (skels2, seq, ctx, u_gen) =
           List.fold_right(
             (skel: UHPat.skel_t, (skels, seq, ctx, u_gen)) => {
@@ -1222,7 +1222,7 @@ and ana_skel_pat_fix_holes =
             remainder,
             ([], seq, ctx, u_gen),
           );
-        let skels = TupleList.append_list(skels1, skels2);
+        let skels = ListMinTwo.append_list(skels1, skels2);
         let (u, u_gen) = MetaVarGen.next(u_gen);
         let skel = UHPat.make_tuple(InHole(WrongLength, u), skels);
         (skel, seq, ctx, u_gen);
@@ -1852,14 +1852,14 @@ and ana_skel_fix_holes =
           (
             (skel, ty): (UHExp.skel_t, HTyp.t),
             (skels, seq, u_gen): (
-              TupleList.t(UHExp.skel_t),
+              ListMinTwo.t(UHExp.skel_t),
               UHExp.opseq,
               MetaVarGen.t,
             ),
           ) => {
         let (skel, seq, u_gen) =
           ana_skel_fix_holes(ctx, u_gen, renumber_empty_holes, skel, seq, ty);
-        (TupleList.Cons(skel, skels), seq, u_gen);
+        (ListMinTwo.Cons(skel, skels), seq, u_gen);
       };
       let f0 =
           (
@@ -1880,20 +1880,20 @@ and ana_skel_fix_holes =
             ctx,
             u_gen,
             renumber_empty_holes,
-            skel1,
+            skel2,
             seq,
             ty2,
           );
-        (TupleList.Pair(skel1, skel2), seq, u_gen);
+        (ListMinTwo.Pair(skel1, skel2), seq, u_gen);
       };
-      switch (TupleList.zip_eq(skels, types)) {
+      switch (ListMinTwo.zip_eq(skels, types)) {
       | Some(zipped) =>
-        let (skels, seq, u_gen) = TupleList.fold_right(f, zipped, f0);
+        let (skels, seq, u_gen) = ListMinTwo.fold_right(f, zipped, f0);
         let skel = UHExp.make_tuple(NotInHole, skels);
         (skel, seq, u_gen);
       | None =>
         let (zipped, remainder) = HTyp.zip_with_skels(skels, types);
-        let (skels1, seq, u_gen) = TupleList.fold_right(f, zipped, f0);
+        let (skels1, seq, u_gen) = ListMinTwo.fold_right(f, zipped, f0);
         let (skels2, seq, u_gen) =
           List.fold_right(
             (skel: UHExp.skel_t, (skels, seq, u_gen)) => {
@@ -1910,7 +1910,7 @@ and ana_skel_fix_holes =
             remainder,
             ([], seq, u_gen),
           );
-        let skels = TupleList.append_list(skels1, skels2);
+        let skels = ListMinTwo.append_list(skels1, skels2);
         let (u, u_gen) = MetaVarGen.next(u_gen);
         let skel = UHExp.make_tuple(InHole(WrongLength, u), skels);
         (skel, seq, u_gen);

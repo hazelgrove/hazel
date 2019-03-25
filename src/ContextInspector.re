@@ -108,7 +108,7 @@ let mk =
         Html5.(
           div(
             ~a=[a_class(["the-context"])],
-            List.rev_map(context_entry(sigma), ctx_list),
+            List.map(context_entry(sigma), ctx_list),
           )
         )
       };

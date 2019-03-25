@@ -68,7 +68,7 @@ and erase' = (zp': t'): UHPat.t' =>
     OpSeq(skel, OperatorSeq.opseq_of_exp_and_surround(p1, surround));
   };
 
-let cursor_at_end = (zp: t): bool =>
+let is_after = (zp: t): bool =>
   switch (zp) {
   | CursorP(After, _) => true
   | Deeper(_, OpSeqZ(_, CursorP(After, _), EmptySuffix(_))) => true
@@ -77,7 +77,7 @@ let cursor_at_end = (zp: t): bool =>
   | ParenthesizedZ(_) => false
   };
 
-let place_Before = (p: UHPat.t): t =>
+let place_before = (p: UHPat.t): t =>
   switch (p) {
   | Parenthesized(_)
   | Pat(_, EmptyHole(_))
@@ -93,7 +93,7 @@ let place_Before = (p: UHPat.t): t =>
     Deeper(err, OpSeqZ(skel, CursorP(Before, p0), surround));
   };
 
-let place_After = (p: UHPat.t): t =>
+let place_after = (p: UHPat.t): t =>
   switch (p) {
   | Parenthesized(_)
   | Pat(_, EmptyHole(_))
@@ -109,22 +109,22 @@ let place_After = (p: UHPat.t): t =>
     Deeper(err, OpSeqZ(skel, CursorP(After, p0), surround));
   };
 
-let rec cursor_at_start = (zp: t): bool =>
+let rec is_before = (zp: t): bool =>
   switch (zp) {
   | CursorP(Before, _) => true
   | CursorP(_, _) => false
   | ParenthesizedZ(_) => false
-  | Deeper(_, OpSeqZ(_, zp1, EmptyPrefix(_))) => cursor_at_start(zp1)
+  | Deeper(_, OpSeqZ(_, zp1, EmptyPrefix(_))) => is_before(zp1)
   | Deeper(_, OpSeqZ(_, _, _)) => false
   | Deeper(_, InjZ(_, _)) => false
   };
 
-let rec cursor_at_end = (zp: t): bool =>
+let rec is_after = (zp: t): bool =>
   switch (zp) {
   | CursorP(After, _) => true
   | CursorP(_, _) => false
   | ParenthesizedZ(_) => false
-  | Deeper(_, OpSeqZ(_, zp1, EmptySuffix(_))) => cursor_at_end(zp1)
+  | Deeper(_, OpSeqZ(_, zp1, EmptySuffix(_))) => is_after(zp1)
   | Deeper(_, OpSeqZ(_, _, _)) => false
   | Deeper(_, InjZ(_, _)) => false
   };

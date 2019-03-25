@@ -327,7 +327,7 @@ module ZNatMap = {
  * List containing at least two elements. Used
  * to collect and manipulate tuple elements.
  */
-module TupleList = {
+module ListMinTwo = {
   type t('a) =
     | Pair('a, 'a)
     | Cons('a, t('a));
