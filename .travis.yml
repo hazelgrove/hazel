@@ -14,11 +14,9 @@ install:
  - sudo cp ./opam-2.0.2-x86_64-linux /usr/local/bin/opam
  - sudo chmod a+x /usr/local/bin/opam
  - export OPAMYES=1
- - opam init -a 
+ - opam init -a
  - eval `opam env`
- - cd ./src
  - make deps
- - cd ..
 
 script:
   - bash .travis-ci.sh
