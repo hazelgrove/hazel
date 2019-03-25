@@ -1,6 +1,5 @@
-; to build: dune build
-; to build with refmt: dune build --auto-promote
-; debug build: dune build --profile debug [--auto-promote]
+; normal build: dune build
+; debug build: dune build --profile debug
 
 (include_subdirs unqualified) ; does not include dirs that specify `(include_subdirs no)`
 
