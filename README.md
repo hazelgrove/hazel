@@ -24,10 +24,9 @@ Hazel is implemented in Reason/OCaml, and is compiled to Javascript for the web 
     > opam update
     ```
 
-  - Install the necessary OCaml dependencies:
+  - Run the Makefile in the `hazel` root folder to install the necessary OCaml dependencies:
 
     ```sh
-    > cd src
     > make deps
     ```
 
@@ -41,7 +40,7 @@ We can now build the application.
 
 The `make` command does four things:
 
-1. Auto-formats all reason code using `refmt` (this is why we need `auto-promote`).
+1. Auto-formats all Reason code using `refmt` (this is what the `@src/fmt` alias is for).
 2. Generates some parsers using `menhir`.
 3. Compiles the Reason code to OCaml bytecode using the OCaml compiler.
 4. Compiles the OCaml bytecode to JavaScript (`_build/default/src/www/hazel.js`) using `js_of_ocaml`.
