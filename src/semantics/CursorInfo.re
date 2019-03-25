@@ -130,12 +130,12 @@ let rec ana_pat_cursor_found =
     Some(mk_cursor_info(PatAnaSubsumed(ty, Num), IsPat(p), side, ctx))
   | Pat(NotInHole, BoolLit(_)) =>
     Some(mk_cursor_info(PatAnaSubsumed(ty, Bool), IsPat(p), side, ctx))
-  | Pat(NotInHole, Inj(_, p1)) =>
+  | Pat(NotInHole, Inj(_, _)) =>
     Some(mk_cursor_info(PatAnalyzed(ty), IsPat(p), side, ctx))
   | Pat(NotInHole, ListNil) =>
     Some(mk_cursor_info(PatAnalyzed(ty), IsPat(p), side, ctx))
-  | Pat(NotInHole, OpSeq(BinOp(NotInHole, Comma, skel1, skel2), seq))
-  | Pat(NotInHole, OpSeq(BinOp(NotInHole, Cons, skel1, skel2), seq)) =>
+  | Pat(NotInHole, OpSeq(BinOp(NotInHole, Comma, _, _), _))
+  | Pat(NotInHole, OpSeq(BinOp(NotInHole, Cons, _, _), _)) =>
     Some(mk_cursor_info(PatAnalyzed(ty), IsPat(p), side, ctx))
   | Pat(
       InHole(WrongLength, _),
@@ -156,8 +156,7 @@ let rec ana_pat_cursor_found =
     | _ => None
     }
   | Pat(InHole(WrongLength, _), _) => None
-  | Pat(NotInHole, OpSeq(BinOp(InHole(_, _), _, skel1, skel2), seq)) =>
-    None
+  | Pat(NotInHole, OpSeq(BinOp(InHole(_, _), _, _, _), _)) => None
   | Pat(NotInHole, OpSeq(Placeholder(_), _)) => None
   | Pat(NotInHole, OpSeq(BinOp(_, Space, _, _), _)) => None
   };
@@ -177,7 +176,7 @@ let rec syn_pat_cursor_info = (ctx: Contexts.t, zp: ZPat.t): option(t) =>
   }
 and syn_pat_cursor_info' = (ctx: Contexts.t, zp': ZPat.t'): option(t) =>
   switch (zp') {
-  | ZPat.InjZ(side, zp1) => syn_pat_cursor_info(ctx, zp1)
+  | ZPat.InjZ(_, zp1) => syn_pat_cursor_info(ctx, zp1)
   | ZPat.OpSeqZ(skel, zp1, surround) =>
     let p1 = ZPat.erase(zp1);
     let seq = OperatorSeq.opseq_of_exp_and_surround(p1, surround);
@@ -228,7 +227,7 @@ and ana_pat_cursor_info =
   | ZPat.CursorP(side, Pat(_, Var(InVHole(Keyword(k), _), _)) as p) =>
     Some(mk_cursor_info(PatAnaKeyword(ty, k), IsPat(p), side, ctx))
   | ZPat.CursorP(side, p) => ana_pat_cursor_found(ctx, p, ty, side)
-  | ZPat.Deeper(InHole(TypeInconsistent, u), zp') =>
+  | ZPat.Deeper(InHole(TypeInconsistent, _), zp') =>
     syn_pat_cursor_info'(ctx, zp')
   | ZPat.Deeper(NotInHole, zp')
   | ZPat.Deeper(
@@ -272,7 +271,7 @@ and ana_skel_pat_cursor_info =
     } else {
       None;
     }
-  | BinOp(InHole(TypeInconsistent, _), op, skel1, skel2) =>
+  | BinOp(InHole(TypeInconsistent, _), _, _, _) =>
     syn_skel_pat_cursor_info(ctx, skel, seq, n, zp1)
   | BinOp(NotInHole, Comma, skel1, skel2) =>
     switch (ty) {
@@ -423,12 +422,9 @@ let rec ana_cursor_found =
     }
   | Tm(NotInHole, Inj(_, _)) =>
     Some(mk_cursor_info(Analyzed(ty), IsExpr(e), side, ctx))
-  | Tm(
-      NotInHole,
-      OpSeq(BinOp(InHole(TypeInconsistent, _), _, _, _), surround),
-    ) =>
+  | Tm(NotInHole, OpSeq(BinOp(InHole(TypeInconsistent, _), _, _, _), _)) =>
     None
-  | Tm(NotInHole, OpSeq(Placeholder(_), surround)) => None
+  | Tm(NotInHole, OpSeq(Placeholder(_), _)) => None
   | Tm(NotInHole, OpSeq(BinOp(NotInHole, Plus, _, _), _))
   | Tm(NotInHole, OpSeq(BinOp(NotInHole, Times, _, _), _))
   | Tm(NotInHole, OpSeq(BinOp(NotInHole, LessThan, _, _), _))
@@ -464,7 +460,7 @@ and ana_cursor_info = (ctx: Contexts.t, ze: ZExp.t, ty: HTyp.t): option(t) =>
   switch (ze) {
   | CursorE(side, e) => ana_cursor_found(ctx, e, ty, side)
   | ParenthesizedZ(ze1) => ana_cursor_info(ctx, ze1, ty)
-  | Deeper(InHole(TypeInconsistent, u), ze1') => syn_cursor_info'(ctx, ze1')
+  | Deeper(InHole(TypeInconsistent, _), ze1') => syn_cursor_info'(ctx, ze1')
   | Deeper(
       InHole(WrongLength, _),
       OpSeqZ(BinOp(_, Comma, _, _), _, _) as ze1',
@@ -474,7 +470,7 @@ and ana_cursor_info = (ctx: Contexts.t, ze: ZExp.t, ty: HTyp.t): option(t) =>
   }
 and syn_cursor_info' = (ctx: Contexts.t, ze: ZExp.t'): option(t) =>
   switch (ze) {
-  | LineItemZL(zli, e1) => syn_line_item_cursor_info(ctx, zli)
+  | LineItemZL(zli, _e1) => syn_line_item_cursor_info(ctx, zli)
   | LineItemZE(li, ze1) =>
     switch (Statics.syn_line_item(ctx, li)) {
     | None => None
@@ -487,7 +483,7 @@ and syn_cursor_info' = (ctx: Contexts.t, ze: ZExp.t'): option(t) =>
       | None => Hole
       };
     ana_pat_cursor_info(ctx, zp, ty1);
-  | LamZA(_, zann, _) =>
+  | LamZA(_, _, _) =>
     Some(mk_cursor_info(TypePosition, IsType, Before, ctx))
   | LamZE(p, ann, ze1) =>
     let ty1 =
@@ -499,7 +495,7 @@ and syn_cursor_info' = (ctx: Contexts.t, ze: ZExp.t'): option(t) =>
     | None => None
     | Some(ctx1) => syn_cursor_info(ctx1, ze1)
     };
-  | InjZ(side, ze1) => syn_cursor_info(ctx, ze1)
+  | InjZ(_, ze1) => syn_cursor_info(ctx, ze1)
   | CaseZE(_, _, None)
   | CaseZR(_, _, None) => None
   | CaseZE(ze1, _, Some(_)) => syn_cursor_info(ctx, ze1)
@@ -542,7 +538,7 @@ and syn_line_item_cursor_info' = (ctx, zli') =>
       | Some(ty1) => ana_pat_cursor_info(ctx, zp, ty1)
       }
     }
-  | LetLineZA(p, zann, e1) =>
+  | LetLineZA(_, _, _) =>
     Some(mk_cursor_info(TypePosition, IsType, Before, ctx))
   | LetLineZE(p, ann, ze1) =>
     switch (ann) {
@@ -555,16 +551,16 @@ and syn_line_item_cursor_info' = (ctx, zli') =>
   }
 and ana_cursor_info' = (ctx: Contexts.t, ze: ZExp.t', ty: HTyp.t): option(t) =>
   switch (ze) {
-  | LineItemZL(zli, e1) => syn_line_item_cursor_info(ctx, zli)
+  | LineItemZL(zli, _) => syn_line_item_cursor_info(ctx, zli)
   | LineItemZE(li, ze1) =>
     switch (Statics.syn_line_item(ctx, li)) {
     | None => None
     | Some(ctx) => ana_cursor_info(ctx, ze1, ty)
     }
-  | LamZP(p, ann, e) =>
+  | LamZP(p, ann, _) =>
     switch (HTyp.matched_arrow(ty)) {
     | None => None
-    | Some((ty1_given, ty2)) =>
+    | Some((ty1_given, _ty2)) =>
       let ty1 =
         switch (ann) {
         | Some(uty1) => UHTyp.expand(uty1)
@@ -572,7 +568,7 @@ and ana_cursor_info' = (ctx: Contexts.t, ze: ZExp.t', ty: HTyp.t): option(t) =>
         };
       ana_pat_cursor_info(ctx, p, ty1);
     }
-  | LamZA(_, zann, _) =>
+  | LamZA(_, _, _) =>
     Some(mk_cursor_info(TypePosition, IsType, Before, ctx))
   | LamZE(p, ann, ze1) =>
     switch (HTyp.matched_arrow(ty)) {
@@ -594,7 +590,7 @@ and ana_cursor_info' = (ctx: Contexts.t, ze: ZExp.t', ty: HTyp.t): option(t) =>
     | Some((ty1, ty2)) =>
       ana_cursor_info(ctx, ze1, pick_side(side, ty1, ty2))
     }
-  | CaseZE(ze1, rules, _) => syn_cursor_info(ctx, ze1)
+  | CaseZE(ze1, _, _) => syn_cursor_info(ctx, ze1)
   | CaseZR(e1, zrules, _) =>
     switch (Statics.syn(ctx, e1)) {
     | None => None
@@ -615,7 +611,7 @@ and ana_rule_cursor_info =
     (ctx: Contexts.t, zrule: ZExp.zrule, pat_ty: HTyp.t, clause_ty: HTyp.t)
     : option(t) =>
   switch (zrule) {
-  | RuleZP(zp, e) => ana_pat_cursor_info(ctx, zp, pat_ty)
+  | RuleZP(zp, _e) => ana_pat_cursor_info(ctx, zp, pat_ty)
   | RuleZE(p, ze) =>
     switch (Statics.ana_pat(ctx, p, pat_ty)) {
     | None => None
@@ -652,7 +648,7 @@ and syn_skel_cursor_info =
   | BinOp(_, Space, Placeholder(n') as skel1, skel2) =>
     if (n == n') {
       switch (ZExp.cursor_on_outer_expr(ze_n)) {
-      | Some((Tm(InHole(TypeInconsistent, u), e_n') as e_n, side)) =>
+      | Some((Tm(InHole(TypeInconsistent, _), _) as e_n, side)) =>
         let e_n_nih = UHExp.set_err_status(NotInHole, e_n);
         switch (Statics.syn(ctx, e_n_nih)) {
         | Some(ty) =>
@@ -708,7 +704,7 @@ and syn_skel_cursor_info =
       | None => None
       | Some((ty, _)) =>
         switch (HTyp.matched_arrow(ty)) {
-        | Some((ty1, ty2)) =>
+        | Some((ty1, _ty2)) =>
           ana_skel_cursor_info(ctx, skel2, seq, n, ze_n, ty1)
         | None => None
         }
@@ -723,7 +719,7 @@ and syn_skel_cursor_info =
       | Some((ty, _)) =>
         switch (HTyp.matched_arrow(ty)) {
         | None => None
-        | Some((ty1, ty2)) =>
+        | Some((ty1, _ty2)) =>
           ana_skel_cursor_info(ctx, skel2, seq, n, ze_n, ty1)
         }
       }
@@ -762,7 +758,7 @@ and ana_skel_cursor_info =
     } else {
       None;
     }
-  | BinOp(InHole(TypeInconsistent, _), op, skel1, skel2) =>
+  | BinOp(InHole(TypeInconsistent, _), _, _, _) =>
     syn_skel_cursor_info(ctx, skel, seq, n, ze_n)
   | BinOp(NotInHole, Comma, skel1, skel2) =>
     switch (ty) {

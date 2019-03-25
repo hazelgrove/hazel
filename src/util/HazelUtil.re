@@ -146,7 +146,7 @@ module ZList = {
       };
     };
 
-  let rec replace_z = (zs: t('z, 'a), z: 'z): t('z, 'a) => {
+  let replace_z = (zs: t('z, 'a), z: 'z): t('z, 'a) => {
     let (prefix, _, suffix) = zs;
     (prefix, z, suffix);
   };
@@ -298,7 +298,7 @@ module NatMap = {
 module ZNatMap = {
   type t('a, 'z) = (NatMap.t('a), (int, 'z));
   let make =
-      (m: NatMap.t('a), (n, z) as nz: (int, 'z)): option(t('a, 'z)) =>
+      (m: NatMap.t('a), (n, _z) as nz: (int, 'z)): option(t('a, 'z)) =>
     switch (NatMap.lookup(m, n)) {
     | Some(_) => None
     | None => Some((m, nz))
@@ -359,15 +359,15 @@ module ListMinTwo = {
     switch (xs, ys) {
     | (_, []) => xs
     | (Pair(x1, x2), [y]) => Cons(x1, Pair(x2, y))
-    | (Cons(x, xs), [y]) => Cons(x, append_list(xs, ys))
-    | (_, _) => append(xs, to_tuple_list(ys))
+    | (Pair(_, _), _) => append(xs, to_tuple_list(ys))
+    | (Cons(x, xs), _) => Cons(x, append_list(xs, ys))
     };
 
   /**
    * Like List.fold_left, but the initial accumulator is a
    * function f0 on the first two elements in the tuple list.
    */
-  let rec fold_left = (f: ('a, 'b) => 'a, f0: ('b, 'b) => 'a, xs: t('b)): 'a =>
+  let fold_left = (f: ('a, 'b) => 'a, f0: ('b, 'b) => 'a, xs: t('b)): 'a =>
     switch (xs) {
     | Pair(x1, x2) => f0(x1, x2)
     | Cons(x1, xs) =>

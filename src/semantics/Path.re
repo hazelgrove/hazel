@@ -50,7 +50,7 @@ and of_zexp' = (ze: ZExp.t'): t =>
   | LineItemZE(_, ze) => cons'(1, of_zexp(ze))
   | LamZP(zp, _, _) => cons'(0, of_zpat(zp))
   | LamZA(_, zann, _) => cons'(1, of_ztyp(zann))
-  | LamZE(_, ann, ze') => cons'(2, of_zexp(ze'))
+  | LamZE(_, _, ze') => cons'(2, of_zexp(ze'))
   | InjZ(_, ze') => cons'(0, of_zexp(ze'))
   | CaseZE(ze1, _, _) => cons'(0, of_zexp(ze1))
   | CaseZR(_, zrules, _) =>
@@ -392,7 +392,7 @@ let rec holes_seq =
   | ExpOpExp(e1, _, e2) =>
     let holes = holes_tm(e2, [offset + 1, ...steps], holes);
     holes_tm(e1, [offset, ...steps], holes);
-  | SeqOpExp(seq1, op, e2) =>
+  | SeqOpExp(seq1, _, e2) =>
     let holes =
       holes_tm(
         e2,
@@ -423,7 +423,7 @@ let rec holes_pat = (p: UHPat.t, steps: steps, holes: hole_list): hole_list =>
   | Pat(_, BoolLit(_)) => holes
   | Pat(_, ListNil) => holes
   | Pat(_, Inj(_, p1)) => holes_pat(p1, [0, ...steps], holes)
-  | Pat(_, OpSeq(skel, seq)) => holes_seq(seq, holes_pat, 0, steps, holes)
+  | Pat(_, OpSeq(_, seq)) => holes_seq(seq, holes_pat, 0, steps, holes)
   };
 
 let rec holes_e = (e: UHExp.t, steps: steps, holes: hole_list): hole_list =>
@@ -455,7 +455,7 @@ let rec holes_e = (e: UHExp.t, steps: steps, holes: hole_list): hole_list =>
       };
     let holes = holes_rules(rules, 0, steps, holes);
     holes_e(e1, [0, ...steps], holes);
-  | Tm(_, OpSeq(skel, seq)) => holes_seq(seq, holes_e, 0, steps, holes)
+  | Tm(_, OpSeq(_, seq)) => holes_seq(seq, holes_e, 0, steps, holes)
   | Tm(_, ApPalette(_, _, psi)) =>
     let splice_map = psi.splice_map;
     let splice_order = psi.splice_order;
@@ -692,7 +692,7 @@ let rec holes_ze = (ze: ZExp.t, steps: steps): zhole_list =>
     | (In(k), _) =>
       switch (e) {
       | Parenthesized(_) => no_holes
-      | Tm(err, ue') =>
+      | Tm(_, ue') =>
         switch (ue') {
         | NumLit(_)
         | BoolLit(_)
@@ -825,7 +825,7 @@ let rec holes_ze = (ze: ZExp.t, steps: steps): zhole_list =>
       holes_OpSeqZ(holes_e, holes_ze, ze0, surround, steps)
     | ApPaletteZ(_, _, zpsi) =>
       let zsplice_map = zpsi.zsplice_map;
-      let (n, (ty, ze)) = ZNatMap.prj_z_kv(zsplice_map);
+      let (n, (_ty, ze)) = ZNatMap.prj_z_kv(zsplice_map);
       let {holes_before, hole_selected, holes_after} =
         holes_ze(ze, [n, ...steps]);
       let splice_order = zpsi.splice_order;
@@ -949,7 +949,7 @@ and holes_zrule = (zrule: ZExp.zrule, prefix_len: int, steps: steps) =>
     {holes_before: holes_p @ holes_before, hole_selected, holes_after};
   };
 
-let rec steps_to_hole = (hole_list: hole_list, u: MetaVar.t): option(steps) =>
+let steps_to_hole = (hole_list: hole_list, u: MetaVar.t): option(steps) =>
   switch (
     List.find_opt(
       ((hole_desc, _)) =>
@@ -965,8 +965,7 @@ let rec steps_to_hole = (hole_list: hole_list, u: MetaVar.t): option(steps) =>
   | Some((_, path)) => Some(path)
   };
 
-let rec steps_to_hole_z =
-        (zhole_list: zhole_list, u: MetaVar.t): option(steps) => {
+let steps_to_hole_z = (zhole_list: zhole_list, u: MetaVar.t): option(steps) => {
   let {holes_before, hole_selected, holes_after} = zhole_list;
   switch (steps_to_hole(holes_before, u)) {
   | Some(_) as steps => steps

@@ -1,5 +1,5 @@
 open Sexplib.Std;
-open SemanticsCommon;
+
 [@deriving sexp]
 type splice_name = int;
 [@deriving sexp]

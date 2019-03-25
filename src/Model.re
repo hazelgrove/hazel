@@ -51,7 +51,8 @@ type t = {
 
 let new_model = (): t => {
   let (edit_state_rs, edit_state_rf) = React.S.create(empty);
-  let (code_history_rs, code_history_rf) = React.S.create(CodeHistory.empty);
+  let (code_history_rs, _code_history_rf) =
+    React.S.create(CodeHistory.empty);
   let (e_rs, e_rf) = React.S.create(empty_erasure);
 
   let cursor_info_rs =

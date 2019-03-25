@@ -68,7 +68,7 @@ and erase' = (zp': t'): UHPat.t' =>
     OpSeq(skel, OperatorSeq.opseq_of_exp_and_surround(p1, surround));
   };
 
-let is_after = (zp: t): bool =>
+let _is_after = (zp: t): bool =>
   switch (zp) {
   | CursorP(After, _) => true
   | Deeper(_, OpSeqZ(_, CursorP(After, _), EmptySuffix(_))) => true

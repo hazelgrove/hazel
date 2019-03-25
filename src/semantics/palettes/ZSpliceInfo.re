@@ -1,4 +1,3 @@
-open SemanticsCommon;
 type zsplice_map('exp, 'zexp) =
   HazelUtil.ZNatMap.t((HTyp.t, 'exp), (HTyp.t, 'zexp));
 type t('exp, 'zexp) = {
