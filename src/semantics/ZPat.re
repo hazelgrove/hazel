@@ -68,15 +68,6 @@ and erase' = (zp': t'): UHPat.t' =>
     OpSeq(skel, OperatorSeq.opseq_of_exp_and_surround(p1, surround));
   };
 
-let _is_after = (zp: t): bool =>
-  switch (zp) {
-  | CursorP(After, _) => true
-  | Deeper(_, OpSeqZ(_, CursorP(After, _), EmptySuffix(_))) => true
-  | CursorP(_, _)
-  | Deeper(_, _)
-  | ParenthesizedZ(_) => false
-  };
-
 let place_before = (p: UHPat.t): t =>
   switch (p) {
   | Parenthesized(_)
