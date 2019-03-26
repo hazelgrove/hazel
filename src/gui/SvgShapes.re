@@ -1,4 +1,3 @@
-open Tyxml_js;
 module Svg = Tyxml_js.Svg;
 
 /* Create an icon from a set of points with coords between 0 and 100.

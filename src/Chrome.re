@@ -751,7 +751,6 @@ let view = (model: Model.t) => {
 
   let deserialize_onclick_handler = (serialized, _) => {
     replace_e(Deserialize.uhexp_of_string(serialized));
-    true;
   };
 
   let examples =
