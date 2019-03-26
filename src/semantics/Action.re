@@ -1990,6 +1990,39 @@ let rec perform_syn =
     let (e1, ty2, u_gen) = Statics.syn_fix_holes(ctx, u_gen, e1);
     let ze = ZExp.Deeper(NotInHole, LamZP(zp, None, e1));
     Some((ze, Arrow(Hole, ty2), u_gen));
+  | (
+      Backspace,
+      Deeper(_, CaseZR(e1, (prefix, RuleZP(zp, _), suffix), ann)),
+    )
+      when ZPat.is_before(zp) =>
+    switch (suffix) {
+    | [] =>
+      switch (prefix) {
+      | [] =>
+        let (zrule, u_gen) = ZExp.empty_zrule(u_gen);
+        let ze =
+          ZExp.Deeper(NotInHole, CaseZR(e1, (prefix, zrule, suffix), ann));
+        Some((ze, ty, u_gen));
+      | [_, ..._] =>
+        switch (List.rev(prefix)) {
+        | [] => None
+        | [Rule(p2, e2), ...rev_prefix'] =>
+          let prefix' = List.rev(rev_prefix');
+          let zrule = ZExp.RuleZP(ZPat.place_before(p2), e2);
+          let ze =
+            ZExp.Deeper(
+              NotInHole,
+              CaseZR(e1, (prefix', zrule, suffix), ann),
+            );
+          Some((ze, ty, u_gen));
+        }
+      }
+    | [Rule(p2, e2), ...suffix'] =>
+      let zrule = ZExp.RuleZP(ZPat.place_before(p2), e2);
+      let ze =
+        ZExp.Deeper(NotInHole, CaseZR(e1, (prefix, zrule, suffix'), ann));
+      Some((ze, ty, u_gen));
+    }
   | (Backspace, Deeper(_, CaseZA(e1, rules, zann)))
       when ZTyp.is_before(zann) =>
     /* can't delete annotation on case in synthetic position */
@@ -2068,6 +2101,41 @@ let rec perform_syn =
     let ze' = ZExp.CursorE(Before, e');
     Some((ze', Hole, u_gen'));
   /* Construction */
+  | (
+      Construct(SLine),
+      Deeper(_, CaseZR(e1, (prefix, RuleZP(zp, re), suffix), ann)),
+    )
+      when ZPat.is_before(zp) =>
+    let (zrule, u_gen) = ZExp.empty_zrule(u_gen);
+    let prev_rule = UHExp.Rule(ZPat.erase(zp), re);
+    let suffix = [prev_rule, ...suffix];
+    let ze =
+      ZExp.Deeper(NotInHole, CaseZR(e1, (prefix, zrule, suffix), ann));
+    Some((ze, ty, u_gen));
+  | (
+      Construct(SLine),
+      Deeper(_, CaseZR(e1, (prefix, RuleZE(_, ze) as zrule, suffix), ann)),
+    )
+      when ZExp.is_after(ze) =>
+    let prev_rule = ZExp.erase_rule(zrule);
+    JSUtil.log(u_gen);
+    let (zrule, u_gen) = ZExp.empty_zrule(u_gen);
+    JSUtil.log(u_gen);
+    let prefix = prefix @ [prev_rule];
+    let ze =
+      ZExp.Deeper(NotInHole, CaseZR(e1, (prefix, zrule, suffix), ann));
+    Some((ze, ty, u_gen));
+  | (
+      Construct(SLine),
+      Deeper(_, CaseZR(e1, (prefix, RuleZP(zp, _) as zrule, suffix), ann)),
+    )
+      when ZPat.is_after(zp) =>
+    let prev_rule = ZExp.erase_rule(zrule);
+    let (zrule, u_gen) = ZExp.empty_zrule(u_gen);
+    let prefix = prefix @ [prev_rule];
+    let ze =
+      ZExp.Deeper(NotInHole, CaseZR(e1, (prefix, zrule, suffix), ann));
+    Some((ze, ty, u_gen));
   | (Construct(SLine), Deeper(_, LineItemZL(zli, e2)))
       when ZExp.is_after_line_item(zli) =>
     let li = ZExp.erase_line_item(zli);
