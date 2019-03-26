@@ -37,3 +37,6 @@ setup.log
 *.glob
 *.vo
 *.vo.aux
+
+# atom reason language server
+*.lsp
