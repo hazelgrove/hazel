@@ -19,7 +19,7 @@ let rec drop = (ctx, x) =>
   };
 
 let extend = (ctx, xa) => {
-  let (x, elt) = xa;
+  let (x, _) = xa;
   [xa, ...drop(ctx, x)];
 };
 

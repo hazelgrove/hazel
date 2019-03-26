@@ -1,7 +1,7 @@
 echo "build here"
 
 echo "Compiling new static content"
-make
+make release
 
 echo "chmod"
 chmod 600 deploy-key

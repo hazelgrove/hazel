@@ -14,14 +14,17 @@ let empty: t = {actions: [], action_count: 0, undo_count: 0, snapshots: []};
  * history which has been undone by the user.
  */
 let add = (action: Action.t, history: t): t => {
-  actions: [action, ...HazelUtil.drop(history.undo_count, history.actions)],
+  actions: [
+    action,
+    ...GeneralUtil.drop(history.undo_count, history.actions),
+  ],
   action_count: history.action_count - history.undo_count + 1,
   undo_count: 0,
   snapshots: history.snapshots,
 };
 
 /* Construct the expression corresponding to the current position in the history. */
-let construct_code = (history: t): ZExp.t => {
+let construct_code = (_history: t): ZExp.t => {
   /* TODO: Implement this. For now, I'm constructing a dummy expression (constant 7) */
   ZExp.CursorE(
     SemanticsCommon.Before,

@@ -6,7 +6,6 @@ module Dom = Js_of_ocaml.Dom;
 module Js = Js_of_ocaml.Js;
 let make =
     ({edit_state_rs, cursor_info_rs, do_action, _}: Model.t, set_cursor) => {
-  module Util = GeneralUtil;
   module Ev = Dom_html.Event;
   module KC = JSUtil.KeyCombo;
   module KCs = JSUtil.KeyCombos;

@@ -1,5 +1,5 @@
 open SemanticsCommon;
-open HazelUtil;
+open GeneralUtil;
 
 [@deriving show({with_path: false})]
 type cursor_side = SemanticsCommon.cursor_side;
@@ -73,15 +73,15 @@ let rec make_inconsistent = (u_gen: MetaVarGen.t, ze: t): (t, MetaVarGen.t) =>
   | CursorE(cursor_side, e) =>
     let (e', u_gen) = UHExp.make_inconsistent(u_gen, e);
     (CursorE(cursor_side, e'), u_gen);
-  | Deeper(NotInHole, ze')
-  | Deeper(InHole(WrongLength, _), ze') =>
+  | Deeper(NotInHole, _)
+  | Deeper(InHole(WrongLength, _), _) =>
     let (u, u_gen) = MetaVarGen.next(u_gen);
     let ze' = set_err_status(InHole(TypeInconsistent, u), ze);
     (ze', u_gen);
   | Deeper(InHole(TypeInconsistent, _), _) => (ze, u_gen)
   | ParenthesizedZ(ze1) =>
     let (ze1', u_gen) = make_inconsistent(u_gen, ze1);
-    (ParenthesizedZ(ze1), u_gen);
+    (ParenthesizedZ(ze1'), u_gen);
   };
 
 let new_EmptyHole = (u_gen: MetaVarGen.t) => {
@@ -224,7 +224,7 @@ let rec place_before = (e: UHExp.t): t =>
   | Tm(err_status, LineItem(ExpLine(e1), e2)) =>
     let ze1 = place_before(e1);
     Deeper(err_status, LineItemZL(DeeperL(ExpLineZ(ze1)), e2));
-  | Tm(err_status, LineItem(LetLine(_, _, _), _)) =>
+  | Tm(_, LineItem(LetLine(_, _, _), _)) =>
     /* TODO this selects the entire block, perhaps should consider enabling selecting single line items */
     CursorE(Before, e)
   | Tm(err_status, OpSeq(skel, opseq)) =>
@@ -268,7 +268,7 @@ let rec place_after = (e: UHExp.t): t =>
   | Parenthesized(_) => CursorE(After, e)
   };
 
-let rec place_after_line_item = (li: UHExp.line_item): zline_item =>
+let place_after_line_item = (li: UHExp.line_item): zline_item =>
   switch (li) {
   | EmptyLine => CursorL(After, li)
   | ExpLine(e) => DeeperL(ExpLineZ(place_after(e)))

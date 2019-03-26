@@ -1,4 +1,3 @@
-open Tyxml_js;
 module Dom = Js_of_ocaml.Dom;
 module Dom_html = Js_of_ocaml.Dom_html;
 JSUtil.listen_to_t(

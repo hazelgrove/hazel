@@ -312,7 +312,7 @@ let of_LineItem = (prefix, err_status, rev_path, rli, r2) =>
     rli ^^ PP.mandatoryBreak ^^ r2,
   );
 
-let of_Let = (prefix, err_status, rev_path, rx, rann, r1, r2) => {
+let of_Let = (prefix, _err_status, rev_path, rx, rann, r1, r2) => {
   let first_part = PP.blockBoundary ^^ kw("let") ^^ space ^^ rx;
   let second_part =
     of_op(" = ", "let-equals")
@@ -746,7 +746,7 @@ let rec of_hexp = (palette_stuff, prefix, rev_path, e) =>
         "OpSeq",
         of_skel(palette_stuff, prefix, rev_path, skel, seq),
       )
-    | UHExp.ApPalette(name, serialized_model, psi) =>
+    | UHExp.ApPalette(_name, _serialized_model, _psi) =>
       raise(InvariantViolated)
     /* switch (
          Palettes.PaletteViewCtx.lookup(palette_stuff.palette_view_ctx, name)
@@ -823,7 +823,7 @@ let precedence_Cons = 4;
 let precedence_LessThan = 5;
 let precedence_Comma = 6;
 let precedence_max = 7;
-let rec precedence_dhpat = dp =>
+let precedence_dhpat = dp =>
   DHPat.(
     switch (dp) {
     | EmptyHole(_)
@@ -901,7 +901,7 @@ let rec of_dhpat' =
           attrs,
           r,
         );
-      | NonEmptyHole(reason, u, i, dp1) =>
+      | NonEmptyHole(reason, u, _i, dp1) =>
         let rev_path1 = [0, ...rev_path];
         let r =
           of_dhpat'(
@@ -1236,7 +1236,7 @@ let rec of_dhexp' =
             (i, rule) => {
               let rev_pathr = [i + 1, ...rev_path];
               switch (rule) {
-              | Rule(dp, dc) =>
+              | Rule(dp, _) =>
                 let rev_pathp = [0, ...rev_pathr];
                 let rp = of_dhpat(instance_click_fn, prefix, rev_pathp, dp);
                 let rc = taggedText("elided", "...");

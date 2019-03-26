@@ -1,6 +1,6 @@
 open Sexplib.Std;
 open SemanticsCommon;
-open HazelUtil;
+open GeneralUtil;
 
 [@deriving sexp]
 type op =

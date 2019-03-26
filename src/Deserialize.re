@@ -1,5 +1,4 @@
 open Sexplib;
-open LangUtil;
 
 let uhexp_of_string = (s: string): UHExp.t => {
   let e = UHExp.t_of_sexp(Sexp.of_string(s));

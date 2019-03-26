@@ -103,7 +103,7 @@ let of_cursor_mode = (cursor_mode: CursorInfo.cursor_mode) => {
       let ind1 = expected_ty_indicator(expected_ty);
       let ind2 = got_inconsistent_indicator(got_ty);
       (ind1, ind2, TypeInconsistency);
-    | CursorInfo.AnaWrongLength(expected_len, got_len, expected_ty) =>
+    | CursorInfo.AnaWrongLength(expected_len, got_len, _expected_ty) =>
       let expected_msg = string_of_int(expected_len) ++ "-tuple";
       let ind1 =
         expected_indicator(
@@ -128,7 +128,7 @@ let of_cursor_mode = (cursor_mode: CursorInfo.cursor_mode) => {
           ? got_as_expected_ty_indicator(got_ty)
           : got_consistent_indicator(got_ty);
       (ind1, ind2, OK);
-    | CursorInfo.AnaKeyword(expected_ty, keyword) =>
+    | CursorInfo.AnaKeyword(expected_ty, _keyword) =>
       let ind1 = expected_ty_indicator(expected_ty);
       let ind2 = got_keyword_indicator;
       (ind1, ind2, BindingError);
@@ -140,7 +140,7 @@ let of_cursor_mode = (cursor_mode: CursorInfo.cursor_mode) => {
       let ind1 = expected_any_indicator;
       let ind2 = got_free_indicator;
       (ind1, ind2, BindingError);
-    | CursorInfo.SynKeyword(keyword) =>
+    | CursorInfo.SynKeyword(_keyword) =>
       let ind1 = expected_any_indicator;
       let ind2 = got_keyword_indicator;
       (ind1, ind2, BindingError);
@@ -160,7 +160,7 @@ let of_cursor_mode = (cursor_mode: CursorInfo.cursor_mode) => {
         | _ => got_indicator("Got", typebar("got", syn_ty))
         };
       (ind1, ind2, OK);
-    | CursorInfo.SynKeywordArrow(matched_ty, k) =>
+    | CursorInfo.SynKeywordArrow(matched_ty, _k) =>
       let ind1 = expected_msg_indicator("function type");
       let ind2 =
         got_indicator(
@@ -188,7 +188,7 @@ let of_cursor_mode = (cursor_mode: CursorInfo.cursor_mode) => {
       let ind1 = expected_ty_indicator_pat(expected_ty);
       let ind2 = got_inconsistent_indicator(got_ty);
       (ind1, ind2, TypeInconsistency);
-    | CursorInfo.PatAnaWrongLength(expected_len, got_len, expected_ty) =>
+    | CursorInfo.PatAnaWrongLength(expected_len, got_len, _expected_ty) =>
       let expected_msg = string_of_int(expected_len) ++ "-tuple";
       let ind1 =
         expected_indicator(
@@ -209,7 +209,7 @@ let of_cursor_mode = (cursor_mode: CursorInfo.cursor_mode) => {
           ? got_as_expected_ty_indicator(got_ty)
           : got_consistent_indicator(got_ty);
       (ind1, ind2, OK);
-    | CursorInfo.PatAnaKeyword(expected_ty, keyword) =>
+    | CursorInfo.PatAnaKeyword(expected_ty, _keyword) =>
       let ind1 = expected_ty_indicator_pat(expected_ty);
       let ind2 = got_keyword_indicator;
       (ind1, ind2, BindingError);
@@ -217,7 +217,7 @@ let of_cursor_mode = (cursor_mode: CursorInfo.cursor_mode) => {
       let ind1 = expected_any_indicator_pat;
       let ind2 = got_ty_indicator(ty);
       (ind1, ind2, OK);
-    | CursorInfo.PatSynKeyword(keyword) =>
+    | CursorInfo.PatSynKeyword(_keyword) =>
       let ind1 = expected_any_indicator_pat;
       let ind2 = got_keyword_indicator;
       (ind1, ind2, BindingError);
