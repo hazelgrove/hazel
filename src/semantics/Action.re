@@ -2118,9 +2118,7 @@ let rec perform_syn =
     )
       when ZExp.is_after(ze) =>
     let prev_rule = ZExp.erase_rule(zrule);
-    JSUtil.log(u_gen);
     let (zrule, u_gen) = ZExp.empty_zrule(u_gen);
-    JSUtil.log(u_gen);
     let prefix = prefix @ [prev_rule];
     let ze =
       ZExp.Deeper(NotInHole, CaseZR(e1, (prefix, zrule, suffix), ann));
