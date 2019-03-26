@@ -2402,34 +2402,34 @@ let rec perform_syn =
   | (Construct(SCase), Deeper(_, LineItemZL(DeeperL(ExpLineZ(ze1)), e2)))
       when ZExp.is_before(ze1) =>
     let e1 = ZExp.erase(ze1);
-    let ze =
+    let (ze, u_gen) =
       switch (e1) {
       | Tm(_, EmptyHole(_)) =>
         let (rule_p, u_gen) = UHPat.new_EmptyHole(u_gen);
         let rule = UHExp.Rule(rule_p, e2);
-        ZExp.Deeper(NotInHole, CaseZE(ze1, [rule], Some(Hole)));
+        (ZExp.Deeper(NotInHole, CaseZE(ze1, [rule], Some(Hole))), u_gen);
       | _ =>
         let (zp, u_gen) = ZPat.new_EmptyHole(u_gen);
         let zrule = ZExp.RuleZP(zp, e2);
         let zrules = ZList.singleton(zrule);
-        ZExp.Deeper(NotInHole, CaseZR(e1, zrules, Some(Hole)));
+        (ZExp.Deeper(NotInHole, CaseZR(e1, zrules, Some(Hole))), u_gen);
       };
     Some((ze, Hole, u_gen));
   | (Construct(SCase), ze1) when ZExp.is_before(ze1) =>
     let e1 = ZExp.erase(ze1);
-    let ze =
+    let (ze, u_gen) =
       switch (e1) {
       | Tm(_, EmptyHole(_)) =>
         let (rule_p, u_gen) = UHPat.new_EmptyHole(u_gen);
         let (rule_e, u_gen) = UHExp.new_EmptyHole(u_gen);
         let rule = UHExp.Rule(rule_p, rule_e);
-        ZExp.Deeper(NotInHole, CaseZE(ze1, [rule], Some(Hole)));
+        (ZExp.Deeper(NotInHole, CaseZE(ze1, [rule], Some(Hole))), u_gen);
       | _ =>
         let (zp, u_gen) = ZPat.new_EmptyHole(u_gen);
         let (rule_e, u_gen) = UHExp.new_EmptyHole(u_gen);
         let zrule = ZExp.RuleZP(zp, rule_e);
         let zrules = ZList.singleton(zrule);
-        ZExp.Deeper(NotInHole, CaseZR(e1, zrules, Some(Hole)));
+        (ZExp.Deeper(NotInHole, CaseZR(e1, zrules, Some(Hole))), u_gen);
       };
     Some((ze, Hole, u_gen));
   | (Construct(SCase), CursorE(_, _)) => None
