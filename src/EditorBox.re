@@ -50,7 +50,7 @@ let mk =
     };
 
   /* TODO figure out width stuff */
-  let width = 80;
+  let width = 120;
   let doc = View.of_hexp(palette_stuff, prefix, rev_path, e);
   let sdoc = Pretty.PP.sdoc_of_doc(width, doc, rev_paths);
   let view = Pretty.HTML_Of_SDoc.html_of_sdoc(sdoc, rev_paths);
