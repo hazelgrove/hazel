@@ -1,4 +1,4 @@
-open HazelUtil;
+open GeneralUtil;
 
 /* types with holes */
 [@deriving sexp]

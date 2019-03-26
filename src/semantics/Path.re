@@ -1,10 +1,10 @@
 open SemanticsCommon;
-open HazelUtil;
+open GeneralUtil;
 
 [@deriving show({with_path: false})]
 type steps = list(int);
 
-let string_of_steps = HazelUtil.string_of_list(string_of_int);
+let string_of_steps = GeneralUtil.string_of_list(string_of_int);
 
 [@deriving show({with_path: false})]
 type t = (steps, ZExp.cursor_side);
@@ -374,8 +374,8 @@ let string_of_hole_desc =
 type hole_list = list((hole_desc, steps));
 
 let string_of_hole_list = (hole_list: hole_list): string =>
-  HazelUtil.string_of_list(
-    HazelUtil.string_of_pair(string_of_hole_desc, string_of_steps),
+  GeneralUtil.string_of_list(
+    GeneralUtil.string_of_pair(string_of_hole_desc, string_of_steps),
     hole_list,
   );
 
@@ -511,8 +511,8 @@ let string_of_zhole_list = ({holes_before, hole_selected, holes_after}) =>
   ++ string_of_hole_list(holes_before)
   ++ ", \n"
   ++ "  hole_selected: "
-  ++ HazelUtil.string_of_opt(
-       HazelUtil.string_of_pair(string_of_hole_desc, string_of_steps),
+  ++ GeneralUtil.string_of_opt(
+       GeneralUtil.string_of_pair(string_of_hole_desc, string_of_steps),
        hole_selected,
      )
   ++ ", \n"
@@ -825,13 +825,13 @@ let rec holes_ze = (ze: ZExp.t, steps: steps): zhole_list =>
       holes_OpSeqZ(holes_e, holes_ze, ze0, surround, steps)
     | ApPaletteZ(_, _, zpsi) =>
       let zsplice_map = zpsi.zsplice_map;
-      let (n, (_ty, ze)) = ZNatMap.prj_z_kv(zsplice_map);
+      let (n, (_, ze)) = ZNatMap.prj_z_kv(zsplice_map);
       let {holes_before, hole_selected, holes_after} =
         holes_ze(ze, [n, ...steps]);
       let splice_order = zpsi.splice_order;
       let splice_map = ZNatMap.prj_map(zsplice_map);
       let (splices_before, splices_after) =
-        HazelUtil.split_at(splice_order, n);
+        GeneralUtil.split_at(splice_order, n);
       let holes_splices_before =
         List.fold_left(
           (holes, n) =>

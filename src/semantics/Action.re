@@ -1,6 +1,6 @@
 let _TEST_PERFORM = false;
 open SemanticsCommon;
-open HazelUtil;
+open GeneralUtil;
 
 [@deriving show({with_path: false})]
 type op_shape =
@@ -2023,8 +2023,7 @@ let rec perform_syn =
         ZExp.Deeper(NotInHole, CaseZR(e1, (prefix, zrule, suffix'), ann));
       Some((ze, ty, u_gen));
     }
-  | (Backspace, Deeper(_, CaseZA(_, _, zann)))
-      when ZTyp.is_before(zann) =>
+  | (Backspace, Deeper(_, CaseZA(_, _, zann))) when ZTyp.is_before(zann) =>
     /* can't delete annotation on case in synthetic position */
     None
   | (Delete, CursorE(In(_), Tm(_, Case(_, _, _)))) =>
@@ -2400,11 +2399,11 @@ let rec perform_syn =
     let (ze, u_gen) =
       switch (e1) {
       | Tm(_, EmptyHole(_)) =>
-        let (rule_p, ___u_gen) = UHPat.new_EmptyHole(u_gen);
+        let (rule_p, u_gen) = UHPat.new_EmptyHole(u_gen);
         let rule = UHExp.Rule(rule_p, e2);
         (ZExp.Deeper(NotInHole, CaseZE(ze1, [rule], Some(Hole))), u_gen);
       | _ =>
-        let (zp, ___u_gen) = ZPat.new_EmptyHole(u_gen);
+        let (zp, u_gen) = ZPat.new_EmptyHole(u_gen);
         let zrule = ZExp.RuleZP(zp, e2);
         let zrules = ZList.singleton(zrule);
         (ZExp.Deeper(NotInHole, CaseZR(e1, zrules, Some(Hole))), u_gen);
@@ -2416,12 +2415,12 @@ let rec perform_syn =
       switch (e1) {
       | Tm(_, EmptyHole(_)) =>
         let (rule_p, u_gen) = UHPat.new_EmptyHole(u_gen);
-        let (rule_e, ___u_gen) = UHExp.new_EmptyHole(u_gen);
+        let (rule_e, u_gen) = UHExp.new_EmptyHole(u_gen);
         let rule = UHExp.Rule(rule_p, rule_e);
         (ZExp.Deeper(NotInHole, CaseZE(ze1, [rule], Some(Hole))), u_gen);
       | _ =>
         let (zp, u_gen) = ZPat.new_EmptyHole(u_gen);
-        let (rule_e, ___u_gen) = UHExp.new_EmptyHole(u_gen);
+        let (rule_e, u_gen) = UHExp.new_EmptyHole(u_gen);
         let zrule = ZExp.RuleZP(zp, rule_e);
         let zrules = ZList.singleton(zrule);
         (ZExp.Deeper(NotInHole, CaseZR(e1, zrules, Some(Hole))), u_gen);

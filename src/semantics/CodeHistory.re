@@ -14,7 +14,10 @@ let empty: t = {actions: [], action_count: 0, undo_count: 0, snapshots: []};
  * history which has been undone by the user.
  */
 let add = (action: Action.t, history: t): t => {
-  actions: [action, ...HazelUtil.drop(history.undo_count, history.actions)],
+  actions: [
+    action,
+    ...GeneralUtil.drop(history.undo_count, history.actions),
+  ],
   action_count: history.action_count - history.undo_count + 1,
   undo_count: 0,
   snapshots: history.snapshots,

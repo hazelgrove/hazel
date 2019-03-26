@@ -1,5 +1,5 @@
 open SemanticsCommon;
-open HazelUtil;
+open GeneralUtil;
 
 [@deriving show({with_path: false})]
 type cursor_side = SemanticsCommon.cursor_side;
@@ -224,7 +224,7 @@ let rec place_before = (e: UHExp.t): t =>
   | Tm(err_status, LineItem(ExpLine(e1), e2)) =>
     let ze1 = place_before(e1);
     Deeper(err_status, LineItemZL(DeeperL(ExpLineZ(ze1)), e2));
-  | Tm(_err_status, LineItem(LetLine(_, _, _), _)) =>
+  | Tm(_, LineItem(LetLine(_, _, _), _)) =>
     /* TODO this selects the entire block, perhaps should consider enabling selecting single line items */
     CursorE(Before, e)
   | Tm(err_status, OpSeq(skel, opseq)) =>

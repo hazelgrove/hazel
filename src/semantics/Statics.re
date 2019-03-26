@@ -1,5 +1,5 @@
 open SemanticsCommon;
-open HazelUtil;
+open GeneralUtil;
 
 /* see syn_skel and ana_skel below */
 type type_mode =
@@ -669,7 +669,7 @@ and syn_skel = (ctx, skel, seq, monitor) =>
     let skel_not_in_hole = Skel.BinOp(NotInHole, op, skel1, skel2);
     switch (syn_skel(ctx, skel_not_in_hole, seq, monitor)) {
     | None => None
-    | Some((_ty, mode)) => Some((HTyp.Hole, mode))
+    | Some((_, mode)) => Some((HTyp.Hole, mode))
     };
   | Skel.BinOp(InHole(WrongLength, _), _, _, _) => None
   | Skel.BinOp(NotInHole, Plus, skel1, skel2)
@@ -1078,7 +1078,7 @@ and ana_pat_fix_holes' =
         ana_pat_fix_holes(ctx, u_gen, renumber_empty_holes, p1, ty1);
       (NotInHole, UHPat.Inj(side, p1), ctx, u_gen);
     | None =>
-      let (p1, _ty, ctx, u_gen) =
+      let (p1, _, ctx, u_gen) =
         syn_pat_fix_holes(ctx, u_gen, renumber_empty_holes, p1);
       let (u, u_gen) = MetaVarGen.next(u_gen);
       (InHole(TypeInconsistent, u), UHPat.Inj(side, p1), ctx, u_gen);
@@ -1209,7 +1209,7 @@ and ana_skel_pat_fix_holes =
         let (skels2, seq, ctx, u_gen) =
           List.fold_right(
             (skel: UHPat.skel_t, (skels, seq, ctx, u_gen)) => {
-              let (skel, seq, _ty, ctx, u_gen) =
+              let (skel, seq, _, ctx, u_gen) =
                 syn_skel_pat_fix_holes(
                   ctx,
                   u_gen,
@@ -1590,7 +1590,7 @@ and ana_fix_holes' =
             ana_fix_holes_internal(ctx, u_gen, renumber_empty_holes, e1, ty2);
           (NotInHole, UHExp.Lam(p, ann, e1), u_gen);
         } else {
-          let (e', _ty, u_gen) =
+          let (e', _, u_gen) =
             syn_fix_holes'(ctx, u_gen, renumber_empty_holes, e');
           let (u, u_gen) = MetaVarGen.next(u_gen);
           (InHole(TypeInconsistent, u), e', u_gen);
@@ -1603,7 +1603,7 @@ and ana_fix_holes' =
         (NotInHole, UHExp.Lam(p, ann, e1), u_gen);
       }
     | None =>
-      let (e', _ty', u_gen) =
+      let (e', _, u_gen) =
         syn_fix_holes'(ctx, u_gen, renumber_empty_holes, e');
       let (u, u_gen) = MetaVarGen.next(u_gen);
       (InHole(TypeInconsistent, u), e', u_gen);
@@ -1897,7 +1897,7 @@ and ana_skel_fix_holes =
         let (skels2, seq, u_gen) =
           List.fold_right(
             (skel: UHExp.skel_t, (skels, seq, u_gen)) => {
-              let (skel, seq, _ty, u_gen) =
+              let (skel, seq, _, u_gen) =
                 syn_skel_fix_holes(
                   ctx,
                   u_gen,

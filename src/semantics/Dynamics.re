@@ -1,5 +1,5 @@
 open SemanticsCommon;
-open HazelUtil;
+open GeneralUtil;
 
 type hole_sort =
   | ExpressionHole
@@ -149,10 +149,10 @@ module DHPat = {
     | BinOp(NotInHole, Space, skel1, skel2) =>
       switch (syn_expand_skel(ctx, delta, skel1, seq)) {
       | DoesNotExpand => DoesNotExpand
-      | Expands(dp1, _ty1, ctx, delta) =>
+      | Expands(dp1, _, ctx, delta) =>
         switch (syn_expand_skel(ctx, delta, skel2, seq)) {
         | DoesNotExpand => DoesNotExpand
-        | Expands(dp2, _ty2, ctx, delta) =>
+        | Expands(dp2, _, ctx, delta) =>
           let dp = Ap(dp1, dp2);
           Expands(dp, Hole, ctx, delta);
         }
@@ -1222,7 +1222,7 @@ module DHExp = {
         | Expands(d1, ty1, delta) =>
           switch (DHPat.ana_expand(ctx, delta, p, ty1)) {
           | DoesNotExpand => DoesNotExpand
-          | Expands(dp, _ty1, ctx, delta) =>
+          | Expands(dp, _, ctx, delta) =>
             switch (ana_expand(ctx, delta, e2, ty)) {
             | DoesNotExpand => DoesNotExpand
             | Expands(d2, ty, delta) =>
@@ -1539,7 +1539,7 @@ module DHExp = {
         MetaVarMap.update_with(
           instances => {
             let length = List.length(instances);
-            HazelUtil.update_nth(
+            GeneralUtil.update_nth(
               length - i - 1,
               instances,
               (inst_info: (Environment.t, InstancePath.t)) => {
@@ -1898,12 +1898,12 @@ module Evaluator = {
         | Matches(env) => evaluate(DHExp.subst(env, d2))
         }
       }
-    | FixF(x, _ty, d1) => evaluate(DHExp.subst_var(d, x, d1))
+    | FixF(x, _, d1) => evaluate(DHExp.subst_var(d, x, d1))
     | Lam(_, _, _) => BoxedValue(d)
     | Ap(d1, d2) =>
       switch (evaluate(d1)) {
       | InvalidInput(msg) => InvalidInput(msg)
-      | BoxedValue(Lam(dp, _tau, d3)) =>
+      | BoxedValue(Lam(dp, _, d3)) =>
         switch (evaluate(d2)) {
         | InvalidInput(msg) => InvalidInput(msg)
         | BoxedValue(d2)

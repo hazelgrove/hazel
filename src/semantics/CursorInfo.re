@@ -1,5 +1,5 @@
 open SemanticsCommon;
-open HazelUtil;
+open GeneralUtil;
 
 type cursor_mode =
   /*
@@ -470,7 +470,7 @@ and ana_cursor_info = (ctx: Contexts.t, ze: ZExp.t, ty: HTyp.t): option(t) =>
   }
 and syn_cursor_info' = (ctx: Contexts.t, ze: ZExp.t'): option(t) =>
   switch (ze) {
-  | LineItemZL(zli, _e1) => syn_line_item_cursor_info(ctx, zli)
+  | LineItemZL(zli, _) => syn_line_item_cursor_info(ctx, zli)
   | LineItemZE(li, ze1) =>
     switch (Statics.syn_line_item(ctx, li)) {
     | None => None
@@ -504,7 +504,7 @@ and syn_cursor_info' = (ctx: Contexts.t, ze: ZExp.t'): option(t) =>
     switch (Statics.syn(ctx, e1)) {
     | None => None
     | Some(ty1) =>
-      let zrule = HazelUtil.ZList.prj_z(zrules);
+      let zrule = GeneralUtil.ZList.prj_z(zrules);
       ana_rule_cursor_info(ctx, zrule, ty1, ty);
     };
   | CaseZA(_, _, _) =>
@@ -515,7 +515,7 @@ and syn_cursor_info' = (ctx: Contexts.t, ze: ZExp.t'): option(t) =>
     let n = OperatorSeq.surround_prefix_length(surround);
     syn_skel_cursor_info(ctx, skel, seq, n, ze0);
   | ApPaletteZ(_, _, zpsi) =>
-    let (ty, ze) = HazelUtil.ZNatMap.prj_z_v(zpsi.zsplice_map);
+    let (ty, ze) = GeneralUtil.ZNatMap.prj_z_v(zpsi.zsplice_map);
     ana_cursor_info(ctx, ze, ty);
   }
 and syn_line_item_cursor_info = (ctx, zli) =>
@@ -560,7 +560,7 @@ and ana_cursor_info' = (ctx: Contexts.t, ze: ZExp.t', ty: HTyp.t): option(t) =>
   | LamZP(p, ann, _) =>
     switch (HTyp.matched_arrow(ty)) {
     | None => None
-    | Some((ty1_given, _ty2)) =>
+    | Some((ty1_given, _)) =>
       let ty1 =
         switch (ann) {
         | Some(uty1) => UHTyp.expand(uty1)
@@ -595,7 +595,7 @@ and ana_cursor_info' = (ctx: Contexts.t, ze: ZExp.t', ty: HTyp.t): option(t) =>
     switch (Statics.syn(ctx, e1)) {
     | None => None
     | Some(ty1) =>
-      let zrule = HazelUtil.ZList.prj_z(zrules);
+      let zrule = GeneralUtil.ZList.prj_z(zrules);
       ana_rule_cursor_info(ctx, zrule, ty1, ty);
     }
   | CaseZA(_, _, _) =>
@@ -611,7 +611,7 @@ and ana_rule_cursor_info =
     (ctx: Contexts.t, zrule: ZExp.zrule, pat_ty: HTyp.t, clause_ty: HTyp.t)
     : option(t) =>
   switch (zrule) {
-  | RuleZP(zp, _e) => ana_pat_cursor_info(ctx, zp, pat_ty)
+  | RuleZP(zp, _) => ana_pat_cursor_info(ctx, zp, pat_ty)
   | RuleZE(p, ze) =>
     switch (Statics.ana_pat(ctx, p, pat_ty)) {
     | None => None
@@ -704,7 +704,7 @@ and syn_skel_cursor_info =
       | None => None
       | Some((ty, _)) =>
         switch (HTyp.matched_arrow(ty)) {
-        | Some((ty1, _ty2)) =>
+        | Some((ty1, _)) =>
           ana_skel_cursor_info(ctx, skel2, seq, n, ze_n, ty1)
         | None => None
         }
@@ -719,7 +719,7 @@ and syn_skel_cursor_info =
       | Some((ty, _)) =>
         switch (HTyp.matched_arrow(ty)) {
         | None => None
-        | Some((ty1, _ty2)) =>
+        | Some((ty1, _)) =>
           ana_skel_cursor_info(ctx, skel2, seq, n, ze_n, ty1)
         }
       }
