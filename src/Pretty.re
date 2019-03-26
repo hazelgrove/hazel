@@ -88,7 +88,7 @@ module PP: {
     if (String.equal(s, "​​") || String.equal(s, "‌")) {
       0;
     } else {
-      CamomileLibrary.UTF8.length(s);
+      String.length(s);
     };
   let rec sdoc_of_doc' = (table, width, k, zs) =>
     switch (zs) {
