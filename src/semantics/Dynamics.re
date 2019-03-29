@@ -1,5 +1,5 @@
 open SemanticsCommon;
-open HazelUtil;
+open GeneralUtil;
 
 type hole_sort =
   | ExpressionHole
@@ -53,7 +53,7 @@ module DHPat = {
     | Inj(_, dp1) => binds_var(x, dp1)
     | Pair(dp1, dp2) => binds_var(x, dp1) || binds_var(x, dp2)
     | Cons(dp1, dp2) => binds_var(x, dp1) || binds_var(x, dp2)
-    | Ap(dp1, dp2) => false
+    | Ap(_, _) => false
     };
 
   type expand_result =
@@ -149,10 +149,10 @@ module DHPat = {
     | BinOp(NotInHole, Space, skel1, skel2) =>
       switch (syn_expand_skel(ctx, delta, skel1, seq)) {
       | DoesNotExpand => DoesNotExpand
-      | Expands(dp1, ty1, ctx, delta) =>
+      | Expands(dp1, _, ctx, delta) =>
         switch (syn_expand_skel(ctx, delta, skel2, seq)) {
         | DoesNotExpand => DoesNotExpand
-        | Expands(dp2, ty2, ctx, delta) =>
+        | Expands(dp2, _, ctx, delta) =>
           let dp = Ap(dp1, dp2);
           Expands(dp, Hole, ctx, delta);
         }
@@ -283,7 +283,7 @@ module DHPat = {
           }
         }
       }
-    | BinOp(InHole(WrongLength, u), Comma, skel1, skel2) =>
+    | BinOp(InHole(WrongLength, _), Comma, skel1, skel2) =>
       switch (ty) {
       | HTyp.Prod(ty1, ty2) =>
         let types = HTyp.get_tuple(ty1, ty2);
@@ -352,10 +352,10 @@ module DHPat = {
     | BinOp(NotInHole, Space, skel1, skel2) =>
       switch (ana_expand_skel(ctx, delta, skel1, seq, Hole)) {
       | DoesNotExpand => DoesNotExpand
-      | Expands(dp1, ty1, ctx, delta) =>
+      | Expands(dp1, _ty1, ctx, delta) =>
         switch (ana_expand_skel(ctx, delta, skel2, seq, Hole)) {
         | DoesNotExpand => DoesNotExpand
-        | Expands(dp2, ty2, ctx, delta) =>
+        | Expands(dp2, _ty2, ctx, delta) =>
           let dp = Ap(dp1, dp2);
           Expands(dp, Hole, ctx, delta);
         }
@@ -429,7 +429,7 @@ module DHExp = {
   };
   include DHExp;
 
-  let rec constructor_string = (d: t): string =>
+  let constructor_string = (d: t): string =>
     switch (d) {
     | EmptyHole(_, _, _) => "EmptyHole"
     | NonEmptyHole(_, _, _, _, _) => "NonEmptyHole"
@@ -461,7 +461,7 @@ module DHExp = {
       Pair(d1, d2);
     };
 
-  let rec cast = (d: t, t1: HTyp.t, t2: HTyp.t): t =>
+  let cast = (d: t, t1: HTyp.t, t2: HTyp.t): t =>
     if (HTyp.eq(t1, t2)) {
       d;
     } else {
@@ -581,7 +581,7 @@ module DHExp = {
       sigma,
     );
 
-  let rec subst = (env: Environment.t, d: t): t =>
+  let subst = (env: Environment.t, d: t): t =>
     List.fold_left(
       (d2, xd: (Var.t, t)) => {
         let (x, d1) = xd;
@@ -658,8 +658,8 @@ module DHExp = {
       }
     | (Pair(dp1, dp2), Cast(d, Prod(tyL1, tyR1), Prod(tyL2, tyR2))) =>
       matches_cast_Pair(dp1, dp2, d, [(tyL1, tyL2)], [(tyR1, tyR2)])
-    | (Pair(dp1, dp2), Cast(d, Hole, Prod(_, _))) => matches(dp, d)
-    | (Pair(dp1, dp2), Cast(d, Prod(_, _), Hole)) => matches(dp, d)
+    | (Pair(_, _), Cast(d, Hole, Prod(_, _))) => matches(dp, d)
+    | (Pair(_, _), Cast(d, Prod(_, _), Hole)) => matches(dp, d)
     | (Pair(_, _), _) => DoesNotMatch
     | (Triv, Triv) => Matches(Environment.empty)
     | (Triv, Cast(d, Hole, Unit)) => matches(dp, d)
@@ -967,7 +967,7 @@ module DHExp = {
           | Expands(dp, _, ctx, delta) =>
             switch (syn_expand(ctx, delta, e2)) {
             | DoesNotExpand => DoesNotExpand
-            | Expands(d2, ty, delta2) =>
+            | Expands(d2, ty, _delta2) =>
               let d = Let(dp, d1, d2);
               Expands(d, ty, delta);
             }
@@ -1005,7 +1005,7 @@ module DHExp = {
       };
     | Case(_, _, None) => DoesNotExpand
     | OpSeq(skel, seq) => syn_expand_skel(ctx, delta, skel, seq)
-    | ApPalette(name, serialized_model, hole_data) => DoesNotExpand
+    | ApPalette(_name, _serialized_model, _hole_data) => DoesNotExpand
     /* TODO fix me */
     /* let (_, palette_ctx) = ctx in
        begin match (VarMap.lookup palette_ctx name) with
@@ -1222,7 +1222,7 @@ module DHExp = {
         | Expands(d1, ty1, delta) =>
           switch (DHPat.ana_expand(ctx, delta, p, ty1)) {
           | DoesNotExpand => DoesNotExpand
-          | Expands(dp, ty1, ctx, delta) =>
+          | Expands(dp, _, ctx, delta) =>
             switch (ana_expand(ctx, delta, e2, ty)) {
             | DoesNotExpand => DoesNotExpand
             | Expands(d2, ty, delta) =>
@@ -1411,7 +1411,7 @@ module DHExp = {
           }
         }
       }
-    | BinOp(InHole(WrongLength, u), Comma, skel1, skel2) =>
+    | BinOp(InHole(WrongLength, _), Comma, skel1, skel2) =>
       switch (ty) {
       | Prod(ty1, ty2) =>
         let types = HTyp.get_tuple(ty1, ty2);
@@ -1539,7 +1539,7 @@ module DHExp = {
         MetaVarMap.update_with(
           instances => {
             let length = List.length(instances);
-            HazelUtil.update_nth(
+            GeneralUtil.update_nth(
               length - i - 1,
               instances,
               (inst_info: (Environment.t, InstancePath.t)) => {
@@ -1898,12 +1898,12 @@ module Evaluator = {
         | Matches(env) => evaluate(DHExp.subst(env, d2))
         }
       }
-    | FixF(x, ty, d1) => evaluate(DHExp.subst_var(d, x, d1))
+    | FixF(x, _, d1) => evaluate(DHExp.subst_var(d, x, d1))
     | Lam(_, _, _) => BoxedValue(d)
     | Ap(d1, d2) =>
       switch (evaluate(d1)) {
       | InvalidInput(msg) => InvalidInput(msg)
-      | BoxedValue(Lam(dp, tau, d3)) =>
+      | BoxedValue(Lam(dp, _, d3)) =>
         switch (evaluate(d2)) {
         | InvalidInput(msg) => InvalidInput(msg)
         | BoxedValue(d2)
@@ -1980,15 +1980,15 @@ module Evaluator = {
       | (BoxedValue(d1), BoxedValue(d2)) => BoxedValue(Cons(d1, d2))
       }
     | Case(d1, rules, n) => evaluate_case(d1, rules, n)
-    | EmptyHole(u, i, sigma) => Indet(d)
+    | EmptyHole(_, _, _) => Indet(d)
     | NonEmptyHole(reason, u, i, sigma, d1) =>
       switch (evaluate(d1)) {
       | InvalidInput(msg) => InvalidInput(msg)
       | BoxedValue(d1')
       | Indet(d1') => Indet(NonEmptyHole(reason, u, i, sigma, d1'))
       }
-    | FreeVar(u, i, sigma, x) => Indet(d)
-    | Keyword(u, i, sigma, k) => Indet(d)
+    | FreeVar(_, _, _, _) => Indet(d)
+    | Keyword(_, _, _, _) => Indet(d)
     | Cast(d1, ty, ty') =>
       switch (evaluate(d1)) {
       | InvalidInput(msg) => InvalidInput(msg)

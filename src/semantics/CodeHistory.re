@@ -43,7 +43,7 @@ let add = (action: Action.t, history: t): t =>
       actions: [
         action,
         ...history.uncommitted_moves
-           @ HazelUtil.drop(history.actions_undone, history.actions),
+           @ GeneralUtil.drop(history.actions_undone, history.actions),
       ],
       action_count:
         history.action_count
@@ -59,8 +59,8 @@ let add = (action: Action.t, history: t): t =>
 
 /* Uses the given function to execute all actions up to the current position in the (committed) history. */
 let execute_actions = (do_action: Action.t => unit, history: t) => {
-  let actions = HazelUtil.drop(history.actions_undone, history.actions);
-  HazelUtil.rev_iter(do_action, actions);
+  let actions = GeneralUtil.drop(history.actions_undone, history.actions);
+  GeneralUtil.rev_iter(do_action, actions);
 };
 
 /* Find the most recent non-move action performed, returning its depth */
@@ -80,7 +80,7 @@ let undo = (history: t): option(t) =>
   /* If we can't undo, don't return anything. */
   if (history.actions_undone < history.action_count) {
     let curr_actions =
-      HazelUtil.drop(history.actions_undone, history.actions);
+      GeneralUtil.drop(history.actions_undone, history.actions);
     let depth = find_most_recent_action(curr_actions);
     let jump = depth + 1;
     let new_history = {

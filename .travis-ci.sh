@@ -1,15 +1,14 @@
 echo "build here"
 
 echo "Compiling new static content"
-cd ./src
-make
+make release
 
 echo "chmod"
-chmod 600 ../deploy-key
+chmod 600 deploy-key
 echo "eval"
 eval `ssh-agent -s`
 echo "ssh"
-ssh-add ../deploy-key
+ssh-add deploy-key
 
 
 echo "git clone"
@@ -22,7 +21,7 @@ cd hazel
 echo "switch to gh-pages"
 git checkout gh-pages
 echo "get latest files"
-cp -r ../_build/default/www/* .
+cp -r ../_build/default/src/www/* .
 echo "git add"
 git add .
 echo "commit"
