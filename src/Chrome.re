@@ -762,7 +762,7 @@ let view = (model: Model.t) => {
     ();
   };
 
-  /*let the_history_panel = HistoryPanel.make(model.code_history_rs);*/
+  /*let the_history_panel = HistoryPanel.make(model.repository_rs);*/
 
   let the_action_panel = ActionPanel.make(model, set_cursor);
 

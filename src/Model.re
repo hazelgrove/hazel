@@ -6,7 +6,7 @@ let empty_ze =
 let empty: edit_state = ((empty_ze, HTyp.Hole, u_gen1): edit_state);
 let empty_erasure = ZExp.erase(empty_ze);
 type edit_state_rs = React.signal(edit_state);
-type code_history_rs = React.signal(CodeHistory.t);
+type repository_rs = React.signal(Repository.t);
 type e_rs = React.signal(UHExp.t);
 type cursor_info_rs = React.signal(CursorInfo.t);
 open Dynamics;
@@ -36,7 +36,7 @@ exception InvalidInput;
 
 type t = {
   edit_state_rs,
-  code_history_rs,
+  repository_rs,
   cursor_info_rs,
   e_rs,
   result_rs,
@@ -53,7 +53,7 @@ type t = {
 
 let new_model = (): t => {
   let (edit_state_rs, edit_state_rf) = React.S.create(empty);
-  let (code_history_rs, code_history_rf) = React.S.create(CodeHistory.empty);
+  let (repository_rs, repository_rf) = React.S.create(Repository.empty);
   let (e_rs, e_rf) = React.S.create(empty_erasure);
 
   let cursor_info_rs =
@@ -159,12 +159,12 @@ let new_model = (): t => {
     | None => raise(InvalidAction)
     };
 
-  /* Do the specified action, and add it to the history.*/
+  /* Do the specified action, and add it to the active history.*/
   let do_action = action => {
     do_action_unrecorded(action);
     /* Update the history with the new action */
-    let history = React.S.value(code_history_rs);
-    code_history_rf(CodeHistory.add(action, history));
+    let repository = React.S.value(repository_rs);
+    repository_rf(Repository.add(action, repository));
   };
 
   let replace_e = new_uhexp => {
@@ -179,30 +179,30 @@ let new_model = (): t => {
   };
 
   let undo = () => {
-    let history = React.S.value(code_history_rs);
-    switch (CodeHistory.undo(history)) {
-    | Some(new_history) =>
+    let repository = React.S.value(repository_rs);
+    switch (Repository.undo(repository)) {
+    | Some(new_repository) =>
       replace_e(empty_erasure);
-      code_history_rf(new_history);
-      CodeHistory.execute_actions(do_action_unrecorded, new_history);
+      repository_rf(new_repository);
+      Repository.execute_actions(do_action_unrecorded, new_repository);
     | None => ()
     };
   };
 
   let redo = () => {
-    let history = React.S.value(code_history_rs);
-    switch (CodeHistory.redo(history)) {
-    | Some(new_history) =>
+    let repository = React.S.value(repository_rs);
+    switch (Repository.redo(repository)) {
+    | Some(new_repository) =>
       replace_e(empty_erasure);
-      code_history_rf(new_history);
-      CodeHistory.execute_actions(do_action_unrecorded, new_history);
+      repository_rf(new_repository);
+      Repository.execute_actions(do_action_unrecorded, new_repository);
     | None => ()
     };
   };
 
   {
     edit_state_rs,
-    code_history_rs,
+    repository_rs,
     cursor_info_rs,
     e_rs,
     result_rs,
