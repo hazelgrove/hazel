@@ -1639,14 +1639,12 @@ and ana_fix_holes_block =
   let Block(_, lines, e) = block;
   let (lines, ctx, u_gen) =
     syn_fix_holes_lines(ctx, u_gen, ~renumber_empty_holes, lines);
-  let (e, ty1, u_gen) =
-    syn_fix_holes_exp(ctx, u_gen, ~renumber_empty_holes, e);
-  if (HTyp.consistent(ty, ty1)) {
-    (Block(NotInHole, lines, e), u_gen);
-  } else {
-    let (u, u_gen) = MetaVarGen.next(u_gen);
-    (Block(InHole(TypeInconsistent, u), lines, e), u_gen);
-  };
+  let (e, u_gen) =
+    ana_fix_holes_exp(ctx, u_gen, ~renumber_empty_holes, e, ty);
+  /* propagate err_status to block level */
+  let err = UHExp.get_err_status_t(e);
+  let e = UHExp.set_err_status_t(NotInHole, e);
+  (Block(err, lines, e), u_gen);
 }
 and ana_fix_holes_exp =
     (
