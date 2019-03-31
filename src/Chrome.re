@@ -777,13 +777,13 @@ let view = (model: Model.t) => {
           StringMap.add(
             "basic_holey",
             {
-              serialized: "(Block NotInHole()(OpSeq(BinOp NotInHole Space(Placeholder 0)(Placeholder 1))(ExpOpExp(Parenthesized(Block NotInHole()(Tm NotInHole(Lam(Pat NotInHole(EmptyHole 1))(Hole)(Block NotInHole()(EmptyHole 0))))))Space(EmptyHole 2))))",
+              serialized: "(Block()(OpSeq(BinOp NotInHole Space(Placeholder 0)(Placeholder 1))(ExpOpExp(Parenthesized(Block()(Tm NotInHole(Lam(Pat NotInHole(EmptyHole 1))(Hole)(Block()(EmptyHole 0))))))Space(EmptyHole 2))))",
               desc: "Basic holey lambda example",
             },
             StringMap.add(
               "just_hole",
               {
-                serialized: "(Block NotInHole()(EmptyHole 0))",
+                serialized: "(Block()(EmptyHole 0))",
                 desc: "Just a hole example",
               },
               StringMap.empty,
