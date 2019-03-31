@@ -2943,6 +2943,22 @@ and ana_perform_block =
     )
     : option((ZExp.zblock, MetaVarGen.t)) =>
   switch (a, zblock) {
+  | (_, DeeperB(InHole(TypeInconsistent, u) as err, zblock')) =>
+    let syn_zblock = ZExp.set_err_status_block(NotInHole, zblock);
+    let syn_block = ZExp.erase_block(syn_zblock);
+    switch (Statics.syn_block(ctx, syn_block)) {
+    | None => None
+    | Some(syn_ty) =>
+      switch (syn_perform_block(ctx, a, (syn_zblock, syn_ty, u_gen))) {
+      | None => None
+      | Some((syn_zblock, syn_ty, u_gen)) =>
+        if (HTyp.consistent(ty, syn_ty)) {
+          Some((syn_zblock, u_gen));
+        } else {
+          Some((ZExp.set_err_status_block(err, syn_zblock), u_gen));
+        }
+      }
+    };
   | (_, CursorB(_, _)) =>
     /* TODO enable block level actions */
     None
