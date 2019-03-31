@@ -51,6 +51,11 @@ let term_classes = (prefix, err_status, rev_path, classes, doc) => {
   );
 };
 
+let block = (prefix, rev_path, cls, doc) => {
+  let id' = id_of_rev_path(prefix, rev_path);
+  PP.tagged([cls], Some((id', rev_path)), None, doc);
+};
+
 let line = (prefix, rev_path, cls, doc) => {
   let id' = id_of_rev_path(prefix, rev_path);
   PP.tagged([cls], Some((id', rev_path)), None, doc);
@@ -320,8 +325,7 @@ let of_Block = (prefix, rev_path, rlines, r1) => {
     } else {
       rlines ^^ PP.mandatoryBreak ^^ r1;
     };
-  /* TODO make specialized block constructor */
-  term(prefix, NotInHole, rev_path, "Block", r);
+  block(prefix, rev_path, "Block", r);
 };
 
 let of_Let = (prefix, _err_status, rev_path, rx, rann, r1, r2) => {
