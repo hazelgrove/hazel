@@ -1829,7 +1829,9 @@ let rec syn_perform_block =
         : option((ZExp.zblock, HTyp.t, MetaVarGen.t)) =>
   switch (a, zblock) {
   | (_, CursorB(_, _)) =>
-    /* TODO enable block level actions */
+    /* TODO enable block level actions, consider ideas from
+     * Greenfoot frames https://www.greenfoot.org/frames/
+     */
     None
   /* Movement */
   | (MoveTo(path), _) =>
