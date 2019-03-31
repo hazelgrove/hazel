@@ -60,7 +60,7 @@ module DHPat = {
     | Expands(t, HTyp.t, Contexts.t, Delta.t)
     | DoesNotExpand;
 
-  let rec syn_expand_exp =
+  let rec syn_expand =
           (ctx: Contexts.t, delta: Delta.t, p: UHPat.t): expand_result =>
     switch (p) {
     | Pat(InHole(TypeInconsistent as reason, u), p')
@@ -68,7 +68,7 @@ module DHPat = {
         InHole(WrongLength as reason, u),
         OpSeq(BinOp(InHole(WrongLength, _), Comma, _, _), _) as p',
       ) =>
-      switch (syn_expand_exp'(ctx, delta, p')) {
+      switch (syn_expand'(ctx, delta, p')) {
       | DoesNotExpand => DoesNotExpand
       | Expands(dp, _, ctx, delta) =>
         let gamma = Contexts.gamma(ctx);
@@ -77,10 +77,10 @@ module DHPat = {
         Expands(NonEmptyHole(reason, u, 0, dp), Hole, ctx, delta);
       }
     | Pat(InHole(WrongLength, _), _) => DoesNotExpand
-    | Pat(NotInHole, p') => syn_expand_exp'(ctx, delta, p')
-    | Parenthesized(p1) => syn_expand_exp(ctx, delta, p1)
+    | Pat(NotInHole, p') => syn_expand'(ctx, delta, p')
+    | Parenthesized(p1) => syn_expand(ctx, delta, p1)
     }
-  and syn_expand_exp' =
+  and syn_expand' =
       (ctx: Contexts.t, delta: Delta.t, p': UHPat.t'): expand_result =>
     switch (p') {
     | EmptyHole(u) =>
@@ -100,7 +100,7 @@ module DHPat = {
     | NumLit(n) => Expands(NumLit(n), Num, ctx, delta)
     | BoolLit(b) => Expands(BoolLit(b), Bool, ctx, delta)
     | Inj(side, p) =>
-      switch (syn_expand_exp(ctx, delta, p)) {
+      switch (syn_expand(ctx, delta, p)) {
       | DoesNotExpand => DoesNotExpand
       | Expands(dp1, ty1, ctx, delta) =>
         let dp = Inj(side, dp1);
@@ -121,7 +121,7 @@ module DHPat = {
     | Placeholder(n) =>
       switch (OperatorSeq.seq_nth(n, seq)) {
       | None => DoesNotExpand
-      | Some(pn) => syn_expand_exp(ctx, delta, pn)
+      | Some(pn) => syn_expand(ctx, delta, pn)
       }
     | BinOp(InHole(TypeInconsistent as reason, u), op, skel1, skel2)
     | BinOp(InHole(WrongLength as reason, u), Comma as op, skel1, skel2) =>
@@ -170,12 +170,12 @@ module DHPat = {
         };
       }
     }
-  and ana_expand_exp =
+  and ana_expand =
       (ctx: Contexts.t, delta: Delta.t, p: UHPat.t, ty: HTyp.t): expand_result =>
     switch (p) {
-    | Pat(NotInHole, p') => ana_expand_exp'(ctx, delta, p', ty)
+    | Pat(NotInHole, p') => ana_expand'(ctx, delta, p', ty)
     | Pat(InHole(TypeInconsistent as reason, u), p') =>
-      switch (syn_expand_exp'(ctx, delta, p')) {
+      switch (syn_expand'(ctx, delta, p')) {
       | DoesNotExpand => DoesNotExpand
       | Expands(dp1, _, ctx, delta) =>
         let dp = NonEmptyHole(reason, u, 0, dp1);
@@ -188,7 +188,7 @@ module DHPat = {
         InHole(WrongLength as reason, u),
         OpSeq(BinOp(InHole(WrongLength, _), Comma, _, _), _) as p',
       ) =>
-      switch (ana_expand_exp'(ctx, delta, p', ty)) {
+      switch (ana_expand'(ctx, delta, p', ty)) {
       | DoesNotExpand => DoesNotExpand
       | Expands(dp1, _, ctx, delta) =>
         let dp = NonEmptyHole(reason, u, 0, dp1);
@@ -198,9 +198,9 @@ module DHPat = {
         Expands(dp, ty, ctx, delta);
       }
     | Pat(InHole(WrongLength, _), _) => DoesNotExpand
-    | Parenthesized(p) => ana_expand_exp(ctx, delta, p, ty)
+    | Parenthesized(p) => ana_expand(ctx, delta, p, ty)
     }
-  and ana_expand_exp' =
+  and ana_expand' =
       (ctx: Contexts.t, delta: Delta.t, p': UHPat.t', ty: HTyp.t)
       : expand_result =>
     switch (p') {
@@ -218,13 +218,13 @@ module DHPat = {
       Expands(Var(x), ty, ctx, delta);
     | Wild => Expands(Wild, ty, ctx, delta)
     | NumLit(_)
-    | BoolLit(_) => syn_expand_exp'(ctx, delta, p')
+    | BoolLit(_) => syn_expand'(ctx, delta, p')
     | Inj(side, p1) =>
       switch (HTyp.matched_sum(ty)) {
       | None => DoesNotExpand
       | Some((tyL, tyR)) =>
         let ty1 = pick_side(side, tyL, tyR);
-        switch (ana_expand_exp(ctx, delta, p1, ty1)) {
+        switch (ana_expand(ctx, delta, p1, ty1)) {
         | DoesNotExpand => DoesNotExpand
         | Expands(dp1, ty1, ctx, delta) =>
           let ty =
@@ -255,7 +255,7 @@ module DHPat = {
     | Placeholder(n) =>
       switch (OperatorSeq.seq_nth(n, seq)) {
       | None => DoesNotExpand
-      | Some(pn) => ana_expand_exp(ctx, delta, pn, ty)
+      | Some(pn) => ana_expand(ctx, delta, pn, ty)
       }
     | BinOp(InHole(TypeInconsistent as reason, u), op, skel1, skel2) =>
       let skel_not_in_hole = Skel.BinOp(NotInHole, op, skel1, skel2);
@@ -904,7 +904,7 @@ module DHExp = {
                 )
               };
             let d1 = cast(d1, ty1', ty1);
-            switch (DHPat.ana_expand_exp(ctx, delta, p, ty1)) {
+            switch (DHPat.ana_expand(ctx, delta, p, ty1)) {
             | DoesNotExpand => LinesDoNotExpand
             | Expands(dp, _, ctx, delta) =>
               let prelude = d2 => DHExp.Let(dp, d1, d2);
@@ -915,7 +915,7 @@ module DHExp = {
           switch (syn_expand_block(ctx, delta, block)) {
           | DoesNotExpand => LinesDoNotExpand
           | Expands(d1, ty1, delta) =>
-            switch (DHPat.ana_expand_exp(ctx, delta, p, ty1)) {
+            switch (DHPat.ana_expand(ctx, delta, p, ty1)) {
             | DoesNotExpand => LinesDoNotExpand
             | Expands(dp, _, ctx, delta) =>
               let prelude = d2 => DHExp.Let(dp, d1, d2);
@@ -980,7 +980,7 @@ module DHExp = {
         | Some(uty1) => UHTyp.expand(uty1)
         | None => HTyp.Hole
         };
-      switch (DHPat.ana_expand_exp(ctx, delta, p, ty1)) {
+      switch (DHPat.ana_expand(ctx, delta, p, ty1)) {
       | DoesNotExpand => DoesNotExpand
       | Expands(dp, _, ctx, delta) =>
         switch (syn_expand_block(ctx, delta, block)) {
@@ -1204,7 +1204,7 @@ module DHExp = {
           switch (HTyp.consistent(ty1_ann, ty1_given)) {
           | false => DoesNotExpand
           | true =>
-            switch (DHPat.ana_expand_exp(ctx, delta, p, ty1_ann)) {
+            switch (DHPat.ana_expand(ctx, delta, p, ty1_ann)) {
             | DoesNotExpand => DoesNotExpand
             | Expands(dp, ty1p, ctx, delta) =>
               switch (ana_expand_block(ctx, delta, block, ty2)) {
@@ -1217,7 +1217,7 @@ module DHExp = {
             }
           };
         | None =>
-          switch (DHPat.ana_expand_exp(ctx, delta, p, ty1_given)) {
+          switch (DHPat.ana_expand(ctx, delta, p, ty1_given)) {
           | DoesNotExpand => DoesNotExpand
           | Expands(dp, ty1, ctx, delta) =>
             switch (ana_expand_block(ctx, delta, block, ty2)) {
@@ -1320,7 +1320,7 @@ module DHExp = {
       )
       : option((rule, Delta.t)) => {
     let UHExp.Rule(p, block) = r;
-    switch (DHPat.ana_expand_exp(ctx, delta, p, pat_ty)) {
+    switch (DHPat.ana_expand(ctx, delta, p, pat_ty)) {
     | DoesNotExpand => None
     | Expands(dp, _, ctx, delta) =>
       switch (ana_expand_block(ctx, delta, block, clause_ty)) {
