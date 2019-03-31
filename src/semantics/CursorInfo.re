@@ -99,12 +99,12 @@ let update_sort = (ci: t, sort: cursor_sort): t => {
   {mode, sort, side, ctx};
 };
 
-let rec ana_pat_cursor_found =
+let rec ana_cursor_found_pat =
         (ctx: Contexts.t, p: UHPat.t, ty: HTyp.t, side: cursor_side)
         : option(t) =>
   switch (p) {
   | Parenthesized(p1) =>
-    switch (ana_pat_cursor_found(ctx, p1, ty, side)) {
+    switch (ana_cursor_found_pat(ctx, p1, ty, side)) {
     | None => None
     | Some(ci) => Some(update_sort(ci, IsPat(p)))
     }
@@ -159,7 +159,7 @@ let rec ana_pat_cursor_found =
   | OpSeq(BinOp(_, Space, _, _), _) => None
   };
 
-let rec syn_pat_cursor_info = (ctx: Contexts.t, zp: ZPat.t): option(t) =>
+let rec syn_cursor_info_pat = (ctx: Contexts.t, zp: ZPat.t): option(t) =>
   switch (zp) {
   | CursorP(side, Pat(_, Var(InVHole(Keyword(k), _), _)) as p) =>
     Some(mk_cursor_info(PatSynKeyword(k), IsPat(p), side, ctx))
@@ -169,19 +169,19 @@ let rec syn_pat_cursor_info = (ctx: Contexts.t, zp: ZPat.t): option(t) =>
     | Some((ty, _)) =>
       Some(mk_cursor_info(PatSynthesized(ty), IsPat(p), side, ctx))
     }
-  | Deeper(_, zp') => syn_pat_cursor_info'(ctx, zp')
-  | ParenthesizedZ(zp1) => syn_pat_cursor_info(ctx, zp1)
+  | Deeper(_, zp') => syn_cursor_info_pat'(ctx, zp')
+  | ParenthesizedZ(zp1) => syn_cursor_info_pat(ctx, zp1)
   | OpSeqZ(skel, zp1, surround) =>
     let p1 = ZPat.erase(zp1);
     let seq = OperatorSeq.opseq_of_exp_and_surround(p1, surround);
     let n = OperatorSeq.surround_prefix_length(surround);
-    syn_skel_pat_cursor_info(ctx, skel, seq, n, zp1);
+    syn_cursor_info_pat_skel(ctx, skel, seq, n, zp1);
   }
-and syn_pat_cursor_info' = (ctx: Contexts.t, zp': ZPat.t'): option(t) =>
+and syn_cursor_info_pat' = (ctx: Contexts.t, zp': ZPat.t'): option(t) =>
   switch (zp') {
-  | InjZ(_, zp1) => syn_pat_cursor_info(ctx, zp1)
+  | InjZ(_, zp1) => syn_cursor_info_pat(ctx, zp1)
   }
-and syn_skel_pat_cursor_info =
+and syn_cursor_info_pat_skel =
     (
       ctx: Contexts.t,
       skel: UHPat.skel_t,
@@ -193,29 +193,29 @@ and syn_skel_pat_cursor_info =
   switch (skel) {
   | Placeholder(n') =>
     if (n == n') {
-      syn_pat_cursor_info(ctx, zp1);
+      syn_cursor_info_pat(ctx, zp1);
     } else {
       None;
     }
   | BinOp(_, Comma, skel1, skel2) =>
-    switch (syn_skel_pat_cursor_info(ctx, skel1, seq, n, zp1)) {
+    switch (syn_cursor_info_pat_skel(ctx, skel1, seq, n, zp1)) {
     | Some(_) as result => result
-    | None => syn_skel_pat_cursor_info(ctx, skel2, seq, n, zp1)
+    | None => syn_cursor_info_pat_skel(ctx, skel2, seq, n, zp1)
     }
   | BinOp(_, Space, skel1, skel2) =>
-    switch (ana_skel_pat_cursor_info(ctx, skel1, seq, n, zp1, HTyp.Hole)) {
+    switch (ana_cursor_info_pat_skel(ctx, skel1, seq, n, zp1, HTyp.Hole)) {
     | Some(_) as result => result
-    | None => ana_skel_pat_cursor_info(ctx, skel2, seq, n, zp1, Hole)
+    | None => ana_cursor_info_pat_skel(ctx, skel2, seq, n, zp1, Hole)
     }
   | BinOp(_, Cons, skel1, skel2) =>
-    switch (syn_skel_pat_cursor_info(ctx, skel1, seq, n, zp1)) {
+    switch (syn_cursor_info_pat_skel(ctx, skel1, seq, n, zp1)) {
     | Some(_) as result => result
     | None =>
       switch (Statics.syn_skel_pat(ctx, skel1, seq, None)) {
       | None => None
       | Some((ty_elt, ctx, _)) =>
         let list_ty = HTyp.List(ty_elt);
-        ana_skel_pat_cursor_info(ctx, skel2, seq, n, zp1, list_ty);
+        ana_cursor_info_pat_skel(ctx, skel2, seq, n, zp1, list_ty);
       }
     }
   }
@@ -224,14 +224,14 @@ and ana_cursor_info_pat =
   switch (zp) {
   | CursorP(side, Pat(_, Var(InVHole(Keyword(k), _), _)) as p) =>
     Some(mk_cursor_info(PatAnaKeyword(ty, k), IsPat(p), side, ctx))
-  | CursorP(side, p) => ana_pat_cursor_found(ctx, p, ty, side)
+  | CursorP(side, p) => ana_cursor_found_pat(ctx, p, ty, side)
   | Deeper(InHole(TypeInconsistent, _), zp') =>
-    syn_pat_cursor_info'(ctx, zp')
+    syn_cursor_info_pat'(ctx, zp')
   | OpSeqZ(skel, zp1, surround) =>
     let p1 = ZPat.erase(zp1);
     let seq = OperatorSeq.opseq_of_exp_and_surround(p1, surround);
     let n = OperatorSeq.surround_prefix_length(surround);
-    ana_skel_pat_cursor_info(ctx, skel, seq, n, zp1, ty);
+    ana_cursor_info_pat_skel(ctx, skel, seq, n, zp1, ty);
   | Deeper(NotInHole, zp') => ana_cursor_info_pat'(ctx, zp', ty)
   | Deeper(InHole(WrongLength, _), _) => None
   | ParenthesizedZ(zp) => ana_cursor_info_pat(ctx, zp, ty)
@@ -247,7 +247,7 @@ and ana_cursor_info_pat' =
       ana_cursor_info_pat(ctx, zp1, ty1);
     }
   }
-and ana_skel_pat_cursor_info =
+and ana_cursor_info_pat_skel =
     (
       ctx: Contexts.t,
       skel: UHPat.skel_t,
@@ -265,13 +265,13 @@ and ana_skel_pat_cursor_info =
       None;
     }
   | BinOp(InHole(TypeInconsistent, _), _, _, _) =>
-    syn_skel_pat_cursor_info(ctx, skel, seq, n, zp1)
+    syn_cursor_info_pat_skel(ctx, skel, seq, n, zp1)
   | BinOp(NotInHole, Comma, skel1, skel2) =>
     switch (ty) {
     | Hole =>
-      switch (ana_skel_pat_cursor_info(ctx, skel1, seq, n, zp1, Hole)) {
+      switch (ana_cursor_info_pat_skel(ctx, skel1, seq, n, zp1, Hole)) {
       | Some(_) as result => result
-      | None => ana_skel_pat_cursor_info(ctx, skel2, seq, n, zp1, Hole)
+      | None => ana_cursor_info_pat_skel(ctx, skel2, seq, n, zp1, Hole)
       }
     | Prod(ty1, ty2) =>
       let types = HTyp.get_tuple(ty1, ty2);
@@ -285,7 +285,7 @@ and ana_skel_pat_cursor_info =
             | Some(_) as result => result
             | None =>
               let (skel, ty) = skel_ty;
-              ana_skel_pat_cursor_info(ctx, skel, seq, n, zp1, ty);
+              ana_cursor_info_pat_skel(ctx, skel, seq, n, zp1, ty);
             },
           None,
           ListMinTwo.to_list(zipped),
@@ -306,7 +306,7 @@ and ana_skel_pat_cursor_info =
             | Some(_) as result => result
             | None =>
               let (skel, ty) = skel_ty;
-              ana_skel_pat_cursor_info(ctx, skel, seq, n, zp1, ty);
+              ana_cursor_info_pat_skel(ctx, skel, seq, n, zp1, ty);
             },
           None,
           ListMinTwo.to_list(zipped),
@@ -318,7 +318,7 @@ and ana_skel_pat_cursor_info =
           (opt_result, skel) =>
             switch (opt_result) {
             | Some(_) as result => result
-            | None => syn_skel_pat_cursor_info(ctx, skel, seq, n, zp1)
+            | None => syn_cursor_info_pat_skel(ctx, skel, seq, n, zp1)
             },
           None,
           remainder,
@@ -331,15 +331,15 @@ and ana_skel_pat_cursor_info =
     switch (HTyp.matched_list(ty)) {
     | None => None
     | Some(ty_elt) =>
-      switch (ana_skel_pat_cursor_info(ctx, skel1, seq, n, zp1, ty_elt)) {
+      switch (ana_cursor_info_pat_skel(ctx, skel1, seq, n, zp1, ty_elt)) {
       | Some(_) as result => result
       | None =>
         let ty_list = HTyp.List(ty_elt);
-        ana_skel_pat_cursor_info(ctx, skel2, seq, n, zp1, ty_list);
+        ana_cursor_info_pat_skel(ctx, skel2, seq, n, zp1, ty_list);
       }
     }
   | BinOp(NotInHole, Space, _, _) =>
-    syn_skel_pat_cursor_info(ctx, skel, seq, n, zp1)
+    syn_cursor_info_pat_skel(ctx, skel, seq, n, zp1)
   };
 
 let rec ana_cursor_found_block =
