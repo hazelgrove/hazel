@@ -859,21 +859,7 @@ module DHExp = {
   let rec syn_expand_block =
           (ctx: Contexts.t, delta: Delta.t, block: UHExp.block): expand_result =>
     switch (block) {
-    | Block(InHole(WrongLength, _), _, _) => DoesNotExpand
-    | Block(InHole(TypeInconsistent, u), lines, e) =>
-      switch (syn_expand_block(ctx, delta, Block(NotInHole, lines, e))) {
-      | DoesNotExpand => DoesNotExpand
-      | Expands(d, _, delta) =>
-        let gamma = Contexts.gamma(ctx);
-        let sigma = id_env(gamma);
-        let delta =
-          MetaVarMap.extend_unique(
-            delta,
-            (u, (ExpressionHole, Hole, gamma)),
-          );
-        Expands(NonEmptyHole(TypeInconsistent, u, 0, sigma, d), Hole, delta);
-      }
-    | Block(NotInHole, lines, e) =>
+    | Block(lines, e) =>
       switch (syn_expand_lines(ctx, delta, lines)) {
       | LinesDoNotExpand => DoesNotExpand
       | LinesExpand(prelude, ctx, delta) =>
@@ -1158,18 +1144,7 @@ module DHExp = {
       (ctx: Contexts.t, delta: Delta.t, block: UHExp.block, ty: HTyp.t)
       : expand_result =>
     switch (block) {
-    | Block(InHole(WrongLength, _), _, _) => DoesNotExpand
-    | Block(InHole(TypeInconsistent, u), lines, e) =>
-      switch (syn_expand_block(ctx, delta, Block(NotInHole, lines, e))) {
-      | DoesNotExpand => DoesNotExpand
-      | Expands(d, _, delta) =>
-        let gamma = Contexts.gamma(ctx);
-        let sigma = id_env(gamma);
-        let delta =
-          MetaVarMap.extend_unique(delta, (u, (ExpressionHole, ty, gamma)));
-        Expands(NonEmptyHole(TypeInconsistent, u, 0, sigma, d), ty, delta);
-      }
-    | Block(NotInHole, lines, e) =>
+    | Block(lines, e) =>
       switch (syn_expand_lines(ctx, delta, lines)) {
       | LinesDoNotExpand => DoesNotExpand
       | LinesExpand(prelude, ctx, delta) =>

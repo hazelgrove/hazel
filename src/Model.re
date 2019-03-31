@@ -1,8 +1,7 @@
 type edit_state = (ZExp.zblock, HTyp.t, MetaVarGen.t);
 let u_gen0: MetaVarGen.t = (MetaVarGen.init: MetaVar.t);
 let (u, u_gen1) = MetaVarGen.next(u_gen0);
-let empty_zblock =
-  ZExp.DeeperB(NotInHole, BlockZE([], CursorE(Before, EmptyHole(u))));
+let empty_zblock = ZExp.BlockZE([], CursorE(Before, EmptyHole(u)));
 let empty: edit_state = ((empty_zblock, Hole, u_gen1): edit_state);
 let empty_erasure = ZExp.erase_block(empty_zblock);
 type edit_state_rs = React.signal(edit_state);

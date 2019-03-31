@@ -1828,11 +1828,6 @@ let rec syn_perform_block =
         )
         : option((ZExp.zblock, HTyp.t, MetaVarGen.t)) =>
   switch (a, zblock) {
-  | (_, CursorB(_, _)) =>
-    /* TODO enable block level actions, consider ideas from
-     * Greenfoot frames https://www.greenfoot.org/frames/
-     */
-    None
   /* Movement */
   | (MoveTo(path), _) =>
     let block = ZExp.erase_block(zblock);
@@ -1853,11 +1848,11 @@ let rec syn_perform_block =
       syn_perform_block(ctx, MoveTo(path), (zblock, ty, u_gen))
     }
   /* Backspace & Delete */
-  | (Delete, DeeperB(_, BlockZL((prefix, CursorL(_, EmptyLine), []), e))) =>
+  | (Delete, BlockZL((prefix, CursorL(_, EmptyLine), []), e)) =>
     let ze = ZExp.place_before_exp(e);
-    let zblock = ZExp.DeeperB(NotInHole, BlockZE(prefix, ze));
+    let zblock = ZExp.BlockZE(prefix, ze);
     Some((zblock, ty, u_gen));
-  | (Backspace, DeeperB(_, BlockZE(lines, ze))) when ZExp.is_before_exp(ze) =>
+  | (Backspace, BlockZE(lines, ze)) when ZExp.is_before_exp(ze) =>
     switch (UHExp.split_last_line(lines)) {
     | None => None
     | Some((lines, li)) =>
@@ -1865,25 +1860,19 @@ let rec syn_perform_block =
       | ExpLine(_) => None
       | LetLine(_, _, _) => None
       | EmptyLine =>
-        let zblock = ZExp.DeeperB(NotInHole, BlockZE(lines, ze));
+        let zblock = ZExp.BlockZE(lines, ze);
         Some((zblock, ty, u_gen));
       }
     }
-  | (
-      Delete,
-      DeeperB(
-        _,
-        BlockZL((prefix, DeeperL(ExpLineZ(ze)), []), EmptyHole(_)),
-      ),
-    )
+  | (Delete, BlockZL((prefix, DeeperL(ExpLineZ(ze)), []), EmptyHole(_)))
       when ZExp.is_after_exp(ze) =>
     switch (Statics.syn_exp(ctx, ZExp.erase(ze))) {
     | None => None
     | Some(ty) =>
-      let zblock = ZExp.DeeperB(NotInHole, BlockZE(prefix, ze));
+      let zblock = ZExp.BlockZE(prefix, ze);
       Some((zblock, ty, u_gen));
     }
-  | (Backspace, DeeperB(_, BlockZE(lines, CursorE(Before, EmptyHole(_))))) =>
+  | (Backspace, BlockZE(lines, CursorE(Before, EmptyHole(_)))) =>
     switch (UHExp.split_last_line(lines)) {
     | None => None
     | Some((lines, li)) =>
@@ -1892,37 +1881,35 @@ let rec syn_perform_block =
       | LetLine(_, _, _) => None
       | ExpLine(e) =>
         let ze = ZExp.place_after_exp(e);
-        let zblock = ZExp.DeeperB(NotInHole, BlockZE(lines, ze));
+        let zblock = ZExp.BlockZE(lines, ze);
         Some((zblock, ty, u_gen));
       }
     }
   /* Construction */
-  | (Construct(SLine), DeeperB(_, BlockZE(lines, ze)))
-      when ZExp.is_before_exp(ze) =>
-    let zblock = ZExp.DeeperB(NotInHole, BlockZE(lines @ [EmptyLine], ze));
+  | (Construct(SLine), BlockZE(lines, ze)) when ZExp.is_before_exp(ze) =>
+    let zblock = ZExp.BlockZE(lines @ [EmptyLine], ze);
     Some((zblock, ty, u_gen));
-  | (Construct(SLet), DeeperB(_, BlockZE(lines, ze1)))
-      when ZExp.is_before_exp(ze1) =>
+  | (Construct(SLet), BlockZE(lines, ze1)) when ZExp.is_before_exp(ze1) =>
     let (zp, u_gen) = ZPat.new_EmptyHole(u_gen);
     let e1 = ZExp.erase(ze1);
-    let zline = ZExp.DeeperL(LetLineZP(zp, None, Block(NotInHole, [], e1)));
+    let zline = ZExp.DeeperL(LetLineZP(zp, None, Block([], e1)));
     let zlines = (lines, zline, []);
     let (e2, u_gen) = UHExp.new_EmptyHole(u_gen);
-    let zblock = ZExp.DeeperB(NotInHole, BlockZL(zlines, e2));
+    let zblock = ZExp.BlockZL(zlines, e2);
     Some((zblock, HTyp.Hole, u_gen));
   | (
       Construct(SCase),
-      DeeperB(_, BlockZL((prefix, DeeperL(ExpLineZ(ze1)), suffix), e2)),
+      BlockZL((prefix, DeeperL(ExpLineZ(ze1)), suffix), e2),
     )
       when ZExp.is_before_exp(ze1) =>
     let e1 = ZExp.erase(ze1);
-    let rule_block = UHExp.Block(NotInHole, suffix, e2);
+    let rule_block = UHExp.Block(suffix, e2);
     let (ze, u_gen) =
       switch (e1) {
       | EmptyHole(_) =>
         let (p, u_gen) = UHPat.new_EmptyHole(u_gen);
         let rule = UHExp.Rule(p, rule_block);
-        let scrut_zblock = ZExp.DeeperB(NotInHole, BlockZE([], ze1));
+        let scrut_zblock = ZExp.BlockZE([], ze1);
         (
           ZExp.DeeperE(NotInHole, CaseZE(scrut_zblock, [rule], Some(Hole))),
           u_gen,
@@ -1931,25 +1918,22 @@ let rec syn_perform_block =
         let (zp, u_gen) = ZPat.new_EmptyHole(u_gen);
         let zrule = ZExp.RuleZP(zp, rule_block);
         let zrules = ZList.singleton(zrule);
-        let scrut_block = UHExp.Block(NotInHole, [], e1);
+        let scrut_block = UHExp.Block([], e1);
         (
           ZExp.DeeperE(NotInHole, CaseZR(scrut_block, zrules, Some(Hole))),
           u_gen,
         );
       };
-    let zblock = ZExp.DeeperB(NotInHole, BlockZE(prefix, ze));
+    let zblock = ZExp.BlockZE(prefix, ze);
     Some((zblock, Hole, u_gen));
   | (
       Construct(SOp(SSpace)),
-      DeeperB(
-        _,
-        BlockZE(
-          lines,
-          OpSeqZ(
-            _,
-            CursorE(After, Tm(_, Var(InVHole(Keyword(k), _), _))),
-            EmptyPrefix(suffix),
-          ),
+      BlockZE(
+        lines,
+        OpSeqZ(
+          _,
+          CursorE(After, Tm(_, Var(InVHole(Keyword(k), _), _))),
+          EmptyPrefix(suffix),
         ),
       ),
     ) =>
@@ -1958,39 +1942,35 @@ let rec syn_perform_block =
     | None => None
     | Some(ty) =>
       let ze = ZExp.place_before_exp(e);
-      let zblock = ZExp.DeeperB(NotInHole, BlockZE(lines, ze));
+      let zblock = ZExp.BlockZE(lines, ze);
       syn_perform_block(ctx, keyword_action(k), (zblock, ty, u_gen));
     };
   | (
       Construct(SOp(SSpace)),
-      DeeperB(
-        _,
-        BlockZE(
-          lines,
-          CursorE(After, Tm(_, Var(InVHole(Keyword(k), _), _))),
-        ),
+      BlockZE(
+        lines,
+        CursorE(After, Tm(_, Var(InVHole(Keyword(k), _), _))),
       ),
     ) =>
     let (ze, u_gen) = ZExp.new_EmptyHole(u_gen);
-    let zblock = ZExp.DeeperB(NotInHole, BlockZE(lines, ze));
+    let zblock = ZExp.BlockZE(lines, ze);
     syn_perform_block(ctx, keyword_action(k), (zblock, Hole, u_gen));
   /* Zipper Cases */
-  | (_, DeeperB(_, BlockZL(zlines, e))) =>
+  | (_, BlockZL(zlines, e)) =>
     switch (syn_perform_lines(ctx, a, (zlines, u_gen))) {
     | None => None
     | Some((zlines, ctx, u_gen)) =>
       let (e, ty, u_gen) = Statics.syn_fix_holes_exp(ctx, u_gen, e);
-      let zblock = ZExp.DeeperB(NotInHole, BlockZL(zlines, e));
+      let zblock = ZExp.BlockZL(zlines, e);
       Some((zblock, ty, u_gen));
     }
-  | (_, DeeperB(_, BlockZE(lines, ze))) =>
+  | (_, BlockZE(lines, ze)) =>
     switch (Statics.syn_lines(ctx, lines)) {
     | None => None
     | Some(ctx) =>
       switch (syn_perform_exp(ctx, a, (ze, ty, u_gen))) {
       | None => None
-      | Some((ze, ty, u_gen)) =>
-        Some((DeeperB(NotInHole, BlockZE(lines, ze)), ty, u_gen))
+      | Some((ze, ty, u_gen)) => Some((BlockZE(lines, ze), ty, u_gen))
       }
     }
   }
@@ -2094,7 +2074,7 @@ and syn_perform_lines =
   | (Construct(SLet), (prefix, DeeperL(ExpLineZ(ze)), suffix))
       when ZExp.is_before_exp(ze) =>
     let (zp, u_gen) = ZPat.new_EmptyHole(u_gen);
-    let block = UHExp.Block(NotInHole, [], ZExp.erase(ze));
+    let block = UHExp.Block([], ZExp.erase(ze));
     let zline = ZExp.DeeperL(LetLineZP(zp, None, block));
     let zlines = (prefix, zline, suffix);
     switch (Statics.syn_zlines(ctx, zlines)) {
@@ -2109,14 +2089,14 @@ and syn_perform_lines =
       switch (UHExp.split_last_line(suffix)) {
       | None =>
         let (e2, u_gen) = UHExp.new_EmptyHole(u_gen);
-        (UHExp.Block(NotInHole, [], e2), u_gen);
+        (UHExp.Block([], e2), u_gen);
       | Some((lines, last_line)) =>
         switch (last_line) {
         | EmptyLine
         | LetLine(_, _, _) =>
           let (e2, u_gen) = UHExp.new_EmptyHole(u_gen);
-          (UHExp.Block(NotInHole, suffix, e2), u_gen);
-        | ExpLine(e2) => (UHExp.Block(NotInHole, lines, e2), u_gen)
+          (UHExp.Block(suffix, e2), u_gen);
+        | ExpLine(e2) => (UHExp.Block(lines, e2), u_gen)
         }
       };
     let (ze, u_gen) =
@@ -2124,7 +2104,7 @@ and syn_perform_lines =
       | EmptyHole(_) =>
         let (p, u_gen) = UHPat.new_EmptyHole(u_gen);
         let rule = UHExp.Rule(p, rule_block);
-        let scrut_zblock = ZExp.DeeperB(NotInHole, BlockZE([], ze1));
+        let scrut_zblock = ZExp.BlockZE([], ze1);
         (
           ZExp.DeeperE(NotInHole, CaseZE(scrut_zblock, [rule], Some(Hole))),
           u_gen,
@@ -2133,7 +2113,7 @@ and syn_perform_lines =
         let (zp, u_gen) = ZPat.new_EmptyHole(u_gen);
         let zrule = ZExp.RuleZP(zp, rule_block);
         let zrules = ZList.singleton(zrule);
-        let scrut_block = UHExp.Block(NotInHole, [], e1);
+        let scrut_block = UHExp.Block([], e1);
         (
           ZExp.DeeperE(NotInHole, CaseZR(scrut_block, zrules, Some(Hole))),
           u_gen,
@@ -2530,7 +2510,7 @@ and syn_perform_exp =
     Some((ze, Hole, u_gen));
   | (Construct(SCase), CursorE(_, _)) => None
   | (Construct(SParenthesized), CursorE(_, _)) =>
-    let zblock = ZExp.DeeperB(NotInHole, BlockZE([], ze));
+    let zblock = ZExp.BlockZE([], ze);
     Some((ParenthesizedZ(zblock), ty, u_gen));
   | (Construct(SAsc), DeeperE(err_status, LamZP(zp, None, e1))) =>
     let ze =
@@ -2601,7 +2581,7 @@ and syn_perform_exp =
   | (Construct(SVar(_, _)), CursorE(_, _)) => None
   | (Construct(SLam), CursorE(_, e1)) =>
     let (zp, u_gen) = ZPat.new_EmptyHole(u_gen);
-    let block = UHExp.Block(NotInHole, [], e1);
+    let block = UHExp.Block([], e1);
     let ze = ZExp.DeeperE(NotInHole, LamZP(zp, Some(Hole), block));
     let ty' = HTyp.Arrow(Hole, ty);
     Some((ze, ty', u_gen));
@@ -2612,7 +2592,7 @@ and syn_perform_exp =
     Some((CursorE(side, Tm(NotInHole, NumLit(n))), Num, u_gen))
   | (Construct(SNumLit(_, _)), CursorE(_, _)) => None
   | (Construct(SInj(side)), CursorE(_, _)) =>
-    let zblock = ZExp.DeeperB(NotInHole, BlockZE([], ze));
+    let zblock = ZExp.BlockZE([], ze);
     let ze' = ZExp.DeeperE(NotInHole, InjZ(side, zblock));
     let ty' =
       switch (side) {
@@ -2962,25 +2942,6 @@ and ana_perform_block =
     )
     : option((ZExp.zblock, MetaVarGen.t)) =>
   switch (a, zblock) {
-  | (_, DeeperB(InHole(TypeInconsistent, _) as err, _)) =>
-    let syn_zblock = ZExp.set_err_status_block(NotInHole, zblock);
-    let syn_block = ZExp.erase_block(syn_zblock);
-    switch (Statics.syn_block(ctx, syn_block)) {
-    | None => None
-    | Some(syn_ty) =>
-      switch (syn_perform_block(ctx, a, (syn_zblock, syn_ty, u_gen))) {
-      | None => None
-      | Some((syn_zblock, syn_ty, u_gen)) =>
-        if (HTyp.consistent(ty, syn_ty)) {
-          Some((syn_zblock, u_gen));
-        } else {
-          Some((ZExp.set_err_status_block(err, syn_zblock), u_gen));
-        }
-      }
-    };
-  | (_, CursorB(_, _)) =>
-    /* TODO enable block level actions */
-    None
   /* Movement */
   | (MoveTo(path), _) =>
     let block = ZExp.erase_block(zblock);
@@ -3001,15 +2962,11 @@ and ana_perform_block =
       ana_perform_block(ctx, MoveTo(path), (zblock, u_gen), ty)
     }
   /* Backspace & Delete */
-  | (
-      Delete,
-      DeeperB(err, BlockZL((prefix, CursorL(_, EmptyLine), []), e)),
-    ) =>
+  | (Delete, BlockZL((prefix, CursorL(_, EmptyLine), []), e)) =>
     let ze = ZExp.place_before_exp(e);
-    let zblock = ZExp.DeeperB(err, BlockZE(prefix, ze));
+    let zblock = ZExp.BlockZE(prefix, ze);
     Some((zblock, u_gen));
-  | (Backspace, DeeperB(err, BlockZE(lines, ze)))
-      when ZExp.is_before_exp(ze) =>
+  | (Backspace, BlockZE(lines, ze)) when ZExp.is_before_exp(ze) =>
     switch (UHExp.split_last_line(lines)) {
     | None => None
     | Some((lines, li)) =>
@@ -3017,21 +2974,15 @@ and ana_perform_block =
       | ExpLine(_) => None
       | LetLine(_, _, _) => None
       | EmptyLine =>
-        let zblock = ZExp.DeeperB(err, BlockZE(lines, ze));
+        let zblock = ZExp.BlockZE(lines, ze);
         Some((zblock, u_gen));
       }
     }
-  | (
-      Delete,
-      DeeperB(
-        _,
-        BlockZL((prefix, DeeperL(ExpLineZ(ze)), []), EmptyHole(_)),
-      ),
-    )
+  | (Delete, BlockZL((prefix, DeeperL(ExpLineZ(ze)), []), EmptyHole(_)))
       when ZExp.is_after_exp(ze) =>
-    let zblock = ZExp.DeeperB(NotInHole, BlockZE(prefix, ze));
+    let zblock = ZExp.BlockZE(prefix, ze);
     Some(Statics.ana_fix_holes_zblock(ctx, u_gen, zblock, ty));
-  | (Backspace, DeeperB(_, BlockZE(lines, CursorE(Before, EmptyHole(_))))) =>
+  | (Backspace, BlockZE(lines, CursorE(Before, EmptyHole(_)))) =>
     switch (UHExp.split_last_line(lines)) {
     | None => None
     | Some((lines, li)) =>
@@ -3040,31 +2991,29 @@ and ana_perform_block =
       | LetLine(_, _, _) => None
       | ExpLine(e) =>
         let ze = ZExp.place_after_exp(e);
-        let zblock = ZExp.DeeperB(NotInHole, BlockZE(lines, ze));
+        let zblock = ZExp.BlockZE(lines, ze);
         Some(Statics.ana_fix_holes_zblock(ctx, u_gen, zblock, ty));
       }
     }
   /* Construction */
-  | (Construct(SLine), DeeperB(err, BlockZE(lines, ze)))
-      when ZExp.is_before_exp(ze) =>
-    let zblock = ZExp.DeeperB(err, BlockZE(lines @ [EmptyLine], ze));
+  | (Construct(SLine), BlockZE(lines, ze)) when ZExp.is_before_exp(ze) =>
+    let zblock = ZExp.BlockZE(lines @ [EmptyLine], ze);
     Some((zblock, u_gen));
-  | (Construct(SLet), DeeperB(_, BlockZE(lines, ze1)))
-      when ZExp.is_before_exp(ze1) =>
+  | (Construct(SLet), BlockZE(lines, ze1)) when ZExp.is_before_exp(ze1) =>
     let (zp, u_gen) = ZPat.new_EmptyHole(u_gen);
-    let block = UHExp.Block(NotInHole, [], ZExp.erase(ze1));
+    let block = UHExp.Block([], ZExp.erase(ze1));
     let zline = ZExp.DeeperL(LetLineZP(zp, None, block));
     let zlines = (lines, zline, []);
     let (e2, u_gen) = UHExp.new_EmptyHole(u_gen);
-    let zblock = ZExp.DeeperB(NotInHole, BlockZL(zlines, e2));
+    let zblock = ZExp.BlockZL(zlines, e2);
     Some((zblock, u_gen));
   | (
       Construct(SCase),
-      DeeperB(_, BlockZL((prefix, DeeperL(ExpLineZ(ze1)), suffix), e2)),
+      BlockZL((prefix, DeeperL(ExpLineZ(ze1)), suffix), e2),
     )
       when ZExp.is_before_exp(ze1) =>
     let e1 = ZExp.erase(ze1);
-    let clause = UHExp.Block(NotInHole, suffix, e2);
+    let clause = UHExp.Block(suffix, e2);
     let (ze, u_gen) =
       switch (e1) {
       | EmptyHole(_) =>
@@ -3073,11 +3022,7 @@ and ana_perform_block =
         (
           ZExp.DeeperE(
             NotInHole,
-            CaseZE(
-              ZExp.DeeperB(NotInHole, BlockZE([], ze1)),
-              [rule],
-              None,
-            ),
+            CaseZE(ZExp.BlockZE([], ze1), [rule], None),
           ),
           u_gen,
         );
@@ -3086,62 +3031,53 @@ and ana_perform_block =
         let zrule = ZExp.RuleZP(zp, clause);
         let zrules = ZList.singleton(zrule);
         (
-          ZExp.DeeperE(
-            NotInHole,
-            CaseZR(UHExp.Block(NotInHole, [], e1), zrules, None),
-          ),
+          ZExp.DeeperE(NotInHole, CaseZR(UHExp.Block([], e1), zrules, None)),
           u_gen,
         );
       };
-    let zblock = ZExp.DeeperB(NotInHole, BlockZE(prefix, ze));
+    let zblock = ZExp.BlockZE(prefix, ze);
     Some(Statics.ana_fix_holes_zblock(ctx, u_gen, zblock, ty));
   | (
       Construct(SOp(SSpace)),
-      DeeperB(
-        err,
-        BlockZE(
-          lines,
-          OpSeqZ(
-            _,
-            CursorE(After, Tm(_, Var(InVHole(Keyword(k), _), _))),
-            EmptyPrefix(suffix),
-          ),
+      BlockZE(
+        lines,
+        OpSeqZ(
+          _,
+          CursorE(After, Tm(_, Var(InVHole(Keyword(k), _), _))),
+          EmptyPrefix(suffix),
         ),
       ),
     ) =>
     let (e, u_gen) = keyword_suffix_to_exp(suffix, u_gen);
     let ze = ZExp.place_before_exp(e);
-    let zblock = ZExp.DeeperB(err, BlockZE(lines, ze));
+    let zblock = ZExp.BlockZE(lines, ze);
     ana_perform_block(ctx, keyword_action(k), (zblock, u_gen), ty);
   | (
       Construct(SOp(SSpace)),
-      DeeperB(
-        err,
-        BlockZE(
-          lines,
-          CursorE(After, Tm(_, Var(InVHole(Keyword(k), _), _))),
-        ),
+      BlockZE(
+        lines,
+        CursorE(After, Tm(_, Var(InVHole(Keyword(k), _), _))),
       ),
     ) =>
     let (ze, u_gen) = ZExp.new_EmptyHole(u_gen);
-    let zblock = ZExp.DeeperB(err, BlockZE(lines, ze));
+    let zblock = ZExp.BlockZE(lines, ze);
     ana_perform_block(ctx, keyword_action(k), (zblock, u_gen), ty);
   /* Zipper Cases */
-  | (_, DeeperB(_, BlockZL(zlines, e))) =>
+  | (_, BlockZL(zlines, e)) =>
     switch (syn_perform_lines(ctx, a, (zlines, u_gen))) {
     | None => None
     | Some((zlines, _, u_gen)) =>
-      let zblock = ZExp.DeeperB(NotInHole, BlockZL(zlines, e));
+      let zblock = ZExp.BlockZL(zlines, e);
       Some(Statics.ana_fix_holes_zblock(ctx, u_gen, zblock, ty));
     }
-  | (_, DeeperB(_, BlockZE(lines, ze))) =>
+  | (_, BlockZE(lines, ze)) =>
     switch (Statics.syn_lines(ctx, lines)) {
     | None => None
     | Some(ctx1) =>
       switch (ana_perform_exp(ctx1, a, (ze, u_gen), ty)) {
       | None => None
       | Some((ze, u_gen)) =>
-        let zblock = ZExp.DeeperB(NotInHole, BlockZE(lines, ze));
+        let zblock = ZExp.BlockZE(lines, ze);
         Some(Statics.ana_fix_holes_zblock(ctx, u_gen, zblock, ty));
       }
     }

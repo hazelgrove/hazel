@@ -226,11 +226,6 @@ let of_cursor_mode = (cursor_mode: CursorInfo.cursor_mode) => {
       let ind1 = expected_a_line_item_indicator;
       let ind2 = got_a_line_item_indicator;
       (ind1, ind2, OK);
-    | CursorInfo.Block =>
-      /* TODO placeholder for now */
-      let ind1 = expected_a_line_item_indicator;
-      let ind2 = got_a_line_item_indicator;
-      (ind1, ind2, OK);
     };
 
   let cls_of_err_state_b =

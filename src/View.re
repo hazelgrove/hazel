@@ -313,14 +313,15 @@ let of_lines = rline_lst =>
     )
   };
 
-let of_Block = (prefix, err_status, rev_path, rlines, r1) => {
+let of_Block = (prefix, rev_path, rlines, r1) => {
   let r =
     if (PP.isEmpty(rlines)) {
       r1;
     } else {
       rlines ^^ PP.mandatoryBreak ^^ r1;
     };
-  term(prefix, err_status, rev_path, "Block", r);
+  /* TODO make specialized block constructor */
+  term(prefix, NotInHole, rev_path, "Block", r);
 };
 
 let of_Let = (prefix, _err_status, rev_path, rx, rann, r1, r2) => {
@@ -511,9 +512,9 @@ let of_chained_FailedCast =
 
 let is_multi_line = (block: UHExp.block): bool =>
   switch (block) {
-  | Block(_, [], Tm(_, Case(_, _, _))) => true
-  | Block(_, [], _) => false
-  | Block(_, [_, ..._], _) => true
+  | Block([], Tm(_, Case(_, _, _))) => true
+  | Block([], _) => false
+  | Block([_, ..._], _) => true
   };
 
 type palette_stuff = {
@@ -656,11 +657,11 @@ let prepare_Parenthesized_block =
 );
 
 let rec of_hblock =
-        (palette_stuff, prefix, rev_path, Block(err, lines, e): UHExp.block) => {
+        (palette_stuff, prefix, rev_path, Block(lines, e): UHExp.block) => {
   let rlines = of_hlines(palette_stuff, prefix, rev_path, lines);
   let r =
     of_hexp(palette_stuff, prefix, [List.length(lines), ...rev_path], e);
-  of_Block(prefix, err, rev_path, rlines, r);
+  of_Block(prefix, rev_path, rlines, r);
 }
 and of_hlines = (palette_stuff, prefix, rev_path, lines: UHExp.lines) => {
   let rline_lst =

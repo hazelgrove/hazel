@@ -381,7 +381,7 @@ and ana_skel_pat = (ctx, skel, seq, ty, monitor) =>
 let ctx_for_let =
     (ctx: Contexts.t, p: UHPat.t, ty: HTyp.t, block: UHExp.block): Contexts.t =>
   switch (p, block) {
-  | (Pat(_, Var(NotInVHole, x)), Block(_, [], Tm(_, Lam(_, _, _)))) =>
+  | (Pat(_, Var(NotInVHole, x)), Block([], Tm(_, Lam(_, _, _)))) =>
     switch (HTyp.matched_arrow(ty)) {
     | Some(_) => Contexts.extend_gamma(ctx, (x, ty))
     | None => ctx
@@ -394,7 +394,7 @@ let ctx_for_let' =
     (ctx: Contexts.t, p: UHPat.t, ty: HTyp.t, block: UHExp.block)
     : (Contexts.t, option(Var.t)) =>
   switch (p, block) {
-  | (Pat(_, Var(NotInVHole, x)), Block(_, [], Tm(_, Lam(_, _, _)))) =>
+  | (Pat(_, Var(NotInVHole, x)), Block([], Tm(_, Lam(_, _, _)))) =>
     switch (HTyp.matched_arrow(ty)) {
     | Some(_) => (Contexts.extend_gamma(ctx, (x, ty)), Some(x))
     | None => (ctx, None)
@@ -404,17 +404,7 @@ let ctx_for_let' =
 
 let rec syn_block = (ctx: Contexts.t, block: UHExp.block): option(HTyp.t) =>
   switch (block) {
-  | Block(InHole(WrongLength, _), _, _) => None
-  | Block(InHole(TypeInconsistent, _), lines, e) =>
-    switch (syn_lines(ctx, lines)) {
-    | None => None
-    | Some(ctx) =>
-      switch (syn_exp(ctx, e)) {
-      | None => None
-      | Some(_) => Some(Hole)
-      }
-    }
-  | Block(NotInHole, lines, e) =>
+  | Block(lines, e) =>
     switch (syn_lines(ctx, lines)) {
     | None => None
     | Some(ctx) => syn_exp(ctx, e)
@@ -637,17 +627,7 @@ and ana_splice_map =
 and ana_block =
     (ctx: Contexts.t, block: UHExp.block, ty: HTyp.t): option(unit) =>
   switch (block) {
-  | Block(InHole(WrongLength, _), _, _) => None
-  | Block(InHole(TypeInconsistent, _), lines, e) =>
-    switch (syn_lines(ctx, lines)) {
-    | None => None
-    | Some(ctx) =>
-      switch (syn_exp(ctx, e)) {
-      | None => None
-      | Some(_) => Some()
-      }
-    }
-  | Block(NotInHole, lines, e) =>
+  | Block(lines, e) =>
     switch (syn_lines(ctx, lines)) {
     | None => None
     | Some(ctx) => ana_exp(ctx, e, ty)
@@ -1374,12 +1354,12 @@ let rec syn_fix_holes_block =
           block: UHExp.block,
         )
         : (UHExp.block, HTyp.t, MetaVarGen.t) => {
-  let Block(_, lines, e) = block;
+  let Block(lines, e) = block;
   let (lines, ctx, u_gen) =
     syn_fix_holes_lines(ctx, u_gen, ~renumber_empty_holes, lines);
   let (e, ty, u_gen) =
     syn_fix_holes_exp(ctx, u_gen, ~renumber_empty_holes, e);
-  (Block(NotInHole, lines, e), ty, u_gen);
+  (Block(lines, e), ty, u_gen);
 }
 and syn_fix_holes_lines =
     (
@@ -1636,15 +1616,12 @@ and ana_fix_holes_block =
       ty: HTyp.t,
     )
     : (UHExp.block, MetaVarGen.t) => {
-  let Block(_, lines, e) = block;
+  let Block(lines, e) = block;
   let (lines, ctx, u_gen) =
     syn_fix_holes_lines(ctx, u_gen, ~renumber_empty_holes, lines);
   let (e, u_gen) =
     ana_fix_holes_exp(ctx, u_gen, ~renumber_empty_holes, e, ty);
-  /* propagate err_status to block level */
-  let err = UHExp.get_err_status_t(e);
-  let e = UHExp.set_err_status_t(NotInHole, e);
-  (Block(err, lines, e), u_gen);
+  (Block(lines, e), u_gen);
 }
 and ana_fix_holes_exp =
     (

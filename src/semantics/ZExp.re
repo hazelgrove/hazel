@@ -9,9 +9,6 @@ type opseq_prefix = OperatorSeq.opseq_prefix(UHExp.t, UHExp.op);
 type opseq_suffix = OperatorSeq.opseq_suffix(UHExp.t, UHExp.op);
 
 type zblock =
-  | CursorB(cursor_side, UHExp.block)
-  | DeeperB(err_status, zblock')
-and zblock' =
   | BlockZL(zlines, UHExp.t)
   | BlockZE(UHExp.lines, t)
 and zlines = ZList.t(zline, UHExp.line)
@@ -59,16 +56,15 @@ let bidelimit = (ze: t): t =>
   | DeeperE(_, CaseZA(_, _, _))
   | DeeperE(_, LamZP(_, _, _))
   | DeeperE(_, LamZA(_, _, _))
-  | DeeperE(_, LamZE(_, _, _)) =>
-    ParenthesizedZ(DeeperB(NotInHole, BlockZE([], ze)))
+  | DeeperE(_, LamZE(_, _, _)) => ParenthesizedZ(BlockZE([], ze))
   };
 
 exception SkelInconsistentWithOpSeq;
 
 let rec get_err_status_block = (zblock: zblock): err_status =>
   switch (zblock) {
-  | CursorB(_, block) => UHExp.get_err_status_block(block)
-  | DeeperB(err_status, _) => err_status
+  | BlockZL(_, e) => UHExp.get_err_status_t(e)
+  | BlockZE(_, ze) => get_err_status_t(ze)
   }
 and get_err_status_t = (ze: t): err_status =>
   switch (ze) {
@@ -95,9 +91,8 @@ and get_err_status_opseq =
 
 let rec set_err_status_block = (err: err_status, zblock: zblock): zblock =>
   switch (zblock) {
-  | CursorB(side, block) =>
-    CursorB(side, UHExp.set_err_status_block(err, block))
-  | DeeperB(_, zblock') => DeeperB(err, zblock')
+  | BlockZL(zlines, e) => BlockZL(zlines, UHExp.set_err_status_t(err, e))
+  | BlockZE(lines, ze) => BlockZE(lines, set_err_status_t(err, ze))
   }
 and set_err_status_t = (err: err_status, ze: t): t =>
   switch (ze) {
@@ -136,23 +131,17 @@ and set_err_status_opseq =
     (skel, ze_n, surround);
   };
 
-let wrap_in_block = (ze: t): zblock => {
-  let err_status = get_err_status_t(ze);
-  let ze = set_err_status_t(NotInHole, ze);
-  set_err_status_block(err_status, DeeperB(NotInHole, BlockZE([], ze)));
-};
+let wrap_in_block = (ze: t): zblock => BlockZE([], ze);
 
 let rec make_block_inconsistent =
         (u_gen: MetaVarGen.t, zblock: zblock): (zblock, MetaVarGen.t) =>
   switch (zblock) {
-  | CursorB(side, block) =>
-    let (block, u_gen) = UHExp.make_block_inconsistent(u_gen, block);
-    let zblock = CursorB(side, block);
-    (zblock, u_gen);
-  | DeeperB(_, zblock') =>
-    let (u, u_gen) = MetaVarGen.next(u_gen);
-    let zblock = DeeperB(InHole(TypeInconsistent, u), zblock');
-    (zblock, u_gen);
+  | BlockZL(zlines, e) =>
+    let (e, u_gen) = UHExp.make_t_inconsistent(u_gen, e);
+    (BlockZL(zlines, e), u_gen);
+  | BlockZE(lines, ze) =>
+    let (ze, u_gen) = make_t_inconsistent(u_gen, ze);
+    (BlockZE(lines, ze), u_gen);
   }
 and make_t_inconsistent = (u_gen: MetaVarGen.t, ze: t): (t, MetaVarGen.t) =>
   switch (ze) {
@@ -231,18 +220,14 @@ let new_EmptyHole = (u_gen: MetaVarGen.t): (t, MetaVarGen.t) => {
 let empty_zrule = (u_gen: MetaVarGen.t): (zrule, MetaVarGen.t) => {
   let (zp, u_gen) = ZPat.new_EmptyHole(u_gen);
   let (e, u_gen) = UHExp.new_EmptyHole(u_gen);
-  let block = UHExp.Block(NotInHole, [], e);
-  let zrule = RuleZP(zp, block);
+  let zrule = RuleZP(zp, UHExp.wrap_in_block(e));
   (zrule, u_gen);
 };
 
 let rec erase_block = (zblock: zblock): UHExp.block =>
   switch (zblock) {
-  | CursorB(_, block) => block
-  | DeeperB(err_status, BlockZL(zlines, e)) =>
-    Block(err_status, erase_lines(zlines), e)
-  | DeeperB(err_status, BlockZE(lines, ze)) =>
-    Block(err_status, lines, erase(ze))
+  | BlockZL(zlines, e) => Block(erase_lines(zlines), e)
+  | BlockZE(lines, ze) => Block(lines, erase(ze))
   }
 and erase_lines = (zlis: zlines): UHExp.lines =>
   ZList.erase(zlis, erase_line)
@@ -292,11 +277,9 @@ and erase_rule = (zr: zrule): UHExp.rule =>
 
 let rec is_before_block = (zblock: zblock): bool =>
   switch (zblock) {
-  | CursorB(Before, _) => true
-  | CursorB(_, _) => false
-  | DeeperB(_, BlockZL(zlines, _)) => is_before_lines(zlines)
-  | DeeperB(_, BlockZE([], ze)) => is_before_exp(ze)
-  | DeeperB(_, BlockZE(_, _)) => false
+  | BlockZL(zlines, _) => is_before_lines(zlines)
+  | BlockZE([], ze) => is_before_exp(ze)
+  | BlockZE(_, _) => false
   }
 and is_before_lines = ((prefix, zline, _): zlines): bool =>
   switch (prefix) {
@@ -336,10 +319,8 @@ and is_before_exp = (ze: t): bool =>
 
 let rec is_after_block = (zblock: zblock): bool =>
   switch (zblock) {
-  | CursorB(After, _) => true
-  | CursorB(_, _) => false
-  | DeeperB(_, BlockZL(_, _)) => false
-  | DeeperB(_, BlockZE(_, ze)) => is_after_exp(ze)
+  | BlockZL(_, _) => false
+  | BlockZE(_, ze) => is_after_exp(ze)
   }
 and is_after_line = (zli: zline): bool =>
   switch (zli) {
@@ -374,12 +355,11 @@ and is_after_exp = (ze: t): bool =>
 
 let rec place_before_block = (block: UHExp.block): zblock =>
   switch (block) {
-  | Block(err_status, [], e) =>
-    DeeperB(err_status, BlockZE([], place_before_exp(e)))
-  | Block(err_status, [line, ...lines], e) =>
+  | Block([], e) => BlockZE([], place_before_exp(e))
+  | Block([line, ...lines], e) =>
     let zline = place_before_line(line);
     let zlines = ([], zline, lines);
-    DeeperB(err_status, BlockZL(zlines, e));
+    BlockZL(zlines, e);
   }
 and place_before_line = (line: UHExp.line): zline =>
   switch (line) {
@@ -406,9 +386,8 @@ and place_before_exp = (e: UHExp.t): t =>
   | Tm(_, ApPalette(_, _, _)) => CursorE(Before, e)
   };
 
-let rec place_after_block =
-        (Block(err_status, lines, e): UHExp.block): zblock =>
-  DeeperB(err_status, BlockZE(lines, place_after_exp(e)))
+let rec place_after_block = (Block(lines, e): UHExp.block): zblock =>
+  BlockZE(lines, place_after_exp(e))
 and place_after_line = (line: UHExp.line): zline =>
   switch (line) {
   | EmptyLine => CursorL(After, line)

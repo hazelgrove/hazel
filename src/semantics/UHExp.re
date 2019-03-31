@@ -21,7 +21,7 @@ type skel_t = Skel.t(op);
 
 [@deriving sexp]
 type block =
-  | Block(err_status, lines, t)
+  | Block(lines, t)
 and lines = list(line)
 and line =
   | EmptyLine
@@ -80,7 +80,7 @@ let is_EmptyHole = (e: t): bool =>
 let empty_rule = (u_gen: MetaVarGen.t): (rule, MetaVarGen.t) => {
   let (p, u_gen) = UHPat.new_EmptyHole(u_gen);
   let (e, u_gen) = new_EmptyHole(u_gen);
-  let block = Block(NotInHole, [], e);
+  let block = Block([], e);
   let rule = Rule(p, block);
   (rule, u_gen);
 };
@@ -123,10 +123,11 @@ let bidelimit = (e: t): t =>
   if (bidelimited(e)) {
     e;
   } else {
-    Parenthesized(Block(NotInHole, [], e));
+    Parenthesized(Block([], e));
   };
 
-let rec get_err_status_block = (Block(err_status, _, _): block): err_status => err_status
+let rec get_err_status_block = (Block(_, e): block): err_status =>
+  get_err_status_t(e)
 and get_err_status_t = (e: t): err_status =>
   switch (e) {
   | Tm(err_status, _) => err_status
@@ -140,11 +141,11 @@ and get_err_status_t = (e: t): err_status =>
     }
   };
 
-let set_err_status_block =
-    (err: err_status, Block(_, lines, e): block): block =>
-  Block(err, lines, e);
+let rec set_err_status_block =
+        (err: err_status, Block(lines, e): block): block =>
+  Block(lines, set_err_status_t(err, e))
 /* put e in the specified hole */
-let rec set_err_status_t = (err: err_status, e: t): t =>
+and set_err_status_t = (err: err_status, e: t): t =>
   switch (e) {
   | Tm(_, e') => Tm(err, e')
   | Parenthesized(block) => Parenthesized(set_err_status_block(err, block))
@@ -234,8 +235,4 @@ let rec split_last_line = (lines: lines): option((lines, line)) =>
     }
   };
 
-let wrap_in_block = (e: t): block => {
-  let err_status = get_err_status_t(e);
-  let e = set_err_status_t(NotInHole, e);
-  set_err_status_block(err_status, Block(NotInHole, [], e));
-};
+let wrap_in_block = (e: t): block => Block([], e);

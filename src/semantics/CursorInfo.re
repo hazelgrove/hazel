@@ -74,14 +74,9 @@ type cursor_mode =
   /* cursor is on a keyword */
   | PatSynKeyword(keyword)
   /*
-   *  # cursor on line item
+   *  # cursor on line
    */
-  | Line
-  /*
-   *  # cursor on block
-   */
-  /* TODO add more fine-grained block cursor info */
-  | Block;
+  | Line;
 
 type cursor_sort =
   | IsExpr(UHExp.t)
@@ -356,16 +351,30 @@ and ana_skel_pat_cursor_info =
   };
 
 let rec ana_cursor_found_block =
-        (ctx: Contexts.t, block: UHExp.block, _: HTyp.t, side: cursor_side)
-        : option(t) =>
-  Some(mk_cursor_info(Block, IsBlock(block), side, ctx))
+        (
+          ctx: Contexts.t,
+          Block(lines, e): UHExp.block,
+          ty: HTyp.t,
+          side: cursor_side,
+        )
+        : option(cursor_mode) =>
+  switch (Statics.syn_lines(ctx, lines)) {
+  | None => None
+  | Some(ctx) =>
+    switch (ana_cursor_found_exp(ctx, e, ty, side)) {
+    | None => None
+    | Some(ci) =>
+      let {mode, sort: _, side: _, ctx: _} = ci;
+      Some(mode);
+    }
+  }
 and ana_cursor_found_exp =
     (ctx: Contexts.t, e: UHExp.t, ty: HTyp.t, side: cursor_side): option(t) =>
   switch (e) {
   | Parenthesized(block) =>
     switch (ana_cursor_found_block(ctx, block, ty, side)) {
     | None => None
-    | Some(ci) => Some(update_sort(ci, IsExpr(e)))
+    | Some(mode) => Some(mk_cursor_info(mode, IsExpr(e), side, ctx))
     }
   | Tm(InHole(TypeInconsistent, _), _)
   | OpSeq(BinOp(InHole(TypeInconsistent, _), _, _, _), _) =>
@@ -449,13 +458,6 @@ and ana_cursor_found_exp =
 let rec syn_cursor_info_block =
         (ctx: Contexts.t, zblock: ZExp.zblock): option(t) =>
   switch (zblock) {
-  | CursorB(side, block) =>
-    Some(mk_cursor_info(Block, IsBlock(block), side, ctx))
-  | DeeperB(_, zblock') => syn_cursor_info_block'(ctx, zblock')
-  }
-and syn_cursor_info_block' =
-    (ctx: Contexts.t, zblock': ZExp.zblock'): option(t) =>
-  switch (zblock') {
   | BlockZL((prefix, zline, _), _) =>
     switch (Statics.syn_lines(ctx, prefix)) {
     | None => None
@@ -559,13 +561,6 @@ and syn_cursor_info' = (ctx: Contexts.t, ze: ZExp.t'): option(t) =>
 and ana_cursor_info_block =
     (ctx: Contexts.t, zblock: ZExp.zblock, ty: HTyp.t): option(t) =>
   switch (zblock) {
-  | CursorB(side, block) =>
-    Some(mk_cursor_info(Block, IsBlock(block), side, ctx))
-  | DeeperB(_, zblock') => ana_cursor_info_block'(ctx, zblock', ty)
-  }
-and ana_cursor_info_block' =
-    (ctx: Contexts.t, zblock': ZExp.zblock', ty: HTyp.t): option(t) =>
-  switch (zblock') {
   | BlockZL((prefix, zline, _), _) =>
     switch (Statics.syn_lines(ctx, prefix)) {
     | None => None

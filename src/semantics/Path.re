@@ -40,11 +40,6 @@ and of_zpat' = (zp': ZPat.t'): t =>
 
 let rec of_zblock = (zblock: ZExp.zblock): t =>
   switch (zblock) {
-  | CursorB(side, _) => ([], side)
-  | DeeperB(_, zblock') => of_zblock'(zblock')
-  }
-and of_zblock' = (zblock': ZExp.zblock'): t =>
-  switch (zblock') {
   | BlockZL(zlines, _) => of_zlines(zlines)
   | BlockZE(lines, ze) => cons'(List.length(lines), of_zexp(ze))
   }
@@ -203,13 +198,13 @@ let follow_pat_or_fail = (path: t, p: UHPat.t): ZPat.t =>
 
 let rec follow_block = (path: t, block: UHExp.block): option(ZExp.zblock) =>
   switch (path) {
-  | ([], cursor_side) => Some(CursorB(cursor_side, block))
+  | ([], _) => None /* no block level cursor */
   | ([x, ...xs], cursor_side) =>
-    let Block(err_status, lines, e) = block;
+    let Block(lines, e) = block;
     if (x === List.length(lines)) {
       switch (follow_exp((xs, cursor_side), e)) {
       | None => None
-      | Some(ze) => Some(DeeperB(err_status, BlockZE(lines, ze)))
+      | Some(ze) => Some(BlockZE(lines, ze))
       };
     } else {
       switch (ZList.split_at(x, lines)) {
@@ -217,7 +212,7 @@ let rec follow_block = (path: t, block: UHExp.block): option(ZExp.zblock) =>
       | Some(split_lines) =>
         switch (ZList.optmap_z(follow_line((xs, cursor_side)), split_lines)) {
         | None => None
-        | Some(zlines) => Some(DeeperB(err_status, BlockZL(zlines, e)))
+        | Some(zlines) => Some(BlockZL(zlines, e))
         }
       };
     };
@@ -458,7 +453,7 @@ let rec holes_pat = (p: UHPat.t, steps: steps, holes: hole_list): hole_list =>
   };
 
 let rec holes_block =
-        (Block(_, lines, e): UHExp.block, steps: steps, holes: hole_list)
+        (Block(lines, e): UHExp.block, steps: steps, holes: hole_list)
         : hole_list => {
   let len = List.length(lines);
   let holes = holes_exp(e, [len, ...steps], holes);
@@ -711,23 +706,12 @@ let rec holes_zpat = (zp: ZPat.t, steps: steps): zhole_list =>
 
 let rec holes_zblock = (zblock: ZExp.zblock, steps: steps): zhole_list =>
   switch (zblock) {
-  | CursorB(In(_), block) /* should never happen */
-  | CursorB(Before, block) => {
-      holes_before: [],
-      hole_selected: None,
-      holes_after: holes_block(block, steps, []),
-    }
-  | CursorB(After, block) => {
-      holes_before: holes_block(block, steps, []),
-      hole_selected: None,
-      holes_after: [],
-    }
-  | DeeperB(_, BlockZL(zlines, e)) =>
+  | BlockZL(zlines, e) =>
     let {holes_before, hole_selected, holes_after} =
       holes_zlines(zlines, steps);
     let holes_e = holes_exp(e, [ZList.length(zlines), ...steps], []);
     {holes_before, hole_selected, holes_after: holes_after @ holes_e};
-  | DeeperB(_, BlockZE(lines, ze)) =>
+  | BlockZE(lines, ze) =>
     let {holes_before, hole_selected, holes_after} =
       holes_ze(ze, [List.length(lines), ...steps]);
     let holes_lines = holes_lines(lines, 0, steps, []);
