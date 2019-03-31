@@ -2002,7 +2002,9 @@ and syn_perform_lines =
   | (MoveTo(_), _)
   | (MoveToPrevHole, _)
   | (MoveToNextHole, _) =>
-    /* TODO implement for cells */
+    /* TODO implement when we have cells, which
+     * will be modeled as lists of lines
+     */
     None
   /* Backspace & Delete */
   | (Delete, (prefix, CursorL(_, EmptyLine), suffix)) =>
