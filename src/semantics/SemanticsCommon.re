@@ -11,7 +11,7 @@ type err_status =
 let err_status_to_string =
   fun
   | NotInHole => "NotInHole"
-  | InHole(reason, u) => "InHole";
+  | InHole(_, _) => "InHole";
 
 [@deriving sexp]
 type keyword =

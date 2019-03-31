@@ -1,9 +1,9 @@
 open Sexplib.Std;
-open SemanticsCommon;
+
 [@deriving sexp]
 type splice_name = int;
 [@deriving sexp]
-type splice_map('exp) = HazelUtil.NatMap.t((HTyp.t, 'exp));
+type splice_map('exp) = GeneralUtil.NatMap.t((HTyp.t, 'exp));
 [@deriving sexp]
 type t('exp) = {
   next: splice_name,
@@ -12,7 +12,7 @@ type t('exp) = {
 };
 let empty: t('exp) = {
   next: 0,
-  splice_map: HazelUtil.NatMap.empty,
+  splice_map: GeneralUtil.NatMap.empty,
   splice_order: [],
 };
 

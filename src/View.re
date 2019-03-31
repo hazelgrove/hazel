@@ -302,7 +302,7 @@ let of_LetLine = (prefix, rev_path, rx, rann, r1) => {
   line(prefix, rev_path, "LetLine", view);
 };
 
-let of_lines = (prefix, rline_lst) =>
+let of_lines = rline_lst =>
   switch (rline_lst) {
   | [] => PP.empty
   | [rli, ...rli_lst] =>
@@ -323,7 +323,7 @@ let of_Block = (prefix, err_status, rev_path, rlines, r1) => {
   term(prefix, err_status, rev_path, "Block", r);
 };
 
-let of_Let = (prefix, err_status, rev_path, rx, rann, r1, r2) => {
+let of_Let = (prefix, _err_status, rev_path, rx, rann, r1, r2) => {
   let first_part = PP.blockBoundary ^^ kw("let") ^^ space ^^ rx;
   let second_part =
     of_op(" = ", "let-equals")
@@ -512,7 +512,7 @@ let of_chained_FailedCast =
 let is_multi_line = (block: UHExp.block): bool =>
   switch (block) {
   | Block(_, [], Tm(_, Case(_, _, _))) => true
-  | Block(_, [], e) => false
+  | Block(_, [], _) => false
   | Block(_, [_, ..._], _) => true
   };
 
@@ -668,7 +668,7 @@ and of_hlines = (palette_stuff, prefix, rev_path, lines: UHExp.lines) => {
       (i, line) => of_hline(palette_stuff, prefix, [i, ...rev_path], line),
       lines,
     );
-  of_lines(prefix, rline_lst);
+  of_lines(rline_lst);
 }
 and of_hline = (palette_stuff, prefix, rev_path, line: UHExp.line) =>
   switch (line) {
@@ -753,7 +753,7 @@ and of_hexp = (palette_stuff, prefix, rev_path, e: UHExp.t) =>
           Some(of_uhtyp(prefix, rev_path_ann, uty1));
         };
       of_Case(prefix, err_status, rev_path, r1, rpcs, rann);
-    | ApPalette(name, serialized_model, psi) => raise(InvariantViolated)
+    | ApPalette(_, _, _) => raise(InvariantViolated)
     /* switch (
          Palettes.PaletteViewCtx.lookup(palette_stuff.palette_view_ctx, name)
        ) {
@@ -829,7 +829,7 @@ let precedence_Cons = 4;
 let precedence_LessThan = 5;
 let precedence_Comma = 6;
 let precedence_max = 7;
-let rec precedence_dhpat = dp =>
+let precedence_dhpat = dp =>
   DHPat.(
     switch (dp) {
     | EmptyHole(_)
@@ -907,7 +907,7 @@ let rec of_dhpat' =
           attrs,
           r,
         );
-      | NonEmptyHole(reason, u, i, dp1) =>
+      | NonEmptyHole(reason, u, _i, dp1) =>
         let rev_path1 = [0, ...rev_path];
         let r =
           of_dhpat'(
@@ -1242,7 +1242,7 @@ let rec of_dhexp' =
             (i, rule) => {
               let rev_pathr = [i + 1, ...rev_path];
               switch (rule) {
-              | Rule(dp, dc) =>
+              | Rule(dp, _) =>
                 let rev_pathp = [0, ...rev_pathr];
                 let rp = of_dhpat(instance_click_fn, prefix, rev_pathp, dp);
                 let rc = taggedText("elided", "...");

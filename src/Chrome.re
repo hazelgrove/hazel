@@ -23,7 +23,7 @@ let view = (model: Model.t) => {
     replace_e,
     _,
   } = model;
-  let pp_view_width = 80;
+  let pp_view_width = 100;
   let prefix = "view";
   let rec mk_editor_box:
     (EditorBox.rev_path, EditorBox.rev_paths, UHExp.block) => EditorBox.t =
@@ -753,7 +753,6 @@ let view = (model: Model.t) => {
 
   let deserialize_onclick_handler = (serialized, _) => {
     replace_e(Deserialize.block_of_string(serialized));
-    true;
   };
 
   let examples =

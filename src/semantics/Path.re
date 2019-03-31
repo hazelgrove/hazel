@@ -1,10 +1,10 @@
 open SemanticsCommon;
-open HazelUtil;
+open GeneralUtil;
 
 [@deriving show({with_path: false})]
 type steps = list(int);
 
-let string_of_steps = HazelUtil.string_of_list(string_of_int);
+let string_of_steps = GeneralUtil.string_of_list(string_of_int);
 
 [@deriving show({with_path: false})]
 type t = (steps, ZExp.cursor_side);
@@ -45,7 +45,7 @@ let rec of_zblock = (zblock: ZExp.zblock): t =>
   }
 and of_zblock' = (zblock': ZExp.zblock'): t =>
   switch (zblock') {
-  | BlockZL(zlines, e) => of_zlines(zlines)
+  | BlockZL(zlines, _) => of_zlines(zlines)
   | BlockZE(lines, ze) => cons'(List.length(lines), of_zexp(ze))
   }
 and of_zlines = (zlines: ZExp.zlines): t => {
@@ -78,7 +78,7 @@ and of_zexp' = (ze': ZExp.t'): t =>
   switch (ze') {
   | LamZP(zp, _, _) => cons'(0, of_zpat(zp))
   | LamZA(_, zann, _) => cons'(1, of_ztyp(zann))
-  | LamZE(_, ann, zblock) => cons'(2, of_zblock(zblock))
+  | LamZE(_, _, zblock) => cons'(2, of_zblock(zblock))
   | InjZ(_, zblock) => cons'(0, of_zblock(zblock))
   | CaseZE(zblock, _, _) => cons'(0, of_zblock(zblock))
   | CaseZR(_, zrules, _) =>
@@ -405,8 +405,8 @@ let string_of_hole_desc =
 type hole_list = list((hole_desc, steps));
 
 let string_of_hole_list = (hole_list: hole_list): string =>
-  HazelUtil.string_of_list(
-    HazelUtil.string_of_pair(string_of_hole_desc, string_of_steps),
+  GeneralUtil.string_of_list(
+    GeneralUtil.string_of_pair(string_of_hole_desc, string_of_steps),
     hole_list,
   );
 
@@ -423,7 +423,7 @@ let rec holes_seq =
   | ExpOpExp(e1, _, e2) =>
     let holes = holes_tm(e2, [offset + 1, ...steps], holes);
     holes_tm(e1, [offset, ...steps], holes);
-  | SeqOpExp(seq1, op, e2) =>
+  | SeqOpExp(seq1, _, e2) =>
     let holes =
       holes_tm(
         e2,
@@ -454,7 +454,7 @@ let rec holes_pat = (p: UHPat.t, steps: steps, holes: hole_list): hole_list =>
   | Pat(_, BoolLit(_)) => holes
   | Pat(_, ListNil) => holes
   | Pat(_, Inj(_, p1)) => holes_pat(p1, [0, ...steps], holes)
-  | Pat(_, OpSeq(skel, seq)) => holes_seq(seq, holes_pat, 0, steps, holes)
+  | Pat(_, OpSeq(_, seq)) => holes_seq(seq, holes_pat, 0, steps, holes)
   };
 
 let rec holes_block =
@@ -489,7 +489,7 @@ and holes_exp = (e: UHExp.t, steps: steps, holes: hole_list): hole_list =>
   switch (e) {
   | Parenthesized(block) => holes_block(block, [0, ...steps], holes)
   | EmptyHole(u) => [(ExpHole(u), steps), ...holes]
-  | OpSeq(skel, seq) => holes_seq(seq, holes_exp, 0, steps, holes)
+  | OpSeq(_, seq) => holes_seq(seq, holes_exp, 0, steps, holes)
   | Tm(_, Var(_, _)) => holes
   | Tm(_, NumLit(_)) => holes
   | Tm(_, BoolLit(_)) => holes
@@ -551,8 +551,8 @@ let string_of_zhole_list = ({holes_before, hole_selected, holes_after}) =>
   ++ string_of_hole_list(holes_before)
   ++ ", \n"
   ++ "  hole_selected: "
-  ++ HazelUtil.string_of_opt(
-       HazelUtil.string_of_pair(string_of_hole_desc, string_of_steps),
+  ++ GeneralUtil.string_of_opt(
+       GeneralUtil.string_of_pair(string_of_hole_desc, string_of_steps),
        hole_selected,
      )
   ++ ", \n"
@@ -734,7 +734,7 @@ let rec holes_zblock = (zblock: ZExp.zblock, steps: steps): zhole_list =>
     {holes_before: holes_lines @ holes_before, hole_selected, holes_after};
   }
 and holes_zlines =
-    ((prefix, zline, suffix): ZExp.zlines, steps: steps): zhole_list => {
+    ((prefix, zline, _): ZExp.zlines, steps: steps): zhole_list => {
   let holes_prefix = holes_lines(prefix, 0, steps, []);
   let {holes_before, hole_selected, holes_after} =
     holes_zline(zline, [List.length(prefix), ...steps]);
@@ -835,7 +835,7 @@ and holes_ze = (ze: ZExp.t, steps: steps): zhole_list =>
       | OpSeq(_, _) => no_holes
       | Parenthesized(_) => no_holes
       | EmptyHole(_) => no_holes
-      | Tm(err, ue') =>
+      | Tm(_, ue') =>
         switch (ue') {
         | NumLit(_)
         | BoolLit(_)
@@ -954,13 +954,13 @@ and holes_ze = (ze: ZExp.t, steps: steps): zhole_list =>
       };
     | ApPaletteZ(_, _, zpsi) =>
       let zsplice_map = zpsi.zsplice_map;
-      let (n, (ty, zblock)) = ZNatMap.prj_z_kv(zsplice_map);
+      let (n, (_, zblock)) = ZNatMap.prj_z_kv(zsplice_map);
       let {holes_before, hole_selected, holes_after} =
         holes_zblock(zblock, [n, ...steps]);
       let splice_order = zpsi.splice_order;
       let splice_map = ZNatMap.prj_map(zsplice_map);
       let (splices_before, splices_after) =
-        HazelUtil.split_at(splice_order, n);
+        GeneralUtil.split_at(splice_order, n);
       let holes_splices_before =
         List.fold_left(
           (holes, n) =>
@@ -1017,7 +1017,7 @@ and holes_zrule = (zrule: ZExp.zrule, prefix_len: int, steps: steps) =>
     {holes_before: holes_p @ holes_before, hole_selected, holes_after};
   };
 
-let rec steps_to_hole = (hole_list: hole_list, u: MetaVar.t): option(steps) =>
+let steps_to_hole = (hole_list: hole_list, u: MetaVar.t): option(steps) =>
   switch (
     List.find_opt(
       ((hole_desc, _)) =>
@@ -1033,8 +1033,7 @@ let rec steps_to_hole = (hole_list: hole_list, u: MetaVar.t): option(steps) =>
   | Some((_, path)) => Some(path)
   };
 
-let rec steps_to_hole_z =
-        (zhole_list: zhole_list, u: MetaVar.t): option(steps) => {
+let steps_to_hole_z = (zhole_list: zhole_list, u: MetaVar.t): option(steps) => {
   let {holes_before, hole_selected, holes_after} = zhole_list;
   switch (steps_to_hole(holes_before, u)) {
   | Some(_) as steps => steps

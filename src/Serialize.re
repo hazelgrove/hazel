@@ -1,5 +1,4 @@
 open Sexplib;
-open Format;
 open LangUtil;
 
 let ensure_well_typed_before_serialization = block =>

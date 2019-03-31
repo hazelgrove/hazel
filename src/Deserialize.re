@@ -1,5 +1,4 @@
 open Sexplib;
-open LangUtil;
 
 let block_of_string = (s: string): UHExp.block => {
   let block = UHExp.block_of_sexp(Sexp.of_string(s));

@@ -1,5 +1,5 @@
 open SemanticsCommon;
-open HazelUtil;
+open GeneralUtil;
 
 /* see syn_skel and ana_skel below */
 type type_mode =
@@ -100,14 +100,14 @@ and syn_skel_pat = (ctx, skel, seq, monitor) =>
         }
       }
     }
-  | Skel.BinOp(InHole(TypeInconsistent, u), op, skel1, skel2)
-  | Skel.BinOp(InHole(WrongLength, u), UHPat.Comma as op, skel1, skel2) =>
+  | Skel.BinOp(InHole(TypeInconsistent, _), op, skel1, skel2)
+  | Skel.BinOp(InHole(WrongLength, _), UHPat.Comma as op, skel1, skel2) =>
     let skel_not_in_hole = Skel.BinOp(NotInHole, op, skel1, skel2);
     switch (syn_skel_pat(ctx, skel_not_in_hole, seq, monitor)) {
     | None => None
     | Some((_, ctx, mode)) => Some((HTyp.Hole, ctx, mode))
     };
-  | Skel.BinOp(InHole(WrongLength, u), _, _, _) => None
+  | Skel.BinOp(InHole(WrongLength, _), _, _, _) => None
   | Skel.BinOp(NotInHole, UHPat.Comma, skel1, skel2) =>
     switch (syn_skel_pat(ctx, skel1, seq, monitor)) {
     | None => None
@@ -234,7 +234,7 @@ and ana_skel_pat = (ctx, skel, seq, ty, monitor) =>
         }
       }
     }
-  | Skel.BinOp(InHole(TypeInconsistent, u), op, skel1, skel2) =>
+  | Skel.BinOp(InHole(TypeInconsistent, _), op, skel1, skel2) =>
     let skel_not_in_hole = Skel.BinOp(NotInHole, op, skel1, skel2);
     switch (syn_skel_pat(ctx, skel_not_in_hole, seq, monitor)) {
     | None => None
@@ -288,7 +288,7 @@ and ana_skel_pat = (ctx, skel, seq, ty, monitor) =>
       };
     | _ => None
     }
-  | Skel.BinOp(InHole(WrongLength, u), UHPat.Comma, skel1, skel2) =>
+  | Skel.BinOp(InHole(WrongLength, _), UHPat.Comma, skel1, skel2) =>
     switch (ty) {
     | HTyp.Prod(ty1, ty2) =>
       let types = HTyp.get_tuple(ty1, ty2);
@@ -554,12 +554,12 @@ and syn_skel =
         }
       }
     }
-  | BinOp(InHole(TypeInconsistent, u), op, skel1, skel2)
-  | BinOp(InHole(WrongLength, u), Comma as op, skel1, skel2) =>
+  | BinOp(InHole(TypeInconsistent, _), op, skel1, skel2)
+  | BinOp(InHole(WrongLength, _), Comma as op, skel1, skel2) =>
     let skel_not_in_hole = Skel.BinOp(NotInHole, op, skel1, skel2);
     switch (syn_skel(ctx, skel_not_in_hole, seq, monitor)) {
     | None => None
-    | Some((ty, mode)) => Some((Hole, mode))
+    | Some((_, mode)) => Some((Hole, mode))
     };
   | BinOp(InHole(WrongLength, _), _, _, _) => None
   | BinOp(NotInHole, Plus, skel1, skel2)
@@ -834,7 +834,7 @@ and ana_skel =
       };
     | _ => None
     }
-  | BinOp(InHole(WrongLength, u), Comma, skel1, skel2) =>
+  | BinOp(InHole(WrongLength, _), Comma, skel1, skel2) =>
     switch (ty) {
     | Prod(ty1, ty2) =>
       let types = HTyp.get_tuple(ty1, ty2);
@@ -1116,7 +1116,7 @@ and ana_fix_holes_pat' =
         ana_fix_holes_pat(ctx, u_gen, ~renumber_empty_holes, p1, ty1);
       (NotInHole, Inj(side, p1), ctx, u_gen);
     | None =>
-      let (p1, ty, ctx, u_gen) =
+      let (p1, _, ctx, u_gen) =
         syn_fix_holes_pat(ctx, u_gen, ~renumber_empty_holes, p1);
       let (u, u_gen) = MetaVarGen.next(u_gen);
       (InHole(TypeInconsistent, u), Inj(side, p1), ctx, u_gen);
@@ -1247,7 +1247,7 @@ and ana_fix_holes_pat_skel =
         let (skels2, seq, ctx, u_gen) =
           List.fold_right(
             (skel: UHPat.skel_t, (skels, seq, ctx, u_gen)) => {
-              let (skel, seq, ty, ctx, u_gen) =
+              let (skel, seq, _, ctx, u_gen) =
                 syn_fix_holes_pat_skel(
                   ctx,
                   u_gen,
@@ -1455,7 +1455,7 @@ and syn_fix_holes_exp =
     let (block, ty, u_gen) =
       syn_fix_holes_block(ctx, u_gen, ~renumber_empty_holes, block);
     (Parenthesized(block), ty, u_gen);
-  | EmptyHole(u) =>
+  | EmptyHole(_) =>
     if (renumber_empty_holes) {
       let (u, u_gen) = MetaVarGen.next(u_gen);
       (EmptyHole(u), Hole, u_gen);
@@ -1673,7 +1673,7 @@ and ana_fix_holes_exp =
     ) {
     | (Skel.Placeholder(_), _, _) =>
       raise(UHExp.SkelInconsistentWithOpSeq(skel, seq))
-    | (Skel.BinOp(err, _, _, _) as skel, seq, u_gen) => (
+    | (Skel.BinOp(_, _, _, _) as skel, seq, u_gen) => (
         OpSeq(skel, seq),
         u_gen,
       )
@@ -1712,7 +1712,7 @@ and ana_fix_holes_exp' =
             );
           (NotInHole, UHExp.Lam(p, ann, block), u_gen);
         } else {
-          let (e', ty, u_gen) =
+          let (e', _, u_gen) =
             syn_fix_holes_exp'(ctx, u_gen, ~renumber_empty_holes, e');
           let (u, u_gen) = MetaVarGen.next(u_gen);
           (InHole(TypeInconsistent, u), e', u_gen);
@@ -1725,7 +1725,7 @@ and ana_fix_holes_exp' =
         (NotInHole, UHExp.Lam(p, ann, block), u_gen);
       }
     | None =>
-      let (e', ty', u_gen) =
+      let (e', _, u_gen) =
         syn_fix_holes_exp'(ctx, u_gen, ~renumber_empty_holes, e');
       let (u, u_gen) = MetaVarGen.next(u_gen);
       (InHole(TypeInconsistent, u), e', u_gen);
@@ -2018,7 +2018,7 @@ and ana_fix_holes_exp_skel =
         let (skels2, seq, u_gen) =
           List.fold_right(
             (skel: UHExp.skel_t, (skels, seq, u_gen)) => {
-              let (skel, seq, ty, u_gen) =
+              let (skel, seq, _, u_gen) =
                 syn_fix_holes_exp_skel(
                   ctx,
                   u_gen,

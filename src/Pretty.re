@@ -1,5 +1,4 @@
 open Tyxml_js;
-open Html5;
 module NatMap = EditorBoxTypes.NatMap;
 type div_attribs = list(Html5.attrib(Html_types.div_attrib));
 type rev_path = EditorBoxTypes.rev_path;
@@ -94,7 +93,7 @@ module PP: {
     if (String.equal(s, "​​") || String.equal(s, "‌")) {
       0;
     } else {
-      CamomileLibrary.UTF8.length(s);
+      String.length(s);
     };
   let rec sdoc_of_doc' = (table, width, k, zs) =>
     switch (zs) {
@@ -201,8 +200,8 @@ module HTML_Of_SDoc = {
         | (Some(id), Some(attribs)) =>
           Html5.[a_id(id), attrs_classes, ...attribs]
         | (Some(id), None) => Html5.[a_id(id), attrs_classes]
-        | (None, Some(attribs)) => Html5.[attrs_classes, ...attribs]
-        | (None, None) => Html5.[attrs_classes]
+        | (None, Some(attribs)) => [attrs_classes, ...attribs]
+        | (None, None) => [attrs_classes]
         };
       let h' = [Html5.(div(~a=attrs_lst, h)), ...tl];
       (h', rem);

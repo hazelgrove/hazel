@@ -1,4 +1,4 @@
-open HazelUtil;
+open GeneralUtil;
 
 /* types with holes */
 [@deriving sexp]
@@ -208,5 +208,5 @@ let rec join = (ty1, ty2) =>
     | Some(ty) => Some(List(ty))
     | None => None
     }
-  | (List(ty), _) => None
+  | (List(_), _) => None
   };

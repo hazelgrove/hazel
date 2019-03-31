@@ -1,5 +1,5 @@
 open SemanticsCommon;
-open HazelUtil;
+open GeneralUtil;
 
 [@deriving show({with_path: false})]
 type cursor_side = SemanticsCommon.cursor_side;
@@ -159,8 +159,8 @@ and make_t_inconsistent = (u_gen: MetaVarGen.t, ze: t): (t, MetaVarGen.t) =>
   | CursorE(cursor_side, e) =>
     let (e, u_gen) = UHExp.make_t_inconsistent(u_gen, e);
     (CursorE(cursor_side, e), u_gen);
-  | DeeperE(NotInHole, ze')
-  | DeeperE(InHole(WrongLength, _), ze') =>
+  | DeeperE(NotInHole, _)
+  | DeeperE(InHole(WrongLength, _), _) =>
     let (u, u_gen) = MetaVarGen.next(u_gen);
     let ze = set_err_status_t(InHole(TypeInconsistent, u), ze);
     (ze, u_gen);
