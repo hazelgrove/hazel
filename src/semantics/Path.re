@@ -718,11 +718,11 @@ let rec holes_zblock = (zblock: ZExp.zblock, steps: steps): zhole_list =>
     {holes_before: holes_lines @ holes_before, hole_selected, holes_after};
   }
 and holes_zlines =
-    ((prefix, zline, _): ZExp.zlines, steps: steps): zhole_list => {
+    ((prefix, zline, suffix): ZExp.zlines, steps: steps): zhole_list => {
   let holes_prefix = holes_lines(prefix, 0, steps, []);
   let {holes_before, hole_selected, holes_after} =
     holes_zline(zline, [List.length(prefix), ...steps]);
-  let holes_suffix = holes_lines(prefix, List.length(prefix) + 1, steps, []);
+  let holes_suffix = holes_lines(suffix, List.length(prefix) + 1, steps, []);
   {
     holes_before: holes_prefix @ holes_before,
     hole_selected,
