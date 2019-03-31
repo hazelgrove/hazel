@@ -875,52 +875,59 @@ module DHExp = {
     switch (lines) {
     | [] => LinesExpand(d => d, ctx, delta)
     | [line, ...lines] =>
-      switch (line) {
-      | EmptyLine => syn_expand_lines(ctx, delta, lines)
-      | ExpLine(e1) =>
-        switch (syn_expand_exp(ctx, delta, e1)) {
-        | DoesNotExpand => LinesDoNotExpand
-        | Expands(d1, _, delta) =>
-          let prelude = d2 => DHExp.Let(Wild, d1, d2);
-          LinesExpand(prelude, ctx, delta);
+      switch (syn_expand_line(ctx, delta, line)) {
+      | LinesDoNotExpand => LinesDoNotExpand
+      | LinesExpand(prelude_line, ctx, delta) =>
+        switch (syn_expand_lines(ctx, delta, lines)) {
+        | LinesDoNotExpand => LinesDoNotExpand
+        | LinesExpand(prelude_lines, ctx, delta) =>
+          LinesExpand(d => prelude_line(prelude_lines(d)), ctx, delta)
         }
-      | LetLine(p, ann, block) =>
-        switch (ann) {
-        | Some(uty1) =>
-          let ty1 = UHTyp.expand(uty1);
-          let (ctx1, is_recursive_fn) =
-            Statics.ctx_for_let'(ctx, p, ty1, block);
-          switch (ana_expand_block(ctx1, delta, block, ty1)) {
-          | DoesNotExpand => LinesDoNotExpand
-          | Expands(d1, ty1', delta) =>
-            let d1 =
-              switch (is_recursive_fn) {
-              | None => d1
-              | Some(x) =>
-                FixF(
-                  x,
-                  ty1',
-                  subst_var(cast(BoundVar(x), ty1', ty1), x, d1),
-                )
-              };
-            let d1 = cast(d1, ty1', ty1);
-            switch (DHPat.ana_expand(ctx, delta, p, ty1)) {
-            | DoesNotExpand => LinesDoNotExpand
-            | Expands(dp, _, ctx, delta) =>
-              let prelude = d2 => DHExp.Let(dp, d1, d2);
-              LinesExpand(prelude, ctx, delta);
+      }
+    }
+  and syn_expand_line =
+      (ctx: Contexts.t, delta: Delta.t, line: UHExp.line): expand_result_lines =>
+    switch (line) {
+    | EmptyLine => LinesExpand(d => d, ctx, delta)
+    | ExpLine(e1) =>
+      switch (syn_expand_exp(ctx, delta, e1)) {
+      | DoesNotExpand => LinesDoNotExpand
+      | Expands(d1, _, delta) =>
+        let prelude = d2 => DHExp.Let(Wild, d1, d2);
+        LinesExpand(prelude, ctx, delta);
+      }
+    | LetLine(p, ann, block) =>
+      switch (ann) {
+      | Some(uty1) =>
+        let ty1 = UHTyp.expand(uty1);
+        let (ctx1, is_recursive_fn) =
+          Statics.ctx_for_let'(ctx, p, ty1, block);
+        switch (ana_expand_block(ctx1, delta, block, ty1)) {
+        | DoesNotExpand => LinesDoNotExpand
+        | Expands(d1, ty1', delta) =>
+          let d1 =
+            switch (is_recursive_fn) {
+            | None => d1
+            | Some(x) =>
+              FixF(x, ty1', subst_var(cast(BoundVar(x), ty1', ty1), x, d1))
             };
-          };
-        | None =>
-          switch (syn_expand_block(ctx, delta, block)) {
+          let d1 = cast(d1, ty1', ty1);
+          switch (DHPat.ana_expand(ctx, delta, p, ty1)) {
           | DoesNotExpand => LinesDoNotExpand
-          | Expands(d1, ty1, delta) =>
-            switch (DHPat.ana_expand(ctx, delta, p, ty1)) {
-            | DoesNotExpand => LinesDoNotExpand
-            | Expands(dp, _, ctx, delta) =>
-              let prelude = d2 => DHExp.Let(dp, d1, d2);
-              LinesExpand(prelude, ctx, delta);
-            }
+          | Expands(dp, _, ctx, delta) =>
+            let prelude = d2 => DHExp.Let(dp, d1, d2);
+            LinesExpand(prelude, ctx, delta);
+          };
+        };
+      | None =>
+        switch (syn_expand_block(ctx, delta, block)) {
+        | DoesNotExpand => LinesDoNotExpand
+        | Expands(d1, ty1, delta) =>
+          switch (DHPat.ana_expand(ctx, delta, p, ty1)) {
+          | DoesNotExpand => LinesDoNotExpand
+          | Expands(dp, _, ctx, delta) =>
+            let prelude = d2 => DHExp.Let(dp, d1, d2);
+            LinesExpand(prelude, ctx, delta);
           }
         }
       }
