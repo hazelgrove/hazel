@@ -63,11 +63,7 @@ module DHPat = {
   let rec syn_expand =
           (ctx: Contexts.t, delta: Delta.t, p: UHPat.t): expand_result =>
     switch (p) {
-    | Pat(InHole(TypeInconsistent as reason, u), p')
-    | Pat(
-        InHole(WrongLength as reason, u),
-        OpSeq(BinOp(InHole(WrongLength, _), Comma, _, _), _) as p',
-      ) =>
+    | Pat(InHole(TypeInconsistent as reason, u), p') =>
       switch (syn_expand'(ctx, delta, p')) {
       | DoesNotExpand => DoesNotExpand
       | Expands(dp, _, ctx, delta) =>
@@ -79,10 +75,6 @@ module DHPat = {
     | Pat(InHole(WrongLength, _), _) => DoesNotExpand
     | Pat(NotInHole, p') => syn_expand'(ctx, delta, p')
     | Parenthesized(p1) => syn_expand(ctx, delta, p1)
-    }
-  and syn_expand' =
-      (ctx: Contexts.t, delta: Delta.t, p': UHPat.t'): expand_result =>
-    switch (p') {
     | EmptyHole(u) =>
       let gamma = Contexts.gamma(ctx);
       let dp = EmptyHole(u, 0);
@@ -90,6 +82,11 @@ module DHPat = {
       let delta =
         MetaVarMap.extend_unique(delta, (u, (PatternHole, ty, gamma)));
       Expands(dp, ty, ctx, delta);
+    | OpSeq(skel, seq) => syn_expand_skel(ctx, delta, skel, seq)
+    }
+  and syn_expand' =
+      (ctx: Contexts.t, delta: Delta.t, p': UHPat.t'): expand_result =>
+    switch (p') {
     | Wild => Expands(Wild, Hole, ctx, delta)
     | Var(InVHole(Free, _), _) => raise(FreeVarInPat)
     | Var(InVHole(Keyword(k), u), _) =>
@@ -112,7 +109,6 @@ module DHPat = {
         Expands(dp, ty, ctx, delta);
       }
     | ListNil => Expands(ListNil, List(Hole), ctx, delta)
-    | OpSeq(skel, seq) => syn_expand_skel(ctx, delta, skel, seq)
     }
   and syn_expand_skel =
       (ctx: Contexts.t, delta: Delta.t, skel: UHPat.skel_t, seq: UHPat.opseq)
@@ -184,32 +180,20 @@ module DHPat = {
           MetaVarMap.extend_unique(delta, (u, (PatternHole, ty, gamma)));
         Expands(dp, ty, ctx, delta);
       }
-    | Pat(
-        InHole(WrongLength as reason, u),
-        OpSeq(BinOp(InHole(WrongLength, _), Comma, _, _), _) as p',
-      ) =>
-      switch (ana_expand'(ctx, delta, p', ty)) {
-      | DoesNotExpand => DoesNotExpand
-      | Expands(dp1, _, ctx, delta) =>
-        let dp = NonEmptyHole(reason, u, 0, dp1);
-        let gamma = Contexts.gamma(ctx);
-        let delta =
-          MetaVarMap.extend_unique(delta, (u, (PatternHole, ty, gamma)));
-        Expands(dp, ty, ctx, delta);
-      }
     | Pat(InHole(WrongLength, _), _) => DoesNotExpand
     | Parenthesized(p) => ana_expand(ctx, delta, p, ty)
-    }
-  and ana_expand' =
-      (ctx: Contexts.t, delta: Delta.t, p': UHPat.t', ty: HTyp.t)
-      : expand_result =>
-    switch (p') {
     | EmptyHole(u) =>
       let gamma = Contexts.gamma(ctx);
       let dp = EmptyHole(u, 0);
       let delta =
         MetaVarMap.extend_unique(delta, (u, (PatternHole, ty, gamma)));
       Expands(dp, ty, ctx, delta);
+    | OpSeq(skel, seq) => ana_expand_skel(ctx, delta, skel, seq, ty)
+    }
+  and ana_expand' =
+      (ctx: Contexts.t, delta: Delta.t, p': UHPat.t', ty: HTyp.t)
+      : expand_result =>
+    switch (p') {
     | Var(InVHole(Free, _), _) => raise(FreeVarInPat)
     | Var(InVHole(Keyword(k), u), _) =>
       Expands(Keyword(u, 0, k), ty, ctx, delta)
@@ -240,7 +224,6 @@ module DHPat = {
       | None => DoesNotExpand
       | Some(ty_elt) => Expands(ListNil, HTyp.List(ty_elt), ctx, delta)
       }
-    | OpSeq(skel, seq) => ana_expand_skel(ctx, delta, skel, seq, ty)
     }
   and ana_expand_skel =
       (

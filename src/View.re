@@ -552,20 +552,43 @@ let of_pat_BinOp = (prefix, err_status, rev_path, r1, op, r2) =>
     r1 ^^ of_pat_op(op) ^^ r2,
   );
 
-let rec prepare_Parenthesized_pat = p =>
+let rec prepare_Parenthesized_pat = (p: UHPat.t): (err_status, UHPat.t) =>
   switch (p) {
-  | UHPat.Parenthesized(p1) =>
+  | Parenthesized(p1) =>
     let (err_status, p1_not_in_hole) = prepare_Parenthesized_pat(p1);
-    (err_status, UHPat.Parenthesized(p1_not_in_hole));
-  | UHPat.Pat(NotInHole as err_status, _) => (err_status, p)
-  | UHPat.Pat(err_status, _) => (
+    (err_status, Parenthesized(p1_not_in_hole));
+  | Pat(NotInHole as err_status, _) => (err_status, p)
+  | Pat(err_status, _) => (err_status, UHPat.set_err_status_t(NotInHole, p))
+  | EmptyHole(_) => (NotInHole, p)
+  | OpSeq(BinOp(NotInHole as err_status, _, _, _), _) => (err_status, p)
+  | OpSeq(BinOp(err_status, _, _, _), _) => (
       err_status,
-      UHPat.set_err_status(NotInHole, p),
+      UHPat.set_err_status_t(NotInHole, p),
     )
+  | OpSeq(Placeholder(n) as skel, seq) =>
+    switch (OperatorSeq.seq_nth(n, seq)) {
+    | None => raise(UHPat.SkelInconsistentWithOpSeq(skel, seq))
+    | Some(pn) =>
+      let (err_status, pn_nih) = prepare_Parenthesized_pat(pn);
+      switch (OperatorSeq.seq_update_nth(n, seq, pn_nih)) {
+      | None => raise(UHPat.SkelInconsistentWithOpSeq(skel, seq))
+      | Some(seq) => (err_status, OpSeq(skel, seq))
+      };
+    }
   };
 
 let rec of_hpat = (prefix, rev_path, p) =>
   switch (p) {
+  | UHPat.EmptyHole(u) =>
+    of_Hole(prefix, rev_path, "EmptyHole", string_of_int(u + 1))
+  | UHPat.OpSeq(skel, seq) =>
+    term(
+      prefix,
+      UHPat.get_err_status_t(p),
+      rev_path,
+      "OpSeq",
+      of_skel_pat(prefix, rev_path, skel, seq),
+    )
   | UHPat.Parenthesized(p1) =>
     let (err_status, p1_not_in_hole) = prepare_Parenthesized_pat(p1);
     let rev_path1 = [0, ...rev_path];
@@ -573,8 +596,6 @@ let rec of_hpat = (prefix, rev_path, p) =>
     of_Parenthesized(false, prefix, err_status, rev_path, r1);
   | UHPat.Pat(err_status, p') =>
     switch (p') {
-    | UHPat.EmptyHole(u) =>
-      of_Hole(prefix, rev_path, "EmptyHole", string_of_int(u + 1))
     | UHPat.Wild => of_Wild(prefix, err_status, rev_path)
     | UHPat.Var(InVHole(Free, _), _) => raise(FreeVarInPat)
     | UHPat.Var(InVHole(Keyword(k), u), x) =>
@@ -588,14 +609,6 @@ let rec of_hpat = (prefix, rev_path, p) =>
       let r1 = of_hpat(prefix, rev_path1, p1);
       of_Inj(prefix, err_status, rev_path, side, r1);
     | UHPat.ListNil => of_ListNil(prefix, err_status, rev_path)
-    | UHPat.OpSeq(skel, seq) =>
-      term(
-        prefix,
-        err_status,
-        rev_path,
-        "OpSeq",
-        of_skel_pat(prefix, rev_path, skel, seq),
-      )
     }
   }
 and of_skel_pat = (prefix, rev_path, skel, seq) =>

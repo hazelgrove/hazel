@@ -942,14 +942,11 @@ let make_and_syn_OpSeqZ_pat =
   let p0 = ZPat.erase(zp0);
   let seq = OperatorSeq.opseq_of_exp_and_surround(p0, surround);
   let skel = Associator.associate_pat(seq);
-  switch (Statics.syn_fix_holes_pat_skel(ctx, u_gen, skel, seq)) {
-  | (Placeholder(_), _, _, _, _) =>
-    raise(UHPat.SkelInconsistentWithOpSeq(skel, seq))
-  | (BinOp(err, _, _, _) as skel, seq, ty, ctx, u_gen) =>
-    let p = UHPat.Pat(err, OpSeq(skel, seq));
-    let zp = Path.follow_pat_or_fail(path0, p);
-    (zp, ty, ctx, u_gen);
-  };
+  let (skel, seq, ty, ctx, u_gen) =
+    Statics.syn_fix_holes_pat_skel(ctx, u_gen, skel, seq);
+  let p = UHPat.OpSeq(skel, seq);
+  let zp = Path.follow_pat_or_fail(path0, p);
+  (zp, ty, ctx, u_gen);
 };
 
 let make_and_ana_OpSeqZ_pat =
@@ -969,19 +966,16 @@ let make_and_ana_OpSeqZ_pat =
   let p0 = ZPat.erase(zp0);
   let seq = OperatorSeq.opseq_of_exp_and_surround(p0, surround);
   let skel = Associator.associate_pat(seq);
-  switch (Statics.ana_fix_holes_pat_skel(ctx, u_gen, skel, seq, ty)) {
-  | (Placeholder(_), _, _, _) =>
-    raise(UHPat.SkelInconsistentWithOpSeq(skel, seq))
-  | (BinOp(err, _, _, _) as skel, seq, ctx, u_gen) =>
-    let p = UHPat.Pat(err, OpSeq(skel, seq));
-    let zp = Path.follow_pat_or_fail(path0, p);
-    (zp, ctx, u_gen);
-  };
+  let (skel, seq, ctx, u_gen) =
+    Statics.ana_fix_holes_pat_skel(ctx, u_gen, skel, seq, ty);
+  let p = UHPat.OpSeq(skel, seq);
+  let zp = Path.follow_pat_or_fail(path0, p);
+  (zp, ctx, u_gen);
 };
 
 let combine_for_Backspace_Space_pat = (p1: UHPat.t, zp0: ZPat.t): ZPat.t =>
   switch (zp0) {
-  | CursorP(_, Pat(_, EmptyHole(_))) =>
+  | CursorP(_, EmptyHole(_)) =>
     /* p1 |_ --> p1| */
     CursorP(After, p1)
   | _ =>
@@ -991,10 +985,10 @@ let combine_for_Backspace_Space_pat = (p1: UHPat.t, zp0: ZPat.t): ZPat.t =>
 
 let combine_for_Delete_Space_pat = (zp0: ZPat.t, p: UHPat.t): ZPat.t =>
   switch (zp0, p) {
-  | (CursorP(After, Pat(_, EmptyHole(_))), Pat(_, EmptyHole(_))) =>
+  | (CursorP(After, EmptyHole(_)), EmptyHole(_)) =>
     /* _| _ --> _| */
     zp0
-  | (CursorP(After, Pat(_, EmptyHole(_))), _) =>
+  | (CursorP(After, EmptyHole(_)), _) =>
     /* _| p  --> |p */
     CursorP(Before, p)
   | _ => zp0
@@ -1031,7 +1025,7 @@ let rec syn_perform_pat =
   /* Backspace and Delete */
   | (Backspace, CursorP(After, p)) =>
     switch (p) {
-    | Pat(_, EmptyHole(_)) => Some((CursorP(Before, p), Hole, ctx, u_gen))
+    | EmptyHole(_) => Some((CursorP(Before, p), Hole, ctx, u_gen))
     | _ =>
       let (p, u_gen) = UHPat.new_EmptyHole(u_gen);
       Some((CursorP(Before, p), Hole, ctx, u_gen));
@@ -1039,7 +1033,7 @@ let rec syn_perform_pat =
   | (Backspace, CursorP(Before, _)) => None
   | (Delete, CursorP(Before, p)) =>
     switch (p) {
-    | Pat(_, EmptyHole(_)) => Some((CursorP(After, p), Hole, ctx, u_gen))
+    | EmptyHole(_) => Some((CursorP(After, p), Hole, ctx, u_gen))
     | _ =>
       let (p, u_gen) = UHPat.new_EmptyHole(u_gen);
       Some((CursorP(Before, p), Hole, ctx, u_gen));
@@ -1052,21 +1046,11 @@ let rec syn_perform_pat =
     Some((zp, Hole, ctx, u_gen));
   | (
       Backspace,
-      Deeper(
-        _,
-        OpSeqZ(_, CursorP(Before, p0) as zp0, EmptySuffix(_) as surround),
-      ),
+      OpSeqZ(_, CursorP(Before, p0) as zp0, EmptySuffix(_) as surround),
     )
   | (
       Backspace,
-      Deeper(
-        _,
-        OpSeqZ(
-          _,
-          CursorP(Before, p0) as zp0,
-          BothNonEmpty(_, _) as surround,
-        ),
-      ),
+      OpSeqZ(_, CursorP(Before, p0) as zp0, BothNonEmpty(_, _) as surround),
     ) =>
     abs_perform_Backspace_Before_op(
       combine_for_Backspace_Space_pat,
@@ -1084,21 +1068,11 @@ let rec syn_perform_pat =
     )
   | (
       Delete,
-      Deeper(
-        _,
-        OpSeqZ(_, CursorP(After, p0) as zp0, EmptyPrefix(_) as surround),
-      ),
+      OpSeqZ(_, CursorP(After, p0) as zp0, EmptyPrefix(_) as surround),
     )
   | (
       Delete,
-      Deeper(
-        _,
-        OpSeqZ(
-          _,
-          CursorP(After, p0) as zp0,
-          BothNonEmpty(_, _) as surround,
-        ),
-      ),
+      OpSeqZ(_, CursorP(After, p0) as zp0, BothNonEmpty(_, _) as surround),
     ) =>
     abs_perform_Delete_After_op(
       combine_for_Delete_Space_pat,
@@ -1120,7 +1094,7 @@ let rec syn_perform_pat =
     | None => None
     | Some((ty, ctx)) => Some((ParenthesizedZ(zp), ty, ctx, u_gen))
     }
-  | (Construct(SVar(x, side)), CursorP(_, Pat(_, EmptyHole(_))))
+  | (Construct(SVar(x, side)), CursorP(_, EmptyHole(_)))
   | (Construct(SVar(x, side)), CursorP(_, Pat(_, Wild)))
   | (Construct(SVar(x, side)), CursorP(_, Pat(_, Var(_))))
   | (Construct(SVar(x, side)), CursorP(_, Pat(_, NumLit(_))))
@@ -1170,14 +1144,14 @@ let rec syn_perform_pat =
       );
     }
   | (Construct(SVar(_, _)), CursorP(_, _)) => None
-  | (Construct(SWild), CursorP(_, Pat(_, EmptyHole(_))))
+  | (Construct(SWild), CursorP(_, EmptyHole(_)))
   | (Construct(SWild), CursorP(_, Pat(_, Wild)))
   | (Construct(SWild), CursorP(_, Pat(_, Var(_))))
   | (Construct(SWild), CursorP(_, Pat(_, NumLit(_))))
   | (Construct(SWild), CursorP(_, Pat(_, BoolLit(_)))) =>
     Some((CursorP(After, Pat(NotInHole, Wild)), Hole, ctx, u_gen))
   | (Construct(SWild), CursorP(_, _)) => None
-  | (Construct(SNumLit(n, side)), CursorP(_, Pat(_, EmptyHole(_))))
+  | (Construct(SNumLit(n, side)), CursorP(_, EmptyHole(_)))
   | (Construct(SNumLit(n, side)), CursorP(_, Pat(_, Wild)))
   | (Construct(SNumLit(n, side)), CursorP(_, Pat(_, Var(_))))
   | (Construct(SNumLit(n, side)), CursorP(_, Pat(_, NumLit(_))))
@@ -1196,19 +1170,13 @@ let rec syn_perform_pat =
         };
       Some((zp, ty, ctx, u_gen));
     }
-  | (Construct(SListNil), CursorP(_, Pat(_, EmptyHole(_)))) =>
+  | (Construct(SListNil), CursorP(_, EmptyHole(_))) =>
     let zp = ZPat.CursorP(After, Pat(NotInHole, ListNil));
     let ty = HTyp.List(Hole);
     Some((zp, ty, ctx, u_gen));
   | (Construct(SListNil), CursorP(_, _)) => None
-  | (
-      Construct(SOp(os)),
-      Deeper(_, OpSeqZ(_, CursorP(In(_), p), surround)),
-    )
-  | (
-      Construct(SOp(os)),
-      Deeper(_, OpSeqZ(_, CursorP(After, p), surround)),
-    ) =>
+  | (Construct(SOp(os)), OpSeqZ(_, CursorP(In(_), p), surround))
+  | (Construct(SOp(os)), OpSeqZ(_, CursorP(After, p), surround)) =>
     switch (pat_op_of(os)) {
     | None => None
     | Some(op) =>
@@ -1227,10 +1195,7 @@ let rec syn_perform_pat =
         ),
       )
     }
-  | (
-      Construct(SOp(os)),
-      Deeper(_, OpSeqZ(_, CursorP(Before, _) as zp0, surround)),
-    ) =>
+  | (Construct(SOp(os)), OpSeqZ(_, CursorP(Before, _) as zp0, surround)) =>
     switch (pat_op_of(os)) {
     | None => None
     | Some(op) =>
@@ -1302,10 +1267,10 @@ let rec syn_perform_pat =
         };
       Some((zp, ty, ctx, u_gen));
     }
-  | (_, Deeper(_, OpSeqZ(_, zp0, surround))) =>
+  | (_, OpSeqZ(_, zp0, surround)) =>
     let i = OperatorSeq.surround_prefix_length(surround);
     switch (ZPat.erase(zp)) {
-    | Pat(_, OpSeq(skel, seq)) =>
+    | OpSeq(skel, seq) =>
       switch (Statics.syn_skel_pat(ctx, skel, seq, Some(i))) {
       | Some((_ty, ctx, Some(mode))) =>
         switch (mode) {
@@ -1366,7 +1331,7 @@ and ana_perform_pat =
     }
   /* switch to synthesis if in a hole */
   | (_, Deeper(InHole(TypeInconsistent, _) as err, _)) =>
-    let zp_not_in_hole = ZPat.set_err_status(NotInHole, zp);
+    let zp_not_in_hole = ZPat.set_err_status_t(NotInHole, zp);
     let p = ZPat.erase(zp_not_in_hole);
     switch (Statics.syn_pat(ctx, p)) {
     | None => None
@@ -1377,14 +1342,14 @@ and ana_perform_pat =
         if (HTyp.consistent(ty, ty')) {
           Some((zp1, ctx, u_gen));
         } else {
-          Some((ZPat.set_err_status(err, zp1), ctx, u_gen));
+          Some((ZPat.set_err_status_t(err, zp1), ctx, u_gen));
         }
       }
     };
   /* Backspace and Delete */
   | (Backspace, CursorP(After, p)) =>
     switch (p) {
-    | Pat(_, EmptyHole(_)) => Some((CursorP(Before, p), ctx, u_gen))
+    | EmptyHole(_) => Some((CursorP(Before, p), ctx, u_gen))
     | _ =>
       let (p, u_gen) = UHPat.new_EmptyHole(u_gen);
       Some((CursorP(Before, p), ctx, u_gen));
@@ -1392,7 +1357,7 @@ and ana_perform_pat =
   | (Backspace, CursorP(Before, _)) => None
   | (Delete, CursorP(Before, p)) =>
     switch (p) {
-    | Pat(_, EmptyHole(_)) => Some((CursorP(After, p), ctx, u_gen))
+    | EmptyHole(_) => Some((CursorP(After, p), ctx, u_gen))
     | _ =>
       let (p, u_gen) = UHPat.new_EmptyHole(u_gen);
       Some((CursorP(Before, p), ctx, u_gen));
@@ -1405,21 +1370,11 @@ and ana_perform_pat =
   | (Delete, CursorP(After, _)) => None
   | (
       Backspace,
-      Deeper(
-        _,
-        OpSeqZ(_, CursorP(Before, p0) as zp0, EmptySuffix(_) as surround),
-      ),
+      OpSeqZ(_, CursorP(Before, p0) as zp0, EmptySuffix(_) as surround),
     )
   | (
       Backspace,
-      Deeper(
-        _,
-        OpSeqZ(
-          _,
-          CursorP(Before, p0) as zp0,
-          BothNonEmpty(_, _) as surround,
-        ),
-      ),
+      OpSeqZ(_, CursorP(Before, p0) as zp0, BothNonEmpty(_, _) as surround),
     ) =>
     abs_perform_Backspace_Before_op(
       combine_for_Backspace_Space_pat,
@@ -1438,21 +1393,11 @@ and ana_perform_pat =
     )
   | (
       Delete,
-      Deeper(
-        _,
-        OpSeqZ(_, CursorP(After, p0) as zp0, EmptyPrefix(_) as surround),
-      ),
+      OpSeqZ(_, CursorP(After, p0) as zp0, EmptyPrefix(_) as surround),
     )
   | (
       Delete,
-      Deeper(
-        _,
-        OpSeqZ(
-          _,
-          CursorP(After, p0) as zp0,
-          BothNonEmpty(_, _) as surround,
-        ),
-      ),
+      OpSeqZ(_, CursorP(After, p0) as zp0, BothNonEmpty(_, _) as surround),
     ) =>
     abs_perform_Delete_After_op(
       combine_for_Delete_Space_pat,
@@ -1483,11 +1428,11 @@ and ana_perform_pat =
       if (HTyp.consistent(ty, ty')) {
         Some((zp, ctx, u_gen));
       } else {
-        let (zp, u_gen) = ZPat.make_inconsistent(u_gen, zp);
+        let (zp, u_gen) = ZPat.make_t_inconsistent(u_gen, zp);
         Some((zp, ctx, u_gen));
       }
     }
-  | (Construct(SVar(x, side)), CursorP(_, Pat(_, EmptyHole(_))))
+  | (Construct(SVar(x, side)), CursorP(_, EmptyHole(_)))
   | (Construct(SVar(x, side)), CursorP(_, Pat(_, Wild)))
   | (Construct(SVar(x, side)), CursorP(_, Pat(_, Var(_))))
   | (Construct(SVar(x, side)), CursorP(_, Pat(_, NumLit(_))))
@@ -1520,7 +1465,7 @@ and ana_perform_pat =
       );
     }
   | (Construct(SVar(_, _)), CursorP(_, _)) => None
-  | (Construct(SWild), CursorP(_, Pat(_, EmptyHole(_))))
+  | (Construct(SWild), CursorP(_, EmptyHole(_)))
   | (Construct(SWild), CursorP(_, Pat(_, Wild)))
   | (Construct(SWild), CursorP(_, Pat(_, Var(_))))
   | (Construct(SWild), CursorP(_, Pat(_, NumLit(_))))
@@ -1544,14 +1489,8 @@ and ana_perform_pat =
         );
       Some((zp, ctx, u_gen));
     }
-  | (
-      Construct(SOp(os)),
-      Deeper(_, OpSeqZ(_, CursorP(In(_), p), surround)),
-    )
-  | (
-      Construct(SOp(os)),
-      Deeper(_, OpSeqZ(_, CursorP(After, p), surround)),
-    ) =>
+  | (Construct(SOp(os)), OpSeqZ(_, CursorP(In(_), p), surround))
+  | (Construct(SOp(os)), OpSeqZ(_, CursorP(After, p), surround)) =>
     switch (pat_op_of(os)) {
     | None => None
     | Some(op) =>
@@ -1571,10 +1510,7 @@ and ana_perform_pat =
         ),
       )
     }
-  | (
-      Construct(SOp(os)),
-      Deeper(_, OpSeqZ(_, CursorP(Before, _) as zp0, surround)),
-    ) =>
+  | (Construct(SOp(os)), OpSeqZ(_, CursorP(Before, _) as zp0, surround)) =>
     switch (pat_op_of(os)) {
     | None => None
     | Some(op) =>
@@ -1648,10 +1584,10 @@ and ana_perform_pat =
         Some((zp, ctx, u_gen));
       };
     }
-  | (_, Deeper(_, OpSeqZ(_, zp0, surround))) =>
+  | (_, OpSeqZ(_, zp0, surround)) =>
     let i = OperatorSeq.surround_prefix_length(surround);
     switch (ZPat.erase(zp)) {
-    | Pat(_, OpSeq(skel, seq)) =>
+    | OpSeq(skel, seq) =>
       switch (Statics.ana_skel_pat(ctx, skel, seq, ty, Some(i))) {
       | Some((_, Some(mode))) =>
         switch (mode) {
@@ -1684,7 +1620,7 @@ and ana_perform_pat =
       if (HTyp.consistent(ty, ty')) {
         Some((zp, ctx, u_gen));
       } else {
-        let (zp, u_gen) = ZPat.make_inconsistent(u_gen, zp);
+        let (zp, u_gen) = ZPat.make_t_inconsistent(u_gen, zp);
         Some((zp, ctx, u_gen));
       }
     }
@@ -3711,7 +3647,7 @@ let can_perform =
     | IsLine(_) => false
     | IsExpr(EmptyHole(_)) => true
     | IsExpr(_) => false
-    | IsPat(Pat(_, EmptyHole(_))) => true
+    | IsPat(EmptyHole(_)) => true
     | IsPat(_) => false
     | IsType => false
     | IsBlock(_) => false
@@ -3757,7 +3693,7 @@ let can_enter_varchar = (ci: CursorInfo.t): bool =>
   | IsExpr(EmptyHole(_))
   | IsExpr(Tm(_, BoolLit(_)))
   | IsPat(Pat(_, Var(_)))
-  | IsPat(Pat(_, EmptyHole(_)))
+  | IsPat(EmptyHole(_))
   | IsPat(Pat(_, BoolLit(_))) => true
   | IsExpr(Tm(_, NumLit(_)))
   | IsPat(Pat(_, NumLit(_))) =>
@@ -3780,7 +3716,7 @@ let can_enter_numeral = (ci: CursorInfo.t): bool =>
   | IsExpr(Tm(_, NumLit(_)))
   | IsExpr(EmptyHole(_))
   | IsPat(Pat(_, NumLit(_)))
-  | IsPat(Pat(_, EmptyHole(_))) => true
+  | IsPat(EmptyHole(_)) => true
   | IsBlock(_)
   | IsLine(_)
   | IsExpr(_)

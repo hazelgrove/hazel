@@ -29,13 +29,13 @@ let rec of_zpat = (zp: ZPat.t): t =>
   | CursorP(cursor_side, _) => ([], cursor_side)
   | Deeper(_, zp') => of_zpat'(zp')
   | ParenthesizedZ(zp1) => cons'(0, of_zpat(zp1))
+  | OpSeqZ(_, zp1, surround) =>
+    let n = OperatorSeq.surround_prefix_length(surround);
+    cons'(n, of_zpat(zp1));
   }
 and of_zpat' = (zp': ZPat.t'): t =>
   switch (zp') {
   | InjZ(_, zp1) => cons'(0, of_zpat(zp1))
-  | OpSeqZ(_, zp1, surround) =>
-    let n = OperatorSeq.surround_prefix_length(surround);
-    cons'(n, of_zpat(zp1));
   };
 
 let rec of_zblock = (zblock: ZExp.zblock): t =>
@@ -153,6 +153,7 @@ let rec follow_pat = (path: t, p: UHPat.t): option(ZPat.t) =>
   | ([], cursor_side) => Some(CursorP(cursor_side, p))
   | ([x, ...xs], cursor_side) =>
     switch (p) {
+    | EmptyHole(_) => None
     | Parenthesized(p1) =>
       switch (x) {
       | 0 =>
@@ -162,9 +163,17 @@ let rec follow_pat = (path: t, p: UHPat.t): option(ZPat.t) =>
         }
       | _ => None
       }
+    | OpSeq(skel, seq) =>
+      switch (OperatorSeq.split(x, seq)) {
+      | None => None
+      | Some((p, surround)) =>
+        switch (follow_pat((xs, cursor_side), p)) {
+        | Some(zp) => Some(OpSeqZ(skel, zp, surround))
+        | None => None
+        }
+      }
     | Pat(err_status, p') =>
       switch (x, p') {
-      | (_, EmptyHole(_))
       | (_, Wild)
       | (_, Var(_))
       | (_, NumLit(_))
@@ -176,15 +185,6 @@ let rec follow_pat = (path: t, p: UHPat.t): option(ZPat.t) =>
         | Some(zp1) => Some(Deeper(err_status, InjZ(side, zp1)))
         }
       | (_, Inj(_, _)) => None
-      | (n, OpSeq(skel, seq)) =>
-        switch (OperatorSeq.split(n, seq)) {
-        | None => None
-        | Some((p, surround)) =>
-          switch (follow_pat((xs, cursor_side), p)) {
-          | Some(zp) => Some(Deeper(err_status, OpSeqZ(skel, zp, surround)))
-          | None => None
-          }
-        }
       }
     }
   };
@@ -442,14 +442,14 @@ let rec holes_uty = (uty: UHTyp.t, steps: steps, holes: hole_list): hole_list =>
 let rec holes_pat = (p: UHPat.t, steps: steps, holes: hole_list): hole_list =>
   switch (p) {
   | Parenthesized(p1) => holes_pat(p1, [0, ...steps], holes)
-  | Pat(_, EmptyHole(u)) => [(PatHole(u), steps), ...holes]
+  | EmptyHole(u) => [(PatHole(u), steps), ...holes]
   | Pat(_, Wild) => holes
   | Pat(_, Var(_)) => holes
   | Pat(_, NumLit(_)) => holes
   | Pat(_, BoolLit(_)) => holes
   | Pat(_, ListNil) => holes
   | Pat(_, Inj(_, p1)) => holes_pat(p1, [0, ...steps], holes)
-  | Pat(_, OpSeq(_, seq)) => holes_seq(seq, holes_pat, 0, steps, holes)
+  | OpSeq(_, seq) => holes_seq(seq, holes_pat, 0, steps, holes)
   };
 
 let rec holes_block =
@@ -663,7 +663,7 @@ let rec holes_zpat = (zp: ZPat.t, steps: steps): zhole_list =>
   switch (zp) {
   | CursorP(cursor_side, p) =>
     switch (cursor_side, p) {
-    | (_, Pat(_, EmptyHole(u))) => {
+    | (_, EmptyHole(u)) => {
         holes_before: [],
         hole_selected: Some((PatHole(u), steps)),
         holes_after: [],
@@ -680,6 +680,8 @@ let rec holes_zpat = (zp: ZPat.t, steps: steps): zhole_list =>
       }
     | (In(_), _) =>
       switch (p) {
+      | EmptyHole(_) => no_holes
+      | OpSeq(_, _) => no_holes
       | Parenthesized(_) => no_holes
       | Pat(_, p') =>
         switch (p') {
@@ -687,9 +689,7 @@ let rec holes_zpat = (zp: ZPat.t, steps: steps): zhole_list =>
         | Var(_)
         | NumLit(_)
         | BoolLit(_)
-        | ListNil
-        | OpSeq(_, _)
-        | EmptyHole(_) => no_holes
+        | ListNil => no_holes
         | Inj(_, p1) => {
             holes_before: [],
             hole_selected: None,
@@ -700,7 +700,7 @@ let rec holes_zpat = (zp: ZPat.t, steps: steps): zhole_list =>
     }
   | ParenthesizedZ(zp1) => holes_zpat(zp1, [0, ...steps])
   | Deeper(_, InjZ(_, zp1)) => holes_zpat(zp1, [0, ...steps])
-  | Deeper(_, OpSeqZ(_, zp1, surround)) =>
+  | OpSeqZ(_, zp1, surround) =>
     holes_OpSeqZ(holes_pat, holes_zpat, zp1, surround, steps)
   };
 
