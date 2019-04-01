@@ -665,72 +665,71 @@ and syn_cursor_info_skel =
     }
   | BinOp(_, Space, Placeholder(n') as skel1, skel2) =>
     if (n == n') {
-      /*
-       switch (ZExp.cursor_on_outer_expr(ze_n)) {
-       | Some((Tm(InHole(TypeInconsistent, u), e_n') as e_n, side)) =>
-         let e_n_nih = UHExp.set_err_status_t(NotInHole, e_n);
-         switch (Statics.syn_exp(ctx, e_n_nih)) {
-         | Some(ty) =>
-           Some(
-             mk_cursor_info(
-               SynErrorArrow(Arrow(Hole, Hole), ty),
-               IsExpr(e_n),
-               side,
-               ctx,
-             ),
-           )
-         | None => None
-         };
-       | Some((Tm(_, Var(InVHole(Keyword(k), _), _)) as e_n, side)) =>
-         Some(
-           mk_cursor_info(
-             SynKeywordArrow(Arrow(Hole, Hole), k),
-             IsExpr(e_n),
-             side,
-             ctx,
-           ),
-         )
-       | Some((Tm(_, Var(InVHole(Free, _), _)) as e_n, side)) =>
-         Some(
-           mk_cursor_info(
-             SynFreeArrow(Arrow(Hole, Hole)),
-             IsExpr(e_n),
-             side,
-             ctx,
-           ),
-         )
-       | Some((e_n, side)) =>
-         switch (Statics.syn_exp(ctx, e_n)) {
-         | Some(ty) =>
-           switch (HTyp.matched_arrow(ty)) {
-           | Some((ty1, ty2)) =>
-             Some(
-               mk_cursor_info(
-                 SynMatchingArrow(ty, Arrow(ty1, ty2)),
-                 IsExpr(e_n),
-                 side,
-                 ctx,
-               ),
-             )
-           | None => None
-           }
-         | None => None
-         }
-       | None => syn_cursor_info(ctx, ze_n)
-       };
-       */
-      syn_cursor_info(
-        ctx,
-        ze_n,
-      );
+      let e_n = ZExp.erase(ze_n);
+      switch (ZExp.cursor_on_outer_expr(ze_n)) {
+      | Some((
+          Block(_, Tm(InHole(TypeInconsistent, _), _)) as outer_block,
+          side,
+        )) =>
+        let outer_block_nih =
+          UHExp.set_err_status_block(NotInHole, outer_block);
+        switch (Statics.syn_block(ctx, outer_block_nih)) {
+        | None => None
+        | Some(ty) =>
+          Some(
+            mk_cursor_info(
+              SynErrorArrow(Arrow(Hole, Hole), ty),
+              IsExpr(e_n),
+              side,
+              ctx,
+            ),
+          )
+        };
+      | Some((Block(_, Tm(_, Var(InVHole(Keyword(k), _), _))), side)) =>
+        Some(
+          mk_cursor_info(
+            SynKeywordArrow(Arrow(Hole, Hole), k),
+            IsExpr(e_n),
+            side,
+            ctx,
+          ),
+        )
+      | Some((Block(_, Tm(_, Var(InVHole(Free, _), _))), side)) =>
+        Some(
+          mk_cursor_info(
+            SynFreeArrow(Arrow(Hole, Hole)),
+            IsExpr(e_n),
+            side,
+            ctx,
+          ),
+        )
+      | Some((outer_block, side)) =>
+        switch (Statics.syn_block(ctx, outer_block)) {
+        | None => None
+        | Some(ty) =>
+          switch (HTyp.matched_arrow(ty)) {
+          | None => None
+          | Some((ty1, ty2)) =>
+            Some(
+              mk_cursor_info(
+                SynMatchingArrow(ty, Arrow(ty1, ty2)),
+                IsExpr(e_n),
+                side,
+                ctx,
+              ),
+            )
+          }
+        }
+      | None => syn_cursor_info(ctx, ze_n)
+      };
     } else {
       switch (Statics.syn_skel(ctx, skel1, seq, None)) {
       | None => None
       | Some((ty, _)) =>
         switch (HTyp.matched_arrow(ty)) {
+        | None => None
         | Some((ty1, _)) =>
           ana_cursor_info_skel(ctx, skel2, seq, n, ze_n, ty1)
-        | None => None
         }
       };
     }

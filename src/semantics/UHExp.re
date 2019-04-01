@@ -215,15 +215,14 @@ and make_opseq_inconsistent =
     (BinOp(InHole(TypeInconsistent, u), op, skel1, skel2), seq, u_gen);
   };
 
-/*
- let rec drop_outer_parentheses = (e: t): block =>
-   switch (e) {
-   | Tm(_, _)
-   | OpSeq(_, _)
-   | EmptyHole(_) => Block([], e)
-   | Parenthesized(block) => drop_outer_parentheses(e')
-   };
- */
+let rec drop_outer_parentheses = (e: t): block =>
+  switch (e) {
+  | Tm(_, _)
+  | OpSeq(_, _)
+  | EmptyHole(_) => Block([], e)
+  | Parenthesized(Block([], e)) => drop_outer_parentheses(e)
+  | Parenthesized(block) => block
+  };
 
 let rec split_last_line = (lines: lines): option((lines, line)) =>
   switch (lines) {
