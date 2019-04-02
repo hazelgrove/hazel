@@ -1,3 +1,5 @@
+@import url('https://fonts.googleapis.com/css?family=Fira+Mono');
+
 /* general */
 div {
   box-sizing: border-box;
@@ -180,9 +182,9 @@ html, body {
 /* panels */
 
 .panel {
-  border: 1px solid #073f24;
+  outline: 1px solid #073f24;
   background-color: #FEFEEA;
-  box-shadow: 2px 2px 0px 0px #af8e63;
+  /* box-shadow: 2px 2px 0px 0px #af8e63; */
   margin-bottom: 7px;
   display: flex;
   flex-direction: column;
@@ -217,19 +219,19 @@ html, body {
 }
 
 .cursor-OK.cursor-inspector {
-  border: 1px solid #073f24;
+  outline: 1px solid #073f24;
 }
 
 .cursor-TypeInconsistency.cursor-inspector {
-  border: 1px solid #8e0000;
+  outline: 1px solid #8e0000;
 }
 
 .cursor-BindingError.cursor-inspector {
-  border: 1px solid #ce5f00;
+  outline: 1px solid #ce5f00;
 }
 
 .cursor-Keyword.cursor-inspector {
-  border: 1px solid #ce5f00;
+  outline: 1px solid #ce5f00;
 }
 
 .cursor-OK .title-bar {
@@ -249,7 +251,7 @@ html, body {
 }
 
 .typebar, .infobar {
-  font-size: 150%;
+  font-size: 125%;
   padding: 5px;
   min-height: 35px;
   display: flex;
@@ -391,7 +393,7 @@ html, body {
   border-bottom: 1px solid #ffffff47;
   background-color: rgba(0,0,0,0);
   color: white;
-  font-family: monospace;
+  font-family: "Fira Mono", monospace;
   font-style: italic;
 }
 
@@ -433,7 +435,7 @@ html, body {
 }
 
 .context-entry {
-  font-size: 150%;
+  font-size: 125%;
   border: 1px outset #ffffff;
   border-left: 0px;
   border-right: 0px;
@@ -479,7 +481,7 @@ html, body {
   display: inline-block;
   padding-top: 0px;
   padding-bottom: 0px;
-  font-size: 150%;
+  font-size: 125%;
 }
 
 .path-item,
@@ -564,7 +566,7 @@ html, body {
 
 .hii-summary-inst {
   display: inline-block;
-  font-size: 150%;
+  font-size: 125%;
 }
 
 .special-msg {
@@ -583,7 +585,7 @@ html, body {
 
 .options-panel {
   background-color: #EEE;
-  border: 1px solid #444;
+  outline: 1px solid #444;
 }
 
 .options-panel .title-bar {
@@ -646,11 +648,11 @@ h1 {
 
 .ModelExp {
   padding: 10px;
-  font-size: 175%;
+  font-size: 125%;
   margin-top: 20px;
   background-color: white;
   border: 2px solid #CCC;
-  /* line-height: 100%; */
+  line-height: 1.33; 
 }
 
 .ModelExp :focus {
@@ -694,23 +696,22 @@ button:disabled {
 /*brown #975633*/
 
 .SDoc {
-  font-family: monospace;
+  font-family: "Fira Mono", monospace;
 }
 
 .code {
-  font-family: monospace;
+  font-family: "Fira Mono", monospace;
 }
 
 .code.op {
-  font-size: 150%;
+  font-size: 125%;
 }
 
-.kw, .lambda-sym {
+.kw, .lambda-sym, .BoolLit {
   font-weight: bold;
 }
 
 .var {
-  font-style: italic;
 }
 
 .hole {
@@ -771,7 +772,7 @@ button:disabled {
 }
 
 .result-view {
-  font-size: 175%;
+  font-size: 125%;
 }
 
 .hole-decorations {

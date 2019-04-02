@@ -26,7 +26,7 @@ let bidelimited =
   | Num
   | Bool
   | Parenthesized(_) => true
-  | List(ty) => true
+  | List(_) => true
   | OpSeq(_, _) => false;
 
 let rec well_formed = uty =>

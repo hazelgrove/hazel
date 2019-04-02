@@ -1,16 +1,8 @@
-; to build: dune build
-; to build with refmt: dune build --auto-promote
-; debug build: dune build --profile debug [--auto-promote]
+; normal build: dune build
+; debug build: dune build --profile debug
 
 (include_subdirs unqualified) ; does not include dirs that specify `(include_subdirs no)`
 
-(env
-  (_
-    (flags (:standard -g -I serialization)))
-  (default
-    (flags :standard))
-  (debug
-    (flags :standard)))
 
 (alias
   (name default)
@@ -18,18 +10,15 @@
 
 (executable
   (name hazel)
-  (js_of_ocaml (flags (:standard (:include js-of-ocaml-flags-%{profile}))))
-  (libraries js_of_ocaml.tyxml tyxml react reactiveData camomile sexplib)
+  (js_of_ocaml (flags (:include js-of-ocaml-flags-%{profile})))
+  (libraries js_of_ocaml.tyxml tyxml react reactiveData sexplib)
   (preprocess (pps ppx_deriving.show js_of_ocaml.ppx ppx_sexp_conv)))
 
 (rule
-  (write-file js-of-ocaml-flags-debug --debuginfo))
+  (write-file js-of-ocaml-flags-dev "(:standard --debuginfo --noinline)"))
 
 (rule
-  (write-file js-of-ocaml-flags-dev "()"))
-
-(rule
-  (write-file js-of-ocaml-flags-default "()"))
+  (write-file js-of-ocaml-flags-release "(:standard)"))
 
 (ocamllex
   (modules SkelExprLexer SkelPatLexer SkelTypLexer))

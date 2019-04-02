@@ -24,10 +24,9 @@ Hazel is implemented in Reason/OCaml, and is compiled to Javascript for the web 
     > opam update
     ```
 
-  - Install the necessary OCaml dependencies:
+  - Run the Makefile in the `hazel` root folder to install the necessary OCaml dependencies:
 
     ```sh
-    > cd src
     > make deps
     ```
 
@@ -36,21 +35,21 @@ Hazel is implemented in Reason/OCaml, and is compiled to Javascript for the web 
 We can now build the application.
 
 ```sh
-> make
+> make release
 ```
 
-The `make` command does four things:
+The `make release` command does three things:
 
-1. Auto-formats all reason code using `refmt` (this is why we need `auto-promote`).
-2. Generates some parsers using `menhir`.
-3. Compiles the Reason code to OCaml bytecode using the OCaml compiler.
-4. Compiles the OCaml bytecode to JavaScript (`src/build/default/www/hazel.js`) using `js_of_ocaml`.
+1. Generates some parsers using `menhir`.
+2. Compiles the Reason code to OCaml bytecode using the OCaml compiler.
+3. Compiles the OCaml bytecode to JavaScript (`_build/default/src/www/hazel.js`) using `js_of_ocaml`.
 
 If something weird is going on, it sometimes helps to do a `make clean`.
 
-### Debugging
-You can use `make debug` instead of `make`. This differs only in that we pass the `--debuginfo` flag to `js_of_ocaml`, which causes the insertion of comments mapping locations in the generated JS to locations in the source files. This is useful for debugging purposes, but causes a substantial increase in compilation time and file size, so it is disabled by default.
-
 ### Results
-You can now open `src/_build/default/www/hazel.html` in a browser to see Hazel in action.
+You can now open `_build/default/src/www/hazel.html` in a browser to see Hazel in action.
 
+### Debugging
+Invoking `make` by itself is equivalent to invoking `make debug`. With these commands we pass additional flags to `js_of_ocaml`, which causes the insertion of comments that map locations in the generated JS to locations in the source files. This is useful for debugging purposes.
+
+`make debug` also auto-formats Reason source files using `refmt` (this is what the `@src/fmt` alias is for). This ensures code from all contributors follows the same style.
