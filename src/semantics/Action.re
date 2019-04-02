@@ -2167,7 +2167,7 @@ and syn_perform_line =
       switch (syn_perform_exp(ctx, a, (ze, ty, u_gen))) {
       | None => None
       | Some((ze, _, u_gen)) =>
-        let zline = ZExp.DeeperL(ExpLineZ(ze));
+        let zline = ZExp.prune_empty_hole_line(DeeperL(ExpLineZ(ze)));
         Some((zline, ctx, u_gen));
       }
     }

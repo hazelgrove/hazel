@@ -61,6 +61,17 @@ let bidelimit = (ze: t): t =>
 
 exception SkelInconsistentWithOpSeq;
 
+let prune_empty_hole_line = (zli: zline): zline =>
+  switch (zli) {
+  | CursorL(side, li) => CursorL(side, UHExp.prune_empty_hole_line(li))
+  | DeeperL(ExpLineZ(CursorE(_, EmptyHole(_)))) =>
+    CursorL(Before, EmptyLine)
+  | DeeperL(ExpLineZ(_))
+  | DeeperL(LetLineZP(_, _, _))
+  | DeeperL(LetLineZA(_, _, _))
+  | DeeperL(LetLineZE(_, _, _)) => zli
+  };
+
 let rec get_err_status_block = (zblock: zblock): err_status =>
   switch (zblock) {
   | BlockZL(_, e) => UHExp.get_err_status_t(e)

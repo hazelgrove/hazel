@@ -50,6 +50,14 @@ and splice_map = SpliceInfo.splice_map(block);
 
 exception SkelInconsistentWithOpSeq(skel_t, opseq);
 
+let prune_empty_hole_line = (li: line): line =>
+  switch (li) {
+  | ExpLine(EmptyHole(_)) => EmptyLine
+  | ExpLine(_)
+  | EmptyLine
+  | LetLine(_, _, _) => li
+  };
+
 let rec get_tuple = (skel1: skel_t, skel2: skel_t): ListMinTwo.t(skel_t) =>
   switch (skel2) {
   | BinOp(_, Comma, skel21, skel22) =>
