@@ -291,7 +291,7 @@ let of_Var = (prefix, err_status, var_err_status, rev_path, x) =>
   );
 
 let of_EmptyLine = (prefix, rev_path) =>
-  line(prefix, rev_path, "EmptyLine", PP.empty);
+  line(prefix, rev_path, "EmptyLine", taggedText("empty-line", "​​"));
 
 let of_ExpLine = (prefix, rev_path, r1) =>
   line(prefix, rev_path, "ExpLine", r1);
