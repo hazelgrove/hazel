@@ -2,7 +2,7 @@ open SemanticsCommon;
 open GeneralUtil;
 
 [@deriving show({with_path: false})]
-type cursor_side = SemanticsCommon.cursor_side;
+type cursor_pos = SemanticsCommon.cursor_pos;
 
 type opseq_surround = OperatorSeq.opseq_surround(UHExp.t, UHExp.op);
 type opseq_prefix = OperatorSeq.opseq_prefix(UHExp.t, UHExp.op);
@@ -13,7 +13,7 @@ type zblock =
   | BlockZE(UHExp.lines, t)
 and zlines = ZList.t(zline, UHExp.line)
 and zline =
-  | CursorL(cursor_side, UHExp.line)
+  | CursorL(cursor_pos, UHExp.line)
   | DeeperL(zline')
 and zline' =
   | ExpLineZ(t)
@@ -21,7 +21,7 @@ and zline' =
   | LetLineZA(UHPat.t, ZTyp.t, UHExp.block)
   | LetLineZE(UHPat.t, option(UHTyp.t), zblock)
 and t =
-  | CursorE(cursor_side, UHExp.t)
+  | CursorE(cursor_pos, UHExp.t)
   | ParenthesizedZ(zblock)
   | OpSeqZ(UHExp.skel_t, t, opseq_surround)
   | DeeperE(err_status, t')
@@ -46,7 +46,7 @@ and zrule =
 
 let bidelimit = (ze: t): t =>
   switch (ze) {
-  | CursorE(cursor_side, e) => CursorE(cursor_side, UHExp.bidelimit(e))
+  | CursorE(cursor_pos, e) => CursorE(cursor_pos, UHExp.bidelimit(e))
   | ParenthesizedZ(_)
   | DeeperE(_, InjZ(_, _))
   | DeeperE(_, ApPaletteZ(_, _, _)) => ze
@@ -109,9 +109,9 @@ and set_err_status_t = (err: err_status, ze: t): t =>
   switch (ze) {
   | ParenthesizedZ(zblock) =>
     ParenthesizedZ(set_err_status_block(err, zblock))
-  | CursorE(cursor_side, e) =>
+  | CursorE(cursor_pos, e) =>
     let e = UHExp.set_err_status_t(err, e);
-    CursorE(cursor_side, e);
+    CursorE(cursor_pos, e);
   | OpSeqZ(skel, ze_n, surround) =>
     let (skel, ze_n, surround) =
       set_err_status_opseq(err, skel, ze_n, surround);
@@ -156,9 +156,9 @@ let rec make_block_inconsistent =
   }
 and make_t_inconsistent = (u_gen: MetaVarGen.t, ze: t): (t, MetaVarGen.t) =>
   switch (ze) {
-  | CursorE(cursor_side, e) =>
+  | CursorE(cursor_pos, e) =>
     let (e, u_gen) = UHExp.make_t_inconsistent(u_gen, e);
-    (CursorE(cursor_side, e), u_gen);
+    (CursorE(cursor_pos, e), u_gen);
   | DeeperE(NotInHole, _)
   | DeeperE(InHole(WrongLength, _), _) =>
     let (u, u_gen) = MetaVarGen.next(u_gen);
@@ -219,7 +219,7 @@ let new_EmptyHole = (u_gen: MetaVarGen.t): (t, MetaVarGen.t) => {
   (CursorE(Before, e), u_gen);
 };
 
-let rec cursor_on_outer_expr = (ze: t): option((UHExp.block, cursor_side)) =>
+let rec cursor_on_outer_expr = (ze: t): option((UHExp.block, cursor_pos)) =>
   switch (ze) {
   | CursorE(side, e) => Some((UHExp.drop_outer_parentheses(e), side))
   | ParenthesizedZ(BlockZE([], ze)) => cursor_on_outer_expr(ze)

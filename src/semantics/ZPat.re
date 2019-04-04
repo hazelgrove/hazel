@@ -5,7 +5,7 @@ type opseq_prefix = OperatorSeq.opseq_prefix(UHPat.t, UHPat.op);
 type opseq_suffix = OperatorSeq.opseq_suffix(UHPat.t, UHPat.op);
 
 type t =
-  | CursorP(cursor_side, UHPat.t)
+  | CursorP(cursor_pos, UHPat.t)
   | ParenthesizedZ(t)
   | OpSeqZ(UHPat.skel_t, t, opseq_surround)
   | Deeper(err_status, t')
@@ -16,7 +16,7 @@ exception SkelInconsistentWithOpSeq;
 
 let bidelimit = (zp: t): t =>
   switch (zp) {
-  | CursorP(cursor_side, p) => CursorP(cursor_side, UHPat.bidelimit(p))
+  | CursorP(cursor_pos, p) => CursorP(cursor_pos, UHPat.bidelimit(p))
   | ParenthesizedZ(_)
   | Deeper(_, InjZ(_, _)) =>
     /* | Deeper _ (ListLitZ _) */
@@ -32,9 +32,9 @@ let new_EmptyHole = (u_gen: MetaVarGen.t): (t, MetaVarGen.t) => {
 
 let rec set_err_status_t = (err: err_status, zp: t): t =>
   switch (zp) {
-  | CursorP(cursor_side, p) =>
+  | CursorP(cursor_pos, p) =>
     let p = UHPat.set_err_status_t(err, p);
-    CursorP(cursor_side, p);
+    CursorP(cursor_pos, p);
   | ParenthesizedZ(zp1) => ParenthesizedZ(set_err_status_t(err, zp1))
   | Deeper(_, ze') => Deeper(err, ze')
   | OpSeqZ(skel, zp_n, surround) =>
@@ -70,9 +70,9 @@ and set_err_status_opseq =
 
 let rec make_t_inconsistent = (u_gen: MetaVarGen.t, zp: t): (t, MetaVarGen.t) =>
   switch (zp) {
-  | CursorP(cursor_side, p) =>
+  | CursorP(cursor_pos, p) =>
     let (p, u_gen) = UHPat.make_t_inconsistent(u_gen, p);
-    (CursorP(cursor_side, p), u_gen);
+    (CursorP(cursor_pos, p), u_gen);
   | Deeper(InHole(TypeInconsistent, _), _) => (zp, u_gen)
   | Deeper(NotInHole, zp')
   | Deeper(InHole(WrongLength, _), zp') =>

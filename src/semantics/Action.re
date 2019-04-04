@@ -82,9 +82,9 @@ type shape =
   | SList
   /* expression shapes */
   | SAsc
-  | SVar(Var.t, ZExp.cursor_side)
+  | SVar(Var.t, ZExp.cursor_pos)
   | SLam
-  | SNumLit(int, ZExp.cursor_side)
+  | SNumLit(int, ZExp.cursor_pos)
   | SListNil
   | SInj(inj_side)
   | SLet
@@ -372,7 +372,7 @@ let abs_perform_Backspace_Before_op =
       is_EmptyHole: 'e => bool,
       is_Space: 'op => bool,
       _Space: 'op,
-      _Cursor: (cursor_side, 'e) => 'z,
+      _Cursor: (cursor_pos, 'e) => 'z,
       ctx: Contexts.t,
       u_gen: MetaVarGen.t,
       e0: 'e,
@@ -507,7 +507,7 @@ let abs_perform_Delete_After_op =
       is_EmptyHole: 'e => bool,
       is_Space: 'op => bool,
       _Space: 'op,
-      _Cursor: (cursor_side, 'e) => 'z,
+      _Cursor: (cursor_pos, 'e) => 'z,
       ctx: Contexts.t,
       u_gen: MetaVarGen.t,
       e0: 'e,
@@ -676,7 +676,7 @@ let abs_perform_Construct_SOp_After_surround =
         'm,
       is_Space: 'op => bool,
       _Space: 'op,
-      _Cursor: (cursor_side, 'e) => 'z,
+      _Cursor: (cursor_pos, 'e) => 'z,
       ctx: Contexts.t,
       u_gen: MetaVarGen.t,
       e: 'e,
@@ -809,7 +809,7 @@ let abs_perform_Construct_SOp_Before_surround =
         'm,
       is_Space: 'op => bool,
       _Space: 'op,
-      _Cursor: (cursor_side, 'e) => 'z,
+      _Cursor: (cursor_pos, 'e) => 'z,
       ctx: Contexts.t,
       u_gen: MetaVarGen.t,
       ze0: 'z,
@@ -1472,12 +1472,12 @@ and ana_perform_pat =
   | (Construct(SWild), CursorP(_, Pat(_, BoolLit(_)))) =>
     Some((CursorP(After, Pat(NotInHole, Wild)), ctx, u_gen))
   | (Construct(SWild), CursorP(_, _)) => None
-  | (Construct(SInj(side)), CursorP(cursor_side, p1)) =>
+  | (Construct(SInj(side)), CursorP(cursor_pos, p1)) =>
     switch (HTyp.matched_sum(ty)) {
     | Some((tyL, tyR)) =>
       let ty1 = pick_side(side, tyL, tyR);
       let (p1, ctx, u_gen) = Statics.ana_fix_holes_pat(ctx, u_gen, p1, ty1);
-      let zp = ZPat.Deeper(NotInHole, InjZ(side, CursorP(cursor_side, p1)));
+      let zp = ZPat.Deeper(NotInHole, InjZ(side, CursorP(cursor_pos, p1)));
       Some((zp, ctx, u_gen));
     | None =>
       let (p1, _, ctx, u_gen) = Statics.syn_fix_holes_pat(ctx, u_gen, p1);
@@ -1485,7 +1485,7 @@ and ana_perform_pat =
       let zp =
         ZPat.Deeper(
           InHole(TypeInconsistent, u),
-          InjZ(side, CursorP(cursor_side, p1)),
+          InjZ(side, CursorP(cursor_pos, p1)),
         );
       Some((zp, ctx, u_gen));
     }
@@ -3303,7 +3303,7 @@ and ana_perform_exp =
         );
       Some((ze, u_gen));
     }
-  | (Construct(SInj(side)), CursorE(cursor_side, e1)) =>
+  | (Construct(SInj(side)), CursorE(cursor_pos, e1)) =>
     switch (HTyp.matched_sum(ty)) {
     | Some((tyL, tyR)) =>
       let ty1 = pick_side(side, tyL, tyR);
@@ -3311,7 +3311,7 @@ and ana_perform_exp =
       let ze =
         ZExp.DeeperE(
           NotInHole,
-          InjZ(side, ZExp.wrap_in_block(CursorE(cursor_side, e1))),
+          InjZ(side, ZExp.wrap_in_block(CursorE(cursor_pos, e1))),
         );
       Some((ze, u_gen));
     | None =>
@@ -3320,7 +3320,7 @@ and ana_perform_exp =
       let ze =
         ZExp.DeeperE(
           InHole(TypeInconsistent, u),
-          InjZ(side, ZExp.wrap_in_block(CursorE(cursor_side, e1))),
+          InjZ(side, ZExp.wrap_in_block(CursorE(cursor_pos, e1))),
         );
       Some((ze, u_gen));
     }

@@ -1,11 +1,11 @@
-type cursor_side = SemanticsCommon.cursor_side;
+type cursor_pos = SemanticsCommon.cursor_pos;
 
 type opseq_surround = OperatorSeq.opseq_surround(UHTyp.t, UHTyp.op);
 type opseq_prefix = OperatorSeq.opseq_prefix(UHTyp.t, UHTyp.op);
 type opseq_suffix = OperatorSeq.opseq_suffix(UHTyp.t, UHTyp.op);
 
 type t =
-  | CursorT(cursor_side, UHTyp.t)
+  | CursorT(cursor_pos, UHTyp.t)
   | ParenthesizedZ(t)
   | ListZ(t)
   | OpSeqZ(UHTyp.skel_t, t, opseq_surround);

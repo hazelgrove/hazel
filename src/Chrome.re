@@ -103,13 +103,13 @@ let view = (model: Model.t) => {
     move_cursor_after(node);
     true;
   };
-  let set_cursor_to = ((cursor_path, cursor_side)) => {
+  let set_cursor_to = ((cursor_path, cursor_pos)) => {
     let id = View.id_of_rev_path(prefix, List.rev(cursor_path));
     let cursor_elem = JSUtil.forceGetElementById(id);
     let cursor_node: Js.t(Dom.node) = (
       Js.Unsafe.coerce(cursor_elem): Js.t(Dom.node)
     );
-    switch (cursor_side) {
+    switch (cursor_pos) {
     | In(offset) => move_cursor_to(cursor_node, offset)
     | Before => move_cursor_before(first_leaf(cursor_node))
     | After => move_cursor_after(last_leaf(cursor_node))
@@ -117,8 +117,8 @@ let view = (model: Model.t) => {
   };
   let set_cursor = () => {
     let (ze, _, _) = React.S.value(edit_state_rs);
-    let (cursor_path, cursor_side) = Path.of_zblock(ze);
-    set_cursor_to((cursor_path, cursor_side));
+    let (cursor_path, cursor_pos) = Path.of_zblock(ze);
+    set_cursor_to((cursor_path, cursor_pos));
   };
   let clear_cursors = () => {
     let cursors =
@@ -390,7 +390,7 @@ let view = (model: Model.t) => {
       Js.Opt.get(Dom_html.CoerceTo.element(parentNode), () => assert(false));
     | _ => assert(false)
     };
-  let determine_cursor_side =
+  let determine_cursor_pos =
       (
         anchor: Js.t(Dom.node),
         anchorOffset: int,
@@ -572,10 +572,10 @@ let view = (model: Model.t) => {
                 | rev_path =>
                   found := true;
                   let path = List.rev(rev_path);
-                  let cursor_side =
-                    determine_cursor_side(anchor, anchorOffset, cur_element);
+                  let cursor_pos =
+                    determine_cursor_pos(anchor, anchorOffset, cur_element);
 
-                  do_action(Action.MoveTo((path, cursor_side)));
+                  do_action(Action.MoveTo((path, cursor_pos)));
                   clear_cursors();
                   let elem = JSUtil.forceGetElementById(cur_id);
 

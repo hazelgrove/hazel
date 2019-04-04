@@ -88,7 +88,7 @@ type cursor_sort =
 type t = {
   mode: cursor_mode,
   sort: cursor_sort,
-  side: cursor_side,
+  side: cursor_pos,
   ctx: Contexts.t,
 };
 
@@ -100,7 +100,7 @@ let update_sort = (ci: t, sort: cursor_sort): t => {
 };
 
 let rec ana_cursor_found_pat =
-        (ctx: Contexts.t, p: UHPat.t, ty: HTyp.t, side: cursor_side)
+        (ctx: Contexts.t, p: UHPat.t, ty: HTyp.t, side: cursor_pos)
         : option(t) =>
   switch (p) {
   | Parenthesized(p1) =>
@@ -347,7 +347,7 @@ let rec ana_cursor_found_block =
           ctx: Contexts.t,
           Block(lines, e): UHExp.block,
           ty: HTyp.t,
-          side: cursor_side,
+          side: cursor_pos,
         )
         : option(cursor_mode) =>
   switch (Statics.syn_lines(ctx, lines)) {
@@ -361,7 +361,7 @@ let rec ana_cursor_found_block =
     }
   }
 and ana_cursor_found_exp =
-    (ctx: Contexts.t, e: UHExp.t, ty: HTyp.t, side: cursor_side): option(t) =>
+    (ctx: Contexts.t, e: UHExp.t, ty: HTyp.t, side: cursor_pos): option(t) =>
   switch (e) {
   | Parenthesized(block) =>
     switch (ana_cursor_found_block(ctx, block, ty, side)) {

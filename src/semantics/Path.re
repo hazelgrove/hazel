@@ -7,7 +7,7 @@ type steps = list(int);
 let string_of_steps = GeneralUtil.string_of_list(string_of_int);
 
 [@deriving show({with_path: false})]
-type t = (steps, ZExp.cursor_side);
+type t = (steps, ZExp.cursor_pos);
 
 let cons' = (step: int, r: t): t => {
   let (steps, side) = r;
@@ -16,7 +16,7 @@ let cons' = (step: int, r: t): t => {
 
 let rec of_ztyp = (zty: ZTyp.t): t =>
   switch (zty) {
-  | CursorT(cursor_side, _) => ([], cursor_side)
+  | CursorT(cursor_pos, _) => ([], cursor_pos)
   | ParenthesizedZ(zty1) => cons'(0, of_ztyp(zty1))
   | ListZ(zty1) => cons'(0, of_ztyp(zty1))
   | OpSeqZ(_, zty1, surround) =>
@@ -26,7 +26,7 @@ let rec of_ztyp = (zty: ZTyp.t): t =>
 
 let rec of_zpat = (zp: ZPat.t): t =>
   switch (zp) {
-  | CursorP(cursor_side, _) => ([], cursor_side)
+  | CursorP(cursor_pos, _) => ([], cursor_pos)
   | Deeper(_, zp') => of_zpat'(zp')
   | ParenthesizedZ(zp1) => cons'(0, of_zpat(zp1))
   | OpSeqZ(_, zp1, surround) =>
@@ -62,7 +62,7 @@ and of_zline' = (zline': ZExp.zline'): t =>
   }
 and of_zexp = (ze: ZExp.t): t =>
   switch (ze) {
-  | CursorE(cursor_side, _) => ([], cursor_side)
+  | CursorE(cursor_pos, _) => ([], cursor_pos)
   | DeeperE(_, ze') => of_zexp'(ze')
   | ParenthesizedZ(zblock) => cons'(0, of_zblock(zblock))
   | OpSeqZ(_, ze, surround) =>
@@ -104,8 +104,8 @@ let of_OpSeqZ_pat = (zp: ZPat.t, surround: ZPat.opseq_surround): t => {
 
 let rec follow_ty = (path: t, uty: UHTyp.t): option(ZTyp.t) =>
   switch (path) {
-  | ([], cursor_side) => Some(CursorT(cursor_side, uty))
-  | ([x, ...xs], cursor_side) =>
+  | ([], cursor_pos) => Some(CursorT(cursor_pos, uty))
+  | ([x, ...xs], cursor_pos) =>
     switch (uty) {
     | Hole
     | Unit
@@ -114,7 +114,7 @@ let rec follow_ty = (path: t, uty: UHTyp.t): option(ZTyp.t) =>
     | Parenthesized(uty1) =>
       switch (x) {
       | 0 =>
-        switch (follow_ty((xs, cursor_side), uty1)) {
+        switch (follow_ty((xs, cursor_pos), uty1)) {
         | Some(zty) => Some(ParenthesizedZ(zty))
         | None => None
         }
@@ -123,7 +123,7 @@ let rec follow_ty = (path: t, uty: UHTyp.t): option(ZTyp.t) =>
     | List(uty1) =>
       switch (x) {
       | 0 =>
-        switch (follow_ty((xs, cursor_side), uty1)) {
+        switch (follow_ty((xs, cursor_pos), uty1)) {
         | None => None
         | Some(zty) => Some(ListZ(zty))
         }
@@ -132,7 +132,7 @@ let rec follow_ty = (path: t, uty: UHTyp.t): option(ZTyp.t) =>
     | OpSeq(skel, seq) =>
       switch (OperatorSeq.split(x, seq)) {
       | Some((uty_n, surround)) =>
-        switch (follow_ty((xs, cursor_side), uty_n)) {
+        switch (follow_ty((xs, cursor_pos), uty_n)) {
         | Some(zty_n) => Some(OpSeqZ(skel, zty_n, surround))
         | None => None
         }
@@ -150,14 +150,14 @@ let follow_ty_or_fail = (path: t, uty: UHTyp.t): ZTyp.t =>
 
 let rec follow_pat = (path: t, p: UHPat.t): option(ZPat.t) =>
   switch (path) {
-  | ([], cursor_side) => Some(CursorP(cursor_side, p))
-  | ([x, ...xs], cursor_side) =>
+  | ([], cursor_pos) => Some(CursorP(cursor_pos, p))
+  | ([x, ...xs], cursor_pos) =>
     switch (p) {
     | EmptyHole(_) => None
     | Parenthesized(p1) =>
       switch (x) {
       | 0 =>
-        switch (follow_pat((xs, cursor_side), p1)) {
+        switch (follow_pat((xs, cursor_pos), p1)) {
         | None => None
         | Some(zp1) => Some(ParenthesizedZ(zp1))
         }
@@ -167,7 +167,7 @@ let rec follow_pat = (path: t, p: UHPat.t): option(ZPat.t) =>
       switch (OperatorSeq.split(x, seq)) {
       | None => None
       | Some((p, surround)) =>
-        switch (follow_pat((xs, cursor_side), p)) {
+        switch (follow_pat((xs, cursor_pos), p)) {
         | Some(zp) => Some(OpSeqZ(skel, zp, surround))
         | None => None
         }
@@ -180,7 +180,7 @@ let rec follow_pat = (path: t, p: UHPat.t): option(ZPat.t) =>
       | (_, BoolLit(_))
       | (_, ListNil) => None
       | (0, Inj(side, p1)) =>
-        switch (follow_pat((xs, cursor_side), p1)) {
+        switch (follow_pat((xs, cursor_pos), p1)) {
         | None => None
         | Some(zp1) => Some(Deeper(err_status, InjZ(side, zp1)))
         }
@@ -199,10 +199,10 @@ let follow_pat_or_fail = (path: t, p: UHPat.t): ZPat.t =>
 let rec follow_block = (path: t, block: UHExp.block): option(ZExp.zblock) =>
   switch (path) {
   | ([], _) => None /* no block level cursor */
-  | ([x, ...xs], cursor_side) =>
+  | ([x, ...xs], cursor_pos) =>
     let Block(lines, e) = block;
     if (x === List.length(lines)) {
-      switch (follow_exp((xs, cursor_side), e)) {
+      switch (follow_exp((xs, cursor_pos), e)) {
       | None => None
       | Some(ze) => Some(BlockZE(lines, ze))
       };
@@ -210,7 +210,7 @@ let rec follow_block = (path: t, block: UHExp.block): option(ZExp.zblock) =>
       switch (ZList.split_at(x, lines)) {
       | None => None
       | Some(split_lines) =>
-        switch (ZList.optmap_z(follow_line((xs, cursor_side)), split_lines)) {
+        switch (ZList.optmap_z(follow_line((xs, cursor_pos)), split_lines)) {
         | None => None
         | Some(zlines) => Some(BlockZL(zlines, e))
         }
@@ -219,30 +219,30 @@ let rec follow_block = (path: t, block: UHExp.block): option(ZExp.zblock) =>
   }
 and follow_line = (path: t, line: UHExp.line): option(ZExp.zline) =>
   switch (path, line) {
-  | (([], cursor_side), _) => Some(CursorL(cursor_side, line))
+  | (([], cursor_pos), _) => Some(CursorL(cursor_pos, line))
   | (_, EmptyLine) => None
-  | (([0, ...xs], cursor_side), ExpLine(e)) =>
-    switch (follow_exp((xs, cursor_side), e)) {
+  | (([0, ...xs], cursor_pos), ExpLine(e)) =>
+    switch (follow_exp((xs, cursor_pos), e)) {
     | None => None
     | Some(ze) => Some(DeeperL(ExpLineZ(ze)))
     }
   | (_, ExpLine(_)) => None
-  | (([0, ...xs], cursor_side), LetLine(p, ann, e1)) =>
-    switch (follow_pat((xs, cursor_side), p)) {
+  | (([0, ...xs], cursor_pos), LetLine(p, ann, e1)) =>
+    switch (follow_pat((xs, cursor_pos), p)) {
     | None => None
     | Some(zp) => Some(DeeperL(LetLineZP(zp, ann, e1)))
     }
-  | (([1, ...xs], cursor_side), LetLine(p, ann, e1)) =>
+  | (([1, ...xs], cursor_pos), LetLine(p, ann, e1)) =>
     switch (ann) {
     | None => None
     | Some(ann_ty) =>
-      switch (follow_ty((xs, cursor_side), ann_ty)) {
+      switch (follow_ty((xs, cursor_pos), ann_ty)) {
       | None => None
       | Some(zann) => Some(DeeperL(LetLineZA(p, zann, e1)))
       }
     }
-  | (([2, ...xs], cursor_side), LetLine(p, ann, block)) =>
-    switch (follow_block((xs, cursor_side), block)) {
+  | (([2, ...xs], cursor_pos), LetLine(p, ann, block)) =>
+    switch (follow_block((xs, cursor_pos), block)) {
     | None => None
     | Some(zblock) => Some(DeeperL(LetLineZE(p, ann, zblock)))
     }
@@ -250,14 +250,14 @@ and follow_line = (path: t, line: UHExp.line): option(ZExp.zline) =>
   }
 and follow_exp = (path: t, e: UHExp.t): option(ZExp.t) =>
   switch (path) {
-  | ([], cursor_side) => Some(CursorE(cursor_side, e))
-  | ([x, ...xs], cursor_side) =>
+  | ([], cursor_pos) => Some(CursorE(cursor_pos, e))
+  | ([x, ...xs], cursor_pos) =>
     switch (e) {
     | EmptyHole(_) => None
     | Parenthesized(block) =>
       switch (x) {
       | 0 =>
-        switch (follow_block((xs, cursor_side), block)) {
+        switch (follow_block((xs, cursor_pos), block)) {
         | Some(zblock) => Some(ParenthesizedZ(zblock))
         | None => None
         }
@@ -266,7 +266,7 @@ and follow_exp = (path: t, e: UHExp.t): option(ZExp.t) =>
     | OpSeq(skel, seq) =>
       switch (OperatorSeq.split(x, seq)) {
       | Some((e, surround)) =>
-        switch (follow_exp((xs, cursor_side), e)) {
+        switch (follow_exp((xs, cursor_pos), e)) {
         | Some(ze) => Some(OpSeqZ(skel, ze, surround))
         | None => None
         }
@@ -276,7 +276,7 @@ and follow_exp = (path: t, e: UHExp.t): option(ZExp.t) =>
       switch (x, e) {
       | (_, Var(_, _)) => None
       | (0, Lam(p, ann, block)) =>
-        switch (follow_pat((xs, cursor_side), p)) {
+        switch (follow_pat((xs, cursor_pos), p)) {
         | None => None
         | Some(zp) => Some(DeeperE(err_status, LamZP(zp, ann, block)))
         }
@@ -284,13 +284,13 @@ and follow_exp = (path: t, e: UHExp.t): option(ZExp.t) =>
         switch (ann) {
         | None => None
         | Some(ann_ty) =>
-          switch (follow_ty((xs, cursor_side), ann_ty)) {
+          switch (follow_ty((xs, cursor_pos), ann_ty)) {
           | None => None
           | Some(zann) => Some(DeeperE(err_status, LamZA(p, zann, block)))
           }
         }
       | (2, Lam(p, ann, block)) =>
-        switch (follow_block((xs, cursor_side), block)) {
+        switch (follow_block((xs, cursor_pos), block)) {
         | None => None
         | Some(zblock) => Some(DeeperE(err_status, LamZE(p, ann, zblock)))
         }
@@ -298,14 +298,14 @@ and follow_exp = (path: t, e: UHExp.t): option(ZExp.t) =>
       | (_, NumLit(_)) => None
       | (_, BoolLit(_)) => None
       | (0, Inj(side, block)) =>
-        switch (follow_block((xs, cursor_side), block)) {
+        switch (follow_block((xs, cursor_pos), block)) {
         | None => None
         | Some(zblock) => Some(DeeperE(err_status, InjZ(side, zblock)))
         }
       | (_, Inj(_, _)) => None
       | (_, ListNil) => None
       | (0, Case(block, rules, ann)) =>
-        switch (follow_block((xs, cursor_side), block)) {
+        switch (follow_block((xs, cursor_pos), block)) {
         | None => None
         | Some(zblock) =>
           Some(DeeperE(err_status, CaseZE(zblock, rules, ann)))
@@ -314,7 +314,7 @@ and follow_exp = (path: t, e: UHExp.t): option(ZExp.t) =>
         switch (ann) {
         | None => None
         | Some(ty) =>
-          switch (follow_ty((xs, cursor_side), ty)) {
+          switch (follow_ty((xs, cursor_pos), ty)) {
           | None => None
           | Some(zann) =>
             Some(DeeperE(err_status, CaseZA(block, rules, zann)))
@@ -324,9 +324,7 @@ and follow_exp = (path: t, e: UHExp.t): option(ZExp.t) =>
         switch (ZList.split_at(x - 1, rules)) {
         | None => None
         | Some(split_rules) =>
-          switch (
-            ZList.optmap_z(follow_rule((xs, cursor_side)), split_rules)
-          ) {
+          switch (ZList.optmap_z(follow_rule((xs, cursor_pos)), split_rules)) {
           | None => None
           | Some(zrules) =>
             Some(DeeperE(err_status, CaseZR(block, zrules, ann)))
@@ -335,7 +333,7 @@ and follow_exp = (path: t, e: UHExp.t): option(ZExp.t) =>
       | (n, ApPalette(name, serialized_model, splice_info)) =>
         switch (
           ZSpliceInfo.select_opt(splice_info, n, ((ty, block)) =>
-            switch (follow_block((xs, cursor_side), block)) {
+            switch (follow_block((xs, cursor_pos), block)) {
             | None => None
             | Some(zblock) => Some((ty, zblock))
             }
@@ -358,13 +356,13 @@ and follow_rule = (path: t, rule: UHExp.rule): option(ZExp.zrule) =>
   | Rule(p, block) =>
     switch (path) {
     | ([], _) => None
-    | ([0, ...xs], cursor_side) =>
-      switch (follow_pat((xs, cursor_side), p)) {
+    | ([0, ...xs], cursor_pos) =>
+      switch (follow_pat((xs, cursor_pos), p)) {
       | None => None
       | Some(zp) => Some(RuleZP(zp, block))
       }
-    | ([1, ...xs], cursor_side) =>
-      switch (follow_block((xs, cursor_side), block)) {
+    | ([1, ...xs], cursor_pos) =>
+      switch (follow_block((xs, cursor_pos), block)) {
       | None => None
       | Some(zblock) => Some(RuleZE(p, zblock))
       }
@@ -621,8 +619,8 @@ let holes_OpSeqZ =
 
 let rec holes_zty = (zty: ZTyp.t, steps: steps): zhole_list =>
   switch (zty) {
-  | CursorT(cursor_side, uty) =>
-    switch (cursor_side, uty) {
+  | CursorT(cursor_pos, uty) =>
+    switch (cursor_pos, uty) {
     | (_, Hole) => {
         holes_before: [],
         hole_selected: Some((TypeHole, steps)),
@@ -661,8 +659,8 @@ let rec holes_zty = (zty: ZTyp.t, steps: steps): zhole_list =>
 
 let rec holes_zpat = (zp: ZPat.t, steps: steps): zhole_list =>
   switch (zp) {
-  | CursorP(cursor_side, p) =>
-    switch (cursor_side, p) {
+  | CursorP(cursor_pos, p) =>
+    switch (cursor_pos, p) {
     | (_, EmptyHole(u)) => {
         holes_before: [],
         hole_selected: Some((PatHole(u), steps)),
@@ -797,8 +795,8 @@ and holes_ze = (ze: ZExp.t, steps: steps): zhole_list =>
   | OpSeqZ(_, ze0, surround) =>
     holes_OpSeqZ(holes_exp, holes_ze, ze0, surround, steps)
   | ParenthesizedZ(zblock) => holes_zblock(zblock, [0, ...steps])
-  | CursorE(cursor_side, e) =>
-    switch (cursor_side, e) {
+  | CursorE(cursor_pos, e) =>
+    switch (cursor_pos, e) {
     | (_, EmptyHole(u)) => {
         holes_before: [],
         hole_selected: Some((ExpHole(u), steps)),
@@ -1033,10 +1031,10 @@ let steps_to_hole_z = (zhole_list: zhole_list, u: MetaVar.t): option(steps) => {
 };
 
 let opt_steps_to_opt_path =
-    (cursor_side: cursor_side, opt_steps: option(steps)): option(t) =>
+    (cursor_pos: cursor_pos, opt_steps: option(steps)): option(t) =>
   switch (opt_steps) {
   | None => None
-  | Some(steps) => Some((List.rev(steps), cursor_side))
+  | Some(steps) => Some((List.rev(steps), cursor_pos))
   };
 
 let path_to_hole = (hole_list: hole_list, u: MetaVar.t): option(t) =>

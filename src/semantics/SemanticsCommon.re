@@ -42,7 +42,7 @@ let pick_side = (side, l, r) =>
   };
 
 [@deriving show({with_path: false})]
-type cursor_side =
+type cursor_pos =
   | Before
   | After
   | In(int);
