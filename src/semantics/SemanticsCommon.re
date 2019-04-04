@@ -42,10 +42,13 @@ let pick_side = (side, l, r) =>
   };
 
 [@deriving show({with_path: false})]
-type cursor_pos =
+type outer_cursor =
+  | Char(int);
+
+[@deriving show({with_path: false})]
+type inner_cursor =
   | BeforeChild(int)
-  | AfterChild(int)
-  | InLeaf(int);
+  | AfterChild(int);
 
 let default_nih = (e: option(err_status)): err_status =>
   switch (e) {

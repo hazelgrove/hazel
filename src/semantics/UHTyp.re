@@ -9,57 +9,58 @@ type skel_t = Skel.t(op);
 
 [@deriving sexp]
 type t =
+  | TO(t_outer)
+  | TI(t_inner)
+and t_outer =
   | Hole
   | Unit
   | Num
   | Bool
+and t_inner =
   | Parenthesized(t)
   | List(t)
-  | OpSeq(skel_t, OperatorSeq.opseq(t, op));
+  | OpSeq(skel_t, opseq)
+and opseq = OperatorSeq.opseq(t, op);
 
-type opseq = OperatorSeq.opseq(t, op);
-
-let bidelimited =
-  fun
-  | Hole
-  | Unit
-  | Num
-  | Bool
-  | Parenthesized(_) => true
-  | List(_) => true
-  | OpSeq(_, _) => false;
-
-let rec well_formed = uty =>
+let bidelimited = (uty: t): bool =>
   switch (uty) {
-  | Hole => true
-  | Unit => true
-  | Num => true
-  | Bool => true
-  | Parenthesized(uty1) => well_formed(uty1)
-  | List(uty1) => well_formed(uty1)
-  | OpSeq(skel, seq) =>
+  | TO(_) => true
+  | TI(Parenthesized(_)) => true
+  | TI(List(_)) => true
+  | TI(OpSeq(_, _)) => false
+  };
+
+let rec well_formed = (uty: t): bool =>
+  switch (uty) {
+  | TO(Hole) => true
+  | TO(Unit) => true
+  | TO(Num) => true
+  | TO(Bool) => true
+  | TI(Parenthesized(uty1)) => well_formed(uty1)
+  | TI(List(uty1)) => well_formed(uty1)
+  | TI(OpSeq(skel, seq)) =>
     /* NOTE: does not check that skel is the valid parse of seq */
     well_formed_skel(skel, seq)
   }
-and well_formed_skel = (skel, seq) =>
+and well_formed_skel = (skel: skel_t, seq: opseq): bool =>
   switch (skel) {
-  | Skel.Placeholder(n) =>
+  | Placeholder(n) =>
     switch (OperatorSeq.seq_nth(n, seq)) {
     | Some(uty_n) => bidelimited(uty_n) && well_formed(uty_n)
     | None => false
     }
-  | Skel.BinOp(NotInHole, _, skel1, skel2) =>
+  | BinOp(NotInHole, _, skel1, skel2) =>
     well_formed_skel(skel1, seq) && well_formed_skel(skel2, seq)
-  | Skel.BinOp(InHole(TypeInconsistent, _), _, _, _) => false /* no type-level non-empty holes */
-  | Skel.BinOp(InHole(WrongLength, _), _, _, _) => false
+  | BinOp(InHole(TypeInconsistent, _), _, _, _) => false /* no type-level non-empty holes */
+  | BinOp(InHole(WrongLength, _), _, _, _) => false
   }; /* the type is assumed to be the true length */
 
 /* TODO fix this to only parenthesize when necessary */
-let rec contract = ty => {
+let rec contract = (ty: HTyp.t): t => {
   let mk_opseq = (op', a, b) => {
     let ph = n => Skel.Placeholder(n);
     let skel = Skel.BinOp(NotInHole, op', ph(0), ph(1));
-    Parenthesized(OpSeq(skel, OperatorSeq.ExpOpExp(a, op', b)));
+    TI(Parenthesized(TI(OpSeq(skel, ExpOpExp(a, op', b)))));
   };
   /* Save it for another day
      match (a, b) with
@@ -72,44 +73,44 @@ let rec contract = ty => {
      */
 
   switch (ty) {
-  | HTyp.Hole => Hole
-  | HTyp.Unit => Unit
-  | HTyp.Num => Num
-  | HTyp.Bool => Bool
-  | HTyp.Arrow(ty1, ty2) => mk_opseq(Arrow, contract(ty1), contract(ty2))
-  | HTyp.Prod(ty1, ty2) => mk_opseq(Prod, contract(ty1), contract(ty2))
-  | HTyp.Sum(ty1, ty2) => mk_opseq(Sum, contract(ty1), contract(ty2))
-  | HTyp.List(ty1) => List(contract(ty1))
+  | Hole => TO(Hole)
+  | Unit => TO(Unit)
+  | Num => TO(Num)
+  | Bool => TO(Bool)
+  | Arrow(ty1, ty2) => mk_opseq(Arrow, contract(ty1), contract(ty2))
+  | Prod(ty1, ty2) => mk_opseq(Prod, contract(ty1), contract(ty2))
+  | Sum(ty1, ty2) => mk_opseq(Sum, contract(ty1), contract(ty2))
+  | List(ty1) => TI(List(contract(ty1)))
   };
 };
 
-let rec expand = uty =>
+let rec expand = (uty: t): HTyp.t =>
   switch (uty) {
-  | Hole => HTyp.Hole
-  | Unit => HTyp.Unit
-  | Num => HTyp.Num
-  | Bool => HTyp.Bool
-  | Parenthesized(uty1) => expand(uty1)
-  | List(uty1) => HTyp.List(expand(uty1))
-  | OpSeq(skel, seq) => expand_skel(skel, seq)
+  | TO(Hole) => Hole
+  | TO(Unit) => Unit
+  | TO(Num) => Num
+  | TO(Bool) => Bool
+  | TI(Parenthesized(uty1)) => expand(uty1)
+  | TI(List(uty1)) => List(expand(uty1))
+  | TI(OpSeq(skel, seq)) => expand_skel(skel, seq)
   }
-and expand_skel = (skel, seq) =>
+and expand_skel = (skel: skel_t, seq: opseq): HTyp.t =>
   switch (skel) {
-  | Skel.Placeholder(n) =>
+  | Placeholder(n) =>
     switch (OperatorSeq.seq_nth(n, seq)) {
     | Some(uty_n) => expand(uty_n)
-    | None => HTyp.Hole /* should never happen */
+    | None => Hole /* should never happen */
     }
-  | Skel.BinOp(_, Arrow, skel1, skel2) =>
+  | BinOp(_, Arrow, skel1, skel2) =>
     let uty1 = expand_skel(skel1, seq);
     let uty2 = expand_skel(skel2, seq);
-    HTyp.Arrow(uty1, uty2);
-  | Skel.BinOp(_, Prod, skel1, skel2) =>
+    Arrow(uty1, uty2);
+  | BinOp(_, Prod, skel1, skel2) =>
     let uty1 = expand_skel(skel1, seq);
     let uty2 = expand_skel(skel2, seq);
-    HTyp.Prod(uty1, uty2);
-  | Skel.BinOp(_, Sum, skel1, skel2) =>
+    Prod(uty1, uty2);
+  | BinOp(_, Sum, skel1, skel2) =>
     let uty1 = expand_skel(skel1, seq);
     let uty2 = expand_skel(skel2, seq);
-    HTyp.Sum(uty1, uty2);
+    Sum(uty1, uty2);
   };
