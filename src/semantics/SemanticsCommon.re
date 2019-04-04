@@ -43,9 +43,9 @@ let pick_side = (side, l, r) =>
 
 [@deriving show({with_path: false})]
 type cursor_pos =
-  | Before
-  | After
-  | In(int);
+  | BeforeChild(int)
+  | AfterChild(int)
+  | InLeaf(int);
 
 let default_nih = (e: option(err_status)): err_status =>
   switch (e) {
