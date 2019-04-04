@@ -18,17 +18,9 @@ let bidelimit = (zp: t): t =>
   switch (zp) {
   | CursorP(cursor_pos, p) => CursorP(cursor_pos, UHPat.bidelimit(p))
   | ParenthesizedZ(_)
-  | Deeper(_, InjZ(_, _)) =>
-    /* | Deeper _ (ListLitZ _) */
-    zp
+  | Deeper(_, InjZ(_, _)) => zp
   | OpSeqZ(_, _, _) => ParenthesizedZ(zp)
   };
-
-/* helper function for constructing a new empty hole */
-let new_EmptyHole = (u_gen: MetaVarGen.t): (t, MetaVarGen.t) => {
-  let (hole, u_gen) = UHPat.new_EmptyHole(u_gen);
-  (CursorP(Before, hole), u_gen);
-};
 
 let rec set_err_status_t = (err: err_status, zp: t): t =>
   switch (zp) {
@@ -141,6 +133,26 @@ and erase' = (zp': t'): UHPat.t' =>
   | InjZ(side, zp1) => Inj(side, erase(zp1))
   };
 
+let rec is_before = (zp: t): bool =>
+  switch (zp) {
+  | CursorP(Before, _) => true
+  | CursorP(_, _) => false
+  | ParenthesizedZ(_) => false
+  | OpSeqZ(_, zp1, EmptyPrefix(_)) => is_before(zp1)
+  | OpSeqZ(_, _, _) => false
+  | Deeper(_, InjZ(_, _)) => false
+  };
+
+let rec is_after = (zp: t): bool =>
+  switch (zp) {
+  | CursorP(After, _) => true
+  | CursorP(_, _) => false
+  | ParenthesizedZ(_) => false
+  | OpSeqZ(_, zp1, EmptySuffix(_)) => is_after(zp1)
+  | OpSeqZ(_, _, _) => false
+  | Deeper(_, InjZ(_, _)) => false
+  };
+
 let place_before = (p: UHPat.t): t =>
   switch (p) {
   | Parenthesized(_)
@@ -173,22 +185,8 @@ let place_after = (p: UHPat.t): t =>
     OpSeqZ(skel, CursorP(After, p0), surround);
   };
 
-let rec is_before = (zp: t): bool =>
-  switch (zp) {
-  | CursorP(Before, _) => true
-  | CursorP(_, _) => false
-  | ParenthesizedZ(_) => false
-  | OpSeqZ(_, zp1, EmptyPrefix(_)) => is_before(zp1)
-  | OpSeqZ(_, _, _) => false
-  | Deeper(_, InjZ(_, _)) => false
-  };
-
-let rec is_after = (zp: t): bool =>
-  switch (zp) {
-  | CursorP(After, _) => true
-  | CursorP(_, _) => false
-  | ParenthesizedZ(_) => false
-  | OpSeqZ(_, zp1, EmptySuffix(_)) => is_after(zp1)
-  | OpSeqZ(_, _, _) => false
-  | Deeper(_, InjZ(_, _)) => false
-  };
+/* helper function for constructing a new empty hole */
+let new_EmptyHole = (u_gen: MetaVarGen.t): (t, MetaVarGen.t) => {
+  let (hole, u_gen) = UHPat.new_EmptyHole(u_gen);
+  (CursorP(Before, hole), u_gen);
+};
