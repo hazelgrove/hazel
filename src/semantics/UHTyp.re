@@ -9,11 +9,11 @@ type skel_t = Skel.t(op);
 
 [@deriving sexp]
 type t =
-  | Parenthesized(t)
   | Hole
   | Unit
   | Num
   | Bool
+  | Parenthesized(t)
   | List(t)
   | OpSeq(skel_t, OperatorSeq.opseq(t, op));
 
