@@ -56,6 +56,16 @@ and splice_map = SpliceInfo.splice_map(block);
 
 exception SkelInconsistentWithOpSeq(skel_t, opseq);
 
+let outer_node_length = (eo: t_outer): int =>
+  switch (eo) {
+  | EmptyHole(_) => 1
+  | Var(_, _, x) => Var.length(x)
+  | NumLit(_, n) => num_digits(n)
+  | BoolLit(_, true) => 4
+  | BoolLit(_, false) => 5
+  | ListNil(_) => 2
+  };
+
 let prune_empty_hole_line = (li: line): line =>
   switch (li) {
   | ExpLine(EO(EmptyHole(_))) => LO(EmptyLine)
@@ -114,17 +124,22 @@ let empty_rule = (u_gen: MetaVarGen.t): (rule, MetaVarGen.t) => {
  * the opseq. For consistency, we require that case expressions
  * always be parenthesized in an opseq.
  */
+let bidelimited_outer = (_: t_outer): bool => true;
+let bidelimited_inner = (ei: t_inner): bool =>
+  switch (ei) {
+  /* bidelimited cases */
+  | Inj(_, _, _)
+  | ApPalette(_, _, _, _)
+  | Parenthesized(_) => true
+  /* non-bidelimited cases */
+  | Case(_, _, _, _)
+  | Lam(_, _, _, _)
+  | OpSeq(_, _) => false
+  };
 let bidelimited = (e: t): bool =>
   switch (e) {
-  /* bidelimited cases */
-  | EO(_)
-  | EI(Inj(_, _, _))
-  | EI(ApPalette(_, _, _, _))
-  | EI(Parenthesized(_)) => true
-  /* non-bidelimited cases */
-  | EI(Case(_, _, _, _))
-  | EI(Lam(_, _, _, _))
-  | EI(OpSeq(_, _)) => false
+  | EO(eo) => bidelimited_outer(eo)
+  | EI(ei) => bidelimited_inner(ei)
   };
 
 /* if e is not bidelimited, bidelimit e parenthesizes it */

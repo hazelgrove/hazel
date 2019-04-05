@@ -7,6 +7,7 @@ type opseq_suffix = OperatorSeq.opseq_suffix(UHTyp.t, UHTyp.op);
 type t =
   | CursorTO(outer_cursor, UHTyp.t_outer)
   | CursorTI(inner_cursor, UHTyp.t_inner)
+  /* zipper cases */
   | ParenthesizedZ(t)
   | ListZ(t)
   | OpSeqZ(UHTyp.skel_t, t, opseq_surround);
@@ -25,17 +26,14 @@ let rec erase = (zty: t): UHTyp.t =>
 
 let rec is_before = (zty: t): bool =>
   switch (zty) {
-  /* leaf nodes */
-  | CursorTO(Char(0), Hole)
-  | CursorTO(Char(0), Unit)
-  | CursorTO(Char(0), Num)
-  | CursorTO(Char(0), Bool) => true
-  | CursorTO(Char(_), _) => false
-  /* branch nodes */
-  | CursorTI(AfterChild(0), Parenthesized(_)) => true
-  | CursorTI(AfterChild(_), Parenthesized(_)) => false
-  | CursorTI(AfterChild(0), List(_)) => true
-  | CursorTI(AfterChild(_), List(_)) => false
+  /* outer nodes */
+  | CursorTO(Char(j), Hole)
+  | CursorTO(Char(j), Unit)
+  | CursorTO(Char(j), Num)
+  | CursorTO(Char(j), Bool) => j === 0
+  /* inner nodes */
+  | CursorTI(AfterChild(k), Parenthesized(_))
+  | CursorTI(AfterChild(k), List(_)) => k === 0
   | CursorTI(AfterChild(_), OpSeq(_, _)) => false
   | CursorTI(BeforeChild(_), _) => false
   /* zipper cases */
@@ -47,17 +45,14 @@ let rec is_before = (zty: t): bool =>
 
 let rec is_after = (zty: t): bool =>
   switch (zty) {
-  /* leaf nodes */
-  | CursorTO(Char(1), Hole)
-  | CursorTO(Char(1), Unit) /* TODO is this right? */
-  | CursorTO(Char(3), Num)
-  | CursorTO(Char(4), Bool) => true
-  | CursorTO(Char(_), _) => false
-  /* branch nodes */
-  | CursorTI(BeforeChild(2), Parenthesized(_)) => true
-  | CursorTI(BeforeChild(_), Parenthesized(_)) => false
-  | CursorTI(BeforeChild(2), List(_)) => true
-  | CursorTI(BeforeChild(_), List(_)) => true
+  /* outer nodes */
+  | CursorTO(Char(j), Hole) => j === 1
+  | CursorTO(Char(j), Unit) => j === 1 /* TODO is this right? */
+  | CursorTO(Char(j), Num) => j === 3
+  | CursorTO(Char(j), Bool) => j === 4
+  /* inner nodes */
+  | CursorTI(BeforeChild(k), Parenthesized(_))
+  | CursorTI(BeforeChild(k), List(_)) => k === 2
   | CursorTI(BeforeChild(_), OpSeq(_, _)) => false
   | CursorTI(AfterChild(_), _) => false
   /* zipper cases */
@@ -69,12 +64,12 @@ let rec is_after = (zty: t): bool =>
 
 let rec place_before = (uty: UHTyp.t): t =>
   switch (uty) {
-  /* leaf nodes */
+  /* outer nodes */
   | TO(Hole as uty_o)
   | TO(Unit as uty_o)
   | TO(Num as uty_o)
   | TO(Bool as uty_o) => CursorTO(Char(0), uty_o)
-  /* branch nodes */
+  /* inner nodes */
   | TI(Parenthesized(_) as uty_i)
   | TI(List(_) as uty_i) => CursorTI(AfterChild(0), uty_i)
   | TI(OpSeq(skel, seq)) =>
@@ -86,12 +81,12 @@ let rec place_before = (uty: UHTyp.t): t =>
 
 let rec place_after = (uty: UHTyp.t): t =>
   switch (uty) {
-  /* leaf nodes */
+  /* outer nodes */
   | TO(Hole as uty_o) => CursorTO(Char(1), uty_o)
   | TO(Unit as uty_o) => CursorTO(Char(1), uty_o) /* TODO is this right? */
   | TO(Num as uty_o) => CursorTO(Char(3), uty_o)
   | TO(Bool as uty_o) => CursorTO(Char(4), uty_o)
-  /* branch nodes */
+  /* inner nodes */
   | TI(Parenthesized(_) as uty_i) => CursorTI(BeforeChild(2), uty_i)
   | TI(List(_) as uty_i) => CursorTI(BeforeChild(2), uty_i)
   | TI(OpSeq(skel, seq)) =>

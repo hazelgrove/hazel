@@ -8,6 +8,7 @@ type opseq_suffix = OperatorSeq.opseq_suffix(UHPat.t, UHPat.op);
 type t =
   | CursorPO(outer_cursor, UHPat.t_outer)
   | CursorPI(inner_cursor, UHPat.t_inner)
+  /* zipper cases */
   | ParenthesizedZ(t)
   | OpSeqZ(UHPat.skel_t, t, opseq_surround)
   | InjZ(err_status, inj_side, t);
@@ -150,19 +151,16 @@ let rec erase = (zp: t): UHPat.t =>
 
 let rec is_before = (zp: t): bool =>
   switch (zp) {
-  /* leaf nodes */
-  | CursorPO(Char(0), EmptyHole(_))
-  | CursorPO(Char(0), Wild(_))
-  | CursorPO(Char(0), Var(_, _, _))
-  | CursorPO(Char(0), NumLit(_, _))
-  | CursorPO(Char(0), BoolLit(_, _))
-  | CursorPO(Char(0), ListNil(_)) => true
-  | CursorPO(Char(_), _) => false
-  /* branch nodes */
-  | CursorPI(AfterChild(0), Inj(_, _, _)) => true
-  | CursorPI(AfterChild(_), Inj(_, _, _)) => false
-  | CursorPI(AfterChild(0), Parenthesized(_)) => true
-  | CursorPI(AfterChild(_), Parenthesized(_)) => false
+  /* outer nodes */
+  | CursorPO(Char(j), EmptyHole(_))
+  | CursorPO(Char(j), Wild(_))
+  | CursorPO(Char(j), Var(_, _, _))
+  | CursorPO(Char(j), NumLit(_, _))
+  | CursorPO(Char(j), BoolLit(_, _))
+  | CursorPO(Char(j), ListNil(_)) => j === 0
+  /* inner nodes */
+  | CursorPI(AfterChild(k), Inj(_, _, _))
+  | CursorPI(AfterChild(k), Parenthesized(_)) => k === 0
   | CursorPI(AfterChild(_), OpSeq(_, _)) => false
   | CursorPI(BeforeChild(_), _) => false
   /* zipper cases */
@@ -174,23 +172,18 @@ let rec is_before = (zp: t): bool =>
 
 let rec is_after = (zp: t): bool =>
   switch (zp) {
-  /* leaf nodes */
-  | CursorPO(Char(1), EmptyHole(_))
-  | CursorPO(Char(1), Wild(_))
-  | CursorPO(Char(2), ListNil(_)) => true
-  | CursorPO(Char(n), Var(_, _, x)) => n === Var.length(x)
-  | CursorPO(Char(n), NumLit(_, m)) => n === num_digits(m)
-  | CursorPO(Char(4), BoolLit(_, true)) => true
-  | CursorPO(Char(5), BoolLit(_, false)) => true
-  | CursorPO(Char(_), BoolLit(_, _)) => false
-  | CursorPO(Char(_), _) => false
-  /* branch nodes */
-  | CursorPI(AfterChild(0), Inj(_, _, _)) => true
-  | CursorPI(AfterChild(_), Inj(_, _, _)) => false
-  | CursorPI(AfterChild(0), Parenthesized(_)) => true
-  | CursorPI(AfterChild(_), Parenthesized(_)) => false
-  | CursorPI(AfterChild(_), OpSeq(_, _)) => false
-  | CursorPI(BeforeChild(_), _) => false
+  /* outer nodes */
+  | CursorPO(Char(j), EmptyHole(_)) => j === 1
+  | CursorPO(Char(j), Wild(_)) => j === 1
+  | CursorPO(Char(j), ListNil(_)) => j === 2
+  | CursorPO(Char(j), Var(_, _, x)) => j === Var.length(x)
+  | CursorPO(Char(j), NumLit(_, n)) => j === num_digits(n)
+  | CursorPO(Char(j), BoolLit(_, b)) => j === 4 && b || j === 5 && !b
+  /* inner nodes */
+  | CursorPI(BeforeChild(k), Inj(_, _, _))
+  | CursorPI(BeforeChild(k), Parenthesized(_)) => k === 2
+  | CursorPI(BeforeChild(_), OpSeq(_, _)) => false
+  | CursorPI(AfterChild(_), _) => false
   /* zipper cases */
   | InjZ(_, _, _) => false
   | ParenthesizedZ(_) => false
@@ -200,14 +193,14 @@ let rec is_after = (zp: t): bool =>
 
 let rec place_before = (p: UHPat.t): t =>
   switch (p) {
-  /* leaf nodes */
+  /* outer nodes */
   | PO(EmptyHole(_) as po)
   | PO(Wild(_) as po)
   | PO(Var(_, _, _) as po)
   | PO(NumLit(_, _) as po)
   | PO(BoolLit(_, _) as po)
   | PO(ListNil(_) as po) => CursorPO(Char(0), po)
-  /* branch nodes */
+  /* inner nodes */
   | PI(Inj(_, _, _) as pi)
   | PI(Parenthesized(_) as pi) => CursorPI(AfterChild(0), pi)
   | PI(OpSeq(skel, seq)) =>
@@ -219,7 +212,7 @@ let rec place_before = (p: UHPat.t): t =>
 
 let rec place_after = (p: UHPat.t): t =>
   switch (p) {
-  /* leaf nodes */
+  /* outer nodes */
   | PO(EmptyHole(_) as po) => CursorPO(Char(1), po)
   | PO(Wild(_) as po) => CursorPO(Char(1), po)
   | PO(Var(_, _, x) as po) => CursorPO(Char(Var.length(x)), po)
@@ -227,7 +220,7 @@ let rec place_after = (p: UHPat.t): t =>
   | PO(BoolLit(_, true) as po) => CursorPO(Char(4), po)
   | PO(BoolLit(_, false) as po) => CursorPO(Char(5), po)
   | PO(ListNil(_) as po) => CursorPO(Char(2), po)
-  /* branch nodes */
+  /* inner nodes */
   | PI(Inj(_, _, _) as pi) => CursorPI(AfterChild(2), pi)
   | PI(Parenthesized(_) as pi) => CursorPI(AfterChild(2), pi)
   | PI(OpSeq(skel, seq)) =>
