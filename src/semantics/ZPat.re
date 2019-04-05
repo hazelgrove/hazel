@@ -1,3 +1,4 @@
+open GeneralUtil;
 open SemanticsCommon;
 
 type opseq_surround = OperatorSeq.opseq_surround(UHPat.t, UHPat.op);
@@ -5,30 +6,43 @@ type opseq_prefix = OperatorSeq.opseq_prefix(UHPat.t, UHPat.op);
 type opseq_suffix = OperatorSeq.opseq_suffix(UHPat.t, UHPat.op);
 
 type t =
-  | CursorP(cursor_pos, UHPat.t)
+  | CursorPO(outer_cursor, UHPat.t_outer)
+  | CursorPI(inner_cursor, UHPat.t_inner)
   | ParenthesizedZ(t)
   | OpSeqZ(UHPat.skel_t, t, opseq_surround)
-  | Deeper(err_status, t')
-and t' =
-  | InjZ(inj_side, t);
+  | InjZ(err_status, inj_side, t);
 
 exception SkelInconsistentWithOpSeq;
 
 let bidelimit = (zp: t): t =>
   switch (zp) {
-  | CursorP(cursor_pos, p) => CursorP(cursor_pos, UHPat.bidelimit(p))
+  | CursorPO(_, po) =>
+    if (UHPat.bidelimited_outer(po)) {
+      zp;
+    } else {
+      ParenthesizedZ(zp);
+    }
+  | CursorPI(_, pi) =>
+    if (UHPat.bidelimited_inner(pi)) {
+      zp;
+    } else {
+      ParenthesizedZ(zp);
+    }
   | ParenthesizedZ(_)
-  | Deeper(_, InjZ(_, _)) => zp
+  | InjZ(_, _, _) => zp
   | OpSeqZ(_, _, _) => ParenthesizedZ(zp)
   };
 
 let rec set_err_status_t = (err: err_status, zp: t): t =>
   switch (zp) {
-  | CursorP(cursor_pos, p) =>
-    let p = UHPat.set_err_status_t(err, p);
-    CursorP(cursor_pos, p);
+  | CursorPO(outer_cursor, po) =>
+    let po = UHPat.set_err_status_t_outer(err, po);
+    CursorPO(outer_cursor, po);
+  | CursorPI(outer_cursor, pi) =>
+    let pi = UHPat.set_err_status_t_inner(err, pi);
+    CursorPI(outer_cursor, pi);
   | ParenthesizedZ(zp1) => ParenthesizedZ(set_err_status_t(err, zp1))
-  | Deeper(_, ze') => Deeper(err, ze')
+  | InjZ(_, inj_side, zp1) => InjZ(err, inj_side, zp1)
   | OpSeqZ(skel, zp_n, surround) =>
     let (skel, zp_n, surround) =
       set_err_status_opseq(err, skel, zp_n, surround);
@@ -62,14 +76,17 @@ and set_err_status_opseq =
 
 let rec make_t_inconsistent = (u_gen: MetaVarGen.t, zp: t): (t, MetaVarGen.t) =>
   switch (zp) {
-  | CursorP(cursor_pos, p) =>
-    let (p, u_gen) = UHPat.make_t_inconsistent(u_gen, p);
-    (CursorP(cursor_pos, p), u_gen);
-  | Deeper(InHole(TypeInconsistent, _), _) => (zp, u_gen)
-  | Deeper(NotInHole, zp')
-  | Deeper(InHole(WrongLength, _), zp') =>
+  | CursorPO(outer_cursor, po) =>
+    let (po, u_gen) = UHPat.make_t_outer_inconsistent(u_gen, po);
+    (CursorPO(outer_cursor, po), u_gen);
+  | CursorPI(inner_cursor, pi) =>
+    let (pi, u_gen) = UHPat.make_t_inner_inconsistent(u_gen, pi);
+    (CursorPI(inner_cursor, pi), u_gen);
+  | InjZ(InHole(TypeInconsistent, _), _, _) => (zp, u_gen)
+  | InjZ(NotInHole, inj_side, zp1)
+  | InjZ(InHole(WrongLength, _), inj_side, zp1) =>
     let (u, u_gen) = MetaVarGen.next(u_gen);
-    (Deeper(InHole(TypeInconsistent, u), zp'), u_gen);
+    (InjZ(InHole(TypeInconsistent, u), inj_side, zp1), u_gen);
   | ParenthesizedZ(zp1) =>
     let (zp1, u_gen) = make_t_inconsistent(u_gen, zp1);
     (ParenthesizedZ(zp1), u_gen);
@@ -121,72 +138,107 @@ and make_opseq_inconsistent =
 
 let rec erase = (zp: t): UHPat.t =>
   switch (zp) {
-  | CursorP(_, p) => p
-  | Deeper(err_status, zp') => Pat(err_status, erase'(zp'))
-  | ParenthesizedZ(zp) => Parenthesized(erase(zp))
+  | CursorPO(_, po) => PO(po)
+  | CursorPI(_, pi) => PI(pi)
+  | InjZ(err_status, inj_side, zp1) =>
+    PI(Inj(err_status, inj_side, erase(zp1)))
+  | ParenthesizedZ(zp) => PI(Parenthesized(erase(zp)))
   | OpSeqZ(skel, zp1, surround) =>
     let p1 = erase(zp1);
-    OpSeq(skel, OperatorSeq.opseq_of_exp_and_surround(p1, surround));
-  }
-and erase' = (zp': t'): UHPat.t' =>
-  switch (zp') {
-  | InjZ(side, zp1) => Inj(side, erase(zp1))
+    PI(OpSeq(skel, OperatorSeq.opseq_of_exp_and_surround(p1, surround)));
   };
 
 let rec is_before = (zp: t): bool =>
   switch (zp) {
-  | CursorP(Before, _) => true
-  | CursorP(_, _) => false
+  /* leaf nodes */
+  | CursorPO(Char(0), EmptyHole(_))
+  | CursorPO(Char(0), Wild(_))
+  | CursorPO(Char(0), Var(_, _, _))
+  | CursorPO(Char(0), NumLit(_, _))
+  | CursorPO(Char(0), BoolLit(_, _))
+  | CursorPO(Char(0), ListNil(_)) => true
+  | CursorPO(Char(_), _) => false
+  /* branch nodes */
+  | CursorPI(AfterChild(0), Inj(_, _, _)) => true
+  | CursorPI(AfterChild(_), Inj(_, _, _)) => false
+  | CursorPI(AfterChild(0), Parenthesized(_)) => true
+  | CursorPI(AfterChild(_), Parenthesized(_)) => false
+  | CursorPI(AfterChild(_), OpSeq(_, _)) => false
+  | CursorPI(BeforeChild(_), _) => false
+  /* zipper cases */
+  | InjZ(_, _, _) => false
   | ParenthesizedZ(_) => false
   | OpSeqZ(_, zp1, EmptyPrefix(_)) => is_before(zp1)
   | OpSeqZ(_, _, _) => false
-  | Deeper(_, InjZ(_, _)) => false
   };
 
 let rec is_after = (zp: t): bool =>
   switch (zp) {
-  | CursorP(After, _) => true
-  | CursorP(_, _) => false
+  /* leaf nodes */
+  | CursorPO(Char(1), EmptyHole(_))
+  | CursorPO(Char(1), Wild(_))
+  | CursorPO(Char(2), ListNil(_)) => true
+  | CursorPO(Char(n), Var(_, _, x)) => n === Var.length(x)
+  | CursorPO(Char(n), NumLit(_, m)) => n === num_digits(m)
+  | CursorPO(Char(4), BoolLit(_, true)) => true
+  | CursorPO(Char(5), BoolLit(_, false)) => true
+  | CursorPO(Char(_), BoolLit(_, _)) => false
+  | CursorPO(Char(_), _) => false
+  /* branch nodes */
+  | CursorPI(AfterChild(0), Inj(_, _, _)) => true
+  | CursorPI(AfterChild(_), Inj(_, _, _)) => false
+  | CursorPI(AfterChild(0), Parenthesized(_)) => true
+  | CursorPI(AfterChild(_), Parenthesized(_)) => false
+  | CursorPI(AfterChild(_), OpSeq(_, _)) => false
+  | CursorPI(BeforeChild(_), _) => false
+  /* zipper cases */
+  | InjZ(_, _, _) => false
   | ParenthesizedZ(_) => false
   | OpSeqZ(_, zp1, EmptySuffix(_)) => is_after(zp1)
   | OpSeqZ(_, _, _) => false
-  | Deeper(_, InjZ(_, _)) => false
   };
 
-let place_before = (p: UHPat.t): t =>
+let rec place_before = (p: UHPat.t): t =>
   switch (p) {
-  | Parenthesized(_)
-  | EmptyHole(_)
-  | Pat(_, Wild)
-  | Pat(_, Var(_, _))
-  | Pat(_, NumLit(_))
-  | Pat(_, BoolLit(_))
-  | Pat(_, Inj(_, _))
-  | Pat(_, ListNil) => CursorP(Before, p)
-  | OpSeq(skel, seq) =>
+  /* leaf nodes */
+  | PO(EmptyHole(_) as po)
+  | PO(Wild(_) as po)
+  | PO(Var(_, _, _) as po)
+  | PO(NumLit(_, _) as po)
+  | PO(BoolLit(_, _) as po)
+  | PO(ListNil(_) as po) => CursorPO(Char(0), po)
+  /* branch nodes */
+  | PI(Inj(_, _, _) as pi)
+  | PI(Parenthesized(_) as pi) => CursorPI(AfterChild(0), pi)
+  | PI(OpSeq(skel, seq)) =>
     let (p0, suffix) = OperatorSeq.split0(seq);
     let surround = OperatorSeq.EmptyPrefix(suffix);
-    OpSeqZ(skel, CursorP(Before, p0), surround);
+    let zp0 = place_before(p0);
+    OpSeqZ(skel, zp0, surround);
   };
 
-let place_after = (p: UHPat.t): t =>
+let rec place_after = (p: UHPat.t): t =>
   switch (p) {
-  | Parenthesized(_)
-  | EmptyHole(_)
-  | Pat(_, Wild)
-  | Pat(_, Var(_, _))
-  | Pat(_, NumLit(_))
-  | Pat(_, BoolLit(_))
-  | Pat(_, Inj(_, _))
-  | Pat(_, ListNil) => CursorP(After, p)
-  | OpSeq(skel, seq) =>
+  /* leaf nodes */
+  | PO(EmptyHole(_) as po) => CursorPO(Char(1), po)
+  | PO(Wild(_) as po) => CursorPO(Char(1), po)
+  | PO(Var(_, _, x) as po) => CursorPO(Char(Var.length(x)), po)
+  | PO(NumLit(_, n) as po) => CursorPO(Char(num_digits(n)), po)
+  | PO(BoolLit(_, true) as po) => CursorPO(Char(4), po)
+  | PO(BoolLit(_, false) as po) => CursorPO(Char(5), po)
+  | PO(ListNil(_) as po) => CursorPO(Char(2), po)
+  /* branch nodes */
+  | PI(Inj(_, _, _) as pi) => CursorPI(AfterChild(2), pi)
+  | PI(Parenthesized(_) as pi) => CursorPI(AfterChild(2), pi)
+  | PI(OpSeq(skel, seq)) =>
     let (p0, prefix) = OperatorSeq.split_tail(seq);
     let surround = OperatorSeq.EmptySuffix(prefix);
-    OpSeqZ(skel, CursorP(After, p0), surround);
+    let zp0 = place_after(p0);
+    OpSeqZ(skel, zp0, surround);
   };
 
 /* helper function for constructing a new empty hole */
 let new_EmptyHole = (u_gen: MetaVarGen.t): (t, MetaVarGen.t) => {
   let (hole, u_gen) = UHPat.new_EmptyHole(u_gen);
-  (CursorP(Before, hole), u_gen);
+  (place_before(hole), u_gen);
 };

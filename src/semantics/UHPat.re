@@ -25,7 +25,7 @@ and t_outer =
   | Wild(err_status)
   | Var(err_status, var_err_status, Var.t)
   | NumLit(err_status, int)
-  | BoolLit(err_status, int)
+  | BoolLit(err_status, bool)
   | ListNil(err_status)
 and t_inner =
   | Inj(err_status, inj_side, t)
@@ -54,12 +54,18 @@ let rec make_tuple = (err: err_status, skels: ListMinTwo.t(skel_t)) =>
 /* bidelimited patterns are those that don't have
  * sub-patterns at their outer left or right edge
  * in the concrete syntax */
-let bidelimited =
-  fun
-  | PO(_) => true
-  | PI(Inj(_, _, _)) => true
-  | PI(Parenthesized(_)) => true
-  | PI(OpSeq(_, _)) => false;
+let bidelimited_outer = (_: t_outer): bool => true;
+let bidelimited_inner = (pi: t_inner): bool =>
+  switch (pi) {
+  | Inj(_, _, _) => true
+  | Parenthesized(_) => true
+  | OpSeq(_, _) => false
+  };
+let bidelimited = (p: t): bool =>
+  switch (p) {
+  | PO(p_outer) => bidelimited_outer(p_outer)
+  | PI(p_inner) => bidelimited_inner(p_inner)
+  };
 
 /* if p is not bidelimited, bidelimit e parenthesizes it */
 let bidelimit = p =>
@@ -100,17 +106,25 @@ let rec get_err_status_t = (p: t): err_status =>
 
 let rec set_err_status_t = (err: err_status, p: t): t =>
   switch (p) {
-  | PO(EmptyHole(_)) => p
-  | PO(Wild(_)) => PO(Wild(err))
-  | PO(Var(_, var_err, x)) => PO(Var(err, var_err, x))
-  | PO(NumLit(_, n)) => PO(NumLit(err, n))
-  | PO(BoolLit(_, b)) => PO(BoolLit(err, b))
-  | PO(ListNil(_)) => PO(ListNil(err))
-  | PI(Inj(_, inj_side, p)) => PI(Inj(err, inj_side, p))
-  | PI(Parenthesized(p)) => PI(Parenthesized(set_err_status_t(err, p)))
-  | PI(OpSeq(skel, seq)) =>
+  | PO(po) => PO(set_err_status_t_outer(err, po))
+  | PI(pi) => PI(set_err_status_t_inner(err, pi))
+  }
+and set_err_status_t_outer = (err: err_status, po: t_outer): t_outer =>
+  switch (po) {
+  | EmptyHole(_) => po
+  | Wild(_) => Wild(err)
+  | Var(_, var_err, x) => Var(err, var_err, x)
+  | NumLit(_, n) => NumLit(err, n)
+  | BoolLit(_, b) => BoolLit(err, b)
+  | ListNil(_) => ListNil(err)
+  }
+and set_err_status_t_inner = (err: err_status, pi: t_inner): t_inner =>
+  switch (pi) {
+  | Inj(_, inj_side, p) => Inj(err, inj_side, p)
+  | Parenthesized(p) => Parenthesized(set_err_status_t(err, p))
+  | OpSeq(skel, seq) =>
     let (skel, seq) = set_err_status_opseq(err, skel, seq);
-    PI(OpSeq(skel, seq));
+    OpSeq(skel, seq);
   }
 and set_err_status_opseq =
     (err: err_status, skel: skel_t, seq: opseq): (skel_t, opseq) =>
@@ -131,36 +145,55 @@ and set_err_status_opseq =
 /* put p in a new hole, if it is not already in a hole */
 let rec make_t_inconsistent = (u_gen: MetaVarGen.t, p: t): (t, MetaVarGen.t) =>
   switch (p) {
+  | PO(po) =>
+    let (po, u_gen) = make_t_outer_inconsistent(u_gen, po);
+    (PO(po), u_gen);
+  | PI(pi) =>
+    let (pi, u_gen) = make_t_inner_inconsistent(u_gen, pi);
+    (PI(pi), u_gen);
+  }
+and make_t_outer_inconsistent =
+    (u_gen: MetaVarGen.t, po: t_outer): (t_outer, MetaVarGen.t) =>
+  switch (po) {
   /* already in hole */
-  | PO(EmptyHole(_))
-  | PO(Wild(InHole(TypeInconsistent, _)))
-  | PO(Var(InHole(TypeInconsistent, _), _, _))
-  | PO(NumLit(InHole(TypeInconsistent, _), _))
-  | PO(BoolLit(InHole(TypeInconsistent, _), _))
-  | PO(ListNil(InHole(TypeInconsistent, _)))
-  | PI(Inj(InHole(TypeInconsistent, _), _, _)) => (p, u_gen)
+  | EmptyHole(_)
+  | Wild(InHole(TypeInconsistent, _))
+  | Var(InHole(TypeInconsistent, _), _, _)
+  | NumLit(InHole(TypeInconsistent, _), _)
+  | BoolLit(InHole(TypeInconsistent, _), _)
+  | ListNil(InHole(TypeInconsistent, _)) => (po, u_gen)
   /* not in hole */
-  | PO(Wild(NotInHole))
-  | PO(Wild(InHole(WrongLength, _)))
-  | PO(Var(NotInHole, _, _))
-  | PO(Var(InHole(WrongLength, _), _, _))
-  | PO(NumLit(NotInHole, _))
-  | PO(NumLit(InHole(WrongLength, _), _))
-  | PO(BoolLit(NotInHole, _))
-  | PO(BoolLit(InHole(WrongLength, _), _))
-  | PO(ListNil(NotInHole))
-  | PO(ListNil(InHole(WrongLength, _)))
-  | PI(Inj(NotInHole, _, _))
-  | PI(Inj(InHole(WrongLength, _), _, _)) =>
+  | Wild(NotInHole)
+  | Wild(InHole(WrongLength, _))
+  | Var(NotInHole, _, _)
+  | Var(InHole(WrongLength, _), _, _)
+  | NumLit(NotInHole, _)
+  | NumLit(InHole(WrongLength, _), _)
+  | BoolLit(NotInHole, _)
+  | BoolLit(InHole(WrongLength, _), _)
+  | ListNil(NotInHole)
+  | ListNil(InHole(WrongLength, _)) =>
     let (u, u_gen) = MetaVarGen.next(u_gen);
-    let p = set_err_status_t(InHole(TypeInconsistent, u), p);
-    (p, u_gen);
-  | PI(Parenthesized(p1)) =>
-    let (p1, u_gen) = make_t_inconsistent(u_gen, p1);
-    (PI(Parenthesized(p1)), u_gen);
-  | PI(OpSeq(skel, seq)) =>
+    let po = set_err_status_t_outer(InHole(TypeInconsistent, u), po);
+    (po, u_gen);
+  }
+and make_t_inner_inconsistent =
+    (u_gen: MetaVarGen.t, pi: t_inner): (t_inner, MetaVarGen.t) =>
+  switch (pi) {
+  /* already in hole */
+  | Inj(InHole(TypeInconsistent, _), _, _) => (pi, u_gen)
+  /* not in hole */
+  | Inj(NotInHole, _, _)
+  | Inj(InHole(WrongLength, _), _, _) =>
+    let (u, u_gen) = MetaVarGen.next(u_gen);
+    let pi = set_err_status_t_inner(InHole(TypeInconsistent, u), pi);
+    (pi, u_gen);
+  | Parenthesized(p) =>
+    let (p, u_gen) = make_t_inconsistent(u_gen, p);
+    (Parenthesized(p), u_gen);
+  | OpSeq(skel, seq) =>
     let (skel, seq, u_gen) = make_opseq_inconsistent(u_gen, skel, seq);
-    (PI(OpSeq(skel, seq)), u_gen);
+    (OpSeq(skel, seq), u_gen);
   }
 and make_opseq_inconsistent =
     (u_gen: MetaVarGen.t, skel: skel_t, seq: opseq)

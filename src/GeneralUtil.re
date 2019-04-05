@@ -5,6 +5,8 @@ let opt_to_bool =
   | None => false
   | Some(_) => true;
 
+let num_digits = (n: int): int => String.length(string_of_int(n));
+
 /* Section ListUtil */
 
 /* repeat an element n times */

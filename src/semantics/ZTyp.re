@@ -33,8 +33,10 @@ let rec is_before = (zty: t): bool =>
   | CursorTO(Char(_), _) => false
   /* branch nodes */
   | CursorTI(AfterChild(0), Parenthesized(_)) => true
+  | CursorTI(AfterChild(_), Parenthesized(_)) => false
   | CursorTI(AfterChild(0), List(_)) => true
-  | CursorTI(AfterChild(_), _) => false
+  | CursorTI(AfterChild(_), List(_)) => false
+  | CursorTI(AfterChild(_), OpSeq(_, _)) => false
   | CursorTI(BeforeChild(_), _) => false
   /* zipper cases */
   | ParenthesizedZ(_) => false
@@ -53,8 +55,10 @@ let rec is_after = (zty: t): bool =>
   | CursorTO(Char(_), _) => false
   /* branch nodes */
   | CursorTI(BeforeChild(2), Parenthesized(_)) => true
+  | CursorTI(BeforeChild(_), Parenthesized(_)) => false
   | CursorTI(BeforeChild(2), List(_)) => true
-  | CursorTI(BeforeChild(_), _) => false
+  | CursorTI(BeforeChild(_), List(_)) => true
+  | CursorTI(BeforeChild(_), OpSeq(_, _)) => false
   | CursorTI(AfterChild(_), _) => false
   /* zipper cases */
   | ParenthesizedZ(_) => false
