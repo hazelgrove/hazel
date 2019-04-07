@@ -139,6 +139,7 @@ html, body {
 }
 
 .sidebar-body-slider {
+  width: 100%;
   height: 100%;
   display: flex;
 }
@@ -154,6 +155,7 @@ html, body {
 
 .sidebar-body {
   flex-grow: 1;
+  width: calc(100% - 7px);
   height: 100%;
   direction: ltr; /* reset text direction */
   display: flex;
@@ -182,6 +184,7 @@ html, body {
 /* panels */
 
 .panel {
+  width: 100%;
   outline: 1px solid #073f24;
   background-color: #FEFEEA;
   /* box-shadow: 2px 2px 0px 0px #af8e63; */
@@ -657,7 +660,7 @@ h1 {
   margin-top: 20px;
   background-color: white;
   border: 2px solid #CCC;
-  line-height: 1.33; 
+  line-height: 1.33;
 }
 
 .ModelExp :focus {
@@ -712,7 +715,7 @@ button:disabled {
   font-size: 125%;
 }
 
-.kw, .lambda-sym {
+.kw, .lambda-sym, .BoolLit {
   font-weight: bold;
 }
 
