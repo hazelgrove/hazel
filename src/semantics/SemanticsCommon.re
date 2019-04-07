@@ -45,6 +45,7 @@ let pick_side = (side, l, r) =>
 type outer_cursor =
   | Char(int);
 
+/* TODO rename to BeforeSlot and AfterSlot */
 [@deriving show({with_path: false})]
 type inner_cursor =
   | BeforeChild(int)

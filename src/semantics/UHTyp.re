@@ -22,6 +22,8 @@ and t_inner =
   | OpSeq(skel_t, opseq)
 and opseq = OperatorSeq.opseq(t, op);
 
+exception SkelInconsistentWithOpSeq(skel_t, opseq);
+
 let bidelimited = (uty: t): bool =>
   switch (uty) {
   | TO(_) => true

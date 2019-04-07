@@ -10,8 +10,8 @@ type zblock =
   | BlockZE(UHExp.lines, t)
 and zlines = ZList.t(zline, UHExp.line)
 and zline =
-  | CursorLI(inner_cursor, UHExp.line_inner)
   | CursorLO(outer_cursor, UHExp.line_outer)
+  | CursorLI(inner_cursor, UHExp.line_inner)
   /* zipper cases */
   | ExpLineZ(t)
   | LetLineZP(ZPat.t, option(UHTyp.t), UHExp.block)

@@ -37,6 +37,12 @@ let rec seq_nth = (n, seq) =>
     };
   };
 
+let rec tms = (seq: opseq('tm, _)): list('tm) =>
+  switch (seq) {
+  | ExpOpExp(tm1, op, tm2) => [tm1, tm2]
+  | SeqOpExp(seq, op, tm) => tms(seq) @ [tm]
+  };
+
 /* update the nth expression in seq, if it exists */
 let rec seq_update_nth = (n, seq, e) =>
   switch (n, seq) {

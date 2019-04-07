@@ -28,9 +28,9 @@ and t_outer =
   | BoolLit(err_status, bool)
   | ListNil(err_status)
 and t_inner =
-  | Inj(err_status, inj_side, t)
   | Parenthesized(t)
   | OpSeq(skel_t, opseq)
+  | Inj(err_status, inj_side, t)
 and opseq = OperatorSeq.opseq(t, op);
 
 exception SkelInconsistentWithOpSeq(skel_t, opseq);
