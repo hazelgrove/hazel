@@ -19,6 +19,17 @@ let replicate = (n: int, e: 'a): list('a) => {
   f(n, []);
 };
 
+/* take the first n elements of the given list */
+let rec take = (n: int, xs: list('a)) =>
+  if (n > 0) {
+    switch (xs) {
+    | [] => []
+    | [x, ...tl] => [x, ...take(n - 1, tl)]
+    };
+  } else {
+    [];
+  };
+
 /* remove the first n elements from the given list */
 let rec drop = (n: int, xs: list('a)) =>
   if (n > 0) {

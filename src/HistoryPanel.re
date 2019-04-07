@@ -1,18 +1,25 @@
 open Tyxml_js;
 
-let make =
-    (code_history_rs: Model.code_history_rs): Html.elt([> Html_types.div]) => {
-  let make_boxes = (history: CodeHistory.t) => {
-    /* We can't copy HTML element values: TyXML is side-effectful, so we need to instantiate individually. */
+let make = (repository_rs: Model.repository_rs): Html.elt([> Html_types.div]) => {
+  let make_boxes = (repository: Repository.t) => {
+    let actions_to_take = 500;
+
     let non_move_actions =
-      List.filter(action => !Action.is_move(action), history.actions);
+      switch (repository.redo_stack) {
+      | [history, ..._] =>
+        List.filter(
+          action => !Action.is_move(action),
+          GeneralUtil.take(actions_to_take, history),
+        )
+      | [] => assert(false)
+      };
 
     List.map(
       action => Html.p([Html.txt(Action.show(action))]),
       non_move_actions,
     );
   };
-  let action_list_rs = React.S.map(make_boxes, code_history_rs);
+  let action_list_rs = React.S.map(make_boxes, repository_rs);
 
   Html.(
     div(

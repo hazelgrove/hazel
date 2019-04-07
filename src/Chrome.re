@@ -762,7 +762,7 @@ let view = (model: Model.t) => {
     ();
   };
 
-  /*let the_history_panel = HistoryPanel.make(model.repository_rs);*/
+  let the_history_panel = HistoryPanel.make(model.repository_rs);
 
   let the_action_panel = ActionPanel.make(model, set_cursor);
 
@@ -851,7 +851,7 @@ let view = (model: Model.t) => {
             div(
               ~a=[a_class(["main-area"])],
               [
-                Sidebar.left([the_action_panel /*, the_history_panel*/]),
+                Sidebar.left([the_action_panel, the_history_panel]),
                 div(
                   ~a=[a_class(["flex-wrapper"])],
                   [
