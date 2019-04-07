@@ -42,14 +42,18 @@ let pick_side = (side, l, r) =>
   };
 
 [@deriving show({with_path: false})]
-type outer_cursor =
-  | Char(int);
+type delimiter_side =
+  | Before
+  | After;
 
-/* TODO rename to BeforeSlot and AfterSlot */
 [@deriving show({with_path: false})]
 type inner_cursor =
-  | BeforeChild(int)
-  | AfterChild(int);
+  | BeforeChild(int, delimiter_side)
+  | ClosingDelimiter(delimiter_side);
+
+[@deriving show({with_path: false})]
+type outer_cursor =
+  | Char(int);
 
 [@deriving show({with_path: false})]
 type cursor_pos =

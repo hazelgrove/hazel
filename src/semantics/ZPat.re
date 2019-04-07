@@ -159,10 +159,10 @@ let rec is_before = (zp: t): bool =>
   | CursorPO(Char(j), BoolLit(_, _))
   | CursorPO(Char(j), ListNil(_)) => j === 0
   /* inner nodes */
-  | CursorPI(AfterChild(k), Inj(_, _, _))
-  | CursorPI(AfterChild(k), Parenthesized(_)) => k === 0
-  | CursorPI(AfterChild(_), OpSeq(_, _)) => false
-  | CursorPI(BeforeChild(_), _) => false
+  | CursorPI(inner_cursor, Inj(_, _, _))
+  | CursorPI(inner_cursor, Parenthesized(_)) =>
+    inner_cursor === BeforeChild(0, Before)
+  | CursorPI(_, OpSeq(_, _)) => false
   /* zipper cases */
   | InjZ(_, _, _) => false
   | ParenthesizedZ(_) => false
@@ -180,10 +180,10 @@ let rec is_after = (zp: t): bool =>
   | CursorPO(Char(j), NumLit(_, n)) => j === num_digits(n)
   | CursorPO(Char(j), BoolLit(_, b)) => j === 4 && b || j === 5 && !b
   /* inner nodes */
-  | CursorPI(BeforeChild(k), Inj(_, _, _))
-  | CursorPI(BeforeChild(k), Parenthesized(_)) => k === 2
-  | CursorPI(BeforeChild(_), OpSeq(_, _)) => false
-  | CursorPI(AfterChild(_), _) => false
+  | CursorPI(inner_cursor, Inj(_, _, _))
+  | CursorPI(inner_cursor, Parenthesized(_)) =>
+    inner_cursor === ClosingDelimiter(After)
+  | CursorPI(_, OpSeq(_, _)) => false
   /* zipper cases */
   | InjZ(_, _, _) => false
   | ParenthesizedZ(_) => false
@@ -202,7 +202,7 @@ let rec place_before = (p: UHPat.t): t =>
   | PO(ListNil(_) as po) => CursorPO(Char(0), po)
   /* inner nodes */
   | PI(Inj(_, _, _) as pi)
-  | PI(Parenthesized(_) as pi) => CursorPI(AfterChild(0), pi)
+  | PI(Parenthesized(_) as pi) => CursorPI(BeforeChild(0, Before), pi)
   | PI(OpSeq(skel, seq)) =>
     let (p0, suffix) = OperatorSeq.split0(seq);
     let surround = OperatorSeq.EmptyPrefix(suffix);
@@ -221,8 +221,8 @@ let rec place_after = (p: UHPat.t): t =>
   | PO(BoolLit(_, false) as po) => CursorPO(Char(5), po)
   | PO(ListNil(_) as po) => CursorPO(Char(2), po)
   /* inner nodes */
-  | PI(Inj(_, _, _) as pi) => CursorPI(AfterChild(2), pi)
-  | PI(Parenthesized(_) as pi) => CursorPI(AfterChild(2), pi)
+  | PI(Inj(_, _, _) as pi)
+  | PI(Parenthesized(_) as pi) => CursorPI(ClosingDelimiter(After), pi)
   | PI(OpSeq(skel, seq)) =>
     let (p0, prefix) = OperatorSeq.split_tail(seq);
     let surround = OperatorSeq.EmptySuffix(prefix);

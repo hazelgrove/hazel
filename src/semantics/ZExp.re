@@ -94,10 +94,9 @@ and is_before_line = (zline: zline): bool =>
   | CursorLO(Char(0), EmptyLine) => true
   | CursorLO(Char(_), _) => false
   /* branch nodes */
-  | CursorLI(AfterChild(0), LetLine(_, _, _)) => true
-  | CursorLI(AfterChild(_), LetLine(_, _, _)) => false
-  | CursorLI(BeforeChild(_), _) => false
-  /* ghost nodes */
+  | CursorLI(inner_cursor, LetLine(_, _, _)) =>
+    inner_cursor === BeforeChild(0, Before)
+  /* zipper cases */
   | ExpLineZ(ze) => is_before_exp(ze)
   | LetLineZP(_, _, _)
   | LetLineZA(_, _, _)
@@ -112,13 +111,14 @@ and is_before_exp = (ze: t): bool =>
   | CursorEO(Char(j), BoolLit(_, _))
   | CursorEO(Char(j), ListNil(_)) => j === 0
   /* inner nodes */
-  | CursorEI(AfterChild(k), Lam(_, _, _, _))
-  | CursorEI(AfterChild(k), Inj(_, _, _))
-  | CursorEI(AfterChild(k), Case(_, _, _, _))
-  | CursorEI(AfterChild(k), Parenthesized(_)) => k === 0
-  | CursorEI(AfterChild(_), OpSeq(_, _)) => false
-  | CursorEI(AfterChild(_), ApPalette(_, _, _, _)) => false /* TODO */
-  | CursorEI(BeforeChild(_), _) => false
+  | CursorEI(inner_cursor, Lam(_, _, _, _))
+  | CursorEI(inner_cursor, Inj(_, _, _))
+  | CursorEI(inner_cursor, Case(_, _, _, _))
+  | CursorEI(inner_cursor, Parenthesized(_)) =>
+    inner_cursor === BeforeChild(0, Before)
+  | CursorEI(_, OpSeq(_, _)) => false
+  | CursorEI(inner_cursor, ApPalette(_, _, _, _)) =>
+    inner_cursor === BeforeChild(0, Before) /* TODO */
   /* zipper cases */
   | ParenthesizedZ(_) => false
   | OpSeqZ(_, ze1, EmptyPrefix(_)) => is_before_exp(ze1)
@@ -144,8 +144,7 @@ and is_after_line = (zli: zline): bool =>
   | CursorLO(Char(0), EmptyLine) => true
   | CursorLO(Char(_), EmptyLine) => false
   /* inner nodes */
-  | CursorLI(BeforeChild(_), LetLine(_, _, _)) => false
-  | CursorLI(AfterChild(_), LetLine(_, _, _)) => false
+  | CursorLI(_, LetLine(_, _, _)) => false
   /* zipper cases */
   | ExpLineZ(ze) => is_after_exp(ze)
   | LetLineZP(_, _, _)
@@ -161,15 +160,15 @@ and is_after_exp = (ze: t): bool =>
   | CursorEO(Char(j), BoolLit(_, b)) => j === 4 && b || j === 5 && !b
   | CursorEO(Char(j), ListNil(_)) => j === 2
   /* inner nodes */
-  | CursorEI(BeforeChild(_), Lam(_, _, _, _)) => false
-  | CursorEI(BeforeChild(k), Inj(_, _, _)) => k === 2
-  | CursorEI(BeforeChild(k), Case(_, _, _, None)) => k === 3
-  | CursorEI(BeforeChild(_), Case(_, _, _, Some(_))) => false
-  | CursorEI(BeforeChild(k), Parenthesized(_)) => k === 2
-  | CursorEI(BeforeChild(_), OpSeq(_, _)) => false
-  | CursorEI(BeforeChild(_), ApPalette(_, _, _, _)) => false /* TODO */
-  | CursorEI(AfterChild(_), _) => false
-  /* zipper cases */
+  | CursorEI(_, Lam(_, _, _, _)) => false
+  | CursorEI(_, Case(_, _, _, Some(_))) => false
+  | CursorEI(inner_cursor, Case(_, _, _, None))
+  | CursorEI(inner_cursor, Inj(_, _, _))
+  | CursorEI(inner_cursor, Parenthesized(_)) =>
+    inner_cursor === ClosingDelimiter(After)
+  | CursorEI(_, OpSeq(_, _)) => false
+  | CursorEI(inner_cursor, ApPalette(_, _, _, _)) =>
+    inner_cursor === ClosingDelimiter(After) /* TODO */
   /* zipper cases */
   | ParenthesizedZ(_) => false
   | OpSeqZ(_, ze1, EmptySuffix(_)) => is_after_exp(ze1)
@@ -195,7 +194,7 @@ let rec place_before_block = (block: UHExp.block): zblock =>
 and place_before_line = (line: UHExp.line): zline =>
   switch (line) {
   | LO(EmptyLine) => CursorLO(Char(0), EmptyLine)
-  | LI(LetLine(_, _, _) as li) => CursorLI(AfterChild(0), li)
+  | LI(LetLine(_, _, _) as li) => CursorLI(BeforeChild(0, Before), li)
   | ExpLine(e) => ExpLineZ(place_before_exp(e))
   }
 and place_before_exp = (e: UHExp.t): t =>
@@ -206,13 +205,13 @@ and place_before_exp = (e: UHExp.t): t =>
   | EI(Lam(_, _, _, _) as ei)
   | EI(Inj(_, _, _) as ei)
   | EI(Case(_, _, _, _) as ei)
-  | EI(Parenthesized(_) as ei) => CursorEI(AfterChild(0), ei)
+  | EI(Parenthesized(_) as ei) => CursorEI(BeforeChild(0, Before), ei)
   | EI(OpSeq(skel, seq)) =>
     let (e1, suffix) = OperatorSeq.split0(seq);
     let ze1 = place_before_exp(e1);
     let surround = OperatorSeq.EmptyPrefix(suffix);
     OpSeqZ(skel, ze1, surround);
-  | EI(ApPalette(_, _, _, _) as ei) => CursorEI(AfterChild(0), ei) /* TODO */
+  | EI(ApPalette(_, _, _, _) as ei) => CursorEI(BeforeChild(0, Before), ei) /* TODO */
   };
 
 let rec place_after_block = (Block(lines, e): UHExp.block): zblock =>
@@ -229,16 +228,20 @@ and place_after_exp = (e: UHExp.t): t =>
   /* outer nodes */
   | EO(eo) => CursorEO(Char(UHExp.outer_node_length(eo)), eo)
   /* inner nodes */
-  | EI(Lam(_, _, _, _) as ei)
+  | EI(Lam(err, p, ann, block)) =>
+    LamZE(err, p, ann, place_after_block(block))
+  | EI(Case(err, block, rules, Some(uty))) =>
+    CaseZA(err, block, rules, ZTyp.place_after(uty))
+  | EI(Case(_, _, _, None) as ei)
   | EI(Inj(_, _, _) as ei)
-  | EI(Case(_, _, _, _) as ei)
-  | EI(Parenthesized(_) as ei) => CursorEI(AfterChild(0), ei)
+  | EI(Parenthesized(_) as ei) => CursorEI(ClosingDelimiter(After), ei)
   | EI(OpSeq(skel, seq)) =>
     let (e1, prefix) = OperatorSeq.split_tail(seq);
     let ze1 = place_after_exp(e1);
     let surround = OperatorSeq.EmptySuffix(prefix);
     OpSeqZ(skel, ze1, surround);
-  | EI(ApPalette(_, _, _, _) as ei) => CursorEI(AfterChild(0), ei) /* TODO */
+  | EI(ApPalette(_, _, _, _) as ei) =>
+    CursorEI(ClosingDelimiter(After), ei) /* TODO */
   };
 
 let prune_empty_hole_line = (zli: zline): zline =>

@@ -32,10 +32,10 @@ let rec is_before = (zty: t): bool =>
   | CursorTO(Char(j), Num)
   | CursorTO(Char(j), Bool) => j === 0
   /* inner nodes */
-  | CursorTI(AfterChild(k), Parenthesized(_))
-  | CursorTI(AfterChild(k), List(_)) => k === 0
-  | CursorTI(AfterChild(_), OpSeq(_, _)) => false
-  | CursorTI(BeforeChild(_), _) => false
+  | CursorTI(inner_cursor, Parenthesized(_))
+  | CursorTI(inner_cursor, List(_)) =>
+    inner_cursor === BeforeChild(0, Before)
+  | CursorTI(_, OpSeq(_, _)) => false
   /* zipper cases */
   | ParenthesizedZ(_) => false
   | ListZ(_) => false
@@ -51,10 +51,10 @@ let rec is_after = (zty: t): bool =>
   | CursorTO(Char(j), Num) => j === 3
   | CursorTO(Char(j), Bool) => j === 4
   /* inner nodes */
-  | CursorTI(BeforeChild(k), Parenthesized(_))
-  | CursorTI(BeforeChild(k), List(_)) => k === 2
-  | CursorTI(BeforeChild(_), OpSeq(_, _)) => false
-  | CursorTI(AfterChild(_), _) => false
+  | CursorTI(inner_cursor, Parenthesized(_))
+  | CursorTI(inner_cursor, List(_)) =>
+    inner_cursor === ClosingDelimiter(After)
+  | CursorTI(_, OpSeq(_, _)) => false
   /* zipper cases */
   | ParenthesizedZ(_) => false
   | ListZ(_) => false
@@ -70,8 +70,8 @@ let rec place_before = (uty: UHTyp.t): t =>
   | TO(Num as uty_o)
   | TO(Bool as uty_o) => CursorTO(Char(0), uty_o)
   /* inner nodes */
-  | TI(Parenthesized(_) as uty_i)
-  | TI(List(_) as uty_i) => CursorTI(AfterChild(0), uty_i)
+  | TI(Parenthesized(_) as utyi)
+  | TI(List(_) as utyi) => CursorTI(BeforeChild(0, Before), utyi)
   | TI(OpSeq(skel, seq)) =>
     let (uty, suffix) = OperatorSeq.split0(seq);
     let surround = OperatorSeq.EmptyPrefix(suffix);
@@ -87,8 +87,8 @@ let rec place_after = (uty: UHTyp.t): t =>
   | TO(Num as uty_o) => CursorTO(Char(3), uty_o)
   | TO(Bool as uty_o) => CursorTO(Char(4), uty_o)
   /* inner nodes */
-  | TI(Parenthesized(_) as uty_i) => CursorTI(BeforeChild(2), uty_i)
-  | TI(List(_) as uty_i) => CursorTI(BeforeChild(2), uty_i)
+  | TI(Parenthesized(_) as utyi)
+  | TI(List(_) as utyi) => CursorTI(ClosingDelimiter(After), utyi)
   | TI(OpSeq(skel, seq)) =>
     let (uty, prefix) = OperatorSeq.split_tail(seq);
     let surround = OperatorSeq.EmptySuffix(prefix);

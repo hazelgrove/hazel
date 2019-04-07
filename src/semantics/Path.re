@@ -607,8 +607,16 @@ let holes_OpSeqZ =
 
 type slot_holes = list(option(hole_list));
 
-let slot_holes_OpSeq = (holes_fn: ('tm, steps, hole_list) => hole_list, seq: OperatorSeq.opseq('tm, _), steps: steps) =>
-  List.mapi((n, tm_n) => Some(holes_fn(tm_n, [n, ...steps], [])), OperatorSeq.tms(seq));
+let slot_holes_OpSeq =
+    (
+      holes_fn: ('tm, steps, hole_list) => hole_list,
+      seq: OperatorSeq.opseq('tm, _),
+      steps: steps,
+    ) =>
+  List.mapi(
+    (n, tm_n) => Some(holes_fn(tm_n, [n, ...steps], [])),
+    OperatorSeq.tms(seq),
+  );
 
 let slot_holes_typ = (utyi: UHTyp.t_inner, steps: steps): slot_holes =>
   switch (utyi) {
@@ -616,38 +624,48 @@ let slot_holes_typ = (utyi: UHTyp.t_inner, steps: steps): slot_holes =>
   | List(uty1) => [None, Some(holes_uty(uty1, [0, ...steps], [])), None]
   | OpSeq(_, seq) => slot_holes_OpSeq(holes_uty, seq, steps)
   };
-  
+
 let slot_holes_pat = (pi: UHPat.t_inner, steps: steps): slot_holes =>
   switch (pi) {
   | Parenthesized(p1)
   | Inj(p1) => [None, Some(holes_pat(p1, [0, ...steps])), None]
   | OpSeq(_, seq) => slot_holes_OpSeq(holes_pat, seq, steps)
   };
-  
+
 let slot_holes_exp = (ei: UHExp.t_inner, steps: steps): slot_holes =>
   switch (ei) {
   | Lam(_, p, ann, block) => [
       None,
       Some(holes_pat(p, [0, ...steps], [])),
-      Some(switch (ann) {
+      Some(
+        switch (ann) {
         | None => []
         | Some(uty) => holes_uty(uty, [1, ...steps], [])
-      }),
-      Some(holes_block(block, [2, ...steps], []))
+        },
+      ),
+      Some(holes_block(block, [2, ...steps], [])),
     ]
-  | Inj(_, _, block) => [None, Some(holes_block(block, [0, ...steps], [])), None]
+  | Inj(_, _, block) => [
+      None,
+      Some(holes_block(block, [0, ...steps], [])),
+      None,
+    ]
   | Case(_, block, rules, ann) =>
     let holes_block = holes_block(block, [0, ...steps], []);
     let holes_rules =
-      List.mapi((i, Rule(p, clause)) => holes_pat(p, [0, i, ...steps], []) @ holes_block(clause, [1, i, ...steps], []), rules);
+      List.mapi(
+        (i, Rule(p, clause)) =>
+          holes_pat(p, [0, i, ...steps], [])
+          @ holes_block(clause, [1, i, ...steps], []),
+        rules,
+      );
     let holes_ann =
       switch (ann) {
       | None => []
       | Some(uty) => holes_uty(uty, [List.length(rules) + 1, ...steps], [])
       };
     [None, Some(holes_block) /* TODO */];
-  }
-
+  };
 
 let holes_Cursor_bracketed =
     (
@@ -833,7 +851,7 @@ and holes_zline = (zli: ZExp.zline, steps: steps): zhole_list =>
     | BeforeChild(3) => {
         holes_before: holes_p @ holes_ann,
         hole_selected: None,
-        holes_after: holes_block
+        holes_after: holes_block,
       }
     | AfterChild(_)
     | BeforeChild(_) => no_holes
@@ -887,7 +905,7 @@ and holes_ze = (ze: ZExp.t, steps: steps): zhole_list =>
         | EmptyHole(u) => Some((ExpHole(u), steps))
         | _ => None
         },
-      holes_after: []
+      holes_after: [],
     }
   | CursorEI(inner_cursor, ei) =>
     switch (ei) {
@@ -904,13 +922,11 @@ and holes_ze = (ze: ZExp.t, steps: steps): zhole_list =>
       | BeforeChild(1) => {
           holes_before: [],
           hole_selected: None,
-          holes_after: holes_p @ holes_ann @ holes_block
+          holes_after: holes_p @ holes_ann @ holes_block,
         }
-      | AfterChild(1)
-      | BeforeChild(2) =>
-      }
+      };
     }
-  
+
   | OpSeqZ(_, ze0, surround) =>
     holes_OpSeqZ(holes_exp, holes_ze, ze0, surround, steps)
   | ParenthesizedZ(zblock) => holes_zblock(zblock, [0, ...steps])
