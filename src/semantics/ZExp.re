@@ -105,11 +105,7 @@ and is_before_line = (zline: zline): bool =>
 and is_before_exp = (ze: t): bool =>
   switch (ze) {
   /* outer nodes */
-  | CursorEO(Char(j), EmptyHole(_))
-  | CursorEO(Char(j), Var(_, _, _))
-  | CursorEO(Char(j), NumLit(_, _))
-  | CursorEO(Char(j), BoolLit(_, _))
-  | CursorEO(Char(j), ListNil(_)) => j === 0
+  | CursorEO(Char(j), _) => j === 0
   /* inner nodes */
   | CursorEI(inner_cursor, Lam(_, _, _, _))
   | CursorEI(inner_cursor, Inj(_, _, _))
@@ -154,11 +150,7 @@ and is_after_line = (zli: zline): bool =>
 and is_after_exp = (ze: t): bool =>
   switch (ze) {
   /* outer nodes */
-  | CursorEO(Char(j), EmptyHole(_)) => j === 1
-  | CursorEO(Char(j), Var(_, _, x)) => j === Var.length(x)
-  | CursorEO(Char(j), NumLit(_, n)) => j === num_digits(n)
-  | CursorEO(Char(j), BoolLit(_, b)) => j === 4 && b || j === 5 && !b
-  | CursorEO(Char(j), ListNil(_)) => j === 2
+  | CursorEO(Char(j), eo) => j === UHExp.t_outer_length(eo)
   /* inner nodes */
   | CursorEI(_, Lam(_, _, _, _)) => false
   | CursorEI(_, Case(_, _, _, Some(_))) => false
@@ -226,7 +218,7 @@ and place_after_line = (line: UHExp.line): zline =>
 and place_after_exp = (e: UHExp.t): t =>
   switch (e) {
   /* outer nodes */
-  | EO(eo) => CursorEO(Char(UHExp.outer_node_length(eo)), eo)
+  | EO(eo) => CursorEO(Char(UHExp.t_outer_length(eo)), eo)
   /* inner nodes */
   | EI(Lam(err, p, ann, block)) =>
     LamZE(err, p, ann, place_after_block(block))

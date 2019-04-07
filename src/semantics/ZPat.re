@@ -1,4 +1,3 @@
-open GeneralUtil;
 open SemanticsCommon;
 
 type opseq_surround = OperatorSeq.opseq_surround(UHPat.t, UHPat.op);
@@ -152,12 +151,7 @@ let rec erase = (zp: t): UHPat.t =>
 let rec is_before = (zp: t): bool =>
   switch (zp) {
   /* outer nodes */
-  | CursorPO(Char(j), EmptyHole(_))
-  | CursorPO(Char(j), Wild(_))
-  | CursorPO(Char(j), Var(_, _, _))
-  | CursorPO(Char(j), NumLit(_, _))
-  | CursorPO(Char(j), BoolLit(_, _))
-  | CursorPO(Char(j), ListNil(_)) => j === 0
+  | CursorPO(Char(j), _) => j === 0
   /* inner nodes */
   | CursorPI(inner_cursor, Inj(_, _, _))
   | CursorPI(inner_cursor, Parenthesized(_)) =>
@@ -173,12 +167,7 @@ let rec is_before = (zp: t): bool =>
 let rec is_after = (zp: t): bool =>
   switch (zp) {
   /* outer nodes */
-  | CursorPO(Char(j), EmptyHole(_)) => j === 1
-  | CursorPO(Char(j), Wild(_)) => j === 1
-  | CursorPO(Char(j), ListNil(_)) => j === 2
-  | CursorPO(Char(j), Var(_, _, x)) => j === Var.length(x)
-  | CursorPO(Char(j), NumLit(_, n)) => j === num_digits(n)
-  | CursorPO(Char(j), BoolLit(_, b)) => j === 4 && b || j === 5 && !b
+  | CursorPO(Char(j), po) => j === UHPat.t_outer_length(po)
   /* inner nodes */
   | CursorPI(inner_cursor, Inj(_, _, _))
   | CursorPI(inner_cursor, Parenthesized(_)) =>
@@ -194,12 +183,7 @@ let rec is_after = (zp: t): bool =>
 let rec place_before = (p: UHPat.t): t =>
   switch (p) {
   /* outer nodes */
-  | PO(EmptyHole(_) as po)
-  | PO(Wild(_) as po)
-  | PO(Var(_, _, _) as po)
-  | PO(NumLit(_, _) as po)
-  | PO(BoolLit(_, _) as po)
-  | PO(ListNil(_) as po) => CursorPO(Char(0), po)
+  | PO(po) => CursorPO(Char(0), po)
   /* inner nodes */
   | PI(Inj(_, _, _) as pi)
   | PI(Parenthesized(_) as pi) => CursorPI(BeforeChild(0, Before), pi)
@@ -213,13 +197,7 @@ let rec place_before = (p: UHPat.t): t =>
 let rec place_after = (p: UHPat.t): t =>
   switch (p) {
   /* outer nodes */
-  | PO(EmptyHole(_) as po) => CursorPO(Char(1), po)
-  | PO(Wild(_) as po) => CursorPO(Char(1), po)
-  | PO(Var(_, _, x) as po) => CursorPO(Char(Var.length(x)), po)
-  | PO(NumLit(_, n) as po) => CursorPO(Char(num_digits(n)), po)
-  | PO(BoolLit(_, true) as po) => CursorPO(Char(4), po)
-  | PO(BoolLit(_, false) as po) => CursorPO(Char(5), po)
-  | PO(ListNil(_) as po) => CursorPO(Char(2), po)
+  | PO(po) => CursorPO(Char(UHPat.t_outer_length(po)), po)
   /* inner nodes */
   | PI(Inj(_, _, _) as pi)
   | PI(Parenthesized(_) as pi) => CursorPI(ClosingDelimiter(After), pi)

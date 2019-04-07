@@ -35,6 +35,17 @@ and opseq = OperatorSeq.opseq(t, op);
 
 exception SkelInconsistentWithOpSeq(skel_t, opseq);
 
+let t_outer_length = (po: t_outer): int =>
+  switch (po) {
+  | EmptyHole(_) => 1
+  | Wild(_) => 1
+  | Var(_, _, x) => Var.length(x)
+  | NumLit(_, n) => num_digits(n)
+  | BoolLit(_, true) => 4
+  | BoolLit(_, false) => 5
+  | ListNil(_) => 2
+  };
+
 let rec get_tuple = (skel1: skel_t, skel2: skel_t): ListMinTwo.t(skel_t) =>
   switch (skel2) {
   | BinOp(_, Comma, skel21, skel22) =>

@@ -24,6 +24,14 @@ and opseq = OperatorSeq.opseq(t, op);
 
 exception SkelInconsistentWithOpSeq(skel_t, opseq);
 
+let t_outer_length = (utyo: t_outer): int =>
+  switch (utyo) {
+  | Hole => 1
+  | Unit => 1 /* TODO is this right? */
+  | Num => 3
+  | Bool => 4
+  };
+
 let bidelimited = (uty: t): bool =>
   switch (uty) {
   | TO(_) => true

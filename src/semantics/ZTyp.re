@@ -27,10 +27,7 @@ let rec erase = (zty: t): UHTyp.t =>
 let rec is_before = (zty: t): bool =>
   switch (zty) {
   /* outer nodes */
-  | CursorTO(Char(j), Hole)
-  | CursorTO(Char(j), Unit)
-  | CursorTO(Char(j), Num)
-  | CursorTO(Char(j), Bool) => j === 0
+  | CursorTO(Char(j), _) => j === 0
   /* inner nodes */
   | CursorTI(inner_cursor, Parenthesized(_))
   | CursorTI(inner_cursor, List(_)) =>
@@ -46,10 +43,7 @@ let rec is_before = (zty: t): bool =>
 let rec is_after = (zty: t): bool =>
   switch (zty) {
   /* outer nodes */
-  | CursorTO(Char(j), Hole) => j === 1
-  | CursorTO(Char(j), Unit) => j === 1 /* TODO is this right? */
-  | CursorTO(Char(j), Num) => j === 3
-  | CursorTO(Char(j), Bool) => j === 4
+  | CursorTO(Char(j), utyo) => j === UHTyp.t_outer_length(utyo)
   /* inner nodes */
   | CursorTI(inner_cursor, Parenthesized(_))
   | CursorTI(inner_cursor, List(_)) =>
@@ -65,10 +59,7 @@ let rec is_after = (zty: t): bool =>
 let rec place_before = (uty: UHTyp.t): t =>
   switch (uty) {
   /* outer nodes */
-  | TO(Hole as uty_o)
-  | TO(Unit as uty_o)
-  | TO(Num as uty_o)
-  | TO(Bool as uty_o) => CursorTO(Char(0), uty_o)
+  | TO(utyo) => CursorTO(Char(0), utyo)
   /* inner nodes */
   | TI(Parenthesized(_) as utyi)
   | TI(List(_) as utyi) => CursorTI(BeforeChild(0, Before), utyi)
@@ -82,10 +73,7 @@ let rec place_before = (uty: UHTyp.t): t =>
 let rec place_after = (uty: UHTyp.t): t =>
   switch (uty) {
   /* outer nodes */
-  | TO(Hole as uty_o) => CursorTO(Char(1), uty_o)
-  | TO(Unit as uty_o) => CursorTO(Char(1), uty_o) /* TODO is this right? */
-  | TO(Num as uty_o) => CursorTO(Char(3), uty_o)
-  | TO(Bool as uty_o) => CursorTO(Char(4), uty_o)
+  | TO(utyo) => CursorTO(Char(UHTyp.t_outer_length(utyo)), utyo)
   /* inner nodes */
   | TI(Parenthesized(_) as utyi)
   | TI(List(_) as utyi) => CursorTI(ClosingDelimiter(After), utyi)
