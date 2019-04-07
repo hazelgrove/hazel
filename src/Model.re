@@ -188,6 +188,7 @@ let new_model = (): t => {
     let repository = React.S.value(repository_rs);
     switch (Repository.undo(repository)) {
     | Some(new_repository) =>
+      replace_e(empty_erasure);
       repository_rf(new_repository);
       Repository.inform_state(
         set_edit_state,
@@ -202,6 +203,7 @@ let new_model = (): t => {
     let repository = React.S.value(repository_rs);
     switch (Repository.redo(repository)) {
     | Some(new_repository) =>
+      replace_e(empty_erasure);
       repository_rf(new_repository);
       Repository.inform_state(
         set_edit_state,
