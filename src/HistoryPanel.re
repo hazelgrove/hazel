@@ -6,10 +6,10 @@ let make = (repository_rs: Model.repository_rs): Html.elt([> Html_types.div]) =>
 
     let non_move_actions =
       switch (repository.redo_stack) {
-      | [history, ..._] =>
+      | [branch, ..._] =>
         List.filter(
           action => !Action.is_move(action),
-          GeneralUtil.take(actions_to_take, history),
+          GeneralUtil.take(actions_to_take, branch.actions),
         )
       | [] => assert(false)
       };

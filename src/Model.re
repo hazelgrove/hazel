@@ -1,11 +1,10 @@
-type edit_state = (ZExp.t, HTyp.t, MetaVarGen.t);
 let u_gen0: MetaVarGen.t = (MetaVarGen.init: MetaVar.t);
 let (u, u_gen1) = MetaVarGen.next(u_gen0);
 let empty_ze =
   ZExp.CursorE(Before, UHExp.Tm(NotInHole, UHExp.EmptyHole(u)));
-let empty: edit_state = ((empty_ze, HTyp.Hole, u_gen1): edit_state);
+let empty: Repository.edit_state = (empty_ze, HTyp.Hole, u_gen1);
 let empty_erasure = ZExp.erase(empty_ze);
-type edit_state_rs = React.signal(edit_state);
+type edit_state_rs = React.signal(Repository.edit_state);
 type repository_rs = React.signal(Repository.t);
 type e_rs = React.signal(UHExp.t);
 type cursor_info_rs = React.signal(CursorInfo.t);
@@ -164,7 +163,14 @@ let new_model = (): t => {
     do_action_unrecorded(action);
     /* Update the history with the new action */
     let repository = React.S.value(repository_rs);
-    repository_rf(Repository.add(action, repository));
+    let edit_state = React.S.value(edit_state_rs);
+    repository_rf(Repository.add(action, edit_state, repository));
+  };
+
+  let set_edit_state = edit_state => {
+    let (ze, _, _) = edit_state;
+    edit_state_rf(edit_state);
+    e_rf(ZExp.erase(ze));
   };
 
   let replace_e = new_uhexp => {
@@ -184,7 +190,11 @@ let new_model = (): t => {
     | Some(new_repository) =>
       replace_e(empty_erasure);
       repository_rf(new_repository);
-      Repository.execute_actions(do_action_unrecorded, new_repository);
+      Repository.inform_state(
+        set_edit_state,
+        do_action_unrecorded,
+        new_repository,
+      );
     | None => ()
     };
   };
@@ -195,7 +205,11 @@ let new_model = (): t => {
     | Some(new_repository) =>
       replace_e(empty_erasure);
       repository_rf(new_repository);
-      Repository.execute_actions(do_action_unrecorded, new_repository);
+      Repository.inform_state(
+        set_edit_state,
+        do_action_unrecorded,
+        new_repository,
+      );
     | None => ()
     };
   };
