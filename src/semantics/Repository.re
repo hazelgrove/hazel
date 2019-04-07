@@ -44,7 +44,6 @@ let add = (action: Action.t, edit_state: edit_state, repository: t): t => {
         action_count: new_count,
         snapshots:
           if (new_count mod snapshot_freq == 0) {
-            let () = print_endline("Made new snapshot");
             [edit_state, ...branch.snapshots];
           } else {
             branch.snapshots;
@@ -98,7 +97,6 @@ let revision_before_last_edit = (branch: branch) => {
         action_count: branch.action_count - 1,
         snapshots:
           if (branch.action_count mod snapshot_freq == 0) {
-            let () = print_endline("Rewound snapshot");
             List.tl(branch.snapshots);
           } else {
             branch.snapshots;
