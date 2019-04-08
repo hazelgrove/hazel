@@ -1,4 +1,5 @@
 open SemanticsCommon;
+open GeneralUtil;
 
 type opseq_surround = OperatorSeq.opseq_surround(UHPat.t, UHPat.op);
 type opseq_prefix = OperatorSeq.opseq_prefix(UHPat.t, UHPat.op);
@@ -13,6 +14,28 @@ type t =
   | InjZ(err_status, inj_side, t);
 
 exception SkelInconsistentWithOpSeq;
+
+let children_following_delimiters = (pi: UHPat.t_inner): list(int) =>
+  switch (pi) {
+  | Parenthesized(_) => [0]
+  | OpSeq(_, seq) => range(~lo=1, OperatorSeq.seq_length(seq))
+  | Inj(_, _, _) => [0]
+  };
+
+let is_valid_inner_cursor =
+    (inner_cursor: inner_cursor, pi: UHPat.t_inner): bool =>
+  switch (inner_cursor) {
+  | BeforeChild(k, _) => contains(children_following_delimiters(pi), k)
+  | ClosingDelimiter(_) =>
+    switch (pi) {
+    | OpSeq(_, _) => false
+    | Parenthesized(_)
+    | Inj(_, _, _) => true
+    }
+  };
+
+let is_valid_outer_cursor = (Char(j): outer_cursor, po: UHPat.t_outer): bool =>
+  0 <= j && j < UHPat.t_outer_length(po);
 
 let bidelimit = (zp: t): t =>
   switch (zp) {

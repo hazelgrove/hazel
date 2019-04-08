@@ -7,6 +7,17 @@ let opt_to_bool =
 
 let num_digits = (n: int): int => String.length(string_of_int(n));
 
+/**
+ * List of ints starting from lo,
+ * up to and excluding hi.
+ */
+let rec range = (~lo=0, hi: int): list(int) =>
+  if (lo >= hi) {
+    [];
+  } else {
+    [lo, ...range(~lo=lo + 1, hi)];
+  };
+
 /* Section ListUtil */
 
 /* repeat an element n times */
@@ -52,6 +63,8 @@ let rec _findmapi = (i, xs, f) =>
 let findmapi = (xs, f) => _findmapi(0, xs, f);
 
 let any = (xs, f) => opt_to_bool(List.find_opt(f, xs));
+
+let contains = (xs: list('a), y: 'a) => List.exists(x => x == y, xs);
 
 let rec split_at = (xs, n) =>
   switch (xs) {

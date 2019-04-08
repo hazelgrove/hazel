@@ -43,6 +43,57 @@ and zrule =
   | RuleZP(ZPat.t, UHExp.block)
   | RuleZE(UHPat.t, zblock);
 
+let children_following_delimiters_line = (li: UHExp.line_inner): list(int) =>
+  switch (li) {
+  | LetLine(_, None, _) => [0, 2]
+  | LetLine(_, Some(_), _) => [0, 1, 2]
+  };
+let children_following_delimiters_exp = (ei: UHExp.t_inner): list(int) =>
+  switch (ei) {
+  | Lam(_, _, None, _) => [0, 2]
+  | Lam(_, _, Some(_), _) => [0, 1, 2]
+  | Inj(_, _, _) => [0]
+  | Case(_, _, _, None) => [0]
+  | Case(_, _, rules, Some(_)) => [0, List.length(rules) + 1]
+  | Parenthesized(_) => [0]
+  | OpSeq(_, seq) => range(~lo=1, OperatorSeq.seq_length(seq))
+  | ApPalette(_, _, _, _) => [0] /* TODO */
+  };
+
+let is_valid_inner_cursor_line =
+    (inner_cursor: inner_cursor, li: UHExp.line_inner): bool =>
+  switch (inner_cursor) {
+  | BeforeChild(k, _) => contains(children_following_delimiters_line(li), k)
+  | ClosingDelimiter(_) =>
+    switch (li) {
+    | LetLine(_, _, _) => false
+    }
+  };
+let is_valid_inner_cursor_exp =
+    (inner_cursor: inner_cursor, ei: UHExp.t_inner): bool =>
+  switch (inner_cursor) {
+  | BeforeChild(k, _) => contains(children_following_delimiters_exp(ei), k)
+  | ClosingDelimiter(_) =>
+    switch (ei) {
+    | Lam(_, _, _, _)
+    | OpSeq(_, _)
+    | Case(_, _, _, Some(_)) => false
+    | Case(_, _, _, None)
+    | Inj(_, _, _)
+    | Parenthesized(_)
+    | ApPalette(_, _, _, _) => true
+    }
+  };
+
+let is_valid_outer_cursor_line =
+    (Char(j): outer_cursor, lo: UHExp.line_outer): bool =>
+  switch (lo) {
+  | EmptyLine => j === 0
+  };
+let is_valid_outer_cursor_exp =
+    (Char(j): outer_cursor, eo: UHExp.t_outer): bool =>
+  0 <= j && j < UHExp.t_outer_length(eo);
+
 let wrap_in_block = (ze: t): zblock => BlockZE([], ze);
 
 let parenthesize = (ze: t): t => ParenthesizedZ(wrap_in_block(ze));

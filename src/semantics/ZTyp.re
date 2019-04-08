@@ -1,3 +1,4 @@
+open GeneralUtil;
 open SemanticsCommon;
 
 type opseq_surround = OperatorSeq.opseq_surround(UHTyp.t, UHTyp.op);
@@ -11,6 +12,28 @@ type t =
   | ParenthesizedZ(t)
   | ListZ(t)
   | OpSeqZ(UHTyp.skel_t, t, opseq_surround);
+
+let children_following_delimiters = (utyi: UHTyp.t_inner): list(int) =>
+  switch (utyi) {
+  | Parenthesized(_) => [0]
+  | OpSeq(_, seq) => range(~lo=1, OperatorSeq.seq_length(seq))
+  | List(_) => [0]
+  };
+
+let is_valid_inner_cursor =
+    (inner_cursor: inner_cursor, utyi: UHTyp.t_inner): bool =>
+  switch (inner_cursor) {
+  | BeforeChild(k, _) => contains(children_following_delimiters(utyi), k)
+  | ClosingDelimiter(_) =>
+    switch (utyi) {
+    | OpSeq(_, _) => false
+    | List(_)
+    | Parenthesized(_) => true
+    }
+  };
+
+let is_valid_outer_cursor = (Char(j): outer_cursor, utyo: UHTyp.t_outer): bool =>
+  0 <= j && j < UHTyp.t_outer_length(utyo);
 
 let rec erase = (zty: t): UHTyp.t =>
   switch (zty) {
