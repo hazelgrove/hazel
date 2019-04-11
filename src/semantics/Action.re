@@ -229,16 +229,16 @@ let rec perform_ty = (a: t, zty: ZTyp.t): option(ZTyp.t) =>
   | (Backspace, CursorTI(ClosingDelimiter(_), OpSeq(_, _)))
   | (Delete, CursorTI(ClosingDelimiter(_), OpSeq(_, _))) => None
   /* Construction */
-  | (Construct(SParenthesized), CursorTO(_, _)))
-  | (Construct(SParenthesized), CursorTI(_, _))) => Some(ParenthesizedZ(zty))
+  | (Construct(SParenthesized), CursorTO(_, _))
+  | (Construct(SParenthesized), CursorTI(_, _)) => Some(ParenthesizedZ(zty))
   | (Construct(SNum), CursorTO(_, Hole)) => Some(ZTyp.place_after(TO(Num)))
   | (Construct(SNum), CursorTO(_, _))
   | (Construct(SNum), CursorTI(_, _)) => None
   | (Construct(SBool), CursorTO(_, Hole)) => Some(ZTyp.place_after(TO(Bool)))
   | (Construct(SBool), CursorTO(_, _))
   | (Construct(SBool), CursorTI(_, _)) => None
-  | (Construct(SList), CursorTO(_, _)))
-  | (Construct(SList), CursorTI(_, _))) => Some(ListZ(zty))
+  | (Construct(SList), CursorTO(_, _))
+  | (Construct(SList), CursorTI(_, _)) => Some(ListZ(zty))
   | (Construct(SOp(os)), CursorTO(_, _))
   | (Construct(SOp(os)), CursorTI(_, _)) =>
     let uty = ZTyp.erase(zty);
@@ -259,7 +259,8 @@ let rec perform_ty = (a: t, zty: ZTyp.t): option(ZTyp.t) =>
         Some(make_ty_OpSeqZ(zty0, surround));
       }
     };
-  | (Construct(SOp(os)), OpSeqZ(_, ((CursorTO(_, _)) | (CursorTI(_, _)) as zty), surround)) =>
+  | (Construct(SOp(os)), OpSeqZ(_, CursorTO(_, _) as zty, surround))
+  | (Construct(SOp(os)), OpSeqZ(_, CursorTI(_, _) as zty, surround)) =>
     let uty = ZTyp.erase(zty);
     if (ZTyp.is_before(zty)) {
       switch (ty_op_of(os)) {
