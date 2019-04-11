@@ -79,6 +79,18 @@ and opseq_suffix('tm, 'op) =
   | ExpSuffix('op, 'tm)
   | SeqSuffix('op, opseq('tm, 'op));
 
+let tms_of_prefix = (prefix: opseq_prefix('tm, 'op)): list('tm) =>
+  switch (prefix) {
+  | ExpPrefix(tm, _) => [tm]
+  | SeqPrefix(seq, _) => tms(seq)
+  };
+
+let tms_of_suffix = (suffix: opseq_suffix('tm, 'op)): list('tm) =>
+  switch (suffix) {
+  | ExpSuffix(_, tm) => [tm]
+  | SeqSuffix(_, seq) => tms(seq)
+  };
+
 /* append an exp to a prefix */
 let prefix_append_exp = (prefix, e, op2) =>
   switch (prefix) {
@@ -274,6 +286,12 @@ let rec opseq_of_prefix_and_seq = (prefix, seq) =>
       | SeqOpExp(seq1, op1, e2) => (SeqPrefix(seq1, op1), e2)
       };
     opseq_of_prefix_and_seq(sub_prefix, exp_op_seq(e2, op2, seq));
+  };
+
+let opseq_of_seq_and_suffix = (seq, suffix) =>
+  switch (suffix) {
+  | ExpSuffix(op, e) => SeqOpExp(seq, op, e)
+  | SeqSuffix(op, seq1) => seq_op_seq(seq, op, seq1)
   };
 
 let opseq_of_exp_and_surround = e =>

@@ -82,9 +82,9 @@ type shape =
   | SList
   /* expression shapes */
   | SAsc
-  | SVar(Var.t, ZExp.cursor_pos)
+  | SVar(Var.t, cursor_pos)
   | SLam
-  | SNumLit(int, ZExp.cursor_pos)
+  | SNumLit(int, cursor_pos)
   | SListNil
   | SInj(inj_side)
   | SLet
@@ -131,206 +131,187 @@ let rec perform_ty = (a: t, zty: ZTyp.t): option(ZTyp.t) =>
       perform_ty(MoveTo(path), zty)
     }
   /* Backspace and Delete */
-  | (Backspace, CursorT(After, _))
-  | (Backspace, CursorT(In(_), _)) => Some(CursorT(Before, Hole))
-  | (Backspace, CursorT(Before, _)) => None
-  | (Delete, CursorT(Before, uty))
-  | (Delete, CursorT(In(_), uty)) =>
-    switch (uty) {
-    | Hole => Some(CursorT(After, uty))
-    | _ => Some(CursorT(Before, Hole))
-    }
-  | (Delete, CursorT(After, _)) => None
-  | (Backspace, OpSeqZ(_, CursorT(Before, uty0) as zty0, surround)) =>
-    switch (surround) {
-    | EmptyPrefix(_) => None
-    | EmptySuffix(prefix) =>
-      switch (prefix) {
-      | ExpPrefix(uty1, _op1) =>
-        switch (uty0) {
-        | Hole =>
-          /* uty1 op1 |_ -> uty1| */
-          Some(CursorT(After, uty1))
-        | _ =>
-          /* uty1 op1 |uty0 -> |uty0 */
-          Some(zty0)
+  /* need to handle each inner node shape because we don't have Space in types */  
+  /** (<| _ )  ==>  ( |_ ) */
+  | (Backspace, CursorTI(BeforeChild(0, After), Parenthesized(uty1)))
+  | (Backspace, CursorTI(BeforeChild(0, After), List(uty1)))
+  /** |>( _ )  ==>  ( |_ ) */
+  | (Delete, CursorTI(BeforeChild(0, Before), Parenthesized(uty1)))
+  | (Delete, CursorTI(BeforeChild(0, Before), List(uty1))) =>
+    Some(ZTyp.place_before(uty1))
+  /** ( _ )<|  ==>  ( _| ) */
+  | (Backspace, CursorTI(ClosingDelimiter(After), Parenthesized(uty1)))
+  | (Backspace, CursorTI(ClosingDelimiter(After), List(uty1)))
+  /** ( _ |>)  ==>  ( _| ) */
+  | (Delete, CursorTI(ClosingDelimiter(Before), Parenthesized(uty1)))
+  | (Delete, CursorTI(ClosingDelimiter(Before), List(uty1))) =>
+    Some(ZTyp.place_after(uty1))
+  /** <|( _ )  ==>  |( _ ) */
+  | (Backspace, CursorTI(BeforeChild(0, Before), Parenthesized(_)))
+  | (Backspace, CursorTI(BeforeChild(0, Before), List(_))) => None
+  /** ( _ )|>  ==>  ( _ )| */
+  | (Delete, CursorTI(ClosingDelimiter(After), Parenthesized(_)))
+  | (Delete, CursorTI(ClosingDelimiter(After), List(_))) => None
+  /** ( _ <|)   ==>   ( _| ) */
+  | (Backspace, CursorTI(ClosingDelimiter(Before), Parenthesized(uty1))) =>
+    Some(ParenthesizedZ(ZTyp.place_after(uty1)))
+  | (Backspace, CursorTI(ClosingDelimiter(Before), List(uty1))) =>
+    Some(ListZ(ZTyp.place_after(uty1)))
+  /** (|> _ ) */
+  | (Delete, CursorTI(BeforeChild(0, After), Parenthesized(uty1))) =>
+    Some(ParenthesizedZ(ZTyp.place_before(uty1)))
+  | (Delete, CursorTI(BeforeChild(0, After), List(uty1))) =>
+    Some(ListZ(ZTyp.place_before(uty1)))
+  /** ... + [k-2] + [k-1] +<| [k] + ...   ==>   ... + [k-2] +| [k] + ... */
+  | (Backspace, CursorTI(BeforeChild(k, After), OpSeq(_, seq))) =>
+    switch (OperatorSeq.split(k - 1, seq)) {
+    | None => None
+    | Some((_, surround)) =>
+      switch (surround) {
+      | EmptySuffix(_) => None /* should never happen */
+      | EmptyPrefix(suffix) =>
+        switch (suffix) {
+        | ExpSuffix(_, ty) => Some(ZTyp.place_before(ty))
+        | SeqSuffix(_, seq) =>
+          let skel = Associator.associate_ty(seq);
+          Some(ZTyp.place_before(TI(OpSeq(skel, seq))));
         }
-      | SeqPrefix(seq1, _op1) =>
-        let (uty1, prefix') = OperatorSeq.split_tail(seq1);
-        switch (uty0) {
-        | Hole =>
-          /* prefix' uty1 op1 |_ --> prefix' uty1| */
-          let surround' = OperatorSeq.EmptySuffix(prefix');
-          let ze1 = ZTyp.CursorT(After, uty1);
-          Some(make_ty_OpSeqZ(ze1, surround'));
-        | _ =>
-          /* prefix' uty1 op |uty0 --> prefix' |uty0 */
-          let surround' = OperatorSeq.EmptySuffix(prefix');
-          Some(make_ty_OpSeqZ(zty0, surround'));
-        };
-      }
-    | BothNonEmpty(prefix, suffix) =>
-      switch (prefix) {
-      | ExpPrefix(uty1, _op1) =>
-        switch (uty0) {
-        | Hole =>
-          /* uty1 op1 |_ suffix -> uty1| suffix */
-          let surround' = OperatorSeq.EmptyPrefix(suffix);
-          let zty1 = ZTyp.CursorT(After, uty1);
-          Some(make_ty_OpSeqZ(zty1, surround'));
-        | _ =>
-          /* uty1 op1 |uty0 suffix -> |uty0 suffix */
-          let surround' = OperatorSeq.EmptyPrefix(suffix);
-          Some(make_ty_OpSeqZ(zty0, surround'));
-        }
-      | SeqPrefix(seq1, _op1) =>
-        let (uty1, prefix') = OperatorSeq.split_tail(seq1);
-        switch (uty0) {
-        | Hole =>
-          /* prefix' uty1 op1 |_ suffix --> prefix' uty1| suffix */
-          let surround' = OperatorSeq.BothNonEmpty(prefix', suffix);
-          let ze1 = ZTyp.CursorT(After, uty1);
-          Some(make_ty_OpSeqZ(ze1, surround'));
-        | _ =>
-          /* prefix' uty1 op |uty0 suffix --> prefix' |uty0 suffix */
-          let surround' = OperatorSeq.BothNonEmpty(prefix', suffix);
-          Some(make_ty_OpSeqZ(zty0, surround'));
-        };
+      | BothNonEmpty(prefix, suffix) =>
+        let seq =
+          switch (suffix) {
+          | ExpSuffix(_, ty) =>
+            OperatorSeq.opseq_of_prefix_and_exp(prefix, ty)
+          | SeqSuffix(_, seq) =>
+            OperatorSeq.opseq_of_prefix_and_seq(prefix, seq)
+          };
+        let skel = Associator.associate_ty(seq);
+        Some(CursorTI(BeforeChild(k - 1, After), OpSeq(skel, seq)));
       }
     }
-  | (Delete, OpSeqZ(_, CursorT(After, uty0) as zty0, surround)) =>
-    switch (surround) {
-    | EmptySuffix(_) => None
-    | EmptyPrefix(suffix) =>
-      switch (suffix) {
-      | ExpSuffix(_op1, uty1) =>
-        switch (uty0) {
-        | Hole =>
-          /* _| op1 uty1 -> |uty1 */
-          Some(CursorT(Before, uty1))
-        | _ =>
-          /* uty0| op1 uty0 -> uty0| */
-          Some(zty0)
+  /** ... + [k-1] |>+ [k] + [k+1] + ...   ==>   ... + [k-1] |+ [k+1] + ... */
+  | (Delete, CursorTI(BeforeChild(k, Before), OpSeq(_, seq))) =>
+    switch (OperatorSeq.split(k, seq)) {
+    | None => None /* should never happen */
+    | Some((_, surround)) =>
+      switch (surround) {
+      | EmptyPrefix(_) => None /* should never happen */
+      | EmptySuffix(prefix) =>
+        switch (prefix) {
+        | ExpPrefix(ty, _) => Some(ZTyp.place_after(ty))
+        | SeqPrefix(seq, _) =>
+          let skel = Associator.associate_ty(seq);
+          Some(ZTyp.place_after(TI(OpSeq(skel, seq))));
         }
-      | SeqSuffix(_op1, seq1) =>
-        let (uty1, suffix') = OperatorSeq.split0(seq1);
-        switch (uty0) {
-        | Hole =>
-          /* _| op1 uty1 suffix' --> |uty1 suffix' */
-          let surround' = OperatorSeq.EmptyPrefix(suffix');
-          let ze1 = ZTyp.CursorT(Before, uty1);
-          Some(make_ty_OpSeqZ(ze1, surround'));
-        | _ =>
-          /* uty0| op1 uty1 suffix' --> uty0| suffix' */
-          let surround' = OperatorSeq.EmptyPrefix(suffix');
-          Some(make_ty_OpSeqZ(zty0, surround'));
-        };
+      | BothNonEmpty(prefix, suffix) =>
+        let seq =
+          switch (prefix) {
+          | ExpPrefix(ty, _) =>
+            OperatorSeq.opseq_of_exp_and_suffix(ty, suffix)
+          | SeqPrefix(seq, _) =>
+            OperatorSeq.opseq_of_seq_and_suffix(seq, suffix)
+          };
+        let skel = Associator.associate_ty(seq);
+        Some(CursorTI(BeforeChild(k, Before), OpSeq(skel, seq)));
       }
-    | BothNonEmpty(prefix, suffix) =>
-      switch (suffix) {
-      | ExpSuffix(_op1, uty1) =>
-        switch (uty0) {
-        | Hole =>
-          /* prefix _| op1 uty1 -> prefix |uty1 */
-          let surround' = OperatorSeq.EmptySuffix(prefix);
-          let zty1 = ZTyp.CursorT(Before, uty1);
-          Some(make_ty_OpSeqZ(zty1, surround'));
-        | _ =>
-          /* prefix uty0| op1 uty0 -> prefix uty0| */
-          let surround' = OperatorSeq.EmptySuffix(prefix);
-          Some(make_ty_OpSeqZ(zty0, surround'));
-        }
-      | SeqSuffix(_op1, seq1) =>
-        let (uty1, suffix') = OperatorSeq.split0(seq1);
-        switch (uty0) {
-        | Hole =>
-          /* prefix _| op1 uty1 suffix' --> prefix |uty1 suffix' */
-          let surround' = OperatorSeq.BothNonEmpty(prefix, suffix');
-          let ze1 = ZTyp.CursorT(Before, uty1);
-          Some(make_ty_OpSeqZ(ze1, surround'));
-        | _ =>
-          /* prefix uty0| op1 uty1 suffix' --> prefix uty0| suffix' */
-          let surround' = OperatorSeq.BothNonEmpty(prefix, suffix');
-          Some(make_ty_OpSeqZ(zty0, surround'));
-        };
-      }
+  /** ... + [k-2] + [k-1] <|+ [k] + ...   ==>   ... + [k-2] + [k-1]| + [k] + ... */
+  | (Backspace, CursorTI(BeforeChild(k, Before), OpSeq(skel, seq))) =>
+    switch (OperatorSeq.split(k-1, seq)) {
+    | None => None
+    | Some((uty0, surround)) => Some(OpSeqZ(skel, ZTyp.place_after(uty0), surround))
     }
+  /** ... + [k-1] +| [k] + [k+1] + ...   ==>   ... + [k-1] + |[k] + [k+1] + ... */
+  | (Delete, CursorTI(BeforeChild(k, After), OpSeq(_, seq))) =>
+    switch (OperatorSeq.split(k, seq)) {
+    | None => None
+    | Some((uty0, surround)) => Some(OpSeqZ(skel, ZTyp.place_after(uty0), surround))
+    }
+  /** invalid */
+  | (Backspace, CursorTI(ClosingDelimiter(_), OpSeq(_, _)))
+  | (Delete, CursorTI(ClosingDelimiter(_), OpSeq(_, _))) => None
   /* Construction */
-  | (Construct(SParenthesized), CursorT(_, _)) =>
-    Some(ParenthesizedZ(zty))
-  | (Construct(SNum), CursorT(_, Hole)) => Some(CursorT(After, Num))
-  | (Construct(SNum), CursorT(_, _)) => None
-  | (Construct(SBool), CursorT(_, Hole)) => Some(CursorT(After, Bool))
-  | (Construct(SBool), CursorT(_, _)) => None
-  | (Construct(SList), CursorT(_, _)) => Some(ListZ(zty))
-  | (Construct(SOp(os)), CursorT(After, uty1))
-  | (Construct(SOp(os)), CursorT(In(_), uty1)) =>
-    switch (ty_op_of(os)) {
-    | None => None
-    | Some(op) =>
-      let surround = OperatorSeq.EmptySuffix(ExpPrefix(uty1, op));
-      let zty0 = ZTyp.CursorT(Before, Hole);
-      Some(make_ty_OpSeqZ(zty0, surround));
-    }
-  | (Construct(SOp(os)), CursorT(Before, uty1)) =>
-    switch (ty_op_of(os)) {
-    | None => None
-    | Some(op) =>
-      let surround = OperatorSeq.EmptyPrefix(ExpSuffix(op, uty1));
-      let zty0 = ZTyp.CursorT(Before, Hole);
-      Some(make_ty_OpSeqZ(zty0, surround));
-    }
-  | (Construct(SOp(os)), OpSeqZ(_, CursorT(After, uty0), surround))
-  | (Construct(SOp(os)), OpSeqZ(_, CursorT(In(_), uty0), surround)) =>
-    switch (ty_op_of(os)) {
-    | None => None
-    | Some(op) =>
-      switch (surround) {
-      | EmptyPrefix(suffix) =>
-        /* zty0| suffix -> uty0 op |_ suffix */
-        let prefix' = OperatorSeq.ExpPrefix(uty0, op);
-        let surround' = OperatorSeq.BothNonEmpty(prefix', suffix);
-        let zty0' = ZTyp.CursorT(Before, Hole);
-        Some(make_ty_OpSeqZ(zty0', surround'));
-      | EmptySuffix(prefix) =>
-        /* prefix zty0| -> prefix uty0 op |_ */
-        let prefix' = OperatorSeq.prefix_append_exp(prefix, uty0, op);
-        let surround' = OperatorSeq.EmptySuffix(prefix');
-        let zty0' = ZTyp.CursorT(Before, Hole);
-        Some(make_ty_OpSeqZ(zty0', surround'));
-      | BothNonEmpty(prefix, suffix) =>
-        /* prefix zty0| suffix -> prefix uty0 op |_ suffix */
-        let prefix' = OperatorSeq.prefix_append_exp(prefix, uty0, op);
-        let surround' = OperatorSeq.BothNonEmpty(prefix', suffix);
-        let zty0' = ZTyp.CursorT(Before, Hole);
-        Some(make_ty_OpSeqZ(zty0', surround'));
+  | (Construct(SParenthesized), CursorTO(_, _)))
+  | (Construct(SParenthesized), CursorTI(_, _))) => Some(ParenthesizedZ(zty))
+  | (Construct(SNum), CursorTO(_, Hole)) => Some(ZTyp.place_after(TO(Num)))
+  | (Construct(SNum), CursorTO(_, _))
+  | (Construct(SNum), CursorTI(_, _)) => None
+  | (Construct(SBool), CursorTO(_, Hole)) => Some(ZTyp.place_after(TO(Bool)))
+  | (Construct(SBool), CursorTO(_, _))
+  | (Construct(SBool), CursorTI(_, _)) => None
+  | (Construct(SList), CursorTO(_, _)))
+  | (Construct(SList), CursorTI(_, _))) => Some(ListZ(zty))
+  | (Construct(SOp(os)), CursorTO(_, _))
+  | (Construct(SOp(os)), CursorTI(_, _)) =>
+    let uty = ZTyp.erase(zty);
+    if (ZTyp.is_before(zty)) {
+      switch (ty_op_of(os)) {
+      | None => None
+      | Some(op) =>
+        let surround = OperatorSeq.EmptyPrefix(ExpSuffix(op, uty));
+        let zty0 = ZTyp.place_before(TO(Hole));
+        Some(make_ty_OpSeqZ(zty0, surround));
+      }      
+    } else {
+      switch (ty_op_of(os)) {
+      | None => None
+      | Some(op) =>
+        let surround = OperatorSeq.EmptySuffix(ExpPrefix(uty, op));
+        let zty0 = ZTyp.place_before(TO(Hole));
+        Some(make_ty_OpSeqZ(zty0, surround));
       }
-    }
-  | (Construct(SOp(os)), OpSeqZ(_, CursorT(Before, uty0), surround)) =>
-    switch (ty_op_of(os)) {
-    | None => None
-    | Some(op) =>
-      switch (surround) {
-      | EmptyPrefix(suffix) =>
-        /* |zty0 suffix -> |_ op uty0 suffix */
-        let suffix' = OperatorSeq.suffix_prepend_exp(suffix, op, uty0);
-        let surround' = OperatorSeq.EmptyPrefix(suffix');
-        let zty0' = ZTyp.CursorT(Before, Hole);
-        Some(make_ty_OpSeqZ(zty0', surround'));
-      | EmptySuffix(prefix) =>
-        /* prefix |zty0 -> prefix |_ op uty0 */
-        let suffix' = OperatorSeq.ExpSuffix(op, uty0);
-        let surround' = OperatorSeq.BothNonEmpty(prefix, suffix');
-        let zty0' = ZTyp.CursorT(Before, Hole);
-        Some(make_ty_OpSeqZ(zty0', surround'));
-      | BothNonEmpty(prefix, suffix) =>
-        /* prefix |zty0 suffix -> prefix |_ op uty0 suffix */
-        let suffix' = OperatorSeq.suffix_prepend_exp(suffix, op, uty0);
-        let surround' = OperatorSeq.BothNonEmpty(prefix, suffix');
-        let zty0' = ZTyp.CursorT(Before, Hole);
-        Some(make_ty_OpSeqZ(zty0', surround'));
+    };
+  | (Construct(SOp(os)), OpSeqZ(_, ((CursorTO(_, _)) | (CursorTI(_, _)) as zty), surround)) =>
+    let uty = ZTyp.erase(zty);
+    if (ZTyp.is_before(zty)) {
+      switch (ty_op_of(os)) {
+      | None => None
+      | Some(op) =>
+        switch (surround) {
+        | EmptyPrefix(suffix) =>
+          /* |zty0 suffix -> |_ op uty0 suffix */
+          let suffix' = OperatorSeq.suffix_prepend_exp(suffix, op, uty0);
+          let surround' = OperatorSeq.EmptyPrefix(suffix');
+          let zty0' = ZTyp.CursorT(Before, Hole);
+          Some(make_ty_OpSeqZ(zty0', surround'));
+        | EmptySuffix(prefix) =>
+          /* prefix |zty0 -> prefix |_ op uty0 */
+          let suffix' = OperatorSeq.ExpSuffix(op, uty0);
+          let surround' = OperatorSeq.BothNonEmpty(prefix, suffix');
+          let zty0' = ZTyp.CursorT(Before, Hole);
+          Some(make_ty_OpSeqZ(zty0', surround'));
+        | BothNonEmpty(prefix, suffix) =>
+          /* prefix |zty0 suffix -> prefix |_ op uty0 suffix */
+          let suffix' = OperatorSeq.suffix_prepend_exp(suffix, op, uty0);
+          let surround' = OperatorSeq.BothNonEmpty(prefix, suffix');
+          let zty0' = ZTyp.CursorT(Before, Hole);
+          Some(make_ty_OpSeqZ(zty0', surround'));
+        }
       }
-    }
+    } else {
+      switch (ty_op_of(os)) {
+      | None => None
+      | Some(op) =>
+        switch (surround) {
+        | EmptyPrefix(suffix) =>
+          /* zty0| suffix -> uty0 op |_ suffix */
+          let prefix' = OperatorSeq.ExpPrefix(uty, op);
+          let surround' = OperatorSeq.BothNonEmpty(prefix', suffix);
+          let zty0' = ZTyp.CursorT(Before, Hole);
+          Some(make_ty_OpSeqZ(zty0', surround'));
+        | EmptySuffix(prefix) =>
+          /* prefix zty0| -> prefix uty0 op |_ */
+          let prefix' = OperatorSeq.prefix_append_exp(prefix, uty, op);
+          let surround' = OperatorSeq.EmptySuffix(prefix');
+          let zty0' = ZTyp.CursorT(Before, Hole);
+          Some(make_ty_OpSeqZ(zty0', surround'));
+        | BothNonEmpty(prefix, suffix) =>
+          /* prefix zty0| suffix -> prefix uty0 op |_ suffix */
+          let prefix' = OperatorSeq.prefix_append_exp(prefix, uty, op);
+          let surround' = OperatorSeq.BothNonEmpty(prefix', suffix);
+          let zty0' = ZTyp.CursorT(Before, Hole);
+          Some(make_ty_OpSeqZ(zty0', surround'));
+        }
+      }
+    };
   /* Zipper Cases */
   | (a, ParenthesizedZ(zty1)) =>
     switch (perform_ty(a, zty1)) {

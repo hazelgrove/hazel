@@ -286,6 +286,41 @@ and place_after_exp = (e: UHExp.t): t =>
   | EI(ApPalette(_, _, _, _) as ei) =>
     CursorEI(ClosingDelimiter(After), ei) /* TODO */
   };
+let place_after_rule = (Rule(p, block): UHExp.rule): zrule =>
+  RuleZE(p, place_after_block(block));
+
+let place_cursor_exp = (cursor: cursor_pos, e: UHExp.t): option(t) =>
+  switch (cursor, e) {
+  | (O(outer_cursor), EO(eo)) =>
+    is_valid_outer_cursor_exp(outer_cursor, eo)
+      ? Some(CursorEO(outer_cursor, eo)) : None
+  | (I(inner_cursor), EI(ei)) =>
+    is_valid_inner_cursor_exp(inner_cursor, ei)
+      ? Some(CursorEI(inner_cursor, ei)) : None
+  | (O(_), EI(_))
+  | (I(_), EO(_)) => None
+  };
+let place_cursor_line = (cursor: cursor_pos, line: UHExp.line): option(zline) =>
+  switch (cursor, line) {
+  | (_, ExpLine(e)) =>
+    switch (place_cursor_exp(cursor, e)) {
+    | None => None
+    | Some(ze) => Some(ExpLineZ(ze))
+    }
+  | (O(outer_cursor), LO(lo)) =>
+    is_valid_outer_cursor_line(outer_cursor, lo)
+      ? Some(CursorLO(outer_cursor, lo)) : None
+  | (I(inner_cursor), LI(li)) =>
+    is_valid_inner_cursor_line(inner_cursor, li)
+      ? Some(CursorLI(inner_cursor, li)) : None
+  | (O(_), LI(_))
+  | (I(_), LO(_)) => None
+  };
+let place_cursor_rule = (cursor: cursor_pos, rule: UHExp.rule): option(zrule) =>
+  switch (cursor) {
+  | O(_) => None
+  | I(inner_cursor) => Some(CursorR(inner_cursor, rule))
+  };
 
 let prune_empty_hole_line = (zli: zline): zline =>
   switch (zli) {

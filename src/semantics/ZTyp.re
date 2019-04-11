@@ -106,3 +106,15 @@ let rec place_after = (uty: UHTyp.t): t =>
     let zty = place_after(uty);
     OpSeqZ(skel, zty, surround);
   };
+
+let place_cursor = (cursor: cursor_pos, uty: UHTyp.t): option(t) =>
+  switch (cursor, uty) {
+  | (O(outer_cursor), TO(utyo)) =>
+    is_valid_outer_cursor(outer_cursor, utyo)
+      ? Some(CursorTO(outer_cursor, utyo)) : None
+  | (I(inner_cursor), TI(utyi)) =>
+    is_valid_inner_cursor(inner_cursor, utyi)
+      ? Some(CursorTI(inner_cursor, utyi)) : None
+  | (O(_), TI(_))
+  | (I(_), TO(_)) => None
+  };

@@ -14,6 +14,14 @@ let cons' = (step: int, r: t): t => {
   ([step, ...steps], side);
 };
 
+let rec _update_cursor = (cursor: cursor_pos, steps: steps): t =>
+  switch (steps) {
+  | [] => ([], cursor)
+  | [x, ...xs] => cons'(x, _update_cursor(cursor, xs))
+  };
+let update_cursor = (cursor: cursor_pos, (steps, _): t): t =>
+  _update_cursor(cursor, steps);
+
 let rec of_ztyp = (zty: ZTyp.t): t =>
   switch (zty) {
   | CursorTO(outer_cursor, _) => ([], O(outer_cursor))
@@ -86,30 +94,12 @@ and of_zrule = (zrule: ZExp.zrule): t =>
   | RuleZE(_, zblock) => cons'(1, of_zblock(zblock))
   };
 
-let of_OpSeqZ = (ze: ZExp.t, surround: ZExp.opseq_surround): t => {
-  let n = OperatorSeq.surround_prefix_length(surround);
-  cons'(n, of_zexp(ze));
-};
-
-let of_OpSeqZ_pat = (zp: ZPat.t, surround: ZPat.opseq_surround): t => {
-  let n = OperatorSeq.surround_prefix_length(surround);
-  cons'(n, of_zpat(zp));
-};
-
-let rec follow_ty = (path: t, uty: UHTyp.t): option(ZTyp.t) =>
-  switch (path) {
-  | ([], cursor) =>
-    switch (cursor, uty) {
-    | (O(outer_cursor), TO(utyo)) =>
-      ZTyp.is_valid_outer_cursor(outer_cursor, utyo)
-        ? Some(CursorTO(outer_cursor, utyo)) : None
-    | (I(inner_cursor), TI(utyi)) =>
-      ZTyp.is_valid_inner_cursor(inner_cursor, utyi)
-        ? Some(CursorTI(inner_cursor, utyi)) : None
-    | (O(_), TI(_))
-    | (I(_), TO(_)) => None
-    }
-  | ([x, ...xs], cursor_pos) =>
+let rec follow_ty_and_place_cursor =
+        (steps: steps, place_cursor: UHTyp.t => option(ZTyp.t), uty: UHTyp.t)
+        : option(ZTyp.t) =>
+  switch (steps) {
+  | [] => place_cursor(uty)
+  | [x, ...xs] =>
     switch (uty) {
     | TO(Hole)
     | TO(Unit)
@@ -118,16 +108,16 @@ let rec follow_ty = (path: t, uty: UHTyp.t): option(ZTyp.t) =>
     | TI(Parenthesized(uty1)) =>
       switch (x) {
       | 0 =>
-        switch (follow_ty((xs, cursor_pos), uty1)) {
-        | Some(zty) => Some(ParenthesizedZ(zty))
+        switch (follow_ty_and_place_cursor(xs, place_cursor, uty1)) {
         | None => None
+        | Some(zty) => Some(ParenthesizedZ(zty))
         }
       | _ => None
       }
     | TI(List(uty1)) =>
       switch (x) {
       | 0 =>
-        switch (follow_ty((xs, cursor_pos), uty1)) {
+        switch (follow_ty_and_place_cursor(xs, place_cursor, uty1)) {
         | None => None
         | Some(zty) => Some(ListZ(zty))
         }
@@ -135,15 +125,32 @@ let rec follow_ty = (path: t, uty: UHTyp.t): option(ZTyp.t) =>
       }
     | TI(OpSeq(skel, seq)) =>
       switch (OperatorSeq.split(x, seq)) {
-      | Some((uty_n, surround)) =>
-        switch (follow_ty((xs, cursor_pos), uty_n)) {
-        | Some(zty_n) => Some(OpSeqZ(skel, zty_n, surround))
-        | None => None
-        }
       | None => None
+      | Some((uty_n, surround)) =>
+        switch (follow_ty_and_place_cursor(xs, place_cursor, uty_n)) {
+        | None => None
+        | Some(zty_n) => Some(OpSeqZ(skel, zty_n, surround))
+        }
       }
     }
   };
+
+let follow_ty_and_place_before = (steps: steps, uty: UHTyp.t): option(ZTyp.t) =>
+  follow_ty_and_place_cursor(
+    steps,
+    uty => Some(ZTyp.place_before(uty)),
+    uty,
+  );
+
+let follow_ty_and_place_after = (steps: steps, uty: UHTyp.t): option(ZTyp.t) =>
+  follow_ty_and_place_cursor(
+    steps,
+    uty => Some(ZTyp.place_after(uty)),
+    uty,
+  );
+
+let follow_ty = ((steps, cursor): t, uty: UHTyp.t): option(ZTyp.t) =>
+  follow_ty_and_place_cursor(steps, ZTyp.place_cursor(cursor), uty);
 
 exception UHTypeNodeNotFound(t, UHTyp.t);
 let follow_ty_or_fail = (path: t, uty: UHTyp.t): ZTyp.t =>
@@ -152,24 +159,16 @@ let follow_ty_or_fail = (path: t, uty: UHTyp.t): ZTyp.t =>
   | Some(zty) => zty
   };
 
-let rec follow_pat = (path: t, p: UHPat.t): option(ZPat.t) =>
-  switch (path) {
-  | ([], cursor) =>
-    switch (cursor, p) {
-    | (O(outer_cursor), PO(po)) =>
-      ZPat.is_valid_outer_cursor(outer_cursor, po)
-        ? Some(CursorPO(outer_cursor, po)) : None
-    | (I(inner_cursor), PI(pi)) =>
-      ZPat.is_valid_inner_cursor(inner_cursor, pi)
-        ? Some(CursorPI(inner_cursor, pi)) : None
-    | (O(_), PI(_))
-    | (I(_), PO(_)) => None
-    }
-  | ([x, ...xs], cursor_pos) =>
+let rec follow_pat_and_place_cursor =
+        (steps: steps, place_cursor: UHPat.t => option(ZPat.t), p: UHPat.t)
+        : option(ZPat.t) =>
+  switch (steps) {
+  | [] => place_cursor(p)
+  | [x, ...xs] =>
     switch (x, p) {
     | (_, PO(_)) => None /* outer nodes have no children */
     | (0, PI(Parenthesized(p1))) =>
-      switch (follow_pat((xs, cursor_pos), p1)) {
+      switch (follow_pat_and_place_cursor(xs, place_cursor, p1)) {
       | None => None
       | Some(zp1) => Some(ParenthesizedZ(zp1))
       }
@@ -178,19 +177,25 @@ let rec follow_pat = (path: t, p: UHPat.t): option(ZPat.t) =>
       switch (OperatorSeq.split(x, seq)) {
       | None => None
       | Some((p, surround)) =>
-        switch (follow_pat((xs, cursor_pos), p)) {
+        switch (follow_pat_and_place_cursor(xs, place_cursor, p)) {
         | None => None
         | Some(zp) => Some(OpSeqZ(skel, zp, surround))
         }
       }
     | (0, PI(Inj(err, side, p1))) =>
-      switch (follow_pat((xs, cursor_pos), p1)) {
+      switch (follow_pat_and_place_cursor(xs, place_cursor, p1)) {
       | None => None
       | Some(zp1) => Some(InjZ(err, side, zp1))
       }
     | (_, PI(Inj(_, _, _))) => None
     }
   };
+
+let follow_pat_and_place_after = (steps: steps, p: UHPat.t): option(ZPat.t) =>
+  follow_pat_and_place_cursor(steps, p => Some(ZPat.place_after(p)), p);
+
+let follow_pat = ((steps, cursor): t, p: UHPat.t): option(ZPat.t) =>
+  follow_pat_and_place_cursor(steps, ZPat.place_cursor(cursor), p);
 
 exception UHPatNodeNotFound(t, UHPat.t);
 let follow_pat_or_fail = (path: t, p: UHPat.t): ZPat.t =>
@@ -199,13 +204,22 @@ let follow_pat_or_fail = (path: t, p: UHPat.t): ZPat.t =>
   | Some(zp) => zp
   };
 
-let rec follow_block = (path: t, block: UHExp.block): option(ZExp.zblock) =>
-  switch (path) {
-  | ([], _) => None /* no block level cursor */
-  | ([x, ...xs], cursor_pos) =>
-    let Block(lines, e) = block;
+let rec follow_block_and_place_cursor =
+        (
+          steps: steps,
+          pcl: UHExp.line => option(ZExp.zline),
+          pce: UHExp.t => option(ZExp.t),
+          pcr: UHExp.rule => option(ZExp.zrule),
+          pcp: UHPat.t => option(ZPat.t),
+          pct: UHTyp.t => option(ZTyp.t),
+          Block(lines, e): UHExp.block,
+        )
+        : option(ZExp.zblock) =>
+  switch (steps) {
+  | [] => None /* no block level cursor */
+  | [x, ...xs] =>
     if (x === List.length(lines)) {
-      switch (follow_exp((xs, cursor_pos), e)) {
+      switch (follow_exp_and_place_cursor(xs, pcl, pce, pcr, pcp, pct, e)) {
       | None => None
       | Some(ze) => Some(BlockZE(lines, ze))
       };
@@ -213,83 +227,93 @@ let rec follow_block = (path: t, block: UHExp.block): option(ZExp.zblock) =>
       switch (ZList.split_at(x, lines)) {
       | None => None
       | Some(split_lines) =>
-        switch (ZList.optmap_z(follow_line((xs, cursor_pos)), split_lines)) {
+        switch (
+          ZList.optmap_z(
+            follow_line_and_place_cursor(xs, pcl, pce, pcr, pcp, pct),
+            split_lines,
+          )
+        ) {
         | None => None
         | Some(zlines) => Some(BlockZL(zlines, e))
         }
       };
-    };
+    }
   }
-and follow_line = (path: t, line: UHExp.line): option(ZExp.zline) =>
-  switch (path, line) {
+and follow_line_and_place_cursor =
+    (
+      steps: steps,
+      pcl: UHExp.line => option(ZExp.zline),
+      pce: UHExp.t => option(ZExp.t),
+      pcr: UHExp.rule => option(ZExp.zrule),
+      pcp: UHPat.t => option(ZPat.t),
+      pct: UHTyp.t => option(ZTyp.t),
+      line: UHExp.line,
+    )
+    : option(ZExp.zline) =>
+  switch (steps, line) {
   | (_, ExpLine(e)) =>
-    switch (follow_exp(path, e)) {
+    switch (follow_exp_and_place_cursor(steps, pcl, pce, pcr, pcp, pct, e)) {
     | None => None
     | Some(ze) => Some(ExpLineZ(ze))
     }
-  | (([], O(outer_cursor)), LO(lo)) =>
-    ZExp.is_valid_outer_cursor_line(outer_cursor, lo)
-      ? Some(CursorLO(outer_cursor, lo)) : None
-  | (([], I(inner_cursor)), LI(li)) =>
-    ZExp.is_valid_inner_cursor_line(inner_cursor, li)
-      ? Some(CursorLI(inner_cursor, li)) : None
-  | (([], O(_)), LI(_))
-  | (([], I(_)), LO(_)) => None
+  | ([], _) => pcl(line)
   | (_, LO(EmptyLine)) => None
-  | (([0, ...xs], cursor_pos), LI(LetLine(p, ann, e1))) =>
-    switch (follow_pat((xs, cursor_pos), p)) {
+  | ([0, ...xs], LI(LetLine(p, ann, e1))) =>
+    switch (follow_pat_and_place_cursor(xs, pcp, p)) {
     | None => None
     | Some(zp) => Some(LetLineZP(zp, ann, e1))
     }
-  | (([1, ...xs], cursor_pos), LI(LetLine(p, ann, e1))) =>
+  | ([1, ...xs], LI(LetLine(p, ann, e1))) =>
     switch (ann) {
     | None => None
     | Some(ann_ty) =>
-      switch (follow_ty((xs, cursor_pos), ann_ty)) {
+      switch (follow_ty_and_place_cursor(xs, pct, ann_ty)) {
       | None => None
       | Some(zann) => Some(LetLineZA(p, zann, e1))
       }
     }
-  | (([2, ...xs], cursor_pos), LI(LetLine(p, ann, block))) =>
-    switch (follow_block((xs, cursor_pos), block)) {
+  | ([2, ...xs], LI(LetLine(p, ann, block))) =>
+    switch (follow_block_and_place_cursor(xs, pcl, pce, pcr, pcp, pct, block)) {
     | None => None
     | Some(zblock) => Some(LetLineZE(p, ann, zblock))
     }
   | (_, LI(LetLine(_, _, _))) => None
   }
-and follow_exp = (path: t, e: UHExp.t): option(ZExp.t) =>
-  switch (path) {
-  | ([], cursor) =>
-    switch (cursor, e) {
-    | (O(outer_cursor), EO(eo)) =>
-      ZExp.is_valid_outer_cursor_exp(outer_cursor, eo)
-        ? Some(CursorEO(outer_cursor, eo)) : None
-    | (I(inner_cursor), EI(ei)) =>
-      ZExp.is_valid_inner_cursor_exp(inner_cursor, ei)
-        ? Some(CursorEI(inner_cursor, ei)) : None
-    | (O(_), EI(_))
-    | (I(_), EO(_)) => None
-    }
-  | ([x, ...xs], cursor_pos) =>
+and follow_exp_and_place_cursor =
+    (
+      steps: steps,
+      pcl: UHExp.line => option(ZExp.zline),
+      pce: UHExp.t => option(ZExp.t),
+      pcr: UHExp.rule => option(ZExp.zrule),
+      pcp: UHPat.t => option(ZPat.t),
+      pct: UHTyp.t => option(ZTyp.t),
+      e: UHExp.t,
+    )
+    : option(ZExp.t) =>
+  switch (steps) {
+  | [] => pce(e)
+  | [x, ...xs] =>
     switch (x, e) {
     | (_, EO(_)) => None
     | (0, EI(Parenthesized(block))) =>
-      switch (follow_block((xs, cursor_pos), block)) {
-      | Some(zblock) => Some(ParenthesizedZ(zblock))
+      switch (
+        follow_block_and_place_cursor(xs, pcl, pce, pcr, pcp, pct, block)
+      ) {
       | None => None
+      | Some(zblock) => Some(ParenthesizedZ(zblock))
       }
     | (_, EI(Parenthesized(_))) => None
     | (_, EI(OpSeq(skel, seq))) =>
       switch (OperatorSeq.split(x, seq)) {
       | Some((e, surround)) =>
-        switch (follow_exp((xs, cursor_pos), e)) {
+        switch (follow_exp_and_place_cursor(xs, pcl, pce, pcr, pcp, pct, e)) {
         | Some(ze) => Some(OpSeqZ(skel, ze, surround))
         | None => None
         }
       | None => None
       }
     | (0, EI(Lam(err, p, ann, block))) =>
-      switch (follow_pat((xs, cursor_pos), p)) {
+      switch (follow_pat_and_place_cursor(xs, pcp, p)) {
       | None => None
       | Some(zp) => Some(LamZP(err, zp, ann, block))
       }
@@ -297,25 +321,31 @@ and follow_exp = (path: t, e: UHExp.t): option(ZExp.t) =>
       switch (ann) {
       | None => None
       | Some(ann_ty) =>
-        switch (follow_ty((xs, cursor_pos), ann_ty)) {
+        switch (follow_ty_and_place_cursor(xs, pct, ann_ty)) {
         | None => None
         | Some(zann) => Some(LamZA(err, p, zann, block))
         }
       }
     | (2, EI(Lam(err, p, ann, block))) =>
-      switch (follow_block((xs, cursor_pos), block)) {
+      switch (
+        follow_block_and_place_cursor(xs, pcl, pce, pcr, pcp, pct, block)
+      ) {
       | None => None
       | Some(zblock) => Some(LamZE(err, p, ann, zblock))
       }
     | (_, EI(Lam(_, _, _, _))) => None
     | (0, EI(Inj(err, side, block))) =>
-      switch (follow_block((xs, cursor_pos), block)) {
+      switch (
+        follow_block_and_place_cursor(xs, pcl, pce, pcr, pcp, pct, block)
+      ) {
       | None => None
       | Some(zblock) => Some(InjZ(err, side, zblock))
       }
     | (_, EI(Inj(_, _, _))) => None
     | (0, EI(Case(err, block, rules, ann))) =>
-      switch (follow_block((xs, cursor_pos), block)) {
+      switch (
+        follow_block_and_place_cursor(xs, pcl, pce, pcr, pcp, pct, block)
+      ) {
       | None => None
       | Some(zblock) => Some(CaseZE(err, zblock, rules, ann))
       }
@@ -324,7 +354,7 @@ and follow_exp = (path: t, e: UHExp.t): option(ZExp.t) =>
       switch (ann) {
       | None => None
       | Some(ty) =>
-        switch (follow_ty((xs, cursor_pos), ty)) {
+        switch (follow_ty_and_place_cursor(xs, pct, ty)) {
         | None => None
         | Some(zann) => Some(CaseZA(err, block, rules, zann))
         }
@@ -333,7 +363,12 @@ and follow_exp = (path: t, e: UHExp.t): option(ZExp.t) =>
       switch (ZList.split_at(x - 1, rules)) {
       | None => None
       | Some(split_rules) =>
-        switch (ZList.optmap_z(follow_rule((xs, cursor_pos)), split_rules)) {
+        switch (
+          ZList.optmap_z(
+            follow_rule_and_place_cursor(xs, pcl, pce, pcr, pcp, pct),
+            split_rules,
+          )
+        ) {
         | None => None
         | Some(zrules) => Some(CaseZR(err, block, zrules, ann))
         }
@@ -341,7 +376,9 @@ and follow_exp = (path: t, e: UHExp.t): option(ZExp.t) =>
     | (n, EI(ApPalette(_, name, serialized_model, splice_info))) =>
       switch (
         ZSpliceInfo.select_opt(splice_info, n, ((ty, block)) =>
-          switch (follow_block((xs, cursor_pos), block)) {
+          switch (
+            follow_block_and_place_cursor(xs, pcl, pce, pcr, pcp, pct, block)
+          ) {
           | None => None
           | Some(zblock) => Some((ty, zblock))
           }
@@ -353,25 +390,117 @@ and follow_exp = (path: t, e: UHExp.t): option(ZExp.t) =>
       }
     }
   }
-and follow_rule = (path: t, rule: UHExp.rule): option(ZExp.zrule) =>
-  switch (rule) {
-  | Rule(p, block) =>
-    switch (path) {
-    | ([], I(inner_cursor)) => Some(CursorR(inner_cursor, rule))
-    | ([], O(_)) => None
-    | ([0, ...xs], cursor_pos) =>
-      switch (follow_pat((xs, cursor_pos), p)) {
-      | None => None
-      | Some(zp) => Some(RuleZP(zp, block))
-      }
-    | ([1, ...xs], cursor_pos) =>
-      switch (follow_block((xs, cursor_pos), block)) {
-      | None => None
-      | Some(zblock) => Some(RuleZE(p, zblock))
-      }
-    | ([_, ..._], _) => None
+and follow_rule_and_place_cursor =
+    (
+      steps: steps,
+      pcl: UHExp.line => option(ZExp.zline),
+      pce: UHExp.t => option(ZExp.t),
+      pcr: UHExp.rule => option(ZExp.zrule),
+      pcp: UHPat.t => option(ZPat.t),
+      pct: UHTyp.t => option(ZTyp.t),
+      Rule(p, block) as rule: UHExp.rule,
+    )
+    : option(ZExp.zrule) =>
+  switch (steps) {
+  | [] => pcr(rule)
+  | [0, ...xs] =>
+    switch (follow_pat_and_place_cursor(xs, pcp, p)) {
+    | None => None
+    | Some(zp) => Some(RuleZP(zp, block))
     }
+  | [1, ...xs] =>
+    switch (follow_block_and_place_cursor(xs, pcl, pce, pcr, pcp, pct, block)) {
+    | None => None
+    | Some(zblock) => Some(RuleZE(p, zblock))
+    }
+  | [_, ..._] => None
   };
+
+let follow_block_and_place_after =
+    (steps: steps, block: UHExp.block): option(ZExp.zblock) =>
+  follow_block_and_place_cursor(
+    steps,
+    line => Some(ZExp.place_after_line(line)),
+    e => Some(ZExp.place_after_exp(e)),
+    rule => Some(ZExp.place_after_rule(rule)),
+    p => Some(ZPat.place_after(p)),
+    uty => Some(ZTyp.place_after(uty)),
+    block,
+  );
+let follow_line_and_place_after =
+    (steps: steps, line: UHExp.line): option(ZExp.zline) =>
+  follow_line_and_place_cursor(
+    steps,
+    line => Some(ZExp.place_after_line(line)),
+    e => Some(ZExp.place_after_exp(e)),
+    rule => Some(ZExp.place_after_rule(rule)),
+    p => Some(ZPat.place_after(p)),
+    uty => Some(ZTyp.place_after(uty)),
+    line,
+  );
+let follow_exp_and_place_after = (steps: steps, e: UHExp.t): option(ZExp.t) =>
+  follow_exp_and_place_cursor(
+    steps,
+    line => Some(ZExp.place_after_line(line)),
+    e => Some(ZExp.place_after_exp(e)),
+    rule => Some(ZExp.place_after_rule(rule)),
+    p => Some(ZPat.place_after(p)),
+    uty => Some(ZTyp.place_after(uty)),
+    e,
+  );
+let follow_rule_and_place_after =
+    (steps: steps, rule: UHExp.rule): option(ZExp.zrule) =>
+  follow_rule_and_place_cursor(
+    steps,
+    line => Some(ZExp.place_after_line(line)),
+    e => Some(ZExp.place_after_exp(e)),
+    rule => Some(ZExp.place_after_rule(rule)),
+    p => Some(ZPat.place_after(p)),
+    uty => Some(ZTyp.place_after(uty)),
+    rule,
+  );
+
+let follow_block =
+    ((steps, cursor): t, block: UHExp.block): option(ZExp.zblock) =>
+  follow_block_and_place_cursor(
+    steps,
+    ZExp.place_cursor_line(cursor),
+    ZExp.place_cursor_exp(cursor),
+    ZExp.place_cursor_rule(cursor),
+    ZPat.place_cursor(cursor),
+    ZTyp.place_cursor(cursor),
+    block,
+  );
+let follow_line = ((steps, cursor): t, line: UHExp.line): option(ZExp.zline) =>
+  follow_line_and_place_cursor(
+    steps,
+    ZExp.place_cursor_line(cursor),
+    ZExp.place_cursor_exp(cursor),
+    ZExp.place_cursor_rule(cursor),
+    ZPat.place_cursor(cursor),
+    ZTyp.place_cursor(cursor),
+    line,
+  );
+let follow_exp = ((steps, cursor): t, e: UHExp.t): option(ZExp.t) =>
+  follow_exp_and_place_cursor(
+    steps,
+    ZExp.place_cursor_line(cursor),
+    ZExp.place_cursor_exp(cursor),
+    ZExp.place_cursor_rule(cursor),
+    ZPat.place_cursor(cursor),
+    ZTyp.place_cursor(cursor),
+    e,
+  );
+let follow_rule = ((steps, cursor): t, rule: UHExp.rule): option(ZExp.zrule) =>
+  follow_rule_and_place_cursor(
+    steps,
+    ZExp.place_cursor_line(cursor),
+    ZExp.place_cursor_exp(cursor),
+    ZExp.place_cursor_rule(cursor),
+    ZPat.place_cursor(cursor),
+    ZTyp.place_cursor(cursor),
+    rule,
+  );
 
 exception UHBlockNodeNotFound(t, UHExp.block);
 let follow_block_or_fail = (path: t, block: UHExp.block): ZExp.zblock =>

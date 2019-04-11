@@ -231,6 +231,18 @@ let rec place_after = (p: UHPat.t): t =>
     OpSeqZ(skel, zp0, surround);
   };
 
+let place_cursor = (cursor: cursor_pos, p: UHPat.t): option(t) =>
+  switch (cursor, p) {
+  | (O(outer_cursor), PO(po)) =>
+    is_valid_outer_cursor(outer_cursor, po)
+      ? Some(CursorPO(outer_cursor, po)) : None
+  | (I(inner_cursor), PI(pi)) =>
+    is_valid_inner_cursor(inner_cursor, pi)
+      ? Some(CursorPI(inner_cursor, pi)) : None
+  | (O(_), PI(_))
+  | (I(_), PO(_)) => None
+  };
+
 /* helper function for constructing a new empty hole */
 let new_EmptyHole = (u_gen: MetaVarGen.t): (t, MetaVarGen.t) => {
   let (hole, u_gen) = UHPat.new_EmptyHole(u_gen);
