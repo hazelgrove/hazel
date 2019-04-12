@@ -210,7 +210,7 @@ let rec perform_ty = (a: t, zty: ZTyp.t): option(ZTyp.t) =>
     | Some((uty0, surround)) =>
       Some(OpSeqZ(skel, ZTyp.place_after(uty0), surround))
     }
-  | (Delete, CursorTI(BeforeChild(k, After), OpSeq(_, seq))) =>
+  | (Delete, CursorTI(BeforeChild(k, After), OpSeq(skel, seq))) =>
     switch (OperatorSeq.split(k, seq)) {
     | None => None
     | Some((uty0, surround)) =>
@@ -262,19 +262,19 @@ let rec perform_ty = (a: t, zty: ZTyp.t): option(ZTyp.t) =>
         switch (surround) {
         | EmptyPrefix(suffix) =>
           /* |zty0 suffix -> |_ op uty0 suffix */
-          let suffix' = OperatorSeq.suffix_prepend_exp(suffix, op, uty0);
+          let suffix' = OperatorSeq.suffix_prepend_exp(suffix, op, uty);
           let surround' = OperatorSeq.EmptyPrefix(suffix');
           let zty0' = ZTyp.CursorT(Before, Hole);
           Some(make_ty_OpSeqZ(zty0', surround'));
         | EmptySuffix(prefix) =>
           /* prefix |zty0 -> prefix |_ op uty0 */
-          let suffix' = OperatorSeq.ExpSuffix(op, uty0);
+          let suffix' = OperatorSeq.ExpSuffix(op, uty);
           let surround' = OperatorSeq.BothNonEmpty(prefix, suffix');
           let zty0' = ZTyp.CursorT(Before, Hole);
           Some(make_ty_OpSeqZ(zty0', surround'));
         | BothNonEmpty(prefix, suffix) =>
           /* prefix |zty0 suffix -> prefix |_ op uty0 suffix */
-          let suffix' = OperatorSeq.suffix_prepend_exp(suffix, op, uty0);
+          let suffix' = OperatorSeq.suffix_prepend_exp(suffix, op, uty);
           let surround' = OperatorSeq.BothNonEmpty(prefix, suffix');
           let zty0' = ZTyp.CursorT(Before, Hole);
           Some(make_ty_OpSeqZ(zty0', surround'));
