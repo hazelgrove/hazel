@@ -94,6 +94,16 @@ and of_zrule = (zrule: ZExp.zrule): t =>
   | RuleZE(_, zblock) => cons'(1, of_zblock(zblock))
   };
 
+let of_OpSeqZ = (ze: ZExp.t, surround: ZExp.opseq_surround): t => {
+  let n = OperatorSeq.surround_prefix_length(surround);
+  cons'(n, of_zexp(ze));
+};
+
+let of_OpSeqZ_pat = (zp: ZPat.t, surround: ZPat.opseq_surround): t => {
+  let n = OperatorSeq.surround_prefix_length(surround);
+  cons'(n, of_zpat(zp));
+};
+
 let rec follow_ty_and_place_cursor =
         (steps: steps, place_cursor: UHTyp.t => option(ZTyp.t), uty: UHTyp.t)
         : option(ZTyp.t) =>
