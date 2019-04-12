@@ -18,7 +18,11 @@ exception SkelInconsistentWithOpSeq;
 let children_following_delimiters = (pi: UHPat.t_inner): list(int) =>
   switch (pi) {
   | Parenthesized(_) => [0]
-  | OpSeq(_, seq) => range(~lo=1, OperatorSeq.seq_length(seq))
+  | OpSeq(_, seq) =>
+    OperatorSeq.ops(seq)
+    |> List.mapi((i, op) => (i, op))
+    |> List.filter(((_, op)) => op != UHPat.Space)
+    |> List.map(((i, _)) => i)
   | Inj(_, _, _) => [0]
   };
 
@@ -247,4 +251,25 @@ let place_cursor = (cursor: cursor_pos, p: UHPat.t): option(t) =>
 let new_EmptyHole = (u_gen: MetaVarGen.t): (t, MetaVarGen.t) => {
   let (hole, u_gen) = UHPat.new_EmptyHole(u_gen);
   (place_before(hole), u_gen);
+};
+
+let mk_OpSeqZ = (zp: t, surround: opseq_surround): t => {
+  let p = erase(zp);
+  let seq = OperatorSeq.opseq_of_exp_and_surround(p, surround);
+  let skel = Associator.associate_pat(seq);
+  OpSeqZ(skel, zp, surround);
+};
+
+let opseqz_preceded_by_Space = (zp: t, surround: opseq_surround): bool => {
+  let p = erase(zp);
+  let seq = OperatorSeq.opseq_of_exp_and_surround(p, surround);
+  let n = OperatorSeq.surround_prefix_length(surround);
+  OperatorSeq.op_before_nth_tm(n, seq) == Some(Space);
+};
+
+let opseqz_followed_by_Space = (zp: t, surround: opseq_surround): bool => {
+  let p = erase(zp);
+  let seq = OperatorSeq.opseq_of_exp_and_surround(p, surround);
+  let n = OperatorSeq.surround_prefix_length(surround);
+  OperatorSeq.op_before_nth_tm(n + 1, seq) == Some(Space);
 };

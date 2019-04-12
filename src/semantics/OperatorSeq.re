@@ -37,10 +37,29 @@ let rec nth_tm = (n, seq) =>
     };
   };
 
+let rec op_before_nth_tm = (n: int, seq: opseq(_, 'op)): option('op) =>
+  switch (n, seq) {
+  | (0, _) => None
+  | (1, ExpOpExp(_, op, _)) => Some(op)
+  | (_, ExpOpExp(_, _, _)) => None
+  | (_, SeqOpExp(seq, op, _)) =>
+    if (n === seq_length(seq)) {
+      Some(op);
+    } else {
+      op_before_nth_tm(n, seq);
+    }
+  };
+
 let rec tms = (seq: opseq('tm, _)): list('tm) =>
   switch (seq) {
   | ExpOpExp(tm1, _, tm2) => [tm1, tm2]
   | SeqOpExp(seq, _, tm) => tms(seq) @ [tm]
+  };
+
+let rec ops = (seq: opseq(_, 'op)): list('op) =>
+  switch (seq) {
+  | ExpOpExp(_, op, _) => [op]
+  | SeqOpExp(seq, op, _) => ops(seq) @ [op]
   };
 
 /* update the nth expression in seq, if it exists */

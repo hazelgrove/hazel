@@ -1044,6 +1044,11 @@ let combine_for_Delete_Space_pat = (zp0: ZPat.t, p: UHPat.t): ZPat.t =>
   | _ => zp0
   };
 
+let mk_OpSeq_pat = (seq: UHPat.opseq): UHPat.t => {
+  let skel = Associator.associate_pat(seq);
+  PI(OpSeq(skel, seq));
+};
+
 let rec syn_perform_pat =
         (ctx: Contexts.t, u_gen: MetaVarGen.t, a: t, zp: ZPat.t)
         : option((ZPat.t, HTyp.t, Contexts.t, MetaVarGen.t)) =>
@@ -1073,6 +1078,197 @@ let rec syn_perform_pat =
     | Some(path) => syn_perform_pat(ctx, u_gen, MoveTo(path), zp)
     }
   /* Backspace and Delete */
+  | (Backspace, OpSeqZ(_, CursorPO(_, EmptyHole(_)) as zp0, surround))
+      when ZPat.opseqz_preceded_by_Space(zp0, surround) =>
+    switch (surround) {
+    /* should never happen given guard */
+    | EmptyPrefix(_) => None
+    /* ... + [k-1]   _<|   ==>   ... + [k-1]| */
+    | EmptySuffix(prefix) =>
+      let p =
+        switch (prefix) {
+        | ExpPrefix(p1, _space) => p1
+        | SeqPrefix(seq, _space) => UHPat.PI(mk_OpSeq_pat(seq))
+        };
+      switch (Statics.syn_pat(ctx, p)) {
+      | None => None
+      | Some((ty, ctx)) => Some((ZPat.place_after(p), ty, ctx, u_gen))
+      };
+    /* ... + [k-1]   _<| + [k+1] + ...   ==>   ... + [k-1]| + [k+1] + ... */
+    | BothNonEmpty(prefix, suffix) =>
+      switch (prefix) {
+      | ExpPrefix(p1, _space) =>
+        let zp1 = ZPat.place_after(p1);
+        let zp = ZPat.mk_OpSeqZ(zp1, EmptyPrefix(suffix));
+        switch (Statics.syn_pat(ctx, ZPat.erase(zp))) {
+        | None => None
+        | Some((ty, ctx)) => Some((zp, ty, ctx, u_gen))
+        };
+      | SeqPrefix(seq, _space) =>
+        let (prefix, p0) =
+          switch (seq) {
+          | ExpOpExp(p1, op, p2) => (ExpPrefix(p1, op), p2)
+          | SeqOpExp(seq, op, p1) => (SeqPrefix(seq, op), p1)
+          };
+        let zp0 = ZPat.place_after(p0);
+        let zp = ZPat.mk_OpSeqZ(zp0, BothNonEmpty(prefix, suffix));
+        switch (Statics.syn_pat(ctx, ZPat.erase(zp))) {
+        | None => None
+        | Some((ty, ctx)) => Some((zp, ty, ctx, u_gen))
+        };
+      }
+    }
+  | (Delete, OpSeqZ(_, CursorPO(_, EmptyHole(_)) as zp0, surround))
+      when ZPat.opseqz_followed_by_Space(zp0, surround) =>
+    switch (surround) {
+    /* should never happen given guard */
+    | EmptySuffix(_) => None
+    /* |>_   [1] + ...   ==>   |[1] + ... */
+    | EmptyPrefix(suffix) =>
+      let p =
+        switch (suffix) {
+        | ExpSuffix(_space, p1) => p1
+        | SeqSuffix(_space, seq) => UHPat.PI(mk_OpSeq_pat(seq))
+        };
+      switch (Statics.syn_pat(ctx, p)) {
+      | None => None
+      | Some((ty, ctx)) => Some((ZPat.place_before(p), ty, ctx, u_gen))
+      };
+    /* ... + [k-1] + |>_   [k+1] + ...   ==>   ... + [k-1] + |[k+1] + ... */
+    | BothNonEmpty(prefix, suffix) =>
+      switch (suffix) {
+      | ExpSuffix(_space, p1) =>
+        let zp1 = ZPat.place_before(p1);
+        let zp = ZPat.mk_OpSeqZ(zp1, EmptySuffix(prefix));
+        switch (Statics.syn_pat(ctx, ZPat.erase(zp))) {
+        | None => None
+        | Some((ty, ctx)) => Some((zp, ty, ctx, u_gen))
+        };
+      | SeqSuffix(_space, seq) =>
+        let (p0, suffix) =
+          switch (seq) {
+          | ExpOpExp(p1, op, p2) => (p1, ExpSuffix(op, p2))
+          | SeqOpEx(seq, op, p1) => (p1, SeqPrefix(op, seq))
+          };
+        let zp0 = ZPat.place_before(p0);
+        let zp = ZPat.mk_OpSeqZ(zp0, BothNonEmpty(prefix, suffix));
+        switch (Statics.syn_pat(ctx, ZPat.erase(zp))) {
+        | None => None
+        | Some((ty, ctx)) => Some((zp, ty, ctx, u_gen))
+        };
+      }
+    }
+  | (Backspace, OpSeqZ(_, CursorPO(_, EmptyHole(_)) as zp0, surround))
+      when ZPat.opseqz_followed_by_Space(zp0, surround) =>
+    switch (surround) {
+    /* should never happen given guard */
+    | EmptySuffix(_) => None
+    /* _<|   [1] + ...   ==>   |[1] + ... */
+    | EmptyPrefix(suffix) =>
+      let p =
+        switch (suffix) {
+        | ExpSuffix(_space, p1) => p1
+        | SeqSuffix(_space, seq) => UHPat.PI(mk_OpSeq_pat(seq))
+        };
+      switch (Statics.syn_pat(ctx, p)) {
+      | None => None
+      | Some((ty, ctx)) => Some((ZPat.place_before(p), ty, ctx, u_gen))
+      };
+    /* ... + [k-1] + _<|   [k+1] + ...   ==>   ... + [k-1] +| [k+1] + ... */
+    | BothNonEmpty(prefix, suffix) =>
+      let seq =
+        switch (suffix) {
+        | ExpSuffix(_space, p1) =>
+          OperatorSeq.opseq_of_prefix_and_exp(prefix, p1)
+        | SeqSuffix(_space, seq) =>
+          OperatorSeq.opseq_of_prefix_and_seq(prefix, seq)
+        };
+      let pi = mk_OpSeq_pat(seq);
+      switch (Statics.syn_pat_inner(ctx, pi)) {
+      | None => None
+      | Some((ty, ctx)) =>
+        let k = OperatorSeq.prefix_length(prefix);
+        Some((CursorPI(BeforeChild(k, After), pi), ty, ctx, u_gen));
+      };
+    }
+  | (Delete, OpSeqZ(_, CursorPO(_, EmptyHole(_)) as zp0, surround))
+      when ZPat.opseqz_preceded_by_Space(zp0, surround) =>
+    switch (surround) {
+    /* should never happen given guard */
+    | EmptyPrefix(_) => None
+    /* ... + [k-1]   |>_   ==>   ... + [k-1]| */
+    | EmptySuffix(prefix) =>
+      let p =
+        switch (prefix) {
+        | ExpPrefix(p1, _space) => p1
+        | SeqSuffix(seq, _space) => UHPat.PI(mk_OpSeq_pat(seq))
+        };
+      switch (Statics.syn_pat(ctx, p)) {
+      | None => None
+      | Some((ty, ctx)) => Some((ZPat.place_after(p), ty, ctx, u_gen))
+      };
+    /* ... + [k-1]   |>_ + [k+1] + ...   ==>   ... + [k-1] |+ [k+1] + ... */
+    | BothNonEmpty(prefix, suffix) =>
+      let seq =
+        switch (prefix) {
+        | ExpPrefix(p1, _space) =>
+          OperatorSeq.opseq_of_exp_and_suffix(p1, suffix)
+        | SeqPrefix(seq, _space) =>
+          OperatorSeq.opseq_of_seq_and_suffix(seq, suffix)
+        };
+      let pi = mk_OpSeq_pat(seq);
+      switch (Statics.syn_pat_inner(ctx, pi)) {
+      | None => None
+      | Some((ty, ctx)) =>
+        let k = OperatorSeq.prefix_length(prefix);
+        Some((CursorPI(BeforeChild(k + 1, Before), pi), ty, ctx, u_gen));
+      };
+    }
+  | (
+      Backspace,
+      CursorPI(BeforeChild(k, After) as inner_cursor, OpSeq(_, seq) as pi),
+    )
+      when
+        ZPat.is_valid_inner_cursor(inner_cursor, pi)
+        && OperatorSeq.op_before_nth_tm(k, seq) == Some(Space) =>
+    switch (OperatorSeq.split(k - 1, seq)) {
+    | None => None /* should never happen */
+    | Some((p0, surround)) =>
+      switch (p0, surround) {
+      /* should never happen since we have kth tm */
+      | (_, EmptySuffix(_)) => None
+      /* _  <| [k] + [k+1] + ...   ==>   |[k] + [k+1] + ... */
+      | (EmptyHole(_), EmptyPrefix(suffix)) =>
+        let p =
+          switch (suffix) {
+          | ExpSuffix(_space, p1) => p1
+          | SeqSuffix(_space, seq) => UHPat.PI(mk_OpSeq_pat(seq))
+          };
+        switch (Statics.syn_pat(ctx, p)) {
+        | None => None
+        | Some((ty, ctx)) => Some((ZPat.place_before(p), ty, ctx, u_gen))
+        };
+      /* ... + [k-2] + _  <| [k] + [k+1] + ...   ==>   ... + [k-2] +| [k] + [k+1] + ... */
+      | (EmptyHole(_), BothNonEmpty(prefix, suffix)) =>
+        let seq =
+          switch (suffix) {
+          | ExpSuffix(_space, p1) =>
+            OperatorSeq.opseq_of_prefix_and_exp(prefix, p1)
+          | SeqSuffix(_space, seq) =>
+            OperatorSeq.opseq_of_prefix_and_seq(prefix, seq)
+          };
+        let pi = mk_OpSeq_pat(seq);
+        switch (Statics.syn_pat_inner(ctx, pi)) {
+        | None => None
+        | Some((ty, ctx)) =>
+          Some((CursorPI(BeforeChild(k - 1, After), pi), ty, ctx, u_gen))
+        };
+      /* ... + [k-1]  <| [k] + [k+1] + ...   ==>   ... + [k-1]|   [k] + [k+1] + ... */
+      | (p0, surround) =>
+        let zp0 = ZPat.place_after(p0);
+        Some((mk_OpSeqZ(zp0, surround), ty, ctx, u_gen));
+      }
+    }
   | (Backspace, CursorP(_, p)) =>
     switch (p) {
     | EmptyHole(_) => Some((CursorP(Before, p), Hole, ctx, u_gen))
