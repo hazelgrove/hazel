@@ -132,28 +132,48 @@ let rec perform_ty = (a: t, zty: ZTyp.t): option(ZTyp.t) =>
     }
   /* Backspace and Delete */
   /* need to handle each inner node shape because we don't have Space in types */
-  | (Backspace, CursorTI(BeforeChild(0, After), Parenthesized(uty1)))
-  | (Backspace, CursorTI(BeforeChild(0, After), List(uty1)))
-  | (Delete, CursorTI(BeforeChild(0, Before), Parenthesized(uty1)))
-  | (Delete, CursorTI(BeforeChild(0, Before), List(uty1))) =>
+  /* (<| _ )  ==>  |_ */
+  | (
+      Backspace,
+      CursorTI(BeforeChild(0, After), Parenthesized(uty1) | List(uty1)),
+    )
+  /* |>( _ )  ==>  |_ */
+  | (
+      Delete,
+      CursorTI(BeforeChild(0, Before), Parenthesized(uty1) | List(uty1)),
+    ) =>
     Some(ZTyp.place_before(uty1))
-  | (Backspace, CursorTI(ClosingDelimiter(After), Parenthesized(uty1)))
-  | (Backspace, CursorTI(ClosingDelimiter(After), List(uty1)))
-  | (Delete, CursorTI(ClosingDelimiter(Before), Parenthesized(uty1)))
-  | (Delete, CursorTI(ClosingDelimiter(Before), List(uty1))) =>
+  /* ( _ )<|  ==>  _| */
+  | (
+      Backspace,
+      CursorTI(ClosingDelimiter(After), Parenthesized(uty1) | List(uty1)),
+    )
+  /* ( _ |>)  ==>  _| */
+  | (
+      Delete,
+      CursorTI(ClosingDelimiter(Before), Parenthesized(uty1) | List(uty1)),
+    ) =>
     Some(ZTyp.place_after(uty1))
-  | (Backspace, CursorTI(BeforeChild(0, Before), Parenthesized(_)))
-  | (Backspace, CursorTI(BeforeChild(0, Before), List(_))) => None
-  | (Delete, CursorTI(ClosingDelimiter(After), Parenthesized(_)))
-  | (Delete, CursorTI(ClosingDelimiter(After), List(_))) => None
+  /* <|( _ )  ==>  |( _ ) */
+  | (
+      Backspace,
+      CursorTI(BeforeChild(0, Before), Parenthesized(_) | List(_)),
+    ) =>
+    None
+  /* ( _ )|>  ==>  ( _ )| */
+  | (Delete, CursorTI(ClosingDelimiter(After), Parenthesized(_) | List(_))) =>
+    None
+  /* ( _ <|)   ==>   ( _| ) */
   | (Backspace, CursorTI(ClosingDelimiter(Before), Parenthesized(uty1))) =>
     Some(ParenthesizedZ(ZTyp.place_after(uty1)))
   | (Backspace, CursorTI(ClosingDelimiter(Before), List(uty1))) =>
     Some(ListZ(ZTyp.place_after(uty1)))
+  /* (|> _ ) */
   | (Delete, CursorTI(BeforeChild(0, After), Parenthesized(uty1))) =>
     Some(ParenthesizedZ(ZTyp.place_before(uty1)))
   | (Delete, CursorTI(BeforeChild(0, After), List(uty1))) =>
     Some(ListZ(ZTyp.place_before(uty1)))
+  /* ... + [k-2] + [k-1] +<| [k] + ...   ==>   ... + [k-2] +| [k] + ... */
   | (Backspace, CursorTI(BeforeChild(k, After), OpSeq(_, seq))) =>
     switch (OperatorSeq.split(k - 1, seq)) {
     | None => None
@@ -179,6 +199,7 @@ let rec perform_ty = (a: t, zty: ZTyp.t): option(ZTyp.t) =>
         Some(CursorTI(BeforeChild(k - 1, After), OpSeq(skel, seq)));
       }
     }
+  /* ... + [k-1] |>+ [k] + [k+1] + ...   ==>   ... + [k-1] |+ [k+1] + ... */
   | (Delete, CursorTI(BeforeChild(k, Before), OpSeq(_, seq))) =>
     switch (OperatorSeq.split(k, seq)) {
     | None => None /* should never happen */
@@ -204,36 +225,34 @@ let rec perform_ty = (a: t, zty: ZTyp.t): option(ZTyp.t) =>
         Some(CursorTI(BeforeChild(k, Before), OpSeq(skel, seq)));
       }
     }
+  /* ... + [k-2] + [k-1] <|+ [k] + ...   ==>   ... + [k-2] + [k-1]| + [k] + ... */
   | (Backspace, CursorTI(BeforeChild(k, Before), OpSeq(skel, seq))) =>
     switch (OperatorSeq.split(k - 1, seq)) {
     | None => None
     | Some((uty0, surround)) =>
       Some(OpSeqZ(skel, ZTyp.place_after(uty0), surround))
     }
+  /* ... + [k-1] +| [k] + [k+1] + ...   ==>   ... + [k-1] + |[k] + [k+1] + ... */
   | (Delete, CursorTI(BeforeChild(k, After), OpSeq(skel, seq))) =>
     switch (OperatorSeq.split(k, seq)) {
     | None => None
     | Some((uty0, surround)) =>
       Some(OpSeqZ(skel, ZTyp.place_after(uty0), surround))
     }
-  | (Backspace, CursorTI(ClosingDelimiter(_), OpSeq(_, _)))
-  | (Delete, CursorTI(ClosingDelimiter(_), OpSeq(_, _))) => None
+  /* invalid cursor position */
+  | (Backspace | Delete, CursorTI(ClosingDelimiter(_), OpSeq(_, _))) => None
   /* Construction */
-  | (Construct(SParenthesized), CursorTO(_, _))
-  | (Construct(SParenthesized), CursorTI(_, _)) =>
+  | (Construct(SParenthesized), CursorTO(_, _) | CursorTI(_, _)) =>
     Some(ParenthesizedZ(zty))
   | (Construct(SNum), CursorTO(_, Hole)) =>
     Some(ZTyp.place_after(TO(Num)))
-  | (Construct(SNum), CursorTO(_, _))
-  | (Construct(SNum), CursorTI(_, _)) => None
+  | (Construct(SNum), CursorTO(_, _) | CursorTI(_, _)) => None
   | (Construct(SBool), CursorTO(_, Hole)) =>
     Some(ZTyp.place_after(TO(Bool)))
-  | (Construct(SBool), CursorTO(_, _))
-  | (Construct(SBool), CursorTI(_, _)) => None
-  | (Construct(SList), CursorTO(_, _))
-  | (Construct(SList), CursorTI(_, _)) => Some(ListZ(zty))
-  | (Construct(SOp(os)), CursorTO(_, _))
-  | (Construct(SOp(os)), CursorTI(_, _)) =>
+  | (Construct(SBool), CursorTO(_, _) | CursorTI(_, _)) => None
+  | (Construct(SList), CursorTO(_, _) | CursorTI(_, _)) =>
+    Some(ListZ(zty))
+  | (Construct(SOp(os)), CursorTO(_, _) | CursorTI(_, _)) =>
     let uty = ZTyp.erase(zty);
     if (ZTyp.is_before(zty)) {
       switch (ty_op_of(os)) {
@@ -252,8 +271,10 @@ let rec perform_ty = (a: t, zty: ZTyp.t): option(ZTyp.t) =>
         Some(make_ty_OpSeqZ(zty0, surround));
       };
     };
-  | (Construct(SOp(os)), OpSeqZ(_, CursorTO(_, _) as zty, surround))
-  | (Construct(SOp(os)), OpSeqZ(_, CursorTI(_, _) as zty, surround)) =>
+  | (
+      Construct(SOp(os)),
+      OpSeqZ(_, (CursorTO(_, _) | CursorTI(_, _)) as zty, surround),
+    ) =>
     let uty = ZTyp.erase(zty);
     if (ZTyp.is_before(zty)) {
       switch (ty_op_of(os)) {
