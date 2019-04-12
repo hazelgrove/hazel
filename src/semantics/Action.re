@@ -131,7 +131,6 @@ let rec perform_ty = (a: t, zty: ZTyp.t): option(ZTyp.t) =>
       perform_ty(MoveTo(path), zty)
     }
   /* Backspace and Delete */
-  | (Delete, CursorTO(_, _)) when ZTyp.is_after(zty) => None
   | (
       Backspace,
       CursorTO(Char(_) as outer_cursor, (Hole | Unit | Num | Bool) as utyo),
