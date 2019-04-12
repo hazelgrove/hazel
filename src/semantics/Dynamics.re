@@ -140,7 +140,7 @@ module DHPat = {
       : expand_result =>
     switch (skel) {
     | Placeholder(n) =>
-      switch (OperatorSeq.seq_nth(n, seq)) {
+      switch (OperatorSeq.nth_tm(n, seq)) {
       | None => DoesNotExpand
       | Some(pn) => syn_expand(ctx, delta, pn)
       }
@@ -288,7 +288,7 @@ module DHPat = {
       : expand_result =>
     switch (skel) {
     | Placeholder(n) =>
-      switch (OperatorSeq.seq_nth(n, seq)) {
+      switch (OperatorSeq.nth_tm(n, seq)) {
       | None => DoesNotExpand
       | Some(pn) => ana_expand(ctx, delta, pn, ty)
       }
@@ -1132,7 +1132,7 @@ module DHExp = {
       : expand_result =>
     switch (skel) {
     | Placeholder(n) =>
-      switch (OperatorSeq.seq_nth(n, seq)) {
+      switch (OperatorSeq.nth_tm(n, seq)) {
       | None => DoesNotExpand
       | Some(en) => syn_expand_exp(ctx, delta, en)
       }
@@ -1455,7 +1455,7 @@ module DHExp = {
       : expand_result =>
     switch (skel) {
     | Placeholder(n) =>
-      switch (OperatorSeq.seq_nth(n, seq)) {
+      switch (OperatorSeq.nth_tm(n, seq)) {
       | None => DoesNotExpand
       | Some(en) => ana_expand_exp(ctx, delta, en, ty)
       }

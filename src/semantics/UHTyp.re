@@ -55,7 +55,7 @@ let rec well_formed = (uty: t): bool =>
 and well_formed_skel = (skel: skel_t, seq: opseq): bool =>
   switch (skel) {
   | Placeholder(n) =>
-    switch (OperatorSeq.seq_nth(n, seq)) {
+    switch (OperatorSeq.nth_tm(n, seq)) {
     | Some(uty_n) => bidelimited(uty_n) && well_formed(uty_n)
     | None => false
     }
@@ -107,7 +107,7 @@ let rec expand = (uty: t): HTyp.t =>
 and expand_skel = (skel: skel_t, seq: opseq): HTyp.t =>
   switch (skel) {
   | Placeholder(n) =>
-    switch (OperatorSeq.seq_nth(n, seq)) {
+    switch (OperatorSeq.nth_tm(n, seq)) {
     | Some(uty_n) => expand(uty_n)
     | None => Hole /* should never happen */
     }

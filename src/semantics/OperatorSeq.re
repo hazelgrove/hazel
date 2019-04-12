@@ -23,7 +23,7 @@ let rec seq_length =
   | SeqOpExp(seq', _, _) => 1 + seq_length(seq');
 
 /* nth expression in seq, if it exists */
-let rec seq_nth = (n, seq) =>
+let rec nth_tm = (n, seq) =>
   switch (n, seq) {
   | (0, ExpOpExp(e1, _, _)) => Some(e1)
   | (1, ExpOpExp(_, _, e2)) => Some(e2)
@@ -33,7 +33,7 @@ let rec seq_nth = (n, seq) =>
     if (n === len) {
       Some(e);
     } else {
-      seq_nth(n, seq');
+      nth_tm(n, seq');
     };
   };
 
@@ -190,7 +190,7 @@ let prefix_nth = (n: int, prefix: opseq_prefix('tm, 'op)): option('tm) =>
   switch (n, prefix) {
   | (0, ExpPrefix(tm, _)) => Some(tm)
   | (_, ExpPrefix(_, _)) => None
-  | (_, SeqPrefix(seq, _)) => seq_nth(n, seq)
+  | (_, SeqPrefix(seq, _)) => nth_tm(n, seq)
   };
 
 let prefix_update_nth =
@@ -210,7 +210,7 @@ let suffix_nth = (n: int, suffix: opseq_suffix('tm, 'op)): option('tm) =>
   switch (n, suffix) {
   | (0, ExpSuffix(_, tm)) => Some(tm)
   | (_, ExpSuffix(_, _)) => None
-  | (_, SeqSuffix(_, seq)) => seq_nth(n, seq)
+  | (_, SeqSuffix(_, seq)) => nth_tm(n, seq)
   };
 
 let suffix_update_nth =

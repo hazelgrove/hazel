@@ -253,7 +253,7 @@ let rec of_uhtyp = (prefix, rev_path, uty) =>
 and of_uhtyp_skel = (prefix, rev_path, skel, seq) =>
   switch (skel) {
   | Skel.Placeholder(n) =>
-    switch (OperatorSeq.seq_nth(n, seq)) {
+    switch (OperatorSeq.nth_tm(n, seq)) {
     | Some(utyn) =>
       let rev_path_n = [n, ...rev_path];
       of_uhtyp(prefix, rev_path_n, utyn);
@@ -566,7 +566,7 @@ let rec prepare_Parenthesized_pat = (p: UHPat.t): (err_status, UHPat.t) =>
       UHPat.set_err_status_t(NotInHole, p),
     )
   | OpSeq(Placeholder(n) as skel, seq) =>
-    switch (OperatorSeq.seq_nth(n, seq)) {
+    switch (OperatorSeq.nth_tm(n, seq)) {
     | None => raise(UHPat.SkelInconsistentWithOpSeq(skel, seq))
     | Some(pn) =>
       let (err_status, pn_nih) = prepare_Parenthesized_pat(pn);
@@ -614,7 +614,7 @@ let rec of_hpat = (prefix, rev_path, p) =>
 and of_skel_pat = (prefix, rev_path, skel, seq) =>
   switch (skel) {
   | Skel.Placeholder(n) =>
-    switch (OperatorSeq.seq_nth(n, seq)) {
+    switch (OperatorSeq.nth_tm(n, seq)) {
     | None => raise(InvariantViolated)
     | Some(pn) =>
       let rev_path_n = [n, ...rev_path];
@@ -814,7 +814,7 @@ and of_hexp = (palette_stuff, prefix, rev_path, e: UHExp.t) =>
 and of_skel = (palette_stuff, prefix, rev_path, skel, seq) =>
   switch (skel) {
   | Skel.Placeholder(n) =>
-    switch (OperatorSeq.seq_nth(n, seq)) {
+    switch (OperatorSeq.nth_tm(n, seq)) {
     | Some(en) =>
       let rev_path_n = [n, ...rev_path];
       of_hexp(palette_stuff, prefix, rev_path_n, en);

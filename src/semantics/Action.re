@@ -197,9 +197,16 @@ let rec perform_ty = (a: t, zty: ZTyp.t): option(ZTyp.t) =>
     ) =>
     None
   /* ... + [k-2] + [k-1] +<| [k] + ...   ==>   ... + [k-2] +| [k] + ... */
-  | (Backspace, CursorTI(BeforeChild(k, After), OpSeq(_, seq))) =>
+  | (
+      Backspace,
+      CursorTI(
+        BeforeChild(k, After) as inner_cursor,
+        OpSeq(_, seq) as utyi,
+      ),
+    )
+      when ZTyp.is_valid_inner_cursor(inner_cursor, utyi) =>
     switch (OperatorSeq.split(k - 1, seq)) {
-    | None => None
+    | None => None /* invalid cursor position */
     | Some((_, surround)) =>
       switch (surround) {
       | EmptySuffix(_) => None /* should never happen */
@@ -223,7 +230,14 @@ let rec perform_ty = (a: t, zty: ZTyp.t): option(ZTyp.t) =>
       }
     }
   /* ... + [k-1] |>+ [k] + [k+1] + ...   ==>   ... + [k-1] |+ [k+1] + ... */
-  | (Delete, CursorTI(BeforeChild(k, Before), OpSeq(_, seq))) =>
+  | (
+      Delete,
+      CursorTI(
+        BeforeChild(k, Before) as inner_cursor,
+        OpSeq(_, seq) as utyi,
+      ),
+    )
+      when ZTyp.is_valid_inner_cursor(inner_cursor, utyi) =>
     switch (OperatorSeq.split(k, seq)) {
     | None => None /* should never happen */
     | Some((_, surround)) =>
@@ -249,21 +263,39 @@ let rec perform_ty = (a: t, zty: ZTyp.t): option(ZTyp.t) =>
       }
     }
   /* ... + [k-2] + [k-1] <|+ [k] + ...   ==>   ... + [k-2] + [k-1]| + [k] + ... */
-  | (Backspace, CursorTI(BeforeChild(k, Before), OpSeq(skel, seq))) =>
+  | (
+      Backspace,
+      CursorTI(
+        BeforeChild(k, Before) as inner_cursor,
+        OpSeq(skel, seq) as utyi,
+      ),
+    )
+      when ZTyp.is_valid_inner_cursor(inner_cursor, utyi) =>
     switch (OperatorSeq.split(k - 1, seq)) {
     | None => None
     | Some((uty0, surround)) =>
       Some(OpSeqZ(skel, ZTyp.place_after(uty0), surround))
     }
-  /* ... + [k-1] +| [k] + [k+1] + ...   ==>   ... + [k-1] + |[k] + [k+1] + ... */
-  | (Delete, CursorTI(BeforeChild(k, After), OpSeq(skel, seq))) =>
+  /* ... + [k-1] +|> [k] + [k+1] + ...   ==>   ... + [k-1] + |[k] + [k+1] + ... */
+  | (
+      Delete,
+      CursorTI(
+        BeforeChild(k, After) as inner_cursor,
+        OpSeq(skel, seq) as utyi,
+      ),
+    )
+      when ZTyp.is_valid_inner_cursor(inner_cursor, utyi) =>
     switch (OperatorSeq.split(k, seq)) {
     | None => None
     | Some((uty0, surround)) =>
       Some(OpSeqZ(skel, ZTyp.place_after(uty0), surround))
     }
   /* invalid cursor position */
-  | (Backspace | Delete, CursorTI(ClosingDelimiter(_), OpSeq(_, _))) => None
+  | (
+      Backspace | Delete,
+      CursorTI(BeforeChild(_, _) | ClosingDelimiter(_), OpSeq(_, _)),
+    ) =>
+    None
   /* Construction */
   | (Construct(SParenthesized), CursorTO(_, _) | CursorTI(_, _)) =>
     Some(ParenthesizedZ(zty))

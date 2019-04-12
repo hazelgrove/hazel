@@ -174,7 +174,7 @@ and get_err_status_t_inner = (ei: t_inner): err_status =>
   | Parenthesized(block) => get_err_status_block(block)
   | OpSeq(BinOp(err, _, _, _), _) => err
   | OpSeq(Placeholder(n) as skel, seq) =>
-    switch (OperatorSeq.seq_nth(n, seq)) {
+    switch (OperatorSeq.nth_tm(n, seq)) {
     | None => raise(SkelInconsistentWithOpSeq(skel, seq))
     | Some(e_n) => get_err_status_t(e_n)
     }
@@ -212,7 +212,7 @@ and set_err_status_opseq =
     (err: err_status, skel: skel_t, seq: opseq): (skel_t, opseq) =>
   switch (skel) {
   | Placeholder(n) =>
-    switch (OperatorSeq.seq_nth(n, seq)) {
+    switch (OperatorSeq.nth_tm(n, seq)) {
     | None => raise(SkelInconsistentWithOpSeq(skel, seq))
     | Some(en) =>
       let en = set_err_status_t(err, en);
@@ -296,7 +296,7 @@ and make_opseq_inconsistent =
     : (skel_t, opseq, MetaVarGen.t) =>
   switch (skel) {
   | Placeholder(n) =>
-    switch (OperatorSeq.seq_nth(n, seq)) {
+    switch (OperatorSeq.nth_tm(n, seq)) {
     | None => raise(SkelInconsistentWithOpSeq(skel, seq))
     | Some(en) =>
       let (en, u_gen) = make_t_inconsistent(u_gen, en);

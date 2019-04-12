@@ -86,7 +86,7 @@ and syn_skel_pat =
     (ctx: Contexts.t, skel: UHPat.skel_t, seq: UHPat.opseq, monitor) =>
   switch (skel) {
   | Placeholder(n) =>
-    switch (OperatorSeq.seq_nth(n, seq)) {
+    switch (OperatorSeq.nth_tm(n, seq)) {
     | None => None
     | Some(pn) =>
       switch (UHPat.bidelimited(pn)) {
@@ -239,7 +239,7 @@ and ana_skel_pat =
     : option((Contexts.t, option(type_mode))) =>
   switch (skel) {
   | Placeholder(n) =>
-    switch (OperatorSeq.seq_nth(n, seq)) {
+    switch (OperatorSeq.nth_tm(n, seq)) {
     | None => None
     | Some(pn) =>
       switch (UHPat.bidelimited(pn)) {
@@ -575,7 +575,7 @@ and syn_skel =
     : option((HTyp.t, option(type_mode))) =>
   switch (skel) {
   | Placeholder(n) =>
-    switch (OperatorSeq.seq_nth(n, seq)) {
+    switch (OperatorSeq.nth_tm(n, seq)) {
     | None => None
     | Some(en) =>
       switch (UHExp.bidelimited(en)) {
@@ -839,7 +839,7 @@ and ana_skel =
     : option(option(type_mode)) =>
   switch (skel) {
   | Placeholder(n) =>
-    switch (OperatorSeq.seq_nth(n, seq)) {
+    switch (OperatorSeq.nth_tm(n, seq)) {
     | None => None
     | Some(en) =>
       switch (UHExp.bidelimited(en)) {
@@ -1089,7 +1089,7 @@ and syn_fix_holes_pat_skel =
     : (UHPat.skel_t, UHPat.opseq, HTyp.t, Contexts.t, MetaVarGen.t) =>
   switch (skel) {
   | Placeholder(n) =>
-    switch (OperatorSeq.seq_nth(n, seq)) {
+    switch (OperatorSeq.nth_tm(n, seq)) {
     | None => raise(UHPat.SkelInconsistentWithOpSeq(skel, seq))
     | Some(pn) =>
       let (pn, ty, ctx, u_gen) =
@@ -1264,7 +1264,7 @@ and ana_fix_holes_pat_skel =
     : (UHPat.skel_t, UHPat.opseq, Contexts.t, MetaVarGen.t) =>
   switch (skel) {
   | Placeholder(n) =>
-    switch (OperatorSeq.seq_nth(n, seq)) {
+    switch (OperatorSeq.nth_tm(n, seq)) {
     | None => raise(UHPat.SkelInconsistentWithOpSeq(skel, seq))
     | Some(pn) =>
       let (pn, ctx, u_gen) =
@@ -1978,7 +1978,7 @@ and syn_fix_holes_exp_skel =
     : (UHExp.skel_t, UHExp.opseq, HTyp.t, MetaVarGen.t) =>
   switch (skel) {
   | Placeholder(n) =>
-    switch (OperatorSeq.seq_nth(n, seq)) {
+    switch (OperatorSeq.nth_tm(n, seq)) {
     | None => raise(UHExp.SkelInconsistentWithOpSeq(skel, seq))
     | Some(en) =>
       let (en, ty, u_gen) =
@@ -2094,7 +2094,7 @@ and ana_fix_holes_exp_skel =
     : (UHExp.skel_t, UHExp.opseq, MetaVarGen.t) =>
   switch (skel) {
   | Placeholder(n) =>
-    switch (OperatorSeq.seq_nth(n, seq)) {
+    switch (OperatorSeq.nth_tm(n, seq)) {
     | None => raise(UHExp.SkelInconsistentWithOpSeq(skel, seq))
     | Some(en) =>
       let (en, u_gen) =
