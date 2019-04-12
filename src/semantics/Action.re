@@ -1224,51 +1224,6 @@ let rec syn_perform_pat =
         Some((CursorPI(BeforeChild(k + 1, Before), pi), ty, ctx, u_gen));
       };
     }
-  | (
-      Backspace,
-      CursorPI(BeforeChild(k, After) as inner_cursor, OpSeq(_, seq) as pi),
-    )
-      when
-        ZPat.is_valid_inner_cursor(inner_cursor, pi)
-        && OperatorSeq.op_before_nth_tm(k, seq) == Some(Space) =>
-    switch (OperatorSeq.split(k - 1, seq)) {
-    | None => None /* should never happen */
-    | Some((p0, surround)) =>
-      switch (p0, surround) {
-      /* should never happen since we have kth tm */
-      | (_, EmptySuffix(_)) => None
-      /* _  <| [k] + [k+1] + ...   ==>   |[k] + [k+1] + ... */
-      | (EmptyHole(_), EmptyPrefix(suffix)) =>
-        let p =
-          switch (suffix) {
-          | ExpSuffix(_space, p1) => p1
-          | SeqSuffix(_space, seq) => UHPat.PI(mk_OpSeq_pat(seq))
-          };
-        switch (Statics.syn_pat(ctx, p)) {
-        | None => None
-        | Some((ty, ctx)) => Some((ZPat.place_before(p), ty, ctx, u_gen))
-        };
-      /* ... + [k-2] + _  <| [k] + [k+1] + ...   ==>   ... + [k-2] +| [k] + [k+1] + ... */
-      | (EmptyHole(_), BothNonEmpty(prefix, suffix)) =>
-        let seq =
-          switch (suffix) {
-          | ExpSuffix(_space, p1) =>
-            OperatorSeq.opseq_of_prefix_and_exp(prefix, p1)
-          | SeqSuffix(_space, seq) =>
-            OperatorSeq.opseq_of_prefix_and_seq(prefix, seq)
-          };
-        let pi = mk_OpSeq_pat(seq);
-        switch (Statics.syn_pat_inner(ctx, pi)) {
-        | None => None
-        | Some((ty, ctx)) =>
-          Some((CursorPI(BeforeChild(k - 1, After), pi), ty, ctx, u_gen))
-        };
-      /* ... + [k-1]  <| [k] + [k+1] + ...   ==>   ... + [k-1]|   [k] + [k+1] + ... */
-      | (p0, surround) =>
-        let zp0 = ZPat.place_after(p0);
-        Some((mk_OpSeqZ(zp0, surround), ty, ctx, u_gen));
-      }
-    }
   | (Backspace, CursorP(_, p)) =>
     switch (p) {
     | EmptyHole(_) => Some((CursorP(Before, p), Hole, ctx, u_gen))
