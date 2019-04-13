@@ -139,7 +139,6 @@ let rec perform_ty = (a: t, zty: ZTyp.t): option(ZTyp.t) =>
         !ZTyp.is_before(zty)
         && ZTyp.is_valid_outer_cursor(outer_cursor, utyo) =>
     Some(ZTyp.place_after(TO(Hole)))
-  | (Backspace, CursorTO(_, _)) => None
   | (
       Delete,
       CursorTO(Char(_) as outer_cursor, (Hole | Unit | Num | Bool) as utyo),
@@ -147,7 +146,7 @@ let rec perform_ty = (a: t, zty: ZTyp.t): option(ZTyp.t) =>
       when
         !ZTyp.is_after(zty) && ZTyp.is_valid_outer_cursor(outer_cursor, utyo) =>
     Some(ZTyp.place_before(TO(Hole)))
-  | (Delete, CursorTO(_, _)) => None
+  | (Backspace | Delete, CursorTO(_, _)) => None
   /* need to handle each inner node shape because we don't have Space in types */
   /* (<| _ )  ==>  |_ */
   | (
@@ -1224,6 +1223,54 @@ let rec syn_perform_pat =
         Some((CursorPI(BeforeChild(k + 1, Before), pi), ty, ctx, u_gen));
       };
     }
+  | (
+      Backspace,
+      CursorPO(
+        Char(_) as outer_cursor,
+        (
+          EmptyHole(_) | Var(_, _, _) | Wild(_) | NumLit(_, _) |
+          BoolLit(_, _) |
+          ListNil(_)
+        ) as po,
+      ),
+    )
+      when
+        !ZPat.is_before(zp) && ZPat.is_valid_outer_cursor(outer_cursor, po) =>
+    let (zp, u_gen) =
+      switch (po) {
+      | EmptyHole(_) => (ZPat.place_before(PO(po)), u_gen)
+      | _ => ZPat.new_EmptyHole(u_gen)
+      };
+    let ctx =
+      switch (po) {
+      | Var(_, _, x) => Contexts.drop(ctx, x)
+      | _ => ctx
+      };
+    Some((zp, Hole, ctx, u_gen));
+  | (
+      Delete,
+      CursorPO(
+        Char(_) as outer_cursor,
+        (
+          EmptyHole(_) | Var(_, _, _) | Wild(_) | NumLit(_, _) |
+          BoolLit(_, _) |
+          ListNil(_)
+        ) as po,
+      ),
+    )
+      when !ZPat.is_after(zp) && ZPat.is_valid_outer_cursor(outer_cursor, po) =>
+    let (zp, u_gen) =
+      switch (po) {
+      | EmptyHole(_) => (ZPat.place_before(PO(po)), u_gen)
+      | _ => ZPat.new_EmptyHole(u_gen)
+      };
+    let ctx =
+      switch (po) {
+      | Var(_, _, x) => Contexts.drop(ctx, x)
+      | _ => ctx
+      };
+    Some((zp, Hole, ctx, u_gen));
+  | (Backspace | Delete, CursorPO(_, _)) => None
   | (Backspace, CursorP(_, p)) =>
     switch (p) {
     | EmptyHole(_) => Some((CursorP(Before, p), Hole, ctx, u_gen))
