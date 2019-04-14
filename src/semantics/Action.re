@@ -1089,11 +1089,6 @@ let rec syn_perform_pat =
       | EmptyHole(_) => (ZPat.place_before(PO(po)), u_gen)
       | _ => ZPat.new_EmptyHole(u_gen)
       };
-    let ctx =
-      switch (po) {
-      | Var(_, _, x) => Contexts.drop(ctx, x)
-      | _ => ctx
-      };
     Some((zp, Hole, ctx, u_gen));
   | (
       Delete,
@@ -1111,11 +1106,6 @@ let rec syn_perform_pat =
       switch (po) {
       | EmptyHole(_) => (ZPat.place_before(PO(po)), u_gen)
       | _ => ZPat.new_EmptyHole(u_gen)
-      };
-    let ctx =
-      switch (po) {
-      | Var(_, _, x) => Contexts.drop(ctx, x)
-      | _ => ctx
       };
     Some((zp, Hole, ctx, u_gen));
   | (Backspace | Delete, CursorPO(_, _)) => None
