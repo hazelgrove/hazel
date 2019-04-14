@@ -201,6 +201,9 @@ let rec follow_pat_and_place_cursor =
     }
   };
 
+let follow_pat_and_place_before = (steps: steps, p: UHPat.t): option(ZPat.t) =>
+  follow_pat_and_place_cursor(steps, p => Some(ZPat.place_before(p)), p);
+
 let follow_pat_and_place_after = (steps: steps, p: UHPat.t): option(ZPat.t) =>
   follow_pat_and_place_cursor(steps, p => Some(ZPat.place_after(p)), p);
 

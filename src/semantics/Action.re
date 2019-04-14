@@ -147,7 +147,6 @@ let rec perform_ty = (a: t, zty: ZTyp.t): option(ZTyp.t) =>
         !ZTyp.is_after(zty) && ZTyp.is_valid_outer_cursor(outer_cursor, utyo) =>
     Some(ZTyp.place_before(TO(Hole)))
   | (Backspace | Delete, CursorTO(_, _)) => None
-  /* need to handle each inner node shape because we don't have Space in types */
   /* (<| _ )  ==>  |_ */
   | (
       Backspace,
@@ -184,7 +183,7 @@ let rec perform_ty = (a: t, zty: ZTyp.t): option(ZTyp.t) =>
     Some(ParenthesizedZ(ZTyp.place_after(uty1)))
   | (Backspace, CursorTI(ClosingDelimiter(Before), List(uty1))) =>
     Some(ListZ(ZTyp.place_after(uty1)))
-  /* (|> _ ) */
+  /* (|> _ )   ==>   ( |_ ) */
   | (Delete, CursorTI(BeforeChild(0, After), Parenthesized(uty1))) =>
     Some(ParenthesizedZ(ZTyp.place_before(uty1)))
   | (Delete, CursorTI(BeforeChild(0, After), List(uty1))) =>
@@ -1120,6 +1119,27 @@ let rec syn_perform_pat =
       };
     Some((zp, Hole, ctx, u_gen));
   | (Backspace | Delete, CursorPO(_, _)) => None
+  | (Backspace, CursorPI(BeforeChild(k, Before) as inner_cursor, pi))
+      when
+        ZPat.is_valid_inner_cursor(inner_cursor, pi) && !ZPat.is_before(zp) =>
+    switch (Statics.syn_pat(ctx, PI(pi))) {
+    | None => None
+    | Some((ty, ctx)) =>
+      switch (Path.follow_pat_and_place_after([k - 1], PI(pi))) {
+      | None => None
+      | Some(zp) => Some((zp, ty, ctx, u_gen))
+      }
+    }
+  | (Delete, CursorPI(BeforeChild(k, After) as inner_cursor, pi))
+      when ZPat.is_valid_inner_cursor(inner_cursor, pi) && !ZPat.is_after(zp) =>
+    switch (Statics.syn_pat(ctx, PI(pi))) {
+    | None => None
+    | Some((ty, ctx)) =>
+      switch (Path.follow_pat_and_place_before([k], PI(pi))) {
+      | None => None
+      | Some(zp) => Some((zp, ty, ctx, u_gen))
+      }
+    }
   | (
       Backspace,
       CursorPI(
