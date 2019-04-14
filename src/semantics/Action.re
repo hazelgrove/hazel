@@ -1192,6 +1192,7 @@ let rec syn_perform_pat =
         );
       Some(Statics.syn_fix_holes_zpat(ctx, u_gen, zp));
     }
+  /* TODO fix holes */
   | (Backspace, OpSeqZ(_, CursorPO(_, EmptyHole(_)) as zp0, surround))
       when ZPat.opseqz_preceded_by_Space(zp0, surround) =>
     switch (surround) {
@@ -1232,6 +1233,7 @@ let rec syn_perform_pat =
         };
       }
     }
+  /* TODO fix holes */
   | (Delete, OpSeqZ(_, CursorPO(_, EmptyHole(_)) as zp0, surround))
       when ZPat.opseqz_followed_by_Space(zp0, surround) =>
     switch (surround) {
@@ -1272,6 +1274,7 @@ let rec syn_perform_pat =
         };
       }
     }
+  /* TODO fix holes */
   | (Backspace, OpSeqZ(_, CursorPO(_, EmptyHole(_)) as zp0, surround))
       when ZPat.opseqz_followed_by_Space(zp0, surround) =>
     switch (surround) {
@@ -1305,6 +1308,7 @@ let rec syn_perform_pat =
         Some((CursorPI(BeforeChild(k, After), pi), ty, ctx, u_gen));
       };
     }
+  /* TODO fix holes */
   | (Delete, OpSeqZ(_, CursorPO(_, EmptyHole(_)) as zp0, surround))
       when ZPat.opseqz_preceded_by_Space(zp0, surround) =>
     switch (surround) {
