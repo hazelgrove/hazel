@@ -1342,6 +1342,36 @@ let rec syn_perform_pat =
         Some((CursorPI(BeforeChild(k + 1, Before), pi), ty, ctx, u_gen));
       };
     }
+  /* ... + [k-1] +<| [k] + ...   ==>   ... + [k-1]| [k] */
+  | (
+      Backspace,
+      CursorPI(BeforeChild(k, After) as inner_cursor, OpSeq(_, seq) as pi),
+    )
+      when ZPat.is_valid_inner_cursor(inner_cursor, pi) =>
+    switch (OperatorSeq.split(k - 1, seq)) {
+    | None => None /* should never happen */
+    | Some((p0, surround)) =>
+      switch (OperatorSeq.replace_following_op(surround, UHPat.Space)) {
+      | None => None /* should never happen */
+      | Some(surround) =>
+        make_and_syn_OpSeqZ_pat(ctx, u_gen, ZPat.place_after(p0), surround)
+      }
+    }
+  /* ... + [k-1] |>+ [k] + ...   ==>   ... + [k-1] |[k] */
+  | (
+      Delete,
+      CursorPI(BeforeChild(k, Before) as inner_cursor, OpSeq(_, seq) as pi),
+    )
+      when ZPat.is_valid_inner_cursor(inner_cursor, pi) =>
+    switch (OperatorSeq.split(k, seq)) {
+    | None => None /* should never happen */
+    | Some((p0, surround)) =>
+      switch (OperatorSeq.replace_preceding_op(surround, UHPat.Space)) {
+      | None => None /* should never happen */
+      | Some(surround) =>
+        make_and_syn_OpSeqZ_pat(ctx, u_gen, ZPat.place_before(p0), surround)
+      }
+    }
   | (Backspace, CursorP(_, p)) =>
     switch (p) {
     | EmptyHole(_) => Some((CursorP(Before, p), Hole, ctx, u_gen))

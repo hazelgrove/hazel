@@ -118,6 +118,42 @@ let tms_of_suffix = (suffix: opseq_suffix('tm, 'op)): list('tm) =>
   | SeqSuffix(_, seq) => tms(seq)
   };
 
+let replace_outer_op_prefix =
+    (prefix: opseq_prefix('tm, 'op), op: 'op): opseq_prefix('tm, 'op) =>
+  switch (prefix) {
+  | ExpPrefix(tm, _) => ExpPrefix(tm, op)
+  | SeqPrefix(seq, _) => SeqPrefix(seq, op)
+  };
+
+let replace_outer_op_suffix =
+    (suffix: opseq_suffix('tm, 'op), op: 'op): opseq_suffix('tm, 'op) =>
+  switch (suffix) {
+  | ExpSuffix(_, tm) => ExpSuffix(op, tm)
+  | SeqSuffix(_, seq) => SeqSuffix(op, seq)
+  };
+
+let replace_preceding_op =
+    (surround: opseq_surround('tm, 'op), op: 'op)
+    : option(opseq_surround('tm, 'op)) =>
+  switch (surround) {
+  | EmptyPrefix(_) => None
+  | EmptySuffix(prefix) =>
+    Some(EmptySuffix(replace_outer_op_prefix(prefix, op)))
+  | BothNonEmpty(prefix, suffix) =>
+    Some(BothNonEmpty(replace_outer_op_prefix(prefix, op), suffix))
+  };
+
+let replace_following_op =
+    (surround: opseq_surround('tm, 'op), op: 'op)
+    : option(opseq_surround('tm, 'op)) =>
+  switch (surround) {
+  | EmptySuffix(_) => None
+  | EmptyPrefix(suffix) =>
+    Some(EmptyPrefix(replace_outer_op_suffix(suffix, op)))
+  | BothNonEmpty(prefix, suffix) =>
+    Some(BothNonEmpty(prefix, replace_outer_op_suffix(suffix, op)))
+  };
+
 /* append an exp to a prefix */
 let prefix_append_exp = (prefix, e, op2) =>
   switch (prefix) {
