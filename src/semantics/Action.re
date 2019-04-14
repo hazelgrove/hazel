@@ -1210,7 +1210,7 @@ let rec syn_perform_pat =
       let p =
         switch (prefix) {
         | ExpPrefix(p1, _space) => p1
-        | SeqPrefix(seq, _space) => UHPat.PI(mk_OpSeq_pat(seq))
+        | SeqPrefix(seq, _space) => UHPat.PI(PatUtil.mk_OpSeq(seq))
         };
       switch (Statics.syn_pat(ctx, p)) {
       | None => None
@@ -1250,7 +1250,7 @@ let rec syn_perform_pat =
       let p =
         switch (suffix) {
         | ExpSuffix(_space, p1) => p1
-        | SeqSuffix(_space, seq) => UHPat.PI(mk_OpSeq_pat(seq))
+        | SeqSuffix(_space, seq) => UHPat.PI(PatUtil.mk_OpSeq(seq))
         };
       switch (Statics.syn_pat(ctx, p)) {
       | None => None
@@ -1290,7 +1290,7 @@ let rec syn_perform_pat =
       let p =
         switch (suffix) {
         | ExpSuffix(_space, p1) => p1
-        | SeqSuffix(_space, seq) => UHPat.PI(mk_OpSeq_pat(seq))
+        | SeqSuffix(_space, seq) => UHPat.PI(PatUtil.mk_OpSeq(seq))
         };
       switch (Statics.syn_pat(ctx, p)) {
       | None => None
@@ -1305,7 +1305,7 @@ let rec syn_perform_pat =
         | SeqSuffix(_space, seq) =>
           OperatorSeq.opseq_of_prefix_and_seq(prefix, seq)
         };
-      let pi = mk_OpSeq_pat(seq);
+      let pi = PatUtil.mk_OpSeq(seq);
       switch (Statics.syn_pat_inner(ctx, pi)) {
       | None => None
       | Some((ty, ctx)) =>
@@ -1323,7 +1323,7 @@ let rec syn_perform_pat =
       let p =
         switch (prefix) {
         | ExpPrefix(p1, _space) => p1
-        | SeqSuffix(seq, _space) => UHPat.PI(mk_OpSeq_pat(seq))
+        | SeqSuffix(seq, _space) => UHPat.PI(PatUtil.mk_OpSeq(seq))
         };
       switch (Statics.syn_pat(ctx, p)) {
       | None => None
@@ -1338,7 +1338,7 @@ let rec syn_perform_pat =
         | SeqPrefix(seq, _space) =>
           OperatorSeq.opseq_of_seq_and_suffix(seq, suffix)
         };
-      let pi = mk_OpSeq_pat(seq);
+      let pi = PatUtil.mk_OpSeq(seq);
       switch (Statics.syn_pat_inner(ctx, pi)) {
       | None => None
       | Some((ty, ctx)) =>
