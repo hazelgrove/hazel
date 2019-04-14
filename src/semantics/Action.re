@@ -1119,6 +1119,7 @@ let rec syn_perform_pat =
       };
     Some((zp, Hole, ctx, u_gen));
   | (Backspace | Delete, CursorPO(_, _)) => None
+  /* ... + [k-1] <|+ [k] + ...   ==>   ... + [k-1]| + [k] + ... */
   | (Backspace, CursorPI(BeforeChild(k, Before) as inner_cursor, pi))
       when
         ZPat.is_valid_inner_cursor(inner_cursor, pi) && !ZPat.is_before(zp) =>
@@ -1130,6 +1131,7 @@ let rec syn_perform_pat =
       | Some(zp) => Some((zp, ty, ctx, u_gen))
       }
     }
+  /* ... + [k-1] +|> [k] + ...   ==>   ... + [k-1] + |[k] + ... */
   | (Delete, CursorPI(BeforeChild(k, After) as inner_cursor, pi))
       when ZPat.is_valid_inner_cursor(inner_cursor, pi) && !ZPat.is_after(zp) =>
     switch (Statics.syn_pat(ctx, PI(pi))) {
