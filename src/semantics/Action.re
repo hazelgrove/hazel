@@ -1072,6 +1072,114 @@ let rec syn_perform_pat =
     | Some(path) => syn_perform_pat(ctx, u_gen, MoveTo(path), zp)
     }
   /* Backspace and Delete */
+  | (
+      Backspace,
+      CursorPO(
+        Char(_) as outer_cursor,
+        (
+          EmptyHole(_) | Var(_, _, _) | Wild(_) | NumLit(_, _) |
+          BoolLit(_, _) |
+          ListNil(_)
+        ) as po,
+      ),
+    )
+      when
+        !ZPat.is_before(zp) && ZPat.is_valid_outer_cursor(outer_cursor, po) =>
+    let (zp, u_gen) =
+      switch (po) {
+      | EmptyHole(_) => (ZPat.place_before(PO(po)), u_gen)
+      | _ => ZPat.new_EmptyHole(u_gen)
+      };
+    let ctx =
+      switch (po) {
+      | Var(_, _, x) => Contexts.drop(ctx, x)
+      | _ => ctx
+      };
+    Some((zp, Hole, ctx, u_gen));
+  | (
+      Delete,
+      CursorPO(
+        Char(_) as outer_cursor,
+        (
+          EmptyHole(_) | Var(_, _, _) | Wild(_) | NumLit(_, _) |
+          BoolLit(_, _) |
+          ListNil(_)
+        ) as po,
+      ),
+    )
+      when !ZPat.is_after(zp) && ZPat.is_valid_outer_cursor(outer_cursor, po) =>
+    let (zp, u_gen) =
+      switch (po) {
+      | EmptyHole(_) => (ZPat.place_before(PO(po)), u_gen)
+      | _ => ZPat.new_EmptyHole(u_gen)
+      };
+    let ctx =
+      switch (po) {
+      | Var(_, _, x) => Contexts.drop(ctx, x)
+      | _ => ctx
+      };
+    Some((zp, Hole, ctx, u_gen));
+  | (Backspace | Delete, CursorPO(_, _)) => None
+  | (
+      Backspace,
+      CursorPI(
+        BeforeChild(_, After) as inner_cursor,
+        (Parenthesized(_) | Inj(_)) as pi,
+      ),
+    )
+      when ZPat.is_valid_inner_cursor(inner_cursor, pi) =>
+    switch (ZPat.split_pat_children_across_cursor(inner_cursor, pi)) {
+    /* invalid cursor */
+    | None => None
+    /* inner nodes have children */
+    | Some(([], [])) => None
+    /* ( _ )<|   ==>   _| */
+    | Some(([p0, ...rev_prefix], suffix)) =>
+      let zp =
+        PatUtil.mk_Space_separated_zpat(
+          List.rev(rev_prefix),
+          ZPat.place_after(p0),
+          suffix,
+        );
+      Some(Statics.syn_fix_holes_zpat(ctx, u_gen, zp));
+    /* (<| _ )   ==>   |_ */
+    | Some(([], [p0, ...suffix])) =>
+      let zp =
+        PatUtil.mk_Space_separated_zpat([], ZPat.place_before(p0), suffix);
+      Some(Statics.syn_fix_holes_zpat(ctx, u_gen, zp));
+    }
+  | (
+      Delete,
+      CursorPI(
+        BeforeChild(_, Before) as inner_cursor,
+        (Parenthesized(_) | Inj(_)) as pi,
+      ),
+    )
+      when ZPat.is_valid_inner_cursor(inner_cursor, pi) =>
+    switch (ZPat.split_pat_children_across_cursor(inner_cursor, pi)) {
+    /* invalid cursor */
+    | None => None
+    /* inner nodes have children */
+    | Some(([], [])) => None
+    /* |>( _ )   ==>   |_ */
+    | Some((rev_prefix, [p0, ...suffix])) =>
+      let zp =
+        PatUtil.mk_Space_separated_zpat(
+          List.rev(rev_prefix),
+          ZPat.place_before(p0),
+          suffix,
+        );
+      Some(Statics.syn_fix_holes_zpat(ctx, u_gen, zp));
+    /* ( _ |>)   ==>   _| */
+    | Some(([p0, ...rev_prefix], [])) =>
+      let zp =
+        PatUtil.mk_Space_separated_zpat(
+          List.rev(rev_prefix),
+          ZPat.place_after(p0),
+          suffix,
+        );
+      Some(Statics.syn_fix_holes_zpat(ctx, u_gen, zp));
+    }
   | (Backspace, OpSeqZ(_, CursorPO(_, EmptyHole(_)) as zp0, surround))
       when ZPat.opseqz_preceded_by_Space(zp0, surround) =>
     switch (surround) {
@@ -1217,114 +1325,6 @@ let rec syn_perform_pat =
         let k = OperatorSeq.prefix_length(prefix);
         Some((CursorPI(BeforeChild(k + 1, Before), pi), ty, ctx, u_gen));
       };
-    }
-  | (
-      Backspace,
-      CursorPO(
-        Char(_) as outer_cursor,
-        (
-          EmptyHole(_) | Var(_, _, _) | Wild(_) | NumLit(_, _) |
-          BoolLit(_, _) |
-          ListNil(_)
-        ) as po,
-      ),
-    )
-      when
-        !ZPat.is_before(zp) && ZPat.is_valid_outer_cursor(outer_cursor, po) =>
-    let (zp, u_gen) =
-      switch (po) {
-      | EmptyHole(_) => (ZPat.place_before(PO(po)), u_gen)
-      | _ => ZPat.new_EmptyHole(u_gen)
-      };
-    let ctx =
-      switch (po) {
-      | Var(_, _, x) => Contexts.drop(ctx, x)
-      | _ => ctx
-      };
-    Some((zp, Hole, ctx, u_gen));
-  | (
-      Delete,
-      CursorPO(
-        Char(_) as outer_cursor,
-        (
-          EmptyHole(_) | Var(_, _, _) | Wild(_) | NumLit(_, _) |
-          BoolLit(_, _) |
-          ListNil(_)
-        ) as po,
-      ),
-    )
-      when !ZPat.is_after(zp) && ZPat.is_valid_outer_cursor(outer_cursor, po) =>
-    let (zp, u_gen) =
-      switch (po) {
-      | EmptyHole(_) => (ZPat.place_before(PO(po)), u_gen)
-      | _ => ZPat.new_EmptyHole(u_gen)
-      };
-    let ctx =
-      switch (po) {
-      | Var(_, _, x) => Contexts.drop(ctx, x)
-      | _ => ctx
-      };
-    Some((zp, Hole, ctx, u_gen));
-  | (Backspace | Delete, CursorPO(_, _)) => None
-  | (
-      Backspace,
-      CursorPI(
-        BeforeChild(_, After) as inner_cursor,
-        (Parenthesized(_) | Inj(_)) as pi,
-      ),
-    )
-      when ZPat.is_valid_inner_cursor(inner_cursor, pi) =>
-    switch (ZPat.split_pat_children_across_cursor(inner_cursor, pi)) {
-    /* invalid cursor */
-    | None => None
-    /* inner nodes have children */
-    | Some(([], [])) => None
-    /* ( _ )<|   ==>   _| */
-    | Some(([p0, ...rev_prefix], suffix)) =>
-      let zp =
-        PatUtil.mk_Space_separated_zpat(
-          List.rev(rev_prefix),
-          ZPat.place_after(p0),
-          suffix,
-        );
-      Some(Statics.syn_fix_holes_zpat(ctx, u_gen, zp));
-    /* (<| _ )   ==>   |_ */
-    | Some(([], [p0, ...suffix])) =>
-      let zp =
-        PatUtil.mk_Space_separated_zpat([], ZPat.place_before(p0), suffix);
-      Some(Statics.syn_fix_holes_zpat(ctx, u_gen, zp));
-    }
-  | (
-      Delete,
-      CursorPI(
-        BeforeChild(_, Before) as inner_cursor,
-        (Parenthesized(_) | Inj(_)) as pi,
-      ),
-    )
-      when ZPat.is_valid_inner_cursor(inner_cursor, pi) =>
-    switch (ZPat.split_pat_children_across_cursor(inner_cursor, pi)) {
-    /* invalid cursor */
-    | None => None
-    /* inner nodes have children */
-    | Some(([], [])) => None
-    /* |>( _ )   ==>   |_ */
-    | Some((rev_prefix, [p0, ...suffix])) =>
-      let zp =
-        PatUtil.mk_Space_separated_zpat(
-          List.rev(rev_prefix),
-          ZPat.place_before(p0),
-          suffix,
-        );
-      Some(Statics.syn_fix_holes_zpat(ctx, u_gen, zp));
-    /* ( _ |>)   ==>   _| */
-    | Some(([p0, ...rev_prefix], [])) =>
-      let zp =
-        PatUtil.mk_Space_separated_zpat(
-          List.rev(rev_prefix),
-          ZPat.place_after(p0),
-          suffix,
-        );
-      Some(Statics.syn_fix_holes_zpat(ctx, u_gen, zp));
     }
   | (Backspace, CursorP(_, p)) =>
     switch (p) {
