@@ -1043,11 +1043,6 @@ let combine_for_Delete_Space_pat = (zp0: ZPat.t, p: UHPat.t): ZPat.t =>
   | _ => zp0
   };
 
-let mk_OpSeq_pat = (seq: UHPat.opseq): UHPat.t => {
-  let skel = Associator.associate_pat(seq);
-  PI(OpSeq(skel, seq));
-};
-
 let rec syn_perform_pat =
         (ctx: Contexts.t, u_gen: MetaVarGen.t, a: t, zp: ZPat.t)
         : option((ZPat.t, HTyp.t, Contexts.t, MetaVarGen.t)) =>
@@ -1271,6 +1266,66 @@ let rec syn_perform_pat =
       };
     Some((zp, Hole, ctx, u_gen));
   | (Backspace | Delete, CursorPO(_, _)) => None
+  | (
+      Backspace,
+      CursorPI(
+        BeforeChild(_, After) as inner_cursor,
+        (Parenthesized(_) | Inj(_)) as pi,
+      ),
+    )
+      when ZPat.is_valid_inner_cursor(inner_cursor, pi) =>
+    switch (ZPat.split_pat_children_across_cursor(inner_cursor, pi)) {
+    /* invalid cursor */
+    | None => None
+    /* inner nodes have children */
+    | Some(([], [])) => None
+    /* ( _ )<|   ==>   _| */
+    | Some(([p0, ...rev_prefix], suffix)) =>
+      let zp =
+        PatUtil.mk_Space_separated_zpat(
+          List.rev(rev_prefix),
+          ZPat.place_after(p0),
+          suffix,
+        );
+      Some(Statics.syn_fix_holes_zpat(ctx, u_gen, zp));
+    /* (<| _ )   ==>   |_ */
+    | Some(([], [p0, ...suffix])) =>
+      let zp =
+        PatUtil.mk_Space_separated_zpat([], ZPat.place_before(p0), suffix);
+      Some(Statics.syn_fix_holes_zpat(ctx, u_gen, zp));
+    }
+  | (
+      Delete,
+      CursorPI(
+        BeforeChild(_, Before) as inner_cursor,
+        (Parenthesized(_) | Inj(_)) as pi,
+      ),
+    )
+      when ZPat.is_valid_inner_cursor(inner_cursor, pi) =>
+    switch (ZPat.split_pat_children_across_cursor(inner_cursor, pi)) {
+    /* invalid cursor */
+    | None => None
+    /* inner nodes have children */
+    | Some(([], [])) => None
+    /* |>( _ )   ==>   |_ */
+    | Some((rev_prefix, [p0, ...suffix])) =>
+      let zp =
+        PatUtil.mk_Space_separated_zpat(
+          List.rev(rev_prefix),
+          ZPat.place_before(p0),
+          suffix,
+        );
+      Some(Statics.syn_fix_holes_zpat(ctx, u_gen, zp));
+    /* ( _ |>)   ==>   _| */
+    | Some(([p0, ...rev_prefix], [])) =>
+      let zp =
+        PatUtil.mk_Space_separated_zpat(
+          List.rev(rev_prefix),
+          ZPat.place_after(p0),
+          suffix,
+        );
+      Some(Statics.syn_fix_holes_zpat(ctx, u_gen, zp));
+    }
   | (Backspace, CursorP(_, p)) =>
     switch (p) {
     | EmptyHole(_) => Some((CursorP(Before, p), Hole, ctx, u_gen))

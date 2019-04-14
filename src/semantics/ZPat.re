@@ -15,7 +15,7 @@ type t =
 
 exception SkelInconsistentWithOpSeq;
 
-let children_following_delimiters = (pi: UHPat.t_inner): list(int) =>
+let child_indices_following_delimiters = (pi: UHPat.t_inner): list(int) =>
   switch (pi) {
   | Parenthesized(_) => [0]
   | OpSeq(_, seq) =>
@@ -29,7 +29,7 @@ let children_following_delimiters = (pi: UHPat.t_inner): list(int) =>
 let is_valid_inner_cursor =
     (inner_cursor: inner_cursor, pi: UHPat.t_inner): bool =>
   switch (inner_cursor) {
-  | BeforeChild(k, _) => contains(children_following_delimiters(pi), k)
+  | BeforeChild(k, _) => contains(child_indices_following_delimiters(pi), k)
   | ClosingDelimiter(_) =>
     switch (pi) {
     | OpSeq(_, _) => false
@@ -40,6 +40,25 @@ let is_valid_inner_cursor =
 
 let is_valid_outer_cursor = (Char(j): outer_cursor, po: UHPat.t_outer): bool =>
   0 <= j && j < UHPat.t_outer_length(po);
+
+let pat_children = (pi: UHPat.t_inner): list(UHPat.t) =>
+  switch (pi) {
+  | Parenthesized(p) => [p]
+  | OpSeq(_, seq) => OperatorSeq.tms(seq)
+  | Inj(_, _, p) => [p]
+  };
+
+let split_pat_children_across_cursor =
+    (inner_cursor: inner_cursor, pi: UHPat.t_inner)
+    : option((list(UHPat.t), list(UHPat.t))) =>
+  switch (inner_cursor, pi) {
+  | (ClosingDelimiter(_), _) => Some((List.rev(pat_children(pi)), []))
+  | (BeforeChild(0, _), Parenthesized(_)) => Some(([], pat_children(pi)))
+  | (BeforeChild(_, _), Parenthesized(_)) => None
+  | (BeforeChild(0, _), Inj(_, _, _)) => Some(([], pat_children(pi)))
+  | (BeforeChild(_, _), Inj(_, _, _)) => None
+  | (BeforeChild(_, _), OpSeq(_, _)) => None /* maybe TODO */
+  };
 
 let bidelimit = (zp: t): t =>
   switch (zp) {
@@ -251,13 +270,6 @@ let place_cursor = (cursor: cursor_pos, p: UHPat.t): option(t) =>
 let new_EmptyHole = (u_gen: MetaVarGen.t): (t, MetaVarGen.t) => {
   let (hole, u_gen) = UHPat.new_EmptyHole(u_gen);
   (place_before(hole), u_gen);
-};
-
-let mk_OpSeqZ = (zp: t, surround: opseq_surround): t => {
-  let p = erase(zp);
-  let seq = OperatorSeq.opseq_of_exp_and_surround(p, surround);
-  let skel = Associator.associate_pat(seq);
-  OpSeqZ(skel, zp, surround);
 };
 
 let opseqz_preceded_by_Space = (zp: t, surround: opseq_surround): bool => {

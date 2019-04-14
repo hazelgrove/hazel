@@ -1,3 +1,5 @@
+open GeneralUtil;
+
 [@deriving sexp]
 type opseq('tm, 'op) =
   | ExpOpExp('tm, 'op, 'tm)
@@ -54,6 +56,12 @@ let rec tms = (seq: opseq('tm, _)): list('tm) =>
   switch (seq) {
   | ExpOpExp(tm1, _, tm2) => [tm1, tm2]
   | SeqOpExp(seq, _, tm) => tms(seq) @ [tm]
+  };
+
+let rec join = (tms: ListMinTwo.t('tm), op: 'op): opseq('tm, 'op) =>
+  switch (tms) {
+  | Pair(tm1, tm2) => ExpOpExp(tm1, op, tm2)
+  | Cons(tm, tms) => exp_op_seq(tm, op, join(tms, op))
   };
 
 let rec ops = (seq: opseq(_, 'op)): list('op) =>

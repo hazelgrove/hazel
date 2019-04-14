@@ -64,7 +64,11 @@ let findmapi = (xs, f) => _findmapi(0, xs, f);
 
 let any = (xs, f) => opt_to_bool(List.find_opt(f, xs));
 
-let contains = (xs: list('a), y: 'a) => List.exists(x => x == y, xs);
+let contains = (xs: list('a), y: 'a): bool => List.exists(x => x == y, xs);
+
+let first = (xs: list('a)): option('a) => List.nth_opt(xs, 0);
+
+let last = (xs: list('a)): option('a) => first(List.rev(xs));
 
 let rec split_at = (xs, n) =>
   switch (xs) {
@@ -382,6 +386,9 @@ module ListMinTwo = {
     | (Pair(_, _), _) => append(xs, to_tuple_list(ys))
     | (Cons(x, xs), _) => Cons(x, append_list(xs, ys))
     };
+
+  let mk = (x: 'a, y: 'a, zs: list('a)): t('a) =>
+    append_list(Pair(x, y), zs);
 
   /**
    * Like List.fold_left, but the initial accumulator is a
