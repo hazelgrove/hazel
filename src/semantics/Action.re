@@ -1021,27 +1021,6 @@ let make_and_ana_OpSeqZ_pat =
   (zp, ctx, u_gen);
 };
 
-let combine_for_Backspace_Space_pat = (p1: UHPat.t, zp0: ZPat.t): ZPat.t =>
-  switch (zp0) {
-  | CursorPO(_, EmptyHole(_)) =>
-    /* p1 |_ --> p1| */
-    ZPat.place_after(p1)
-  | _ =>
-    /* p1 |zp0 --> |zp0 */
-    zp0
-  };
-
-let combine_for_Delete_Space_pat = (zp0: ZPat.t, p: UHPat.t): ZPat.t =>
-  switch (zp0, p) {
-  | (CursorPO(_, EmptyHole(_)), PO(EmptyHole(_))) when ZPat.is_after(zp0) =>
-    /* _| _ --> _| */
-    zp0
-  | (CursorPO(_, EmptyHole(_)), _) when ZPat.is_after(zp0) =>
-    /* _| p  --> |p */
-    ZPat.place_before(p)
-  | _ => zp0
-  };
-
 let rec syn_perform_pat =
         (ctx: Contexts.t, u_gen: MetaVarGen.t, a: t, zp: ZPat.t)
         : option((ZPat.t, HTyp.t, Contexts.t, MetaVarGen.t)) =>
@@ -1372,71 +1351,6 @@ let rec syn_perform_pat =
         make_and_syn_OpSeqZ_pat(ctx, u_gen, ZPat.place_before(p0), surround)
       }
     }
-  | (Backspace, CursorP(_, p)) =>
-    switch (p) {
-    | EmptyHole(_) => Some((CursorP(Before, p), Hole, ctx, u_gen))
-    | _ =>
-      let (p, u_gen) = UHPat.new_EmptyHole(u_gen);
-      Some((CursorP(Before, p), Hole, ctx, u_gen));
-    }
-  | (Backspace, CursorP(Before, _)) => None
-  | (Delete, CursorP(Before, p)) =>
-    switch (p) {
-    | EmptyHole(_) => Some((CursorP(After, p), Hole, ctx, u_gen))
-    | _ =>
-      let (p, u_gen) = UHPat.new_EmptyHole(u_gen);
-      Some((CursorP(Before, p), Hole, ctx, u_gen));
-    }
-  | (Delete, CursorP(After, _)) => None
-  | (Backspace, CursorP(In(_), _))
-  | (Delete, CursorP(In(_), _)) =>
-    let (p, u_gen) = UHPat.new_EmptyHole(u_gen);
-    let zp = ZPat.CursorP(Before, p);
-    Some((zp, Hole, ctx, u_gen));
-  | (
-      Backspace,
-      OpSeqZ(_, CursorP(Before, p0) as zp0, EmptySuffix(_) as surround),
-    )
-  | (
-      Backspace,
-      OpSeqZ(_, CursorP(Before, p0) as zp0, BothNonEmpty(_, _) as surround),
-    ) =>
-    abs_perform_Backspace_Before_op(
-      combine_for_Backspace_Space_pat,
-      Statics.syn_fix_holes_zpat,
-      make_and_syn_OpSeqZ_pat,
-      UHPat.is_EmptyHole,
-      UHPat.is_Space,
-      UHPat.Space,
-      (side, p) => CursorP(side, p),
-      ctx,
-      u_gen,
-      p0,
-      zp0,
-      surround,
-    )
-  | (
-      Delete,
-      OpSeqZ(_, CursorP(After, p0) as zp0, EmptyPrefix(_) as surround),
-    )
-  | (
-      Delete,
-      OpSeqZ(_, CursorP(After, p0) as zp0, BothNonEmpty(_, _) as surround),
-    ) =>
-    abs_perform_Delete_After_op(
-      combine_for_Delete_Space_pat,
-      Statics.syn_fix_holes_zpat,
-      make_and_syn_OpSeqZ_pat,
-      UHPat.is_EmptyHole,
-      UHPat.is_Space,
-      UHPat.Space,
-      (side, p) => CursorP(side, p),
-      ctx,
-      u_gen,
-      p0,
-      zp0,
-      surround,
-    )
   /* Construct */
   | (Construct(SParenthesized), CursorP(_, p)) =>
     switch (Statics.syn_pat(ctx, p)) {
