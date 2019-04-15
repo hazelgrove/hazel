@@ -42,9 +42,12 @@ let pick_side = (side, l, r) =>
   };
 
 [@deriving show({with_path: false})]
-type delimiter_side =
+type side =
   | Before
   | After;
+
+[@deriving show({with_path: false})]
+type delimiter_side = side;
 
 [@deriving show({with_path: false})]
 type inner_cursor =
