@@ -1058,6 +1058,13 @@ let make_and_ana_OpSeqZ_pat =
   (zp, ctx, u_gen);
 };
 
+let check_valid = (x: Var.t, result: result('a)): result('a) =>
+  if (Var.is_valid(x)) {
+    result;
+  } else {
+    Failed;
+  };
+
 let rec syn_perform_pat =
         (ctx: Contexts.t, u_gen: MetaVarGen.t, a: t, zp: ZPat.t)
         : result((ZPat.t, HTyp.t, Contexts.t, MetaVarGen.t)) =>
@@ -1206,7 +1213,7 @@ let rec syn_perform_pat =
         PatUtil.mk_Space_separated_zpat(
           List.rev(rev_prefix),
           ZPat.place_after(p0),
-          suffix,
+          [],
         );
       Succeeded(Statics.syn_fix_holes_zpat(ctx, u_gen, zp));
     }
@@ -1232,19 +1239,19 @@ let rec syn_perform_pat =
       switch (prefix) {
       | ExpPrefix(p1, _space) =>
         let zp1 = ZPat.place_after(p1);
-        let zp = ZPat.mk_OpSeqZ(zp1, EmptyPrefix(suffix));
+        let zp = PatUtil.mk_OpSeqZ(zp1, EmptyPrefix(suffix));
         switch (Statics.syn_pat(ctx, ZPat.erase(zp))) {
         | None => Failed
         | Some((ty, ctx)) => Succeeded((zp, ty, ctx, u_gen))
         };
       | SeqPrefix(seq, _space) =>
-        let (prefix, p0) =
+        let (prefix: ZPat.opseq_prefix, p0) =
           switch (seq) {
           | ExpOpExp(p1, op, p2) => (ExpPrefix(p1, op), p2)
           | SeqOpExp(seq, op, p1) => (SeqPrefix(seq, op), p1)
           };
         let zp0 = ZPat.place_after(p0);
-        let zp = ZPat.mk_OpSeqZ(zp0, BothNonEmpty(prefix, suffix));
+        let zp = PatUtil.mk_OpSeqZ(zp0, BothNonEmpty(prefix, suffix));
         switch (Statics.syn_pat(ctx, ZPat.erase(zp))) {
         | None => Failed
         | Some((ty, ctx)) => Succeeded((zp, ty, ctx, u_gen))
@@ -1273,19 +1280,19 @@ let rec syn_perform_pat =
       switch (suffix) {
       | ExpSuffix(_space, p1) =>
         let zp1 = ZPat.place_before(p1);
-        let zp = ZPat.mk_OpSeqZ(zp1, EmptySuffix(prefix));
+        let zp = PatUtil.mk_OpSeqZ(zp1, EmptySuffix(prefix));
         switch (Statics.syn_pat(ctx, ZPat.erase(zp))) {
         | None => Failed
         | Some((ty, ctx)) => Succeeded((zp, ty, ctx, u_gen))
         };
       | SeqSuffix(_space, seq) =>
-        let (p0, suffix) =
+        let (p0, suffix: ZPat.opseq_suffix) =
           switch (seq) {
           | ExpOpExp(p1, op, p2) => (p1, ExpSuffix(op, p2))
-          | SeqOpEx(seq, op, p1) => (p1, SeqPrefix(op, seq))
+          | SeqOpExp(seq, op, p1) => (p1, SeqSuffix(op, seq))
           };
         let zp0 = ZPat.place_before(p0);
-        let zp = ZPat.mk_OpSeqZ(zp0, BothNonEmpty(prefix, suffix));
+        let zp = PatUtil.mk_OpSeqZ(zp0, BothNonEmpty(prefix, suffix));
         switch (Statics.syn_pat(ctx, ZPat.erase(zp))) {
         | None => Failed
         | Some((ty, ctx)) => Succeeded((zp, ty, ctx, u_gen))
@@ -1337,7 +1344,7 @@ let rec syn_perform_pat =
       let p =
         switch (prefix) {
         | ExpPrefix(p1, _space) => p1
-        | SeqSuffix(seq, _space) => UHPat.PI(PatUtil.mk_OpSeq(seq))
+        | SeqPrefix(seq, _space) => UHPat.PI(PatUtil.mk_OpSeq(seq))
         };
       switch (Statics.syn_pat(ctx, p)) {
       | None => Failed
@@ -1377,7 +1384,14 @@ let rec syn_perform_pat =
       switch (OperatorSeq.replace_following_op(surround, UHPat.Space)) {
       | None => Failed /* should never happen */
       | Some(surround) =>
-        make_and_syn_OpSeqZ_pat(ctx, u_gen, ZPat.place_after(p0), surround)
+        Succeeded(
+          make_and_syn_OpSeqZ_pat(
+            ctx,
+            u_gen,
+            ZPat.place_after(p0),
+            surround,
+          ),
+        )
       }
     }
   /* ... + [k-1] |>+ [k] + ...   ==>   ... + [k-1] |[k] */
@@ -1392,7 +1406,14 @@ let rec syn_perform_pat =
       switch (OperatorSeq.replace_preceding_op(surround, UHPat.Space)) {
       | None => Failed /* should never happen */
       | Some(surround) =>
-        make_and_syn_OpSeqZ_pat(ctx, u_gen, ZPat.place_before(p0), surround)
+        Succeeded(
+          make_and_syn_OpSeqZ_pat(
+            ctx,
+            u_gen,
+            ZPat.place_before(p0),
+            surround,
+          ),
+        )
       }
     }
   /* Construct */
@@ -1443,7 +1464,7 @@ let rec syn_perform_pat =
         u_gen,
       ));
     } else {
-      Var.check_valid(
+      check_valid(
         x,
         {
           let ctx = Contexts.extend_gamma(ctx, (x, Hole));
@@ -1462,7 +1483,7 @@ let rec syn_perform_pat =
   | (Construct(SWild), CursorPO(_, Var(_, _, _)))
   | (Construct(SWild), CursorPO(_, NumLit(_, _)))
   | (Construct(SWild), CursorPO(_, BoolLit(_, _))) =>
-    Succeeded((ZPat.place_after(Wild(NotInHole)), Hole, ctx, u_gen))
+    Succeeded((ZPat.place_after(PO(Wild(NotInHole))), Hole, ctx, u_gen))
   | (Construct(SWild), CursorPO(_, _) | CursorPI(_, _)) => Failed
   | (Construct(SNumLit(n, outer_cursor)), CursorPO(_, EmptyHole(_)))
   | (Construct(SNumLit(n, outer_cursor)), CursorPO(_, Wild(_)))
@@ -1489,7 +1510,7 @@ let rec syn_perform_pat =
       Succeeded((zp, ty, ctx, u_gen));
     }
   | (Construct(SListNil), CursorPO(_, EmptyHole(_))) =>
-    let zp = ZPat.place_after(ListNil(NotInHole));
+    let zp = ZPat.place_after(PO(ListNil(NotInHole)));
     Succeeded((zp, List(Hole), ctx, u_gen));
   | (Construct(SListNil), CursorPO(_, _) | CursorPI(_, _)) => Failed
   | (Construct(SOp(os)), OpSeqZ(_, zp0, surround)) when ZPat.is_after(zp0) =>
@@ -1541,7 +1562,7 @@ let rec syn_perform_pat =
           make_and_syn_OpSeqZ_pat,
           ctx,
           u_gen,
-          ZPat.erase(p),
+          ZPat.erase(zp),
           op,
         ),
       )
@@ -1566,14 +1587,14 @@ let rec syn_perform_pat =
   | (_, ParenthesizedZ(zp1)) =>
     switch (syn_perform_pat(ctx, u_gen, a, zp1)) {
     | Failed => Failed
-    | Some((zp1, ty, ctx, u_gen)) =>
+    | Succeeded((zp1, ty, ctx, u_gen)) =>
       Succeeded((ParenthesizedZ(zp1), ty, ctx, u_gen))
     }
-  | (_, Deeper(_, InjZ(side, zp1))) =>
+  | (_, InjZ(_, side, zp1)) =>
     switch (syn_perform_pat(ctx, u_gen, a, zp1)) {
     | Failed => Failed
     | Succeeded((zp1, ty1, ctx, u_gen)) =>
-      let zp = ZPat.Deeper(NotInHole, InjZ(side, zp1));
+      let zp = ZPat.InjZ(NotInHole, side, zp1);
       let ty =
         switch (side) {
         | L => HTyp.Sum(ty1, Hole)
@@ -1768,7 +1789,7 @@ and ana_perform_pat =
         u_gen,
       ));
     } else {
-      Var.check_valid(
+      check_valid(
         x,
         {
           let ctx = Contexts.extend_gamma(ctx, (x, ty));
@@ -2832,7 +2853,7 @@ and syn_perform_exp =
         u_gen,
       ));
     } else {
-      Var.check_valid(
+      check_valid(
         x,
         {
           let gamma = Contexts.gamma(ctx);
