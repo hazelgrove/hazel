@@ -13,6 +13,13 @@ type t =
   | ListZ(t)
   | OpSeqZ(UHTyp.skel_t, t, opseq_surround);
 
+let children = (utyi: UHTyp.t_inner): list(int) =>
+  switch (utyi) {
+  | Parenthesized(_) => [0]
+  | OpSeq(_, seq) => range(OperatorSeq.seq_length(seq))
+  | List(_) => [0]
+  };
+
 let children_following_delimiters = (utyi: UHTyp.t_inner): list(int) =>
   switch (utyi) {
   | Parenthesized(_) => [0]
@@ -20,20 +27,34 @@ let children_following_delimiters = (utyi: UHTyp.t_inner): list(int) =>
   | List(_) => [0]
   };
 
-let is_valid_inner_cursor =
-    (inner_cursor: inner_cursor, utyi: UHTyp.t_inner): bool =>
-  switch (inner_cursor) {
-  | BeforeChild(k, _) => contains(children_following_delimiters(utyi), k)
-  | ClosingDelimiter(_) =>
-    switch (utyi) {
-    | OpSeq(_, _) => false
-    | List(_)
-    | Parenthesized(_) => true
-    }
+let has_closing_delimiter = (utyi: UHTyp.t_inner): bool =>
+  switch (utyi) {
+  | Parenthesized(_)
+  | List(_) => true
+  | OpSeq(_, _) => false
   };
 
-let is_valid_outer_cursor = (Char(j): outer_cursor, utyo: UHTyp.t_outer): bool =>
-  0 <= j && j < UHTyp.t_outer_length(utyo);
+let valid_inner_cursors = (utyi: UHTyp.t_inner): list(inner_cursor) => {
+  let before_child_positions =
+    children_following_delimiters(utyi)
+    |> List.map(k => [BeforeChild(k, Before), BeforeChild(k, After)])
+    |> List.flatten;
+  let closing_delimiter_positions =
+    has_closing_delimiter(utyi)
+      ? [ClosingDelimiter(Before), ClosingDelimiter(After)] : [];
+  before_child_positions @ closing_delimiter_positions;
+};
+
+let valid_outer_cursors = (utyo: UHTyp.t_outer): list(outer_cursor) =>
+  range(UHTyp.t_outer_length(utyo)) |> List.map(j => Char(j));
+
+let is_valid_inner_cursor =
+    (inner_cursor: inner_cursor, utyi: UHTyp.t_inner): bool =>
+  contains(valid_inner_cursors(utyi), inner_cursor);
+
+let is_valid_outer_cursor =
+    (outer_cursor: outer_cursor, utyo: UHTyp.t_outer): bool =>
+  contains(valid_outer_cursors(utyo), outer_cursor);
 
 let rec erase = (zty: t): UHTyp.t =>
   switch (zty) {

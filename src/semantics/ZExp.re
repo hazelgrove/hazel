@@ -43,6 +43,27 @@ and zrule =
   | RuleZP(ZPat.t, UHExp.block)
   | RuleZE(UHPat.t, zblock);
 
+let has_closing_delimiter_line = (li: UHExp.line_inner): bool =>
+  switch (li) {
+  | LetLine(_, _, _) => false
+  };
+let has_closing_delimiter_exp = (ei: UHExp.t_inner): bool =>
+  switch (ei) {
+  | Lam(_, _, _, _)
+  | Case(_, _, _, Some(_))
+  | OpSeq(_, _) => false
+  | Inj(_, _, _)
+  | Case(_, _, _, None)
+  | Parenthesized(_)
+  | ApPalette(_, _, _, _) => true
+  };
+
+let children_line = (li: UHExp.line_inner): list(int) =>
+  switch (li) {
+  | LetLine(_, None, _) => [0, 2]
+  | LetLine(_, Some(_), _) => [0, 1, 2]
+  };
+
 let children_following_delimiters_line = (li: UHExp.line_inner): list(int) =>
   switch (li) {
   | LetLine(_, None, _) => [0, 2]

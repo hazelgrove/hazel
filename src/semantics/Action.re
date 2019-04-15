@@ -117,15 +117,36 @@ let make_ty_OpSeqZ = (zty0: ZTyp.t, surround: ZTyp.opseq_surround): ZTyp.t => {
   OpSeqZ(skel, zty0, surround);
 };
 
+let move_to_path_typ = (path: Path.t, uty: UHTyp.t): result(ZTyp.t) =>
+  switch (Path.follow_ty(path, uty)) {
+  | None => Failed
+  | Some(zty) => Succeeded(zty)
+  };
+
+let move_to_prev_node_pos_typ = (zty: ZTyp.t): result(ZTyp.t) =>
+  switch (Path.steps_of_prev_node_pos_ty(zty)) {
+  | None => CursorEscaped(Before)
+  | Some(steps) =>
+    switch (Path.follow_ty_and_place_after(steps, ZTyp.erase(zty))) {
+    | None => Failed
+    | Some(zty) => Succeeded(zty)
+    }
+  };
+
+let move_to_next_node_pos_typ = (zty: ZTyp.t): result(ZTyp.t) =>
+  switch (Path.steps_of_next_node_pos_ty(zty)) {
+  | None => CursorEscaped(After)
+  | Some(steps) =>
+    switch (Path.follow_ty_and_place_before(steps, ZTyp.erase(zty))) {
+    | None => Failed
+    | Some(zty) => Succeeded(zty)
+    }
+  };
+
 let rec perform_ty = (a: t, zty: ZTyp.t): result(ZTyp.t) =>
   switch (a, zty) {
   /* Movement */
-  | (MoveTo(path), _) =>
-    let ty = ZTyp.erase(zty);
-    switch (Path.follow_ty(path, ty)) {
-    | None => Failed
-    | Some(zty) => Succeeded(zty)
-    };
+  | (MoveTo(path), _) => move_to_path_typ(path, ZTyp.erase(zty))
   | (MoveToPrevHole, _) =>
     switch (Path.prev_hole_path(Path.holes_zty(zty, []))) {
     | None => Failed
@@ -394,16 +415,22 @@ let rec perform_ty = (a: t, zty: ZTyp.t): result(ZTyp.t) =>
   | (a, ParenthesizedZ(zty1)) =>
     switch (perform_ty(a, zty1)) {
     | Failed => Failed
+    | CursorEscaped(Before) => move_to_prev_node_pos_typ(zty)
+    | CursorEscaped(After) => move_to_next_node_pos_typ(zty)
     | Succeeded(zty1') => Succeeded(ParenthesizedZ(zty1'))
     }
   | (a, ListZ(zty1)) =>
     switch (perform_ty(a, zty1)) {
     | Failed => Failed
+    | CursorEscaped(Before) => move_to_prev_node_pos_typ(zty)
+    | CursorEscaped(After) => move_to_next_node_pos_typ(zty)
     | Succeeded(zty1) => Succeeded(ListZ(zty1))
     }
   | (a, OpSeqZ(skel, zty0, surround)) =>
     switch (perform_ty(a, zty0)) {
     | Failed => Failed
+    | CursorEscaped(Before) => move_to_prev_node_pos_typ(zty)
+    | CursorEscaped(After) => move_to_next_node_pos_typ(zty)
     | Succeeded(zty0') => Succeeded(OpSeqZ(skel, zty0', surround))
     }
   /* Invalid actions at the type level */
