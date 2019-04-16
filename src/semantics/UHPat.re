@@ -153,6 +153,12 @@ and set_err_status_opseq =
   | BinOp(_, op, skel1, skel2) => (BinOp(err, op, skel1, skel2), seq)
   };
 
+let is_inconsistent = (p: t): bool =>
+  switch (get_err_status_t(p)) {
+  | InHole(TypeInconsistent, _) => true
+  | _ => false
+  };
+
 /* put p in a new hole, if it is not already in a hole */
 let rec make_t_inconsistent = (u_gen: MetaVarGen.t, p: t): (t, MetaVarGen.t) =>
   switch (p) {

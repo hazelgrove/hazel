@@ -306,3 +306,5 @@ let opseqz_followed_by_Space = (zp: t, surround: opseq_surround): bool => {
   let n = OperatorSeq.surround_prefix_length(surround);
   OperatorSeq.op_before_nth_tm(n + 1, seq) == Some(Space);
 };
+
+let is_inconsistent = (zp: t): bool => UHPat.is_inconsistent(erase(zp));
