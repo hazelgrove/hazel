@@ -1248,7 +1248,6 @@ let rec syn_perform_pat =
       ),
     ) =>
     Failed
-  /* TODO fix holes */
   | (Backspace, OpSeqZ(_, CursorPO(_, EmptyHole(_)) as zp0, surround))
       when ZPat.opseqz_preceded_by_Space(zp0, surround) =>
     switch (surround) {
@@ -1261,20 +1260,16 @@ let rec syn_perform_pat =
         | ExpPrefix(p1, _space) => p1
         | SeqPrefix(seq, _space) => UHPat.PI(PatUtil.mk_OpSeq(seq))
         };
-      switch (Statics.syn_pat(ctx, p)) {
-      | None => Failed
-      | Some((ty, ctx)) => Succeeded((ZPat.place_after(p), ty, ctx, u_gen))
-      };
+      Succeeded(
+        Statics.syn_fix_holes_zpat(ctx, u_gen, ZPat.place_after(p)),
+      );
     /* ... + [k-1]   _<| + [k+1] + ...   ==>   ... + [k-1]| + [k+1] + ... */
     | BothNonEmpty(prefix, suffix) =>
       switch (prefix) {
       | ExpPrefix(p1, _space) =>
         let zp1 = ZPat.place_after(p1);
         let zp = PatUtil.mk_OpSeqZ(zp1, EmptyPrefix(suffix));
-        switch (Statics.syn_pat(ctx, ZPat.erase(zp))) {
-        | None => Failed
-        | Some((ty, ctx)) => Succeeded((zp, ty, ctx, u_gen))
-        };
+        Succeeded(Statics.syn_fix_holes_zpat(ctx, u_gen, zp));
       | SeqPrefix(seq, _space) =>
         let (prefix: ZPat.opseq_prefix, p0) =
           switch (seq) {
@@ -1283,13 +1278,9 @@ let rec syn_perform_pat =
           };
         let zp0 = ZPat.place_after(p0);
         let zp = PatUtil.mk_OpSeqZ(zp0, BothNonEmpty(prefix, suffix));
-        switch (Statics.syn_pat(ctx, ZPat.erase(zp))) {
-        | None => Failed
-        | Some((ty, ctx)) => Succeeded((zp, ty, ctx, u_gen))
-        };
+        Succeeded(Statics.syn_fix_holes_zpat(ctx, u_gen, zp));
       }
     }
-  /* TODO fix holes */
   | (Delete, OpSeqZ(_, CursorPO(_, EmptyHole(_)) as zp0, surround))
       when ZPat.opseqz_followed_by_Space(zp0, surround) =>
     switch (surround) {
@@ -1302,20 +1293,16 @@ let rec syn_perform_pat =
         | ExpSuffix(_space, p1) => p1
         | SeqSuffix(_space, seq) => UHPat.PI(PatUtil.mk_OpSeq(seq))
         };
-      switch (Statics.syn_pat(ctx, p)) {
-      | None => Failed
-      | Some((ty, ctx)) => Succeeded((ZPat.place_before(p), ty, ctx, u_gen))
-      };
+      Succeeded(
+        Statics.syn_fix_holes_zpat(ctx, u_gen, ZPat.place_before(p)),
+      );
     /* ... + [k-1] + |>_   [k+1] + ...   ==>   ... + [k-1] + |[k+1] + ... */
     | BothNonEmpty(prefix, suffix) =>
       switch (suffix) {
       | ExpSuffix(_space, p1) =>
         let zp1 = ZPat.place_before(p1);
         let zp = PatUtil.mk_OpSeqZ(zp1, EmptySuffix(prefix));
-        switch (Statics.syn_pat(ctx, ZPat.erase(zp))) {
-        | None => Failed
-        | Some((ty, ctx)) => Succeeded((zp, ty, ctx, u_gen))
-        };
+        Succeeded(Statics.syn_fix_holes_zpat(ctx, u_gen, zp));
       | SeqSuffix(_space, seq) =>
         let (p0, suffix: ZPat.opseq_suffix) =
           switch (seq) {
@@ -1324,13 +1311,9 @@ let rec syn_perform_pat =
           };
         let zp0 = ZPat.place_before(p0);
         let zp = PatUtil.mk_OpSeqZ(zp0, BothNonEmpty(prefix, suffix));
-        switch (Statics.syn_pat(ctx, ZPat.erase(zp))) {
-        | None => Failed
-        | Some((ty, ctx)) => Succeeded((zp, ty, ctx, u_gen))
-        };
+        Succeeded(Statics.syn_fix_holes_zpat(ctx, u_gen, zp));
       }
     }
-  /* TODO fix holes */
   | (Backspace, OpSeqZ(_, CursorPO(_, EmptyHole(_)) as zp0, surround))
       when ZPat.opseqz_followed_by_Space(zp0, surround) =>
     switch (surround) {
@@ -1343,10 +1326,9 @@ let rec syn_perform_pat =
         | ExpSuffix(_space, p1) => p1
         | SeqSuffix(_space, seq) => UHPat.PI(PatUtil.mk_OpSeq(seq))
         };
-      switch (Statics.syn_pat(ctx, p)) {
-      | None => Failed
-      | Some((ty, ctx)) => Succeeded((ZPat.place_before(p), ty, ctx, u_gen))
-      };
+      Succeeded(
+        Statics.syn_fix_holes_zpat(ctx, u_gen, ZPat.place_before(p)),
+      );
     /* ... + [k-1] + _<|   [k+1] + ...   ==>   ... + [k-1] +| [k+1] + ... */
     | BothNonEmpty(prefix, suffix) =>
       let seq =
@@ -1357,14 +1339,10 @@ let rec syn_perform_pat =
           OperatorSeq.opseq_of_prefix_and_seq(prefix, seq)
         };
       let pi = PatUtil.mk_OpSeq(seq);
-      switch (Statics.syn_pat_inner(ctx, pi)) {
-      | None => Failed
-      | Some((ty, ctx)) =>
-        let k = OperatorSeq.prefix_length(prefix);
-        Succeeded((CursorPI(BeforeChild(k, After), pi), ty, ctx, u_gen));
-      };
+      let k = OperatorSeq.prefix_length(prefix);
+      let zp = ZPat.CursorPI(BeforeChild(k, After), pi);
+      Succeeded(Statics.syn_fix_holes_zpat(ctx, u_gen, zp));
     }
-  /* TODO fix holes */
   | (Delete, OpSeqZ(_, CursorPO(_, EmptyHole(_)) as zp0, surround))
       when ZPat.opseqz_preceded_by_Space(zp0, surround) =>
     switch (surround) {
@@ -1377,10 +1355,9 @@ let rec syn_perform_pat =
         | ExpPrefix(p1, _space) => p1
         | SeqPrefix(seq, _space) => UHPat.PI(PatUtil.mk_OpSeq(seq))
         };
-      switch (Statics.syn_pat(ctx, p)) {
-      | None => Failed
-      | Some((ty, ctx)) => Succeeded((ZPat.place_after(p), ty, ctx, u_gen))
-      };
+      Succeeded(
+        Statics.syn_fix_holes_zpat(ctx, u_gen, ZPat.place_after(p)),
+      );
     /* ... + [k-1]   |>_ + [k+1] + ...   ==>   ... + [k-1] |+ [k+1] + ... */
     | BothNonEmpty(prefix, suffix) =>
       let seq =
@@ -1391,17 +1368,9 @@ let rec syn_perform_pat =
           OperatorSeq.opseq_of_seq_and_suffix(seq, suffix)
         };
       let pi = PatUtil.mk_OpSeq(seq);
-      switch (Statics.syn_pat_inner(ctx, pi)) {
-      | None => Failed
-      | Some((ty, ctx)) =>
-        let k = OperatorSeq.prefix_length(prefix);
-        Succeeded((
-          CursorPI(BeforeChild(k + 1, Before), pi),
-          ty,
-          ctx,
-          u_gen,
-        ));
-      };
+      let k = OperatorSeq.prefix_length(prefix);
+      let zp = ZPat.CursorPI(BeforeChild(k, After), pi);
+      Succeeded(Statics.syn_fix_holes_zpat(ctx, u_gen, zp));
     }
   /* ... + [k-1] +<| [k] + ...   ==>   ... + [k-1]| [k] */
   | (
