@@ -1827,7 +1827,8 @@ let rec syn_perform_block =
     Some((zblock, ty, u_gen));
   | (Construct(SLine), BlockZE(lines, ze)) when ZExp.is_after_exp(ze) =>
     let (zhole, u_gen) = ZExp.new_EmptyHole(u_gen);
-    let zblock = ZExp.BlockZE(lines @ [ExpLine(ZExp.erase(ze))], zhole);
+    let line = UHExp.prune_empty_hole_line(ExpLine(ZExp.erase(ze)));
+    let zblock = ZExp.BlockZE(lines @ [line], zhole);
     Some((zblock, Hole, u_gen));
   | (Construct(SLet), BlockZE(lines, ze1)) when ZExp.is_before_exp(ze1) =>
     let (zp, u_gen) = ZPat.new_EmptyHole(u_gen);
