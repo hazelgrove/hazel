@@ -2952,6 +2952,17 @@ and ana_perform_block =
   | (Construct(SLine), BlockZE(lines, ze)) when ZExp.is_before_exp(ze) =>
     let zblock = ZExp.BlockZE(lines @ [EmptyLine], ze);
     Some((zblock, u_gen));
+  | (Construct(SLine), BlockZE(lines, ze)) when ZExp.is_after_exp(ze) =>
+    switch (Statics.syn_lines(ctx, lines)) {
+    | None => None
+    | Some(ctx) =>
+      let (e, _, u_gen) =
+        Statics.syn_fix_holes_exp(ctx, u_gen, ZExp.erase(ze));
+      let line = UHExp.prune_empty_hole_line(ExpLine(e));
+      let (zhole, u_gen) = ZExp.new_EmptyHole(u_gen);
+      let zblock = ZExp.BlockZE(lines @ [line], zhole);
+      Some((zblock, u_gen));
+    }
   | (Construct(SLet), BlockZE(lines, ze1)) when ZExp.is_before_exp(ze1) =>
     let (zp, u_gen) = ZPat.new_EmptyHole(u_gen);
     let block = UHExp.Block([], ZExp.erase(ze1));
