@@ -15,6 +15,13 @@ type t =
 
 exception SkelInconsistentWithOpSeq;
 
+let children = (pi: UHPat.t_inner): list(int) =>
+  switch (pi) {
+  | Parenthesized(_) => [0]
+  | OpSeq(_, seq) => range(OperatorSeq.seq_length(seq))
+  | Inj(_, _, _) => [0]
+  };
+
 let child_indices_following_delimiters = (pi: UHPat.t_inner): list(int) =>
   switch (pi) {
   | Parenthesized(_) => [0]
@@ -26,20 +33,34 @@ let child_indices_following_delimiters = (pi: UHPat.t_inner): list(int) =>
   | Inj(_, _, _) => [0]
   };
 
-let is_valid_inner_cursor =
-    (inner_cursor: inner_cursor, pi: UHPat.t_inner): bool =>
-  switch (inner_cursor) {
-  | BeforeChild(k, _) => contains(child_indices_following_delimiters(pi), k)
-  | ClosingDelimiter(_) =>
-    switch (pi) {
-    | OpSeq(_, _) => false
-    | Parenthesized(_)
-    | Inj(_, _, _) => true
-    }
+let has_closing_delimiter = (pi: UHPat.t_inner): bool =>
+  switch (pi) {
+  | Parenthesized(_)
+  | Inj(_, _, _) => true
+  | OpSeq(_, _) => false
   };
 
-let is_valid_outer_cursor = (Char(j): outer_cursor, po: UHPat.t_outer): bool =>
-  0 <= j && j < UHPat.t_outer_length(po);
+let valid_inner_cursors = (pi: UHPat.t_inner): list(inner_cursor) => {
+  let before_child_positions =
+    child_indices_following_delimiters(pi)
+    |> List.map(k => [BeforeChild(k, Before), BeforeChild(k, After)])
+    |> List.flatten;
+  let closing_delimiter_positions =
+    has_closing_delimiter(pi)
+      ? [ClosingDelimiter(Before), ClosingDelimiter(After)] : [];
+  before_child_positions @ closing_delimiter_positions;
+};
+
+let valid_outer_cursors = (po: UHPat.t_outer): list(outer_cursor) =>
+  range(UHPat.t_outer_length(po)) |> List.map(j => Char(j));
+
+let is_valid_inner_cursor =
+    (inner_cursor: inner_cursor, pi: UHPat.t_inner): bool =>
+  contains(valid_inner_cursors(pi), inner_cursor);
+
+let is_valid_outer_cursor =
+    (outer_cursor: outer_cursor, po: UHPat.t_outer): bool =>
+  contains(valid_outer_cursors(po), outer_cursor);
 
 let pat_children = (pi: UHPat.t_inner): list(UHPat.t) =>
   switch (pi) {

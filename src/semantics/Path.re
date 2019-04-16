@@ -1332,12 +1332,51 @@ let node_positions_ty = (uty: UHTyp.t): list(node_pos) =>
     child_positions @ closing_delimiter_positions;
   };
 
+let node_positions_pat = (p: UHPat.t): list(node_pos) =>
+  switch (p) {
+  | PO(po) => ZPat.valid_outer_cursors(po) |> List.map(c => On(O(c)))
+  | PI(pi) =>
+    let cfd = ZPat.child_indices_following_delimiters(pi);
+    let child_positions: list(node_pos) =
+      ZPat.children(pi)
+      |> List.map(k => {
+           let before_child_positions: list(node_pos) =
+             contains(cfd, k)
+               ? [
+                 On(I(BeforeChild(k, Before))),
+                 On(I(BeforeChild(k, After))),
+               ]
+               : [];
+           let child_position: list(node_pos) = [Deeper(k)];
+           before_child_positions @ child_position;
+         })
+      |> List.flatten;
+    let closing_delimiter_positions: list(node_pos) =
+      ZPat.has_closing_delimiter(pi)
+        ? [
+          On(I(ClosingDelimiter(Before))),
+          On(I(ClosingDelimiter(After))),
+        ]
+        : [];
+    child_positions @ closing_delimiter_positions;
+  };
+
 let node_position_zty = (zty: ZTyp.t): node_pos =>
   switch (zty) {
   | CursorTO(outer_cursor, _) => On(O(outer_cursor))
   | CursorTI(inner_cursor, _) => On(I(inner_cursor))
   | ParenthesizedZ(_) => Deeper(0)
   | ListZ(_) => Deeper(0)
+  | OpSeqZ(_, _, surround) =>
+    Deeper(OperatorSeq.surround_prefix_length(surround))
+  };
+
+let node_position_zpat = (zp: ZPat.t): node_pos =>
+  switch (zp) {
+  | CursorPO(outer_cursor, _) => On(O(outer_cursor))
+  | CursorPI(inner_cursor, _) => On(I(inner_cursor))
+  | ParenthesizedZ(_) => Deeper(0)
+  | InjZ(_, _, _) => Deeper(0)
   | OpSeqZ(_, _, surround) =>
     Deeper(OperatorSeq.surround_prefix_length(surround))
   };
@@ -1362,7 +1401,27 @@ let steps_of_next_node_pos_ty = (zty: ZTyp.t): option(steps) => {
   };
 };
 
-let inner_node_positions_line = (li: UHExp.line_inner): list(node_pos) => {
+let steps_of_prev_node_pos_pat = (zp: ZPat.t): option(steps) => {
+  let node_position = node_position_zpat(zp);
+  let node_positions = node_positions_pat(ZPat.erase(zp));
+  switch (elem_before(node_position, node_positions)) {
+  | None => None
+  | Some(On(_)) => Some([])
+  | Some(Deeper(k)) => Some([k])
+  };
+};
+
+let steps_of_next_node_pos_pat = (zp: ZPat.t): option(steps) => {
+  let node_position = node_position_zpat(zp);
+  let node_positions = node_positions_pat(ZPat.erase(zp));
+  switch (elem_after(node_position, node_positions)) {
+  | None => None
+  | Some(On(_)) => Some([])
+  | Some(Deeper(k)) => Some([k])
+  };
+};
+
+let node_positions_line = (li: UHExp.line_inner): list(node_pos) => {
   let cfd = ZExp.children_following_delimiters_line(li);
   let child_positions: list(node_pos) =
     ZExp.children_line(li)
