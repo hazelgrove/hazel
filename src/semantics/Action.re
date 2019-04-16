@@ -2221,8 +2221,12 @@ and syn_perform_line =
       switch (ana_perform_block(ctx_block, a, (zblock, u_gen), ty)) {
       | None => None
       | Some((zblock, u_gen)) =>
-        let zline = ZExp.DeeperL(LetLineZE(p, ann, zblock));
-        Some((zline, ctx, u_gen));
+        switch (Statics.ana_pat(ctx, p, ty)) {
+        | None => None
+        | Some(ctx) =>
+          let zline = ZExp.DeeperL(LetLineZE(p, ann, zblock));
+          Some((zline, ctx, u_gen));
+        }
       };
     | None =>
       let block = ZExp.erase_block(zblock);
