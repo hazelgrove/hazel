@@ -2445,6 +2445,28 @@ let keyword_action = (k: keyword): t =>
   | Case => Construct(SCase)
   };
 
+let move_to_prev_node_pos_line =
+    (zline: ZExp.zline, result: ZExp.zline => result('a)): result('a) =>
+  switch (Path.steps_of_prev_node_pos_line(zline)) {
+  | None => CursorEscaped(Before)
+  | Some(steps) =>
+    switch (Path.follow_line_and_place_after(steps, ZExp.erase_line(zline))) {
+    | None => Failed
+    | Some(zline) => result(zline)
+    }
+  };
+
+let move_to_next_node_pos_line =
+    (zline: ZExp.zline, result: ZExp.zline => result('a)): result('a) =>
+  switch (Path.steps_of_next_node_pos_line(zline)) {
+  | None => CursorEscaped(After)
+  | Some(steps) =>
+    switch (Path.follow_line_and_place_before(steps, ZExp.erase_line(zline))) {
+    | None => Failed
+    | Some(zline) => result(zline)
+    }
+  };
+
 let rec syn_perform_block =
         (
           ctx: Contexts.t,
@@ -2840,79 +2862,131 @@ and syn_perform_line =
   /* Backspace & Delete */
   | (Backspace, _) when ZExp.is_before_line(zline) => CursorEscaped(Before)
   | (Delete, _) when ZExp.is_after_line(zline) => CursorEscaped(After)
-  | (Delete, CursorL(After, _)) => Failed
-  | (Delete, CursorL(Before, _))
-  | (Delete, CursorL(In(_), _)) =>
-    let zline = ZExp.CursorL(Before, EmptyLine);
-    Succeeded((zline, ctx, u_gen));
-  | (Backspace, CursorL(Before, _)) => Failed
-  | (Backspace, CursorL(After, _))
-  | (Backspace, CursorL(In(_), _)) =>
-    let zline = ZExp.CursorL(After, EmptyLine);
-    Succeeded((zline, ctx, u_gen));
-  | (Delete, DeeperL(LetLineZP(zp, Some(_), block))) when ZPat.is_after(zp) =>
-    let (block, ty, u_gen) = Statics.syn_fix_holes_block(ctx, u_gen, block);
-    let (zp, ctx, u_gen) = Statics.ana_fix_holes_zpat(ctx, u_gen, zp, ty);
-    let zline = ZExp.DeeperL(LetLineZP(zp, None, block));
-    Succeeded((zline, ctx, u_gen));
-  | (Backspace, DeeperL(LetLineZA(p, zty, block))) when ZTyp.is_before(zty) =>
+  | (Backspace | Delete, CursorLO(_, EmptyLine)) => Failed /* should never happen */
+  | (
+      Backspace,
+      CursorLI(
+        (BeforeChild(_, Before) | ClosingDelimiter(Before)) as inner_cursor,
+        li,
+      ),
+    )
+      when
+        ZExp.is_valid_inner_cursor_line(inner_cursor, li)
+        && !ZExp.is_before_line(zline) =>
+    move_to_prev_node_pos_line(zline, zline =>
+      switch (Statics.syn_line(ctx, LI(li))) {
+      | None => Failed
+      | Some(ctx) => Succeeded((zline, ctx, u_gen))
+      }
+    )
+  | (Delete, CursorLI(BeforeChild(_, After) as inner_cursor, li))
+      when
+        ZExp.is_valid_inner_cursor_line(inner_cursor, li)
+        && !ZExp.is_after_line(zline) =>
+    move_to_next_node_pos_line(zline, zline =>
+      switch (Statics.syn_line(ctx, LI(li))) {
+      | None => Failed
+      | Some(ctx) => Succeeded((zline, ctx, u_gen))
+      }
+    )
+  | (
+      Backspace,
+      CursorLI(
+        BeforeChild(1, After) as inner_cursor,
+        LetLine(p, _, block) as li,
+      ),
+    )
+      when ZExp.is_valid_inner_cursor_line(inner_cursor, li) =>
     let (block, ty, u_gen) = Statics.syn_fix_holes_block(ctx, u_gen, block);
     let (p, ctx, u_gen) = Statics.ana_fix_holes_pat(ctx, u_gen, p, ty);
     let zp = ZPat.place_after(p);
-    let zline = ZExp.DeeperL(LetLineZP(zp, None, block));
+    let zline = ZExp.LetLineZP(zp, None, block);
     Succeeded((zline, ctx, u_gen));
+  | (
+      Delete,
+      CursorLI(
+        BeforeChild(1, Before) as inner_cursor,
+        LetLine(p, _, block) as li,
+      ),
+    )
+      when ZExp.is_valid_inner_cursor_line(inner_cursor, li) =>
+    let (block, ty, u_gen) = Statics.syn_fix_holes_block(ctx, u_gen, block);
+    let (p, ctx, u_gen) = Statics.ana_fix_holes_pat(ctx, u_gen, p, ty);
+    let zline =
+      ZExp.CursorLI(BeforeChild(2, Before), LetLine(p, None, block));
+    Succeeded((zline, ctx, u_gen));
+  /* invalid cursor positions */
+  | (
+      Backspace | Delete,
+      CursorLI(BeforeChild(_, _) | ClosingDelimiter(_), LetLine(_, _, _)),
+    ) =>
+    Failed
   /* Construction */
-  | (Construct(_), CursorL(_, _)) =>
+  | (Construct(_), CursorLO(_, _) | CursorLI(_, _)) =>
     /* handled at lines level */
     Failed
-  | (Construct(SAsc), DeeperL(LetLineZP(zp, None, block))) =>
+  | (Construct(SAsc), LetLineZP(zp, None, block)) =>
     switch (Statics.syn_block(ctx, block)) {
     | None => Failed
     | Some(ty) =>
       let p = ZPat.erase(zp);
       switch (Statics.ana_pat(ctx, p, ty)) {
-      | None => None
+      | None => Failed
       | Some(ctx) =>
         let uty = UHTyp.contract(ty);
         let zty = ZTyp.place_before(uty);
-        let zline = ZExp.DeeperL(LetLineZA(p, zty, block));
+        let zline = ZExp.LetLineZA(p, zty, block);
         Succeeded((zline, ctx, u_gen));
       };
     }
-  | (Construct(SAsc), DeeperL(LetLineZP(zp, Some(uty), block))) =>
+  | (Construct(SAsc), LetLineZP(zp, Some(uty), block)) =>
     /* just move the cursor over if there is already an ascription */
     let p = ZPat.erase(zp);
     switch (Statics.ana_pat(ctx, p, UHTyp.expand(uty))) {
-    | None => None
+    | None => Failed
     | Some(ctx) =>
       let zty = ZTyp.place_before(uty);
-      let zline = ZExp.DeeperL(LetLineZA(p, zty, block));
+      let zline = ZExp.LetLineZA(p, zty, block);
       Succeeded((zline, ctx, u_gen));
     };
   /* Zipper Cases */
-  | (_, DeeperL(ExpLineZ(ze))) =>
+  | (_, ExpLineZ(ze)) =>
     switch (Statics.syn_exp(ctx, ZExp.erase(ze))) {
     | None => Failed
     | Some(ty) =>
       switch (syn_perform_exp(ctx, a, (ze, ty, u_gen))) {
-      | Failed => Failed
+      | (Failed | CursorEscaped(_)) as err => err
       | Succeeded((ze, _, u_gen)) =>
-        let zline = ZExp.prune_empty_hole_line(DeeperL(ExpLineZ(ze)));
+        let zline = ZExp.prune_empty_hole_line(ExpLineZ(ze));
         Succeeded((zline, ctx, u_gen));
       }
     }
-  | (_, DeeperL(LetLineZP(zp, ann, block))) =>
+  | (_, LetLineZP(zp, ann, block)) =>
     switch (ann) {
     | Some(uty) =>
       let ty = UHTyp.expand(uty);
       switch (ana_perform_pat(ctx, u_gen, a, zp, ty)) {
       | Failed => Failed
+      | CursorEscaped(Before) =>
+        let zline =
+          ZExp.CursorLI(
+            BeforeChild(0, After),
+            LetLine(ZPat.erase(zp), ann, block),
+          );
+        Succeeded((zline, ctx, u_gen));
+      | CursorEscaped(After) =>
+        let zline =
+          ZExp.CursorLI(
+            BeforeChild(2, Before),
+            LetLine(ZPat.erase(zp), ann, block),
+          );
+        Succeeded((zline, ctx, u_gen));
       | Succeeded((zp, ctx_after, u_gen)) =>
         let p = ZPat.erase(zp);
         let ctx_block = Statics.ctx_for_let(ctx, p, ty, block);
         let (block, u_gen) =
           Statics.ana_fix_holes_block(ctx_block, u_gen, block, ty);
-        let zline = ZExp.DeeperL(LetLineZP(zp, ann, block));
+        let zline = ZExp.LetLineZP(zp, ann, block);
         Succeeded((zline, ctx_after, u_gen));
       };
     | None =>
@@ -2921,17 +2995,49 @@ and syn_perform_line =
       | Some(ty) =>
         switch (ana_perform_pat(ctx, u_gen, a, zp, ty)) {
         | Failed => Failed
+        | CursorEscaped(Before) =>
+          let zline =
+            ZExp.CursorLI(
+              BeforeChild(0, After),
+              LetLine(ZPat.erase(zp), ann, block),
+            );
+          Succeeded((zline, ctx, u_gen));
+        | CursorEscaped(After) =>
+          let zline =
+            ZExp.CursorLI(
+              BeforeChild(1, Before),
+              LetLine(ZPat.erase(zp), ann, block),
+            );
+          Succeeded((zline, ctx, u_gen));
         | Succeeded((zp, ctx, u_gen)) =>
           let (block, _, u_gen) =
             Statics.syn_fix_holes_block(ctx, u_gen, block);
-          let zline = ZExp.DeeperL(LetLineZP(zp, ann, block));
+          let zline = ZExp.LetLineZP(zp, ann, block);
           Succeeded((zline, ctx, u_gen));
         }
       }
     }
-  | (_, DeeperL(LetLineZA(p, zann, block))) =>
+  | (_, LetLineZA(p, zann, block)) =>
     switch (perform_ty(a, zann)) {
     | Failed => Failed
+    | CursorEscaped(Before) =>
+      let zline =
+        ZExp.CursorLI(
+          BeforeChild(1, After),
+          LetLine(p, Some(ZTyp.erase(zann)), block),
+        );
+      Succeeded((zline, ctx, u_gen));
+    | CursorEscaped(After) =>
+      switch (Statics.ana_pat(ctx, p, UHTyp.expand(ZTyp.erase(zann)))) {
+      | None => Failed
+      | Some(ctx) =>
+        let zline =
+          ZExp.CursorLI(
+            BeforeChild(2, Before),
+            LetLine(p, Some(ZTyp.erase(zann)), block),
+          );
+        Succeeded((zline, ctx, u_gen));
+      }
     | Succeeded(zann) =>
       let ty = UHTyp.expand(ZTyp.erase(zann));
       let (p, ctx_after, u_gen) =
@@ -2939,10 +3045,10 @@ and syn_perform_line =
       let ctx_block = Statics.ctx_for_let(ctx, p, ty, block);
       let (block, u_gen) =
         Statics.ana_fix_holes_block(ctx_block, u_gen, block, ty);
-      let zline = ZExp.DeeperL(LetLineZA(p, zann, block));
+      let zline = ZExp.LetLineZA(p, zann, block);
       Succeeded((zline, ctx_after, u_gen));
     }
-  | (_, DeeperL(LetLineZE(p, ann, zblock))) =>
+  | (_, LetLineZE(p, ann, zblock)) =>
     switch (ann) {
     | Some(uty) =>
       let ty = UHTyp.expand(uty);
@@ -2950,9 +3056,21 @@ and syn_perform_line =
         Statics.ctx_for_let(ctx, p, ty, ZExp.erase_block(zblock));
       switch (ana_perform_block(ctx_block, a, (zblock, u_gen), ty)) {
       | Failed => Failed
+      | CursorEscaped(Before) =>
+        switch (Statics.ana_pat(ctx, p, ty)) {
+        | None => Failed
+        | Some(ctx) =>
+          let zline =
+            ZExp.CursorLI(
+              BeforeChild(2, After),
+              LetLine(p, ann, ZExp.erase_block(zblock)),
+            );
+          Succeeded((zline, ctx, u_gen));
+        }
+      | CursorEscaped(After) => CursorEscaped(After)
       | Succeeded((zblock, u_gen)) =>
         switch (Statics.ana_pat(ctx, p, ty)) {
-        | None => None
+        | None => Failed
         | Some(ctx) =>
           let zline = ZExp.LetLineZE(p, ann, zblock);
           Succeeded((zline, ctx, u_gen));
@@ -2965,9 +3083,21 @@ and syn_perform_line =
       | Some(ty) =>
         switch (syn_perform_block(ctx, a, (zblock, ty, u_gen))) {
         | Failed => Failed
+        | CursorEscaped(Before) =>
+          switch (Statics.ana_pat(ctx, p, ty)) {
+          | None => Failed
+          | Some(ctx) =>
+            let zline =
+              ZExp.CursorLI(
+                BeforeChild(2, After),
+                LetLine(p, ann, ZExp.erase_block(zblock)),
+              );
+            Succeeded((zline, ctx, u_gen));
+          }
+        | CursorEscaped(After) => CursorEscaped(After)
         | Succeeded((zblock, ty, u_gen)) =>
           let (p, ctx, u_gen) = Statics.ana_fix_holes_pat(ctx, u_gen, p, ty);
-          let zline = ZExp.DeeperL(LetLineZE(p, ann, zblock));
+          let zline = ZExp.LetLineZE(p, ann, zblock);
           Succeeded((zline, ctx, u_gen));
         }
       };

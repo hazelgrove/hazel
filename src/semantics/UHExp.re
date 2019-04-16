@@ -56,6 +56,7 @@ and splice_map = SpliceInfo.splice_map(block);
 
 exception SkelInconsistentWithOpSeq(skel_t, opseq);
 
+let line_outer_length = (EmptyLine: line_outer): int => 0;
 let t_outer_length = (eo: t_outer): int =>
   switch (eo) {
   | EmptyHole(_) => 1

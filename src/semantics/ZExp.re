@@ -81,15 +81,23 @@ let children_following_delimiters_exp = (ei: UHExp.t_inner): list(int) =>
   | ApPalette(_, _, _, _) => [0] /* TODO */
   };
 
+let valid_outer_cursors_line = (lo: UHExp.line_outer): list(outer_cursor) =>
+  range(UHExp.line_outer_length(lo)) |> List.map(j => Char(j));
+
+let valid_inner_cursors_line = (li: UHExp.line_inner): list(inner_cursor) => {
+  let before_child_positions =
+    children_following_delimiters_line(li)
+    |> List.map(k => [BeforeChild(k, Before), BeforeChild(k, After)])
+    |> List.flatten;
+  let closing_delimiter_positions =
+    has_closing_delimiter_line(li)
+      ? [ClosingDelimiter(Before), ClosingDelimiter(After)] : [];
+  before_child_positions @ closing_delimiter_positions;
+};
+
 let is_valid_inner_cursor_line =
     (inner_cursor: inner_cursor, li: UHExp.line_inner): bool =>
-  switch (inner_cursor) {
-  | BeforeChild(k, _) => contains(children_following_delimiters_line(li), k)
-  | ClosingDelimiter(_) =>
-    switch (li) {
-    | LetLine(_, _, _) => false
-    }
-  };
+  contains(valid_inner_cursors_line(li), inner_cursor);
 let is_valid_inner_cursor_exp =
     (inner_cursor: inner_cursor, ei: UHExp.t_inner): bool =>
   switch (inner_cursor) {
@@ -107,10 +115,8 @@ let is_valid_inner_cursor_exp =
   };
 
 let is_valid_outer_cursor_line =
-    (Char(j): outer_cursor, lo: UHExp.line_outer): bool =>
-  switch (lo) {
-  | EmptyLine => j === 0
-  };
+    (outer_cursor: outer_cursor, lo: UHExp.line_outer): bool =>
+  contains(valid_outer_cursors_line(lo), outer_cursor);
 let is_valid_outer_cursor_exp =
     (Char(j): outer_cursor, eo: UHExp.t_outer): bool =>
   0 <= j && j < UHExp.t_outer_length(eo);
@@ -287,6 +293,8 @@ let place_before_lines = (lines: UHExp.lines): option(zlines) =>
   | [] => None
   | [line, ...lines] => Some(([], place_before_line(line), lines))
   };
+let place_before_rule = (rule: UHExp.rule): zrule =>
+  CursorR(BeforeChild(0, Before), rule);
 
 let rec place_after_block = (Block(lines, e): UHExp.block): zblock =>
   BlockZE(lines, place_after_exp(e))
