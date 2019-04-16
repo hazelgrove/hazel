@@ -246,6 +246,11 @@ and is_after_exp = (ze: t): bool =>
   | CaseZA(_, _, _, zann) => ZTyp.is_after(zann)
   | ApPaletteZ(_, _, _, _) => false
   };
+let is_after_lines = ((_, zline, suffix): zlines): bool =>
+  switch (suffix) {
+  | [] => is_after_line(zline)
+  | _ => false
+  };
 
 let rec place_before_block = (block: UHExp.block): zblock =>
   switch (block) {
@@ -277,6 +282,11 @@ and place_before_exp = (e: UHExp.t): t =>
     OpSeqZ(skel, ze1, surround);
   | EI(ApPalette(_, _, _, _) as ei) => CursorEI(BeforeChild(0, Before), ei) /* TODO */
   };
+let place_before_lines = (lines: UHExp.lines): option(zlines) =>
+  switch (lines) {
+  | [] => None
+  | [line, ...lines] => Some(([], place_before_line(line), lines))
+  };
 
 let rec place_after_block = (Block(lines, e): UHExp.block): zblock =>
   BlockZE(lines, place_after_exp(e))
@@ -306,6 +316,12 @@ and place_after_exp = (e: UHExp.t): t =>
     OpSeqZ(skel, ze1, surround);
   | EI(ApPalette(_, _, _, _) as ei) =>
     CursorEI(ClosingDelimiter(After), ei) /* TODO */
+  };
+let place_after_lines = (lines: UHExp.lines): option(zlines) =>
+  switch (split_last(lines)) {
+  | None => None
+  | Some((prefix, last_line)) =>
+    Some((prefix, place_after_line(last_line), []))
   };
 let place_after_rule = (Rule(p, block): UHExp.rule): zrule =>
   RuleZE(p, place_after_block(block));

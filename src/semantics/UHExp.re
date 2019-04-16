@@ -320,14 +320,4 @@ let rec drop_outer_parentheses = (e: t): block =>
   | EO(_) => Block([], e)
   };
 
-let rec split_last_line = (lines: lines): option((lines, line)) =>
-  switch (lines) {
-  | [] => None
-  | [li, ...lis] =>
-    switch (split_last_line(lis)) {
-    | None => Some(([], li))
-    | Some((lis, last_li)) => Some(([li, ...lis], last_li))
-    }
-  };
-
 let wrap_in_block = (e: t): block => Block([], e);
