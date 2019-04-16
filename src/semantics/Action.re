@@ -2938,8 +2938,12 @@ and syn_perform_line =
       switch (ana_perform_block(ctx_block, a, (zblock, u_gen), ty)) {
       | Failed => Failed
       | Succeeded((zblock, u_gen)) =>
-        let zline = ZExp.DeeperL(LetLineZE(p, ann, zblock));
-        Succeeded((zline, ctx, u_gen));
+        switch (Statics.ana_pat(ctx, p, ty)) {
+        | None => None
+        | Some(ctx) =>
+          let zline = ZExp.LetLineZE(p, ann, zblock);
+          Succeeded((zline, ctx, u_gen));
+        }
       };
     | None =>
       let block = ZExp.erase_block(zblock);
