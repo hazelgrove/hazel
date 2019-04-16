@@ -2151,18 +2151,26 @@ and syn_perform_line =
     switch (Statics.syn_block(ctx, block)) {
     | None => None
     | Some(ty) =>
-      let uty = UHTyp.contract(ty);
       let p = ZPat.erase(zp);
-      let zty = ZTyp.place_before(uty);
-      let zline = ZExp.DeeperL(LetLineZA(p, zty, block));
-      Some((zline, ctx, u_gen));
+      switch (Statics.ana_pat(ctx, p, ty)) {
+      | None => None
+      | Some(ctx) =>
+        let uty = UHTyp.contract(ty);
+        let zty = ZTyp.place_before(uty);
+        let zline = ZExp.DeeperL(LetLineZA(p, zty, block));
+        Some((zline, ctx, u_gen));
+      };
     }
   | (Construct(SAsc), DeeperL(LetLineZP(zp, Some(uty), block))) =>
     /* just move the cursor over if there is already an ascription */
     let p = ZPat.erase(zp);
-    let zty = ZTyp.place_before(uty);
-    let zline = ZExp.DeeperL(LetLineZA(p, zty, block));
-    Some((zline, ctx, u_gen));
+    switch (Statics.ana_pat(ctx, p, UHTyp.expand(uty))) {
+    | None => None
+    | Some(ctx) =>
+      let zty = ZTyp.place_before(uty);
+      let zline = ZExp.DeeperL(LetLineZA(p, zty, block));
+      Some((zline, ctx, u_gen));
+    };
   /* Zipper Cases */
   | (_, DeeperL(ExpLineZ(ze))) =>
     switch (Statics.syn_exp(ctx, ZExp.erase(ze))) {
