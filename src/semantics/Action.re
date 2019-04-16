@@ -1825,6 +1825,10 @@ let rec syn_perform_block =
   | (Construct(SLine), BlockZE(lines, ze)) when ZExp.is_before_exp(ze) =>
     let zblock = ZExp.BlockZE(lines @ [EmptyLine], ze);
     Some((zblock, ty, u_gen));
+  | (Construct(SLine), BlockZE(lines, ze)) when ZExp.is_after_exp(ze) =>
+    let (zhole, u_gen) = ZExp.new_EmptyHole(u_gen);
+    let zblock = ZExp.BlockZE(lines @ [ExpLine(ZExp.erase(ze))], zhole);
+    Some((zblock, Hole, u_gen));
   | (Construct(SLet), BlockZE(lines, ze1)) when ZExp.is_before_exp(ze1) =>
     let (zp, u_gen) = ZPat.new_EmptyHole(u_gen);
     let e1 = ZExp.erase(ze1);
