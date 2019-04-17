@@ -1793,7 +1793,14 @@ let rec syn_perform_block =
     | None => None
     | Some((lines, li)) =>
       switch (li) {
-      | ExpLine(_) => None
+      | ExpLine(e1) =>
+        switch (ZExp.erase(ze)) {
+        | EmptyHole(_) =>
+          let ze1 = ZExp.place_after_exp(e1);
+          let zblock = ZExp.BlockZE(lines, ze1);
+          Some((zblock, ty, u_gen));
+        | _ => None
+        }
       | LetLine(_, _, _) => None
       | EmptyLine =>
         let zblock = ZExp.BlockZE(lines, ze);
@@ -1807,19 +1814,6 @@ let rec syn_perform_block =
     | Some(ty) =>
       let zblock = ZExp.BlockZE(prefix, ze);
       Some((zblock, ty, u_gen));
-    }
-  | (Backspace, BlockZE(lines, CursorE(Before, EmptyHole(_)))) =>
-    switch (UHExp.split_last_line(lines)) {
-    | None => None
-    | Some((lines, li)) =>
-      switch (li) {
-      | EmptyLine => None /* handled by earlier case */
-      | LetLine(_, _, _) => None
-      | ExpLine(e) =>
-        let ze = ZExp.place_after_exp(e);
-        let zblock = ZExp.BlockZE(lines, ze);
-        Some((zblock, ty, u_gen));
-      }
     }
   /* Construction */
   | (Construct(SLine), BlockZE(lines, ze)) when ZExp.is_before_exp(ze) =>
@@ -2924,7 +2918,14 @@ and ana_perform_block =
     | None => None
     | Some((lines, li)) =>
       switch (li) {
-      | ExpLine(_) => None
+      | ExpLine(e1) =>
+        switch (ZExp.erase(ze)) {
+        | EmptyHole(_) =>
+          let ze1 = ZExp.place_after_exp(e1);
+          let zblock = ZExp.BlockZE(lines, ze1);
+          Some(Statics.ana_fix_holes_zblock(ctx, u_gen, zblock, ty));
+        | _ => None
+        }
       | LetLine(_, _, _) => None
       | EmptyLine =>
         let zblock = ZExp.BlockZE(lines, ze);
@@ -2935,19 +2936,6 @@ and ana_perform_block =
       when ZExp.is_after_exp(ze) =>
     let zblock = ZExp.BlockZE(prefix, ze);
     Some(Statics.ana_fix_holes_zblock(ctx, u_gen, zblock, ty));
-  | (Backspace, BlockZE(lines, CursorE(Before, EmptyHole(_)))) =>
-    switch (UHExp.split_last_line(lines)) {
-    | None => None
-    | Some((lines, li)) =>
-      switch (li) {
-      | EmptyLine => None /* handled by earlier case */
-      | LetLine(_, _, _) => None
-      | ExpLine(e) =>
-        let ze = ZExp.place_after_exp(e);
-        let zblock = ZExp.BlockZE(lines, ze);
-        Some(Statics.ana_fix_holes_zblock(ctx, u_gen, zblock, ty));
-      }
-    }
   /* Construction */
   | (Construct(SLine), BlockZE(lines, ze)) when ZExp.is_before_exp(ze) =>
     let zblock = ZExp.BlockZE(lines @ [EmptyLine], ze);
