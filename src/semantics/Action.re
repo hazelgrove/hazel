@@ -1834,17 +1834,30 @@ let rec syn_perform_block =
     Some((zblock, HTyp.Hole, u_gen));
   | (
       Construct(SCase),
-      BlockZL((prefix, DeeperL(ExpLineZ(ze1)), suffix), e2),
+      BlockZL(
+        (
+          prefix,
+          (CursorL(_, EmptyLine) | DeeperL(ExpLineZ(_))) as zline,
+          suffix,
+        ),
+        e2,
+      ),
     )
-      when ZExp.is_before_exp(ze1) =>
-    let e1 = ZExp.erase(ze1);
+      when ZExp.is_before_line(zline) =>
+    let (e1, u_gen) =
+      switch (zline) {
+      | DeeperL(ExpLineZ(ze1)) => (ZExp.erase(ze1), u_gen)
+      | _ =>
+        let (u, u_gen) = MetaVarGen.next(u_gen);
+        (EmptyHole(u), u_gen);
+      };
     let rule_block = UHExp.Block(suffix, e2);
     let (ze, u_gen) =
       switch (e1) {
       | EmptyHole(_) =>
         let (p, u_gen) = UHPat.new_EmptyHole(u_gen);
         let rule = UHExp.Rule(p, rule_block);
-        let scrut_zblock = ZExp.BlockZE([], ze1);
+        let scrut_zblock = ZExp.BlockZE([], ZExp.place_before_exp(e1));
         (
           ZExp.DeeperE(NotInHole, CaseZE(scrut_zblock, [rule], Some(Hole))),
           u_gen,
@@ -1861,6 +1874,48 @@ let rec syn_perform_block =
       };
     let zblock = ZExp.BlockZE(prefix, ze);
     Some((zblock, Hole, u_gen));
+  | (
+      Construct(SOp(SSpace)),
+      BlockZL(
+        (
+          prefix,
+          DeeperL(
+            ExpLineZ(
+              OpSeqZ(
+                _,
+                CursorE(After, Tm(_, Var(InVHole(Keyword(k), _), _))),
+                EmptyPrefix(opseq_suffix),
+              ),
+            ),
+          ),
+          suffix,
+        ),
+        e2,
+      ),
+    ) =>
+    let (e, u_gen) = keyword_suffix_to_exp(opseq_suffix, u_gen);
+    let ze = ZExp.place_before_exp(e);
+    let zlines = (prefix, ZExp.DeeperL(ExpLineZ(ze)), suffix);
+    let zblock = ZExp.BlockZL(zlines, e2);
+    syn_perform_block(ctx, keyword_action(k), (zblock, ty, u_gen));
+  | (
+      Construct(SOp(SSpace)),
+      BlockZL(
+        (
+          prefix,
+          DeeperL(
+            ExpLineZ(
+              CursorE(After, Tm(_, Var(InVHole(Keyword(k), _), _))),
+            ),
+          ),
+          suffix,
+        ),
+        e2,
+      ),
+    ) =>
+    let zlines = (prefix, ZExp.CursorL(Before, EmptyLine), suffix);
+    let zblock = ZExp.BlockZL(zlines, e2);
+    syn_perform_block(ctx, keyword_action(k), (zblock, ty, u_gen));
   | (
       Construct(SOp(SSpace)),
       BlockZE(
@@ -2961,10 +3016,23 @@ and ana_perform_block =
     Some((zblock, u_gen));
   | (
       Construct(SCase),
-      BlockZL((prefix, DeeperL(ExpLineZ(ze1)), suffix), e2),
+      BlockZL(
+        (
+          prefix,
+          (CursorL(_, EmptyLine) | DeeperL(ExpLineZ(_))) as zline,
+          suffix,
+        ),
+        e2,
+      ),
     )
-      when ZExp.is_before_exp(ze1) =>
-    let e1 = ZExp.erase(ze1);
+      when ZExp.is_before_line(zline) =>
+    let (e1, u_gen) =
+      switch (zline) {
+      | DeeperL(ExpLineZ(ze1)) => (ZExp.erase(ze1), u_gen)
+      | _ =>
+        let (u, u_gen) = MetaVarGen.next(u_gen);
+        (EmptyHole(u), u_gen);
+      };
     let clause = UHExp.Block(suffix, e2);
     let (ze, u_gen) =
       switch (e1) {
@@ -2974,7 +3042,11 @@ and ana_perform_block =
         (
           ZExp.DeeperE(
             NotInHole,
-            CaseZE(ZExp.BlockZE([], ze1), [rule], None),
+            CaseZE(
+              ZExp.BlockZE([], ZExp.place_before_exp(e1)),
+              [rule],
+              None,
+            ),
           ),
           u_gen,
         );
@@ -2989,6 +3061,48 @@ and ana_perform_block =
       };
     let zblock = ZExp.BlockZE(prefix, ze);
     Some(Statics.ana_fix_holes_zblock(ctx, u_gen, zblock, ty));
+  | (
+      Construct(SOp(SSpace)),
+      BlockZL(
+        (
+          prefix,
+          DeeperL(
+            ExpLineZ(
+              OpSeqZ(
+                _,
+                CursorE(After, Tm(_, Var(InVHole(Keyword(k), _), _))),
+                EmptyPrefix(opseq_suffix),
+              ),
+            ),
+          ),
+          suffix,
+        ),
+        e2,
+      ),
+    ) =>
+    let (e, u_gen) = keyword_suffix_to_exp(opseq_suffix, u_gen);
+    let ze = ZExp.place_before_exp(e);
+    let zlines = (prefix, ZExp.DeeperL(ExpLineZ(ze)), suffix);
+    let zblock = ZExp.BlockZL(zlines, e2);
+    ana_perform_block(ctx, keyword_action(k), (zblock, u_gen), ty);
+  | (
+      Construct(SOp(SSpace)),
+      BlockZL(
+        (
+          prefix,
+          DeeperL(
+            ExpLineZ(
+              CursorE(After, Tm(_, Var(InVHole(Keyword(k), _), _))),
+            ),
+          ),
+          suffix,
+        ),
+        e2,
+      ),
+    ) =>
+    let zlines = (prefix, ZExp.CursorL(Before, EmptyLine), suffix);
+    let zblock = ZExp.BlockZL(zlines, e2);
+    ana_perform_block(ctx, keyword_action(k), (zblock, u_gen), ty);
   | (
       Construct(SOp(SSpace)),
       BlockZE(
