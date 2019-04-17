@@ -237,19 +237,35 @@ let rec follow_block_and_place_cursor =
       | Some(ze) => Some(BlockZE(lines, ze))
       };
     } else {
-      switch (ZList.split_at(x, lines)) {
+      switch (
+        follow_lines_and_place_cursor(steps, pcl, pce, pcr, pcp, pct, lines)
+      ) {
       | None => None
-      | Some(split_lines) =>
-        switch (
-          ZList.optmap_z(
-            follow_line_and_place_cursor(xs, pcl, pce, pcr, pcp, pct),
-            split_lines,
-          )
-        ) {
-        | None => None
-        | Some(zlines) => Some(BlockZL(zlines, e))
-        }
+      | Some(zlines) => Some(BlockZL(zlines, e))
       };
+    }
+  }
+and follow_lines_and_place_cursor =
+    (
+      steps: steps,
+      pcl: UHExp.line => option(ZExp.zline),
+      pce: UHExp.t => option(ZExp.t),
+      pcr: UHExp.rule => option(ZExp.zrule),
+      pcp: UHPat.t => option(ZPat.t),
+      pct: UHTyp.t => option(ZTyp.t),
+      lines: UHExp.lines,
+    )
+    : option(ZExp.zlines) =>
+  switch (steps) {
+  | [] => None
+  | [x, ...xs] =>
+    switch (ZList.split_at(x, lines)) {
+    | None => None
+    | Some(split_lines) =>
+      ZList.optmap_z(
+        follow_line_and_place_cursor(xs, pcl, pce, pcr, pcp, pct),
+        split_lines,
+      )
     }
   }
 and follow_line_and_place_cursor =
@@ -528,6 +544,17 @@ let follow_block =
     ZTyp.place_cursor(cursor),
     block,
   );
+let follow_lines =
+    ((steps, cursor): t, lines: UHExp.lines): option(ZExp.zlines) =>
+  follow_lines_and_place_cursor(
+    steps,
+    ZExp.place_cursor_line(cursor),
+    ZExp.place_cursor_exp(cursor),
+    ZExp.place_cursor_rule(cursor),
+    ZPat.place_cursor(cursor),
+    ZTyp.place_cursor(cursor),
+    lines,
+  );
 let follow_line = ((steps, cursor): t, line: UHExp.line): option(ZExp.zline) =>
   follow_line_and_place_cursor(
     steps,
@@ -564,6 +591,13 @@ let follow_block_or_fail = (path: t, block: UHExp.block): ZExp.zblock =>
   switch (follow_block(path, block)) {
   | None => raise(UHBlockNodeNotFound(path, block))
   | Some(zblock) => zblock
+  };
+
+exception UHLinesNodeNotFound(t, UHExp.lines);
+let follow_lines_or_fail = (path: t, lines: UHExp.lines): ZExp.zlines =>
+  switch (follow_lines(path, lines)) {
+  | None => raise(UHLinesNodeNotFound(path, lines))
+  | Some(zlines) => zlines
   };
 
 exception UHExpNodeNotFound(t, UHExp.t);

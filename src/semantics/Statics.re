@@ -2289,6 +2289,16 @@ let syn_fix_holes_zblock =
   (zblock, ty, u_gen);
 };
 
+let syn_fix_holes_zlines =
+    (ctx: Contexts.t, u_gen: MetaVarGen.t, zlines: ZExp.zlines)
+    : (ZExp.zlines, Contexts.t, MetaVarGen.t) => {
+  let path = Path.of_zlines(zlines);
+  let lines = ZExp.erase_lines(zlines);
+  let (lines, ctx, u_gen) = syn_fix_holes_lines(ctx, u_gen, lines);
+  let zlines = Path.follow_lines_or_fail(path, lines);
+  (zlines, ctx, u_gen);
+};
+
 let ana_fix_holes_zblock =
     (ctx: Contexts.t, u_gen: MetaVarGen.t, zblock: ZExp.zblock, ty: HTyp.t)
     : (ZExp.zblock, MetaVarGen.t) => {

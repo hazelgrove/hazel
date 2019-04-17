@@ -630,3 +630,15 @@ and erase_rule = (zr: zrule): UHExp.rule =>
   | RuleZP(zp, block) => Rule(ZPat.erase(zp), block)
   | RuleZE(p, zblock) => Rule(p, erase_block(zblock))
   };
+
+let mk_orphan_block =
+    (prefix: list(UHExp.t), zorphan: t, suffix: list(UHExp.t)): zblock => {
+  let prefix_lines = prefix |> List.map(e => UHExp.ExpLine(e));
+  switch (split_last(suffix)) {
+  | None => BlockZE(prefix_lines, zorphan)
+  | Some((suffix, last)) =>
+    let suffix_lines = suffix |> List.map(e => UHExp.ExpLine(e));
+    let zlines = (prefix_lines, ExpLineZ(zorphan), suffix_lines);
+    BlockZL(zlines, last);
+  };
+};
