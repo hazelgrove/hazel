@@ -1,3 +1,4 @@
+open GeneralUtil;
 open Tyxml_js;
 open SemanticsCommon;
 include EditorBoxTypes;
@@ -27,14 +28,8 @@ let string_delete = (s, offset, ctrlKey) => {
   (prefix ++ suffix, offset);
 };
 
-let side_of_str_offset = (s, offset) =>
-  if (offset == 0) {
-    Before;
-  } else if (offset == String.length(s)) {
-    After;
-  } else {
-    In(offset);
-  };
+/* TODO clean up */
+let side_of_str_offset = (_s, offset) => Char(offset);
 
 exception InvalidExpression;
 let mk =
@@ -72,27 +67,28 @@ let mk =
               Dom.preventDefault(evt);
               let cursor_info = React.S.value(cursor_info_rs);
               switch (cursor_info.sort) {
-              | CursorInfo.IsLine(UHExp.EmptyLine)
-              | CursorInfo.IsLine(UHExp.ExpLine(UHExp.EmptyHole(_)))
-              | CursorInfo.IsExpr(UHExp.EmptyHole(_))
-              | CursorInfo.IsPat(UHPat.EmptyHole(_))
-              | CursorInfo.IsPat(UHPat.Pat(_, UHPat.Var(_, ""))) =>
+              | CursorInfo.IsLine(LO(EmptyLine))
+              | CursorInfo.IsLine(ExpLine(EO(EmptyHole(_))))
+              | CursorInfo.IsExpr(EO(EmptyHole(_)))
+              | CursorInfo.IsPat(PO(EmptyHole(_)))
+              | CursorInfo.IsPat(PO(Var(_, _, ""))) =>
                 let shape =
                   switch (single_key) {
-                  | JSUtil.Number(n) => Action.SNumLit(n, After)
-                  | JSUtil.Letter(x) => Action.SVar(x, After)
+                  | JSUtil.Number(n) =>
+                    Action.SNumLit(n, Char(num_digits(n)))
+                  | JSUtil.Letter(x) => Action.SVar(x, Char(Var.length(x)))
                   | JSUtil.Underscore => Action.SWild
                   };
                 Dom.preventDefault(evt);
                 Dom_html.stopPropagation(evt);
                 do_action(Action.Construct(shape));
                 false;
-              | CursorInfo.IsExpr(UHExp.Tm(_, UHExp.NumLit(_)))
-              | CursorInfo.IsExpr(UHExp.Tm(_, UHExp.BoolLit(_)))
-              | CursorInfo.IsExpr(UHExp.Tm(_, UHExp.Var(_, _)))
-              | CursorInfo.IsPat(UHPat.Pat(_, UHPat.Var(_)))
-              | CursorInfo.IsPat(UHPat.Pat(_, UHPat.NumLit(_)))
-              | CursorInfo.IsPat(UHPat.Pat(_, UHPat.BoolLit(_))) =>
+              | CursorInfo.IsExpr(EO(NumLit(_, _)))
+              | CursorInfo.IsExpr(EO(BoolLit(_, _)))
+              | CursorInfo.IsExpr(EO(Var(_, _, _)))
+              | CursorInfo.IsPat(PO(Var(_, _, _)))
+              | CursorInfo.IsPat(PO(NumLit(_, _)))
+              | CursorInfo.IsPat(PO(BoolLit(_, _))) =>
                 let selection = Dom_html.window##getSelection;
                 let anchorNode = selection##.anchorNode;
                 let nodeValue =
@@ -139,21 +135,35 @@ let mk =
               if (is_backspace || is_del) {
                 let cursor_info = React.S.value(cursor_info_rs);
                 switch (cursor_info.sort) {
-                | CursorInfo.IsExpr(UHExp.Tm(_, UHExp.NumLit(_)))
-                | CursorInfo.IsExpr(UHExp.Tm(_, UHExp.BoolLit(_)))
-                | CursorInfo.IsExpr(UHExp.Tm(_, UHExp.Var(_, _)))
-                | CursorInfo.IsPat(UHPat.Pat(_, UHPat.NumLit(_)))
-                | CursorInfo.IsPat(UHPat.Pat(_, UHPat.BoolLit(_)))
-                | CursorInfo.IsPat(UHPat.Pat(_, UHPat.Var(_))) =>
+                | CursorInfo.IsExpr(EO(NumLit(_, _)))
+                | CursorInfo.IsExpr(EO(BoolLit(_, _)))
+                | CursorInfo.IsExpr(EO(Var(_, _, _)))
+                | CursorInfo.IsPat(PO(NumLit(_, _)))
+                | CursorInfo.IsPat(PO(BoolLit(_, _)))
+                | CursorInfo.IsPat(PO(Var(_, _, _))) =>
                   let side = cursor_info.side;
                   let is_Before =
                     switch (side) {
-                    | Before => true
+                    | O(Char(0)) => true
                     | _ => false
                     };
                   let is_After =
                     switch (side) {
-                    | After => true
+                    | O(Char(j)) =>
+                      /* TODO clean up this hack */
+                      switch (cursor_info.sort) {
+                      | CursorInfo.IsExpr(EO(NumLit(_, n)))
+                      | CursorInfo.IsPat(PO(NumLit(_, n))) =>
+                        j == num_digits(n)
+                      | CursorInfo.IsExpr(EO(BoolLit(_, true)))
+                      | CursorInfo.IsPat(PO(BoolLit(_, true))) => j == 4
+                      | CursorInfo.IsExpr(EO(BoolLit(_, false)))
+                      | CursorInfo.IsPat(PO(BoolLit(_, false))) => j == 5
+                      | CursorInfo.IsExpr(EO(Var(_, _, x)))
+                      | CursorInfo.IsPat(PO(Var(_, _, x))) =>
+                        j == Var.length(x)
+                      | _ => false
+                      }
                     | _ => false
                     };
                   if (is_backspace && is_Before || is_del && is_After) {

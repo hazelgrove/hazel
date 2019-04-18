@@ -106,8 +106,9 @@ let make =
                 m,
               )
             ) {
-            | Some(_) => valid
-            | None => invalid
+            | Succeeded(_) => valid
+            | CursorEscaped(_)
+            | Failed => invalid
             };
           },
         edit_state_rs,

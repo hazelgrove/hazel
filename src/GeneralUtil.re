@@ -102,6 +102,11 @@ let rec split_at = (xs, n) =>
       }
   };
 
+let fold_left_i = (f: ('a, (int, 'b)) => 'a, acc: 'a, xs: list('b)): 'a => {
+  let ixs = List.mapi((i, x) => (i, x), xs);
+  List.fold_left(f, acc, ixs);
+};
+
 let fold_right_i = (f: ((int, 'a), 'b) => 'b, xs: list('a), acc: 'b): 'b => {
   let ixs = List.mapi((i, x) => (i, x), xs);
   List.fold_right(f, ixs, acc);

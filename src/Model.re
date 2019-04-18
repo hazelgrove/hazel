@@ -1,7 +1,8 @@
 type edit_state = (ZExp.zblock, HTyp.t, MetaVarGen.t);
 let u_gen0: MetaVarGen.t = (MetaVarGen.init: MetaVar.t);
 let (u, u_gen1) = MetaVarGen.next(u_gen0);
-let empty_zblock = ZExp.BlockZE([], CursorE(Before, EmptyHole(u)));
+let empty_zblock =
+  ZExp.BlockZE([], ZExp.place_before_exp(EO(EmptyHole(u))));
 let empty: edit_state = ((empty_zblock, Hole, u_gen1): edit_state);
 let empty_erasure = ZExp.erase_block(empty_zblock);
 type edit_state_rs = React.signal(edit_state);
@@ -121,7 +122,7 @@ let new_model = (): t => {
       ) => {
         let new_path =
           switch (sort) {
-          | CursorInfo.IsExpr(EmptyHole(u)) =>
+          | CursorInfo.IsExpr(EO(EmptyHole(u))) =>
             let usi = React.S.value(user_selected_instances_rs);
             switch (MetaVarMap.lookup(usi, u)) {
             | Some(i) => Some((u, i))
@@ -149,7 +150,7 @@ let new_model = (): t => {
         React.S.value(edit_state_rs),
       )
     ) {
-    | Some((ze, ty, ugen)) =>
+    | Succeeded((ze, ty, ugen)) =>
       edit_state_rf((ze, ty, ugen));
 
       /* Update the history with the new action */
@@ -165,7 +166,8 @@ let new_model = (): t => {
       | Action.MoveToPrevHole => ()
       | _ => e_rf(ZExp.erase_block(ze))
       };
-    | None => raise(InvalidAction)
+    | CursorEscaped(_)
+    | Failed => raise(InvalidAction)
     };
 
   let replace_e = (new_block: UHExp.block) => {
