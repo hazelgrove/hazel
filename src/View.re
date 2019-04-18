@@ -9,25 +9,25 @@ open GeneralUtil;
 
 /* Conveniences */
 let (^^) = PP.(^^);
-let taggedText = (cls, s) => PP.text(cls, s);
-let dollar = taggedText("dollar", "$");
-let kw = taggedText("kw");
-let lparen = taggedText("lparen");
-let rparen = taggedText("rparen");
-let op = taggedText("op");
-let var = s => taggedText("var", s);
-let paletteName = s => taggedText("paletteName", s);
-let space = taggedText("space", " ");
+let taggedText = (classes, s) => PP.text(classes, s);
+let dollar = taggedText(["dollar"], "$");
+let kw = taggedText(["kw"]);
+let lparen = taggedText(["lparen"]);
+let rparen = taggedText(["rparen"]);
+let op = taggedText(["op"]);
+let var = taggedText(["var"]);
+let paletteName = s => taggedText(["paletteName"], s);
+let space = taggedText(["space"], " ");
 
 /* Helpers */
-let rec id_of_rev_path = (prefix: string, rev_path: Path.steps): string =>
+let rec id_of_rev_path = (prefix: string, rev_path: Path.steps): PP.id =>
   switch (rev_path) {
   | [] => prefix ++ "path_"
   | [x, ...xs] => id_of_rev_path(prefix, xs) ++ "_" ++ string_of_int(x)
   };
 
 let cls_from_classes =
-    (err_status: err_status, classes: list(string)): list(string) =>
+    (err_status: err_status, classes: list(PP.cls)): list(PP.cls) =>
   switch (err_status) {
   | InHole(_, u) => [
       "in_err_hole",
@@ -37,13 +37,13 @@ let cls_from_classes =
   | NotInHole => classes
   };
 
-let cls_from = (err_status: err_status, cls: string): list(string) =>
+let cls_from = (err_status: err_status, cls: PP.cls): list(PP.cls) =>
   switch (err_status) {
   | InHole(_, u) => ["in_err_hole", "in_err_hole_" ++ string_of_int(u), cls]
   | NotInHole => [cls]
   };
 
-let before_child_cls = (min_child_index: int): string =>
+let before_child_cls = (min_child_index: int): PP.cls =>
   "before-child-" ++ string_of_int(min_child_index);
 
 let term =
@@ -51,7 +51,7 @@ let term =
       prefix: string,
       err_status: err_status,
       rev_path: Path.steps,
-      classes: list(string),
+      classes: list(PP.cls),
       doc: PP.doc,
     )
     : PP.doc => {
@@ -65,19 +65,19 @@ let term =
 };
 
 let block =
-    (prefix: string, rev_path: Path.steps, cls: string, doc: PP.doc): PP.doc => {
+    (prefix: string, rev_path: Path.steps, cls: PP.cls, doc: PP.doc): PP.doc => {
   let id' = id_of_rev_path(prefix, rev_path);
   PP.tagged([cls], Some((id', rev_path)), None, doc);
 };
 
 let line =
-    (prefix: string, rev_path: Path.steps, cls: string, doc: PP.doc): PP.doc => {
+    (prefix: string, rev_path: Path.steps, cls: PP.cls, doc: PP.doc): PP.doc => {
   let id' = id_of_rev_path(prefix, rev_path);
   PP.tagged([cls], Some((id', rev_path)), None, doc);
 };
 
 let rule =
-    (prefix: string, rev_path: Path.steps, cls: string, doc: PP.doc): PP.doc => {
+    (prefix: string, rev_path: Path.steps, cls: PP.cls, doc: PP.doc): PP.doc => {
   let id' = id_of_rev_path(prefix, rev_path);
   PP.tagged([cls], Some((id', rev_path)), None, doc);
 };
@@ -87,7 +87,7 @@ let term_with_attrs =
       prefix: string,
       err_status: err_status,
       rev_path: Path.steps,
-      classes: list(string),
+      classes: list(PP.cls),
       attrs,
       doc: PP.doc,
     )
@@ -107,7 +107,7 @@ let of_var_binding = (prefix: string, rev_path: Path.steps, x: Var.t): PP.doc =>
     ["var_binding"],
     Some((id, rev_path)),
     None,
-    taggedText("var", x),
+    taggedText(["var"], x),
   );
 };
 
@@ -139,19 +139,19 @@ let of_Parenthesized =
   );
 
 /* Generic operator printing */
-let of_op = (op_s: string, op_cls: string): PP.doc =>
+let of_op = (op_s: string, op_cls: PP.cls): PP.doc =>
   PP.tagged(
     ["seq-op", op_cls],
     None,
     None,
     String.length(op_s) == 1
-      ? taggedText("op-no-margin", op_s)
+      ? taggedText(["op-no-margin"], op_s)
       : optionalBreakNSp
-        ^^ taggedText("op-before-1", "​​")
-        ^^ taggedText("op-before-2", "‌")
-        ^^ taggedText("op-center", op_s)
-        ^^ taggedText("op-after-1", "​")
-        ^^ taggedText("op-after-2", "​")
+        ^^ taggedText(["op-before-1"], "​​")
+        ^^ taggedText(["op-before-2"], "‌")
+        ^^ taggedText(["op-center"], op_s)
+        ^^ taggedText(["op-after-1"], "​")
+        ^^ taggedText(["op-after-2"], "​")
         ^^ optionalBreakNSp,
   );
 
@@ -176,7 +176,7 @@ let of_Hole =
     (
       prefix: string,
       rev_path: Path.steps,
-      classes: list(string),
+      classes: list(PP.cls),
       hole_name: string,
     )
     : PP.doc =>
@@ -185,11 +185,11 @@ let of_Hole =
     NotInHole,
     rev_path,
     classes,
-    taggedText("hole-before-1", "​​")
-    ^^ taggedText("hole-before-2", "​")
-    ^^ taggedText("holeName", hole_name)
-    ^^ taggedText("hole-after-1", "​")
-    ^^ taggedText("hole-after-2", "​"),
+    taggedText(["hole-before-1"], "​​")
+    ^^ taggedText(["hole-before-2"], "​")
+    ^^ taggedText(["holeName"], hole_name)
+    ^^ taggedText(["hole-after-1"], "​")
+    ^^ taggedText(["hole-after-2"], "​"),
   );
 
 let precedence_const = 0;
@@ -360,7 +360,7 @@ let of_Var =
   );
 
 let of_EmptyLine = (prefix: string, rev_path: Path.steps): PP.doc =>
-  line(prefix, rev_path, "EmptyLine", taggedText("empty-line", "​​"));
+  line(prefix, rev_path, "EmptyLine", taggedText(["empty-line"], "​​"));
 
 let of_ExpLine = (prefix: string, rev_path: Path.steps, r1: PP.doc): PP.doc =>
   line(prefix, rev_path, "ExpLine", r1);
@@ -461,8 +461,8 @@ let of_Lam =
       r1: PP.doc,
     )
     : PP.doc => {
-  let first_part = taggedText("lambda-sym", LangUtil.lamSym) ^^ rx;
-  let second_part = taggedText("lambda-dot", ".") ^^ r1;
+  let first_part = taggedText(["lambda-sym"], LangUtil.lamSym) ^^ rx;
+  let second_part = taggedText(["lambda-dot"], ".") ^^ r1;
   let view =
     switch (rann) {
     | Some(r) => first_part ^^ of_op(":", "ann") ^^ r ^^ second_part
@@ -481,7 +481,7 @@ let of_BoolLit =
     err_status,
     rev_path,
     ["BoolLit"],
-    taggedText("boolean", string_of_bool(b)),
+    taggedText(["boolean"], string_of_bool(b)),
   );
 let of_NumLit =
     (prefix: string, err_status: err_status, rev_path: Path.steps, n: int)
@@ -491,11 +491,11 @@ let of_NumLit =
     err_status,
     rev_path,
     ["NumLit"],
-    taggedText("number", string_of_int(n)),
+    taggedText(["number"], string_of_int(n)),
   );
 let of_Triv =
     (prefix: string, err_status: err_status, rev_path: Path.steps): PP.doc =>
-  term(prefix, err_status, rev_path, ["Triv"], taggedText("triv", "()"));
+  term(prefix, err_status, rev_path, ["Triv"], taggedText(["triv"], "()"));
 
 let of_ListNil =
     (prefix: string, err_status: err_status, rev_path: Path.steps): PP.doc =>
@@ -648,7 +648,7 @@ let of_chained_Cast =
       : r1,
   );
 
-let failed_cast_arrow = taggedText("failed-cast-arrow", " ⇨ ");
+let failed_cast_arrow = taggedText(["failed-cast-arrow"], " ⇨ ");
 let of_FailedCast =
     (
       prefix: string,
@@ -1145,7 +1145,7 @@ let rec precedence_dhexp = d =>
 
 let hole_label_s = ((u, i)) =>
   string_of_int(u + 1) ++ ":" ++ string_of_int(i + 1);
-let hole_label_of = inst => taggedText("holeName", hole_label_s(inst));
+let hole_label_of = inst => taggedText(["holeName"], hole_label_s(inst));
 let cls_of_inst = ((u, i)) =>
   "hole-instance-" ++ string_of_int(u) ++ "-" ++ string_of_int(i);
 let dbg_SHOW_SIGMAS = false;
@@ -1347,7 +1347,7 @@ let rec of_dhexp' =
             );
           of_FixF(prefix, err_status, rev_path, rx, rty, r1);
         } else {
-          taggedText("fn-placeholder", "<fn>");
+          taggedText(["fn-placeholder"], "<fn>");
         }
       | Lam(dp, ann, d1) =>
         if (_SHOW_FN_BODIES) {
@@ -1364,7 +1364,7 @@ let rec of_dhexp' =
             );
           of_Lam(prefix, err_status, rev_path, rp, rann, r1);
         } else {
-          taggedText("fn-placeholder", "<fn>");
+          taggedText(["fn-placeholder"], "<fn>");
         }
       | Ap(d1, d2) =>
         let rev_path1 = [0, ...rev_path];
@@ -1514,7 +1514,7 @@ let rec of_dhexp' =
               | Rule(dp, _) =>
                 let rev_pathp = [0, ...rev_pathr];
                 let rp = of_dhpat(instance_click_fn, prefix, rev_pathp, dp);
-                let rc = taggedText("elided", "...");
+                let rc = taggedText(["elided"], "...");
                 (rp, rc);
               };
             },
@@ -1661,7 +1661,7 @@ and of_sigma = (instance_click_fn, prefix, rev_path, sigma) => {
   let map_f = ((x, d)) =>
     of_dhexp'(instance_click_fn, false, prefix, NotInHole, rev_path, d)
     ^^ kw("/")
-    ^^ PP.text("", x);
+    ^^ PP.text([""], x);
 
   let docs = List.map(map_f, sigma);
   let doc' =

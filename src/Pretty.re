@@ -12,7 +12,7 @@ module PP: {
   let (^^): (doc, doc) => doc;
   let nestRelative: (int, doc) => doc;
   let nestAbsolute: (int, doc) => doc;
-  let text: (cls, string) => doc;
+  let text: (list(cls), string) => doc;
   let tagged:
     (list(cls), option((id, rev_path)), option(div_attribs), doc) => doc;
   let paletteView:
@@ -28,7 +28,7 @@ module PP: {
   let mandatoryBreak: doc;
   type sdoc =
     | SEmpty
-    | SText(cls, string, sdoc)
+    | SText(list(cls), string, sdoc)
     | STagStart(list(cls), option(id), option(div_attribs), sdoc)
     | STagEnd(sdoc)
     | SPaletteView(
@@ -48,7 +48,7 @@ module PP: {
     | Concat(doc, doc)
     | NestRelative(int, doc)
     | NestAbsolute(int, doc)
-    | Text(cls, string)
+    | Text(list(cls), string)
     | TagStart(list(cls), option((id, rev_path)), option(div_attribs))
     | TagEnd
     | BlockBoundary
@@ -68,9 +68,9 @@ module PP: {
   let (^^) = (x, y) => Concat(x, y);
   let nestRelative = (n, x) => NestRelative(n, x);
   let nestAbsolute = (n, x) => NestAbsolute(n, x);
-  let text = (cls, s) => Text(cls, s);
-  let tagged = (cls, metadata, attribs, x) =>
-    Concat(TagStart(cls, metadata, attribs), Concat(x, TagEnd));
+  let text = (classes, s) => Text(classes, s);
+  let tagged = (classes, metadata, attribs, x) =>
+    Concat(TagStart(classes, metadata, attribs), Concat(x, TagEnd));
   let blockBoundary = BlockBoundary;
   let optionalBreak = s => OptionalBreak(s);
   let mandatoryBreak = MandatoryBreak;
@@ -78,7 +78,7 @@ module PP: {
     PaletteView(rev_path, view, hole_map, mk_editor_box);
   type sdoc =
     | SEmpty
-    | SText(cls, string, sdoc)
+    | SText(list(cls), string, sdoc)
     | STagStart(list(cls), option(id), option(div_attribs), sdoc)
     | STagEnd(sdoc)
     | SPaletteView(
@@ -107,8 +107,8 @@ module PP: {
         sdoc_of_doc'(table, width, k, [(n + k, x'), ...zs'])
       | NestAbsolute(n, x') =>
         sdoc_of_doc'(table, width, k, [(n + i, x'), ...zs'])
-      | Text(cls, s) =>
-        SText(cls, s, sdoc_of_doc'(table, width, k + strlen(s), zs'))
+      | Text(classes, s) =>
+        SText(classes, s, sdoc_of_doc'(table, width, k + strlen(s), zs'))
       | TagStart(tags, metadata, attribs) =>
         let id =
           switch (metadata) {
@@ -129,7 +129,11 @@ module PP: {
         if (width - k <= 0) {
           SLine(i, sdoc_of_doc'(table, width, i, zs'));
         } else {
-          SText("space", s, sdoc_of_doc'(table, width, k + strlen(s), zs'));
+          SText(
+            ["space"],
+            s,
+            sdoc_of_doc'(table, width, k + strlen(s), zs'),
+          );
         }
       | MandatoryBreak => SLine(i, sdoc_of_doc'(table, width, i, zs'))
       | PaletteView(rev_path, view, hole_map, mk_editor_box) =>
@@ -180,10 +184,10 @@ module HTML_Of_SDoc = {
   let rec html_of_sdoc'' = (x, rev_paths) =>
     switch (x) {
     | SEmpty => ([Html5.(span(~a=[a_class(["SEmpty"])], []))], None)
-    | SText(cls, s, x') =>
+    | SText(classes, s, x') =>
       let (h, x'') = html_of_sdoc''(x', rev_paths);
       let h' = [
-        Html5.(span(~a=[a_class(["SText", cls])], [txt(s)])),
+        Html5.(span(~a=[a_class(["SText", ...classes])], [txt(s)])),
         ...h,
       ];
       (h', x'');
