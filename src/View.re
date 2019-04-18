@@ -5,6 +5,7 @@ let _SHOW_FN_BODIES = false;
 exception InvariantViolated;
 module PP = Pretty.PP;
 open SemanticsCommon;
+open GeneralUtil;
 
 /* Conveniences */
 let (^^) = PP.(^^);
@@ -19,13 +20,14 @@ let paletteName = s => taggedText("paletteName", s);
 let space = taggedText("space", " ");
 
 /* Helpers */
-let rec id_of_rev_path = (prefix, rev_path) =>
+let rec id_of_rev_path = (prefix: string, rev_path: Path.steps): string =>
   switch (rev_path) {
   | [] => prefix ++ "path_"
   | [x, ...xs] => id_of_rev_path(prefix, xs) ++ "_" ++ string_of_int(x)
   };
 
-let cls_from_classes = (err_status, classes) =>
+let cls_from_classes =
+    (err_status: err_status, classes: list(string)): list(string) =>
   switch (err_status) {
   | InHole(_, u) => [
       "in_err_hole",
@@ -35,13 +37,24 @@ let cls_from_classes = (err_status, classes) =>
   | NotInHole => classes
   };
 
-let cls_from = (err_status, cls) =>
+let cls_from = (err_status: err_status, cls: string): list(string) =>
   switch (err_status) {
   | InHole(_, u) => ["in_err_hole", "in_err_hole_" ++ string_of_int(u), cls]
   | NotInHole => [cls]
   };
 
-let term_classes = (prefix, err_status, rev_path, classes, doc) => {
+let before_child_cls = (min_child_index: int): string =>
+  "before-child-" ++ string_of_int(min_child_index);
+
+let term =
+    (
+      prefix: string,
+      err_status: err_status,
+      rev_path: Path.steps,
+      classes: list(string),
+      doc: PP.doc,
+    )
+    : PP.doc => {
   let id' = id_of_rev_path(prefix, rev_path);
   PP.tagged(
     cls_from_classes(err_status, classes),
@@ -51,22 +64,34 @@ let term_classes = (prefix, err_status, rev_path, classes, doc) => {
   );
 };
 
-let block = (prefix, rev_path, cls, doc) => {
+let block =
+    (prefix: string, rev_path: Path.steps, cls: string, doc: PP.doc): PP.doc => {
   let id' = id_of_rev_path(prefix, rev_path);
   PP.tagged([cls], Some((id', rev_path)), None, doc);
 };
 
-let line = (prefix, rev_path, cls, doc) => {
+let line =
+    (prefix: string, rev_path: Path.steps, cls: string, doc: PP.doc): PP.doc => {
   let id' = id_of_rev_path(prefix, rev_path);
   PP.tagged([cls], Some((id', rev_path)), None, doc);
 };
 
-let term = (prefix, err_status, rev_path, cls, doc) => {
+let rule =
+    (prefix: string, rev_path: Path.steps, cls: string, doc: PP.doc): PP.doc => {
   let id' = id_of_rev_path(prefix, rev_path);
-  PP.tagged(cls_from(err_status, cls), Some((id', rev_path)), None, doc);
+  PP.tagged([cls], Some((id', rev_path)), None, doc);
 };
 
-let term_with_attrs = (prefix, err_status, rev_path, classes, attrs, doc) => {
+let term_with_attrs =
+    (
+      prefix: string,
+      err_status: err_status,
+      rev_path: Path.steps,
+      classes: list(string),
+      attrs,
+      doc: PP.doc,
+    )
+    : PP.doc => {
   let id' = id_of_rev_path(prefix, rev_path);
   PP.tagged(
     cls_from_classes(err_status, classes),
@@ -76,7 +101,7 @@ let term_with_attrs = (prefix, err_status, rev_path, classes, attrs, doc) => {
   );
 };
 
-let of_var_binding = (prefix, rev_path, x) => {
+let of_var_binding = (prefix: string, rev_path: Path.steps, x: Var.t): PP.doc => {
   let id = id_of_rev_path(prefix, rev_path);
   PP.tagged(
     ["var_binding"],
@@ -90,12 +115,20 @@ let optionalBreakSp = PP.optionalBreak(" ");
 let optionalBreakNSp = PP.optionalBreak("");
 
 /* Parenthesized */
-let of_Parenthesized = (is_multi_line, prefix, err_status, rev_path, r1) =>
+let of_Parenthesized =
+    (
+      is_multi_line: bool,
+      prefix: string,
+      err_status: err_status,
+      rev_path: Path.steps,
+      r1: PP.doc,
+    )
+    : PP.doc =>
   term(
     prefix,
     err_status,
     rev_path,
-    "Parenthesized",
+    ["Parenthesized"],
     is_multi_line
       ? PP.blockBoundary
         ^^ lparen("(")
@@ -106,7 +139,7 @@ let of_Parenthesized = (is_multi_line, prefix, err_status, rev_path, r1) =>
   );
 
 /* Generic operator printing */
-let of_op = (op_s, op_cls) =>
+let of_op = (op_s: string, op_cls: string): PP.doc =>
   PP.tagged(
     ["seq-op", op_cls],
     None,
@@ -123,28 +156,35 @@ let of_op = (op_s, op_cls) =>
   );
 
 /* Types */
-let string_of_ty_op = op =>
+let string_of_ty_op = (op: UHTyp.op): string =>
   switch (op) {
-  | UHTyp.Arrow => "Arrow"
-  | UHTyp.Sum => "Sum"
-  | UHTyp.Prod => "Prod"
+  | Arrow => "Arrow"
+  | Sum => "Sum"
+  | Prod => "Prod"
   };
 
-let of_ty_op = op => {
+let of_ty_op = (op: UHTyp.op): PP.doc => {
   let op_cls = "op-" ++ string_of_ty_op(op);
   switch (op) {
-  | UHTyp.Arrow => of_op(" " ++ LangUtil.typeArrowSym ++ " ", op_cls)
-  | UHTyp.Sum => of_op(" | ", op_cls)
-  | UHTyp.Prod => of_op(", ", op_cls)
+  | Arrow => of_op(" " ++ LangUtil.typeArrowSym ++ " ", op_cls)
+  | Sum => of_op(" | ", op_cls)
+  | Prod => of_op(", ", op_cls)
   };
 };
 
-let of_Hole = (prefix, rev_path, cls, hole_name) =>
+let of_Hole =
+    (
+      prefix: string,
+      rev_path: Path.steps,
+      classes: list(string),
+      hole_name: string,
+    )
+    : PP.doc =>
   term(
     prefix,
     NotInHole,
     rev_path,
-    cls,
+    classes,
     taggedText("hole-before-1", "​​")
     ^^ taggedText("hole-before-2", "​")
     ^^ taggedText("holeName", hole_name)
@@ -156,50 +196,61 @@ let precedence_const = 0;
 let precedence_Prod = 1;
 let precedence_Sum = 2;
 let precedence_Arrow = 3;
-let precedence_ty = ty =>
+let precedence_ty = (ty: HTyp.t): int =>
   switch (ty) {
-  | HTyp.Num
-  | HTyp.Bool
-  | HTyp.Hole
-  | HTyp.Unit
-  | HTyp.List(_) => precedence_const
-  | HTyp.Prod(_, _) => precedence_Prod
-  | HTyp.Sum(_, _) => precedence_Sum
-  | HTyp.Arrow(_, _) => precedence_Arrow
+  | Num
+  | Bool
+  | Hole
+  | Unit
+  | List(_) => precedence_const
+  | Prod(_, _) => precedence_Prod
+  | Sum(_, _) => precedence_Sum
+  | Arrow(_, _) => precedence_Arrow
   };
-let of_Bool = (prefix, rev_path) =>
-  term(prefix, NotInHole, rev_path, "Bool", kw("Bool"));
-let of_Num = (prefix, rev_path) =>
-  term(prefix, NotInHole, rev_path, "Num", kw("Num"));
-let of_Unit = (prefix, rev_path) =>
-  term(prefix, NotInHole, rev_path, "Unit", kw("Unit"));
-let of_ty_BinOp = (prefix, err_status, rev_path, r1, op, r2) =>
-  term_classes(
+let of_Bool = (prefix: string, rev_path: Path.steps): PP.doc =>
+  term(prefix, NotInHole, rev_path, ["Bool"], kw("Bool"));
+let of_Num = (prefix: string, rev_path: Path.steps): PP.doc =>
+  term(prefix, NotInHole, rev_path, ["Num"], kw("Num"));
+let of_Unit = (prefix: string, rev_path: Path.steps): PP.doc =>
+  term(prefix, NotInHole, rev_path, ["Unit"], kw("Unit"));
+let of_ty_BinOp =
+    (
+      prefix: string,
+      err_status: err_status,
+      rev_path: Path.steps,
+      r1: PP.doc,
+      op: UHTyp.op,
+      r2: PP.doc,
+    )
+    : PP.doc =>
+  term(
     prefix,
     err_status,
     rev_path,
     [string_of_ty_op(op), "skel-binop"],
     r1 ^^ of_ty_op(op) ^^ r2,
   );
-let of_List = (prefix, rev_path, r1) =>
+let of_List = (prefix: string, rev_path: Path.steps, r1: PP.doc): PP.doc =>
   term(
     prefix,
     NotInHole,
     rev_path,
-    "List",
+    ["List"],
     kw("List") ^^ lparen("(") ^^ r1 ^^ rparen(")"),
   );
-let rec of_htype = (parenthesize, prefix, rev_path, ty) => {
+let rec of_htype =
+        (parenthesize: bool, prefix: string, rev_path: Path.steps, ty: HTyp.t)
+        : PP.doc => {
   let d =
     switch (ty) {
-    | HTyp.Bool => of_Bool(prefix, rev_path)
-    | HTyp.Num => of_Num(prefix, rev_path)
-    | HTyp.Unit => of_Unit(prefix, rev_path)
-    | HTyp.List(ty1) =>
+    | Bool => of_Bool(prefix, rev_path)
+    | Num => of_Num(prefix, rev_path)
+    | Unit => of_Unit(prefix, rev_path)
+    | List(ty1) =>
       let rev_path1 = [0, ...rev_path];
       let r1 = of_htype(false, prefix, rev_path1, ty1);
       of_List(prefix, rev_path, r1);
-    | HTyp.Arrow(ty1, ty2) =>
+    | Arrow(ty1, ty2) =>
       let rev_path1 = [0, ...rev_path];
       let rev_path2 = [1, ...rev_path];
       let paren1 = precedence_ty(ty1) >= precedence_Arrow;
@@ -207,7 +258,7 @@ let rec of_htype = (parenthesize, prefix, rev_path, ty) => {
       let r1 = of_htype(paren1, prefix, rev_path1, ty1);
       let r2 = of_htype(paren2, prefix, rev_path2, ty2);
       of_ty_BinOp(prefix, NotInHole, rev_path, r1, UHTyp.Arrow, r2);
-    | HTyp.Sum(ty1, ty2) =>
+    | Sum(ty1, ty2) =>
       let rev_path1 = [0, ...rev_path];
       let rev_path2 = [1, ...rev_path];
       let paren1 = precedence_ty(ty1) >= precedence_Sum;
@@ -215,7 +266,7 @@ let rec of_htype = (parenthesize, prefix, rev_path, ty) => {
       let r1 = of_htype(paren1, prefix, rev_path1, ty1);
       let r2 = of_htype(paren2, prefix, rev_path2, ty2);
       of_ty_BinOp(prefix, NotInHole, rev_path, r1, UHTyp.Sum, r2);
-    | HTyp.Prod(ty1, ty2) =>
+    | Prod(ty1, ty2) =>
       let rev_path1 = [0, ...rev_path];
       let rev_path2 = [1, ...rev_path];
       let paren1 = precedence_ty(ty1) >= precedence_Prod;
@@ -223,43 +274,51 @@ let rec of_htype = (parenthesize, prefix, rev_path, ty) => {
       let r1 = of_htype(paren1, prefix, rev_path1, ty1);
       let r2 = of_htype(paren2, prefix, rev_path2, ty2);
       of_ty_BinOp(prefix, NotInHole, rev_path, r1, UHTyp.Prod, r2);
-    | HTyp.Hole => of_Hole(prefix, rev_path, "Hole", "?")
+    | Hole => of_Hole(prefix, rev_path, ["Hole"], "?")
     };
   parenthesize ? lparen("(") ^^ d ^^ rparen(")") : d;
 };
-let rec of_uhtyp = (prefix, rev_path, uty) =>
+let rec of_uhtyp =
+        (prefix: string, rev_path: Path.steps, uty: UHTyp.t): PP.doc =>
   switch (uty) {
-  | UHTyp.Parenthesized(uty1) =>
+  | TI(Parenthesized(uty1)) =>
     let rev_path1 = [0, ...rev_path];
     let r1 = of_uhtyp(prefix, rev_path1, uty1);
     of_Parenthesized(false, prefix, NotInHole, rev_path, r1);
-  | UHTyp.Bool => of_Bool(prefix, rev_path)
-  | UHTyp.Num => of_Num(prefix, rev_path)
-  | UHTyp.Unit => of_Unit(prefix, rev_path)
-  | UHTyp.List(uty1) =>
+  | TO(Bool) => of_Bool(prefix, rev_path)
+  | TO(Num) => of_Num(prefix, rev_path)
+  | TO(Unit) => of_Unit(prefix, rev_path)
+  | TI(List(uty1)) =>
     let rev_path1 = [0, ...rev_path];
     let r1 = of_uhtyp(prefix, rev_path1, uty1);
     of_List(prefix, rev_path, r1);
-  | UHTyp.OpSeq(skel, seq) =>
+  | TI(OpSeq(skel, seq)) =>
     term(
       prefix,
       NotInHole,
       rev_path,
-      "OpSeq",
+      ["OpSeq"],
       of_uhtyp_skel(prefix, rev_path, skel, seq),
     )
-  | UHTyp.Hole => of_Hole(prefix, rev_path, "Hole", "?")
+  | TO(Hole) => of_Hole(prefix, rev_path, ["Hole"], "?")
   }
-and of_uhtyp_skel = (prefix, rev_path, skel, seq) =>
+and of_uhtyp_skel =
+    (
+      prefix: string,
+      rev_path: Path.steps,
+      skel: UHTyp.skel_t,
+      seq: UHTyp.opseq,
+    )
+    : PP.doc =>
   switch (skel) {
-  | Skel.Placeholder(n) =>
+  | Placeholder(n) =>
     switch (OperatorSeq.nth_tm(n, seq)) {
+    | None => raise(InvariantViolated)
     | Some(utyn) =>
       let rev_path_n = [n, ...rev_path];
       of_uhtyp(prefix, rev_path_n, utyn);
-    | None => raise(InvariantViolated)
     }
-  | Skel.BinOp(_, op, skel1, skel2) =>
+  | BinOp(_, op, skel1, skel2) =>
     let r1 = of_uhtyp_skel(prefix, rev_path, skel1, seq);
     let r2 = of_uhtyp_skel(prefix, rev_path, skel2, seq);
     of_ty_BinOp(prefix, NotInHole, rev_path, r1, op, r2);
@@ -267,7 +326,8 @@ and of_uhtyp_skel = (prefix, rev_path, skel, seq) =>
 
 /* Expressions and Patterns */
 
-let classes_of_var_err_status = var_err_status =>
+let classes_of_var_err_status =
+    (var_err_status: var_err_status): list(string) =>
   switch (var_err_status) {
   | InVHole(Free, u) => ["InVHole", "InVHole_" ++ string_of_int(u)]
   | InVHole(Keyword(_), u) => [
@@ -278,11 +338,20 @@ let classes_of_var_err_status = var_err_status =>
   | NotInVHole => []
   };
 
-let of_Wild = (prefix, err_status, rev_path) =>
-  term(prefix, err_status, rev_path, "Wild", var("_"));
+let of_Wild =
+    (prefix: string, err_status: err_status, rev_path: Path.steps): PP.doc =>
+  term(prefix, err_status, rev_path, ["Wild"], var("_"));
 
-let of_Var = (prefix, err_status, var_err_status, rev_path, x) =>
-  term_classes(
+let of_Var =
+    (
+      prefix: string,
+      err_status: err_status,
+      var_err_status: var_err_status,
+      rev_path: Path.steps,
+      x: Var.t,
+    )
+    : PP.doc =>
+  term(
     prefix,
     err_status,
     rev_path,
@@ -290,13 +359,21 @@ let of_Var = (prefix, err_status, var_err_status, rev_path, x) =>
     var(x),
   );
 
-let of_EmptyLine = (prefix, rev_path) =>
+let of_EmptyLine = (prefix: string, rev_path: Path.steps): PP.doc =>
   line(prefix, rev_path, "EmptyLine", taggedText("empty-line", "​​"));
 
-let of_ExpLine = (prefix, rev_path, r1) =>
+let of_ExpLine = (prefix: string, rev_path: Path.steps, r1: PP.doc): PP.doc =>
   line(prefix, rev_path, "ExpLine", r1);
 
-let of_LetLine = (prefix, rev_path, rx, rann, r1) => {
+let of_LetLine =
+    (
+      prefix: string,
+      rev_path: Path.steps,
+      rx: PP.doc,
+      rann: option(PP.doc),
+      r1: PP.doc,
+    )
+    : PP.doc => {
   let first_part = PP.blockBoundary ^^ kw("let") ^^ space ^^ rx;
   let second_part = of_op(" = ", "let-equals") ^^ PP.nestAbsolute(2, r1);
   let view =
@@ -307,7 +384,7 @@ let of_LetLine = (prefix, rev_path, rx, rann, r1) => {
   line(prefix, rev_path, "LetLine", view);
 };
 
-let of_lines = rline_lst =>
+let of_lines = (rline_lst: list(PP.doc)): PP.doc =>
   switch (rline_lst) {
   | [] => PP.empty
   | [rli, ...rli_lst] =>
@@ -318,7 +395,8 @@ let of_lines = rline_lst =>
     )
   };
 
-let of_Block = (prefix, rev_path, rlines, r1) => {
+let of_Block =
+    (prefix: string, rev_path: Path.steps, rlines: PP.doc, r1: PP.doc): PP.doc => {
   let r =
     if (PP.isEmpty(rlines)) {
       r1;
@@ -328,7 +406,16 @@ let of_Block = (prefix, rev_path, rlines, r1) => {
   block(prefix, rev_path, "Block", r);
 };
 
-let of_Let = (prefix, _err_status, rev_path, rx, rann, r1, r2) => {
+let of_Let =
+    (
+      prefix: string,
+      rev_path: Path.steps,
+      rx: PP.doc,
+      rann: option(PP.doc),
+      r1: PP.doc,
+      r2: PP.doc,
+    )
+    : PP.doc => {
   let first_part = PP.blockBoundary ^^ kw("let") ^^ space ^^ rx;
   let second_part =
     of_op(" = ", "let-equals")
@@ -343,7 +430,16 @@ let of_Let = (prefix, _err_status, rev_path, rx, rann, r1, r2) => {
   line(prefix, rev_path, "LetLine", view);
 };
 
-let of_FixF = (prefix, err_status, rev_path, rx, rty, r1) => {
+let of_FixF =
+    (
+      prefix: string,
+      err_status: err_status,
+      rev_path: Path.steps,
+      rx: PP.doc,
+      rty: PP.doc,
+      r1: PP.doc,
+    )
+    : PP.doc => {
   let view =
     kw("fix")
     ^^ space
@@ -352,10 +448,19 @@ let of_FixF = (prefix, err_status, rev_path, rx, rty, r1) => {
     ^^ rty
     ^^ of_op(".", "lambda-dot")
     ^^ r1;
-  term(prefix, err_status, rev_path, "Lam", view);
+  term(prefix, err_status, rev_path, ["Lam"], view);
 };
 
-let of_Lam = (prefix, err_status, rev_path, rx, rann, r1) => {
+let of_Lam =
+    (
+      prefix: string,
+      err_status: err_status,
+      rev_path: Path.steps,
+      rx: PP.doc,
+      rann: option(PP.doc),
+      r1: PP.doc,
+    )
+    : PP.doc => {
   let first_part = taggedText("lambda-sym", LangUtil.lamSym) ^^ rx;
   let second_part = taggedText("lambda-dot", ".") ^^ r1;
   let view =
@@ -363,39 +468,53 @@ let of_Lam = (prefix, err_status, rev_path, rx, rann, r1) => {
     | Some(r) => first_part ^^ of_op(":", "ann") ^^ r ^^ second_part
     | None => first_part ^^ second_part
     };
-  term(prefix, err_status, rev_path, "Lam", view);
+  term(prefix, err_status, rev_path, ["Lam"], view);
 };
 
 let string_of_bool = b => b ? "true" : "false";
 
-let of_BoolLit = (prefix, err_status, rev_path, b) =>
+let of_BoolLit =
+    (prefix: string, err_status: err_status, rev_path: Path.steps, b: bool)
+    : PP.doc =>
   term(
     prefix,
     err_status,
     rev_path,
-    "BoolLit",
+    ["BoolLit"],
     taggedText("boolean", string_of_bool(b)),
   );
-let of_NumLit = (prefix, err_status, rev_path, n) =>
+let of_NumLit =
+    (prefix: string, err_status: err_status, rev_path: Path.steps, n: int)
+    : PP.doc =>
   term(
     prefix,
     err_status,
     rev_path,
-    "NumLit",
+    ["NumLit"],
     taggedText("number", string_of_int(n)),
   );
-let of_Triv = (prefix, err_status, rev_path) =>
-  term(prefix, err_status, rev_path, "Triv", taggedText("triv", "()"));
+let of_Triv =
+    (prefix: string, err_status: err_status, rev_path: Path.steps): PP.doc =>
+  term(prefix, err_status, rev_path, ["Triv"], taggedText("triv", "()"));
 
-let of_ListNil = (prefix, err_status, rev_path) =>
-  term(prefix, err_status, rev_path, "ListNil", kw("[]"));
+let of_ListNil =
+    (prefix: string, err_status: err_status, rev_path: Path.steps): PP.doc =>
+  term(prefix, err_status, rev_path, ["ListNil"], kw("[]"));
 
-let of_Inj = (prefix, err_status, rev_path, side, r) =>
+let of_Inj =
+    (
+      prefix: string,
+      err_status: err_status,
+      rev_path: Path.steps,
+      side: inj_side,
+      r: PP.doc,
+    )
+    : PP.doc =>
   term(
     prefix,
     err_status,
     rev_path,
-    "Inj",
+    ["Inj"],
     kw("inj")
     ^^ lparen("[")
     ^^ kw(LangUtil.string_of_side(side))
@@ -405,12 +524,21 @@ let of_Inj = (prefix, err_status, rev_path, side, r) =>
     ^^ rparen(")"),
   );
 
-let of_InjAnn = (prefix, err_status, rev_path, rty, side, r) =>
+let of_InjAnn =
+    (
+      prefix: string,
+      err_status: err_status,
+      rev_path: Path.steps,
+      rty: PP.doc,
+      side: inj_side,
+      r: PP.doc,
+    )
+    : PP.doc =>
   term(
     prefix,
     err_status,
     rev_path,
-    "Inj",
+    ["Inj"],
     kw("inj")
     ^^ lparen("[")
     ^^ kw(LangUtil.string_of_side(side))
@@ -424,18 +552,32 @@ let of_InjAnn = (prefix, err_status, rev_path, rty, side, r) =>
     ^^ rparen(")"),
   );
 
-let of_Case = (prefix, err_status, rev_path, r1, rpcs, rann) => {
+let of_rule =
+    (prefix: string, rev_path: Path.steps, rp: PP.doc, rc: PP.doc): PP.doc => {
+  let view =
+    of_op("| ", "rule-bar")
+    ^^ rp
+    ^^ of_op(" " ++ LangUtil.caseArrowSym ++ " ", "rule-arrow")
+    ^^ PP.nestAbsolute(2, rc);
+  rule(prefix, rev_path, "Case-rule", view);
+};
+
+let of_Case =
+    (
+      prefix: string,
+      err_status: err_status,
+      rev_path: Path.steps,
+      r1: PP.doc,
+      rpcs: list((PP.doc, PP.doc)),
+      rann: option(PP.doc),
+    )
+    : PP.doc => {
   let rrules =
-    List.fold_left(
-      (rrs, rpc) => {
-        let (rp, rc) = rpc;
+    fold_left_i(
+      (rrs: PP.doc, (i: int, (rp: PP.doc, rc: PP.doc))) => {
         let line_break = rrs == PP.empty ? PP.empty : PP.mandatoryBreak;
-        rrs
-        ^^ line_break
-        ^^ of_op("| ", "rule-bar")
-        ^^ rp
-        ^^ of_op(" " ++ LangUtil.caseArrowSym ++ " ", "case-arrow")
-        ^^ PP.nestAbsolute(2, rc);
+        let rr = of_rule(prefix, [i + 1, ...rev_path], rp, rc);
+        rrs ^^ line_break ^^ rr;
       },
       PP.empty,
       rpcs,
@@ -454,27 +596,46 @@ let of_Case = (prefix, err_status, rev_path, r1, rpcs, rann) => {
     | None => view_case
     | Some(r) => view_case ^^ of_op(" : ", "ann") ^^ r
     };
-  term(prefix, err_status, rev_path, "Case", view);
+  term(prefix, err_status, rev_path, ["Case"], view);
 };
 
 let cast_arrow = op(" ⇨ ");
-let of_Cast = (prefix, err_status, rev_path, r1, rty1, rty2) =>
+let of_Cast =
+    (
+      prefix: string,
+      err_status: err_status,
+      rev_path: Path.steps,
+      r1: PP.doc,
+      rty1: PP.doc,
+      rty2: PP.doc,
+    )
+    : PP.doc =>
   term(
     prefix,
     err_status,
     rev_path,
-    "Cast",
+    ["Cast"],
     _SHOW_CASTS
       ? r1 ^^ lparen("⟨") ^^ rty1 ^^ cast_arrow ^^ rty2 ^^ rparen("⟩")
       : r1,
   );
 
-let of_chained_Cast = (prefix, err_status, rev_path, r1, rty1, rty2, rty4) =>
+let of_chained_Cast =
+    (
+      prefix: string,
+      err_status: err_status,
+      rev_path: Path.steps,
+      r1: PP.doc,
+      rty1: PP.doc,
+      rty2: PP.doc,
+      rty4: PP.doc,
+    )
+    : PP.doc =>
   term(
     prefix,
     err_status,
     rev_path,
-    "Cast",
+    ["Cast"],
     _SHOW_CASTS
       ? r1
         ^^ lparen("<")
@@ -488,22 +649,40 @@ let of_chained_Cast = (prefix, err_status, rev_path, r1, rty1, rty2, rty4) =>
   );
 
 let failed_cast_arrow = taggedText("failed-cast-arrow", " ⇨ ");
-let of_FailedCast = (prefix, err_status, rev_path, r1, rty1, rty2) =>
+let of_FailedCast =
+    (
+      prefix: string,
+      err_status: err_status,
+      rev_path: Path.steps,
+      r1: PP.doc,
+      rty1: PP.doc,
+      rty2: PP.doc,
+    )
+    : PP.doc =>
   term(
     prefix,
     err_status,
     rev_path,
-    "FailedCast",
+    ["FailedCast"],
     r1 ^^ lparen("<") ^^ rty1 ^^ failed_cast_arrow ^^ rty2 ^^ rparen(">"),
   );
 
 let of_chained_FailedCast =
-    (prefix, err_status, rev_path, r1, rty1, rty2, rty4) =>
+    (
+      prefix: string,
+      err_status: err_status,
+      rev_path: Path.steps,
+      r1: PP.doc,
+      rty1: PP.doc,
+      rty2: PP.doc,
+      rty4: PP.doc,
+    )
+    : PP.doc =>
   term(
     prefix,
     err_status,
     rev_path,
-    "FailedCast",
+    ["FailedCast"],
     r1
     ^^ lparen("<")
     ^^ rty1
@@ -516,7 +695,7 @@ let of_chained_FailedCast =
 
 let is_multi_line = (block: UHExp.block): bool =>
   switch (block) {
-  | Block([], Tm(_, Case(_, _, _))) => true
+  | Block([], EI(Case(_, _, _, _))) => true
   | Block([], _) => false
   | Block([_, ..._], _) => true
   };
@@ -527,24 +706,24 @@ type palette_stuff = {
   do_action: Action.t => unit,
 };
 
-let string_of_pat_op = op =>
+let string_of_pat_op = (op: UHPat.op): string =>
   switch (op) {
-  | UHPat.Comma => "Comma"
-  | UHPat.Space => "Space"
-  | UHPat.Cons => "Cons"
+  | Comma => "Comma"
+  | Space => "Space"
+  | Cons => "Cons"
   };
 
 let of_pat_op = op => {
   let op_cls = "op-" ++ string_of_pat_op(op);
   switch (op) {
-  | UHPat.Comma => of_op(", ", op_cls)
-  | UHPat.Space => of_op(" ", op_cls)
-  | UHPat.Cons => of_op("::", op_cls)
+  | Comma => of_op(", ", op_cls)
+  | Space => of_op(" ", op_cls)
+  | Cons => of_op("::", op_cls)
   };
 };
 
 let of_pat_BinOp = (prefix, err_status, rev_path, r1, op, r2) =>
-  term_classes(
+  term(
     prefix,
     err_status,
     rev_path,
@@ -554,116 +733,164 @@ let of_pat_BinOp = (prefix, err_status, rev_path, r1, op, r2) =>
 
 let rec prepare_Parenthesized_pat = (p: UHPat.t): (err_status, UHPat.t) =>
   switch (p) {
-  | Parenthesized(p1) =>
+  | PI(Parenthesized(p1)) =>
     let (err_status, p1_not_in_hole) = prepare_Parenthesized_pat(p1);
-    (err_status, Parenthesized(p1_not_in_hole));
-  | Pat(NotInHole as err_status, _) => (err_status, p)
-  | Pat(err_status, _) => (err_status, UHPat.set_err_status_t(NotInHole, p))
-  | EmptyHole(_) => (NotInHole, p)
-  | OpSeq(BinOp(NotInHole as err_status, _, _, _), _) => (err_status, p)
-  | OpSeq(BinOp(err_status, _, _, _), _) => (
+    (err_status, PI(Parenthesized(p1_not_in_hole)));
+  | PO(Wild(NotInHole as err_status))
+  | PO(Var(NotInHole as err_status, _, _))
+  | PO(NumLit(NotInHole as err_status, _))
+  | PO(BoolLit(NotInHole as err_status, _))
+  | PO(ListNil(NotInHole as err_status)) => (err_status, p)
+  | PO(Wild(err_status))
+  | PO(Var(err_status, _, _))
+  | PO(NumLit(err_status, _))
+  | PO(BoolLit(err_status, _))
+  | PO(ListNil(err_status))
+  | PI(Inj(err_status, _, _)) => (
       err_status,
       UHPat.set_err_status_t(NotInHole, p),
     )
-  | OpSeq(Placeholder(n) as skel, seq) =>
+  | PO(EmptyHole(_)) => (NotInHole, p)
+  | PI(OpSeq(BinOp(NotInHole as err_status, _, _, _), _)) => (
+      err_status,
+      p,
+    )
+  | PI(OpSeq(BinOp(err_status, _, _, _), _)) => (
+      err_status,
+      UHPat.set_err_status_t(NotInHole, p),
+    )
+  | PI(OpSeq(Placeholder(n) as skel, seq)) =>
     switch (OperatorSeq.nth_tm(n, seq)) {
     | None => raise(UHPat.SkelInconsistentWithOpSeq(skel, seq))
     | Some(pn) =>
       let (err_status, pn_nih) = prepare_Parenthesized_pat(pn);
       switch (OperatorSeq.seq_update_nth(n, seq, pn_nih)) {
       | None => raise(UHPat.SkelInconsistentWithOpSeq(skel, seq))
-      | Some(seq) => (err_status, OpSeq(skel, seq))
+      | Some(seq) => (err_status, PI(OpSeq(skel, seq)))
       };
     }
   };
 
-let rec of_hpat = (prefix, rev_path, p) =>
+let rec of_hpat = (prefix: string, rev_path: Path.steps, p: UHPat.t): PP.doc =>
   switch (p) {
-  | UHPat.EmptyHole(u) =>
-    of_Hole(prefix, rev_path, "EmptyHole", string_of_int(u + 1))
-  | UHPat.OpSeq(skel, seq) =>
+  | PO(EmptyHole(u)) =>
+    of_Hole(prefix, rev_path, ["EmptyHole"], string_of_int(u + 1))
+  | PI(OpSeq(skel, seq)) =>
     term(
       prefix,
       UHPat.get_err_status_t(p),
       rev_path,
-      "OpSeq",
+      ["OpSeq"],
       of_skel_pat(prefix, rev_path, skel, seq),
     )
-  | UHPat.Parenthesized(p1) =>
+  | PI(Parenthesized(p1)) =>
     let (err_status, p1_not_in_hole) = prepare_Parenthesized_pat(p1);
     let rev_path1 = [0, ...rev_path];
     let r1 = of_hpat(prefix, rev_path1, p1_not_in_hole);
     of_Parenthesized(false, prefix, err_status, rev_path, r1);
-  | UHPat.Pat(err_status, p') =>
-    switch (p') {
-    | UHPat.Wild => of_Wild(prefix, err_status, rev_path)
-    | UHPat.Var(InVHole(Free, _), _) => raise(FreeVarInPat)
-    | UHPat.Var(InVHole(Keyword(k), u), x) =>
-      of_Var(prefix, err_status, InVHole(Keyword(k), u), rev_path, x)
-    | UHPat.Var(NotInVHole, x) =>
-      of_Var(prefix, err_status, NotInVHole, rev_path, x)
-    | UHPat.NumLit(n) => of_NumLit(prefix, err_status, rev_path, n)
-    | UHPat.BoolLit(b) => of_BoolLit(prefix, err_status, rev_path, b)
-    | UHPat.Inj(side, p1) =>
-      let rev_path1 = [0, ...rev_path];
-      let r1 = of_hpat(prefix, rev_path1, p1);
-      of_Inj(prefix, err_status, rev_path, side, r1);
-    | UHPat.ListNil => of_ListNil(prefix, err_status, rev_path)
-    }
+  | PO(Wild(err_status)) => of_Wild(prefix, err_status, rev_path)
+  | PO(Var(_, InVHole(Free, _), _)) => raise(FreeVarInPat)
+  | PO(Var(err_status, InVHole(Keyword(k), u), x)) =>
+    of_Var(prefix, err_status, InVHole(Keyword(k), u), rev_path, x)
+  | PO(Var(err_status, NotInVHole, x)) =>
+    of_Var(prefix, err_status, NotInVHole, rev_path, x)
+  | PO(NumLit(err_status, n)) => of_NumLit(prefix, err_status, rev_path, n)
+  | PO(BoolLit(err_status, b)) =>
+    of_BoolLit(prefix, err_status, rev_path, b)
+  | PI(Inj(err_status, side, p1)) =>
+    let rev_path1 = [0, ...rev_path];
+    let r1 = of_hpat(prefix, rev_path1, p1);
+    of_Inj(prefix, err_status, rev_path, side, r1);
+  | PO(ListNil(err_status)) => of_ListNil(prefix, err_status, rev_path)
   }
-and of_skel_pat = (prefix, rev_path, skel, seq) =>
+and of_skel_pat =
+    (
+      prefix: string,
+      rev_path: Path.steps,
+      skel: UHPat.skel_t,
+      seq: UHPat.opseq,
+    )
+    : PP.doc =>
   switch (skel) {
-  | Skel.Placeholder(n) =>
+  | Placeholder(n) =>
     switch (OperatorSeq.nth_tm(n, seq)) {
     | None => raise(InvariantViolated)
     | Some(pn) =>
       let rev_path_n = [n, ...rev_path];
       of_hpat(prefix, rev_path_n, pn);
     }
-  | Skel.BinOp(err_status, op, skel1, skel2) =>
+  | BinOp(err_status, op, skel1, skel2) =>
     let r1 = of_skel_pat(prefix, rev_path, skel1, seq);
     let r2 = of_skel_pat(prefix, rev_path, skel2, seq);
     of_pat_BinOp(prefix, err_status, rev_path, r1, op, r2);
   };
 
-let string_of_exp_op = op =>
+let string_of_exp_op = (op: UHExp.op): string =>
   switch (op) {
-  | UHExp.Plus => "Plus"
-  | UHExp.Times => "Times"
-  | UHExp.LessThan => "LessThan"
-  | UHExp.Space => "Space"
-  | UHExp.Comma => "Comma"
-  | UHExp.Cons => "Cons"
+  | Plus => "Plus"
+  | Times => "Times"
+  | LessThan => "LessThan"
+  | Space => "Space"
+  | Comma => "Comma"
+  | Cons => "Cons"
   };
 
-let of_exp_op = op => {
+let of_exp_op = (op: UHExp.op): PP.doc => {
   let op_cls = "op-" ++ string_of_exp_op(op);
   switch (op) {
-  | UHExp.Plus => of_op(" + ", op_cls)
-  | UHExp.Times => of_op("*", op_cls)
-  | UHExp.LessThan => of_op(" < ", op_cls)
-  | UHExp.Space => of_op(" ", op_cls)
-  | UHExp.Comma => of_op(", ", op_cls)
-  | UHExp.Cons => of_op("::", op_cls)
+  | Plus => of_op(" + ", op_cls)
+  | Times => of_op("*", op_cls)
+  | LessThan => of_op(" < ", op_cls)
+  | Space => of_op(" ", op_cls)
+  | Comma => of_op(", ", op_cls)
+  | Cons => of_op("::", op_cls)
   };
 };
 
-let of_exp_BinOp = (prefix, err_status, rev_path, r1, op, r2) =>
-  term_classes(
+let of_exp_BinOp =
+    (
+      prefix: string,
+      err_status: err_status,
+      rev_path: Path.steps,
+      r1: PP.doc,
+      op: UHExp.op,
+      r2: PP.doc,
+      before_child_index: int,
+    )
+    : PP.doc =>
+  term(
     prefix,
     err_status,
     rev_path,
-    [string_of_exp_op(op), "skel-binop"],
+    [
+      string_of_exp_op(op),
+      "skel-binop",
+      before_child_cls(before_child_index),
+    ],
     r1 ^^ of_exp_op(op) ^^ r2,
   );
 
 /* special cased below */
-let of_Times_with_space = (prefix, err_status, rev_path, r1, op, r2) =>
-  term_classes(
+let of_Times_with_space =
+    (
+      prefix: string,
+      err_status: err_status,
+      rev_path: Path.steps,
+      r1: PP.doc,
+      op: UHExp.op,
+      r2: PP.doc,
+      before_child_index: int,
+    )
+    : PP.doc =>
+  term(
     prefix,
     err_status,
     rev_path,
-    [string_of_exp_op(op), "skel-binop"],
+    [
+      string_of_exp_op(op),
+      "skel-binop",
+      before_child_cls(before_child_index),
+    ],
     r1 ^^ of_op(" * ", "op-Times") ^^ r2,
   );
 
@@ -674,13 +901,24 @@ let prepare_Parenthesized_block =
 );
 
 let rec of_hblock =
-        (palette_stuff, prefix, rev_path, Block(lines, e): UHExp.block) => {
+        (
+          palette_stuff: palette_stuff,
+          prefix: string,
+          rev_path: Path.steps,
+          Block(lines, e): UHExp.block,
+        ) => {
   let rlines = of_hlines(palette_stuff, prefix, rev_path, lines);
   let r =
     of_hexp(palette_stuff, prefix, [List.length(lines), ...rev_path], e);
   of_Block(prefix, rev_path, rlines, r);
 }
-and of_hlines = (palette_stuff, prefix, rev_path, lines: UHExp.lines) => {
+and of_hlines =
+    (
+      palette_stuff: palette_stuff,
+      prefix: string,
+      rev_path: Path.steps,
+      lines: UHExp.lines,
+    ) => {
   let rline_lst =
     List.mapi(
       (i, line) => of_hline(palette_stuff, prefix, [i, ...rev_path], line),
@@ -688,10 +926,16 @@ and of_hlines = (palette_stuff, prefix, rev_path, lines: UHExp.lines) => {
     );
   of_lines(rline_lst);
 }
-and of_hline = (palette_stuff, prefix, rev_path, line: UHExp.line) =>
+and of_hline =
+    (
+      palette_stuff: palette_stuff,
+      prefix: string,
+      rev_path: Path.steps,
+      line: UHExp.line,
+    ) =>
   switch (line) {
-  | EmptyLine => of_EmptyLine(prefix, rev_path)
-  | LetLine(p, ann, e1) =>
+  | LO(EmptyLine) => of_EmptyLine(prefix, rev_path)
+  | LI(LetLine(p, ann, e1)) =>
     let rp = of_hpat(prefix, [0, ...rev_path], p);
     let rann =
       switch (ann) {
@@ -704,19 +948,20 @@ and of_hline = (palette_stuff, prefix, rev_path, line: UHExp.line) =>
     let r1 = of_hexp(palette_stuff, prefix, [0, ...rev_path], e1);
     of_ExpLine(prefix, rev_path, r1);
   }
-and of_hexp = (palette_stuff, prefix, rev_path, e: UHExp.t) =>
+and of_hexp =
+    (
+      palette_stuff: palette_stuff,
+      prefix: string,
+      rev_path: Path.steps,
+      e: UHExp.t,
+    ) =>
   switch (e) {
-  | EmptyHole(u) =>
-    of_Hole(prefix, rev_path, "EmptyHole", string_of_int(u + 1))
-  | OpSeq(skel, seq) =>
-    term(
-      prefix,
-      UHExp.get_err_status_t(e),
-      rev_path,
-      "OpSeq",
-      of_skel(palette_stuff, prefix, rev_path, skel, seq),
-    )
-  | Parenthesized(block) =>
+  | EO(EmptyHole(u)) =>
+    of_Hole(prefix, rev_path, ["EmptyHole"], string_of_int(u + 1))
+  | EI(OpSeq(skel, seq)) =>
+    let (r, _) = of_skel(palette_stuff, prefix, rev_path, skel, seq);
+    term(prefix, UHExp.get_err_status_t(e), rev_path, ["OpSeq"], r);
+  | EI(Parenthesized(block)) =>
     let (err_status, block_not_in_hole) = prepare_Parenthesized_block(block);
     let rev_path_block = [0, ...rev_path];
     let r_block =
@@ -728,115 +973,120 @@ and of_hexp = (palette_stuff, prefix, rev_path, e: UHExp.t) =>
       rev_path,
       r_block,
     );
-  | Tm(err_status, e') =>
-    switch (e') {
-    | Var(var_err_status, x) =>
-      of_Var(prefix, err_status, var_err_status, rev_path, x)
-    | Lam(p, ann, e1) =>
-      let rp = of_hpat(prefix, [0, ...rev_path], p);
-      let rann =
-        switch (ann) {
-        | Some(uty1) => Some(of_uhtyp(prefix, [1, ...rev_path], uty1))
-        | None => None
-        };
-      let r1 = of_hblock(palette_stuff, prefix, [2, ...rev_path], e1);
-      of_Lam(prefix, err_status, rev_path, rp, rann, r1);
-    | BoolLit(b) => of_BoolLit(prefix, err_status, rev_path, b)
-    | NumLit(n) => of_NumLit(prefix, err_status, rev_path, n)
-    | ListNil => of_ListNil(prefix, err_status, rev_path)
-    | Inj(side, e) =>
-      let rev_path1 = [0, ...rev_path];
-      let r1 = of_hblock(palette_stuff, prefix, rev_path1, e);
-      of_Inj(prefix, err_status, rev_path, side, r1);
-    | Case(e1, rules, ann) =>
-      let rev_path1 = [0, ...rev_path];
-      let r1 = of_hblock(palette_stuff, prefix, rev_path1, e1);
-      let rpcs =
-        List.mapi(
-          (i, Rule(p, c): UHExp.rule) => {
-            let rev_pathr = [i + 1, ...rev_path];
-            let rev_pathp = [0, ...rev_pathr];
-            let rev_pathc = [1, ...rev_pathr];
-            let rp = of_hpat(prefix, rev_pathp, p);
-            let rc = of_hblock(palette_stuff, prefix, rev_pathc, c);
-            (rp, rc);
-          },
-          rules,
-        );
-      let rann =
-        switch (ann) {
-        | None => None
-        | Some(uty1) =>
-          let rev_path_ann = [List.length(rules) + 1, ...rev_path];
-          Some(of_uhtyp(prefix, rev_path_ann, uty1));
-        };
-      of_Case(prefix, err_status, rev_path, r1, rpcs, rann);
-    | ApPalette(_, _, _) => raise(InvariantViolated)
-    /* switch (
-         Palettes.PaletteViewCtx.lookup(palette_stuff.palette_view_ctx, name)
-       ) {
-       | Some(serialized_view_fn) =>
-         let updater = serialized_model => {
-           palette_stuff.do_action(
-             Action.MoveTo((List.rev(rev_path), Before)),
-           );
-           palette_stuff.do_action(
-             Action.UpdateApPalette(UHExp.HoleRefs.Ret(serialized_model)),
-           );
+  | EO(Var(err_status, var_err_status, x)) =>
+    of_Var(prefix, err_status, var_err_status, rev_path, x)
+  | EI(Lam(err_status, p, ann, e1)) =>
+    let rp = of_hpat(prefix, [0, ...rev_path], p);
+    let rann =
+      switch (ann) {
+      | Some(uty1) => Some(of_uhtyp(prefix, [1, ...rev_path], uty1))
+      | None => None
+      };
+    let r1 = of_hblock(palette_stuff, prefix, [2, ...rev_path], e1);
+    of_Lam(prefix, err_status, rev_path, rp, rann, r1);
+  | EO(BoolLit(err_status, b)) =>
+    of_BoolLit(prefix, err_status, rev_path, b)
+  | EO(NumLit(err_status, n)) => of_NumLit(prefix, err_status, rev_path, n)
+  | EO(ListNil(err_status)) => of_ListNil(prefix, err_status, rev_path)
+  | EI(Inj(err_status, side, e)) =>
+    let rev_path1 = [0, ...rev_path];
+    let r1 = of_hblock(palette_stuff, prefix, rev_path1, e);
+    of_Inj(prefix, err_status, rev_path, side, r1);
+  | EI(Case(err_status, e1, rules, ann)) =>
+    let rev_path1 = [0, ...rev_path];
+    let r1 = of_hblock(palette_stuff, prefix, rev_path1, e1);
+    let rpcs =
+      List.mapi(
+        (i, Rule(p, c): UHExp.rule) => {
+          let rev_pathr = [i + 1, ...rev_path];
+          let rev_pathp = [0, ...rev_pathr];
+          let rev_pathc = [1, ...rev_pathr];
+          let rp = of_hpat(prefix, rev_pathp, p);
+          let rc = of_hblock(palette_stuff, prefix, rev_pathc, c);
+          (rp, rc);
+        },
+        rules,
+      );
+    let rann =
+      switch (ann) {
+      | None => None
+      | Some(uty1) =>
+        let rev_path_ann = [List.length(rules) + 1, ...rev_path];
+        Some(of_uhtyp(prefix, rev_path_ann, uty1));
+      };
+    of_Case(prefix, err_status, rev_path, r1, rpcs, rann);
+  | EI(ApPalette(_, _, _, _)) => raise(InvariantViolated)
+  /* switch (
+       Palettes.PaletteViewCtx.lookup(palette_stuff.palette_view_ctx, name)
+     ) {
+     | Some(serialized_view_fn) =>
+       let updater = serialized_model => {
+         palette_stuff.do_action(
+           Action.MoveTo((List.rev(rev_path), Before)),
+         );
+         palette_stuff.do_action(
+           Action.UpdateApPalette(UHExp.HoleRefs.Ret(serialized_model)),
+         );
+       };
+       let view = serialized_view_fn(serialized_model, updater);
+       let paletteName =
+         term(prefix, err_status, rev_path, ["ApPalette"], paletteName(name));
+       let paletteDelim =
+         term(prefix, err_status, rev_path, ["ApPalette"], dollar);
+       let palettePrefix =
+         switch (view) {
+         | Inline(_) => paletteName
+         | MultiLine(_) => paletteName ^^ PP.mandatoryBreak
          };
-         let view = serialized_view_fn(serialized_model, updater);
-         let paletteName =
-           term(prefix, err_status, rev_path, "ApPalette", paletteName(name));
-         let paletteDelim =
-           term(prefix, err_status, rev_path, "ApPalette", dollar);
-         let palettePrefix =
-           switch (view) {
-           | Inline(_) => paletteName
-           | MultiLine(_) => paletteName ^^ PP.mandatoryBreak
-           };
-         let paletteSuffix =
-           switch (view) {
-           | Inline(_) => paletteDelim
-           | MultiLine(_) => paletteDelim ^^ PP.mandatoryBreak
-           };
-         palettePrefix
-         ^^ PP.paletteView(
-              rev_path,
-              view,
-              hole_map,
-              palette_stuff.mk_editor_box,
-            )
-         ^^ paletteSuffix;
-       | None => raise(InvariantViolated)
-       } */
-    }
+       let paletteSuffix =
+         switch (view) {
+         | Inline(_) => paletteDelim
+         | MultiLine(_) => paletteDelim ^^ PP.mandatoryBreak
+         };
+       palettePrefix
+       ^^ PP.paletteView(
+            rev_path,
+            view,
+            hole_map,
+            palette_stuff.mk_editor_box,
+          )
+       ^^ paletteSuffix;
+     | None => raise(InvariantViolated)
+     } */
   }
-and of_skel = (palette_stuff, prefix, rev_path, skel, seq) =>
+/* returns doc and placeholder index of leftmost term */
+and of_skel =
+    (palette_stuff, prefix, rev_path, skel: UHExp.skel_t, seq: UHExp.opseq)
+    : (PP.doc, int) =>
   switch (skel) {
-  | Skel.Placeholder(n) =>
+  | Placeholder(n) =>
     switch (OperatorSeq.nth_tm(n, seq)) {
+    | None => raise(InvariantViolated)
     | Some(en) =>
       let rev_path_n = [n, ...rev_path];
-      of_hexp(palette_stuff, prefix, rev_path_n, en);
-    | None => raise(InvariantViolated)
+      (of_hexp(palette_stuff, prefix, rev_path_n, en), n);
     }
-  | Skel.BinOp(err_status, UHExp.Times as op, skel1, skel2) =>
-    let r1 = of_skel(palette_stuff, prefix, rev_path, skel1, seq);
-    let r2 = of_skel(palette_stuff, prefix, rev_path, skel2, seq);
+  | BinOp(err_status, Times as op, skel1, skel2) =>
+    let (r1, n1) = of_skel(palette_stuff, prefix, rev_path, skel1, seq);
+    let (r2, n2) = of_skel(palette_stuff, prefix, rev_path, skel2, seq);
     switch (Skel.rightmost_op(skel1)) {
-    | Some(UHExp.Space) =>
-      of_Times_with_space(prefix, err_status, rev_path, r1, op, r2)
+    | Some(Space) => (
+        of_Times_with_space(prefix, err_status, rev_path, r1, op, r2, n2),
+        n1,
+      )
     | _ =>
       switch (Skel.leftmost_op(skel2)) {
-      | Some(UHExp.Space) =>
-        of_Times_with_space(prefix, err_status, rev_path, r1, op, r2)
-      | _ => of_exp_BinOp(prefix, err_status, rev_path, r1, op, r2)
+      | Some(Space) => (
+          of_Times_with_space(prefix, err_status, rev_path, r1, op, r2, n2),
+          n1,
+        )
+      | _ => (of_exp_BinOp(prefix, err_status, rev_path, r1, op, r2, n2), n1)
       }
     };
-  | Skel.BinOp(err_status, op, skel1, skel2) =>
-    let r1 = of_skel(palette_stuff, prefix, rev_path, skel1, seq);
-    let r2 = of_skel(palette_stuff, prefix, rev_path, skel2, seq);
-    of_exp_BinOp(prefix, err_status, rev_path, r1, op, r2);
+  | BinOp(err_status, op, skel1, skel2) =>
+    let (r1, n1) = of_skel(palette_stuff, prefix, rev_path, skel1, seq);
+    let (r2, n2) = of_skel(palette_stuff, prefix, rev_path, skel2, seq);
+    (of_exp_BinOp(prefix, err_status, rev_path, r1, op, r2, n2), n1);
   };
 
 open Dynamics;
@@ -936,7 +1186,7 @@ let rec of_dhpat' =
             rev_path1,
             dp1,
           );
-        term(prefix, err_status, rev_path, "NonEmptyHole", r);
+        term(prefix, err_status, rev_path, ["NonEmptyHole"], r);
       | Wild => of_Wild(prefix, err_status, rev_path)
       | Keyword(u, _, k) =>
         of_Var(
@@ -987,7 +1237,7 @@ let rec of_dhpat' =
             rev_path2,
             dp2,
           );
-        of_exp_BinOp(prefix, err_status, rev_path, r1, UHExp.Cons, r2);
+        of_exp_BinOp(prefix, err_status, rev_path, r1, UHExp.Cons, r2, 0);
       | Pair(dp1, dp2) =>
         let rev_path1 = [0, ...rev_path];
         let rev_path2 = [1, ...rev_path];
@@ -1009,7 +1259,7 @@ let rec of_dhpat' =
             rev_path2,
             dp2,
           );
-        of_exp_BinOp(prefix, err_status, rev_path, r1, UHExp.Comma, r2);
+        of_exp_BinOp(prefix, err_status, rev_path, r1, UHExp.Comma, r2, 0);
       | Ap(dp1, dp2) =>
         let rev_path1 = [0, ...rev_path];
         let rev_path2 = [1, ...rev_path];
@@ -1033,7 +1283,7 @@ let rec of_dhpat' =
             rev_path2,
             dp2,
           );
-        of_exp_BinOp(prefix, err_status, rev_path, r1, UHExp.Space, r2);
+        of_exp_BinOp(prefix, err_status, rev_path, r1, UHExp.Space, r2, 0);
       }
     );
   parenthesize ? lparen("(") ^^ doc ^^ rparen(")") : doc;
@@ -1081,7 +1331,7 @@ let rec of_dhexp' =
             rev_path2,
             d2,
           );
-        of_Let(prefix, err_status, rev_path, rp, None, r1, r2);
+        of_Let(prefix, rev_path, rp, None, r1, r2);
       | FixF(x, ty, d1) =>
         if (_SHOW_FN_BODIES) {
           let rx = of_var_binding(prefix, [0, ...rev_path], x);
@@ -1141,7 +1391,7 @@ let rec of_dhexp' =
             d2,
           );
 
-        of_exp_BinOp(prefix, err_status, rev_path, r1, UHExp.Space, r2);
+        of_exp_BinOp(prefix, err_status, rev_path, r1, UHExp.Space, r2, 0);
       | BoolLit(b) => of_BoolLit(prefix, err_status, rev_path, b)
       | NumLit(n) => of_NumLit(prefix, err_status, rev_path, n)
       | Triv => of_Triv(prefix, err_status, rev_path)
@@ -1178,6 +1428,7 @@ let rec of_dhexp' =
           r1,
           Dynamics.DHExp.to_op(op),
           r2,
+          0,
         );
       | Inj(ty, side, d1) =>
         let rev_path1 = [0, ...rev_path];
@@ -1216,7 +1467,7 @@ let rec of_dhexp' =
             rev_path2,
             d2,
           );
-        of_exp_BinOp(prefix, err_status, rev_path, r1, UHExp.Comma, r2);
+        of_exp_BinOp(prefix, err_status, rev_path, r1, UHExp.Comma, r2, 0);
       | ListNil(_) => of_ListNil(prefix, err_status, rev_path)
       | Cons(d1, d2) =>
         let rev_path1 = [0, ...rev_path];
@@ -1241,7 +1492,7 @@ let rec of_dhexp' =
             rev_path2,
             d2,
           );
-        of_exp_BinOp(prefix, err_status, rev_path, r1, UHExp.Cons, r2);
+        of_exp_BinOp(prefix, err_status, rev_path, r1, UHExp.Cons, r2, 0);
       | Case(d1, rules, _) =>
         /* TODO: probably need to do something with current rule */
         /* | Case(d1, (x, d2), (y, d3)) => */
@@ -1309,7 +1560,7 @@ let rec of_dhexp' =
         let r =
           dbg_SHOW_SIGMAS
             ? r1 ^^ of_sigma(instance_click_fn, prefix, rev_path, sigma) : r1;
-        term(prefix, err_status, rev_path, "NonEmptyHole", r);
+        term(prefix, err_status, rev_path, ["NonEmptyHole"], r);
       | Cast(Cast(d1, ty1, ty2), ty3, ty4)
           when _SHOW_CASTS && HTyp.eq(ty2, ty3) =>
         let rev_path1 = [0, ...rev_path];
@@ -1447,7 +1698,11 @@ let html_of_hole_instance = (instance_click_fn, width, prefix, (u, i)) => {
 };
 let string_of_cursor_pos = cursor_pos =>
   switch (cursor_pos) {
-  | In(n) => "In(" ++ string_of_int(n) ++ ")"
-  | Before => "Before"
-  | After => "After"
+  | O(Char(j)) => "O(Char(" ++ string_of_int(j) ++ "))"
+  | I(BeforeChild(k, Before)) =>
+    "I(BeforeChild(" ++ string_of_int(k) ++ ", Before))"
+  | I(BeforeChild(k, After)) =>
+    "I(BeforeChild(" ++ string_of_int(k) ++ ", After))"
+  | I(ClosingDelimiter(Before)) => "I(ClosingDelimiter(Before))"
+  | I(ClosingDelimiter(After)) => "I(ClosingDelimiter(After))"
   };
