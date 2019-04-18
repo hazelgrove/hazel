@@ -1469,6 +1469,35 @@ let node_positions_line = (line: UHExp.line): list(node_pos) =>
     child_positions @ closing_delimiter_positions;
   };
 
+let node_positions_exp = (e: UHExp.t): list(node_pos) =>
+  switch (e) {
+  | EO(eo) => ZExp.valid_outer_cursors_exp(eo) |> List.map(c => On(O(c)))
+  | EI(ei) =>
+    let cfd = ZExp.children_following_delimiters_exp(ei);
+    let child_positions: list(node_pos) =
+      ZExp.children_exp(ei)
+      |> List.map(k => {
+           let before_child_positions: list(node_pos) =
+             contains(cfd, k)
+               ? [
+                 On(I(BeforeChild(k, Before))),
+                 On(I(BeforeChild(k, After))),
+               ]
+               : [];
+           let child_position: list(node_pos) = [Deeper(k)];
+           before_child_positions @ child_position;
+         })
+      |> List.flatten;
+    let closing_delimiter_positions: list(node_pos) =
+      ZExp.has_closing_delimiter_exp(ei)
+        ? [
+          On(I(ClosingDelimiter(Before))),
+          On(I(ClosingDelimiter(After))),
+        ]
+        : [];
+    child_positions @ closing_delimiter_positions;
+  };
+
 let node_position_zty = (zty: ZTyp.t): node_pos =>
   switch (zty) {
   | CursorTO(outer_cursor, _) => On(O(outer_cursor))
@@ -1497,6 +1526,23 @@ let node_position_zline = (zline: ZExp.zline): option(node_pos) =>
   | LetLineZP(_, _, _) => Some(Deeper(0))
   | LetLineZA(_, _, _) => Some(Deeper(1))
   | LetLineZE(_, _, _) => Some(Deeper(2))
+  };
+
+let node_position_zexp = (ze: ZExp.t): node_pos =>
+  switch (ze) {
+  | CursorEO(outer_cursor, _) => On(O(outer_cursor))
+  | CursorEI(inner_cursor, _) => On(I(inner_cursor))
+  | ParenthesizedZ(_) => Deeper(0)
+  | OpSeqZ(_, _, surround) =>
+    Deeper(OperatorSeq.surround_prefix_length(surround))
+  | LamZP(_, _, _, _) => Deeper(0)
+  | LamZA(_, _, _, _) => Deeper(1)
+  | LamZE(_, _, _, _) => Deeper(2)
+  | InjZ(_, _, _) => Deeper(0)
+  | CaseZE(_, _, _, _) => Deeper(0)
+  | CaseZR(_, _, (prefix, _, _), _) => Deeper(List.length(prefix) + 1)
+  | CaseZA(_, _, rules, _) => Deeper(List.length(rules) + 1)
+  | ApPaletteZ(_, _, _, _) => Deeper(0) /* TODO */
   };
 
 let steps_of_prev_node_pos_ty = (zty: ZTyp.t): option(steps) => {
@@ -1562,3 +1608,23 @@ let steps_of_next_node_pos_line = (zline: ZExp.zline): option(steps) =>
     | Some(Deeper(k)) => Some([k])
     };
   };
+
+let steps_of_prev_node_pos_exp = (ze: ZExp.t): option(steps) => {
+  let node_position = node_position_zexp(ze);
+  let node_positions = node_positions_exp(ZExp.erase(ze));
+  switch (elem_before(node_position, node_positions)) {
+  | None => None
+  | Some(On(_)) => Some([])
+  | Some(Deeper(k)) => Some([k])
+  };
+};
+
+let steps_of_next_node_pos_exp = (ze: ZExp.t): option(steps) => {
+  let node_position = node_position_zexp(ze);
+  let node_positions = node_positions_exp(ZExp.erase(ze));
+  switch (elem_after(node_position, node_positions)) {
+  | None => None
+  | Some(On(_)) => Some([])
+  | Some(Deeper(k)) => Some([k])
+  };
+};

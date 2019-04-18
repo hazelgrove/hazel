@@ -63,6 +63,17 @@ let children_line = (li: UHExp.line_inner): list(int) =>
   | LetLine(_, None, _) => [0, 2]
   | LetLine(_, Some(_), _) => [0, 1, 2]
   };
+let children_exp = (ei: UHExp.t_inner): list(int) =>
+  switch (ei) {
+  | Lam(_, _, None, _) => [0, 2]
+  | Lam(_, _, Some(_), _) => [0, 1, 2]
+  | Inj(_, _, _) => [0]
+  | Case(_, _, rules, None) => range(List.length(rules) + 1)
+  | Case(_, _, rules, Some(_)) => range(List.length(rules) + 2)
+  | Parenthesized(_) => [0]
+  | OpSeq(_, seq) => range(OperatorSeq.seq_length(seq))
+  | ApPalette(_, _, _, _) => [] /* TODO */
+  };
 
 let children_following_delimiters_line = (li: UHExp.line_inner): list(int) =>
   switch (li) {
@@ -83,6 +94,8 @@ let children_following_delimiters_exp = (ei: UHExp.t_inner): list(int) =>
 
 let valid_outer_cursors_line = (lo: UHExp.line_outer): list(outer_cursor) =>
   range(UHExp.line_outer_length(lo)) |> List.map(j => Char(j));
+let valid_outer_cursors_exp = (eo: UHExp.t_outer): list(outer_cursor) =>
+  range(UHExp.t_outer_length(eo)) |> List.map(j => Char(j));
 
 let valid_inner_cursors_line = (li: UHExp.line_inner): list(inner_cursor) => {
   let before_child_positions =
@@ -94,25 +107,23 @@ let valid_inner_cursors_line = (li: UHExp.line_inner): list(inner_cursor) => {
       ? [ClosingDelimiter(Before), ClosingDelimiter(After)] : [];
   before_child_positions @ closing_delimiter_positions;
 };
+let valid_inner_cursors_exp = (ei: UHExp.t_inner): list(inner_cursor) => {
+  let before_child_positions =
+    children_following_delimiters_exp(ei)
+    |> List.map(k => [BeforeChild(k, Before), BeforeChild(k, After)])
+    |> List.flatten;
+  let closing_delimiter_positions =
+    has_closing_delimiter_exp(ei)
+      ? [ClosingDelimiter(Before), ClosingDelimiter(After)] : [];
+  before_child_positions @ closing_delimiter_positions;
+};
 
 let is_valid_inner_cursor_line =
     (inner_cursor: inner_cursor, li: UHExp.line_inner): bool =>
   contains(valid_inner_cursors_line(li), inner_cursor);
 let is_valid_inner_cursor_exp =
     (inner_cursor: inner_cursor, ei: UHExp.t_inner): bool =>
-  switch (inner_cursor) {
-  | BeforeChild(k, _) => contains(children_following_delimiters_exp(ei), k)
-  | ClosingDelimiter(_) =>
-    switch (ei) {
-    | Lam(_, _, _, _)
-    | OpSeq(_, _)
-    | Case(_, _, _, Some(_)) => false
-    | Case(_, _, _, None)
-    | Inj(_, _, _)
-    | Parenthesized(_)
-    | ApPalette(_, _, _, _) => true
-    }
-  };
+  contains(valid_inner_cursors_exp(ei), inner_cursor);
 
 let is_valid_outer_cursor_line =
     (outer_cursor: outer_cursor, lo: UHExp.line_outer): bool =>
@@ -641,4 +652,18 @@ let mk_orphan_block =
     let zlines = (prefix_lines, ExpLineZ(zorphan), suffix_lines);
     BlockZL(zlines, last);
   };
+};
+
+let opseqz_preceded_by_Space = (ze: t, surround: opseq_surround): bool => {
+  let e = erase(ze);
+  let seq = OperatorSeq.opseq_of_exp_and_surround(e, surround);
+  let n = OperatorSeq.surround_prefix_length(surround);
+  OperatorSeq.op_before_nth_tm(n, seq) == Some(Space);
+};
+
+let opseqz_followed_by_Space = (ze: t, surround: opseq_surround): bool => {
+  let e = erase(ze);
+  let seq = OperatorSeq.opseq_of_exp_and_surround(e, surround);
+  let n = OperatorSeq.surround_prefix_length(surround);
+  OperatorSeq.op_before_nth_tm(n + 1, seq) == Some(Space);
 };
