@@ -67,6 +67,8 @@ let t_outer_length = (eo: t_outer): int =>
   | ListNil(_) => 2
   };
 
+let wrap_in_block = (e: t): block => Block([], e);
+
 let prune_empty_hole_line = (li: line): line =>
   switch (li) {
   | ExpLine(EO(EmptyHole(_))) => LO(EmptyLine)
@@ -105,7 +107,7 @@ let is_EmptyHole = (e: t): bool =>
 let empty_rule = (u_gen: MetaVarGen.t): (rule, MetaVarGen.t) => {
   let (p, u_gen) = UHPat.new_EmptyHole(u_gen);
   let (e, u_gen) = new_EmptyHole(u_gen);
-  let block = Block([], e);
+  let block = wrap_in_block(e);
   let rule = Rule(p, block);
   (rule, u_gen);
 };
@@ -148,7 +150,7 @@ let bidelimit = (e: t): t =>
   if (bidelimited(e)) {
     e;
   } else {
-    EI(Parenthesized(Block([], e)));
+    EI(Parenthesized(wrap_in_block(e)));
   };
 
 let rec get_err_status_block = (Block(_, e): block): err_status =>
@@ -320,5 +322,3 @@ let rec drop_outer_parentheses = (e: t): block =>
   | EI(_)
   | EO(_) => Block([], e)
   };
-
-let wrap_in_block = (e: t): block => Block([], e);

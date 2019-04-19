@@ -46,7 +46,7 @@ let expected_any_indicator_pat = expected_msg_indicator_pat("any type");
 let expected_a_type_indicator =
   expected_indicator("Expecting ", special_msg_bar("a type"));
 let expected_a_line_indicator =
-  expected_indicator("Expecting ", special_msg_bar("a line"));
+  expected_indicator("Expecting ", special_msg_bar("a line item"));
 let got_indicator = (title_text, type_div) =>
   Html5.(
     div(
@@ -77,7 +77,8 @@ let got_empty_line_indicator = got_ty_indicator(HTyp.Hole);
 let got_consistent_indicator = got_ty =>
   got_indicator("Got consistent type", typebar("got", got_ty));
 let got_a_type_indicator = got_indicator("Got", special_msg_bar("a type"));
-let got_a_line_indicator = got_indicator("Got", special_msg_bar("a line"));
+let got_a_line_indicator =
+  got_indicator("Got", special_msg_bar("a line item"));
 let got_keyword_indicator =
   got_indicator("Got a reserved keyword", typebar("got", HTyp.Hole));
 type err_state_b =

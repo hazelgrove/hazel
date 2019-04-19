@@ -2563,7 +2563,7 @@ let rec syn_perform_block =
   | (Construct(SLet), BlockZE(lines, ze1)) when ZExp.is_before_exp(ze1) =>
     let (zp, u_gen) = ZPat.new_EmptyHole(u_gen);
     let e1 = ZExp.erase(ze1);
-    let zline = ZExp.LetLineZP(zp, None, Block([], e1));
+    let zline = ZExp.LetLineZP(zp, None, UHExp.wrap_in_block(e1));
     let zlines = (lines, zline, []);
     let (e2, u_gen) = UHExp.new_EmptyHole(u_gen);
     let zblock = ZExp.BlockZL(zlines, e2);
@@ -2598,7 +2598,7 @@ let rec syn_perform_block =
         let (zp, u_gen) = ZPat.new_EmptyHole(u_gen);
         let zrule = ZExp.RuleZP(zp, rule_block);
         let zrules = ZList.singleton(zrule);
-        let scrut_block = UHExp.Block([], e1);
+        let scrut_block = UHExp.wrap_in_block(e1);
         (
           ZExp.CaseZR(NotInHole, scrut_block, zrules, Some(TO(Hole))),
           u_gen,
@@ -2803,7 +2803,7 @@ and syn_perform_lines =
   | (Construct(SLet), (prefix, ExpLineZ(ze), suffix))
       when ZExp.is_before_exp(ze) =>
     let (zp, u_gen) = ZPat.new_EmptyHole(u_gen);
-    let block = UHExp.Block([], ZExp.erase(ze));
+    let block = UHExp.wrap_in_block(ZExp.erase(ze));
     let zline = ZExp.LetLineZP(zp, None, block);
     let zlines = (prefix, zline, suffix);
     switch (Statics.syn_zlines(ctx, zlines)) {
@@ -2818,7 +2818,7 @@ and syn_perform_lines =
       switch (split_last(suffix)) {
       | None =>
         let (e2, u_gen) = UHExp.new_EmptyHole(u_gen);
-        (UHExp.Block([], e2), u_gen);
+        (UHExp.wrap_in_block(e2), u_gen);
       | Some((lines, last_line)) =>
         switch (last_line) {
         | LO(EmptyLine)
@@ -2842,7 +2842,7 @@ and syn_perform_lines =
         let (zp, u_gen) = ZPat.new_EmptyHole(u_gen);
         let zrule = ZExp.RuleZP(zp, rule_block);
         let zrules = ZList.singleton(zrule);
-        let scrut_block = UHExp.Block([], e1);
+        let scrut_block = UHExp.wrap_in_block(e1);
         (
           ZExp.CaseZR(NotInHole, scrut_block, zrules, Some(TO(Hole))),
           u_gen,
@@ -3745,7 +3745,7 @@ and syn_perform_exp =
   | (Construct(SLam), (CursorEO(_, _) | CursorEI(_, _)) as ze1) =>
     let e1 = ZExp.erase(ze1);
     let (zp, u_gen) = ZPat.new_EmptyHole(u_gen);
-    let block = UHExp.Block([], e1);
+    let block = UHExp.wrap_in_block(e1);
     let ze = ZExp.LamZP(NotInHole, zp, Some(TO(Hole)), block);
     let ty' = HTyp.Arrow(Hole, ty);
     Succeeded((ze, ty', u_gen));
@@ -4215,7 +4215,7 @@ and ana_perform_block =
     }
   | (Construct(SLet), BlockZE(lines, ze1)) when ZExp.is_before_exp(ze1) =>
     let (zp, u_gen) = ZPat.new_EmptyHole(u_gen);
-    let block = UHExp.Block([], ZExp.erase(ze1));
+    let block = UHExp.wrap_in_block(ZExp.erase(ze1));
     let zline = ZExp.LetLineZP(zp, None, block);
     let zlines = (lines, zline, []);
     let (e2, u_gen) = UHExp.new_EmptyHole(u_gen);
@@ -4255,7 +4255,10 @@ and ana_perform_block =
         let (zp, u_gen) = ZPat.new_EmptyHole(u_gen);
         let zrule = ZExp.RuleZP(zp, clause);
         let zrules = ZList.singleton(zrule);
-        (ZExp.CaseZR(NotInHole, Block([], e1), zrules, None), u_gen);
+        (
+          ZExp.CaseZR(NotInHole, UHExp.wrap_in_block(e1), zrules, None),
+          u_gen,
+        );
       };
     let zblock = ZExp.BlockZE(prefix, ze);
     Succeeded(Statics.ana_fix_holes_zblock(ctx, u_gen, zblock, ty));
