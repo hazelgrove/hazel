@@ -1,8 +1,12 @@
 open GeneralUtil;
 
+type idx = int; /* we use de Bruijn indices */
+
 /* types with holes */
 [@deriving sexp]
 type t =
+  | Var(idx, Var.t) /* bound type variables */ 
+  | VarHole(Var.t) /* unbound type variables */
   | Hole
   | Unit
   | Num
@@ -10,7 +14,47 @@ type t =
   | Arrow(t, t)
   | Prod(t, t)
   | Sum(t, t)
-  | List(t);
+  | List(t)
+  | Forall(Var.t, t)
+  | ForallBindingHole(MetaVar.t, t)
+  | ForallShadowErr(Var.t, t)
+;
+
+/* capture-avoiding substitution [ty/i]ty' */
+let rec subst' = (ty, i, j, ty') => 
+  switch (ty') {
+  | TVar(i', a) => 
+    if (i' == i) {
+      incr_free_vars(ty, j)
+    } else {
+      ty'
+    }
+  | TVarHole(_) 
+  | Hole
+  | Unit
+  | Num
+  | Bool => ty'
+  | Arrow(ty1, ty2) => 
+    Arrow(subst(t, t', ty1),
+          subst(t, t', ty2))
+  | Prod(ty1, ty2) => 
+    Prod(subst(t, t', ty1),
+         subst(t, t', ty2))
+  | Sum(ty1, ty2) => 
+    Sum(subst(t, t', ty1),
+        subst(t, t', ty2))
+  | List(ty1) => List(subst(t, t', ty1))
+  | Forall(a, ty1) => 
+    
+  ;
+
+let rec subst = (ty, t', ty) => subst'(ty, t', 0, ty);
+
+/*
+   ty1 = forall t1.forall t2.t2*t1
+   ty2 = forall t2.forall t1.t1*t2
+   forall t1'.t1'*t1
+*/
 
 let rec num_tms = (ty: t): int =>
   switch (ty) {
@@ -24,9 +68,13 @@ let rec num_tms = (ty: t): int =>
   | Sum(ty1, ty2) => num_tms(ty1) + num_tms(ty2)
   };
 
-/* eqity */
+/* equality */
 let rec eq = (ty1, ty2) =>
   switch (ty1, ty2) {
+  | (TVar(t1), TVar(t2)) => Var.eq(t1, t2) 
+  | (TVar(_), _) => false
+  | (TVarHole(t1), TVarHole(t2)) => Var.eq(t1, t2)
+  | (TVarHole(_), _) => false
   | (Hole, Hole) => true
   | (Hole, _) => false
   | (Unit, Unit) => true
@@ -43,6 +91,11 @@ let rec eq = (ty1, ty2) =>
   | (Sum(_, _), _) => false
   | (List(ty), List(ty')) => eq(ty, ty')
   | (List(_), _) => false
+  | (Forall(t1, ty1), Forall(t2, ty2)) => { 
+    let ty2' = subst(t1, t2, ty2);
+    eq(ty1, ty2')
+  }
+  | (Forall(_, _), _) => false
   };
 
 /* type consistency */
