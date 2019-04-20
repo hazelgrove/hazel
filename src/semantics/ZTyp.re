@@ -46,7 +46,7 @@ let valid_inner_cursors = (utyi: UHTyp.t_inner): list(inner_cursor) => {
 };
 
 let valid_outer_cursors = (utyo: UHTyp.t_outer): list(outer_cursor) =>
-  range(UHTyp.t_outer_length(utyo)) |> List.map(j => Char(j));
+  range(UHTyp.t_outer_length(utyo) + 1) |> List.map(j => Char(j));
 
 let is_valid_inner_cursor =
     (inner_cursor: inner_cursor, utyi: UHTyp.t_inner): bool =>

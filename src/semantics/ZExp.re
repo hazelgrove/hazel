@@ -93,9 +93,9 @@ let children_following_delimiters_exp = (ei: UHExp.t_inner): list(int) =>
   };
 
 let valid_outer_cursors_line = (lo: UHExp.line_outer): list(outer_cursor) =>
-  range(UHExp.line_outer_length(lo)) |> List.map(j => Char(j));
+  range(UHExp.line_outer_length(lo) + 1) |> List.map(j => Char(j));
 let valid_outer_cursors_exp = (eo: UHExp.t_outer): list(outer_cursor) =>
-  range(UHExp.t_outer_length(eo)) |> List.map(j => Char(j));
+  range(UHExp.t_outer_length(eo) + 1) |> List.map(j => Char(j));
 
 let valid_inner_cursors_line = (li: UHExp.line_inner): list(inner_cursor) => {
   let before_child_positions =
@@ -129,8 +129,8 @@ let is_valid_outer_cursor_line =
     (outer_cursor: outer_cursor, lo: UHExp.line_outer): bool =>
   contains(valid_outer_cursors_line(lo), outer_cursor);
 let is_valid_outer_cursor_exp =
-    (Char(j): outer_cursor, eo: UHExp.t_outer): bool =>
-  0 <= j && j < UHExp.t_outer_length(eo);
+    (outer_cursor: outer_cursor, eo: UHExp.t_outer): bool =>
+  contains(valid_outer_cursors_exp(eo), outer_cursor);
 
 let wrap_in_block = (ze: t): zblock => BlockZE([], ze);
 

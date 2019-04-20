@@ -52,7 +52,7 @@ let valid_inner_cursors = (pi: UHPat.t_inner): list(inner_cursor) => {
 };
 
 let valid_outer_cursors = (po: UHPat.t_outer): list(outer_cursor) =>
-  range(UHPat.t_outer_length(po)) |> List.map(j => Char(j));
+  range(UHPat.t_outer_length(po) + 1) |> List.map(j => Char(j));
 
 let is_valid_inner_cursor =
     (inner_cursor: inner_cursor, pi: UHPat.t_inner): bool =>
