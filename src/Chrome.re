@@ -244,6 +244,7 @@ let view = (model: Model.t) => {
         | None => false
         | Some(child) =>
           switch (Js.Opt.to_option(Dom_html.CoerceTo.element(child))) {
+          | None => move_cursor_before_suppress(child)
           | Some(child_element) =>
             let tagName = Js.to_string(child_element##.tagName);
             if (String.equal(tagName, "BR")) {
@@ -254,7 +255,6 @@ let view = (model: Model.t) => {
             } else {
               move_cursor_before_suppress(child);
             };
-          | None => move_cursor_before_suppress(child)
           }
         };
       } else if (has_class("hole-before-1")) {
