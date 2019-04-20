@@ -5,6 +5,7 @@ module Js = Js_of_ocaml.Js;
 module Dom = Js_of_ocaml.Dom;
 module Dom_html = Js_of_ocaml.Dom_html;
 module Ev = Dom_html.Event;
+module PP = Pretty.PP;
 
 let log = x => Js_of_ocaml.Firebug.console##log(x);
 
@@ -348,5 +349,19 @@ let add_cls_to_all = (cls_to_add, cls_to_add_to) => {
     elt##.classList##add(cls_to_add_j);
   };
 };
-let has_class = (classList, cls) =>
+let has_class = (classList: Js.t(Dom_html.tokenList), cls: PP.cls): bool =>
   Js.to_bool(classList##contains(Js.string(cls)));
+let has_class_satisfying =
+    (classList: Js.t(Dom_html.tokenList), pred: PP.cls => option('a))
+    : option('a) => {
+  let satisfied = ref(None);
+  for (i in 0 to classList##.length - 1) {
+    Js.Optdef.iter(classList##item(i), cls =>
+      switch (pred(Js.to_string(cls))) {
+      | None => ()
+      | Some(x) => satisfied := Some(x)
+      }
+    );
+  };
+  satisfied^;
+};

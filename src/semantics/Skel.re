@@ -23,3 +23,9 @@ let rec rightmost_op =
     | Some(op1) => Some(op1)
     | None => Some(op)
     };
+
+let rec size = (skel: t(_)): int =>
+  switch (skel) {
+  | Placeholder(_) => 1
+  | BinOp(_, _, skel1, skel2) => size(skel1) + size(skel2)
+  };

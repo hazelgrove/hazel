@@ -12,6 +12,18 @@ type t =
   | Sum(t, t)
   | List(t);
 
+let rec num_tms = (ty: t): int =>
+  switch (ty) {
+  | Hole
+  | Unit
+  | Num
+  | Bool
+  | List(_) => 1
+  | Arrow(ty1, ty2)
+  | Prod(ty1, ty2)
+  | Sum(ty1, ty2) => num_tms(ty1) + num_tms(ty2)
+  };
+
 /* eqity */
 let rec eq = (ty1, ty2) =>
   switch (ty1, ty2) {

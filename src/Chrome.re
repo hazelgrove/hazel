@@ -5,10 +5,14 @@ module Js = Js_of_ocaml.Js;
 module Dom = Js_of_ocaml.Dom;
 module Dom_html = Js_of_ocaml.Dom_html;
 module StringMap = Map.Make(String);
+
+let has_class = JSUtil.has_class;
+
 type example_info = {
   serialized: string,
   desc: string,
 };
+
 let view = (model: Model.t) => {
   let {
     edit_state_rs,
@@ -63,6 +67,56 @@ let view = (model: Model.t) => {
     };
     cur^;
   };
+  let before_child_node =
+      (k: int, node: Js.t(Dom.node)): option(Js.t(Dom_html.element)) => {
+    let before_child_node = ref(None);
+    let children = node##.childNodes;
+    for (i in 0 to children##.length - 1) {
+      Js.Opt.iter(children##item(i), child =>
+        switch (Js.Opt.to_option(Dom_html.CoerceTo.element(child))) {
+        | None => ()
+        | Some(child_elem) =>
+          let classList = child_elem##.classList;
+          for (j in 0 to classList##.length - 1) {
+            Js.Optdef.iter(classList##item(j), cls =>
+              switch (View.before_child_index_of_cls(Js.to_string(cls))) {
+              | None => ()
+              | Some(k') =>
+                if (k === k') {
+                  before_child_node := Some(child_elem);
+                } else {
+                  ();
+                }
+              }
+            );
+          };
+        }
+      );
+    };
+    before_child_node^;
+  };
+  let closing_delimiter_node =
+      (node: Js.t(Dom.node)): option(Js.t(Dom_html.element)) => {
+    let closing_delimiter = ref(None);
+    let children = node##.childNodes;
+    for (i in 0 to children##.length - 1) {
+      Js.Opt.iter(children##item(i), child =>
+        switch (Js.Opt.to_option(Dom_html.CoerceTo.element(child))) {
+        | None => ()
+        | Some(child_elem) =>
+          if (JSUtil.has_class(
+                child_elem##.classList,
+                View.closing_delimiter_cls,
+              )) {
+            closing_delimiter := Some(child_elem);
+          } else {
+            ();
+          }
+        }
+      );
+    };
+    closing_delimiter^;
+  };
   let node_length = node => {
     let text_node = Js.Opt.get(Dom.CoerceTo.text(node), () => assert(false));
     text_node##.length;
@@ -110,9 +164,31 @@ let view = (model: Model.t) => {
       Js.Unsafe.coerce(cursor_elem): Js.t(Dom.node)
     );
     switch (cursor_pos) {
-    | In(offset) => move_cursor_to(cursor_node, offset)
-    | Before => move_cursor_before(first_leaf(cursor_node))
-    | After => move_cursor_after(last_leaf(cursor_node))
+    | O(Char(offset)) => move_cursor_to(cursor_node, offset)
+    | I(BeforeChild(k, Before)) =>
+      switch (before_child_node(k, cursor_node)) {
+      | None => ()
+      | Some(node) =>
+        move_cursor_before((node: Js.t(Dom_html.element) :> Js.t(Dom.node)))
+      }
+    | I(BeforeChild(k, After)) =>
+      switch (before_child_node(k, cursor_node)) {
+      | None => ()
+      | Some(node) =>
+        move_cursor_after((node: Js.t(Dom_html.element) :> Js.t(Dom.node)))
+      }
+    | I(ClosingDelimiter(Before)) =>
+      switch (closing_delimiter_node(cursor_node)) {
+      | None => ()
+      | Some(node) =>
+        move_cursor_before((node: Js.t(Dom_html.element) :> Js.t(Dom.node)))
+      }
+    | I(ClosingDelimiter(After)) =>
+      switch (closing_delimiter_node(cursor_node)) {
+      | None => ()
+      | Some(node) =>
+        move_cursor_after((node: Js.t(Dom_html.element) :> Js.t(Dom.node)))
+      }
     };
   };
   let set_cursor = () => {
@@ -131,7 +207,6 @@ let view = (model: Model.t) => {
     };
   };
   /* TODO not sure if the rev_paths are complete anymore in light of palettes */
-  let has_class = JSUtil.has_class;
   let rev_paths_rs =
     React.S.map(({EditorBox.rev_paths, _}) => rev_paths, editor_box_rs);
   let do_transport = (): bool => {
@@ -381,6 +456,9 @@ let view = (model: Model.t) => {
     };
   };
 
+  exception OpWithoutIndex(Js.t(Dom_html.element));
+  exception UnknownAstElement(Js.t(Dom_html.element));
+
   let get_anchor_elem = (anchor: Js.t(Dom.node)) =>
     switch (anchor##.nodeType) {
     | Dom.ELEMENT =>
@@ -396,29 +474,28 @@ let view = (model: Model.t) => {
         anchorOffset: int,
         ast_elem: Js.t(Dom_html.element),
       ) => {
-    let classList = ast_elem##.classList;
-    let ast_has_class = has_class(classList);
+    let anchor_elem = get_anchor_elem(anchor);
+    let ast_has_class = has_class(ast_elem##.classList);
+    let anchor_has_class = has_class(anchor_elem##.classList);
+    let anchor_has_text =
+      String.equal(Js.to_string(anchor_elem##.innerHTML));
     if (ast_has_class("Parenthesized")) {
-      let anchor_elem = get_anchor_elem(anchor);
-      let anchor_classList = anchor_elem##.classList;
-      if (has_class(anchor_classList, "lparen")) {
-        Before;
+      if (anchor_has_class("lparen")) {
+        I(BeforeChild(0, anchorOffset === 0 ? Before : After));
+      } else if (anchor_has_class("rparen")) {
+        I(ClosingDelimiter(anchorOffset === 0 ? Before : After));
       } else {
-        After;
+        I(BeforeChild(0, Before));
       };
-    } else if (ast_has_class("Asc")) {
-      In(0);
     } else if (ast_has_class("LetLine")) {
-      let anchor_elem = get_anchor_elem(anchor);
-      let innerHTML = Js.to_string(anchor_elem##.innerHTML);
-      if (String.equal(innerHTML, "let")) {
-        if (anchorOffset == 0) {
-          Before;
-        } else {
-          In(0);
-        };
+      if (anchor_has_text("let")) {
+        I(BeforeChild(0, anchorOffset === 0 ? Before : After));
+      } else if (anchor_has_class("ann")) {
+        I(BeforeChild(1, anchorOffset === 0 ? Before : After));
+      } else if (anchor_has_class("let-equals")) {
+        I(BeforeChild(2, anchorOffset === 0 ? Before : After));
       } else {
-        In(1);
+        I(BeforeChild(0, Before));
       };
     } else if (ast_has_class("Var")
                || ast_has_class("var_binding")
@@ -430,112 +507,81 @@ let view = (model: Model.t) => {
                || ast_has_class("Bool")
                || ast_has_class("number")
                || ast_has_class("ApPalette")) {
-      if (anchorOffset == 0) {
-        Before;
-      } else {
-        let anchor_elem = get_anchor_elem(anchor);
-        let innerText = Js.to_string(anchor_elem##.innerHTML);
-        let length = String.length(innerText);
-        if (anchorOffset == length) {
-          After;
-        } else {
-          In(anchorOffset);
-        };
-      };
+      O(Char(anchorOffset));
     } else if (ast_has_class("Lam")) {
-      let anchor_elem = get_anchor_elem(anchor);
-      if (anchorOffset == 0) {
-        let innerHTML = Js.to_string(anchor_elem##.innerHTML);
-        if (String.equal(innerHTML, LangUtil.lamSym)) {
-          Before;
-        } else {
-          After;
-        };
+      if (anchor_has_class("lambda-sym")) {
+        I(BeforeChild(0, anchorOffset === 0 ? Before : After));
+      } else if (anchor_has_class("ann")) {
+        I(BeforeChild(1, anchorOffset === 0 ? Before : After));
+      } else if (anchor_has_class("lambda-dot")) {
+        I(BeforeChild(2, anchorOffset === 0 ? Before : After));
       } else {
-        After;
+        I(BeforeChild(0, Before));
       };
-    } else if (ast_has_class("Ap")) {
-      After;
     } else if (ast_has_class("Inj")) {
-      let anchor_elem = get_anchor_elem(anchor);
-      if (anchorOffset == 0) {
-        let innerHTML = Js.to_string(anchor_elem##.innerHTML);
-
-        if (String.equal(innerHTML, "inj")) {
-          Before;
-        } else {
-          In(0);
-        };
-      } else if (anchorOffset == 1) {
-        let innerHTML = Js.to_string(anchor_elem##.innerHTML);
-        if (String.equal(innerHTML, ")")) {
-          After;
-        } else {
-          In(0);
-        };
+      if (anchor_has_text("inj")) {
+        I(BeforeChild(0, Before));
+      } else if (anchor_has_text("[")
+                 || anchor_has_text("L")
+                 || anchor_has_text("R")
+                 || anchor_has_text("]")) {
+        I(BeforeChild(0, After));
+      } else if (anchor_has_text(")")) {
+        I(ClosingDelimiter(anchorOffset === 0 ? Before : After));
       } else {
-        In(0);
+        I(BeforeChild(0, Before));
       };
     } else if (ast_has_class("List")) {
-      let anchor_elem = get_anchor_elem(anchor);
-      if (anchorOffset == 0) {
-        let innerHTML = Js.to_string(anchor_elem##.innerHTML);
-
-        if (String.equal(innerHTML, "List")) {
-          Before;
-        } else {
-          In(0);
-        };
-      } else if (anchorOffset == 1) {
-        let innerHTML = Js.to_string(anchor_elem##.innerHTML);
-        if (String.equal(innerHTML, ")")) {
-          After;
-        } else {
-          In(0);
-        };
+      if (anchor_has_text("List")) {
+        I(BeforeChild(0, Before));
+      } else if (anchor_has_class("lparen")) {
+        I(BeforeChild(0, After));
+      } else if (anchor_has_class("rparen")) {
+        I(ClosingDelimiter(anchorOffset === 0 ? Before : After));
       } else {
-        In(0);
+        I(BeforeChild(0, Before));
       };
     } else if (ast_has_class("Case")) {
-      let anchor_elem = get_anchor_elem(anchor);
-      let innerHTML = Js.to_string(anchor_elem##.innerHTML);
-      if (String.equal(innerHTML, "case")) {
-        if (anchorOffset == 0) {
-          Before;
-        } else {
-          In(0);
-        };
-      } else if (String.equal(innerHTML, "end")) {
-        if (anchorOffset <= 2) {
-          In(1);
-        } else {
-          After;
-        };
+      if (anchor_has_text("case")) {
+        I(BeforeChild(0, Before));
+      } else if (anchor_has_class("space")) {
+        I(BeforeChild(0, After));
       } else {
-        Before;
+        /* TODO fix once cursor is redesigned */
+        I(BeforeChild(0, Before));
       };
     } else if (ast_has_class("EmptyHole") || ast_has_class("Hole")) {
-      let anchor_elem = get_anchor_elem(anchor);
-      let anchor_has_class = has_class(anchor_elem##.classList);
       if (anchor_has_class("hole-before-1")) {
-        Before;
+        O(Char(0));
       } else if (anchor_has_class("hole-after-2")) {
-        After;
+        O(Char(0));
       } else {
-        After;
+        O(Char(0));
       };
-    } else if (ast_has_class("Arrow")) {
-      In(0);
-    } else if (ast_has_class("Sum")) {
-      In(0);
-    } else if (ast_has_class("OpSeq")) {
-      In(0);
+    } else if (ast_has_class("Arrow")
+               || ast_has_class("Sum")
+               || ast_has_class("Prod")
+               || ast_has_class("Comma")
+               || ast_has_class("Space")
+               || ast_has_class("Cons")
+               || ast_has_class("Plus")
+               || ast_has_class("Times")
+               || ast_has_class("LessThan")) {
+      switch (
+        JSUtil.has_class_satisfying(
+          ast_elem##.classList,
+          View.before_child_index_of_cls,
+        )
+      ) {
+      | None => raise(OpWithoutIndex(ast_elem))
+      | Some(k) => I(BeforeChild(k, anchorOffset === 0 ? Before : After))
+      };
     } else if (ast_has_class("EmptyLine")) {
-      Before;
+      O(Char(0));
     } else {
       JSUtil.log("Unknown ast element!");
-      JSUtil.log(classList);
-      In(0);
+      JSUtil.log(ast_elem##.classList);
+      raise(UnknownAstElement(ast_elem));
     };
   };
 
@@ -544,19 +590,28 @@ let view = (model: Model.t) => {
       Dom.Event.make("selectionchange"),
       Dom_html.document,
       _ => {
+        /* look up on MDN
+             assuming cursor is collapsed and that there's some anchor node
+           */
         let selection = Dom_html.window##getSelection;
+        /* almost always a text node, sometimes in weird cases (Firefox) */
         let anchor = selection##.anchorNode;
         let anchorOffset = selection##.anchorOffset;
+        /* make sure cursor is actually in editorbox */
         if (JSUtil.div_contains_node(pp_view_dom, anchor)) {
           /* let (anchor, anchorOffset) = */
           /*   fix_anchor(selection, selection##.anchorNode); */
           let did_transport = do_transport();
           if (did_transport) {
             ();
+              /* if there was a transport, new selectionchange event triggered, cancel this one */
           } else {
+            /* find which path corresponds to the selection */
             let rev_paths = React.S.value(rev_paths_rs);
             let cur = ref(Js.some(anchor));
             let found = ref(false);
+            /* traverse the dOM tree up until it finds a node with a path indentifier */
+            /* initially just starting with a text node, not a AST node node */
             while (Js.Opt.test(cur^) && ! found^) {
               let cur_node = Js.Opt.get(cur^, () => assert(false));
 
@@ -572,10 +627,13 @@ let view = (model: Model.t) => {
                 | rev_path =>
                   found := true;
                   let path = List.rev(rev_path);
+                  /* usually cur_element is immediate parent of anchor, but
+                   * some situations where it's a grandparent */
                   let cursor_pos =
                     determine_cursor_pos(anchor, anchorOffset, cur_element);
 
                   do_action(Action.MoveTo((path, cursor_pos)));
+                  /* avoid rerendering view on cursor movement */
                   clear_cursors();
                   let elem = JSUtil.forceGetElementById(cur_id);
 
@@ -609,10 +667,10 @@ let view = (model: Model.t) => {
     switch (
       Path.path_to_hole(Path.holes_block(React.S.value(e_rs), [], []), u)
     ) {
+    | None => JSUtil.log("Path not found!!")
     | Some(hole_path) =>
       do_action(Action.MoveTo(hole_path));
       set_cursor();
-    | None => JSUtil.log("Path not found!!")
     };
   let instance_click_fn = ((u, _) as inst) => {
     let usi = React.S.value(user_selected_instances_rs);
