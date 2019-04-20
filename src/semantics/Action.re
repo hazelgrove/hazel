@@ -1557,39 +1557,38 @@ let rec syn_perform_pat =
         ),
       )
     }
-  | (Construct(SOp(os)), _) when ZPat.is_after(zp) =>
+  | (Construct(SOp(os)), CursorPO(_, _) | CursorPI(_, _)) =>
     switch (pat_op_of(os)) {
     | None => Failed
     | Some(op) =>
-      Succeeded(
-        abs_perform_Construct_SOp_After(
-          UHPat.bidelimit,
-          ZPat.new_EmptyHole,
-          make_and_syn_OpSeqZ_pat,
-          ctx,
-          u_gen,
-          ZPat.erase(zp),
-          op,
-        ),
-      )
+      if (ZPat.is_before(zp)) {
+        Succeeded(
+          abs_perform_Construct_SOp_Before(
+            UHPat.bidelimit,
+            ZPat.new_EmptyHole,
+            make_and_syn_OpSeqZ_pat,
+            ctx,
+            u_gen,
+            ZPat.erase(zp),
+            op,
+          ),
+        );
+      } else if (ZPat.is_after(zp)) {
+        Succeeded(
+          abs_perform_Construct_SOp_After(
+            UHPat.bidelimit,
+            ZPat.new_EmptyHole,
+            make_and_syn_OpSeqZ_pat,
+            ctx,
+            u_gen,
+            ZPat.erase(zp),
+            op,
+          ),
+        );
+      } else {
+        Failed;
+      }
     }
-  | (Construct(SOp(os)), _) when ZPat.is_before(zp) =>
-    switch (pat_op_of(os)) {
-    | None => Failed
-    | Some(op) =>
-      Succeeded(
-        abs_perform_Construct_SOp_Before(
-          UHPat.bidelimit,
-          ZPat.new_EmptyHole,
-          make_and_syn_OpSeqZ_pat,
-          ctx,
-          u_gen,
-          ZPat.erase(zp),
-          op,
-        ),
-      )
-    }
-  | (Construct(SOp(_)), CursorPO(_, _) | CursorPI(_, _)) => Failed
   /* Zipper */
   | (_, ParenthesizedZ(zp1)) =>
     switch (syn_perform_pat(ctx, u_gen, a, zp1)) {
@@ -2174,41 +2173,40 @@ and ana_perform_pat =
         ),
       )
     }
-  | (Construct(SOp(os)), _) when ZPat.is_after(zp) =>
+  | (Construct(SOp(os)), CursorPO(_, _) | CursorPI(_, _)) =>
     switch (pat_op_of(os)) {
     | None => Failed
     | Some(op) =>
-      Succeeded(
-        abs_perform_Construct_SOp_After(
-          UHPat.bidelimit,
-          ZPat.new_EmptyHole,
-          (ctx, u_gen, zp, surround) =>
-            make_and_ana_OpSeqZ_pat(ctx, u_gen, zp, surround, ty),
-          ctx,
-          u_gen,
-          ZPat.erase(zp),
-          op,
-        ),
-      )
+      if (ZPat.is_before(zp)) {
+        Succeeded(
+          abs_perform_Construct_SOp_Before(
+            UHPat.bidelimit,
+            ZPat.new_EmptyHole,
+            (ctx, u_gen, zp, surround) =>
+              make_and_ana_OpSeqZ_pat(ctx, u_gen, zp, surround, ty),
+            ctx,
+            u_gen,
+            ZPat.erase(zp),
+            op,
+          ),
+        );
+      } else if (ZPat.is_after(zp)) {
+        Succeeded(
+          abs_perform_Construct_SOp_After(
+            UHPat.bidelimit,
+            ZPat.new_EmptyHole,
+            (ctx, u_gen, zp, surround) =>
+              make_and_ana_OpSeqZ_pat(ctx, u_gen, zp, surround, ty),
+            ctx,
+            u_gen,
+            ZPat.erase(zp),
+            op,
+          ),
+        );
+      } else {
+        Failed;
+      }
     }
-  | (Construct(SOp(os)), _) when ZPat.is_before(zp) =>
-    switch (pat_op_of(os)) {
-    | None => Failed
-    | Some(op) =>
-      Succeeded(
-        abs_perform_Construct_SOp_Before(
-          UHPat.bidelimit,
-          ZPat.new_EmptyHole,
-          (ctx, u_gen, zp, surround) =>
-            make_and_ana_OpSeqZ_pat(ctx, u_gen, zp, surround, ty),
-          ctx,
-          u_gen,
-          ZPat.erase(zp),
-          op,
-        ),
-      )
-    }
-  | (Construct(SOp(_)), CursorPO(_, _) | CursorPI(_, _)) => Failed
   /* Zipper */
   | (_, ParenthesizedZ(zp1)) =>
     switch (ana_perform_pat(ctx, u_gen, a, zp1, ty)) {
@@ -3809,39 +3807,38 @@ and syn_perform_exp =
         ),
       )
     }
-  | (Construct(SOp(os)), _) when ZExp.is_after_exp(ze) =>
+  | (Construct(SOp(os)), CursorEO(_, _) | CursorEI(_, _)) =>
     switch (exp_op_of(os)) {
     | None => Failed
     | Some(op) =>
-      Succeeded(
-        abs_perform_Construct_SOp_After(
-          UHExp.bidelimit,
-          ZExp.new_EmptyHole,
-          make_and_syn_OpSeqZ,
-          ctx,
-          u_gen,
-          ZExp.erase(ze),
-          op,
-        ),
-      )
+      if (ZExp.is_before_exp(ze)) {
+        Succeeded(
+          abs_perform_Construct_SOp_Before(
+            UHExp.bidelimit,
+            ZExp.new_EmptyHole,
+            make_and_syn_OpSeqZ,
+            ctx,
+            u_gen,
+            ZExp.erase(ze),
+            op,
+          ),
+        );
+      } else if (ZExp.is_after_exp(ze)) {
+        Succeeded(
+          abs_perform_Construct_SOp_After(
+            UHExp.bidelimit,
+            ZExp.new_EmptyHole,
+            make_and_syn_OpSeqZ,
+            ctx,
+            u_gen,
+            ZExp.erase(ze),
+            op,
+          ),
+        );
+      } else {
+        Failed;
+      }
     }
-  | (Construct(SOp(os)), _) when ZExp.is_before_exp(ze) =>
-    switch (exp_op_of(os)) {
-    | None => Failed
-    | Some(op) =>
-      Succeeded(
-        abs_perform_Construct_SOp_Before(
-          UHExp.bidelimit,
-          ZExp.new_EmptyHole,
-          make_and_syn_OpSeqZ,
-          ctx,
-          u_gen,
-          ZExp.erase(ze),
-          op,
-        ),
-      )
-    }
-  | (Construct(SOp(_)), _) => Failed
   | (Construct(SApPalette(name)), CursorEO(_, EmptyHole(_))) =>
     let palette_ctx = Contexts.palette_ctx(ctx);
     switch (PaletteCtx.lookup(palette_ctx, name)) {
@@ -4972,41 +4969,40 @@ and ana_perform_exp =
         ),
       )
     }
-  | (Construct(SOp(os)), _) when ZExp.is_after_exp(ze) =>
+  | (Construct(SOp(os)), CursorEO(_, _) | CursorEI(_, _)) =>
     switch (exp_op_of(os)) {
     | None => Failed
     | Some(op) =>
-      Succeeded(
-        abs_perform_Construct_SOp_After(
-          UHExp.bidelimit,
-          ZExp.new_EmptyHole,
-          (ctx, u_gen, ze, surround) =>
-            make_and_ana_OpSeqZ(ctx, u_gen, ze, surround, ty),
-          ctx,
-          u_gen,
-          ZExp.erase(ze),
-          op,
-        ),
-      )
+      if (ZExp.is_before_exp(ze)) {
+        Succeeded(
+          abs_perform_Construct_SOp_Before(
+            UHExp.bidelimit,
+            ZExp.new_EmptyHole,
+            (ctx, u_gen, ze, surround) =>
+              make_and_ana_OpSeqZ(ctx, u_gen, ze, surround, ty),
+            ctx,
+            u_gen,
+            ZExp.erase(ze),
+            op,
+          ),
+        );
+      } else if (ZExp.is_after_exp(ze)) {
+        Succeeded(
+          abs_perform_Construct_SOp_After(
+            UHExp.bidelimit,
+            ZExp.new_EmptyHole,
+            (ctx, u_gen, ze, surround) =>
+              make_and_ana_OpSeqZ(ctx, u_gen, ze, surround, ty),
+            ctx,
+            u_gen,
+            ZExp.erase(ze),
+            op,
+          ),
+        );
+      } else {
+        Failed;
+      }
     }
-  | (Construct(SOp(os)), _) when ZExp.is_before_exp(ze) =>
-    switch (exp_op_of(os)) {
-    | None => Failed
-    | Some(op) =>
-      Succeeded(
-        abs_perform_Construct_SOp_Before(
-          UHExp.bidelimit,
-          ZExp.new_EmptyHole,
-          (ctx, u_gen, ze, surround) =>
-            make_and_ana_OpSeqZ(ctx, u_gen, ze, surround, ty),
-          ctx,
-          u_gen,
-          ZExp.erase(ze),
-          op,
-        ),
-      )
-    }
-  | (Construct(SOp(_)), _) => Failed
   /* Zipper Cases */
   | (_, ParenthesizedZ(zblock)) =>
     switch (ana_perform_block(ctx, a, (zblock, u_gen), ty)) {
