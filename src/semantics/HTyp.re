@@ -1,11 +1,12 @@
 open GeneralUtil;
 
+[@deriving sexp]
 type idx = int; /* we use de Bruijn indices */
 
-/* types with holes */
+/* Types with holes */
 [@deriving sexp]
 type t =
-  | TVar(idx, Var.t) /* bound type variables */ 
+  | TVar(idx, Var.t) /* bound type variables */
   | TVarHole(Var.t) /* free type variables */
   | Hole
   | Unit
@@ -16,79 +17,69 @@ type t =
   | Sum(t, t)
   | List(t)
   | Forall(Var.t, t)
-  /* the following two don't cause the de Bruijn index to increment */
-  | ForallBindingHole(MetaVar.t, t) /* forall _, ty */ 
-  | ForallShadowErr(Var.t, t)
-;
+  | ForallBinderHole(MetaVar.t, t); /* forall _, ty */
 
 /* # Substitution */
-
-let rec shift_free_vars' = (ty, shift_by, binders_seen) => 
+let rec shift_free_vars' = (ty, shift_by, binders_seen) =>
   switch (ty) {
-  | TVar(i, x) => 
+  | TVar(i, x) =>
     if (i >= binders_seen) {
-      TVar(i + shift_by, x)
+      TVar(i + shift_by, x);
     } else {
-      ty
+      ty;
     }
   | TVarHole(_)
   | Hole
   | Unit
   | Num
   | Bool => ty
-  | Arrow(ty1, ty2) => 
+  | Arrow(ty1, ty2) =>
     Arrow(
       shift_free_vars'(ty1, shift_by, binders_seen),
-      shift_free_vars'(ty2, shift_by, binders_seen))
-  | Prod(ty1, ty2) => 
+      shift_free_vars'(ty2, shift_by, binders_seen),
+    )
+  | Prod(ty1, ty2) =>
     Prod(
       shift_free_vars'(ty1, shift_by, binders_seen),
-      shift_free_vars'(ty2, shift_by, binders_seen))
-  | Sum(ty1, ty2) => 
+      shift_free_vars'(ty2, shift_by, binders_seen),
+    )
+  | Sum(ty1, ty2) =>
     Sum(
       shift_free_vars'(ty1, shift_by, binders_seen),
-      shift_free_vars'(ty2, shift_by, binders_seen))
-  | List(ty1) => 
-    List(shift_free_vars'(ty1, shift_by, binders_seen))
-  | Forall(a, ty1) => 
+      shift_free_vars'(ty2, shift_by, binders_seen),
+    )
+  | List(ty1) => List(shift_free_vars'(ty1, shift_by, binders_seen))
+  | Forall(a, ty1) =>
     Forall(a, shift_free_vars'(ty1, shift_by, binders_seen + 1))
-  | ForallBindingHole(u, ty1) => 
-    ForallBindingHole(u, shift_free_vars'(ty1, shift_by, binders_seen))
-  | ForallShadowErr(x, ty1) => 
-    ForallShadowErr(x, shift_free_vars'(ty1, shift_by, binders_seen))
+  | ForallBinderHole(u, ty1) =>
+    ForallBinderHole(u, shift_free_vars'(ty1, shift_by, binders_seen + 1))
   };
-  
+
 let shift_free_vars = (ty, shift_by) => shift_free_vars'(ty, shift_by, 0);
 
-let rec subst' = (ty, binders_seen, ty') => 
+let rec subst' = (ty, binders_seen, ty') =>
   switch (ty') {
-  | TVar(i, _) => 
+  | TVar(i, _) =>
     if (i == binders_seen) {
-      shift_free_vars(ty, binders_seen)
+      shift_free_vars(ty, binders_seen);
     } else {
-      ty'
+      ty';
     }
-  | TVarHole(_) 
+  | TVarHole(_)
   | Hole
   | Unit
   | Num
   | Bool => ty'
-  | Arrow(ty1, ty2) => 
-    Arrow(subst'(ty, binders_seen, ty1),
-          subst'(ty, binders_seen, ty2))
-  | Prod(ty1, ty2) => 
-    Prod(subst'(ty, binders_seen, ty1),
-         subst'(ty, binders_seen, ty2))
-  | Sum(ty1, ty2) => 
-    Sum(subst'(ty, binders_seen, ty1),
-         subst'(ty, binders_seen, ty2))
+  | Arrow(ty1, ty2) =>
+    Arrow(subst'(ty, binders_seen, ty1), subst'(ty, binders_seen, ty2))
+  | Prod(ty1, ty2) =>
+    Prod(subst'(ty, binders_seen, ty1), subst'(ty, binders_seen, ty2))
+  | Sum(ty1, ty2) =>
+    Sum(subst'(ty, binders_seen, ty1), subst'(ty, binders_seen, ty2))
   | List(ty1) => List(subst'(ty, binders_seen, ty1))
-  | Forall(a, ty1) => 
-    Forall(a, subst'(ty, binders_seen + 1, ty1))  
-  | ForallBindingHole(u, ty1) => 
-    ForallBindingHole(u, subst'(ty, binders_seen, ty1))
-  | ForallShadowErr(x, ty1) => 
-    ForallShadowErr(x, subst'(ty, binders_seen, ty1))
+  | Forall(a, ty1) => Forall(a, subst'(ty, binders_seen + 1, ty1))
+  | ForallBinderHole(u, ty1) =>
+    ForallBinderHole(u, subst'(ty, binders_seen + 1, ty1))
   };
 
 /* capture-avoiding substitution of ty' for variable 0 in ty */
@@ -106,7 +97,7 @@ let rec num_tms = (ty: t): int =>
   | Sum(ty1, ty2) => num_tms(ty1) + num_tms(ty2)
   };
 
-/* # type equivalence */
+/* # Type equivalence */
 let rec equiv = (ty1, ty2) =>
   switch (ty1, ty2) {
   | (TVar(i, _), TVar(j, _)) => i == j
@@ -121,20 +112,23 @@ let rec equiv = (ty1, ty2) =>
   | (Num, _) => false
   | (Bool, Bool) => true
   | (Bool, _) => false
-  | (Arrow(ty1, ty2), Arrow(ty1', ty2')) => 
+  | (Arrow(ty1, ty2), Arrow(ty1', ty2')) =>
     equiv(ty1, ty1') && equiv(ty2, ty2')
   | (Arrow(_, _), _) => false
-  | (Prod(ty1, ty2), Prod(ty1', ty2')) => 
+  | (Prod(ty1, ty2), Prod(ty1', ty2')) =>
     equiv(ty1, ty1') && equiv(ty2, ty2')
   | (Prod(_, _), _) => false
-  | (Sum(ty1, ty2), Sum(ty1', ty2')) => 
+  | (Sum(ty1, ty2), Sum(ty1', ty2')) =>
     equiv(ty1, ty1') && equiv(ty2, ty2')
   | (Sum(_, _), _) => false
   | (List(ty), List(ty')) => equiv(ty, ty')
   | (List(_), _) => false
-  | (Forall(_, ty1), Forall(_, ty2)) => equiv(ty1, ty2)  
+  | (ForallBinderHole(_, ty1), ForallBinderHole(_, ty2))
+  | (Forall(_, ty1), ForallBinderHole(_, ty2))
+  | (ForallBinderHole(_, ty1), Forall(_, ty2))
+  | (Forall(_, ty1), Forall(_, ty2)) => equiv(ty1, ty2)
+  | (ForallBinderHole(_, _), _)
   | (Forall(_, _), _) => false
-  /* TODO: how should Forall interact with the error forms in terms of equivalence? */
   };
 
 /* # type consistency */

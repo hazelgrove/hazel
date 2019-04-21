@@ -1,4 +1,4 @@
-open Sexplib.Std;
+include Sexplib.Std;
 
 let string_of_sexp = sexp => Sexplib.Sexp.to_string(sexp);
 
