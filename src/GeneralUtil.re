@@ -1,4 +1,4 @@
-open Sexplib.Std;
+include Sexplib.Std;
 
 let opt_to_bool =
   fun
