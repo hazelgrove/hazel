@@ -191,6 +191,44 @@ let view = (model: Model.t) => {
       }
     };
   };
+  let next_linear_sibling = (node: Js.t(Dom.node)): option(Js.t(Dom.node)) => {
+    let cur_node = ref(Some(node));
+    let sibling_node = ref(None);
+    while (cur_node^ != None) {
+      switch (cur_node^) {
+      | None =>
+        /* should never happen given while loop guard */
+        ()
+      | Some(node) =>
+        switch (Js.Opt.to_option(Dom_html.CoerceTo.element(node))) {
+        | None =>
+          /* not an element, try to go up a level */
+          switch (Js.Opt.to_option(node##.parentNode)) {
+          | None =>
+            /* no more parents, stop loop */
+            cur_node := None
+          | Some(parent_node) => cur_node := Some(parent_node)
+          }
+        | Some(elem) =>
+          switch (Js.Opt.to_option(elem##.nextSibling)) {
+          | None =>
+            /* no next sibling at this level, try to go up a level */
+            switch (Js.Opt.to_option(node##.parentNode)) {
+            | None =>
+              /* no more parents, stop loop */
+              cur_node := None
+            | Some(parent_node) => cur_node := Some(parent_node)
+            }
+          | Some(sibling) =>
+            /* found sibling, stop loop */
+            cur_node := None;
+            sibling_node := Some(sibling);
+          }
+        }
+      };
+    };
+    sibling_node^;
+  };
   let set_cursor = () => {
     let (ze, _, _) = React.S.value(edit_state_rs);
     let (cursor_path, cursor_pos) = Path.of_zblock(ze);
@@ -280,29 +318,6 @@ let view = (model: Model.t) => {
         } else {
           false;
         };
-      } else if (has_class("op-before-1")) {
-        let anchorOffset = selection##.anchorOffset;
-        if (anchorOffset == 1) {
-          switch (Js.Opt.to_option(parent_elem##.parentNode)) {
-          | None => false
-          | Some(grandparent) =>
-            switch (Js.Opt.to_option(grandparent##.nextSibling)) {
-            | Some(sibling) => move_cursor_before_suppress(sibling)
-            | None => false
-            }
-          };
-        } else if (anchorOffset == 2) {
-          switch (Js.Opt.to_option(parent_elem##.parentNode)) {
-          | None => false
-          | Some(grandparent) =>
-            switch (Js.Opt.to_option(grandparent##.previousSibling)) {
-            | None => false
-            | Some(sibling) => move_cursor_after_suppress(sibling)
-            }
-          };
-        } else {
-          false;
-        };
       } else if (has_class("holeName")) {
         let anchorOffset = selection##.anchorOffset;
         if (anchorOffset == 0) {
@@ -324,27 +339,6 @@ let view = (model: Model.t) => {
             }
           };
         };
-      } else if (has_class("op-center")) {
-        let anchorOffset = selection##.anchorOffset;
-        if (anchorOffset <= 1) {
-          switch (Js.Opt.to_option(parent_elem##.parentNode)) {
-          | None => false
-          | Some(grandparent) =>
-            switch (Js.Opt.to_option(grandparent##.previousSibling)) {
-            | None => false
-            | Some(sibling) => move_cursor_after_suppress(sibling)
-            }
-          };
-        } else {
-          switch (Js.Opt.to_option(parent_elem##.parentNode)) {
-          | None => false
-          | Some(grandparent) =>
-            switch (Js.Opt.to_option(grandparent##.nextSibling)) {
-            | None => false
-            | Some(sibling) => move_cursor_before_suppress(sibling)
-            }
-          };
-        };
       } else if (has_class("hole-before-2") || has_class("hole-after-1")) {
         switch (Js.Opt.to_option(parent_elem##.parentNode)) {
         | None => false
@@ -354,68 +348,23 @@ let view = (model: Model.t) => {
           | Some(firstChild) => move_cursor_before_suppress(firstChild)
           }
         };
-      } else if (has_class("op-before-2") || has_class("op-after-1")) {
-        switch (Js.Opt.to_option(parent_elem##.parentNode)) {
-        | None => false
-        | Some(grandparent) =>
-          switch (Js.Opt.to_option(grandparent##.previousSibling)) {
-          | None => false
-          | Some(sibling) => move_cursor_after_suppress(sibling)
-          }
-        };
-      } else if (has_class("op-after-2")) {
+      } else if (has_class("space")) {
         let anchorOffset = selection##.anchorOffset;
-        if (anchorOffset == 0) {
-          switch (Js.Opt.to_option(parent_elem##.parentNode)) {
-          | None => false
-          | Some(grandparent) =>
-            switch (Js.Opt.to_option(grandparent##.previousSibling)) {
-            | None => false
-            | Some(sibling) => move_cursor_after_suppress(sibling)
-            }
-          };
-        } else {
-          switch (Js.Opt.to_option(parent_elem##.parentNode)) {
-          | None => false
-          | Some(grandparent) =>
-            switch (Js.Opt.to_option(grandparent##.nextSibling)) {
-            | None => false
-            | Some(sibling) => move_cursor_before_suppress(sibling)
-            }
-          };
-        };
-      } else if (has_class("seq-op")) {
-        let anchorOffset = selection##.anchorOffset;
-        if (anchorOffset == 1) {
-          switch (Js.Opt.to_option(parent_elem##.nextSibling)) {
+        if (anchorOffset === 1) {
+          switch (
+            next_linear_sibling(
+              (parent_elem: Js.t(Dom_html.element) :> Js.t(Dom.node)),
+            )
+          ) {
           | None => false
           | Some(sibling) => move_cursor_before_suppress(sibling)
           };
         } else {
           false;
         };
-      } else if (has_class("op-no-margin")) {
-        switch (Js.Opt.to_option(parent_elem##.parentNode)) {
-        | None => false
-        | Some(grandparent) =>
-          let anchorOffset = selection##.anchorOffset;
-
-          if (anchorOffset == 0) {
-            switch (Js.Opt.to_option(grandparent##.previousSibling)) {
-            | None => false
-            | Some(sibling) => move_cursor_after_suppress(sibling)
-            };
-          } else {
-            switch (Js.Opt.to_option(grandparent##.nextSibling)) {
-            | None => false
-            | Some(sibling) => move_cursor_before_suppress(sibling)
-            };
-          };
-        };
       } else if (has_class("lambda-dot")
                  || has_class("lambda-sym")
-                 || has_class("lparen")
-                 || has_class("space")) {
+                 || has_class("lparen")) {
         let anchorOffset = selection##.anchorOffset;
 
         if (anchorOffset == 1) {

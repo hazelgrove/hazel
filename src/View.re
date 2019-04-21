@@ -162,21 +162,15 @@ let of_Parenthesized =
   );
 
 /* Generic operator printing */
-let of_op = (op_s: string, classes: list(PP.cls)): PP.doc =>
-  PP.tagged(
-    ["seq-op", ...classes],
-    None,
-    None,
-    String.length(op_s) == 1
-      ? taggedText(["op-no-margin"], op_s)
-      : optionalBreakNSp
-        ^^ taggedText(["op-before-1"], "​​")
-        ^^ taggedText(["op-before-2"], "‌")
-        ^^ taggedText(["op-center"], op_s)
-        ^^ taggedText(["op-after-1"], "​")
-        ^^ taggedText(["op-after-2"], "​")
-        ^^ optionalBreakNSp,
-  );
+let of_op = (~is_space=false, op_s: string, classes: list(PP.cls)): PP.doc => {
+  let view: PP.doc =
+    if (is_space) {
+      space;
+    } else {
+      optionalBreakSp ^^ taggedText(["op-s"], op_s) ^^ optionalBreakSp;
+    };
+  PP.tagged(["seq-op", ...classes], None, None, view);
+};
 
 /* Types */
 let string_of_ty_op = (op: UHTyp.op): string =>
@@ -926,11 +920,11 @@ let string_of_exp_op = (op: UHExp.op): string =>
 let of_exp_op = (op: UHExp.op): PP.doc => {
   let op_cls = "op-" ++ string_of_exp_op(op);
   switch (op) {
-  | Plus => of_op(" + ", [op_cls])
+  | Plus => of_op("+", [op_cls])
   | Times => of_op("*", [op_cls])
-  | LessThan => of_op(" < ", [op_cls])
-  | Space => of_op(" ", [op_cls])
-  | Comma => of_op(", ", [op_cls])
+  | LessThan => of_op("<", [op_cls])
+  | Space => of_op(~is_space=true, "", [op_cls])
+  | Comma => of_op(",", [op_cls])
   | Cons => of_op("::", [op_cls])
   };
 };
@@ -1165,7 +1159,7 @@ and of_skel =
   switch (skel) {
   | Placeholder(n) =>
     switch (OperatorSeq.nth_tm(n, seq)) {
-    | None => raise(InvariantViolated)
+    | None => raise(UHExp.SkelInconsistentWithOpSeq(skel, seq))
     | Some(en) =>
       let rev_path_n = [n, ...rev_path];
       of_hexp(palette_stuff, prefix, rev_path_n, en);
