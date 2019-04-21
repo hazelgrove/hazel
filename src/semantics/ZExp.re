@@ -576,17 +576,24 @@ let new_EmptyHole = (u_gen: MetaVarGen.t): (t, MetaVarGen.t) => {
   (place_before_exp(e), u_gen);
 };
 
-/* TODO
-   let rec cursor_on_root_expr = (ze: t): option((UHExp.block, cursor_pos)) =>
-     switch (ze) {
-     | CursorEO(outer_cursor, eo)
-     | CursorE(side, e) => Some((UHExp.drop_outer_parentheses(e), side))
-     | ParenthesizedZ(BlockZE([], ze)) => cursor_on_root_expr(ze)
-     | ParenthesizedZ(_) => None
-     | OpSeqZ(_, _, _) => None
-     | DeeperE(_, _) => None
-     };
-   */
+let rec cursor_on_outer_expr = (ze: t): option((UHExp.block, cursor_pos)) =>
+  switch (ze) {
+  | CursorEO(outer_cursor, eo) =>
+    Some((UHExp.drop_outer_parentheses(EO(eo)), O(outer_cursor)))
+  | CursorEI(inner_cursor, ei) =>
+    Some((UHExp.drop_outer_parentheses(EI(ei)), I(inner_cursor)))
+  | ParenthesizedZ(BlockZE([], ze)) => cursor_on_outer_expr(ze)
+  | ParenthesizedZ(_)
+  | OpSeqZ(_, _, _)
+  | LamZP(_, _, _, _)
+  | LamZA(_, _, _, _)
+  | LamZE(_, _, _, _)
+  | InjZ(_, _, _)
+  | CaseZE(_, _, _, _)
+  | CaseZR(_, _, _, _)
+  | CaseZA(_, _, _, _)
+  | ApPaletteZ(_, _, _, _) => None
+  };
 
 let empty_zrule = (u_gen: MetaVarGen.t): (zrule, MetaVarGen.t) => {
   let (zp, u_gen) = ZPat.new_EmptyHole(u_gen);
