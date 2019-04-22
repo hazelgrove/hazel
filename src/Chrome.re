@@ -97,29 +97,30 @@ let view = (model: Model.t) => {
   let closing_delimiter_node =
       (node: Js.t(Dom.node)): option(Js.t(Dom_html.element)) => {
     let closing_delimiter = ref(None);
-    let children = node##.childNodes;
-    for (i in 0 to children##.length - 1) {
-      Js.Opt.iter(children##item(i), child =>
-        switch (Js.Opt.to_option(Dom_html.CoerceTo.element(child))) {
+    let descendants = JSUtil.descendant_nodes(node);
+    List.iter(
+      descendant =>
+        switch (Js.Opt.to_option(Dom_html.CoerceTo.element(descendant))) {
         | None => ()
-        | Some(child_elem) =>
+        | Some(descendant_elem) =>
           if (JSUtil.has_class(
-                child_elem##.classList,
+                descendant_elem##.classList,
                 View.closing_delimiter_cls,
               )) {
-            closing_delimiter := Some(child_elem);
+            closing_delimiter := Some(descendant_elem);
           } else {
             ();
           }
-        }
-      );
-    };
+        },
+      descendants,
+    );
     closing_delimiter^;
   };
   let node_length = node => {
     let text_node = Js.Opt.get(Dom.CoerceTo.text(node), () => assert(false));
     text_node##.length;
   };
+  /* Assumes given node is a text node */
   let move_cursor_start = node => {
     let selection = Dom_html.window##getSelection;
     let range = Dom_html.document##createRange;
@@ -128,7 +129,9 @@ let view = (model: Model.t) => {
     selection##removeAllRanges;
     selection##addRange(range);
   };
+  /* Moves cursor to start of first descendant text node within the given node. */
   let move_cursor_before = node => move_cursor_start(first_leaf(node));
+  /* Assumes given node is a text node */
   let move_cursor_end = node => {
     let selection = Dom_html.window##getSelection;
     let range = Dom_html.document##createRange;
@@ -138,6 +141,7 @@ let view = (model: Model.t) => {
     selection##removeAllRanges;
     selection##addRange(range);
   };
+  /* Moves cursor to end of last descendant text node within the given node. */
   let move_cursor_after = node => move_cursor_end(last_leaf(node));
   let move_cursor_to = (node, offset) => {
     let cursor_leaf = first_leaf(node);
@@ -168,7 +172,7 @@ let view = (model: Model.t) => {
       switch (before_child_node(k, cursor_node)) {
       | None => ()
       | Some(node) =>
-        move_cursor_start((node: Js.t(Dom_html.element) :> Js.t(Dom.node)))
+        move_cursor_before((node: Js.t(Dom_html.element) :> Js.t(Dom.node)))
       }
     | I(BeforeChild(k, After)) =>
       switch (before_child_node(k, cursor_node)) {
@@ -180,13 +184,13 @@ let view = (model: Model.t) => {
       switch (closing_delimiter_node(cursor_node)) {
       | None => ()
       | Some(node) =>
-        move_cursor_start((node: Js.t(Dom_html.element) :> Js.t(Dom.node)))
+        move_cursor_before((node: Js.t(Dom_html.element) :> Js.t(Dom.node)))
       }
     | I(ClosingDelimiter(After)) =>
       switch (closing_delimiter_node(cursor_node)) {
       | None => ()
       | Some(node) =>
-        move_cursor_end((node: Js.t(Dom_html.element) :> Js.t(Dom.node)))
+        move_cursor_after((node: Js.t(Dom_html.element) :> Js.t(Dom.node)))
       }
     };
   };
