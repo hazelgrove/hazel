@@ -2466,15 +2466,37 @@ let move_to_next_node_pos_line =
   };
 
 let move_to_prev_node_pos_exp =
-    (ze: ZExp.t, result: ZExp.t => result('a)): result('a) =>
-  switch (Path.steps_of_prev_node_pos_exp(ze)) {
-  | None => CursorEscaped(Before)
-  | Some(steps) =>
-    switch (Path.follow_exp_and_place_after(steps, ZExp.erase(ze))) {
-    | None => Failed
-    | Some(ze) => result(ze)
+    (ze: ZExp.t, result: ZExp.t => result('a)): result('a) => {
+  let node_position = Path.node_position_zexp(ze);
+  switch (node_position) {
+  | On(_) =>
+    switch (Path.steps_of_prev_node_pos_exp(ze)) {
+    | None => CursorEscaped(Before)
+    | Some(steps) =>
+      JSUtil.log_steps(steps);
+      switch (Path.follow_exp_and_place_after(steps, ZExp.erase(ze))) {
+      | None => Failed
+      | Some(ze) => result(ze)
+      };
     }
+  | Deeper(_) =>
+    let e = ZExp.erase(ze);
+    let node_positions = Path.node_positions_exp(e);
+    switch (elem_before(node_position, node_positions)) {
+    | None => CursorEscaped(Before)
+    | Some(On(cursor_pos)) =>
+      switch (Path.follow_exp(([], cursor_pos), e)) {
+      | None => Failed
+      | Some(ze) => result(ze)
+      }
+    | Some(Deeper(k)) =>
+      switch (Path.follow_exp_and_place_after([k], e)) {
+      | None => Failed
+      | Some(ze) => result(ze)
+      }
+    };
   };
+};
 
 let move_to_next_node_pos_exp =
     (ze: ZExp.t, result: ZExp.t => result('a)): result('a) =>

@@ -1,10 +1,12 @@
 open SemanticsCommon;
 open GeneralUtil;
 
+[@deriving sexp]
 type opseq_surround = OperatorSeq.opseq_surround(UHPat.t, UHPat.op);
 type opseq_prefix = OperatorSeq.opseq_prefix(UHPat.t, UHPat.op);
 type opseq_suffix = OperatorSeq.opseq_suffix(UHPat.t, UHPat.op);
 
+[@deriving sexp]
 type t =
   | CursorPO(outer_cursor, UHPat.t_outer)
   | CursorPI(inner_cursor, UHPat.t_inner)

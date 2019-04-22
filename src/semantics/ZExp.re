@@ -1,10 +1,13 @@
+open Sexplib.Std;
 open SemanticsCommon;
 open GeneralUtil;
 
+[@deriving sexp]
 type opseq_surround = OperatorSeq.opseq_surround(UHExp.t, UHExp.op);
 type opseq_prefix = OperatorSeq.opseq_prefix(UHExp.t, UHExp.op);
 type opseq_suffix = OperatorSeq.opseq_suffix(UHExp.t, UHExp.op);
 
+[@deriving sexp]
 type zblock =
   | BlockZL(zlines, UHExp.t)
   | BlockZE(UHExp.lines, t)

@@ -121,25 +121,25 @@ let view = (model: Model.t) => {
     let text_node = Js.Opt.get(Dom.CoerceTo.text(node), () => assert(false));
     text_node##.length;
   };
-  let move_cursor_before = node => {
-    let cursor_leaf = first_leaf(node);
+  let move_cursor_start = node => {
     let selection = Dom_html.window##getSelection;
     let range = Dom_html.document##createRange;
-    range##setStart(cursor_leaf, 0);
-    range##setEnd(cursor_leaf, 0);
+    range##setStart(node, 0);
+    range##setEnd(node, 0);
     selection##removeAllRanges;
     selection##addRange(range);
   };
-  let move_cursor_after = node => {
-    let cursor_leaf = last_leaf(node);
+  let move_cursor_before = node => move_cursor_start(first_leaf(node));
+  let move_cursor_end = node => {
     let selection = Dom_html.window##getSelection;
     let range = Dom_html.document##createRange;
-    let len = node_length(cursor_leaf);
-    range##setStart(cursor_leaf, len);
-    range##setEnd(cursor_leaf, len);
+    let len = node_length(node);
+    range##setStart(node, len);
+    range##setEnd(node, len);
     selection##removeAllRanges;
     selection##addRange(range);
   };
+  let move_cursor_after = node => move_cursor_end(last_leaf(node));
   let move_cursor_to = (node, offset) => {
     let cursor_leaf = first_leaf(node);
     let selection = Dom_html.window##getSelection;
@@ -169,25 +169,25 @@ let view = (model: Model.t) => {
       switch (before_child_node(k, cursor_node)) {
       | None => ()
       | Some(node) =>
-        move_cursor_before((node: Js.t(Dom_html.element) :> Js.t(Dom.node)))
+        move_cursor_start((node: Js.t(Dom_html.element) :> Js.t(Dom.node)))
       }
     | I(BeforeChild(k, After)) =>
       switch (before_child_node(k, cursor_node)) {
       | None => ()
       | Some(node) =>
-        move_cursor_after((node: Js.t(Dom_html.element) :> Js.t(Dom.node)))
+        move_cursor_end((node: Js.t(Dom_html.element) :> Js.t(Dom.node)))
       }
     | I(ClosingDelimiter(Before)) =>
       switch (closing_delimiter_node(cursor_node)) {
       | None => ()
       | Some(node) =>
-        move_cursor_before((node: Js.t(Dom_html.element) :> Js.t(Dom.node)))
+        move_cursor_start((node: Js.t(Dom_html.element) :> Js.t(Dom.node)))
       }
     | I(ClosingDelimiter(After)) =>
       switch (closing_delimiter_node(cursor_node)) {
       | None => ()
       | Some(node) =>
-        move_cursor_after((node: Js.t(Dom_html.element) :> Js.t(Dom.node)))
+        move_cursor_end((node: Js.t(Dom_html.element) :> Js.t(Dom.node)))
       }
     };
   };

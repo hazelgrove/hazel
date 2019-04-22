@@ -89,6 +89,7 @@ let rec seq_update_nth = (n, seq, e) =>
   };
 
 /* set up this way to enforce the requirement that there be at least one op */
+[@deriving sexp]
 type opseq_surround('tm, 'op) =
   /* if the prefix is empty, there must be a non-empty suffix */
   | EmptyPrefix(opseq_suffix('tm, 'op))

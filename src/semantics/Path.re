@@ -1,12 +1,13 @@
+open Sexplib.Std;
 open SemanticsCommon;
 open GeneralUtil;
 
-[@deriving show({with_path: false})]
+[@deriving (show({with_path: false}), sexp)]
 type steps = list(int);
 
 let string_of_steps = GeneralUtil.string_of_list(string_of_int);
 
-[@deriving show({with_path: false})]
+[@deriving (show({with_path: false}), sexp)]
 type t = (steps, cursor_pos);
 
 let cons' = (step: int, r: t): t => {

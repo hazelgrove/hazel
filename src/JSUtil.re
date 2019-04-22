@@ -9,6 +9,8 @@ module PP = Pretty.PP;
 
 let log = x => Js_of_ocaml.Firebug.console##log(x);
 
+let log_sexp = (sexp: Sexplib.Sexp.t) => log(Sexplib.Sexp.to_string(sexp));
+
 let forceGetElementById = id => {
   let doc = Dom_html.document;
   Js.Opt.get(

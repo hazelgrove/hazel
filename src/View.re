@@ -162,12 +162,21 @@ let of_Parenthesized =
   );
 
 /* Generic operator printing */
-let of_op = (~is_space=false, op_s: string, classes: list(PP.cls)): PP.doc => {
+let of_op =
+    (~is_space=false, ~op_index=?, op_s: string, classes: list(PP.cls))
+    : PP.doc => {
+  let op_index_classes =
+    switch (op_index) {
+    | None => []
+    | Some(k) => [before_child_cls(k)]
+    };
   let view: PP.doc =
     if (is_space) {
-      space;
+      taggedText(["space", ...op_index_classes], " ");
     } else {
-      optionalBreakSp ^^ taggedText(["op-s"], op_s) ^^ optionalBreakSp;
+      optionalBreakSp
+      ^^ taggedText(["op-s", ...op_index_classes], op_s)
+      ^^ optionalBreakSp;
     };
   PP.tagged(["seq-op", ...classes], None, None, view);
 };
@@ -917,15 +926,15 @@ let string_of_exp_op = (op: UHExp.op): string =>
   | Cons => "Cons"
   };
 
-let of_exp_op = (op: UHExp.op): PP.doc => {
+let of_exp_op = (~op_index=?, op: UHExp.op): PP.doc => {
   let op_cls = "op-" ++ string_of_exp_op(op);
   switch (op) {
-  | Plus => of_op("+", [op_cls])
-  | Times => of_op("*", [op_cls])
-  | LessThan => of_op("<", [op_cls])
-  | Space => of_op(~is_space=true, "", [op_cls])
-  | Comma => of_op(",", [op_cls])
-  | Cons => of_op("::", [op_cls])
+  | Plus => of_op(~op_index?, "+", [op_cls])
+  | Times => of_op(~op_index?, "*", [op_cls])
+  | LessThan => of_op(~op_index?, "<", [op_cls])
+  | Space => of_op(~is_space=true, ~op_index?, "", [op_cls])
+  | Comma => of_op(~op_index?, ",", [op_cls])
+  | Cons => of_op(~op_index?, "::", [op_cls])
   };
 };
 
@@ -962,8 +971,8 @@ let of_uhexp_BinOp =
     prefix,
     err_status,
     rev_path,
-    [string_of_exp_op(op), "skel-binop", before_child_cls(op_index)],
-    r1 ^^ of_exp_op(op) ^^ r2,
+    [string_of_exp_op(op), "skel-binop"],
+    r1 ^^ of_exp_op(~op_index, op) ^^ r2,
   );
 
 /* special cased below */

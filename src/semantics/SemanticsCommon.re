@@ -1,3 +1,5 @@
+open Sexplib.Std;
+
 [@deriving sexp]
 type in_hole_reason =
   | TypeInconsistent
@@ -41,24 +43,24 @@ let pick_side = (side, l, r) =>
   | R => r
   };
 
-[@deriving show({with_path: false})]
+[@deriving (show({with_path: false}), sexp)]
 type side =
   | Before
   | After;
 
-[@deriving show({with_path: false})]
+[@deriving (show({with_path: false}), sexp)]
 type delimiter_side = side;
 
-[@deriving show({with_path: false})]
+[@deriving (show({with_path: false}), sexp)]
 type inner_cursor =
   | BeforeChild(int, delimiter_side)
   | ClosingDelimiter(delimiter_side);
 
-[@deriving show({with_path: false})]
+[@deriving (show({with_path: false}), sexp)]
 type outer_cursor =
   | Char(int);
 
-[@deriving show({with_path: false})]
+[@deriving (show({with_path: false}), sexp)]
 type cursor_pos =
   | O(outer_cursor)
   | I(inner_cursor);
