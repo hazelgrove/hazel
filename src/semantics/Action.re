@@ -223,7 +223,7 @@ let rec perform_ty = (a: t, zty: ZTyp.t): result(ZTyp.t) =>
       CursorTI(BeforeChild(_, _), Parenthesized(_) | List(_)),
     ) =>
     Failed
-  /* ... + [k-2] + [k-1] +<| [k] + ...   ==>   ... + [k-2] +| [k] + ... */
+  /* ... + [k-2] + [k-1] +<| [k] + ...   ==>   ... + [k-2] + [k-1]| + ... */
   | (
       Backspace,
       CursorTI(
@@ -231,32 +231,7 @@ let rec perform_ty = (a: t, zty: ZTyp.t): result(ZTyp.t) =>
         OpSeq(_, seq) as utyi,
       ),
     )
-      when ZTyp.is_valid_inner_cursor(inner_cursor, utyi) =>
-    switch (OperatorSeq.split(k - 1, seq)) {
-    | None => Failed /* invalid cursor position */
-    | Some((_, surround)) =>
-      switch (surround) {
-      | EmptySuffix(_) => Failed /* should never happen */
-      | EmptyPrefix(suffix) =>
-        switch (suffix) {
-        | ExpSuffix(_, ty) => Succeeded(ZTyp.place_before(ty))
-        | SeqSuffix(_, seq) =>
-          let skel = Associator.associate_ty(seq);
-          Succeeded(ZTyp.place_before(TI(OpSeq(skel, seq))));
-        }
-      | BothNonEmpty(prefix, suffix) =>
-        let seq =
-          switch (suffix) {
-          | ExpSuffix(_, ty) =>
-            OperatorSeq.opseq_of_prefix_and_exp(prefix, ty)
-          | SeqSuffix(_, seq) =>
-            OperatorSeq.opseq_of_prefix_and_seq(prefix, seq)
-          };
-        let skel = Associator.associate_ty(seq);
-        Succeeded(CursorTI(BeforeChild(k - 1, After), OpSeq(skel, seq)));
-      }
-    }
-  /* ... + [k-1] |>+ [k] + [k+1] + ...   ==>   ... + [k-1] |+ [k+1] + ... */
+  /* ... + [k-2] + [k-1] |>+ [k] + ...   ==>   ... + [k-2] + [k-1]| + ... */
   | (
       Delete,
       CursorTI(
@@ -266,10 +241,12 @@ let rec perform_ty = (a: t, zty: ZTyp.t): result(ZTyp.t) =>
     )
       when ZTyp.is_valid_inner_cursor(inner_cursor, utyi) =>
     switch (OperatorSeq.split(k, seq)) {
-    | None => Failed /* should never happen */
+    /* invalid cursor position */
+    | None => Failed
     | Some((_, surround)) =>
       switch (surround) {
-      | EmptyPrefix(_) => Failed /* should never happen */
+      /* invalid cursor position */
+      | EmptyPrefix(_) => Failed
       | EmptySuffix(prefix) =>
         switch (prefix) {
         | ExpPrefix(ty, _) => Succeeded(ZTyp.place_after(ty))
@@ -278,17 +255,26 @@ let rec perform_ty = (a: t, zty: ZTyp.t): result(ZTyp.t) =>
           Succeeded(ZTyp.place_after(TI(OpSeq(skel, seq))));
         }
       | BothNonEmpty(prefix, suffix) =>
-        let seq =
+        let (zty: ZTyp.t, surround: ZTyp.opseq_surround) =
           switch (prefix) {
-          | ExpPrefix(ty, _) =>
-            OperatorSeq.opseq_of_exp_and_suffix(ty, suffix)
-          | SeqPrefix(seq, _) =>
-            OperatorSeq.opseq_of_seq_and_suffix(seq, suffix)
+          | ExpPrefix(ty, _) => (ZTyp.place_after(ty), EmptyPrefix(suffix))
+          | SeqPrefix(ExpOpExp(ty1, op, ty2), _) => (
+              ZTyp.place_after(ty2),
+              BothNonEmpty(ExpPrefix(ty1, op), suffix),
+            )
+          | SeqPrefix(SeqOpExp(seq, op, ty), _) => (
+              ZTyp.place_after(ty),
+              BothNonEmpty(SeqPrefix(seq, op), suffix),
+            )
           };
-        let skel = Associator.associate_ty(seq);
-        Succeeded(CursorTI(BeforeChild(k, Before), OpSeq(skel, seq)));
+        let skel =
+          Associator.associate_ty(
+            OperatorSeq.opseq_of_exp_and_surround(ZTyp.erase(zty), surround),
+          );
+        Succeeded(OpSeqZ(skel, zty, surround));
       }
     }
+  /* TODO use CursorEscaped here */
   /* ... + [k-2] + [k-1] <|+ [k] + ...   ==>   ... + [k-2] + [k-1]| + [k] + ... */
   | (
       Backspace,
