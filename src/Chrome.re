@@ -79,7 +79,6 @@ let view = (model: Model.t) => {
           let classList = descendant_elem##.classList;
           for (j in 0 to classList##.length - 1) {
             let cls = Js.Optdef.get(classList##item(j), () => assert(false));
-            JSUtil.log(cls);
             switch (View.before_child_index_of_cls(Js.to_string(cls))) {
             | None => ()
             | Some(k') =>
