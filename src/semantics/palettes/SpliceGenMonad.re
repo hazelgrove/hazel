@@ -13,4 +13,3 @@ let exec = (cmd, psi, u_gen) => {
 /* Have to add these functions to stub ppx_deriving.show for types that use this type */
 let pp = (_, _, _) => ();
 let show = _ => "SpliceGenMonad";
-qgi
