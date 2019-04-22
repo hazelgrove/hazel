@@ -11,6 +11,37 @@ let log = x => Js_of_ocaml.Firebug.console##log(x);
 
 let log_sexp = (sexp: Sexplib.Sexp.t) => log(Sexplib.Sexp.to_string(sexp));
 
+/*
+ module NodeSet =
+   Set.Make({
+     let compare = (_, _) => 0;
+     type t = Js.t(Dom.node);
+   });
+ let rec add_descendant_nodes =
+         (node: Js.t(Dom.node), descendants: ref(NodeSet.t)) => {
+   let children = node##.childNodes;
+   for (i in 0 to children##.length - 1) {
+     let child = Js.Opt.get(children##item(i), () => assert(false));
+     descendants := NodeSet.add(child, descendants^);
+     add_descendant_nodes(child, descendants);
+   };
+ };
+ let descendant_nodes = (node: Js.t(Dom.node)): list(Js.t(Dom.node)) => {
+   let descendants = ref(NodeSet.empty);
+   add_descendant_nodes(node, descendants);
+   NodeSet.elements(descendants^);
+ };
+ */
+let rec descendant_nodes = (node: Js.t(Dom.node)): list(Js.t(Dom.node)) => {
+  let children = node##.childNodes;
+  let descendants = ref([]);
+  for (i in children##.length - 1 downto 0) {
+    let child = Js.Opt.get(children##item(i), () => assert(false));
+    descendants := [[child], descendant_nodes(child), ...descendants^];
+  };
+  List.flatten(descendants^);
+};
+
 let forceGetElementById = id => {
   let doc = Dom_html.document;
   Js.Opt.get(

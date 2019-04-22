@@ -70,29 +70,29 @@ let view = (model: Model.t) => {
   let before_child_node =
       (k: int, node: Js.t(Dom.node)): option(Js.t(Dom_html.element)) => {
     let before_child_node = ref(None);
-    let children = node##.childNodes;
-    for (i in 0 to children##.length - 1) {
-      Js.Opt.iter(children##item(i), child =>
-        switch (Js.Opt.to_option(Dom_html.CoerceTo.element(child))) {
+    let descendants = JSUtil.descendant_nodes(node);
+    List.iter(
+      descendant =>
+        switch (Js.Opt.to_option(Dom_html.CoerceTo.element(descendant))) {
         | None => ()
-        | Some(child_elem) =>
-          let classList = child_elem##.classList;
+        | Some(descendant_elem) =>
+          let classList = descendant_elem##.classList;
           for (j in 0 to classList##.length - 1) {
-            Js.Optdef.iter(classList##item(j), cls =>
-              switch (View.before_child_index_of_cls(Js.to_string(cls))) {
-              | None => ()
-              | Some(k') =>
-                if (k === k') {
-                  before_child_node := Some(child_elem);
-                } else {
-                  ();
-                }
+            let cls = Js.Optdef.get(classList##item(j), () => assert(false));
+            JSUtil.log(cls);
+            switch (View.before_child_index_of_cls(Js.to_string(cls))) {
+            | None => ()
+            | Some(k') =>
+              if (k === k') {
+                before_child_node := Some(descendant_elem);
+              } else {
+                ();
               }
-            );
+            };
           };
-        }
-      );
-    };
+        },
+      descendants,
+    );
     before_child_node^;
   };
   let closing_delimiter_node =
@@ -175,7 +175,7 @@ let view = (model: Model.t) => {
       switch (before_child_node(k, cursor_node)) {
       | None => ()
       | Some(node) =>
-        move_cursor_end((node: Js.t(Dom_html.element) :> Js.t(Dom.node)))
+        move_cursor_after((node: Js.t(Dom_html.element) :> Js.t(Dom.node)))
       }
     | I(ClosingDelimiter(Before)) =>
       switch (closing_delimiter_node(cursor_node)) {

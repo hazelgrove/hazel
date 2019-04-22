@@ -2473,11 +2473,10 @@ let move_to_prev_node_pos_exp =
     switch (Path.steps_of_prev_node_pos_exp(ze)) {
     | None => CursorEscaped(Before)
     | Some(steps) =>
-      JSUtil.log_steps(steps);
       switch (Path.follow_exp_and_place_after(steps, ZExp.erase(ze))) {
       | None => Failed
       | Some(ze) => result(ze)
-      };
+      }
     }
   | Deeper(_) =>
     let e = ZExp.erase(ze);
@@ -4016,7 +4015,7 @@ and syn_perform_exp =
       switch (Statics.syn_skel(ctx, skel, seq, Some(i))) {
       | Some((ty, Some(mode))) =>
         switch (mode) {
-        | Statics.AnalyzedAgainst(ty0) =>
+        | AnalyzedAgainst(ty0) =>
           switch (ana_perform_exp(ctx, a, (ze0, u_gen), ty0)) {
           | Failed => Failed
           | CursorEscaped(Before) =>
@@ -4027,7 +4026,7 @@ and syn_perform_exp =
             let ze0'' = ZExp.bidelimit(ze0');
             Succeeded((OpSeqZ(skel, ze0'', surround), ty, u_gen));
           }
-        | Statics.Synthesized(ty0) =>
+        | Synthesized(ty0) =>
           switch (syn_perform_exp(ctx, a, (ze0, ty0, u_gen))) {
           | Failed => Failed
           | CursorEscaped(Before) =>

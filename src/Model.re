@@ -142,7 +142,7 @@ let new_model = (): t => {
 
   let monitors = [instance_at_cursor_monitor, usi_monitor];
 
-  let do_action = action =>
+  let do_action = action => {
     switch (
       Action.syn_perform_block(
         (VarCtx.empty, Palettes.initial_palette_ctx),
@@ -169,6 +169,7 @@ let new_model = (): t => {
     | CursorEscaped(_)
     | Failed => raise(InvalidAction)
     };
+  };
 
   let replace_e = (new_block: UHExp.block) => {
     let new_edit_state =
