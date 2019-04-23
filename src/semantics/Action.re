@@ -176,6 +176,28 @@ let rec perform_ty = (a: t, zty: ZTyp.t): result(ZTyp.t) =>
         !ZTyp.is_after(zty) && ZTyp.is_valid_outer_cursor(outer_cursor, utyo) =>
     Succeeded(ZTyp.place_before(TO(Hole)))
   | (Backspace | Delete, CursorTO(_, _)) => Failed
+  /* ( _ <|)   ==>   ( _| ) */
+  /* ... + [k-2] + [k-1] <|+ [k] + ...   ==>   ... + [k-2] + [k-1]| + [k] + ... */
+  | (
+      Backspace,
+      CursorTI(
+        (BeforeChild(_, Before) | ClosingDelimiter(Before)) as inner_cursor,
+        utyi,
+      ),
+    ) =>
+    ZTyp.is_valid_inner_cursor(inner_cursor, utyi)
+      ? move_to_prev_node_pos_typ(zty) : Failed
+  /* (|> _ )   ==>   ( |_ ) */
+  /* ... + [k-1] +|> [k] + [k+1] + ...   ==>   ... + [k-1] + |[k] + [k+1] + ... */
+  | (
+      Delete,
+      CursorTI(
+        (BeforeChild(_, After) | ClosingDelimiter(After)) as inner_cursor,
+        utyi,
+      ),
+    ) =>
+    ZTyp.is_valid_inner_cursor(inner_cursor, utyi)
+      ? move_to_next_node_pos_typ(zty) : Failed
   /* (<| _ )  ==>  |_ */
   | (
       Backspace,
@@ -187,6 +209,12 @@ let rec perform_ty = (a: t, zty: ZTyp.t): result(ZTyp.t) =>
       CursorTI(BeforeChild(0, Before), Parenthesized(uty1) | List(uty1)),
     ) =>
     Succeeded(ZTyp.place_before(uty1))
+  /* invalid cursor position */
+  | (
+      Backspace | Delete,
+      CursorTI(BeforeChild(_, Before | After), Parenthesized(_) | List(_)),
+    ) =>
+    Failed
   /* ( _ )<|  ==>  _| */
   | (
       Backspace,
@@ -198,55 +226,15 @@ let rec perform_ty = (a: t, zty: ZTyp.t): result(ZTyp.t) =>
       CursorTI(ClosingDelimiter(Before), Parenthesized(uty1) | List(uty1)),
     ) =>
     Succeeded(ZTyp.place_after(uty1))
-  /* <|( _ )  ==>  |( _ ) */
-  | (
-      Backspace,
-      CursorTI(BeforeChild(0, Before), Parenthesized(_) | List(_)),
-    ) =>
-    CursorEscaped(Before)
-  /* ( _ )|>  ==>  ( _ )| */
-  | (Delete, CursorTI(ClosingDelimiter(After), Parenthesized(_) | List(_))) =>
-    CursorEscaped(After)
-  /* ( _ <|)   ==>   ( _| ) */
-  | (Backspace, CursorTI(ClosingDelimiter(Before), Parenthesized(uty1))) =>
-    Succeeded(ParenthesizedZ(ZTyp.place_after(uty1)))
-  | (Backspace, CursorTI(ClosingDelimiter(Before), List(uty1))) =>
-    Succeeded(ListZ(ZTyp.place_after(uty1)))
-  /* (|> _ )   ==>   ( |_ ) */
-  | (Delete, CursorTI(BeforeChild(0, After), Parenthesized(uty1))) =>
-    Succeeded(ParenthesizedZ(ZTyp.place_before(uty1)))
-  | (Delete, CursorTI(BeforeChild(0, After), List(uty1))) =>
-    Succeeded(ListZ(ZTyp.place_before(uty1)))
-  /* invalid cursor position */
-  | (
-      Backspace | Delete,
-      CursorTI(BeforeChild(_, _), Parenthesized(_) | List(_)),
-    ) =>
-    Failed
   /* ... + [k-2] + [k-1] +<| [k] + ...   ==>   ... + [k-2] + [k-1]| + ... */
-  | (
-      Backspace,
-      CursorTI(
-        BeforeChild(k, After) as inner_cursor,
-        OpSeq(_, seq) as utyi,
-      ),
-    )
+  | (Backspace, CursorTI(BeforeChild(k, After), OpSeq(_, seq)))
   /* ... + [k-2] + [k-1] |>+ [k] + ...   ==>   ... + [k-2] + [k-1]| + ... */
-  | (
-      Delete,
-      CursorTI(
-        BeforeChild(k, Before) as inner_cursor,
-        OpSeq(_, seq) as utyi,
-      ),
-    )
-      when ZTyp.is_valid_inner_cursor(inner_cursor, utyi) =>
+  | (Delete, CursorTI(BeforeChild(k, Before), OpSeq(_, seq))) =>
     switch (OperatorSeq.split(k, seq)) {
-    /* invalid cursor position */
-    | None => Failed
+    | None => Failed /* invalid cursor position */
     | Some((_, surround)) =>
       switch (surround) {
-      /* invalid cursor position */
-      | EmptyPrefix(_) => Failed
+      | EmptyPrefix(_) => Failed /* invalid cursor position */
       | EmptySuffix(prefix) =>
         switch (prefix) {
         | ExpPrefix(ty, _) => Succeeded(ZTyp.place_after(ty))
@@ -274,40 +262,8 @@ let rec perform_ty = (a: t, zty: ZTyp.t): result(ZTyp.t) =>
         Succeeded(OpSeqZ(skel, zty, surround));
       }
     }
-  /* TODO use CursorEscaped here */
-  /* ... + [k-2] + [k-1] <|+ [k] + ...   ==>   ... + [k-2] + [k-1]| + [k] + ... */
-  | (
-      Backspace,
-      CursorTI(
-        BeforeChild(k, Before) as inner_cursor,
-        OpSeq(skel, seq) as utyi,
-      ),
-    )
-      when ZTyp.is_valid_inner_cursor(inner_cursor, utyi) =>
-    switch (OperatorSeq.split(k - 1, seq)) {
-    | None => Failed
-    | Some((uty0, surround)) =>
-      Succeeded(OpSeqZ(skel, ZTyp.place_after(uty0), surround))
-    }
-  /* ... + [k-1] +|> [k] + [k+1] + ...   ==>   ... + [k-1] + |[k] + [k+1] + ... */
-  | (
-      Delete,
-      CursorTI(
-        BeforeChild(k, After) as inner_cursor,
-        OpSeq(skel, seq) as utyi,
-      ),
-    )
-      when ZTyp.is_valid_inner_cursor(inner_cursor, utyi) =>
-    switch (OperatorSeq.split(k, seq)) {
-    | None => Failed
-    | Some((uty0, surround)) =>
-      Succeeded(OpSeqZ(skel, ZTyp.place_after(uty0), surround))
-    }
   /* invalid cursor position */
-  | (
-      Backspace | Delete,
-      CursorTI(BeforeChild(_, _) | ClosingDelimiter(_), OpSeq(_, _)),
-    ) =>
+  | (Backspace | Delete, CursorTI(ClosingDelimiter(_), OpSeq(_, _))) =>
     Failed
   /* Construction */
   | (Construct(SParenthesized), CursorTO(_, _) | CursorTI(_, _)) =>
@@ -1148,8 +1104,7 @@ let rec syn_perform_pat =
         pi,
       ),
     )
-      when
-        ZPat.is_valid_inner_cursor(inner_cursor, pi) && !ZPat.is_before(zp) =>
+      when ZPat.is_valid_inner_cursor(inner_cursor, pi) =>
     move_to_prev_node_pos_pat(zp, zp =>
       switch (Statics.syn_pat(ctx, ZPat.erase(zp))) {
       | None => Failed
@@ -1158,7 +1113,7 @@ let rec syn_perform_pat =
     )
   /* ... + [k-1] +|> [k] + ...   ==>   ... + [k-1] + |[k] + ... */
   | (Delete, CursorPI(BeforeChild(_, After) as inner_cursor, pi))
-      when ZPat.is_valid_inner_cursor(inner_cursor, pi) && !ZPat.is_after(zp) =>
+      when ZPat.is_valid_inner_cursor(inner_cursor, pi) =>
     move_to_next_node_pos_pat(zp, zp =>
       switch (Statics.syn_pat(ctx, ZPat.erase(zp))) {
       | None => Failed
