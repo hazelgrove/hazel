@@ -56,6 +56,14 @@ type inner_cursor =
   | BeforeChild(int, delimiter_side)
   | ClosingDelimiter(delimiter_side);
 
+let toggle_side = (inner_cursor: inner_cursor) =>
+  switch (inner_cursor) {
+  | BeforeChild(k, Before) => BeforeChild(k, After)
+  | BeforeChild(k, After) => BeforeChild(k, Before)
+  | ClosingDelimiter(Before) => ClosingDelimiter(After)
+  | ClosingDelimiter(After) => ClosingDelimiter(Before)
+  };
+
 [@deriving (show({with_path: false}), sexp)]
 type outer_cursor =
   | Char(int);
