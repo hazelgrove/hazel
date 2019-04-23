@@ -1149,7 +1149,7 @@ let rec syn_perform_pat =
       CursorPI(BeforeChild(0, After), Parenthesized(p1) | Inj(_, _, p1)),
     ) =>
     Succeeded(Statics.syn_fix_holes_zpat(ctx, u_gen, ZPat.place_before(p1)))
-  /* remaining cursor positions are invalid */
+  /* invalid cursor position */
   | (
       Backspace,
       CursorPI(BeforeChild(_, After), Parenthesized(_) | Inj(_, _, _)),
@@ -1250,7 +1250,7 @@ let rec syn_perform_pat =
         )
       }
     }
-  /* remaining cursor positions are invalid */
+  /* invalid cursor position */
   | (
       Backspace,
       CursorPI(BeforeChild(_, After) | ClosingDelimiter(_), OpSeq(_, _)),
@@ -1700,7 +1700,9 @@ and ana_perform_pat =
       | _ => ZPat.new_EmptyHole(u_gen)
       };
     Succeeded((zp, ctx, u_gen));
+  /* remaining cursor positions are invalid */
   | (Backspace | Delete, CursorPO(_, _)) => Failed
+  /* ( _ <|)   ==>   ( _| ) */
   /* ... + [k-1] <|+ [k] + ...   ==>   ... + [k-1]| + [k] + ... */
   | (
       Backspace,
@@ -1708,99 +1710,180 @@ and ana_perform_pat =
         (BeforeChild(_, Before) | ClosingDelimiter(Before)) as inner_cursor,
         pi,
       ),
-    )
-      when
-        ZPat.is_valid_inner_cursor(inner_cursor, pi) && !ZPat.is_before(zp) =>
-    move_to_prev_node_pos_pat(zp, zp =>
-      switch (Statics.ana_pat(ctx, PI(pi), ty)) {
-      | None => Failed
-      | Some(ctx) => Succeeded((zp, ctx, u_gen))
-      }
-    )
+    ) =>
+    ZPat.is_valid_inner_cursor(inner_cursor, pi)
+      ? move_to_prev_node_pos_pat(zp, zp =>
+          switch (Statics.ana_pat(ctx, PI(pi), ty)) {
+          | None => Failed
+          | Some(ctx) => Succeeded((zp, ctx, u_gen))
+          }
+        )
+      : Failed
+  /* (|> _ )   ==>   ( |_ ) */
   /* ... + [k-1] +|> [k] + ...   ==>   ... + [k-1] + |[k] + ... */
-  | (Delete, CursorPI(BeforeChild(_, After) as inner_cursor, pi))
-      when ZPat.is_valid_inner_cursor(inner_cursor, pi) && !ZPat.is_after(zp) =>
-    move_to_next_node_pos_pat(zp, zp =>
-      switch (Statics.ana_pat(ctx, PI(pi), ty)) {
-      | None => Failed
-      | Some(ctx) => Succeeded((zp, ctx, u_gen))
-      }
-    )
-  | (
-      Backspace,
-      CursorPI(
-        (BeforeChild(_, After) | ClosingDelimiter(After)) as inner_cursor,
-        (Parenthesized(_) | Inj(_)) as pi,
-      ),
-    )
-      when ZPat.is_valid_inner_cursor(inner_cursor, pi) =>
-    switch (ZPat.split_pat_children_across_cursor(inner_cursor, pi)) {
-    /* invalid cursor */
-    | None => Failed
-    /* inner nodes have children */
-    | Some(([], [])) => Failed
-    /* ( _ )<|   ==>   _| */
-    | Some(([p0, ...rev_prefix], suffix)) =>
-      let zp =
-        PatUtil.mk_Space_separated_zpat(
-          List.rev(rev_prefix),
-          ZPat.place_after(p0),
-          suffix,
-        );
-      Succeeded(Statics.ana_fix_holes_zpat(ctx, u_gen, zp, ty));
-    /* (<| _ )   ==>   |_ */
-    | Some(([], [p0, ...suffix])) =>
-      let zp =
-        PatUtil.mk_Space_separated_zpat([], ZPat.place_before(p0), suffix);
-      Succeeded(Statics.ana_fix_holes_zpat(ctx, u_gen, zp, ty));
-    }
   | (
       Delete,
       CursorPI(
-        (BeforeChild(_, Before) | ClosingDelimiter(After)) as inner_cursor,
-        (Parenthesized(_) | Inj(_)) as pi,
-      ),
-    )
-      when ZPat.is_valid_inner_cursor(inner_cursor, pi) =>
-    switch (ZPat.split_pat_children_across_cursor(inner_cursor, pi)) {
-    /* invalid cursor */
-    | None => Failed
-    /* inner nodes have children */
-    | Some(([], [])) => Failed
-    /* |>( _ )   ==>   |_ */
-    | Some((rev_prefix, [p0, ...suffix])) =>
-      let zp =
-        PatUtil.mk_Space_separated_zpat(
-          List.rev(rev_prefix),
-          ZPat.place_before(p0),
-          suffix,
-        );
-      Succeeded(Statics.ana_fix_holes_zpat(ctx, u_gen, zp, ty));
-    /* ( _ |>)   ==>   _| */
-    | Some(([p0, ...rev_prefix], [])) =>
-      let zp =
-        PatUtil.mk_Space_separated_zpat(
-          List.rev(rev_prefix),
-          ZPat.place_after(p0),
-          [],
-        );
-      Succeeded(Statics.ana_fix_holes_zpat(ctx, u_gen, zp, ty));
-    }
-  /* invalid cursor positions */
-  | (
-      Backspace | Delete,
-      CursorPI(
-        BeforeChild(_, _) | ClosingDelimiter(_),
-        Parenthesized(_) | Inj(_, _, _),
+        (BeforeChild(_, After) | ClosingDelimiter(After)) as inner_cursor,
+        pi,
       ),
     ) =>
+    ZPat.is_valid_inner_cursor(inner_cursor, pi)
+      ? move_to_next_node_pos_pat(zp, zp =>
+          switch (Statics.ana_pat(ctx, PI(pi), ty)) {
+          | None => Failed
+          | Some(ctx) => Succeeded((zp, ctx, u_gen))
+          }
+        )
+      : Failed
+  /* Delete before delimiter == Backspace after delimiter */
+  | (
+      Delete,
+      CursorPI(
+        (BeforeChild(_, Before) | ClosingDelimiter(Before)) as inner_cursor,
+        (Parenthesized(_) | Inj(_, _, _) | OpSeq(_, _)) as pi,
+      ),
+    ) =>
+    ana_perform_pat(
+      ctx,
+      u_gen,
+      Backspace,
+      CursorPI(toggle_side(inner_cursor), pi),
+      ty,
+    )
+  /* (<| _ )  ==>  |_ */
+  | (
+      Backspace,
+      CursorPI(BeforeChild(0, After), Parenthesized(p1) | Inj(_, _, p1)),
+    ) =>
+    Succeeded(
+      Statics.ana_fix_holes_zpat(ctx, u_gen, ZPat.place_before(p1), ty),
+    )
+  /* invalid cursor position */
+  | (
+      Backspace,
+      CursorPI(BeforeChild(_, After), Parenthesized(_) | Inj(_, _, _)),
+    ) =>
     Failed
-  | (Backspace, OpSeqZ(_, CursorPO(_, EmptyHole(_)) as zp0, surround))
-      when ZPat.opseqz_preceded_by_Space(zp0, surround) =>
+  /* ( _ )<|  ==>  _| */
+  | (
+      Backspace,
+      CursorPI(ClosingDelimiter(After), Parenthesized(p1) | Inj(_, _, p1)),
+    ) =>
+    Succeeded(
+      Statics.ana_fix_holes_zpat(ctx, u_gen, ZPat.place_after(p1), ty),
+    )
+  /* ... + [k-1] +<| [k] + ... */
+  | (
+      Backspace,
+      CursorPI(BeforeChild(k, After) as inner_cursor, OpSeq(_, seq) as pi),
+    )
+      when ZPat.is_valid_inner_cursor(inner_cursor, pi) =>
+    /* validity check ensures that that op between [k-1] and [k] is not Space */
+    switch (OperatorSeq.split(k - 1, seq), OperatorSeq.split(k, seq)) {
+    /* invalid cursor position */
+    | (None, _)
+    | (_, None) => Failed
+    /* ... + [k-1] +<| _ + ... */
+    | (_, Some((PO(EmptyHole(_)), surround))) =>
+      switch (surround) {
+      /* invalid */
+      | EmptyPrefix(_) => Failed
+      /* ... + [k-1] +<| _   ==>   ... + [k-1]| */
+      | EmptySuffix(prefix) =>
+        let zp: ZPat.t =
+          switch (prefix) {
+          | ExpPrefix(p, _) => ZPat.place_after(p)
+          | SeqPrefix(seq, _) =>
+            let skel = Associator.associate_pat(seq);
+            ZPat.place_after(PI(OpSeq(skel, seq)));
+          };
+        Succeeded(Statics.ana_fix_holes_zpat(ctx, u_gen, zp, ty));
+      /* ... + [k-1] +<| _ + ...   ==>   ... + [k-1]| + ... */
+      | BothNonEmpty(prefix, suffix) =>
+        let (zp0: ZPat.t, surround: ZPat.opseq_surround) =
+          switch (prefix) {
+          | ExpPrefix(p, _) => (ZPat.place_after(p), EmptyPrefix(suffix))
+          | SeqPrefix(ExpOpExp(p1, op, p2), _) => (
+              ZPat.place_after(p2),
+              BothNonEmpty(ExpPrefix(p1, op), suffix),
+            )
+          | SeqPrefix(SeqOpExp(seq, op, p), _) => (
+              ZPat.place_after(p),
+              BothNonEmpty(SeqPrefix(seq, op), suffix),
+            )
+          };
+        let skel =
+          Associator.associate_pat(
+            OperatorSeq.opseq_of_exp_and_surround(ZPat.erase(zp0), surround),
+          );
+        let zp = ZPat.OpSeqZ(skel, zp0, surround);
+        Succeeded(Statics.ana_fix_holes_zpat(ctx, u_gen, zp, ty));
+      }
+    /* ... + _ +<| [k] + ... */
+    | (Some((PO(EmptyHole(_)), surround)), _) =>
+      switch (surround) {
+      /* invalid */
+      | EmptySuffix(_) => Failed
+      /* _ +<| [k] + ...   ==>   |[k] + ... */
+      | EmptyPrefix(suffix) =>
+        let zp: ZPat.t =
+          switch (suffix) {
+          | ExpSuffix(_, p) => ZPat.place_before(p)
+          | SeqSuffix(_, seq) =>
+            let skel = Associator.associate_pat(seq);
+            ZPat.place_before(PI(OpSeq(skel, seq)));
+          };
+        Succeeded(Statics.ana_fix_holes_zpat(ctx, u_gen, zp, ty));
+      /* ... + [k-2] + _ +<| [k] + ...   ==>   ... + [k-2] +| [k] + ... */
+      | BothNonEmpty(prefix, suffix) =>
+        let seq =
+          switch (suffix) {
+          | ExpSuffix(_, p) => OperatorSeq.opseq_of_prefix_and_exp(prefix, p)
+          | SeqSuffix(_, seq) =>
+            OperatorSeq.opseq_of_prefix_and_seq(prefix, seq)
+          };
+        let skel = Associator.associate_pat(seq);
+        let zp = ZPat.CursorPI(BeforeChild(k - 1, After), OpSeq(skel, seq));
+        Succeeded(Statics.ana_fix_holes_zpat(ctx, u_gen, zp, ty));
+      }
+    /* ... + [k-1] +<| [k] + ...   ==>   ... + [k-1]| [k] + ... */
+    | (Some((p0, surround)), _) =>
+      switch (OperatorSeq.replace_following_op(surround, UHPat.Space)) {
+      | None => Failed /* invalid */
+      | Some(surround) =>
+        Succeeded(
+          make_and_ana_OpSeqZ_pat(
+            ctx,
+            u_gen,
+            ZPat.place_after(p0),
+            surround,
+            ty,
+          ),
+        )
+      }
+    }
+  /* invalid cursor position */
+  | (
+      Backspace,
+      CursorPI(BeforeChild(_, After) | ClosingDelimiter(_), OpSeq(_, _)),
+    ) =>
+    Failed
+  /* ... + [k-1]  <|_ + [k+1] + ...  ==>   ... + [k-1]| + [k+1] + ... */
+  | (
+      Backspace,
+      OpSeqZ(
+        _,
+        CursorPO(_, EmptyHole(_)) as zp0,
+        (
+          EmptySuffix(ExpPrefix(_, Space) | SeqPrefix(_, Space)) |
+          BothNonEmpty(ExpPrefix(_, Space) | SeqPrefix(_, Space), _)
+        ) as surround,
+      ),
+    )
+      when ZPat.is_before(zp0) =>
     switch (surround) {
-    /* should never happen given guard */
-    | EmptyPrefix(_) => Failed
-    /* ... + [k-1]   _<|   ==>   ... + [k-1]| */
+    | EmptyPrefix(_) => CursorEscaped(Before) /* should never happen */
     | EmptySuffix(prefix) =>
       let p =
         switch (prefix) {
@@ -1810,7 +1893,6 @@ and ana_perform_pat =
       Succeeded(
         Statics.ana_fix_holes_zpat(ctx, u_gen, ZPat.place_after(p), ty),
       );
-    /* ... + [k-1]   _<| + [k+1] + ...   ==>   ... + [k-1]| + [k+1] + ... */
     | BothNonEmpty(prefix, suffix) =>
       switch (prefix) {
       | ExpPrefix(p1, _space) =>
@@ -1828,12 +1910,21 @@ and ana_perform_pat =
         Succeeded(Statics.ana_fix_holes_zpat(ctx, u_gen, zp, ty));
       }
     }
-  | (Delete, OpSeqZ(_, CursorPO(_, EmptyHole(_)) as zp0, surround))
-      when ZPat.opseqz_followed_by_Space(zp0, surround) =>
+  /* ... + [k-1] + _|>  [k+1] + ...  ==>   ... + [k-1] + |[k+1] + ... */
+  | (
+      Delete,
+      OpSeqZ(
+        _,
+        CursorPO(_, EmptyHole(_)) as zp0,
+        (
+          EmptyPrefix(ExpSuffix(Space, _) | SeqSuffix(Space, _)) |
+          BothNonEmpty(_, ExpSuffix(Space, _) | SeqSuffix(Space, _))
+        ) as surround,
+      ),
+    )
+      when ZPat.is_after(zp0) =>
     switch (surround) {
-    /* should never happen given guard */
-    | EmptySuffix(_) => Failed
-    /* |>_   [1] + ...   ==>   |[1] + ... */
+    | EmptySuffix(_) => CursorEscaped(After) /* should never happen */
     | EmptyPrefix(suffix) =>
       let p =
         switch (suffix) {
@@ -1843,7 +1934,6 @@ and ana_perform_pat =
       Succeeded(
         Statics.ana_fix_holes_zpat(ctx, u_gen, ZPat.place_before(p), ty),
       );
-    /* ... + [k-1] + |>_   [k+1] + ...   ==>   ... + [k-1] + |[k+1] + ... */
     | BothNonEmpty(prefix, suffix) =>
       switch (suffix) {
       | ExpSuffix(_space, p1) =>
@@ -1861,116 +1951,6 @@ and ana_perform_pat =
         Succeeded(Statics.ana_fix_holes_zpat(ctx, u_gen, zp, ty));
       }
     }
-  | (Backspace, OpSeqZ(_, CursorPO(_, EmptyHole(_)) as zp0, surround))
-      when ZPat.opseqz_followed_by_Space(zp0, surround) =>
-    switch (surround) {
-    /* should never happen given guard */
-    | EmptySuffix(_) => Failed
-    /* _<|   [1] + ...   ==>   |[1] + ... */
-    | EmptyPrefix(suffix) =>
-      let p =
-        switch (suffix) {
-        | ExpSuffix(_space, p1) => p1
-        | SeqSuffix(_space, seq) => UHPat.PI(PatUtil.mk_OpSeq(seq))
-        };
-      Succeeded(
-        Statics.ana_fix_holes_zpat(ctx, u_gen, ZPat.place_before(p), ty),
-      );
-    /* ... + [k-1] + _<|   [k+1] + ...   ==>   ... + [k-1] +| [k+1] + ... */
-    | BothNonEmpty(prefix, suffix) =>
-      let seq =
-        switch (suffix) {
-        | ExpSuffix(_space, p1) =>
-          OperatorSeq.opseq_of_prefix_and_exp(prefix, p1)
-        | SeqSuffix(_space, seq) =>
-          OperatorSeq.opseq_of_prefix_and_seq(prefix, seq)
-        };
-      let pi = PatUtil.mk_OpSeq(seq);
-      let k = OperatorSeq.prefix_length(prefix);
-      let zp = ZPat.CursorPI(BeforeChild(k, After), pi);
-      Succeeded(Statics.ana_fix_holes_zpat(ctx, u_gen, zp, ty));
-    }
-  | (Delete, OpSeqZ(_, CursorPO(_, EmptyHole(_)) as zp0, surround))
-      when ZPat.opseqz_preceded_by_Space(zp0, surround) =>
-    switch (surround) {
-    /* should never happen given guard */
-    | EmptyPrefix(_) => Failed
-    /* ... + [k-1]   |>_   ==>   ... + [k-1]| */
-    | EmptySuffix(prefix) =>
-      let p =
-        switch (prefix) {
-        | ExpPrefix(p1, _space) => p1
-        | SeqPrefix(seq, _space) => UHPat.PI(PatUtil.mk_OpSeq(seq))
-        };
-      Succeeded(
-        Statics.ana_fix_holes_zpat(ctx, u_gen, ZPat.place_after(p), ty),
-      );
-    /* ... + [k-1]   |>_ + [k+1] + ...   ==>   ... + [k-1] |+ [k+1] + ... */
-    | BothNonEmpty(prefix, suffix) =>
-      let seq =
-        switch (prefix) {
-        | ExpPrefix(p1, _space) =>
-          OperatorSeq.opseq_of_exp_and_suffix(p1, suffix)
-        | SeqPrefix(seq, _space) =>
-          OperatorSeq.opseq_of_seq_and_suffix(seq, suffix)
-        };
-      let pi = PatUtil.mk_OpSeq(seq);
-      let k = OperatorSeq.prefix_length(prefix);
-      let zp = ZPat.CursorPI(BeforeChild(k, After), pi);
-      Succeeded(Statics.ana_fix_holes_zpat(ctx, u_gen, zp, ty));
-    }
-  /* ... + [k-1] +<| [k] + ...   ==>   ... + [k-1]| [k] */
-  | (
-      Backspace,
-      CursorPI(BeforeChild(k, After) as inner_cursor, OpSeq(_, seq) as pi),
-    )
-      when ZPat.is_valid_inner_cursor(inner_cursor, pi) =>
-    switch (OperatorSeq.split(k - 1, seq)) {
-    | None => Failed /* should never happen */
-    | Some((p0, surround)) =>
-      switch (OperatorSeq.replace_following_op(surround, UHPat.Space)) {
-      | None => Failed /* should never happen */
-      | Some(surround) =>
-        Succeeded(
-          make_and_ana_OpSeqZ_pat(
-            ctx,
-            u_gen,
-            ZPat.place_after(p0),
-            surround,
-            ty,
-          ),
-        )
-      }
-    }
-  /* ... + [k-1] |>+ [k] + ...   ==>   ... + [k-1] |[k] */
-  | (
-      Delete,
-      CursorPI(BeforeChild(k, Before) as inner_cursor, OpSeq(_, seq) as pi),
-    )
-      when ZPat.is_valid_inner_cursor(inner_cursor, pi) =>
-    switch (OperatorSeq.split(k, seq)) {
-    | None => Failed /* should never happen */
-    | Some((p0, surround)) =>
-      switch (OperatorSeq.replace_preceding_op(surround, UHPat.Space)) {
-      | None => Failed /* should never happen */
-      | Some(surround) =>
-        Succeeded(
-          make_and_ana_OpSeqZ_pat(
-            ctx,
-            u_gen,
-            ZPat.place_before(p0),
-            surround,
-            ty,
-          ),
-        )
-      }
-    }
-  /* invalid cursor position */
-  | (
-      Backspace | Delete,
-      CursorPI(BeforeChild(_, _) | ClosingDelimiter(_), OpSeq(_, _)),
-    ) =>
-    Failed
   /* Construct */
   | (Construct(SParenthesized), CursorPO(_, _) | CursorPI(_, _)) =>
     switch (Statics.ana_pat(ctx, ZPat.erase(zp), ty)) {
