@@ -519,6 +519,8 @@ let view = (model: Model.t) => {
                || ast_has_class("Plus")
                || ast_has_class("Times")
                || ast_has_class("LessThan")) {
+      /* TODO remove OpWithoutIndex exception and figure out
+       * how to tag both op text and corresponding skel */
       switch (
         JSUtil.has_class_satisfying(
           ast_elem##.classList,
