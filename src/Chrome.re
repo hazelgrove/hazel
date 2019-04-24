@@ -506,9 +506,9 @@ let view = (model: Model.t) => {
       if (anchor_has_class("hole-before-1")) {
         O(Char(0));
       } else if (anchor_has_class("hole-after-2")) {
-        O(Char(0));
+        O(Char(1));
       } else {
-        O(Char(0));
+        O(Char(1));
       };
     } else if (ast_has_class("Arrow")
                || ast_has_class("Sum")
