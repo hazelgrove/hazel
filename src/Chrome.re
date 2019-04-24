@@ -408,7 +408,7 @@ let view = (model: Model.t) => {
     };
   };
 
-  exception OpWithoutIndex(Js.t(Dom_html.element));
+  exception SkelWithoutIndex(Js.t(Dom_html.element));
   exception UnknownAstElement(Js.t(Dom_html.element));
 
   let get_anchor_elem = (anchor: Js.t(Dom.node)) =>
@@ -519,15 +519,13 @@ let view = (model: Model.t) => {
                || ast_has_class("Plus")
                || ast_has_class("Times")
                || ast_has_class("LessThan")) {
-      /* TODO remove OpWithoutIndex exception and figure out
-       * how to tag both op text and corresponding skel */
       switch (
         JSUtil.has_class_satisfying(
           ast_elem##.classList,
-          View.before_child_index_of_cls,
+          View.before_child_index_of_skel_cls,
         )
       ) {
-      | None => raise(OpWithoutIndex(ast_elem))
+      | None => raise(SkelWithoutIndex(ast_elem))
       | Some(k) => I(BeforeChild(k, anchorOffset === 0 ? Before : After))
       };
     } else if (ast_has_class("EmptyLine")) {

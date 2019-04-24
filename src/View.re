@@ -46,6 +46,8 @@ let cls_from = (err_status: err_status, cls: PP.cls): list(PP.cls) =>
 let before_child_cls = (before_child_index: int): PP.cls =>
   "before-child-" ++ string_of_int(before_child_index);
 let closing_delimiter_cls: PP.cls = "closing-delimiter";
+let before_child_skel_cls = (before_child_index: int): PP.cls =>
+  "before-child-" ++ string_of_int(before_child_index) ++ "-skel";
 
 let before_child_cls_regexp =
   Js_of_ocaml.Regexp.regexp("before-child-(\\d+)");
@@ -58,16 +60,19 @@ let before_child_index_of_cls = (cls: PP.cls): option(int) =>
     | Some(s) => Some(int_of_string(s))
     }
   };
-let before_child_index = (classes: list(PP.cls)): option(int) =>
-  List.fold_left(
-    (foundIndex, cls) =>
-      switch (foundIndex) {
-      | Some(k) => Some(k)
-      | None => before_child_index_of_cls(cls)
-      },
-    None,
-    classes,
-  );
+let before_child_skel_cls_regexp =
+  Js_of_ocaml.Regexp.regexp("before-child-(\\d+)-skel");
+let before_child_index_of_skel_cls = (cls: PP.cls): option(int) =>
+  switch (
+    Js_of_ocaml.Regexp.string_match(before_child_skel_cls_regexp, cls, 0)
+  ) {
+  | None => None
+  | Some(result) =>
+    switch (Js_of_ocaml.Regexp.matched_group(result, 1)) {
+    | None => None
+    | Some(s) => Some(int_of_string(s))
+    }
+  };
 
 let term =
     (
@@ -281,7 +286,7 @@ let of_uty_BinOp =
     prefix,
     err_status,
     rev_path,
-    [string_of_ty_op(op), "skel-binop"],
+    [string_of_ty_op(op), "skel-binop", before_child_skel_cls(op_index)],
     r1 ^^ of_uty_op(op, op_index) ^^ r2,
   );
 let of_List = (prefix: string, rev_path: Path.steps, r1: PP.doc): PP.doc =>
@@ -804,22 +809,32 @@ let string_of_pat_op = (op: UHPat.op): string =>
   | Cons => "Cons"
   };
 
-let of_pat_op = op => {
+let of_pat_op = (op_index: int, op: UHPat.op): PP.doc => {
   let op_cls = "op-" ++ string_of_pat_op(op);
   switch (op) {
-  | Comma => of_op(", ", [op_cls])
-  | Space => of_op(" ", [op_cls])
-  | Cons => of_op("::", [op_cls])
+  | Comma => of_op(", ", [op_cls, before_child_cls(op_index)])
+  | Space => of_op(" ", [op_cls, before_child_cls(op_index)])
+  | Cons => of_op("::", [op_cls, before_child_cls(op_index)])
   };
 };
 
-let of_pat_BinOp = (prefix, err_status, rev_path, r1, op, r2) =>
+let of_pat_BinOp =
+    (
+      prefix: string,
+      err_status: err_status,
+      rev_path: Path.steps,
+      r1: PP.doc,
+      op: UHPat.op,
+      r2: PP.doc,
+      op_index: int,
+    )
+    : PP.doc =>
   term(
     prefix,
     err_status,
     rev_path,
-    [string_of_pat_op(op), "skel-binop"],
-    r1 ^^ of_pat_op(op) ^^ r2,
+    [string_of_pat_op(op), "skel-binop", before_child_skel_cls(op_index)],
+    r1 ^^ of_pat_op(op_index, op) ^^ r2,
   );
 
 let rec prepare_Parenthesized_pat = (p: UHPat.t): (err_status, UHPat.t) =>
@@ -872,7 +887,7 @@ let rec of_hpat = (prefix: string, rev_path: Path.steps, p: UHPat.t): PP.doc =>
       UHPat.get_err_status_t(p),
       rev_path,
       ["OpSeq"],
-      of_skel_pat(prefix, rev_path, skel, seq),
+      of_skel_pat(prefix, rev_path, skel, seq, 0),
     )
   | PI(Parenthesized(p1)) =>
     let (err_status, p1_not_in_hole) = prepare_Parenthesized_pat(p1);
@@ -900,6 +915,7 @@ and of_skel_pat =
       rev_path: Path.steps,
       skel: UHPat.skel_t,
       seq: UHPat.opseq,
+      seq_offset: int,
     )
     : PP.doc =>
   switch (skel) {
@@ -911,9 +927,11 @@ and of_skel_pat =
       of_hpat(prefix, rev_path_n, pn);
     }
   | BinOp(err_status, op, skel1, skel2) =>
-    let r1 = of_skel_pat(prefix, rev_path, skel1, seq);
-    let r2 = of_skel_pat(prefix, rev_path, skel2, seq);
-    of_pat_BinOp(prefix, err_status, rev_path, r1, op, r2);
+    let num_tms_before_op = Skel.size(skel1);
+    let absolute_op_index = seq_offset + num_tms_before_op;
+    let r1 = of_skel_pat(prefix, rev_path, skel1, seq, seq_offset);
+    let r2 = of_skel_pat(prefix, rev_path, skel2, seq, absolute_op_index);
+    of_pat_BinOp(prefix, err_status, rev_path, r1, op, r2, absolute_op_index);
   };
 
 let string_of_exp_op = (op: UHExp.op): string =>
@@ -971,7 +989,7 @@ let of_uhexp_BinOp =
     prefix,
     err_status,
     rev_path,
-    [string_of_exp_op(op), "skel-binop"],
+    [string_of_exp_op(op), "skel-binop", before_child_skel_cls(op_index)],
     r1 ^^ of_exp_op(~op_index, op) ^^ r2,
   );
 
@@ -991,7 +1009,7 @@ let of_Times_with_space =
     prefix,
     err_status,
     rev_path,
-    [string_of_exp_op(op), "skel-binop", before_child_cls(op_index)],
+    [string_of_exp_op(op), "skel-binop", before_child_skel_cls(op_index)],
     r1 ^^ of_op(" * ", ["op-Times"]) ^^ r2,
   );
 
