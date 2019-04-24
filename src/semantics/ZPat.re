@@ -31,7 +31,7 @@ let child_indices_following_delimiters = (pi: UHPat.t_inner): list(int) =>
     OperatorSeq.ops(seq)
     |> List.mapi((i, op) => (i, op))
     |> List.filter(((_, op)) => op != UHPat.Space)
-    |> List.map(((i, _)) => i)
+    |> List.map(((i, _)) => i + 1)
   | Inj(_, _, _) => [0]
   };
 

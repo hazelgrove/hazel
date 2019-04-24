@@ -1378,6 +1378,7 @@ let next_hole_path_zblock = (zblock: ZExp.zblock): option(t) => {
 
 /* Node Positions */
 
+[@deriving sexp]
 type node_pos =
   | On(cursor_pos)
   | Deeper(int);

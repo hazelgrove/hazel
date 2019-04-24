@@ -91,7 +91,11 @@ let children_following_delimiters_exp = (ei: UHExp.t_inner): list(int) =>
   | Case(_, _, _, None) => [0]
   | Case(_, _, rules, Some(_)) => [0, List.length(rules) + 1]
   | Parenthesized(_) => [0]
-  | OpSeq(_, seq) => range(~lo=1, OperatorSeq.seq_length(seq))
+  | OpSeq(_, seq) =>
+    OperatorSeq.ops(seq)
+    |> List.mapi((i, op) => (i, op))
+    |> List.filter(((_, op)) => op != UHExp.Space)
+    |> List.map(((i, _)) => i + 1)
   | ApPalette(_, _, _, _) => [0] /* TODO */
   };
 
