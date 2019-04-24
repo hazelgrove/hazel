@@ -80,14 +80,14 @@ let rec elem_before = (x: 'a, xs: list('a)): option('a) =>
   switch (xs) {
   | []
   | [_] => None
-  | [y1, y2, ...ys] => x == y2 ? Some(y1) : elem_before(x, ys)
+  | [y1, y2, ...ys] => x == y2 ? Some(y1) : elem_before(x, [y2, ...ys])
   };
 
 let rec elem_after = (x: 'a, xs: list('a)): option('a) =>
   switch (xs) {
   | []
   | [_] => None
-  | [y1, y2, ...ys] => x == y1 ? Some(y2) : elem_after(x, ys)
+  | [y1, y2, ...ys] => x == y1 ? Some(y2) : elem_after(x, [y2, ...ys])
   };
 
 let rec split_at = (xs, n) =>
