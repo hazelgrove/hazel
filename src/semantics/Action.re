@@ -166,8 +166,12 @@ let rec perform_ty = (a: t, zty: ZTyp.t): result(ZTyp.t) =>
   /* Backspace and Delete */
   | (Backspace, _) when ZTyp.is_before(zty) => CursorEscaped(Before)
   | (Delete, _) when ZTyp.is_after(zty) => CursorEscaped(After)
-  | (Backspace | Delete, CursorTO(Char(_), Hole | Unit | Num | Bool)) =>
-    Succeeded(ZTyp.place_after(TO(Hole)))
+  | (Backspace, CursorTO(_, Hole as utyo)) =>
+    ZTyp.is_after(zty) ? Succeeded(ZTyp.place_before(TO(utyo))) : Failed
+  | (Delete, CursorTO(_, Hole as utyo)) =>
+    ZTyp.is_before(zty) ? Succeeded(ZTyp.place_after(TO(utyo))) : Failed
+  | (Backspace | Delete, CursorTO(Char(_), Unit | Num | Bool)) =>
+    Succeeded(ZTyp.place_before(TO(Hole)))
   /* ( _ <|)   ==>   ( _| ) */
   /* ... + [k-2] + [k-1] <|+ [k] + ...   ==>   ... + [k-2] + [k-1]| + [k] + ... */
   | (
@@ -1051,22 +1055,22 @@ let rec syn_perform_pat =
   /* Backspace and Delete */
   | (Backspace, _) when ZPat.is_before(zp) => CursorEscaped(Before)
   | (Delete, _) when ZPat.is_after(zp) => CursorEscaped(After)
+  | (Backspace, CursorPO(_, EmptyHole(_) as po)) =>
+    ZPat.is_after(zp)
+      ? Succeeded((ZPat.place_before(PO(po)), Hole, ctx, u_gen))
+      : CursorEscaped(Before)
+  | (Delete, CursorPO(_, EmptyHole(_) as po)) =>
+    ZPat.is_before(zp)
+      ? Succeeded((ZPat.place_after(PO(po)), Hole, ctx, u_gen))
+      : CursorEscaped(After)
   | (
       Backspace | Delete,
       CursorPO(
         Char(_),
-        (
-          EmptyHole(_) | Var(_, _, _) | Wild(_) | NumLit(_, _) |
-          BoolLit(_, _) |
-          ListNil(_)
-        ) as po,
+        Var(_, _, _) | Wild(_) | NumLit(_, _) | BoolLit(_, _) | ListNil(_),
       ),
     ) =>
-    let (zp, u_gen) =
-      switch (po) {
-      | EmptyHole(_) => (ZPat.place_before(PO(po)), u_gen)
-      | _ => ZPat.new_EmptyHole(u_gen)
-      };
+    let (zp, u_gen) = ZPat.new_EmptyHole(u_gen);
     Succeeded((zp, Hole, ctx, u_gen));
   /* ( _ <|)   ==>   ( _| ) */
   /* ... + [k-1] <|+ [k] + ...   ==>   ... + [k-1]| + [k] + ... */
@@ -1631,22 +1635,22 @@ and ana_perform_pat =
   /* Backspace and Delete */
   | (Backspace, _) when ZPat.is_before(zp) => CursorEscaped(Before)
   | (Delete, _) when ZPat.is_after(zp) => CursorEscaped(After)
+  | (Backspace, CursorPO(_, EmptyHole(_) as po)) =>
+    ZPat.is_after(zp)
+      ? Succeeded((ZPat.place_before(PO(po)), ctx, u_gen))
+      : CursorEscaped(Before)
+  | (Delete, CursorPO(_, EmptyHole(_) as po)) =>
+    ZPat.is_before(zp)
+      ? Succeeded((ZPat.place_after(PO(po)), ctx, u_gen))
+      : CursorEscaped(After)
   | (
       Backspace | Delete,
       CursorPO(
         Char(_),
-        (
-          EmptyHole(_) | Var(_, _, _) | Wild(_) | NumLit(_, _) |
-          BoolLit(_, _) |
-          ListNil(_)
-        ) as po,
+        Var(_, _, _) | Wild(_) | NumLit(_, _) | BoolLit(_, _) | ListNil(_),
       ),
     ) =>
-    let (zp, u_gen) =
-      switch (po) {
-      | EmptyHole(_) => (ZPat.place_before(PO(po)), u_gen)
-      | _ => ZPat.new_EmptyHole(u_gen)
-      };
+    let (zp, u_gen) = ZPat.new_EmptyHole(u_gen);
     Succeeded((zp, ctx, u_gen));
   /* ( _ <|)   ==>   ( _| ) */
   /* ... + [k-1] <|+ [k] + ...   ==>   ... + [k-1]| + [k] + ... */
@@ -3068,21 +3072,22 @@ and syn_perform_exp =
   /* Backspace & Deletion */
   | (Backspace, _) when ZExp.is_before_exp(ze) => CursorEscaped(Before)
   | (Delete, _) when ZExp.is_after_exp(ze) => CursorEscaped(After)
+  | (Backspace, CursorEO(_, EmptyHole(_) as eo)) =>
+    ZExp.is_after_exp(ze)
+      ? Succeeded((ZExp.place_before_exp(EO(eo)), Hole, u_gen))
+      : CursorEscaped(Before)
+  | (Delete, CursorEO(_, EmptyHole(_) as eo)) =>
+    ZExp.is_before_exp(ze)
+      ? Succeeded((ZExp.place_after_exp(EO(eo)), Hole, u_gen))
+      : CursorEscaped(After)
   | (
       Backspace | Delete,
       CursorEO(
         Char(_),
-        (
-          EmptyHole(_) | Var(_, _, _) | NumLit(_, _) | BoolLit(_, _) |
-          ListNil(_)
-        ) as eo,
+        Var(_, _, _) | NumLit(_, _) | BoolLit(_, _) | ListNil(_),
       ),
     ) =>
-    let (ze, u_gen) =
-      switch (eo) {
-      | EmptyHole(_) => (ZExp.place_before_exp(EO(eo)), u_gen)
-      | _ => ZExp.new_EmptyHole(u_gen)
-      };
+    let (ze, u_gen) = ZExp.new_EmptyHole(u_gen);
     Succeeded((ze, Hole, u_gen));
   /* ( _ <|)   ==>   ( _| ) */
   /* ... + [k-1] <|+ [k] + ...   ==>   ... + [k-1]| + [k] + ... */
@@ -4277,21 +4282,22 @@ and ana_perform_exp =
   /* Backspace & Delete */
   | (Backspace, _) when ZExp.is_before_exp(ze) => CursorEscaped(Before)
   | (Delete, _) when ZExp.is_after_exp(ze) => CursorEscaped(After)
+  | (Backspace, CursorEO(_, EmptyHole(_) as eo)) =>
+    ZExp.is_after_exp(ze)
+      ? Succeeded((ZExp.place_before_exp(EO(eo)), u_gen))
+      : CursorEscaped(Before)
+  | (Delete, CursorEO(_, EmptyHole(_) as eo)) =>
+    ZExp.is_before_exp(ze)
+      ? Succeeded((ZExp.place_after_exp(EO(eo)), u_gen))
+      : CursorEscaped(After)
   | (
       Backspace | Delete,
       CursorEO(
         Char(_),
-        (
-          EmptyHole(_) | Var(_, _, _) | NumLit(_, _) | BoolLit(_, _) |
-          ListNil(_)
-        ) as eo,
+        Var(_, _, _) | NumLit(_, _) | BoolLit(_, _) | ListNil(_),
       ),
     ) =>
-    let (ze, u_gen) =
-      switch (eo) {
-      | EmptyHole(_) => (ZExp.place_before_exp(EO(eo)), u_gen)
-      | _ => ZExp.new_EmptyHole(u_gen)
-      };
+    let (ze, u_gen) = ZExp.new_EmptyHole(u_gen);
     Succeeded((ze, u_gen));
   /* ( _ <|)   ==>   ( _| ) */
   /* ... + [k-1] <|+ [k] + ...   ==>   ... + [k-1]| + [k] + ... */
