@@ -18,6 +18,8 @@ let op = taggedText(["op"]);
 let var = taggedText(["var"]);
 let paletteName = s => taggedText(["paletteName"], s);
 let space = taggedText(["space"], " ");
+/* TODO change this to be actually smaller */
+let smallSpace = space;
 
 /* Helpers */
 let rec id_of_rev_path = (prefix: string, rev_path: Path.steps): PP.id =>
@@ -163,7 +165,7 @@ let of_Parenthesized =
         ^^ PP.nestAbsolute(2, r1)
         ^^ PP.mandatoryBreak
         ^^ rparen(")")
-      : lparen("(") ^^ r1 ^^ rparen(")"),
+      : lparen("(") ^^ smallSpace ^^ r1 ^^ smallSpace ^^ rparen(")"),
   );
 
 /* Generic operator printing */
@@ -287,7 +289,9 @@ let of_List = (prefix: string, rev_path: Path.steps, r1: PP.doc): PP.doc =>
     ["List"],
     kw(~classes=[before_child_cls(0)], "List")
     ^^ lparen(~classes=[before_child_cls(0)], "(")
+    ^^ smallSpace
     ^^ r1
+    ^^ smallSpace
     ^^ rparen(~classes=[closing_delimiter_cls], ")"),
   );
 let rec of_htype =
@@ -535,9 +539,14 @@ let of_Lam =
     )
     : PP.doc => {
   let first_part =
-    taggedText(["lambda-sym", before_child_cls(0)], LangUtil.lamSym) ^^ rx;
+    taggedText(["lambda-sym", before_child_cls(0)], LangUtil.lamSym)
+    ^^ smallSpace
+    ^^ rx;
   let second_part =
-    taggedText(["lambda-dot", before_child_cls(2)], ".") ^^ r1;
+    smallSpace
+    ^^ taggedText(["lambda-dot", before_child_cls(2)], ".")
+    ^^ smallSpace
+    ^^ r1;
   let view =
     switch (rann) {
     | Some(r) =>
@@ -599,7 +608,9 @@ let of_Inj =
     ^^ kw(~classes=[before_child_cls(0)], LangUtil.string_of_side(side))
     ^^ rparen(~classes=[before_child_cls(0)], "]")
     ^^ lparen(~classes=[before_child_cls(0)], "(")
+    ^^ smallSpace
     ^^ r
+    ^^ smallSpace
     ^^ rparen(~classes=[closing_delimiter_cls], ")"),
   );
 
