@@ -365,43 +365,6 @@ let view = (model: Model.t) => {
         } else {
           false;
         };
-      } else if (has_class("lambda-dot")
-                 || has_class("lambda-sym")
-                 || has_class("lparen")) {
-        let anchorOffset = selection##.anchorOffset;
-
-        if (anchorOffset == 1) {
-          switch (Js.Opt.to_option(parent_elem##.nextSibling)) {
-          | None => false
-          | Some(sibling) => move_cursor_before_suppress(sibling)
-          };
-        } else {
-          false;
-        };
-      } else if (has_class("rparen")) {
-        let anchorOffset = selection##.anchorOffset;
-
-        if (anchorOffset == 0) {
-          switch (Js.Opt.to_option(parent_elem##.previousSibling)) {
-          | None => false
-          | Some(sibling) =>
-            switch (Js.Opt.to_option(Dom_html.CoerceTo.element(sibling))) {
-            | None => false
-            | Some(sibling_element) =>
-              if (!
-                    JSUtil.has_class(
-                      sibling_element##.classList,
-                      "SIndentation",
-                    )) {
-                move_cursor_after_suppress(sibling);
-              } else {
-                false;
-              }
-            }
-          };
-        } else {
-          false;
-        };
       } else {
         false;
       };
