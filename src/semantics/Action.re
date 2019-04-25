@@ -305,7 +305,6 @@ let rec perform_ty = (a: t, zty: ZTyp.t): result(ZTyp.t) =>
     }
   /* invalid cursor position */
   | (Backspace, CursorTI(ClosingDelimiter(_), OpSeq(_, _))) => Failed
-  /* TODO should be handling backspace/delete for some opseqz cases */
   /* Construction */
   | (Construct(SParenthesized), CursorTO(_, _) | CursorTI(_, _)) =>
     Succeeded(ParenthesizedZ(zty))
