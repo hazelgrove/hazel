@@ -1011,7 +1011,7 @@ let of_Times_with_space =
     err_status,
     rev_path,
     [string_of_exp_op(op), "skel-binop", before_child_skel_cls(op_index)],
-    r1 ^^ of_op(" * ", ["op-Times"]) ^^ r2,
+    r1 ^^ of_op(~op_index, "*", ["op-Times"]) ^^ r2,
   );
 
 let prepare_Parenthesized_block =
