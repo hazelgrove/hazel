@@ -392,21 +392,21 @@ let rec perform_ty = (a: t, zty: ZTyp.t): result(ZTyp.t) =>
       };
     };
   /* Zipper Cases */
-  | (a, ParenthesizedZ(zty1)) =>
+  | (_, ParenthesizedZ(zty1)) =>
     switch (perform_ty(a, zty1)) {
     | Failed => Failed
     | CursorEscaped(Before) => move_to_prev_node_pos_typ(zty)
     | CursorEscaped(After) => move_to_next_node_pos_typ(zty)
     | Succeeded(zty1') => Succeeded(ParenthesizedZ(zty1'))
     }
-  | (a, ListZ(zty1)) =>
+  | (_, ListZ(zty1)) =>
     switch (perform_ty(a, zty1)) {
     | Failed => Failed
     | CursorEscaped(Before) => move_to_prev_node_pos_typ(zty)
     | CursorEscaped(After) => move_to_next_node_pos_typ(zty)
     | Succeeded(zty1) => Succeeded(ListZ(zty1))
     }
-  | (a, OpSeqZ(skel, zty0, surround)) =>
+  | (_, OpSeqZ(skel, zty0, surround)) =>
     switch (perform_ty(a, zty0)) {
     | Failed => Failed
     | CursorEscaped(Before) => move_to_prev_node_pos_typ(zty)
