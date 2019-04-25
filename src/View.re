@@ -194,21 +194,12 @@ let string_of_ty_op = (op: UHTyp.op): string =>
   | Prod => "Prod"
   };
 
-let of_ty_op = (op: UHTyp.op): PP.doc => {
+let of_ty_op = (~op_index=?, op: UHTyp.op): PP.doc => {
   let op_cls = "op-" ++ string_of_ty_op(op);
   switch (op) {
-  | Arrow => of_op(" " ++ LangUtil.typeArrowSym ++ " ", [op_cls])
-  | Sum => of_op(" | ", [op_cls])
-  | Prod => of_op(", ", [op_cls])
-  };
-};
-
-let of_uty_op = (op: UHTyp.op, op_index: int): PP.doc => {
-  let op_cls = "op-" ++ string_of_ty_op(op);
-  switch (op) {
-  | Arrow => of_op(~op_index, LangUtil.typeArrowSym, [op_cls])
-  | Sum => of_op(~op_index, "|", [op_cls])
-  | Prod => of_op(~op_index, ",", [op_cls])
+  | Arrow => of_op(~op_index?, LangUtil.typeArrowSym, [op_cls])
+  | Sum => of_op(~op_index?, "|", [op_cls])
+  | Prod => of_op(~op_index?, ",", [op_cls])
   };
 };
 
@@ -286,7 +277,7 @@ let of_uty_BinOp =
     err_status,
     rev_path,
     [string_of_ty_op(op), "skel-binop", before_child_skel_cls(op_index)],
-    r1 ^^ of_uty_op(op, op_index) ^^ r2,
+    r1 ^^ of_ty_op(~op_index, op) ^^ r2,
   );
 let of_List = (prefix: string, rev_path: Path.steps, r1: PP.doc): PP.doc =>
   term(
