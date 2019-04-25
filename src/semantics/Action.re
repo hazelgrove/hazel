@@ -117,25 +117,75 @@ let make_ty_OpSeqZ = (zty0: ZTyp.t, surround: ZTyp.opseq_surround): ZTyp.t => {
   OpSeqZ(skel, zty0, surround);
 };
 
-let move_to_prev_node_pos_typ = (zty: ZTyp.t): result(ZTyp.t) =>
-  switch (Path.steps_of_prev_node_pos_ty(zty)) {
-  | None => CursorEscaped(Before)
-  | Some(steps) =>
-    switch (Path.follow_ty_and_place_after(steps, ZTyp.erase(zty))) {
-    | None => Failed
-    | Some(zty) => Succeeded(zty)
+let move_to_prev_node_pos_typ = (zty: ZTyp.t): result(ZTyp.t) => {
+  let node_position = Path.node_position_zty(zty);
+  switch (node_position) {
+  | On(_) =>
+    /* when starting On a node and escaping to the left,
+     * we assume that the next thing to the left is a
+     * child node, so we can use follow_exp_and_place_after */
+    /* TODO fix this assumption */
+    switch (Path.steps_of_prev_node_pos_ty(zty)) {
+    | None => CursorEscaped(Before)
+    | Some(steps) =>
+      switch (Path.follow_ty_and_place_after(steps, ZTyp.erase(zty))) {
+      | None => Failed
+      | Some(zty) => Succeeded(zty)
+      }
     }
+  | Deeper(_) =>
+    /* when start Deeper in a node and escaping to the
+     * left, we may we need to use the Path.node_positions_*
+     * functions to figure out the exact cursor position
+     * to which to move the cursor */
+    let uty = ZTyp.erase(zty);
+    let node_positions = Path.node_positions_ty(uty);
+    switch (elem_before(node_position, node_positions)) {
+    | None => CursorEscaped(Before)
+    | Some(On(cursor_pos)) =>
+      switch (Path.follow_ty(([], cursor_pos), uty)) {
+      | None => Failed
+      | Some(zty) => Succeeded(zty)
+      }
+    | Some(Deeper(k)) =>
+      switch (Path.follow_ty_and_place_after([k], uty)) {
+      | None => Failed
+      | Some(zty) => Succeeded(zty)
+      }
+    };
   };
+};
 
-let move_to_next_node_pos_typ = (zty: ZTyp.t): result(ZTyp.t) =>
-  switch (Path.steps_of_next_node_pos_ty(zty)) {
-  | None => CursorEscaped(After)
-  | Some(steps) =>
-    switch (Path.follow_ty_and_place_before(steps, ZTyp.erase(zty))) {
-    | None => Failed
-    | Some(zty) => Succeeded(zty)
+let move_to_next_node_pos_typ = (zty: ZTyp.t): result(ZTyp.t) => {
+  let node_position = Path.node_position_zty(zty);
+  switch (node_position) {
+  | On(_) =>
+    switch (Path.steps_of_next_node_pos_ty(zty)) {
+    | None => CursorEscaped(After)
+    | Some(steps) =>
+      switch (Path.follow_ty_and_place_before(steps, ZTyp.erase(zty))) {
+      | None => Failed
+      | Some(zty) => Succeeded(zty)
+      }
     }
+  | Deeper(_) =>
+    let uty = ZTyp.erase(zty);
+    let node_positions = Path.node_positions_ty(uty);
+    switch (elem_after(node_position, node_positions)) {
+    | None => CursorEscaped(After)
+    | Some(On(cursor_pos)) =>
+      switch (Path.follow_ty(([], cursor_pos), uty)) {
+      | None => Failed
+      | Some(zty) => Succeeded(zty)
+      }
+    | Some(Deeper(k)) =>
+      switch (Path.follow_ty_and_place_before([k], uty)) {
+      | None => Failed
+      | Some(zty) => Succeeded(zty)
+      }
+    };
   };
+};
 
 let rec perform_ty = (a: t, zty: ZTyp.t): result(ZTyp.t) =>
   switch (a, zty) {
@@ -997,26 +1047,76 @@ let check_valid = (x: Var.t, result: result('a)): result('a) =>
   };
 
 let move_to_prev_node_pos_pat =
-    (zp: ZPat.t, result: ZPat.t => result('a)): result('a) =>
-  switch (Path.steps_of_prev_node_pos_pat(zp)) {
-  | None => CursorEscaped(Before)
-  | Some(steps) =>
-    switch (Path.follow_pat_and_place_after(steps, ZPat.erase(zp))) {
-    | None => Failed
-    | Some(zp) => result(zp)
+    (zp: ZPat.t, result: ZPat.t => result('a)): result('a) => {
+  let node_position = Path.node_position_zpat(zp);
+  switch (node_position) {
+  | On(_) =>
+    /* when starting On a node and escaping to the left,
+     * we assume that the next thing to the left is a
+     * child node, so we can use follow_exp_and_place_after */
+    /* TODO fix this assumption */
+    switch (Path.steps_of_prev_node_pos_pat(zp)) {
+    | None => CursorEscaped(Before)
+    | Some(steps) =>
+      switch (Path.follow_pat_and_place_after(steps, ZPat.erase(zp))) {
+      | None => Failed
+      | Some(zp) => result(zp)
+      }
     }
+  | Deeper(_) =>
+    /* when start Deeper in a node and escaping to the
+     * left, we may we need to use the Path.node_positions_*
+     * functions to figure out the exact cursor position
+     * to which to move the cursor */
+    let p = ZPat.erase(zp);
+    let node_positions = Path.node_positions_pat(p);
+    switch (elem_before(node_position, node_positions)) {
+    | None => CursorEscaped(Before)
+    | Some(On(cursor_pos)) =>
+      switch (Path.follow_pat(([], cursor_pos), p)) {
+      | None => Failed
+      | Some(zp) => result(zp)
+      }
+    | Some(Deeper(k)) =>
+      switch (Path.follow_pat_and_place_after([k], p)) {
+      | None => Failed
+      | Some(zp) => result(zp)
+      }
+    };
   };
+};
 
 let move_to_next_node_pos_pat =
-    (zp: ZPat.t, result: ZPat.t => result('a)): result('a) =>
-  switch (Path.steps_of_next_node_pos_pat(zp)) {
-  | None => CursorEscaped(After)
-  | Some(steps) =>
-    switch (Path.follow_pat_and_place_before(steps, ZPat.erase(zp))) {
-    | None => Failed
-    | Some(zp) => result(zp)
+    (zp: ZPat.t, result: ZPat.t => result('a)): result('a) => {
+  let node_position = Path.node_position_zpat(zp);
+  switch (node_position) {
+  | On(_) =>
+    switch (Path.steps_of_next_node_pos_pat(zp)) {
+    | None => CursorEscaped(After)
+    | Some(steps) =>
+      switch (Path.follow_pat_and_place_before(steps, ZPat.erase(zp))) {
+      | None => Failed
+      | Some(zp) => result(zp)
+      }
     }
+  | Deeper(_) =>
+    let p = ZPat.erase(zp);
+    let node_positions = Path.node_positions_pat(p);
+    switch (elem_after(node_position, node_positions)) {
+    | None => CursorEscaped(After)
+    | Some(On(cursor_pos)) =>
+      switch (Path.follow_pat(([], cursor_pos), p)) {
+      | None => Failed
+      | Some(zp) => result(zp)
+      }
+    | Some(Deeper(k)) =>
+      switch (Path.follow_pat_and_place_before([k], p)) {
+      | None => Failed
+      | Some(zp) => result(zp)
+      }
+    };
   };
+};
 
 let rec syn_perform_pat =
         (ctx: Contexts.t, u_gen: MetaVarGen.t, a: t, zp: ZPat.t)
@@ -2305,6 +2405,10 @@ let move_to_prev_node_pos_exp =
   let node_position = Path.node_position_zexp(ze);
   switch (node_position) {
   | On(_) =>
+    /* when starting On a node and escaping to the left,
+     * we assume that the next thing to the left is a
+     * child node, so we can use follow_exp_and_place_after */
+    /* TODO fix this assumption */
     switch (Path.steps_of_prev_node_pos_exp(ze)) {
     | None => CursorEscaped(Before)
     | Some(steps) =>
@@ -2314,6 +2418,10 @@ let move_to_prev_node_pos_exp =
       }
     }
   | Deeper(_) =>
+    /* when start Deeper in a node and escaping to the
+     * left, we may we need to use the Path.node_positions_*
+     * functions to figure out the exact cursor position
+     * to which to move the cursor */
     let e = ZExp.erase(ze);
     let node_positions = Path.node_positions_exp(e);
     switch (elem_before(node_position, node_positions)) {
@@ -2333,15 +2441,36 @@ let move_to_prev_node_pos_exp =
 };
 
 let move_to_next_node_pos_exp =
-    (ze: ZExp.t, result: ZExp.t => result('a)): result('a) =>
-  switch (Path.steps_of_next_node_pos_exp(ze)) {
-  | None => CursorEscaped(After)
-  | Some(steps) =>
-    switch (Path.follow_exp_and_place_before(steps, ZExp.erase(ze))) {
-    | None => Failed
-    | Some(ze) => result(ze)
+    (ze: ZExp.t, result: ZExp.t => result('a)): result('a) => {
+  let node_position = Path.node_position_zexp(ze);
+  switch (node_position) {
+  | On(_) =>
+    switch (Path.steps_of_next_node_pos_exp(ze)) {
+    | None => CursorEscaped(After)
+    | Some(steps) =>
+      switch (Path.follow_exp_and_place_before(steps, ZExp.erase(ze))) {
+      | None => Failed
+      | Some(ze) => result(ze)
+      }
     }
+  | Deeper(_) =>
+    let e = ZExp.erase(ze);
+    let node_positions = Path.node_positions_exp(e);
+    switch (elem_after(node_position, node_positions)) {
+    | None => CursorEscaped(After)
+    | Some(On(cursor_pos)) =>
+      switch (Path.follow_exp(([], cursor_pos), e)) {
+      | None => Failed
+      | Some(ze) => result(ze)
+      }
+    | Some(Deeper(k)) =>
+      switch (Path.follow_exp_and_place_before([k], e)) {
+      | None => Failed
+      | Some(ze) => result(ze)
+      }
+    };
   };
+};
 
 let rec syn_perform_block =
         (

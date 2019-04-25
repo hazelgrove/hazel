@@ -205,11 +205,10 @@ let of_ty_op = (op: UHTyp.op): PP.doc => {
 
 let of_uty_op = (op: UHTyp.op, op_index: int): PP.doc => {
   let op_cls = "op-" ++ string_of_ty_op(op);
-  let bc = before_child_cls(op_index);
   switch (op) {
-  | Arrow => of_op(" " ++ LangUtil.typeArrowSym ++ " ", [op_cls, bc])
-  | Sum => of_op(" | ", [op_cls, bc])
-  | Prod => of_op(", ", [op_cls, bc])
+  | Arrow => of_op(~op_index, LangUtil.typeArrowSym, [op_cls])
+  | Sum => of_op(~op_index, "|", [op_cls])
+  | Prod => of_op(~op_index, ",", [op_cls])
   };
 };
 
