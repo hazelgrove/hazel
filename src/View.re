@@ -178,15 +178,13 @@ let of_op =
     | None => []
     | Some(k) => [before_child_cls(k)]
     };
-  let view: PP.doc =
-    if (is_space) {
-      taggedText(["space", ...op_index_classes], " ");
-    } else {
-      optionalBreakSp
-      ^^ taggedText(["op-s", ...op_index_classes], op_s)
-      ^^ optionalBreakSp;
-    };
-  PP.tagged(["seq-op", ...classes], None, None, view);
+  if (is_space) {
+    taggedText(["space", ...op_index_classes], " ");
+  } else {
+    optionalBreakSp
+    ^^ taggedText(classes @ op_index_classes, op_s)
+    ^^ optionalBreakSp;
+  };
 };
 
 /* Types */
