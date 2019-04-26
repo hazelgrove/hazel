@@ -153,20 +153,21 @@ let of_Parenthesized =
       rev_path: Path.steps,
       r1: PP.doc,
     )
-    : PP.doc =>
-  term(
-    prefix,
-    err_status,
-    rev_path,
-    ["Parenthesized"],
-    is_multi_line
-      ? PP.blockBoundary
-        ^^ lparen("(")
-        ^^ PP.nestAbsolute(2, r1)
-        ^^ PP.mandatoryBreak
-        ^^ rparen(")")
-      : lparen("(") ^^ smallSpace ^^ r1 ^^ smallSpace ^^ rparen(")"),
-  );
+    : PP.doc => {
+  let lp = lparen(~classes=[before_child_cls(0)], "(");
+  let rp = rparen(~classes=[closing_delimiter_cls], ")");
+  let view =
+    if (is_multi_line) {
+      PP.blockBoundary
+      ^^ lp
+      ^^ PP.nestAbsolute(2, r1)
+      ^^ PP.mandatoryBreak
+      ^^ rp;
+    } else {
+      lp ^^ smallSpace ^^ r1 ^^ smallSpace ^^ rp;
+    };
+  term(prefix, err_status, rev_path, ["Parenthesized"], view);
+};
 
 /* Generic operator printing */
 let of_op =
