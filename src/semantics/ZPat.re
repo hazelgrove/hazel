@@ -310,3 +310,13 @@ let opseqz_followed_by_Space = (zp: t, surround: opseq_surround): bool => {
 };
 
 let is_inconsistent = (zp: t): bool => UHPat.is_inconsistent(erase(zp));
+
+let rec cursor_on_opseq = (zp: t): bool =>
+  switch (zp) {
+  | CursorPO(_, _) => false
+  | CursorPI(_, OpSeq(_, _)) => true
+  | CursorPI(_, _) => false
+  | ParenthesizedZ(zp) => cursor_on_opseq(zp)
+  | OpSeqZ(_, zp, _) => cursor_on_opseq(zp)
+  | InjZ(_, _, zp) => cursor_on_opseq(zp)
+  };

@@ -67,7 +67,7 @@ let view = (model: Model.t) => {
     };
     cur^;
   };
-  let before_child_node =
+  let before_child_node_opseq =
       (k: int, node: Js.t(Dom.node)): option(Js.t(Dom_html.element)) => {
     let before_child_node = ref(None);
     let descendants = JSUtil.descendant_nodes(node);
@@ -94,7 +94,7 @@ let view = (model: Model.t) => {
     );
     before_child_node^;
   };
-  let closing_delimiter_node =
+  let closing_delimiter_node_opseq =
       (node: Js.t(Dom.node)): option(Js.t(Dom_html.element)) => {
     let closing_delimiter = ref(None);
     let descendants = JSUtil.descendant_nodes(node);
@@ -114,6 +114,55 @@ let view = (model: Model.t) => {
         },
       descendants,
     );
+    closing_delimiter^;
+  };
+  let before_child_node =
+      (k: int, node: Js.t(Dom.node)): option(Js.t(Dom_html.element)) => {
+    let before_child_node = ref(None);
+    let children = node##.childNodes;
+    for (i in 0 to children##.length - 1) {
+      Js.Opt.iter(children##item(i), child =>
+        switch (Js.Opt.to_option(Dom_html.CoerceTo.element(child))) {
+        | None => ()
+        | Some(child_elem) =>
+          let classList = child_elem##.classList;
+          for (j in 0 to classList##.length - 1) {
+            let cls = Js.Optdef.get(classList##item(j), () => assert(false));
+            switch (View.before_child_index_of_cls(Js.to_string(cls))) {
+            | None => ()
+            | Some(k') =>
+              if (k === k') {
+                before_child_node := Some(child_elem);
+              } else {
+                ();
+              }
+            };
+          };
+        }
+      );
+    };
+    before_child_node^;
+  };
+  let closing_delimiter_node =
+      (node: Js.t(Dom.node)): option(Js.t(Dom_html.element)) => {
+    let closing_delimiter = ref(None);
+    let children = node##.childNodes;
+    for (i in 0 to children##.length - 1) {
+      Js.Opt.iter(children##item(i), child =>
+        switch (Js.Opt.to_option(Dom_html.CoerceTo.element(child))) {
+        | None => ()
+        | Some(child_elem) =>
+          if (JSUtil.has_class(
+                child_elem##.classList,
+                View.closing_delimiter_cls,
+              )) {
+            closing_delimiter := Some(child_elem);
+          } else {
+            ();
+          }
+        }
+      );
+    };
     closing_delimiter^;
   };
   let node_length = node => {
@@ -159,6 +208,40 @@ let view = (model: Model.t) => {
   let move_cursor_after_suppress = node => {
     move_cursor_after(node);
     true;
+  };
+  let set_cursor_to_opseq = ((cursor_path, cursor_pos)) => {
+    let id = View.id_of_rev_path(prefix, List.rev(cursor_path));
+    let cursor_elem = JSUtil.forceGetElementById(id);
+    let cursor_node: Js.t(Dom.node) = (
+      Js.Unsafe.coerce(cursor_elem): Js.t(Dom.node)
+    );
+    switch (cursor_pos) {
+    | O(Char(offset)) => move_cursor_to(cursor_node, offset)
+    | I(BeforeChild(k, Before)) =>
+      switch (before_child_node_opseq(k, cursor_node)) {
+      | None => ()
+      | Some(node) =>
+        move_cursor_before((node: Js.t(Dom_html.element) :> Js.t(Dom.node)))
+      }
+    | I(BeforeChild(k, After)) =>
+      switch (before_child_node_opseq(k, cursor_node)) {
+      | None => ()
+      | Some(node) =>
+        move_cursor_after((node: Js.t(Dom_html.element) :> Js.t(Dom.node)))
+      }
+    | I(ClosingDelimiter(Before)) =>
+      switch (closing_delimiter_node_opseq(cursor_node)) {
+      | None => ()
+      | Some(node) =>
+        move_cursor_before((node: Js.t(Dom_html.element) :> Js.t(Dom.node)))
+      }
+    | I(ClosingDelimiter(After)) =>
+      switch (closing_delimiter_node_opseq(cursor_node)) {
+      | None => ()
+      | Some(node) =>
+        move_cursor_after((node: Js.t(Dom_html.element) :> Js.t(Dom.node)))
+      }
+    };
   };
   let set_cursor_to = ((cursor_path, cursor_pos)) => {
     let id = View.id_of_rev_path(prefix, List.rev(cursor_path));
@@ -235,7 +318,9 @@ let view = (model: Model.t) => {
   let set_cursor = () => {
     let (ze, _, _) = React.S.value(edit_state_rs);
     let (cursor_path, cursor_pos) = Path.of_zblock(ze);
-    set_cursor_to((cursor_path, cursor_pos));
+    ZExp.cursor_on_opseq_block(ze)
+      ? set_cursor_to_opseq((cursor_path, cursor_pos))
+      : set_cursor_to((cursor_path, cursor_pos));
   };
   let clear_cursors = () => {
     let cursors =

@@ -141,3 +141,13 @@ let place_cursor = (cursor: cursor_pos, uty: UHTyp.t): option(t) =>
   | (O(_), TI(_))
   | (I(_), TO(_)) => None
   };
+
+let rec cursor_on_opseq = (zty: t): bool =>
+  switch (zty) {
+  | CursorTO(_, _) => false
+  | CursorTI(_, OpSeq(_, _)) => true
+  | CursorTI(_, _) => false
+  | ParenthesizedZ(zty) => cursor_on_opseq(zty)
+  | ListZ(zty) => cursor_on_opseq(zty)
+  | OpSeqZ(_, zty, _) => cursor_on_opseq(zty)
+  };
