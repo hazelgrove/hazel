@@ -6,6 +6,7 @@
   --empty-hole-color: #a040a0;
   --nonempty-hole-color: red;
   --title-bar-color: #073f24;
+  --child-node-color: rgba(255, 195, 0, 0.35);
 }
 
 /* general */
@@ -747,6 +748,9 @@ button:disabled {
   border: 1px dashed var(--title-bar-color);
 }
 .cursor > .node {
+  background-color: var(--child-node-color);
+}
+.cursor > .only-child.node {
   background-color: white;
 }
 
