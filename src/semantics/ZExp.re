@@ -718,3 +718,13 @@ and cursor_on_opseq_rules = ((_, zrule, _): zrules): bool =>
   | RuleZP(zp, _) => ZPat.cursor_on_opseq(zp)
   | RuleZE(_, zblock) => cursor_on_opseq_block(zblock)
   };
+
+let zblock_to_zlines = (zblock: zblock): zlines =>
+  switch (zblock) {
+  | BlockZL((prefix, zline, suffix), e) => (
+      prefix,
+      zline,
+      suffix @ [ExpLine(e)],
+    )
+  | BlockZE(lines, ze) => (lines, ExpLineZ(ze), [])
+  };
