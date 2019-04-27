@@ -125,7 +125,7 @@ let line =
     : PP.doc => {
   let id' = id_of_rev_path(prefix, rev_path);
   PP.tagged(
-    (is_empty ? [] : ["node"]) @ [cls],
+    (is_empty ? ["empty-line"] : ["node"]) @ [cls],
     Some((id', rev_path)),
     None,
     doc,
