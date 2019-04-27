@@ -753,7 +753,7 @@ button:disabled {
 .cursor > .node {
   background-color: var(--child-node-color);
 }
-.cursor > .only-child.node {
+.cursor > .preserved-on-deletion.node {
   background-color: white;
 }
 
