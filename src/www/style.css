@@ -6,7 +6,10 @@
   --empty-hole-color: #a040a0;
   --nonempty-hole-color: red;
   --title-bar-color: #073f24;
-  --child-node-color: rgba(255, 195, 0, 0.35);
+  --child-node-background-color: rgba(255, 195, 0, 0.25);
+  --child-node-border-color: #e6b104cc;
+  --preserved-child-node-background-color: white;
+  --preserved-child-node-border-color: #a4d0bb;
 }
 
 /* general */
@@ -745,16 +748,17 @@ button:disabled {
 
 .cursor {
   background-color: var(--cursor-color);
-  border: 1px dashed var(--title-bar-color);
 }
 .cursor.empty-line {
   border: none;
 }
 .cursor > .node {
-  background-color: var(--child-node-color);
+  border: 1px solid var(--child-node-border-color);
+  background-color: var(--child-node-background-color);
 }
 .cursor > .preserved-on-deletion.node {
-  background-color: white;
+  border: 1px solid var(--preserved-child-node-border-color);
+  background-color: var(--preserved-child-node-background-color);
 }
 
 .SIndentation {
