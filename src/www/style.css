@@ -1,5 +1,12 @@
 @import url('https://fonts.googleapis.com/css?family=Fira+Mono');
 
+:root {
+  --cursor-color: rgb(229, 255, 229);
+  --opseq-hover-color: rgba(255, 195, 0, 0.20);
+  --empty-hole-color: #a040a0;
+  --nonempty-hole-color: red;
+}
+
 /* general */
 div {
   box-sizing: border-box;
@@ -715,22 +722,22 @@ button:disabled {
 }
 
 .hole {
-  color: #a040a0;
+  color: var(--empty-hole-color);
 }
 
 .OpSeq:hover .skel-binop {
-  background-color: rgba(255, 195, 0, 0.20);
-  border-top: 1px solid rgba(255, 195, 0, 0.20);
+  background-color: var(--opseq-hover-color);
+  border-top: 1px solid var(--opseq-hover-color);
   /* box-shadow: 0px 0px 0px 2px rgba(75, 50, 50, 0.20); */
 }
 
 .OpSeq:hover .Ap {
-  background-color: rgba(255, 195, 0, 0.20);
-  border-top: 1px solid rgba(255, 195, 0, 0.20);
+  background-color: var(--opseq-hover-color);
+  border-top: 1px solid var(--opseq-hover-color);
 }
 
 .cursor {
-  background-color: rgb(229, 255, 229) !important;
+  background-color: var(--cursor-color) !important;
 }
 
 .SIndentation {
@@ -748,11 +755,11 @@ button:disabled {
   /* padding-bottom: 1px; */
   /* margin-bottom: -1px; */
   margin-right: 2px;
-  border: 1px dashed red;
+  border: 1px dashed var(--nonempty-hole-color);
 }
 
 .in_err_hole {
-  border: 1px dashed red;
+  border: 1px dashed var(--nonempty-hole-color);
 }
 
 .in_err_hole > .in_err_hole {
@@ -781,7 +788,7 @@ button:disabled {
 }
 
 .EmptyHole {
-  border-bottom: 1px solid #a040a0;
+  border-bottom: 1px solid var(--empty-hole-color);
 }
 
 .hole-instance {
@@ -794,22 +801,22 @@ button:disabled {
 }
 
 .path-instance {
-  border: 1px dashed #a040a0;
+  border: 1px dashed var(--empty-hole-color);
 }
 
 .selected-instance {
-  border: 1px solid #a040a0;
+  border: 1px solid var(--empty-hole-color);
 }
 
 .hole-instance:hover {
-  border-left: 1px solid #a040a0;
-  border-right: 1px solid #a040a0;
-  border-top: 1px solid #a040a0;
-  border-bottom: 1px solid #a040a0;
+  border-left: 1px solid var(--empty-hole-color);
+  border-right: 1px solid var(--empty-hole-color);
+  border-top: 1px solid var(--empty-hole-color);
+  border-bottom: 1px solid var(--empty-hole-color);
 }
 
 .Hole {
-  border-bottom: 1px solid #a040a0;
+  border-bottom: 1px solid var(--empty-hole-color);
 }
 
 .holeName {
@@ -818,7 +825,7 @@ button:disabled {
   color: #BBB;
   padding-left: 2px;
   padding-right: 2px;
-  /* border-bottom: 1px solid #a040a0; */
+  /* border-bottom: 1px solid var(--empty-hole-color); */
   margin-bottom: -3px;
   /* line-height: initial; */
 }
@@ -844,7 +851,7 @@ button:disabled {
 .environment {
   vertical-align: sub;
   font-size: 50%;
-  color: #a040a0;
+  color: var(--empty-hole-color);
   color: black;
 }
 
