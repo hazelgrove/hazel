@@ -5,6 +5,7 @@
   --opseq-hover-color: rgba(255, 195, 0, 0.20);
   --empty-hole-color: #a040a0;
   --nonempty-hole-color: red;
+  --title-bar-color: #073f24;
 }
 
 /* general */
@@ -50,7 +51,7 @@ html, body {
 
 .top-bar {
   padding: 10px;
-  background-color: #073f24;
+  background-color: var(--title-bar-color);
   color: white;
   font-weight: bold;
   font-size: 14pt;
@@ -189,7 +190,7 @@ html, body {
 /* panels */
 
 .panel {
-  outline: 1px solid #073f24;
+  outline: 1px solid var(--title-bar-color);
   background-color: #FEFEEA;
   /* box-shadow: 2px 2px 0px 0px #af8e63; */
   margin-bottom: 7px;
@@ -205,7 +206,7 @@ html, body {
   padding-right: 0px;
   font-size: 10pt;
   font-weight: bold;
-  background-color: #073f24;
+  background-color: var(--title-bar-color);
 }
 
 .panel-title-bar {
@@ -226,7 +227,7 @@ html, body {
 }
 
 .cursor-OK.cursor-inspector {
-  outline: 1px solid #073f24;
+  outline: 1px solid var(--title-bar-color);
 }
 
 .cursor-TypeInconsistency.cursor-inspector {
@@ -242,7 +243,7 @@ html, body {
 }
 
 .cursor-OK .title-bar {
-  background-color: #073f24;
+  background-color: var(--title-bar-color);
 }
 
 .cursor-TypeInconsistency .title-bar {
@@ -300,14 +301,14 @@ html, body {
 
 .action-panel {
   flex-grow: 2;
-  background-color: #073f24;
+  background-color: var(--title-bar-color);
   cursor: default;
 }
 
 .action-panel .title-bar {
   /* background-color: #331757; */
   /* background-color: #163454; */
-  background-color: #073f24;
+  background-color: var(--title-bar-color);
 }
 
 .action-panel-body {
@@ -320,7 +321,7 @@ html, body {
 .sub-panel-title {
   text-align: center;
   /* background-color: #163454; */
-  background-color: #073f24;
+  background-color: var(--title-bar-color);
   text-transform: uppercase;
   line-height: 30px;
   color: white;
@@ -449,7 +450,7 @@ html, body {
 }
 
 .instructional-msg {
-  background-color: #073f24;
+  background-color: var(--title-bar-color);
   padding: 5px;
   color: white;
   font-size: 10pt;
@@ -583,7 +584,7 @@ html, body {
 }
 
 /* .path-summary { */
-/*   background-color: #073f24; */
+/*   background-color: var(--title-bar-color); */
 /*   color: white; */
 /*   padding: 3px; */
 /* } */
