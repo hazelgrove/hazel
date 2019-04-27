@@ -87,7 +87,7 @@ let term =
     : PP.doc => {
   let id' = id_of_rev_path(prefix, rev_path);
   PP.tagged(
-    cls_from_classes(err_status, classes),
+    ["node", ...cls_from_classes(err_status, classes)],
     Some((id', rev_path)),
     None,
     doc,
@@ -97,19 +97,19 @@ let term =
 let block =
     (prefix: string, rev_path: Path.steps, cls: PP.cls, doc: PP.doc): PP.doc => {
   let id' = id_of_rev_path(prefix, rev_path);
-  PP.tagged([cls], Some((id', rev_path)), None, doc);
+  PP.tagged(["node", cls], Some((id', rev_path)), None, doc);
 };
 
 let line =
     (prefix: string, rev_path: Path.steps, cls: PP.cls, doc: PP.doc): PP.doc => {
   let id' = id_of_rev_path(prefix, rev_path);
-  PP.tagged([cls], Some((id', rev_path)), None, doc);
+  PP.tagged(["node", cls], Some((id', rev_path)), None, doc);
 };
 
 let rule =
     (prefix: string, rev_path: Path.steps, cls: PP.cls, doc: PP.doc): PP.doc => {
   let id' = id_of_rev_path(prefix, rev_path);
-  PP.tagged([cls], Some((id', rev_path)), None, doc);
+  PP.tagged(["node", cls], Some((id', rev_path)), None, doc);
 };
 
 let term_with_attrs =
@@ -124,7 +124,7 @@ let term_with_attrs =
     : PP.doc => {
   let id' = id_of_rev_path(prefix, rev_path);
   PP.tagged(
-    cls_from_classes(err_status, classes),
+    ["node", ...cls_from_classes(err_status, classes)],
     Some((id', rev_path)),
     Some(attrs),
     doc,
@@ -989,7 +989,12 @@ let of_uhexp_BinOp =
     prefix,
     err_status,
     rev_path,
-    [string_of_exp_op(op), "skel-binop", before_child_skel_cls(op_index)],
+    [
+      "child",
+      string_of_exp_op(op),
+      "skel-binop",
+      before_child_skel_cls(op_index),
+    ],
     r1 ^^ of_exp_op(~op_index, op) ^^ r2,
   );
 

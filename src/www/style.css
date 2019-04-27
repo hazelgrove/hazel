@@ -737,8 +737,17 @@ button:disabled {
   border-top: 1px solid var(--opseq-hover-color);
 }
 
+.node {
+  border: 1px solid transparent;
+  background-clip: padding-box;
+}
+
 .cursor {
-  background-color: var(--cursor-color) !important;
+  background-color: var(--cursor-color);
+  border: 1px dashed var(--title-bar-color);
+}
+.cursor > .node {
+  background-color: white;
 }
 
 .SIndentation {
