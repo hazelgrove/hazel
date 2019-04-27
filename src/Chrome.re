@@ -635,9 +635,22 @@ let view = (model: Model.t) => {
                   do_action(Action.MoveTo((path, cursor_pos)));
                   /* avoid rerendering view on cursor movement */
                   clear_cursors();
-                  let elem = JSUtil.forceGetElementById(cur_id);
 
-                  elem##.classList##add(Js.string("cursor"));
+                  let (zblock, _, _) = React.S.value(edit_state_rs);
+                  if (ZExp.cursor_on_opseq_block(zblock)) {
+                    let (_, cursor_pos) = Path.of_zblock(zblock);
+                    let k =
+                      switch (cursor_pos) {
+                      | O(_)
+                      | I(ClosingDelimiter(_)) => assert(false)
+                      | I(BeforeChild(k, _)) => k
+                      };
+                    let elem = View.forceGetSkelElement(cur_id, k);
+                    elem##.classList##add(Js.string("cursor"));
+                  } else {
+                    let elem = JSUtil.forceGetElementById(cur_id);
+                    elem##.classList##add(Js.string("cursor"));
+                  };
                 | exception Not_found => ()
                 };
                 ();

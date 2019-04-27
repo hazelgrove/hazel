@@ -51,6 +51,18 @@ let closing_delimiter_cls: PP.cls = "closing-delimiter";
 let before_child_skel_cls = (before_child_index: int): PP.cls =>
   "before-child-" ++ string_of_int(before_child_index) ++ "-skel";
 
+let forceGetSkelElement = (id, op_index) => {
+  let doc = Js_of_ocaml.Dom_html.document;
+  let cls = before_child_skel_cls(op_index);
+  Js_of_ocaml.Js.Opt.get(
+    doc##querySelector(Js_of_ocaml.Js.string("#" ++ id ++ "." ++ cls)),
+    () => {
+      JSUtil.log("Skel node not found: id = " ++ id ++ ", cls = " ++ cls);
+      assert(false);
+    },
+  );
+};
+
 let before_child_cls_regexp =
   Js_of_ocaml.Regexp.regexp("before-child-(\\d+)");
 let before_child_index_of_cls = (cls: PP.cls): option(int) =>
