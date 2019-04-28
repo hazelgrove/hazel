@@ -1603,7 +1603,7 @@ let rec syn_perform_pat =
         }
       )
     | CursorEscaped(After) =>
-      move_to_prev_node_pos_pat(zp, zp =>
+      move_to_next_node_pos_pat(zp, zp =>
         switch (Statics.syn_pat(ctx, ZPat.erase(zp))) {
         | None => Failed
         | Some((ty, ctx)) => Succeeded((zp, ty, ctx, u_gen))
@@ -1623,7 +1623,7 @@ let rec syn_perform_pat =
         }
       )
     | CursorEscaped(After) =>
-      move_to_prev_node_pos_pat(zp, zp =>
+      move_to_next_node_pos_pat(zp, zp =>
         switch (Statics.syn_pat(ctx, ZPat.erase(zp))) {
         | None => Failed
         | Some((ty, ctx)) => Succeeded((zp, ty, ctx, u_gen))
@@ -1656,7 +1656,7 @@ let rec syn_perform_pat =
               }
             )
           | CursorEscaped(After) =>
-            move_to_prev_node_pos_pat(zp, zp =>
+            move_to_next_node_pos_pat(zp, zp =>
               switch (Statics.syn_pat(ctx, ZPat.erase(zp))) {
               | None => Failed
               | Some((ty, ctx)) => Succeeded((zp, ty, ctx, u_gen))
@@ -1677,7 +1677,7 @@ let rec syn_perform_pat =
               }
             )
           | CursorEscaped(After) =>
-            move_to_prev_node_pos_pat(zp, zp =>
+            move_to_next_node_pos_pat(zp, zp =>
               switch (Statics.syn_pat(ctx, ZPat.erase(zp))) {
               | None => Failed
               | Some((ty, ctx)) => Succeeded((zp, ty, ctx, u_gen))
@@ -2198,7 +2198,7 @@ and ana_perform_pat =
         }
       )
     | CursorEscaped(After) =>
-      move_to_prev_node_pos_pat(zp, zp =>
+      move_to_next_node_pos_pat(zp, zp =>
         switch (Statics.ana_pat(ctx, ZPat.erase(zp), ty)) {
         | None => Failed
         | Some(ctx) => Succeeded((zp, ctx, u_gen))
@@ -2222,7 +2222,7 @@ and ana_perform_pat =
           }
         )
       | CursorEscaped(After) =>
-        move_to_prev_node_pos_pat(zp, zp =>
+        move_to_next_node_pos_pat(zp, zp =>
           switch (Statics.ana_pat(ctx, ZPat.erase(zp), ty)) {
           | None => Failed
           | Some(ctx) => Succeeded((zp, ctx, u_gen))
@@ -2251,7 +2251,7 @@ and ana_perform_pat =
               }
             )
           | CursorEscaped(After) =>
-            move_to_prev_node_pos_pat(zp, zp =>
+            move_to_next_node_pos_pat(zp, zp =>
               switch (Statics.ana_pat(ctx, ZPat.erase(zp), ty)) {
               | None => Failed
               | Some(ctx) => Succeeded((zp, ctx, u_gen))
@@ -2274,7 +2274,7 @@ and ana_perform_pat =
               }
             )
           | CursorEscaped(After) =>
-            move_to_prev_node_pos_pat(zp, zp =>
+            move_to_next_node_pos_pat(zp, zp =>
               switch (Statics.ana_pat(ctx, ZPat.erase(zp), ty)) {
               | None => Failed
               | Some(ctx) => Succeeded((zp, ctx, u_gen))
