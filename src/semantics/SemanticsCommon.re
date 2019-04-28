@@ -72,9 +72,3 @@ type outer_cursor =
 type cursor_pos =
   | O(outer_cursor)
   | I(inner_cursor);
-
-let default_nih = (e: option(err_status)): err_status =>
-  switch (e) {
-  | None => NotInHole
-  | Some(e) => e
-  };
