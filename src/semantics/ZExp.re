@@ -661,32 +661,6 @@ and erase_rule = (zr: zrule): UHExp.rule =>
   | RuleZE(p, zblock) => Rule(p, erase_block(zblock))
   };
 
-let mk_orphan_block =
-    (prefix: list(UHExp.t), zorphan: t, suffix: list(UHExp.t)): zblock => {
-  let prefix_lines = prefix |> List.map(e => UHExp.ExpLine(e));
-  switch (split_last(suffix)) {
-  | None => BlockZE(prefix_lines, zorphan)
-  | Some((suffix, last)) =>
-    let suffix_lines = suffix |> List.map(e => UHExp.ExpLine(e));
-    let zlines = (prefix_lines, ExpLineZ(zorphan), suffix_lines);
-    BlockZL(zlines, last);
-  };
-};
-
-let opseqz_preceded_by_Space = (ze: t, surround: opseq_surround): bool => {
-  let e = erase(ze);
-  let seq = OperatorSeq.opseq_of_exp_and_surround(e, surround);
-  let n = OperatorSeq.surround_prefix_length(surround);
-  OperatorSeq.op_before_nth_tm(n, seq) == Some(Space);
-};
-
-let opseqz_followed_by_Space = (ze: t, surround: opseq_surround): bool => {
-  let e = erase(ze);
-  let seq = OperatorSeq.opseq_of_exp_and_surround(e, surround);
-  let n = OperatorSeq.surround_prefix_length(surround);
-  OperatorSeq.op_before_nth_tm(n + 1, seq) == Some(Space);
-};
-
 let rec cursor_on_opseq_block = (zblock: zblock): bool =>
   switch (zblock) {
   | BlockZL(zlines, _) => cursor_on_opseq_lines(zlines)

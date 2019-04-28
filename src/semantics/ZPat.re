@@ -295,20 +295,6 @@ let new_EmptyHole = (u_gen: MetaVarGen.t): (t, MetaVarGen.t) => {
   (place_before(hole), u_gen);
 };
 
-let opseqz_preceded_by_Space = (zp: t, surround: opseq_surround): bool => {
-  let p = erase(zp);
-  let seq = OperatorSeq.opseq_of_exp_and_surround(p, surround);
-  let n = OperatorSeq.surround_prefix_length(surround);
-  OperatorSeq.op_before_nth_tm(n, seq) == Some(Space);
-};
-
-let opseqz_followed_by_Space = (zp: t, surround: opseq_surround): bool => {
-  let p = erase(zp);
-  let seq = OperatorSeq.opseq_of_exp_and_surround(p, surround);
-  let n = OperatorSeq.surround_prefix_length(surround);
-  OperatorSeq.op_before_nth_tm(n + 1, seq) == Some(Space);
-};
-
 let is_inconsistent = (zp: t): bool => UHPat.is_inconsistent(erase(zp));
 
 let rec cursor_on_opseq = (zp: t): bool =>
