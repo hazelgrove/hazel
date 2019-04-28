@@ -76,8 +76,7 @@ let rec is_before = (zty: t): bool =>
   | CursorTO(Char(j), _) => j === 0
   /* inner nodes */
   | CursorTI(inner_cursor, Parenthesized(_))
-  | CursorTI(inner_cursor, List(_)) =>
-    inner_cursor == BeforeChild(0, Before)
+  | CursorTI(inner_cursor, List(_)) => inner_cursor == BeforeChild(0, Before)
   | CursorTI(_, OpSeq(_, _)) => false
   /* zipper cases */
   | ParenthesizedZ(_) => false

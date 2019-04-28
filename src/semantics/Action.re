@@ -4151,8 +4151,8 @@ and syn_perform_exp =
               | B(zblock) =>
                 switch (zblock) {
                 | BlockZL(_, _)
-                | BlockZE([], _) => ParenthesizedZ(zblock)
-                | BlockZE([_, ..._], ze) => ze
+                | BlockZE([_, ..._], _) => ParenthesizedZ(zblock)
+                | BlockZE([], ze) => ze
                 }
               };
             Succeeded((E(OpSeqZ(skel, ze0, surround)), ty, u_gen));
@@ -4175,8 +4175,8 @@ and syn_perform_exp =
               | B(zblock) =>
                 switch (zblock) {
                 | BlockZL(_, _)
-                | BlockZE([], _) => ParenthesizedZ(zblock)
-                | BlockZE([_, ..._], ze) => ze
+                | BlockZE([_, ..._], _) => ParenthesizedZ(zblock)
+                | BlockZE([], ze) => ze
                 }
               };
             let (ze, ty, u_gen) =
@@ -5427,8 +5427,8 @@ and ana_perform_exp =
               | B(zblock) =>
                 switch (zblock) {
                 | BlockZL(_, _)
-                | BlockZE([], _) => ParenthesizedZ(zblock)
-                | BlockZE([_, ..._], ze) => ze
+                | BlockZE([_, ..._], _) => ParenthesizedZ(zblock)
+                | BlockZE([], ze) => ze
                 }
               };
             Succeeded((E(OpSeqZ(skel, ze0, surround)), u_gen));
@@ -5447,8 +5447,8 @@ and ana_perform_exp =
               | B(zblock) =>
                 switch (zblock) {
                 | BlockZL(_, _)
-                | BlockZE([], _) => ParenthesizedZ(zblock)
-                | BlockZE([_, ..._], ze) => ze
+                | BlockZE([_, ..._], _) => ParenthesizedZ(zblock)
+                | BlockZE([], ze) => ze
                 }
               };
             let (ze, u_gen) =
