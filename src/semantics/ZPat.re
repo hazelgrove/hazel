@@ -64,25 +64,6 @@ let is_valid_outer_cursor =
     (outer_cursor: outer_cursor, po: UHPat.t_outer): bool =>
   contains(valid_outer_cursors(po), outer_cursor);
 
-let pat_children = (pi: UHPat.t_inner): list(UHPat.t) =>
-  switch (pi) {
-  | Parenthesized(p) => [p]
-  | OpSeq(_, seq) => OperatorSeq.tms(seq)
-  | Inj(_, _, p) => [p]
-  };
-
-let split_pat_children_across_cursor =
-    (inner_cursor: inner_cursor, pi: UHPat.t_inner)
-    : option((list(UHPat.t), list(UHPat.t))) =>
-  switch (inner_cursor, pi) {
-  | (ClosingDelimiter(_), _) => Some((List.rev(pat_children(pi)), []))
-  | (BeforeChild(0, _), Parenthesized(_)) => Some(([], pat_children(pi)))
-  | (BeforeChild(_, _), Parenthesized(_)) => None
-  | (BeforeChild(0, _), Inj(_, _, _)) => Some(([], pat_children(pi)))
-  | (BeforeChild(_, _), Inj(_, _, _)) => None
-  | (BeforeChild(_, _), OpSeq(_, _)) => None /* maybe TODO */
-  };
-
 let bidelimit = (zp: t): t =>
   switch (zp) {
   | CursorPO(_, po) =>
