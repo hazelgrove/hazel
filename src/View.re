@@ -547,13 +547,13 @@ let of_LetLine =
     ^^ space
     ^^ rx;
   let second_part =
-    of_op(" = ", ["let-equals", before_child_cls(2)])
+    of_op("=", ["let-equals", before_child_cls(2)])
     ^^ PP.nestAbsolute(2, r1);
   let view =
     switch (rann) {
     | Some(r) =>
       first_part
-      ^^ of_op(" : ", ["ann", before_child_cls(1)])
+      ^^ of_op(":", ["ann", before_child_cls(1)])
       ^^ r
       ^^ second_part
     | None => first_part ^^ second_part
