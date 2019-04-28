@@ -277,6 +277,13 @@ let make =
       KCs.tab,
     );
 
+  let shiftParenLeft =
+    checked_action_button(
+      Action.ShiftParenLeft,
+      Html5.txt("shift paren left"),
+      KCs.shift_left,
+    );
+
   let constructNum =
     checked_action_button(
       Action.Construct(Action.SNum),
@@ -524,6 +531,7 @@ let make =
               delete,
               moveToPrevHole,
               moveToNextHole,
+              shiftParenLeft,
             ],
           ),
         ],
