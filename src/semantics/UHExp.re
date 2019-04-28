@@ -76,6 +76,7 @@ let prune_empty_hole_line = (li: line): line =>
   | LO(EmptyLine)
   | LI(LetLine(_, _, _)) => li
   };
+let prune_empty_hole_lines: lines => lines = List.map(prune_empty_hole_line);
 
 let rec get_tuple = (skel1: skel_t, skel2: skel_t): ListMinTwo.t(skel_t) =>
   switch (skel2) {

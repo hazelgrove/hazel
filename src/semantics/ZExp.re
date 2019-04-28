@@ -395,6 +395,11 @@ let prune_empty_hole_line = (zli: zline): zline =>
   | CursorLO(_)
   | CursorLI(_) => zli
   };
+let prune_empty_hole_lines = ((prefix, zline, suffix): zlines): zlines => (
+  UHExp.prune_empty_hole_lines(prefix),
+  prune_empty_hole_line(zline),
+  UHExp.prune_empty_hole_lines(suffix),
+);
 
 let rec get_err_status_block = (zblock: zblock): err_status =>
   switch (zblock) {

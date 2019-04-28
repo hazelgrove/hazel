@@ -3105,7 +3105,8 @@ and syn_perform_line =
         let zline = ZExp.prune_empty_hole_line(ExpLineZ(ze));
         Succeeded((([], zline, []), ctx, u_gen));
       | Succeeded((B(zblock), _, u_gen)) =>
-        let zlines = ZExp.zblock_to_zlines(zblock);
+        let zlines =
+          ZExp.prune_empty_hole_lines(ZExp.zblock_to_zlines(zblock));
         Succeeded((zlines, ctx, u_gen));
       }
     }
