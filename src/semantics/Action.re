@@ -1334,10 +1334,12 @@ let rec syn_perform_pat =
     switch (surround) {
     | EmptyPrefix(_) => CursorEscaped(Before) /* should never happen */
     | EmptySuffix(prefix) =>
-      let p =
+      let p: UHPat.t =
         switch (prefix) {
         | ExpPrefix(p1, _space) => p1
-        | SeqPrefix(seq, _space) => UHPat.PI(PatUtil.mk_OpSeq(seq))
+        | SeqPrefix(seq, _space) =>
+          let skel = Associator.associate_pat(seq);
+          PI(OpSeq(skel, seq));
         };
       Succeeded(
         Statics.syn_fix_holes_zpat(ctx, u_gen, ZPat.place_after(p)),
@@ -1346,7 +1348,12 @@ let rec syn_perform_pat =
       switch (prefix) {
       | ExpPrefix(p1, _space) =>
         let zp1 = ZPat.place_after(p1);
-        let zp = PatUtil.mk_OpSeqZ(zp1, EmptyPrefix(suffix));
+        let surround = OperatorSeq.EmptyPrefix(suffix);
+        let skel =
+          Associator.associate_pat(
+            OperatorSeq.opseq_of_exp_and_surround(p1, surround),
+          );
+        let zp = ZPat.OpSeqZ(skel, zp1, surround);
         Succeeded(Statics.syn_fix_holes_zpat(ctx, u_gen, zp));
       | SeqPrefix(seq, _space) =>
         let (prefix: ZPat.opseq_prefix, p0) =
@@ -1355,7 +1362,12 @@ let rec syn_perform_pat =
           | SeqOpExp(seq, op, p1) => (SeqPrefix(seq, op), p1)
           };
         let zp0 = ZPat.place_after(p0);
-        let zp = PatUtil.mk_OpSeqZ(zp0, BothNonEmpty(prefix, suffix));
+        let surround = OperatorSeq.BothNonEmpty(prefix, suffix);
+        let skel =
+          Associator.associate_pat(
+            OperatorSeq.opseq_of_exp_and_surround(p0, surround),
+          );
+        let zp = ZPat.OpSeqZ(skel, zp0, surround);
         Succeeded(Statics.syn_fix_holes_zpat(ctx, u_gen, zp));
       }
     }
@@ -1375,10 +1387,12 @@ let rec syn_perform_pat =
     switch (surround) {
     | EmptySuffix(_) => CursorEscaped(After) /* should never happen */
     | EmptyPrefix(suffix) =>
-      let p =
+      let p: UHPat.t =
         switch (suffix) {
         | ExpSuffix(_space, p1) => p1
-        | SeqSuffix(_space, seq) => UHPat.PI(PatUtil.mk_OpSeq(seq))
+        | SeqSuffix(_space, seq) =>
+          let skel = Associator.associate_pat(seq);
+          PI(OpSeq(skel, seq));
         };
       Succeeded(
         Statics.syn_fix_holes_zpat(ctx, u_gen, ZPat.place_before(p)),
@@ -1387,7 +1401,12 @@ let rec syn_perform_pat =
       switch (suffix) {
       | ExpSuffix(_space, p1) =>
         let zp1 = ZPat.place_before(p1);
-        let zp = PatUtil.mk_OpSeqZ(zp1, EmptySuffix(prefix));
+        let surround = OperatorSeq.EmptyPrefix(suffix);
+        let skel =
+          Associator.associate_pat(
+            OperatorSeq.opseq_of_exp_and_surround(p1, surround),
+          );
+        let zp = ZPat.OpSeqZ(skel, zp1, surround);
         Succeeded(Statics.syn_fix_holes_zpat(ctx, u_gen, zp));
       | SeqSuffix(_space, seq) =>
         let (p0, suffix: ZPat.opseq_suffix) =
@@ -1396,7 +1415,12 @@ let rec syn_perform_pat =
           | SeqOpExp(seq, op, p1) => (p1, SeqSuffix(op, seq))
           };
         let zp0 = ZPat.place_before(p0);
-        let zp = PatUtil.mk_OpSeqZ(zp0, BothNonEmpty(prefix, suffix));
+        let surround = OperatorSeq.BothNonEmpty(prefix, suffix);
+        let skel =
+          Associator.associate_pat(
+            OperatorSeq.opseq_of_exp_and_surround(p0, surround),
+          );
+        let zp = ZPat.OpSeqZ(skel, zp0, surround);
         Succeeded(Statics.syn_fix_holes_zpat(ctx, u_gen, zp));
       }
     }
@@ -1920,10 +1944,12 @@ and ana_perform_pat =
     switch (surround) {
     | EmptyPrefix(_) => CursorEscaped(Before) /* should never happen */
     | EmptySuffix(prefix) =>
-      let p =
+      let p: UHPat.t =
         switch (prefix) {
         | ExpPrefix(p1, _space) => p1
-        | SeqPrefix(seq, _space) => UHPat.PI(PatUtil.mk_OpSeq(seq))
+        | SeqPrefix(seq, _space) =>
+          let skel = Associator.associate_pat(seq);
+          PI(OpSeq(skel, seq));
         };
       Succeeded(
         Statics.ana_fix_holes_zpat(ctx, u_gen, ZPat.place_after(p), ty),
@@ -1932,7 +1958,12 @@ and ana_perform_pat =
       switch (prefix) {
       | ExpPrefix(p1, _space) =>
         let zp1 = ZPat.place_after(p1);
-        let zp = PatUtil.mk_OpSeqZ(zp1, EmptyPrefix(suffix));
+        let surround = OperatorSeq.EmptyPrefix(suffix);
+        let skel =
+          Associator.associate_pat(
+            OperatorSeq.opseq_of_exp_and_surround(p1, surround),
+          );
+        let zp = ZPat.OpSeqZ(skel, zp1, surround);
         Succeeded(Statics.ana_fix_holes_zpat(ctx, u_gen, zp, ty));
       | SeqPrefix(seq, _space) =>
         let (prefix: ZPat.opseq_prefix, p0) =
@@ -1941,7 +1972,12 @@ and ana_perform_pat =
           | SeqOpExp(seq, op, p1) => (SeqPrefix(seq, op), p1)
           };
         let zp0 = ZPat.place_after(p0);
-        let zp = PatUtil.mk_OpSeqZ(zp0, BothNonEmpty(prefix, suffix));
+        let surround = OperatorSeq.BothNonEmpty(prefix, suffix);
+        let skel =
+          Associator.associate_pat(
+            OperatorSeq.opseq_of_exp_and_surround(p0, surround),
+          );
+        let zp = ZPat.OpSeqZ(skel, zp0, surround);
         Succeeded(Statics.ana_fix_holes_zpat(ctx, u_gen, zp, ty));
       }
     }
@@ -1961,10 +1997,12 @@ and ana_perform_pat =
     switch (surround) {
     | EmptySuffix(_) => CursorEscaped(After) /* should never happen */
     | EmptyPrefix(suffix) =>
-      let p =
+      let p: UHPat.t =
         switch (suffix) {
         | ExpSuffix(_space, p1) => p1
-        | SeqSuffix(_space, seq) => UHPat.PI(PatUtil.mk_OpSeq(seq))
+        | SeqSuffix(_space, seq) =>
+          let skel = Associator.associate_pat(seq);
+          PI(OpSeq(skel, seq));
         };
       Succeeded(
         Statics.ana_fix_holes_zpat(ctx, u_gen, ZPat.place_before(p), ty),
@@ -1973,7 +2011,12 @@ and ana_perform_pat =
       switch (suffix) {
       | ExpSuffix(_space, p1) =>
         let zp1 = ZPat.place_before(p1);
-        let zp = PatUtil.mk_OpSeqZ(zp1, EmptySuffix(prefix));
+        let surround = OperatorSeq.EmptyPrefix(suffix);
+        let skel =
+          Associator.associate_pat(
+            OperatorSeq.opseq_of_exp_and_surround(p1, surround),
+          );
+        let zp = ZPat.OpSeqZ(skel, zp1, surround);
         Succeeded(Statics.ana_fix_holes_zpat(ctx, u_gen, zp, ty));
       | SeqSuffix(_space, seq) =>
         let (p0, suffix: ZPat.opseq_suffix) =
@@ -1982,7 +2025,12 @@ and ana_perform_pat =
           | SeqOpExp(seq, op, p1) => (p1, SeqSuffix(op, seq))
           };
         let zp0 = ZPat.place_before(p0);
-        let zp = PatUtil.mk_OpSeqZ(zp0, BothNonEmpty(prefix, suffix));
+        let surround = OperatorSeq.BothNonEmpty(prefix, suffix);
+        let skel =
+          Associator.associate_pat(
+            OperatorSeq.opseq_of_exp_and_surround(p0, surround),
+          );
+        let zp = ZPat.OpSeqZ(skel, zp0, surround);
         Succeeded(Statics.ana_fix_holes_zpat(ctx, u_gen, zp, ty));
       }
     }
