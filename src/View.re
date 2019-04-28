@@ -126,24 +126,6 @@ let block =
   );
 };
 
-let line =
-    (
-      ~is_empty=false,
-      prefix: string,
-      rev_path: Path.steps,
-      cls: PP.cls,
-      doc: PP.doc,
-    )
-    : PP.doc => {
-  let id' = id_of_rev_path(prefix, rev_path);
-  PP.tagged(
-    (is_empty ? ["empty-line"] : ["node"]) @ [cls],
-    Some((id', rev_path)),
-    None,
-    doc,
-  );
-};
-
 let rule =
     (prefix: string, rev_path: Path.steps, cls: PP.cls, doc: PP.doc): PP.doc => {
   let id' = id_of_rev_path(prefix, rev_path);
@@ -532,17 +514,23 @@ let of_Var =
     var(x),
   );
 
-let of_EmptyLine = (prefix: string, rev_path: Path.steps): PP.doc =>
-  line(
-    ~is_empty=true,
-    prefix,
-    rev_path,
-    "EmptyLine",
-    taggedText(["empty-line"], "​​"),
+let of_EmptyLine = (prefix: string, rev_path: Path.steps): PP.doc => {
+  let id' = id_of_rev_path(prefix, rev_path);
+  PP.tagged(
+    ["EmptyLine"],
+    Some((id', rev_path)),
+    None,
+    taggedText([], ""),
   );
+};
 
-let of_ExpLine = (prefix: string, rev_path: Path.steps, r1: PP.doc): PP.doc =>
-  line(prefix, rev_path, "ExpLine", r1);
+let of_ExpLine = (r1: PP.doc): PP.doc =>
+  PP.tagged(
+    ["ExpLine"],
+    None, /* ExpLine is not a cursor-selectable node */
+    None,
+    r1,
+  );
 
 let of_LetLine =
     (
@@ -570,7 +558,8 @@ let of_LetLine =
       ^^ second_part
     | None => first_part ^^ second_part
     };
-  line(prefix, rev_path, "LetLine", view);
+  let id' = id_of_rev_path(prefix, rev_path);
+  PP.tagged(["LetLine"], Some((id', rev_path)), None, view);
 };
 
 let of_lines = (rline_lst: list(PP.doc)): PP.doc =>
@@ -605,6 +594,7 @@ let of_Block =
 let of_Let =
     (
       prefix: string,
+      err_status: err_status,
       rev_path: Path.steps,
       rx: PP.doc,
       rann: option(PP.doc),
@@ -631,7 +621,7 @@ let of_Let =
       ^^ second_part
     | None => first_part ^^ second_part
     };
-  line(prefix, rev_path, "LetLine", view);
+  term(prefix, err_status, rev_path, ["Let"], view);
 };
 
 let of_FixF =
@@ -1278,8 +1268,8 @@ and of_hline =
     let r1 = of_hblock(palette_stuff, prefix, [2, ...rev_path], e1);
     of_LetLine(prefix, rev_path, rp, rann, r1);
   | ExpLine(e1) =>
-    let r1 = of_hexp(palette_stuff, prefix, [0, ...rev_path], e1);
-    of_ExpLine(prefix, rev_path, r1);
+    let r1 = of_hexp(palette_stuff, prefix, rev_path, e1);
+    of_ExpLine(r1);
   }
 and of_hexp =
     (
@@ -1764,7 +1754,7 @@ let rec of_dhexp' =
             rev_path2,
             d2,
           );
-        of_Let(prefix, rev_path, rp, None, r1, r2);
+        of_Let(prefix, err_status, rev_path, rp, None, r1, r2);
       | FixF(x, ty, d1) =>
         if (_SHOW_FN_BODIES) {
           let rx = of_var_binding(prefix, [0, ...rev_path], x);
