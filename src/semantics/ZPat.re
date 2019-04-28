@@ -224,7 +224,7 @@ let rec is_before = (zp: t): bool =>
   /* inner nodes */
   | CursorPI(inner_cursor, Inj(_, _, _))
   | CursorPI(inner_cursor, Parenthesized(_)) =>
-    inner_cursor === BeforeChild(0, Before)
+    inner_cursor == BeforeChild(0, Before)
   | CursorPI(_, OpSeq(_, _)) => false
   /* zipper cases */
   | InjZ(_, _, _) => false
@@ -240,7 +240,7 @@ let rec is_after = (zp: t): bool =>
   /* inner nodes */
   | CursorPI(inner_cursor, Inj(_, _, _))
   | CursorPI(inner_cursor, Parenthesized(_)) =>
-    inner_cursor === ClosingDelimiter(After)
+    inner_cursor == ClosingDelimiter(After)
   | CursorPI(_, OpSeq(_, _)) => false
   /* zipper cases */
   | InjZ(_, _, _) => false

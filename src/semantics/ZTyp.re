@@ -77,7 +77,7 @@ let rec is_before = (zty: t): bool =>
   /* inner nodes */
   | CursorTI(inner_cursor, Parenthesized(_))
   | CursorTI(inner_cursor, List(_)) =>
-    inner_cursor === BeforeChild(0, Before)
+    inner_cursor == BeforeChild(0, Before)
   | CursorTI(_, OpSeq(_, _)) => false
   /* zipper cases */
   | ParenthesizedZ(_) => false
@@ -93,7 +93,7 @@ let rec is_after = (zty: t): bool =>
   /* inner nodes */
   | CursorTI(inner_cursor, Parenthesized(_))
   | CursorTI(inner_cursor, List(_)) =>
-    inner_cursor === ClosingDelimiter(After)
+    inner_cursor == ClosingDelimiter(After)
   | CursorTI(_, OpSeq(_, _)) => false
   /* zipper cases */
   | ParenthesizedZ(_) => false

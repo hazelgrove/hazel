@@ -191,7 +191,7 @@ and is_before_line = (zline: zline): bool =>
   | CursorLO(Char(_), _) => false
   /* branch nodes */
   | CursorLI(inner_cursor, LetLine(_, _, _)) =>
-    inner_cursor === BeforeChild(0, Before)
+    inner_cursor == BeforeChild(0, Before)
   /* zipper cases */
   | ExpLineZ(ze) => is_before_exp(ze)
   | LetLineZP(_, _, _)
@@ -207,10 +207,10 @@ and is_before_exp = (ze: t): bool =>
   | CursorEI(inner_cursor, Inj(_, _, _))
   | CursorEI(inner_cursor, Case(_, _, _, _))
   | CursorEI(inner_cursor, Parenthesized(_)) =>
-    inner_cursor === BeforeChild(0, Before)
+    inner_cursor == BeforeChild(0, Before)
   | CursorEI(_, OpSeq(_, _)) => false
   | CursorEI(inner_cursor, ApPalette(_, _, _, _)) =>
-    inner_cursor === BeforeChild(0, Before) /* TODO */
+    inner_cursor == BeforeChild(0, Before) /* TODO */
   /* zipper cases */
   | ParenthesizedZ(_) => false
   | OpSeqZ(_, ze1, EmptyPrefix(_)) => is_before_exp(ze1)
@@ -253,10 +253,10 @@ and is_after_exp = (ze: t): bool =>
   | CursorEI(inner_cursor, Case(_, _, _, None))
   | CursorEI(inner_cursor, Inj(_, _, _))
   | CursorEI(inner_cursor, Parenthesized(_)) =>
-    inner_cursor === ClosingDelimiter(After)
+    inner_cursor == ClosingDelimiter(After)
   | CursorEI(_, OpSeq(_, _)) => false
   | CursorEI(inner_cursor, ApPalette(_, _, _, _)) =>
-    inner_cursor === ClosingDelimiter(After) /* TODO */
+    inner_cursor == ClosingDelimiter(After) /* TODO */
   /* zipper cases */
   | ParenthesizedZ(_) => false
   | OpSeqZ(_, ze1, EmptySuffix(_)) => is_after_exp(ze1)
