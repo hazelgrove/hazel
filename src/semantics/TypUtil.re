@@ -20,6 +20,13 @@ let opseq_of_prefix_and_uty =
   | _ => OperatorSeq.opseq_of_prefix_and_exp(prefix, uty)
   };
 
+let opseq_of_uty_and_suffix =
+    (uty: UHTyp.t, suffix: ZTyp.opseq_suffix): UHTyp.opseq =>
+  switch (uty) {
+  | TI(OpSeq(_, seq)) => OperatorSeq.opseq_of_seq_and_suffix(seq, suffix)
+  | _ => OperatorSeq.opseq_of_exp_and_suffix(uty, suffix)
+  };
+
 [@deriving sexp]
 type frame =
   | ParenthesizedF
@@ -100,4 +107,33 @@ let rec split_over_cursor_on_parens =
     | Some((inner_cursor, uty, uty_ctx)) =>
       Some((inner_cursor, uty, Frame(OpSeqF(surround), uty_ctx)))
     }
+  };
+
+let rec split_start_frame = (seq: UHTyp.opseq): (frame, UHTyp.t) =>
+  switch (seq) {
+  | ExpOpExp(uty1, op, uty2) => (
+      OpSeqF(EmptySuffix(ExpPrefix(uty1, op))),
+      uty2,
+    )
+  | SeqOpExp(seq, op, uty) =>
+    let (start_frame, start_frame_subject) = split_start_frame(seq);
+    let start_frame_subject =
+      UHTyp.TI(
+        mk_OpSeq(
+          opseq_of_uty_and_suffix(start_frame_subject, ExpSuffix(op, uty)),
+        ),
+      );
+    (start_frame, start_frame_subject);
+  };
+
+let split_end_frame = (seq: UHTyp.opseq): (UHTyp.t, frame) =>
+  switch (seq) {
+  | ExpOpExp(uty1, op, uty2) => (
+      uty1,
+      OpSeqF(EmptyPrefix(ExpSuffix(op, uty2))),
+    )
+  | SeqOpExp(seq, op, uty) => (
+      TI(mk_OpSeq(seq)),
+      OpSeqF(EmptyPrefix(ExpSuffix(op, uty))),
+    )
   };

@@ -253,6 +253,7 @@ module KeyCombos = {
   let tab = KeyCombo.plain(Key.the_code("Tab"));
   let shift_tab = KeyCombo.shift(Key.the_code("Tab"));
   let shift_left = KeyCombo.shift(Key.the_code("ArrowLeft"));
+  let shift_right = KeyCombo.shift(Key.the_code("ArrowRight"));
   let space = KeyCombo.plain(Key.the_code("Space"));
   let lt = KeyCombo.no_ctrl_alt_meta(Key.the_key("<"));
   let gt = KeyCombo.no_ctrl_alt_meta(Key.the_key(">"));

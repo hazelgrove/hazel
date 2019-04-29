@@ -101,6 +101,7 @@ type t =
   | MoveToNextHole
   | MoveToPrevHole
   | ShiftParenLeft
+  | ShiftParenRight
   | UpdateApPalette(SpliceGenMonad.t(SerializedModel.t))
   | Delete
   | Backspace
@@ -217,112 +218,168 @@ let rec perform_ty = (a: t, zty: ZTyp.t): result(ZTyp.t) =>
   | (ShiftParenLeft, _) =>
     switch (TypUtil.split_over_cursor_on_parens(zty)) {
     | None => Failed
-    | Some((cursor, uty, uty_ctx)) =>
-      switch (cursor) {
-      /* ... -> Num -> |( Bool ) -> ...   ==>   ... -> |( Num -> Bool ) -> ... */
-      | BeforeChild(_, _) =>
-        switch (TypUtil.pop_frame(uty_ctx)) {
-        | None
-        | Some((ParenthesizedF, _))
-        | Some((ListF, _)) => Failed
-        | Some((OpSeqF(surround), uty_ctx_rest)) =>
-          switch (surround) {
-          | EmptyPrefix(_) => Failed
-          | EmptySuffix(prefix) =>
-            let (new_child: UHTyp.t, new_ctx: TypUtil.context) =
-              switch (prefix) {
-              | ExpPrefix(uty1, op1) =>
-                let seq = OperatorSeq.ExpOpExp(uty1, op1, uty);
-                (TI(TypUtil.mk_OpSeq(seq)), uty_ctx_rest);
-              | SeqPrefix(ExpOpExp(_, _, uty2) as prefix_seq, op2)
-              | SeqPrefix(SeqOpExp(_, _, uty2) as prefix_seq, op2) =>
-                let seq =
-                  TypUtil.opseq_of_prefix_and_uty(ExpPrefix(uty2, op2), uty);
-                let new_frame: TypUtil.frame =
-                  switch (prefix_seq) {
-                  | ExpOpExp(uty1, op1, _) =>
-                    OpSeqF(EmptySuffix(ExpPrefix(uty1, op1)))
-                  | SeqOpExp(seq1, op1, _) =>
-                    OpSeqF(EmptySuffix(SeqPrefix(seq1, op1)))
-                  };
-                (
-                  TI(TypUtil.mk_OpSeq(seq)),
-                  TypUtil.push_frame(new_frame, uty_ctx_rest),
-                );
+    /* ... -> Num -> |( Bool ) -> ...   ==>   ... -> |( Num -> Bool ) -> ... */
+    | Some((BeforeChild(_, _) as cursor, uty, uty_ctx)) =>
+      switch (TypUtil.pop_frame(uty_ctx)) {
+      | None
+      | Some((ParenthesizedF, _))
+      | Some((ListF, _)) => Failed
+      | Some((OpSeqF(EmptyPrefix(_)), _)) => Failed
+      | Some((OpSeqF(EmptySuffix(prefix)), uty_ctx_rest)) =>
+        let (new_child: UHTyp.t, new_ctx: TypUtil.context) =
+          switch (prefix) {
+          | ExpPrefix(uty1, op1) =>
+            let seq = OperatorSeq.ExpOpExp(uty1, op1, uty);
+            (TI(TypUtil.mk_OpSeq(seq)), uty_ctx_rest);
+          | SeqPrefix(ExpOpExp(_, _, uty2) as prefix_seq, op2)
+          | SeqPrefix(SeqOpExp(_, _, uty2) as prefix_seq, op2) =>
+            let seq =
+              TypUtil.opseq_of_prefix_and_uty(ExpPrefix(uty2, op2), uty);
+            let new_frame: TypUtil.frame =
+              switch (prefix_seq) {
+              | ExpOpExp(uty1, op1, _) =>
+                OpSeqF(EmptySuffix(ExpPrefix(uty1, op1)))
+              | SeqOpExp(seq1, op1, _) =>
+                OpSeqF(EmptySuffix(SeqPrefix(seq1, op1)))
               };
-            let zty =
-              TypUtil.fill_context(
-                CursorTI(cursor, Parenthesized(new_child)),
-                new_ctx,
-              );
-            Succeeded(zty);
-          | BothNonEmpty(prefix, suffix) =>
-            let (new_child: UHTyp.t, new_ctx: TypUtil.context) =
-              switch (prefix) {
-              | ExpPrefix(uty1, op1) =>
-                let seq = OperatorSeq.ExpOpExp(uty1, op1, uty);
-                (
-                  TI(TypUtil.mk_OpSeq(seq)),
-                  TypUtil.push_frame(
-                    OpSeqF(EmptyPrefix(suffix)),
-                    uty_ctx_rest,
-                  ),
-                );
-              | SeqPrefix(ExpOpExp(_, _, uty2) as prefix_seq, op2)
-              | SeqPrefix(SeqOpExp(_, _, uty2) as prefix_seq, op2) =>
-                let seq =
-                  TypUtil.opseq_of_prefix_and_uty(ExpPrefix(uty2, op2), uty);
-                let new_frame: TypUtil.frame =
-                  switch (prefix_seq) {
-                  | ExpOpExp(uty1, op1, _) =>
-                    OpSeqF(BothNonEmpty(ExpPrefix(uty1, op1), suffix))
-                  | SeqOpExp(seq1, op1, _) =>
-                    OpSeqF(BothNonEmpty(SeqPrefix(seq1, op1), suffix))
-                  };
-                (
-                  TI(TypUtil.mk_OpSeq(seq)),
-                  TypUtil.push_frame(new_frame, uty_ctx_rest),
-                );
-              };
-            let zty =
-              TypUtil.fill_context(
-                CursorTI(cursor, Parenthesized(new_child)),
-                new_ctx,
-              );
-            Succeeded(zty);
-          }
-        }
-      /* ... -> ( Num -> Bool |) -> ...   ==>   ... -> ( Num |) -> Bool -> ... */
-      | ClosingDelimiter(_) =>
-        switch (uty) {
-        | TO(_)
-        | TI(Parenthesized(_))
-        | TI(List(_)) => Failed
-        | TI(OpSeq(_, seq)) =>
-          let (new_child: UHTyp.t, new_ctx: TypUtil.context) =
-            switch (seq) {
-            | ExpOpExp(uty1, op, uty2) => (
-                uty1,
-                TypUtil.push_frame(
-                  OpSeqF(EmptyPrefix(ExpSuffix(op, uty2))),
-                  uty_ctx,
-                ),
-              )
-            | SeqOpExp(seq, op, uty1) => (
-                TI(TypUtil.mk_OpSeq(seq)),
-                TypUtil.push_frame(
-                  OpSeqF(EmptyPrefix(ExpSuffix(op, uty1))),
-                  uty_ctx,
-                ),
-              )
-            };
-          let zty =
-            TypUtil.fill_context(
-              CursorTI(cursor, Parenthesized(new_child)),
-              new_ctx,
+            (
+              TI(TypUtil.mk_OpSeq(seq)),
+              TypUtil.push_frame(new_frame, uty_ctx_rest),
             );
-          Succeeded(zty);
-        }
+          };
+        let zty =
+          TypUtil.fill_context(
+            CursorTI(cursor, Parenthesized(new_child)),
+            new_ctx,
+          );
+        Succeeded(zty);
+      | Some((OpSeqF(BothNonEmpty(prefix, suffix)), uty_ctx_rest)) =>
+        let (new_child: UHTyp.t, new_ctx: TypUtil.context) =
+          switch (prefix) {
+          | ExpPrefix(uty1, op1) =>
+            let seq = OperatorSeq.ExpOpExp(uty1, op1, uty);
+            (
+              TI(TypUtil.mk_OpSeq(seq)),
+              TypUtil.push_frame(OpSeqF(EmptyPrefix(suffix)), uty_ctx_rest),
+            );
+          | SeqPrefix(ExpOpExp(_, _, uty2) as prefix_seq, op2)
+          | SeqPrefix(SeqOpExp(_, _, uty2) as prefix_seq, op2) =>
+            let seq =
+              TypUtil.opseq_of_prefix_and_uty(ExpPrefix(uty2, op2), uty);
+            let new_frame: TypUtil.frame =
+              switch (prefix_seq) {
+              | ExpOpExp(uty1, op1, _) =>
+                OpSeqF(BothNonEmpty(ExpPrefix(uty1, op1), suffix))
+              | SeqOpExp(seq1, op1, _) =>
+                OpSeqF(BothNonEmpty(SeqPrefix(seq1, op1), suffix))
+              };
+            (
+              TI(TypUtil.mk_OpSeq(seq)),
+              TypUtil.push_frame(new_frame, uty_ctx_rest),
+            );
+          };
+        let zty =
+          TypUtil.fill_context(
+            CursorTI(cursor, Parenthesized(new_child)),
+            new_ctx,
+          );
+        Succeeded(zty);
+      }
+    /* ... -> ( Num -> Bool |) -> ...   ==>   ... -> ( Num |) -> Bool -> ... */
+    | Some((ClosingDelimiter(_) as cursor, uty, uty_ctx)) =>
+      switch (uty) {
+      | TO(_)
+      | TI(Parenthesized(_))
+      | TI(List(_)) => Failed
+      | TI(OpSeq(_, seq)) =>
+        let (new_child, new_frame) = TypUtil.split_end_frame(seq);
+        let new_ctx = TypUtil.push_frame(new_frame, uty_ctx);
+        let zty =
+          TypUtil.fill_context(
+            CursorTI(cursor, Parenthesized(new_child)),
+            new_ctx,
+          );
+        Succeeded(zty);
+      }
+    }
+  | (ShiftParenRight, _) =>
+    switch (TypUtil.split_over_cursor_on_parens(zty)) {
+    | None => Failed
+    /* ... -> |( Num -> Bool) -> ...   ==>   ... -> Num -> |( Bool ) -> ... */
+    | Some((BeforeChild(_, _) as cursor, uty, uty_ctx)) =>
+      switch (uty) {
+      | TO(_)
+      | TI(Parenthesized(_))
+      | TI(List(_)) => Failed
+      | TI(OpSeq(_, seq)) =>
+        let (new_frame, new_child) = TypUtil.split_start_frame(seq);
+        let new_ctx = TypUtil.push_frame(new_frame, uty_ctx);
+        let zty =
+          TypUtil.fill_context(
+            CursorTI(cursor, Parenthesized(new_child)),
+            new_ctx,
+          );
+        Succeeded(zty);
+      }
+    /* ... -> ( Num |) -> Bool -> ...   ==>   ... -> ( Num -> Bool |) -> ... */
+    | Some((ClosingDelimiter(_) as cursor, uty, uty_ctx)) =>
+      switch (TypUtil.pop_frame(uty_ctx)) {
+      | None
+      | Some((ParenthesizedF, _))
+      | Some((ListF, _)) => Failed
+      | Some((OpSeqF(EmptySuffix(_)), _)) => Failed
+      | Some((OpSeqF(EmptyPrefix(suffix)), uty_ctx_rest)) =>
+        let (new_child: UHTyp.t, new_ctx: TypUtil.context) =
+          switch (suffix) {
+          | ExpSuffix(op1, uty1) =>
+            let new_child =
+              UHTyp.TI(
+                TypUtil.mk_OpSeq(OperatorSeq.ExpOpExp(uty, op1, uty1)),
+              );
+            (new_child, uty_ctx_rest);
+          | SeqSuffix(op1, seq1) =>
+            let (uty1, new_frame_suffix) = OperatorSeq.split0(seq1);
+            let new_child =
+              UHTyp.TI(TypUtil.mk_OpSeq(ExpOpExp(uty, op1, uty1)));
+            let new_ctx =
+              TypUtil.push_frame(
+                OpSeqF(EmptyPrefix(new_frame_suffix)),
+                uty_ctx_rest,
+              );
+            (new_child, new_ctx);
+          };
+        let zty =
+          TypUtil.fill_context(
+            CursorTI(cursor, Parenthesized(new_child)),
+            new_ctx,
+          );
+        Succeeded(zty);
+      | Some((OpSeqF(BothNonEmpty(prefix, suffix)), uty_ctx_rest)) =>
+        let (new_child: UHTyp.t, new_ctx: TypUtil.context) =
+          switch (suffix) {
+          | ExpSuffix(op1, uty1) =>
+            let new_child =
+              UHTyp.TI(TypUtil.mk_OpSeq(ExpOpExp(uty, op1, uty1)));
+            let new_ctx =
+              TypUtil.push_frame(OpSeqF(EmptySuffix(prefix)), uty_ctx_rest);
+            (new_child, new_ctx);
+          | SeqSuffix(op1, seq1) =>
+            let (uty1, new_frame_suffix) = OperatorSeq.split0(seq1);
+            let new_child =
+              UHTyp.TI(TypUtil.mk_OpSeq(ExpOpExp(uty, op1, uty1)));
+            let new_ctx =
+              TypUtil.push_frame(
+                OpSeqF(BothNonEmpty(prefix, new_frame_suffix)),
+                uty_ctx_rest,
+              );
+            (new_child, new_ctx);
+          };
+        let zty =
+          TypUtil.fill_context(
+            CursorTI(cursor, Parenthesized(new_child)),
+            new_ctx,
+          );
+        Succeeded(zty);
       }
     }
   /* Backspace and Delete */
@@ -1261,7 +1318,8 @@ let rec syn_perform_pat =
     | Some(path) => syn_perform_pat(ctx, u_gen, MoveTo(path), zp)
     }
   /* TODO */
-  | (ShiftParenLeft, _) => Failed
+  | (ShiftParenLeft | ShiftParenRight, CursorPO(_, _) | CursorPI(_, _)) =>
+    Failed
   /* Backspace and Delete */
   | (Backspace, _) when ZPat.is_before(zp) => CursorEscaped(Before)
   | (Delete, _) when ZPat.is_after(zp) => CursorEscaped(After)
@@ -1867,7 +1925,8 @@ and ana_perform_pat =
     | Some(path) => ana_perform_pat(ctx, u_gen, MoveTo(path), zp, ty)
     }
   /* TODO */
-  | (ShiftParenLeft, _) => Failed
+  | (ShiftParenLeft | ShiftParenRight, CursorPO(_, _) | CursorPI(_, _)) =>
+    Failed
   /* Backspace and Delete */
   | (Backspace, _) when ZPat.is_before(zp) => CursorEscaped(Before)
   | (Delete, _) when ZPat.is_after(zp) => CursorEscaped(After)
@@ -3108,7 +3167,8 @@ and syn_perform_line =
     /* handled at block or lines level */
     Failed
   /* TODO */
-  | (ShiftParenLeft, CursorLO(_, _) | CursorLI(_, _)) => Failed
+  | (ShiftParenLeft | ShiftParenRight, CursorLO(_, _) | CursorLI(_, _)) =>
+    Failed
   /* Backspace & Delete */
   | (Backspace, _) when ZExp.is_before_line(zline) => CursorEscaped(Before)
   | (Delete, _) when ZExp.is_after_line(zline) => CursorEscaped(After)
@@ -3401,7 +3461,8 @@ and syn_perform_exp =
     | Some(path) => syn_perform_exp(ctx, MoveTo(path), (ze, ty, u_gen))
     };
   /* TODO */
-  | (ShiftParenLeft, CursorEO(_, _) | CursorEI(_, _)) => Failed
+  | (ShiftParenLeft | ShiftParenRight, CursorEO(_, _) | CursorEI(_, _)) =>
+    Failed
   /* Backspace & Deletion */
   | (Backspace, _) when ZExp.is_before_exp(ze) => CursorEscaped(Before)
   | (Delete, _) when ZExp.is_after_exp(ze) => CursorEscaped(After)
@@ -4710,7 +4771,8 @@ and ana_perform_exp =
     | Some(path) => ana_perform_exp(ctx, MoveTo(path), (ze, u_gen), ty)
     }
   /* TODO */
-  | (ShiftParenLeft, CursorEO(_, _) | CursorEI(_, _)) => Failed
+  | (ShiftParenLeft | ShiftParenRight, CursorEO(_, _) | CursorEI(_, _)) =>
+    Failed
   /* Backspace & Delete */
   | (Backspace, _) when ZExp.is_before_exp(ze) => CursorEscaped(Before)
   | (Delete, _) when ZExp.is_after_exp(ze) => CursorEscaped(After)
@@ -5679,6 +5741,7 @@ let can_perform =
   | MoveToNextHole
   | MoveToPrevHole
   | ShiftParenLeft
+  | ShiftParenRight
   | UpdateApPalette(_)
   | Delete
   | Backspace =>
