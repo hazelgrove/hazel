@@ -67,9 +67,12 @@ let rec pop_frame = (ctx: context): option((frame, context)) =>
   };
 
 let rec push_frame = (frame: frame, ctx: context): context =>
-  switch (ctx) {
-  | Slot => Frame(frame, Slot)
-  | Frame(frame1, ctx1) => Frame(frame1, push_frame(frame, ctx1))
+  switch (frame, ctx) {
+  | (_, Slot) => Frame(frame, Slot)
+  | (OpSeqF(inner_surround), Frame(OpSeqF(outer_surround), Slot)) =>
+    let surround = OperatorSeq.nest_surrounds(inner_surround, outer_surround);
+    Frame(OpSeqF(surround), Slot);
+  | (_, Frame(frame1, ctx1)) => Frame(frame1, push_frame(frame, ctx1))
   };
 
 let rec split_over_cursor_on_parens =
