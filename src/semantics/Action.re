@@ -219,7 +219,7 @@ let rec perform_ty = (a: t, zty: ZTyp.t): result(ZTyp.t) =>
     | None => Failed
     | Some((cursor, uty, uty_ctx)) =>
       switch (cursor) {
-      /* shift left paren */
+      /* ... -> Num -> |( Bool ) -> ...   ==>   ... -> |( Num -> Bool ) -> ... */
       | BeforeChild(_, _) =>
         switch (TypUtil.pop_frame(uty_ctx)) {
         | None
@@ -286,7 +286,7 @@ let rec perform_ty = (a: t, zty: ZTyp.t): result(ZTyp.t) =>
             Succeeded(zty);
           }
         }
-      /* shift right paren */
+      /* ... -> ( Num |) -> Bool -> ...   ==>   ... -> ( Num -> Bool |) -> ... */
       | ClosingDelimiter(_) =>
         switch (uty) {
         | TO(_)
