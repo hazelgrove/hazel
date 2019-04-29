@@ -20,11 +20,13 @@ let opseq_of_prefix_and_uty =
   | _ => OperatorSeq.opseq_of_prefix_and_exp(prefix, uty)
   };
 
+[@deriving sexp]
 type frame =
   | ParenthesizedF
   | ListF
   | OpSeqF(ZTyp.opseq_surround);
 
+[@deriving sexp]
 type context =
   | Slot
   | Frame(frame, context);
