@@ -150,29 +150,3 @@ let rec cursor_on_opseq = (zty: t): bool =>
   | ListZ(zty) => cursor_on_opseq(zty)
   | OpSeqZ(_, zty, _) => cursor_on_opseq(zty)
   };
-
-type context = UHTyp.t;
-
-/* TODO */
-let fill_context = (_zty: t, _ctx: context): t => CursorTO(Char(0), Hole);
-
-type frame =
-  | ParenthesizedF
-  | ListF
-  | OpSeqF(opseq_surround);
-
-/* TODO */
-let pop_frame = (_ctx: context): option((frame, context)) =>
-  Some((ParenthesizedF, TO(Hole)));
-
-/* TODO */
-let push_frame = (_frame: frame, _ctx: context): context => TO(Hole);
-
-/* TODO */
-let opseq_of_prefix_and_uty =
-    (_prefix: opseq_prefix, _uty: UHTyp.t): UHTyp.opseq =>
-  ExpOpExp(TO(Hole), Arrow, TO(Hole));
-
-let split_over_cursor_on_parens =
-    (_zty: t): option((inner_cursor, UHTyp.t, context)) =>
-  None;

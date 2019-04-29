@@ -364,3 +364,70 @@ let opseq_of_exp_and_surround = e =>
   | EmptySuffix(prefix) => opseq_of_prefix_and_exp(prefix, e)
   | BothNonEmpty(prefix, suffix) =>
     opseq_of_prefix_and_seq(prefix, opseq_of_exp_and_suffix(e, suffix));
+
+let opseq_of_seq_and_surround =
+    (seq: opseq('tm, 'op), surround: opseq_surround('tm, 'op))
+    : opseq('tm, 'op) =>
+  switch (surround) {
+  | EmptyPrefix(suffix) => opseq_of_seq_and_suffix(seq, suffix)
+  | EmptySuffix(prefix) => opseq_of_prefix_and_seq(prefix, seq)
+  | BothNonEmpty(prefix, suffix) =>
+    opseq_of_prefix_and_seq(prefix, opseq_of_seq_and_suffix(seq, suffix))
+  };
+
+let concat_prefixes =
+    (
+      outer_prefix: opseq_prefix('tm, 'op),
+      inner_prefix: opseq_prefix('tm, 'op),
+    )
+    : opseq_prefix('tm, 'op) =>
+  switch (inner_prefix) {
+  | ExpPrefix(tm, op) =>
+    SeqPrefix(opseq_of_prefix_and_exp(outer_prefix, tm), op)
+  | SeqPrefix(seq, op) =>
+    SeqPrefix(opseq_of_prefix_and_seq(outer_prefix, seq), op)
+  };
+
+let concat_suffixes =
+    (
+      inner_suffix: opseq_suffix('tm, 'op),
+      outer_suffix: opseq_suffix('tm, 'op),
+    )
+    : opseq_suffix('tm, 'op) =>
+  switch (inner_suffix) {
+  | ExpSuffix(op, tm) =>
+    SeqSuffix(op, opseq_of_exp_and_suffix(tm, outer_suffix))
+  | SeqSuffix(op, seq) =>
+    SeqSuffix(op, opseq_of_seq_and_suffix(seq, outer_suffix))
+  };
+
+/* TODO */
+let nest_surrounds =
+    (
+      inner_surround: opseq_surround('tm, 'op),
+      outer_surround: opseq_surround('tm, 'op),
+    )
+    : opseq_surround('tm, 'op) =>
+  switch (inner_surround, outer_surround) {
+  | (EmptyPrefix(isuffix), EmptyPrefix(osuffix)) =>
+    EmptyPrefix(concat_suffixes(isuffix, osuffix))
+  | (EmptyPrefix(isuffix), EmptySuffix(oprefix)) =>
+    BothNonEmpty(oprefix, isuffix)
+  | (EmptyPrefix(isuffix), BothNonEmpty(oprefix, osuffix)) =>
+    BothNonEmpty(oprefix, concat_suffixes(isuffix, osuffix))
+  | (EmptySuffix(iprefix), EmptyPrefix(osuffix)) =>
+    BothNonEmpty(iprefix, osuffix)
+  | (EmptySuffix(iprefix), EmptySuffix(oprefix)) =>
+    EmptySuffix(concat_prefixes(oprefix, iprefix))
+  | (EmptySuffix(iprefix), BothNonEmpty(oprefix, osuffix)) =>
+    BothNonEmpty(concat_prefixes(oprefix, iprefix), osuffix)
+  | (BothNonEmpty(iprefix, isuffix), EmptyPrefix(osuffix)) =>
+    BothNonEmpty(iprefix, concat_suffixes(isuffix, osuffix))
+  | (BothNonEmpty(iprefix, isuffix), EmptySuffix(oprefix)) =>
+    BothNonEmpty(concat_prefixes(oprefix, iprefix), isuffix)
+  | (BothNonEmpty(iprefix, isuffix), BothNonEmpty(oprefix, osuffix)) =>
+    BothNonEmpty(
+      concat_prefixes(oprefix, iprefix),
+      concat_suffixes(isuffix, osuffix),
+    )
+  };
