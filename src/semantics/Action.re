@@ -292,7 +292,7 @@ let rec perform_ty = (a: t, zty: ZTyp.t): result(ZTyp.t) =>
             Succeeded(zty);
           }
         }
-      /* ... -> ( Num |) -> Bool -> ...   ==>   ... -> ( Num -> Bool |) -> ... */
+      /* ... -> ( Num -> Bool |) -> ...   ==>   ... -> ( Num |) -> Bool -> ... */
       | ClosingDelimiter(_) =>
         switch (uty) {
         | TO(_)
