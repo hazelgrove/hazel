@@ -261,7 +261,13 @@ let rec perform_ty = (a: t, zty: ZTyp.t): result(ZTyp.t) =>
               switch (prefix) {
               | ExpPrefix(uty1, op1) =>
                 let seq = OperatorSeq.ExpOpExp(uty1, op1, uty);
-                (TI(TypUtil.mk_OpSeq(seq)), uty_ctx_rest);
+                (
+                  TI(TypUtil.mk_OpSeq(seq)),
+                  TypUtil.push_frame(
+                    OpSeqF(EmptyPrefix(suffix)),
+                    uty_ctx_rest,
+                  ),
+                );
               | SeqPrefix(ExpOpExp(_, _, uty2) as prefix_seq, op2)
               | SeqPrefix(SeqOpExp(_, _, uty2) as prefix_seq, op2) =>
                 let seq =
