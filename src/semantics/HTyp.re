@@ -7,7 +7,7 @@ type idx = int; /* we use de Bruijn indices */
 [@deriving sexp]
 type t =
   | TVar(idx, Var.t) /* bound type variables */
-  | TVarHole(Var.t) /* free type variables */
+  | TVarHole(MetaVar.t, Var.t) /* free type variables */
   | Hole
   | Unit
   | Num
@@ -28,7 +28,7 @@ let rec shift_free_vars' = (ty, shift_by, binders_seen) =>
     } else {
       ty;
     }
-  | TVarHole(_)
+  | TVarHole(_, _)
   | Hole
   | Unit
   | Num
@@ -65,7 +65,7 @@ let rec subst' = (ty, binders_seen, ty') =>
     } else {
       ty';
     }
-  | TVarHole(_)
+  | TVarHole(_, _)
   | Hole
   | Unit
   | Num
@@ -90,8 +90,8 @@ let rec equiv = (ty1, ty2) =>
   switch (ty1, ty2) {
   | (TVar(i, _), TVar(j, _)) => i == j
   | (TVar(_, _), _) => false
-  | (TVarHole(t1), TVarHole(t2)) => Var.eq(t1, t2)
-  | (TVarHole(_), _) => false
+  | (TVarHole(u1, _), TVarHole(u2, _)) => MetaVar.eq(u1, u2)
+  | (TVarHole(_, _), _) => false
   | (Hole, Hole) => true
   | (Hole, _) => false
   | (Unit, Unit) => true
@@ -111,10 +111,12 @@ let rec equiv = (ty1, ty2) =>
   | (Sum(_, _), _) => false
   | (List(ty), List(ty')) => equiv(ty, ty')
   | (List(_), _) => false
+
   | (ForallBinderHole(_, ty1), ForallBinderHole(_, ty2))
   | (Forall(_, ty1), ForallBinderHole(_, ty2))
   | (ForallBinderHole(_, ty1), Forall(_, ty2))
   | (Forall(_, ty1), Forall(_, ty2)) => equiv(ty1, ty2)
+
   | (ForallBinderHole(_, _), _)
   | (Forall(_, _), _) => false
   };
@@ -124,6 +126,10 @@ let rec consistent = (x, y) =>
   switch (x, y) {
   | (Hole, _)
   | (_, Hole) => true
+  | (TVarHole(_, _), _) => true
+  | (_, TVarHole(_, _)) => true
+  | (TVar(i, _), TVar(j, _)) => i == j
+  | (TVar(_, _), _) => false
   | (Unit, Unit) => true
   | (Unit, _) => false
   | (Num, Num) => true
@@ -139,6 +145,13 @@ let rec consistent = (x, y) =>
   | (Sum(_, _), _) => false
   | (List(ty), List(ty')) => consistent(ty, ty')
   | (List(_), _) => false
+  | (ForallBinderHole(_, ty1), ForallBinderHole(_, ty2)) =>
+    consistent(ty1, ty2)
+  | (ForallBinderHole(_, ty1), Forall(_, ty2)) => consistent(ty1, ty2)
+  | (Forall(_, ty1), ForallBinderHole(_, ty2)) => consistent(ty1, ty2)
+  | (ForallBinderHole(_, _), _) => false
+  | (Forall(_, ty1), Forall(_, ty2)) => consistent(ty1, ty2)
+  | (Forall(_, _), _) => false
   };
 
 let inconsistent = (ty1, ty2) => !consistent(ty1, ty2);
@@ -261,38 +274,40 @@ let rec complete =
     }
   | List(ty) => complete(ty);
 
-let rec join = (ty1, ty2) =>
-  switch (ty1, ty2) {
-  | (_, Hole) => Some(ty1)
-  | (Hole, _) => Some(ty2)
-  | (Unit, Unit) => Some(ty1)
-  | (Unit, _) => None
-  | (Num, Num) => Some(ty1)
-  | (Num, _) => None
-  | (Bool, Bool) => Some(ty1)
-  | (Bool, _) => None
-  | (Arrow(ty1, ty2), Arrow(ty1', ty2')) =>
-    switch (join(ty1, ty1'), join(ty2, ty2')) {
-    | (Some(ty1), Some(ty2)) => Some(Arrow(ty1, ty2))
-    | _ => None
-    }
-  | (Arrow(_, _), _) => None
-  | (Prod(ty1, ty2), Prod(ty1', ty2')) =>
-    switch (join(ty1, ty1'), join(ty2, ty2')) {
-    | (Some(ty1), Some(ty2)) => Some(Prod(ty1, ty2))
-    | _ => None
-    }
-  | (Prod(_, _), _) => None
-  | (Sum(ty1, ty2), Sum(ty1', ty2')) =>
-    switch (join(ty1, ty1'), join(ty2, ty2')) {
-    | (Some(ty1), Some(ty2)) => Some(Sum(ty1, ty2))
-    | _ => None
-    }
-  | (Sum(_, _), _) => None
-  | (List(ty), List(ty')) =>
-    switch (join(ty, ty')) {
-    | Some(ty) => Some(List(ty))
-    | None => None
-    }
-  | (List(_), _) => None
-  };
+/* Unused, so commenting */
+/*
+ let rec join = (ty1, ty2) =>
+   switch (ty1, ty2) {
+   | (_, Hole) => Some(ty1)
+   | (Hole, _) => Some(ty2)
+   | (Unit, Unit) => Some(ty1)
+   | (Unit, _) => None
+   | (Num, Num) => Some(ty1)
+   | (Num, _) => None
+   | (Bool, Bool) => Some(ty1)
+   | (Bool, _) => None
+   | (Arrow(ty1, ty2), Arrow(ty1', ty2')) =>
+     switch (join(ty1, ty1'), join(ty2, ty2')) {
+     | (Some(ty1), Some(ty2)) => Some(Arrow(ty1, ty2))
+     | _ => None
+     }
+   | (Arrow(_, _), _) => None
+   | (Prod(ty1, ty2), Prod(ty1', ty2')) =>
+     switch (join(ty1, ty1'), join(ty2, ty2')) {
+     | (Some(ty1), Some(ty2)) => Some(Prod(ty1, ty2))
+     | _ => None
+     }
+   | (Prod(_, _), _) => None
+   | (Sum(ty1, ty2), Sum(ty1', ty2')) =>
+     switch (join(ty1, ty1'), join(ty2, ty2')) {
+     | (Some(ty1), Some(ty2)) => Some(Sum(ty1, ty2))
+     | _ => None
+     }
+   | (Sum(_, _), _) => None
+   | (List(ty), List(ty')) =>
+     switch (join(ty, ty')) {
+     | Some(ty) => Some(List(ty))
+     | None => None
+     }
+   | (List(_), _) => None
+   }; */
