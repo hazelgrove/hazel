@@ -17,7 +17,7 @@ type t =
   | Sum(t, t)
   | List(t)
   | Forall(Var.t, t)
-  | ForallBinderHole(MetaVar.t, t); /* forall _, ty */
+  | ForallHole(MetaVar.t, t); /* forall _, ty */
 
 /* # Substitution */
 let rec shift_free_vars' = (ty, shift_by, binders_seen) =>
@@ -51,8 +51,8 @@ let rec shift_free_vars' = (ty, shift_by, binders_seen) =>
   | List(ty1) => List(shift_free_vars'(ty1, shift_by, binders_seen))
   | Forall(a, ty1) =>
     Forall(a, shift_free_vars'(ty1, shift_by, binders_seen + 1))
-  | ForallBinderHole(u, ty1) =>
-    ForallBinderHole(u, shift_free_vars'(ty1, shift_by, binders_seen + 1))
+  | ForallHole(u, ty1) =>
+    ForallHole(u, shift_free_vars'(ty1, shift_by, binders_seen + 1))
   };
 
 let shift_free_vars = (ty, shift_by) => shift_free_vars'(ty, shift_by, 0);
@@ -78,8 +78,7 @@ let rec subst' = (ty, binders_seen, ty') =>
     Sum(subst'(ty, binders_seen, ty1), subst'(ty, binders_seen, ty2))
   | List(ty1) => List(subst'(ty, binders_seen, ty1))
   | Forall(a, ty1) => Forall(a, subst'(ty, binders_seen + 1, ty1))
-  | ForallBinderHole(u, ty1) =>
-    ForallBinderHole(u, subst'(ty, binders_seen + 1, ty1))
+  | ForallHole(u, ty1) => ForallHole(u, subst'(ty, binders_seen + 1, ty1))
   };
 
 /* capture-avoiding substitution of ty' for variable 0 in ty */
@@ -124,12 +123,12 @@ let rec equiv = (ty1, ty2) =>
   | (List(ty), List(ty')) => equiv(ty, ty')
   | (List(_), _) => false
 
-  | (ForallBinderHole(_, ty1), ForallBinderHole(_, ty2))
-  | (Forall(_, ty1), ForallBinderHole(_, ty2))
-  | (ForallBinderHole(_, ty1), Forall(_, ty2))
+  | (ForallHole(_, ty1), ForallHole(_, ty2))
+  | (Forall(_, ty1), ForallHole(_, ty2))
+  | (ForallHole(_, ty1), Forall(_, ty2))
   | (Forall(_, ty1), Forall(_, ty2)) => equiv(ty1, ty2)
 
-  | (ForallBinderHole(_, _), _)
+  | (ForallHole(_, _), _)
   | (Forall(_, _), _) => false
   };
 
@@ -157,11 +156,10 @@ let rec consistent = (x, y) =>
   | (Sum(_, _), _) => false
   | (List(ty), List(ty')) => consistent(ty, ty')
   | (List(_), _) => false
-  | (ForallBinderHole(_, ty1), ForallBinderHole(_, ty2)) =>
-    consistent(ty1, ty2)
-  | (ForallBinderHole(_, ty1), Forall(_, ty2)) => consistent(ty1, ty2)
-  | (Forall(_, ty1), ForallBinderHole(_, ty2)) => consistent(ty1, ty2)
-  | (ForallBinderHole(_, _), _) => false
+  | (ForallHole(_, ty1), ForallHole(_, ty2)) => consistent(ty1, ty2)
+  | (ForallHole(_, ty1), Forall(_, ty2)) => consistent(ty1, ty2)
+  | (Forall(_, ty1), ForallHole(_, ty2)) => consistent(ty1, ty2)
+  | (ForallHole(_, _), _) => false
   | (Forall(_, ty1), Forall(_, ty2)) => consistent(ty1, ty2)
   | (Forall(_, _), _) => false
   };
@@ -262,29 +260,18 @@ let has_matched_list =
 /* complete (i.e. does not have any holes) */
 let rec complete =
   fun
+  | TVar(_, _) => true
+  | TVarHole(_, _) => false
   | Hole => false
   | Unit => true
   | Num => true
   | Bool => true
-  | Arrow(ty1, ty2) =>
-    if (complete(ty1)) {
-      complete(ty2);
-    } else {
-      false;
-    }
-  | Prod(ty1, ty2) =>
-    if (complete(ty1)) {
-      complete(ty2);
-    } else {
-      false;
-    }
-  | Sum(ty1, ty2) =>
-    if (complete(ty1)) {
-      complete(ty2);
-    } else {
-      false;
-    }
-  | List(ty) => complete(ty);
+  | Arrow(ty1, ty2) => complete(ty1) && complete(ty2)
+  | Prod(ty1, ty2) => complete(ty1) && complete(ty2)
+  | Sum(ty1, ty2) => complete(ty1) && complete(ty2)
+  | List(ty) => complete(ty)
+  | Forall(_, ty) => complete(ty)
+  | ForallHole(_, _) => false;
 
 /* Unused, so commenting */
 /*

@@ -161,6 +161,10 @@ let rec follow_ty_and_place_cursor =
   | [] => place_cursor(uty)
   | [x, ...xs] =>
     switch (uty) {
+    | TVar(_)
+    | TVarHole(_)
+    | Forall(_)
+    | ForallHole(_)
     | Hole
     | Unit
     | Num
@@ -1686,6 +1690,8 @@ let path_to_hole = (hole_list: hole_list, u: MetaVar.t): option(t) =>
     List.find_opt(
       ((hole_desc, _)) =>
         switch (hole_desc) {
+        | TypeVarHole(u')
+        | TypeForallHole(u')
         | ExpHole(u')
         | PatHole(u')
         | VHole(u') => MetaVar.eq(u, u')

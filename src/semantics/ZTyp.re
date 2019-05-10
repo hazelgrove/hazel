@@ -16,6 +16,10 @@ type t =
 
 let valid_cursors = (uty: UHTyp.t): list(cursor_position) =>
   switch (uty) {
+  | TVar(_)
+  | TVarHole(_)
+  | Forall(_, _)
+  | ForallHole(_, _)
   | Hole
   | Unit
   | Num
