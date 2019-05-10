@@ -107,6 +107,10 @@ let rec follow_ty = (path: t, uty: UHTyp.t): option(ZTyp.t) =>
   | ([], cursor_side) => Some(CursorT(cursor_side, uty))
   | ([x, ...xs], cursor_side) =>
     switch (uty) {
+    | TVar(_)
+    | TVarHole(_)
+    | Forall(_)
+    | ForallHole(_)
     | Hole
     | Unit
     | Num
@@ -388,12 +392,16 @@ let follow_e_or_fail = (path: t, e: UHExp.t): ZExp.t =>
 
 type hole_desc =
   | TypeHole
+  | TypeVarHole(MetaVar.t)
+  | TypeForallHole(MetaVar.t)
   | ExpHole(MetaVar.t)
   | PatHole(MetaVar.t);
 
 let string_of_hole_desc =
   fun
   | TypeHole => "TypeHole"
+  | TypeVarHole(u) => "TypeVarHole(" ++ string_of_int(u) ++ ")"
+  | TypeForallHole(u) => "TypeForallHole(" ++ string_of_int(u) ++ ")"
   | ExpHole(u) => "ExpHole(" ++ string_of_int(u) ++ ")"
   | PatHole(u) => "PatHole(" ++ string_of_int(u) ++ ")";
 
@@ -430,6 +438,12 @@ let rec holes_seq =
 
 let rec holes_uty = (uty: UHTyp.t, steps: steps, holes: hole_list): hole_list =>
   switch (uty) {
+  | TVar(_) => holes
+  | TVarHole(u, _) => [(TypeVarHole(u), steps), ...holes]
+  | Forall(_, uty1) => holes_uty(uty1, [0, ...steps], holes)
+  | ForallHole(u, uty1) =>
+    let holes = holes_uty(uty1, [0, ...steps], holes);
+    [(TypeForallHole(u), steps), ...holes];
   | Parenthesized(uty1) => holes_uty(uty1, [0, ...steps], holes)
   | Hole => [(TypeHole, steps), ...holes]
   | Unit => holes
@@ -621,6 +635,7 @@ let holes_OpSeqZ =
 
 let rec holes_zty = (zty: ZTyp.t, steps: steps): zhole_list =>
   switch (zty) {
+  /*! only counts empty holes! refactor */
   | CursorT(cursor_side, uty) =>
     switch (cursor_side, uty) {
     | (_, Hole) => {
@@ -628,6 +643,24 @@ let rec holes_zty = (zty: ZTyp.t, steps: steps): zhole_list =>
         hole_selected: Some((TypeHole, steps)),
         holes_after: [],
       }
+    | (_, TVarHole(u, _)) => {
+        holes_before: [],
+        hole_selected: Some((TypeVarHole(u), steps)),
+        holes_after: [],
+      }
+    /*! is this right? I'm not sure if we should fill in
+     *  holes_selected AND holes_after... */
+    | (Before, ForallHole(u, _)) => {
+        holes_before: [],
+        hole_selected: Some((TypeVarHole(u), steps)),
+        holes_after: holes_uty(uty, steps, []),
+      }
+    | (After, ForallHole(u, _)) => {
+        holes_before: holes_uty(uty, steps, []),
+        hole_selected: Some((TypeVarHole(u), steps)),
+        holes_after: [],
+      }
+
     | (Before, _) => {
         holes_before: [],
         hole_selected: None,
@@ -638,8 +671,13 @@ let rec holes_zty = (zty: ZTyp.t, steps: steps): zhole_list =>
         hole_selected: None,
         holes_after: [],
       }
+    /*! what does this mean? */
     | (In(_), _) =>
       switch (uty) {
+      | TVar(_)
+      | TVarHole(_)
+      | Forall(_)
+      | ForallHole(_)
       | Parenthesized(_)
       | Hole
       | Unit
@@ -1006,6 +1044,8 @@ let steps_to_hole = (hole_list: hole_list, u: MetaVar.t): option(steps) =>
     List.find_opt(
       ((hole_desc, _)) =>
         switch (hole_desc) {
+        | TypeVarHole(u')
+        | TypeForallHole(u')
         | ExpHole(u')
         | PatHole(u') => MetaVar.eq(u, u')
         | TypeHole => false
@@ -1023,6 +1063,8 @@ let steps_to_hole_z = (zhole_list: zhole_list, u: MetaVar.t): option(steps) => {
   | Some(_) as steps => steps
   | None =>
     switch (hole_selected) {
+    | Some((TypeVarHole(u'), steps))
+    | Some((TypeForallHole(u'), steps))
     | Some((ExpHole(u'), steps))
     | Some((PatHole(u'), steps)) =>
       MetaVar.eq(u, u') ? Some(steps) : steps_to_hole(holes_after, u)

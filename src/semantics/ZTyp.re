@@ -12,6 +12,10 @@ type t =
 
 let place_before = (uty: UHTyp.t): t =>
   switch (uty) {
+  | TVar(_)
+  | TVarHole(_)
+  | Forall(_, _)
+  | ForallHole(_, _)
   | Hole
   | Parenthesized(_)
   | Unit
@@ -26,6 +30,10 @@ let place_before = (uty: UHTyp.t): t =>
 
 let place_after = (uty: UHTyp.t): t =>
   switch (uty) {
+  | TVar(_)
+  | TVarHole(_)
+  | Forall(_, _)
+  | ForallHole(_, _)
   | Hole
   | Parenthesized(_)
   | Unit

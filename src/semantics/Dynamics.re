@@ -445,7 +445,7 @@ module DHExp = {
     };
 
   let cast = (d: t, t1: HTyp.t, t2: HTyp.t): t =>
-    if (HTyp.eq(t1, t2)) {
+    if (HTyp.equiv(t1, t2)) {
       d;
     } else {
       Cast(d, t1, t2);
@@ -1811,9 +1811,14 @@ module Evaluator = {
   let grounded_Sum = NotGroundOrHole(Sum(Hole, Hole));
   let grounded_Prod = NotGroundOrHole(Prod(Hole, Hole));
   let grounded_List = NotGroundOrHole(List(Hole));
+  let grounded_Forall = t => NotGroundOrHole(Forall(t, Hole));
+  let grounded_ForallHole = u => NotGroundOrHole(ForallHole(u, Hole));
 
+  /* ground_cases_of is useful to insert casts to more general types,
+     by finding a matching ground type. */
   let ground_cases_of = (ty: HTyp.t): ground_cases =>
     switch (ty) {
+    | TVarHole(_, _)
     | Hole => Hole
     | Bool
     | Num
@@ -1821,11 +1826,17 @@ module Evaluator = {
     | Arrow(Hole, Hole)
     | Sum(Hole, Hole)
     | Prod(Hole, Hole)
-    | List(Hole) => Ground
+    | List(Hole)
+    | Forall(_, Hole)
+    | ForallHole(_, Hole)
+    /*! is this right? */
+    | TVar(_) => Ground
     | Arrow(_, _) => grounded_Arrow
     | Sum(_, _) => grounded_Sum
     | Prod(_, _) => grounded_Prod
     | List(_) => grounded_List
+    | Forall(t, _) => grounded_Forall(t)
+    | ForallHole(u, _) => grounded_ForallHole(u)
     };
 
   let eval_bin_num_op = (op: DHExp.bin_num_op, n1: int, n2: int): DHExp.t =>
@@ -1956,7 +1967,7 @@ module Evaluator = {
           /* by canonical forms, d1' must be of the form d<ty'' -> ?> */
           switch (d1') {
           | Cast(d1'', ty'', Hole) =>
-            if (HTyp.eq(ty'', ty')) {
+            if (HTyp.equiv(ty'', ty')) {
               BoxedValue(d1'');
             } else {
               Indet(FailedCast(d1', ty, ty'));
@@ -1980,7 +1991,7 @@ module Evaluator = {
           BoxedValue(Cast(d1', ty, ty'))
         | (NotGroundOrHole(_), NotGroundOrHole(_)) =>
           /* they might be eq in this case, so remove cast if so */
-          if (HTyp.eq(ty, ty')) {
+          if (HTyp.equiv(ty, ty')) {
             result;
           } else {
             BoxedValue(Cast(d1', ty, ty'));
@@ -1998,7 +2009,7 @@ module Evaluator = {
         | (Hole, Ground) =>
           switch (d1') {
           | Cast(d1'', ty'', Hole) =>
-            if (HTyp.eq(ty'', ty')) {
+            if (HTyp.equiv(ty'', ty')) {
               Indet(d1'');
             } else {
               Indet(FailedCast(d1', ty, ty'));
@@ -2020,7 +2031,7 @@ module Evaluator = {
           Indet(Cast(d1', ty, ty'))
         | (NotGroundOrHole(_), NotGroundOrHole(_)) =>
           /* it might be eq in this case, so remove cast if so */
-          if (HTyp.eq(ty, ty')) {
+          if (HTyp.equiv(ty, ty')) {
             result;
           } else {
             Indet(Cast(d1', ty, ty'));

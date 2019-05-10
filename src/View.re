@@ -162,6 +162,11 @@ let precedence_ty = ty =>
   | HTyp.Bool
   | HTyp.Hole
   | HTyp.Unit
+  /*! almost certainly wrong */
+  | HTyp.TVar(_, _)
+  | HTyp.TVarHole(_, _)
+  | HTyp.Forall(_, _)
+  | HTyp.ForallHole(_, _)
   | HTyp.List(_) => precedence_const
   | HTyp.Prod(_, _) => precedence_Prod
   | HTyp.Sum(_, _) => precedence_Sum
@@ -224,6 +229,8 @@ let rec of_htype = (parenthesize, prefix, rev_path, ty) => {
       let r2 = of_htype(paren2, prefix, rev_path2, ty2);
       of_ty_BinOp(prefix, NotInHole, rev_path, r1, UHTyp.Prod, r2);
     | HTyp.Hole => of_Hole(prefix, rev_path, "Hole", "?")
+    /*! obviously wrong */
+    | _ => kw("UNVIEWED")
     };
   parenthesize ? lparen("(") ^^ d ^^ rparen(")") : d;
 };
@@ -249,6 +256,8 @@ let rec of_uhtyp = (prefix, rev_path, uty) =>
       of_uhtyp_skel(prefix, rev_path, skel, seq),
     )
   | UHTyp.Hole => of_Hole(prefix, rev_path, "Hole", "?")
+  /*! obviously wrong */
+  | _ => kw("UNVIEWED")
   }
 and of_uhtyp_skel = (prefix, rev_path, skel, seq) =>
   switch (skel) {
@@ -1311,7 +1320,7 @@ let rec of_dhexp' =
             ? r1 ^^ of_sigma(instance_click_fn, prefix, rev_path, sigma) : r1;
         term(prefix, err_status, rev_path, "NonEmptyHole", r);
       | Cast(Cast(d1, ty1, ty2), ty3, ty4)
-          when _SHOW_CASTS && HTyp.eq(ty2, ty3) =>
+          when _SHOW_CASTS && HTyp.equiv(ty2, ty3) =>
         let rev_path1 = [0, ...rev_path];
         let inner_rev_path1 = [0, ...rev_path1];
         let inner_rev_path2 = [1, ...rev_path1];
@@ -1362,7 +1371,7 @@ let rec of_dhexp' =
             d1,
           );
         }
-      | FailedCast(Cast(d1, ty1, ty2), ty3, ty4) when HTyp.eq(ty2, ty3) =>
+      | FailedCast(Cast(d1, ty1, ty2), ty3, ty4) when HTyp.equiv(ty2, ty3) =>
         let rev_path1 = [0, ...rev_path];
         let inner_rev_path1 = [0, ...rev_path1];
         let inner_rev_path2 = [1, ...rev_path1];
