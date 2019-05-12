@@ -1,11 +1,11 @@
 open Tyxml_js;
 
-let make = (repository_rs: Model.repository_rs): Html.elt([> Html_types.div]) => {
-  let make_boxes = (repository: Repository.t) => {
+let make = (redo_stack_rs: Model.redo_stack_rs): Html.elt([> Html_types.div]) => {
+  let make_boxes = (redo_stack: Model.redo_stack) => {
     let actions_to_take = 500;
 
     let non_move_actions =
-      switch (repository.redo_stack) {
+      switch (redo_stack) {
       | [branch, ..._] =>
         List.filter(
           action => !Action.is_move(action),
@@ -19,7 +19,7 @@ let make = (repository_rs: Model.repository_rs): Html.elt([> Html_types.div]) =>
       non_move_actions,
     );
   };
-  let action_list_rs = React.S.map(make_boxes, repository_rs);
+  let action_list_rs = React.S.map(make_boxes, redo_stack_rs);
 
   Html.(
     div(

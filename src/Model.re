@@ -2,10 +2,43 @@ let u_gen0: MetaVarGen.t = (MetaVarGen.init: MetaVar.t);
 let (u, u_gen1) = MetaVarGen.next(u_gen0);
 let empty_ze =
   ZExp.CursorE(Before, UHExp.Tm(NotInHole, UHExp.EmptyHole(u)));
-let empty: Repository.edit_state = (empty_ze, HTyp.Hole, u_gen1);
 let empty_erasure = ZExp.erase(empty_ze);
-type edit_state_rs = React.signal(Repository.edit_state);
-type repository_rs = React.signal(Repository.t);
+
+// Represents the state of a Hazel codebase
+type edit_state = (ZExp.t, HTyp.t, MetaVarGen.t);
+type edit_state_rs = React.signal(edit_state);
+let initial_edit_state: edit_state = (empty_ze, HTyp.Hole, u_gen1);
+
+/* The model contains a repository that stores the history of the codebase, represented as
+ * lists of actions (branches) and (as an optimization) historical snapshots of code.
+ */
+
+// A branch consists of the raw actions performed, plus periodic snapshots of the state.
+type branch = {
+  actions: list(Action.t),
+  action_count: int,
+  snapshots: list(edit_state),
+};
+
+// How many edit actions between snapshots
+let snapshot_freq = 100;
+
+// Because we have undo/redo functionality, we need to track multiple points in a history.
+// We therefore borrow Git's notion of branches, and we call the history corresponding to
+// the current undo state the "current branch". Although it may seem that basic undo/redo
+// functionality doesn't require true branches, it turns out that we actually do need branches
+// to preserve the redo stack whilst recording move actions.
+// Whenever an undo operation is performed, an older revision of the history is checked
+// out (branched), and the branch is added to the redo stack so that a redo operation can
+// later be performed if necessary. Future move actions are prepended to this branch.
+// We therefore store a stack of branches, with the current branch at the top.
+// There must always be one (possibly empty) branch in this stack.
+type redo_stack = list(branch);
+type redo_stack_rs = React.signal(redo_stack);
+let empty_redo_stack: redo_stack = [
+  {actions: [], action_count: 0, snapshots: []},
+];
+
 type e_rs = React.signal(UHExp.t);
 type cursor_info_rs = React.signal(CursorInfo.t);
 open Dynamics;
@@ -35,7 +68,7 @@ exception InvalidInput;
 
 type t = {
   edit_state_rs,
-  repository_rs,
+  redo_stack_rs,
   cursor_info_rs,
   e_rs,
   result_rs,
@@ -51,8 +84,8 @@ type t = {
 };
 
 let new_model = (): t => {
-  let (edit_state_rs, edit_state_rf) = React.S.create(empty);
-  let (repository_rs, repository_rf) = React.S.create(Repository.empty);
+  let (edit_state_rs, edit_state_rf) = React.S.create(initial_edit_state);
+  let (redo_stack_rs, redo_stack_rf) = React.S.create(empty_redo_stack);
   let (e_rs, e_rf) = React.S.create(empty_erasure);
 
   let cursor_info_rs =
@@ -158,13 +191,45 @@ let new_model = (): t => {
     | None => raise(InvalidAction)
     };
 
-  /* Do the specified action, and add it to the active history.*/
+  // Do the specified action, and record it in the current branch.
   let do_action = action => {
     do_action_unrecorded(action);
-    /* Update the history with the new action */
-    let repository = React.S.value(repository_rs);
+
+    // Add a new action to the current branch.
+    let add_to_branch =
+        (action: Action.t, edit_state: edit_state, redo_stack: redo_stack)
+        : redo_stack =>
+      switch (redo_stack) {
+      | [branch, ...branches] =>
+        let new_count = branch.action_count + 1;
+        let updated_branch = {
+          actions: [action, ...branch.actions],
+          action_count: new_count,
+          snapshots:
+            if (new_count mod snapshot_freq == 0) {
+              [edit_state, ...branch.snapshots];
+            } else {
+              branch.snapshots;
+            },
+        };
+        if (Action.is_move(action)) {
+          [
+            // Preserve the redo stack when move actions are performed.
+            updated_branch,
+            ...branches,
+          ];
+        } else {
+          [
+            // Erase the redo stack when edit actions are performed.
+            updated_branch,
+          ];
+        };
+      | [] => assert(false)
+      };
+
+    let redo_stack = React.S.value(redo_stack_rs);
     let edit_state = React.S.value(edit_state_rs);
-    repository_rf(Repository.add(action, edit_state, repository));
+    redo_stack_rf(add_to_branch(action, edit_state, redo_stack));
   };
 
   let set_edit_state = edit_state => {
@@ -184,39 +249,86 @@ let new_model = (): t => {
     e_rf(new_uhexp);
   };
 
-  let undo = () => {
-    let repository = React.S.value(repository_rs);
-    switch (Repository.undo(repository)) {
-    | Some(new_repository) =>
-      replace_e(empty_erasure);
-      repository_rf(new_repository);
-      Repository.inform_state(
-        set_edit_state,
-        do_action_unrecorded,
-        new_repository,
-      );
-    | None => ()
+  // Update the edit state to match all the actions performed in the current branch.
+  let update_edit_state = (redo_stack: redo_stack): unit => {
+    replace_e(empty_erasure);
+
+    switch (redo_stack) {
+    | [branch, ..._] =>
+      let () =
+        switch (branch.snapshots) {
+        | [snapshot, ..._] => set_edit_state(snapshot)
+        | [] => ()
+        };
+      let unshapshotted =
+        GeneralUtil.take(
+          branch.action_count mod snapshot_freq,
+          branch.actions,
+        );
+      GeneralUtil.rev_iter(do_action_unrecorded, unshapshotted);
+    | [] => ()
     };
   };
 
+  // Undoes the last performed edit action, updating the redo_stack.
+  let undo = () => {
+    // Find the revision before the last edit action performed.
+    let revision_before_last_edit = (branch: branch) => {
+      let rec rewind = branch => {
+        switch (branch.actions) {
+        | [head, ...tail] =>
+          let b = {
+            actions: tail,
+            action_count: branch.action_count - 1,
+            snapshots:
+              if (branch.action_count mod snapshot_freq == 0) {
+                List.tl(branch.snapshots);
+              } else {
+                branch.snapshots;
+              },
+          };
+          Action.is_move(head) ? rewind(b) : b;
+        | [] => branch
+        };
+      };
+      rewind(branch);
+    };
+
+    let redo_stack = React.S.value(redo_stack_rs);
+
+    switch (redo_stack) {
+    | [branch, ..._] =>
+      if (branch.action_count > 0) {
+        let new_branch = revision_before_last_edit(branch);
+        let new_stack = [new_branch, ...redo_stack];
+
+        redo_stack_rf(new_stack);
+        update_edit_state(new_stack);
+      }
+    | [] => assert(false)
+    };
+  };
+
+  // Redoes the next edit action, updating the redo stack.
   let redo = () => {
-    let repository = React.S.value(repository_rs);
-    switch (Repository.redo(repository)) {
-    | Some(new_repository) =>
-      replace_e(empty_erasure);
-      repository_rf(new_repository);
-      Repository.inform_state(
-        set_edit_state,
-        do_action_unrecorded,
-        new_repository,
-      );
-    | None => ()
+    let redo_stack = React.S.value(redo_stack_rs);
+
+    switch (redo_stack) {
+    | [_, ...branches] =>
+      if (branches != []) {
+        // If there's not more than one branch, then there's nothing to redo
+        let new_stack = branches;
+
+        redo_stack_rf(new_stack);
+        update_edit_state(new_stack);
+      }
+    | [] => assert(false)
     };
   };
 
   {
     edit_state_rs,
-    repository_rs,
+    redo_stack_rs,
     cursor_info_rs,
     e_rs,
     result_rs,
