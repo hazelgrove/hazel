@@ -279,8 +279,6 @@ let rec perform_ty =
     Some((CursorT(side, TVar(NotInVHole, t)), u_gen))
   | (Construct(SForall), CursorT(_, Hole)) =>
     Some(ZTyp.new_ForallHole(u_gen))
-  /* | (Construct(SVar(t, side)), CursorT(_, Hole)) => */
-  /*   Some((CursorT(side, TVar(NotInVHole, t)), u_gen)) */
   | (Construct(SForall), CursorT(_, _)) => None
   | (Construct(SOp(os)), CursorT(After, uty1))
   | (Construct(SOp(os)), CursorT(In(_), uty1)) =>

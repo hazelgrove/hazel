@@ -136,7 +136,6 @@ let view = (model: Model.t) => {
     React.S.map(({EditorBox.rev_paths, _}) => rev_paths, editor_box_rs);
   let do_transport = (): bool => {
     let selection = Dom_html.window##getSelection;
-    /* JSUtil.log(selection); */
     let anchor = selection##.anchorNode;
     let parent_elem =
       switch (anchor##.nodeType) {
@@ -279,6 +278,20 @@ let view = (model: Model.t) => {
           }
         | None => false
         };
+      } else if (has_class("hole-after-2")) {
+        let anchorOffset = selection##.anchorOffset;
+        if (anchorOffset == 0) {
+          switch (Js.Opt.to_option(parent_elem##.parentNode)) {
+          | Some(grandparent) =>
+            switch (Js.Opt.to_option(grandparent##.firstChild)) {
+            | Some(firstChild) => move_cursor_before_suppress(firstChild)
+            | None => false
+            }
+          | None => false
+          };
+        } else {
+          false;
+        };
       } else if (has_class("op-before-2") || has_class("op-after-1")) {
         switch (Js.Opt.to_option(parent_elem##.parentNode)) {
         | Some(grandparent) =>
@@ -348,6 +361,11 @@ let view = (model: Model.t) => {
         if (anchorOffset == 1) {
           switch (Js.Opt.to_option(parent_elem##.nextSibling)) {
           | Some(sibling) => move_cursor_before_suppress(sibling)
+          | None => false
+          };
+        } else if (anchorOffset == 0) {
+          switch (Js.Opt.to_option(parent_elem##.previousSibling)) {
+          | Some(sibling) => move_cursor_after_suppress(sibling)
           | None => false
           };
         } else {
