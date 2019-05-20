@@ -16,8 +16,7 @@ type t =
   | Prod(t, t)
   | Sum(t, t)
   | List(t)
-  | Forall(Var.t, t)
-  | ForallHole(MetaVar.t, t); /* forall _, ty */
+  | Forall(TPat.t, t);
 
 /* # Substitution */
 let rec shift_free_vars' = (ty, shift_by, binders_seen) =>
@@ -51,8 +50,6 @@ let rec shift_free_vars' = (ty, shift_by, binders_seen) =>
   | List(ty1) => List(shift_free_vars'(ty1, shift_by, binders_seen))
   | Forall(a, ty1) =>
     Forall(a, shift_free_vars'(ty1, shift_by, binders_seen + 1))
-  | ForallHole(u, ty1) =>
-    ForallHole(u, shift_free_vars'(ty1, shift_by, binders_seen + 1))
   };
 
 let shift_free_vars = (ty, shift_by) => shift_free_vars'(ty, shift_by, 0);
@@ -78,7 +75,6 @@ let rec subst' = (ty, binders_seen, ty') =>
     Sum(subst'(ty, binders_seen, ty1), subst'(ty, binders_seen, ty2))
   | List(ty1) => List(subst'(ty, binders_seen, ty1))
   | Forall(a, ty1) => Forall(a, subst'(ty, binders_seen + 1, ty1))
-  | ForallHole(u, ty1) => ForallHole(u, subst'(ty, binders_seen + 1, ty1))
   };
 
 /* capture-avoiding substitution of ty' for variable 0 in ty */
@@ -111,12 +107,8 @@ let rec equiv = (ty1, ty2) =>
   | (List(ty), List(ty')) => equiv(ty, ty')
   | (List(_), _) => false
 
-  | (ForallHole(_, ty1), ForallHole(_, ty2))
-  | (Forall(_, ty1), ForallHole(_, ty2))
-  | (ForallHole(_, ty1), Forall(_, ty2))
   | (Forall(_, ty1), Forall(_, ty2)) => equiv(ty1, ty2)
 
-  | (ForallHole(_, _), _)
   | (Forall(_, _), _) => false
   };
 
@@ -144,10 +136,6 @@ let rec consistent = (x, y) =>
   | (Sum(_, _), _) => false
   | (List(ty), List(ty')) => consistent(ty, ty')
   | (List(_), _) => false
-  | (ForallHole(_, ty1), ForallHole(_, ty2)) => consistent(ty1, ty2)
-  | (ForallHole(_, ty1), Forall(_, ty2)) => consistent(ty1, ty2)
-  | (Forall(_, ty1), ForallHole(_, ty2)) => consistent(ty1, ty2)
-  | (ForallHole(_, _), _) => false
   | (Forall(_, ty1), Forall(_, ty2)) => consistent(ty1, ty2)
   | (Forall(_, _), _) => false
   };
@@ -258,8 +246,8 @@ let rec complete =
   | Prod(ty1, ty2) => complete(ty1) && complete(ty2)
   | Sum(ty1, ty2) => complete(ty1) && complete(ty2)
   | List(ty) => complete(ty)
-  | Forall(_, ty) => complete(ty)
-  | ForallHole(_, _) => false;
+  | Forall(TPat.Hole(_), _) => false
+  | Forall(TPat.Var(_), ty) => complete(ty);
 
 /* Unused, so commenting */
 /*

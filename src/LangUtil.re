@@ -7,5 +7,6 @@ let string_of_side = side =>
   | R => "R"
   };
 let lamSym = "λ";
+let forallSym = "∀";
 let caseArrowSym = "⇒";
 let typeArrowSym = "→";

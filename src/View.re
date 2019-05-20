@@ -152,25 +152,45 @@ let of_Hole = (prefix, rev_path, cls, hole_name) =>
     ^^ taggedText("hole-after-2", "​"),
   );
 
+let of_TPat = (prefix, rev_path, tpat) => {
+  switch (tpat) {
+  | TPat.Hole(u) => of_Hole(prefix, rev_path, "Hole", string_of_int(u))
+  | TPat.Var(t) => taggedText("forall-var", t)
+  };
+};
+
+let of_ForallHole = (prefix, rev_path, tpat, r1) => {
+  let tpat_rev_path = [0, ...rev_path];
+  term(
+    prefix,
+    NotInHole,
+    rev_path,
+    "Forall",
+    taggedText("forall-sym", LangUtil.forallSym)
+    ^^ of_TPat(prefix, tpat_rev_path, tpat)
+    ^^ PP.text("forall-mid", ",")
+    ^^ r1,
+  );
+};
+
 let precedence_const = 0;
-let precedence_Prod = 1;
-let precedence_Sum = 2;
-let precedence_Arrow = 3;
+let precedence_forall = 1;
+let precedence_Prod = 2;
+let precedence_Sum = 3;
+let precedence_Arrow = 4;
 let precedence_ty = ty =>
   switch (ty) {
   | HTyp.Num
   | HTyp.Bool
   | HTyp.Hole
   | HTyp.Unit
-  /*! almost certainly wrong */
   | HTyp.TVar(_, _)
   | HTyp.TVarHole(_, _)
-  | HTyp.Forall(_, _)
-  | HTyp.ForallHole(_, _)
   | HTyp.List(_) => precedence_const
   | HTyp.Prod(_, _) => precedence_Prod
   | HTyp.Sum(_, _) => precedence_Sum
   | HTyp.Arrow(_, _) => precedence_Arrow
+  | HTyp.Forall(_, _) => precedence_forall
   };
 let of_Bool = (prefix, rev_path) =>
   term(prefix, NotInHole, rev_path, "Bool", kw("Bool"));
@@ -194,6 +214,7 @@ let of_List = (prefix, rev_path, r1) =>
     "List",
     kw("List") ^^ lparen("(") ^^ r1 ^^ rparen(")"),
   );
+
 let rec of_htype = (parenthesize, prefix, rev_path, ty) => {
   let d =
     switch (ty) {
@@ -229,8 +250,13 @@ let rec of_htype = (parenthesize, prefix, rev_path, ty) => {
       let r2 = of_htype(paren2, prefix, rev_path2, ty2);
       of_ty_BinOp(prefix, NotInHole, rev_path, r1, UHTyp.Prod, r2);
     | HTyp.Hole => of_Hole(prefix, rev_path, "Hole", "?")
-    /*! obviously wrong */
-    | _ => kw("UNVIEWED")
+    | HTyp.Forall(tpat, ty1) =>
+      let rev_path1 = [1, ...rev_path];
+      let paren = precedence_ty(ty1) >= precedence_forall;
+      let ty1 = of_htype(paren, prefix, rev_path1, ty1);
+      of_ForallHole(prefix, rev_path, tpat, ty1);
+    /*! remove before merging */
+    | _ => kw("UNVIEWED first")
     };
   parenthesize ? lparen("(") ^^ d ^^ rparen(")") : d;
 };
@@ -256,8 +282,12 @@ let rec of_uhtyp = (prefix, rev_path, uty) =>
       of_uhtyp_skel(prefix, rev_path, skel, seq),
     )
   | UHTyp.Hole => of_Hole(prefix, rev_path, "Hole", "?")
-  /*! obviously wrong */
-  | _ => kw("UNVIEWED")
+  | UHTyp.Forall(tpat, ty1) =>
+    let rev_path1 = [1, ...rev_path];
+    let ty1 = of_uhtyp(prefix, rev_path1, ty1);
+    of_ForallHole(prefix, rev_path, tpat, ty1);
+  /*! remove before merging */
+  | _ => kw("UNVIEWED second")
   }
 and of_uhtyp_skel = (prefix, rev_path, skel, seq) =>
   switch (skel) {

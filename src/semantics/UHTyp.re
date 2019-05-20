@@ -1,3 +1,5 @@
+open SemanticsCommon;
+
 [@deriving sexp]
 type op =
   | Arrow
@@ -9,8 +11,7 @@ type skel_t = Skel.t(op);
 
 [@deriving sexp]
 type t =
-  | TVar(Var.t) /* bound type variables */
-  | TVarHole(MetaVar.t, Var.t) /* free type variables */
+  | TVar(var_err_status, Var.t) /* bound type variables */
   | Parenthesized(t)
   | Hole
   | Unit
@@ -18,26 +19,22 @@ type t =
   | Bool
   | List(t)
   | OpSeq(skel_t, OperatorSeq.opseq(t, op))
-  | Forall(Var.t, t)
-  | ForallHole(MetaVar.t, t); /* forall _, ty */
+  | Forall(TPat.t, t);
 
 type opseq = OperatorSeq.opseq(t, op);
 
 /* See UHTyp.re for an explanation of bidelimited. */
 let bidelimited =
   fun
-  | TVar(_)
-  | TVarHole(_)
-  | Forall(_, _)
-  /*! is this right? */
-  | ForallHole(_, _)
   | Hole
   | Unit
   | Num
   | Bool
+  | TVar(_)
   | Parenthesized(_)
   | List(_) => true
-  | OpSeq(_, _) => false;
+  | OpSeq(_, _) => false
+  | Forall(_, _) => false;
 
 /* let rec well_formed = uty => */
 /*   switch (uty) { */
@@ -84,8 +81,8 @@ let rec contract = ty => {
      */
 
   switch (ty) {
-  | HTyp.TVar(_, t) => TVar(t)
-  | HTyp.TVarHole(u, t) => TVarHole(u, t)
+  | HTyp.TVar(_, t) => TVar(NotInVHole, t)
+  | HTyp.TVarHole(u, t) => TVar(InVHole(Free, u), t)
   | HTyp.Hole => Hole
   | HTyp.Unit => Unit
   | HTyp.Num => Num
@@ -95,15 +92,14 @@ let rec contract = ty => {
   | HTyp.Sum(ty1, ty2) => mk_opseq(Sum, contract(ty1), contract(ty2))
   | HTyp.List(ty1) => List(contract(ty1))
   | HTyp.Forall(t, ty) => Forall(t, contract(ty))
-  | HTyp.ForallHole(u, ty) => ForallHole(u, contract(ty))
   };
 };
 
 let rec expand = uty =>
   switch (uty) {
   /*! fix this */
-  | TVar(t) => HTyp.TVar(0, t)
-  | TVarHole(u, t) => HTyp.TVarHole(u, t)
+  | TVar(NotInVHole, t) => HTyp.TVar(0, t)
+  | TVar(InVHole(_, u), ty) => HTyp.TVarHole(u, ty)
   | Hole => HTyp.Hole
   | Unit => HTyp.Unit
   | Num => HTyp.Num
@@ -111,8 +107,7 @@ let rec expand = uty =>
   | Parenthesized(uty1) => expand(uty1)
   | List(uty1) => HTyp.List(expand(uty1))
   | OpSeq(skel, seq) => expand_skel(skel, seq)
-  | Forall(t, ty) => HTyp.Forall(t, expand(ty))
-  | ForallHole(u, ty) => HTyp.ForallHole(u, expand(ty))
+  | Forall(tpat, ty) => HTyp.Forall(tpat, expand(ty))
   }
 and expand_skel = (skel, seq) =>
   switch (skel) {
@@ -134,3 +129,8 @@ and expand_skel = (skel, seq) =>
     let uty2 = expand_skel(skel2, seq);
     HTyp.Sum(uty1, uty2);
   };
+
+let new_ForallHole = (u_gen: MetaVarGen.t): (t, MetaVarGen.t) => {
+  let (u, u_gen) = MetaVarGen.next(u_gen);
+  (Forall(TPat.Hole(u), Hole), u_gen);
+};

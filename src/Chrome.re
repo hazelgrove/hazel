@@ -340,7 +340,9 @@ let view = (model: Model.t) => {
       } else if (has_class("lambda-dot")
                  || has_class("lambda-sym")
                  || has_class("lparen")
-                 || has_class("space")) {
+                 || has_class("space")
+                 || has_class("forall-sym")
+                 || has_class("forall-mid")) {
         let anchorOffset = selection##.anchorOffset;
 
         if (anchorOffset == 1) {

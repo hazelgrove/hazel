@@ -104,6 +104,11 @@ html, body {
 
 }
 
+.lambda-dot, .forall-mid {
+  position: relative;
+  top: 2px;
+}
+
 .sidebar {
   width: 290px;
   height: 100%;
@@ -707,7 +712,7 @@ button:disabled {
   font-size: 125%;
 }
 
-.kw, .lambda-sym {
+.kw, .lambda-sym, .forall-sym {
   font-weight: bold;
 }
 

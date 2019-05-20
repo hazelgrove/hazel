@@ -80,6 +80,7 @@ type shape =
   | SNum
   | SBool
   | SList
+  | SForall
   /* expression shapes */
   | SAsc
   | SVar(Var.t, ZExp.cursor_side)
@@ -112,33 +113,41 @@ let make_ty_OpSeqZ = (zty0: ZTyp.t, surround: ZTyp.opseq_surround): ZTyp.t => {
   OpSeqZ(skel, zty0, surround);
 };
 
-let rec perform_ty = (a: t, zty: ZTyp.t): option(ZTyp.t) =>
+let rec perform_ty =
+        (a: t, zty: ZTyp.t, u_gen: MetaVarGen.t)
+        : option((ZTyp.t, MetaVarGen.t)) => {
+  let append_u_gen = o =>
+    switch (o) {
+    | Some(o) => Some((o, u_gen))
+    | None => None
+    };
+
   switch (a, zty) {
   /* Movement */
   | (MoveTo(path), _) =>
     let ty = ZTyp.erase(zty);
-    Path.follow_ty(path, ty);
+    Path.follow_ty(path, ty) |> append_u_gen;
   | (MoveToPrevHole, _) =>
     switch (Path.prev_hole_path(Path.holes_zty(zty, []))) {
     | None => None
-    | Some(path) => perform_ty(MoveTo(path), zty)
+    | Some(path) => perform_ty(MoveTo(path), zty, u_gen)
     }
   | (MoveToNextHole, _) =>
     switch (Path.next_hole_path(Path.holes_zty(zty, []))) {
     | None => None
     | Some(path) =>
       /* [debug] let path = Helper.log_path path in */
-      perform_ty(MoveTo(path), zty)
+      perform_ty(MoveTo(path), zty, u_gen)
     }
   /* Backspace and Delete */
   | (Backspace, CursorT(After, _))
-  | (Backspace, CursorT(In(_), _)) => Some(CursorT(Before, Hole))
+  | (Backspace, CursorT(In(_), _)) => Some((CursorT(Before, Hole), u_gen))
   | (Backspace, CursorT(Before, _)) => None
   | (Delete, CursorT(Before, uty))
   | (Delete, CursorT(In(_), uty)) =>
     switch (uty) {
-    | Hole => Some(CursorT(After, uty))
-    | _ => Some(CursorT(Before, Hole))
+    | Hole => Some((CursorT(After, uty), u_gen))
+    | _ => Some((CursorT(Before, Hole), u_gen))
     }
   | (Delete, CursorT(After, _)) => None
   | (Backspace, OpSeqZ(_, CursorT(Before, uty0) as zty0, surround)) =>
@@ -150,10 +159,10 @@ let rec perform_ty = (a: t, zty: ZTyp.t): option(ZTyp.t) =>
         switch (uty0) {
         | Hole =>
           /* uty1 op1 |_ -> uty1| */
-          Some(CursorT(After, uty1))
+          Some((CursorT(After, uty1), u_gen))
         | _ =>
           /* uty1 op1 |uty0 -> |uty0 */
-          Some(zty0)
+          Some((zty0, u_gen))
         }
       | SeqPrefix(seq1, _op1) =>
         let (uty1, prefix') = OperatorSeq.split_tail(seq1);
@@ -162,11 +171,11 @@ let rec perform_ty = (a: t, zty: ZTyp.t): option(ZTyp.t) =>
           /* prefix' uty1 op1 |_ --> prefix' uty1| */
           let surround' = OperatorSeq.EmptySuffix(prefix');
           let ze1 = ZTyp.CursorT(After, uty1);
-          Some(make_ty_OpSeqZ(ze1, surround'));
+          Some((make_ty_OpSeqZ(ze1, surround'), u_gen));
         | _ =>
           /* prefix' uty1 op |uty0 --> prefix' |uty0 */
           let surround' = OperatorSeq.EmptySuffix(prefix');
-          Some(make_ty_OpSeqZ(zty0, surround'));
+          Some((make_ty_OpSeqZ(zty0, surround'), u_gen));
         };
       }
     | BothNonEmpty(prefix, suffix) =>
@@ -177,11 +186,11 @@ let rec perform_ty = (a: t, zty: ZTyp.t): option(ZTyp.t) =>
           /* uty1 op1 |_ suffix -> uty1| suffix */
           let surround' = OperatorSeq.EmptyPrefix(suffix);
           let zty1 = ZTyp.CursorT(After, uty1);
-          Some(make_ty_OpSeqZ(zty1, surround'));
+          Some((make_ty_OpSeqZ(zty1, surround'), u_gen));
         | _ =>
           /* uty1 op1 |uty0 suffix -> |uty0 suffix */
           let surround' = OperatorSeq.EmptyPrefix(suffix);
-          Some(make_ty_OpSeqZ(zty0, surround'));
+          Some((make_ty_OpSeqZ(zty0, surround'), u_gen));
         }
       | SeqPrefix(seq1, _op1) =>
         let (uty1, prefix') = OperatorSeq.split_tail(seq1);
@@ -190,11 +199,11 @@ let rec perform_ty = (a: t, zty: ZTyp.t): option(ZTyp.t) =>
           /* prefix' uty1 op1 |_ suffix --> prefix' uty1| suffix */
           let surround' = OperatorSeq.BothNonEmpty(prefix', suffix);
           let ze1 = ZTyp.CursorT(After, uty1);
-          Some(make_ty_OpSeqZ(ze1, surround'));
+          Some((make_ty_OpSeqZ(ze1, surround'), u_gen));
         | _ =>
           /* prefix' uty1 op |uty0 suffix --> prefix' |uty0 suffix */
           let surround' = OperatorSeq.BothNonEmpty(prefix', suffix);
-          Some(make_ty_OpSeqZ(zty0, surround'));
+          Some((make_ty_OpSeqZ(zty0, surround'), u_gen));
         };
       }
     }
@@ -207,10 +216,10 @@ let rec perform_ty = (a: t, zty: ZTyp.t): option(ZTyp.t) =>
         switch (uty0) {
         | Hole =>
           /* _| op1 uty1 -> |uty1 */
-          Some(CursorT(Before, uty1))
+          Some((CursorT(Before, uty1), u_gen))
         | _ =>
           /* uty0| op1 uty0 -> uty0| */
-          Some(zty0)
+          Some((zty0, u_gen))
         }
       | SeqSuffix(_op1, seq1) =>
         let (uty1, suffix') = OperatorSeq.split0(seq1);
@@ -219,11 +228,11 @@ let rec perform_ty = (a: t, zty: ZTyp.t): option(ZTyp.t) =>
           /* _| op1 uty1 suffix' --> |uty1 suffix' */
           let surround' = OperatorSeq.EmptyPrefix(suffix');
           let ze1 = ZTyp.CursorT(Before, uty1);
-          Some(make_ty_OpSeqZ(ze1, surround'));
+          Some((make_ty_OpSeqZ(ze1, surround'), u_gen));
         | _ =>
           /* uty0| op1 uty1 suffix' --> uty0| suffix' */
           let surround' = OperatorSeq.EmptyPrefix(suffix');
-          Some(make_ty_OpSeqZ(zty0, surround'));
+          Some((make_ty_OpSeqZ(zty0, surround'), u_gen));
         };
       }
     | BothNonEmpty(prefix, suffix) =>
@@ -234,11 +243,11 @@ let rec perform_ty = (a: t, zty: ZTyp.t): option(ZTyp.t) =>
           /* prefix _| op1 uty1 -> prefix |uty1 */
           let surround' = OperatorSeq.EmptySuffix(prefix);
           let zty1 = ZTyp.CursorT(Before, uty1);
-          Some(make_ty_OpSeqZ(zty1, surround'));
+          Some((make_ty_OpSeqZ(zty1, surround'), u_gen));
         | _ =>
           /* prefix uty0| op1 uty0 -> prefix uty0| */
           let surround' = OperatorSeq.EmptySuffix(prefix);
-          Some(make_ty_OpSeqZ(zty0, surround'));
+          Some((make_ty_OpSeqZ(zty0, surround'), u_gen));
         }
       | SeqSuffix(_op1, seq1) =>
         let (uty1, suffix') = OperatorSeq.split0(seq1);
@@ -247,22 +256,32 @@ let rec perform_ty = (a: t, zty: ZTyp.t): option(ZTyp.t) =>
           /* prefix _| op1 uty1 suffix' --> prefix |uty1 suffix' */
           let surround' = OperatorSeq.BothNonEmpty(prefix, suffix');
           let ze1 = ZTyp.CursorT(Before, uty1);
-          Some(make_ty_OpSeqZ(ze1, surround'));
+          Some((make_ty_OpSeqZ(ze1, surround'), u_gen));
         | _ =>
           /* prefix uty0| op1 uty1 suffix' --> prefix uty0| suffix' */
           let surround' = OperatorSeq.BothNonEmpty(prefix, suffix');
-          Some(make_ty_OpSeqZ(zty0, surround'));
+          Some((make_ty_OpSeqZ(zty0, surround'), u_gen));
         };
       }
     }
   /* Construction */
   | (Construct(SParenthesized), CursorT(_, _)) =>
-    Some(ParenthesizedZ(zty))
-  | (Construct(SNum), CursorT(_, Hole)) => Some(CursorT(After, Num))
+    Some((ParenthesizedZ(zty), u_gen))
+  | (Construct(SNum), CursorT(_, Hole)) =>
+    Some((CursorT(After, Num), u_gen))
   | (Construct(SNum), CursorT(_, _)) => None
-  | (Construct(SBool), CursorT(_, Hole)) => Some(CursorT(After, Bool))
+  | (Construct(SBool), CursorT(_, Hole)) =>
+    Some((CursorT(After, Bool), u_gen))
   | (Construct(SBool), CursorT(_, _)) => None
-  | (Construct(SList), CursorT(_, _)) => Some(ListZ(zty))
+  | (Construct(SList), CursorT(_, _)) => Some((ListZ(zty), u_gen))
+  | (Construct(SVar(t, side)), CursorT(_, Hole)) =>
+    /*! this should construct a Var(InHole, t) when the var is duplicate */
+    Some((CursorT(side, TVar(NotInVHole, t)), u_gen))
+  | (Construct(SForall), CursorT(_, Hole)) =>
+    Some(ZTyp.new_ForallHole(u_gen))
+  /* | (Construct(SVar(t, side)), CursorT(_, Hole)) => */
+  /*   Some((CursorT(side, TVar(NotInVHole, t)), u_gen)) */
+  | (Construct(SForall), CursorT(_, _)) => None
   | (Construct(SOp(os)), CursorT(After, uty1))
   | (Construct(SOp(os)), CursorT(In(_), uty1)) =>
     switch (ty_op_of(os)) {
@@ -270,7 +289,7 @@ let rec perform_ty = (a: t, zty: ZTyp.t): option(ZTyp.t) =>
     | Some(op) =>
       let surround = OperatorSeq.EmptySuffix(ExpPrefix(uty1, op));
       let zty0 = ZTyp.CursorT(Before, Hole);
-      Some(make_ty_OpSeqZ(zty0, surround));
+      Some((make_ty_OpSeqZ(zty0, surround), u_gen));
     }
   | (Construct(SOp(os)), CursorT(Before, uty1)) =>
     switch (ty_op_of(os)) {
@@ -278,7 +297,7 @@ let rec perform_ty = (a: t, zty: ZTyp.t): option(ZTyp.t) =>
     | Some(op) =>
       let surround = OperatorSeq.EmptyPrefix(ExpSuffix(op, uty1));
       let zty0 = ZTyp.CursorT(Before, Hole);
-      Some(make_ty_OpSeqZ(zty0, surround));
+      Some((make_ty_OpSeqZ(zty0, surround), u_gen));
     }
   | (Construct(SOp(os)), OpSeqZ(_, CursorT(After, uty0), surround))
   | (Construct(SOp(os)), OpSeqZ(_, CursorT(In(_), uty0), surround)) =>
@@ -291,19 +310,19 @@ let rec perform_ty = (a: t, zty: ZTyp.t): option(ZTyp.t) =>
         let prefix' = OperatorSeq.ExpPrefix(uty0, op);
         let surround' = OperatorSeq.BothNonEmpty(prefix', suffix);
         let zty0' = ZTyp.CursorT(Before, Hole);
-        Some(make_ty_OpSeqZ(zty0', surround'));
+        Some((make_ty_OpSeqZ(zty0', surround'), u_gen));
       | EmptySuffix(prefix) =>
         /* prefix zty0| -> prefix uty0 op |_ */
         let prefix' = OperatorSeq.prefix_append_exp(prefix, uty0, op);
         let surround' = OperatorSeq.EmptySuffix(prefix');
         let zty0' = ZTyp.CursorT(Before, Hole);
-        Some(make_ty_OpSeqZ(zty0', surround'));
+        Some((make_ty_OpSeqZ(zty0', surround'), u_gen));
       | BothNonEmpty(prefix, suffix) =>
         /* prefix zty0| suffix -> prefix uty0 op |_ suffix */
         let prefix' = OperatorSeq.prefix_append_exp(prefix, uty0, op);
         let surround' = OperatorSeq.BothNonEmpty(prefix', suffix);
         let zty0' = ZTyp.CursorT(Before, Hole);
-        Some(make_ty_OpSeqZ(zty0', surround'));
+        Some((make_ty_OpSeqZ(zty0', surround'), u_gen));
       }
     }
   | (Construct(SOp(os)), OpSeqZ(_, CursorT(Before, uty0), surround)) =>
@@ -316,35 +335,46 @@ let rec perform_ty = (a: t, zty: ZTyp.t): option(ZTyp.t) =>
         let suffix' = OperatorSeq.suffix_prepend_exp(suffix, op, uty0);
         let surround' = OperatorSeq.EmptyPrefix(suffix');
         let zty0' = ZTyp.CursorT(Before, Hole);
-        Some(make_ty_OpSeqZ(zty0', surround'));
+        Some((make_ty_OpSeqZ(zty0', surround'), u_gen));
       | EmptySuffix(prefix) =>
         /* prefix |zty0 -> prefix |_ op uty0 */
         let suffix' = OperatorSeq.ExpSuffix(op, uty0);
         let surround' = OperatorSeq.BothNonEmpty(prefix, suffix');
         let zty0' = ZTyp.CursorT(Before, Hole);
-        Some(make_ty_OpSeqZ(zty0', surround'));
+        Some((make_ty_OpSeqZ(zty0', surround'), u_gen));
       | BothNonEmpty(prefix, suffix) =>
         /* prefix |zty0 suffix -> prefix |_ op uty0 suffix */
         let suffix' = OperatorSeq.suffix_prepend_exp(suffix, op, uty0);
         let surround' = OperatorSeq.BothNonEmpty(prefix, suffix');
         let zty0' = ZTyp.CursorT(Before, Hole);
-        Some(make_ty_OpSeqZ(zty0', surround'));
+        Some((make_ty_OpSeqZ(zty0', surround'), u_gen));
       }
     }
   /* Zipper Cases */
   | (a, ParenthesizedZ(zty1)) =>
-    switch (perform_ty(a, zty1)) {
-    | Some(zty1') => Some(ParenthesizedZ(zty1'))
+    switch (perform_ty(a, zty1, u_gen)) {
+    | Some((zty1', u_gen)) => Some((ParenthesizedZ(zty1'), u_gen))
     | None => None
     }
   | (a, ListZ(zty1)) =>
-    switch (perform_ty(a, zty1)) {
-    | Some(zty1) => Some(ListZ(zty1))
+    switch (perform_ty(a, zty1, u_gen)) {
+    | Some((zty1, u_gen)) => Some((ListZ(zty1), u_gen))
     | None => None
     }
+  | (a, ForallZT(t, zty1)) =>
+    switch (perform_ty(a, zty1, u_gen)) {
+    | Some((zty1, u_gen)) => Some((ForallZT(t, zty1), u_gen))
+    | None => None
+    }
+  /*! deal with these Construct's explicitely */
+  | (_, ForallZP(_, _zty1)) => None
+  /* switch (perform_ty(a, zty1, u_gen)) { */
+  /* | Some((zty1, u_gen)) => Some((ForallZ(t, zty1), u_gen)) */
+  /* | None => None */
+  /* } */
   | (a, OpSeqZ(skel, zty0, surround)) =>
-    switch (perform_ty(a, zty0)) {
-    | Some(zty0') => Some(OpSeqZ(skel, zty0', surround))
+    switch (perform_ty(a, zty0, u_gen)) {
+    | Some((zty0', u_gen)) => Some((OpSeqZ(skel, zty0', surround), u_gen))
     | None => None
     }
   /* Invalid actions at the type level */
@@ -361,6 +391,7 @@ let rec perform_ty = (a: t, zty: ZTyp.t): option(ZTyp.t) =>
   | (Construct(SApPalette(_)), _)
   | (Construct(SWild), _) => None
   };
+};
 
 let abs_perform_Backspace_Before_op =
     (
@@ -1297,6 +1328,7 @@ let rec syn_perform_pat =
   | (UpdateApPalette(_), _)
   | (Construct(SApPalette(_)), _)
   | (Construct(SNum), _)
+  | (Construct(SForall), _)
   | (Construct(SBool), _)
   | (Construct(SList), _)
   | (Construct(SAsc), _)
@@ -1452,6 +1484,7 @@ and ana_perform_pat =
         u_gen,
       ));
     } else {
+      /*! check-valid should burn in a fiery pit */
       Var.check_valid(
         x,
         {
@@ -1628,6 +1661,7 @@ and ana_perform_pat =
   | (UpdateApPalette(_), _)
   | (Construct(SApPalette(_)), _)
   | (Construct(SNum), _)
+  | (Construct(SForall), _)
   | (Construct(SBool), _)
   | (Construct(SList), _)
   | (Construct(SAsc), _)
@@ -2262,9 +2296,9 @@ and syn_perform_line =
       }
     }
   | (_, DeeperL(LetLineZA(p, zann, block))) =>
-    switch (perform_ty(a, zann)) {
+    switch (perform_ty(a, zann, u_gen)) {
     | None => None
-    | Some(zann) =>
+    | Some((zann, u_gen)) =>
       let ty = UHTyp.expand(ZTyp.erase(zann));
       let (p, ctx_after, u_gen) =
         Statics.ana_fix_holes_pat(ctx, u_gen, p, ty);
@@ -2765,9 +2799,9 @@ and syn_perform_exp =
       Some((ze, ty, u_gen));
     };
   | (_, DeeperE(_, LamZA(p, zann, block))) =>
-    switch (perform_ty(a, zann)) {
+    switch (perform_ty(a, zann, u_gen)) {
     | None => None
-    | Some(zann) =>
+    | Some((zann, u_gen)) =>
       let ty1 = UHTyp.expand(ZTyp.erase(zann));
       let (p, ctx, u_gen) = Statics.ana_fix_holes_pat(ctx, u_gen, p, ty1);
       let (block, ty2, u_gen) =
@@ -2919,9 +2953,9 @@ and syn_perform_exp =
     switch (Statics.syn_block(ctx, block)) {
     | None => None
     | Some(ty1) =>
-      switch (perform_ty(a, zann)) {
+      switch (perform_ty(a, zann, u_gen)) {
       | None => None
-      | Some(zann) =>
+      | Some((zann, u_gen)) =>
         let ty = UHTyp.expand(ZTyp.erase(zann));
         let (rules, u_gen) =
           Statics.ana_fix_holes_rules(ctx, u_gen, rules, ty1, ty);
@@ -2931,6 +2965,7 @@ and syn_perform_exp =
     }
   /* Invalid actions at expression level */
   | (Construct(SNum), _)
+  | (Construct(SForall), _)
   | (Construct(SBool), _)
   | (Construct(SList), _)
   | (Construct(SWild), _) => None
@@ -3559,9 +3594,9 @@ and ana_perform_exp =
     switch (HTyp.matched_arrow(ty)) {
     | None => None
     | Some((ty1_given, ty2)) =>
-      switch (perform_ty(a, zann)) {
+      switch (perform_ty(a, zann, u_gen)) {
       | None => None
-      | Some(zann) =>
+      | Some((zann, u_gen)) =>
         let ty1 = UHTyp.expand(ZTyp.erase(zann));
         HTyp.consistent(ty1, ty1_given)
           ? {
@@ -3672,9 +3707,9 @@ and ana_perform_exp =
     switch (Statics.syn_block(ctx, block)) {
     | None => None
     | Some(ty1) =>
-      switch (perform_ty(a, zann)) {
+      switch (perform_ty(a, zann, u_gen)) {
       | None => None
-      | Some(zann) =>
+      | Some((zann, u_gen)) =>
         let ty2 = UHTyp.expand(ZTyp.erase(zann));
         let (rules, u_gen) =
           Statics.ana_fix_holes_rules(ctx, u_gen, rules, ty1, ty2);
@@ -3720,6 +3755,7 @@ and ana_perform_exp =
     ana_perform_exp_subsume(ctx, a, (ze, u_gen), ty)
   /* Invalid actions at expression level */
   | (Construct(SNum), _)
+  | (Construct(SForall), _)
   | (Construct(SBool), _)
   | (Construct(SList), _)
   | (Construct(SWild), _) => None
@@ -3801,6 +3837,7 @@ let can_perform =
   | Construct(SOp(_))
   | Construct(SNum) /* TODO enrich cursor_info to allow simplifying these type cases */
   | Construct(SBool) /* TODO enrich cursor_info to allow simplifying these type cases */
+  | Construct(SForall)
   | MoveTo(_)
   | MoveToNextHole
   | MoveToPrevHole

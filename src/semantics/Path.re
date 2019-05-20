@@ -14,11 +14,15 @@ let cons' = (step: int, r: t): t => {
   ([step, ...steps], side);
 };
 
+let of_ztpat = (ZTPat.Cursor(cursor_side, _): ZTPat.t) => ([], cursor_side);
+
 let rec of_ztyp = (zty: ZTyp.t): t =>
   switch (zty) {
   | CursorT(cursor_side, _) => ([], cursor_side)
   | ParenthesizedZ(zty1) => cons'(0, of_ztyp(zty1))
   | ListZ(zty1) => cons'(0, of_ztyp(zty1))
+  | ForallZP(ztpat, _) => cons'(0, of_ztpat(ztpat))
+  | ForallZT(_, ty1) => cons'(0, of_ztyp(ty1))
   | OpSeqZ(_, zty1, surround) =>
     let n = OperatorSeq.surround_prefix_length(surround);
     cons'(n, of_ztyp(zty1));
@@ -102,19 +106,34 @@ let of_OpSeqZ_pat = (zp: ZPat.t, surround: ZPat.opseq_surround): t => {
   cons'(n, of_zpat(zp));
 };
 
+let follow_tpat = (cursor_side: cursor_side, tpat: TPat.t): option(ZTPat.t) =>
+  Some(ZTPat.Cursor(cursor_side, tpat));
+
 let rec follow_ty = (path: t, uty: UHTyp.t): option(ZTyp.t) =>
   switch (path) {
   | ([], cursor_side) => Some(CursorT(cursor_side, uty))
   | ([x, ...xs], cursor_side) =>
     switch (uty) {
     | TVar(_)
-    | TVarHole(_)
-    | Forall(_)
-    | ForallHole(_)
     | Hole
     | Unit
     | Num
     | Bool => None
+    | Forall(tpat, uty1) =>
+      switch (x) {
+      | 0 =>
+        switch (follow_tpat(cursor_side, tpat)) {
+        | Some(ztpat) => Some(ForallZP(ztpat, uty1))
+        | None => None
+        }
+      | 1 =>
+        switch (follow_ty((xs, cursor_side), uty1)) {
+        | Some(uty1) => Some(ForallZT(tpat, uty1))
+        | None => None
+        }
+      | _ => None
+      }
+
     | Parenthesized(uty1) =>
       switch (x) {
       | 0 =>
@@ -438,10 +457,9 @@ let rec holes_seq =
 
 let rec holes_uty = (uty: UHTyp.t, steps: steps, holes: hole_list): hole_list =>
   switch (uty) {
-  | TVar(_) => holes
-  | TVarHole(u, _) => [(TypeVarHole(u), steps), ...holes]
-  | Forall(_, uty1) => holes_uty(uty1, [0, ...steps], holes)
-  | ForallHole(u, uty1) =>
+  | TVar(_, _) => holes
+  | Forall(TPat.Var(_), uty1) => holes_uty(uty1, [0, ...steps], holes)
+  | Forall(TPat.Hole(u), uty1) =>
     let holes = holes_uty(uty1, [0, ...steps], holes);
     [(TypeForallHole(u), steps), ...holes];
   | Parenthesized(uty1) => holes_uty(uty1, [0, ...steps], holes)
@@ -635,7 +653,6 @@ let holes_OpSeqZ =
 
 let rec holes_zty = (zty: ZTyp.t, steps: steps): zhole_list =>
   switch (zty) {
-  /*! only counts empty holes! refactor */
   | CursorT(cursor_side, uty) =>
     switch (cursor_side, uty) {
     | (_, Hole) => {
@@ -643,24 +660,11 @@ let rec holes_zty = (zty: ZTyp.t, steps: steps): zhole_list =>
         hole_selected: Some((TypeHole, steps)),
         holes_after: [],
       }
-    | (_, TVarHole(u, _)) => {
+    | (_, TVar(InVHole(_, u), _)) => {
         holes_before: [],
         hole_selected: Some((TypeVarHole(u), steps)),
         holes_after: [],
       }
-    /*! is this right? I'm not sure if we should fill in
-     *  holes_selected AND holes_after... */
-    | (Before, ForallHole(u, _)) => {
-        holes_before: [],
-        hole_selected: Some((TypeVarHole(u), steps)),
-        holes_after: holes_uty(uty, steps, []),
-      }
-    | (After, ForallHole(u, _)) => {
-        holes_before: holes_uty(uty, steps, []),
-        hole_selected: Some((TypeVarHole(u), steps)),
-        holes_after: [],
-      }
-
     | (Before, _) => {
         holes_before: [],
         hole_selected: None,
@@ -671,13 +675,11 @@ let rec holes_zty = (zty: ZTyp.t, steps: steps): zhole_list =>
         hole_selected: None,
         holes_after: [],
       }
-    /*! what does this mean? */
+    /*! is this right? */
     | (In(_), _) =>
       switch (uty) {
       | TVar(_)
-      | TVarHole(_)
       | Forall(_)
-      | ForallHole(_)
       | Parenthesized(_)
       | Hole
       | Unit
@@ -693,6 +695,13 @@ let rec holes_zty = (zty: ZTyp.t, steps: steps): zhole_list =>
     }
   | ParenthesizedZ(zty1) => holes_zty(zty1, [0, ...steps])
   | ListZ(zty1) => holes_zty(zty1, [0, ...steps])
+  | ForallZP(_, uty) => {
+      holes_before: [],
+      hole_selected: None,
+      /*! is this 1 right? */
+      holes_after: holes_uty(uty, [1, ...steps], []),
+    }
+  | ForallZT(_, zty1) => holes_zty(zty1, [0, ...steps])
   | OpSeqZ(_, zty0, surround) =>
     holes_OpSeqZ(holes_uty, holes_zty, zty0, surround, steps)
   };
