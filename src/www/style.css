@@ -163,6 +163,11 @@ html, body {
 
 }
 
+.lambda-dot, .forall-mid {
+  position: relative;
+  top: 2px;
+}
+
 .sidebar {
   width: auto;
   height: 100%;

@@ -96,6 +96,7 @@ type shape =
   | SNum
   | SBool
   | SList
+  | SForall
   /* expression shapes */
   | SAsc
   | SVar(Var.t, cursor_position)
@@ -217,7 +218,7 @@ let rec perform_ty = (a: t, zty: ZTyp.t): result(ZTyp.t) =>
     | None => Failed
     | Some(path) =>
       /* [debug] let path = Helper.log_path path in */
-      perform_ty(MoveTo(path), zty)
+      perform_ty(MoveTo(path), zty, u_gen)
     }
   | (MoveLeft, _) =>
     ZTyp.move_cursor_left(zty)
@@ -459,6 +460,7 @@ let rec perform_ty = (a: t, zty: ZTyp.t): result(ZTyp.t) =>
   | (Construct(SApPalette(_)), _)
   | (Construct(SWild), _) => Failed
   };
+};
 
 let abs_perform_Backspace_Before_op =
     (
@@ -1901,6 +1903,7 @@ let rec syn_perform_pat =
   | (UpdateApPalette(_), _)
   | (Construct(SApPalette(_)), _)
   | (Construct(SNum), _)
+  | (Construct(SForall), _)
   | (Construct(SBool), _)
   | (Construct(SList), _)
   | (Construct(SAsc), _)
@@ -2591,6 +2594,7 @@ and ana_perform_pat =
   | (UpdateApPalette(_), _)
   | (Construct(SApPalette(_)), _)
   | (Construct(SNum), _)
+  | (Construct(SForall), _)
   | (Construct(SBool), _)
   | (Construct(SList), _)
   | (Construct(SAsc), _)
@@ -5060,6 +5064,7 @@ and syn_perform_exp =
     }
   /* Invalid actions at expression level */
   | (Construct(SNum), _)
+  | (Construct(SForall), _)
   | (Construct(SBool), _)
   | (Construct(SList), _)
   | (Construct(SWild), _) => Failed
@@ -6872,6 +6877,7 @@ and ana_perform_exp =
     ana_perform_exp_subsume(~ci, ctx, a, (ze, u_gen), ty)
   /* Invalid actions at expression level */
   | (Construct(SNum), _)
+  | (Construct(SForall), _)
   | (Construct(SBool), _)
   | (Construct(SList), _)
   | (Construct(SWild), _) => Failed
@@ -6959,6 +6965,7 @@ let can_perform =
   | Construct(SOp(_))
   | Construct(SNum) /* TODO enrich cursor_info to allow simplifying these type cases */
   | Construct(SBool) /* TODO enrich cursor_info to allow simplifying these type cases */
+  | Construct(SForall)
   | MoveTo(_)
   | MoveToBefore(_)
   | MoveToNextHole

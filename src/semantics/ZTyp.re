@@ -12,14 +12,16 @@ type t =
   /* zipper cases */
   | ParenthesizedZ(t)
   | ListZ(t)
-  | OpSeqZ(UHTyp.skel_t, t, opseq_surround);
+  | OpSeqZ(UHTyp.skel_t, t, opseq_surround)
+  /* in the pattern */
+  | ForallZP(ZTPat.t, UHTyp.t)
+  /* in the type */
+  | ForallZT(TPat.t, t);
 
 let valid_cursors = (uty: UHTyp.t): list(cursor_position) =>
   switch (uty) {
   | TVar(_)
-  | TVarHole(_)
   | Forall(_, _)
-  | ForallHole(_, _)
   | Hole
   | Unit
   | Num
@@ -40,6 +42,8 @@ let rec erase = (zty: t): UHTyp.t =>
   | CursorT(_, ty) => ty
   | ParenthesizedZ(zty1) => Parenthesized(erase(zty1))
   | ListZ(zty1) => List(erase(zty1))
+  | ForallZP(ztpat, uhtyp1) => Forall(ZTPat.erase(ztpat), uhtyp1)
+  | ForallZT(tpat, zty1) => Forall(tpat, erase(zty1))
   | OpSeqZ(skel, zty1, surround) =>
     let uty1 = erase(zty1);
     let opseq = OperatorSeq.opseq_of_exp_and_surround(uty1, surround);
@@ -60,6 +64,8 @@ let rec is_before = (zty: t): bool =>
   /* zipper cases */
   | ParenthesizedZ(_) => false
   | ListZ(_) => false
+  | ForallZP(_) => false
+  | ForallZT(_) => false
   | OpSeqZ(_, zty, EmptyPrefix(_)) => is_before(zty)
   | OpSeqZ(_, _, _) => false
   };
@@ -77,6 +83,8 @@ let rec is_after = (zty: t): bool =>
   | CursorT(_, OpSeq(_, _)) => false
   | ParenthesizedZ(_) => false
   | ListZ(_) => false
+  | ForallZP(_) => false
+  | ForallZT(_) => false
   | OpSeqZ(_, zty, EmptySuffix(_)) => is_after(zty)
   | OpSeqZ(_, _, _) => false
   };
@@ -211,3 +219,8 @@ let rec move_cursor_right = (zty: t): option(t) =>
       Some(CursorT(OnDelim(k + 1, Before), OpSeq(skel, seq)));
     }
   };
+
+let new_ForallHole = (u_gen: MetaVarGen.t): (t, MetaVarGen.t) => {
+  let (hole, u_gen) = UHTyp.new_ForallHole(u_gen);
+  (CursorT(In(0), hole), u_gen);
+};

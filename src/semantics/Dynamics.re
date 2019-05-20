@@ -1913,7 +1913,6 @@ module Evaluator = {
   let grounded_Prod = NotGroundOrHole(Prod(Hole, Hole));
   let grounded_List = NotGroundOrHole(List(Hole));
   let grounded_Forall = t => NotGroundOrHole(Forall(t, Hole));
-  let grounded_ForallHole = u => NotGroundOrHole(ForallHole(u, Hole));
 
   /* ground_cases_of is useful to insert casts to more general types,
      by finding a matching ground type. */
@@ -1929,15 +1928,12 @@ module Evaluator = {
     | Prod(Hole, Hole)
     | List(Hole)
     | Forall(_, Hole)
-    | ForallHole(_, Hole)
-    /*! is this right? */
     | TVar(_) => Ground
     | Arrow(_, _) => grounded_Arrow
     | Sum(_, _) => grounded_Sum
     | Prod(_, _) => grounded_Prod
     | List(_) => grounded_List
     | Forall(t, _) => grounded_Forall(t)
-    | ForallHole(u, _) => grounded_ForallHole(u)
     };
 
   let eval_bin_num_op = (op: DHExp.bin_num_op, n1: int, n2: int): DHExp.t =>

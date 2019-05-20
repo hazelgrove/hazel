@@ -14,11 +14,15 @@ let cons' = (step: int, (steps, cursor): t): t => {
   ([step, ...steps], cursor);
 };
 
+let of_ztpat = (ZTPat.Cursor(cursor_side, _): ZTPat.t) => ([], cursor_side);
+
 let rec of_ztyp = (zty: ZTyp.t): t =>
   switch (zty) {
   | CursorT(cursor, _) => ([], cursor)
   | ParenthesizedZ(zty1) => cons'(0, of_ztyp(zty1))
   | ListZ(zty1) => cons'(0, of_ztyp(zty1))
+  | ForallZP(ztpat, _) => cons'(0, of_ztpat(ztpat))
+  | ForallZT(_, ty1) => cons'(0, of_ztyp(ty1))
   | OpSeqZ(_, zty1, surround) =>
     let n = OperatorSeq.surround_prefix_length(surround);
     cons'(n, of_ztyp(zty1));
@@ -162,13 +166,25 @@ let rec follow_ty_and_place_cursor =
   | [x, ...xs] =>
     switch (uty) {
     | TVar(_)
-    | TVarHole(_)
-    | Forall(_)
-    | ForallHole(_)
     | Hole
     | Unit
     | Num
     | Bool => None
+    | Forall(tpat, uty1) =>
+      switch (x) {
+      | 0 =>
+        switch (follow_tpat(cursor_side, tpat)) {
+        | Some(ztpat) => Some(ForallZP(ztpat, uty1))
+        | None => None
+        }
+      | 1 =>
+        switch (follow_ty((xs, cursor_side), uty1)) {
+        | Some(uty1) => Some(ForallZT(tpat, uty1))
+        | None => None
+        }
+      | _ => None
+      }
+
     | Parenthesized(uty1) =>
       switch (x) {
       | 0 =>
