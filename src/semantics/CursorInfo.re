@@ -46,7 +46,15 @@ type typed =
   | SynKeyword(keyword)
   /* cursor is on a keyword */
   | Synthesized(HTyp.t)
-  /* none of the above */
+  /*
+   * # cursor in type position
+   */
+  | TypePosition
+  /* a normal cursor into a type */
+  | TypePat(TPat.t)
+  /* a cursor into a type pattern  */
+  | UnboundTypeVar
+  /* a cursor into a type variable that's not bound */
   /*
    *  # cursor in analytic pattern position
    */

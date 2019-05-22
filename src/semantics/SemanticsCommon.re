@@ -6,7 +6,7 @@ type in_hole_reason =
   | TypeInconsistent
   | WrongLength;
 
-[@deriving sexp]
+[@deriving (sexp, show)]
 type err_status =
   | NotInHole
   | InHole(in_hole_reason, MetaVar.t);
@@ -16,17 +16,17 @@ let err_status_to_string =
   | NotInHole => "NotInHole"
   | InHole(_, _) => "InHole";
 
-[@deriving sexp]
+[@deriving (sexp, show)]
 type keyword =
   | Let
   | Case;
 
-[@deriving sexp]
+[@deriving (sexp, show)]
 type in_vhole_reason =
   | Free
   | Keyword(keyword);
 
-[@deriving sexp]
+[@deriving (sexp, show)]
 type var_err_status =
   | NotInVHole
   | InVHole(in_vhole_reason, MetaVar.t);

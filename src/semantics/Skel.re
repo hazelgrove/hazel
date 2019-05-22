@@ -1,7 +1,7 @@
 open SemanticsCommon;
 open Sexplib.Std;
 
-[@deriving sexp]
+[@deriving (sexp, show)]
 type t('op) =
   | Placeholder(int)
   | BinOp(err_status, 'op, t('op), t('op));

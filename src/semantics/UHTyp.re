@@ -1,16 +1,16 @@
 open GeneralUtil;
 open SemanticsCommon;
 
-[@deriving sexp]
+[@deriving (sexp, show)]
 type op =
   | Arrow
   | Prod
   | Sum;
 
-[@deriving sexp]
+[@deriving (sexp, show)]
 type skel_t = Skel.t(op);
 
-[@deriving sexp]
+[@deriving (sexp, show)]
 type t =
   | TVar(var_err_status, Var.t) /* bound type variables */
   | Parenthesized(t)

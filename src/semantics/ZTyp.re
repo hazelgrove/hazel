@@ -6,7 +6,7 @@ type opseq_surround = OperatorSeq.opseq_surround(UHTyp.t, UHTyp.op);
 type opseq_prefix = OperatorSeq.opseq_prefix(UHTyp.t, UHTyp.op);
 type opseq_suffix = OperatorSeq.opseq_suffix(UHTyp.t, UHTyp.op);
 
-[@deriving sexp]
+[@deriving sexp, show]
 type t =
   | CursorT(cursor_position, UHTyp.t)
   /* zipper cases */
