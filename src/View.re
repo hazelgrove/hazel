@@ -159,7 +159,18 @@ let of_TPat = (prefix, rev_path, tpat) => {
   };
 };
 
-let of_ForallHole = (prefix, rev_path, tpat, r1) => {
+let classes_of_var_err_status = var_err_status =>
+  switch (var_err_status) {
+  | InVHole(Free, u) => ["InVHole", "InVHole_" ++ string_of_int(u)]
+  | InVHole(Keyword(_), u) => [
+      "InVHole",
+      "InVHole_" ++ string_of_int(u),
+      "Keyword",
+    ]
+  | NotInVHole => []
+  };
+
+let of_Forall = (prefix, rev_path, tpat, r1) => {
   let tpat_rev_path = [0, ...rev_path];
   term(
     prefix,
@@ -172,6 +183,15 @@ let of_ForallHole = (prefix, rev_path, tpat, r1) => {
     ^^ r1,
   );
 };
+
+let of_TVar = (prefix, var_err_status, rev_path, x) =>
+  term_classes(
+    prefix,
+    NotInHole,
+    rev_path,
+    ["TVar", ...classes_of_var_err_status(var_err_status)],
+    var(x),
+  );
 
 let precedence_const = 0;
 let precedence_forall = 1;
@@ -254,7 +274,7 @@ let rec of_htype = (parenthesize, prefix, rev_path, ty) => {
       let rev_path1 = [1, ...rev_path];
       let paren = precedence_ty(ty1) >= precedence_forall;
       let ty1 = of_htype(paren, prefix, rev_path1, ty1);
-      of_ForallHole(prefix, rev_path, tpat, ty1);
+      of_Forall(prefix, rev_path, tpat, ty1);
     /*! remove before merging */
     | _ => kw("UNVIEWED first")
     };
@@ -285,9 +305,9 @@ let rec of_uhtyp = (prefix, rev_path, uty) =>
   | UHTyp.Forall(tpat, ty1) =>
     let rev_path1 = [1, ...rev_path];
     let ty1 = of_uhtyp(prefix, rev_path1, ty1);
-    of_ForallHole(prefix, rev_path, tpat, ty1);
-  /*! remove before merging */
-  | _ => kw("UNVIEWED second")
+    of_Forall(prefix, rev_path, tpat, ty1);
+  | UHTyp.TVar(var_err_status, v) =>
+    of_TVar(prefix, var_err_status, rev_path, v)
   }
 and of_uhtyp_skel = (prefix, rev_path, skel, seq) =>
   switch (skel) {
@@ -305,17 +325,6 @@ and of_uhtyp_skel = (prefix, rev_path, skel, seq) =>
   };
 
 /* Expressions and Patterns */
-
-let classes_of_var_err_status = var_err_status =>
-  switch (var_err_status) {
-  | InVHole(Free, u) => ["InVHole", "InVHole_" ++ string_of_int(u)]
-  | InVHole(Keyword(_), u) => [
-      "InVHole",
-      "InVHole_" ++ string_of_int(u),
-      "Keyword",
-    ]
-  | NotInVHole => []
-  };
 
 let of_Wild = (prefix, err_status, rev_path) =>
   term(prefix, err_status, rev_path, "Wild", var("_"));
