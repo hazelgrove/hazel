@@ -179,6 +179,13 @@ let of_cursor_mode = (cursor_mode: CursorInfo.cursor_mode) => {
       let ind1 = expected_a_type_indicator;
       let ind2 = got_a_type_indicator;
       (ind1, ind2, OK);
+    | CursorInfo.UnboundTypeVar
+    | CursorInfo.TypePat(_) =>
+      JSUtil.log("unimplemented, DEFINITELY not right");
+      let ind1 = expected_a_type_indicator;
+      let ind2 =
+        got_indicator("NOT QUIITE RIGHT Got", special_msg_bar("a type"));
+      (ind1, ind2, OK);
     | CursorInfo.PatAnalyzed(ty) =>
       let ind1 = expected_ty_indicator_pat(ty);
       let ind2 = got_indicator("Got", special_msg_bar("as expected"));

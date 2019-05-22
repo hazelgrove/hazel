@@ -122,6 +122,8 @@ let rec perform_ty =
     | None => None
     };
 
+  print_endline(show(a) ++ " & " ++ ZTyp.show(zty));
+
   switch (a, zty) {
   /* Movement */
   | (MoveTo(path), _) =>
@@ -274,7 +276,8 @@ let rec perform_ty =
     Some((CursorT(After, Bool), u_gen))
   | (Construct(SBool), CursorT(_, _)) => None
   | (Construct(SList), CursorT(_, _)) => Some((ListZ(zty), u_gen))
-  | (Construct(SVar(t, side)), CursorT(_, Hole)) =>
+  | (Construct(SVar(t, side)), ForallZP(_, _)) =>
+    /* JSUtil.log("HI THER"); */
     /*! this should construct a Var(InHole, t) when the var is duplicate */
     Some((CursorT(side, TVar(NotInVHole, t)), u_gen))
   | (Construct(SForall), CursorT(_, Hole)) =>
@@ -3793,7 +3796,8 @@ let can_perform =
     | IsLine(_) => true
     | IsExpr(_) => true
     | IsPat(_) => false
-    | IsType => false
+    | IsType(_) => false
+    | IsTPat(_) => false
     | IsBlock(_) => false
     }
   | Construct(SInj(_)) =>
@@ -3801,7 +3805,8 @@ let can_perform =
     | IsLine(_) => true
     | IsExpr(_) => true
     | IsPat(_) => true
-    | IsType => false
+    | IsType(_) => false
+    | IsTPat(_) => false
     | IsBlock(_) => false
     }
   | Construct(SListNil) =>
@@ -3813,17 +3818,19 @@ let can_perform =
     | IsExpr(_) => false
     | IsPat(EmptyHole(_)) => true
     | IsPat(_) => false
-    | IsType => false
+    | IsType(_) => false
+    | IsTPat(_) => false
     | IsBlock(_) => false
     }
   | Construct(SOp(SArrow))
   | Construct(SOp(SVBar))
   | Construct(SList) =>
     switch (ci.sort) {
-    | IsType => true
+    | IsType(_) => true
     | IsLine(_)
     | IsExpr(_)
     | IsPat(_) => false
+    | IsTPat(_) => false
     | IsBlock(_) => false
     }
   | Construct(SAsc)
@@ -3859,6 +3866,7 @@ let can_enter_varchar = (ci: CursorInfo.t): bool =>
   | IsExpr(Tm(_, BoolLit(_)))
   | IsPat(Pat(_, Var(_)))
   | IsPat(EmptyHole(_))
+  | IsTPat(TPat.Hole(_))
   | IsPat(Pat(_, BoolLit(_))) => true
   | IsExpr(Tm(_, NumLit(_)))
   | IsPat(Pat(_, NumLit(_))) =>
@@ -3871,7 +3879,8 @@ let can_enter_varchar = (ci: CursorInfo.t): bool =>
   | IsLine(_)
   | IsExpr(_)
   | IsPat(_)
-  | IsType => false
+  | IsTPat(_)
+  | IsType(_) => false
   };
 
 let can_enter_numeral = (ci: CursorInfo.t): bool =>
@@ -3886,7 +3895,8 @@ let can_enter_numeral = (ci: CursorInfo.t): bool =>
   | IsLine(_)
   | IsExpr(_)
   | IsPat(_)
-  | IsType => false
+  | IsTPat(_)
+  | IsType(_) => false
   };
 
 let can_construct_palette = (ci: CursorInfo.t): bool =>

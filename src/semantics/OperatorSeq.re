@@ -1,4 +1,4 @@
-[@deriving sexp]
+[@deriving (sexp, show)]
 type opseq('tm, 'op) =
   | ExpOpExp('tm, 'op, 'tm)
   | SeqOpExp(opseq('tm, 'op), 'op, 'tm);
@@ -56,6 +56,7 @@ let rec seq_update_nth = (n, seq, e) =>
   };
 
 /* set up this way to enforce the requirement that there be at least one op */
+[@deriving show]
 type opseq_surround('tm, 'op) =
   /* if the prefix is empty, there must be a non-empty suffix */
   | EmptyPrefix(opseq_suffix('tm, 'op))

@@ -76,7 +76,8 @@ let mk =
               | CursorInfo.IsLine(UHExp.ExpLine(UHExp.EmptyHole(_)))
               | CursorInfo.IsExpr(UHExp.EmptyHole(_))
               | CursorInfo.IsPat(UHPat.EmptyHole(_))
-              | CursorInfo.IsPat(UHPat.Pat(_, UHPat.Var(_, ""))) =>
+              | CursorInfo.IsPat(UHPat.Pat(_, UHPat.Var(_, "")))
+              | CursorInfo.IsTPat(TPat.Hole(_)) =>
                 let shape =
                   switch (single_key) {
                   | JSUtil.Number(n) => Action.SNumLit(n, After)
@@ -91,6 +92,7 @@ let mk =
               | CursorInfo.IsExpr(UHExp.Tm(_, UHExp.BoolLit(_)))
               | CursorInfo.IsExpr(UHExp.Tm(_, UHExp.Var(_, _)))
               | CursorInfo.IsPat(UHPat.Pat(_, UHPat.Var(_)))
+              | CursorInfo.IsTPat(TPat.Var(_))
               | CursorInfo.IsPat(UHPat.Pat(_, UHPat.NumLit(_)))
               | CursorInfo.IsPat(UHPat.Pat(_, UHPat.BoolLit(_))) =>
                 let selection = Dom_html.window##getSelection;
@@ -128,7 +130,7 @@ let mk =
               | CursorInfo.IsLine(_)
               | CursorInfo.IsExpr(_)
               | CursorInfo.IsPat(_)
-              | CursorInfo.IsType
+              | CursorInfo.IsType(_)
               | CursorInfo.IsBlock(_) => true
               };
             | None =>

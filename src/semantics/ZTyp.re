@@ -1,9 +1,12 @@
+[@deriving show]
 type cursor_side = SemanticsCommon.cursor_side;
 
+[@deriving show]
 type opseq_surround = OperatorSeq.opseq_surround(UHTyp.t, UHTyp.op);
 type opseq_prefix = OperatorSeq.opseq_prefix(UHTyp.t, UHTyp.op);
 type opseq_suffix = OperatorSeq.opseq_suffix(UHTyp.t, UHTyp.op);
 
+[@deriving show]
 type t =
   | CursorT(cursor_side, UHTyp.t)
   | ParenthesizedZ(t)

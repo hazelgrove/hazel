@@ -49,7 +49,11 @@ type cursor_mode =
    * # cursor in type position
    */
   | TypePosition
-  /* (we will have a richer structure here later) */
+  /* a normal cursor into a type */
+  | TypePat(TPat.t)
+  /* a cursor into a type pattern  */
+  | UnboundTypeVar
+  /* a cursor into a type variable that's not bound */
   /*
    *  # cursor in analytic pattern position
    */
@@ -81,7 +85,8 @@ type cursor_mode =
 type cursor_sort =
   | IsExpr(UHExp.t)
   | IsPat(UHPat.t)
-  | IsType
+  | IsType(UHTyp.t)
+  | IsTPat(TPat.t)
   | IsLine(UHExp.line)
   | IsBlock(UHExp.block);
 
@@ -466,6 +471,27 @@ and syn_cursor_info_line = (ctx: Contexts.t, zli: ZExp.zline): option(t) =>
   | CursorL(side, li) => Some(mk_cursor_info(Line, IsLine(li), side, ctx))
   | DeeperL(zli') => syn_cursor_info_line'(ctx, zli')
   }
+and cursor_info_tpat =
+    (ctx: Contexts.t, ZTPat.Cursor(cursor_side, tpat): ZTPat.t): option(t) => {
+  /*! idk if this should be an is_type */
+  Some(
+    mk_cursor_info(TypePat(tpat), IsTPat(tpat), cursor_side, ctx),
+  );
+}
+and cursor_info_typ = (ctx: Contexts.t, ztyp: ZTyp.t): option(t) =>
+  switch (ztyp) {
+  /*! is this u okay to be ignored? */
+  | CursorT(cursor_side, TVar(InVHole(_, _u), _) as ty) =>
+    Some(mk_cursor_info(UnboundTypeVar, IsType(ty), cursor_side, ctx))
+  | CursorT(cursor_side, ty) =>
+    Some(mk_cursor_info(TypePosition, IsType(ty), cursor_side, ctx))
+  | ParenthesizedZ(zty) => cursor_info_typ(ctx, zty)
+  | ListZ(zty) => cursor_info_typ(ctx, zty)
+  | OpSeqZ(_, zty, _) => cursor_info_typ(ctx, zty)
+  | ForallZP(ztpat, _) => cursor_info_tpat(ctx, ztpat)
+  | ForallZT(_, zty) => cursor_info_typ(ctx, zty)
+  /* Some(mk_cursor_info(TypePosition, IsType(ty), cursor_side, ctx)); */
+  }
 and syn_cursor_info_line' = (ctx: Contexts.t, zli': ZExp.zline'): option(t) =>
   switch (zli') {
   | ExpLineZ(ze) => syn_cursor_info(ctx, ze)
@@ -480,8 +506,7 @@ and syn_cursor_info_line' = (ctx: Contexts.t, zli': ZExp.zline'): option(t) =>
       | Some(ty1) => ana_cursor_info_pat(ctx, zp, ty1)
       }
     }
-  | LetLineZA(_, _, _) =>
-    Some(mk_cursor_info(TypePosition, IsType, Before, ctx))
+  | LetLineZA(_, ztyp, _) => cursor_info_typ(ctx, ztyp)
   | LetLineZE(p, ann, zblock) =>
     switch (ann) {
     | Some(uty1) =>
@@ -520,8 +545,7 @@ and syn_cursor_info' = (ctx: Contexts.t, ze: ZExp.t'): option(t) =>
       | None => Hole
       };
     ana_cursor_info_pat(ctx, zp, ty1);
-  | LamZA(_, _, _) =>
-    Some(mk_cursor_info(TypePosition, IsType, Before, ctx))
+  | LamZA(_, ann, _) => cursor_info_typ(ctx, ann)
   | LamZE(p, ann, zblock) =>
     let ty1 =
       switch (ann) {
@@ -544,8 +568,7 @@ and syn_cursor_info' = (ctx: Contexts.t, ze: ZExp.t'): option(t) =>
       let zrule = GeneralUtil.ZList.prj_z(zrules);
       ana_cursor_info_rule(ctx, zrule, ty1, ty);
     };
-  | CaseZA(_, _, _) =>
-    Some(mk_cursor_info(TypePosition, IsType, Before, ctx))
+  | CaseZA(_, _, ann) => cursor_info_typ(ctx, ann)
   | ApPaletteZ(_, _, zpsi) =>
     let (ty, zblock) = GeneralUtil.ZNatMap.prj_z_v(zpsi.zsplice_map);
     ana_cursor_info_block(ctx, zblock, ty);
@@ -591,8 +614,7 @@ and ana_cursor_info' = (ctx: Contexts.t, ze: ZExp.t', ty: HTyp.t): option(t) =>
         };
       ana_cursor_info_pat(ctx, zp, ty1);
     }
-  | LamZA(_, _, _) =>
-    Some(mk_cursor_info(TypePosition, IsType, Before, ctx))
+  | LamZA(_, ann, _) => cursor_info_typ(ctx, ann)
   | LamZE(p, ann, zblock) =>
     switch (HTyp.matched_arrow(ty)) {
     | None => None
@@ -621,8 +643,7 @@ and ana_cursor_info' = (ctx: Contexts.t, ze: ZExp.t', ty: HTyp.t): option(t) =>
       let zrule = ZList.prj_z(zrules);
       ana_cursor_info_rule(ctx, zrule, ty1, ty);
     }
-  | CaseZA(_, _, _) =>
-    Some(mk_cursor_info(TypePosition, IsType, Before, ctx))
+  | CaseZA(_, _, ann) => cursor_info_typ(ctx, ann)
   | ApPaletteZ(_, _, _) => syn_cursor_info'(ctx, ze)
   }
 and ana_cursor_info_rule =
