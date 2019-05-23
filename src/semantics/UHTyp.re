@@ -129,8 +129,3 @@ and expand_skel = (skel, seq) =>
     let uty2 = expand_skel(skel2, seq);
     HTyp.Sum(uty1, uty2);
   };
-
-let new_ForallHole = (u_gen: MetaVarGen.t): (t, MetaVarGen.t) => {
-  let (u, u_gen) = MetaVarGen.next(u_gen);
-  (Forall(TPat.Hole(u), Hole), u_gen);
-};

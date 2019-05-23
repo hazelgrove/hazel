@@ -113,6 +113,21 @@ let make_ty_OpSeqZ = (zty0: ZTyp.t, surround: ZTyp.opseq_surround): ZTyp.t => {
   OpSeqZ(skel, zty0, surround);
 };
 
+let perform_tpat = (a: t, ztpat: ZTPat.t, u_gen: MetaVarGen.t) =>
+  switch (a, ztpat) {
+  | (Construct(SVar(t, side)), ZTPat.Cursor(_old_side, _)) =>
+    /*! this should construct a Var(InHole, t) when the var is duplicate */
+    Some((ZTPat.Cursor(side, TPat.Var(t)), u_gen))
+  | (Backspace, ZTPat.Cursor(After, TPat.Var(t))) =>
+    if (String.length(t) == 1) {
+      let (u, u_gen) = MetaVarGen.next(u_gen);
+      Some((ZTPat.Cursor(Before, TPat.Hole(u)), u_gen));
+    } else {
+      Some((ZTPat.Cursor(After, TPat.Var(t)), u_gen));
+    }
+  | (_, _) => None
+  };
+
 let rec perform_ty =
         (a: t, zty: ZTyp.t, u_gen: MetaVarGen.t)
         : option((ZTyp.t, MetaVarGen.t)) => {
@@ -276,12 +291,7 @@ let rec perform_ty =
     Some((CursorT(After, Bool), u_gen))
   | (Construct(SBool), CursorT(_, _)) => None
   | (Construct(SList), CursorT(_, _)) => Some((ListZ(zty), u_gen))
-  | (Construct(SVar(t, side)), ForallZP(_, _)) =>
-    /* JSUtil.log("HI THER"); */
-    /*! this should construct a Var(InHole, t) when the var is duplicate */
-    Some((CursorT(side, TVar(NotInVHole, t)), u_gen))
-  | (Construct(SForall), CursorT(_, Hole)) =>
-    Some(ZTyp.new_ForallHole(u_gen))
+  | (Construct(SForall), CursorT(_, Hole)) => Some(ZTyp.new_Forall(u_gen))
   | (Construct(SForall), CursorT(_, _)) => None
   | (Construct(SOp(os)), CursorT(After, uty1))
   | (Construct(SOp(os)), CursorT(In(_), uty1)) =>
@@ -367,12 +377,11 @@ let rec perform_ty =
     | Some((zty1, u_gen)) => Some((ForallZT(t, zty1), u_gen))
     | None => None
     }
-  /*! deal with these Construct's explicitely */
-  | (_, ForallZP(_, _zty1)) => None
-  /* switch (perform_ty(a, zty1, u_gen)) { */
-  /* | Some((zty1, u_gen)) => Some((ForallZ(t, zty1), u_gen)) */
-  /* | None => None */
-  /* } */
+  | (a, ForallZP(ztpat, zty1)) =>
+    switch (perform_tpat(a, ztpat, u_gen)) {
+    | Some((ztpat, u_gen)) => Some((ZTyp.ForallZP(ztpat, zty1), u_gen))
+    | None => None
+    }
   | (a, OpSeqZ(skel, zty0, surround)) =>
     switch (perform_ty(a, zty0, u_gen)) {
     | Some((zty0', u_gen)) => Some((OpSeqZ(skel, zty0', surround), u_gen))

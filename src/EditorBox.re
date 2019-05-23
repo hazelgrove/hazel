@@ -144,6 +144,7 @@ let mk =
                 | CursorInfo.IsExpr(UHExp.Tm(_, UHExp.NumLit(_)))
                 | CursorInfo.IsExpr(UHExp.Tm(_, UHExp.BoolLit(_)))
                 | CursorInfo.IsExpr(UHExp.Tm(_, UHExp.Var(_, _)))
+                | CursorInfo.IsTPat(TPat.Var(_))
                 | CursorInfo.IsPat(UHPat.Pat(_, UHPat.NumLit(_)))
                 | CursorInfo.IsPat(UHPat.Pat(_, UHPat.BoolLit(_)))
                 | CursorInfo.IsPat(UHPat.Pat(_, UHPat.Var(_))) =>

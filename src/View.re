@@ -155,7 +155,7 @@ let of_Hole = (prefix, rev_path, cls, hole_name) =>
 let of_TPat = (prefix, rev_path, tpat) => {
   switch (tpat) {
   | TPat.Hole(u) => of_Hole(prefix, rev_path, "Hole", string_of_int(u))
-  | TPat.Var(t) => taggedText("forall-var", t)
+  | TPat.Var(t) => of_var_binding(prefix, rev_path, t)
   };
 };
 
@@ -170,17 +170,16 @@ let classes_of_var_err_status = var_err_status =>
   | NotInVHole => []
   };
 
-let of_Forall = (prefix, rev_path, tpat, r1) => {
-  let tpat_rev_path = [0, ...rev_path];
+let of_Forall = (prefix, rev_path, rtpat, rty1) => {
   term(
     prefix,
     NotInHole,
     rev_path,
     "Forall",
     taggedText("forall-sym", LangUtil.forallSym)
-    ^^ of_TPat(prefix, tpat_rev_path, tpat)
+    ^^ rtpat
     ^^ PP.text("forall-mid", ",")
-    ^^ r1,
+    ^^ rty1,
   );
 };
 
@@ -270,11 +269,13 @@ let rec of_htype = (parenthesize, prefix, rev_path, ty) => {
       let r2 = of_htype(paren2, prefix, rev_path2, ty2);
       of_ty_BinOp(prefix, NotInHole, rev_path, r1, UHTyp.Prod, r2);
     | HTyp.Hole => of_Hole(prefix, rev_path, "Hole", "?")
-    | HTyp.Forall(tpat, ty1) =>
-      let rev_path1 = [1, ...rev_path];
-      let paren = precedence_ty(ty1) >= precedence_forall;
-      let ty1 = of_htype(paren, prefix, rev_path1, ty1);
-      of_Forall(prefix, rev_path, tpat, ty1);
+    | HTyp.Forall(tpat, ty) =>
+      let tpat_rev_path = [0, ...rev_path];
+      let ty_rev_path = [1, ...rev_path];
+      let paren = precedence_ty(ty) > precedence_forall;
+      let ty = of_htype(paren, prefix, ty_rev_path, ty);
+      let tpat = of_TPat(prefix, tpat_rev_path, tpat);
+      of_Forall(prefix, rev_path, tpat, ty);
     /*! remove before merging */
     | _ => kw("UNVIEWED first")
     };
@@ -302,10 +303,12 @@ let rec of_uhtyp = (prefix, rev_path, uty) =>
       of_uhtyp_skel(prefix, rev_path, skel, seq),
     )
   | UHTyp.Hole => of_Hole(prefix, rev_path, "Hole", "?")
-  | UHTyp.Forall(tpat, ty1) =>
-    let rev_path1 = [1, ...rev_path];
-    let ty1 = of_uhtyp(prefix, rev_path1, ty1);
-    of_Forall(prefix, rev_path, tpat, ty1);
+  | UHTyp.Forall(tpat, ty) =>
+    let tpat_rev_path = [0, ...rev_path];
+    let ty_rev_path = [1, ...rev_path];
+    let ty = of_uhtyp(prefix, ty_rev_path, ty);
+    let tpat = of_TPat(prefix, tpat_rev_path, tpat);
+    of_Forall(prefix, rev_path, tpat, ty);
   | UHTyp.TVar(var_err_status, v) =>
     of_TVar(prefix, var_err_status, rev_path, v)
   }

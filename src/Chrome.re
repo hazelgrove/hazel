@@ -544,6 +544,8 @@ let view = (model: Model.t) => {
       } else {
         After;
       };
+    } else if (ast_has_class("Forall")) {
+      Before;
     } else if (ast_has_class("Arrow")) {
       In(0);
     } else if (ast_has_class("Sum")) {

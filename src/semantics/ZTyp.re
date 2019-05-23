@@ -85,7 +85,7 @@ let rec is_after = (zty: t): bool =>
   | OpSeqZ(_, _, _) => false
   };
 
-let new_ForallHole = (u_gen: MetaVarGen.t): (t, MetaVarGen.t) => {
-  let (hole, u_gen) = UHTyp.new_ForallHole(u_gen);
-  (CursorT(In(0), hole), u_gen);
+let new_Forall = (u_gen: MetaVarGen.t): (t, MetaVarGen.t) => {
+  let (u1, u_gen) = MetaVarGen.next(u_gen);
+  (ForallZP(ZTPat.Cursor(Before, TPat.Hole(u1)), UHTyp.Hole), u_gen);
 };
