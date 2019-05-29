@@ -80,7 +80,6 @@ type shape =
   | SNum
   | SBool
   | SList
-  | SForall
   /* expression shapes */
   | SAsc
   | SVar(Var.t, ZExp.cursor_side)
@@ -297,12 +296,14 @@ let rec perform_ty =
     Some((CursorT(After, Bool), u_gen))
   | (Construct(SBool), CursorT(_, _)) => None
   | (Construct(SList), CursorT(_, _)) => Some((ListZ(zty), u_gen))
-  | (Construct(SForall), CursorT(_, Hole)) => Some(ZTyp.new_Forall(u_gen))
-  | (Construct(SForall), CursorT(_, _)) => None
   | (Construct(SVar(t, side)), CursorT(_, TVar(_, _)))
   | (Construct(SVar(t, side)), CursorT(_, Hole)) =>
-    let ztyp = ZTyp.CursorT(side, UHTyp.TVar(NotInVHole, t));
-    Some((ztyp, u_gen));
+    if (t == "forall") {
+      Some(ZTyp.new_Forall(u_gen));
+    } else {
+      let ztyp = ZTyp.CursorT(side, UHTyp.TVar(NotInVHole, t));
+      Some((ztyp, u_gen));
+    }
   | (Construct(SOp(os)), CursorT(After, uty1))
   | (Construct(SOp(os)), CursorT(In(_), uty1)) =>
     switch (ty_op_of(os)) {
@@ -1348,7 +1349,6 @@ let rec syn_perform_pat =
   | (UpdateApPalette(_), _)
   | (Construct(SApPalette(_)), _)
   | (Construct(SNum), _)
-  | (Construct(SForall), _)
   | (Construct(SBool), _)
   | (Construct(SList), _)
   | (Construct(SAsc), _)
@@ -1681,7 +1681,6 @@ and ana_perform_pat =
   | (UpdateApPalette(_), _)
   | (Construct(SApPalette(_)), _)
   | (Construct(SNum), _)
-  | (Construct(SForall), _)
   | (Construct(SBool), _)
   | (Construct(SList), _)
   | (Construct(SAsc), _)
@@ -2985,7 +2984,6 @@ and syn_perform_exp =
     }
   /* Invalid actions at expression level */
   | (Construct(SNum), _)
-  | (Construct(SForall), _)
   | (Construct(SBool), _)
   | (Construct(SList), _)
   | (Construct(SWild), _) => None
@@ -3775,7 +3773,6 @@ and ana_perform_exp =
     ana_perform_exp_subsume(ctx, a, (ze, u_gen), ty)
   /* Invalid actions at expression level */
   | (Construct(SNum), _)
-  | (Construct(SForall), _)
   | (Construct(SBool), _)
   | (Construct(SList), _)
   | (Construct(SWild), _) => None
@@ -3861,7 +3858,6 @@ let can_perform =
   | Construct(SOp(_))
   | Construct(SNum) /* TODO enrich cursor_info to allow simplifying these type cases */
   | Construct(SBool) /* TODO enrich cursor_info to allow simplifying these type cases */
-  | Construct(SForall)
   | MoveTo(_)
   | MoveToNextHole
   | MoveToPrevHole

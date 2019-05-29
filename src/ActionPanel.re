@@ -283,13 +283,6 @@ let make =
       KCs.key_N,
     );
 
-  let constructForall =
-    checked_action_button(
-      Action.Construct(Action.SForall),
-      twopiece_lbl_kw("Forall", " type"),
-      KCs.backslash,
-    );
-
   let constructBool =
     checked_action_button(
       Action.Construct(Action.SBool),
@@ -470,7 +463,6 @@ let make =
             ~a=[a_class(["sub-panel-body"])],
             [
               constructNum,
-              constructForall,
               constructBool,
               constructList,
               constructArrow,
