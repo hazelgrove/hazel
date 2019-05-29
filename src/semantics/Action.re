@@ -157,8 +157,14 @@ let rec perform_ty =
       perform_ty(MoveTo(path), zty, u_gen)
     }
   /* Backspace and Delete */
-  | (Backspace, CursorT(After, _))
-  | (Backspace, CursorT(In(_), _)) => Some((CursorT(Before, Hole), u_gen))
+  | (Backspace, CursorT(After, uty))
+  | (Backspace, CursorT(In(_), uty)) =>
+    switch (uty) {
+    | UHTyp.TVar(err_status, s) when String.length(s) > 1 =>
+      let s = String.sub(s, 0, String.length(s) - 1);
+      Some((CursorT(After, TVar(err_status, s)), u_gen));
+    | _ => Some((CursorT(Before, Hole), u_gen))
+    }
   | (Backspace, CursorT(Before, _)) => None
   | (Delete, CursorT(Before, uty))
   | (Delete, CursorT(In(_), uty)) =>
@@ -3879,7 +3885,8 @@ let can_enter_varchar = (ci: CursorInfo.t): bool =>
   | IsExpr(Tm(_, BoolLit(_)))
   | IsPat(Pat(_, Var(_)))
   | IsPat(EmptyHole(_))
-  | IsTPat(TPat.Hole(_))
+  | IsTPat(Hole(_))
+  | IsType(Hole)
   | IsPat(Pat(_, BoolLit(_))) => true
   | IsExpr(Tm(_, NumLit(_)))
   | IsPat(Pat(_, NumLit(_))) =>
