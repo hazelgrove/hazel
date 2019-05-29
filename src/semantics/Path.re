@@ -695,10 +695,15 @@ let rec holes_zty = (zty: ZTyp.t, steps: steps): zhole_list =>
     }
   | ParenthesizedZ(zty1) => holes_zty(zty1, [0, ...steps])
   | ListZ(zty1) => holes_zty(zty1, [0, ...steps])
-  | ForallZP(_, uty) => {
+  | ForallZP(ZTPat.Cursor(_, TPat.Hole(u)), uty) => {
+      holes_before: [],
+      /*! this might be wrong */
+      hole_selected: Some((TypeForallHole(u), [0, ...steps])),
+      holes_after: holes_uty(uty, [1, ...steps], []),
+    }
+  | ForallZP(ZTPat.Cursor(_, TPat.Var(_)), uty) => {
       holes_before: [],
       hole_selected: None,
-      /*! is this 1 right? */
       holes_after: holes_uty(uty, [1, ...steps], []),
     }
   | ForallZT(_, zty1) => holes_zty(zty1, [0, ...steps])
