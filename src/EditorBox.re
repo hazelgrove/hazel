@@ -77,6 +77,7 @@ let mk =
               | CursorInfo.IsExpr(UHExp.EmptyHole(_))
               | CursorInfo.IsPat(UHPat.EmptyHole(_))
               | CursorInfo.IsPat(UHPat.Pat(_, UHPat.Var(_, "")))
+              | CursorInfo.IsType(UHTyp.Hole)
               | CursorInfo.IsTPat(TPat.Hole(_)) =>
                 let shape =
                   switch (single_key) {
@@ -93,6 +94,7 @@ let mk =
               | CursorInfo.IsExpr(UHExp.Tm(_, UHExp.Var(_, _)))
               | CursorInfo.IsPat(UHPat.Pat(_, UHPat.Var(_)))
               | CursorInfo.IsTPat(TPat.Var(_))
+              | CursorInfo.IsType(UHTyp.TVar(_, _))
               | CursorInfo.IsPat(UHPat.Pat(_, UHPat.NumLit(_)))
               | CursorInfo.IsPat(UHPat.Pat(_, UHPat.BoolLit(_))) =>
                 let selection = Dom_html.window##getSelection;

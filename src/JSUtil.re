@@ -246,7 +246,6 @@ module KeyCombos = {
   let alt_F = KeyCombo.alt(Key.the_letter_code("F"));
   let key_B = KeyCombo.no_ctrl_alt_meta(Key.the_key("B"));
   let key_N = KeyCombo.no_ctrl_alt_meta(Key.the_key("N"));
-  let key_V = KeyCombo.no_ctrl_alt_meta(Key.the_key("V"));
   let key_L = KeyCombo.no_ctrl_alt_meta(Key.the_key("L"));
 };
 

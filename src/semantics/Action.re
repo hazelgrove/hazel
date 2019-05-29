@@ -293,6 +293,10 @@ let rec perform_ty =
   | (Construct(SList), CursorT(_, _)) => Some((ListZ(zty), u_gen))
   | (Construct(SForall), CursorT(_, Hole)) => Some(ZTyp.new_Forall(u_gen))
   | (Construct(SForall), CursorT(_, _)) => None
+  | (Construct(SVar(t, side)), CursorT(_, TVar(_, _)))
+  | (Construct(SVar(t, side)), CursorT(_, Hole)) =>
+    let ztyp = ZTyp.CursorT(side, UHTyp.TVar(NotInVHole, t));
+    Some((ztyp, u_gen));
   | (Construct(SOp(os)), CursorT(After, uty1))
   | (Construct(SOp(os)), CursorT(In(_), uty1)) =>
     switch (ty_op_of(os)) {

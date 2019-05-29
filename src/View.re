@@ -277,6 +277,7 @@ let rec of_htype = (parenthesize, prefix, rev_path, ty) => {
       let tpat = of_TPat(prefix, tpat_rev_path, tpat);
       of_Forall(prefix, rev_path, tpat, ty);
     /*! remove before merging */
+    | HTyp.TVar(_, v) => of_TVar(prefix, NotInVHole, rev_path, v)
     | _ => kw("UNVIEWED first")
     };
   parenthesize ? lparen("(") ^^ d ^^ rparen(")") : d;

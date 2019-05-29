@@ -287,7 +287,7 @@ let make =
     checked_action_button(
       Action.Construct(Action.SForall),
       twopiece_lbl_kw("Forall", " type"),
-      KCs.key_V,
+      KCs.backslash,
     );
 
   let constructBool =
