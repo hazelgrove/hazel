@@ -714,7 +714,7 @@ let rec holes_zty = (zty: ZTyp.t, steps: steps): zhole_list =>
       ...inner_holes,
       holes_before: [(hole, [0, ...steps]), ...inner_holes.holes_before],
     };
-  | ForallZT(TPat.Var(_), zty) => holes_zty(zty, [0, ...steps])
+  | ForallZT(TPat.Var(_), zty) => holes_zty(zty, [1, ...steps])
   | OpSeqZ(_, zty0, surround) =>
     holes_OpSeqZ(holes_uty, holes_zty, zty0, surround, steps)
   };
