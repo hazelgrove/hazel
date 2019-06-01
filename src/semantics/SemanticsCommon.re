@@ -19,7 +19,8 @@ let err_status_to_string =
 [@deriving (sexp, show)]
 type keyword =
   | Let
-  | Case;
+  | Case
+  | Forall;
 
 [@deriving (sexp, show)]
 type in_vhole_reason =

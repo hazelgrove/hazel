@@ -107,6 +107,7 @@ type shape =
   | SLet
   | SLine
   | SCase
+  | SForall
   | SOp(op_shape)
   | SApPalette(PaletteName.t)
   /* pattern-only shapes */
@@ -1907,6 +1908,7 @@ let rec syn_perform_pat =
   | (Construct(SBool), _)
   | (Construct(SList), _)
   | (Construct(SAsc), _)
+  | (Construct(SForall), _)
   | (Construct(SLet), _)
   | (Construct(SLine), _)
   | (Construct(SLam), _)
@@ -2597,6 +2599,7 @@ and ana_perform_pat =
   | (Construct(SForall), _)
   | (Construct(SBool), _)
   | (Construct(SList), _)
+  | (Construct(SForall), _)
   | (Construct(SAsc), _)
   | (Construct(SLet), _)
   | (Construct(SLine), _)
@@ -3464,7 +3467,8 @@ let rec syn_perform_block =
         }
       }
     }
-  }
+  };
+}
 and syn_perform_lines =
     (
       ~ci: CursorInfo.t,
@@ -5066,6 +5070,7 @@ and syn_perform_exp =
   | (Construct(SNum), _)
   | (Construct(SForall), _)
   | (Construct(SBool), _)
+  | (Construct(SForall), _)
   | (Construct(SList), _)
   | (Construct(SWild), _) => Failed
   }
@@ -6879,6 +6884,7 @@ and ana_perform_exp =
   | (Construct(SNum), _)
   | (Construct(SForall), _)
   | (Construct(SBool), _)
+  | (Construct(SForall), _)
   | (Construct(SList), _)
   | (Construct(SWild), _) => Failed
   }

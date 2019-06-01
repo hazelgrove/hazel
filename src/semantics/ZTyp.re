@@ -3,7 +3,9 @@ open SemanticsCommon;
 
 [@deriving sexp]
 type opseq_surround = OperatorSeq.opseq_surround(UHTyp.t, UHTyp.op);
+[@deriving (show, sexp)]
 type opseq_prefix = OperatorSeq.opseq_prefix(UHTyp.t, UHTyp.op);
+[@deriving (show, sexp)]
 type opseq_suffix = OperatorSeq.opseq_suffix(UHTyp.t, UHTyp.op);
 
 [@deriving sexp, show]

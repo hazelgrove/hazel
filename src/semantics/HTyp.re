@@ -1,10 +1,10 @@
 open GeneralUtil;
 
-[@deriving sexp]
+[@deriving (sexp, show)]
 type idx = int; /* we use de Bruijn indices */
 
 /* Types with holes */
-[@deriving sexp]
+[@deriving (sexp, show)]
 type t =
   | TVar(idx, Var.t) /* bound type variables */
   | TVarHole(MetaVar.t, Var.t) /* free type variables */

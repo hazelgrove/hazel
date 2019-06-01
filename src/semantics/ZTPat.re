@@ -1,6 +1,6 @@
 open SemanticsCommon;
 
-[@deriving show]
+[@deriving (show, sexp)]
 type t =
   | Cursor(cursor_side, TPat.t);
 

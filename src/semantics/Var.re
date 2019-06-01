@@ -29,10 +29,13 @@ let is_false = s => eq(s, "false");
 
 let is_let = s => eq(s, "let");
 
+let is_forall = s => eq(s, "forall");
+
 let is_case = s => eq(s, "case");
 
 let of_keyword = (k: keyword): t =>
   switch (k) {
   | Let => "let"
   | Case => "case"
+  | Forall => "forall"
   };

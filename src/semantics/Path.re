@@ -22,7 +22,7 @@ let rec of_ztyp = (zty: ZTyp.t): t =>
   | ParenthesizedZ(zty1) => cons'(0, of_ztyp(zty1))
   | ListZ(zty1) => cons'(0, of_ztyp(zty1))
   | ForallZP(ztpat, _) => cons'(0, of_ztpat(ztpat))
-  | ForallZT(_, ty1) => cons'(0, of_ztyp(ty1))
+  | ForallZT(_, ty1) => cons'(1, of_ztyp(ty1))
   | OpSeqZ(_, zty1, surround) =>
     let n = OperatorSeq.surround_prefix_length(surround);
     cons'(n, of_ztyp(zty1));
@@ -692,6 +692,7 @@ let follow_e_or_fail = (path: t, e: UHExp.t): ZExp.t =>
   | Some(ze) => ze
   };
 
+[@deriving sexp]
 type hole_desc =
   | VHole(MetaVar.t)
   | TypHole
@@ -955,6 +956,7 @@ and holes_rule =
 };
 
 /* two hole lists, one for before the cursor, one for after */
+[@deriving sexp]
 type zhole_list = {
   holes_before: hole_list,
   hole_selected: option((hole_desc, t)),

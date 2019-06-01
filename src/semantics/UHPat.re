@@ -1,7 +1,7 @@
 open SemanticsCommon;
 open GeneralUtil;
 
-[@deriving sexp]
+[@deriving (sexp, show)]
 type op =
   | Comma
   | Space
@@ -12,10 +12,10 @@ let is_Space =
   | Space => true
   | _ => false;
 
-[@deriving sexp]
+[@deriving (sexp, show)]
 type skel_t = Skel.t(op);
 
-[@deriving sexp]
+[@deriving (sexp, show)]
 type t =
   /* outer nodes */
   | EmptyHole(MetaVar.t)
