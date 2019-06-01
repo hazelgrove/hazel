@@ -90,6 +90,7 @@ type shape =
   | SLet
   | SLine
   | SCase
+  | SForall
   | SOp(op_shape)
   | SApPalette(PaletteName.t)
   /* pattern-only shapes */
@@ -127,6 +128,13 @@ let perform_tpat = (a: t, ztpat: ZTPat.t, u_gen: MetaVarGen.t) =>
   | (_, _) => None
   };
 
+let keyword_action = (k: keyword): t =>
+  switch (k) {
+  | Let => Construct(SLet)
+  | Case => Construct(SCase)
+  | Forall => Construct(SForall)
+  };
+
 let rec perform_ty =
         (a: t, zty: ZTyp.t, u_gen: MetaVarGen.t)
         : option((ZTyp.t, MetaVarGen.t)) => {
@@ -135,8 +143,6 @@ let rec perform_ty =
     | Some(o) => Some((o, u_gen))
     | None => None
     };
-
-  print_endline(show(a) ++ " & " ++ ZTyp.show(zty));
 
   switch (a, zty) {
   /* Movement */
@@ -296,10 +302,24 @@ let rec perform_ty =
     Some((CursorT(After, Bool), u_gen))
   | (Construct(SBool), CursorT(_, _)) => None
   | (Construct(SList), CursorT(_, _)) => Some((ListZ(zty), u_gen))
+  | (Construct(SForall), CursorT(_, _)) => Some(ZTyp.new_Forall(u_gen))
+  | (
+      Construct(SOp(SSpace)),
+      OpSeqZ(_, CursorT(After, TVar(InVHole(Keyword(k), _), _)), _) as zty,
+    ) =>
+    perform_ty(keyword_action(k), zty, u_gen)
+  | (
+      Construct(SOp(SSpace)),
+      CursorT(After, TVar(InVHole(Keyword(k), _), _)) as zty,
+    ) =>
+    perform_ty(keyword_action(k), zty, u_gen)
   | (Construct(SVar(t, side)), CursorT(_, TVar(_, _)))
   | (Construct(SVar(t, side)), CursorT(_, Hole)) =>
-    if (t == "forall") {
-      Some(ZTyp.new_Forall(u_gen));
+    if (Var.is_forall(t)) {
+      let (u, u_gen) = MetaVarGen.next(u_gen);
+      let ztyp =
+        ZTyp.CursorT(side, UHTyp.TVar(InVHole(Keyword(Forall), u), t));
+      Some((ztyp, u_gen));
     } else {
       let ztyp = ZTyp.CursorT(side, UHTyp.TVar(NotInVHole, t));
       Some((ztyp, u_gen));
@@ -1352,6 +1372,7 @@ let rec syn_perform_pat =
   | (Construct(SBool), _)
   | (Construct(SList), _)
   | (Construct(SAsc), _)
+  | (Construct(SForall), _)
   | (Construct(SLet), _)
   | (Construct(SLine), _)
   | (Construct(SLam), _)
@@ -1683,6 +1704,7 @@ and ana_perform_pat =
   | (Construct(SNum), _)
   | (Construct(SBool), _)
   | (Construct(SList), _)
+  | (Construct(SForall), _)
   | (Construct(SAsc), _)
   | (Construct(SLet), _)
   | (Construct(SLine), _)
@@ -1803,19 +1825,13 @@ let is_not_Before_opseq = (ze: ZExp.t): bool =>
   | _ => false
   };
 
-let keyword_action = (k: keyword): t =>
-  switch (k) {
-  | Let => Construct(SLet)
-  | Case => Construct(SCase)
-  };
-
 let rec syn_perform_block =
         (
           ctx: Contexts.t,
           a: t,
           (zblock, ty, u_gen): (ZExp.zblock, HTyp.t, MetaVarGen.t),
         )
-        : option((ZExp.zblock, HTyp.t, MetaVarGen.t)) =>
+        : option((ZExp.zblock, HTyp.t, MetaVarGen.t)) => {
   switch (a, zblock) {
   /* Movement */
   | (MoveTo(path), _) =>
@@ -2016,7 +2032,8 @@ let rec syn_perform_block =
       | Some((ze, ty, u_gen)) => Some((BlockZE(lines, ze), ty, u_gen))
       }
     }
-  }
+  };
+}
 and syn_perform_lines =
     (ctx: Contexts.t, a: t, (zlines, u_gen): (ZExp.zlines, MetaVarGen.t))
     : option((ZExp.zlines, Contexts.t, MetaVarGen.t)) =>
@@ -2361,7 +2378,7 @@ and syn_perform_line =
   }
 and syn_perform_exp =
     (ctx: Contexts.t, a: t, (ze, ty, u_gen): (ZExp.t, HTyp.t, MetaVarGen.t))
-    : option((ZExp.t, HTyp.t, MetaVarGen.t)) =>
+    : option((ZExp.t, HTyp.t, MetaVarGen.t)) => {
   switch (a, ze) {
   /* Movement */
   | (MoveTo(path), _) =>
@@ -2985,9 +3002,11 @@ and syn_perform_exp =
   /* Invalid actions at expression level */
   | (Construct(SNum), _)
   | (Construct(SBool), _)
+  | (Construct(SForall), _)
   | (Construct(SList), _)
   | (Construct(SWild), _) => None
-  }
+  };
+}
 and ana_perform_block =
     (
       ctx: Contexts.t,
@@ -3774,6 +3793,7 @@ and ana_perform_exp =
   /* Invalid actions at expression level */
   | (Construct(SNum), _)
   | (Construct(SBool), _)
+  | (Construct(SForall), _)
   | (Construct(SList), _)
   | (Construct(SWild), _) => None
   }
@@ -3858,6 +3878,7 @@ let can_perform =
   | Construct(SOp(_))
   | Construct(SNum) /* TODO enrich cursor_info to allow simplifying these type cases */
   | Construct(SBool) /* TODO enrich cursor_info to allow simplifying these type cases */
+  | Construct(SForall)
   | MoveTo(_)
   | MoveToNextHole
   | MoveToPrevHole

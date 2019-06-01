@@ -1,9 +1,13 @@
 open SemanticsCommon;
 
+[@deriving (sexp, show)]
 type opseq_surround = OperatorSeq.opseq_surround(UHPat.t, UHPat.op);
+[@deriving (sexp, show)]
 type opseq_prefix = OperatorSeq.opseq_prefix(UHPat.t, UHPat.op);
+[@deriving (sexp, show)]
 type opseq_suffix = OperatorSeq.opseq_suffix(UHPat.t, UHPat.op);
 
+[@deriving (sexp, show)]
 type t =
   | CursorP(cursor_side, UHPat.t)
   | ParenthesizedZ(t)

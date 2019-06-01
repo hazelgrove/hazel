@@ -1,13 +1,15 @@
 open SemanticsCommon;
 open GeneralUtil;
 
-[@deriving show({with_path: false})]
+[@deriving (show({with_path: false}), sexp)]
 type cursor_side = SemanticsCommon.cursor_side;
 
+[@deriving (show, sexp)]
 type opseq_surround = OperatorSeq.opseq_surround(UHExp.t, UHExp.op);
 type opseq_prefix = OperatorSeq.opseq_prefix(UHExp.t, UHExp.op);
 type opseq_suffix = OperatorSeq.opseq_suffix(UHExp.t, UHExp.op);
 
+[@deriving (sexp, show)]
 type zblock =
   | BlockZL(zlines, UHExp.t)
   | BlockZE(UHExp.lines, t)

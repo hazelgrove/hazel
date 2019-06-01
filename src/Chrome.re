@@ -441,6 +441,7 @@ let view = (model: Model.t) => {
         In(1);
       };
     } else if (ast_has_class("Var")
+               || ast_has_class("TVar")
                || ast_has_class("var_binding")
                || ast_has_class("Wild")
                || ast_has_class("ListNil")

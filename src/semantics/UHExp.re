@@ -1,7 +1,7 @@
 open SemanticsCommon;
 open GeneralUtil;
 
-[@deriving sexp]
+[@deriving (show, sexp)]
 type op =
   | Plus
   | Times
@@ -15,10 +15,10 @@ let is_Space =
   | Space => true
   | _ => false;
 
-[@deriving sexp]
+[@deriving (sexp, show)]
 type skel_t = Skel.t(op);
 
-[@deriving sexp]
+[@deriving (sexp, show)]
 type block =
   | Block(lines, t)
 and lines = list(line)

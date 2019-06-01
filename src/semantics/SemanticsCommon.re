@@ -1,3 +1,5 @@
+open Sexplib.Std;
+
 [@deriving (sexp, show)]
 type in_hole_reason =
   | TypeInconsistent
@@ -16,7 +18,8 @@ let err_status_to_string =
 [@deriving (sexp, show)]
 type keyword =
   | Let
-  | Case;
+  | Case
+  | Forall;
 
 [@deriving (sexp, show)]
 type in_vhole_reason =
@@ -41,7 +44,7 @@ let pick_side = (side, l, r) =>
   | R => r
   };
 
-[@deriving show({with_path: false})]
+[@deriving (show({with_path: false}), sexp)]
 type cursor_side =
   | Before
   | After

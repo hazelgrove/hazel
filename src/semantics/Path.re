@@ -1,12 +1,12 @@
 open SemanticsCommon;
 open GeneralUtil;
 
-[@deriving show({with_path: false})]
+[@deriving (show({with_path: false}), sexp)]
 type steps = list(int);
 
 let string_of_steps = GeneralUtil.string_of_list(string_of_int);
 
-[@deriving show({with_path: false})]
+[@deriving (show({with_path: false}), sexp)]
 type t = (steps, ZExp.cursor_side);
 
 let cons' = (step: int, r: t): t => {
@@ -22,7 +22,7 @@ let rec of_ztyp = (zty: ZTyp.t): t =>
   | ParenthesizedZ(zty1) => cons'(0, of_ztyp(zty1))
   | ListZ(zty1) => cons'(0, of_ztyp(zty1))
   | ForallZP(ztpat, _) => cons'(0, of_ztpat(ztpat))
-  | ForallZT(_, ty1) => cons'(0, of_ztyp(ty1))
+  | ForallZT(_, ty1) => cons'(1, of_ztyp(ty1))
   | OpSeqZ(_, zty1, surround) =>
     let n = OperatorSeq.surround_prefix_length(surround);
     cons'(n, of_ztyp(zty1));
@@ -409,6 +409,7 @@ let follow_e_or_fail = (path: t, e: UHExp.t): ZExp.t =>
   | Some(ze) => ze
   };
 
+[@deriving sexp]
 type hole_desc =
   | TypeHole
   | TypeVarHole(MetaVar.t)
@@ -424,6 +425,7 @@ let string_of_hole_desc =
   | ExpHole(u) => "ExpHole(" ++ string_of_int(u) ++ ")"
   | PatHole(u) => "PatHole(" ++ string_of_int(u) ++ ")";
 
+[@deriving sexp]
 type hole_list = list((hole_desc, steps));
 
 let string_of_hole_list = (hole_list: hole_list): string =>
@@ -458,10 +460,10 @@ let rec holes_seq =
 let rec holes_uty = (uty: UHTyp.t, steps: steps, holes: hole_list): hole_list =>
   switch (uty) {
   | TVar(_, _) => holes
-  | Forall(TPat.Var(_), uty1) => holes_uty(uty1, [0, ...steps], holes)
+  | Forall(TPat.Var(_), uty1) => holes_uty(uty1, [1, ...steps], holes)
   | Forall(TPat.Hole(u), uty1) =>
-    let holes = holes_uty(uty1, [0, ...steps], holes);
-    [(TypeForallHole(u), steps), ...holes];
+    let holes = holes_uty(uty1, [1, ...steps], holes);
+    [(TypeForallHole(u), [0, ...steps]), ...holes];
   | Parenthesized(uty1) => holes_uty(uty1, [0, ...steps], holes)
   | Hole => [(TypeHole, steps), ...holes]
   | Unit => holes
@@ -567,6 +569,7 @@ and holes_rule =
 };
 
 /* two hole lists, one for before the cursor, one for after */
+[@deriving sexp]
 type zhole_list = {
   holes_before: hole_list,
   hole_selected: option((hole_desc, steps)),
@@ -675,7 +678,6 @@ let rec holes_zty = (zty: ZTyp.t, steps: steps): zhole_list =>
         hole_selected: None,
         holes_after: [],
       }
-    /*! is this right? */
     | (In(_), _) =>
       switch (uty) {
       | TVar(_)
@@ -697,7 +699,6 @@ let rec holes_zty = (zty: ZTyp.t, steps: steps): zhole_list =>
   | ListZ(zty1) => holes_zty(zty1, [0, ...steps])
   | ForallZP(ZTPat.Cursor(_, TPat.Hole(u)), uty) => {
       holes_before: [],
-      /*! this might be wrong */
       hole_selected: Some((TypeForallHole(u), [0, ...steps])),
       holes_after: holes_uty(uty, [1, ...steps], []),
     }
@@ -706,7 +707,14 @@ let rec holes_zty = (zty: ZTyp.t, steps: steps): zhole_list =>
       hole_selected: None,
       holes_after: holes_uty(uty, [1, ...steps], []),
     }
-  | ForallZT(_, zty1) => holes_zty(zty1, [0, ...steps])
+  | ForallZT(TPat.Hole(u), zty1) =>
+    let inner_holes = holes_zty(zty1, [1, ...steps]);
+    let hole = TypeForallHole(u);
+    {
+      ...inner_holes,
+      holes_before: [(hole, [0, ...steps]), ...inner_holes.holes_before],
+    };
+  | ForallZT(TPat.Var(_), zty) => holes_zty(zty, [0, ...steps])
   | OpSeqZ(_, zty0, surround) =>
     holes_OpSeqZ(holes_uty, holes_zty, zty0, surround, steps)
   };

@@ -130,6 +130,7 @@ let string_of_opt = string_of_elt =>
 /* End ListUtil */
 
 module ZList = {
+  [@deriving (sexp, show)]
   type t('z, 'a) = (list('a), 'z, list('a));
 
   let singleton = (z: 'z): t('z, 'a) => ([], z, []);
@@ -214,7 +215,7 @@ let char_in_range_b = (ch, s, e) =>
   };
 
 module NatMap = {
-  [@deriving sexp]
+  [@deriving (sexp, show)]
   type t('a) = list((int, 'a));
 
   let empty = [];
@@ -301,6 +302,7 @@ module NatMap = {
 /* Zippered finite map over nats, used with Z expressions
  * i.e. there is a selected element of type Z and the rest is a int map of type A */
 module ZNatMap = {
+  [@deriving (sexp, show)]
   type t('a, 'z) = (NatMap.t('a), (int, 'z));
   let make =
       (m: NatMap.t('a), (n, _) as nz: (int, 'z)): option(t('a, 'z)) =>
