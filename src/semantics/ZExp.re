@@ -42,71 +42,17 @@ and zrule =
   | RuleZP(ZPat.t, UHExp.block)
   | RuleZE(UHPat.t, zblock);
 
-let has_closing_delimiter_line = (li: UHExp.line_inner): bool =>
-  switch (li) {
-  | LetLine(_, _, _) => false
-  };
-let has_closing_delimiter_exp = (ei: UHExp.t_inner): bool =>
-  switch (ei) {
-  | Lam(_, _, _, _)
-  | Case(_, _, _, Some(_))
-  | OpSeq(_, _) => false
-  | Inj(_, _, _)
-  | Case(_, _, _, None)
-  | Parenthesized(_)
-  | ApPalette(_, _, _, _) => true
-  };
-
-let children_line = (li: UHExp.line_inner): list(int) =>
-  switch (li) {
-  | LetLine(_, None, _) => [0, 2]
-  | LetLine(_, Some(_), _) => [0, 1, 2]
-  };
-let children_exp = (ei: UHExp.t_inner): list(int) =>
-  switch (ei) {
-  | Lam(_, _, None, _) => [0, 2]
-  | Lam(_, _, Some(_), _) => [0, 1, 2]
-  | Inj(_, _, _) => [0]
-  | Case(_, _, rules, None) => range(List.length(rules) + 1)
-  | Case(_, _, rules, Some(_)) => range(List.length(rules) + 2)
-  | Parenthesized(_) => [0]
-  | OpSeq(_, seq) => range(OperatorSeq.seq_length(seq))
-  | ApPalette(_, _, _, _) => [] /* TODO */
-  };
-
-let children_following_delimiters_line = (li: UHExp.line_inner): list(int) =>
-  switch (li) {
-  | LetLine(_, None, _) => [0, 2]
-  | LetLine(_, Some(_), _) => [0, 1, 2]
-  };
-let children_following_delimiters_exp = (ei: UHExp.t_inner): list(int) =>
-  switch (ei) {
-  | Lam(_, _, None, _) => [0, 2]
-  | Lam(_, _, Some(_), _) => [0, 1, 2]
-  | Inj(_, _, _) => [0]
-  | Case(_, _, _, None) => [0]
-  | Case(_, _, rules, Some(_)) => [0, List.length(rules) + 1]
-  | Parenthesized(_) => [0]
-  | OpSeq(_, seq) =>
-    OperatorSeq.ops(seq)
-    |> List.mapi((i, op) => (i, op))
-    |> List.filter(((_, op)) => op != UHExp.Space)
-    |> List.map(((i, _)) => i + 1)
-  | ApPalette(_, _, _, _) => [0] /* TODO */
-  };
-
 let valid_cursors_line = (line: UHExp.line): list(cursor_pos) =>
   switch (line) {
-  | ExpLine => []
+  | ExpLine(_) => []
   | EmptyLine => [outer_cursor(0)]
-  | LetLine => [
+  | LetLine(_, _, _) => [
       inner_cursor(0, Before), /* |let _ = _ */
       inner_cursor(0, After), /* let| _ = _ */
       inner_cursor(1, Before), /* let _ |= _ */
       inner_cursor(1, After) /* let _ =| _ */
     ]
   };
-
 let valid_cursors_exp = (e: UHExp.t): list(cursor_pos) =>
   switch (e) {
   /* outer nodes */
@@ -133,11 +79,15 @@ let valid_cursors_exp = (e: UHExp.t): list(cursor_pos) =>
     |> List.flatten
   | ApPalette(_, _, _, _) => inner_cursors(1) /* TODO */
   };
+let valid_cursors_rule = (_: UHExp.rule): list(cursor_pos) =>
+  inner_cursors(2);
 
 let is_valid_cursor_line = (cursor: cursor_pos, line: UHExp.line): bool =>
   contains(valid_cursors_line(line), cursor);
 let is_valid_cursor_exp = (cursor: cursor_pos, e: UHExp.t): bool =>
   contains(valid_cursors_exp(e), cursor);
+let is_valid_cursor_rule = (cursor: cursor_pos, rule: UHExp.rule): bool =>
+  contains(valid_cursors_rule(rule), cursor);
 
 let wrap_in_block = (ze: t): zblock => BlockZE([], ze);
 
@@ -184,6 +134,7 @@ and is_before_line = (zline: zline): bool =>
   | CursorL(cursor, EmptyLine) => cursor == outer_cursor(0)
   /* inner nodes */
   | CursorL(cursor, LetLine(_, _, _)) => cursor == outer_cursor(0)
+  | CursorL(_, ExpLine(_)) => false /* ghost node */
   /* zipper cases */
   | ExpLineZ(ze) => is_before_exp(ze)
   | LetLineZP(_, _, _)
@@ -195,9 +146,9 @@ and is_before_exp = (ze: t): bool =>
   /* outer nodes */
   | CursorE(cursor, EmptyHole(_))
   | CursorE(cursor, Var(_, _, _))
-  | CursorE(curosr, NumLit(_, _))
+  | CursorE(cursor, NumLit(_, _))
   | CursorE(cursor, BoolLit(_, _))
-  | CursorE(cursor, ListNil(_)) => j === outer_cursor(0)
+  | CursorE(cursor, ListNil(_)) => cursor === outer_cursor(0)
   /* inner nodes */
   | CursorE(cursor, Lam(_, _, _, _))
   | CursorE(cursor, Inj(_, _, _))
@@ -231,6 +182,7 @@ and is_after_line = (zli: zline): bool =>
   | CursorL(cursor, EmptyLine) => cursor == outer_cursor(0)
   /* inner nodes */
   | CursorL(_, LetLine(_, _, _)) => false
+  | CursorL(_, ExpLine(_)) => false /* ghost node */
   /* zipper cases */
   | ExpLineZ(ze) => is_after_exp(ze)
   | LetLineZP(_, _, _)
@@ -331,7 +283,7 @@ and place_after_exp = (e: UHExp.t): t =>
   | NumLit(_, n) => CursorE(outer_cursor(num_digits(n)), e)
   | BoolLit(_, true) => CursorE(outer_cursor(4), e)
   | BoolLit(_, false) => CursorE(outer_cursor(5), e)
-  | ListNil(_) => CursorE(2)
+  | ListNil(_) => CursorE(outer_cursor(2), e)
   /* inner nodes */
   | Lam(err, p, ann, block) => LamZE(err, p, ann, place_after_block(block))
   | Case(err, block, rules, Some(uty)) =>
@@ -359,7 +311,11 @@ let place_cursor_exp = (cursor: cursor_pos, e: UHExp.t): option(t) =>
   is_valid_cursor_exp(cursor, e) ? Some(CursorE(cursor, e)) : None;
 let place_cursor_line = (cursor: cursor_pos, line: UHExp.line): option(zline) =>
   switch (line) {
-  | ExpLine(e) => ExpLineZ(place_cursor_exp(cursor, e))
+  | ExpLine(e) =>
+    switch (place_cursor_exp(cursor, e)) {
+    | None => None
+    | Some(ze) => Some(ExpLineZ(ze))
+    }
   | EmptyLine
   | LetLine(_, _, _) =>
     is_valid_cursor_line(cursor, line) ? Some(CursorL(cursor, line)) : None
@@ -410,7 +366,7 @@ and get_err_status_opseq =
       get_err_status_t(ze_n);
     } else {
       switch (OperatorSeq.surround_nth(m, surround)) {
-      | None => raise(SklInconsistentWithOpSeq)
+      | None => raise(SkelInconsistentWithOpSeq)
       | Some(e_m) => UHExp.get_err_status_t(e_m)
       };
     }
@@ -424,8 +380,7 @@ let rec set_err_status_block = (err: err_status, zblock: zblock): zblock =>
   }
 and set_err_status_t = (err: err_status, ze: t): t =>
   switch (ze) {
-  | CursorEO(cursor, eo) =>
-    CursorE(cursor, UHExp.set_err_status_t_outer(err, eo))
+  | CursorE(cursor, eo) => CursorE(cursor, UHExp.set_err_status_t(err, eo))
   | ParenthesizedZ(zblock) =>
     ParenthesizedZ(set_err_status_block(err, zblock))
   | OpSeqZ(skel, ze_n, surround) =>
@@ -557,10 +512,7 @@ let new_EmptyHole = (u_gen: MetaVarGen.t): (t, MetaVarGen.t) => {
 
 let rec cursor_on_outer_expr = (ze: t): option((UHExp.block, cursor_pos)) =>
   switch (ze) {
-  | CursorEO(outer_cursor, eo) =>
-    Some((UHExp.drop_outer_parentheses(EO(eo)), O(outer_cursor)))
-  | CursorEI(inner_cursor, ei) =>
-    Some((UHExp.drop_outer_parentheses(EI(ei)), I(inner_cursor)))
+  | CursorE(cursor, e) => Some((UHExp.drop_outer_parentheses(e), cursor))
   | ParenthesizedZ(BlockZE([], ze)) => cursor_on_outer_expr(ze)
   | ParenthesizedZ(_)
   | OpSeqZ(_, _, _)
@@ -599,15 +551,15 @@ and erase_line = (zline: zline): UHExp.line =>
 and erase = (ze: t): UHExp.t =>
   switch (ze) {
   | CursorE(_, e) => e
-  | ParenthesizedZ(zblock) => EI(Parenthesized(erase_block(zblock)))
+  | ParenthesizedZ(zblock) => Parenthesized(erase_block(zblock))
   | OpSeqZ(skel, ze', surround) =>
     let e = erase(ze');
     OpSeq(skel, OperatorSeq.opseq_of_exp_and_surround(e, surround));
-  | LamZP(err, zp, ann, block) => EI(Lam(err, ZPat.erase(zp), ann, block))
+  | LamZP(err, zp, ann, block) => Lam(err, ZPat.erase(zp), ann, block)
   | LamZA(err, p, zann, block) =>
     Lam(err, p, Some(ZTyp.erase(zann)), block)
-  | LamZE(err, p, ann, zblock) => EI(Lam(err, p, ann, erase_block(zblock)))
-  | InjZ(err, side, zblock) => EI(Inj(err, side, erase_block(zblock)))
+  | LamZE(err, p, ann, zblock) => Lam(err, p, ann, erase_block(zblock))
+  | InjZ(err, side, zblock) => Inj(err, side, erase_block(zblock))
   | CaseZE(err, zblock, rules, ann) =>
     Case(err, erase_block(zblock), rules, ann)
   | CaseZR(err, block, zrules, ann) =>
