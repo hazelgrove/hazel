@@ -18,33 +18,20 @@ type skel_t = Skel.t(op);
 
 [@deriving sexp]
 type t =
-  | PO(t_outer)
-  | PI(t_inner)
-and t_outer =
+  /* outer nodes */
   | EmptyHole(MetaVar.t)
   | Wild(err_status)
   | Var(err_status, var_err_status, Var.t)
   | NumLit(err_status, int)
   | BoolLit(err_status, bool)
   | ListNil(err_status)
-and t_inner =
+  /* inner nodes */
   | Parenthesized(t)
   | OpSeq(skel_t, opseq)
   | Inj(err_status, inj_side, t)
 and opseq = OperatorSeq.opseq(t, op);
 
 exception SkelInconsistentWithOpSeq(skel_t, opseq);
-
-let t_outer_length = (po: t_outer): int =>
-  switch (po) {
-  | EmptyHole(_) => 1
-  | Wild(_) => 1
-  | Var(_, _, x) => Var.length(x)
-  | NumLit(_, n) => num_digits(n)
-  | BoolLit(_, true) => 4
-  | BoolLit(_, false) => 5
-  | ListNil(_) => 2
-  };
 
 let rec get_tuple = (skel1: skel_t, skel2: skel_t): ListMinTwo.t(skel_t) =>
   switch (skel2) {
@@ -65,17 +52,19 @@ let rec make_tuple = (err: err_status, skels: ListMinTwo.t(skel_t)) =>
 /* bidelimited patterns are those that don't have
  * sub-patterns at their outer left or right edge
  * in the concrete syntax */
-let bidelimited_outer = (_: t_outer): bool => true;
-let bidelimited_inner = (pi: t_inner): bool =>
-  switch (pi) {
+let bidelimited = (p: t): bool =>
+  switch (p) {
+  /* outer nodes */
+  | EmptyHole(_)
+  | Wild(_)
+  | Var(_, _, _)
+  | NumLit(_, _)
+  | BoolLit(_, _)
+  | ListNil(_) => true
+  /* inner nodes */
   | Inj(_, _, _) => true
   | Parenthesized(_) => true
   | OpSeq(_, _) => false
-  };
-let bidelimited = (p: t): bool =>
-  switch (p) {
-  | PO(p_outer) => bidelimited_outer(p_outer)
-  | PI(p_inner) => bidelimited_inner(p_inner)
   };
 
 /* if p is not bidelimited, bidelimit e parenthesizes it */
@@ -83,32 +72,32 @@ let bidelimit = p =>
   if (bidelimited(p)) {
     p;
   } else {
-    PI(Parenthesized(p));
+    Parenthesized(p);
   };
 
 /* helper function for constructing a new empty hole */
 let new_EmptyHole = (u_gen: MetaVarGen.t): (t, MetaVarGen.t) => {
   let (u, u_gen) = MetaVarGen.next(u_gen);
-  (PO(EmptyHole(u)), u_gen);
+  (EmptyHole(u), u_gen);
 };
 
 let is_EmptyHole =
   fun
-  | PO(EmptyHole(_)) => true
+  | EmptyHole(_) => true
   | _ => false;
 
 let rec get_err_status_t = (p: t): err_status =>
   switch (p) {
-  | PO(EmptyHole(_)) => NotInHole
-  | PO(Wild(err)) => err
-  | PO(Var(err, _, _)) => err
-  | PO(NumLit(err, _)) => err
-  | PO(BoolLit(err, _)) => err
-  | PO(ListNil(err)) => err
-  | PI(Inj(err, _, _)) => err
-  | PI(Parenthesized(p)) => get_err_status_t(p)
-  | PI(OpSeq(BinOp(err, _, _, _), _)) => err
-  | PI(OpSeq(Placeholder(n) as skel, seq)) =>
+  | EmptyHole(_) => NotInHole
+  | Wild(err) => err
+  | Var(err, _, _) => err
+  | NumLit(err, _) => err
+  | BoolLit(err, _) => err
+  | ListNil(err) => err
+  | Inj(err, _, _) => err
+  | Parenthesized(p) => get_err_status_t(p)
+  | OpSeq(BinOp(err, _, _, _), _) => err
+  | OpSeq(Placeholder(n) as skel, seq) =>
     switch (OperatorSeq.nth_tm(n, seq)) {
     | None => raise(SkelInconsistentWithOpSeq(skel, seq))
     | Some(p_n) => get_err_status_t(p_n)
@@ -117,20 +106,12 @@ let rec get_err_status_t = (p: t): err_status =>
 
 let rec set_err_status_t = (err: err_status, p: t): t =>
   switch (p) {
-  | PO(po) => PO(set_err_status_t_outer(err, po))
-  | PI(pi) => PI(set_err_status_t_inner(err, pi))
-  }
-and set_err_status_t_outer = (err: err_status, po: t_outer): t_outer =>
-  switch (po) {
-  | EmptyHole(_) => po
+  | EmptyHole(_) => p
   | Wild(_) => Wild(err)
   | Var(_, var_err, x) => Var(err, var_err, x)
   | NumLit(_, n) => NumLit(err, n)
   | BoolLit(_, b) => BoolLit(err, b)
   | ListNil(_) => ListNil(err)
-  }
-and set_err_status_t_inner = (err: err_status, pi: t_inner): t_inner =>
-  switch (pi) {
   | Inj(_, inj_side, p) => Inj(err, inj_side, p)
   | Parenthesized(p) => Parenthesized(set_err_status_t(err, p))
   | OpSeq(skel, seq) =>
@@ -162,49 +143,24 @@ let is_inconsistent = (p: t): bool =>
 /* put p in a new hole, if it is not already in a hole */
 let rec make_t_inconsistent = (u_gen: MetaVarGen.t, p: t): (t, MetaVarGen.t) =>
   switch (p) {
-  | PO(po) =>
-    let (po, u_gen) = make_t_outer_inconsistent(u_gen, po);
-    (PO(po), u_gen);
-  | PI(pi) =>
-    let (pi, u_gen) = make_t_inner_inconsistent(u_gen, pi);
-    (PI(pi), u_gen);
-  }
-and make_t_outer_inconsistent =
-    (u_gen: MetaVarGen.t, po: t_outer): (t_outer, MetaVarGen.t) =>
-  switch (po) {
   /* already in hole */
   | EmptyHole(_)
   | Wild(InHole(TypeInconsistent, _))
   | Var(InHole(TypeInconsistent, _), _, _)
   | NumLit(InHole(TypeInconsistent, _), _)
   | BoolLit(InHole(TypeInconsistent, _), _)
-  | ListNil(InHole(TypeInconsistent, _)) => (po, u_gen)
+  | ListNil(InHole(TypeInconsistent, _))
+  | Inj(InHole(TypeInconsistent, _), _, _) => (p, u_gen)
   /* not in hole */
-  | Wild(NotInHole)
-  | Wild(InHole(WrongLength, _))
-  | Var(NotInHole, _, _)
-  | Var(InHole(WrongLength, _), _, _)
-  | NumLit(NotInHole, _)
-  | NumLit(InHole(WrongLength, _), _)
-  | BoolLit(NotInHole, _)
-  | BoolLit(InHole(WrongLength, _), _)
-  | ListNil(NotInHole)
-  | ListNil(InHole(WrongLength, _)) =>
+  | Wild(NotInHole | InHole(WrongLength, _))
+  | Var(NotInHole | InHole(WrongLength, _), _, _)
+  | NumLit(NotInHole | InHole(WrongLength, _), _)
+  | BoolLit(NotInHole | InHole(WrongLength, _), _)
+  | ListNil(NotInHole | InHole(WrongLength, _))
+  | Inj(NotInHole | InHole(WrongLength, _), _, _) =>
     let (u, u_gen) = MetaVarGen.next(u_gen);
-    let po = set_err_status_t_outer(InHole(TypeInconsistent, u), po);
-    (po, u_gen);
-  }
-and make_t_inner_inconsistent =
-    (u_gen: MetaVarGen.t, pi: t_inner): (t_inner, MetaVarGen.t) =>
-  switch (pi) {
-  /* already in hole */
-  | Inj(InHole(TypeInconsistent, _), _, _) => (pi, u_gen)
-  /* not in hole */
-  | Inj(NotInHole, _, _)
-  | Inj(InHole(WrongLength, _), _, _) =>
-    let (u, u_gen) = MetaVarGen.next(u_gen);
-    let pi = set_err_status_t_inner(InHole(TypeInconsistent, u), pi);
-    (pi, u_gen);
+    let p = set_err_status_t(InHole(TypeInconsistent, u), p);
+    (p, u_gen);
   | Parenthesized(p) =>
     let (p, u_gen) = make_t_inconsistent(u_gen, p);
     (Parenthesized(p), u_gen);

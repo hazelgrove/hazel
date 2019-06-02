@@ -8,8 +8,7 @@ type opseq_suffix = OperatorSeq.opseq_suffix(UHPat.t, UHPat.op);
 
 [@deriving sexp]
 type t =
-  | CursorPO(outer_cursor, UHPat.t_outer)
-  | CursorPI(inner_cursor, UHPat.t_inner)
+  | CursorP(cursor_pos, UHPat.t)
   /* zipper cases */
   | ParenthesizedZ(t)
   | OpSeqZ(UHPat.skel_t, t, opseq_surround)
@@ -17,63 +16,32 @@ type t =
 
 exception SkelInconsistentWithOpSeq;
 
-let children = (pi: UHPat.t_inner): list(int) =>
-  switch (pi) {
-  | Parenthesized(_) => [0]
-  | OpSeq(_, seq) => range(OperatorSeq.seq_length(seq))
-  | Inj(_, _, _) => [0]
-  };
-
-let child_indices_following_delimiters = (pi: UHPat.t_inner): list(int) =>
-  switch (pi) {
-  | Parenthesized(_) => [0]
+let valid_cursors = (p: UHPat.t): list(cursor_pos) =>
+  switch (p) {
+  /* outer nodes */
+  | EmptyHole(_) => outer_cursors(1)
+  | Wild(_) => outer_cursors(1)
+  | Var(_, _, x) => outer_cursors(Var.length(x))
+  | NumLit(_, n) => outer_cursors(num_digits(n))
+  | BoolLit(_, b) => outer_cursors(b ? 4 : 5)
+  | ListNil(_) => outer_cursors(2)
+  /* inner nodes */
+  | Inj(_, _, _) => inner_cursors(2)
+  | Parenthesized(_) => inner_cursors(2)
   | OpSeq(_, seq) =>
-    OperatorSeq.ops(seq)
-    |> List.mapi((i, op) => (i, op))
-    |> List.filter(((_, op)) => op != UHPat.Space)
-    |> List.map(((i, _)) => i + 1)
-  | Inj(_, _, _) => [0]
+    range(OperatorSeq.seq_length(seq))
+    |> List.map(k => k + 1)
+    |> List.map(k => inner_cursors_k(k))
+    |> List.flatten
   };
 
-let has_closing_delimiter = (pi: UHPat.t_inner): bool =>
-  switch (pi) {
-  | Parenthesized(_)
-  | Inj(_, _, _) => true
-  | OpSeq(_, _) => false
-  };
-
-let valid_inner_cursors = (pi: UHPat.t_inner): list(inner_cursor) => {
-  let before_child_positions =
-    child_indices_following_delimiters(pi)
-    |> List.map(k => [BeforeChild(k, Before), BeforeChild(k, After)])
-    |> List.flatten;
-  let closing_delimiter_positions =
-    has_closing_delimiter(pi)
-      ? [ClosingDelimiter(Before), ClosingDelimiter(After)] : [];
-  before_child_positions @ closing_delimiter_positions;
-};
-
-let valid_outer_cursors = (po: UHPat.t_outer): list(outer_cursor) =>
-  range(UHPat.t_outer_length(po) + 1) |> List.map(j => Char(j));
-
-let is_valid_inner_cursor =
-    (inner_cursor: inner_cursor, pi: UHPat.t_inner): bool =>
-  contains(valid_inner_cursors(pi), inner_cursor);
-
-let is_valid_outer_cursor =
-    (outer_cursor: outer_cursor, po: UHPat.t_outer): bool =>
-  contains(valid_outer_cursors(po), outer_cursor);
+let is_valid_cursor = (cursor: cursor_pos, p: UHPat.t): bool =>
+  contains(valid_cursors(p), cursor);
 
 let bidelimit = (zp: t): t =>
   switch (zp) {
-  | CursorPO(_, po) =>
-    if (UHPat.bidelimited_outer(po)) {
-      zp;
-    } else {
-      ParenthesizedZ(zp);
-    }
-  | CursorPI(_, pi) =>
-    if (UHPat.bidelimited_inner(pi)) {
+  | CursorP(_, p) =>
+    if (UHPat.bidelimited(p)) {
       zp;
     } else {
       ParenthesizedZ(zp);
@@ -85,12 +53,9 @@ let bidelimit = (zp: t): t =>
 
 let rec set_err_status_t = (err: err_status, zp: t): t =>
   switch (zp) {
-  | CursorPO(outer_cursor, po) =>
-    let po = UHPat.set_err_status_t_outer(err, po);
-    CursorPO(outer_cursor, po);
-  | CursorPI(outer_cursor, pi) =>
-    let pi = UHPat.set_err_status_t_inner(err, pi);
-    CursorPI(outer_cursor, pi);
+  | CursorP(cursor, p) =>
+    let p = UHPat.set_err_status_t(err, p);
+    CursorP(cursor, p);
   | ParenthesizedZ(zp1) => ParenthesizedZ(set_err_status_t(err, zp1))
   | InjZ(_, inj_side, zp1) => InjZ(err, inj_side, zp1)
   | OpSeqZ(skel, zp_n, surround) =>
@@ -126,15 +91,11 @@ and set_err_status_opseq =
 
 let rec make_t_inconsistent = (u_gen: MetaVarGen.t, zp: t): (t, MetaVarGen.t) =>
   switch (zp) {
-  | CursorPO(outer_cursor, po) =>
-    let (po, u_gen) = UHPat.make_t_outer_inconsistent(u_gen, po);
-    (CursorPO(outer_cursor, po), u_gen);
-  | CursorPI(inner_cursor, pi) =>
-    let (pi, u_gen) = UHPat.make_t_inner_inconsistent(u_gen, pi);
-    (CursorPI(inner_cursor, pi), u_gen);
+  | CursorP(cursor, p) =>
+    let (p, u_gen) = UHPat.make_t_inconsistent(u_gen, p);
+    (CursorP(cursor, p), u_gen);
   | InjZ(InHole(TypeInconsistent, _), _, _) => (zp, u_gen)
-  | InjZ(NotInHole, inj_side, zp1)
-  | InjZ(InHole(WrongLength, _), inj_side, zp1) =>
+  | InjZ(NotInHole | InHole(WrongLength, _), inj_side, zp1) =>
     let (u, u_gen) = MetaVarGen.next(u_gen);
     (InjZ(InHole(TypeInconsistent, u), inj_side, zp1), u_gen);
   | ParenthesizedZ(zp1) =>
@@ -188,25 +149,27 @@ and make_opseq_inconsistent =
 
 let rec erase = (zp: t): UHPat.t =>
   switch (zp) {
-  | CursorPO(_, po) => PO(po)
-  | CursorPI(_, pi) => PI(pi)
-  | InjZ(err_status, inj_side, zp1) =>
-    PI(Inj(err_status, inj_side, erase(zp1)))
-  | ParenthesizedZ(zp) => PI(Parenthesized(erase(zp)))
+  | CursorP(_, p) => p
+  | InjZ(err_status, inj_side, zp1) => Inj(err_status, inj_side, erase(zp1))
+  | ParenthesizedZ(zp) => Parenthesized(erase(zp))
   | OpSeqZ(skel, zp1, surround) =>
     let p1 = erase(zp1);
-    PI(OpSeq(skel, OperatorSeq.opseq_of_exp_and_surround(p1, surround)));
+    OpSeq(skel, OperatorSeq.opseq_of_exp_and_surround(p1, surround));
   };
 
 let rec is_before = (zp: t): bool =>
   switch (zp) {
   /* outer nodes */
-  | CursorPO(Char(j), _) => j === 0
+  | CursorP(cursor, EmptyHole(_))
+  | CursorP(cursor, Wild(_))
+  | CursorP(cursor, Var(_, _, _))
+  | CursorP(cursor, NumLit(_, _))
+  | CursorP(cursor, BoolLit(_, _))
+  | CursorP(cursor, ListNil(_)) => cursor == outer_cursor(0)
   /* inner nodes */
-  | CursorPI(inner_cursor, Inj(_, _, _))
-  | CursorPI(inner_cursor, Parenthesized(_)) =>
-    inner_cursor == BeforeChild(0, Before)
-  | CursorPI(_, OpSeq(_, _)) => false
+  | CursorP(cursor, Inj(_, _, _))
+  | CursorP(cursor, Parenthesized(_)) => cursor == inner_cursor(0, Before)
+  | CursorP(_, OpSeq(_, _)) => false
   /* zipper cases */
   | InjZ(_, _, _) => false
   | ParenthesizedZ(_) => false
@@ -217,12 +180,16 @@ let rec is_before = (zp: t): bool =>
 let rec is_after = (zp: t): bool =>
   switch (zp) {
   /* outer nodes */
-  | CursorPO(Char(j), po) => j === UHPat.t_outer_length(po)
+  | CursorP(cursor, EmptyHole(_)) => cursor == outer_cursor(1)
+  | CursorP(cursor, Wild(_)) => cursor == outer_cursor(1)
+  | CursorP(cursor, Var(_, _, x)) => cursor == outer_cursor(Var.length(x))
+  | CursorP(cursor, NumLit(_, n)) => cursor == outer_cursor(num_digits(n))
+  | CursorP(cursor, BoolLit(_, b)) => cursor == outer_cursor(b ? 4 : 5)
+  | CursorP(cursor, ListNil(_)) => cursor == outer_cursor(2)
   /* inner nodes */
-  | CursorPI(inner_cursor, Inj(_, _, _))
-  | CursorPI(inner_cursor, Parenthesized(_)) =>
-    inner_cursor == ClosingDelimiter(After)
-  | CursorPI(_, OpSeq(_, _)) => false
+  | CursorP(cursor, Inj(_, _, _))
+  | CursorP(cursor, Parenthesized(_)) => cursor == inner_cursor(1, After)
+  | CursorP(_, OpSeq(_, _)) => false
   /* zipper cases */
   | InjZ(_, _, _) => false
   | ParenthesizedZ(_) => false
@@ -233,11 +200,16 @@ let rec is_after = (zp: t): bool =>
 let rec place_before = (p: UHPat.t): t =>
   switch (p) {
   /* outer nodes */
-  | PO(po) => CursorPO(Char(0), po)
+  | EmptyHole(_)
+  | Wild(_)
+  | Var(_, _, _)
+  | NumLit(_, _)
+  | BoolLit(_, _)
+  | ListNil(_) => CursorP(outer_cursor(0), p)
   /* inner nodes */
-  | PI(Inj(_, _, _) as pi)
-  | PI(Parenthesized(_) as pi) => CursorPI(BeforeChild(0, Before), pi)
-  | PI(OpSeq(skel, seq)) =>
+  | Inj(_, _, _)
+  | Parenthesized(_) => CursorP(inner_cursor(0, Before), p)
+  | OpSeq(skel, seq) =>
     let (p0, suffix) = OperatorSeq.split0(seq);
     let surround = OperatorSeq.EmptyPrefix(suffix);
     let zp0 = place_before(p0);
@@ -247,11 +219,16 @@ let rec place_before = (p: UHPat.t): t =>
 let rec place_after = (p: UHPat.t): t =>
   switch (p) {
   /* outer nodes */
-  | PO(po) => CursorPO(Char(UHPat.t_outer_length(po)), po)
+  | EmptyHole(_) => CursorP(outer_cursor(1), p)
+  | Wild(_) => CursorP(outer_cursor(1), p)
+  | Var(_, _, x) => CursorP(outer_cursor(Var.length(x)), p)
+  | NumLit(_, n) => CursorP(outer_cursor(num_digits(n)), p)
+  | BoolLit(_, b) => CursorP(outer_cursor(b ? 4 : 5), p)
+  | ListNil(_) => CursorP(outer_cursor(2), p)
   /* inner nodes */
-  | PI(Inj(_, _, _) as pi)
-  | PI(Parenthesized(_) as pi) => CursorPI(ClosingDelimiter(After), pi)
-  | PI(OpSeq(skel, seq)) =>
+  | Inj(_, _, _) => CursorP(inner_cursor(1, After), p)
+  | Parenthesized(_) => CursorP(inner_cursor(1, After), p)
+  | OpSeq(skel, seq) =>
     let (p0, prefix) = OperatorSeq.split_tail(seq);
     let surround = OperatorSeq.EmptySuffix(prefix);
     let zp0 = place_after(p0);
@@ -259,16 +236,7 @@ let rec place_after = (p: UHPat.t): t =>
   };
 
 let place_cursor = (cursor: cursor_pos, p: UHPat.t): option(t) =>
-  switch (cursor, p) {
-  | (O(outer_cursor), PO(po)) =>
-    is_valid_outer_cursor(outer_cursor, po)
-      ? Some(CursorPO(outer_cursor, po)) : None
-  | (I(inner_cursor), PI(pi)) =>
-    is_valid_inner_cursor(inner_cursor, pi)
-      ? Some(CursorPI(inner_cursor, pi)) : None
-  | (O(_), PI(_))
-  | (I(_), PO(_)) => None
-  };
+  is_valid_cursor(cursor, p) ? Some(CursorP(cursor, p)) : None;
 
 /* helper function for constructing a new empty hole */
 let new_EmptyHole = (u_gen: MetaVarGen.t): (t, MetaVarGen.t) => {
@@ -280,9 +248,8 @@ let is_inconsistent = (zp: t): bool => UHPat.is_inconsistent(erase(zp));
 
 let rec cursor_on_opseq = (zp: t): bool =>
   switch (zp) {
-  | CursorPO(_, _) => false
-  | CursorPI(_, OpSeq(_, _)) => true
-  | CursorPI(_, _) => false
+  | CursorP(_, OpSeq(_, _)) => true
+  | CursorP(_, _) => false
   | ParenthesizedZ(zp) => cursor_on_opseq(zp)
   | OpSeqZ(_, zp, _) => cursor_on_opseq(zp)
   | InjZ(_, _, zp) => cursor_on_opseq(zp)

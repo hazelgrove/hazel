@@ -28,11 +28,13 @@ and line =
   | EmptyLine
   | LetLine(UHPat.t, option(UHTyp.t), block)
 and t =
+  /* outer nodes */
   | EmptyHole(MetaVar.t)
   | Var(err_status, var_err_status, Var.t)
   | NumLit(err_status, int)
   | BoolLit(err_status, bool)
   | ListNil(err_status)
+  /* inner nodes */
   | Lam(err_status, UHPat.t, option(UHTyp.t), block)
   | Inj(err_status, inj_side, block)
   | Case(err_status, block, rules, option(UHTyp.t))
