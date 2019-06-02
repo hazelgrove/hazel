@@ -1,4 +1,5 @@
 open Sexplib.Std;
+open GeneralUtil;
 
 [@deriving sexp]
 type in_hole_reason =
@@ -49,29 +50,31 @@ type side =
   | After;
 
 [@deriving (show({with_path: false}), sexp)]
-type delimiter_side = side;
+type cursor_pos = (int, side);
 
-[@deriving (show({with_path: false}), sexp)]
-type inner_cursor =
-  | BeforeChild(int, delimiter_side)
-  | ClosingDelimiter(delimiter_side);
+/**
+ * Cursor on outer node.
+ * j is fencepost index
+ * e.g. a|bc -> n == 1
+ * e.g. abc| -> n == 3
+ */
+let outer_cursor = (j: int): cursor_pos => (j, Before);
+let outer_cursors = (len: int): list(cursor_pos) =>
+  range(len + 1) |> List.map(j => outer_cursor(j));
 
-let toggle_side = (inner_cursor: inner_cursor) =>
-  switch (inner_cursor) {
-  | BeforeChild(k, Before) => BeforeChild(k, After)
-  | BeforeChild(k, After) => BeforeChild(k, Before)
-  | ClosingDelimiter(Before) => ClosingDelimiter(After)
-  | ClosingDelimiter(After) => ClosingDelimiter(Before)
-  };
-
-[@deriving (show({with_path: false}), sexp)]
-type outer_cursor =
-  | Char(int);
-
-[@deriving (show({with_path: false}), sexp)]
-type cursor_pos =
-  | O(outer_cursor)
-  | I(inner_cursor);
+/**
+ * Cursor on inner node.
+ * k is delimiter index, side is delimiter side
+ * e.g. case| xs ... end -> (0, After)
+ * e.g. let _ |= _       -> (1, Before)
+ */
+let inner_cursor = (k: int, side: side): cursor_pos => (k, side);
+let inner_cursors_k = (k: int): list(cursor_pos) => [
+  inner_cursor(k, Before),
+  inner_cursor(k, After),
+];
+let inner_cursors = (num_delim: int): list(cursor_pos) =>
+  range(num_delim) |> List.map(k => inner_cursors_k(k)) |> List.flatten;
 
 let default_nih = (e: option(err_status)): err_status =>
   switch (e) {
