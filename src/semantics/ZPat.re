@@ -254,3 +254,38 @@ let rec cursor_on_opseq = (zp: t): bool =>
   | OpSeqZ(_, zp, _) => cursor_on_opseq(zp)
   | InjZ(_, _, zp) => cursor_on_opseq(zp)
   };
+
+let node_positions = (p: UHPat.t): list(node_pos) =>
+  switch (p) {
+  | EmptyHole(_)
+  | Wild(_)
+  | Var(_, _, _)
+  | NumLit(_, _)
+  | BoolLit(_, _)
+  | ListNil(_) => node_positions(valid_cursors(p))
+  | Parenthesized(_)
+  | Inj(_) =>
+    node_positions(inner_cursors_k(0))
+    @ [Deeper(0)]
+    @ node_positions(inner_cursors_k(1))
+  | OpSeq(_, seq) =>
+    range(OperatorSeq.seq_length(seq))
+    |> List.fold_left(
+         (lstSoFar, i) =>
+           switch (lstSoFar) {
+           | [] => [Deeper(i)]
+           | [_, ..._] =>
+             lstSoFar @ node_positions(inner_cursors_k(i)) @ [Deeper(i)]
+           },
+         [],
+       )
+  };
+
+let node_position_of_t = (zp: t): node_pos =>
+  switch (zp) {
+  | CursorP(cursor, _) => On(cursor)
+  | ParenthesizedZ(_) => Deeper(0)
+  | InjZ(_, _, _) => Deeper(0)
+  | OpSeqZ(_, _, surround) =>
+    Deeper(OperatorSeq.surround_prefix_length(surround))
+  };

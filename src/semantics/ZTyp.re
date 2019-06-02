@@ -126,3 +126,38 @@ let rec cursor_on_opseq = (zty: t): bool =>
   | ListZ(zty) => cursor_on_opseq(zty)
   | OpSeqZ(_, zty, _) => cursor_on_opseq(zty)
   };
+
+let node_positions = (uty: UHTyp.t): list(node_pos) =>
+  switch (uty) {
+  /* outer nodes */
+  | Hole
+  | Unit
+  | Num
+  | Bool => node_positions(valid_cursors(uty))
+  /* inner nodes */
+  | Parenthesized(_)
+  | List(_) =>
+    node_positions(inner_cursors_k(0))
+    @ [Deeper(0)]
+    @ node_positions(inner_cursors_k(1))
+  | OpSeq(_, seq) =>
+    range(OperatorSeq.seq_length(seq))
+    |> List.fold_left(
+         (lstSoFar, i) =>
+           switch (lstSoFar) {
+           | [] => [Deeper(i)]
+           | [_, ..._] =>
+             lstSoFar @ node_positions(inner_cursors_k(i)) @ [Deeper(i)]
+           },
+         [],
+       )
+  };
+
+let node_position_of_t = (zty: t): node_pos =>
+  switch (zty) {
+  | CursorT(cursor, _) => On(cursor)
+  | ParenthesizedZ(_) => Deeper(0)
+  | ListZ(_) => Deeper(0)
+  | OpSeqZ(_, _, surround) =>
+    Deeper(OperatorSeq.surround_prefix_length(surround))
+  };

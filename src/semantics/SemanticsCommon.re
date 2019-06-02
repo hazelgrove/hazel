@@ -55,8 +55,8 @@ type cursor_pos = (int, side);
 /**
  * Cursor on outer node.
  * j is fencepost index
- * e.g. a|bc -> n == 1
- * e.g. abc| -> n == 3
+ * e.g. a|bc -> j == 1
+ * e.g. abc| -> j == 3
  */
 let outer_cursor = (j: int): cursor_pos => (j, Before);
 let outer_cursors = (len: int): list(cursor_pos) =>
@@ -75,6 +75,12 @@ let inner_cursors_k = (k: int): list(cursor_pos) => [
 ];
 let inner_cursors = (num_delim: int): list(cursor_pos) =>
   range(num_delim) |> List.map(k => inner_cursors_k(k)) |> List.flatten;
+
+[@deriving sexp]
+type node_pos =
+  | On(cursor_pos)
+  | Deeper(int);
+let node_positions = List.map(cursor => On(cursor));
 
 let default_nih = (e: option(err_status)): err_status =>
   switch (e) {

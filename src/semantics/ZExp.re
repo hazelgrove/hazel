@@ -621,3 +621,95 @@ let zblock_to_zlines = (zblock: zblock): zlines =>
     )
   | BlockZE(lines, ze) => (lines, ExpLineZ(ze), [])
   };
+
+let node_positions_line = (line: UHExp.line): list(node_pos) =>
+  switch (line) {
+  | ExpLine(_) => []
+  | EmptyLine => []
+  | LetLine(_, ann, _) =>
+    let ann_positions =
+      switch (ann) {
+      | None => []
+      | Some(_) => node_positions(inner_cursors_k(1)) @ [Deeper(1)]
+      };
+    node_positions(inner_cursors_k(0))
+    @ [Deeper(0)]
+    @ ann_positions
+    @ node_positions(inner_cursors_k(2))
+    @ [Deeper(2)];
+  };
+
+let node_positions_exp = (e: UHExp.t): list(node_pos) =>
+  switch (e) {
+  /* outer nodes */
+  | EmptyHole(_)
+  | Var(_, _, _)
+  | NumLit(_, _)
+  | BoolLit(_, _)
+  | ListNil(_) => node_positions(valid_cursors_exp(e))
+  /* inner nodes */
+  | Parenthesized(_)
+  | Inj(_, _, _) =>
+    node_positions(inner_cursors_k(0))
+    @ [Deeper(0)]
+    @ node_positions(inner_cursors_k(1))
+  | Lam(_, _, ann, _) =>
+    let ann_positions =
+      switch (ann) {
+      | None => []
+      | Some(_) => node_positions(inner_cursors_k(1)) @ [Deeper(1)]
+      };
+    node_positions(inner_cursors_k(0))
+    @ [Deeper(0)]
+    @ ann_positions
+    @ node_positions(inner_cursors_k(2))
+    @ [Deeper(2)];
+  | Case(_, _, rules, ann) =>
+    let ann_positions =
+      switch (ann) {
+      | None => []
+      | Some(_) => [Deeper(List.length(rules) + 1)]
+      };
+    node_positions(inner_cursors_k(0))
+    @ [Deeper(0)]
+    @ (range(List.length(rules)) |> List.map(i => Deeper(i + 1)))
+    @ node_positions(inner_cursors_k(1))
+    @ ann_positions;
+  | OpSeq(_, seq) =>
+    range(OperatorSeq.seq_length(seq))
+    |> List.fold_left(
+         (lstSoFar, i) =>
+           switch (lstSoFar) {
+           | [] => [Deeper(i)]
+           | [_, ..._] =>
+             lstSoFar @ node_positions(inner_cursors_k(i)) @ [Deeper(i)]
+           },
+         [],
+       )
+  | ApPalette(_, _, _, _) => [] /* TODO */
+  };
+
+let node_position_of_zline = (zline: zline): option(node_pos) =>
+  switch (zline) {
+  | CursorL(cursor, _) => Some(On(cursor))
+  | LetLineZP(_, _, _) => Some(Deeper(0))
+  | LetLineZA(_, _, _) => Some(Deeper(1))
+  | LetLineZE(_, _, _) => Some(Deeper(2))
+  | ExpLineZ(_) => None
+  };
+
+let node_position_of_t = (ze: t): node_pos =>
+  switch (ze) {
+  | CursorE(cursor, _) => On(cursor)
+  | ParenthesizedZ(_) => Deeper(0)
+  | OpSeqZ(_, _, surround) =>
+    Deeper(OperatorSeq.surround_prefix_length(surround))
+  | LamZP(_, _, _, _) => Deeper(0)
+  | LamZA(_, _, _, _) => Deeper(1)
+  | LamZE(_, _, _, _) => Deeper(2)
+  | InjZ(_, _, _) => Deeper(0)
+  | CaseZE(_, _, _, _) => Deeper(0)
+  | CaseZR(_, _, (prefix, _, _), _) => Deeper(List.length(prefix) + 1)
+  | CaseZA(_, _, rules, _) => Deeper(List.length(rules) + 1)
+  | ApPaletteZ(_, _, _, _) => Deeper(0) /* TODO */
+  };

@@ -25,8 +25,7 @@ let update_cursor = (cursor: cursor_pos, (steps, _): t): t =>
 
 let rec of_ztyp = (zty: ZTyp.t): t =>
   switch (zty) {
-  | CursorTO(outer_cursor, _) => ([], O(outer_cursor))
-  | CursorTI(inner_cursor, _) => ([], I(inner_cursor))
+  | CursorT(cursor, _) => ([], cursor)
   | ParenthesizedZ(zty1) => cons'(0, of_ztyp(zty1))
   | ListZ(zty1) => cons'(0, of_ztyp(zty1))
   | OpSeqZ(_, zty1, surround) =>
@@ -36,8 +35,7 @@ let rec of_ztyp = (zty: ZTyp.t): t =>
 
 let rec of_zpat = (zp: ZPat.t): t =>
   switch (zp) {
-  | CursorPO(outer_cursor, _) => ([], O(outer_cursor))
-  | CursorPI(inner_cursor, _) => ([], I(inner_cursor))
+  | CursorP(cursor, _) => ([], cursor)
   | ParenthesizedZ(zp1) => cons'(0, of_zpat(zp1))
   | OpSeqZ(_, zp1, surround) =>
     let n = OperatorSeq.surround_prefix_length(surround);
@@ -57,8 +55,7 @@ and of_zlines = (zlines: ZExp.zlines): t => {
 }
 and of_zline = (zline: ZExp.zline): t =>
   switch (zline) {
-  | CursorLO(outer_cursor, _) => ([], O(outer_cursor))
-  | CursorLI(inner_cursor, _) => ([], I(inner_cursor))
+  | CursorL(cursor, _) => ([], cursor)
   | ExpLineZ(ze) => of_zexp(ze)
   | LetLineZP(zp, _, _) => cons'(0, of_zpat(zp))
   | LetLineZA(_, zann, _) => cons'(1, of_ztyp(zann))
@@ -66,8 +63,7 @@ and of_zline = (zline: ZExp.zline): t =>
   }
 and of_zexp = (ze: ZExp.t): t =>
   switch (ze) {
-  | CursorEO(outer_cursor, _) => ([], O(outer_cursor))
-  | CursorEI(inner_cursor, _) => ([], I(inner_cursor))
+  | CursorE(cursor, _) => ([], cursor)
   | ParenthesizedZ(zblock) => cons'(0, of_zblock(zblock))
   | OpSeqZ(_, ze, surround) =>
     let n = OperatorSeq.surround_prefix_length(surround);
@@ -90,7 +86,7 @@ and of_zexp = (ze: ZExp.t): t =>
   }
 and of_zrule = (zrule: ZExp.zrule): t =>
   switch (zrule) {
-  | CursorR(inner_cursor, _) => ([], I(inner_cursor))
+  | CursorR(cursor, _) => ([], cursor)
   | RuleZP(zp, _) => cons'(0, of_zpat(zp))
   | RuleZE(_, zblock) => cons'(1, of_zblock(zblock))
   };
@@ -112,11 +108,11 @@ let rec follow_ty_and_place_cursor =
   | [] => place_cursor(uty)
   | [x, ...xs] =>
     switch (uty) {
-    | TO(Hole)
-    | TO(Unit)
-    | TO(Num)
-    | TO(Bool) => None
-    | TI(Parenthesized(uty1)) =>
+    | Hole
+    | Unit
+    | Num
+    | Bool => None
+    | Parenthesized(uty1) =>
       switch (x) {
       | 0 =>
         switch (follow_ty_and_place_cursor(xs, place_cursor, uty1)) {
@@ -125,7 +121,7 @@ let rec follow_ty_and_place_cursor =
         }
       | _ => None
       }
-    | TI(List(uty1)) =>
+    | List(uty1) =>
       switch (x) {
       | 0 =>
         switch (follow_ty_and_place_cursor(xs, place_cursor, uty1)) {
@@ -134,7 +130,7 @@ let rec follow_ty_and_place_cursor =
         }
       | _ => None
       }
-    | TI(OpSeq(skel, seq)) =>
+    | OpSeq(skel, seq) =>
       switch (OperatorSeq.split(x, seq)) {
       | None => None
       | Some((uty_n, surround)) =>
@@ -177,14 +173,21 @@ let rec follow_pat_and_place_cursor =
   | [] => place_cursor(p)
   | [x, ...xs] =>
     switch (x, p) {
-    | (_, PO(_)) => None /* outer nodes have no children */
-    | (0, PI(Parenthesized(p1))) =>
+    /* outer nodes */
+    | (_, EmptyHole(_))
+    | (_, Wild(_))
+    | (_, Var(_, _, _))
+    | (_, NumLit(_, _))
+    | (_, BoolLit(_, _))
+    | (_, ListNil(_)) => None
+    /* inner nodes */
+    | (0, Parenthesized(p1)) =>
       switch (follow_pat_and_place_cursor(xs, place_cursor, p1)) {
       | None => None
       | Some(zp1) => Some(ParenthesizedZ(zp1))
       }
-    | (_, PI(Parenthesized(_))) => None
-    | (_, PI(OpSeq(skel, seq))) =>
+    | (_, Parenthesized(_)) => None
+    | (_, OpSeq(skel, seq)) =>
       switch (OperatorSeq.split(x, seq)) {
       | None => None
       | Some((p, surround)) =>
@@ -193,12 +196,12 @@ let rec follow_pat_and_place_cursor =
         | Some(zp) => Some(OpSeqZ(skel, zp, surround))
         }
       }
-    | (0, PI(Inj(err, side, p1))) =>
+    | (0, Inj(err, side, p1)) =>
       switch (follow_pat_and_place_cursor(xs, place_cursor, p1)) {
       | None => None
       | Some(zp1) => Some(InjZ(err, side, zp1))
       }
-    | (_, PI(Inj(_, _, _))) => None
+    | (_, Inj(_, _, _)) => None
     }
   };
 
@@ -287,13 +290,13 @@ and follow_line_and_place_cursor =
     | Some(ze) => Some(ExpLineZ(ze))
     }
   | ([], _) => pcl(line)
-  | (_, LO(EmptyLine)) => None
-  | ([0, ...xs], LI(LetLine(p, ann, e1))) =>
+  | (_, EmptyLine) => None
+  | ([0, ...xs], LetLine(p, ann, e1)) =>
     switch (follow_pat_and_place_cursor(xs, pcp, p)) {
     | None => None
     | Some(zp) => Some(LetLineZP(zp, ann, e1))
     }
-  | ([1, ...xs], LI(LetLine(p, ann, e1))) =>
+  | ([1, ...xs], LetLine(p, ann, e1)) =>
     switch (ann) {
     | None => None
     | Some(ann_ty) =>
@@ -302,12 +305,12 @@ and follow_line_and_place_cursor =
       | Some(zann) => Some(LetLineZA(p, zann, e1))
       }
     }
-  | ([2, ...xs], LI(LetLine(p, ann, block))) =>
+  | ([2, ...xs], LetLine(p, ann, block)) =>
     switch (follow_block_and_place_cursor(xs, pcl, pce, pcr, pcp, pct, block)) {
     | None => None
     | Some(zblock) => Some(LetLineZE(p, ann, zblock))
     }
-  | (_, LI(LetLine(_, _, _))) => None
+  | (_, LetLine(_, _, _)) => None
   }
 and follow_exp_and_place_cursor =
     (
@@ -324,30 +327,36 @@ and follow_exp_and_place_cursor =
   | [] => pce(e)
   | [x, ...xs] =>
     switch (x, e) {
-    | (_, EO(_)) => None
-    | (0, EI(Parenthesized(block))) =>
+    /* outer nodes */
+    | (_, EmptyHole(_))
+    | (_, Var(_, _, _))
+    | (_, NumLit(_, _))
+    | (_, BoolLit(_, _))
+    | (_, ListNil(_)) => None
+    /* inner nodes */
+    | (0, Parenthesized(block)) =>
       switch (
         follow_block_and_place_cursor(xs, pcl, pce, pcr, pcp, pct, block)
       ) {
       | None => None
       | Some(zblock) => Some(ParenthesizedZ(zblock))
       }
-    | (_, EI(Parenthesized(_))) => None
-    | (_, EI(OpSeq(skel, seq))) =>
+    | (_, Parenthesized(_)) => None
+    | (_, OpSeq(skel, seq)) =>
       switch (OperatorSeq.split(x, seq)) {
+      | None => None
       | Some((e, surround)) =>
         switch (follow_exp_and_place_cursor(xs, pcl, pce, pcr, pcp, pct, e)) {
         | Some(ze) => Some(OpSeqZ(skel, ze, surround))
         | None => None
         }
-      | None => None
       }
-    | (0, EI(Lam(err, p, ann, block))) =>
+    | (0, Lam(err, p, ann, block)) =>
       switch (follow_pat_and_place_cursor(xs, pcp, p)) {
       | None => None
       | Some(zp) => Some(LamZP(err, zp, ann, block))
       }
-    | (1, EI(Lam(err, p, ann, block))) =>
+    | (1, Lam(err, p, ann, block)) =>
       switch (ann) {
       | None => None
       | Some(ann_ty) =>
@@ -356,31 +365,30 @@ and follow_exp_and_place_cursor =
         | Some(zann) => Some(LamZA(err, p, zann, block))
         }
       }
-    | (2, EI(Lam(err, p, ann, block))) =>
+    | (2, Lam(err, p, ann, block)) =>
       switch (
         follow_block_and_place_cursor(xs, pcl, pce, pcr, pcp, pct, block)
       ) {
       | None => None
       | Some(zblock) => Some(LamZE(err, p, ann, zblock))
       }
-    | (_, EI(Lam(_, _, _, _))) => None
-    | (0, EI(Inj(err, side, block))) =>
+    | (_, Lam(_, _, _, _)) => None
+    | (0, Inj(err, side, block)) =>
       switch (
         follow_block_and_place_cursor(xs, pcl, pce, pcr, pcp, pct, block)
       ) {
       | None => None
       | Some(zblock) => Some(InjZ(err, side, zblock))
       }
-    | (_, EI(Inj(_, _, _))) => None
-    | (0, EI(Case(err, block, rules, ann))) =>
+    | (_, Inj(_, _, _)) => None
+    | (0, Case(err, block, rules, ann)) =>
       switch (
         follow_block_and_place_cursor(xs, pcl, pce, pcr, pcp, pct, block)
       ) {
       | None => None
       | Some(zblock) => Some(CaseZE(err, zblock, rules, ann))
       }
-    | (x, EI(Case(err, block, rules, ann)))
-        when x === List.length(rules) + 1 =>
+    | (x, Case(err, block, rules, ann)) when x === List.length(rules) + 1 =>
       switch (ann) {
       | None => None
       | Some(ty) =>
@@ -389,7 +397,7 @@ and follow_exp_and_place_cursor =
         | Some(zann) => Some(CaseZA(err, block, rules, zann))
         }
       }
-    | (x, EI(Case(err, block, rules, ann))) =>
+    | (x, Case(err, block, rules, ann)) =>
       switch (ZList.split_at(x - 1, rules)) {
       | None => None
       | Some(split_rules) =>
@@ -403,7 +411,7 @@ and follow_exp_and_place_cursor =
         | Some(zrules) => Some(CaseZR(err, block, zrules, ann))
         }
       }
-    | (n, EI(ApPalette(_, name, serialized_model, splice_info))) =>
+    | (n, ApPalette(_, name, serialized_model, splice_info)) =>
       switch (
         ZSpliceInfo.select_opt(splice_info, n, ((ty, block)) =>
           switch (
@@ -652,26 +660,26 @@ let rec holes_seq =
 
 let rec holes_uty = (uty: UHTyp.t, steps: steps, holes: hole_list): hole_list =>
   switch (uty) {
-  | TO(Hole) => [(TypeHole, steps), ...holes]
-  | TO(Unit) => holes
-  | TO(Num) => holes
-  | TO(Bool) => holes
-  | TI(Parenthesized(uty1)) => holes_uty(uty1, [0, ...steps], holes)
-  | TI(List(uty1)) => holes_uty(uty1, [0, ...steps], holes)
-  | TI(OpSeq(_, seq)) => holes_seq(seq, holes_uty, 0, steps, holes)
+  | Hole => [(TypeHole, steps), ...holes]
+  | Unit => holes
+  | Num => holes
+  | Bool => holes
+  | Parenthesized(uty1) => holes_uty(uty1, [0, ...steps], holes)
+  | List(uty1) => holes_uty(uty1, [0, ...steps], holes)
+  | OpSeq(_, seq) => holes_seq(seq, holes_uty, 0, steps, holes)
   };
 
 let rec holes_pat = (p: UHPat.t, steps: steps, holes: hole_list): hole_list =>
   switch (p) {
-  | PO(EmptyHole(u)) => [(PatHole(u), steps), ...holes]
-  | PO(Wild(_)) => holes
-  | PO(Var(_, _, _)) => holes
-  | PO(NumLit(_, _)) => holes
-  | PO(BoolLit(_, _)) => holes
-  | PO(ListNil(_)) => holes
-  | PI(Parenthesized(p1)) => holes_pat(p1, [0, ...steps], holes)
-  | PI(OpSeq(_, seq)) => holes_seq(seq, holes_pat, 0, steps, holes)
-  | PI(Inj(_, _, p1)) => holes_pat(p1, [0, ...steps], holes)
+  | EmptyHole(u) => [(PatHole(u), steps), ...holes]
+  | Wild(_) => holes
+  | Var(_, _, _) => holes
+  | NumLit(_, _) => holes
+  | BoolLit(_, _) => holes
+  | ListNil(_) => holes
+  | Parenthesized(p1) => holes_pat(p1, [0, ...steps], holes)
+  | OpSeq(_, seq) => holes_seq(seq, holes_pat, 0, steps, holes)
+  | Inj(_, _, p1) => holes_pat(p1, [0, ...steps], holes)
   };
 
 let rec holes_block =
@@ -691,8 +699,8 @@ and holes_lines =
   )
 and holes_line = (line: UHExp.line, steps: steps, holes: hole_list): hole_list =>
   switch (line) {
-  | LO(EmptyLine) => holes
-  | LI(LetLine(p, ann, block)) =>
+  | EmptyLine => holes
+  | LetLine(p, ann, block) =>
     let holes = holes_block(block, [2, ...steps], holes);
     let holes =
       switch (ann) {
@@ -704,15 +712,15 @@ and holes_line = (line: UHExp.line, steps: steps, holes: hole_list): hole_list =
   }
 and holes_exp = (e: UHExp.t, steps: steps, holes: hole_list): hole_list =>
   switch (e) {
-  | EO(EmptyHole(u)) => [(ExpHole(u), steps), ...holes]
-  | EO(Var(_, _, _)) => holes
-  | EO(NumLit(_, _)) => holes
-  | EO(BoolLit(_, _)) => holes
-  | EO(ListNil(_)) => holes
-  | EI(Parenthesized(block)) => holes_block(block, [0, ...steps], holes)
-  | EI(OpSeq(_, seq)) => holes_seq(seq, holes_exp, 0, steps, holes)
-  | EI(Inj(_, _, block)) => holes_block(block, [0, ...steps], holes)
-  | EI(Lam(_, p, ann, block)) =>
+  | EmptyHole(u) => [(ExpHole(u), steps), ...holes]
+  | Var(_, _, _) => holes
+  | NumLit(_, _) => holes
+  | BoolLit(_, _) => holes
+  | ListNil(_) => holes
+  | Parenthesized(block) => holes_block(block, [0, ...steps], holes)
+  | OpSeq(_, seq) => holes_seq(seq, holes_exp, 0, steps, holes)
+  | Inj(_, _, block) => holes_block(block, [0, ...steps], holes)
+  | Lam(_, p, ann, block) =>
     let holes = holes_block(block, [2, ...steps], holes);
     let holes =
       switch (ann) {
@@ -720,7 +728,7 @@ and holes_exp = (e: UHExp.t, steps: steps, holes: hole_list): hole_list =>
       | None => holes
       };
     holes_pat(p, [0, ...steps], holes);
-  | EI(Case(_, block, rules, ann)) =>
+  | Case(_, block, rules, ann) =>
     let holes =
       switch (ann) {
       | None => holes
@@ -729,7 +737,7 @@ and holes_exp = (e: UHExp.t, steps: steps, holes: hole_list): hole_list =>
       };
     let holes = holes_rules(rules, 1, steps, holes);
     holes_block(block, [0, ...steps], holes);
-  | EI(ApPalette(_, _, _, psi)) =>
+  | ApPalette(_, _, _, psi) =>
     let splice_map = psi.splice_map;
     let splice_order = psi.splice_order;
     List.fold_right(
@@ -844,31 +852,31 @@ let holes_OpSeqZ =
 let holes_Cursor_bracketed =
     (
       holes_fn: ('t, steps, hole_list) => hole_list,
-      inner_cursor: inner_cursor,
+      (k, _): cursor_pos,
       bracketed_t: 't,
       steps: steps,
     )
     : zhole_list => {
   let holes_bracketed_t = holes_fn(bracketed_t, [0, ...steps], []);
-  switch (inner_cursor) {
-  | ClosingDelimiter(_) => {
+  switch (k) {
+  | 0 => {
       holes_before: holes_bracketed_t,
       hole_selected: None,
       holes_after: [],
     }
-  | BeforeChild(0, _) => {
+  | 1 => {
       holes_before: [],
       hole_selected: None,
       holes_after: holes_bracketed_t,
     }
-  | BeforeChild(_, _) => no_holes
+  | _ => no_holes
   };
 };
 
 let holes_Cursor_OpSeq =
     (
       holes_fn: ('tm, steps, hole_list) => hole_list,
-      inner_cursor: inner_cursor,
+      (k, _): cursor_pos,
       skel: Skel.t('op),
       seq: OperatorSeq.opseq('tm, 'op),
       raise_inconsistent:
@@ -876,9 +884,7 @@ let holes_Cursor_OpSeq =
       steps: steps,
     )
     : zhole_list =>
-  switch (inner_cursor) {
-  | ClosingDelimiter(_) => no_holes
-  | BeforeChild(k, _) when k > 0 && k <= OperatorSeq.seq_length(seq) - 1 =>
+  if (k > 0 && k <= OperatorSeq.seq_length(seq) - 1) {
     switch (OperatorSeq.split(k, seq)) {
     | None => raise_inconsistent(skel, seq)
     | Some((tm_k, surround)) =>
@@ -889,36 +895,37 @@ let holes_Cursor_OpSeq =
         hole_selected: None,
         holes_after: holes_fn(tm_k, [k, ...steps], []) @ holes_suffix,
       };
-    }
-  | BeforeChild(_, _) => no_holes
+    };
+  } else {
+    no_holes;
   };
 
 let rec holes_zty = (zty: ZTyp.t, steps: steps): zhole_list =>
   switch (zty) {
-  | CursorTO(_, utyo) => {
+  | CursorT(_, Hole) => {
       holes_before: [],
-      hole_selected:
-        switch (utyo) {
-        | Hole => Some((TypeHole, steps))
-        | _ => None
-        },
+      hole_selected: Some((TypeHole, steps)),
       holes_after: [],
     }
-  | CursorTI(inner_cursor, utyi) =>
-    switch (utyi) {
-    | Parenthesized(uty1)
-    | List(uty1) =>
-      holes_Cursor_bracketed(holes_uty, inner_cursor, uty1, steps)
-    | OpSeq(skel, seq) =>
-      holes_Cursor_OpSeq(
-        holes_uty,
-        inner_cursor,
-        skel,
-        seq,
-        (skel, seq) => raise(UHTyp.SkelInconsistentWithOpSeq(skel, seq)),
-        steps,
-      )
+  | CursorT(_, Unit)
+  | CursorT(_, Num)
+  | CursorT(_, Bool) => {
+      holes_before: [],
+      hole_selected: None,
+      holes_after: [],
     }
+  | CursorT(cursor, Parenthesized(uty1))
+  | CursorT(cursor, List(uty1)) =>
+    holes_Cursor_bracketed(holes_uty, cursor, uty1, steps)
+  | CursorT(cursor, OpSeq(skel, seq)) =>
+    holes_Cursor_OpSeq(
+      holes_uty,
+      cursor,
+      skel,
+      seq,
+      (skel, seq) => raise(UHTyp.SkelInconsistentWithOpSeq(skel, seq)),
+      steps,
+    )
   | ParenthesizedZ(zty1) => holes_zty(zty1, [0, ...steps])
   | ListZ(zty1) => holes_zty(zty1, [0, ...steps])
   | OpSeqZ(_, zty0, surround) =>
@@ -927,30 +934,32 @@ let rec holes_zty = (zty: ZTyp.t, steps: steps): zhole_list =>
 
 let rec holes_zpat = (zp: ZPat.t, steps: steps): zhole_list =>
   switch (zp) {
-  | CursorPO(_, po) => {
+  | CursorP(_, EmptyHole(u)) => {
       holes_before: [],
-      hole_selected:
-        switch (po) {
-        | EmptyHole(u) => Some((PatHole(u), steps))
-        | _ => None
-        },
+      hole_selected: Some((PatHole(u), steps)),
       holes_after: [],
     }
-  | CursorPI(inner_cursor, pi) =>
-    switch (pi) {
-    | Parenthesized(p1)
-    | Inj(_, _, p1) =>
-      holes_Cursor_bracketed(holes_pat, inner_cursor, p1, steps)
-    | OpSeq(skel, seq) =>
-      holes_Cursor_OpSeq(
-        holes_pat,
-        inner_cursor,
-        skel,
-        seq,
-        (skel, seq) => raise(UHPat.SkelInconsistentWithOpSeq(skel, seq)),
-        steps,
-      )
+  | CursorP(_, Wild(_))
+  | CursorP(_, Var(_, _, _))
+  | CursorP(_, NumLit(_, _))
+  | CursorP(_, BoolLit(_, _))
+  | CursorP(_, ListNil(_)) => {
+      holes_before: [],
+      hole_selected: None,
+      holes_after: [],
     }
+  | CursorP(cursor, Parenthesized(p1))
+  | CursorP(cursor, Inj(_, _, p1)) =>
+    holes_Cursor_bracketed(holes_pat, cursor, p1, steps)
+  | CursorP(cursor, OpSeq(skel, seq)) =>
+    holes_Cursor_OpSeq(
+      holes_pat,
+      cursor,
+      skel,
+      seq,
+      (skel, seq) => raise(UHPat.SkelInconsistentWithOpSeq(skel, seq)),
+      steps,
+    )
   | ParenthesizedZ(zp1) => holes_zpat(zp1, [0, ...steps])
   | OpSeqZ(_, zp1, surround) =>
     holes_OpSeqZ(holes_pat, holes_zpat, zp1, surround, steps)
@@ -984,8 +993,9 @@ and holes_zlines =
 }
 and holes_zline = (zli: ZExp.zline, steps: steps): zhole_list =>
   switch (zli) {
-  | CursorLO(_, EmptyLine) => no_holes
-  | CursorLI(inner_cursor, LetLine(p, ann, block)) =>
+  | CursorL(_, EmptyLine) => no_holes
+  | CursorL(_, ExpLine(_)) => no_holes /* invalid cursor position */
+  | CursorL(cursor, LetLine(p, ann, block)) =>
     let holes_p = holes_pat(p, [0, ...steps], []);
     let holes_ann =
       switch (ann) {
@@ -993,24 +1003,23 @@ and holes_zline = (zli: ZExp.zline, steps: steps): zhole_list =>
       | Some(uty) => holes_uty(uty, [1, ...steps], [])
       };
     let holes_block = holes_block(block, [2, ...steps], []);
-    switch (inner_cursor) {
-    | ClosingDelimiter(_) => no_holes
-    | BeforeChild(0, _) => {
+    switch (cursor) {
+    | (0, _) => {
         holes_before: [],
         hole_selected: None,
         holes_after: holes_p @ holes_ann @ holes_block,
       }
-    | BeforeChild(1, _) => {
+    | (1, _) => {
         holes_before: holes_p,
         hole_selected: None,
         holes_after: holes_ann @ holes_block,
       }
-    | BeforeChild(2, _) => {
+    | (2, _) => {
         holes_before: holes_p @ holes_ann,
         hole_selected: None,
         holes_after: holes_block,
       }
-    | BeforeChild(_, _) => no_holes
+    | (_, _) => no_holes
     };
   | ExpLineZ(ze1) => holes_ze(ze1, steps)
   | LetLineZP(zp, ann, block) =>
@@ -1054,87 +1063,79 @@ and holes_zline = (zli: ZExp.zline, steps: steps): zhole_list =>
   }
 and holes_ze = (ze: ZExp.t, steps: steps): zhole_list =>
   switch (ze) {
-  | CursorEO(_, eo) => {
+  | CursorE(_, EmptyHole(u)) => {
       holes_before: [],
-      hole_selected:
-        switch (eo) {
-        | EmptyHole(u) => Some((ExpHole(u), steps))
-        | _ => None
-        },
+      hole_selected: Some((ExpHole(u), steps)),
       holes_after: [],
     }
-  | CursorEI(inner_cursor, ei) =>
-    switch (ei) {
-    | Inj(_, _, block)
-    | Parenthesized(block) =>
-      holes_Cursor_bracketed(holes_block, inner_cursor, block, steps)
-    | Lam(_, p, ann, block) =>
-      let holes_p = holes_pat(p, [0, ...steps], []);
-      let holes_ann =
-        switch (ann) {
-        | None => []
-        | Some(uty) => holes_uty(uty, [1, ...steps], [])
-        };
-      let holes_block = holes_block(block, [2, ...steps], []);
-      switch (inner_cursor) {
-      | ClosingDelimiter(_) => no_holes
-      | BeforeChild(0, _) => {
-          holes_before: [],
-          hole_selected: None,
-          holes_after: holes_p @ holes_ann @ holes_block,
-        }
-      | BeforeChild(1, _) => {
-          holes_before: holes_p,
-          hole_selected: None,
-          holes_after: holes_ann @ holes_block,
-        }
-      | BeforeChild(2, _) => {
-          holes_before: holes_p @ holes_ann,
-          hole_selected: None,
-          holes_after: holes_block,
-        }
-      | BeforeChild(_, _) => no_holes
-      };
-    | Case(_, block, rules, ann) =>
-      let holes_block = holes_block(block, [0, ...steps], []);
-      let holes_rules = holes_rules(rules, 1, steps, []);
-      let holes_ann =
-        switch (ann) {
-        | None => []
-        | Some(uty) =>
-          holes_uty(uty, [List.length(rules) + 1, ...steps], [])
-        };
-      switch (inner_cursor) {
-      | ClosingDelimiter(_) => {
-          holes_before: holes_block @ holes_rules,
-          hole_selected: None,
-          holes_after: [],
-        }
-      | BeforeChild(0, _) => {
-          holes_before: [],
-          hole_selected: None,
-          holes_after: holes_block @ holes_rules @ holes_ann,
-        }
-      | BeforeChild(k, _) =>
-        k === List.length(rules) + 1
-          ? {
-            holes_before: holes_block @ holes_rules,
-            hole_selected: None,
-            holes_after: holes_ann,
-          }
-          : no_holes
-      };
-    | OpSeq(skel, seq) =>
-      holes_Cursor_OpSeq(
-        holes_exp,
-        inner_cursor,
-        skel,
-        seq,
-        (skel, seq) => raise(UHExp.SkelInconsistentWithOpSeq(skel, seq)),
-        steps,
-      )
-    | ApPalette(_, _, _, _) => no_holes /* TODO */
+  | CursorE(_, Var(_, _, _))
+  | CursorE(_, NumLit(_, _))
+  | CursorE(_, BoolLit(_, _))
+  | CursorE(_, ListNil(_)) => {
+      holes_before: [],
+      hole_selected: None,
+      holes_after: [],
     }
+  | CursorE(cursor, Inj(_, _, block))
+  | CursorE(cursor, Parenthesized(block)) =>
+    holes_Cursor_bracketed(holes_block, cursor, block, steps)
+  | CursorE((k, _), Lam(_, p, ann, block)) =>
+    let holes_p = holes_pat(p, [0, ...steps], []);
+    let holes_ann =
+      switch (ann) {
+      | None => []
+      | Some(uty) => holes_uty(uty, [1, ...steps], [])
+      };
+    let holes_block = holes_block(block, [2, ...steps], []);
+    switch (k) {
+    | 0 => {
+        holes_before: [],
+        hole_selected: None,
+        holes_after: holes_p @ holes_ann @ holes_block,
+      }
+    | 1 => {
+        holes_before: holes_p,
+        hole_selected: None,
+        holes_after: holes_ann @ holes_block,
+      }
+    | 2 => {
+        holes_before: holes_p @ holes_ann,
+        hole_selected: None,
+        holes_after: holes_block,
+      }
+    | _ => no_holes
+    };
+  | CursorE((k, _), Case(_, block, rules, ann)) =>
+    let holes_block = holes_block(block, [0, ...steps], []);
+    let holes_rules = holes_rules(rules, 1, steps, []);
+    let holes_ann =
+      switch (ann) {
+      | None => []
+      | Some(uty) => holes_uty(uty, [List.length(rules) + 1, ...steps], [])
+      };
+    switch (k) {
+    | 0 => {
+        holes_before: [],
+        hole_selected: None,
+        holes_after: holes_block @ holes_rules @ holes_ann,
+      }
+    | 1 => {
+        holes_before: holes_block @ holes_rules,
+        hole_selected: None,
+        holes_after: holes_ann,
+      }
+    | _ => no_holes
+    };
+  | CursorE(cursor, OpSeq(skel, seq)) =>
+    holes_Cursor_OpSeq(
+      holes_exp,
+      cursor,
+      skel,
+      seq,
+      (skel, seq) => raise(UHExp.SkelInconsistentWithOpSeq(skel, seq)),
+      steps,
+    )
+  | CursorE(_, ApPalette(_, _, _, _)) => no_holes /* TODO */
   | OpSeqZ(_, ze0, surround) =>
     holes_OpSeqZ(holes_exp, holes_ze, ze0, surround, steps)
   | ParenthesizedZ(zblock) => holes_zblock(zblock, [0, ...steps])
@@ -1269,23 +1270,22 @@ and holes_zrules = (zrules: ZExp.zrules, offset: int, steps: steps) => {
 and holes_zrule =
     (zrule: ZExp.zrule, offset: int, prefix_len: int, steps: steps) =>
   switch (zrule) {
-  | CursorR(inner_cursor, Rule(p, block)) =>
+  | CursorR((k, _), Rule(p, block)) =>
     let holes_p = holes_pat(p, [1, prefix_len + offset, ...steps], []);
     let holes_block =
       holes_block(block, [0, prefix_len + offset, ...steps], []);
-    switch (inner_cursor) {
-    | ClosingDelimiter(_) => no_holes
-    | BeforeChild(0, _) => {
+    switch (k) {
+    | 0 => {
         holes_before: [],
         hole_selected: None,
         holes_after: holes_p @ holes_block,
       }
-    | BeforeChild(1, _) => {
+    | 1 => {
         holes_before: holes_p,
         hole_selected: None,
         holes_after: holes_block,
       }
-    | BeforeChild(_, _) => no_holes
+    | _ => no_holes
     };
   | RuleZP(zp, block) =>
     let {holes_before, hole_selected, holes_after} =
@@ -1339,10 +1339,10 @@ let opt_steps_to_opt_path =
   };
 
 let path_to_hole = (hole_list: hole_list, u: MetaVar.t): option(t) =>
-  opt_steps_to_opt_path(O(Char(0)), steps_to_hole(hole_list, u));
+  opt_steps_to_opt_path(outer_cursor(0), steps_to_hole(hole_list, u));
 
 let path_to_hole_z = (zhole_list: zhole_list, u: MetaVar.t): option(t) =>
-  opt_steps_to_opt_path(O(Char(0)), steps_to_hole_z(zhole_list, u));
+  opt_steps_to_opt_path(outer_cursor(0), steps_to_hole_z(zhole_list, u));
 
 let next_hole_steps = (zhole_list: zhole_list): option(steps) => {
   let holes_after = zhole_list.holes_after;
@@ -1353,7 +1353,7 @@ let next_hole_steps = (zhole_list: zhole_list): option(steps) => {
 };
 
 let next_hole_path = (zhole_list: zhole_list): option(t) =>
-  opt_steps_to_opt_path(O(Char(0)), next_hole_steps(zhole_list));
+  opt_steps_to_opt_path(outer_cursor(0), next_hole_steps(zhole_list));
 
 let prev_hole_steps = (zhole_list: zhole_list): option(steps) => {
   let holes_before = zhole_list.holes_before;
@@ -1364,7 +1364,7 @@ let prev_hole_steps = (zhole_list: zhole_list): option(steps) => {
 };
 
 let prev_hole_path = (zhole_list: zhole_list): option(t) =>
-  opt_steps_to_opt_path(O(Char(0)), prev_hole_steps(zhole_list));
+  opt_steps_to_opt_path(outer_cursor(0), prev_hole_steps(zhole_list));
 
 let prev_hole_path_zblock = (zblock: ZExp.zblock): option(t) => {
   let holes = holes_zblock(zblock, []);
@@ -1376,180 +1376,9 @@ let next_hole_path_zblock = (zblock: ZExp.zblock): option(t) => {
   next_hole_path(holes);
 };
 
-/* Node Positions */
-
-[@deriving sexp]
-type node_pos =
-  | On(cursor_pos)
-  | Deeper(int);
-
-let node_positions_ty = (uty: UHTyp.t): list(node_pos) =>
-  switch (uty) {
-  | TO(utyo) => ZTyp.valid_outer_cursors(utyo) |> List.map(c => On(O(c)))
-  | TI(utyi) =>
-    let cfd = ZTyp.children_following_delimiters(utyi);
-    let child_positions: list(node_pos) =
-      ZTyp.children(utyi)
-      |> List.map(k => {
-           let before_child_positions: list(node_pos) =
-             contains(cfd, k)
-               ? [
-                 On(I(BeforeChild(k, Before))),
-                 On(I(BeforeChild(k, After))),
-               ]
-               : [];
-           let child_position: list(node_pos) = [Deeper(k)];
-           before_child_positions @ child_position;
-         })
-      |> List.flatten;
-    let closing_delimiter_positions: list(node_pos) =
-      ZTyp.has_closing_delimiter(utyi)
-        ? [
-          On(I(ClosingDelimiter(Before))),
-          On(I(ClosingDelimiter(After))),
-        ]
-        : [];
-    child_positions @ closing_delimiter_positions;
-  };
-
-let node_positions_pat = (p: UHPat.t): list(node_pos) =>
-  switch (p) {
-  | PO(po) => ZPat.valid_outer_cursors(po) |> List.map(c => On(O(c)))
-  | PI(pi) =>
-    let cfd = ZPat.child_indices_following_delimiters(pi);
-    let child_positions: list(node_pos) =
-      ZPat.children(pi)
-      |> List.map(k => {
-           let before_child_positions: list(node_pos) =
-             contains(cfd, k)
-               ? [
-                 On(I(BeforeChild(k, Before))),
-                 On(I(BeforeChild(k, After))),
-               ]
-               : [];
-           let child_position: list(node_pos) = [Deeper(k)];
-           before_child_positions @ child_position;
-         })
-      |> List.flatten;
-    let closing_delimiter_positions: list(node_pos) =
-      ZPat.has_closing_delimiter(pi)
-        ? [
-          On(I(ClosingDelimiter(Before))),
-          On(I(ClosingDelimiter(After))),
-        ]
-        : [];
-    child_positions @ closing_delimiter_positions;
-  };
-
-let node_positions_line = (line: UHExp.line): list(node_pos) =>
-  switch (line) {
-  | ExpLine(_) => []
-  | LO(lo) => ZExp.valid_outer_cursors_line(lo) |> List.map(c => On(O(c)))
-  | LI(li) =>
-    let cfd = ZExp.children_following_delimiters_line(li);
-    let child_positions: list(node_pos) =
-      ZExp.children_line(li)
-      |> List.map(k => {
-           let before_child_positions: list(node_pos) =
-             contains(cfd, k)
-               ? [
-                 On(I(BeforeChild(k, Before))),
-                 On(I(BeforeChild(k, After))),
-               ]
-               : [];
-           let child_position: list(node_pos) = [Deeper(k)];
-           before_child_positions @ child_position;
-         })
-      |> List.flatten;
-    let closing_delimiter_positions: list(node_pos) =
-      ZExp.has_closing_delimiter_line(li)
-        ? [
-          On(I(ClosingDelimiter(Before))),
-          On(I(ClosingDelimiter(After))),
-        ]
-        : [];
-    child_positions @ closing_delimiter_positions;
-  };
-
-let node_positions_exp = (e: UHExp.t): list(node_pos) =>
-  switch (e) {
-  | EO(eo) => ZExp.valid_outer_cursors_exp(eo) |> List.map(c => On(O(c)))
-  | EI(ei) =>
-    let cfd = ZExp.children_following_delimiters_exp(ei);
-    let child_positions: list(node_pos) =
-      ZExp.children_exp(ei)
-      |> List.map(k => {
-           let before_child_positions: list(node_pos) =
-             contains(cfd, k)
-               ? [
-                 On(I(BeforeChild(k, Before))),
-                 On(I(BeforeChild(k, After))),
-               ]
-               : [];
-           let child_position: list(node_pos) = [Deeper(k)];
-           before_child_positions @ child_position;
-         })
-      |> List.flatten;
-    let closing_delimiter_positions: list(node_pos) =
-      ZExp.has_closing_delimiter_exp(ei)
-        ? [
-          On(I(ClosingDelimiter(Before))),
-          On(I(ClosingDelimiter(After))),
-        ]
-        : [];
-    child_positions @ closing_delimiter_positions;
-  };
-
-let node_position_zty = (zty: ZTyp.t): node_pos =>
-  switch (zty) {
-  | CursorTO(outer_cursor, _) => On(O(outer_cursor))
-  | CursorTI(inner_cursor, _) => On(I(inner_cursor))
-  | ParenthesizedZ(_) => Deeper(0)
-  | ListZ(_) => Deeper(0)
-  | OpSeqZ(_, _, surround) =>
-    Deeper(OperatorSeq.surround_prefix_length(surround))
-  };
-
-let node_position_zpat = (zp: ZPat.t): node_pos =>
-  switch (zp) {
-  | CursorPO(outer_cursor, _) => On(O(outer_cursor))
-  | CursorPI(inner_cursor, _) => On(I(inner_cursor))
-  | ParenthesizedZ(_) => Deeper(0)
-  | InjZ(_, _, _) => Deeper(0)
-  | OpSeqZ(_, _, surround) =>
-    Deeper(OperatorSeq.surround_prefix_length(surround))
-  };
-
-let node_position_zline = (zline: ZExp.zline): option(node_pos) =>
-  switch (zline) {
-  | ExpLineZ(_) => None
-  | CursorLO(outer_cursor, _) => Some(On(O(outer_cursor)))
-  | CursorLI(inner_cursor, _) => Some(On(I(inner_cursor)))
-  | LetLineZP(_, _, _) => Some(Deeper(0))
-  | LetLineZA(_, _, _) => Some(Deeper(1))
-  | LetLineZE(_, _, _) => Some(Deeper(2))
-  };
-
-let node_position_zexp = (ze: ZExp.t): node_pos =>
-  switch (ze) {
-  | CursorEO(outer_cursor, _) => On(O(outer_cursor))
-  | CursorEI(inner_cursor, _) => On(I(inner_cursor))
-  | ParenthesizedZ(_) => Deeper(0)
-  | OpSeqZ(_, _, surround) =>
-    Deeper(OperatorSeq.surround_prefix_length(surround))
-  | LamZP(_, _, _, _) => Deeper(0)
-  | LamZA(_, _, _, _) => Deeper(1)
-  | LamZE(_, _, _, _) => Deeper(2)
-  | InjZ(_, _, _) => Deeper(0)
-  | CaseZE(_, _, _, _) => Deeper(0)
-  | CaseZR(_, _, (prefix, _, _), _) => Deeper(List.length(prefix) + 1)
-  | CaseZA(_, _, rules, _) => Deeper(List.length(rules) + 1)
-  | ApPaletteZ(_, _, _, _) => Deeper(0) /* TODO */
-  };
-
 let steps_of_prev_node_pos_ty = (zty: ZTyp.t): option(steps) => {
-  let node_position = node_position_zty(zty);
-  let node_positions = node_positions_ty(ZTyp.erase(zty));
+  let node_position = ZTyp.node_position_of_t(zty);
+  let node_positions = ZTyp.node_positions(ZTyp.erase(zty));
   switch (elem_before(node_position, node_positions)) {
   | None => None
   | Some(On(_)) => Some([])
@@ -1558,8 +1387,8 @@ let steps_of_prev_node_pos_ty = (zty: ZTyp.t): option(steps) => {
 };
 
 let steps_of_next_node_pos_ty = (zty: ZTyp.t): option(steps) => {
-  let node_position = node_position_zty(zty);
-  let node_positions = node_positions_ty(ZTyp.erase(zty));
+  let node_position = ZTyp.node_position_of_t(zty);
+  let node_positions = ZTyp.node_positions(ZTyp.erase(zty));
   switch (elem_after(node_position, node_positions)) {
   | None => None
   | Some(On(_)) => Some([])
@@ -1568,8 +1397,8 @@ let steps_of_next_node_pos_ty = (zty: ZTyp.t): option(steps) => {
 };
 
 let steps_of_prev_node_pos_pat = (zp: ZPat.t): option(steps) => {
-  let node_position = node_position_zpat(zp);
-  let node_positions = node_positions_pat(ZPat.erase(zp));
+  let node_position = ZPat.node_position_of_t(zp);
+  let node_positions = ZPat.node_positions(ZPat.erase(zp));
   switch (elem_before(node_position, node_positions)) {
   | None => None
   | Some(On(_)) => Some([])
@@ -1578,8 +1407,8 @@ let steps_of_prev_node_pos_pat = (zp: ZPat.t): option(steps) => {
 };
 
 let steps_of_next_node_pos_pat = (zp: ZPat.t): option(steps) => {
-  let node_position = node_position_zpat(zp);
-  let node_positions = node_positions_pat(ZPat.erase(zp));
+  let node_position = ZPat.node_position_of_t(zp);
+  let node_positions = ZPat.node_positions(ZPat.erase(zp));
   switch (elem_after(node_position, node_positions)) {
   | None => None
   | Some(On(_)) => Some([])
@@ -1588,10 +1417,10 @@ let steps_of_next_node_pos_pat = (zp: ZPat.t): option(steps) => {
 };
 
 let steps_of_prev_node_pos_line = (zline: ZExp.zline): option(steps) =>
-  switch (node_position_zline(zline)) {
+  switch (ZExp.node_position_of_zline(zline)) {
   | None => None
   | Some(node_position) =>
-    let node_positions = node_positions_line(ZExp.erase_line(zline));
+    let node_positions = ZExp.node_positions_line(ZExp.erase_line(zline));
     switch (elem_before(node_position, node_positions)) {
     | None => None
     | Some(On(_)) => Some([])
@@ -1600,10 +1429,10 @@ let steps_of_prev_node_pos_line = (zline: ZExp.zline): option(steps) =>
   };
 
 let steps_of_next_node_pos_line = (zline: ZExp.zline): option(steps) =>
-  switch (node_position_zline(zline)) {
+  switch (ZExp.node_position_of_zline(zline)) {
   | None => None
   | Some(node_position) =>
-    let node_positions = node_positions_line(ZExp.erase_line(zline));
+    let node_positions = ZExp.node_positions_line(ZExp.erase_line(zline));
     switch (elem_after(node_position, node_positions)) {
     | None => None
     | Some(On(_)) => Some([])
@@ -1612,8 +1441,8 @@ let steps_of_next_node_pos_line = (zline: ZExp.zline): option(steps) =>
   };
 
 let steps_of_prev_node_pos_exp = (ze: ZExp.t): option(steps) => {
-  let node_position = node_position_zexp(ze);
-  let node_positions = node_positions_exp(ZExp.erase(ze));
+  let node_position = ZExp.node_position_of_t(ze);
+  let node_positions = ZExp.node_positions_exp(ZExp.erase(ze));
   switch (elem_before(node_position, node_positions)) {
   | None => None
   | Some(On(_)) => Some([])
@@ -1622,8 +1451,8 @@ let steps_of_prev_node_pos_exp = (ze: ZExp.t): option(steps) => {
 };
 
 let steps_of_next_node_pos_exp = (ze: ZExp.t): option(steps) => {
-  let node_position = node_position_zexp(ze);
-  let node_positions = node_positions_exp(ZExp.erase(ze));
+  let node_position = ZExp.node_position_of_t(ze);
+  let node_positions = ZExp.node_positions_exp(ZExp.erase(ze));
   switch (elem_after(node_position, node_positions)) {
   | None => None
   | Some(On(_)) => Some([])
