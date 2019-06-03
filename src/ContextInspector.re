@@ -392,7 +392,7 @@ let mk =
       } else {
         let children =
           switch (sort) {
-          | CursorInfo.IsExpr(EO(EmptyHole(u))) =>
+          | CursorInfo.IsExpr(EmptyHole(u)) =>
             switch (selected_instance) {
             | Some((u', _) as inst) =>
               if (MetaVar.eq(u, u')) {
