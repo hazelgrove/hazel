@@ -409,7 +409,7 @@ let rec of_uhtyp =
         )
         : PP.doc =>
   switch (uty) {
-  | TI(Parenthesized(uty1)) =>
+  | Parenthesized(uty1) =>
     let rev_path1 = [0, ...rev_path];
     let r1 = of_uhtyp(~preserved_on_deletion=true, prefix, rev_path1, uty1);
     of_Parenthesized(
@@ -420,14 +420,14 @@ let rec of_uhtyp =
       rev_path,
       r1,
     );
-  | TO(Bool) => of_Bool(~preserved_on_deletion, prefix, rev_path)
-  | TO(Num) => of_Num(~preserved_on_deletion, prefix, rev_path)
-  | TO(Unit) => of_Unit(~preserved_on_deletion, prefix, rev_path)
-  | TI(List(uty1)) =>
+  | Bool => of_Bool(~preserved_on_deletion, prefix, rev_path)
+  | Num => of_Num(~preserved_on_deletion, prefix, rev_path)
+  | Unit => of_Unit(~preserved_on_deletion, prefix, rev_path)
+  | List(uty1) =>
     let rev_path1 = [0, ...rev_path];
     let r1 = of_uhtyp(~preserved_on_deletion=true, prefix, rev_path1, uty1);
     of_List(~preserved_on_deletion, prefix, rev_path, r1);
-  | TI(OpSeq(skel, seq)) =>
+  | OpSeq(skel, seq) =>
     term(
       ~preserved_on_deletion,
       prefix,
@@ -436,8 +436,7 @@ let rec of_uhtyp =
       ["OpSeq"],
       of_uhtyp_skel(prefix, rev_path, skel, seq, 0),
     )
-  | TO(Hole) =>
-    of_Hole(~preserved_on_deletion, prefix, rev_path, ["Hole"], "?")
+  | Hole => of_Hole(~preserved_on_deletion, prefix, rev_path, ["Hole"], "?")
   }
 and of_uhtyp_skel =
     (
@@ -953,7 +952,7 @@ let of_chained_FailedCast =
 
 let is_multi_line = (block: UHExp.block): bool =>
   switch (block) {
-  | Block([], EI(Case(_, _, _, _))) => true
+  | Block([], Case(_, _, _, _)) => true
   | Block([], _) => false
   | Block([_, ..._], _) => true
   };
@@ -1001,40 +1000,37 @@ let of_pat_BinOp =
 
 let rec prepare_Parenthesized_pat = (p: UHPat.t): (err_status, UHPat.t) =>
   switch (p) {
-  | PI(Parenthesized(p1)) =>
+  | Parenthesized(p1) =>
     let (err_status, p1_not_in_hole) = prepare_Parenthesized_pat(p1);
-    (err_status, PI(Parenthesized(p1_not_in_hole)));
-  | PO(Wild(NotInHole as err_status))
-  | PO(Var(NotInHole as err_status, _, _))
-  | PO(NumLit(NotInHole as err_status, _))
-  | PO(BoolLit(NotInHole as err_status, _))
-  | PO(ListNil(NotInHole as err_status)) => (err_status, p)
-  | PO(Wild(err_status))
-  | PO(Var(err_status, _, _))
-  | PO(NumLit(err_status, _))
-  | PO(BoolLit(err_status, _))
-  | PO(ListNil(err_status))
-  | PI(Inj(err_status, _, _)) => (
+    (err_status, Parenthesized(p1_not_in_hole));
+  | Wild(NotInHole as err_status)
+  | Var(NotInHole as err_status, _, _)
+  | NumLit(NotInHole as err_status, _)
+  | BoolLit(NotInHole as err_status, _)
+  | ListNil(NotInHole as err_status) => (err_status, p)
+  | Wild(err_status)
+  | Var(err_status, _, _)
+  | NumLit(err_status, _)
+  | BoolLit(err_status, _)
+  | ListNil(err_status)
+  | Inj(err_status, _, _) => (
       err_status,
       UHPat.set_err_status_t(NotInHole, p),
     )
-  | PO(EmptyHole(_)) => (NotInHole, p)
-  | PI(OpSeq(BinOp(NotInHole as err_status, _, _, _), _)) => (
-      err_status,
-      p,
-    )
-  | PI(OpSeq(BinOp(err_status, _, _, _), _)) => (
+  | EmptyHole(_) => (NotInHole, p)
+  | OpSeq(BinOp(NotInHole as err_status, _, _, _), _) => (err_status, p)
+  | OpSeq(BinOp(err_status, _, _, _), _) => (
       err_status,
       UHPat.set_err_status_t(NotInHole, p),
     )
-  | PI(OpSeq(Placeholder(n) as skel, seq)) =>
+  | OpSeq(Placeholder(n) as skel, seq) =>
     switch (OperatorSeq.nth_tm(n, seq)) {
     | None => raise(UHPat.SkelInconsistentWithOpSeq(skel, seq))
     | Some(pn) =>
       let (err_status, pn_nih) = prepare_Parenthesized_pat(pn);
       switch (OperatorSeq.seq_update_nth(n, seq, pn_nih)) {
       | None => raise(UHPat.SkelInconsistentWithOpSeq(skel, seq))
-      | Some(seq) => (err_status, PI(OpSeq(skel, seq)))
+      | Some(seq) => (err_status, OpSeq(skel, seq))
       };
     }
   };
@@ -1048,7 +1044,7 @@ let rec of_hpat =
         )
         : PP.doc =>
   switch (p) {
-  | PO(EmptyHole(u)) =>
+  | EmptyHole(u) =>
     of_Hole(
       ~preserved_on_deletion,
       prefix,
@@ -1056,7 +1052,7 @@ let rec of_hpat =
       ["EmptyHole"],
       string_of_int(u + 1),
     )
-  | PI(OpSeq(skel, seq)) =>
+  | OpSeq(skel, seq) =>
     term(
       ~preserved_on_deletion,
       prefix,
@@ -1065,7 +1061,7 @@ let rec of_hpat =
       ["OpSeq"],
       of_skel_pat(prefix, rev_path, skel, seq, 0),
     )
-  | PI(Parenthesized(p1)) =>
+  | Parenthesized(p1) =>
     let (err_status, p1_not_in_hole) = prepare_Parenthesized_pat(p1);
     let rev_path1 = [0, ...rev_path];
     let r1 =
@@ -1078,10 +1074,10 @@ let rec of_hpat =
       rev_path,
       r1,
     );
-  | PO(Wild(err_status)) =>
+  | Wild(err_status) =>
     of_Wild(~preserved_on_deletion, prefix, err_status, rev_path)
-  | PO(Var(_, InVHole(Free, _), _)) => raise(FreeVarInPat)
-  | PO(Var(err_status, InVHole(Keyword(k), u), x)) =>
+  | Var(_, InVHole(Free, _), _) => raise(FreeVarInPat)
+  | Var(err_status, InVHole(Keyword(k), u), x) =>
     of_Var(
       ~preserved_on_deletion,
       prefix,
@@ -1090,7 +1086,7 @@ let rec of_hpat =
       rev_path,
       x,
     )
-  | PO(Var(err_status, NotInVHole, x)) =>
+  | Var(err_status, NotInVHole, x) =>
     of_Var(
       ~preserved_on_deletion,
       prefix,
@@ -1099,15 +1095,15 @@ let rec of_hpat =
       rev_path,
       x,
     )
-  | PO(NumLit(err_status, n)) =>
+  | NumLit(err_status, n) =>
     of_NumLit(~preserved_on_deletion, prefix, err_status, rev_path, n)
-  | PO(BoolLit(err_status, b)) =>
+  | BoolLit(err_status, b) =>
     of_BoolLit(~preserved_on_deletion, prefix, err_status, rev_path, b)
-  | PI(Inj(err_status, side, p1)) =>
+  | Inj(err_status, side, p1) =>
     let rev_path1 = [0, ...rev_path];
     let r1 = of_hpat(~preserved_on_deletion=true, prefix, rev_path1, p1);
     of_Inj(~preserved_on_deletion, prefix, err_status, rev_path, side, r1);
-  | PO(ListNil(err_status)) =>
+  | ListNil(err_status) =>
     of_ListNil(~preserved_on_deletion, prefix, err_status, rev_path)
   }
 and of_skel_pat =
@@ -1257,8 +1253,8 @@ and of_hline =
       line: UHExp.line,
     ) =>
   switch (line) {
-  | LO(EmptyLine) => of_EmptyLine(prefix, rev_path)
-  | LI(LetLine(p, ann, e1)) =>
+  | EmptyLine => of_EmptyLine(prefix, rev_path)
+  | LetLine(p, ann, e1) =>
     let rp = of_hpat(prefix, [0, ...rev_path], p);
     let rann =
       switch (ann) {
@@ -1280,7 +1276,7 @@ and of_hexp =
       e: UHExp.t,
     ) =>
   switch (e) {
-  | EO(EmptyHole(u)) =>
+  | EmptyHole(u) =>
     of_Hole(
       ~preserved_on_deletion,
       prefix,
@@ -1288,7 +1284,7 @@ and of_hexp =
       ["EmptyHole"],
       string_of_int(u + 1),
     )
-  | EI(OpSeq(skel, seq)) =>
+  | OpSeq(skel, seq) =>
     let r = of_skel(palette_stuff, prefix, rev_path, skel, seq, 0);
     term(
       ~preserved_on_deletion,
@@ -1298,7 +1294,7 @@ and of_hexp =
       ["OpSeq"],
       r,
     );
-  | EI(Parenthesized(block)) =>
+  | Parenthesized(block) =>
     let (err_status, block_not_in_hole) = prepare_Parenthesized_block(block);
     let rev_path_block = [0, ...rev_path];
     let r_block =
@@ -1317,7 +1313,7 @@ and of_hexp =
       rev_path,
       r_block,
     );
-  | EO(Var(err_status, var_err_status, x)) =>
+  | Var(err_status, var_err_status, x) =>
     of_Var(
       ~preserved_on_deletion,
       prefix,
@@ -1326,7 +1322,7 @@ and of_hexp =
       rev_path,
       x,
     )
-  | EI(Lam(err_status, p, ann, e1)) =>
+  | Lam(err_status, p, ann, e1) =>
     let rp = of_hpat(prefix, [0, ...rev_path], p);
     let rann =
       switch (ann) {
@@ -1343,13 +1339,13 @@ and of_hexp =
       rann,
       r1,
     );
-  | EO(BoolLit(err_status, b)) =>
+  | BoolLit(err_status, b) =>
     of_BoolLit(~preserved_on_deletion, prefix, err_status, rev_path, b)
-  | EO(NumLit(err_status, n)) =>
+  | NumLit(err_status, n) =>
     of_NumLit(~preserved_on_deletion, prefix, err_status, rev_path, n)
-  | EO(ListNil(err_status)) =>
+  | ListNil(err_status) =>
     of_ListNil(~preserved_on_deletion, prefix, err_status, rev_path)
-  | EI(Inj(err_status, side, e)) =>
+  | Inj(err_status, side, e) =>
     let rev_path1 = [0, ...rev_path];
     let r1 =
       of_hblock(
@@ -1360,7 +1356,7 @@ and of_hexp =
         e,
       );
     of_Inj(~preserved_on_deletion, prefix, err_status, rev_path, side, r1);
-  | EI(Case(err_status, e1, rules, ann)) =>
+  | Case(err_status, e1, rules, ann) =>
     let rev_path1 = [0, ...rev_path];
     let r1 = of_hblock(palette_stuff, prefix, rev_path1, e1);
     let rpcs =
@@ -1391,7 +1387,7 @@ and of_hexp =
       rpcs,
       rann,
     );
-  | EI(ApPalette(_, _, _, _)) => raise(InvariantViolated)
+  | ApPalette(_, _, _, _) => raise(InvariantViolated)
   /* switch (
        Palettes.PaletteViewCtx.lookup(palette_stuff.palette_view_ctx, name)
      ) {
@@ -2118,13 +2114,8 @@ let html_of_hole_instance = (instance_click_fn, width, prefix, (u, i)) => {
   let d = Dynamics.DHExp.EmptyHole(u, i, []);
   html_of_dhexp(instance_click_fn, width, prefix, d);
 };
-let string_of_cursor_pos = cursor_pos =>
-  switch (cursor_pos) {
-  | O(Char(j)) => "O(Char(" ++ string_of_int(j) ++ "))"
-  | I(BeforeChild(k, Before)) =>
-    "I(BeforeChild(" ++ string_of_int(k) ++ ", Before))"
-  | I(BeforeChild(k, After)) =>
-    "I(BeforeChild(" ++ string_of_int(k) ++ ", After))"
-  | I(ClosingDelimiter(Before)) => "I(ClosingDelimiter(Before))"
-  | I(ClosingDelimiter(After)) => "I(ClosingDelimiter(After))"
+let string_of_cursor_pos = ((k, side)) =>
+  switch (side) {
+  | Before => "(" ++ string_of_int(k) ++ ", Before)"
+  | After => "(" ++ string_of_int(k) ++ ", After)"
   };
