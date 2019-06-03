@@ -216,52 +216,35 @@ let rec perform_ty = (a: t, zty: ZTyp.t): result(ZTyp.t) =>
     ZTyp.is_after(zty) ? Succeeded(ZTyp.place_before(uty)) : Failed
   | (Delete, CursorT(_, Hole as uty)) =>
     ZTyp.is_before(zty) ? Succeeded(ZTyp.place_after(uty)) : Failed
-  | (Backspace | Delete, CursorT(_, Unit | Num | Bool)) => Succeeded(ZTyp.place_before(Hole))
+  | (Backspace | Delete, CursorT(_, Unit | Num | Bool)) =>
+    Succeeded(ZTyp.place_before(Hole))
   /* ( _ <|)   ==>   ( _| ) */
   /* ... + [k-2] + [k-1] <|+ [k] + ...   ==>   ... + [k-2] + [k-1]| + [k] + ... */
   | (
       Backspace,
-      CursorT(
-        (_, Before),
-        Parenthesized(_) | List(_) | OpSeq(_, _),
-      ),
+      CursorT((_, Before), Parenthesized(_) | List(_) | OpSeq(_, _)),
     ) =>
     move_to_prev_node_pos_typ(zty)
   /* (|> _ )   ==>   ( |_ ) */
   /* ... + [k-1] +|> [k] + [k+1] + ...   ==>   ... + [k-1] + |[k] + [k+1] + ... */
-  | (
-      Delete,
-      CursorT(
-        (_, After),
-        Parenthesized(_) | List(_) | OpSeq(_, _),
-      ),
-    ) =>
+  | (Delete, CursorT((_, After), Parenthesized(_) | List(_) | OpSeq(_, _))) =>
     move_to_next_node_pos_typ(zty)
   /* Delete before delimiter == Backspace after delimiter */
   | (
       Delete,
       CursorT(
-        (_, Before),
+        (_, Before) as cursor,
         (Parenthesized(_) | List(_) | OpSeq(_, _)) as uty,
       ),
     ) =>
-    perform_ty(Backspace, CursorT((_, After), uty))
+    perform_ty(Backspace, CursorT(toggle_side(cursor), uty))
   /* (<| _ )  ==>  |_ */
-  | (
-      Backspace,
-      CursorT((0, After), Parenthesized(uty1) | List(uty1)),
-    ) =>
+  | (Backspace, CursorT((0, After), Parenthesized(uty1) | List(uty1))) =>
     Succeeded(ZTyp.place_before(uty1))
   /* ( _ )<|  ==>  _| */
-  | (
-      Backspace,
-      CursorT((1, After), Parenthesized(uty1) | List(uty1)),
-    ) =>
+  | (Backspace, CursorT((1, After), Parenthesized(uty1) | List(uty1))) =>
     Succeeded(ZTyp.place_after(uty1))
-  | (
-      Backspace,
-      CursorT((_, _), Parenthesized(_) | List(_))
-    ) =>
+  | (Backspace, CursorT((_, _), Parenthesized(_) | List(_))) =>
     /* invalid cursor position */
     Failed
   /* ... + [k-2] + [k-1] +<| [k] + ...   ==>   ... + [k-2] + [k-1]| + ... */
@@ -302,14 +285,17 @@ let rec perform_ty = (a: t, zty: ZTyp.t): result(ZTyp.t) =>
       }
     }
   /* Construction */
-  | (Construct(SParenthesized), CursorT(_, _)) => Succeeded(ParenthesizedZ(zty))
-  | (Construct(SNum), CursorT(_, Hole)) => Succeeded(ZTyp.place_after(Num))
+  | (Construct(SParenthesized), CursorT(_, _)) =>
+    Succeeded(ParenthesizedZ(zty))
+  | (Construct(SNum), CursorT(_, Hole)) =>
+    Succeeded(ZTyp.place_after(Num))
   | (Construct(SNum), CursorT(_, _)) => Failed
-  | (Construct(SBool), CursorT(_, Hole)) => Succeeded(ZTyp.place_after(Bool))
+  | (Construct(SBool), CursorT(_, Hole)) =>
+    Succeeded(ZTyp.place_after(Bool))
   | (Construct(SBool), CursorT(_, _)) => Failed
   | (Construct(SList), CursorT(_, _)) => Succeeded(ListZ(zty))
   | (Construct(SOp(os)), CursorT(_, _)) =>
-    /*let uty = ZTyp.erase(zty);*/
+    let uty = ZTyp.erase(zty);
     if (ZTyp.is_before(zty)) {
       switch (ty_op_of(os)) {
       | None => Failed
@@ -327,11 +313,8 @@ let rec perform_ty = (a: t, zty: ZTyp.t): result(ZTyp.t) =>
         Succeeded(make_ty_OpSeqZ(zty0, surround));
       };
     };
-  | (
-      Construct(SOp(os)),
-      OpSeqZ(_, CursorT(_, _) as zty, surround),
-    ) =>
-    /*let uty = ZTyp.erase(zty);*/
+  | (Construct(SOp(os)), OpSeqZ(_, CursorT(_, _) as zty, surround)) =>
+    let uty = ZTyp.erase(zty);
     if (ZTyp.is_before(zty)) {
       switch (ty_op_of(os)) {
       | None => Failed
@@ -1113,9 +1096,7 @@ let rec syn_perform_pat =
         (ctx: Contexts.t, u_gen: MetaVarGen.t, a: t, zp: ZPat.t)
         : result((ZPat.t, HTyp.t, Contexts.t, MetaVarGen.t)) =>
   switch (a, zp) {
-  | (_, CursorP(cursor, p))
-      when !ZPat.is_valid_cursor(cursor, p) =>
-    Failed
+  | (_, CursorP(cursor, p)) when !ZPat.is_valid_cursor(cursor, p) => Failed
   /* Movement */
   /* NOTE: we don't need to handle movement actions here for the purposes of the UI,
    * since it's handled at the top (expression) level, but for the sake of API completeness
@@ -1164,10 +1145,7 @@ let rec syn_perform_pat =
   /* ... + [k-1] <|+ [k] + ...   ==>   ... + [k-1]| + [k] + ... */
   | (
       Backspace,
-      CursorP(
-        (_, Before),
-        Parenthesized(_) | Inj(_, _, _) | OpSeq(_, _),
-      ),
+      CursorP((_, Before), Parenthesized(_) | Inj(_, _, _) | OpSeq(_, _)),
     ) =>
     move_to_prev_node_pos_pat(zp, zp =>
       switch (Statics.syn_pat(ctx, ZPat.erase(zp))) {
@@ -1179,10 +1157,7 @@ let rec syn_perform_pat =
   /* ... + [k-1] +|> [k] + ...   ==>   ... + [k-1] + |[k] + ... */
   | (
       Delete,
-      CursorP(
-        (_, After),
-        Parenthesized(_) | Inj(_, _, _) | OpSeq(_, _),
-      ),
+      CursorP((_, After), Parenthesized(_) | Inj(_, _, _) | OpSeq(_, _)),
     ) =>
     move_to_next_node_pos_pat(zp, zp =>
       switch (Statics.syn_pat(ctx, ZPat.erase(zp))) {
@@ -1194,36 +1169,22 @@ let rec syn_perform_pat =
   | (
       Delete,
       CursorP(
-        (BeforeChild(_, Before) | ClosingDelimiter(Before)) as inner_cursor,
+        (_, Before) as cursor,
         (Parenthesized(_) | Inj(_, _, _) | OpSeq(_, _)) as p,
       ),
     ) =>
-    syn_perform_pat(
-      ctx,
-      u_gen,
-      Backspace,
-      CursorP(toggle_side(inner_cursor), p),
-    )
+    syn_perform_pat(ctx, u_gen, Backspace, CursorP(toggle_side(cursor), p))
   /* (<| _ )  ==>  |_ */
-  | (
-      Backspace,
-      CursorP(BeforeChild(0, After), Parenthesized(p1) | Inj(_, _, p1)),
-    ) =>
+  | (Backspace, CursorP((0, After), Parenthesized(p1) | Inj(_, _, p1))) =>
     Succeeded(Statics.syn_fix_holes_zpat(ctx, u_gen, ZPat.place_before(p1)))
-  /* invalid cursor position */
-  | (
-      Backspace,
-      CursorP(BeforeChild(_, After), Parenthesized(_) | Inj(_, _, _)),
-    ) =>
-    Failed
   /* ( _ )<|  ==>  _| */
-  | (
-      Backspace,
-      CursorP(ClosingDelimiter(After), Parenthesized(p1) | Inj(_, _, p1)),
-    ) =>
+  | (Backspace, CursorP((1, After), Parenthesized(p1) | Inj(_, _, p1))) =>
     Succeeded(Statics.syn_fix_holes_zpat(ctx, u_gen, ZPat.place_after(p1)))
+  /* invalid cursor position */
+  | (Backspace, CursorP((_, After), Parenthesized(_) | Inj(_, _, _))) =>
+    Failed
   /* ... + [k-1] +<| [k] + ... */
-  | (Backspace, CursorP(BeforeChild(k, After), OpSeq(_, seq))) =>
+  | (Backspace, CursorP((k, After), OpSeq(_, seq))) =>
     /* validity check at top of switch statement ensures
      * that op between [k-1] and [k] is not Space */
     switch (OperatorSeq.split(k - 1, seq), OperatorSeq.split(k, seq)) {
@@ -1290,7 +1251,7 @@ let rec syn_perform_pat =
             OperatorSeq.opseq_of_prefix_and_seq(prefix, seq)
           };
         let skel = Associator.associate_pat(seq);
-        let zp = ZPat.CursorP(BeforeChild(k - 1, After), OpSeq(skel, seq));
+        let zp = ZPat.CursorP((k - 1, After), OpSeq(skel, seq));
         Succeeded(Statics.syn_fix_holes_zpat(ctx, u_gen, zp));
       }
     /* ... + [k-1] +<| [k] + ...   ==>   ... + [k-1]| [k] + ... */
@@ -1308,8 +1269,6 @@ let rec syn_perform_pat =
         )
       }
     }
-  /* invalid cursor position */
-  | (Backspace, CursorP(ClosingDelimiter(_), OpSeq(_, _))) => Failed
   /* ... + [k-1]  <|_ + [k+1] + ...  ==>   ... + [k-1]| + [k+1] + ... */
   | (
       Backspace,
@@ -1422,11 +1381,11 @@ let rec syn_perform_pat =
     | None => Failed
     | Some((ty, ctx)) => Succeeded((ParenthesizedZ(zp), ty, ctx, u_gen))
     }
-  | (Construct(SVar(x, outer_cursor)), CursorP(_, EmptyHole(_)))
-  | (Construct(SVar(x, outer_cursor)), CursorP(_, Wild(_)))
-  | (Construct(SVar(x, outer_cursor)), CursorP(_, Var(_, _, _)))
-  | (Construct(SVar(x, outer_cursor)), CursorP(_, NumLit(_, _)))
-  | (Construct(SVar(x, outer_cursor)), CursorP(_, BoolLit(_, _))) =>
+  | (Construct(SVar(x, cursor)), CursorP(_, EmptyHole(_)))
+  | (Construct(SVar(x, cursor)), CursorP(_, Wild(_)))
+  | (Construct(SVar(x, cursor)), CursorP(_, Var(_, _, _)))
+  | (Construct(SVar(x, cursor)), CursorP(_, NumLit(_, _)))
+  | (Construct(SVar(x, cursor)), CursorP(_, BoolLit(_, _))) =>
     if (Var.is_true(x)) {
       Succeeded((
         CursorP(cursor, BoolLit(NotInHole, true)),
@@ -1444,10 +1403,7 @@ let rec syn_perform_pat =
     } else if (Var.is_let(x)) {
       let (u, u_gen) = MetaVarGen.next(u_gen);
       Succeeded((
-        CursorP(
-          outer_cursor,
-          Var(NotInHole, InVHole(Keyword(Let), u), x),
-        ),
+        CursorP(cursor, Var(NotInHole, InVHole(Keyword(Let), u), x)),
         Hole,
         ctx,
         u_gen,
@@ -1455,10 +1411,7 @@ let rec syn_perform_pat =
     } else if (Var.is_case(x)) {
       let (u, u_gen) = MetaVarGen.next(u_gen);
       Succeeded((
-        CursorP(
-          outer_cursor,
-          Var(NotInHole, InVHole(Keyword(Case), u), x),
-        ),
+        CursorP(cursor, Var(NotInHole, InVHole(Keyword(Case), u), x)),
         Hole,
         ctx,
         u_gen,
@@ -1485,17 +1438,12 @@ let rec syn_perform_pat =
   | (Construct(SWild), CursorP(_, BoolLit(_, _))) =>
     Succeeded((ZPat.place_after(Wild(NotInHole)), Hole, ctx, u_gen))
   | (Construct(SWild), CursorP(_, _)) => Failed
-  | (Construct(SNumLit(n, outer_cursor)), CursorP(_, EmptyHole(_)))
-  | (Construct(SNumLit(n, outer_cursor)), CursorP(_, Wild(_)))
-  | (Construct(SNumLit(n, outer_cursor)), CursorP(_, Var(_, _, _)))
-  | (Construct(SNumLit(n, outer_cursor)), CursorP(_, NumLit(_, _)))
-  | (Construct(SNumLit(n, outer_cursor)), CursorP(_, BoolLit(_, _))) =>
-    Succeeded((
-      CursorP(cursor, NumLit(NotInHole, n)),
-      Num,
-      ctx,
-      u_gen,
-    ))
+  | (Construct(SNumLit(n, cursor)), CursorP(_, EmptyHole(_)))
+  | (Construct(SNumLit(n, cursor)), CursorP(_, Wild(_)))
+  | (Construct(SNumLit(n, cursor)), CursorP(_, Var(_, _, _)))
+  | (Construct(SNumLit(n, cursor)), CursorP(_, NumLit(_, _)))
+  | (Construct(SNumLit(n, cursor)), CursorP(_, BoolLit(_, _))) =>
+    Succeeded((CursorP(cursor, NumLit(NotInHole, n)), Num, ctx, u_gen))
   | (Construct(SNumLit(_, _)), CursorP(_, _)) => Failed
   | (Construct(SInj(side)), CursorP(_, _)) =>
     switch (Statics.syn_pat(ctx, ZPat.erase(zp))) {
@@ -1700,9 +1648,7 @@ and ana_perform_pat =
     (ctx: Contexts.t, u_gen: MetaVarGen.t, a: t, zp: ZPat.t, ty: HTyp.t)
     : result((ZPat.t, Contexts.t, MetaVarGen.t)) =>
   switch (a, zp) {
-  | (_, CursorP(cursor, p))
-      when !ZPat.is_valid_cursor(outer_cursor, p) =>
-    Failed
+  | (_, CursorP(cursor, p)) when !ZPat.is_valid_cursor(cursor, p) => Failed
   /* switch to synthesis if in a hole */
   | (_, _) when ZPat.is_inconsistent(zp) =>
     let err = zp |> ZPat.erase |> UHPat.get_err_status_t;
@@ -1750,12 +1696,11 @@ and ana_perform_pat =
       : CursorEscaped(Before)
   | (Delete, CursorP(_, EmptyHole(_) as p)) =>
     ZPat.is_before(zp)
-      ? Succeeded((ZPat.place_after(p), ctx, u_gen))
-      : CursorEscaped(After)
+      ? Succeeded((ZPat.place_after(p), ctx, u_gen)) : CursorEscaped(After)
   | (
       Backspace | Delete,
       CursorP(
-        Char(_),
+        (_, _),
         Var(_, _, _) | Wild(_) | NumLit(_, _) | BoolLit(_, _) | ListNil(_),
       ),
     ) =>
@@ -1765,10 +1710,7 @@ and ana_perform_pat =
   /* ... + [k-1] <|+ [k] + ...   ==>   ... + [k-1]| + [k] + ... */
   | (
       Backspace,
-      CursorP(
-        BeforeChild(_, Before) | ClosingDelimiter(Before),
-        Parenthesized(_) | Inj(_, _, _) | OpSeq(_, _),
-      ),
+      CursorP((_, Before), Parenthesized(_) | Inj(_, _, _) | OpSeq(_, _)),
     ) =>
     move_to_prev_node_pos_pat(zp, zp =>
       switch (Statics.ana_pat(ctx, ZPat.erase(zp), ty)) {
@@ -1780,10 +1722,7 @@ and ana_perform_pat =
   /* ... + [k-1] +|> [k] + ...   ==>   ... + [k-1] + |[k] + ... */
   | (
       Delete,
-      CursorP(
-        BeforeChild(_, After) | ClosingDelimiter(After),
-        Parenthesized(_) | Inj(_, _, _) | OpSeq(_, _),
-      ),
+      CursorP((_, After), Parenthesized(_) | Inj(_, _, _) | OpSeq(_, _)),
     ) =>
     move_to_next_node_pos_pat(zp, zp =>
       switch (Statics.ana_pat(ctx, ZPat.erase(zp), ty)) {
@@ -1795,7 +1734,7 @@ and ana_perform_pat =
   | (
       Delete,
       CursorP(
-        (BeforeChild(_, Before) | ClosingDelimiter(Before)) as inner_cursor,
+        (_, Before) as cursor,
         (Parenthesized(_) | Inj(_, _, _) | OpSeq(_, _)) as p,
       ),
     ) =>
@@ -1803,33 +1742,24 @@ and ana_perform_pat =
       ctx,
       u_gen,
       Backspace,
-      CursorP(toggle_side(inner_cursor), p),
+      CursorP(toggle_side(cursor), p),
       ty,
     )
   /* (<| _ )  ==>  |_ */
-  | (
-      Backspace,
-      CursorP(BeforeChild(0, After), Parenthesized(p1) | Inj(_, _, p1)),
-    ) =>
+  | (Backspace, CursorP((0, After), Parenthesized(p1) | Inj(_, _, p1))) =>
     Succeeded(
       Statics.ana_fix_holes_zpat(ctx, u_gen, ZPat.place_before(p1), ty),
     )
-  /* invalid cursor position */
-  | (
-      Backspace,
-      CursorP(BeforeChild(_, After), Parenthesized(_) | Inj(_, _, _)),
-    ) =>
-    Failed
   /* ( _ )<|  ==>  _| */
-  | (
-      Backspace,
-      CursorP(ClosingDelimiter(After), Parenthesized(p1) | Inj(_, _, p1)),
-    ) =>
+  | (Backspace, CursorP((1, After), Parenthesized(p1) | Inj(_, _, p1))) =>
     Succeeded(
       Statics.ana_fix_holes_zpat(ctx, u_gen, ZPat.place_after(p1), ty),
     )
+  /* invalid cursor position */
+  | (Backspace, CursorP((_, After), Parenthesized(_) | Inj(_, _, _))) =>
+    Failed
   /* ... + [k-1] +<| [k] + ... */
-  | (Backspace, CursorP(BeforeChild(k, After), OpSeq(_, seq))) =>
+  | (Backspace, CursorP((k, After), OpSeq(_, seq))) =>
     /* validity check at top of switch statement ensures
      * that op between [k-1] and [k] is not Space */
     switch (OperatorSeq.split(k - 1, seq), OperatorSeq.split(k, seq)) {
@@ -1896,7 +1826,7 @@ and ana_perform_pat =
             OperatorSeq.opseq_of_prefix_and_seq(prefix, seq)
           };
         let skel = Associator.associate_pat(seq);
-        let zp = ZPat.CursorP(BeforeChild(k - 1, After), OpSeq(skel, seq));
+        let zp = ZPat.CursorP((k - 1, After), OpSeq(skel, seq));
         Succeeded(Statics.ana_fix_holes_zpat(ctx, u_gen, zp, ty));
       }
     /* ... + [k-1] +<| [k] + ...   ==>   ... + [k-1]| [k] + ... */
@@ -1915,8 +1845,6 @@ and ana_perform_pat =
         )
       }
     }
-  /* invalid cursor position */
-  | (Backspace, CursorP(ClosingDelimiter(_), OpSeq(_, _))) => Failed
   /* ... + [k-1]  <|_ + [k+1] + ...  ==>   ... + [k-1]| + [k+1] + ... */
   | (
       Backspace,
@@ -2041,28 +1969,22 @@ and ana_perform_pat =
         Succeeded((zp, ctx, u_gen));
       }
     }
-  | (Construct(SVar(x, outer_cursor)), CursorP(_, EmptyHole(_)))
-  | (Construct(SVar(x, outer_cursor)), CursorP(_, Wild(_)))
-  | (Construct(SVar(x, outer_cursor)), CursorP(_, Var(_, _, _)))
-  | (Construct(SVar(x, outer_cursor)), CursorP(_, NumLit(_, _)))
-  | (Construct(SVar(x, outer_cursor)), CursorP(_, BoolLit(_, _))) =>
+  | (Construct(SVar(x, cursor)), CursorP(_, EmptyHole(_)))
+  | (Construct(SVar(x, cursor)), CursorP(_, Wild(_)))
+  | (Construct(SVar(x, cursor)), CursorP(_, Var(_, _, _)))
+  | (Construct(SVar(x, cursor)), CursorP(_, NumLit(_, _)))
+  | (Construct(SVar(x, cursor)), CursorP(_, BoolLit(_, _))) =>
     if (Var.is_let(x)) {
       let (u, u_gen) = MetaVarGen.next(u_gen);
       Succeeded((
-        CursorP(
-          outer_cursor,
-          Var(NotInHole, InVHole(Keyword(Let), u), x),
-        ),
+        CursorP(cursor, Var(NotInHole, InVHole(Keyword(Let), u), x)),
         ctx,
         u_gen,
       ));
     } else if (Var.is_case(x)) {
       let (u, u_gen) = MetaVarGen.next(u_gen);
       Succeeded((
-        CursorP(
-          outer_cursor,
-          Var(NotInHole, InVHole(Keyword(Case), u), x),
-        ),
+        CursorP(cursor, Var(NotInHole, InVHole(Keyword(Case), u), x)),
         ctx,
         u_gen,
       ));
@@ -2367,8 +2289,7 @@ let combine_for_Backspace_Space = (e1: UHExp.t, ze0: ZExp.t): ZExp.t =>
 
 let combine_for_Delete_Space = (ze0: ZExp.t, e: UHExp.t): ZExp.t =>
   switch (ze0, e) {
-  | (CursorE(_, EmptyHole(_)), EmptyHole(_))
-      when ZExp.is_after_exp(ze0) =>
+  | (CursorE(_, EmptyHole(_)), EmptyHole(_)) when ZExp.is_after_exp(ze0) =>
     /* _| _ --> _| */
     ze0
   | (CursorE(_, EmptyHole(_)), _) when ZExp.is_after_exp(ze0) =>
@@ -2559,7 +2480,7 @@ let rec syn_perform_block =
   | (Backspace, _) when ZExp.is_before_block(zblock) =>
     CursorEscaped(Before)
   | (Delete, _) when ZExp.is_after_block(zblock) => CursorEscaped(After)
-  | (Delete, BlockZL((prefix, CursorLO(_, EmptyLine), []), e)) =>
+  | (Delete, BlockZL((prefix, CursorL(_, EmptyLine), []), e)) =>
     let ze = ZExp.place_before_exp(e);
     let zblock = ZExp.BlockZE(prefix, ze);
     Succeeded((zblock, ty, u_gen));
@@ -2576,8 +2497,8 @@ let rec syn_perform_block =
           Succeeded((zblock, ty, u_gen));
         | _ => Failed
         }
-      | LI(LetLine(_, _, _)) => Failed
-      | LO(EmptyLine) =>
+      | LetLine(_, _, _) => Failed
+      | EmptyLine =>
         let zblock = ZExp.BlockZE(lines, ze);
         Succeeded((zblock, ty, u_gen));
       }
@@ -2592,7 +2513,7 @@ let rec syn_perform_block =
     }
   /* Construction */
   | (Construct(SLine), BlockZE(lines, ze)) when ZExp.is_before_exp(ze) =>
-    let zblock = ZExp.BlockZE(lines @ [LO(EmptyLine)], ze);
+    let zblock = ZExp.BlockZE(lines @ [EmptyLine], ze);
     Succeeded((zblock, ty, u_gen));
   | (Construct(SLine), BlockZE(lines, ze)) when ZExp.is_after_exp(ze) =>
     let (zhole, u_gen) = ZExp.new_EmptyHole(u_gen);
@@ -2610,7 +2531,7 @@ let rec syn_perform_block =
   | (
       Construct(SCase),
       BlockZL(
-        (prefix, (CursorLO(_, EmptyLine) | ExpLineZ(_)) as zline, suffix),
+        (prefix, (CursorL(_, EmptyLine) | ExpLineZ(_)) as zline, suffix),
         e2,
       ),
     )
@@ -2629,19 +2550,13 @@ let rec syn_perform_block =
         let (p, u_gen) = UHPat.new_EmptyHole(u_gen);
         let rule = UHExp.Rule(p, rule_block);
         let scrut_zblock = ZExp.BlockZE([], ZExp.place_before_exp(e1));
-        (
-          ZExp.CaseZE(NotInHole, scrut_zblock, [rule], Some(TO(Hole))),
-          u_gen,
-        );
+        (ZExp.CaseZE(NotInHole, scrut_zblock, [rule], Some(Hole)), u_gen);
       | _ =>
         let (zp, u_gen) = ZPat.new_EmptyHole(u_gen);
         let zrule = ZExp.RuleZP(zp, rule_block);
         let zrules = ZList.singleton(zrule);
         let scrut_block = UHExp.wrap_in_block(e1);
-        (
-          ZExp.CaseZR(NotInHole, scrut_block, zrules, Some(TO(Hole))),
-          u_gen,
-        );
+        (ZExp.CaseZR(NotInHole, scrut_block, zrules, Some(Hole)), u_gen);
       };
     let zblock = ZExp.BlockZE(prefix, ze);
     Succeeded((zblock, Hole, u_gen));
@@ -2680,7 +2595,7 @@ let rec syn_perform_block =
       ),
     )
       when ZExp.is_after_exp(ze0) =>
-    let zlines = (prefix, ZExp.place_before_line(LO(EmptyLine)), suffix);
+    let zlines = (prefix, ZExp.place_before_line(EmptyLine), suffix);
     let zblock = ZExp.BlockZL(zlines, e2);
     syn_perform_block(ctx, keyword_action(k), (zblock, ty, u_gen));
   | (
@@ -2705,10 +2620,7 @@ let rec syn_perform_block =
     };
   | (
       Construct(SOp(SSpace)),
-      BlockZE(
-        lines,
-        CursorE(_, Var(_, InVHole(Keyword(k), _), _)) as ze0,
-      ),
+      BlockZE(lines, CursorE(_, Var(_, InVHole(Keyword(k), _), _)) as ze0),
     )
       when ZExp.is_after_exp(ze0) =>
     let (ze, u_gen) = ZExp.new_EmptyHole(u_gen);
@@ -2773,7 +2685,7 @@ and syn_perform_lines =
   | (Backspace, _) when ZExp.is_before_lines(zlines) =>
     CursorEscaped(Before)
   | (Delete, _) when ZExp.is_after_lines(zlines) => CursorEscaped(After)
-  | (Delete, (prefix, CursorLO(_, EmptyLine), suffix)) =>
+  | (Delete, (prefix, CursorL(_, EmptyLine), suffix)) =>
     switch (suffix) {
     | [] => Failed
     | [line, ...suffix] =>
@@ -2783,7 +2695,7 @@ and syn_perform_lines =
       | Some(ctx) => Succeeded((zlines, ctx, u_gen))
       };
     }
-  | (Backspace, (prefix, CursorLO(_, EmptyLine), suffix)) =>
+  | (Backspace, (prefix, CursorL(_, EmptyLine), suffix)) =>
     switch (split_last(prefix)) {
     | None => Failed
     | Some((prefix, line)) =>
@@ -2799,8 +2711,8 @@ and syn_perform_lines =
     | [line2, ...suffix] =>
       switch (line2) {
       | ExpLine(_) => Failed
-      | LI(LetLine(_, _, _)) => Failed
-      | LO(EmptyLine) =>
+      | LetLine(_, _, _) => Failed
+      | EmptyLine =>
         let zlines = (prefix, zline1, suffix);
         switch (Statics.syn_zlines(ctx, zlines)) {
         | None => Failed
@@ -2814,8 +2726,8 @@ and syn_perform_lines =
     | Some((prefix, line1)) =>
       switch (line1) {
       | ExpLine(_) => Failed
-      | LI(LetLine(_, _, _)) => Failed
-      | LO(EmptyLine) =>
+      | LetLine(_, _, _) => Failed
+      | EmptyLine =>
         let zlines = (prefix, zline2, suffix);
         switch (Statics.syn_zlines(ctx, zlines)) {
         | None => Failed
@@ -2826,7 +2738,7 @@ and syn_perform_lines =
   /* Construction */
   | (Construct(SLine), (prefix, zline, suffix))
       when ZExp.is_before_line(zline) =>
-    let zlines = (prefix @ [LO(EmptyLine)], zline, suffix);
+    let zlines = (prefix @ [EmptyLine], zline, suffix);
     switch (Statics.syn_zlines(ctx, zlines)) {
     | None => Failed
     | Some(ctx) => Succeeded((zlines, ctx, u_gen))
@@ -2836,15 +2748,15 @@ and syn_perform_lines =
     let line = ZExp.erase_line(zline);
     let zlines = (
       prefix @ [line],
-      ZExp.place_before_line(LO(EmptyLine)),
+      ZExp.place_before_line(EmptyLine),
       suffix,
     );
     switch (Statics.syn_zlines(ctx, zlines)) {
     | None => Failed
     | Some(ctx) => Succeeded((zlines, ctx, u_gen))
     };
-  | (Construct(_), (_, CursorLI(_, LetLine(_, _, _)), _)) => Failed
-  | (Construct(_), (prefix, CursorLO(_, EmptyLine), suffix)) =>
+  | (Construct(_), (_, CursorL(_, LetLine(_, _, _)), _)) => Failed
+  | (Construct(_), (prefix, CursorL(_, EmptyLine), suffix)) =>
     let (e, u_gen) = UHExp.new_EmptyHole(u_gen);
     let ze = ZExp.place_before_exp(e);
     syn_perform_lines(ctx, a, ((prefix, ExpLineZ(ze), suffix), u_gen));
@@ -2869,8 +2781,8 @@ and syn_perform_lines =
         (UHExp.wrap_in_block(e2), u_gen);
       | Some((lines, last_line)) =>
         switch (last_line) {
-        | LO(EmptyLine)
-        | LI(LetLine(_, _, _)) =>
+        | EmptyLine
+        | LetLine(_, _, _) =>
           let (e2, u_gen) = UHExp.new_EmptyHole(u_gen);
           (UHExp.Block(suffix, e2), u_gen);
         | ExpLine(e2) => (UHExp.Block(lines, e2), u_gen)
@@ -2882,19 +2794,13 @@ and syn_perform_lines =
         let (p, u_gen) = UHPat.new_EmptyHole(u_gen);
         let rule = UHExp.Rule(p, rule_block);
         let scrut_zblock = ZExp.BlockZE([], ze1);
-        (
-          ZExp.CaseZE(NotInHole, scrut_zblock, [rule], Some(TO(Hole))),
-          u_gen,
-        );
+        (ZExp.CaseZE(NotInHole, scrut_zblock, [rule], Some(Hole)), u_gen);
       | _ =>
         let (zp, u_gen) = ZPat.new_EmptyHole(u_gen);
         let zrule = ZExp.RuleZP(zp, rule_block);
         let zrules = ZList.singleton(zrule);
         let scrut_block = UHExp.wrap_in_block(e1);
-        (
-          ZExp.CaseZR(NotInHole, scrut_block, zrules, Some(TO(Hole))),
-          u_gen,
-        );
+        (ZExp.CaseZR(NotInHole, scrut_block, zrules, Some(Hole)), u_gen);
       };
     let zlines = (prefix, ZExp.ExpLineZ(ze), []);
     switch (Statics.syn_zlines(ctx, zlines)) {
@@ -2929,7 +2835,7 @@ and syn_perform_lines =
       ),
     )
       when ZExp.is_after_exp(ze0) =>
-    let zlines = (prefix, ZExp.place_before_line(LO(EmptyLine)), suffix);
+    let zlines = (prefix, ZExp.place_before_line(EmptyLine), suffix);
     syn_perform_lines(ctx, keyword_action(k), (zlines, u_gen));
   /* Zipper Cases */
   | (_, (prefix, zline, suffix)) =>
@@ -2974,6 +2880,9 @@ and syn_perform_line =
     (ctx: Contexts.t, a: t, (zline, u_gen): (ZExp.zline, MetaVarGen.t))
     : result((ZExp.zlines, Contexts.t, MetaVarGen.t)) =>
   switch (a, zline) {
+  | (_, CursorL(_, ExpLine(_))) =>
+    /* ExpLine is a ghost node, should never have a cursor */
+    Failed
   /* Movement */
   | (MoveTo(_), _)
   | (MoveToPrevHole, _)
@@ -2983,80 +2892,54 @@ and syn_perform_line =
   /* Backspace & Delete */
   | (Backspace, _) when ZExp.is_before_line(zline) => CursorEscaped(Before)
   | (Delete, _) when ZExp.is_after_line(zline) => CursorEscaped(After)
-  | (Backspace, CursorLO(_, EmptyLine)) => CursorEscaped(Before)
-  | (Delete, CursorLO(_, EmptyLine)) => CursorEscaped(After)
+  | (Backspace, CursorL(_, EmptyLine)) => CursorEscaped(Before)
+  | (Delete, CursorL(_, EmptyLine)) => CursorEscaped(After)
   /* let x <|= 2   ==>   let x| = 2 */
-  | (
-      Backspace,
-      CursorLI(
-        (BeforeChild(_, Before) | ClosingDelimiter(Before)) as inner_cursor,
-        LetLine(_, _, _) as li,
-      ),
-    ) =>
-    ZExp.is_valid_inner_cursor_line(inner_cursor, li)
+  | (Backspace, CursorL((_, Before) as cursor, LetLine(_, _, _) as line)) =>
+    ZExp.is_valid_cursor_line(cursor, line)
       ? move_to_prev_node_pos_line(zline, zline =>
-          switch (Statics.syn_line(ctx, LI(li))) {
+          switch (Statics.syn_line(ctx, line)) {
           | None => Failed
           | Some(ctx) => Succeeded((([], zline, []), ctx, u_gen))
           }
         )
       : Failed
   /* let x =|> 2   ==>   let x = |2 */
-  | (
-      Delete,
-      CursorLI(
-        (BeforeChild(_, After) | ClosingDelimiter(After)) as inner_cursor,
-        LetLine(_, _, _) as li,
-      ),
-    ) =>
-    ZExp.is_valid_inner_cursor_line(inner_cursor, li)
+  | (Delete, CursorL((_, After) as cursor, LetLine(_, _, _) as line)) =>
+    ZExp.is_valid_cursor_line(cursor, line)
       ? move_to_next_node_pos_line(zline, zline =>
-          switch (Statics.syn_line(ctx, LI(li))) {
+          switch (Statics.syn_line(ctx, line)) {
           | None => Failed
           | Some(ctx) => Succeeded((([], zline, []), ctx, u_gen))
           }
         )
       : Failed
   /* Delete before delimiter == Backspace after delimiter */
-  | (
-      Delete,
-      CursorLI(
-        (BeforeChild(_, Before) | ClosingDelimiter(Before)) as inner_cursor,
-        LetLine(_, _, _) as li,
-      ),
-    ) =>
+  | (Delete, CursorL((_, Before) as cursor, LetLine(_, _, _) as li)) =>
     syn_perform_line(
       ctx,
       Backspace,
-      (CursorLI(toggle_side(inner_cursor), li), u_gen),
+      (CursorL(toggle_side(cursor), li), u_gen),
     )
   /* let x :<| Num = 2   ==>   let x| = 2 */
-  | (
-      Backspace,
-      CursorLI(BeforeChild(1, After), LetLine(p, Some(_), block)),
-    ) =>
+  | (Backspace, CursorL((1, After), LetLine(p, Some(_), block))) =>
     let (block, ty, u_gen) = Statics.syn_fix_holes_block(ctx, u_gen, block);
     let (p, ctx, u_gen) = Statics.ana_fix_holes_pat(ctx, u_gen, p, ty);
     let zp = ZPat.place_after(p);
     let zline = ZExp.LetLineZP(zp, None, block);
     Succeeded((([], zline, []), ctx, u_gen));
+  /* let<| x = 2   ==>   |(empty) */
   /* let x =<| 2   ==>   |(empty) */
-  | (
-      Backspace,
-      CursorLI(
-        (BeforeChild(_, After) | ClosingDelimiter(After)) as inner_cursor,
-        LetLine(_, _, _) as li,
-      ),
-    ) =>
-    ZExp.is_valid_inner_cursor_line(inner_cursor, li)
+  | (Backspace, CursorL((_, After) as cursor, LetLine(_, _, _) as li)) =>
+    ZExp.is_valid_cursor_line(cursor, li)
       ? Succeeded((
-          ([], ZExp.place_before_line(LO(EmptyLine)), []),
+          ([], ZExp.place_before_line(EmptyLine), []),
           ctx,
           u_gen,
         ))
       : Failed
   /* Construction */
-  | (Construct(_), CursorLO(_, _) | CursorLI(_, _)) =>
+  | (Construct(_), CursorL(_, _)) =>
     /* handled at lines level */
     Failed
   | (Construct(SAsc), LetLineZP(zp, None, block)) =>
@@ -3107,17 +2990,11 @@ and syn_perform_line =
       | Failed => Failed
       | CursorEscaped(Before) =>
         let zline =
-          ZExp.CursorLI(
-            BeforeChild(0, After),
-            LetLine(ZPat.erase(zp), ann, block),
-          );
+          ZExp.CursorL((0, After), LetLine(ZPat.erase(zp), ann, block));
         Succeeded((([], zline, []), ctx, u_gen));
       | CursorEscaped(After) =>
         let zline =
-          ZExp.CursorLI(
-            BeforeChild(2, Before),
-            LetLine(ZPat.erase(zp), ann, block),
-          );
+          ZExp.CursorL((2, Before), LetLine(ZPat.erase(zp), ann, block));
         Succeeded((([], zline, []), ctx, u_gen));
       | Succeeded((zp, ctx_after, u_gen)) =>
         let p = ZPat.erase(zp);
@@ -3135,17 +3012,11 @@ and syn_perform_line =
         | Failed => Failed
         | CursorEscaped(Before) =>
           let zline =
-            ZExp.CursorLI(
-              BeforeChild(0, After),
-              LetLine(ZPat.erase(zp), ann, block),
-            );
+            ZExp.CursorL((0, After), LetLine(ZPat.erase(zp), ann, block));
           Succeeded((([], zline, []), ctx, u_gen));
         | CursorEscaped(After) =>
           let zline =
-            ZExp.CursorLI(
-              BeforeChild(1, Before),
-              LetLine(ZPat.erase(zp), ann, block),
-            );
+            ZExp.CursorL((1, Before), LetLine(ZPat.erase(zp), ann, block));
           Succeeded((([], zline, []), ctx, u_gen));
         | Succeeded((zp, ctx, u_gen)) =>
           let (block, _, u_gen) =
@@ -3160,8 +3031,8 @@ and syn_perform_line =
     | Failed => Failed
     | CursorEscaped(Before) =>
       let zline =
-        ZExp.CursorLI(
-          BeforeChild(1, After),
+        ZExp.CursorL(
+          (1, After),
           LetLine(p, Some(ZTyp.erase(zann)), block),
         );
       Succeeded((([], zline, []), ctx, u_gen));
@@ -3170,8 +3041,8 @@ and syn_perform_line =
       | None => Failed
       | Some(ctx) =>
         let zline =
-          ZExp.CursorLI(
-            BeforeChild(2, Before),
+          ZExp.CursorL(
+            (2, Before),
             LetLine(p, Some(ZTyp.erase(zann)), block),
           );
         Succeeded((([], zline, []), ctx, u_gen));
@@ -3199,8 +3070,8 @@ and syn_perform_line =
         | None => Failed
         | Some(ctx) =>
           let zline =
-            ZExp.CursorLI(
-              BeforeChild(2, After),
+            ZExp.CursorL(
+              (2, After),
               LetLine(p, ann, ZExp.erase_block(zblock)),
             );
           Succeeded((([], zline, []), ctx, u_gen));
@@ -3226,8 +3097,8 @@ and syn_perform_line =
           | None => Failed
           | Some(ctx) =>
             let zline =
-              ZExp.CursorLI(
-                BeforeChild(2, After),
+              ZExp.CursorL(
+                (2, After),
                 LetLine(p, ann, ZExp.erase_block(zblock)),
               );
             Succeeded((([], zline, []), ctx, u_gen));
@@ -3246,11 +3117,7 @@ and syn_perform_exp =
     (ctx: Contexts.t, a: t, (ze, ty, u_gen): (ZExp.t, HTyp.t, MetaVarGen.t))
     : result((zexp_or_zblock, HTyp.t, MetaVarGen.t)) =>
   switch (a, ze) {
-  | (_, CursorE(cursor, e))
-      when !ZExp.is_valid_outer_cursor_exp(outer_cursor, e) =>
-    Failed
-  | (_, CursorE(cursor, e))
-      when !ZExp.is_valid_inner_cursor_exp(inner_cursor, e) =>
+  | (_, CursorE(cursor, e)) when !ZExp.is_valid_cursor_exp(cursor, e) =>
     Failed
   /* Movement */
   | (MoveTo(path), _) =>
@@ -3285,7 +3152,7 @@ and syn_perform_exp =
   | (
       Backspace | Delete,
       CursorE(
-        Char(_),
+        (_, _),
         Var(_, _, _) | NumLit(_, _) | BoolLit(_, _) | ListNil(_),
       ),
     ) =>
@@ -3296,7 +3163,7 @@ and syn_perform_exp =
   | (
       Backspace,
       CursorE(
-        BeforeChild(_, Before) | ClosingDelimiter(Before),
+        (_, Before),
         Lam(_, _, _, _) | Inj(_, _, _) | Case(_, _, _, _) | Parenthesized(_) |
         OpSeq(_, _) |
         ApPalette(_, _, _, _),
@@ -3314,7 +3181,7 @@ and syn_perform_exp =
   | (
       Delete,
       CursorE(
-        BeforeChild(_, After) | ClosingDelimiter(After),
+        (_, After),
         Lam(_, _, _, _) | Inj(_, _, _) | Case(_, _, _, _) | Parenthesized(_) |
         OpSeq(_, _) |
         ApPalette(_, _, _, _),
@@ -3331,7 +3198,7 @@ and syn_perform_exp =
   | (
       Delete,
       CursorE(
-        (BeforeChild(_, Before) | ClosingDelimiter(Before)) as inner_cursor,
+        (_, Before) as cursor,
         (
           Lam(_, _, _, _) | Inj(_, _, _) | Case(_, _, _, _) |
           Parenthesized(_) |
@@ -3343,10 +3210,10 @@ and syn_perform_exp =
     syn_perform_exp(
       ctx,
       Backspace,
-      (CursorE(toggle_side(inner_cursor), e), ty, u_gen),
+      (CursorE(toggle_side(cursor), e), ty, u_gen),
     )
   /* \x : <|Num . x + 1   ==>   \x| . x + 1 */
-  | (Backspace, CursorE(BeforeChild(1, After), Lam(_, p, Some(_), block))) =>
+  | (Backspace, CursorE((1, After), Lam(_, p, Some(_), block))) =>
     let (p, ctx, u_gen) = Statics.ana_fix_holes_pat(ctx, u_gen, p, Hole);
     let (block, ty2, u_gen) = Statics.syn_fix_holes_block(ctx, u_gen, block);
     let ze = ZExp.LamZP(NotInHole, ZPat.place_after(p), None, block);
@@ -3355,10 +3222,7 @@ and syn_perform_exp =
   /* (<| _ )  ==>  |_ */
   | (
       Backspace,
-      CursorE(
-        BeforeChild(_, After),
-        Parenthesized(block) | Inj(_, _, block),
-      ),
+      CursorE((0, After), Parenthesized(block) | Inj(_, _, block)),
     ) =>
     let zblock = ZExp.place_before_block(block);
     let (zblock, ty, u_gen) =
@@ -3367,19 +3231,19 @@ and syn_perform_exp =
   /* ( _ )<|  ==>  _| */
   | (
       Backspace,
-      CursorE(
-        ClosingDelimiter(After),
-        Parenthesized(block) | Inj(_, _, block),
-      ),
+      CursorE((1, After), Parenthesized(block) | Inj(_, _, block)),
     ) =>
     let zblock = ZExp.place_after_block(block);
     let (zblock, ty, u_gen) =
       Statics.syn_fix_holes_zblock(ctx, u_gen, zblock);
     Succeeded((B(zblock), ty, u_gen));
+  /* invalid cursor position */
+  | (Backspace, CursorE((_, After), Parenthesized(_) | Inj(_, _, _))) =>
+    Failed
   | (
       Backspace,
       CursorE(
-        BeforeChild(_, After) | ClosingDelimiter(After),
+        (_, After),
         Lam(_, _, _, _) | Case(_, _, _, _) | ApPalette(_, _, _, _),
       ),
     ) =>
@@ -3387,12 +3251,7 @@ and syn_perform_exp =
     Succeeded((E(ze), Hole, u_gen));
   | (
       Backspace,
-      CaseZR(
-        _,
-        e1,
-        (prefix, CursorR(BeforeChild(0 | 1, After), _), suffix),
-        ann,
-      ),
+      CaseZR(_, e1, (prefix, CursorR((0 | 1, After), _), suffix), ann),
     ) =>
     switch (split_last(prefix)) {
     | Some((prefix, last_of_prefix)) =>
@@ -3416,12 +3275,7 @@ and syn_perform_exp =
     }
   | (
       Delete,
-      CaseZR(
-        _,
-        e1,
-        (prefix, CursorR(BeforeChild(0 | 1, Before), _), suffix),
-        ann,
-      ),
+      CaseZR(_, e1, (prefix, CursorR((0 | 1, Before), _), suffix), ann),
     ) =>
     switch (suffix) {
     | [first_of_suffix, ...suffix] =>
@@ -3445,12 +3299,7 @@ and syn_perform_exp =
     }
   | (
       Backspace,
-      CaseZR(
-        _,
-        e1,
-        (prefix, CursorR(BeforeChild(0, Before), rule), suffix),
-        ann,
-      ),
+      CaseZR(_, e1, (prefix, CursorR((0, Before), rule), suffix), ann),
     ) =>
     switch (split_last(prefix)) {
     | None =>
@@ -3469,7 +3318,7 @@ and syn_perform_exp =
       CaseZR(
         _,
         e1,
-        (prefix, CursorR(BeforeChild(1, Before), Rule(p, clause)), suffix),
+        (prefix, CursorR((1, Before), Rule(p, clause)), suffix),
         ann,
       ),
     ) =>
@@ -3481,7 +3330,7 @@ and syn_perform_exp =
       CaseZR(
         _,
         e1,
-        (prefix, CursorR(BeforeChild(0, After), Rule(p, clause)), suffix),
+        (prefix, CursorR((0, After), Rule(p, clause)), suffix),
         ann,
       ),
     ) =>
@@ -3493,7 +3342,7 @@ and syn_perform_exp =
       CaseZR(
         _,
         e1,
-        (prefix, CursorR(BeforeChild(1, After), Rule(p, clause)), suffix),
+        (prefix, CursorR((1, After), Rule(p, clause)), suffix),
         ann,
       ),
     ) =>
@@ -3501,18 +3350,10 @@ and syn_perform_exp =
     let ze = ZExp.CaseZR(NotInHole, e1, (prefix, zrule, suffix), ann);
     Succeeded((E(ze), ty, u_gen));
   /* invalid cursor position */
-  | (
-      Backspace | Delete,
-      CaseZR(
-        _,
-        _,
-        (_, CursorR(BeforeChild(_, _) | ClosingDelimiter(_), _), _),
-        _,
-      ),
-    ) =>
+  | (Backspace | Delete, CaseZR(_, _, (_, CursorR((_, _), _), _), _)) =>
     Failed
   /* ... + [k-1] +<| [k] + ... */
-  | (Backspace, CursorE(BeforeChild(k, After), OpSeq(_, seq))) =>
+  | (Backspace, CursorE((k, After), OpSeq(_, seq))) =>
     /* validity check at top of switch statement ensures
      * that op between [k-1] and [k] is not Space */
     switch (OperatorSeq.split(k - 1, seq), OperatorSeq.split(k, seq)) {
@@ -3585,7 +3426,7 @@ and syn_perform_exp =
             OperatorSeq.opseq_of_prefix_and_seq(prefix, seq)
           };
         let skel = Associator.associate_exp(seq);
-        let ze = ZExp.CursorE(BeforeChild(k - 1, After), OpSeq(skel, seq));
+        let ze = ZExp.CursorE((k - 1, After), OpSeq(skel, seq));
         let (ze, ty, u_gen) = Statics.syn_fix_holes_zexp(ctx, u_gen, ze);
         Succeeded((E(ze), ty, u_gen));
       }
@@ -3604,8 +3445,6 @@ and syn_perform_exp =
         Succeeded((E(ze), ty, u_gen));
       }
     }
-  /* invalid cursor position */
-  | (Backspace, CursorE(ClosingDelimiter(_), OpSeq(_, _))) => Failed
   /* ... + [k-1]  <|_ + [k+1] + ...  ==>   ... + [k-1]| + [k+1] + ... */
   | (
       Backspace,
@@ -3752,7 +3591,7 @@ and syn_perform_exp =
             NotInHole,
             ZExp.wrap_in_block(ze1),
             [rule],
-            Some(TO(Hole)),
+            Some(Hole),
           ),
           u_gen,
         );
@@ -3764,7 +3603,7 @@ and syn_perform_exp =
             NotInHole,
             UHExp.wrap_in_block(e1),
             zrules,
-            Some(TO(Hole)),
+            Some(Hole),
           ),
           u_gen,
         );
@@ -3776,12 +3615,7 @@ and syn_perform_exp =
     Succeeded((E(ParenthesizedZ(zblock)), ty, u_gen));
   | (Construct(SAsc), LamZP(err_status, zp, None, e1)) =>
     let ze =
-      ZExp.LamZA(
-        err_status,
-        ZPat.erase(zp),
-        ZTyp.place_before(TO(Hole)),
-        e1,
-      );
+      ZExp.LamZA(err_status, ZPat.erase(zp), ZTyp.place_before(Hole), e1);
     Succeeded((E(ze), ty, u_gen));
   | (Construct(SAsc), LamZP(err_status, zp, Some(uty1), e1)) =>
     /* just move the cursor over if there is already an ascription */
@@ -3793,10 +3627,10 @@ and syn_perform_exp =
     let ze = ZExp.CaseZA(NotInHole, e1, rules, ZTyp.place_before(uty));
     Succeeded((E(ze), ty, u_gen));
   | (Construct(SAsc), CursorE(_, _)) => Failed
-  | (Construct(SVar(x, outer_cursor)), CursorE(_, EmptyHole(_)))
-  | (Construct(SVar(x, outer_cursor)), CursorE(_, Var(_, _, _)))
-  | (Construct(SVar(x, outer_cursor)), CursorE(_, NumLit(_, _)))
-  | (Construct(SVar(x, outer_cursor)), CursorE(_, BoolLit(_, _))) =>
+  | (Construct(SVar(x, cursor)), CursorE(_, EmptyHole(_)))
+  | (Construct(SVar(x, cursor)), CursorE(_, Var(_, _, _)))
+  | (Construct(SVar(x, cursor)), CursorE(_, NumLit(_, _)))
+  | (Construct(SVar(x, cursor)), CursorE(_, BoolLit(_, _))) =>
     if (String.equal(x, "true")) {
       Succeeded((
         E(CursorE(cursor, BoolLit(NotInHole, true))),
@@ -3812,24 +3646,14 @@ and syn_perform_exp =
     } else if (Var.is_let(x)) {
       let (u, u_gen) = MetaVarGen.next(u_gen);
       Succeeded((
-        E(
-          CursorE(
-            outer_cursor,
-            Var(NotInHole, InVHole(Keyword(Let), u), x),
-          ),
-        ),
+        E(CursorE(cursor, Var(NotInHole, InVHole(Keyword(Let), u), x))),
         Hole,
         u_gen,
       ));
     } else if (Var.is_case(x)) {
       let (u, u_gen) = MetaVarGen.next(u_gen);
       Succeeded((
-        E(
-          CursorE(
-            outer_cursor,
-            Var(NotInHole, InVHole(Keyword(Case), u), x),
-          ),
-        ),
+        E(CursorE(cursor, Var(NotInHole, InVHole(Keyword(Case), u), x))),
         Hole,
         u_gen,
       ));
@@ -3848,12 +3672,7 @@ and syn_perform_exp =
           | None =>
             let (u, u_gen) = MetaVarGen.next(u_gen);
             Succeeded((
-              E(
-                ZExp.CursorE(
-                  outer_cursor,
-                  Var(NotInHole, InVHole(Free, u), x),
-                ),
-              ),
+              E(ZExp.CursorE(cursor, Var(NotInHole, InVHole(Free, u), x))),
               HTyp.Hole,
               u_gen,
             ));
@@ -3862,22 +3681,18 @@ and syn_perform_exp =
       );
     }
   | (Construct(SVar(_, _)), CursorE(_, _)) => Failed
-  | (Construct(SLam), (CursorE(_, _)) as ze1) =>
+  | (Construct(SLam), CursorE(_, _) as ze1) =>
     let e1 = ZExp.erase(ze1);
     let (zp, u_gen) = ZPat.new_EmptyHole(u_gen);
     let block = UHExp.wrap_in_block(e1);
-    let ze = ZExp.LamZP(NotInHole, zp, Some(TO(Hole)), block);
+    let ze = ZExp.LamZP(NotInHole, zp, Some(Hole), block);
     let ty' = HTyp.Arrow(Hole, ty);
     Succeeded((E(ze), ty', u_gen));
-  | (Construct(SNumLit(n, outer_cursor)), CursorE(_, EmptyHole(_)))
-  | (Construct(SNumLit(n, outer_cursor)), CursorE(_, NumLit(_, _)))
-  | (Construct(SNumLit(n, outer_cursor)), CursorE(_, BoolLit(_, _)))
-  | (Construct(SNumLit(n, outer_cursor)), CursorE(_, Var(_, _, _))) =>
-    Succeeded((
-      E(CursorE(cursor, NumLit(NotInHole, n))),
-      Num,
-      u_gen,
-    ))
+  | (Construct(SNumLit(n, cursor)), CursorE(_, EmptyHole(_)))
+  | (Construct(SNumLit(n, cursor)), CursorE(_, NumLit(_, _)))
+  | (Construct(SNumLit(n, cursor)), CursorE(_, BoolLit(_, _)))
+  | (Construct(SNumLit(n, cursor)), CursorE(_, Var(_, _, _))) =>
+    Succeeded((E(CursorE(cursor, NumLit(NotInHole, n))), Num, u_gen))
   | (Construct(SNumLit(_, _)), CursorE(_, _)) => Failed
   | (Construct(SInj(side)), CursorE(_, _)) =>
     let zblock = ZExp.BlockZE([], ze);
@@ -4328,7 +4143,7 @@ and ana_perform_block =
   | (Backspace, _) when ZExp.is_before_block(zblock) =>
     CursorEscaped(Before)
   | (Delete, _) when ZExp.is_after_block(zblock) => CursorEscaped(After)
-  | (Delete, BlockZL((prefix, CursorLO(_, EmptyLine), []), e)) =>
+  | (Delete, BlockZL((prefix, CursorL(_, EmptyLine), []), e)) =>
     let ze = ZExp.place_before_exp(e);
     let zblock = ZExp.BlockZE(prefix, ze);
     Succeeded((zblock, u_gen));
@@ -4345,8 +4160,8 @@ and ana_perform_block =
           Succeeded(Statics.ana_fix_holes_zblock(ctx, u_gen, zblock, ty));
         | _ => Failed
         }
-      | LI(LetLine(_, _, _)) => Failed
-      | LO(EmptyLine) =>
+      | LetLine(_, _, _) => Failed
+      | EmptyLine =>
         let zblock = ZExp.BlockZE(lines, ze);
         Succeeded((zblock, u_gen));
       }
@@ -4357,7 +4172,7 @@ and ana_perform_block =
     Succeeded(Statics.ana_fix_holes_zblock(ctx, u_gen, zblock, ty));
   /* Construction */
   | (Construct(SLine), BlockZE(lines, ze)) when ZExp.is_before_exp(ze) =>
-    let zblock = ZExp.BlockZE(lines @ [LO(EmptyLine)], ze);
+    let zblock = ZExp.BlockZE(lines @ [EmptyLine], ze);
     Succeeded((zblock, u_gen));
   | (Construct(SLine), BlockZE(lines, ze)) when ZExp.is_after_exp(ze) =>
     switch (Statics.syn_lines(ctx, lines)) {
@@ -4381,7 +4196,7 @@ and ana_perform_block =
   | (
       Construct(SCase),
       BlockZL(
-        (prefix, (CursorLO(_, EmptyLine) | ExpLineZ(_)) as zline, suffix),
+        (prefix, (CursorL(_, EmptyLine) | ExpLineZ(_)) as zline, suffix),
         e2,
       ),
     )
@@ -4454,7 +4269,7 @@ and ana_perform_block =
       ),
     )
       when ZExp.is_after_exp(ze0) =>
-    let zlines = (prefix, ZExp.place_before_line(LO(EmptyLine)), suffix);
+    let zlines = (prefix, ZExp.place_before_line(EmptyLine), suffix);
     let zblock = ZExp.BlockZL(zlines, e2);
     ana_perform_block(ctx, keyword_action(k), (zblock, u_gen), ty);
   | (
@@ -4475,10 +4290,7 @@ and ana_perform_block =
     ana_perform_block(ctx, keyword_action(k), (zblock, u_gen), ty);
   | (
       Construct(SOp(SSpace)),
-      BlockZE(
-        lines,
-        CursorE(_, Var(_, InVHole(Keyword(k), _), _)) as ze0,
-      ),
+      BlockZE(lines, CursorE(_, Var(_, InVHole(Keyword(k), _), _)) as ze0),
     )
       when ZExp.is_after_exp(ze0) =>
     let (ze, u_gen) = ZExp.new_EmptyHole(u_gen);
@@ -4528,8 +4340,7 @@ and ana_perform_exp =
     (ctx: Contexts.t, a: t, (ze, u_gen): (ZExp.t, MetaVarGen.t), ty: HTyp.t)
     : result((zexp_or_zblock, MetaVarGen.t)) =>
   switch (a, ze) {
-  | (_, CursorE(cursor, e))
-      when !ZExp.is_valid_cursor_exp(cursor, e) =>
+  | (_, CursorE(cursor, e)) when !ZExp.is_valid_cursor_exp(cursor, e) =>
     Failed
   /* TODO add opseq, do something similar to ana_perform_pat */
   | (_, CursorE(_, Var(InHole(TypeInconsistent, _) as err, _, _)))
@@ -4539,10 +4350,7 @@ and ana_perform_exp =
   | (_, CursorE(_, Lam(InHole(TypeInconsistent, _) as err, _, _, _)))
   | (_, CursorE(_, Inj(InHole(TypeInconsistent, _) as err, _, _)))
   | (_, CursorE(_, Case(InHole(TypeInconsistent, _) as err, _, _, _)))
-  | (
-      _,
-      CursorE(_, ApPalette(InHole(TypeInconsistent, _) as err, _, _, _)),
-    ) =>
+  | (_, CursorE(_, ApPalette(InHole(TypeInconsistent, _) as err, _, _, _))) =>
     let ze' = ZExp.set_err_status_t(NotInHole, ze);
     let e' = ZExp.erase(ze');
     switch (Statics.syn_exp(ctx, e')) {
@@ -4589,7 +4397,7 @@ and ana_perform_exp =
   | (
       Backspace | Delete,
       CursorE(
-        Char(_),
+        (_, _),
         Var(_, _, _) | NumLit(_, _) | BoolLit(_, _) | ListNil(_),
       ),
     ) =>
@@ -4600,7 +4408,7 @@ and ana_perform_exp =
   | (
       Backspace,
       CursorE(
-        BeforeChild(_, Before) | ClosingDelimiter(Before),
+        (_, Before),
         Lam(_, _, _, _) | Inj(_, _, _) | Case(_, _, _, _) | Parenthesized(_) |
         OpSeq(_, _) |
         ApPalette(_, _, _, _),
@@ -4618,7 +4426,7 @@ and ana_perform_exp =
   | (
       Delete,
       CursorE(
-        BeforeChild(_, After) | ClosingDelimiter(After),
+        (_, After),
         Lam(_, _, _, _) | Inj(_, _, _) | Case(_, _, _, _) | Parenthesized(_) |
         OpSeq(_, _) |
         ApPalette(_, _, _, _),
@@ -4635,7 +4443,7 @@ and ana_perform_exp =
   | (
       Delete,
       CursorE(
-        (BeforeChild(_, Before) | ClosingDelimiter(Before)) as inner_cursor,
+        (_, Before) as cursor,
         (
           Lam(_, _, _, _) | Inj(_, _, _) | Case(_, _, _, _) |
           Parenthesized(_) |
@@ -4647,11 +4455,11 @@ and ana_perform_exp =
     ana_perform_exp(
       ctx,
       Backspace,
-      (CursorE(toggle_side(inner_cursor), e), u_gen),
+      (CursorE(toggle_side(cursor), e), u_gen),
       ty,
     )
   /* \x : <|Num . x + 1   ==>   \x| . x + 1 */
-  | (Backspace, CursorE(BeforeChild(1, After), Lam(_, p, Some(_), block))) =>
+  | (Backspace, CursorE((1, After), Lam(_, p, Some(_), block))) =>
     switch (HTyp.matched_arrow(ty)) {
     | None => Failed
     | Some((ty1, ty2)) =>
@@ -4664,10 +4472,7 @@ and ana_perform_exp =
   /* TODO consider deletion of type ascription on case */
   | (
       Backspace,
-      CursorE(
-        BeforeChild(_, After),
-        Parenthesized(block) | Inj(_, _, block),
-      ),
+      CursorE((0, After), Parenthesized(block) | Inj(_, _, block)),
     ) =>
     let zblock = ZExp.place_before_block(block);
     let (zblock, u_gen) =
@@ -4676,19 +4481,19 @@ and ana_perform_exp =
   /* ( _ )<|  ==>  _| */
   | (
       Backspace,
-      CursorE(
-        ClosingDelimiter(After),
-        Parenthesized(block) | Inj(_, _, block),
-      ),
+      CursorE((1, After), Parenthesized(block) | Inj(_, _, block)),
     ) =>
     let zblock = ZExp.place_after_block(block);
     let (zblock, u_gen) =
       Statics.ana_fix_holes_zblock(ctx, u_gen, zblock, ty);
     Succeeded((B(zblock), u_gen));
+  /* invalid cursor position */
+  | (Backspace, CursorE((_, After), Parenthesized(_) | Inj(_, _, _))) =>
+    Failed
   | (
       Backspace,
       CursorE(
-        BeforeChild(_, After) | ClosingDelimiter(After),
+        (_, After),
         Lam(_, _, _, _) | Case(_, _, _, _) | ApPalette(_, _, _, _),
       ),
     ) =>
@@ -4696,12 +4501,7 @@ and ana_perform_exp =
     Succeeded((E(ze), u_gen));
   | (
       Backspace,
-      CaseZR(
-        err,
-        e1,
-        (prefix, CursorR(BeforeChild(0 | 1, After), _), suffix),
-        ann,
-      ),
+      CaseZR(err, e1, (prefix, CursorR((0 | 1, After), _), suffix), ann),
     ) =>
     switch (split_last(prefix)) {
     | Some((prefix, last_of_prefix)) =>
@@ -4721,12 +4521,7 @@ and ana_perform_exp =
     }
   | (
       Delete,
-      CaseZR(
-        err,
-        e1,
-        (prefix, CursorR(BeforeChild(0 | 1, Before), _), suffix),
-        ann,
-      ),
+      CaseZR(err, e1, (prefix, CursorR((0 | 1, Before), _), suffix), ann),
     ) =>
     switch (suffix) {
     | [first_of_suffix, ...suffix] =>
@@ -4746,12 +4541,7 @@ and ana_perform_exp =
     }
   | (
       Backspace,
-      CaseZR(
-        err,
-        e1,
-        (prefix, CursorR(BeforeChild(0, Before), rule), suffix),
-        ann,
-      ),
+      CaseZR(err, e1, (prefix, CursorR((0, Before), rule), suffix), ann),
     ) =>
     switch (split_last(prefix)) {
     | None =>
@@ -4770,7 +4560,7 @@ and ana_perform_exp =
       CaseZR(
         err,
         e1,
-        (prefix, CursorR(BeforeChild(1, Before), Rule(p, clause)), suffix),
+        (prefix, CursorR((1, Before), Rule(p, clause)), suffix),
         ann,
       ),
     ) =>
@@ -4782,7 +4572,7 @@ and ana_perform_exp =
       CaseZR(
         err,
         e1,
-        (prefix, CursorR(BeforeChild(0, After), Rule(p, clause)), suffix),
+        (prefix, CursorR((0, After), Rule(p, clause)), suffix),
         ann,
       ),
     ) =>
@@ -4794,7 +4584,7 @@ and ana_perform_exp =
       CaseZR(
         err,
         e1,
-        (prefix, CursorR(BeforeChild(1, After), Rule(p, clause)), suffix),
+        (prefix, CursorR((1, After), Rule(p, clause)), suffix),
         ann,
       ),
     ) =>
@@ -4802,18 +4592,10 @@ and ana_perform_exp =
     let ze = ZExp.CaseZR(err, e1, (prefix, zrule, suffix), ann);
     Succeeded((E(ze), u_gen));
   /* invalid cursor position */
-  | (
-      Backspace | Delete,
-      CaseZR(
-        _,
-        _,
-        (_, CursorR(BeforeChild(_, _) | ClosingDelimiter(_), _), _),
-        _,
-      ),
-    ) =>
+  | (Backspace | Delete, CaseZR(_, _, (_, CursorR((_, _), _), _), _)) =>
     Failed
   /* ... + [k-1] +<| [k] + ... */
-  | (Backspace, CursorE(BeforeChild(k, After), OpSeq(_, seq))) =>
+  | (Backspace, CursorE((k, After), OpSeq(_, seq))) =>
     /* validity check at top of switch statement ensures
      * that op between [k-1] and [k] is not Space */
     switch (OperatorSeq.split(k - 1, seq), OperatorSeq.split(k, seq)) {
@@ -4886,7 +4668,7 @@ and ana_perform_exp =
             OperatorSeq.opseq_of_prefix_and_seq(prefix, seq)
           };
         let skel = Associator.associate_exp(seq);
-        let ze = ZExp.CursorE(BeforeChild(k - 1, After), OpSeq(skel, seq));
+        let ze = ZExp.CursorE((k - 1, After), OpSeq(skel, seq));
         let (ze, u_gen) = Statics.ana_fix_holes_zexp(ctx, u_gen, ze, ty);
         Succeeded((E(ze), u_gen));
       }
@@ -4906,8 +4688,6 @@ and ana_perform_exp =
         Succeeded((E(ze), u_gen));
       }
     }
-  /* invalid cursor position */
-  | (Backspace, CursorE(ClosingDelimiter(_), OpSeq(_, _))) => Failed
   /* ... + [k-1]  <|_ + [k+1] + ...  ==>   ... + [k-1]| + [k+1] + ... */
   | (
       Backspace,
@@ -5067,12 +4847,7 @@ and ana_perform_exp =
     Succeeded((E(ParenthesizedZ(ZExp.wrap_in_block(ze))), u_gen))
   | (Construct(SAsc), LamZP(err_status, zp, None, e1)) =>
     let ze =
-      ZExp.LamZA(
-        err_status,
-        ZPat.erase(zp),
-        ZTyp.place_before(TO(Hole)),
-        e1,
-      );
+      ZExp.LamZA(err_status, ZPat.erase(zp), ZTyp.place_before(Hole), e1);
     Succeeded((E(ze), u_gen));
   | (Construct(SAsc), LamZP(err_status, zp, Some(uty1), e1)) =>
     /* just move the cursor over if there is already an ascription */
@@ -5080,7 +4855,7 @@ and ana_perform_exp =
       ZExp.LamZA(err_status, ZPat.erase(zp), ZTyp.place_before(uty1), e1);
     Succeeded((E(ze), u_gen));
   | (Construct(SAsc), CursorE(_, Case(_, e1, rules, None))) =>
-    let ze = ZExp.CaseZA(NotInHole, e1, rules, ZTyp.place_before(TO(Hole)));
+    let ze = ZExp.CaseZA(NotInHole, e1, rules, ZTyp.place_before(Hole));
     Succeeded((E(ze), u_gen));
   | (Construct(SAsc), CursorE(_, Case(_, e1, rules, Some(uty)))) =>
     /* just move the cursor over if there is already an ascription */
@@ -5567,7 +5342,7 @@ let can_enter_varchar = (ci: CursorInfo.t): bool =>
   | IsExpr(NumLit(_, _))
   | IsPat(NumLit(_, _)) =>
     switch (ci.side) {
-    | O(Char(0)) => true
+    | (0, _) => true
     | _ => false
     }
   | IsBlock(_)
@@ -5595,7 +5370,7 @@ let can_enter_numeral = (ci: CursorInfo.t): bool =>
 let can_construct_palette = (ci: CursorInfo.t): bool =>
   switch (ci.sort) {
   | IsLine(EmptyLine)
-  | IsLine(ExpLinEmptyHole(_))
+  | IsLine(ExpLine(EmptyHole(_)))
   | IsExpr(EmptyHole(_)) => true
   | _ => false
   };

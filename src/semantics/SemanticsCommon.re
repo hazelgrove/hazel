@@ -76,6 +76,12 @@ let inner_cursors_k = (k: int): list(cursor_pos) => [
 let inner_cursors = (num_delim: int): list(cursor_pos) =>
   range(num_delim) |> List.map(k => inner_cursors_k(k)) |> List.flatten;
 
+let toggle_side = ((k, side): cursor_pos) =>
+  switch (side) {
+  | Before => (k, After)
+  | After => (k, Before)
+  };
+
 [@deriving sexp]
 type node_pos =
   | On(cursor_pos)
