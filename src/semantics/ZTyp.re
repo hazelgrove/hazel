@@ -161,3 +161,20 @@ let node_position_of_t = (zty: t): node_pos =>
   | OpSeqZ(_, _, surround) =>
     Deeper(OperatorSeq.surround_prefix_length(surround))
   };
+
+let rec cursor_node_type = (zty: t): node_type =>
+  switch (zty) {
+  /* outer nodes */
+  | CursorT(_, Hole)
+  | CursorT(_, Unit)
+  | CursorT(_, Num)
+  | CursorT(_, Bool) => Outer
+  /* inner nodes */
+  | CursorT(_, Parenthesized(_))
+  | CursorT(_, List(_))
+  | CursorT(_, OpSeq(_, _)) => Inner
+  /* zipper */
+  | ParenthesizedZ(zty1) => cursor_node_type(zty1)
+  | ListZ(zty1) => cursor_node_type(zty1)
+  | OpSeqZ(_, zty1, _) => cursor_node_type(zty1)
+  };

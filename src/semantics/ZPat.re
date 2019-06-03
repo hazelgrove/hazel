@@ -289,3 +289,22 @@ let node_position_of_t = (zp: t): node_pos =>
   | OpSeqZ(_, _, surround) =>
     Deeper(OperatorSeq.surround_prefix_length(surround))
   };
+
+let rec cursor_node_type = (zp: t): node_type =>
+  switch (zp) {
+  /* outer nodes */
+  | CursorP(_, EmptyHole(_))
+  | CursorP(_, Wild(_))
+  | CursorP(_, Var(_, _, _))
+  | CursorP(_, NumLit(_, _))
+  | CursorP(_, BoolLit(_, _))
+  | CursorP(_, ListNil(_)) => Outer
+  /* inner nodes */
+  | CursorP(_, Parenthesized(_))
+  | CursorP(_, OpSeq(_, _))
+  | CursorP(_, Inj(_, _, _)) => Inner
+  /* zipper */
+  | ParenthesizedZ(zp1) => cursor_node_type(zp1)
+  | OpSeqZ(_, zp1, _) => cursor_node_type(zp1)
+  | InjZ(_, _, zp1) => cursor_node_type(zp1)
+  };

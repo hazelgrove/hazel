@@ -52,6 +52,11 @@ type side =
 [@deriving (show({with_path: false}), sexp)]
 type cursor_pos = (int, side);
 
+[@deriving sexp]
+type node_type =
+  | Outer
+  | Inner;
+
 /**
  * Cursor on outer node.
  * j is fencepost index

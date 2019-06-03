@@ -713,3 +713,55 @@ let node_position_of_t = (ze: t): node_pos =>
   | CaseZA(_, _, rules, _) => Deeper(List.length(rules) + 1)
   | ApPaletteZ(_, _, _, _) => Deeper(0) /* TODO */
   };
+
+let rec cursor_node_type_zblock = (zblock: zblock): node_type =>
+  switch (zblock) {
+  | BlockZL((_, zline, _), _) => cursor_node_type_zline(zline)
+  | BlockZE(_, ze) => cursor_node_type_t(ze)
+  }
+and cursor_node_type_zline = (zline: zline): node_type =>
+  switch (zline) {
+  /* outer nodes */
+  | CursorL(_, EmptyLine) => Outer
+  /* inner nodes */
+  | CursorL(_, LetLine(_, _, _)) => Inner
+  | CursorL(_, ExpLine(_)) => Inner /* ghost node, should never happen */
+  /* zipper */
+  | ExpLineZ(ze) => cursor_node_type_t(ze)
+  | LetLineZP(zp, _, _) => ZPat.cursor_node_type(zp)
+  | LetLineZA(_, zann, _) => ZTyp.cursor_node_type(zann)
+  | LetLineZE(_, _, zblock) => cursor_node_type_zblock(zblock)
+  }
+and cursor_node_type_t = (ze: t): node_type =>
+  switch (ze) {
+  /* outer nodes */
+  | CursorE(_, EmptyHole(_))
+  | CursorE(_, Var(_, _, _))
+  | CursorE(_, NumLit(_, _))
+  | CursorE(_, BoolLit(_, _))
+  | CursorE(_, ListNil(_)) => Outer
+  /* inner nodes */
+  | CursorE(_, Lam(_, _, _, _))
+  | CursorE(_, Inj(_, _, _))
+  | CursorE(_, Case(_, _, _, _))
+  | CursorE(_, Parenthesized(_))
+  | CursorE(_, OpSeq(_, _))
+  | CursorE(_, ApPalette(_, _, _, _)) => Inner
+  /* zipper */
+  | ParenthesizedZ(zblock) => cursor_node_type_zblock(zblock)
+  | OpSeqZ(_, ze1, _) => cursor_node_type_t(ze1)
+  | LamZP(_, zp, _, _) => ZPat.cursor_node_type(zp)
+  | LamZA(_, _, zann, _) => ZTyp.cursor_node_type(zann)
+  | LamZE(_, _, _, zblock) => cursor_node_type_zblock(zblock)
+  | InjZ(_, _, zblock) => cursor_node_type_zblock(zblock)
+  | CaseZE(_, zblock, _, _) => cursor_node_type_zblock(zblock)
+  | CaseZR(_, _, (_, zrule, _), _) => cursor_node_type_rule(zrule)
+  | CaseZA(_, _, _, zann) => ZTyp.cursor_node_type(zann)
+  | ApPaletteZ(_, _, _, _) => Inner /* TODO */
+  }
+and cursor_node_type_rule = (zrule: zrule): node_type =>
+  switch (zrule) {
+  | CursorR(_, _) => Inner
+  | RuleZP(zp, _) => ZPat.cursor_node_type(zp)
+  | RuleZE(_, zblock) => cursor_node_type_zblock(zblock)
+  };
