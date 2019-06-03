@@ -27,7 +27,7 @@ let add = (action: Action.t, history: t): t => {
 let construct_code = (_history: t): ZExp.t => {
   /* TODO: Implement this. For now, I'm constructing a dummy expression (constant 7) */
   ZExp.place_before_exp(
-    EO(NumLit(NotInHole, 7)),
+    NumLit(NotInHole, 7),
   );
 };
 
