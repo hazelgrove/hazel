@@ -448,7 +448,7 @@ and _ana_cursor_found_exp_outer =
   | NumLit(InHole(TypeInconsistent, _), _)
   | BoolLit(InHole(TypeInconsistent, _), _)
   | ListNil(InHole(TypeInconsistent, _)) =>
-    let eo_nih = UHExp.set_err_status_t_outer(NotInHole, eo);
+    let eo_nih = UHExp.set_err_status_t(NotInHole, eo);
     switch (Statics.syn_exp_outer(ctx, eo_nih)) {
     | None => None
     | Some(ty') => Some((AnaTypeInconsistent(ty, ty'), is_eo(eo), ctx))
@@ -481,7 +481,7 @@ and _ana_cursor_found_exp_inner =
   | Case(InHole(TypeInconsistent, _), _, _, _)
   | ApPalette(InHole(TypeInconsistent, _), _, _, _)
   | OpSeq(BinOp(InHole(TypeInconsistent, _), _, _, _), _) =>
-    let ei_nih = UHExp.set_err_status_t_inner(NotInHole, ei);
+    let ei_nih = UHExp.set_err_status_t(NotInHole, ei);
     switch (Statics.syn_exp_inner(ctx, ei_nih)) {
     | None => None
     | Some(ty') => Some((AnaTypeInconsistent(ty, ty'), is_ei(ei), ctx))

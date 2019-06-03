@@ -981,7 +981,7 @@ module DHExp = {
     | NumLit(InHole(TypeInconsistent as reason, u), _)
     | BoolLit(InHole(TypeInconsistent as reason, u), _)
     | ListNil(InHole(TypeInconsistent as reason, u)) =>
-      let eo' = UHExp.set_err_status_t_outer(NotInHole, eo);
+      let eo' = UHExp.set_err_status_t(NotInHole, eo);
       switch (syn_expand_exp_outer(ctx, delta, eo')) {
       | DoesNotExpand => DoesNotExpand
       | Expands(d, _, delta) =>
@@ -1037,7 +1037,7 @@ module DHExp = {
     | Inj(InHole(TypeInconsistent as reason, u), _, _)
     | Case(InHole(TypeInconsistent as reason, u), _, _, _)
     | ApPalette(InHole(TypeInconsistent as reason, u), _, _, _) =>
-      let ei' = UHExp.set_err_status_t_inner(NotInHole, ei);
+      let ei' = UHExp.set_err_status_t(NotInHole, ei);
       switch (syn_expand_exp_inner(ctx, delta, ei')) {
       | DoesNotExpand => DoesNotExpand
       | Expands(d, _, delta) =>
@@ -1248,7 +1248,7 @@ module DHExp = {
     | NumLit(InHole(TypeInconsistent as reason, u), _)
     | BoolLit(InHole(TypeInconsistent as reason, u), _)
     | ListNil(InHole(TypeInconsistent as reason, u)) =>
-      let eo' = UHExp.set_err_status_t_outer(NotInHole, eo);
+      let eo' = UHExp.set_err_status_t(NotInHole, eo);
       switch (syn_expand_exp_outer(ctx, delta, eo')) {
       | DoesNotExpand => DoesNotExpand
       | Expands(d, _, delta) =>
@@ -1300,7 +1300,7 @@ module DHExp = {
     | Inj(InHole(TypeInconsistent as reason, u), _, _)
     | Case(InHole(TypeInconsistent as reason, u), _, _, _)
     | ApPalette(InHole(TypeInconsistent as reason, u), _, _, _) =>
-      let ei' = UHExp.set_err_status_t_inner(NotInHole, ei);
+      let ei' = UHExp.set_err_status_t(NotInHole, ei);
       switch (syn_expand_exp_inner(ctx, delta, ei')) {
       | DoesNotExpand => DoesNotExpand
       | Expands(d, _, delta) =>
