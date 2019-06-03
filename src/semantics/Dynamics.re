@@ -63,19 +63,14 @@ module DHPat = {
   let rec syn_expand =
           (ctx: Contexts.t, delta: Delta.t, p: UHPat.t): expand_result =>
     switch (p) {
-    | PO(po) => syn_expand_outer(ctx, delta, po)
-    | PI(pi) => syn_expand_inner(ctx, delta, pi)
-    }
-  and syn_expand_outer =
-      (ctx: Contexts.t, delta: Delta.t, po: UHPat.t_outer): expand_result =>
-    switch (po) {
     | Wild(InHole(TypeInconsistent as reason, u))
     | Var(InHole(TypeInconsistent as reason, u), _, _)
     | NumLit(InHole(TypeInconsistent as reason, u), _)
     | BoolLit(InHole(TypeInconsistent as reason, u), _)
-    | ListNil(InHole(TypeInconsistent as reason, u)) =>
-      let po' = UHPat.set_err_status_t_outer(NotInHole, po);
-      switch (syn_expand_outer(ctx, delta, po')) {
+    | ListNil(InHole(TypeInconsistent as reason, u))
+    | Inj(InHole(TypeInconsistent as reason, u), _, _) =>
+      let p' = UHPat.set_err_status_t(NotInHole, p);
+      switch (syn_expand(ctx, delta, p')) {
       | DoesNotExpand => DoesNotExpand
       | Expands(dp, _, ctx, delta) =>
         let gamma = Contexts.gamma(ctx);
@@ -87,7 +82,8 @@ module DHPat = {
     | Var(InHole(WrongLength, _), _, _)
     | NumLit(InHole(WrongLength, _), _)
     | BoolLit(InHole(WrongLength, _), _)
-    | ListNil(InHole(WrongLength, _)) => DoesNotExpand
+    | ListNil(InHole(WrongLength, _))
+    | Inj(InHole(WrongLength, _), _, _) => DoesNotExpand
     | EmptyHole(u) =>
       let gamma = Contexts.gamma(ctx);
       let dp = EmptyHole(u, 0);
@@ -105,21 +101,6 @@ module DHPat = {
     | NumLit(NotInHole, n) => Expands(NumLit(n), Num, ctx, delta)
     | BoolLit(NotInHole, b) => Expands(BoolLit(b), Bool, ctx, delta)
     | ListNil(NotInHole) => Expands(ListNil, List(Hole), ctx, delta)
-    }
-  and syn_expand_inner =
-      (ctx: Contexts.t, delta: Delta.t, pi: UHPat.t_inner): expand_result =>
-    switch (pi) {
-    | Inj(InHole(TypeInconsistent as reason, u), _, _) =>
-      let pi' = UHPat.set_err_status_t_inner(NotInHole, pi);
-      switch (syn_expand_inner(ctx, delta, pi')) {
-      | DoesNotExpand => DoesNotExpand
-      | Expands(dp, _, ctx, delta) =>
-        let gamma = Contexts.gamma(ctx);
-        let delta =
-          MetaVarMap.extend_unique(delta, (u, (PatternHole, Hole, gamma)));
-        Expands(NonEmptyHole(reason, u, 0, dp), Hole, ctx, delta);
-      };
-    | Inj(InHole(WrongLength, _), _, _) => DoesNotExpand
     | Parenthesized(p1) => syn_expand(ctx, delta, p1)
     | OpSeq(skel, seq) => syn_expand_skel(ctx, delta, skel, seq)
     | Inj(NotInHole, side, p) =>
@@ -194,20 +175,14 @@ module DHPat = {
   and ana_expand =
       (ctx: Contexts.t, delta: Delta.t, p: UHPat.t, ty: HTyp.t): expand_result =>
     switch (p) {
-    | PO(po) => ana_expand_outer(ctx, delta, po, ty)
-    | PI(pi) => ana_expand_inner(ctx, delta, pi, ty)
-    }
-  and ana_expand_outer =
-      (ctx: Contexts.t, delta: Delta.t, po: UHPat.t_outer, ty: HTyp.t)
-      : expand_result =>
-    switch (po) {
     | Wild(InHole(TypeInconsistent as reason, u))
     | Var(InHole(TypeInconsistent as reason, u), _, _)
     | NumLit(InHole(TypeInconsistent as reason, u), _)
     | BoolLit(InHole(TypeInconsistent as reason, u), _)
-    | ListNil(InHole(TypeInconsistent as reason, u)) =>
-      let po' = UHPat.set_err_status_t_outer(NotInHole, po);
-      switch (syn_expand_outer(ctx, delta, po')) {
+    | ListNil(InHole(TypeInconsistent as reason, u))
+    | Inj(InHole(TypeInconsistent as reason, u), _, _) =>
+      let p' = UHPat.set_err_status_t(NotInHole, p);
+      switch (syn_expand(ctx, delta, p')) {
       | DoesNotExpand => DoesNotExpand
       | Expands(dp1, _, ctx, delta) =>
         let dp = NonEmptyHole(reason, u, 0, dp1);
@@ -220,7 +195,8 @@ module DHPat = {
     | Var(InHole(WrongLength, _), _, _)
     | NumLit(InHole(WrongLength, _), _)
     | BoolLit(InHole(WrongLength, _), _)
-    | ListNil(InHole(WrongLength, _)) => DoesNotExpand
+    | ListNil(InHole(WrongLength, _))
+    | Inj(InHole(WrongLength, _), _, _) => DoesNotExpand
     | EmptyHole(u) =>
       let gamma = Contexts.gamma(ctx);
       let dp = EmptyHole(u, 0);
@@ -235,29 +211,12 @@ module DHPat = {
       Expands(Var(x), ty, ctx, delta);
     | Wild(NotInHole) => Expands(Wild, ty, ctx, delta)
     | NumLit(NotInHole, _)
-    | BoolLit(NotInHole, _) => syn_expand_outer(ctx, delta, po)
+    | BoolLit(NotInHole, _) => syn_expand(ctx, delta, p)
     | ListNil(NotInHole) =>
       switch (HTyp.matched_list(ty)) {
       | None => DoesNotExpand
       | Some(ty_elt) => Expands(ListNil, HTyp.List(ty_elt), ctx, delta)
       }
-    }
-  and ana_expand_inner =
-      (ctx: Contexts.t, delta: Delta.t, pi: UHPat.t_inner, ty: HTyp.t)
-      : expand_result =>
-    switch (pi) {
-    | Inj(InHole(TypeInconsistent as reason, u), _, _) =>
-      let pi' = UHPat.set_err_status_t_inner(NotInHole, pi);
-      switch (syn_expand_inner(ctx, delta, pi')) {
-      | DoesNotExpand => DoesNotExpand
-      | Expands(dp1, _, ctx, delta) =>
-        let dp = NonEmptyHole(reason, u, 0, dp1);
-        let gamma = Contexts.gamma(ctx);
-        let delta =
-          MetaVarMap.extend_unique(delta, (u, (PatternHole, ty, gamma)));
-        Expands(dp, ty, ctx, delta);
-      };
-    | Inj(InHole(WrongLength, _), _, _) => DoesNotExpand
     | Parenthesized(p) => ana_expand(ctx, delta, p, ty)
     | OpSeq(skel, seq) => ana_expand_skel(ctx, delta, skel, seq, ty)
     | Inj(NotInHole, side, p1) =>
@@ -930,8 +889,8 @@ module DHExp = {
         let prelude = d2 => DHExp.Let(Wild, d1, d2);
         LinesExpand(prelude, ctx, delta);
       }
-    | LO(EmptyLine) => LinesExpand(d => d, ctx, delta)
-    | LI(LetLine(p, ann, block)) =>
+    | EmptyLine => LinesExpand(d => d, ctx, delta)
+    | LetLine(p, ann, block) =>
       switch (ann) {
       | Some(uty1) =>
         let ty1 = UHTyp.expand(uty1);
@@ -970,19 +929,17 @@ module DHExp = {
   and syn_expand_exp =
       (ctx: Contexts.t, delta: Delta.t, e: UHExp.t): expand_result =>
     switch (e) {
-    | EO(eo) => syn_expand_exp_outer(ctx, delta, eo)
-    | EI(ei) => syn_expand_exp_inner(ctx, delta, ei)
-    }
-  and syn_expand_exp_outer =
-      (ctx: Contexts.t, delta: Delta.t, eo: UHExp.t_outer): expand_result =>
-    switch (eo) {
     /* in hole */
     | Var(InHole(TypeInconsistent as reason, u), _, _)
     | NumLit(InHole(TypeInconsistent as reason, u), _)
     | BoolLit(InHole(TypeInconsistent as reason, u), _)
-    | ListNil(InHole(TypeInconsistent as reason, u)) =>
-      let eo' = UHExp.set_err_status_t(NotInHole, eo);
-      switch (syn_expand_exp_outer(ctx, delta, eo')) {
+    | ListNil(InHole(TypeInconsistent as reason, u))
+    | Lam(InHole(TypeInconsistent as reason, u), _, _, _)
+    | Inj(InHole(TypeInconsistent as reason, u), _, _)
+    | Case(InHole(TypeInconsistent as reason, u), _, _, _)
+    | ApPalette(InHole(TypeInconsistent as reason, u), _, _, _) =>
+      let e' = UHExp.set_err_status_t(NotInHole, e);
+      switch (syn_expand_exp(ctx, delta, e')) {
       | DoesNotExpand => DoesNotExpand
       | Expands(d, _, delta) =>
         let gamma = Contexts.gamma(ctx);
@@ -997,7 +954,11 @@ module DHExp = {
     | Var(InHole(WrongLength, _), _, _)
     | NumLit(InHole(WrongLength, _), _)
     | BoolLit(InHole(WrongLength, _), _)
-    | ListNil(InHole(WrongLength, _)) => DoesNotExpand
+    | ListNil(InHole(WrongLength, _))
+    | Lam(InHole(WrongLength, _), _, _, _)
+    | Inj(InHole(WrongLength, _), _, _)
+    | Case(InHole(WrongLength, _), _, _, _)
+    | ApPalette(InHole(WrongLength, _), _, _, _) => DoesNotExpand
     /* not in hole */
     | EmptyHole(u) =>
       let gamma = Contexts.gamma(ctx);
@@ -1029,32 +990,6 @@ module DHExp = {
     | ListNil(NotInHole) =>
       let elt_ty = HTyp.Hole;
       Expands(ListNil(elt_ty), List(elt_ty), delta);
-    }
-  and syn_expand_exp_inner =
-      (ctx: Contexts.t, delta: Delta.t, ei: UHExp.t_inner): expand_result =>
-    switch (ei) {
-    | Lam(InHole(TypeInconsistent as reason, u), _, _, _)
-    | Inj(InHole(TypeInconsistent as reason, u), _, _)
-    | Case(InHole(TypeInconsistent as reason, u), _, _, _)
-    | ApPalette(InHole(TypeInconsistent as reason, u), _, _, _) =>
-      let ei' = UHExp.set_err_status_t(NotInHole, ei);
-      switch (syn_expand_exp_inner(ctx, delta, ei')) {
-      | DoesNotExpand => DoesNotExpand
-      | Expands(d, _, delta) =>
-        let gamma = Contexts.gamma(ctx);
-        let sigma = id_env(gamma);
-        let delta =
-          MetaVarMap.extend_unique(
-            delta,
-            (u, (ExpressionHole, Hole, gamma)),
-          );
-        Expands(NonEmptyHole(reason, u, 0, sigma, d), Hole, delta);
-      };
-    | Lam(InHole(WrongLength, _), _, _, _)
-    | Inj(InHole(WrongLength, _), _, _)
-    | Case(InHole(WrongLength, _), _, _, _)
-    | ApPalette(InHole(WrongLength, _), _, _, _) => DoesNotExpand
-
     | Parenthesized(block) => syn_expand_block(ctx, delta, block)
     | OpSeq(skel, seq) => syn_expand_skel(ctx, delta, skel, seq)
     | Lam(NotInHole, p, ann, block) =>
@@ -1236,20 +1171,17 @@ module DHExp = {
   and ana_expand_exp =
       (ctx: Contexts.t, delta: Delta.t, e: UHExp.t, ty: HTyp.t): expand_result =>
     switch (e) {
-    | EO(eo) => ana_expand_exp_outer(ctx, delta, eo, ty)
-    | EI(ei) => ana_expand_exp_inner(ctx, delta, ei, ty)
-    }
-  and ana_expand_exp_outer =
-      (ctx: Contexts.t, delta: Delta.t, eo: UHExp.t_outer, ty: HTyp.t)
-      : expand_result =>
-    switch (eo) {
     /* in hole */
     | Var(InHole(TypeInconsistent as reason, u), _, _)
     | NumLit(InHole(TypeInconsistent as reason, u), _)
     | BoolLit(InHole(TypeInconsistent as reason, u), _)
-    | ListNil(InHole(TypeInconsistent as reason, u)) =>
-      let eo' = UHExp.set_err_status_t(NotInHole, eo);
-      switch (syn_expand_exp_outer(ctx, delta, eo')) {
+    | ListNil(InHole(TypeInconsistent as reason, u))
+    | Lam(InHole(TypeInconsistent as reason, u), _, _, _)
+    | Inj(InHole(TypeInconsistent as reason, u), _, _)
+    | Case(InHole(TypeInconsistent as reason, u), _, _, _)
+    | ApPalette(InHole(TypeInconsistent as reason, u), _, _, _) =>
+      let e' = UHExp.set_err_status_t(NotInHole, e);
+      switch (syn_expand_exp(ctx, delta, e')) {
       | DoesNotExpand => DoesNotExpand
       | Expands(d, _, delta) =>
         let gamma = Contexts.gamma(ctx);
@@ -1261,7 +1193,11 @@ module DHExp = {
     | Var(InHole(WrongLength, _), _, _)
     | NumLit(InHole(WrongLength, _), _)
     | BoolLit(InHole(WrongLength, _), _)
-    | ListNil(InHole(WrongLength, _)) => DoesNotExpand
+    | ListNil(InHole(WrongLength, _))
+    | Lam(InHole(WrongLength, _), _, _, _)
+    | Inj(InHole(WrongLength, _), _, _)
+    | Case(InHole(WrongLength, _), _, _, _)
+    | ApPalette(InHole(WrongLength, _), _, _, _) => DoesNotExpand
     /* not in hole */
     | EmptyHole(u) =>
       let gamma = Contexts.gamma(ctx);
@@ -1281,39 +1217,6 @@ module DHExp = {
         | Keyword(k) => Keyword(u, 0, sigma, k)
         };
       Expands(d, ty, delta);
-    | ListNil(NotInHole) =>
-      switch (HTyp.matched_list(ty)) {
-      | None => DoesNotExpand
-      | Some(elt_ty) => Expands(ListNil(elt_ty), List(elt_ty), delta)
-      }
-    | Var(NotInHole, NotInVHole, _)
-    | BoolLit(NotInHole, _)
-    | NumLit(NotInHole, _) =>
-      /* subsumption */
-      syn_expand_exp_outer(ctx, delta, eo)
-    }
-  and ana_expand_exp_inner =
-      (ctx: Contexts.t, delta: Delta.t, ei: UHExp.t_inner, ty: HTyp.t)
-      : expand_result =>
-    switch (ei) {
-    | Lam(InHole(TypeInconsistent as reason, u), _, _, _)
-    | Inj(InHole(TypeInconsistent as reason, u), _, _)
-    | Case(InHole(TypeInconsistent as reason, u), _, _, _)
-    | ApPalette(InHole(TypeInconsistent as reason, u), _, _, _) =>
-      let ei' = UHExp.set_err_status_t(NotInHole, ei);
-      switch (syn_expand_exp_inner(ctx, delta, ei')) {
-      | DoesNotExpand => DoesNotExpand
-      | Expands(d, _, delta) =>
-        let gamma = Contexts.gamma(ctx);
-        let sigma = id_env(gamma);
-        let delta =
-          MetaVarMap.extend_unique(delta, (u, (ExpressionHole, ty, gamma)));
-        Expands(NonEmptyHole(reason, u, 0, sigma, d), ty, delta);
-      };
-    | Lam(InHole(WrongLength, _), _, _, _)
-    | Inj(InHole(WrongLength, _), _, _)
-    | Case(InHole(WrongLength, _), _, _, _)
-    | ApPalette(InHole(WrongLength, _), _, _, _) => DoesNotExpand
     | Parenthesized(block) => ana_expand_block(ctx, delta, block, ty)
     | OpSeq(skel, seq) => ana_expand_skel(ctx, delta, skel, seq, ty)
     | Lam(NotInHole, p, ann, block) =>
@@ -1396,9 +1299,17 @@ module DHExp = {
           Expands(d, ty, delta);
         }
       }
+    | ListNil(NotInHole) =>
+      switch (HTyp.matched_list(ty)) {
+      | None => DoesNotExpand
+      | Some(elt_ty) => Expands(ListNil(elt_ty), List(elt_ty), delta)
+      }
+    | Var(NotInHole, NotInVHole, _)
+    | BoolLit(NotInHole, _)
+    | NumLit(NotInHole, _)
     | ApPalette(NotInHole, _, _, _) =>
       /* subsumption */
-      syn_expand_exp_inner(ctx, delta, ei)
+      syn_expand_exp(ctx, delta, e)
     }
   and ana_expand_rules =
       (
