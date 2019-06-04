@@ -18,8 +18,7 @@ let op = taggedText(["op"]);
 let var = taggedText(["var"]);
 let paletteName = s => taggedText(["paletteName"], s);
 let space = taggedText(["space"], " ");
-/* TODO change this to be actually smaller */
-let smallSpace = space;
+let smallSpace = taggedText(["small-space"], " ");
 
 /* Helpers */
 let rec id_of_rev_path = (prefix: string, rev_path: Path.steps): PP.id =>
