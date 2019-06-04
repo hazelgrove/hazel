@@ -89,7 +89,6 @@ let before_child_index_of_skel_cls = (cls: PP.cls): option(int) =>
 
 let term =
     (
-      ~preserved_on_deletion=false,
       prefix: string,
       err_status: err_status,
       rev_path: Path.steps,
@@ -99,8 +98,7 @@ let term =
     : PP.doc => {
   let id' = id_of_rev_path(prefix, rev_path);
   PP.tagged(
-    (preserved_on_deletion ? ["preserved-on-deletion"] : [])
-    @ ["node", ...cls_from_classes(err_status, classes)],
+    ["node", ...cls_from_classes(err_status, classes)],
     Some((id', rev_path)),
     None,
     doc,
@@ -108,21 +106,9 @@ let term =
 };
 
 let block =
-    (
-      ~preserved_on_deletion=false,
-      prefix: string,
-      rev_path: Path.steps,
-      cls: PP.cls,
-      doc: PP.doc,
-    )
-    : PP.doc => {
+    (prefix: string, rev_path: Path.steps, cls: PP.cls, doc: PP.doc): PP.doc => {
   let id' = id_of_rev_path(prefix, rev_path);
-  PP.tagged(
-    (preserved_on_deletion ? ["preserved-on-deletion"] : []) @ ["node", cls],
-    Some((id', rev_path)),
-    None,
-    doc,
-  );
+  PP.tagged(["node", cls], Some((id', rev_path)), None, doc);
 };
 
 let rule =
@@ -133,7 +119,6 @@ let rule =
 
 let term_with_attrs =
     (
-      ~preserved_on_deletion=false,
       prefix: string,
       err_status: err_status,
       rev_path: Path.steps,
@@ -144,8 +129,7 @@ let term_with_attrs =
     : PP.doc => {
   let id' = id_of_rev_path(prefix, rev_path);
   PP.tagged(
-    (preserved_on_deletion ? ["preserved-on-deletion"] : [])
-    @ ["node", ...cls_from_classes(err_status, classes)],
+    ["node", ...cls_from_classes(err_status, classes)],
     Some((id', rev_path)),
     Some(attrs),
     doc,
@@ -169,7 +153,6 @@ let optionalBreakNSp = PP.optionalBreak("");
 /* Parenthesized */
 let of_Parenthesized =
     (
-      ~preserved_on_deletion=false,
       is_multi_line: bool,
       prefix: string,
       err_status: err_status,
@@ -189,14 +172,7 @@ let of_Parenthesized =
     } else {
       lp ^^ smallSpace ^^ r1 ^^ smallSpace ^^ rp;
     };
-  term(
-    ~preserved_on_deletion,
-    prefix,
-    err_status,
-    rev_path,
-    ["Parenthesized"],
-    view,
-  );
+  term(prefix, err_status, rev_path, ["Parenthesized"], view);
 };
 
 /* Generic operator printing */
@@ -255,7 +231,6 @@ let of_ty_op = (~op_index=?, op: UHTyp.op): PP.doc => {
 
 let of_Hole =
     (
-      ~preserved_on_deletion=false,
       prefix: string,
       rev_path: Path.steps,
       classes: list(PP.cls),
@@ -263,7 +238,6 @@ let of_Hole =
     )
     : PP.doc =>
   term(
-    ~preserved_on_deletion,
     prefix,
     NotInHole,
     rev_path,
@@ -290,39 +264,12 @@ let precedence_ty = (ty: HTyp.t): int =>
   | Sum(_, _) => precedence_Sum
   | Arrow(_, _) => precedence_Arrow
   };
-let of_Bool =
-    (~preserved_on_deletion=false, prefix: string, rev_path: Path.steps)
-    : PP.doc =>
-  term(
-    ~preserved_on_deletion,
-    prefix,
-    NotInHole,
-    rev_path,
-    ["Bool"],
-    kw("Bool"),
-  );
-let of_Num =
-    (~preserved_on_deletion=false, prefix: string, rev_path: Path.steps)
-    : PP.doc =>
-  term(
-    ~preserved_on_deletion,
-    prefix,
-    NotInHole,
-    rev_path,
-    ["Num"],
-    kw("Num"),
-  );
-let of_Unit =
-    (~preserved_on_deletion=false, prefix: string, rev_path: Path.steps)
-    : PP.doc =>
-  term(
-    ~preserved_on_deletion,
-    prefix,
-    NotInHole,
-    rev_path,
-    ["Unit"],
-    kw("Unit"),
-  );
+let of_Bool = (prefix: string, rev_path: Path.steps): PP.doc =>
+  term(prefix, NotInHole, rev_path, ["Bool"], kw("Bool"));
+let of_Num = (prefix: string, rev_path: Path.steps): PP.doc =>
+  term(prefix, NotInHole, rev_path, ["Num"], kw("Num"));
+let of_Unit = (prefix: string, rev_path: Path.steps): PP.doc =>
+  term(prefix, NotInHole, rev_path, ["Unit"], kw("Unit"));
 let of_ty_BinOp =
     (
       prefix: string,
@@ -358,16 +305,8 @@ let of_uty_BinOp =
     [string_of_ty_op(op), "skel-binop", before_child_skel_cls(op_index)],
     r1 ^^ of_ty_op(~op_index, op) ^^ r2,
   );
-let of_List =
-    (
-      ~preserved_on_deletion=false,
-      prefix: string,
-      rev_path: Path.steps,
-      r1: PP.doc,
-    )
-    : PP.doc =>
+let of_List = (prefix: string, rev_path: Path.steps, r1: PP.doc): PP.doc =>
   term(
-    ~preserved_on_deletion,
     prefix,
     NotInHole,
     rev_path,
@@ -420,42 +359,28 @@ let rec of_htype =
   parenthesize ? lparen("(") ^^ d ^^ rparen(")") : d;
 };
 let rec of_uhtyp =
-        (
-          ~preserved_on_deletion=false,
-          prefix: string,
-          rev_path: Path.steps,
-          uty: UHTyp.t,
-        )
-        : PP.doc =>
+        (prefix: string, rev_path: Path.steps, uty: UHTyp.t): PP.doc =>
   switch (uty) {
   | Parenthesized(uty1) =>
     let rev_path1 = [0, ...rev_path];
-    let r1 = of_uhtyp(~preserved_on_deletion=true, prefix, rev_path1, uty1);
-    of_Parenthesized(
-      ~preserved_on_deletion,
-      false,
-      prefix,
-      NotInHole,
-      rev_path,
-      r1,
-    );
-  | Bool => of_Bool(~preserved_on_deletion, prefix, rev_path)
-  | Num => of_Num(~preserved_on_deletion, prefix, rev_path)
-  | Unit => of_Unit(~preserved_on_deletion, prefix, rev_path)
+    let r1 = of_uhtyp(prefix, rev_path1, uty1);
+    of_Parenthesized(false, prefix, NotInHole, rev_path, r1);
+  | Bool => of_Bool(prefix, rev_path)
+  | Num => of_Num(prefix, rev_path)
+  | Unit => of_Unit(prefix, rev_path)
   | List(uty1) =>
     let rev_path1 = [0, ...rev_path];
-    let r1 = of_uhtyp(~preserved_on_deletion=true, prefix, rev_path1, uty1);
-    of_List(~preserved_on_deletion, prefix, rev_path, r1);
+    let r1 = of_uhtyp(prefix, rev_path1, uty1);
+    of_List(prefix, rev_path, r1);
   | OpSeq(skel, seq) =>
     term(
-      ~preserved_on_deletion,
       prefix,
       NotInHole,
       rev_path,
       ["OpSeq"],
       of_uhtyp_skel(prefix, rev_path, skel, seq, 0),
     )
-  | Hole => of_Hole(~preserved_on_deletion, prefix, rev_path, ["Hole"], "?")
+  | Hole => of_Hole(prefix, rev_path, ["Hole"], "?")
   }
 and of_uhtyp_skel =
     (
@@ -497,25 +422,11 @@ let classes_of_var_err_status =
   };
 
 let of_Wild =
-    (
-      ~preserved_on_deletion=false,
-      prefix: string,
-      err_status: err_status,
-      rev_path: Path.steps,
-    )
-    : PP.doc =>
-  term(
-    ~preserved_on_deletion,
-    prefix,
-    err_status,
-    rev_path,
-    ["Wild"],
-    var("_"),
-  );
+    (prefix: string, err_status: err_status, rev_path: Path.steps): PP.doc =>
+  term(prefix, err_status, rev_path, ["Wild"], var("_"));
 
 let of_Var =
     (
-      ~preserved_on_deletion=false,
       prefix: string,
       err_status: err_status,
       var_err_status: var_err_status,
@@ -524,7 +435,6 @@ let of_Var =
     )
     : PP.doc =>
   term(
-    ~preserved_on_deletion,
     prefix,
     err_status,
     rev_path,
@@ -602,21 +512,14 @@ let of_lines = (rline_lst: list(PP.doc)): PP.doc =>
   };
 
 let of_Block =
-    (
-      ~preserved_on_deletion=false,
-      prefix: string,
-      rev_path: Path.steps,
-      rlines: PP.doc,
-      r1: PP.doc,
-    )
-    : PP.doc => {
+    (prefix: string, rev_path: Path.steps, rlines: PP.doc, r1: PP.doc): PP.doc => {
   let r =
     if (PP.isEmpty(rlines)) {
       r1;
     } else {
       rlines ^^ PP.mandatoryBreak ^^ r1;
     };
-  block(~preserved_on_deletion, prefix, rev_path, "Block", r);
+  block(prefix, rev_path, "Block", r);
 };
 
 let of_Let =
@@ -685,7 +588,6 @@ let of_FixF =
 
 let of_Lam =
     (
-      ~preserved_on_deletion=false,
       prefix: string,
       err_status: err_status,
       rev_path: Path.steps,
@@ -712,22 +614,15 @@ let of_Lam =
       ^^ second_part
     | None => first_part ^^ second_part
     };
-  term(~preserved_on_deletion, prefix, err_status, rev_path, ["Lam"], view);
+  term(prefix, err_status, rev_path, ["Lam"], view);
 };
 
 let string_of_bool = b => b ? "true" : "false";
 
 let of_BoolLit =
-    (
-      ~preserved_on_deletion=false,
-      prefix: string,
-      err_status: err_status,
-      rev_path: Path.steps,
-      b: bool,
-    )
+    (prefix: string, err_status: err_status, rev_path: Path.steps, b: bool)
     : PP.doc =>
   term(
-    ~preserved_on_deletion,
     prefix,
     err_status,
     rev_path,
@@ -735,16 +630,9 @@ let of_BoolLit =
     taggedText(["boolean"], string_of_bool(b)),
   );
 let of_NumLit =
-    (
-      ~preserved_on_deletion=false,
-      prefix: string,
-      err_status: err_status,
-      rev_path: Path.steps,
-      n: int,
-    )
+    (prefix: string, err_status: err_status, rev_path: Path.steps, n: int)
     : PP.doc =>
   term(
-    ~preserved_on_deletion,
     prefix,
     err_status,
     rev_path,
@@ -752,42 +640,15 @@ let of_NumLit =
     taggedText(["number"], string_of_int(n)),
   );
 let of_Triv =
-    (
-      ~preserved_on_deletion=false,
-      prefix: string,
-      err_status: err_status,
-      rev_path: Path.steps,
-    )
-    : PP.doc =>
-  term(
-    ~preserved_on_deletion,
-    prefix,
-    err_status,
-    rev_path,
-    ["Triv"],
-    taggedText(["triv"], "()"),
-  );
+    (prefix: string, err_status: err_status, rev_path: Path.steps): PP.doc =>
+  term(prefix, err_status, rev_path, ["Triv"], taggedText(["triv"], "()"));
 
 let of_ListNil =
-    (
-      ~preserved_on_deletion=false,
-      prefix: string,
-      err_status: err_status,
-      rev_path: Path.steps,
-    )
-    : PP.doc =>
-  term(
-    ~preserved_on_deletion,
-    prefix,
-    err_status,
-    rev_path,
-    ["ListNil"],
-    kw("[]"),
-  );
+    (prefix: string, err_status: err_status, rev_path: Path.steps): PP.doc =>
+  term(prefix, err_status, rev_path, ["ListNil"], kw("[]"));
 
 let of_Inj =
     (
-      ~preserved_on_deletion=false,
       prefix: string,
       err_status: err_status,
       rev_path: Path.steps,
@@ -796,7 +657,6 @@ let of_Inj =
     )
     : PP.doc =>
   term(
-    ~preserved_on_deletion,
     prefix,
     err_status,
     rev_path,
@@ -862,7 +722,6 @@ let of_rule =
 
 let of_Case =
     (
-      ~preserved_on_deletion=false,
       prefix: string,
       err_status: err_status,
       rev_path: Path.steps,
@@ -899,7 +758,7 @@ let of_Case =
     ^^ rrules
     ^^ PP.mandatoryBreak
     ^^ view_end;
-  term(~preserved_on_deletion, prefix, err_status, rev_path, ["Case"], view);
+  term(prefix, err_status, rev_path, ["Case"], view);
 };
 
 let cast_arrow = op(" ⇨ ");
@@ -1086,26 +945,12 @@ let rec prepare_Parenthesized_pat = (p: UHPat.t): (err_status, UHPat.t) =>
     }
   };
 
-let rec of_hpat =
-        (
-          ~preserved_on_deletion=false,
-          prefix: string,
-          rev_path: Path.steps,
-          p: UHPat.t,
-        )
-        : PP.doc =>
+let rec of_hpat = (prefix: string, rev_path: Path.steps, p: UHPat.t): PP.doc =>
   switch (p) {
   | EmptyHole(u) =>
-    of_Hole(
-      ~preserved_on_deletion,
-      prefix,
-      rev_path,
-      ["EmptyHole"],
-      string_of_int(u + 1),
-    )
+    of_Hole(prefix, rev_path, ["EmptyHole"], string_of_int(u + 1))
   | OpSeq(skel, seq) =>
     term(
-      ~preserved_on_deletion,
       prefix,
       UHPat.get_err_status_t(p),
       rev_path,
@@ -1115,47 +960,21 @@ let rec of_hpat =
   | Parenthesized(p1) =>
     let (err_status, p1_not_in_hole) = prepare_Parenthesized_pat(p1);
     let rev_path1 = [0, ...rev_path];
-    let r1 =
-      of_hpat(~preserved_on_deletion=true, prefix, rev_path1, p1_not_in_hole);
-    of_Parenthesized(
-      ~preserved_on_deletion,
-      false,
-      prefix,
-      err_status,
-      rev_path,
-      r1,
-    );
-  | Wild(err_status) =>
-    of_Wild(~preserved_on_deletion, prefix, err_status, rev_path)
+    let r1 = of_hpat(prefix, rev_path1, p1_not_in_hole);
+    of_Parenthesized(false, prefix, err_status, rev_path, r1);
+  | Wild(err_status) => of_Wild(prefix, err_status, rev_path)
   | Var(_, InVHole(Free, _), _) => raise(FreeVarInPat)
   | Var(err_status, InVHole(Keyword(k), u), x) =>
-    of_Var(
-      ~preserved_on_deletion,
-      prefix,
-      err_status,
-      InVHole(Keyword(k), u),
-      rev_path,
-      x,
-    )
+    of_Var(prefix, err_status, InVHole(Keyword(k), u), rev_path, x)
   | Var(err_status, NotInVHole, x) =>
-    of_Var(
-      ~preserved_on_deletion,
-      prefix,
-      err_status,
-      NotInVHole,
-      rev_path,
-      x,
-    )
-  | NumLit(err_status, n) =>
-    of_NumLit(~preserved_on_deletion, prefix, err_status, rev_path, n)
-  | BoolLit(err_status, b) =>
-    of_BoolLit(~preserved_on_deletion, prefix, err_status, rev_path, b)
+    of_Var(prefix, err_status, NotInVHole, rev_path, x)
+  | NumLit(err_status, n) => of_NumLit(prefix, err_status, rev_path, n)
+  | BoolLit(err_status, b) => of_BoolLit(prefix, err_status, rev_path, b)
   | Inj(err_status, side, p1) =>
     let rev_path1 = [0, ...rev_path];
-    let r1 = of_hpat(~preserved_on_deletion=true, prefix, rev_path1, p1);
-    of_Inj(~preserved_on_deletion, prefix, err_status, rev_path, side, r1);
-  | ListNil(err_status) =>
-    of_ListNil(~preserved_on_deletion, prefix, err_status, rev_path)
+    let r1 = of_hpat(prefix, rev_path1, p1);
+    of_Inj(prefix, err_status, rev_path, side, r1);
+  | ListNil(err_status) => of_ListNil(prefix, err_status, rev_path)
   }
 and of_skel_pat =
     (
@@ -1234,7 +1053,6 @@ let of_uhexp_BinOp =
     )
     : PP.doc =>
   term(
-    ~preserved_on_deletion=true,
     prefix,
     err_status,
     rev_path,
@@ -1255,7 +1073,6 @@ let of_Times_with_space =
     )
     : PP.doc =>
   term(
-    ~preserved_on_deletion=true,
     prefix,
     err_status,
     rev_path,
@@ -1271,7 +1088,6 @@ let prepare_Parenthesized_block =
 
 let rec of_hblock =
         (
-          ~preserved_on_deletion=false,
           palette_stuff: palette_stuff,
           prefix: string,
           rev_path: Path.steps,
@@ -1280,7 +1096,7 @@ let rec of_hblock =
   let rlines = of_hlines(palette_stuff, prefix, rev_path, lines);
   let r =
     of_hexp(palette_stuff, prefix, [List.length(lines), ...rev_path], e);
-  of_Block(~preserved_on_deletion, prefix, rev_path, rlines, r);
+  of_Block(prefix, rev_path, rlines, r);
 }
 and of_hlines =
     (
@@ -1320,7 +1136,6 @@ and of_hline =
   }
 and of_hexp =
     (
-      ~preserved_on_deletion=false,
       palette_stuff: palette_stuff,
       prefix: string,
       rev_path: Path.steps,
@@ -1328,36 +1143,16 @@ and of_hexp =
     ) =>
   switch (e) {
   | EmptyHole(u) =>
-    of_Hole(
-      ~preserved_on_deletion,
-      prefix,
-      rev_path,
-      ["EmptyHole"],
-      string_of_int(u + 1),
-    )
+    of_Hole(prefix, rev_path, ["EmptyHole"], string_of_int(u + 1))
   | OpSeq(skel, seq) =>
     let r = of_skel(palette_stuff, prefix, rev_path, skel, seq, 0);
-    term(
-      ~preserved_on_deletion,
-      prefix,
-      UHExp.get_err_status_t(e),
-      rev_path,
-      ["OpSeq"],
-      r,
-    );
+    term(prefix, UHExp.get_err_status_t(e), rev_path, ["OpSeq"], r);
   | Parenthesized(block) =>
     let (err_status, block_not_in_hole) = prepare_Parenthesized_block(block);
     let rev_path_block = [0, ...rev_path];
     let r_block =
-      of_hblock(
-        ~preserved_on_deletion=true,
-        palette_stuff,
-        prefix,
-        rev_path_block,
-        block_not_in_hole,
-      );
+      of_hblock(palette_stuff, prefix, rev_path_block, block_not_in_hole);
     of_Parenthesized(
-      ~preserved_on_deletion,
       is_multi_line(block),
       prefix,
       err_status,
@@ -1365,14 +1160,7 @@ and of_hexp =
       r_block,
     );
   | Var(err_status, var_err_status, x) =>
-    of_Var(
-      ~preserved_on_deletion,
-      prefix,
-      err_status,
-      var_err_status,
-      rev_path,
-      x,
-    )
+    of_Var(prefix, err_status, var_err_status, rev_path, x)
   | Lam(err_status, p, ann, e1) =>
     let rp = of_hpat(prefix, [0, ...rev_path], p);
     let rann =
@@ -1381,32 +1169,14 @@ and of_hexp =
       | None => None
       };
     let r1 = of_hblock(palette_stuff, prefix, [2, ...rev_path], e1);
-    of_Lam(
-      ~preserved_on_deletion,
-      prefix,
-      err_status,
-      rev_path,
-      rp,
-      rann,
-      r1,
-    );
-  | BoolLit(err_status, b) =>
-    of_BoolLit(~preserved_on_deletion, prefix, err_status, rev_path, b)
-  | NumLit(err_status, n) =>
-    of_NumLit(~preserved_on_deletion, prefix, err_status, rev_path, n)
-  | ListNil(err_status) =>
-    of_ListNil(~preserved_on_deletion, prefix, err_status, rev_path)
+    of_Lam(prefix, err_status, rev_path, rp, rann, r1);
+  | BoolLit(err_status, b) => of_BoolLit(prefix, err_status, rev_path, b)
+  | NumLit(err_status, n) => of_NumLit(prefix, err_status, rev_path, n)
+  | ListNil(err_status) => of_ListNil(prefix, err_status, rev_path)
   | Inj(err_status, side, e) =>
     let rev_path1 = [0, ...rev_path];
-    let r1 =
-      of_hblock(
-        ~preserved_on_deletion=true,
-        palette_stuff,
-        prefix,
-        rev_path1,
-        e,
-      );
-    of_Inj(~preserved_on_deletion, prefix, err_status, rev_path, side, r1);
+    let r1 = of_hblock(palette_stuff, prefix, rev_path1, e);
+    of_Inj(prefix, err_status, rev_path, side, r1);
   | Case(err_status, e1, rules, ann) =>
     let rev_path1 = [0, ...rev_path];
     let r1 = of_hblock(palette_stuff, prefix, rev_path1, e1);
@@ -1429,15 +1199,7 @@ and of_hexp =
         let rev_path_ann = [List.length(rules) + 1, ...rev_path];
         Some(of_uhtyp(prefix, rev_path_ann, uty1));
       };
-    of_Case(
-      ~preserved_on_deletion,
-      prefix,
-      err_status,
-      rev_path,
-      r1,
-      rpcs,
-      rann,
-    );
+    of_Case(prefix, err_status, rev_path, r1, rpcs, rann);
   | ApPalette(_, _, _, _) => raise(InvariantViolated)
   /* switch (
        Palettes.PaletteViewCtx.lookup(palette_stuff.palette_view_ctx, name)
@@ -1493,13 +1255,7 @@ and of_skel =
     | None => raise(UHExp.SkelInconsistentWithOpSeq(skel, seq))
     | Some(en) =>
       let rev_path_n = [n, ...rev_path];
-      of_hexp(
-        ~preserved_on_deletion=true,
-        palette_stuff,
-        prefix,
-        rev_path_n,
-        en,
-      );
+      of_hexp(palette_stuff, prefix, rev_path_n, en);
     }
   | BinOp(err_status, Times as op, skel1, skel2) =>
     let num_tms_before_op = Skel.size(skel1);
