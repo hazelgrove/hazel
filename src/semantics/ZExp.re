@@ -148,7 +148,7 @@ and is_before_exp = (ze: t): bool =>
   | CursorE(cursor, Var(_, _, _))
   | CursorE(cursor, NumLit(_, _))
   | CursorE(cursor, BoolLit(_, _))
-  | CursorE(cursor, ListNil(_)) => cursor === outer_cursor(0)
+  | CursorE(cursor, ListNil(_)) => cursor == outer_cursor(0)
   /* inner nodes */
   | CursorE(cursor, Lam(_, _, _, _))
   | CursorE(cursor, Inj(_, _, _))
