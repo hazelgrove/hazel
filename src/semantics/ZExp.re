@@ -46,12 +46,13 @@ let valid_cursors_line = (line: UHExp.line): list(cursor_pos) =>
   switch (line) {
   | ExpLine(_) => []
   | EmptyLine => [outer_cursor(0)]
-  | LetLine(_, _, _) => [
-      inner_cursor(0, Before), /* |let _ = _ */
-      inner_cursor(0, After), /* let| _ = _ */
-      inner_cursor(1, Before), /* let _ |= _ */
-      inner_cursor(1, After) /* let _ =| _ */
-    ]
+  | LetLine(_, ann, _) =>
+    let ann_cursors =
+      switch (ann) {
+      | None => []
+      | Some(_) => inner_cursors_k(1)
+      };
+    inner_cursors_k(0) @ ann_cursors @ inner_cursors_k(2);
   };
 let valid_cursors_exp = (e: UHExp.t): list(cursor_pos) =>
   switch (e) {
