@@ -1,5 +1,7 @@
 open Sexplib.Std;
 
+let string_of_sexp = sexp => Sexplib.Sexp.to_string(sexp);
+
 let opt_to_bool =
   fun
   | None => false

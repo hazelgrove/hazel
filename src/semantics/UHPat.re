@@ -33,6 +33,14 @@ and opseq = OperatorSeq.opseq(t, op);
 
 exception SkelInconsistentWithOpSeq(skel_t, opseq);
 
+let var =
+    (~e: err_status=NotInHole, ~v: var_err_status=NotInVHole, x: Var.t): t =>
+  Var(e, v, x);
+
+let boollit = (~e: err_status=NotInHole, b: bool) => BoolLit(e, b);
+
+let listnil = (~e: err_status=NotInHole, ()): t => ListNil(e);
+
 let rec get_tuple = (skel1: skel_t, skel2: skel_t): ListMinTwo.t(skel_t) =>
   switch (skel2) {
   | BinOp(_, Comma, skel21, skel22) =>

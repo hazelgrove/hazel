@@ -1,5 +1,6 @@
 open Tyxml_js;
 open Model;
+open GeneralUtil;
 open SemanticsCommon;
 module Js = Js_of_ocaml.Js;
 module Dom = Js_of_ocaml.Dom;
@@ -756,13 +757,15 @@ let view = (model: Model.t) => {
     StringMap.add(
       "qsort_example",
       {
-        serialized: "(Block((LetLine(Pat NotInHole(Var NotInVHole append))((OpSeq(BinOp NotInHole Arrow(Placeholder 0)(BinOp NotInHole Arrow(Placeholder 1)(Placeholder 2)))(SeqOpExp(ExpOpExp(List Num)Arrow(List Num))Arrow(List Num))))(Block()(Tm NotInHole(Lam(Pat NotInHole(Var NotInVHole xs))()(Block()(Tm NotInHole(Lam(Pat NotInHole(Var NotInVHole ys))()(Block()(Tm NotInHole(Case(Block()(Tm NotInHole(Var NotInVHole xs)))((Rule(Pat NotInHole ListNil)(Block()(Tm NotInHole(Var NotInVHole ys))))(Rule(OpSeq(BinOp NotInHole Cons(Placeholder 0)(Placeholder 1))(ExpOpExp(Pat NotInHole(Var NotInVHole z))Cons(Pat NotInHole(Var NotInVHole zs))))(Block()(OpSeq(BinOp NotInHole Cons(Placeholder 0)(Placeholder 1))(ExpOpExp(Tm NotInHole(Var NotInVHole z))Cons(Parenthesized(Block()(OpSeq(BinOp NotInHole Space(BinOp NotInHole Space(Placeholder 0)(Placeholder 1))(Placeholder 2))(SeqOpExp(ExpOpExp(Tm NotInHole(Var NotInVHole append))Space(Tm NotInHole(Var NotInVHole zs)))Space(Tm NotInHole(Var NotInVHole ys)))))))))))()))))))))))EmptyLine(LetLine(Pat NotInHole(Var NotInVHole partition))((OpSeq(BinOp NotInHole Arrow(Placeholder 0)(BinOp NotInHole Arrow(Placeholder 1)(Placeholder 2)))(SeqOpExp(ExpOpExp(Parenthesized(OpSeq(BinOp NotInHole Arrow(Placeholder 0)(Placeholder 1))(ExpOpExp Num Arrow Bool)))Arrow(List Num))Arrow(Parenthesized(OpSeq(BinOp NotInHole Prod(Placeholder 0)(Placeholder 1))(ExpOpExp(List Num)Prod(List Num)))))))(Block()(Tm NotInHole(Lam(Pat NotInHole(Var NotInVHole f))()(Block()(Tm NotInHole(Lam(Pat NotInHole(Var NotInVHole xs))()(Block()(Tm NotInHole(Case(Block()(Tm NotInHole(Var NotInVHole xs)))((Rule(Pat NotInHole ListNil)(Block()(Parenthesized(Block()(OpSeq(BinOp NotInHole Comma(Placeholder 0)(Placeholder 1))(ExpOpExp(Tm NotInHole ListNil)Comma(Tm NotInHole ListNil)))))))(Rule(OpSeq(BinOp NotInHole Cons(Placeholder 0)(Placeholder 1))(ExpOpExp(Pat NotInHole(Var NotInVHole y))Cons(Pat NotInHole(Var NotInVHole ys))))(Block((LetLine(Parenthesized(OpSeq(BinOp NotInHole Comma(Placeholder 0)(Placeholder 1))(ExpOpExp(Pat NotInHole(Var NotInVHole ys1))Comma(Pat NotInHole(Var NotInVHole ys2)))))()(Block()(OpSeq(BinOp NotInHole Space(BinOp NotInHole Space(Placeholder 0)(Placeholder 1))(Placeholder 2))(SeqOpExp(ExpOpExp(Tm NotInHole(Var NotInVHole partition))Space(Tm NotInHole(Var NotInVHole f)))Space(Tm NotInHole(Var NotInVHole ys)))))))(Tm NotInHole(Case(Block()(OpSeq(BinOp NotInHole Space(Placeholder 0)(Placeholder 1))(ExpOpExp(Tm NotInHole(Var NotInVHole f))Space(Tm NotInHole(Var NotInVHole y)))))((Rule(Pat NotInHole(BoolLit true))(Block()(Parenthesized(Block()(OpSeq(BinOp NotInHole Comma(BinOp NotInHole Cons(Placeholder 0)(Placeholder 1))(Placeholder 2))(SeqOpExp(ExpOpExp(Tm NotInHole(Var NotInVHole y))Cons(Tm NotInHole(Var NotInVHole ys1)))Comma(Tm NotInHole(Var NotInVHole ys2))))))))(Rule(Pat NotInHole(BoolLit false))(Block()(Parenthesized(Block()(OpSeq(BinOp NotInHole Comma(Placeholder 0)(BinOp NotInHole Cons(Placeholder 1)(Placeholder 2)))(SeqOpExp(ExpOpExp(Tm NotInHole(Var NotInVHole ys1))Comma(Tm NotInHole(Var NotInVHole y)))Cons(Tm NotInHole(Var NotInVHole ys2)))))))))())))))()))))))))))EmptyLine)(OpSeq(BinOp NotInHole Space(Placeholder 0)(Placeholder 1))(ExpOpExp(Tm NotInHole(Var(InVHole Free 246)qsort))Space(Parenthesized(Block()(OpSeq(BinOp NotInHole Cons(Placeholder 0)(BinOp NotInHole Cons(Placeholder 1)(BinOp NotInHole Cons(Placeholder 2)(BinOp NotInHole Cons(Placeholder 3)(BinOp NotInHole Cons(Placeholder 4)(BinOp NotInHole Cons(Placeholder 5)(BinOp NotInHole Cons(Placeholder 6)(Placeholder 7))))))))(SeqOpExp(SeqOpExp(SeqOpExp(SeqOpExp(SeqOpExp(SeqOpExp(ExpOpExp(Tm NotInHole(NumLit 4))Cons(Tm NotInHole(NumLit 2)))Cons(Tm NotInHole(NumLit 6)))Cons(Tm NotInHole(NumLit 5)))Cons(Tm NotInHole(NumLit 3)))Cons(Tm NotInHole(NumLit 1)))Cons(Tm NotInHole(NumLit 7)))Cons(Tm NotInHole ListNil))))))))",
+        serialized:
+          string_of_sexp(UHExp.sexp_of_block(Examples.qsort_example)),
         desc: "qsort prompt",
       },
       StringMap.add(
         "map_example",
         {
-          serialized: "(Block((LetLine(Pat NotInHole(Var NotInVHole map))((OpSeq(BinOp NotInHole Arrow(Placeholder 0)(BinOp NotInHole Arrow(Placeholder 1)(Placeholder 2)))(SeqOpExp(ExpOpExp(Parenthesized(OpSeq(BinOp NotInHole Arrow(Placeholder 0)(Placeholder 1))(ExpOpExp Num Arrow Num)))Arrow(List Num))Arrow(List Num))))(Block()(Tm NotInHole(Lam(Pat NotInHole(Var NotInVHole f))()(Block()(Tm NotInHole(Lam(Pat NotInHole(Var NotInVHole xs))()(Block()(Tm NotInHole(Case(Block()(Tm NotInHole(Var NotInVHole xs)))((Rule(Pat NotInHole ListNil)(Block()(Tm NotInHole ListNil)))(Rule(OpSeq(BinOp NotInHole Cons(Placeholder 0)(Placeholder 1))(ExpOpExp(Pat NotInHole(Var NotInVHole y))Cons(Pat NotInHole(Var NotInVHole ys))))(Block()(OpSeq(BinOp NotInHole Cons(Placeholder 0)(Placeholder 1))(ExpOpExp(Parenthesized(Block()(OpSeq(BinOp NotInHole Space(Placeholder 0)(Placeholder 1))(ExpOpExp(Tm NotInHole(Var NotInVHole f))Space(Tm NotInHole(Var NotInVHole y))))))Cons(Parenthesized(Block()(OpSeq(BinOp NotInHole Space(BinOp NotInHole Space(Placeholder 0)(Placeholder 1))(Placeholder 2))(SeqOpExp(ExpOpExp(Tm NotInHole(Var NotInVHole map))Space(Tm NotInHole(Var NotInVHole f)))Space(Tm NotInHole(Var NotInVHole ys)))))))))))())))))))))))(EmptyHole 6))",
+          serialized:
+            string_of_sexp(UHExp.sexp_of_block(Examples.map_example)),
           desc: "map example",
         },
         StringMap.add(
@@ -774,13 +777,15 @@ let view = (model: Model.t) => {
           StringMap.add(
             "basic_holey",
             {
-              serialized: "(Block()(OpSeq(BinOp NotInHole Space(Placeholder 0)(Placeholder 1))(ExpOpExp(Parenthesized(Block()(Tm NotInHole(Lam(EmptyHole 1)(Hole)(Block()(EmptyHole 0))))))Space(EmptyHole 2))))",
+              serialized:
+                string_of_sexp(UHExp.sexp_of_block(Examples.holey_lambda)),
               desc: "Basic holey lambda example",
             },
             StringMap.add(
               "just_hole",
               {
-                serialized: "(Block()(EmptyHole 0))",
+                serialized:
+                  string_of_sexp(UHExp.sexp_of_block(Examples.just_hole)),
                 desc: "Just a hole example",
               },
               StringMap.empty,

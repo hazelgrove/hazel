@@ -50,18 +50,42 @@ and splice_map = SpliceInfo.splice_map(block);
 
 exception SkelInconsistentWithOpSeq(skel_t, opseq);
 
-/*
- let line_outer_length = (EmptyLine: line_outer): int => 0;
- let t_outer_length = (eo: t_outer): int =>
-   switch (eo) {
-   | EmptyHole(_) => 1
-   | Var(_, _, x) => Var.length(x)
-   | NumLit(_, n) => num_digits(n)
-   | BoolLit(_, true) => 4
-   | BoolLit(_, false) => 5
-   | ListNil(_) => 2
-   };
- */
+let letline = (p: UHPat.t, ~ann: option(UHTyp.t)=?, block: block): line =>
+  LetLine(p, ann, block);
+
+let var =
+    (
+      ~err_status: err_status=NotInHole,
+      ~var_err_status: var_err_status=NotInVHole,
+      x: Var.t,
+    )
+    : t =>
+  Var(err_status, var_err_status, x);
+
+let numlit = (~e: err_status=NotInHole, n: int): t => NumLit(e, n);
+
+let lam =
+    (
+      ~err_status: err_status=NotInHole,
+      p: UHPat.t,
+      ~ann: option(UHTyp.t)=?,
+      body: block,
+    )
+    : t =>
+  Lam(err_status, p, ann, body);
+
+let case =
+    (
+      ~err_status: err_status=NotInHole,
+      scrut: block,
+      rules: rules,
+      ~ann: option(UHTyp.t)=?,
+      (),
+    )
+    : t =>
+  Case(err_status, scrut, rules, ann);
+
+let listnil = (~e: err_status=NotInHole, ()): t => ListNil(e);
 
 let wrap_in_block = (e: t): block => Block([], e);
 
