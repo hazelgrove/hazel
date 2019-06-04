@@ -368,7 +368,7 @@ let view = (model: Model.t) => {
           | Some(firstChild) => move_cursor_before_suppress(firstChild)
           }
         };
-      } else if (has_class("space")) {
+      } else if (has_class("space") || has_class("small-space")) {
         let anchorOffset = selection##.anchorOffset;
         if (anchorOffset === 1) {
           switch (
