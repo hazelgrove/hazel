@@ -181,7 +181,7 @@ let qsort_example: UHExp.block = {
                   wrap_in_block(
                     opseq_exp(
                       SeqOpExp(
-                        ExpOpExp(var("partition"), Space, var("ys")),
+                        ExpOpExp(var("partition"), Space, var("f")),
                         Space,
                         var("ys"),
                       ),
@@ -256,7 +256,7 @@ let qsort_example: UHExp.block = {
               ),
               Arrow,
               Parenthesized(
-                opseq_typ(ExpOpExp(List(Num), Arrow, List(Num))),
+                opseq_typ(ExpOpExp(List(Num), Prod, List(Num))),
               ),
             ),
           ),
