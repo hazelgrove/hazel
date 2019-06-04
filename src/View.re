@@ -162,6 +162,7 @@ let of_var_binding = (prefix: string, rev_path: Path.steps, x: Var.t): PP.doc =>
   );
 };
 
+let optionalBreakSmallSp = PP.optionalBreak(" ");
 let optionalBreakSp = PP.optionalBreak(" ");
 let optionalBreakNSp = PP.optionalBreak("");
 
@@ -200,7 +201,14 @@ let of_Parenthesized =
 
 /* Generic operator printing */
 let of_op =
-    (~is_space=false, ~op_index=?, op_s: string, classes: list(PP.cls))
+    (
+      ~is_space=false,
+      ~op_index=?,
+      ~prefix=optionalBreakSmallSp,
+      ~suffix=optionalBreakSmallSp,
+      op_s: string,
+      classes: list(PP.cls),
+    )
     : PP.doc => {
   let op_index_classes =
     switch (op_index) {
@@ -210,9 +218,7 @@ let of_op =
   if (is_space) {
     taggedText(["space", ...op_index_classes], " ");
   } else {
-    optionalBreakSp
-    ^^ taggedText(classes @ op_index_classes, op_s)
-    ^^ optionalBreakSp;
+    prefix ^^ taggedText(classes @ op_index_classes, op_s) ^^ suffix;
   };
 };
 
@@ -227,9 +233,23 @@ let string_of_ty_op = (op: UHTyp.op): string =>
 let of_ty_op = (~op_index=?, op: UHTyp.op): PP.doc => {
   let op_cls = "op-" ++ string_of_ty_op(op);
   switch (op) {
-  | Arrow => of_op(~op_index?, LangUtil.typeArrowSym, [op_cls])
-  | Sum => of_op(~op_index?, "|", [op_cls])
-  | Prod => of_op(~op_index?, ",", [op_cls])
+  | Arrow =>
+    of_op(
+      ~op_index?,
+      ~prefix=optionalBreakSp,
+      ~suffix=optionalBreakSp,
+      LangUtil.typeArrowSym,
+      [op_cls],
+    )
+  | Sum =>
+    of_op(
+      ~op_index?,
+      ~prefix=optionalBreakSp,
+      ~suffix=optionalBreakSp,
+      "|",
+      [op_cls],
+    )
+  | Prod => of_op(~op_index?, ~suffix=optionalBreakSp, ",", [op_cls])
   };
 };
 
@@ -545,13 +565,23 @@ let of_LetLine =
     ^^ space
     ^^ rx;
   let second_part =
-    of_op("=", ["let-equals", before_child_cls(2)])
+    of_op(
+      ~prefix=optionalBreakSp,
+      ~suffix=optionalBreakSp,
+      "=",
+      ["let-equals", before_child_cls(2)],
+    )
     ^^ PP.nestAbsolute(2, r1);
   let view =
     switch (rann) {
     | Some(r) =>
       first_part
-      ^^ of_op(":", ["ann", before_child_cls(1)])
+      ^^ of_op(
+           ~prefix=optionalBreakSp,
+           ~suffix=optionalBreakSp,
+           ":",
+           ["ann", before_child_cls(1)],
+         )
       ^^ r
       ^^ second_part
     | None => first_part ^^ second_part
@@ -606,7 +636,12 @@ let of_Let =
     ^^ space
     ^^ rx;
   let second_part =
-    of_op(" = ", ["let-equals", before_child_cls(2)])
+    of_op(
+      ~prefix=optionalBreakSp,
+      ~suffix=optionalBreakSp,
+      "=",
+      ["let-equals", before_child_cls(2)],
+    )
     ^^ PP.nestAbsolute(2, r1)
     ^^ PP.mandatoryBreak
     ^^ r2;
@@ -614,7 +649,12 @@ let of_Let =
     switch (rann) {
     | Some(r) =>
       first_part
-      ^^ of_op(" : ", ["ann", before_child_cls(1)])
+      ^^ of_op(
+           ~prefix=optionalBreakSp,
+           ~suffix=optionalBreakSp,
+           ":",
+           ["ann", before_child_cls(1)],
+         )
       ^^ r
       ^^ second_part
     | None => first_part ^^ second_part
@@ -803,10 +843,17 @@ let of_InjAnn =
 let of_rule =
     (prefix: string, rev_path: Path.steps, rp: PP.doc, rc: PP.doc): PP.doc => {
   let view =
-    of_op("| ", ["rule-bar", before_child_cls(0)])
+    of_op(
+      ~prefix=PP.empty,
+      ~suffix=optionalBreakSp,
+      "|",
+      ["rule-bar", before_child_cls(0)],
+    )
     ^^ rp
     ^^ of_op(
-         " " ++ LangUtil.caseArrowSym ++ " ",
+         ~prefix=optionalBreakSp,
+         ~suffix=optionalBreakSp,
+         LangUtil.caseArrowSym,
          ["rule-arrow", before_child_cls(1)],
        )
     ^^ PP.nestAbsolute(2, rc);
@@ -972,7 +1019,12 @@ let string_of_pat_op = (op: UHPat.op): string =>
 let of_pat_op = (op_index: int, op: UHPat.op): PP.doc => {
   let op_cls = "op-" ++ string_of_pat_op(op);
   switch (op) {
-  | Comma => of_op(", ", [op_cls, before_child_cls(op_index)])
+  | Comma =>
+    of_op(
+      ~suffix=optionalBreakSp,
+      ",",
+      [op_cls, before_child_cls(op_index)],
+    )
   | Space => of_op(" ", [op_cls, before_child_cls(op_index)])
   | Cons => of_op("::", [op_cls, before_child_cls(op_index)])
   };
@@ -1147,7 +1199,7 @@ let of_exp_op = (~op_index=?, op: UHExp.op): PP.doc => {
   | Times => of_op(~op_index?, "*", [op_cls])
   | LessThan => of_op(~op_index?, "<", [op_cls])
   | Space => of_op(~is_space=true, ~op_index?, "", [op_cls])
-  | Comma => of_op(~op_index?, ",", [op_cls])
+  | Comma => of_op(~suffix=optionalBreakSp, ~op_index?, ",", [op_cls])
   | Cons => of_op(~op_index?, "::", [op_cls])
   };
 };
