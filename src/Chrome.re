@@ -771,7 +771,8 @@ let view = (model: Model.t) => {
         StringMap.add(
           "let_line",
           {
-            serialized: "(Block((LetLine(Pat NotInHole(Var NotInVHole y))()(Block()(EmptyHole 4)))EmptyLine(LetLine(Pat NotInHole(Var NotInVHole x))()(Block()(EmptyHole 11)))(ExpLine(Tm NotInHole(Var NotInVHole x))))(Tm NotInHole(Var NotInVHole y)))",
+            serialized:
+              string_of_sexp(UHExp.sexp_of_block(Examples.let_line)),
             desc: "Let with extra lines example",
           },
           StringMap.add(

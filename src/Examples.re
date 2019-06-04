@@ -17,7 +17,18 @@ let holey_lambda: UHExp.block = {
   UHExp.wrap_in_block(OpSeq(skel, seq));
 };
 
-let let_line = ();
+let let_line: UHExp.block =
+  UHExp.(
+    Block(
+      [
+        letline(UHPat.var("y"), wrap_in_block(EmptyHole(0))),
+        EmptyLine,
+        letline(UHPat.var("x"), wrap_in_block(EmptyHole(1))),
+        ExpLine(var("x")),
+      ],
+      var("y"),
+    )
+  );
 
 let map_example: UHExp.block = {
   open OperatorSeq;
