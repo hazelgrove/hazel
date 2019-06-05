@@ -6,8 +6,6 @@
   --empty-hole-color: #a040a0;
   --nonempty-hole-color: red;
   --title-bar-color: #073f24;
-  --child-node-background-color: rgba(255, 195, 0, 0.25);
-  --child-node-border-color: #e6b104cc;
 }
 
 /* general */
@@ -737,20 +735,11 @@ button:disabled {
   border-top: 1px solid var(--opseq-hover-color);
 }
 
-.node {
-  border: 1px solid transparent;
-  background-clip: padding-box;
-}
-
 .cursor {
   background-color: var(--cursor-color);
 }
 .cursor.empty-line {
   border: none;
-}
-.cursor > .node {
-  border: 1px solid var(--child-node-border-color);
-  background-color: var(--child-node-background-color);
 }
 
 .SIndentation {

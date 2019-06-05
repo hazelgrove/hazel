@@ -98,7 +98,7 @@ let term =
     : PP.doc => {
   let id' = id_of_rev_path(prefix, rev_path);
   PP.tagged(
-    ["node", ...cls_from_classes(err_status, classes)],
+    cls_from_classes(err_status, classes),
     Some((id', rev_path)),
     None,
     doc,
@@ -108,13 +108,13 @@ let term =
 let block =
     (prefix: string, rev_path: Path.steps, cls: PP.cls, doc: PP.doc): PP.doc => {
   let id' = id_of_rev_path(prefix, rev_path);
-  PP.tagged(["node", cls], Some((id', rev_path)), None, doc);
+  PP.tagged([cls], Some((id', rev_path)), None, doc);
 };
 
 let rule =
     (prefix: string, rev_path: Path.steps, cls: PP.cls, doc: PP.doc): PP.doc => {
   let id' = id_of_rev_path(prefix, rev_path);
-  PP.tagged(["node", cls], Some((id', rev_path)), None, doc);
+  PP.tagged([cls], Some((id', rev_path)), None, doc);
 };
 
 let term_with_attrs =
@@ -129,7 +129,7 @@ let term_with_attrs =
     : PP.doc => {
   let id' = id_of_rev_path(prefix, rev_path);
   PP.tagged(
-    ["node", ...cls_from_classes(err_status, classes)],
+    cls_from_classes(err_status, classes),
     Some((id', rev_path)),
     Some(attrs),
     doc,
