@@ -1,6 +1,7 @@
 let _TEST_PERFORM = false;
 open SemanticsCommon;
 open GeneralUtil;
+open OpSeqUtil;
 
 [@deriving show({with_path: false})]
 type op_shape =
@@ -386,7 +387,9 @@ let rec perform_ty = (a: t, zty: ZTyp.t): result(ZTyp.t) =>
     | Failed => Failed
     | CursorEscaped(Before) => move_to_prev_node_pos_typ(zty)
     | CursorEscaped(After) => move_to_next_node_pos_typ(zty)
-    | Succeeded(zty0') => Succeeded(OpSeqZ(skel, zty0', surround))
+    | Succeeded(zty0) =>
+      let (zty0, surround) = resurround_typ(zty0, surround);
+      Succeeded(OpSeqZ(skel, zty0, surround));
     }
   /* Invalid actions at the type level */
   | (UpdateApPalette(_), _)
@@ -1604,6 +1607,7 @@ let rec syn_perform_pat =
             )
           | Succeeded((zp0, ctx, u_gen)) =>
             let zp0 = ZPat.bidelimit(zp0);
+            let (zp0, surround) = resurround_pat(zp0, surround);
             Succeeded(make_and_syn_OpSeqZ_pat(ctx, u_gen, zp0, surround));
           }
         | Statics.Synthesized(_) =>
@@ -1625,6 +1629,7 @@ let rec syn_perform_pat =
             )
           | Succeeded((zp0, _ty0, ctx, u_gen)) =>
             let zp0 = ZPat.bidelimit(zp0);
+            let (zp0, surround) = resurround_pat(zp0, surround);
             Succeeded(make_and_syn_OpSeqZ_pat(ctx, u_gen, zp0, surround));
           }
         }
@@ -3959,7 +3964,9 @@ and syn_perform_exp =
                 | BlockZE([], ze) => ze
                 }
               };
-            Succeeded((E(OpSeqZ(skel, ze0, surround)), ty, u_gen));
+            let (ze0, surround) = resurround_exp(ze0, surround);
+            /* TODO: Does this need to call make_and_syn/ana_OpSeqZ? */
+            Succeeded((E(opseqz_exp(ze0, surround)), ty, u_gen));
           }
         | Synthesized(ty0) =>
           switch (syn_perform_exp(ctx, a, (ze0, ty0, u_gen))) {
@@ -3983,6 +3990,7 @@ and syn_perform_exp =
                 | BlockZE([], ze) => ze
                 }
               };
+            let (ze0, surround) = resurround_exp(ze0, surround);
             let (ze, ty, u_gen) =
               make_and_syn_OpSeqZ(ctx, u_gen, ze0, surround);
             Succeeded((E(ze), ty, u_gen));
@@ -5192,6 +5200,7 @@ and ana_perform_exp =
                 | BlockZE([], ze) => ze
                 }
               };
+            let (ze0, surround) = resurround_exp(ze0, surround);
             Succeeded((E(OpSeqZ(skel, ze0, surround)), u_gen));
           }
         | Statics.Synthesized(ty0) =>
@@ -5212,6 +5221,7 @@ and ana_perform_exp =
                 | BlockZE([], ze) => ze
                 }
               };
+            let (ze0, surround) = resurround_exp(ze0, surround);
             let (ze, u_gen) =
               make_and_ana_OpSeqZ(ctx, u_gen, ze0, surround, ty);
             Succeeded((E(ze), u_gen));

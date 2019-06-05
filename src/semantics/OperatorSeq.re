@@ -364,3 +364,61 @@ let opseq_of_exp_and_surround = e =>
   | EmptySuffix(prefix) => opseq_of_prefix_and_exp(prefix, e)
   | BothNonEmpty(prefix, suffix) =>
     opseq_of_prefix_and_seq(prefix, opseq_of_exp_and_suffix(e, suffix));
+
+let concat_prefixes =
+    (outer: opseq_prefix('tm, 'op), inner: opseq_prefix('tm, 'op))
+    : opseq_prefix('tm, 'op) =>
+  switch (inner) {
+  | ExpPrefix(tm, op) =>
+    let seq = opseq_of_prefix_and_exp(outer, tm);
+    SeqPrefix(seq, op);
+  | SeqPrefix(seq, op) =>
+    let seq = opseq_of_prefix_and_seq(outer, seq);
+    SeqPrefix(seq, op);
+  };
+
+let concat_suffixes =
+    (inner: opseq_suffix('tm, 'op), outer: opseq_suffix('tm, 'op))
+    : opseq_suffix('tm, 'op) =>
+  switch (inner) {
+  | ExpSuffix(op, tm) =>
+    let seq = opseq_of_exp_and_suffix(tm, outer);
+    SeqSuffix(op, seq);
+  | SeqSuffix(op, seq) =>
+    let seq = opseq_of_seq_and_suffix(seq, outer);
+    SeqSuffix(op, seq);
+  };
+
+let nest_surrounds =
+    (inner: opseq_surround('tm, 'op), outer: opseq_surround('tm, 'op))
+    : opseq_surround('tm, 'op) =>
+  switch (inner) {
+  | EmptyPrefix(suffix) =>
+    switch (outer) {
+    | EmptySuffix(prefix) => BothNonEmpty(prefix, suffix)
+    | EmptyPrefix(outer_suffix) =>
+      EmptyPrefix(concat_suffixes(suffix, outer_suffix))
+    | BothNonEmpty(prefix, outer_suffix) =>
+      BothNonEmpty(prefix, concat_suffixes(suffix, outer_suffix))
+    }
+  | EmptySuffix(prefix) =>
+    switch (outer) {
+    | EmptyPrefix(suffix) => BothNonEmpty(prefix, suffix)
+    | EmptySuffix(outer_prefix) =>
+      EmptySuffix(concat_prefixes(outer_prefix, prefix))
+    | BothNonEmpty(outer_prefix, suffix) =>
+      BothNonEmpty(concat_prefixes(outer_prefix, prefix), suffix)
+    }
+  | BothNonEmpty(prefix, suffix) =>
+    switch (outer) {
+    | EmptyPrefix(outer_suffix) =>
+      BothNonEmpty(prefix, concat_suffixes(suffix, outer_suffix))
+    | EmptySuffix(outer_prefix) =>
+      BothNonEmpty(concat_prefixes(outer_prefix, prefix), suffix)
+    | BothNonEmpty(outer_prefix, outer_suffix) =>
+      BothNonEmpty(
+        concat_prefixes(outer_prefix, prefix),
+        concat_suffixes(suffix, outer_suffix),
+      )
+    }
+  };
