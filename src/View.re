@@ -44,15 +44,14 @@ let cls_from = (err_status: err_status, cls: PP.cls): list(PP.cls) =>
   | NotInHole => [cls]
   };
 
-let before_child_cls = (before_child_index: int): PP.cls =>
-  "before-child-" ++ string_of_int(before_child_index);
-let closing_delimiter_cls: PP.cls = "closing-delimiter";
-let before_child_skel_cls = (before_child_index: int): PP.cls =>
-  "before-child-" ++ string_of_int(before_child_index) ++ "-skel";
+let delimiter_cls = (delimiter_index: int): PP.cls =>
+  "delimiter-" ++ string_of_int(delimiter_index);
+let operator_cls = (operator_index: int): PP.cls =>
+  "operator-" ++ string_of_int(operator_index);
 
 let forceGetSkelElement = (id, op_index) => {
   let doc = Js_of_ocaml.Dom_html.document;
-  let cls = before_child_skel_cls(op_index);
+  let cls = operator_cls(op_index);
   Js_of_ocaml.Js.Opt.get(
     doc##querySelector(Js_of_ocaml.Js.string("#" ++ id ++ "." ++ cls)),
     () => {
@@ -62,10 +61,9 @@ let forceGetSkelElement = (id, op_index) => {
   );
 };
 
-let before_child_cls_regexp =
-  Js_of_ocaml.Regexp.regexp("before-child-(\\d+)");
-let before_child_index_of_cls = (cls: PP.cls): option(int) =>
-  switch (Js_of_ocaml.Regexp.string_match(before_child_cls_regexp, cls, 0)) {
+let delimiter_cls_regexp = Js_of_ocaml.Regexp.regexp("delimiter-(\\d+)");
+let delimiter_index_of_cls = (cls: PP.cls): option(int) =>
+  switch (Js_of_ocaml.Regexp.string_match(delimiter_cls_regexp, cls, 0)) {
   | None => None
   | Some(result) =>
     switch (Js_of_ocaml.Regexp.matched_group(result, 1)) {
@@ -73,12 +71,9 @@ let before_child_index_of_cls = (cls: PP.cls): option(int) =>
     | Some(s) => Some(int_of_string(s))
     }
   };
-let before_child_skel_cls_regexp =
-  Js_of_ocaml.Regexp.regexp("before-child-(\\d+)-skel");
-let before_child_index_of_skel_cls = (cls: PP.cls): option(int) =>
-  switch (
-    Js_of_ocaml.Regexp.string_match(before_child_skel_cls_regexp, cls, 0)
-  ) {
+let operator_cls_regexp = Js_of_ocaml.Regexp.regexp("operator-(\\d+)");
+let operator_index_of_cls = (cls: PP.cls): option(int) =>
+  switch (Js_of_ocaml.Regexp.string_match(operator_cls_regexp, cls, 0)) {
   | None => None
   | Some(result) =>
     switch (Js_of_ocaml.Regexp.matched_group(result, 1)) {
@@ -160,8 +155,8 @@ let of_Parenthesized =
       r1: PP.doc,
     )
     : PP.doc => {
-  let lp = lparen(~classes=[before_child_cls(0)], "(");
-  let rp = rparen(~classes=[closing_delimiter_cls], ")");
+  let lp = lparen(~classes=[delimiter_cls(0)], "(");
+  let rp = rparen(~classes=[delimiter_cls(1)], ")");
   let view =
     if (is_multi_line) {
       PP.blockBoundary
@@ -189,7 +184,7 @@ let of_op =
   let op_index_classes =
     switch (op_index) {
     | None => []
-    | Some(k) => [before_child_cls(k)]
+    | Some(k) => [operator_cls(k)]
     };
   if (is_space) {
     taggedText(["space", ...op_index_classes], " ");
@@ -302,7 +297,7 @@ let of_uty_BinOp =
     prefix,
     err_status,
     rev_path,
-    [string_of_ty_op(op), "skel-binop", before_child_skel_cls(op_index)],
+    [string_of_ty_op(op), "skel-binop", operator_cls(op_index)],
     r1 ^^ of_ty_op(~op_index, op) ^^ r2,
   );
 let of_List = (prefix: string, rev_path: Path.steps, r1: PP.doc): PP.doc =>
@@ -311,12 +306,12 @@ let of_List = (prefix: string, rev_path: Path.steps, r1: PP.doc): PP.doc =>
     NotInHole,
     rev_path,
     ["List"],
-    kw(~classes=[before_child_cls(0)], "List")
-    ^^ lparen(~classes=[before_child_cls(0)], "(")
+    kw(~classes=[delimiter_cls(0)], "List")
+    ^^ lparen(~classes=[delimiter_cls(0)], "(")
     ^^ smallSpace
     ^^ r1
     ^^ smallSpace
-    ^^ rparen(~classes=[closing_delimiter_cls], ")"),
+    ^^ rparen(~classes=[delimiter_cls(1)], ")"),
   );
 let rec of_htype =
         (parenthesize: bool, prefix: string, rev_path: Path.steps, ty: HTyp.t)
@@ -471,7 +466,7 @@ let of_LetLine =
     : PP.doc => {
   let first_part =
     PP.blockBoundary
-    ^^ kw(~classes=[before_child_cls(0)], "let")
+    ^^ kw(~classes=[delimiter_cls(0)], "let")
     ^^ space
     ^^ rx;
   let second_part =
@@ -479,7 +474,7 @@ let of_LetLine =
       ~prefix=optionalBreakSp,
       ~suffix=optionalBreakSp,
       "=",
-      ["let-equals", before_child_cls(2)],
+      ["let-equals", delimiter_cls(2)],
     )
     ^^ PP.nestAbsolute(2, r1);
   let view =
@@ -490,7 +485,7 @@ let of_LetLine =
            ~prefix=optionalBreakSp,
            ~suffix=optionalBreakSp,
            ":",
-           ["ann", before_child_cls(1)],
+           ["ann", delimiter_cls(1)],
          )
       ^^ r
       ^^ second_part
@@ -535,7 +530,7 @@ let of_Let =
     : PP.doc => {
   let first_part =
     PP.blockBoundary
-    ^^ kw(~classes=[before_child_cls(0)], "let")
+    ^^ kw(~classes=[delimiter_cls(0)], "let")
     ^^ space
     ^^ rx;
   let second_part =
@@ -543,7 +538,7 @@ let of_Let =
       ~prefix=optionalBreakSp,
       ~suffix=optionalBreakSp,
       "=",
-      ["let-equals", before_child_cls(2)],
+      ["let-equals", delimiter_cls(2)],
     )
     ^^ PP.nestAbsolute(2, r1)
     ^^ PP.mandatoryBreak
@@ -556,7 +551,7 @@ let of_Let =
            ~prefix=optionalBreakSp,
            ~suffix=optionalBreakSp,
            ":",
-           ["ann", before_child_cls(1)],
+           ["ann", delimiter_cls(1)],
          )
       ^^ r
       ^^ second_part
@@ -597,19 +592,19 @@ let of_Lam =
     )
     : PP.doc => {
   let first_part =
-    taggedText(["lambda-sym", before_child_cls(0)], LangUtil.lamSym)
+    taggedText(["lambda-sym", delimiter_cls(0)], LangUtil.lamSym)
     ^^ smallSpace
     ^^ rx;
   let second_part =
     smallSpace
-    ^^ taggedText(["lambda-dot", before_child_cls(2)], ".")
+    ^^ taggedText(["lambda-dot", delimiter_cls(2)], ".")
     ^^ smallSpace
     ^^ r1;
   let view =
     switch (rann) {
     | Some(r) =>
       first_part
-      ^^ of_op(":", ["ann", before_child_cls(1)])
+      ^^ of_op(":", ["ann", delimiter_cls(1)])
       ^^ r
       ^^ second_part
     | None => first_part ^^ second_part
@@ -661,15 +656,15 @@ let of_Inj =
     err_status,
     rev_path,
     ["Inj"],
-    kw(~classes=[before_child_cls(0)], "inj")
-    ^^ lparen(~classes=[before_child_cls(0)], "[")
-    ^^ kw(~classes=[before_child_cls(0)], LangUtil.string_of_side(side))
-    ^^ rparen(~classes=[before_child_cls(0)], "]")
-    ^^ lparen(~classes=[before_child_cls(0)], "(")
+    kw(~classes=[delimiter_cls(0)], "inj")
+    ^^ lparen(~classes=[delimiter_cls(0)], "[")
+    ^^ kw(~classes=[delimiter_cls(0)], LangUtil.string_of_side(side))
+    ^^ rparen(~classes=[delimiter_cls(0)], "]")
+    ^^ lparen(~classes=[delimiter_cls(0)], "(")
     ^^ smallSpace
     ^^ r
     ^^ smallSpace
-    ^^ rparen(~classes=[closing_delimiter_cls], ")"),
+    ^^ rparen(~classes=[delimiter_cls(1)], ")"),
   );
 
 let of_InjAnn =
@@ -707,14 +702,14 @@ let of_rule =
       ~prefix=PP.empty,
       ~suffix=optionalBreakSp,
       "|",
-      ["rule-bar", before_child_cls(0)],
+      ["rule-bar", delimiter_cls(0)],
     )
     ^^ rp
     ^^ of_op(
          ~prefix=optionalBreakSp,
          ~suffix=optionalBreakSp,
          LangUtil.caseArrowSym,
-         ["rule-arrow", before_child_cls(1)],
+         ["rule-arrow", delimiter_cls(1)],
        )
     ^^ PP.nestAbsolute(2, rc);
   rule(prefix, rev_path, "Case-rule", view);
@@ -730,7 +725,6 @@ let of_Case =
       rann: option(PP.doc),
     )
     : PP.doc => {
-  let num_rules = List.length(rpcs);
   let rrules =
     fold_left_i(
       (rrs: PP.doc, (i: int, (rp: PP.doc, rc: PP.doc))) => {
@@ -743,15 +737,15 @@ let of_Case =
     );
   let view_end =
     switch (rann) {
-    | None => kw(~classes=[closing_delimiter_cls], "end")
+    | None => kw(~classes=[delimiter_cls(1)], "end")
     | Some(r) =>
-      kw(~classes=[before_child_cls(num_rules + 1)], "end")
-      ^^ of_op(" : ", ["ann", before_child_cls(num_rules + 1)])
+      kw(~classes=[delimiter_cls(1)], "end")
+      ^^ of_op(" : ", ["ann", delimiter_cls(1)])
       ^^ r
     };
   let view =
     PP.blockBoundary
-    ^^ kw(~classes=[before_child_cls(0)], "case")
+    ^^ kw(~classes=[delimiter_cls(0)], "case")
     ^^ space
     ^^ r1
     ^^ PP.mandatoryBreak
@@ -879,13 +873,9 @@ let of_pat_op = (op_index: int, op: UHPat.op): PP.doc => {
   let op_cls = "op-" ++ string_of_pat_op(op);
   switch (op) {
   | Comma =>
-    of_op(
-      ~suffix=optionalBreakSp,
-      ",",
-      [op_cls, before_child_cls(op_index)],
-    )
-  | Space => of_op(" ", [op_cls, before_child_cls(op_index)])
-  | Cons => of_op("::", [op_cls, before_child_cls(op_index)])
+    of_op(~suffix=optionalBreakSp, ",", [op_cls, delimiter_cls(op_index)])
+  | Space => of_op(" ", [op_cls, delimiter_cls(op_index)])
+  | Cons => of_op("::", [op_cls, delimiter_cls(op_index)])
   };
 };
 
@@ -904,7 +894,7 @@ let of_pat_BinOp =
     prefix,
     err_status,
     rev_path,
-    [string_of_pat_op(op), "skel-binop", before_child_skel_cls(op_index)],
+    [string_of_pat_op(op), "skel-binop", operator_cls(op_index)],
     r1 ^^ of_pat_op(op_index, op) ^^ r2,
   );
 
@@ -1056,7 +1046,7 @@ let of_uhexp_BinOp =
     prefix,
     err_status,
     rev_path,
-    [string_of_exp_op(op), "skel-binop", before_child_skel_cls(op_index)],
+    [string_of_exp_op(op), "skel-binop", operator_cls(op_index)],
     r1 ^^ of_exp_op(~op_index, op) ^^ r2,
   );
 
@@ -1076,7 +1066,7 @@ let of_Times_with_space =
     prefix,
     err_status,
     rev_path,
-    [string_of_exp_op(op), "skel-binop", before_child_skel_cls(op_index)],
+    [string_of_exp_op(op), "skel-binop", operator_cls(op_index)],
     r1 ^^ of_op(~op_index, "*", ["op-Times"]) ^^ r2,
   );
 

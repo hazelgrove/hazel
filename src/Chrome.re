@@ -80,7 +80,7 @@ let view = (model: Model.t) => {
           let classList = descendant_elem##.classList;
           for (j in 0 to classList##.length - 1) {
             let cls = Js.Optdef.get(classList##item(j), () => assert(false));
-            switch (View.before_child_index_of_cls(Js.to_string(cls))) {
+            switch (View.operator_index_of_cls(Js.to_string(cls))) {
             | None => ()
             | Some(k') =>
               if (k === k') {
@@ -107,7 +107,7 @@ let view = (model: Model.t) => {
           let classList = child_elem##.classList;
           for (j in 0 to classList##.length - 1) {
             let cls = Js.Optdef.get(classList##item(j), () => assert(false));
-            switch (View.before_child_index_of_cls(Js.to_string(cls))) {
+            switch (View.delimiter_index_of_cls(Js.to_string(cls))) {
             | None => ()
             | Some(k') =>
               if (k === k') {
@@ -478,6 +478,10 @@ let view = (model: Model.t) => {
         inner_cursor(0, Before);
       } else if (anchor_has_class("space")) {
         inner_cursor(0, After);
+      } else if (anchor_has_text("end")) {
+        inner_cursor(1, anchorOffset === 0 ? Before : After);
+      } else if (anchor_has_class("ann")) {
+        inner_cursor(1, anchorOffset === 0 ? Before : After);
       } else {
         /* TODO fix once cursor is redesigned */
         inner_cursor(0, Before);
@@ -502,7 +506,7 @@ let view = (model: Model.t) => {
       switch (
         JSUtil.has_class_satisfying(
           ast_elem##.classList,
-          View.before_child_index_of_skel_cls,
+          View.operator_index_of_cls,
         )
       ) {
       | None => raise(SkelWithoutIndex(ast_elem))
