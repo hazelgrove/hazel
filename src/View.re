@@ -19,15 +19,33 @@ let paletteName = s => taggedText(["paletteName"], s);
 let space = taggedText(["space"], " ");
 let smallSpace = taggedText(["small-space"], " ");
 
-let kw = (~classes=[], s) =>
+let delimiter_cls = (delimiter_index: int): PP.cls =>
+  "delimiter-" ++ string_of_int(delimiter_index);
+let operator_cls = (operator_index: int): PP.cls =>
+  "operator-" ++ string_of_int(operator_index);
+let delim_endpoint_cls = (delimiter_index: int): PP.cls =>
+  "delim-endpoint-" ++ string_of_int(delimiter_index);
+
+let kw = (~classes=[], ~delimiter_index=?, s) => {
+  let classes =
+    switch (delimiter_index) {
+    | None => classes
+    | Some(k) => [delimiter_cls(k), ...classes]
+    };
+  let endpoint_classes =
+    switch (delimiter_index) {
+    | None => []
+    | Some(k) => [delim_endpoint_cls(k)]
+    };
   PP.tagged(
     classes,
     None,
     None,
-    taggedText(["delim-before"], "​​")
+    taggedText(["delim-before"] @ endpoint_classes, "​​")
     ^^ taggedText(["kw"], s)
-    ^^ taggedText(["delim-after"], "​​"),
+    ^^ taggedText(["delim-after"] @ endpoint_classes, "​​"),
   );
+};
 
 /* Helpers */
 let rec id_of_rev_path = (prefix: string, rev_path: Path.steps): PP.id =>
@@ -52,11 +70,6 @@ let cls_from = (err_status: err_status, cls: PP.cls): list(PP.cls) =>
   | InHole(_, u) => ["in_err_hole", "in_err_hole_" ++ string_of_int(u), cls]
   | NotInHole => [cls]
   };
-
-let delimiter_cls = (delimiter_index: int): PP.cls =>
-  "delimiter-" ++ string_of_int(delimiter_index);
-let operator_cls = (operator_index: int): PP.cls =>
-  "operator-" ++ string_of_int(operator_index);
 
 let forceGetSkelElement = (id, op_index) => {
   let doc = Js_of_ocaml.Dom_html.document;
@@ -164,8 +177,8 @@ let of_Parenthesized =
       r1: PP.doc,
     )
     : PP.doc => {
-  let lp = lparen(~classes=[delimiter_cls(0)], "(");
-  let rp = rparen(~classes=[delimiter_cls(1)], ")");
+  let lp = kw(~delimiter_index=0, "(");
+  let rp = kw(~delimiter_index=1, ")");
   let view =
     if (is_multi_line) {
       PP.blockBoundary
@@ -315,11 +328,11 @@ let of_List = (prefix: string, rev_path: Path.steps, r1: PP.doc): PP.doc =>
     NotInHole,
     rev_path,
     ["List"],
-    kw(~classes=[delimiter_cls(0)], "List(")
+    kw(~delimiter_index=0, "List(")
     ^^ smallSpace
     ^^ r1
     ^^ smallSpace
-    ^^ kw(~classes=[delimiter_cls(1)], ")"),
+    ^^ kw(~delimiter_index=1, ")"),
   );
 let rec of_htype =
         (parenthesize: bool, prefix: string, rev_path: Path.steps, ty: HTyp.t)
@@ -473,10 +486,7 @@ let of_LetLine =
     )
     : PP.doc => {
   let first_part =
-    PP.blockBoundary
-    ^^ kw(~classes=[delimiter_cls(0)], "let")
-    ^^ space
-    ^^ rx;
+    PP.blockBoundary ^^ kw(~delimiter_index=0, "let") ^^ space ^^ rx;
   let second_part =
     of_op(
       ~prefix=optionalBreakSp,
@@ -537,10 +547,7 @@ let of_Let =
     )
     : PP.doc => {
   let first_part =
-    PP.blockBoundary
-    ^^ kw(~classes=[delimiter_cls(0)], "let")
-    ^^ space
-    ^^ rx;
+    PP.blockBoundary ^^ kw(~delimiter_index=0, "let") ^^ space ^^ rx;
   let second_part =
     of_op(
       ~prefix=optionalBreakSp,
@@ -664,11 +671,7 @@ let of_Inj =
     err_status,
     rev_path,
     ["Inj"],
-    kw(~classes=[delimiter_cls(0)], "inj")
-    ^^ lparen(~classes=[delimiter_cls(0)], "[")
-    ^^ kw(~classes=[delimiter_cls(0)], LangUtil.string_of_side(side))
-    ^^ rparen(~classes=[delimiter_cls(0)], "]")
-    ^^ lparen(~classes=[delimiter_cls(0)], "(")
+    kw(~delimiter_index=0, "inj[" ++ LangUtil.string_of_side(side) ++ "](")
     ^^ smallSpace
     ^^ r
     ^^ smallSpace
@@ -745,15 +748,12 @@ let of_Case =
     );
   let view_end =
     switch (rann) {
-    | None => kw(~classes=[delimiter_cls(1)], "end")
-    | Some(r) =>
-      kw(~classes=[delimiter_cls(1)], "end")
-      ^^ of_op(" : ", ["ann", delimiter_cls(1)])
-      ^^ r
+    | None => kw(~delimiter_index=1, "end")
+    | Some(r) => kw(~delimiter_index=1, "end :") ^^ space ^^ r
     };
   let view =
     PP.blockBoundary
-    ^^ kw(~classes=[delimiter_cls(0)], "case")
+    ^^ kw(~delimiter_index=0, "case")
     ^^ space
     ^^ r1
     ^^ PP.mandatoryBreak

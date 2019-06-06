@@ -497,20 +497,20 @@ let view = (model: Model.t) => {
     let anchor_has_text =
       String.equal(Js.to_string(anchor_elem##.innerHTML));
     if (ast_has_class("Parenthesized")) {
-      if (anchor_has_class("lparen")) {
-        inner_cursor(0, anchorOffset === 0 ? Before : After);
-      } else if (anchor_has_class("rparen")) {
-        inner_cursor(1, anchorOffset === 0 ? Before : After);
+      if (anchor_has_class(View.delim_endpoint_cls(0))) {
+        inner_cursor(0, anchor_has_class("delim-before") ? Before : After);
+      } else if (anchor_has_class(View.delim_endpoint_cls(1))) {
+        inner_cursor(1, anchor_has_class("delim-before") ? Before : After);
       } else {
         inner_cursor(0, Before);
       };
     } else if (ast_has_class("LetLine")) {
-      if (anchor_has_text("let")) {
-        inner_cursor(0, anchorOffset === 0 ? Before : After);
-      } else if (anchor_has_class("ann")) {
-        inner_cursor(1, anchorOffset === 0 ? Before : After);
-      } else if (anchor_has_class("let-equals")) {
-        inner_cursor(2, anchorOffset === 0 ? Before : After);
+      if (anchor_has_class(View.delim_endpoint_cls(0))) {
+        inner_cursor(0, anchor_has_class("delim-before") ? Before : After);
+      } else if (anchor_has_class(View.delim_endpoint_cls(1))) {
+        inner_cursor(1, anchor_has_class("delim-before") ? Before : After);
+      } else if (anchor_has_class(View.delim_endpoint_cls(2))) {
+        inner_cursor(2, anchor_has_class("delim-before") ? Before : After);
       } else {
         inner_cursor(0, Before);
       };
@@ -526,12 +526,12 @@ let view = (model: Model.t) => {
                || ast_has_class("ApPalette")) {
       outer_cursor(anchorOffset);
     } else if (ast_has_class("Lam")) {
-      if (anchor_has_class("lambda-sym")) {
-        inner_cursor(0, anchorOffset === 0 ? Before : After);
-      } else if (anchor_has_class("ann")) {
-        inner_cursor(1, anchorOffset === 0 ? Before : After);
-      } else if (anchor_has_class("lambda-dot")) {
-        inner_cursor(2, anchorOffset === 0 ? Before : After);
+      if (anchor_has_class(View.delim_endpoint_cls(0))) {
+        inner_cursor(0, anchor_has_class("delim-before") ? Before : After);
+      } else if (anchor_has_class(View.delim_endpoint_cls(1))) {
+        inner_cursor(1, anchor_has_class("delim-before") ? Before : After);
+      } else if (anchor_has_class(View.delim_endpoint_cls(2))) {
+        inner_cursor(2, anchor_has_class("delim-before") ? Before : After);
       } else {
         inner_cursor(0, Before);
       };
@@ -544,36 +544,32 @@ let view = (model: Model.t) => {
                  || anchor_has_text("]")) {
         inner_cursor(0, After);
       } else if (anchor_has_text(")")) {
-        inner_cursor(1, anchorOffset === 0 ? Before : After);
+        inner_cursor(1, anchor_has_class("delim-before") ? Before : After);
       } else {
         inner_cursor(0, Before);
       };
     } else if (ast_has_class("List")) {
-      if (anchor_has_text("List(")) {
-        inner_cursor(0, anchorOffset === 0 ? Before : After);
-      } else if (anchor_has_text(")")) {
-        inner_cursor(1, anchorOffset === 0 ? Before : After);
+      if (anchor_has_class(View.delim_endpoint_cls(0))) {
+        inner_cursor(0, anchor_has_class("delim-before") ? Before : After);
+      } else if (anchor_has_class(View.delim_endpoint_cls(1))) {
+        inner_cursor(1, anchor_has_class("delim-before") ? Before : After);
       } else {
         inner_cursor(0, Before);
       };
     } else if (ast_has_class("Case")) {
-      if (anchor_has_text("case")) {
-        inner_cursor(0, anchorOffset === 0 ? Before : After);
-      } else if (anchor_has_class("space")) {
-        inner_cursor(0, After);
-      } else if (anchor_has_text("end")) {
-        inner_cursor(1, anchorOffset === 0 ? Before : After);
-      } else if (anchor_has_class("ann")) {
-        inner_cursor(1, anchorOffset === 0 ? Before : After);
+      if (anchor_has_class(View.delim_endpoint_cls(0))) {
+        inner_cursor(0, anchor_has_class("delim-before") ? Before : After);
+      } else if (anchor_has_class(View.delim_endpoint_cls(1))) {
+        inner_cursor(1, anchor_has_class("delim-before") ? Before : After);
       } else {
         /* TODO fix once cursor is redesigned */
         inner_cursor(0, Before);
       };
     } else if (ast_has_class("Case-rule")) {
-      if (anchor_has_class("rule-bar")) {
-        inner_cursor(0, anchorOffset === 0 ? Before : After);
-      } else if (anchor_has_class("rule-arrow")) {
-        inner_cursor(1, anchorOffset === 0 ? Before : After);
+      if (anchor_has_class(View.delim_endpoint_cls(0))) {
+        inner_cursor(0, anchor_has_class("delim-before") ? Before : After);
+      } else if (anchor_has_class(View.delim_endpoint_cls(1))) {
+        inner_cursor(1, anchor_has_class("delim-before") ? Before : After);
       } else {
         inner_cursor(0, Before);
       };
@@ -601,7 +597,8 @@ let view = (model: Model.t) => {
         )
       ) {
       | None => raise(SkelWithoutIndex(ast_elem))
-      | Some(k) => inner_cursor(k, anchorOffset === 0 ? Before : After)
+      | Some(k) =>
+        inner_cursor(k, anchor_has_class("delim-before") ? Before : After)
       };
     } else if (ast_has_class("EmptyLine")) {
       outer_cursor(0);
