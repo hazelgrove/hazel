@@ -11,7 +11,6 @@ open GeneralUtil;
 let (^^) = PP.(^^);
 let taggedText = (classes, s) => PP.text(classes, s);
 let dollar = taggedText(["dollar"], "$");
-let kw = (~classes=[], s) => taggedText(["kw", ...classes], s);
 let lparen = (~classes=[], s) => taggedText(["lparen", ...classes], s);
 let rparen = (~classes=[], s) => taggedText(["rparen", ...classes], s);
 let op = taggedText(["op"]);
@@ -19,6 +18,16 @@ let var = taggedText(["var"]);
 let paletteName = s => taggedText(["paletteName"], s);
 let space = taggedText(["space"], " ");
 let smallSpace = taggedText(["small-space"], " ");
+
+let kw = (~classes=[], s) =>
+  PP.tagged(
+    classes,
+    None,
+    None,
+    taggedText(["delim-before"], "​​")
+    ^^ taggedText(["kw"], s)
+    ^^ taggedText(["delim-after"], "​​"),
+  );
 
 /* Helpers */
 let rec id_of_rev_path = (prefix: string, rev_path: Path.steps): PP.id =>
@@ -238,7 +247,7 @@ let of_Hole =
     rev_path,
     classes,
     taggedText(["hole-before-1"], "​​")
-    ^^ taggedText(["hole-before-2"], "​")
+    /*^^ taggedText(["hole-before-2"], "​")*/
     ^^ taggedText(["holeName"], hole_name)
     ^^ taggedText(["hole-after-1"], "​")
     ^^ taggedText(["hole-after-2"], "​"),

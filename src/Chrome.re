@@ -271,22 +271,31 @@ let view = (model: Model.t) => {
     let selection = Dom_html.window##getSelection;
     /* JSUtil.log(selection); */
     let anchor = selection##.anchorNode;
-    let parent_elem =
+    let (
+      parent_elem: option(Js.t(Dom_html.element)),
+      parent_node: option(Js.t(Dom.node)),
+    ) =
       switch (anchor##.nodeType) {
       | Dom.TEXT =>
         switch (Js.Opt.to_option(anchor##.parentNode)) {
-        | None => None
-        | Some(parentNode) =>
-          Js.Opt.to_option(Dom_html.CoerceTo.element(parentNode))
+        | None => (None, None)
+        | Some(parentNode) => (
+            Js.Opt.to_option(Dom_html.CoerceTo.element(parentNode)),
+            Some(parentNode),
+          )
         }
-      | Dom.ELEMENT => Js.Opt.to_option(Dom_html.CoerceTo.element(anchor))
+      | Dom.ELEMENT => (
+          Js.Opt.to_option(Dom_html.CoerceTo.element(anchor)),
+          Some(anchor),
+        )
       | _ =>
         JSUtil.log("BAD ANCHOR");
-        None;
+        (None, None);
       };
-    switch (parent_elem) {
-    | None => false
-    | Some(parent_elem) =>
+    switch (parent_elem, parent_node) {
+    | (None, _) => false
+    | (_, None) => false
+    | (Some(parent_elem), Some(parent_node)) =>
       let classList = parent_elem##.classList;
       let has_class = has_class(classList);
       if (has_class("SIndentation")) {
@@ -314,6 +323,82 @@ let view = (model: Model.t) => {
               move_cursor_before_suppress(child);
             };
           }
+        };
+      } else if (has_class("kw")) {
+        switch (Js.Opt.to_option(parent_node##.firstChild)) {
+        | None => assert(false)
+        | Some(txt_node) =>
+          switch (Js.Opt.to_option(txt_node##.nodeValue)) {
+          | None => assert(false)
+          | Some(delim_txt) =>
+            let delim_len = String.length(Js.to_string(delim_txt));
+            let anchorOffset = selection##.anchorOffset;
+            if (anchorOffset <= delim_len / 2) {
+              switch (Js.Opt.to_option(parent_elem##.parentNode)) {
+              | None => false
+              | Some(grandparent) =>
+                switch (Js.Opt.to_option(grandparent##.firstChild)) {
+                | None => false
+                | Some(firstChild) => move_cursor_before_suppress(firstChild)
+                }
+              };
+            } else {
+              switch (Js.Opt.to_option(parent_elem##.parentNode)) {
+              | None => false
+              | Some(grandparent) =>
+                switch (Js.Opt.to_option(grandparent##.lastChild)) {
+                | None => false
+                | Some(lastChild) => move_cursor_after_suppress(lastChild)
+                }
+              };
+            };
+          }
+        };
+      } else if (has_class("delim-before")) {
+        let anchorOffset = selection##.anchorOffset;
+        if (anchorOffset == 1) {
+          switch (Js.Opt.to_option(parent_elem##.parentNode)) {
+          | None => false
+          | Some(grandparent) =>
+            switch (Js.Opt.to_option(grandparent##.lastChild)) {
+            | None => false
+            | Some(lastChild) => move_cursor_after_suppress(lastChild)
+            }
+          };
+        } else if (anchorOffset == 2) {
+          switch (Js.Opt.to_option(parent_elem##.parentNode)) {
+          | None => false
+          | Some(grandparent) =>
+            switch (Js.Opt.to_option(grandparent##.firstChild)) {
+            | None => false
+            | Some(firstChild) => move_cursor_before_suppress(firstChild)
+            }
+          };
+        } else {
+          false;
+        };
+      } else if (has_class("delim-after")) {
+        let anchorOffset = selection##.anchorOffset;
+        if (anchorOffset == 1) {
+          switch (Js.Opt.to_option(parent_elem##.parentNode)) {
+          | None => false
+          | Some(grandparent) =>
+            switch (Js.Opt.to_option(grandparent##.firstChild)) {
+            | None => false
+            | Some(firstChild) => move_cursor_before_suppress(firstChild)
+            }
+          };
+        } else if (anchorOffset == 0) {
+          switch (Js.Opt.to_option(parent_elem##.parentNode)) {
+          | None => false
+          | Some(grandparent) =>
+            switch (Js.Opt.to_option(grandparent##.lastChild)) {
+            | None => false
+            | Some(lastChild) => move_cursor_after_suppress(lastChild)
+            }
+          };
+        } else {
+          false;
         };
       } else if (has_class("hole-before-1")) {
         let anchorOffset = selection##.anchorOffset;
