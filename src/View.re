@@ -881,9 +881,9 @@ let of_pat_op = (op_index: int, op: UHPat.op): PP.doc => {
   let op_cls = "op-" ++ string_of_pat_op(op);
   switch (op) {
   | Comma =>
-    of_op(~suffix=optionalBreakSp, ",", [op_cls, delimiter_cls(op_index)])
-  | Space => of_op(" ", [op_cls, delimiter_cls(op_index)])
-  | Cons => of_op("::", [op_cls, delimiter_cls(op_index)])
+    of_op(~suffix=optionalBreakSp, ",", [op_cls, operator_cls(op_index)])
+  | Space => of_op(" ", [op_cls, operator_cls(op_index)])
+  | Cons => of_op("::", [op_cls, operator_cls(op_index)])
   };
 };
 
