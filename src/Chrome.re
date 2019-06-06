@@ -569,6 +569,14 @@ let view = (model: Model.t) => {
         /* TODO fix once cursor is redesigned */
         inner_cursor(0, Before);
       };
+    } else if (ast_has_class("Case-rule")) {
+      if (anchor_has_class("rule-bar")) {
+        inner_cursor(0, anchorOffset === 0 ? Before : After);
+      } else if (anchor_has_class("rule-arrow")) {
+        inner_cursor(1, anchorOffset === 0 ? Before : After);
+      } else {
+        inner_cursor(0, Before);
+      };
     } else if (ast_has_class("EmptyHole") || ast_has_class("Hole")) {
       if (anchor_has_class("hole-before-1")) {
         outer_cursor(0);
