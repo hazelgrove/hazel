@@ -549,18 +549,16 @@ let view = (model: Model.t) => {
         inner_cursor(0, Before);
       };
     } else if (ast_has_class("List")) {
-      if (anchor_has_text("List")) {
-        inner_cursor(0, Before);
-      } else if (anchor_has_class("lparen")) {
-        inner_cursor(0, After);
-      } else if (anchor_has_class("rparen")) {
+      if (anchor_has_text("List(")) {
+        inner_cursor(0, anchorOffset === 0 ? Before : After);
+      } else if (anchor_has_text(")")) {
         inner_cursor(1, anchorOffset === 0 ? Before : After);
       } else {
         inner_cursor(0, Before);
       };
     } else if (ast_has_class("Case")) {
       if (anchor_has_text("case")) {
-        inner_cursor(0, Before);
+        inner_cursor(0, anchorOffset === 0 ? Before : After);
       } else if (anchor_has_class("space")) {
         inner_cursor(0, After);
       } else if (anchor_has_text("end")) {

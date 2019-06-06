@@ -315,12 +315,11 @@ let of_List = (prefix: string, rev_path: Path.steps, r1: PP.doc): PP.doc =>
     NotInHole,
     rev_path,
     ["List"],
-    kw(~classes=[delimiter_cls(0)], "List")
-    ^^ lparen(~classes=[delimiter_cls(0)], "(")
+    kw(~classes=[delimiter_cls(0)], "List(")
     ^^ smallSpace
     ^^ r1
     ^^ smallSpace
-    ^^ rparen(~classes=[delimiter_cls(1)], ")"),
+    ^^ kw(~classes=[delimiter_cls(1)], ")"),
   );
 let rec of_htype =
         (parenthesize: bool, prefix: string, rev_path: Path.steps, ty: HTyp.t)
