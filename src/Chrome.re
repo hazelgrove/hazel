@@ -44,84 +44,20 @@ let view = (model: Model.t) => {
   let pp_view_parent =
     Html5.(div(~a=[a_id("pp_view"), a_class(["ModelExp"])], [pp_view]));
 
-  let first_leaf = node => {
-    let cur = ref(node);
-    let found = ref(false);
-    while (! found^) {
-      let cur_node = cur^;
-      switch (Js.Opt.to_option(cur_node##.firstChild)) {
-      | Some(firstChild) => cur := firstChild
-      | None => found := true
-      };
-    };
-    cur^;
-  };
-  let last_leaf = node => {
-    let cur = ref(node);
-    let found = ref(false);
-    while (! found^) {
-      let cur_node = cur^;
-      switch (Js.Opt.to_option(cur_node##.lastChild)) {
-      | Some(lastChild) => cur := lastChild
-      | None => found := true
-      };
-    };
-    cur^;
-  };
   let operator_node =
-      (k: int, node: Js.t(Dom.node)): option(Js.t(Dom_html.element)) => {
-    let operator_node = ref(None);
-    let descendants = JSUtil.descendant_nodes(node);
-    List.iter(
-      descendant =>
-        switch (Js.Opt.to_option(Dom_html.CoerceTo.element(descendant))) {
-        | None => ()
-        | Some(descendant_elem) =>
-          let classList = descendant_elem##.classList;
-          for (j in 0 to classList##.length - 1) {
-            let cls = Js.Optdef.get(classList##item(j), () => assert(false));
-            switch (View.operator_index_of_cls(Js.to_string(cls))) {
-            | None => ()
-            | Some(k') =>
-              if (k === k') {
-                operator_node := Some(descendant_elem);
-              } else {
-                ();
-              }
-            };
-          };
-        },
-      descendants,
+      (k: int, node: Js.t(Dom.node)): option(Js.t(Dom.node)) =>
+    JSUtil.get_descendant_node_satisfying(
+      descendant => JSUtil.node_has_cls(descendant, View.operator_cls(k)),
+      node,
     );
-    operator_node^;
-  };
+
   let delimiter_node =
-      (k: int, node: Js.t(Dom.node)): option(Js.t(Dom_html.element)) => {
-    let delimiter_node = ref(None);
-    let children = node##.childNodes;
-    for (i in 0 to children##.length - 1) {
-      Js.Opt.iter(children##item(i), child =>
-        switch (Js.Opt.to_option(Dom_html.CoerceTo.element(child))) {
-        | None => ()
-        | Some(child_elem) =>
-          let classList = child_elem##.classList;
-          for (j in 0 to classList##.length - 1) {
-            let cls = Js.Optdef.get(classList##item(j), () => assert(false));
-            switch (View.delimiter_index_of_cls(Js.to_string(cls))) {
-            | None => ()
-            | Some(k') =>
-              if (k === k') {
-                delimiter_node := Some(child_elem);
-              } else {
-                ();
-              }
-            };
-          };
-        }
-      );
-    };
-    delimiter_node^;
-  };
+      (k: int, node: Js.t(Dom.node)): option(Js.t(Dom.node)) =>
+    JSUtil.get_child_node_satisfying(
+      child => JSUtil.node_has_cls(child, View.delimiter_cls(k)),
+      node,
+    );
+
   let node_length = node => {
     let text_node = Js.Opt.get(Dom.CoerceTo.text(node), () => assert(false));
     text_node##.length;
@@ -136,7 +72,8 @@ let view = (model: Model.t) => {
     selection##addRange(range);
   };
   /* Moves cursor to start of first descendant text node within the given node. */
-  let move_cursor_before = node => move_cursor_start(first_leaf(node));
+  let move_cursor_before = node =>
+    move_cursor_start(JSUtil.first_leaf(node));
   /* Assumes given node is a text node */
   let move_cursor_end = node => {
     let selection = Dom_html.window##getSelection;
@@ -148,9 +85,9 @@ let view = (model: Model.t) => {
     selection##addRange(range);
   };
   /* Moves cursor to end of last descendant text node within the given node. */
-  let move_cursor_after = node => move_cursor_end(last_leaf(node));
+  let move_cursor_after = node => move_cursor_end(JSUtil.last_leaf(node));
   let move_cursor_to = (node, offset) => {
-    let cursor_leaf = first_leaf(node);
+    let cursor_leaf = JSUtil.first_leaf(node);
     let selection = Dom_html.window##getSelection;
     let range = Dom_html.document##createRange;
     range##setStart(cursor_leaf, offset);
@@ -176,10 +113,8 @@ let view = (model: Model.t) => {
     | None => ()
     | Some(node) =>
       switch (side) {
-      | Before =>
-        move_cursor_before((node: Js.t(Dom_html.element) :> Js.t(Dom.node)))
-      | After =>
-        move_cursor_after((node: Js.t(Dom_html.element) :> Js.t(Dom.node)))
+      | Before => move_cursor_before(node)
+      | After => move_cursor_after(node)
       }
     };
   };
@@ -190,20 +125,40 @@ let view = (model: Model.t) => {
       Js.Unsafe.coerce(cursor_elem): Js.t(Dom.node)
     );
     switch (node_type, cursor_pos) {
-    | (Outer, (offset, _)) => move_cursor_to(cursor_node, offset)
+    | (Outer, (offset, _)) =>
+      // If the cursor node is a keyword, then calling move_cursor_to
+      // directly on it always moves the cursor the nondisplay character
+      // cushion on the left side of it, which may not always be what we
+      // want. Instead, call move_cursor_to on the underlying keyword
+      // text and let do_transport figure out correct side of keyword to
+      // place cursor.
+      switch (
+        JSUtil.get_child_node_satisfying(
+          child => JSUtil.node_has_cls(child, View.kw_cls),
+          cursor_node,
+        )
+      ) {
+      | None => move_cursor_to(cursor_node, offset)
+      | Some(kw_node) =>
+        switch (
+          JSUtil.get_child_node_satisfying(
+            child => JSUtil.node_has_cls(child, "kw-txt"),
+            kw_node,
+          )
+        ) {
+        | None =>
+          JSUtil.log("Could not find expected kw-txt");
+          ();
+        | Some(kw_txt_node) => move_cursor_to(kw_txt_node, offset)
+        }
+      }
     | (Inner, (k, side)) =>
       switch (delimiter_node(k, cursor_node)) {
       | None => ()
       | Some(node) =>
         switch (side) {
-        | Before =>
-          move_cursor_before(
-            (node: Js.t(Dom_html.element) :> Js.t(Dom.node)),
-          )
-        | After =>
-          move_cursor_after(
-            (node: Js.t(Dom_html.element) :> Js.t(Dom.node)),
-          )
+        | Before => move_cursor_before(node)
+        | After => move_cursor_after(node)
         }
       }
     };
@@ -324,7 +279,7 @@ let view = (model: Model.t) => {
             };
           }
         };
-      } else if (has_class("kw")) {
+      } else if (has_class("kw-txt")) {
         switch (Js.Opt.to_option(parent_node##.firstChild)) {
         | None => assert(false)
         | Some(txt_node) =>
@@ -514,14 +469,17 @@ let view = (model: Model.t) => {
       } else {
         inner_cursor(0, Before);
       };
+    } else if (ast_has_class("ListNil")) {
+      outer_cursor(anchor_has_class("delim-before") ? 0 : 2);
+    } else if (ast_has_class("Num")) {
+      outer_cursor(anchor_has_class("delim-before") ? 0 : 3);
+    } else if (ast_has_class("Bool")) {
+      outer_cursor(anchor_has_class("delim-before") ? 0 : 4);
     } else if (ast_has_class("Var")
                || ast_has_class("var_binding")
                || ast_has_class("Wild")
-               || ast_has_class("ListNil")
                || ast_has_class("NumLit")
                || ast_has_class("BoolLit")
-               || ast_has_class("Num")
-               || ast_has_class("Bool")
                || ast_has_class("number")
                || ast_has_class("ApPalette")) {
       outer_cursor(anchorOffset);

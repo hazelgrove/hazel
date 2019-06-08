@@ -11,47 +11,87 @@ let log = x => Js_of_ocaml.Firebug.console##log(x);
 
 let log_sexp = (sexp: Sexplib.Sexp.t) => log(U.string_of_sexp(sexp));
 
-/*
- module NodeSet =
-   Set.Make({
-     let compare = (_, _) => 0;
-     type t = Js.t(Dom.node);
-   });
- let rec add_descendant_nodes =
-         (node: Js.t(Dom.node), descendants: ref(NodeSet.t)) => {
-   let children = node##.childNodes;
-   for (i in 0 to children##.length - 1) {
-     let child = Js.Opt.get(children##item(i), () => assert(false));
-     descendants := NodeSet.add(child, descendants^);
-     add_descendant_nodes(child, descendants);
-   };
- };
- let descendant_nodes = (node: Js.t(Dom.node)): list(Js.t(Dom.node)) => {
-   let descendants = ref(NodeSet.empty);
-   add_descendant_nodes(node, descendants);
-   NodeSet.elements(descendants^);
- };
- */
-let rec descendant_nodes = (node: Js.t(Dom.node)): list(Js.t(Dom.node)) => {
-  let children = node##.childNodes;
+let get_child_nodes = (root: Js.t(Dom.node)): list(Js.t(Dom.node)) =>
+  Dom.list_of_nodeList(root##.childNodes);
+
+let rec get_descendant_nodes = (root: Js.t(Dom.node)): list(Js.t(Dom.node)) => {
+  let children = root##.childNodes;
   let descendants = ref([]);
   for (i in children##.length - 1 downto 0) {
     let child = Js.Opt.get(children##item(i), () => assert(false));
-    descendants := [[child], descendant_nodes(child), ...descendants^];
+    descendants := [[child], get_descendant_nodes(child), ...descendants^];
   };
   List.flatten(descendants^);
 };
 
-let forceGetElementById = id => {
-  let doc = Dom_html.document;
-  Js.Opt.get(
-    doc##getElementById(Js.string(id)),
-    () => {
-      log(id);
-      assert(false);
-    },
+let get_child_node_satisfying =
+    (predicate: Js.t(Dom.node) => bool, root: Js.t(Dom.node))
+    : option(Js.t(Dom.node)) =>
+  List.fold_left(
+    (found, child) =>
+      switch (found) {
+      | Some(_) => found
+      | None => predicate(child) ? Some(child) : None
+      },
+    None,
+    get_child_nodes(root),
   );
+
+let get_descendant_node_satisfying =
+    (predicate: Js.t(Dom.node) => bool, root: Js.t(Dom.node))
+    : option(Js.t(Dom.node)) =>
+  List.fold_left(
+    (found, descendant) =>
+      switch (found) {
+      | Some(_) => found
+      | None => predicate(descendant) ? Some(descendant) : None
+      },
+    None,
+    get_descendant_nodes(root),
+  );
+
+let first_leaf = (node: Js.t(Dom.node)): Js.t(Dom.node) => {
+  let cur = ref(node);
+  let found = ref(false);
+  while (! found^) {
+    let cur_node = cur^;
+    switch (Js.Opt.to_option(cur_node##.firstChild)) {
+    | Some(firstChild) => cur := firstChild
+    | None => found := true
+    };
+  };
+  cur^;
 };
+
+let last_leaf = (node: Js.t(Dom.node)): Js.t(Dom.node) => {
+  let cur = ref(node);
+  let found = ref(false);
+  while (! found^) {
+    let cur_node = cur^;
+    switch (Js.Opt.to_option(cur_node##.lastChild)) {
+    | Some(lastChild) => cur := lastChild
+    | None => found := true
+    };
+  };
+  cur^;
+};
+
+let elem_has_cls = (elem: Js.t(Dom_html.element), cls: PP.cls): bool => {
+  let found = ref(false);
+  let classList = elem##.classList;
+  for (j in 0 to classList##.length - 1) {
+    let cls_j =
+      Js.(to_string(Optdef.get(classList##item(j), () => assert(false))));
+    cls_j == cls ? found := true : ();
+  };
+  found^;
+};
+
+let node_has_cls = (node: Js.t(Dom.node), cls: PP.cls): bool =>
+  switch (Js.Opt.to_option(Dom_html.CoerceTo.element(node))) {
+  | None => false
+  | Some(elem) => elem_has_cls(elem, cls)
+  };
 
 let listen_to = (ev, elem, f) =>
   Dom_html.addEventListener(elem, ev, Dom_html.handler(f), Js._false);
@@ -64,6 +104,17 @@ let listen_to_t = (ev, elem, f) =>
       Js._true;
     },
   );
+
+let forceGetElementById = id => {
+  let doc = Dom_html.document;
+  Js.Opt.get(
+    doc##getElementById(Js.string(id)),
+    () => {
+      log(id);
+      assert(false);
+    },
+  );
+};
 
 let r_input = (id, placeholder_str) => {
   let (rs, rf) = S.create("");

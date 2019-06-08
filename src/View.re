@@ -26,6 +26,7 @@ let operator_cls = (operator_index: int): PP.cls =>
 let delim_endpoint_cls = (delimiter_index: int): PP.cls =>
   "delim-endpoint-" ++ string_of_int(delimiter_index);
 
+let kw_cls: PP.cls = "kw";
 let kw = (~classes=[], ~delimiter_index=?, s) => {
   let classes =
     switch (delimiter_index) {
@@ -38,11 +39,11 @@ let kw = (~classes=[], ~delimiter_index=?, s) => {
     | Some(k) => [delim_endpoint_cls(k)]
     };
   PP.tagged(
-    classes,
+    [kw_cls, ...classes],
     None,
     None,
     taggedText(["delim-before"] @ endpoint_classes, "​​")
-    ^^ taggedText(["kw"], s)
+    ^^ taggedText(["kw-txt"], s)
     ^^ taggedText(["delim-after"] @ endpoint_classes, "​​"),
   );
 };
