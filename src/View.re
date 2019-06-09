@@ -1188,6 +1188,18 @@ let _of_BoolLit =
     )
   );
 
+let _of_ListNil =
+    (prefix: string, err_status: err_status, rev_path: Path.steps) =>
+  Html5.(
+    div(
+      ~a=[
+        a_id(node_id(prefix, rev_path)),
+        a_class(node_clss(~err_status, ["ListNil"])),
+      ],
+      [delim("[]")],
+    )
+  );
+
 let rec of_block =
         (
           palette_stuff: palette_stuff,
@@ -1262,6 +1274,7 @@ and of_exp =
     _of_Var(prefix, err_status, var_err_status, rev_path, x)
   | NumLit(err_status, n) => _of_NumLit(prefix, err_status, rev_path, n)
   | BoolLit(err_status, b) => _of_BoolLit(prefix, err_status, rev_path, b)
+  | ListNil(err_status) => _of_ListNil(prefix, err_status, rev_path)
   | _ =>
     Html5.(div(~a=[a_class(["unimplemented"])], [txt("unimplemented")]))
   };
