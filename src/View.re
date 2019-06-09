@@ -4,6 +4,7 @@ let _SHOW_FN_BODIES = false;
 /* Imports */
 exception InvariantViolated;
 module PP = Pretty.PP;
+open Tyxml_js;
 open SemanticsCommon;
 open GeneralUtil;
 
@@ -1084,6 +1085,158 @@ let prepare_Parenthesized_block =
   UHExp.get_err_status_block(block),
   UHExp.set_err_status_block(NotInHole, block),
 );
+
+let tm_clss = (~err_status=NotInHole, clss: list(string)): list(string) =>
+  switch (err_status) {
+  | NotInHole => clss
+  | InHole(_, u) => [
+      "in_err_hole",
+      "in_err_hole_" ++ string_of_int(u),
+      ...clss,
+    ]
+  };
+
+/* TODO cache */
+let tm_id = (prefix: string, rev_path: Path.steps): string =>
+  id_of_rev_path(prefix, rev_path);
+
+let of_delim = (~clss: list(string)=[], ~delim_index=?, s: string) => {
+  let clss =
+    switch (delim_index) {
+    | None => clss
+    | Some(k) => [delimiter_cls(k), ...clss]
+    };
+  Html5.(
+    div(
+      ~a=[a_class(["delim", ...clss])],
+      [
+        span(~a=[a_class(["delim-before"])], [txt("​​")]),
+        span(~a=[a_class(["kw-txt"])], [txt(s)]),
+        span(~a=[a_class(["delim-after"])], [txt("​​")]),
+      ],
+    )
+  );
+};
+
+let unimplemented =
+  Html5.(div(~a=[a_class(["unimplemented"])], [txt("unimplemented")]));
+
+let of_typ = (_prefix: string, _rev_path: Path.steps, _uty: UHTyp.t) => unimplemented;
+
+let of_pat = (_prefix: string, _rev_path: Path.steps, _p: UHPat.t) => unimplemented;
+
+let _of_EmptyHole = (prefix: string, rev_path: Path.steps, hole_name: string) =>
+  Html5.(
+    div(
+      ~a=[
+        a_id(tm_id(prefix, rev_path)),
+        a_class(tm_clss(~err_status=NotInHole, ["EmptyHole"])),
+      ],
+      [
+        span(~a=[a_class(["hole-before-1"])], [txt("​​")]),
+        span(~a=[a_class(["hole-before-2"])], [txt("​")]),
+        span(~a=[a_class(["holeName"])], [txt(hole_name)]),
+        span(~a=[a_class(["hole-after-1"])], [txt("​")]),
+        span(~a=[a_class(["hole-after-2"])], [txt("​")]),
+      ],
+    )
+  );
+
+let _of_Var =
+    (
+      prefix: string,
+      err_status: err_status,
+      var_err_status: var_err_status,
+      rev_path: Path.steps,
+      x: Var.t,
+    ) =>
+  Html5.(
+    div(
+      ~a=[
+        a_id(tm_id(prefix, rev_path)),
+        a_class(
+          tm_clss(
+            ~err_status,
+            ["Var", ...classes_of_var_err_status(var_err_status)],
+          ),
+        ),
+      ],
+      [span(~a=[a_class(["var"])], [txt(x)])],
+    )
+  );
+
+let rec of_block =
+        (
+          palette_stuff: palette_stuff,
+          prefix: string,
+          rev_path: Path.steps,
+          Block(lines, e): UHExp.block,
+        ) => {
+  let vlines = lines |> List.map(of_line(palette_stuff, prefix, rev_path));
+  let ve = of_exp(palette_stuff, prefix, rev_path, e);
+  Html5.(
+    div(
+      ~a=[a_id(tm_id(prefix, rev_path)), a_class(tm_clss(["Block"]))],
+      vlines @ [ve],
+    )
+  );
+}
+and of_line =
+    (
+      palette_stuff: palette_stuff,
+      prefix: string,
+      rev_path: Path.steps,
+      line: UHExp.line,
+    ) =>
+  switch (line) {
+  | EmptyLine =>
+    Html5.(
+      div(
+        ~a=[
+          a_id(tm_id(prefix, rev_path)),
+          a_class(tm_clss(["EmptyLine"])),
+        ],
+        [txt("")],
+      )
+    )
+  | ExpLine(e) =>
+    /* ghost node, exp is inlined */
+    of_exp(palette_stuff, prefix, rev_path, e)
+  | LetLine(pat, ann, def) =>
+    let of_ann =
+      switch (ann) {
+      | None => []
+      | Some(uty) => [
+          of_delim(~delim_index=1, ":"),
+          of_typ(prefix, rev_path, uty),
+        ]
+      };
+    Html5.(
+      div(
+        ~a=[a_id(tm_id(prefix, rev_path)), a_class(tm_clss(["LetLine"]))],
+        [of_delim(~delim_index=0, "let"), of_pat(prefix, rev_path, pat)]
+        @ of_ann
+        @ [
+          of_delim(~delim_index=2, "="),
+          of_block(palette_stuff, prefix, rev_path, def),
+        ],
+      )
+    );
+  }
+and of_exp =
+    (
+      _palette_stuff: palette_stuff,
+      prefix: string,
+      rev_path: Path.steps,
+      e: UHExp.t,
+    ) =>
+  switch (e) {
+  | EmptyHole(u) => _of_EmptyHole(prefix, rev_path, string_of_int(u + 1))
+  | Var(err_status, var_err_status, x) =>
+    _of_Var(prefix, err_status, var_err_status, rev_path, x)
+  | _ =>
+    Html5.(div(~a=[a_class(["unimplemented"])], [txt("unimplemented")]))
+  };
 
 let rec of_hblock =
         (

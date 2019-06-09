@@ -56,6 +56,7 @@ let mk =
   let doc = View.of_hblock(palette_stuff, prefix, rev_path, block);
   let sdoc = Pretty.PP.sdoc_of_doc(width, doc, rev_paths);
   let view = Pretty.HTML_Of_SDoc.html_of_sdoc(sdoc, rev_paths);
+  let my_view = View.of_block(palette_stuff, prefix, rev_path, block);
   let pp_view =
     Html5.div(
       ~a=
@@ -234,7 +235,7 @@ let mk =
             false;
           }),
         ],
-      [view],
+      [view, my_view],
     );
 
   let pp_view_dom = Tyxml_js.To_dom.of_div(pp_view);
