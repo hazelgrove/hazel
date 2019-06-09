@@ -793,8 +793,7 @@ button:disabled {
   border-bottom: 1px solid var(--empty-hole-color);
 }
 
-._EmptyHole {
-  border-bottom: 1px solid var(--empty-hole-color);
+.node {
   width: max-content;
 }
 

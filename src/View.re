@@ -1086,18 +1086,17 @@ let prepare_Parenthesized_block =
   UHExp.set_err_status_block(NotInHole, block),
 );
 
-let tm_clss = (~err_status=NotInHole, clss: list(string)): list(string) =>
-  switch (err_status) {
-  | NotInHole => clss
-  | InHole(_, u) => [
-      "in_err_hole",
-      "in_err_hole_" ++ string_of_int(u),
-      ...clss,
-    ]
-  };
+let node_clss = (~err_status=NotInHole, clss: list(string)): list(string) => {
+  let in_hole_clss =
+    switch (err_status) {
+    | NotInHole => []
+    | InHole(_, u) => ["in_err_hole", "in_err_hole_" ++ string_of_int(u)]
+    };
+  ["node"] @ in_hole_clss @ clss;
+};
 
 /* TODO cache */
-let tm_id = (prefix: string, rev_path: Path.steps): string =>
+let node_id = (prefix: string, rev_path: Path.steps): string =>
   id_of_rev_path(prefix, rev_path);
 
 let of_delim = (~clss: list(string)=[], ~delim_index=?, s: string) => {
@@ -1129,8 +1128,8 @@ let _of_EmptyHole = (prefix: string, rev_path: Path.steps, hole_name: string) =>
   Html5.(
     div(
       ~a=[
-        a_id(tm_id(prefix, rev_path)),
-        a_class(tm_clss(~err_status=NotInHole, ["_EmptyHole"])),
+        a_id(node_id(prefix, rev_path)),
+        a_class(node_clss(~err_status=NotInHole, ["EmptyHole"])),
       ],
       [
         span(~a=[a_class(["hole-before-1"])], [txt("​​")]),
@@ -1153,9 +1152,9 @@ let _of_Var =
   Html5.(
     div(
       ~a=[
-        a_id(tm_id(prefix, rev_path)),
+        a_id(node_id(prefix, rev_path)),
         a_class(
-          tm_clss(
+          node_clss(
             ~err_status,
             ["Var", ...classes_of_var_err_status(var_err_status)],
           ),
@@ -1176,7 +1175,7 @@ let rec of_block =
   let ve = of_exp(palette_stuff, prefix, rev_path, e);
   Html5.(
     div(
-      ~a=[a_id(tm_id(prefix, rev_path)), a_class(tm_clss(["Block"]))],
+      ~a=[a_id(node_id(prefix, rev_path)), a_class(node_clss(["Block"]))],
       vlines @ [ve],
     )
   );
@@ -1193,8 +1192,8 @@ and of_line =
     Html5.(
       div(
         ~a=[
-          a_id(tm_id(prefix, rev_path)),
-          a_class(tm_clss(["EmptyLine"])),
+          a_id(node_id(prefix, rev_path)),
+          a_class(node_clss(["EmptyLine"])),
         ],
         [txt("")],
       )
@@ -1213,7 +1212,10 @@ and of_line =
       };
     Html5.(
       div(
-        ~a=[a_id(tm_id(prefix, rev_path)), a_class(tm_clss(["LetLine"]))],
+        ~a=[
+          a_id(node_id(prefix, rev_path)),
+          a_class(node_clss(["LetLine"])),
+        ],
         [of_delim(~delim_index=0, "let"), of_pat(prefix, rev_path, pat)]
         @ of_ann
         @ [
