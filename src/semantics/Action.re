@@ -108,6 +108,7 @@ type shape =
   | SLine
   | SCase
   | SForall
+  | SType
   | SOp(op_shape)
   | SApPalette(PaletteName.t)
   /* pattern-only shapes */
@@ -451,6 +452,7 @@ let rec perform_ty = (a: t, zty: ZTyp.t): result(ZTyp.t) =>
   | (UpdateApPalette(_), _)
   | (Construct(SAsc), _)
   | (Construct(SLet), _)
+  | (Construct(SType), _)
   | (Construct(SLine), _)
   | (Construct(SVar(_, _)), _)
   | (Construct(SLam), _)
@@ -1909,6 +1911,7 @@ let rec syn_perform_pat =
   | (Construct(SList), _)
   | (Construct(SAsc), _)
   | (Construct(SForall), _)
+  | (Construct(SType), _)
   | (Construct(SLet), _)
   | (Construct(SLine), _)
   | (Construct(SLam), _)
@@ -2377,6 +2380,13 @@ and ana_perform_pat =
         ctx,
         u_gen,
       ));
+    } else if (Var.is_type(x)) {
+      let (u, u_gen) = MetaVarGen.next(u_gen);
+      Some((
+        CursorP(side, Pat(NotInHole, Var(InVHole(Keyword(Type), u), x))),
+        ctx,
+        u_gen,
+      ));
     } else if (Var.is_case(x)) {
       let (u, u_gen) = MetaVarGen.next(u_gen);
       Succeeded((
@@ -2600,6 +2610,7 @@ and ana_perform_pat =
   | (Construct(SBool), _)
   | (Construct(SList), _)
   | (Construct(SForall), _)
+  | (Construct(SType), _)
   | (Construct(SAsc), _)
   | (Construct(SLet), _)
   | (Construct(SLine), _)
@@ -4591,6 +4602,13 @@ and syn_perform_exp =
         Hole,
         u_gen,
       ));
+    } else if (Var.is_type(x)) {
+      let (u, u_gen) = MetaVarGen.next(u_gen);
+      Some((
+        CursorE(side, Tm(NotInHole, Var(InVHole(Keyword(Type), u), x))),
+        Hole,
+        u_gen,
+      ));
     } else if (Var.is_case(x)) {
       let (u, u_gen) = MetaVarGen.next(u_gen);
       Succeeded((
@@ -5070,6 +5088,7 @@ and syn_perform_exp =
   | (Construct(SNum), _)
   | (Construct(SForall), _)
   | (Construct(SBool), _)
+  | (Construct(SType), _)
   | (Construct(SForall), _)
   | (Construct(SList), _)
   | (Construct(SWild), _) => Failed
@@ -6885,6 +6904,7 @@ and ana_perform_exp =
   | (Construct(SForall), _)
   | (Construct(SBool), _)
   | (Construct(SForall), _)
+  | (Construct(SType), _)
   | (Construct(SList), _)
   | (Construct(SWild), _) => Failed
   }
@@ -6965,6 +6985,7 @@ let can_perform =
   | Construct(SAsc)
   | Construct(SApPalette(_))
   | Construct(SLam)
+  | Construct(SType)
   | Construct(SVar(_, _)) /* see can_enter_varchar below */
   | Construct(SWild)
   | Construct(SNumLit(_, _)) /* see can_enter_numeral below */

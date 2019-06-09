@@ -25,6 +25,8 @@ and t =
   | LamZP(err_status, ZPat.t, option(UHTyp.t), UHExp.block)
   | LamZA(err_status, UHPat.t, ZTyp.t, UHExp.block)
   | LamZE(err_status, UHPat.t, option(UHTyp.t), zblock)
+  | TyLamZP(ZTPat.t, UHExp.block)
+  | TyLamZE(TPat.t, zblock)
   | InjZ(err_status, inj_side, zblock)
   | CaseZE(err_status, zblock, list(UHExp.rule), option(UHTyp.t))
   | CaseZR(err_status, UHExp.block, zrules, option(UHTyp.t))

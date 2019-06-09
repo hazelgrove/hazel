@@ -38,6 +38,7 @@ and t =
   | ListNil(err_status)
   /* inner nodes */
   | Lam(err_status, UHPat.t, option(UHTyp.t), block)
+  | TyLam(TPat.t, block)
   | Inj(err_status, inj_side, block)
   | Case(err_status, block, rules, option(UHTyp.t))
   | Parenthesized(block)

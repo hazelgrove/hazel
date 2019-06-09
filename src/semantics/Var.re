@@ -33,9 +33,12 @@ let is_forall = s => eq(s, "forall");
 
 let is_case = s => eq(s, "case");
 
+let is_type = s => eq(s, "type");
+
 let of_keyword = (k: keyword): t =>
   switch (k) {
   | Let => "let"
   | Case => "case"
   | Forall => "forall"
+  | Type => "type"
   };

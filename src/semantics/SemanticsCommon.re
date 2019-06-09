@@ -20,7 +20,8 @@ let err_status_to_string =
 type keyword =
   | Let
   | Case
-  | Forall;
+  | Forall
+  | Type;
 
 [@deriving (sexp, show)]
 type in_vhole_reason =

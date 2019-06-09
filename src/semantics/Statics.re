@@ -483,6 +483,7 @@ and syn_exp = (ctx: Contexts.t, e: UHExp.t): option(HTyp.t) =>
       | Some(ty2) => Some(HTyp.Arrow(ty1, ty2))
       }
     };
+  | TyLam(_p, _block) => raise(Failure("unimplemented12"))
   | Inj(NotInHole, side, block) =>
     switch (syn_block(ctx, block)) {
     | None => None
@@ -695,6 +696,7 @@ and ana_exp = (ctx: Contexts.t, e: UHExp.t, ty: HTyp.t): option(unit) =>
         None;
       }
     };
+  | TyLam(_p, _block) => raise(Failure("unimplemented13"))
   | Lam(NotInHole, p, ann, block) =>
     switch (HTyp.matched_arrow(ty)) {
     | None => None
@@ -1489,7 +1491,8 @@ and syn_fix_holes_exp =
       raise(UHExp.SkelInconsistentWithOpSeq(skel, seq))
     | (skel, seq, ty, u_gen) => (OpSeq(skel, seq), ty, u_gen)
     }
-  | Lam(_, p, ann, block) =>
+  | TyLam(_p, _block) => raise(Failure("unimplemented14"))
+  | Lam(p, ann, block) =>
     let ty1 =
       switch (ann) {
       | Some(uty1) => UHTyp.expand(uty1)
@@ -1682,6 +1685,7 @@ and ana_fix_holes_exp =
         u_gen,
       )
     }
+  | TyLam(_p, _block) => raise(Failure("unimplemented15"))
   | Lam(_, p, ann, block) =>
     switch (HTyp.matched_arrow(ty)) {
     | Some((ty1_given, ty2)) =>

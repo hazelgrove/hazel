@@ -834,6 +834,12 @@ let rec holes_pat =
        )
   };
 
+let holes_tpat = (tp: TPat.t, steps: steps, holes: hole_list): hole_list =>
+  switch (tp) {
+  | TPat.Hole(u) => [(ExpForallHole(u), steps), ...holes]
+  | TPat.Var(_) => holes
+  };
+
 let rec holes_block =
         (
           Block(lines, e): UHExp.block,
@@ -1710,6 +1716,7 @@ let path_to_hole = (hole_list: hole_list, u: MetaVar.t): option(t) =>
         switch (hole_desc) {
         | TypeVarHole(u')
         | TypeForallHole(u')
+        | ExpForallHole(u')
         | ExpHole(u')
         | PatHole(u')
         | VHole(u') => MetaVar.eq(u, u')
