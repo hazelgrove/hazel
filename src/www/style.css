@@ -793,6 +793,11 @@ button:disabled {
   border-bottom: 1px solid var(--empty-hole-color);
 }
 
+._EmptyHole {
+  border-bottom: 1px solid var(--empty-hole-color);
+  width: max-content;
+}
+
 .hole-instance {
   border-left: 1px solid rgba(0, 0, 0, 0);
   border-right: 1px solid rgba(0, 0, 0, 0);

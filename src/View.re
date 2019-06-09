@@ -1130,7 +1130,7 @@ let _of_EmptyHole = (prefix: string, rev_path: Path.steps, hole_name: string) =>
     div(
       ~a=[
         a_id(tm_id(prefix, rev_path)),
-        a_class(tm_clss(~err_status=NotInHole, ["EmptyHole"])),
+        a_class(tm_clss(~err_status=NotInHole, ["_EmptyHole"])),
       ],
       [
         span(~a=[a_class(["hole-before-1"])], [txt("​​")]),
