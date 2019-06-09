@@ -1099,7 +1099,7 @@ let node_clss = (~err_status=NotInHole, clss: list(string)): list(string) => {
 let node_id = (prefix: string, rev_path: Path.steps): string =>
   id_of_rev_path(prefix, rev_path);
 
-let of_delim = (~clss: list(string)=[], ~delim_index=?, s: string) => {
+let delim = (~clss: list(string)=[], ~delim_index=?, s: string) => {
   let clss =
     switch (delim_index) {
     | None => clss
@@ -1164,6 +1164,18 @@ let _of_Var =
     )
   );
 
+let _of_NumLit =
+    (prefix: string, err_status: err_status, rev_path: Path.steps, n: int) =>
+  Html5.(
+    div(
+      ~a=[
+        a_id(node_id(prefix, rev_path)),
+        a_class(node_clss(~err_status, ["NumLit"])),
+      ],
+      [span(~a=[a_class(["number"])], [txt(string_of_int(n))])],
+    )
+  );
+
 let rec of_block =
         (
           palette_stuff: palette_stuff,
@@ -1206,7 +1218,7 @@ and of_line =
       switch (ann) {
       | None => []
       | Some(uty) => [
-          of_delim(~delim_index=1, ":"),
+          delim(~delim_index=1, ":"),
           of_typ(prefix, rev_path, uty),
         ]
       };
@@ -1216,10 +1228,10 @@ and of_line =
           a_id(node_id(prefix, rev_path)),
           a_class(node_clss(["LetLine"])),
         ],
-        [of_delim(~delim_index=0, "let"), of_pat(prefix, rev_path, pat)]
+        [delim(~delim_index=0, "let"), of_pat(prefix, rev_path, pat)]
         @ of_ann
         @ [
-          of_delim(~delim_index=2, "="),
+          delim(~delim_index=2, "="),
           of_block(palette_stuff, prefix, rev_path, def),
         ],
       )
@@ -1236,6 +1248,7 @@ and of_exp =
   | EmptyHole(u) => _of_EmptyHole(prefix, rev_path, string_of_int(u + 1))
   | Var(err_status, var_err_status, x) =>
     _of_Var(prefix, err_status, var_err_status, rev_path, x)
+  | NumLit(err_status, n) => _of_NumLit(prefix, err_status, rev_path, n)
   | _ =>
     Html5.(div(~a=[a_class(["unimplemented"])], [txt("unimplemented")]))
   };
