@@ -457,6 +457,7 @@ and syn_exp' = (ctx: Contexts.t, e': UHExp.t'): option(HTyp.t) =>
       | Some(ty2) => Some(HTyp.Arrow(ty1, ty2))
       }
     };
+  | TyLam(_p, _block) => raise(Failure("unimplemented12"))
   | Inj(side, block) =>
     switch (syn_block(ctx, block)) {
     | None => None
@@ -630,6 +631,7 @@ and ana_exp = (ctx: Contexts.t, e: UHExp.t, ty: HTyp.t): option(unit) =>
   }
 and ana_exp' = (ctx: Contexts.t, e': UHExp.t', ty: HTyp.t): option(unit) =>
   switch (e') {
+  | TyLam(_p, _block) => raise(Failure("unimplemented13"))
   | Lam(p, ann, block) =>
     switch (HTyp.matched_arrow(ty)) {
     | None => None
@@ -1458,6 +1460,7 @@ and syn_fix_holes_exp' =
         (Var(InVHole(in_vhole_reason, u), x), Hole, u_gen);
       }
     };
+  | TyLam(_p, _block) => raise(Failure("unimplemented14"))
   | Lam(p, ann, block) =>
     let ty1 =
       switch (ann) {
@@ -1646,6 +1649,7 @@ and ana_fix_holes_exp' =
     )
     : (err_status, UHExp.t', MetaVarGen.t) =>
   switch (e') {
+  | TyLam(_p, _block) => raise(Failure("unimplemented15"))
   | Lam(p, ann, block) =>
     switch (HTyp.matched_arrow(ty)) {
     | Some((ty1_given, ty2)) =>

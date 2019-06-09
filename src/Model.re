@@ -25,6 +25,7 @@ type selected_instance_rs = React.signal(option(DHExp.HoleInstance.t));
 type selected_instance_rf =
   (~step: React.step=?, option(DHExp.HoleInstance.t)) => unit;
 type monitors = list(React.signal(unit));
+/* charles: remove function type aliases */
 type do_action_t = Action.t => unit;
 type replace_e = UHExp.block => unit;
 
@@ -165,7 +166,9 @@ let new_model = (): t => {
       | Action.MoveToPrevHole => ()
       | _ => e_rf(ZExp.erase_block(ze))
       };
-    | None => raise(InvalidAction)
+    | None =>
+      "uncaught action: " ++ Action.show(action) |> print_endline;
+      raise(InvalidAction);
     };
 
   let replace_e = (new_block: UHExp.block) => {

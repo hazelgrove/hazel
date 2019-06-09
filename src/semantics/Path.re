@@ -75,6 +75,8 @@ and of_zexp = (ze: ZExp.t): t =>
   }
 and of_zexp' = (ze': ZExp.t'): t =>
   switch (ze') {
+  | TyLamZP(ztp, _) => cons'(0, of_ztpat(ztp))
+  | TyLamZE(_, zblock) => cons'(1, of_zblock(zblock))
   | LamZP(zp, _, _) => cons'(0, of_zpat(zp))
   | LamZA(_, zann, _) => cons'(1, of_ztyp(zann))
   | LamZE(_, _, zblock) => cons'(2, of_zblock(zblock))
@@ -298,6 +300,17 @@ and follow_exp = (path: t, e: UHExp.t): option(ZExp.t) =>
     | Tm(err_status, e) =>
       switch (x, e) {
       | (_, Var(_, _)) => None
+      | (0, TyLam(tp, block)) =>
+        switch (follow_tpat(cursor_side, tp)) {
+        | None => None
+        | Some(zp) => Some(DeeperE(err_status, TyLamZP(zp, block)))
+        }
+      | (1, TyLam(tp, block)) =>
+        switch (follow_block((xs, cursor_side), block)) {
+        | None => None
+        | Some(zblock) => Some(DeeperE(err_status, TyLamZE(tp, zblock)))
+        }
+      | (_, TyLam(_, _)) => None
       | (0, Lam(p, ann, block)) =>
         switch (follow_pat((xs, cursor_side), p)) {
         | None => None
@@ -413,7 +426,9 @@ let follow_e_or_fail = (path: t, e: UHExp.t): ZExp.t =>
 type hole_desc =
   | TypeHole
   | TypeVarHole(MetaVar.t)
+  /*! these are basically the same */
   | TypeForallHole(MetaVar.t)
+  | ExpForallHole(MetaVar.t)
   | ExpHole(MetaVar.t)
   | PatHole(MetaVar.t);
 
@@ -422,6 +437,7 @@ let string_of_hole_desc =
   | TypeHole => "TypeHole"
   | TypeVarHole(u) => "TypeVarHole(" ++ string_of_int(u) ++ ")"
   | TypeForallHole(u) => "TypeForallHole(" ++ string_of_int(u) ++ ")"
+  | ExpForallHole(u) => "ExpForallHole(" ++ string_of_int(u) ++ ")"
   | ExpHole(u) => "ExpHole(" ++ string_of_int(u) ++ ")"
   | PatHole(u) => "PatHole(" ++ string_of_int(u) ++ ")";
 
@@ -486,6 +502,12 @@ let rec holes_pat = (p: UHPat.t, steps: steps, holes: hole_list): hole_list =>
   | OpSeq(_, seq) => holes_seq(seq, holes_pat, 0, steps, holes)
   };
 
+let holes_tpat = (tp: TPat.t, steps: steps, holes: hole_list): hole_list =>
+  switch (tp) {
+  | TPat.Hole(u) => [(ExpForallHole(u), steps), ...holes]
+  | TPat.Var(_) => holes
+  };
+
 let rec holes_block =
         (Block(lines, e): UHExp.block, steps: steps, holes: hole_list)
         : hole_list => {
@@ -524,6 +546,9 @@ and holes_exp = (e: UHExp.t, steps: steps, holes: hole_list): hole_list =>
   | Tm(_, BoolLit(_)) => holes
   | Tm(_, Inj(_, block)) => holes_block(block, [0, ...steps], holes)
   | Tm(_, ListNil) => holes
+  | Tm(_, TyLam(tp, block)) =>
+    let holes = holes_block(block, [1, ...steps], holes);
+    holes_tpat(tp, [0, ...steps], holes);
   | Tm(_, Lam(p, ann, block)) =>
     let holes = holes_block(block, [2, ...steps], holes);
     let holes =
@@ -697,7 +722,10 @@ let rec holes_zty = (zty: ZTyp.t, steps: steps): zhole_list =>
     }
   | ParenthesizedZ(zty1) => holes_zty(zty1, [0, ...steps])
   | ListZ(zty1) => holes_zty(zty1, [0, ...steps])
-  | ForallZP(ZTPat.Cursor(_, TPat.Hole(u)), uty) => {
+  | ForallZP(ZTPat.Cursor(_, TPat.Hole(u)), uty) =>
+    /* could use holes_ztpat, but at the moment it generates a different hole.
+       I'm not exactly clear on the reasoning behind different holes. */
+    {
       holes_before: [],
       hole_selected: Some((TypeForallHole(u), [0, ...steps])),
       holes_after: holes_uty(uty, [1, ...steps], []),
@@ -717,6 +745,20 @@ let rec holes_zty = (zty: ZTyp.t, steps: steps): zhole_list =>
   | ForallZT(TPat.Var(_), zty) => holes_zty(zty, [1, ...steps])
   | OpSeqZ(_, zty0, surround) =>
     holes_OpSeqZ(holes_uty, holes_zty, zty0, surround, steps)
+  };
+
+let holes_ztpat = (ztp: ZTPat.t, steps: steps): zhole_list =>
+  switch (ztp) {
+  | Cursor(_, Hole(u)) => {
+      holes_before: [],
+      hole_selected: Some((ExpForallHole(u), steps)),
+      holes_after: [],
+    }
+  | Cursor(_, Var(_)) => {
+      holes_before: [],
+      hole_selected: None,
+      holes_after: [],
+    }
   };
 
 let rec holes_zpat = (zp: ZPat.t, steps: steps): zhole_list =>
@@ -891,6 +933,12 @@ and holes_ze = (ze: ZExp.t, steps: steps): zhole_list =>
             hole_selected: None,
             holes_after: holes_exp(e, steps, []),
           }
+        /*! should this behave any different from Lam? */
+        | TyLam(_, _) => {
+            holes_before: [],
+            hole_selected: None,
+            holes_after: holes_exp(e, steps, []),
+          }
         | Case(block, rules, ann) =>
           switch (k) {
           | 0 => {
@@ -917,6 +965,16 @@ and holes_ze = (ze: ZExp.t, steps: steps): zhole_list =>
     }
   | DeeperE(_, ze) =>
     switch (ze) {
+    | TyLamZP(ztp, block) =>
+      let {holes_before, hole_selected, holes_after} =
+        holes_ztpat(ztp, [0, ...steps]);
+      let holes_block = holes_block(block, [1, ...steps], []);
+      {holes_before, hole_selected, holes_after: holes_after @ holes_block};
+    | TyLamZE(tp, zblock) =>
+      let {holes_before, hole_selected, holes_after} =
+        holes_zblock(zblock, [1, ...steps]);
+      let holes_p = holes_tpat(tp, [0, ...steps], []);
+      {holes_before: holes_p @ holes_before, hole_selected, holes_after};
     | LamZP(zp, ann, block) =>
       let {holes_before, hole_selected, holes_after} =
         holes_zpat(zp, [0, ...steps]);
@@ -1068,6 +1126,7 @@ let steps_to_hole = (hole_list: hole_list, u: MetaVar.t): option(steps) =>
         switch (hole_desc) {
         | TypeVarHole(u')
         | TypeForallHole(u')
+        | ExpForallHole(u')
         | ExpHole(u')
         | PatHole(u') => MetaVar.eq(u, u')
         | TypeHole => false
@@ -1087,6 +1146,7 @@ let steps_to_hole_z = (zhole_list: zhole_list, u: MetaVar.t): option(steps) => {
     switch (hole_selected) {
     | Some((TypeVarHole(u'), steps))
     | Some((TypeForallHole(u'), steps))
+    | Some((ExpForallHole(u'), steps))
     | Some((ExpHole(u'), steps))
     | Some((PatHole(u'), steps)) =>
       MetaVar.eq(u, u') ? Some(steps) : steps_to_hole(holes_after, u)

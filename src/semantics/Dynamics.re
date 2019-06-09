@@ -14,6 +14,19 @@ module Delta = {
  * renumbering is done on the final result (see below) */
 type inst_num = int;
 
+module DTPat = {
+  type t =
+    | Hole(MetaVar.t)
+    | Var(Var.t);
+
+  let expand = t =>
+    switch (t) {
+    /*! not right */
+    | TPat.Hole(u) => Hole(u)
+    | TPat.Var(v) => Var(v)
+    };
+};
+
 module DHPat = {
   type t =
     | EmptyHole(MetaVar.t, inst_num)
@@ -29,6 +42,10 @@ module DHPat = {
     | Pair(t, t)
     | Triv /* unit intro */
     | Ap(t, t);
+
+  type expand_result =
+    | Expands(t, HTyp.t, Contexts.t, Delta.t)
+    | DoesNotExpand;
 
   let rec make_tuple = (ds: ListMinTwo.t(t)): t =>
     switch (ds) {
@@ -55,10 +72,6 @@ module DHPat = {
     | Cons(dp1, dp2) => binds_var(x, dp1) || binds_var(x, dp2)
     | Ap(_, _) => false
     };
-
-  type expand_result =
-    | Expands(t, HTyp.t, Contexts.t, Delta.t)
-    | DoesNotExpand;
 
   let rec syn_expand =
           (ctx: Contexts.t, delta: Delta.t, p: UHPat.t): expand_result =>
@@ -394,6 +407,7 @@ module DHExp = {
       | BoundVar(Var.t)
       | Let(DHPat.t, t, t)
       | FixF(Var.t, HTyp.t, t)
+      | TyLam(DTPat.t, t)
       | Lam(DHPat.t, HTyp.t, t)
       | Ap(t, t)
       | BoolLit(bool)
@@ -421,6 +435,7 @@ module DHExp = {
     | BoundVar(_) => "BoundVar"
     | Let(_, _, _) => "Let"
     | FixF(_, _, _) => "FixF"
+    | TyLam(_, _) => "TyLam"
     | Lam(_, _, _) => "Lam"
     | Ap(_, _) => "Ap"
     | BoolLit(_) => "BoolLit"
@@ -494,6 +509,9 @@ module DHExp = {
           subst_var(d1, x, d3);
         };
       FixF(y, ty, d3);
+    | TyLam(dp, d3) =>
+      let d3 = subst_var(d1, x, d3);
+      TyLam(dp, d3);
     | Lam(dp, ty, d3) =>
       if (DHPat.binds_var(x, dp)) {
         d2;
@@ -709,6 +727,7 @@ module DHExp = {
     | Let(_, _, _) => Indet
     | FixF(_, _, _) => DoesNotMatch
     | Lam(_, _, _) => DoesNotMatch
+    | TyLam(_, _) => DoesNotMatch
     | Ap(_, _) => Indet
     | BinNumOp(_, _, _) => Indet
     | BoolLit(_) => DoesNotMatch
@@ -761,6 +780,7 @@ module DHExp = {
     | Let(_, _, _) => Indet
     | FixF(_, _, _) => DoesNotMatch
     | Lam(_, _, _) => DoesNotMatch
+    | TyLam(_, _) => DoesNotMatch
     | Ap(_, _) => Indet
     | BinNumOp(_, _, _) => Indet
     | BoolLit(_) => DoesNotMatch
@@ -808,6 +828,7 @@ module DHExp = {
     | Let(_, _, _) => Indet
     | FixF(_, _, _) => DoesNotMatch
     | Lam(_, _, _) => DoesNotMatch
+    | TyLam(_, _) => DoesNotMatch
     | Ap(_, _) => Indet
     | BinNumOp(_, _, _) => Indet
     | BoolLit(_) => DoesNotMatch
@@ -964,6 +985,14 @@ module DHExp = {
         | Keyword(k) => DHExp.Keyword(u, 0, sigma, k)
         };
       Expands(d, Hole, delta);
+    | TyLam(tpat, body) =>
+      let dtpat = DTPat.expand(tpat);
+      /*! don't leave this has Hole */
+      switch (syn_expand_block(ctx, delta, body)) {
+      | DoesNotExpand => DoesNotExpand
+      | Expands(block, ty1, delta) =>
+        Expands(TyLam(dtpat, block), ty1, delta)
+      };
     | Lam(p, ann, block) =>
       let ty1 =
         switch (ann) {
@@ -1184,6 +1213,7 @@ module DHExp = {
         | Keyword(k) => Keyword(u, 0, sigma, k)
         };
       Expands(d, ty, delta);
+    | TyLam(_, _) => raise(Failure("unimplemented11"))
     | Lam(p, ann, block) =>
       switch (HTyp.matched_arrow(ty)) {
       | None => DoesNotExpand
@@ -1596,6 +1626,9 @@ module DHExp = {
     | FixF(x, ty, d1) =>
       let (d1, hii) = renumber_result_only(path, hii, d1);
       (FixF(x, ty, d1), hii);
+    | TyLam(x, d1) =>
+      let (d1, hii) = renumber_result_only(path, hii, d1);
+      (TyLam(x, d1), hii);
     | Lam(x, ty, d1) =>
       let (d1, hii) = renumber_result_only(path, hii, d1);
       (Lam(x, ty, d1), hii);
@@ -1675,6 +1708,9 @@ module DHExp = {
     | FixF(x, ty, d1) =>
       let (d1, hii) = renumber_sigmas_only(path, hii, d1);
       (FixF(x, ty, d1), hii);
+    | TyLam(x, d1) =>
+      let (d1, hii) = renumber_sigmas_only(path, hii, d1);
+      (TyLam(x, d1), hii);
     | Lam(x, ty, d1) =>
       let (d1, hii) = renumber_sigmas_only(path, hii, d1);
       (Lam(x, ty, d1), hii);
@@ -1857,6 +1893,7 @@ module Evaluator = {
         }
       }
     | FixF(x, _, d1) => evaluate(DHExp.subst_var(d, x, d1))
+    | TyLam(_, _) => BoxedValue(d)
     | Lam(_, _, _) => BoxedValue(d)
     | Ap(d1, d2) =>
       switch (evaluate(d1)) {

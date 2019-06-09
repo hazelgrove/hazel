@@ -392,6 +392,7 @@ and ana_cursor_found_exp =
   | Tm(NotInHole, ListNil) =>
     Some(mk_cursor_info(Analyzed(ty), IsExpr(e), side, ctx))
   | Tm(InHole(WrongLength, _), _) => None
+  | Tm(_, TyLam(_, _)) => raise(Failure("unimplemented5"))
   | Tm(NotInHole, Lam(_, ann, _)) =>
     switch (HTyp.matched_arrow(ty)) {
     | None => None
@@ -538,6 +539,11 @@ and syn_cursor_info = (ctx: Contexts.t, ze: ZExp.t): option(t) =>
   }
 and syn_cursor_info' = (ctx: Contexts.t, ze: ZExp.t'): option(t) =>
   switch (ze) {
+  | TyLamZP(ztp, _) =>
+    /*! don't leave this */
+    cursor_info_tpat(ctx, ztp)
+
+  | TyLamZE(_, _) => raise(Failure("unimplemented7"))
   | LamZP(zp, ann, _) =>
     let ty1 =
       switch (ann) {
@@ -603,6 +609,8 @@ and ana_cursor_info = (ctx: Contexts.t, ze: ZExp.t, ty: HTyp.t): option(t) =>
   }
 and ana_cursor_info' = (ctx: Contexts.t, ze: ZExp.t', ty: HTyp.t): option(t) =>
   switch (ze) {
+  | TyLamZP(_, _) => raise(Failure("unimplemented8"))
+  | TyLamZE(_, _) => raise(Failure("unimplemented9"))
   | LamZP(zp, ann, _) =>
     switch (HTyp.matched_arrow(ty)) {
     | None => None

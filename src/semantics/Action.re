@@ -91,6 +91,7 @@ type shape =
   | SLine
   | SCase
   | SForall
+  | SType
   | SOp(op_shape)
   | SApPalette(PaletteName.t)
   /* pattern-only shapes */
@@ -133,6 +134,7 @@ let keyword_action = (k: keyword): t =>
   | Let => Construct(SLet)
   | Case => Construct(SCase)
   | Forall => Construct(SForall)
+  | Type => Construct(SType)
   };
 
 let rec perform_ty =
@@ -422,6 +424,7 @@ let rec perform_ty =
   | (UpdateApPalette(_), _)
   | (Construct(SAsc), _)
   | (Construct(SLet), _)
+  | (Construct(SType), _)
   | (Construct(SLine), _)
   | (Construct(SVar(_, _)), _)
   | (Construct(SLam), _)
@@ -1185,6 +1188,14 @@ let rec syn_perform_pat =
         ctx,
         u_gen,
       ));
+    } else if (Var.is_type(x)) {
+      let (u, u_gen) = MetaVarGen.next(u_gen);
+      Some((
+        CursorP(side, Pat(NotInHole, Var(InVHole(Keyword(Type), u), x))),
+        Hole,
+        ctx,
+        u_gen,
+      ));
     } else if (Var.is_let(x)) {
       let (u, u_gen) = MetaVarGen.next(u_gen);
       Some((
@@ -1373,6 +1384,7 @@ let rec syn_perform_pat =
   | (Construct(SList), _)
   | (Construct(SAsc), _)
   | (Construct(SForall), _)
+  | (Construct(SType), _)
   | (Construct(SLet), _)
   | (Construct(SLine), _)
   | (Construct(SLam), _)
@@ -1514,6 +1526,13 @@ and ana_perform_pat =
       let (u, u_gen) = MetaVarGen.next(u_gen);
       Some((
         CursorP(side, Pat(NotInHole, Var(InVHole(Keyword(Let), u), x))),
+        ctx,
+        u_gen,
+      ));
+    } else if (Var.is_type(x)) {
+      let (u, u_gen) = MetaVarGen.next(u_gen);
+      Some((
+        CursorP(side, Pat(NotInHole, Var(InVHole(Keyword(Type), u), x))),
         ctx,
         u_gen,
       ));
@@ -1705,6 +1724,7 @@ and ana_perform_pat =
   | (Construct(SBool), _)
   | (Construct(SList), _)
   | (Construct(SForall), _)
+  | (Construct(SType), _)
   | (Construct(SAsc), _)
   | (Construct(SLet), _)
   | (Construct(SLine), _)
@@ -2620,6 +2640,13 @@ and syn_perform_exp =
         Hole,
         u_gen,
       ));
+    } else if (Var.is_type(x)) {
+      let (u, u_gen) = MetaVarGen.next(u_gen);
+      Some((
+        CursorE(side, Tm(NotInHole, Var(InVHole(Keyword(Type), u), x))),
+        Hole,
+        u_gen,
+      ));
     } else if (Var.is_case(x)) {
       let (u, u_gen) = MetaVarGen.next(u_gen);
       Some((
@@ -2816,10 +2843,73 @@ and syn_perform_exp =
   /* Zipper Cases */
   | (_, ParenthesizedZ(zblock)) =>
     switch (syn_perform_block(ctx, a, (zblock, ty, u_gen))) {
-    | Some((ze1', ty', u_gen')) => Some((ParenthesizedZ(ze1'), ty', u_gen'))
+    | Some((zblock, ty, u_gen)) => Some((ParenthesizedZ(zblock), ty, u_gen))
     | None => None
     }
+  | (_, DeeperE(err_status, TyLamZE(tp, zblock))) =>
+    switch (syn_perform_block(ctx, a, (zblock, ty, u_gen))) {
+    | Some((zblock, ty, u_gen)) =>
+      Some((ZExp.DeeperE(err_status, TyLamZE(tp, zblock)), ty, u_gen))
+    | None => None
+    }
+  | (_, DeeperE(_, TyLamZP(_, _))) =>
+    /*! fix this */
+    None
+  /* when you press space after the "type" keyword,
+     construct a type lambda -- even if in parentheses, even if
+     in an op sequence. */
+  | (
+      Construct(SOp(SSpace)),
+      DeeperE(
+        _,
+        LamZP(
+          ParenthesizedZ(
+            OpSeqZ(
+              _,
+              CursorP(After, Pat(_, Var(InVHole(Keyword(Type), _), _))),
+              _,
+            ),
+          ),
+          _zp,
+          block,
+        ),
+      ),
+    )
+  | (
+      Construct(SOp(SSpace)),
+      DeeperE(
+        _,
+        LamZP(
+          ParenthesizedZ(
+            CursorP(After, Pat(_, Var(InVHole(Keyword(Type), _), _))),
+          ),
+          _zp,
+          block,
+        ),
+      ),
+    )
+  | (
+      Construct(SOp(SSpace)),
+      DeeperE(
+        _,
+        LamZP(
+          CursorP(After, Pat(_, Var(InVHole(Keyword(Type), _), _))),
+          _zp,
+          block,
+        ),
+      ),
+    ) =>
+    let (u, u_gen) = MetaVarGen.next(u_gen);
+    let ze =
+      ZExp.DeeperE(
+        NotInHole,
+        TyLamZP(ZTPat.Cursor(Before, TPat.Hole(u)), block),
+      );
+    /*! don't leave this */
+    Some((ze, HTyp.Hole, u_gen));
   | (_, DeeperE(_, LamZP(zp, ann, block))) =>
+    print_endline("action: " ++ show(a));
+    print_endline("type" ++ ZPat.show(zp));
     let ty1 =
       switch (ann) {
       | Some(uty1) => UHTyp.expand(uty1)
@@ -3002,6 +3092,7 @@ and syn_perform_exp =
   /* Invalid actions at expression level */
   | (Construct(SNum), _)
   | (Construct(SBool), _)
+  | (Construct(SType), _)
   | (Construct(SForall), _)
   | (Construct(SList), _)
   | (Construct(SWild), _) => None
@@ -3659,6 +3750,8 @@ and ana_perform_exp =
           };
       }
     }
+  | (_, DeeperE(_, TyLamZP(_, _))) => None
+  | (_, DeeperE(_, TyLamZE(_, _))) => raise(Failure("unimplemented4"))
   | (_, DeeperE(err, LamZE(p, ann, zblock))) =>
     switch (HTyp.matched_arrow(ty)) {
     | None => None
@@ -3794,6 +3887,7 @@ and ana_perform_exp =
   | (Construct(SNum), _)
   | (Construct(SBool), _)
   | (Construct(SForall), _)
+  | (Construct(SType), _)
   | (Construct(SList), _)
   | (Construct(SWild), _) => None
   }
@@ -3872,6 +3966,7 @@ let can_perform =
   | Construct(SAsc)
   | Construct(SApPalette(_))
   | Construct(SLam)
+  | Construct(SType)
   | Construct(SVar(_, _)) /* see can_enter_varchar below */
   | Construct(SWild)
   | Construct(SNumLit(_, _)) /* see can_enter_numeral below */

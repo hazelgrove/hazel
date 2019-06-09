@@ -32,6 +32,8 @@ and t' =
   | LamZP(ZPat.t, option(UHTyp.t), UHExp.block)
   | LamZA(UHPat.t, ZTyp.t, UHExp.block)
   | LamZE(UHPat.t, option(UHTyp.t), zblock)
+  | TyLamZP(ZTPat.t, UHExp.block)
+  | TyLamZE(TPat.t, zblock)
   | InjZ(inj_side, zblock)
   | CaseZE(zblock, list(UHExp.rule), option(UHTyp.t))
   | CaseZR(UHExp.block, zrules, option(UHTyp.t))
@@ -56,6 +58,8 @@ let bidelimit = (ze: t): t =>
   | DeeperE(_, CaseZE(_, _, _))
   | DeeperE(_, CaseZR(_, _, _))
   | DeeperE(_, CaseZA(_, _, _))
+  | DeeperE(_, TyLamZP(_, _))
+  | DeeperE(_, TyLamZE(_, _))
   | DeeperE(_, LamZP(_, _, _))
   | DeeperE(_, LamZA(_, _, _))
   | DeeperE(_, LamZE(_, _, _)) => ParenthesizedZ(BlockZE([], ze))
@@ -269,6 +273,8 @@ and erase = (ze: t): UHExp.t =>
   }
 and erase' = (ze: t'): UHExp.t' =>
   switch (ze) {
+  | TyLamZP(ztp, block) => TyLam(ZTPat.erase(ztp), block)
+  | TyLamZE(tp, zblock) => TyLam(tp, erase_block(zblock))
   | LamZP(zp, ann, block) => Lam(ZPat.erase(zp), ann, block)
   | LamZA(p, zann, block) => Lam(p, Some(ZTyp.erase(zann)), block)
   | LamZE(p, ann, zblock) => Lam(p, ann, erase_block(zblock))
@@ -321,8 +327,10 @@ and is_before_exp = (ze: t): bool =>
   | OpSeqZ(_, ze1, EmptyPrefix(_)) => is_before_exp(ze1)
   | OpSeqZ(_, _, _) => false
   | DeeperE(_, LamZP(_, _, _))
+  | DeeperE(_, LamZE(_, _, _))
   | DeeperE(_, LamZA(_, _, _))
-  | DeeperE(_, LamZE(_, _, _)) => false
+  | DeeperE(_, TyLamZP(_, _))
+  | DeeperE(_, TyLamZE(_, _)) => false
   | DeeperE(_, InjZ(_, _)) => false
   | DeeperE(_, CaseZE(_, _, _))
   | DeeperE(_, CaseZR(_, _, _))
@@ -356,8 +364,10 @@ and is_after_exp = (ze: t): bool =>
   | ParenthesizedZ(_) => false
   | OpSeqZ(_, ze1, EmptySuffix(_)) => is_after_exp(ze1)
   | OpSeqZ(_, _, _) => false
+  | DeeperE(_, TyLamZP(_, _))
   | DeeperE(_, LamZP(_, _, _))
   | DeeperE(_, LamZA(_, _, _)) => false
+  | DeeperE(_, TyLamZE(_, zblock))
   | DeeperE(_, LamZE(_, _, zblock)) => is_after_block(zblock)
   | DeeperE(_, InjZ(_, _)) => false
   | DeeperE(_, CaseZE(_, _, _))
@@ -391,6 +401,7 @@ and place_before_exp = (e: UHExp.t): t =>
   | Parenthesized(_)
   | Tm(_, Var(_, _))
   | Tm(_, Lam(_, _, _))
+  | Tm(_, TyLam(_, _))
   | Tm(_, NumLit(_))
   | Tm(_, BoolLit(_))
   | Tm(_, Inj(_, _))
@@ -422,6 +433,7 @@ and place_after_exp = (e: UHExp.t): t =>
   | Tm(_, Case(_, _, None))
   | Tm(_, Var(_, _))
   | Tm(_, Lam(_, _, _))
+  | Tm(_, TyLam(_, _))
   | Tm(_, NumLit(_))
   | Tm(_, BoolLit(_))
   | Tm(_, Inj(_, _))

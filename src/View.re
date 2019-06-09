@@ -407,6 +407,18 @@ let of_FixF = (prefix, err_status, rev_path, rx, rty, r1) => {
   term(prefix, err_status, rev_path, "Lam", view);
 };
 
+let of_TyLam = (prefix, err_status, rev_path, rtp, r1) => {
+  let view =
+    taggedText("ty-lambda-sym", LangUtil.lamSym)
+    ^^ taggedText("ty-open-paren", "(")
+    ^^ kw("type ")
+    ^^ rtp
+    ^^ taggedText("ty-close-paren", ")")
+    ^^ taggedText("ty-lambda-dot", ".")
+    ^^ r1;
+  term(prefix, err_status, rev_path, "TyLam", view);
+};
+
 let of_Lam = (prefix, err_status, rev_path, rx, rann, r1) => {
   let first_part = taggedText("lambda-sym", LangUtil.lamSym) ^^ rx;
   let second_part = taggedText("lambda-dot", ".") ^^ r1;
@@ -784,6 +796,10 @@ and of_hexp = (palette_stuff, prefix, rev_path, e: UHExp.t) =>
     switch (e') {
     | Var(var_err_status, x) =>
       of_Var(prefix, err_status, var_err_status, rev_path, x)
+    | TyLam(tp, e1) =>
+      let rtp = of_TPat(prefix, [0, ...rev_path], tp);
+      let r1 = of_hblock(palette_stuff, prefix, [1, ...rev_path], e1);
+      of_TyLam(prefix, err_status, rev_path, rtp, r1);
     | Lam(p, ann, e1) =>
       let rp = of_hpat(prefix, [0, ...rev_path], p);
       let rann =
@@ -935,6 +951,7 @@ let rec precedence_dhexp = d =>
     | Let(_, _, _)
     | FixF(_, _, _)
     | Lam(_, _, _)
+    | TyLam(_, _)
     | Case(_, _, _) => precedence_max
     | Ap(_, _) => precedence_Ap
     | BinNumOp(Times, _, _) => precedence_Times
@@ -1151,6 +1168,8 @@ let rec of_dhexp' =
         } else {
           taggedText("fn-placeholder", "<fn>");
         }
+      /*! fix this too */
+      | TyLam(_, _) => taggedText("fn-placeholder", "<fn>")
       | Lam(dp, ann, d1) =>
         if (_SHOW_FN_BODIES) {
           let rp = of_dhpat(instance_click_fn, prefix, [0, ...rev_path], dp);

@@ -34,6 +34,7 @@ and t =
 and t' =
   | Var(var_err_status, Var.t)
   | Lam(UHPat.t, option(UHTyp.t), block)
+  | TyLam(TPat.t, block)
   | NumLit(int)
   | BoolLit(bool)
   | Inj(inj_side, block)
@@ -122,6 +123,7 @@ let bidelimited = (e: t): bool =>
   /* non-bidelimited cases */
   | Tm(_, Case(_, _, _))
   | Tm(_, Lam(_, _, _))
+  | Tm(_, TyLam(_, _))
   | OpSeq(_, _) => false
   };
 

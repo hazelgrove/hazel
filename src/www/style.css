@@ -712,7 +712,7 @@ button:disabled {
   font-size: 125%;
 }
 
-.kw, .lambda-sym, .forall-sym {
+.kw, .lambda-sym, .forall-sym, .ty-lambda-sym {
   font-weight: bold;
 }
 
