@@ -6,6 +6,8 @@
   --empty-hole-color: #a040a0;
   --nonempty-hole-color: red;
   --title-bar-color: #073f24;
+  --delim-cushion: 8px;
+  --indent-length: 24px;
 }
 
 /* general */
@@ -715,6 +717,66 @@ button:disabled {
 
 .kw, .lambda-sym {
   font-weight: bold;
+}
+
+.Lam {
+  display: grid;
+  grid-template-columns: fit-content(100%) var(--delim-cushion) fit-content(100%);
+  grid-template-areas: "first . second";
+}
+.Lam.multi-line {
+  display: grid;
+  grid-template-rows: fit-content(100%) fit-content(100%);
+  grid-template-areas:
+    "first"
+    "second";
+}
+.Lam-first {
+  grid-area: first;
+  display: grid;
+  grid-template-columns: fit-content(100%) var(--delim-cushion) fit-content(100%) var(--delim-cushion) fit-content(100%);
+  grid-template-areas: "sym . arg . dot"
+}
+.ann > .Lam-first {
+  grid-area: first;
+  display: grid;
+  grid-template-columns: fit-content(100%) var(--delim-cushion) fit-content(100%) var(--delim-cushion) fit-content(100%) var(--delim-cushion) fit-content(100%);
+  grid-template-areas: "sym . arg . colon . ann . dot";
+}
+.Lam-second {
+  grid-area: second;
+  display: grid;
+  grid-template-columns: 1fr;
+  grid-template-areas: "body";
+}
+.multi-line > .Lam-second {
+  grid-area: second;
+  display: grid;
+  grid-template-columns: var(--indent-length) 1fr;
+  grid-template-areas: ". body";
+}
+.Lam-sym {
+  grid-area: sym;
+  font-weight: bold;
+}
+.Lam-arg {
+  grid-area: arg;
+  width: max-content;
+}
+.Lam-colon {
+  grid-area: colon;
+}
+.Lam-ann {
+  grid-area: ann;
+  width: max-content;
+}
+.Lam-dot {
+  grid-area: dot;
+  font-weight: bold;
+}
+.Lam-body {
+  grid-area: body;
+  width: max-content;
 }
 
 .var {
