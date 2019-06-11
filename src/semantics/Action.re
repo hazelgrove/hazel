@@ -138,7 +138,7 @@ let keyword_action = (k: keyword): t =>
   };
 
 let rec perform_ty =
-        (a: t, zty: ZTyp.t, u_gen: MetaVarGen.t)
+        (ctx: Contexts.t, a: t, zty: ZTyp.t, u_gen: MetaVarGen.t)
         : option((ZTyp.t, MetaVarGen.t)) => {
   let append_u_gen = o =>
     switch (o) {
@@ -154,14 +154,14 @@ let rec perform_ty =
   | (MoveToPrevHole, _) =>
     switch (Path.prev_hole_path(Path.holes_zty(zty, []))) {
     | None => None
-    | Some(path) => perform_ty(MoveTo(path), zty, u_gen)
+    | Some(path) => perform_ty(ctx, MoveTo(path), zty, u_gen)
     }
   | (MoveToNextHole, _) =>
     switch (Path.next_hole_path(Path.holes_zty(zty, []))) {
     | None => None
     | Some(path) =>
       /* [debug] let path = Helper.log_path path in */
-      perform_ty(MoveTo(path), zty, u_gen)
+      perform_ty(ctx, MoveTo(path), zty, u_gen)
     }
   /* Backspace and Delete */
   | (Backspace, CursorT(After, uty))
@@ -309,12 +309,12 @@ let rec perform_ty =
       Construct(SOp(SSpace)),
       OpSeqZ(_, CursorT(After, TVar(InVHole(Keyword(k), _), _)), _) as zty,
     ) =>
-    perform_ty(keyword_action(k), zty, u_gen)
+    perform_ty(ctx, keyword_action(k), zty, u_gen)
   | (
       Construct(SOp(SSpace)),
       CursorT(After, TVar(InVHole(Keyword(k), _), _)) as zty,
     ) =>
-    perform_ty(keyword_action(k), zty, u_gen)
+    perform_ty(ctx, keyword_action(k), zty, u_gen)
   | (Construct(SVar(t, side)), CursorT(_, TVar(_, _)))
   | (Construct(SVar(t, side)), CursorT(_, Hole)) =>
     if (Var.is_forall(t)) {
@@ -396,17 +396,17 @@ let rec perform_ty =
     }
   /* Zipper Cases */
   | (a, ParenthesizedZ(zty1)) =>
-    switch (perform_ty(a, zty1, u_gen)) {
+    switch (perform_ty(ctx, a, zty1, u_gen)) {
     | Some((zty1', u_gen)) => Some((ParenthesizedZ(zty1'), u_gen))
     | None => None
     }
   | (a, ListZ(zty1)) =>
-    switch (perform_ty(a, zty1, u_gen)) {
+    switch (perform_ty(ctx, a, zty1, u_gen)) {
     | Some((zty1, u_gen)) => Some((ListZ(zty1), u_gen))
     | None => None
     }
   | (a, ForallZT(t, zty1)) =>
-    switch (perform_ty(a, zty1, u_gen)) {
+    switch (perform_ty(ctx, a, zty1, u_gen)) {
     | Some((zty1, u_gen)) => Some((ForallZT(t, zty1), u_gen))
     | None => None
     }
@@ -416,7 +416,7 @@ let rec perform_ty =
     | None => None
     }
   | (a, OpSeqZ(skel, zty0, surround)) =>
-    switch (perform_ty(a, zty0, u_gen)) {
+    switch (perform_ty(ctx, a, zty0, u_gen)) {
     | Some((zty0', u_gen)) => Some((OpSeqZ(skel, zty0', surround), u_gen))
     | None => None
     }
@@ -1216,7 +1216,7 @@ let rec syn_perform_pat =
       Var.check_valid(
         x,
         {
-          let ctx = Contexts.extend_gamma(ctx, (x, Hole));
+          let ctx = Contexts.extend_vars(ctx, (x, Hole));
           Some((
             ZPat.CursorP(side, Pat(NotInHole, Var(NotInVHole, x))),
             HTyp.Hole,
@@ -1548,7 +1548,7 @@ and ana_perform_pat =
       Var.check_valid(
         x,
         {
-          let ctx = Contexts.extend_gamma(ctx, (x, ty));
+          let ctx = Contexts.extend_vars(ctx, (x, ty));
           Some((
             ZPat.CursorP(side, Pat(NotInHole, Var(NotInVHole, x))),
             ctx,
@@ -2352,7 +2352,7 @@ and syn_perform_line =
       }
     }
   | (_, DeeperL(LetLineZA(p, zann, block))) =>
-    switch (perform_ty(a, zann, u_gen)) {
+    switch (perform_ty(ctx, a, zann, u_gen)) {
     | None => None
     | Some((zann, u_gen)) =>
       let ty = UHTyp.expand(ZTyp.erase(zann));
@@ -2658,8 +2658,7 @@ and syn_perform_exp =
       Var.check_valid(
         x,
         {
-          let gamma = Contexts.gamma(ctx);
-          switch (VarMap.lookup(gamma, x)) {
+          switch (VarMap.lookup(ctx.vars, x)) {
           | Some(xty) =>
             Some((
               ZExp.CursorE(side, Tm(NotInHole, Var(NotInVHole, x))),
@@ -2778,8 +2777,7 @@ and syn_perform_exp =
       )
     }
   | (Construct(SApPalette(name)), CursorE(_, EmptyHole(_))) =>
-    let palette_ctx = Contexts.palette_ctx(ctx);
-    switch (PaletteCtx.lookup(palette_ctx, name)) {
+    switch (PaletteCtx.lookup(ctx.palettes, name)) {
     | None => None
     | Some(palette_defn) =>
       let init_model_cmd = palette_defn.init_model;
@@ -2804,7 +2802,7 @@ and syn_perform_exp =
           ))
         };
       };
-    };
+    }
   | (Construct(SApPalette(_)), CursorE(_, _)) => None
   | (
       UpdateApPalette(_),
@@ -2925,7 +2923,7 @@ and syn_perform_exp =
       Some((ze, ty, u_gen));
     };
   | (_, DeeperE(_, LamZA(p, zann, block))) =>
-    switch (perform_ty(a, zann, u_gen)) {
+    switch (perform_ty(ctx, a, zann, u_gen)) {
     | None => None
     | Some((zann, u_gen)) =>
       let ty1 = UHTyp.expand(ZTyp.erase(zann));
@@ -3079,7 +3077,7 @@ and syn_perform_exp =
     switch (Statics.syn_block(ctx, block)) {
     | None => None
     | Some(ty1) =>
-      switch (perform_ty(a, zann, u_gen)) {
+      switch (perform_ty(ctx, a, zann, u_gen)) {
       | None => None
       | Some((zann, u_gen)) =>
         let ty = UHTyp.expand(ZTyp.erase(zann));
@@ -3722,7 +3720,7 @@ and ana_perform_exp =
     switch (HTyp.matched_arrow(ty)) {
     | None => None
     | Some((ty1_given, ty2)) =>
-      switch (perform_ty(a, zann, u_gen)) {
+      switch (perform_ty(ctx, a, zann, u_gen)) {
       | None => None
       | Some((zann, u_gen)) =>
         let ty1 = UHTyp.expand(ZTyp.erase(zann));
@@ -3837,7 +3835,7 @@ and ana_perform_exp =
     switch (Statics.syn_block(ctx, block)) {
     | None => None
     | Some(ty1) =>
-      switch (perform_ty(a, zann, u_gen)) {
+      switch (perform_ty(ctx, a, zann, u_gen)) {
       | None => None
       | Some((zann, u_gen)) =>
         let ty2 = UHTyp.expand(ZTyp.erase(zann));

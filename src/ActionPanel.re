@@ -99,13 +99,7 @@ let make =
           | None => invalid
           | Some(arg) =>
             let a = action(arg);
-            switch (
-              Action.syn_perform_block(
-                (VarCtx.empty, Palettes.initial_palette_ctx),
-                a,
-                m,
-              )
-            ) {
+            switch (Action.syn_perform_block(Contexts.empty, a, m)) {
             | Some(_) => valid
             | None => invalid
             };
@@ -239,12 +233,7 @@ let make =
   let check_action_rs = action =>
     S.l2(
       (edit_state, cursor_info) =>
-        Action.can_perform(
-          (VarCtx.empty, Palettes.initial_palette_ctx),
-          edit_state,
-          cursor_info,
-          action,
-        ),
+        Action.can_perform(Contexts.empty, edit_state, cursor_info, action),
       edit_state_rs,
       cursor_info_rs,
     );

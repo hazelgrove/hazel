@@ -80,20 +80,21 @@ module DHPat = {
       switch (syn_expand'(ctx, delta, p')) {
       | DoesNotExpand => DoesNotExpand
       | Expands(dp, _, ctx, delta) =>
-        let gamma = Contexts.gamma(ctx);
         let delta =
-          MetaVarMap.extend_unique(delta, (u, (PatternHole, Hole, gamma)));
+          MetaVarMap.extend_unique(
+            delta,
+            (u, (PatternHole, Hole, ctx.vars)),
+          );
         Expands(NonEmptyHole(reason, u, 0, dp), Hole, ctx, delta);
       }
     | Pat(InHole(WrongLength, _), _) => DoesNotExpand
     | Pat(NotInHole, p') => syn_expand'(ctx, delta, p')
     | Parenthesized(p1) => syn_expand(ctx, delta, p1)
     | EmptyHole(u) =>
-      let gamma = Contexts.gamma(ctx);
       let dp = EmptyHole(u, 0);
       let ty = HTyp.Hole;
       let delta =
-        MetaVarMap.extend_unique(delta, (u, (PatternHole, ty, gamma)));
+        MetaVarMap.extend_unique(delta, (u, (PatternHole, ty, ctx.vars)));
       Expands(dp, ty, ctx, delta);
     | OpSeq(skel, seq) => syn_expand_skel(ctx, delta, skel, seq)
     }
@@ -105,7 +106,7 @@ module DHPat = {
     | Var(InVHole(Keyword(k), u), _) =>
       Expands(Keyword(u, 0, k), Hole, ctx, delta)
     | Var(NotInVHole, x) =>
-      let ctx = Contexts.extend_gamma(ctx, (x, Hole));
+      let ctx = Contexts.extend_vars(ctx, (x, Hole));
       Expands(Var(x), Hole, ctx, delta);
     | NumLit(n) => Expands(NumLit(n), Num, ctx, delta)
     | BoolLit(b) => Expands(BoolLit(b), Bool, ctx, delta)
@@ -138,9 +139,11 @@ module DHPat = {
       switch (syn_expand_skel(ctx, delta, skel_not_in_hole, seq)) {
       | DoesNotExpand => DoesNotExpand
       | Expands(dp, _, ctx, delta) =>
-        let gamma = Contexts.gamma(ctx);
         let delta =
-          MetaVarMap.extend_unique(delta, (u, (PatternHole, Hole, gamma)));
+          MetaVarMap.extend_unique(
+            delta,
+            (u, (PatternHole, Hole, ctx.vars)),
+          );
         Expands(NonEmptyHole(reason, u, 0, dp), Hole, ctx, delta);
       };
     | BinOp(InHole(WrongLength, _), _, _, _) => DoesNotExpand
@@ -188,18 +191,16 @@ module DHPat = {
       | DoesNotExpand => DoesNotExpand
       | Expands(dp1, _, ctx, delta) =>
         let dp = NonEmptyHole(reason, u, 0, dp1);
-        let gamma = Contexts.gamma(ctx);
         let delta =
-          MetaVarMap.extend_unique(delta, (u, (PatternHole, ty, gamma)));
+          MetaVarMap.extend_unique(delta, (u, (PatternHole, ty, ctx.vars)));
         Expands(dp, ty, ctx, delta);
       }
     | Pat(InHole(WrongLength, _), _) => DoesNotExpand
     | Parenthesized(p) => ana_expand(ctx, delta, p, ty)
     | EmptyHole(u) =>
-      let gamma = Contexts.gamma(ctx);
       let dp = EmptyHole(u, 0);
       let delta =
-        MetaVarMap.extend_unique(delta, (u, (PatternHole, ty, gamma)));
+        MetaVarMap.extend_unique(delta, (u, (PatternHole, ty, ctx.vars)));
       Expands(dp, ty, ctx, delta);
     | OpSeq(skel, seq) => ana_expand_skel(ctx, delta, skel, seq, ty)
     }
@@ -211,7 +212,7 @@ module DHPat = {
     | Var(InVHole(Keyword(k), u), _) =>
       Expands(Keyword(u, 0, k), ty, ctx, delta)
     | Var(NotInVHole, x) =>
-      let ctx = Contexts.extend_gamma(ctx, (x, ty));
+      let ctx = Contexts.extend_vars(ctx, (x, ty));
       Expands(Var(x), ty, ctx, delta);
     | Wild => Expands(Wild, ty, ctx, delta)
     | NumLit(_)
@@ -259,9 +260,8 @@ module DHPat = {
       | DoesNotExpand => DoesNotExpand
       | Expands(dp1, _, ctx, delta) =>
         let dp = NonEmptyHole(reason, u, 0, dp1);
-        let gamma = Contexts.gamma(ctx);
         let delta =
-          MetaVarMap.extend_unique(delta, (u, (PatternHole, ty, gamma)));
+          MetaVarMap.extend_unique(delta, (u, (PatternHole, ty, ctx.vars)));
         Expands(dp, ty, ctx, delta);
       };
     | BinOp(NotInHole, Comma, skel1, skel2) =>
@@ -941,12 +941,14 @@ module DHExp = {
     switch (e) {
     | Parenthesized(block) => syn_expand_block(ctx, delta, block)
     | EmptyHole(u) =>
-      let gamma = Contexts.gamma(ctx);
-      let sigma = id_env(gamma);
+      let sigma = id_env(ctx.vars);
       let d = DHExp.EmptyHole(u, 0, sigma);
       let ty = HTyp.Hole;
       let delta =
-        MetaVarMap.extend_unique(delta, (u, (ExpressionHole, ty, gamma)));
+        MetaVarMap.extend_unique(
+          delta,
+          (u, (ExpressionHole, ty, ctx.vars)),
+        );
       Expands(d, ty, delta);
     | OpSeq(skel, seq) => syn_expand_skel(ctx, delta, skel, seq)
     | Tm(NotInHole, e') => syn_expand_exp'(ctx, delta, e')
@@ -955,12 +957,11 @@ module DHExp = {
       switch (syn_expand_exp'(ctx, delta, e')) {
       | DoesNotExpand => DoesNotExpand
       | Expands(d, _, delta) =>
-        let gamma = Contexts.gamma(ctx);
-        let sigma = id_env(gamma);
+        let sigma = id_env(ctx.vars);
         let delta =
           MetaVarMap.extend_unique(
             delta,
-            (u, (ExpressionHole, Hole, gamma)),
+            (u, (ExpressionHole, Hole, ctx.vars)),
           );
         Expands(NonEmptyHole(reason, u, 0, sigma, d), Hole, delta);
       }
@@ -969,16 +970,17 @@ module DHExp = {
       (ctx: Contexts.t, delta: Delta.t, e: UHExp.t'): expand_result =>
     switch (e) {
     | Var(NotInVHole, x) =>
-      let gamma = Contexts.gamma(ctx);
-      switch (VarMap.lookup(gamma, x)) {
+      switch (VarMap.lookup(ctx.vars, x)) {
       | Some(ty) => Expands(BoundVar(x), ty, delta)
       | None => DoesNotExpand
-      };
+      }
     | Var(InVHole(reason, u), x) =>
-      let gamma = Contexts.gamma(ctx);
-      let sigma = id_env(gamma);
+      let sigma = id_env(ctx.vars);
       let delta =
-        MetaVarMap.extend_unique(delta, (u, (ExpressionHole, Hole, gamma)));
+        MetaVarMap.extend_unique(
+          delta,
+          (u, (ExpressionHole, Hole, ctx.vars)),
+        );
       let d =
         switch (reason) {
         | Free => DHExp.FreeVar(u, 0, sigma, x)
@@ -1082,12 +1084,11 @@ module DHExp = {
       switch (syn_expand_skel(ctx, delta, skel_not_in_hole, seq)) {
       | DoesNotExpand => DoesNotExpand
       | Expands(d, _, delta) =>
-        let gamma = Contexts.gamma(ctx);
-        let sigma = id_env(gamma);
+        let sigma = id_env(ctx.vars);
         let delta =
           MetaVarMap.extend_unique(
             delta,
-            (u, (ExpressionHole, Hole, gamma)),
+            (u, (ExpressionHole, Hole, ctx.vars)),
           );
         Expands(NonEmptyHole(reason, u, 0, sigma, d), Hole, delta);
       };
@@ -1178,11 +1179,13 @@ module DHExp = {
     switch (e) {
     | Parenthesized(block) => ana_expand_block(ctx, delta, block, ty)
     | EmptyHole(u) =>
-      let gamma = Contexts.gamma(ctx);
-      let sigma = id_env(gamma);
+      let sigma = id_env(ctx.vars);
       let d = EmptyHole(u, 0, sigma);
       let delta =
-        MetaVarMap.extend_unique(delta, (u, (ExpressionHole, ty, gamma)));
+        MetaVarMap.extend_unique(
+          delta,
+          (u, (ExpressionHole, ty, ctx.vars)),
+        );
       Expands(d, ty, delta);
     | Tm(NotInHole, e') => ana_expand_exp'(ctx, delta, e', ty)
     | Tm(InHole(WrongLength, _), _) => DoesNotExpand
@@ -1190,10 +1193,12 @@ module DHExp = {
       switch (syn_expand_exp'(ctx, delta, e')) {
       | DoesNotExpand => DoesNotExpand
       | Expands(d, _, delta) =>
-        let gamma = Contexts.gamma(ctx);
-        let sigma = id_env(gamma);
+        let sigma = id_env(ctx.vars);
         let delta =
-          MetaVarMap.extend_unique(delta, (u, (ExpressionHole, ty, gamma)));
+          MetaVarMap.extend_unique(
+            delta,
+            (u, (ExpressionHole, ty, ctx.vars)),
+          );
         Expands(NonEmptyHole(reason, u, 0, sigma, d), ty, delta);
       }
     | OpSeq(skel, seq) => ana_expand_skel(ctx, delta, skel, seq, ty)
@@ -1203,10 +1208,12 @@ module DHExp = {
       : expand_result =>
     switch (e) {
     | Var(InVHole(reason, u), x) =>
-      let gamma = Contexts.gamma(ctx);
-      let sigma = id_env(gamma);
+      let sigma = id_env(ctx.vars);
       let delta =
-        MetaVarMap.extend_unique(delta, (u, (ExpressionHole, ty, gamma)));
+        MetaVarMap.extend_unique(
+          delta,
+          (u, (ExpressionHole, ty, ctx.vars)),
+        );
       let d =
         switch (reason) {
         | Free => FreeVar(u, 0, sigma, x)
@@ -1370,10 +1377,12 @@ module DHExp = {
       switch (syn_expand_skel(ctx, delta, skel_not_in_hole, seq)) {
       | DoesNotExpand => DoesNotExpand
       | Expands(d1, _, delta) =>
-        let gamma = Contexts.gamma(ctx);
-        let sigma = id_env(gamma);
+        let sigma = id_env(ctx.vars);
         let delta =
-          MetaVarMap.extend_unique(delta, (u, (ExpressionHole, ty, gamma)));
+          MetaVarMap.extend_unique(
+            delta,
+            (u, (ExpressionHole, ty, ctx.vars)),
+          );
         let d = DHExp.NonEmptyHole(reason, u, 0, sigma, d1);
         Expands(d, ty, delta);
       };

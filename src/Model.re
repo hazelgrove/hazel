@@ -59,12 +59,7 @@ let new_model = (): t => {
     React.S.l1(
       ~eq=(_, _) => false, /* palette contexts have functions in them! */
       ((zblock, _, _)) =>
-        switch (
-          CursorInfo.syn_cursor_info_block(
-            (VarCtx.empty, Palettes.initial_palette_ctx),
-            zblock,
-          )
-        ) {
+        switch (CursorInfo.syn_cursor_info_block(Contexts.empty, zblock)) {
         | Some(cursor_info) => cursor_info
         | None => raise(MissingCursorInfo)
         },
@@ -74,12 +69,7 @@ let new_model = (): t => {
   let result_rs =
     React.S.l1(
       e => {
-        let expanded =
-          DHExp.syn_expand_block(
-            (VarCtx.empty, Palettes.initial_palette_ctx),
-            Delta.empty,
-            e,
-          );
+        let expanded = DHExp.syn_expand_block(Contexts.empty, Delta.empty, e);
         switch (expanded) {
         | DHExp.DoesNotExpand => raise(DoesNotExpand)
         | DHExp.Expands(d, _, _) =>
@@ -145,7 +135,7 @@ let new_model = (): t => {
   let do_action = action =>
     switch (
       Action.syn_perform_block(
-        (VarCtx.empty, Palettes.initial_palette_ctx),
+        Contexts.empty,
         action,
         React.S.value(edit_state_rs),
       )
@@ -174,7 +164,7 @@ let new_model = (): t => {
   let replace_e = (new_block: UHExp.block) => {
     let new_edit_state =
       Statics.syn_fix_holes_zblock(
-        (VarCtx.empty, PaletteCtx.empty),
+        Contexts.empty,
         MetaVarGen.init,
         ZExp.place_before_block(new_block),
       );

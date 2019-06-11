@@ -13,6 +13,31 @@ let combine_modes = (mode1, mode2) =>
   | (None, None) => None
   };
 
+let pat_wf = (ctx: Contexts.t, tpat: TPat.t): Contexts.t =>
+  switch (tpat) {
+  | TPat.Var(t) => Contexts.extend_tvars(ctx, t)
+  | TPat.Hole(_) => ctx
+  };
+
+/*! finish -- put this literally everewhere. like literally after each character. Maybe more. */
+/* is type well formed? */
+let rec type_wf = (ctx: Contexts.t, t: HTyp.t) =>
+  switch (t) {
+  | TVar(idx, _) => List.length(ctx.tvars) > idx
+  | TVarHole(_, _)
+  | Num
+  | Unit
+  | Bool
+  | Hole => true
+  | Arrow(a, b)
+  | Sum(a, b)
+  | Prod(a, b) => type_wf(ctx, a) && type_wf(ctx, b)
+  | List(a) => type_wf(ctx, a)
+  | Forall(tp, a) =>
+    let ctx = pat_wf(ctx, tp);
+    type_wf(ctx, a);
+  };
+
 let rec syn_pat =
         (ctx: Contexts.t, p: UHPat.t): option((HTyp.t, Contexts.t)) =>
   switch (p) {
@@ -39,7 +64,7 @@ and syn_pat' = (ctx: Contexts.t, p': UHPat.t'): option((HTyp.t, Contexts.t)) =>
   | Var(NotInVHole, x) =>
     Var.check_valid(
       x,
-      Some((HTyp.Hole, Contexts.extend_gamma(ctx, (x, Hole)))),
+      Some((HTyp.Hole, Contexts.extend_vars(ctx, (x, Hole)))),
     )
   | NumLit(_) => Some((Num, ctx))
   | BoolLit(_) => Some((Bool, ctx))
@@ -151,7 +176,7 @@ and ana_pat' =
   | Var(InVHole(Free, _), _) => raise(FreeVarInPat)
   | Var(InVHole(Keyword(_), _), _) => Some(ctx)
   | Var(NotInVHole, x) =>
-    Var.check_valid(x, Some(Contexts.extend_gamma(ctx, (x, ty))))
+    Var.check_valid(x, Some(Contexts.extend_vars(ctx, (x, ty))))
   | Wild => Some(ctx)
   | NumLit(_)
   | BoolLit(_) =>
@@ -361,7 +386,7 @@ let ctx_for_let =
   switch (p, block) {
   | (Pat(_, Var(NotInVHole, x)), Block([], Tm(_, Lam(_, _, _)))) =>
     switch (HTyp.matched_arrow(ty)) {
-    | Some(_) => Contexts.extend_gamma(ctx, (x, ty))
+    | Some(_) => Contexts.extend_vars(ctx, (x, ty))
     | None => ctx
     }
   | _ => ctx
@@ -374,7 +399,7 @@ let ctx_for_let' =
   switch (p, block) {
   | (Pat(_, Var(NotInVHole, x)), Block([], Tm(_, Lam(_, _, _)))) =>
     switch (HTyp.matched_arrow(ty)) {
-    | Some(_) => (Contexts.extend_gamma(ctx, (x, ty)), Some(x))
+    | Some(_) => (Contexts.extend_vars(ctx, (x, ty)), Some(x))
     | None => (ctx, None)
     }
   | _ => (ctx, None)
@@ -439,9 +464,7 @@ and syn_exp = (ctx: Contexts.t, e: UHExp.t): option(HTyp.t) =>
   }
 and syn_exp' = (ctx: Contexts.t, e': UHExp.t'): option(HTyp.t) =>
   switch (e') {
-  | Var(NotInVHole, x) =>
-    let (gamma, _) = ctx;
-    VarMap.lookup(gamma, x);
+  | Var(NotInVHole, x) => VarMap.lookup(ctx.vars, x)
   | Var(InVHole(_, _), _) => Some(Hole)
   | Lam(p, ann, block) =>
     let ty1 =
@@ -473,8 +496,7 @@ and syn_exp' = (ctx: Contexts.t, e': UHExp.t'): option(HTyp.t) =>
   | Case(_, _, Some(uty)) => Some(UHTyp.expand(uty))
   | Case(_, _, None) => None
   | ApPalette(name, serialized_model, psi) =>
-    let palette_ctx = Contexts.palette_ctx(ctx);
-    switch (PaletteCtx.lookup(palette_ctx, name)) {
+    switch (PaletteCtx.lookup(ctx.palettes, name)) {
     | None => None
     | Some(palette_defn) =>
       switch (ana_splice_map(ctx, SpliceInfo.splice_map(psi))) {
@@ -488,7 +510,7 @@ and syn_exp' = (ctx: Contexts.t, e': UHExp.t'): option(HTyp.t) =>
         | Some(_) => Some(expansion_ty)
         };
       }
-    };
+    }
   }
 and syn_skel =
     (
@@ -598,7 +620,7 @@ and ana_splice_map =
         | None => None
         | Some(_) =>
           let splice_var = SpliceInfo.var_of_splice_name(splice_name);
-          Some(Contexts.extend_gamma(splice_ctx, (splice_var, ty)));
+          Some(Contexts.extend_vars(splice_ctx, (splice_var, ty)));
         }
       },
     Some(Contexts.empty),
@@ -932,7 +954,7 @@ and syn_fix_holes_pat' =
   | Var(InVHole(Free, _), _) => raise(FreeVarInPat)
   | Var(InVHole(Keyword(_), _), _) => (p', Hole, ctx, u_gen)
   | Var(NotInVHole, x) =>
-    let ctx = Contexts.extend_gamma(ctx, (x, Hole));
+    let ctx = Contexts.extend_vars(ctx, (x, Hole));
     (p', Hole, ctx, u_gen);
   | NumLit(_) => (p', Num, ctx, u_gen)
   | BoolLit(_) => (p', Bool, ctx, u_gen)
@@ -1067,7 +1089,7 @@ and ana_fix_holes_pat' =
   | Var(InVHole(Free, _), _) => raise(FreeVarInPat)
   | Var(InVHole(Keyword(_), _), _) => (NotInHole, p', ctx, u_gen)
   | Var(NotInVHole, x) =>
-    let ctx = Contexts.extend_gamma(ctx, (x, ty));
+    let ctx = Contexts.extend_vars(ctx, (x, ty));
     (NotInHole, p', ctx, u_gen);
   | NumLit(_)
   | BoolLit(_) =>
@@ -1443,8 +1465,7 @@ and syn_fix_holes_exp' =
     : (UHExp.t', HTyp.t, MetaVarGen.t) =>
   switch (e') {
   | Var(var_err_status, x) =>
-    let gamma = Contexts.gamma(ctx);
-    switch (VarMap.lookup(gamma, x)) {
+    switch (VarMap.lookup(ctx.vars, x)) {
     | Some(ty) => (UHExp.Var(NotInVHole, x), ty, u_gen)
     | None =>
       switch (var_err_status) {
@@ -1459,7 +1480,7 @@ and syn_fix_holes_exp' =
           };
         (Var(InVHole(in_vhole_reason, u), x), Hole, u_gen);
       }
-    };
+    }
   | TyLam(_p, _block) => raise(Failure("unimplemented14"))
   | Lam(p, ann, block) =>
     let ty1 =
@@ -1505,8 +1526,7 @@ and syn_fix_holes_exp' =
       );
     (Case(block, rules, Some(UHTyp.Hole)), HTyp.Hole, u_gen);
   | ApPalette(name, serialized_model, psi) =>
-    let palette_ctx = Contexts.palette_ctx(ctx);
-    switch (PaletteCtx.lookup(palette_ctx, name)) {
+    switch (PaletteCtx.lookup(ctx.palettes, name)) {
     | None => raise(PaletteCtx.InvalidPaletteHoleName) /* TODO invalid palette name hole */
     | Some(palette_defn) =>
       let (splice_map, u_gen) =
@@ -1519,7 +1539,7 @@ and syn_fix_holes_exp' =
       let psi = SpliceInfo.update_splice_map(psi, splice_map);
       let expansion_ty = palette_defn.expansion_ty;
       (ApPalette(name, serialized_model, psi), expansion_ty, u_gen);
-    };
+    }
   }
 and ana_fix_holes_rules =
     (

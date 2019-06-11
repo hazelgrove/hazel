@@ -427,14 +427,20 @@ let mk =
 
     let panel =
         (
-          {CursorInfo.sort, CursorInfo.ctx: (gamma, _), _},
+          {CursorInfo.sort, CursorInfo.ctx, _},
           (_, hii, _),
           selected_instance,
           next_prev_state_rf,
         ) => {
-      let the_context_view = context_view(gamma, hii, selected_instance);
+      let the_context_view = context_view(ctx.vars, hii, selected_instance);
       let the_path_viewer =
-        path_viewer(hii, selected_instance, sort, gamma, next_prev_state_rf);
+        path_viewer(
+          hii,
+          selected_instance,
+          sort,
+          ctx.vars,
+          next_prev_state_rf,
+        );
 
       [
         Panel.main_title_bar("context"),
