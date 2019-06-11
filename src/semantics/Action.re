@@ -220,7 +220,7 @@ let rec perform_ty = (a: t, zty: ZTyp.t): result(ZTyp.t) =>
     | None => Failed
     | Some(path) =>
       /* [debug] let path = Helper.log_path path in */
-      perform_ty(MoveTo(path), zty, u_gen)
+      perform_ty(ctx, MoveTo(path), zty, u_gen)
     }
   | (MoveLeft, _) =>
     ZTyp.move_cursor_left(zty)
@@ -4620,8 +4620,7 @@ and syn_perform_exp =
       check_valid(
         x,
         {
-          let gamma = Contexts.gamma(ctx);
-          switch (VarMap.lookup(gamma, x)) {
+          switch (VarMap.lookup(ctx.vars, x)) {
           | Some(xty) =>
             Succeeded((
               ZExp.E(ZExp.CursorE(cursor, Var(NotInHole, NotInVHole, x))),

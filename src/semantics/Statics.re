@@ -16,6 +16,31 @@ let combine_modes = (mode1, mode2) =>
   | (None, None) => None
   };
 
+let pat_wf = (ctx: Contexts.t, tpat: TPat.t): Contexts.t =>
+  switch (tpat) {
+  | TPat.Var(t) => Contexts.extend_tvars(ctx, t)
+  | TPat.Hole(_) => ctx
+  };
+
+/*! finish -- put this literally everewhere. like literally after each character. Maybe more. */
+/* is type well formed? */
+let rec type_wf = (ctx: Contexts.t, t: HTyp.t) =>
+  switch (t) {
+  | TVar(idx, _) => List.length(ctx.tvars) > idx
+  | TVarHole(_, _)
+  | Num
+  | Unit
+  | Bool
+  | Hole => true
+  | Arrow(a, b)
+  | Sum(a, b)
+  | Prod(a, b) => type_wf(ctx, a) && type_wf(ctx, b)
+  | List(a) => type_wf(ctx, a)
+  | Forall(tp, a) =>
+    let ctx = pat_wf(ctx, tp);
+    type_wf(ctx, a);
+  };
+
 let rec syn_pat =
         (ctx: Contexts.t, p: UHPat.t): option((HTyp.t, Contexts.t)) =>
   switch (p) {
@@ -45,7 +70,7 @@ let rec syn_pat =
   | Var(NotInHole, NotInVHole, x) =>
     Var.check_valid(
       x,
-      Some((HTyp.Hole, Contexts.extend_gamma(ctx, (x, Hole)))),
+      Some((HTyp.Hole, Contexts.extend_vars(ctx, (x, Hole)))),
     )
   | NumLit(NotInHole, _) => Some((Num, ctx))
   | BoolLit(NotInHole, _) => Some((Bool, ctx))
@@ -380,7 +405,7 @@ let ctx_for_let =
   switch (p, block) {
   | (Var(_, NotInVHole, x), Block([], Lam(_, _, _, _))) =>
     switch (HTyp.matched_arrow(ty)) {
-    | Some(_) => Contexts.extend_gamma(ctx, (x, ty))
+    | Some(_) => Contexts.extend_vars(ctx, (x, ty))
     | None => ctx
     }
   | _ => ctx
@@ -393,7 +418,7 @@ let ctx_for_let' =
   switch (p, block) {
   | (Var(_, NotInVHole, x), Block([], Lam(_, _, _, _))) =>
     switch (HTyp.matched_arrow(ty)) {
-    | Some(_) => (Contexts.extend_gamma(ctx, (x, ty)), Some(x))
+    | Some(_) => (Contexts.extend_vars(ctx, (x, ty)), Some(x))
     | None => (ctx, None)
     }
   | _ => (ctx, None)
@@ -638,7 +663,7 @@ and ana_splice_map =
         | None => None
         | Some(_) =>
           let splice_var = SpliceInfo.var_of_splice_name(splice_name);
-          Some(Contexts.extend_gamma(splice_ctx, (splice_var, ty)));
+          Some(Contexts.extend_vars(splice_ctx, (splice_var, ty)));
         }
       },
     Some(Contexts.empty),
