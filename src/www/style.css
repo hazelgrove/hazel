@@ -719,25 +719,30 @@ button:disabled {
   font-weight: bold;
 }
 
-.Lam {
+.node {
+  width: max-content;
+}
+.outer.node {
+  display: initial;
+}
+.inner.node {
   display: flex;
   flex-direction: row;
 }
-.Lam.multi-line {
+.node.multi-line {
   display: flex;
   flex-direction: column;
   align-items: stretch;
 }
-.Lam-first-line {
+.line {
   display: flex;
   flex-direction: row;
 }
-.Lam-second-line {
-  display: flex;
-  flex-direction: row;
-}
-.Lam.multi-line > .Lam-second-line {
+.node.multi-line > .indent.line {
   padding-left: var(--indent-length);
+}
+.node.EmptyHole {
+  display: initial;
 }
 
 .var {
@@ -814,10 +819,6 @@ button:disabled {
 
 .EmptyHole {
   border-bottom: 1px solid var(--empty-hole-color);
-}
-
-.node {
-  width: max-content;
 }
 
 .hole-instance {

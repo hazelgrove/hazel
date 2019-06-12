@@ -1099,19 +1099,14 @@ let node_clss = (~err_status=NotInHole, clss: list(string)): list(string) => {
 let node_id = (prefix: string, rev_path: Path.steps): string =>
   id_of_rev_path(prefix, rev_path);
 
-let delim =
-    (
-      ~a: list(Html5.attrib([< Html_types.div_attrib]))=[],
-      ~delim_index=?,
-      s: string,
-    ) => {
-  let delim_index_attribs =
+let delim = (~clss: list(string)=[], ~delim_index=?, s: string) => {
+  let delim_index_clss =
     switch (delim_index) {
     | None => []
-    | Some(k) => [Html5.a_class([delimiter_cls(k)])]
+    | Some(k) => [delimiter_cls(k)]
     };
   Html5.div(
-    ~a=delim_index_attribs @ a,
+    ~a=[Html5.a_class(["delim"] @ delim_index_clss @ clss)],
     Html5.[
       span(~a=[a_class(["delim-before"])], [txt("​​")]),
       span(~a=[a_class(["kw-txt"])], [txt(s)]),
@@ -1123,7 +1118,13 @@ let delim =
 let unimplemented = () =>
   Html5.(div(~a=[a_class(["unimplemented"])], [txt("unimplemented")]));
 
-let node = (prefix, rev_path, ~err_status=NotInHole, ~a=[], children) => {
+let my_node =
+    (prefix, rev_path, node_type, ~err_status=NotInHole, ~clss=[], children) => {
+  let node_type_clss =
+    switch (node_type) {
+    | Outer => ["outer"]
+    | Inner => ["inner"]
+    };
   let in_hole_clss =
     switch (err_status) {
     | NotInHole => []
@@ -1132,30 +1133,31 @@ let node = (prefix, rev_path, ~err_status=NotInHole, ~a=[], children) => {
   Html5.div(
     ~a=[
       Html5.a_id(node_id(prefix, rev_path)),
-      Html5.a_class(["node", ...in_hole_clss]),
-      ...a,
+      Html5.a_class(["node"] @ node_type_clss @ in_hole_clss @ clss),
     ],
     children,
   );
 };
 
-let of_typ = (~_a=[], _prefix: string, _rev_path: Path.steps, _uty: UHTyp.t) =>
+let of_typ =
+    (~_clss=[], _prefix: string, _rev_path: Path.steps, _uty: UHTyp.t) =>
   unimplemented();
 
-let of_pat = (~_a=[], _prefix: string, _rev_path: Path.steps, _p: UHPat.t) =>
+let of_pat = (~_clss=[], _prefix: string, _rev_path: Path.steps, _p: UHPat.t) =>
   unimplemented();
 
 let _of_EmptyHole =
     (
-      ~a: list(Html5.attrib([< Html_types.div_attrib]))=[],
+      ~clss: list(string)=[],
       prefix: string,
       rev_path: Path.steps,
       hole_name: string,
     ) =>
-  node(
+  my_node(
     prefix,
     rev_path,
-    ~a=[Html5.a_class(["EmptyHole"]), ...a],
+    Outer,
+    ~clss=["EmptyHole", "outer", ...clss],
     Html5.[
       span(~a=[a_class(["hole-before-1"])], [txt("​​")]),
       span(~a=[a_class(["hole-before-2"])], [txt("​")]),
@@ -1167,53 +1169,54 @@ let _of_EmptyHole =
 
 let _of_Var =
     (
-      ~a: list(Html5.attrib([< Html_types.div_attrib]))=[],
+      ~clss: list(string)=[],
       prefix: string,
       err_status: err_status,
       var_err_status: var_err_status,
       rev_path: Path.steps,
       x: Var.t,
     ) =>
-  node(
+  my_node(
     prefix,
     rev_path,
+    Outer,
     ~err_status,
-    ~a=[
-      Html5.a_class(["Var", ...classes_of_var_err_status(var_err_status)]),
-      ...a,
-    ],
+    ~clss=
+      ["Var", "outer"] @ classes_of_var_err_status(var_err_status) @ clss,
     Html5.[span(~a=[a_class(["var"])], [txt(x)])],
   );
 
 let _of_NumLit =
     (
-      ~a: list(Html5.attrib([< Html_types.div_attrib]))=[],
+      ~clss: list(string)=[],
       prefix: string,
       err_status: err_status,
       rev_path: Path.steps,
       n: int,
     ) =>
-  node(
+  my_node(
     prefix,
     rev_path,
+    Outer,
     ~err_status,
-    ~a=[Html5.a_class(["NumLit"]), ...a],
+    ~clss=["NumLit", ...clss],
     Html5.[span(~a=[a_class(["number"])], [txt(string_of_int(n))])],
   );
 
 let _of_BoolLit =
     (
-      ~a: list(Html5.attrib([< Html_types.div_attrib]))=[],
+      ~clss: list(string)=[],
       prefix: string,
       err_status: err_status,
       rev_path: Path.steps,
       bool: bool,
     ) =>
-  node(
+  my_node(
     prefix,
     rev_path,
+    Outer,
     ~err_status,
-    ~a=[Html5.a_class(["BoolLit"]), ...a],
+    ~clss=["BoolLit", ...clss],
     Html5.[
       span(~a=[a_class(["boolean"])], [txt(string_of_bool(bool))]),
     ],
@@ -1221,16 +1224,17 @@ let _of_BoolLit =
 
 let _of_ListNil =
     (
-      ~a: list(Html5.attrib([< Html_types.div_attrib]))=[],
+      ~clss: list(string)=[],
       prefix: string,
       err_status: err_status,
       rev_path: Path.steps,
     ) =>
-  node(
+  my_node(
     prefix,
     rev_path,
+    Outer,
     ~err_status,
-    ~a=[Html5.a_class(["ListNil"]), ...a],
+    ~clss=["ListNil", ...clss],
     [delim("[]")],
   );
 
@@ -1242,7 +1246,7 @@ let indent = 24;
 
 let rec of_block =
         (
-          ~a: list(Html5.attrib([< Html_types.div_attrib]))=[],
+          ~clss: list(string)=[],
           palette_stuff: palette_stuff,
           prefix: string,
           rev_path: Path.steps,
@@ -1250,11 +1254,11 @@ let rec of_block =
         ) => {
   let vlines = lines |> List.map(of_line(palette_stuff, prefix, rev_path));
   let ve = of_exp(palette_stuff, prefix, rev_path, e);
-  node(prefix, rev_path, ~a, vlines @ [ve]);
+  my_node(prefix, rev_path, Inner, ~clss, vlines @ [ve]);
 }
 and of_line =
     (
-      ~a: list(Html5.attrib([< Html_types.div_attrib]))=[],
+      ~clss: list(string)=[],
       palette_stuff: palette_stuff,
       prefix: string,
       rev_path: Path.steps,
@@ -1262,91 +1266,101 @@ and of_line =
     ) =>
   switch (line) {
   | EmptyLine =>
-    node(
-      prefix,
-      rev_path,
-      ~a=[Html5.a_class(["EmptyLine"]), ...a],
-      [Html5.txt("")],
-    )
+    my_node(prefix, rev_path, Outer, ~clss=["EmptyLine"], [Html5.txt("")])
   | ExpLine(e) =>
     /* ghost node, exp is inlined */
-    of_exp(~a, palette_stuff, prefix, rev_path, e)
+    of_exp(~clss, palette_stuff, prefix, rev_path, e)
   | LetLine(pat, ann, def) =>
-    node(
+    let vlet = delim(~clss=["LetLine-let"], ~delim_index=0, "let");
+    let vpat = of_pat(~_clss=["LetLine-pat"], prefix, rev_path, pat);
+    let vann =
+      switch (ann) {
+      | None => []
+      | Some(uty) => [
+          delim(~clss=["LetLine-colon"], ~delim_index=1, ":"),
+          of_typ(~_clss=["LetLine-ann"], prefix, rev_path, uty),
+        ]
+      };
+    let vequals = delim(~clss=["LetLine-equals"], ~delim_index=2, "=");
+    let vdef =
+      of_block(~clss=["LetLine-def"], palette_stuff, prefix, rev_path, def);
+    my_node(
       prefix,
       rev_path,
-      ~a=[Html5.a_class(["LetLine"]), ...a],
-      [delim(~delim_index=0, "let"), of_pat(prefix, rev_path, pat)]
-      @ (
-        switch (ann) {
-        | None => []
-        | Some(uty) => [
-            delim(~delim_index=1, ":"),
-            of_typ(prefix, rev_path, uty),
-          ]
-        }
-      )
-      @ [
-        delim(~delim_index=2, "="),
-        of_block(palette_stuff, prefix, rev_path, def),
-      ],
-    )
+      Inner,
+      ~clss=["LetLine"],
+      [vlet, vpat] @ vann @ [vequals, vdef],
+    );
   }
 and of_exp =
     (
-      ~a: list(Html5.attrib([< Html_types.div_attrib]))=[],
+      ~clss: list(string)=[],
       palette_stuff: palette_stuff,
       prefix: string,
       rev_path: Path.steps,
       e: UHExp.t,
     ) => {
-  let is_multi_line = false; /*is_multi_line_exp(e);*/
+  let is_multi_line = true; /*is_multi_line_exp(e);*/
   let multi_line_clss = is_multi_line ? ["multi-line"] : [];
   switch (e) {
-  | EmptyHole(u) => _of_EmptyHole(~a, prefix, rev_path, string_of_int(u + 1))
+  | EmptyHole(u) =>
+    _of_EmptyHole(~clss, prefix, rev_path, string_of_int(u + 1))
   | Var(err_status, var_err_status, x) =>
-    _of_Var(~a, prefix, err_status, var_err_status, rev_path, x)
-  | NumLit(err_status, n) => _of_NumLit(~a, prefix, err_status, rev_path, n)
+    _of_Var(~clss, prefix, err_status, var_err_status, rev_path, x)
+  | NumLit(err_status, n) =>
+    _of_NumLit(~clss, prefix, err_status, rev_path, n)
   | BoolLit(err_status, b) =>
-    _of_BoolLit(~a, prefix, err_status, rev_path, b)
-  | ListNil(err_status) => _of_ListNil(~a, prefix, err_status, rev_path)
+    _of_BoolLit(~clss, prefix, err_status, rev_path, b)
+  | ListNil(err_status) => _of_ListNil(~clss, prefix, err_status, rev_path)
   | Lam(err_status, arg, ann, body) =>
-    let vsym =
-      delim(
-        ~a=[Html5.a_class(["Lam-sym"])],
-        ~delim_index=0,
-        LangUtil.lamSym,
-      );
+    let vsym = delim(~clss=["Lam-sym"], ~delim_index=0, LangUtil.lamSym);
     let varg =
-      of_pat(~_a=[Html5.a_class(["Lam-arg"])], prefix, rev_path, arg);
+      of_pat(~_clss=[Html5.a_class(["Lam-arg"])], prefix, rev_path, arg);
     let vann =
       switch (ann) {
       | None => []
       | Some(uty) => [
-          delim(~a=[Html5.a_class(["Lam-colon"])], ~delim_index=1, ":"),
-          of_typ(~_a=[Html5.a_class(["Lam-ann"])], prefix, rev_path, uty),
+          delim(~clss=["Lam-colon"], ~delim_index=1, ":"),
+          of_typ(~_clss=["Lam-ann"], prefix, rev_path, uty),
         ]
       };
-    let vdot = delim(~a=[Html5.a_class(["Lam-dot"])], ~delim_index=2, ".");
+    let vdot = delim(~clss=["Lam-dot"], ~delim_index=2, ".");
     let vbody =
-      of_block(
-        ~a=[Html5.a_class(["Lam-body"])],
-        palette_stuff,
-        prefix,
-        rev_path,
-        body,
-      );
-    node(
+      of_block(~clss=["Lam-body"], palette_stuff, prefix, rev_path, body);
+    my_node(
       prefix,
       rev_path,
+      Inner,
       ~err_status,
-      ~a=[Html5.a_class(["Lam", ...multi_line_clss])],
+      ~clss=["Lam", ...multi_line_clss],
       [
         Html5.div(
-          ~a=[Html5.a_class(["Lam-first-line"])],
+          ~a=[Html5.a_class(["line"])],
           [vsym, varg] @ vann @ [vdot],
         ),
-        Html5.div(~a=[Html5.a_class(["Lam-second-line"])], [vbody]),
+        Html5.div(~a=[Html5.a_class(["line", "indent"])], [vbody]),
+      ],
+    );
+  | Inj(err_status, side, body) =>
+    let vopen =
+      delim(
+        ~clss=["Inj-open"],
+        ~delim_index=0,
+        "inj[" ++ LangUtil.string_of_side(side) ++ "](",
+      );
+    let vbody =
+      of_block(~clss=["Inj-body"], palette_stuff, prefix, rev_path, body);
+    let vclose = delim(~clss=["Inj-close"], ~delim_index=1, ")");
+    my_node(
+      prefix,
+      rev_path,
+      Inner,
+      ~err_status,
+      ~clss=["Inj", ...multi_line_clss],
+      [
+        Html5.div(~a=[Html5.a_class(["line"])], [vopen]),
+        Html5.div(~a=[Html5.a_class(["line", "indent"])], [vbody]),
+        Html5.div(~a=[Html5.a_class(["line"])], [vclose]),
       ],
     );
   | _ => unimplemented()
