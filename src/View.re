@@ -1314,8 +1314,7 @@ and of_exp =
   | ListNil(err_status) => _of_ListNil(~clss, prefix, err_status, rev_path)
   | Lam(err_status, arg, ann, body) =>
     let vsym = delim(~clss=["Lam-sym"], ~delim_index=0, LangUtil.lamSym);
-    let varg =
-      of_pat(~_clss=[Html5.a_class(["Lam-arg"])], prefix, rev_path, arg);
+    let varg = of_pat(~_clss=["Lam-arg"], prefix, rev_path, arg);
     let vann =
       switch (ann) {
       | None => []
@@ -1363,8 +1362,64 @@ and of_exp =
         Html5.div(~a=[Html5.a_class(["line"])], [vclose]),
       ],
     );
+  | Case(err_status, scrut, rules, ann) =>
+    let vcase = delim(~clss=["Case-case"], ~delim_index=0, "case");
+    let vscrut =
+      of_block(~clss=["Case-scrut"], palette_stuff, prefix, rev_path, scrut);
+    let vrules =
+      rules
+      |> List.map(rule => of_rule(palette_stuff, prefix, rev_path, rule));
+    let vend =
+      switch (ann) {
+      | None => [delim(~clss=["Case-end"], ~delim_index=1, "end")]
+      | Some(uty) => [
+          delim(~clss=["Case-end"], ~delim_index=1, "end :"),
+          of_typ(~_clss=["Case-ann"], prefix, rev_path, uty),
+        ]
+      };
+    my_node(
+      prefix,
+      rev_path,
+      Inner,
+      ~err_status,
+      ~clss=["Case", ...multi_line_clss],
+      [Html5.div(~a=[Html5.a_class(["line"])], [vcase, vscrut])]
+      @ (
+        vrules
+        |> List.map(vrule =>
+             Html5.div(~a=[Html5.a_class(["line"])], [vrule])
+           )
+      )
+      @ [Html5.div(~a=[Html5.a_class(["line"])], vend)],
+    );
   | _ => unimplemented()
   };
+}
+and of_rule =
+    (
+      ~clss=[],
+      palette_stuff: palette_stuff,
+      prefix: string,
+      rev_path: Path.steps,
+      Rule(pat, clause): UHExp.rule,
+    ) => {
+  let multi_line_clss = [];
+  let vbar = delim(~clss=["Rule-bar"], ~delim_index=0, "|");
+  let vpat = of_pat(~_clss=["Rule-pat"], prefix, rev_path, pat);
+  let varrow =
+    delim(~clss=["Rule-arrow"], ~delim_index=1, LangUtil.caseArrowSym);
+  let vclause =
+    of_block(~clss=["Rule-block"], palette_stuff, prefix, rev_path, clause);
+  my_node(
+    prefix,
+    rev_path,
+    Inner,
+    ~clss=["Rule"] @ multi_line_clss @ clss,
+    [
+      Html5.div(~a=[Html5.a_class(["line"])], [vbar, vpat, varrow]),
+      Html5.div(~a=[Html5.a_class(["line", "indent"])], [vclause]),
+    ],
+  );
 };
 
 let rec of_hblock =
