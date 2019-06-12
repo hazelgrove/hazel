@@ -1120,7 +1120,7 @@ let delim =
   );
 };
 
-let unimplemented =
+let unimplemented = () =>
   Html5.(div(~a=[a_class(["unimplemented"])], [txt("unimplemented")]));
 
 let node = (prefix, rev_path, ~err_status=NotInHole, ~a=[], children) => {
@@ -1139,9 +1139,11 @@ let node = (prefix, rev_path, ~err_status=NotInHole, ~a=[], children) => {
   );
 };
 
-let of_typ = (~_a=[], _prefix: string, _rev_path: Path.steps, _uty: UHTyp.t) => unimplemented;
+let of_typ = (~_a=[], _prefix: string, _rev_path: Path.steps, _uty: UHTyp.t) =>
+  unimplemented();
 
-let of_pat = (~_a=[], _prefix: string, _rev_path: Path.steps, _p: UHPat.t) => unimplemented;
+let of_pat = (~_a=[], _prefix: string, _rev_path: Path.steps, _p: UHPat.t) =>
+  unimplemented();
 
 let _of_EmptyHole =
     (
@@ -1299,6 +1301,7 @@ and of_exp =
       e: UHExp.t,
     ) => {
   let is_multi_line = true; /*is_multi_line_exp(e);*/
+  let multi_line_clss = is_multi_line ? ["multi-line"] : [];
   switch (e) {
   | EmptyHole(u) => _of_EmptyHole(~a, prefix, rev_path, string_of_int(u + 1))
   | Var(err_status, var_err_status, x) =>
@@ -1307,35 +1310,24 @@ and of_exp =
   | BoolLit(err_status, b) =>
     _of_BoolLit(~a, prefix, err_status, rev_path, b)
   | ListNil(err_status) => _of_ListNil(~a, prefix, err_status, rev_path)
-  | Lam(err_status, arg, None, body) =>
+  | Lam(err_status, arg, ann, body) =>
     let vsym =
       delim(
-        ~a=[
-          Html5.a_class(["Lam-sym"]),
-          Html5.a_style(Style.grid_area("sym")),
-        ],
+        ~a=[Html5.a_class(["Lam-sym"])],
         ~delim_index=0,
         LangUtil.lamSym,
       );
     let varg =
-      of_pat(
-        ~_a=[
-          Html5.a_class(["Lam-arg"]),
-          Html5.a_style(Style.grid_area("arg")),
-        ],
-        prefix,
-        rev_path,
-        arg,
-      );
-    let vdot =
-      delim(
-        ~a=[
-          Html5.a_class(["Lam-dot"]),
-          Html5.a_style(Style.grid_area("dot")),
-        ],
-        ~delim_index=2,
-        ".",
-      );
+      of_pat(~_a=[Html5.a_class(["Lam-arg"])], prefix, rev_path, arg);
+    let vann =
+      switch (ann) {
+      | None => []
+      | Some(uty) => [
+          delim(~a=[Html5.a_class(["Lam-colon"])], ~delim_index=1, ":"),
+          of_typ(~_a=[Html5.a_class(["Lam-ann"])], prefix, rev_path, uty),
+        ]
+      };
+    let vdot = delim(~a=[Html5.a_class(["Lam-dot"])], ~delim_index=2, ".");
     let vbody =
       of_block(
         ~a=[Html5.a_class(["Lam-body"])],
@@ -1344,74 +1336,20 @@ and of_exp =
         rev_path,
         body,
       );
-    let vLam_first =
-      Html5.div(
-        ~a=[
-          Html5.a_style(
-            Style.(
-              props([
-                grid_area("first"),
-                display("grid"),
-                grid_template_columns([
-                  vsym |> elem_width |> px,
-                  delim_cushion |> px,
-                  varg |> elem_width |> px,
-                  delim_cushion |> px,
-                  vdot |> elem_width |> px,
-                ]),
-                grid_template_rows(["auto"]),
-                grid_template_areas(["sym", ".", "arg", ".", "dot"]),
-              ])
-            ),
-          ),
-        ],
-        [vsym, varg, vdot],
-      );
-    let vLam_second =
-      Html5.div(
-        ~a=[
-          Html5.a_style(
-            Style.(
-              props([
-                grid_area("second"),
-                display("grid"),
-                grid_template_columns([indent |> px, 1 |> fr]),
-                grid_template_rows(["auto"]),
-                grid_template_areas([". body"]),
-              ])
-            ),
-          ),
-        ],
-        [vbody],
-      );
     node(
       prefix,
       rev_path,
       ~err_status,
-      ~a=[
-        Html5.a_class(["Lam"]),
-        Html5.a_style(
-          Style.(
-            is_multi_line
-              ? props([
-                  display("grid"),
-                  grid_template_columns(["auto"]),
-                  grid_template_rows(["auto", "auto"]),
-                  grid_template_areas(["first", "second"]),
-                ])
-              : props([
-                  display("grid"),
-                  grid_template_columns(["auto", "auto"]),
-                  grid_template_rows(["auto"]),
-                  grid_template_areas(["first second"]),
-                ])
-          ),
+      ~a=[Html5.a_class(["Lam", ...multi_line_clss])],
+      [
+        Html5.div(
+          ~a=[Html5.a_class(["Lam-first-line"])],
+          [vsym, varg] @ vann @ [vdot],
         ),
+        Html5.div(~a=[Html5.a_class(["Lam-second-line"])], [vbody]),
       ],
-      [vLam_first, vLam_second],
     );
-  | _ =>
-    Html5.(div(~a=[a_class(["unimplemented"])], [txt("unimplemented")]))
+  | _ => unimplemented()
   };
 };
 
