@@ -1392,6 +1392,28 @@ and of_exp =
       )
       @ [Html5.div(~a=[Html5.a_class(["line"])], vend)],
     );
+  | Parenthesized(body) =>
+    let vopen = delim(~clss=["Parenthesized-open"], ~delim_index=0, "(");
+    let vbody =
+      of_block(
+        ~clss=["Parenthesized-body"],
+        palette_stuff,
+        prefix,
+        rev_path,
+        body,
+      );
+    let vclose = delim(~clss=["Parenthesized-close"], ~delim_index=1, ")");
+    my_node(
+      prefix,
+      rev_path,
+      Inner,
+      ~clss=["Parenthesized", ...multi_line_clss],
+      [
+        Html5.div(~a=[Html5.a_class(["line"])], [vopen]),
+        Html5.div(~a=[Html5.a_class(["line", "indent"])], [vbody]),
+        Html5.div(~a=[Html5.a_class(["line"])], [vclose]),
+      ],
+    );
   | _ => unimplemented()
   };
 }
