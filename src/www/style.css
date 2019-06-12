@@ -735,6 +735,8 @@ button:disabled {
 .Lam-second-line {
   display: flex;
   flex-direction: row;
+}
+.Lam.multi-line > .Lam-second-line {
   padding-left: var(--indent-length);
 }
 

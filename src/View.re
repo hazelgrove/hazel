@@ -1300,7 +1300,7 @@ and of_exp =
       rev_path: Path.steps,
       e: UHExp.t,
     ) => {
-  let is_multi_line = true; /*is_multi_line_exp(e);*/
+  let is_multi_line = false; /*is_multi_line_exp(e);*/
   let multi_line_clss = is_multi_line ? ["multi-line"] : [];
   switch (e) {
   | EmptyHole(u) => _of_EmptyHole(~a, prefix, rev_path, string_of_int(u + 1))
