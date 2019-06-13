@@ -163,7 +163,7 @@ html, body {
 
 }
 
-.lambda-dot, .forall-mid {
+.lambda-dot, .ty-lambda-dot, .forall-mid {
   position: relative;
   top: 2px;
 }

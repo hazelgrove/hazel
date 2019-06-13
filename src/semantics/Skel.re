@@ -1,6 +1,8 @@
 open SemanticsCommon;
 open Sexplib.Std;
 
+/* charles: add a comment explaining this */
+
 [@deriving (sexp, show)]
 type t('op) =
   | Placeholder(int)

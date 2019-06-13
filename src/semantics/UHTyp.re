@@ -26,6 +26,8 @@ type t =
 
 exception SkelInconsistentWithOpSeq(skel_t, opseq);
 
+exception SkelInconsistentWithOpSeq(skel_t, opseq);
+
 /* See UHTyp.re for an explanation of bidelimited. */
 let bidelimited =
   fun
