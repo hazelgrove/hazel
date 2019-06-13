@@ -23,6 +23,8 @@ type t =
 
 type opseq = OperatorSeq.opseq(t, op);
 
+exception SkelInconsistentWithOpSeq(skel_t, opseq);
+
 /* See UHTyp.re for an explanation of bidelimited. */
 let bidelimited =
   fun

@@ -20,7 +20,8 @@ type keyword =
   | Let
   | Case
   | Forall
-  | Type;
+  | Type
+  | Fn;
 
 [@deriving (sexp, show)]
 type in_vhole_reason =

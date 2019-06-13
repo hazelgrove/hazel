@@ -114,17 +114,21 @@ let make_ty_OpSeqZ = (zty0: ZTyp.t, surround: ZTyp.opseq_surround): ZTyp.t => {
   OpSeqZ(skel, zty0, surround);
 };
 
-let perform_tpat = (a: t, ztpat: ZTPat.t, u_gen: MetaVarGen.t) =>
+let perform_tpat =
+    (ctx: Contexts.t, a: t, ztpat: ZTPat.t, u_gen: MetaVarGen.t)
+    : option((Contexts.t, ZTPat.t, MetaVarGen.t)) =>
   switch (a, ztpat) {
   | (Construct(SVar(t, side)), ZTPat.Cursor(_old_side, _)) =>
     /*! this should construct a Var(InHole, t) when the var is duplicate */
-    Some((ZTPat.Cursor(side, TPat.Var(t)), u_gen))
+    let ctx = Contexts.extend_tvars(ctx, t);
+    Some((ctx, ZTPat.Cursor(side, TPat.Var(t)), u_gen));
   | (Backspace, ZTPat.Cursor(After, TPat.Var(t))) =>
     if (String.length(t) == 1) {
       let (u, u_gen) = MetaVarGen.next(u_gen);
-      Some((ZTPat.Cursor(Before, TPat.Hole(u)), u_gen));
+      Some((ctx, ZTPat.Cursor(Before, TPat.Hole(u)), u_gen));
     } else {
-      Some((ZTPat.Cursor(After, TPat.Var(t)), u_gen));
+      let ctx = Contexts.extend_tvars(ctx, t);
+      Some((ctx, ZTPat.Cursor(After, TPat.Var(t)), u_gen));
     }
   | (_, _) => None
   };
@@ -135,6 +139,7 @@ let keyword_action = (k: keyword): t =>
   | Case => Construct(SCase)
   | Forall => Construct(SForall)
   | Type => Construct(SType)
+  | Fn => Construct(SLam)
   };
 
 let rec perform_ty =
@@ -322,9 +327,11 @@ let rec perform_ty =
       let ztyp =
         ZTyp.CursorT(side, UHTyp.TVar(InVHole(Keyword(Forall), u), t));
       Some((ztyp, u_gen));
+    } else if (TVarCtx.includes(ctx.tvars, t)) {
+      Some((ZTyp.CursorT(side, UHTyp.TVar(NotInVHole, t)), u_gen));
     } else {
-      let ztyp = ZTyp.CursorT(side, UHTyp.TVar(NotInVHole, t));
-      Some((ztyp, u_gen));
+      let (u, u_gen) = MetaVarGen.next(u_gen);
+      Some((ZTyp.CursorT(side, UHTyp.TVar(InVHole(Free, u), t)), u_gen));
     }
   | (Construct(SOp(os)), CursorT(After, uty1))
   | (Construct(SOp(os)), CursorT(In(_), uty1)) =>
@@ -406,13 +413,16 @@ let rec perform_ty =
     | None => None
     }
   | (a, ForallZT(t, zty1)) =>
+    let ctx = Statics.tpat_wf(ctx, t);
     switch (perform_ty(ctx, a, zty1, u_gen)) {
     | Some((zty1, u_gen)) => Some((ForallZT(t, zty1), u_gen))
     | None => None
-    }
-  | (a, ForallZP(ztpat, zty1)) =>
-    switch (perform_tpat(a, ztpat, u_gen)) {
-    | Some((ztpat, u_gen)) => Some((ZTyp.ForallZP(ztpat, zty1), u_gen))
+    };
+  | (a, ForallZP(ztpat, uty1)) =>
+    switch (perform_tpat(ctx, a, ztpat, u_gen)) {
+    | Some((ctx, ztpat, u_gen)) =>
+      let (_ctx, uty1, u_gen) = Statics.fix_holes_ty(ctx, uty1, u_gen);
+      Some((ZTyp.ForallZP(ztpat, uty1), u_gen));
     | None => None
     }
   | (a, OpSeqZ(skel, zty0, surround)) =>
@@ -2633,6 +2643,13 @@ and syn_perform_exp =
       Some((CursorE(side, Tm(NotInHole, BoolLit(true))), Bool, u_gen));
     } else if (String.equal(x, "false")) {
       Some((CursorE(side, Tm(NotInHole, BoolLit(false))), Bool, u_gen));
+    } else if (Var.is_fn(x)) {
+      let (u, u_gen) = MetaVarGen.next(u_gen);
+      Some((
+        CursorE(side, Tm(NotInHole, Var(InVHole(Keyword(Fn), u), x))),
+        Hole,
+        u_gen,
+      ));
     } else if (Var.is_let(x)) {
       let (u, u_gen) = MetaVarGen.next(u_gen);
       Some((
@@ -2655,6 +2672,7 @@ and syn_perform_exp =
         u_gen,
       ));
     } else {
+      /* cchamberlain: make this an if statement */
       Var.check_valid(
         x,
         {
@@ -2906,6 +2924,7 @@ and syn_perform_exp =
     /*! don't leave this */
     Some((ze, HTyp.Hole, u_gen));
   | (_, DeeperE(_, LamZP(zp, ann, block))) =>
+    /*! remove these print statements */
     print_endline("action: " ++ show(a));
     print_endline("type" ++ ZPat.show(zp));
     let ty1 =

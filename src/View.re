@@ -277,8 +277,8 @@ let rec of_htype = (parenthesize, prefix, rev_path, ty) => {
       let tpat = of_TPat(prefix, tpat_rev_path, tpat);
       of_Forall(prefix, rev_path, tpat, ty);
     /*! remove before merging */
-    | HTyp.TVar(_, v) => of_TVar(prefix, NotInVHole, rev_path, v)
-    | _ => kw("UNVIEWED first")
+    | TVar(_, t) => of_TVar(prefix, NotInVHole, rev_path, t)
+    | TVarHole(u, t) => of_TVar(prefix, InVHole(Free, u), rev_path, t)
     };
   parenthesize ? lparen("(") ^^ d ^^ rparen(")") : d;
 };
@@ -420,8 +420,13 @@ let of_TyLam = (prefix, err_status, rev_path, rtp, r1) => {
 };
 
 let of_Lam = (prefix, err_status, rev_path, rx, rann, r1) => {
-  let first_part = taggedText("lambda-sym", LangUtil.lamSym) ^^ rx;
-  let second_part = taggedText("lambda-dot", ".") ^^ r1;
+  let first_part =
+    taggedText("lambda-sym", LangUtil.lamSym)
+    /* ^^ taggedText("lambda-open-paren", "(") */
+    ^^ rx;
+  let second_part =
+    /* taggedText("lambda-close-paren", ")")  ^^*/
+    taggedText("lambda-dot", ".") ^^ r1;
   let view =
     switch (rann) {
     | Some(r) => first_part ^^ of_op(":", "ann") ^^ r ^^ second_part

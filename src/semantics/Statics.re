@@ -13,7 +13,7 @@ let combine_modes = (mode1, mode2) =>
   | (None, None) => None
   };
 
-let pat_wf = (ctx: Contexts.t, tpat: TPat.t): Contexts.t =>
+let tpat_wf = (ctx: Contexts.t, tpat: TPat.t): Contexts.t =>
   switch (tpat) {
   | TPat.Var(t) => Contexts.extend_tvars(ctx, t)
   | TPat.Hole(_) => ctx
@@ -34,7 +34,7 @@ let rec type_wf = (ctx: Contexts.t, t: HTyp.t) =>
   | Prod(a, b) => type_wf(ctx, a) && type_wf(ctx, b)
   | List(a) => type_wf(ctx, a)
   | Forall(tp, a) =>
-    let ctx = pat_wf(ctx, tp);
+    let ctx = tpat_wf(ctx, tp);
     type_wf(ctx, a);
   };
 
@@ -403,6 +403,71 @@ let ctx_for_let' =
     | None => (ctx, None)
     }
   | _ => (ctx, None)
+  };
+
+let fix_holes_tpat = (ctx: Contexts.t, tpat: TPat.t): Contexts.t =>
+  switch (tpat) {
+  | Hole(_) => ctx
+  | Var(t) => Contexts.extend_tvars(ctx, t)
+  };
+
+let rec fix_holes_ty_skel =
+        (
+          ctx: Contexts.t,
+          skel: UHTyp.skel_t,
+          seq: UHTyp.opseq,
+          u_gen: MetaVarGen.t,
+        )
+        : (Contexts.t, UHTyp.skel_t, UHTyp.opseq, MetaVarGen.t) =>
+  switch (skel) {
+  | Placeholder(n) =>
+    switch (OperatorSeq.seq_nth(n, seq)) {
+    | None => raise(UHTyp.SkelInconsistentWithOpSeq(skel, seq))
+    | Some(ty) =>
+      let (ctx, ty, u_gen) = fix_holes_ty(ctx, ty, u_gen);
+      switch (OperatorSeq.seq_update_nth(n, seq, ty)) {
+      | None => raise(UHTyp.SkelInconsistentWithOpSeq(skel, seq))
+      | Some(seq) => (ctx, skel, seq, u_gen)
+      };
+    }
+  | BinOp(_, op, skel1, skel2) =>
+    let (ctx, skel1, seq, u_gen) = fix_holes_ty_skel(ctx, skel1, seq, u_gen);
+    let (ctx, skel2, seq, u_gen) = fix_holes_ty_skel(ctx, skel2, seq, u_gen);
+    (ctx, BinOp(NotInHole, op, skel1, skel2), seq, u_gen);
+  }
+
+and fix_holes_ty =
+    (ctx: Contexts.t, ty: UHTyp.t, u_gen: MetaVarGen.t)
+    : (Contexts.t, UHTyp.t, MetaVarGen.t) =>
+  switch (ty) {
+  | TVar(InVHole(Free, u), t) =>
+    if (TVarCtx.includes(ctx.tvars, t)) {
+      (ctx, TVar(NotInVHole, t), u_gen);
+    } else {
+      (ctx, TVar(InVHole(Free, u), t), u_gen);
+    }
+  | TVar(_, t) =>
+    if (TVarCtx.includes(ctx.tvars, t)) {
+      (ctx, TVar(NotInVHole, t), u_gen);
+    } else {
+      let (u, u_gen) = MetaVarGen.next(u_gen);
+      (ctx, TVar(InVHole(Free, u), t), u_gen);
+    }
+  | Hole
+  | Num
+  | Bool
+  | Unit => (ctx, ty, u_gen)
+  | List(ty) => fix_holes_ty(ctx, ty, u_gen)
+  | OpSeq(skel, seq) =>
+    let (ctx, skel, seq, u_gen) = fix_holes_ty_skel(ctx, skel, seq, u_gen);
+    (ctx, OpSeq(skel, seq), u_gen);
+  | Parenthesized(ty) =>
+    let (ctx, ty, u_gen) = fix_holes_ty(ctx, ty, u_gen);
+    (ctx, Parenthesized(ty), u_gen);
+  | Forall(tpat, ty) =>
+    let ctx = fix_holes_tpat(ctx, tpat);
+    let (ctx, ty, u_gen) = fix_holes_ty(ctx, ty, u_gen);
+    (ctx, Forall(tpat, ty), u_gen);
   };
 
 let rec syn_block = (ctx: Contexts.t, block: UHExp.block): option(HTyp.t) =>
