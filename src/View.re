@@ -8,6 +8,186 @@ open Tyxml_js;
 open SemanticsCommon;
 open GeneralUtil;
 
+type id = string;
+type cls = string;
+
+type vnode_shape =
+  | Block
+  | EmptyLine
+  | LetLine
+  | EmptyHole
+  | Var
+  | Wild
+  | NumLit
+  | BoolLit
+  | ListNil
+  | Lam
+  | Inj
+  | Case
+  | Rule
+  | Parenthesized
+  | OpSeq
+  | Unit
+  | Num
+  | Bool;
+
+type vnode = {
+  steps: Path.steps,
+  shape: vnode_shape,
+  vlines: list(vline),
+  is_multi_line: bool,
+}
+and vline = {
+  parent_shape: vnode_shape,
+  line_no: int,
+  vwords: list(vword),
+}
+and vword =
+  | Node(vnode)
+  | Token(vtoken)
+and vtoken =
+  | Delim(delim_index, string)
+  | Text(string);
+
+let mk_vnode =
+    (
+      steps: Path.steps,
+      shape: vnode_shape,
+      vwords_by_line: list(list(vword)),
+      is_multi_line: bool,
+    ) => {
+  steps,
+  shape,
+  vlines:
+    vwords_by_line
+    |> List.mapi((line_no, vwords) => {parent_shape: shape, line_no, vwords}),
+  is_multi_line,
+};
+
+/* TODO */
+let id_of_vnode = (_: vnode): id => "";
+let id_of_delim = (_: Path.t): id => "";
+let id_of_text = (_: Path.steps): id => "";
+
+let clss_of_vnode = (_: vnode): list(cls) => [""];
+let clss_of_vline = (_: vline): list(cls) => [""];
+let clss_of_vtoken = (_: vtoken): list(cls) => [""];
+
+let rec dom_of_vnode = (vnode: vnode): Html_types.div => {
+  let dom_lines = vnode.vlines |> List.map(dom_of_vline(vnode.steps));
+  Html5.div(
+    ~a=[
+      Html5.a_id(id_of_vnode(vnode)),
+      Html5.a_class(clss_of_vnode(vnode)),
+    ],
+    dom_lines,
+  );
+}
+and dom_of_vline = (node_steps: Path.steps, vline: vline): Html_types.div => {
+  let dom_words =
+    vline.words
+    |> List.map(vword =>
+         switch (vword) {
+         | Node(vnode) => dom_of_vnode(vnode)
+         | Token(vtoken) => dom_of_vtoken(node_path, vtoken)
+         }
+       );
+  Html5.div(~a=[a_class(clss_of_vline(vline))], dom_words);
+}
+and dom_of_vtoken = (node_steps: Path.steps, vtoken: vtoken): Html_types.div => {
+  let clss = clss_of_vtoken(vtoken);
+  switch (vtoken) {
+  | Delimiter(k, s) =>
+    let delim_before =
+      Html5.div(
+        ~a=[
+          a_id(id_of_delim((node_steps, (k, Before)))),
+          a_class(["delim-before"]),
+        ],
+        [],
+      );
+    let delim_after =
+      div(
+        ~a=[
+          a_id(id_of_delim((node_steps, (k, After)))),
+          a_class(["delim-after"]),
+        ],
+        [],
+      );
+
+    let delim_before_dom = To_dom.of_div(delim_before);
+    let delim_after_dom = To_dom.of_div(delim_after);
+
+    Html5.div(
+      ~a=[a_class(clss_of_vtoken)],
+      Html5.[
+        delim_before,
+        div(
+          ~a=[
+            a_contenteditable(false),
+            a_class(["delim-txt"]),
+            a_onclick(evt => {
+              let x = evt##.clientX;
+              let width = evt##.target##.offsetWidth;
+              x * 2 <= width
+                ? JSUtil.move_cursor_to(delim_before_dom)
+                : JSUtil.move_cursor_to(delim_after_dom);
+            }),
+          ],
+        ),
+        delim_after,
+      ],
+    );
+  | Text(s) =>
+    Html5.div(
+      ~a=[a_id(id_of_text(s)), a_class(clss_of_vtoken)],
+      [txt(s)],
+    )
+  };
+};
+
+let vnode_of_block =
+    (steps: Path.steps, Block(line_items, e): UHExp.block): vnode => {
+  let vnode_line_items =
+    line_items
+    |> List.mapi((i, li) => List.map(vnode_of_line(steps @ [i], li)));
+  let vnode_e = vnode_of_exp(steps @ [List.length(lines)], e);
+  let vwords_by_line =
+    vnode_line_items @ vnode_e |> List.map(vnode => [Node(vnode)]);
+  let is_multi_line = !List.empty(line_items) || vnode_e.is_multi_line;
+  mk_vnode(steps, Block, vwords_by_line, is_multi_line);
+}
+and vnode_of_line = (steps: Path.steps, line: UHExp.line): vnode =>
+  switch (line) {
+  | EmptyLine => mk_vnode(steps, shape, [[]], false)
+  | ExpLine(e) => vnode_of_exp(steps, e)
+  | LetLine(p, None, def) =>
+    let vnode_p = vnode_of_pat(steps @ [0], p);
+    let vnode_def = vnode_of_block(steps @ [2], def);
+    let vwords_by_line = [
+      [Token(Delim(0, "let")), Node(vnode_p), Token(Delim(2, "="))],
+      [Node(vnode_def)],
+    ];
+    let is_multi_line = UHExp.is_multi_line_block(def);
+    mk_vnode(steps, shape, vwords_by_line, is_multi_line);
+  | LetLine(p, Some(uty), def) =>
+    let vnode_p = vnode_of_pat(steps @ [0], p);
+    let vnode_ann = vnode_of_typ(steps @ [1], uty);
+    let vnode_def = vnode_of_block(steps @ [2], def);
+    let vwords_by_line = [
+      [
+        Token(Delim(0, "let")),
+        Node(vnode_p),
+        Token(Delim(1, ":")),
+        Node(vnode_ann),
+        Token(Delim(2, "=")),
+      ],
+      [Node(vnode_def)],
+    ];
+    let is_multi_line = UHExp.is_multi_line_block(def);
+    mk_vnode(steps, shape, vwords_by_line, is_multi_line);
+  };
+
 /* Conveniences */
 let (^^) = PP.(^^);
 let taggedText = (classes, s) => PP.text(classes, s);
@@ -1001,6 +1181,29 @@ and of_skel_pat =
     of_pat_BinOp(prefix, err_status, rev_path, r1, op, r2, absolute_op_index);
   };
 
+let operator = (~clss: list(string)=[], ~op_index=?, s: string) => {
+  let op_index_clss =
+    switch (op_index) {
+    | None => []
+    | Some(k) => [operator_cls(k)]
+    };
+  Html5.div(
+    ~a=[Html5.a_class(["op"] @ op_index_clss @ clss)],
+    Html5.[span(~a=[a_class(["op-txt"])], [txt(s)])],
+  );
+};
+let space_op = (~clss: list(string)=[], ~op_index=?, ()) => {
+  let op_index_clss =
+    switch (op_index) {
+    | None => []
+    | Some(k) => [operator_cls(k)]
+    };
+  Html5.div(
+    ~a=[Html5.a_class(["op"] @ op_index_clss @ clss)],
+    Html5.[span(~a=[a_class(["op-txt"])], [txt(" ")])],
+  );
+};
+
 let string_of_exp_op = (op: UHExp.op): string =>
   switch (op) {
   | Plus => "Plus"
@@ -1020,6 +1223,18 @@ let of_exp_op = (~op_index=?, op: UHExp.op): PP.doc => {
   | Space => of_op(~is_space=true, ~op_index?, "", [op_cls])
   | Comma => of_op(~suffix=optionalBreakSp, ~op_index?, ",", [op_cls])
   | Cons => of_op(~op_index?, "::", [op_cls])
+  };
+};
+
+let of_op_exp = (~clss=[], ~op_index=?, op: UHExp.op) => {
+  let clss = ["op-" ++ string_of_exp_op(op), ...clss];
+  switch (op) {
+  | Plus => operator(~clss, ~op_index?, "+")
+  | Times => operator(~clss, ~op_index?, "*")
+  | LessThan => operator(~clss, ~op_index?, "<")
+  | Space => space_op(~clss, ~op_index?, ())
+  | Comma => operator(~clss, ~op_index?, ",")
+  | Cons => operator(~clss, ~op_index?, "::")
   };
 };
 
@@ -1414,6 +1629,16 @@ and of_exp =
         Html5.div(~a=[Html5.a_class(["line"])], [vclose]),
       ],
     );
+  | OpSeq(skel, seq) =>
+    let vskel =
+      of_skel(is_multi_line, palette_stuff, prefix, rev_path, skel, seq);
+    my_node(
+      prefix,
+      rev_path,
+      Inner,
+      ~clss=["OpSeq"] @ multi_line_clss @ clss,
+      [vskel],
+    );
   | _ => unimplemented()
   };
 }
@@ -1442,6 +1667,63 @@ and of_rule =
       Html5.div(~a=[Html5.a_class(["line", "indent"])], [vclause]),
     ],
   );
+}
+and of_skel =
+    (
+      ~clss=[],
+      is_multi_line: bool,
+      palette_stuff: palette_stuff,
+      prefix: string,
+      rev_path: Path.steps,
+      skel: UHExp.skel_t,
+      seq: UHExp.opseq,
+    ) => {
+  switch (skel) {
+  | Placeholder(n) =>
+    switch (OperatorSeq.nth_tm(n, seq)) {
+    | None => raise(UHExp.SkelInconsistentWithOpSeq(skel, seq))
+    | Some(e_n) => of_exp(palette_stuff, prefix, [n, ...rev_path], e_n)
+    }
+  | BinOp(err_status, op, skel1, skel2) =>
+    let multi_line_clss =
+      switch (op) {
+      | Space => []
+      | _ => is_multi_line ? ["multi-line"] : []
+      };
+    let op_index = Skel.leftmost_tm_index(skel2);
+    let vop = of_op_exp(~clss=["line"], ~op_index, op);
+    let vskel1 =
+      of_skel(
+        ~clss=["line", "indent"],
+        is_multi_line,
+        palette_stuff,
+        prefix,
+        rev_path,
+        skel1,
+        seq,
+      );
+    let vskel2 =
+      of_skel(
+        ~clss=["line", "indent"],
+        is_multi_line,
+        palette_stuff,
+        prefix,
+        rev_path,
+        skel2,
+        seq,
+      );
+    my_node(
+      prefix,
+      rev_path,
+      Inner,
+      ~err_status,
+      ~clss=
+        ["skel-bin-op", string_of_exp_op(op), operator_cls(op_index)]
+        @ multi_line_clss
+        @ clss,
+      [vskel1, vop, vskel2],
+    );
+  };
 };
 
 let rec of_hblock =

@@ -558,7 +558,7 @@ let view = (model: Model.t) => {
       | Some(k) =>
         inner_cursor(k, anchor_has_class("delim-before") ? Before : After)
       };
-    } else if (ast_has_class("EmptyLine")) {
+    } else if (ast_has_class("’EmptyLine")) {
       outer_cursor(0);
     } else {
       JSUtil.log("Unknown ast element!");

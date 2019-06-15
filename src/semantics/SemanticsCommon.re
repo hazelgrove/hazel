@@ -45,12 +45,15 @@ let pick_side = (side, l, r) =>
   };
 
 [@deriving (show({with_path: false}), sexp)]
+type delim_index = int;
+
+[@deriving (show({with_path: false}), sexp)]
 type side =
   | Before
   | After;
 
 [@deriving (show({with_path: false}), sexp)]
-type cursor_pos = (int, side);
+type cursor_pos = (delim_index, side);
 
 [@deriving sexp]
 type node_type =

@@ -29,3 +29,9 @@ let rec size = (skel: t(_)): int =>
   | Placeholder(_) => 1
   | BinOp(_, _, skel1, skel2) => size(skel1) + size(skel2)
   };
+
+let rec leftmost_tm_index = (skel: t(_)): int =>
+  switch (skel) {
+  | Placeholder(n) => n
+  | BinOp(_, _, skel1, _) => leftmost_tm_index(skel1)
+  };

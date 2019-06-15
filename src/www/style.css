@@ -729,7 +729,7 @@ button:disabled {
   display: flex;
   flex-direction: row;
 }
-.node.multi-line {
+.inner.node.multi-line {
   display: flex;
   flex-direction: column;
   align-items: stretch;

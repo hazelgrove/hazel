@@ -93,6 +93,16 @@ let node_has_cls = (node: Js.t(Dom.node), cls: PP.cls): bool =>
   | Some(elem) => elem_has_cls(elem, cls)
   };
 
+let move_cursor_to = (~offset=0, node) => {
+  let cursor_leaf = first_leaf(node);
+  let selection = Dom_html.window##getSelection;
+  let range = Dom_html.document##createRange;
+  range##setStart(cursor_leaf, offset);
+  range##setEnd(cursor_leaf, offset);
+  selection##removeAllRanges;
+  selection##addRange(range);
+};
+
 let listen_to = (ev, elem, f) =>
   Dom_html.addEventListener(elem, ev, Dom_html.handler(f), Js._false);
 let listen_to_t = (ev, elem, f) =>
