@@ -11,10 +11,12 @@ open Tyxml_js;
 open SemanticsCommon;
 open GeneralUtil;
 
+module Vdom = Virtual_dom.Vdom;
+
 type id = string;
 type cls = string;
 
-type vnode_shape =
+type snode_shape =
   | Block
   | EmptyLine
   | LetLine
@@ -34,34 +36,34 @@ type vnode_shape =
   | Num
   | Bool;
 
-type vnode = {
+type snode = {
   steps: Path.steps,
-  shape: vnode_shape,
+  shape: snode_shape,
   err_status,
   var_err_status,
   is_multi_line: bool,
-  vlines: list(vline),
+  slines: list(sline),
 }
-and vline = {
-  parent_shape: vnode_shape,
+and sline = {
+  parent_shape: snode_shape,
   line_no: int,
-  vwords: list(vword),
+  swords: list(sword),
 }
-and vword =
-  | Node(vnode)
-  | Token(vtoken)
-and vtoken =
+and sword =
+  | Node(snode)
+  | Token(stoken)
+and stoken =
   | Delim(delim_index, string)
   | Text(string);
 
-let mk_vnode =
+let mk_snode =
     (
       steps: Path.steps,
-      shape: vnode_shape,
+      shape: snode_shape,
       ~err_status=NotInHole,
       ~var_err_status=NotInVHole,
       ~is_multi_line=false,
-      vwords_by_line: list(list(vword)),
+      swords_by_line: list(list(sword)),
     ) => {
   {
     steps,
@@ -69,24 +71,24 @@ let mk_vnode =
     err_status,
     var_err_status,
     is_multi_line,
-    vlines:
-      vwords_by_line
-      |> List.mapi((line_no, vwords) =>
-           {parent_shape: shape, line_no, vwords}
+    slines:
+      swords_by_line
+      |> List.mapi((line_no, swords) =>
+           {parent_shape: shape, line_no, swords}
          ),
   };
 };
 
 /* TODO */
-let id_of_vnode = (_: vnode): id => "";
+let id_of_snode = (_: snode): id => "";
 let id_of_delim = (_: Path.t): id => "";
 let id_of_text = (_: Path.steps): id => "";
 
-let clss_of_vnode_shape = (_shape: vnode_shape): list(cls) => [""];
+let clss_of_snode_shape = (_shape: snode_shape): list(cls) => [""];
 
-let clss_of_vnode = (vnode: vnode): list(cls) => {
+let clss_of_snode = (snode: snode): list(cls) => {
   let shape_clss = [
-    switch (vnode.shape) {
+    switch (snode.shape) {
     | Block => "Block"
     | EmptyLine => "EmptyLine"
     | LetLine => "LetLine"
@@ -108,12 +110,12 @@ let clss_of_vnode = (vnode: vnode): list(cls) => {
     },
   ];
   let err_status_clss =
-    switch (vnode.err_status) {
+    switch (snode.err_status) {
     | NotInHole => []
     | InHole(_, u) => ["in_err_hole", "in_err_hole_" ++ string_of_int(u)]
     };
   let var_err_status_clss =
-    switch (vnode.var_err_status) {
+    switch (snode.var_err_status) {
     | NotInVHole => []
     | InVHole(Free, u) => ["InVHole", "InVHole_" ++ string_of_int(u)]
     | InVHole(Keyword(_), u) => [
@@ -122,92 +124,86 @@ let clss_of_vnode = (vnode: vnode): list(cls) => {
         "Keyword",
       ]
     };
-  let multi_line_clss = vnode.is_multi_line ? ["multi-line"] : [];
+  let multi_line_clss = snode.is_multi_line ? ["multi-line"] : [];
   shape_clss @ err_status_clss @ var_err_status_clss @ multi_line_clss;
 };
-let clss_of_vline = (_: vline): list(cls) => [""];
-let clss_of_vtoken = (_: vtoken): list(cls) => [""];
+let clss_of_sline = (_: sline): list(cls) => [""];
+let clss_of_stoken = (_: stoken): list(cls) => [""];
 
-let rec dom_of_vnode = (vnode: vnode) => {
-  let dom_lines = vnode.vlines |> List.map(dom_of_vline(vnode.steps));
-  Html5.div(
-    ~a=[
-      Html5.a_id(id_of_vnode(vnode)),
-      Html5.a_class(clss_of_vnode(vnode)),
+/*
+ let delim_txt_click_handler = evt => {
+   switch (Js.Opt.to_option(evt##.target)) {
+   | None => JSUtil.move_caret_to(delim_before_elem)
+   | Some(target) =>
+     let x = evt##.clientX;
+     x * 2 <= target##.offsetWidth
+       ? JSUtil.move_caret_to(delim_before_elem)
+       : JSUtil.move_caret_to(delim_after_elem)
+   };
+   false;
+ }
+ */
+
+let rec vdom_of_snode = (do_action: Action.t => unit, snode: snode) => {
+  let vdom_lines =
+    snode.slines |> List.map(vdom_of_sline(do_action, snode.steps));
+  Vdom.Node.div(
+    [
+      Vdom.Attr.id(id_of_snode(snode)),
+      Vdom.Attr.classes(clss_of_snode(snode)),
     ],
-    dom_lines,
+    vdom_lines,
   );
 }
-and dom_of_vline = (node_steps: Path.steps, vline: vline) => {
-  let dom_words =
-    vline.vwords
-    |> List.map(vword =>
-         switch (vword) {
-         | Node(vnode) => dom_of_vnode(vnode)
-         | Token(vtoken) => dom_of_vtoken(node_steps, vtoken)
+and vdom_of_sline =
+    (do_action: Action.t => unit, node_steps: Path.steps, sline: sline) => {
+  let vdom_words =
+    sline.swords
+    |> List.map(sword =>
+         switch (sword) {
+         | Node(snode) => vdom_of_snode(do_action, snode)
+         | Token(stoken) => vdom_of_stoken(do_action, node_steps, stoken)
          }
        );
-  Html5.div(~a=[Html5.a_class(clss_of_vline(vline))], dom_words);
+  Vdom.Node.div([Vdom.Attr.classes(clss_of_sline(sline))], vdom_words);
 }
-and dom_of_vtoken = (node_steps: Path.steps, vtoken: vtoken) => {
-  let clss = clss_of_vtoken(vtoken);
-  switch (vtoken) {
+and vdom_of_stoken =
+    (_do_action: Action.t => unit, node_steps: Path.steps, stoken: stoken) => {
+  let clss = clss_of_stoken(stoken);
+  switch (stoken) {
   | Delim(k, s) =>
     let delim_before =
-      Html5.div(
-        ~a=
-          Html5.[
-            a_id(id_of_delim((node_steps, (k, Before)))),
-            a_class(["delim-before"]),
-          ],
+      Vdom.Node.div(
+        [
+          Vdom.Attr.id(id_of_delim((node_steps, (k, Before)))),
+          Vdom.Attr.classes(["delim-before"]),
+        ],
         [],
       );
     let delim_after =
-      Html5.div(
-        ~a=
-          Html5.[
-            a_id(id_of_delim((node_steps, (k, After)))),
-            a_class(["delim-after"]),
-          ],
+      Vdom.Node.div(
+        [
+          Vdom.Attr.id(id_of_delim((node_steps, (k, After)))),
+          Vdom.Attr.classes(["delim-after"]),
+        ],
         [],
       );
-
-    let delim_before_elem = (
-      To_dom.of_div(delim_before): Js.t(Dom_html.element) :> Js.t(Dom.node)
-    );
-    let delim_after_elem = (
-      To_dom.of_div(delim_after): Js.t(Dom_html.element) :> Js.t(Dom.node)
-    );
-
-    Html5.div(
-      ~a=[Html5.a_class(clss)],
-      [
-        delim_before,
-        Html5.div(
-          ~a=[
-            Html5.a_contenteditable(false),
-            Html5.a_class(["delim-txt"]),
-            Html5.a_onclick(evt => {
-              let x = evt##.clientX;
-              switch (Js.Opt.to_option(evt##.target)) {
-              | None => JSUtil.move_caret_to(delim_before_elem)
-              | Some(target) =>
-                x * 2 <= target##.offsetWidth
-                  ? JSUtil.move_caret_to(delim_before_elem)
-                  : JSUtil.move_caret_to(delim_after_elem)
-              };
-              false;
-            }),
-          ],
-          [Html5.txt(s)],
-        ),
-        delim_after,
-      ],
+    let delim_txt =
+      Vdom.Node.div(
+        [
+          Vdom.Attr.create("contenteditable", "false"),
+          Vdom.Attr.classes(["delim-txt"]),
+        ],
+        [Vdom.Node.text(s)],
+      );
+    Vdom.Node.div(
+      [Vdom.Attr.classes(clss)],
+      [delim_before, delim_txt, delim_after],
     );
   | Text(s) =>
-    Html5.div(
-      ~a=[Html5.a_id(id_of_text(node_steps)), Html5.a_class(clss)],
-      [Html5.txt(s)],
+    Vdom.Node.div(
+      [Vdom.Attr.id(id_of_text(node_steps)), Vdom.Attr.classes(clss)],
+      [Vdom.Node.text(s)],
     )
   };
 };
@@ -217,155 +213,155 @@ let is_multi_line_block = (_: UHExp.block) => false;
 let is_multi_line_exp = (_: UHExp.t) => false;
 
 /* TODO */
-let vnode_of_typ = (steps: Path.steps, _uty: UHTyp.t): vnode =>
-  mk_vnode(steps, EmptyHole, [[]]);
-let vnode_of_pat = (steps: Path.steps, _p: UHPat.t): vnode =>
-  mk_vnode(steps, EmptyHole, [[]]);
+let snode_of_typ = (steps: Path.steps, _uty: UHTyp.t): snode =>
+  mk_snode(steps, EmptyHole, [[]]);
+let snode_of_pat = (steps: Path.steps, _p: UHPat.t): snode =>
+  mk_snode(steps, EmptyHole, [[]]);
 
-let rec vnode_of_block =
-        (steps: Path.steps, Block(line_items, e): UHExp.block): vnode => {
-  let vnode_line_items =
-    line_items |> List.mapi((i, li) => vnode_of_line_item(steps @ [i], li));
-  let vnode_e = vnode_of_exp(steps @ [List.length(line_items)], e);
-  let vwords_by_line =
-    vnode_line_items @ [vnode_e] |> List.map(vnode => [Node(vnode)]);
+let rec snode_of_block =
+        (steps: Path.steps, Block(line_items, e): UHExp.block): snode => {
+  let snode_line_items =
+    line_items |> List.mapi((i, li) => snode_of_line_item(steps @ [i], li));
+  let snode_e = snode_of_exp(steps @ [List.length(line_items)], e);
+  let swords_by_line =
+    snode_line_items @ [snode_e] |> List.map(snode => [Node(snode)]);
   let is_multi_line = List.length(line_items) != 0;
-  mk_vnode(steps, Block, ~is_multi_line, vwords_by_line);
+  mk_snode(steps, Block, ~is_multi_line, swords_by_line);
 }
-and vnode_of_line_item = (steps: Path.steps, li: UHExp.line): vnode =>
+and snode_of_line_item = (steps: Path.steps, li: UHExp.line): snode =>
   switch (li) {
-  | EmptyLine => mk_vnode(steps, EmptyLine, [[]])
-  | ExpLine(e) => vnode_of_exp(steps, e) /* ghost node */
+  | EmptyLine => mk_snode(steps, EmptyLine, [[]])
+  | ExpLine(e) => snode_of_exp(steps, e) /* ghost node */
   | LetLine(p, ann, def) =>
-    let vnode_p = vnode_of_pat(steps @ [0], p);
-    let vwords_ann =
+    let snode_p = snode_of_pat(steps @ [0], p);
+    let swords_ann =
       switch (ann) {
       | None => []
       | Some(uty) => [
           Token(Delim(1, ":")),
-          Node(vnode_of_typ(steps @ [1], uty)),
+          Node(snode_of_typ(steps @ [1], uty)),
         ]
       };
-    let vnode_def = vnode_of_block(steps @ [2], def);
+    let snode_def = snode_of_block(steps @ [2], def);
     let is_multi_line = is_multi_line_block(def);
-    mk_vnode(
+    mk_snode(
       steps,
       LetLine,
       ~is_multi_line,
       [
-        [Token(Delim(0, "let")), Node(vnode_p)]
-        @ vwords_ann
+        [Token(Delim(0, "let")), Node(snode_p)]
+        @ swords_ann
         @ [Token(Delim(2, "="))],
-        [Node(vnode_def)],
+        [Node(snode_def)],
       ],
     );
   }
-and vnode_of_exp = (steps: Path.steps, e: UHExp.t): vnode =>
+and snode_of_exp = (steps: Path.steps, e: UHExp.t): snode =>
   switch (e) {
   /* outer nodes */
   | EmptyHole(u) =>
-    mk_vnode(steps, EmptyHole, [[Token(Delim(0, string_of_int(u + 1)))]])
+    mk_snode(steps, EmptyHole, [[Token(Delim(0, string_of_int(u + 1)))]])
   | Var(err_status, var_err_status, x) =>
-    mk_vnode(steps, Var, ~err_status, ~var_err_status, [[Token(Text(x))]])
+    mk_snode(steps, Var, ~err_status, ~var_err_status, [[Token(Text(x))]])
   | NumLit(err_status, n) =>
-    mk_vnode(
+    mk_snode(
       steps,
       NumLit,
       ~err_status,
       [[Token(Text(string_of_int(n)))]],
     )
   | BoolLit(err_status, b) =>
-    mk_vnode(
+    mk_snode(
       steps,
       BoolLit,
       ~err_status,
       [[Token(Text(string_of_bool(b)))]],
     )
   | ListNil(err_status) =>
-    mk_vnode(steps, ListNil, ~err_status, [[Token(Delim(0, "[]"))]])
+    mk_snode(steps, ListNil, ~err_status, [[Token(Delim(0, "[]"))]])
   /* inner nodes */
   | Lam(err_status, arg, ann, body) =>
-    let vnode_arg = vnode_of_pat(steps @ [0], arg);
-    let vwords_ann =
+    let snode_arg = snode_of_pat(steps @ [0], arg);
+    let swords_ann =
       switch (ann) {
       | None => []
       | Some(uty) => [
           Token(Delim(1, ":")),
-          Node(vnode_of_typ(steps @ [1], uty)),
+          Node(snode_of_typ(steps @ [1], uty)),
         ]
       };
-    let vnode_body = vnode_of_block(steps @ [2], body);
+    let snode_body = snode_of_block(steps @ [2], body);
     let is_multi_line = is_multi_line_block(body);
-    mk_vnode(
+    mk_snode(
       steps,
       Lam,
       ~err_status,
       ~is_multi_line,
       [
-        [Token(Delim(0, LangUtil.lamSym)), Node(vnode_arg)]
-        @ vwords_ann
+        [Token(Delim(0, LangUtil.lamSym)), Node(snode_arg)]
+        @ swords_ann
         @ [Token(Delim(2, "."))],
-        [Node(vnode_body)],
+        [Node(snode_body)],
       ],
     );
   | Inj(err_status, side, body) =>
-    let vnode_body = vnode_of_block(steps @ [0], body);
+    let snode_body = snode_of_block(steps @ [0], body);
     let is_multi_line = is_multi_line_block(body);
-    mk_vnode(
+    mk_snode(
       steps,
       Inj,
       ~err_status,
       ~is_multi_line,
       [
         [Token(Delim(0, "inj[" ++ LangUtil.string_of_side(side) ++ "]("))],
-        [Node(vnode_body)],
+        [Node(snode_body)],
         [Token(Delim(1, ")"))],
       ],
     );
   | Case(err_status, scrut, rules, ann) =>
-    let vnode_scrut = vnode_of_block(steps @ [0], scrut);
-    let vlines_rules =
+    let snode_scrut = snode_of_block(steps @ [0], scrut);
+    let slines_rules =
       rules
-      |> List.mapi((i, rule) => vnode_of_rule(steps @ [i], rule))
-      |> List.map(vnode => [Node(vnode)]);
-    let vwords_end =
+      |> List.mapi((i, rule) => snode_of_rule(steps @ [i], rule))
+      |> List.map(snode => [Node(snode)]);
+    let swords_end =
       switch (ann) {
       | None => [Token(Delim(1, "end"))]
       | Some(uty) => [
           Token(Delim(1, "end :")),
-          Node(vnode_of_typ(steps @ [List.length(rules) + 1], uty)),
+          Node(snode_of_typ(steps @ [List.length(rules) + 1], uty)),
         ]
       };
-    mk_vnode(
+    mk_snode(
       steps,
       Case,
       ~err_status,
       ~is_multi_line=true,
-      [[Token(Delim(0, "case")), Node(vnode_scrut)]]
-      @ vlines_rules
-      @ [vwords_end],
+      [[Token(Delim(0, "case")), Node(snode_scrut)]]
+      @ slines_rules
+      @ [swords_end],
     );
   | Parenthesized(body) =>
-    let vnode_body = vnode_of_block(steps @ [0], body);
+    let snode_body = snode_of_block(steps @ [0], body);
     let is_multi_line = is_multi_line_block(body);
-    mk_vnode(
+    mk_snode(
       steps,
       Parenthesized,
       ~is_multi_line,
       [
         [Token(Delim(0, "("))],
-        [Node(vnode_body)],
+        [Node(snode_body)],
         [Token(Delim(1, ")"))],
       ],
     );
   | OpSeq(_skel, _seq) =>
     /* TODO */
-    mk_vnode(steps, OpSeq, [[]])
+    mk_snode(steps, OpSeq, [[]])
   | ApPalette(_, _, _, _) => raise(InvariantViolated)
   }
 /* TODO */
-and vnode_of_rule = (steps: Path.steps, Rule(_pat, _clause): UHExp.rule) =>
-  mk_vnode(steps, Rule, [[]]);
+and snode_of_rule = (steps: Path.steps, Rule(_pat, _clause): UHExp.rule) =>
+  mk_snode(steps, Rule, [[]]);
 
 /* Conveniences */
 let (^^) = PP.(^^);
@@ -1646,9 +1642,9 @@ let rec of_block =
           rev_path: Path.steps,
           Block(lines, e): UHExp.block,
         ) => {
-  let vlines = lines |> List.map(of_line(palette_stuff, prefix, rev_path));
+  let slines = lines |> List.map(of_line(palette_stuff, prefix, rev_path));
   let ve = of_exp(palette_stuff, prefix, rev_path, e);
-  my_node(prefix, rev_path, Inner, ~clss, vlines @ [ve]);
+  my_node(prefix, rev_path, Inner, ~clss, slines @ [ve]);
 }
 and of_line =
     (
