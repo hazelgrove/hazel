@@ -4,9 +4,9 @@ JSUtil.listen_to_t(
   Dom_html.Event.domContentLoaded,
   Dom_html.document,
   _ => {
-    let model = Model.new_model();
+    let model = MyModel.new_init();
     let parent = JSUtil.forceGetElementById("container");
-    let (chrome, set_cursor) = Chrome.view(model);
+    let (chrome, set_cursor) = MyView.of(model);
     Dom.appendChild(parent, chrome);
     set_cursor();
   },
