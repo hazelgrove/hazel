@@ -421,6 +421,7 @@ let rec perform_ty =
   | (a, ForallZP(ztpat, uty1)) =>
     switch (perform_tpat(ctx, a, ztpat, u_gen)) {
     | Some((ctx, ztpat, u_gen)) =>
+      /*! call fix holes here, in case the pattern changes */
       let (_ctx, uty1, u_gen) = Statics.fix_holes_ty(ctx, uty1, u_gen);
       Some((ZTyp.ForallZP(ztpat, uty1), u_gen));
     | None => None
@@ -2862,15 +2863,27 @@ and syn_perform_exp =
     | Some((zblock, ty, u_gen)) => Some((ParenthesizedZ(zblock), ty, u_gen))
     | None => None
     }
-  | (_, DeeperE(err_status, TyLamZE(tp, zblock))) =>
-    switch (syn_perform_block(ctx, a, (zblock, ty, u_gen))) {
-    | Some((zblock, ty, u_gen)) =>
-      Some((ZExp.DeeperE(err_status, TyLamZE(tp, zblock)), ty, u_gen))
+  | (_, DeeperE(err, TyLamZE(tpat, zblock))) =>
+    let ctx = Statics.tpat_wf(ctx, tpat);
+    switch (ty) {
+    | Forall(_, block_ty) =>
+      switch (syn_perform_block(ctx, a, (zblock, block_ty, u_gen))) {
+      | Some((zblock, block_ty, u_gen)) =>
+        let ty = HTyp.Forall(tpat, block_ty);
+        Some((ZExp.DeeperE(err, TyLamZE(tpat, zblock)), ty, u_gen));
+      | None => None
+      }
+    | _ => None
+    };
+  | (_, DeeperE(err, TyLamZP(ztpat, block))) =>
+    switch (perform_tpat(ctx, a, ztpat, u_gen)) {
+    | Some((ctx, ztpat, u_gen)) =>
+      let (block, block_ty, u_gen) =
+        Statics.syn_fix_holes_block(ctx, u_gen, block);
+      let ty = HTyp.Forall(ZTPat.erase(ztpat), block_ty);
+      Some((ZExp.DeeperE(err, TyLamZP(ztpat, block)), ty, u_gen));
     | None => None
     }
-  | (_, DeeperE(_, TyLamZP(_, _))) =>
-    /*! fix this */
-    None
   /* when you press space after the "type" keyword,
      construct a type lambda -- even if in parentheses, even if
      in an op sequence. */
@@ -3767,8 +3780,26 @@ and ana_perform_exp =
           };
       }
     }
-  | (_, DeeperE(_, TyLamZP(_, _))) => None
-  | (_, DeeperE(_, TyLamZE(_, _))) => raise(Failure("unimplemented4"))
+  | (_, DeeperE(err, TyLamZP(ztpat, block))) =>
+    switch (perform_tpat(ctx, a, ztpat, u_gen)) {
+    | Some((ctx, ztpat, u_gen)) =>
+      let (block, u_gen) =
+        Statics.ana_fix_holes_block(ctx, u_gen, block, ty);
+      Some((ZExp.DeeperE(err, ZExp.TyLamZP(ztpat, block)), u_gen));
+    | None => None
+    }
+  | (_, DeeperE(err, TyLamZE(tpat, zblock))) =>
+    switch (HTyp.matched_forall(ty)) {
+    | None => None
+    | Some(ty) =>
+      let ctx = Statics.tpat_wf(ctx, tpat);
+      switch (ana_perform_block(ctx, a, (zblock, u_gen), ty)) {
+      | None => None
+      | Some((zblock, u_gen)) =>
+        let ze = ZExp.DeeperE(err, TyLamZE(tpat, zblock));
+        Some((ze, u_gen));
+      };
+    }
   | (_, DeeperE(err, LamZE(p, ann, zblock))) =>
     switch (HTyp.matched_arrow(ty)) {
     | None => None

@@ -545,7 +545,12 @@ and syn_exp' = (ctx: Contexts.t, e': UHExp.t'): option(HTyp.t) =>
       | Some(ty2) => Some(HTyp.Arrow(ty1, ty2))
       }
     };
-  | TyLam(_p, _block) => raise(Failure("unimplemented12"))
+  | TyLam(tpat, block) =>
+    let ctx = tpat_wf(ctx, tpat);
+    switch (syn_block(ctx, block)) {
+    | None => None
+    | Some(ty) => Some(Forall(tpat, ty))
+    };
   | Inj(side, block) =>
     switch (syn_block(ctx, block)) {
     | None => None
@@ -1487,6 +1492,7 @@ and syn_fix_holes_line =
       (LetLine(p, ann, block), ctx, u_gen);
     }
   }
+/*! insert calls to fix_holes_ty in here */
 and syn_fix_holes_exp =
     (
       ctx: Contexts.t,

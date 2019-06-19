@@ -543,7 +543,9 @@ and syn_cursor_info' = (ctx: Contexts.t, ze: ZExp.t'): option(t) =>
     /*! don't leave this */
     cursor_info_tpat(ctx, ztp)
 
-  | TyLamZE(_, _) => raise(Failure("unimplemented7"))
+  | TyLamZE(tpat, zblock) =>
+    let ctx = Statics.tpat_wf(ctx, tpat);
+    syn_cursor_info_block(ctx, zblock);
   | LamZP(zp, ann, _) =>
     let ty1 =
       switch (ann) {
