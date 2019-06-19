@@ -167,6 +167,13 @@ let has_matched_arrow =
   | Arrow(_, _) => true
   | _ => false;
 
+/* matched_forall */
+let matched_forall =
+  fun
+  | Hole => Some(Hole)
+  | Forall(_, ty) => Some(ty)
+  | _ => None;
+
 /* matched product types */
 let matched_prod =
   fun
