@@ -35,3 +35,12 @@ let rec leftmost_tm_index = (skel: t(_)): int =>
   | Placeholder(n) => n
   | BinOp(_, _, skel1, _) => leftmost_tm_index(skel1)
   };
+
+let rec range = (skel: t(_)): (int, int) =>
+  switch (skel) {
+  | Placeholder(n) => (n, n)
+  | BinOp(_, _, skel1, skel2) =>
+    let (a, _) = range(skel1);
+    let (_, b) = range(skel2);
+    (a, b);
+  };

@@ -23,9 +23,21 @@ type sbox_shape =
   | Num
   | Bool;
 
-type snode('skel) =
+type snode =
+  | Seq(sseq)
   | Box(sbox)
-  | Seq(sseq('skel))
+and sseq = {
+  steps: Path.steps,
+  cursor: option(cursor_pos),
+  is_multi_line: bool,
+  head: snode,
+  tail: list((stoken, snode)),
+  skel: sskel,
+}
+and sskel =
+  | Placeholder(int)
+  | BinOp(err_status, string, sskel, sskel)
+  | Space(err_status, sskel, sskel)
 and sbox = {
   steps: Path.steps,
   cursor: option(cursor_pos),
@@ -35,15 +47,7 @@ and sbox = {
   is_multi_line: bool,
   slines: list(sline),
 }
-and sseq('skel) = {
-  steps: Path.steps,
-  cursor: option(cursor_pos),
-  is_multi_line: bool,
-  slines: list(sline),
-  skel: 'skel,
-}
 and sline = {
-  parent_shape: snode_shape,
   line_no: int,
   swords: list(sword),
 }
@@ -144,13 +148,52 @@ let clss_of_stoken = (_: stoken): list(cls) => [""];
  }
  */
 
-let rec of_snode = (~inject: Update.Action.t => Vdom.Event.t, snode: snode) =>
+type is_start_of_top = bool;
+type is_end_of_bottom = bool;
+type sline_border_style =
+  | NoBorder
+  | Top(is_start_of_top)
+  | Bottom(is_end_of_bottom)
+  | TopBottom(is_start_of_top, is_end_of_bottom);
+
+/* TODO need to thread node cursor down to delimiters */
+let rec of_snode = (~inject: Update.Action.t => Vdom.Event.t, snode) =>
   switch (snode) {
-  | Box(sbox) => of_sbox(~inject, sbox)
   | Seq(sseq) => of_sseq(~inject, sseq)
+  | Box(sbox) => of_sbox(~inject, sbox)
   }
-and of_sbox = (~inject: Update.Action.t => Vdom.Event.t, sbox: sbox) => {
-  let vdom_lines =
+and of_sseq = (~inject: Update.Action.t => Vdom.Event.t, sseq) => {
+  let (vhead, vtail) =
+    switch (sseq.cursor) {
+    | None =>
+      let vhead = of_sline(~inject, OpSeq, sseq.steps, { line_no: 0, [Node(sseq.head)]})
+      let vtail =
+      sseq.tail
+      |> List.mapi((i, (sop, stm)) => of_sline(~inject, sseq.steps, { line_no: i+1, swords: [Token(sop), Node(stm)]}));
+      (vhead, vtail);
+    | Some(cursor) =>
+      let (a, b) = range_of_tree_rooted_at_cursor(cursor, sseq.sskel);
+      let vhead_border_style = a == 0 ? TopBottom(true, false) : NoBorder;
+      let vhead = of_sline(~inject, ~border=vhead_border_style, sseq.steps, { line_no: 0, [Node(sseq.head)]});
+      let vtail =
+        sseq.tail
+        |> List.mapi((i, (sop, stm)) => {
+          let border_style = (i + 1 < b) ? TopBottom(false, false) : TopBottom(false, true);
+          of_sline(~inject, ~border=border_style, sseq.steps, { line_no: i+1, swords: [Token(sop), Node(stm)]});
+        });
+      (vhead, vtail);
+    };
+  open Vdom;
+  Node.div(
+    [
+      Attr.id(id_of_sseq(sseq)),
+      Attr.classes(clss_of_sseq(sseq)),
+    ],
+    [vhead, ...vtail],
+  );
+}
+and of_sbox = (~inject: Update.Action.t => Vdom.Event.t, sbox) => {
+  let vlines =
     sbox.slines |> List.map(of_sline(~inject, sbox.steps, sbox.cursor));
   open Vdom;
   Node.div(
@@ -158,12 +201,12 @@ and of_sbox = (~inject: Update.Action.t => Vdom.Event.t, sbox: sbox) => {
       Attr.id(id_of_sbox(sbox)),
       Attr.classes(clss_of_sbox(sbox)),
     ],
-    vdom_lines,
+    vlines,
   );
 }
 and of_sline =
-    (~inject: Update.Action.t => unit, node_steps: Path.steps, node_cursor: option(cursor_pos), sline: sline) => {
-  let vdom_words =
+    (~inject: Update.Action.t => unit, node_shape: node_shape, node_steps: Path.steps, sline: sline) => {
+  let vwords =
     sline.swords
     |> List.map(sword =>
          switch (sword) {
@@ -171,10 +214,10 @@ and of_sline =
          | Token(stoken) => of_stoken(~inject, node_steps, node_cursor, stoken)
          }
        );
-  Vdom.(Node.div([Attr.classes(clss_of_sline(sline))], vdom_words));
+  Vdom.(Node.div([Attr.classes(clss_of_sline(sline))], vwords));
 }
 and of_stoken =
-    (~inject: Update.Action.t => Vdom.Event.t, node_steps: Path.steps, node_cursor: option(cursor_pos), stoken: stoken) => {
+    (~inject: Update.Action.t => Vdom.Event.t, node_steps: Path.steps, stoken: stoken) => {
   open Vdom;
   let clss = clss_of_stoken(stoken);
   switch (stoken) {
