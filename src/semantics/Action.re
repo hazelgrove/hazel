@@ -421,8 +421,7 @@ let rec perform_ty =
   | (a, ForallZP(ztpat, uty1)) =>
     switch (perform_tpat(ctx, a, ztpat, u_gen)) {
     | Some((ctx, ztpat, u_gen)) =>
-      /*! call fix holes here, in case the pattern changes */
-      let (_ctx, uty1, u_gen) = Statics.fix_holes_ty(ctx, uty1, u_gen);
+      let (uty1, u_gen) = Statics.fix_holes_ty(ctx, uty1, u_gen);
       Some((ZTyp.ForallZP(ztpat, uty1), u_gen));
     | None => None
     }
