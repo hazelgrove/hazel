@@ -1,9 +1,10 @@
+open Incr_dom;
 module Vdom = Virtual_dom.Vdom;
 
 type id = string;
 type cls = string;
 
-type snode_shape =
+type sbox_shape =
   | Block
   | EmptyLine
   | LetLine
@@ -18,18 +19,28 @@ type snode_shape =
   | Case
   | Rule
   | Parenthesized
-  | OpSeq
   | Unit
   | Num
   | Bool;
 
-type snode = {
+type snode('skel) =
+  | Box(sbox)
+  | Seq(sseq('skel))
+and sbox = {
   steps: Path.steps,
-  shape: snode_shape,
+  cursor: option(cursor_pos),
+  shape: sbox_shape,
   err_status,
   var_err_status,
   is_multi_line: bool,
   slines: list(sline),
+}
+and sseq('skel) = {
+  steps: Path.steps,
+  cursor: option(cursor_pos),
+  is_multi_line: bool,
+  slines: list(sline),
+  skel: 'skel,
 }
 and sline = {
   parent_shape: snode_shape,
@@ -41,12 +52,14 @@ and sword =
   | Token(stoken)
 and stoken =
   | Delim(delim_index, string)
+  | Op(op_index, string)
   | Text(string);
 
-let mk_snode =
+let mk_sbox =
     (
       steps: Path.steps,
-      shape: snode_shape,
+      ~cursor=None,
+      shape: sbox_shape,
       ~err_status=NotInHole,
       ~var_err_status=NotInVHole,
       ~is_multi_line=false,
@@ -54,6 +67,7 @@ let mk_snode =
     ) => {
   {
     steps,
+    cursor,
     shape,
     err_status,
     var_err_status,
@@ -67,15 +81,15 @@ let mk_snode =
 };
 
 /* TODO */
-let id_of_snode = (_: snode): id => "";
+let id_of_sbox = (_: sbox): id => "";
 let id_of_delim = (_: Path.t): id => "";
 let id_of_text = (_: Path.steps): id => "";
 
-let clss_of_snode_shape = (_shape: snode_shape): list(cls) => [""];
+let clss_of_sbox_shape = (_shape: sbox_shape): list(cls) => [""];
 
-let clss_of_snode = (snode: snode): list(cls) => {
+let clss_of_sbox = (sbox: sbox): list(cls) => {
   let shape_clss = [
-    switch (snode.shape) {
+    switch (sbox.shape) {
     | Block => "Block"
     | EmptyLine => "EmptyLine"
     | LetLine => "LetLine"
@@ -90,19 +104,18 @@ let clss_of_snode = (snode: snode): list(cls) => {
     | Case => "Case"
     | Rule => "Rule"
     | Parenthesized => "Parenthesized"
-    | OpSeq => "OpSeq"
     | Unit => "Unit"
     | Num => "Num"
     | Bool => "Bool"
     },
   ];
   let err_status_clss =
-    switch (snode.err_status) {
+    switch (sbox.err_status) {
     | NotInHole => []
     | InHole(_, u) => ["in_err_hole", "in_err_hole_" ++ string_of_int(u)]
     };
   let var_err_status_clss =
-    switch (snode.var_err_status) {
+    switch (sbox.var_err_status) {
     | NotInVHole => []
     | InVHole(Free, u) => ["InVHole", "InVHole_" ++ string_of_int(u)]
     | InVHole(Keyword(_), u) => [
@@ -111,7 +124,7 @@ let clss_of_snode = (snode: snode): list(cls) => {
         "Keyword",
       ]
     };
-  let multi_line_clss = snode.is_multi_line ? ["multi-line"] : [];
+  let multi_line_clss = sbox.is_multi_line ? ["multi-line"] : [];
   shape_clss @ err_status_clss @ var_err_status_clss @ multi_line_clss;
 };
 let clss_of_sline = (_: sline): list(cls) => [""];
@@ -131,66 +144,73 @@ let clss_of_stoken = (_: stoken): list(cls) => [""];
  }
  */
 
-let rec vdom_of_snode = (do_action: Action.t => unit, snode: snode) => {
+let rec of_snode = (~inject: Update.Action.t => Vdom.Event.t, snode: snode) =>
+  switch (snode) {
+  | Box(sbox) => of_sbox(~inject, sbox)
+  | Seq(sseq) => of_sseq(~inject, sseq)
+  }
+and of_sbox = (~inject: Update.Action.t => Vdom.Event.t, sbox: sbox) => {
   let vdom_lines =
-    snode.slines |> List.map(vdom_of_sline(do_action, snode.steps));
-  Vdom.Node.div(
+    sbox.slines |> List.map(of_sline(~inject, sbox.steps, sbox.cursor));
+  open Vdom;
+  Node.div(
     [
-      Vdom.Attr.id(id_of_snode(snode)),
-      Vdom.Attr.classes(clss_of_snode(snode)),
+      Attr.id(id_of_sbox(sbox)),
+      Attr.classes(clss_of_sbox(sbox)),
     ],
     vdom_lines,
   );
 }
-and vdom_of_sline =
-    (do_action: Action.t => unit, node_steps: Path.steps, sline: sline) => {
+and of_sline =
+    (~inject: Update.Action.t => unit, node_steps: Path.steps, node_cursor: option(cursor_pos), sline: sline) => {
   let vdom_words =
     sline.swords
     |> List.map(sword =>
          switch (sword) {
-         | Node(snode) => vdom_of_snode(do_action, snode)
-         | Token(stoken) => vdom_of_stoken(do_action, node_steps, stoken)
+         | Node(sbox) => of_sbox(do_action, sbox)
+         | Token(stoken) => of_stoken(~inject, node_steps, node_cursor, stoken)
          }
        );
-  Vdom.Node.div([Vdom.Attr.classes(clss_of_sline(sline))], vdom_words);
+  Vdom.(Node.div([Attr.classes(clss_of_sline(sline))], vdom_words));
 }
-and vdom_of_stoken =
-    (_do_action: Action.t => unit, node_steps: Path.steps, stoken: stoken) => {
+and of_stoken =
+    (~inject: Update.Action.t => Vdom.Event.t, node_steps: Path.steps, node_cursor: option(cursor_pos), stoken: stoken) => {
+  open Vdom;
   let clss = clss_of_stoken(stoken);
   switch (stoken) {
   | Delim(k, s) =>
     let delim_before =
-      Vdom.Node.div(
+      Node.div(
         [
-          Vdom.Attr.id(id_of_delim((node_steps, (k, Before)))),
-          Vdom.Attr.classes(["delim-before"]),
+          Attr.id(id_of_delim((node_steps, (k, Before)))),
+          Attr.classes(["delim-before"]),
         ],
         [],
       );
     let delim_after =
-      Vdom.Node.div(
+      Node.div(
         [
-          Vdom.Attr.id(id_of_delim((node_steps, (k, After)))),
-          Vdom.Attr.classes(["delim-after"]),
+          Attr.id(id_of_delim((node_steps, (k, After)))),
+          Attr.classes(["delim-after"]),
         ],
         [],
       );
     let delim_txt =
-      Vdom.Node.div(
+      Node.div(
         [
-          Vdom.Attr.create("contenteditable", "false"),
-          Vdom.Attr.classes(["delim-txt"]),
+          Attr.create("contenteditable", "false"),
+          Attr.classes(["delim-txt"]),
         ],
-        [Vdom.Node.text(s)],
+        [Node.text(s)],
       );
-    Vdom.Node.div(
-      [Vdom.Attr.classes(clss)],
+    Node.div(
+      [Attr.classes(clss)],
       [delim_before, delim_txt, delim_after],
     );
   | Text(s) =>
-    Vdom.Node.div(
-      [Vdom.Attr.id(id_of_text(node_steps)), Vdom.Attr.classes(clss)],
-      [Vdom.Node.text(s)],
+    Node.div(
+      [Attr.id(id_of_text(node_steps)), Attr.classes(clss)],
+      [Node.text(s)],
     )
   };
 };
