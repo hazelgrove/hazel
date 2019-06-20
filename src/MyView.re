@@ -49,7 +49,7 @@ and sbox = {
   shape: snode_shape,
   err_status,
   var_err_status,
-  is_multi_line: bool,
+  is_multi_line,
   slines: list(sline),
 }
 and sline = list(sword)
@@ -60,7 +60,13 @@ and stoken =
   | Delim(delim_index, string)
   | Space(op_index)
   | Op(op_index, string)
-  | Text(string);
+  | Text(string)
+and is_multi_line = bool;
+
+let is_multi_line =
+  fun
+  | Seq(sseq) => sseq.is_multi_line
+  | Box(sbox) => sbox.is_multi_line;
 
 let mk_Seq =
     (
@@ -313,14 +319,14 @@ let snode_of_pat = (~steps: Path.steps, _p: UHPat.t): snode =>
 
 let rec snode_of_block =
         (~steps: Path.steps=[], Block(line_items, e): UHExp.block): snode => {
-  let snode_line_items =
+  let sline_items =
     line_items |> List.mapi((i, li) => snode_of_line_item(steps @ [i], li));
-  let snode_e = snode_of_exp(steps @ [List.length(line_items)], e);
+  let se = snode_of_exp(steps @ [List.length(line_items)], e);
   mk_Box(
     ~steps,
     ~shape=Block,
-    ~is_multi_line=List.length(line_items) != 0,
-    snode_line_items @ [snode_e] |> List.map(snode => [Node(snode)]),
+    ~is_multi_line=List.length(sline_items) != 0 || is_multi_line(se),
+    sline_items @ [se] |> List.map(snode => [Node(snode)]),
   );
 }
 and snode_of_line_item = (~steps: Path.steps, li: UHExp.line): snode =>
@@ -328,7 +334,7 @@ and snode_of_line_item = (~steps: Path.steps, li: UHExp.line): snode =>
   | EmptyLine => mk_Box(~steps, ~shape=EmptyLine, [[]])
   | ExpLine(e) => snode_of_exp(~steps, e) /* ghost node */
   | LetLine(p, ann, def) =>
-    let snode_p = snode_of_pat(~steps=steps @ [0], p);
+    let sp = snode_of_pat(~steps=steps @ [0], p);
     let swords_ann =
       switch (ann) {
       | None => []
@@ -337,20 +343,20 @@ and snode_of_line_item = (~steps: Path.steps, li: UHExp.line): snode =>
           Node(snode_of_typ(~steps=steps @ [1], uty)),
         ]
       };
-    let snode_def = snode_of_block(~steps=steps @ [2], def);
+    let sdef = snode_of_block(~steps=steps @ [2], def);
     mk_Box(
       ~steps,
       ~shape=LetLine,
-      ~is_multi_line=is_multi_line_block(def),
+      ~is_multi_line=is_multi_line(sdef),
       [
-        [Token(Delim(0, "let")), Node(snode_p)]
+        [Token(Delim(0, "let")), Node(sp)]
         @ swords_ann
         @ [Token(Delim(2, "="))],
-        [Node(snode_def)],
+        [Node(sdef)],
       ],
     );
   }
-and snode_of_exp = (steps: Path.steps, e: UHExp.t): snode =>
+and snode_of_exp = (~steps: Path.steps, e: UHExp.t): snode =>
   switch (e) {
   /* outer nodes */
   | EmptyHole(u) =>
@@ -386,7 +392,7 @@ and snode_of_exp = (steps: Path.steps, e: UHExp.t): snode =>
     mk_Box(~steps, ~shape=ListNil, ~err_status, [[Token(Delim(0, "[]"))]])
   /* inner nodes */
   | Lam(err_status, arg, ann, body) =>
-    let snode_arg = snode_of_pat(~steps=steps @ [0], arg);
+    let sarg = snode_of_pat(~steps=steps @ [0], arg);
     let swords_ann =
       switch (ann) {
       | None => []
@@ -395,34 +401,34 @@ and snode_of_exp = (steps: Path.steps, e: UHExp.t): snode =>
           Node(snode_of_typ(~steps=steps @ [1], uty)),
         ]
       };
-    let snode_body = snode_of_block(~steps=steps @ [2], body);
+    let sbody = snode_of_block(~steps=steps @ [2], body);
     mk_Box(
       ~steps,
       ~shape=Lam,
       ~err_status,
-      ~is_multi_line=is_multi_line_block(body),
+      ~is_multi_line=is_multi_line(sbody),
       [
-        [Token(Delim(0, LangUtil.lamSym)), Node(snode_arg)]
+        [Token(Delim(0, LangUtil.lamSym)), Node(sarg)]
         @ swords_ann
         @ [Token(Delim(2, "."))],
-        [Node(snode_body)],
+        [Node(sbody)],
       ],
     );
   | Inj(err_status, side, body) =>
-    let snode_body = snode_of_block(~steps=steps @ [0], body);
+    let sbody = snode_of_block(~steps=steps @ [0], body);
     mk_Box(
       ~steps,
       ~shape=Inj,
       ~err_status,
-      ~is_multi_line=is_multi_line_block(body),
+      ~is_multi_line=is_multi_line(sbody),
       [
         [Token(Delim(0, "inj[" ++ LangUtil.string_of_side(side) ++ "]("))],
-        [Node(snode_body)],
+        [Node(sbody)],
         [Token(Delim(1, ")"))],
       ],
     );
   | Case(err_status, scrut, rules, ann) =>
-    let snode_scrut = snode_of_block(~steps=steps @ [0], scrut);
+    let sscrut = snode_of_block(~steps=steps @ [0], scrut);
     let slines_rules =
       rules
       |> List.mapi((i, rule) => snode_of_rule(~steps=steps @ [i], rule))
@@ -440,42 +446,35 @@ and snode_of_exp = (steps: Path.steps, e: UHExp.t): snode =>
       ~shape=Case,
       ~err_status,
       ~is_multi_line=true,
-      [[Token(Delim(0, "case")), Node(snode_scrut)]]
+      [[Token(Delim(0, "case")), Node(sscrut)]]
       @ slines_rules
       @ [swords_end],
     );
   | Parenthesized(body) =>
-    let snode_body = snode_of_block(~steps=steps @ [0], body);
+    let sbody = snode_of_block(~steps=steps @ [0], body);
     mk_Box(
       ~steps,
       ~shape=Parenthesized,
-      ~is_multi_line=is_multi_line_block(body),
-      [
-        [Token(Delim(0, "("))],
-        [Node(snode_body)],
-        [Token(Delim(1, ")"))],
-      ],
+      ~is_multi_line=is_multi_line(sbody),
+      [[Token(Delim(0, "("))], [Node(sbody)], [Token(Delim(1, ")"))]],
     );
   | OpSeq(skel, seq) =>
-    let (shd, stl) = sseq_head_tail_of_seq_exp(seq);
-    mk_Seq(
-      ~steps,
-      ~is_multi_line=List.exists(is_multi_line_exp, OperatorSeq.tms(seq)),
-      ~sskel=sskel_of_skel_exp(skel),
-      shd,
-      stl,
-    );
+    let (shd, stl, is_multi_line) = sseq_head_tail_of_seq_exp(seq);
+    mk_Seq(~steps, ~is_multi_line, ~sskel=sskel_of_skel_exp(skel), shd, stl);
   | ApPalette(_, _, _, _) => raise(InvariantViolated)
   }
 and sseq_head_tail_of_seq_exp =
-    (~leading_tm_index=0, seq: UHExp.opseq): (sseq_head, sseq_tail) => {
+    (~leading_tm_index=0, seq: UHExp.opseq)
+    : (sseq_head, sseq_tail, is_multi_line) => {
   let (hd, tl) = OperatorSeq.split0(seq);
   let shd = snode_of_exp(~steps=steps @ [leading_tm_index], hd);
-  let stl = sseq_tail_of_seq_exp(~leading_op_index=leading_tm_index + 1, tl);
-  (shd, stl);
+  let (stl, is_multi_line_tl) =
+    sseq_tail_of_seq_exp(~leading_op_index=leading_tm_index + 1, tl);
+  (shd, stl, is_multi_line(shd) || is_multi_line_tl);
 }
 and sseq_tail_of_suffix_exp =
-    (~leading_op_index=1, suffix: ZExp.opseq_suffix): sseq_tail =>
+    (~leading_op_index=1, suffix: ZExp.opseq_suffix)
+    : (sseq_tail, is_multi_line) =>
   switch (suffix) {
   | ExpSuffix(op, tm) =>
     let sop =
@@ -484,16 +483,16 @@ and sseq_tail_of_suffix_exp =
       | _ => Op(leading_op_index, string_of_op_exp(op))
       };
     let stm = Node(snode_of_exp(~steps=steps @ [leading_op_index], tm));
-    [(sop, stm)];
+    ([(sop, stm)], is_multi_line(stm));
   | SeqSuffix(op, seq) =>
     let sop =
       switch (op) {
       | Space => Space(leading_operator_index)
       | _ => Op(leading_operator_index, string_of_op_exp(op))
       };
-    let (shd, stl) =
+    let (shd, stl, is_multi_line_seq) =
       sseq_head_tail_of_seq_exp(~leading_tm_index=leading_op_index, seq);
-    [(sop, shd), ...stl];
+    ([(sop, shd), ...stl], is_multi_line_seq);
   }
 and snode_of_rule = (~steps: Path.steps, Rule(p, clause): UHExp.rule) => {
   let sp = snode_of_pat(~steps=steps @ [0], pat);
