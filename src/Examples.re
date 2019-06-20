@@ -1,3 +1,4 @@
+module StringMap = Map.Make(String);
 open OpSeqUtil;
 
 let just_hole: UHExp.block = UHExp.wrap_in_block(EmptyHole(0));
@@ -310,3 +311,15 @@ let qsort_example: UHExp.block = {
     qsort_line,
   );
 };
+
+type id = string;
+let examples =
+  StringMap.(
+    empty
+    |> add("just_hole", just_hole)
+    |> add("holey_lambda", holey_lambda)
+    |> add("let_line", let_line)
+    |> add("map_example", map_example)
+    |> add("qsort_example", qsort_example)
+  );
+let get = id => StringMap.find(id, examples;)
