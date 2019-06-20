@@ -85,11 +85,23 @@ let sskel_of_skel_typ = (skel: UHTyp.skel_t): sskel =>
   | Placeholder(n) => Placeholder(n)
   | BinOp(err_status, op, skel1, skel2) =>
     let sop = string_of_op_typ(op);
-    let sskel1 = sskel_of_skel_exp(skel1);
-    let sskel2 = sskel_of_skel_exp(skel2);
+    let sskel1 = sskel_of_skel_typ(skel1);
+    let sskel2 = sskel_of_skel_typ(skel2);
     BinOp(err_status, sop, sskel1, sskel2);
   };
-
+let sskel_of_skel_pat = (skel: UHPat.skel_t): sskel =>
+  switch (skel) {
+  | Placeholder(n) => Placeholder(n)
+  | BinOp(err_status, Space, skel1, skel2) =>
+    let sskel1 = sskel_of_skel_pat(skel1);
+    let sskel2 = sskel_of_skel_pat(skel2);
+    Space(err_status, sskel1, sskel2);
+  | BinOp(err_status, op, skel1, skel2) =>
+    let sop = string_of_op_exp(op);
+    let sskel1 = sskel_of_skel_pat(skel1);
+    let sskel2 = sskel_of_skel_pat(skel2);
+    BinOp(err_status, sop, sskel1, sskel2);
+  };
 let sskel_of_skel_exp = (skel: UHExp.skel_t): sskel =>
   switch (skel) {
   | Placeholder(n) => Placeholder(n)
@@ -317,7 +329,6 @@ and of_stoken =
   };
 };
 
-/* TODO */
 let rec snode_of_typ = (~steps: Path.steps, uty: UHTyp.t): snode =>
   switch (uty) {
   | Hole =>
@@ -380,8 +391,94 @@ and sseq_tail_of_suffix_typ =
     ([(sop, shd), ...stl], is_multi_line_seq);
   };
 
-let snode_of_pat = (~steps: Path.steps, _p: UHPat.t): snode =>
-  mk_Box(~steps, ~shape=EmptyHole, [[]]);
+let rec snode_of_pat = (~steps: Path.steps, p: UHPat.t): snode =>
+  switch (p) {
+  | EmptyHole(u) =>
+    mk_Box(
+      ~steps,
+      ~shape=EmptyHole,
+      [[Token(Delim(0, string_of_int(u + 1)))]],
+    )
+  | Wild(err_status) =>
+    mk_Box(~steps, ~shape=Wild, ~err_status, [[Token(Delim(0, "_"))]])
+  | Var(err_status, var_err_status, x) =>
+    mk_Box(
+      ~steps,
+      ~shape=Var,
+      ~err_status,
+      ~var_err_status,
+      [[Token(Text(string_of_int(n)))]],
+    )
+  | NumLit(err_status, n) =>
+    mk_Box(
+      ~steps,
+      ~shape=NumLit,
+      ~err_status,
+      [[Token(Text(string_of_int(n)))]],
+    )
+  | BoolLit(err_status, b) =>
+    mk_Box(
+      ~steps,
+      ~shape=BoolLit,
+      ~err_status,
+      [[Token(Text(string_of_bool(b)))]],
+    )
+  | ListNil(err_status) =>
+    mk_Box(~steps, ~shape=ListNil, ~err_status, [[Token(Delim(0, "[]"))]])
+  | Inj(err_status, side, body) =>
+    let sbody = snode_of_pat(~steps=steps @ [0], sbody);
+    mk_Box(
+      ~steps,
+      ~shape=Inj,
+      ~err_status,
+      [
+        [Token(Delim(0, "inj[" ++ LangUtil.string_of_side(side) ++ "]("))],
+        [Node(sbody)],
+        [Token(Delim(1, ")"))],
+      ],
+    );
+  | Parenthesized(body) =>
+    let sbody = snode_of_pat(~steps=steps @ [0], body);
+    mk_Box(
+      ~steps,
+      ~shape=Parenthesized,
+      [[Token(Delim(0, "("))], [Node(sbody)], [Token(Delim(1, ")"))]],
+    );
+  | OpSeq(skel, seq) =>
+    let (shd, stl, is_multi_line) = sseq_head_tail_of_seq_pat(seq);
+    mk_Seq(~steps, ~is_multi_line, ~sskel=sskel_of_skel_pat(skel), shd, stl);
+  }
+and sseq_head_tail_of_seq_pat =
+    (~leading_tm_index=0, seq: UHPat.opseq)
+    : (sseq_head, sseq_tail, is_multi_line) => {
+  let (hd, tl) = OperatorSeq.split0(seq);
+  let shd = snode_of_pat(~steps=steps @ [leading_tm_index], hd);
+  let (stl, is_multi_line_tl) =
+    sseq_tail_of_seq_pat(~leading_op_index=leading_tm_index + 1, tl);
+  (shd, stl, is_multi_line(shd) || is_multi_line_tl);
+}
+and sseq_tail_of_suffix_exp =
+    (~leading_op_index=1, suffix: ZPat.opseq_suffix)
+    : (sseq_tail, is_multi_line) =>
+  switch (suffix) {
+  | ExpSuffix(op, tm) =>
+    let sop =
+      switch (op) {
+      | Space => Space(leading_op_index)
+      | _ => Op(leading_op_index, string_of_op_pat(op))
+      };
+    let stm = Node(snode_of_pat(~steps=steps @ [leading_op_index], tm));
+    ([(sop, stm)], is_multi_line(stm));
+  | SeqSuffix(op, seq) =>
+    let sop =
+      switch (op) {
+      | Space => Space(leading_operator_index)
+      | _ => Op(leading_operator_index, string_of_op_pat(op))
+      };
+    let (shd, stl, is_multi_line_seq) =
+      sseq_head_tail_of_seq_pat(~leading_tm_index=leading_op_index, seq);
+    ([(sop, shd), ...stl], is_multi_line_seq);
+  };
 
 let rec snode_of_block =
         (~steps: Path.steps=[], Block(line_items, e): UHExp.block): snode => {

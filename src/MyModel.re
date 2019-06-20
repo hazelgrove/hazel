@@ -1,10 +1,12 @@
+type edit_state = (ZExp.zblock, HTyp.t, MetaVarGen.t);
+type result_state = (
+  Dynamics.DHExp.t,
+  Dynamics.DHExp.HoleInstanceInfo.t,
+  Dynamics.Evaluator.result,
+);
 type t = {
-  edit_state: (ZExp.zblock, HTyp.t, MetaVarGen.t),
-  result: (
-    Dynamics.DHExp.t,
-    Dynamics.DHExp.HoleInstanceInfo.t,
-    Dyanmics.Evaluator.result,
-  ),
+  edit_state,
+  result_state,
   left_sidebar_open: bool,
   right_sidebar_open: bool,
   selected_example: option(UHExp.block),
@@ -12,21 +14,9 @@ type t = {
 
 let cutoff = (m1, m2) => m1 == m2;
 
-let init = (): t => {
-  let (u, u_gen) = MetaVarGen.next(MetaVarGen.init);
-  let zblock =
-    ref(ZExp.wrap_in_block(ZExp.place_before_exp(EmptyHole(u0))));
-  {
-    edit_state: (zblock, Hole, u_gen),
-    left_sidebar_open: false,
-    right_sidebar_open: true,
-    selected_example: None,
-  };
-};
-
+exception InvalidInput;
 exception DoesNotExpand;
-let update_edit_state = (model: t, new_edit_state): t => {
-  let (zblock, _, _) = new_edit_state;
+let result_of_edit_state = ((zblock, _, _): edit_state): result_state => {
   open Dynamics;
   let expanded =
     DHExp.syn_expand_block(
@@ -34,36 +24,56 @@ let update_edit_state = (model: t, new_edit_state): t => {
       Delta.empty,
       ZExp.erase_block(zblock),
     );
-  let new_result =
-    switch (expanded) {
-    | DoesNotExpand => raise(DoesNotExpand)
-    | Expands(d, _, _) =>
-      switch (Evaluator.evaluate(d)) {
-      | InvalidInput(n) =>
-        JSUtil.log("InvalidInput " ++ string_of_int(n));
-        raise(InvalidInput);
-      | BoxedValue(d) =>
-        let (d_renumbered, hii) =
-          DHExp.renumber([], DHExp.HoleInstanceInfo.empty, d);
-        (d_renumbered, hii, BoxedValue(d_renumbered));
-      | Indet(d) =>
-        let (d_renumbered, hii) =
-          DHExp.renumber([], DHExp.HoleInstanceInfo.empty, d);
-        (d_renumbered, hii, Indet(d_renumbered));
-      }
-    };
-  {...model, edit_state: new_edit_state, result: new_result};
+  switch (expanded) {
+  | DoesNotExpand => raise(DoesNotExpand)
+  | Expands(d, _, _) =>
+    switch (Evaluator.evaluate(d)) {
+    | InvalidInput(n) =>
+      JSUtil.log("InvalidInput " ++ string_of_int(n));
+      raise(InvalidInput);
+    | BoxedValue(d) =>
+      let (d_renumbered, hii) =
+        DHExp.renumber([], DHExp.HoleInstanceInfo.empty, d);
+      (d_renumbered, hii, BoxedValue(d_renumbered));
+    | Indet(d) =>
+      let (d_renumbered, hii) =
+        DHExp.renumber([], DHExp.HoleInstanceInfo.empty, d);
+      (d_renumbered, hii, Indet(d_renumbered));
+    }
+  };
 };
 
+let update_edit_state = (model: t, new_edit_state): t => {
+  let new_result_state = result_of_edit_state(new_edit_state);
+  {...model, edit_state: new_edit_state, result_state: new_result_state};
+};
+
+let init = (): t => {
+  let (u, u_gen) = MetaVarGen.next(MetaVarGen.init);
+  let zblock = ZExp.wrap_in_block(ZExp.place_before_exp(EmptyHole(u)));
+  let edit_state = (zblock, HTyp.Hole, u_gen);
+  {
+    edit_state,
+    result_state: result_of_edit_state(edit_state),
+    left_sidebar_open: false,
+    right_sidebar_open: true,
+    selected_example: None,
+  };
+};
+
+exception InvalidAction;
 let perform_edit_action = (model: t, a: Action.t): t =>
-  update_edit_state(
-    model,
+  switch (
     Action.syn_perform_block(
       (VarCtx.empty, Palettes.initial_palette_ctx),
       a,
       model.edit_state,
-    ),
-  );
+    )
+  ) {
+  | Failed
+  | CursorEscaped(_) => raise(InvalidAction)
+  | Succeeded(new_edit_state) => update_edit_state(model, new_edit_state)
+  };
 
 let toggle_left_sidebar = (model: t): t => {
   ...model,

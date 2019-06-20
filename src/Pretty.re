@@ -1,4 +1,4 @@
-open Tyxml_js;
+open Js_of_ocaml_tyxml.Tyxml_js;
 module NatMap = EditorBoxTypes.NatMap;
 type div_attribs = list(Html5.attrib(Html_types.div_attrib));
 type rev_path = EditorBoxTypes.rev_path;
@@ -151,7 +151,7 @@ module PP: {
     sdoc_of_doc'(rev_paths, width, 0, [(0, x)]);
 };
 module HTML_Of_SDoc = {
-  open Tyxml_js;
+  open Js_of_ocaml_tyxml.Tyxml_js;
   open PP;
   exception InvalidLbl;
   let rec resolve =

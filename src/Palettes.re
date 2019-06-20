@@ -1,4 +1,4 @@
-open Tyxml_js;
+open Js_of_ocaml_tyxml.Tyxml_js;
 module Dom_html = Js_of_ocaml.Dom_html;
 module Dom = Js_of_ocaml.Dom;
 module Js = Js_of_ocaml.Js;
