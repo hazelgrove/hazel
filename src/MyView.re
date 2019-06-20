@@ -349,3 +349,123 @@ and snode_of_exp = (steps: Path.steps, e: UHExp.t): snode =>
 /* TODO */
 and snode_of_rule = (steps: Path.steps, Rule(_pat, _clause): UHExp.rule) =>
   mk_snode(steps, Rule, [[]]);
+
+
+
+
+let instance_click_fn = ((u, _) as inst) => {
+  let usi = React.S.value(user_selected_instances_rs);
+  user_selected_instances_rf(UserSelectedInstances.update(usi, inst));
+  move_to_hole(u);
+  selected_instance_rf(Some(inst));
+};
+let result_view = ({ result: (_, _, result) }: Model.t) => {
+  open Vdom;
+  switch (result) {
+  | InvalidInput(_) =>
+    Node.div(
+      [],
+      Node.text("(internal error: expansion or evaluation invariant violated)"),
+    ),
+  | BoxedValue(d)
+  | Indet(d) =>
+    Node.div(
+      [],
+      [view_of_dhexp(instance_click_fn)]
+    )
+  };
+};
+
+let examples_select = (~inject: Action.t => Vdom.Event.t) =>
+  Vdom.(
+    Node.select(
+      [Attr.on_change(ev => inject(Action.LoadExample(ev##.target##.value))],
+      [
+        Node.option([Attr.value("just_hole")], Node.text("just a hole")),
+        Node.option([Attr.value("holey_lambda")], Node.text("holey lambda")),
+        Node.option([Attr.value("let_line")], Node.text("let with extra lines")),
+        Node.option([Attr.value("map_example")], Node.text("map")),
+        Node.option([Attr.value("qsort_example")], Node.text("qsort")),
+      ],
+    )
+  );
+
+let page_view = (model: Model.t, ~inject: Action.t => Vdom.Event.t) => {
+  open Vdom;
+  Node.div(
+    [Attr.id(["root"])],
+    [
+      Node.div(
+        [Attr.classes(["top-bar"])],
+        [
+          Node.a(
+            [Attr.classes(["logo-text"]), Attr.href("https://hazel.org")],
+            [Node.text("Hazel")],
+          )
+        ],
+      ),
+      Node.div(
+        [Attr.classes(["main-area"])],
+        [
+          Sidebar.left([the_action_panel /*, the_history_panel*/]),
+          Node.div(
+            [Attr.classes(["flex-wrapper"])],
+            [
+              Node.div(
+                [Attr.classes(["page-area"])],
+                [
+                  Node.div(
+                    [Attr.classes(["page"])],
+                    [
+                      Node.div([
+                        Node.text("Hazel is an experiment in "),
+                        Node.strong([Node.text("live functional programming")]),
+                        Node.text(" with "),
+                        Node.strong([Node.text("typed holes")]),
+                        Node.text(
+                          ". Use the actions on the left to construct an expression. Navigate using the text cursor in the usual way.",
+                        ),
+                      ]),
+                      /* TODO add pp_view_parent */
+                      div(
+                        [a_class(["cell-status"])],
+                        [
+                          div(
+                            [a_class(["type-indicator"])],
+                            [
+                              div(
+                                [a_class(["type-label"])],
+                                [txt("Result of type: ")],
+                              ),
+                              div(
+                                [a_class(["htype-view"])],
+                                [htype_view],
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                      div(
+                        [a_class(["result-view"])],
+                        [result_view],
+                      ),
+                    ]
+                  ),
+                  examples_select,
+                ]
+              )
+            ]
+          ),
+          Sidebar.right([
+            the_cursor_inspector_panel,
+            the_context_inspector_panel,
+          ]),
+        ]
+      )
+    ]
+  )
+};
+
+let of = (model: Model.t, ~inject: Action.t => Vdom.Event.t) => {
+
+};
