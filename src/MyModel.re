@@ -1,6 +1,10 @@
 type t = {
   edit_state: (ZExp.zblock, HTyp.t, MetaVarGen.t),
-  result: Dynamics.(DHExp.t, DHExp.HoleInstanceInfo.t, Evaluator.result),
+  result: (
+    Dynamics.DHExp.t,
+    Dynamics.DHExp.HoleInstanceInfo.t,
+    Dyanmics.Evaluator.result,
+  ),
   left_sidebar_open: bool,
   right_sidebar_open: bool,
   selected_example: option(UHExp.block),
@@ -10,7 +14,8 @@ let cutoff = (m1, m2) => m1 == m2;
 
 let init = (): t => {
   let (u, u_gen) = MetaVarGen.next(MetaVarGen.init);
-  let zblock = ref(ZExp.wrap_in_block(ZExp.place_before_exp(EmptyHole(u0))));
+  let zblock =
+    ref(ZExp.wrap_in_block(ZExp.place_before_exp(EmptyHole(u0))));
   {
     edit_state: (zblock, Hole, u_gen),
     left_sidebar_open: false,
@@ -47,31 +52,27 @@ let update_edit_state = (model: t, new_edit_state): t => {
         (d_renumbered, hii, Indet(d_renumbered));
       }
     };
-  {
-    ...model,
-    edit_state: new_edit_state,
-    result: new_result,
-  };
+  {...model, edit_state: new_edit_state, result: new_result};
 };
 
-let perform_edit_action = (model: t, a: EditAction): t =>
+let perform_edit_action = (model: t, a: Action.t): t =>
   update_edit_state(
     model,
-    EditAction.syn_perform_block(
+    Action.syn_perform_block(
       (VarCtx.empty, Palettes.initial_palette_ctx),
       a,
       model.edit_state,
-    )
+    ),
   );
 
 let toggle_left_sidebar = (model: t): t => {
   ...model,
-  left_sidebar_open: !(model.left_sidebar_open),
+  left_sidebar_open: !model.left_sidebar_open,
 };
 
 let toggle_right_sidebar = (model: t): t => {
   ...model,
-  right_sidebar_open: !(model.right_sidebar_open),
+  right_sidebar_open: !model.right_sidebar_open,
 };
 
 let load_example = (model: t, block: UHExp.block): t => {
@@ -81,5 +82,5 @@ let load_example = (model: t, block: UHExp.block): t => {
       (VarCtx.empty, PaletteCtx.empty),
       MetaVarGen.init,
       ZExp.place_before_block(block),
-    );
+    ),
 };

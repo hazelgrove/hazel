@@ -322,4 +322,4 @@ let examples =
     |> add("map_example", map_example)
     |> add("qsort_example", qsort_example)
   );
-let get = id => StringMap.find(id, examples;)
+let get = id => StringMap.find(id, examples);

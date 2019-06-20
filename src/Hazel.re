@@ -11,6 +11,6 @@ let create = (model, ~old_model, ~inject) => {
   open Incr.Let_syntax;
   let%map model = model;
   let apply_action = Update.apply_action(model);
-  let view = View.of(model, ~inject);
+  let view = View.view(model, ~inject);
   Component.create(~apply_action, model, view);
 };

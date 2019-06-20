@@ -16,18 +16,32 @@ let make_sidebar =
     ) =>
   Vdom.Node.(
     div(
-      [Attr.id(collapsible_sidebar_id), Attr.classes(["collapsible-sidebar"] @ (sidebar_open ? [] : ["collapsed-sidebar"]))],
+      [
+        Attr.id(collapsible_sidebar_id),
+        Attr.classes(
+          ["collapsible-sidebar"]
+          @ (sidebar_open ? [] : ["collapsed-sidebar"]),
+        ),
+      ],
       [
         div(
           [Attr.classes(["sidebar"])],
           [
             div(
-              [Attr.id(slidable_body_id), Attr.classes(["sidebar-body-slider"])],
+              [
+                Attr.id(slidable_body_id),
+                Attr.classes(["sidebar-body-slider"]),
+              ],
               [
                 div(
                   [
                     Attr.id(body_padding_id),
-                    Attr.classes(["sidebar-body-padding"] @ (sidebar_open ? [] : ["sidebar-body-padding-expanded"])),
+                    Attr.classes(
+                      ["sidebar-body-padding"]
+                      @ (
+                        sidebar_open ? [] : ["sidebar-body-padding-expanded"]
+                      ),
+                    ),
                     Attr.on_click(_ => on_toggle),
                   ],
                   [],

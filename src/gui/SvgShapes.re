@@ -4,10 +4,11 @@ open Incr_dom;
  * The actual size of the icon can be styled using a CSS class.
  */
 let icon = (classes, points) => {
-  open Vdom;
-  Node.svg(
-    ~a=[Svg.a_class(classes), Svg.a_viewBox((0.0, 0.0, 100.0, 100.0))],
-    [Svg.polygon(~a=[Svg.a_points(points)], [])],
+  Vdom.(
+    Node.svg(
+      ~a=[Svg.a_class(classes), Svg.a_viewBox((0.0, 0.0, 100.0, 100.0))],
+      [Svg.polygon(~a=[Svg.a_points(points)], [])],
+    )
   );
 };
 
