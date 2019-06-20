@@ -437,56 +437,56 @@ let rec fix_holes_ty_skel =
           seq: UHTyp.opseq,
           u_gen: MetaVarGen.t,
         )
-        : (Contexts.t, UHTyp.skel_t, UHTyp.opseq, MetaVarGen.t) =>
+        : (UHTyp.skel_t, UHTyp.opseq, MetaVarGen.t) =>
   switch (skel) {
   | Placeholder(n) =>
     switch (OperatorSeq.seq_nth(n, seq)) {
     | None => raise(UHTyp.SkelInconsistentWithOpSeq(skel, seq))
     | Some(ty) =>
-      let (ctx, ty, u_gen) = fix_holes_ty(ctx, ty, u_gen);
+      let (ty, u_gen) = fix_holes_ty(ctx, ty, u_gen);
       switch (OperatorSeq.seq_update_nth(n, seq, ty)) {
       | None => raise(UHTyp.SkelInconsistentWithOpSeq(skel, seq))
-      | Some(seq) => (ctx, skel, seq, u_gen)
+      | Some(seq) => (skel, seq, u_gen)
       };
     }
   | BinOp(_, op, skel1, skel2) =>
-    let (ctx, skel1, seq, u_gen) = fix_holes_ty_skel(ctx, skel1, seq, u_gen);
-    let (ctx, skel2, seq, u_gen) = fix_holes_ty_skel(ctx, skel2, seq, u_gen);
-    (ctx, BinOp(NotInHole, op, skel1, skel2), seq, u_gen);
+    let (skel1, seq, u_gen) = fix_holes_ty_skel(ctx, skel1, seq, u_gen);
+    let (skel2, seq, u_gen) = fix_holes_ty_skel(ctx, skel2, seq, u_gen);
+    (BinOp(NotInHole, op, skel1, skel2), seq, u_gen);
   }
 
 and fix_holes_ty =
     (ctx: Contexts.t, ty: UHTyp.t, u_gen: MetaVarGen.t)
-    : (Contexts.t, UHTyp.t, MetaVarGen.t) =>
+    : (UHTyp.t, MetaVarGen.t) =>
   switch (ty) {
   | TVar(InVHole(Free, u), t) =>
     if (TVarCtx.includes(ctx.tvars, t)) {
-      (ctx, TVar(NotInVHole, t), u_gen);
+      (TVar(NotInVHole, t), u_gen);
     } else {
-      (ctx, TVar(InVHole(Free, u), t), u_gen);
+      (TVar(InVHole(Free, u), t), u_gen);
     }
   | TVar(_, t) =>
     if (TVarCtx.includes(ctx.tvars, t)) {
-      (ctx, TVar(NotInVHole, t), u_gen);
+      (TVar(NotInVHole, t), u_gen);
     } else {
       let (u, u_gen) = MetaVarGen.next(u_gen);
-      (ctx, TVar(InVHole(Free, u), t), u_gen);
+      (TVar(InVHole(Free, u), t), u_gen);
     }
   | Hole
   | Num
   | Bool
-  | Unit => (ctx, ty, u_gen)
+  | Unit => (ty, u_gen)
   | List(ty) => fix_holes_ty(ctx, ty, u_gen)
   | OpSeq(skel, seq) =>
-    let (ctx, skel, seq, u_gen) = fix_holes_ty_skel(ctx, skel, seq, u_gen);
-    (ctx, OpSeq(skel, seq), u_gen);
+    let (skel, seq, u_gen) = fix_holes_ty_skel(ctx, skel, seq, u_gen);
+    (OpSeq(skel, seq), u_gen);
   | Parenthesized(ty) =>
-    let (ctx, ty, u_gen) = fix_holes_ty(ctx, ty, u_gen);
-    (ctx, Parenthesized(ty), u_gen);
+    let (ty, u_gen) = fix_holes_ty(ctx, ty, u_gen);
+    (Parenthesized(ty), u_gen);
   | Forall(tpat, ty) =>
     let ctx = fix_holes_tpat(ctx, tpat);
-    let (ctx, ty, u_gen) = fix_holes_ty(ctx, ty, u_gen);
-    (ctx, Forall(tpat, ty), u_gen);
+    let (ty, u_gen) = fix_holes_ty(ctx, ty, u_gen);
+    (Forall(tpat, ty), u_gen);
   };
 
 let rec syn_block = (ctx: Contexts.t, block: UHExp.block): option(HTyp.t) =>
@@ -1515,6 +1515,7 @@ and syn_fix_holes_line =
   | LetLine(p, ann, block) =>
     switch (ann) {
     | Some(uty1) =>
+      let (uty1, u_gen) = fix_holes_ty(ctx, uty1, u_gen);
       let ty1 = UHTyp.expand(uty1);
       let ctx_block = ctx_for_let(ctx, p, ty1, block);
       let (block, u_gen) =
@@ -1536,7 +1537,6 @@ and syn_fix_holes_line =
       (LetLine(p, ann, block), ctx, u_gen);
     }
   }
-/*! insert calls to fix_holes_ty in here */
 and syn_fix_holes_exp =
     (
       ctx: Contexts.t,
@@ -1587,12 +1587,18 @@ and syn_fix_holes_exp =
       raise(UHExp.SkelInconsistentWithOpSeq(skel, seq))
     | (skel, seq, ty, u_gen) => (OpSeq(skel, seq), ty, u_gen)
     }
-  | TyLam(_p, _block) => raise(Failure("unimplemented14"))
+  | TyLam(tpat, block) =>
+    let ctx = tpat_wf(ctx, tpat);
+    let (block, ty, u_gen) = syn_fix_holes_block(ctx, u_gen, block);
+    (TyLam(tpat, block), Forall(tpat, ty), u_gen);
   | Lam(p, ann, block) =>
-    let ty1 =
+    let (ty1, u_gen) =
       switch (ann) {
-      | Some(uty1) => UHTyp.expand(uty1)
-      | None => HTyp.Hole
+      | Some(uty1) =>
+        let (uty1, u_gen) = fix_holes_ty(ctx, uty1, u_gen);
+
+        (UHTyp.expand(uty1), u_gen);
+      | None => (HTyp.Hole, u_gen)
       };
     let (p, ctx, u_gen) =
       ana_fix_holes_pat(ctx, u_gen, ~renumber_empty_holes, p, ty1);
@@ -1787,6 +1793,7 @@ and ana_fix_holes_exp =
     | Some((ty1_given, ty2)) =>
       switch (ann) {
       | Some(uty1) =>
+        let (uty1, u_gen) = fix_holes_ty(ctx, uty1, u_gen);
         let ty1_ann = UHTyp.expand(uty1);
         if (HTyp.consistent(ty1_ann, ty1_given)) {
           let (p, ctx, u_gen) =
