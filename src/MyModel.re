@@ -1,12 +1,12 @@
 type edit_state = (ZExp.zblock, HTyp.t, MetaVarGen.t);
-type result_state = (
+type result = (
   Dynamics.DHExp.t,
   Dynamics.DHExp.HoleInstanceInfo.t,
   Dynamics.Evaluator.result,
 );
 type t = {
   edit_state,
-  result_state,
+  result,
   left_sidebar_open: bool,
   right_sidebar_open: bool,
   selected_example: option(UHExp.block),
@@ -16,7 +16,7 @@ let cutoff = (m1, m2) => m1 == m2;
 
 exception InvalidInput;
 exception DoesNotExpand;
-let result_of_edit_state = ((zblock, _, _): edit_state): result_state => {
+let result_of_edit_state = ((zblock, _, _): edit_state): result => {
   open Dynamics;
   let expanded =
     DHExp.syn_expand_block(
@@ -44,8 +44,8 @@ let result_of_edit_state = ((zblock, _, _): edit_state): result_state => {
 };
 
 let update_edit_state = (model: t, new_edit_state): t => {
-  let new_result_state = result_of_edit_state(new_edit_state);
-  {...model, edit_state: new_edit_state, result_state: new_result_state};
+  let new_result = result_of_edit_state(new_edit_state);
+  {...model, edit_state: new_edit_state, result: new_result};
 };
 
 let init = (): t => {
@@ -54,7 +54,7 @@ let init = (): t => {
   let edit_state = (zblock, HTyp.Hole, u_gen);
   {
     edit_state,
-    result_state: result_of_edit_state(edit_state),
+    result: result_of_edit_state(edit_state),
     left_sidebar_open: false,
     right_sidebar_open: true,
     selected_example: None,
