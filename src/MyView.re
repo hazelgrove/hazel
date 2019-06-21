@@ -1,5 +1,6 @@
 open Incr_dom;
 module Vdom = Virtual_dom.Vdom;
+open SemanticsCommon;
 
 exception InvariantViolated;
 

@@ -46,6 +46,8 @@ let pick_side = (side, l, r) =>
 
 [@deriving (show({with_path: false}), sexp)]
 type delim_index = int;
+[@deriving (show({with_path: false}), sexp)]
+type op_index = int;
 
 [@deriving (show({with_path: false}), sexp)]
 type side =

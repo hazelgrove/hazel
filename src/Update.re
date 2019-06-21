@@ -8,6 +8,7 @@ module Action = {
     | LoadExample(Examples.id);
 };
 
+[@warning "-27"]
 let apply_action =
     (model: MyModel.t, action: Action.t, _, ~schedule_action): MyModel.t =>
   switch (action) {

@@ -1,5 +1,6 @@
 open Incr_dom;
 module Js = Js_of_ocaml.Js;
+module Dom_html = Js_of_ocaml.Dom_html;
 
 let make_sidebar =
     (
@@ -12,10 +13,10 @@ let make_sidebar =
       body_padding_id: string,
       body_id: string,
       sidebar_open: bool,
-      ~on_toggle: Vdom.Event.t,
+      ~on_toggle: Js.t(Dom_html.mouseEvent) => Vdom.Event.t,
     ) =>
-  Vdom.Node.(
-    div(
+  Vdom.(
+    Node.div(
       [
         Attr.id(collapsible_sidebar_id),
         Attr.classes(
@@ -24,16 +25,16 @@ let make_sidebar =
         ),
       ],
       [
-        div(
+        Node.div(
           [Attr.classes(["sidebar"])],
           [
-            div(
+            Node.div(
               [
                 Attr.id(slidable_body_id),
                 Attr.classes(["sidebar-body-slider"]),
               ],
               [
-                div(
+                Node.div(
                   [
                     Attr.id(body_padding_id),
                     Attr.classes(
@@ -42,15 +43,22 @@ let make_sidebar =
                         sidebar_open ? [] : ["sidebar-body-padding-expanded"]
                       ),
                     ),
-                    Attr.on_click(_ => on_toggle),
+                    Attr.on_click(on_toggle),
                   ],
                   [],
                 ),
-                div(~a=[a_id(body_id), a_class(["sidebar-body"])], panels),
+                Node.div(
+                  [Attr.id(body_id), Attr.classes(["sidebar-body"])],
+                  panels,
+                ),
               ],
             ),
-            div(
-              ~a=[a_id(tab_id), a_class(["sidebar-tab"]), onclick],
+            Node.div(
+              [
+                Attr.id(tab_id),
+                Attr.classes(["sidebar-tab"]),
+                Attr.on_click(on_toggle),
+              ],
               [sidebar_open ? tab_opened_icon() : tab_closed_icon()],
             ),
           ],
@@ -70,7 +78,8 @@ let left = (~inject, sidebar_open, left_panels) => {
     "left-bar-body-padding",
     "left-bar-body",
     sidebar_open,
-    ~on_toggle=inject(ToggleLeftSidebar),
+    ~on_toggle=_ =>
+    inject(Update.Action.ToggleLeftSidebar)
   );
 };
 
@@ -85,6 +94,7 @@ let right = (~inject, sidebar_open, right_panels) => {
     "right-bar-body-padding",
     "right-bar-body",
     sidebar_open,
-    ~on_toggle=inject(ToggleRightSidebar),
+    ~on_toggle=_ =>
+    inject(Update.Action.ToggleRightSidebar)
   );
 };
