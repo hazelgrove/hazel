@@ -48,14 +48,22 @@ let pick_side = (side, l, r) =>
 type delim_index = int;
 [@deriving (show({with_path: false}), sexp)]
 type op_index = int;
+[@deriving (show({with_path: false}), sexp)]
+type char_index = int;
 
 [@deriving (show({with_path: false}), sexp)]
 type side =
   | Before
   | After;
 
+/* TODO refactor this to represent text vs delimiter cursors */
 [@deriving (show({with_path: false}), sexp)]
 type cursor_pos = (delim_index, side);
+
+[@deriving (show({with_path: false}), sexp)]
+type cursor_position =
+  | Delimiter(delim_index, side)
+  | Text(char_index);
 
 [@deriving sexp]
 type node_type =

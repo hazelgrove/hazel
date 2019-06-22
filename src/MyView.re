@@ -161,8 +161,8 @@ let rec string_of_steps =
   | [] => ""
   | [x, ...xs] => string_of_int(x) ++ "_" ++ string_of_steps(xs);
 let node_id = steps => "node__" ++ string_of_steps(steps);
-
-let path_id = path => Sexplib.Sexp.to_string(Path.sexp_of_t(path));
+let path_id = path =>
+  "path__" ++ Sexplib.Sexp.to_string(Path.sexp_of_t(path));
 
 let multi_line_clss = is_multi_line => is_multi_line ? ["multi-line"] : [];
 

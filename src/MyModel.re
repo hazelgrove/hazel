@@ -13,12 +13,17 @@ type t = {
   selected_example: option(UHExp.block),
 };
 
-let cutoff = (m1, m2) => {
-  let (zblock1, ty1, u_gen1) = m1.edit_state;
-  let (zblock2, ty2, u_gen2) = m2.edit_state;
+let cutoff = (model1, model2) => {
+  let (zblock1, ty1, u_gen1) = model1.edit_state;
+  let (zblock2, ty2, u_gen2) = model2.edit_state;
   ZExp.diff_is_just_cursor_movement_within_node(zblock1, zblock2)
   && ty1 == ty2
   && u_gen1 == u_gen2;
+};
+
+let get_path = model => {
+  let (zblock, _, _) = model.edit_state;
+  Path.of_zblock(zblock);
 };
 
 exception MissingCursorInfo;
