@@ -1472,6 +1472,7 @@ and syn_fix_holes_line =
     switch (ann) {
     | Some(uty1) =>
       let (uty1, u_gen) = fix_holes_ty(ctx, uty1, u_gen);
+      let ann = Some(uty1);
       let ty1 = UHTyp.expand(uty1);
       let ctx_block = ctx_for_let(ctx, p, ty1, block);
       let (block, u_gen) =
