@@ -1592,14 +1592,16 @@ and syn_fix_holes_exp =
     let (block, ty, u_gen) = syn_fix_holes_block(ctx, u_gen, block);
     (TyLam(tpat, block), Forall(tpat, ty), u_gen);
   | Lam(p, ann, block) =>
-    let (ty1, u_gen) =
+    let (uty1, u_gen) =
       switch (ann) {
       | Some(uty1) =>
         let (uty1, u_gen) = fix_holes_ty(ctx, uty1, u_gen);
 
-        (UHTyp.expand(uty1), u_gen);
-      | None => (HTyp.Hole, u_gen)
+        (uty1, u_gen);
+      | None => (UHTyp.Hole, u_gen)
       };
+    let ann = Some(uty1);
+    let ty1 = UHTyp.expand(uty1);
     let (p, ctx, u_gen) =
       ana_fix_holes_pat(ctx, u_gen, ~renumber_empty_holes, p, ty1);
     let (block, ty2, u_gen) =
