@@ -15,6 +15,6 @@ let create = (model, ~old_model, ~inject) => {
   Component.create(
     ~apply_action=Update.apply_action(model),
     model,
-    MyView.mk(~inject, model),
+    MyView.view(~inject, model),
   );
 };

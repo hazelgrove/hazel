@@ -996,6 +996,6 @@ let page_view =
 };
 
 [@warning "-27"]
-let mk =
+let view =
     (~inject: Update.Action.t => Vdom.Event.t, model: MyModel.t): Vdom.Node.t =>
   page_view(~inject, model);

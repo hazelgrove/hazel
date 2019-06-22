@@ -766,3 +766,113 @@ and cursor_node_type_rule = (zrule: zrule): node_type =>
   | RuleZP(zp, _) => ZPat.cursor_node_type(zp)
   | RuleZE(_, zblock) => cursor_node_type_zblock(zblock)
   };
+
+let rec diff_is_just_cursor_movement_within_node = (zblock1, zblock2) =>
+  switch (zblock1, zblock2) {
+  | (
+      BlockZL((prefix1, zline1, suffix1), e1),
+      BlockZL((prefix2, zline2, suffix2), e2),
+    ) =>
+    prefix1 == prefix2
+    && diff_is_just_cursor_movement_within_node__zline(zline1, zline2)
+    && suffix1 == suffix2
+    && e1 == e2
+  | (BlockZE(lines1, ze1), BlockZE(lines2, ze2)) =>
+    lines1 == lines2
+    && diff_is_just_cursor_movement_within_node__zexp(ze1, ze2)
+  | (_, _) => false
+  }
+and diff_is_just_cursor_movement_within_node__zline = (zline1, zline2) =>
+  switch (zline1, zline2) {
+  | (CursorL(_, line1), CursorL(_, line2)) => line1 == line2
+  | (ExpLineZ(ze1), ExpLineZ(ze2)) =>
+    diff_is_just_cursor_movement_within_node__zexp(ze1, ze2)
+  | (LetLineZP(zp1, ann1, def1), LetLineZP(zp2, ann2, def2)) =>
+    ZPat.diff_is_just_cursor_movement_within_node(zp1, zp2)
+    && ann1 == ann2
+    && def1 == def2
+  | (LetLineZA(p1, zann1, def1), LetLineZA(p2, zann2, def2)) =>
+    p1 == p2
+    && ZTyp.diff_is_just_cursor_movement_within_node(zann1, zann2)
+    && def1 == def2
+  | (LetLineZE(p1, ann1, zdef1), LetLineZE(p2, ann2, zdef2)) =>
+    p1 == p2
+    && ann1 == ann2
+    && diff_is_just_cursor_movement_within_node(zdef1, zdef2)
+  | (_, _) => false
+  }
+and diff_is_just_cursor_movement_within_node__zexp = (ze1, ze2) =>
+  switch (ze1, ze2) {
+  | (CursorE(_, e1), CursorE(_, e2)) => e1 == e2
+  | (ParenthesizedZ(zbody1), ParenthesizedZ(zbody2)) =>
+    diff_is_just_cursor_movement_within_node(zbody1, zbody2)
+  | (OpSeqZ(skel1, ztm1, surround1), OpSeqZ(skel2, ztm2, surround2)) =>
+    skel1 == skel2
+    && diff_is_just_cursor_movement_within_node__zexp(ztm1, ztm2)
+    && surround1 == surround2
+  | (
+      LamZP(err_status1, zp1, ann1, body1),
+      LamZP(err_status2, zp2, ann2, body2),
+    ) =>
+    err_status1 == err_status2
+    && ZPat.diff_is_just_cursor_movement_within_node(zp1, zp2)
+    && ann1 == ann2
+    && body1 == body2
+  | (
+      LamZA(err_status1, p1, zann1, body1),
+      LamZA(err_status2, p2, zann2, body2),
+    ) =>
+    err_status1 == err_status2
+    && p1 == p2
+    && ZTyp.diff_is_just_cursor_movement_within_node(zann1, zann2)
+    && body1 == body2
+  | (
+      LamZE(err_status1, p1, ann1, zbody1),
+      LamZE(err_status2, p2, ann2, zbody2),
+    ) =>
+    err_status1 == err_status2
+    && p1 == p2
+    && ann1 == ann2
+    && diff_is_just_cursor_movement_within_node(zbody1, zbody2)
+  | (InjZ(err_status1, side1, zbody1), InjZ(err_status2, side2, zbody2)) =>
+    err_status1 == err_status2
+    && side1 == side2
+    && diff_is_just_cursor_movement_within_node(zbody1, zbody2)
+  | (
+      CaseZE(err_status1, zscrut1, rules1, ann1),
+      CaseZE(err_status2, zscrut2, rules2, ann2),
+    ) =>
+    err_status1 == err_status2
+    && diff_is_just_cursor_movement_within_node(zscrut1, zscrut2)
+    && rules1 == rules2
+    && ann1 == ann2
+  | (
+      CaseZR(err_status1, scrut1, (prefix1, zrule1, suffix1), ann1),
+      CaseZR(err_status2, scrut2, (prefix2, zrule2, suffix2), ann2),
+    ) =>
+    err_status1 == err_status2
+    && scrut1 == scrut2
+    && prefix1 == prefix2
+    && diff_is_just_cursor_movement_within_node__zrule(zrule1, zrule2)
+    && suffix1 == suffix2
+    && ann1 == ann2
+  | (
+      CaseZA(err_status1, scrut1, rules1, zann1),
+      CaseZA(err_status2, scrut2, rules2, zann2),
+    ) =>
+    err_status1 == err_status2
+    && scrut1 == scrut2
+    && rules1 == rules2
+    && ZTyp.diff_is_just_cursor_movement_within_node(zann1, zann2)
+  | (_, _) => false
+  }
+and diff_is_just_cursor_movement_within_node__zrule = (zrule1, zrule2) =>
+  switch (zrule1, zrule2) {
+  | (CursorR(_, rule1), CursorR(_, rule2)) => rule1 == rule2
+  | (RuleZP(zp1, clause1), RuleZP(zp2, clause2)) =>
+    ZPat.diff_is_just_cursor_movement_within_node(zp1, zp2)
+    && clause1 == clause2
+  | (RuleZE(p1, zclause1), RuleZE(p2, zclause2)) =>
+    p1 == p2 && diff_is_just_cursor_movement_within_node(zclause1, zclause2)
+  | (_, _) => false
+  };

@@ -6,13 +6,32 @@ type result = (
 );
 type t = {
   edit_state,
+  cursor_info: CursorInfo.t,
   result,
   left_sidebar_open: bool,
   right_sidebar_open: bool,
   selected_example: option(UHExp.block),
 };
 
-let cutoff = (m1, m2) => m1 == m2;
+let cutoff = (m1, m2) => {
+  let (zblock1, ty1, u_gen1) = m1.edit_state;
+  let (zblock2, ty2, u_gen2) = m2.edit_state;
+  ZExp.diff_is_just_cursor_movement_within_node(zblock1, zblock2)
+  && ty1 == ty2
+  && u_gen1 == u_gen2;
+};
+
+exception MissingCursorInfo;
+let cursor_info_of_edit_state = ((zblock, _, _): edit_state): CursorInfo.t =>
+  switch (
+    CursorInfo.syn_cursor_info_block(
+      (VarCtx.empty, Palettes.initial_palette_ctx),
+      zblock,
+    )
+  ) {
+  | None => raise(MissingCursorInfo)
+  | Some(ci) => ci
+  };
 
 exception InvalidInput;
 exception DoesNotExpand;
@@ -54,6 +73,7 @@ let init = (): t => {
   let edit_state = (zblock, HTyp.Hole, u_gen);
   {
     edit_state,
+    cursor_info: cursor_info_of_edit_state(edit_state),
     result: result_of_edit_state(edit_state),
     left_sidebar_open: false,
     right_sidebar_open: true,
