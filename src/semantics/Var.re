@@ -27,6 +27,12 @@ let is_true = s => eq(s, "true");
 
 let is_false = s => eq(s, "false");
 
+let is_num = s => eq(s, "num");
+
+let is_bool = s => eq(s, "bool");
+
+let is_list = s => eq(s, "list");
+
 let is_let = s => eq(s, "let");
 
 let is_fn = s => eq(s, "fn");
@@ -43,5 +49,8 @@ let of_keyword = (k: keyword): t =>
   | Case => "case"
   | Forall => "forall"
   | Type => "type"
+  | Num => "Num"
+  | Bool => "Bool"
+  | List => "List"
   | Fn => "fn"
   };

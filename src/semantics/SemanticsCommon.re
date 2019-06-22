@@ -22,6 +22,9 @@ type keyword =
   | Case
   | Forall
   | Type
+  | Num
+  | Bool
+  | List
   | Fn;
 
 [@deriving (sexp, show)]
