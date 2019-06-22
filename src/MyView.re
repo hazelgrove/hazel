@@ -1,4 +1,3 @@
-open Incr_dom;
 module Vdom = Virtual_dom.Vdom;
 open SemanticsCommon;
 
@@ -61,7 +60,7 @@ and sword =
   | SToken(stoken)
 and stoken =
   | SDelim(delim_index, string)
-  | SSpace(op_index)
+  | SSpaceOp
   | SOp(op_index, string)
   | SText(var_err_status, string);
 
@@ -194,6 +193,7 @@ let string_of_snode_shape =
     | Unit => "Unit"
     | Num => "Num"
     | Bool => "Bool"
+    | List => "List"
     };
 
 let sline_clss = (node_shape, line_no) => [
@@ -239,7 +239,7 @@ let var_err_status_clss =
  */
 
 /* TODO */
-let range_of_tree_rooted_at_cursor = (cursor, sskel) => (0, 0);
+let range_of_tree_rooted_at_cursor = (_cursor, _sskel) => (0, 0);
 
 let rec of_snode = (~inject: Update.Action.t => Vdom.Event.t, snode) =>
   switch (snode) {
@@ -363,6 +363,7 @@ and of_sline =
     )
   );
 }
+[@warning "-27"]
 and of_stoken =
     (
       ~inject: Update.Action.t => Vdom.Event.t,
@@ -377,7 +378,7 @@ and of_stoken =
       Node.div(
         [
           Attr.id(path_id((node_steps, (k, Before)))),
-          Attr.classes(["delim-before"]),
+          Attr.classes(["SDelim-before"]),
         ],
         [],
       );
@@ -385,7 +386,7 @@ and of_stoken =
       Node.div(
         [
           Attr.id(path_id((node_steps, (k, After)))),
-          Attr.classes(["delim-after"]),
+          Attr.classes(["SDelim-after"]),
         ],
         [],
       );
@@ -393,14 +394,45 @@ and of_stoken =
       Node.div(
         [
           Attr.create("contenteditable", "false"),
-          Attr.classes(["delim-txt"]),
+          Attr.classes(["SDelim-txt"]),
         ],
         [Node.text(s)],
       );
     Node.div(
-      [Attr.classes([] /*TODO*/)],
+      [Attr.classes(["SDelim" /*TODO*/])],
       [delim_before, delim_txt, delim_after],
     );
+  | SOp(k, s) =>
+    open Vdom;
+    let op_before =
+      Node.div(
+        [
+          Attr.id(path_id((node_steps, (k, Before)))),
+          Attr.classes(["SOp-before"]),
+        ],
+        [],
+      );
+    let op_after =
+      Node.div(
+        [
+          Attr.id(path_id((node_steps, (k, After)))),
+          Attr.classes(["SOp-after"]),
+        ],
+        [],
+      );
+    let op_txt =
+      Node.div(
+        [
+          Attr.create("contenteditable", "false"),
+          Attr.classes(["SOp-txt"]),
+        ],
+        [Node.text(s)],
+      );
+    Node.div(
+      [Attr.classes(["SOp" /*TODO*/])],
+      [op_before, op_txt, op_after],
+    );
+  | SSpaceOp => Vdom.(Node.div([Attr.classes(["SSpaceOp"])], []))
   | SText(var_err_status, s) =>
     Vdom.(
       Node.div(
@@ -578,7 +610,7 @@ and sseq_tail_of_suffix_pat =
   | ExpSuffix(op, tm) =>
     let sop =
       switch (op) {
-      | Space => SSpace(leading_op_index)
+      | Space => SSpaceOp
       | _ => SOp(leading_op_index, string_of_op_pat(op))
       };
     let stm = snode_of_pat(~steps=steps @ [leading_op_index], tm);
@@ -586,7 +618,7 @@ and sseq_tail_of_suffix_pat =
   | SeqSuffix(op, seq) =>
     let sop =
       switch (op) {
-      | Space => SSpace(leading_op_index)
+      | Space => SSpaceOp
       | _ => SOp(leading_op_index, string_of_op_pat(op))
       };
     let (shd, stl, is_multi_line_seq) =
@@ -783,7 +815,7 @@ and sseq_tail_of_suffix_exp =
   | ExpSuffix(op, tm) =>
     let sop =
       switch (op) {
-      | Space => SSpace(leading_op_index)
+      | Space => SSpaceOp
       | _ => SOp(leading_op_index, string_of_op_exp(op))
       };
     let stm = snode_of_exp(~steps=steps @ [leading_op_index], tm);
@@ -791,7 +823,7 @@ and sseq_tail_of_suffix_exp =
   | SeqSuffix(op, seq) =>
     let sop =
       switch (op) {
-      | Space => SSpace(leading_op_index)
+      | Space => SSpaceOp
       | _ => SOp(leading_op_index, string_of_op_exp(op))
       };
     let (shd, stl, is_multi_line_seq) =
@@ -828,7 +860,8 @@ and snode_of_rule = (~steps: Path.steps, Rule(p, clause): UHExp.rule) => {
    selected_instance_rf(Some(inst));
  };
  */
-let result_view = ({result: (_, _, result)}: MyModel.t) => {
+let result_view = (model: MyModel.t) => {
+  let (_, _, result) = model.result;
   Vdom.(
     switch (result) {
     | InvalidInput(_) =>
@@ -840,8 +873,9 @@ let result_view = ({result: (_, _, result)}: MyModel.t) => {
           ),
         ],
       )
-    | BoxedValue(d)
-    | Indet(d) => Node.div([], [] /* TODO view_of_dhexp(instance_click_fn) */)
+    | BoxedValue(_d)
+    | Indet(_d) =>
+      Node.div([], [] /* TODO view_of_dhexp(instance_click_fn) */)
     }
   );
 };
@@ -872,7 +906,8 @@ let examples_select = (~inject: Update.Action.t => Vdom.Event.t) =>
     )
   );
 
-let page_view = (model: MyModel.t, ~inject: Update.Action.t => Vdom.Event.t) => {
+let page_view =
+    (~inject: Update.Action.t => Vdom.Event.t, model: MyModel.t): Vdom.Node.t => {
   Vdom.(
     Node.div(
       [Attr.id("root")],
@@ -961,4 +996,6 @@ let page_view = (model: MyModel.t, ~inject: Update.Action.t => Vdom.Event.t) => 
 };
 
 [@warning "-27"]
-let view = (model: MyModel.t, ~inject: Update.Action.t => Vdom.Event.t) => {};
+let mk =
+    (~inject: Update.Action.t => Vdom.Event.t, model: MyModel.t): Vdom.Node.t =>
+  page_view(~inject, model);

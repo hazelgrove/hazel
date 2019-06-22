@@ -6,11 +6,15 @@ module Action = Update.Action;
 module State = {
   type t = unit;
 };
+[@warning "-27"]
 let on_startup = (~schedule_action, _) => Async_kernel.return();
+[@warning "-27"]
 let create = (model, ~old_model, ~inject) => {
   open Incr.Let_syntax;
   let%map model = model;
-  let apply_action = Update.apply_action(model);
-  let view = MyView.view(model, ~inject);
-  Component.create(~apply_action, model, view);
+  Component.create(
+    ~apply_action=Update.apply_action(model),
+    model,
+    MyView.mk(~inject, model),
+  );
 };
