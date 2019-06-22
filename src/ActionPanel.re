@@ -265,20 +265,6 @@ let make =
       KCs.tab,
     );
 
-  let constructNum =
-    checked_action_button(
-      Action.Construct(Action.SNum),
-      twopiece_lbl_kw("Num", " type"),
-      KCs.key_N,
-    );
-
-  let constructBool =
-    checked_action_button(
-      Action.Construct(Action.SBool),
-      twopiece_lbl_kw("Bool", " type"),
-      KCs.key_B,
-    );
-
   let constructArrow =
     checked_action_button(
       Action.(Construct(SOp(SArrow))),
@@ -291,13 +277,6 @@ let make =
       Action.(Construct(SOp(SVBar))),
       twopiece_lbl_op("|", " type operator"),
       KCs.vbar,
-    );
-
-  let constructList =
-    checked_action_button(
-      Action.(Construct(SList)),
-      twopiece_lbl_kw("List", " type"),
-      KCs.key_L,
     );
 
   let constructParenthesized =
@@ -450,13 +429,7 @@ let make =
           ),
           div(
             ~a=[a_class(["sub-panel-body"])],
-            [
-              constructNum,
-              constructBool,
-              constructList,
-              constructArrow,
-              constructSum,
-            ],
+            [constructArrow, constructSum],
           ),
         ],
       )

@@ -139,6 +139,9 @@ let keyword_action = (k: keyword): t =>
   | Case => Construct(SCase)
   | Forall => Construct(SForall)
   | Type => Construct(SType)
+  | Num => Construct(SNum)
+  | Bool => Construct(SBool)
+  | List => Construct(SList)
   | Fn => Construct(SLam)
   };
 
@@ -302,12 +305,9 @@ let rec perform_ty =
   /* Construction */
   | (Construct(SParenthesized), CursorT(_, _)) =>
     Some((ParenthesizedZ(zty), u_gen))
-  | (Construct(SNum), CursorT(_, Hole)) =>
-    Some((CursorT(After, Num), u_gen))
-  | (Construct(SNum), CursorT(_, _)) => None
-  | (Construct(SBool), CursorT(_, Hole)) =>
+  | (Construct(SNum), CursorT(_, _)) => Some((CursorT(After, Num), u_gen))
+  | (Construct(SBool), CursorT(_, _)) =>
     Some((CursorT(After, Bool), u_gen))
-  | (Construct(SBool), CursorT(_, _)) => None
   | (Construct(SList), CursorT(_, _)) => Some((ListZ(zty), u_gen))
   | (Construct(SForall), CursorT(_, _)) => Some(ZTyp.new_Forall(u_gen))
   | (
@@ -326,6 +326,21 @@ let rec perform_ty =
       let (u, u_gen) = MetaVarGen.next(u_gen);
       let ztyp =
         ZTyp.CursorT(side, UHTyp.TVar(InVHole(Keyword(Forall), u), t));
+      Some((ztyp, u_gen));
+    } else if (Var.is_num(t)) {
+      let (u, u_gen) = MetaVarGen.next(u_gen);
+      let ztyp =
+        ZTyp.CursorT(side, UHTyp.TVar(InVHole(Keyword(Num), u), t));
+      Some((ztyp, u_gen));
+    } else if (Var.is_list(t)) {
+      let (u, u_gen) = MetaVarGen.next(u_gen);
+      let ztyp =
+        ZTyp.CursorT(side, UHTyp.TVar(InVHole(Keyword(List), u), t));
+      Some((ztyp, u_gen));
+    } else if (Var.is_bool(t)) {
+      let (u, u_gen) = MetaVarGen.next(u_gen);
+      let ztyp =
+        ZTyp.CursorT(side, UHTyp.TVar(InVHole(Keyword(Bool), u), t));
       Some((ztyp, u_gen));
     } else if (TVarCtx.includes(ctx.tvars, t)) {
       Some((ZTyp.CursorT(side, UHTyp.TVar(NotInVHole, t)), u_gen));
