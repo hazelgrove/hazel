@@ -8,19 +8,19 @@ type steps = list(int);
 let string_of_steps = GeneralUtil.string_of_list(string_of_int);
 
 [@deriving (show({with_path: false}), sexp)]
-type t = (steps, cursor_pos);
+type t = (steps, cursor_position);
 
 let cons' = (step: int, r: t): t => {
   let (steps, side) = r;
   ([step, ...steps], side);
 };
 
-let rec _update_cursor = (cursor: cursor_pos, steps: steps): t =>
+let rec _update_cursor = (cursor: cursor_position, steps: steps): t =>
   switch (steps) {
   | [] => ([], cursor)
   | [x, ...xs] => cons'(x, _update_cursor(cursor, xs))
   };
-let update_cursor = (cursor: cursor_pos, (steps, _): t): t =>
+let update_cursor = (cursor: cursor_position, (steps, _): t): t =>
   _update_cursor(cursor, steps);
 
 let rec of_ztyp = (zty: ZTyp.t): t =>
@@ -852,7 +852,7 @@ let holes_OpSeqZ =
 let holes_Cursor_bracketed =
     (
       holes_fn: ('t, steps, hole_list) => hole_list,
-      (k, _): cursor_pos,
+      k: delim_index,
       bracketed_t: 't,
       steps: steps,
     )
@@ -876,7 +876,7 @@ let holes_Cursor_bracketed =
 let holes_Cursor_OpSeq =
     (
       holes_fn: ('tm, steps, hole_list) => hole_list,
-      (k, _): cursor_pos,
+      k: delim_index,
       skel: Skel.t('op),
       seq: OperatorSeq.opseq('tm, 'op),
       raise_inconsistent:
@@ -914,18 +914,21 @@ let rec holes_zty = (zty: ZTyp.t, steps: steps): zhole_list =>
       hole_selected: None,
       holes_after: [],
     }
-  | CursorT(cursor, Parenthesized(uty1))
-  | CursorT(cursor, List(uty1)) =>
-    holes_Cursor_bracketed(holes_uty, cursor, uty1, steps)
-  | CursorT(cursor, OpSeq(skel, seq)) =>
+  | CursorT(OnDelim(k, _), Parenthesized(uty1))
+  | CursorT(OnDelim(k, _), List(uty1)) =>
+    holes_Cursor_bracketed(holes_uty, k, uty1, steps)
+  | CursorT(OnDelim(k, _), OpSeq(skel, seq)) =>
     holes_Cursor_OpSeq(
       holes_uty,
-      cursor,
+      k,
       skel,
       seq,
       (skel, seq) => raise(UHTyp.SkelInconsistentWithOpSeq(skel, seq)),
       steps,
     )
+  | CursorT(OnText(_), Parenthesized(_) | List(_) | OpSeq(_, _)) =>
+    /* invalid cursor position */
+    no_holes
   | ParenthesizedZ(zty1) => holes_zty(zty1, [0, ...steps])
   | ListZ(zty1) => holes_zty(zty1, [0, ...steps])
   | OpSeqZ(_, zty0, surround) =>
@@ -948,18 +951,21 @@ let rec holes_zpat = (zp: ZPat.t, steps: steps): zhole_list =>
       hole_selected: None,
       holes_after: [],
     }
-  | CursorP(cursor, Parenthesized(p1))
-  | CursorP(cursor, Inj(_, _, p1)) =>
-    holes_Cursor_bracketed(holes_pat, cursor, p1, steps)
-  | CursorP(cursor, OpSeq(skel, seq)) =>
+  | CursorP(OnDelim(k, _), Parenthesized(p1))
+  | CursorP(OnDelim(k, _), Inj(_, _, p1)) =>
+    holes_Cursor_bracketed(holes_pat, k, p1, steps)
+  | CursorP(OnDelim(k, _), OpSeq(skel, seq)) =>
     holes_Cursor_OpSeq(
       holes_pat,
-      cursor,
+      k,
       skel,
       seq,
       (skel, seq) => raise(UHPat.SkelInconsistentWithOpSeq(skel, seq)),
       steps,
     )
+  | CursorP(OnText(_), Parenthesized(_) | Inj(_, _, _) | OpSeq(_, _)) =>
+    /* invalid cursor position */
+    no_holes
   | ParenthesizedZ(zp1) => holes_zpat(zp1, [0, ...steps])
   | OpSeqZ(_, zp1, surround) =>
     holes_OpSeqZ(holes_pat, holes_zpat, zp1, surround, steps)
@@ -1004,22 +1010,22 @@ and holes_zline = (zli: ZExp.zline, steps: steps): zhole_list =>
       };
     let holes_block = holes_block(block, [2, ...steps], []);
     switch (cursor) {
-    | (0, _) => {
+    | OnDelim(0, _) => {
         holes_before: [],
         hole_selected: None,
         holes_after: holes_p @ holes_ann @ holes_block,
       }
-    | (1, _) => {
+    | OnDelim(1, _) => {
         holes_before: holes_p,
         hole_selected: None,
         holes_after: holes_ann @ holes_block,
       }
-    | (2, _) => {
+    | OnDelim(2, _) => {
         holes_before: holes_p @ holes_ann,
         hole_selected: None,
         holes_after: holes_block,
       }
-    | (_, _) => no_holes
+    | _ => no_holes
     };
   | ExpLineZ(ze1) => holes_ze(ze1, steps)
   | LetLineZP(zp, ann, block) =>
@@ -1076,10 +1082,10 @@ and holes_ze = (ze: ZExp.t, steps: steps): zhole_list =>
       hole_selected: None,
       holes_after: [],
     }
-  | CursorE(cursor, Inj(_, _, block))
-  | CursorE(cursor, Parenthesized(block)) =>
-    holes_Cursor_bracketed(holes_block, cursor, block, steps)
-  | CursorE((k, _), Lam(_, p, ann, block)) =>
+  | CursorE(OnDelim(k, _), Inj(_, _, block))
+  | CursorE(OnDelim(k, _), Parenthesized(block)) =>
+    holes_Cursor_bracketed(holes_block, k, block, steps)
+  | CursorE(OnDelim(k, _), Lam(_, p, ann, block)) =>
     let holes_p = holes_pat(p, [0, ...steps], []);
     let holes_ann =
       switch (ann) {
@@ -1105,7 +1111,7 @@ and holes_ze = (ze: ZExp.t, steps: steps): zhole_list =>
       }
     | _ => no_holes
     };
-  | CursorE((k, _), Case(_, block, rules, ann)) =>
+  | CursorE(OnDelim(k, _), Case(_, block, rules, ann)) =>
     let holes_block = holes_block(block, [0, ...steps], []);
     let holes_rules = holes_rules(rules, 1, steps, []);
     let holes_ann =
@@ -1126,15 +1132,22 @@ and holes_ze = (ze: ZExp.t, steps: steps): zhole_list =>
       }
     | _ => no_holes
     };
-  | CursorE(cursor, OpSeq(skel, seq)) =>
+  | CursorE(OnDelim(k, _), OpSeq(skel, seq)) =>
     holes_Cursor_OpSeq(
       holes_exp,
-      cursor,
+      k,
       skel,
       seq,
       (skel, seq) => raise(UHExp.SkelInconsistentWithOpSeq(skel, seq)),
       steps,
     )
+  | CursorE(
+      OnText(_),
+      Inj(_, _, _) | Parenthesized(_) | Lam(_, _, _, _) | Case(_, _, _, _) |
+      OpSeq(_, _),
+    ) =>
+    /* invalid cursor position */
+    no_holes
   | CursorE(_, ApPalette(_, _, _, _)) => no_holes /* TODO */
   | OpSeqZ(_, ze0, surround) =>
     holes_OpSeqZ(holes_exp, holes_ze, ze0, surround, steps)
@@ -1270,7 +1283,7 @@ and holes_zrules = (zrules: ZExp.zrules, offset: int, steps: steps) => {
 and holes_zrule =
     (zrule: ZExp.zrule, offset: int, prefix_len: int, steps: steps) =>
   switch (zrule) {
-  | CursorR((k, _), Rule(p, block)) =>
+  | CursorR(OnDelim(k, _), Rule(p, block)) =>
     let holes_p = holes_pat(p, [1, prefix_len + offset, ...steps], []);
     let holes_block =
       holes_block(block, [0, prefix_len + offset, ...steps], []);
@@ -1287,6 +1300,9 @@ and holes_zrule =
       }
     | _ => no_holes
     };
+  | CursorR(OnText(_), _) =>
+    /* invalid cursor position */
+    no_holes
   | RuleZP(zp, block) =>
     let {holes_before, hole_selected, holes_after} =
       holes_zpat(zp, [0, prefix_len + offset, ...steps]);
@@ -1332,17 +1348,19 @@ let steps_to_hole_z = (zhole_list: zhole_list, u: MetaVar.t): option(steps) => {
 };
 
 let opt_steps_to_opt_path =
-    (cursor_pos: cursor_pos, opt_steps: option(steps)): option(t) =>
+    (cursor_position: cursor_position, opt_steps: option(steps)): option(t) =>
   switch (opt_steps) {
   | None => None
-  | Some(steps) => Some((List.rev(steps), cursor_pos))
+  | Some(steps) => Some((List.rev(steps), cursor_position))
   };
 
+/* TODO gonna need to revisit this when we can start tabbing to non-empty holes
+ * since non-empty holes won't always be able to accept OnDelim(0, Before) */
 let path_to_hole = (hole_list: hole_list, u: MetaVar.t): option(t) =>
-  opt_steps_to_opt_path(outer_cursor(0), steps_to_hole(hole_list, u));
+  opt_steps_to_opt_path(OnDelim(0, Before), steps_to_hole(hole_list, u));
 
 let path_to_hole_z = (zhole_list: zhole_list, u: MetaVar.t): option(t) =>
-  opt_steps_to_opt_path(outer_cursor(0), steps_to_hole_z(zhole_list, u));
+  opt_steps_to_opt_path(OnDelim(0, Before), steps_to_hole_z(zhole_list, u));
 
 let next_hole_steps = (zhole_list: zhole_list): option(steps) => {
   let holes_after = zhole_list.holes_after;
@@ -1353,7 +1371,7 @@ let next_hole_steps = (zhole_list: zhole_list): option(steps) => {
 };
 
 let next_hole_path = (zhole_list: zhole_list): option(t) =>
-  opt_steps_to_opt_path(outer_cursor(0), next_hole_steps(zhole_list));
+  opt_steps_to_opt_path(OnDelim(0, Before), next_hole_steps(zhole_list));
 
 let prev_hole_steps = (zhole_list: zhole_list): option(steps) => {
   let holes_before = zhole_list.holes_before;
@@ -1364,7 +1382,7 @@ let prev_hole_steps = (zhole_list: zhole_list): option(steps) => {
 };
 
 let prev_hole_path = (zhole_list: zhole_list): option(t) =>
-  opt_steps_to_opt_path(outer_cursor(0), prev_hole_steps(zhole_list));
+  opt_steps_to_opt_path(OnDelim(0, Before), prev_hole_steps(zhole_list));
 
 let prev_hole_path_zblock = (zblock: ZExp.zblock): option(t) => {
   let holes = holes_zblock(zblock, []);

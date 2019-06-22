@@ -88,7 +88,7 @@ type cursor_sort =
 type t = {
   mode: cursor_mode,
   sort: cursor_sort,
-  side: cursor_pos,
+  side: cursor_position,
   ctx: Contexts.t,
 };
 
@@ -162,7 +162,8 @@ let rec _ana_cursor_found_pat =
   };
 
 let ana_cursor_found_pat =
-    (ctx: Contexts.t, p: UHPat.t, ty: HTyp.t, cursor: cursor_pos): option(t) =>
+    (ctx: Contexts.t, p: UHPat.t, ty: HTyp.t, cursor: cursor_position)
+    : option(t) =>
   switch (_ana_cursor_found_pat(ctx, p, ty)) {
   | None => None
   | Some((mode, sort, ctx)) => Some(mk_cursor_info(mode, sort, cursor, ctx))
@@ -443,7 +444,8 @@ and _ana_cursor_found_exp =
   };
 
 let ana_cursor_found_exp =
-    (ctx: Contexts.t, e: UHExp.t, ty: HTyp.t, cursor: cursor_pos): option(t) =>
+    (ctx: Contexts.t, e: UHExp.t, ty: HTyp.t, cursor: cursor_position)
+    : option(t) =>
   switch (_ana_cursor_found_exp(ctx, e, ty)) {
   | None => None
   | Some((mode, sort, ctx)) => Some(mk_cursor_info(mode, sort, cursor, ctx))

@@ -377,7 +377,7 @@ and of_stoken =
     let delim_before =
       Node.div(
         [
-          Attr.id(path_id((node_steps, (k, Before)))),
+          Attr.id(path_id((node_steps, OnDelim(k, Before)))),
           Attr.classes(["SDelim-before"]),
         ],
         [],
@@ -385,7 +385,7 @@ and of_stoken =
     let delim_after =
       Node.div(
         [
-          Attr.id(path_id((node_steps, (k, After)))),
+          Attr.id(path_id((node_steps, OnDelim(k, After)))),
           Attr.classes(["SDelim-after"]),
         ],
         [],
@@ -407,7 +407,7 @@ and of_stoken =
     let op_before =
       Node.div(
         [
-          Attr.id(path_id((node_steps, (k, Before)))),
+          Attr.id(path_id((node_steps, OnDelim(k, Before)))),
           Attr.classes(["SOp-before"]),
         ],
         [],
@@ -415,7 +415,7 @@ and of_stoken =
     let op_after =
       Node.div(
         [
-          Attr.id(path_id((node_steps, (k, After)))),
+          Attr.id(path_id((node_steps, OnDelim(k, After)))),
           Attr.classes(["SOp-after"]),
         ],
         [],

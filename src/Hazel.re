@@ -17,11 +17,22 @@ let on_startup = (~schedule_action, _) => Async_kernel.return();
 let caret_position_of_path = (path: Path.t): (Js.t(Dom.node), int) => {
   let (steps, cursor) = path;
   switch (cursor) {
-  | Delimiter(k, side) => (
-      JSUtil.forceGetElementById(MyView.path_id(path)),
+  | OnDelim(_, _) => (
+      (
+        JSUtil.forceGetElementById(MyView.path_id(path)):
+          Js.t(Dom_html.element) :>
+          Js.t(Dom.node)
+      ),
       0,
     )
-  | Text(j) => (JSUtil.forceGetElementById(MyView.node_id(steps)), j)
+  | OnText(j) => (
+      (
+        JSUtil.forceGetElementById(MyView.node_id(steps)):
+          Js.t(Dom_html.element) :>
+          Js.t(Dom.node)
+      ),
+      j,
+    )
   };
 };
 
@@ -29,7 +40,7 @@ let caret_position_of_path = (path: Path.t): (Js.t(Dom.node), int) => {
 let set_cursor = (path: Path.t, _: State.t, ~schedule_action): unit => {
   let selection = Dom_html.window##getSelection;
   let range = Dom_html.document##createRange;
-  let (caret_node, caret_offset) = MyView.caret_position_of_path(path);
+  let (caret_node, caret_offset) = caret_position_of_path(path);
   range##setStart(caret_node, caret_offset);
   range##setEnd(caret_node, caret_offset);
   selection##removeAllRanges;
@@ -43,7 +54,7 @@ let create = (model, ~old_model, ~inject) => {
 
   Component.create(
     ~apply_action=Update.apply_action(model),
-    ~on_display=MyView.set_cursor(MyModel.get_path(model)),
+    ~on_display=set_cursor(MyModel.get_path(model)),
     model,
     MyView.view(~inject, model),
   );

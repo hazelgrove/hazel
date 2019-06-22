@@ -50,11 +50,18 @@ type delim_index = int;
 type op_index = int;
 [@deriving (show({with_path: false}), sexp)]
 type char_index = int;
+[@deriving (show({with_path: false}), sexp)]
+type child_index = int;
 
 [@deriving (show({with_path: false}), sexp)]
 type side =
   | Before
   | After;
+
+let toggle_side =
+  fun
+  | Before => After
+  | After => Before;
 
 /* TODO refactor this to represent text vs delimiter cursors */
 [@deriving (show({with_path: false}), sexp)]
@@ -62,8 +69,8 @@ type cursor_pos = (delim_index, side);
 
 [@deriving (show({with_path: false}), sexp)]
 type cursor_position =
-  | Delimiter(delim_index, side)
-  | Text(char_index);
+  | OnDelim(delim_index, side)
+  | OnText(char_index);
 
 [@deriving sexp]
 type node_type =
@@ -80,6 +87,9 @@ let outer_cursor = (j: int): cursor_pos => (j, Before);
 let outer_cursors = (len: int): list(cursor_pos) =>
   range(len + 1) |> List.map(j => outer_cursor(j));
 
+let text_cursors = (len: int): list(cursor_position) =>
+  range(len + 1) |> List.map(j => OnText(j));
+
 /**
  * Cursor on inner node.
  * k is delimiter index, side is delimiter side
@@ -94,16 +104,17 @@ let inner_cursors_k = (k: int): list(cursor_pos) => [
 let inner_cursors = (num_delim: int): list(cursor_pos) =>
   range(num_delim) |> List.map(k => inner_cursors_k(k)) |> List.flatten;
 
-let toggle_side = ((k, side): cursor_pos) =>
-  switch (side) {
-  | Before => (k, After)
-  | After => (k, Before)
-  };
+let delim_cursors_k = (k: int): list(cursor_position) => [
+  OnDelim(k, Before),
+  OnDelim(k, After),
+];
+let delim_cursors = (num_delim: int): list(cursor_position) =>
+  range(num_delim) |> List.map(k => delim_cursors_k(k)) |> List.flatten;
 
 [@deriving sexp]
-type node_pos =
-  | On(cursor_pos)
-  | Deeper(int);
+type node_position =
+  | On(cursor_position)
+  | Deeper(child_index);
 let node_positions = List.map(cursor => On(cursor));
 
 let default_nih = (e: option(err_status)): err_status =>
