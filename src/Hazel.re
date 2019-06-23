@@ -5,6 +5,7 @@ open Incr_dom;
 open SemanticsCommon;
 
 // https://github.com/janestreet/incr_dom/blob/master/src/app_intf.ml
+
 module Model = MyModel;
 module Action = Update.Action;
 module State = {
@@ -14,33 +15,31 @@ module State = {
 [@warning "-27"]
 let on_startup = (~schedule_action, _) => Async_kernel.return();
 
-let caret_position_of_path = (path: Path.t): (Js.t(Dom.node), int) => {
-  let (steps, cursor) = path;
-  switch (cursor) {
-  | OnDelim(_, _) => (
-      (
-        JSUtil.forceGetElementById(MyView.path_id(path)):
-          Js.t(Dom_html.element) :>
-          Js.t(Dom.node)
-      ),
-      0,
-    )
-  | OnText(j) => (
-      (
-        JSUtil.forceGetElementById(MyView.node_id(steps)):
-          Js.t(Dom_html.element) :>
-          Js.t(Dom.node)
-      ),
-      j,
-    )
-  };
-};
-
 [@warning "-27"]
-let set_cursor = (path: Path.t, _: State.t, ~schedule_action): unit => {
+let set_caret = (path: Path.t, _: State.t, ~schedule_action): unit => {
+  let (steps, cursor) = path;
+  let (caret_node, caret_offset) =
+    switch (cursor) {
+    | OnDelim(_, _) => (
+        (
+          JSUtil.forceGetElementById(MyView.path_id(path)):
+            Js.t(Dom_html.element) :>
+            Js.t(Dom.node)
+        ),
+        0,
+      )
+    | OnText(j) => (
+        (
+          JSUtil.forceGetElementById(MyView.node_id(steps)):
+            Js.t(Dom_html.element) :>
+            Js.t(Dom.node)
+        ),
+        j,
+      )
+    };
+
   let selection = Dom_html.window##getSelection;
   let range = Dom_html.document##createRange;
-  let (caret_node, caret_offset) = caret_position_of_path(path);
   range##setStart(caret_node, caret_offset);
   range##setEnd(caret_node, caret_offset);
   selection##removeAllRanges;
@@ -54,7 +53,7 @@ let create = (model, ~old_model, ~inject) => {
 
   Component.create(
     ~apply_action=Update.apply_action(model),
-    ~on_display=set_cursor(MyModel.get_path(model)),
+    ~on_display=set_caret(MyModel.get_path(model)),
     model,
     MyView.view(~inject, model),
   );
