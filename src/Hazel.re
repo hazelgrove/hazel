@@ -22,7 +22,7 @@ let set_caret = (path: Path.t, _: State.t, ~schedule_action): unit => {
     switch (cursor) {
     | OnDelim(_, _) => (
         (
-          JSUtil.forceGetElementById(MyView.path_id(path)):
+          JSUtil.forceGetElementById(Code.path_id(path)):
             Js.t(Dom_html.element) :>
             Js.t(Dom.node)
         ),
@@ -30,7 +30,7 @@ let set_caret = (path: Path.t, _: State.t, ~schedule_action): unit => {
       )
     | OnText(j) => (
         (
-          JSUtil.forceGetElementById(MyView.node_id(steps)):
+          JSUtil.forceGetElementById(Code.node_id(steps)):
             Js.t(Dom_html.element) :>
             Js.t(Dom.node)
         ),
@@ -55,6 +55,6 @@ let create = (model, ~old_model, ~inject) => {
     ~apply_action=Update.apply_action(model),
     ~on_display=set_caret(MyModel.get_path(model)),
     model,
-    MyView.view(~inject, model),
+    Page.view(~inject, model),
   );
 };
