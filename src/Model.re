@@ -1,13 +1,12 @@
-type edit_state = (ZExp.t, HTyp.t, MetaVarGen.t);
+type edit_state = (ZExp.zblock, HTyp.t, MetaVarGen.t);
 let u_gen0: MetaVarGen.t = (MetaVarGen.init: MetaVar.t);
 let (u, u_gen1) = MetaVarGen.next(u_gen0);
-let empty_ze =
-  ZExp.CursorE(Before, UHExp.Tm(NotInHole, UHExp.EmptyHole(u)));
-let empty: edit_state = ((empty_ze, HTyp.Hole, u_gen1): edit_state);
-let empty_erasure = ZExp.erase(empty_ze);
+let empty_zblock = ZExp.BlockZE([], CursorE(Before, EmptyHole(u)));
+let empty: edit_state = ((empty_zblock, Hole, u_gen1): edit_state);
+let empty_erasure = ZExp.erase_block(empty_zblock);
 type edit_state_rs = React.signal(edit_state);
 type code_history_rs = React.signal(CodeHistory.t);
-type e_rs = React.signal(UHExp.t);
+type e_rs = React.signal(UHExp.block);
 type cursor_info_rs = React.signal(CursorInfo.t);
 open Dynamics;
 type result_rs =
@@ -27,7 +26,7 @@ type selected_instance_rf =
   (~step: React.step=?, option(DHExp.HoleInstance.t)) => unit;
 type monitors = list(React.signal(unit));
 type do_action_t = Action.t => unit;
-type replace_e = UHExp.t => unit;
+type replace_e = UHExp.block => unit;
 
 exception InvalidAction;
 exception MissingCursorInfo;
@@ -58,11 +57,11 @@ let new_model = (): t => {
   let cursor_info_rs =
     React.S.l1(
       ~eq=(_, _) => false, /* palette contexts have functions in them! */
-      ((ze, _, _)) =>
+      ((zblock, _, _)) =>
         switch (
-          CursorInfo.syn_cursor_info(
+          CursorInfo.syn_cursor_info_block(
             (VarCtx.empty, Palettes.initial_palette_ctx),
-            ze,
+            zblock,
           )
         ) {
         | Some(cursor_info) => cursor_info
@@ -75,7 +74,7 @@ let new_model = (): t => {
     React.S.l1(
       e => {
         let expanded =
-          DHExp.syn_expand(
+          DHExp.syn_expand_block(
             (VarCtx.empty, Palettes.initial_palette_ctx),
             Delta.empty,
             e,
@@ -122,7 +121,7 @@ let new_model = (): t => {
       ) => {
         let new_path =
           switch (sort) {
-          | CursorInfo.IsExpr(UHExp.Tm(_, UHExp.EmptyHole(u))) =>
+          | CursorInfo.IsExpr(EmptyHole(u)) =>
             let usi = React.S.value(user_selected_instances_rs);
             switch (MetaVarMap.lookup(usi, u)) {
             | Some(i) => Some((u, i))
@@ -144,7 +143,7 @@ let new_model = (): t => {
 
   let do_action = action =>
     switch (
-      Action.perform_syn(
+      Action.syn_perform_block(
         (VarCtx.empty, Palettes.initial_palette_ctx),
         action,
         React.S.value(edit_state_rs),
@@ -164,20 +163,20 @@ let new_model = (): t => {
       | Action.MoveTo(_)
       | Action.MoveToNextHole
       | Action.MoveToPrevHole => ()
-      | _ => e_rf(ZExp.erase(ze))
+      | _ => e_rf(ZExp.erase_block(ze))
       };
     | None => raise(InvalidAction)
     };
 
-  let replace_e = new_uhexp => {
+  let replace_e = (new_block: UHExp.block) => {
     let new_edit_state =
-      Action.zexp_syn_fix_holes(
+      Statics.syn_fix_holes_zblock(
         (VarCtx.empty, PaletteCtx.empty),
         MetaVarGen.init,
-        ZExp.CursorE(Before, new_uhexp),
+        ZExp.place_before_block(new_block),
       );
     edit_state_rf(new_edit_state);
-    e_rf(new_uhexp);
+    e_rf(new_block);
   };
 
   {

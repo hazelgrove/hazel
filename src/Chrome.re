@@ -26,7 +26,7 @@ let view = (model: Model.t) => {
   let pp_view_width = 100;
   let prefix = "view";
   let rec mk_editor_box:
-    (EditorBox.rev_path, EditorBox.rev_paths, UHExp.t) => EditorBox.t =
+    (EditorBox.rev_path, EditorBox.rev_paths, UHExp.block) => EditorBox.t =
     (rev_path, rev_paths, e') =>
       EditorBox.mk(mk_editor_box, prefix, rev_path, rev_paths, model, e');
   let editor_box_rs: React.signal(EditorBox.t) =
@@ -117,7 +117,7 @@ let view = (model: Model.t) => {
   };
   let set_cursor = () => {
     let (ze, _, _) = React.S.value(edit_state_rs);
-    let (cursor_path, cursor_side) = Path.of_zexp(ze);
+    let (cursor_path, cursor_side) = Path.of_zblock(ze);
     set_cursor_to((cursor_path, cursor_side));
   };
   let clear_cursors = () => {
@@ -606,7 +606,9 @@ let view = (model: Model.t) => {
 
   let htype_view = R.Html5.div(ReactiveData.RList.from_signal(htype_rs));
   let move_to_hole = u =>
-    switch (Path.path_to_hole(Path.holes_e(React.S.value(e_rs), [], []), u)) {
+    switch (
+      Path.path_to_hole(Path.holes_block(React.S.value(e_rs), [], []), u)
+    ) {
     | Some(hole_path) =>
       do_action(Action.MoveTo(hole_path));
       set_cursor();
@@ -745,43 +747,43 @@ let view = (model: Model.t) => {
   let the_action_panel = ActionPanel.make(model, set_cursor);
 
   let serialize_onclick_handler = _ => {
-    JSUtil.log(Js.string(Serialize.string_of_uhexp(React.S.value(e_rs))));
+    JSUtil.log(Js.string(Serialize.string_of_block(React.S.value(e_rs))));
     true;
   };
 
   let deserialize_onclick_handler = (serialized, _) => {
-    replace_e(Deserialize.uhexp_of_string(serialized));
+    replace_e(Deserialize.block_of_string(serialized));
   };
 
   let examples =
     StringMap.add(
       "qsort_example",
       {
-        serialized: "(Tm NotInHole(LineItem(LetLine(Pat NotInHole(Var NotInVHole append))((OpSeq(BinOp NotInHole Arrow(Placeholder 0)(BinOp NotInHole Arrow(Placeholder 1)(Placeholder 2)))(SeqOpExp(ExpOpExp(List Num)Arrow(List Num))Arrow(List Num))))(Tm NotInHole(Lam(Pat NotInHole(Var NotInVHole xs))()(Tm NotInHole(Lam(Pat NotInHole(Var NotInVHole ys))()(Tm NotInHole(Case(Tm NotInHole(Var NotInVHole xs))((Rule(Pat NotInHole ListNil)(Tm NotInHole(Var NotInVHole ys)))(Rule(Pat NotInHole(OpSeq(BinOp NotInHole Cons(Placeholder 0)(Placeholder 1))(ExpOpExp(Pat NotInHole(Var NotInVHole z))Cons(Pat NotInHole(Var NotInVHole zs)))))(Tm NotInHole(OpSeq(BinOp NotInHole Cons(Placeholder 0)(Placeholder 1))(ExpOpExp(Tm NotInHole(Var NotInVHole z))Cons(Parenthesized(Tm NotInHole(OpSeq(BinOp NotInHole Space(BinOp NotInHole Space(Placeholder 0)(Placeholder 1))(Placeholder 2))(SeqOpExp(ExpOpExp(Tm NotInHole(Var NotInVHole append))Space(Tm NotInHole(Var NotInVHole zs)))Space(Tm NotInHole(Var NotInVHole ys)))))))))))())))))))(Tm NotInHole(LineItem EmptyLine(Tm NotInHole(LineItem(LetLine(Pat NotInHole(Var NotInVHole partition))((OpSeq(BinOp NotInHole Arrow(Placeholder 0)(BinOp NotInHole Arrow(Placeholder 1)(Placeholder 2)))(SeqOpExp(ExpOpExp(Parenthesized(OpSeq(BinOp NotInHole Arrow(Placeholder 0)(Placeholder 1))(ExpOpExp Num Arrow Bool)))Arrow(List Num))Arrow(Parenthesized(OpSeq(BinOp NotInHole Prod(Placeholder 0)(Placeholder 1))(ExpOpExp(List Num)Prod(List Num)))))))(Tm NotInHole(Lam(Pat NotInHole(Var NotInVHole f))()(Tm NotInHole(Lam(Pat NotInHole(Var NotInVHole xs))()(Tm NotInHole(Case(Tm NotInHole(Var NotInVHole xs))((Rule(Pat NotInHole ListNil)(Parenthesized(Tm NotInHole(OpSeq(BinOp NotInHole Comma(Placeholder 0)(Placeholder 1))(ExpOpExp(Tm NotInHole ListNil)Comma(Tm NotInHole ListNil))))))(Rule(Pat NotInHole(OpSeq(BinOp NotInHole Cons(Placeholder 0)(Placeholder 1))(ExpOpExp(Pat NotInHole(Var NotInVHole y))Cons(Pat NotInHole(Var NotInVHole ys)))))(Tm NotInHole(LineItem EmptyLine(Tm NotInHole(LineItem(LetLine(Parenthesized(Pat NotInHole(OpSeq(BinOp NotInHole Comma(Placeholder 0)(Placeholder 1))(ExpOpExp(Pat NotInHole(Var NotInVHole ys1))Comma(Pat NotInHole(Var NotInVHole ys2))))))()(Tm NotInHole(OpSeq(BinOp NotInHole Space(BinOp NotInHole Space(Placeholder 0)(Placeholder 1))(Placeholder 2))(SeqOpExp(ExpOpExp(Tm NotInHole(Var NotInVHole partition))Space(Tm NotInHole(Var NotInVHole f)))Space(Tm NotInHole(Var NotInVHole ys))))))(Tm NotInHole(Case(Tm NotInHole(OpSeq(BinOp NotInHole Space(Placeholder 0)(Placeholder 1))(ExpOpExp(Tm NotInHole(Var NotInVHole f))Space(Tm NotInHole(Var NotInVHole y)))))((Rule(Pat NotInHole(BoolLit true))(Parenthesized(Tm NotInHole(OpSeq(BinOp NotInHole Comma(BinOp NotInHole Cons(Placeholder 0)(Placeholder 1))(Placeholder 2))(SeqOpExp(ExpOpExp(Tm NotInHole(Var NotInVHole y))Cons(Tm NotInHole(Var NotInVHole ys1)))Comma(Tm NotInHole(Var NotInVHole ys2)))))))(Rule(Pat NotInHole(BoolLit false))(Parenthesized(Tm NotInHole(OpSeq(BinOp NotInHole Comma(Placeholder 0)(BinOp NotInHole Cons(Placeholder 1)(Placeholder 2)))(SeqOpExp(ExpOpExp(Tm NotInHole(Var NotInVHole ys1))Comma(Tm NotInHole(Var NotInVHole y)))Cons(Tm NotInHole(Var NotInVHole ys2))))))))()))))))))())))))))(Tm NotInHole(LineItem EmptyLine(Tm NotInHole(OpSeq(BinOp NotInHole Space(Placeholder 0)(Placeholder 1))(ExpOpExp(Tm NotInHole(Var(InVHole Free 192)qsort))Space(Parenthesized(Tm NotInHole(OpSeq(BinOp NotInHole Cons(Placeholder 0)(BinOp NotInHole Cons(Placeholder 1)(BinOp NotInHole Cons(Placeholder 2)(BinOp NotInHole Cons(Placeholder 3)(BinOp NotInHole Cons(Placeholder 4)(BinOp NotInHole Cons(Placeholder 5)(BinOp NotInHole Cons(Placeholder 6)(Placeholder 7))))))))(SeqOpExp(SeqOpExp(SeqOpExp(SeqOpExp(SeqOpExp(SeqOpExp(ExpOpExp(Tm NotInHole(NumLit 4))Cons(Tm NotInHole(NumLit 2)))Cons(Tm NotInHole(NumLit 6)))Cons(Tm NotInHole(NumLit 5)))Cons(Tm NotInHole(NumLit 3)))Cons(Tm NotInHole(NumLit 1)))Cons(Tm NotInHole(NumLit 7)))Cons(Tm NotInHole ListNil))))))))))))))))",
+        serialized: "(Block((LetLine(Pat NotInHole(Var NotInVHole append))((OpSeq(BinOp NotInHole Arrow(Placeholder 0)(BinOp NotInHole Arrow(Placeholder 1)(Placeholder 2)))(SeqOpExp(ExpOpExp(List Num)Arrow(List Num))Arrow(List Num))))(Block()(Tm NotInHole(Lam(Pat NotInHole(Var NotInVHole xs))()(Block()(Tm NotInHole(Lam(Pat NotInHole(Var NotInVHole ys))()(Block()(Tm NotInHole(Case(Block()(Tm NotInHole(Var NotInVHole xs)))((Rule(Pat NotInHole ListNil)(Block()(Tm NotInHole(Var NotInVHole ys))))(Rule(OpSeq(BinOp NotInHole Cons(Placeholder 0)(Placeholder 1))(ExpOpExp(Pat NotInHole(Var NotInVHole z))Cons(Pat NotInHole(Var NotInVHole zs))))(Block()(OpSeq(BinOp NotInHole Cons(Placeholder 0)(Placeholder 1))(ExpOpExp(Tm NotInHole(Var NotInVHole z))Cons(Parenthesized(Block()(OpSeq(BinOp NotInHole Space(BinOp NotInHole Space(Placeholder 0)(Placeholder 1))(Placeholder 2))(SeqOpExp(ExpOpExp(Tm NotInHole(Var NotInVHole append))Space(Tm NotInHole(Var NotInVHole zs)))Space(Tm NotInHole(Var NotInVHole ys)))))))))))()))))))))))EmptyLine(LetLine(Pat NotInHole(Var NotInVHole partition))((OpSeq(BinOp NotInHole Arrow(Placeholder 0)(BinOp NotInHole Arrow(Placeholder 1)(Placeholder 2)))(SeqOpExp(ExpOpExp(Parenthesized(OpSeq(BinOp NotInHole Arrow(Placeholder 0)(Placeholder 1))(ExpOpExp Num Arrow Bool)))Arrow(List Num))Arrow(Parenthesized(OpSeq(BinOp NotInHole Prod(Placeholder 0)(Placeholder 1))(ExpOpExp(List Num)Prod(List Num)))))))(Block()(Tm NotInHole(Lam(Pat NotInHole(Var NotInVHole f))()(Block()(Tm NotInHole(Lam(Pat NotInHole(Var NotInVHole xs))()(Block()(Tm NotInHole(Case(Block()(Tm NotInHole(Var NotInVHole xs)))((Rule(Pat NotInHole ListNil)(Block()(Parenthesized(Block()(OpSeq(BinOp NotInHole Comma(Placeholder 0)(Placeholder 1))(ExpOpExp(Tm NotInHole ListNil)Comma(Tm NotInHole ListNil)))))))(Rule(OpSeq(BinOp NotInHole Cons(Placeholder 0)(Placeholder 1))(ExpOpExp(Pat NotInHole(Var NotInVHole y))Cons(Pat NotInHole(Var NotInVHole ys))))(Block((LetLine(Parenthesized(OpSeq(BinOp NotInHole Comma(Placeholder 0)(Placeholder 1))(ExpOpExp(Pat NotInHole(Var NotInVHole ys1))Comma(Pat NotInHole(Var NotInVHole ys2)))))()(Block()(OpSeq(BinOp NotInHole Space(BinOp NotInHole Space(Placeholder 0)(Placeholder 1))(Placeholder 2))(SeqOpExp(ExpOpExp(Tm NotInHole(Var NotInVHole partition))Space(Tm NotInHole(Var NotInVHole f)))Space(Tm NotInHole(Var NotInVHole ys)))))))(Tm NotInHole(Case(Block()(OpSeq(BinOp NotInHole Space(Placeholder 0)(Placeholder 1))(ExpOpExp(Tm NotInHole(Var NotInVHole f))Space(Tm NotInHole(Var NotInVHole y)))))((Rule(Pat NotInHole(BoolLit true))(Block()(Parenthesized(Block()(OpSeq(BinOp NotInHole Comma(BinOp NotInHole Cons(Placeholder 0)(Placeholder 1))(Placeholder 2))(SeqOpExp(ExpOpExp(Tm NotInHole(Var NotInVHole y))Cons(Tm NotInHole(Var NotInVHole ys1)))Comma(Tm NotInHole(Var NotInVHole ys2))))))))(Rule(Pat NotInHole(BoolLit false))(Block()(Parenthesized(Block()(OpSeq(BinOp NotInHole Comma(Placeholder 0)(BinOp NotInHole Cons(Placeholder 1)(Placeholder 2)))(SeqOpExp(ExpOpExp(Tm NotInHole(Var NotInVHole ys1))Comma(Tm NotInHole(Var NotInVHole y)))Cons(Tm NotInHole(Var NotInVHole ys2)))))))))())))))()))))))))))EmptyLine)(OpSeq(BinOp NotInHole Space(Placeholder 0)(Placeholder 1))(ExpOpExp(Tm NotInHole(Var(InVHole Free 246)qsort))Space(Parenthesized(Block()(OpSeq(BinOp NotInHole Cons(Placeholder 0)(BinOp NotInHole Cons(Placeholder 1)(BinOp NotInHole Cons(Placeholder 2)(BinOp NotInHole Cons(Placeholder 3)(BinOp NotInHole Cons(Placeholder 4)(BinOp NotInHole Cons(Placeholder 5)(BinOp NotInHole Cons(Placeholder 6)(Placeholder 7))))))))(SeqOpExp(SeqOpExp(SeqOpExp(SeqOpExp(SeqOpExp(SeqOpExp(ExpOpExp(Tm NotInHole(NumLit 4))Cons(Tm NotInHole(NumLit 2)))Cons(Tm NotInHole(NumLit 6)))Cons(Tm NotInHole(NumLit 5)))Cons(Tm NotInHole(NumLit 3)))Cons(Tm NotInHole(NumLit 1)))Cons(Tm NotInHole(NumLit 7)))Cons(Tm NotInHole ListNil))))))))",
         desc: "qsort prompt",
       },
       StringMap.add(
         "map_example",
         {
-          serialized: "(Tm NotInHole(LineItem(LetLine(Pat NotInHole(Var NotInVHole map))((OpSeq(BinOp NotInHole Arrow(Placeholder 0)(BinOp NotInHole Arrow(Placeholder 1)(Placeholder 2)))(SeqOpExp(ExpOpExp(Parenthesized(OpSeq(BinOp NotInHole Arrow(Placeholder 0)(Placeholder 1))(ExpOpExp Num Arrow Num)))Arrow(List Num))Arrow(List Num))))(Tm NotInHole(Lam(Pat NotInHole(Var NotInVHole f))()(Tm NotInHole(Lam(Pat NotInHole(Var NotInVHole xs))()(Tm NotInHole(Case(Tm NotInHole(Var NotInVHole xs))((Rule(Pat NotInHole ListNil)(Tm NotInHole ListNil))(Rule(Pat NotInHole(OpSeq(BinOp NotInHole Cons(Placeholder 0)(Placeholder 1))(ExpOpExp(Pat NotInHole(Var NotInVHole y))Cons(Pat NotInHole(Var NotInVHole ys)))))(Tm NotInHole(OpSeq(BinOp NotInHole Cons(Placeholder 0)(Placeholder 1))(ExpOpExp(Parenthesized(Tm NotInHole(OpSeq(BinOp NotInHole Space(Placeholder 0)(Placeholder 1))(ExpOpExp(Tm NotInHole(Var NotInVHole f))Space(Tm NotInHole(Var NotInVHole y))))))Cons(Parenthesized(Tm NotInHole(OpSeq(BinOp NotInHole Space(BinOp NotInHole Space(Placeholder 0)(Placeholder 1))(Placeholder 2))(SeqOpExp(ExpOpExp(Tm NotInHole(Var NotInVHole map))Space(Tm NotInHole(Var NotInVHole f)))Space(Tm NotInHole(Var NotInVHole ys)))))))))))())))))))(Tm NotInHole(EmptyHole 46))))",
+          serialized: "(Block((LetLine(Pat NotInHole(Var NotInVHole map))((OpSeq(BinOp NotInHole Arrow(Placeholder 0)(BinOp NotInHole Arrow(Placeholder 1)(Placeholder 2)))(SeqOpExp(ExpOpExp(Parenthesized(OpSeq(BinOp NotInHole Arrow(Placeholder 0)(Placeholder 1))(ExpOpExp Num Arrow Num)))Arrow(List Num))Arrow(List Num))))(Block()(Tm NotInHole(Lam(Pat NotInHole(Var NotInVHole f))()(Block()(Tm NotInHole(Lam(Pat NotInHole(Var NotInVHole xs))()(Block()(Tm NotInHole(Case(Block()(Tm NotInHole(Var NotInVHole xs)))((Rule(Pat NotInHole ListNil)(Block()(Tm NotInHole ListNil)))(Rule(OpSeq(BinOp NotInHole Cons(Placeholder 0)(Placeholder 1))(ExpOpExp(Pat NotInHole(Var NotInVHole y))Cons(Pat NotInHole(Var NotInVHole ys))))(Block()(OpSeq(BinOp NotInHole Cons(Placeholder 0)(Placeholder 1))(ExpOpExp(Parenthesized(Block()(OpSeq(BinOp NotInHole Space(Placeholder 0)(Placeholder 1))(ExpOpExp(Tm NotInHole(Var NotInVHole f))Space(Tm NotInHole(Var NotInVHole y))))))Cons(Parenthesized(Block()(OpSeq(BinOp NotInHole Space(BinOp NotInHole Space(Placeholder 0)(Placeholder 1))(Placeholder 2))(SeqOpExp(ExpOpExp(Tm NotInHole(Var NotInVHole map))Space(Tm NotInHole(Var NotInVHole f)))Space(Tm NotInHole(Var NotInVHole ys)))))))))))())))))))))))(EmptyHole 6))",
           desc: "map example",
         },
         StringMap.add(
           "let_line",
           {
-            serialized: "(Tm NotInHole(LineItem(LetLine(Pat NotInHole(Var y))()(Tm NotInHole(EmptyHole 0)))(Tm NotInHole(LineItem EmptyLine(Tm NotInHole(LineItem(LetLine(Pat NotInHole(Var x))()(Tm NotInHole(EmptyHole 4)))(Tm NotInHole(LineItem(ExpLine(Tm NotInHole(Var NotInVHole x)))(Tm NotInHole(Var NotInVHole y))))))))))",
+            serialized: "(Block((LetLine(Pat NotInHole(Var NotInVHole y))()(Block()(EmptyHole 4)))EmptyLine(LetLine(Pat NotInHole(Var NotInVHole x))()(Block()(EmptyHole 11)))(ExpLine(Tm NotInHole(Var NotInVHole x))))(Tm NotInHole(Var NotInVHole y)))",
             desc: "Let with extra lines example",
           },
           StringMap.add(
             "basic_holey",
             {
-              serialized: "(Tm NotInHole(OpSeq(BinOp NotInHole Space(Placeholder 0)(Placeholder 1))(ExpOpExp(Parenthesized(Tm NotInHole(Lam(Pat NotInHole(EmptyHole 1))(Hole)(Tm NotInHole(EmptyHole 0)))))Space(Tm NotInHole(EmptyHole 2)))))",
+              serialized: "(Block()(OpSeq(BinOp NotInHole Space(Placeholder 0)(Placeholder 1))(ExpOpExp(Parenthesized(Block()(Tm NotInHole(Lam(EmptyHole 1)(Hole)(Block()(EmptyHole 0))))))Space(EmptyHole 2))))",
               desc: "Basic holey lambda example",
             },
             StringMap.add(
               "just_hole",
               {
-                serialized: "(Tm NotInHole(EmptyHole 0))",
+                serialized: "(Block()(EmptyHole 0))",
                 desc: "Just a hole example",
               },
               StringMap.empty,

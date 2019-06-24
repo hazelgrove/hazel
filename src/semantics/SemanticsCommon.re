@@ -46,3 +46,9 @@ type cursor_side =
   | Before
   | After
   | In(int);
+
+let default_nih = (e: option(err_status)): err_status =>
+  switch (e) {
+  | None => NotInHole
+  | Some(e) => e
+  };

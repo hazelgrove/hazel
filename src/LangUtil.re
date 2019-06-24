@@ -1,6 +1,6 @@
 open SemanticsCommon;
 exception InvalidSyntax(string);
-exception IllFormed(UHExp.t);
+exception IllFormed(UHExp.block);
 let string_of_side = side =>
   switch (side) {
   | L => "L"

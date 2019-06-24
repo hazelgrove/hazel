@@ -168,6 +168,82 @@ let surround_suffix_length =
   | EmptySuffix(_) => 0
   | BothNonEmpty(_, suffix) => suffix_length(suffix);
 
+let prefix_nth = (n: int, prefix: opseq_prefix('tm, 'op)): option('tm) =>
+  switch (n, prefix) {
+  | (0, ExpPrefix(tm, _)) => Some(tm)
+  | (_, ExpPrefix(_, _)) => None
+  | (_, SeqPrefix(seq, _)) => seq_nth(n, seq)
+  };
+
+let prefix_update_nth =
+    (n: int, prefix: opseq_prefix('tm, 'op), tm: 'tm)
+    : option(opseq_prefix('tm, 'op)) =>
+  switch (n, prefix) {
+  | (0, ExpPrefix(_, op)) => Some(ExpPrefix(tm, op))
+  | (_, ExpPrefix(_, _)) => None
+  | (_, SeqPrefix(seq, op)) =>
+    switch (seq_update_nth(n, seq, tm)) {
+    | None => None
+    | Some(seq) => Some(SeqPrefix(seq, op))
+    }
+  };
+
+let suffix_nth = (n: int, suffix: opseq_suffix('tm, 'op)): option('tm) =>
+  switch (n, suffix) {
+  | (0, ExpSuffix(_, tm)) => Some(tm)
+  | (_, ExpSuffix(_, _)) => None
+  | (_, SeqSuffix(_, seq)) => seq_nth(n, seq)
+  };
+
+let suffix_update_nth =
+    (n: int, suffix: opseq_suffix('tm, 'op), tm: 'tm)
+    : option(opseq_suffix('tm, 'op)) =>
+  switch (n, suffix) {
+  | (0, ExpSuffix(op, _)) => Some(ExpSuffix(op, tm))
+  | (_, ExpSuffix(_, _)) => None
+  | (_, SeqSuffix(op, seq)) =>
+    switch (seq_update_nth(n, seq, tm)) {
+    | None => None
+    | Some(seq) => Some(SeqSuffix(op, seq))
+    }
+  };
+
+let surround_nth = (n: int, surround: opseq_surround('tm, 'op)): option('tm) =>
+  switch (surround) {
+  | EmptyPrefix(suffix) => suffix_nth(n - 1, suffix)
+  | EmptySuffix(prefix) => prefix_nth(n, prefix)
+  | BothNonEmpty(prefix, suffix) =>
+    switch (prefix_nth(n, prefix)) {
+    | Some(_) as result => result
+    | None => suffix_nth(n - 1 - prefix_length(prefix), suffix)
+    }
+  };
+
+let surround_update_nth =
+    (n: int, surround: opseq_surround('tm, 'op), tm: 'tm)
+    : option(opseq_surround('tm, 'op)) =>
+  switch (surround) {
+  | EmptyPrefix(suffix) =>
+    switch (suffix_update_nth(n - 1, suffix, tm)) {
+    | None => None
+    | Some(suffix) => Some(EmptyPrefix(suffix))
+    }
+  | EmptySuffix(prefix) =>
+    switch (prefix_update_nth(n, prefix, tm)) {
+    | None => None
+    | Some(prefix) => Some(EmptySuffix(prefix))
+    }
+  | BothNonEmpty(prefix, suffix) =>
+    switch (prefix_update_nth(n, prefix, tm)) {
+    | Some(prefix) => Some(BothNonEmpty(prefix, suffix))
+    | None =>
+      switch (suffix_update_nth(n - 1 - prefix_length(prefix), suffix, tm)) {
+      | None => None
+      | Some(suffix) => Some(BothNonEmpty(prefix, suffix))
+      }
+    }
+  };
+
 let opseq_of_prefix_and_exp =
     (prefix: opseq_prefix('tm, 'op), e1: 'tm): opseq('tm, 'op) =>
   switch (prefix) {

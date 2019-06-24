@@ -38,7 +38,14 @@ let side_of_str_offset = (s, offset) =>
 
 exception InvalidExpression;
 let mk =
-    (mk_editor_box, prefix, rev_path, rev_paths, model: Model.t, e: UHExp.t)
+    (
+      mk_editor_box,
+      prefix,
+      rev_path,
+      rev_paths,
+      model: Model.t,
+      block: UHExp.block,
+    )
     : t => {
   let cursor_info_rs = model.cursor_info_rs;
   let do_action = model.do_action;
@@ -51,7 +58,7 @@ let mk =
 
   /* TODO figure out width stuff */
   let width = 120;
-  let doc = View.of_hexp(palette_stuff, prefix, rev_path, e);
+  let doc = View.of_hblock(palette_stuff, prefix, rev_path, block);
   let sdoc = Pretty.PP.sdoc_of_doc(width, doc, rev_paths);
   let view = Pretty.HTML_Of_SDoc.html_of_sdoc(sdoc, rev_paths);
   let pp_view =
@@ -65,12 +72,10 @@ let mk =
               Dom.preventDefault(evt);
               let cursor_info = React.S.value(cursor_info_rs);
               switch (cursor_info.sort) {
-              | CursorInfo.IsLineItem(UHExp.EmptyLine)
-              | CursorInfo.IsLineItem(
-                  UHExp.ExpLine(UHExp.Tm(_, UHExp.EmptyHole(_))),
-                )
-              | CursorInfo.IsExpr(UHExp.Tm(_, UHExp.EmptyHole(_)))
-              | CursorInfo.IsPat(UHPat.Pat(_, UHPat.EmptyHole(_)))
+              | CursorInfo.IsLine(UHExp.EmptyLine)
+              | CursorInfo.IsLine(UHExp.ExpLine(UHExp.EmptyHole(_)))
+              | CursorInfo.IsExpr(UHExp.EmptyHole(_))
+              | CursorInfo.IsPat(UHPat.EmptyHole(_))
               | CursorInfo.IsPat(UHPat.Pat(_, UHPat.Var(_, ""))) =>
                 let shape =
                   switch (single_key) {
@@ -120,10 +125,11 @@ let mk =
                 };
                 Dom_html.stopPropagation(evt);
                 false;
-              | CursorInfo.IsLineItem(_)
+              | CursorInfo.IsLine(_)
               | CursorInfo.IsExpr(_)
               | CursorInfo.IsPat(_)
-              | CursorInfo.IsType => true
+              | CursorInfo.IsType
+              | CursorInfo.IsBlock(_) => true
               };
             | None =>
               let is_backspace =
@@ -244,7 +250,7 @@ let mk =
       preventDefault_handler,
     );
 
-  {e, pp_view, pp_view_dom, rev_paths};
+  {block, pp_view, pp_view_dom, rev_paths};
   /* TODO whatever calls this should wrap it in a div of class "ModelExp"
      Html5.(div(~a=[a_class(["ModelExp"])], [pp_view]));
      */

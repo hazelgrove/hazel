@@ -8,6 +8,7 @@ module PP: {
   type cls = string;
   type id = string;
   let empty: doc;
+  let isEmpty: doc => bool;
   let (^^): (doc, doc) => doc;
   let nestRelative: (int, doc) => doc;
   let nestAbsolute: (int, doc) => doc;
@@ -18,7 +19,7 @@ module PP: {
     (
       rev_path,
       Palettes.view_type,
-      EditorBoxTypes.NatMap.t((HTyp.t, UHExp.t)),
+      EditorBoxTypes.NatMap.t((HTyp.t, UHExp.block)),
       EditorBoxTypes.mk_editor_box
     ) =>
     doc;
@@ -33,7 +34,7 @@ module PP: {
     | SPaletteView(
         rev_path,
         Palettes.view_type,
-        EditorBoxTypes.NatMap.t((HTyp.t, UHExp.t)),
+        EditorBoxTypes.NatMap.t((HTyp.t, UHExp.block)),
         EditorBoxTypes.mk_editor_box,
         sdoc,
       )
@@ -56,10 +57,14 @@ module PP: {
     | PaletteView(
         rev_path,
         Palettes.view_type,
-        EditorBoxTypes.NatMap.t((HTyp.t, UHExp.t)),
+        EditorBoxTypes.NatMap.t((HTyp.t, UHExp.block)),
         EditorBoxTypes.mk_editor_box,
       );
   let empty = Empty;
+  let isEmpty =
+    fun
+    | Empty => true
+    | _ => false;
   let (^^) = (x, y) => Concat(x, y);
   let nestRelative = (n, x) => NestRelative(n, x);
   let nestAbsolute = (n, x) => NestAbsolute(n, x);
@@ -79,7 +84,7 @@ module PP: {
     | SPaletteView(
         rev_path,
         Palettes.view_type,
-        NatMap.t((HTyp.t, UHExp.t)),
+        NatMap.t((HTyp.t, UHExp.block)),
         EditorBoxTypes.mk_editor_box,
         sdoc,
       )
