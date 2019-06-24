@@ -63,6 +63,11 @@ let rec split_at = (xs, n) =>
       }
   };
 
+let fold_right_i = (f: ((int, 'a), 'b) => 'b, xs: list('a), acc: 'b): 'b => {
+  let ixs = List.mapi((i, x) => (i, x), xs);
+  List.fold_right(f, ixs, acc);
+};
+
 let cons_opt = (n: 'a, x: option(list('a))): option(list('a)) =>
   switch (x) {
   | None => None

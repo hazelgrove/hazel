@@ -1,1 +1,1 @@
-let string_of_uhexp: UHExp.t => string;
+let string_of_block: UHExp.block => string;
