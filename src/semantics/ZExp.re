@@ -74,8 +74,9 @@ let prune_empty_hole_line = (zli: zline): zline =>
 
 let rec get_err_status_block = (zblock: zblock): err_status =>
   switch (zblock) {
-  | BlockZL(_, e) => UHExp.get_err_status_t(e)
-  | BlockZE(_, ze) => get_err_status_t(ze)
+  | BlockZL(_, _) => NotInHole
+  | BlockZE([], ze) => get_err_status_t(ze)
+  | BlockZE(_, _) => NotInHole
   }
 and get_err_status_t = (ze: t): err_status =>
   switch (ze) {

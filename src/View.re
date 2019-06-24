@@ -552,30 +552,13 @@ let of_pat_BinOp = (prefix, err_status, rev_path, r1, op, r2) =>
     r1 ^^ of_pat_op(op) ^^ r2,
   );
 
-let rec prepare_Parenthesized_pat = (p: UHPat.t): (err_status, UHPat.t) =>
-  switch (p) {
-  | Parenthesized(p1) =>
-    let (err_status, p1_not_in_hole) = prepare_Parenthesized_pat(p1);
-    (err_status, Parenthesized(p1_not_in_hole));
-  | Pat(NotInHole as err_status, _) => (err_status, p)
-  | Pat(err_status, _) => (err_status, UHPat.set_err_status_t(NotInHole, p))
-  | EmptyHole(_) => (NotInHole, p)
-  | OpSeq(BinOp(NotInHole as err_status, _, _, _), _) => (err_status, p)
-  | OpSeq(BinOp(err_status, _, _, _), _) => (
-      err_status,
-      UHPat.set_err_status_t(NotInHole, p),
-    )
-  | OpSeq(Placeholder(n) as skel, seq) =>
-    switch (OperatorSeq.seq_nth(n, seq)) {
-    | None => raise(UHPat.SkelInconsistentWithOpSeq(skel, seq))
-    | Some(pn) =>
-      let (err_status, pn_nih) = prepare_Parenthesized_pat(pn);
-      switch (OperatorSeq.seq_update_nth(n, seq, pn_nih)) {
-      | None => raise(UHPat.SkelInconsistentWithOpSeq(skel, seq))
-      | Some(seq) => (err_status, OpSeq(skel, seq))
-      };
-    }
+let prepare_Parenthesized_pat = (p: UHPat.t): (err_status, UHPat.t) => {
+  let err_status = UHPat.get_err_status_t(p);
+  switch (err_status) {
+  | NotInHole => (err_status, p)
+  | InHole(_, _) => (err_status, UHPat.set_err_status_t(NotInHole, p))
   };
+};
 
 let rec of_hpat = (prefix, rev_path, p) =>
   switch (p) {
@@ -668,10 +651,16 @@ let of_Times_with_space = (prefix, err_status, rev_path, r1, op, r2) =>
   );
 
 let prepare_Parenthesized_block =
-    (block: UHExp.block): (err_status, UHExp.block) => (
-  UHExp.get_err_status_block(block),
-  UHExp.set_err_status_block(NotInHole, block),
-);
+    (block: UHExp.block): (err_status, UHExp.block) => {
+  let err_status = UHExp.get_err_status_block(block);
+  switch (err_status) {
+  | NotInHole => (err_status, block)
+  | InHole(_, _) => (
+      err_status,
+      UHExp.set_err_status_block(NotInHole, block),
+    )
+  };
+};
 
 let rec of_hblock =
         (palette_stuff, prefix, rev_path, Block(lines, e): UHExp.block) => {
@@ -717,10 +706,9 @@ and of_hexp = (palette_stuff, prefix, rev_path, e: UHExp.t) =>
       of_skel(palette_stuff, prefix, rev_path, skel, seq),
     )
   | Parenthesized(block) =>
-    let (err_status, block_not_in_hole) = prepare_Parenthesized_block(block);
+    let (err_status, block) = prepare_Parenthesized_block(block);
     let rev_path_block = [0, ...rev_path];
-    let r_block =
-      of_hblock(palette_stuff, prefix, rev_path_block, block_not_in_hole);
+    let r_block = of_hblock(palette_stuff, prefix, rev_path_block, block);
     of_Parenthesized(
       is_multi_line(block),
       prefix,

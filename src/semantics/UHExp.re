@@ -136,8 +136,11 @@ let bidelimit = (e: t): t =>
     Parenthesized(wrap_in_block(e));
   };
 
-let rec get_err_status_block = (Block(_, e): block): err_status =>
-  get_err_status_t(e)
+let rec get_err_status_block = (block: block): err_status =>
+  switch (block) {
+  | Block([], e) => get_err_status_t(e)
+  | Block(_, _) => NotInHole
+  }
 and get_err_status_t = (e: t): err_status =>
   switch (e) {
   | Tm(err_status, _) => err_status
