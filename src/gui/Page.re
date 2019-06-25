@@ -1,32 +1,5 @@
 module Vdom = Virtual_dom.Vdom;
 
-/*
- let instance_click_fn = ((u, _) as inst) => {
-   let usi = React.S.value(user_selected_instances_rs);
-   user_selected_instances_rf(UserSelectedInstances.update(usi, inst));
-   move_to_hole(u);
-   selected_instance_rf(Some(inst));
- };
- */
-let result_view = (~inject, model: MyModel.t) => {
-  let (_, _, result) = model.result;
-  Vdom.(
-    switch (result) {
-    | InvalidInput(_) =>
-      Node.div(
-        [],
-        [
-          Node.text(
-            "(internal error: expansion or evaluation invariant violated)",
-          ),
-        ],
-      )
-    | BoxedValue(d)
-    | Indet(d) => Node.div([], [Code.view_of_dhexp(~inject, d)])
-    }
-  );
-};
-
 let examples_select = (~inject: Update.Action.t => Vdom.Event.t) =>
   Vdom.(
     Node.select(
@@ -113,7 +86,7 @@ let page_view =
                                 ),
                                 Node.div(
                                   [Attr.classes(["htype-view"])],
-                                  [] /* TODO htype_view */,
+                                  [Code.view_of_htyp(~inject, model)],
                                 ),
                               ],
                             ),
@@ -121,7 +94,7 @@ let page_view =
                         ),
                         Node.div(
                           [Attr.classes(["result-view"])],
-                          [result_view(~inject, model)],
+                          [Code.view_of_result(~inject, model)],
                         ),
                       ],
                     ),

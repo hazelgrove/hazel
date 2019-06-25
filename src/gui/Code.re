@@ -1379,7 +1379,7 @@ let snode_of_FixF =
   );
 
 let rec snode_of_htyp =
-        (~parenthesize=false, ~steps: Path.steps, ty: HTyp.t): snode => {
+        (~parenthesize=false, ~steps: Path.steps=[], ty: HTyp.t): snode => {
   let mb_par = maybe_parenthesize(parenthesize);
   switch (ty) {
   | Hole => snode_of_EmptyHole(~steps, "?")
@@ -1738,6 +1738,25 @@ and snode_of_drule = (~steps, Rule(dp, dclause): DHExp.rule): snode => {
   snode_of_Rule(~steps, sp, sclause);
 };
 
-let view_of_dhexp =
-    (~inject: Update.Action.t => Vdom.Event.t, d: DHExp.t): Vdom.Node.t =>
-  of_snode(~inject, snode_of_dhexp(d));
+let view_of_htyp =
+    (~inject: Update.Action.t => Vdom.Event.t, model: MyModel.t): Vdom.Node.t => {
+  let (_, ty, _) = model.edit_state;
+  of_snode(~inject, snode_of_htyp(ty));
+};
+
+let view_of_result =
+    (~inject: Update.Action.t => Vdom.Event.t, model: MyModel.t): Vdom.Node.t =>
+  switch (model.result) {
+  | (_, _, InvalidInput(_)) =>
+    Vdom.Node.div(
+      [],
+      [
+        Vdom.Node.text(
+          "(internal error: expansion or evaluation invariant violated)",
+        ),
+      ],
+    )
+  | (_, _, BoxedValue(d))
+  | (_, _, Indet(d)) =>
+    Vdom.Node.div([], [of_snode(~inject, snode_of_dhexp(d))])
+  };
