@@ -182,7 +182,7 @@ let view =
         ),
         a_ondrop(evt => Event.Prevent_default),
       ],
-      [Code.view(~inject, model)],
+      [Code.view_of_zblock(~inject, model)],
     )
   );
 };
