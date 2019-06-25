@@ -1739,7 +1739,5 @@ and snode_of_drule = (~steps, Rule(dp, dclause): DHExp.rule): snode => {
 };
 
 let view_of_dhexp =
-    (~inject: Update.Action.t => Vdom.Event.t, model: MyModel.t): Vdom.Node.t => {
-  let (d, _, _) = model.result;
+    (~inject: Update.Action.t => Vdom.Event.t, d: DHExp.t): Vdom.Node.t =>
   of_snode(~inject, snode_of_dhexp(d));
-};

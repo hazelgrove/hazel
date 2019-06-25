@@ -8,7 +8,7 @@ module Vdom = Virtual_dom.Vdom;
    selected_instance_rf(Some(inst));
  };
  */
-let result_view = (model: MyModel.t) => {
+let result_view = (~inject, model: MyModel.t) => {
   let (_, _, result) = model.result;
   Vdom.(
     switch (result) {
@@ -21,9 +21,8 @@ let result_view = (model: MyModel.t) => {
           ),
         ],
       )
-    | BoxedValue(_d)
-    | Indet(_d) =>
-      Node.div([], [] /* TODO view_of_dhexp(instance_click_fn) */)
+    | BoxedValue(d)
+    | Indet(d) => Node.div([], [Code.view_of_dhexp(~inject, d)])
     }
   );
 };
@@ -122,7 +121,7 @@ let page_view =
                         ),
                         Node.div(
                           [Attr.classes(["result-view"])],
-                          [result_view(model)],
+                          [result_view(~inject, model)],
                         ),
                       ],
                     ),
