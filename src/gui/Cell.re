@@ -1,3 +1,30 @@
+module Vdom = Virtual_dom.Vdom;
+module Dom_html = Js_of_ocaml.Dom_html;
+module Js = Js_of_ocaml.Js;
+open GeneralUtil;
+
+let string_insert = (s1, offset, s2) => {
+  let prefix = String.sub(s1, 0, offset);
+  let length = String.length(s1);
+  let suffix = String.sub(s1, offset, length - offset);
+  prefix ++ s2 ++ suffix;
+};
+
+let string_backspace = (s, offset, ctrlKey) => {
+  let prefix = ctrlKey ? "" : String.sub(s, 0, offset - 1);
+  let length = String.length(s);
+  let suffix = String.sub(s, offset, length - offset);
+  let offset' = ctrlKey ? 0 : offset - 1;
+  (prefix ++ suffix, offset');
+};
+
+let string_delete = (s, offset, ctrlKey) => {
+  let prefix = String.sub(s, 0, offset);
+  let length = String.length(s);
+  let suffix = ctrlKey ? "" : String.sub(s, offset + 1, length - offset - 1);
+  (prefix ++ suffix, offset);
+};
+
 let view =
     (~inject: Update.Action.t => Vdom.Event.t, model: MyModel.t): Vdom.Node.t => {
   Vdom.(
@@ -42,26 +69,25 @@ let view =
               let update =
                 switch (int_of_string_opt(newNodeValue)) {
                 | Some(new_n) =>
-                  let new_side =
-                    side_of_str_offset(newNodeValue, anchorOffset + 1);
                   inject(
                     Update.Action.EditAction(
-                      Action.Construct(Action.SNumLit(new_n, new_side)),
+                      Action.Construct(
+                        Action.SNumLit(new_n, OnText(anchorOffset + 1)),
+                      ),
                     ),
-                  );
+                  )
                 | None =>
                   Var.is_valid(newNodeValue)
-                    ? {
-                      let new_side =
-                        side_of_str_offset(newNodeValue, anchorOffset + 1);
-                      inject(
+                    ? inject(
                         Update.Action.EditAction(
                           Action.Construct(
-                            Action.SVar(newNodeValue, new_side),
+                            Action.SVar(
+                              newNodeValue,
+                              OnText(anchorOffset + 1),
+                            ),
                           ),
                         ),
-                      );
-                    }
+                      )
                     : inject(Update.Action.InvalidVar(newNodeValue))
                 };
               Event.Many([
@@ -91,12 +117,12 @@ let view =
               | IsPat(Var(_, _, _)) =>
                 let is_Before =
                   switch (cursor_info.side) {
-                  | Text(0) => true
+                  | OnText(0) => true
                   | _ => false
                   };
                 let is_After =
                   switch (cursor_info.side) {
-                  | Text(j) =>
+                  | OnText(j) =>
                     switch (cursor_info.sort) {
                     | IsExpr(NumLit(_, n))
                     | IsPat(NumLit(_, n)) => j == num_digits(n)
@@ -106,6 +132,7 @@ let view =
                     | IsPat(Var(_, _, x)) => j == Var.length(x)
                     | _ => false
                     }
+                  | _ => false
                   };
                 if (is_backspace && is_Before || is_del && is_After) {
                   Event.Prevent_default;
@@ -141,31 +168,29 @@ let view =
                   } else {
                     switch (int_of_string_opt(nodeValue')) {
                     | Some(new_n) =>
-                      let new_side =
-                        side_of_str_offset(nodeValue', anchorOffset');
                       Event.Many([
                         inject(
                           Update.Action.EditAction(
-                            Construct(SNumLit(new_n, new_side)),
+                            Construct(
+                              SNumLit(new_n, OnText(anchorOffset')),
+                            ),
                           ),
                         ),
                         ...prevent_stop,
-                      ]);
+                      ])
                     | None =>
                       Var.is_valid(nodeValue')
-                        ? {
-                          let new_side =
-                            side_of_str_offset(nodeValue', anchorOffset');
-                          Event.Many([
+                        ? Event.Many([
                             inject(
                               Update.Action.EditAction(
-                                Construct(SVar(nodeValue', new_side)),
+                                Construct(
+                                  SVar(nodeValue', OnText(anchorOffset')),
+                                ),
                               ),
                             ),
                             ...prevent_stop,
-                          ]);
-                        }
-                        : prevent_stop
+                          ])
+                        : Event.Many(prevent_stop)
                     };
                   };
                 };
@@ -176,11 +201,11 @@ let view =
             };
           }
         ),
-        a_onkeypress(evt =>
+        Attr.on_keypress(evt =>
           JSUtil.is_movement_key(evt)
             ? Event.Many([]) : Event.Prevent_default
         ),
-        a_ondrop(evt => Event.Prevent_default),
+        Attr.on("drop", _ => Event.Prevent_default),
       ],
       [Code.view_of_zblock(~inject, model)],
     )

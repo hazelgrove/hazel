@@ -6,7 +6,8 @@ module Action = {
     | ToggleLeftSidebar
     | ToggleRightSidebar
     | LoadExample(Examples.id)
-    | SelectHoleInstance(MetaVar.t, Dynamics.inst_num);
+    | SelectHoleInstance(MetaVar.t, Dynamics.inst_num)
+    | InvalidVar(string);
 };
 
 [@warning "-27"]
@@ -18,4 +19,5 @@ let apply_action =
   | ToggleRightSidebar => MyModel.toggle_right_sidebar(model)
   | LoadExample(id) => MyModel.load_example(model, Examples.get(id))
   | SelectHoleInstance(u, i) => MyModel.select_hole_instance(model, u, i)
+  | InvalidVar(x) => model
   };
