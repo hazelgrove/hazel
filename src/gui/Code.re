@@ -1,3 +1,6 @@
+let _SHOW_CASTS = false;
+let _SHOW_FN_BODIES = false;
+
 module Vdom = Virtual_dom.Vdom;
 open SemanticsCommon;
 
@@ -5,6 +8,7 @@ exception InvariantViolated;
 
 type id = string;
 type cls = string;
+type is_multi_line = bool;
 
 type snode_shape =
   | Seq
@@ -27,9 +31,25 @@ and sbox_shape =
   | Unit
   | Num
   | Bool
-  | List;
-
-type is_multi_line = bool;
+  | List
+  | Triv
+  | EmptyHoleInstance(
+      MetaVar.t,
+      Dynamics.inst_num,
+      option(VarMap.t_(Dynamics.DHExp.t)),
+    )
+  | NonEmptyHoleInstance(
+      in_hole_reason,
+      MetaVar.t,
+      Dynamics.inst_num,
+      option(VarMap.t_(Dynamics.DHExp.t)),
+    )
+  | SkelBinOp
+  | Let
+  | FixF
+  | InjAnn
+  | Cast
+  | FailedCast;
 
 type snode =
   | SSeq(
@@ -59,10 +79,13 @@ and sword =
   | SNode(snode)
   | SToken(stoken)
 and stoken =
-  | SDelim(delim_index, string)
+  | SEmptyHole(string)
+  | SDelim(option(delim_index), string)
   | SSpaceOp
-  | SOp(op_index, string)
-  | SText(var_err_status, string);
+  | SOp(option(op_index), string)
+  | SText(var_err_status, string)
+  | SCastArrow
+  | SFailedCastArrow;
 
 let is_multi_line =
   fun
@@ -92,6 +115,10 @@ let mk_SBox =
     : snode => {
   SBox(steps, cursor, is_multi_line, err_status, shape, slines);
 };
+
+let mk_SDelim = (~index=?, s: string): stoken => SDelim(index, s);
+
+let mk_SOp = (~index=?, s: string): stoken => SOp(index, s);
 
 let mk_SText = (~var_err_status=NotInVHole, s: string): stoken =>
   SText(var_err_status, s);
@@ -153,16 +180,16 @@ let rec sskel_of_skel_exp = (skel: UHExp.skel_t): sskel =>
     BinOp(err_status, sop, sskel1, sskel2);
   };
 
-let clss_of_sbox_shape = (_shape: sbox_shape): list(cls) => [""];
-
-let rec string_of_steps =
-  fun
-  | [] => ""
-  | [x, ...xs] => string_of_int(x) ++ "_" ++ string_of_steps(xs);
-let node_id = steps => "node__" ++ string_of_steps(steps);
+let node_id = steps =>
+  "node__" ++ Sexplib.Sexp.to_string(Path.sexp_of_steps(steps));
 let path_id = path =>
   "path__" ++ Sexplib.Sexp.to_string(Path.sexp_of_t(path));
 
+let cursor_clss = (mb_cursor: option(cursor_position)) =>
+  switch (mb_cursor) {
+  | None => []
+  | Some(_) => ["cursor"]
+  };
 let multi_line_clss = is_multi_line => is_multi_line ? ["multi-line"] : [];
 
 let err_status_clss =
@@ -170,35 +197,65 @@ let err_status_clss =
   | NotInHole => []
   | InHole(_, u) => ["in_err_hole", "in_err_hole_" ++ string_of_int(u)];
 
-let string_of_snode_shape =
-  fun
-  | Seq => "OpSeq"
-  | Box(shape) =>
-    switch (shape) {
-    | Block => "Block"
-    | EmptyLine => "EmptyLine"
-    | LetLine => "LetLine"
-    | EmptyHole => "EmptyHole"
-    | Var => "Var"
-    | Wild => "Wild"
-    | NumLit => "NumLit"
-    | BoolLit => "BoolLit"
-    | ListNil => "ListNil"
-    | Lam => "Lam"
-    | Inj => "Inj"
-    | Case => "Case"
-    | Rule => "Rule"
-    | Parenthesized => "Parenthesized"
-    | Unit => "Unit"
-    | Num => "Num"
-    | Bool => "Bool"
-    | List => "List"
-    };
+let snode_attrs =
+    (~inject: Update.Action.t => Vdom.Event.t, snode: snode)
+    : list(Vdom.Attr.t) => {
+  Vdom.(
+    switch (snode) {
+    | SSeq(steps, cursor, is_multi_line, _sskel, _shead, _stail) => [
+        Attr.id(node_id(steps)),
+        Attr.classes(
+          ["OpSeq"] @ cursor_clss(cursor) @ multi_line_clss(is_multi_line),
+        ),
+      ]
+    | SBox(steps, cursor, is_multi_line, _err_status, shape, _) =>
+      let base_clss = cursor_clss(cursor) @ multi_line_clss(is_multi_line);
+      let shape_attrs =
+        switch (shape) {
+        | Block => [Attr.classes(["Block", ...base_clss])]
+        | EmptyLine => [Attr.classes(["EmptyLine", ...base_clss])]
+        | LetLine => [Attr.classes(["LetLine", ...base_clss])]
+        | EmptyHole => [Attr.classes(["EmptyHole", ...base_clss])]
+        | Var => [Attr.classes(["Var", ...base_clss])]
+        | Wild => [Attr.classes(["Wild", ...base_clss])]
+        | NumLit => [Attr.classes(["NumLit", ...base_clss])]
+        | BoolLit => [Attr.classes(["BoolLit", ...base_clss])]
+        | ListNil => [Attr.classes(["ListNil", ...base_clss])]
+        | Lam => [Attr.classes(["Lam", ...base_clss])]
+        | Inj => [Attr.classes(["Inj", ...base_clss])]
+        | Case => [Attr.classes(["Case", ...base_clss])]
+        | Rule => [Attr.classes(["Rule", ...base_clss])]
+        | Parenthesized => [Attr.classes(["Parenthesized", ...base_clss])]
+        | Unit => [Attr.classes(["Unit", ...base_clss])]
+        | Num => [Attr.classes(["Num", ...base_clss])]
+        | Bool => [Attr.classes(["Bool", ...base_clss])]
+        | List => [Attr.classes(["List", ...base_clss])]
+        | Triv => [Attr.classes(["Triv", ...base_clss])]
+        | EmptyHoleInstance(u, i, _sigma) => [
+            Attr.classes([
+              "hole-instance",
+              "hole-instance-" ++ string_of_int(u) ++ "-" ++ string_of_int(i),
+              "selected-instance",
+              ...base_clss,
+            ]),
+            Attr.on_click(_ => inject(SelectHoleInstance(u, i))),
+          ]
+        | NonEmptyHoleInstance(_reason, _u, _i, _sigma) => [
+            Attr.classes(["NonEmptyHoleInstance", ...base_clss]),
+          ]
+        | SkelBinOp => [Attr.classes(["SkelBinOp", ...base_clss])]
+        | Let => [Attr.classes(["Let", ...base_clss])]
+        | FixF => [Attr.classes(["FixF", ...base_clss])]
+        | InjAnn => [Attr.classes(["InjAnn", ...base_clss])]
+        | Cast => [Attr.classes(["Cast", ...base_clss])]
+        | FailedCast => [Attr.classes(["FailedCast", ...base_clss])]
+        };
+      [Attr.id(node_id(steps)), ...shape_attrs];
+    }
+  );
+};
 
-let sline_clss = (node_shape, line_no) => [
-  "sline",
-  string_of_snode_shape(node_shape) ++ "-" ++ string_of_int(line_no),
-];
+let sline_clss = line_no => ["sline", "sline-" ++ string_of_int(line_no)];
 
 type is_start_of_top = bool;
 type is_end_of_bottom = bool;
@@ -240,27 +297,21 @@ let var_err_status_clss =
 /* TODO */
 let range_of_tree_rooted_at_cursor = (_cursor, _sskel) => (0, 0);
 
-let rec of_snode = (~inject: Update.Action.t => Vdom.Event.t, snode) =>
+let rec of_snode = (~inject: Update.Action.t => Vdom.Event.t, snode) => {
+  let attrs = snode_attrs(~inject, snode);
   switch (snode) {
-  | SSeq(steps, cursor, is_multi_line, sskel, shead, stail) =>
+  | SSeq(steps, cursor, _, sskel, shead, stail) =>
     let (vhead, vtail) =
       switch (cursor) {
       | None =>
         let vhead =
-          of_sline(
-            ~inject,
-            ~node_steps=steps,
-            ~node_shape=Seq,
-            ~line_no=0,
-            [SNode(shead)],
-          );
+          of_sline(~inject, ~node_steps=steps, ~line_no=0, [SNode(shead)]);
         let vtail =
           stail
           |> List.mapi((i, (sop, stm)) =>
                of_sline(
                  ~inject,
                  ~node_steps=steps,
-                 ~node_shape=Seq,
                  ~line_no=i + 1,
                  [SToken(sop), SNode(stm)],
                )
@@ -274,7 +325,6 @@ let rec of_snode = (~inject: Update.Action.t => Vdom.Event.t, snode) =>
             ~inject,
             ~node_steps=steps,
             ~node_cursor=cursor,
-            ~node_shape=Seq,
             ~border_style=vhead_border_style,
             ~line_no=0,
             [SNode(shead)],
@@ -289,7 +339,6 @@ let rec of_snode = (~inject: Update.Action.t => Vdom.Event.t, snode) =>
                  ~inject,
                  ~node_steps=steps,
                  ~node_cursor=cursor,
-                 ~node_shape=Seq,
                  ~border_style,
                  ~line_no=i + 1,
                  [SToken(sop), SNode(stm)],
@@ -297,16 +346,8 @@ let rec of_snode = (~inject: Update.Action.t => Vdom.Event.t, snode) =>
              });
         (vhead, vtail);
       };
-    Vdom.(
-      Node.div(
-        [
-          Attr.id(node_id(steps)),
-          Attr.classes(multi_line_clss(is_multi_line)),
-        ],
-        [vhead, ...vtail],
-      )
-    );
-  | SBox(steps, node_cursor, is_multi_line, err_status, shape, slines) =>
+    Vdom.(Node.div(attrs, [vhead, ...vtail]));
+  | SBox(steps, node_cursor, _, _, _, slines) =>
     /* TODO add border style */
     let vlines =
       slines
@@ -315,29 +356,18 @@ let rec of_snode = (~inject: Update.Action.t => Vdom.Event.t, snode) =>
              ~inject,
              ~node_steps=steps,
              ~node_cursor?,
-             ~node_shape=Box(shape),
              ~line_no=i,
              sline,
            )
          );
-    Vdom.(
-      Node.div(
-        [
-          Attr.id(node_id(steps)),
-          Attr.classes(
-            err_status_clss(err_status) @ multi_line_clss(is_multi_line),
-          ),
-        ],
-        vlines,
-      )
-    );
-  }
+    Vdom.(Node.div(attrs, vlines));
+  };
+}
 and of_sline =
     (
       ~inject: Update.Action.t => Vdom.Event.t,
       ~node_steps: Path.steps,
       ~node_cursor: option(cursor_position)=?,
-      ~node_shape: snode_shape,
       ~border_style: sline_border_style=NoBorder,
       ~line_no: int,
       sline,
@@ -354,9 +384,7 @@ and of_sline =
   Vdom.(
     Node.div(
       [
-        Attr.classes(
-          sline_clss(node_shape, line_no) @ sline_border_clss(border_style),
-        ),
+        Attr.classes(sline_clss(line_no) @ sline_border_clss(border_style)),
       ],
       vwords,
     )
@@ -371,24 +399,62 @@ and of_stoken =
       stoken: stoken,
     ) =>
   switch (stoken) {
-  | SDelim(k, s) =>
+  | SEmptyHole(lbl) =>
     open Vdom;
-    let delim_before =
+    let hole_before =
       Node.div(
         [
-          Attr.id(path_id((node_steps, OnDelim(k, Before)))),
-          Attr.classes(["SDelim-before"]),
+          Attr.id(path_id((node_steps, OnDelim(0, Before)))),
+          Attr.classes(["SEmptyHole-before"]),
         ],
         [],
       );
-    let delim_after =
+    let hole_after =
       Node.div(
         [
-          Attr.id(path_id((node_steps, OnDelim(k, After)))),
-          Attr.classes(["SDelim-after"]),
+          Attr.id(path_id((node_steps, OnDelim(0, After)))),
+          Attr.classes(["SEmptyHole-after"]),
         ],
         [],
       );
+    let hole_lbl =
+      Node.div(
+        [
+          Attr.create("contenteditable", "false"),
+          Attr.classes(["SEmptyHole-lbl"]),
+        ],
+        [Node.text(lbl)],
+      );
+    Node.div(
+      [Attr.classes(["SEmptyHole"])],
+      [hole_before, hole_lbl, hole_after],
+    );
+  | SDelim(delim_index, s) =>
+    open Vdom;
+    let (delim_before, delim_after) =
+      switch (delim_index) {
+      | None => ([], [])
+      | Some(k) => (
+          [
+            Node.div(
+              [
+                Attr.id(path_id((node_steps, OnDelim(k, Before)))),
+                Attr.classes(["SDelim-before"]),
+              ],
+              [],
+            ),
+          ],
+          [
+            Node.div(
+              [
+                Attr.id(path_id((node_steps, OnDelim(k, After)))),
+                Attr.classes(["SDelim-after"]),
+              ],
+              [],
+            ),
+          ],
+        )
+      };
     let delim_txt =
       Node.div(
         [
@@ -399,26 +465,34 @@ and of_stoken =
       );
     Node.div(
       [Attr.classes(["SDelim" /*TODO*/])],
-      [delim_before, delim_txt, delim_after],
+      delim_before @ [delim_txt] @ delim_after,
     );
-  | SOp(k, s) =>
+  | SOp(op_index, s) =>
     open Vdom;
-    let op_before =
-      Node.div(
-        [
-          Attr.id(path_id((node_steps, OnDelim(k, Before)))),
-          Attr.classes(["SOp-before"]),
-        ],
-        [],
-      );
-    let op_after =
-      Node.div(
-        [
-          Attr.id(path_id((node_steps, OnDelim(k, After)))),
-          Attr.classes(["SOp-after"]),
-        ],
-        [],
-      );
+    let (op_before, op_after) =
+      switch (op_index) {
+      | None => ([], [])
+      | Some(k) => (
+          [
+            Node.div(
+              [
+                Attr.id(path_id((node_steps, OnDelim(k, Before)))),
+                Attr.classes(["SOp-before"]),
+              ],
+              [],
+            ),
+          ],
+          [
+            Node.div(
+              [
+                Attr.id(path_id((node_steps, OnDelim(k, After)))),
+                Attr.classes(["SOp-after"]),
+              ],
+              [],
+            ),
+          ],
+        )
+      };
     let op_txt =
       Node.div(
         [
@@ -429,7 +503,7 @@ and of_stoken =
       );
     Node.div(
       [Attr.classes(["SOp" /*TODO*/])],
-      [op_before, op_txt, op_after],
+      op_before @ [op_txt] @ op_after,
     );
   | SSpaceOp => Vdom.(Node.div([Attr.classes(["SSpaceOp"])], []))
   | SText(var_err_status, s) =>
@@ -442,7 +516,81 @@ and of_stoken =
         [Node.text(s)],
       )
     )
+  | SCastArrow =>
+    Vdom.(Node.div([Attr.classes(["cast-arrow"])], [Node.text(" ⇨ ")]))
+  | SFailedCastArrow =>
+    Vdom.(
+      Node.div(
+        [Attr.classes(["failed-cast-arrow"])],
+        [Node.text(" ⇨ ")],
+      )
+    )
   };
+
+let snode_of_EmptyHole = (~cursor=?, ~steps, hole_name: string): snode =>
+  mk_SBox(
+    ~cursor?,
+    ~steps,
+    ~shape=EmptyHole,
+    [[SToken(SEmptyHole(hole_name))]],
+  );
+
+let snode_of_Var =
+    (~cursor=?, ~err_status, ~var_err_status, ~steps, x: Var.t): snode =>
+  mk_SBox(
+    ~cursor?,
+    ~err_status,
+    ~steps,
+    ~shape=Var,
+    [[SToken(mk_SText(~var_err_status, x))]],
+  );
+
+let snode_of_NumLit = (~cursor=?, ~err_status, ~steps, n: int): snode =>
+  mk_SBox(
+    ~cursor?,
+    ~err_status,
+    ~steps,
+    ~shape=NumLit,
+    [[SToken(mk_SText(string_of_int(n)))]],
+  );
+
+let snode_of_BoolLit = (~cursor=?, ~err_status, ~steps, b: bool): snode =>
+  mk_SBox(
+    ~cursor?,
+    ~err_status,
+    ~steps,
+    ~shape=BoolLit,
+    [[SToken(mk_SText(string_of_bool(b)))]],
+  );
+
+let snode_of_ListNil = (~cursor=?, ~err_status, ~steps, ()): snode =>
+  mk_SBox(
+    ~cursor?,
+    ~err_status,
+    ~steps,
+    ~shape=ListNil,
+    [[SToken(mk_SDelim(~index=0, "[]"))]],
+  );
+
+let snode_of_LetLine =
+    (~cursor=?, ~steps, sp: snode, sann: option(snode), sdef: snode) =>
+  mk_SBox(
+    ~cursor?,
+    ~steps,
+    ~shape=LetLine,
+    ~is_multi_line=is_multi_line(sdef),
+    [
+      [SToken(mk_SDelim(~index=0, "let")), SNode(sp)]
+      @ (
+        switch (sann) {
+        | None => []
+        | Some(sann) => [SToken(mk_SDelim(~index=1, ":")), SNode(sann)]
+        }
+      )
+      @ [SToken(mk_SDelim(~index=2, "="))],
+      [SNode(sdef)],
+    ],
+  );
 
 let snode_of_Parenthesized = (~cursor=?, ~steps, sbody: snode): snode =>
   mk_SBox(
@@ -451,9 +599,9 @@ let snode_of_Parenthesized = (~cursor=?, ~steps, sbody: snode): snode =>
     ~shape=Parenthesized,
     ~is_multi_line=is_multi_line(sbody),
     [
-      [SToken(SDelim(0, "("))],
+      [SToken(mk_SDelim(~index=0, "("))],
       [SNode(sbody)],
-      [SToken(SDelim(1, ")"))],
+      [SToken(mk_SDelim(~index=1, ")"))],
     ],
   );
 
@@ -463,9 +611,9 @@ let snode_of_List = (~cursor=?, ~steps, sbody: snode): snode =>
     ~steps,
     ~shape=List,
     [
-      [SToken(SDelim(0, "List("))],
+      [SToken(mk_SDelim(~index=0, "List("))],
       [SNode(sbody)],
-      [SToken(SDelim(1, ")"))],
+      [SToken(mk_SDelim(~index=1, ")"))],
     ],
   );
 
@@ -499,7 +647,7 @@ let snode_of_Lam =
   let swords_ann =
     switch (sann) {
     | None => []
-    | Some(sann) => [SToken(SDelim(1, ":")), SNode(sann)]
+    | Some(sann) => [SToken(mk_SDelim(~index=1, ":")), SNode(sann)]
     };
   mk_SBox(
     ~cursor?,
@@ -508,9 +656,9 @@ let snode_of_Lam =
     ~shape=Lam,
     ~is_multi_line=is_multi_line(sbody),
     [
-      [SToken(SDelim(0, LangUtil.lamSym)), SNode(sarg)]
+      [SToken(mk_SDelim(~index=0, LangUtil.lamSym)), SNode(sarg)]
       @ swords_ann
-      @ [SToken(SDelim(2, "."))],
+      @ [SToken(mk_SDelim(~index=2, "."))],
       [SNode(sbody)],
     ],
   );
@@ -524,9 +672,35 @@ let snode_of_Inj = (~cursor=?, ~err_status, ~steps, side, sbody: snode): snode =
     ~shape=Inj,
     ~is_multi_line=is_multi_line(sbody),
     [
-      [SToken(SDelim(0, "inj[" ++ LangUtil.string_of_side(side) ++ "]("))],
+      [
+        SToken(
+          mk_SDelim(
+            ~index=0,
+            "inj[" ++ LangUtil.string_of_side(side) ++ "](",
+          ),
+        ),
+      ],
       [SNode(sbody)],
-      [SToken(SDelim(1, ")"))],
+      [SToken(mk_SDelim(~index=1, ")"))],
+    ],
+  );
+
+let snode_of_InjAnn =
+    (~cursor=?, ~err_status, ~steps, sty: snode, side, sbody: snode): snode =>
+  mk_SBox(
+    ~cursor?,
+    ~err_status,
+    ~steps,
+    ~shape=InjAnn,
+    ~is_multi_line=is_multi_line(sbody),
+    [
+      [
+        SToken(mk_SDelim("inj[" ++ LangUtil.string_of_side(side) ++ ",")),
+        SNode(sty),
+        SToken(mk_SDelim("](")),
+      ],
+      [SNode(sbody)],
+      [SToken(mk_SDelim(")"))],
     ],
   );
 
@@ -543,8 +717,8 @@ let snode_of_Case =
   let slines_rules = srules |> List.map(snode => [SNode(snode)]);
   let swords_end =
     switch (sann) {
-    | None => [SToken(SDelim(1, "end"))]
-    | Some(sann) => [SToken(SDelim(1, "end :")), SNode(sann)]
+    | None => [SToken(mk_SDelim(~index=1, "end"))]
+    | Some(sann) => [SToken(mk_SDelim(~index=1, "end :")), SNode(sann)]
     };
   mk_SBox(
     ~cursor?,
@@ -552,7 +726,7 @@ let snode_of_Case =
     ~steps,
     ~shape=Case,
     ~is_multi_line=true,
-    [[SToken(SDelim(0, "case")), SNode(sscrut)]]
+    [[SToken(mk_SDelim(~index=0, "case")), SNode(sscrut)]]
     @ slines_rules
     @ [swords_end],
   );
@@ -566,29 +740,52 @@ let snode_of_Rule = (~cursor=?, ~steps, sp: snode, sclause: snode) =>
     ~is_multi_line=is_multi_line(sclause),
     [
       [
-        SToken(SDelim(0, "|")),
+        SToken(mk_SDelim(~index=0, "|")),
         SNode(sp),
-        SToken(SDelim(1, LangUtil.caseArrowSym)),
+        SToken(mk_SDelim(~index=1, LangUtil.caseArrowSym)),
       ],
       [SNode(sclause)],
     ],
   );
 
+let snode_of_Triv = (~err_status, ~steps) =>
+  mk_SBox(
+    ~err_status,
+    ~steps,
+    ~shape=Triv,
+    [[SToken(mk_SDelim(~index=0, "()"))]],
+  );
+
+let snode_of_Bool = (~cursor=?, ~steps, ()) =>
+  mk_SBox(
+    ~cursor?,
+    ~steps,
+    ~shape=Bool,
+    [[SToken(mk_SDelim(~index=0, "Bool"))]],
+  );
+
+let snode_of_Num = (~cursor=?, ~steps, ()) =>
+  mk_SBox(
+    ~cursor?,
+    ~steps,
+    ~shape=Num,
+    [[SToken(mk_SDelim(~index=0, "Num"))]],
+  );
+
+let snode_of_Unit = (~cursor=?, ~steps, ()) =>
+  mk_SBox(
+    ~cursor?,
+    ~steps,
+    ~shape=Unit,
+    [[SToken(mk_SDelim(~index=0, "()"))]],
+  );
+
 let rec snode_of_typ = (~cursor=?, ~steps: Path.steps, uty: UHTyp.t): snode =>
   switch (uty) {
-  | Hole =>
-    mk_SBox(
-      ~cursor?,
-      ~steps,
-      ~shape=EmptyHole,
-      [[SToken(SDelim(0, "?"))]],
-    )
-  | Unit =>
-    mk_SBox(~cursor?, ~steps, ~shape=Unit, [[SToken(SDelim(0, "()"))]])
-  | Num =>
-    mk_SBox(~cursor?, ~steps, ~shape=Num, [[SToken(SDelim(0, "Num"))]])
-  | Bool =>
-    mk_SBox(~cursor?, ~steps, ~shape=Bool, [[SToken(SDelim(0, "Bool"))]])
+  | Hole => snode_of_EmptyHole(~cursor?, ~steps, "?")
+  | Unit => snode_of_Unit(~cursor?, ~steps, ())
+  | Num => snode_of_Num(~cursor?, ~steps, ())
+  | Bool => snode_of_Bool(~cursor?, ~steps, ())
   | Parenthesized(body) =>
     let sbody = snode_of_typ(~steps=steps @ [0], body);
     snode_of_Parenthesized(~cursor?, ~steps, sbody);
@@ -601,7 +798,7 @@ let rec snode_of_typ = (~cursor=?, ~steps: Path.steps, uty: UHTyp.t): snode =>
       |> List.mapi((i, tm) => snode_of_typ(~steps=steps @ [i], tm));
     let sops =
       OperatorSeq.ops(seq)
-      |> List.mapi((i, op) => SOp(i + 1, string_of_op_typ(op)));
+      |> List.mapi((i, op) => mk_SOp(~index=i + 1, string_of_op_typ(op)));
     let sskel = sskel_of_skel_typ(skel);
     snode_of_OpSeq(~cursor?, ~steps, ~sskel, stms, sops);
   };
@@ -609,51 +806,23 @@ let rec snode_of_typ = (~cursor=?, ~steps: Path.steps, uty: UHTyp.t): snode =>
 let rec snode_of_pat = (~cursor=?, ~steps: Path.steps, p: UHPat.t): snode =>
   switch (p) {
   | EmptyHole(u) =>
-    mk_SBox(
-      ~cursor?,
-      ~steps,
-      ~shape=EmptyHole,
-      [[SToken(SDelim(0, string_of_int(u + 1)))]],
-    )
+    snode_of_EmptyHole(~cursor?, ~steps, string_of_int(u + 1))
   | Wild(err_status) =>
     mk_SBox(
       ~cursor?,
       ~err_status,
       ~steps,
       ~shape=Wild,
-      [[SToken(SDelim(0, "_"))]],
+      [[SToken(mk_SDelim(~index=0, "_"))]],
     )
   | Var(err_status, var_err_status, x) =>
-    mk_SBox(
-      ~cursor?,
-      ~err_status,
-      ~steps,
-      ~shape=Var,
-      [[SToken(mk_SText(~var_err_status, x))]],
-    )
+    snode_of_Var(~cursor?, ~err_status, ~var_err_status, ~steps, x)
   | NumLit(err_status, n) =>
-    mk_SBox(
-      ~cursor?,
-      ~err_status,
-      ~steps,
-      ~shape=NumLit,
-      [[SToken(mk_SText(string_of_int(n)))]],
-    )
+    snode_of_NumLit(~cursor?, ~err_status, ~steps, n)
   | BoolLit(err_status, b) =>
-    mk_SBox(
-      ~cursor?,
-      ~err_status,
-      ~steps,
-      ~shape=BoolLit,
-      [[SToken(mk_SText(string_of_bool(b)))]],
-    )
+    snode_of_BoolLit(~cursor?, ~err_status, ~steps, b)
   | ListNil(err_status) =>
-    mk_SBox(
-      ~steps,
-      ~err_status,
-      ~shape=ListNil,
-      [[SToken(SDelim(0, "[]"))]],
-    )
+    snode_of_ListNil(~cursor?, ~err_status, ~steps, ())
   | Inj(err_status, side, body) =>
     let sbody = snode_of_pat(~steps=steps @ [0], body);
     snode_of_Inj(~cursor?, ~err_status, ~steps, side, sbody);
@@ -669,7 +838,7 @@ let rec snode_of_pat = (~cursor=?, ~steps: Path.steps, p: UHPat.t): snode =>
       |> List.mapi((i, op) =>
            switch ((op: UHPat.op)) {
            | Space => SSpaceOp
-           | _ => SOp(i + 1, string_of_op_pat(op))
+           | _ => mk_SOp(~index=i + 1, string_of_op_pat(op))
            }
          );
     let sskel = sskel_of_skel_pat(skel);
@@ -696,70 +865,27 @@ and snode_of_line_item =
   | ExpLine(e) => snode_of_exp(~cursor?, ~steps, e) /* ghost node */
   | LetLine(p, ann, def) =>
     let sp = snode_of_pat(~steps=steps @ [0], p);
-    let swords_ann =
+    let sann =
       switch (ann) {
-      | None => []
-      | Some(uty) => [
-          SToken(SDelim(1, ":")),
-          SNode(snode_of_typ(~steps=steps @ [1], uty)),
-        ]
+      | None => None
+      | Some(ann) => Some(snode_of_typ(~steps=steps @ [1], ann))
       };
     let sdef = snode_of_block(~steps=steps @ [2], def);
-    mk_SBox(
-      ~cursor?,
-      ~steps,
-      ~shape=LetLine,
-      ~is_multi_line=is_multi_line(sdef),
-      [
-        [SToken(SDelim(0, "let")), SNode(sp)]
-        @ swords_ann
-        @ [SToken(SDelim(2, "="))],
-        [SNode(sdef)],
-      ],
-    );
+    snode_of_LetLine(~cursor?, ~steps, sp, sann, sdef);
   }
 and snode_of_exp = (~cursor=?, ~steps: Path.steps, e: UHExp.t): snode =>
   switch (e) {
   /* outer nodes */
   | EmptyHole(u) =>
-    mk_SBox(
-      ~cursor?,
-      ~steps,
-      ~shape=EmptyHole,
-      [[SToken(SDelim(0, string_of_int(u + 1)))]],
-    )
+    snode_of_EmptyHole(~cursor?, ~steps, string_of_int(u + 1))
   | Var(err_status, var_err_status, x) =>
-    mk_SBox(
-      ~cursor?,
-      ~err_status,
-      ~steps,
-      ~shape=Var,
-      [[SToken(mk_SText(~var_err_status, x))]],
-    )
+    snode_of_Var(~cursor?, ~err_status, ~var_err_status, ~steps, x)
   | NumLit(err_status, n) =>
-    mk_SBox(
-      ~cursor?,
-      ~err_status,
-      ~steps,
-      ~shape=NumLit,
-      [[SToken(mk_SText(string_of_int(n)))]],
-    )
+    snode_of_NumLit(~cursor?, ~err_status, ~steps, n)
   | BoolLit(err_status, b) =>
-    mk_SBox(
-      ~cursor?,
-      ~err_status,
-      ~steps,
-      ~shape=BoolLit,
-      [[SToken(mk_SText(string_of_bool(b)))]],
-    )
+    snode_of_BoolLit(~cursor?, ~err_status, ~steps, b)
   | ListNil(err_status) =>
-    mk_SBox(
-      ~cursor?,
-      ~err_status,
-      ~steps,
-      ~shape=ListNil,
-      [[SToken(SDelim(0, "[]"))]],
-    )
+    snode_of_ListNil(~cursor?, ~err_status, ~steps, ())
   /* inner nodes */
   | Lam(err_status, arg, ann, body) =>
     let sarg = snode_of_pat(~steps=steps @ [0], arg);
@@ -797,7 +923,7 @@ and snode_of_exp = (~cursor=?, ~steps: Path.steps, e: UHExp.t): snode =>
       |> List.mapi((i, op) =>
            switch ((op: UHExp.op)) {
            | Space => SSpaceOp
-           | _ => SOp(i + 1, string_of_op_exp(op))
+           | _ => mk_SOp(~index=i + 1, string_of_op_exp(op))
            }
          );
     let sskel = sskel_of_skel_exp(skel);
@@ -838,7 +964,7 @@ let rec snode_of_ztyp = (~steps: Path.steps, zty: ZTyp.t): snode =>
     let sops =
       prefix_ops
       @ suffix_ops
-      |> List.mapi((i, op) => SOp(i + 1, string_of_op_typ(op)));
+      |> List.mapi((i, op) => mk_SOp(~index=i + 1, string_of_op_typ(op)));
     let sskel = sskel_of_skel_typ(skel);
     snode_of_OpSeq(~steps, ~sskel, sprefix @ [sztm] @ ssuffix, sops);
   };
@@ -873,7 +999,7 @@ let rec snode_of_zpat = (~steps: Path.steps, zp: ZPat.t): snode =>
       |> List.mapi((i, op) =>
            switch ((op: UHPat.op)) {
            | Space => SSpaceOp
-           | _ => SOp(i + 1, string_of_op_pat(op))
+           | _ => mk_SOp(~index=i + 1, string_of_op_pat(op))
            }
          );
     let sskel = sskel_of_skel_pat(skel);
@@ -933,7 +1059,7 @@ and snode_of_zline_item = (~steps: Path.steps, zli: ZExp.zline): snode =>
       switch (ann) {
       | None => []
       | Some(uty) => [
-          SToken(SDelim(1, ":")),
+          SToken(mk_SDelim(~index=1, ":")),
           SNode(snode_of_typ(~steps=steps @ [1], uty)),
         ]
       };
@@ -943,9 +1069,9 @@ and snode_of_zline_item = (~steps: Path.steps, zli: ZExp.zline): snode =>
       ~shape=LetLine,
       ~is_multi_line=is_multi_line(sdef),
       [
-        [SToken(SDelim(0, "let")), SNode(szp)]
+        [SToken(mk_SDelim(~index=0, "let")), SNode(szp)]
         @ swords_ann
-        @ [SToken(SDelim(2, "="))],
+        @ [SToken(mk_SDelim(~index=2, "="))],
         [SNode(sdef)],
       ],
     );
@@ -958,9 +1084,9 @@ and snode_of_zline_item = (~steps: Path.steps, zli: ZExp.zline): snode =>
       ~shape=LetLine,
       ~is_multi_line=is_multi_line(sdef),
       [
-        [SToken(SDelim(0, "let")), SNode(sp)]
-        @ [SToken(SDelim(1, ":")), SNode(szann)]
-        @ [SToken(SDelim(2, "="))],
+        [SToken(mk_SDelim(~index=0, "let")), SNode(sp)]
+        @ [SToken(mk_SDelim(~index=1, ":")), SNode(szann)]
+        @ [SToken(mk_SDelim(~index=2, "="))],
         [SNode(sdef)],
       ],
     );
@@ -970,7 +1096,7 @@ and snode_of_zline_item = (~steps: Path.steps, zli: ZExp.zline): snode =>
       switch (ann) {
       | None => []
       | Some(uty) => [
-          SToken(SDelim(1, ":")),
+          SToken(mk_SDelim(~index=1, ":")),
           SNode(snode_of_typ(~steps=steps @ [1], uty)),
         ]
       };
@@ -980,9 +1106,9 @@ and snode_of_zline_item = (~steps: Path.steps, zli: ZExp.zline): snode =>
       ~shape=LetLine,
       ~is_multi_line=is_multi_line(szdef),
       [
-        [SToken(SDelim(0, "let")), SNode(sp)]
+        [SToken(mk_SDelim(~index=0, "let")), SNode(sp)]
         @ swords_ann
-        @ [SToken(SDelim(2, "="))],
+        @ [SToken(mk_SDelim(~index=2, "="))],
         [SNode(szdef)],
       ],
     );
@@ -1014,7 +1140,7 @@ and snode_of_zexp = (~steps: Path.steps, ze: ZExp.t) =>
       |> List.mapi((i, op) =>
            switch ((op: UHExp.op)) {
            | Space => SSpaceOp
-           | _ => SOp(i + 1, string_of_op_exp(op))
+           | _ => mk_SOp(~index=i + 1, string_of_op_exp(op))
            }
          );
     let sskel = sskel_of_skel_exp(skel);
@@ -1097,17 +1223,523 @@ and snode_of_zrule = (~steps, zrule) =>
   switch (zrule) {
   | CursorR(cursor, rule) => snode_of_rule(~cursor, ~steps, rule)
   | RuleZP(zp, clause) =>
-    let szp = snode_of_zpat(~steps=steps @ [0], zp);
+    let sp = snode_of_zpat(~steps=steps @ [0], zp);
     let sclause = snode_of_block(~steps=steps @ [1], clause);
-    snode_of_Rule(~steps, szp, sclause);
+    snode_of_Rule(~steps, sp, sclause);
   | RuleZE(p, zclause) =>
     let sp = snode_of_pat(~steps=steps @ [0], p);
-    let szclause = snode_of_zblock(~steps=steps @ [1], zclause);
-    snode_of_Rule(~steps, sp, szclause);
+    let sclause = snode_of_zblock(~steps=steps @ [1], zclause);
+    snode_of_Rule(~steps, sp, sclause);
   };
 
-let view =
+let view_of_zblock =
     (~inject: Update.Action.t => Vdom.Event.t, model: MyModel.t): Vdom.Node.t => {
   let (zblock, _, _) = model.edit_state;
   of_snode(~inject, snode_of_zblock(zblock));
+};
+
+module DHPat = Dynamics.DHPat;
+module DHExp = Dynamics.DHExp;
+
+let cls_of_inst = ((u, i)) =>
+  "hole-instance-" ++ string_of_int(u) ++ "-" ++ string_of_int(i);
+
+let maybe_parenthesize = (parenthesize, sline) =>
+  parenthesize
+    ? [SToken(mk_SDelim("("))] @ sline @ [SToken(mk_SDelim(")"))] : sline;
+
+let hole_label_of = (u, i) =>
+  string_of_int(u + 1) ++ ":" ++ string_of_int(i + 1);
+
+let precedence_const = 0;
+let precedence_Prod = 1;
+let precedence_Sum = 2;
+let precedence_Arrow = 3;
+let precedence_ty = (ty: HTyp.t): int =>
+  switch (ty) {
+  | Num
+  | Bool
+  | Hole
+  | Unit
+  | List(_) => precedence_const
+  | Prod(_, _) => precedence_Prod
+  | Sum(_, _) => precedence_Sum
+  | Arrow(_, _) => precedence_Arrow
+  };
+
+let precedence_Ap = 1;
+let precedence_Times = 2;
+let precedence_Plus = 3;
+let precedence_Cons = 4;
+let precedence_LessThan = 5;
+let precedence_Comma = 6;
+let precedence_max = 7;
+let precedence_dhpat = (dp: DHPat.t) =>
+  switch (dp) {
+  | EmptyHole(_)
+  | NonEmptyHole(_, _, _, _)
+  | Wild
+  | Keyword(_, _, _)
+  | Var(_)
+  | NumLit(_)
+  | BoolLit(_)
+  | Inj(_, _)
+  | Triv
+  | ListNil
+  | Pair(_, _) => precedence_const
+  | Cons(_, _) => precedence_Cons
+  | Ap(_, _) => precedence_Ap
+  };
+let rec precedence_dhexp = (d: DHExp.t) =>
+  switch (d) {
+  | BoundVar(_)
+  | FreeVar(_, _, _, _)
+  | Keyword(_, _, _, _)
+  | BoolLit(_)
+  | NumLit(_)
+  | ListNil(_)
+  | Inj(_, _, _)
+  | Pair(_, _)
+  | EmptyHole(_, _, _)
+  | Triv
+  | FailedCast(_, _, _) => precedence_const
+  | Cast(d1, _, _) => _SHOW_CASTS ? precedence_const : precedence_dhexp(d1)
+  | Let(_, _, _)
+  | FixF(_, _, _)
+  | Lam(_, _, _)
+  | Case(_, _, _) => precedence_max
+  | Ap(_, _) => precedence_Ap
+  | BinNumOp(Times, _, _) => precedence_Times
+  | BinNumOp(Plus, _, _) => precedence_Plus
+  | BinNumOp(LessThan, _, _) => precedence_LessThan
+  | Cons(_, _) => precedence_Cons
+  | NonEmptyHole(_, _, _, _, d1) => precedence_dhexp(d1)
+  };
+
+let snode_of_BinOp =
+    (
+      ~mb_par=maybe_parenthesize(false),
+      ~err_status=NotInHole,
+      ~steps,
+      s1: snode,
+      sop: string,
+      s2: snode,
+    )
+    : snode =>
+  mk_SBox(
+    ~err_status,
+    ~steps,
+    ~shape=SkelBinOp,
+    [mb_par([SNode(s1), SToken(mk_SDelim(sop)), SNode(s2)])],
+  );
+
+let snode_of_SpaceOp = (~err_status, ~steps, s1: snode, s2: snode): snode =>
+  mk_SBox(
+    ~err_status,
+    ~steps,
+    ~shape=SkelBinOp,
+    [[SNode(s1), SToken(SSpaceOp), SNode(s2)]],
+  );
+
+let snode_of_Let =
+    (~err_status, ~steps, sp: snode, sdef: snode, sbody: snode): snode =>
+  mk_SBox(
+    ~err_status,
+    ~steps,
+    ~shape=Let,
+    ~is_multi_line=true,
+    [
+      [
+        SToken(mk_SDelim("let")),
+        SNode(sp),
+        SToken(mk_SDelim("=")),
+        SNode(sdef),
+      ],
+      [SNode(sbody)],
+    ],
+  );
+
+let snode_of_FixF =
+    (~err_status, ~steps, sarg: snode, sty: snode, sbody: snode): snode =>
+  mk_SBox(
+    ~err_status,
+    ~steps,
+    ~shape=FixF,
+    ~is_multi_line=is_multi_line(sbody),
+    [
+      [
+        SToken(mk_SDelim("fix")),
+        SNode(sarg),
+        SToken(mk_SDelim(":")),
+        SNode(sty),
+        SToken(mk_SDelim(".")),
+      ],
+      [SNode(sbody)],
+    ],
+  );
+
+let rec snode_of_htyp =
+        (~parenthesize=false, ~steps: Path.steps, ty: HTyp.t): snode => {
+  let mb_par = maybe_parenthesize(parenthesize);
+  switch (ty) {
+  | Hole => snode_of_EmptyHole(~steps, "?")
+  | Bool => snode_of_Bool(~steps, ())
+  | Num => snode_of_Num(~steps, ())
+  | Unit => snode_of_Unit(~steps, ())
+  | List(ty1) =>
+    let sty1 = snode_of_htyp(~steps=steps @ [0], ty1);
+    snode_of_List(~steps, sty1);
+  | Arrow(ty1, ty2) =>
+    let sty1 =
+      snode_of_htyp(
+        ~parenthesize=precedence_ty(ty1) >= precedence_Arrow,
+        ~steps=steps @ [0],
+        ty1,
+      );
+    let sty2 =
+      snode_of_htyp(
+        ~parenthesize=precedence_ty(ty2) > precedence_Arrow,
+        ~steps=steps @ [1],
+        ty2,
+      );
+    snode_of_BinOp(~mb_par, ~steps, sty1, string_of_op_typ(Arrow), sty2);
+  | Sum(ty1, ty2) =>
+    let sty1 =
+      snode_of_htyp(
+        ~parenthesize=precedence_ty(ty1) >= precedence_Sum,
+        ~steps=steps @ [0],
+        ty1,
+      );
+    let sty2 =
+      snode_of_htyp(
+        ~parenthesize=precedence_ty(ty2) > precedence_Sum,
+        ~steps=steps @ [1],
+        ty2,
+      );
+    snode_of_BinOp(~mb_par, ~steps, sty1, string_of_op_typ(Sum), sty2);
+  | Prod(ty1, ty2) =>
+    let sty1 =
+      snode_of_htyp(
+        ~parenthesize=precedence_ty(ty1) >= precedence_Prod,
+        ~steps=steps @ [0],
+        ty1,
+      );
+    let sty2 =
+      snode_of_htyp(
+        ~parenthesize=precedence_ty(ty2) > precedence_Prod,
+        ~steps=steps @ [1],
+        ty2,
+      );
+    snode_of_BinOp(~mb_par, ~steps, sty1, string_of_op_typ(Prod), sty2);
+  };
+};
+
+let rec snode_of_dhpat =
+        (~parenthesize=false, ~err_status=NotInHole, ~steps=[], dp: DHPat.t)
+        : snode => {
+  let mb_par = maybe_parenthesize(parenthesize);
+  switch (dp) {
+  | EmptyHole(u, i) =>
+    /* TODO add SHOW_SIGMAS flag */
+    mk_SBox(
+      ~steps,
+      ~shape=EmptyHoleInstance(u, i, None),
+      [mb_par([SToken(SEmptyHole(hole_label_of(u, i)))])],
+    )
+  | NonEmptyHole(reason, u, i, dp1) =>
+    /* TODO revisit this and consider whether err_status should be on sp1 or parent */
+    let sp1 =
+      snode_of_dhpat(
+        ~err_status=InHole(reason, u),
+        ~steps=steps @ [0],
+        dp1,
+      );
+    mk_SBox(
+      ~steps,
+      ~shape=NonEmptyHoleInstance(reason, u, i, None),
+      [mb_par([SNode(sp1)])],
+    );
+  | Wild =>
+    mk_SBox(
+      ~err_status,
+      ~steps,
+      ~shape=Wild,
+      [[SToken(mk_SDelim(~index=0, "_"))]],
+    )
+  | Keyword(u, _, k) =>
+    snode_of_Var(
+      ~err_status,
+      ~var_err_status=InVHole(Keyword(k), u),
+      ~steps,
+      Var.of_keyword(k),
+    )
+  | Var(x) => snode_of_Var(~err_status, ~var_err_status=NotInVHole, ~steps, x)
+  | BoolLit(b) => snode_of_BoolLit(~err_status, ~steps, b)
+  | NumLit(n) => snode_of_NumLit(~err_status, ~steps, n)
+  | Triv => snode_of_Triv(~err_status, ~steps)
+  | ListNil => snode_of_ListNil(~err_status, ~steps, ())
+  | Inj(side, dp1) =>
+    let sp1 = snode_of_dhpat(~steps=steps @ [0], dp1);
+    snode_of_Inj(~err_status, ~steps, side, sp1);
+  | Cons(dp1, dp2) =>
+    let sp1 =
+      snode_of_dhpat(
+        ~parenthesize=precedence_dhpat(dp1) > precedence_Cons,
+        ~steps=steps @ [0],
+        dp1,
+      );
+    let sp2 =
+      snode_of_dhpat(
+        ~parenthesize=precedence_dhpat(dp2) >= precedence_Cons,
+        ~steps=steps @ [1],
+        dp2,
+      );
+    snode_of_BinOp(~err_status, ~steps, sp1, string_of_op_pat(Cons), sp2);
+  | Pair(dp1, dp2) =>
+    let sp1 = snode_of_dhpat(~steps=steps @ [0], dp1);
+    let sp2 = snode_of_dhpat(~steps=steps @ [1], dp2);
+    snode_of_BinOp(~err_status, ~steps, sp1, string_of_op_pat(Comma), sp2);
+  | Ap(dp1, dp2) =>
+    let sp1 =
+      snode_of_dhpat(
+        ~parenthesize=precedence_dhpat(dp1) > precedence_Ap,
+        ~steps=steps @ [0],
+        dp1,
+      );
+    let sp2 =
+      snode_of_dhpat(
+        ~parenthesize=precedence_dhpat(dp2) >= precedence_Ap,
+        ~steps=steps @ [1],
+        dp2,
+      );
+    snode_of_SpaceOp(~err_status, ~steps, sp1, sp2);
+  };
+};
+
+let rec snode_of_dhexp =
+        (~parenthesize=false, ~err_status=NotInHole, ~steps=[], d: DHExp.t)
+        : snode => {
+  let mb_par = maybe_parenthesize(parenthesize);
+  switch (d) {
+  | EmptyHole(u, i, sigma) =>
+    /* TODO add SHOW_SIGMAS flag */
+    mk_SBox(
+      ~steps,
+      ~shape=EmptyHoleInstance(u, i, Some(sigma)),
+      [mb_par([SToken(SEmptyHole(hole_label_of(u, i)))])],
+    )
+  | NonEmptyHole(reason, u, i, sigma, d1) =>
+    let s1 =
+      snode_of_dhexp(~err_status=InHole(reason, u), ~steps=steps @ [0], d1);
+    /* TODO add SHOW_SIGMAS flag */
+    mk_SBox(
+      ~steps,
+      ~shape=NonEmptyHoleInstance(reason, u, i, Some(sigma)),
+      [mb_par([SNode(s1)])],
+    );
+  | Triv => snode_of_Triv(~err_status, ~steps)
+  | BoolLit(b) => snode_of_BoolLit(~err_status, ~steps, b)
+  | NumLit(n) => snode_of_NumLit(~err_status, ~steps, n)
+  | ListNil(_) => snode_of_ListNil(~err_status, ~steps, ())
+  | BoundVar(x) =>
+    snode_of_Var(~err_status, ~var_err_status=NotInVHole, ~steps, x)
+  | FreeVar(u, _, _, x) =>
+    snode_of_Var(~err_status, ~var_err_status=InVHole(Free, u), ~steps, x)
+  | Keyword(u, _, _, k) =>
+    snode_of_Var(
+      ~err_status,
+      ~var_err_status=InVHole(Keyword(k), u),
+      ~steps,
+      Var.of_keyword(k),
+    )
+  | Let(dp, ddef, dbody) =>
+    let sp = snode_of_dhpat(~steps=steps @ [0], dp);
+    let sdef = snode_of_dhexp(~steps=steps @ [1], ddef);
+    let sbody = snode_of_dhexp(~steps=steps @ [2], dbody);
+    snode_of_Let(~err_status, ~steps, sp, sdef, sbody);
+  | FixF(x, ty, dbody) =>
+    let sx =
+      snode_of_Var(
+        ~err_status=NotInHole,
+        ~var_err_status=NotInVHole,
+        ~steps=steps @ [0],
+        x,
+      );
+    let sty = snode_of_htyp(~steps=steps @ [1], ty);
+    let sbody = snode_of_dhexp(~steps=steps @ [2], dbody);
+    snode_of_FixF(~err_status, ~steps, sx, sty, sbody);
+  | Lam(darg, dann, dbody) =>
+    let sarg = snode_of_dhpat(~steps=steps @ [0], darg);
+    let sann = snode_of_htyp(~steps=steps @ [1], dann);
+    let sbody = snode_of_dhexp(~steps=steps @ [2], dbody);
+    snode_of_Lam(~err_status, ~steps, sarg, Some(sann), sbody);
+  | Inj(ty, side, dbody) =>
+    let sty = snode_of_htyp(~steps=steps @ [0], ty);
+    let sbody = snode_of_dhexp(~steps=steps @ [1], dbody);
+    snode_of_InjAnn(~err_status, ~steps, sty, side, sbody);
+  | Case(dscrut, drules, _) =>
+    /* TODO: probably need to do something with current rule */
+    /* | Case(d1, (x, d2), (y, d3)) => */
+    let sscrut = snode_of_dhexp(~steps=steps @ [0], dscrut);
+    let srules =
+      drules
+      |> List.mapi((i, drule) =>
+           snode_of_drule(~steps=steps @ [i + 1], drule)
+         );
+    snode_of_Case(~err_status, ~steps, sscrut, srules, None);
+  | BinNumOp(dop, d1, d2) =>
+    let sop = string_of_op_exp(DHExp.to_op(dop));
+    let s1 =
+      snode_of_dhexp(
+        ~parenthesize=precedence_dhexp(d1) > precedence_dhexp(d),
+        ~steps=steps @ [0],
+        d1,
+      );
+    let s2 =
+      snode_of_dhexp(
+        ~parenthesize=precedence_dhexp(d2) >= precedence_dhexp(d),
+        ~steps=steps @ [1],
+        d2,
+      );
+    snode_of_BinOp(~err_status, ~steps, s1, sop, s2);
+  | Ap(d1, d2) =>
+    let s1 =
+      snode_of_dhexp(
+        ~parenthesize=precedence_dhexp(d1) > precedence_Ap,
+        ~steps=steps @ [0],
+        d1,
+      );
+    let s2 =
+      snode_of_dhexp(
+        ~parenthesize=precedence_dhexp(d2) >= precedence_Ap,
+        ~steps=steps @ [1],
+        d2,
+      );
+    snode_of_SpaceOp(~err_status, ~steps, s1, s2);
+  | Pair(d1, d2) =>
+    let s1 = snode_of_dhexp(~steps=steps @ [0], d1);
+    let s2 = snode_of_dhexp(~steps=steps @ [1], d2);
+    snode_of_BinOp(~err_status, ~steps, s1, string_of_op_exp(Comma), s2);
+  | Cons(d1, d2) =>
+    let s1 = snode_of_dhexp(~steps=steps @ [0], d1);
+    let s2 = snode_of_dhexp(~steps=steps @ [1], d2);
+    snode_of_BinOp(~err_status, ~steps, s1, string_of_op_exp(Cons), s2);
+  | Cast(Cast(d1, ty1, ty2), ty2', ty3) when HTyp.eq(ty2, ty2') =>
+    let s1 =
+      snode_of_dhexp(
+        ~parenthesize=precedence_dhexp(d1) > precedence_const,
+        ~steps,
+        d1,
+      );
+    let sty1 = snode_of_htyp(~steps=steps @ [0, 1], ty1);
+    let sty2 = snode_of_htyp(~steps=steps @ [0, 2], ty2);
+    let sty3 = snode_of_htyp(~steps=steps @ [2], ty3);
+    mk_SBox(
+      ~err_status,
+      ~steps,
+      ~shape=Cast,
+      _SHOW_CASTS
+        ? [
+          [
+            SNode(s1),
+            SToken(mk_SDelim("<")),
+            SNode(sty1),
+            SToken(SCastArrow),
+            SNode(sty2),
+            SToken(SCastArrow),
+            SNode(sty3),
+            SToken(mk_SDelim(">")),
+          ],
+        ]
+        : [[SNode(s1)]],
+    );
+  | Cast(d1, ty1, ty2) =>
+    let s1 =
+      snode_of_dhexp(
+        ~parenthesize=precedence_dhexp(d1) > precedence_const,
+        ~steps=steps @ [0],
+        d1,
+      );
+    let sty1 = snode_of_htyp(~steps=steps @ [1], ty1);
+    let sty2 = snode_of_htyp(~steps=steps @ [2], ty2);
+    mk_SBox(
+      ~err_status,
+      ~steps,
+      ~shape=Cast,
+      _SHOW_CASTS
+        ? [
+          [
+            SNode(s1),
+            SToken(mk_SDelim("<")),
+            SNode(sty1),
+            SToken(SCastArrow),
+            SNode(sty2),
+            SToken(mk_SDelim(">")),
+          ],
+        ]
+        : [[SNode(s1)]],
+    );
+  | FailedCast(Cast(d1, ty1, ty2), ty2', ty3) when HTyp.eq(ty2, ty2') =>
+    let s1 =
+      snode_of_dhexp(
+        ~parenthesize=precedence_dhexp(d1) > precedence_const,
+        ~steps,
+        d1,
+      );
+    let sty1 = snode_of_htyp(~steps=steps @ [0, 1], ty1);
+    let sty2 = snode_of_htyp(~steps=steps @ [0, 2], ty2);
+    let sty3 = snode_of_htyp(~steps=steps @ [2], ty3);
+    mk_SBox(
+      ~err_status,
+      ~steps,
+      ~shape=FailedCast,
+      [
+        [
+          SNode(s1),
+          SToken(mk_SDelim("<")),
+          SNode(sty1),
+          SToken(SFailedCastArrow),
+          SNode(sty2),
+          SToken(SFailedCastArrow),
+          SNode(sty3),
+          SToken(mk_SDelim(">")),
+        ],
+      ],
+    );
+  | FailedCast(d1, ty1, ty2) =>
+    let s1 =
+      snode_of_dhexp(
+        ~parenthesize=precedence_dhexp(d1) > precedence_const,
+        ~steps=steps @ [0],
+        d1,
+      );
+    let sty1 = snode_of_htyp(~steps=steps @ [1], ty1);
+    let sty2 = snode_of_htyp(~steps=steps @ [2], ty2);
+    mk_SBox(
+      ~err_status,
+      ~steps,
+      ~shape=FailedCast,
+      [
+        [
+          SNode(s1),
+          SToken(mk_SDelim("<")),
+          SNode(sty1),
+          SToken(SFailedCastArrow),
+          SNode(sty2),
+          SToken(mk_SDelim(">")),
+        ],
+      ],
+    );
+  };
+}
+and snode_of_drule = (~steps, Rule(dp, dclause): DHExp.rule): snode => {
+  let sp = snode_of_dhpat(~steps=steps @ [0], dp);
+  let sclause = snode_of_dhexp(~steps=steps @ [1], dclause);
+  snode_of_Rule(~steps, sp, sclause);
+};
+
+let view_of_dhexp =
+    (~inject: Update.Action.t => Vdom.Event.t, model: MyModel.t): Vdom.Node.t => {
+  let (d, _, _) = model.result;
+  of_snode(~inject, snode_of_dhexp(d));
 };

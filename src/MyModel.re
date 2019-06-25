@@ -4,10 +4,17 @@ type result = (
   Dynamics.DHExp.HoleInstanceInfo.t,
   Dynamics.Evaluator.result,
 );
+module UserSelectedInstances = {
+  type t = MetaVarMap.t(Dynamics.inst_num);
+  let init = MetaVarMap.empty;
+  let update = (usi, inst) => MetaVarMap.insert_or_update(usi, inst);
+};
 type t = {
   edit_state,
   cursor_info: CursorInfo.t,
   result,
+  user_selected_instances: UserSelectedInstances.t,
+  selected_instance: option((MetaVar.t, Dynamics.inst_num)),
   left_sidebar_open: bool,
   right_sidebar_open: bool,
   selected_example: option(UHExp.block),
@@ -69,7 +76,13 @@ let result_of_edit_state = ((zblock, _, _): edit_state): result => {
 
 let update_edit_state = (model: t, new_edit_state): t => {
   let new_result = result_of_edit_state(new_edit_state);
-  {...model, edit_state: new_edit_state, result: new_result};
+  let new_cursor_info = cursor_info_of_edit_state(new_edit_state);
+  {
+    ...model,
+    edit_state: new_edit_state,
+    cursor_info: new_cursor_info,
+    result: new_result,
+  };
 };
 
 let init = (): t => {
@@ -80,6 +93,8 @@ let init = (): t => {
     edit_state,
     cursor_info: cursor_info_of_edit_state(edit_state),
     result: result_of_edit_state(edit_state),
+    user_selected_instances: UserSelectedInstances.init,
+    selected_instance: None,
     left_sidebar_open: false,
     right_sidebar_open: true,
     selected_example: None,
@@ -99,6 +114,24 @@ let perform_edit_action = (model: t, a: Action.t): t =>
   | CursorEscaped(_) => raise(InvalidAction)
   | Succeeded(new_edit_state) => update_edit_state(model, new_edit_state)
   };
+
+let select_hole_instance = (model: t, u: MetaVar.t, i: Dynamics.inst_num): t => {
+  let model = {
+    ...model,
+    user_selected_instances:
+      UserSelectedInstances.update(model.user_selected_instances, (u, i)),
+    selected_instance: Some((u, i)),
+  };
+  let (zblock, _, _) = model.edit_state;
+  switch (
+    Path.path_to_hole(Path.holes_block(ZExp.erase_block(zblock), [], []), u)
+  ) {
+  | None =>
+    JSUtil.log("Path not found!");
+    model;
+  | Some(hole_path) => perform_edit_action(model, Action.MoveTo(hole_path))
+  };
+};
 
 let toggle_left_sidebar = (model: t): t => {
   ...model,

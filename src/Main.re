@@ -4,5 +4,5 @@ let () =
   Start_app.start(
     (module Hazel),
     ~bind_to_element_with_id="container",
-    ~initial_model=Model.init(),
+    ~initial_model=MyModel.init(),
   );
