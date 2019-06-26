@@ -704,10 +704,6 @@ button:disabled {
   margin-bottom: 10px;
 }
 
-.SDoc {
-  font-family: "Fira Mono", monospace;
-}
-
 .code {
   font-family: "Fira Mono", monospace;
 }
@@ -720,7 +716,7 @@ button:disabled {
   font-weight: bold;
 }
 
-.SDelim, .SEmptyHole {
+.SDelim, .SOp, .SEmptyHole {
   display: flex;
   flex-direction: row;
 }
@@ -734,6 +730,7 @@ button:disabled {
 }
 
 .snode {
+  font-family: "Fira Mono", monospace;
   width: max-content;
   display: flex;
   flex-direction: row;
