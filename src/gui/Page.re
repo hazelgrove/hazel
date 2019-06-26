@@ -1,13 +1,12 @@
+module Js = Js_of_ocaml.Js;
 module Vdom = Virtual_dom.Vdom;
 
 let examples_select = (~inject: Update.Action.t => Vdom.Event.t) =>
   Vdom.(
     Node.select(
       [
-        Attr.on_change((_ev, _) =>
-          inject(
-            Update.Action.LoadExample("" /* TODO ev##.target##.value */),
-          )
+        Attr.on_change((_, example_id) =>
+          inject(Update.Action.LoadExample(example_id))
         ),
       ],
       [
