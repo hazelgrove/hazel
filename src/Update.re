@@ -1,6 +1,8 @@
 module EditAction = Action;
+open Sexplib.Std;
 
 module Action = {
+  [@deriving sexp]
   type t =
     | EditAction(EditAction.t)
     | ToggleLeftSidebar

@@ -1,4 +1,3 @@
-open Js_of_ocaml;
 open Incr_dom;
 let () =
   Start_app.start(

@@ -2,8 +2,9 @@ let _TEST_PERFORM = false;
 open SemanticsCommon;
 open GeneralUtil;
 open OpSeqUtil;
+open Sexplib.Std;
 
-[@deriving show({with_path: false})]
+[@deriving (show({with_path: false}), sexp)]
 type op_shape =
   | SPlus
   | STimes
@@ -74,7 +75,7 @@ let op_shape_of_exp_op = (op: UHExp.op): op_shape =>
   | Cons => SCons
   };
 
-[@deriving show({with_path: false})]
+[@deriving (show({with_path: false}), sexp)]
 type shape =
   | SParenthesized
   /* type shapes */
@@ -96,7 +97,7 @@ type shape =
   /* pattern-only shapes */
   | SWild;
 
-[@deriving show({with_path: false})]
+[@deriving (show({with_path: false}), sexp)]
 type t =
   | MoveTo(Path.t)
   | MoveToNextHole

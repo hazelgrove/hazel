@@ -1,5 +1,6 @@
 open SemanticsCommon;
 open GeneralUtil;
+open Sexplib.Std;
 
 type hole_sort =
   | ExpressionHole
@@ -12,6 +13,7 @@ module Delta = {
 
 /* hole instance numbers are all 0 after expansion and during evaluation --
  * renumbering is done on the final result (see below) */
+[@deriving sexp]
 type inst_num = int;
 
 module DHPat = {

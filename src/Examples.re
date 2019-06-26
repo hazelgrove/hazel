@@ -1,5 +1,6 @@
 module StringMap = Map.Make(String);
 open OpSeqUtil;
+open Sexplib.Std;
 
 let just_hole: UHExp.block = UHExp.wrap_in_block(EmptyHole(0));
 
@@ -312,6 +313,7 @@ let qsort_example: UHExp.block = {
   );
 };
 
+[@deriving sexp]
 type id = string;
 let examples =
   StringMap.(
