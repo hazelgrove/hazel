@@ -47,7 +47,7 @@ let page_view =
             Sidebar.left(
               ~inject,
               false,
-              [] /* TODO the_action_panel*/ /*, the_history_panel*/,
+              [MyActionPanel.view(~inject, model)] /*the_history_panel*/,
             ),
             Node.div(
               [Attr.classes(["flex-wrapper"])],
