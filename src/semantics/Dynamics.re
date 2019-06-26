@@ -1581,9 +1581,6 @@ module DHExp = {
     | ListNil
     | Triv => (dp, hii)
     | EmptyHole(u, _) =>
-      /* TODO: Pattern holes don't need environments. Maybe this calls
-       * for a refactoring of types to reflect this, e.g., a separate
-       * PatHoleInstance type. Passing in an empty environment for now. */
       let sigma = Environment.empty;
       let (i, hii) = HoleInstanceInfo.next(hii, u, sigma, path);
       (EmptyHole(u, i), hii);

@@ -1148,7 +1148,7 @@ and holes_ze = (ze: ZExp.t, steps: steps): zhole_list =>
     ) =>
     /* invalid cursor position */
     no_holes
-  | CursorE(_, ApPalette(_, _, _, _)) => no_holes /* TODO */
+  | CursorE(_, ApPalette(_, _, _, _)) => no_holes /* TODO[livelits] */
   | OpSeqZ(_, ze0, surround) =>
     holes_OpSeqZ(holes_exp, holes_ze, ze0, surround, steps)
   | ParenthesizedZ(zblock) => holes_zblock(zblock, [0, ...steps])

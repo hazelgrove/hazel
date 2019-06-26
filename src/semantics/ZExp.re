@@ -79,7 +79,7 @@ let valid_cursors_exp = (e: UHExp.t): list(cursor_position) =>
     |> List.map(k => k + 1)
     |> List.map(k => delim_cursors_k(k))
     |> List.flatten
-  | ApPalette(_, _, _, _) => delim_cursors(1) /* TODO */
+  | ApPalette(_, _, _, _) => delim_cursors(1) /* TODO[livelits] */
   };
 let valid_cursors_rule = (_: UHExp.rule): list(cursor_position) =>
   delim_cursors(2);
@@ -158,7 +158,7 @@ and is_before_exp = (ze: t): bool =>
   | CursorE(cursor, Case(_, _, _, _))
   | CursorE(cursor, Parenthesized(_)) => cursor == OnDelim(0, Before)
   | CursorE(_, OpSeq(_, _)) => false
-  | CursorE(cursor, ApPalette(_, _, _, _)) => cursor == OnDelim(0, Before) /* TODO */
+  | CursorE(cursor, ApPalette(_, _, _, _)) => cursor == OnDelim(0, Before) /* TODO[livelits] */
   /* zipper cases */
   | ParenthesizedZ(_) => false
   | OpSeqZ(_, ze1, EmptyPrefix(_)) => is_before_exp(ze1)
@@ -208,7 +208,7 @@ and is_after_exp = (ze: t): bool =>
   | CursorE(cursor, Inj(_, _, _)) => cursor == OnDelim(1, After)
   | CursorE(cursor, Parenthesized(_)) => cursor == OnDelim(1, After)
   | CursorE(_, OpSeq(_, _)) => false
-  | CursorE(_, ApPalette(_, _, _, _)) => false /* TODO */
+  | CursorE(_, ApPalette(_, _, _, _)) => false /* TODO[livelits] */
   /* zipper cases */
   | ParenthesizedZ(_) => false
   | OpSeqZ(_, ze1, EmptySuffix(_)) => is_after_exp(ze1)
@@ -261,7 +261,7 @@ and place_before_exp = (e: UHExp.t): t =>
     let ze1 = place_before_exp(e1);
     let surround = OperatorSeq.EmptyPrefix(suffix);
     OpSeqZ(skel, ze1, surround);
-  | ApPalette(_, _, _, _) => CursorE(OnDelim(0, Before), e) /* TODO */
+  | ApPalette(_, _, _, _) => CursorE(OnDelim(0, Before), e) /* TODO[livelits] */
   };
 let place_before_lines = (lines: UHExp.lines): option(zlines) =>
   switch (lines) {
@@ -301,7 +301,7 @@ and place_after_exp = (e: UHExp.t): t =>
     let ze1 = place_after_exp(e1);
     let surround = OperatorSeq.EmptySuffix(prefix);
     OpSeqZ(skel, ze1, surround);
-  | ApPalette(_, _, _, _) => CursorE(OnDelim(0, After), e) /* TODO */
+  | ApPalette(_, _, _, _) => CursorE(OnDelim(0, After), e) /* TODO[livelits] */
   };
 let place_after_lines = (lines: UHExp.lines): option(zlines) =>
   switch (split_last(lines)) {
@@ -611,7 +611,7 @@ and cursor_on_opseq_exp = (ze: t): bool =>
   | CaseZE(_, zblock, _, _) => cursor_on_opseq_block(zblock)
   | CaseZR(_, _, zrules, _) => cursor_on_opseq_rules(zrules)
   | CaseZA(_, _, _, zann) => ZTyp.cursor_on_opseq(zann)
-  | ApPaletteZ(_, _, _, _) => false /* TODO */
+  | ApPaletteZ(_, _, _, _) => false /* TODO[livelits] */
   }
 and cursor_on_opseq_rules = ((_, zrule, _): zrules): bool =>
   switch (zrule) {
@@ -694,7 +694,7 @@ let node_positions_exp = (e: UHExp.t): list(node_position) =>
            },
          [],
        )
-  | ApPalette(_, _, _, _) => [] /* TODO */
+  | ApPalette(_, _, _, _) => [] /* TODO[livelits] */
   };
 
 let node_position_of_zline = (zline: zline): option(node_position) =>
@@ -719,7 +719,7 @@ let node_position_of_t = (ze: t): node_position =>
   | CaseZE(_, _, _, _) => Deeper(0)
   | CaseZR(_, _, (prefix, _, _), _) => Deeper(List.length(prefix) + 1)
   | CaseZA(_, _, rules, _) => Deeper(List.length(rules) + 1)
-  | ApPaletteZ(_, _, _, _) => Deeper(0) /* TODO */
+  | ApPaletteZ(_, _, _, _) => Deeper(0) /* TODO[livelits] */
   };
 
 let rec cursor_node_type_zblock = (zblock: zblock): node_type =>
@@ -765,7 +765,7 @@ and cursor_node_type_t = (ze: t): node_type =>
   | CaseZE(_, zblock, _, _) => cursor_node_type_zblock(zblock)
   | CaseZR(_, _, (_, zrule, _), _) => cursor_node_type_rule(zrule)
   | CaseZA(_, _, _, zann) => ZTyp.cursor_node_type(zann)
-  | ApPaletteZ(_, _, _, _) => Inner /* TODO */
+  | ApPaletteZ(_, _, _, _) => Inner /* TODO[livelits] */
   }
 and cursor_node_type_rule = (zrule: zrule): node_type =>
   switch (zrule) {
