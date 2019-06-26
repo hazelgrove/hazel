@@ -8,6 +8,7 @@
   --title-bar-color: #073f24;
   --delim-cushion: 8px;
   --indent-length: 24px;
+  --space-length: 8px;
 }
 
 /* general */
@@ -715,8 +716,21 @@ button:disabled {
   font-size: 125%;
 }
 
-.kw, .lambda-sym {
+.SDelim-txt {
   font-weight: bold;
+}
+
+.SDelim, .SEmptyHole {
+  display: flex;
+  flex-direction: row;
+}
+.SDelim-before,
+.SDelim-after,
+.SOp-before,
+.SOp-after,
+.SEmptyHole-before,
+.SEmptyHole-after {
+  padding-left: 1px;
 }
 
 .snode {
@@ -736,8 +750,20 @@ button:disabled {
 .snode.multi-line > .indent.sline {
   padding-left: var(--indent-length);
 }
-.snode.EmptyHole {
-  display: initial;
+
+.sline > .SDelim {
+  margin-left: var(--space-length);
+  margin-right: var(--space-length);
+}
+.snode > .sline:first-child > .SDelim:first-child,
+.snode.multi-line > .sline > .SDelim:first-child {
+  margin-left: 0;
+  margin-right: var(--space-length);
+}
+.snode > .sline:last-child > .SDelim:last-child,
+.snode.multi-line > .sline > .SDelim:last-child {
+  margin-left: var(--space-length);
+  margin-right: 0;
 }
 
 .var {
