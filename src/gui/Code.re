@@ -1739,10 +1739,8 @@ and snode_of_drule = (~steps, Rule(dp, dclause): DHExp.rule): snode => {
 };
 
 let view_of_htyp =
-    (~inject: Update.Action.t => Vdom.Event.t, model: MyModel.t): Vdom.Node.t => {
-  let (_, ty, _) = model.edit_state;
+    (~inject: Update.Action.t => Vdom.Event.t, ty: HTyp.t): Vdom.Node.t =>
   of_snode(~inject, snode_of_htyp(ty));
-};
 
 let view_of_result =
     (~inject: Update.Action.t => Vdom.Event.t, model: MyModel.t): Vdom.Node.t =>

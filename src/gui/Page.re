@@ -88,7 +88,12 @@ let page_view =
                                 ),
                                 Node.div(
                                   [Attr.classes(["htype-view"])],
-                                  [Code.view_of_htyp(~inject, model)],
+                                  [
+                                    {
+                                      let (_, ty, _) = model.edit_state;
+                                      Code.view_of_htyp(~inject, ty);
+                                    },
+                                  ],
                                 ),
                               ],
                             ),
@@ -108,7 +113,7 @@ let page_view =
             Sidebar.right(
               ~inject,
               true,
-              [] /* TODO the_cursor_inspector_panel, the_context_inspector_panel */,
+              [MyCursorInspector.view(~inject, model)] /* TODO the_context_inspector_panel */,
             ),
           ],
         ),
