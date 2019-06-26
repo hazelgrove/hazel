@@ -716,10 +716,13 @@ button:disabled {
   font-weight: bold;
 }
 
+/* need this to ensure caret positions
+ * appear to left and right of token */
 .SDelim, .SOp, .SEmptyHole {
   display: flex;
   flex-direction: row;
 }
+/* need this to ensure caret position is visible */
 .SDelim-before,
 .SDelim-after,
 .SOp-before,

@@ -31,6 +31,11 @@ let view =
     Node.div(
       [
         Attr.create("contenteditable", "true"),
+        Attr.on("drop", _ => Event.Prevent_default),
+        Attr.on_keypress(evt =>
+          JSUtil.is_movement_key(evt)
+            ? Event.Many([]) : Event.Prevent_default
+        ),
         Attr.on_keydown(evt =>
           switch (JSUtil.is_single_key(evt)) {
           | Some(single_key) =>
@@ -201,11 +206,6 @@ let view =
             };
           }
         ),
-        Attr.on_keypress(evt =>
-          JSUtil.is_movement_key(evt)
-            ? Event.Many([]) : Event.Prevent_default
-        ),
-        Attr.on("drop", _ => Event.Prevent_default),
       ],
       [Code.view_of_zblock(~inject, model)],
     )
