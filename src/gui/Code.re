@@ -209,7 +209,8 @@ let snode_attrs =
         ),
       ]
     | SBox(steps, cursor, is_multi_line, _err_status, shape, _) =>
-      let base_clss = cursor_clss(cursor) @ multi_line_clss(is_multi_line);
+      let base_clss =
+        ["snode"] @ cursor_clss(cursor) @ multi_line_clss(is_multi_line);
       let shape_attrs =
         switch (shape) {
         | Block => [Attr.classes(["Block", ...base_clss])]

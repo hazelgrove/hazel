@@ -719,29 +719,24 @@ button:disabled {
   font-weight: bold;
 }
 
-.node {
+.snode {
   width: max-content;
-}
-.outer.node {
-  display: initial;
-}
-.inner.node {
   display: flex;
   flex-direction: row;
 }
-.inner.node.multi-line {
+.snode.multi-line {
   display: flex;
   flex-direction: column;
   align-items: stretch;
 }
-.line {
+.sline {
   display: flex;
   flex-direction: row;
 }
-.node.multi-line > .indent.line {
+.snode.multi-line > .indent.sline {
   padding-left: var(--indent-length);
 }
-.node.EmptyHole {
+.snode.EmptyHole {
   display: initial;
 }
 
