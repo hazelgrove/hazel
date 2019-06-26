@@ -113,7 +113,10 @@ let page_view =
             Sidebar.right(
               ~inject,
               true,
-              [MyCursorInspector.view(~inject, model)] /* TODO the_context_inspector_panel */,
+              [
+                MyCursorInspector.view(~inject, model),
+                MyContextInspector.view(~inject, model),
+              ],
             ),
           ],
         ),

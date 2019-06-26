@@ -238,7 +238,12 @@ let snode_attrs =
               "selected-instance",
               ...base_clss,
             ]),
-            Attr.on_click(_ => inject(SelectHoleInstance(u, i))),
+            Attr.on_click(_ =>
+              Event.Many([
+                inject(SelectHoleInstance(u, i)),
+                inject(MoveToHole(u)),
+              ])
+            ),
           ]
         | NonEmptyHoleInstance(_reason, _u, _i, _sigma) => [
             Attr.classes(["NonEmptyHoleInstance", ...base_clss]),
@@ -1742,6 +1747,8 @@ let view_of_htyp =
     (~inject: Update.Action.t => Vdom.Event.t, ty: HTyp.t): Vdom.Node.t =>
   of_snode(~inject, snode_of_htyp(ty));
 
+let view_of_dhexp = (~inject, d) => of_snode(~inject, snode_of_dhexp(d));
+
 let view_of_result =
     (~inject: Update.Action.t => Vdom.Event.t, model: MyModel.t): Vdom.Node.t =>
   switch (model.result) {
@@ -1755,6 +1762,19 @@ let view_of_result =
       ],
     )
   | (_, _, BoxedValue(d))
-  | (_, _, Indet(d)) =>
-    Vdom.Node.div([], [of_snode(~inject, snode_of_dhexp(d))])
+  | (_, _, Indet(d)) => Vdom.Node.div([], [view_of_dhexp(~inject, d)])
   };
+
+let view_of_hole_instance =
+    (~inject: Update.Action.t => Vdom.Event.t, (u, i): DHExp.HoleInstance.t) =>
+  view_of_dhexp(~inject, EmptyHole(u, i, []));
+
+let view_of_Var =
+    (
+      ~inject,
+      ~err_status=NotInHole,
+      ~var_err_status=NotInVHole,
+      ~steps=[],
+      x: Var.t,
+    ) =>
+  of_snode(~inject, snode_of_Var(~err_status, ~var_err_status, ~steps, x));

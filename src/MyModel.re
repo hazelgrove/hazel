@@ -9,6 +9,10 @@ module UserSelectedInstances = {
   let init = MetaVarMap.empty;
   let update = (usi, inst) => MetaVarMap.insert_or_update(usi, inst);
 };
+type context_inspector = {
+  next_state: option(Dynamics.DHExp.HoleInstance.t),
+  prev_state: option(Dynamics.DHExp.HoleInstance.t),
+};
 type t = {
   edit_state,
   cursor_info: CursorInfo.t,
@@ -18,6 +22,7 @@ type t = {
   left_sidebar_open: bool,
   right_sidebar_open: bool,
   selected_example: option(UHExp.block),
+  context_inspector,
 };
 
 let cutoff = (model1, model2) => {
@@ -98,6 +103,10 @@ let init = (): t => {
     left_sidebar_open: false,
     right_sidebar_open: true,
     selected_example: None,
+    context_inspector: {
+      next_state: None,
+      prev_state: None,
+    },
   };
 };
 
@@ -115,13 +124,7 @@ let perform_edit_action = (model: t, a: Action.t): t =>
   | Succeeded(new_edit_state) => update_edit_state(model, new_edit_state)
   };
 
-let select_hole_instance = (model: t, u: MetaVar.t, i: Dynamics.inst_num): t => {
-  let model = {
-    ...model,
-    user_selected_instances:
-      UserSelectedInstances.update(model.user_selected_instances, (u, i)),
-    selected_instance: Some((u, i)),
-  };
+let move_to_hole = (model: t, u: MetaVar.t): t => {
   let (zblock, _, _) = model.edit_state;
   switch (
     Path.path_to_hole(Path.holes_block(ZExp.erase_block(zblock), [], []), u)
@@ -130,6 +133,23 @@ let select_hole_instance = (model: t, u: MetaVar.t, i: Dynamics.inst_num): t => 
     JSUtil.log("Path not found!");
     model;
   | Some(hole_path) => perform_edit_action(model, Action.MoveTo(hole_path))
+  };
+};
+
+let select_hole_instance =
+    (model: t, (u, i) as inst: (MetaVar.t, Dynamics.inst_num)): t => {
+  let (_, hii, _) = model.result;
+  {
+    ...model,
+    user_selected_instances:
+      UserSelectedInstances.update(model.user_selected_instances, inst),
+    selected_instance: Some(inst),
+    context_inspector: {
+      prev_state: i > 0 ? Some((u, i - 1)) : None,
+      next_state:
+        i < Dynamics.DHExp.HoleInstanceInfo.num_instances(hii, u) - 1
+          ? Some((u, i + 1)) : None,
+    },
   };
 };
 
