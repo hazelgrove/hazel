@@ -26,7 +26,7 @@ let examples_select = (~inject: Update.Action.t => Vdom.Event.t) =>
   );
 
 let page_view =
-    (~inject: Update.Action.t => Vdom.Event.t, model: MyModel.t): Vdom.Node.t => {
+    (~inject: Update.Action.t => Vdom.Event.t, model: Model.t): Vdom.Node.t => {
   Vdom.(
     Node.div(
       [Attr.id("root")],
@@ -46,7 +46,7 @@ let page_view =
             Sidebar.left(
               ~inject,
               false,
-              [MyActionPanel.view(~inject, model)] /*the_history_panel*/,
+              [ActionPanel.view(~inject, model)] /*the_history_panel*/,
             ),
             Node.div(
               [Attr.classes(["flex-wrapper"])],
@@ -114,8 +114,8 @@ let page_view =
               ~inject,
               true,
               [
-                MyCursorInspector.view(~inject, model),
-                MyContextInspector.view(~inject, model),
+                CursorInspector.view(~inject, model),
+                ContextInspector.view(~inject, model),
               ],
             ),
           ],
@@ -127,5 +127,5 @@ let page_view =
 
 [@warning "-27"]
 let view =
-    (~inject: Update.Action.t => Vdom.Event.t, model: MyModel.t): Vdom.Node.t =>
+    (~inject: Update.Action.t => Vdom.Event.t, model: Model.t): Vdom.Node.t =>
   page_view(~inject, model);

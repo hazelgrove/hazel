@@ -13,13 +13,13 @@ module Action = {
 
 [@warning "-27"]
 let apply_action =
-    (model: MyModel.t, action: Action.t, _, ~schedule_action): MyModel.t =>
+    (model: Model.t, action: Action.t, _, ~schedule_action): Model.t =>
   switch (action) {
-  | EditAction(a) => MyModel.perform_edit_action(model, a)
-  | ToggleLeftSidebar => MyModel.toggle_left_sidebar(model)
-  | ToggleRightSidebar => MyModel.toggle_right_sidebar(model)
-  | LoadExample(id) => MyModel.load_example(model, Examples.get(id))
-  | SelectHoleInstance(u, i) => MyModel.select_hole_instance(model, (u, i))
+  | EditAction(a) => Model.perform_edit_action(model, a)
+  | ToggleLeftSidebar => Model.toggle_left_sidebar(model)
+  | ToggleRightSidebar => Model.toggle_right_sidebar(model)
+  | LoadExample(id) => Model.load_example(model, Examples.get(id))
+  | SelectHoleInstance(u, i) => Model.select_hole_instance(model, (u, i))
   | InvalidVar(x) => model
-  | MoveToHole(u) => MyModel.move_to_hole(model, u)
+  | MoveToHole(u) => Model.move_to_hole(model, u)
   };

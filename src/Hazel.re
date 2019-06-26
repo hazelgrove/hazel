@@ -6,7 +6,7 @@ open SemanticsCommon;
 
 // https://github.com/janestreet/incr_dom/blob/master/src/app_intf.ml
 
-module Model = MyModel;
+module Model = Model;
 module Action = Update.Action;
 module State = {
   type t = unit;
@@ -53,7 +53,7 @@ let create = (model, ~old_model, ~inject) => {
 
   Component.create(
     ~apply_action=Update.apply_action(model),
-    ~on_display=set_caret(MyModel.get_path(model)),
+    ~on_display=set_caret(Model.get_path(model)),
     model,
     Page.view(~inject, model),
   );

@@ -6,7 +6,7 @@ type err_state_b =
   | OK;
 
 let view =
-    (~inject: Update.Action.t => Vdom.Event.t, model: MyModel.t): Vdom.Node.t => {
+    (~inject: Update.Action.t => Vdom.Event.t, model: Model.t): Vdom.Node.t => {
   let typebar = ty =>
     Vdom.(
       Node.div(

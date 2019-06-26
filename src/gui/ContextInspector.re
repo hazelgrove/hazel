@@ -4,7 +4,7 @@ module KCs = JSUtil.KeyCombos;
 
 exception InvalidInstance;
 let view =
-    (~inject: Update.Action.t => Vdom.Event.t, model: MyModel.t): Vdom.Node.t => {
+    (~inject: Update.Action.t => Vdom.Event.t, model: Model.t): Vdom.Node.t => {
   let static_info = ((x, ty)) => {
     Vdom.(
       Node.div(

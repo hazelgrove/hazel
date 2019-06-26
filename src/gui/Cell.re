@@ -26,7 +26,7 @@ let string_delete = (s, offset, ctrlKey) => {
 };
 
 let view =
-    (~inject: Update.Action.t => Vdom.Event.t, model: MyModel.t): Vdom.Node.t => {
+    (~inject: Update.Action.t => Vdom.Event.t, model: Model.t): Vdom.Node.t => {
   Vdom.(
     Node.div(
       [

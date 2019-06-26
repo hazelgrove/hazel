@@ -1,9 +1,9 @@
-open Js_of_ocaml_tyxml.Tyxml_js;
 module Dom_html = Js_of_ocaml.Dom_html;
 module Dom = Js_of_ocaml.Dom;
 module Js = Js_of_ocaml.Js;
+module Vdom = Virtual_dom.Vdom;
 
-type div_type = Html5.elt(Html_types.div);
+type div_type = Vdom.Node.t;
 
 module HTMLWithCells = {
   type m_html_with_cells =
@@ -13,7 +13,7 @@ module HTMLWithCells = {
 };
 
 type view_type =
-  | Inline(Html5.elt([ Html_types.span]))
+  | Inline(Vdom.Node.t)
   | MultiLine(HTMLWithCells.m_html_with_cells);
 
 module type PALETTE = {

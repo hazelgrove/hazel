@@ -1,11 +1,8 @@
 module U = GeneralUtil;
-open Js_of_ocaml_tyxml.Tyxml_js;
-open React;
 module Js = Js_of_ocaml.Js;
 module Dom = Js_of_ocaml.Dom;
 module Dom_html = Js_of_ocaml.Dom_html;
 module Ev = Dom_html.Event;
-module PP = Pretty.PP;
 
 let log = x => Js_of_ocaml.Firebug.console##log(x);
 
@@ -63,20 +60,7 @@ let first_leaf = (node: Js.t(Dom.node)): Js.t(Dom.node) => {
   cur^;
 };
 
-let last_leaf = (node: Js.t(Dom.node)): Js.t(Dom.node) => {
-  let cur = ref(node);
-  let found = ref(false);
-  while (! found^) {
-    let cur_node = cur^;
-    switch (Js.Opt.to_option(cur_node##.lastChild)) {
-    | Some(lastChild) => cur := lastChild
-    | None => found := true
-    };
-  };
-  cur^;
-};
-
-let elem_has_cls = (elem: Js.t(Dom_html.element), cls: PP.cls): bool => {
+let elem_has_cls = (elem: Js.t(Dom_html.element), cls: string): bool => {
   let found = ref(false);
   let classList = elem##.classList;
   for (j in 0 to classList##.length - 1) {
@@ -87,7 +71,7 @@ let elem_has_cls = (elem: Js.t(Dom_html.element), cls: PP.cls): bool => {
   found^;
 };
 
-let node_has_cls = (node: Js.t(Dom.node), cls: PP.cls): bool =>
+let node_has_cls = (node: Js.t(Dom.node), cls: string): bool =>
   switch (Js.Opt.to_option(Dom_html.CoerceTo.element(node))) {
   | None => false
   | Some(elem) => elem_has_cls(elem, cls)
@@ -126,49 +110,27 @@ let forceGetElementById = id => {
   );
 };
 
-let r_input = (id, placeholder_str) => {
-  let (rs, rf) = S.create("");
-  let i_elt =
-    Html5.(
-      input(
-        ~a=[
-          a_id(id),
-          a_class(["form-control"]),
-          a_placeholder(placeholder_str),
-        ],
-        (),
-      )
-    );
+/*
+ let r_input = (id, placeholder_str) => {
+   let (rs, rf) = S.create("");
+   let i_elt =
+     Html5.(
+       input(
+         ~a=[
+           a_id(id),
+           a_class(["form-control"]),
+           a_placeholder(placeholder_str),
+         ],
+         (),
+       )
+     );
 
-  let i_dom = To_dom.of_input(i_elt);
-  let _ = listen_to_t(Ev.input, i_dom, _ => rf(Js.to_string(i_dom##.value)));
+   let i_dom = To_dom.of_input(i_elt);
+   let _ = listen_to_t(Ev.input, i_dom, _ => rf(Js.to_string(i_dom##.value)));
 
-  ((rs, rf), i_elt, i_dom);
-};
-
-let r_checkbox = (id, label_str, default_val) => {
-  let (rs, rf) = S.create(default_val);
-  let checkbox_elt_attrs_base =
-    Html5.[a_input_type(`Checkbox), a_id(id), a_class(["r-checkbox"])];
-
-  let checkbox_elt_attrs =
-    if (default_val) {
-      Html5.[a_checked(), ...checkbox_elt_attrs_base];
-    } else {
-      checkbox_elt_attrs_base;
-    };
-  let checkbox_elt = Html5.(input(~a=checkbox_elt_attrs, ()));
-  let label_elt = Html5.(label(~a=[a_label_for(id)], [txt(label_str)]));
-  let control_elt = Html5.(div([checkbox_elt, label_elt]));
-  let checkbox_dom = To_dom.of_input(checkbox_elt);
-  let _ =
-    listen_to_t(Ev.change, checkbox_dom, _ =>
-      rf(Js.to_bool(checkbox_dom##.checked))
-    );
-
-  let control_dom = To_dom.of_div(control_elt);
-  ((rs, rf), control_elt, control_dom);
-};
+   ((rs, rf), i_elt, i_dom);
+ };
+ */
 
 let get_key = (evt: Js.t(Dom_html.keyboardEvent)) =>
   Js.to_string(Js.Optdef.get(evt##.key, () => assert(false)));
@@ -443,10 +405,10 @@ let add_cls_to_all = (cls_to_add, cls_to_add_to) => {
     elt##.classList##add(cls_to_add_j);
   };
 };
-let has_class = (classList: Js.t(Dom_html.tokenList), cls: PP.cls): bool =>
+let has_class = (classList: Js.t(Dom_html.tokenList), cls: string): bool =>
   Js.to_bool(classList##contains(Js.string(cls)));
 let has_class_satisfying =
-    (classList: Js.t(Dom_html.tokenList), pred: PP.cls => option('a))
+    (classList: Js.t(Dom_html.tokenList), pred: string => option('a))
     : option('a) => {
   let satisfied = ref(None);
   for (i in 0 to classList##.length - 1) {

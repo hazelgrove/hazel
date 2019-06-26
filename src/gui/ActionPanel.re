@@ -2,7 +2,7 @@ module Vdom = Virtual_dom.Vdom;
 module KC = JSUtil.KeyCombo;
 module KCs = JSUtil.KeyCombos;
 
-let view = (~inject: Update.Action.t => Vdom.Event.t, model: MyModel.t) => {
+let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
   let edit_state = model.edit_state;
   let cursor_info = model.cursor_info;
 

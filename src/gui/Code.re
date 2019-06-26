@@ -1238,7 +1238,7 @@ and snode_of_zrule = (~steps, zrule) =>
   };
 
 let view_of_zblock =
-    (~inject: Update.Action.t => Vdom.Event.t, model: MyModel.t): Vdom.Node.t => {
+    (~inject: Update.Action.t => Vdom.Event.t, model: Model.t): Vdom.Node.t => {
   let (zblock, _, _) = model.edit_state;
   of_snode(~inject, snode_of_zblock(zblock));
 };
@@ -1750,7 +1750,7 @@ let view_of_htyp =
 let view_of_dhexp = (~inject, d) => of_snode(~inject, snode_of_dhexp(d));
 
 let view_of_result =
-    (~inject: Update.Action.t => Vdom.Event.t, model: MyModel.t): Vdom.Node.t =>
+    (~inject: Update.Action.t => Vdom.Event.t, model: Model.t): Vdom.Node.t =>
   switch (model.result) {
   | (_, _, InvalidInput(_)) =>
     Vdom.Node.div(

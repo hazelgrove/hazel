@@ -1,198 +1,174 @@
 type edit_state = (ZExp.zblock, HTyp.t, MetaVarGen.t);
-let u_gen0: MetaVarGen.t = (MetaVarGen.init: MetaVar.t);
-let (u, u_gen1) = MetaVarGen.next(u_gen0);
-let empty_zblock = ZExp.BlockZE([], ZExp.place_before_exp(EmptyHole(u)));
-let empty: edit_state = ((empty_zblock, Hole, u_gen1): edit_state);
-let empty_erasure = ZExp.erase_block(empty_zblock);
-type edit_state_rs = React.signal(edit_state);
-type code_history_rs = React.signal(CodeHistory.t);
-type e_rs = React.signal(UHExp.block);
-type cursor_info_rs = React.signal(CursorInfo.t);
-open Dynamics;
-type result_rs =
-  React.signal((DHExp.t, DHExp.HoleInstanceInfo.t, Evaluator.result));
-type hole_instance_info_rs = React.signal(DHExp.HoleInstanceInfo.t);
+type result = (
+  Dynamics.DHExp.t,
+  Dynamics.DHExp.HoleInstanceInfo.t,
+  Dynamics.Evaluator.result,
+);
 module UserSelectedInstances = {
-  type t = MetaVarMap.t(inst_num);
-  type rs = React.signal(t);
-  type rf = (~step: React.step=?, MetaVarMap.t(inst_num)) => unit;
+  type t = MetaVarMap.t(Dynamics.inst_num);
+  let init = MetaVarMap.empty;
   let update = (usi, inst) => MetaVarMap.insert_or_update(usi, inst);
 };
-type instance_click_fn = DHExp.HoleInstance.t => unit;
-type user_selected_instances_rs = UserSelectedInstances.rs;
-type user_selected_instances_rf = UserSelectedInstances.rf;
-type selected_instance_rs = React.signal(option(DHExp.HoleInstance.t));
-type selected_instance_rf =
-  (~step: React.step=?, option(DHExp.HoleInstance.t)) => unit;
-type monitors = list(React.signal(unit));
-type do_action_t = Action.t => unit;
-type replace_e = UHExp.block => unit;
-
-exception InvalidAction;
-exception MissingCursorInfo;
-exception DoesNotExpand;
-exception InvalidInput;
-
+type context_inspector = {
+  next_state: option(Dynamics.DHExp.HoleInstance.t),
+  prev_state: option(Dynamics.DHExp.HoleInstance.t),
+};
 type t = {
-  edit_state_rs,
-  code_history_rs,
-  cursor_info_rs,
-  e_rs,
-  result_rs,
-  user_selected_instances_rs,
-  user_selected_instances_rf,
-  selected_instance_rs,
-  selected_instance_rf,
-  monitors,
-  do_action: do_action_t,
-  replace_e,
+  edit_state,
+  cursor_info: CursorInfo.t,
+  result,
+  user_selected_instances: UserSelectedInstances.t,
+  selected_instance: option((MetaVar.t, Dynamics.inst_num)),
+  left_sidebar_open: bool,
+  right_sidebar_open: bool,
+  selected_example: option(UHExp.block),
+  context_inspector,
 };
 
-let new_model = (): t => {
-  let (edit_state_rs, edit_state_rf) = React.S.create(empty);
-  let (code_history_rs, _code_history_rf) =
-    React.S.create(CodeHistory.empty);
-  let (e_rs, e_rf) = React.S.create(empty_erasure);
+let cutoff = (model1, model2) => {
+  let (zblock1, ty1, u_gen1) = model1.edit_state;
+  let (zblock2, ty2, u_gen2) = model2.edit_state;
+  ZExp.diff_is_just_cursor_movement_within_node(zblock1, zblock2)
+  && ty1 == ty2
+  && u_gen1 == u_gen2;
+};
 
-  let cursor_info_rs =
-    React.S.l1(
-      ~eq=(_, _) => false, /* palette contexts have functions in them! */
-      ((zblock, _, _)) =>
-        switch (
-          CursorInfo.syn_cursor_info_block(
-            (VarCtx.empty, Palettes.initial_palette_ctx),
-            zblock,
-          )
-        ) {
-        | Some(cursor_info) => cursor_info
-        | None => raise(MissingCursorInfo)
-        },
-      edit_state_rs,
-    );
+let get_path = model => {
+  let (zblock, _, _) = model.edit_state;
+  Path.of_zblock(zblock);
+};
 
-  let result_rs =
-    React.S.l1(
-      e => {
-        let expanded =
-          DHExp.syn_expand_block(
-            (VarCtx.empty, Palettes.initial_palette_ctx),
-            Delta.empty,
-            e,
-          );
-        switch (expanded) {
-        | DHExp.DoesNotExpand => raise(DoesNotExpand)
-        | DHExp.Expands(d, _, _) =>
-          switch (Evaluator.evaluate(d)) {
-          | Evaluator.InvalidInput(n) =>
-            JSUtil.log("InvalidInput " ++ string_of_int(n));
-            raise(InvalidInput);
-          | Evaluator.BoxedValue(d) =>
-            let (d_renumbered, hii) =
-              DHExp.renumber([], DHExp.HoleInstanceInfo.empty, d);
-            (d_renumbered, hii, Evaluator.BoxedValue(d_renumbered));
-          | Evaluator.Indet(d) =>
-            let (d_renumbered, hii) =
-              DHExp.renumber([], DHExp.HoleInstanceInfo.empty, d);
-            (d_renumbered, hii, Evaluator.Indet(d_renumbered));
-          }
-        };
-      },
-      e_rs,
-    );
-
-  let (user_selected_instances_rs, user_selected_instances_rf) =
-    React.S.create(MetaVarMap.empty);
-
-  let usi_monitor =
-    React.S.l1(_ => user_selected_instances_rf(MetaVarMap.empty), result_rs);
-
-  let (selected_instance_rs, selected_instance_rf) = React.S.create(None);
-
-  let instance_at_cursor_monitor =
-    React.S.l2(
-      (
-        {
-          CursorInfo.mode: _,
-          CursorInfo.sort,
-          CursorInfo.ctx: _,
-          CursorInfo.side: _,
-        },
-        (_, hii, _),
-      ) => {
-        let new_path =
-          switch (sort) {
-          | CursorInfo.IsExpr(EmptyHole(u)) =>
-            let usi = React.S.value(user_selected_instances_rs);
-            switch (MetaVarMap.lookup(usi, u)) {
-            | Some(i) => Some((u, i))
-            | None =>
-              switch (DHExp.HoleInstanceInfo.default_instance(hii, u)) {
-              | Some(_) as inst => inst
-              | None => None
-              }
-            };
-          | _ => None
-          };
-        selected_instance_rf(new_path);
-      },
-      cursor_info_rs,
-      result_rs,
-    );
-
-  let monitors = [instance_at_cursor_monitor, usi_monitor];
-
-  let do_action = action => {
-    switch (
-      Action.syn_perform_block(
-        (VarCtx.empty, Palettes.initial_palette_ctx),
-        action,
-        React.S.value(edit_state_rs),
-      )
-    ) {
-    | Succeeded((ze, ty, ugen)) =>
-      edit_state_rf((ze, ty, ugen));
-
-      /* Update the history with the new action */
-      /* Disable history tracking for now
-           let history = React.S.value(code_history_rs);
-           code_history_rf(CodeHistory.add(action, history));
-         };*/
-
-      /* Don't update the erasure if the action was a cursor move */
-      switch (action) {
-      | Action.MoveTo(_)
-      | Action.MoveToNextHole
-      | Action.MoveToPrevHole => ()
-      | _ => e_rf(ZExp.erase_block(ze))
-      };
-    | CursorEscaped(_)
-    | Failed => raise(InvalidAction)
-    };
+exception MissingCursorInfo;
+let cursor_info_of_edit_state = ((zblock, _, _): edit_state): CursorInfo.t =>
+  switch (
+    CursorInfo.syn_cursor_info_block(
+      (VarCtx.empty, Palettes.initial_palette_ctx),
+      zblock,
+    )
+  ) {
+  | None => raise(MissingCursorInfo)
+  | Some(ci) => ci
   };
 
-  let replace_e = (new_block: UHExp.block) => {
-    let new_edit_state =
-      Statics.syn_fix_holes_zblock(
-        (VarCtx.empty, PaletteCtx.empty),
-        MetaVarGen.init,
-        ZExp.place_before_block(new_block),
-      );
-    edit_state_rf(new_edit_state);
-    e_rf(new_block);
+exception InvalidInput;
+exception DoesNotExpand;
+let result_of_edit_state = ((zblock, _, _): edit_state): result => {
+  open Dynamics;
+  let expanded =
+    DHExp.syn_expand_block(
+      (VarCtx.empty, Palettes.initial_palette_ctx),
+      Delta.empty,
+      ZExp.erase_block(zblock),
+    );
+  switch (expanded) {
+  | DoesNotExpand => raise(DoesNotExpand)
+  | Expands(d, _, _) =>
+    switch (Evaluator.evaluate(d)) {
+    | InvalidInput(n) =>
+      JSUtil.log("InvalidInput " ++ string_of_int(n));
+      raise(InvalidInput);
+    | BoxedValue(d) =>
+      let (d_renumbered, hii) =
+        DHExp.renumber([], DHExp.HoleInstanceInfo.empty, d);
+      (d_renumbered, hii, BoxedValue(d_renumbered));
+    | Indet(d) =>
+      let (d_renumbered, hii) =
+        DHExp.renumber([], DHExp.HoleInstanceInfo.empty, d);
+      (d_renumbered, hii, Indet(d_renumbered));
+    }
   };
+};
 
+let update_edit_state = (model: t, new_edit_state): t => {
+  let new_result = result_of_edit_state(new_edit_state);
+  let new_cursor_info = cursor_info_of_edit_state(new_edit_state);
   {
-    edit_state_rs,
-    code_history_rs,
-    cursor_info_rs,
-    e_rs,
-    result_rs,
-    user_selected_instances_rs,
-    user_selected_instances_rf,
-    selected_instance_rs,
-    selected_instance_rf,
-    monitors,
-    do_action,
-    replace_e,
+    ...model,
+    edit_state: new_edit_state,
+    cursor_info: new_cursor_info,
+    result: new_result,
   };
+};
+
+let init = (): t => {
+  let (u, u_gen) = MetaVarGen.next(MetaVarGen.init);
+  let zblock = ZExp.wrap_in_block(ZExp.place_before_exp(EmptyHole(u)));
+  let edit_state = (zblock, HTyp.Hole, u_gen);
+  {
+    edit_state,
+    cursor_info: cursor_info_of_edit_state(edit_state),
+    result: result_of_edit_state(edit_state),
+    user_selected_instances: UserSelectedInstances.init,
+    selected_instance: None,
+    left_sidebar_open: false,
+    right_sidebar_open: true,
+    selected_example: None,
+    context_inspector: {
+      next_state: None,
+      prev_state: None,
+    },
+  };
+};
+
+exception InvalidAction;
+let perform_edit_action = (model: t, a: Action.t): t =>
+  switch (
+    Action.syn_perform_block(
+      (VarCtx.empty, Palettes.initial_palette_ctx),
+      a,
+      model.edit_state,
+    )
+  ) {
+  | Failed
+  | CursorEscaped(_) => raise(InvalidAction)
+  | Succeeded(new_edit_state) => update_edit_state(model, new_edit_state)
+  };
+
+let move_to_hole = (model: t, u: MetaVar.t): t => {
+  let (zblock, _, _) = model.edit_state;
+  switch (
+    Path.path_to_hole(Path.holes_block(ZExp.erase_block(zblock), [], []), u)
+  ) {
+  | None =>
+    JSUtil.log("Path not found!");
+    model;
+  | Some(hole_path) => perform_edit_action(model, Action.MoveTo(hole_path))
+  };
+};
+
+let select_hole_instance =
+    (model: t, (u, i) as inst: (MetaVar.t, Dynamics.inst_num)): t => {
+  let (_, hii, _) = model.result;
+  {
+    ...model,
+    user_selected_instances:
+      UserSelectedInstances.update(model.user_selected_instances, inst),
+    selected_instance: Some(inst),
+    context_inspector: {
+      prev_state: i > 0 ? Some((u, i - 1)) : None,
+      next_state:
+        i < Dynamics.DHExp.HoleInstanceInfo.num_instances(hii, u) - 1
+          ? Some((u, i + 1)) : None,
+    },
+  };
+};
+
+let toggle_left_sidebar = (model: t): t => {
+  ...model,
+  left_sidebar_open: !model.left_sidebar_open,
+};
+
+let toggle_right_sidebar = (model: t): t => {
+  ...model,
+  right_sidebar_open: !model.right_sidebar_open,
+};
+
+let load_example = (model: t, block: UHExp.block): t => {
+  ...model,
+  edit_state:
+    Statics.syn_fix_holes_zblock(
+      (VarCtx.empty, PaletteCtx.empty),
+      MetaVarGen.init,
+      ZExp.place_before_block(block),
+    ),
 };
