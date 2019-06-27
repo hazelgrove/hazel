@@ -718,9 +718,8 @@ button:disabled {
 
 /* need this to ensure caret positions
  * appear to left and right of token */
-.SDelim, .SOp, .SEmptyHole {
-  display: flex;
-  flex-direction: row;
+.SDelim > *, .SOp > *, .SEmptyHole > * {
+  display: inline;
 }
 
 .SDelim-before,
@@ -737,20 +736,32 @@ button:disabled {
 .snode {
   font-family: "Fira Mono", monospace;
   width: max-content;
-  display: flex;
-  flex-direction: row;
+  display: inline-block;
 }
 .snode.multi-line {
-  display: flex;
+  display: inline-flex;
   flex-direction: column;
   align-items: stretch;
 }
-.sline {
-  display: flex;
-  flex-direction: row;
+.snode > .sline {
+  display: inline-block;
+}
+.snode.multi-line > .sline {
+  display: block;
 }
 .snode.multi-line > .indent.sline {
   padding-left: var(--indent-length);
+}
+
+.sline > .SNode,
+.sline > .SEmptyHole,
+.sline > .SDelim,
+.sline > .SSpaceOp,
+.sline > .SOp,
+.sline > .SText,
+.sline > .SCastArrow,
+.sline > .SFailedCastArrow {
+  display: inline-block;
 }
 
 .sline > .SDelim {

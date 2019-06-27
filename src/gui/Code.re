@@ -378,25 +378,22 @@ and of_sline =
       ~border_style: sline_border_style=NoBorder,
       ~line_no: int,
       sline,
-    ) => {
-  let vwords =
-    sline
-    |> List.map(sword =>
-         switch (sword) {
-         | SNode(snode) => of_snode(~inject, snode)
-         | SToken(stoken) =>
-           of_stoken(~inject, ~node_steps, ~node_cursor, stoken)
-         }
-       );
+    ) =>
   Vdom.(
     Node.div(
       [
         Attr.classes(sline_clss(line_no) @ sline_border_clss(border_style)),
       ],
-      vwords,
+      sline
+      |> List.map(sword =>
+           switch (sword) {
+           | SNode(snode) => of_snode(~inject, snode)
+           | SToken(stoken) =>
+             of_stoken(~inject, ~node_steps, ~node_cursor, stoken)
+           }
+         ),
     )
-  );
-}
+  )
 [@warning "-27"]
 and of_stoken =
     (
