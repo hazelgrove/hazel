@@ -100,6 +100,7 @@ type shape =
 [@deriving (show({with_path: false}), sexp)]
 type t =
   | MoveTo(Path.t)
+  | MoveToBefore(Path.steps)
   | MoveToNextHole
   | MoveToPrevHole
   | UpdateApPalette(SpliceGenMonad.t(SerializedModel.t))
@@ -198,6 +199,11 @@ let rec perform_ty = (a: t, zty: ZTyp.t): result(ZTyp.t) =>
   /* Movement */
   | (MoveTo(path), _) =>
     switch (Path.follow_ty(path, ZTyp.erase(zty))) {
+    | None => Failed
+    | Some(zty) => Succeeded(zty)
+    }
+  | (MoveToBefore(steps), _) =>
+    switch (Path.follow_ty_and_place_before(steps, ZTyp.erase(zty))) {
     | None => Failed
     | Some(zty) => Succeeded(zty)
     }
@@ -1140,6 +1146,16 @@ let rec syn_perform_pat =
       | Some(zp) => Succeeded((zp, ty, ctx, u_gen))
       }
     };
+  | (MoveToBefore(steps), _) =>
+    let p = ZPat.erase(zp);
+    switch (Statics.syn_pat(ctx, p)) {
+    | None => Failed
+    | Some((ty, _)) =>
+      switch (Path.follow_pat_and_place_before(steps, p)) {
+      | None => Failed
+      | Some(zp) => Succeeded((zp, ty, ctx, u_gen))
+      }
+    };
   | (MoveToPrevHole, _) =>
     switch (Path.prev_hole_path(Path.holes_zpat(zp, []))) {
     | None => Failed
@@ -1734,6 +1750,12 @@ and ana_perform_pat =
   | (MoveTo(path), _) =>
     let p = ZPat.erase(zp);
     switch (Path.follow_pat(path, p)) {
+    | Some(zp) => Succeeded((zp, ctx, u_gen))
+    | None => Failed
+    };
+  | (MoveToBefore(steps), _) =>
+    let p = ZPat.erase(zp);
+    switch (Path.follow_pat_and_place_before(steps, p)) {
     | Some(zp) => Succeeded((zp, ctx, u_gen))
     | None => Failed
     };
@@ -2539,6 +2561,12 @@ let rec syn_perform_block =
     | None => Failed
     | Some(zblock) => Succeeded((zblock, ty, u_gen))
     };
+  | (MoveToBefore(steps), _) =>
+    let block = ZExp.erase_block(zblock);
+    switch (Path.follow_block_and_place_before(steps, block)) {
+    | None => Failed
+    | Some(zblock) => Succeeded((zblock, ty, u_gen))
+    };
   | (MoveToPrevHole, _) =>
     switch (Path.prev_hole_path_zblock(zblock)) {
     | None => Failed
@@ -2750,6 +2778,7 @@ and syn_perform_lines =
   switch (a, zlines) {
   /* Movement */
   | (MoveTo(_), _)
+  | (MoveToBefore(_), _)
   | (MoveToPrevHole, _)
   | (MoveToNextHole, _) =>
     /* TODO implement when we have cells, which
@@ -2962,6 +2991,7 @@ and syn_perform_line =
     Failed
   /* Movement */
   | (MoveTo(_), _)
+  | (MoveToBefore(_), _)
   | (MoveToPrevHole, _)
   | (MoveToNextHole, _) =>
     /* handled at block or lines level */
@@ -3237,6 +3267,12 @@ and syn_perform_exp =
   | (MoveTo(path), _) =>
     let e = ZExp.erase(ze);
     switch (Path.follow_exp(path, e)) {
+    | None => Failed
+    | Some(ze) => Succeeded((E(ze), ty, u_gen))
+    };
+  | (MoveToBefore(steps), _) =>
+    let e = ZExp.erase(ze);
+    switch (Path.follow_exp_and_place_before(steps, e)) {
     | None => Failed
     | Some(ze) => Succeeded((E(ze), ty, u_gen))
     };
@@ -4263,6 +4299,12 @@ and ana_perform_block =
     | None => Failed
     | Some(zblock) => Succeeded((zblock, u_gen))
     };
+  | (MoveToBefore(steps), _) =>
+    let block = ZExp.erase_block(zblock);
+    switch (Path.follow_block_and_place_before(steps, block)) {
+    | None => Failed
+    | Some(zblock) => Succeeded((zblock, u_gen))
+    };
   | (MoveToPrevHole, _) =>
     switch (Path.prev_hole_path_zblock(zblock)) {
     | None => Failed
@@ -4522,6 +4564,12 @@ and ana_perform_exp =
   | (MoveTo(path), _) =>
     let e = ZExp.erase(ze);
     switch (Path.follow_exp(path, e)) {
+    | Some(ze') => Succeeded((E(ze'), u_gen))
+    | None => Failed
+    };
+  | (MoveToBefore(steps), _) =>
+    let e = ZExp.erase(ze);
+    switch (Path.follow_exp_and_place_before(steps, e)) {
     | Some(ze') => Succeeded((E(ze'), u_gen))
     | None => Failed
     };
@@ -5488,6 +5536,7 @@ let can_perform =
   | Construct(SNum) /* TODO enrich cursor_info to allow simplifying these type cases */
   | Construct(SBool) /* TODO enrich cursor_info to allow simplifying these type cases */
   | MoveTo(_)
+  | MoveToBefore(_)
   | MoveToNextHole
   | MoveToPrevHole
   | UpdateApPalette(_)

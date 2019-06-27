@@ -192,6 +192,16 @@ let text_id = steps =>
 let path_id = path =>
   "path__" ++ Sexplib.Sexp.to_string(Path.sexp_of_t(path));
 
+let steps_of_node_id = s =>
+  switch (Regexp.string_match(Regexp.regexp("^node__(.*)$"), s, 0)) {
+  | None => None
+  | Some(result) =>
+    switch (Regexp.matched_group(result, 1)) {
+    | None => None
+    | Some(ssexp) =>
+      Some(Path.steps_of_sexp(Sexplib.Sexp.of_string(ssexp)))
+    }
+  };
 let steps_of_text_id = s =>
   switch (Regexp.string_match(Regexp.regexp("^text__(.*)$"), s, 0)) {
   | None => None

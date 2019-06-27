@@ -27,10 +27,16 @@ let on_startup = (~schedule_action, _) => {
           | None => None
           | Some(elem) =>
             let id = Js.to_string(elem##.id);
-            switch (Code.steps_of_text_id(id), Code.path_of_path_id(id)) {
-            | (None, None) => None
-            | (Some(steps), _) => Some((steps, OnText(anchorOffset)))
-            | (_, Some(path)) => Some(path)
+            switch (
+              Code.steps_of_text_id(id),
+              Code.path_of_path_id(id),
+              Code.steps_of_node_id(id),
+            ) {
+            | (None, None, None) => None
+            | (Some(steps), _, _) =>
+              Some((steps, Some(OnText(anchorOffset))))
+            | (_, Some((steps, cursor)), _) => Some((steps, Some(cursor)))
+            | (_, _, Some(steps)) => Some((steps, None))
             };
           };
         if (JSUtil.div_contains_node(
@@ -54,8 +60,14 @@ let on_startup = (~schedule_action, _) => {
                   anchorNode |> JSUtil.query_ancestors(is_cursor_position)
                 ) {
                 | None => ()
-                | Some(path) =>
-                  schedule_action(Update.Action.EditAction(MoveTo(path)))
+                | Some((steps, None)) =>
+                  schedule_action(
+                    Update.Action.EditAction(MoveToBefore(steps)),
+                  )
+                | Some((steps, Some(cursor))) =>
+                  schedule_action(
+                    Update.Action.EditAction(MoveTo((steps, cursor))),
+                  )
                 };
               };
             }
@@ -64,6 +76,8 @@ let on_startup = (~schedule_action, _) => {
               Js.Opt.get(Dom_html.CoerceTo.element(anchorNode), () =>
                 assert(false)
               );
+            JSUtil.log("ELEMENT");
+            JSUtil.log(elem);
             if (JSUtil.elem_has_cls(elem, "not-editable")) {
               (); // caret transport will trigger a second selectionchange
                 // event, let second trigger do the work
@@ -72,8 +86,14 @@ let on_startup = (~schedule_action, _) => {
                 anchorNode |> JSUtil.query_ancestors(is_cursor_position)
               ) {
               | None => ()
-              | Some(path) =>
-                schedule_action(Update.Action.EditAction(MoveTo(path)))
+              | Some((steps, None)) =>
+                schedule_action(
+                  Update.Action.EditAction(MoveToBefore(steps)),
+                )
+              | Some((steps, Some(cursor))) =>
+                schedule_action(
+                  Update.Action.EditAction(MoveTo((steps, cursor))),
+                )
               };
             };
           | _ => ()
