@@ -30,7 +30,7 @@ let set_caret = (path: Path.t, _: State.t, ~schedule_action): unit => {
       )
     | OnText(j) => (
         (
-          JSUtil.forceGetElementById(Code.node_id(steps)):
+          JSUtil.forceGetElementById(Code.steps_id(steps)):
             Js.t(Dom_html.element) :>
             Js.t(Dom.node)
         ),

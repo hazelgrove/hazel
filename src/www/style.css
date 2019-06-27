@@ -722,13 +722,15 @@ button:disabled {
   display: flex;
   flex-direction: row;
 }
-/* need this to ensure caret position is visible */
+
 .SDelim-before,
 .SDelim-after,
 .SOp-before,
 .SOp-after,
 .SEmptyHole-before,
-.SEmptyHole-after {
+.SEmptyHole-after,
+.SEmptyLine {
+  /* need this to ensure caret position is visible */
   padding-left: 1px;
 }
 
@@ -942,7 +944,7 @@ button:disabled {
   user-select: none;
 } */
 
-.failed-cast-arrow {
+.SFailedCastArrow {
   color: red;
   font-weight: bold;
 }

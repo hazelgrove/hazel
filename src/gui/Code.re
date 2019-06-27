@@ -85,7 +85,8 @@ and stoken =
   | SOp(option(op_index), string)
   | SText(var_err_status, string)
   | SCastArrow
-  | SFailedCastArrow;
+  | SFailedCastArrow
+  | SEmptyLine;
 
 let is_multi_line =
   fun
@@ -180,8 +181,8 @@ let rec sskel_of_skel_exp = (skel: UHExp.skel_t): sskel =>
     BinOp(err_status, sop, sskel1, sskel2);
   };
 
-let node_id = steps =>
-  "node__" ++ Sexplib.Sexp.to_string(Path.sexp_of_steps(steps));
+let steps_id = steps =>
+  "steps__" ++ Sexplib.Sexp.to_string(Path.sexp_of_steps(steps));
 let path_id = path =>
   "path__" ++ Sexplib.Sexp.to_string(Path.sexp_of_t(path));
 
@@ -203,7 +204,7 @@ let snode_attrs =
   Vdom.(
     switch (snode) {
     | SSeq(steps, cursor, is_multi_line, _sskel, _shead, _stail) => [
-        Attr.id(node_id(steps)),
+        Attr.id(steps_id(steps)),
         Attr.classes(
           ["OpSeq"] @ cursor_clss(cursor) @ multi_line_clss(is_multi_line),
         ),
@@ -256,7 +257,7 @@ let snode_attrs =
         | Cast => [Attr.classes(["Cast", ...base_clss])]
         | FailedCast => [Attr.classes(["FailedCast", ...base_clss])]
         };
-      [Attr.id(node_id(steps)), ...shape_attrs];
+      [Attr.id(steps_id(steps)), ...shape_attrs];
     }
   );
 };
@@ -516,19 +517,26 @@ and of_stoken =
     Vdom.(
       Node.div(
         [
-          Attr.id("" /* TODO */),
-          Attr.classes(var_err_status_clss(var_err_status) /*TODO*/),
+          Attr.id(steps_id(node_steps)),
+          Attr.classes(["SText"] @ var_err_status_clss(var_err_status)),
         ],
         [Node.text(s)],
       )
     )
   | SCastArrow =>
-    Vdom.(Node.div([Attr.classes(["cast-arrow"])], [Node.text(" ⇨ ")]))
+    Vdom.(Node.div([Attr.classes(["SCastArrow"])], [Node.text(" ⇨ ")]))
   | SFailedCastArrow =>
     Vdom.(
+      Node.div([Attr.classes(["SFailedCastArrow"])], [Node.text(" ⇨ ")])
+    )
+  | SEmptyLine =>
+    Vdom.(
       Node.div(
-        [Attr.classes(["failed-cast-arrow"])],
-        [Node.text(" ⇨ ")],
+        [
+          Attr.id(path_id((node_steps, OnText(0)))),
+          Attr.classes(["SEmptyLine"]),
+        ],
+        [],
       )
     )
   };
@@ -867,7 +875,8 @@ let rec snode_of_block =
 and snode_of_line_item =
     (~cursor=?, ~steps: Path.steps, li: UHExp.line): snode =>
   switch (li) {
-  | EmptyLine => mk_SBox(~cursor?, ~steps, ~shape=EmptyLine, [[]])
+  | EmptyLine =>
+    mk_SBox(~cursor?, ~steps, ~shape=EmptyLine, [[SToken(SEmptyLine)]])
   | ExpLine(e) => snode_of_exp(~cursor?, ~steps, e) /* ghost node */
   | LetLine(p, ann, def) =>
     let sp = snode_of_pat(~steps=steps @ [0], p);
