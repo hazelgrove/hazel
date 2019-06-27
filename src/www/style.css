@@ -733,48 +733,48 @@ button:disabled {
   padding-left: 1px;
 }
 
-.snode {
+.SNode {
   font-family: "Fira Mono", monospace;
   width: max-content;
   display: inline-block;
 }
-.snode.multi-line {
+.SNode.multi-line {
   display: inline-flex;
   flex-direction: column;
   align-items: stretch;
 }
-.snode > .sline {
+.SNode > .SLine {
   display: inline-block;
 }
-.snode.multi-line > .sline {
-  display: block;
+.SNode.multi-line > .SLine {
+  /* display: block; */
 }
-.snode.multi-line > .indent.sline {
+.SNode.multi-line > .indent.SLine {
   padding-left: var(--indent-length);
 }
 
-.sline > .SNode,
-.sline > .SEmptyHole,
-.sline > .SDelim,
-.sline > .SSpaceOp,
-.sline > .SOp,
-.sline > .SText,
-.sline > .SCastArrow,
-.sline > .SFailedCastArrow {
+.SLine > .SNode,
+.SLine > .SEmptyHole,
+.SLine > .SDelim,
+.SLine > .SSpaceOp,
+.SLine > .SOp,
+.SLine > .SText,
+.SLine > .SCastArrow,
+.SLine > .SFailedCastArrow {
   display: inline-block;
 }
 
-.sline > .SDelim {
+.SLine > .SDelim {
   margin-left: var(--space-length);
   margin-right: var(--space-length);
 }
-.snode > .sline:first-child > .SDelim:first-child,
-.snode.multi-line > .sline > .SDelim:first-child {
+.SNode > .SLine:first-child > .SDelim:first-child,
+.SNode.multi-line > .SLine > .SDelim:first-child {
   margin-left: 0;
   margin-right: var(--space-length);
 }
-.snode > .sline:last-child > .SDelim:last-child,
-.snode.multi-line > .sline > .SDelim:last-child {
+.SNode > .SLine:last-child > .SDelim:last-child,
+.SNode.multi-line > .SLine > .SDelim:last-child {
   margin-left: var(--space-length);
   margin-right: 0;
 }
