@@ -883,7 +883,7 @@ button:disabled {
   border-bottom: 1px solid var(--empty-hole-color);
 }
 
-.holeName {
+.SEmptyHole-lbl {
   vertical-align: text-bottom;
   font-size: 65%;
   color: #BBB;
