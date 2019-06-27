@@ -130,24 +130,24 @@ let mk_SText = (~var_err_status=NotInVHole, s: string): stoken =>
 
 let string_of_op_typ: UHTyp.op => string =
   fun
-  | Arrow => "Arrow"
-  | Sum => "Sum"
-  | Prod => "Prod";
+  | Arrow => LangUtil.typeArrowSym
+  | Sum => "|"
+  | Prod => ",";
 
 let string_of_op_pat: UHPat.op => string =
   fun
-  | Comma => "Comma"
-  | Space => "Space"
-  | Cons => "Cons";
+  | Comma => ","
+  | Space => ""
+  | Cons => "::";
 
 let string_of_op_exp: UHExp.op => string =
   fun
-  | Plus => "Plus"
-  | Times => "Times"
-  | LessThan => "LessThan"
-  | Space => "Space"
-  | Comma => "Comma"
-  | Cons => "Cons";
+  | Plus => "+"
+  | Times => "*"
+  | LessThan => "<"
+  | Space => ""
+  | Comma => ","
+  | Cons => "::";
 
 let rec sskel_of_skel_typ = (skel: UHTyp.skel_t): sskel =>
   switch (skel) {
