@@ -1,6 +1,9 @@
 let _SHOW_CASTS = false;
 let _SHOW_FN_BODIES = false;
 
+module Js = Js_of_ocaml.Js;
+module Dom = Js_of_ocaml.Dom;
+module Dom_html = Js_of_ocaml.Dom_html;
 module Vdom = Virtual_dom.Vdom;
 open SemanticsCommon;
 
@@ -287,19 +290,47 @@ let var_err_status_clss =
       "Keyword",
     ];
 
-/*
- let delim_txt_click_handler = evt => {
-   switch (Js.Opt.to_option(evt##.target)) {
-   | None => JSUtil.move_caret_to(delim_before_elem)
-   | Some(target) =>
-     let x = evt##.clientX;
-     x * 2 <= target##.offsetWidth
-       ? JSUtil.move_caret_to(delim_before_elem)
-       : JSUtil.move_caret_to(delim_after_elem)
-   };
-   false;
- }
- */
+let set_caret = (path: Path.t) => {
+  let (steps, cursor) = path;
+  let (caret_node, caret_offset) =
+    switch (cursor) {
+    | OnDelim(_, _) => (
+        (
+          JSUtil.forceGetElementById(path_id(path)): Js.t(Dom_html.element) :>
+            Js.t(Dom.node)
+        ),
+        0,
+      )
+    | OnText(j) => (
+        (
+          JSUtil.forceGetElementById(steps_id(steps)): Js.t(Dom_html.element) :>
+            Js.t(Dom.node)
+        ),
+        j,
+      )
+    };
+
+  let selection = Dom_html.window##getSelection;
+  let range = Dom_html.document##createRange;
+  range##setStart(caret_node, caret_offset);
+  range##setEnd(caret_node, caret_offset);
+  selection##removeAllRanges;
+  selection##addRange(range);
+};
+
+let on_click_noneditable =
+    (steps: Path.steps, k: delim_index, evt: Js.t(Dom_html.mouseEvent)) => {
+  switch (Js.Opt.to_option(evt##.target)) {
+  | None => set_caret((steps, OnDelim(k, Before)))
+  | Some(target) =>
+    let from_left =
+      float_of_int(evt##.clientX) -. target##getBoundingClientRect##.left;
+    let from_right =
+      target##getBoundingClientRect##.right -. float_of_int(evt##.clientX);
+    set_caret((steps, OnDelim(k, from_left <= from_right ? Before : After)));
+  };
+  Vdom.Event.Prevent_default;
+};
 
 /* TODO */
 let range_of_tree_rooted_at_cursor = (_cursor, _sskel) => (0, 0);
@@ -426,6 +457,7 @@ and of_stoken =
         [
           Attr.create("contenteditable", "false"),
           Attr.classes(["SEmptyHole-lbl"]),
+          Attr.on_click(on_click_noneditable(node_steps, 0)),
         ],
         [Node.text(lbl)],
       );
@@ -435,79 +467,78 @@ and of_stoken =
     );
   | SDelim(delim_index, s) =>
     open Vdom;
-    let (delim_before, delim_after) =
+    let (delim_before_nodes, delim_after_nodes, on_click_txt_attrs) =
       switch (delim_index) {
-      | None => ([], [])
-      | Some(k) => (
-          [
-            Node.div(
-              [
-                Attr.id(path_id((node_steps, OnDelim(k, Before)))),
-                Attr.classes(["SDelim-before"]),
-              ],
-              [],
-            ),
-          ],
-          [
-            Node.div(
-              [
-                Attr.id(path_id((node_steps, OnDelim(k, After)))),
-                Attr.classes(["SDelim-after"]),
-              ],
-              [],
-            ),
-          ],
-        )
+      | None => ([], [], [])
+      | Some(k) =>
+        let delim_before =
+          Node.div(
+            [
+              Attr.id(path_id((node_steps, OnDelim(k, Before)))),
+              Attr.classes(["SDelim-before"]),
+            ],
+            [],
+          );
+        let delim_after =
+          Node.div(
+            [
+              Attr.id(path_id((node_steps, OnDelim(k, After)))),
+              Attr.classes(["SDelim-after"]),
+            ],
+            [],
+          );
+        let on_click_txt =
+          Attr.on_click(on_click_noneditable(node_steps, k));
+        ([delim_before], [delim_after], [on_click_txt]);
       };
     let delim_txt =
       Node.div(
         [
           Attr.create("contenteditable", "false"),
           Attr.classes(["SDelim-txt"]),
-        ],
+        ]
+        @ on_click_txt_attrs,
         [Node.text(s)],
       );
     Node.div(
       [Attr.classes(["SDelim" /*TODO*/])],
-      delim_before @ [delim_txt] @ delim_after,
+      delim_before_nodes @ [delim_txt] @ delim_after_nodes,
     );
   | SOp(op_index, s) =>
     open Vdom;
-    let (op_before, op_after) =
+    let (op_before_nodes, op_after_nodes, on_click_txt_attrs) =
       switch (op_index) {
-      | None => ([], [])
-      | Some(k) => (
-          [
-            Node.div(
-              [
-                Attr.id(path_id((node_steps, OnDelim(k, Before)))),
-                Attr.classes(["SOp-before"]),
-              ],
-              [],
-            ),
-          ],
-          [
-            Node.div(
-              [
-                Attr.id(path_id((node_steps, OnDelim(k, After)))),
-                Attr.classes(["SOp-after"]),
-              ],
-              [],
-            ),
-          ],
-        )
+      | None => ([], [], [])
+      | Some(k) =>
+        let op_before =
+          Node.div(
+            [
+              Attr.id(path_id((node_steps, OnDelim(k, Before)))),
+              Attr.classes(["SOp-before"]),
+            ],
+            [],
+          );
+        let op_after =
+          Node.div(
+            [
+              Attr.id(path_id((node_steps, OnDelim(k, After)))),
+              Attr.classes(["SOp-after"]),
+            ],
+            [],
+          );
+        let on_click_txt =
+          Attr.on_click(on_click_noneditable(node_steps, k));
+        ([op_before], [op_after], [on_click_txt]);
       };
     let op_txt =
       Node.div(
-        [
-          Attr.create("contenteditable", "false"),
-          Attr.classes(["SOp-txt"]),
-        ],
+        [Attr.create("contenteditable", "false"), Attr.classes(["SOp-txt"])]
+        @ on_click_txt_attrs,
         [Node.text(s)],
       );
     Node.div(
       [Attr.classes(["SOp" /*TODO*/])],
-      op_before @ [op_txt] @ op_after,
+      op_before_nodes @ [op_txt] @ op_after_nodes,
     );
   | SSpaceOp => Vdom.(Node.div([Attr.classes(["SSpaceOp"])], []))
   | SText(var_err_status, s) =>
