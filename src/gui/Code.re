@@ -185,13 +185,15 @@ let rec sskel_of_skel_exp = (skel: UHExp.skel_t): sskel =>
     BinOp(err_status, sop, sskel1, sskel2);
   };
 
-let steps_id = steps =>
-  "steps__" ++ Sexplib.Sexp.to_string(Path.sexp_of_steps(steps));
+let node_id = steps =>
+  "node__" ++ Sexplib.Sexp.to_string(Path.sexp_of_steps(steps));
+let text_id = steps =>
+  "text__" ++ Sexplib.Sexp.to_string(Path.sexp_of_steps(steps));
 let path_id = path =>
   "path__" ++ Sexplib.Sexp.to_string(Path.sexp_of_t(path));
 
-let steps_of_steps_id = s =>
-  switch (Regexp.string_match(Regexp.regexp("^steps__(.*)$"), s, 0)) {
+let steps_of_text_id = s =>
+  switch (Regexp.string_match(Regexp.regexp("^text__(.*)$"), s, 0)) {
   | None => None
   | Some(result) =>
     switch (Regexp.matched_group(result, 1)) {
@@ -228,7 +230,7 @@ let snode_attrs =
   Vdom.(
     switch (snode) {
     | SSeq(steps, cursor, is_multi_line, _sskel, _shead, _stail) => [
-        Attr.id(steps_id(steps)),
+        Attr.id(node_id(steps)),
         Attr.classes(
           ["OpSeq"] @ cursor_clss(cursor) @ multi_line_clss(is_multi_line),
         ),
@@ -281,7 +283,7 @@ let snode_attrs =
         | Cast => [Attr.classes(["Cast", ...base_clss])]
         | FailedCast => [Attr.classes(["FailedCast", ...base_clss])]
         };
-      [Attr.id(steps_id(steps)), ...shape_attrs];
+      [Attr.id(node_id(steps)), ...shape_attrs];
     }
   );
 };
@@ -324,7 +326,7 @@ let set_caret = (path: Path.t) => {
       )
     | OnText(j) => (
         (
-          JSUtil.forceGetElementById(steps_id(steps)): Js.t(Dom_html.element) :>
+          JSUtil.forceGetElementById(text_id(steps)): Js.t(Dom_html.element) :>
             Js.t(Dom.node)
         ),
         j,
@@ -569,7 +571,7 @@ and of_stoken =
     Vdom.(
       Node.div(
         [
-          Attr.id(steps_id(node_steps)),
+          Attr.id(text_id(node_steps)),
           Attr.classes(["SText"] @ var_err_status_clss(var_err_status)),
         ],
         [Node.text(s)],
