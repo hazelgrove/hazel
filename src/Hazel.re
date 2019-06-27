@@ -43,60 +43,33 @@ let on_startup = (~schedule_action, _) => {
               JSUtil.forceGetElementById("cell"),
               anchorNode,
             )) {
-          switch (anchorNode##.nodeType) {
-          | TEXT =>
-            switch (Js.Opt.to_option(anchorNode##.parentNode)) {
+          let closest_elem =
+            Js.Opt.get(Dom_html.CoerceTo.element(anchorNode), () =>
+              switch (anchorNode##.nodeType) {
+              | TEXT =>
+                switch (Js.Opt.to_option(anchorNode##.parentNode)) {
+                | None => assert(false)
+                | Some(parent) =>
+                  Js.Opt.get(Dom_html.CoerceTo.element(parent), () =>
+                    assert(false)
+                  )
+                }
+              | _ => assert(false)
+              }
+            );
+          if (JSUtil.elem_has_cls(closest_elem, "not-editable")) {
+            (); // caret transport will trigger a second selectionchange
+              // event, let second trigger do the work
+          } else {
+            switch (anchorNode |> JSUtil.query_ancestors(is_cursor_position)) {
             | None => ()
-            | Some(parent) =>
-              let parent_elem =
-                Js.Opt.get(Dom_html.CoerceTo.element(parent), () =>
-                  assert(false)
-                );
-              if (JSUtil.elem_has_cls(parent_elem, "not-editable")) {
-                (); // caret transport will trigger a second selectionchange
-                  // event, let second trigger do the work
-              } else {
-                switch (
-                  anchorNode |> JSUtil.query_ancestors(is_cursor_position)
-                ) {
-                | None => ()
-                | Some((steps, None)) =>
-                  schedule_action(
-                    Update.Action.EditAction(MoveToBefore(steps)),
-                  )
-                | Some((steps, Some(cursor))) =>
-                  schedule_action(
-                    Update.Action.EditAction(MoveTo((steps, cursor))),
-                  )
-                };
-              };
-            }
-          | ELEMENT =>
-            let elem =
-              Js.Opt.get(Dom_html.CoerceTo.element(anchorNode), () =>
-                assert(false)
-              );
-            JSUtil.log("ELEMENT");
-            JSUtil.log(elem);
-            if (JSUtil.elem_has_cls(elem, "not-editable")) {
-              (); // caret transport will trigger a second selectionchange
-                // event, let second trigger do the work
-            } else {
-              switch (
-                anchorNode |> JSUtil.query_ancestors(is_cursor_position)
-              ) {
-              | None => ()
-              | Some((steps, None)) =>
-                schedule_action(
-                  Update.Action.EditAction(MoveToBefore(steps)),
-                )
-              | Some((steps, Some(cursor))) =>
-                schedule_action(
-                  Update.Action.EditAction(MoveTo((steps, cursor))),
-                )
-              };
+            | Some((steps, None)) =>
+              schedule_action(Update.Action.EditAction(MoveToBefore(steps)))
+            | Some((steps, Some(cursor))) =>
+              schedule_action(
+                Update.Action.EditAction(MoveTo((steps, cursor))),
+              )
             };
-          | _ => ()
           };
         };
       },
