@@ -4,6 +4,7 @@ let _SHOW_FN_BODIES = false;
 module Js = Js_of_ocaml.Js;
 module Dom = Js_of_ocaml.Dom;
 module Dom_html = Js_of_ocaml.Dom_html;
+module Regexp = Js_of_ocaml.Regexp;
 module Vdom = Virtual_dom.Vdom;
 open SemanticsCommon;
 
@@ -188,6 +189,26 @@ let steps_id = steps =>
   "steps__" ++ Sexplib.Sexp.to_string(Path.sexp_of_steps(steps));
 let path_id = path =>
   "path__" ++ Sexplib.Sexp.to_string(Path.sexp_of_t(path));
+
+let steps_of_steps_id = s =>
+  switch (Regexp.string_match(Regexp.regexp("^steps__(.*)$"), s, 0)) {
+  | None => None
+  | Some(result) =>
+    switch (Regexp.matched_group(result, 1)) {
+    | None => None
+    | Some(ssexp) =>
+      Some(Path.steps_of_sexp(Sexplib.Sexp.of_string(ssexp)))
+    }
+  };
+let path_of_path_id = s =>
+  switch (Regexp.string_match(Regexp.regexp("^path__(.*)$"), s, 0)) {
+  | None => None
+  | Some(result) =>
+    switch (Regexp.matched_group(result, 1)) {
+    | None => None
+    | Some(ssexp) => Some(Path.t_of_sexp(Sexplib.Sexp.of_string(ssexp)))
+    }
+  };
 
 let cursor_clss = (mb_cursor: option(cursor_position)) =>
   switch (mb_cursor) {
@@ -456,7 +477,7 @@ and of_stoken =
       Node.div(
         [
           Attr.create("contenteditable", "false"),
-          Attr.classes(["SEmptyHole-lbl"]),
+          Attr.classes(["SEmptyHole-lbl", "not-editable"]),
           Attr.on_click(on_click_noneditable(node_steps, 0)),
         ],
         [Node.text(lbl)],
@@ -495,7 +516,7 @@ and of_stoken =
       Node.div(
         [
           Attr.create("contenteditable", "false"),
-          Attr.classes(["SDelim-txt"]),
+          Attr.classes(["SDelim-txt", "not-editable"]),
         ]
         @ on_click_txt_attrs,
         [Node.text(s)],
@@ -532,7 +553,10 @@ and of_stoken =
       };
     let op_txt =
       Node.div(
-        [Attr.create("contenteditable", "false"), Attr.classes(["SOp-txt"])]
+        [
+          Attr.create("contenteditable", "false"),
+          Attr.classes(["SOp-txt", "not-editable"]),
+        ]
         @ on_click_txt_attrs,
         [Node.text(s)],
       );

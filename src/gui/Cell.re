@@ -30,6 +30,7 @@ let view =
   Vdom.(
     Node.div(
       [
+        Attr.id("cell"),
         Attr.create("contenteditable", "true"),
         Attr.on("drop", _ => Event.Prevent_default),
         Attr.on_keypress(evt =>

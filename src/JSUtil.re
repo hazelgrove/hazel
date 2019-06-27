@@ -21,6 +21,19 @@ let rec get_descendant_nodes = (root: Js.t(Dom.node)): list(Js.t(Dom.node)) => {
   List.flatten(descendants^);
 };
 
+let query_ancestors =
+    (query: Js.t(Dom.node) => option('a), node: Js.t(Dom.node))
+    : option('a) => {
+  let query_result = ref(None);
+  let current_node = ref(Js.some(node));
+  while (query_result^ == None && Js.Opt.test(current_node^)) {
+    let cur = Js.Opt.get(current_node^, () => assert(false));
+    query_result := query(cur);
+    current_node :=  cur##.parentNode;
+  };
+  query_result^;
+};
+
 let get_child_node_satisfying =
     (predicate: Js.t(Dom.node) => bool, root: Js.t(Dom.node))
     : option(Js.t(Dom.node)) =>
