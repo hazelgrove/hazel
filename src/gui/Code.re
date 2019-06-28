@@ -382,16 +382,7 @@ let rec view_of_snode =
              });
         (vhead, vtail);
       };
-    let lines =
-      [vhead]
-      @ line_break
-      @ List.fold_right(
-          (vtail_line, children_so_far) =>
-            [vtail_line] @ line_break @ children_so_far,
-          vtail,
-          [],
-        );
-    Vdom.Node.div(attrs, lines);
+    Vdom.Node.div(attrs, [vhead, ...vtail]);
   | SBox(steps, node_cursor, is_multi_line, _, _, slines) =>
     /* TODO add border style */
     let vlines: list(Vdom.Node.t) =
@@ -415,7 +406,7 @@ and view_of_sline =
       ~node_steps: Path.steps,
       ~node_cursor: option(cursor_position)=?,
       ~border_style: sline_border_style=NoBorder,
-      ~is_multi_line,
+      ~is_multi_line: is_multi_line,
       ~line_no: int,
       sline,
     )
@@ -723,11 +714,9 @@ let snode_of_OpSeq =
          switch (sop) {
          | SSpaceOp => is_multi_line ? [SIndent, sop] : [sop]
          | SOp(space_before, space_after, _, _) =>
-           is_multi_line
-             ? [sop] @ (space_after ? [SSpace] : [])
-             : (space_before ? [SSpace] : [])
-               @ [sop]
-               @ (space_after ? [SSpace] : [])
+           let before = space_before ? [SSpace] : [];
+           let after = space_after ? [SSpace] : [];
+           is_multi_line ? [sop] @ after : before @ [sop] @ after;
          | _ => [sop] /* should never happen */
          }
        );
