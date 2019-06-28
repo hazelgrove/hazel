@@ -22,6 +22,13 @@ let rec range = (~lo=0, hi: int): list(int) =>
 
 /* Section ListUtil */
 
+let rec join = (sep: 'a, xs: list('a)): list('a) =>
+  switch (xs) {
+  | [] => []
+  | [x] => [x]
+  | [x, ...xs] => [x, sep, ...join(sep, xs)]
+  };
+
 /* repeat an element n times */
 let replicate = (n: int, e: 'a): list('a) => {
   /* add c additional copies of e to xs */
