@@ -336,6 +336,7 @@ let rec view_of_snode =
             ~inject,
             ~node_steps=steps,
             ~line_no=0,
+            ~is_multi_line,
             [SNode(shead)],
           );
         let vtail =
@@ -345,6 +346,7 @@ let rec view_of_snode =
                  ~inject,
                  ~node_steps=steps,
                  ~line_no=i + 1,
+                 ~is_multi_line,
                  (sop_tokens |> List.map(t => SToken(t))) @ [SNode(stm)],
                )
              );
@@ -359,6 +361,7 @@ let rec view_of_snode =
             ~node_cursor=cursor,
             ~border_style=vhead_border_style,
             ~line_no=0,
+            ~is_multi_line,
             [SNode(shead)],
           );
         let vtail =
@@ -373,12 +376,12 @@ let rec view_of_snode =
                  ~node_cursor=cursor,
                  ~border_style,
                  ~line_no=i + 1,
+                 ~is_multi_line,
                  (sop_tokens |> List.map(t => SToken(t))) @ [SNode(stm)],
                );
              });
         (vhead, vtail);
       };
-    let line_break = is_multi_line ? [Vdom.Node.br([])] : [];
     let lines =
       [vhead]
       @ line_break
@@ -399,17 +402,11 @@ let rec view_of_snode =
              ~node_steps=steps,
              ~node_cursor?,
              ~line_no=i,
+             ~is_multi_line,
              sline,
            )
          );
-    let line_break = is_multi_line ? [Vdom.Node.br([])] : [];
-    let lines =
-      List.fold_right(
-        (vline, children_so_far) => [vline] @ line_break @ children_so_far,
-        vlines,
-        [],
-      );
-    Vdom.Node.div(attrs, lines);
+    Vdom.Node.div(attrs, vlines);
   };
 }
 and view_of_sline =
@@ -418,6 +415,7 @@ and view_of_sline =
       ~node_steps: Path.steps,
       ~node_cursor: option(cursor_position)=?,
       ~border_style: sline_border_style=NoBorder,
+      ~is_multi_line,
       ~line_no: int,
       sline,
     )
@@ -431,14 +429,17 @@ and view_of_sline =
           @ sline_border_clss(border_style),
         ),
       ],
-      sline
-      |> List.map(sword =>
-           switch (sword) {
-           | SNode(snode) => view_of_snode(~inject, snode)
-           | SToken(stoken) =>
-             view_of_stoken(~inject, ~node_steps, ~node_cursor, stoken)
-           }
-         ),
+      (
+        sline
+        |> List.map(sword =>
+             switch (sword) {
+             | SNode(snode) => view_of_snode(~inject, snode)
+             | SToken(stoken) =>
+               view_of_stoken(~inject, ~node_steps, ~node_cursor, stoken)
+             }
+           )
+      )
+      @ (is_multi_line ? [Node.br([])] : []),
     )
   )
 [@warning "-27"]
