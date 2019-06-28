@@ -4,9 +4,9 @@ let _SHOW_FN_BODIES = false;
 module Js = Js_of_ocaml.Js;
 module Dom = Js_of_ocaml.Dom;
 module Dom_html = Js_of_ocaml.Dom_html;
-module Regexp = Js_of_ocaml.Regexp;
 module Vdom = Virtual_dom.Vdom;
 open SemanticsCommon;
+open ViewUtil;
 
 exception InvariantViolated;
 
@@ -185,43 +185,6 @@ let rec sskel_of_skel_exp = (skel: UHExp.skel_t): sskel =>
     BinOp(err_status, sop, sskel1, sskel2);
   };
 
-let node_id = steps =>
-  "node__" ++ Sexplib.Sexp.to_string(Path.sexp_of_steps(steps));
-let text_id = steps =>
-  "text__" ++ Sexplib.Sexp.to_string(Path.sexp_of_steps(steps));
-let path_id = path =>
-  "path__" ++ Sexplib.Sexp.to_string(Path.sexp_of_t(path));
-
-let steps_of_node_id = s =>
-  switch (Regexp.string_match(Regexp.regexp("^node__(.*)$"), s, 0)) {
-  | None => None
-  | Some(result) =>
-    switch (Regexp.matched_group(result, 1)) {
-    | None => None
-    | Some(ssexp) =>
-      Some(Path.steps_of_sexp(Sexplib.Sexp.of_string(ssexp)))
-    }
-  };
-let steps_of_text_id = s =>
-  switch (Regexp.string_match(Regexp.regexp("^text__(.*)$"), s, 0)) {
-  | None => None
-  | Some(result) =>
-    switch (Regexp.matched_group(result, 1)) {
-    | None => None
-    | Some(ssexp) =>
-      Some(Path.steps_of_sexp(Sexplib.Sexp.of_string(ssexp)))
-    }
-  };
-let path_of_path_id = s =>
-  switch (Regexp.string_match(Regexp.regexp("^path__(.*)$"), s, 0)) {
-  | None => None
-  | Some(result) =>
-    switch (Regexp.matched_group(result, 1)) {
-    | None => None
-    | Some(ssexp) => Some(Path.t_of_sexp(Sexplib.Sexp.of_string(ssexp)))
-    }
-  };
-
 let cursor_clss = (mb_cursor: option(cursor_position)) =>
   switch (mb_cursor) {
   | None => []
@@ -233,6 +196,8 @@ let err_status_clss =
   fun
   | NotInHole => []
   | InHole(_, u) => ["in_err_hole", "in_err_hole_" ++ string_of_int(u)];
+
+let inline_div_cls = "inline-div";
 
 let snode_attrs =
     (~inject: Update.Action.t => Vdom.Event.t, snode: snode)
@@ -247,7 +212,9 @@ let snode_attrs =
       ]
     | SBox(steps, cursor, is_multi_line, _err_status, shape, _) =>
       let base_clss =
-        ["SNode"] @ cursor_clss(cursor) @ multi_line_clss(is_multi_line);
+        ["SNode", inline_div_cls]
+        @ cursor_clss(cursor)
+        @ multi_line_clss(is_multi_line);
       let shape_attrs =
         switch (shape) {
         | Block => [Attr.classes(["Block", ...base_clss])]
@@ -368,19 +335,25 @@ let on_click_noneditable =
 /* TODO */
 let range_of_tree_rooted_at_cursor = (_cursor, _sskel) => (0, 0);
 
-let rec of_snode = (~inject: Update.Action.t => Vdom.Event.t, snode) => {
+let rec view_of_snode =
+        (~inject: Update.Action.t => Vdom.Event.t, snode): Vdom.Node.t => {
   let attrs = snode_attrs(~inject, snode);
   switch (snode) {
-  | SSeq(steps, cursor, _, sskel, shead, stail) =>
-    let (vhead, vtail) =
+  | SSeq(steps, cursor, is_multi_line, sskel, shead, stail) =>
+    let (vhead: Vdom.Node.t, vtail: list(Vdom.Node.t)) =
       switch (cursor) {
       | None =>
         let vhead =
-          of_sline(~inject, ~node_steps=steps, ~line_no=0, [SNode(shead)]);
+          view_of_sline(
+            ~inject,
+            ~node_steps=steps,
+            ~line_no=0,
+            [SNode(shead)],
+          );
         let vtail =
           stail
           |> List.mapi((i, (sop, stm)) =>
-               of_sline(
+               view_of_sline(
                  ~inject,
                  ~node_steps=steps,
                  ~line_no=i + 1,
@@ -392,7 +365,7 @@ let rec of_snode = (~inject: Update.Action.t => Vdom.Event.t, snode) => {
         let (a, b) = range_of_tree_rooted_at_cursor(cursor, sskel);
         let vhead_border_style = a == 0 ? TopBottom(true, false) : NoBorder;
         let vhead =
-          of_sline(
+          view_of_sline(
             ~inject,
             ~node_steps=steps,
             ~node_cursor=cursor,
@@ -406,7 +379,7 @@ let rec of_snode = (~inject: Update.Action.t => Vdom.Event.t, snode) => {
                let border_style =
                  i + 1 < b
                    ? TopBottom(false, false) : TopBottom(false, true);
-               of_sline(
+               view_of_sline(
                  ~inject,
                  ~node_steps=steps,
                  ~node_cursor=cursor,
@@ -417,13 +390,23 @@ let rec of_snode = (~inject: Update.Action.t => Vdom.Event.t, snode) => {
              });
         (vhead, vtail);
       };
-    Vdom.(Node.div(attrs, [vhead, ...vtail]));
-  | SBox(steps, node_cursor, _, _, _, slines) =>
+    let line_break = is_multi_line ? [Vdom.Node.br([])] : [];
+    let lines =
+      [vhead]
+      @ line_break
+      @ List.fold_right(
+          (vtail_line, children_so_far) =>
+            [vtail_line] @ line_break @ children_so_far,
+          vtail,
+          [],
+        );
+    Vdom.Node.div(attrs, lines);
+  | SBox(steps, node_cursor, is_multi_line, _, _, slines) =>
     /* TODO add border style */
-    let vlines =
+    let vlines: list(Vdom.Node.t) =
       slines
       |> List.mapi((i, sline) =>
-           of_sline(
+           view_of_sline(
              ~inject,
              ~node_steps=steps,
              ~node_cursor?,
@@ -431,10 +414,17 @@ let rec of_snode = (~inject: Update.Action.t => Vdom.Event.t, snode) => {
              sline,
            )
          );
-    Vdom.(Node.div(attrs, vlines));
+    let line_break = is_multi_line ? [Vdom.Node.br([])] : [];
+    let lines =
+      List.fold_right(
+        (vline, children_so_far) => [vline] @ line_break @ children_so_far,
+        vlines,
+        [],
+      );
+    Vdom.Node.div(attrs, lines);
   };
 }
-and of_sline =
+and view_of_sline =
     (
       ~inject: Update.Action.t => Vdom.Event.t,
       ~node_steps: Path.steps,
@@ -442,35 +432,41 @@ and of_sline =
       ~border_style: sline_border_style=NoBorder,
       ~line_no: int,
       sline,
-    ) =>
+    )
+    : Vdom.Node.t =>
   Vdom.(
     Node.div(
       [
-        Attr.classes(sline_clss(line_no) @ sline_border_clss(border_style)),
+        Attr.classes(
+          [inline_div_cls]
+          @ sline_clss(line_no)
+          @ sline_border_clss(border_style),
+        ),
       ],
       sline
       |> List.map(sword =>
            switch (sword) {
-           | SNode(snode) => of_snode(~inject, snode)
+           | SNode(snode) => view_of_snode(~inject, snode)
            | SToken(stoken) =>
-             of_stoken(~inject, ~node_steps, ~node_cursor, stoken)
+             view_of_stoken(~inject, ~node_steps, ~node_cursor, stoken)
            }
          ),
     )
   )
 [@warning "-27"]
-and of_stoken =
+and view_of_stoken =
     (
       ~inject: Update.Action.t => Vdom.Event.t,
       ~node_steps: Path.steps,
       ~node_cursor: option(cursor_position),
       stoken: stoken,
-    ) =>
+    )
+    : Vdom.Node.t =>
   switch (stoken) {
   | SEmptyHole(lbl) =>
     open Vdom;
     let hole_before =
-      Node.div(
+      Node.span(
         [
           Attr.id(path_id((node_steps, OnDelim(0, Before)))),
           Attr.classes(["SEmptyHole-before"]),
@@ -478,7 +474,7 @@ and of_stoken =
         [],
       );
     let hole_after =
-      Node.div(
+      Node.span(
         [
           Attr.id(path_id((node_steps, OnDelim(0, After)))),
           Attr.classes(["SEmptyHole-after"]),
@@ -486,7 +482,7 @@ and of_stoken =
         [],
       );
     let hole_lbl =
-      Node.div(
+      Node.span(
         [
           Attr.create("contenteditable", "false"),
           Attr.classes(["SEmptyHole-lbl", "not-editable"]),
@@ -495,7 +491,7 @@ and of_stoken =
         [Node.text(lbl)],
       );
     Node.div(
-      [Attr.classes(["SEmptyHole"])],
+      [Attr.classes([inline_div_cls, "SEmptyHole"])],
       [hole_before, hole_lbl, hole_after],
     );
   | SDelim(delim_index, s) =>
@@ -505,7 +501,7 @@ and of_stoken =
       | None => ([], [], [])
       | Some(k) =>
         let delim_before =
-          Node.div(
+          Node.span(
             [
               Attr.id(path_id((node_steps, OnDelim(k, Before)))),
               Attr.classes(["SDelim-before"]),
@@ -513,7 +509,7 @@ and of_stoken =
             [],
           );
         let delim_after =
-          Node.div(
+          Node.span(
             [
               Attr.id(path_id((node_steps, OnDelim(k, After)))),
               Attr.classes(["SDelim-after"]),
@@ -525,7 +521,7 @@ and of_stoken =
         ([delim_before], [delim_after], [on_click_txt]);
       };
     let delim_txt =
-      Node.div(
+      Node.span(
         [
           Attr.create("contenteditable", "false"),
           Attr.classes(["SDelim-txt", "not-editable"]),
@@ -534,7 +530,7 @@ and of_stoken =
         [Node.text(s)],
       );
     Node.div(
-      [Attr.classes(["SDelim" /*TODO*/])],
+      [Attr.classes([inline_div_cls, "SDelim"])],
       delim_before_nodes @ [delim_txt] @ delim_after_nodes,
     );
   | SOp(op_index, s) =>
@@ -544,7 +540,7 @@ and of_stoken =
       | None => ([], [], [])
       | Some(k) =>
         let op_before =
-          Node.div(
+          Node.span(
             [
               Attr.id(path_id((node_steps, OnDelim(k, Before)))),
               Attr.classes(["SOp-before"]),
@@ -552,7 +548,7 @@ and of_stoken =
             [],
           );
         let op_after =
-          Node.div(
+          Node.span(
             [
               Attr.id(path_id((node_steps, OnDelim(k, After)))),
               Attr.classes(["SOp-after"]),
@@ -564,7 +560,7 @@ and of_stoken =
         ([op_before], [op_after], [on_click_txt]);
       };
     let op_txt =
-      Node.div(
+      Node.span(
         [
           Attr.create("contenteditable", "false"),
           Attr.classes(["SOp-txt", "not-editable"]),
@@ -573,32 +569,43 @@ and of_stoken =
         [Node.text(s)],
       );
     Node.div(
-      [Attr.classes(["SOp" /*TODO*/])],
+      [Attr.classes([inline_div_cls, "SOp"])],
       op_before_nodes @ [op_txt] @ op_after_nodes,
     );
-  | SSpaceOp => Vdom.(Node.div([Attr.classes(["SSpaceOp"])], []))
+  | SSpaceOp =>
+    Vdom.(Node.div([Attr.classes([inline_div_cls, "SSpaceOp"])], []))
   | SText(var_err_status, s) =>
     Vdom.(
       Node.div(
         [
           Attr.id(text_id(node_steps)),
-          Attr.classes(["SText"] @ var_err_status_clss(var_err_status)),
+          Attr.classes(
+            [inline_div_cls, "SText"] @ var_err_status_clss(var_err_status),
+          ),
         ],
         [Node.text(s)],
       )
     )
   | SCastArrow =>
-    Vdom.(Node.div([Attr.classes(["SCastArrow"])], [Node.text(" ⇨ ")]))
+    Vdom.(
+      Node.div(
+        [Attr.classes([inline_div_cls, "SCastArrow"])],
+        [Node.text(" ⇨ ")],
+      )
+    )
   | SFailedCastArrow =>
     Vdom.(
-      Node.div([Attr.classes(["SFailedCastArrow"])], [Node.text(" ⇨ ")])
+      Node.div(
+        [Attr.classes([inline_div_cls, "SFailedCastArrow"])],
+        [Node.text(" ⇨ ")],
+      )
     )
   | SEmptyLine =>
     Vdom.(
       Node.div(
         [
           Attr.id(path_id((node_steps, OnText(0)))),
-          Attr.classes(["SEmptyLine"]),
+          Attr.classes([inline_div_cls, "SEmptyLine"]),
         ],
         [],
       )
@@ -1314,7 +1321,7 @@ and snode_of_zrule = (~steps, zrule) =>
 let view_of_zblock =
     (~inject: Update.Action.t => Vdom.Event.t, model: Model.t): Vdom.Node.t => {
   let (zblock, _, _) = model.edit_state;
-  of_snode(~inject, snode_of_zblock(zblock));
+  view_of_snode(~inject, snode_of_zblock(zblock));
 };
 
 module DHPat = Dynamics.DHPat;
@@ -1819,9 +1826,10 @@ and snode_of_drule = (~steps, Rule(dp, dclause): DHExp.rule): snode => {
 
 let view_of_htyp =
     (~inject: Update.Action.t => Vdom.Event.t, ty: HTyp.t): Vdom.Node.t =>
-  of_snode(~inject, snode_of_htyp(ty));
+  view_of_snode(~inject, snode_of_htyp(ty));
 
-let view_of_dhexp = (~inject, d) => of_snode(~inject, snode_of_dhexp(d));
+let view_of_dhexp = (~inject, d) =>
+  view_of_snode(~inject, snode_of_dhexp(d));
 
 let view_of_result =
     (~inject: Update.Action.t => Vdom.Event.t, model: Model.t): Vdom.Node.t =>
@@ -1851,4 +1859,7 @@ let view_of_Var =
       ~steps=[],
       x: Var.t,
     ) =>
-  of_snode(~inject, snode_of_Var(~err_status, ~var_err_status, ~steps, x));
+  view_of_snode(
+    ~inject,
+    snode_of_Var(~err_status, ~var_err_status, ~steps, x),
+  );
