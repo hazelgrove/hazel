@@ -214,7 +214,9 @@ let snode_attrs =
     | SSeq(steps, cursor, is_multi_line, _sskel, _shead, _stail) => [
         Attr.id(node_id(steps)),
         Attr.classes(
-          ["OpSeq"] @ cursor_clss(cursor) @ multi_line_clss(is_multi_line),
+          ["OpSeq", inline_div_cls]
+          @ cursor_clss(cursor)
+          @ multi_line_clss(is_multi_line),
         ),
       ]
     | SBox(steps, cursor, is_multi_line, _err_status, shape, _) =>

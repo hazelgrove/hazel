@@ -16,7 +16,7 @@ div {
   box-sizing: border-box;
 }
 
-div .inline-div {
+div.inline-div {
   display: inline;
 }
 
