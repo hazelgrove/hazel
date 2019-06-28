@@ -724,68 +724,11 @@ button:disabled {
 .SEmptyHole-after,
 .SEmptyLine {
   padding-left: 1px;
-  padding-right: 1px;
-}
-
-/* need this to ensure caret positions
- * appear to left and right of token */
-/*
- .SDelim > *, .SOp > *, .SEmptyHole > * {
-  display: inline;
 }
 
 .SNode {
   font-family: "Fira Mono", monospace;
   width: max-content;
-  display: inline-block;
-}
-.SNode.multi-line {
-  display: inline-flex;
-  flex-direction: column;
-  align-items: stretch;
-}
-.SNode > .SLine {
-  display: inline-block;
-  vertical-align: top;
-}
-.SNode.multi-line > .SLine {
-  display: block;
-}
-.SNode.multi-line > .indent.SLine {
-  padding-left: var(--indent-length);
-}
-
-.SLine > .SNode,
-.SLine > .SEmptyHole,
-.SLine > .SDelim,
-.SLine > .SSpaceOp,
-.SLine > .SOp,
-.SLine > .SText,
-.SLine > .SCastArrow,
-.SLine > .SFailedCastArrow {
-  vertical-align: top;
-  display: inline-block;
-}
-*/
-
-.SNode {
-  font-family: "Fira Mono", monospace;
-  width: max-content;
-}
-
-.SLine > .SDelim {
-  margin-left: var(--space-length);
-  margin-right: var(--space-length);
-}
-.SNode > .SLine:first-child > .SDelim:first-child,
-.SNode.multi-line > .SLine > .SDelim:first-child {
-  margin-left: 0;
-  margin-right: var(--space-length);
-}
-.SNode > .SLine:last-child > .SDelim:last-child,
-.SNode.multi-line > .SLine > .SDelim:last-child {
-  margin-left: var(--space-length);
-  margin-right: 0;
 }
 
 .var {
