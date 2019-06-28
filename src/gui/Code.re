@@ -1258,12 +1258,12 @@ and snode_of_zexp = (~steps: Path.steps, ze: ZExp.t) =>
              snode_of_rule(~steps=steps @ [i + 1], rule)
            )
       )
-      @ [snode_of_zrule(~steps=steps @ [List.length(prefix)], zrule)]
+      @ [snode_of_zrule(~steps=steps @ [List.length(prefix) + 1], zrule)]
       @ (
         suffix
         |> List.mapi((i, rule) =>
              snode_of_rule(
-               ~steps=steps @ [i + List.length(prefix) + 1],
+               ~steps=steps @ [i + List.length(prefix) + 2],
                rule,
              )
            )
