@@ -290,46 +290,27 @@ let var_err_status_clss =
       "Keyword",
     ];
 
-let set_caret = (path: Path.t) => {
-  let (steps, cursor) = path;
-  let (caret_node, caret_offset) =
-    switch (cursor) {
-    | OnDelim(_, _) => (
-        (
-          JSUtil.forceGetElementById(path_id(path)): Js.t(Dom_html.element) :>
-            Js.t(Dom.node)
-        ),
-        0,
-      )
-    | OnText(j) => (
-        (
-          JSUtil.forceGetElementById(text_id(steps)): Js.t(Dom_html.element) :>
-            Js.t(Dom.node)
-        ),
-        j,
-      )
-    };
-
-  let selection = Dom_html.window##getSelection;
-  let range = Dom_html.document##createRange;
-  range##setStart(caret_node, caret_offset);
-  range##setEnd(caret_node, caret_offset);
-  selection##removeAllRanges;
-  selection##addRange(range);
-};
-
 let on_click_noneditable =
-    (steps: Path.steps, k: delim_index, evt: Js.t(Dom_html.mouseEvent)) => {
+    (
+      ~inject,
+      steps: Path.steps,
+      k: delim_index,
+      evt: Js.t(Dom_html.mouseEvent),
+    ) => {
   switch (Js.Opt.to_option(evt##.target)) {
-  | None => set_caret((steps, OnDelim(k, Before)))
+  | None => inject(Update.Action.SetCaret((steps, OnDelim(k, Before))))
   | Some(target) =>
     let from_left =
       float_of_int(evt##.clientX) -. target##getBoundingClientRect##.left;
     let from_right =
       target##getBoundingClientRect##.right -. float_of_int(evt##.clientX);
-    set_caret((steps, OnDelim(k, from_left <= from_right ? Before : After)));
+    inject(
+      Update.Action.SetCaret((
+        steps,
+        OnDelim(k, from_left <= from_right ? Before : After),
+      )),
+    );
   };
-  Vdom.Event.Prevent_default;
 };
 
 /* TODO */
@@ -486,7 +467,7 @@ and view_of_stoken =
         [
           Attr.create("contenteditable", "false"),
           Attr.classes(["SEmptyHole-lbl", "not-editable"]),
-          Attr.on_click(on_click_noneditable(node_steps, 0)),
+          Attr.on_click(on_click_noneditable(~inject, node_steps, 0)),
         ],
         [Node.text(lbl)],
       );
@@ -517,7 +498,7 @@ and view_of_stoken =
             [],
           );
         let on_click_txt =
-          Attr.on_click(on_click_noneditable(node_steps, k));
+          Attr.on_click(on_click_noneditable(~inject, node_steps, k));
         ([delim_before], [delim_after], [on_click_txt]);
       };
     let delim_txt =
@@ -556,7 +537,7 @@ and view_of_stoken =
             [],
           );
         let on_click_txt =
-          Attr.on_click(on_click_noneditable(node_steps, k));
+          Attr.on_click(on_click_noneditable(~inject, node_steps, k));
         ([op_before], [op_after], [on_click_txt]);
       };
     let op_txt =

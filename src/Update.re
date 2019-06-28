@@ -1,4 +1,5 @@
 module Js = Js_of_ocaml.Js;
+module Dom = Js_of_ocaml.Dom;
 module Dom_html = Js_of_ocaml.Dom_html;
 module EditAction = Action;
 open Sexplib.Std;
@@ -103,5 +104,33 @@ let apply_action =
         };
       };
     };
+    model;
+  | SetCaret(path) =>
+    let (steps, cursor) = path;
+    let (caret_node, caret_offset) =
+      switch (cursor) {
+      | OnDelim(_, _) => (
+          (
+            JSUtil.forceGetElementById(path_id(path)): Js.t(Dom_html.element) :>
+              Js.t(Dom.node)
+          ),
+          0,
+        )
+      | OnText(j) => (
+          (
+            JSUtil.forceGetElementById(text_id(steps)):
+              Js.t(Dom_html.element) :>
+              Js.t(Dom.node)
+          ),
+          j,
+        )
+      };
+
+    let selection = Dom_html.window##getSelection;
+    let range = Dom_html.document##createRange;
+    range##setStart(caret_node, caret_offset);
+    range##setEnd(caret_node, caret_offset);
+    selection##removeAllRanges;
+    selection##addRange(range);
     model;
   };
