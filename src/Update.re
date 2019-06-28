@@ -15,14 +15,33 @@ module Action = {
     | SelectHoleInstance(MetaVar.t, Dynamics.inst_num)
     | InvalidVar(string)
     | MoveToHole(MetaVar.t)
-    | SelectionChange;
+    | SelectionChange
+    | SetCaret(Path.t);
 };
 
 [@warning "-27"]
 let apply_action =
     (model: Model.t, action: Action.t, _, ~schedule_action): Model.t =>
   switch (action) {
-  | EditAction(a) => Model.perform_edit_action(model, a)
+  | EditAction(a) =>
+    switch (Model.perform_edit_action(model, a)) {
+    | m => m
+    | exception Model.FailedAction =>
+      JSUtil.log("[FailedAction]");
+      model;
+    | exception Model.CursorEscaped =>
+      JSUtil.log("[CursorEscaped]");
+      model;
+    | exception Model.MissingCursorInfo =>
+      JSUtil.log("[MissingCursorInfo]");
+      model;
+    | exception Model.InvalidInput =>
+      JSUtil.log("[Model.InvalidInput");
+      model;
+    | exception Model.DoesNotExpand =>
+      JSUtil.log("[Model.DoesNotExpand]");
+      model;
+    }
   | ToggleLeftSidebar => Model.toggle_left_sidebar(model)
   | ToggleRightSidebar => Model.toggle_right_sidebar(model)
   | LoadExample(id) => Model.load_example(model, Examples.get(id))

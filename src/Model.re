@@ -110,7 +110,8 @@ let init = (): t => {
   };
 };
 
-exception InvalidAction;
+exception FailedAction;
+exception CursorEscaped;
 let perform_edit_action = (model: t, a: Action.t): t =>
   switch (
     Action.syn_perform_block(
@@ -119,8 +120,8 @@ let perform_edit_action = (model: t, a: Action.t): t =>
       model.edit_state,
     )
   ) {
-  | Failed
-  | CursorEscaped(_) => raise(InvalidAction)
+  | Failed => raise(FailedAction)
+  | CursorEscaped(_) => raise(CursorEscaped)
   | Succeeded(new_edit_state) => update_edit_state(model, new_edit_state)
   };
 
