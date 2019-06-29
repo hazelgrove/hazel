@@ -731,6 +731,10 @@ button:disabled {
   width: max-content;
 }
 
+.indent {
+  white-space: pre;
+}
+
 .var {
 }
 
