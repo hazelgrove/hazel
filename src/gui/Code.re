@@ -8,15 +8,22 @@ module Vdom = Virtual_dom.Vdom;
 open GeneralUtil;
 open SemanticsCommon;
 open ViewUtil;
+open Sexplib.Std;
 
 exception InvariantViolated;
 
+[@deriving sexp]
 type id = string;
+[@deriving sexp]
 type cls = string;
+[@deriving sexp]
 type is_multi_line = bool;
 
+[@deriving sexp]
 type is_start_of_top = bool;
+[@deriving sexp]
 type is_end_of_bottom = bool;
+[@deriving sexp]
 type border_style =
   | NoBorder
   | Top(is_start_of_top)
@@ -29,12 +36,16 @@ let border_clss: border_style => list(string) =
   | NoBorder => []
   | _ => [];
 
+[@deriving sexp]
 type relative_indent = int;
+[@deriving sexp]
 type absolute_indent = int;
 
+[@deriving sexp]
 type snode_shape =
   | Seq
   | Box(sbox_shape)
+[@deriving sexp]
 and sbox_shape =
   | Block
   | EmptyLine
@@ -73,6 +84,7 @@ and sbox_shape =
   | Cast
   | FailedCast;
 
+[@deriving sexp]
 type snode =
   | SSeq(
       Path.steps,
@@ -91,17 +103,22 @@ type snode =
       sbox_shape,
       list(sline),
     )
+[@deriving sexp]
 and sskel =
   | Placeholder(int)
   | BinOp(err_status, string, sskel, sskel)
   | Space(err_status, sskel, sskel)
+[@deriving sexp]
 and sseq_tail_segment =
   | SSegmentSpace(snode)
   | SSegmentOp(list(stoken), snode)
+[@deriving sexp]
 and sline = (relative_indent, list(sword))
+[@deriving sexp]
 and sword =
   | SNode(snode)
   | SToken(stoken)
+[@deriving sexp]
 and stoken =
   | SEmptyHole(string)
   | SDelim(option(delim_index), string)
@@ -414,9 +431,9 @@ let rec view_of_snode =
           view_of_sline(
             ~inject,
             ~node_steps=steps,
+            ~is_node_multi_line=is_multi_line,
             ~line_no=0,
             ~abs_indent,
-            ~is_multi_line,
             mk_sline([SNode(shead)]),
           );
         let vtail =
@@ -425,9 +442,9 @@ let rec view_of_snode =
                view_of_sline(
                  ~inject,
                  ~node_steps=steps,
+                 ~is_node_multi_line=is_multi_line,
                  ~line_no=i + 1,
                  ~abs_indent,
-                 ~is_multi_line,
                  sline_of_segment(segment),
                )
              );
@@ -440,10 +457,10 @@ let rec view_of_snode =
             ~inject,
             ~node_steps=steps,
             ~node_cursor=cursor,
+            ~is_node_multi_line=is_multi_line,
             ~border_style=vhead_border_style,
             ~line_no=0,
             ~abs_indent,
-            ~is_multi_line,
             mk_sline([SNode(shead)]),
           );
         let vtail =
@@ -454,12 +471,12 @@ let rec view_of_snode =
                  ~inject,
                  ~node_steps=steps,
                  ~node_cursor=cursor,
+                 ~is_node_multi_line=is_multi_line,
                  ~border_style=
                    a < i && i < b
                      ? TopBottom(false, false) : TopBottom(false, i == b),
                  ~line_no=i,
                  ~abs_indent,
-                 ~is_multi_line,
                  i == a
                    ? sline_of_segment(
                        segment
@@ -477,7 +494,7 @@ let rec view_of_snode =
       attrs,
       is_multi_line ? join(Vdom.Node.br([]), vlines) : vlines,
     );
-  | SBox(border_style, steps, node_cursor, is_multi_line, _, _, slines) =>
+  | SBox(border_style, steps, node_cursor, is_multi_line, _, _shape, slines) =>
     let n = List.length(slines);
     let vlines: list(Vdom.Node.t) =
       slines
@@ -486,9 +503,9 @@ let rec view_of_snode =
              ~inject,
              ~node_steps=steps,
              ~node_cursor?,
+             ~is_node_multi_line=is_multi_line,
              ~line_no=i,
              ~abs_indent,
-             ~is_multi_line,
              ~border_style=
                switch (n, i, border_style) {
                | (1, _, _) => border_style
@@ -515,25 +532,51 @@ and view_of_sline =
       ~inject: Update.Action.t => Vdom.Event.t,
       ~node_steps: Path.steps,
       ~node_cursor: option(cursor_position)=?,
+      ~is_node_multi_line: bool,
       ~border_style=NoBorder,
       ~line_no: int,
+      /* TODO need to rename this, concept unclear when it comes to middle-of-line snodes */
       ~abs_indent: absolute_indent,
-      ~is_multi_line,
       (rel_indent, swords): sline,
     )
     : Vdom.Node.t => {
-  let vwords =
+  let more_indent = is_node_multi_line ? rel_indent : 0;
+  // Slines may contain multi-line snodes, i.e., their slines should
+  // each be on their own lines in the view. Only add indentation to
+  // view of current sline if it is itself a single line in the view.
+  let contains_multi_line =
     swords
-    |> List.map(
+    |> List.exists(
          fun
-         | SNode(snode) =>
-           view_of_snode(~inject, ~abs_indent=abs_indent + rel_indent, snode)
-         | SToken(stoken) =>
-           view_of_stoken(~inject, ~node_steps, ~node_cursor, stoken),
+         | SNode(snode) => is_multi_line(snode)
+         | SToken(_) => false,
        );
   let vindents =
-    is_multi_line
-      ? range(abs_indent + rel_indent) |> List.map(_ => vindent) : [];
+    contains_multi_line
+      ? [] : range(abs_indent + more_indent) |> List.map(_ => vindent);
+  let vwords =
+    swords
+    |> List.fold_left(
+         (vwords_so_far, sword) =>
+           vwords_so_far
+           @ [
+             switch (sword) {
+             | SNode(snode) =>
+               view_of_snode(
+                 ~inject,
+                 ~abs_indent=
+                   List.length(vwords_so_far) == 0
+                   /*&& is_node_multi_line */
+                   && contains_multi_line
+                     ? abs_indent + more_indent : 0,
+                 snode,
+               )
+             | SToken(stoken) =>
+               view_of_stoken(~inject, ~node_steps, ~node_cursor, stoken)
+             },
+           ],
+         [],
+       );
   Vdom.(
     Node.div(
       [

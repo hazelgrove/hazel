@@ -17,6 +17,7 @@ module Delta = {
 type inst_num = int;
 
 module DHPat = {
+  [@deriving sexp]
   type t =
     | EmptyHole(MetaVar.t, inst_num)
     | NonEmptyHole(in_hole_reason, MetaVar.t, inst_num, t)
@@ -376,6 +377,7 @@ module DHPat = {
 };
 
 module DHExp = {
+  [@deriving sexp]
   type bin_num_op =
     | Plus
     | Times
@@ -399,6 +401,7 @@ module DHExp = {
     };
 
   module DHExp = {
+    [@deriving sexp]
     type t =
       | EmptyHole(MetaVar.t, inst_num, VarMap.t_(t))
       | NonEmptyHole(in_hole_reason, MetaVar.t, inst_num, VarMap.t_(t), t)
