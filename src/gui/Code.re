@@ -240,7 +240,7 @@ let space_before_after_op_pat: UHPat.op => (space_before, space_after) =
   fun
   | Comma => (false, true)
   | Space => (false, false)
-  | Cons => (true, true);
+  | Cons => (false, false);
 
 let space_before_after_op_exp: UHExp.op => (space_before, space_after) =
   fun
@@ -249,7 +249,7 @@ let space_before_after_op_exp: UHExp.op => (space_before, space_after) =
   | LessThan => (true, true)
   | Space => (false, false)
   | Comma => (false, true)
-  | Cons => (true, true);
+  | Cons => (false, false);
 
 let rec sskel_of_skel_typ = (skel: UHTyp.skel_t): sskel =>
   switch (skel) {
