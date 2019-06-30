@@ -117,7 +117,7 @@ and sline = (relative_indent, option(Path.steps), list(sword))
 [@deriving sexp]
 and sword =
   | SNode(snode)
-  | SToken(option(Path.steps), stoken)
+  | SToken(stoken)
 [@deriving sexp]
 and stoken =
   | SEmptyHole(string)
@@ -420,7 +420,6 @@ let vindent_path = path =>
         Attr.classes(["indent"]),
         Attr.create("contenteditable", "false"),
         Attr.create("goto-path", Sexp.to_string(Path.sexp_of_t(path))),
-
       ],
       [Node.text("  ")],
     )
