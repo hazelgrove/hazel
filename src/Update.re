@@ -22,7 +22,7 @@ module Action = {
 
 let closest_elem = node =>
   Js.Opt.get(Dom_html.CoerceTo.element(node), () =>
-    switch (anchorNode##.nodeType) {
+    switch (node##.nodeType) {
     | TEXT =>
       switch (Js.Opt.to_option(node##.parentNode)) {
       | None => assert(false)
@@ -33,7 +33,7 @@ let closest_elem = node =>
     }
   );
 
-let set_caret = (caret_node, caret_offset): unit => {
+let set_caret = (caret_node, caret_offset) => {
   let selection = Dom_html.window##getSelection;
   let range = Dom_html.document##createRange;
   range##setStart(caret_node, caret_offset);

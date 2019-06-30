@@ -624,10 +624,12 @@ and view_of_sline =
                view_of_snode(
                  ~inject,
                  ~abs_indent=
-                   List.length(vwords_so_far) == 0
-                   && is_node_multi_line
-                   && contains_multi_line
-                     ? abs_indent + more_indent : 0,
+                   (
+                     List.length(vwords_so_far) == 0
+                     && is_node_multi_line
+                     && contains_multi_line
+                   )
+                   ? (abs_indent + more_indent) : 0,
                  snode,
                )
              | SToken(stoken) =>
@@ -665,7 +667,7 @@ and view_of_stoken =
           Attr.id(path_id((node_steps, OnDelim(0, Before)))),
           Attr.classes(["SEmptyHole-before", "unselectable-before"]),
         ],
-        [],
+        [Node.text(LangUtil.nondisplay2)],
       );
     let hole_after =
       Node.span(
@@ -673,7 +675,7 @@ and view_of_stoken =
           Attr.id(path_id((node_steps, OnDelim(0, After)))),
           Attr.classes(["SEmptyHole-after", "unselectable-before"]),
         ],
-        [],
+        [Node.text(LangUtil.nondisplay2)],
       );
     let hole_lbl =
       Node.span(
@@ -739,7 +741,7 @@ and view_of_stoken =
               Attr.id(path_id((node_steps, OnDelim(k, Before)))),
               Attr.classes(["SOp-before"]),
             ],
-            [],
+            [Node.text(LangUtil.nondisplay2)],
           );
         let op_after =
           Node.span(
@@ -747,7 +749,7 @@ and view_of_stoken =
               Attr.id(path_id((node_steps, OnDelim(k, After)))),
               Attr.classes(["SOp-after"]),
             ],
-            [],
+            [Node.text(LangUtil.nondisplay2)],
           );
         ([op_before], [op_after]);
       };
