@@ -699,7 +699,7 @@ and view_of_stoken =
       Node.span(
         [
           Attr.id(path_id((node_steps, OnDelim(0, After)))),
-          Attr.classes(["SEmptyHole-after", "unselectable-before"]),
+          Attr.classes(["SEmptyHole-after", "unselectable-after"]),
         ],
         [Node.text(LangUtil.nondisplay2)],
       );
@@ -735,7 +735,7 @@ and view_of_stoken =
           Node.span(
             [
               Attr.id(path_id((node_steps, OnDelim(k, Before)))),
-              Attr.classes(["SDelim-before"]),
+              Attr.classes(["SDelim-before", "unselectable-before"]),
             ],
             [Node.text(LangUtil.nondisplay2)],
           );
@@ -743,7 +743,7 @@ and view_of_stoken =
           Node.span(
             [
               Attr.id(path_id((node_steps, OnDelim(k, After)))),
-              Attr.classes(["SDelim-after"]),
+              Attr.classes(["SDelim-after", "unselectable-after"]),
             ],
             [Node.text(LangUtil.nondisplay2)],
           );
@@ -784,7 +784,7 @@ and view_of_stoken =
           Node.span(
             [
               Attr.id(path_id((node_steps, OnDelim(k, Before)))),
-              Attr.classes(["SOp-before"]),
+              Attr.classes(["SOp-before", "unselectable-before"]),
             ],
             [Node.text(LangUtil.nondisplay2)],
           );
@@ -792,7 +792,7 @@ and view_of_stoken =
           Node.span(
             [
               Attr.id(path_id((node_steps, OnDelim(k, After)))),
-              Attr.classes(["SOp-after"]),
+              Attr.classes(["SOp-after", "unselectable-after"]),
             ],
             [Node.text(LangUtil.nondisplay2)],
           );
