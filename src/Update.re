@@ -20,6 +20,28 @@ module Action = {
     | SetCaret(Path.t);
 };
 
+let closest_elem = node =>
+  Js.Opt.get(Dom_html.CoerceTo.element(node), () =>
+    switch (anchorNode##.nodeType) {
+    | TEXT =>
+      switch (Js.Opt.to_option(node##.parentNode)) {
+      | None => assert(false)
+      | Some(parent) =>
+        Js.Opt.get(Dom_html.CoerceTo.element(parent), () => assert(false))
+      }
+    | _ => assert(false)
+    }
+  );
+
+let set_caret = (caret_node, caret_offset): unit => {
+  let selection = Dom_html.window##getSelection;
+  let range = Dom_html.document##createRange;
+  range##setStart(caret_node, caret_offset);
+  range##setEnd(caret_node, caret_offset);
+  selection##removeAllRanges;
+  selection##addRange(range);
+};
+
 [@warning "-27"]
 let apply_action =
     (model: Model.t, action: Action.t, _, ~schedule_action): Model.t =>
@@ -72,35 +94,88 @@ let apply_action =
           JSUtil.forceGetElementById("cell"),
           anchorNode,
         )) {
-      let closest_elem =
-        Js.Opt.get(Dom_html.CoerceTo.element(anchorNode), () =>
-          switch (anchorNode##.nodeType) {
-          | TEXT =>
-            switch (Js.Opt.to_option(anchorNode##.parentNode)) {
-            | None => assert(false)
-            | Some(parent) =>
-              Js.Opt.get(Dom_html.CoerceTo.element(parent), () =>
-                assert(false)
-              )
-            }
-          | _ => assert(false)
-          }
-        );
-      if (JSUtil.elem_has_cls(closest_elem, "not-editable")) {
-        (); // caret transport will trigger a second selectionchange
-          // event, let second trigger do the work
+      let closest_elem = closest_elem(anchorNode);
+      let has_cls = JSUtil.elem_has_cls(closest_elem);
+      if (has_cls("unselectable")) {
+        let s =
+          Js.Opt.get(anchorNode##.nodeValue, () => raise(MalformedView));
+        let attr =
+          anchorOffset <= (List.length(s) - 1) / 2
+            ? "path-before" : "path-after";
+        let ssexp =
+          Js.Opt.get(closest_elem##getAttribute(attr), () =>
+            raise(MalformedView)
+          );
+        let path = Path.t_of_sexp(Sexp.of_string(ssexp));
+        schedule_action(Action.EditAction(MoveTo(path)));
+      } else if (has_cls("indent")) {
+        switch (
+          Js.Opt.to_option(closest_elem##getAttribute("goto-path")),
+          Js.Opt.to_option(closest_elem##getAttribute("goto-steps")),
+        ) {
+        | (None, None) => raise(MalformedView)
+        | (Some(ssexp), _) =>
+          let path = Path.t_of_sexp(Sexp.of_string(ssexp));
+          schedule_action(Action.EditAction(MoveTo(path)));
+        | (_, Some(ssexp)) =>
+          let steps = Path.steps_of_sexp(Sexp.of_string(ssexp));
+          schedule_action(Action.EditAction(MoveToBefore(steps)));
+        /* TODO caret? */
+        };
+      } else if (has_cls("unselectable-before") && anchorOffset == 0) {
+        switch (path_of_path_id(Js.to_string(closest_elem##.id))) {
+        | None => raise(MalformedView)
+        | Some(path) =>
+          schedule_action(Action.EditAction(MoveTo(path)));
+          set_caret(anchorNode, 2);
+        };
+      } else if (has_cls("unselectable-before") && anchorOffset == 1) {
+        switch (path_of_path_id(Js.to_string(closest_elem##.id))) {
+        | None => raise(MalformedView)
+        | Some(path) =>
+          /* TODO something about moving to next cursor position before */
+          schedule_action(Action.EditAction(MoveTo(path)));
+          set_caret(anchorNode, 2);
+        };
+      } else if (has_cls("unselectable-after") && anchorOffset == 2) {
+        switch (path_of_path_id(Js.to_string(closest_elem##.id))) {
+        | None => raise(MalformedView)
+        | Some(path) =>
+          schedule_action(Action.EditAction(MoveTo(path)));
+          set_caret(anchorNode, 0);
+        };
+      } else if (has_cls("unselectable-after") && anchorOffset == 1) {
+        switch (path_of_path_id(Js.to_string(closest_elem##.id))) {
+        | None => raise(MalformedView)
+        | Some(path) =>
+          /* TODO something about moving to next cursor position after */
+          schedule_action(Action.EditAction(MoveTo(path)));
+          set_caret(anchorNode, 0);
+        };
+      } else if (has_cls("SSpace")) {
+        let attr = anchorOffset == 0 ? "path-before" : "path-after";
+        let ssexp =
+          Js.Opt.get(closest_elem##getAttribute(attr), () =>
+            raise(MalformedView)
+          );
+        let path = Path.t_of_sexp(Sexp.of_string(ssexp));
+        schedule_action(Action.EditAction(MoveTo(path)));
+        /* TODO caret? */
       } else {
         let (zblock, _, _) = model.edit_state;
         let (current_steps, current_cursor) = Path.of_zblock(zblock);
         switch (anchorNode |> JSUtil.query_ancestors(is_cursor_position)) {
         | None => ()
-        | Some((steps, None)) =>
-          steps == current_steps
-            ? () : schedule_action(Action.EditAction(MoveToBefore(steps)))
-        | Some((steps, Some(cursor))) =>
-          steps == current_steps && cursor == current_cursor
+        | Some((next_steps, None)) =>
+          next_steps == current_steps
             ? ()
-            : schedule_action(Action.EditAction(MoveTo((steps, cursor))))
+            : schedule_action(Action.EditAction(MoveToBefore(next_steps)))
+        | Some((steps, Some(cursor))) =>
+          next_steps == current_steps && next_cursor == current_cursor
+            ? ()
+            : schedule_action(
+                Action.EditAction(MoveTo((next_steps, next_cursor))),
+              )
         };
       };
     };
@@ -125,12 +200,6 @@ let apply_action =
           j,
         )
       };
-
-    let selection = Dom_html.window##getSelection;
-    let range = Dom_html.document##createRange;
-    range##setStart(caret_node, caret_offset);
-    range##setEnd(caret_node, caret_offset);
-    selection##removeAllRanges;
-    selection##addRange(range);
+    set_caret(caret_node, caret_offset);
     model;
   };
