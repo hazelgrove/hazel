@@ -44,13 +44,50 @@ let set_caret = (caret_node, caret_offset) => {
   selection##addRange(range);
 };
 
+let caret_position_of_path =
+    ((steps, cursor) as path): (Js.t(Dom.node), int) =>
+  switch (cursor) {
+  | OnDelim(_, _) =>
+    let anchor_elem = JSUtil.forceGetElementById(path_id(path));
+    let has_cls = JSUtil.elem_has_cls(anchor_elem);
+    let anchor_offset =
+      if (has_cls("unselectable-before")) {
+        2;
+      } else if (has_cls("unselectable-after")) {
+        0;
+      } else {
+        0;
+      };
+    (
+      (anchor_elem: Js.t(Dom_html.element) :> Js.t(Dom.node)),
+      anchor_offset,
+    );
+  | OnText(j) => (
+      (
+        JSUtil.forceGetElementById(text_id(steps)): Js.t(Dom_html.element) :>
+          Js.t(Dom.node)
+      ),
+      j,
+    )
+  };
+
+let is_caret_consistent_with_path = path =>
+  caret_position_of_path(path)
+  == (
+       Dom_html.window##getSelection##.anchorNode,
+       Dom_html.window##getSelection##.anchorOffset,
+     );
+
 [@warning "-27"]
 let apply_action =
     (model: Model.t, action: Action.t, _, ~schedule_action): Model.t =>
   switch (action) {
   | EditAction(a) =>
     switch (Model.perform_edit_action(model, a)) {
-    | m => m
+    | new_model =>
+      is_caret_consistent_with_path(new_model |> Model.get_path)
+        ? () : schedule_action(Action.SetCaret(new_model |> Model.get_path));
+      new_model;
     | exception Model.FailedAction =>
       JSUtil.log("[FailedAction]");
       model;
@@ -76,22 +113,6 @@ let apply_action =
   | SelectionChange =>
     let anchorNode = Dom_html.window##getSelection##.anchorNode;
     let anchorOffset = Dom_html.window##getSelection##.anchorOffset;
-    let is_cursor_position = node =>
-      switch (Js.Opt.to_option(Dom_html.CoerceTo.element(node))) {
-      | None => None
-      | Some(elem) =>
-        let id = Js.to_string(elem##.id);
-        switch (
-          steps_of_text_id(id),
-          path_of_path_id(id),
-          steps_of_node_id(id),
-        ) {
-        | (None, None, None) => None
-        | (Some(steps), _, _) => Some((steps, Some(OnText(anchorOffset))))
-        | (_, Some((steps, cursor)), _) => Some((steps, Some(cursor)))
-        | (_, _, Some(steps)) => Some((steps, None))
-        };
-      };
     if (JSUtil.div_contains_node(
           JSUtil.forceGetElementById("cell"),
           anchorNode,
@@ -124,37 +145,30 @@ let apply_action =
         | (_, Some(ssexp)) =>
           let steps = Path.steps_of_sexp(Sexp.of_string(ssexp));
           schedule_action(Action.EditAction(MoveToBefore(steps)));
-        /* TODO caret? */
         };
       } else if (has_cls("unselectable-before") && anchorOffset == 0) {
         switch (path_of_path_id(Js.to_string(closest_elem##.id))) {
         | None => raise(MalformedView)
-        | Some(path) =>
-          schedule_action(Action.EditAction(MoveTo(path)));
-          set_caret(anchorNode, 2);
+        | Some(path) => schedule_action(Action.EditAction(MoveTo(path)))
         };
       } else if (has_cls("unselectable-before") && anchorOffset == 1) {
         switch (path_of_path_id(Js.to_string(closest_elem##.id))) {
         | None => raise(MalformedView)
         | Some(path) =>
           /* TODO something about moving to next cursor position before */
-          schedule_action(Action.EditAction(MoveTo(path)));
-          set_caret(anchorNode, 2);
+          schedule_action(Action.EditAction(MoveTo(path)))
         };
       } else if (has_cls("unselectable-after") && anchorOffset == 2) {
         switch (path_of_path_id(Js.to_string(closest_elem##.id))) {
         | None => raise(MalformedView)
-        | Some(path) =>
-          schedule_action(Action.EditAction(MoveTo(path)));
-          set_caret(anchorNode, 0);
+        | Some(path) => schedule_action(Action.EditAction(MoveTo(path)))
         };
       } else if (has_cls("unselectable-after") && anchorOffset == 1) {
         switch (path_of_path_id(Js.to_string(closest_elem##.id))) {
         | None => raise(MalformedView)
         | Some(path) =>
           /* TODO something about moving to next cursor position after */
-          schedule_action(Action.EditAction(MoveTo(path)));
-          set_caret(anchorNode, 0);
+          schedule_action(Action.EditAction(MoveTo(path)))
         };
       } else if (has_cls("SSpace")) {
         let attr = anchorOffset == 0 ? "path-before" : "path-after";
@@ -164,8 +178,24 @@ let apply_action =
           |> Opt.get(() => raise(MalformedView));
         let path = Path.t_of_sexp(Sexp.of_string(ssexp));
         schedule_action(Action.EditAction(MoveTo(path)));
-        /* TODO caret? */
       } else {
+        let is_cursor_position = node =>
+          switch (Js.Opt.to_option(Dom_html.CoerceTo.element(node))) {
+          | None => None
+          | Some(elem) =>
+            let id = Js.to_string(elem##.id);
+            switch (
+              steps_of_text_id(id),
+              path_of_path_id(id),
+              steps_of_node_id(id),
+            ) {
+            | (None, None, None) => None
+            | (Some(steps), _, _) =>
+              Some((steps, Some(OnText(anchorOffset))))
+            | (_, Some((steps, cursor)), _) => Some((steps, Some(cursor)))
+            | (_, _, Some(steps)) => Some((steps, None))
+            };
+          };
         let (zblock, _, _) = model.edit_state;
         let (current_steps, current_cursor) = Path.of_zblock(zblock);
         switch (anchorNode |> JSUtil.query_ancestors(is_cursor_position)) {
@@ -185,25 +215,7 @@ let apply_action =
     };
     model;
   | SetCaret(path) =>
-    let (steps, cursor) = path;
-    let (caret_node, caret_offset) =
-      switch (cursor) {
-      | OnDelim(_, _) => (
-          (
-            JSUtil.forceGetElementById(path_id(path)): Js.t(Dom_html.element) :>
-              Js.t(Dom.node)
-          ),
-          0,
-        )
-      | OnText(j) => (
-          (
-            JSUtil.forceGetElementById(text_id(steps)):
-              Js.t(Dom_html.element) :>
-              Js.t(Dom.node)
-          ),
-          j,
-        )
-      };
+    let (caret_node, caret_offset) = caret_position_of_path(path);
     set_caret(caret_node, caret_offset);
     model;
   };
