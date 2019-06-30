@@ -11,6 +11,10 @@ let log_sexp = (sexp: Sexplib.Sexp.t) => log(U.string_of_sexp(sexp));
 let get_child_nodes = (root: Js.t(Dom.node)): list(Js.t(Dom.node)) =>
   Dom.list_of_nodeList(root##.childNodes);
 
+let get_attr = (attr: string, elem: Js.t(Dom_html.element)): option(string) =>
+  Js.Opt.to_option(elem##getAttribute(Js.string(attr)))
+  |> U.Opt.map(s => Js.to_string(s));
+
 let rec get_descendant_nodes = (root: Js.t(Dom.node)): list(Js.t(Dom.node)) => {
   let children = root##.childNodes;
   let descendants = ref([]);

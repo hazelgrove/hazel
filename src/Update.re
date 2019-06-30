@@ -2,7 +2,9 @@ module Js = Js_of_ocaml.Js;
 module Dom = Js_of_ocaml.Dom;
 module Dom_html = Js_of_ocaml.Dom_html;
 module EditAction = Action;
+module Sexp = Sexplib.Sexp;
 open Sexplib.Std;
+open GeneralUtil;
 open ViewUtil;
 open SemanticsCommon;
 
@@ -98,20 +100,22 @@ let apply_action =
       let has_cls = JSUtil.elem_has_cls(closest_elem);
       if (has_cls("unselectable")) {
         let s =
-          Js.Opt.get(anchorNode##.nodeValue, () => raise(MalformedView));
+          Js.to_string(
+            Js.Opt.get(anchorNode##.nodeValue, () => raise(MalformedView)),
+          );
         let attr =
-          anchorOffset <= (List.length(s) - 1) / 2
+          anchorOffset <= (String.length(s) - 1) / 2
             ? "path-before" : "path-after";
         let ssexp =
-          Js.Opt.get(closest_elem##getAttribute(attr), () =>
-            raise(MalformedView)
-          );
+          closest_elem
+          |> JSUtil.get_attr(attr)
+          |> Opt.get(() => raise(MalformedView));
         let path = Path.t_of_sexp(Sexp.of_string(ssexp));
         schedule_action(Action.EditAction(MoveTo(path)));
       } else if (has_cls("indent")) {
         switch (
-          Js.Opt.to_option(closest_elem##getAttribute("goto-path")),
-          Js.Opt.to_option(closest_elem##getAttribute("goto-steps")),
+          closest_elem |> JSUtil.get_attr("goto-path"),
+          closest_elem |> JSUtil.get_attr("goto-steps"),
         ) {
         | (None, None) => raise(MalformedView)
         | (Some(ssexp), _) =>
@@ -155,9 +159,9 @@ let apply_action =
       } else if (has_cls("SSpace")) {
         let attr = anchorOffset == 0 ? "path-before" : "path-after";
         let ssexp =
-          Js.Opt.get(closest_elem##getAttribute(attr), () =>
-            raise(MalformedView)
-          );
+          closest_elem
+          |> JSUtil.get_attr(attr)
+          |> Opt.get(() => raise(MalformedView));
         let path = Path.t_of_sexp(Sexp.of_string(ssexp));
         schedule_action(Action.EditAction(MoveTo(path)));
         /* TODO caret? */
@@ -170,7 +174,7 @@ let apply_action =
           next_steps == current_steps
             ? ()
             : schedule_action(Action.EditAction(MoveToBefore(next_steps)))
-        | Some((steps, Some(cursor))) =>
+        | Some((next_steps, Some(next_cursor))) =>
           next_steps == current_steps && next_cursor == current_cursor
             ? ()
             : schedule_action(

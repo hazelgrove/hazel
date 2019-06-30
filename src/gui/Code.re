@@ -9,6 +9,7 @@ open GeneralUtil;
 open SemanticsCommon;
 open ViewUtil;
 open Sexplib.Std;
+module Sexp = Sexplib.Sexp;
 
 exception InvariantViolated;
 
@@ -443,7 +444,10 @@ let vindent_steps = steps =>
       [
         Attr.classes(["indent"]),
         Attr.create("contenteditable", "false"),
-        Attr.create("goto-steps", Sexp.to_string(Path.sexp_of_t(steps))),
+        Attr.create(
+          "goto-steps",
+          Sexp.to_string(Path.sexp_of_steps(steps)),
+        ),
       ],
       [Node.text("  ")],
     )
@@ -527,6 +531,7 @@ let rec view_of_snode =
                  ~abs_indent,
                  i == a
                    ? sline_of_segment(
+                       ~steps,
                        segment
                        |> update_border_style_of_segment_node(
                             TopBottom(true, false),
@@ -606,26 +611,32 @@ and view_of_sline =
     | (false, [sword, ...rest]) =>
       range(abs_indent + more_indent)
       |> List.map(_ =>
-           switch (sword) {
-           | SNode(snode) => vindent_steps(steps_of_first_sword)
-           | SToken(stoken) =>
-             switch (stoken) {
-             | SEmptyHole(_)
-             | SText
-             | SEmptyLine => vindent_steps(steps_of_first_sword)
-             | SDelim(Some(k), _)
-             | SOp(Some(k), _) =>
-               vindent_path((steps_of_first_sword, OnDelim(k, Before)))
-             | SSpaceOp =>
-               switch (rest) {
-               | [] => vindent
-               | [SNode(snode), ..._] =>
-                 vindent_steps(steps_of_snode(snode))
-               | [_, ..._] => vindent
+           switch (steps_of_first_sword) {
+           | None => vindent
+           | Some(steps) =>
+             switch (sword) {
+             | SNode(_) => vindent_steps(steps)
+             | SToken(stoken) =>
+               switch (stoken) {
+               | SEmptyHole(_)
+               | SText(_, _)
+               | SEmptyLine => vindent_steps(steps)
+               | SDelim(Some(k), _)
+               | SOp(Some(k), _) =>
+                 vindent_path((steps, OnDelim(k, Before)))
+               | SSpaceOp =>
+                 switch (rest) {
+                 | [] => vindent
+                 | [SNode(snode), ..._] =>
+                   vindent_steps(steps_of_snode(snode))
+                 | [_, ..._] => vindent
+                 }
+               | SOp(None, _)
+               | SDelim(None, _)
+               | SCastArrow
+               | SFailedCastArrow
+               | SSpace => vindent
                }
-             | SCastArrow
-             | SFailedCastArrow
-             | SSpace => vindent
              }
            }
          )
@@ -716,9 +727,9 @@ and view_of_stoken =
     );
   | SDelim(delim_index, s) =>
     open Vdom;
-    let (delim_before_nodes, delim_after_nodes) =
+    let (delim_before_nodes, delim_after_nodes, delim_txt_attrs) =
       switch (delim_index) {
-      | None => ([], [])
+      | None => ([], [], [])
       | Some(k) =>
         let delim_before =
           Node.span(
@@ -736,13 +747,7 @@ and view_of_stoken =
             ],
             [Node.text(LangUtil.nondisplay2)],
           );
-        ([delim_before], [delim_after]);
-      };
-    let delim_txt =
-      Node.span(
-        [
-          Attr.classes(["SDelim-txt", "unselectable"]),
-          Attr.create("contenteditable", "false"),
+        let attrs = [
           Attr.create(
             "path-before",
             Sexp.to_string(
@@ -753,6 +758,15 @@ and view_of_stoken =
             "path-after",
             Sexp.to_string(Path.sexp_of_t((node_steps, OnDelim(k, After)))),
           ),
+        ];
+        ([delim_before], [delim_after], attrs);
+      };
+    let delim_txt =
+      Node.span(
+        [
+          Attr.classes(["SDelim-txt", "unselectable"]),
+          Attr.create("contenteditable", "false"),
+          ...delim_txt_attrs,
         ],
         [Node.text(s)],
       );
@@ -762,9 +776,9 @@ and view_of_stoken =
     );
   | SOp(op_index, s) =>
     open Vdom;
-    let (op_before_nodes, op_after_nodes) =
+    let (op_before_nodes, op_after_nodes, op_txt_attrs) =
       switch (op_index) {
-      | None => ([], [])
+      | None => ([], [], [])
       | Some(k) =>
         let op_before =
           Node.span(
@@ -782,13 +796,26 @@ and view_of_stoken =
             ],
             [Node.text(LangUtil.nondisplay2)],
           );
-        ([op_before], [op_after]);
+        let attrs = [
+          Attr.create(
+            "path-before",
+            Sexp.to_string(
+              Path.sexp_of_t((node_steps, OnDelim(k, Before))),
+            ),
+          ),
+          Attr.create(
+            "path-after",
+            Sexp.to_string(Path.sexp_of_t((node_steps, OnDelim(k, After)))),
+          ),
+        ];
+        ([op_before], [op_after], attrs);
       };
     let op_txt =
       Node.span(
         [
           Attr.create("contenteditable", "false"),
           Attr.classes(["SOp-txt", "unselectable"]),
+          ...op_txt_attrs,
         ],
         [Node.text(s)],
       );
@@ -802,16 +829,6 @@ and view_of_stoken =
         [
           Attr.classes(["SSpaceOp"]),
           Attr.create("contenteditable", "false"),
-          Attr.create(
-            "path-before",
-            Sexp.to_string(
-              Path.sexp_of_t((node_steps, OnDelim(k, Before))),
-            ),
-          ),
-          Attr.create(
-            "path-after",
-            Sexp.to_string(Path.sexp_of_t((node_steps, OnDelim(k, After)))),
-          ),
         ],
         [Node.text(" ")],
       )

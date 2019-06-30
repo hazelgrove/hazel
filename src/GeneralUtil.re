@@ -471,3 +471,16 @@ module ListMinTwo = {
       (Cons(x, xs), Cons(y, ys));
     };
 };
+
+module Opt = {
+  let map = (f: 'a => 'b, opt: option('a)): option('b) =>
+    switch (opt) {
+    | None => None
+    | Some(a) => Some(f(a))
+    };
+  let get = (if_absent: unit => 'a, opt: option('a)): 'a =>
+    switch (opt) {
+    | None => if_absent()
+    | Some(a) => a
+    };
+};
