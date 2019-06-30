@@ -1,3 +1,4 @@
+[@deriving sexp]
 type edit_state = (ZExp.zblock, HTyp.t, MetaVarGen.t);
 type result = (
   Dynamics.DHExp.t,

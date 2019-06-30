@@ -1420,7 +1420,7 @@ and snode_of_exp = (~cursor=?, ~steps: Path.steps, e: UHExp.t): snode =>
       | Some(ann) => Some(snode_of_typ(~steps=steps @ [1], ann))
       };
     let sbody = snode_of_block(~steps=steps @ [2], body);
-    snode_of_Lam(~steps, ~err_status, sarg, sann, sbody);
+    snode_of_Lam(~cursor?, ~steps, ~err_status, sarg, sann, sbody);
   | Inj(err_status, side, body) =>
     let sbody = snode_of_block(~steps=steps @ [0], body);
     snode_of_Inj(~cursor?, ~err_status, ~steps, side, sbody);
