@@ -731,7 +731,7 @@ button:disabled {
   width: max-content;
 }
 
-.indent {
+.indent, .SSpaceOp {
   white-space: pre;
 }
 

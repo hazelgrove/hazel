@@ -169,7 +169,8 @@ let mk_sline = (~rel_indent=0, swords: list(sword)): sline => (
 
 let sline_of_segment = (segment: sseq_tail_segment): sline =>
   switch (segment) {
-  | SSegmentSpace(snode) => mk_sline(~rel_indent=2, [SNode(snode)])
+  | SSegmentSpace(snode) =>
+    mk_sline(~rel_indent=2, [SToken(SSpaceOp), SNode(snode)])
   | SSegmentOp(sop_tokens, snode) =>
     mk_sline((sop_tokens |> List.map(t => SToken(t))) @ [SNode(snode)])
   };
@@ -708,7 +709,15 @@ and view_of_stoken =
       op_before_nodes @ [op_txt] @ op_after_nodes,
     );
   | SSpaceOp =>
-    Vdom.(Node.div([Attr.classes([inline_div_cls, "SSpaceOp"])], []))
+    Vdom.(
+      Node.span(
+        [
+          Attr.classes(["SSpaceOp"]),
+          Attr.create("contenteditable", "false"),
+        ],
+        [Node.text(" ")],
+      )
+    )
   | SText(var_err_status, s) =>
     Vdom.(
       Node.div(
