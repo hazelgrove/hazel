@@ -478,6 +478,7 @@ module DHExp = {
     );
 
   module Environment = {
+    [@deriving sexp]
     type t = VarMap.t_(DHExp.t);
     include VarMap;
   };
@@ -1498,14 +1499,17 @@ module DHExp = {
     };
 
   module HoleInstance = {
+    [@deriving sexp]
     type t = (MetaVar.t, inst_num);
   };
 
   module InstancePath = {
+    [@deriving sexp]
     type t = list((HoleInstance.t, Var.t));
   };
 
   module HoleInstanceInfo = {
+    [@deriving sexp]
     type t = MetaVarMap.t(list((Environment.t, InstancePath.t)));
 
     let empty: t = (MetaVarMap.empty: t);
@@ -1824,6 +1828,7 @@ module DHExp = {
 };
 
 module Evaluator = {
+  [@deriving sexp]
   type result =
     | InvalidInput(int)
     | BoxedValue(DHExp.t)
@@ -1839,6 +1844,7 @@ module Evaluator = {
      6 = Cast BV Hole Ground
    */
 
+  [@deriving sexp]
   type ground_cases =
     | Hole
     | Ground

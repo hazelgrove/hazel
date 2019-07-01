@@ -1,6 +1,8 @@
+open Sexplib.Std;
 open SemanticsCommon;
 open GeneralUtil;
 
+[@deriving sexp]
 type cursor_mode =
   /*
    *  # cursor in analytic position
@@ -78,6 +80,7 @@ type cursor_mode =
    */
   | Line;
 
+[@deriving sexp]
 type cursor_sort =
   | IsExpr(UHExp.t)
   | IsPat(UHPat.t)
@@ -85,6 +88,7 @@ type cursor_sort =
   | IsLine(UHExp.line)
   | IsBlock(UHExp.block);
 
+[@deriving sexp]
 type t = {
   mode: cursor_mode,
   sort: cursor_sort,

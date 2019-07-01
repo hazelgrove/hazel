@@ -1,19 +1,25 @@
+open Sexplib.Std;
+
 [@deriving sexp]
 type edit_state = (ZExp.zblock, HTyp.t, MetaVarGen.t);
+[@deriving sexp]
 type result = (
   Dynamics.DHExp.t,
   Dynamics.DHExp.HoleInstanceInfo.t,
   Dynamics.Evaluator.result,
 );
 module UserSelectedInstances = {
+  [@deriving sexp]
   type t = MetaVarMap.t(Dynamics.inst_num);
   let init = MetaVarMap.empty;
   let update = (usi, inst) => MetaVarMap.insert_or_update(usi, inst);
 };
+[@deriving sexp]
 type context_inspector = {
   next_state: option(Dynamics.DHExp.HoleInstance.t),
   prev_state: option(Dynamics.DHExp.HoleInstance.t),
 };
+[@deriving sexp]
 type t = {
   edit_state,
   cursor_info: CursorInfo.t,
@@ -26,13 +32,16 @@ type t = {
   context_inspector,
 };
 
-let cutoff = (model1, model2) => {
-  let (zblock1, ty1, u_gen1) = model1.edit_state;
-  let (zblock2, ty2, u_gen2) = model2.edit_state;
-  ZExp.diff_is_just_cursor_movement_within_node(zblock1, zblock2)
-  && ty1 == ty2
-  && u_gen1 == u_gen2;
-};
+/*
+ let cutoff = (model1, model2) => {
+   let (zblock1, ty1, u_gen1) = model1.edit_state;
+   let (zblock2, ty2, u_gen2) = model2.edit_state;
+   ZExp.diff_is_just_cursor_movement_within_node(zblock1, zblock2)
+   && ty1 == ty2
+   && u_gen1 == u_gen2;
+ };
+ */
+let cutoff = (m1, m2) => m1 == m2;
 
 let get_path = model => {
   let (zblock, _, _) = model.edit_state;

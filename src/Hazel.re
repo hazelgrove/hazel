@@ -25,11 +25,10 @@ let on_startup = (~schedule_action, _) => {
 [@warning "-27"]
 let create = (model, ~old_model, ~inject) => {
   open Incr.Let_syntax;
-  let%map model = model;
-
+  let%map m = model;
   Component.create(
-    ~apply_action=Update.apply_action(model),
-    model,
-    Page.view(~inject, model),
+    ~apply_action=Update.apply_action(m),
+    m,
+    Page.view(~inject, m),
   );
 };
