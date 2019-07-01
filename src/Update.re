@@ -48,8 +48,8 @@ let caret_position_of_path =
     ((steps, cursor) as path): (Js.t(Dom.node), int) =>
   switch (cursor) {
   | OnDelim(_, _) =>
-    let anchor_elem = JSUtil.forceGetElementById(path_id(path));
-    let has_cls = JSUtil.elem_has_cls(anchor_elem);
+    let anchor_parent = JSUtil.forceGetElementById(path_id(path));
+    let has_cls = JSUtil.elem_has_cls(anchor_parent);
     let anchor_offset =
       if (has_cls("unselectable-before")) {
         2;
@@ -58,17 +58,20 @@ let caret_position_of_path =
       } else {
         0;
       };
-    (
-      (anchor_elem: Js.t(Dom_html.element) :> Js.t(Dom.node)),
-      anchor_offset,
+    let anchor_parent_node = (
+      anchor_parent: Js.t(Dom_html.element) :> Js.t(Dom.node)
     );
-  | OnText(j) => (
-      (
-        JSUtil.forceGetElementById(text_id(steps)): Js.t(Dom_html.element) :>
-          Js.t(Dom.node)
-      ),
-      j,
-    )
+    let anchor =
+      Js.Opt.get(anchor_parent_node##.firstChild, () => raise(MalformedView));
+    (anchor, anchor_offset);
+  | OnText(j) =>
+    let anchor_parent = (
+      JSUtil.forceGetElementById(text_id(steps)): Js.t(Dom_html.element) :>
+        Js.t(Dom.node)
+    );
+    let anchor =
+      Js.Opt.get(anchor_parent##.firstChild, () => raise(MalformedView));
+    (anchor, j);
   };
 
 let is_caret_consistent_with_path = path =>
