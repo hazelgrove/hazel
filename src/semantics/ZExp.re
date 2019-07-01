@@ -172,6 +172,10 @@ and is_before_exp = (ze: t): bool =>
   | CaseZA(_, _, _, _) => false
   | ApPaletteZ(_, _, _, _) => false
   };
+let is_before_rule =
+  fun
+  | CursorR(OnDelim(0, Before), _) => true
+  | _ => false;
 
 let rec is_after_block = (zblock: zblock): bool =>
   switch (zblock) {
@@ -227,6 +231,10 @@ let is_after_lines = ((_, zline, suffix): zlines): bool =>
   | [] => is_after_line(zline)
   | _ => false
   };
+let is_after_rule =
+  fun
+  | RuleZE(_, zclause) => is_after_block(zclause)
+  | _ => false;
 
 let rec place_before_block = (block: UHExp.block): zblock =>
   switch (block) {
@@ -882,4 +890,559 @@ and diff_is_just_cursor_movement_within_node__zrule = (zrule1, zrule2) =>
   | (RuleZE(p1, zclause1), RuleZE(p2, zclause2)) =>
     p1 == p2 && diff_is_just_cursor_movement_within_node(zclause1, zclause2)
   | (_, _) => false
+  };
+
+let rec move_cursor_left_block = (zblock: zblock): option(zblock) =>
+  switch (zblock) {
+  | BlockZL((prefix, zline, suffix), e) =>
+    switch (move_cursor_left_line(zline)) {
+    | Some(zline) => Some(BlockZL((prefix, zline, suffix), e))
+    | None =>
+      switch (List.rev(prefix)) {
+      | [] => None
+      | [line_before, ...rev_prefix] =>
+        Some(
+          BlockZL(
+            (
+              List.rev(rev_prefix),
+              place_after_line(line_before),
+              [erase_line(zline), ...suffix],
+            ),
+            e,
+          ),
+        )
+      }
+    }
+  | BlockZE(lines, ze) =>
+    switch (move_cursor_left_exp(ze)) {
+    | Some(ze) => Some(BlockZE(lines, ze))
+    | None =>
+      switch (List.rev(lines)) {
+      | [] => None
+      | [last_line, ...rev_prefix] =>
+        Some(
+          BlockZL(
+            (List.rev(rev_prefix), place_after_line(last_line), []),
+            erase(ze),
+          ),
+        )
+      }
+    }
+  }
+and move_cursor_left_line = (zline: zline): option(zline) =>
+  switch (zline) {
+  | _ when is_before_line(zline) => None
+  | CursorL(OnText(_), _) => None
+  | CursorL(OnDelim(k, After), line) =>
+    Some(CursorL(OnDelim(k, Before), line))
+  | CursorL(OnDelim(_, _), EmptyLine | ExpLine(_)) => None
+  | CursorL(OnDelim(k, Before), LetLine(p, ann, def)) =>
+    // k == 1 || k == 2
+    switch (k == 1, ann) {
+    | (true, _) => Some(LetLineZP(ZPat.place_after(p), ann, def))
+    | (_, None) => Some(LetLineZP(ZPat.place_after(p), ann, def))
+    | (_, Some(ann)) => Some(LetLineZA(p, ZTyp.place_after(ann), def))
+    }
+  | ExpLineZ(ze) =>
+    switch (move_cursor_left_exp(ze)) {
+    | None => None
+    | Some(ze) => Some(ExpLineZ(ze))
+    }
+  | LetLineZP(zp, ann, def) =>
+    switch (ZPat.move_cursor_left(zp)) {
+    | Some(zp) => Some(LetLineZP(zp, ann, def))
+    | None =>
+      Some(CursorL(OnDelim(0, After), LetLine(ZPat.erase(zp), ann, def)))
+    }
+  | LetLineZA(p, zann, def) =>
+    switch (ZTyp.move_cursor_left(zann)) {
+    | Some(zann) => Some(LetLineZA(p, zann, def))
+    | None =>
+      Some(
+        CursorL(
+          OnDelim(1, After),
+          LetLine(p, Some(ZTyp.erase(zann)), def),
+        ),
+      )
+    }
+  | LetLineZE(p, ann, zdef) =>
+    switch (move_cursor_left_block(zdef)) {
+    | Some(zdef) => Some(LetLineZE(p, ann, zdef))
+    | None =>
+      Some(CursorL(OnDelim(2, After), LetLine(p, ann, erase_block(zdef))))
+    }
+  }
+and move_cursor_left_exp = (ze: t): option(t) =>
+  switch (ze) {
+  | _ when is_before_exp(ze) => None
+  | CursorE(OnText(j), e) => Some(CursorE(OnText(j - 1), e))
+  | CursorE(OnDelim(k, After), e) => Some(CursorE(OnDelim(k, Before), e))
+  | CursorE(OnDelim(_, Before), EmptyHole(_) | ListNil(_)) => None
+  | CursorE(OnDelim(_k, Before), Parenthesized(body)) =>
+    // _k == 1
+    Some(ParenthesizedZ(place_after_block(body)))
+  | CursorE(OnDelim(_k, Before), Inj(err_status, side, body)) =>
+    // _k == 1
+    Some(InjZ(err_status, side, place_after_block(body)))
+  | CursorE(OnDelim(k, Before), OpSeq(skel, seq)) =>
+    switch (seq |> OperatorSeq.split(k - 1)) {
+    | None => None // should never happen
+    | Some((e1, surround)) =>
+      Some(OpSeqZ(skel, place_after_exp(e1), surround))
+    }
+  | CursorE(OnDelim(k, Before), Lam(err_status, arg, ann, body)) =>
+    // k == 1 || k == 2
+    switch (k == 1, ann) {
+    | (true, _) =>
+      Some(LamZP(err_status, ZPat.place_after(arg), ann, body))
+    | (_, None) =>
+      Some(LamZP(err_status, ZPat.place_after(arg), ann, body))
+    | (_, Some(ann)) =>
+      Some(LamZA(err_status, arg, ZTyp.place_after(ann), body))
+    }
+  | CursorE(OnDelim(_k, Before), Case(err_status, scrut, rules, ann)) =>
+    // _k == 1
+    switch (List.rev(rules)) {
+    | [] => Some(CaseZE(err_status, place_after_block(scrut), rules, ann))
+    | [last_rule, ...rev_prefix] =>
+      Some(
+        CaseZR(
+          err_status,
+          scrut,
+          (List.rev(rev_prefix), place_after_rule(last_rule), []),
+          ann,
+        ),
+      )
+    }
+  | CursorE(_, ApPalette(_, _, _, _)) => None
+  | CursorE(OnDelim(_, _), Var(_, _, _) | BoolLit(_, _) | NumLit(_, _)) =>
+    // invalid cursor position
+    None
+  | ParenthesizedZ(zbody) =>
+    switch (move_cursor_left_block(zbody)) {
+    | Some(zbody) => Some(ParenthesizedZ(zbody))
+    | None =>
+      Some(CursorE(OnDelim(0, After), Parenthesized(erase_block(zbody))))
+    }
+  | InjZ(err_status, side, zbody) =>
+    switch (move_cursor_left_block(zbody)) {
+    | Some(zbody) => Some(InjZ(err_status, side, zbody))
+    | None =>
+      Some(
+        CursorE(
+          OnDelim(0, After),
+          Inj(err_status, side, erase_block(zbody)),
+        ),
+      )
+    }
+  | OpSeqZ(skel, ze1, surround) =>
+    switch (move_cursor_left_exp(ze1)) {
+    | Some(ze1) => Some(OpSeqZ(skel, ze1, surround))
+    | None =>
+      let k = OperatorSeq.surround_prefix_length(surround);
+      let seq = OperatorSeq.opseq_of_exp_and_surround(erase(ze1), surround);
+      Some(CursorE(OnDelim(k, After), OpSeq(skel, seq)));
+    }
+  | LamZP(err_status, zarg, ann, body) =>
+    switch (ZPat.move_cursor_left(zarg)) {
+    | Some(zarg) => Some(LamZP(err_status, zarg, ann, body))
+    | None =>
+      Some(
+        CursorE(
+          OnDelim(0, After),
+          Lam(err_status, ZPat.erase(zarg), ann, body),
+        ),
+      )
+    }
+  | LamZA(err_status, arg, zann, body) =>
+    switch (ZTyp.move_cursor_left(zann)) {
+    | Some(zann) => Some(LamZA(err_status, arg, zann, body))
+    | None =>
+      Some(
+        CursorE(
+          OnDelim(1, After),
+          Lam(err_status, arg, Some(ZTyp.erase(zann)), body),
+        ),
+      )
+    }
+  | LamZE(err_status, arg, ann, zbody) =>
+    switch (move_cursor_left_block(zbody)) {
+    | Some(zbody) => Some(LamZE(err_status, arg, ann, zbody))
+    | None =>
+      Some(
+        CursorE(
+          OnDelim(2, After),
+          Lam(err_status, arg, ann, erase_block(zbody)),
+        ),
+      )
+    }
+  | CaseZE(err_status, zscrut, rules, ann) =>
+    switch (move_cursor_left_block(zscrut)) {
+    | Some(zscrut) => Some(CaseZE(err_status, zscrut, rules, ann))
+    | None =>
+      Some(
+        CursorE(
+          OnDelim(0, After),
+          Case(err_status, erase_block(zscrut), rules, ann),
+        ),
+      )
+    }
+  | CaseZR(err_status, scrut, (prefix, zrule, suffix), ann) =>
+    switch (move_cursor_left_rule(zrule)) {
+    | Some(zrule) =>
+      Some(CaseZR(err_status, scrut, (prefix, zrule, suffix), ann))
+    | None =>
+      switch (List.rev(prefix)) {
+      | [] =>
+        Some(
+          CaseZE(
+            err_status,
+            place_after_block(scrut),
+            prefix @ [erase_rule(zrule)] @ suffix,
+            ann,
+          ),
+        )
+      | [rule_before, ...rev_prefix] =>
+        Some(
+          CaseZR(
+            err_status,
+            scrut,
+            (
+              List.rev(rev_prefix),
+              place_after_rule(rule_before),
+              [erase_rule(zrule), ...suffix],
+            ),
+            ann,
+          ),
+        )
+      }
+    }
+  | CaseZA(err_status, scrut, rules, zann) =>
+    switch (ZTyp.move_cursor_left(zann)) {
+    | Some(zann) => Some(CaseZA(err_status, scrut, rules, zann))
+    | None =>
+      Some(
+        CursorE(
+          OnDelim(1, After),
+          Case(err_status, scrut, rules, Some(ZTyp.erase(zann))),
+        ),
+      )
+    }
+  | ApPaletteZ(_, _, _, _) => None
+  }
+and move_cursor_left_rule = (zrule: zrule): option(zrule) =>
+  switch (zrule) {
+  | _ when is_before_rule(zrule) => None
+  | CursorR(OnText(_), _) => None
+  | CursorR(OnDelim(k, After), rule) =>
+    Some(CursorR(OnDelim(k, Before), rule))
+  | CursorR(OnDelim(_k, Before), Rule(p, clause)) =>
+    // _k == 1
+    Some(RuleZP(ZPat.place_after(p), clause))
+  | RuleZP(zp, clause) =>
+    switch (ZPat.move_cursor_left(zp)) {
+    | Some(zp) => Some(RuleZP(zp, clause))
+    | None =>
+      Some(CursorR(OnDelim(0, After), Rule(ZPat.erase(zp), clause)))
+    }
+  | RuleZE(p, zclause) =>
+    switch (move_cursor_left_block(zclause)) {
+    | Some(zclause) => Some(RuleZE(p, zclause))
+    | None =>
+      Some(CursorR(OnDelim(1, After), Rule(p, erase_block(zclause))))
+    }
+  };
+
+let rec move_cursor_right_block = (zblock: zblock): option(zblock) =>
+  switch (zblock) {
+  | BlockZL((prefix, zline, suffix), e) =>
+    switch (move_cursor_right_line(zline)) {
+    | Some(zline) => Some(BlockZL((prefix, zline, suffix), e))
+    | None =>
+      switch (suffix) {
+      | [] =>
+        Some(
+          BlockZE(
+            prefix @ [erase_line(zline)] @ suffix,
+            place_before_exp(e),
+          ),
+        )
+      | [line_after, ...suffix] =>
+        Some(
+          BlockZL(
+            (
+              prefix @ [erase_line(zline)],
+              place_before_line(line_after),
+              suffix,
+            ),
+            e,
+          ),
+        )
+      }
+    }
+  | BlockZE(lines, ze) =>
+    switch (move_cursor_right_exp(ze)) {
+    | None => None
+    | Some(ze) => Some(BlockZE(lines, ze))
+    }
+  }
+and move_cursor_right_line = (zline: zline): option(zline) => {
+  switch (zline) {
+  | _ when is_after_line(zline) => None
+  | CursorL(OnText(_), _) => None
+  | CursorL(OnDelim(k, Before), line) =>
+    Some(CursorL(OnDelim(k, After), line))
+  | CursorL(OnDelim(_, _), EmptyLine | ExpLine(_)) => None
+  | CursorL(OnDelim(k, After), LetLine(p, ann, def)) =>
+    // k == 0 || k == 1
+    switch (k == 0, ann) {
+    | (true, _) => Some(LetLineZP(ZPat.place_before(p), ann, def))
+    | (false, None) =>
+      // invalid cursor position
+      None
+    | (false, Some(ann)) => Some(LetLineZA(p, ZTyp.place_before(ann), def))
+    }
+  | ExpLineZ(ze) =>
+    switch (move_cursor_right_exp(ze)) {
+    | None => None
+    | Some(ze) => Some(ExpLineZ(ze))
+    }
+  | LetLineZP(zp, ann, def) =>
+    switch (ZPat.move_cursor_right(zp)) {
+    | Some(zp) => Some(LetLineZP(zp, ann, def))
+    | None =>
+      Some(
+        CursorL(
+          OnDelim(
+            switch (ann) {
+            | None => 2
+            | Some(_) => 1
+            },
+            Before,
+          ),
+          LetLine(ZPat.erase(zp), ann, def),
+        ),
+      )
+    }
+  | LetLineZA(p, zann, def) =>
+    switch (ZTyp.move_cursor_right(zann)) {
+    | Some(zann) => Some(LetLineZA(p, zann, def))
+    | None =>
+      Some(
+        CursorL(
+          OnDelim(2, Before),
+          LetLine(p, Some(ZTyp.erase(zann)), def),
+        ),
+      )
+    }
+  | LetLineZE(p, ann, zdef) =>
+    switch (move_cursor_right_block(zdef)) {
+    | None => None
+    | Some(zdef) => Some(LetLineZE(p, ann, zdef))
+    }
+  };
+}
+and move_cursor_right_exp = (ze: t): option(t) =>
+  switch (ze) {
+  | _ when is_after_exp(ze) => None
+  | CursorE(OnText(j), e) => Some(CursorE(OnText(j + 1), e))
+  | CursorE(OnDelim(k, Before), e) => Some(CursorE(OnDelim(k, After), e))
+  | CursorE(OnDelim(_, After), EmptyHole(_) | ListNil(_)) => None
+  | CursorE(OnDelim(_k, After), Parenthesized(body)) =>
+    // _k == 0
+    Some(ParenthesizedZ(place_before_block(body)))
+  | CursorE(OnDelim(_k, After), Inj(err_status, side, body)) =>
+    // _k == 0
+    Some(InjZ(err_status, side, place_before_block(body)))
+  | CursorE(OnDelim(k, After), OpSeq(skel, seq)) =>
+    switch (seq |> OperatorSeq.split(k)) {
+    | None => None // should never happen
+    | Some((e1, surround)) =>
+      Some(OpSeqZ(skel, place_before_exp(e1), surround))
+    }
+  | CursorE(OnDelim(k, After), Lam(err_status, arg, ann, body)) =>
+    // k == 0 || k == 1 || k == 2
+    switch (k == 0, k == 1, ann) {
+    | (true, _, _) =>
+      Some(LamZP(err_status, ZPat.place_before(arg), ann, body))
+    | (_, true, None) =>
+      // invalid cursor position
+      None
+    | (_, true, Some(ann)) =>
+      Some(LamZA(err_status, arg, ZTyp.place_before(ann), body))
+    | (false, false, _) =>
+      Some(LamZE(err_status, arg, ann, place_before_block(body)))
+    }
+  | CursorE(OnDelim(_k, After), Case(err_status, scrut, rules, None)) =>
+    // _k == 0
+    switch (rules) {
+    | [] =>
+      Some(
+        CursorE(OnDelim(1, Before), Case(err_status, scrut, rules, None)),
+      )
+    | [r, ...rs] =>
+      Some(CaseZR(err_status, scrut, ([], place_before_rule(r), rs), None))
+    }
+  | CursorE(OnDelim(k, After), Case(err_status, scrut, rules, Some(ann))) =>
+    // k == 0 || k == 1
+    switch (k == 0, rules) {
+    | (true, []) =>
+      Some(
+        CursorE(
+          OnDelim(1, Before),
+          Case(err_status, scrut, rules, Some(ann)),
+        ),
+      )
+    | (true, [r, ...rs]) =>
+      Some(
+        CaseZR(
+          err_status,
+          scrut,
+          ([], place_before_rule(r), rs),
+          Some(ann),
+        ),
+      )
+    | (false, _) =>
+      Some(CaseZA(err_status, scrut, rules, ZTyp.place_before(ann)))
+    }
+  | CursorE(_, ApPalette(_, _, _, _)) => None
+  | CursorE(OnDelim(_, _), Var(_, _, _) | BoolLit(_, _) | NumLit(_, _)) =>
+    // invalid cursor position
+    None
+  | ParenthesizedZ(zbody) =>
+    switch (move_cursor_right_block(zbody)) {
+    | Some(zbody) => Some(ParenthesizedZ(zbody))
+    | None =>
+      Some(CursorE(OnDelim(1, Before), Parenthesized(erase_block(zbody))))
+    }
+  | InjZ(err_status, side, zbody) =>
+    switch (move_cursor_right_block(zbody)) {
+    | Some(zbody) => Some(InjZ(err_status, side, zbody))
+    | None =>
+      Some(
+        CursorE(
+          OnDelim(1, Before),
+          Inj(err_status, side, erase_block(zbody)),
+        ),
+      )
+    }
+  | OpSeqZ(skel, ze1, surround) =>
+    switch (move_cursor_right_exp(ze1)) {
+    | Some(ze1) => Some(OpSeqZ(skel, ze1, surround))
+    | None =>
+      let k = OperatorSeq.surround_prefix_length(surround);
+      let seq = OperatorSeq.opseq_of_exp_and_surround(erase(ze1), surround);
+      Some(CursorE(OnDelim(k + 1, Before), OpSeq(skel, seq)));
+    }
+  | LamZP(err_status, zarg, ann, body) =>
+    switch (ZPat.move_cursor_right(zarg)) {
+    | Some(zarg) => Some(LamZP(err_status, zarg, ann, body))
+    | None =>
+      Some(
+        CursorE(
+          OnDelim(
+            switch (ann) {
+            | None => 2
+            | Some(_) => 1
+            },
+            Before,
+          ),
+          Lam(err_status, ZPat.erase(zarg), ann, body),
+        ),
+      )
+    }
+  | LamZA(err_status, arg, zann, body) =>
+    switch (ZTyp.move_cursor_right(zann)) {
+    | Some(zann) => Some(LamZA(err_status, arg, zann, body))
+    | None =>
+      Some(
+        CursorE(
+          OnDelim(2, Before),
+          Lam(err_status, arg, Some(ZTyp.erase(zann)), body),
+        ),
+      )
+    }
+  | LamZE(err_status, arg, ann, zbody) =>
+    switch (move_cursor_right_block(zbody)) {
+    | None => None
+    | Some(zbody) => Some(LamZE(err_status, arg, ann, zbody))
+    }
+  | CaseZE(err_status, zscrut, rules, ann) =>
+    switch (move_cursor_right_block(zscrut)) {
+    | Some(zscrut) => Some(CaseZE(err_status, zscrut, rules, ann))
+    | None =>
+      switch (rules) {
+      | [] =>
+        Some(
+          CursorE(
+            OnDelim(1, Before),
+            Case(err_status, erase_block(zscrut), rules, ann),
+          ),
+        )
+      | [r, ...rs] =>
+        Some(
+          CaseZR(
+            err_status,
+            erase_block(zscrut),
+            ([], place_after_rule(r), rs),
+            ann,
+          ),
+        )
+      }
+    }
+  | CaseZR(err_status, scrut, (prefix, zrule, suffix), ann) =>
+    switch (move_cursor_right_rule(zrule)) {
+    | Some(zrule) =>
+      Some(CaseZR(err_status, scrut, (prefix, zrule, suffix), ann))
+    | None =>
+      switch (suffix) {
+      | [] =>
+        Some(
+          CursorE(
+            OnDelim(1, Before),
+            Case(err_status, scrut, prefix @ [erase_rule(zrule)], ann),
+          ),
+        )
+      | [rule_after, ...suffix] =>
+        Some(
+          CaseZR(
+            err_status,
+            scrut,
+            (
+              prefix,
+              place_before_rule(rule_after),
+              [erase_rule(zrule), ...suffix],
+            ),
+            ann,
+          ),
+        )
+      }
+    }
+  | CaseZA(err_status, scrut, rules, zann) =>
+    switch (ZTyp.move_cursor_right(zann)) {
+    | None => None
+    | Some(zann) => Some(CaseZA(err_status, scrut, rules, zann))
+    }
+  | ApPaletteZ(_, _, _, _) => None
+  }
+and move_cursor_right_rule = (zrule: zrule): option(zrule) =>
+  switch (zrule) {
+  | _ when is_after_rule(zrule) => None
+  | CursorR(OnText(_), _) => None
+  | CursorR(OnDelim(k, Before), rule) =>
+    Some(CursorR(OnDelim(k, After), rule))
+  | CursorR(OnDelim(_k, After), Rule(p, clause)) =>
+    // _k == 0
+    Some(RuleZP(ZPat.place_before(p), clause))
+  | RuleZP(zp, clause) =>
+    switch (ZPat.move_cursor_right(zp)) {
+    | Some(zp) => Some(RuleZP(zp, clause))
+    | None =>
+      Some(CursorR(OnDelim(1, Before), Rule(ZPat.erase(zp), clause)))
+    }
+  | RuleZE(p, zclause) =>
+    switch (move_cursor_right_block(zclause)) {
+    | None => None
+    | Some(zclause) => Some(RuleZE(p, zclause))
+    }
   };

@@ -101,6 +101,8 @@ type shape =
 type t =
   | MoveTo(Path.t)
   | MoveToBefore(Path.steps)
+  | MoveLeft
+  | MoveRight
   | MoveToNextHole
   | MoveToPrevHole
   | UpdateApPalette(SpliceGenMonad.t(SerializedModel.t))
@@ -218,6 +220,16 @@ let rec perform_ty = (a: t, zty: ZTyp.t): result(ZTyp.t) =>
     | Some(path) =>
       /* [debug] let path = Helper.log_path path in */
       perform_ty(MoveTo(path), zty)
+    }
+  | (MoveLeft, _) =>
+    switch (ZTyp.move_cursor_left(zty)) {
+    | None => CursorEscaped(Before)
+    | Some(zty) => Succeeded(zty)
+    }
+  | (MoveRight, _) =>
+    switch (ZTyp.move_cursor_right(zty)) {
+    | None => CursorEscaped(Before)
+    | Some(zty) => Succeeded(zty)
     }
   /* Backspace and Delete */
   | (Backspace, _) when ZTyp.is_before(zty) => CursorEscaped(Before)
@@ -1140,7 +1152,7 @@ let rec syn_perform_pat =
     let p = ZPat.erase(zp);
     switch (Statics.syn_pat(ctx, p)) {
     | None => Failed
-    | Some((ty, _)) =>
+    | Some((ty, ctx)) =>
       switch (Path.follow_pat(path, p)) {
       | None => Failed
       | Some(zp) => Succeeded((zp, ty, ctx, u_gen))
@@ -1150,7 +1162,7 @@ let rec syn_perform_pat =
     let p = ZPat.erase(zp);
     switch (Statics.syn_pat(ctx, p)) {
     | None => Failed
-    | Some((ty, _)) =>
+    | Some((ty, ctx)) =>
       switch (Path.follow_pat_and_place_before(steps, p)) {
       | None => Failed
       | Some(zp) => Succeeded((zp, ty, ctx, u_gen))
@@ -1166,6 +1178,20 @@ let rec syn_perform_pat =
     | None => Failed
     | Some(path) => syn_perform_pat(ctx, u_gen, MoveTo(path), zp)
     }
+  | (MoveLeft, _) =>
+    let p = ZPat.erase(zp);
+    switch (Statics.syn_pat(ctx, p), ZPat.move_cursor_left(zp)) {
+    | (None, _) => Failed
+    | (_, None) => CursorEscaped(Before)
+    | (Some((ty, ctx)), Some(zp)) => Succeeded((zp, ty, ctx, u_gen))
+    };
+  | (MoveRight, _) =>
+    let p = ZPat.erase(zp);
+    switch (Statics.syn_pat(ctx, p), ZPat.move_cursor_right(zp)) {
+    | (None, _) => Failed
+    | (_, None) => CursorEscaped(After)
+    | (Some((ty, ctx)), Some(zp)) => Succeeded((zp, ty, ctx, u_gen))
+    };
   /* Backspace and Delete */
   | (Backspace, _) when ZPat.is_before(zp) => CursorEscaped(Before)
   | (Delete, _) when ZPat.is_after(zp) => CursorEscaped(After)
@@ -1749,15 +1775,20 @@ and ana_perform_pat =
    * we include it */
   | (MoveTo(path), _) =>
     let p = ZPat.erase(zp);
-    switch (Path.follow_pat(path, p)) {
-    | Some(zp) => Succeeded((zp, ctx, u_gen))
-    | None => Failed
+    switch (Statics.ana_pat(ctx, p, ty), Path.follow_pat(path, p)) {
+    | (None, _) => Failed
+    | (_, None) => Failed
+    | (Some(ctx), Some(zp)) => Succeeded((zp, ctx, u_gen))
     };
   | (MoveToBefore(steps), _) =>
     let p = ZPat.erase(zp);
-    switch (Path.follow_pat_and_place_before(steps, p)) {
-    | Some(zp) => Succeeded((zp, ctx, u_gen))
-    | None => Failed
+    switch (
+      Statics.ana_pat(ctx, p, ty),
+      Path.follow_pat_and_place_before(steps, p),
+    ) {
+    | (None, _) => Failed
+    | (_, None) => Failed
+    | (Some(ctx), Some(zp)) => Succeeded((zp, ctx, u_gen))
     };
   | (MoveToPrevHole, _) =>
     switch (Path.prev_hole_path(Path.holes_zpat(zp, []))) {
@@ -1769,6 +1800,20 @@ and ana_perform_pat =
     | None => Failed
     | Some(path) => ana_perform_pat(ctx, u_gen, MoveTo(path), zp, ty)
     }
+  | (MoveLeft, _) =>
+    let p = ZPat.erase(zp);
+    switch (Statics.ana_pat(ctx, p, ty), ZPat.move_cursor_left(zp)) {
+    | (None, _) => Failed
+    | (_, None) => CursorEscaped(Before)
+    | (Some(ctx), Some(zp)) => Succeeded((zp, ctx, u_gen))
+    };
+  | (MoveRight, _) =>
+    let p = ZPat.erase(zp);
+    switch (Statics.ana_pat(ctx, p, ty), ZPat.move_cursor_right(zp)) {
+    | (None, _) => Failed
+    | (_, None) => CursorEscaped(After)
+    | (Some(ctx), Some(zp)) => Succeeded((zp, ctx, u_gen))
+    };
   /* Backspace and Delete */
   | (Backspace, _) when ZPat.is_before(zp) => CursorEscaped(Before)
   | (Delete, _) when ZPat.is_after(zp) => CursorEscaped(After)
@@ -2579,6 +2624,16 @@ let rec syn_perform_block =
     | Some(path) =>
       syn_perform_block(ctx, MoveTo(path), (zblock, ty, u_gen))
     }
+  | (MoveLeft, _) =>
+    switch (ZExp.move_cursor_left_block(zblock)) {
+    | None => CursorEscaped(Before)
+    | Some(zblock) => Succeeded((zblock, ty, u_gen))
+    }
+  | (MoveRight, _) =>
+    switch (ZExp.move_cursor_right_block(zblock)) {
+    | None => CursorEscaped(After)
+    | Some(zblock) => Succeeded((zblock, ty, u_gen))
+    }
   /* Backspace & Delete */
   | (Backspace, _) when ZExp.is_before_block(zblock) =>
     CursorEscaped(Before)
@@ -2730,7 +2785,10 @@ let rec syn_perform_block =
     let zblock = ZExp.BlockZE(lines, ze);
     syn_perform_block(ctx, keyword_action(k), (zblock, Hole, u_gen));
   /* Zipper Cases */
-  | (_, BlockZL(zlines, e)) =>
+  | (
+      Backspace | Delete | Construct(_) | UpdateApPalette(_),
+      BlockZL(zlines, e),
+    ) =>
     switch (syn_perform_lines(ctx, a, (zlines, u_gen))) {
     | Failed => Failed
     | CursorEscaped(Before) => CursorEscaped(Before)
@@ -2745,7 +2803,10 @@ let rec syn_perform_block =
       let zblock = ZExp.BlockZL(zlines, e);
       Succeeded((zblock, ty, u_gen));
     }
-  | (_, BlockZE(lines, ze)) =>
+  | (
+      Backspace | Delete | Construct(_) | UpdateApPalette(_),
+      BlockZE(lines, ze),
+    ) =>
     switch (Statics.syn_lines(ctx, lines)) {
     | None => Failed
     | Some(ctx) =>
@@ -2990,10 +3051,11 @@ and syn_perform_line =
     /* ExpLine is a ghost node, should never have a cursor */
     Failed
   /* Movement */
-  | (MoveTo(_), _)
-  | (MoveToBefore(_), _)
-  | (MoveToPrevHole, _)
-  | (MoveToNextHole, _) =>
+  | (
+      MoveTo(_) | MoveToBefore(_) | MoveToPrevHole | MoveToNextHole | MoveLeft |
+      MoveRight,
+      _,
+    ) =>
     /* handled at block or lines level */
     Failed
   /* Backspace & Delete */
@@ -3288,6 +3350,16 @@ and syn_perform_exp =
     | None => Failed
     | Some(path) => syn_perform_exp(ctx, MoveTo(path), (ze, ty, u_gen))
     };
+  | (MoveLeft, _) =>
+    switch (ZExp.move_cursor_left_exp(ze)) {
+    | None => CursorEscaped(Before)
+    | Some(ze) => Succeeded((E(ze), ty, u_gen))
+    }
+  | (MoveRight, _) =>
+    switch (ZExp.move_cursor_right_exp(ze)) {
+    | None => CursorEscaped(Before)
+    | Some(ze) => Succeeded((E(ze), ty, u_gen))
+    }
   /* Backspace & Deletion */
   | (Backspace, _) when ZExp.is_before_exp(ze) => CursorEscaped(Before)
   | (Delete, _) when ZExp.is_after_exp(ze) => CursorEscaped(After)
@@ -4317,6 +4389,16 @@ and ana_perform_block =
     | Some(path) =>
       ana_perform_block(ctx, MoveTo(path), (zblock, u_gen), ty)
     }
+  | (MoveLeft, _) =>
+    switch (ZExp.move_cursor_left_block(zblock)) {
+    | None => CursorEscaped(Before)
+    | Some(zblock) => Succeeded((zblock, u_gen))
+    }
+  | (MoveRight, _) =>
+    switch (ZExp.move_cursor_right_block(zblock)) {
+    | None => CursorEscaped(After)
+    | Some(zblock) => Succeeded((zblock, u_gen))
+    }
   /* Backspace & Delete */
   | (Backspace, _) when ZExp.is_before_block(zblock) =>
     CursorEscaped(Before)
@@ -4475,7 +4557,10 @@ and ana_perform_block =
     let zblock = ZExp.BlockZE(lines, ze);
     ana_perform_block(ctx, keyword_action(k), (zblock, u_gen), ty);
   /* Zipper Cases */
-  | (_, BlockZL(zlines, e)) =>
+  | (
+      Backspace | Delete | Construct(_) | UpdateApPalette(_),
+      BlockZL(zlines, e),
+    ) =>
     switch (syn_perform_lines(ctx, a, (zlines, u_gen))) {
     | Failed => Failed
     | CursorEscaped(Before) => CursorEscaped(Before)
@@ -4488,7 +4573,10 @@ and ana_perform_block =
       let zblock = ZExp.BlockZL(zlines, e);
       Succeeded(Statics.ana_fix_holes_zblock(ctx, u_gen, zblock, ty));
     }
-  | (_, BlockZE(lines, ze)) =>
+  | (
+      Backspace | Delete | Construct(_) | UpdateApPalette(_),
+      BlockZE(lines, ze),
+    ) =>
     switch (Statics.syn_lines(ctx, lines)) {
     | None => Failed
     | Some(ctx1) =>
@@ -4582,6 +4670,16 @@ and ana_perform_exp =
     switch (Path.next_hole_path(Path.holes_ze(ze, []))) {
     | None => Failed
     | Some(path) => ana_perform_exp(ctx, MoveTo(path), (ze, u_gen), ty)
+    }
+  | (MoveLeft, _) =>
+    switch (ZExp.move_cursor_left_exp(ze)) {
+    | None => CursorEscaped(Before)
+    | Some(ze) => Succeeded((E(ze), u_gen))
+    }
+  | (MoveRight, _) =>
+    switch (ZExp.move_cursor_right_exp(ze)) {
+    | None => CursorEscaped(Before)
+    | Some(ze) => Succeeded((E(ze), u_gen))
     }
   /* Backspace & Delete */
   | (Backspace, _) when ZExp.is_before_exp(ze) => CursorEscaped(Before)
@@ -5539,6 +5637,8 @@ let can_perform =
   | MoveToBefore(_)
   | MoveToNextHole
   | MoveToPrevHole
+  | MoveLeft
+  | MoveRight
   | UpdateApPalette(_)
   | Delete
   | Backspace =>

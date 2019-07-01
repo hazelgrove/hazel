@@ -326,3 +326,86 @@ let rec diff_is_just_cursor_movement_within_node = (zp1, zp2) =>
     && diff_is_just_cursor_movement_within_node(zbody1, zbody2)
   | (_, _) => false
   };
+
+let rec move_cursor_left = (zp: t): option(t) =>
+  switch (zp) {
+  | _ when is_before(zp) => None
+  | CursorP(OnText(j), p) => Some(CursorP(OnText(j - 1), p))
+  | CursorP(OnDelim(k, After), p) => Some(CursorP(OnDelim(k, Before), p))
+  | CursorP(OnDelim(_, Before), EmptyHole(_) | Wild(_) | ListNil(_)) => None
+  | CursorP(OnDelim(_k, Before), Parenthesized(p1)) =>
+    // _k == 1
+    Some(ParenthesizedZ(place_after(p1)))
+  | CursorP(OnDelim(_k, Before), Inj(err_status, side, p1)) =>
+    // _k == 1
+    Some(InjZ(err_status, side, place_after(p1)))
+  | CursorP(OnDelim(k, Before), OpSeq(skel, seq)) =>
+    switch (seq |> OperatorSeq.split(k - 1)) {
+    | None => None // should never happen
+    | Some((p1, surround)) => Some(OpSeqZ(skel, place_after(p1), surround))
+    }
+  | CursorP(OnDelim(_, _), Var(_, _, _) | BoolLit(_, _) | NumLit(_, _)) =>
+    // invalid cursor position
+    None
+  | ParenthesizedZ(zp1) =>
+    switch (move_cursor_left(zp1)) {
+    | Some(zp1) => Some(ParenthesizedZ(zp1))
+    | None => Some(CursorP(OnDelim(0, After), Parenthesized(erase(zp1))))
+    }
+  | InjZ(err_status, side, zp1) =>
+    switch (move_cursor_left(zp1)) {
+    | Some(zp1) => Some(InjZ(err_status, side, zp1))
+    | None =>
+      Some(CursorP(OnDelim(0, After), Inj(err_status, side, erase(zp1))))
+    }
+  | OpSeqZ(skel, zp1, surround) =>
+    switch (move_cursor_left(zp1)) {
+    | Some(zp1) => Some(OpSeqZ(skel, zp1, surround))
+    | None =>
+      let k = OperatorSeq.surround_prefix_length(surround);
+      let seq = OperatorSeq.opseq_of_exp_and_surround(erase(zp1), surround);
+      Some(CursorP(OnDelim(k, After), OpSeq(skel, seq)));
+    }
+  };
+
+let rec move_cursor_right = (zp: t): option(t) =>
+  switch (zp) {
+  | _ when is_after(zp) => None
+  | CursorP(OnText(j), p) => Some(CursorP(OnText(j + 1), p))
+  | CursorP(OnDelim(k, Before), p) => Some(CursorP(OnDelim(k, After), p))
+  | CursorP(OnDelim(_, After), EmptyHole(_) | Wild(_) | ListNil(_)) => None
+  | CursorP(OnDelim(_k, After), Parenthesized(p1)) =>
+    // _k == 0
+    Some(ParenthesizedZ(place_before(p1)))
+  | CursorP(OnDelim(_k, After), Inj(err_status, side, p1)) =>
+    // _k == 0
+    Some(InjZ(err_status, side, place_before(p1)))
+  | CursorP(OnDelim(k, After), OpSeq(skel, seq)) =>
+    switch (seq |> OperatorSeq.split(k - 1)) {
+    | None => None // should never happen
+    | Some((p1, surround)) =>
+      Some(OpSeqZ(skel, place_before(p1), surround))
+    }
+  | CursorP(OnDelim(_, _), Var(_, _, _) | BoolLit(_, _) | NumLit(_, _)) =>
+    // invalid cursor position
+    None
+  | ParenthesizedZ(zp1) =>
+    switch (move_cursor_right(zp1)) {
+    | Some(zp1) => Some(ParenthesizedZ(zp1))
+    | None => Some(CursorP(OnDelim(1, Before), Parenthesized(erase(zp1))))
+    }
+  | InjZ(err_status, side, zp1) =>
+    switch (move_cursor_right(zp1)) {
+    | Some(zp1) => Some(InjZ(err_status, side, zp1))
+    | None =>
+      Some(CursorP(OnDelim(1, Before), Inj(err_status, side, erase(zp1))))
+    }
+  | OpSeqZ(skel, zp1, surround) =>
+    switch (move_cursor_right(zp1)) {
+    | Some(zp1) => Some(OpSeqZ(skel, zp1, surround))
+    | None =>
+      let k = OperatorSeq.surround_prefix_length(surround);
+      let seq = OperatorSeq.opseq_of_exp_and_surround(erase(zp1), surround);
+      Some(CursorP(OnDelim(k + 1, Before), OpSeq(skel, seq)));
+    }
+  };

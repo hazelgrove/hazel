@@ -154,9 +154,7 @@ let apply_action =
       } else if (has_cls("unselectable-before") && anchorOffset == 1) {
         switch (path_of_path_id(Js.to_string(closest_elem##.id))) {
         | None => raise(MalformedView)
-        | Some(path) =>
-          /* TODO something about moving to next cursor position before */
-          schedule_action(Action.EditAction(MoveTo(path)))
+        | Some(path) => schedule_action(Action.EditAction(MoveLeft))
         };
       } else if (has_cls("unselectable-after") && anchorOffset == 2) {
         switch (path_of_path_id(Js.to_string(closest_elem##.id))) {
@@ -166,9 +164,7 @@ let apply_action =
       } else if (has_cls("unselectable-after") && anchorOffset == 1) {
         switch (path_of_path_id(Js.to_string(closest_elem##.id))) {
         | None => raise(MalformedView)
-        | Some(path) =>
-          /* TODO something about moving to next cursor position after */
-          schedule_action(Action.EditAction(MoveTo(path)))
+        | Some(path) => schedule_action(Action.EditAction(MoveRight))
         };
       } else if (has_cls("SSpace")) {
         let attr = anchorOffset == 0 ? "path-before" : "path-after";

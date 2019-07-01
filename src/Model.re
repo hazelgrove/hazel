@@ -113,7 +113,7 @@ let init = (): t => {
 
 exception FailedAction;
 exception CursorEscaped;
-let perform_edit_action = (model: t, a: Action.t): t =>
+let perform_edit_action = (model: t, a: Action.t): t => {
   switch (
     Action.syn_perform_block(
       (VarCtx.empty, Palettes.initial_palette_ctx),
@@ -125,6 +125,7 @@ let perform_edit_action = (model: t, a: Action.t): t =>
   | CursorEscaped(_) => raise(CursorEscaped)
   | Succeeded(new_edit_state) => update_edit_state(model, new_edit_state)
   };
+};
 
 let move_to_hole = (model: t, u: MetaVar.t): t => {
   let (zblock, _, _) = model.edit_state;

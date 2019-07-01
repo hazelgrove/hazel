@@ -78,6 +78,7 @@ type node_type =
   | Inner;
 
 /**
+ * TODO delete
  * Cursor on outer node.
  * j is fencepost index
  * e.g. a|bc -> j == 1
@@ -91,6 +92,7 @@ let text_cursors = (len: int): list(cursor_position) =>
   range(len + 1) |> List.map(j => OnText(j));
 
 /**
+ * TODO delete
  * Cursor on inner node.
  * k is delimiter index, side is delimiter side
  * e.g. case| xs ... end -> (0, After)
