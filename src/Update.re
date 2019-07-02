@@ -18,8 +18,7 @@ module Action = {
     | SelectHoleInstance(MetaVar.t, Dynamics.inst_num)
     | InvalidVar(string)
     | MoveToHole(MetaVar.t)
-    | SelectionChange
-    | SetCaret(Path.t);
+    | SelectionChange;
 };
 
 let closest_elem = node =>
@@ -35,65 +34,13 @@ let closest_elem = node =>
     }
   );
 
-let set_caret = (caret_node, caret_offset) => {
-  let selection = Dom_html.window##getSelection;
-  let range = Dom_html.document##createRange;
-  range##setStart(caret_node, caret_offset);
-  range##setEnd(caret_node, caret_offset);
-  selection##removeAllRanges;
-  selection##addRange(range);
-};
-
-let caret_position_of_path =
-    ((steps, cursor) as path): (Js.t(Dom.node), int) =>
-  switch (cursor) {
-  | OnDelim(_, _) =>
-    let anchor_parent = JSUtil.forceGetElementById(path_id(path));
-    let has_cls = JSUtil.elem_has_cls(anchor_parent);
-    let anchor_offset =
-      if (has_cls("unselectable-before")) {
-        3;
-      } else if (has_cls("unselectable-after")) {
-        0;
-      } else {
-        0;
-      };
-    let anchor_parent_node = (
-      anchor_parent: Js.t(Dom_html.element) :> Js.t(Dom.node)
-    );
-    let anchor =
-      Js.Opt.get(anchor_parent_node##.firstChild, () =>
-        raise(MalformedView(0))
-      );
-    (anchor, anchor_offset);
-  | OnText(j) =>
-    let anchor_parent = (
-      JSUtil.forceGetElementById(text_id(steps)): Js.t(Dom_html.element) :>
-        Js.t(Dom.node)
-    );
-    let anchor =
-      Js.Opt.get(anchor_parent##.firstChild, () => raise(MalformedView(1)));
-    (anchor, j);
-  };
-
-let is_caret_consistent_with_path = path =>
-  caret_position_of_path(path)
-  == (
-       Dom_html.window##getSelection##.anchorNode,
-       Dom_html.window##getSelection##.anchorOffset,
-     );
-
 [@warning "-27"]
 let apply_action =
     (model: Model.t, action: Action.t, _, ~schedule_action): Model.t =>
   switch (action) {
   | EditAction(a) =>
     switch (Model.perform_edit_action(model, a)) {
-    | new_model =>
-      /* TODO this check might not be sufficient for all edits */
-      is_caret_consistent_with_path(new_model |> Model.get_path)
-        ? () : schedule_action(Action.SetCaret(new_model |> Model.get_path));
-      new_model;
+    | new_model => new_model
     | exception Model.FailedAction =>
       JSUtil.log("[Model.FailedAction]");
       model;
@@ -120,7 +67,7 @@ let apply_action =
     let anchorNode = Dom_html.window##getSelection##.anchorNode;
     let anchorOffset = Dom_html.window##getSelection##.anchorOffset;
     if (JSUtil.div_contains_node(
-          JSUtil.forceGetElementById("cell"),
+          JSUtil.force_get_elem_by_id("cell"),
           anchorNode,
         )) {
       let closest_elem = closest_elem(anchorNode);
@@ -228,9 +175,5 @@ let apply_action =
         };
       };
     };
-    model;
-  | SetCaret(path) =>
-    let (caret_node, caret_offset) = caret_position_of_path(path);
-    set_caret(caret_node, caret_offset);
     model;
   };

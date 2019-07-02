@@ -100,12 +100,13 @@ let node_has_cls = (node: Js.t(Dom.node), cls: string): bool =>
   | Some(elem) => elem_has_cls(elem, cls)
   };
 
-let move_caret_to = (~offset=0, node) => {
-  let caret_leaf = first_leaf(node);
+let unset_caret = () => Dom_html.window##getSelection##removeAllRanges;
+
+let set_caret = (caret_node, caret_offset) => {
   let selection = Dom_html.window##getSelection;
   let range = Dom_html.document##createRange;
-  range##setStart(caret_leaf, offset);
-  range##setEnd(caret_leaf, offset);
+  range##setStart(caret_node, caret_offset);
+  range##setEnd(caret_node, caret_offset);
   selection##removeAllRanges;
   selection##addRange(range);
 };
@@ -122,7 +123,12 @@ let listen_to_t = (ev, elem, f) =>
     },
   );
 
-let forceGetElementById = id => {
+let get_elem_by_id = id => {
+  let doc = Dom_html.document;
+  Js.Opt.to_option(doc##getElementById(Js.string(id)));
+};
+
+let force_get_elem_by_id = id => {
   let doc = Dom_html.document;
   Js.Opt.get(
     doc##getElementById(Js.string(id)),

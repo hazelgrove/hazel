@@ -401,28 +401,30 @@ let var_err_status_clss =
       "Keyword",
     ];
 
-let on_click_noneditable =
-    (
-      ~inject,
-      steps: Path.steps,
-      k: delim_index,
-      evt: Js.t(Dom_html.mouseEvent),
-    ) => {
-  switch (Js.Opt.to_option(evt##.target)) {
-  | None => inject(Update.Action.SetCaret((steps, OnDelim(k, Before))))
-  | Some(target) =>
-    let from_left =
-      float_of_int(evt##.clientX) -. target##getBoundingClientRect##.left;
-    let from_right =
-      target##getBoundingClientRect##.right -. float_of_int(evt##.clientX);
-    inject(
-      Update.Action.SetCaret((
-        steps,
-        OnDelim(k, from_left <= from_right ? Before : After),
-      )),
-    );
-  };
-};
+/*
+ let on_click_noneditable =
+     (
+       ~inject,
+       steps: Path.steps,
+       k: delim_index,
+       evt: Js.t(Dom_html.mouseEvent),
+     ) => {
+   switch (Js.Opt.to_option(evt##.target)) {
+   | None => inject(Update.Action.SetCaret((steps, OnDelim(k, Before))))
+   | Some(target) =>
+     let from_left =
+       float_of_int(evt##.clientX) -. target##getBoundingClientRect##.left;
+     let from_right =
+       target##getBoundingClientRect##.right -. float_of_int(evt##.clientX);
+     inject(
+       Update.Action.SetCaret((
+         steps,
+         OnDelim(k, from_left <= from_right ? Before : After),
+       )),
+     );
+   };
+ };
+ */
 
 /* TODO */
 let range_of_tree_rooted_at_cursor = (_cursor, _sskel) => (0, 0);
@@ -891,6 +893,55 @@ and view_of_stoken =
         [Node.text(" ")],
       )
     )
+  };
+
+let caret_position_of_path =
+    ((steps, cursor) as path): option((Js.t(Dom.node), int)) =>
+  switch (cursor) {
+  | OnDelim(_, _) =>
+    switch (JSUtil.get_elem_by_id(path_id(path))) {
+    | None => None
+    | Some(anchor_parent) =>
+      let has_cls = JSUtil.elem_has_cls(anchor_parent);
+      let anchor_offset =
+        if (has_cls("unselectable-before")) {
+          3;
+        } else if (has_cls("unselectable-after")) {
+          0;
+        } else {
+          0;
+        };
+      let anchor_parent_node = (
+        anchor_parent: Js.t(Dom_html.element) :> Js.t(Dom.node)
+      );
+      let anchor =
+        Js.Opt.get(anchor_parent_node##.firstChild, () =>
+          raise(MalformedView(0))
+        );
+      Some((anchor, anchor_offset));
+    }
+  | OnText(j) =>
+    switch (JSUtil.get_elem_by_id(text_id(steps))) {
+    | None => None
+    | Some(elem) =>
+      let anchor_parent = (elem: Js.t(Dom_html.element) :> Js.t(Dom.node));
+      let anchor =
+        Js.Opt.get(anchor_parent##.firstChild, () =>
+          raise(MalformedView(1))
+        );
+      Some((anchor, j));
+    }
+  };
+
+let is_caret_consistent_with_path = path =>
+  switch (caret_position_of_path(path)) {
+  | None => false
+  | Some((anchor, offset)) =>
+    (anchor, offset)
+    == (
+         Dom_html.window##getSelection##.anchorNode,
+         Dom_html.window##getSelection##.anchorOffset,
+       )
   };
 
 let snode_of_EmptyHole = (~cursor=?, ~steps, hole_name: string): snode =>

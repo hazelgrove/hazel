@@ -31,8 +31,11 @@ let create = (model, ~old_model, ~inject) => {
     ~on_display=
       (_, ~schedule_action) => {
         let path = model |> Model.get_path;
-        if (!Update.is_caret_consistent_with_path(path)) {
-          schedule_action(Update.Action.SetCaret(path));
+        if (!Code.is_caret_consistent_with_path(path)) {
+          switch (Code.caret_position_of_path(path)) {
+          | None => raise(ViewUtil.MalformedView(10))
+          | Some((node, offset)) => JSUtil.set_caret(node, offset)
+          };
         };
       },
     model,
