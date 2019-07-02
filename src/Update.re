@@ -62,7 +62,9 @@ let caret_position_of_path =
       anchor_parent: Js.t(Dom_html.element) :> Js.t(Dom.node)
     );
     let anchor =
-      Js.Opt.get(anchor_parent_node##.firstChild, () => raise(MalformedView));
+      Js.Opt.get(anchor_parent_node##.firstChild, () =>
+        raise(MalformedView(0))
+      );
     (anchor, anchor_offset);
   | OnText(j) =>
     let anchor_parent = (
@@ -70,7 +72,7 @@ let caret_position_of_path =
         Js.t(Dom.node)
     );
     let anchor =
-      Js.Opt.get(anchor_parent##.firstChild, () => raise(MalformedView));
+      Js.Opt.get(anchor_parent##.firstChild, () => raise(MalformedView(1)));
     (anchor, j);
   };
 
@@ -92,7 +94,7 @@ let apply_action =
         ? () : schedule_action(Action.SetCaret(new_model |> Model.get_path));
       new_model;
     | exception Model.FailedAction =>
-      JSUtil.log("[FailedAction]");
+      JSUtil.log("[Model.FailedAction]");
       model;
     | exception Model.CursorEscaped =>
       JSUtil.log("[CursorEscaped]");
@@ -125,7 +127,9 @@ let apply_action =
       if (has_cls("unselectable")) {
         let s =
           Js.to_string(
-            Js.Opt.get(anchorNode##.nodeValue, () => raise(MalformedView)),
+            Js.Opt.get(anchorNode##.nodeValue, () =>
+              raise(MalformedView(2))
+            ),
           );
         let attr =
           anchorOffset <= (String.length(s) - 1) / 2
@@ -133,7 +137,7 @@ let apply_action =
         let ssexp =
           closest_elem
           |> JSUtil.get_attr(attr)
-          |> Opt.get(() => raise(MalformedView));
+          |> Opt.get(() => raise(MalformedView(3)));
         let path = Path.t_of_sexp(Sexp.of_string(ssexp));
         schedule_action(Action.EditAction(MoveTo(path)));
       } else if (has_cls("indent")) {
@@ -141,7 +145,7 @@ let apply_action =
           closest_elem |> JSUtil.get_attr("goto-path"),
           closest_elem |> JSUtil.get_attr("goto-steps"),
         ) {
-        | (None, None) => raise(MalformedView)
+        | (None, None) => raise(MalformedView(4))
         | (Some(ssexp), _) =>
           let path = Path.t_of_sexp(Sexp.of_string(ssexp));
           schedule_action(Action.EditAction(MoveTo(path)));
@@ -151,22 +155,22 @@ let apply_action =
         };
       } else if (has_cls("unselectable-before") && anchorOffset == 0) {
         switch (path_of_path_id(Js.to_string(closest_elem##.id))) {
-        | None => raise(MalformedView)
+        | None => raise(MalformedView(5))
         | Some(path) => schedule_action(Action.EditAction(MoveTo(path)))
         };
       } else if (has_cls("unselectable-before") && anchorOffset == 1) {
         switch (path_of_path_id(Js.to_string(closest_elem##.id))) {
-        | None => raise(MalformedView)
+        | None => raise(MalformedView(6))
         | Some(path) => schedule_action(Action.EditAction(MoveLeft))
         };
       } else if (has_cls("unselectable-after") && anchorOffset == 2) {
         switch (path_of_path_id(Js.to_string(closest_elem##.id))) {
-        | None => raise(MalformedView)
+        | None => raise(MalformedView(7))
         | Some(path) => schedule_action(Action.EditAction(MoveTo(path)))
         };
       } else if (has_cls("unselectable-after") && anchorOffset == 1) {
         switch (path_of_path_id(Js.to_string(closest_elem##.id))) {
-        | None => raise(MalformedView)
+        | None => raise(MalformedView(8))
         | Some(path) => schedule_action(Action.EditAction(MoveRight))
         };
       } else if (has_cls("SSpace")) {
@@ -174,7 +178,7 @@ let apply_action =
         let ssexp =
           closest_elem
           |> JSUtil.get_attr(attr)
-          |> Opt.get(() => raise(MalformedView));
+          |> Opt.get(() => raise(MalformedView(9)));
         let path = Path.t_of_sexp(Sexp.of_string(ssexp));
         schedule_action(Action.EditAction(MoveTo(path)));
       } else {

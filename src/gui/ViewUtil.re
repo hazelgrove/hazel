@@ -1,7 +1,7 @@
 module Regexp = Js_of_ocaml.Regexp;
 open SemanticsCommon;
 
-exception MalformedView;
+exception MalformedView(int);
 
 [@deriving sexp]
 type delim_path = (Path.steps, delim_index);
