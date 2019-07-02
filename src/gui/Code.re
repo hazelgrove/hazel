@@ -730,7 +730,11 @@ and view_of_stoken =
             Sexp.to_string(Path.sexp_of_t((node_steps, OnDelim(0, After)))),
           ),
         ],
-        [Node.text(lbl)],
+        [
+          Node.text(LangUtil.nondisplay1),
+          Node.span([Attr.classes(["SEmptyHole-num"])], [Node.text(lbl)]),
+          Node.text(LangUtil.nondisplay1),
+        ],
       );
     Node.div(
       [Attr.classes([inline_div_cls, "SEmptyHole"])],

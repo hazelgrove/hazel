@@ -9,5 +9,6 @@ let string_of_side = side =>
 let lamSym = "λ";
 let caseArrowSym = "⇒";
 let typeArrowSym = "→";
+let nondisplay1 = "​";
 let nondisplay2 = "​​";
 let nondisplay3 = "​​​";

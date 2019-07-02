@@ -839,7 +839,7 @@ button:disabled {
   border-bottom: 1px solid var(--empty-hole-color);
 }
 
-.SEmptyHole-lbl {
+.SEmptyHole-num {
   vertical-align: text-bottom;
   font-size: 65%;
   color: #BBB;
