@@ -693,7 +693,7 @@ and view_of_stoken =
           Attr.id(path_id((node_steps, OnDelim(0, Before)))),
           Attr.classes(["SEmptyHole-before", "unselectable-before"]),
         ],
-        [Node.text(LangUtil.nondisplay2)],
+        [Node.text(LangUtil.nondisplay3)],
       );
     let hole_after =
       Node.span(
@@ -701,7 +701,7 @@ and view_of_stoken =
           Attr.id(path_id((node_steps, OnDelim(0, After)))),
           Attr.classes(["SEmptyHole-after", "unselectable-after"]),
         ],
-        [Node.text(LangUtil.nondisplay2)],
+        [Node.text(LangUtil.nondisplay3)],
       );
     let hole_lbl =
       Node.span(
@@ -737,7 +737,7 @@ and view_of_stoken =
               Attr.id(path_id((node_steps, OnDelim(k, Before)))),
               Attr.classes(["SDelim-before", "unselectable-before"]),
             ],
-            [Node.text(LangUtil.nondisplay2)],
+            [Node.text(LangUtil.nondisplay3)],
           );
         let delim_after =
           Node.span(
@@ -745,7 +745,7 @@ and view_of_stoken =
               Attr.id(path_id((node_steps, OnDelim(k, After)))),
               Attr.classes(["SDelim-after", "unselectable-after"]),
             ],
-            [Node.text(LangUtil.nondisplay2)],
+            [Node.text(LangUtil.nondisplay3)],
           );
         let attrs = [
           Attr.create(
@@ -786,7 +786,7 @@ and view_of_stoken =
               Attr.id(path_id((node_steps, OnDelim(k, Before)))),
               Attr.classes(["SOp-before", "unselectable-before"]),
             ],
-            [Node.text(LangUtil.nondisplay2)],
+            [Node.text(LangUtil.nondisplay3)],
           );
         let op_after =
           Node.span(
@@ -794,7 +794,7 @@ and view_of_stoken =
               Attr.id(path_id((node_steps, OnDelim(k, After)))),
               Attr.classes(["SOp-after", "unselectable-after"]),
             ],
-            [Node.text(LangUtil.nondisplay2)],
+            [Node.text(LangUtil.nondisplay3)],
           );
         let attrs = [
           Attr.create(

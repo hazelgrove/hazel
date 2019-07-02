@@ -52,7 +52,7 @@ let caret_position_of_path =
     let has_cls = JSUtil.elem_has_cls(anchor_parent);
     let anchor_offset =
       if (has_cls("unselectable-before")) {
-        2;
+        3;
       } else if (has_cls("unselectable-after")) {
         0;
       } else {
@@ -90,6 +90,7 @@ let apply_action =
   | EditAction(a) =>
     switch (Model.perform_edit_action(model, a)) {
     | new_model =>
+      /* TODO this check might not be sufficient for all edits */
       is_caret_consistent_with_path(new_model |> Model.get_path)
         ? () : schedule_action(Action.SetCaret(new_model |> Model.get_path));
       new_model;
@@ -153,17 +154,19 @@ let apply_action =
           let steps = Path.steps_of_sexp(Sexp.of_string(ssexp));
           schedule_action(Action.EditAction(MoveToBefore(steps)));
         };
-      } else if (has_cls("unselectable-before") && anchorOffset == 0) {
+      } else if (has_cls("unselectable-before")
+                 && (anchorOffset == 0 || anchorOffset == 1)) {
         switch (path_of_path_id(Js.to_string(closest_elem##.id))) {
         | None => raise(MalformedView(5))
         | Some(path) => schedule_action(Action.EditAction(MoveTo(path)))
         };
-      } else if (has_cls("unselectable-before") && anchorOffset == 1) {
+      } else if (has_cls("unselectable-before") && anchorOffset == 2) {
         switch (path_of_path_id(Js.to_string(closest_elem##.id))) {
         | None => raise(MalformedView(6))
         | Some(path) => schedule_action(Action.EditAction(MoveLeft))
         };
-      } else if (has_cls("unselectable-after") && anchorOffset == 2) {
+      } else if (has_cls("unselectable-after")
+                 && (anchorOffset == 2 || anchorOffset == 3)) {
         switch (path_of_path_id(Js.to_string(closest_elem##.id))) {
         | None => raise(MalformedView(7))
         | Some(path) => schedule_action(Action.EditAction(MoveTo(path)))

@@ -10,3 +10,4 @@ let lamSym = "λ";
 let caseArrowSym = "⇒";
 let typeArrowSym = "→";
 let nondisplay2 = "​​";
+let nondisplay3 = "​​​";
