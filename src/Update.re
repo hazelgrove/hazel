@@ -154,6 +154,15 @@ let apply_action =
           let steps = Path.steps_of_sexp(Sexp.of_string(ssexp));
           schedule_action(Action.EditAction(MoveToBefore(steps)));
         };
+      } else if (has_cls("SLine")
+                 && closest_elem
+                 |> JSUtil.has_attr("goto-steps")) {
+        switch (closest_elem |> JSUtil.get_attr("goto-steps")) {
+        | None => assert(false)
+        | Some(ssexp) =>
+          let steps = Path.steps_of_sexp(Sexp.of_string(ssexp));
+          schedule_action(Action.EditAction(MoveToBefore(steps)));
+        };
       } else if (has_cls("unselectable-before")
                  && (anchorOffset == 0 || anchorOffset == 1)) {
         switch (path_of_path_id(Js.to_string(closest_elem##.id))) {

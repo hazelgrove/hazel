@@ -15,6 +15,12 @@ let get_attr = (attr: string, elem: Js.t(Dom_html.element)): option(string) =>
   Js.Opt.to_option(elem##getAttribute(Js.string(attr)))
   |> U.Opt.map(s => Js.to_string(s));
 
+let has_attr = (attr: string, elem: Js.t(Dom_html.element)): bool =>
+  switch (Js.Opt.to_option(elem##getAttribute(Js.string(attr)))) {
+  | None => false
+  | Some(_) => true
+  };
+
 let rec get_descendant_nodes = (root: Js.t(Dom.node)): list(Js.t(Dom.node)) => {
   let children = root##.childNodes;
   let descendants = ref([]);

@@ -664,12 +664,23 @@ and view_of_sline =
            ],
          [],
        );
+  let goto_steps_attrs =
+    switch (steps_of_first_sword) {
+    | None => []
+    | Some(steps) => [
+        Vdom.Attr.create(
+          "goto-steps",
+          Sexp.to_string(Path.sexp_of_steps(steps)),
+        ),
+      ]
+    };
   Vdom.(
     Node.div(
       [
         Attr.classes(
           [inline_div_cls] @ sline_clss(line_no) @ border_clss(border_style),
         ),
+        ...goto_steps_attrs,
       ],
       vindents @ vwords,
     )
