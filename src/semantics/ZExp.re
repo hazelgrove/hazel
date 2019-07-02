@@ -1431,9 +1431,11 @@ and move_cursor_right_rule = (zrule: zrule): option(zrule) =>
   | CursorR(OnText(_), _) => None
   | CursorR(OnDelim(k, Before), rule) =>
     Some(CursorR(OnDelim(k, After), rule))
-  | CursorR(OnDelim(_k, After), Rule(p, clause)) =>
-    // _k == 0
-    Some(RuleZP(ZPat.place_before(p), clause))
+  | CursorR(OnDelim(k, After), Rule(p, clause)) =>
+    // k == 0 || k == 1
+    k == 0
+      ? Some(RuleZP(ZPat.place_before(p), clause))
+      : Some(RuleZE(p, place_before_block(clause)))
   | RuleZP(zp, clause) =>
     switch (ZPat.move_cursor_right(zp)) {
     | Some(zp) => Some(RuleZP(zp, clause))
