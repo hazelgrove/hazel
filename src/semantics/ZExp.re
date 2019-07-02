@@ -1194,13 +1194,15 @@ and move_cursor_right_line = (zline: zline): option(zline) => {
     Some(CursorL(OnDelim(k, After), line))
   | CursorL(OnDelim(_, _), EmptyLine | ExpLine(_)) => None
   | CursorL(OnDelim(k, After), LetLine(p, ann, def)) =>
-    // k == 0 || k == 1
-    switch (k == 0, ann) {
-    | (true, _) => Some(LetLineZP(ZPat.place_before(p), ann, def))
-    | (false, None) =>
+    // k == 0 || k == 1 || k == 2
+    switch (k == 0, k == 1, ann) {
+    | (true, _, _) => Some(LetLineZP(ZPat.place_before(p), ann, def))
+    | (_, true, None) =>
       // invalid cursor position
       None
-    | (false, Some(ann)) => Some(LetLineZA(p, ZTyp.place_before(ann), def))
+    | (_, true, Some(ann)) =>
+      Some(LetLineZA(p, ZTyp.place_before(ann), def))
+    | (false, false, _) => Some(LetLineZE(p, ann, place_before_block(def)))
     }
   | ExpLineZ(ze) =>
     switch (move_cursor_right_exp(ze)) {
@@ -1275,36 +1277,14 @@ and move_cursor_right_exp = (ze: t): option(t) =>
     }
   | CursorE(OnDelim(_k, After), Case(err_status, scrut, rules, None)) =>
     // _k == 0
-    switch (rules) {
-    | [] =>
-      Some(
-        CursorE(OnDelim(1, Before), Case(err_status, scrut, rules, None)),
-      )
-    | [r, ...rs] =>
-      Some(CaseZR(err_status, scrut, ([], place_before_rule(r), rs), None))
-    }
+    Some(CaseZE(err_status, place_before_block(scrut), rules, None))
   | CursorE(OnDelim(k, After), Case(err_status, scrut, rules, Some(ann))) =>
     // k == 0 || k == 1
-    switch (k == 0, rules) {
-    | (true, []) =>
-      Some(
-        CursorE(
-          OnDelim(1, Before),
-          Case(err_status, scrut, rules, Some(ann)),
-        ),
-      )
-    | (true, [r, ...rs]) =>
-      Some(
-        CaseZR(
-          err_status,
-          scrut,
-          ([], place_before_rule(r), rs),
-          Some(ann),
-        ),
-      )
-    | (false, _) =>
-      Some(CaseZA(err_status, scrut, rules, ZTyp.place_before(ann)))
-    }
+    k == 0
+      ? Some(
+          CaseZE(err_status, place_before_block(scrut), rules, Some(ann)),
+        )
+      : Some(CaseZA(err_status, scrut, rules, ZTyp.place_before(ann)))
   | CursorE(_, ApPalette(_, _, _, _)) => None
   | CursorE(OnDelim(_, _), Var(_, _, _) | BoolLit(_, _) | NumLit(_, _)) =>
     // invalid cursor position
@@ -1384,7 +1364,7 @@ and move_cursor_right_exp = (ze: t): option(t) =>
           CaseZR(
             err_status,
             erase_block(zscrut),
-            ([], place_after_rule(r), rs),
+            ([], place_before_rule(r), rs),
             ann,
           ),
         )
