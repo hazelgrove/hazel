@@ -25,10 +25,17 @@ let on_startup = (~schedule_action, _) => {
 [@warning "-27"]
 let create = (model, ~old_model, ~inject) => {
   open Incr.Let_syntax;
-  let%map m = model;
+  let%map model = model;
   Component.create(
-    ~apply_action=Update.apply_action(m),
-    m,
-    Page.view(~inject, m),
+    ~apply_action=Update.apply_action(model),
+    ~on_display=
+      (_, ~schedule_action) => {
+        let path = model |> Model.get_path;
+        if (!Update.is_caret_consistent_with_path(path)) {
+          schedule_action(Update.Action.SetCaret(path));
+        };
+      },
+    model,
+    Page.view(~inject, model),
   );
 };
