@@ -870,7 +870,12 @@ and view_of_stoken =
       )
     )
   | SSpace =>
-    Vdom.(Node.span([Attr.classes(["SSpace"])], [Node.text(" ")]))
+    Vdom.(
+      Node.span(
+        [Attr.classes(["SSpace"]), Attr.create("contenteditable", "false")],
+        [Node.text(" ")],
+      )
+    )
   };
 
 let snode_of_EmptyHole = (~cursor=?, ~steps, hole_name: string): snode =>
