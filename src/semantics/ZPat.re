@@ -381,7 +381,7 @@ let rec move_cursor_right = (zp: t): option(t) =>
     // _k == 0
     Some(InjZ(err_status, side, place_before(p1)))
   | CursorP(OnDelim(k, After), OpSeq(skel, seq)) =>
-    switch (seq |> OperatorSeq.split(k - 1)) {
+    switch (seq |> OperatorSeq.split(k)) {
     | None => None // should never happen
     | Some((p1, surround)) =>
       Some(OpSeqZ(skel, place_before(p1), surround))
