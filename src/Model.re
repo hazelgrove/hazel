@@ -30,6 +30,7 @@ type t = {
   right_sidebar_open: bool,
   selected_example: option(UHExp.block),
   context_inspector,
+  is_cell_focused: bool,
 };
 
 /*
@@ -48,7 +49,9 @@ let zblock = model => {
   zblock;
 };
 
-let get_path = model => {
+let block = model => model |> zblock |> ZExp.erase_block;
+
+let path = model => {
   let (zblock, _, _) = model.edit_state;
   Path.of_zblock(zblock);
 };
@@ -122,6 +125,7 @@ let init = (): t => {
       next_state: None,
       prev_state: None,
     },
+    is_cell_focused: false,
   };
 };
 
@@ -189,3 +193,7 @@ let load_example = (model: t, block: UHExp.block): t => {
       ZExp.place_before_block(block),
     ),
 };
+
+let focus_cell = model => {...model, is_cell_focused: true};
+
+let blur_cell = model => {...model, is_cell_focused: false};

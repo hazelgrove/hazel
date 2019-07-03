@@ -65,6 +65,8 @@ let view =
         Attr.id("cell"),
         Attr.create("contenteditable", "true"),
         Attr.on("drop", _ => Event.Prevent_default),
+        Attr.on_focus(_ => inject(FocusCell)),
+        Attr.on_blur(_ => inject(BlurCell)),
         Attr.on_keypress(evt =>
           JSUtil.is_movement_key(evt)
             ? Event.Many([]) : Event.Prevent_default
@@ -181,7 +183,11 @@ let view =
           };
         }),
       ],
-      [Code.view_of_zblock(~inject, model)],
+      [
+        model.is_cell_focused
+          ? Code.view_of_zblock(~inject, model |> Model.zblock)
+          : Code.view_of_block(~inject, model |> Model.block),
+      ],
     )
   );
 };

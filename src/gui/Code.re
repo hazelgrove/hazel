@@ -1829,9 +1829,15 @@ and snode_of_zrule = (~steps, zrule) =>
   };
 
 let view_of_zblock =
-    (~inject: Update.Action.t => Vdom.Event.t, model: Model.t): Vdom.Node.t => {
-  let (zblock, _, _) = model.edit_state;
+    (~inject: Update.Action.t => Vdom.Event.t, zblock: ZExp.zblock)
+    : Vdom.Node.t => {
   view_of_snode(~inject, snode_of_zblock(zblock));
+};
+
+let view_of_block =
+    (~inject: Update.Action.t => Vdom.Event.t, block: UHExp.block)
+    : Vdom.Node.t => {
+  view_of_snode(~inject, snode_of_block(block));
 };
 
 module DHPat = Dynamics.DHPat;

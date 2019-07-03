@@ -30,8 +30,8 @@ let create = (model, ~old_model, ~inject) => {
     ~apply_action=Update.apply_action(model),
     ~on_display=
       (_, ~schedule_action) => {
-        let path = model |> Model.get_path;
-        if (!Code.is_caret_consistent_with_path(path)) {
+        let path = model |> Model.path;
+        if (model.is_cell_focused && !Code.is_caret_consistent_with_path(path)) {
           switch (Code.caret_position_of_path(path)) {
           | None => raise(ViewUtil.MalformedView(10))
           | Some((node, offset)) => JSUtil.set_caret(node, offset)

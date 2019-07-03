@@ -18,7 +18,9 @@ module Action = {
     | SelectHoleInstance(MetaVar.t, Dynamics.inst_num)
     | InvalidVar(string)
     | MoveToHole(MetaVar.t)
-    | SelectionChange;
+    | SelectionChange
+    | FocusCell
+    | BlurCell;
 };
 
 let closest_elem = node =>
@@ -63,6 +65,8 @@ let apply_action =
   | SelectHoleInstance(u, i) => Model.select_hole_instance(model, (u, i))
   | InvalidVar(x) => model
   | MoveToHole(u) => Model.move_to_hole(model, u)
+  | FocusCell => model |> Model.focus_cell
+  | BlurCell => model |> Model.blur_cell
   | SelectionChange =>
     let anchorNode = Dom_html.window##getSelection##.anchorNode;
     let anchorOffset = Dom_html.window##getSelection##.anchorOffset;
