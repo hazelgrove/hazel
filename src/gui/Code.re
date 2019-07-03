@@ -327,6 +327,7 @@ let snode_attrs =
   Vdom.(
     switch (snode) {
     | SSeq(steps, cursor, is_multi_line, _sskel, _shead, _stail) => [
+        /* TODO need to do something about err status holes with sskel */
         Attr.id(node_id(steps)),
         Attr.classes(
           ["OpSeq", inline_div_cls]
@@ -334,11 +335,12 @@ let snode_attrs =
           @ multi_line_clss(is_multi_line),
         ),
       ]
-    | SBox(_, steps, cursor, is_multi_line, _err_status, shape, _) =>
+    | SBox(_, steps, cursor, is_multi_line, err_status, shape, _) =>
       let base_clss =
         ["SNode", inline_div_cls]
         @ cursor_clss(cursor)
-        @ multi_line_clss(is_multi_line);
+        @ multi_line_clss(is_multi_line)
+        @ err_status_clss(err_status);
       let shape_attrs =
         switch (shape) {
         | Block => [Attr.classes(["Block", ...base_clss])]
