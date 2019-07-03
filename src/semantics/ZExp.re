@@ -1039,9 +1039,24 @@ and move_cursor_left_exp = (ze: t): option(t) =>
     switch (move_cursor_left_exp(ze1)) {
     | Some(ze1) => Some(OpSeqZ(skel, ze1, surround))
     | None =>
-      let k = OperatorSeq.surround_prefix_length(surround);
-      let seq = OperatorSeq.opseq_of_exp_and_surround(erase(ze1), surround);
-      Some(CursorE(OnDelim(k, After), OpSeq(skel, seq)));
+      switch (surround) {
+      | EmptyPrefix(_) => None
+      | EmptySuffix(ExpPrefix(_, Space) | SeqPrefix(_, Space))
+      | BothNonEmpty(ExpPrefix(_, Space) | SeqPrefix(_, Space), _) =>
+        let k = OperatorSeq.surround_prefix_length(surround);
+        let seq =
+          OperatorSeq.opseq_of_exp_and_surround(erase(ze1), surround);
+        switch (seq |> OperatorSeq.split(k - 1)) {
+        | None => None // should never happen
+        | Some((e1, surround)) =>
+          Some(OpSeqZ(skel, place_after_exp(e1), surround))
+        };
+      | _ =>
+        let k = OperatorSeq.surround_prefix_length(surround);
+        let seq =
+          OperatorSeq.opseq_of_exp_and_surround(erase(ze1), surround);
+        Some(CursorE(OnDelim(k, After), OpSeq(skel, seq)));
+      }
     }
   | LamZP(err_status, zarg, ann, body) =>
     switch (ZPat.move_cursor_left(zarg)) {
@@ -1310,9 +1325,24 @@ and move_cursor_right_exp = (ze: t): option(t) =>
     switch (move_cursor_right_exp(ze1)) {
     | Some(ze1) => Some(OpSeqZ(skel, ze1, surround))
     | None =>
-      let k = OperatorSeq.surround_prefix_length(surround);
-      let seq = OperatorSeq.opseq_of_exp_and_surround(erase(ze1), surround);
-      Some(CursorE(OnDelim(k + 1, Before), OpSeq(skel, seq)));
+      switch (surround) {
+      | EmptySuffix(_) => None
+      | EmptyPrefix(ExpSuffix(Space, _) | SeqSuffix(Space, _))
+      | BothNonEmpty(_, ExpSuffix(Space, _) | SeqSuffix(Space, _)) =>
+        let k = OperatorSeq.surround_prefix_length(surround);
+        let seq =
+          OperatorSeq.opseq_of_exp_and_surround(erase(ze1), surround);
+        switch (seq |> OperatorSeq.split(k + 1)) {
+        | None => None // should never happen
+        | Some((e1, surround)) =>
+          Some(OpSeqZ(skel, place_before_exp(e1), surround))
+        };
+      | _ =>
+        let k = OperatorSeq.surround_prefix_length(surround);
+        let seq =
+          OperatorSeq.opseq_of_exp_and_surround(erase(ze1), surround);
+        Some(CursorE(OnDelim(k + 1, Before), OpSeq(skel, seq)));
+      }
     }
   | LamZP(err_status, zarg, ann, body) =>
     switch (ZPat.move_cursor_right(zarg)) {

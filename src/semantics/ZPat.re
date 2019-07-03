@@ -362,9 +362,24 @@ let rec move_cursor_left = (zp: t): option(t) =>
     switch (move_cursor_left(zp1)) {
     | Some(zp1) => Some(OpSeqZ(skel, zp1, surround))
     | None =>
-      let k = OperatorSeq.surround_prefix_length(surround);
-      let seq = OperatorSeq.opseq_of_exp_and_surround(erase(zp1), surround);
-      Some(CursorP(OnDelim(k, After), OpSeq(skel, seq)));
+      switch (surround) {
+      | EmptyPrefix(_) => None
+      | EmptySuffix(ExpPrefix(_, Space) | SeqPrefix(_, Space))
+      | BothNonEmpty(ExpPrefix(_, Space) | SeqPrefix(_, Space), _) =>
+        let k = OperatorSeq.surround_prefix_length(surround);
+        let seq =
+          OperatorSeq.opseq_of_exp_and_surround(erase(zp1), surround);
+        switch (seq |> OperatorSeq.split(k - 1)) {
+        | None => None // should never happen
+        | Some((p1, surround)) =>
+          Some(OpSeqZ(skel, place_after(p1), surround))
+        };
+      | _ =>
+        let k = OperatorSeq.surround_prefix_length(surround);
+        let seq =
+          OperatorSeq.opseq_of_exp_and_surround(erase(zp1), surround);
+        Some(CursorP(OnDelim(k, After), OpSeq(skel, seq)));
+      }
     }
   };
 
@@ -404,8 +419,23 @@ let rec move_cursor_right = (zp: t): option(t) =>
     switch (move_cursor_right(zp1)) {
     | Some(zp1) => Some(OpSeqZ(skel, zp1, surround))
     | None =>
-      let k = OperatorSeq.surround_prefix_length(surround);
-      let seq = OperatorSeq.opseq_of_exp_and_surround(erase(zp1), surround);
-      Some(CursorP(OnDelim(k + 1, Before), OpSeq(skel, seq)));
+      switch (surround) {
+      | EmptySuffix(_) => None
+      | EmptyPrefix(ExpSuffix(Space, _) | SeqSuffix(Space, _))
+      | BothNonEmpty(_, ExpSuffix(Space, _) | SeqSuffix(Space, _)) =>
+        let k = OperatorSeq.surround_prefix_length(surround);
+        let seq =
+          OperatorSeq.opseq_of_exp_and_surround(erase(zp1), surround);
+        switch (seq |> OperatorSeq.split(k + 1)) {
+        | None => None // should never happen
+        | Some((p1, surround)) =>
+          Some(OpSeqZ(skel, place_before(p1), surround))
+        };
+      | _ =>
+        let k = OperatorSeq.surround_prefix_length(surround);
+        let seq =
+          OperatorSeq.opseq_of_exp_and_surround(erase(zp1), surround);
+        Some(CursorP(OnDelim(k + 1, Before), OpSeq(skel, seq)));
+      }
     }
   };
