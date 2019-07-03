@@ -140,6 +140,17 @@ let apply_action =
           |> Opt.get(() => raise(MalformedView(9)));
         let path = Path.t_of_sexp(Sexp.of_string(ssexp));
         schedule_action(Action.EditAction(MoveTo(path)));
+      } else if (has_cls("SEmptyLine")
+                 && (anchorOffset == 0 || anchorOffset == 4)) {
+        switch (steps_of_text_id(Js.to_string(closest_elem##.id))) {
+        | None => raise(MalformedView(11))
+        | Some(steps) =>
+          schedule_action(Action.EditAction(MoveTo((steps, OnText(0)))))
+        };
+      } else if (has_cls("SEmptyLine") && anchorOffset == 1) {
+        schedule_action(Action.EditAction(MoveLeft));
+      } else if (has_cls("SEmptyLine") && anchorOffset == 3) {
+        schedule_action(Action.EditAction(MoveRight));
       } else {
         let is_cursor_position = node =>
           switch (Js.Opt.to_option(Dom_html.CoerceTo.element(node))) {

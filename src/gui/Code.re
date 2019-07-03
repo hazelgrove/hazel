@@ -880,10 +880,10 @@ and view_of_stoken =
     Vdom.(
       Node.div(
         [
-          Attr.id(path_id((node_steps, OnText(0)))),
+          Attr.id(text_id(node_steps)),
           Attr.classes([inline_div_cls, "SEmptyLine"]),
         ],
-        [],
+        [Node.text(LangUtil.nondisplay4)],
       )
     )
   | SSpace =>
