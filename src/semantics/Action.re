@@ -5591,16 +5591,14 @@ let can_perform =
     | IsLine(_) => true
     | IsExpr(_) => true
     | IsPat(_) => false
-    | IsType => false
-    | IsBlock(_) => false
+    | IsType(_) => false
     }
   | Construct(SInj(_)) =>
     switch (ci.sort) {
     | IsLine(_) => true
     | IsExpr(_) => true
     | IsPat(_) => true
-    | IsType => false
-    | IsBlock(_) => false
+    | IsType(_) => false
     }
   | Construct(SListNil) =>
     switch (ci.sort) {
@@ -5611,18 +5609,16 @@ let can_perform =
     | IsExpr(_) => false
     | IsPat(EmptyHole(_)) => true
     | IsPat(_) => false
-    | IsType => false
-    | IsBlock(_) => false
+    | IsType(_) => false
     }
   | Construct(SOp(SArrow))
   | Construct(SOp(SVBar))
   | Construct(SList) =>
     switch (ci.sort) {
-    | IsType => true
+    | IsType(_) => true
     | IsLine(_)
     | IsExpr(_)
     | IsPat(_) => false
-    | IsBlock(_) => false
     }
   | Construct(SAsc)
   | Construct(SApPalette(_))
@@ -5663,15 +5659,14 @@ let can_enter_varchar = (ci: CursorInfo.t): bool =>
   | IsPat(BoolLit(_, _)) => true
   | IsExpr(NumLit(_, _))
   | IsPat(NumLit(_, _)) =>
-    switch (ci.side) {
+    switch (ci.position) {
     | OnText(_) => true
     | _ => false
     }
-  | IsBlock(_)
   | IsLine(_)
   | IsExpr(_)
   | IsPat(_)
-  | IsType => false
+  | IsType(_) => false
   };
 
 let can_enter_numeral = (ci: CursorInfo.t): bool =>
@@ -5682,11 +5677,10 @@ let can_enter_numeral = (ci: CursorInfo.t): bool =>
   | IsExpr(EmptyHole(_))
   | IsPat(NumLit(_, _))
   | IsPat(EmptyHole(_)) => true
-  | IsBlock(_)
   | IsLine(_)
   | IsExpr(_)
   | IsPat(_)
-  | IsType => false
+  | IsType(_) => false
   };
 
 let can_construct_palette = (ci: CursorInfo.t): bool =>

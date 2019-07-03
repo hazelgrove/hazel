@@ -1,6 +1,5 @@
 module Vdom = Virtual_dom.Vdom;
-module KC = JSUtil.KeyCombo;
-module KCs = JSUtil.KeyCombos;
+module KeyCombo = JSUtil.KeyCombo;
 
 let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
   let edit_state = model.edit_state;
@@ -24,7 +23,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
           ),
           Attr.on_click(_ => inject(Update.Action.EditAction(a))),
           Attr.on_keydown(evt =>
-            if (KC.matches(key_combo, evt)) {
+            if (KeyCombo.Details.matches(key_combo, evt)) {
               Event.Many([
                 inject(Update.Action.EditAction(a)),
                 Event.Prevent_default,
@@ -38,7 +37,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
           Node.div([Attr.classes(["action-label"])], [lbl]),
           Node.div(
             [Attr.classes(["keyboard-shortcut"])],
-            [Node.text(KC.name(key_combo))],
+            [Node.text(KeyCombo.Details.name(key_combo))],
           ),
         ],
       )
@@ -76,87 +75,91 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
     action_button(
       Action.Backspace,
       Vdom.Node.text("backspace"),
-      KCs.backspace,
+      KeyCombo.Details.backspace,
     );
 
   let delete =
-    action_button(Action.Delete, Vdom.Node.text("delete"), KCs.delete);
+    action_button(
+      Action.Delete,
+      Vdom.Node.text("delete"),
+      KeyCombo.Details.delete,
+    );
 
   let moveToPrevHole =
     action_button(
       Action.MoveToPrevHole,
       Vdom.Node.text("move to previous hole"),
-      KCs.shift_tab,
+      KeyCombo.Details.shift_tab,
     );
 
   let moveToNextHole =
     action_button(
       Action.MoveToNextHole,
       Vdom.Node.text("move to next hole"),
-      KCs.tab,
+      KeyCombo.Details.tab,
     );
 
   let constructNum =
     action_button(
       Action.Construct(Action.SNum),
       twopiece_lbl_kw("Num", " type"),
-      KCs.key_N,
+      KeyCombo.Details.key_N,
     );
 
   let constructBool =
     action_button(
       Action.Construct(Action.SBool),
       twopiece_lbl_kw("Bool", " type"),
-      KCs.key_B,
+      KeyCombo.Details.key_B,
     );
 
   let constructArrow =
     action_button(
       Action.(Construct(SOp(SArrow))),
       twopiece_lbl_op(LangUtil.typeArrowSym, " type operator"),
-      KCs.gt,
+      KeyCombo.Details.gt,
     );
 
   let constructSum =
     action_button(
       Action.(Construct(SOp(SVBar))),
       twopiece_lbl_op("|", " type operator"),
-      KCs.vbar,
+      KeyCombo.Details.vbar,
     );
 
   let constructList =
     action_button(
       Action.(Construct(SList)),
       twopiece_lbl_kw("List", " type"),
-      KCs.key_L,
+      KeyCombo.Details.key_L,
     );
 
   let constructParenthesized =
     action_button(
       Action.Construct(Action.SParenthesized),
       Vdom.Node.text("parenthesize"),
-      KCs.left_parens,
+      KeyCombo.Details.left_parens,
     );
 
   let constructAsc =
     action_button(
       Action.Construct(Action.SAsc),
       Vdom.Node.text("type ascription"),
-      KCs.colon,
+      KeyCombo.Details.colon,
     );
 
   let constructLet =
     action_button(
       Action.Construct(Action.SLet),
       twopiece_lbl_kw("let", ""),
-      KCs.equals,
+      KeyCombo.Details.equals,
     );
 
   let constructNewLine =
     action_button(
       Action.Construct(Action.SLine),
       Vdom.Node.text("new line"),
-      KCs.enter,
+      KeyCombo.Details.enter,
     );
 
   let constructVar =
@@ -181,77 +184,77 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
     action_button(
       Action.Construct(Action.SLam),
       twopiece_lbl_kw(LangUtil.lamSym, ""),
-      KCs.backslash,
+      KeyCombo.Details.backslash,
     );
 
   let constructPlus =
     action_button(
       Action.(Construct(SOp(SPlus))),
       twopiece_lbl_op("+", " operator"),
-      KCs.plus,
+      KeyCombo.Details.plus,
     );
 
   let constructTimes =
     action_button(
       Action.(Construct(SOp(STimes))),
       twopiece_lbl_op("*", " operator"),
-      KCs.asterisk,
+      KeyCombo.Details.asterisk,
     );
 
   let constructLessThan =
     action_button(
       Action.(Construct(SOp(SLessThan))),
       twopiece_lbl_op("<", " operator"),
-      KCs.lt,
+      KeyCombo.Details.lt,
     );
 
   let constructSpace =
     action_button(
       Action.(Construct(SOp(SSpace))),
       Vdom.Node.text("apply"),
-      KCs.space,
+      KeyCombo.Details.space,
     );
 
   let constructComma =
     action_button(
       Action.(Construct(SOp(SComma))),
       twopiece_lbl_op(",", " operator"),
-      KCs.comma,
+      KeyCombo.Details.comma,
     );
 
   let constructNil =
     action_button(
       Action.(Construct(SListNil)),
       twopiece_lbl_op("[]", " (nil)"),
-      KCs.left_bracket,
+      KeyCombo.Details.left_bracket,
     );
 
   let constructCons =
     action_button(
       Action.(Construct(SOp(SCons))),
       twopiece_lbl_op("::", " operator"),
-      KCs.semicolon,
+      KeyCombo.Details.semicolon,
     );
 
   let constructInjL =
     action_button(
       Action.Construct(Action.SInj(L)),
       Vdom.Node.text("left injection"),
-      KCs.alt_L,
+      KeyCombo.Details.alt_L,
     );
 
   let constructInjR =
     action_button(
       Action.Construct(Action.SInj(R)),
       Vdom.Node.text("right injection"),
-      KCs.alt_R,
+      KeyCombo.Details.alt_R,
     );
 
   let constructCase =
     action_button(
       Action.Construct(Action.SCase),
       twopiece_lbl_kw("case", ""),
-      KCs.alt_C,
+      KeyCombo.Details.alt_C,
     );
 
   /*
@@ -265,7 +268,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
        can_insert_ap_palette_rs,
        Vdom.Node.text("apply palette"),
        "ap_palette_input",
-       KCs.dollar,
+       KeyCombo.Details.dollar,
        "enter palette name",
      );
    */
@@ -468,12 +471,12 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
 
      let _ =
        JSUtil.listen_to(Ev.keyup, i_dom, evt =>
-         if (KC.matches(KCs.enter, evt)) {
+         if (KeyCombo.Details.matches(KeyCombo.Details.enter, evt)) {
            lbl_dom##click;
            clear_input();
            set_cursor();
            Js._false;
-         } else if (KC.matches(KCs.escape, evt)) {
+         } else if (KeyCombo.Details.matches(KeyCombo.Details.escape, evt)) {
            clear_input();
            set_cursor();
            Js._false;
@@ -506,7 +509,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
        Html5.(
          div(
            [Attr.classes(["keyboard-shortcut"]), a_onclick(onclick_handler)],
-           [txt(KC.name(key_combo))],
+           [txt(KeyCombo.Details.name(key_combo))],
          )
        );
 
@@ -531,7 +534,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
        can_insert_ap_palette_rs,
        Vdom.Node.text("apply palette"),
        "ap_palette_input",
-       KCs.dollar,
+       KeyCombo.Details.dollar,
        "enter palette name",
      );
    */

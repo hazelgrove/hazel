@@ -102,13 +102,24 @@ let node_has_cls = (node: Js.t(Dom.node), cls: string): bool =>
 
 let unset_caret = () => Dom_html.window##getSelection##removeAllRanges;
 
-let set_caret = (caret_node, caret_offset) => {
+let set_caret = (anchorNode, offset) => {
   let selection = Dom_html.window##getSelection;
   let range = Dom_html.document##createRange;
-  range##setStart(caret_node, caret_offset);
-  range##setEnd(caret_node, caret_offset);
+  range##setStart(anchorNode, offset);
+  range##setEnd(anchorNode, offset);
   selection##removeAllRanges;
   selection##addRange(range);
+};
+
+let get_anchor_node = (): Js.t(Dom.node) =>
+  Dom_html.window##getSelection##.anchorNode;
+
+let get_anchor_offset = (): int =>
+  Dom_html.window##getSelection##.anchorOffset;
+
+let force_get_anchor_node_value = () => {
+  let anchorNode = get_anchor_node();
+  Js.to_string(Js.Opt.get(anchorNode##.nodeValue, () => assert(false)));
 };
 
 let listen_to = (ev, elem, f) =>
@@ -278,68 +289,176 @@ module Key = {
 };
 
 module KeyCombo = {
-  type t = {
-    mod_keys: ModKeys.t,
-    key: Key.t,
+  module Details = {
+    type t = {
+      mod_keys: ModKeys.t,
+      key: Key.t,
+    };
+
+    let make = (mod_keys, key) => {mod_keys, key};
+    let plain = key => {mod_keys: ModKeys.not_held, key};
+    let no_ctrl_alt_meta = key => {mod_keys: ModKeys.no_ctrl_alt_meta, key};
+    let shift = key => {mod_keys: ModKeys.shift, key};
+    let ctrl = key => {mod_keys: ModKeys.ctrl, key};
+    let alt = key => {mod_keys: ModKeys.alt, key};
+
+    let matches = (kc, evt: Js.t(Dom_html.keyboardEvent)) =>
+      ModKeys.matches(kc.mod_keys, evt) && Key.matches(kc.key, evt);
+
+    let name = kc => {
+      let mod_prefix = ModKeys.mod_prefix(kc.mod_keys);
+      mod_prefix ++ kc.key.plain_name;
+    };
+
+    let enter = plain(Key.code2("Enter", "Enter", "NumpadEnter"));
+    let escape = plain(Key.the_code("Escape"));
+    let backspace = plain(Key.the_code("Backspace"));
+    let delete = plain(Key.the_code("Delete"));
+    let tab = plain(Key.the_code("Tab"));
+    let shift_tab = shift(Key.the_code("Tab"));
+    let space = plain(Key.the_code("Space"));
+    let lt = no_ctrl_alt_meta(Key.the_key("<"));
+    let gt = no_ctrl_alt_meta(Key.the_key(">"));
+    let colon = no_ctrl_alt_meta(Key.the_key(":"));
+    let backslash = no_ctrl_alt_meta(Key.the_key("\\"));
+    let left_parens = no_ctrl_alt_meta(Key.the_key("("));
+    let right_parens = no_ctrl_alt_meta(Key.the_key(")"));
+    let left_bracket = no_ctrl_alt_meta(Key.the_key("["));
+    let right_bracket = no_ctrl_alt_meta(Key.the_key("]"));
+    let qmark = no_ctrl_alt_meta(Key.the_key("?"));
+    let equals = no_ctrl_alt_meta(Key.the_key("="));
+    let pound = no_ctrl_alt_meta(Key.the_key("#"));
+    let plus = no_ctrl_alt_meta(Key.the_key("+"));
+    let asterisk = no_ctrl_alt_meta(Key.the_key("*"));
+    let semicolon = no_ctrl_alt_meta(Key.the_key(";"));
+    let comma = no_ctrl_alt_meta(Key.the_key(","));
+    let vbar = no_ctrl_alt_meta(Key.the_key("|"));
+    let dollar = no_ctrl_alt_meta(Key.the_key("$"));
+    let amp = no_ctrl_alt_meta(Key.the_key("&"));
+    let alt_L = alt(Key.the_letter_code("l"));
+    let alt_R = alt(Key.the_letter_code("r"));
+    let alt_C = alt(Key.the_letter_code("c"));
+    let alt_PageUp = alt(Key.the_key("PageUp"));
+    let alt_PageDown = alt(Key.the_key("PageDown"));
+    let alt_T = alt(Key.the_letter_code("T"));
+    let alt_F = alt(Key.the_letter_code("F"));
+    let key_B = no_ctrl_alt_meta(Key.the_key("B"));
+    let key_N = no_ctrl_alt_meta(Key.the_key("N"));
+    let key_L = no_ctrl_alt_meta(Key.the_key("L"));
   };
 
-  let make = (mod_keys, key) => {mod_keys, key};
-  let plain = key => {mod_keys: ModKeys.not_held, key};
-  let no_ctrl_alt_meta = key => {mod_keys: ModKeys.no_ctrl_alt_meta, key};
-  let shift = key => {mod_keys: ModKeys.shift, key};
-  let ctrl = key => {mod_keys: ModKeys.ctrl, key};
-  let alt = key => {mod_keys: ModKeys.alt, key};
+  type t =
+    | Backspace
+    | Delete
+    | ShiftTab
+    | Tab
+    | Key_N
+    | Key_B
+    | GT
+    | VBar
+    | Key_L
+    | LeftParen
+    | Colon
+    | Equals
+    | Enter
+    | Backslash
+    | Plus
+    | Asterisk
+    | LT
+    | Space
+    | Comma
+    | LeftBracket
+    | Semicolon
+    | Alt_L
+    | Alt_R
+    | Alt_C;
 
-  let matches = (kc, evt: Js.t(Dom_html.keyboardEvent)) =>
-    ModKeys.matches(kc.mod_keys, evt) && Key.matches(kc.key, evt);
+  let get_details =
+    fun
+    | Backspace => Details.backspace
+    | Delete => Details.delete
+    | ShiftTab => Details.shift_tab
+    | Tab => Details.tab
+    | Key_N => Details.key_N
+    | Key_B => Details.key_B
+    | GT => Details.gt
+    | VBar => Details.vbar
+    | Key_L => Details.key_L
+    | LeftParen => Details.left_parens
+    | Colon => Details.colon
+    | Equals => Details.equals
+    | Enter => Details.enter
+    | Backslash => Details.backslash
+    | Plus => Details.plus
+    | Asterisk => Details.asterisk
+    | LT => Details.lt
+    | Space => Details.space
+    | Comma => Details.comma
+    | LeftBracket => Details.left_bracket
+    | Semicolon => Details.semicolon
+    | Alt_L => Details.alt_L
+    | Alt_R => Details.alt_R
+    | Alt_C => Details.alt_C;
 
-  let name = kc => {
-    let mod_prefix = ModKeys.mod_prefix(kc.mod_keys);
-    mod_prefix ++ kc.key.plain_name;
+  let of_evt = (evt: Js.t(Dom_html.keyboardEvent)): option(t) => {
+    let evt_matches = details => Details.matches(details, evt);
+    if (evt_matches(Details.backspace)) {
+      Some(Backspace);
+    } else if (evt_matches(Details.delete)) {
+      Some(Delete);
+    } else if (evt_matches(Details.shift_tab)) {
+      Some(ShiftTab);
+    } else if (evt_matches(Details.tab)) {
+      Some(Tab);
+    } else if (evt_matches(Details.key_N)) {
+      Some(Key_N);
+    } else if (evt_matches(Details.key_B)) {
+      Some(Key_B);
+    } else if (evt_matches(Details.gt)) {
+      Some(GT);
+    } else if (evt_matches(Details.vbar)) {
+      Some(VBar);
+    } else if (evt_matches(Details.key_L)) {
+      Some(Key_L);
+    } else if (evt_matches(Details.left_parens)) {
+      Some(LeftParen);
+    } else if (evt_matches(Details.colon)) {
+      Some(Colon);
+    } else if (evt_matches(Details.equals)) {
+      Some(Equals);
+    } else if (evt_matches(Details.enter)) {
+      Some(Enter);
+    } else if (evt_matches(Details.backslash)) {
+      Some(Backslash);
+    } else if (evt_matches(Details.plus)) {
+      Some(Plus);
+    } else if (evt_matches(Details.asterisk)) {
+      Some(Asterisk);
+    } else if (evt_matches(Details.lt)) {
+      Some(LT);
+    } else if (evt_matches(Details.space)) {
+      Some(Space);
+    } else if (evt_matches(Details.comma)) {
+      Some(Comma);
+    } else if (evt_matches(Details.left_bracket)) {
+      Some(LeftBracket);
+    } else if (evt_matches(Details.semicolon)) {
+      Some(Semicolon);
+    } else if (evt_matches(Details.alt_L)) {
+      Some(Alt_L);
+    } else if (evt_matches(Details.alt_R)) {
+      Some(Alt_R);
+    } else if (evt_matches(Details.alt_C)) {
+      Some(Alt_C);
+    } else {
+      None;
+    };
   };
-};
-
-module KeyCombos = {
-  let enter = KeyCombo.plain(Key.code2("Enter", "Enter", "NumpadEnter"));
-  let escape = KeyCombo.plain(Key.the_code("Escape"));
-  let backspace = KeyCombo.plain(Key.the_code("Backspace"));
-  let delete = KeyCombo.plain(Key.the_code("Delete"));
-  let tab = KeyCombo.plain(Key.the_code("Tab"));
-  let shift_tab = KeyCombo.shift(Key.the_code("Tab"));
-  let space = KeyCombo.plain(Key.the_code("Space"));
-  let lt = KeyCombo.no_ctrl_alt_meta(Key.the_key("<"));
-  let gt = KeyCombo.no_ctrl_alt_meta(Key.the_key(">"));
-  let colon = KeyCombo.no_ctrl_alt_meta(Key.the_key(":"));
-  let backslash = KeyCombo.no_ctrl_alt_meta(Key.the_key("\\"));
-  let left_parens = KeyCombo.no_ctrl_alt_meta(Key.the_key("("));
-  let right_parens = KeyCombo.no_ctrl_alt_meta(Key.the_key(")"));
-  let left_bracket = KeyCombo.no_ctrl_alt_meta(Key.the_key("["));
-  let right_bracket = KeyCombo.no_ctrl_alt_meta(Key.the_key("]"));
-  let qmark = KeyCombo.no_ctrl_alt_meta(Key.the_key("?"));
-  let equals = KeyCombo.no_ctrl_alt_meta(Key.the_key("="));
-  let pound = KeyCombo.no_ctrl_alt_meta(Key.the_key("#"));
-  let plus = KeyCombo.no_ctrl_alt_meta(Key.the_key("+"));
-  let asterisk = KeyCombo.no_ctrl_alt_meta(Key.the_key("*"));
-  let semicolon = KeyCombo.no_ctrl_alt_meta(Key.the_key(";"));
-  let comma = KeyCombo.no_ctrl_alt_meta(Key.the_key(","));
-  let vbar = KeyCombo.no_ctrl_alt_meta(Key.the_key("|"));
-  let dollar = KeyCombo.no_ctrl_alt_meta(Key.the_key("$"));
-  let amp = KeyCombo.no_ctrl_alt_meta(Key.the_key("&"));
-  let alt_L = KeyCombo.alt(Key.the_letter_code("l"));
-  let alt_R = KeyCombo.alt(Key.the_letter_code("r"));
-  let alt_C = KeyCombo.alt(Key.the_letter_code("c"));
-  let alt_PageUp = KeyCombo.alt(Key.the_key("PageUp"));
-  let alt_PageDown = KeyCombo.alt(Key.the_key("PageDown"));
-  let alt_T = KeyCombo.alt(Key.the_letter_code("T"));
-  let alt_F = KeyCombo.alt(Key.the_letter_code("F"));
-  let key_B = KeyCombo.no_ctrl_alt_meta(Key.the_key("B"));
-  let key_N = KeyCombo.no_ctrl_alt_meta(Key.the_key("N"));
-  let key_L = KeyCombo.no_ctrl_alt_meta(Key.the_key("L"));
 };
 
 let listen_for_key = (kc, f) =>
   listen_to_t(Ev.keydown, Dom_html.document, evt =>
-    if (KeyCombo.matches(kc, evt)) {
+    if (KeyCombo.Details.matches(kc, evt)) {
       f(evt);
       ();
     } else {

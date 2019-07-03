@@ -1,6 +1,5 @@
 module Vdom = Virtual_dom.Vdom;
-module KC = JSUtil.KeyCombo;
-module KCs = JSUtil.KeyCombos;
+module KeyCombo = JSUtil.KeyCombo;
 
 exception InvalidInstance;
 let view =
@@ -230,11 +229,13 @@ let view =
         )
       );
 
-    let prev_key = KCs.alt_PageUp;
-    let next_key = KCs.alt_PageDown;
+    let prev_key = KeyCombo.Details.alt_PageUp;
+    let next_key = KeyCombo.Details.alt_PageDown;
 
-    let prev_title = "Previous instance (" ++ KC.name(prev_key) ++ ")";
-    let next_title = "Next instance (" ++ KC.name(next_key) ++ ")";
+    let prev_title =
+      "Previous instance (" ++ KeyCombo.Details.name(prev_key) ++ ")";
+    let next_title =
+      "Next instance (" ++ KeyCombo.Details.name(next_key) ++ ")";
 
     let prev_btn =
       switch (model.context_inspector.prev_state) {
@@ -247,7 +248,7 @@ let view =
               Attr.on_click(_ => inject(SelectHoleInstance(u, i))),
               Attr.on_keydown(ev => {
                 let updates =
-                  KC.matches(prev_key, ev)
+                  KeyCombo.Details.matches(prev_key, ev)
                     ? [inject(SelectHoleInstance(u, i))] : [];
                 Event.Many([Event.Prevent_default, ...updates]);
               }),
@@ -288,7 +289,7 @@ let view =
               Attr.on_click(_ => inject(SelectHoleInstance(u, i))),
               Attr.on_keydown(ev => {
                 let updates =
-                  KC.matches(next_key, ev)
+                  KeyCombo.Details.matches(next_key, ev)
                     ? [inject(SelectHoleInstance(u, i))] : [];
                 Event.Many([Event.Prevent_default, ...updates]);
               }),
