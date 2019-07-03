@@ -43,6 +43,11 @@ type t = {
  */
 let cutoff = (m1, m2) => m1 == m2;
 
+let zblock = model => {
+  let (zblock, _, _) = model.edit_state;
+  zblock;
+};
+
 let get_path = model => {
   let (zblock, _, _) = model.edit_state;
   Path.of_zblock(zblock);

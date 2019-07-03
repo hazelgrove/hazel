@@ -1444,7 +1444,7 @@ and syn_fix_holes_exp =
   | Var(_, var_err_status, x) =>
     let gamma = Contexts.gamma(ctx);
     switch (VarMap.lookup(gamma, x)) {
-    | Some(ty) => (e_nih, ty, u_gen)
+    | Some(ty) => (UHExp.Var(NotInHole, NotInVHole, x), ty, u_gen)
     | None =>
       switch (var_err_status) {
       | InVHole(_, _) => (e_nih, HTyp.Hole, u_gen)
