@@ -231,8 +231,10 @@ module ModKeys = {
 
 module Key = {
   type recognition_method =
-    | Code(string) /* corresponding to KeyboardEvent.code: https://developer.mozilla.org/en-US/docs/Web/API/KeyboardEvent/code */
-    | Key(string) /* corresponding to KeyboardEvent.key: https://developer.mozilla.org/en-US/docs/Web/API/KeyboardEvent/key */;
+    // https://developer.mozilla.org/en-US/docs/Web/API/KeyboardEvent/code
+    | Code(string)
+    // https://developer.mozilla.org/en-US/docs/Web/API/KeyboardEvent/key
+    | Key(string);
 
   let code_of_letter = letter => "Key" ++ String.uppercase_ascii(letter);
 
