@@ -97,7 +97,7 @@ let result_of_edit_state = ((zblock, _, _): edit_state): result => {
   };
 };
 
-let update_edit_state = (model: t, new_edit_state): t => {
+let update_edit_state = (new_edit_state, model: t): t => {
   let new_result = result_of_edit_state(new_edit_state);
   let new_cursor_info = cursor_info_of_edit_state(new_edit_state);
   {
@@ -141,7 +141,7 @@ let perform_edit_action = (model: t, a: Action.t): t => {
   ) {
   | Failed => raise(FailedAction)
   | CursorEscaped(_) => raise(CursorEscaped)
-  | Succeeded(new_edit_state) => update_edit_state(model, new_edit_state)
+  | Succeeded(new_edit_state) => model |> update_edit_state(new_edit_state)
   };
 };
 
@@ -184,15 +184,15 @@ let toggle_right_sidebar = (model: t): t => {
   right_sidebar_open: !model.right_sidebar_open,
 };
 
-let load_example = (model: t, block: UHExp.block): t => {
-  ...model,
-  edit_state:
-    Statics.syn_fix_holes_zblock(
-      (VarCtx.empty, PaletteCtx.empty),
-      MetaVarGen.init,
-      ZExp.place_before_block(block),
-    ),
-};
+let load_example = (model: t, block: UHExp.block): t =>
+  model
+  |> update_edit_state(
+       Statics.syn_fix_holes_zblock(
+         (VarCtx.empty, PaletteCtx.empty),
+         MetaVarGen.init,
+         ZExp.place_before_block(block),
+       ),
+     );
 
 let focus_cell = model => {...model, is_cell_focused: true};
 
