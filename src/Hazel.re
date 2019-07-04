@@ -47,7 +47,7 @@ let create = (model, ~old_model, ~inject) => {
             | [] => ()
             | [cursor_elem, ..._] =>
               switch (Code.child_elems_of_snode_elem(cursor_elem)) {
-              | None => raise(MalformedView(11))
+              | None => raise(MalformedView(12))
               | Some(child_elems) =>
                 JSUtil.force_get_elem_by_id(node_indicator_id)
                 |> JSUtil.place_over(cursor_elem);
