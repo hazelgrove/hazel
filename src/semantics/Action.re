@@ -228,7 +228,7 @@ let rec perform_ty = (a: t, zty: ZTyp.t): result(ZTyp.t) =>
     }
   | (MoveRight, _) =>
     switch (ZTyp.move_cursor_right(zty)) {
-    | None => CursorEscaped(Before)
+    | None => CursorEscaped(After)
     | Some(zty) => Succeeded(zty)
     }
   /* Backspace and Delete */
@@ -3357,7 +3357,7 @@ and syn_perform_exp =
     }
   | (MoveRight, _) =>
     switch (ZExp.move_cursor_right_exp(ze)) {
-    | None => CursorEscaped(Before)
+    | None => CursorEscaped(After)
     | Some(ze) => Succeeded((E(ze), ty, u_gen))
     }
   /* Backspace & Deletion */
@@ -4678,7 +4678,7 @@ and ana_perform_exp =
     }
   | (MoveRight, _) =>
     switch (ZExp.move_cursor_right_exp(ze)) {
-    | None => CursorEscaped(Before)
+    | None => CursorEscaped(After)
     | Some(ze) => Succeeded((E(ze), u_gen))
     }
   /* Backspace & Delete */
