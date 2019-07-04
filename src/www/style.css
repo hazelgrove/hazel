@@ -8,10 +8,8 @@
   --delim-cushion: 8px;
   --indent-length: 24px;
   --space-length: 8px;
-  --cell-z-index: 1;
-  --node-indicator-z-index: 2;
-  --child-indicator-z-index: 3;
-  --code-z-index: 10;
+  --node-indicator-z-index: -10;
+  --child-indicator-z-index: -5;
   --node-indicator-color: rgb(229, 255, 229);
   --child-indicator-color: white;
 }
@@ -732,8 +730,7 @@ button:disabled {
 }
 
 #cell {
-  position: relative;
-  z-index: var(--cell-z-index);
+  opacity: 0.99;
 }
 
 #cell .SNode {
