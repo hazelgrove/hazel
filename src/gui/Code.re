@@ -321,10 +321,10 @@ let err_status_clss =
 
 let inline_div_cls = "inline-div";
 
-let rec num_children_of_snode =
+let rec child_indices_of_snode =
   fun
   | SSeq(_steps, _cursor, _is_multi_line, _sskel, _shead, stail) =>
-    List.length(stail) + 1
+    range(List.length(stail) + 1)
   | SBox(
       _border_style,
       _steps,
@@ -335,34 +335,45 @@ let rec num_children_of_snode =
       slines,
     ) =>
     slines
-    |> List.fold_left((acc, sline) => acc + num_children_of_sline(sline), 0)
-and num_children_of_sline = ((_, _, swords)) =>
+    |> List.fold_left(
+         (acc, sline) => acc @ child_indices_of_sline(sline),
+         [],
+       )
+and child_indices_of_sline = ((_, _, swords)) =>
   swords
   |> List.fold_left(
        (acc, sword) =>
          switch (sword) {
-         | SNode(_) => acc + 1
          | SToken(_) => acc
+         | SNode(snode) =>
+           switch (snode |> steps_of_snode |> last) {
+           | None => assert(false)
+           | Some(k) => acc @ [k]
+           }
          },
-       0,
+       [],
      );
 
-let num_children_of_snode_elem = elem =>
-  switch (elem |> JSUtil.get_attr("num-children")) {
+[@deriving sexp]
+type child_indices = list(int);
+
+let child_indices_of_snode_elem = elem =>
+  switch (elem |> JSUtil.get_attr("children")) {
   | None => None
-  | Some(snum) => Some(int_of_string(snum))
+  | Some(schildren) =>
+    Some(child_indices_of_sexp(Sexplib.Sexp.of_string(schildren)))
   };
 
-let children_elems_of_snode_elem = elem =>
+let child_elems_of_snode_elem = elem =>
   switch (
     steps_of_node_id(Js.to_string(elem##.id)),
-    num_children_of_snode_elem(elem),
+    child_indices_of_snode_elem(elem),
   ) {
   | (None, _)
   | (_, None) => None
-  | (Some(steps), Some(n)) =>
+  | (Some(steps), Some(child_indices)) =>
     Some(
-      range(n)
+      child_indices
       |> List.map(i => steps @ [i])
       |> List.map(node_id)
       |> List.map(JSUtil.force_get_elem_by_id),
@@ -372,8 +383,6 @@ let children_elems_of_snode_elem = elem =>
 let snode_attrs =
     (~inject: Update.Action.t => Vdom.Event.t, snode: snode)
     : list(Vdom.Attr.t) => {
-  // used to draw cursor indicators, see on_display in Hazel.re
-  let num_children = num_children_of_snode(snode);
   Vdom.(
     switch (snode) {
     | SSeq(steps, cursor, is_multi_line, _sskel, _shead, _stail) => [
@@ -438,7 +447,14 @@ let snode_attrs =
         };
       [
         Attr.id(node_id(steps)),
-        Attr.create("num-children", string_of_int(num_children)),
+        // used to draw cursor overlay, see on_display in Hazel.re
+        Attr.create(
+          "children",
+          snode
+          |> child_indices_of_snode
+          |> sexp_of_child_indices
+          |> Sexplib.Sexp.to_string,
+        ),
         ...shape_attrs,
       ];
     }
