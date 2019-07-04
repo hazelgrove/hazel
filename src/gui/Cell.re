@@ -196,21 +196,30 @@ let view =
               model.is_cell_focused ? "active" : "inactive",
             ]),
           ],
-          model
-          |> Model.zblock
-          |> ZExp.erase_block
-          |> UHExp.max_degree_block
-          |> range
-          |> List.map(i =>
-               Vdom.Node.div(
-                 [
-                   Attr.id(child_indicator_id(i)),
-                   Attr.classes(["child-indicator"]),
-                 ],
-                 [],
-               )
-             ),
+          [],
         ),
+        ...{
+             let child_indices =
+               model.cursor_info |> CursorInfo.child_indices_of_current_node;
+             let is_active = i => child_indices |> List.exists(j => j == i);
+             model
+             |> Model.zblock
+             |> ZExp.erase_block
+             |> UHExp.max_degree_block
+             |> range
+             |> List.map(i =>
+                  Vdom.Node.div(
+                    [
+                      Attr.id(child_indicator_id(i)),
+                      Attr.classes([
+                        "child-indicator",
+                        is_active(i) ? "active" : "inactive",
+                      ]),
+                    ],
+                    [],
+                  )
+                );
+           },
       ],
     )
   );

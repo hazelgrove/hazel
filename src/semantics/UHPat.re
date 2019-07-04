@@ -213,3 +213,15 @@ let rec max_degree =
     OperatorSeq.tms(seq)
     |> List.map(max_degree)
     |> List.fold_left(max, OperatorSeq.seq_length(seq));
+
+let child_indices =
+  fun
+  | EmptyHole(_)
+  | Wild(_)
+  | Var(_, _, _)
+  | NumLit(_, _)
+  | BoolLit(_, _)
+  | ListNil(_) => []
+  | Parenthesized(_) => [0]
+  | Inj(_, _, _) => [0]
+  | OpSeq(_, seq) => range(OperatorSeq.seq_length(seq));

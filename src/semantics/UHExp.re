@@ -355,3 +355,25 @@ and max_degree_exp =
 and max_degree_rule =
   fun
   | Rule(p, clause) => max(UHPat.max_degree(p), max_degree_block(clause));
+
+let child_indices_line =
+  fun
+  | EmptyLine => []
+  | ExpLine(_) => []
+  | LetLine(_, None, _) => [0, 2]
+  | LetLine(_, Some(_), _) => [0, 1, 2];
+let child_indices_exp =
+  fun
+  | EmptyHole(_)
+  | Var(_, _, _)
+  | NumLit(_, _)
+  | BoolLit(_, _)
+  | ListNil(_) => []
+  | Lam(_, _, None, _) => [0, 2]
+  | Lam(_, _, Some(_), _) => [0, 1, 2]
+  | Case(_, _, rules, None) => range(List.length(rules) + 1)
+  | Case(_, _, rules, Some(_)) => range(List.length(rules) + 2)
+  | Inj(_, _, _) => [0]
+  | Parenthesized(_) => [0]
+  | OpSeq(_, seq) => range(OperatorSeq.seq_length(seq))
+  | ApPalette(_, _, _, _) => [];

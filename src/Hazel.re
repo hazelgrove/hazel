@@ -2,6 +2,7 @@ module Js = Js_of_ocaml.Js;
 module Dom = Js_of_ocaml.Dom;
 module Dom_html = Js_of_ocaml.Dom_html;
 open Incr_dom;
+open GeneralUtil;
 open ViewUtil;
 
 // https://github.com/janestreet/incr_dom/blob/6aa4aca2cfc82a17bbcc0424ff6b0ae3d6d8d540/example/text_input/README.md
@@ -47,11 +48,13 @@ let create = (model, ~old_model, ~inject) => {
             | [cursor_elem, ..._] =>
               switch (Code.child_elems_of_snode_elem(cursor_elem)) {
               | None => raise(MalformedView(11))
-              | Some(children_elems) =>
+              | Some(child_elems) =>
                 JSUtil.force_get_elem_by_id(node_indicator_id)
                 |> JSUtil.place_over(cursor_elem);
-                children_elems
-                |> List.iteri((i, child_elem) =>
+                let child_indices =
+                  model.cursor_info |> CursorInfo.child_indices_of_current_node;
+                zip(child_indices, child_elems)
+                |> List.iter(((i, child_elem)) =>
                      JSUtil.force_get_elem_by_id(child_indicator_id(i))
                      |> JSUtil.place_over(child_elem)
                    );

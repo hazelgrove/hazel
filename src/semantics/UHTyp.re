@@ -1,3 +1,5 @@
+open GeneralUtil;
+
 [@deriving sexp]
 type op =
   | Arrow
@@ -107,3 +109,13 @@ let rec max_degree =
     OperatorSeq.tms(seq)
     |> List.map(max_degree)
     |> List.fold_left(max, OperatorSeq.seq_length(seq));
+
+let child_indices =
+  fun
+  | Hole
+  | Unit
+  | Num
+  | Bool => []
+  | Parenthesized(_)
+  | List(_) => [0]
+  | OpSeq(_, seq) => range(OperatorSeq.seq_length(seq));

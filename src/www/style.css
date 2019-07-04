@@ -10,6 +10,7 @@
   --space-length: 8px;
   --node-indicator-z-index: -10;
   --child-indicator-z-index: -5;
+  --code-z-index: 0;
   --node-indicator-color: rgb(229, 255, 229);
   --child-indicator-color: white;
 }
@@ -731,17 +732,23 @@ button:disabled {
 
 #cell {
   opacity: 0.99;
+  background-color: transparent;
 }
 
 #cell .SNode {
   position: relative;
+  z-index: var(--code-z-index);
+  background-color: transparent;
+}
+.SNode * {
+  position: relative;
+  background-color: transparent;
   z-index: var(--code-z-index);
 }
 
 .SNode {
   font-family: "Fira Mono", monospace;
   width: max-content;
-
 }
 .indent, .SSpaceOp {
   white-space: pre;
@@ -758,10 +765,10 @@ button:disabled {
   background-color: var(--child-indicator-color);
 }
 
-.node-indicator.inactive, .node-indicator.inactive > .child-indicator {
+.node-indicator.inactive, .child-indicator.inactive {
   display: none;
 }
-.node-indicator.active, .node-indicator.active > .child-indicator {
+.node-indicator.active, .child-indicator.active {
   display: block;
 }
 

@@ -29,6 +29,13 @@ let rec join = (sep: 'a, xs: list('a)): list('a) =>
   | [x, ...xs] => [x, sep, ...join(sep, xs)]
   };
 
+let rec zip = (xs: list('a), ys: list('b)): list(('a, 'b)) =>
+  switch (xs, ys) {
+  | ([], _) => []
+  | (_, []) => []
+  | ([x, ...xs], [y, ...ys]) => [(x, y), ...zip(xs, ys)]
+  };
+
 /* repeat an element n times */
 let replicate = (n: int, e: 'a): list('a) => {
   /* add c additional copies of e to xs */

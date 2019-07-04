@@ -123,6 +123,14 @@ let is_after_current_node = ci =>
   | IsType(ty) => ZTyp.is_after(CursorT(ci.position, ty))
   };
 
+let child_indices_of_current_node = ci =>
+  switch (ci.sort) {
+  | IsLine(li) => UHExp.child_indices_line(li)
+  | IsExpr(e) => UHExp.child_indices_exp(e)
+  | IsPat(p) => UHPat.child_indices(p)
+  | IsType(ty) => UHTyp.child_indices(ty)
+  };
+
 let rec cursor_info_typ = (ctx: Contexts.t, zty: ZTyp.t): option(t) =>
   switch (zty) {
   | CursorT(cursor, ty) =>
