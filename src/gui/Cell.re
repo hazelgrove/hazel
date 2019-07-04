@@ -3,6 +3,7 @@ module Dom_html = Js_of_ocaml.Dom_html;
 module Js = Js_of_ocaml.Js;
 module KeyCombo = JSUtil.KeyCombo;
 open GeneralUtil;
+open ViewUtil;
 
 let string_insert = (s1, offset, s2) => {
   let prefix = String.sub(s1, 0, offset);
@@ -187,6 +188,29 @@ let view =
         model.is_cell_focused
           ? Code.view_of_zblock(~inject, model |> Model.zblock)
           : Code.view_of_block(~inject, model |> Model.block),
+        Node.div(
+          [
+            Attr.id(node_indicator_id),
+            Attr.classes([
+              "node-indicator",
+              model.is_cell_focused ? "active" : "inactive",
+            ]),
+          ],
+          model
+          |> Model.zblock
+          |> ZExp.erase_block
+          |> UHExp.max_degree_block
+          |> range
+          |> List.map(i =>
+               Vdom.Node.div(
+                 [
+                   Attr.id(child_indicator_id(i)),
+                   Attr.classes(["child-indicator"]),
+                 ],
+                 [],
+               )
+             ),
+        ),
       ],
     )
   );

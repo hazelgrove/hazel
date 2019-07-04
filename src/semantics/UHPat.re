@@ -198,3 +198,18 @@ and make_opseq_inconsistent =
       set_err_status_opseq(InHole(TypeInconsistent, u), skel, seq);
     (skel, seq, u_gen);
   };
+
+let rec max_degree =
+  fun
+  | EmptyHole(_)
+  | Wild(_)
+  | Var(_, _, _)
+  | NumLit(_, _)
+  | BoolLit(_, _)
+  | ListNil(_) => 0
+  | Parenthesized(body)
+  | Inj(_, _, body) => max(1, max_degree(body))
+  | OpSeq(_, seq) =>
+    OperatorSeq.tms(seq)
+    |> List.map(max_degree)
+    |> List.fold_left(max, OperatorSeq.seq_length(seq));

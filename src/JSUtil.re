@@ -150,27 +150,22 @@ let force_get_elem_by_id = id => {
   );
 };
 
-/*
- let r_input = (id, placeholder_str) => {
-   let (rs, rf) = S.create("");
-   let i_elt =
-     Html5.(
-       input(
-         ~a=[
-           a_id(id),
-           a_class(["form-control"]),
-           a_placeholder(placeholder_str),
-         ],
-         (),
-       )
-     );
+let px = (f: float): string => string_of_float(f) ++ "px";
 
-   let i_dom = To_dom.of_input(i_elt);
-   let _ = listen_to_t(Ev.input, i_dom, _ => rf(Js.to_string(i_dom##.value)));
-
-   ((rs, rf), i_elt, i_dom);
- };
- */
+let place_over =
+    (under_elem: Js.t(Dom_html.element), over_elem: Js.t(Dom_html.element)) => {
+  let under_rect = under_elem##getBoundingClientRect;
+  let (top, right, bottom, left) = (
+    under_rect##.top,
+    under_rect##.right,
+    under_rect##.bottom,
+    under_rect##.left,
+  );
+  over_elem##.style##.top := Js.string(top |> px);
+  over_elem##.style##.height := Js.string(bottom -. top |> px);
+  over_elem##.style##.left := Js.string(left |> px);
+  over_elem##.style##.width := Js.string(right -. left |> px);
+};
 
 let get_key = (evt: Js.t(Dom_html.keyboardEvent)) =>
   Js.to_string(Js.Optdef.get(evt##.key, () => assert(false)));

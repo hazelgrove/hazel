@@ -94,3 +94,16 @@ and expand_skel = (skel: skel_t, seq: opseq): HTyp.t =>
     let uty2 = expand_skel(skel2, seq);
     Sum(uty1, uty2);
   };
+
+let rec max_degree =
+  fun
+  | Hole
+  | Unit
+  | Num
+  | Bool => 0
+  | Parenthesized(body)
+  | List(body) => max(1, max_degree(body))
+  | OpSeq(_, seq) =>
+    OperatorSeq.tms(seq)
+    |> List.map(max_degree)
+    |> List.fold_left(max, OperatorSeq.seq_length(seq));

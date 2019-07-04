@@ -321,9 +321,59 @@ let err_status_clss =
 
 let inline_div_cls = "inline-div";
 
+let rec num_children_of_snode =
+  fun
+  | SSeq(_steps, _cursor, _is_multi_line, _sskel, _shead, stail) =>
+    List.length(stail) + 1
+  | SBox(
+      _border_style,
+      _steps,
+      _cursor,
+      _is_multi_line,
+      _err_status,
+      _shape,
+      slines,
+    ) =>
+    slines
+    |> List.fold_left((acc, sline) => acc + num_children_of_sline(sline), 0)
+and num_children_of_sline = ((_, _, swords)) =>
+  swords
+  |> List.fold_left(
+       (acc, sword) =>
+         switch (sword) {
+         | SNode(_) => acc + 1
+         | SToken(_) => acc
+         },
+       0,
+     );
+
+let num_children_of_snode_elem = elem =>
+  switch (elem |> JSUtil.get_attr("num-children")) {
+  | None => None
+  | Some(snum) => Some(int_of_string(snum))
+  };
+
+let children_elems_of_snode_elem = elem =>
+  switch (
+    steps_of_node_id(Js.to_string(elem##.id)),
+    num_children_of_snode_elem(elem),
+  ) {
+  | (None, _)
+  | (_, None) => None
+  | (Some(steps), Some(n)) =>
+    Some(
+      range(n)
+      |> List.map(i => steps @ [i])
+      |> List.map(node_id)
+      |> List.map(JSUtil.force_get_elem_by_id),
+    )
+  };
+
 let snode_attrs =
     (~inject: Update.Action.t => Vdom.Event.t, snode: snode)
     : list(Vdom.Attr.t) => {
+  // used to draw cursor indicators, see on_display in Hazel.re
+  let num_children = num_children_of_snode(snode);
   Vdom.(
     switch (snode) {
     | SSeq(steps, cursor, is_multi_line, _sskel, _shead, _stail) => [
@@ -386,7 +436,11 @@ let snode_attrs =
         | Cast => [Attr.classes(["Cast", ...base_clss])]
         | FailedCast => [Attr.classes(["FailedCast", ...base_clss])]
         };
-      [Attr.id(node_id(steps)), ...shape_attrs];
+      [
+        Attr.id(node_id(steps)),
+        Attr.create("num-children", string_of_int(num_children)),
+        ...shape_attrs,
+      ];
     }
   );
 };

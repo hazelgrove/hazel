@@ -16,6 +16,9 @@ let delim_id = (steps, delim_index) =>
   "delim__"
   ++ Sexplib.Sexp.to_string(sexp_of_delim_path((steps, delim_index)));
 
+let node_indicator_id = "node_indicator";
+let child_indicator_id = i => "child_indicator__" ++ string_of_int(i);
+
 let steps_of_node_id = s =>
   switch (Regexp.string_match(Regexp.regexp("^node__(.*)$"), s, 0)) {
   | None => None

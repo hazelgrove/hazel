@@ -298,3 +298,60 @@ let rec drop_outer_parentheses = (e: t): block =>
   | Parenthesized(block) => block
   | _ => Block([], e)
   };
+
+let rec max_degree_block =
+  fun
+  | Block(lines, e) =>
+    [max_degree_exp(e), ...lines |> List.map(max_degree_line)]
+    |> List.fold_left(max, List.length(lines) + 1)
+and max_degree_line =
+  fun
+  | EmptyLine => 0
+  | ExpLine(e) => max_degree_exp(e)
+  | LetLine(p, ann, def) =>
+    [
+      UHPat.max_degree(p),
+      switch (ann) {
+      | None => 0
+      | Some(ann) => UHTyp.max_degree(ann)
+      },
+      max_degree_block(def),
+    ]
+    |> List.fold_left(max, 3)
+and max_degree_exp =
+  fun
+  | EmptyHole(_)
+  | Var(_, _, _)
+  | NumLit(_, _)
+  | BoolLit(_, _)
+  | ListNil(_) => 0
+  | Lam(_, p, ann, body) =>
+    [
+      UHPat.max_degree(p),
+      switch (ann) {
+      | None => 0
+      | Some(ann) => UHTyp.max_degree(ann)
+      },
+      max_degree_block(body),
+    ]
+    |> List.fold_left(max, 3)
+  | Inj(_, _, body)
+  | Parenthesized(body) => max(1, max_degree_block(body))
+  | OpSeq(_, seq) =>
+    OperatorSeq.tms(seq)
+    |> List.map(max_degree_exp)
+    |> List.fold_left(max, OperatorSeq.seq_length(seq))
+  | Case(_, scrut, rules, ann) =>
+    [
+      max_degree_block(scrut),
+      switch (ann) {
+      | None => 0
+      | Some(ann) => UHTyp.max_degree(ann)
+      },
+      ...rules |> List.map(max_degree_rule),
+    ]
+    |> List.fold_left(max, List.length(rules) + 2)
+  | ApPalette(_, _, _, _) => 0
+and max_degree_rule =
+  fun
+  | Rule(p, clause) => max(UHPat.max_degree(p), max_degree_block(clause));
