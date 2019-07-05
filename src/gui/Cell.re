@@ -58,15 +58,12 @@ let kc_actions: Hashtbl.t(KeyCombo.t, Action.t) =
     |> List.to_seq,
   );
 
-let multi_line_seq_indicators = (is_cell_focused, n) =>
+let multi_line_seq_indicators = (is_active, n) =>
   Vdom.[
     Node.div(
       [
         Attr.id(op_node_indicator_id),
-        Attr.classes([
-          "node-indicator",
-          is_cell_focused ? "active" : "inactive",
-        ]),
+        Attr.classes(["node-indicator", is_active ? "active" : "inactive"]),
       ],
       [],
     ),
@@ -77,7 +74,7 @@ let multi_line_seq_indicators = (is_cell_focused, n) =>
                 Attr.id(seq_tm_indicator_id(i)),
                 Attr.classes([
                   "term-indicator",
-                  is_cell_focused ? "active" : "inactive",
+                  is_active ? "active" : "inactive",
                 ]),
               ],
               [],
@@ -85,73 +82,53 @@ let multi_line_seq_indicators = (is_cell_focused, n) =>
           ),
   ];
 
-let single_line_seq_indicators = is_cell_focused =>
+let single_line_seq_indicators = is_active =>
   Vdom.[
     Node.div(
       [
         Attr.id(op_node_indicator_id),
-        Attr.classes([
-          "node-indicator",
-          is_cell_focused ? "active" : "inactive",
-        ]),
+        Attr.classes(["node-indicator", is_active ? "active" : "inactive"]),
       ],
       [],
     ),
     Node.div(
       [
         Attr.id(box_tm_indicator_id),
-        Attr.classes([
-          "term-indicator",
-          is_cell_focused ? "active" : "inactive",
-        ]),
+        Attr.classes(["term-indicator", is_active ? "active" : "inactive"]),
       ],
       [],
     ),
   ];
 
 let indicators = (model: Model.t) => {
-  let is_cell_focused = model.is_cell_focused;
+  let is_active =
+    model.is_cell_focused && model.cursor_info.sort != IsLine(EmptyLine);
   switch (model.cursor_info.sort) {
   | IsExpr(OpSeq(_, seq) as e) =>
     Code.is_multi_line_exp(e)
-      ? multi_line_seq_indicators(
-          is_cell_focused,
-          OperatorSeq.seq_length(seq),
-        )
-      : single_line_seq_indicators(is_cell_focused)
+      ? multi_line_seq_indicators(is_active, OperatorSeq.seq_length(seq))
+      : single_line_seq_indicators(is_active)
   | IsPat(OpSeq(_, seq) as p) =>
     Code.is_multi_line_pat(p)
-      ? multi_line_seq_indicators(
-          is_cell_focused,
-          OperatorSeq.seq_length(seq),
-        )
-      : single_line_seq_indicators(is_cell_focused)
+      ? multi_line_seq_indicators(is_active, OperatorSeq.seq_length(seq))
+      : single_line_seq_indicators(is_active)
   | IsType(OpSeq(_, seq) as ty) =>
     Code.is_multi_line_typ(ty)
-      ? multi_line_seq_indicators(
-          is_cell_focused,
-          OperatorSeq.seq_length(seq),
-        )
-      : single_line_seq_indicators(is_cell_focused)
+      ? multi_line_seq_indicators(is_active, OperatorSeq.seq_length(seq))
+      : single_line_seq_indicators(is_active)
   | _ =>
     Vdom.[
       Node.div(
         [
           Attr.id(box_node_indicator_id),
-          Attr.classes([
-            "node-indicator",
-            model.is_cell_focused ? "active" : "inactive",
-          ]),
+          Attr.classes(["node-indicator", is_active ? "active" : "inactive"]),
         ],
         [],
       ),
       Node.div(
         [
           Attr.id(box_tm_indicator_id),
-          Attr.classes([
-            "term-indicator",
-            model.is_cell_focused ? "active" : "inactive",
-          ]),
+          Attr.classes(["term-indicator", is_active ? "active" : "inactive"]),
         ],
         [],
       ),
