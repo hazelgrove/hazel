@@ -21,8 +21,10 @@ let op_id = (steps, op_index) =>
   "op__" ++ Sexplib.Sexp.to_string(sexp_of_op_path((steps, op_index)));
 
 let box_node_indicator_id = "box_node_indicator";
-let seq_node_indicator_id = i => "seq_node_indicator__" ++ string_of_int(i);
 let child_indicator_id = i => "child_indicator__" ++ string_of_int(i);
+let box_tm_indicator_id = "box_tm_indicator";
+let seq_tm_indicator_id = i => "seq_tm_indicator__" ++ string_of_int(i);
+let op_node_indicator_id = "op_node_indicator";
 
 let steps_of_node_id = s =>
   switch (Regexp.string_match(Regexp.regexp("^node__(.*)$"), s, 0)) {

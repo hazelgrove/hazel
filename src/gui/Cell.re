@@ -59,46 +59,10 @@ let kc_actions: Hashtbl.t(KeyCombo.t, Action.t) =
   );
 
 let multi_line_seq_indicators = (is_cell_focused, n) =>
-  (
-    range(n)
-    |> List.map(i =>
-         Vdom.(
-           Node.div(
-             [
-               Attr.id(seq_node_indicator_id(i)),
-               Attr.classes([
-                 "node-indicator",
-                 is_cell_focused ? "active" : "inactive",
-               ]),
-             ],
-             [],
-           )
-         )
-       )
-  )
-  @ (
-    range(n)
-    |> List.map(i =>
-         Vdom.(
-           Node.div(
-             [
-               Attr.id(child_indicator_id(i)),
-               Attr.classes([
-                 "child-indicator",
-                 is_cell_focused ? "active" : "inactive",
-               ]),
-             ],
-             [],
-           )
-         )
-       )
-  );
-
-let single_line_seq_indicators = is_cell_focused =>
   Vdom.[
     Node.div(
       [
-        Attr.id(box_node_indicator_id),
+        Attr.id(op_node_indicator_id),
         Attr.classes([
           "node-indicator",
           is_cell_focused ? "active" : "inactive",
@@ -106,19 +70,43 @@ let single_line_seq_indicators = is_cell_focused =>
       ],
       [],
     ),
-    ...range(2)
+    ...range(n)
        |> List.map(i =>
             Node.div(
               [
-                Attr.id(child_indicator_id(i)),
+                Attr.id(seq_tm_indicator_id(i)),
                 Attr.classes([
-                  "child-indicator",
+                  "term-indicator",
                   is_cell_focused ? "active" : "inactive",
                 ]),
               ],
               [],
             )
           ),
+  ];
+
+let single_line_seq_indicators = is_cell_focused =>
+  Vdom.[
+    Node.div(
+      [
+        Attr.id(op_node_indicator_id),
+        Attr.classes([
+          "node-indicator",
+          is_cell_focused ? "active" : "inactive",
+        ]),
+      ],
+      [],
+    ),
+    Node.div(
+      [
+        Attr.id(box_tm_indicator_id),
+        Attr.classes([
+          "term-indicator",
+          is_cell_focused ? "active" : "inactive",
+        ]),
+      ],
+      [],
+    ),
   ];
 
 let indicators = (model: Model.t) => {

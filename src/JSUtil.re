@@ -152,20 +152,33 @@ let force_get_elem_by_id = id => {
 
 let px = (f: float): string => string_of_float(f) ++ "px";
 
-let place_over =
-    (under_elem: Js.t(Dom_html.element), over_elem: Js.t(Dom_html.element)) => {
-  let under_rect = under_elem##getBoundingClientRect;
-  let (top, right, bottom, left) = (
-    under_rect##.top,
-    under_rect##.right,
-    under_rect##.bottom,
-    under_rect##.left,
-  );
-  over_elem##.style##.top := Js.string(top |> px);
-  over_elem##.style##.height := Js.string(bottom -. top |> px);
-  over_elem##.style##.left := Js.string(left |> px);
-  over_elem##.style##.width := Js.string(right -. left |> px);
+type rect = {
+  top: float,
+  right: float,
+  bottom: float,
+  left: float,
 };
+
+let get_bounding_rect = elem => {
+  let rect = elem##getBoundingClientRect;
+  {
+    top: rect##.top,
+    right: rect##.right,
+    bottom: rect##.bottom,
+    left: rect##.left,
+  };
+};
+
+let place_over_rect = (rect, elem) => {
+  elem##.style##.top := Js.string(rect.top |> px);
+  elem##.style##.height := Js.string(rect.bottom -. rect.top |> px);
+  elem##.style##.left := Js.string(rect.left |> px);
+  elem##.style##.width := Js.string(rect.right -. rect.left |> px);
+};
+
+let place_over =
+    (under_elem: Js.t(Dom_html.element), over_elem: Js.t(Dom_html.element)) =>
+  over_elem |> place_over_rect(under_elem |> get_bounding_rect);
 
 let get_key = (evt: Js.t(Dom_html.keyboardEvent)) =>
   Js.to_string(Js.Optdef.get(evt##.key, () => assert(false)));

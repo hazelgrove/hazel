@@ -32,10 +32,32 @@ let rec nth_tm = (n, seq) =>
   | (_, ExpOpExp(_, _, _)) => None
   | (_, SeqOpExp(seq', _, e)) =>
     let len = seq_length(seq');
-    if (n === len) {
+    if (n > len) {
+      None;
+    } else if (n === len) {
       Some(e);
     } else {
       nth_tm(n, seq');
+    };
+  };
+
+let rec tms_of_range = ((a, b), seq) =>
+  switch (a, b, seq) {
+  | (0, 0, ExpOpExp(e1, _, _)) => Some([e1])
+  | (0, 1, ExpOpExp(e1, _, e2)) => Some([e1, e2])
+  | (1, 1, ExpOpExp(_, _, e2)) => Some([e2])
+  | (_, _, ExpOpExp(_, _, _)) => None
+  | (_, _, SeqOpExp(seq', _, e)) =>
+    let len = seq_length(seq');
+    if (a > len || b > len) {
+      None;
+    } else if (b === len) {
+      switch (tms_of_range((a, b - 1), seq')) {
+      | None => None
+      | Some(tms) => Some(tms @ [e])
+      };
+    } else {
+      tms_of_range((a, b), seq');
     };
   };
 

@@ -46,41 +46,71 @@ let create = (model, ~old_model, ~inject) => {
             switch (elems) {
             | [] => ()
             | [cursor_elem, ..._] =>
-              switch (
-                cursor_elem |> Code.child_elems_of_snode_elem,
-                // cursor_elem is either SBox or SSeq
-                cursor_elem |> Code.elem_is_SBox,
-              ) {
-              | (None, _) => raise(MalformedView(12))
-              | (Some(child_elems), true) =>
-                JSUtil.force_get_elem_by_id(box_node_indicator_id)
-                |> JSUtil.place_over(cursor_elem);
-                let child_indices =
-                  model.cursor_info |> CursorInfo.child_indices_of_current_node;
-                zip(child_indices, child_elems)
-                |> List.iter(((i, child_elem)) =>
-                     JSUtil.force_get_elem_by_id(child_indicator_id(i))
-                     |> JSUtil.place_over(child_elem)
-                   );
-              | (Some(child_elems), false) =>
+              // cursor_elem is either SBox or SSeq
+              if (cursor_elem |> Code.elem_is_SBox) {
+                switch (cursor_elem |> Code.child_elems_of_snode_elem) {
+                | None => assert(false)
+                | Some(child_elems) =>
+                  JSUtil.force_get_elem_by_id(box_node_indicator_id)
+                  |> JSUtil.place_over(cursor_elem);
+                  let child_indices =
+                    model.cursor_info
+                    |> CursorInfo.child_indices_of_current_node;
+                  zip(child_indices, child_elems)
+                  |> List.iter(((i, child_elem)) =>
+                       JSUtil.force_get_elem_by_id(child_indicator_id(i))
+                       |> JSUtil.place_over(child_elem)
+                     );
+                };
+              } else {
                 switch (model.cursor_info.position) {
                 | OnText(_) => assert(false)
                 | OnDelim(k, _) =>
                   // use delim index to identify op elem
                   let (steps, _) = model |> Model.path;
-
-                  // get tagged range (a,b) on delim elem
-                  if (cursor_elem |> Code.elem_is_multi_line) {
-                    {
-                      // use (a,_) to find that child and place the first pair of indicators
-                      // use (a,b) to find tail lines and place remaining indicators
-                    };
-                  } else {
-                    {
-                      // use (a,b) to place the three indicators
+                  let op_elem = JSUtil.force_get_elem_by_id(op_id(steps, k));
+                  JSUtil.force_get_elem_by_id(op_node_indicator_id)
+                  |> JSUtil.place_over(op_elem);
+                  switch (op_elem |> JSUtil.get_attr("op-range")) {
+                  | None => assert(false)
+                  | Some(ssexp) =>
+                    let (a, b) =
+                      Code.seq_range_of_sexp(Sexplib.Sexp.of_string(ssexp));
+                    if (cursor_elem |> Code.elem_is_multi_line) {
+                      JSUtil.force_get_elem_by_id(seq_tm_indicator_id(a))
+                      |> JSUtil.(
+                           place_over(
+                             force_get_elem_by_id(node_id(steps @ [a])),
+                           )
+                         );
+                      let sline_elems =
+                        Code.sline_elems_of_snode_elem(cursor_elem);
+                      range(~lo=a + 1, b + 1)
+                      |> List.map(List.nth(sline_elems))
+                      |> List.iteri((i, sline_elem) =>
+                           JSUtil.force_get_elem_by_id(
+                             seq_tm_indicator_id(a + 1 + i),
+                           )
+                           |> JSUtil.place_over(sline_elem)
+                         );
+                    } else {
+                      let tm_a =
+                        JSUtil.force_get_elem_by_id(node_id(steps @ [a]));
+                      let tm_b =
+                        JSUtil.force_get_elem_by_id(node_id(steps @ [b]));
+                      let rect_a = tm_a |> JSUtil.get_bounding_rect;
+                      let rect_b = tm_b |> JSUtil.get_bounding_rect;
+                      JSUtil.force_get_elem_by_id(box_tm_indicator_id)
+                      |> JSUtil.place_over_rect({
+                           top: rect_b.left,
+                           right: rect_b.right,
+                           bottom: rect_b.bottom,
+                           left: rect_a.left,
+                         });
                     };
                   };
-                }
+                // get tagged range (a,b) on delim elem
+                };
               }
             };
           };
