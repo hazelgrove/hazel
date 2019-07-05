@@ -58,6 +58,134 @@ let kc_actions: Hashtbl.t(KeyCombo.t, Action.t) =
     |> List.to_seq,
   );
 
+let multi_line_seq_indicators = (is_cell_focused, n) =>
+  (
+    range(n)
+    |> List.map(i =>
+         Vdom.(
+           Node.div(
+             [
+               Attr.id(seq_node_indicator_id(i)),
+               Attr.classes([
+                 "node-indicator",
+                 is_cell_focused ? "active" : "inactive",
+               ]),
+             ],
+             [],
+           )
+         )
+       )
+  )
+  @ (
+    range(n)
+    |> List.map(i =>
+         Vdom.(
+           Node.div(
+             [
+               Attr.id(child_indicator_id(i)),
+               Attr.classes([
+                 "child-indicator",
+                 is_cell_focused ? "active" : "inactive",
+               ]),
+             ],
+             [],
+           )
+         )
+       )
+  );
+
+let single_line_seq_indicators = is_cell_focused =>
+  Vdom.[
+    Node.div(
+      [
+        Attr.id(box_node_indicator_id),
+        Attr.classes([
+          "node-indicator",
+          is_cell_focused ? "active" : "inactive",
+        ]),
+      ],
+      [],
+    ),
+    ...range(2)
+       |> List.map(i =>
+            Node.div(
+              [
+                Attr.id(child_indicator_id(i)),
+                Attr.classes([
+                  "child-indicator",
+                  is_cell_focused ? "active" : "inactive",
+                ]),
+              ],
+              [],
+            )
+          ),
+  ];
+
+let indicators = (model: Model.t) => {
+  let is_cell_focused = model.is_cell_focused;
+  switch (model.cursor_info.sort) {
+  | IsExpr(OpSeq(_, seq) as e) =>
+    Code.is_multi_line_exp(e)
+      ? multi_line_seq_indicators(
+          is_cell_focused,
+          OperatorSeq.seq_length(seq),
+        )
+      : single_line_seq_indicators(is_cell_focused)
+  | IsPat(OpSeq(_, seq) as p) =>
+    Code.is_multi_line_pat(p)
+      ? multi_line_seq_indicators(
+          is_cell_focused,
+          OperatorSeq.seq_length(seq),
+        )
+      : single_line_seq_indicators(is_cell_focused)
+  | IsType(OpSeq(_, seq) as ty) =>
+    Code.is_multi_line_typ(ty)
+      ? multi_line_seq_indicators(
+          is_cell_focused,
+          OperatorSeq.seq_length(seq),
+        )
+      : single_line_seq_indicators(is_cell_focused)
+  | _ => [
+      Vdom.(
+        Node.div(
+          [
+            Attr.id(box_node_indicator_id),
+            Attr.classes([
+              "node-indicator",
+              model.is_cell_focused ? "active" : "inactive",
+            ]),
+          ],
+          [],
+        )
+      ),
+      ...{
+           let child_indices =
+             model.cursor_info |> CursorInfo.child_indices_of_current_node;
+           let is_active = i => child_indices |> List.exists(j => j == i);
+           model
+           |> Model.zblock
+           |> ZExp.erase_block
+           |> UHExp.max_degree_block
+           |> range
+           |> List.map(i =>
+                Vdom.(
+                  Node.div(
+                    [
+                      Attr.id(child_indicator_id(i)),
+                      Attr.classes([
+                        "child-indicator",
+                        is_active(i) ? "active" : "inactive",
+                      ]),
+                    ],
+                    [],
+                  )
+                )
+              );
+         },
+    ]
+  };
+};
+
 let view =
     (~inject: Update.Action.t => Vdom.Event.t, model: Model.t): Vdom.Node.t => {
   Vdom.(
@@ -188,38 +316,7 @@ let view =
         model.is_cell_focused
           ? Code.view_of_zblock(~inject, model |> Model.zblock)
           : Code.view_of_block(~inject, model |> Model.block),
-        Node.div(
-          [
-            Attr.id(node_indicator_id),
-            Attr.classes([
-              "node-indicator",
-              model.is_cell_focused ? "active" : "inactive",
-            ]),
-          ],
-          [],
-        ),
-        ...{
-             let child_indices =
-               model.cursor_info |> CursorInfo.child_indices_of_current_node;
-             let is_active = i => child_indices |> List.exists(j => j == i);
-             model
-             |> Model.zblock
-             |> ZExp.erase_block
-             |> UHExp.max_degree_block
-             |> range
-             |> List.map(i =>
-                  Vdom.Node.div(
-                    [
-                      Attr.id(child_indicator_id(i)),
-                      Attr.classes([
-                        "child-indicator",
-                        is_active(i) ? "active" : "inactive",
-                      ]),
-                    ],
-                    [],
-                  )
-                );
-           },
+        ...indicators(model),
       ],
     )
   );

@@ -5,6 +5,8 @@ exception MalformedView(int);
 
 [@deriving sexp]
 type delim_path = (Path.steps, delim_index);
+[@deriving sexp]
+type op_path = (Path.steps, op_index);
 
 let node_id = steps =>
   "node__" ++ Sexplib.Sexp.to_string(Path.sexp_of_steps(steps));
@@ -15,8 +17,11 @@ let path_id = path =>
 let delim_id = (steps, delim_index) =>
   "delim__"
   ++ Sexplib.Sexp.to_string(sexp_of_delim_path((steps, delim_index)));
+let op_id = (steps, op_index) =>
+  "op__" ++ Sexplib.Sexp.to_string(sexp_of_op_path((steps, op_index)));
 
-let node_indicator_id = "node_indicator";
+let box_node_indicator_id = "box_node_indicator";
+let seq_node_indicator_id = i => "seq_node_indicator__" ++ string_of_int(i);
 let child_indicator_id = i => "child_indicator__" ++ string_of_int(i);
 
 let steps_of_node_id = s =>

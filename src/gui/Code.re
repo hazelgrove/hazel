@@ -43,6 +43,9 @@ type relative_indent = int;
 type absolute_indent = int;
 
 [@deriving sexp]
+type op_range = (int, int);
+
+[@deriving sexp]
 type snode_shape =
   | Seq
   | Box(sbox_shape)
@@ -91,7 +94,6 @@ type snode =
       Path.steps,
       option(cursor_position),
       is_multi_line,
-      sskel,
       snode,
       list(sseq_tail_segment),
     )
@@ -104,11 +106,6 @@ type snode =
       sbox_shape,
       list(sline),
     )
-[@deriving sexp]
-and sskel =
-  | Placeholder(int)
-  | BinOp(err_status, string, sskel, sskel)
-  | Space(err_status, sskel, sskel)
 [@deriving sexp]
 and sseq_tail_segment =
   | SSegmentSpace(snode)
@@ -124,7 +121,7 @@ and stoken =
   | SEmptyHole(string)
   | SDelim(option(delim_index), string)
   | SSpaceOp
-  | SOp(option(op_index), string)
+  | SOp(option((op_index, op_range)), string)
   | SText(var_err_status, string)
   | SCastArrow
   | SFailedCastArrow
@@ -134,7 +131,7 @@ and stoken =
 
 let is_multi_line =
   fun
-  | SSeq(_, _, is_multi_line, _, _, _)
+  | SSeq(_, _, is_multi_line, _, _)
   | SBox(_, _, _, is_multi_line, _, _, _) => is_multi_line;
 
 let mk_SSeq =
@@ -142,12 +139,11 @@ let mk_SSeq =
       ~cursor: option(cursor_position)=?,
       ~is_multi_line=false,
       ~steps: Path.steps,
-      ~sskel: sskel,
       shead: snode,
       stail,
     )
     : snode =>
-  SSeq(steps, cursor, is_multi_line, sskel, shead, stail);
+  SSeq(steps, cursor, is_multi_line, shead, stail);
 
 let mk_SBox =
     (
@@ -192,12 +188,12 @@ let sline_of_segment = (~steps, segment: sseq_tail_segment): sline =>
 
 let steps_of_snode =
   fun
-  | SSeq(steps, _, _, _, _, _)
+  | SSeq(steps, _, _, _, _)
   | SBox(_, steps, _, _, _, _, _) => steps;
 
 let update_border_style = (border_style, snode) =>
   switch (snode) {
-  | SSeq(_, _, _, _, _, _) => snode
+  | SSeq(_, _, _, _, _) => snode
   | SBox(_, cursor, is_multi_line, err_status, steps, shape, slines) =>
     SBox(
       border_style,
@@ -221,7 +217,8 @@ let update_border_style_of_segment_node =
 
 let mk_SDelim = (~index=?, s: string): stoken => SDelim(index, s);
 
-let mk_SOp = (~index=?, s: string): stoken => SOp(index, s);
+let mk_SOp = (~index_and_range=?, s: string): stoken =>
+  SOp(index_and_range, s);
 
 let mk_SText = (~var_err_status=NotInVHole, s: string): stoken =>
   SText(var_err_status, s);
@@ -271,42 +268,6 @@ let space_before_after_op_exp: UHExp.op => (space_before, space_after) =
   | Comma => (false, true)
   | Cons => (false, false);
 
-let rec sskel_of_skel_typ = (skel: UHTyp.skel_t): sskel =>
-  switch (skel) {
-  | Placeholder(n) => Placeholder(n)
-  | BinOp(err_status, op, skel1, skel2) =>
-    let sop = string_of_op_typ(op);
-    let sskel1 = sskel_of_skel_typ(skel1);
-    let sskel2 = sskel_of_skel_typ(skel2);
-    BinOp(err_status, sop, sskel1, sskel2);
-  };
-let rec sskel_of_skel_pat = (skel: UHPat.skel_t): sskel =>
-  switch (skel) {
-  | Placeholder(n) => Placeholder(n)
-  | BinOp(err_status, Space, skel1, skel2) =>
-    let sskel1 = sskel_of_skel_pat(skel1);
-    let sskel2 = sskel_of_skel_pat(skel2);
-    Space(err_status, sskel1, sskel2);
-  | BinOp(err_status, op, skel1, skel2) =>
-    let sop = string_of_op_pat(op);
-    let sskel1 = sskel_of_skel_pat(skel1);
-    let sskel2 = sskel_of_skel_pat(skel2);
-    BinOp(err_status, sop, sskel1, sskel2);
-  };
-let rec sskel_of_skel_exp = (skel: UHExp.skel_t): sskel =>
-  switch (skel) {
-  | Placeholder(n) => Placeholder(n)
-  | BinOp(err_status, Space, skel1, skel2) =>
-    let sskel1 = sskel_of_skel_exp(skel1);
-    let sskel2 = sskel_of_skel_exp(skel2);
-    Space(err_status, sskel1, sskel2);
-  | BinOp(err_status, op, skel1, skel2) =>
-    let sop = string_of_op_exp(op);
-    let sskel1 = sskel_of_skel_exp(skel1);
-    let sskel2 = sskel_of_skel_exp(skel2);
-    BinOp(err_status, sop, sskel1, sskel2);
-  };
-
 let cursor_clss = (mb_cursor: option(cursor_position)) =>
   switch (mb_cursor) {
   | None => []
@@ -323,7 +284,7 @@ let inline_div_cls = "inline-div";
 
 let rec child_indices_of_snode =
   fun
-  | SSeq(_steps, _cursor, _is_multi_line, _sskel, _shead, stail) =>
+  | SSeq(_steps, _cursor, _is_multi_line, _shead, stail) =>
     range(List.length(stail) + 1)
   | SBox(
       _border_style,
@@ -380,23 +341,31 @@ let child_elems_of_snode_elem = elem =>
     )
   };
 
+let cls_SNode = "SNode";
+let cls_SBox = "SBox";
+let cls_SSeq = "SSeq";
+
+let elem_is_SBox = JSUtil.elem_has_cls(cls_SBox);
+let elem_is_SSeq = JSUtil.elem_has_cls(cls_SSeq);
+
+let elem_is_multi_line = JSUtil.elem_has_cls("multi-line");
+
 let snode_attrs =
     (~inject: Update.Action.t => Vdom.Event.t, snode: snode)
     : list(Vdom.Attr.t) => {
   Vdom.(
     switch (snode) {
-    | SSeq(steps, cursor, is_multi_line, _sskel, _shead, _stail) => [
-        /* TODO need to do something about err status holes with sskel */
+    | SSeq(steps, cursor, is_multi_line, _shead, _stail) => [
         Attr.id(node_id(steps)),
         Attr.classes(
-          ["OpSeq", inline_div_cls]
+          [cls_SNode, cls_SSeq, inline_div_cls]
           @ cursor_clss(cursor)
           @ multi_line_clss(is_multi_line),
         ),
       ]
     | SBox(_, steps, cursor, is_multi_line, err_status, shape, _) =>
       let base_clss =
-        ["SNode", inline_div_cls]
+        [cls_SNode, cls_SBox, inline_div_cls]
         @ cursor_clss(cursor)
         @ multi_line_clss(is_multi_line)
         @ err_status_clss(err_status);
@@ -473,34 +442,6 @@ let var_err_status_clss =
       "Keyword",
     ];
 
-/*
- let on_click_noneditable =
-     (
-       ~inject,
-       steps: Path.steps,
-       k: delim_index,
-       evt: Js.t(Dom_html.mouseEvent),
-     ) => {
-   switch (Js.Opt.to_option(evt##.target)) {
-   | None => inject(Update.Action.SetCaret((steps, OnDelim(k, Before))))
-   | Some(target) =>
-     let from_left =
-       float_of_int(evt##.clientX) -. target##getBoundingClientRect##.left;
-     let from_right =
-       target##getBoundingClientRect##.right -. float_of_int(evt##.clientX);
-     inject(
-       Update.Action.SetCaret((
-         steps,
-         OnDelim(k, from_left <= from_right ? Before : After),
-       )),
-     );
-   };
- };
- */
-
-/* TODO */
-let range_of_tree_rooted_at_cursor = (_cursor, _sskel) => (0, 0);
-
 let vindent_path = path =>
   Vdom.(
     Node.span(
@@ -543,79 +484,31 @@ let rec view_of_snode =
         : Vdom.Node.t => {
   let attrs = snode_attrs(~inject, snode);
   switch (snode) {
-  | SSeq(steps, cursor, is_multi_line, sskel, shead, stail) =>
-    let (vhead: Vdom.Node.t, vtail: list(Vdom.Node.t)) =
-      switch (cursor) {
-      | None =>
-        let vhead =
-          view_of_sline(
-            ~inject,
-            ~node_steps=steps,
-            ~is_node_multi_line=is_multi_line,
-            ~line_no=0,
-            ~abs_indent,
-            mk_sline(
-              ~steps_of_first_sword=steps_of_snode(shead),
-              [SNode(shead)],
-            ),
-          );
-        let vtail =
-          stail
-          |> List.mapi((i, segment) =>
-               view_of_sline(
-                 ~inject,
-                 ~node_steps=steps,
-                 ~is_node_multi_line=is_multi_line,
-                 ~line_no=i + 1,
-                 ~abs_indent,
-                 sline_of_segment(~steps, segment),
-               )
-             );
-        (vhead, vtail);
-      | Some(cursor) =>
-        let (a, b) = range_of_tree_rooted_at_cursor(cursor, sskel);
-        let vhead_border_style = a == 0 ? TopBottom(true, false) : NoBorder;
-        let vhead =
-          view_of_sline(
-            ~inject,
-            ~node_steps=steps,
-            ~node_cursor=cursor,
-            ~is_node_multi_line=is_multi_line,
-            ~border_style=vhead_border_style,
-            ~line_no=0,
-            ~abs_indent,
-            mk_sline(
-              ~steps_of_first_sword=steps_of_snode(shead),
-              [SNode(shead)],
-            ),
-          );
-        let vtail =
-          stail
-          |> List.mapi((i, segment) => (i + 1, segment))
-          |> List.map(((i, segment)) =>
-               view_of_sline(
-                 ~inject,
-                 ~node_steps=steps,
-                 ~node_cursor=cursor,
-                 ~is_node_multi_line=is_multi_line,
-                 ~border_style=
-                   a < i && i < b
-                     ? TopBottom(false, false) : TopBottom(false, i == b),
-                 ~line_no=i,
-                 ~abs_indent,
-                 i == a
-                   ? sline_of_segment(
-                       ~steps,
-                       segment
-                       |> update_border_style_of_segment_node(
-                            TopBottom(true, false),
-                          ),
-                     )
-                   : sline_of_segment(~steps, segment),
-               )
-             );
-        (vhead, vtail);
-      };
+  | SSeq(steps, _cursor, is_multi_line, shead, stail) =>
+    let vhead =
+      view_of_sline(
+        ~inject,
+        ~node_steps=steps,
+        ~is_node_multi_line=is_multi_line,
+        ~line_no=0,
+        ~abs_indent,
+        mk_sline(
+          ~steps_of_first_sword=steps_of_snode(shead),
+          [SNode(shead)],
+        ),
+      );
+    let vtail =
+      stail
+      |> List.mapi((i, segment) =>
+           view_of_sline(
+             ~inject,
+             ~node_steps=steps,
+             ~is_node_multi_line=is_multi_line,
+             ~line_no=i + 1,
+             ~abs_indent,
+             sline_of_segment(~steps, segment),
+           )
+         );
     let vlines = [vhead, ...vtail];
     Vdom.Node.div(
       attrs,
@@ -696,7 +589,7 @@ and view_of_sline =
                | SText(_, _)
                | SEmptyLine => vindent_steps(steps)
                | SDelim(Some(k), _)
-               | SOp(Some(k), _) =>
+               | SOp(Some((k, _)), _) =>
                  vindent_path((steps, OnDelim(k, Before)))
                | SSpaceOp =>
                  switch (rest) {
@@ -863,12 +756,12 @@ and view_of_stoken =
       [Attr.classes([inline_div_cls, "SDelim"])],
       delim_before_nodes @ [delim_txt] @ delim_after_nodes,
     );
-  | SOp(op_index, s) =>
+  | SOp(index_and_range, s) =>
     open Vdom;
     let (op_before_nodes, op_after_nodes, op_txt_attrs) =
-      switch (op_index) {
+      switch (index_and_range) {
       | None => ([], [], [])
-      | Some(k) =>
+      | Some((k, (a, b))) =>
         let op_before =
           Node.span(
             [
@@ -908,8 +801,19 @@ and view_of_stoken =
         ],
         [Node.text(s)],
       );
+    let op_index_range_attrs =
+      switch (index_and_range) {
+      | None => []
+      | Some((k, (a, b))) => [
+          Attr.id(op_id(node_steps, k)),
+          Attr.create(
+            "op-range",
+            Sexplib.Sexp.to_string(sexp_of_op_range((a, b))),
+          ),
+        ]
+      };
     Node.div(
-      [Attr.classes([inline_div_cls, "SOp"])],
+      [Attr.classes([inline_div_cls, "SOp"]), ...op_index_range_attrs],
       op_before_nodes @ [op_txt] @ op_after_nodes,
     );
   | SSpaceOp =>
@@ -974,7 +878,7 @@ let caret_position_of_path =
     switch (JSUtil.get_elem_by_id(path_id(path))) {
     | None => None
     | Some(anchor_parent) =>
-      let has_cls = JSUtil.elem_has_cls(anchor_parent);
+      let has_cls = cls => anchor_parent |> JSUtil.elem_has_cls(cls);
       let anchor_offset =
         if (has_cls("unselectable-before")) {
           3;
@@ -1167,7 +1071,6 @@ let snode_of_OpSeq =
     (
       ~cursor=?,
       ~steps,
-      ~sskel,
       stms: list(snode),
       sops: list((space_before, stoken, space_after)),
     )
@@ -1193,7 +1096,7 @@ let snode_of_OpSeq =
          | _ => SSegmentSpace(stm) /* should never happen */
          }
        );
-  mk_SSeq(~cursor?, ~is_multi_line, ~steps, ~sskel, shead, stail);
+  mk_SSeq(~cursor?, ~is_multi_line, ~steps, shead, stail);
 };
 
 let snode_of_Lam =
@@ -1418,7 +1321,7 @@ let snode_of_Unit = (~cursor=?, ~steps, ()) =>
     ],
   );
 
-let rec snode_of_typ = (~cursor=?, ~steps: Path.steps, uty: UHTyp.t): snode =>
+let rec snode_of_typ = (~cursor=?, ~steps: Path.steps=[], uty: UHTyp.t): snode =>
   switch (uty) {
   | Hole => snode_of_EmptyHole(~cursor?, ~steps, "?")
   | Unit => snode_of_Unit(~cursor?, ~steps, ())
@@ -1437,18 +1340,18 @@ let rec snode_of_typ = (~cursor=?, ~steps: Path.steps, uty: UHTyp.t): snode =>
     let sops =
       OperatorSeq.ops(seq)
       |> List.mapi((i, op) => {
+           let range = skel |> Skel.range_of_skel_rooted_at_op(i + 1);
            let (space_before, space_after) = space_before_after_op_typ(op);
            (
              space_before,
-             mk_SOp(~index=i + 1, string_of_op_typ(op)),
+             mk_SOp(~index_and_range=(i + 1, range), string_of_op_typ(op)),
              space_after,
            );
          });
-    let sskel = sskel_of_skel_typ(skel);
-    snode_of_OpSeq(~cursor?, ~steps, ~sskel, stms, sops);
+    snode_of_OpSeq(~cursor?, ~steps, stms, sops);
   };
 
-let rec snode_of_pat = (~cursor=?, ~steps: Path.steps, p: UHPat.t): snode =>
+let rec snode_of_pat = (~cursor=?, ~steps: Path.steps=[], p: UHPat.t): snode =>
   switch (p) {
   | EmptyHole(u) =>
     snode_of_EmptyHole(~cursor?, ~steps, string_of_int(u + 1))
@@ -1486,18 +1389,19 @@ let rec snode_of_pat = (~cursor=?, ~steps: Path.steps, p: UHPat.t): snode =>
     let sops =
       OperatorSeq.ops(seq)
       |> List.mapi((i, op) => {
+           let range = skel |> Skel.range_of_skel_rooted_at_op(i + 1);
            let (space_before, space_after) = space_before_after_op_pat(op);
            (
              space_before,
              switch ((op: UHPat.op)) {
              | Space => SSpaceOp
-             | _ => mk_SOp(~index=i + 1, string_of_op_pat(op))
+             | _ =>
+               mk_SOp(~index_and_range=(i + 1, range), string_of_op_pat(op))
              },
              space_after,
            );
          });
-    let sskel = sskel_of_skel_pat(skel);
-    snode_of_OpSeq(~cursor?, ~steps, ~sskel, stms, sops);
+    snode_of_OpSeq(~cursor?, ~steps, stms, sops);
   };
 
 let rec snode_of_block =
@@ -1541,7 +1445,7 @@ and snode_of_line_item =
     let sdef = snode_of_block(~steps=steps @ [2], def);
     snode_of_LetLine(~cursor?, ~steps, sp, sann, sdef);
   }
-and snode_of_exp = (~cursor=?, ~steps: Path.steps, e: UHExp.t): snode =>
+and snode_of_exp = (~cursor=?, ~steps: Path.steps=[], e: UHExp.t): snode =>
   switch (e) {
   /* outer nodes */
   | EmptyHole(u) =>
@@ -1589,18 +1493,19 @@ and snode_of_exp = (~cursor=?, ~steps: Path.steps, e: UHExp.t): snode =>
     let sops =
       OperatorSeq.ops(seq)
       |> List.mapi((i, op) => {
+           let range = skel |> Skel.range_of_skel_rooted_at_op(i + 1);
            let (space_before, space_after) = space_before_after_op_exp(op);
            (
              space_before,
              switch ((op: UHExp.op)) {
              | Space => SSpaceOp
-             | _ => mk_SOp(~index=i + 1, string_of_op_exp(op))
+             | _ =>
+               mk_SOp(~index_and_range=(i + 1, range), string_of_op_exp(op))
              },
              space_after,
            );
          });
-    let sskel = sskel_of_skel_exp(skel);
-    snode_of_OpSeq(~cursor?, ~steps, ~sskel, stms, sops);
+    snode_of_OpSeq(~cursor?, ~steps, stms, sops);
   | ApPalette(_, _, _, _) => raise(InvariantViolated)
   }
 and snode_of_rule =
@@ -1638,15 +1543,15 @@ let rec snode_of_ztyp = (~steps: Path.steps, zty: ZTyp.t): snode =>
       prefix_ops
       @ suffix_ops
       |> List.mapi((i, op) => {
+           let range = skel |> Skel.range_of_skel_rooted_at_op(i + 1);
            let (space_before, space_after) = space_before_after_op_typ(op);
            (
              space_before,
-             mk_SOp(~index=i + 1, string_of_op_typ(op)),
+             mk_SOp(~index_and_range=(i + 1, range), string_of_op_typ(op)),
              space_after,
            );
          });
-    let sskel = sskel_of_skel_typ(skel);
-    snode_of_OpSeq(~steps, ~sskel, sprefix @ [sztm] @ ssuffix, sops);
+    snode_of_OpSeq(~steps, sprefix @ [sztm] @ ssuffix, sops);
   };
 
 let rec snode_of_zpat = (~steps: Path.steps, zp: ZPat.t): snode =>
@@ -1677,18 +1582,19 @@ let rec snode_of_zpat = (~steps: Path.steps, zp: ZPat.t): snode =>
       prefix_ops
       @ suffix_ops
       |> List.mapi((i, op) => {
+           let range = skel |> Skel.range_of_skel_rooted_at_op(i + 1);
            let (space_before, space_after) = space_before_after_op_pat(op);
            (
              space_before,
              switch ((op: UHPat.op)) {
              | Space => SSpaceOp
-             | _ => mk_SOp(~index=i + 1, string_of_op_pat(op))
+             | _ =>
+               mk_SOp(~index_and_range=(i + 1, range), string_of_op_pat(op))
              },
              space_after,
            );
          });
-    let sskel = sskel_of_skel_pat(skel);
-    snode_of_OpSeq(~steps, ~sskel, sprefix @ [sztm] @ ssuffix, sops);
+    snode_of_OpSeq(~steps, sprefix @ [sztm] @ ssuffix, sops);
   };
 
 let rec snode_of_zblock = (~steps: Path.steps=[], zblock: ZExp.zblock): snode =>
@@ -1799,18 +1705,19 @@ and snode_of_zexp = (~steps: Path.steps, ze: ZExp.t) =>
       prefix_ops
       @ suffix_ops
       |> List.mapi((i, op) => {
+           let range = skel |> Skel.range_of_skel_rooted_at_op(i + 1);
            let (space_before, space_after) = space_before_after_op_exp(op);
            (
              space_before,
              switch ((op: UHExp.op)) {
              | Space => SSpaceOp
-             | _ => mk_SOp(~index=i + 1, string_of_op_exp(op))
+             | _ =>
+               mk_SOp(~index_and_range=(i + 1, range), string_of_op_exp(op))
              },
              space_after,
            );
          });
-    let sskel = sskel_of_skel_exp(skel);
-    snode_of_OpSeq(~steps, ~sskel, sprefix @ [sztm] @ ssuffix, sops);
+    snode_of_OpSeq(~steps, sprefix @ [sztm] @ ssuffix, sops);
   | LamZP(err_status, zarg, ann, body) =>
     let szarg = snode_of_zpat(~steps=steps @ [0], zarg);
     let sann =
@@ -2449,3 +2356,7 @@ let view_of_Var =
     ~inject,
     snode_of_Var(~err_status, ~var_err_status, ~steps, x),
   );
+
+let is_multi_line_exp = e => snode_of_exp(e) |> is_multi_line;
+let is_multi_line_pat = p => snode_of_pat(p) |> is_multi_line;
+let is_multi_line_typ = ty => snode_of_typ(ty) |> is_multi_line;

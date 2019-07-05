@@ -83,7 +83,7 @@ let first_leaf = (node: Js.t(Dom.node)): Js.t(Dom.node) => {
   cur^;
 };
 
-let elem_has_cls = (elem: Js.t(Dom_html.element), cls: string): bool => {
+let elem_has_cls = (cls: string, elem: Js.t(Dom_html.element)): bool => {
   let found = ref(false);
   let classList = elem##.classList;
   for (j in 0 to classList##.length - 1) {
@@ -94,10 +94,10 @@ let elem_has_cls = (elem: Js.t(Dom_html.element), cls: string): bool => {
   found^;
 };
 
-let node_has_cls = (node: Js.t(Dom.node), cls: string): bool =>
+let node_has_cls = (cls: string, node: Js.t(Dom.node)): bool =>
   switch (Js.Opt.to_option(Dom_html.CoerceTo.element(node))) {
   | None => false
-  | Some(elem) => elem_has_cls(elem, cls)
+  | Some(elem) => elem_has_cls(cls, elem)
   };
 
 let unset_caret = () => Dom_html.window##getSelection##removeAllRanges;

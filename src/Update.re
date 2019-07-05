@@ -75,7 +75,7 @@ let apply_action =
           anchorNode,
         )) {
       let closest_elem = closest_elem(anchorNode);
-      let has_cls = JSUtil.elem_has_cls(closest_elem);
+      let has_cls = cls => closest_elem |> JSUtil.elem_has_cls(cls);
       if (has_cls("unselectable")) {
         let s =
           Js.to_string(

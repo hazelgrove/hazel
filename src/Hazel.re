@@ -46,10 +46,15 @@ let create = (model, ~old_model, ~inject) => {
             switch (elems) {
             | [] => ()
             | [cursor_elem, ..._] =>
-              switch (Code.child_elems_of_snode_elem(cursor_elem)) {
-              | None => raise(MalformedView(12))
-              | Some(child_elems) =>
-                JSUtil.force_get_elem_by_id(node_indicator_id)
+
+              switch (
+                cursor_elem |> Code.child_elems_of_snode_elem,
+                // cursor_elem is either SBox or SSeq
+                cursor_elem |> Code.elem_is_SBox,
+              ) {
+              | (None, _) => raise(MalformedView(12))
+              | (Some(child_elems), true) =>
+                JSUtil.force_get_elem_by_id(box_node_indicator_id)
                 |> JSUtil.place_over(cursor_elem);
                 let child_indices =
                   model.cursor_info |> CursorInfo.child_indices_of_current_node;
@@ -58,6 +63,26 @@ let create = (model, ~old_model, ~inject) => {
                      JSUtil.force_get_elem_by_id(child_indicator_id(i))
                      |> JSUtil.place_over(child_elem)
                    );
+              | (Some(child_elems), false) =>
+                switch (model.cursor_info.position) {
+                | OnText(_) => assert(false)
+                | OnDelim(k, _) =>
+                  switch (Code.seq_lines_rooted_at_oph)
+                  // use delim index to identify op elem
+                  let (steps, _) = model |> Model.path;
+
+                  // get tagged range (a,b) on delim elem
+                  if (cursor_elem |> Code.elem_is_multi_line) {
+                    {
+                      // use (a,_) to find that child and place the first pair of indicators
+                      // use (a,b) to find tail lines and place remaining indicators
+                    };
+                  } else {
+                    {
+                      // use (a,b) to place the three indicators
+                    };
+                  };
+                }
               }
             };
           };
