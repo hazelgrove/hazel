@@ -10,9 +10,12 @@
   --space-length: 8px;
   --node-indicator-z-index: -10;
   --child-indicator-z-index: -5;
+  --term-indicator-z-index: -4;
   --code-z-index: 0;
   --node-indicator-color: rgb(229, 255, 229);
   --child-indicator-color: white;
+  --term-indicator-color: #197B07;
+  --term-indicator-corner-size: 3px;
 }
 
 /* general */
@@ -754,6 +757,40 @@ button:disabled {
   white-space: pre;
 }
 
+.term-indicator {
+  position: fixed;
+  z-index: var(--term-indicator-z-index);
+  border-top: 1px solid var(--term-indicator-color);
+  border-bottom: 1px solid var(--term-indicator-color);
+}
+.term-indicator::before {
+  display: block;
+  position: absolute;
+  top: 0;
+  left: 0;
+  content: "";
+  width: 0;
+  height: 0;
+  border-left: var(--term-indicator-corner-size) solid var(--term-indicator-color);
+  border-top: var(--term-indicator-corner-size) solid var(--term-indicator-color);
+  border-right: var(--term-indicator-corner-size) solid transparent;
+  border-bottom: var(--term-indicator-corner-size) solid transparent;
+  background-color: transparent;
+}
+.term-indicator::after {
+  display: block;
+  position: absolute;
+  top: calc(100% - 2 * var(--term-indicator-corner-size));
+  left: calc(100% - 2 * var(--term-indicator-corner-size));
+  content: "";
+  width: 0;
+  height: 0;
+  border-left: var(--term-indicator-corner-size) solid transparent;
+  border-top: var(--term-indicator-corner-size) solid transparent;
+  border-right: var(--term-indicator-corner-size) solid var(--term-indicator-color);
+  border-bottom: var(--term-indicator-corner-size) solid var(--term-indicator-color);
+  background-color: transparent;
+}
 .node-indicator {
   position: fixed;
   z-index: var(--node-indicator-z-index);
@@ -765,10 +802,10 @@ button:disabled {
   background-color: var(--child-indicator-color);
 }
 
-.node-indicator.inactive, .child-indicator.inactive {
+.term-indicator.inactive, .node-indicator.inactive, .child-indicator.inactive {
   display: none;
 }
-.node-indicator.active, .child-indicator.active {
+.term-indicator.active, .node-indicator.active, .child-indicator.active {
   display: block;
 }
 

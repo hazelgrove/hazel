@@ -176,7 +176,7 @@ let place_over_rect = (rect, elem) => {
   elem##.style##.width := Js.string(rect.right -. rect.left |> px);
 };
 
-let place_over =
+let place_over_elem =
     (under_elem: Js.t(Dom_html.element), over_elem: Js.t(Dom_html.element)) =>
   over_elem |> place_over_rect(under_elem |> get_bounding_rect);
 

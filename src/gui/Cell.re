@@ -133,18 +133,27 @@ let indicators = (model: Model.t) => {
           OperatorSeq.seq_length(seq),
         )
       : single_line_seq_indicators(is_cell_focused)
-  | _ => [
-      Vdom.(
-        Node.div(
-          [
-            Attr.id(box_node_indicator_id),
-            Attr.classes([
-              "node-indicator",
-              model.is_cell_focused ? "active" : "inactive",
-            ]),
-          ],
-          [],
-        )
+  | _ =>
+    Vdom.[
+      Node.div(
+        [
+          Attr.id(box_node_indicator_id),
+          Attr.classes([
+            "node-indicator",
+            model.is_cell_focused ? "active" : "inactive",
+          ]),
+        ],
+        [],
+      ),
+      Node.div(
+        [
+          Attr.id(box_tm_indicator_id),
+          Attr.classes([
+            "term-indicator",
+            model.is_cell_focused ? "active" : "inactive",
+          ]),
+        ],
+        [],
       ),
       ...{
            let child_indices =
@@ -156,17 +165,15 @@ let indicators = (model: Model.t) => {
            |> UHExp.max_degree_block
            |> range
            |> List.map(i =>
-                Vdom.(
-                  Node.div(
-                    [
-                      Attr.id(child_indicator_id(i)),
-                      Attr.classes([
-                        "child-indicator",
-                        is_active(i) ? "active" : "inactive",
-                      ]),
-                    ],
-                    [],
-                  )
+                Node.div(
+                  [
+                    Attr.id(child_indicator_id(i)),
+                    Attr.classes([
+                      "child-indicator",
+                      is_active(i) ? "active" : "inactive",
+                    ]),
+                  ],
+                  [],
                 )
               );
          },

@@ -52,15 +52,17 @@ let create = (model, ~old_model, ~inject) => {
                 | None => assert(false)
                 | Some(child_elems) =>
                   JSUtil.force_get_elem_by_id(box_node_indicator_id)
-                  |> JSUtil.place_over(cursor_elem);
+                  |> JSUtil.place_over_elem(cursor_elem);
                   let child_indices =
                     model.cursor_info
                     |> CursorInfo.child_indices_of_current_node;
                   zip(child_indices, child_elems)
                   |> List.iter(((i, child_elem)) =>
                        JSUtil.force_get_elem_by_id(child_indicator_id(i))
-                       |> JSUtil.place_over(child_elem)
+                       |> JSUtil.place_over_elem(child_elem)
                      );
+                  JSUtil.force_get_elem_by_id(box_tm_indicator_id)
+                  |> JSUtil.place_over_elem(cursor_elem);
                 };
               } else {
                 switch (model.cursor_info.position) {
@@ -70,7 +72,7 @@ let create = (model, ~old_model, ~inject) => {
                   let (steps, _) = model |> Model.path;
                   let op_elem = JSUtil.force_get_elem_by_id(op_id(steps, k));
                   JSUtil.force_get_elem_by_id(op_node_indicator_id)
-                  |> JSUtil.place_over(op_elem);
+                  |> JSUtil.place_over_elem(op_elem);
                   switch (op_elem |> JSUtil.get_attr("op-range")) {
                   | None => assert(false)
                   | Some(ssexp) =>
@@ -79,7 +81,7 @@ let create = (model, ~old_model, ~inject) => {
                     if (cursor_elem |> Code.elem_is_multi_line) {
                       JSUtil.force_get_elem_by_id(seq_tm_indicator_id(a))
                       |> JSUtil.(
-                           place_over(
+                           place_over_elem(
                              force_get_elem_by_id(node_id(steps @ [a])),
                            )
                          );
@@ -91,7 +93,7 @@ let create = (model, ~old_model, ~inject) => {
                            JSUtil.force_get_elem_by_id(
                              seq_tm_indicator_id(a + 1 + i),
                            )
-                           |> JSUtil.place_over(sline_elem)
+                           |> JSUtil.place_over_elem(sline_elem)
                          );
                     } else {
                       let tm_a =
