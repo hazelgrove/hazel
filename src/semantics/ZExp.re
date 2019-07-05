@@ -1413,15 +1413,15 @@ and move_cursor_right_exp = (ze: t): option(t) =>
             Case(err_status, scrut, prefix @ [erase_rule(zrule)], ann),
           ),
         )
-      | [rule_after, ...suffix] =>
+      | [rule_after, ...new_suffix] =>
         Some(
           CaseZR(
             err_status,
             scrut,
             (
-              prefix,
+              prefix @ [erase_rule(zrule)],
               place_before_rule(rule_after),
-              [erase_rule(zrule), ...suffix],
+              new_suffix,
             ),
             ann,
           ),
