@@ -102,7 +102,7 @@ let create = (model, ~old_model, ~inject) => {
                       let rect_b = tm_b |> JSUtil.get_bounding_rect;
                       JSUtil.force_get_elem_by_id(box_tm_indicator_id)
                       |> JSUtil.place_over_rect({
-                           top: rect_b.left,
+                           top: rect_b.top,
                            right: rect_b.right,
                            bottom: rect_b.bottom,
                            left: rect_a.left,
