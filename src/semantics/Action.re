@@ -5590,6 +5590,7 @@ let can_perform =
     switch (ci.sort) {
     | IsLine(_) => true
     | IsExpr(_) => true
+    | IsRule(_) => false
     | IsPat(_) => false
     | IsType(_) => false
     }
@@ -5597,6 +5598,7 @@ let can_perform =
     switch (ci.sort) {
     | IsLine(_) => true
     | IsExpr(_) => true
+    | IsRule(_) => false
     | IsPat(_) => true
     | IsType(_) => false
     }
@@ -5610,6 +5612,7 @@ let can_perform =
     | IsPat(EmptyHole(_)) => true
     | IsPat(_) => false
     | IsType(_) => false
+    | IsRule(_) => false
     }
   | Construct(SOp(SArrow))
   | Construct(SOp(SVBar))
@@ -5618,6 +5621,7 @@ let can_perform =
     | IsType(_) => true
     | IsLine(_)
     | IsExpr(_)
+    | IsRule(_)
     | IsPat(_) => false
     }
   | Construct(SAsc)
@@ -5665,6 +5669,7 @@ let can_enter_varchar = (ci: CursorInfo.t): bool =>
     }
   | IsLine(_)
   | IsExpr(_)
+  | IsRule(_)
   | IsPat(_)
   | IsType(_) => false
   };
@@ -5679,6 +5684,7 @@ let can_enter_numeral = (ci: CursorInfo.t): bool =>
   | IsPat(EmptyHole(_)) => true
   | IsLine(_)
   | IsExpr(_)
+  | IsRule(_)
   | IsPat(_)
   | IsType(_) => false
   };

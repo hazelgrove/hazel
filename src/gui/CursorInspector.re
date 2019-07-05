@@ -44,7 +44,6 @@ let view =
         [Panel.view_of_main_title_bar(title_text), type_div],
       )
     );
-
   let expected_ty_title = "Expecting an expression of type";
   let expected_ty_title_pat = "Expecting a pattern of type";
   let expected_ty_indicator = ty =>
@@ -61,6 +60,9 @@ let view =
     expected_indicator("Expecting ", special_msg_bar("a type"));
   let expected_a_line_indicator =
     expected_indicator("Expecting ", special_msg_bar("a line item"));
+  let expected_a_rule_indicator =
+    expected_indicator("Expecting ", special_msg_bar("a case rule"));
+
   let got_indicator = (title_text, type_div) =>
     Vdom.(
       Node.div(
@@ -68,7 +70,6 @@ let view =
         [Panel.view_of_other_title_bar(title_text), type_div],
       )
     );
-
   let got_ty_indicator = ty => got_indicator("Got type", typebar(ty));
   let got_as_expected_ty_indicator = ty =>
     got_indicator("Got as expected", typebar(ty));
@@ -88,6 +89,8 @@ let view =
   let got_a_type_indicator = got_indicator("Got", special_msg_bar("a type"));
   let got_a_line_indicator =
     got_indicator("Got", special_msg_bar("a line item"));
+  let got_a_rule_indicator =
+    got_indicator("Got", special_msg_bar("a case rule"));
   let got_keyword_indicator =
     got_indicator("Got a reserved keyword", typebar(HTyp.Hole));
 
@@ -229,6 +232,10 @@ let view =
     | Line =>
       let ind1 = expected_a_line_indicator;
       let ind2 = got_a_line_indicator;
+      (ind1, ind2, OK);
+    | Rule =>
+      let ind1 = expected_a_rule_indicator;
+      let ind2 = got_a_rule_indicator;
       (ind1, ind2, OK);
     };
 

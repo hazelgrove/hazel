@@ -377,3 +377,6 @@ let child_indices_exp =
   | Parenthesized(_) => [0]
   | OpSeq(_, seq) => range(OperatorSeq.seq_length(seq))
   | ApPalette(_, _, _, _) => [];
+let child_indices_rule =
+  fun
+  | Rule(_, _) => [0, 1];

@@ -235,6 +235,7 @@ let view =
               };
             | IsLine(_)
             | IsExpr(_)
+            | IsRule(_)
             | IsPat(_)
             | IsType(_) => Event.Ignore
             }

@@ -78,14 +78,16 @@ type cursor_mode =
   /*
    *  # cursor on line
    */
-  | Line;
+  | Line
+  | Rule;
 
 [@deriving sexp]
 type cursor_sort =
-  | IsExpr(UHExp.t)
-  | IsPat(UHPat.t)
   | IsType(UHTyp.t)
-  | IsLine(UHExp.line);
+  | IsPat(UHPat.t)
+  | IsLine(UHExp.line)
+  | IsExpr(UHExp.t)
+  | IsRule(UHExp.rule);
 
 [@deriving sexp]
 type t = {
@@ -111,6 +113,7 @@ let is_before_current_node = ci =>
   switch (ci.sort) {
   | IsLine(li) => ZExp.is_before_line(CursorL(ci.position, li))
   | IsExpr(e) => ZExp.is_before_exp(CursorE(ci.position, e))
+  | IsRule(rule) => ZExp.is_before_rule(CursorR(ci.position, rule))
   | IsPat(p) => ZPat.is_before(CursorP(ci.position, p))
   | IsType(ty) => ZTyp.is_before(CursorT(ci.position, ty))
   };
@@ -119,6 +122,7 @@ let is_after_current_node = ci =>
   switch (ci.sort) {
   | IsLine(li) => ZExp.is_after_line(CursorL(ci.position, li))
   | IsExpr(e) => ZExp.is_after_exp(CursorE(ci.position, e))
+  | IsRule(rule) => ZExp.is_after_rule(CursorR(ci.position, rule))
   | IsPat(p) => ZPat.is_after(CursorP(ci.position, p))
   | IsType(ty) => ZTyp.is_after(CursorT(ci.position, ty))
   };
@@ -127,6 +131,7 @@ let child_indices_of_current_node = ci =>
   switch (ci.sort) {
   | IsLine(li) => UHExp.child_indices_line(li)
   | IsExpr(e) => UHExp.child_indices_exp(e)
+  | IsRule(rule) => UHExp.child_indices_rule(rule)
   | IsPat(p) => UHPat.child_indices(p)
   | IsType(ty) => UHTyp.child_indices(ty)
   };
@@ -666,9 +671,8 @@ and ana_cursor_info_rule =
     (ctx: Contexts.t, zrule: ZExp.zrule, pat_ty: HTyp.t, clause_ty: HTyp.t)
     : option(t) =>
   switch (zrule) {
-  | CursorR(cursor, _) =>
-    /* TODO */
-    Some(mk_cursor_info(TypePosition, IsType(Hole), cursor, ctx))
+  | CursorR(cursor, rule) =>
+    Some(mk_cursor_info(Rule, IsRule(rule), cursor, ctx))
   | RuleZP(zp, _) => ana_cursor_info_pat(ctx, zp, pat_ty)
   | RuleZE(p, zblock) =>
     switch (Statics.ana_pat(ctx, p, pat_ty)) {
