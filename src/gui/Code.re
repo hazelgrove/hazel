@@ -524,7 +524,7 @@ let rec view_of_snode =
                 ~node_indent_level=indent_level,
                 mk_SLine(
                   ~steps_of_first_sword=steps_of_snode(arg),
-                  [SNode(arg)],
+                  [SToken(SSpace), SNode(arg)],
                 ),
               )
             ),
@@ -557,7 +557,7 @@ let rec view_of_snode =
                            indent_level |> increment |> increment,
                          mk_SLine(
                            ~steps_of_first_sword=steps_of_snode(arg),
-                           [SNode(arg)],
+                           [SToken(SSpace), SNode(arg)],
                          ),
                        )
                      ),
