@@ -73,7 +73,7 @@ type snode =
       option(cursor_position),
       is_multi_line,
       spaced_stms,
-      list((stoken, spaced_stms)),
+      list((op_stokens, spaced_stms)),
     )
   | SBox(
       Path.steps,
@@ -86,6 +86,8 @@ type snode =
 [@deriving sexp]
 and spaced_stms = (snode, list(snode))
 [@deriving sexp]
+and op_stokens = list(stoken)
+[@deriving sexp]
 and sline =
   | SLine(int, option(Path.steps), list(sword))
 [@deriving sexp]
@@ -97,7 +99,7 @@ and stoken =
   | SEmptyLine
   | SEmptyHole(string)
   | SDelim(delim_index, string)
-  | SOp(op_index, seq_range, (bool, string, bool))
+  | SOp(op_index, seq_range, string)
   | SText(var_err_status, string)
   | SCastArrow
   | SFailedCastArrow
@@ -115,7 +117,7 @@ let mk_SSeq =
       ~is_multi_line=false,
       ~steps: Path.steps,
       shead: spaced_stms,
-      stail: list((stoken, spaced_stms)),
+      stail: list((op_stokens, spaced_stms)),
     )
     : snode =>
   SSeq(steps, cursor, is_multi_line, shead, stail);
@@ -142,7 +144,10 @@ let mk_SLine =
     : sline =>
   SLine(rel_indent, steps_of_first_sword, swords);
 
-let mk_SOp =
+let mk_SOp = (~index: op_index, ~range: seq_range, s: string) =>
+  SOp(index, range, s);
+
+let mk_op_stokens =
     (
       ~index: op_index,
       ~range: seq_range,
@@ -150,7 +155,9 @@ let mk_SOp =
       ~space_after=false,
       s: string,
     ) =>
-  SOp(index, range, (space_before, s, space_after));
+  (space_before ? [SSpace] : [])
+  @ [mk_SOp(~index, ~range, s)]
+  @ (space_after ? [SSpace] : []);
 
 let steps_of_snode =
   fun
@@ -183,22 +190,19 @@ let string_of_op_exp: UHExp.op => string =
   | Comma => ","
   | Cons => "::";
 
-type space_before = bool;
-type space_after = bool;
-
-let space_before_after_op_typ: UHTyp.op => (space_before, space_after) =
+let space_before_after_op_typ: UHTyp.op => (bool, bool) =
   fun
   | Arrow => (true, true)
   | Sum => (true, true)
   | Prod => (false, true);
 
-let space_before_after_op_pat: UHPat.op => (space_before, space_after) =
+let space_before_after_op_pat: UHPat.op => (bool, bool) =
   fun
   | Comma => (false, true)
   | Space => (false, false)
   | Cons => (false, false);
 
-let space_before_after_op_exp: UHExp.op => (space_before, space_after) =
+let space_before_after_op_exp: UHExp.op => (bool, bool) =
   fun
   | Plus => (true, true)
   | Times => (true, true)
@@ -528,8 +532,8 @@ let rec view_of_snode =
     let (_, vlines) =
       stail
       |> List.fold_left(
-           ((num_lines_so_far, vlines_so_far), (sop, spaced_group)) => {
-             let (fst, args) = spaced_group;
+           ((num_lines_so_far, vlines_so_far), (op_stokens, spaced_stms)) => {
+             let (fst, args) = spaced_stms;
              let new_vlines = [
                view_of_sline(
                  ~inject,
@@ -539,7 +543,7 @@ let rec view_of_snode =
                  ~node_indent_level=indent_level,
                  mk_SLine(
                    ~steps_of_first_sword=steps_of_snode(fst),
-                   [SToken(sop), SNode(fst)],
+                   (op_stokens |> List.map(st => SToken(st))) @ [SNode(fst)],
                  ),
                ),
                ...args
@@ -808,7 +812,7 @@ and view_of_stoken =
       [Attr.classes([inline_div_cls, "SDelim"])],
       [delim_before, delim_txt, delim_after],
     );
-  | SOp(index, seq_range, (space_before, s, space_after)) =>
+  | SOp(index, seq_range, s) =>
     open Vdom;
     let op_before =
       Node.span(
@@ -1110,7 +1114,7 @@ let snode_of_OpSeq =
       ~cursor=?,
       ~steps,
       (shd, shd_args) as shead: spaced_stms,
-      stail: list((stoken, spaced_stms)),
+      stail: list((op_stokens, spaced_stms)),
     )
     : snode => {
   mk_SSeq(
@@ -1381,8 +1385,8 @@ let rec snode_of_typ = (~cursor=?, ~steps: Path.steps=[], uty: UHTyp.t): snode =
       |> List.mapi((i, (op, spaced_tms)) => {
            let k = tail_start + i;
            let (space_before, space_after) = space_before_after_op_typ(op);
-           let sop =
-             mk_SOp(
+           let op_stokens =
+             mk_op_stokens(
                ~index=k,
                ~range=skel |> Skel.range_of_skel_rooted_at_op(k),
                ~space_before,
@@ -1396,7 +1400,7 @@ let rec snode_of_typ = (~cursor=?, ~steps: Path.steps=[], uty: UHTyp.t): snode =
              |> List.mapi((i, arg) =>
                   snode_of_typ(~steps=steps @ [k + 1 + i], arg)
                 );
-           (sop, (stm, sargs));
+           (op_stokens, (stm, sargs));
          });
     snode_of_OpSeq(~cursor?, ~steps, shead, stail);
   };
@@ -1446,14 +1450,13 @@ let rec snode_of_pat = (~cursor=?, ~steps: Path.steps=[], p: UHPat.t): snode =>
       );
     };
     let tail_start = List.length(shead |> snd) + 1;
-    // turn tail elements into op_token-spaced_stms pairs
     let stail =
       tail
       |> List.mapi((i, (op, spaced_tms)) => {
            let k = tail_start + i;
            let (space_before, space_after) = space_before_after_op_pat(op);
-           let sop =
-             mk_SOp(
+           let op_stokens =
+             mk_op_stokens(
                ~index=k,
                ~range=skel |> Skel.range_of_skel_rooted_at_op(k),
                ~space_before,
@@ -1467,7 +1470,7 @@ let rec snode_of_pat = (~cursor=?, ~steps: Path.steps=[], p: UHPat.t): snode =>
              |> List.mapi((i, arg) =>
                   snode_of_pat(~steps=steps @ [k + 1 + i], arg)
                 );
-           (sop, (stm, sargs));
+           (op_stokens, (stm, sargs));
          });
     snode_of_OpSeq(~cursor?, ~steps, shead, stail);
   };
@@ -1574,8 +1577,8 @@ and snode_of_exp = (~cursor=?, ~steps: Path.steps=[], e: UHExp.t): snode =>
       |> List.mapi((i, (op, spaced_tms)) => {
            let k = tail_start + i;
            let (space_before, space_after) = space_before_after_op_exp(op);
-           let sop =
-             mk_SOp(
+           let op_stokens =
+             mk_op_stokens(
                ~index=k,
                ~range=skel |> Skel.range_of_skel_rooted_at_op(k),
                ~space_before,
@@ -1589,7 +1592,7 @@ and snode_of_exp = (~cursor=?, ~steps: Path.steps=[], e: UHExp.t): snode =>
              |> List.mapi((i, arg) =>
                   snode_of_exp(~steps=steps @ [k + 1 + i], arg)
                 );
-           (sop, (stm, sargs));
+           (op_stokens, (stm, sargs));
          });
     snode_of_OpSeq(~cursor?, ~steps, shead, stail);
   | ApPalette(_, _, _, _) => raise(InvariantViolated)
@@ -1632,8 +1635,8 @@ let rec snode_of_ztyp = (~steps: Path.steps, zty: ZTyp.t): snode =>
       |> List.mapi((i, (op, spaced_tms)) => {
            let k = tail_start + i;
            let (space_before, space_after) = space_before_after_op_typ(op);
-           let sop =
-             mk_SOp(
+           let op_stokens =
+             mk_op_stokens(
                ~index=k,
                ~range=skel |> Skel.range_of_skel_rooted_at_op(k),
                ~space_before,
@@ -1645,7 +1648,7 @@ let rec snode_of_ztyp = (~steps: Path.steps, zty: ZTyp.t): snode =>
            let sargs =
              args
              |> List.mapi((i, arg) => snode_of_tm_or_ztm(k + 1 + i, arg));
-           (sop, (stm, sargs));
+           (op_stokens, (stm, sargs));
          });
     snode_of_OpSeq(~steps, shead, stail);
   };
@@ -1681,8 +1684,8 @@ let rec snode_of_zpat = (~steps: Path.steps, zp: ZPat.t): snode =>
       |> List.mapi((i, (op, spaced_tms)) => {
            let k = tail_start + i;
            let (space_before, space_after) = space_before_after_op_pat(op);
-           let sop =
-             mk_SOp(
+           let op_stokens =
+             mk_op_stokens(
                ~index=k,
                ~range=skel |> Skel.range_of_skel_rooted_at_op(k),
                ~space_before,
@@ -1694,7 +1697,7 @@ let rec snode_of_zpat = (~steps: Path.steps, zp: ZPat.t): snode =>
            let sargs =
              args
              |> List.mapi((i, arg) => snode_of_tm_or_ztm(k + 1 + i, arg));
-           (sop, (stm, sargs));
+           (op_stokens, (stm, sargs));
          });
     snode_of_OpSeq(~steps, shead, stail);
   };
@@ -1810,8 +1813,8 @@ and snode_of_zexp = (~steps: Path.steps, ze: ZExp.t) =>
       |> List.mapi((i, (op, spaced_tms)) => {
            let k = tail_start + i;
            let (space_before, space_after) = space_before_after_op_exp(op);
-           let sop =
-             mk_SOp(
+           let op_stokens =
+             mk_op_stokens(
                ~index=k,
                ~range=skel |> Skel.range_of_skel_rooted_at_op(k),
                ~space_before,
@@ -1823,7 +1826,7 @@ and snode_of_zexp = (~steps: Path.steps, ze: ZExp.t) =>
            let sargs =
              args
              |> List.mapi((i, arg) => snode_of_tm_or_ztm(k + 1 + i, arg));
-           (sop, (stm, sargs));
+           (op_stokens, (stm, sargs));
          });
     snode_of_OpSeq(~steps, shead, stail);
   | LamZP(err_status, zarg, ann, body) =>
