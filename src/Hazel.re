@@ -46,7 +46,6 @@ let create = (model, ~old_model, ~inject) => {
             switch (elems) {
             | [] => ()
             | [cursor_elem, ..._] =>
-
               switch (
                 cursor_elem |> Code.child_elems_of_snode_elem,
                 // cursor_elem is either SBox or SSeq
@@ -67,7 +66,6 @@ let create = (model, ~old_model, ~inject) => {
                 switch (model.cursor_info.position) {
                 | OnText(_) => assert(false)
                 | OnDelim(k, _) =>
-                  switch (Code.seq_lines_rooted_at_oph)
                   // use delim index to identify op elem
                   let (steps, _) = model |> Model.path;
 

@@ -21,23 +21,6 @@ type cls = string;
 type is_multi_line = bool;
 
 [@deriving sexp]
-type is_start_of_top = bool;
-[@deriving sexp]
-type is_end_of_bottom = bool;
-[@deriving sexp]
-type border_style =
-  | NoBorder
-  | Top(is_start_of_top)
-  | Bottom(is_end_of_bottom)
-  | TopBottom(is_start_of_top, is_end_of_bottom);
-
-/* TODO */
-let border_clss: border_style => list(string) =
-  fun
-  | NoBorder => []
-  | _ => [];
-
-[@deriving sexp]
 type relative_indent = int;
 [@deriving sexp]
 type absolute_indent = int;
@@ -98,7 +81,6 @@ type snode =
       list(sseq_tail_segment),
     )
   | SBox(
-      border_style,
       Path.steps,
       option(cursor_position),
       is_multi_line,
@@ -132,7 +114,7 @@ and stoken =
 let is_multi_line =
   fun
   | SSeq(_, _, is_multi_line, _, _)
-  | SBox(_, _, _, is_multi_line, _, _, _) => is_multi_line;
+  | SBox(_, _, is_multi_line, _, _, _) => is_multi_line;
 
 let mk_SSeq =
     (
@@ -147,7 +129,6 @@ let mk_SSeq =
 
 let mk_SBox =
     (
-      ~border_style=NoBorder,
       ~cursor: option(cursor_position)=?,
       ~is_multi_line=false,
       ~err_status=NotInHole,
@@ -156,7 +137,7 @@ let mk_SBox =
       slines: list(sline),
     )
     : snode => {
-  SBox(border_style, steps, cursor, is_multi_line, err_status, shape, slines);
+  SBox(steps, cursor, is_multi_line, err_status, shape, slines);
 };
 
 let mk_sline =
@@ -189,31 +170,7 @@ let sline_of_segment = (~steps, segment: sseq_tail_segment): sline =>
 let steps_of_snode =
   fun
   | SSeq(steps, _, _, _, _)
-  | SBox(_, steps, _, _, _, _, _) => steps;
-
-let update_border_style = (border_style, snode) =>
-  switch (snode) {
-  | SSeq(_, _, _, _, _) => snode
-  | SBox(_, cursor, is_multi_line, err_status, steps, shape, slines) =>
-    SBox(
-      border_style,
-      cursor,
-      is_multi_line,
-      err_status,
-      steps,
-      shape,
-      slines,
-    )
-  };
-
-let update_border_style_of_segment_node =
-    (border_style, segment): sseq_tail_segment =>
-  switch (segment) {
-  | SSegmentSpace(snode) =>
-    SSegmentSpace(snode |> update_border_style(border_style))
-  | SSegmentOp(sop_tokens, snode) =>
-    SSegmentOp(sop_tokens, snode |> update_border_style(border_style))
-  };
+  | SBox(steps, _, _, _, _, _) => steps;
 
 let mk_SDelim = (~index=?, s: string): stoken => SDelim(index, s);
 
@@ -286,15 +243,7 @@ let rec child_indices_of_snode =
   fun
   | SSeq(_steps, _cursor, _is_multi_line, _shead, stail) =>
     range(List.length(stail) + 1)
-  | SBox(
-      _border_style,
-      _steps,
-      _cursor,
-      _is_multi_line,
-      _err_status,
-      _shape,
-      slines,
-    ) =>
+  | SBox(_steps, _cursor, _is_multi_line, _err_status, _shape, slines) =>
     slines
     |> List.fold_left(
          (acc, sline) => acc @ child_indices_of_sline(sline),
@@ -363,7 +312,7 @@ let snode_attrs =
           @ multi_line_clss(is_multi_line),
         ),
       ]
-    | SBox(_, steps, cursor, is_multi_line, err_status, shape, _) =>
+    | SBox(steps, cursor, is_multi_line, err_status, shape, _) =>
       let base_clss =
         [cls_SNode, cls_SBox, inline_div_cls]
         @ cursor_clss(cursor)
@@ -514,8 +463,7 @@ let rec view_of_snode =
       attrs,
       is_multi_line ? join(Vdom.Node.br([]), vlines) : vlines,
     );
-  | SBox(border_style, steps, node_cursor, is_multi_line, _, _shape, slines) =>
-    let n = List.length(slines);
+  | SBox(steps, node_cursor, is_multi_line, _, _shape, slines) =>
     let vlines: list(Vdom.Node.t) =
       slines
       |> List.mapi((i, sline) =>
@@ -526,18 +474,6 @@ let rec view_of_snode =
              ~is_node_multi_line=is_multi_line,
              ~line_no=i,
              ~abs_indent,
-             ~border_style=
-               switch (n, i, border_style) {
-               | (1, _, _) => border_style
-               | (_, 0, Top(is_start_of_top))
-               | (_, 0, TopBottom(is_start_of_top, _)) =>
-                 Top(is_start_of_top)
-               | (_, _, Bottom(is_end_of_bottom)) when i == n =>
-                 Bottom(is_end_of_bottom)
-               | (_, _, TopBottom(_, is_end_of_bottom)) when i == n =>
-                 Bottom(is_end_of_bottom)
-               | (_, _, _) => NoBorder
-               },
              sline,
            )
          );
@@ -553,7 +489,6 @@ and view_of_sline =
       ~node_steps: Path.steps,
       ~node_cursor: option(cursor_position)=?,
       ~is_node_multi_line: bool,
-      ~border_style=NoBorder,
       ~line_no: int,
       /* TODO need to rename this, concept unclear when it comes to middle-of-line snodes */
       ~abs_indent: absolute_indent,
@@ -644,9 +579,7 @@ and view_of_sline =
   Vdom.(
     Node.div(
       [
-        Attr.classes(
-          [inline_div_cls] @ sline_clss(line_no) @ border_clss(border_style),
-        ),
+        Attr.classes([inline_div_cls] @ sline_clss(line_no)),
         ...goto_steps_attrs,
       ],
       vindents @ vwords,
