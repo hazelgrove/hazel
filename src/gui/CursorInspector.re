@@ -184,7 +184,7 @@ let view =
           matched_ty_bar(HTyp.Hole, matched_ty),
         );
       (ind1, ind2, BindingError);
-    | TypePosition =>
+    | OnType =>
       let ind1 = expected_a_type_indicator;
       let ind2 = got_a_type_indicator;
       (ind1, ind2, OK);

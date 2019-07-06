@@ -248,7 +248,7 @@ let view =
                 )
               | _ => (string_delete, Update.Action.EditAction(Delete))
               };
-            switch (ci |> CursorInfo.is_before_current_node, ci.position) {
+            switch (ci |> CursorInfo.is_before_node, ci.position) {
             | (true, _)
             | (_, OnDelim(_, _)) => prevent_stop_inject(update)
             | (false, OnText(_)) =>
