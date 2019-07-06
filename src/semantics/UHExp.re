@@ -380,3 +380,8 @@ let child_indices_exp =
 let child_indices_rule =
   fun
   | Rule(_, _) => [0, 1];
+
+[@deriving sexp]
+type exp_or_block =
+  | E(t)
+  | B(block);

@@ -2568,9 +2568,7 @@ let move_to_next_node_pos_exp =
   };
 };
 
-type zexp_or_zblock =
-  | E(ZExp.t)
-  | B(ZExp.zblock);
+type zexp_or_zblock = ZExp.zexp_or_zblock;
 
 let set_err_status_zexp_or_zblock =
     (err: err_status, ze_zb: zexp_or_zblock): zexp_or_zblock =>

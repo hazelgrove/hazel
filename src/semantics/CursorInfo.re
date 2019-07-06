@@ -76,7 +76,8 @@ type typed =
   | OnType
   /* (we will have a richer structure here later) */
   | OnLine
-  | OnRule;
+  | OnRule
+  | OnOp;
 
 [@deriving sexp]
 type node =
@@ -84,13 +85,16 @@ type node =
   | Pat(UHPat.t)
   | Exp(UHExp.t)
   | Line(UHExp.line)
-  | Rule(UHExp.rule);
+  | Rule(UHExp.rule)
+  | TypOp(UHTyp.op)
+  | PatOp(UHPat.op)
+  | ExpOp(UHExp.op);
 
 [@deriving sexp]
 type term =
   | Type(UHTyp.t)
   | Pattern(UHPat.t)
-  | Expression(UHExp.block);
+  | Expression(UHExp.exp_or_block);
 
 [@deriving sexp]
 type t = {
@@ -403,7 +407,7 @@ let rec _ana_cursor_found_block =
   }
 and _ana_cursor_found_exp =
     (ctx: Contexts.t, e: UHExp.t, ty: HTyp.t)
-    : option((typed, cursor_node, Contexts.t)) =>
+    : option((typed, node, Contexts.t)) =>
   switch (e) {
   /* in hole */
   | Var(InHole(TypeInconsistent, _), _, _)
@@ -487,13 +491,31 @@ and _ana_cursor_found_exp =
     }
   };
 
+let rec _ana_cursor_found_skel =
+    (ctx: Contexts.t, k: op_index, skel, seq, cursor) =>
+  switch (skel) {
+  | Placeholder(_) => None // should never happen
+  | BinOp(_, op, skel1, skel2) =>
+    let n = skel2 |> Skel.leftmost_tm_index;
+    n == k
+    ? Some(mk_cursor_info(OnOp, ExpOp(op), Expression(E(OpSeq(skel, seq))), cursor, ctx))
+    : _ana_cursor_found_skel(ctx, k, (n > k ? skel1 : skel2), seq, cursor);
+  };
+
 let ana_cursor_found_exp =
     (ctx: Contexts.t, e: UHExp.t, ty: HTyp.t, cursor: cursor_position)
     : option(t) =>
-  switch (_ana_cursor_found_exp(ctx, e, ty)) {
-  | None => None
-  | Some((typed, node, ctx)) =>
-    Some(mk_cursor_info(typed, node, cursor, ctx))
+  switch (e) {
+  | OpSeq(skel, seq) =>
+    switch (cursor) {
+    | OnText(_) => None // invalid cursor position
+    | OnDelim(k, _) => _ana_cursor_found_skel(ctx, k, skel, seq, cursor)
+  | _ =>
+    switch (_ana_cursor_found_exp(ctx, e, ty)) {
+    | None => None
+    | Some((typed, node, ctx)) =>
+      Some(mk_cursor_info(typed, node, cursor, ctx))
+    }
   };
 
 let rec syn_cursor_info_block =
@@ -502,7 +524,12 @@ let rec syn_cursor_info_block =
   | BlockZL((prefix, zline, _), _) =>
     switch (Statics.syn_lines(ctx, prefix)) {
     | None => None
-    | Some(ctx) => syn_cursor_info_line(ctx, zline)
+    | Some(ctx) =>
+      syn_cursor_info_line(
+        ctx,
+        ~current_term=ZExp.erase_block(zblock),
+        zline,
+      )
     }
   | BlockZE(lines, ze) =>
     switch (Statics.syn_lines(ctx, lines)) {
@@ -510,10 +537,19 @@ let rec syn_cursor_info_block =
     | Some(ctx) => syn_cursor_info(ctx, ze)
     }
   }
-and syn_cursor_info_line = (ctx: Contexts.t, zli: ZExp.zline): option(t) =>
+and syn_cursor_info_line =
+    (ctx: Contexts.t, ~current_term: UHExp.block, zli: ZExp.zline): option(t) =>
   switch (zli) {
   | CursorL(cursor, line) =>
-    Some(mk_cursor_info(OnLine, Line(line), cursor, ctx))
+    Some(
+      mk_cursor_info(
+        OnLine,
+        Line(line),
+        Expression(B(current_term)),
+        cursor,
+        ctx,
+      ),
+    )
   | ExpLineZ(ze) => syn_cursor_info(ctx, ze)
   | LetLineZP(zp, ann, block) =>
     switch (ann) {
@@ -539,14 +575,42 @@ and syn_cursor_info_line = (ctx: Contexts.t, zli: ZExp.zline): option(t) =>
 and syn_cursor_info = (ctx: Contexts.t, ze: ZExp.t): option(t) =>
   switch (ze) {
   | CursorE(cursor, Var(_, InVHole(Keyword(k), _), _) as e) =>
-    Some(mk_cursor_info(SynKeyword(k), Exp(e), cursor, ctx))
+    Some(
+      mk_cursor_info(SynKeyword(k), Exp(e), Expression(e), cursor, ctx),
+    )
   | CursorE(cursor, Var(_, InVHole(Free, _), _) as e) =>
-    Some(mk_cursor_info(SynFree, Exp(e), cursor, ctx))
+    Some(mk_cursor_info(SynFree, Exp(e), Expression(e), cursor, ctx))
+  | CursorE(OnText(_), OpSeq(_, _)) => None // invalid cursor position
+  | CursorE(OnDelim(k, _), OpSeq(skel, seq)) =>
+    let skel_k = skel |> Skel.subskel_rooted_at_op(k);
+    let e_k = OpSeq(skel_k, seq);
+    switch (Statics.syn_exp(ctx, e_k), seq |> OperatorSeq.op_before_nth_tm(k)) {
+    | (None, _)
+    | (_, None) => None
+    | (Some(ty), Some(op)) =>
+      Some(
+        mk_cursor_info(
+          Synthesized(ty),
+          ExpOp(op),
+          Expression(e_k),
+          cursor,
+          ctx,
+        ),
+      )
+    };
   | CursorE(cursor, e) =>
     switch (Statics.syn_exp(ctx, e)) {
     | None => None
     | Some(ty) =>
-      Some(mk_cursor_info(Synthesized(ty), Exp(e), cursor, ctx))
+      Some(
+        mk_cursor_info(
+          Synthesized(ty),
+          Exp(e),
+          Expression(e),
+          cursor,
+          ctx,
+        ),
+      )
     }
   | ParenthesizedZ(zblock) => syn_cursor_info_block(ctx, zblock)
   | OpSeqZ(skel, ze0, surround) =>

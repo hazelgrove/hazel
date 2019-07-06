@@ -1388,7 +1388,7 @@ let rec snode_of_typ = (~cursor=?, ~steps: Path.steps=[], uty: UHTyp.t): snode =
            let op_stokens =
              mk_op_stokens(
                ~index=k,
-               ~range=skel |> Skel.range_of_skel_rooted_at_op(k),
+               ~range=skel |> Skel.range_of_subskel_rooted_at_op(k),
                ~space_before,
                ~space_after,
                string_of_op_typ(op),
@@ -1458,7 +1458,7 @@ let rec snode_of_pat = (~cursor=?, ~steps: Path.steps=[], p: UHPat.t): snode =>
            let op_stokens =
              mk_op_stokens(
                ~index=k,
-               ~range=skel |> Skel.range_of_skel_rooted_at_op(k),
+               ~range=skel |> Skel.range_of_subskel_rooted_at_op(k),
                ~space_before,
                ~space_after,
                string_of_op_pat(op),
@@ -1580,7 +1580,7 @@ and snode_of_exp = (~cursor=?, ~steps: Path.steps=[], e: UHExp.t): snode =>
            let op_stokens =
              mk_op_stokens(
                ~index=k,
-               ~range=skel |> Skel.range_of_skel_rooted_at_op(k),
+               ~range=skel |> Skel.range_of_subskel_rooted_at_op(k),
                ~space_before,
                ~space_after,
                string_of_op_exp(op),
@@ -1638,7 +1638,7 @@ let rec snode_of_ztyp = (~steps: Path.steps, zty: ZTyp.t): snode =>
            let op_stokens =
              mk_op_stokens(
                ~index=k,
-               ~range=skel |> Skel.range_of_skel_rooted_at_op(k),
+               ~range=skel |> Skel.range_of_subskel_rooted_at_op(k),
                ~space_before,
                ~space_after,
                string_of_op_typ(op),
@@ -1687,7 +1687,7 @@ let rec snode_of_zpat = (~steps: Path.steps, zp: ZPat.t): snode =>
            let op_stokens =
              mk_op_stokens(
                ~index=k,
-               ~range=skel |> Skel.range_of_skel_rooted_at_op(k),
+               ~range=skel |> Skel.range_of_subskel_rooted_at_op(k),
                ~space_before,
                ~space_after,
                string_of_op_pat(op),
@@ -1816,7 +1816,7 @@ and snode_of_zexp = (~steps: Path.steps, ze: ZExp.t) =>
            let op_stokens =
              mk_op_stokens(
                ~index=k,
-               ~range=skel |> Skel.range_of_skel_rooted_at_op(k),
+               ~range=skel |> Skel.range_of_subskel_rooted_at_op(k),
                ~space_before,
                ~space_after,
                string_of_op_exp(op),

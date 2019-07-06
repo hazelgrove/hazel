@@ -1458,3 +1458,7 @@ and move_cursor_right_rule = (zrule: zrule): option(zrule) =>
     | Some(zclause) => Some(RuleZE(p, zclause))
     }
   };
+
+type zexp_or_zblock =
+  | E(t)
+  | B(zblock);

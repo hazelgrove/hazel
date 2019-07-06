@@ -36,6 +36,12 @@ let rec leftmost_tm_index = (skel: t(_)): int =>
   | BinOp(_, _, skel1, _) => leftmost_tm_index(skel1)
   };
 
+let rec rightmost_tm_index = (skel: t(_)): int =>
+  switch (skel) {
+  | Placeholder(n) => n
+  | BinOp(_, _, _, skel2) => rightmost_tm_index(skel2)
+  };
+
 let rec range = (skel: t(_)): (int, int) =>
   switch (skel) {
   | Placeholder(n) => (n, n)
@@ -45,21 +51,25 @@ let rec range = (skel: t(_)): (int, int) =>
     (a, b);
   };
 
-let rec _range_of_skel_rooted_at_op =
-        (op_index: op_index, skel: t(_)): (bool, (int, int)) =>
+// return bool indicates whether the
+// accompanying skel is the target subskel
+let rec _subskel_rooted_at_op =
+        (op_index: op_index, skel: t('op)): (bool, t('op)) =>
   switch (skel) {
-  | Placeholder(k) => (false, (k, k))
+  | Placeholder(_) => (false, skel)
   | BinOp(_, _, skel1, skel2) =>
-    let (found1, (a1, b1)) = _range_of_skel_rooted_at_op(op_index, skel1);
-    let (found2, (a2, b2)) = _range_of_skel_rooted_at_op(op_index, skel2);
+    let (found1, subskel1) = _subskel_rooted_at_op(op_index, skel1);
+    let (found2, subskel2) = _subskel_rooted_at_op(op_index, skel2);
     switch (found1, found2) {
-    | (true, _) => (true, (a1, b1))
-    | (_, true) => (true, (a2, b2))
-    | (false, false) => (a2 == op_index, (a1, b2))
+    | (true, _) => (true, subskel1)
+    | (_, true) => (true, subskel2)
+    | (false, false) => (leftmost_tm_index(subskel2) == op_index, skel)
     };
   };
-let range_of_skel_rooted_at_op =
-    (op_index: op_index, skel: t(_)): (int, int) => {
-  let (_, (a, b)) = _range_of_skel_rooted_at_op(op_index, skel);
-  (a, b);
+let subskel_rooted_at_op = (op_index: op_index, skel: t('op)): t('op) => {
+  let (_, subskel) = _subskel_rooted_at_op(op_index, skel);
+  subskel;
 };
+
+let range_of_subskel_rooted_at_op = (op_index, skel) =>
+  skel |> subskel_rooted_at_op(op_index) |> range;
