@@ -33,15 +33,6 @@ type t = {
   is_cell_focused: bool,
 };
 
-/*
- let cutoff = (model1, model2) => {
-   let (zblock1, ty1, u_gen1) = model1.edit_state;
-   let (zblock2, ty2, u_gen2) = model2.edit_state;
-   ZExp.diff_is_just_cursor_movement_within_node(zblock1, zblock2)
-   && ty1 == ty2
-   && u_gen1 == u_gen2;
- };
- */
 let cutoff = (m1, m2) => m1 == m2;
 
 let zblock = model => {

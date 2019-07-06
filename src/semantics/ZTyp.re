@@ -176,20 +176,6 @@ let rec cursor_node_type = (zty: t): node_type =>
   | OpSeqZ(_, zty1, _) => cursor_node_type(zty1)
   };
 
-let rec diff_is_just_cursor_movement_within_node = (zty1, zty2) =>
-  switch (zty1, zty2) {
-  | (CursorT(_, ty1), CursorT(_, ty2)) => ty1 == ty2
-  | (ParenthesizedZ(zbody1), ParenthesizedZ(zbody2)) =>
-    diff_is_just_cursor_movement_within_node(zbody1, zbody2)
-  | (ListZ(zbody1), ListZ(zbody2)) =>
-    diff_is_just_cursor_movement_within_node(zbody1, zbody2)
-  | (OpSeqZ(skel1, ztm1, surround1), OpSeqZ(skel2, ztm2, surround2)) =>
-    skel1 == skel2
-    && diff_is_just_cursor_movement_within_node(ztm1, ztm2)
-    && surround1 == surround2
-  | (_, _) => false
-  };
-
 let rec move_cursor_left = (zty: t): option(t) =>
   switch (zty) {
   | _ when is_before(zty) => None

@@ -311,22 +311,6 @@ let rec cursor_node_type = (zp: t): node_type =>
   | InjZ(_, _, zp1) => cursor_node_type(zp1)
   };
 
-let rec diff_is_just_cursor_movement_within_node = (zp1, zp2) =>
-  switch (zp1, zp2) {
-  | (CursorP(_, p1), CursorP(_, p2)) => p1 == p2
-  | (ParenthesizedZ(zbody1), ParenthesizedZ(zbody2)) =>
-    diff_is_just_cursor_movement_within_node(zbody1, zbody2)
-  | (OpSeqZ(skel1, ztm1, surround1), OpSeqZ(skel2, ztm2, surround2)) =>
-    skel1 == skel2
-    && diff_is_just_cursor_movement_within_node(ztm1, ztm2)
-    && surround1 == surround2
-  | (InjZ(err_status1, side1, zbody1), InjZ(err_status2, side2, zbody2)) =>
-    err_status1 == err_status2
-    && side1 == side2
-    && diff_is_just_cursor_movement_within_node(zbody1, zbody2)
-  | (_, _) => false
-  };
-
 let rec move_cursor_left = (zp: t): option(t) =>
   switch (zp) {
   | _ when is_before(zp) => None
