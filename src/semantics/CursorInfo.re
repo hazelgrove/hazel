@@ -539,7 +539,7 @@ and syn_cursor_info_line = (ctx: Contexts.t, zli: ZExp.zline): option(t) =>
 and syn_cursor_info = (ctx: Contexts.t, ze: ZExp.t): option(t) =>
   switch (ze) {
   | CursorE(cursor, Var(_, InVHole(Keyword(k), _), _) as e) =>
-    Some(mk_cursor_info(PatSynKeyword(k), Exp(e), cursor, ctx))
+    Some(mk_cursor_info(SynKeyword(k), Exp(e), cursor, ctx))
   | CursorE(cursor, Var(_, InVHole(Free, _), _) as e) =>
     Some(mk_cursor_info(SynFree, Exp(e), cursor, ctx))
   | CursorE(cursor, e) =>
