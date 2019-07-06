@@ -102,17 +102,17 @@ let single_line_seq_indicators = is_active =>
 
 let indicators = (model: Model.t) => {
   let is_active =
-    model.is_cell_focused && model.cursor_info.sort != IsLine(EmptyLine);
-  switch (model.cursor_info.sort) {
-  | IsExpr(OpSeq(_, seq) as e) =>
+    model.is_cell_focused && model.cursor_info.node != Line(EmptyLine);
+  switch (model.cursor_info.node) {
+  | Exp(OpSeq(_, seq) as e) =>
     Code.is_multi_line_exp(e)
       ? multi_line_seq_indicators(is_active, OperatorSeq.seq_length(seq))
       : single_line_seq_indicators(is_active)
-  | IsPat(OpSeq(_, seq) as p) =>
+  | Pat(OpSeq(_, seq) as p) =>
     Code.is_multi_line_pat(p)
       ? multi_line_seq_indicators(is_active, OperatorSeq.seq_length(seq))
       : single_line_seq_indicators(is_active)
-  | IsType(OpSeq(_, seq) as ty) =>
+  | Typ(OpSeq(_, seq) as ty) =>
     Code.is_multi_line_typ(ty)
       ? multi_line_seq_indicators(is_active, OperatorSeq.seq_length(seq))
       : single_line_seq_indicators(is_active)
@@ -183,11 +183,11 @@ let view =
           switch (JSUtil.is_single_key(evt), KeyCombo.of_evt(evt)) {
           | (None, None) => Event.Ignore
           | (Some(single_key), _) =>
-            switch (ci.sort) {
-            | IsLine(EmptyLine)
-            | IsLine(ExpLine(EmptyHole(_)))
-            | IsExpr(EmptyHole(_))
-            | IsPat(EmptyHole(_)) =>
+            switch (ci.node) {
+            | Line(EmptyLine)
+            | Line(ExpLine(EmptyHole(_)))
+            | Exp(EmptyHole(_))
+            | Pat(EmptyHole(_)) =>
               let shape =
                 switch (single_key) {
                 | Number(n) => Action.SNumLit(n, OnText(num_digits(n)))
@@ -197,12 +197,12 @@ let view =
               prevent_stop_inject(
                 Update.Action.EditAction(Construct(shape)),
               );
-            | IsExpr(NumLit(_, _))
-            | IsExpr(BoolLit(_, _))
-            | IsExpr(Var(_, _, _))
-            | IsPat(Var(_, _, _))
-            | IsPat(NumLit(_, _))
-            | IsPat(BoolLit(_, _)) =>
+            | Exp(NumLit(_, _))
+            | Exp(BoolLit(_, _))
+            | Exp(Var(_, _, _))
+            | Pat(Var(_, _, _))
+            | Pat(NumLit(_, _))
+            | Pat(BoolLit(_, _)) =>
               let nodeValue = JSUtil.force_get_anchor_node_value();
               let anchorOffset = JSUtil.get_anchor_offset();
               let key_string = JSUtil.single_key_string(single_key);
@@ -233,11 +233,14 @@ let view =
                       Update.Action.InvalidVar(newNodeValue),
                     )
               };
-            | IsLine(_)
-            | IsExpr(_)
-            | IsRule(_)
-            | IsPat(_)
-            | IsType(_) => Event.Ignore
+            | Line(_)
+            | Exp(_)
+            | Rule(_)
+            | Pat(_)
+            | Typ(_) => Event.Ignore
+            | TypOp(_)
+            | PatOp(_)
+            | ExpOp(_) => Event.Ignore /* TODO */
             }
           | (_, Some((Backspace | Delete) as kc)) =>
             let (string_edit, update) =

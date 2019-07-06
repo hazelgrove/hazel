@@ -361,7 +361,11 @@ let elem_is_SSeq = JSUtil.elem_has_cls(cls_SSeq);
 let elem_is_multi_line = JSUtil.elem_has_cls("multi-line");
 
 let snode_attrs =
-    (~inject: Update.Action.t => Vdom.Event.t, snode: snode)
+    (
+      ~inject: Update.Action.t => Vdom.Event.t,
+      term_steps: Path.steps,
+      snode: snode,
+    )
     : list(Vdom.Attr.t) => {
   Vdom.(
     switch (snode) {
@@ -434,6 +438,10 @@ let snode_attrs =
           |> sexp_of_child_indices
           |> Sexplib.Sexp.to_string,
         ),
+        Attr.create(
+          "term",
+          Sexplib.Sexp.to_string(Path.sexp_of_steps(term_steps)),
+        ),
         ...shape_attrs,
       ];
     }
@@ -498,10 +506,11 @@ let rec view_of_snode =
         (
           ~inject: Update.Action.t => Vdom.Event.t,
           ~indent_level=Indented(0),
+          ~term_steps=[],
           snode,
         )
         : Vdom.Node.t => {
-  let attrs = snode_attrs(~inject, snode);
+  let attrs = snode_attrs(~inject, term_steps, snode);
   switch (snode) {
   | SSeq(steps, _cursor, is_multi_line, shead, stail) =>
     let (fst, args) = shead;
@@ -509,6 +518,7 @@ let rec view_of_snode =
       view_of_sline(
         ~inject,
         ~node_steps=steps,
+        ~term_steps,
         ~is_node_multi_line=is_multi_line,
         ~line_no=0,
         ~node_indent_level=indent_level,
@@ -519,6 +529,7 @@ let rec view_of_snode =
               view_of_sline(
                 ~inject,
                 ~node_steps=steps,
+                ~term_steps,
                 ~is_node_multi_line=is_multi_line,
                 ~line_no=i + 1,
                 ~node_indent_level=indent_level,
@@ -538,6 +549,7 @@ let rec view_of_snode =
                view_of_sline(
                  ~inject,
                  ~node_steps=steps,
+                 ~term_steps,
                  ~is_node_multi_line=is_multi_line,
                  ~line_no=num_lines_so_far,
                  ~node_indent_level=indent_level,
@@ -551,6 +563,7 @@ let rec view_of_snode =
                        view_of_sline(
                          ~inject,
                          ~node_steps=steps,
+                         ~term_steps,
                          ~is_node_multi_line=is_multi_line,
                          ~line_no=num_lines_so_far + 1 + i,
                          ~node_indent_level=
@@ -573,7 +586,7 @@ let rec view_of_snode =
       attrs,
       is_multi_line ? vlines |> join(Vdom.Node.br([])) : vlines,
     );
-  | SBox(steps, node_cursor, is_multi_line, _, _shape, slines) =>
+  | SBox(steps, node_cursor, is_multi_line, _, shape, slines) =>
     let vlines: list(Vdom.Node.t) =
       slines
       |> List.mapi((i, sline) =>
@@ -584,6 +597,13 @@ let rec view_of_snode =
              ~is_node_multi_line=is_multi_line,
              ~line_no=i,
              ~node_indent_level=indent_level,
+             ~term_steps=
+               switch (shape) {
+               | EmptyLine
+               | LetLine
+               | Rule => term_steps
+               | _ => steps
+               },
              sline,
            )
          );
@@ -597,6 +617,7 @@ and view_of_sline =
     (
       ~inject: Update.Action.t => Vdom.Event.t,
       ~node_steps: Path.steps,
+      ~term_steps: Path.steps,
       ~node_cursor: option(cursor_position)=?,
       ~is_node_multi_line: bool,
       ~line_no: int,
@@ -629,7 +650,12 @@ and view_of_sline =
         |> List.map(
              fun
              | SNode(snode) =>
-               view_of_snode(~inject, ~indent_level=NotIndentable, snode)
+               view_of_snode(
+                 ~inject,
+                 ~term_steps,
+                 ~indent_level=NotIndentable,
+                 snode,
+               )
              | SToken(stoken) =>
                view_of_stoken(~inject, ~node_steps, ~node_cursor, stoken),
            ),
@@ -644,6 +670,7 @@ and view_of_sline =
                  ~inject,
                  ~indent_level=
                    i == 0 ? Indented(abs_indent + rel_indent) : NotIndentable,
+                 ~term_steps,
                  snode,
                )
              | SToken(stoken) =>
@@ -686,6 +713,7 @@ and view_of_sline =
                  // have already printed our indents and shouldn't print
                  // any additional indents
                  ~indent_level=NotIndentable,
+                 ~term_steps,
                  snode,
                )
              | SToken(stoken) =>

@@ -336,8 +336,8 @@ let view =
       Vdom.Node.div([], []);
     } else {
       let children =
-        switch (model.cursor_info.sort) {
-        | CursorInfo.IsExpr(EmptyHole(u)) =>
+        switch (model.cursor_info.node) {
+        | CursorInfo.Exp(EmptyHole(u)) =>
           switch (model.selected_instance) {
           | Some((u', _) as inst) =>
             if (MetaVar.eq(u, u')) {

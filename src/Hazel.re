@@ -61,14 +61,23 @@ let create = (model, ~old_model, ~inject) => {
                        JSUtil.force_get_elem_by_id(child_indicator_id(i))
                        |> JSUtil.place_over_elem(child_elem)
                      );
-                  JSUtil.force_get_elem_by_id(box_tm_indicator_id)
-                  |> JSUtil.place_over_elem(cursor_elem);
+                  switch (cursor_elem |> JSUtil.get_attr("term")) {
+                  | None => assert(false)
+                  | Some(ssexp) =>
+                    let term_steps =
+                      Path.steps_of_sexp(Sexplib.Sexp.of_string(ssexp));
+                    JSUtil.force_get_elem_by_id(box_tm_indicator_id)
+                    |> JSUtil.(
+                         place_over_elem(
+                           force_get_elem_by_id(node_id(term_steps)),
+                         )
+                       );
+                  };
                 };
               } else {
                 switch (model.cursor_info.position) {
                 | OnText(_) => assert(false)
                 | OnDelim(k, _) =>
-                  // use delim index to identify op elem
                   let (steps, _) = model |> Model.path;
                   let op_elem = JSUtil.force_get_elem_by_id(op_id(steps, k));
                   JSUtil.force_get_elem_by_id(op_node_indicator_id)
@@ -111,7 +120,6 @@ let create = (model, ~old_model, ~inject) => {
                          });
                     };
                   };
-                // get tagged range (a,b) on delim elem
                 };
               }
             };

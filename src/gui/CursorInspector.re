@@ -95,7 +95,7 @@ let view =
     got_indicator("Got a reserved keyword", typebar(HTyp.Hole));
 
   let (ind1, ind2, err_state_b) =
-    switch (model.cursor_info.mode) {
+    switch (model.cursor_info.typed) {
     | Analyzed(ty) =>
       let ind1 = expected_ty_indicator(ty);
       let ind2 = got_indicator("Got", special_msg_bar("as expected"));
@@ -229,11 +229,18 @@ let view =
       let ind1 = expected_any_indicator_pat;
       let ind2 = got_keyword_indicator;
       (ind1, ind2, BindingError);
-    | Line =>
+    | OnLine =>
+      /* TODO */
       let ind1 = expected_a_line_indicator;
       let ind2 = got_a_line_indicator;
       (ind1, ind2, OK);
-    | Rule =>
+    | OnRule =>
+      /* TODO */
+      let ind1 = expected_a_rule_indicator;
+      let ind2 = got_a_rule_indicator;
+      (ind1, ind2, OK);
+    | OnOp =>
+      /* TODO */
       let ind1 = expected_a_rule_indicator;
       let ind2 = got_a_rule_indicator;
       (ind1, ind2, OK);
