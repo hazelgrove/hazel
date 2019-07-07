@@ -455,12 +455,7 @@ let rec perform_ty = (a: t, zty: ZTyp.t): result(ZTyp.t) =>
       let new_zty = OpSeqUtil.opseqz_typ(new_ztm, new_surround);
       Succeeded(new_zty);
     }
-  | (
-      ShiftLeft | ShiftRight,
-      CursorT(Staging(_k_invalid), _) |
-      OpSeqZ(_, CursorT(Staging(_k_invalid), _), _),
-    ) =>
-    Failed
+  | (ShiftLeft | ShiftRight, _) => Failed
   /* Movement */
   | (MoveTo(path), _) =>
     switch (Path.follow_ty(path, ZTyp.erase(zty))) {
