@@ -37,6 +37,16 @@ let concat_typ = (ty1: UHTyp.t, op: UHTyp.op, ty2: UHTyp.t): UHTyp.t =>
     | (_, _) => ExpOpExp(ty1, op, ty2)
     },
   );
+let concat_pat = (p1: UHPat.t, op: UHPat.op, p2: UHPat.t): UHPat.t =>
+  opseq_pat(
+    switch (p1, p2) {
+    | (OpSeq(_, seq1), OpSeq(_, seq2)) =>
+      OperatorSeq.seq_op_seq(seq1, op, seq2)
+    | (OpSeq(_, seq1), _) => SeqOpExp(seq1, op, p2)
+    | (_, OpSeq(_, seq2)) => OperatorSeq.exp_op_seq(p1, op, seq2)
+    | (_, _) => ExpOpExp(p1, op, p2)
+    },
+  );
 
 let resurround_typ =
     (zty0: ZTyp.t, surround: ZTyp.opseq_surround)
