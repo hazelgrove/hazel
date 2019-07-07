@@ -314,6 +314,7 @@ let rec cursor_node_type = (zp: t): node_type =>
 let rec move_cursor_left = (zp: t): option(t) =>
   switch (zp) {
   | _ when is_before(zp) => None
+  | CursorP(Staging(_), _) => None
   | CursorP(OnText(j), p) => Some(CursorP(OnText(j - 1), p))
   | CursorP(OnDelim(k, After), p) => Some(CursorP(OnDelim(k, Before), p))
   | CursorP(OnDelim(_, Before), EmptyHole(_) | Wild(_) | ListNil(_)) => None
@@ -370,6 +371,7 @@ let rec move_cursor_left = (zp: t): option(t) =>
 let rec move_cursor_right = (zp: t): option(t) =>
   switch (zp) {
   | _ when is_after(zp) => None
+  | CursorP(Staging(_), _) => None
   | CursorP(OnText(j), p) => Some(CursorP(OnText(j + 1), p))
   | CursorP(OnDelim(k, Before), p) => Some(CursorP(OnDelim(k, After), p))
   | CursorP(OnDelim(_, After), EmptyHole(_) | Wild(_) | ListNil(_)) => None

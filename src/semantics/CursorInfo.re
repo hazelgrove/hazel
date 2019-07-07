@@ -131,6 +131,7 @@ let is_before_node = ci =>
     switch (ci.position) {
     | OnText(_) => false // invalid cursor position
     | OnDelim(_, side) => side == Before
+    | Staging(_) => false
     }
   };
 
@@ -147,6 +148,7 @@ let is_after_node = ci =>
     switch (ci.position) {
     | OnText(_) => false // invalid cursor position
     | OnDelim(_, side) => side == After
+    | Staging(_) => false
     }
   };
 
@@ -561,6 +563,7 @@ let ana_cursor_found_exp =
   switch (e) {
   | OpSeq(skel, seq) =>
     switch (cursor) {
+    | Staging(_)
     | OnText(_) => None // invalid cursor position
     | OnDelim(k, _) => _ana_cursor_found_skel_exp(ctx, k, skel, seq, cursor)
     }

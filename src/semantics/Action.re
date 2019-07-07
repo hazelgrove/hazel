@@ -108,11 +108,14 @@ type t =
   | UpdateApPalette(SpliceGenMonad.t(SerializedModel.t))
   | Delete
   | Backspace
-  | Construct(shape);
+  | Construct(shape)
+  | ShiftLeft
+  | ShiftRight;
 
 type result('success) =
   | Succeeded('success)
   | CursorEscaped(side)
+  | CantShift
   | Failed;
 
 let make_ty_OpSeqZ = (zty0: ZTyp.t, surround: ZTyp.opseq_surround): ZTyp.t => {
@@ -196,7 +199,267 @@ let rec perform_ty = (a: t, zty: ZTyp.t): result(ZTyp.t) =>
   switch (a, zty) {
   | (_, CursorT(cursor, uty)) when !ZTyp.is_valid_cursor(cursor, uty) =>
     Failed
-  | (_, CursorT(OnText(_), Parenthesized(_) | OpSeq(_, _) | List(_))) =>
+  | (_, CursorT(OnText(_), _)) => Failed
+  /* Staging */
+  | (ShiftLeft, CursorT(Staging(0), Parenthesized(_) | List(_))) =>
+    // cases below handle when these forms are in
+    // the middle of an opseq, so reaching this case
+    // means we've reached the edge of our "term world"
+    CantShift
+  | (
+      ShiftLeft,
+      CursorT(Staging(1), (Parenthesized(body) | List(body)) as staged),
+    ) =>
+    switch (body) {
+    | Hole
+    | Unit
+    | Num
+    | Bool
+    | Parenthesized(_)
+    | List(_) => CantShift
+    | OpSeq(_, body_seq) =>
+      let (new_body, new_suffix) =
+        switch (body_seq |> OperatorSeq.split_tail) {
+        | (tm_n, ExpPrefix(tm, op)) => (
+            tm,
+            OperatorSeq.ExpSuffix(op, tm_n),
+          )
+        | (tm_n, SeqPrefix(seq, op)) => (
+            OpSeqUtil.opseq_typ(seq),
+            ExpSuffix(op, tm_n),
+          )
+        };
+      let new_ztm =
+        ZTyp.CursorT(
+          Staging(1),
+          switch (staged) {
+          | Parenthesized(_) => Parenthesized(new_body)
+          | _ => List(new_body)
+          },
+        );
+      let new_zty = OpSeqUtil.opseqz_typ(new_ztm, EmptyPrefix(new_suffix));
+      Succeeded(new_zty);
+    }
+  | (
+      ShiftLeft,
+      OpSeqZ(
+        skel,
+        CursorT(Staging(0), (Parenthesized(body) | List(body)) as staged),
+        surround,
+      ),
+    ) =>
+    switch (surround) {
+    | EmptyPrefix(_) => CantShift
+    | EmptySuffix(ExpPrefix(tm, op))
+    | BothNonEmpty(ExpPrefix(tm, op), _) =>
+      let new_body = OpSeqUtil.concat_typ(tm, op, body);
+      let new_ztm =
+        ZTyp.CursorT(
+          Staging(0),
+          switch (staged) {
+          | Parenthesized(_) => Parenthesized(new_body)
+          | _ => List(new_body)
+          },
+        );
+      let new_zty =
+        switch (surround) {
+        | BothNonEmpty(_, suffix) =>
+          OpSeqUtil.opseqz_typ(new_ztm, EmptyPrefix(suffix))
+        | _ => new_ztm
+        };
+      Succeeded(new_zty);
+    | EmptySuffix(SeqPrefix(seq, op))
+    | BothNonEmpty(SeqPrefix(seq, op), _) =>
+      let (tm, new_prefix) = seq |> OperatorSeq.split_tail;
+      let new_body = OpSeqUtil.concat_typ(tm, op, body);
+      let new_ztm =
+        ZTyp.CursorT(
+          Staging(0),
+          switch (staged) {
+          | Parenthesized(_) => Parenthesized(new_body)
+          | _ => List(new_body)
+          },
+        );
+      let new_zty =
+        switch (surround) {
+        | BothNonEmpty(_, suffix) =>
+          OpSeqUtil.opseqz_typ(new_ztm, BothNonEmpty(new_prefix, suffix))
+        | _ => OpSeqUtil.opseqz_typ(new_ztm, EmptySuffix(new_prefix))
+        };
+      Succeeded(new_zty);
+    }
+  | (
+      ShiftLeft,
+      OpSeqZ(
+        skel,
+        CursorT(Staging(1), (Parenthesized(body) | List(body)) as staged),
+        surround,
+      ),
+    ) =>
+    switch (body) {
+    | Hole
+    | Unit
+    | Num
+    | Bool
+    | Parenthesized(_)
+    | List(_) => CantShift
+    | OpSeq(_, body_seq) =>
+      let (new_body, suffix_delta) =
+        switch (body_seq |> OperatorSeq.split_tail) {
+        | (tm_n, ExpPrefix(tm, op)) => (
+            tm,
+            OperatorSeq.ExpSuffix(op, tm_n),
+          )
+        | (tm_n, SeqPrefix(seq, op)) => (
+            OpSeqUtil.opseq_typ(seq),
+            ExpSuffix(op, tm_n),
+          )
+        };
+      let new_ztm =
+        ZTyp.CursorT(
+          Staging(1),
+          switch (staged) {
+          | Parenthesized(_) => Parenthesized(new_body)
+          | _ => List(new_body)
+          },
+        );
+      let new_surround =
+        OperatorSeq.nest_surrounds(EmptyPrefix(suffix_delta), surround);
+      let new_zty = OpSeqUtil.opseqz_typ(new_ztm, new_surround);
+      Succeeded(new_zty);
+    }
+  | (ShiftRight, CursorT(Staging(1), Parenthesized(_) | List(_))) =>
+    // cases below handle when these forms are in
+    // the middle of an opseq, so reaching this case
+    // means we've reached the edge of our "term world"
+    CantShift
+  | (
+      ShiftRight,
+      CursorT(Staging(0), (Parenthesized(body) | List(body)) as staged),
+    ) =>
+    switch (body) {
+    | Hole
+    | Unit
+    | Num
+    | Bool
+    | Parenthesized(_)
+    | List(_) => CantShift
+    | OpSeq(_, body_seq) =>
+      let (new_prefix, new_body) =
+        switch (body_seq |> OperatorSeq.split0) {
+        | (tm0, ExpSuffix(op, tm1)) => (
+            OperatorSeq.ExpPrefix(tm0, op),
+            tm1,
+          )
+        | (tm0, SeqSuffix(op, seq)) => (
+            ExpPrefix(tm0, op),
+            OpSeqUtil.opseq_typ(seq),
+          )
+        };
+      let new_ztm =
+        ZTyp.CursorT(
+          Staging(0),
+          switch (staged) {
+          | Parenthesized(_) => Parenthesized(new_body)
+          | _ => List(new_body)
+          },
+        );
+      let new_zty = OpSeqUtil.opseqz_typ(new_ztm, EmptySuffix(new_prefix));
+      Succeeded(new_zty);
+    }
+  | (
+      ShiftRight,
+      OpSeqZ(
+        skel,
+        CursorT(Staging(1), (Parenthesized(body) | List(body)) as staged),
+        surround,
+      ),
+    ) =>
+    switch (surround) {
+    | EmptySuffix(_) => CantShift
+    | EmptyPrefix(ExpSuffix(op, tm))
+    | BothNonEmpty(_, ExpSuffix(op, tm)) =>
+      let new_body = OpSeqUtil.concat_typ(body, op, tm);
+      let new_ztm =
+        ZTyp.CursorT(
+          Staging(1),
+          switch (staged) {
+          | Parenthesized(_) => Parenthesized(new_body)
+          | _ => List(new_body)
+          },
+        );
+      let new_zty =
+        switch (surround) {
+        | BothNonEmpty(prefix, _) =>
+          OpSeqUtil.opseqz_typ(new_ztm, EmptySuffix(prefix))
+        | _ => new_ztm
+        };
+      Succeeded(new_zty);
+    | EmptyPrefix(SeqSuffix(op, seq))
+    | BothNonEmpty(_, SeqSuffix(op, seq)) =>
+      let (tm, new_suffix) = seq |> OperatorSeq.split0;
+      let new_body = OpSeqUtil.concat_typ(body, op, tm);
+      let new_ztm =
+        ZTyp.CursorT(
+          Staging(1),
+          switch (staged) {
+          | Parenthesized(_) => Parenthesized(new_body)
+          | _ => List(new_body)
+          },
+        );
+      let new_zty =
+        switch (surround) {
+        | BothNonEmpty(prefix, _) =>
+          OpSeqUtil.opseqz_typ(new_ztm, BothNonEmpty(prefix, new_suffix))
+        | _ => OpSeqUtil.opseqz_typ(new_ztm, EmptyPrefix(new_suffix))
+        };
+      Succeeded(new_zty);
+    }
+  | (
+      ShiftRight,
+      OpSeqZ(
+        skel,
+        CursorT(Staging(0), (Parenthesized(body) | List(body)) as staged),
+        surround,
+      ),
+    ) =>
+    switch (body) {
+    | Hole
+    | Unit
+    | Num
+    | Bool
+    | Parenthesized(_)
+    | List(_) => CantShift
+    | OpSeq(_, body_seq) =>
+      let (prefix_delta, new_body) =
+        switch (body_seq |> OperatorSeq.split0) {
+        | (tm0, ExpSuffix(op, tm1)) => (
+            OperatorSeq.ExpPrefix(tm0, op),
+            tm1,
+          )
+        | (tm0, SeqSuffix(op, seq)) => (
+            OperatorSeq.ExpPrefix(tm0, op),
+            OpSeqUtil.opseq_typ(seq),
+          )
+        };
+      let new_ztm =
+        ZTyp.CursorT(
+          Staging(0),
+          switch (staged) {
+          | Parenthesized(_) => Parenthesized(new_body)
+          | _ => List(new_body)
+          },
+        );
+      let new_surround =
+        OperatorSeq.nest_surrounds(EmptySuffix(prefix_delta), surround);
+      let new_zty = OpSeqUtil.opseqz_typ(new_ztm, new_surround);
+      Succeeded(new_zty);
+    }
+  | (
+      ShiftLeft | ShiftRight,
+      CursorT(Staging(_k_invalid), _) |
+      OpSeqZ(_, CursorT(Staging(_k_invalid), _), _),
+    ) =>
     Failed
   /* Movement */
   | (MoveTo(path), _) =>
@@ -401,6 +664,7 @@ let rec perform_ty = (a: t, zty: ZTyp.t): result(ZTyp.t) =>
   | (_, ParenthesizedZ(zty1)) =>
     switch (perform_ty(a, zty1)) {
     | Failed => Failed
+    | CantShift => CantShift
     | CursorEscaped(Before) => move_to_prev_node_pos_typ(zty)
     | CursorEscaped(After) => move_to_next_node_pos_typ(zty)
     | Succeeded(zty1') => Succeeded(ParenthesizedZ(zty1'))
@@ -408,6 +672,7 @@ let rec perform_ty = (a: t, zty: ZTyp.t): result(ZTyp.t) =>
   | (_, ListZ(zty1)) =>
     switch (perform_ty(a, zty1)) {
     | Failed => Failed
+    | CantShift => CantShift
     | CursorEscaped(Before) => move_to_prev_node_pos_typ(zty)
     | CursorEscaped(After) => move_to_next_node_pos_typ(zty)
     | Succeeded(zty1) => Succeeded(ListZ(zty1))
@@ -415,6 +680,7 @@ let rec perform_ty = (a: t, zty: ZTyp.t): result(ZTyp.t) =>
   | (_, OpSeqZ(skel, zty0, surround)) =>
     switch (perform_ty(a, zty0)) {
     | Failed => Failed
+    | CantShift => CantShift
     | CursorEscaped(Before) => move_to_prev_node_pos_typ(zty)
     | CursorEscaped(After) => move_to_next_node_pos_typ(zty)
     | Succeeded(zty0) =>

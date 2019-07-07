@@ -902,6 +902,7 @@ let holes_Cursor_OpSeq =
 
 let rec holes_zty = (zty: ZTyp.t, steps: steps): zhole_list =>
   switch (zty) {
+  | CursorT(Staging(_), _) => no_holes
   | CursorT(_, Hole) => {
       holes_before: [],
       hole_selected: Some((TypeHole, steps)),
@@ -937,6 +938,7 @@ let rec holes_zty = (zty: ZTyp.t, steps: steps): zhole_list =>
 
 let rec holes_zpat = (zp: ZPat.t, steps: steps): zhole_list =>
   switch (zp) {
+  | CursorP(Staging(_), _) => no_holes
   | CursorP(_, EmptyHole(u)) => {
       holes_before: [],
       hole_selected: Some((PatHole(u), steps)),
@@ -999,6 +1001,7 @@ and holes_zlines =
 }
 and holes_zline = (zli: ZExp.zline, steps: steps): zhole_list =>
   switch (zli) {
+  | CursorL(Staging(_), _) => no_holes
   | CursorL(_, EmptyLine) => no_holes
   | CursorL(_, ExpLine(_)) => no_holes /* invalid cursor position */
   | CursorL(cursor, LetLine(p, ann, block)) =>
@@ -1069,6 +1072,7 @@ and holes_zline = (zli: ZExp.zline, steps: steps): zhole_list =>
   }
 and holes_ze = (ze: ZExp.t, steps: steps): zhole_list =>
   switch (ze) {
+  | CursorE(Staging(_), _) => no_holes
   | CursorE(_, EmptyHole(u)) => {
       holes_before: [],
       hole_selected: Some((ExpHole(u), steps)),
@@ -1283,6 +1287,7 @@ and holes_zrules = (zrules: ZExp.zrules, offset: int, steps: steps) => {
 and holes_zrule =
     (zrule: ZExp.zrule, offset: int, prefix_len: int, steps: steps) =>
   switch (zrule) {
+  | CursorR(Staging(_), _) => no_holes
   | CursorR(OnDelim(k, _), Rule(p, block)) =>
     let holes_p = holes_pat(p, [1, prefix_len + offset, ...steps], []);
     let holes_block =

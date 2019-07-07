@@ -69,8 +69,9 @@ type cursor_pos = (delim_index, side);
 
 [@deriving (show({with_path: false}), sexp)]
 type cursor_position =
+  | OnText(char_index)
   | OnDelim(delim_index, side)
-  | OnText(char_index);
+  | Staging(delim_index);
 
 [@deriving sexp]
 type node_type =
@@ -109,6 +110,7 @@ let inner_cursors = (num_delim: int): list(cursor_pos) =>
 let delim_cursors_k = (k: int): list(cursor_position) => [
   OnDelim(k, Before),
   OnDelim(k, After),
+  Staging(k),
 ];
 let delim_cursors = (num_delim: int): list(cursor_position) =>
   range(num_delim) |> List.map(k => delim_cursors_k(k)) |> List.flatten;

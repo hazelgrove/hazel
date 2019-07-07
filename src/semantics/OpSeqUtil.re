@@ -27,6 +27,17 @@ let opseqz_exp = (ze: ZExp.t, surround: ZExp.opseq_surround): ZExp.t => {
   OpSeqZ(skel, ze, surround);
 };
 
+let concat_typ = (ty1: UHTyp.t, op: UHTyp.op, ty2: UHTyp.t): UHTyp.t =>
+  opseq_typ(
+    switch (ty1, ty2) {
+    | (OpSeq(_, seq1), OpSeq(_, seq2)) =>
+      OperatorSeq.seq_op_seq(seq1, op, seq2)
+    | (OpSeq(_, seq1), _) => SeqOpExp(seq1, op, ty2)
+    | (_, OpSeq(_, seq2)) => OperatorSeq.exp_op_seq(ty1, op, seq2)
+    | (_, _) => ExpOpExp(ty1, op, ty2)
+    },
+  );
+
 let resurround_typ =
     (zty0: ZTyp.t, surround: ZTyp.opseq_surround)
     : (ZTyp.t, ZTyp.opseq_surround) =>

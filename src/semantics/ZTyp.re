@@ -179,6 +179,7 @@ let rec cursor_node_type = (zty: t): node_type =>
 let rec move_cursor_left = (zty: t): option(t) =>
   switch (zty) {
   | _ when is_before(zty) => None
+  | CursorT(Staging(_), _) => None
   | CursorT(OnDelim(k, After), ty) =>
     Some(CursorT(OnDelim(k, Before), ty))
   | CursorT(OnDelim(_, Before), Hole | Unit | Num | Bool) => None
@@ -220,6 +221,7 @@ let rec move_cursor_left = (zty: t): option(t) =>
 let rec move_cursor_right = (zty: t): option(t) =>
   switch (zty) {
   | _ when is_after(zty) => None
+  | CursorT(Staging(_), _) => None
   | CursorT(OnDelim(k, Before), ty) =>
     Some(CursorT(OnDelim(k, After), ty))
   | CursorT(OnDelim(_, After), Hole | Unit | Num | Bool) => None
