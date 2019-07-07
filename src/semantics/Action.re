@@ -2172,6 +2172,7 @@ let rec syn_perform_pat =
   | (_, ParenthesizedZ(zp1)) =>
     switch (syn_perform_pat(ctx, u_gen, a, zp1)) {
     | Failed => Failed
+    | CantShift => CantShift
     | CursorEscaped(Before) =>
       move_to_prev_node_pos_pat(zp, zp =>
         switch (Statics.syn_pat(ctx, ZPat.erase(zp))) {
@@ -2192,6 +2193,7 @@ let rec syn_perform_pat =
   | (_, InjZ(_, side, zp1)) =>
     switch (syn_perform_pat(ctx, u_gen, a, zp1)) {
     | Failed => Failed
+    | CantShift => CantShift
     | CursorEscaped(Before) =>
       move_to_prev_node_pos_pat(zp, zp =>
         switch (Statics.syn_pat(ctx, ZPat.erase(zp))) {
@@ -2225,6 +2227,7 @@ let rec syn_perform_pat =
         | Statics.AnalyzedAgainst(ty0) =>
           switch (ana_perform_pat(ctx, u_gen, a, zp0, ty0)) {
           | Failed => Failed
+          | CantShift => CantShift
           | CursorEscaped(Before) =>
             move_to_prev_node_pos_pat(zp, zp =>
               switch (Statics.syn_pat(ctx, ZPat.erase(zp))) {
@@ -2247,6 +2250,7 @@ let rec syn_perform_pat =
         | Statics.Synthesized(_) =>
           switch (syn_perform_pat(ctx, u_gen, a, zp0)) {
           | Failed => Failed
+          | CantShift => CantShift
           | CursorEscaped(Before) =>
             move_to_prev_node_pos_pat(zp, zp =>
               switch (Statics.syn_pat(ctx, ZPat.erase(zp))) {
@@ -2794,6 +2798,7 @@ and ana_perform_pat =
   | (_, ParenthesizedZ(zp1)) =>
     switch (ana_perform_pat(ctx, u_gen, a, zp1, ty)) {
     | Failed => Failed
+    | CantShift => CantShift
     | CursorEscaped(Before) =>
       move_to_prev_node_pos_pat(zp, zp =>
         switch (Statics.ana_pat(ctx, ZPat.erase(zp), ty)) {
@@ -2818,6 +2823,7 @@ and ana_perform_pat =
       let ty1 = pick_side(side, tyL, tyR);
       switch (ana_perform_pat(ctx, u_gen, a, zp1, ty1)) {
       | Failed => Failed
+      | CantShift => CantShift
       | CursorEscaped(Before) =>
         move_to_prev_node_pos_pat(zp, zp =>
           switch (Statics.ana_pat(ctx, ZPat.erase(zp), ty)) {
@@ -2847,6 +2853,7 @@ and ana_perform_pat =
         | Statics.AnalyzedAgainst(ty0) =>
           switch (ana_perform_pat(ctx, u_gen, a, zp0, ty0)) {
           | Failed => Failed
+          | CantShift => CantShift
           | CursorEscaped(Before) =>
             move_to_prev_node_pos_pat(zp, zp =>
               switch (Statics.ana_pat(ctx, ZPat.erase(zp), ty)) {
@@ -2870,6 +2877,7 @@ and ana_perform_pat =
         | Statics.Synthesized(_) =>
           switch (syn_perform_pat(ctx, u_gen, a, zp0)) {
           | Failed => Failed
+          | CantShift => CantShift
           | CursorEscaped(Before) =>
             move_to_prev_node_pos_pat(zp, zp =>
               switch (Statics.ana_pat(ctx, ZPat.erase(zp), ty)) {
@@ -3340,6 +3348,7 @@ let rec syn_perform_block =
     ) =>
     switch (syn_perform_lines(ctx, a, (zlines, u_gen))) {
     | Failed => Failed
+    | CantShift => CantShift
     | CursorEscaped(Before) => CursorEscaped(Before)
     | CursorEscaped(After) =>
       Succeeded((
@@ -3361,6 +3370,7 @@ let rec syn_perform_block =
     | Some(ctx) =>
       switch (syn_perform_exp(ctx, a, (ze, ty, u_gen))) {
       | Failed => Failed
+      | CantShift => CantShift
       | CursorEscaped(Before) =>
         switch (ZExp.place_after_lines(lines)) {
         | None => CursorEscaped(Before)
@@ -3558,6 +3568,7 @@ and syn_perform_lines =
     | Some(ctx) =>
       switch (syn_perform_line(ctx, a, (zline, u_gen))) {
       | Failed => Failed
+      | CantShift => CantShift
       | CursorEscaped(Before) =>
         switch (ZExp.place_after_lines(prefix)) {
         | None => CursorEscaped(Before)
@@ -3715,6 +3726,7 @@ and syn_perform_line =
       let ty = UHTyp.expand(uty);
       switch (ana_perform_pat(ctx, u_gen, a, zp, ty)) {
       | Failed => Failed
+      | CantShift => CantShift
       | CursorEscaped(Before) =>
         let zline =
           ZExp.CursorL(
@@ -3743,6 +3755,7 @@ and syn_perform_line =
       | Some(ty) =>
         switch (ana_perform_pat(ctx, u_gen, a, zp, ty)) {
         | Failed => Failed
+        | CantShift => CantShift
         | CursorEscaped(Before) =>
           let zline =
             ZExp.CursorL(
@@ -3768,6 +3781,7 @@ and syn_perform_line =
   | (_, LetLineZA(p, zann, block)) =>
     switch (perform_ty(a, zann)) {
     | Failed => Failed
+    | CantShift => CantShift
     | CursorEscaped(Before) =>
       let zline =
         ZExp.CursorL(
@@ -3804,6 +3818,7 @@ and syn_perform_line =
         Statics.ctx_for_let(ctx, p, ty, ZExp.erase_block(zblock));
       switch (ana_perform_block(ctx_block, a, (zblock, u_gen), ty)) {
       | Failed => Failed
+      | CantShift => CantShift
       | CursorEscaped(Before) =>
         switch (Statics.ana_pat(ctx, p, ty)) {
         | None => Failed
@@ -3831,6 +3846,7 @@ and syn_perform_line =
       | Some(ty) =>
         switch (syn_perform_block(ctx, a, (zblock, ty, u_gen))) {
         | Failed => Failed
+        | CantShift => CantShift
         | CursorEscaped(Before) =>
           switch (Statics.ana_pat(ctx, p, ty)) {
           | None => Failed
@@ -4637,6 +4653,7 @@ and syn_perform_exp =
   | (_, ParenthesizedZ(zblock)) =>
     switch (syn_perform_block(ctx, a, (zblock, ty, u_gen))) {
     | Failed => Failed
+    | CantShift => CantShift
     | CursorEscaped(Before) =>
       move_to_prev_node_pos_exp(ze, ze => Succeeded((ZExp.E(ze), ty, u_gen)))
     | CursorEscaped(After) =>
@@ -4652,6 +4669,7 @@ and syn_perform_exp =
       };
     switch (ana_perform_pat(ctx, u_gen, a, zp, ty1)) {
     | Failed => Failed
+    | CantShift => CantShift
     | CursorEscaped(Before) =>
       move_to_prev_node_pos_exp(ze, ze => Succeeded((ZExp.E(ze), ty, u_gen)))
     | CursorEscaped(After) =>
@@ -4666,6 +4684,7 @@ and syn_perform_exp =
   | (_, LamZA(_, p, zann, block)) =>
     switch (perform_ty(a, zann)) {
     | Failed => Failed
+    | CantShift => CantShift
     | CursorEscaped(Before) =>
       move_to_prev_node_pos_exp(ze, ze => Succeeded((ZExp.E(ze), ty, u_gen)))
     | CursorEscaped(After) =>
@@ -4692,6 +4711,7 @@ and syn_perform_exp =
       | Some(ctx) =>
         switch (syn_perform_block(ctx, a, (zblock, ty2, u_gen))) {
         | Failed => Failed
+        | CantShift => CantShift
         | CursorEscaped(Before) =>
           move_to_prev_node_pos_exp(ze, ze =>
             Succeeded((ZExp.E(ze), ty, u_gen))
@@ -4712,6 +4732,7 @@ and syn_perform_exp =
       let ty_side = pick_side(side, ty1, ty2);
       switch (syn_perform_block(ctx, a, (zblock, ty_side, u_gen))) {
       | Failed => Failed
+      | CantShift => CantShift
       | CursorEscaped(Before) =>
         move_to_prev_node_pos_exp(ze, ze =>
           Succeeded((ZExp.E(ze), ty, u_gen))
@@ -4740,6 +4761,7 @@ and syn_perform_exp =
         | AnalyzedAgainst(ty0) =>
           switch (ana_perform_exp(ctx, a, (ze0, u_gen), ty0)) {
           | Failed => Failed
+          | CantShift => CantShift
           | CursorEscaped(Before) =>
             move_to_prev_node_pos_exp(ze, ze =>
               Succeeded((ZExp.E(ze), ty, u_gen))
@@ -4766,6 +4788,7 @@ and syn_perform_exp =
         | Synthesized(ty0) =>
           switch (syn_perform_exp(ctx, a, (ze0, ty0, u_gen))) {
           | Failed => Failed
+          | CantShift => CantShift
           | CursorEscaped(Before) =>
             move_to_prev_node_pos_exp(ze, ze =>
               Succeeded((ZExp.E(ze), ty, u_gen))
@@ -4803,6 +4826,7 @@ and syn_perform_exp =
      let (cell_ty, cell_ze) = cell_data;
      switch (ana_perform_exp(ctx, a, (cell_ze, u_gen), cell_ty)) {
      | Failed => Failed
+     | CantShift => CantShift
      | Succeeded((cell_ze', u_gen')) =>
        let z_hole_data' = (
          next_lbl,
@@ -4822,6 +4846,7 @@ and syn_perform_exp =
     | Some(ty1) =>
       switch (syn_perform_block(ctx, a, (zblock, ty1, u_gen))) {
       | Failed => Failed
+      | CantShift => CantShift
       | CursorEscaped(Before) =>
         move_to_prev_node_pos_exp(ze, ze =>
           Succeeded((ZExp.E(ze), ty, u_gen))
@@ -4847,6 +4872,7 @@ and syn_perform_exp =
       | RuleZP(zp, clause) =>
         switch (ana_perform_pat(ctx, u_gen, a, zp, ty1)) {
         | Failed => Failed
+        | CantShift => CantShift
         | CursorEscaped(Before) =>
           move_to_prev_node_pos_exp(ze, ze =>
             Succeeded((ZExp.E(ze), ty, u_gen))
@@ -4876,6 +4902,7 @@ and syn_perform_exp =
           let ty = UHTyp.expand(uty);
           switch (ana_perform_block(ctx, a, (zclause, u_gen), ty)) {
           | Failed => Failed
+          | CantShift => CantShift
           | CursorEscaped(Before) =>
             move_to_prev_node_pos_exp(ze, ze =>
               Succeeded((ZExp.E(ze), ty, u_gen))
@@ -4904,6 +4931,7 @@ and syn_perform_exp =
     | Some(ty1) =>
       switch (perform_ty(a, zann)) {
       | Failed => Failed
+      | CantShift => CantShift
       | CursorEscaped(Before) =>
         move_to_prev_node_pos_exp(ze, ze =>
           Succeeded((ZExp.E(ze), ty, u_gen))
@@ -5134,6 +5162,7 @@ and ana_perform_block =
     ) =>
     switch (syn_perform_lines(ctx, a, (zlines, u_gen))) {
     | Failed => Failed
+    | CantShift => CantShift
     | CursorEscaped(Before) => CursorEscaped(Before)
     | CursorEscaped(After) =>
       Succeeded((
@@ -5153,6 +5182,7 @@ and ana_perform_block =
     | Some(ctx1) =>
       switch (ana_perform_exp(ctx1, a, (ze, u_gen), ty)) {
       | Failed => Failed
+      | CantShift => CantShift
       | CursorEscaped(Before) =>
         switch (ZExp.place_after_lines(lines)) {
         | None => CursorEscaped(Before)
@@ -5869,6 +5899,7 @@ and ana_perform_exp =
   | (_, ParenthesizedZ(zblock)) =>
     switch (ana_perform_block(ctx, a, (zblock, u_gen), ty)) {
     | Failed => Failed
+    | CantShift => CantShift
     | CursorEscaped(Before) =>
       move_to_prev_node_pos_exp(ze, ze => Succeeded((ZExp.E(ze), u_gen)))
     | CursorEscaped(After) =>
@@ -5887,6 +5918,7 @@ and ana_perform_exp =
         };
       switch (ana_perform_pat(ctx, u_gen, a, zp, ty1)) {
       | Failed => Failed
+      | CantShift => CantShift
       | CursorEscaped(Before) =>
         move_to_prev_node_pos_exp(ze, ze => Succeeded((ZExp.E(ze), u_gen)))
       | CursorEscaped(After) =>
@@ -5904,6 +5936,7 @@ and ana_perform_exp =
     | Some((ty1_given, ty2)) =>
       switch (perform_ty(a, zann)) {
       | Failed => Failed
+      | CantShift => CantShift
       | CursorEscaped(Before) =>
         move_to_prev_node_pos_exp(ze, ze => Succeeded((ZExp.E(ze), u_gen)))
       | CursorEscaped(After) =>
@@ -5944,6 +5977,7 @@ and ana_perform_exp =
       | Some(ctx) =>
         switch (ana_perform_block(ctx, a, (zblock, u_gen), ty2)) {
         | Failed => Failed
+        | CantShift => CantShift
         | CursorEscaped(Before) =>
           move_to_prev_node_pos_exp(ze, ze => Succeeded((ZExp.E(ze), u_gen)))
         | CursorEscaped(After) =>
@@ -5961,6 +5995,7 @@ and ana_perform_exp =
       let picked = pick_side(side, ty1, ty2);
       switch (ana_perform_block(ctx, a, (zblock, u_gen), picked)) {
       | Failed => Failed
+      | CantShift => CantShift
       | CursorEscaped(Before) =>
         move_to_prev_node_pos_exp(ze, ze => Succeeded((ZExp.E(ze), u_gen)))
       | CursorEscaped(After) =>
@@ -5975,6 +6010,7 @@ and ana_perform_exp =
     | Some(ty1) =>
       switch (syn_perform_block(ctx, a, (zblock, ty1, u_gen))) {
       | Failed => Failed
+      | CantShift => CantShift
       | CursorEscaped(Before) =>
         move_to_prev_node_pos_exp(ze, ze => Succeeded((ZExp.E(ze), u_gen)))
       | CursorEscaped(After) =>
@@ -5995,6 +6031,7 @@ and ana_perform_exp =
       | RuleZP(zp, clause) =>
         switch (ana_perform_pat(ctx, u_gen, a, zp, ty1)) {
         | Failed => Failed
+        | CantShift => CantShift
         | CursorEscaped(Before) =>
           move_to_prev_node_pos_exp(ze, ze => Succeeded((ZExp.E(ze), u_gen)))
         | CursorEscaped(After) =>
@@ -6018,6 +6055,7 @@ and ana_perform_exp =
         | Some(ctx) =>
           switch (ana_perform_block(ctx, a, (zclause, u_gen), ty)) {
           | Failed => Failed
+          | CantShift => CantShift
           | CursorEscaped(Before) =>
             move_to_prev_node_pos_exp(ze, ze =>
               Succeeded((ZExp.E(ze), u_gen))
@@ -6046,6 +6084,7 @@ and ana_perform_exp =
     | Some(ty1) =>
       switch (perform_ty(a, zann)) {
       | Failed => Failed
+      | CantShift => CantShift
       | CursorEscaped(Before) =>
         move_to_prev_node_pos_exp(ze, ze => Succeeded((ZExp.E(ze), u_gen)))
       | CursorEscaped(After) =>
@@ -6069,6 +6108,7 @@ and ana_perform_exp =
         | Statics.AnalyzedAgainst(ty0) =>
           switch (ana_perform_exp(ctx, a, (ze0, u_gen), ty0)) {
           | Failed => Failed
+          | CantShift => CantShift
           | CursorEscaped(Before) =>
             move_to_prev_node_pos_exp(ze, ze =>
               Succeeded((ZExp.E(ze), u_gen))
@@ -6094,6 +6134,7 @@ and ana_perform_exp =
         | Statics.Synthesized(ty0) =>
           switch (syn_perform_exp(ctx, a, (ze0, ty0, u_gen))) {
           | Failed => Failed
+          | CantShift => CantShift
           | CursorEscaped(Before) =>
             move_to_prev_node_pos_exp(ze, ze =>
               Succeeded((ZExp.E(ze), u_gen))
