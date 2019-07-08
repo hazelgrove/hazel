@@ -96,6 +96,8 @@ type term =
   | Pattern(UHPat.t)
   | Expression(UHExp.exp_or_block);
 
+type child_term = (child_index, term);
+
 [@deriving sexp]
 type t = {
   typed,
@@ -104,6 +106,22 @@ type t = {
   ctx: Contexts.t,
   position: cursor_position,
 };
+
+type delim_neighborhood('tm, 'op) =
+  | LetDefInBody(UHExp.block, UHExp.block)
+  | BetweenChildren(child_term, delim_index, child_term)
+  | LeftBorderInSeq(
+      OperatorSeq.opseq_surround('tm, 'op),
+      delim_index,
+      OperatorSeq.opseq('tm, 'op),
+    )
+  | RightBorderInSeq(
+      OperatorSeq.opseq('tm, 'op),
+      delim_index,
+      OperatorSeq.opseq_surround('tm, 'op),
+    )
+  | LeftBorderInBlock(UHExp.lines, delim_index, child_term)
+  | RightBorderInBlock(child_term, delim_index, UHExp.lines);
 
 let mk_cursor_info = (typed, node, term, position, ctx) => {
   typed,

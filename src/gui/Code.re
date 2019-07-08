@@ -317,6 +317,12 @@ and child_indices_of_sline =
 [@deriving sexp]
 type child_indices = list(int);
 
+let force_get_snode_elem = steps =>
+  JSUtil.force_get_elem_by_id(node_id(steps));
+
+let force_get_sdelim_elem = delim_path =>
+  JSUtil.force_get_elem_by_id(delim_id(delim_path));
+
 let child_indices_of_snode_elem = elem =>
   switch (elem |> JSUtil.get_attr("children")) {
   | None => None
@@ -338,6 +344,25 @@ let child_elems_of_snode_elem = elem =>
       |> List.map(node_id)
       |> List.map(JSUtil.force_get_elem_by_id),
     )
+  };
+
+let parent_snode_elem_of_snode_elem = elem =>
+  switch (steps_of_node_id(Js.to_string(elem##.id))) {
+  | None => None
+  | Some(steps) =>
+    switch (split_last(steps)) {
+    | None => None
+    | Some((parent_steps, _)) => force_get_snode_elem(parent_steps)
+    }
+  };
+
+let parent_sline_elem_of_sdelim_elem = elem =>
+  switch (delim_path_of_delim_id(Js.to_string(elem##.id))) {
+  | None => None
+  | Some(_) =>
+    let node = (elem: Js.t(Dom_html.element) :> Js.t(Dom.node));
+    let parent_node = Js.Opt.get(node##.parentNode, () => assert(false));
+    Js.Opt.get(Dom_html.CoerceTo.element(parent_node), () => assert(false));
   };
 
 let cls_SLine = "SLine";
@@ -837,7 +862,10 @@ and view_of_stoken =
         [Node.text(s)],
       );
     Node.div(
-      [Attr.classes([inline_div_cls, "SDelim"])],
+      [
+        Attr.id(delim_id(node_steps, index)),
+        Attr.classes([inline_div_cls, "SDelim"]),
+      ],
       [delim_before, delim_txt, delim_after],
     );
   | SOp(index, seq_range, s) =>

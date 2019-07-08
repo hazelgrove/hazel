@@ -15,6 +15,15 @@ let get_attr = (attr: string, elem: Js.t(Dom_html.element)): option(string) =>
   Js.Opt.to_option(elem##getAttribute(Js.string(attr)))
   |> U.Opt.map(s => Js.to_string(s));
 
+let force_get_attr = (attr: string, elem: Js.t(Dom_html.element)): string =>
+  switch (elem |> get_attr(attr)) {
+  | None =>
+    log(elem);
+    log(attr);
+    assert(false);
+  | Some(s) => s
+  };
+
 let has_attr = (attr: string, elem: Js.t(Dom_html.element)): bool =>
   switch (Js.Opt.to_option(elem##getAttribute(Js.string(attr)))) {
   | None => false

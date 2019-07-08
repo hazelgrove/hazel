@@ -55,21 +55,75 @@ let create = (model, ~old_model, ~inject) => {
                      JSUtil.force_get_elem_by_id(child_indicator_id(i))
                      |> JSUtil.place_over_elem(child_elem)
                    );
-                switch (cursor_elem |> JSUtil.get_attr("term")) {
-                | None => assert(false)
-                | Some(ssexp) =>
-                  let term_steps =
-                    Path.steps_of_sexp(Sexplib.Sexp.of_string(ssexp));
-                  JSUtil.force_get_elem_by_id(box_tm_indicator_id)
-                  |> JSUtil.(
-                       place_over_elem(
-                         force_get_elem_by_id(node_id(term_steps)),
-                       )
-                     );
+                let term_steps =
+                  cursor_elem
+                  |> JSUtil.force_get_attr("term")
+                  |> Sexp.of_string
+                  |> Path.steps_of_sexp;
+                JSUtil.(
+                  force_get_elem_by_id(box_tm_indicator_id)
+                  |> place_over_elem(Code.force_get_snode_elem(term_steps))
+                );
+                // draw node staging guides
+                let (steps, _) = model |> Model.path;
+                switch (model.cursor_info |> CursorInfo.delim_neighborhood) {
+                | None => () // not in staging mode
+                | Some(LetDefInBody(Block(def_lines, _) as def, body)) =>
+                  // cursor_elem is a let line
+                  Code.get_sdelim_elem((steps, 2))
+                  |> Code.parent_sline_elem_of_sdelim_elem
+                  |> Cell.draw_current_vertical_shift_target;
+                  if (cursor_elem |> Code.elem_is_multi_line) {
+                    // only draw guides for defining expression if
+                    // multi-line i.e. on separate lines from `in`
+                    let def_elem =
+                      JSUtil.force_get_elem_by_id(node_id(steps @ [2]));
+                    def_elem
+                    |> sline_elems_of_snode_elem
+                    |> filteri((i, _) => i < List.length(def_lines))
+                    |> List.iter(Cell.draw_vertical_shift_target);
+                  };
+                  let (parent_steps, line_no) =
+                    steps |> split_last |> Opt.get(() => assert(false));
+                  let parent_block_elem =
+                    Code.force_get_snode_elem(parent_steps);
+                  parent_block_elem
+                  |> sline_elems_of_snode_elem
+                  |> filteri((i, _) => i > line_no)
+                  |> List.iter(Cell.draw_vertical_shift_target);
+                | Some(BetweenChildren((k1, child1), (k2, child2))) =>
+                  // Only lines can be transferred between two complete terms.
+                  // We don't currently have any delimiters in this position
+                  // such that it can move, but you could imagine being able
+
+                  /*
+                   switch (child1, child2) {
+                   | (Block(lines1, e1), Block(lines2, e2)) =>
+                   }
+                   */
+                  ()
+                // to shift the `else` between the two branches of an if-else.
+                | Some(LeftBorderInSeq(surround, child_seq))
+                | Some(RightBorderInSeq(child_seq, surround))
+                | Some(
+                    LeftBorderInBlock(
+                      lines_before,
+                      Expression(B(Block([], OpSeq(_, child_seq)))),
+                    ),
+                  )
+                | Some(
+                    RightBorderInBlock(
+                      Expression(B(Block([], OpSeq(_, child_seq)))),
+                      lines_after,
+                    ),
+                  )
+                | Some(LeftBorderInBlock(lines_before, child))
+                | Some(RightBorderInBlock(child, lines_after)) => ()
                 };
               };
             } else {
               switch (model.cursor_info.position) {
+              | Staging(_) => assert(false)
               | OnText(_) => assert(false)
               | OnDelim(k, _) =>
                 let (steps, _) = model |> Model.path;
