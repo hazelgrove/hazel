@@ -109,19 +109,17 @@ type t = {
 
 type delim_neighborhood('tm, 'op) =
   | LetDefInBody(UHExp.block, UHExp.block)
-  | BetweenChildren(child_term, delim_index, child_term)
+  | BetweenChildren(child_term, child_term)
   | LeftBorderInSeq(
       OperatorSeq.opseq_surround('tm, 'op),
-      delim_index,
       OperatorSeq.opseq('tm, 'op),
     )
   | RightBorderInSeq(
       OperatorSeq.opseq('tm, 'op),
-      delim_index,
       OperatorSeq.opseq_surround('tm, 'op),
     )
-  | LeftBorderInBlock(UHExp.lines, delim_index, child_term)
-  | RightBorderInBlock(child_term, delim_index, UHExp.lines);
+  | LeftBorderInBlock(UHExp.lines, child_term)
+  | RightBorderInBlock(child_term, UHExp.lines);
 
 let mk_cursor_info = (typed, node, term, position, ctx) => {
   typed,

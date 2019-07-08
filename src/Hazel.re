@@ -66,59 +66,62 @@ let create = (model, ~old_model, ~inject) => {
                 );
                 // draw node staging guides
                 let (steps, _) = model |> Model.path;
-                switch (model.cursor_info |> CursorInfo.delim_neighborhood) {
-                | None => () // not in staging mode
-                | Some(LetDefInBody(Block(def_lines, _) as def, body)) =>
-                  // cursor_elem is a let line
-                  Code.get_sdelim_elem((steps, 2))
+                switch (model.cursor_info.position) {
+                | OnText(_)
+                | OnDelim(_, _) => ()
+                | Staging(delim_index) =>
+                  let delim_elem = Code.get_sdelim_elem((steps, delim_index));
+
+                  // always draw currently occupied delimiter shift targets
+                  delim_elem |> Cell.draw_current_horizontal_shift_target;
+                  delim_elem
                   |> Code.parent_sline_elem_of_sdelim_elem
                   |> Cell.draw_current_vertical_shift_target;
-                  if (cursor_elem |> Code.elem_is_multi_line) {
-                    // only draw guides for defining expression if
-                    // multi-line i.e. on separate lines from `in`
-                    let def_elem =
-                      JSUtil.force_get_elem_by_id(node_id(steps @ [2]));
-                    def_elem
-                    |> sline_elems_of_snode_elem
-                    |> filteri((i, _) => i < List.length(def_lines))
-                    |> List.iter(Cell.draw_vertical_shift_target);
-                  };
-                  let (parent_steps, line_no) =
-                    steps |> split_last |> Opt.get(() => assert(false));
-                  let parent_block_elem =
-                    Code.force_get_snode_elem(parent_steps);
-                  parent_block_elem
-                  |> sline_elems_of_snode_elem
-                  |> filteri((i, _) => i > line_no)
-                  |> List.iter(Cell.draw_vertical_shift_target);
-                | Some(BetweenChildren((k1, child1), (k2, child2))) =>
-                  // Only lines can be transferred between two complete terms.
-                  // We don't currently have any delimiters in this position
-                  // such that it can move, but you could imagine being able
 
-                  /*
-                   switch (child1, child2) {
-                   | (Block(lines1, e1), Block(lines2, e2)) =>
-                   }
-                   */
-                  ()
-                // to shift the `else` between the two branches of an if-else.
-                | Some(LeftBorderInSeq(surround, child_seq))
-                | Some(RightBorderInSeq(child_seq, surround))
-                | Some(
-                    LeftBorderInBlock(
+                  switch (
+                    model.cursor_info
+                    |> CursorInfo.delim_neighborhood
+                    |> Opt.get(() => assert(false))
+                  ) {
+                  | LetDefInBody(Block(def_lines, _) as def, body) =>
+                    // cursor_elem is a let line
+                    if (cursor_elem |> Code.elem_is_multi_line) {
+                      // only draw guides for defining expression if
+                      // multi-line i.e. on separate lines from `in`
+                      let def_elem =
+                        JSUtil.force_get_elem_by_id(node_id(steps @ [2]));
+                      def_elem
+                      |> sline_elems_of_snode_elem
+                      |> filteri((i, _) => i < List.length(def_lines))
+                      |> List.iter(Cell.draw_vertical_shift_target);
+                    };
+                    let (parent_steps, line_no) =
+                      steps |> split_last |> Opt.get(() => assert(false));
+                    let parent_block_elem =
+                      Code.force_get_snode_elem(parent_steps);
+                    parent_block_elem
+                    |> sline_elems_of_snode_elem
+                    |> filteri((i, _) => i > line_no)
+                    |> List.iter(Cell.draw_vertical_shift_target);
+                  | BetweenChildren(_, _) =>
+                    // Only lines can be transferred between two complete terms.
+                    // We don't currently have any delimiters in this position
+                    // such that it can move, but you could imagine being able
+                    // to shift the `else` between the two branches of an if-else.
+                    ()
+                  | LeftBorderInSeq(surround, child_seq)
+                  | RightBorderInSeq(child_seq, surround)
+                  | LeftBorderInBlock(
                       lines_before,
                       Expression(B(Block([], OpSeq(_, child_seq)))),
-                    ),
-                  )
-                | Some(
-                    RightBorderInBlock(
+                    )
+                  | RightBorderInBlock(
                       Expression(B(Block([], OpSeq(_, child_seq)))),
                       lines_after,
-                    ),
-                  )
-                | Some(LeftBorderInBlock(lines_before, child))
-                | Some(RightBorderInBlock(child, lines_after)) => ()
+                    )
+                  | LeftBorderInBlock(lines_before, child)
+                  | RightBorderInBlock(child, lines_after) => ()
+                  };
                 };
               };
             } else {
