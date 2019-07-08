@@ -150,6 +150,17 @@ let force_get_elem_by_id = id => {
   );
 };
 
+let force_get_elem_by_cls = cls =>
+  switch (
+    Dom_html.document##getElementsByClassName(Js.string(cls))
+    |> Dom.list_of_nodeList
+  ) {
+  | [] =>
+    log(cls);
+    assert(false);
+  | [elem, ..._] => elem
+  };
+
 let px = (f: float): string => string_of_float(f) ++ "px";
 
 type rect = {
