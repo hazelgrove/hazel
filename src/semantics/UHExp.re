@@ -133,6 +133,8 @@ let empty_rule = (u_gen: MetaVarGen.t): (rule, MetaVarGen.t) => {
   (rule, u_gen);
 };
 
+let prepend_line = (line, Block(lines, e)) => Block([line, ...lines], e);
+
 /**
  * Bidelimited expressions are those that do not need to
  * be wrapped in parentheses in an opseq. In most cases,
@@ -385,3 +387,31 @@ let child_indices_rule =
 type exp_or_block =
   | E(t)
   | B(block);
+
+let shift_line_to_suffix =
+    (~u_gen: MetaVarGen.t, suffix: lines, Block(leading, conclusion))
+    : option((block, lines, MetaVarGen.t)) =>
+  switch (leading |> split_last, conclusion) {
+  | (None, EmptyHole(_)) => None
+  | (None, _) =>
+    let (hole, u_gen) = u_gen |> new_EmptyHole;
+    Some((wrap_in_block(hole), [ExpLine(conclusion), ...suffix], u_gen));
+  | (Some((leading_prefix, leading_last)), EmptyHole(_)) =>
+    let new_block =
+      switch (leading_prefix |> split_last) {
+      | None => wrap_in_block(conclusion)
+      | Some((leading_prefix_prefix, ExpLine(new_conclusion))) =>
+        Block(leading_prefix_prefix, new_conclusion)
+      | Some(_) => Block(leading_prefix, conclusion)
+      };
+    Some((new_block, [leading_last, ...suffix], u_gen));
+  | (Some((leading_prefix, ExpLine(new_conclusion))), _) =>
+    Some((
+      Block(leading_prefix, new_conclusion),
+      [ExpLine(conclusion), ...suffix],
+      u_gen,
+    ))
+  | (Some(_), _) =>
+    let (hole, u_gen) = u_gen |> new_EmptyHole;
+    Some((Block(leading, hole), [ExpLine(conclusion), ...suffix], u_gen));
+  };

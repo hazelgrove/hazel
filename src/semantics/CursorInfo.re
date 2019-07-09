@@ -98,6 +98,15 @@ type term =
 
 type child_term = (child_index, term);
 
+type frame('tm, 'op) =
+  | SeqFrame(OperatorSeq.opseq_surround('tm, 'op))
+  | BlockFrame(UHExp.lines, UHExp.lines);
+
+type delim_neighborhood =
+  | LeftBorder(child_term)
+  | BetweenChildren(child_term, child_term)
+  | RightBorder(child_term);
+
 [@deriving sexp]
 type t = {
   typed,
@@ -106,20 +115,6 @@ type t = {
   ctx: Contexts.t,
   position: cursor_position,
 };
-
-type delim_neighborhood('tm, 'op) =
-  | LetDefInBody(UHExp.block, UHExp.block)
-  | BetweenChildren(child_term, child_term)
-  | LeftBorderInSeq(
-      OperatorSeq.opseq_surround('tm, 'op),
-      OperatorSeq.opseq('tm, 'op),
-    )
-  | RightBorderInSeq(
-      OperatorSeq.opseq('tm, 'op),
-      OperatorSeq.opseq_surround('tm, 'op),
-    )
-  | LeftBorderInBlock(UHExp.lines, child_term)
-  | RightBorderInBlock(child_term, UHExp.lines);
 
 let mk_cursor_info = (typed, node, term, position, ctx) => {
   typed,

@@ -3156,6 +3156,120 @@ let rec syn_perform_block =
         )
         : result((ZExp.zblock, HTyp.t, MetaVarGen.t)) =>
   switch (a, zblock) {
+  /* Staging */
+  | (
+      ShiftLeft,
+      BlockZL(
+        (prefix, CursorL(Staging(2), LetLine(p, ann, def)), suffix),
+        e,
+      ),
+    ) =>
+    switch (def |> UHExp.shift_line_to_suffix(~u_gen, suffix)) {
+    | None => CantShift
+    | Some((new_def, new_suffix, u_gen)) =>
+      let new_zblock =
+        ZExp.BlockZL(
+          (
+            prefix,
+            CursorL(Staging(2), LetLine(p, ann, new_def)),
+            new_suffix,
+          ),
+          e,
+        );
+      Succeeded(Statics.syn_fix_holes_zblock(ctx, u_gen, new_zblock));
+    }
+  | (
+      ShiftLeft,
+      BlockZL(
+        (
+          prefix,
+          ExpZ(CursorE(Staging(1), Case(scrut, rules, None))),
+          suffix,
+        ),
+        e,
+      ),
+    ) =>
+    switch (rules |> split_last) {
+    | None => Failed // shouldn't ever see empty rule list
+    | Some((leading_rules, Rule(last_p, last_clause))) =>
+      switch (last_clause |> UHExp.shift_line_to_suffix(suffix)) {
+      | None => CantShift
+      | Some((new_last_clause, new_suffix)) =>
+        let new_zblock =
+          ZExp.BlockZL(
+            (
+              prefix,
+              CursorE(
+                Staging(1),
+                Case(
+                  scrut,
+                  leading_rules @ [Rule(last_p, new_last_clause)],
+                  None,
+                ),
+              ),
+              new_suffix,
+            ),
+            e,
+          );
+        Succeeded(Statics.syn_fix_holes_zblock(ctx, u_gen, new_zblock));
+      }
+    }
+  | (
+      ShiftLeft,
+      BlockZL(
+        (
+          prefix,
+          ExpZ(
+            CursorE(
+              Staging(0),
+              (
+                Parenthesized(block) | Inj(_, _, block) |
+                Case(_, block, _, _)
+              ) as e_line,
+            ),
+          ),
+          suffix,
+        ),
+        e,
+      ),
+    ) =>
+    switch (block |> UHExp.shift_line_from_prefix(prefix)) {
+    | None => CantShift
+    | Some((new_prefix, new_block)) =>
+      let new_e_line =
+        switch (e_line) {
+        | Inj(err_status, side, _) => Inj(err_status, side, new_block)
+        | Case(err_status, _, rules, ann) =>
+          Case(err_status, new_block, rules, ann)
+        | _ => Parenthesized(new_block)
+        };
+      let new_zblock =
+        ZExp.BlockZL(
+          (new_prefix, ExpZ(CursorE(Staging(0), new_e_line)), suffix),
+          e,
+        );
+      Succeeded(Statics.syn_fix_holes_zblock(ctx, u_gen, new_zblock));
+    }
+  | (
+      ShiftLeft,
+      BlockZL((prefix, CursorL(Staging(delim_index), line), suffix), e),
+    ) =>
+    switch (ci |> CursorInfo.delim_neighborhood) {
+    | None => Failed // should never happen
+    | BetweenChildren((_, Expression(_block1)), (_, Expression(_block2))) =>
+      // This is the interesting case where you can
+      // actually move the delimiter. Currently we
+      // don't have any syntactic forms where this is
+      // true, but you can imagine shifting the `else`
+      // in an if-else.
+      Failed
+    | BetweenChildren(_, _) => CantShift
+    | LeftBorder((_, Expression(_block))) =>
+      // interesting case, no forms of this shape yet
+      Failed
+    | LeftBorder(_) => CantShift
+    | RightBorder((child_index, Expression(block))) => Failed /* TODO */
+    }
   /* Movement */
   | (MoveTo(path), _) =>
     let block = ZExp.erase_block(zblock);
