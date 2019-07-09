@@ -162,142 +162,151 @@ let view =
     (~inject: Update.Action.t => Vdom.Event.t, model: Model.t): Vdom.Node.t => {
   Vdom.(
     Node.div(
+      [Attr.id("pp_view"), Attr.classes(["ModelExp"])],
       [
-        Attr.id("cell"),
-        Attr.create("contenteditable", "true"),
-        Attr.on("drop", _ => Event.Prevent_default),
-        Attr.on_focus(_ => inject(FocusCell)),
-        Attr.on_blur(_ => inject(BlurCell)),
-        Attr.on_keypress(evt =>
-          JSUtil.is_movement_key(evt)
-            ? Event.Many([]) : Event.Prevent_default
-        ),
-        Attr.on_keydown(evt => {
-          let prevent_stop_inject = a =>
-            Event.Many([
-              Event.Prevent_default,
-              Event.Stop_propagation,
-              inject(a),
-            ]);
-          let ci = model.cursor_info;
-          switch (JSUtil.is_single_key(evt), KeyCombo.of_evt(evt)) {
-          | (None, None) => Event.Ignore
-          | (Some(single_key), _) =>
-            switch (ci.node) {
-            | Line(EmptyLine)
-            | Line(ExpLine(EmptyHole(_)))
-            | Exp(EmptyHole(_))
-            | Pat(EmptyHole(_)) =>
-              let shape =
-                switch (single_key) {
-                | Number(n) => Action.SNumLit(n, OnText(num_digits(n)))
-                | Letter(x) => Action.SVar(x, OnText(Var.length(x)))
-                | Underscore => Action.SWild
-                };
-              prevent_stop_inject(
-                Update.Action.EditAction(Construct(shape)),
-              );
-            | Exp(NumLit(_, _))
-            | Exp(BoolLit(_, _))
-            | Exp(Var(_, _, _))
-            | Pat(Var(_, _, _))
-            | Pat(NumLit(_, _))
-            | Pat(BoolLit(_, _)) =>
-              let nodeValue = JSUtil.force_get_anchor_node_value();
-              let anchorOffset = JSUtil.get_anchor_offset();
-              let key_string = JSUtil.single_key_string(single_key);
-              let newNodeValue =
-                string_insert(nodeValue, anchorOffset, key_string);
-              switch (int_of_string_opt(newNodeValue)) {
-              | Some(new_n) =>
-                prevent_stop_inject(
-                  Update.Action.EditAction(
-                    Action.Construct(
-                      Action.SNumLit(new_n, OnText(anchorOffset + 1)),
-                    ),
-                  ),
-                )
-              | None =>
-                Var.is_valid(newNodeValue)
-                  ? prevent_stop_inject(
+        Node.div(
+          [
+            Attr.id("cell"),
+            Attr.create("contenteditable", "true"),
+            Attr.on("drop", _ => Event.Prevent_default),
+            Attr.on_focus(_ => inject(FocusCell)),
+            Attr.on_blur(_ => inject(BlurCell)),
+            Attr.on_keypress(evt =>
+              JSUtil.is_movement_key(evt)
+                ? Event.Many([]) : Event.Prevent_default
+            ),
+            Attr.on_keydown(evt => {
+              let prevent_stop_inject = a =>
+                Event.Many([
+                  Event.Prevent_default,
+                  Event.Stop_propagation,
+                  inject(a),
+                ]);
+              let ci = model.cursor_info;
+              switch (JSUtil.is_single_key(evt), KeyCombo.of_evt(evt)) {
+              | (None, None) => Event.Ignore
+              | (Some(single_key), _) =>
+                switch (ci.node) {
+                | Line(EmptyLine)
+                | Line(ExpLine(EmptyHole(_)))
+                | Exp(EmptyHole(_))
+                | Pat(EmptyHole(_)) =>
+                  let shape =
+                    switch (single_key) {
+                    | Number(n) => Action.SNumLit(n, OnText(num_digits(n)))
+                    | Letter(x) => Action.SVar(x, OnText(Var.length(x)))
+                    | Underscore => Action.SWild
+                    };
+                  prevent_stop_inject(
+                    Update.Action.EditAction(Construct(shape)),
+                  );
+                | Exp(NumLit(_, _))
+                | Exp(BoolLit(_, _))
+                | Exp(Var(_, _, _))
+                | Pat(Var(_, _, _))
+                | Pat(NumLit(_, _))
+                | Pat(BoolLit(_, _)) =>
+                  let nodeValue = JSUtil.force_get_anchor_node_value();
+                  let anchorOffset = JSUtil.get_anchor_offset();
+                  let key_string = JSUtil.single_key_string(single_key);
+                  let newNodeValue =
+                    string_insert(nodeValue, anchorOffset, key_string);
+                  switch (int_of_string_opt(newNodeValue)) {
+                  | Some(new_n) =>
+                    prevent_stop_inject(
                       Update.Action.EditAction(
                         Action.Construct(
-                          Action.SVar(
-                            newNodeValue,
-                            OnText(anchorOffset + 1),
-                          ),
+                          Action.SNumLit(new_n, OnText(anchorOffset + 1)),
                         ),
                       ),
                     )
-                  : prevent_stop_inject(
-                      Update.Action.InvalidVar(newNodeValue),
+                  | None =>
+                    Var.is_valid(newNodeValue)
+                      ? prevent_stop_inject(
+                          Update.Action.EditAction(
+                            Action.Construct(
+                              Action.SVar(
+                                newNodeValue,
+                                OnText(anchorOffset + 1),
+                              ),
+                            ),
+                          ),
+                        )
+                      : prevent_stop_inject(
+                          Update.Action.InvalidVar(newNodeValue),
+                        )
+                  };
+                | Line(_)
+                | Exp(_)
+                | Rule(_)
+                | Pat(_)
+                | Typ(_) => Event.Ignore
+                | TypOp(_)
+                | PatOp(_)
+                | ExpOp(_) => Event.Ignore /* TODO */
+                }
+              | (_, Some((Backspace | Delete) as kc)) =>
+                let (string_edit, update, cursor_escaped) =
+                  switch (kc) {
+                  | Backspace => (
+                      string_backspace,
+                      Update.Action.EditAction(Backspace),
+                      ci |> CursorInfo.is_before_node,
                     )
-              };
-            | Line(_)
-            | Exp(_)
-            | Rule(_)
-            | Pat(_)
-            | Typ(_) => Event.Ignore
-            | TypOp(_)
-            | PatOp(_)
-            | ExpOp(_) => Event.Ignore /* TODO */
-            }
-          | (_, Some((Backspace | Delete) as kc)) =>
-            let (string_edit, update, cursor_escaped) =
-              switch (kc) {
-              | Backspace => (
-                  string_backspace,
-                  Update.Action.EditAction(Backspace),
-                  ci |> CursorInfo.is_before_node,
-                )
-              | _ => (
-                  string_delete,
-                  Update.Action.EditAction(Delete),
-                  ci |> CursorInfo.is_after_node,
-                )
-              };
-            switch (cursor_escaped, ci.position) {
-            | (true, _)
-            | (_, OnDelim(_, _)) => prevent_stop_inject(update)
-            | (false, OnText(_)) =>
-              let nodeValue = JSUtil.force_get_anchor_node_value();
-              let anchorOffset = JSUtil.get_anchor_offset();
-              let ctrlKey = Js.to_bool(evt##.ctrlKey);
-              let (nodeValue', anchorOffset') =
-                string_edit(nodeValue, anchorOffset, ctrlKey);
-              switch (
-                String.equal(nodeValue', ""),
-                int_of_string_opt(nodeValue'),
-              ) {
-              | (true, _) => prevent_stop_inject(update)
-              | (false, Some(new_n)) =>
-                prevent_stop_inject(
-                  Update.Action.EditAction(
-                    Construct(SNumLit(new_n, OnText(anchorOffset'))),
-                  ),
-                )
-              | (false, None) =>
-                Var.is_valid(nodeValue')
-                  ? prevent_stop_inject(
+                  | _ => (
+                      string_delete,
+                      Update.Action.EditAction(Delete),
+                      ci |> CursorInfo.is_after_node,
+                    )
+                  };
+                switch (cursor_escaped, ci.position) {
+                | (true, _)
+                | (_, OnDelim(_, _)) => prevent_stop_inject(update)
+                | (false, OnText(_)) =>
+                  let nodeValue = JSUtil.force_get_anchor_node_value();
+                  let anchorOffset = JSUtil.get_anchor_offset();
+                  let ctrlKey = Js.to_bool(evt##.ctrlKey);
+                  let (nodeValue', anchorOffset') =
+                    string_edit(nodeValue, anchorOffset, ctrlKey);
+                  switch (
+                    String.equal(nodeValue', ""),
+                    int_of_string_opt(nodeValue'),
+                  ) {
+                  | (true, _) => prevent_stop_inject(update)
+                  | (false, Some(new_n)) =>
+                    prevent_stop_inject(
                       Update.Action.EditAction(
-                        Construct(SVar(nodeValue', OnText(anchorOffset'))),
+                        Construct(SNumLit(new_n, OnText(anchorOffset'))),
                       ),
                     )
-                  : prevent_stop_inject(Update.Action.InvalidVar(nodeValue'))
+                  | (false, None) =>
+                    Var.is_valid(nodeValue')
+                      ? prevent_stop_inject(
+                          Update.Action.EditAction(
+                            Construct(
+                              SVar(nodeValue', OnText(anchorOffset')),
+                            ),
+                          ),
+                        )
+                      : prevent_stop_inject(
+                          Update.Action.InvalidVar(nodeValue'),
+                        )
+                  };
+                };
+              | (_, Some(kc)) =>
+                prevent_stop_inject(
+                  Update.Action.EditAction(Hashtbl.find(kc_actions, kc)),
+                )
               };
-            };
-          | (_, Some(kc)) =>
-            prevent_stop_inject(
-              Update.Action.EditAction(Hashtbl.find(kc_actions, kc)),
-            )
-          };
-        }),
-      ],
-      [
-        model.is_cell_focused
-          ? Code.view_of_zblock(~inject, model |> Model.zblock)
-          : Code.view_of_block(~inject, model |> Model.block),
-        ...indicators(model),
+            }),
+          ],
+          [
+            model.is_cell_focused
+              ? Code.view_of_zblock(~inject, model |> Model.zblock)
+              : Code.view_of_block(~inject, model |> Model.block),
+            ...indicators(model),
+          ],
+        ),
       ],
     )
   );

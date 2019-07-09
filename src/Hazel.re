@@ -32,7 +32,7 @@ let create = (model, ~old_model, ~inject) => {
   Component.create(
     ~apply_action=Update.apply_action(model),
     ~on_display=
-      (setting_caret: State.t, ~schedule_action) => {
+      (setting_caret: State.t, ~schedule_action: Update.Action.t => unit) => {
         let path = model |> Model.path;
         if (model.is_cell_focused) {
           if (!Code.is_caret_consistent_with_path(path)) {
