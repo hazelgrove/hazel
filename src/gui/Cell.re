@@ -243,15 +243,20 @@ let view =
             | ExpOp(_) => Event.Ignore /* TODO */
             }
           | (_, Some((Backspace | Delete) as kc)) =>
-            let (string_edit, update) =
+            let (string_edit, update, cursor_escaped) =
               switch (kc) {
               | Backspace => (
                   string_backspace,
                   Update.Action.EditAction(Backspace),
+                  ci |> CursorInfo.is_before_node,
                 )
-              | _ => (string_delete, Update.Action.EditAction(Delete))
+              | _ => (
+                  string_delete,
+                  Update.Action.EditAction(Delete),
+                  ci |> CursorInfo.is_after_node,
+                )
               };
-            switch (ci |> CursorInfo.is_before_node, ci.position) {
+            switch (cursor_escaped, ci.position) {
             | (true, _)
             | (_, OnDelim(_, _)) => prevent_stop_inject(update)
             | (false, OnText(_)) =>
