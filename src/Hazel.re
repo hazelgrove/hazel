@@ -11,7 +11,7 @@ open ViewUtil;
 module Model = Model;
 module Action = Update.Action;
 module State = {
-  type t = unit;
+  type t = ref(bool);
 };
 
 [@warning "-27"]
@@ -21,7 +21,7 @@ let on_startup = (~schedule_action, _) => {
       Dom.Event.make("selectionchange"), Dom_html.document, _ =>
       schedule_action(Update.Action.SelectionChange)
     );
-  Async_kernel.Deferred.return();
+  Async_kernel.Deferred.return(ref(false));
 };
 
 [@warning "-27"]
@@ -31,15 +31,18 @@ let create = (model, ~old_model, ~inject) => {
   Component.create(
     ~apply_action=Update.apply_action(model),
     ~on_display=
-      (_, ~schedule_action) => {
+      (setting_caret: State.t, ~schedule_action) => {
         let path = model |> Model.path;
         if (model.is_cell_focused) {
           if (!Code.is_caret_consistent_with_path(path)) {
             switch (Code.caret_position_of_path(path)) {
             | None => raise(MalformedView(10))
-            | Some((node, offset)) => JSUtil.set_caret(node, offset)
+            | Some((node, offset)) =>
+              setting_caret := true;
+              JSUtil.set_caret(node, offset);
             };
           } else {
+            setting_caret := false;
             let cursor_elem = JSUtil.force_get_elem_by_cls("cursor");
             // cursor_elem is either SBox or SSeq
             if (cursor_elem |> Code.elem_is_SBox) {
