@@ -78,13 +78,20 @@ let create = (model, ~old_model, ~inject) => {
                   |> Code.parent_sline_elem_of_sdelim_elem
                   |> Cell.draw_current_vertical_shift_target;
 
+                  // There is always a parent of the current cursor node.
+                  // Even if the current cursor node forms the entire
+                  // visible expression, there is the block containing it.
+                  let (parent_steps, current_child_index) =
+                    steps |> split_last |> Opt.get(() => assert(false));
+                  let parent_elem = Code.force_get_snode_elem(parent_steps);
+
                   switch (
                     model.cursor_info
                     |> CursorInfo.delim_neighborhood
                     |> Opt.get(() => assert(false))
                   ) {
                   | LetDefInBody(Block(def_lines, _) as def, body) =>
-                    // cursor_elem is a let line
+                    // cursor_elem is a let line, parent_elem is a block
                     if (cursor_elem |> Code.elem_is_multi_line) {
                       // only draw guides for defining expression if
                       // multi-line i.e. on separate lines from `in`
@@ -95,31 +102,104 @@ let create = (model, ~old_model, ~inject) => {
                       |> filteri((i, _) => i < List.length(def_lines))
                       |> List.iter(Cell.draw_vertical_shift_target);
                     };
-                    let (parent_steps, line_no) =
-                      steps |> split_last |> Opt.get(() => assert(false));
-                    let parent_block_elem =
-                      Code.force_get_snode_elem(parent_steps);
-                    parent_block_elem
+                    parent_elem
                     |> sline_elems_of_snode_elem
-                    |> filteri((i, _) => i > line_no)
+                    |> filteri((i, _) => i > current_child_index)
                     |> List.iter(Cell.draw_vertical_shift_target);
                   | BetweenChildren(_, _) =>
                     // Only lines can be transferred between two complete terms.
                     // We don't currently have any delimiters in this position
-                    // such that it can move, but you could imagine being able
+                    // such that it can move, so we don't bother drawing the
+                    // neighborhood shift targets, but you could imagine being able
                     // to shift the `else` between the two branches of an if-else.
                     ()
-                  | LeftBorderInSeq(surround, child_seq)
-                  | RightBorderInSeq(child_seq, surround)
+                  | LeftBorderInSeq(surround, child_seq) =>
+                    // draw shift targets on terms in surrounding prefix
+                    current_child_index
+                    |> range
+                    |> List.iter(i =>
+                         Code.force_get_snode_elem(parent_steps @ [i])
+                         |> Cell.draw_horizontal_shift_target(~side=Before)
+                       );
+                    // draw shift targets on terms in prefix of child_seq
+                    switch (child_seq) {
+                    | (None, _) => ()
+                    | (Some(prefix), tm) =>
+                      prefix
+                      |> OperatorSeq.prefix_length
+                      |> range
+                      |> List.iter(i =>
+                           Code.force_get_snode_elem(steps @ [i])
+                           |> Code.draw_horizontal_shift_target(~side=Before)
+                         )
+                    };
+                  | RightBorderInSeq(child_seq, surround) =>
+                    // draw shift targets on terms in surrounding suffix
+                    surround
+                    |> OperatorSeq.surround_suffix_length
+                    |> range
+                    |> List.iter(i =>
+                         Code.force_get_snode_elem(
+                           steps
+                           @ [(surround |> OperatorSeq.prefix_length) + 1 + i],
+                         )
+                         |> Cell.draw_horizontal_shift_target(~side=Before)
+                       );
+                    // draw shift targets on terms in suffix of child_seq
+                    switch (child_seq) {
+                    | (_, None) => ()
+                    | (_, Some(prefix)) =>
+                      prefix
+                      |> OperatorSeq.prefix_length
+                      |> range
+                      |> List.iter(i =>
+                           Code.force_get_snode_elem(steps @ [i])
+                           |> Code.draw_horizontal_shift_target(~side=Before)
+                         )
+                    };
                   | LeftBorderInBlock(
-                      lines_before,
+                      _,
                       Expression(B(Block([], OpSeq(_, child_seq)))),
-                    )
+                    ) =>
+                    // draw shift targets on preceding lines in surrounding block
+                    parent_elem
+                    |> sline_elems_of_snode_elem
+                    |> filteri((i, _) => i < current_child_index)
+                    |> List.iter(Cell.draw_vertical_shift_target);
+                    // draw shift targets on terms in prefix of child_seq
+                    child_seq
+                    |> OperatorSeq.seq_length
+                    |> range
+                    |> filter(i => i > 0)
+                    |> List.iter(i =>
+                         Code.force_get_snode_elem(steps @ [i])
+                         |> Code.draw_horizontal_shift_target(~side=Before)
+                       );
                   | RightBorderInBlock(
                       Expression(B(Block([], OpSeq(_, child_seq)))),
                       lines_after,
-                    )
-                  | LeftBorderInBlock(lines_before, child)
+                    ) =>
+                    // draw shift targets on following lines in surrounding block
+                    parent_elem
+                    |> sline_elems_of_snode_elem
+                    |> filteri((i, _) => i > current_child_index)
+                    |> List.iter(Cell.draw_vertical_shift_target);
+                    // draw shift targets on terms in suffix of child_seq
+                    let n = child_seq |> OperatorSeq.seq_length;
+                    n
+                    |> range
+                    |> filter(i => i < n - 1)
+                    |> List.iter(i =>
+                         Code.force_get_snode_elem(steps @ [i])
+                         |> Code.draw_horizontal_shift_target(~side=After)
+                       );
+                  | LeftBorderInBlock(lines_before, child) =>
+                    // draw shift targets on preceding lines in surround block
+                    parent_elem
+                    |> sline_elems_of_snode_elem
+                    |> filteri((i, _) => i < current_child_index)
+                    |> List.iter(Cell.draw_vertical_shift_target)
+
                   | RightBorderInBlock(child, lines_after) => ()
                   };
                 };

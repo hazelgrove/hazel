@@ -152,6 +152,12 @@ let tms_of_surround =
     )
   };
 
+let prefix_tms_of_surround =
+  fun
+  | EmptyPrefix(_) => []
+  | EmptySuffix(prefix)
+  | BothNonEmpty(prefix, _) => tms_of_prefix(prefix);
+
 let ops_of_prefix = (prefix: opseq_prefix(_, 'op)): list('op) =>
   switch (prefix) {
   | ExpPrefix(_, op) => [op]
