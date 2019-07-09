@@ -652,7 +652,14 @@ and view_of_sline =
              | SNode(snode) =>
                view_of_snode(
                  ~inject,
-                 ~term_steps,
+                 ~term_steps=
+                   switch (snode) {
+                   | SSeq(steps, _, _, _, _) => steps
+                   | SBox(_, _, _, _, EmptyLine, _)
+                   | SBox(_, _, _, _, LetLine, _)
+                   | SBox(_, _, _, _, Rule, _) => term_steps
+                   | SBox(steps, _, _, _, _, _) => steps
+                   },
                  ~indent_level=NotIndentable,
                  snode,
                )
@@ -670,7 +677,14 @@ and view_of_sline =
                  ~inject,
                  ~indent_level=
                    i == 0 ? Indented(abs_indent + rel_indent) : NotIndentable,
-                 ~term_steps,
+                 ~term_steps=
+                   switch (snode) {
+                   | SSeq(steps, _, _, _, _) => steps
+                   | SBox(_, _, _, _, EmptyLine, _)
+                   | SBox(_, _, _, _, LetLine, _)
+                   | SBox(_, _, _, _, Rule, _) => term_steps
+                   | SBox(steps, _, _, _, _, _) => steps
+                   },
                  snode,
                )
              | SToken(stoken) =>
@@ -713,7 +727,14 @@ and view_of_sline =
                  // have already printed our indents and shouldn't print
                  // any additional indents
                  ~indent_level=NotIndentable,
-                 ~term_steps,
+                 ~term_steps=
+                   switch (snode) {
+                   | SSeq(steps, _, _, _, _) => steps
+                   | SBox(_, _, _, _, EmptyLine, _)
+                   | SBox(_, _, _, _, LetLine, _)
+                   | SBox(_, _, _, _, Rule, _) => term_steps
+                   | SBox(steps, _, _, _, _, _) => steps
+                   },
                  snode,
                )
              | SToken(stoken) =>

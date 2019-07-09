@@ -11,7 +11,8 @@ open ViewUtil;
 module Model = Model;
 module Action = Update.Action;
 module State = {
-  type t = ref(bool);
+  type setting_caret = ref(bool);
+  type t = setting_caret;
 };
 
 [@warning "-27"]
