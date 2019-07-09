@@ -133,7 +133,10 @@ let empty_rule = (u_gen: MetaVarGen.t): (rule, MetaVarGen.t) => {
   (rule, u_gen);
 };
 
-let prepend_line = (line, Block(lines, e)) => Block([line, ...lines], e);
+let prepend_leading_line = (line, Block(lines, e)) => Block([line, ...lines], e);
+
+let append_concluding_exp = (new_conclusion, Block(lines, conclusion)) =>
+  Block(lines @ [ExpLine(conclusion)], new_conclusion);
 
 /**
  * Bidelimited expressions are those that do not need to

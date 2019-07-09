@@ -25,7 +25,8 @@ let on_startup = (~schedule_action, _) => {
 };
 
 [@warning "-27"]
-let create = (model, ~old_model, ~inject) => {
+let create = (model: Incr.t(Model.t), ~old_model: Incr.t(Model.t),
+~inject: Update.Action.t => Vdom.Event.t) => {
   open Incr.Let_syntax;
   let%map model = model;
   Component.create(
