@@ -158,11 +158,25 @@ let indicators = (model: Model.t) => {
   };
 };
 
+let font_size = 20.0;
+let line_sep = 2.0;
+
 let view =
     (~inject: Update.Action.t => Vdom.Event.t, model: Model.t): Vdom.Node.t => {
   Vdom.(
     Node.div(
-      [Attr.id("pp_view"), Attr.classes(["ModelExp"])],
+      [
+        Attr.id("pp_view"),
+        Attr.classes(["ModelExp"]),
+        Attr.create(
+          "style",
+          "font-size: "
+          ++ (font_size |> JSUtil.px)
+          ++ "; line-height: "
+          ++ (font_size +. 2.0 *. line_sep |> JSUtil.px)
+          ++ ";",
+        ),
+      ],
       [
         Node.div(
           [

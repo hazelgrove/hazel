@@ -161,7 +161,7 @@ let force_get_elem_by_cls = cls =>
   | [elem, ..._] => elem
   };
 
-let px = (f: float): string => string_of_float(f) ++ "px";
+let px = (f: float): string => string_of_float(f) ++ "0px";
 
 type rect = {
   top: float,
