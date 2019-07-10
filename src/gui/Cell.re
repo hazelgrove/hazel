@@ -163,33 +163,74 @@ let font_size = 20.0;
 let line_height = 1.5;
 let indicator_padding = font_size *. (line_height -. 1.0) /. 2.0;
 
-let place_box_node_indicator_over_snode_elem = elem => {
+let indent_of_snode_elem = elem =>
+  switch (elem |> JSUtil.get_attr("indent_level")) {
+  | None => 0
+  | Some(ssexp) =>
+    switch (ssexp |> Sexplib.Sexp.of_string |> Code.indent_level_of_sexp) {
+    | NotIndentable => 0
+    | Indented(m) => m
+    | OpPrefix(m, n) => m + n
+    }
+  };
+
+let place_box_node_indicator_over_snode_elem = (~child_indices, elem) => {
   let rect = elem |> JSUtil.get_bounding_rect;
+  let indent = elem |> indent_of_snode_elem;
   JSUtil.force_get_elem_by_id(box_node_indicator_id)
-  |> JSUtil.place_over_rect({
-       top: rect.top -. indicator_padding,
-       right: rect.right +. indicator_padding,
-       bottom:
-         elem |> Code.elem_is_on_last_line
-           ? rect.bottom +. indicator_padding
-           : rect.bottom -. indicator_padding,
-       left: rect.left -. indicator_padding,
-     });
+  |> JSUtil.place_over_rect(
+       ~indent,
+       {
+         top: rect.top -. indicator_padding,
+         right: rect.right +. indicator_padding,
+         bottom:
+           elem |> Code.elem_is_on_last_line
+             ? rect.bottom +. indicator_padding
+             : rect.bottom -. indicator_padding,
+         left: rect.left -. indicator_padding,
+       },
+     );
+  switch (elem |> Code.child_elems_of_snode_elem) {
+  | None => assert(false)
+  | Some(child_elems) =>
+    zip(child_indices, child_elems)
+    |> List.iter(((i, child_elem)) => {
+         let child_rect = child_elem |> JSUtil.get_bounding_rect;
+         if (elem
+             |> Code.elem_is_multi_line
+             && child_elem
+             |> Code.snode_elem_occupies_full_sline) {
+           let indent = child_elem |> Code.elem_is_multi_line ? indent : 0;
+           JSUtil.force_get_elem_by_id(child_indicator_id(i))
+           |> JSUtil.place_over_rect(
+                ~indent,
+                {...child_rect, right: rect.right},
+              );
+         } else {
+           JSUtil.force_get_elem_by_id(child_indicator_id(i))
+           |> JSUtil.place_over_rect(child_rect);
+         };
+       })
+  };
 };
 
 let place_box_term_indicator = steps => {
   let term_elem = Code.force_get_snode_elem(steps);
   let rect = term_elem |> JSUtil.get_bounding_rect;
+  let indent = term_elem |> indent_of_snode_elem;
   JSUtil.force_get_elem_by_id(box_tm_indicator_id)
-  |> JSUtil.place_over_rect({
-       top: rect.top -. indicator_padding,
-       right: rect.right +. indicator_padding,
-       bottom:
-         term_elem |> Code.elem_is_on_last_line
-           ? rect.bottom +. indicator_padding
-           : rect.bottom -. indicator_padding,
-       left: rect.left -. indicator_padding,
-     });
+  |> JSUtil.place_over_rect(
+       ~indent,
+       {
+         top: rect.top -. indicator_padding,
+         right: rect.right +. indicator_padding,
+         bottom:
+           term_elem |> Code.elem_is_on_last_line
+             ? rect.bottom +. indicator_padding
+             : rect.bottom -. indicator_padding,
+         left: rect.left -. indicator_padding,
+       },
+     );
 };
 
 let place_box_term_indicator_over_single_line_seq = (operand1, operand2) => {

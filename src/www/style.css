@@ -760,6 +760,8 @@ button:disabled {
   z-index: var(--term-indicator-z-index);
   border-top: 1px solid var(--term-indicator-color);
   border-bottom: 1px solid var(--term-indicator-color);
+  font-family: "Fira Mono", monospace;
+  font-size: 20px;
 }
 .term-indicator::before {
   display: block;
@@ -793,11 +795,15 @@ button:disabled {
   position: fixed;
   z-index: var(--node-indicator-z-index);
   background-color: var(--node-indicator-color);
+  font-family: "Fira Mono", monospace;
+  font-size: 20px;
 }
 .child-indicator {
   position: fixed;
   z-index: var(--child-indicator-z-index);
   background-color: var(--child-indicator-color);
+  font-family: "Fira Mono", monospace;
+  font-size: 20px;
 }
 
 .term-indicator.inactive, .node-indicator.inactive, .child-indicator.inactive {

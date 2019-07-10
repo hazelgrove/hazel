@@ -47,25 +47,18 @@ let create = (model, ~old_model, ~inject) => {
             let cursor_elem = JSUtil.force_get_elem_by_cls("cursor");
             // cursor_elem is either SBox or SSeq
             if (cursor_elem |> Code.elem_is_SBox) {
-              switch (cursor_elem |> Code.child_elems_of_snode_elem) {
+              Cell.place_box_node_indicator_over_snode_elem(
+                ~child_indices=
+                  model.cursor_info |> CursorInfo.child_indices_of_current_node,
+                cursor_elem,
+              );
+              switch (cursor_elem |> JSUtil.get_attr("term")) {
               | None => assert(false)
-              | Some(child_elems) =>
-                Cell.place_box_node_indicator_over_snode_elem(cursor_elem);
-                let child_indices =
-                  model.cursor_info |> CursorInfo.child_indices_of_current_node;
-                zip(child_indices, child_elems)
-                |> List.iter(((i, child_elem)) =>
-                     JSUtil.force_get_elem_by_id(child_indicator_id(i))
-                     |> JSUtil.place_over_elem(child_elem)
-                   );
-                switch (cursor_elem |> JSUtil.get_attr("term")) {
-                | None => assert(false)
-                | Some(ssexp) =>
-                  ssexp
-                  |> Sexplib.Sexp.of_string
-                  |> Path.steps_of_sexp
-                  |> Cell.place_box_term_indicator
-                };
+              | Some(ssexp) =>
+                ssexp
+                |> Sexplib.Sexp.of_string
+                |> Path.steps_of_sexp
+                |> Cell.place_box_term_indicator
               };
             } else {
               switch (model.cursor_info.position) {

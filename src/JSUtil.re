@@ -180,11 +180,27 @@ let get_bounding_rect = elem => {
   };
 };
 
-let place_over_rect = (rect, elem) => {
+let place_over_rect = (~indent=0, rect, elem) => {
   elem##.style##.top := Js.string(rect.top |> px);
   elem##.style##.height := Js.string(rect.bottom -. rect.top |> px);
-  elem##.style##.left := Js.string(rect.left |> px);
-  elem##.style##.width := Js.string(rect.right -. rect.left |> px);
+  elem##.style##.left :=
+    Js.string(
+      "calc("
+      ++ (rect.left |> px)
+      ++ " + "
+      ++ string_of_int(indent)
+      ++ "ch"
+      ++ ")",
+    );
+  elem##.style##.width :=
+    Js.string(
+      "calc("
+      ++ (rect.right -. rect.left |> px)
+      ++ " - "
+      ++ string_of_int(indent)
+      ++ "ch"
+      ++ ")",
+    );
 };
 
 let place_over_elem =

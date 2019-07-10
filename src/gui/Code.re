@@ -346,6 +346,8 @@ let err_status_clss =
 
 let inline_div_cls = "inline-div";
 
+let indentation_cls = "indentation";
+
 let rec child_indices_of_snode =
   fun
   | SSeq(_steps, _cursor, _is_multi_line, _shead, stail) =>
@@ -435,6 +437,28 @@ let elem_is_on_last_line = elem => {
           )
      )
   |> Opt.test;
+};
+
+let snode_elem_occupies_full_sline = elem => {
+  let steps =
+    elem##.id
+    |> Js.to_string
+    |> steps_of_node_id
+    |> Opt.get(() => assert(false));
+  let node = (elem: Js.t(Dom_html.element) :> Js.t(Dom.node));
+  let parent_node = Js.Opt.get(node##.parentNode, () => assert(false));
+  parent_node##.childNodes
+  |> Dom.list_of_nodeList
+  |> List.for_all(sibling =>
+       switch (sibling |> Dom_html.CoerceTo.element |> Js.Opt.to_option) {
+       | None => true
+       | Some(sibling_elem) =>
+         switch (sibling_elem##.id |> Js.to_string |> steps_of_node_id) {
+         | None => sibling_elem |> JSUtil.elem_has_cls(indentation_cls)
+         | Some(sibling_steps) => steps == sibling_steps
+         }
+       }
+     );
 };
 
 let snode_attrs =
@@ -555,13 +579,14 @@ let vindentation = (~path=?, ~steps=?, m) =>
         }
       )
       @ [
-        Attr.classes(["indentation"]),
+        Attr.classes([indentation_cls]),
         Attr.create("contenteditable", "false"),
       ],
       [Node.text(" " |> replicate(m) |> String.concat(""))],
     )
   );
 
+[@deriving sexp]
 type indent_level =
   | NotIndentable
   // Indented(k) means indented by k spaces
@@ -695,7 +720,13 @@ let rec view_of_snode =
            )
          );
     Vdom.Node.div(
-      attrs,
+      attrs
+      @ [
+        Vdom.Attr.create(
+          "indent_level",
+          indent_level |> sexp_of_indent_level |> Sexplib.Sexp.to_string,
+        ),
+      ],
       is_multi_line ? vlines |> join(Vdom.Node.br([])) : vlines,
     );
   };
