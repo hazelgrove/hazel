@@ -85,10 +85,7 @@ type node =
   | Pat(UHPat.t)
   | Exp(UHExp.t)
   | Line(UHExp.line)
-  | Rule(UHExp.rule)
-  | TypOp(UHTyp.op)
-  | PatOp(UHPat.op)
-  | ExpOp(UHExp.op);
+  | Rule(UHExp.rule);
 
 [@deriving sexp]
 type term =
@@ -125,13 +122,6 @@ let is_before_node = ci =>
   | Rule(rule) => ZExp.is_before_rule(CursorR(ci.position, rule))
   | Pat(p) => ZPat.is_before(CursorP(ci.position, p))
   | Typ(ty) => ZTyp.is_before(CursorT(ci.position, ty))
-  | ExpOp(_)
-  | PatOp(_)
-  | TypOp(_) =>
-    switch (ci.position) {
-    | OnText(_) => false // invalid cursor position
-    | OnDelim(_, side) => side == Before
-    }
   };
 
 let is_after_node = ci =>
@@ -141,13 +131,6 @@ let is_after_node = ci =>
   | Rule(rule) => ZExp.is_after_rule(CursorR(ci.position, rule))
   | Pat(p) => ZPat.is_after(CursorP(ci.position, p))
   | Typ(ty) => ZTyp.is_after(CursorT(ci.position, ty))
-  | ExpOp(_)
-  | PatOp(_)
-  | TypOp(_) =>
-    switch (ci.position) {
-    | OnText(_) => false // invalid cursor position
-    | OnDelim(_, side) => side == After
-    }
   };
 
 let child_indices_of_current_node = ci =>
@@ -157,9 +140,6 @@ let child_indices_of_current_node = ci =>
   | Rule(rule) => UHExp.child_indices_rule(rule)
   | Pat(p) => UHPat.child_indices(p)
   | Typ(ty) => UHTyp.child_indices(ty)
-  | ExpOp(_)
-  | PatOp(_)
-  | TypOp(_) => []
   };
 
 let rec cursor_info_typ = (ctx: Contexts.t, zty: ZTyp.t): option(t) =>
@@ -540,13 +520,13 @@ let rec _ana_cursor_found_skel_exp =
         ) =>
   switch (skel) {
   | Placeholder(_) => None // should never happen
-  | BinOp(_, op, skel1, skel2) =>
+  | BinOp(_, _, skel1, skel2) =>
     let n = skel2 |> Skel.leftmost_tm_index;
     n == k
       ? Some(
           mk_cursor_info(
             OnOp,
-            ExpOp(op),
+            Exp(OpSeq(skel, seq)),
             Expression(E(OpSeq(skel, seq))),
             cursor,
             ctx,
@@ -641,20 +621,16 @@ and syn_cursor_info = (ctx: Contexts.t, ze: ZExp.t): option(t) =>
   | CursorE(cursor, Var(_, InVHole(Free, _), _) as e) =>
     Some(mk_cursor_info(SynFree, Exp(e), Expression(E(e)), cursor, ctx))
   | CursorE(OnText(_), OpSeq(_, _)) => None // invalid cursor position
-  | CursorE(OnDelim(k, _) as cursor, OpSeq(skel, seq)) =>
+  | CursorE(OnDelim(k, _) as cursor, OpSeq(skel, seq) as e) =>
     let skel_k = skel |> Skel.subskel_rooted_at_op(k);
     let e_k = UHExp.OpSeq(skel_k, seq);
-    switch (
-      Statics.syn_exp(ctx, e_k),
-      seq |> OperatorSeq.op_before_nth_tm(k),
-    ) {
-    | (None, _)
-    | (_, None) => None
-    | (Some(ty), Some(op)) =>
+    switch (Statics.syn_exp(ctx, e_k)) {
+    | None => None
+    | Some(ty) =>
       Some(
         mk_cursor_info(
           Synthesized(ty),
-          ExpOp(op),
+          Exp(e),
           Expression(E(e_k)),
           cursor,
           ctx,

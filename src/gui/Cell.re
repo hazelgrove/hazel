@@ -82,7 +82,7 @@ let multi_line_seq_indicators = (is_active, n) =>
           ),
   ];
 
-let single_line_seq_indicators = is_active =>
+let single_line_seq_indicators = is_active => {
   Vdom.[
     Node.div(
       [
@@ -99,6 +99,7 @@ let single_line_seq_indicators = is_active =>
       [],
     ),
   ];
+};
 
 let indicators = (model: Model.t) => {
   let is_active =
@@ -285,9 +286,6 @@ let view =
                 | Rule(_)
                 | Pat(_)
                 | Typ(_) => Event.Ignore
-                | TypOp(_)
-                | PatOp(_)
-                | ExpOp(_) => Event.Ignore /* TODO */
                 }
               | (_, Some((Backspace | Delete) as kc)) =>
                 let (string_edit, update, cursor_escaped) =

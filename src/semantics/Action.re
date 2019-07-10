@@ -5625,9 +5625,6 @@ let can_perform =
     | Rule(_) => false
     | Pat(_) => false
     | Typ(_) => false
-    | TypOp(_)
-    | PatOp(_)
-    | ExpOp(_) => false
     }
   | Construct(SInj(_)) =>
     switch (ci.node) {
@@ -5636,9 +5633,6 @@ let can_perform =
     | Rule(_) => false
     | Pat(_) => true
     | Typ(_) => false
-    | TypOp(_)
-    | PatOp(_)
-    | ExpOp(_) => false
     }
   | Construct(SListNil) =>
     switch (ci.node) {
@@ -5651,9 +5645,6 @@ let can_perform =
     | Pat(_) => false
     | Typ(_) => false
     | Rule(_) => false
-    | TypOp(_)
-    | PatOp(_)
-    | ExpOp(_) => false
     }
   | Construct(SOp(SArrow))
   | Construct(SOp(SVBar))
@@ -5664,9 +5655,6 @@ let can_perform =
     | Exp(_)
     | Rule(_)
     | Pat(_) => false
-    | TypOp(_)
-    | PatOp(_)
-    | ExpOp(_) => false
     }
   | Construct(SAsc)
   | Construct(SApPalette(_))
@@ -5716,9 +5704,6 @@ let can_enter_varchar = (ci: CursorInfo.t): bool =>
   | Rule(_)
   | Pat(_)
   | Typ(_) => false
-  | TypOp(_)
-  | PatOp(_)
-  | ExpOp(_) => false
   };
 
 let can_enter_numeral = (ci: CursorInfo.t): bool =>
@@ -5734,9 +5719,6 @@ let can_enter_numeral = (ci: CursorInfo.t): bool =>
   | Rule(_)
   | Pat(_)
   | Typ(_) => false
-  | TypOp(_)
-  | PatOp(_)
-  | ExpOp(_) => false
   };
 
 let can_construct_palette = (ci: CursorInfo.t): bool =>
