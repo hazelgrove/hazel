@@ -78,6 +78,12 @@ let rec _findmapi = (i, xs, f) =>
 
 let findmapi = (xs, f) => _findmapi(0, xs, f);
 
+let filteri = (pred, xs) =>
+  xs
+  |> List.mapi((i, x) => (i, x))
+  |> List.filter(((i, x)) => pred(i, x))
+  |> List.map(((_, x)) => x);
+
 let any = (xs, f) => opt_to_bool(List.find_opt(f, xs));
 
 let contains = (xs: list('a), y: 'a): bool => List.exists(x => x == y, xs);
