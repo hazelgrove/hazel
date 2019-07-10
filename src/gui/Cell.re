@@ -259,8 +259,20 @@ let place_box_term_indicator = cursor_elem => {
 };
 
 let place_box_term_indicator_over_single_line_seq = (operand1, operand2) => {
-  let rect1 = operand1 |> JSUtil.get_bounding_rect;
-  let rect2 = operand2 |> JSUtil.get_bounding_rect;
+  let cell_rect =
+    JSUtil.force_get_elem_by_id("cell") |> JSUtil.get_bounding_rect;
+  let rect1 =
+    operand1
+    |> JSUtil.get_bounding_rect(
+         ~top_origin=cell_rect.top,
+         ~left_origin=cell_rect.left,
+       );
+  let rect2 =
+    operand2
+    |> JSUtil.get_bounding_rect(
+         ~top_origin=cell_rect.top,
+         ~left_origin=cell_rect.left,
+       );
   JSUtil.force_get_elem_by_id(box_tm_indicator_id)
   |> JSUtil.place_over_rect({
        top: rect1.top -. indicator_padding,
@@ -274,7 +286,14 @@ let place_box_term_indicator_over_single_line_seq = (operand1, operand2) => {
 };
 
 let place_op_node_indicator_over_op_elem = op_elem => {
-  let rect = op_elem |> JSUtil.get_bounding_rect;
+  let cell_rect =
+    JSUtil.force_get_elem_by_id("cell") |> JSUtil.get_bounding_rect;
+  let rect =
+    op_elem
+    |> JSUtil.get_bounding_rect(
+         ~top_origin=cell_rect.top,
+         ~left_origin=cell_rect.left,
+       );
   JSUtil.force_get_elem_by_id(op_node_indicator_id)
   |> JSUtil.place_over_rect({
        top: rect.top -. indicator_padding,
