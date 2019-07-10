@@ -172,7 +172,7 @@ let indicators = (model: Model.t) => {
 
 let font_size = 20.0;
 let line_height = 1.5;
-let indicator_padding = font_size *. (line_height -. 1.0) /. 2.0;
+let indicator_padding = font_size *. (line_height -. 1.0) /. 2.0 -. 1.5;
 
 let indent_of_snode_elem = elem =>
   switch (elem |> JSUtil.get_attr("indent_level")) {
@@ -320,30 +320,44 @@ let place_op_node_indicator_over_op_elem = op_elem => {
 let place_multi_line_seq_term_indicator = (steps, (a, b), opseq_elem) => {
   let cell_rect =
     JSUtil.force_get_elem_by_id("cell") |> JSUtil.get_bounding_rect;
+  let a_elem = steps @ [a] |> node_id |> JSUtil.force_get_elem_by_id;
+  let a_rect =
+    a_elem
+    |> JSUtil.get_bounding_rect(
+         ~top_origin=cell_rect.top,
+         ~left_origin=cell_rect.left,
+       );
   JSUtil.force_get_elem_by_id(seq_tm_indicator_id(a))
-  |> JSUtil.place_over_rect(
-       steps
-       @ [a]
-       |> node_id
-       |> JSUtil.force_get_elem_by_id
-       |> JSUtil.get_bounding_rect(
-            ~top_origin=cell_rect.top,
-            ~left_origin=cell_rect.left,
-          ),
-     );
+  |> JSUtil.place_over_rect({
+       top: a_rect.top -. indicator_padding,
+       left: a_rect.left -. indicator_padding,
+       bottom:
+         a_elem |> Code.elem_is_on_last_line
+           ? a_rect.bottom +. indicator_padding
+           : a_rect.bottom -. indicator_padding,
+       right: a_rect.right +. indicator_padding,
+     });
   let sline_elems = Code.sline_elems_of_snode_elem(opseq_elem);
   range(~lo=a + 1, b + 1)
   |> List.map(List.nth(sline_elems))
-  |> List.iteri((i, sline_elem) =>
+  |> List.iteri((i, sline_elem) => {
+       let rect =
+         sline_elem
+         |> JSUtil.get_bounding_rect(
+              ~top_origin=cell_rect.top,
+              ~left_origin=cell_rect.left,
+            );
        JSUtil.force_get_elem_by_id(seq_tm_indicator_id(a + 1 + i))
-       |> JSUtil.place_over_rect(
-            sline_elem
-            |> JSUtil.get_bounding_rect(
-                 ~top_origin=cell_rect.top,
-                 ~left_origin=cell_rect.left,
-               ),
-          )
-     );
+       |> JSUtil.place_over_rect({
+            top: rect.top -. indicator_padding,
+            left: rect.left -. indicator_padding,
+            bottom:
+              sline_elem |> Code.elem_is_on_last_line
+                ? rect.bottom +. indicator_padding
+                : rect.bottom -. indicator_padding,
+            right: rect.right +. indicator_padding,
+          });
+     });
 };
 
 let view =
