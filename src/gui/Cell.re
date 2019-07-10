@@ -160,18 +160,19 @@ let indicators = (model: Model.t) => {
 
 let font_size = 20.0;
 let line_height = 1.5;
+let indicator_padding = font_size *. (line_height -. 1.0) /. 2.0;
 
 let place_box_node_indicator_over_snode_elem = elem => {
   let rect = elem |> JSUtil.get_bounding_rect;
   JSUtil.force_get_elem_by_id(box_node_indicator_id)
   |> JSUtil.place_over_rect({
-       top: rect.top -. font_size *. (line_height -. 1.0) /. 2.0,
-       right: rect.right,
+       top: rect.top -. indicator_padding,
+       right: rect.right +. indicator_padding,
        bottom:
          elem |> Code.elem_is_on_last_line
-           ? rect.bottom +. font_size *. (line_height -. 1.0) /. 2.0
-           : rect.bottom -. font_size *. (line_height -. 1.0) /. 2.0,
-       left: rect.left,
+           ? rect.bottom +. indicator_padding
+           : rect.bottom -. indicator_padding,
+       left: rect.left -. indicator_padding,
      });
 };
 
@@ -180,13 +181,13 @@ let place_box_term_indicator = steps => {
   let rect = term_elem |> JSUtil.get_bounding_rect;
   JSUtil.force_get_elem_by_id(box_tm_indicator_id)
   |> JSUtil.place_over_rect({
-       top: rect.top -. font_size *. (line_height -. 1.0) /. 2.0,
-       right: rect.right,
+       top: rect.top -. indicator_padding,
+       right: rect.right +. indicator_padding,
        bottom:
          term_elem |> Code.elem_is_on_last_line
-           ? rect.bottom +. font_size *. (line_height -. 1.0) /. 2.0
-           : rect.bottom -. font_size *. (line_height -. 1.0) /. 2.0,
-       left: rect.left,
+           ? rect.bottom +. indicator_padding
+           : rect.bottom -. indicator_padding,
+       left: rect.left -. indicator_padding,
      });
 };
 
