@@ -398,12 +398,16 @@ let view =
               let ci = model.cursor_info;
               switch (JSUtil.is_single_key(evt), KeyCombo.of_evt(evt)) {
               | (None, None) => Event.Ignore
-              | (Some(single_key), _) =>
-                switch (ci.node) {
-                | Line(EmptyLine)
-                | Line(ExpLine(EmptyHole(_)))
-                | Exp(EmptyHole(_))
-                | Pat(EmptyHole(_)) =>
+              | (Some(single_key), opt_kc) =>
+                switch (ci.node, opt_kc) {
+                | (Typ(_), Some((Key_B | Key_L | Key_N) as kc)) =>
+                  prevent_stop_inject(
+                    Update.Action.EditAction(Hashtbl.find(kc_actions, kc)),
+                  )
+                | (Line(EmptyLine), _)
+                | (Line(ExpLine(EmptyHole(_))), _)
+                | (Exp(EmptyHole(_)), _)
+                | (Pat(EmptyHole(_)), _) =>
                   let shape =
                     switch (single_key) {
                     | Number(n) => Action.SNumLit(n, OnText(num_digits(n)))
@@ -413,12 +417,12 @@ let view =
                   prevent_stop_inject(
                     Update.Action.EditAction(Construct(shape)),
                   );
-                | Exp(NumLit(_, _))
-                | Exp(BoolLit(_, _))
-                | Exp(Var(_, _, _))
-                | Pat(Var(_, _, _))
-                | Pat(NumLit(_, _))
-                | Pat(BoolLit(_, _)) =>
+                | (Exp(NumLit(_, _)), _)
+                | (Exp(BoolLit(_, _)), _)
+                | (Exp(Var(_, _, _)), _)
+                | (Pat(Var(_, _, _)), _)
+                | (Pat(NumLit(_, _)), _)
+                | (Pat(BoolLit(_, _)), _) =>
                   let nodeValue = JSUtil.force_get_anchor_node_value();
                   let anchorOffset = JSUtil.get_anchor_offset();
                   let key_string = JSUtil.single_key_string(single_key);
@@ -449,11 +453,11 @@ let view =
                           Update.Action.InvalidVar(newNodeValue),
                         )
                   };
-                | Line(_)
-                | Exp(_)
-                | Rule(_)
-                | Pat(_)
-                | Typ(_) => Event.Ignore
+                | (Line(_), _)
+                | (Exp(_), _)
+                | (Rule(_), _)
+                | (Pat(_), _)
+                | (Typ(_), _) => Event.Ignore
                 }
               | (_, Some((Backspace | Delete) as kc)) =>
                 let (string_edit, update, cursor_escaped) =
