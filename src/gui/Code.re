@@ -137,7 +137,7 @@ let mk_SBox =
 
 let mk_SLine =
     (
-      ~rel_indent=0,
+      ~rel_indent=0, // relative indentation by tabbing
       ~steps_of_first_sword: option(Path.steps)=?,
       swords: list(sword),
     )
@@ -475,47 +475,46 @@ let var_err_status_clss =
       "Keyword",
     ];
 
-let vindent_path = path =>
+let vindentation = (~path=?, ~steps=?, m) =>
   Vdom.(
     Node.span(
-      [
-        Attr.classes(["indent"]),
+      (
+        switch (path, steps) {
+        | (None, None) => []
+        | (Some(path), _) => [
+            Attr.create("goto-path", Sexp.to_string(Path.sexp_of_t(path))),
+          ]
+        | (_, Some(steps)) => [
+            Attr.create(
+              "goto-steps",
+              Sexp.to_string(Path.sexp_of_steps(steps)),
+            ),
+          ]
+        }
+      )
+      @ [
+        Attr.classes(["indentation"]),
         Attr.create("contenteditable", "false"),
-        Attr.create("goto-path", Sexp.to_string(Path.sexp_of_t(path))),
       ],
-      [Node.text("  ")],
-    )
-  );
-let vindent_steps = steps =>
-  Vdom.(
-    Node.span(
-      [
-        Attr.classes(["indent"]),
-        Attr.create("contenteditable", "false"),
-        Attr.create(
-          "goto-steps",
-          Sexp.to_string(Path.sexp_of_steps(steps)),
-        ),
-      ],
-      [Node.text("  ")],
-    )
-  );
-let vindent =
-  Vdom.(
-    Node.span(
-      [Attr.classes(["indent"]), Attr.create("contenteditable", "false")],
-      [Node.text("  ")],
+      [Node.text(" " |> replicate(m) |> String.concat(""))],
     )
   );
 
 type indent_level =
   | NotIndentable
+  // Indented(k) means indented by k spaces
   | Indented(int);
 
-let increment =
+let tab_length = 2;
+let tab =
   fun
   | NotIndentable => NotIndentable
-  | Indented(m) => Indented(m + 1);
+  | Indented(m) => Indented(m + tab_length);
+
+let increment = n =>
+  fun
+  | NotIndentable => NotIndentable
+  | Indented(m) => Indented(m + n);
 
 let rec view_of_snode =
         (
@@ -547,7 +546,7 @@ let rec view_of_snode =
                 ~term_steps,
                 ~is_node_multi_line=is_multi_line,
                 ~line_no=i + 1,
-                ~node_indent_level=indent_level,
+                ~node_indent_level=indent_level |> tab,
                 mk_SLine(
                   ~steps_of_first_sword=steps_of_snode(arg),
                   [SToken(SSpace), SNode(arg)],
@@ -559,6 +558,16 @@ let rec view_of_snode =
       stail
       |> List.fold_left(
            ((num_lines_so_far, vlines_so_far), (op_stokens, spaced_stms)) => {
+             let length_of_op_stokens =
+               op_stokens
+               |> List.fold_left(
+                    len =>
+                      fun
+                      | SSpace => len + 1
+                      | SOp(_, _, s) => len + String.length(s)
+                      | _ => 0,
+                    0,
+                  );
              let (fst, args) = spaced_stms;
              let new_vlines = [
                view_of_sline(
@@ -567,7 +576,8 @@ let rec view_of_snode =
                  ~term_steps,
                  ~is_node_multi_line=is_multi_line,
                  ~line_no=num_lines_so_far,
-                 ~node_indent_level=indent_level,
+                 ~node_indent_level=
+                   indent_level |> increment(length_of_op_stokens),
                  mk_SLine(
                    ~steps_of_first_sword=steps_of_snode(fst),
                    (op_stokens |> List.map(st => SToken(st))) @ [SNode(fst)],
@@ -582,7 +592,9 @@ let rec view_of_snode =
                          ~is_node_multi_line=is_multi_line,
                          ~line_no=num_lines_so_far + 1 + i,
                          ~node_indent_level=
-                           indent_level |> increment |> increment,
+                           indent_level
+                           |> increment(length_of_op_stokens)
+                           |> tab,
                          mk_SLine(
                            ~steps_of_first_sword=steps_of_snode(arg),
                            [SToken(SSpace), SNode(arg)],
@@ -682,7 +694,9 @@ and view_of_sline =
                view_of_stoken(~inject, ~node_steps, ~node_cursor, stoken),
            ),
       )
-    | (Indented(abs_indent), true, true, _) => (
+    | (Indented(abs_indent), true, true, _) =>
+      // contains_multi_line, defer on printing indentation
+      (
         [],
         swords
         |> List.mapi((i, sword) =>
@@ -691,7 +705,9 @@ and view_of_sline =
                view_of_snode(
                  ~inject,
                  ~indent_level=
-                   i == 0 ? Indented(abs_indent + rel_indent) : NotIndentable,
+                   i == 0
+                     ? Indented(abs_indent + tab_length * rel_indent)
+                     : NotIndentable,
                  ~term_steps=
                    switch (snode) {
                    | SSeq(steps, _, _, _, _) => steps
@@ -709,28 +725,31 @@ and view_of_sline =
       )
     | (_, _, _, []) => ([], [])
     | (Indented(abs_indent), true, false, [sword, ..._]) => (
-        range(abs_indent + rel_indent)
-        |> List.map(_ =>
-             switch (steps_of_first_sword) {
-             | None => vindent
-             | Some(steps) =>
-               switch (sword) {
-               | SNode(_) => vindent_steps(steps)
-               | SToken(stoken) =>
-                 switch (stoken) {
-                 | SEmptyHole(_)
-                 | SText(_, _)
-                 | SEmptyLine => vindent_steps(steps)
-                 | SDelim(k, _)
-                 | SOp(k, _, _) => vindent_path((steps, OnDelim(k, Before)))
-                 | SCastArrow
-                 | SFailedCastArrow
-                 | SSpace
-                 | SReadOnly(_) => vindent
-                 }
-               }
-             }
-           ),
+        {
+          let m = abs_indent + tab_length * rel_indent;
+          [
+            switch (steps_of_first_sword) {
+            | None => vindentation(m)
+            | Some(steps) =>
+              switch (sword) {
+              | SNode(_) => vindentation(~steps, m)
+              | SToken(stoken) =>
+                switch (stoken) {
+                | SEmptyHole(_)
+                | SText(_, _)
+                | SEmptyLine => vindentation(~steps, m)
+                | SDelim(k, _)
+                | SOp(k, _, _) =>
+                  vindentation(~path=(steps, OnDelim(k, Before)), m)
+                | SCastArrow
+                | SFailedCastArrow
+                | SSpace
+                | SReadOnly(_) => vindentation(m)
+                }
+              }
+            },
+          ];
+        },
         swords
         |> List.map(sword =>
              switch (sword) {

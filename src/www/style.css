@@ -751,7 +751,7 @@ button:disabled {
   font-family: "Fira Mono", monospace;
   width: max-content;
 }
-.indent, .SSpaceOp {
+.indentation, .SSpaceOp {
   white-space: pre;
 }
 
