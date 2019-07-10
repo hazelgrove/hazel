@@ -1,5 +1,6 @@
 module Regexp = Js_of_ocaml.Regexp;
 open SemanticsCommon;
+open GeneralUtil;
 
 exception MalformedView(int);
 
@@ -19,6 +20,20 @@ let delim_id = (steps, delim_index) =>
   ++ Sexplib.Sexp.to_string(sexp_of_delim_path((steps, delim_index)));
 let op_id = (steps, op_index) =>
   "op__" ++ Sexplib.Sexp.to_string(sexp_of_op_path((steps, op_index)));
+
+// necessary to pre-process our ids before using them to
+// construct CSS selectors because they contain parens characters
+// and these are special in selector syntax
+let escape_parens = s =>
+  range(s |> String.length)
+  |> List.map(i =>
+       switch (s.[i]) {
+       | '(' => "\\("
+       | ')' => "\\)"
+       | c => c |> String.make(1)
+       }
+     )
+  |> List.fold_left((acc, s) => acc ++ s, "");
 
 let box_node_indicator_id = "box_node_indicator";
 let child_indicator_id = i => "child_indicator__" ++ string_of_int(i);

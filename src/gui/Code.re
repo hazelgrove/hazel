@@ -406,13 +406,12 @@ let child_elems_of_snode_elem = elem =>
 let force_get_snode_elem = steps =>
   JSUtil.force_get_elem_by_id(node_id(steps));
 
-let cls_SLine = "SLine";
+let cls_sline = "sline";
 let sline_elems_of_snode_elem = elem => {
-  let selector = (
-    elem: Js.t(Dom_html.element) :> Js.t(Dom_html.nodeSelector)
-  );
-  selector##querySelectorAll(
-    Js.string(Js.to_string(elem##.id) ++ " > " ++ cls_SLine),
+  Dom_html.document##querySelectorAll(
+    Js.string(
+      "#" ++ (Js.to_string(elem##.id) |> escape_parens) ++ " > ." ++ cls_sline,
+    ),
   )
   |> Dom.list_of_nodeList;
 };
