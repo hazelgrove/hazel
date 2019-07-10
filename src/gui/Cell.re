@@ -192,6 +192,35 @@ let place_box_term_indicator = steps => {
      });
 };
 
+let place_box_term_indicator_over_single_line_seq = (operand1, operand2) => {
+  let rect1 = operand1 |> JSUtil.get_bounding_rect;
+  let rect2 = operand2 |> JSUtil.get_bounding_rect;
+  JSUtil.force_get_elem_by_id(box_tm_indicator_id)
+  |> JSUtil.place_over_rect({
+       top: rect1.top -. indicator_padding,
+       left: rect1.left -. indicator_padding,
+       bottom:
+         operand1 |> Code.elem_is_on_last_line
+           ? rect2.bottom +. indicator_padding
+           : rect2.bottom -. indicator_padding,
+       right: rect2.right +. indicator_padding,
+     });
+};
+
+let place_op_node_indicator_over_op_elem = op_elem => {
+  let rect = op_elem |> JSUtil.get_bounding_rect;
+  JSUtil.force_get_elem_by_id(op_node_indicator_id)
+  |> JSUtil.place_over_rect({
+       top: rect.top -. indicator_padding,
+       left: rect.left -. indicator_padding,
+       bottom:
+         op_elem |> Code.elem_is_on_last_line
+           ? rect.bottom +. indicator_padding
+           : rect.bottom -. indicator_padding,
+       right: rect.right +. indicator_padding,
+     });
+};
+
 let view =
     (~inject: Update.Action.t => Vdom.Event.t, model: Model.t): Vdom.Node.t => {
   Vdom.(

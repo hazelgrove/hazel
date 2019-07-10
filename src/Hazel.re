@@ -73,8 +73,7 @@ let create = (model, ~old_model, ~inject) => {
               | OnDelim(k, _) =>
                 let (steps, _) = model |> Model.path;
                 let op_elem = JSUtil.force_get_elem_by_id(op_id(steps, k));
-                JSUtil.force_get_elem_by_id(op_node_indicator_id)
-                |> JSUtil.place_over_elem(op_elem);
+                op_elem |> Cell.place_op_node_indicator_over_op_elem;
                 switch (op_elem |> JSUtil.get_attr("op-range")) {
                 | None => assert(false)
                 | Some(ssexp) =>
@@ -102,15 +101,10 @@ let create = (model, ~old_model, ~inject) => {
                       JSUtil.force_get_elem_by_id(node_id(steps @ [a]));
                     let tm_b =
                       JSUtil.force_get_elem_by_id(node_id(steps @ [b]));
-                    let rect_a = tm_a |> JSUtil.get_bounding_rect;
-                    let rect_b = tm_b |> JSUtil.get_bounding_rect;
-                    JSUtil.force_get_elem_by_id(box_tm_indicator_id)
-                    |> JSUtil.place_over_rect({
-                         top: rect_b.top,
-                         right: rect_b.right,
-                         bottom: rect_b.bottom,
-                         left: rect_a.left,
-                       });
+                    Cell.place_box_term_indicator_over_single_line_seq(
+                      tm_a,
+                      tm_b,
+                    );
                   };
                 };
               };
