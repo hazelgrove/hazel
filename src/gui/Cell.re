@@ -175,7 +175,14 @@ let indent_of_snode_elem = elem =>
   };
 
 let place_box_node_indicator_over_snode_elem = (~child_indices, elem) => {
-  let rect = elem |> JSUtil.get_bounding_rect;
+  let cell_rect =
+    JSUtil.force_get_elem_by_id("cell") |> JSUtil.get_bounding_rect;
+  let rect =
+    elem
+    |> JSUtil.get_bounding_rect(
+         ~top_origin=cell_rect.top,
+         ~left_origin=cell_rect.left,
+       );
   let indent = elem |> indent_of_snode_elem;
   JSUtil.force_get_elem_by_id(box_node_indicator_id)
   |> JSUtil.place_over_rect(
@@ -195,7 +202,12 @@ let place_box_node_indicator_over_snode_elem = (~child_indices, elem) => {
   | Some(child_elems) =>
     zip(child_indices, child_elems)
     |> List.iter(((i, child_elem)) => {
-         let child_rect = child_elem |> JSUtil.get_bounding_rect;
+         let child_rect =
+           child_elem
+           |> JSUtil.get_bounding_rect(
+                ~top_origin=cell_rect.top,
+                ~left_origin=cell_rect.left,
+              );
          if (elem
              |> Code.elem_is_multi_line
              && child_elem
@@ -214,9 +226,22 @@ let place_box_node_indicator_over_snode_elem = (~child_indices, elem) => {
   };
 };
 
-let place_box_term_indicator = steps => {
+let place_box_term_indicator = cursor_elem => {
+  let steps =
+    cursor_elem
+    |> JSUtil.get_attr("term")
+    |> Opt.get(() => assert(false))
+    |> Sexplib.Sexp.of_string
+    |> Path.steps_of_sexp;
   let term_elem = Code.force_get_snode_elem(steps);
-  let rect = term_elem |> JSUtil.get_bounding_rect;
+  let cell_rect =
+    JSUtil.force_get_elem_by_id("cell") |> JSUtil.get_bounding_rect;
+  let rect =
+    term_elem
+    |> JSUtil.get_bounding_rect(
+         ~top_origin=cell_rect.top,
+         ~left_origin=cell_rect.left,
+       );
   let indent = term_elem |> indent_of_snode_elem;
   JSUtil.force_get_elem_by_id(box_tm_indicator_id)
   |> JSUtil.place_over_rect(

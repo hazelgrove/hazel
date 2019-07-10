@@ -52,14 +52,7 @@ let create = (model, ~old_model, ~inject) => {
                   model.cursor_info |> CursorInfo.child_indices_of_current_node,
                 cursor_elem,
               );
-              switch (cursor_elem |> JSUtil.get_attr("term")) {
-              | None => assert(false)
-              | Some(ssexp) =>
-                ssexp
-                |> Sexplib.Sexp.of_string
-                |> Path.steps_of_sexp
-                |> Cell.place_box_term_indicator
-              };
+              Cell.place_box_term_indicator(cursor_elem);
             } else {
               switch (model.cursor_info.position) {
               | OnText(_) => assert(false)

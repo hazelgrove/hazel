@@ -170,13 +170,13 @@ type rect = {
   left: float,
 };
 
-let get_bounding_rect = elem => {
+let get_bounding_rect = (~top_origin=0.0, ~left_origin=0.0, elem) => {
   let rect = elem##getBoundingClientRect;
   {
-    top: rect##.top,
-    right: rect##.right,
-    bottom: rect##.bottom,
-    left: rect##.left,
+    top: rect##.top -. top_origin,
+    right: rect##.right -. left_origin,
+    bottom: rect##.bottom -. top_origin,
+    left: rect##.left -. left_origin,
   };
 };
 
