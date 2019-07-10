@@ -72,10 +72,11 @@ let multi_line_seq_indicators = (is_active, n) =>
             Node.div(
               [
                 Attr.id(seq_tm_indicator_id(i)),
-                Attr.classes([
-                  "term-indicator",
-                  is_active ? "active" : "inactive",
-                ]),
+                Attr.classes(
+                  ["term-indicator", is_active ? "active" : "inactive"]
+                  @ (i == 0 ? ["term-indicator-first"] : [])
+                  @ (i == n - 1 ? ["term-indicator-last"] : []),
+                ),
               ],
               [],
             )
@@ -94,7 +95,12 @@ let single_line_seq_indicators = is_active => {
     Node.div(
       [
         Attr.id(box_tm_indicator_id),
-        Attr.classes(["term-indicator", is_active ? "active" : "inactive"]),
+        Attr.classes([
+          "term-indicator",
+          "term-indicator-first",
+          "term-indicator-last",
+          is_active ? "active" : "inactive",
+        ]),
       ],
       [],
     ),
@@ -129,7 +135,12 @@ let indicators = (model: Model.t) => {
       Node.div(
         [
           Attr.id(box_tm_indicator_id),
-          Attr.classes(["term-indicator", is_active ? "active" : "inactive"]),
+          Attr.classes([
+            "term-indicator",
+            "term-indicator-first",
+            "term-indicator-last",
+            is_active ? "active" : "inactive",
+          ]),
         ],
         [],
       ),
