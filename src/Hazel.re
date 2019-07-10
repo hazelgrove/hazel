@@ -2,7 +2,6 @@ module Js = Js_of_ocaml.Js;
 module Dom = Js_of_ocaml.Dom;
 module Dom_html = Js_of_ocaml.Dom_html;
 open Incr_dom;
-open GeneralUtil;
 open ViewUtil;
 
 // https://github.com/janestreet/incr_dom/blob/6aa4aca2cfc82a17bbcc0424ff6b0ae3d6d8d540/example/text_input/README.md
@@ -66,22 +65,11 @@ let create = (model, ~old_model, ~inject) => {
                   let (a, b) =
                     Code.seq_range_of_sexp(Sexplib.Sexp.of_string(ssexp));
                   if (cursor_elem |> Code.elem_is_multi_line) {
-                    JSUtil.force_get_elem_by_id(seq_tm_indicator_id(a))
-                    |> JSUtil.(
-                         place_over_elem(
-                           force_get_elem_by_id(node_id(steps @ [a])),
-                         )
-                       );
-                    let sline_elems =
-                      Code.sline_elems_of_snode_elem(cursor_elem);
-                    range(~lo=a + 1, b + 1)
-                    |> List.map(List.nth(sline_elems))
-                    |> List.iteri((i, sline_elem) =>
-                         JSUtil.force_get_elem_by_id(
-                           seq_tm_indicator_id(a + 1 + i),
-                         )
-                         |> JSUtil.place_over_elem(sline_elem)
-                       );
+                    Cell.place_multi_line_seq_term_indicator(
+                      steps,
+                      (a, b),
+                      cursor_elem,
+                    );
                   } else {
                     let tm_a =
                       JSUtil.force_get_elem_by_id(node_id(steps @ [a]));

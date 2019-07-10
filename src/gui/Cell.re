@@ -306,6 +306,35 @@ let place_op_node_indicator_over_op_elem = op_elem => {
      });
 };
 
+let place_multi_line_seq_term_indicator = (steps, (a, b), opseq_elem) => {
+  let cell_rect =
+    JSUtil.force_get_elem_by_id("cell") |> JSUtil.get_bounding_rect;
+  JSUtil.force_get_elem_by_id(seq_tm_indicator_id(a))
+  |> JSUtil.place_over_rect(
+       steps
+       @ [a]
+       |> node_id
+       |> JSUtil.force_get_elem_by_id
+       |> JSUtil.get_bounding_rect(
+            ~top_origin=cell_rect.top,
+            ~left_origin=cell_rect.left,
+          ),
+     );
+  let sline_elems = Code.sline_elems_of_snode_elem(opseq_elem);
+  range(~lo=a + 1, b + 1)
+  |> List.map(List.nth(sline_elems))
+  |> List.iteri((i, sline_elem) =>
+       JSUtil.force_get_elem_by_id(seq_tm_indicator_id(a + 1 + i))
+       |> JSUtil.place_over_rect(
+            sline_elem
+            |> JSUtil.get_bounding_rect(
+                 ~top_origin=cell_rect.top,
+                 ~left_origin=cell_rect.left,
+               ),
+          )
+     );
+};
+
 let view =
     (~inject: Update.Action.t => Vdom.Event.t, model: Model.t): Vdom.Node.t => {
   Vdom.(
