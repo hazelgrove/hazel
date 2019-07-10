@@ -340,6 +340,9 @@ let child_elems_of_snode_elem = elem =>
     )
   };
 
+let force_get_snode_elem = steps =>
+  JSUtil.force_get_elem_by_id(node_id(steps));
+
 let cls_SLine = "SLine";
 let sline_elems_of_snode_elem = elem => {
   let selector = (
@@ -359,6 +362,18 @@ let elem_is_SBox = JSUtil.elem_has_cls(cls_SBox);
 let elem_is_SSeq = JSUtil.elem_has_cls(cls_SSeq);
 
 let elem_is_multi_line = JSUtil.elem_has_cls("multi-line");
+
+let elem_is_on_last_line = elem => {
+  (elem: Js.t(Dom_html.element) :> Js.t(Dom.node))
+  |> JSUtil.query_ancestors(ancestor =>
+       ancestor##.nextSibling
+       |> Js.Opt.to_option
+       |> Opt.map(next =>
+            "br" == Js.to_string(next##.nodeName) ? Some() : None
+          )
+     )
+  |> Opt.test;
+};
 
 let snode_attrs =
     (

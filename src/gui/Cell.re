@@ -159,7 +159,36 @@ let indicators = (model: Model.t) => {
 };
 
 let font_size = 20.0;
-let line_sep = 2.0;
+let line_height = 1.5;
+
+let place_box_node_indicator_over_snode_elem = elem => {
+  let rect = elem |> JSUtil.get_bounding_rect;
+  JSUtil.force_get_elem_by_id(box_node_indicator_id)
+  |> JSUtil.place_over_rect({
+       top: rect.top -. font_size *. (line_height -. 1.0) /. 2.0,
+       right: rect.right,
+       bottom:
+         elem |> Code.elem_is_on_last_line
+           ? rect.bottom +. font_size *. (line_height -. 1.0) /. 2.0
+           : rect.bottom -. font_size *. (line_height -. 1.0) /. 2.0,
+       left: rect.left,
+     });
+};
+
+let place_box_term_indicator = steps => {
+  let term_elem = Code.force_get_snode_elem(steps);
+  let rect = term_elem |> JSUtil.get_bounding_rect;
+  JSUtil.force_get_elem_by_id(box_tm_indicator_id)
+  |> JSUtil.place_over_rect({
+       top: rect.top -. font_size *. (line_height -. 1.0) /. 2.0,
+       right: rect.right,
+       bottom:
+         term_elem |> Code.elem_is_on_last_line
+           ? rect.bottom +. font_size *. (line_height -. 1.0) /. 2.0
+           : rect.bottom -. font_size *. (line_height -. 1.0) /. 2.0,
+       left: rect.left,
+     });
+};
 
 let view =
     (~inject: Update.Action.t => Vdom.Event.t, model: Model.t): Vdom.Node.t => {
@@ -173,7 +202,7 @@ let view =
           "font-size: "
           ++ (font_size |> JSUtil.px)
           ++ "; line-height: "
-          ++ (font_size +. 2.0 *. line_sep |> JSUtil.px)
+          ++ string_of_float(line_height)
           ++ ";",
         ),
       ],

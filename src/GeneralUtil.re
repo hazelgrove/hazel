@@ -490,4 +490,9 @@ module Opt = {
     | None => if_absent()
     | Some(a) => a
     };
+  let test = (opt: option(_)): bool =>
+    switch (opt) {
+    | None => false
+    | Some(_) => true
+    };
 };

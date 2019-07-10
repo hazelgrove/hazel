@@ -50,8 +50,7 @@ let create = (model, ~old_model, ~inject) => {
               switch (cursor_elem |> Code.child_elems_of_snode_elem) {
               | None => assert(false)
               | Some(child_elems) =>
-                JSUtil.force_get_elem_by_id(box_node_indicator_id)
-                |> JSUtil.place_over_elem(cursor_elem);
+                Cell.place_box_node_indicator_over_snode_elem(cursor_elem);
                 let child_indices =
                   model.cursor_info |> CursorInfo.child_indices_of_current_node;
                 zip(child_indices, child_elems)
@@ -62,14 +61,10 @@ let create = (model, ~old_model, ~inject) => {
                 switch (cursor_elem |> JSUtil.get_attr("term")) {
                 | None => assert(false)
                 | Some(ssexp) =>
-                  let term_steps =
-                    Path.steps_of_sexp(Sexplib.Sexp.of_string(ssexp));
-                  JSUtil.force_get_elem_by_id(box_tm_indicator_id)
-                  |> JSUtil.(
-                       place_over_elem(
-                         force_get_elem_by_id(node_id(term_steps)),
-                       )
-                     );
+                  ssexp
+                  |> Sexplib.Sexp.of_string
+                  |> Path.steps_of_sexp
+                  |> Cell.place_box_term_indicator
                 };
               };
             } else {
