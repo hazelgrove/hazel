@@ -892,7 +892,7 @@ and view_of_sline =
           [
             view_of_snode(
               ~inject,
-              ~term_steps,
+              ~term_steps=steps_of_snode(snode),
               ~indent_level=NotIndentable,
               snode,
             ),
@@ -903,7 +903,7 @@ and view_of_sline =
           [
             view_of_snode(
               ~inject,
-              ~term_steps,
+              ~term_steps=steps_of_snode(snode),
               ~indent_level=node_indent_level,
               snode,
             ),
@@ -919,7 +919,7 @@ and view_of_sline =
           [
             view_of_snode(
               ~inject,
-              ~term_steps,
+              ~term_steps=steps_of_snode(snode),
               ~indent_level=NotIndentable,
               snode,
             ),
@@ -940,7 +940,7 @@ and view_of_sline =
             view_of_stoken(~inject, ~node_steps, ~node_cursor=None, SSpace),
             view_of_snode(
               ~inject,
-              ~term_steps,
+              ~term_steps=steps_of_snode(snode),
               ~indent_level=NotIndentable,
               snode,
             ),
@@ -951,7 +951,7 @@ and view_of_sline =
           [
             view_of_snode(
               ~inject,
-              ~term_steps,
+              ~term_steps=steps_of_snode(snode),
               ~indent_level=Indented(tabbed_m),
               snode,
             ),
@@ -967,7 +967,7 @@ and view_of_sline =
           [
             view_of_snode(
               ~inject,
-              ~term_steps,
+              ~term_steps=steps_of_snode(snode),
               ~indent_level=NotIndentable,
               snode,
             ),
@@ -1003,7 +1003,7 @@ and view_of_sline =
           @ [
             view_of_snode(
               ~inject,
-              ~term_steps,
+              ~term_steps=steps_of_snode(snode),
               ~indent_level=NotIndentable,
               snode,
             ),
@@ -1020,7 +1020,7 @@ and view_of_sline =
           @ [
             view_of_snode(
               ~inject,
-              ~term_steps,
+              ~term_steps=steps_of_snode(snode),
               ~indent_level=OpPrefix(m, op_column_width),
               snode,
             ),
@@ -1042,7 +1042,7 @@ and view_of_sline =
           @ [
             view_of_snode(
               ~inject,
-              ~term_steps,
+              ~term_steps=steps_of_snode(snode),
               ~indent_level=NotIndentable,
               snode,
             ),
@@ -1077,7 +1077,7 @@ and view_of_sline =
             view_of_stoken(~inject, ~node_steps, ~node_cursor=None, SSpace),
             view_of_snode(
               ~inject,
-              ~term_steps,
+              ~term_steps=steps_of_snode(snode),
               ~indent_level=NotIndentable,
               snode,
             ),
@@ -1088,7 +1088,7 @@ and view_of_sline =
           [
             view_of_snode(
               ~inject,
-              ~term_steps,
+              ~term_steps=steps_of_snode(snode),
               ~indent_level=Indented(tabbed_m + op_column_width),
               snode,
             ),
@@ -1104,7 +1104,7 @@ and view_of_sline =
           [
             view_of_snode(
               ~inject,
-              ~term_steps,
+              ~term_steps=steps_of_snode(snode),
               ~indent_level=NotIndentable,
               snode,
             ),
