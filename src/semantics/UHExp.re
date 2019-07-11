@@ -392,14 +392,22 @@ type exp_or_block =
   | E(t)
   | B(block);
 
-let shift_line_to_suffix =
-    (~u_gen: MetaVarGen.t, suffix: lines, Block(leading, conclusion))
-    : option((block, lines, MetaVarGen.t)) =>
+let shift_line_to_suffix_block =
+    (
+      ~u_gen: MetaVarGen.t,
+      Block(suffix_leading, suffix_conclusion),
+      Block(leading, conclusion),
+    )
+    : option((block, block, MetaVarGen.t)) =>
   switch (leading |> split_last, conclusion) {
   | (None, EmptyHole(_)) => None
   | (None, _) =>
     let (hole, u_gen) = u_gen |> new_EmptyHole;
-    Some((wrap_in_block(hole), [ExpLine(conclusion), ...suffix], u_gen));
+    Some((
+      wrap_in_block(hole),
+      Block([ExpLine(conclusion), ...suffix_leading], suffix_conclusion),
+      u_gen,
+    ));
   | (Some((leading_prefix, leading_last)), EmptyHole(_)) =>
     let new_block =
       switch (leading_prefix |> split_last) {
@@ -408,16 +416,24 @@ let shift_line_to_suffix =
         Block(leading_prefix_prefix, new_conclusion)
       | Some(_) => Block(leading_prefix, conclusion)
       };
-    Some((new_block, [leading_last, ...suffix], u_gen));
+    Some((
+      new_block,
+      Block([leading_last, ...suffix_leading], suffix_conclusion),
+      u_gen,
+    ));
   | (Some((leading_prefix, ExpLine(new_conclusion))), _) =>
     Some((
       Block(leading_prefix, new_conclusion),
-      [ExpLine(conclusion), ...suffix],
+      Block([ExpLine(conclusion), ...suffix_leading], suffix_conclusion),
       u_gen,
     ))
   | (Some(_), _) =>
     let (hole, u_gen) = u_gen |> new_EmptyHole;
-    Some((Block(leading, hole), [ExpLine(conclusion), ...suffix], u_gen));
+    Some((
+      Block(leading, hole),
+      Block([ExpLine(conclusion), ...suffix_leading], suffix_conclusion),
+      u_gen,
+    ));
   };
 
 let rec node_positions_of_seq: opseq => list(node_position) =
