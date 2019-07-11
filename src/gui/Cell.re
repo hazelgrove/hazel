@@ -108,27 +108,38 @@ let single_line_seq_indicators = is_active => {
 };
 
 let indicators = (model: Model.t) => {
-  let is_active =
-    model.is_cell_focused && model.cursor_info.node != Line(EmptyLine);
   switch (model.cursor_info.node) {
   | Exp(OpSeq(_, seq) as e) =>
     Code.is_multi_line_exp(e)
-      ? multi_line_seq_indicators(is_active, OperatorSeq.seq_length(seq))
-      : single_line_seq_indicators(is_active)
+      ? multi_line_seq_indicators(
+          model.is_cell_focused,
+          OperatorSeq.seq_length(seq),
+        )
+      : single_line_seq_indicators(model.is_cell_focused)
   | Pat(OpSeq(_, seq) as p) =>
     Code.is_multi_line_pat(p)
-      ? multi_line_seq_indicators(is_active, OperatorSeq.seq_length(seq))
-      : single_line_seq_indicators(is_active)
+      ? multi_line_seq_indicators(
+          model.is_cell_focused,
+          OperatorSeq.seq_length(seq),
+        )
+      : single_line_seq_indicators(model.is_cell_focused)
   | Typ(OpSeq(_, seq) as ty) =>
     Code.is_multi_line_typ(ty)
-      ? multi_line_seq_indicators(is_active, OperatorSeq.seq_length(seq))
-      : single_line_seq_indicators(is_active)
+      ? multi_line_seq_indicators(
+          model.is_cell_focused,
+          OperatorSeq.seq_length(seq),
+        )
+      : single_line_seq_indicators(model.is_cell_focused)
   | _ =>
     Vdom.[
       Node.div(
         [
           Attr.id(box_node_indicator_id),
-          Attr.classes(["node-indicator", is_active ? "active" : "inactive"]),
+          Attr.classes([
+            "node-indicator",
+            model.is_cell_focused && model.cursor_info.node != Line(EmptyLine)
+              ? "active" : "inactive",
+          ]),
         ],
         [],
       ),
@@ -139,7 +150,7 @@ let indicators = (model: Model.t) => {
             "term-indicator",
             "term-indicator-first",
             "term-indicator-last",
-            is_active ? "active" : "inactive",
+            model.is_cell_focused ? "active" : "inactive",
           ]),
         ],
         [],
@@ -159,7 +170,8 @@ let indicators = (model: Model.t) => {
                     Attr.id(child_indicator_id(i)),
                     Attr.classes([
                       "child-indicator",
-                      is_active(i) ? "active" : "inactive",
+                      model.is_cell_focused && is_active(i)
+                        ? "active" : "inactive",
                     ]),
                   ],
                   [],
