@@ -41,19 +41,19 @@ let map_example: UHExp.block = {
         [
           Rule(UHPat.listnil(), wrap_in_block(listnil())),
           Rule(
-            opseq_pat(ExpOpExp(UHPat.var("y"), Cons, UHPat.var("ys"))),
+            Pat.mk_OpSeq(ExpOpExp(UHPat.var("y"), Cons, UHPat.var("ys"))),
             wrap_in_block(
-              opseq_exp(
+              Exp.mk_OpSeq(
                 ExpOpExp(
                   Parenthesized(
                     wrap_in_block(
-                      opseq_exp(ExpOpExp(var("f"), Space, var("y"))),
+                      Exp.mk_OpSeq(ExpOpExp(var("f"), Space, var("y"))),
                     ),
                   ),
                   Cons,
                   Parenthesized(
                     wrap_in_block(
-                      opseq_exp(
+                      Exp.mk_OpSeq(
                         SeqOpExp(
                           ExpOpExp(var("map"), Space, var("f")),
                           Space,
@@ -82,10 +82,10 @@ let map_example: UHExp.block = {
       letline(
         UHPat.var("map"),
         ~ann=
-          opseq_typ(
+          Typ.mk_OpSeq(
             SeqOpExp(
               ExpOpExp(
-                Parenthesized(opseq_typ(ExpOpExp(Num, Arrow, Num))),
+                Parenthesized(Typ.mk_OpSeq(ExpOpExp(Num, Arrow, Num))),
                 Arrow,
                 List(Num),
               ),
@@ -107,15 +107,15 @@ let qsort_example: UHExp.block = {
         [
           Rule(UHPat.listnil(), wrap_in_block(var("ys"))),
           Rule(
-            opseq_pat(ExpOpExp(UHPat.var("z"), Cons, UHPat.var("zs"))),
+            Pat.mk_OpSeq(ExpOpExp(UHPat.var("z"), Cons, UHPat.var("zs"))),
             wrap_in_block(
-              opseq_exp(
+              Exp.mk_OpSeq(
                 ExpOpExp(
                   var("z"),
                   Cons,
                   Parenthesized(
                     wrap_in_block(
-                      opseq_exp(
+                      Exp.mk_OpSeq(
                         SeqOpExp(
                           ExpOpExp(var("append"), Space, var("zs")),
                           Space,
@@ -144,7 +144,7 @@ let qsort_example: UHExp.block = {
       letline(
         UHPat.var("append"),
         ~ann=
-          opseq_typ(
+          Typ.mk_OpSeq(
             SeqOpExp(
               ExpOpExp(List(Num), Arrow, List(Num)),
               Arrow,
@@ -165,23 +165,23 @@ let qsort_example: UHExp.block = {
             wrap_in_block(
               Parenthesized(
                 wrap_in_block(
-                  opseq_exp(ExpOpExp(listnil(), Comma, listnil())),
+                  Exp.mk_OpSeq(ExpOpExp(listnil(), Comma, listnil())),
                 ),
               ),
             ),
           ),
           Rule(
-            opseq_pat(ExpOpExp(UHPat.var("y"), Cons, UHPat.var("ys"))),
+            Pat.mk_OpSeq(ExpOpExp(UHPat.var("y"), Cons, UHPat.var("ys"))),
             Block(
               [
                 letline(
                   Parenthesized(
-                    opseq_pat(
+                    Pat.mk_OpSeq(
                       ExpOpExp(UHPat.var("ys1"), Comma, UHPat.var("ys2")),
                     ),
                   ),
                   wrap_in_block(
-                    opseq_exp(
+                    Exp.mk_OpSeq(
                       SeqOpExp(
                         ExpOpExp(var("partition"), Space, var("f")),
                         Space,
@@ -193,7 +193,7 @@ let qsort_example: UHExp.block = {
               ],
               case(
                 wrap_in_block(
-                  opseq_exp(ExpOpExp(var("f"), Space, var("y"))),
+                  Exp.mk_OpSeq(ExpOpExp(var("f"), Space, var("y"))),
                 ),
                 [
                   Rule(
@@ -201,7 +201,7 @@ let qsort_example: UHExp.block = {
                     wrap_in_block(
                       Parenthesized(
                         wrap_in_block(
-                          opseq_exp(
+                          Exp.mk_OpSeq(
                             SeqOpExp(
                               ExpOpExp(var("y"), Cons, var("ys1")),
                               Comma,
@@ -217,7 +217,7 @@ let qsort_example: UHExp.block = {
                     wrap_in_block(
                       Parenthesized(
                         wrap_in_block(
-                          opseq_exp(
+                          Exp.mk_OpSeq(
                             SeqOpExp(
                               ExpOpExp(var("ys1"), Comma, var("y")),
                               Cons,
@@ -249,16 +249,16 @@ let qsort_example: UHExp.block = {
       letline(
         UHPat.var("partition"),
         ~ann=
-          opseq_typ(
+          Typ.mk_OpSeq(
             SeqOpExp(
               ExpOpExp(
-                Parenthesized(opseq_typ(ExpOpExp(Num, Arrow, Bool))),
+                Parenthesized(Typ.mk_OpSeq(ExpOpExp(Num, Arrow, Bool))),
                 Arrow,
                 List(Num),
               ),
               Arrow,
               Parenthesized(
-                opseq_typ(ExpOpExp(List(Num), Prod, List(Num))),
+                Typ.mk_OpSeq(ExpOpExp(List(Num), Prod, List(Num))),
               ),
             ),
           ),
@@ -268,13 +268,13 @@ let qsort_example: UHExp.block = {
 
   let qsort_line =
     UHExp.(
-      opseq_exp(
+      Exp.mk_OpSeq(
         ExpOpExp(
           var("qsort"),
           Space,
           Parenthesized(
             wrap_in_block(
-              opseq_exp(
+              Exp.mk_OpSeq(
                 SeqOpExp(
                   SeqOpExp(
                     SeqOpExp(
