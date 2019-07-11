@@ -21,6 +21,12 @@ let on_startup = (~schedule_action, _) => {
       Dom.Event.make("selectionchange"), Dom_html.document, _ =>
       schedule_action(Update.Action.SelectionChange)
     );
+  Dom_html.window##.onfocus :=
+    Dom_html.handler(_ => {
+      schedule_action(Update.Action.FocusWindow);
+      Js._true;
+    });
+  schedule_action(Update.Action.FocusCell);
   Async_kernel.Deferred.return(ref(false));
 };
 
@@ -36,7 +42,7 @@ let create = (model, ~old_model, ~inject) => {
         if (model.is_cell_focused) {
           if (!Code.is_caret_consistent_with_path(path)) {
             switch (Code.caret_position_of_path(path)) {
-            | None => raise(MalformedView(10))
+            | None => assert(false)
             | Some((node, offset)) =>
               setting_caret := true;
               JSUtil.set_caret(node, offset);

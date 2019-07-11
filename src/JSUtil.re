@@ -122,6 +122,17 @@ let set_caret = (anchorNode, offset) => {
   selection##addRange(range);
 };
 
+let reset_caret = () => {
+  let selection = Dom_html.window##getSelection;
+  if (selection##.rangeCount <= 0) {
+    ();
+  } else {
+    let current_range = selection##getRangeAt(0);
+    selection##removeAllRanges;
+    selection##addRange(current_range);
+  };
+};
+
 let get_anchor_node = (): Js.t(Dom.node) =>
   Dom_html.window##getSelection##.anchorNode;
 
@@ -593,6 +604,12 @@ let div_contains_node = (parent: div_element, child: node): bool => {
     Js.Unsafe.meth_call(parent, "contains", [|Js.Unsafe.inject(child)|]):
       Js.t(bool)
   );
+  Js.to_bool(result);
+};
+
+let window_has_focus = (): bool => {
+  let result: Js.t(bool) =
+    Js.Unsafe.meth_call(Dom_html.document, "hasFocus", [||]);
   Js.to_bool(result);
 };
 

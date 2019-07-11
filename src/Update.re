@@ -20,7 +20,8 @@ module Action = {
     | MoveToHole(MetaVar.t)
     | SelectionChange
     | FocusCell
-    | BlurCell;
+    | BlurCell
+    | FocusWindow;
 };
 
 let closest_elem = node =>
@@ -72,7 +73,11 @@ let apply_action =
   | InvalidVar(x) => model
   | MoveToHole(u) => Model.move_to_hole(model, u)
   | FocusCell => model |> Model.focus_cell
-  | BlurCell => model |> Model.blur_cell
+  | FocusWindow =>
+    setting_caret := true;
+    JSUtil.reset_caret();
+    model;
+  | BlurCell => JSUtil.window_has_focus() ? model |> Model.blur_cell : model
   | SelectionChange =>
     if (! setting_caret^) {
       let anchorNode = Dom_html.window##getSelection##.anchorNode;
