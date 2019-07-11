@@ -199,14 +199,15 @@ let rec perform_ty = (a: t, zty: ZTyp.t): result(ZTyp.t) =>
   switch (a, zty) {
   | (_, CursorT(cursor, uty)) when !ZTyp.is_valid_cursor(cursor, uty) =>
     Failed
-  | (_, CursorT(OnText(_), _)) => Failed
-  /* Staging */
   | (
-      ShiftLeft | ShiftRight,
+      _,
+      CursorT(OnText(_), _) |
       CursorT(Staging(_), Hole | Unit | Num | Bool | OpSeq(_, _)),
     ) =>
     // invalid cursor position
     Failed
+  /* Staging */
+  | (ShiftLeft | ShiftRight, CursorT(OnDelim(_, _), _)) => Failed
   | (
       ShiftLeft | ShiftRight,
       CursorT(Staging(k), (Parenthesized(body) | List(body)) as staged) |
@@ -311,21 +312,14 @@ let rec perform_ty = (a: t, zty: ZTyp.t): result(ZTyp.t) =>
       ),
     ) =>
     perform_ty(Backspace, CursorT(OnDelim(k, After), uty))
-  /* (<| _ )  ==>  |_ */
+  /* ( _ )<|  ==>  ( _ [)] */
   | (
       Backspace,
-      CursorT(OnDelim(0, After), Parenthesized(uty1) | List(uty1)),
+      CursorT(OnDelim(k, After), (Parenthesized(_) | List(_)) as uty),
     ) =>
-    Succeeded(ZTyp.place_before(uty1))
-  /* ( _ )<|  ==>  _| */
-  | (
-      Backspace,
-      CursorT(OnDelim(1, After), Parenthesized(uty1) | List(uty1)),
-    ) =>
-    Succeeded(ZTyp.place_after(uty1))
-  | (Backspace, CursorT(OnDelim(_, _), Parenthesized(_) | List(_))) =>
-    /* invalid cursor position */
-    Failed
+    Succeeded(CursorT(Staging(k), uty))
+  | (Backspace | Delete, CursorT(Staging(_), Parenthesized(_) | List(_))) =>
+    Succeeded(ZTyp.place_before(Hole))
   /* ... + [k-2] + [k-1] +<| [k] + ...   ==>   ... + [k-2] + [k-1]| + ... */
   | (Backspace, CursorT(OnDelim(k, After), OpSeq(_, seq))) =>
     switch (OperatorSeq.split(k, seq)) {
