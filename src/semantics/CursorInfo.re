@@ -431,9 +431,6 @@ and _ana_cursor_found_exp =
     (ctx: Contexts.t, e: UHExp.t, ty: HTyp.t)
     : option((typed, node, term, Contexts.t)) =>
   switch (e) {
-  | OpSeq(_, _) =>
-    // handled by _ana_cursor_found_skel_exp
-    None
   /* in hole */
   | Var(InHole(TypeInconsistent, _), _, _)
   | NumLit(InHole(TypeInconsistent, _), _)
@@ -442,7 +439,8 @@ and _ana_cursor_found_exp =
   | Lam(InHole(TypeInconsistent, _), _, _, _)
   | Inj(InHole(TypeInconsistent, _), _, _)
   | Case(InHole(TypeInconsistent, _), _, _, _)
-  | ApPalette(InHole(TypeInconsistent, _), _, _, _) =>
+  | ApPalette(InHole(TypeInconsistent, _), _, _, _)
+  | OpSeq(BinOp(InHole(TypeInconsistent, _), _, _, _), _) =>
     let e_nih = UHExp.set_err_status_t(NotInHole, e);
     switch (Statics.syn_exp(ctx, e_nih)) {
     | None => None
@@ -457,6 +455,20 @@ and _ana_cursor_found_exp =
   | Inj(InHole(WrongLength, _), _, _)
   | Case(InHole(WrongLength, _), _, _, _)
   | ApPalette(InHole(WrongLength, _), _, _, _) => None
+  | OpSeq(BinOp(InHole(WrongLength, _), Comma, skel1, skel2), _) =>
+    switch (ty) {
+    | Prod(ty1, ty2) =>
+      let n_elts = ListMinTwo.length(UHExp.get_tuple(skel1, skel2));
+      let n_types = ListMinTwo.length(HTyp.get_tuple(ty1, ty2));
+      Some((
+        AnaWrongLength(n_types, n_elts, ty),
+        Exp(e),
+        Expression(E(e)),
+        ctx,
+      ));
+    | _ => None
+    }
+  | OpSeq(BinOp(InHole(WrongLength, _), _, _, _), _) => None
   /* not in hole */
   | Var(_, InVHole(Keyword(k), _), _) =>
     Some((AnaKeyword(ty, k), Exp(e), Expression(E(e)), ctx))
@@ -497,6 +509,14 @@ and _ana_cursor_found_exp =
     }
   | Inj(NotInHole, _, _) =>
     Some((Analyzed(ty), Exp(e), Expression(E(e)), ctx))
+  | OpSeq(BinOp(NotInHole, Comma, _, _), _)
+  | OpSeq(BinOp(NotInHole, Cons, _, _), _) =>
+    Some((Analyzed(ty), Exp(e), Expression(E(e)), ctx))
+  | OpSeq(Placeholder(_), _) => None
+  | OpSeq(BinOp(NotInHole, Plus, _, _), _)
+  | OpSeq(BinOp(NotInHole, Times, _, _), _)
+  | OpSeq(BinOp(NotInHole, LessThan, _, _), _)
+  | OpSeq(BinOp(NotInHole, Space, _, _), _)
   | ApPalette(NotInHole, _, _, _) =>
     switch (Statics.syn_exp(ctx, e)) {
     | None => None
