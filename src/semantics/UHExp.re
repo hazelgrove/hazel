@@ -385,3 +385,20 @@ let child_indices_rule =
 type exp_or_block =
   | E(t)
   | B(block);
+
+let rec node_positions_of_seq: opseq => list(node_position) =
+  fun
+  | ExpOpExp(_, Space, _) => [Deeper(0), Deeper(1)]
+  | ExpOpExp(_, _, _) => [
+      Deeper(0),
+      On(OnDelim(1, Before)),
+      On(OnDelim(1, After)),
+      Deeper(1),
+    ]
+  | SeqOpExp(seq, Space, _) =>
+    node_positions_of_seq(seq) @ [Deeper(seq |> OperatorSeq.seq_length)]
+  | SeqOpExp(seq, _, _) => {
+      let n = seq |> OperatorSeq.seq_length;
+      node_positions_of_seq(seq)
+      @ [On(OnDelim(n, Before)), On(OnDelim(n, After)), Deeper(n)];
+    };
