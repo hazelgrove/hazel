@@ -83,3 +83,5 @@ let line_no_of_sline_cls = cls =>
     | Some(s) => Some(int_of_string(s))
     }
   };
+
+let indentation_cls = "indentation";

@@ -346,8 +346,6 @@ let err_status_clss =
 
 let inline_div_cls = "inline-div";
 
-let indentation_cls = "indentation";
-
 let rec child_indices_of_snode =
   fun
   | SSeq(_steps, _cursor, _is_multi_line, _shead, stail) =>

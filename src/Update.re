@@ -104,7 +104,7 @@ let apply_action =
             |> Opt.get(() => raise(MalformedView(3)));
           let path = Path.t_of_sexp(Sexp.of_string(ssexp));
           schedule_action(Action.EditAction(MoveTo(path)));
-        } else if (has_cls("indent")) {
+        } else if (has_cls(indentation_cls)) {
           switch (
             closest_elem |> JSUtil.get_attr("goto-path"),
             closest_elem |> JSUtil.get_attr("goto-steps"),
