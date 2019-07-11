@@ -9,6 +9,9 @@ let opt_to_bool =
 
 let num_digits = (n: int): int => String.length(string_of_int(n));
 
+let fmin = (a: float, b: float) => a <= b ? a : b;
+let fmax = (a: float, b: float) => a >= b ? a : b;
+
 /**
  * List of ints starting from lo,
  * up to and excluding hi.
@@ -495,5 +498,10 @@ module Opt = {
     switch (opt) {
     | None => if_absent()
     | Some(a) => a
+    };
+  let test = (opt: option(_)): bool =>
+    switch (opt) {
+    | None => false
+    | Some(_) => true
     };
 };

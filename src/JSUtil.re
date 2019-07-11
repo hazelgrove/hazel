@@ -92,6 +92,17 @@ let first_leaf = (node: Js.t(Dom.node)): Js.t(Dom.node) => {
   cur^;
 };
 
+let clss_of_elem = elem => {
+  let clss = ref([]);
+  let classList = elem##.classList;
+  for (j in 0 to classList##.length - 1) {
+    let cls_j =
+      Js.(to_string(Optdef.get(classList##item(j), () => assert(false))));
+    clss := [cls_j, ...clss^];
+  };
+  clss^;
+};
+
 let elem_has_cls = (cls: string, elem: Js.t(Dom_html.element)): bool => {
   let found = ref(false);
   let classList = elem##.classList;
@@ -118,6 +129,17 @@ let set_caret = (anchorNode, offset) => {
   range##setEnd(anchorNode, offset);
   selection##removeAllRanges;
   selection##addRange(range);
+};
+
+let reset_caret = () => {
+  let selection = Dom_html.window##getSelection;
+  if (selection##.rangeCount <= 0) {
+    ();
+  } else {
+    let current_range = selection##getRangeAt(0);
+    selection##removeAllRanges;
+    selection##addRange(current_range);
+  };
 };
 
 let get_anchor_node = (): Js.t(Dom.node) =>
@@ -170,7 +192,16 @@ let force_get_elem_by_cls = cls =>
   | [elem, ..._] => elem
   };
 
-let px = (f: float): string => string_of_float(f) ++ "px";
+let force_get_parent_elem = elem =>
+  (elem: Js.t(Dom_html.element) :> Js.t(Dom.node))
+  |> (node => node##.parentNode)
+  |> Js.Opt.to_option
+  |> U.Opt.get(() => assert(false))
+  |> Dom_html.CoerceTo.element
+  |> Js.Opt.to_option
+  |> U.Opt.get(() => assert(false));
+
+let px = (f: float): string => string_of_float(f) ++ "0px";
 
 type rect = {
   top: float,
@@ -179,22 +210,51 @@ type rect = {
   left: float,
 };
 
-let get_bounding_rect = elem => {
+let get_bounding_rect = (~top_origin=0.0, ~left_origin=0.0, elem) => {
   let rect = elem##getBoundingClientRect;
   {
-    top: rect##.top,
-    right: rect##.right,
-    bottom: rect##.bottom,
-    left: rect##.left,
+    top: rect##.top -. top_origin,
+    right: rect##.right -. left_origin,
+    bottom: rect##.bottom -. top_origin,
+    left: rect##.left -. left_origin,
   };
 };
 
-let place_over_rect = (rect, elem) => {
+let place_over_rect = (~indent=0, rect, elem) => {
   elem##.style##.top := Js.string(rect.top |> px);
   elem##.style##.height := Js.string(rect.bottom -. rect.top |> px);
-  elem##.style##.left := Js.string(rect.left |> px);
-  elem##.style##.width := Js.string(rect.right -. rect.left |> px);
+  elem##.style##.left :=
+    Js.string(
+      "calc("
+      ++ (rect.left |> px)
+      ++ " + "
+      ++ string_of_int(indent)
+      ++ "ch"
+      ++ ")",
+    );
+  elem##.style##.width :=
+    Js.string(
+      "calc("
+      ++ (rect.right -. rect.left |> px)
+      ++ " - "
+      ++ string_of_int(indent)
+      ++ "ch"
+      ++ ")",
+    );
 };
+
+let get_covering_rect = rects =>
+  rects
+  |> List.fold_left(
+       (covering_rect, rect) =>
+         {
+           top: U.fmin(covering_rect.top, rect.top),
+           left: U.fmin(covering_rect.left, rect.left),
+           bottom: U.fmax(covering_rect.bottom, rect.bottom),
+           right: U.fmax(covering_rect.right, rect.right),
+         },
+       {top: max_float, left: max_float, bottom: min_float, right: min_float},
+     );
 
 let place_over_elem =
     (under_elem: Js.t(Dom_html.element), over_elem: Js.t(Dom_html.element)) =>
@@ -553,6 +613,12 @@ let div_contains_node = (parent: div_element, child: node): bool => {
     Js.Unsafe.meth_call(parent, "contains", [|Js.Unsafe.inject(child)|]):
       Js.t(bool)
   );
+  Js.to_bool(result);
+};
+
+let window_has_focus = (): bool => {
+  let result: Js.t(bool) =
+    Js.Unsafe.meth_call(Dom_html.document, "hasFocus", [||]);
   Js.to_bool(result);
 };
 

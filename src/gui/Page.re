@@ -72,10 +72,7 @@ let page_view =
                             ),
                           ],
                         ),
-                        Node.div(
-                          [Attr.id("pp_view"), Attr.classes(["ModelExp"])],
-                          [Cell.view(~inject, model)],
-                        ),
+                        Cell.view(~inject, model),
                         Node.div(
                           [Attr.classes(["cell-status"])],
                           [

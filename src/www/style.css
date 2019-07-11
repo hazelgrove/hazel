@@ -666,11 +666,9 @@ h1 {
 
 .ModelExp {
   padding: 10px;
-  font-size: 125%;
   margin-top: 20px;
   background-color: white;
   border: 2px solid #CCC;
-  line-height: 1.33;
 }
 
 .ModelExp :focus {
@@ -736,6 +734,7 @@ button:disabled {
 #cell {
   opacity: 0.99;
   background-color: transparent;
+  position: relative;
 }
 
 #cell .SNode {
@@ -753,17 +752,19 @@ button:disabled {
   font-family: "Fira Mono", monospace;
   width: max-content;
 }
-.indent, .SSpaceOp {
+.indentation, .SSpaceOp {
   white-space: pre;
 }
 
 .term-indicator {
-  position: fixed;
+  position: absolute;
   z-index: var(--term-indicator-z-index);
   border-top: 1px solid var(--term-indicator-color);
   border-bottom: 1px solid var(--term-indicator-color);
+  font-family: "Fira Mono", monospace;
+  font-size: 20px;
 }
-.term-indicator::before {
+.term-indicator-first::before {
   display: block;
   position: absolute;
   top: 0;
@@ -777,7 +778,7 @@ button:disabled {
   border-bottom: var(--term-indicator-corner-size) solid transparent;
   background-color: transparent;
 }
-.term-indicator::after {
+.term-indicator-last::after {
   display: block;
   position: absolute;
   top: calc(100% - 2 * var(--term-indicator-corner-size));
@@ -792,14 +793,18 @@ button:disabled {
   background-color: transparent;
 }
 .node-indicator {
-  position: fixed;
+  position: absolute;
   z-index: var(--node-indicator-z-index);
   background-color: var(--node-indicator-color);
+  font-family: "Fira Mono", monospace;
+  font-size: 20px;
 }
 .child-indicator {
-  position: fixed;
+  position: absolute;
   z-index: var(--child-indicator-z-index);
   background-color: var(--child-indicator-color);
+  font-family: "Fira Mono", monospace;
+  font-size: 20px;
 }
 
 .term-indicator.inactive, .node-indicator.inactive, .child-indicator.inactive {

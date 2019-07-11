@@ -51,6 +51,8 @@ let rec tms_of_range = ((a, b), seq) =>
     let len = seq_length(seq');
     if (a > len || b > len) {
       None;
+    } else if (a === b) {
+      Some([e]);
     } else if (b === len) {
       switch (tms_of_range((a, b - 1), seq')) {
       | None => None

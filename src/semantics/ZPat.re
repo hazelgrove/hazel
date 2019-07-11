@@ -270,17 +270,7 @@ let node_positions = (p: UHPat.t): list(node_position) =>
     node_positions(delim_cursors_k(0))
     @ [Deeper(0)]
     @ node_positions(delim_cursors_k(1))
-  | OpSeq(_, seq) =>
-    range(OperatorSeq.seq_length(seq))
-    |> List.fold_left(
-         (lstSoFar, i) =>
-           switch (lstSoFar) {
-           | [] => [Deeper(i)]
-           | [_, ..._] =>
-             lstSoFar @ node_positions(delim_cursors_k(i)) @ [Deeper(i)]
-           },
-         [],
-       )
+  | OpSeq(_, seq) => seq |> UHPat.node_positions_of_seq
   };
 
 let node_position_of_t = (zp: t): node_position =>

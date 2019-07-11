@@ -691,17 +691,7 @@ let node_positions_exp = (e: UHExp.t): list(node_position) =>
     @ (range(List.length(rules)) |> List.map(i => Deeper(i + 1)))
     @ node_positions(delim_cursors_k(1))
     @ ann_positions;
-  | OpSeq(_, seq) =>
-    range(OperatorSeq.seq_length(seq))
-    |> List.fold_left(
-         (lstSoFar, i) =>
-           switch (lstSoFar) {
-           | [] => [Deeper(i)]
-           | [_, ..._] =>
-             lstSoFar @ node_positions(delim_cursors_k(i)) @ [Deeper(i)]
-           },
-         [],
-       )
+  | OpSeq(_, seq) => seq |> UHExp.node_positions_of_seq
   | ApPalette(_, _, _, _) => [] /* TODO[livelits] */
   };
 
