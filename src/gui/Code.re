@@ -1377,7 +1377,7 @@ let caret_position_of_path =
         Js.Opt.get(anchor_parent##.firstChild, () =>
           raise(MalformedView(1))
         );
-      Some((anchor, j));
+      Some((anchor, elem |> JSUtil.elem_has_cls("SEmptyLine") ? 2 : j));
     }
   };
 
