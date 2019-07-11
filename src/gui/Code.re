@@ -849,28 +849,30 @@ and view_of_sline =
       | (Indented(abs_indent), true, false, [sword, ..._]) => (
           {
             let m = abs_indent + tab_length * rel_indent;
-            [
-              switch (steps_of_first_sword) {
-              | None => vindentation(m)
-              | Some(steps) =>
-                switch (sword) {
-                | SNode(_) => vindentation(~steps, m)
-                | SToken(stoken) =>
-                  switch (stoken) {
-                  | SEmptyHole(_)
-                  | SText(_, _)
-                  | SEmptyLine => vindentation(~steps, m)
-                  | SDelim(k, _)
-                  | SOp(k, _, _) =>
-                    vindentation(~path=(steps, OnDelim(k, Before)), m)
-                  | SCastArrow
-                  | SFailedCastArrow
-                  | SSpace
-                  | SReadOnly(_) => vindentation(m)
+            m == 0
+              ? []
+              : [
+                switch (steps_of_first_sword) {
+                | None => vindentation(m)
+                | Some(steps) =>
+                  switch (sword) {
+                  | SNode(_) => vindentation(~steps, m)
+                  | SToken(stoken) =>
+                    switch (stoken) {
+                    | SEmptyHole(_)
+                    | SText(_, _)
+                    | SEmptyLine => vindentation(~steps, m)
+                    | SDelim(k, _)
+                    | SOp(k, _, _) =>
+                      vindentation(~path=(steps, OnDelim(k, Before)), m)
+                    | SCastArrow
+                    | SFailedCastArrow
+                    | SSpace
+                    | SReadOnly(_) => vindentation(m)
+                    }
                   }
-                }
-              },
-            ];
+                },
+              ];
           },
           swords
           |> List.map(sword =>
@@ -926,12 +928,14 @@ and view_of_sline =
           ],
         )
       | (Indented(m), true, false) => (
-          [
-            switch (steps_of_first_sword) {
-            | None => vindentation(m)
-            | Some(steps) => vindentation(~steps, m)
-            },
-          ],
+          m == 0
+            ? []
+            : [
+              switch (steps_of_first_sword) {
+              | None => vindentation(m)
+              | Some(steps) => vindentation(~steps, m)
+              },
+            ],
           [
             view_of_snode(
               ~inject,
@@ -974,12 +978,14 @@ and view_of_sline =
           ],
         )
       | (Indented(tabbed_m), true, false) => (
-          [
-            switch (steps_of_first_sword) {
-            | None => vindentation(tabbed_m)
-            | Some(steps) => vindentation(~steps, tabbed_m)
-            },
-          ],
+          tabbed_m == 0
+            ? []
+            : [
+              switch (steps_of_first_sword) {
+              | None => vindentation(tabbed_m)
+              | Some(steps) => vindentation(~steps, tabbed_m)
+              },
+            ],
           [
             view_of_snode(
               ~inject,
@@ -1043,12 +1049,14 @@ and view_of_sline =
           ],
         )
       | (Indented(m), true, false) => (
-          [
-            switch (steps_of_first_sword) {
-            | None => vindentation(m)
-            | Some(steps) => vindentation(~steps, m)
-            },
-          ],
+          m == 0
+            ? []
+            : [
+              switch (steps_of_first_sword) {
+              | None => vindentation(m)
+              | Some(steps) => vindentation(~steps, m)
+              },
+            ],
           (
             trimmed_op_stokens
             |> List.map(
@@ -1111,12 +1119,14 @@ and view_of_sline =
           ],
         )
       | (Indented(tabbed_m), true, false) => (
-          [
-            switch (steps_of_first_sword) {
-            | None => vindentation(tabbed_m)
-            | Some(steps) => vindentation(~steps, tabbed_m)
-            },
-          ],
+          tabbed_m == 0
+            ? []
+            : [
+              switch (steps_of_first_sword) {
+              | None => vindentation(tabbed_m)
+              | Some(steps) => vindentation(~steps, tabbed_m)
+              },
+            ],
           [
             view_of_snode(
               ~inject,

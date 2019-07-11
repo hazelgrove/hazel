@@ -193,7 +193,11 @@ let apply_action =
           | Some((next_steps, None)) =>
             next_steps == current_steps
               ? ()
-              : schedule_action(Action.EditAction(MoveToBefore(next_steps)))
+              : {
+                schedule_action(
+                  Action.EditAction(MoveToBefore(next_steps)),
+                );
+              }
           | Some((next_steps, Some(next_cursor))) =>
             next_steps == current_steps && next_cursor == current_cursor
               ? ()
