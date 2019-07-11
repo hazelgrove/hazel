@@ -174,6 +174,16 @@ let font_size = 20.0;
 let line_height = 1.5;
 let indicator_padding = font_size *. (line_height -. 1.0) /. 2.0 -. 1.5;
 
+let get_relative_bounding_rect = elem => {
+  let cell_rect =
+    JSUtil.force_get_elem_by_id(cell_id) |> JSUtil.get_bounding_rect;
+  elem
+  |> JSUtil.get_bounding_rect(
+       ~top_origin=cell_rect.top,
+       ~left_origin=cell_rect.left,
+     );
+};
+
 let indent_of_snode_elem = elem =>
   switch (elem |> JSUtil.get_attr("indent_level")) {
   | None => 0
@@ -186,14 +196,7 @@ let indent_of_snode_elem = elem =>
   };
 
 let place_box_node_indicator_over_snode_elem = (~child_indices, elem) => {
-  let cell_rect =
-    JSUtil.force_get_elem_by_id("cell") |> JSUtil.get_bounding_rect;
-  let rect =
-    elem
-    |> JSUtil.get_bounding_rect(
-         ~top_origin=cell_rect.top,
-         ~left_origin=cell_rect.left,
-       );
+  let rect = elem |> get_relative_bounding_rect;
   let indent = elem |> indent_of_snode_elem;
   JSUtil.force_get_elem_by_id(box_node_indicator_id)
   |> JSUtil.place_over_rect(
@@ -213,12 +216,7 @@ let place_box_node_indicator_over_snode_elem = (~child_indices, elem) => {
   | Some(child_elems) =>
     zip(child_indices, child_elems)
     |> List.iter(((i, child_elem)) => {
-         let child_rect =
-           child_elem
-           |> JSUtil.get_bounding_rect(
-                ~top_origin=cell_rect.top,
-                ~left_origin=cell_rect.left,
-              );
+         let child_rect = child_elem |> get_relative_bounding_rect;
          if (elem
              |> Code.elem_is_multi_line
              && child_elem
@@ -245,45 +243,55 @@ let place_box_term_indicator = cursor_elem => {
     |> Sexplib.Sexp.of_string
     |> Path.steps_of_sexp;
   let term_elem = Code.force_get_snode_elem(steps);
-  let cell_rect =
-    JSUtil.force_get_elem_by_id("cell") |> JSUtil.get_bounding_rect;
-  let rect =
-    term_elem
-    |> JSUtil.get_bounding_rect(
-         ~top_origin=cell_rect.top,
-         ~left_origin=cell_rect.left,
-       );
+  let term_rect = term_elem |> get_relative_bounding_rect;
   let indent = term_elem |> indent_of_snode_elem;
-  JSUtil.force_get_elem_by_id(box_tm_indicator_id)
-  |> JSUtil.place_over_rect(
-       ~indent,
-       {
-         top: rect.top -. indicator_padding,
-         right: rect.right +. indicator_padding,
-         bottom:
-           term_elem |> Code.elem_is_on_last_line
-             ? rect.bottom +. indicator_padding
-             : rect.bottom -. indicator_padding,
-         left: rect.left -. indicator_padding,
-       },
-     );
+  if (term_elem |> Code.snode_elem_is_Block) {
+    let all_sline_elems =
+      JSUtil.force_get_elem_by_id(cell_id)
+      |> Code.sline_elems_of_snode_elem(term_elem);
+    let first_sline_index =
+      cursor_elem
+      |> JSUtil.force_get_parent_elem
+      |> Code.line_no_of_sline_elem
+      |> Opt.get(() => assert(false));
+    let sub_block_rect =
+      all_sline_elems
+      |> filteri((i, _) => i >= first_sline_index)
+      |> List.map(get_relative_bounding_rect)
+      |> JSUtil.get_covering_rect;
+    JSUtil.force_get_elem_by_id(box_tm_indicator_id)
+    |> JSUtil.place_over_rect(
+         ~indent,
+         {
+           top: sub_block_rect.top -. indicator_padding,
+           right: sub_block_rect.right +. indicator_padding,
+           bottom:
+             term_elem |> Code.elem_is_on_last_line
+               ? sub_block_rect.bottom +. indicator_padding
+               : sub_block_rect.bottom -. indicator_padding,
+           left: sub_block_rect.left -. indicator_padding,
+         },
+       );
+  } else {
+    JSUtil.force_get_elem_by_id(box_tm_indicator_id)
+    |> JSUtil.place_over_rect(
+         ~indent,
+         {
+           top: term_rect.top -. indicator_padding,
+           right: term_rect.right +. indicator_padding,
+           bottom:
+             term_elem |> Code.elem_is_on_last_line
+               ? term_rect.bottom +. indicator_padding
+               : term_rect.bottom -. indicator_padding,
+           left: term_rect.left -. indicator_padding,
+         },
+       );
+  };
 };
 
 let place_box_term_indicator_over_single_line_seq = (operand1, operand2) => {
-  let cell_rect =
-    JSUtil.force_get_elem_by_id("cell") |> JSUtil.get_bounding_rect;
-  let rect1 =
-    operand1
-    |> JSUtil.get_bounding_rect(
-         ~top_origin=cell_rect.top,
-         ~left_origin=cell_rect.left,
-       );
-  let rect2 =
-    operand2
-    |> JSUtil.get_bounding_rect(
-         ~top_origin=cell_rect.top,
-         ~left_origin=cell_rect.left,
-       );
+  let rect1 = operand1 |> get_relative_bounding_rect;
+  let rect2 = operand2 |> get_relative_bounding_rect;
   JSUtil.force_get_elem_by_id(box_tm_indicator_id)
   |> JSUtil.place_over_rect({
        top: rect1.top -. indicator_padding,
@@ -297,14 +305,7 @@ let place_box_term_indicator_over_single_line_seq = (operand1, operand2) => {
 };
 
 let place_op_node_indicator_over_op_elem = op_elem => {
-  let cell_rect =
-    JSUtil.force_get_elem_by_id("cell") |> JSUtil.get_bounding_rect;
-  let rect =
-    op_elem
-    |> JSUtil.get_bounding_rect(
-         ~top_origin=cell_rect.top,
-         ~left_origin=cell_rect.left,
-       );
+  let rect = op_elem |> get_relative_bounding_rect;
   JSUtil.force_get_elem_by_id(op_node_indicator_id)
   |> JSUtil.place_over_rect({
        top: rect.top -. indicator_padding,
@@ -318,15 +319,8 @@ let place_op_node_indicator_over_op_elem = op_elem => {
 };
 
 let place_multi_line_seq_term_indicator = (steps, (a, b), opseq_elem) => {
-  let cell_rect =
-    JSUtil.force_get_elem_by_id("cell") |> JSUtil.get_bounding_rect;
   let a_elem = steps @ [a] |> node_id |> JSUtil.force_get_elem_by_id;
-  let a_rect =
-    a_elem
-    |> JSUtil.get_bounding_rect(
-         ~top_origin=cell_rect.top,
-         ~left_origin=cell_rect.left,
-       );
+  let a_rect = a_elem |> get_relative_bounding_rect;
   JSUtil.force_get_elem_by_id(seq_tm_indicator_id(a))
   |> JSUtil.place_over_rect({
        top: a_rect.top -. indicator_padding,
@@ -337,16 +331,13 @@ let place_multi_line_seq_term_indicator = (steps, (a, b), opseq_elem) => {
            : a_rect.bottom -. indicator_padding,
        right: a_rect.right +. indicator_padding,
      });
-  let sline_elems = Code.sline_elems_of_snode_elem(opseq_elem);
+  let sline_elems =
+    JSUtil.force_get_elem_by_id(cell_id)
+    |> Code.sline_elems_of_snode_elem(opseq_elem);
   range(~lo=a + 1, b + 1)
   |> List.map(List.nth(sline_elems))
   |> List.iteri((i, sline_elem) => {
-       let rect =
-         sline_elem
-         |> JSUtil.get_bounding_rect(
-              ~top_origin=cell_rect.top,
-              ~left_origin=cell_rect.left,
-            );
+       let rect = sline_elem |> get_relative_bounding_rect;
        JSUtil.force_get_elem_by_id(seq_tm_indicator_id(a + 1 + i))
        |> JSUtil.place_over_rect({
             top: rect.top -. indicator_padding,
@@ -379,7 +370,7 @@ let view =
       [
         Node.div(
           [
-            Attr.id("cell"),
+            Attr.id(cell_id),
             Attr.create("contenteditable", "true"),
             Attr.on("drop", _ => Event.Prevent_default),
             Attr.on_focus(_ => inject(FocusCell)),
@@ -525,3 +516,5 @@ let view =
     )
   );
 };
+
+let elem = () => JSUtil.force_get_elem_by_id(cell_id);

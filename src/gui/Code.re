@@ -408,15 +408,30 @@ let child_elems_of_snode_elem = elem =>
 let force_get_snode_elem = steps =>
   JSUtil.force_get_elem_by_id(node_id(steps));
 
-let cls_sline = "sline";
-let sline_elems_of_snode_elem = elem => {
-  Dom_html.document##querySelectorAll(
+let sline_elems_of_snode_elem =
+    (
+      snode_elem: Js.t(Dom_html.element),
+      container_elem: Js.t(Dom_html.element),
+    ) => {
+  container_elem##querySelectorAll(
     Js.string(
-      "#" ++ (Js.to_string(elem##.id) |> escape_parens) ++ " > ." ++ cls_sline,
+      "[id=\'" ++ Js.to_string(snode_elem##.id) ++ "\'] > ." ++ cls_sline,
     ),
   )
   |> Dom.list_of_nodeList;
 };
+
+let line_no_of_sline_elem = sline_elem =>
+  sline_elem
+  |> JSUtil.clss_of_elem
+  |> List.fold_left(
+       (found, cls) =>
+         switch (found) {
+         | Some(_) => found
+         | None => line_no_of_sline_cls(cls)
+         },
+       None,
+     );
 
 let cls_SNode = "SNode";
 let cls_SBox = "SBox";
@@ -461,6 +476,10 @@ let snode_elem_occupies_full_sline = elem => {
      );
 };
 
+let cls_Block = "Block";
+
+let snode_elem_is_Block = JSUtil.elem_has_cls(cls_Block);
+
 let snode_attrs =
     (
       ~inject: Update.Action.t => Vdom.Event.t,
@@ -486,7 +505,7 @@ let snode_attrs =
         @ err_status_clss(err_status);
       let shape_attrs =
         switch (shape) {
-        | Block => [Attr.classes(["Block", ...base_clss])]
+        | Block => [Attr.classes([cls_Block, ...base_clss])]
         | EmptyLine => [Attr.classes(["EmptyLine", ...base_clss])]
         | LetLine => [Attr.classes(["LetLine", ...base_clss])]
         | EmptyHole => [Attr.classes(["EmptyHole", ...base_clss])]
@@ -531,7 +550,6 @@ let snode_attrs =
         };
       [
         Attr.id(node_id(steps)),
-        // used to draw cursor overlay, see on_display in Hazel.re
         Attr.create(
           "children",
           snode
@@ -548,8 +566,6 @@ let snode_attrs =
     }
   );
 };
-
-let sline_clss = line_no => ["sline", "sline-" ++ string_of_int(line_no)];
 
 let var_err_status_clss =
   fun

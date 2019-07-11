@@ -78,7 +78,7 @@ let apply_action =
       let anchorNode = Dom_html.window##getSelection##.anchorNode;
       let anchorOffset = Dom_html.window##getSelection##.anchorOffset;
       if (JSUtil.div_contains_node(
-            JSUtil.force_get_elem_by_id("cell"),
+            JSUtil.force_get_elem_by_id(cell_id),
             anchorNode,
           )) {
         let closest_elem = closest_elem(anchorNode);

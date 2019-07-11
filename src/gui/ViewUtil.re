@@ -1,6 +1,5 @@
 module Regexp = Js_of_ocaml.Regexp;
 open SemanticsCommon;
-open GeneralUtil;
 
 exception MalformedView(int);
 
@@ -8,6 +7,8 @@ exception MalformedView(int);
 type delim_path = (Path.steps, delim_index);
 [@deriving sexp]
 type op_path = (Path.steps, op_index);
+
+let cell_id = "cell";
 
 let node_id = steps =>
   "node__" ++ Sexplib.Sexp.to_string(Path.sexp_of_steps(steps));
@@ -20,20 +21,6 @@ let delim_id = (steps, delim_index) =>
   ++ Sexplib.Sexp.to_string(sexp_of_delim_path((steps, delim_index)));
 let op_id = (steps, op_index) =>
   "op__" ++ Sexplib.Sexp.to_string(sexp_of_op_path((steps, op_index)));
-
-// necessary to pre-process our ids before using them to
-// construct CSS selectors because they contain parens characters
-// and these are special in selector syntax
-let escape_parens = s =>
-  range(s |> String.length)
-  |> List.map(i =>
-       switch (s.[i]) {
-       | '(' => "\\("
-       | ')' => "\\)"
-       | c => c |> String.make(1)
-       }
-     )
-  |> List.fold_left((acc, s) => acc ++ s, "");
 
 let box_node_indicator_id = "box_node_indicator";
 let child_indicator_id = i => "child_indicator__" ++ string_of_int(i);
@@ -78,5 +65,21 @@ let delim_path_of_delim_id = s =>
     | None => None
     | Some(ssexp) =>
       Some(delim_path_of_sexp(Sexplib.Sexp.of_string(ssexp)))
+    }
+  };
+
+let cls_sline = "sline";
+let sline_clss = line_no => [
+  cls_sline,
+  cls_sline ++ "-" ++ string_of_int(line_no),
+];
+
+let line_no_of_sline_cls = cls =>
+  switch (Regexp.string_match(Regexp.regexp("^sline-(.*)$"), cls, 0)) {
+  | None => None
+  | Some(result) =>
+    switch (Regexp.matched_group(result, 1)) {
+    | None => None
+    | Some(s) => Some(int_of_string(s))
     }
   };

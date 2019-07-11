@@ -83,6 +83,17 @@ let first_leaf = (node: Js.t(Dom.node)): Js.t(Dom.node) => {
   cur^;
 };
 
+let clss_of_elem = elem => {
+  let clss = ref([]);
+  let classList = elem##.classList;
+  for (j in 0 to classList##.length - 1) {
+    let cls_j =
+      Js.(to_string(Optdef.get(classList##item(j), () => assert(false))));
+    clss := [cls_j, ...clss^];
+  };
+  clss^;
+};
+
 let elem_has_cls = (cls: string, elem: Js.t(Dom_html.element)): bool => {
   let found = ref(false);
   let classList = elem##.classList;
@@ -161,6 +172,15 @@ let force_get_elem_by_cls = cls =>
   | [elem, ..._] => elem
   };
 
+let force_get_parent_elem = elem =>
+  (elem: Js.t(Dom_html.element) :> Js.t(Dom.node))
+  |> (node => node##.parentNode)
+  |> Js.Opt.to_option
+  |> U.Opt.get(() => assert(false))
+  |> Dom_html.CoerceTo.element
+  |> Js.Opt.to_option
+  |> U.Opt.get(() => assert(false));
+
 let px = (f: float): string => string_of_float(f) ++ "0px";
 
 type rect = {
@@ -202,6 +222,19 @@ let place_over_rect = (~indent=0, rect, elem) => {
       ++ ")",
     );
 };
+
+let get_covering_rect = rects =>
+  rects
+  |> List.fold_left(
+       (covering_rect, rect) =>
+         {
+           top: U.fmin(covering_rect.top, rect.top),
+           left: U.fmin(covering_rect.left, rect.left),
+           bottom: U.fmax(covering_rect.bottom, rect.bottom),
+           right: U.fmax(covering_rect.right, rect.right),
+         },
+       {top: max_float, left: max_float, bottom: min_float, right: min_float},
+     );
 
 let place_over_elem =
     (under_elem: Js.t(Dom_html.element), over_elem: Js.t(Dom_html.element)) =>
