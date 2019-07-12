@@ -2788,7 +2788,7 @@ let rec syn_perform_block =
           prefix,
           ExpLineZ(
             CursorE(
-              Staging(0),
+              Staging(0) as cursor,
               (
                 Parenthesized(block) | Inj(_, _, block) |
                 Case(_, block, _, _)
@@ -2805,19 +2805,19 @@ let rec syn_perform_block =
       | ShiftLeft => UHExp.shift_line_from_prefix
       | _ => UHExp.shift_line_to_prefix
       };
-    switch (block |> UHExp.shift_line(~u_gen, prefix)) {
+    switch (block |> shift_line(~u_gen, prefix)) {
     | None => CantShift
     | Some((new_prefix, new_block, u_gen)) =>
       let new_e_line =
         switch (e_line) {
-        | Inj(err_status, side, _) => Inj(err_status, side, new_block)
+        | Inj(err_status, side, _) => UHExp.Inj(err_status, side, new_block)
         | Case(err_status, _, rules, ann) =>
           Case(err_status, new_block, rules, ann)
         | _ => Parenthesized(new_block)
         };
       let new_zblock =
         ZExp.BlockZL(
-          (new_prefix, ExpZ(CursorE(Staging(0), new_e_line)), suffix),
+          (new_prefix, ExpLineZ(CursorE(cursor, new_e_line)), suffix),
           e,
         );
       Succeeded(Statics.syn_fix_holes_zblock(ctx, u_gen, new_zblock));
@@ -2829,7 +2829,7 @@ let rec syn_perform_block =
           prefix,
           ExpLineZ(
             CursorE(
-              Staging(1),
+              Staging(1) as cursor,
               (Parenthesized(block) | Inj(_, _, block)) as e_line,
             ),
           ),
@@ -2843,17 +2843,17 @@ let rec syn_perform_block =
       | ShiftLeft => UHExp.shift_line_to_suffix_block
       | _ => UHExp.shift_line_from_suffix_block
       };
-    switch (block |> UHExp.shift_line) {
+    switch (block |> shift_line(~u_gen, Block(suffix, e))) {
     | None => CantShift
     | Some((new_block, Block(new_suffix, new_e), u_gen)) =>
-      let new_e_line =
+      let new_e_line: UHExp.t =
         switch (e_line) {
         | Inj(err_status, side, _) => Inj(err_status, side, new_block)
         | _ => Parenthesized(new_block)
         };
       let new_zblock =
         ZExp.BlockZL(
-          (prefix, ExpZ(CursorE(Staging(1), new_e_line)), new_suffix),
+          (prefix, ExpLineZ(CursorE(cursor, new_e_line)), new_suffix),
           new_e,
         );
       Succeeded(Statics.syn_fix_holes_zblock(ctx, u_gen, new_zblock));
@@ -2879,20 +2879,22 @@ let rec syn_perform_block =
         | ShiftLeft => UHExp.shift_line_to_suffix_block
         | _ => UHExp.shift_line_from_suffix_block
         };
-      switch (last_clause |> UHExp.shift_line(~u_gen, Block(suffix, e))) {
+      switch (last_clause |> shift_line(~u_gen, Block(suffix, e))) {
       | None => CantShift
       | Some((new_last_clause, Block(new_suffix, new_e), u_gen)) =>
         let new_zblock =
           ZExp.BlockZL(
             (
               prefix,
-              CursorE(
-                Staging(1),
-                Case(
-                  err_status,
-                  scrut,
-                  leading_rules @ [Rule(last_p, new_last_clause)],
-                  None,
+              ExpLineZ(
+                CursorE(
+                  Staging(1),
+                  Case(
+                    err_status,
+                    scrut,
+                    leading_rules @ [Rule(last_p, new_last_clause)],
+                    None,
+                  ),
                 ),
               ),
               new_suffix,
@@ -3089,7 +3091,8 @@ let rec syn_perform_block =
     syn_perform_block(ctx, keyword_action(k), (zblock, Hole, u_gen));
   /* Zipper Cases */
   | (
-      Backspace | Delete | Construct(_) | UpdateApPalette(_),
+      Backspace | Delete | Construct(_) | UpdateApPalette(_) | ShiftLeft |
+      ShiftRight,
       BlockZL(zlines, e),
     ) =>
     switch (syn_perform_lines(ctx, a, (zlines, u_gen))) {
@@ -3108,7 +3111,8 @@ let rec syn_perform_block =
       Succeeded((zblock, ty, u_gen));
     }
   | (
-      Backspace | Delete | Construct(_) | UpdateApPalette(_),
+      Backspace | Delete | Construct(_) | UpdateApPalette(_) | ShiftLeft |
+      ShiftRight,
       BlockZE(lines, ze),
     ) =>
     switch (Statics.syn_lines(ctx, lines)) {
@@ -3410,6 +3414,10 @@ and syn_perform_line =
       Backspace,
       (CursorL(OnDelim(k, After), li), u_gen),
     )
+  | (Backspace, CursorL(OnDelim(k, After), LetLine(_, _, _) as li)) =>
+    Succeeded((([], CursorL(Staging(k), li), []), ctx, u_gen))
+  | (Backspace | Delete, CursorL(Staging(k), LetLine(_, _, _))) =>
+    Succeeded((([], ZExp.place_before_line(EmptyLine), []), ctx, u_gen))
   /* let x :<| Num = 2   ==>   let x| = 2 */
   | (Backspace, CursorL(OnDelim(1, After), LetLine(p, Some(_), block))) =>
     let (block, ty, u_gen) = Statics.syn_fix_holes_block(ctx, u_gen, block);
