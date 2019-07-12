@@ -3355,10 +3355,18 @@ and syn_perform_line =
     (ctx: Contexts.t, a: t, (zline, u_gen): (ZExp.zline, MetaVarGen.t))
     : result((ZExp.zlines, Contexts.t, MetaVarGen.t)) =>
   switch (a, zline) {
-  | (_, CursorL(OnDelim(_, _), EmptyLine)) => Failed
-  | (_, CursorL(OnText(_), LetLine(_, _, _))) => Failed
-  | (_, CursorL(_, ExpLine(_))) =>
-    /* ExpLine is a ghost node, should never have a cursor */
+  | (
+      _,
+      CursorL(OnDelim(_, _) | Staging(_), EmptyLine) |
+      CursorL(OnText(_), LetLine(_, _, _)) |
+      CursorL(_, ExpLine(_)),
+    ) =>
+    Failed
+  | (_, CursorL(cursor, line)) when !ZExp.is_valid_cursor_line(cursor, line) =>
+    Failed
+  /* Staging */
+  | (ShiftLeft | ShiftRight, CursorL(_, _)) =>
+    // handled at block level
     Failed
   /* Movement */
   | (
@@ -3378,27 +3386,23 @@ and syn_perform_line =
       Backspace,
       CursorL(OnDelim(_, Before) as cursor, LetLine(_, _, _) as line),
     ) =>
-    ZExp.is_valid_cursor_line(cursor, line)
-      ? move_to_prev_node_pos_line(zline, zline =>
-          switch (Statics.syn_line(ctx, line)) {
-          | None => Failed
-          | Some(ctx) => Succeeded((([], zline, []), ctx, u_gen))
-          }
-        )
-      : Failed
+    move_to_prev_node_pos_line(zline, zline =>
+      switch (Statics.syn_line(ctx, line)) {
+      | None => Failed
+      | Some(ctx) => Succeeded((([], zline, []), ctx, u_gen))
+      }
+    )
   /* let x =|> 2   ==>   let x = |2 */
   | (
       Delete,
       CursorL(OnDelim(_, After) as cursor, LetLine(_, _, _) as line),
     ) =>
-    ZExp.is_valid_cursor_line(cursor, line)
-      ? move_to_next_node_pos_line(zline, zline =>
-          switch (Statics.syn_line(ctx, line)) {
-          | None => Failed
-          | Some(ctx) => Succeeded((([], zline, []), ctx, u_gen))
-          }
-        )
-      : Failed
+    move_to_next_node_pos_line(zline, zline =>
+      switch (Statics.syn_line(ctx, line)) {
+      | None => Failed
+      | Some(ctx) => Succeeded((([], zline, []), ctx, u_gen))
+      }
+    )
   /* Delete before delimiter == Backspace after delimiter */
   | (Delete, CursorL(OnDelim(k, Before), LetLine(_, _, _) as li)) =>
     syn_perform_line(
@@ -3419,13 +3423,7 @@ and syn_perform_line =
       Backspace,
       CursorL(OnDelim(_, After) as cursor, LetLine(_, _, _) as li),
     ) =>
-    ZExp.is_valid_cursor_line(cursor, li)
-      ? Succeeded((
-          ([], ZExp.place_before_line(EmptyLine), []),
-          ctx,
-          u_gen,
-        ))
-      : Failed
+    Succeeded((([], ZExp.place_before_line(EmptyLine), []), ctx, u_gen))
   /* Construction */
   | (Construct(_), CursorL(_, _)) =>
     /* handled at lines level */
