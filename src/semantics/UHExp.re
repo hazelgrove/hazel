@@ -392,6 +392,33 @@ type exp_or_block =
   | E(t)
   | B(block);
 
+let shift_line_to_prefix =
+    (~u_gen: MetaVarGen.t, prefix: lines, Block(leading, conclusion))
+    : option((lines, block, MetaVarGen.t)) =>
+  switch (leading, conclusion) {
+  | ([], EmptyHole(_)) => None
+  | ([], _) =>
+    let (hole, u_gen) = u_gen |> new_EmptyHole;
+    Some((prefix @ [ExpLine(conclusion)], Block([], hole), u_gen));
+  | ([leading_first, ...leading_rest], _) =>
+    Some((prefix @ [leading_first], Block(leading_rest, conclusion), u_gen))
+  };
+
+let shift_line_from_prefix =
+    (~u_gen: MetaVarGen.t, prefix: lines, Block(leading, conclusion))
+    : option((lines, block, MetaVarGen.t)) =>
+  switch (prefix |> split_last, leading, conclusion) {
+  | (None, _, _) => None
+  | (Some((prefix_leading, ExpLine(e))), [], EmptyHole(_)) =>
+    Some((prefix_leading, Block([], e), u_gen))
+  | (Some((prefix_leading, prefix_last)), _, _) =>
+    Some((
+      prefix_leading,
+      Block([prefix_last, ...leading], conclusion),
+      u_gen,
+    ))
+  };
+
 let shift_line_to_suffix_block =
     (
       ~u_gen: MetaVarGen.t,
