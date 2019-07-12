@@ -1857,7 +1857,7 @@ and ana_perform_pat =
     | None => Failed
     | Some((_, _)) =>
       switch (syn_perform_pat(ctx, u_gen, a, zp_not_in_hole)) {
-      | (Failed | CursorEscaped(_)) as err => err
+      | (Failed | CantShift | CursorEscaped(_)) as err => err
       | Succeeded((zp1, ty', ctx, u_gen)) =>
         if (HTyp.consistent(ty, ty')) {
           Succeeded((zp1, ctx, u_gen));
@@ -2029,7 +2029,7 @@ and ana_perform_pat =
       CursorP(OnDelim(k, After), (Parenthesized(_) | Inj(_, _, _)) as p),
     ) =>
     Succeeded(
-      Statics.ana_fix_holes_zpat(ctx, u_gen, CursorP(Staging(k), p)),
+      Statics.ana_fix_holes_zpat(ctx, u_gen, CursorP(Staging(k), p), ty),
     )
   | (
       Backspace | Delete,
@@ -2245,7 +2245,7 @@ and ana_perform_pat =
   | (Construct(SVar("true", _)), _)
   | (Construct(SVar("false", _)), _) =>
     switch (syn_perform_pat(ctx, u_gen, a, zp)) {
-    | (Failed | CursorEscaped(_)) as err => err
+    | (Failed | CantShift | CursorEscaped(_)) as err => err
     | Succeeded((zp, ty', ctx, u_gen)) =>
       if (HTyp.consistent(ty, ty')) {
         Succeeded((zp, ctx, u_gen));
@@ -2496,7 +2496,7 @@ and ana_perform_pat =
   | (Construct(SNumLit(_, _)), _)
   | (Construct(SListNil), _) =>
     switch (syn_perform_pat(ctx, u_gen, a, zp)) {
-    | (Failed | CursorEscaped(_)) as err => err
+    | (Failed | CantShift | CursorEscaped(_)) as err => err
     | Succeeded((zp, ty', ctx, u_gen)) =>
       if (HTyp.consistent(ty, ty')) {
         Succeeded((zp, ctx, u_gen));
@@ -3465,7 +3465,7 @@ and syn_perform_line =
     | None => Failed
     | Some(ty) =>
       switch (syn_perform_exp(ctx, a, (ze, ty, u_gen))) {
-      | (Failed | CursorEscaped(_)) as err => err
+      | (Failed | CantShift | CursorEscaped(_)) as err => err
       | Succeeded((E(ze), _, u_gen)) =>
         let zline = ZExp.prune_empty_hole_line(ExpLineZ(ze));
         Succeeded((([], zline, []), ctx, u_gen));
@@ -5942,7 +5942,7 @@ and ana_perform_exp_subsume =
   | None => Failed
   | Some(ty1) =>
     switch (syn_perform_exp(ctx, a, (ze, ty1, u_gen))) {
-    | (Failed | CursorEscaped(_)) as err => err
+    | (Failed | CantShift | CursorEscaped(_)) as err => err
     | Succeeded((ze_zb, ty1, u_gen)) =>
       if (HTyp.consistent(ty, ty1)) {
         Succeeded((ze_zb, u_gen));
