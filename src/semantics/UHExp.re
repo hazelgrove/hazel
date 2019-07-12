@@ -426,39 +426,94 @@ let shift_line_to_suffix_block =
       Block(leading, conclusion),
     )
     : option((block, block, MetaVarGen.t)) =>
-  switch (leading |> split_last, conclusion) {
-  | (None, EmptyHole(_)) => None
-  | (None, _) =>
+  switch (
+    leading |> split_last,
+    conclusion,
+    suffix_leading,
+    suffix_conclusion,
+  ) {
+  | (None, EmptyHole(_), _, _) => None
+  | (None, _, _, _) =>
     let (hole, u_gen) = u_gen |> new_EmptyHole;
     Some((
       wrap_in_block(hole),
       Block([ExpLine(conclusion), ...suffix_leading], suffix_conclusion),
       u_gen,
     ));
-  | (Some((leading_prefix, leading_last)), EmptyHole(_)) =>
-    let new_block =
-      switch (leading_prefix |> split_last) {
-      | None => wrap_in_block(conclusion)
-      | Some((leading_prefix_prefix, ExpLine(new_conclusion))) =>
-        Block(leading_prefix_prefix, new_conclusion)
-      | Some(_) => Block(leading_prefix, conclusion)
-      };
+  | (Some((leading_prefix, leading_last)), EmptyHole(_), _, _) =>
     Some((
-      new_block,
+      Block(leading_prefix, conclusion),
       Block([leading_last, ...suffix_leading], suffix_conclusion),
       u_gen,
+    ))
+  | (Some((leading_prefix, leading_last)), _, [], EmptyHole(_)) =>
+    let (new_conclusion, u_gen) =
+      switch (leading_last) {
+      | ExpLine(e) => (e, u_gen)
+      | _ => u_gen |> new_EmptyHole
+      };
+    Some((
+      Block(leading_prefix, new_conclusion),
+      wrap_in_block(conclusion),
+      u_gen,
     ));
-  | (Some((leading_prefix, ExpLine(new_conclusion))), _) =>
+  | (Some((leading_prefix, leading_last)), _, _, _) =>
+    let (new_conclusion, u_gen) =
+      switch (leading_last) {
+      | ExpLine(e) => (e, u_gen)
+      | _ => u_gen |> new_EmptyHole
+      };
     Some((
       Block(leading_prefix, new_conclusion),
       Block([ExpLine(conclusion), ...suffix_leading], suffix_conclusion),
       u_gen,
+    ));
+  };
+
+let shift_line_from_suffix_block =
+    (
+      ~u_gen: MetaVarGen.t,
+      Block(suffix_leading, suffix_conclusion),
+      Block(leading, conclusion),
+    )
+    : option((block, block, MetaVarGen.t)) =>
+  switch (conclusion, suffix_leading, suffix_conclusion) {
+  | (_, [], EmptyHole(_)) => None
+  | (EmptyHole(_), [], _) =>
+    Some((
+      Block(leading, suffix_conclusion),
+      wrap_in_block(conclusion),
+      u_gen,
     ))
-  | (Some(_), _) =>
+  | (_, [], _) =>
     let (hole, u_gen) = u_gen |> new_EmptyHole;
     Some((
-      Block(leading, hole),
-      Block([ExpLine(conclusion), ...suffix_leading], suffix_conclusion),
+      Block(leading @ [ExpLine(conclusion)], suffix_conclusion),
+      wrap_in_block(hole),
+      u_gen,
+    ));
+  | (EmptyHole(_), [suffix_first, ...new_suffix_leading], suffix_conclusion) =>
+    let (new_leading, new_conclusion) =
+      switch (suffix_first) {
+      | ExpLine(e) => (leading, e)
+      | _ => (leading @ [suffix_first], conclusion)
+      };
+    Some((
+      Block(new_leading, new_conclusion),
+      Block(new_suffix_leading, suffix_conclusion),
+      u_gen,
+    ));
+  | (_, [suffix_first, ...new_suffix_leading], suffix_conclusion) =>
+    let (new_leading, new_conclusion, u_gen) =
+      switch (suffix_first) {
+      | ExpLine(e) => (leading @ [ExpLine(conclusion)], e, u_gen)
+      | _ =>
+        let (hole, u_gen) = u_gen |> new_EmptyHole;
+        (leading @ [ExpLine(conclusion), suffix_first], hole, u_gen);
+      };
+    Some((
+      Block(new_leading, new_conclusion),
+      Block(new_suffix_leading, suffix_conclusion),
       u_gen,
     ));
   };
