@@ -1,160 +1,159 @@
-open GeneraUtil;
+open GeneralUtil;
 
 type seq('tm, 'op) = OperatorSeq.opseq('tm, 'op);
 type surround('tm, 'op) = OperatorSeq.opseq_surround('tm, 'op);
 
 let _shift_optm_from_prefix =
-  (
-    ~concat: ('tm, 'op, 'tm) => 'tm,
-    ~surround: option(surround('tm, 'op)),
-    body: 'tm,
-  ): option(('tm, option(surround('tm, 'op)))) =>
-    switch (surround) {
-    | None
-    | Some(EmptyPrefix(_)) => None
-    | Some(EmptySuffix(ExpPrefix(tm, op)))
-    | Some(BothNonEmpty(ExpPrefix(tm, op), _)) =>
-      let new_body = concat(tm, op, body);
-      let new_surround =
-        switch (surround) {
-        | Some(BothNonEmpty(_, suffix)) =>
-          Some(OperatorSeq.EmptyPrefix(suffix))
-        | _ => None
-        };
-      Some((new_body, new_surround));
-    | Some(EmptySuffix(SeqPrefix(seq, op)))
-    | Some(BothNonEmpty(SeqPrefix(seq, op), _)) =>
-      let (tm, new_prefix) = seq |> OperatorSeq.split_tail;
-      let new_body = concat(tm, op, body);
-      let new_surround =
-        switch (surround) {
-        | Some(BothNonEmpty(_, suffix)) =>
-          Some(OperatorSeq.BothNonEmpty(new_prefix, suffix))
-        | _ => Some(EmptySuffix(new_prefix))
-        };
-      Some((new_body, new_surround));
-    };
+    (
+      ~concat: ('tm, 'op, 'tm) => 'tm,
+      ~surround: option(surround('tm, 'op)),
+      body: 'tm,
+    )
+    : option(('tm, option(surround('tm, 'op)))) =>
+  switch (surround) {
+  | None
+  | Some(EmptyPrefix(_)) => None
+  | Some(EmptySuffix(ExpPrefix(tm, op)))
+  | Some(BothNonEmpty(ExpPrefix(tm, op), _)) =>
+    let new_body = concat(tm, op, body);
+    let new_surround =
+      switch (surround) {
+      | Some(BothNonEmpty(_, suffix)) =>
+        Some(OperatorSeq.EmptyPrefix(suffix))
+      | _ => None
+      };
+    Some((new_body, new_surround));
+  | Some(EmptySuffix(SeqPrefix(seq, op)))
+  | Some(BothNonEmpty(SeqPrefix(seq, op), _)) =>
+    let (tm, new_prefix) = seq |> OperatorSeq.split_tail;
+    let new_body = concat(tm, op, body);
+    let new_surround =
+      switch (surround) {
+      | Some(BothNonEmpty(_, suffix)) =>
+        Some(OperatorSeq.BothNonEmpty(new_prefix, suffix))
+      | _ => Some(EmptySuffix(new_prefix))
+      };
+    Some((new_body, new_surround));
+  };
 
 let _shift_optm_from_suffix =
-  (
-    ~concat: ('tm, 'op, 'tm) => 'tm,
-    ~surround: option(surround('tm, 'op)),
-    body: 'tm,
-  ): option(('tm, option(surround('tm, 'op)))) =>
-    switch (surround) {
-    | None
-    | Some(EmptySuffix(_)) => None
-    | Some(EmptyPrefix(ExpSuffix(op, tm)))
-    | Some(BothNonEmpty(_, ExpSuffix(op, tm))) =>
-      let new_body = concat(body, op, tm);
-      let new_surround =
-        switch (surround) {
-        | Some(BothNonEmpty(prefix, _)) =>
-          Some(OperatorSeq.EmptySuffix(prefix))
-        | _ => None
-        };
-      Some((new_body, new_surround));
-    | Some(EmptyPrefix(SeqSuffix(op, seq)))
-    | Some(BothNonEmpty(_, SeqSuffix(op, seq))) =>
-      let (tm, new_suffix) = seq |> OperatorSeq.split0;
-      let new_body = concat(body, op, tm);
-      let new_surround =
-        switch (surround) {
-        | Some(BothNonEmpty(prefix, _)) =>
-          Some(OperatorSeq.BothNonEmpty(prefix, new_suffix))
-        | _ => Some(EmptyPrefix(new_suffix))
-        };
-      Some((new_body, new_surround));
-    };
+    (
+      ~concat: ('tm, 'op, 'tm) => 'tm,
+      ~surround: option(surround('tm, 'op)),
+      body: 'tm,
+    )
+    : option(('tm, option(surround('tm, 'op)))) =>
+  switch (surround) {
+  | None
+  | Some(EmptySuffix(_)) => None
+  | Some(EmptyPrefix(ExpSuffix(op, tm)))
+  | Some(BothNonEmpty(_, ExpSuffix(op, tm))) =>
+    let new_body = concat(body, op, tm);
+    let new_surround =
+      switch (surround) {
+      | Some(BothNonEmpty(prefix, _)) =>
+        Some(OperatorSeq.EmptySuffix(prefix))
+      | _ => None
+      };
+    Some((new_body, new_surround));
+  | Some(EmptyPrefix(SeqSuffix(op, seq)))
+  | Some(BothNonEmpty(_, SeqSuffix(op, seq))) =>
+    let (tm, new_suffix) = seq |> OperatorSeq.split0;
+    let new_body = concat(body, op, tm);
+    let new_surround =
+      switch (surround) {
+      | Some(BothNonEmpty(prefix, _)) =>
+        Some(OperatorSeq.BothNonEmpty(prefix, new_suffix))
+      | _ => Some(EmptyPrefix(new_suffix))
+      };
+    Some((new_body, new_surround));
+  };
 
 let _shift_optm_to_prefix =
-  (
-    ~is_OpSeq: 'tm => option(seq('tm, 'op)),
-    ~mk_OpSeq: seq('tm, 'op) => 'tm,
-    ~surround: option(surround('tm, 'op)),
-    body: seq('tm, 'op),
-  ): option(('tm, option(surround('tm, 'op)))) =>
+    (
+      ~is_OpSeq: 'tm => option(seq('tm, 'op)),
+      ~mk_OpSeq: seq('tm, 'op) => 'tm,
+      ~surround: option(surround('tm, 'op)),
+      body: 'tm,
+    )
+    : option(('tm, option(surround('tm, 'op)))) =>
   is_OpSeq(body)
   |> Opt.map(seq =>
-      switch (seq |> OperatorSeq.split0) {
-      | (first, ExpSuffix(op, tm)) =>
-        (
-          tm,
-          Some(
-            switch (surround) {
-            | None => EmptySuffix(ExpPrefix(first, op))
-            | Some(surround) =>
-              OperatorSeq.nest_surrounds(
-                EmptySuffix(ExpPrefix(first, op)),
-                surround,
-              )
-            },
-          ),
-        )
-      | (first, SeqSuffix(op, seq)) =>
-        (
-          mk_OpSeq(seq),
-          Some(
-            switch (surround) {
-            | None => EmptySuffix(ExpPrefix(first, op))
-            | Some(surround) =>
-              OperatorSeq.nest_surrounds(
-                EmptySuffix(ExpPrefix(first, op)),
-                surround,
-              )
-            },
-          ),
-        )
-      }
-  );
+       switch (seq |> OperatorSeq.split0) {
+       | (first, ExpSuffix(op, tm)) => (
+           tm,
+           Some(
+             switch (surround) {
+             | None => OperatorSeq.EmptySuffix(ExpPrefix(first, op))
+             | Some(surround) =>
+               OperatorSeq.nest_surrounds(
+                 EmptySuffix(ExpPrefix(first, op)),
+                 surround,
+               )
+             },
+           ),
+         )
+       | (first, SeqSuffix(op, seq)) => (
+           mk_OpSeq(seq),
+           Some(
+             switch (surround) {
+             | None => EmptySuffix(ExpPrefix(first, op))
+             | Some(surround) =>
+               OperatorSeq.nest_surrounds(
+                 EmptySuffix(ExpPrefix(first, op)),
+                 surround,
+               )
+             },
+           ),
+         )
+       }
+     );
 
 let _shift_optm_to_suffix =
-  (
-    ~is_OpSeq: 'tm => option(seq('tm, 'op)),
-    ~mk_OpSeq: seq('tm, 'op) => 'tm,
-    ~surround: option(surround('tm, 'op)),
-    body: seq('tm, 'op),
-  ): option(('tm, option(surround('tm, 'op)))) =>
+    (
+      ~is_OpSeq: 'tm => option(seq('tm, 'op)),
+      ~mk_OpSeq: seq('tm, 'op) => 'tm,
+      ~surround: option(surround('tm, 'op)),
+      body: 'tm,
+    )
+    : option(('tm, option(surround('tm, 'op)))) =>
   is_OpSeq(body)
   |> Opt.map(seq =>
-      switch (seq |> OperatorSeq.split_tail) {
-      | (last, ExpPrefix(tm, op)) =>
-        (
-          tm,
-          Some(
-            switch (surround) {
-            | None => EmptyPrefix(ExpSuffix(op, last))
-            | Some(surround) =>
-              OperatorSeq.nest_surrounds(
-                EmptyPrefix(ExpSuffix(op, last)),
-                surround,
-              )
-            },
-          ),
-        )
-      | (last, SeqPrefix(seq, op)) =>
-        (
-          mk_OpSeq(seq),
-          Some(
-            switch (surround) {
-            | None => EmptyPrefix(ExpSuffix(op, last))
-            | Some(surround) =>
-              OperatorSeq.nest_surrounds(
-                EmptyPrefix(ExpSuffix(op, last)),
-                surround,
-              )
-            },
-          ),
-        )
-      }
-  );
+       switch (seq |> OperatorSeq.split_tail) {
+       | (last, ExpPrefix(tm, op)) => (
+           tm,
+           Some(
+             switch (surround) {
+             | None => OperatorSeq.EmptyPrefix(ExpSuffix(op, last))
+             | Some(surround) =>
+               OperatorSeq.nest_surrounds(
+                 EmptyPrefix(ExpSuffix(op, last)),
+                 surround,
+               )
+             },
+           ),
+         )
+       | (last, SeqPrefix(seq, op)) => (
+           mk_OpSeq(seq),
+           Some(
+             switch (surround) {
+             | None => EmptyPrefix(ExpSuffix(op, last))
+             | Some(surround) =>
+               OperatorSeq.nest_surrounds(
+                 EmptyPrefix(ExpSuffix(op, last)),
+                 surround,
+               )
+             },
+           ),
+         )
+       }
+     );
 
 module Typ = {
   let is_OpSeq =
     fun
-    | OpSeq(_, seq) => Some(seq)
-    | _ => None
-    };
+    | UHTyp.OpSeq(_, seq) => Some(seq)
+    | _ => None;
 
   let mk_OpSeq = (seq: UHTyp.opseq): UHTyp.t => {
     let skel = Associator.associate_ty(seq);
@@ -214,7 +213,7 @@ module Typ = {
 module Pat = {
   let is_OpSeq =
     fun
-    | OpSeq(_, seq) => Some(seq)
+    | UHPat.OpSeq(_, seq) => Some(seq)
     | _ => None;
 
   let mk_OpSeq = (seq: UHPat.opseq): UHPat.t => {
@@ -267,7 +266,7 @@ module Pat = {
     _shift_optm_to_prefix(~is_OpSeq, ~mk_OpSeq, ~surround, body);
 
   let shift_optm_to_suffix =
-      (~surround: option(ZPat.opseq_surround), ty: UHPat.t)
+      (~surround: option(ZPat.opseq_surround), body: UHPat.t)
       : option((UHPat.t, option(ZPat.opseq_surround))) =>
     _shift_optm_to_suffix(~is_OpSeq, ~mk_OpSeq, ~surround, body);
 };
@@ -275,7 +274,7 @@ module Pat = {
 module Exp = {
   let is_OpSeq =
     fun
-    | OpSeq(_, seq) => Some(seq)
+    | UHExp.OpSeq(_, seq) => Some(seq)
     | _ => None;
 
   let mk_OpSeq = (seq: UHExp.opseq): UHExp.t => {
@@ -289,6 +288,17 @@ module Exp = {
     let skel = Associator.associate_exp(seq);
     OpSeqZ(skel, ze, surround);
   };
+
+  let concat = (e1: UHExp.t, op: UHExp.op, e2: UHExp.t): UHExp.t =>
+    mk_OpSeq(
+      switch (e1, e2) {
+      | (OpSeq(_, seq1), OpSeq(_, seq2)) =>
+        OperatorSeq.seq_op_seq(seq1, op, seq2)
+      | (OpSeq(_, seq1), _) => SeqOpExp(seq1, op, e2)
+      | (_, OpSeq(_, seq2)) => OperatorSeq.exp_op_seq(e1, op, seq2)
+      | (_, _) => ExpOpExp(e1, op, e2)
+      },
+    );
 
   let resurround =
       (ze0: ZExp.t, surround: ZExp.opseq_surround)
@@ -316,7 +326,7 @@ module Exp = {
     _shift_optm_to_prefix(~is_OpSeq, ~mk_OpSeq, ~surround, body);
 
   let shift_optm_to_suffix =
-      (~surround: option(ZExp.opseq_surround), ty: UHExp.t)
+      (~surround: option(ZExp.opseq_surround), body: UHExp.t)
       : option((UHExp.t, option(ZExp.opseq_surround))) =>
     _shift_optm_to_suffix(~is_OpSeq, ~mk_OpSeq, ~surround, body);
 };
