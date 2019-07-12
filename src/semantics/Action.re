@@ -2748,7 +2748,7 @@ let rec syn_perform_block =
   | (
       ShiftLeft | ShiftRight,
       BlockZL(
-        (prefix, CursorL(Staging(2), LetLine(p, ann, def)), suffix),
+        (prefix, CursorL(Staging(3), LetLine(p, ann, def)), suffix),
         e,
       ),
     ) =>
@@ -2759,15 +2759,15 @@ let rec syn_perform_block =
       };
     switch (def |> shift_line(~u_gen, Block(suffix, e))) {
     | None => CantShift
-    | Some((new_def, new_suffix, u_gen)) =>
+    | Some((new_def, Block(new_suffix, new_e), u_gen)) =>
       let new_zblock =
         ZExp.BlockZL(
           (
             prefix,
-            CursorL(Staging(2), LetLine(p, ann, new_def)),
+            CursorL(Staging(3), LetLine(p, ann, new_def)),
             new_suffix,
           ),
-          e,
+          new_e,
         );
       Succeeded(Statics.syn_fix_holes_zblock(ctx, u_gen, new_zblock));
     };
@@ -2830,10 +2830,7 @@ let rec syn_perform_block =
           ExpLineZ(
             CursorE(
               Staging(1),
-              (
-                Parenthesized(block) | Inj(_, _, block) |
-                Case(_, block, _, _)
-              ) as e_line,
+              (Parenthesized(block) | Inj(_, _, block)) as e_line,
             ),
           ),
           suffix,
@@ -2852,8 +2849,6 @@ let rec syn_perform_block =
       let new_e_line =
         switch (e_line) {
         | Inj(err_status, side, _) => Inj(err_status, side, new_block)
-        | Case(err_status, _, rules, ann) =>
-          Case(err_status, new_block, rules, ann)
         | _ => Parenthesized(new_block)
         };
       let new_zblock =
@@ -4718,6 +4713,164 @@ and ana_perform_block =
     )
     : result((ZExp.zblock, MetaVarGen.t)) =>
   switch (a, zblock) {
+  /* Staging */
+  | (
+      ShiftLeft | ShiftRight,
+      BlockZL(
+        (prefix, CursorL(Staging(3), LetLine(p, ann, def)), suffix),
+        e,
+      ),
+    ) =>
+    let shift_line =
+      switch (a) {
+      | ShiftLeft => UHExp.shift_line_to_suffix_block
+      | _ => UHExp.shift_line_from_suffix_block
+      };
+    switch (def |> shift_line(~u_gen, Block(suffix, e))) {
+    | None => CantShift
+    | Some((new_def, new_suffix, u_gen)) =>
+      let new_zblock =
+        ZExp.BlockZL(
+          (
+            prefix,
+            CursorL(Staging(3), LetLine(p, ann, new_def)),
+            new_suffix,
+          ),
+          e,
+        );
+      Succeeded(Statics.ana_fix_holes_zblock(ctx, u_gen, new_zblock, ty));
+    };
+  | (
+      ShiftLeft | ShiftRight,
+      BlockZL((_, CursorL(Staging(_), LetLine(_, _, _)), _), _),
+    ) =>
+    CantShift
+  | (
+      ShiftLeft | ShiftRight,
+      BlockZL((_, CursorL(Staging(_), EmptyLine | ExpLine(_)), _), _),
+    ) =>
+    Failed
+  | (
+      ShiftLeft | ShiftRight,
+      BlockZL(
+        (
+          prefix,
+          ExpLineZ(
+            CursorE(
+              Staging(0),
+              (
+                Parenthesized(block) | Inj(_, _, block) |
+                Case(_, block, _, _)
+              ) as e_line,
+            ),
+          ),
+          suffix,
+        ),
+        e,
+      ),
+    ) =>
+    let shift_line =
+      switch (a) {
+      | ShiftLeft => UHExp.shift_line_from_prefix
+      | _ => UHExp.shift_line_to_prefix
+      };
+    switch (block |> UHExp.shift_line(~u_gen, prefix)) {
+    | None => CantShift
+    | Some((new_prefix, new_block, u_gen)) =>
+      let new_e_line =
+        switch (e_line) {
+        | Inj(err_status, side, _) => Inj(err_status, side, new_block)
+        | Case(err_status, _, rules, ann) =>
+          Case(err_status, new_block, rules, ann)
+        | _ => Parenthesized(new_block)
+        };
+      let new_zblock =
+        ZExp.BlockZL(
+          (new_prefix, ExpZ(CursorE(Staging(0), new_e_line)), suffix),
+          e,
+        );
+      Succeeded(Statics.ana_fix_holes_zblock(ctx, u_gen, new_zblock, ty));
+    };
+  | (
+      ShiftLeft | ShiftRight,
+      BlockZL(
+        (
+          prefix,
+          ExpLineZ(
+            CursorE(
+              Staging(1),
+              (Parenthesized(block) | Inj(_, _, block)) as e_line,
+            ),
+          ),
+          suffix,
+        ),
+        e,
+      ),
+    ) =>
+    let shift_line =
+      switch (a) {
+      | ShiftLeft => UHExp.shift_line_to_suffix_block
+      | _ => UHExp.shift_line_from_suffix_block
+      };
+    switch (block |> UHExp.shift_line) {
+    | None => CantShift
+    | Some((new_block, Block(new_suffix, new_e), u_gen)) =>
+      let new_e_line =
+        switch (e_line) {
+        | Inj(err_status, side, _) => Inj(err_status, side, new_block)
+        | _ => Parenthesized(new_block)
+        };
+      let new_zblock =
+        ZExp.BlockZL(
+          (prefix, ExpZ(CursorE(Staging(1), new_e_line)), new_suffix),
+          new_e,
+        );
+      Succeeded(Statics.ana_fix_holes_zblock(ctx, u_gen, new_zblock, ty));
+    };
+  | (
+      ShiftLeft | ShiftRight,
+      BlockZL(
+        (
+          prefix,
+          ExpLineZ(
+            CursorE(Staging(1), Case(err_status, scrut, rules, None)),
+          ),
+          suffix,
+        ),
+        e,
+      ),
+    ) =>
+    switch (rules |> split_last) {
+    | None => Failed // shouldn't ever see empty rule list
+    | Some((leading_rules, Rule(last_p, last_clause))) =>
+      let shift_line =
+        switch (a) {
+        | ShiftLeft => UHExp.shift_line_to_suffix_block
+        | _ => UHExp.shift_line_from_suffix_block
+        };
+      switch (last_clause |> UHExp.shift_line(~u_gen, Block(suffix, e))) {
+      | None => CantShift
+      | Some((new_last_clause, Block(new_suffix, new_e), u_gen)) =>
+        let new_zblock =
+          ZExp.BlockZL(
+            (
+              prefix,
+              CursorE(
+                Staging(1),
+                Case(
+                  err_status,
+                  scrut,
+                  leading_rules @ [Rule(last_p, new_last_clause)],
+                  None,
+                ),
+              ),
+              new_suffix,
+            ),
+            new_e,
+          );
+        Succeeded(Statics.ana_fix_holes_zblock(ctx, u_gen, new_zblock, ty));
+      };
+    }
   /* Movement */
   | (MoveTo(path), _) =>
     let block = ZExp.erase_block(zblock);
