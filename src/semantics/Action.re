@@ -197,14 +197,14 @@ let move_to_next_node_pos_typ = (zty: ZTyp.t): result(ZTyp.t) => {
 
 let rec perform_ty = (a: t, zty: ZTyp.t): result(ZTyp.t) =>
   switch (a, zty) {
-  | (_, CursorT(cursor, uty)) when !ZTyp.is_valid_cursor(cursor, uty) =>
-    Failed
   | (
       _,
       CursorT(OnText(_), _) |
       CursorT(Staging(_), Hole | Unit | Num | Bool | OpSeq(_, _)),
     ) =>
     // invalid cursor position
+    Failed
+  | (_, CursorT(cursor, uty)) when !ZTyp.is_valid_cursor(cursor, uty) =>
     Failed
   /* Staging */
   | (ShiftLeft | ShiftRight, CursorT(OnDelim(_, _), _)) => Failed
@@ -234,10 +234,10 @@ let rec perform_ty = (a: t, zty: ZTyp.t): result(ZTyp.t) =>
     | Some((new_body, new_surround)) =>
       let new_ztm =
         ZTyp.CursorT(
-          Staging(0),
+          Staging(k),
           switch (staged) {
-          | Parenthesized(_) => Parenthesized(new_body)
-          | _ => List(new_body)
+          | List(_) => List(new_body)
+          | _parenthesized => Parenthesized(new_body)
           },
         );
       let new_zty =
@@ -1180,305 +1180,65 @@ let rec syn_perform_pat =
         OnText(_),
         EmptyHole(_) | Wild(_) | ListNil(_) | Parenthesized(_) | OpSeq(_, _) |
         Inj(_, _, _),
+      ) |
+      CursorP(OnDelim(_, _), Var(_, _, _) | NumLit(_, _) | BoolLit(_, _)) |
+      CursorP(
+        Staging(_),
+        EmptyHole(_) | Wild(_) | ListNil(_) | Var(_) | NumLit(_, _) |
+        BoolLit(_, _) |
+        OpSeq(_, _),
       ),
-    ) =>
-    Failed
-  | (
-      _,
-      CursorP(OnDelim(_, _), Var(_, _, _) | NumLit(_, _) | BoolLit(_, _)),
     ) =>
     Failed
   | (_, CursorP(cursor, p)) when !ZPat.is_valid_cursor(cursor, p) => Failed
   /* Staging */
-  | (ShiftLeft, CursorP(Staging(0), Parenthesized(_) | Inj(_))) =>
-    // cases below handle when these forms are in
-    // the middle of an opseq, so reaching this case
-    // means we've reached the edge of our "term world"
-    CantShift
+  | (ShiftLeft | ShiftRight, CursorP(OnText(_) | OnDelim(_, _), _)) =>
+    Failed
   | (
-      ShiftLeft,
+      ShiftLeft | ShiftRight,
       CursorP(
-        Staging(1),
+        Staging(k),
         (Parenthesized(body) | Inj(_, _, body)) as staged,
-      ),
-    ) =>
-    switch (body) {
-    | EmptyHole(_)
-    | Wild(_)
-    | Var(_, _, _)
-    | NumLit(_, _)
-    | BoolLit(_, _)
-    | ListNil(_)
-    | Parenthesized(_)
-    | Inj(_, _, _) => CantShift
-    | OpSeq(_, body_seq) =>
-      let (new_body, new_suffix) =
-        switch (body_seq |> OperatorSeq.split_tail) {
-        | (tm_n, ExpPrefix(tm, op)) => (
-            tm,
-            OperatorSeq.ExpSuffix(op, tm_n),
-          )
-        | (tm_n, SeqPrefix(seq, op)) => (
-            OpSeqUtil.Pat.mk_OpSeq(seq),
-            ExpSuffix(op, tm_n),
-          )
-        };
-      let new_ztm =
-        ZPat.CursorP(
-          Staging(1),
-          switch (staged) {
-          | Inj(err_status, side, new_body) =>
-            Inj(err_status, side, new_body)
-          | _ => Parenthesized(new_body)
-          },
-        );
-      let new_zp = OpSeqUtil.Pat.mk_OpSeqZ(new_ztm, EmptyPrefix(new_suffix));
-      Succeeded(Statics.syn_fix_holes_zpat(ctx, u_gen, new_zp));
-    }
-  | (
-      ShiftLeft,
+      ) |
       OpSeqZ(
-        skel,
+        _,
         CursorP(
-          Staging(0),
+          Staging(k),
           (Parenthesized(body) | Inj(_, _, body)) as staged,
         ),
-        surround,
+        _,
       ),
     ) =>
-    switch (surround) {
-    | EmptyPrefix(_) => CantShift
-    | EmptySuffix(ExpPrefix(tm, op))
-    | BothNonEmpty(ExpPrefix(tm, op), _) =>
-      let new_body = OpSeqUtil.Pat.concat(tm, op, body);
+    let shift_optm =
+      switch (k, a) {
+      | (0, ShiftLeft) => OpSeqUtil.Pat.shift_optm_from_prefix
+      | (0, ShiftRight) => OpSeqUtil.Pat.shift_optm_to_prefix
+      | (1, ShiftLeft) => OpSeqUtil.Pat.shift_optm_to_suffix
+      | (_one, _shift_right) => OpSeqUtil.Pat.shift_optm_from_suffix
+      };
+    let surround =
+      switch (zp) {
+      | OpSeqZ(_, _, surround) => Some(surround)
+      | _cursor_p => None
+      };
+    switch (body |> shift_optm(~surround)) {
+    | None => CantShift
+    | Some((new_body, new_surround)) =>
       let new_ztm =
         ZPat.CursorP(
-          Staging(0),
+          Staging(k),
           switch (staged) {
-          | Inj(err_status, side, new_body) =>
-            Inj(err_status, side, new_body)
-          | _ => Parenthesized(new_body)
+          | Inj(err_status, side, _) => Inj(err_status, side, new_body)
+          | _parenthesized => Parenthesized(new_body)
           },
         );
       let new_zp =
-        switch (surround) {
-        | BothNonEmpty(_, suffix) =>
-          OpSeqUtil.Pat.mk_OpSeqZ(new_ztm, EmptyPrefix(suffix))
-        | _ => new_ztm
+        switch (new_surround) {
+        | None => new_ztm
+        | Some(surround) => OpSeqUtil.Pat.mk_OpSeqZ(new_ztm, surround)
         };
       Succeeded(Statics.syn_fix_holes_zpat(ctx, u_gen, new_zp));
-    | EmptySuffix(SeqPrefix(seq, op))
-    | BothNonEmpty(SeqPrefix(seq, op), _) =>
-      let (tm, new_prefix) = seq |> OperatorSeq.split_tail;
-      let new_body = OpSeqUtil.Pat.concat(tm, op, body);
-      let new_ztm =
-        ZPat.CursorP(
-          Staging(0),
-          switch (staged) {
-          | Inj(err_status, side, new_body) =>
-            Inj(err_status, side, new_body)
-          | _ => Parenthesized(new_body)
-          },
-        );
-      let new_zp =
-        switch (surround) {
-        | BothNonEmpty(_, suffix) =>
-          OpSeqUtil.Pat.mk_OpSeqZ(new_ztm, BothNonEmpty(new_prefix, suffix))
-        | _ => OpSeqUtil.Pat.mk_OpSeqZ(new_ztm, EmptySuffix(new_prefix))
-        };
-      Succeeded(Statics.syn_fix_holes_zpat(ctx, u_gen, new_zp));
-    }
-  | (
-      ShiftLeft,
-      OpSeqZ(
-        skel,
-        CursorP(
-          Staging(1),
-          (Parenthesized(body) | Inj(_, _, body)) as staged,
-        ),
-        surround,
-      ),
-    ) =>
-    switch (body) {
-    | EmptyHole(_)
-    | Wild(_)
-    | Var(_, _, _)
-    | NumLit(_, _)
-    | BoolLit(_, _)
-    | ListNil(_)
-    | Parenthesized(_)
-    | Inj(_, _, _) => CantShift
-    | OpSeq(_, body_seq) =>
-      let (new_body, suffix_delta) =
-        switch (body_seq |> OperatorSeq.split_tail) {
-        | (tm_n, ExpPrefix(tm, op)) => (
-            tm,
-            OperatorSeq.ExpSuffix(op, tm_n),
-          )
-        | (tm_n, SeqPrefix(seq, op)) => (
-            OpSeqUtil.Pat.mk_OpSeq(seq),
-            ExpSuffix(op, tm_n),
-          )
-        };
-      let new_ztm =
-        ZPat.CursorP(
-          Staging(1),
-          switch (staged) {
-          | Inj(err_status, side, new_body) =>
-            Inj(err_status, side, new_body)
-          | _ => Parenthesized(new_body)
-          },
-        );
-      let new_surround =
-        OperatorSeq.nest_surrounds(EmptyPrefix(suffix_delta), surround);
-      let new_zp = OpSeqUtil.Pat.mk_OpSeqZ(new_ztm, new_surround);
-      Succeeded(Statics.syn_fix_holes_zpat(ctx, u_gen, new_zp));
-    }
-  | (ShiftRight, CursorP(Staging(1), Parenthesized(_) | Inj(_, _, _))) =>
-    // cases below handle when these forms are in
-    // the middle of an opseq, so reaching this case
-    // means we've reached the edge of our "term world"
-    CantShift
-  | (
-      ShiftRight,
-      CursorP(
-        Staging(0),
-        (Parenthesized(body) | Inj(_, _, body)) as staged,
-      ),
-    ) =>
-    switch (body) {
-    | EmptyHole(_)
-    | Wild(_)
-    | Var(_, _, _)
-    | NumLit(_, _)
-    | BoolLit(_, _)
-    | ListNil(_)
-    | Parenthesized(_)
-    | Inj(_, _, _) => CantShift
-    | OpSeq(_, body_seq) =>
-      let (new_prefix, new_body) =
-        switch (body_seq |> OperatorSeq.split0) {
-        | (tm0, ExpSuffix(op, tm1)) => (
-            OperatorSeq.ExpPrefix(tm0, op),
-            tm1,
-          )
-        | (tm0, SeqSuffix(op, seq)) => (
-            ExpPrefix(tm0, op),
-            OpSeqUtil.Pat.mk_OpSeq(seq),
-          )
-        };
-      let new_ztm =
-        ZPat.CursorP(
-          Staging(0),
-          switch (staged) {
-          | Inj(err_status, side, new_body) =>
-            Inj(err_status, side, new_body)
-          | _ => Parenthesized(new_body)
-          },
-        );
-      let new_zp = OpSeqUtil.Pat.mk_OpSeqZ(new_ztm, EmptySuffix(new_prefix));
-      Succeeded(Statics.syn_fix_holes_zpat(ctx, u_gen, new_zp));
-    }
-  | (
-      ShiftRight,
-      OpSeqZ(
-        skel,
-        CursorP(
-          Staging(1),
-          (Parenthesized(body) | Inj(_, _, body)) as staged,
-        ),
-        surround,
-      ),
-    ) =>
-    switch (surround) {
-    | EmptySuffix(_) => CantShift
-    | EmptyPrefix(ExpSuffix(op, tm))
-    | BothNonEmpty(_, ExpSuffix(op, tm)) =>
-      let new_body = OpSeqUtil.Pat.concat(body, op, tm);
-      let new_ztm =
-        ZPat.CursorP(
-          Staging(1),
-          switch (staged) {
-          | Inj(err_status, side, new_body) =>
-            Inj(err_status, side, new_body)
-          | _ => Parenthesized(new_body)
-          },
-        );
-      let new_zp =
-        switch (surround) {
-        | BothNonEmpty(prefix, _) =>
-          OpSeqUtil.Pat.mk_OpSeqZ(new_ztm, EmptySuffix(prefix))
-        | _ => new_ztm
-        };
-      Succeeded(Statics.syn_fix_holes_zpat(ctx, u_gen, new_zp));
-    | EmptyPrefix(SeqSuffix(op, seq))
-    | BothNonEmpty(_, SeqSuffix(op, seq)) =>
-      let (tm, new_suffix) = seq |> OperatorSeq.split0;
-      let new_body = OpSeqUtil.Pat.concat(body, op, tm);
-      let new_ztm =
-        ZPat.CursorP(
-          Staging(1),
-          switch (staged) {
-          | Inj(err_status, side, new_body) =>
-            Inj(err_status, side, new_body)
-          | _ => Parenthesized(new_body)
-          },
-        );
-      let new_zp =
-        switch (surround) {
-        | BothNonEmpty(prefix, _) =>
-          OpSeqUtil.Pat.mk_OpSeqZ(new_ztm, BothNonEmpty(prefix, new_suffix))
-        | _ => OpSeqUtil.Pat.mk_OpSeqZ(new_ztm, EmptyPrefix(new_suffix))
-        };
-      Succeeded(Statics.syn_fix_holes_zpat(ctx, u_gen, new_zp));
-    }
-  | (
-      ShiftRight,
-      OpSeqZ(
-        skel,
-        CursorP(
-          Staging(0),
-          (Parenthesized(body) | Inj(_, _, body)) as staged,
-        ),
-        surround,
-      ),
-    ) =>
-    switch (body) {
-    | EmptyHole(_)
-    | Wild(_)
-    | Var(_, _, _)
-    | NumLit(_, _)
-    | BoolLit(_, _)
-    | ListNil(_)
-    | Parenthesized(_)
-    | Inj(_, _, _) => CantShift
-    | OpSeq(_, body_seq) =>
-      let (prefix_delta, new_body) =
-        switch (body_seq |> OperatorSeq.split0) {
-        | (tm0, ExpSuffix(op, tm1)) => (
-            OperatorSeq.ExpPrefix(tm0, op),
-            tm1,
-          )
-        | (tm0, SeqSuffix(op, seq)) => (
-            OperatorSeq.ExpPrefix(tm0, op),
-            OpSeqUtil.Pat.mk_OpSeq(seq),
-          )
-        };
-      let new_ztm =
-        ZPat.CursorP(
-          Staging(0),
-          switch (staged) {
-          | Inj(err_status, side, new_body) =>
-            Inj(err_status, side, new_body)
-          | _ => Parenthesized(new_body)
-          },
-        );
-      let new_surround =
-        OperatorSeq.nest_surrounds(EmptySuffix(prefix_delta), surround);
-      let new_zp = OpSeqUtil.Pat.mk_OpSeqZ(new_ztm, new_surround);
-      Succeeded(Statics.syn_fix_holes_zpat(ctx, u_gen, new_zp));
-    }
-  | (ShiftLeft | ShiftRight, _) => Failed
+    };
   /* Movement */
   /* NOTE: we don't need to handle movement actions here for the purposes of the UI,
    * since it's handled at the top (expression) level, but for the sake of API completeness
@@ -1586,24 +1346,20 @@ let rec syn_perform_pat =
       ),
     ) =>
     syn_perform_pat(ctx, u_gen, Backspace, CursorP(OnDelim(k, After), p))
-  /* (<| _ )  ==>  |_ */
+  /* ( _ )<|  ==>  ( _ [)] */
   | (
       Backspace,
-      CursorP(OnDelim(0, After), Parenthesized(p1) | Inj(_, _, p1)),
+      CursorP(OnDelim(k, After), (Parenthesized(_) | Inj(_, _, _)) as p),
     ) =>
-    Succeeded(Statics.syn_fix_holes_zpat(ctx, u_gen, ZPat.place_before(p1)))
-  /* ( _ )<|  ==>  _| */
+    Succeeded(
+      Statics.syn_fix_holes_zpat(ctx, u_gen, CursorP(Staging(k), p)),
+    )
   | (
-      Backspace,
-      CursorP(OnDelim(1, After), Parenthesized(p1) | Inj(_, _, p1)),
+      Backspace | Delete,
+      CursorP(Staging(_), Parenthesized(_) | Inj(_, _, _)),
     ) =>
-    Succeeded(Statics.syn_fix_holes_zpat(ctx, u_gen, ZPat.place_after(p1)))
-  /* invalid cursor position */
-  | (
-      Backspace,
-      CursorP(OnDelim(_, After), Parenthesized(_) | Inj(_, _, _)),
-    ) =>
-    Failed
+    let (zhole, u_gen) = u_gen |> ZPat.new_EmptyHole;
+    Succeeded((zhole, Hole, ctx, u_gen));
   /* ... + [k-1] +<| [k] + ... */
   | (Backspace, CursorP(OnDelim(k, After), OpSeq(_, seq))) =>
     /* validity check at top of switch statement ensures
@@ -2081,12 +1837,14 @@ and ana_perform_pat =
         OnText(_),
         EmptyHole(_) | Wild(_) | ListNil(_) | Parenthesized(_) | OpSeq(_, _) |
         Inj(_, _, _),
+      ) |
+      CursorP(OnDelim(_, _), Var(_, _, _) | NumLit(_, _) | BoolLit(_, _)) |
+      CursorP(
+        Staging(_),
+        EmptyHole(_) | Wild(_) | ListNil(_) | Var(_) | NumLit(_, _) |
+        BoolLit(_, _) |
+        OpSeq(_, _),
       ),
-    ) =>
-    Failed
-  | (
-      _,
-      CursorP(OnDelim(_, _), Var(_, _, _) | NumLit(_, _) | BoolLit(_, _)),
     ) =>
     Failed
   | (_, CursorP(cursor, p)) when !ZPat.is_valid_cursor(cursor, p) => Failed
@@ -2107,6 +1865,54 @@ and ana_perform_pat =
           Succeeded((ZPat.set_err_status_t(err, zp1), ctx, u_gen));
         }
       }
+    };
+  /* Staging */
+  | (ShiftLeft | ShiftRight, CursorP(OnText(_) | OnDelim(_, _), _)) =>
+    Failed
+  | (
+      ShiftLeft | ShiftRight,
+      CursorP(
+        Staging(k),
+        (Parenthesized(body) | Inj(_, _, body)) as staged,
+      ) |
+      OpSeqZ(
+        _,
+        CursorP(
+          Staging(k),
+          (Parenthesized(body) | Inj(_, _, body)) as staged,
+        ),
+        _,
+      ),
+    ) =>
+    let shift_optm =
+      switch (k, a) {
+      | (0, ShiftLeft) => OpSeqUtil.Pat.shift_optm_from_prefix
+      | (0, ShiftRight) => OpSeqUtil.Pat.shift_optm_to_prefix
+      | (1, ShiftLeft) => OpSeqUtil.Pat.shift_optm_to_suffix
+      | (_one, _shift_right) => OpSeqUtil.Pat.shift_optm_from_suffix
+      };
+    let surround =
+      switch (zp) {
+      | OpSeqZ(_, _, surround) => Some(surround)
+      | _cursor_p => None
+      };
+    switch (body |> shift_optm(~surround)) {
+    | None => CantShift
+    | Some((new_body, new_surround)) =>
+      let new_ztm =
+        ZPat.CursorP(
+          Staging(k),
+          switch (staged) {
+          | Inj(err_status, side, _) => Inj(err_status, side, new_body)
+          | _parenthesized => Parenthesized(new_body)
+          },
+        );
+      let new_zp =
+        switch (new_surround) {
+        | None => new_ztm
+        | Some(surround) => OpSeqUtil.Pat.mk_OpSeqZ(new_ztm, surround)
+        };
+      Succeeded(Statics.ana_fix_holes_zpat(ctx, u_gen, new_zp, ty));
     };
   /* Movement */
   /* NOTE: we don't need to handle movement actions here for the purposes of the UI,
@@ -2217,22 +2023,20 @@ and ana_perform_pat =
       CursorP(OnDelim(k, Before), p),
       ty,
     )
-  /* (<| _ )  ==>  |_ */
+  /* ( _ )<|  ==>  ( _ [)] */
   | (
       Backspace,
-      CursorP(OnDelim(0, After), Parenthesized(p1) | Inj(_, _, p1)),
+      CursorP(OnDelim(k, After), (Parenthesized(_) | Inj(_, _, _)) as p),
     ) =>
     Succeeded(
-      Statics.ana_fix_holes_zpat(ctx, u_gen, ZPat.place_before(p1), ty),
+      Statics.ana_fix_holes_zpat(ctx, u_gen, CursorP(Staging(k), p)),
     )
-  /* ( _ )<|  ==>  _| */
   | (
-      Backspace,
-      CursorP(OnDelim(1, After), Parenthesized(p1) | Inj(_, _, p1)),
+      Backspace | Delete,
+      CursorP(Staging(_), Parenthesized(_) | Inj(_, _, _)),
     ) =>
-    Succeeded(
-      Statics.ana_fix_holes_zpat(ctx, u_gen, ZPat.place_after(p1), ty),
-    )
+    let (zhole, u_gen) = u_gen |> ZPat.new_EmptyHole;
+    Succeeded((zhole, ctx, u_gen));
   /* invalid cursor position */
   | (
       Backspace,
