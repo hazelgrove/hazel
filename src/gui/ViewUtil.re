@@ -16,7 +16,7 @@ let text_id = steps =>
   "text__" ++ Sexplib.Sexp.to_string(Path.sexp_of_steps(steps));
 let path_id = path =>
   "path__" ++ Sexplib.Sexp.to_string(Path.sexp_of_t(path));
-let delim_id = (steps, delim_index) =>
+let delim_id = ((steps, delim_index) as _delim_path) =>
   "delim__"
   ++ Sexplib.Sexp.to_string(sexp_of_delim_path((steps, delim_index)));
 let op_id = (steps, op_index) =>

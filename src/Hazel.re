@@ -47,7 +47,7 @@ let create =
         if (model.is_cell_focused) {
           if (!Code.is_caret_consistent_with_path(path)) {
             switch (Code.caret_position_of_path(path)) {
-            | None => assert(false)
+            | None => ()
             | Some((node, offset)) =>
               setting_caret := true;
               JSUtil.set_caret(node, offset);
@@ -69,7 +69,8 @@ let create =
               | OnText(_)
               | OnDelim(_, _) => ()
               | Staging(delim_index) =>
-                let delim_elem = Code.get_sdelim_elem((steps, delim_index));
+                let delim_elem =
+                  Code.force_get_sdelim_elem((steps, delim_index));
 
                 // always draw currently occupied delimiter shift targets
                 delim_elem |> Cell.draw_current_horizontal_shift_target;

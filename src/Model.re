@@ -122,6 +122,7 @@ let init = (): t => {
 
 exception FailedAction;
 exception CursorEscaped;
+exception CantShift;
 let perform_edit_action = (model: t, a: Action.t): t => {
   switch (
     Action.syn_perform_block(
@@ -132,6 +133,7 @@ let perform_edit_action = (model: t, a: Action.t): t => {
   ) {
   | Failed => raise(FailedAction)
   | CursorEscaped(_) => raise(CursorEscaped)
+  | CantShift => raise(CantShift)
   | Succeeded(new_edit_state) => model |> update_edit_state(new_edit_state)
   };
 };

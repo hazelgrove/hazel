@@ -415,7 +415,7 @@ let parent_snode_elem_of_snode_elem = elem =>
   | Some(steps) =>
     switch (split_last(steps)) {
     | None => None
-    | Some((parent_steps, _)) => force_get_snode_elem(parent_steps)
+    | Some((parent_steps, _)) => Some(force_get_snode_elem(parent_steps))
     }
   };
 
@@ -425,7 +425,7 @@ let parent_sline_elem_of_sdelim_elem = elem =>
   | Some(_) =>
     let node = (elem: Js.t(Dom_html.element) :> Js.t(Dom.node));
     let parent_node = Js.Opt.get(node##.parentNode, () => assert(false));
-    Js.Opt.get(Dom_html.CoerceTo.element(parent_node), () => assert(false));
+    Js.Opt.to_option(Dom_html.CoerceTo.element(parent_node));
   };
 
 let force_get_snode_elem = steps =>
@@ -1273,7 +1273,7 @@ and view_of_stoken =
       );
     Node.div(
       [
-        Attr.id(delim_id(node_steps, index)),
+        Attr.id(delim_id((node_steps, index))),
         Attr.classes([inline_div_cls, "SDelim"]),
       ],
       [delim_before, delim_txt, delim_after],
@@ -1382,6 +1382,7 @@ and view_of_stoken =
 let caret_position_of_path =
     ((steps, cursor) as path): option((Js.t(Dom.node), int)) =>
   switch (cursor) {
+  | Staging(_) => None
   | OnDelim(_, _) =>
     switch (JSUtil.get_elem_by_id(path_id(path))) {
     | None => None

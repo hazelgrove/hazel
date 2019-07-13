@@ -56,6 +56,9 @@ let apply_action =
     | exception Model.CursorEscaped =>
       JSUtil.log("[CursorEscaped]");
       model;
+    | exception Model.CantShift =>
+      JSUtil.log("[CantShift]");
+      model;
     | exception Model.MissingCursorInfo =>
       JSUtil.log("[MissingCursorInfo]");
       model;

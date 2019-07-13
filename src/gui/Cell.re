@@ -478,7 +478,8 @@ let view =
                   };
                 switch (cursor_escaped, ci.position) {
                 | (true, _)
-                | (_, OnDelim(_, _)) => prevent_stop_inject(update)
+                | (_, OnDelim(_, _) | Staging(_)) =>
+                  prevent_stop_inject(update)
                 | (false, OnText(_)) =>
                   let nodeValue = JSUtil.force_get_anchor_node_value();
                   let anchorOffset = JSUtil.get_anchor_offset();
