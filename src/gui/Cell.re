@@ -304,6 +304,34 @@ let indicators = (model: Model.t) =>
         )
       };
     }
+    @ Vdom.[
+        Node.div(
+          [
+            Attr.id(current_horizontal_shift_target_id),
+            Attr.classes([
+              "current-horizontal-shift-target",
+              switch (model.cursor_info.position) {
+              | Staging(_) => "active"
+              | _ => "inactive"
+              },
+            ]),
+          ],
+          [],
+        ),
+        Node.div(
+          [
+            Attr.id(current_vertical_shift_target_id),
+            Attr.classes([
+              "current-vertical-shift-target",
+              switch (model.cursor_info.position) {
+              | Staging(_) => "active"
+              | _ => "inactive"
+              },
+            ]),
+          ],
+          [],
+        ),
+      ]
   };
 
 let font_size = 20.0;

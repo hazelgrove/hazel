@@ -27,6 +27,9 @@ let child_indicator_id = i => "child_indicator__" ++ string_of_int(i);
 let box_tm_indicator_id = "box_tm_indicator";
 let seq_tm_indicator_id = i => "seq_tm_indicator__" ++ string_of_int(i);
 let op_node_indicator_id = "op_node_indicator";
+
+let current_horizontal_shift_target_id = "current_horizontal_shift_target";
+let current_vertical_shift_target_id = "current_vertical_shift_target";
 let subject_surround_shift_target_id = i =>
   "subject_surround_shift_target_id__" ++ string_of_int(i);
 let frame_surround_shift_target_id = i =>
