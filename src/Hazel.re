@@ -95,8 +95,7 @@ let create =
                   if (cursor_elem |> Code.elem_is_multi_line) {
                     // only draw guides for defining expression if
                     // multi-line i.e. on separate lines from `in`
-                    let def_elem =
-                      JSUtil.force_get_elem_by_id(node_id(steps @ [2]));
+                    let def_elem = Code.force_get_snode_elem(steps @ [2]);
                     def_elem
                     |> sline_elems_of_snode_elem
                     |> filteri((i, _) => i < List.length(def_lines))

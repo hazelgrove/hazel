@@ -87,27 +87,38 @@ type node =
   | Line(UHExp.line)
   | Rule(UHExp.rule);
 
+type frame('tm, 'op) =
+  | SeqFrame(OperatorSeq.opseq_surround('tm, 'op))
+  | BlockFrame(UHExp.lines, UHExp.block);
+
+type seq('tm, 'op) = OperatorSeq.opseq('tm, 'op);
+type surround('tm, 'op) = OperatorSeq.opseq_surround('tm, 'op);
+
 [@deriving sexp]
 type term =
   | Type(UHTyp.t)
   | Pattern(UHPat.t)
   | Expression(UHExp.exp_or_block);
 
-type child_term = (child_index, term);
+type descendant = (Path.steps, term);
 
-type frame('tm, 'op) =
-  | SeqFrame(OperatorSeq.opseq_surround('tm, 'op))
-  | BlockFrame(UHExp.lines, UHExp.lines);
-
-type delim_neighborhood =
-  | LeftBorder(child_term)
-  | BetweenChildren(child_term, child_term)
-  | RightBorder(child_term);
+type delim_neighborhood('tm, 'op) =
+  | BetweenDescendants(descendant, descendant)
+  | LeftBorderInSeq(surround('tm, 'op), 'tm)
+  | RightBorderInSeq('tm, surround('tm, 'op))
+  | LeftBorderInBlock(UHExp.lines, descendant)
+  | RightBorderInBlock(descendant, UHExp.block);
 
 [@deriving sexp]
 type t = {
   typed,
   node,
+  // TODO: term should really be renamed to be something
+  // like bounding_box or something like that. it indicates
+  // the closest seq or block container, used to determine
+  // the current delim_neighborhood. if a seq container,
+  // this is the maximal seq container, not the associated
+  // term seq.
   term,
   ctx: Contexts.t,
   position: cursor_position,
@@ -151,6 +162,118 @@ let child_indices_of_current_node = ci =>
   | Rule(rule) => UHExp.child_indices_rule(rule)
   | Pat(p) => UHPat.child_indices(p)
   | Typ(ty) => UHTyp.child_indices(ty)
+  };
+
+let delim_neighborhood = (ci: t): option(delim_neighborhood(_, _)) =>
+  switch (ci.position, ci.node, ci.frame) {
+  | (OnText(_) | OnDelim(_, _), _, _)
+  | (
+      Staging(_),
+      Line(EmptyLine, ExpLine(_)) |
+      Exp(
+        EmptyHole(_) | Var(_, _, _) | NumLit(_, _) | BoolLit(_, _) |
+        ListNil(_) |
+        OpSeq(_, _) |
+        ApPalette(_, _, _, _),
+      ) |
+      Rule(Rule(_, _)) |
+      Pat(
+        EmptyHole(_) | Wild(_) | Var(_, _, _) | NumLit(_, _) | BoolLit(_, _) |
+        ListNil(_) |
+        OpSeq(_, _),
+      ) |
+      Typ(Hole | Unit | Num | Bool | OpSeq(_, _)),
+    )
+  | (_, Pat(_) | Typ(_), BlockFrame(_, _)) => None
+  | (
+      Staging(k),
+      Line(LetLine(p, ann, def)),
+      BlockFrame(prefix_lines, suffix_block),
+    ) =>
+    switch (k) {
+    | 0 => Some(LeftBorderInBlock(prefix_lines, ([0], Pattern(p))))
+    | 1 =>
+      ann
+      |> Opt.map(ann =>
+           Some(BetweenChildren(([0], Pattern(p)), ([1], Type(ann))))
+         )
+    | 2 =>
+      Some(
+        BetweenChildren(
+          switch (ann) {
+          | None => ([0], Pattern(p))
+          | Some(ann) => ([1], Type(ann))
+          },
+          ([2], Expression(B(def))),
+        ),
+      )
+    | _three =>
+      RightBorderInBlock(([2], Expression(B(def))), suffix_block)
+    }
+  | (
+      Staging(k),
+      Exp(Parenthesized(body) | Inj(_, _, body)),
+      BlockFrame(prefix_lines, suffix_block),
+    ) =>
+    let body_descendant = ([0], Expression(B(body)));
+    switch (k) {
+    | 0 => Some(LeftBorderInBlock(prefix_lines, body_descendant))
+    | _one => Some(RightBorderInBlock(body_descendant, suffix_block))
+    };
+  | (
+      Staging(k),
+      Exp(Case(_, scrut, rules, ann)),
+      BlockFrame(prefix_lines, suffix_block),
+    ) =>
+    switch (k) {
+    | 0 =>
+      Some(LeftBorderInBlock(prefix_lines, ([0], Expression(B(scrut)))))
+    | _one =>
+      switch (rules |> split_last) {
+      | None => None // should never happen
+      | Some((Rule(_last_p, last_clause), rules_prefix)) =>
+        let descendant_path = [1 + List.length(rules_prefix), 1];
+        Some(
+          RightBorderInBlock(
+            (descendant_steps, Expression(B(last_clause))),
+            suffix_block,
+          ),
+        );
+      }
+    }
+  | (
+      Staging(k),
+      Exp(Lam(_, arg, ann, body)),
+      BlockFrame(prefix_lines, suffix_block),
+    ) =>
+    switch (k) {
+    | 0 => Some(LeftBorderInBlock(prefix_lines, ([0], Pattern(arg))))
+    | 1 =>
+      ann
+      |> Opt.map(ann =>
+           Some(BetweenChildren(([0], Pattern(p)), ([1], Type(ann))))
+         )
+    | 2 =>
+      Some(
+        BetweenChildren(
+          switch (ann) {
+          | None => ([0], Pattern(p))
+          | Some(ann) => ([1], Type(ann))
+          },
+          ([2], Expression(B(def))),
+        ),
+      )
+    }
+  | (
+      Staging(k),
+      Pat(Parenthesized(body) | Inj(_, _, body)),
+      SeqFrame(prefix_lines, suffix_block),
+    ) =>
+    let body_descendant = ([0], Pat(body));
+    switch (k) {
+    | 0 => Some(LeftBorderInBlock(prefix_lines, body_descendant))
+    | _one => Some(RightBorderInBlock(body_descendant, suffix_block))
+    };
   };
 
 let rec cursor_info_typ = (ctx: Contexts.t, zty: ZTyp.t): option(t) =>
