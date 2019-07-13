@@ -4,6 +4,7 @@ module Js = Js_of_ocaml.Js;
 module KeyCombo = JSUtil.KeyCombo;
 open GeneralUtil;
 open ViewUtil;
+open SemanticsCommon;
 
 let string_insert = (s1, offset, s2) => {
   let prefix = String.sub(s1, 0, offset);
@@ -201,9 +202,9 @@ let indicators = (model: Model.t) =>
            Vdom.(
              Node.div(
                [
-                 Attr.id(subject_surround_shift_target_id(i)),
+                 Attr.id(horizontal_shift_target_in_subject_id(i)),
                  Attr.classes([
-                   "subject-surround-shift-target",
+                   "horizontal-shift-target-in-subject",
                    switch (model.cursor_info.position) {
                    | Staging(_) => "active"
                    | _ => "inactive"
@@ -242,9 +243,9 @@ let indicators = (model: Model.t) =>
              Vdom.(
                Node.div(
                  [
-                   Attr.id(frame_surround_shift_target_id(i)),
+                   Attr.id(vertical_shift_target_in_frame_id(i)),
                    Attr.classes([
-                     "frame-surround-shift-target",
+                     "vertical-shift-target-in-frame",
                      switch (model.cursor_info.position) {
                      | Staging(_) => "active"
                      | _ => "inactive"
@@ -272,9 +273,9 @@ let indicators = (model: Model.t) =>
                  Vdom.(
                    Node.div(
                      [
-                       Attr.id(frame_surround_shift_target_id(i)),
+                       Attr.id(horizontal_shift_target_in_frame_id(i)),
                        Attr.classes([
-                         "frame-surround-shift-target",
+                         "horizontal-shift-target-in-frame",
                          switch (model.cursor_info.position) {
                          | Staging(_) => "active"
                          | _ => "inactive"
@@ -294,9 +295,9 @@ let indicators = (model: Model.t) =>
                Vdom.(
                  Node.div(
                    [
-                     Attr.id(frame_lines_shift_target_id(i)),
+                     Attr.id(vertical_shift_target_in_frame_id(i)),
                      Attr.classes([
-                       "frame-lines-shift-target",
+                       "vertical-shift-target-in-frame",
                        switch (model.cursor_info.position) {
                        | Staging(_) => "active"
                        | _ => "inactive"
@@ -329,6 +330,19 @@ let indicators = (model: Model.t) =>
             Attr.id(current_vertical_shift_target_id),
             Attr.classes([
               "current-vertical-shift-target",
+              switch (model.cursor_info.position) {
+              | Staging(_) => "active"
+              | _ => "inactive"
+              },
+            ]),
+          ],
+          [],
+        ),
+        Node.div(
+          [
+            Attr.id(current_shifting_delim_indicator_id),
+            Attr.classes([
+              "current-shifting-delim-indicator",
               switch (model.cursor_info.position) {
               | Staging(_) => "active"
               | _ => "inactive"
@@ -518,6 +532,90 @@ let draw_multi_line_seq_term_indicator = (steps, (a, b), opseq_elem) => {
                 : rect.bottom -. indicator_padding,
             right: rect.right +. indicator_padding,
           });
+     });
+};
+
+let draw_current_shifting_delim_indicator = sdelim_elem => {
+  let rect = sdelim_elem |> get_relative_bounding_rect;
+  JSUtil.force_get_elem_by_id(current_shifting_delim_indicator_id)
+  |> JSUtil.place_over_rect(rect);
+  JSUtil.force_get_elem_by_id(current_horizontal_shift_target_id)
+  |> JSUtil.place_over_rect({
+       left: rect.left,
+       right: rect.right,
+       top: rect.bottom,
+       bottom: rect.bottom +. shift_target_thickness,
+     });
+  JSUtil.force_get_elem_by_id(current_vertical_shift_target_id)
+  |> JSUtil.place_over_rect({
+       top: rect.top,
+       bottom: rect.bottom,
+       right: 0.0,
+       left: 0.0 -. shift_target_thickness,
+     });
+};
+
+let draw_horizontal_shift_target_in_subject = (~side, ~index, snode_elem) => {
+  let rect = snode_elem |> get_relative_bounding_rect;
+  let xpos =
+    switch (side) {
+    | Before => rect.left
+    | After => rect.right
+    };
+  JSUtil.force_get_elem_by_id(horizontal_shift_target_in_subject_id(index))
+  |> JSUtil.place_over_rect({
+       left: xpos -. shift_target_thickness /. 2.0,
+       right: xpos +. shift_target_thickness /. 2.0,
+       top: rect.bottom,
+       bottom: rect.bottom +. shift_target_thickness,
+     });
+};
+
+let draw_horizontal_shift_target_in_frame = (~side, ~index, snode_elem) => {
+  let rect = snode_elem |> get_relative_bounding_rect;
+  let xpos =
+    switch (side) {
+    | Before => rect.left
+    | After => rect.right
+    };
+  JSUtil.force_get_elem_by_id(horizontal_shift_target_in_frame_id(index))
+  |> JSUtil.place_over_rect({
+       left: xpos -. shift_target_thickness /. 2.0,
+       right: xpos +. shift_target_thickness /. 2.0,
+       top: rect.bottom,
+       bottom: rect.bottom +. shift_target_thickness,
+     });
+};
+
+let draw_vertical_shift_target_in_subject = (~side, ~index, sline_elem) => {
+  let rect = sline_elem |> get_relative_bounding_rect;
+  let ypos =
+    switch (side) {
+    | Before => rect.top
+    | After => rect.bottom
+    };
+  JSUtil.force_get_elem_by_id(vertical_shift_target_in_subject_id(index))
+  |> JSUtil.place_over_rect({
+       left: 0.0 -. shift_target_thickness,
+       right: 0.0,
+       top: ypos -. shift_target_thickness /. 2.0,
+       bottom: ypos +. shift_target_thickness /. 2.0,
+     });
+};
+
+let draw_vertical_shift_target_in_frame = (~side, ~index, sline_elem) => {
+  let rect = sline_elem |> get_relative_bounding_rect;
+  let ypos =
+    switch (side) {
+    | Before => rect.top
+    | After => rect.bottom
+    };
+  JSUtil.force_get_elem_by_id(vertical_shift_target_in_frame_id(index))
+  |> JSUtil.place_over_rect({
+       left: 0.0 -. shift_target_thickness,
+       right: 0.0,
+       top: ypos -. shift_target_thickness /. 2.0,
+       bottom: ypos +. shift_target_thickness /. 2.0,
      });
 };
 
