@@ -27,6 +27,12 @@ let child_indicator_id = i => "child_indicator__" ++ string_of_int(i);
 let box_tm_indicator_id = "box_tm_indicator";
 let seq_tm_indicator_id = i => "seq_tm_indicator__" ++ string_of_int(i);
 let op_node_indicator_id = "op_node_indicator";
+let subject_surround_shift_target_id = i =>
+  "subject_surround_shift_target_id__" ++ string_of_int(i);
+let frame_surround_shift_target_id = i =>
+  "frame_surround_shift_target_id__" ++ string_of_int(i);
+let frame_lines_shift_target_id = i =>
+  "frame_lines_shift_target_id__" ++ string_of_int(i);
 
 let steps_of_node_id = s =>
   switch (Regexp.string_match(Regexp.regexp("^node__(.*)$"), s, 0)) {

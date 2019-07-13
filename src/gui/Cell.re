@@ -107,7 +107,7 @@ let single_line_seq_indicators = is_active => {
   ];
 };
 
-let indicators = (model: Model.t) => {
+let indicators = (model: Model.t) =>
   switch (model.cursor_info.node) {
   | Exp(OpSeq(_, seq) as e) =>
     Code.is_multi_line_exp(e)
@@ -155,32 +155,156 @@ let indicators = (model: Model.t) => {
         ],
         [],
       ),
-      ...{
-           let child_indices =
-             model.cursor_info |> CursorInfo.child_indices_of_current_node;
-           let is_active = i => child_indices |> List.exists(j => j == i);
-           model
-           |> Model.zblock
-           |> ZExp.erase_block
-           |> UHExp.max_degree_block
-           |> range
-           |> List.map(i =>
-                Node.div(
-                  [
-                    Attr.id(child_indicator_id(i)),
-                    Attr.classes([
-                      "child-indicator",
-                      model.is_cell_focused && is_active(i)
-                        ? "active" : "inactive",
-                    ]),
-                  ],
-                  [],
-                )
-              );
-         },
     ]
+    @ {
+      let child_indices =
+        model.cursor_info |> CursorInfo.child_indices_of_current_node;
+      let is_active = i => child_indices |> List.exists(j => j == i);
+      model
+      |> Model.zblock
+      |> ZExp.erase_block
+      |> UHExp.max_degree_block
+      |> range
+      |> List.map(i =>
+           Vdom.(
+             Node.div(
+               [
+                 Attr.id(child_indicator_id(i)),
+                 Attr.classes([
+                   "child-indicator",
+                   model.is_cell_focused && is_active(i)
+                     ? "active" : "inactive",
+                 ]),
+               ],
+               [],
+             )
+           )
+         );
+    }
+    @ {
+      let seq_length =
+        switch (model.cursor_info.node) {
+        | Typ(OpSeq(_, seq)) => (seq |> OperatorSeq.seq_length) - 1
+        | Pat(OpSeq(_, seq)) => (seq |> OperatorSeq.seq_length) - 1
+        | Exp(OpSeq(_, seq)) => (seq |> OperatorSeq.seq_length) - 1
+        | _ => 0
+        };
+      seq_length
+      |> range
+      |> List.map(i =>
+           Vdom.(
+             Node.div(
+               [
+                 Attr.id(subject_surround_shift_target_id(i)),
+                 Attr.classes([
+                   "subject-surround-shift-target",
+                   switch (model.cursor_info.position) {
+                   | Staging(_) => "active"
+                   | _ => "inactive"
+                   },
+                 ]),
+               ],
+               [],
+             )
+           )
+         );
+    }
+    @ {
+      switch (model.cursor_info.frame) {
+      | TypFrame(None)
+      | PatFrame(None) => []
+      | TypFrame(Some(_))
+      | PatFrame(Some(_)) =>
+        let indices =
+          switch (model.cursor_info.frame) {
+          | TypFrame(Some(surround)) =>
+            let (prefix_tms, suffix_tms) =
+              surround |> OperatorSeq.tms_of_surround;
+            let prefix_len = prefix_tms |> List.length;
+            range(prefix_len)
+            @ (suffix_tms |> List.mapi((i, _) => prefix_len + 1 + i));
+          | PatFrame(Some(surround)) =>
+            let (prefix_tms, suffix_tms) =
+              surround |> OperatorSeq.tms_of_surround;
+            let prefix_len = prefix_tms |> List.length;
+            range(prefix_len)
+            @ (suffix_tms |> List.mapi((i, _) => prefix_len + 1 + i));
+          | _ => assert(false)
+          };
+        indices
+        |> List.map(i =>
+             Vdom.(
+               Node.div(
+                 [
+                   Attr.id(frame_surround_shift_target_id(i)),
+                   Attr.classes([
+                     "frame-surround-shift-target",
+                     switch (model.cursor_info.position) {
+                     | Staging(_) => "active"
+                     | _ => "inactive"
+                     },
+                   ]),
+                 ],
+                 [],
+               )
+             )
+           );
+      | ExpFrame(prefix, surround, suffix) =>
+        (
+          switch (surround) {
+          | None => []
+          | Some(surround) =>
+            let (prefix_tms, suffix_tms) =
+              surround |> OperatorSeq.tms_of_surround;
+            let indices = {
+              let prefix_len = prefix_tms |> List.length;
+              range(prefix_len)
+              @ (suffix_tms |> List.mapi((i, _) => prefix_len + 1 + i));
+            };
+            indices
+            |> List.map(i =>
+                 Vdom.(
+                   Node.div(
+                     [
+                       Attr.id(frame_surround_shift_target_id(i)),
+                       Attr.classes([
+                         "frame-surround-shift-target",
+                         switch (model.cursor_info.position) {
+                         | Staging(_) => "active"
+                         | _ => "inactive"
+                         },
+                       ]),
+                     ],
+                     [],
+                   )
+                 )
+               );
+          }
+        )
+        @ (
+          prefix
+          @ suffix
+          |> List.mapi((i, _) =>
+               Vdom.(
+                 Node.div(
+                   [
+                     Attr.id(frame_lines_shift_target_id(i)),
+                     Attr.classes([
+                       "frame-lines-shift-target",
+                       switch (model.cursor_info.position) {
+                       | Staging(_) => "active"
+                       | _ => "inactive"
+                       },
+                     ]),
+                   ],
+                   [],
+                 )
+               )
+             )
+        )
+      };
+    }
   };
-};
 
 let font_size = 20.0;
 let line_height = 1.5;

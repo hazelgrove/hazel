@@ -57,17 +57,17 @@ let create =
             let cursor_elem = JSUtil.force_get_elem_by_cls("cursor");
             // cursor_elem is either SBox or SSeq
             if (cursor_elem |> Code.elem_is_SBox) {
-              Cell.place_box_node_indicator_over_snode_elem(
-                ~child_indices=
-                  model.cursor_info |> CursorInfo.child_indices_of_current_node,
-                cursor_elem,
-              );
-              Cell.place_box_term_indicator(cursor_elem);
-              // draw node staging guides
               let (steps, _) = model |> Model.path;
               switch (model.cursor_info.position) {
               | OnText(_)
-              | OnDelim(_, _) => ()
+              | OnDelim(_, _) =>
+                Cell.place_box_node_indicator_over_snode_elem(
+                  ~child_indices=
+                    model.cursor_info
+                    |> CursorInfo.child_indices_of_current_node,
+                  cursor_elem,
+                );
+                Cell.place_box_term_indicator(cursor_elem);
               | Staging(delim_index) =>
                 let delim_elem =
                   Code.force_get_sdelim_elem((steps, delim_index));
@@ -203,6 +203,7 @@ let create =
                 };
               };
             } else {
+              // cursor_elem is SSeq
               switch (model.cursor_info.position) {
               | Staging(_) => assert(false)
               | OnText(_) => assert(false)
