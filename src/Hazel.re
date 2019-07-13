@@ -61,13 +61,13 @@ let create =
               switch (model.cursor_info.position) {
               | OnText(_)
               | OnDelim(_, _) =>
-                Cell.place_box_node_indicator_over_snode_elem(
-                  ~child_indices=
-                    model.cursor_info
-                    |> CursorInfo.child_indices_of_current_node,
-                  cursor_elem,
-                );
-                Cell.place_box_term_indicator(cursor_elem);
+                cursor_elem
+                |> Cell.draw_box_node_indicator(
+                     ~child_indices=
+                       model.cursor_info
+                       |> CursorInfo.child_indices_of_current_node,
+                   );
+                cursor_elem |> Cell.draw_box_term_indicator;
               | Staging(delim_index) =>
                 let delim_elem =
                   Code.force_get_sdelim_elem((steps, delim_index));
@@ -210,14 +210,14 @@ let create =
               | OnDelim(k, _) =>
                 let (steps, _) = model |> Model.path;
                 let op_elem = JSUtil.force_get_elem_by_id(op_id(steps, k));
-                op_elem |> Cell.place_op_node_indicator_over_op_elem;
+                op_elem |> Cell.draw_op_node_indicator;
                 switch (op_elem |> JSUtil.get_attr("op-range")) {
                 | None => assert(false)
                 | Some(ssexp) =>
                   let (a, b) =
                     Code.seq_range_of_sexp(Sexplib.Sexp.of_string(ssexp));
                   if (cursor_elem |> Code.elem_is_multi_line) {
-                    Cell.place_multi_line_seq_term_indicator(
+                    Cell.draw_multi_line_seq_term_indicator(
                       steps,
                       (a, b),
                       cursor_elem,
@@ -227,7 +227,7 @@ let create =
                       JSUtil.force_get_elem_by_id(node_id(steps @ [a]));
                     let tm_b =
                       JSUtil.force_get_elem_by_id(node_id(steps @ [b]));
-                    Cell.place_box_term_indicator_over_single_line_seq(
+                    Cell.draw_box_term_indicator_over_single_line_seq(
                       tm_a,
                       tm_b,
                     );

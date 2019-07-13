@@ -331,7 +331,7 @@ let indent_of_snode_elem = elem =>
     }
   };
 
-let place_box_node_indicator_over_snode_elem = (~child_indices, elem) => {
+let draw_box_node_indicator = (~child_indices, elem) => {
   let rect = elem |> get_relative_bounding_rect;
   let indent = elem |> indent_of_snode_elem;
   JSUtil.force_get_elem_by_id(box_node_indicator_id)
@@ -371,7 +371,7 @@ let place_box_node_indicator_over_snode_elem = (~child_indices, elem) => {
   };
 };
 
-let place_box_term_indicator = cursor_elem => {
+let draw_box_term_indicator = cursor_elem => {
   let steps =
     cursor_elem
     |> JSUtil.get_attr("term")
@@ -425,7 +425,7 @@ let place_box_term_indicator = cursor_elem => {
   };
 };
 
-let place_box_term_indicator_over_single_line_seq = (operand1, operand2) => {
+let draw_box_term_indicator_over_single_line_seq = (operand1, operand2) => {
   let rect1 = operand1 |> get_relative_bounding_rect;
   let rect2 = operand2 |> get_relative_bounding_rect;
   JSUtil.force_get_elem_by_id(box_tm_indicator_id)
@@ -440,7 +440,7 @@ let place_box_term_indicator_over_single_line_seq = (operand1, operand2) => {
      });
 };
 
-let place_op_node_indicator_over_op_elem = op_elem => {
+let draw_op_node_indicator = op_elem => {
   let rect = op_elem |> get_relative_bounding_rect;
   JSUtil.force_get_elem_by_id(op_node_indicator_id)
   |> JSUtil.place_over_rect({
@@ -454,7 +454,7 @@ let place_op_node_indicator_over_op_elem = op_elem => {
      });
 };
 
-let place_multi_line_seq_term_indicator = (steps, (a, b), opseq_elem) => {
+let draw_multi_line_seq_term_indicator = (steps, (a, b), opseq_elem) => {
   let a_elem = steps @ [a] |> node_id |> JSUtil.force_get_elem_by_id;
   let a_rect = a_elem |> get_relative_bounding_rect;
   JSUtil.force_get_elem_by_id(seq_tm_indicator_id(a))
