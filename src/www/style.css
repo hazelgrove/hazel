@@ -815,7 +815,7 @@ button:disabled {
   border: 1px solid var(--shifting-indicator-color);
 }
 
-.current-shifting-delim-indicator, .current-horizontal-shift-target,
+.current-horizontal-shift-target,
 .current-vertical-shift-target, .horizontal-shift-target-in-subject,
 .vertical-shift-target-in-subject, .vertical-shift-target-in-frame,
 .horizontal-shift-target-in-frame {
@@ -824,7 +824,7 @@ button:disabled {
   background-color: var(--shifting-indicator-color);
 }
 
-.term-indicator.inactive, .node-indicator.inactive, .child-indicator.inactive
+.term-indicator.inactive, .node-indicator.inactive, .child-indicator.inactive,
 .current-shifting-delim-indicator.inactive, .current-horizontal-shift-target.inactive,
 .current-vertical-shift-target.inactive, .horizontal-shift-target-in-subject.inactive,
 .vertical-shift-target-in-subject.inactive, .vertical-shift-target-in-frame.inactive,
