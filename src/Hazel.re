@@ -57,8 +57,8 @@ let create =
             let cursor_elem = JSUtil.force_get_elem_by_cls("cursor");
             // cursor_elem is either SBox or SSeq
             if (cursor_elem |> Code.elem_is_SBox) {
-              let (steps, _) = model |> Model.path;
-              switch (model.cursor_info.position) {
+              let (steps, cursor) = path;
+              switch (cursor) {
               | OnText(_)
               | OnDelim(_, _) =>
                 cursor_elem
@@ -85,121 +85,196 @@ let create =
                   steps |> split_last |> Opt.get(() => assert(false));
                 let parent_elem = Code.force_get_snode_elem(parent_steps);
 
+                // draw shift targets in subject
+                switch (delim_index, model.cursor_info.node) {
+                | (
+                    0,
+                    Typ(List(OpSeq(_, _)) | Parenthesized(OpSeq(_, _))) |
+                    Pat(
+                      Inj(_, _, OpSeq(_, _)) | Parenthesized(OpSeq(_, _)),
+                    ) |
+                    Exp(
+                      Inj(_, _, OpSeq(_, seq)) |
+                      Parenthesized(OpSeq(_, seq)),
+                    ),
+                  ) =>
+                  let shift_target_indices =
+                    switch (model.cursor_info.node) {
+                    | Typ(
+                        List(OpSeq(_, seq)) | Parenthesized(OpSeq(_, seq)),
+                      ) =>
+                      seq |> OperatorSeq.seq_length |> range(~lo=1)
+                    | Pat(
+                        Inj(_, _, OpSeq(_, seq)) |
+                        Parenthesized(OpSeq(_, seq)),
+                      ) =>
+                      seq |> OperatorSeq.seq_length |> range(~lo=1)
+                    | _exp => seq |> OperatorSeq.seq_length |> range(~lo=1)
+                    };
+                  shift_target_indices
+                  |> List.iter(i =>
+                       Code.force_get_snode_elem(steps @ [i])
+                       |> Cell.draw_horizontal_shift_target(~side=After)
+                     );
+                | (
+                    _one,
+                    Typ(List(OpSeq(_, _)) | Parenthesized(OpSeq(_, _))) |
+                    Pat(
+                      Inj(_, _, OpSeq(_, _)) | Parenthesized(OpSeq(_, _)),
+                    ) |
+                    Exp(
+                      Inj(_, _, OpSeq(_, _)) | Parenthesized(OpSeq(_, _)),
+                    ),
+                  ) =>
+                  let shift_target_indices =
+                    switch (model.cursor_info.node) {
+                    | Typ(
+                        List(OpSeq(_, seq)) | Parenthesized(OpSeq(_, seq)),
+                      ) =>
+                      (seq |> OperatorSeq.seq_length) - 1 |> range
+                    | Pat(
+                        Inj(_, _, OpSeq(_, seq)) |
+                        Parenthesized(OpSeq(_, seq)),
+                      ) =>
+                      (seq |> OperatorSeq.seq_length) - 1 |> range
+                    | Exp(
+                        Inj(_, _, OpSeq(_, seq)) |
+                        Parenthesized(OpSeq(_, seq)),
+                      ) =>
+                      (seq |> OperatorSeq.seq_length) - 1 |> range
+                    | _ => assert(false)
+                    };
+                  shift_target_indices
+                  |> List.iter(i =>
+                       Code.force_get_snode_elem(steps @ [i])
+                       |> Cell.draw_horizontal_shift_target(~side=Before)
+                     );
+                | (_, _) => ()
+                };
+
+                // draw shift targets in seq frame
                 switch (
-                  model.cursor_info
-                  |> CursorInfo.delim_neighborhood
-                  |> Opt.get(() => assert(false))
+                  delim_index,
+                  model.cursor_info.node,
+                  model.cursor_info.frame,
                 ) {
-                | LetDefInBody(Block(def_lines, _) as def, body) =>
-                  // cursor_elem is a let line, parent_elem is a block
-                  if (cursor_elem |> Code.elem_is_multi_line) {
-                    // only draw guides for defining expression if
-                    // multi-line i.e. on separate lines from `in`
-                    let def_elem = Code.force_get_snode_elem(steps @ [2]);
-                    def_elem
-                    |> sline_elems_of_snode_elem
-                    |> filteri((i, _) => i < List.length(def_lines))
-                    |> List.iter(Cell.draw_vertical_shift_target);
-                  };
-                  parent_elem
-                  |> sline_elems_of_snode_elem
-                  |> filteri((i, _) => i > current_child_index)
-                  |> List.iter(Cell.draw_vertical_shift_target);
-                | BetweenChildren(_, _) =>
-                  // Only lines can be transferred between two complete terms.
-                  // We don't currently have any delimiters in this position
-                  // such that it can move, so we don't bother drawing the
-                  // neighborhood shift targets, but you could imagine being able
-                  // to shift the `else` between the two branches of an if-else.
-                  ()
-                | LeftBorderInSeq(surround, child_seq) =>
-                  // draw shift targets on terms in surrounding prefix
-                  current_child_index
-                  |> range
+                | (_, _, TypFrame(None))
+                | (_, _, PatFrame(None))
+                | (_, _, ExpFrame(_, None, _)) => ()
+                | (
+                    0,
+                    Typ(List(OpSeq(_, _)) | Parenthesized(OpSeq(_, _))),
+                    TypFrame(Some(_)),
+                  )
+                | (
+                    0,
+                    Pat(
+                      Inj(_, _, OpSeq(_, _)) | Parenthesized(OpSeq(_, _)),
+                    ),
+                    PatFrame(Some(_)),
+                  )
+                | (
+                    0,
+                    Exp(
+                      Inj(_, _, OpSeq(_, _)) | Parenthesized(OpSeq(_, _)),
+                    ),
+                    ExpFrame(_, Some(surround), _),
+                  ) =>
+                  let shift_target_indices =
+                    switch (model.cursor_info.frame) {
+                    | TypFrame(Some(surround)) =>
+                      surround
+                      |> OperatorSeq.prefix_tms_of_surround
+                      |> List.length
+                      |> range
+                    | PatFrame(Some(surround)) =>
+                      surround
+                      |> OperatorSeq.prefix_tms_of_surround
+                      |> List.length
+                      |> range
+                    | _exp_frame =>
+                      surround
+                      |> OperatorSeq.prefix_tms_of_surround
+                      |> List.length
+                      |> range
+                    };
+                  shift_target_indices
                   |> List.iter(i =>
                        Code.force_get_snode_elem(parent_steps @ [i])
                        |> Cell.draw_horizontal_shift_target(~side=Before)
                      );
-                  // draw shift targets on terms in prefix of child_seq
-                  switch (child_seq) {
-                  | (None, _) => ()
-                  | (Some(prefix), tm) =>
-                    prefix
-                    |> OperatorSeq.prefix_length
-                    |> range
-                    |> List.iter(i =>
-                         Code.force_get_snode_elem(steps @ [i])
-                         |> Code.draw_horizontal_shift_target(~side=Before)
-                       )
-                  };
-                | RightBorderInSeq(child_seq, surround) =>
-                  // draw shift targets on terms in surrounding suffix
-                  surround
-                  |> OperatorSeq.surround_suffix_length
-                  |> range
+                | (
+                    1,
+                    Typ(List(OpSeq(_, _)) | Parenthesized(OpSeq(_, _))),
+                    TypFrame(Some(_)),
+                  )
+                | (
+                    1,
+                    Pat(
+                      Inj(_, _, OpSeq(_, _)) | Parenthesized(OpSeq(_, _)),
+                    ),
+                    PatFrame(Some(_)),
+                  )
+                | (
+                    1,
+                    Exp(
+                      Inj(_, _, OpSeq(_, _)) | Parenthesized(OpSeq(_, _)),
+                    ),
+                    ExpFrame(Some(surround)),
+                  ) =>
+                  let shift_target_indices =
+                    switch (model.cursor_info.frame) {
+                    | TypFrame(Some(surround)) =>
+                      surround
+                      |> OperatorSeq.suffix_tms_of_surround
+                      |> List.mapi(i => current_child_index + 1 + i)
+                    | _pat_frame =>
+                      surround
+                      |> OperatorSeq.suffix_tms_of_surround
+                      |> List.mapi(i => current_child_index + 1 + i)
+                    };
+                  shift_target_indices
                   |> List.iter(i =>
-                       Code.force_get_snode_elem(
-                         steps
-                         @ [(surround |> OperatorSeq.prefix_length) + 1 + i],
-                       )
+                       Code.force_get_snode_elem(parent_steps @ [i])
                        |> Cell.draw_horizontal_shift_target(~side=Before)
                      );
-                  // draw shift targets on terms in suffix of child_seq
-                  switch (child_seq) {
-                  | (_, None) => ()
-                  | (_, Some(prefix)) =>
-                    prefix
-                    |> OperatorSeq.prefix_length
-                    |> range
-                    |> List.iter(i =>
-                         Code.force_get_snode_elem(steps @ [i])
-                         |> Code.draw_horizontal_shift_target(~side=Before)
-                       )
-                  };
-                | LeftBorderInBlock(
-                    _,
-                    Expression(B(Block([], OpSeq(_, child_seq)))),
-                  ) =>
-                  // draw shift targets on preceding lines in surrounding block
-                  parent_elem
-                  |> sline_elems_of_snode_elem
-                  |> filteri((i, _) => i < current_child_index)
-                  |> List.iter(Cell.draw_vertical_shift_target);
-                  // draw shift targets on terms in prefix of child_seq
-                  child_seq
-                  |> OperatorSeq.seq_length
-                  |> range
-                  |> filter(i => i > 0)
-                  |> List.iter(i =>
-                       Code.force_get_snode_elem(steps @ [i])
-                       |> Code.draw_horizontal_shift_target(~side=Before)
-                     );
-                | RightBorderInBlock(
-                    Expression(B(Block([], OpSeq(_, child_seq)))),
-                    lines_after,
-                  ) =>
-                  // draw shift targets on following lines in surrounding block
-                  parent_elem
-                  |> sline_elems_of_snode_elem
-                  |> filteri((i, _) => i > current_child_index)
-                  |> List.iter(Cell.draw_vertical_shift_target);
-                  // draw shift targets on terms in suffix of child_seq
-                  let n = child_seq |> OperatorSeq.seq_length;
-                  n
-                  |> range
-                  |> filter(i => i < n - 1)
-                  |> List.iter(i =>
-                       Code.force_get_snode_elem(steps @ [i])
-                       |> Code.draw_horizontal_shift_target(~side=After)
-                     );
-                | LeftBorderInBlock(lines_before, child) =>
-                  // draw shift targets on preceding lines in surround block
-                  parent_elem
-                  |> sline_elems_of_snode_elem
-                  |> filteri((i, _) => i < current_child_index)
-                  |> List.iter(Cell.draw_vertical_shift_target)
+                | (_, _, _) => ()
+                };
 
-                | RightBorderInBlock(child, lines_after) => ()
+                // draw shift targets in block frame
+                switch (
+                  delim_index,
+                  model.cursor_info.node,
+                  model.cursor_info.frame,
+                ) {
+                | (_, TypFrame(_))
+                | (_, PatFrame(_)) => ()
+                | (
+                    Exp(
+                      Inj(_, _, OpSeq(_, _)) | Parenthesized(OpSeq(_, _)),
+                    ),
+                    ExpFrame(prefix, surround, suffix),
+                  ) =>
+                  let (block_elem, block_steps) =
+                    switch (surround, parent_steps |> split_last) {
+                    | (None, _)
+                    | (_, None) => (parent_elem, parent_steps)
+                    | (Some(_), Some((grandparent_steps, _))) => (
+                        parent_elem |> JSUtil.force_get_parent_elem,
+                        grandparent_steps,
+                      )
+                    };
+                  block_elem
+                  |> Code.sline_elems_of_snode_elem
+                  |> List.iteri((i, sline) =>
+                       if (delim_index == 0 && i < (prefix |> List.length)) {
+                         sline |> Code.draw_vertical_shift_target;
+                       } else if (delim_index == 1
+                                  && i > (prefix |> List.length)) {
+                         sline |> Code.draw_vertical_shift_target;
+                       }
+                     );
+                | (_, _) => ()
                 };
               };
             } else {

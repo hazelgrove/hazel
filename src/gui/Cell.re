@@ -184,9 +184,15 @@ let indicators = (model: Model.t) =>
     @ {
       let seq_length =
         switch (model.cursor_info.node) {
-        | Typ(OpSeq(_, seq)) => (seq |> OperatorSeq.seq_length) - 1
-        | Pat(OpSeq(_, seq)) => (seq |> OperatorSeq.seq_length) - 1
-        | Exp(OpSeq(_, seq)) => (seq |> OperatorSeq.seq_length) - 1
+        | Typ(List(OpSeq(_, seq)) | Parenthesized(OpSeq(_, seq))) =>
+          (seq |> OperatorSeq.seq_length) - 1
+        | Pat(Inj(_, _, OpSeq(_, seq)) | Parenthesized(OpSeq(_, seq))) =>
+          (seq |> OperatorSeq.seq_length) - 1
+        | Exp(
+            Inj(_, _, Block([], OpSeq(_, seq))) |
+            Parenthesized(Block([], OpSeq(_, seq))),
+          ) =>
+          (seq |> OperatorSeq.seq_length) - 1
         | _ => 0
         };
       seq_length
