@@ -126,6 +126,7 @@ exception CantShift;
 let perform_edit_action = (model: t, a: Action.t): t => {
   switch (
     Action.syn_perform_block(
+      ~ci=model.cursor_info,
       (VarCtx.empty, Palettes.initial_palette_ctx),
       a,
       model.edit_state,

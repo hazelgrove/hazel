@@ -139,6 +139,8 @@ let prepend_leading_line = (line, Block(lines, e)) =>
 let append_concluding_exp = (new_conclusion, Block(lines, conclusion)) =>
   Block(lines @ [ExpLine(conclusion)], new_conclusion);
 
+let block_to_lines = (Block(lines, e)) => lines @ [ExpLine(e)];
+
 /**
  * Bidelimited expressions are those that do not need to
  * be wrapped in parentheses in an opseq. In most cases,
