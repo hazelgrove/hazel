@@ -667,10 +667,8 @@ h1 {
 }
 
 .ModelExp {
-  padding: 10px;
   margin-top: 20px;
   background-color: white;
-  border: 2px solid #CCC;
 }
 
 .ModelExp :focus {

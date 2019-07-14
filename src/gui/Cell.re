@@ -358,6 +358,9 @@ let font_size = 20.0;
 let line_height = 1.5;
 let indicator_padding = font_size *. (line_height -. 1.0) /. 2.0 -. 1.5;
 
+let cell_padding = 10.0;
+let cell_border = 2.0;
+
 let get_relative_bounding_rect = elem => {
   let cell_rect =
     JSUtil.force_get_elem_by_id(cell_id) |> JSUtil.get_bounding_rect;
@@ -538,20 +541,40 @@ let draw_multi_line_seq_term_indicator = (steps, (a, b), opseq_elem) => {
 let draw_current_shifting_delim_indicator = sdelim_elem => {
   let rect = sdelim_elem |> get_relative_bounding_rect;
   JSUtil.force_get_elem_by_id(current_shifting_delim_indicator_id)
-  |> JSUtil.place_over_rect(rect);
+  |> JSUtil.place_over_rect({
+       ...rect,
+       top: rect.top -. indicator_padding,
+       bottom:
+         sdelim_elem |> Code.elem_is_on_last_line
+           ? rect.bottom +. indicator_padding
+           : rect.bottom -. indicator_padding,
+     });
   JSUtil.force_get_elem_by_id(current_horizontal_shift_target_id)
   |> JSUtil.place_over_rect({
        left: rect.left,
        right: rect.right,
-       top: rect.bottom,
-       bottom: rect.bottom +. shift_target_thickness,
+       top: rect.bottom +. indicator_padding -. shift_target_thickness /. 2.0,
+       bottom:
+         rect.bottom +. indicator_padding +. shift_target_thickness /. 2.0,
      });
   JSUtil.force_get_elem_by_id(current_vertical_shift_target_id)
   |> JSUtil.place_over_rect({
-       top: rect.top,
-       bottom: rect.bottom,
-       right: 0.0,
-       left: 0.0 -. shift_target_thickness,
+       top: rect.top -. indicator_padding,
+       bottom: rect.bottom +. indicator_padding,
+       right:
+         0.0
+         -. cell_padding
+         -. cell_border
+         /. 2.0
+         +. shift_target_thickness
+         /. 2.0,
+       left:
+         0.0
+         -. cell_padding
+         -. cell_border
+         /. 2.0
+         -. shift_target_thickness
+         /. 2.0,
      });
 };
 
@@ -566,8 +589,9 @@ let draw_horizontal_shift_target_in_subject = (~side, ~index, snode_elem) => {
   |> JSUtil.place_over_rect({
        left: xpos -. shift_target_thickness /. 2.0,
        right: xpos +. shift_target_thickness /. 2.0,
-       top: rect.bottom,
-       bottom: rect.bottom +. shift_target_thickness,
+       top: rect.bottom +. indicator_padding -. shift_target_thickness /. 2.0,
+       bottom:
+         rect.bottom +. indicator_padding +. shift_target_thickness /. 2.0,
      });
 };
 
@@ -582,8 +606,9 @@ let draw_horizontal_shift_target_in_frame = (~side, ~index, snode_elem) => {
   |> JSUtil.place_over_rect({
        left: xpos -. shift_target_thickness /. 2.0,
        right: xpos +. shift_target_thickness /. 2.0,
-       top: rect.bottom,
-       bottom: rect.bottom +. shift_target_thickness,
+       top: rect.bottom +. indicator_padding -. shift_target_thickness /. 2.0,
+       bottom:
+         rect.bottom +. indicator_padding +. shift_target_thickness /. 2.0,
      });
 };
 
@@ -596,8 +621,20 @@ let draw_vertical_shift_target_in_subject = (~side, ~index, sline_elem) => {
     };
   JSUtil.force_get_elem_by_id(vertical_shift_target_in_subject_id(index))
   |> JSUtil.place_over_rect({
-       left: 0.0 -. shift_target_thickness,
-       right: 0.0,
+       left:
+         0.0
+         -. cell_padding
+         -. cell_border
+         /. 2.0
+         -. shift_target_thickness
+         /. 2.0,
+       right:
+         0.0
+         -. cell_padding
+         -. cell_border
+         /. 2.0
+         +. shift_target_thickness
+         /. 2.0,
        top: ypos -. shift_target_thickness /. 2.0,
        bottom: ypos +. shift_target_thickness /. 2.0,
      });
@@ -612,8 +649,20 @@ let draw_vertical_shift_target_in_frame = (~side, ~index, sline_elem) => {
     };
   JSUtil.force_get_elem_by_id(vertical_shift_target_in_frame_id(index))
   |> JSUtil.place_over_rect({
-       left: 0.0 -. shift_target_thickness,
-       right: 0.0,
+       left:
+         0.0
+         -. cell_padding
+         -. cell_border
+         /. 2.0
+         -. shift_target_thickness
+         /. 2.0,
+       right:
+         0.0
+         -. cell_padding
+         -. cell_border
+         /. 2.0
+         +. shift_target_thickness
+         /. 2.0,
        top: ypos -. shift_target_thickness /. 2.0,
        bottom: ypos +. shift_target_thickness /. 2.0,
      });
@@ -632,7 +681,11 @@ let view =
           ++ (font_size |> JSUtil.px)
           ++ "; line-height: "
           ++ string_of_float(line_height)
-          ++ ";",
+          ++ "; padding: "
+          ++ (cell_padding |> JSUtil.px)
+          ++ "; border: "
+          ++ (cell_border |> JSUtil.px)
+          ++ " solid #CCC;",
         ),
       ],
       [
