@@ -290,16 +290,13 @@ let create =
                 | _ => assert(false)
                 };
               shift_target_indices
-              |> List.iter(i => {
-                   JSUtil.log(
-                     Code.force_get_snode_elem(parent_steps @ [i]),
-                   );
+              |> List.iter(i =>
                    Code.force_get_snode_elem(parent_steps @ [i])
                    |> Cell.draw_horizontal_shift_target_in_frame(
                         ~index=i,
                         ~side=After,
-                      );
-                 });
+                      )
+                 );
             | (_, _, _) => ()
             };
 
