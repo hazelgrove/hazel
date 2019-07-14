@@ -105,7 +105,6 @@ let create =
               };
             }
           | Staging(delim_index) =>
-            JSUtil.log("0");
             // There is always a parent of the current cursor node.
             // Even if the current cursor node forms the entire
             // visible expression, there is the block containing it.
@@ -159,7 +158,6 @@ let create =
                   Parenthesized(Block([], OpSeq(_, _))),
                 ),
               ) =>
-              JSUtil.log("1");
               let shift_target_indices =
                 switch (model.cursor_info.node) {
                 | Typ(List(OpSeq(_, seq)) | Parenthesized(OpSeq(_, seq))) =>
@@ -172,8 +170,7 @@ let create =
                     Inj(_, _, Block([], OpSeq(_, seq))) |
                     Parenthesized(Block([], OpSeq(_, seq))),
                   ) =>
-                  JSUtil.log("2");
-                  (seq |> OperatorSeq.seq_length) - 1 |> range;
+                  (seq |> OperatorSeq.seq_length) - 1 |> range
                 | _ => assert(false)
                 };
               shift_target_indices
