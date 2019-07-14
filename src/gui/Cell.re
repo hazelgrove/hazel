@@ -398,6 +398,7 @@ let indicator_padding = font_size *. (line_height -. 1.0) /. 2.0 -. 1.5;
 
 let cell_padding = 10.0;
 let cell_border = 2.0;
+let shift_target_thickness = indicator_padding;
 
 let get_relative_bounding_rect = elem => {
   let cell_rect =
@@ -602,8 +603,11 @@ let draw_horizontal_shift_rail = sdelim_elem => {
   let rect = sdelim_elem |> get_relative_bounding_rect;
   JSUtil.force_get_elem_by_id(horizontal_shift_rail_id)
   |> JSUtil.place_over_rect({
-       top: rect.bottom +. indicator_padding -. shift_target_thickness /. 2.0,
-       bottom: rect.bottom +. indicator_padding,
+       top: rect.bottom,
+       bottom:
+         sdelim_elem |> Code.elem_is_on_last_line
+           ? rect.bottom +. indicator_padding
+           : rect.bottom -. indicator_padding,
        left: horizontal_rail_left^,
        right: horizontal_rail_right^,
      });
@@ -640,21 +644,16 @@ let place_vertical_shift_target = (rect, shift_target_elem) => {
 let draw_current_shifting_delim_indicator = sdelim_elem => {
   let rect = sdelim_elem |> get_relative_bounding_rect;
   JSUtil.force_get_elem_by_id(current_shifting_delim_indicator_id)
-  |> JSUtil.place_over_rect({
-       ...rect,
-       top: rect.top -. indicator_padding,
-       bottom:
-         sdelim_elem |> Code.elem_is_on_last_line
-           ? rect.bottom +. indicator_padding
-           : rect.bottom -. indicator_padding,
-     });
+  |> JSUtil.place_over_rect(rect);
   JSUtil.force_get_elem_by_id(current_horizontal_shift_target_id)
   |> place_horizontal_shift_target({
        left: rect.left,
        right: rect.right,
-       top: rect.bottom +. indicator_padding -. shift_target_thickness /. 2.0,
+       top: rect.bottom,
        bottom:
-         rect.bottom +. indicator_padding +. shift_target_thickness /. 2.0,
+         sdelim_elem |> Code.elem_is_on_last_line
+           ? rect.bottom +. indicator_padding
+           : rect.bottom -. indicator_padding,
      });
   JSUtil.force_get_elem_by_id(current_vertical_shift_target_id)
   |> place_vertical_shift_target({
@@ -688,9 +687,11 @@ let draw_horizontal_shift_target_in_subject = (~side, ~index, snode_elem) => {
   |> place_horizontal_shift_target({
        left: xpos -. shift_target_thickness /. 2.0,
        right: xpos +. shift_target_thickness /. 2.0,
-       top: rect.bottom +. indicator_padding -. shift_target_thickness /. 2.0,
+       top: rect.bottom,
        bottom:
-         rect.bottom +. indicator_padding +. shift_target_thickness /. 2.0,
+         snode_elem |> Code.elem_is_on_last_line
+           ? rect.bottom +. indicator_padding
+           : rect.bottom -. indicator_padding,
      });
 };
 
@@ -705,9 +706,11 @@ let draw_horizontal_shift_target_in_frame = (~side, ~index, snode_elem) => {
   |> place_horizontal_shift_target({
        left: xpos -. shift_target_thickness /. 2.0,
        right: xpos +. shift_target_thickness /. 2.0,
-       top: rect.bottom +. indicator_padding -. shift_target_thickness /. 2.0,
+       top: rect.bottom,
        bottom:
-         rect.bottom +. indicator_padding +. shift_target_thickness /. 2.0,
+         snode_elem |> Code.elem_is_on_last_line
+           ? rect.bottom +. indicator_padding
+           : rect.bottom -. indicator_padding,
      });
 };
 

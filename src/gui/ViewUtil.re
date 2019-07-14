@@ -42,8 +42,6 @@ let vertical_shift_target_in_frame_id = i =>
 let horizontal_shift_rail_id = "horizontal_shift_rail";
 let vertical_shift_rail_id = "vertical_shift_rail";
 
-let shift_target_thickness = 5.0;
-
 let steps_of_node_id = s =>
   switch (Regexp.string_match(Regexp.regexp("^node__(.*)$"), s, 0)) {
   | None => None
