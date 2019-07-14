@@ -780,6 +780,16 @@ let view =
             Attr.on("drop", _ => Event.Prevent_default),
             Attr.on_focus(_ => inject(FocusCell)),
             Attr.on_blur(_ => inject(BlurCell)),
+            Attr.on_keypress(evt =>
+              switch (
+                model.cursor_info.position,
+                JSUtil.is_movement_key(evt),
+              ) {
+              | (Staging(_), _) => Event.Prevent_default
+              | (OnText(_) | OnDelim(_, _), true) => Event.Many([])
+              | (OnText(_) | OnDelim(_, _), false) => Event.Prevent_default
+              }
+            ),
             Attr.on_keydown(evt => {
               let prevent_stop_inject = a =>
                 Event.Many([
