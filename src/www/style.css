@@ -816,24 +816,40 @@ button:disabled {
 .current-horizontal-shift-target,
 .current-vertical-shift-target, .horizontal-shift-target-in-subject,
 .vertical-shift-target-in-subject, .vertical-shift-target-in-frame,
-.horizontal-shift-target-in-frame {
+.horizontal-shift-target-in-frame,
+.horizontal-shift-rail,
+.vertical-shift-rail {
   position: absolute;
   z-index: var(--shift-indicator-z-index);
   background-color: var(--shifting-indicator-color);
 }
 
-.term-indicator.inactive, .node-indicator.inactive, .child-indicator.inactive,
-.current-shifting-delim-indicator.inactive, .current-horizontal-shift-target.inactive,
-.current-vertical-shift-target.inactive, .horizontal-shift-target-in-subject.inactive,
-.vertical-shift-target-in-subject.inactive, .vertical-shift-target-in-frame.inactive,
-.horizontal-shift-target-in-frame.inactive {
+.term-indicator.inactive,
+.node-indicator.inactive,
+.child-indicator.inactive,
+.current-shifting-delim-indicator.inactive,
+.current-horizontal-shift-target.inactive,
+.current-vertical-shift-target.inactive,
+.horizontal-shift-target-in-subject.inactive,
+.vertical-shift-target-in-subject.inactive,
+.vertical-shift-target-in-frame.inactive,
+.horizontal-shift-target-in-frame.inactive,
+.horizontal-shift-rail.inactive,
+.vertical-shift-rail.inactive {
   display: none;
 }
-.term-indicator.active, .node-indicator.active, .child-indicator.active,
-.current-shifting-delim-indicator.active, .current-horizontal-shift-target.active,
-.current-vertical-shift-target.active, .horizontal-shift-target-in-subject.active,
-.vertical-shift-target-in-subject.active, .vertical-shift-target-in-frame.active,
-.horizontal-shift-target-in-frame.active {
+.term-indicator.active,
+.node-indicator.active,
+.child-indicator.active,
+.current-shifting-delim-indicator.active,
+.current-horizontal-shift-target.active,
+.current-vertical-shift-target.active,
+.horizontal-shift-target-in-subject.active,
+.vertical-shift-target-in-subject.active,
+.vertical-shift-target-in-frame.active,
+.horizontal-shift-target-in-frame.active,
+.horizontal-shift-rail.active,
+.vertical-shift-rail.active {
   display: block;
 }
 

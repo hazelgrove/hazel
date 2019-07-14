@@ -39,6 +39,8 @@ let vertical_shift_target_in_subject_id = i =>
   "vertical_shift_target_in_subject__" ++ string_of_int(i);
 let vertical_shift_target_in_frame_id = i =>
   "vertical_shift_target_in_frame__" ++ string_of_int(i);
+let horizontal_shift_rail_id = "horizontal_shift_rail";
+let vertical_shift_rail_id = "vertical_shift_rail";
 
 let shift_target_thickness = 5.0;
 

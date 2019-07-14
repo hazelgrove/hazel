@@ -114,8 +114,11 @@ let create =
               steps |> split_last |> Opt.get(() => assert(false));
             let parent_elem = Code.force_get_snode_elem(parent_steps);
 
-            Code.force_get_sdelim_elem((steps, delim_index))
-            |> Cell.draw_current_shifting_delim_indicator;
+            Cell.start_drawing_shift_targets();
+
+            let sdelim_elem =
+              Code.force_get_sdelim_elem((steps, delim_index));
+            sdelim_elem |> Cell.draw_current_shifting_delim_indicator;
 
             // draw shift targets in subject
             switch (delim_index, model.cursor_info.node) {
@@ -329,6 +332,9 @@ let create =
                  );
             | (_, _) => ()
             };
+
+            Cell.draw_horizontal_shift_rail(sdelim_elem);
+            Cell.draw_vertical_shift_rail();
           };
         };
       },
