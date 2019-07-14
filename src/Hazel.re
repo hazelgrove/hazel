@@ -65,6 +65,7 @@ let create =
               if (cursor_elem |> Code.elem_is_SBox) {
                 cursor_elem
                 |> Cell.draw_box_node_indicator(
+                     ~cursor,
                      ~child_indices=
                        model.cursor_info
                        |> CursorInfo.child_indices_of_current_node,
@@ -110,6 +111,7 @@ let create =
             // only SBox elems can be in staging mode
             cursor_elem
             |> Cell.draw_box_node_indicator(
+                 ~cursor,
                  ~child_indices=
                    model.cursor_info
                    |> CursorInfo.child_indices_of_current_node,

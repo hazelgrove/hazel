@@ -420,7 +420,7 @@ let indent_of_snode_elem = elem =>
     }
   };
 
-let draw_box_node_indicator = (~child_indices, elem) => {
+let draw_box_node_indicator = (~cursor, ~child_indices, elem) => {
   let rect = elem |> get_relative_bounding_rect;
   let indent = elem |> indent_of_snode_elem;
   JSUtil.force_get_elem_by_id(box_node_indicator_id)
@@ -428,12 +428,22 @@ let draw_box_node_indicator = (~child_indices, elem) => {
        ~indent,
        {
          top: rect.top -. indicator_padding,
-         right: rect.right +. indicator_padding,
+         right:
+           switch (cursor) {
+           | OnText(_)
+           | OnDelim(_, _) => rect.right +. indicator_padding
+           | Staging(_) => rect.right
+           },
          bottom:
            elem |> Code.elem_is_on_last_line
              ? rect.bottom +. indicator_padding
              : rect.bottom -. indicator_padding,
-         left: rect.left -. indicator_padding,
+         left:
+           switch (cursor) {
+           | OnText(_)
+           | OnDelim(_, _) => rect.left -. indicator_padding
+           | Staging(_) => rect.left
+           },
        },
      );
   switch (elem |> Code.child_elems_of_snode_elem) {
