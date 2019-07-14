@@ -228,21 +228,12 @@ let create =
             | (_, _, TypFrame(None))
             | (_, _, PatFrame(None))
             | (_, _, ExpFrame(_, None, _)) => ()
-            | (
-                0,
-                Typ(List(OpSeq(_, _)) | Parenthesized(OpSeq(_, _))),
-                TypFrame(Some(_)),
-              )
-            | (
-                0,
-                Pat(Inj(_, _, OpSeq(_, _)) | Parenthesized(OpSeq(_, _))),
-                PatFrame(Some(_)),
-              )
+            | (0, Typ(List(_) | Parenthesized(_)), TypFrame(Some(_)))
+            | (0, Pat(Inj(_, _, _) | Parenthesized(_)), PatFrame(Some(_)))
             | (
                 0,
                 Exp(
-                  Inj(_, _, Block([], OpSeq(_, _))) |
-                  Parenthesized(Block([], OpSeq(_, _))),
+                  Inj(_, _, Block([], _)) | Parenthesized(Block([], _)),
                 ),
                 ExpFrame(_, Some(_), _),
               ) =>
@@ -273,21 +264,12 @@ let create =
                         ~side=Before,
                       )
                  );
-            | (
-                1,
-                Typ(List(OpSeq(_, _)) | Parenthesized(OpSeq(_, _))),
-                TypFrame(Some(_)),
-              )
-            | (
-                1,
-                Pat(Inj(_, _, OpSeq(_, _)) | Parenthesized(OpSeq(_, _))),
-                PatFrame(Some(_)),
-              )
+            | (1, Typ(List(_) | Parenthesized(_)), TypFrame(Some(_)))
+            | (1, Pat(Inj(_, _, _) | Parenthesized(_)), PatFrame(Some(_)))
             | (
                 1,
                 Exp(
-                  Inj(_, _, Block([], OpSeq(_, _))) |
-                  Parenthesized(Block([], OpSeq(_, _))),
+                  Inj(_, _, Block([], _)) | Parenthesized(Block([], _)),
                 ),
                 ExpFrame(_, Some(_), _),
               ) =>
@@ -308,13 +290,16 @@ let create =
                 | _ => assert(false)
                 };
               shift_target_indices
-              |> List.iter(i =>
+              |> List.iter(i => {
+                   JSUtil.log(
+                     Code.force_get_snode_elem(parent_steps @ [i]),
+                   );
                    Code.force_get_snode_elem(parent_steps @ [i])
                    |> Cell.draw_horizontal_shift_target_in_frame(
                         ~index=i,
                         ~side=After,
-                      )
-                 );
+                      );
+                 });
             | (_, _, _) => ()
             };
 
@@ -323,10 +308,7 @@ let create =
             | (_, TypFrame(_))
             | (_, PatFrame(_)) => ()
             | (
-                Exp(
-                  Inj(_, _, Block([], OpSeq(_, _))) |
-                  Parenthesized(Block([], OpSeq(_, _))),
-                ),
+                Exp(Inj(_, _, Block([], _)) | Parenthesized(Block([], _))),
                 ExpFrame(prefix, surround, suffix),
               ) =>
               let (block_elem, block_steps) =
