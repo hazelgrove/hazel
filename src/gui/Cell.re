@@ -146,6 +146,11 @@ let indicators = (model: Model.t) => {
             "node-indicator",
             model.is_cell_focused && model.cursor_info.node != Line(EmptyLine)
               ? "active" : "inactive",
+            switch (model.cursor_info.position) {
+            | OnText(_)
+            | OnDelim(_, _) => "normal"
+            | Staging(_) => "staging"
+            },
           ]),
         ],
         [],

@@ -107,6 +107,14 @@ let create =
           | Staging(delim_index) =>
             JSUtil.unset_caret();
 
+            // only SBox elems can be in staging mode
+            cursor_elem
+            |> Cell.draw_box_node_indicator(
+                 ~child_indices=
+                   model.cursor_info
+                   |> CursorInfo.child_indices_of_current_node,
+               );
+
             // There is always a parent of the current cursor node.
             // Even if the current cursor node forms the entire
             // visible expression, there is the block containing it.
