@@ -105,6 +105,8 @@ let create =
               };
             }
           | Staging(delim_index) =>
+            JSUtil.unset_caret();
+
             // There is always a parent of the current cursor node.
             // Even if the current cursor node forms the entire
             // visible expression, there is the block containing it.

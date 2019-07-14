@@ -82,7 +82,13 @@ let apply_action =
     model;
   | BlurCell => JSUtil.window_has_focus() ? model |> Model.blur_cell : model
   | SelectionChange =>
-    if (! setting_caret^) {
+    let is_staging =
+      switch (model.cursor_info.position) {
+      | OnText(_)
+      | OnDelim(_, _) => false
+      | Staging(_) => true
+      };
+    if (!is_staging && ! setting_caret^) {
       let anchorNode = Dom_html.window##getSelection##.anchorNode;
       let anchorOffset = Dom_html.window##getSelection##.anchorOffset;
       if (JSUtil.div_contains_node(
