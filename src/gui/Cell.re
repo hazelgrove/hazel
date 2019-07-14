@@ -430,6 +430,29 @@ let indicators = (model: Model.t) => {
                )
              );
         }
+      | (Staging(3), Line(LetLine(_, _, _)), ExpFrame(prefix, _, suffix)) =>
+        let indices = {
+          let prefix_len = prefix |> List.length;
+          suffix |> List.mapi((i, _) => prefix_len + 1 + i);
+        };
+        indices
+        |> List.map(i =>
+             Vdom.(
+               Node.div(
+                 [
+                   Attr.id(vertical_shift_target_in_frame_id(i)),
+                   Attr.classes([
+                     "vertical-shift-target-in-frame",
+                     switch (model.cursor_info.position) {
+                     | Staging(_) => "active"
+                     | _ => "inactive"
+                     },
+                   ]),
+                 ],
+                 [],
+               )
+             )
+           );
       | (_, _, _) => []
       };
     };

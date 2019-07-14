@@ -309,6 +309,18 @@ let create =
             switch (model.cursor_info.node, model.cursor_info.frame) {
             | (_, TypFrame(_))
             | (_, PatFrame(_)) => ()
+            | (Line(LetLine(_, _, _)), ExpFrame(prefix, _, suffix)) =>
+              Cell.elem()
+              |> Code.sline_elems_of_snode_elem(parent_elem)
+              |> List.iteri((i, sline) =>
+                   if (delim_index == 3 && i > (prefix |> List.length)) {
+                     sline
+                     |> Cell.draw_vertical_shift_target_in_frame(
+                          ~index=i,
+                          ~side=After,
+                        );
+                   }
+                 )
             | (
                 Exp(Inj(_, _, Block([], _)) | Parenthesized(Block([], _))),
                 ExpFrame(prefix, surround, suffix),
