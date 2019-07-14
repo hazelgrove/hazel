@@ -257,6 +257,15 @@ let indicators = (model: Model.t) => {
                  Attr.id(child_indicator_id(i)),
                  Attr.classes([
                    "child-indicator",
+                   switch (model.cursor_info.position) {
+                   | Staging(_) =>
+                     model.cursor_info
+                     |> CursorInfo.preserved_child_indices_of_node
+                     |> contains(i)
+                       ? "normal" : "staging"
+                   | OnText(_)
+                   | OnDelim(_, _) => "normal"
+                   },
                    model.is_cell_focused && is_active(i)
                      ? "active" : "inactive",
                  ]),

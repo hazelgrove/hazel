@@ -34,7 +34,7 @@ let valid_cursors = (p: UHPat.t): list(cursor_position) =>
   };
 
 let is_valid_cursor = (cursor: cursor_position, p: UHPat.t): bool =>
-  contains(valid_cursors(p), cursor);
+  valid_cursors(p) |> contains(cursor);
 
 let bidelimit = (zp: t): t =>
   switch (zp) {

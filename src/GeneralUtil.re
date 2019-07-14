@@ -89,7 +89,7 @@ let filteri = (pred, xs) =>
 
 let any = (xs, f) => opt_to_bool(List.find_opt(f, xs));
 
-let contains = (xs: list('a), y: 'a): bool => List.exists(x => x == y, xs);
+let contains = (y: 'a, xs: list('a)): bool => List.exists(x => x == y, xs);
 
 let first = (xs: list('a)): option('a) => List.nth_opt(xs, 0);
 

@@ -169,6 +169,44 @@ let child_indices_of_current_node = ci =>
   | Pat(p) => UHPat.child_indices(p)
   | Typ(ty) => UHTyp.child_indices(ty)
   };
+
+let preserved_child_indices_of_node = ci =>
+  switch (ci.node, ci.frame) {
+  | (Line(EmptyLine | ExpLine(_)), _) => []
+  | (Line(LetLine(_, _, _)), _) => [2]
+  | (
+      Exp(
+        EmptyHole(_) | Var(_, _, _) | NumLit(_, _) | BoolLit(_, _) |
+        ListNil(_) |
+        OpSeq(_, _) |
+        ApPalette(_, _, _, _),
+      ),
+      _,
+    ) =>
+    []
+  | (Exp(Parenthesized(Block([], _))), ExpFrame(_, Some(_), _)) => [0]
+  | (Exp(Parenthesized(_)), ExpFrame(_, Some(_), _)) => []
+  | (Exp(Parenthesized(_)), ExpFrame(_, None, _)) => [0]
+  | (Exp(Lam(_, _, _, _)), _) => [2]
+  | (Exp(Inj(_, _, _)), _) => [0]
+  | (Exp(Case(_, _, _, _)), _) => [0]
+  | (
+      Pat(
+        EmptyHole(_) | Wild(_) | Var(_, _, _) | NumLit(_, _) | BoolLit(_, _) |
+        ListNil(_) |
+        OpSeq(_, _),
+      ),
+      _,
+    ) =>
+    []
+  | (Pat(Parenthesized(_)), _) => [0]
+  | (Pat(Inj(_, _, _)), _) => [0]
+  | (Typ(Hole | Unit | Num | Bool | OpSeq(_, _)), _) => []
+  | (Typ(Parenthesized(_)), _) => [0]
+  | (Typ(List(_)), _) => [0]
+  | (_, _) => []
+  };
+
 let rec cursor_info_typ =
         (~frame=None, ctx: Contexts.t, zty: ZTyp.t): option(t) =>
   switch (zty) {

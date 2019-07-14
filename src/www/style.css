@@ -15,7 +15,8 @@
   --code-z-index: 0;
   --node-indicator-normal-color: rgb(229, 255, 229);
   --node-indicator-staging-color: #d0f3fc;
-  --child-indicator-color: white;
+  --child-indicator-normal-color: white;
+  --child-indicator-staging-color: #f9ffb9;
   --term-indicator-color: #197B07;
   --term-indicator-corner-size: 3px;
   --shifting-indicator-color: rgb(31, 129, 185);
@@ -808,9 +809,14 @@ button:disabled {
 .child-indicator {
   position: absolute;
   z-index: var(--child-indicator-z-index);
-  background-color: var(--child-indicator-color);
   font-family: "Fira Mono", monospace;
   font-size: 20px;
+}
+.child-indicator.normal {
+  background-color: var(--child-indicator-normal-color);
+}
+.child-indicator.staging {
+  background-color: var(--child-indicator-staging-color);
 }
 
 .current-shifting-delim-indicator {

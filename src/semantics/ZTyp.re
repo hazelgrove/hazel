@@ -30,7 +30,7 @@ let valid_cursors = (uty: UHTyp.t): list(cursor_position) =>
   };
 
 let is_valid_cursor = (cursor: cursor_position, uty: UHTyp.t): bool =>
-  contains(valid_cursors(uty), cursor);
+  valid_cursors(uty) |> contains(cursor);
 
 let rec erase = (zty: t): UHTyp.t =>
   switch (zty) {

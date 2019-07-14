@@ -88,11 +88,11 @@ let valid_cursors_rule = (_: UHExp.rule): list(cursor_position) =>
   delim_cursors(2);
 
 let is_valid_cursor_line = (cursor: cursor_position, line: UHExp.line): bool =>
-  contains(valid_cursors_line(line), cursor);
+  valid_cursors_line(line) |> contains(cursor);
 let is_valid_cursor_exp = (cursor: cursor_position, e: UHExp.t): bool =>
-  contains(valid_cursors_exp(e), cursor);
+  valid_cursors_exp(e) |> contains(cursor);
 let is_valid_cursor_rule = (cursor: cursor_position, rule: UHExp.rule): bool =>
-  contains(valid_cursors_rule(rule), cursor);
+  valid_cursors_rule(rule) |> contains(cursor);
 
 let wrap_in_block = (ze: t): zblock => BlockZE([], ze);
 
