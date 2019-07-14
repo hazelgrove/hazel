@@ -133,6 +133,34 @@ let is_after_node = ci =>
   | Typ(ty) => ZTyp.is_after(CursorT(ci.position, ty))
   };
 
+let staging_left_border = ci =>
+  switch (ci.position, ci.node) {
+  | (
+      Staging(0),
+      Line(LetLine(_, _, _)) |
+      Exp(
+        Inj(_, _, _) | Parenthesized(_) | Case(_, _, _, _) | Lam(_, _, _, _),
+      ) |
+      Pat(Inj(_, _, _) | Parenthesized(_)) |
+      Typ(List(_) | Parenthesized(_)),
+    ) =>
+    true
+  | _ => false
+  };
+
+let staging_right_border = ci =>
+  switch (ci.position, ci.node) {
+  | (Staging(3), Line(LetLine(_, _, _)))
+  | (
+      Staging(1),
+      Exp(Inj(_, _, _) | Parenthesized(_) | Case(_, _, _, _)) |
+      Pat(Inj(_, _, _) | Parenthesized(_)) |
+      Typ(List(_) | Parenthesized(_)),
+    ) =>
+    true
+  | _ => false
+  };
+
 let child_indices_of_current_node = ci =>
   switch (ci.node) {
   | Line(li) => UHExp.child_indices_line(li)

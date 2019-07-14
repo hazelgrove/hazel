@@ -128,7 +128,10 @@ let create =
 
             let sdelim_elem =
               Code.force_get_sdelim_elem((steps, delim_index));
-            sdelim_elem |> Cell.draw_current_shifting_delim_indicator;
+            sdelim_elem
+            |> Cell.draw_current_shifting_delim_indicator(
+                 ~cursor_info=model.cursor_info,
+               );
 
             // draw shift targets in subject
             switch (delim_index, model.cursor_info.node) {

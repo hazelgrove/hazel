@@ -456,6 +456,7 @@ let indent_of_snode_elem = elem =>
     }
   };
 
+[@warning "-27"]
 let draw_box_node_indicator = (~cursor, ~child_indices, elem) => {
   let rect = elem |> get_relative_bounding_rect;
   let indent = elem |> indent_of_snode_elem;
@@ -464,22 +465,12 @@ let draw_box_node_indicator = (~cursor, ~child_indices, elem) => {
        ~indent,
        {
          top: rect.top -. indicator_padding,
-         right:
-           switch (cursor) {
-           | OnText(_)
-           | OnDelim(_, _) => rect.right +. indicator_padding
-           | Staging(_) => rect.right
-           },
+         right: rect.right +. indicator_padding,
          bottom:
            elem |> Code.elem_is_on_last_line
              ? rect.bottom +. indicator_padding
              : rect.bottom -. indicator_padding,
-         left:
-           switch (cursor) {
-           | OnText(_)
-           | OnDelim(_, _) => rect.left -. indicator_padding
-           | Staging(_) => rect.left
-           },
+         left: rect.left -. indicator_padding,
        },
      );
   switch (elem |> Code.child_elems_of_snode_elem) {
@@ -675,14 +666,18 @@ let place_vertical_shift_target = (rect, shift_target_elem) => {
   vertical_rail_bottom := max(vertical_rail_bottom^, rect.bottom);
 };
 
-let draw_current_shifting_delim_indicator = sdelim_elem => {
+let draw_current_shifting_delim_indicator = (~cursor_info, sdelim_elem) => {
   let rect = sdelim_elem |> get_relative_bounding_rect;
   JSUtil.force_get_elem_by_id(current_shifting_delim_indicator_id)
   |> JSUtil.place_over_rect(rect);
   JSUtil.force_get_elem_by_id(current_horizontal_shift_target_id)
   |> place_horizontal_shift_target({
-       left: rect.left,
-       right: rect.right,
+       left:
+         cursor_info |> CursorInfo.staging_left_border
+           ? rect.left -. indicator_padding : rect.left,
+       right:
+         cursor_info |> CursorInfo.staging_right_border
+           ? rect.right +. indicator_padding : rect.right,
        top: rect.bottom,
        bottom:
          sdelim_elem |> Code.elem_is_on_last_line
