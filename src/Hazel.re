@@ -139,29 +139,40 @@ let create =
                   Parenthesized(Block([], OpSeq(_, _))),
                 ),
               ) =>
-              let shift_target_indices =
+              let shift_target_relative_paths =
                 switch (model.cursor_info.node) {
                 | Typ(List(OpSeq(_, seq)) | Parenthesized(OpSeq(_, seq))) =>
-                  seq |> OperatorSeq.seq_length |> range(~lo=1)
+                  seq
+                  |> OperatorSeq.seq_length
+                  |> range(~lo=1)
+                  |> List.map(i => [0, i])
                 | Pat(
                     Inj(_, _, OpSeq(_, seq)) | Parenthesized(OpSeq(_, seq)),
                   ) =>
-                  seq |> OperatorSeq.seq_length |> range(~lo=1)
+                  seq
+                  |> OperatorSeq.seq_length
+                  |> range(~lo=1)
+                  |> List.map(i => [0, i])
                 | Exp(
                     Inj(_, _, Block([], OpSeq(_, seq))) |
                     Parenthesized(Block([], OpSeq(_, seq))),
                   ) =>
-                  seq |> OperatorSeq.seq_length |> range(~lo=1)
+                  seq
+                  |> OperatorSeq.seq_length
+                  |> range(~lo=1)
+                  |> List.map(i => [0, 0, i])
                 | _ => assert(false)
                 };
-              shift_target_indices
-              |> List.iter(i =>
-                   Code.force_get_snode_elem(steps @ [i])
+              shift_target_relative_paths
+              |> List.iter(rel_path => {
+                   let (_, last) =
+                     rel_path |> split_last |> Opt.get(() => assert(false));
+                   Code.force_get_snode_elem(steps @ rel_path)
                    |> Cell.draw_horizontal_shift_target_in_subject(
-                        ~index=i,
-                        ~side=After,
-                      )
-                 );
+                        ~index=last,
+                        ~side=Before,
+                      );
+                 });
             | (
                 _one,
                 Typ(List(OpSeq(_, _)) | Parenthesized(OpSeq(_, _))) |
@@ -171,29 +182,40 @@ let create =
                   Parenthesized(Block([], OpSeq(_, _))),
                 ),
               ) =>
-              let shift_target_indices =
+              let shift_target_relative_paths =
                 switch (model.cursor_info.node) {
                 | Typ(List(OpSeq(_, seq)) | Parenthesized(OpSeq(_, seq))) =>
-                  (seq |> OperatorSeq.seq_length) - 1 |> range
+                  (seq |> OperatorSeq.seq_length)
+                  - 1
+                  |> range
+                  |> List.map(i => [0, i])
                 | Pat(
                     Inj(_, _, OpSeq(_, seq)) | Parenthesized(OpSeq(_, seq)),
                   ) =>
-                  (seq |> OperatorSeq.seq_length) - 1 |> range
+                  (seq |> OperatorSeq.seq_length)
+                  - 1
+                  |> range
+                  |> List.map(i => [0, i])
                 | Exp(
                     Inj(_, _, Block([], OpSeq(_, seq))) |
                     Parenthesized(Block([], OpSeq(_, seq))),
                   ) =>
-                  (seq |> OperatorSeq.seq_length) - 1 |> range
+                  (seq |> OperatorSeq.seq_length)
+                  - 1
+                  |> range
+                  |> List.map(i => [0, 0, i])
                 | _ => assert(false)
                 };
-              shift_target_indices
-              |> List.iter(i =>
-                   Code.force_get_snode_elem(steps @ [i])
+              shift_target_relative_paths
+              |> List.iter(rel_path => {
+                   let (_, last) =
+                     rel_path |> split_last |> Opt.get(() => assert(false));
+                   Code.force_get_snode_elem(steps @ rel_path)
                    |> Cell.draw_horizontal_shift_target_in_subject(
-                        ~index=i,
-                        ~side=Before,
-                      )
-                 );
+                        ~index=last,
+                        ~side=After,
+                      );
+                 });
             | (_, _) => ()
             };
 
