@@ -780,10 +780,6 @@ let view =
             Attr.on("drop", _ => Event.Prevent_default),
             Attr.on_focus(_ => inject(FocusCell)),
             Attr.on_blur(_ => inject(BlurCell)),
-            Attr.on_keypress(evt =>
-              JSUtil.is_movement_key(evt)
-                ? Event.Many([]) : Event.Prevent_default
-            ),
             Attr.on_keydown(evt => {
               let prevent_stop_inject = a =>
                 Event.Many([
@@ -792,9 +788,23 @@ let view =
                   inject(a),
                 ]);
               let ci = model.cursor_info;
-              switch (JSUtil.is_single_key(evt), KeyCombo.of_evt(evt)) {
-              | (None, None) => Event.Ignore
-              | (Some(single_key), opt_kc) =>
+              switch (
+                model.cursor_info.position,
+                JSUtil.is_movement_key(evt),
+                JSUtil.is_single_key(evt),
+                KeyCombo.of_evt(evt),
+              ) {
+              | (Staging(_), true, _, _) =>
+                switch (evt |> JSUtil.get_key) {
+                | "ArrowLeft" =>
+                  prevent_stop_inject(Update.Action.EditAction(ShiftLeft))
+                | "ArrowRight" =>
+                  prevent_stop_inject(Update.Action.EditAction(ShiftRight))
+                | _ => Event.Ignore
+                }
+              | (OnText(_) | OnDelim(_, _), true, _, _) => Event.Many([])
+              | (_, _, None, None) => Event.Ignore
+              | (_, _, Some(single_key), opt_kc) =>
                 switch (ci.node, opt_kc) {
                 | (Typ(_), Some((Key_B | Key_L | Key_N) as kc)) =>
                   prevent_stop_inject(
@@ -855,7 +865,7 @@ let view =
                 | (Pat(_), _)
                 | (Typ(_), _) => Event.Ignore
                 }
-              | (_, Some((Backspace | Delete) as kc)) =>
+              | (_, _, _, Some((Backspace | Delete) as kc)) =>
                 let (string_edit, update, cursor_escaped) =
                   switch (kc) {
                   | Backspace => (
@@ -904,7 +914,7 @@ let view =
                         )
                   };
                 };
-              | (_, Some(kc)) =>
+              | (_, _, _, Some(kc)) =>
                 prevent_stop_inject(
                   Update.Action.EditAction(Hashtbl.find(kc_actions, kc)),
                 )
