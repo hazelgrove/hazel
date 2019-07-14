@@ -588,8 +588,7 @@ let draw_horizontal_shift_rail = sdelim_elem => {
   JSUtil.force_get_elem_by_id(horizontal_shift_rail_id)
   |> JSUtil.place_over_rect({
        top: rect.bottom +. indicator_padding -. shift_target_thickness /. 2.0,
-       bottom:
-         rect.bottom +. indicator_padding +. shift_target_thickness /. 2.0,
+       bottom: rect.bottom +. indicator_padding,
        left: horizontal_rail_left^,
        right: horizontal_rail_right^,
      });
@@ -605,13 +604,7 @@ let draw_vertical_shift_rail = () => {
          /. 2.0
          +. shift_target_thickness
          /. 2.0,
-       left:
-         0.0
-         -. cell_padding
-         -. cell_border
-         /. 2.0
-         -. shift_target_thickness
-         /. 2.0,
+       left: 0.0 -. cell_padding -. cell_border /. 2.0,
        top: vertical_rail_top^,
        bottom: vertical_rail_bottom^,
      });
