@@ -614,10 +614,15 @@ let start_drawing_shift_targets = () => {
 
 let draw_horizontal_shift_rail = sdelim_elem => {
   let rect = sdelim_elem |> get_relative_bounding_rect;
+  let delim_bottom = rect.bottom;
+  let indicator_bottom =
+    sdelim_elem |> Code.elem_is_on_last_line
+      ? rect.bottom +. indicator_padding : rect.bottom -. indicator_padding;
+  let midpoint = (delim_bottom +. indicator_bottom) /. 2.0;
   JSUtil.force_get_elem_by_id(horizontal_shift_rail_id)
   |> JSUtil.place_over_rect({
-       top: rect.bottom,
-       bottom: rect.bottom +. 2.0,
+       top: midpoint -. 1.0,
+       bottom: midpoint +. 1.0,
        left: horizontal_rail_left^,
        right: horizontal_rail_right^,
      });
@@ -674,22 +679,10 @@ let draw_current_shifting_delim_indicator = sdelim_elem => {
      });
   JSUtil.force_get_elem_by_id(current_vertical_shift_target_id)
   |> place_vertical_shift_target({
-       top: rect.top -. indicator_padding,
-       bottom: rect.bottom +. indicator_padding,
-       right:
-         0.0
-         -. cell_padding
-         -. cell_border
-         /. 2.0
-         +. shift_target_thickness
-         /. 2.0,
-       left:
-         0.0
-         -. cell_padding
-         -. cell_border
-         /. 2.0
-         -. shift_target_thickness
-         /. 2.0,
+       top: rect.top,
+       bottom: rect.bottom,
+       right: 0.0 -. cell_padding,
+       left: 0.0 -. cell_padding -. shift_target_thickness,
      });
 };
 
