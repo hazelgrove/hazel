@@ -1028,6 +1028,11 @@ and holes_zline = (zli: ZExp.zline, steps: steps): zhole_list =>
         hole_selected: None,
         holes_after: holes_block,
       }
+    | OnDelim(3, _) => {
+        holes_before: holes_p @ holes_ann @ holes_block,
+        hole_selected: None,
+        holes_after: [],
+      }
     | _ => no_holes
     };
   | ExpLineZ(ze1) => holes_ze(ze1, steps)

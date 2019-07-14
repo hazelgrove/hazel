@@ -52,7 +52,10 @@ let valid_cursors_line = (line: UHExp.line): list(cursor_position) =>
       | None => []
       | Some(_) => delim_cursors_k(1)
       };
-    delim_cursors_k(0) @ ann_cursors @ delim_cursors_k(2);
+    delim_cursors_k(0)
+    @ ann_cursors
+    @ delim_cursors_k(2)
+    @ delim_cursors_k(3);
   };
 let valid_cursors_exp = (e: UHExp.t): list(cursor_position) =>
   switch (e) {
@@ -187,13 +190,13 @@ and is_after_line = (zli: zline): bool =>
   /* outer nodes */
   | CursorL(cursor, EmptyLine) => cursor == OnText(0)
   /* inner nodes */
-  | CursorL(_, LetLine(_, _, _)) => false
+  | CursorL(cursor, LetLine(_, _, _)) => cursor == OnDelim(3, After)
   | CursorL(_, ExpLine(_)) => false /* ghost node */
   /* zipper cases */
   | ExpLineZ(ze) => is_after_exp(ze)
   | LetLineZP(_, _, _)
-  | LetLineZA(_, _, _) => false
-  | LetLineZE(_, _, zblock) => is_after_block(zblock)
+  | LetLineZA(_, _, _)
+  | LetLineZE(_, _, _) => false
   }
 and is_after_exp = (ze: t): bool =>
   switch (ze) {
@@ -283,8 +286,8 @@ let rec place_after_block = (Block(lines, e): UHExp.block): zblock =>
   BlockZE(lines, place_after_exp(e))
 and place_after_line = (line: UHExp.line): zline =>
   switch (line) {
-  | EmptyLine => CursorL(OnText(0), EmptyLine)
-  | LetLine(p, ann, block) => LetLineZE(p, ann, place_after_block(block))
+  | EmptyLine => CursorL(OnText(0), line)
+  | LetLine(_, _, _) => CursorL(OnDelim(3, After), line)
   | ExpLine(e) => ExpLineZ(place_after_exp(e))
   }
 and place_after_exp = (e: UHExp.t): t =>
@@ -652,7 +655,8 @@ let node_positions_line = (line: UHExp.line): list(node_position) =>
     @ [Deeper(0)]
     @ ann_positions
     @ node_positions(delim_cursors_k(2))
-    @ [Deeper(2)];
+    @ [Deeper(2)]
+    @ node_positions(delim_cursors_k(3));
   };
 
 let node_positions_exp = (e: UHExp.t): list(node_position) =>
@@ -818,11 +822,13 @@ and move_cursor_left_line = (zline: zline): option(zline) =>
     Some(CursorL(OnDelim(k, Before), line))
   | CursorL(OnDelim(_, _), EmptyLine | ExpLine(_)) => None
   | CursorL(OnDelim(k, Before), LetLine(p, ann, def)) =>
-    // k == 1 || k == 2
-    switch (k == 1, ann) {
-    | (true, _) => Some(LetLineZP(ZPat.place_after(p), ann, def))
-    | (_, None) => Some(LetLineZP(ZPat.place_after(p), ann, def))
-    | (_, Some(ann)) => Some(LetLineZA(p, ZTyp.place_after(ann), def))
+    // k == 1 || k == 2 || k == 3
+    switch (k == 1, k == 2, ann) {
+    | (true, _, _) => Some(LetLineZP(ZPat.place_after(p), ann, def))
+    | (_, true, None) => Some(LetLineZP(ZPat.place_after(p), ann, def))
+    | (_, true, Some(ann)) =>
+      Some(LetLineZA(p, ZTyp.place_after(ann), def))
+    | (_, _, _) => Some(LetLineZE(p, ann, place_after_block(def)))
     }
   | ExpLineZ(ze) =>
     switch (move_cursor_left_exp(ze)) {
@@ -1093,15 +1099,16 @@ and move_cursor_right_line = (zline: zline): option(zline) => {
     Some(CursorL(OnDelim(k, After), line))
   | CursorL(OnDelim(_, _), EmptyLine | ExpLine(_)) => None
   | CursorL(OnDelim(k, After), LetLine(p, ann, def)) =>
-    // k == 0 || k == 1 || k == 2
-    switch (k == 0, k == 1, ann) {
-    | (true, _, _) => Some(LetLineZP(ZPat.place_before(p), ann, def))
-    | (_, true, None) =>
+    // k == 0 || k == 1 || k == 2 || k == 3
+    switch (k == 0, k == 1, k == 2, ann) {
+    | (true, _, _, _) => Some(LetLineZP(ZPat.place_before(p), ann, def))
+    | (_, true, _, None) =>
       // invalid cursor position
       None
-    | (_, true, Some(ann)) =>
+    | (_, true, _, Some(ann)) =>
       Some(LetLineZA(p, ZTyp.place_before(ann), def))
-    | (false, false, _) => Some(LetLineZE(p, ann, place_before_block(def)))
+    | (_, _, true, _) => Some(LetLineZE(p, ann, place_before_block(def)))
+    | (_, _, _, _) => None
     }
   | ExpLineZ(ze) =>
     switch (move_cursor_right_exp(ze)) {
@@ -1138,8 +1145,11 @@ and move_cursor_right_line = (zline: zline): option(zline) => {
     }
   | LetLineZE(p, ann, zdef) =>
     switch (move_cursor_right_block(zdef)) {
-    | None => None
     | Some(zdef) => Some(LetLineZE(p, ann, zdef))
+    | None =>
+      Some(
+        CursorL(OnDelim(3, Before), LetLine(p, ann, erase_block(zdef))),
+      )
     }
   };
 }

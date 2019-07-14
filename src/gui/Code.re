@@ -1528,6 +1528,11 @@ let snode_of_LetLine =
         ],
       ),
       mk_SLine(~rel_indent=1, [SNode(sdef)]),
+      mk_SLine(
+        is_multi_line(sdef)
+          ? [SToken(mk_SDelim(~index=3, "in"))]
+          : [SToken(SSpace), SToken(mk_SDelim(~index=3, "in"))],
+      ),
     ],
   );
 
