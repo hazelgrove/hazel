@@ -177,20 +177,7 @@ let indicators = (model: Model.t) => {
       ),
       Node.div(
         [
-          Attr.id(current_horizontal_shift_target_top_id),
-          Attr.classes([
-            "current-horizontal-shift-target",
-            switch (model.cursor_info.position) {
-            | Staging(_) => "active"
-            | _ => "inactive"
-            },
-          ]),
-        ],
-        [],
-      ),
-      Node.div(
-        [
-          Attr.id(current_horizontal_shift_target_bottom_id),
+          Attr.id(current_horizontal_shift_target_id),
           Attr.classes([
             "current-horizontal-shift-target",
             switch (model.cursor_info.position) {
@@ -695,14 +682,7 @@ let draw_current_shifting_delim_indicator = sdelim_elem => {
   let rect = sdelim_elem |> get_relative_bounding_rect;
   JSUtil.force_get_elem_by_id(current_shifting_delim_indicator_id)
   |> JSUtil.place_over_rect(rect);
-  JSUtil.force_get_elem_by_id(current_horizontal_shift_target_top_id)
-  |> place_horizontal_shift_target({
-       left: rect.left,
-       right: rect.right,
-       top: rect.top -. indicator_padding,
-       bottom: rect.top,
-     });
-  JSUtil.force_get_elem_by_id(current_horizontal_shift_target_bottom_id)
+  JSUtil.force_get_elem_by_id(current_horizontal_shift_target_id)
   |> place_horizontal_shift_target({
        left: rect.left,
        right: rect.right,

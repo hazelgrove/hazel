@@ -816,8 +816,8 @@ button:disabled {
 .current-shifting-delim-indicator {
   position: absolute;
   z-index: var(--shift-indicator-z-index);
-  border-left: 2px solid var(--shifting-indicator-color);
-  border-right: 2px solid var(--shifting-indicator-color);
+  /*border-left: 2px solid var(--shifting-indicator-color);
+  border-right: 2px solid var(--shifting-indicator-color);*/
 }
 
 .current-horizontal-shift-target,
