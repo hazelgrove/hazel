@@ -64,7 +64,11 @@ let multi_line_seq_indicators = (is_active, n) =>
     Node.div(
       [
         Attr.id(op_node_indicator_id),
-        Attr.classes(["node-indicator", is_active ? "active" : "inactive"]),
+        Attr.classes([
+          "node-indicator",
+          "normal",
+          is_active ? "active" : "inactive",
+        ]),
       ],
       [],
     ),
@@ -89,7 +93,11 @@ let single_line_seq_indicators = is_active => {
     Node.div(
       [
         Attr.id(op_node_indicator_id),
-        Attr.classes(["node-indicator", is_active ? "active" : "inactive"]),
+        Attr.classes([
+          "node-indicator",
+          "normal",
+          is_active ? "active" : "inactive",
+        ]),
       ],
       [],
     ),
