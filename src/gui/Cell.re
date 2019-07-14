@@ -175,6 +175,84 @@ let indicators = (model: Model.t) => {
         ],
         [],
       ),
+      Node.div(
+        [
+          Attr.id(current_horizontal_shift_target_top_id),
+          Attr.classes([
+            "current-horizontal-shift-target",
+            switch (model.cursor_info.position) {
+            | Staging(_) => "active"
+            | _ => "inactive"
+            },
+          ]),
+        ],
+        [],
+      ),
+      Node.div(
+        [
+          Attr.id(current_horizontal_shift_target_bottom_id),
+          Attr.classes([
+            "current-horizontal-shift-target",
+            switch (model.cursor_info.position) {
+            | Staging(_) => "active"
+            | _ => "inactive"
+            },
+          ]),
+        ],
+        [],
+      ),
+      Node.div(
+        [
+          Attr.id(current_vertical_shift_target_id),
+          Attr.classes([
+            "current-vertical-shift-target",
+            switch (model.cursor_info.position) {
+            | Staging(_) => "active"
+            | _ => "inactive"
+            },
+          ]),
+        ],
+        [],
+      ),
+      Node.div(
+        [
+          Attr.id(current_shifting_delim_indicator_id),
+          Attr.classes([
+            "current-shifting-delim-indicator",
+            switch (model.cursor_info.position) {
+            | Staging(_) => "active"
+            | _ => "inactive"
+            },
+          ]),
+        ],
+        [],
+      ),
+      Node.div(
+        [
+          Attr.id(horizontal_shift_rail_id),
+          Attr.classes([
+            "horizontal-shift-rail",
+            switch (model.cursor_info.position) {
+            | Staging(_) => "active"
+            | _ => "inactive"
+            },
+          ]),
+        ],
+        [],
+      ),
+      Node.div(
+        [
+          Attr.id(vertical_shift_rail_id),
+          Attr.classes([
+            "vertical-shift-rail",
+            switch (model.cursor_info.position) {
+            | Staging(_) => "active"
+            | _ => "inactive"
+            },
+          ]),
+        ],
+        [],
+      ),
     ]
     @ {
       let child_indices =
@@ -202,21 +280,35 @@ let indicators = (model: Model.t) => {
          );
     }
     @ {
-      let seq_length =
-        switch (model.cursor_info.node) {
-        | Typ(List(OpSeq(_, seq)) | Parenthesized(OpSeq(_, seq))) =>
-          (seq |> OperatorSeq.seq_length) - 1
-        | Pat(Inj(_, _, OpSeq(_, seq)) | Parenthesized(OpSeq(_, seq))) =>
-          (seq |> OperatorSeq.seq_length) - 1
-        | Exp(
-            Inj(_, _, Block([], OpSeq(_, seq))) |
-            Parenthesized(Block([], OpSeq(_, seq))),
+      let indices =
+        switch (model.cursor_info.position, model.cursor_info.node) {
+        | (
+            Staging(k),
+            Typ(List(OpSeq(_, seq)) | Parenthesized(OpSeq(_, seq))),
           ) =>
-          (seq |> OperatorSeq.seq_length) - 1
-        | _ => 0
+          k == 0
+            ? range(~lo=1, seq |> OperatorSeq.seq_length)
+            : range((seq |> OperatorSeq.seq_length) - 1)
+        | (
+            Staging(k),
+            Pat(Inj(_, _, OpSeq(_, seq)) | Parenthesized(OpSeq(_, seq))),
+          ) =>
+          k == 0
+            ? range(~lo=1, seq |> OperatorSeq.seq_length)
+            : range((seq |> OperatorSeq.seq_length) - 1)
+        | (
+            Staging(k),
+            Exp(
+              Inj(_, _, Block([], OpSeq(_, seq))) |
+              Parenthesized(Block([], OpSeq(_, seq))),
+            ),
+          ) =>
+          k == 0
+            ? range(~lo=1, seq |> OperatorSeq.seq_length)
+            : range((seq |> OperatorSeq.seq_length) - 1)
+        | _ => []
         };
-      seq_length
-      |> range
+      indices
       |> List.map(i =>
            Vdom.(
              Node.div(
@@ -224,10 +316,7 @@ let indicators = (model: Model.t) => {
                  Attr.id(horizontal_shift_target_in_subject_id(i)),
                  Attr.classes([
                    "horizontal-shift-target-in-subject",
-                   switch (model.cursor_info.position) {
-                   | Staging(_) => "active"
-                   | _ => "inactive"
-                   },
+                   is_staging ? "active" : "inactive",
                  ]),
                ],
                [],
@@ -236,26 +325,36 @@ let indicators = (model: Model.t) => {
          );
     }
     @ {
-      switch (model.cursor_info.frame) {
-      | TypFrame(None)
-      | PatFrame(None) => []
-      | TypFrame(Some(_))
-      | PatFrame(Some(_)) =>
+      switch (
+        model.cursor_info.position,
+        model.cursor_info.node,
+        model.cursor_info.frame,
+      ) {
+      | (_, _, TypFrame(None))
+      | (_, _, PatFrame(None)) => []
+      | (Staging(k), Typ(List(_) | Parenthesized(_)), TypFrame(Some(_)))
+      | (
+          Staging(k),
+          Pat(Inj(_, _, _) | Parenthesized(_)),
+          PatFrame(Some(_)),
+        ) =>
         let indices =
           switch (model.cursor_info.frame) {
           | TypFrame(Some(surround)) =>
             let (prefix_tms, suffix_tms) =
               surround |> OperatorSeq.tms_of_surround;
             let prefix_len = prefix_tms |> List.length;
-            range(prefix_len)
-            @ (suffix_tms |> List.mapi((i, _) => prefix_len + 1 + i));
+            k == 0
+              ? range(prefix_len)
+              : suffix_tms |> List.mapi((i, _) => prefix_len + 1 + i);
           | PatFrame(Some(surround)) =>
             let (prefix_tms, suffix_tms) =
               surround |> OperatorSeq.tms_of_surround;
             let prefix_len = prefix_tms |> List.length;
-            range(prefix_len)
-            @ (suffix_tms |> List.mapi((i, _) => prefix_len + 1 + i));
-          | _ => assert(false)
+            k == 0
+              ? range(prefix_len)
+              : suffix_tms |> List.mapi((i, _) => prefix_len + 1 + i);
+          | _ => []
           };
         indices
         |> List.map(i =>
@@ -265,17 +364,18 @@ let indicators = (model: Model.t) => {
                    Attr.id(vertical_shift_target_in_frame_id(i)),
                    Attr.classes([
                      "vertical-shift-target-in-frame",
-                     switch (model.cursor_info.position) {
-                     | Staging(_) => "active"
-                     | _ => "inactive"
-                     },
+                     is_staging ? "active" : "inactive",
                    ]),
                  ],
                  [],
                )
              )
            );
-      | ExpFrame(prefix, surround, suffix) =>
+      | (
+          Staging(k),
+          Exp(Inj(_, _, _) | Parenthesized(_)),
+          ExpFrame(prefix, surround, suffix),
+        ) =>
         (
           switch (surround) {
           | None => []
@@ -284,8 +384,9 @@ let indicators = (model: Model.t) => {
               surround |> OperatorSeq.tms_of_surround;
             let indices = {
               let prefix_len = prefix_tms |> List.length;
-              range(prefix_len)
-              @ (suffix_tms |> List.mapi((i, _) => prefix_len + 1 + i));
+              k == 0
+                ? range(prefix_len)
+                : suffix_tms |> List.mapi((i, _) => prefix_len + 1 + i);
             };
             indices
             |> List.map(i =>
@@ -307,10 +408,15 @@ let indicators = (model: Model.t) => {
                );
           }
         )
-        @ (
-          prefix
-          @ suffix
-          |> List.mapi((i, _) =>
+        @ {
+          let indices = {
+            let prefix_len = prefix |> List.length;
+            k == 0
+              ? range(prefix_len)
+              : suffix |> List.mapi((i, _) => prefix_len + 1 + i);
+          };
+          indices
+          |> List.map(i =>
                Vdom.(
                  Node.div(
                    [
@@ -326,90 +432,11 @@ let indicators = (model: Model.t) => {
                    [],
                  )
                )
-             )
-        )
+             );
+        }
+      | (_, _, _) => []
       };
-    }
-    @ Vdom.[
-        Node.div(
-          [
-            Attr.id(current_horizontal_shift_target_top_id),
-            Attr.classes([
-              "current-horizontal-shift-target",
-              switch (model.cursor_info.position) {
-              | Staging(_) => "active"
-              | _ => "inactive"
-              },
-            ]),
-          ],
-          [],
-        ),
-        Node.div(
-          [
-            Attr.id(current_horizontal_shift_target_bottom_id),
-            Attr.classes([
-              "current-horizontal-shift-target",
-              switch (model.cursor_info.position) {
-              | Staging(_) => "active"
-              | _ => "inactive"
-              },
-            ]),
-          ],
-          [],
-        ),
-        Node.div(
-          [
-            Attr.id(current_vertical_shift_target_id),
-            Attr.classes([
-              "current-vertical-shift-target",
-              switch (model.cursor_info.position) {
-              | Staging(_) => "active"
-              | _ => "inactive"
-              },
-            ]),
-          ],
-          [],
-        ),
-        Node.div(
-          [
-            Attr.id(current_shifting_delim_indicator_id),
-            Attr.classes([
-              "current-shifting-delim-indicator",
-              switch (model.cursor_info.position) {
-              | Staging(_) => "active"
-              | _ => "inactive"
-              },
-            ]),
-          ],
-          [],
-        ),
-        Node.div(
-          [
-            Attr.id(horizontal_shift_rail_id),
-            Attr.classes([
-              "horizontal-shift-rail",
-              switch (model.cursor_info.position) {
-              | Staging(_) => "active"
-              | _ => "inactive"
-              },
-            ]),
-          ],
-          [],
-        ),
-        Node.div(
-          [
-            Attr.id(vertical_shift_rail_id),
-            Attr.classes([
-              "vertical-shift-rail",
-              switch (model.cursor_info.position) {
-              | Staging(_) => "active"
-              | _ => "inactive"
-              },
-            ]),
-          ],
-          [],
-        ),
-      ];
+    };
   };
 };
 
