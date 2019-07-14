@@ -108,7 +108,7 @@ let single_line_seq_indicators = is_active => {
   ];
 };
 
-let indicators = (model: Model.t) =>
+let indicators = (model: Model.t) => {
   switch (model.cursor_info.node) {
   | Exp(OpSeq(_, seq) as e) =>
     Code.is_multi_line_exp(e)
@@ -132,6 +132,12 @@ let indicators = (model: Model.t) =>
         )
       : single_line_seq_indicators(model.is_cell_focused)
   | _ =>
+    let is_staging =
+      switch (model.cursor_info.position) {
+      | OnText(_)
+      | OnDelim(_, _) => false
+      | Staging(_) => true
+      };
     Vdom.[
       Node.div(
         [
@@ -151,7 +157,7 @@ let indicators = (model: Model.t) =>
             "term-indicator",
             "term-indicator-first",
             "term-indicator-last",
-            model.is_cell_focused ? "active" : "inactive",
+            model.is_cell_focused && !is_staging ? "active" : "inactive",
           ]),
         ],
         [],
@@ -351,8 +357,9 @@ let indicators = (model: Model.t) =>
           ],
           [],
         ),
-      ]
+      ];
   };
+};
 
 let font_size = 20.0;
 let line_height = 1.5;
