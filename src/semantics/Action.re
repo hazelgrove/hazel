@@ -208,11 +208,6 @@ let rec perform_ty = (a: t, zty: ZTyp.t): result(ZTyp.t) =>
   /* Staging */
   | (ShiftLeft | ShiftRight, CursorT(OnDelim(_, _), _)) => Failed
   | (
-      Construct(SLine),
-      CursorT(Staging(k), (Parenthesized(_) | List(_)) as uty),
-    ) =>
-    Succeeded(CursorT(OnDelim(k, k == 0 ? Before : After), uty))
-  | (
       ShiftLeft | ShiftRight,
       CursorT(Staging(k), (Parenthesized(body) | List(body)) as staged) |
       OpSeqZ(
@@ -373,6 +368,12 @@ let rec perform_ty = (a: t, zty: ZTyp.t): result(ZTyp.t) =>
       }
     }
   /* Construction */
+  | (
+      Construct(SLine),
+      CursorT(Staging(k), (Parenthesized(_) | List(_)) as uty),
+    ) =>
+    Succeeded(CursorT(OnDelim(k, k == 0 ? Before : After), uty))
+  | (Construct(_), CursorT(Staging(_), _)) => Failed
   | (Construct(SParenthesized), CursorT(_, _)) =>
     Succeeded(ParenthesizedZ(zty))
   | (Construct(SNum), CursorT(_, Hole)) =>
@@ -1210,17 +1211,6 @@ let rec syn_perform_pat =
   | (ShiftLeft | ShiftRight, CursorP(OnText(_) | OnDelim(_, _), _)) =>
     Failed
   | (
-      Construct(SLine),
-      CursorP(Staging(k), (Parenthesized(_) | Inj(_, _, _)) as uty),
-    ) =>
-    Succeeded(
-      Statics.syn_fix_holes_zpat(
-        ctx,
-        u_gen,
-        CursorP(OnDelim(k, k == 0 ? Before : After), uty),
-      ),
-    )
-  | (
       ShiftLeft | ShiftRight,
       CursorP(
         Staging(k),
@@ -1586,6 +1576,18 @@ let rec syn_perform_pat =
       }
     }
   /* Construct */
+  | (
+      Construct(SLine),
+      CursorP(Staging(k), (Parenthesized(_) | Inj(_, _, _)) as uty),
+    ) =>
+    Succeeded(
+      Statics.syn_fix_holes_zpat(
+        ctx,
+        u_gen,
+        CursorP(OnDelim(k, k == 0 ? Before : After), uty),
+      ),
+    )
+  | (Construct(_), CursorP(Staging(_), _)) => Failed
   | (Construct(SParenthesized), CursorP(_, _)) =>
     switch (Statics.syn_pat(ctx, ZPat.erase(zp))) {
     | None => Failed
@@ -1902,18 +1904,6 @@ and ana_perform_pat =
   /* Staging */
   | (ShiftLeft | ShiftRight, CursorP(OnText(_) | OnDelim(_, _), _)) =>
     Failed
-  | (
-      Construct(SLine),
-      CursorP(Staging(k), (Parenthesized(_) | Inj(_, _, _)) as p),
-    ) =>
-    Succeeded(
-      Statics.ana_fix_holes_zpat(
-        ctx,
-        u_gen,
-        CursorP(OnDelim(k, k == 0 ? Before : After), p),
-        ty,
-      ),
-    )
   | (
       ShiftLeft | ShiftRight,
       CursorP(
@@ -2283,6 +2273,19 @@ and ana_perform_pat =
       }
     }
   /* Construct */
+  | (
+      Construct(SLine),
+      CursorP(Staging(k), (Parenthesized(_) | Inj(_, _, _)) as p),
+    ) =>
+    Succeeded(
+      Statics.ana_fix_holes_zpat(
+        ctx,
+        u_gen,
+        CursorP(OnDelim(k, k == 0 ? Before : After), p),
+        ty,
+      ),
+    )
+  | (Construct(_), CursorP(Staging(_), _)) => Failed
   | (Construct(SParenthesized), CursorP(_, _)) =>
     switch (Statics.ana_pat(ctx, ZPat.erase(zp), ty)) {
     | None => Failed
@@ -2793,17 +2796,6 @@ let rec syn_perform_block =
   switch (a, zblock) {
   /* Staging */
   | (
-      Construct(SLine),
-      BlockZL((prefix, CursorL(Staging(k), line), suffix), e),
-    ) =>
-    Succeeded(
-      Statics.syn_fix_holes_zblock(
-        ctx,
-        u_gen,
-        BlockZL((prefix, CursorL(OnDelim(k, After), line), suffix), e),
-      ),
-    )
-  | (
       ShiftLeft | ShiftRight,
       BlockZL(
         (prefix, CursorL(Staging(3), LetLine(p, ann, def)), suffix),
@@ -2839,20 +2831,6 @@ let rec syn_perform_block =
       BlockZL((_, CursorL(Staging(_), EmptyLine | ExpLine(_)), _), _),
     ) =>
     Failed
-  | (
-      Construct(SLine),
-      BlockZL((prefix, ExpLineZ(CursorE(Staging(k), e_line)), suffix), e),
-    ) =>
-    Succeeded(
-      Statics.syn_fix_holes_zblock(
-        ctx,
-        u_gen,
-        BlockZL(
-          (prefix, ExpLineZ(CursorE(OnDelim(k, After), e_line)), suffix),
-          e,
-        ),
-      ),
-    )
   | (
       ShiftLeft | ShiftRight,
       BlockZL(
@@ -3076,6 +3054,32 @@ let rec syn_perform_block =
       Succeeded((zblock, ty, u_gen));
     }
   /* Construction */
+  | (
+      Construct(SLine),
+      BlockZL((prefix, CursorL(Staging(k), line), suffix), e),
+    ) =>
+    Succeeded(
+      Statics.syn_fix_holes_zblock(
+        ctx,
+        u_gen,
+        BlockZL((prefix, CursorL(OnDelim(k, After), line), suffix), e),
+      ),
+    )
+  | (
+      Construct(SLine),
+      BlockZL((prefix, ExpLineZ(CursorE(Staging(k), e_line)), suffix), e),
+    ) =>
+    Succeeded(
+      Statics.syn_fix_holes_zblock(
+        ctx,
+        u_gen,
+        BlockZL(
+          (prefix, ExpLineZ(CursorE(OnDelim(k, After), e_line)), suffix),
+          e,
+        ),
+      ),
+    )
+  | (Construct(_), BlockZL((_, CursorL(Staging(_), _), _), _)) => Failed
   | (Construct(SLine), BlockZE(lines, ze)) when ZExp.is_before_exp(ze) =>
     let zblock = ZExp.BlockZE(lines @ [EmptyLine], ze);
     Succeeded((zblock, ty, u_gen));
@@ -3779,10 +3783,6 @@ and syn_perform_exp =
   /* Staging */
   | (ShiftLeft | ShiftRight, CursorE(OnText(_) | OnDelim(_, _), _)) =>
     Failed
-  | (Construct(SLine), CursorE(Staging(k), e)) =>
-    let (new_ze, ty, u_gen) =
-      Statics.syn_fix_holes_zexp(ctx, u_gen, CursorE(OnDelim(k, After), e));
-    Succeeded((E(new_ze), ty, u_gen));
   | (
       ShiftLeft | ShiftRight,
       CursorE(
@@ -4339,6 +4339,11 @@ and syn_perform_exp =
       }
     }
   /* Construction */
+  | (Construct(SLine), CursorE(Staging(k), e)) =>
+    let (new_ze, ty, u_gen) =
+      Statics.syn_fix_holes_zexp(ctx, u_gen, CursorE(OnDelim(k, After), e));
+    Succeeded((E(new_ze), ty, u_gen));
+  | (Construct(_), CursorE(Staging(_), _)) => Failed
   | (Construct(SLine), CursorE(_, _))
   | (Construct(SLet), CursorE(_, _)) =>
     /* handled at block or line level */
@@ -4957,18 +4962,6 @@ and ana_perform_block =
   switch (a, zblock) {
   /* Staging */
   | (
-      Construct(SLine),
-      BlockZL((prefix, CursorL(Staging(k), line), suffix), e),
-    ) =>
-    Succeeded(
-      Statics.ana_fix_holes_zblock(
-        ctx,
-        u_gen,
-        BlockZL((prefix, CursorL(OnDelim(k, After), line), suffix), e),
-        ty,
-      ),
-    )
-  | (
       ShiftLeft | ShiftRight,
       BlockZL(
         (prefix, CursorL(Staging(3), LetLine(p, ann, def)), suffix),
@@ -5004,21 +4997,6 @@ and ana_perform_block =
       BlockZL((_, CursorL(Staging(_), EmptyLine | ExpLine(_)), _), _),
     ) =>
     Failed
-  | (
-      Construct(SLine),
-      BlockZL((prefix, ExpLineZ(CursorE(Staging(k), e_line)), suffix), e),
-    ) =>
-    Succeeded(
-      Statics.ana_fix_holes_zblock(
-        ctx,
-        u_gen,
-        BlockZL(
-          (prefix, ExpLineZ(CursorE(OnDelim(k, After), e_line)), suffix),
-          e,
-        ),
-        ty,
-      ),
-    )
   | (
       ShiftLeft | ShiftRight,
       BlockZL(
@@ -5238,6 +5216,34 @@ and ana_perform_block =
     let zblock = ZExp.BlockZE(prefix, ze);
     Succeeded(Statics.ana_fix_holes_zblock(ctx, u_gen, zblock, ty));
   /* Construction */
+  | (
+      Construct(SLine),
+      BlockZL((prefix, CursorL(Staging(k), line), suffix), e),
+    ) =>
+    Succeeded(
+      Statics.ana_fix_holes_zblock(
+        ctx,
+        u_gen,
+        BlockZL((prefix, CursorL(OnDelim(k, After), line), suffix), e),
+        ty,
+      ),
+    )
+  | (
+      Construct(SLine),
+      BlockZL((prefix, ExpLineZ(CursorE(Staging(k), e_line)), suffix), e),
+    ) =>
+    Succeeded(
+      Statics.ana_fix_holes_zblock(
+        ctx,
+        u_gen,
+        BlockZL(
+          (prefix, ExpLineZ(CursorE(OnDelim(k, After), e_line)), suffix),
+          e,
+        ),
+        ty,
+      ),
+    )
+  | (Construct(_), BlockZL((_, CursorL(Staging(_), _), _), _)) => Failed
   | (Construct(SLine), BlockZE(lines, ze)) when ZExp.is_before_exp(ze) =>
     let zblock = ZExp.BlockZE(lines @ [EmptyLine], ze);
     Succeeded((zblock, u_gen));
@@ -5474,15 +5480,6 @@ and ana_perform_exp =
   /* Staging */
   | (ShiftLeft | ShiftRight, CursorE(OnText(_) | OnDelim(_, _), _)) =>
     Failed
-  | (Construct(SLine), CursorE(Staging(k), e)) =>
-    let (new_ze, u_gen) =
-      Statics.ana_fix_holes_zexp(
-        ctx,
-        u_gen,
-        CursorE(OnDelim(k, After), e),
-        ty,
-      );
-    Succeeded((E(new_ze), u_gen));
   | (
       ShiftLeft | ShiftRight,
       CursorE(
@@ -6036,6 +6033,16 @@ and ana_perform_exp =
       }
     }
   /* Construction */
+  | (Construct(SLine), CursorE(Staging(k), e)) =>
+    let (new_ze, u_gen) =
+      Statics.ana_fix_holes_zexp(
+        ctx,
+        u_gen,
+        CursorE(OnDelim(k, After), e),
+        ty,
+      );
+    Succeeded((E(new_ze), u_gen));
+  | (Construct(_), CursorE(Staging(_), _)) => Failed
   | (Construct(SLine), CursorE(_, _))
   | (Construct(SLet), CursorE(_, _)) =>
     /* handled at block or line level */
