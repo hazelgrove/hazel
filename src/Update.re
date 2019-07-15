@@ -41,12 +41,7 @@ let closest_elem = node =>
 
 [@warning "-27"]
 let apply_action =
-    (
-      model: Model.t,
-      action: Action.t,
-      setting_caret: ref(bool),
-      ~schedule_action,
-    )
+    (model: Model.t, action: Action.t, state: State.t, ~schedule_action)
     : Model.t =>
   switch (action) {
   | EditAction(a) =>
@@ -71,19 +66,23 @@ let apply_action =
   | ToggleLeftSidebar => Model.toggle_left_sidebar(model)
   | ToggleRightSidebar => Model.toggle_right_sidebar(model)
   | LoadExample(id) => Model.load_example(model, Examples.get(id))
-  | NextCard => Model.next_card(model)
-  | PrevCard => Model.prev_card(model)
+  | NextCard =>
+    state.changing_cards := true;
+    Model.next_card(model);
+  | PrevCard =>
+    state.changing_cards := true;
+    Model.prev_card(model);
   | SelectHoleInstance(u, i) => Model.select_hole_instance(model, (u, i))
   | InvalidVar(x) => model
   | MoveToHole(u) => Model.move_to_hole(model, u)
   | FocusCell => model |> Model.focus_cell
   | FocusWindow =>
-    setting_caret := true;
+    state.setting_caret := true;
     JSUtil.reset_caret();
     model;
   | BlurCell => JSUtil.window_has_focus() ? model |> Model.blur_cell : model
   | SelectionChange =>
-    if (! setting_caret^) {
+    if (! state.setting_caret^) {
       let anchorNode = Dom_html.window##getSelection##.anchorNode;
       let anchorOffset = Dom_html.window##getSelection##.anchorOffset;
       if (JSUtil.div_contains_node(

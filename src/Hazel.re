@@ -9,10 +9,7 @@ open ViewUtil;
 
 module Model = Model;
 module Action = Update.Action;
-module State = {
-  type setting_caret = ref(bool);
-  type t = setting_caret;
-};
+module State = State;
 
 [@warning "-27"]
 let on_startup = (~schedule_action, _) => {
@@ -27,7 +24,9 @@ let on_startup = (~schedule_action, _) => {
       Js._true;
     });
   schedule_action(Update.Action.FocusCell);
-  Async_kernel.Deferred.return(ref(false));
+  Async_kernel.Deferred.return(
+    State.{setting_caret: ref(false), changing_cards: ref(false)},
+  );
 };
 
 [@warning "-27"]
@@ -37,18 +36,20 @@ let create = (model, ~old_model, ~inject) => {
   Component.create(
     ~apply_action=Update.apply_action(model),
     ~on_display=
-      (setting_caret: State.t, ~schedule_action: Update.Action.t => unit) => {
+      (state: State.t, ~schedule_action: Update.Action.t => unit) => {
         let path = model |> Model.path;
         if (model.is_cell_focused) {
-          if (!Code.is_caret_consistent_with_path(path)) {
+          if (!Code.is_caret_consistent_with_path(path)
+              || state.changing_cards^) {
+            state.changing_cards := false;
             switch (Code.caret_position_of_path(path)) {
             | None => assert(false)
             | Some((node, offset)) =>
-              setting_caret := true;
+              state.setting_caret := true;
               JSUtil.set_caret(node, offset);
             };
           } else {
-            setting_caret := false;
+            state.setting_caret := false;
             let cursor_elem = JSUtil.force_get_elem_by_cls("cursor");
             // cursor_elem is either SBox or SSeq
             if (cursor_elem |> Code.elem_is_SBox) {
