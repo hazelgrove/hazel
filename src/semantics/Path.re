@@ -1373,10 +1373,10 @@ let path_to_hole_z = (zhole_list: zhole_list, u: MetaVar.t): option(t) =>
   opt_steps_to_opt_path(OnDelim(0, Before), steps_to_hole_z(zhole_list, u));
 
 let next_hole_steps = (zhole_list: zhole_list): option(steps) => {
-  let holes_after = zhole_list.holes_after;
-  switch (holes_after) {
-  | [] => None
-  | [(_, steps), ..._] => Some(steps)
+  switch (zhole_list.holes_before, zhole_list.holes_after) {
+  | ([], []) => None
+  | (_, [(_, steps), ..._]) => Some(steps)
+  | ([(_, steps), ..._], _) => Some(steps)
   };
 };
 
@@ -1384,10 +1384,13 @@ let next_hole_path = (zhole_list: zhole_list): option(t) =>
   opt_steps_to_opt_path(OnDelim(0, Before), next_hole_steps(zhole_list));
 
 let prev_hole_steps = (zhole_list: zhole_list): option(steps) => {
-  let holes_before = zhole_list.holes_before;
-  switch (List.rev(holes_before)) {
-  | [] => None
-  | [(_, steps), ..._] => Some(steps)
+  switch (
+    zhole_list.holes_before |> List.rev,
+    zhole_list.holes_after |> List.rev,
+  ) {
+  | ([], []) => None
+  | ([(_, steps), ..._], _) => Some(steps)
+  | (_, [(_, steps), ..._]) => Some(steps)
   };
 };
 
