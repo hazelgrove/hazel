@@ -1,27 +1,62 @@
 open Sexplib.Std;
 
+module ZList = GeneralUtil.ZList;
+
+let init_cardstack = TestCards.cardstack;
+
 [@deriving sexp]
 type edit_state = (ZExp.zblock, HTyp.t, MetaVarGen.t);
+
 [@deriving sexp]
 type result = (
   Dynamics.DHExp.t,
   Dynamics.DHExp.HoleInstanceInfo.t,
   Dynamics.Evaluator.result,
 );
+
 module UserSelectedInstances = {
   [@deriving sexp]
   type t = MetaVarMap.t(Dynamics.inst_num);
   let init = MetaVarMap.empty;
   let update = (usi, inst) => MetaVarMap.insert_or_update(usi, inst);
 };
+
 [@deriving sexp]
 type context_inspector = {
   next_state: option(Dynamics.DHExp.HoleInstance.t),
   prev_state: option(Dynamics.DHExp.HoleInstance.t),
 };
+
+[@deriving sexp]
+type card_state = {
+  card: Card.t,
+  edit_state,
+};
+
+[@deriving sexp]
+type cardstack_state = ZList.t(card_state, card_state);
+
+let mk_cardstack_state = cardstack => {
+  let card_states =
+    List.map(
+      card => {
+        let (u, u_gen) = MetaVarGen.next(MetaVarGen.init);
+        let zblock =
+          ZExp.wrap_in_block(ZExp.place_before_exp(EmptyHole(u)));
+        let edit_state = (zblock, HTyp.Hole, u_gen);
+        {card, edit_state};
+      },
+      cardstack,
+    );
+  GeneralUtil.Opt.get(
+    _ => failwith("no cards"),
+    ZList.split_at(0, card_states),
+  );
+};
+
 [@deriving sexp]
 type t = {
-  edit_state,
+  cardstack_state,
   cursor_info: CursorInfo.t,
   result,
   user_selected_instances: UserSelectedInstances.t,
@@ -33,17 +68,19 @@ type t = {
   is_cell_focused: bool,
 };
 
+let edit_state_of = model => ZList.prj_z(model.cardstack_state).edit_state;
+
 let cutoff = (m1, m2) => m1 == m2;
 
 let zblock = model => {
-  let (zblock, _, _) = model.edit_state;
+  let (zblock, _, _) = edit_state_of(model);
   zblock;
 };
 
 let block = model => model |> zblock |> ZExp.erase_block;
 
 let path = model => {
-  let (zblock, _, _) = model.edit_state;
+  let (zblock, _, _) = edit_state_of(model);
   Path.of_zblock(zblock);
 };
 
@@ -90,21 +127,25 @@ let result_of_edit_state = ((zblock, _, _): edit_state): result => {
 
 let update_edit_state = (new_edit_state, model: t): t => {
   let new_result = result_of_edit_state(new_edit_state);
+  let cardstack_state = model.cardstack_state;
+  let card_state = ZList.prj_z(cardstack_state);
+  let card_state' = {...card_state, edit_state: new_edit_state};
+  let cardstack_state' = ZList.replace_z(cardstack_state, card_state');
   let new_cursor_info = cursor_info_of_edit_state(new_edit_state);
   {
     ...model,
-    edit_state: new_edit_state,
+
+    cardstack_state: cardstack_state',
     cursor_info: new_cursor_info,
     result: new_result,
   };
 };
 
 let init = (): t => {
-  let (u, u_gen) = MetaVarGen.next(MetaVarGen.init);
-  let zblock = ZExp.wrap_in_block(ZExp.place_before_exp(EmptyHole(u)));
-  let edit_state = (zblock, HTyp.Hole, u_gen);
+  let cardstack_state = mk_cardstack_state(init_cardstack);
+  let edit_state = ZList.prj_z(cardstack_state).edit_state;
   {
-    edit_state,
+    cardstack_state,
     cursor_info: cursor_info_of_edit_state(edit_state),
     result: result_of_edit_state(edit_state),
     user_selected_instances: UserSelectedInstances.init,
@@ -127,7 +168,7 @@ let perform_edit_action = (model: t, a: Action.t): t => {
     Action.syn_perform_block(
       (VarCtx.empty, Palettes.initial_palette_ctx),
       a,
-      model.edit_state,
+      edit_state_of(model),
     )
   ) {
   | Failed => raise(FailedAction)
@@ -137,7 +178,7 @@ let perform_edit_action = (model: t, a: Action.t): t => {
 };
 
 let move_to_hole = (model: t, u: MetaVar.t): t => {
-  let (zblock, _, _) = model.edit_state;
+  let (zblock, _, _) = ZList.prj_z(model.cardstack_state).edit_state;
   switch (
     Path.path_to_hole(Path.holes_block(ZExp.erase_block(zblock), [], []), u)
   ) {

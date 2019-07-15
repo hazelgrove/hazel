@@ -186,7 +186,7 @@ let apply_action =
               | (_, _, Some(steps)) => Some((steps, None))
               };
             };
-          let (zblock, _, _) = model.edit_state;
+          let (zblock, _, _) = Model.edit_state_of(model);
           let (current_steps, current_cursor) = Path.of_zblock(zblock);
           switch (anchorNode |> JSUtil.query_ancestors(is_cursor_position)) {
           | None => ()

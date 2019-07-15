@@ -87,7 +87,8 @@ let page_view =
                                   [Attr.classes(["htype-view"])],
                                   [
                                     {
-                                      let (_, ty, _) = model.edit_state;
+                                      let (_, ty, _) =
+                                        Model.edit_state_of(model);
                                       Code.view_of_htyp(~inject, ty);
                                     },
                                   ],
