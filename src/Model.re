@@ -158,12 +158,20 @@ let update_cardstack_state = (model, cardstack_state) => {
 
 let prev_card = model => {
   let cardstack_state = ZList.shift_prev(model.cardstack_state);
-  update_cardstack_state(model, cardstack_state);
+  {
+    ...update_cardstack_state(model, cardstack_state),
+
+    is_cell_focused: true,
+  };
 };
 
 let next_card = model => {
   let cardstack_state = ZList.shift_next(model.cardstack_state);
-  update_cardstack_state(model, cardstack_state);
+  {
+    ...update_cardstack_state(model, cardstack_state),
+
+    is_cell_focused: true,
+  };
 };
 
 let init = (): t => {
