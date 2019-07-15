@@ -13,13 +13,13 @@
   --term-indicator-z-index: -4;
   --shift-indicator-z-index: -3;
   --code-z-index: 0;
-  --node-indicator-normal-color: rgb(229, 255, 229);
-  --node-indicator-staging-color: #d0f3fc;
+  --node-indicator-normal-color: rgb(230, 255, 230);
+  --node-indicator-staging-color: #e4faff;
   --child-indicator-normal-color: white;
-  --child-indicator-staging-color: #f9ffb9;
-  --term-indicator-color: #197B07;
+  --child-indicator-staging-color: #fcffda;
+  --term-indicator-color: #678a61;
   --term-indicator-corner-size: 3px;
-  --shifting-indicator-color: rgb(31, 129, 185);
+  --shifting-indicator-color: rgb(102, 163, 198);
 }
 
 /* general */
