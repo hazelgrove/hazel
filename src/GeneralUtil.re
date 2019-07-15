@@ -266,6 +266,26 @@ module ZList = {
     let a = erase_z(z);
     prefix @ [a, ...suffix];
   };
+
+  let shift_next = (zxs: t('a, 'a)) => {
+    let (prefix, z, suffix) = zxs;
+    switch (suffix) {
+    | [] => zxs
+    | [next, ...suffix] =>
+      let prefix = prefix @ [z];
+      (prefix, next, suffix);
+    };
+  };
+
+  let shift_prev = (zxs: t('a, 'a)) => {
+    let (prefix, z, suffix) = zxs;
+    switch (List.rev(prefix)) {
+    | [] => zxs
+    | [prev, ...rev_prefix] =>
+      let suffix = [z, ...suffix];
+      (List.rev(rev_prefix), prev, suffix);
+    };
+  };
 };
 
 /* Section StringUtil */

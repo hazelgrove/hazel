@@ -15,6 +15,8 @@ module Action = {
     | ToggleLeftSidebar
     | ToggleRightSidebar
     | LoadExample(Examples.id)
+    | NextCard
+    | PrevCard
     | SelectHoleInstance(MetaVar.t, Dynamics.inst_num)
     | InvalidVar(string)
     | MoveToHole(MetaVar.t)
@@ -69,6 +71,8 @@ let apply_action =
   | ToggleLeftSidebar => Model.toggle_left_sidebar(model)
   | ToggleRightSidebar => Model.toggle_right_sidebar(model)
   | LoadExample(id) => Model.load_example(model, Examples.get(id))
+  | NextCard => Model.next_card(model)
+  | PrevCard => Model.prev_card(model)
   | SelectHoleInstance(u, i) => Model.select_hole_instance(model, (u, i))
   | InvalidVar(x) => model
   | MoveToHole(u) => Model.move_to_hole(model, u)

@@ -57,15 +57,17 @@ let mk_cardstack_state = cardstack => {
 [@deriving sexp]
 type t = {
   cardstack_state,
-  cursor_info: CursorInfo.t,
+  /* these are derived from the cardstack state: */
   result,
+  cursor_info: CursorInfo.t,
+  context_inspector,
   user_selected_instances: UserSelectedInstances.t,
   selected_instance: option((MetaVar.t, Dynamics.inst_num)),
+  /* UI state */
+  selected_example: option(UHExp.block),
+  is_cell_focused: bool,
   left_sidebar_open: bool,
   right_sidebar_open: bool,
-  selected_example: option(UHExp.block),
-  context_inspector,
-  is_cell_focused: bool,
 };
 
 let edit_state_of = model => ZList.prj_z(model.cardstack_state).edit_state;
@@ -139,6 +141,29 @@ let update_edit_state = (new_edit_state, model: t): t => {
     cursor_info: new_cursor_info,
     result: new_result,
   };
+};
+
+let update_cardstack_state = (model, cardstack_state) => {
+  let edit_state = ZList.prj_z(cardstack_state).edit_state;
+  let result = result_of_edit_state(edit_state);
+  let cursor_info = cursor_info_of_edit_state(edit_state);
+  {
+    ...model,
+
+    cardstack_state,
+    result,
+    cursor_info,
+  };
+};
+
+let prev_card = model => {
+  let cardstack_state = ZList.shift_prev(model.cardstack_state);
+  update_cardstack_state(model, cardstack_state);
+};
+
+let next_card = model => {
+  let cardstack_state = ZList.shift_next(model.cardstack_state);
+  update_cardstack_state(model, cardstack_state);
 };
 
 let init = (): t => {
