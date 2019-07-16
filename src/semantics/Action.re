@@ -3026,24 +3026,26 @@ let rec syn_perform_block =
     let ze = ZExp.place_before_exp(e);
     let zblock = ZExp.BlockZE(prefix, ze);
     Succeeded((zblock, ty, u_gen));
-  | (Backspace, BlockZE(lines, ze)) when ZExp.is_before_exp(ze) =>
-    switch (split_last(lines)) {
-    | None => Failed
-    | Some((lines, li)) =>
-      switch (li) {
-      | ExpLine(e1) =>
-        switch (ZExp.erase(ze)) {
-        | EmptyHole(_) =>
-          let ze1 = ZExp.place_after_exp(e1);
-          let zblock = ZExp.BlockZE(lines, ze1);
-          Succeeded((zblock, ty, u_gen));
-        | _ => Failed
-        }
-      | LetLine(_, _, _) => Failed
-      | EmptyLine =>
-        let zblock = ZExp.BlockZE(lines, ze);
-        Succeeded((zblock, ty, u_gen));
-      }
+  | (Backspace, BlockZE(leading, zconclusion))
+      when ZExp.is_before_exp(zconclusion) =>
+    switch (leading |> split_last, zconclusion |> ZExp.erase) {
+    | (None, _) => CursorEscaped(Before)
+    | (Some((leading_prefix, EmptyLine)), _) =>
+      Succeeded((BlockZE(leading_prefix, zconclusion), ty, u_gen))
+    | (Some((leading_prefix, ExpLine(e))), EmptyHole(_)) =>
+      let new_zconclusion = ZExp.place_after_exp(e);
+      Succeeded(
+        Statics.syn_fix_holes_zblock(
+          ctx,
+          u_gen,
+          BlockZE(leading_prefix, new_zconclusion),
+        ),
+      );
+    | (Some((leading_prefix, leading_last)), conclusion) =>
+      let zleading_last = ZExp.place_after_line(leading_last);
+      let zblock =
+        ZExp.BlockZL((leading_prefix, zleading_last, []), conclusion);
+      Succeeded((zblock, ty, u_gen));
     }
   | (Delete, BlockZL((prefix, ExpLineZ(ze), []), EmptyHole(_)))
       when ZExp.is_after_exp(ze) =>
@@ -5192,24 +5194,27 @@ and ana_perform_block =
     let ze = ZExp.place_before_exp(e);
     let zblock = ZExp.BlockZE(prefix, ze);
     Succeeded((zblock, u_gen));
-  | (Backspace, BlockZE(lines, ze)) when ZExp.is_before_exp(ze) =>
-    switch (split_last(lines)) {
-    | None => Failed
-    | Some((lines, li)) =>
-      switch (li) {
-      | ExpLine(e1) =>
-        switch (ZExp.erase(ze)) {
-        | EmptyHole(_) =>
-          let ze1 = ZExp.place_after_exp(e1);
-          let zblock = ZExp.BlockZE(lines, ze1);
-          Succeeded(Statics.ana_fix_holes_zblock(ctx, u_gen, zblock, ty));
-        | _ => Failed
-        }
-      | LetLine(_, _, _) => Failed
-      | EmptyLine =>
-        let zblock = ZExp.BlockZE(lines, ze);
-        Succeeded((zblock, u_gen));
-      }
+  | (Backspace, BlockZE(leading, zconclusion))
+      when ZExp.is_before_exp(zconclusion) =>
+    switch (leading |> split_last, zconclusion |> ZExp.erase) {
+    | (None, _) => CursorEscaped(Before)
+    | (Some((leading_prefix, EmptyLine)), _) =>
+      Succeeded((BlockZE(leading_prefix, zconclusion), u_gen))
+    | (Some((leading_prefix, ExpLine(e))), EmptyHole(_)) =>
+      let new_zconclusion = ZExp.place_after_exp(e);
+      Succeeded(
+        Statics.ana_fix_holes_zblock(
+          ctx,
+          u_gen,
+          BlockZE(leading_prefix, new_zconclusion),
+          ty,
+        ),
+      );
+    | (Some((leading_prefix, leading_last)), conclusion) =>
+      let zleading_last = ZExp.place_after_line(leading_last);
+      let zblock =
+        ZExp.BlockZL((leading_prefix, zleading_last, []), conclusion);
+      Succeeded((zblock, u_gen));
     }
   | (Delete, BlockZL((prefix, ExpLineZ(ze), []), EmptyHole(_)))
       when ZExp.is_after_exp(ze) =>
