@@ -24,6 +24,7 @@ let op_id = (steps, op_index) =>
 
 let box_node_indicator_id = "box_node_indicator";
 let child_indicator_id = i => "child_indicator__" ++ string_of_int(i);
+let empty_hole_conclusion_mask_id = "empty_hole_conclusion_mask";
 let box_tm_indicator_id = "box_tm_indicator";
 let seq_tm_indicator_id = i => "seq_tm_indicator__" ++ string_of_int(i);
 let op_node_indicator_id = "op_node_indicator";

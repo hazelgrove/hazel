@@ -732,7 +732,7 @@ let rec view_of_snode =
       is_multi_line ? vlines |> join(Vdom.Node.br([])) : vlines,
     );
   | SBox(steps, node_cursor, is_multi_line, _, shape, slines) =>
-    let vlines: list(Vdom.Node.t) =
+    let standard_vlines = slines =>
       slines
       |> List.mapi((i, sline) =>
            view_of_sline(
@@ -758,6 +758,35 @@ let rec view_of_snode =
              sline,
            )
          );
+    let vlines: list(Vdom.Node.t) =
+      switch (slines |> split_last) {
+      | None => slines |> standard_vlines
+      | Some((sleading, sconclusion)) =>
+        switch (sleading |> split_last) {
+        | None => slines |> standard_vlines
+        | Some((_, sleading_last)) =>
+          switch (sleading_last, sconclusion) {
+          | (
+              SLine(_, _, [SNode(SBox(_, _, _, _, LetLine, _))]),
+              SLine(_, _, [SNode(SBox(_, _, _, _, EmptyHole, _))]),
+            ) =>
+            let vleading = sleading |> standard_vlines;
+            let vconclusion =
+              view_of_sline(
+                ~inject,
+                ~node_steps=steps,
+                ~node_cursor?,
+                ~is_node_multi_line=is_multi_line,
+                ~line_no=vleading |> List.length,
+                ~node_indent_level=NotIndentable,
+                ~term_steps=steps,
+                sconclusion,
+              );
+            vleading @ [vconclusion];
+          | (_, _) => slines |> standard_vlines
+          }
+        }
+      };
     Vdom.Node.div(
       attrs
       @ [
@@ -766,7 +795,49 @@ let rec view_of_snode =
           indent_level |> sexp_of_indent_level |> Sexplib.Sexp.to_string,
         ),
       ],
-      is_multi_line ? vlines |> join(Vdom.Node.br([])) : vlines,
+      is_multi_line
+        // check for let line followed by concluding empty hole.
+        // for smooth operation of node staging UI, we need to
+        // put empty hole conclusions of let lines on the same
+        // line level as the `in` delimiter
+        ? switch (zip(slines, vlines) |> split_last, shape) {
+          | (None, _) => vlines |> join(Vdom.Node.br([]))
+          | (Some((leading, conclusion)), Block) =>
+            switch (leading |> split_last) {
+            | None => vlines |> join(Vdom.Node.br([]))
+            | Some((leading_prefix, leading_last)) =>
+              let (sconclusion, vconclusion) = conclusion;
+              let (_, vleading_prefix) = leading_prefix |> unzip;
+              let (sleading_last, vleading_last) = leading_last;
+              switch (sleading_last, sconclusion) {
+              | (
+                  SLine(_, _, [SNode(SBox(_, _, _, _, LetLine, _))]),
+                  SLine(_, _, [SNode(SBox(_, _, _, _, EmptyHole, _))]),
+                ) =>
+                (vleading_prefix |> join(Vdom.Node.br([])))
+                @ (
+                  vleading_prefix |> List.length == 0
+                    ? [] : [Vdom.Node.br([])]
+                )
+                @ [
+                  vleading_last,
+                  Vdom.(
+                    Node.span(
+                      [
+                        Attr.classes(["SSpace"]),
+                        Attr.create("contenteditable", "false"),
+                      ],
+                      [Node.text(" ")],
+                    )
+                  ),
+                  vconclusion,
+                ]
+              | (_, _) => vlines |> join(Vdom.Node.br([]))
+              };
+            }
+          | (_, _) => vlines |> join(Vdom.Node.br([]))
+          }
+        : vlines,
     );
   };
 }

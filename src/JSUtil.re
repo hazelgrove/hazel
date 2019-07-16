@@ -201,6 +201,15 @@ let force_get_parent_elem = elem =>
   |> Js.Opt.to_option
   |> U.Opt.get(() => assert(false));
 
+let force_get_next_sibling_elem = elem =>
+  (elem: Js.t(Dom_html.element) :> Js.t(Dom.node))
+  |> (node => node##.nextSibling)
+  |> Js.Opt.to_option
+  |> U.Opt.get(() => assert(false))
+  |> Dom_html.CoerceTo.element
+  |> Js.Opt.to_option
+  |> U.Opt.get(() => assert(false));
+
 let px = (f: float): string => string_of_float(f) ++ "0px";
 
 type rect = {
@@ -220,15 +229,18 @@ let get_bounding_rect = (~top_origin=0.0, ~left_origin=0.0, elem) => {
   };
 };
 
-let place_over_rect = (~indent=0, rect, elem) => {
+let place_over_rect = (~indent=0.0, rect, elem) => {
   elem##.style##.top := Js.string(rect.top |> px);
   elem##.style##.height := Js.string(rect.bottom -. rect.top |> px);
   elem##.style##.left :=
     Js.string(
       "calc("
       ++ (rect.left |> px)
-      ++ " + "
-      ++ string_of_int(indent)
+      ++ (
+        indent >= 0.0
+          ? " + " ++ string_of_float(indent) ++ "0"
+          : " - " ++ string_of_float((-1.0) *. indent) ++ "0"
+      )
       ++ "ch"
       ++ ")",
     );
@@ -236,8 +248,11 @@ let place_over_rect = (~indent=0, rect, elem) => {
     Js.string(
       "calc("
       ++ (rect.right -. rect.left |> px)
-      ++ " - "
-      ++ string_of_int(indent)
+      ++ (
+        indent >= 0.0
+          ? " - " ++ string_of_float(indent) ++ "0"
+          : " + " ++ string_of_float((-1.0) *. indent) ++ "0"
+      )
       ++ "ch"
       ++ ")",
     );

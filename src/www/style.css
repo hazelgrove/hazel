@@ -822,8 +822,12 @@ button:disabled {
 .current-shifting-delim-indicator {
   position: absolute;
   z-index: var(--shift-indicator-z-index);
-  /*border-left: 2px solid var(--shifting-indicator-color);
-  border-right: 2px solid var(--shifting-indicator-color);*/
+}
+
+.empty-hole-conclusion-mask {
+  position: absolute;
+  z-index: var(--child-indicator-z-index);
+  background: white;
 }
 
 .current-horizontal-shift-target,

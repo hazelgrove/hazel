@@ -115,6 +115,13 @@ let update_node = (ci: t, node): t => {
   {typed, node, frame, position, ctx};
 };
 
+let is_concluding_let_line = ci =>
+  switch (ci.node, ci.frame) {
+  | (Line(LetLine(_, _, _)), ExpFrame(_, None, [ExpLine(EmptyHole(_))])) =>
+    true
+  | (_, _) => false
+  };
+
 let is_before_node = ci =>
   switch (ci.node) {
   | Line(li) => ZExp.is_before_line(CursorL(ci.position, li))

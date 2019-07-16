@@ -241,6 +241,21 @@ let indicators = (model: Model.t) => {
         [],
       ),
     ]
+    @ (
+      model.cursor_info |> CursorInfo.is_concluding_let_line
+        ? [
+          Vdom.(
+            Node.div(
+              [
+                Attr.id(empty_hole_conclusion_mask_id),
+                Attr.classes(["empty-hole-conclusion-mask"]),
+              ],
+              [],
+            )
+          ),
+        ]
+        : []
+    )
     @ {
       let child_indices =
         model.cursor_info |> CursorInfo.child_indices_of_current_node;
@@ -479,17 +494,16 @@ let get_relative_bounding_rect = elem => {
 
 let indent_of_snode_elem = elem =>
   switch (elem |> JSUtil.get_attr("indent_level")) {
-  | None => 0
+  | None => 0.0
   | Some(ssexp) =>
     switch (ssexp |> Sexplib.Sexp.of_string |> Code.indent_level_of_sexp) {
-    | NotIndentable => 0
-    | Indented(m) => m
-    | OpPrefix(m, n) => m + n
+    | NotIndentable => 0.0
+    | Indented(m) => float_of_int(m)
+    | OpPrefix(m, n) => float_of_int(m + n)
     }
   };
 
-[@warning "-27"]
-let draw_box_node_indicator = (~cursor, ~child_indices, elem) => {
+let draw_box_node_indicator = (~child_indices, elem) => {
   let rect = elem |> get_relative_bounding_rect;
   let indent = elem |> indent_of_snode_elem;
   JSUtil.force_get_elem_by_id(box_node_indicator_id)
@@ -515,7 +529,7 @@ let draw_box_node_indicator = (~cursor, ~child_indices, elem) => {
              |> Code.elem_is_multi_line
              && child_elem
              |> Code.snode_elem_occupies_full_sline) {
-           let indent = child_elem |> Code.elem_is_multi_line ? indent : 0;
+           let indent = child_elem |> Code.elem_is_multi_line ? indent : 0.0;
            JSUtil.force_get_elem_by_id(child_indicator_id(i))
            |> JSUtil.place_over_rect(
                 ~indent,
@@ -529,7 +543,7 @@ let draw_box_node_indicator = (~cursor, ~child_indices, elem) => {
   };
 };
 
-let draw_box_term_indicator = cursor_elem => {
+let draw_box_term_indicator = (~cursor_info, cursor_elem) => {
   let steps =
     cursor_elem
     |> JSUtil.get_attr("term")
@@ -578,6 +592,29 @@ let draw_box_term_indicator = cursor_elem => {
                ? term_rect.bottom +. indicator_padding
                : term_rect.bottom -. indicator_padding,
            left: term_rect.left -. indicator_padding,
+         },
+       );
+  };
+  if (cursor_info |> CursorInfo.is_concluding_let_line) {
+    // TODO encapsulate these details in Code.re
+    let empty_hole_conclusion_elem =
+      cursor_elem
+      |> JSUtil.force_get_parent_elem
+      |> JSUtil.force_get_next_sibling_elem
+      |> JSUtil.force_get_next_sibling_elem;
+    let empty_hole_rect =
+      empty_hole_conclusion_elem |> get_relative_bounding_rect;
+    JSUtil.force_get_elem_by_id(empty_hole_conclusion_mask_id)
+    |> JSUtil.place_over_rect(
+         ~indent=-0.8,
+         {
+           left: empty_hole_rect.left,
+           right: term_rect.right +. indicator_padding,
+           bottom:
+             term_elem |> Code.elem_is_on_last_line
+               ? term_rect.bottom +. indicator_padding
+               : term_rect.bottom -. indicator_padding,
+           top: empty_hole_rect.top,
          },
        );
   };

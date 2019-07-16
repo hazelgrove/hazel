@@ -65,12 +65,14 @@ let create =
               if (cursor_elem |> Code.elem_is_SBox) {
                 cursor_elem
                 |> Cell.draw_box_node_indicator(
-                     ~cursor,
                      ~child_indices=
                        model.cursor_info
                        |> CursorInfo.child_indices_of_current_node,
                    );
-                cursor_elem |> Cell.draw_box_term_indicator;
+                cursor_elem
+                |> Cell.draw_box_term_indicator(
+                     ~cursor_info=model.cursor_info,
+                   );
               } else {
                 // cursor_elem is SSeq
                 switch (model.cursor_info.position) {
@@ -111,7 +113,6 @@ let create =
             // only SBox elems can be in staging mode
             cursor_elem
             |> Cell.draw_box_node_indicator(
-                 ~cursor,
                  ~child_indices=
                    model.cursor_info
                    |> CursorInfo.child_indices_of_current_node,

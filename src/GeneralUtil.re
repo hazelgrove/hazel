@@ -39,6 +39,14 @@ let rec zip = (xs: list('a), ys: list('b)): list(('a, 'b)) =>
   | ([x, ...xs], [y, ...ys]) => [(x, y), ...zip(xs, ys)]
   };
 
+let rec unzip = (xys: list(('a, 'b))): (list('a), list('b)) =>
+  switch (xys) {
+  | [] => ([], [])
+  | [(x, y), ...xys] =>
+    let (xs, ys) = xys |> unzip;
+    ([x, ...xs], [y, ...ys]);
+  };
+
 /* repeat an element n times */
 let replicate = (n: int, e: 'a): list('a) => {
   /* add c additional copies of e to xs */
