@@ -336,6 +336,53 @@ let indicators = (model: Model.t) => {
          );
     }
     @ {
+      let shift_target_indices =
+        switch (model.cursor_info.position, model.cursor_info.node) {
+        | (
+            Staging(0),
+            Exp(
+              Case(_, block, _, _) | Parenthesized(block) | Inj(_, _, block),
+            ),
+          ) =>
+          let Block(leading, _) = block;
+          let remaining = ref(leading);
+          let shift_target_indices = ref([]);
+          while (remaining^ |> List.length > 0) {
+            let (_, empty_lines, rest) =
+              remaining^
+              |> UHExp.first_line_and_trailing_contiguous_empty_lines
+              |> Opt.get(() => assert(false));
+            shift_target_indices :=
+              (
+                switch (shift_target_indices^ |> split_last) {
+                | None => shift_target_indices^ @ [List.length(empty_lines)]
+                | Some((_, last_index)) =>
+                  shift_target_indices^
+                  @ [last_index + List.length(empty_lines)]
+                }
+              );
+            remaining := rest;
+          };
+          shift_target_indices^;
+        | (_, _) => []
+        };
+      shift_target_indices
+      |> List.map(i =>
+           Vdom.(
+             Node.div(
+               [
+                 Attr.id(vertical_shift_target_in_subject_id(i)),
+                 Attr.classes([
+                   "vertical-shift-target-in-subject",
+                   is_staging ? "active" : "inactive",
+                 ]),
+               ],
+               [],
+             )
+           )
+         );
+    }
+    @ {
       switch (
         model.cursor_info.position,
         model.cursor_info.node,

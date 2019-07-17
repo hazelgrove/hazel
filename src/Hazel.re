@@ -134,7 +134,7 @@ let create =
                  ~cursor_info=model.cursor_info,
                );
 
-            // draw shift targets in subject
+            // draw horizontal shift targets in subject
             switch (delim_index, model.cursor_info.node) {
             | (
                 0,
@@ -225,7 +225,7 @@ let create =
             | (_, _) => ()
             };
 
-            // draw shift targets in seq frame
+            // draw horizontal shift targets in seq frame
             switch (
               delim_index,
               model.cursor_info.node,
@@ -306,7 +306,47 @@ let create =
             | (_, _, _) => ()
             };
 
-            // draw shift targets in block frame
+            // draw vertical shift targets in subject
+            switch (delim_index, model.cursor_info.node) {
+            | (
+                0,
+                Exp(
+                  Case(_, block, _, _) | Parenthesized(block) |
+                  Inj(_, _, block),
+                ),
+              ) =>
+              let Block(leading, conclusion) = block;
+              let remaining = ref(leading);
+              let shift_target_indices = ref([]);
+              while (remaining^ |> List.length > 0) {
+                let (first_line, empty_lines, rest) =
+                  remaining^
+                  |> UHExp.first_line_and_trailing_contiguous_empty_lines
+                  |> Opt.get(() => assert(false));
+                shift_target_indices :=
+                  (
+                    switch (shift_target_indices^ |> split_last) {
+                    | None =>
+                      shift_target_indices^ @ [List.length(empty_lines)]
+                    | Some((_, last_index)) =>
+                      shift_target_indices^
+                      @ [last_index + List.length(empty_lines)]
+                    }
+                  );
+                remaining := rest;
+              };
+              shift_target_indices^
+              |> List.iter(i =>
+                   Code.force_get_snode_elem(steps @ [i])
+                   |> Cell.draw_vertical_shift_target_in_subject(
+                        ~index=i,
+                        ~side=After,
+                      )
+                 );
+            | (_, _) => ()
+            };
+
+            // draw vertical shift targets in block frame
             switch (model.cursor_info.node, model.cursor_info.frame) {
             | (_, TypFrame(_))
             | (_, PatFrame(_)) => ()
