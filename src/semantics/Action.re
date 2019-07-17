@@ -2955,6 +2955,66 @@ let rec syn_perform_block =
       };
     }
   | (
+      ShiftRight,
+      BlockZE(
+        leading,
+        CursorE(
+          Staging(0) as cursor,
+          (Parenthesized(Block([], body)) | Inj(_, _, Block([], body))) as staged,
+        ),
+      ),
+    ) =>
+    switch (body |> OpSeqUtil.Exp.shift_optm_to_prefix(~surround=None)) {
+    | None => CantShift
+    | Some((new_body, new_surround)) =>
+      let new_ztm =
+        ZExp.CursorE(
+          cursor,
+          switch (staged) {
+          | Inj(err_status, side, _) =>
+            Inj(err_status, side, new_body |> UHExp.wrap_in_block)
+          | _parenthesized => Parenthesized(new_body |> UHExp.wrap_in_block)
+          },
+        );
+      let new_ze =
+        switch (new_surround) {
+        | None => new_ztm
+        | Some(surround) => OpSeqUtil.Exp.mk_OpSeqZ(new_ztm, surround)
+        };
+      let new_zblock = ZExp.BlockZE(leading, new_ze);
+      Succeeded(Statics.syn_fix_holes_zblock(ctx, u_gen, new_zblock));
+    }
+  | (
+      ShiftLeft,
+      BlockZE(
+        leading,
+        CursorE(
+          Staging(1) as cursor,
+          (Parenthesized(Block([], body)) | Inj(_, _, Block([], body))) as staged,
+        ),
+      ),
+    ) =>
+    switch (body |> OpSeqUtil.Exp.shift_optm_to_suffix(~surround=None)) {
+    | None => CantShift
+    | Some((new_body, new_surround)) =>
+      let new_ztm =
+        ZExp.CursorE(
+          cursor,
+          switch (staged) {
+          | Inj(err_status, side, _) =>
+            Inj(err_status, side, new_body |> UHExp.wrap_in_block)
+          | _parenthesized => Parenthesized(new_body |> UHExp.wrap_in_block)
+          },
+        );
+      let new_ze =
+        switch (new_surround) {
+        | None => new_ztm
+        | Some(surround) => OpSeqUtil.Exp.mk_OpSeqZ(new_ztm, surround)
+        };
+      let new_zblock = ZExp.BlockZE(leading, new_ze);
+      Succeeded(Statics.syn_fix_holes_zblock(ctx, u_gen, new_zblock));
+    }
+  | (
       ShiftLeft | ShiftRight,
       BlockZE(
         leading,
@@ -5121,6 +5181,66 @@ and ana_perform_block =
           );
         Succeeded(Statics.ana_fix_holes_zblock(ctx, u_gen, new_zblock, ty));
       };
+    }
+  | (
+      ShiftRight,
+      BlockZE(
+        leading,
+        CursorE(
+          Staging(0) as cursor,
+          (Parenthesized(Block([], body)) | Inj(_, _, Block([], body))) as staged,
+        ),
+      ),
+    ) =>
+    switch (body |> OpSeqUtil.Exp.shift_optm_to_prefix(~surround=None)) {
+    | None => CantShift
+    | Some((new_body, new_surround)) =>
+      let new_ztm =
+        ZExp.CursorE(
+          cursor,
+          switch (staged) {
+          | Inj(err_status, side, _) =>
+            Inj(err_status, side, new_body |> UHExp.wrap_in_block)
+          | _parenthesized => Parenthesized(new_body |> UHExp.wrap_in_block)
+          },
+        );
+      let new_ze =
+        switch (new_surround) {
+        | None => new_ztm
+        | Some(surround) => OpSeqUtil.Exp.mk_OpSeqZ(new_ztm, surround)
+        };
+      let new_zblock = ZExp.BlockZE(leading, new_ze);
+      Succeeded(Statics.ana_fix_holes_zblock(ctx, u_gen, new_zblock, ty));
+    }
+  | (
+      ShiftLeft,
+      BlockZE(
+        leading,
+        CursorE(
+          Staging(1) as cursor,
+          (Parenthesized(Block([], body)) | Inj(_, _, Block([], body))) as staged,
+        ),
+      ),
+    ) =>
+    switch (body |> OpSeqUtil.Exp.shift_optm_to_suffix(~surround=None)) {
+    | None => CantShift
+    | Some((new_body, new_surround)) =>
+      let new_ztm =
+        ZExp.CursorE(
+          cursor,
+          switch (staged) {
+          | Inj(err_status, side, _) =>
+            Inj(err_status, side, new_body |> UHExp.wrap_in_block)
+          | _parenthesized => Parenthesized(new_body |> UHExp.wrap_in_block)
+          },
+        );
+      let new_ze =
+        switch (new_surround) {
+        | None => new_ztm
+        | Some(surround) => OpSeqUtil.Exp.mk_OpSeqZ(new_ztm, surround)
+        };
+      let new_zblock = ZExp.BlockZE(leading, new_ze);
+      Succeeded(Statics.ana_fix_holes_zblock(ctx, u_gen, new_zblock, ty));
     }
   | (
       ShiftLeft | ShiftRight,
