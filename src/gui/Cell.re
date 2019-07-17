@@ -906,7 +906,7 @@ let view =
                 ]);
               let ci = model.cursor_info;
               switch (
-                model.cursor_info.position,
+                ci.position,
                 JSUtil.is_movement_key(evt),
                 JSUtil.is_single_key(evt),
                 KeyCombo.of_evt(evt),
@@ -996,11 +996,22 @@ let view =
                       ci |> CursorInfo.is_after_node,
                     )
                   };
-                switch (cursor_escaped, ci.position) {
-                | (true, _)
-                | (_, OnDelim(_, _) | Staging(_)) =>
+                switch (
+                  kc,
+                  model.user_newlines
+                  |> Path.StepsMap.mem(model |> Model.steps),
+                  cursor_escaped,
+                  ci.position,
+                ) {
+                | (Backspace, true, _, _) =>
+                  prevent_stop_inject(
+                    Update.Action.RemoveUserNewline(model |> Model.steps),
+                  )
+                | (_, true, _, _) => prevent_stop_inject(update)
+                | (_, false, true, _)
+                | (_, false, _, OnDelim(_, _) | Staging(_)) =>
                   prevent_stop_inject(update)
-                | (false, OnText(_)) =>
+                | (_, false, false, OnText(_)) =>
                   let nodeValue = JSUtil.force_get_anchor_node_value();
                   let anchorOffset = JSUtil.get_anchor_offset();
                   let ctrlKey = Js.to_bool(evt##.ctrlKey);
@@ -1031,6 +1042,24 @@ let view =
                         )
                   };
                 };
+              | (OnText(_) | OnDelim(_, _), _, _, Some(Enter)) =>
+                switch (
+                  model.user_newlines
+                  |> Path.StepsMap.mem(model |> Model.steps),
+                  model |> Model.zblock |> ZExp.is_after_case_rule,
+                  model |> Model.zblock |> ZExp.is_on_user_newlineable_hole,
+                ) {
+                | (false, false, true) =>
+                  prevent_stop_inject(
+                    Update.Action.AddUserNewline(model |> Model.steps),
+                  )
+                | (_, _, _) =>
+                  prevent_stop_inject(
+                    Update.Action.EditAction(
+                      Hashtbl.find(kc_actions, Enter),
+                    ),
+                  )
+                }
               | (_, _, _, Some(kc)) =>
                 prevent_stop_inject(
                   Update.Action.EditAction(Hashtbl.find(kc_actions, kc)),
@@ -1040,8 +1069,16 @@ let view =
           ],
           [
             model.is_cell_focused
-              ? Code.view_of_zblock(~inject, model |> Model.zblock)
-              : Code.view_of_block(~inject, model |> Model.block),
+              ? Code.view_of_zblock(
+                  ~inject,
+                  ~user_newlines=model.user_newlines,
+                  model |> Model.zblock,
+                )
+              : Code.view_of_block(
+                  ~inject,
+                  ~user_newlines=model.user_newlines,
+                  model |> Model.block,
+                ),
             ...indicators(model),
           ],
         ),

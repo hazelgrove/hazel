@@ -1,25 +1,31 @@
 open Sexplib.Std;
+open GeneralUtil;
 
 [@deriving sexp]
 type edit_state = (ZExp.zblock, HTyp.t, MetaVarGen.t);
+
 [@deriving sexp]
 type result = (
   Dynamics.DHExp.t,
   Dynamics.DHExp.HoleInstanceInfo.t,
   Dynamics.Evaluator.result,
 );
+
 module UserSelectedInstances = {
   [@deriving sexp]
   type t = MetaVarMap.t(Dynamics.inst_num);
   let init = MetaVarMap.empty;
   let update = (usi, inst) => MetaVarMap.insert_or_update(usi, inst);
 };
+
 [@deriving sexp]
 type context_inspector = {
   next_state: option(Dynamics.DHExp.HoleInstance.t),
   prev_state: option(Dynamics.DHExp.HoleInstance.t),
 };
-[@deriving sexp]
+
+type user_newlines = Path.StepsMap.t(unit);
+
 type t = {
   edit_state,
   cursor_info: CursorInfo.t,
@@ -31,6 +37,7 @@ type t = {
   selected_example: option(UHExp.block),
   context_inspector,
   is_cell_focused: bool,
+  user_newlines,
 };
 
 let cutoff = (m1, m2) => m1 == m2;
@@ -45,6 +52,11 @@ let block = model => model |> zblock |> ZExp.erase_block;
 let path = model => {
   let (zblock, _, _) = model.edit_state;
   Path.of_zblock(zblock);
+};
+
+let steps = model => {
+  let (steps, _) = model |> path;
+  steps;
 };
 
 exception MissingCursorInfo;
@@ -88,14 +100,85 @@ let result_of_edit_state = ((zblock, _, _): edit_state): result => {
   };
 };
 
-let update_edit_state = (new_edit_state, model: t): t => {
+let remove_keys_outside_prefix =
+    (~prefix: Path.steps, user_newlines): (user_newlines, list(Path.steps)) => {
+  let (inside_prefix, outside_prefix) =
+    user_newlines
+    |> Path.StepsMap.partition((steps, _) =>
+         prefix |> Path.is_prefix_of(steps)
+       );
+  (
+    inside_prefix,
+    outside_prefix
+    |> Path.StepsMap.bindings
+    |> List.map(((steps, _)) => steps),
+  );
+};
+
+let add_user_newline = (steps, model) => {
+  ...model,
+  user_newlines: model.user_newlines |> Path.StepsMap.add(steps, ()),
+};
+
+let remove_user_newline = (steps, model) => {
+  ...model,
+  user_newlines: model.user_newlines |> Path.StepsMap.remove(steps),
+};
+
+let user_entered_newline_at = (steps, model): bool =>
+  model.user_newlines |> Path.StepsMap.mem(steps);
+
+let update_edit_state =
+    ((new_zblock, ty, u_gen) as new_edit_state, model: t): t => {
+  let new_block = new_zblock |> ZExp.erase_block;
+  let (new_steps, _) = Path.of_zblock(new_zblock);
+  let (new_zblock, new_user_newlines) =
+    model.user_newlines
+    |> Path.StepsMap.bindings
+    |> List.fold_left(
+         ((new_zblock, newlines), (steps, _)) =>
+           switch (new_block |> Path.follow_block_and_place_after(steps)) {
+           | None => (new_zblock, newlines |> Path.StepsMap.remove(steps))
+           | Some(zblock) =>
+             switch (CursorInfo.syn_cursor_info_block(Contexts.empty, zblock)) {
+             | None => (new_zblock, newlines |> Path.StepsMap.remove(steps))
+             | Some(ci) =>
+               let newlines =
+                 switch (ci.node) {
+                 | Exp(EmptyHole(_))
+                 | Line(EmptyLine) => newlines
+                 | _ =>
+                   // something nontrivial present, no more
+                   // need to keep track of ephemeral newline
+                   newlines |> Path.StepsMap.remove(steps)
+                 };
+               if (Path.compare_steps(new_steps, steps) < 0) {
+                 let new_path = Path.of_zblock(new_zblock);
+                 (
+                   new_zblock
+                   |> ZExp.erase_block
+                   |> Path.prune_trivial_suffix_block(
+                        ~steps_of_first_line=steps,
+                      )
+                   |> Path.follow_block(new_path)
+                   |> Opt.get(() => assert(false)),
+                   newlines |> Path.StepsMap.remove(steps),
+                 );
+               } else {
+                 (new_zblock, newlines);
+               };
+             }
+           },
+         (new_zblock, model.user_newlines),
+       );
   let new_result = result_of_edit_state(new_edit_state);
   let new_cursor_info = cursor_info_of_edit_state(new_edit_state);
   {
     ...model,
-    edit_state: new_edit_state,
+    edit_state: (new_zblock, ty, u_gen),
     cursor_info: new_cursor_info,
     result: new_result,
+    user_newlines: new_user_newlines,
   };
 };
 
@@ -117,6 +200,7 @@ let init = (): t => {
       prev_state: None,
     },
     is_cell_focused: false,
+    user_newlines: Path.StepsMap.empty,
   };
 };
 

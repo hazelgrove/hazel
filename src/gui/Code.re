@@ -647,6 +647,7 @@ let rec view_of_snode =
           ~inject: Update.Action.t => Vdom.Event.t,
           ~indent_level=Indented(0),
           ~term_steps=[],
+          ~user_newlines: option(Model.user_newlines)=None,
           snode,
         )
         : Vdom.Node.t => {
@@ -666,6 +667,7 @@ let rec view_of_snode =
         ~is_node_multi_line=is_multi_line,
         ~line_no=0,
         ~node_indent_level=indent_level,
+        ~user_newlines,
         mk_SSeqHead(~steps_of_first_sword=steps_of_snode(fst), fst),
       ),
       ...args
@@ -677,6 +679,7 @@ let rec view_of_snode =
                 ~is_node_multi_line=is_multi_line,
                 ~line_no=i + 1,
                 ~node_indent_level=indent_level,
+                ~user_newlines,
                 mk_SSeqHeadArg(
                   ~steps_of_first_sword=steps_of_snode(arg),
                   arg,
@@ -697,6 +700,7 @@ let rec view_of_snode =
                  ~is_node_multi_line=is_multi_line,
                  ~line_no=num_lines_so_far,
                  ~node_indent_level=indent_level,
+                 ~user_newlines,
                  mk_SSeqTail(
                    ~steps_of_first_sword=steps_of_snode(fst),
                    op_stokens,
@@ -712,6 +716,7 @@ let rec view_of_snode =
                          ~is_node_multi_line=is_multi_line,
                          ~line_no=num_lines_so_far + 1 + i,
                          ~node_indent_level=indent_level,
+                         ~user_newlines,
                          mk_SSeqTailArg(
                            ~steps_of_first_sword=steps_of_snode(arg),
                            op_stokens,
@@ -741,6 +746,7 @@ let rec view_of_snode =
              ~node_cursor?,
              ~is_node_multi_line=is_multi_line,
              ~line_no=i,
+             ~user_newlines,
              ~node_indent_level=
                switch (i, indent_level) {
                | (0, OpPrefix(_, _)) => NotIndentable
@@ -778,8 +784,29 @@ let rec view_of_snode =
                 ~node_cursor?,
                 ~is_node_multi_line=is_multi_line,
                 ~line_no=vleading |> List.length,
-                ~node_indent_level=NotIndentable,
+                ~node_indent_level={
+                  switch (user_newlines) {
+                  | None => NotIndentable
+                  | Some(user_newlines) =>
+                    user_newlines
+                    |> Path.StepsMap.mem(steps @ [List.length(slines) - 1])
+                      ? {
+                        indent_level;
+                      }
+                      : {
+                        NotIndentable;
+                      }
+                  };
+                },
                 ~term_steps=steps,
+                ~user_newlines,
+                ~is_user_newline=
+                  switch (user_newlines) {
+                  | None => false
+                  | Some(user_newlines) =>
+                    user_newlines
+                    |> Path.StepsMap.mem(steps @ [List.length(slines) - 1])
+                  },
                 sconclusion,
               );
             vleading @ [vconclusion];
@@ -792,7 +819,13 @@ let rec view_of_snode =
       @ [
         Vdom.Attr.create(
           "indent_level",
-          indent_level |> sexp_of_indent_level |> Sexplib.Sexp.to_string,
+          switch (user_newlines, shape) {
+          | (Some(user_newlines), EmptyHole)
+              when user_newlines |> Path.StepsMap.mem(steps) =>
+            NotIndentable |> sexp_of_indent_level |> Sexplib.Sexp.to_string
+          | (_, _) =>
+            indent_level |> sexp_of_indent_level |> Sexplib.Sexp.to_string
+          },
         ),
       ],
       is_multi_line
@@ -850,6 +883,8 @@ and view_of_sline =
       ~is_node_multi_line: bool,
       ~line_no: int,
       ~node_indent_level,
+      ~user_newlines,
+      ~is_user_newline=false,
       sline,
     )
     : Vdom.Node.t => {
@@ -880,14 +915,67 @@ and view_of_sline =
              | SToken(_) => false,
            );
       switch (
+        is_user_newline,
         node_indent_level,
         is_node_multi_line,
         contains_multi_line,
         swords,
       ) {
-      | (OpPrefix(_, _), _, _, _) => assert(false)
-      | (NotIndentable, _, _, _)
-      | (Indented(_), false, _, _) => (
+      | (true, Indented(abs_indent), _, _, [sword, ..._]) => (
+          {
+            let m = abs_indent + tab_length * rel_indent;
+            m == 0
+              ? [Vdom.Node.br([])]
+              : [
+                Vdom.Node.br([]),
+                switch (steps_of_first_sword) {
+                | None => vindentation(m)
+                | Some(steps) =>
+                  switch (sword) {
+                  | SNode(_) => vindentation(~steps, m)
+                  | SToken(stoken) =>
+                    switch (stoken) {
+                    | SEmptyHole(_)
+                    | SText(_, _)
+                    | SEmptyLine => vindentation(~steps, m)
+                    | SDelim(k, _)
+                    | SOp(k, _, _) =>
+                      vindentation(~path=(steps, OnDelim(k, Before)), m)
+                    | SCastArrow
+                    | SFailedCastArrow
+                    | SSpace
+                    | SReadOnly(_) => vindentation(m)
+                    }
+                  }
+                },
+              ];
+          },
+          swords
+          |> List.map(sword =>
+               switch (sword) {
+               | SNode(snode) =>
+                 view_of_snode(
+                   ~inject,
+                   ~indent_level=node_indent_level,
+                   ~term_steps=
+                     switch (snode) {
+                     | SSeq(steps, _, _, _, _) => steps
+                     | SBox(_, _, _, _, EmptyLine, _)
+                     | SBox(_, _, _, _, LetLine, _)
+                     | SBox(_, _, _, _, Rule, _) => term_steps
+                     | SBox(steps, _, _, _, _, _) => steps
+                     },
+                   ~user_newlines,
+                   snode,
+                 )
+               | SToken(stoken) =>
+                 view_of_stoken(~inject, ~node_steps, ~node_cursor, stoken)
+               }
+             ),
+        )
+      | (_, OpPrefix(_, _), _, _, _) => assert(false)
+      | (_, NotIndentable, _, _, _)
+      | (_, Indented(_), false, _, _) => (
           [],
           swords
           |> List.map(
@@ -904,13 +992,14 @@ and view_of_sline =
                      | SBox(steps, _, _, _, _, _) => steps
                      },
                    ~indent_level=NotIndentable,
+                   ~user_newlines,
                    snode,
                  )
                | SToken(stoken) =>
                  view_of_stoken(~inject, ~node_steps, ~node_cursor, stoken),
              ),
         )
-      | (Indented(abs_indent), true, true, _) =>
+      | (_, Indented(abs_indent), true, true, _) =>
         // contains_multi_line, defer on printing indentation
         (
           [],
@@ -932,6 +1021,7 @@ and view_of_sline =
                      | SBox(_, _, _, _, Rule, _) => term_steps
                      | SBox(steps, _, _, _, _, _) => steps
                      },
+                   ~user_newlines,
                    snode,
                  )
                | SToken(stoken) =>
@@ -939,8 +1029,8 @@ and view_of_sline =
                }
              ),
         )
-      | (_, _, _, []) => ([], [])
-      | (Indented(abs_indent), true, false, [sword, ..._]) => (
+      | (_, _, _, _, []) => ([], [])
+      | (_, Indented(abs_indent), true, false, [sword, ..._]) => (
           {
             let m = abs_indent + tab_length * rel_indent;
             m == 0
@@ -987,6 +1077,7 @@ and view_of_sline =
                      | SBox(_, _, _, _, Rule, _) => term_steps
                      | SBox(steps, _, _, _, _, _) => steps
                      },
+                   ~user_newlines,
                    snode,
                  )
                | SToken(stoken) =>
@@ -1006,6 +1097,7 @@ and view_of_sline =
               ~inject,
               ~term_steps=steps_of_snode(snode),
               ~indent_level=NotIndentable,
+              ~user_newlines,
               snode,
             ),
           ],
@@ -1017,6 +1109,7 @@ and view_of_sline =
               ~inject,
               ~term_steps=steps_of_snode(snode),
               ~indent_level=node_indent_level,
+              ~user_newlines,
               snode,
             ),
           ],
@@ -1035,6 +1128,7 @@ and view_of_sline =
               ~inject,
               ~term_steps=steps_of_snode(snode),
               ~indent_level=NotIndentable,
+              ~user_newlines,
               snode,
             ),
           ],
@@ -1056,6 +1150,7 @@ and view_of_sline =
               ~inject,
               ~term_steps=steps_of_snode(snode),
               ~indent_level=NotIndentable,
+              ~user_newlines,
               snode,
             ),
           ],
@@ -1067,6 +1162,7 @@ and view_of_sline =
               ~inject,
               ~term_steps=steps_of_snode(snode),
               ~indent_level=Indented(tabbed_m),
+              ~user_newlines,
               snode,
             ),
           ],
@@ -1085,6 +1181,7 @@ and view_of_sline =
               ~inject,
               ~term_steps=steps_of_snode(snode),
               ~indent_level=NotIndentable,
+              ~user_newlines,
               snode,
             ),
           ],
@@ -1121,6 +1218,7 @@ and view_of_sline =
               ~inject,
               ~term_steps=steps_of_snode(snode),
               ~indent_level=NotIndentable,
+              ~user_newlines,
               snode,
             ),
           ],
@@ -1138,6 +1236,7 @@ and view_of_sline =
               ~inject,
               ~term_steps=steps_of_snode(snode),
               ~indent_level=OpPrefix(m, op_column_width),
+              ~user_newlines,
               snode,
             ),
           ],
@@ -1162,6 +1261,7 @@ and view_of_sline =
               ~inject,
               ~term_steps=steps_of_snode(snode),
               ~indent_level=NotIndentable,
+              ~user_newlines,
               snode,
             ),
           ],
@@ -1197,6 +1297,7 @@ and view_of_sline =
               ~inject,
               ~term_steps=steps_of_snode(snode),
               ~indent_level=NotIndentable,
+              ~user_newlines,
               snode,
             ),
           ],
@@ -1208,6 +1309,7 @@ and view_of_sline =
               ~inject,
               ~term_steps=steps_of_snode(snode),
               ~indent_level=Indented(tabbed_m + op_column_width),
+              ~user_newlines,
               snode,
             ),
           ],
@@ -1226,6 +1328,7 @@ and view_of_sline =
               ~inject,
               ~term_steps=steps_of_snode(snode),
               ~indent_level=NotIndentable,
+              ~user_newlines,
               snode,
             ),
           ],
@@ -1240,6 +1343,7 @@ and view_of_sline =
     | SSeqTail(_, _, _) => "SSeqTail"
     | SSeqTailArg(_, _, _) => "SSeqTailArg"
     };
+
   Vdom.(
     Node.div(
       [
@@ -2460,15 +2564,31 @@ and snode_of_zrule = (~steps, zrule) =>
   };
 
 let view_of_zblock =
-    (~inject: Update.Action.t => Vdom.Event.t, zblock: ZExp.zblock)
+    (
+      ~inject: Update.Action.t => Vdom.Event.t,
+      ~user_newlines,
+      zblock: ZExp.zblock,
+    )
     : Vdom.Node.t => {
-  view_of_snode(~inject, snode_of_zblock(zblock));
+  view_of_snode(
+    ~inject,
+    ~user_newlines=Some(user_newlines),
+    snode_of_zblock(zblock),
+  );
 };
 
 let view_of_block =
-    (~inject: Update.Action.t => Vdom.Event.t, block: UHExp.block)
+    (
+      ~inject: Update.Action.t => Vdom.Event.t,
+      ~user_newlines,
+      block: UHExp.block,
+    )
     : Vdom.Node.t => {
-  view_of_snode(~inject, snode_of_block(block));
+  view_of_snode(
+    ~inject,
+    ~user_newlines=Some(user_newlines),
+    snode_of_block(block),
+  );
 };
 
 module DHPat = Dynamics.DHPat;

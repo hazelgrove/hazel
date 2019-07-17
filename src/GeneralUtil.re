@@ -135,6 +135,17 @@ let rec split_at = (xs, n) =>
       }
   };
 
+let partition_i =
+    (f: (int, 'a) => bool, xs: list('a)): (list('a), list('a)) => {
+  let (indexed_left, indexed_right) =
+    xs
+    |> List.mapi((i, x) => (i, x))
+    |> List.partition(((i, x)) => f(i, x));
+  let (_, left) = indexed_left |> List.split;
+  let (_, right) = indexed_right |> List.split;
+  (left, right);
+};
+
 let fold_left_i = (f: ('a, (int, 'b)) => 'a, acc: 'a, xs: list('b)): 'a => {
   let ixs = List.mapi((i, x) => (i, x), xs);
   List.fold_left(f, acc, ixs);

@@ -239,6 +239,65 @@ let is_after_rule =
   | RuleZE(_, zclause) => is_after_block(zclause)
   | _ => false;
 
+let rec is_after_case_rule =
+  fun
+  | BlockZL((_, zline, _), _) => zline |> is_after_case_rule_line
+  | BlockZE(_, zconclusion) => zconclusion |> is_after_case_rule_exp
+and is_after_case_rule_line =
+  fun
+  | CursorL(_, _) => false
+  | ExpLineZ(ze) => ze |> is_after_case_rule_exp
+  | LetLineZP(_, _, _)
+  | LetLineZA(_, _, _) => false
+  | LetLineZE(_, _, zdef) => zdef |> is_after_case_rule
+and is_after_case_rule_exp =
+  fun
+  | CaseZR(_, _, (_, RuleZE(_, zclause), _), _) => zclause |> is_after_block
+  | ParenthesizedZ(zblock)
+  | InjZ(_, _, zblock)
+  | LamZE(_, _, _, zblock)
+  | CaseZE(_, zblock, _, _) => zblock |> is_after_case_rule
+  | OpSeqZ(_, ztm, _) => ztm |> is_after_case_rule_exp
+  | CursorE(_, _)
+  | LamZP(_, _, _, _)
+  | LamZA(_, _, _, _)
+  | CaseZR(_, _, (_, CursorR(_, _), _), _)
+  | CaseZR(_, _, (_, RuleZP(_, _), _), _)
+  | CaseZA(_, _, _, _)
+  | ApPaletteZ(_, _, _, _) => false;
+
+let rec is_on_user_newlineable_hole = (~is_root=true) =>
+  fun
+  | BlockZL((_, zline, _), _) => zline |> is_on_user_newlineable_hole__zline
+  | BlockZE(leading, zconclusion) =>
+    switch (leading |> split_last, zconclusion) {
+    | (None, CursorE(_, EmptyHole(_))) => !is_root
+    | (Some((_, LetLine(_, _, _))), CursorE(_, EmptyHole(_))) => true
+    | (_, _) => zconclusion |> is_on_user_newlineable_hole__zexp
+    }
+and is_on_user_newlineable_hole__zline =
+  fun
+  | CursorL(_, _) => false
+  | ExpLineZ(ze) => ze |> is_on_user_newlineable_hole__zexp
+  | LetLineZP(_, _, _)
+  | LetLineZA(_, _, _) => false
+  | LetLineZE(_, _, zdef) => zdef |> is_on_user_newlineable_hole
+and is_on_user_newlineable_hole__zexp =
+  fun
+  | CursorE(_, _) => false
+  | ParenthesizedZ(zblock)
+  | LamZE(_, _, _, zblock)
+  | InjZ(_, _, zblock)
+  | CaseZE(_, zblock, _, _)
+  | CaseZR(_, _, (_, RuleZE(_, zblock), _), _) =>
+    zblock |> is_on_user_newlineable_hole
+  | OpSeqZ(_, ztm, _) => ztm |> is_on_user_newlineable_hole__zexp
+  | LamZP(_, _, _, _)
+  | LamZA(_, _, _, _)
+  | CaseZR(_, _, (_, CursorR(_, _) | RuleZP(_, _), _), _)
+  | CaseZA(_, _, _, _)
+  | ApPaletteZ(_, _, _, _) => false;
+
 let rec place_before_block = (block: UHExp.block): zblock =>
   switch (block) {
   | Block([], e) => BlockZE([], place_before_exp(e))

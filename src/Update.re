@@ -21,7 +21,9 @@ module Action = {
     | SelectionChange
     | FocusCell
     | BlurCell
-    | FocusWindow;
+    | FocusWindow
+    | AddUserNewline(Path.steps)
+    | RemoveUserNewline(Path.steps);
 };
 
 let closest_elem = node =>
@@ -81,6 +83,8 @@ let apply_action =
     JSUtil.reset_caret();
     model;
   | BlurCell => JSUtil.window_has_focus() ? model |> Model.blur_cell : model
+  | AddUserNewline(steps) => model |> Model.add_user_newline(steps)
+  | RemoveUserNewline(steps) => model |> Model.remove_user_newline(steps)
   | SelectionChange =>
     let is_staging =
       switch (model.cursor_info.position) {
