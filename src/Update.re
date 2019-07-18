@@ -39,10 +39,32 @@ let closest_elem = node =>
     }
   );
 
+let log_action = (action: Action.t, _: State.t): unit => {
+  /* log interesting actions */
+  switch (action) {
+  | EditAction(_)
+  | ToggleLeftSidebar
+  | ToggleRightSidebar
+  | LoadExample(_)
+  | NextCard
+  | PrevCard
+  | SelectHoleInstance(_, _)
+  | InvalidVar(_)
+  | FocusCell
+  | BlurCell
+  | FocusWindow
+  | MoveToHole(_) =>
+    let action_string = Sexp.to_string(Action.sexp_of_t(action));
+    Logger.append(action_string);
+  | SelectionChange => ()
+  };
+};
+
 [@warning "-27"]
 let apply_action =
     (model: Model.t, action: Action.t, state: State.t, ~schedule_action)
-    : Model.t =>
+    : Model.t => {
+  log_action(action, state);
   switch (action) {
   | EditAction(a) =>
     switch (Model.perform_edit_action(model, a)) {
@@ -213,3 +235,4 @@ let apply_action =
     };
     model;
   };
+};
