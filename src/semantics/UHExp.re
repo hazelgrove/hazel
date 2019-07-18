@@ -491,23 +491,23 @@ let shift_line_from_suffix_block =
     suffix_conclusion,
   ) {
   | ((_, None, _), EmptyHole(_)) => None
-  | ((_, None, _), _) =>
+  | ((empty_lines, None, _), _) =>
     switch (is_node_terminal, conclusion) {
     | (false, EmptyHole(_) as recycled_hole) =>
       Some((
-        Block(leading, suffix_conclusion),
+        Block(leading @ empty_lines, suffix_conclusion),
         Some(recycled_hole |> wrap_in_block),
         u_gen,
       ))
     | (false, _) =>
       let (hole, u_gen) = u_gen |> new_EmptyHole;
       Some((
-        Block(leading, suffix_conclusion),
+        Block(leading @ empty_lines, suffix_conclusion),
         Some(hole |> wrap_in_block),
         u_gen,
       ));
     | (true, EmptyHole(_)) =>
-      Some((Block(leading, suffix_conclusion), None, u_gen))
+      Some((Block(leading @ empty_lines, suffix_conclusion), None, u_gen))
     | (true, _) =>
       Some((
         Block(leading @ [ExpLine(conclusion)], suffix_conclusion),
