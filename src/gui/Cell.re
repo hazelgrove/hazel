@@ -976,10 +976,12 @@ let view =
                   prevent_stop_inject(
                     Update.Action.EditAction(Hashtbl.find(kc_actions, kc)),
                   )
-                | (Line(EmptyLine), _)
-                | (Line(ExpLine(EmptyHole(_))), _)
-                | (Exp(EmptyHole(_)), _)
-                | (Pat(EmptyHole(_)), _) =>
+                | (
+                    Line(EmptyLine | ExpLine(EmptyHole(_))) |
+                    Exp(EmptyHole(_)) |
+                    Pat(EmptyHole(_)),
+                    _,
+                  ) =>
                   let shape =
                     switch (single_key) {
                     | Number(n) => Action.SNumLit(n, OnText(num_digits(n)))
@@ -989,27 +991,37 @@ let view =
                   prevent_stop_inject(
                     Update.Action.EditAction(Construct(shape)),
                   );
-                | (Exp(NumLit(_, _)), _)
-                | (Exp(BoolLit(_, _)), _)
-                | (Exp(Var(_, _, _)), _)
-                | (Pat(Var(_, _, _)), _)
-                | (Pat(NumLit(_, _)), _)
-                | (Pat(BoolLit(_, _)), _) =>
+                | (
+                    Exp(NumLit(_, _) | BoolLit(_, _) | Var(_, _, _)) |
+                    Pat(NumLit(_, _) | BoolLit(_, _) | Var(_, _, _)),
+                    _,
+                  ) =>
                   let nodeValue = JSUtil.force_get_anchor_node_value();
                   let anchorOffset = JSUtil.get_anchor_offset();
                   let key_string = JSUtil.single_key_string(single_key);
                   let newNodeValue =
                     string_insert(nodeValue, anchorOffset, key_string);
-                  switch (int_of_string_opt(newNodeValue)) {
-                  | Some(new_n) =>
-                    prevent_stop_inject(
-                      Update.Action.EditAction(
-                        Action.Construct(
-                          Action.SNumLit(new_n, OnText(anchorOffset + 1)),
-                        ),
-                      ),
-                    )
-                  | None =>
+                  switch (int_of_string_opt(newNodeValue), single_key) {
+                  | (Some(_), Underscore) =>
+                    // OCaml accepts and ignores underscores
+                    // when parsing ints from strings, we don't
+                    Event.Ignore
+                  | (Some(new_n), _) =>
+                    // defensive check in case OCaml is
+                    // doing any other weird things
+                    num_digits(new_n) != String.length(newNodeValue)
+                      ? Event.Ignore
+                      : prevent_stop_inject(
+                          Update.Action.EditAction(
+                            Action.Construct(
+                              Action.SNumLit(
+                                new_n,
+                                OnText(anchorOffset + 1),
+                              ),
+                            ),
+                          ),
+                        )
+                  | (None, _) =>
                     Var.is_valid(newNodeValue)
                       ? prevent_stop_inject(
                           Update.Action.EditAction(
@@ -1025,11 +1037,7 @@ let view =
                           Update.Action.InvalidVar(newNodeValue),
                         )
                   };
-                | (Line(_), _)
-                | (Exp(_), _)
-                | (Rule(_), _)
-                | (Pat(_), _)
-                | (Typ(_), _) => Event.Ignore
+                | (Line(_) | Exp(_) | Rule(_) | Pat(_) | Typ(_), _) => Event.Ignore
                 }
               | (_, _, _, Some((Backspace | Delete) as kc)) =>
                 let (string_edit, update, cursor_escaped) =
