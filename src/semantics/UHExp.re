@@ -479,8 +479,6 @@ let shift_line_from_prefix =
   };
 
 let shift_line_from_suffix_block =
-    // whether or not currently staged node
-    // could serve as conclusion of block
     (
       ~is_node_terminal: bool,
       ~u_gen: MetaVarGen.t,
@@ -508,7 +506,14 @@ let shift_line_from_suffix_block =
         Some(hole |> wrap_in_block),
         u_gen,
       ));
-    | (true, _) => Some((Block(leading, suffix_conclusion), None, u_gen))
+    | (true, EmptyHole(_)) =>
+      Some((Block(leading, suffix_conclusion), None, u_gen))
+    | (true, _) =>
+      Some((
+        Block(leading @ [ExpLine(conclusion)], suffix_conclusion),
+        None,
+        u_gen,
+      ))
     }
   | (
       (empty_lines, Some(LetLine(_, _, _) as let_line), []),
@@ -531,6 +536,12 @@ let shift_line_from_suffix_block =
         Some(let_line_hole |> wrap_in_block),
         u_gen,
       ));
+    | (true, EmptyHole(_)) =>
+      Some((
+        Block(leading @ empty_lines @ [let_line], let_line_hole),
+        None,
+        u_gen,
+      ))
     | (true, _) =>
       Some((
         Block(
