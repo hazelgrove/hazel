@@ -3655,7 +3655,11 @@ and syn_perform_line =
     let zline = ZExp.LetLineZP(zp, None, block);
     Succeeded((([], zline, []), ctx, u_gen));
   | (Backspace, CursorL(OnDelim(k, After), LetLine(_, _, _) as li)) =>
-    Succeeded((([], CursorL(Staging(k), li), []), ctx, u_gen))
+    switch (Statics.syn_line(ctx, li)) {
+    | None => Failed
+    | Some(ctx) =>
+      Succeeded((([], CursorL(Staging(k), li), []), ctx, u_gen))
+    }
   | (Backspace | Delete, CursorL(Staging(_), _)) =>
     // handled at blocks level
     Failed
