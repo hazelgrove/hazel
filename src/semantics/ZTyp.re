@@ -123,58 +123,6 @@ let rec cursor_on_opseq = (zty: t): bool =>
   | OpSeqZ(_, zty, _) => cursor_on_opseq(zty)
   };
 
-let node_positions = (uty: UHTyp.t): list(node_position) =>
-  switch (uty) {
-  /* outer nodes */
-  | Hole
-  | Unit
-  | Num
-  | Bool => node_positions(valid_cursors(uty))
-  /* inner nodes */
-  | Parenthesized(_)
-  | List(_) =>
-    node_positions(delim_cursors_k(0))
-    @ [Deeper(0)]
-    @ node_positions(delim_cursors_k(1))
-  | OpSeq(_, seq) =>
-    range(OperatorSeq.seq_length(seq))
-    |> List.fold_left(
-         (lstSoFar, i) =>
-           switch (lstSoFar) {
-           | [] => [Deeper(i)]
-           | [_, ..._] =>
-             lstSoFar @ node_positions(delim_cursors_k(i)) @ [Deeper(i)]
-           },
-         [],
-       )
-  };
-
-let node_position_of_t = (zty: t): node_position =>
-  switch (zty) {
-  | CursorT(cursor, _) => On(cursor)
-  | ParenthesizedZ(_) => Deeper(0)
-  | ListZ(_) => Deeper(0)
-  | OpSeqZ(_, _, surround) =>
-    Deeper(OperatorSeq.surround_prefix_length(surround))
-  };
-
-let rec cursor_node_type = (zty: t): node_type =>
-  switch (zty) {
-  /* outer nodes */
-  | CursorT(_, Hole)
-  | CursorT(_, Unit)
-  | CursorT(_, Num)
-  | CursorT(_, Bool) => Outer
-  /* inner nodes */
-  | CursorT(_, Parenthesized(_))
-  | CursorT(_, List(_))
-  | CursorT(_, OpSeq(_, _)) => Inner
-  /* zipper */
-  | ParenthesizedZ(zty1) => cursor_node_type(zty1)
-  | ListZ(zty1) => cursor_node_type(zty1)
-  | OpSeqZ(_, zty1, _) => cursor_node_type(zty1)
-  };
-
 let rec move_cursor_left = (zty: t): option(t) =>
   switch (zty) {
   | _ when is_before(zty) => None

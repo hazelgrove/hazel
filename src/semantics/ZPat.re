@@ -256,50 +256,6 @@ let rec cursor_on_opseq = (zp: t): bool =>
   | InjZ(_, _, zp) => cursor_on_opseq(zp)
   };
 
-let node_positions = (p: UHPat.t): list(node_position) =>
-  switch (p) {
-  | EmptyHole(_)
-  | Wild(_)
-  | Var(_, _, _)
-  | NumLit(_, _)
-  | BoolLit(_, _)
-  | ListNil(_) => node_positions(valid_cursors(p))
-  | Parenthesized(_)
-  | Inj(_) =>
-    node_positions(delim_cursors_k(0))
-    @ [Deeper(0)]
-    @ node_positions(delim_cursors_k(1))
-  | OpSeq(_, seq) => seq |> UHPat.node_positions_of_seq
-  };
-
-let node_position_of_t = (zp: t): node_position =>
-  switch (zp) {
-  | CursorP(cursor, _) => On(cursor)
-  | ParenthesizedZ(_) => Deeper(0)
-  | InjZ(_, _, _) => Deeper(0)
-  | OpSeqZ(_, _, surround) =>
-    Deeper(OperatorSeq.surround_prefix_length(surround))
-  };
-
-let rec cursor_node_type = (zp: t): node_type =>
-  switch (zp) {
-  /* outer nodes */
-  | CursorP(_, EmptyHole(_))
-  | CursorP(_, Wild(_))
-  | CursorP(_, Var(_, _, _))
-  | CursorP(_, NumLit(_, _))
-  | CursorP(_, BoolLit(_, _))
-  | CursorP(_, ListNil(_)) => Outer
-  /* inner nodes */
-  | CursorP(_, Parenthesized(_))
-  | CursorP(_, OpSeq(_, _))
-  | CursorP(_, Inj(_, _, _)) => Inner
-  /* zipper */
-  | ParenthesizedZ(zp1) => cursor_node_type(zp1)
-  | OpSeqZ(_, zp1, _) => cursor_node_type(zp1)
-  | InjZ(_, _, zp1) => cursor_node_type(zp1)
-  };
-
 let rec move_cursor_left = (zp: t): option(t) =>
   switch (zp) {
   | _ when is_before(zp) => None
