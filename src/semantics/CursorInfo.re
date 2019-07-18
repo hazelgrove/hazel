@@ -205,6 +205,11 @@ let preserved_child_term_of_node = ci =>
     | (Some((i, block)), ExpFrame(_, None, _)) =>
       Some((i, Expression(block)))
     | (
+        Some((i, Block([], OpSeq(_, _)) as block)),
+        ExpFrame(_, Some(_surround), _),
+      ) =>
+      Some((i, Expression(block)))
+    | (
         Some((i, Block([], conclusion) as block)),
         ExpFrame(_, Some(_surround), _),
       ) =>
