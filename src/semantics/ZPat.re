@@ -27,8 +27,7 @@ let valid_cursors = (p: UHPat.t): list(cursor_position) =>
   | Inj(_, _, _) => delim_cursors(2)
   | Parenthesized(_) => delim_cursors(2)
   | OpSeq(_, seq) =>
-    range(OperatorSeq.seq_length(seq))
-    |> List.map(k => k + 1)
+    range(~lo=1, OperatorSeq.seq_length(seq))
     |> List.map(k => delim_cursors_k(k))
     |> List.flatten
   };

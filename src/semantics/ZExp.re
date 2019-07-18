@@ -78,8 +78,7 @@ let valid_cursors_exp = (e: UHExp.t): list(cursor_position) =>
   | Case(_, _, _, _) => delim_cursors(2)
   | Parenthesized(_) => delim_cursors(2)
   | OpSeq(_, seq) =>
-    range(OperatorSeq.seq_length(seq))
-    |> List.map(k => k + 1)
+    range(~lo=1, OperatorSeq.seq_length(seq))
     |> List.map(k => delim_cursors_k(k))
     |> List.flatten
   | ApPalette(_, _, _, _) => delim_cursors(1) /* TODO[livelits] */
@@ -1099,8 +1098,7 @@ and move_cursor_left_rule = (zrule: zrule): option(zrule) =>
   | CursorR(OnText(_), _) => None
   | CursorR(OnDelim(k, After), rule) =>
     Some(CursorR(OnDelim(k, Before), rule))
-  | CursorR(OnDelim(_k, Before), Rule(p, clause)) =>
-    // _k == 1
+  | CursorR(OnDelim(_one, Before), Rule(p, clause)) =>
     Some(RuleZP(ZPat.place_after(p), clause))
   | RuleZP(zp, clause) =>
     switch (ZPat.move_cursor_left(zp)) {
