@@ -639,3 +639,23 @@ let rec node_positions_of_seq: opseq => list(node_position) =
       node_positions_of_seq(seq)
       @ [On(OnDelim(n, Before)), On(OnDelim(n, After)), Deeper(n)];
     };
+
+let favored_child_of_line: line => option((child_index, block)) =
+  fun
+  | EmptyLine
+  | ExpLine(_) => None
+  | LetLine(_, _, def) => Some((2, def));
+
+let favored_child_of_exp: t => option((child_index, block)) =
+  fun
+  | EmptyHole(_)
+  | Var(_, _, _)
+  | NumLit(_, _)
+  | BoolLit(_, _)
+  | ListNil(_)
+  | OpSeq(_, _)
+  | ApPalette(_, _, _, _) => None
+  | Lam(_, _, _, block) => Some((2, block))
+  | Inj(_, _, block)
+  | Case(_, block, _, _)
+  | Parenthesized(block) => Some((0, block));

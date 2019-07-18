@@ -275,9 +275,11 @@ let indicators = (model: Model.t) => {
                    switch (model.cursor_info.position) {
                    | Staging(_) =>
                      model.cursor_info
-                     |> CursorInfo.preserved_child_indices_of_node
-                     |> contains(i)
-                       ? "normal" : "staging"
+                     |> CursorInfo.preserved_child_term_of_node
+                     |> Opt.map_default(
+                          ~default="staging", ((child_index, _)) =>
+                          child_index == i ? "normal" : "staging"
+                        )
                    | OnText(_)
                    | OnDelim(_, _) => "normal"
                    },

@@ -242,3 +242,15 @@ let rec node_positions_of_seq: opseq => list(node_position) =
       node_positions_of_seq(seq)
       @ [On(OnDelim(n, Before)), On(OnDelim(n, After)), Deeper(n)];
     };
+
+let favored_child: t => option((child_index, t)) =
+  fun
+  | EmptyHole(_)
+  | Wild(_)
+  | Var(_, _, _)
+  | NumLit(_, _)
+  | BoolLit(_, _)
+  | ListNil(_)
+  | OpSeq(_, _) => None
+  | Parenthesized(p)
+  | Inj(_, _, p) => Some((0, p));

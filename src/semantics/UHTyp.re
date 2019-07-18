@@ -1,4 +1,5 @@
 open GeneralUtil;
+open SemanticsCommon;
 
 [@deriving sexp]
 type op =
@@ -119,3 +120,13 @@ let child_indices =
   | Parenthesized(_)
   | List(_) => [0]
   | OpSeq(_, seq) => range(OperatorSeq.seq_length(seq));
+
+let favored_child: t => option((child_index, t)) =
+  fun
+  | Hole
+  | Unit
+  | Num
+  | Bool
+  | OpSeq(_, _) => None
+  | Parenthesized(ty)
+  | List(ty) => Some((0, ty));

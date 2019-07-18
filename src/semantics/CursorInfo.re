@@ -94,6 +94,15 @@ type frame =
   | ExpFrame(UHExp.lines, option(ZExp.opseq_surround), UHExp.lines);
 
 [@deriving sexp]
+type term =
+  | Type(UHTyp.t)
+  | Pattern(UHPat.t)
+  | Expression(UHExp.block);
+
+[@deriving sexp]
+type child_term = (child_index, term);
+
+[@deriving sexp]
 type t = {
   typed,
   node,
@@ -177,40 +186,39 @@ let child_indices_of_current_node = ci =>
   | Typ(ty) => UHTyp.child_indices(ty)
   };
 
-let preserved_child_indices_of_node = ci =>
+let preserved_child_term_of_node = ci =>
   switch (ci.node) {
-  | Line(EmptyLine | ExpLine(_)) => []
-  | Line(LetLine(_, _, _)) => [2]
-  | Exp(
-      EmptyHole(_) | Var(_, _, _) | NumLit(_, _) | BoolLit(_, _) |
-      ListNil(_) |
-      OpSeq(_, _) |
-      ApPalette(_, _, _, _),
-    ) =>
-    []
-  | Exp(Parenthesized(Block([], OpSeq(_, _)))) => [0]
-  | Exp(Parenthesized(Block([], e))) => e |> UHExp.bidelimited ? [0] : []
-  | Exp(Parenthesized(_)) =>
-    switch (ci.frame) {
-    | ExpFrame(_, None, _) => [0]
-    | ExpFrame(_, Some(_), _) => []
-    | _ => []
+  | Line(li) =>
+    li
+    |> UHExp.favored_child_of_line
+    |> Opt.map_default(
+         ~default=None,
+         fun
+         | (_, UHExp.Block([], EmptyHole(_))) => None
+         | (i, block) => Some((i, Expression(block))),
+       )
+  | Exp(e) =>
+    switch (e |> UHExp.favored_child_of_exp, ci.frame) {
+    | (None, _) => None
+    | (_, TypFrame(_) | PatFrame(_)) => None
+    | (Some((_, Block([], EmptyHole(_)))), _) => None
+    | (Some((i, block)), ExpFrame(_, None, _)) =>
+      Some((i, Expression(block)))
+    | (
+        Some((i, Block([], conclusion) as block)),
+        ExpFrame(_, Some(_surround), _),
+      ) =>
+      switch (e, conclusion |> UHExp.bidelimited) {
+      | (Parenthesized(_), false) => None
+      | _ => Some((i, Expression(block)))
+      }
+    | (Some((_, Block(_, _))), ExpFrame(_, Some(_surround), _)) => None
     }
-  | Exp(Lam(_, _, _, _)) => [2]
-  | Exp(Inj(_, _, _)) => [0]
-  | Exp(Case(_, _, _, _)) => [0]
-  | Pat(
-      EmptyHole(_) | Wild(_) | Var(_, _, _) | NumLit(_, _) | BoolLit(_, _) |
-      ListNil(_) |
-      OpSeq(_, _),
-    ) =>
-    []
-  | Pat(Parenthesized(_)) => [0]
-  | Pat(Inj(_, _, _)) => [0]
-  | Typ(Hole | Unit | Num | Bool | OpSeq(_, _)) => []
-  | Typ(Parenthesized(_)) => [0]
-  | Typ(List(_)) => [0]
-  | _ => []
+  | Pat(p) =>
+    p |> UHPat.favored_child |> Opt.map(((i, p)) => (i, Pattern(p)))
+  | Typ(ty) =>
+    ty |> UHTyp.favored_child |> Opt.map(((i, ty)) => (i, Type(ty)))
+  | Rule(_) => None
   };
 
 let rec cursor_info_typ =

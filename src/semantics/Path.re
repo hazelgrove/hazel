@@ -3,7 +3,7 @@ open SemanticsCommon;
 open GeneralUtil;
 
 [@deriving (show({with_path: false}), sexp)]
-type steps = list(int);
+type steps = list(child_index);
 [@deriving (show({with_path: false}), sexp)]
 type rev_steps = steps;
 

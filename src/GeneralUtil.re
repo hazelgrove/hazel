@@ -513,6 +513,11 @@ module Opt = {
     | None => None
     | Some(a) => Some(f(a))
     };
+  let map_default = (~default: 'b, f: 'a => 'b, opt: option('a)): 'b =>
+    switch (opt) {
+    | None => default
+    | Some(a) => f(a)
+    };
   let get = (if_absent: unit => 'a, opt: option('a)): 'a =>
     switch (opt) {
     | None => if_absent()

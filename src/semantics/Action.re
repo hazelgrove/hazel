@@ -3115,6 +3115,62 @@ let rec syn_perform_block =
       let zblock = ZExp.BlockZE(prefix, ze);
       Succeeded((zblock, ty, u_gen));
     }
+  | (
+      Backspace | Delete,
+      BlockZL((prefix, CursorL(Staging(k), _), suffix), conclusion),
+    ) =>
+    let new_zblock: option(ZExp.zblock) =
+      switch (ci |> CursorInfo.preserved_child_term_of_node, suffix) {
+      | (Some((_, Type(_) | Pattern(_))), _) => None
+      | (None, []) =>
+        // If deleted line is followed by an empty hole,
+        // then they are on the same visual line. Don't bother
+        // leaving behind an empty line, instead let the
+        // the empty hole take the deleted line's place.
+        switch (conclusion) {
+        | EmptyHole(_) =>
+          Some(BlockZE(prefix, conclusion |> ZExp.place_before_exp))
+        | _ =>
+          Some(
+            BlockZL(
+              (prefix, ZExp.place_before_line(EmptyLine), []),
+              conclusion,
+            ),
+          )
+        }
+      | (None, [_, ..._]) =>
+        Some(
+          BlockZL(
+            (prefix, ZExp.place_before_line(EmptyLine), suffix),
+            conclusion,
+          ),
+        )
+      | (Some((_, Expression(block))), _) =>
+        let place_cursor =
+          // here we're depending on the fact that
+          // only let lines can preserve children
+          switch (k) {
+          | 0
+          | 1
+          | 2 => ZExp.place_before_block
+          | _three => ZExp.place_after_block
+          };
+        let (inner_prefix, zline, inner_suffix) =
+          block
+          |> place_cursor
+          |> ZExp.zblock_to_zlines
+          |> ZExp.prune_empty_hole_lines;
+        Some(
+          BlockZL(
+            (prefix @ inner_prefix, zline, inner_suffix @ suffix),
+            conclusion,
+          ),
+        );
+      };
+    new_zblock
+    |> Opt.map_default(~default=Failed, zblock =>
+         Succeeded(Statics.syn_fix_holes_zblock(ctx, u_gen, zblock))
+       );
   /* Construction */
   | (
       Construct(SLine),
@@ -3600,22 +3656,9 @@ and syn_perform_line =
     Succeeded((([], zline, []), ctx, u_gen));
   | (Backspace, CursorL(OnDelim(k, After), LetLine(_, _, _) as li)) =>
     Succeeded((([], CursorL(Staging(k), li), []), ctx, u_gen))
-  | (Backspace | Delete, CursorL(Staging(k), LetLine(_, _, def))) =>
-    let place_cursor =
-      switch (k) {
-      | 0
-      | 1
-      | 2 => ZExp.place_before_block
-      | _three => ZExp.place_after_block
-      };
-    Succeeded((
-      def
-      |> place_cursor
-      |> ZExp.zblock_to_zlines
-      |> ZExp.prune_empty_hole_lines,
-      ctx,
-      u_gen,
-    ));
+  | (Backspace | Delete, CursorL(Staging(_), _)) =>
+    // handled at blocks level
+    Failed
   /* Construction */
   | (Construct(_), CursorL(_, _)) =>
     /* handled at lines level */
@@ -5340,6 +5383,62 @@ and ana_perform_block =
       when ZExp.is_after_exp(ze) =>
     let zblock = ZExp.BlockZE(prefix, ze);
     Succeeded(Statics.ana_fix_holes_zblock(ctx, u_gen, zblock, ty));
+  | (
+      Backspace | Delete,
+      BlockZL((prefix, CursorL(Staging(k), _), suffix), conclusion),
+    ) =>
+    let new_zblock: option(ZExp.zblock) =
+      switch (ci |> CursorInfo.preserved_child_term_of_node, suffix) {
+      | (Some((_, Type(_) | Pattern(_))), _) => None
+      | (None, []) =>
+        // If deleted line is followed by an empty hole,
+        // then they are on the same visual line. Don't bother
+        // leaving behind an empty line, instead let the
+        // the empty hole take the deleted line's place.
+        switch (conclusion) {
+        | EmptyHole(_) =>
+          Some(BlockZE(prefix, conclusion |> ZExp.place_before_exp))
+        | _ =>
+          Some(
+            BlockZL(
+              (prefix, ZExp.place_before_line(EmptyLine), []),
+              conclusion,
+            ),
+          )
+        }
+      | (None, [_, ..._]) =>
+        Some(
+          BlockZL(
+            (prefix, ZExp.place_before_line(EmptyLine), suffix),
+            conclusion,
+          ),
+        )
+      | (Some((_, Expression(block))), _) =>
+        let place_cursor =
+          // here we're depending on the fact that
+          // only let lines can preserve children
+          switch (k) {
+          | 0
+          | 1
+          | 2 => ZExp.place_before_block
+          | _three => ZExp.place_after_block
+          };
+        let (inner_prefix, zline, inner_suffix) =
+          block
+          |> place_cursor
+          |> ZExp.zblock_to_zlines
+          |> ZExp.prune_empty_hole_lines;
+        Some(
+          BlockZL(
+            (prefix @ inner_prefix, zline, inner_suffix @ suffix),
+            conclusion,
+          ),
+        );
+      };
+    new_zblock
+    |> Opt.map_default(~default=Failed, zblock =>
+         Succeeded(Statics.ana_fix_holes_zblock(ctx, u_gen, zblock, ty))
+       );
   /* Construction */
   | (
       Construct(SLine),
