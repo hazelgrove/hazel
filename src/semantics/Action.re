@@ -109,7 +109,9 @@ type t =
   | Backspace
   | Construct(shape)
   | ShiftLeft
-  | ShiftRight;
+  | ShiftRight
+  | ShiftUp
+  | ShiftDown;
 
 type result('success) =
   | Succeeded('success)
@@ -136,6 +138,9 @@ let rec perform_ty = (a: t, zty: ZTyp.t): result(ZTyp.t) =>
   | (_, CursorT(cursor, uty)) when !ZTyp.is_valid_cursor(cursor, uty) =>
     Failed
   /* Staging */
+  | (ShiftUp | ShiftDown, _) =>
+    // only can shift up and down in blocks
+    Failed
   | (ShiftLeft | ShiftRight, CursorT(OnDelim(_, _), _)) => Failed
   | (
       ShiftLeft | ShiftRight,
@@ -1061,6 +1066,9 @@ let rec syn_perform_pat =
     Failed
   | (_, CursorP(cursor, p)) when !ZPat.is_valid_cursor(cursor, p) => Failed
   /* Staging */
+  | (ShiftUp | ShiftDown, _) =>
+    // can only shift up and down in blocks
+    Failed
   | (ShiftLeft | ShiftRight, CursorP(OnText(_) | OnDelim(_, _), _)) =>
     Failed
   | (
@@ -1702,6 +1710,9 @@ and ana_perform_pat =
       }
     };
   /* Staging */
+  | (ShiftUp | ShiftDown, _) =>
+    // can only shift up and down in blocks
+    Failed
   | (ShiftLeft | ShiftRight, CursorP(OnText(_) | OnDelim(_, _), _)) =>
     Failed
   | (
@@ -2450,7 +2461,7 @@ let rec syn_perform_block =
   switch (a, zblock) {
   /* Staging */
   | (
-      ShiftLeft | ShiftRight,
+      ShiftUp | ShiftDown,
       BlockZL(
         (prefix, CursorL(Staging(3), LetLine(p, ann, def)), suffix),
         e,
@@ -2458,12 +2469,15 @@ let rec syn_perform_block =
     ) =>
     let shift_line =
       switch (a) {
-      | ShiftLeft => UHExp.shift_line_to_suffix_block
-      | _ => UHExp.shift_line_from_suffix_block
+      | ShiftUp => UHExp.shift_line_to_suffix_block
+      | _ => UHExp.shift_line_from_suffix_block(~is_node_terminal=false)
       };
     switch (def |> shift_line(~u_gen, Block(suffix, e))) {
     | None => CantShift
-    | Some((new_def, Block(new_suffix, new_e), u_gen)) =>
+    | Some((_, None, _)) =>
+      // should not happen since let line is not terminal
+      assert(false)
+    | Some((new_def, Some(Block(new_suffix, new_e)), u_gen)) =>
       let new_zblock =
         ZExp.BlockZL(
           (
@@ -2476,17 +2490,17 @@ let rec syn_perform_block =
       Succeeded(Statics.syn_fix_holes_zblock(ctx, u_gen, new_zblock));
     };
   | (
-      ShiftLeft | ShiftRight,
+      ShiftUp | ShiftDown | ShiftLeft | ShiftRight,
       BlockZL((_, CursorL(Staging(_), LetLine(_, _, _)), _), _),
     ) =>
     CantShift
   | (
-      ShiftLeft | ShiftRight,
+      ShiftUp | ShiftDown | ShiftLeft | ShiftRight,
       BlockZL((_, CursorL(Staging(_), EmptyLine | ExpLine(_)), _), _),
     ) =>
     Failed
   | (
-      ShiftLeft | ShiftRight,
+      ShiftUp | ShiftDown,
       BlockZL(
         (
           prefix,
@@ -2506,7 +2520,7 @@ let rec syn_perform_block =
     ) =>
     let shift_line =
       switch (a) {
-      | ShiftLeft => UHExp.shift_line_from_prefix
+      | ShiftUp => UHExp.shift_line_from_prefix
       | _ => UHExp.shift_line_to_prefix
       };
     switch (block |> shift_line(prefix)) {
@@ -2527,7 +2541,7 @@ let rec syn_perform_block =
       Succeeded(Statics.syn_fix_holes_zblock(ctx, u_gen, new_zblock));
     };
   | (
-      ShiftLeft | ShiftRight,
+      ShiftUp | ShiftDown,
       BlockZL(
         (
           prefix,
@@ -2544,12 +2558,20 @@ let rec syn_perform_block =
     ) =>
     let shift_line =
       switch (a) {
-      | ShiftLeft => UHExp.shift_line_to_suffix_block
-      | _ => UHExp.shift_line_from_suffix_block
+      | ShiftUp => UHExp.shift_line_to_suffix_block
+      | _ => UHExp.shift_line_from_suffix_block(~is_node_terminal=true)
       };
     switch (block |> shift_line(~u_gen, Block(suffix, e))) {
     | None => CantShift
-    | Some((new_block, Block(new_suffix, new_e), u_gen)) =>
+    | Some((new_block, None, u_gen)) =>
+      let new_conclusion: UHExp.t =
+        switch (e_line) {
+        | Inj(err_status, side, _) => Inj(err_status, side, new_block)
+        | _ => Parenthesized(new_block)
+        };
+      let new_zblock = ZExp.BlockZE(prefix, CursorE(cursor, new_conclusion));
+      Succeeded(Statics.syn_fix_holes_zblock(ctx, u_gen, new_zblock));
+    | Some((new_block, Some(Block(new_suffix, new_e)), u_gen)) =>
       let new_e_line: UHExp.t =
         switch (e_line) {
         | Inj(err_status, side, _) => Inj(err_status, side, new_block)
@@ -2563,12 +2585,15 @@ let rec syn_perform_block =
       Succeeded(Statics.syn_fix_holes_zblock(ctx, u_gen, new_zblock));
     };
   | (
-      ShiftLeft | ShiftRight,
+      ShiftUp | ShiftDown,
       BlockZL(
         (
           prefix,
           ExpLineZ(
-            CursorE(Staging(1), Case(err_status, scrut, rules, None)),
+            CursorE(
+              Staging(1) as cursor,
+              Case(err_status, scrut, rules, None),
+            ),
           ),
           suffix,
         ),
@@ -2580,29 +2605,32 @@ let rec syn_perform_block =
     | Some((leading_rules, Rule(last_p, last_clause))) =>
       let shift_line =
         switch (a) {
-        | ShiftLeft => UHExp.shift_line_to_suffix_block
-        | _ => UHExp.shift_line_from_suffix_block
+        | ShiftUp => UHExp.shift_line_to_suffix_block
+        | _ => UHExp.shift_line_from_suffix_block(~is_node_terminal=true)
         };
       switch (last_clause |> shift_line(~u_gen, Block(suffix, e))) {
       | None => CantShift
-      | Some((new_last_clause, Block(new_suffix, new_e), u_gen)) =>
+      | Some((new_last_clause, None, u_gen)) =>
+        let new_e =
+          UHExp.Case(
+            err_status,
+            scrut,
+            leading_rules @ [Rule(last_p, new_last_clause)],
+            None,
+          );
+        let new_zblock = ZExp.BlockZE(prefix, CursorE(cursor, new_e));
+        Succeeded(Statics.syn_fix_holes_zblock(ctx, u_gen, new_zblock));
+      | Some((new_last_clause, Some(Block(new_suffix, new_e)), u_gen)) =>
+        let new_e_line =
+          UHExp.Case(
+            err_status,
+            scrut,
+            leading_rules @ [Rule(last_p, new_last_clause)],
+            None,
+          );
         let new_zblock =
           ZExp.BlockZL(
-            (
-              prefix,
-              ExpLineZ(
-                CursorE(
-                  Staging(1),
-                  Case(
-                    err_status,
-                    scrut,
-                    leading_rules @ [Rule(last_p, new_last_clause)],
-                    None,
-                  ),
-                ),
-              ),
-              new_suffix,
-            ),
+            (prefix, ExpLineZ(CursorE(cursor, new_e_line)), new_suffix),
             new_e,
           );
         Succeeded(Statics.syn_fix_holes_zblock(ctx, u_gen, new_zblock));
@@ -2669,7 +2697,7 @@ let rec syn_perform_block =
       Succeeded(Statics.syn_fix_holes_zblock(ctx, u_gen, new_zblock));
     }
   | (
-      ShiftLeft | ShiftRight,
+      ShiftUp | ShiftDown,
       BlockZE(
         leading,
         CursorE(
@@ -2680,7 +2708,7 @@ let rec syn_perform_block =
     ) =>
     let shift_line =
       switch (a) {
-      | ShiftLeft => UHExp.shift_line_from_prefix
+      | ShiftUp => UHExp.shift_line_from_prefix
       | _ => UHExp.shift_line_to_prefix
       };
     switch (block |> shift_line(leading)) {
@@ -2969,7 +2997,9 @@ let rec syn_perform_block =
   /* Zipper Cases */
   | (
       Backspace | Delete | Construct(_) | UpdateApPalette(_) | ShiftLeft |
-      ShiftRight,
+      ShiftRight |
+      ShiftUp |
+      ShiftDown,
       BlockZL(zlines, e),
     ) =>
     switch (syn_perform_lines(~ci, ctx, a, (zlines, u_gen))) {
@@ -2986,7 +3016,9 @@ let rec syn_perform_block =
     }
   | (
       Backspace | Delete | Construct(_) | UpdateApPalette(_) | ShiftLeft |
-      ShiftRight,
+      ShiftRight |
+      ShiftUp |
+      ShiftDown,
       BlockZE(lines, ze),
     ) =>
     switch (Statics.syn_lines(ctx, lines)) {
@@ -3023,7 +3055,7 @@ and syn_perform_lines =
     : result((ZExp.zlines, Contexts.t, MetaVarGen.t)) =>
   switch (a, zlines) {
   /* Staging */
-  | (ShiftLeft | ShiftRight, (_, CursorL(_, _), _)) =>
+  | (ShiftUp | ShiftDown | ShiftLeft | ShiftRight, (_, CursorL(_, _), _)) =>
     // handled at block level
     Failed
   /* Movement */
@@ -3255,7 +3287,7 @@ and syn_perform_line =
   | (_, CursorL(cursor, line)) when !ZExp.is_valid_cursor_line(cursor, line) =>
     Failed
   /* Staging */
-  | (ShiftLeft | ShiftRight, CursorL(_, _)) =>
+  | (ShiftUp | ShiftDown | ShiftLeft | ShiftRight, CursorL(_, _)) =>
     // handled at block level
     Failed
   /* Movement */
@@ -3492,6 +3524,9 @@ and syn_perform_exp =
   | (_, CursorE(cursor, e)) when !ZExp.is_valid_cursor_exp(cursor, e) =>
     Failed
   /* Staging */
+  | (ShiftUp | ShiftDown, CursorE(_, _)) =>
+    // handled at block level
+    Failed
   | (ShiftLeft | ShiftRight, CursorE(OnText(_) | OnDelim(_, _), _)) =>
     Failed
   | (
@@ -4629,7 +4664,7 @@ and ana_perform_block =
   switch (a, zblock) {
   /* Staging */
   | (
-      ShiftLeft | ShiftRight,
+      ShiftUp | ShiftDown,
       BlockZL(
         (prefix, CursorL(Staging(3), LetLine(p, ann, def)), suffix),
         e,
@@ -4637,12 +4672,13 @@ and ana_perform_block =
     ) =>
     let shift_line =
       switch (a) {
-      | ShiftLeft => UHExp.shift_line_to_suffix_block
-      | _ => UHExp.shift_line_from_suffix_block
+      | ShiftUp => UHExp.shift_line_to_suffix_block
+      | _ => UHExp.shift_line_from_suffix_block(~is_node_terminal=false)
       };
     switch (def |> shift_line(~u_gen, Block(suffix, e))) {
     | None => CantShift
-    | Some((new_def, Block(new_suffix, new_e), u_gen)) =>
+    | Some((_, None, _)) => assert(false)
+    | Some((new_def, Some(Block(new_suffix, new_e)), u_gen)) =>
       let new_zblock =
         ZExp.BlockZL(
           (
@@ -4655,7 +4691,7 @@ and ana_perform_block =
       Succeeded(Statics.ana_fix_holes_zblock(ctx, u_gen, new_zblock, ty));
     };
   | (
-      ShiftLeft | ShiftRight,
+      ShiftUp | ShiftDown | ShiftLeft | ShiftRight,
       BlockZL((_, CursorL(Staging(_), LetLine(_, _, _)), _), _),
     ) =>
     CantShift
@@ -4665,7 +4701,7 @@ and ana_perform_block =
     ) =>
     Failed
   | (
-      ShiftLeft | ShiftRight,
+      ShiftUp | ShiftDown,
       BlockZL(
         (
           prefix,
@@ -4706,13 +4742,13 @@ and ana_perform_block =
       Succeeded(Statics.ana_fix_holes_zblock(ctx, u_gen, new_zblock, ty));
     };
   | (
-      ShiftLeft | ShiftRight,
+      ShiftUp | ShiftDown,
       BlockZL(
         (
           prefix,
           ExpLineZ(
             CursorE(
-              Staging(1),
+              Staging(1) as cursor,
               (Parenthesized(block) | Inj(_, _, block)) as e_line,
             ),
           ),
@@ -4723,12 +4759,20 @@ and ana_perform_block =
     ) =>
     let shift_line =
       switch (a) {
-      | ShiftLeft => UHExp.shift_line_to_suffix_block
-      | _ => UHExp.shift_line_from_suffix_block
+      | ShiftUp => UHExp.shift_line_to_suffix_block
+      | _ => UHExp.shift_line_from_suffix_block(~is_node_terminal=true)
       };
     switch (block |> shift_line(~u_gen, Block(suffix, e))) {
     | None => CantShift
-    | Some((new_block, Block(new_suffix, new_e), u_gen)) =>
+    | Some((new_block, None, u_gen)) =>
+      let new_conclusion =
+        switch (e_line) {
+        | Inj(err_status, side, _) => UHExp.Inj(err_status, side, new_block)
+        | _ => Parenthesized(new_block)
+        };
+      let new_zblock = ZExp.BlockZE(prefix, CursorE(cursor, new_conclusion));
+      Succeeded(Statics.ana_fix_holes_zblock(ctx, u_gen, new_zblock, ty));
+    | Some((new_block, Some(Block(new_suffix, new_e)), u_gen)) =>
       let new_e_line =
         switch (e_line) {
         | Inj(err_status, side, _) => UHExp.Inj(err_status, side, new_block)
@@ -4742,12 +4786,15 @@ and ana_perform_block =
       Succeeded(Statics.ana_fix_holes_zblock(ctx, u_gen, new_zblock, ty));
     };
   | (
-      ShiftLeft | ShiftRight,
+      ShiftUp | ShiftDown,
       BlockZL(
         (
           prefix,
           ExpLineZ(
-            CursorE(Staging(1), Case(err_status, scrut, rules, None)),
+            CursorE(
+              Staging(1) as cursor,
+              Case(err_status, scrut, rules, None),
+            ),
           ),
           suffix,
         ),
@@ -4759,12 +4806,23 @@ and ana_perform_block =
     | Some((leading_rules, Rule(last_p, last_clause))) =>
       let shift_line =
         switch (a) {
-        | ShiftLeft => UHExp.shift_line_to_suffix_block
-        | _ => UHExp.shift_line_from_suffix_block
+        | ShiftUp => UHExp.shift_line_to_suffix_block
+        | _ => UHExp.shift_line_from_suffix_block(~is_node_terminal=true)
         };
       switch (last_clause |> shift_line(~u_gen, Block(suffix, e))) {
       | None => CantShift
-      | Some((new_last_clause, Block(new_suffix, new_e), u_gen)) =>
+      | Some((new_last_clause, None, u_gen)) =>
+        let new_conclusion =
+          UHExp.Case(
+            err_status,
+            scrut,
+            leading_rules @ [Rule(last_p, new_last_clause)],
+            None,
+          );
+        let new_zblock =
+          ZExp.BlockZE(prefix, CursorE(cursor, new_conclusion));
+        Succeeded(Statics.ana_fix_holes_zblock(ctx, u_gen, new_zblock, ty));
+      | Some((new_last_clause, Some(Block(new_suffix, new_e)), u_gen)) =>
         let new_zblock =
           ZExp.BlockZL(
             (
@@ -4848,7 +4906,7 @@ and ana_perform_block =
       Succeeded(Statics.ana_fix_holes_zblock(ctx, u_gen, new_zblock, ty));
     }
   | (
-      ShiftLeft | ShiftRight,
+      ShiftUp | ShiftDown,
       BlockZE(
         leading,
         CursorE(
@@ -4859,7 +4917,7 @@ and ana_perform_block =
     ) =>
     let shift_line =
       switch (a) {
-      | ShiftLeft => UHExp.shift_line_from_prefix
+      | ShiftUp => UHExp.shift_line_from_prefix
       | _ => UHExp.shift_line_to_prefix
       };
     switch (block |> shift_line(leading)) {
@@ -5158,7 +5216,9 @@ and ana_perform_block =
   /* Zipper Cases */
   | (
       Backspace | Delete | Construct(_) | UpdateApPalette(_) | ShiftLeft |
-      ShiftRight,
+      ShiftRight |
+      ShiftUp |
+      ShiftDown,
       BlockZL(zlines, e),
     ) =>
     switch (syn_perform_lines(~ci, ctx, a, (zlines, u_gen))) {
@@ -5176,7 +5236,9 @@ and ana_perform_block =
     }
   | (
       Backspace | Delete | Construct(_) | UpdateApPalette(_) | ShiftLeft |
-      ShiftRight,
+      ShiftRight |
+      ShiftUp |
+      ShiftDown,
       BlockZE(lines, ze),
     ) =>
     switch (Statics.syn_lines(ctx, lines)) {
@@ -5258,6 +5320,9 @@ and ana_perform_exp =
       }
     };
   /* Staging */
+  | (ShiftUp | ShiftDown, CursorE(_, _)) =>
+    // handled at block level
+    Failed
   | (ShiftLeft | ShiftRight, CursorE(OnText(_) | OnDelim(_, _), _)) =>
     Failed
   | (
@@ -6365,7 +6430,9 @@ let can_perform =
   | Delete
   | Backspace
   | ShiftLeft
-  | ShiftRight =>
+  | ShiftRight
+  | ShiftUp
+  | ShiftDown =>
     _TEST_PERFORM
       ? switch (syn_perform_block(~ci, ctx, a, edit_state)) {
         | Succeeded(_) => true

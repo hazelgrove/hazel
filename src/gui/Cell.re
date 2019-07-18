@@ -966,6 +966,10 @@ let view =
                   prevent_stop_inject(Update.Action.EditAction(ShiftLeft))
                 | "ArrowRight" =>
                   prevent_stop_inject(Update.Action.EditAction(ShiftRight))
+                | "ArrowUp" =>
+                  prevent_stop_inject(Update.Action.EditAction(ShiftUp))
+                | "ArrowDown" =>
+                  prevent_stop_inject(Update.Action.EditAction(ShiftDown))
                 | _ => Event.Ignore
                 }
               | (OnText(_) | OnDelim(_, _), true, _, _) => Event.Many([])
