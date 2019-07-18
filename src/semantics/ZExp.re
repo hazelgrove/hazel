@@ -654,6 +654,8 @@ and erase_rule = (zr: zrule): UHExp.rule =>
   | RuleZE(p, zblock) => Rule(p, erase_block(zblock))
   };
 
+let is_inconsistent = ze => ze |> erase |> UHExp.is_inconsistent;
+
 let rec cursor_on_opseq_block = (zblock: zblock): bool =>
   switch (zblock) {
   | BlockZL(zlines, _) => cursor_on_opseq_lines(zlines)

@@ -1041,7 +1041,7 @@ let check_valid = (x: Var.t, result: result('a)): result('a) =>
   };
 let rec syn_perform_pat =
         (ctx: Contexts.t, u_gen: MetaVarGen.t, a: t, zp: ZPat.t)
-        : result((ZPat.t, HTyp.t, Contexts.t, MetaVarGen.t)) =>
+        : result((ZPat.t, HTyp.t, Contexts.t, MetaVarGen.t)) => {
   switch (a, zp) {
   | (
       _,
@@ -1660,7 +1660,8 @@ let rec syn_perform_pat =
   | (Construct(SLine), _)
   | (Construct(SLam), _)
   | (Construct(SCase), _) => Failed
-  }
+  };
+}
 and ana_perform_pat =
     (ctx: Contexts.t, u_gen: MetaVarGen.t, a: t, zp: ZPat.t, ty: HTyp.t)
     : result((ZPat.t, Contexts.t, MetaVarGen.t)) =>
@@ -5239,14 +5240,8 @@ and ana_perform_exp =
     Failed
   | (_, CursorE(cursor, e)) when !ZExp.is_valid_cursor_exp(cursor, e) =>
     Failed
-  /* TODO add opseq, do something similar to ana_perform_pat */
-  | (_, CursorE(_, Var(InHole(TypeInconsistent, _) as err, _, _)))
-  | (_, CursorE(_, NumLit(InHole(TypeInconsistent, _) as err, _)))
-  | (_, CursorE(_, BoolLit(InHole(TypeInconsistent, _) as err, _)))
-  | (_, CursorE(_, ListNil(InHole(TypeInconsistent, _) as err)))
-  | (_, CursorE(_, Lam(InHole(TypeInconsistent, _) as err, _, _, _)))
-  | (_, CursorE(_, Inj(InHole(TypeInconsistent, _) as err, _, _)))
-  | (_, CursorE(_, Case(InHole(TypeInconsistent, _) as err, _, _, _))) =>
+  | (_, _) when ZExp.is_inconsistent(ze) =>
+    let err = ze |> ZExp.get_err_status_t;
     let ze' = ZExp.set_err_status_t(NotInHole, ze);
     let e' = ZExp.erase(ze');
     switch (Statics.syn_exp(ctx, e')) {

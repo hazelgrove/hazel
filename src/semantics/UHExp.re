@@ -239,6 +239,12 @@ and set_err_status_opseq =
   | BinOp(_, op, skel1, skel2) => (BinOp(err, op, skel1, skel2), seq)
   };
 
+let is_inconsistent = e =>
+  switch (e |> get_err_status_t) {
+  | InHole(TypeInconsistent, _) => true
+  | _ => false
+  };
+
 let rec make_block_inconsistent =
         (u_gen: MetaVarGen.t, block: block): (block, MetaVarGen.t) => {
   let (u, u_gen) = MetaVarGen.next(u_gen);
