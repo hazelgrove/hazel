@@ -357,10 +357,10 @@ let indicators = (model: Model.t) => {
             shift_target_indices :=
               (
                 switch (shift_target_indices^ |> split_last) {
-                | None => shift_target_indices^ @ [List.length(empty_lines)]
+                | None => [1 + List.length(empty_lines)]
                 | Some((_, last_index)) =>
                   shift_target_indices^
-                  @ [last_index + List.length(empty_lines)]
+                  @ [last_index + 1 + List.length(empty_lines)]
                 }
               );
             remaining := rest;
