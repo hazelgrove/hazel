@@ -77,10 +77,9 @@ let lam =
 let case =
     (
       ~err_status: err_status=NotInHole,
+      ~ann: option(UHTyp.t)=?,
       scrut: block,
       rules: rules,
-      ~ann: option(UHTyp.t)=?,
-      (),
     )
     : t =>
   Case(err_status, scrut, rules, ann);

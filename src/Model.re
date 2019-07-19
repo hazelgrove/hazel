@@ -6,9 +6,6 @@ module ZList = GeneralUtil.ZList;
 let init_cardstack = TestCards.cardstack;
 
 [@deriving sexp]
-type edit_state = (ZExp.zblock, HTyp.t, MetaVarGen.t);
-
-[@deriving sexp]
 type result = (
   Dynamics.DHExp.t,
   Dynamics.DHExp.HoleInstanceInfo.t,
@@ -30,6 +27,8 @@ type context_inspector = {
 
 type user_newlines = Path.StepsMap.t(unit);
 
+type edit_state = Statics.edit_state;
+
 type card_state = {
   card: Card.t,
   edit_state,
@@ -40,13 +39,14 @@ type cardstack_state = ZList.t(card_state, card_state);
 let mk_cardstack_state = cardstack => {
   let card_states =
     List.map(
-      card => {
-        let (u, u_gen) = MetaVarGen.next(MetaVarGen.init);
-        let zblock =
-          ZExp.wrap_in_block(ZExp.place_before_exp(EmptyHole(u)));
-        let edit_state = (zblock, HTyp.Hole, u_gen);
-        {card, edit_state};
-      },
+      card =>
+        {
+          card,
+          edit_state:
+            card.init_block
+            |> ZExp.place_before_block
+            |> Statics.fix_and_renumber_holes_z(card.init_ctx),
+        },
       cardstack,
     );
   GeneralUtil.Opt.get(

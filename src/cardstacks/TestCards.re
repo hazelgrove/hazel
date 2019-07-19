@@ -1,4 +1,6 @@
 module Vdom = Virtual_dom.Vdom;
+open OperatorSeq;
+open OpSeqUtil;
 
 let span = Vdom.Node.span;
 let txt = Vdom.Node.text;
@@ -33,12 +35,69 @@ let cardstack: CardStack.t =
               " representing the critical hit multiplier. The output type of ",
             ),
             code("Num"),
-            txt(
-              " is the damage points inflicted upon the current player. "
-              ++ "Take a moment to understand the current implementation, "
-              ++ "then click \'Next\' when you are ready to begin the exercise.",
+            txt(" is the damage points inflicted upon the current player."),
+            Node.p(
+              [],
+              [
+                txt(
+                  "Take a moment to understand the current implementation, "
+                  ++ "then click \'Next\' when you are ready to begin the exercise.",
+                ),
+              ],
             ),
           ],
+        ),
+      init_ctx: Contexts.empty,
+      init_block:
+        UHExp.Block(
+          [
+            UHExp.letline(
+              UHPat.var("y"),
+              ~ann=
+                UHTyp.(
+                  ExpOpExp(
+                    Parenthesized(ExpOpExp(Bool, Prod, Num) |> Typ.mk_OpSeq),
+                    Arrow,
+                    Num,
+                  )
+                  |> Typ.mk_OpSeq
+                ),
+              UHExp.(
+                wrap_in_block(
+                  lam(
+                    UHPat.(
+                      Parenthesized(
+                        ExpOpExp(var("isMelee"), Comma, var("critHit"))
+                        |> Pat.mk_OpSeq,
+                      )
+                    ),
+                    wrap_in_block(
+                      case(
+                        var("isMelee") |> wrap_in_block,
+                        [
+                          Rule(
+                            UHPat.boollit(false),
+                            numlit(5) |> wrap_in_block,
+                          ),
+                          Rule(
+                            UHPat.boollit(true),
+                            SeqOpExp(
+                              ExpOpExp(numlit(2), Times, var("critHit")),
+                              Plus,
+                              numlit(1),
+                            )
+                            |> Exp.mk_OpSeq
+                            |> wrap_in_block,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                )
+              ),
+            ),
+          ],
+          EmptyHole(-1),
         ),
     },
     {
@@ -64,5 +123,9 @@ let cardstack: CardStack.t =
             txt("."),
           ],
         ),
+      init_ctx: Contexts.empty,
+      init_block:
+        // TODO
+        UHExp.EmptyHole(-1) |> UHExp.wrap_in_block,
     },
   ];

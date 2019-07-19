@@ -67,7 +67,6 @@ let map_example: UHExp.block = {
             ),
           ),
         ],
-        (),
       )
     );
   let lam_node =
@@ -129,7 +128,6 @@ let qsort_example: UHExp.block = {
             ),
           ),
         ],
-        (),
       )
     );
   let append_lam =
@@ -229,12 +227,10 @@ let qsort_example: UHExp.block = {
                     ),
                   ),
                 ],
-                (),
               ),
             ),
           ),
         ],
-        (),
       )
     );
   let partition_lam =

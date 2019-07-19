@@ -1,6 +1,9 @@
 open SemanticsCommon;
 open GeneralUtil;
 
+[@deriving sexp]
+type edit_state = (ZExp.zblock, HTyp.t, MetaVarGen.t);
+
 /* see syn_skel and ana_skel below */
 type type_mode =
   | AnalyzedAgainst(HTyp.t)
@@ -2125,3 +2128,11 @@ let fix_and_renumber_holes =
     ~renumber_empty_holes=true,
     block,
   );
+
+let fix_and_renumber_holes_z =
+    (ctx: Contexts.t, zblock: ZExp.zblock): edit_state => {
+  let (block, ty, u_gen) =
+    fix_and_renumber_holes(ctx, zblock |> ZExp.erase_block);
+  let zblock = Path.follow_block_or_fail(Path.of_zblock(zblock), block);
+  (zblock, ty, u_gen);
+};
