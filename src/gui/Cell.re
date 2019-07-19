@@ -239,6 +239,13 @@ let rec subject_block_shifted_to_suffix_block_chunk_sizes =
     );
   };
 
+[@deriving sexp]
+type vertical_alignment =
+  | Above
+  | Below
+  | MidAbove
+  | MidBelow;
+
 let vertical_shift_targets_in_subject = (model: Model.t) => {
   switch (
     model.cursor_info.position,
@@ -278,10 +285,10 @@ let vertical_shift_targets_in_subject = (model: Model.t) => {
     subject_block_shift_target_indices
     |> List.map(i =>
          i >= num_subject_lines
-           ? (steps_of_subject_block @ [num_subject_lines - 1], After)
-           : (steps_of_subject_block @ [i], Before)
+           ? (steps_of_subject_block @ [num_subject_lines - 1], MidBelow)
+           : (steps_of_subject_block @ [i], Above)
        )
-    |> List.map(((target_steps, target_side)) =>
+    |> List.map(((target_steps, target_alignment)) =>
          Vdom.(
            Node.div(
              [
@@ -292,7 +299,9 @@ let vertical_shift_targets_in_subject = (model: Model.t) => {
                ),
                Attr.create(
                  "target-side",
-                 Sexp.to_string(sexp_of_side(target_side)),
+                 Sexp.to_string(
+                   sexp_of_vertical_alignment(target_alignment),
+                 ),
                ),
              ],
              [],
@@ -302,7 +311,7 @@ let vertical_shift_targets_in_subject = (model: Model.t) => {
   | (
       Staging(1),
       Exp(Parenthesized(block) | Inj(_, _, block)),
-      ExpFrame(_, None, Some(suffix_block)),
+      ExpFrame(_, None, suffix_block),
     ) =>
     let steps_of_subject_block = (model |> Model.steps) @ [0];
     let index_of_current_subject_line =
@@ -311,7 +320,7 @@ let vertical_shift_targets_in_subject = (model: Model.t) => {
       subject_block_shifted_to_suffix_block_chunk_sizes(
         ~u_gen=model |> Model.u_gen,
         block,
-        Some(suffix_block),
+        suffix_block,
       )
       |> List.fold_left(
            (shift_target_indices, chunk_size) =>
@@ -327,10 +336,10 @@ let vertical_shift_targets_in_subject = (model: Model.t) => {
     subject_block_shift_target_indices
     |> List.map(i =>
          i < 0
-           ? (steps_of_subject_block @ [0], Before)
-           : (steps_of_subject_block @ [i], After)
+           ? (steps_of_subject_block @ [0], MidAbove)
+           : (steps_of_subject_block @ [i], Below)
        )
-    |> List.map(((target_steps, target_side)) =>
+    |> List.map(((target_steps, target_alignment)) =>
          Vdom.(
            Node.div(
              [
@@ -341,7 +350,9 @@ let vertical_shift_targets_in_subject = (model: Model.t) => {
                ),
                Attr.create(
                  "target-side",
-                 Sexp.to_string(sexp_of_side(target_side)),
+                 Sexp.to_string(
+                   sexp_of_vertical_alignment(target_alignment),
+                 ),
                ),
              ],
              [],
@@ -531,7 +542,7 @@ let vertical_shift_targets_in_frame = (model: Model.t) => {
                ),
                Attr.create(
                  "target-side",
-                 Sexp.to_string(sexp_of_side(Before)),
+                 Sexp.to_string(sexp_of_vertical_alignment(Above)),
                ),
              ],
              [],
@@ -596,7 +607,7 @@ let vertical_shift_targets_in_frame = (model: Model.t) => {
                ),
                Attr.create(
                  "target-side",
-                 Sexp.to_string(sexp_of_side(After)),
+                 Sexp.to_string(sexp_of_vertical_alignment(Below)),
                ),
              ],
              [],
@@ -606,6 +617,7 @@ let vertical_shift_targets_in_frame = (model: Model.t) => {
   | (Staging(_), Line(_) | Exp(_), ExpFrame(_, _, _)) => []
   };
 };
+
 let child_indicators = (model: Model.t) => {
   let child_indices =
     model.cursor_info |> CursorInfo.child_indices_of_current_node;
@@ -993,7 +1005,7 @@ let draw_multi_line_seq_term_indicator = (steps, (a, b), opseq_elem) => {
      });
 };
 
-let steps_and_side_of_shift_target_elem = shift_target_elem => (
+let steps_and_side_of_horizontal_shift_target_elem = shift_target_elem => (
   shift_target_elem
   |> JSUtil.force_get_attr("target-steps")
   |> Sexp.of_string
@@ -1002,6 +1014,17 @@ let steps_and_side_of_shift_target_elem = shift_target_elem => (
   |> JSUtil.force_get_attr("target-side")
   |> Sexp.of_string
   |> side_of_sexp,
+);
+
+let steps_and_alignment_of_vertical_shift_target_elem = shift_target_elem => (
+  shift_target_elem
+  |> JSUtil.force_get_attr("target-steps")
+  |> Sexp.of_string
+  |> Path.steps_of_sexp,
+  shift_target_elem
+  |> JSUtil.force_get_attr("target-side")
+  |> Sexp.of_string
+  |> vertical_alignment_of_sexp,
 );
 
 let horizontal_rail_left = ref(Float.max_float);
@@ -1094,7 +1117,7 @@ let draw_shift_targets = (~cursor_info, sdelim_elem) => {
   @ JSUtil.get_elems_with_cls("horizontal-shift-target-in-frame")
   |> List.iter(target_elem => {
        let (target_steps, target_side) =
-         steps_and_side_of_shift_target_elem(target_elem);
+         steps_and_side_of_horizontal_shift_target_elem(target_elem);
        {
          switch (
            Dom_html.document##getElementById(
@@ -1127,8 +1150,8 @@ let draw_shift_targets = (~cursor_info, sdelim_elem) => {
   JSUtil.get_elems_with_cls("vertical-shift-target-in-subject")
   @ JSUtil.get_elems_with_cls("vertical-shift-target-in-frame")
   |> List.iter(target_elem => {
-       let (target_steps, target_side) =
-         steps_and_side_of_shift_target_elem(target_elem);
+       let (target_steps, target_alignment) =
+         steps_and_alignment_of_vertical_shift_target_elem(target_elem);
        {
          switch (
            Dom_html.document##getElementById(
@@ -1143,9 +1166,11 @@ let draw_shift_targets = (~cursor_info, sdelim_elem) => {
        let snode_elem = Code.force_get_snode_elem(target_steps);
        let rect = snode_elem |> get_relative_bounding_rect;
        let ypos =
-         switch (target_side) {
-         | Before => rect.top
-         | After => rect.bottom
+         switch (target_alignment) {
+         | Above => rect.top
+         | Below => rect.bottom
+         | MidAbove => rect.top -. 18.0 // TODO remove magic numbers
+         | MidBelow => rect.bottom +. 18.0
          };
        target_elem
        |> place_vertical_shift_target({
