@@ -395,6 +395,8 @@ let child_indices_rule =
   fun
   | Rule(_, _) => [0, 1];
 
+let num_lines_in_block = (Block(leading, _)) => List.length(leading) + 1;
+
 [@deriving sexp]
 type exp_or_block =
   | E(t)
@@ -434,7 +436,7 @@ let rec first_contiguous_empty_lines_and_nonempty_line =
   | [nonempty_line, ...rest] => ([], Some(nonempty_line), rest)
   };
 
-let last_nonempty_line_and_trailing_continguous_empty_lines = lines => {
+let last_nonempty_line_and_trailing_contiguous_empty_lines = lines => {
   List.fold_right(
     (line, (prefix, nonempty_line, empty_lines)) =>
       switch (line, nonempty_line) {
@@ -468,7 +470,7 @@ let shift_line_to_prefix =
 
 let shift_line_from_prefix =
     (prefix: lines, Block(leading, conclusion)): option((lines, block)) =>
-  switch (prefix |> last_nonempty_line_and_trailing_continguous_empty_lines) {
+  switch (prefix |> last_nonempty_line_and_trailing_contiguous_empty_lines) {
   | (_, None, empty_lines) =>
     Some(([], Block(empty_lines @ leading, conclusion)))
   | (prefix, Some(nonempty_line), empty_lines) =>

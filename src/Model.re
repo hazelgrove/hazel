@@ -59,6 +59,11 @@ let steps = model => {
   steps;
 };
 
+let u_gen = model => {
+  let (_, _, u_gen) = model.edit_state;
+  u_gen;
+};
+
 exception MissingCursorInfo;
 let cursor_info_of_edit_state = ((zblock, _, _): edit_state): CursorInfo.t =>
   switch (

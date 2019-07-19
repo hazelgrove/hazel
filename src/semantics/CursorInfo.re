@@ -91,7 +91,7 @@ type node =
 type frame =
   | TypFrame(option(ZTyp.opseq_surround))
   | PatFrame(option(ZPat.opseq_surround))
-  | ExpFrame(UHExp.lines, option(ZExp.opseq_surround), UHExp.lines);
+  | ExpFrame(UHExp.lines, option(ZExp.opseq_surround), option(UHExp.block));
 
 [@deriving sexp]
 type term =
@@ -126,9 +126,18 @@ let update_node = (ci: t, node): t => {
 
 let is_concluding_let_line = ci =>
   switch (ci.node, ci.frame) {
-  | (Line(LetLine(_, _, _)), ExpFrame(_, None, [ExpLine(EmptyHole(_))])) =>
+  | (
+      Line(LetLine(_, _, _)),
+      ExpFrame(_, None, Some(Block([], EmptyHole(_)))),
+    ) =>
     true
   | (_, _) => false
+  };
+
+let is_staging = ci =>
+  switch (ci.position) {
+  | Staging(_) => true
+  | _ => false
   };
 
 let is_before_node = ci =>
@@ -638,7 +647,7 @@ let rec syn_cursor_info_block =
     | None => None
     | Some(ctx) =>
       syn_cursor_info_line(
-        ~frame=(prefix, None, suffix @ [ExpLine(conclusion)]),
+        ~frame=(prefix, None, Some(UHExp.Block(suffix, conclusion))),
         ctx,
         zline,
       )
@@ -646,7 +655,7 @@ let rec syn_cursor_info_block =
   | BlockZE(lines, ze) =>
     switch (Statics.syn_lines(ctx, lines)) {
     | None => None
-    | Some(ctx) => syn_cursor_info(~frame=(lines, None, []), ctx, ze)
+    | Some(ctx) => syn_cursor_info(~frame=(lines, None, None), ctx, ze)
     }
   }
 and syn_cursor_info_line =
@@ -779,7 +788,7 @@ and ana_cursor_info_block =
     | None => None
     | Some(ctx) =>
       syn_cursor_info_line(
-        ~frame=(prefix, None, suffix @ [ExpLine(conclusion)]),
+        ~frame=(prefix, None, Some(Block(suffix, conclusion))),
         ctx,
         zline,
       )
@@ -787,7 +796,7 @@ and ana_cursor_info_block =
   | BlockZE(lines, ze) =>
     switch (Statics.syn_lines(ctx, lines)) {
     | None => None
-    | Some(ctx) => ana_cursor_info(~frame=(lines, None, []), ctx, ze, ty)
+    | Some(ctx) => ana_cursor_info(~frame=(lines, None, None), ctx, ze, ty)
     }
   }
 and ana_cursor_info =
@@ -881,7 +890,7 @@ and ana_cursor_info_rule =
       mk_cursor_info(
         OnRule,
         Rule(rule),
-        ExpFrame([], None, []),
+        ExpFrame([], None, None),
         cursor,
         ctx,
       ),
