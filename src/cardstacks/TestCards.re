@@ -123,7 +123,61 @@ let cardstack: CardStack.t =
           ],
         ),
       init_block:
-        // TODO
-        UHExp.EmptyHole(-1) |> UHExp.wrap_in_block,
+        UHExp.Block(
+          [
+            UHExp.letline(
+              UHPat.var("defenseScore"),
+              ~ann=UHTyp.Num,
+              UHExp.EmptyHole(-1) |> UHExp.wrap_in_block,
+            ),
+            UHExp.EmptyLine,
+            UHExp.letline(
+              UHPat.var("y"),
+              ~ann=
+                UHTyp.(
+                  ExpOpExp(
+                    Parenthesized(ExpOpExp(Bool, Prod, Num) |> Typ.mk_OpSeq),
+                    Arrow,
+                    Num,
+                  )
+                  |> Typ.mk_OpSeq
+                ),
+              UHExp.(
+                wrap_in_block(
+                  lam(
+                    UHPat.(
+                      Parenthesized(
+                        ExpOpExp(var("isMelee"), Comma, var("critHit"))
+                        |> Pat.mk_OpSeq,
+                      )
+                    ),
+                    wrap_in_block(
+                      case(
+                        var("isMelee") |> wrap_in_block,
+                        [
+                          Rule(
+                            UHPat.boollit(false),
+                            numlit(5) |> wrap_in_block,
+                          ),
+                          Rule(
+                            UHPat.boollit(true),
+                            SeqOpExp(
+                              ExpOpExp(numlit(2), Times, var("critHit")),
+                              Plus,
+                              numlit(1),
+                            )
+                            |> Exp.mk_OpSeq
+                            |> wrap_in_block,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                )
+              ),
+            ),
+          ],
+          EmptyHole(-1),
+        ),
     },
   ];
