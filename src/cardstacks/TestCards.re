@@ -47,7 +47,6 @@ let cardstack: CardStack.t =
             ),
           ],
         ),
-      init_ctx: Contexts.empty,
       init_block:
         UHExp.Block(
           [
@@ -123,7 +122,6 @@ let cardstack: CardStack.t =
             txt("."),
           ],
         ),
-      init_ctx: Contexts.empty,
       init_block:
         // TODO
         UHExp.EmptyHole(-1) |> UHExp.wrap_in_block,

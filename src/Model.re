@@ -45,7 +45,7 @@ let mk_cardstack_state = cardstack => {
           edit_state:
             card.init_block
             |> ZExp.place_before_block
-            |> Statics.fix_and_renumber_holes_z(card.init_ctx),
+            |> Statics.fix_and_renumber_holes_z(Contexts.empty),
         },
       cardstack,
     );
