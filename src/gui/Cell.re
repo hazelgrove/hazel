@@ -1514,6 +1514,10 @@ let view =
                     ),
                   )
                 }
+              | (Staging(_), _, _, Some(Escape)) =>
+                prevent_stop_inject(
+                  Update.Action.EditAction(Hashtbl.find(kc_actions, Enter)),
+                )
               | (_, _, _, Some(kc)) =>
                 prevent_stop_inject(
                   Update.Action.EditAction(Hashtbl.find(kc_actions, kc)),

@@ -457,6 +457,7 @@ module KeyCombo = {
   };
 
   type t =
+    | Escape
     | Backspace
     | Delete
     | ShiftTab
@@ -485,6 +486,7 @@ module KeyCombo = {
 
   let get_details =
     fun
+    | Escape => Details.escape
     | Backspace => Details.backspace
     | Delete => Details.delete
     | ShiftTab => Details.shift_tab
@@ -513,7 +515,9 @@ module KeyCombo = {
 
   let of_evt = (evt: Js.t(Dom_html.keyboardEvent)): option(t) => {
     let evt_matches = details => Details.matches(details, evt);
-    if (evt_matches(Details.backspace)) {
+    if (evt_matches(Details.escape)) {
+      Some(Escape);
+    } else if (evt_matches(Details.backspace)) {
       Some(Backspace);
     } else if (evt_matches(Details.delete)) {
       Some(Delete);
