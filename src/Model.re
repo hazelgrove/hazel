@@ -3,7 +3,7 @@ open GeneralUtil;
 
 module ZList = GeneralUtil.ZList;
 
-let init_cardstack = TestCards.cardstack;
+let init_cardstack = RCStudyCards.cardstack;
 
 [@deriving sexp]
 type result = (
