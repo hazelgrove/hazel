@@ -255,12 +255,14 @@ let update_cardstack_state = (model, cardstack_state) => {
   let result_state =
     result_state_of_edit_state(edit_state, model.compute_results_flag);
   let cursor_info = cursor_info_of_edit_state(edit_state);
+  let user_newlines = Path.StepsMap.empty;
   {
     ...model,
 
     cardstack_state,
     result_state,
     cursor_info,
+    user_newlines,
   };
 };
 
