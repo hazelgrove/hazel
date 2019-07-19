@@ -6,27 +6,6 @@ module ZList = GeneralUtil.ZList;
 let init_cardstack = RCStudyCards.cardstack;
 let init_compute_results_flag = false;
 
-[@deriving sexp]
-type result = (
-  Dynamics.DHExp.t,
-  Dynamics.DHExp.HoleInstanceInfo.t,
-  Dynamics.Evaluator.result,
-);
-
-module UserSelectedInstances = {
-  [@deriving sexp]
-  type t = MetaVarMap.t(Dynamics.inst_num);
-  let init = MetaVarMap.empty;
-  let update = (usi, inst) => MetaVarMap.insert_or_update(usi, inst);
-};
-
-[@deriving sexp]
-type context_inspector = {
-  next_state: option(Dynamics.DHExp.HoleInstance.t),
-  prev_state: option(Dynamics.DHExp.HoleInstance.t),
-};
->>>>>>> 0db6b56aa016213c670c22e0c3df0015760a72cf
-
 type user_newlines = Path.StepsMap.t(unit);
 
 type edit_state = Statics.edit_state;
