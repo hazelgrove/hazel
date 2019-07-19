@@ -1721,12 +1721,21 @@ let snode_of_ListNil = (~cursor=?, ~err_status, ~steps, ()): snode =>
   );
 
 let snode_of_LetLine =
-    (~cursor=?, ~steps, sp: snode, sann: option(snode), sdef: snode) =>
+    (~cursor=?, ~steps, ~def=?, sp: snode, sann: option(snode), sdef: snode) =>
   mk_SBox(
     ~cursor?,
     ~steps,
     ~shape=LetLine,
-    ~is_multi_line=is_multi_line(sdef),
+    ~is_multi_line=
+      switch (cursor) {
+      | Some(Staging(3)) =>
+        switch (def) {
+        | Some(UHExp.Block([], EmptyHole(_))) => false
+        | _ => true
+        }
+      | Some(_)
+      | None => is_multi_line(sdef)
+      },
     [
       mk_SLine(
         ~steps_of_first_sword=steps,
@@ -2208,7 +2217,7 @@ and snode_of_line_item =
       | Some(ann) => Some(snode_of_typ(~steps=steps @ [1], ann))
       };
     let sdef = snode_of_block(~steps=steps @ [2], def);
-    snode_of_LetLine(~cursor?, ~steps, sp, sann, sdef);
+    snode_of_LetLine(~cursor?, ~steps, ~def, sp, sann, sdef);
   }
 and snode_of_exp = (~cursor=?, ~steps: Path.steps=[], e: UHExp.t): snode =>
   switch (e) {
