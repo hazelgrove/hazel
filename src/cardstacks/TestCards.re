@@ -41,5 +41,28 @@ let cardstack: CardStack.t =
           ],
         ),
     },
-    {caption: Node.span([], [Node.text("Test 2")])},
+    {
+      caption:
+        span(
+          [],
+          [
+            txt("Suppose we have in scope the current player's"),
+            code(" defenseScore : Num "),
+            txt(
+              "and wish to integrate it into the damage calculation. "
+              ++ "Modify the body of ",
+            ),
+            code("damage"),
+            txt(" so that the "),
+            code("case"),
+            txt(" expression is bound to a new variable called "),
+            code("attackScore"),
+            txt(", then return twice the difference between "),
+            code("attackScore"),
+            txt(" and "),
+            code("defenseScore"),
+            txt("."),
+          ],
+        ),
+    },
   ];
