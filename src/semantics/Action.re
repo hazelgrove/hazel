@@ -2523,9 +2523,9 @@ let rec syn_perform_block =
       | ShiftUp => UHExp.shift_line_from_prefix
       | _ => UHExp.shift_line_to_prefix
       };
-    switch (block |> shift_line(prefix)) {
+    switch (block |> shift_line(~u_gen, prefix)) {
     | None => CantShift
-    | Some((new_prefix, new_block)) =>
+    | Some((new_prefix, new_block, u_gen)) =>
       let new_e_line =
         switch (e_line) {
         | Inj(err_status, side, _) => UHExp.Inj(err_status, side, new_block)
@@ -2711,9 +2711,9 @@ let rec syn_perform_block =
       | ShiftUp => UHExp.shift_line_from_prefix
       | _ => UHExp.shift_line_to_prefix
       };
-    switch (block |> shift_line(leading)) {
+    switch (block |> shift_line(~u_gen, leading)) {
     | None => CantShift
-    | Some((new_leading, new_block)) =>
+    | Some((new_leading, new_block, u_gen)) =>
       let new_conclusion =
         switch (conclusion) {
         | Inj(err_status, side, _) => UHExp.Inj(err_status, side, new_block)
@@ -4724,9 +4724,9 @@ and ana_perform_block =
       | ShiftLeft => UHExp.shift_line_from_prefix
       | _ => UHExp.shift_line_to_prefix
       };
-    switch (block |> shift_line(prefix)) {
+    switch (block |> shift_line(~u_gen, prefix)) {
     | None => CantShift
-    | Some((new_prefix, new_block)) =>
+    | Some((new_prefix, new_block, u_gen)) =>
       let new_e_line =
         switch (e_line) {
         | Inj(err_status, side, _) => UHExp.Inj(err_status, side, new_block)
@@ -4920,9 +4920,9 @@ and ana_perform_block =
       | ShiftUp => UHExp.shift_line_from_prefix
       | _ => UHExp.shift_line_to_prefix
       };
-    switch (block |> shift_line(leading)) {
+    switch (block |> shift_line(~u_gen, leading)) {
     | None => CantShift
-    | Some((new_leading, new_block)) =>
+    | Some((new_leading, new_block, u_gen)) =>
       let new_conclusion =
         switch (conclusion) {
         | Inj(err_status, side, _) => UHExp.Inj(err_status, side, new_block)

@@ -118,105 +118,238 @@ let single_line_seq_indicators = is_active => {
 };
 
 let horizontal_shift_targets_in_subject = (model: Model.t) => {
-  let indices =
-    switch (model.cursor_info.position, model.cursor_info.node) {
-    | (
-        Staging(k),
-        Typ(List(OpSeq(_, seq)) | Parenthesized(OpSeq(_, seq))),
-      ) =>
-      k == 0
-        ? range(~lo=1, seq |> OperatorSeq.seq_length)
-        : range((seq |> OperatorSeq.seq_length) - 1)
-    | (
-        Staging(k),
-        Pat(Inj(_, _, OpSeq(_, seq)) | Parenthesized(OpSeq(_, seq))),
-      ) =>
-      k == 0
-        ? range(~lo=1, seq |> OperatorSeq.seq_length)
-        : range((seq |> OperatorSeq.seq_length) - 1)
-    | (
-        Staging(k),
-        Exp(
+  switch (model.cursor_info.position, model.cursor_info.node) {
+  | (OnText(_) | OnDelim(_, _), _) => []
+  | (Staging(k), Typ(List(OpSeq(_, _)) | Parenthesized(OpSeq(_, _))))
+  | (
+      Staging(k),
+      Pat(Inj(_, _, OpSeq(_, _)) | Parenthesized(OpSeq(_, _))),
+    )
+  | (
+      Staging(k),
+      Exp(
+        Inj(_, _, Block([], OpSeq(_, _))) |
+        Parenthesized(Block([], OpSeq(_, _))),
+      ),
+    ) =>
+    let steps_of_subject_seq =
+      switch (model.cursor_info.node) {
+      | Line(_)
+      | Rule(_) => assert(false)
+      | Typ(_)
+      | Pat(_) => (model |> Model.steps) @ [0]
+      | Exp(_) => (model |> Model.steps) @ [0, 0]
+      };
+    let subject_indices =
+      switch (model.cursor_info.node) {
+      | Typ(List(OpSeq(_, seq)) | Parenthesized(OpSeq(_, seq))) =>
+        k == 0
+          ? range(~lo=1, seq |> OperatorSeq.seq_length)
+          : range((seq |> OperatorSeq.seq_length) - 1)
+      | Pat(Inj(_, _, OpSeq(_, seq)) | Parenthesized(OpSeq(_, seq))) =>
+        k == 0
+          ? range(~lo=1, seq |> OperatorSeq.seq_length)
+          : range((seq |> OperatorSeq.seq_length) - 1)
+      | Exp(
           Inj(_, _, Block([], OpSeq(_, seq))) |
           Parenthesized(Block([], OpSeq(_, seq))),
-        ),
-      ) =>
-      k == 0
-        ? range(~lo=1, seq |> OperatorSeq.seq_length)
-        : range((seq |> OperatorSeq.seq_length) - 1)
-    | _ => []
-    };
-  indices
-  |> List.map(i =>
-       Vdom.(
-         Node.div(
-           [
-             Attr.id(horizontal_shift_target_in_subject_id(i)),
-             Attr.classes([
-               "horizontal-shift-target-in-subject",
-               switch (model.cursor_info.position) {
-               | OnText(_)
-               | OnDelim(_, _) => "inactive"
-               | Staging(_) => "active"
-               },
-             ]),
-           ],
-           [],
+        ) =>
+        k == 0
+          ? range(~lo=1, seq |> OperatorSeq.seq_length)
+          : range((seq |> OperatorSeq.seq_length) - 1)
+      | _ => assert(false)
+      };
+    subject_indices
+    |> List.map(i => steps_of_subject_seq @ [i])
+    |> List.map(target_steps =>
+         Vdom.(
+           Node.div(
+             [
+               Attr.classes(["horizontal-shift-target-in-subject"]),
+               Attr.create(
+                 "target-steps",
+                 Sexp.to_string(Path.sexp_of_steps(target_steps)),
+               ),
+               Attr.create(
+                 "target-side",
+                 Sexp.to_string(sexp_of_side(k == 0 ? Before : After)),
+               ),
+             ],
+             [],
+           )
          )
-       )
-     );
+       );
+  | (_, _) => []
+  };
 };
 
-let vertical_shift_targets_in_subject = (model: Model.t) => {
-  let shift_target_indices =
-    switch (model.cursor_info.position, model.cursor_info.node) {
-    | (
-        Staging(0),
-        Exp(
-          Case(_, block, _, _) | Parenthesized(block) | Inj(_, _, block),
-        ),
-      ) =>
-      let Block(leading, _) = block;
-      let remaining = ref(leading);
-      let shift_target_indices = ref([]);
-      while (remaining^ |> List.length > 0) {
-        let (_, empty_lines, rest) =
-          remaining^
-          |> UHExp.first_line_and_trailing_contiguous_empty_lines
-          |> Opt.get(() => assert(false));
-        shift_target_indices :=
-          (
-            switch (shift_target_indices^ |> split_last) {
-            | None => [1 + List.length(empty_lines)]
-            | Some((_, last_index)) =>
-              shift_target_indices^
-              @ [last_index + 1 + List.length(empty_lines)]
-            }
-          );
-        remaining := rest;
+let rec subject_block_shifted_to_prefix_chunk_sizes =
+        (~u_gen: MetaVarGen.t, ~chunk_sizes=[], prefix, subject_block)
+        : list(int) =>
+  switch (subject_block |> UHExp.shift_line_to_prefix(~u_gen, prefix)) {
+  | None => chunk_sizes |> List.rev
+  | Some((new_prefix, new_subject_block, u_gen)) =>
+    let num_shifted_lines =
+      switch (subject_block, new_subject_block) {
+      | (Block(_, EmptyHole(_)), Block(_, EmptyHole(_))) =>
+        UHExp.num_lines_in_block(subject_block)
+        - UHExp.num_lines_in_block(new_subject_block)
+      | (Block(_, _), Block(_, EmptyHole(_))) =>
+        UHExp.num_lines_in_block(subject_block)
+        - UHExp.num_lines_in_block(new_subject_block)
+        + 1
+      | (Block(_, _), Block(_, _)) =>
+        UHExp.num_lines_in_block(subject_block)
+        - UHExp.num_lines_in_block(new_subject_block)
       };
-      shift_target_indices^;
-    | (_, _) => []
-    };
-  shift_target_indices
-  |> List.map(i =>
-       Vdom.(
-         Node.div(
-           [
-             Attr.id(vertical_shift_target_in_subject_id(i)),
-             Attr.classes([
-               "vertical-shift-target-in-subject",
-               switch (model.cursor_info.position) {
-               | OnText(_)
-               | OnDelim(_, _) => "inactive"
-               | Staging(_) => "active"
-               },
-             ]),
-           ],
+    subject_block_shifted_to_prefix_chunk_sizes(
+      ~u_gen,
+      ~chunk_sizes=[num_shifted_lines, ...chunk_sizes],
+      new_prefix,
+      new_subject_block,
+    );
+  };
+
+let rec subject_block_shifted_to_suffix_block_chunk_sizes =
+        (~u_gen, ~chunk_sizes=[], subject_block, suffix_block): list(int) =>
+  switch (
+    subject_block |> UHExp.shift_line_to_suffix_block(~u_gen, suffix_block)
+  ) {
+  | None => chunk_sizes |> List.rev
+  | Some((_, None, _)) => assert(false)
+  | Some((new_subject_block, Some(new_suffix_block), u_gen)) =>
+    let num_shifted_lines =
+      switch (subject_block, new_subject_block) {
+      | (Block(_, EmptyHole(_)), Block(_, EmptyHole(_))) =>
+        UHExp.num_lines_in_block(subject_block)
+        - UHExp.num_lines_in_block(new_subject_block)
+      | (Block(_, _), Block(_, EmptyHole(_))) =>
+        UHExp.num_lines_in_block(subject_block)
+        - UHExp.num_lines_in_block(new_subject_block)
+        + 1
+      | (Block(_, _), Block(_, _)) =>
+        UHExp.num_lines_in_block(subject_block)
+        - UHExp.num_lines_in_block(new_subject_block)
+      };
+    subject_block_shifted_to_suffix_block_chunk_sizes(
+      ~chunk_sizes=[num_shifted_lines, ...chunk_sizes],
+      ~u_gen,
+      new_subject_block,
+      new_suffix_block,
+    );
+  };
+
+let vertical_shift_targets_in_subject = (model: Model.t) => {
+  switch (
+    model.cursor_info.position,
+    model.cursor_info.node,
+    model.cursor_info.frame,
+  ) {
+  | (OnText(_) | OnDelim(_, _), _, _)
+  | (_, Typ(_) | Pat(_), _)
+  | (_, _, TypFrame(_) | PatFrame(_)) => []
+  | (
+      Staging(0),
+      Exp(
+        Case(_, subject_block, _, _) | Parenthesized(subject_block) |
+        Inj(_, _, subject_block),
+      ),
+      ExpFrame(prefix, None, _),
+    ) =>
+    let steps_of_subject_block = (model |> Model.steps) @ [0];
+    let subject_block_shift_target_indices =
+      subject_block_shifted_to_prefix_chunk_sizes(
+        ~u_gen=model |> Model.u_gen,
+        prefix,
+        subject_block,
+      )
+      |> List.fold_left(
+           (shift_target_indices, chunk_size) =>
+             switch (shift_target_indices) {
+             | [] => [chunk_size]
+             | [last_index, ..._] => [
+                 last_index + chunk_size,
+                 ...shift_target_indices,
+               ]
+             },
            [],
-         )
+         );
+    let num_subject_lines = subject_block |> UHExp.num_lines_in_block;
+    subject_block_shift_target_indices
+    |> List.map(i =>
+         i >= num_subject_lines
+           ? (steps_of_subject_block @ [num_subject_lines - 1], After)
+           : (steps_of_subject_block @ [i], Before)
        )
-     );
+    |> List.map(((target_steps, target_side)) =>
+         Vdom.(
+           Node.div(
+             [
+               Attr.classes(["vertical-shift-target-in-subject"]),
+               Attr.create(
+                 "target-steps",
+                 Sexp.to_string(Path.sexp_of_steps(target_steps)),
+               ),
+               Attr.create(
+                 "target-side",
+                 Sexp.to_string(sexp_of_side(target_side)),
+               ),
+             ],
+             [],
+           )
+         )
+       );
+  | (
+      Staging(1),
+      Exp(Parenthesized(block) | Inj(_, _, block)),
+      ExpFrame(_, None, Some(suffix_block)),
+    ) =>
+    let steps_of_subject_block = (model |> Model.steps) @ [0];
+    let index_of_current_subject_line =
+      (block |> UHExp.num_lines_in_block) - 1;
+    let subject_block_shift_target_indices =
+      subject_block_shifted_to_suffix_block_chunk_sizes(
+        ~u_gen=model |> Model.u_gen,
+        block,
+        suffix_block,
+      )
+      |> List.fold_left(
+           (shift_target_indices, chunk_size) =>
+             switch (shift_target_indices) {
+             | [] => [index_of_current_subject_line - chunk_size]
+             | [last_index, ..._] => [
+                 last_index - chunk_size,
+                 ...shift_target_indices,
+               ]
+             },
+           [],
+         );
+    subject_block_shift_target_indices
+    |> List.map(i =>
+         i < 0
+           ? (steps_of_subject_block @ [0], Before)
+           : (steps_of_subject_block @ [i], After)
+       )
+    |> List.map(((target_steps, target_side)) =>
+         Vdom.(
+           Node.div(
+             [
+               Attr.classes(["vertical-shift-target-in-subject"]),
+               Attr.create(
+                 "target-steps",
+                 Sexp.to_string(Path.sexp_of_steps(target_steps)),
+               ),
+               Attr.create(
+                 "target-side",
+                 Sexp.to_string(sexp_of_side(target_side)),
+               ),
+             ],
+             [],
+           )
+         )
+       );
+  | (_, _, _) => []
+  };
 };
 
 let horizontal_shift_targets_in_frame = (model: Model.t) => {
@@ -274,6 +407,10 @@ let horizontal_shift_targets_in_frame = (model: Model.t) => {
                  "target-steps",
                  Sexp.to_string(Path.sexp_of_steps(target_steps)),
                ),
+               Attr.create(
+                 "target-side",
+                 Sexp.to_string(sexp_of_side(k == 0 ? Before : After)),
+               ),
              ],
              [],
            )
@@ -284,13 +421,14 @@ let horizontal_shift_targets_in_frame = (model: Model.t) => {
 };
 
 let rec prefix_shifted_chunk_sizes =
-        (~chunk_sizes: list(int)=[], prefix, block): list(int) =>
-  switch (prefix, block |> UHExp.shift_line_from_prefix(prefix)) {
+        (~u_gen, ~chunk_sizes: list(int)=[], prefix, block): list(int) =>
+  switch (prefix, block |> UHExp.shift_line_from_prefix(~u_gen, prefix)) {
   | ([], _)
   | (_, None) => chunk_sizes |> List.rev
-  | (_, Some((new_prefix, new_block))) =>
+  | (_, Some((new_prefix, new_block, u_gen))) =>
     let num_shifted_lines = List.length(prefix) - List.length(new_prefix);
     prefix_shifted_chunk_sizes(
+      ~u_gen,
       ~chunk_sizes=[num_shifted_lines, ...chunk_sizes],
       new_prefix,
       new_block,
@@ -364,7 +502,7 @@ let vertical_shift_targets_in_frame = (model: Model.t) => {
         steps_of_parent_seq |> split_last |> Opt.get(_ => assert(false));
       };
     let parent_block_shift_target_indices =
-      prefix_shifted_chunk_sizes(prefix, block)
+      prefix_shifted_chunk_sizes(~u_gen=model |> Model.u_gen, prefix, block)
       |> List.fold_left(
            (shift_target_indices, chunk_size) =>
              switch (shift_target_indices) {
@@ -377,16 +515,15 @@ let vertical_shift_targets_in_frame = (model: Model.t) => {
            [],
          );
     parent_block_shift_target_indices
-    |> List.map(i =>
+    |> List.map(i => steps_of_parent_block @ [max(i, 0)])
+    |> List.map(target_steps =>
          Vdom.(
            Node.div(
              [
                Attr.classes(["vertical-shift-target-in-frame"]),
                Attr.create(
                  "target-steps",
-                 Sexp.to_string(
-                   Path.sexp_of_steps(steps_of_parent_block @ [i]),
-                 ),
+                 Sexp.to_string(Path.sexp_of_steps(target_steps)),
                ),
                Attr.create(
                  "target-side",
@@ -399,7 +536,7 @@ let vertical_shift_targets_in_frame = (model: Model.t) => {
        );
   | (
       Staging(1),
-      Exp(Parenthesized(block)),
+      Exp(Parenthesized(block) | Inj(_, _, block)),
       ExpFrame(_, surround, Some(suffix_block)),
     )
   | (
@@ -438,23 +575,24 @@ let vertical_shift_targets_in_frame = (model: Model.t) => {
              },
            [],
          );
+    let last_line_index_of_parent_block =
+      index_of_current_line + UHExp.num_lines_in_block(suffix_block);
     parent_block_shift_target_indices
     |> List.map(i =>
+         steps_of_parent_block @ [min(i, last_line_index_of_parent_block)]
+       )
+    |> List.map(target_steps =>
          Vdom.(
            Node.div(
              [
                Attr.classes(["vertical-shift-target-in-frame"]),
                Attr.create(
                  "target-steps",
-                 Sexp.to_string(
-                   Path.sexp_of_steps(steps_of_parent_block @ [i]),
-                 ),
+                 Sexp.to_string(Path.sexp_of_steps(target_steps)),
                ),
                Attr.create(
                  "target-side",
-                 Sexp.to_string(
-                   Path.sexp_of_steps(steps_of_parent_block @ [i]),
-                 ),
+                 Sexp.to_string(sexp_of_side(After)),
                ),
              ],
              [],
@@ -851,46 +989,21 @@ let draw_multi_line_seq_term_indicator = (steps, (a, b), opseq_elem) => {
      });
 };
 
+let steps_and_side_of_shift_target_elem = shift_target_elem => (
+  shift_target_elem
+  |> JSUtil.force_get_attr("target-steps")
+  |> Sexp.of_string
+  |> Path.steps_of_sexp,
+  shift_target_elem
+  |> JSUtil.force_get_attr("target-side")
+  |> Sexp.of_string
+  |> side_of_sexp,
+);
+
 let horizontal_rail_left = ref(Float.max_float);
 let horizontal_rail_right = ref(Float.min_float);
 let vertical_rail_top = ref(Float.max_float);
 let vertical_rail_bottom = ref(Float.min_float);
-
-let start_drawing_shift_targets = () => {
-  horizontal_rail_left := Float.max_float;
-  horizontal_rail_right := Float.min_float;
-  vertical_rail_top := Float.max_float;
-  vertical_rail_bottom := Float.min_float;
-};
-
-let draw_horizontal_shift_rail = sdelim_elem => {
-  let rect = sdelim_elem |> get_relative_bounding_rect;
-  let delim_bottom = rect.bottom;
-  let indicator_bottom =
-    sdelim_elem |> Code.elem_is_on_last_line
-      ? rect.bottom +. indicator_padding : rect.bottom -. indicator_padding;
-  let midpoint = (delim_bottom +. indicator_bottom) /. 2.0;
-  JSUtil.force_get_elem_by_id(horizontal_shift_rail_id)
-  |> JSUtil.place_over_rect({
-       top: midpoint -. 1.0,
-       bottom: midpoint +. 1.0,
-       left: horizontal_rail_left^,
-       right: horizontal_rail_right^,
-     });
-};
-
-let draw_vertical_shift_rail = () => {
-  let cell_border_left = 0.0 -. cell_padding -. cell_border;
-  let cell_border_right = 0.0 -. cell_padding;
-  let midpoint = (cell_border_left +. cell_border_right) /. 2.0;
-  JSUtil.force_get_elem_by_id(vertical_shift_rail_id)
-  |> JSUtil.place_over_rect({
-       right: midpoint +. 1.0,
-       left: midpoint -. 1.0,
-       top: vertical_rail_top^,
-       bottom: vertical_rail_bottom^,
-     });
-};
 
 let place_horizontal_shift_target = (rect, shift_target_elem) => {
   shift_target_elem |> JSUtil.place_over_rect(rect);
@@ -932,6 +1045,127 @@ let draw_current_shifting_delim_indicator = (~cursor_info, sdelim_elem) => {
        right: midpoint +. shift_target_thickness /. 2.0,
        left: midpoint -. shift_target_thickness /. 2.0,
      });
+};
+
+let draw_horizontal_shift_rail = sdelim_elem => {
+  let rect = sdelim_elem |> get_relative_bounding_rect;
+  let delim_bottom = rect.bottom;
+  let indicator_bottom =
+    sdelim_elem |> Code.elem_is_on_last_line
+      ? rect.bottom +. indicator_padding : rect.bottom -. indicator_padding;
+  let midpoint = (delim_bottom +. indicator_bottom) /. 2.0;
+  JSUtil.force_get_elem_by_id(horizontal_shift_rail_id)
+  |> JSUtil.place_over_rect({
+       top: midpoint -. 1.0,
+       bottom: midpoint +. 1.0,
+       left: horizontal_rail_left^,
+       right: horizontal_rail_right^,
+     });
+};
+
+let draw_vertical_shift_rail = () => {
+  let cell_border_left = 0.0 -. cell_padding -. cell_border;
+  let cell_border_right = 0.0 -. cell_padding;
+  let midpoint = (cell_border_left +. cell_border_right) /. 2.0;
+  JSUtil.force_get_elem_by_id(vertical_shift_rail_id)
+  |> JSUtil.place_over_rect({
+       right: midpoint +. 1.0,
+       left: midpoint -. 1.0,
+       top: vertical_rail_top^,
+       bottom: vertical_rail_bottom^,
+     });
+};
+
+let draw_shift_targets = (~cursor_info, sdelim_elem) => {
+  // used to track location of drawn shift targets
+  // so far so that we know where to draw the rails
+  horizontal_rail_left := Float.max_float;
+  horizontal_rail_right := Float.min_float;
+  vertical_rail_top := Float.max_float;
+  vertical_rail_bottom := Float.min_float;
+
+  draw_current_shifting_delim_indicator(~cursor_info, sdelim_elem);
+
+  JSUtil.get_elems_with_cls("horizontal-shift-target-in-subject")
+  @ JSUtil.get_elems_with_cls("horizontal-shift-target-in-frame")
+  |> List.iter(target_elem => {
+       let (target_steps, target_side) =
+         steps_and_side_of_shift_target_elem(target_elem);
+       {
+         switch (
+           Dom_html.document##getElementById(
+             Js.string(node_id(target_steps)),
+           )
+           |> Js.Opt.to_option
+         ) {
+         | None => JSUtil.log("horizontal")
+         | _ => ()
+         };
+       };
+       let snode_elem = Code.force_get_snode_elem(target_steps);
+       let rect = snode_elem |> get_relative_bounding_rect;
+       let xpos =
+         switch (target_side) {
+         | Before => rect.left
+         | After => rect.right
+         };
+       target_elem
+       |> place_horizontal_shift_target({
+            left: xpos -. shift_target_thickness /. 2.0,
+            right: xpos +. shift_target_thickness /. 2.0,
+            top: rect.bottom,
+            bottom:
+              snode_elem |> Code.elem_is_on_last_line
+                ? rect.bottom +. indicator_padding
+                : rect.bottom -. indicator_padding,
+          });
+     });
+  JSUtil.get_elems_with_cls("vertical-shift-target-in-subject")
+  @ JSUtil.get_elems_with_cls("vertical-shift-target-in-frame")
+  |> List.iter(target_elem => {
+       let (target_steps, target_side) =
+         steps_and_side_of_shift_target_elem(target_elem);
+       {
+         switch (
+           Dom_html.document##getElementById(
+             Js.string(node_id(target_steps)),
+           )
+           |> Js.Opt.to_option
+         ) {
+         | None => JSUtil.log("vertical")
+         | _ => ()
+         };
+       };
+       let snode_elem = Code.force_get_snode_elem(target_steps);
+       let rect = snode_elem |> get_relative_bounding_rect;
+       let ypos =
+         switch (target_side) {
+         | Before => rect.top
+         | After => rect.bottom
+         };
+       target_elem
+       |> place_vertical_shift_target({
+            left:
+              0.0
+              -. cell_padding
+              -. cell_border
+              /. 2.0
+              -. shift_target_thickness
+              /. 2.0,
+            right:
+              0.0
+              -. cell_padding
+              -. cell_border
+              /. 2.0
+              +. shift_target_thickness
+              /. 2.0,
+            top: ypos -. shift_target_thickness /. 2.0,
+            bottom: ypos +. shift_target_thickness /. 2.0,
+          });
+     });
+
+  draw_horizontal_shift_rail(sdelim_elem);
+  draw_vertical_shift_rail();
 };
 
 let draw_horizontal_shift_target_in_subject = (~side, ~index, snode_elem) => {

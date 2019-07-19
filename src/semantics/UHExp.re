@@ -458,25 +458,35 @@ let last_line_and_leading_contiguous_empty_lines = lines =>
   };
 
 let shift_line_to_prefix =
-    (prefix: lines, Block(leading, conclusion)): option((lines, block)) =>
-  switch (leading |> first_line_and_trailing_contiguous_empty_lines) {
-  | None => None
-  | Some((next_line, empty_lines, leading_rest)) =>
+    (~u_gen: MetaVarGen.t, prefix: lines, Block(leading, conclusion))
+    : option((lines, block, MetaVarGen.t)) =>
+  switch (
+    leading |> first_line_and_trailing_contiguous_empty_lines,
+    conclusion,
+  ) {
+  | (None, EmptyHole(_)) => None
+  | (None, _) =>
+    let (hole, u_gen) = u_gen |> new_EmptyHole;
+    Some((prefix @ [ExpLine(conclusion)], hole |> wrap_in_block, u_gen));
+  | (Some((next_line, empty_lines, leading_rest)), _) =>
     Some((
       prefix @ [next_line, ...empty_lines],
       Block(leading_rest, conclusion),
+      u_gen,
     ))
   };
 
 let shift_line_from_prefix =
-    (prefix: lines, Block(leading, conclusion)): option((lines, block)) =>
+    (~u_gen: MetaVarGen.t, prefix: lines, Block(leading, conclusion))
+    : option((lines, block, MetaVarGen.t)) =>
   switch (prefix |> last_nonempty_line_and_trailing_contiguous_empty_lines) {
   | (_, None, empty_lines) =>
-    Some(([], Block(empty_lines @ leading, conclusion)))
+    Some(([], Block(empty_lines @ leading, conclusion), u_gen))
   | (prefix, Some(nonempty_line), empty_lines) =>
     Some((
       prefix,
       Block([nonempty_line] @ empty_lines @ leading, conclusion),
+      u_gen,
     ))
   };
 

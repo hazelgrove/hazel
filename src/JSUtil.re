@@ -170,6 +170,11 @@ let get_elem_by_id = id => {
   Js.Opt.to_option(doc##getElementById(Js.string(id)));
 };
 
+let get_elems_with_cls = cls => {
+  let doc = Dom_html.document;
+  doc##querySelectorAll(Js.string("." ++ cls)) |> Dom.list_of_nodeList;
+};
+
 let force_get_elem_by_id = id => {
   let doc = Dom_html.document;
   Js.Opt.get(
