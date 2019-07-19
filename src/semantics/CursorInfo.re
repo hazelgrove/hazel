@@ -605,6 +605,7 @@ and _ana_cursor_found_exp =
   | OpSeq(BinOp(NotInHole, Cons, _, _), _) =>
     Some((Analyzed(ty), Exp(e), ctx))
   | OpSeq(Placeholder(_), _) => None
+  | OpSeq(BinOp(NotInHole, Minus, _, _), _)
   | OpSeq(BinOp(NotInHole, Plus, _, _), _)
   | OpSeq(BinOp(NotInHole, Times, _, _), _)
   | OpSeq(BinOp(NotInHole, LessThan, _, _), _)
@@ -920,6 +921,7 @@ and syn_cursor_info_skel =
     } else {
       None;
     }
+  | BinOp(_, Minus, skel1, skel2)
   | BinOp(_, Plus, skel1, skel2)
   | BinOp(_, Times, skel1, skel2)
   | BinOp(_, LessThan, skel1, skel2) =>
@@ -1157,6 +1159,7 @@ and ana_cursor_info_skel =
         ana_cursor_info_skel(~frame, ctx, skel2, seq, n, ze_n, ty_list);
       }
     }
+  | BinOp(_, Minus, _, _)
   | BinOp(_, Plus, _, _)
   | BinOp(_, Times, _, _)
   | BinOp(_, LessThan, _, _)

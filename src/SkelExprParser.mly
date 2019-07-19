@@ -11,6 +11,7 @@
 %token LT
 %token CONS
 %token PLUS
+%token MINUS
 %token TIMES
 %token SPACEOP
 %token EOF
@@ -19,6 +20,7 @@
 %left LT
 %right CONS
 %left PLUS
+%left MINUS
 %left TIMES
 %left SPACEOP
 
@@ -28,11 +30,11 @@
 
 %%
 
-skel_expr: 
+skel_expr:
   | e = expr; EOF { e }
   ;
 
-expr: 
+expr:
   | n = PLACEHOLDER { Skel.Placeholder n }
   | e1 = expr; COMMA; e2 = expr {
     Skel.BinOp(
@@ -49,20 +51,25 @@ expr:
       NotInHole,
       UHExp.Cons,
       e1, e2) }
-  | e1 = expr; PLUS; e2 = expr { 
-    Skel.BinOp(
-      NotInHole, 
-      UHExp.Plus, 
-      e1, e2) }
-  | e1 = expr; TIMES; e2 = expr { 
+  | e1 = expr; PLUS; e2 = expr {
     Skel.BinOp(
       NotInHole,
-      UHExp.Times, 
+      UHExp.Plus,
       e1, e2) }
-  | e1 = expr; SPACEOP; e2 = expr { 
+  | e1 = expr; MINUS; e2 = expr {
     Skel.BinOp(
       NotInHole,
-      UHExp.Space, 
+      UHExp.Minus,
+      e1, e2) }
+  | e1 = expr; TIMES; e2 = expr {
+    Skel.BinOp(
+      NotInHole,
+      UHExp.Times,
+      e1, e2) }
+  | e1 = expr; SPACEOP; e2 = expr {
+    Skel.BinOp(
+      NotInHole,
+      UHExp.Space,
       e1, e2) }
   ;
 

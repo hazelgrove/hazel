@@ -238,6 +238,7 @@ let string_of_op_pat: UHPat.op => string =
 
 let string_of_op_exp: UHExp.op => string =
   fun
+  | Minus => "-"
   | Plus => "+"
   | Times => "*"
   | LessThan => "<"
@@ -259,6 +260,7 @@ let space_before_after_op_pat: UHPat.op => (bool, bool) =
 
 let space_before_after_op_exp: UHExp.op => (bool, bool) =
   fun
+  | Minus => (true, true)
   | Plus => (true, true)
   | Times => (true, true)
   | LessThan => (true, true)
@@ -2727,6 +2729,7 @@ let precedence_ty = (ty: HTyp.t): int =>
 let precedence_Ap = 1;
 let precedence_Times = 2;
 let precedence_Plus = 3;
+let precedence_Minus = 3;
 let precedence_Cons = 4;
 let precedence_LessThan = 5;
 let precedence_Comma = 6;
@@ -2768,6 +2771,7 @@ let rec precedence_dhexp = (d: DHExp.t) =>
   | Ap(_, _) => precedence_Ap
   | BinNumOp(Times, _, _) => precedence_Times
   | BinNumOp(Plus, _, _) => precedence_Plus
+  | BinNumOp(Minus, _, _) => precedence_Minus
   | BinNumOp(LessThan, _, _) => precedence_LessThan
   | Cons(_, _) => precedence_Cons
   | NonEmptyHole(_, _, _, _, d1) => precedence_dhexp(d1)

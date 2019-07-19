@@ -5,6 +5,7 @@ open GeneralUtil;
 [@deriving sexp]
 type op =
   | Plus
+  | Minus
   | Times
   | LessThan
   | Space

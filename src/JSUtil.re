@@ -437,6 +437,7 @@ module KeyCombo = {
     let equals = no_ctrl_alt_meta(Key.the_key("="));
     let pound = no_ctrl_alt_meta(Key.the_key("#"));
     let plus = no_ctrl_alt_meta(Key.the_key("+"));
+    let minus = no_ctrl_alt_meta(Key.the_key("-"));
     let asterisk = no_ctrl_alt_meta(Key.the_key("*"));
     let semicolon = no_ctrl_alt_meta(Key.the_key(";"));
     let comma = no_ctrl_alt_meta(Key.the_key(","));
@@ -471,6 +472,7 @@ module KeyCombo = {
     | Enter
     | Backslash
     | Plus
+    | Minus
     | Asterisk
     | LT
     | Space
@@ -498,6 +500,7 @@ module KeyCombo = {
     | Enter => Details.enter
     | Backslash => Details.backslash
     | Plus => Details.plus
+    | Minus => Details.minus
     | Asterisk => Details.asterisk
     | LT => Details.lt
     | Space => Details.space
@@ -540,6 +543,8 @@ module KeyCombo = {
       Some(Backslash);
     } else if (evt_matches(Details.plus)) {
       Some(Plus);
+    } else if (evt_matches(Details.minus)) {
+      Some(Minus);
     } else if (evt_matches(Details.asterisk)) {
       Some(Asterisk);
     } else if (evt_matches(Details.lt)) {

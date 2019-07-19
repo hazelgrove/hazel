@@ -5,6 +5,7 @@ open Sexplib.Std;
 
 [@deriving (show({with_path: false}), sexp)]
 type op_shape =
+  | SMinus
   | SPlus
   | STimes
   | SLessThan
@@ -19,6 +20,7 @@ let ty_op_of = (os: op_shape): option(UHTyp.op) =>
   | SArrow => Some(Arrow)
   | SComma => Some(Prod)
   | SVBar => Some(Sum)
+  | SMinus
   | SPlus
   | STimes
   | SLessThan
@@ -38,6 +40,7 @@ let pat_op_of = (os: op_shape): option(UHPat.op) =>
   | SComma => Some(Comma)
   | SSpace => Some(Space)
   | SCons => Some(Cons)
+  | SMinus
   | SPlus
   | STimes
   | SLessThan
@@ -55,6 +58,7 @@ let op_shape_of_pat_op = (op: UHPat.op): op_shape =>
 let exp_op_of = (os: op_shape): option(UHExp.op) =>
   switch (os) {
   | SPlus => Some(Plus)
+  | SMinus => Some(Minus)
   | STimes => Some(Times)
   | SLessThan => Some(LessThan)
   | SSpace => Some(Space)
@@ -66,6 +70,7 @@ let exp_op_of = (os: op_shape): option(UHExp.op) =>
 
 let op_shape_of_exp_op = (op: UHExp.op): op_shape =>
   switch (op) {
+  | Minus => SMinus
   | Plus => SPlus
   | Times => STimes
   | LessThan => SLessThan

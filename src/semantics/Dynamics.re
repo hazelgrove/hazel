@@ -379,12 +379,14 @@ module DHPat = {
 module DHExp = {
   [@deriving sexp]
   type bin_num_op =
+    | Minus
     | Plus
     | Times
     | LessThan;
 
   let of_op = (op: UHExp.op): option((bin_num_op, HTyp.t)) =>
     switch (op) {
+    | Minus => Some((Minus, Num))
     | Plus => Some((Plus, Num))
     | Times => Some((Times, Num))
     | LessThan => Some((LessThan, Bool))
@@ -395,6 +397,7 @@ module DHExp = {
 
   let to_op = (bno: bin_num_op): UHExp.op =>
     switch (bno) {
+    | Minus => Minus
     | Plus => Plus
     | Times => Times
     | LessThan => LessThan
@@ -1140,6 +1143,7 @@ module DHExp = {
           Expands(d, ty, delta);
         };
       }
+    | BinOp(NotInHole, Minus as op, skel1, skel2)
     | BinOp(NotInHole, Plus as op, skel1, skel2)
     | BinOp(NotInHole, Times as op, skel1, skel2)
     | BinOp(NotInHole, LessThan as op, skel1, skel2) =>
@@ -1483,6 +1487,7 @@ module DHExp = {
           };
         }
       }
+    | BinOp(_, Minus, _, _)
     | BinOp(_, Plus, _, _)
     | BinOp(_, Times, _, _)
     | BinOp(_, LessThan, _, _)
@@ -1873,6 +1878,7 @@ module Evaluator = {
 
   let eval_bin_num_op = (op: DHExp.bin_num_op, n1: int, n2: int): DHExp.t =>
     switch (op) {
+    | Minus => NumLit(n1 - n2)
     | Plus => NumLit(n1 + n2)
     | Times => NumLit(n1 * n2)
     | LessThan => BoolLit(n1 < n2)
