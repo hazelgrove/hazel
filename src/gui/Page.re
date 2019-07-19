@@ -1,5 +1,6 @@
 module Js = Js_of_ocaml.Js;
 module Vdom = Virtual_dom.Vdom;
+module ZList = GeneralUtil.ZList;
 
 let examples_select = (~inject: Update.Action.t => Vdom.Event.t) =>
   Vdom.(
@@ -25,8 +26,42 @@ let examples_select = (~inject: Update.Action.t => Vdom.Event.t) =>
     )
   );
 
+let cardstack_buttons =
+    (model: Model.t, ~inject: Update.Action.t => Vdom.Event.t) => {
+  let cardstack = model.cardstack_state;
+  let show_prev =
+    ZList.prefix_length(cardstack) > 0 ? [] : [Vdom.Attr.disabled];
+  let show_next =
+    ZList.suffix_length(cardstack) > 0 ? [] : [Vdom.Attr.disabled];
+  let prev_btn =
+    Vdom.(
+      Node.button(
+        [
+          Attr.id("cardstack-prev-button"),
+          Attr.on_click(_ => inject(Update.Action.PrevCard)),
+          ...show_prev,
+        ],
+        [Node.text("Previous")],
+      )
+    );
+  let next_btn =
+    Vdom.(
+      Node.button(
+        [
+          Attr.id("cardstack-next-button"),
+          Attr.on_click(_ => inject(Update.Action.NextCard)),
+          ...show_next,
+        ],
+        [Node.text("Next")],
+      )
+    );
+  Vdom.(Node.div([Attr.id("cardstack-buttons")], [prev_btn, next_btn]));
+};
+
 let page_view =
     (~inject: Update.Action.t => Vdom.Event.t, model: Model.t): Vdom.Node.t => {
+  let card = GeneralUtil.ZList.prj_z(model.cardstack_state).card;
+  let caption = card.caption;
   Vdom.(
     Node.div(
       [Attr.id("root")],
@@ -59,18 +94,19 @@ let page_view =
                       [
                         Node.div(
                           [],
-                          [
-                            Node.text("Hazel is an experiment in "),
-                            Node.strong(
-                              [],
-                              [Node.text("live functional programming")],
-                            ),
-                            Node.text(" with "),
-                            Node.strong([], [Node.text("typed holes")]),
-                            Node.text(
-                              ". Use the actions on the left to construct an expression. Navigate using the text cursor in the usual way.",
-                            ),
-                          ],
+                          [Node.text(caption)],
+                          /* [
+                               Node.text("Hazel is an experiment in "),
+                               Node.strong(
+                                 [],
+                                 [Node.text("live functional programming")],
+                               ),
+                               Node.text(" with "),
+                               Node.strong([], [Node.text("typed holes")]),
+                               Node.text(
+                                 ". Use the actions on the left to construct an expression. Navigate using the text cursor in the usual way.",
+                               ),
+                             ], */
                         ),
                         Cell.view(~inject, model),
                         Node.div(
@@ -87,7 +123,8 @@ let page_view =
                                   [Attr.classes(["htype-view"])],
                                   [
                                     {
-                                      let (_, ty, _) = model.edit_state;
+                                      let (_, ty, _) =
+                                        Model.edit_state_of(model);
                                       Code.view_of_htyp(~inject, ty);
                                     },
                                   ],
@@ -103,6 +140,7 @@ let page_view =
                       ],
                     ),
                     examples_select(~inject),
+                    cardstack_buttons(model, ~inject),
                   ],
                 ),
               ],

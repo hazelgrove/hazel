@@ -1,6 +1,10 @@
 open Sexplib.Std;
 open GeneralUtil;
 
+module ZList = GeneralUtil.ZList;
+
+let init_cardstack = TestCards.cardstack;
+
 [@deriving sexp]
 type edit_state = (ZExp.zblock, HTyp.t, MetaVarGen.t);
 
@@ -26,31 +30,62 @@ type context_inspector = {
 
 type user_newlines = Path.StepsMap.t(unit);
 
-type t = {
+[@deriving sexp]
+type card_state = {
+  card: Card.t,
   edit_state,
-  cursor_info: CursorInfo.t,
+};
+
+[@deriving sexp]
+type cardstack_state = ZList.t(card_state, card_state);
+
+let mk_cardstack_state = cardstack => {
+  let card_states =
+    List.map(
+      card => {
+        let (u, u_gen) = MetaVarGen.next(MetaVarGen.init);
+        let zblock =
+          ZExp.wrap_in_block(ZExp.place_before_exp(EmptyHole(u)));
+        let edit_state = (zblock, HTyp.Hole, u_gen);
+        {card, edit_state};
+      },
+      cardstack,
+    );
+  GeneralUtil.Opt.get(
+    _ => failwith("no cards"),
+    ZList.split_at(0, card_states),
+  );
+};
+
+type t = {
+  cardstack_state,
+  /* these are derived from the cardstack state: */
   result,
+  cursor_info: CursorInfo.t,
+  context_inspector,
   user_selected_instances: UserSelectedInstances.t,
   selected_instance: option((MetaVar.t, Dynamics.inst_num)),
+  /* UI state */
+  user_newlines,
+  selected_example: option(UHExp.block),
+  is_cell_focused: bool,
   left_sidebar_open: bool,
   right_sidebar_open: bool,
-  selected_example: option(UHExp.block),
-  context_inspector,
-  is_cell_focused: bool,
-  user_newlines,
 };
+
+let edit_state_of = model => ZList.prj_z(model.cardstack_state).edit_state;
 
 let cutoff = (m1, m2) => m1 == m2;
 
 let zblock = model => {
-  let (zblock, _, _) = model.edit_state;
+  let (zblock, _, _) = edit_state_of(model);
   zblock;
 };
 
 let block = model => model |> zblock |> ZExp.erase_block;
 
 let path = model => {
-  let (zblock, _, _) = model.edit_state;
+  let (zblock, _, _) = edit_state_of(model);
   Path.of_zblock(zblock);
 };
 
@@ -60,7 +95,7 @@ let steps = model => {
 };
 
 let u_gen = model => {
-  let (_, _, u_gen) = model.edit_state;
+  let (_, _, u_gen) = edit_state_of(model);
   u_gen;
 };
 
@@ -133,8 +168,7 @@ let remove_user_newline = (steps, model) => {
 let user_entered_newline_at = (steps, model): bool =>
   model.user_newlines |> Path.StepsMap.mem(steps);
 
-let update_edit_state =
-    ((new_zblock, ty, u_gen) as new_edit_state, model: t): t => {
+let update_edit_state = ((new_zblock, ty, u_gen): edit_state, model: t): t => {
   let new_block = new_zblock |> ZExp.erase_block;
   let (new_steps, _) = Path.of_zblock(new_zblock);
   let (new_zblock, new_user_newlines) =
@@ -176,23 +210,58 @@ let update_edit_state =
            },
          (new_zblock, model.user_newlines),
        );
+  let new_edit_state = (new_zblock, ty, u_gen);
   let new_result = result_of_edit_state(new_edit_state);
+  let cardstack_state = model.cardstack_state;
+  let card_state = ZList.prj_z(cardstack_state);
+  let card_state' = {...card_state, edit_state: new_edit_state};
+  let cardstack_state' = ZList.replace_z(cardstack_state, card_state');
   let new_cursor_info = cursor_info_of_edit_state(new_edit_state);
   {
     ...model,
-    edit_state: (new_zblock, ty, u_gen),
+    cardstack_state: cardstack_state',
     cursor_info: new_cursor_info,
     result: new_result,
     user_newlines: new_user_newlines,
   };
 };
 
-let init = (): t => {
-  let (u, u_gen) = MetaVarGen.next(MetaVarGen.init);
-  let zblock = ZExp.wrap_in_block(ZExp.place_before_exp(EmptyHole(u)));
-  let edit_state = (zblock, HTyp.Hole, u_gen);
+let update_cardstack_state = (model, cardstack_state) => {
+  let edit_state = ZList.prj_z(cardstack_state).edit_state;
+  let result = result_of_edit_state(edit_state);
+  let cursor_info = cursor_info_of_edit_state(edit_state);
   {
-    edit_state,
+    ...model,
+
+    cardstack_state,
+    result,
+    cursor_info,
+  };
+};
+
+let prev_card = model => {
+  let cardstack_state = ZList.shift_prev(model.cardstack_state);
+  {
+    ...update_cardstack_state(model, cardstack_state),
+
+    is_cell_focused: true,
+  };
+};
+
+let next_card = model => {
+  let cardstack_state = ZList.shift_next(model.cardstack_state);
+  {
+    ...update_cardstack_state(model, cardstack_state),
+
+    is_cell_focused: true,
+  };
+};
+
+let init = (): t => {
+  let cardstack_state = mk_cardstack_state(init_cardstack);
+  let edit_state = ZList.prj_z(cardstack_state).edit_state;
+  {
+    cardstack_state,
     cursor_info: cursor_info_of_edit_state(edit_state),
     result: result_of_edit_state(edit_state),
     user_selected_instances: UserSelectedInstances.init,
@@ -218,7 +287,7 @@ let perform_edit_action = (model: t, a: Action.t): t => {
       ~ci=model.cursor_info,
       (VarCtx.empty, Palettes.initial_palette_ctx),
       a,
-      model.edit_state,
+      edit_state_of(model),
     )
   ) {
   | Failed => raise(FailedAction)
@@ -229,7 +298,7 @@ let perform_edit_action = (model: t, a: Action.t): t => {
 };
 
 let move_to_hole = (model: t, u: MetaVar.t): t => {
-  let (zblock, _, _) = model.edit_state;
+  let (zblock, _, _) = ZList.prj_z(model.cardstack_state).edit_state;
   switch (
     Path.path_to_hole(Path.holes_block(ZExp.erase_block(zblock), [], []), u)
   ) {

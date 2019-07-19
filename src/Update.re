@@ -15,6 +15,8 @@ module Action = {
     | ToggleLeftSidebar
     | ToggleRightSidebar
     | LoadExample(Examples.id)
+    | NextCard
+    | PrevCard
     | SelectHoleInstance(MetaVar.t, Dynamics.inst_num)
     | InvalidVar(string)
     | MoveToHole(MetaVar.t)
@@ -39,15 +41,34 @@ let closest_elem = node =>
     }
   );
 
+let log_action = (action: Action.t, _: State.t): unit => {
+  /* log interesting actions */
+  switch (action) {
+  | EditAction(_)
+  | ToggleLeftSidebar
+  | ToggleRightSidebar
+  | LoadExample(_)
+  | NextCard
+  | PrevCard
+  | SelectHoleInstance(_, _)
+  | InvalidVar(_)
+  | FocusCell
+  | BlurCell
+  | FocusWindow
+  | AddUserNewline(_)
+  | RemoveUserNewline(_)
+  | MoveToHole(_) =>
+    let action_string = Sexp.to_string(Action.sexp_of_t(action));
+    Logger.append(action_string);
+  | SelectionChange => ()
+  };
+};
+
 [@warning "-27"]
 let apply_action =
-    (
-      model: Model.t,
-      action: Action.t,
-      setting_caret: ref(bool),
-      ~schedule_action,
-    )
-    : Model.t =>
+    (model: Model.t, action: Action.t, state: State.t, ~schedule_action)
+    : Model.t => {
+  log_action(action, state);
   switch (action) {
   | EditAction(a) =>
     switch (Model.perform_edit_action(model, a)) {
@@ -74,12 +95,18 @@ let apply_action =
   | ToggleLeftSidebar => Model.toggle_left_sidebar(model)
   | ToggleRightSidebar => Model.toggle_right_sidebar(model)
   | LoadExample(id) => Model.load_example(model, Examples.get(id))
+  | NextCard =>
+    state.changing_cards := true;
+    Model.next_card(model);
+  | PrevCard =>
+    state.changing_cards := true;
+    Model.prev_card(model);
   | SelectHoleInstance(u, i) => Model.select_hole_instance(model, (u, i))
   | InvalidVar(x) => model
   | MoveToHole(u) => Model.move_to_hole(model, u)
   | FocusCell => model |> Model.focus_cell
   | FocusWindow =>
-    setting_caret := true;
+    state.setting_caret := true;
     JSUtil.reset_caret();
     model;
   | BlurCell => JSUtil.window_has_focus() ? model |> Model.blur_cell : model
@@ -92,7 +119,7 @@ let apply_action =
       | OnDelim(_, _) => false
       | Staging(_) => true
       };
-    if (!is_staging && ! setting_caret^) {
+    if (!is_staging && ! state.setting_caret^) {
       let anchorNode = Dom_html.window##getSelection##.anchorNode;
       let anchorOffset = Dom_html.window##getSelection##.anchorOffset;
       if (JSUtil.div_contains_node(
@@ -199,7 +226,7 @@ let apply_action =
               | (_, _, Some(steps)) => Some((steps, None))
               };
             };
-          let (zblock, _, _) = model.edit_state;
+          let (zblock, _, _) = Model.edit_state_of(model);
           let (current_steps, current_cursor) = Path.of_zblock(zblock);
           switch (anchorNode |> JSUtil.query_ancestors(is_cursor_position)) {
           | None => ()
@@ -223,3 +250,4 @@ let apply_action =
     };
     model;
   };
+};
