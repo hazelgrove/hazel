@@ -522,7 +522,10 @@ let shift_line_from_suffix_block =
       | (false, _) =>
         let (hole, u_gen) = u_gen |> new_EmptyHole;
         Some((
-          Block(leading @ empty_lines, suffix_conclusion),
+          Block(
+            leading @ empty_lines @ [ExpLine(conclusion)],
+            suffix_conclusion,
+          ),
           Some(hole |> wrap_in_block),
           u_gen,
         ));
