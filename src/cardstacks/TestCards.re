@@ -1,1 +1,7 @@
-let cardstack: CardStack.t = [{caption: "Test 1"}, {caption: "Test 2"}];
+module Vdom = Virtual_dom.Vdom;
+
+let cardstack: CardStack.t =
+  Vdom.[
+    {caption: Node.span([], [Node.text("Test 1")])},
+    {caption: Node.span([], [Node.text("Test 2")])},
+  ];

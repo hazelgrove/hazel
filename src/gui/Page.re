@@ -61,7 +61,6 @@ let cardstack_buttons =
 let page_view =
     (~inject: Update.Action.t => Vdom.Event.t, model: Model.t): Vdom.Node.t => {
   let card = GeneralUtil.ZList.prj_z(model.cardstack_state).card;
-  let caption = card.caption;
   Vdom.(
     Node.div(
       [Attr.id("root")],
@@ -94,7 +93,7 @@ let page_view =
                       [
                         Node.div(
                           [],
-                          [Node.text(caption)],
+                          [card.caption],
                           /* [
                                Node.text("Hazel is an experiment in "),
                                Node.strong(

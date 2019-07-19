@@ -30,13 +30,11 @@ type context_inspector = {
 
 type user_newlines = Path.StepsMap.t(unit);
 
-[@deriving sexp]
 type card_state = {
   card: Card.t,
   edit_state,
 };
 
-[@deriving sexp]
 type cardstack_state = ZList.t(card_state, card_state);
 
 let mk_cardstack_state = cardstack => {

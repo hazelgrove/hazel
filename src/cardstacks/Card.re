@@ -1,4 +1,3 @@
-open Sexplib.Std;
+module Vdom = Virtual_dom.Vdom;
 
-[@deriving sexp]
-type t = {caption: string};
+type t = {caption: Vdom.Node.t};
