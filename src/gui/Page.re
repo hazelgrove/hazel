@@ -61,6 +61,45 @@ let cardstack_buttons =
 let page_view =
     (~inject: Update.Action.t => Vdom.Event.t, model: Model.t): Vdom.Node.t => {
   let card = GeneralUtil.ZList.prj_z(model.cardstack_state).card;
+  let cell_status =
+    switch (model.result_state) {
+    | ResultsDisabled => Vdom.Node.div([], [])
+    | Result(_) =>
+      Vdom.(
+        Node.div(
+          [],
+          [
+            Node.div(
+              [Attr.classes(["cell-status"])],
+              [
+                Node.div(
+                  [Attr.classes(["type-indicator"])],
+                  [
+                    Node.div(
+                      [Attr.classes(["type-label"])],
+                      [Node.text("Result of type: ")],
+                    ),
+                    Node.div(
+                      [Attr.classes(["htype-view"])],
+                      [
+                        {
+                          let (_, ty, _) = Model.edit_state_of(model);
+                          Code.view_of_htyp(~inject, ty);
+                        },
+                      ],
+                    ),
+                  ],
+                ),
+              ],
+            ),
+            Node.div(
+              [Attr.classes(["result-view"])],
+              [Code.view_of_result(~inject, model)],
+            ),
+          ],
+        )
+      )
+    };
   Vdom.(
     Node.div(
       [Attr.id("root")],
@@ -108,34 +147,7 @@ let page_view =
                              ], */
                         ),
                         Cell.view(~inject, model),
-                        Node.div(
-                          [Attr.classes(["cell-status"])],
-                          [
-                            Node.div(
-                              [Attr.classes(["type-indicator"])],
-                              [
-                                Node.div(
-                                  [Attr.classes(["type-label"])],
-                                  [Node.text("Result of type: ")],
-                                ),
-                                Node.div(
-                                  [Attr.classes(["htype-view"])],
-                                  [
-                                    {
-                                      let (_, ty, _) =
-                                        Model.edit_state_of(model);
-                                      Code.view_of_htyp(~inject, ty);
-                                    },
-                                  ],
-                                ),
-                              ],
-                            ),
-                          ],
-                        ),
-                        Node.div(
-                          [Attr.classes(["result-view"])],
-                          [Code.view_of_result(~inject, model)],
-                        ),
+                        cell_status,
                       ],
                     ),
                     examples_select(~inject),
@@ -150,6 +162,7 @@ let page_view =
               [
                 CursorInspector.view(~inject, model),
                 ContextInspector.view(~inject, model),
+                OptionsPanel.view(~inject, model),
               ],
             ),
           ],

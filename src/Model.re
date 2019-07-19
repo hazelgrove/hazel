@@ -4,26 +4,7 @@ open GeneralUtil;
 module ZList = GeneralUtil.ZList;
 
 let init_cardstack = TestCards.cardstack;
-
-[@deriving sexp]
-type result = (
-  Dynamics.DHExp.t,
-  Dynamics.DHExp.HoleInstanceInfo.t,
-  Dynamics.Evaluator.result,
-);
-
-module UserSelectedInstances = {
-  [@deriving sexp]
-  type t = MetaVarMap.t(Dynamics.inst_num);
-  let init = MetaVarMap.empty;
-  let update = (usi, inst) => MetaVarMap.insert_or_update(usi, inst);
-};
-
-[@deriving sexp]
-type context_inspector = {
-  next_state: option(Dynamics.DHExp.HoleInstance.t),
-  prev_state: option(Dynamics.DHExp.HoleInstance.t),
-};
+let init_compute_results_flag = false;
 
 type user_newlines = Path.StepsMap.t(unit);
 
@@ -55,14 +36,43 @@ let mk_cardstack_state = cardstack => {
   );
 };
 
-type t = {
-  cardstack_state,
-  /* these are derived from the cardstack state: */
+[@deriving sexp]
+type result = (
+  Dynamics.DHExp.t,
+  Dynamics.DHExp.HoleInstanceInfo.t,
+  Dynamics.Evaluator.result,
+);
+
+module UserSelectedInstances = {
+  [@deriving sexp]
+  type t = MetaVarMap.t(Dynamics.inst_num);
+  let init = MetaVarMap.empty;
+  let update = (usi, inst) => MetaVarMap.insert_or_update(usi, inst);
+};
+
+[@deriving sexp]
+type context_inspector = {
+  next_state: option(Dynamics.DHExp.HoleInstance.t),
+  prev_state: option(Dynamics.DHExp.HoleInstance.t),
+};
+
+type has_result_state = {
   result,
-  cursor_info: CursorInfo.t,
   context_inspector,
   user_selected_instances: UserSelectedInstances.t,
   selected_instance: option((MetaVar.t, Dynamics.inst_num)),
+};
+
+type result_state =
+  | ResultsDisabled
+  | Result(has_result_state);
+
+type t = {
+  cardstack_state,
+  /* these are derived from the cardstack state: */
+  cursor_info: CursorInfo.t,
+  compute_results_flag: bool,
+  result_state,
   /* UI state */
   user_newlines,
   selected_example: option(UHExp.block),
@@ -138,6 +148,21 @@ let result_of_edit_state = ((zblock, _, _): edit_state): result => {
   };
 };
 
+let result_state_of_edit_state = (edit_state, compute_results_flag) =>
+  if (!compute_results_flag) {
+    ResultsDisabled;
+  } else {
+    Result({
+      result: result_of_edit_state(edit_state),
+      user_selected_instances: UserSelectedInstances.init,
+      selected_instance: None,
+      context_inspector: {
+        next_state: None,
+        prev_state: None,
+      },
+    });
+  };
+
 let remove_keys_outside_prefix =
     (~prefix: Path.steps, user_newlines): (user_newlines, list(Path.steps)) => {
   let (inside_prefix, outside_prefix) =
@@ -209,30 +234,32 @@ let update_edit_state = ((new_zblock, ty, u_gen): edit_state, model: t): t => {
          (new_zblock, model.user_newlines),
        );
   let new_edit_state = (new_zblock, ty, u_gen);
-  let new_result = result_of_edit_state(new_edit_state);
+  let new_result_state =
+    result_state_of_edit_state(new_edit_state, model.compute_results_flag);
   let cardstack_state = model.cardstack_state;
   let card_state = ZList.prj_z(cardstack_state);
-  let card_state' = {...card_state, edit_state: new_edit_state};
-  let cardstack_state' = ZList.replace_z(cardstack_state, card_state');
+  let new_card_state = {...card_state, edit_state: new_edit_state};
+  let new_cardstack_state = ZList.replace_z(cardstack_state, new_card_state);
   let new_cursor_info = cursor_info_of_edit_state(new_edit_state);
   {
     ...model,
-    cardstack_state: cardstack_state',
+    cardstack_state: new_cardstack_state,
     cursor_info: new_cursor_info,
-    result: new_result,
+    result_state: new_result_state,
     user_newlines: new_user_newlines,
   };
 };
 
 let update_cardstack_state = (model, cardstack_state) => {
   let edit_state = ZList.prj_z(cardstack_state).edit_state;
-  let result = result_of_edit_state(edit_state);
+  let result_state =
+    result_state_of_edit_state(edit_state, model.compute_results_flag);
   let cursor_info = cursor_info_of_edit_state(edit_state);
   {
     ...model,
 
     cardstack_state,
-    result,
+    result_state,
     cursor_info,
   };
 };
@@ -258,19 +285,16 @@ let next_card = model => {
 let init = (): t => {
   let cardstack_state = mk_cardstack_state(init_cardstack);
   let edit_state = ZList.prj_z(cardstack_state).edit_state;
+  let compute_results_flag = init_compute_results_flag;
   {
     cardstack_state,
     cursor_info: cursor_info_of_edit_state(edit_state),
-    result: result_of_edit_state(edit_state),
-    user_selected_instances: UserSelectedInstances.init,
-    selected_instance: None,
+    compute_results_flag,
+    result_state:
+      result_state_of_edit_state(edit_state, compute_results_flag),
     left_sidebar_open: false,
     right_sidebar_open: true,
     selected_example: None,
-    context_inspector: {
-      next_state: None,
-      prev_state: None,
-    },
     is_cell_focused: false,
     user_newlines: Path.StepsMap.empty,
   };
@@ -307,20 +331,27 @@ let move_to_hole = (model: t, u: MetaVar.t): t => {
   };
 };
 
-let select_hole_instance =
-    (model: t, (u, i) as inst: (MetaVar.t, Dynamics.inst_num)): t => {
-  let (_, hii, _) = model.result;
-  {
-    ...model,
-    user_selected_instances:
-      UserSelectedInstances.update(model.user_selected_instances, inst),
-    selected_instance: Some(inst),
-    context_inspector: {
-      prev_state: i > 0 ? Some((u, i - 1)) : None,
-      next_state:
-        i < Dynamics.DHExp.HoleInstanceInfo.num_instances(hii, u) - 1
-          ? Some((u, i + 1)) : None,
-    },
+let select_hole_instance = (model, (u, i) as inst) => {
+  switch (model.result_state) {
+  | ResultsDisabled => model
+  | Result(has_result_state) =>
+    let (_, hii, _) = has_result_state.result;
+    let has_result_state = {
+      ...has_result_state,
+      user_selected_instances:
+        UserSelectedInstances.update(
+          has_result_state.user_selected_instances,
+          inst,
+        ),
+      selected_instance: Some(inst),
+      context_inspector: {
+        prev_state: i > 0 ? Some((u, i - 1)) : None,
+        next_state:
+          i < Dynamics.DHExp.HoleInstanceInfo.num_instances(hii, u) - 1
+            ? Some((u, i + 1)) : None,
+      },
+    };
+    {...model, result_state: Result(has_result_state)};
   };
 };
 

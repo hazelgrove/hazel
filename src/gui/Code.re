@@ -3208,18 +3208,23 @@ let view_of_dhexp = (~inject, d) =>
 
 let view_of_result =
     (~inject: Update.Action.t => Vdom.Event.t, model: Model.t): Vdom.Node.t =>
-  switch (model.result) {
-  | (_, _, InvalidInput(_)) =>
-    Vdom.Node.div(
-      [],
-      [
-        Vdom.Node.text(
-          "(internal error: expansion or evaluation invariant violated)",
-        ),
-      ],
-    )
-  | (_, _, BoxedValue(d))
-  | (_, _, Indet(d)) => Vdom.Node.div([], [view_of_dhexp(~inject, d)])
+  switch (model.result_state) {
+  | ResultsDisabled => Vdom.Node.div([], [])
+  | Result(has_result_state) =>
+    let result = has_result_state.result;
+    switch (result) {
+    | (_, _, InvalidInput(_)) =>
+      Vdom.Node.div(
+        [],
+        [
+          Vdom.Node.text(
+            "(internal error: expansion or evaluation invariant violated)",
+          ),
+        ],
+      )
+    | (_, _, BoxedValue(d))
+    | (_, _, Indet(d)) => Vdom.Node.div([], [view_of_dhexp(~inject, d)])
+    };
   };
 
 let view_of_hole_instance =

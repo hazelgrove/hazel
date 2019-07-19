@@ -690,3 +690,5 @@ let has_class_satisfying =
   };
   satisfied^;
 };
+
+let force_opt = x => Js.Opt.get(x, () => failwith("forced opt"));
