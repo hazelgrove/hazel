@@ -300,6 +300,30 @@ module Exp = {
       },
     );
 
+  let prepend_seq = (seq: UHExp.opseq, op: UHExp.op, e: UHExp.t): UHExp.t =>
+    switch (e) {
+    | OpSeq(_, seq') => OperatorSeq.seq_op_seq(seq, op, seq') |> mk_OpSeq
+    | _ => OperatorSeq.SeqOpExp(seq, op, e) |> mk_OpSeq
+    };
+
+  let append_seq = (e: UHExp.t, op: UHExp.op, seq: UHExp.opseq): UHExp.t =>
+    switch (e) {
+    | OpSeq(_, seq') => OperatorSeq.seq_op_seq(seq', op, seq) |> mk_OpSeq
+    | _ => OperatorSeq.exp_op_seq(e, op, seq) |> mk_OpSeq
+    };
+
+  let prepend = (prefix: ZExp.opseq_prefix, e: UHExp.t): UHExp.t =>
+    switch (prefix) {
+    | ExpPrefix(tm, op) => concat(tm, op, e)
+    | SeqPrefix(seq, op) => prepend_seq(seq, op, e)
+    };
+
+  let append = (e: UHExp.t, suffix: ZExp.opseq_suffix): UHExp.t =>
+    switch (suffix) {
+    | ExpSuffix(op, tm) => concat(e, op, tm)
+    | SeqSuffix(op, seq) => append_seq(e, op, seq)
+    };
+
   let resurround =
       (ze0: ZExp.t, surround: ZExp.opseq_surround)
       : (ZExp.t, ZExp.opseq_surround) =>

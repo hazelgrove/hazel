@@ -2472,7 +2472,7 @@ let rec syn_perform_block =
       | ShiftUp => UHExp.shift_line_to_suffix_block
       | _ => UHExp.shift_line_from_suffix_block(~is_node_terminal=false)
       };
-    switch (def |> shift_line(~u_gen, Block(suffix, e))) {
+    switch (def |> shift_line(~u_gen, Some(Block(suffix, e)))) {
     | None => CantShift
     | Some((_, None, _)) =>
       // should not happen since let line is not terminal
@@ -2561,7 +2561,7 @@ let rec syn_perform_block =
       | ShiftUp => UHExp.shift_line_to_suffix_block
       | _ => UHExp.shift_line_from_suffix_block(~is_node_terminal=true)
       };
-    switch (block |> shift_line(~u_gen, Block(suffix, e))) {
+    switch (block |> shift_line(~u_gen, Some(Block(suffix, e)))) {
     | None => CantShift
     | Some((new_block, None, u_gen)) =>
       let new_conclusion: UHExp.t =
@@ -2608,7 +2608,7 @@ let rec syn_perform_block =
         | ShiftUp => UHExp.shift_line_to_suffix_block
         | _ => UHExp.shift_line_from_suffix_block(~is_node_terminal=true)
         };
-      switch (last_clause |> shift_line(~u_gen, Block(suffix, e))) {
+      switch (last_clause |> shift_line(~u_gen, Some(Block(suffix, e)))) {
       | None => CantShift
       | Some((new_last_clause, None, u_gen)) =>
         let new_e =
@@ -2664,6 +2664,125 @@ let rec syn_perform_block =
         | Some(surround) => OpSeqUtil.Exp.mk_OpSeqZ(new_ztm, surround)
         };
       let new_zblock = ZExp.BlockZE(leading, new_ze);
+      Succeeded(Statics.syn_fix_holes_zblock(ctx, u_gen, new_zblock));
+    }
+  | (
+      ShiftUp,
+      BlockZL(
+        (
+          leading_prefix,
+          ExpLineZ(
+            OpSeqZ(
+              _,
+              CursorE(Staging(1) as cursor, Parenthesized(Block([], body))),
+              EmptySuffix(prefix),
+            ),
+          ),
+          leading_suffix,
+        ),
+        conclusion,
+      ),
+    ) =>
+    // skip over remaining left shifts, then apply ShiftUp to result
+    let skipped_body = OpSeqUtil.Exp.prepend(prefix, body);
+    let skipped_zblock =
+      ZExp.BlockZL(
+        (
+          leading_prefix,
+          ExpLineZ(
+            CursorE(cursor, Parenthesized(Block([], skipped_body))),
+          ),
+          leading_suffix,
+        ),
+        conclusion,
+      );
+    syn_perform_block(
+      ~ci,
+      ctx,
+      ShiftUp,
+      Statics.syn_fix_holes_zblock(ctx, u_gen, skipped_zblock),
+    );
+  | (
+      ShiftDown,
+      BlockZL(
+        (
+          leading_prefix,
+          ExpLineZ(
+            OpSeqZ(
+              _,
+              CursorE(Staging(1) as cursor, Parenthesized(Block([], body))),
+              EmptyPrefix(suffix),
+            ),
+          ),
+          leading_suffix,
+        ),
+        conclusion,
+      ),
+    ) =>
+    // skip over remaining right shifts, then apply ShiftDown to result
+    let skipped_body = OpSeqUtil.Exp.append(body, suffix);
+    let skipped_zblock =
+      ZExp.BlockZL(
+        (
+          leading_prefix,
+          ExpLineZ(
+            CursorE(cursor, Parenthesized(Block([], skipped_body))),
+          ),
+          leading_suffix,
+        ),
+        conclusion,
+      );
+    syn_perform_block(
+      ~ci,
+      ctx,
+      ShiftDown,
+      Statics.syn_fix_holes_zblock(ctx, u_gen, skipped_zblock),
+    );
+  | (
+      ShiftUp,
+      BlockZE(
+        leading,
+        OpSeqZ(
+          _,
+          CursorE(Staging(1) as cursor, Parenthesized(Block([], body))),
+          EmptySuffix(prefix),
+        ),
+      ),
+    ) =>
+    // skip over remaining left shifts, then apply ShiftUp to result
+    let skipped_body = OpSeqUtil.Exp.prepend(prefix, body);
+    let skipped_zblock =
+      ZExp.BlockZE(
+        leading,
+        CursorE(cursor, Parenthesized(Block([], skipped_body))),
+      );
+    syn_perform_block(
+      ~ci,
+      ctx,
+      ShiftUp,
+      Statics.syn_fix_holes_zblock(ctx, u_gen, skipped_zblock),
+    );
+  | (
+      ShiftUp,
+      BlockZE(leading, CursorE(Staging(1) as cursor, Parenthesized(body))),
+    ) =>
+    switch (body |> UHExp.shift_line_to_suffix_block(~u_gen, None)) {
+    | None => CantShift
+    | Some((_, None, _)) => assert(false)
+    | Some((
+        new_body,
+        Some(Block(new_suffix_leading, new_suffix_conclusion)),
+        u_gen,
+      )) =>
+      let new_zblock =
+        ZExp.BlockZL(
+          (
+            leading,
+            ExpLineZ(CursorE(cursor, Parenthesized(new_body))),
+            new_suffix_leading,
+          ),
+          new_suffix_conclusion,
+        );
       Succeeded(Statics.syn_fix_holes_zblock(ctx, u_gen, new_zblock));
     }
   | (
@@ -4675,7 +4794,7 @@ and ana_perform_block =
       | ShiftUp => UHExp.shift_line_to_suffix_block
       | _ => UHExp.shift_line_from_suffix_block(~is_node_terminal=false)
       };
-    switch (def |> shift_line(~u_gen, Block(suffix, e))) {
+    switch (def |> shift_line(~u_gen, Some(Block(suffix, e)))) {
     | None => CantShift
     | Some((_, None, _)) => assert(false)
     | Some((new_def, Some(Block(new_suffix, new_e)), u_gen)) =>
@@ -4762,7 +4881,7 @@ and ana_perform_block =
       | ShiftUp => UHExp.shift_line_to_suffix_block
       | _ => UHExp.shift_line_from_suffix_block(~is_node_terminal=true)
       };
-    switch (block |> shift_line(~u_gen, Block(suffix, e))) {
+    switch (block |> shift_line(~u_gen, Some(Block(suffix, e)))) {
     | None => CantShift
     | Some((new_block, None, u_gen)) =>
       let new_conclusion =
@@ -4809,7 +4928,7 @@ and ana_perform_block =
         | ShiftUp => UHExp.shift_line_to_suffix_block
         | _ => UHExp.shift_line_from_suffix_block(~is_node_terminal=true)
         };
-      switch (last_clause |> shift_line(~u_gen, Block(suffix, e))) {
+      switch (last_clause |> shift_line(~u_gen, Some(Block(suffix, e)))) {
       | None => CantShift
       | Some((new_last_clause, None, u_gen)) =>
         let new_conclusion =
@@ -4873,6 +4992,128 @@ and ana_perform_block =
         | Some(surround) => OpSeqUtil.Exp.mk_OpSeqZ(new_ztm, surround)
         };
       let new_zblock = ZExp.BlockZE(leading, new_ze);
+      Succeeded(Statics.ana_fix_holes_zblock(ctx, u_gen, new_zblock, ty));
+    }
+  | (
+      ShiftUp,
+      BlockZL(
+        (
+          leading_prefix,
+          ExpLineZ(
+            OpSeqZ(
+              _,
+              CursorE(Staging(1) as cursor, Parenthesized(Block([], body))),
+              EmptySuffix(prefix),
+            ),
+          ),
+          leading_suffix,
+        ),
+        conclusion,
+      ),
+    ) =>
+    // skip over remaining left shifts, then apply ShiftUp to result
+    let skipped_body = OpSeqUtil.Exp.prepend(prefix, body);
+    let skipped_zblock =
+      ZExp.BlockZL(
+        (
+          leading_prefix,
+          ExpLineZ(
+            CursorE(cursor, Parenthesized(Block([], skipped_body))),
+          ),
+          leading_suffix,
+        ),
+        conclusion,
+      );
+    ana_perform_block(
+      ~ci,
+      ctx,
+      ShiftUp,
+      Statics.ana_fix_holes_zblock(ctx, u_gen, skipped_zblock, ty),
+      ty,
+    );
+  | (
+      ShiftDown,
+      BlockZL(
+        (
+          leading_prefix,
+          ExpLineZ(
+            OpSeqZ(
+              _,
+              CursorE(Staging(1) as cursor, Parenthesized(Block([], body))),
+              EmptyPrefix(suffix),
+            ),
+          ),
+          leading_suffix,
+        ),
+        conclusion,
+      ),
+    ) =>
+    // skip over remaining right shifts, then apply ShiftDown to result
+    let skipped_body = OpSeqUtil.Exp.append(body, suffix);
+    let skipped_zblock =
+      ZExp.BlockZL(
+        (
+          leading_prefix,
+          ExpLineZ(
+            CursorE(cursor, Parenthesized(Block([], skipped_body))),
+          ),
+          leading_suffix,
+        ),
+        conclusion,
+      );
+    ana_perform_block(
+      ~ci,
+      ctx,
+      ShiftDown,
+      Statics.ana_fix_holes_zblock(ctx, u_gen, skipped_zblock, ty),
+      ty,
+    );
+  | (
+      ShiftUp,
+      BlockZE(
+        leading,
+        OpSeqZ(
+          _,
+          CursorE(Staging(1) as cursor, Parenthesized(Block([], body))),
+          EmptySuffix(prefix),
+        ),
+      ),
+    ) =>
+    // skip over remaining left shifts, then apply ShiftUp to result
+    let skipped_body = OpSeqUtil.Exp.prepend(prefix, body);
+    let skipped_zblock =
+      ZExp.BlockZE(
+        leading,
+        CursorE(cursor, Parenthesized(Block([], skipped_body))),
+      );
+    ana_perform_block(
+      ~ci,
+      ctx,
+      ShiftUp,
+      Statics.ana_fix_holes_zblock(ctx, u_gen, skipped_zblock, ty),
+      ty,
+    );
+  | (
+      ShiftUp,
+      BlockZE(leading, CursorE(Staging(1) as cursor, Parenthesized(body))),
+    ) =>
+    switch (body |> UHExp.shift_line_to_suffix_block(~u_gen, None)) {
+    | None => CantShift
+    | Some((_, None, _)) => assert(false)
+    | Some((
+        new_body,
+        Some(Block(new_suffix_leading, new_suffix_conclusion)),
+        u_gen,
+      )) =>
+      let new_zblock =
+        ZExp.BlockZL(
+          (
+            leading,
+            ExpLineZ(CursorE(cursor, Parenthesized(new_body))),
+            new_suffix_leading,
+          ),
+          new_suffix_conclusion,
+        );
       Succeeded(Statics.ana_fix_holes_zblock(ctx, u_gen, new_zblock, ty));
     }
   | (

@@ -235,7 +235,7 @@ let rec subject_block_shifted_to_suffix_block_chunk_sizes =
       ~chunk_sizes=[num_shifted_lines, ...chunk_sizes],
       ~u_gen,
       new_subject_block,
-      new_suffix_block,
+      Some(new_suffix_block),
     );
   };
 
@@ -311,7 +311,7 @@ let vertical_shift_targets_in_subject = (model: Model.t) => {
       subject_block_shifted_to_suffix_block_chunk_sizes(
         ~u_gen=model |> Model.u_gen,
         block,
-        suffix_block,
+        Some(suffix_block),
       )
       |> List.fold_left(
            (shift_target_indices, chunk_size) =>
@@ -444,42 +444,46 @@ let rec suffix_block_shifted_chunk_sizes =
           ~is_node_terminal,
           ~u_gen,
           block,
-          suffix_block,
+          suffix_block: option(UHExp.block),
         )
         : list(int) =>
-  switch (
-    block
-    |> UHExp.shift_line_from_suffix_block(
-         ~is_node_terminal,
-         ~u_gen,
-         suffix_block,
-       )
-  ) {
-  | None => chunk_sizes |> List.rev
-  | Some((_, None, _)) =>
-    let num_shifted_lines = suffix_block |> UHExp.num_lines_in_block;
-    [num_shifted_lines, ...chunk_sizes] |> List.rev;
-  | Some((new_block, Some(new_suffix_block), u_gen)) =>
-    let num_shifted_lines =
-      switch (suffix_block, new_suffix_block) {
-      | (Block(_, EmptyHole(_)), Block(_, EmptyHole(_))) =>
-        UHExp.num_lines_in_block(suffix_block)
-        - UHExp.num_lines_in_block(new_suffix_block)
-      | (Block(_, _), Block(_, EmptyHole(_))) =>
-        UHExp.num_lines_in_block(suffix_block)
-        - UHExp.num_lines_in_block(new_suffix_block)
-        + 1
-      | (Block(_, _), Block(_, _)) =>
-        UHExp.num_lines_in_block(suffix_block)
-        - UHExp.num_lines_in_block(new_suffix_block)
-      };
-    suffix_block_shifted_chunk_sizes(
-      ~chunk_sizes=[num_shifted_lines, ...chunk_sizes],
-      ~is_node_terminal,
-      ~u_gen,
-      new_block,
-      new_suffix_block,
-    );
+  switch (suffix_block) {
+  | None => []
+  | Some(suffix_block) =>
+    switch (
+      block
+      |> UHExp.shift_line_from_suffix_block(
+           ~is_node_terminal,
+           ~u_gen,
+           Some(suffix_block),
+         )
+    ) {
+    | None => chunk_sizes |> List.rev
+    | Some((_, None, _)) =>
+      let num_shifted_lines = suffix_block |> UHExp.num_lines_in_block;
+      [num_shifted_lines, ...chunk_sizes] |> List.rev;
+    | Some((new_block, Some(new_suffix_block), u_gen)) =>
+      let num_shifted_lines =
+        switch (suffix_block, new_suffix_block) {
+        | (Block(_, EmptyHole(_)), Block(_, EmptyHole(_))) =>
+          UHExp.num_lines_in_block(suffix_block)
+          - UHExp.num_lines_in_block(new_suffix_block)
+        | (Block(_, _), Block(_, EmptyHole(_))) =>
+          UHExp.num_lines_in_block(suffix_block)
+          - UHExp.num_lines_in_block(new_suffix_block)
+          + 1
+        | (Block(_, _), Block(_, _)) =>
+          UHExp.num_lines_in_block(suffix_block)
+          - UHExp.num_lines_in_block(new_suffix_block)
+        };
+      suffix_block_shifted_chunk_sizes(
+        ~chunk_sizes=[num_shifted_lines, ...chunk_sizes],
+        ~is_node_terminal,
+        ~u_gen,
+        new_block,
+        Some(new_suffix_block),
+      );
+    }
   };
 
 let vertical_shift_targets_in_frame = (model: Model.t) => {
@@ -562,7 +566,7 @@ let vertical_shift_targets_in_frame = (model: Model.t) => {
           | _line => false
           },
         block,
-        suffix_block,
+        Some(suffix_block),
       )
       |> List.fold_left(
            (shift_target_indices, chunk_size) =>

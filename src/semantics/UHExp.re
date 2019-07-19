@@ -482,122 +482,131 @@ let shift_line_from_prefix =
   switch (prefix |> last_nonempty_line_and_trailing_contiguous_empty_lines) {
   | (_, None, empty_lines) =>
     Some(([], Block(empty_lines @ leading, conclusion), u_gen))
-  | (prefix, Some(nonempty_line), empty_lines) =>
-    Some((
-      prefix,
-      Block([nonempty_line] @ empty_lines @ leading, conclusion),
-      u_gen,
-    ))
+  | (new_prefix, Some(nonempty_line), empty_lines) =>
+    switch (nonempty_line, leading, conclusion) {
+    | (ExpLine(e), [], EmptyHole(_)) =>
+      Some((new_prefix, e |> wrap_in_block, u_gen))
+    | (_, _, _) =>
+      Some((
+        new_prefix,
+        Block([nonempty_line] @ empty_lines @ leading, conclusion),
+        u_gen,
+      ))
+    }
   };
 
 let shift_line_from_suffix_block =
     (
       ~is_node_terminal: bool,
       ~u_gen: MetaVarGen.t,
-      Block(suffix_leading, suffix_conclusion),
+      suffix_block: option(block),
       Block(leading, conclusion),
     )
     : option((block, option(block), MetaVarGen.t)) =>
-  switch (
-    suffix_leading |> first_contiguous_empty_lines_and_nonempty_line,
-    suffix_conclusion,
-  ) {
-  | ((_, None, _), EmptyHole(_)) => None
-  | ((empty_lines, None, _), _) =>
-    switch (is_node_terminal, conclusion) {
-    | (false, EmptyHole(_) as recycled_hole) =>
-      Some((
-        Block(leading @ empty_lines, suffix_conclusion),
-        Some(recycled_hole |> wrap_in_block),
-        u_gen,
-      ))
-    | (false, _) =>
-      let (hole, u_gen) = u_gen |> new_EmptyHole;
-      Some((
-        Block(leading @ empty_lines, suffix_conclusion),
-        Some(hole |> wrap_in_block),
-        u_gen,
-      ));
-    | (true, EmptyHole(_)) =>
-      Some((Block(leading @ empty_lines, suffix_conclusion), None, u_gen))
-    | (true, _) =>
-      Some((
-        Block(leading @ [ExpLine(conclusion)], suffix_conclusion),
-        None,
-        u_gen,
-      ))
-    }
-  | (
-      (empty_lines, Some(LetLine(_, _, _) as let_line), []),
-      EmptyHole(_) as let_line_hole,
-    ) =>
-    switch (is_node_terminal, conclusion) {
-    | (false, EmptyHole(_)) =>
-      Some((
-        Block(leading @ empty_lines @ [let_line], conclusion),
-        Some(let_line_hole |> wrap_in_block),
-        u_gen,
-      ))
-    | (false, _) =>
-      let (hole, u_gen) = u_gen |> new_EmptyHole;
-      Some((
-        Block(
-          leading @ [ExpLine(conclusion)] @ empty_lines @ [let_line],
-          hole,
-        ),
-        Some(let_line_hole |> wrap_in_block),
-        u_gen,
-      ));
-    | (true, EmptyHole(_)) =>
-      Some((
-        Block(leading @ empty_lines @ [let_line], let_line_hole),
-        None,
-        u_gen,
-      ))
-    | (true, _) =>
-      Some((
-        Block(
-          leading @ [ExpLine(conclusion)] @ empty_lines @ [let_line],
-          let_line_hole,
-        ),
-        None,
-        u_gen,
-      ))
-    }
-  | ((empty_lines, Some(nonempty_line), rest), _) =>
-    let new_suffix_block = Some(Block(rest, suffix_conclusion));
-    let (new_block, u_gen) =
-      switch (conclusion, nonempty_line) {
-      | (_, EmptyLine) => assert(false)
-      | (EmptyHole(_), ExpLine(e)) => (
-          Block(leading @ empty_lines, e),
+  switch (suffix_block) {
+  | None => assert(false)
+  | Some(Block(suffix_leading, suffix_conclusion)) =>
+    switch (
+      suffix_leading |> first_contiguous_empty_lines_and_nonempty_line,
+      suffix_conclusion,
+    ) {
+    | ((_, None, _), EmptyHole(_)) => None
+    | ((empty_lines, None, _), _) =>
+      switch (is_node_terminal, conclusion) {
+      | (false, EmptyHole(_) as recycled_hole) =>
+        Some((
+          Block(leading @ empty_lines, suffix_conclusion),
+          Some(recycled_hole |> wrap_in_block),
           u_gen,
-        )
-      | (EmptyHole(_) as recycled_hole, LetLine(_, _, _) as let_line) => (
-          Block(leading @ empty_lines @ [let_line], recycled_hole),
-          u_gen,
-        )
-      | (_, LetLine(_, _, _) as let_line) =>
+        ))
+      | (false, _) =>
         let (hole, u_gen) = u_gen |> new_EmptyHole;
-        (
+        Some((
+          Block(leading @ empty_lines, suffix_conclusion),
+          Some(hole |> wrap_in_block),
+          u_gen,
+        ));
+      | (true, EmptyHole(_)) =>
+        Some((Block(leading @ empty_lines, suffix_conclusion), None, u_gen))
+      | (true, _) =>
+        Some((
+          Block(leading @ [ExpLine(conclusion)], suffix_conclusion),
+          None,
+          u_gen,
+        ))
+      }
+    | (
+        (empty_lines, Some(LetLine(_, _, _) as let_line), []),
+        EmptyHole(_) as let_line_hole,
+      ) =>
+      switch (is_node_terminal, conclusion) {
+      | (false, EmptyHole(_)) =>
+        Some((
+          Block(leading @ empty_lines @ [let_line], conclusion),
+          Some(let_line_hole |> wrap_in_block),
+          u_gen,
+        ))
+      | (false, _) =>
+        let (hole, u_gen) = u_gen |> new_EmptyHole;
+        Some((
           Block(
             leading @ [ExpLine(conclusion)] @ empty_lines @ [let_line],
             hole,
           ),
+          Some(let_line_hole |> wrap_in_block),
           u_gen,
-        );
-      | (_, ExpLine(e)) => (
-          Block(leading @ [ExpLine(conclusion)] @ empty_lines, e),
+        ));
+      | (true, EmptyHole(_)) =>
+        Some((
+          Block(leading @ empty_lines @ [let_line], let_line_hole),
+          None,
           u_gen,
-        )
-      };
-    Some((new_block, new_suffix_block, u_gen));
+        ))
+      | (true, _) =>
+        Some((
+          Block(
+            leading @ [ExpLine(conclusion)] @ empty_lines @ [let_line],
+            let_line_hole,
+          ),
+          None,
+          u_gen,
+        ))
+      }
+    | ((empty_lines, Some(nonempty_line), rest), _) =>
+      let new_suffix_block = Some(Block(rest, suffix_conclusion));
+      let (new_block, u_gen) =
+        switch (conclusion, nonempty_line) {
+        | (_, EmptyLine) => assert(false)
+        | (EmptyHole(_), ExpLine(e)) => (
+            Block(leading @ empty_lines, e),
+            u_gen,
+          )
+        | (EmptyHole(_) as recycled_hole, LetLine(_, _, _) as let_line) => (
+            Block(leading @ empty_lines @ [let_line], recycled_hole),
+            u_gen,
+          )
+        | (_, LetLine(_, _, _) as let_line) =>
+          let (hole, u_gen) = u_gen |> new_EmptyHole;
+          (
+            Block(
+              leading @ [ExpLine(conclusion)] @ empty_lines @ [let_line],
+              hole,
+            ),
+            u_gen,
+          );
+        | (_, ExpLine(e)) => (
+            Block(leading @ [ExpLine(conclusion)] @ empty_lines, e),
+            u_gen,
+          )
+        };
+      Some((new_block, new_suffix_block, u_gen));
+    }
   };
 
 let shift_line_to_suffix_block =
     (
       ~u_gen: MetaVarGen.t,
-      Block(suffix_leading, suffix_conclusion),
+      suffix_block: option(block),
       Block(leading, conclusion),
     )
     // return type should be option((block, block, MetaVarGen.t))
@@ -611,9 +620,10 @@ let shift_line_to_suffix_block =
     let (hole, u_gen) = u_gen |> new_EmptyHole;
     let new_block = hole |> wrap_in_block;
     let new_suffix_block =
-      switch (suffix_leading, suffix_conclusion) {
-      | ([], EmptyHole(_)) => Some(conclusion |> wrap_in_block)
-      | (_, _) =>
+      switch (suffix_block) {
+      | None
+      | Some(Block([], EmptyHole(_))) => Some(conclusion |> wrap_in_block)
+      | Some(Block(suffix_leading, suffix_conclusion)) =>
         Some(
           Block(
             [ExpLine(conclusion), ...suffix_leading],
@@ -627,63 +637,110 @@ let shift_line_to_suffix_block =
       Some((prefix, empty_lines, LetLine(_, _, _) as last_line)),
       EmptyHole(_),
     ) =>
-    let new_block =
-      switch (prefix |> split_last) {
-      | None
-      | Some((_, LetLine(_, _, _))) =>
-        // recycle existing hole if prefix
-        // does not have a conclusion
-        Block(prefix, conclusion)
-      | Some((prefix_prefix, ExpLine(e))) => Block(prefix_prefix, e)
-      | Some((_, EmptyLine)) => assert(false)
-      };
-    let new_suffix_block =
-      Some(
-        Block(empty_lines @ [last_line] @ suffix_leading, suffix_conclusion),
-      );
-    Some((new_block, new_suffix_block, u_gen));
-  | (Some((_, _, _)), _) =>
-    let (leading_prefix, empty_lines) =
-      leading |> last_contiguous_empty_lines;
-    switch (leading_prefix |> split_last, suffix_leading, suffix_conclusion) {
-    | (Some((_, EmptyLine)), _, _) => assert(false)
-    | (
-        None | Some((_, LetLine(_, _, _))),
-        [],
-        EmptyHole(_) as recycled_hole,
-      ) =>
-      Some((
-        Block(leading_prefix, recycled_hole),
-        Some(Block(empty_lines, conclusion)),
-        u_gen,
-      ))
-    | (None | Some((_, LetLine(_, _, _))), _, _) =>
+    switch (prefix |> split_last) {
+    | None
+    | Some((_, LetLine(_, _, _))) =>
       let (hole, u_gen) = u_gen |> new_EmptyHole;
       Some((
-        Block(leading_prefix, hole),
+        // recycle existing hole if prefix
+        // does not have a conclusion
+        Block(prefix, conclusion),
         Some(
-          Block(
-            empty_lines @ [ExpLine(conclusion)] @ suffix_leading,
-            suffix_conclusion,
-          ),
+          switch (suffix_block) {
+          | None => Block(empty_lines @ [last_line], hole)
+          | Some(Block(suffix_leading, suffix_conclusion)) =>
+            Block(
+              empty_lines @ [last_line] @ suffix_leading,
+              suffix_conclusion,
+            )
+          },
         ),
         u_gen,
       ));
-    | (Some((leading_prefix_prefix, ExpLine(e))), _, _) =>
+    | Some((prefix_prefix, ExpLine(e))) =>
       Some((
-        Block(leading_prefix_prefix, e),
-        switch (suffix_leading, suffix_conclusion) {
-        | ([], EmptyHole(_)) => Some(Block(empty_lines, conclusion))
-        | (_, _) =>
+        Block(prefix_prefix, e),
+        Some(
+          switch (suffix_block) {
+          | None =>
+            // if prefix does have a conclusion
+            // and therefore does not need its
+            // existing hole, recycle here
+            Block(empty_lines @ [last_line], conclusion)
+          | Some(Block(suffix_leading, suffix_conclusion)) =>
+            Block(
+              empty_lines @ [last_line] @ suffix_leading,
+              suffix_conclusion,
+            )
+          },
+        ),
+        u_gen,
+      ))
+    | Some((_, EmptyLine)) => assert(false)
+    }
+  | (Some((_, _, _)), _) =>
+    let (leading_prefix, empty_lines) =
+      leading |> last_contiguous_empty_lines;
+    switch (suffix_block) {
+    | None =>
+      switch (leading_prefix |> split_last) {
+      | None
+      | Some((_, LetLine(_, _, _))) =>
+        let (hole, u_gen) = u_gen |> new_EmptyHole;
+        Some((
+          Block(leading_prefix, hole),
+          Some(Block(empty_lines, conclusion)),
+          u_gen,
+        ));
+      | Some((leading_prefix_prefix, ExpLine(e))) =>
+        Some((
+          Block(leading_prefix_prefix, e),
+          Some(Block(empty_lines, conclusion)),
+          u_gen,
+        ))
+      | Some((_, EmptyLine)) => assert(false)
+      }
+    | Some(Block(suffix_leading, suffix_conclusion)) =>
+      switch (leading_prefix |> split_last, suffix_leading, suffix_conclusion) {
+      | (Some((_, EmptyLine)), _, _) => assert(false)
+      | (
+          None | Some((_, LetLine(_, _, _))),
+          [],
+          EmptyHole(_) as recycled_hole,
+        ) =>
+        Some((
+          Block(leading_prefix, recycled_hole),
+          Some(Block(empty_lines, conclusion)),
+          u_gen,
+        ))
+      | (None | Some((_, LetLine(_, _, _))), _, _) =>
+        let (hole, u_gen) = u_gen |> new_EmptyHole;
+        Some((
+          Block(leading_prefix, hole),
           Some(
             Block(
               empty_lines @ [ExpLine(conclusion)] @ suffix_leading,
               suffix_conclusion,
             ),
-          )
-        },
-        u_gen,
-      ))
+          ),
+          u_gen,
+        ));
+      | (Some((leading_prefix_prefix, ExpLine(e))), _, _) =>
+        Some((
+          Block(leading_prefix_prefix, e),
+          switch (suffix_leading, suffix_conclusion) {
+          | ([], EmptyHole(_)) => Some(Block(empty_lines, conclusion))
+          | (_, _) =>
+            Some(
+              Block(
+                empty_lines @ [ExpLine(conclusion)] @ suffix_leading,
+                suffix_conclusion,
+              ),
+            )
+          },
+          u_gen,
+        ))
+      }
     };
   };
 };
