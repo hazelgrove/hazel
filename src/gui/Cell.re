@@ -312,8 +312,17 @@ let vertical_shift_targets_in_subject = (model: Model.t) => {
       Staging(1),
       Exp(Parenthesized(block) | Inj(_, _, block)),
       ExpFrame(_, None, suffix_block),
+    )
+  | (
+      Staging(3),
+      Line(LetLine(_, _, block)),
+      ExpFrame(_, None, suffix_block),
     ) =>
-    let steps_of_subject_block = (model |> Model.steps) @ [0];
+    let steps_of_subject_block =
+      switch (model.cursor_info.node) {
+      | Line(_) => (model |> Model.steps) @ [2]
+      | _exp => (model |> Model.steps) @ [0]
+      };
     let index_of_current_subject_line =
       (block |> UHExp.num_lines_in_block) - 1;
     let subject_block_shift_target_indices =
