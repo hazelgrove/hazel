@@ -62,6 +62,12 @@ let append_letline =
     )
   );
 
+let exercise_number = n =>
+  span(
+    [Vdom.Attr.classes(["card-exercise-number"])],
+    [txt("Exercise " ++ string_of_int(n) ++ ".   ")],
+  );
+
 let cardstack: CardStack.t =
   Vdom.[
     {
@@ -69,6 +75,7 @@ let cardstack: CardStack.t =
         span(
           [],
           [
+            exercise_number(1),
             txt(
               "Suppose we are implementing a combat game "
               ++ "and, specifically, defining the function ",
@@ -159,6 +166,7 @@ let cardstack: CardStack.t =
         span(
           [],
           [
+            exercise_number(1),
             txt(
               "Suppose we are implementing a combat game "
               ++ "and, specifically, defining the function ",
@@ -267,6 +275,7 @@ let cardstack: CardStack.t =
         span(
           [],
           [
+            exercise_number(2),
             txt(
               "Suppose we are implementing a slot machine game. "
               ++ "We represent the state of the slot machine as "
@@ -295,6 +304,184 @@ let cardstack: CardStack.t =
                   "Take a moment to read and understand the current "
                   ++ "implementation, then click 'Next' to begin the exercise.",
                 ),
+              ],
+            ),
+          ],
+        ),
+      init_block:
+        UHExp.Block(
+          [
+            append_letline,
+            UHExp.EmptyLine,
+            UHExp.letline(
+              UHPat.var("rotate"),
+              ~ann=
+                UHTyp.(
+                  ExpOpExp(List(Num), Arrow, List(Num)) |> Typ.mk_OpSeq
+                ),
+              UHExp.(
+                wrap_in_block(
+                  lam(
+                    UHPat.var("xs"),
+                    wrap_in_block(
+                      case(
+                        var("xs") |> wrap_in_block,
+                        [
+                          Rule(UHPat.listnil(), listnil() |> wrap_in_block),
+                          Rule(
+                            UHPat.(
+                              ExpOpExp(var("y"), Cons, var("ys"))
+                              |> Pat.mk_OpSeq
+                            ),
+                            UHExp.(
+                              SeqOpExp(
+                                ExpOpExp(var("append"), Space, var("ys")),
+                                Space,
+                                Parenthesized(
+                                  ExpOpExp(var("y"), Cons, listnil())
+                                  |> Exp.mk_OpSeq
+                                  |> wrap_in_block,
+                                ),
+                              )
+                              |> Exp.mk_OpSeq
+                              |> wrap_in_block
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                )
+              ),
+            ),
+            UHExp.EmptyLine,
+            UHExp.letline(
+              UHPat.var("step"),
+              ~ann=
+                UHTyp.(
+                  ExpOpExp(
+                    Parenthesized(
+                      SeqOpExp(
+                        ExpOpExp(List(Num), Prod, List(Num)),
+                        Prod,
+                        List(Num),
+                      )
+                      |> Typ.mk_OpSeq,
+                    ),
+                    Arrow,
+                    Parenthesized(
+                      SeqOpExp(
+                        ExpOpExp(List(Num), Prod, List(Num)),
+                        Prod,
+                        List(Num),
+                      )
+                      |> Typ.mk_OpSeq,
+                    ),
+                  )
+                  |> Typ.mk_OpSeq
+                ),
+              UHExp.(
+                Block(
+                  [EmptyLine],
+                  lam(
+                    UHPat.(
+                      Parenthesized(
+                        SeqOpExp(
+                          ExpOpExp(var("reel1"), Comma, var("reel2")),
+                          Comma,
+                          var("reel3"),
+                        )
+                        |> Pat.mk_OpSeq,
+                      )
+                    ),
+                    Block(
+                      [EmptyLine],
+                      Parenthesized(
+                        wrap_in_block(
+                          SeqOpExp(
+                            SeqOpExp(
+                              SeqOpExp(
+                                SeqOpExp(
+                                  ExpOpExp(
+                                    var("rotate"),
+                                    Space,
+                                    var("reel1"),
+                                  ),
+                                  Comma,
+                                  var("rotate"),
+                                ),
+                                Space,
+                                Parenthesized(
+                                  ExpOpExp(
+                                    var("rotate"),
+                                    Space,
+                                    var("reel2"),
+                                  )
+                                  |> Exp.mk_OpSeq
+                                  |> wrap_in_block,
+                                ),
+                              ),
+                              Comma,
+                              var("rotate"),
+                            ),
+                            Space,
+                            var("reel3"),
+                          )
+                          |> Exp.mk_OpSeq,
+                        ),
+                      ),
+                    ),
+                  ),
+                )
+              ),
+            ),
+          ],
+          UHExp.EmptyHole(-1),
+        ),
+    },
+    {
+      caption:
+        span(
+          [],
+          [
+            exercise_number(2),
+            txt(
+              "Suppose we are implementing a slot machine game. "
+              ++ "We represent the state of the slot machine as "
+              ++ "3 lists of numbers, each representing a spinning "
+              ++ "reel of the slot machine. Below we have implemented "
+              ++ "the function",
+            ),
+            p(
+              [Attr.create("style", "text-align: center;")],
+              [
+                code(
+                  "step : (List(Num), List(Num), List(Num)) -> (List(Num), List(Num), List(Num))",
+                ),
+              ],
+            ),
+            txt(
+              "that takes an inital slot machine state and returns "
+              ++ "the new state after a single time step. We have "
+              ++ "designed this slot machine so that the middle reel "
+              ++ "spins twice as fast as the other two reels.",
+            ),
+            p(
+              [Attr.classes(["card-exercise"])],
+              [
+                txt("Modify the function "),
+                code("rotate"),
+                txt(" so that it takes an additional argument "),
+                code("k"),
+                txt(" of type "),
+                code("Num"),
+                txt(" and rotates the given list "),
+                code("k"),
+                txt(" times. Then refactor the body of "),
+                code("step"),
+                txt(" to utilize the new signature of "),
+                code("rotate"),
+                txt(" correctly."),
               ],
             ),
           ],
