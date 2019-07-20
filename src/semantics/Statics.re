@@ -571,6 +571,15 @@ and syn_skel =
       | Some(mode2) => Some((Num, combine_modes(mode1, mode2)))
       }
     }
+  | BinOp(NotInHole, And | Or, skel1, skel2) =>
+    switch (ana_skel(ctx, skel1, seq, HTyp.Bool, monitor)) {
+    | None => None
+    | Some(mode1) =>
+      switch (ana_skel(ctx, skel2, seq, HTyp.Bool, monitor)) {
+      | None => None
+      | Some(mode2) => Some((Bool, combine_modes(mode1, mode2)))
+      }
+    }
   | BinOp(NotInHole, LessThan, skel1, skel2) =>
     switch (ana_skel(ctx, skel1, seq, Num, monitor)) {
     | None => None
@@ -924,6 +933,7 @@ and ana_skel =
       }
     }
   | BinOp(InHole(TypeInconsistent, _), _, _, _)
+  | BinOp(NotInHole, And | Or, _, _)
   | BinOp(NotInHole, Minus, _, _)
   | BinOp(NotInHole, Plus, _, _)
   | BinOp(NotInHole, Times, _, _)
@@ -1811,6 +1821,26 @@ and syn_fix_holes_exp_skel =
         HTyp.Num,
       );
     (BinOp(NotInHole, op, skel1, skel2), seq, Num, u_gen);
+  | BinOp(_, (And | Or) as op, skel1, skel2) =>
+    let (skel1, seq, u_gen) =
+      ana_fix_holes_exp_skel(
+        ctx,
+        u_gen,
+        ~renumber_empty_holes,
+        skel1,
+        seq,
+        HTyp.Bool,
+      );
+    let (skel2, seq, u_gen) =
+      ana_fix_holes_exp_skel(
+        ctx,
+        u_gen,
+        ~renumber_empty_holes,
+        skel2,
+        seq,
+        HTyp.Bool,
+      );
+    (BinOp(NotInHole, op, skel1, skel2), seq, Bool, u_gen);
   | BinOp(_, LessThan as op, skel1, skel2) =>
     let (skel1, seq, u_gen) =
       ana_fix_holes_exp_skel(
@@ -2058,6 +2088,7 @@ and ana_fix_holes_exp_skel =
         Skel.BinOp(InHole(TypeInconsistent, u), UHExp.Cons, skel1, skel2);
       (skel, seq, u_gen);
     }
+  | BinOp(_, And | Or, _, _)
   | BinOp(_, Minus, _, _)
   | BinOp(_, Plus, _, _)
   | BinOp(_, Times, _, _)

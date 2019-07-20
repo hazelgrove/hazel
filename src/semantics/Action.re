@@ -13,7 +13,9 @@ type op_shape =
   | SComma
   | SArrow
   | SVBar
-  | SCons;
+  | SCons
+  | SAnd
+  | SOr;
 
 let ty_op_of = (os: op_shape): option(UHTyp.op) =>
   switch (os) {
@@ -23,6 +25,8 @@ let ty_op_of = (os: op_shape): option(UHTyp.op) =>
   | SMinus
   | SPlus
   | STimes
+  | SAnd
+  | SOr
   | SLessThan
   | SSpace
   | SCons => None
@@ -40,6 +44,8 @@ let pat_op_of = (os: op_shape): option(UHPat.op) =>
   | SComma => Some(Comma)
   | SSpace => Some(Space)
   | SCons => Some(Cons)
+  | SAnd
+  | SOr
   | SMinus
   | SPlus
   | STimes
@@ -64,6 +70,8 @@ let exp_op_of = (os: op_shape): option(UHExp.op) =>
   | SSpace => Some(Space)
   | SComma => Some(Comma)
   | SCons => Some(Cons)
+  | SAnd => Some(And)
+  | SOr => Some(Or)
   | SArrow
   | SVBar => None
   };
@@ -77,6 +85,8 @@ let op_shape_of_exp_op = (op: UHExp.op): op_shape =>
   | Space => SSpace
   | Comma => SComma
   | Cons => SCons
+  | And => SAnd
+  | Or => SOr
   };
 
 [@deriving (show({with_path: false}), sexp)]

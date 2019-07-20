@@ -10,7 +10,9 @@ type op =
   | LessThan
   | Space
   | Comma
-  | Cons;
+  | Cons
+  | And
+  | Or;
 
 let is_Space =
   fun

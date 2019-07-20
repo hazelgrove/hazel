@@ -238,6 +238,8 @@ let string_of_op_pat: UHPat.op => string =
 
 let string_of_op_exp: UHExp.op => string =
   fun
+  | And => "|"
+  | Or => "&"
   | Minus => "-"
   | Plus => "+"
   | Times => "*"
@@ -260,6 +262,8 @@ let space_before_after_op_pat: UHPat.op => (bool, bool) =
 
 let space_before_after_op_exp: UHExp.op => (bool, bool) =
   fun
+  | And
+  | Or => (true, true)
   | Minus => (true, true)
   | Plus => (true, true)
   | Times => (true, true)
@@ -2732,8 +2736,10 @@ let precedence_Plus = 3;
 let precedence_Minus = 3;
 let precedence_Cons = 4;
 let precedence_LessThan = 5;
-let precedence_Comma = 6;
-let precedence_max = 7;
+let precedence_And = 6;
+let precedence_Or = 7;
+let precedence_Comma = 8;
+let precedence_max = 9;
 let precedence_dhpat = (dp: DHPat.t) =>
   switch (dp) {
   | EmptyHole(_)
@@ -2775,6 +2781,8 @@ let rec precedence_dhexp = (d: DHExp.t) =>
   | BinNumOp(LessThan, _, _) => precedence_LessThan
   | Cons(_, _) => precedence_Cons
   | NonEmptyHole(_, _, _, _, d1) => precedence_dhexp(d1)
+  | And(_, _) => precedence_And
+  | Or(_, _) => precedence_Or
   };
 
 let snode_of_BinOp =
@@ -3050,6 +3058,36 @@ let rec snode_of_dhexp =
     snode_of_Case(~err_status, ~steps, sscrut, srules, None);
   | BinNumOp(dop, d1, d2) =>
     let sop = string_of_op_exp(DHExp.to_op(dop));
+    let s1 =
+      snode_of_dhexp(
+        ~parenthesize=precedence_dhexp(d1) > precedence_dhexp(d),
+        ~steps=steps @ [0],
+        d1,
+      );
+    let s2 =
+      snode_of_dhexp(
+        ~parenthesize=precedence_dhexp(d2) >= precedence_dhexp(d),
+        ~steps=steps @ [1],
+        d2,
+      );
+    snode_of_BinOp(~err_status, ~steps, s1, sop, s2);
+  | And(d1, d2) =>
+    let sop = string_of_op_exp(And);
+    let s1 =
+      snode_of_dhexp(
+        ~parenthesize=precedence_dhexp(d1) > precedence_dhexp(d),
+        ~steps=steps @ [0],
+        d1,
+      );
+    let s2 =
+      snode_of_dhexp(
+        ~parenthesize=precedence_dhexp(d2) >= precedence_dhexp(d),
+        ~steps=steps @ [1],
+        d2,
+      );
+    snode_of_BinOp(~err_status, ~steps, s1, sop, s2);
+  | Or(d1, d2) =>
+    let sop = string_of_op_exp(Or);
     let s1 =
       snode_of_dhexp(
         ~parenthesize=precedence_dhexp(d1) > precedence_dhexp(d),

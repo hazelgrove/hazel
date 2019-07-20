@@ -605,6 +605,7 @@ and _ana_cursor_found_exp =
   | OpSeq(BinOp(NotInHole, Cons, _, _), _) =>
     Some((Analyzed(ty), Exp(e), ctx))
   | OpSeq(Placeholder(_), _) => None
+  | OpSeq(BinOp(NotInHole, And | Or, _, _), _)
   | OpSeq(BinOp(NotInHole, Minus, _, _), _)
   | OpSeq(BinOp(NotInHole, Plus, _, _), _)
   | OpSeq(BinOp(NotInHole, Times, _, _), _)
@@ -933,6 +934,15 @@ and syn_cursor_info_skel =
       | None => None
       }
     }
+  | BinOp(_, And | Or, skel1, skel2) =>
+    switch (ana_cursor_info_skel(~frame, ctx, skel1, seq, n, ze_n, Bool)) {
+    | Some(_) as result => result
+    | None =>
+      switch (ana_cursor_info_skel(~frame, ctx, skel2, seq, n, ze_n, Bool)) {
+      | Some(_) as result => result
+      | None => None
+      }
+    }
   | BinOp(_, Space, Placeholder(n') as skel1, skel2) =>
     if (n == n') {
       let e_n = ZExp.erase(ze_n);
@@ -1159,7 +1169,7 @@ and ana_cursor_info_skel =
         ana_cursor_info_skel(~frame, ctx, skel2, seq, n, ze_n, ty_list);
       }
     }
-  | BinOp(_, Minus, _, _)
+  | BinOp(_, Minus | And | Or, _, _)
   | BinOp(_, Plus, _, _)
   | BinOp(_, Times, _, _)
   | BinOp(_, LessThan, _, _)

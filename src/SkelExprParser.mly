@@ -13,6 +13,8 @@
 %token PLUS
 %token MINUS
 %token TIMES
+%token AND
+%token OR
 %token SPACEOP
 %token EOF
 
@@ -23,6 +25,8 @@
 %left MINUS
 %left TIMES
 %left SPACEOP
+%left AND
+%left OR
 
 %start <UHExp.op Skel.t> skel_expr
 
@@ -60,6 +64,16 @@ expr:
     Skel.BinOp(
       NotInHole,
       UHExp.Minus,
+      e1, e2) }
+  | e1 = expr; AND; e2 = expr {
+    Skel.BinOp(
+      NotInHole,
+      UHExp.And,
+      e1, e2) }
+  | e1 = expr; OR; e2 = expr {
+    Skel.BinOp(
+      NotInHole,
+      UHExp.Or,
       e1, e2) }
   | e1 = expr; TIMES; e2 = expr {
     Skel.BinOp(

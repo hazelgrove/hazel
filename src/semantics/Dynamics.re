@@ -390,6 +390,8 @@ module DHExp = {
     | Plus => Some((Plus, Num))
     | Times => Some((Times, Num))
     | LessThan => Some((LessThan, Bool))
+    | And
+    | Or
     | Space
     | Cons
     | Comma => None
@@ -418,6 +420,8 @@ module DHExp = {
       | BoolLit(bool)
       | NumLit(int)
       | BinNumOp(bin_num_op, t, t)
+      | And(t, t)
+      | Or(t, t)
       | ListNil(HTyp.t)
       | Cons(t, t)
       | Inj(HTyp.t, inj_side, t)
@@ -445,6 +449,8 @@ module DHExp = {
     | BoolLit(_) => "BoolLit"
     | NumLit(_) => "NumLit"
     | BinNumOp(_, _, _) => "BinNumOp"
+    | And(_, _) => "And"
+    | Or(_, _) => "Or"
     | ListNil(_) => "ListNil"
     | Cons(_, _) => "Cons"
     | Inj(_, _, _) => "Inj"
@@ -537,6 +543,14 @@ module DHExp = {
       let d3 = subst_var(d1, x, d3);
       let d4 = subst_var(d1, x, d4);
       BinNumOp(op, d3, d4);
+    | And(d3, d4) =>
+      let d3 = subst_var(d1, x, d3);
+      let d4 = subst_var(d1, x, d4);
+      And(d3, d4);
+    | Or(d3, d4) =>
+      let d3 = subst_var(d1, x, d3);
+      let d4 = subst_var(d1, x, d4);
+      Or(d3, d4);
     | Inj(ty, side, d3) =>
       let d3 = subst_var(d1, x, d3);
       Inj(ty, side, d3);
@@ -617,7 +631,7 @@ module DHExp = {
     | (_, FixF(_, _, _)) => DoesNotMatch
     | (_, Lam(_, _, _)) => DoesNotMatch
     | (_, Ap(_, _)) => Indet
-    | (_, BinNumOp(_, _, _)) => Indet
+    | (_, BinNumOp(_, _, _) | And(_, _) | Or(_, _)) => Indet
     | (_, Case(_, _, _)) => Indet
     | (BoolLit(b1), BoolLit(b2)) =>
       if (b1 == b2) {
@@ -730,7 +744,9 @@ module DHExp = {
     | FixF(_, _, _) => DoesNotMatch
     | Lam(_, _, _) => DoesNotMatch
     | Ap(_, _) => Indet
-    | BinNumOp(_, _, _) => Indet
+    | BinNumOp(_, _, _)
+    | And(_, _)
+    | Or(_, _) => Indet
     | BoolLit(_) => DoesNotMatch
     | NumLit(_) => DoesNotMatch
     | ListNil(_) => DoesNotMatch
@@ -782,7 +798,9 @@ module DHExp = {
     | FixF(_, _, _) => DoesNotMatch
     | Lam(_, _, _) => DoesNotMatch
     | Ap(_, _) => Indet
-    | BinNumOp(_, _, _) => Indet
+    | BinNumOp(_, _, _)
+    | And(_, _)
+    | Or(_, _) => Indet
     | BoolLit(_) => DoesNotMatch
     | NumLit(_) => DoesNotMatch
     | Inj(_, _, _) => DoesNotMatch
@@ -829,7 +847,9 @@ module DHExp = {
     | FixF(_, _, _) => DoesNotMatch
     | Lam(_, _, _) => DoesNotMatch
     | Ap(_, _) => Indet
-    | BinNumOp(_, _, _) => Indet
+    | BinNumOp(_, _, _)
+    | And(_, _)
+    | Or(_, _) => Indet
     | BoolLit(_) => DoesNotMatch
     | NumLit(_) => DoesNotMatch
     | Inj(_, _, _) => DoesNotMatch
@@ -1163,6 +1183,23 @@ module DHExp = {
           };
         }
       }
+    | BinOp(NotInHole, (And | Or) as op, skel1, skel2) =>
+      switch (ana_expand_skel(ctx, delta, skel1, seq, Bool)) {
+      | DoesNotExpand => DoesNotExpand
+      | Expands(d1, ty1, delta) =>
+        switch (ana_expand_skel(ctx, delta, skel2, seq, Bool)) {
+        | DoesNotExpand => DoesNotExpand
+        | Expands(d2, ty2, delta) =>
+          let dc1 = cast(d1, ty1, Bool);
+          let dc2 = cast(d2, ty2, Bool);
+          switch (of_op(op)) {
+          | None => DoesNotExpand
+          | Some((op, ty)) =>
+            let d = BinNumOp(op, dc1, dc2);
+            Expands(d, ty, delta);
+          };
+        }
+      }
     }
   and ana_expand_block =
       (ctx: Contexts.t, delta: Delta.t, block: UHExp.block, ty: HTyp.t)
@@ -1487,7 +1524,7 @@ module DHExp = {
           };
         }
       }
-    | BinOp(_, Minus, _, _)
+    | BinOp(_, Minus | And | Or, _, _)
     | BinOp(_, Plus, _, _)
     | BinOp(_, Times, _, _)
     | BinOp(_, LessThan, _, _)
@@ -1653,6 +1690,14 @@ module DHExp = {
       let (d1, hii) = renumber_result_only(path, hii, d1);
       let (d2, hii) = renumber_result_only(path, hii, d2);
       (BinNumOp(op, d1, d2), hii);
+    | And(d1, d2) =>
+      let (d1, hii) = renumber_result_only(path, hii, d1);
+      let (d2, hii) = renumber_result_only(path, hii, d2);
+      (And(d1, d2), hii);
+    | Or(d1, d2) =>
+      let (d1, hii) = renumber_result_only(path, hii, d1);
+      let (d2, hii) = renumber_result_only(path, hii, d2);
+      (Or(d1, d2), hii);
     | Inj(ty, side, d1) =>
       let (d1, hii) = renumber_result_only(path, hii, d1);
       (Inj(ty, side, d1), hii);
@@ -1732,6 +1777,14 @@ module DHExp = {
       let (d1, hii) = renumber_sigmas_only(path, hii, d1);
       let (d2, hii) = renumber_sigmas_only(path, hii, d2);
       (BinNumOp(op, d1, d2), hii);
+    | And(d1, d2) =>
+      let (d1, hii) = renumber_sigmas_only(path, hii, d1);
+      let (d2, hii) = renumber_sigmas_only(path, hii, d2);
+      (And(d1, d2), hii);
+    | Or(d1, d2) =>
+      let (d1, hii) = renumber_sigmas_only(path, hii, d1);
+      let (d2, hii) = renumber_sigmas_only(path, hii, d2);
+      (Or(d1, d2), hii);
     | Inj(ty, side, d1) =>
       let (d1, hii) = renumber_sigmas_only(path, hii, d1);
       (Inj(ty, side, d1), hii);
@@ -1937,6 +1990,42 @@ module Evaluator = {
     | BoolLit(_)
     | NumLit(_)
     | Triv => BoxedValue(d)
+    | And(d1, d2) =>
+      switch (evaluate(d1)) {
+      | InvalidInput(msg) => InvalidInput(msg)
+      | BoxedValue(BoolLit(b1) as d1') =>
+        switch (evaluate(d2)) {
+        | InvalidInput(msg) => InvalidInput(msg)
+        | BoxedValue(BoolLit(b2)) => BoxedValue(BoolLit(b1 && b2))
+        | BoxedValue(_) => InvalidInput(3)
+        | Indet(d2') => Indet(And(d1', d2'))
+        }
+      | BoxedValue(_) => InvalidInput(4)
+      | Indet(d1') =>
+        switch (evaluate(d2)) {
+        | InvalidInput(msg) => InvalidInput(msg)
+        | BoxedValue(d2')
+        | Indet(d2') => Indet(And(d1', d2'))
+        }
+      }
+    | Or(d1, d2) =>
+      switch (evaluate(d1)) {
+      | InvalidInput(msg) => InvalidInput(msg)
+      | BoxedValue(BoolLit(b1) as d1') =>
+        switch (evaluate(d2)) {
+        | InvalidInput(msg) => InvalidInput(msg)
+        | BoxedValue(BoolLit(b2)) => BoxedValue(BoolLit(b1 || b2))
+        | BoxedValue(_) => InvalidInput(3)
+        | Indet(d2') => Indet(Or(d1', d2'))
+        }
+      | BoxedValue(_) => InvalidInput(4)
+      | Indet(d1') =>
+        switch (evaluate(d2)) {
+        | InvalidInput(msg) => InvalidInput(msg)
+        | BoxedValue(d2')
+        | Indet(d2') => Indet(Or(d1', d2'))
+        }
+      }
     | BinNumOp(op, d1, d2) =>
       switch (evaluate(d1)) {
       | InvalidInput(msg) => InvalidInput(msg)

@@ -442,6 +442,7 @@ module KeyCombo = {
     let semicolon = no_ctrl_alt_meta(Key.the_key(";"));
     let comma = no_ctrl_alt_meta(Key.the_key(","));
     let vbar = no_ctrl_alt_meta(Key.the_key("|"));
+    let ampersand = no_ctrl_alt_meta(Key.the_key("&"));
     let dollar = no_ctrl_alt_meta(Key.the_key("$"));
     let amp = no_ctrl_alt_meta(Key.the_key("&"));
     let alt_L = alt(Key.the_letter_code("l"));
@@ -465,6 +466,7 @@ module KeyCombo = {
     | Key_N
     | Key_B
     | GT
+    | Ampersand
     | VBar
     | Key_L
     | LeftParen
@@ -494,6 +496,7 @@ module KeyCombo = {
     | Key_N => Details.key_N
     | Key_B => Details.key_B
     | GT => Details.gt
+    | Ampersand => Details.ampersand
     | VBar => Details.vbar
     | Key_L => Details.key_L
     | LeftParen => Details.left_parens
@@ -531,6 +534,8 @@ module KeyCombo = {
       Some(Key_B);
     } else if (evt_matches(Details.gt)) {
       Some(GT);
+    } else if (evt_matches(Details.ampersand)) {
+      Some(Ampersand);
     } else if (evt_matches(Details.vbar)) {
       Some(VBar);
     } else if (evt_matches(Details.key_L)) {
