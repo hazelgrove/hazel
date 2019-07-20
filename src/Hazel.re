@@ -44,14 +44,21 @@ let create =
     ~on_display=
       (state: State.t, ~schedule_action: Update.Action.t => unit) => {
         let path = model |> Model.path;
-        if (model.is_cell_focused) {
+        if (state.changing_cards^) {
+          switch (Code.caret_position_of_path(path)) {
+          | None => assert(false)
+          | Some((node, offset)) =>
+            state.setting_caret := true;
+            JSUtil.set_caret(node, offset);
+          };
+          state.changing_cards := false;
+        } else if (model.is_cell_focused) {
           let (steps, cursor) = path;
           let cursor_elem = JSUtil.force_get_elem_by_cls("cursor");
           switch (cursor) {
           | OnText(_)
           | OnDelim(_, _) =>
             if (!Code.is_caret_consistent_with_path(path)) {
-              state.changing_cards := false;
               switch (Code.caret_position_of_path(path)) {
               | None => assert(false)
               | Some((node, offset)) =>
