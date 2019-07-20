@@ -658,8 +658,7 @@ html, body {
   margin-bottom: 14px; /* to match parent padding: creates a visible gap at bottom of scroll */
   box-shadow: 3px 3px tan;
   /* border: 1px solid tan; */
-  /* max-width: 12in;*/
-  width: auto;
+  max-width: 10in;
 }
 
 h1 {
