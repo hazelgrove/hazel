@@ -1384,6 +1384,21 @@ let view =
                   prevent_stop_inject(
                     Update.Action.EditAction(Construct(shape)),
                   );
+                | (Pat(Wild(_)), _) =>
+                  let shape =
+                    switch (single_key) {
+                    | Number(n) =>
+                      Action.SVar(
+                        "_" ++ string_of_int(n),
+                        OnText(num_digits(n) + 1),
+                      )
+                    | Letter(x) =>
+                      Action.SVar("_" ++ x, OnText(Var.length(x) + 1))
+                    | Underscore => Action.SVar("__", OnText(2))
+                    };
+                  prevent_stop_inject(
+                    Update.Action.EditAction(Construct(shape)),
+                  );
                 | (
                     Line(EmptyLine | ExpLine(EmptyHole(_))) |
                     Exp(EmptyHole(_)),
