@@ -1755,7 +1755,18 @@ and ana_fix_holes_exp =
           ty1,
           ty,
         );
-      (Case(NotInHole, block, rules, Some(uty)), u_gen);
+      (
+        Case(
+          NotInHole,
+          block,
+          rules,
+          switch (ty2) {
+          | Hole => None
+          | _ => Some(uty)
+          },
+        ),
+        u_gen,
+      );
     } else {
       let (e', _, u_gen) =
         syn_fix_holes_exp(ctx, u_gen, ~renumber_empty_holes, e);
