@@ -169,24 +169,26 @@ let page_view =
                         cell_status,
                       ],
                     ),
-                    examples_select(~inject),
-                    Node.button(
-                      [
-                        Attr.on_click(_ => {
-                          let block =
-                            model |> Model.zblock |> ZExp.erase_block;
-                          JSUtil.log(
-                            Js.string(
-                              Sexplib.Sexp.to_string(
-                                UHExp.sexp_of_block(block),
-                              ),
-                            ),
-                          );
-                          Event.Ignore;
-                        }),
-                      ],
-                      [Node.text("Serialize to console")],
-                    ),
+                    /*
+                     examples_select(~inject),
+                     Node.button(
+                       [
+                         Attr.on_click(_ => {
+                           let block =
+                             model |> Model.zblock |> ZExp.erase_block;
+                           JSUtil.log(
+                             Js.string(
+                               Sexplib.Sexp.to_string(
+                                 UHExp.sexp_of_block(block),
+                               ),
+                             ),
+                           );
+                           Event.Ignore;
+                         }),
+                       ],
+                       [Node.text("Serialize to console")],
+                     ),
+                     */
                   ],
                 ),
               ],
