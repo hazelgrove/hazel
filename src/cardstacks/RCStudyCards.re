@@ -76,7 +76,7 @@ let set_img = path =>
     "img",
     [
       Vdom.Attr.create("src", path),
-      Vdom.Attr.create("style", "margin-left: -20px; margin-right: -20px;"),
+      Vdom.Attr.create("style", "margin-left: -40px; margin-right: -40px;"),
     ],
     [],
   );
@@ -726,6 +726,203 @@ let cardstack: CardStack.t =
               UHExp.(Block([EmptyLine], EmptyHole(-1))),
             ),
             UHExp.EmptyLine,
+          ],
+          UHExp.EmptyHole(-1),
+        );
+      },
+    },
+    {
+      caption:
+        span(
+          [],
+          [
+            exercise_number(3),
+            txt(
+              "Suppose we are implementing a variant of the game SET. "
+              ++ "The face of each card has three properties: a color, "
+              ++ "a shape, and a texture. Each face property of a card "
+              ++ "can take on one of three different values, e.g., the "
+              ++ "color may be red, green, or purple.",
+            ),
+            set_img_container(
+              ~width=100,
+              set_img("redovalshaded.png"),
+              set_img("greensquigglefilled.png"),
+              set_img("purplediamondempty.png"),
+            ),
+            txt(
+              "Three cards form a SET when, for each face property, the "
+              ++ "values across the three cards are either all the same "
+              ++ "or all different. In the figure below, the left three "
+              ++ "cards form a SET because the colors are all "
+              ++ "different, the shapes are all the same, and the textures "
+              ++ "are all different. The right three cards do not "
+              ++ "form a SET because the first two cards have the same "
+              ++ "texture but the third has a different texture.",
+            ),
+            Node.div(
+              [
+                Attr.create(
+                  "style",
+                  "width: 100%; display: flex; flex-direction: row;",
+                ),
+              ],
+              [
+                set_img_container(
+                  ~width=50,
+                  set_img("purplesquigglefilled.png"),
+                  set_img("redsquiggleempty.png"),
+                  set_img("greensquiggleshaded.png"),
+                ),
+                set_img_container(
+                  ~width=50,
+                  set_img("greendiamondfilled.png"),
+                  set_img("greenovalfilled.png"),
+                  set_img("greensquiggleempty.png"),
+                ),
+              ],
+            ),
+            txt("We model each card as a 3-tuple of type "),
+            code("(Num, Num, Num)"),
+            txt(
+              ", where each tuple position represents a face property. "
+              ++ "In this exercise, we will implement a function",
+            ),
+            centered_code(
+              "isSet : (Num, Num, Num) -> (Num, Num, Num) -> (Num, Num, Num) -> Bool",
+            ),
+            txt("that returns whether three given cards form a SET."),
+            p(
+              [],
+              [
+                txt("Your goal is to implement the function "),
+                code("isSet"),
+                txt("."),
+                Node.ul(
+                  [],
+                  [
+                    Node.li(
+                      [],
+                      [
+                        txt("In scope are pre-defined helper functions "),
+                        code("same"),
+                        txt(" and "),
+                        code("different"),
+                        txt(
+                          ", each of which takes two face property values and "
+                          ++ "determines whether they are the same or different, "
+                          ++ "respectively. ",
+                        ),
+                      ],
+                    ),
+                    Node.li(
+                      [],
+                      [
+                        txt(
+                          "Use these helper functions to implement the functions ",
+                        ),
+                        code("allSame"),
+                        txt(" and "),
+                        code("allDifferent"),
+                        txt(
+                          ", each of which takes three property values and determines "
+                          ++ "whether they are all same or all different, respectively.",
+                        ),
+                      ],
+                    ),
+                    Node.li(
+                      [],
+                      [
+                        txt("Use "),
+                        code("allSame"),
+                        txt(" and "),
+                        code("allDifferent"),
+                        txt(" to implement the function "),
+                        code("isSet"),
+                        txt(
+                          ", which takes three cards and determines whether they "
+                          ++ "form a SET.",
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ],
+        ),
+      init_block: {
+        let num_triple =
+          UHTyp.(
+            Parenthesized(
+              SeqOpExp(ExpOpExp(Num, Prod, Num), Prod, Num) |> Typ.mk_OpSeq,
+            )
+          );
+        UHExp.Block(
+          [
+            UHExp.letline(
+              UHPat.var("same"),
+              ~ann=
+                UHTyp.(
+                  SeqOpExp(ExpOpExp(Num, Arrow, Num), Arrow, Bool)
+                  |> Typ.mk_OpSeq
+                ),
+              UHExp.(EmptyHole(-1) |> wrap_in_block),
+            ),
+            UHExp.letline(
+              UHPat.var("different"),
+              ~ann=
+                UHTyp.(
+                  SeqOpExp(ExpOpExp(Num, Arrow, Num), Arrow, Bool)
+                  |> Typ.mk_OpSeq
+                ),
+              UHExp.(EmptyHole(-1) |> wrap_in_block),
+            ),
+            UHExp.EmptyLine,
+            UHExp.letline(
+              UHPat.var("allSame"),
+              ~ann=
+                UHTyp.(
+                  SeqOpExp(
+                    SeqOpExp(ExpOpExp(Num, Arrow, Num), Arrow, Num),
+                    Arrow,
+                    Bool,
+                  )
+                  |> Typ.mk_OpSeq
+                ),
+              UHExp.(EmptyHole(-1) |> wrap_in_block),
+            ),
+            UHExp.letline(
+              UHPat.var("allDifferent"),
+              ~ann=
+                UHTyp.(
+                  SeqOpExp(
+                    SeqOpExp(ExpOpExp(Num, Arrow, Num), Arrow, Num),
+                    Arrow,
+                    Bool,
+                  )
+                  |> Typ.mk_OpSeq
+                ),
+              UHExp.(EmptyHole(-1) |> wrap_in_block),
+            ),
+            UHExp.EmptyLine,
+            UHExp.letline(
+              UHPat.var("isSet"),
+              ~ann=
+                UHTyp.(
+                  SeqOpExp(
+                    SeqOpExp(
+                      ExpOpExp(num_triple, Arrow, num_triple),
+                      Arrow,
+                      num_triple,
+                    ),
+                    Arrow,
+                    Bool,
+                  )
+                  |> Typ.mk_OpSeq
+                ),
+              UHExp.(Block([EmptyLine], EmptyHole(-1))),
+            ),
           ],
           UHExp.EmptyHole(-1),
         );
