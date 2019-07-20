@@ -124,6 +124,8 @@ let update_node = (ci: t, node): t => {
   {typed, node, frame, position, ctx};
 };
 
+let update_position = (position, ci: t): t => {...ci, position};
+
 let is_concluding_let_line = ci =>
   switch (ci.node, ci.frame) {
   | (

@@ -3892,127 +3892,78 @@ and syn_perform_exp =
       Statics.syn_fix_holes_zblock(ctx, u_gen, result);
     Succeeded((B(result), ty, u_gen));
   /* TODO consider deletion of type ascription on case */
-  | (
-      Backspace,
-      CaseZR(
-        _,
-        e1,
-        (prefix, CursorR(OnDelim(0 | 1, After), _), suffix),
-        ann,
-      ),
-    ) =>
-    switch (split_last(prefix)) {
-    | Some((prefix, last_of_prefix)) =>
-      let zrule = ZExp.place_after_rule(last_of_prefix);
-      let ze = ZExp.CaseZR(NotInHole, e1, (prefix, zrule, suffix), ann);
-      Succeeded((E(ze), ty, u_gen));
-    | None =>
-      switch (suffix) {
-      | [first_of_suffix, ...suffix] =>
-        let zrule = ZExp.place_before_rule(first_of_suffix);
-        let ze = ZExp.CaseZR(NotInHole, e1, (prefix, zrule, suffix), ann);
-        Succeeded((E(ze), ty, u_gen));
-      | [] =>
-        let (zrule, u_gen) = ZExp.empty_zrule(u_gen);
-        Succeeded((
-          E(CaseZR(NotInHole, e1, ([], zrule, []), ann)),
-          ty,
-          u_gen,
-        ));
-      }
-    }
+  | (Backspace, CaseZR(_, _, (_, CursorR(OnDelim(_, Before), _), _), _)) =>
+    syn_perform_exp(~ci, ctx, MoveLeft, edit_state)
+  | (Delete, CaseZR(_, _, (_, CursorR(OnDelim(_, After), _), _), _)) =>
+    syn_perform_exp(~ci, ctx, MoveRight, edit_state)
+  // Delete before delim == Backspace after delim
   | (
       Delete,
       CaseZR(
-        _,
-        e1,
-        (prefix, CursorR(OnDelim(0 | 1, Before), _), suffix),
+        err_status,
+        scrut,
+        (prefix, CursorR(OnDelim(k, Before), rule), suffix),
         ann,
       ),
     ) =>
-    switch (suffix) {
-    | [first_of_suffix, ...suffix] =>
-      let zrule = ZExp.place_before_rule(first_of_suffix);
-      let ze = ZExp.CaseZR(NotInHole, e1, (prefix, zrule, suffix), ann);
-      Succeeded((E(ze), ty, u_gen));
-    | [] =>
-      switch (split_last(prefix)) {
-      | Some((prefix, last_of_prefix)) =>
-        let zrule = ZExp.place_after_rule(last_of_prefix);
-        let ze = ZExp.CaseZR(NotInHole, e1, (prefix, zrule, suffix), ann);
-        Succeeded((E(ze), ty, u_gen));
-      | None =>
-        let (zrule, u_gen) = ZExp.empty_zrule(u_gen);
-        Succeeded((
-          E(CaseZR(NotInHole, e1, ([], zrule, []), ann)),
-          ty,
-          u_gen,
-        ));
-      }
-    }
+    syn_perform_exp(
+      ~ci=ci |> CursorInfo.update_position(OnDelim(k, After)),
+      ctx,
+      Backspace,
+      (
+        ZExp.CaseZR(
+          err_status,
+          scrut,
+          (prefix, CursorR(OnDelim(k, After), rule), suffix),
+          ann,
+        ),
+        ty,
+        u_gen,
+      ),
+    )
   | (
       Backspace,
       CaseZR(
-        _,
-        e1,
-        (prefix, CursorR(OnDelim(0, Before), rule), suffix),
+        err_status,
+        scrut,
+        (prefix, CursorR(OnDelim(k, After), rule), suffix),
         ann,
       ),
     ) =>
-    switch (split_last(prefix)) {
-    | None =>
-      let rules = prefix @ [rule] @ suffix;
-      let ze1 = ZExp.place_after_block(e1);
-      let ze = ZExp.CaseZE(NotInHole, ze1, rules, ann);
-      Succeeded((E(ze), ty, u_gen));
-    | Some((prefix, last_of_prefix)) =>
-      let zrule = ZExp.place_after_rule(last_of_prefix);
-      let zrules = (prefix, zrule, [rule, ...suffix]);
-      let ze = ZExp.CaseZR(NotInHole, e1, zrules, ann);
-      Succeeded((E(ze), ty, u_gen));
-    }
-  | (
-      Backspace,
-      CaseZR(
-        _,
-        e1,
-        (prefix, CursorR(OnDelim(1, Before), Rule(p, clause)), suffix),
-        ann,
+    Succeeded((
+      E(
+        CaseZR(
+          err_status,
+          scrut,
+          (prefix, CursorR(Staging(k), rule), suffix),
+          ann,
+        ),
       ),
-    ) =>
-    let zrule = ZExp.RuleZP(ZPat.place_after(p), clause);
-    let ze = ZExp.CaseZR(NotInHole, e1, (prefix, zrule, suffix), ann);
-    Succeeded((E(ze), ty, u_gen));
-  | (
-      Delete,
-      CaseZR(
-        _,
-        e1,
-        (prefix, CursorR(OnDelim(0, After), Rule(p, clause)), suffix),
-        ann,
-      ),
-    ) =>
-    let zrule = ZExp.RuleZP(ZPat.place_before(p), clause);
-    let ze = ZExp.CaseZR(NotInHole, e1, (prefix, zrule, suffix), ann);
-    Succeeded((E(ze), ty, u_gen));
-  | (
-      Delete,
-      CaseZR(
-        _,
-        e1,
-        (prefix, CursorR(OnDelim(1, After), Rule(p, clause)), suffix),
-        ann,
-      ),
-    ) =>
-    let zrule = ZExp.RuleZE(p, ZExp.place_before_block(clause));
-    let ze = ZExp.CaseZR(NotInHole, e1, (prefix, zrule, suffix), ann);
-    Succeeded((E(ze), ty, u_gen));
-  /* invalid cursor position */
+      ty,
+      u_gen,
+    ))
   | (
       Backspace | Delete,
-      CaseZR(_, _, (_, CursorR(OnDelim(_, _), _), _), _),
+      CaseZR(_, scrut, (prefix, CursorR(Staging(_), _), suffix), ann),
     ) =>
-    Failed
+    switch (suffix, prefix |> split_last) {
+    | ([], None) =>
+      let (zrule, u_gen) = ZExp.empty_zrule(u_gen);
+      Succeeded((
+        E(CaseZR(NotInHole, scrut, ([], zrule, []), ann)),
+        ty,
+        u_gen,
+      ));
+    | ([first, ...rest], _) =>
+      let zrule = ZExp.place_before_rule(first);
+      let ze = ZExp.CaseZR(NotInHole, scrut, (prefix, zrule, rest), ann);
+      Succeeded((E(ze), ty, u_gen));
+    | (_, Some((prefix_prefix, prefix_last))) =>
+      let zrule = ZExp.place_after_rule(prefix_last);
+      let ze =
+        ZExp.CaseZR(NotInHole, scrut, (prefix_prefix, zrule, suffix), ann);
+      Succeeded((E(ze), ty, u_gen));
+    }
   /* ... + [k-1] +<| [k] + ... */
   | (Backspace, CursorE(OnDelim(k, After), OpSeq(_, seq))) =>
     /* validity check at top of switch statement ensures
@@ -5814,119 +5765,76 @@ and ana_perform_exp =
       Statics.ana_fix_holes_zblock(ctx, u_gen, result, ty);
     Succeeded((B(result), u_gen));
   /* TODO consider deletion of type ascription on case */
-  | (
-      Backspace,
-      CaseZR(
-        err,
-        e1,
-        (prefix, CursorR(OnDelim(0 | 1, After), _), suffix),
-        ann,
-      ),
-    ) =>
-    switch (split_last(prefix)) {
-    | Some((prefix, last_of_prefix)) =>
-      let zrule = ZExp.place_after_rule(last_of_prefix);
-      let ze = ZExp.CaseZR(err, e1, (prefix, zrule, suffix), ann);
-      Succeeded((E(ze), u_gen));
-    | None =>
-      switch (suffix) {
-      | [first_of_suffix, ...suffix] =>
-        let zrule = ZExp.place_before_rule(first_of_suffix);
-        let ze = ZExp.CaseZR(err, e1, (prefix, zrule, suffix), ann);
-        Succeeded((E(ze), u_gen));
-      | [] =>
-        let (zrule, u_gen) = ZExp.empty_zrule(u_gen);
-        Succeeded((E(CaseZR(err, e1, ([], zrule, []), ann)), u_gen));
-      }
-    }
+  | (Backspace, CaseZR(_, _, (_, CursorR(OnDelim(_, Before), _), _), _)) =>
+    ana_perform_exp(~ci, ctx, MoveLeft, edit_state, ty)
+  | (Delete, CaseZR(_, _, (_, CursorR(OnDelim(_, After), _), _), _)) =>
+    ana_perform_exp(~ci, ctx, MoveRight, edit_state, ty)
+  // Delete before delim == Backspace after delim
   | (
       Delete,
       CaseZR(
-        err,
-        e1,
-        (prefix, CursorR(OnDelim(0 | 1, Before), _), suffix),
+        err_status,
+        scrut,
+        (prefix, CursorR(OnDelim(k, Before), rule), suffix),
         ann,
       ),
     ) =>
-    switch (suffix) {
-    | [first_of_suffix, ...suffix] =>
-      let zrule = ZExp.place_before_rule(first_of_suffix);
-      let ze = ZExp.CaseZR(err, e1, (prefix, zrule, suffix), ann);
-      Succeeded((E(ze), u_gen));
-    | [] =>
-      switch (split_last(prefix)) {
-      | Some((prefix, last_of_prefix)) =>
-        let zrule = ZExp.place_after_rule(last_of_prefix);
-        let ze = ZExp.CaseZR(err, e1, (prefix, zrule, suffix), ann);
-        Succeeded((E(ze), u_gen));
-      | None =>
-        let (zrule, u_gen) = ZExp.empty_zrule(u_gen);
-        Succeeded((E(CaseZR(err, e1, ([], zrule, []), ann)), u_gen));
-      }
-    }
+    ana_perform_exp(
+      ~ci=ci |> CursorInfo.update_position(OnDelim(k, After)),
+      ctx,
+      Backspace,
+      (
+        ZExp.CaseZR(
+          err_status,
+          scrut,
+          (prefix, CursorR(OnDelim(k, After), rule), suffix),
+          ann,
+        ),
+        u_gen,
+      ),
+      ty,
+    )
   | (
       Backspace,
       CaseZR(
-        err,
-        e1,
-        (prefix, CursorR(OnDelim(0, Before), rule), suffix),
+        err_status,
+        scrut,
+        (prefix, CursorR(OnDelim(k, After), rule), suffix),
         ann,
       ),
     ) =>
-    switch (split_last(prefix)) {
-    | None =>
-      let rules = prefix @ [rule] @ suffix;
-      let ze1 = ZExp.place_after_block(e1);
-      let ze = ZExp.CaseZE(err, ze1, rules, ann);
-      Succeeded((E(ze), u_gen));
-    | Some((prefix, last_of_prefix)) =>
-      let zrule = ZExp.place_after_rule(last_of_prefix);
-      let zrules = (prefix, zrule, [rule, ...suffix]);
-      let ze = ZExp.CaseZR(err, e1, zrules, ann);
-      Succeeded((E(ze), u_gen));
-    }
-  | (
-      Backspace,
-      CaseZR(
-        err,
-        e1,
-        (prefix, CursorR(OnDelim(1, Before), Rule(p, clause)), suffix),
-        ann,
+    Succeeded((
+      E(
+        CaseZR(
+          err_status,
+          scrut,
+          (prefix, CursorR(Staging(k), rule), suffix),
+          ann,
+        ),
       ),
-    ) =>
-    let zrule = ZExp.RuleZP(ZPat.place_after(p), clause);
-    let ze = ZExp.CaseZR(err, e1, (prefix, zrule, suffix), ann);
-    Succeeded((E(ze), u_gen));
-  | (
-      Delete,
-      CaseZR(
-        err,
-        e1,
-        (prefix, CursorR(OnDelim(0, After), Rule(p, clause)), suffix),
-        ann,
-      ),
-    ) =>
-    let zrule = ZExp.RuleZP(ZPat.place_before(p), clause);
-    let ze = ZExp.CaseZR(err, e1, (prefix, zrule, suffix), ann);
-    Succeeded((E(ze), u_gen));
-  | (
-      Delete,
-      CaseZR(
-        err,
-        e1,
-        (prefix, CursorR(OnDelim(1, After), Rule(p, clause)), suffix),
-        ann,
-      ),
-    ) =>
-    let zrule = ZExp.RuleZE(p, ZExp.place_before_block(clause));
-    let ze = ZExp.CaseZR(err, e1, (prefix, zrule, suffix), ann);
-    Succeeded((E(ze), u_gen));
-  /* invalid cursor position */
+      u_gen,
+    ))
   | (
       Backspace | Delete,
-      CaseZR(_, _, (_, CursorR(OnDelim(_, _), _), _), _),
+      CaseZR(_, scrut, (prefix, CursorR(Staging(_), _), suffix), ann),
     ) =>
-    Failed
+    switch (suffix, prefix |> split_last) {
+    | ([], None) =>
+      let (zrule, u_gen) = ZExp.empty_zrule(u_gen);
+      Succeeded((
+        E(CaseZR(NotInHole, scrut, ([], zrule, []), ann)),
+        u_gen,
+      ));
+    | ([first, ...rest], _) =>
+      let zrule = ZExp.place_before_rule(first);
+      let ze = ZExp.CaseZR(NotInHole, scrut, (prefix, zrule, rest), ann);
+      Succeeded((E(ze), u_gen));
+    | (_, Some((prefix_prefix, prefix_last))) =>
+      let zrule = ZExp.place_after_rule(prefix_last);
+      let ze =
+        ZExp.CaseZR(NotInHole, scrut, (prefix_prefix, zrule, suffix), ann);
+      Succeeded((E(ze), u_gen));
+    }
   /* ... + [k-1] +<| [k] + ... */
   | (Backspace, CursorE(OnDelim(k, After), OpSeq(_, seq))) =>
     /* validity check at top of switch statement ensures
