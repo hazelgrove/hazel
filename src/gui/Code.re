@@ -238,8 +238,8 @@ let string_of_op_pat: UHPat.op => string =
 
 let string_of_op_exp: UHExp.op => string =
   fun
-  | And => "|"
-  | Or => "&"
+  | And => "&"
+  | Or => "|"
   | Minus => "-"
   | Plus => "+"
   | Times => "*"
