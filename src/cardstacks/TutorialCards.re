@@ -61,4 +61,46 @@ let backspace_card: Card.t = {
   init_zblock: backspace_init_zblock,
 };
 
-let cardstack: CardStack.t = [intro_card, backspace_card];
+let empty_hole_insertion_caption =
+  div(
+    [],
+    [
+      txt(
+        "Hazel automatically inserts holes wherever a program term is expected "
+        ++ "but you haven't yet provided one.",
+      ),
+      p(
+        [],
+        [
+          txt("Try entering "),
+          code("12345"),
+          txt(" again, then press "),
+          keyblock("+"),
+          txt("."),
+        ],
+      ),
+      p(
+        [],
+        [
+          txt("Since the "),
+          code("+"),
+          txt(
+            " operator requires two arguments, Hazel automatically inserts "
+            ++ " a hole for the second argument.",
+          ),
+        ],
+      ),
+    ],
+  );
+let empty_hole_insertion_init_zblock =
+  deserialize("(BlockZE()(CursorE(OnDelim 0 Before)(EmptyHole 0)))");
+let empty_hole_insertion_card: Card.t = {
+  caption: empty_hole_insertion_caption,
+  init_zblock: empty_hole_insertion_init_zblock,
+};
+
+let cardstack: CardStack.t = [
+  intro_card,
+  backspace_card,
+  empty_hole_insertion_card,
+];
