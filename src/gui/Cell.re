@@ -1374,17 +1374,26 @@ let view =
                   prevent_stop_inject(
                     Update.Action.EditAction(Hashtbl.find(kc_actions, kc)),
                   )
+                | (Pat(EmptyHole(_)), _) =>
+                  let shape =
+                    switch (single_key) {
+                    | Number(n) => Action.SNumLit(n, OnText(num_digits(n)))
+                    | Letter(x) => Action.SVar(x, OnText(Var.length(x)))
+                    | Underscore => Action.SWild
+                    };
+                  prevent_stop_inject(
+                    Update.Action.EditAction(Construct(shape)),
+                  );
                 | (
                     Line(EmptyLine | ExpLine(EmptyHole(_))) |
-                    Exp(EmptyHole(_)) |
-                    Pat(EmptyHole(_)),
+                    Exp(EmptyHole(_)),
                     _,
                   ) =>
                   let shape =
                     switch (single_key) {
                     | Number(n) => Action.SNumLit(n, OnText(num_digits(n)))
                     | Letter(x) => Action.SVar(x, OnText(Var.length(x)))
-                    | Underscore => Action.SWild
+                    | Underscore => Action.SVar("_", OnText(1))
                     };
                   prevent_stop_inject(
                     Update.Action.EditAction(Construct(shape)),
