@@ -154,13 +154,13 @@ let cardstack: CardStack.t =
                   lam(
                     UHPat.(
                       Parenthesized(
-                        ExpOpExp(var("isMelee"), Comma, var("critHit"))
+                        ExpOpExp(var("is_melee"), Comma, var("crit_hit"))
                         |> Pat.mk_OpSeq,
                       )
                     ),
                     wrap_in_block(
                       case(
-                        var("isMelee") |> wrap_in_block,
+                        var("is_melee") |> wrap_in_block,
                         [
                           Rule(
                             UHPat.boollit(false),
@@ -169,7 +169,7 @@ let cardstack: CardStack.t =
                           Rule(
                             UHPat.boollit(true),
                             SeqOpExp(
-                              ExpOpExp(numlit(2), Times, var("critHit")),
+                              ExpOpExp(numlit(2), Times, var("crit_hit")),
                               Plus,
                               numlit(1),
                             )
@@ -260,13 +260,13 @@ let cardstack: CardStack.t =
                   lam(
                     UHPat.(
                       Parenthesized(
-                        ExpOpExp(var("isMelee"), Comma, var("critHit"))
+                        ExpOpExp(var("is_melee"), Comma, var("crit_hit"))
                         |> Pat.mk_OpSeq,
                       )
                     ),
                     wrap_in_block(
                       case(
-                        var("isMelee") |> wrap_in_block,
+                        var("is_melee") |> wrap_in_block,
                         [
                           Rule(
                             UHPat.boollit(false),
@@ -275,7 +275,7 @@ let cardstack: CardStack.t =
                           Rule(
                             UHPat.boollit(true),
                             SeqOpExp(
-                              ExpOpExp(numlit(2), Times, var("critHit")),
+                              ExpOpExp(numlit(2), Times, var("crit_hit")),
                               Plus,
                               numlit(1),
                             )
@@ -688,7 +688,7 @@ let cardstack: CardStack.t =
               ++ "In this exercise, we will implement a function",
             ),
             centered_code(
-              "isSet : (Num, Num, Num) -> (Num, Num, Num) -> (Num, Num, Num) -> Bool",
+              "is_set : (Num, Num, Num) -> (Num, Num, Num) -> (Num, Num, Num) -> Bool",
             ),
             txt("that returns whether three given cards form a SET."),
             p(
@@ -709,7 +709,7 @@ let cardstack: CardStack.t =
         UHExp.Block(
           [
             UHExp.letline(
-              UHPat.var("isSet"),
+              UHPat.var("is_set"),
               ~ann=
                 UHTyp.(
                   SeqOpExp(
@@ -789,14 +789,14 @@ let cardstack: CardStack.t =
               ++ "In this exercise, we will implement a function",
             ),
             centered_code(
-              "isSet : (Num, Num, Num) -> (Num, Num, Num) -> (Num, Num, Num) -> Bool",
+              "is_set : (Num, Num, Num) -> (Num, Num, Num) -> (Num, Num, Num) -> Bool",
             ),
             txt("that returns whether three given cards form a SET."),
             p(
               [],
               [
                 txt("Your goal is to implement the function "),
-                code("isSet"),
+                code("is_set"),
                 txt("."),
                 Node.ul(
                   [],
@@ -821,9 +821,9 @@ let cardstack: CardStack.t =
                         txt(
                           "Use these helper functions to implement the functions ",
                         ),
-                        code("allSame"),
+                        code("all_same"),
                         txt(" and "),
-                        code("allDifferent"),
+                        code("all_different"),
                         txt(
                           ", each of which takes three property values and determines "
                           ++ "whether they are all same or all different, respectively.",
@@ -834,11 +834,11 @@ let cardstack: CardStack.t =
                       [],
                       [
                         txt("Use "),
-                        code("allSame"),
+                        code("all_same"),
                         txt(" and "),
-                        code("allDifferent"),
+                        code("all_different"),
                         txt(" to implement the function "),
-                        code("isSet"),
+                        code("is_set"),
                         txt(
                           ", which takes three cards and determines whether they "
                           ++ "form a SET.",
@@ -880,7 +880,7 @@ let cardstack: CardStack.t =
             ),
             UHExp.EmptyLine,
             UHExp.letline(
-              UHPat.var("allSame"),
+              UHPat.var("all_same"),
               ~ann=
                 UHTyp.(
                   SeqOpExp(
@@ -893,7 +893,7 @@ let cardstack: CardStack.t =
               UHExp.(EmptyHole(-1) |> wrap_in_block),
             ),
             UHExp.letline(
-              UHPat.var("allDifferent"),
+              UHPat.var("all_different"),
               ~ann=
                 UHTyp.(
                   SeqOpExp(
@@ -907,7 +907,7 @@ let cardstack: CardStack.t =
             ),
             UHExp.EmptyLine,
             UHExp.letline(
-              UHPat.var("isSet"),
+              UHPat.var("is_set"),
               ~ann=
                 UHTyp.(
                   SeqOpExp(
