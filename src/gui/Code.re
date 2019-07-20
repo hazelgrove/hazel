@@ -2326,11 +2326,12 @@ let rec snode_of_ztyp = (~steps: Path.steps, zty: ZTyp.t): snode =>
     let seq =
       OperatorSeq.opseq_of_exp_and_surround(ZTyp.erase(ztm), surround);
     let (head, tail) = partition_into_spaced_tms_typ(skel, seq);
-    let snode_of_tm_or_ztm = (k, tm) =>
+    let snode_of_tm_or_ztm = (k, tm) => {
       k == OperatorSeq.surround_prefix_length(surround)
         ? snode_of_ztyp(~steps=steps @ [k], ztm)
         : snode_of_typ(~steps=steps @ [k], tm);
-    let shead = {
+    };
+    let shead: spaced_stms = {
       let (hd, hd_args) = head;
       (
         snode_of_tm_or_ztm(0, hd),
@@ -2339,26 +2340,35 @@ let rec snode_of_ztyp = (~steps: Path.steps, zty: ZTyp.t): snode =>
       );
     };
     let tail_start = List.length(shead |> snd) + 1;
-    let stail =
+    let (_, stail) =
       tail
-      |> List.mapi((i, (op, spaced_tms)) => {
-           let k = tail_start + i;
-           let (space_before, space_after) = space_before_after_op_typ(op);
-           let op_stokens =
-             mk_op_stokens(
-               ~index=k,
-               ~range=skel |> Skel.range_of_subskel_rooted_at_op(k),
-               ~space_before,
-               ~space_after,
-               string_of_op_typ(op),
-             );
-           let (tm, args) = spaced_tms;
-           let stm = snode_of_tm_or_ztm(k, tm);
-           let sargs =
-             args
-             |> List.mapi((i, arg) => snode_of_tm_or_ztm(k + 1 + i, arg));
-           (op_stokens, (stm, sargs));
-         });
+      |> List.fold_left(
+           (
+             (k: int, stail: list((op_stokens, spaced_stms))),
+             (op, spaced_tms),
+           ) => {
+             let (space_before, space_after) = space_before_after_op_typ(op);
+             let op_stokens: list(stoken) =
+               mk_op_stokens(
+                 ~index=k,
+                 ~range=skel |> Skel.range_of_subskel_rooted_at_op(k),
+                 ~space_before,
+                 ~space_after,
+                 string_of_op_typ(op),
+               );
+             let (tm, args) = spaced_tms;
+             let stm: snode = snode_of_tm_or_ztm(k, tm);
+             let (k, sargs) =
+               args
+               |> List.fold_left(
+                    ((k: int, sargs: list(snode)), arg) =>
+                      (k + 1, sargs @ [snode_of_tm_or_ztm(k, arg)]),
+                    (k + 1, []),
+                  );
+             (k, stail @ [(op_stokens, (stm, sargs))]);
+           },
+           (tail_start, []),
+         );
     snode_of_OpSeq(~steps, shead, stail);
   };
 
@@ -2375,11 +2385,12 @@ let rec snode_of_zpat = (~steps: Path.steps, zp: ZPat.t): snode =>
     let seq =
       OperatorSeq.opseq_of_exp_and_surround(ZPat.erase(ztm), surround);
     let (head, tail) = partition_into_spaced_tms_pat(skel, seq);
-    let snode_of_tm_or_ztm = (k, tm) =>
+    let snode_of_tm_or_ztm = (k, tm) => {
       k == OperatorSeq.surround_prefix_length(surround)
         ? snode_of_zpat(~steps=steps @ [k], ztm)
         : snode_of_pat(~steps=steps @ [k], tm);
-    let shead = {
+    };
+    let shead: spaced_stms = {
       let (hd, hd_args) = head;
       (
         snode_of_tm_or_ztm(0, hd),
@@ -2388,26 +2399,35 @@ let rec snode_of_zpat = (~steps: Path.steps, zp: ZPat.t): snode =>
       );
     };
     let tail_start = List.length(shead |> snd) + 1;
-    let stail =
+    let (_, stail) =
       tail
-      |> List.mapi((i, (op, spaced_tms)) => {
-           let k = tail_start + i;
-           let (space_before, space_after) = space_before_after_op_pat(op);
-           let op_stokens =
-             mk_op_stokens(
-               ~index=k,
-               ~range=skel |> Skel.range_of_subskel_rooted_at_op(k),
-               ~space_before,
-               ~space_after,
-               string_of_op_pat(op),
-             );
-           let (tm, args) = spaced_tms;
-           let stm = snode_of_tm_or_ztm(k, tm);
-           let sargs =
-             args
-             |> List.mapi((i, arg) => snode_of_tm_or_ztm(k + 1 + i, arg));
-           (op_stokens, (stm, sargs));
-         });
+      |> List.fold_left(
+           (
+             (k: int, stail: list((op_stokens, spaced_stms))),
+             (op, spaced_tms),
+           ) => {
+             let (space_before, space_after) = space_before_after_op_pat(op);
+             let op_stokens: list(stoken) =
+               mk_op_stokens(
+                 ~index=k,
+                 ~range=skel |> Skel.range_of_subskel_rooted_at_op(k),
+                 ~space_before,
+                 ~space_after,
+                 string_of_op_pat(op),
+               );
+             let (tm, args) = spaced_tms;
+             let stm: snode = snode_of_tm_or_ztm(k, tm);
+             let (k, sargs) =
+               args
+               |> List.fold_left(
+                    ((k: int, sargs: list(snode)), arg) =>
+                      (k + 1, sargs @ [snode_of_tm_or_ztm(k, arg)]),
+                    (k + 1, []),
+                  );
+             (k, stail @ [(op_stokens, (stm, sargs))]);
+           },
+           (tail_start, []),
+         );
     snode_of_OpSeq(~steps, shead, stail);
   };
 
@@ -2536,12 +2556,14 @@ and snode_of_zexp =
   | OpSeqZ(skel, ztm, surround) =>
     let seq =
       OperatorSeq.opseq_of_exp_and_surround(ZExp.erase(ztm), surround);
+    let seq_len = seq |> OperatorSeq.seq_length;
     let (head, tail) = partition_into_spaced_tms_exp(skel, seq);
-    let snode_of_tm_or_ztm = (~ends_of_line=(false, false), k, tm) =>
+    let snode_of_tm_or_ztm = (~ends_of_line=(false, false), k, tm) => {
       k == OperatorSeq.surround_prefix_length(surround)
         ? snode_of_zexp(~ends_of_line, ~steps=steps @ [k], ztm)
         : snode_of_exp(~steps=steps @ [k], tm);
-    let shead = {
+    };
+    let shead: spaced_stms = {
       let (hd, hd_args) = head;
       let (start_of_line, _) = ends_of_line;
       (
@@ -2551,40 +2573,50 @@ and snode_of_zexp =
       );
     };
     let tail_start = List.length(shead |> snd) + 1;
-    let stail =
+    let (_, stail) =
       tail
-      |> List.mapi((i, (op, spaced_tms)) => {
-           let k = tail_start + i;
-           let (space_before, space_after) = space_before_after_op_exp(op);
-           let op_stokens =
-             mk_op_stokens(
-               ~index=k,
-               ~range=skel |> Skel.range_of_subskel_rooted_at_op(k),
-               ~space_before,
-               ~space_after,
-               string_of_op_exp(op),
-             );
-           let (tm, args) = spaced_tms;
-           let stm = snode_of_tm_or_ztm(k, tm);
-           let sargs =
-             i == List.length(tail) - 1
-               ? {
-                 let (_, end_of_line) = ends_of_line;
-                 args
-                 |> List.mapi((j, arg) =>
-                      j == List.length(args) - 1
-                        ? snode_of_tm_or_ztm(
-                            ~ends_of_line=(false, end_of_line),
-                            k + 1 + j,
-                            arg,
-                          )
-                        : snode_of_tm_or_ztm(k + 1 + j, arg)
-                    );
-               }
-               : args
-                 |> List.mapi((j, arg) => snode_of_tm_or_ztm(k + 1 + j, arg));
-           (op_stokens, (stm, sargs));
-         });
+      |> List.fold_left(
+           (
+             (k: int, stail: list((op_stokens, spaced_stms))),
+             (op: UHExp.op, spaced_tms: (UHExp.t, list(UHExp.t))),
+           ) => {
+             let (space_before, space_after) = space_before_after_op_exp(op);
+             let op_stokens: list(stoken) =
+               mk_op_stokens(
+                 ~index=k,
+                 ~range=skel |> Skel.range_of_subskel_rooted_at_op(k),
+                 ~space_before,
+                 ~space_after,
+                 string_of_op_exp(op),
+               );
+             let (tm: UHExp.t, args: list(UHExp.t)) = spaced_tms;
+             let stm: snode = snode_of_tm_or_ztm(k, tm);
+             let (k: int, sargs: list(snode)) =
+               args
+               |> List.fold_left(
+                    ((k: int, sargs: list(snode)), arg: UHExp.t) =>
+                      k == seq_len - 1
+                        ? {
+                          let (_, end_of_line) = ends_of_line;
+                          (
+                            k + 1,
+                            sargs
+                            @ [
+                              snode_of_tm_or_ztm(
+                                ~ends_of_line=(false, end_of_line),
+                                k,
+                                arg,
+                              ),
+                            ],
+                          );
+                        }
+                        : (k + 1, sargs @ [snode_of_tm_or_ztm(k, arg)]),
+                    (k + 1, []),
+                  );
+             (k, stail @ [(op_stokens, (stm, sargs))]);
+           },
+           (tail_start, []),
+         );
     snode_of_OpSeq(~steps, shead, stail);
   | LamZP(err_status, zarg, ann, body) =>
     let szarg = snode_of_zpat(~steps=steps @ [0], zarg);

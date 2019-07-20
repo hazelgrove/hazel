@@ -3,7 +3,7 @@ open GeneralUtil;
 
 module ZList = GeneralUtil.ZList;
 
-/* let init_cardstack = RCStudyCards.cardstack; */
+//let init_cardstack = RCStudyCards.cardstack;
 let init_cardstack = TutorialCards.cardstack;
 let init_compute_results_flag = false;
 
