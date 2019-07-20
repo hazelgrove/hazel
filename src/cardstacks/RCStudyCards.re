@@ -68,6 +68,35 @@ let exercise_number = n =>
     [txt("Exercise " ++ string_of_int(n) ++ ".   ")],
   );
 
+let centered_code = s =>
+  p([Vdom.Attr.create("style", "text-align: center;")], [code(s)]);
+
+let set_img = path =>
+  Vdom.Node.create(
+    "img",
+    [
+      Vdom.Attr.create("src", path),
+      Vdom.Attr.create("style", "margin-left: -20px; margin-right: -20px;"),
+    ],
+    [],
+  );
+
+let set_img_container = (~width, img1, img2, img3) =>
+  Vdom.Node.div(
+    [
+      Vdom.Attr.create(
+        "style",
+        "width: "
+        ++ string_of_int(width)
+        ++ "%; "
+        ++ "display: flex; "
+        ++ "flex-direction: row; "
+        ++ "justify-content: center;",
+      ),
+    ],
+    [img1, img2, img3],
+  );
+
 let cardstack: CardStack.t =
   Vdom.[
     {
@@ -80,10 +109,7 @@ let cardstack: CardStack.t =
               "Suppose we are implementing a combat game "
               ++ "and, specifically, defining the function ",
             ),
-            p(
-              [Attr.create("style", "text-align: center;")],
-              [code("damage : (Bool, Num) -> Num"), txt(".")],
-            ),
+            centered_code("damage : (Bool, Num) -> Num"),
             txt("The input tuple of type "),
             code("(Bool, Num)"),
             txt(
@@ -171,10 +197,7 @@ let cardstack: CardStack.t =
               "Suppose we are implementing a combat game "
               ++ "and, specifically, defining the function ",
             ),
-            p(
-              [Attr.create("style", "text-align: center;")],
-              [code("damage : (Bool, Num) -> Num"), txt(".")],
-            ),
+            centered_code("damage : (Bool, Num) -> Num"),
             txt("The input tuple of type "),
             code("(Bool, Num)"),
             txt(
@@ -283,13 +306,8 @@ let cardstack: CardStack.t =
               ++ "reel of the slot machine. Below we have implemented "
               ++ "the function",
             ),
-            p(
-              [Attr.create("style", "text-align: center;")],
-              [
-                code(
-                  "step : (List(Num), List(Num), List(Num)) -> (List(Num), List(Num), List(Num))",
-                ),
-              ],
+            centered_code(
+              "step : (List(Num), List(Num), List(Num)) -> (List(Num), List(Num), List(Num))",
             ),
             txt(
               "that takes an inital slot machine state and returns "
@@ -452,13 +470,8 @@ let cardstack: CardStack.t =
               ++ "reel of the slot machine. Below we have implemented "
               ++ "the function",
             ),
-            p(
-              [Attr.create("style", "text-align: center;")],
-              [
-                code(
-                  "step : (List(Num), List(Num), List(Num)) -> (List(Num), List(Num), List(Num))",
-                ),
-              ],
+            centered_code(
+              "step : (List(Num), List(Num), List(Num)) -> (List(Num), List(Num), List(Num))",
             ),
             txt(
               "that takes an inital slot machine state and returns "
@@ -616,5 +629,106 @@ let cardstack: CardStack.t =
           ],
           UHExp.EmptyHole(-1),
         ),
+    },
+    {
+      caption:
+        span(
+          [],
+          [
+            exercise_number(3),
+            txt(
+              "Suppose we are implementing a variant of the game SET. "
+              ++ "The face of each card has three properties: a color, "
+              ++ "a shape, and a texture. Each face property of a card "
+              ++ "can take on one of three different values, e.g., the "
+              ++ "color may be red, green, or purple.",
+            ),
+            set_img_container(
+              ~width=100,
+              set_img("redovalshaded.png"),
+              set_img("greensquigglefilled.png"),
+              set_img("purplediamondempty.png"),
+            ),
+            txt(
+              "Three cards form a SET when, for each face property, the "
+              ++ "values across the three cards are either all the same "
+              ++ "or all different. In the figure below, the left three "
+              ++ "cards form a SET because the colors are all "
+              ++ "different, the shapes are all the same, and the textures "
+              ++ "are all different. The right three cards do not "
+              ++ "form a SET because the first two cards have the same "
+              ++ "texture but the third has a different texture.",
+            ),
+            Node.div(
+              [
+                Attr.create(
+                  "style",
+                  "width: 100%; display: flex; flex-direction: row;",
+                ),
+              ],
+              [
+                set_img_container(
+                  ~width=50,
+                  set_img("purplesquigglefilled.png"),
+                  set_img("redsquiggleempty.png"),
+                  set_img("greensquiggleshaded.png"),
+                ),
+                set_img_container(
+                  ~width=50,
+                  set_img("greendiamondfilled.png"),
+                  set_img("greenovalfilled.png"),
+                  set_img("greensquiggleempty.png"),
+                ),
+              ],
+            ),
+            txt("We model each card as a 3-tuple of type "),
+            code("(Num, Num, Num)"),
+            txt(
+              ", where each tuple position represents a face property. "
+              ++ "In this exercise, we will implement a function",
+            ),
+            centered_code(
+              "isSet : (Num, Num, Num) -> (Num, Num, Num) -> (Num, Num, Num) -> Bool",
+            ),
+            txt("that returns whether three given cards form a SET."),
+            p(
+              [],
+              [
+                txt("When you are ready, click 'Next' to begin the exercise."),
+              ],
+            ),
+          ],
+        ),
+      init_block: {
+        let num_triple =
+          UHTyp.(
+            Parenthesized(
+              SeqOpExp(ExpOpExp(Num, Prod, Num), Prod, Num) |> Typ.mk_OpSeq,
+            )
+          );
+        UHExp.Block(
+          [
+            UHExp.letline(
+              UHPat.var("isSet"),
+              ~ann=
+                UHTyp.(
+                  SeqOpExp(
+                    SeqOpExp(
+                      ExpOpExp(num_triple, Arrow, num_triple),
+                      Arrow,
+                      num_triple,
+                    ),
+                    Arrow,
+                    Bool,
+                  )
+                  |> Typ.mk_OpSeq
+                ),
+              UHExp.(Block([EmptyLine], EmptyHole(-1))),
+            ),
+            UHExp.EmptyLine,
+          ],
+          UHExp.EmptyHole(-1),
+        );
+      },
     },
   ];
