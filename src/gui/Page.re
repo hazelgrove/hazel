@@ -131,7 +131,7 @@ let page_view =
                       [Attr.classes(["page"])],
                       [
                         Node.div(
-                          [],
+                          [Attr.classes(["card-caption"])],
                           [card.caption],
                           /* [
                                Node.text("Hazel is an experiment in "),
