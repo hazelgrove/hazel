@@ -42,7 +42,7 @@ and sbox_shape =
   | Inj
   | Case
   | Rule
-  | Parenthesized(option(side))
+  | Parenthesized
   | Unit
   | Num
   | Bool
@@ -547,7 +547,7 @@ let snode_attrs =
         | Inj => [Attr.classes(["Inj", ...base_clss])]
         | Case => [Attr.classes(["Case", ...base_clss])]
         | Rule => [Attr.classes(["Rule", ...base_clss])]
-        | Parenthesized(_) => [Attr.classes(["Parenthesized", ...base_clss])]
+        | Parenthesized => [Attr.classes(["Parenthesized", ...base_clss])]
         | Unit => [Attr.classes(["Unit", ...base_clss])]
         | Num => [Attr.classes(["Num", ...base_clss])]
         | Bool => [Attr.classes(["Bool", ...base_clss])]
@@ -651,10 +651,7 @@ let tab = (~k=1) =>
 let rec view_of_snode =
         (
           ~inject: Update.Action.t => Vdom.Event.t,
-          // for determining how much to indent an sline
           ~indent_level=Indented(0),
-          // indentation of least ancestor indented sline
-          ~indented=0,
           ~term_steps=[],
           ~user_newlines: option(Model.user_newlines)=None,
           snode,
@@ -676,7 +673,6 @@ let rec view_of_snode =
         ~is_node_multi_line=is_multi_line,
         ~line_no=0,
         ~node_indent_level=indent_level,
-        ~indented,
         ~user_newlines,
         mk_SSeqHead(~steps_of_first_sword=steps_of_snode(fst), fst),
       ),
@@ -689,7 +685,6 @@ let rec view_of_snode =
                 ~is_node_multi_line=is_multi_line,
                 ~line_no=i + 1,
                 ~node_indent_level=indent_level,
-                ~indented,
                 ~user_newlines,
                 mk_SSeqHeadArg(
                   ~steps_of_first_sword=steps_of_snode(arg),
@@ -711,7 +706,6 @@ let rec view_of_snode =
                  ~is_node_multi_line=is_multi_line,
                  ~line_no=num_lines_so_far,
                  ~node_indent_level=indent_level,
-                 ~indented,
                  ~user_newlines,
                  mk_SSeqTail(
                    ~steps_of_first_sword=steps_of_snode(fst),
@@ -728,7 +722,6 @@ let rec view_of_snode =
                          ~is_node_multi_line=is_multi_line,
                          ~line_no=num_lines_so_far + 1 + i,
                          ~node_indent_level=indent_level,
-                         ~indented,
                          ~user_newlines,
                          mk_SSeqTailArg(
                            ~steps_of_first_sword=steps_of_snode(arg),
@@ -767,7 +760,6 @@ let rec view_of_snode =
                  Indented(indent + op_column_width)
                | (_, _) => indent_level
                },
-             ~indented,
              ~term_steps=
                switch (shape) {
                | EmptyLine
@@ -812,7 +804,6 @@ let rec view_of_snode =
                       }
                   };
                 },
-                ~indented,
                 ~term_steps=steps,
                 ~user_newlines,
                 ~is_user_newline=
@@ -885,25 +876,7 @@ let rec view_of_snode =
             }
           | (_, _) => vlines |> join(Vdom.Node.br([]))
           }
-        : {
-          switch (shape) {
-          | Parenthesized(Some(Before)) => [
-              List.nth(vlines, 0),
-              Vdom.Node.br([]),
-              vindentation(indented),
-              List.nth(vlines, 1),
-              List.nth(vlines, 2),
-            ]
-          | Parenthesized(Some(After)) => [
-              List.nth(vlines, 0),
-              List.nth(vlines, 1),
-              Vdom.Node.br([]),
-              vindentation(indented),
-              List.nth(vlines, 2),
-            ]
-          | _ => vlines
-          };
-        },
+        : vlines,
     );
   };
 }
@@ -916,7 +889,6 @@ and view_of_sline =
       ~is_node_multi_line: bool,
       ~line_no: int,
       ~node_indent_level,
-      ~indented,
       ~user_newlines,
       ~is_user_newline=false,
       sline,
@@ -937,10 +909,10 @@ and view_of_sline =
   let (vindentation, vwords) =
     switch (sline) {
     | SLine(rel_indent, steps_of_first_sword, swords) =>
-      // slines are nested, e.g., a let line contained in an outer
+      // Slines are nested, e.g., a let line contained in an outer
       // block-level sline may have a multi-sline block as its
-      // defining expression. Only print indents at the maximally-
-      // ancestral slines that are rendered as single lines.
+      // defining expression. Only print indents at the leaves of
+      // this sline tree.
       let contains_multi_line =
         swords
         |> List.exists(
@@ -955,10 +927,9 @@ and view_of_sline =
         contains_multi_line,
         swords,
       ) {
-      | (true, Indented(abs_indent), _, _, [sword, ..._]) =>
-        let m = abs_indent + tab_length * rel_indent;
-        (
+      | (true, Indented(abs_indent), _, _, [sword, ..._]) => (
           {
+            let m = abs_indent + tab_length * rel_indent;
             m == 0
               ? [Vdom.Node.br([])]
               : [
@@ -992,7 +963,6 @@ and view_of_sline =
                  view_of_snode(
                    ~inject,
                    ~indent_level=node_indent_level,
-                   ~indented=m,
                    ~term_steps=
                      switch (snode) {
                      | SSeq(steps, _, _, _, _) => steps
@@ -1008,7 +978,7 @@ and view_of_sline =
                  view_of_stoken(~inject, ~node_steps, ~node_cursor, stoken)
                }
              ),
-        );
+        )
       | (_, OpPrefix(_, _), _, _, _) => assert(false)
       | (_, NotIndentable, _, _, _)
       | (_, Indented(_), false, _, _) => (
@@ -1028,7 +998,6 @@ and view_of_sline =
                      | SBox(steps, _, _, _, _, _) => steps
                      },
                    ~indent_level=NotIndentable,
-                   ~indented,
                    ~user_newlines,
                    snode,
                  )
@@ -1058,7 +1027,6 @@ and view_of_sline =
                      | SBox(_, _, _, _, Rule, _) => term_steps
                      | SBox(steps, _, _, _, _, _) => steps
                      },
-                   ~indented,
                    ~user_newlines,
                    snode,
                  )
@@ -1068,10 +1036,9 @@ and view_of_sline =
              ),
         )
       | (_, _, _, _, []) => ([], [])
-      | (_, Indented(abs_indent), true, false, [sword, ..._]) =>
-        let m = abs_indent + tab_length * rel_indent;
-        (
+      | (_, Indented(abs_indent), true, false, [sword, ..._]) => (
           {
+            let m = abs_indent + tab_length * rel_indent;
             m == 0
               ? []
               : [
@@ -1108,7 +1075,6 @@ and view_of_sline =
                    // have already printed our indents and shouldn't print
                    // any additional indents
                    ~indent_level=NotIndentable,
-                   ~indented=m,
                    ~term_steps=
                      switch (snode) {
                      | SSeq(steps, _, _, _, _) => steps
@@ -1124,7 +1090,7 @@ and view_of_sline =
                  view_of_stoken(~inject, ~node_steps, ~node_cursor, stoken)
                }
              ),
-        );
+        )
       };
     | SSeqHead(steps_of_first_sword, snode) =>
       switch (node_indent_level, is_node_multi_line, snode |> is_multi_line) {
@@ -1137,7 +1103,6 @@ and view_of_sline =
               ~inject,
               ~term_steps=steps_of_snode(snode),
               ~indent_level=NotIndentable,
-              ~indented,
               ~user_newlines,
               snode,
             ),
@@ -1150,7 +1115,6 @@ and view_of_sline =
               ~inject,
               ~term_steps=steps_of_snode(snode),
               ~indent_level=node_indent_level,
-              ~indented,
               ~user_newlines,
               snode,
             ),
@@ -1170,7 +1134,6 @@ and view_of_sline =
               ~inject,
               ~term_steps=steps_of_snode(snode),
               ~indent_level=NotIndentable,
-              ~indented=m,
               ~user_newlines,
               snode,
             ),
@@ -1193,7 +1156,6 @@ and view_of_sline =
               ~inject,
               ~term_steps=steps_of_snode(snode),
               ~indent_level=NotIndentable,
-              ~indented,
               ~user_newlines,
               snode,
             ),
@@ -1206,7 +1168,6 @@ and view_of_sline =
               ~inject,
               ~term_steps=steps_of_snode(snode),
               ~indent_level=Indented(tabbed_m),
-              ~indented,
               ~user_newlines,
               snode,
             ),
@@ -1226,7 +1187,6 @@ and view_of_sline =
               ~inject,
               ~term_steps=steps_of_snode(snode),
               ~indent_level=NotIndentable,
-              ~indented,
               ~user_newlines,
               snode,
             ),
@@ -1264,7 +1224,6 @@ and view_of_sline =
               ~inject,
               ~term_steps=steps_of_snode(snode),
               ~indent_level=NotIndentable,
-              ~indented,
               ~user_newlines,
               snode,
             ),
@@ -1283,7 +1242,6 @@ and view_of_sline =
               ~inject,
               ~term_steps=steps_of_snode(snode),
               ~indent_level=OpPrefix(m, op_column_width),
-              ~indented,
               ~user_newlines,
               snode,
             ),
@@ -1309,7 +1267,6 @@ and view_of_sline =
               ~inject,
               ~term_steps=steps_of_snode(snode),
               ~indent_level=NotIndentable,
-              ~indented,
               ~user_newlines,
               snode,
             ),
@@ -1346,7 +1303,6 @@ and view_of_sline =
               ~inject,
               ~term_steps=steps_of_snode(snode),
               ~indent_level=NotIndentable,
-              ~indented,
               ~user_newlines,
               snode,
             ),
@@ -1359,7 +1315,6 @@ and view_of_sline =
               ~inject,
               ~term_steps=steps_of_snode(snode),
               ~indent_level=Indented(tabbed_m + op_column_width),
-              ~indented,
               ~user_newlines,
               snode,
             ),
@@ -1379,7 +1334,6 @@ and view_of_sline =
               ~inject,
               ~term_steps=steps_of_snode(snode),
               ~indent_level=NotIndentable,
-              ~indented,
               ~user_newlines,
               snode,
             ),
@@ -1772,12 +1726,11 @@ let snode_of_LetLine =
     ],
   );
 
-let snode_of_Parenthesized =
-    (~staging_newline=None, ~cursor=?, ~steps, sbody: snode): snode =>
+let snode_of_Parenthesized = (~cursor=?, ~steps, sbody: snode): snode =>
   mk_SBox(
     ~cursor?,
     ~steps,
-    ~shape=Parenthesized(staging_newline),
+    ~shape=Parenthesized,
     ~is_multi_line=is_multi_line(sbody),
     [
       mk_SLine(
@@ -2501,12 +2454,7 @@ let rec snode_of_zblock = (~steps: Path.steps=[], zblock: ZExp.zblock): snode =>
     let sline_items =
       line_items
       |> List.mapi((i, li) => snode_of_line_item(~steps=steps @ [i], li));
-    let sze =
-      snode_of_zexp(
-        ~ends_of_line=(true, true),
-        ~steps=steps @ [List.length(line_items)],
-        ze,
-      );
+    let sze = snode_of_zexp(~steps=steps @ [List.length(line_items)], ze);
     mk_SBox(
       ~steps,
       ~shape=Block,
@@ -2524,9 +2472,7 @@ let rec snode_of_zblock = (~steps: Path.steps=[], zblock: ZExp.zblock): snode =>
 and snode_of_zline_item = (~steps: Path.steps, zli: ZExp.zline): snode =>
   switch (zli) {
   | CursorL(cursor, li) => snode_of_line_item(~cursor, ~steps, li)
-  | ExpLineZ(ze) =>
-    // pass down (true, true) for ends_of_line
-    snode_of_zexp(~ends_of_line=(true, true), ~steps, ze)
+  | ExpLineZ(ze) => snode_of_zexp(~steps, ze)
   | LetLineZP(zp, ann, def) =>
     let szp = snode_of_zpat(~steps=steps @ [0], zp);
     let sann =
@@ -2551,34 +2497,8 @@ and snode_of_zline_item = (~steps: Path.steps, zli: ZExp.zline): snode =>
     let szdef = snode_of_zblock(~steps=steps @ [2], zdef);
     snode_of_LetLine(~steps, sp, sann, szdef);
   }
-and snode_of_zexp =
-    (~ends_of_line=(false, false), ~steps: Path.steps, ze: ZExp.t) =>
+and snode_of_zexp = (~steps: Path.steps, ze: ZExp.t) =>
   switch (ze) {
-  | CursorE(Staging(k) as cursor, Parenthesized(body) as e) =>
-    switch (body) {
-    | Block([], EmptyHole(_)) => snode_of_exp(~cursor, ~steps, e)
-    | Block([], _) =>
-      switch (k, ends_of_line) {
-      | (0, (_, true)) =>
-        let sbody = snode_of_block(~steps=steps @ [0], body);
-        snode_of_Parenthesized(
-          ~staging_newline=Some(After),
-          ~cursor,
-          ~steps,
-          sbody,
-        );
-      | (1, (true, _)) =>
-        let sbody = snode_of_block(~steps=steps @ [0], body);
-        snode_of_Parenthesized(
-          ~staging_newline=Some(Before),
-          ~cursor,
-          ~steps,
-          sbody,
-        );
-      | (_, (_, _)) => snode_of_exp(~cursor, ~steps, e)
-      }
-    | Block([_, ..._], _) => snode_of_exp(~cursor, ~steps, e)
-    }
   | CursorE(cursor, e) => snode_of_exp(~cursor, ~steps, e)
   | ParenthesizedZ(zbody) =>
     let szbody = snode_of_zblock(~steps=steps @ [0], zbody);
@@ -2588,16 +2508,15 @@ and snode_of_zexp =
       OperatorSeq.opseq_of_exp_and_surround(ZExp.erase(ztm), surround);
     let seq_len = seq |> OperatorSeq.seq_length;
     let (head, tail) = partition_into_spaced_tms_exp(skel, seq);
-    let snode_of_tm_or_ztm = (~ends_of_line=(false, false), k, tm) => {
+    let snode_of_tm_or_ztm = (k, tm) =>
       k == OperatorSeq.surround_prefix_length(surround)
-        ? snode_of_zexp(~ends_of_line, ~steps=steps @ [k], ztm)
+        ? snode_of_zexp(~steps=steps @ [k], ztm)
         : snode_of_exp(~steps=steps @ [k], tm);
     };
     let shead: spaced_stms = {
       let (hd, hd_args) = head;
-      let (start_of_line, _) = ends_of_line;
       (
-        snode_of_tm_or_ztm(~ends_of_line=(start_of_line, false), 0, hd),
+        snode_of_tm_or_ztm(0, hd),
         hd_args
         |> List.mapi((i, hd_arg) => snode_of_tm_or_ztm(i + 1, hd_arg)),
       );
@@ -2625,22 +2544,7 @@ and snode_of_zexp =
                args
                |> List.fold_left(
                     ((k: int, sargs: list(snode)), arg: UHExp.t) =>
-                      k == seq_len - 1
-                        ? {
-                          let (_, end_of_line) = ends_of_line;
-                          (
-                            k + 1,
-                            sargs
-                            @ [
-                              snode_of_tm_or_ztm(
-                                ~ends_of_line=(false, end_of_line),
-                                k,
-                                arg,
-                              ),
-                            ],
-                          );
-                        }
-                        : (k + 1, sargs @ [snode_of_tm_or_ztm(k, arg)]),
+                      (k + 1, sargs @ [snode_of_tm_or_ztm(k, arg)]),
                     (k + 1, []),
                   );
              (k, stail @ [(op_stokens, (stm, sargs))]);
