@@ -139,7 +139,7 @@ let cardstack: CardStack.t =
         UHExp.Block(
           [
             UHExp.letline(
-              UHPat.var("y"),
+              UHPat.var("damage"),
               ~ann=
                 UHTyp.(
                   ExpOpExp(
@@ -245,7 +245,7 @@ let cardstack: CardStack.t =
             ),
             UHExp.EmptyLine,
             UHExp.letline(
-              UHPat.var("y"),
+              UHPat.var("damage"),
               ~ann=
                 UHTyp.(
                   ExpOpExp(
