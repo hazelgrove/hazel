@@ -622,21 +622,31 @@ let shift_line_to_suffix_block =
   switch (leading |> last_line_and_leading_contiguous_empty_lines, conclusion) {
   | (None, EmptyHole(_)) => None
   | (None, _) =>
-    let (hole, u_gen) = u_gen |> new_EmptyHole;
-    let new_block = hole |> wrap_in_block;
-    let new_suffix_block =
-      switch (suffix_block) {
-      | None
-      | Some(Block([], EmptyHole(_))) => Some(conclusion |> wrap_in_block)
-      | Some(Block(suffix_leading, suffix_conclusion)) =>
+    switch (suffix_block) {
+    | None =>
+      let (hole, u_gen) = u_gen |> new_EmptyHole;
+      let new_block = hole |> wrap_in_block;
+      Some((new_block, Some(conclusion |> wrap_in_block), u_gen));
+    | Some(Block([], EmptyHole(_) as recycled_hole)) =>
+      Some((
+        recycled_hole |> wrap_in_block,
+        Some(conclusion |> wrap_in_block),
+        u_gen,
+      ))
+    | Some(Block(suffix_leading, suffix_conclusion)) =>
+      let (hole, u_gen) = u_gen |> new_EmptyHole;
+      let new_block = hole |> wrap_in_block;
+      Some((
+        new_block,
         Some(
           Block(
             [ExpLine(conclusion), ...suffix_leading],
             suffix_conclusion,
           ),
-        )
-      };
-    Some((new_block, new_suffix_block, u_gen));
+        ),
+        u_gen,
+      ));
+    }
   | (Some((_, _, EmptyLine)), EmptyHole(_)) => assert(false)
   | (
       Some((prefix, empty_lines, LetLine(_, _, _) as last_line)),
