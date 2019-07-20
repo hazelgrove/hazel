@@ -26,37 +26,53 @@ let examples_select = (~inject: Update.Action.t => Vdom.Event.t) =>
     )
   );
 
-let cardstack_buttons =
-    (model: Model.t, ~inject: Update.Action.t => Vdom.Event.t) => {
+let prev_card_button = (~inject, model: Model.t) => {
   let cardstack = model.cardstack_state;
   let show_prev =
     ZList.prefix_length(cardstack) > 0 ? [] : [Vdom.Attr.disabled];
+  Vdom.(
+    Node.button(
+      [
+        Attr.id("cardstack-prev-button"),
+        Attr.on_click(_ => inject(Update.Action.PrevCard)),
+        ...show_prev,
+      ],
+      [Node.text("Previous")],
+    )
+  );
+};
+
+let next_card_button = (~inject, model: Model.t) => {
+  let cardstack = model.cardstack_state;
   let show_next =
     ZList.suffix_length(cardstack) > 0 ? [] : [Vdom.Attr.disabled];
-  let prev_btn =
-    Vdom.(
-      Node.button(
-        [
-          Attr.id("cardstack-prev-button"),
-          Attr.on_click(_ => inject(Update.Action.PrevCard)),
-          ...show_prev,
-        ],
-        [Node.text("Previous")],
-      )
-    );
-  let next_btn =
-    Vdom.(
-      Node.button(
-        [
-          Attr.id("cardstack-next-button"),
-          Attr.on_click(_ => inject(Update.Action.NextCard)),
-          ...show_next,
-        ],
-        [Node.text("Next")],
-      )
-    );
-  Vdom.(Node.div([Attr.id("cardstack-buttons")], [prev_btn, next_btn]));
+  Vdom.(
+    Node.button(
+      [
+        Attr.id("cardstack-next-button"),
+        Attr.on_click(_ => inject(Update.Action.NextCard)),
+        ...show_next,
+      ],
+      [Node.text("Next")],
+    )
+  );
 };
+
+let cardstack_buttons = (~inject, model: Model.t) =>
+  Vdom.(
+    Node.div(
+      [Attr.id("cardstack-buttons")],
+      [
+        Node.div(
+          [Attr.id("button-centering-container")],
+          [
+            prev_card_button(~inject, model),
+            next_card_button(~inject, model),
+          ],
+        ),
+      ],
+    )
+  );
 
 let page_view =
     (~inject: Update.Action.t => Vdom.Event.t, model: Model.t): Vdom.Node.t => {
@@ -111,16 +127,19 @@ let page_view =
               [Attr.classes(["logo-text"]), Attr.href("https://hazel.org")],
               [Node.text("Hazel")],
             ),
+            cardstack_buttons(~inject, model),
           ],
         ),
         Node.div(
           [Attr.classes(["main-area"])],
           [
-            Sidebar.left(
-              ~inject,
-              false,
-              [ActionPanel.view(~inject, model)] /*the_history_panel*/,
-            ),
+            /*
+             Sidebar.left(
+               ~inject,
+               false,
+               [ActionPanel.view(~inject, model)] //the_history_panel,
+             ),
+             */
             Node.div(
               [Attr.classes(["flex-wrapper"])],
               [
@@ -151,7 +170,6 @@ let page_view =
                       ],
                     ),
                     examples_select(~inject),
-                    cardstack_buttons(model, ~inject),
                   ],
                 ),
               ],

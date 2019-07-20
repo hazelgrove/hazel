@@ -20,6 +20,7 @@
   --term-indicator-color: #678a61;
   --term-indicator-corner-size: 3px;
   --shifting-indicator-color: rgb(102, 163, 198);
+  --page-padding: 15px;
 }
 
 /* general */
@@ -64,16 +65,44 @@ html, body {
 /* top bar */
 
 .top-bar {
-  padding: 10px;
+  padding-top: 10px;
+  padding-bottom: 10px;
   background-color: var(--title-bar-color);
   color: white;
   font-weight: bold;
   font-size: 14pt;
+  width: 100%;
+  display: flex;
+  flex-direction: row;
+  justify-content: space-between;
+}
+
+#cardstack-buttons {
+  padding-right: var(--page-padding);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+#button-centering-container {
+  display: flex;
+  direction: row;
+}
+
+#cardstack-prev-button, #cardstack-next-button {
+  cursor: pointer;
+}
+
+#cardstack-prev-button:disabled, #cardstack-next-button:disabled {
+  cursor: not-allowed;
 }
 
 .logo-text {
   color: white;
   text-decoration: none;
+  margin-left: var(--page-padding);
+  margin-right: var(--page-padding);
 }
 
 /* arrangement of main area */
@@ -97,9 +126,9 @@ html, body {
   height: 0px;
   overflow-y: auto;
 
-  padding-left: 14px;
-  padding-right: 14px;
-  padding-top: 14px;
+  padding-left: var(--page-padding);
+  padding-right: var(--page-padding);
+  padding-top: var(--page-padding);
 }
 
 /* sidebars */
