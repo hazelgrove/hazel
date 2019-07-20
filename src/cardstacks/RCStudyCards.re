@@ -345,7 +345,8 @@ let cardstack: CardStack.t =
                   |> Typ.mk_OpSeq
                 ),
               UHExp.(
-                wrap_in_block(
+                Block(
+                  [EmptyLine],
                   lam(
                     UHPat.(
                       Parenthesized(
@@ -357,7 +358,8 @@ let cardstack: CardStack.t =
                         |> Pat.mk_OpSeq,
                       )
                     ),
-                    wrap_in_block(
+                    Block(
+                      [EmptyLine],
                       Parenthesized(
                         wrap_in_block(
                           SeqOpExp(
