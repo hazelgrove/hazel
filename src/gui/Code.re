@@ -2506,9 +2506,8 @@ and snode_of_zexp = (~steps: Path.steps, ze: ZExp.t) =>
   | OpSeqZ(skel, ztm, surround) =>
     let seq =
       OperatorSeq.opseq_of_exp_and_surround(ZExp.erase(ztm), surround);
-    let seq_len = seq |> OperatorSeq.seq_length;
     let (head, tail) = partition_into_spaced_tms_exp(skel, seq);
-    let snode_of_tm_or_ztm = (k, tm) =>
+    let snode_of_tm_or_ztm = (k, tm) => {
       k == OperatorSeq.surround_prefix_length(surround)
         ? snode_of_zexp(~steps=steps @ [k], ztm)
         : snode_of_exp(~steps=steps @ [k], tm);
