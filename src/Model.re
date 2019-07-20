@@ -3,8 +3,12 @@ open GeneralUtil;
 
 module ZList = GeneralUtil.ZList;
 
-let init_cardstack = RCStudyCards.cardstack;
-//let init_cardstack = TutorialCards.cardstack;
+type cardstacks = list(CardStack.t);
+let cardstacks: cardstacks = [
+  TutorialCards.cardstack,
+  RCStudyCards.cardstack,
+];
+
 let init_compute_results_flag = false;
 
 type user_newlines = Path.StepsMap.t(unit);
@@ -16,9 +20,14 @@ type card_state = {
   edit_state,
 };
 
-type cardstack_state = ZList.t(card_state, card_state);
+type cardstack_state = {
+  cardstack: CardStack.t,
+  zcards: ZList.t(card_state, card_state),
+};
 
-let mk_cardstack_state = cardstack => {
+type cardstacks_state = ZList.t(cardstack_state, cardstack_state);
+
+let mk_cardstack_state = (cardstack: CardStack.t) => {
   let card_states =
     List.map(
       card =>
@@ -29,11 +38,21 @@ let mk_cardstack_state = cardstack => {
             |> ZExp.place_before_block
             |> Statics.fix_and_renumber_holes_z(Contexts.empty),
         },
-      cardstack,
+      cardstack.cards,
     );
+  let zcards =
+    GeneralUtil.Opt.get(
+      _ => failwith("no cards"),
+      ZList.split_at(0, card_states),
+    );
+  {cardstack, zcards};
+};
+
+let mk_cardstacks_state = cardstacks => {
+  let cardstack_states = List.map(mk_cardstack_state, cardstacks);
   GeneralUtil.Opt.get(
-    _ => failwith("no cards"),
-    ZList.split_at(0, card_states),
+    _ => failwith("no cardstacks"),
+    ZList.split_at(0, cardstack_states),
   );
 };
 
@@ -69,7 +88,8 @@ type result_state =
   | Result(has_result_state);
 
 type t = {
-  cardstack_state,
+  cardstacks,
+  cardstacks_state,
   /* these are derived from the cardstack state: */
   cursor_info: CursorInfo.t,
   compute_results_flag: bool,
@@ -82,7 +102,10 @@ type t = {
   right_sidebar_open: bool,
 };
 
-let edit_state_of = model => ZList.prj_z(model.cardstack_state).edit_state;
+let cardstack_state_of = model => ZList.prj_z(model.cardstacks_state);
+
+let edit_state_of = model =>
+  ZList.prj_z(cardstack_state_of(model).zcards).edit_state;
 
 let cutoff = (m1, m2) => m1 == m2;
 
@@ -237,14 +260,20 @@ let update_edit_state = ((new_zblock, ty, u_gen): edit_state, model: t): t => {
   let new_edit_state = (new_zblock, ty, u_gen);
   let new_result_state =
     result_state_of_edit_state(new_edit_state, model.compute_results_flag);
-  let cardstack_state = model.cardstack_state;
-  let card_state = ZList.prj_z(cardstack_state);
+  let cardstacks_state = model.cardstacks_state;
+  let cardstack_state = cardstack_state_of(model);
+  let card_state = ZList.prj_z(cardstack_state.zcards);
   let new_card_state = {...card_state, edit_state: new_edit_state};
-  let new_cardstack_state = ZList.replace_z(cardstack_state, new_card_state);
+  let new_cardstack_state = {
+    ...cardstack_state,
+    zcards: ZList.replace_z(cardstack_state.zcards, new_card_state),
+  };
+  let new_cardstacks_state =
+    ZList.replace_z(cardstacks_state, new_cardstack_state);
   let new_cursor_info = cursor_info_of_edit_state(new_edit_state);
   {
     ...model,
-    cardstack_state: new_cardstack_state,
+    cardstacks_state: new_cardstacks_state,
     cursor_info: new_cursor_info,
     result_state: new_result_state,
     user_newlines: new_user_newlines,
@@ -252,23 +281,45 @@ let update_edit_state = ((new_zblock, ty, u_gen): edit_state, model: t): t => {
 };
 
 let update_cardstack_state = (model, cardstack_state) => {
-  let edit_state = ZList.prj_z(cardstack_state).edit_state;
+  let edit_state = ZList.prj_z(cardstack_state.zcards).edit_state;
   let result_state =
     result_state_of_edit_state(edit_state, model.compute_results_flag);
   let cursor_info = cursor_info_of_edit_state(edit_state);
   let user_newlines = Path.StepsMap.empty;
+  let cardstacks_state =
+    ZList.replace_z(model.cardstacks_state, cardstack_state);
   {
     ...model,
 
-    cardstack_state,
+    cardstacks_state,
     result_state,
     cursor_info,
     user_newlines,
   };
 };
 
+let update_cardstacks_state = (model, cardstacks_state) => {
+  let model' = {...model, cardstacks_state};
+  update_cardstack_state(model', cardstack_state_of(model'));
+};
+
+let load_cardstack = (model, idx) => {
+  let cardstacks_state_list = ZList.erase(model.cardstacks_state, x => x);
+  switch (ZList.split_at(idx, cardstacks_state_list)) {
+  | None => model
+  | Some(cardstacks_state) =>
+    update_cardstacks_state(model, cardstacks_state)
+  };
+};
+
+let card_of = model => ZList.prj_z(cardstack_state_of(model).zcards).card;
+
 let prev_card = model => {
-  let cardstack_state = ZList.shift_prev(model.cardstack_state);
+  let cardstack_state = cardstack_state_of(model);
+  let cardstack_state = {
+    ...cardstack_state,
+    zcards: ZList.shift_prev(cardstack_state.zcards),
+  };
   {
     ...update_cardstack_state(model, cardstack_state),
 
@@ -277,7 +328,11 @@ let prev_card = model => {
 };
 
 let next_card = model => {
-  let cardstack_state = ZList.shift_next(model.cardstack_state);
+  let cardstack_state = cardstack_state_of(model);
+  let cardstack_state = {
+    ...cardstack_state,
+    zcards: ZList.shift_next(cardstack_state.zcards),
+  };
   {
     ...update_cardstack_state(model, cardstack_state),
 
@@ -286,11 +341,13 @@ let next_card = model => {
 };
 
 let init = (): t => {
-  let cardstack_state = mk_cardstack_state(init_cardstack);
-  let edit_state = ZList.prj_z(cardstack_state).edit_state;
+  let cardstacks_state = mk_cardstacks_state(cardstacks);
+  let edit_state =
+    ZList.prj_z(ZList.prj_z(cardstacks_state).zcards).edit_state;
   let compute_results_flag = init_compute_results_flag;
   {
-    cardstack_state,
+    cardstacks,
+    cardstacks_state,
     cursor_info: cursor_info_of_edit_state(edit_state),
     compute_results_flag,
     result_state:
@@ -323,7 +380,7 @@ let perform_edit_action = (model: t, a: Action.t): t => {
 };
 
 let move_to_hole = (model: t, u: MetaVar.t): t => {
-  let (zblock, _, _) = ZList.prj_z(model.cardstack_state).edit_state;
+  let (zblock, _, _) = edit_state_of(model);
   switch (
     Path.path_to_hole(Path.holes_block(ZExp.erase_block(zblock), [], []), u)
   ) {

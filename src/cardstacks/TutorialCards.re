@@ -59,4 +59,7 @@ let backspace_card: Card.t = {
   init_block: backspace_init_block,
 };
 
-let cardstack: CardStack.t = [intro_card, backspace_card];
+let cardstack: CardStack.t = {
+  title: "Hazel Tutorial",
+  cards: [intro_card, backspace_card],
+};

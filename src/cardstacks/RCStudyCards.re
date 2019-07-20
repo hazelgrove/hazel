@@ -97,7 +97,7 @@ let set_img_container = (~width, img1, img2, img3) =>
     [img1, img2, img3],
   );
 
-let cardstack: CardStack.t =
+let cards: list(Card.t) =
   Vdom.[
     {
       caption:
@@ -929,3 +929,5 @@ let cardstack: CardStack.t =
       },
     },
   ];
+
+let cardstack: CardStack.t = {title: "RC Study Questions", cards};

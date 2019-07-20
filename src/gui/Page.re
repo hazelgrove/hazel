@@ -26,10 +26,37 @@ let examples_select = (~inject: Update.Action.t => Vdom.Event.t) =>
     )
   );
 
+let cardstacks_select =
+    (~inject: Update.Action.t => Vdom.Event.t, cardstacks: list(CardStack.t)) => {
+  let cardstack_options =
+    List.mapi(
+      (i, cardstack: CardStack.t) => {
+        let example_idx = string_of_int(i);
+        Vdom.(
+          Node.option(
+            [Attr.value(example_idx)],
+            [Node.text(cardstack.title)],
+          )
+        );
+      },
+      cardstacks,
+    );
+  Vdom.(
+    Node.select(
+      [
+        Attr.on_change((_, example_idx) =>
+          inject(Update.Action.LoadCardStack(int_of_string(example_idx)))
+        ),
+      ],
+      cardstack_options,
+    )
+  );
+};
+
 let prev_card_button = (~inject, model: Model.t) => {
-  let cardstack = model.cardstack_state;
+  let cardstack = Model.cardstack_state_of(model);
   let show_prev =
-    ZList.prefix_length(cardstack) > 0 ? [] : [Vdom.Attr.disabled];
+    ZList.prefix_length(cardstack.zcards) > 0 ? [] : [Vdom.Attr.disabled];
   Vdom.(
     Node.button(
       [
@@ -43,9 +70,9 @@ let prev_card_button = (~inject, model: Model.t) => {
 };
 
 let next_card_button = (~inject, model: Model.t) => {
-  let cardstack = model.cardstack_state;
+  let cardstack = Model.cardstack_state_of(model);
   let show_next =
-    ZList.suffix_length(cardstack) > 0 ? [] : [Vdom.Attr.disabled];
+    ZList.suffix_length(cardstack.zcards) > 0 ? [] : [Vdom.Attr.disabled];
   Vdom.(
     Node.button(
       [
@@ -58,10 +85,10 @@ let next_card_button = (~inject, model: Model.t) => {
   );
 };
 
-let cardstack_buttons = (~inject, model: Model.t) =>
+let cardstack_controls = (~inject, model: Model.t) =>
   Vdom.(
     Node.div(
-      [Attr.id("cardstack-buttons")],
+      [Attr.id("cardstack-controls")],
       [
         Node.div(
           [Attr.id("button-centering-container")],
@@ -76,7 +103,7 @@ let cardstack_buttons = (~inject, model: Model.t) =>
 
 let page_view =
     (~inject: Update.Action.t => Vdom.Event.t, model: Model.t): Vdom.Node.t => {
-  let card = GeneralUtil.ZList.prj_z(model.cardstack_state).card;
+  let card = Model.card_of(model);
   let cell_status =
     switch (model.result_state) {
     | ResultsDisabled => Vdom.Node.div([], [])
@@ -127,7 +154,7 @@ let page_view =
               [Attr.classes(["logo-text"]), Attr.href("https://hazel.org")],
               [Node.text("Hazel")],
             ),
-            cardstack_buttons(~inject, model),
+            cardstacks_select(~inject, model.cardstacks),
           ],
         ),
         Node.div(
@@ -167,6 +194,7 @@ let page_view =
                         ),
                         Cell.view(~inject, model),
                         cell_status,
+                        cardstack_controls(~inject, model),
                       ],
                     ),
                     /*

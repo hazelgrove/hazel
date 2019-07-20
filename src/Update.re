@@ -15,6 +15,7 @@ module Action = {
     | ToggleLeftSidebar
     | ToggleRightSidebar
     | LoadExample(Examples.id)
+    | LoadCardStack(int)
     | NextCard
     | PrevCard
     | SetComputeResultsFlag(bool)
@@ -49,6 +50,7 @@ let log_action = (action: Action.t, _: State.t): unit => {
   | ToggleLeftSidebar
   | ToggleRightSidebar
   | LoadExample(_)
+  | LoadCardStack(_)
   | NextCard
   | PrevCard
   | SetComputeResultsFlag(_)
@@ -97,6 +99,7 @@ let apply_action =
   | ToggleLeftSidebar => Model.toggle_left_sidebar(model)
   | ToggleRightSidebar => Model.toggle_right_sidebar(model)
   | LoadExample(id) => Model.load_example(model, Examples.get(id))
+  | LoadCardStack(idx) => Model.load_cardstack(model, idx)
   | NextCard =>
     state.changing_cards := true;
     Model.next_card(model);

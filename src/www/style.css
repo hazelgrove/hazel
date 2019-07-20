@@ -67,6 +67,8 @@ html, body {
 .top-bar {
   padding-top: 10px;
   padding-bottom: 10px;
+  padding-left: var(--page-padding);
+  padding-right: var(--page-padding);
   background-color: var(--title-bar-color);
   color: white;
   font-weight: bold;
@@ -74,15 +76,13 @@ html, body {
   width: 100%;
   display: flex;
   flex-direction: row;
-  justify-content: space-between;
+  justify-content: flex-start;
 }
 
-#cardstack-buttons {
-  padding-right: var(--page-padding);
+#cardstack-controls {
+  margin-top: 10px;
   display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
+  justify-content: flex-end;
 }
 
 #button-centering-container {
@@ -108,7 +108,6 @@ html, body {
 .logo-text {
   color: white;
   text-decoration: none;
-  margin-left: var(--page-padding);
   margin-right: var(--page-padding);
 }
 
