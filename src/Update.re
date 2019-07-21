@@ -29,18 +29,37 @@ module Action = {
     | RemoveUserNewline(Path.steps);
 };
 
-let closest_elem = node =>
-  Js.Opt.get(Dom_html.CoerceTo.element(node), () =>
-    switch (node##.nodeType) {
-    | TEXT =>
-      switch (Js.Opt.to_option(node##.parentNode)) {
-      | None => assert(false)
-      | Some(parent) =>
-        Js.Opt.get(Dom_html.CoerceTo.element(parent), () => assert(false))
-      }
-    | _ => assert(false)
-    }
-  );
+[@deriving sexp]
+type timestamp = {
+  year: int,
+  month: int,
+  day: int,
+  hours: int,
+  minutes: int,
+  seconds: int,
+  milliseconds: int,
+};
+
+[@deriving sexp]
+type timestamped_action = (timestamp, Action.t);
+
+let get_current_timestamp = (): timestamp => {
+  let date = {
+    %js
+    new Js.date_now;
+  };
+  {
+    year: date##getFullYear,
+    month: date##getMonth,
+    day: date##getDay,
+    hours: date##getHours,
+    minutes: date##getMinutes,
+    seconds: date##getSeconds,
+    milliseconds: date##getMilliseconds,
+  };
+};
+
+let mk_timestamped_action = (a: Action.t) => (get_current_timestamp(), a);
 
 let log_action = (action: Action.t, _: State.t): unit => {
   /* log interesting actions */
@@ -60,8 +79,11 @@ let log_action = (action: Action.t, _: State.t): unit => {
   | AddUserNewline(_)
   | RemoveUserNewline(_)
   | MoveToHole(_) =>
-    let action_string = Sexp.to_string(Action.sexp_of_t(action));
-    Logger.append(action_string);
+    Logger.append(
+      Sexp.to_string(
+        sexp_of_timestamped_action(mk_timestamped_action(action)),
+      ),
+    )
   | SelectionChange => ()
   };
 };
@@ -137,7 +159,7 @@ let apply_action =
             JSUtil.force_get_elem_by_id(cell_id),
             anchorNode,
           )) {
-        let closest_elem = closest_elem(anchorNode);
+        let closest_elem = JSUtil.force_get_closest_elem(anchorNode);
         let has_cls = cls => closest_elem |> JSUtil.elem_has_cls(cls);
         if (has_cls("unselectable")) {
           let s =

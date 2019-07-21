@@ -30,6 +30,19 @@ let has_attr = (attr: string, elem: Js.t(Dom_html.element)): bool =>
   | Some(_) => true
   };
 
+let force_get_closest_elem = node =>
+  Js.Opt.get(Dom_html.CoerceTo.element(node), () =>
+    switch (node##.nodeType) {
+    | TEXT =>
+      switch (Js.Opt.to_option(node##.parentNode)) {
+      | None => assert(false)
+      | Some(parent) =>
+        Js.Opt.get(Dom_html.CoerceTo.element(parent), () => assert(false))
+      }
+    | _ => assert(false)
+    }
+  );
+
 let rec get_descendant_nodes = (root: Js.t(Dom.node)): list(Js.t(Dom.node)) => {
   let children = root##.childNodes;
   let descendants = ref([]);
