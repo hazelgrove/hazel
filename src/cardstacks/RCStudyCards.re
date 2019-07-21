@@ -217,7 +217,7 @@ let cardstack: CardStack.t =
               [Attr.classes(["card-exercise"])],
               [
                 txt("Suppose we have in scope the current player's"),
-                code(" defenseScore : Num "),
+                code(" defense_score : Num "),
                 txt(
                   "and wish to integrate it into the damage calculation. "
                   ++ "Modify the body of ",
@@ -226,11 +226,11 @@ let cardstack: CardStack.t =
                 txt(" so that the "),
                 code("case"),
                 txt(" expression is bound to a new variable called "),
-                code("attackScore"),
+                code("attack_score"),
                 txt(", then return twice the difference between "),
-                code("attackScore"),
+                code("attack_score"),
                 txt(" and "),
-                code("defenseScore"),
+                code("defense_score"),
                 txt("."),
               ],
             ),
@@ -240,7 +240,7 @@ let cardstack: CardStack.t =
         UHExp.Block(
           [
             UHExp.letline(
-              UHPat.var("defenseScore"),
+              UHPat.var("defense_score"),
               ~ann=UHTyp.Num,
               UHExp.EmptyHole(-1) |> UHExp.wrap_in_block,
             ),
