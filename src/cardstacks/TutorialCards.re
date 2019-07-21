@@ -1,7 +1,7 @@
 module Vdom = Virtual_dom.Vdom;
 module Attr = Vdom.Attr;
 
-let deserialize = s => UHExp.block_of_sexp(Sexplib.Sexp.of_string(s));
+let deserialize = s => ZExp.zblock_of_sexp(Sexplib.Sexp.of_string(s));
 
 let div = Vdom.Node.div;
 let span = Vdom.Node.span;
@@ -33,10 +33,11 @@ let intro_caption =
       ptxt("Click Next to go to the next card once you are finished."),
     ],
   );
-let intro_init_block = deserialize("(Block()(EmptyHole 0))");
+let intro_init_zblock =
+  deserialize("(BlockZE()(CursorE(OnDelim 0 Before)(EmptyHole 0)))");
 let intro_card: Card.t = {
   caption: intro_caption,
-  init_block: intro_init_block,
+  init_zblock: intro_init_zblock,
 };
 
 let backspace_caption =
@@ -53,13 +54,52 @@ let backspace_caption =
       ptxt("Go ahead and delete all of the digits below to try it out."),
     ],
   );
-let backspace_init_block = deserialize("(Block()(NumLit NotInHole 12345))");
+let backspace_init_zblock =
+  deserialize("(BlockZE()(CursorE(OnText 5)(NumLit NotInHole 12345)))");
 let backspace_card: Card.t = {
   caption: backspace_caption,
-  init_block: backspace_init_block,
+  init_zblock: backspace_init_zblock,
+};
+
+let empty_hole_insertion_caption =
+  div(
+    [],
+    [
+      txt(
+        "Hazel automatically inserts holes wherever a program term is expected "
+        ++ "but you haven't yet provided one.",
+      ),
+      p(
+        [],
+        [
+          txt("Try entering "),
+          code("12345"),
+          txt(" again, then press "),
+          keyblock("+"),
+          txt("."),
+        ],
+      ),
+      p(
+        [],
+        [
+          txt("Since the "),
+          code("+"),
+          txt(
+            " operator requires two arguments, Hazel automatically inserts "
+            ++ " a hole for the second argument.",
+          ),
+        ],
+      ),
+    ],
+  );
+let empty_hole_insertion_init_zblock =
+  deserialize("(BlockZE()(CursorE(OnDelim 0 Before)(EmptyHole 0)))");
+let empty_hole_insertion_card: Card.t = {
+  caption: empty_hole_insertion_caption,
+  init_zblock: empty_hole_insertion_init_zblock,
 };
 
 let cardstack: CardStack.t = {
   title: "Hazel Tutorial",
-  cards: [intro_card, backspace_card],
+  cards: [intro_card, backspace_card, empty_hole_insertion_card],
 };

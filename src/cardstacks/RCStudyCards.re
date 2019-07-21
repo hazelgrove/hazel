@@ -185,7 +185,8 @@ let cards: list(Card.t) =
             ),
           ],
           EmptyHole(-1),
-        ),
+        )
+        |> ZExp.place_before_block,
     },
     {
       caption:
@@ -291,7 +292,8 @@ let cards: list(Card.t) =
             ),
           ],
           EmptyHole(-1),
-        ),
+        )
+        |> ZExp.place_before_block,
     },
     {
       caption:
@@ -455,7 +457,8 @@ let cards: list(Card.t) =
             ),
           ],
           UHExp.EmptyHole(-1),
-        ),
+        )
+        |> ZExp.place_before_block,
     },
     {
       caption:
@@ -628,7 +631,8 @@ let cards: list(Card.t) =
             ),
           ],
           UHExp.EmptyHole(-1),
-        ),
+        )
+        |> ZExp.place_before_block,
     },
     {
       caption:
@@ -728,7 +732,8 @@ let cards: list(Card.t) =
             UHExp.EmptyLine,
           ],
           UHExp.EmptyHole(-1),
-        );
+        )
+        |> ZExp.place_before_block;
       },
     },
     {
@@ -925,7 +930,8 @@ let cards: list(Card.t) =
             ),
           ],
           UHExp.EmptyHole(-1),
-        );
+        )
+        |> ZExp.place_before_block;
       },
     },
   ];
