@@ -8,25 +8,25 @@
 
 %token <int> PLACEHOLDER
 %token COMMA
+%token OR
+%token AND
 %token LT
 %token CONS
 %token PLUS
 %token MINUS
 %token TIMES
-%token AND
-%token OR
 %token SPACEOP
 %token EOF
 
 %right COMMA
+%left OR
+%left AND
 %left LT
 %right CONS
 %left PLUS
 %left MINUS
 %left TIMES
 %left SPACEOP
-%left AND
-%left OR
 
 %start <UHExp.op Skel.t> skel_expr
 
