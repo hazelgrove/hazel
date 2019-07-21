@@ -135,7 +135,7 @@ let cards: list(Card.t) =
             ),
           ],
         ),
-      init_block:
+      init_zblock:
         UHExp.Block(
           [
             UHExp.letline(
@@ -217,7 +217,7 @@ let cards: list(Card.t) =
               [Attr.classes(["card-exercise"])],
               [
                 txt("Suppose we have in scope the current player's"),
-                code(" defenseScore : Num "),
+                code(" defense_score : Num "),
                 txt(
                   "and wish to integrate it into the damage calculation. "
                   ++ "Modify the body of ",
@@ -226,21 +226,21 @@ let cards: list(Card.t) =
                 txt(" so that the "),
                 code("case"),
                 txt(" expression is bound to a new variable called "),
-                code("attackScore"),
+                code("attack_score"),
                 txt(", then return twice the difference between "),
-                code("attackScore"),
+                code("attack_score"),
                 txt(" and "),
-                code("defenseScore"),
+                code("defense_score"),
                 txt("."),
               ],
             ),
           ],
         ),
-      init_block:
+      init_zblock:
         UHExp.Block(
           [
             UHExp.letline(
-              UHPat.var("defenseScore"),
+              UHPat.var("defense_score"),
               ~ann=UHTyp.Num,
               UHExp.EmptyHole(-1) |> UHExp.wrap_in_block,
             ),
@@ -328,7 +328,7 @@ let cards: list(Card.t) =
             ),
           ],
         ),
-      init_block:
+      init_zblock:
         UHExp.Block(
           [
             append_letline,
@@ -502,7 +502,7 @@ let cards: list(Card.t) =
             ),
           ],
         ),
-      init_block:
+      init_zblock:
         UHExp.Block(
           [
             append_letline,
@@ -703,7 +703,7 @@ let cards: list(Card.t) =
             ),
           ],
         ),
-      init_block: {
+      init_zblock: {
         let num_triple =
           UHTyp.(
             Parenthesized(
@@ -856,7 +856,7 @@ let cards: list(Card.t) =
             ),
           ],
         ),
-      init_block: {
+      init_zblock: {
         let num_triple =
           UHTyp.(
             Parenthesized(

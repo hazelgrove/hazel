@@ -289,15 +289,18 @@ let rec _ana_cursor_found_pat =
   | OpSeq(BinOp(NotInHole, Comma, _, _), _)
   | OpSeq(BinOp(NotInHole, Cons, _, _), _) =>
     Some((PatAnalyzed(ty), Pat(p), ctx))
-  | OpSeq(BinOp(InHole(WrongLength, _), Comma, skel1, skel2), _) =>
-    switch (ty) {
-    | Prod(ty1, ty2) =>
+  | OpSeq(BinOp(InHole(reason, _), Comma, skel1, skel2), _) =>
+    switch (ty, reason) {
+    | (Prod(ty1, ty2), WrongLength) =>
       let n_elts = ListMinTwo.length(UHPat.get_tuple(skel1, skel2));
       let n_types = ListMinTwo.length(HTyp.get_tuple(ty1, ty2));
       Some((PatAnaWrongLength(n_types, n_elts, ty), Pat(p), ctx));
-    | _ => None
+    | (_, TypeInconsistent) =>
+      let n_elts = ListMinTwo.length(UHPat.get_tuple(skel1, skel2));
+      Some((PatAnaWrongLength(1, n_elts, ty), Pat(p), ctx));
+    | (_, _) => None
     }
-  | OpSeq(BinOp(InHole(_, _), _, _, _), _) => None
+  | OpSeq(BinOp(InHole(_, _), Cons, _, _), _) => None
   | OpSeq(Placeholder(_), _) => None
   | OpSeq(BinOp(_, Space, _, _), _) => None
   };
@@ -564,12 +567,15 @@ and _ana_cursor_found_exp =
   | Inj(InHole(WrongLength, _), _, _)
   | Case(InHole(WrongLength, _), _, _, _)
   | ApPalette(InHole(WrongLength, _), _, _, _) => None
-  | OpSeq(BinOp(InHole(WrongLength, _), Comma, skel1, skel2), _) =>
-    switch (ty) {
-    | Prod(ty1, ty2) =>
+  | OpSeq(BinOp(InHole(reason, _), Comma, skel1, skel2), _) =>
+    switch (ty, reason) {
+    | (Prod(ty1, ty2), WrongLength) =>
       let n_elts = ListMinTwo.length(UHExp.get_tuple(skel1, skel2));
       let n_types = ListMinTwo.length(HTyp.get_tuple(ty1, ty2));
       Some((AnaWrongLength(n_types, n_elts, ty), Exp(e), ctx));
+    | (_, TypeInconsistent) =>
+      let n_elts = ListMinTwo.length(UHExp.get_tuple(skel1, skel2));
+      Some((AnaWrongLength(1, n_elts, ty), Exp(e), ctx));
     | _ => None
     }
   | OpSeq(BinOp(InHole(WrongLength, _), _, _, _), _) => None

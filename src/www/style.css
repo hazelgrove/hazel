@@ -140,9 +140,10 @@ html, body {
 /* sidebars */
 
 .collapsible-sidebar {
-  width: 290px;
+  width: 350px;
   flex-shrink: 0;
   transition: width 0.3s ease;
+  overflow-x: auto;
 }
 
 .collapsed-sidebar {
@@ -162,7 +163,7 @@ html, body {
 }
 
 .sidebar {
-  width: 290px;
+  width: auto;
   height: 100%;
   direction: ltr; /* reset text direction */
   background-color: tan;
@@ -657,7 +658,12 @@ html, body {
   margin-bottom: 14px; /* to match parent padding: creates a visible gap at bottom of scroll */
   box-shadow: 3px 3px tan;
   /* border: 1px solid tan; */
-  max-width: 10in;
+  /*max-width: 10in;*/
+  width: max-content;
+}
+
+.card-caption {
+  max-width: 9in;
 }
 
 h1 {
@@ -768,10 +774,17 @@ button:disabled {
   padding-left: 1px;
 }
 
+/*
+#pp_view {
+  overflow-x: auto;
+}
+*/
+
 #cell {
   opacity: 0.99;
   background-color: transparent;
   position: relative;
+  width: auto;
 }
 
 #cell .SNode {

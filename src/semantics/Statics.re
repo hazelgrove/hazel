@@ -2147,21 +2147,51 @@ let syn_fix_holes_zlines =
 let ana_fix_holes_zblock =
     (ctx: Contexts.t, u_gen: MetaVarGen.t, zblock: ZExp.zblock, ty: HTyp.t)
     : (ZExp.zblock, MetaVarGen.t) => {
-  let path = Path.of_zblock(zblock);
+  let (steps, _) as path = Path.of_zblock(zblock);
   let block = ZExp.erase_block(zblock);
   let (block, u_gen) = ana_fix_holes_block(ctx, u_gen, block, ty);
-  let zblock = Path.follow_block_or_fail(path, block);
-  (zblock, u_gen);
+  switch (Path.follow_block(path, block)) {
+  | None =>
+    // Only way this can happen now is path was originally
+    // on case type annotation and ana_fix_holes stripped
+    // the annotation, in which case we can just place cursor
+    // at end of case node. We might just wanna write a proper
+    // recursive traversal for hole-fixing zexps/blocks.
+    switch (steps |> split_last) {
+    | None => assert(false)
+    | Some((case_steps, _)) =>
+      switch (Path.follow_block_and_place_after(case_steps, block)) {
+      | None => assert(false)
+      | Some(zblock) => (zblock, u_gen)
+      }
+    }
+  | Some(zblock) => (zblock, u_gen)
+  };
 };
 
 let ana_fix_holes_zexp =
     (ctx: Contexts.t, u_gen: MetaVarGen.t, ze: ZExp.t, ty: HTyp.t)
     : (ZExp.t, MetaVarGen.t) => {
-  let path = Path.of_zexp(ze);
+  let (steps, _) as path = Path.of_zexp(ze);
   let e = ZExp.erase(ze);
   let (e, u_gen) = ana_fix_holes_exp(ctx, u_gen, e, ty);
-  let ze = Path.follow_e_or_fail(path, e);
-  (ze, u_gen);
+  switch (Path.follow_exp(path, e)) {
+  | None =>
+    // Only way this can happen now is path was originally
+    // on case type annotation and ana_fix_holes stripped
+    // the annotation, in which case we can just place cursor
+    // at end of case node. We might just wanna write a proper
+    // recursive traversal for hole-fixing zexps/blocks.
+    switch (steps |> split_last) {
+    | None => assert(false)
+    | Some((case_steps, _)) =>
+      switch (Path.follow_exp_and_place_after(case_steps, e)) {
+      | None => assert(false)
+      | Some(ze) => (ze, u_gen)
+      }
+    }
+  | Some(ze) => (ze, u_gen)
+  };
 };
 
 /* Only to be used on top-level expressions, as it starts hole renumbering at 0 */

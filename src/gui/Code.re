@@ -262,7 +262,7 @@ let space_before_after_op_pat: UHPat.op => (bool, bool) =
 
 let space_before_after_op_exp: UHExp.op => (bool, bool) =
   fun
-  | And
+  | And => (true, true)
   | Or => (true, true)
   | Minus => (true, true)
   | Plus => (true, true)
