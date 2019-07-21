@@ -135,7 +135,7 @@ let cardstack: CardStack.t =
             ),
           ],
         ),
-      init_block:
+      init_zblock:
         UHExp.Block(
           [
             UHExp.letline(
@@ -236,7 +236,7 @@ let cardstack: CardStack.t =
             ),
           ],
         ),
-      init_block:
+      init_zblock:
         UHExp.Block(
           [
             UHExp.letline(
@@ -328,7 +328,7 @@ let cardstack: CardStack.t =
             ),
           ],
         ),
-      init_block:
+      init_zblock:
         UHExp.Block(
           [
             append_letline,
@@ -502,7 +502,7 @@ let cardstack: CardStack.t =
             ),
           ],
         ),
-      init_block:
+      init_zblock:
         UHExp.Block(
           [
             append_letline,
@@ -703,7 +703,7 @@ let cardstack: CardStack.t =
             ),
           ],
         ),
-      init_block: {
+      init_zblock: {
         let num_triple =
           UHTyp.(
             Parenthesized(
@@ -856,7 +856,7 @@ let cardstack: CardStack.t =
             ),
           ],
         ),
-      init_block: {
+      init_zblock: {
         let num_triple =
           UHTyp.(
             Parenthesized(
