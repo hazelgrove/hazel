@@ -141,9 +141,10 @@ html, body {
 /* sidebars */
 
 .collapsible-sidebar {
-  width: 290px;
+  width: 350px;
   flex-shrink: 0;
   transition: width 0.3s ease;
+  overflow-x: auto;
 }
 
 .collapsed-sidebar {
@@ -163,7 +164,7 @@ html, body {
 }
 
 .sidebar {
-  width: 290px;
+  width: auto;
   height: 100%;
   direction: ltr; /* reset text direction */
   background-color: tan;
