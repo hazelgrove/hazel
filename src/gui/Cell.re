@@ -907,13 +907,14 @@ let hole_indicators = (model: Model.t) => {
        );
   let skel_holes =
     skel_holes
-    |> List.map(((op_path, (a, b), is_multi_line)) =>
+    |> List.map((((steps, _) as op_path, (a, b), is_multi_line)) =>
          is_multi_line
            ? range(~lo=a, b + 1)
              |> List.map(i =>
                   Vdom.(
                     Node.div(
                       [
+                        Attr.id(multi_line_skel_hole_id(steps, (a, b), i)),
                         Attr.classes(
                           switch (i == a, i == b) {
                           | (true, _) => [
@@ -940,6 +941,7 @@ let hole_indicators = (model: Model.t) => {
              Vdom.(
                Node.div(
                  [
+                   Attr.id(single_line_skel_hole_id(steps, (a, b))),
                    Attr.classes([
                      "skel-hole-indicator",
                      "skel-hole-indicator-first",
@@ -965,6 +967,7 @@ let hole_indicators = (model: Model.t) => {
                   Vdom.(
                     Node.div(
                       [
+                        Attr.id(multi_line_ap_hole_id(steps, (a, b), i)),
                         Attr.classes(
                           switch (i == a, i == b) {
                           | (true, _) => [
@@ -991,6 +994,7 @@ let hole_indicators = (model: Model.t) => {
              Vdom.(
                Node.div(
                  [
+                   Attr.id(single_line_ap_hole_id(steps, (a, b))),
                    Attr.classes([
                      "ap-hole-indicator",
                      "ap-hole-indicator-first",
@@ -1236,99 +1240,91 @@ let draw_hole_indicators = (model: Model.t) => {
   |> List.iter(((op_path, (a, b), _)) => {
        let (steps, _) = op_path;
        let seq_elem = Code.force_get_snode_elem(steps);
-       switch (skel_hole_indicator_elems(op_path)) {
-       | [] => assert(false)
-       | [indicator_elem0, ...indicator_elems] =>
-         if (seq_elem |> Code.elem_is_multi_line) {
-           let rect_a =
-             Code.force_get_snode_elem(steps @ [a])
-             |> get_relative_bounding_rect;
-           let rect_b =
-             Code.force_get_snode_elem(steps @ [b])
-             |> get_relative_bounding_rect;
+       if (seq_elem |> Code.elem_is_multi_line) {
+         let rect_a =
+           Code.force_get_snode_elem(steps @ [a])
+           |> get_relative_bounding_rect;
+         JSUtil.force_get_elem_by_id(
+           multi_line_skel_hole_id(steps, (a, b), a),
+         )
+         |> JSUtil.place_over_rect(rect_a);
+         let seq_sline_elems =
+           JSUtil.force_get_elem_by_id(cell_id)
+           |> Code.sline_elems_of_snode_elem(seq_elem);
+         range(~lo=a + 1, b + 1)
+         |> List.map(i =>
+              (
+                List.nth(seq_sline_elems, i),
+                JSUtil.force_get_elem_by_id(
+                  multi_line_ap_hole_id(steps, (a, b), i),
+                ),
+              )
+            )
+         |> List.iter(((sline_elem, indicator_elem)) => {
+              let rect = sline_elem |> get_relative_bounding_rect;
+              indicator_elem |> JSUtil.place_over_rect(rect);
+            });
+       } else {
+         let rect_a =
+           Code.force_get_snode_elem(steps @ [a])
+           |> get_relative_bounding_rect;
+         let rect_b =
+           Code.force_get_snode_elem(steps @ [b])
+           |> get_relative_bounding_rect;
 
-           indicator_elem0
-           |> JSUtil.place_over_rect({
-                left: rect_a.left,
-                top: rect_a.top,
-                right: rect_b.right,
-                bottom: rect_b.bottom,
-              });
-           let seq_sline_elems =
-             JSUtil.force_get_elem_by_id(cell_id)
-             |> Code.sline_elems_of_snode_elem(seq_elem);
-           range(~lo=a + 1, b + 1)
-           |> List.map(List.nth(seq_sline_elems))
-           |> List.combine(indicator_elems)
-           |> List.iter(((indicator_elem, sline_elem)) => {
-                let rect = sline_elem |> get_relative_bounding_rect;
-                indicator_elem |> JSUtil.place_over_rect(rect);
-              });
-         } else {
-           let rect_a =
-             Code.force_get_snode_elem(steps @ [a])
-             |> get_relative_bounding_rect;
-           let rect_b =
-             Code.force_get_snode_elem(steps @ [b])
-             |> get_relative_bounding_rect;
-
-           indicator_elem0
-           |> JSUtil.place_over_rect({
-                left: rect_a.left,
-                top: rect_a.top,
-                right: rect_b.right,
-                bottom: rect_b.bottom,
-              });
-         }
+         JSUtil.force_get_elem_by_id(
+           single_line_skel_hole_id(steps, (a, b)),
+         )
+         |> JSUtil.place_over_rect({
+              left: rect_a.left,
+              top: rect_a.top,
+              right: rect_b.right,
+              bottom: rect_b.bottom,
+            });
        };
      });
   ap_holes
   |> List.iter(((steps, (a, b), _)) => {
        let seq_elem = Code.force_get_snode_elem(steps);
-       switch (ap_hole_indicator_elems(steps)) {
-       | [] => assert(false)
-       | [indicator_elem0, ...indicator_elems] =>
-         if (seq_elem |> Code.elem_is_multi_line) {
-           let rect_a =
-             Code.force_get_snode_elem(steps @ [a])
-             |> get_relative_bounding_rect;
-           let rect_b =
-             Code.force_get_snode_elem(steps @ [b])
-             |> get_relative_bounding_rect;
+       if (seq_elem |> Code.elem_is_multi_line) {
+         let rect_a =
+           Code.force_get_snode_elem(steps @ [a])
+           |> get_relative_bounding_rect;
+         JSUtil.force_get_elem_by_id(
+           multi_line_ap_hole_id(steps, (a, b), a),
+         )
+         |> JSUtil.place_over_rect(rect_a);
+         let seq_sline_elems =
+           JSUtil.force_get_elem_by_id(cell_id)
+           |> Code.sline_elems_of_snode_elem(seq_elem);
+         range(~lo=a + 1, b + 1)
+         |> List.map(i =>
+              (
+                List.nth(seq_sline_elems, i),
+                JSUtil.force_get_elem_by_id(
+                  multi_line_ap_hole_id(steps, (a, b), i),
+                ),
+              )
+            )
+         |> List.iter(((sline_elem, indicator_elem)) => {
+              let rect = sline_elem |> get_relative_bounding_rect;
+              indicator_elem |> JSUtil.place_over_rect(rect);
+            });
+       } else {
+         let rect_a =
+           Code.force_get_snode_elem(steps @ [a])
+           |> get_relative_bounding_rect;
+         let rect_b =
+           Code.force_get_snode_elem(steps @ [b])
+           |> get_relative_bounding_rect;
 
-           indicator_elem0
-           |> JSUtil.place_over_rect({
-                left: rect_a.left,
-                top: rect_a.top,
-                right: rect_b.right,
-                bottom: rect_b.bottom,
-              });
-           let seq_sline_elems =
-             JSUtil.force_get_elem_by_id(cell_id)
-             |> Code.sline_elems_of_snode_elem(seq_elem);
-           range(~lo=a + 1, b + 1)
-           |> List.map(List.nth(seq_sline_elems))
-           |> List.combine(indicator_elems)
-           |> List.iter(((indicator_elem, sline_elem)) => {
-                let rect = sline_elem |> get_relative_bounding_rect;
-                indicator_elem |> JSUtil.place_over_rect(rect);
-              });
-         } else {
-           let rect_a =
-             Code.force_get_snode_elem(steps @ [a])
-             |> get_relative_bounding_rect;
-           let rect_b =
-             Code.force_get_snode_elem(steps @ [b])
-             |> get_relative_bounding_rect;
-
-           indicator_elem0
-           |> JSUtil.place_over_rect({
-                left: rect_a.left,
-                top: rect_a.top,
-                right: rect_b.right,
-                bottom: rect_b.bottom,
-              });
-         }
+         JSUtil.force_get_elem_by_id(single_line_ap_hole_id(steps, (a, b)))
+         |> JSUtil.place_over_rect({
+              left: rect_a.left,
+              top: rect_a.top,
+              right: rect_b.right,
+              bottom: rect_b.bottom,
+            });
        };
      });
 };

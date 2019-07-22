@@ -1,3 +1,4 @@
+open Sexplib.Std;
 module U = GeneralUtil;
 module Js = Js_of_ocaml.Js;
 module Dom = Js_of_ocaml.Dom;
@@ -230,6 +231,7 @@ let force_get_next_sibling_elem = elem =>
 
 let px = (f: float): string => string_of_float(f) ++ "0px";
 
+[@deriving sexp]
 type rect = {
   top: float,
   right: float,

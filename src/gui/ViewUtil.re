@@ -22,6 +22,48 @@ let delim_id = ((steps, delim_index) as _delim_path) =>
 let op_id = (steps, op_index) =>
   "op__" ++ Sexplib.Sexp.to_string(sexp_of_op_path((steps, op_index)));
 
+let multi_line_skel_hole_id = (steps, (a, b), i) =>
+  "multi_line_skel_hole__"
+  ++ Sexplib.Sexp.to_string(Path.sexp_of_steps(steps))
+  ++ "__"
+  ++ "("
+  ++ string_of_int(a)
+  ++ " "
+  ++ string_of_int(b)
+  ++ ")"
+  ++ "__"
+  ++ string_of_int(i);
+let single_line_skel_hole_id = (steps, (a, b)) =>
+  "multi_line_skel_hole__"
+  ++ Sexplib.Sexp.to_string(Path.sexp_of_steps(steps))
+  ++ "__"
+  ++ "("
+  ++ string_of_int(a)
+  ++ " "
+  ++ string_of_int(b)
+  ++ ")";
+
+let multi_line_ap_hole_id = (steps, (a, b), i) =>
+  "multi_line_ap_hole__"
+  ++ Sexplib.Sexp.to_string(Path.sexp_of_steps(steps))
+  ++ "__"
+  ++ "("
+  ++ string_of_int(a)
+  ++ " "
+  ++ string_of_int(b)
+  ++ ")"
+  ++ "__"
+  ++ string_of_int(i);
+let single_line_ap_hole_id = (steps, (a, b)) =>
+  "multi_line_ap_hole__"
+  ++ Sexplib.Sexp.to_string(Path.sexp_of_steps(steps))
+  ++ "__"
+  ++ "("
+  ++ string_of_int(a)
+  ++ " "
+  ++ string_of_int(b)
+  ++ ")";
+
 let box_node_indicator_id = "box_node_indicator";
 let child_indicator_id = i => "child_indicator__" ++ string_of_int(i);
 let empty_hole_conclusion_mask_id = "empty_hole_conclusion_mask";

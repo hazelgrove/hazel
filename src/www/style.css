@@ -872,6 +872,8 @@ button:disabled {
   position: absolute;
   z-index: var(--hole-indicator-z-index);
   background-color: transparent;
+  font-family: "Fira Mono", monospace;
+  font-size: 20px;
 }
 
 .hole-indicator {

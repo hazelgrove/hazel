@@ -44,6 +44,9 @@ let create =
     ~on_display=
       (state: State.t, ~schedule_action: Update.Action.t => unit) => {
         let path = model |> Model.path;
+        if (! state.changing_cards^) {
+          Cell.draw_hole_indicators(model);
+        };
         if (state.changing_cards^) {
           switch (Code.caret_position_of_path(path)) {
           | None => assert(false)
@@ -79,7 +82,6 @@ let create =
                 |> Cell.draw_box_term_indicator(
                      ~cursor_info=model.cursor_info,
                    );
-                Cell.draw_hole_indicators(model);
               } else {
                 // cursor_elem is SSeq
                 switch (model.cursor_info.position) {
