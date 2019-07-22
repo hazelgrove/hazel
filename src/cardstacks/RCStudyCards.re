@@ -511,7 +511,12 @@ let cards: list(Card.t) =
               UHPat.var("rotate"),
               ~ann=
                 UHTyp.(
-                  ExpOpExp(List(Num), Arrow, List(Num)) |> Typ.mk_OpSeq
+                  SeqOpExp(
+                    ExpOpExp(Num, Arrow, List(Num)),
+                    Arrow,
+                    List(Num),
+                  )
+                  |> Typ.mk_OpSeq
                 ),
               UHExp.(
                 wrap_in_block(
