@@ -779,3 +779,21 @@ let favored_child_of_exp: t => option((child_index, block)) =
   | Inj(_, _, block)
   | Case(_, block, _, _)
   | Parenthesized(block) => Some((0, block));
+
+let rec is_multi_line =
+  fun
+  | Block(lines, e) => List.length(lines) > 0 || is_multi_line_exp(e)
+and is_multi_line_exp =
+  fun
+  | EmptyHole(_)
+  | Var(_, _, _)
+  | NumLit(_, _)
+  | BoolLit(_, _)
+  | ListNil(_)
+  | ApPalette(_, _, _, _) => false
+  | Lam(_, _, _, body) => is_multi_line(body)
+  | Inj(_, _, body) => is_multi_line(body)
+  | Case(_, _, _, _) => true
+  | Parenthesized(body) => is_multi_line(body)
+  | OpSeq(_, seq) =>
+    seq |> OperatorSeq.tms |> List.exists(is_multi_line_exp);

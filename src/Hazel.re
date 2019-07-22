@@ -79,6 +79,7 @@ let create =
                 |> Cell.draw_box_term_indicator(
                      ~cursor_info=model.cursor_info,
                    );
+                Cell.draw_hole_indicators(model);
               } else {
                 // cursor_elem is SSeq
                 switch (model.cursor_info.position) {

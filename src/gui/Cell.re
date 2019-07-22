@@ -1,4 +1,5 @@
 module Vdom = Virtual_dom.Vdom;
+module Dom = Js_of_ocaml.Dom;
 module Dom_html = Js_of_ocaml.Dom_html;
 module Js = Js_of_ocaml.Js;
 module Sexp = Sexplib.Sexp;
@@ -664,150 +665,6 @@ let child_indicators = (model: Model.t) => {
      );
 };
 
-let indicators = (model: Model.t) => {
-  switch (model.cursor_info.node) {
-  | Exp(OpSeq(_, seq) as e) =>
-    Code.is_multi_line_exp(e)
-      ? multi_line_seq_indicators(
-          model.is_cell_focused,
-          OperatorSeq.seq_length(seq),
-        )
-      : single_line_seq_indicators(model.is_cell_focused)
-  | Pat(OpSeq(_, seq) as p) =>
-    Code.is_multi_line_pat(p)
-      ? multi_line_seq_indicators(
-          model.is_cell_focused,
-          OperatorSeq.seq_length(seq),
-        )
-      : single_line_seq_indicators(model.is_cell_focused)
-  | Typ(OpSeq(_, seq) as ty) =>
-    Code.is_multi_line_typ(ty)
-      ? multi_line_seq_indicators(
-          model.is_cell_focused,
-          OperatorSeq.seq_length(seq),
-        )
-      : single_line_seq_indicators(model.is_cell_focused)
-  | _ =>
-    Vdom.[
-      Node.div(
-        [
-          Attr.id(box_node_indicator_id),
-          Attr.classes([
-            "node-indicator",
-            model.is_cell_focused && model.cursor_info.node != Line(EmptyLine)
-              ? "active" : "inactive",
-            switch (model.cursor_info.position) {
-            | OnText(_)
-            | OnDelim(_, _) => "normal"
-            | Staging(_) => "staging"
-            },
-          ]),
-        ],
-        [],
-      ),
-      Node.div(
-        [
-          Attr.id(box_tm_indicator_id),
-          Attr.classes([
-            "term-indicator",
-            "term-indicator-first",
-            "term-indicator-last",
-            model.is_cell_focused
-            && !(model.cursor_info |> CursorInfo.is_staging)
-              ? "active" : "inactive",
-          ]),
-        ],
-        [],
-      ),
-      Node.div(
-        [
-          Attr.id(current_horizontal_shift_target_id),
-          Attr.classes([
-            "current-horizontal-shift-target",
-            switch (model.cursor_info.position) {
-            | Staging(_) => "active"
-            | _ => "inactive"
-            },
-          ]),
-        ],
-        [],
-      ),
-      Node.div(
-        [
-          Attr.id(current_vertical_shift_target_id),
-          Attr.classes([
-            "current-vertical-shift-target",
-            switch (model.cursor_info.position) {
-            | Staging(_) => "active"
-            | _ => "inactive"
-            },
-          ]),
-        ],
-        [],
-      ),
-      Node.div(
-        [
-          Attr.id(current_shifting_delim_indicator_id),
-          Attr.classes([
-            "current-shifting-delim-indicator",
-            switch (model.cursor_info.position) {
-            | Staging(_) => "active"
-            | _ => "inactive"
-            },
-          ]),
-        ],
-        [],
-      ),
-      Node.div(
-        [
-          Attr.id(horizontal_shift_rail_id),
-          Attr.classes([
-            "horizontal-shift-rail",
-            switch (model.cursor_info.position) {
-            | Staging(_) => "active"
-            | _ => "inactive"
-            },
-          ]),
-        ],
-        [],
-      ),
-      Node.div(
-        [
-          Attr.id(vertical_shift_rail_id),
-          Attr.classes([
-            "vertical-shift-rail",
-            switch (model.cursor_info.position) {
-            | Staging(_) => "active"
-            | _ => "inactive"
-            },
-          ]),
-        ],
-        [],
-      ),
-    ]
-    @ (
-      model.cursor_info |> CursorInfo.is_concluding_let_line
-        ? [
-          Vdom.(
-            Node.div(
-              [
-                Attr.id(empty_hole_conclusion_mask_id),
-                Attr.classes(["empty-hole-conclusion-mask"]),
-              ],
-              [],
-            )
-          ),
-        ]
-        : []
-    )
-    @ child_indicators(model)
-    @ horizontal_shift_targets_in_subject(model)
-    @ vertical_shift_targets_in_subject(model)
-    @ horizontal_shift_targets_in_frame(model)
-    @ vertical_shift_targets_in_frame(model)
-  };
-};
-
 let font_size = 20.0;
 let line_height = 1.5;
 let indicator_padding = font_size *. (line_height -. 1.0) /. 2.0 -. 1.5;
@@ -826,20 +683,502 @@ let get_relative_bounding_rect = elem => {
      );
 };
 
-let indent_of_snode_elem = elem =>
-  switch (elem |> JSUtil.get_attr("indent_level")) {
-  | None => 0.0
-  | Some(ssexp) =>
-    switch (ssexp |> Sexplib.Sexp.of_string |> Code.indent_level_of_sexp) {
-    | NotIndentable => 0.0
-    | Indented(m) => float_of_int(m)
-    | OpPrefix(m, n) => float_of_int(m + n)
-    }
+type holes_steps = (
+  // err holes around tms
+  list(Path.steps),
+  // err holes around skels rooted at a non-space op
+  // + range of each skel
+  list((op_path, Code.seq_range, bool)),
+  // err holes around skels rooted at a space op
+  // (where steps is to first tm of the space-sep seq)
+  // + range of each skel
+  list((Path.steps, Code.seq_range, bool)),
+);
+
+let cons_holes = (i, (holes, skel_holes, ap_holes)) => (
+  holes |> List.map(steps => [i, ...steps]),
+  skel_holes
+  |> List.map((((steps, op_index), subseq_len, is_multi_line)) =>
+       (([i, ...steps], op_index), subseq_len, is_multi_line)
+     ),
+  ap_holes
+  |> List.map(((steps, subseq_len, is_multi_line)) =>
+       ([i, ...steps], subseq_len, is_multi_line)
+     ),
+);
+
+let concat_holes =
+    ((holes1, skel_holes1, ap_holes1), (holes2, skel_holes2, ap_holes2)) => (
+  holes1 @ holes2,
+  skel_holes1 @ skel_holes2,
+  ap_holes1 @ ap_holes2,
+);
+
+let err_holes =
+  fun
+  | NotInHole => ([], [], [])
+  | InHole(_, _) => ([[]], [], []);
+
+let rec collect_holes_pat: UHPat.t => holes_steps =
+  fun
+  | EmptyHole(_) => ([], [], [])
+  | Wild(err)
+  | Var(err, _, _)
+  | NumLit(err, _)
+  | BoolLit(err, _)
+  | ListNil(err) => err_holes(err)
+  | Parenthesized(p) => cons_holes(0, collect_holes_pat(p))
+  | OpSeq(skel, seq) => collect_holes_pat_skel(skel, seq)
+  | Inj(_, _, _) => ([], [], [])
+and collect_holes_pat_skel = (skel, seq) =>
+  switch (skel) {
+  | Placeholder(n) =>
+    seq
+    |> OperatorSeq.nth_tm(n)
+    |> Opt.get(() => assert(false))
+    |> collect_holes_pat
+    |> cons_holes(n)
+  | BinOp(err, Space, skel1, skel2) =>
+    let (a, _) = skel1 |> Skel.range;
+    let (_, b) = skel2 |> Skel.range;
+    concat_holes(
+      (
+        [],
+        [],
+        switch (err) {
+        | NotInHole => []
+        | InHole(_, _) => [([], (a, b), false)]
+        },
+      ),
+      concat_holes(
+        collect_holes_pat_skel(skel1, seq),
+        collect_holes_pat_skel(skel2, seq),
+      ),
+    );
+  | BinOp(err, _, skel1, skel2) =>
+    let (a, _) = skel1 |> Skel.range;
+    let (k, b) = skel2 |> Skel.range;
+    concat_holes(
+      (
+        [],
+        switch (err) {
+        | NotInHole => []
+        | InHole(_, _) => [(([], k), (a, b), false)]
+        },
+        [],
+      ),
+      concat_holes(
+        collect_holes_pat_skel(skel1, seq),
+        collect_holes_pat_skel(skel2, seq),
+      ),
+    );
   };
+
+let rec collect_holes: UHExp.block => holes_steps =
+  fun
+  | Block(lines, e) =>
+    concat_holes(
+      lines
+      |> List.mapi((i, line) => cons_holes(i, collect_holes_line(line)))
+      |> List.fold_left(
+           (holes, holes_line) => concat_holes(holes, holes_line),
+           ([], [], []),
+         ),
+      cons_holes(List.length(lines), collect_holes_exp(e)),
+    )
+and collect_holes_line: UHExp.line => holes_steps =
+  fun
+  | EmptyLine => ([], [], [])
+  | ExpLine(e) => collect_holes_exp(e)
+  | LetLine(p, _, def) =>
+    concat_holes(
+      cons_holes(0, collect_holes_pat(p)),
+      cons_holes(2, collect_holes(def)),
+    )
+and collect_holes_exp: UHExp.t => holes_steps =
+  fun
+  | EmptyHole(_) => ([], [], [])
+  | Var(err, _, _)
+  | NumLit(err, _)
+  | BoolLit(err, _)
+  | ListNil(err) => err_holes(err)
+  | Lam(err, p, _, def) =>
+    concat_holes(
+      err_holes(err),
+      concat_holes(
+        cons_holes(0, collect_holes_pat(p)),
+        cons_holes(2, collect_holes(def)),
+      ),
+    )
+  | Inj(_, _, _) => ([], [], [])
+  | Case(err, scrut, rules, _) =>
+    concat_holes(
+      err_holes(err),
+      concat_holes(
+        cons_holes(0, collect_holes(scrut)),
+        rules
+        |> List.mapi((i, rule) =>
+             cons_holes(i + 1, collect_holes_rule(rule))
+           )
+        |> List.fold_left(
+             (holes, rule_holes) => concat_holes(holes, rule_holes),
+             ([], [], []),
+           ),
+      ),
+    )
+  | ApPalette(_, _, _, _) => ([], [], [])
+  | Parenthesized(body) => cons_holes(0, collect_holes(body))
+  | OpSeq(skel, seq) =>
+    collect_holes_skel(
+      ~is_multi_line=
+        seq |> OperatorSeq.tms |> List.exists(UHExp.is_multi_line_exp),
+      skel,
+      seq,
+    )
+and collect_holes_rule: UHExp.rule => holes_steps =
+  fun
+  | Rule(p, clause) =>
+    concat_holes(
+      cons_holes(0, collect_holes_pat(p)),
+      cons_holes(1, collect_holes(clause)),
+    )
+and collect_holes_skel = (~is_multi_line, skel, seq) =>
+  switch (skel) {
+  | Placeholder(n) =>
+    seq
+    |> OperatorSeq.nth_tm(n)
+    |> Opt.get(() => assert(false))
+    |> collect_holes_exp
+    |> cons_holes(n)
+  | BinOp(err, Space, skel1, skel2) =>
+    let (a, _) = skel1 |> Skel.range;
+    let (_, b) = skel2 |> Skel.range;
+    concat_holes(
+      (
+        [],
+        [],
+        switch (err) {
+        | NotInHole => []
+        | InHole(_, _) => [([], (a, b), is_multi_line)]
+        },
+      ),
+      concat_holes(
+        collect_holes_skel(~is_multi_line, skel1, seq),
+        collect_holes_skel(~is_multi_line, skel2, seq),
+      ),
+    );
+  | BinOp(err, _, skel1, skel2) =>
+    let (a, _) = skel1 |> Skel.range;
+    let (k, b) = skel2 |> Skel.range;
+    concat_holes(
+      (
+        [],
+        switch (err) {
+        | NotInHole => []
+        | InHole(_, _) => [(([], k), (a, b), is_multi_line)]
+        },
+        [],
+      ),
+      concat_holes(
+        collect_holes_skel(~is_multi_line, skel1, seq),
+        collect_holes_skel(~is_multi_line, skel2, seq),
+      ),
+    );
+  };
+
+let hole_indicators = (model: Model.t) => {
+  let (holes, skel_holes, ap_holes) =
+    model |> Model.zblock |> ZExp.erase_block |> collect_holes;
+  let hole_indicators =
+    holes
+    |> List.map(steps =>
+         Vdom.(
+           Node.div(
+             [
+               Attr.classes(["hole-indicator"]),
+               Attr.create(
+                 "steps",
+                 Sexplib.Sexp.to_string(Path.sexp_of_steps(steps)),
+               ),
+             ],
+             [],
+           )
+         )
+       );
+  let skel_holes =
+    skel_holes
+    |> List.map(((op_path, (a, b), is_multi_line)) =>
+         is_multi_line
+           ? range(~lo=a, b + 1)
+             |> List.map(i =>
+                  Vdom.(
+                    Node.div(
+                      [
+                        Attr.classes(
+                          switch (i == a, i == b) {
+                          | (true, _) => [
+                              "skel-hole-indicator",
+                              "skel-hole-indicator-first",
+                            ]
+                          | (_, true) => [
+                              "skel-hole-indicator",
+                              "skel-hole-indicator-last",
+                            ]
+                          | (_, _) => ["skel-hole-indicator"]
+                          },
+                        ),
+                        Attr.create(
+                          "op-path",
+                          Sexplib.Sexp.to_string(sexp_of_op_path(op_path)),
+                        ),
+                      ],
+                      [],
+                    )
+                  )
+                )
+           : [
+             Vdom.(
+               Node.div(
+                 [
+                   Attr.classes([
+                     "skel-hole-indicator",
+                     "skel-hole-indicator-first",
+                     "skel-hole-indicator-last",
+                   ]),
+                   Attr.create(
+                     "op-path",
+                     Sexplib.Sexp.to_string(sexp_of_op_path(op_path)),
+                   ),
+                 ],
+                 [],
+               )
+             ),
+           ]
+       )
+    |> List.concat;
+  let ap_holes =
+    ap_holes
+    |> List.map(((steps, (a, b), is_multi_line)) =>
+         is_multi_line
+           ? range(~lo=a, b + 1)
+             |> List.map(i =>
+                  Vdom.(
+                    Node.div(
+                      [
+                        Attr.classes(
+                          switch (i == a, i == b) {
+                          | (true, _) => [
+                              "ap-hole-indicator",
+                              "ap-hole-indicator-first",
+                            ]
+                          | (_, true) => [
+                              "ap-hole-indicator",
+                              "ap-hole-indicator-last",
+                            ]
+                          | (_, _) => ["ap-hole-indicator"]
+                          },
+                        ),
+                        Attr.create(
+                          "steps",
+                          Sexplib.Sexp.to_string(Path.sexp_of_steps(steps)),
+                        ),
+                      ],
+                      [],
+                    )
+                  )
+                )
+           : [
+             Vdom.(
+               Node.div(
+                 [
+                   Attr.classes([
+                     "ap-hole-indicator",
+                     "ap-hole-indicator-first",
+                     "ap-hole-indicator-last",
+                   ]),
+                   Attr.create(
+                     "steps",
+                     Sexplib.Sexp.to_string(Path.sexp_of_steps(steps)),
+                   ),
+                 ],
+                 [],
+               )
+             ),
+           ]
+       )
+    |> List.concat;
+  hole_indicators @ skel_holes @ ap_holes;
+};
+
+let skel_hole_selector = op_path =>
+  ".skel-hole-indicator[op-path=\'"
+  ++ Sexplib.Sexp.to_string(sexp_of_op_path(op_path))
+  ++ "\']";
+let skel_hole_indicator_elems = (op_path): list(Js.t(Dom_html.element)) =>
+  Dom_html.document##querySelectorAll(
+    Js.string(skel_hole_selector(op_path)),
+  )
+  |> Dom.list_of_nodeList;
+
+let ap_hole_selector = steps =>
+  ".ap-hole-indicator[steps=\'"
+  ++ Sexplib.Sexp.to_string(Path.sexp_of_steps(steps))
+  ++ "\']";
+let ap_hole_indicator_elems = steps =>
+  Dom_html.document##querySelectorAll(Js.string(ap_hole_selector(steps)))
+  |> Dom.list_of_nodeList;
+
+let indicators = (model: Model.t) => {
+  (
+    switch (model.cursor_info.node) {
+    | Exp(OpSeq(_, seq) as e) =>
+      Code.is_multi_line_exp(e)
+        ? multi_line_seq_indicators(
+            model.is_cell_focused,
+            OperatorSeq.seq_length(seq),
+          )
+        : single_line_seq_indicators(model.is_cell_focused)
+    | Pat(OpSeq(_, seq) as p) =>
+      Code.is_multi_line_pat(p)
+        ? multi_line_seq_indicators(
+            model.is_cell_focused,
+            OperatorSeq.seq_length(seq),
+          )
+        : single_line_seq_indicators(model.is_cell_focused)
+    | Typ(OpSeq(_, seq) as ty) =>
+      Code.is_multi_line_typ(ty)
+        ? multi_line_seq_indicators(
+            model.is_cell_focused,
+            OperatorSeq.seq_length(seq),
+          )
+        : single_line_seq_indicators(model.is_cell_focused)
+    | _ =>
+      Vdom.[
+        Node.div(
+          [
+            Attr.id(box_node_indicator_id),
+            Attr.classes([
+              "node-indicator",
+              model.is_cell_focused
+              && model.cursor_info.node != Line(EmptyLine)
+                ? "active" : "inactive",
+              switch (model.cursor_info.position) {
+              | OnText(_)
+              | OnDelim(_, _) => "normal"
+              | Staging(_) => "staging"
+              },
+            ]),
+          ],
+          [],
+        ),
+        Node.div(
+          [
+            Attr.id(box_tm_indicator_id),
+            Attr.classes([
+              "term-indicator",
+              "term-indicator-first",
+              "term-indicator-last",
+              model.is_cell_focused
+              && !(model.cursor_info |> CursorInfo.is_staging)
+                ? "active" : "inactive",
+            ]),
+          ],
+          [],
+        ),
+        Node.div(
+          [
+            Attr.id(current_horizontal_shift_target_id),
+            Attr.classes([
+              "current-horizontal-shift-target",
+              switch (model.cursor_info.position) {
+              | Staging(_) => "active"
+              | _ => "inactive"
+              },
+            ]),
+          ],
+          [],
+        ),
+        Node.div(
+          [
+            Attr.id(current_vertical_shift_target_id),
+            Attr.classes([
+              "current-vertical-shift-target",
+              switch (model.cursor_info.position) {
+              | Staging(_) => "active"
+              | _ => "inactive"
+              },
+            ]),
+          ],
+          [],
+        ),
+        Node.div(
+          [
+            Attr.id(current_shifting_delim_indicator_id),
+            Attr.classes([
+              "current-shifting-delim-indicator",
+              switch (model.cursor_info.position) {
+              | Staging(_) => "active"
+              | _ => "inactive"
+              },
+            ]),
+          ],
+          [],
+        ),
+        Node.div(
+          [
+            Attr.id(horizontal_shift_rail_id),
+            Attr.classes([
+              "horizontal-shift-rail",
+              switch (model.cursor_info.position) {
+              | Staging(_) => "active"
+              | _ => "inactive"
+              },
+            ]),
+          ],
+          [],
+        ),
+        Node.div(
+          [
+            Attr.id(vertical_shift_rail_id),
+            Attr.classes([
+              "vertical-shift-rail",
+              switch (model.cursor_info.position) {
+              | Staging(_) => "active"
+              | _ => "inactive"
+              },
+            ]),
+          ],
+          [],
+        ),
+      ]
+      @ (
+        model.cursor_info |> CursorInfo.is_concluding_let_line
+          ? [
+            Vdom.(
+              Node.div(
+                [
+                  Attr.id(empty_hole_conclusion_mask_id),
+                  Attr.classes(["empty-hole-conclusion-mask"]),
+                ],
+                [],
+              )
+            ),
+          ]
+          : []
+      )
+      @ child_indicators(model)
+      @ horizontal_shift_targets_in_subject(model)
+      @ vertical_shift_targets_in_subject(model)
+      @ horizontal_shift_targets_in_frame(model)
+      @ vertical_shift_targets_in_frame(model)
+    }
+  )
+  @ hole_indicators(model);
+};
 
 let draw_box_node_indicator = (~child_indices, elem) => {
   let rect = elem |> get_relative_bounding_rect;
-  let indent = elem |> indent_of_snode_elem;
+  let indent = elem |> Code.indent_of_snode_elem;
   JSUtil.force_get_elem_by_id(box_node_indicator_id)
   |> JSUtil.place_over_rect(
        ~indent,
@@ -864,6 +1203,7 @@ let draw_box_node_indicator = (~child_indices, elem) => {
              && child_elem
              |> Code.snode_elem_occupies_full_sline) {
            let indent = child_elem |> Code.elem_is_multi_line ? indent : 0.0;
+
            JSUtil.force_get_elem_by_id(child_indicator_id(i))
            |> JSUtil.place_over_rect(
                 ~indent,
@@ -877,6 +1217,122 @@ let draw_box_node_indicator = (~child_indices, elem) => {
   };
 };
 
+let draw_hole_indicators = (model: Model.t) => {
+  let (_, skel_holes, ap_holes) =
+    model |> Model.zblock |> ZExp.erase_block |> collect_holes;
+  JSUtil.get_elems_with_cls("hole-indicator")
+  |> List.iter(indicator_elem => {
+       let tm_elem =
+         indicator_elem
+         |> JSUtil.force_get_attr("steps")
+         |> Sexplib.Sexp.of_string
+         |> Path.steps_of_sexp
+         |> Code.force_get_snode_elem;
+
+       indicator_elem
+       |> JSUtil.place_over_rect(tm_elem |> get_relative_bounding_rect);
+     });
+  skel_holes
+  |> List.iter(((op_path, (a, b), _)) => {
+       let (steps, _) = op_path;
+       let seq_elem = Code.force_get_snode_elem(steps);
+       switch (skel_hole_indicator_elems(op_path)) {
+       | [] => assert(false)
+       | [indicator_elem0, ...indicator_elems] =>
+         if (seq_elem |> Code.elem_is_multi_line) {
+           let rect_a =
+             Code.force_get_snode_elem(steps @ [a])
+             |> get_relative_bounding_rect;
+           let rect_b =
+             Code.force_get_snode_elem(steps @ [b])
+             |> get_relative_bounding_rect;
+
+           indicator_elem0
+           |> JSUtil.place_over_rect({
+                left: rect_a.left,
+                top: rect_a.top,
+                right: rect_b.right,
+                bottom: rect_b.bottom,
+              });
+           let seq_sline_elems =
+             JSUtil.force_get_elem_by_id(cell_id)
+             |> Code.sline_elems_of_snode_elem(seq_elem);
+           range(~lo=a + 1, b + 1)
+           |> List.map(List.nth(seq_sline_elems))
+           |> List.combine(indicator_elems)
+           |> List.iter(((indicator_elem, sline_elem)) => {
+                let rect = sline_elem |> get_relative_bounding_rect;
+                indicator_elem |> JSUtil.place_over_rect(rect);
+              });
+         } else {
+           let rect_a =
+             Code.force_get_snode_elem(steps @ [a])
+             |> get_relative_bounding_rect;
+           let rect_b =
+             Code.force_get_snode_elem(steps @ [b])
+             |> get_relative_bounding_rect;
+
+           indicator_elem0
+           |> JSUtil.place_over_rect({
+                left: rect_a.left,
+                top: rect_a.top,
+                right: rect_b.right,
+                bottom: rect_b.bottom,
+              });
+         }
+       };
+     });
+  ap_holes
+  |> List.iter(((steps, (a, b), _)) => {
+       let seq_elem = Code.force_get_snode_elem(steps);
+       switch (ap_hole_indicator_elems(steps)) {
+       | [] => assert(false)
+       | [indicator_elem0, ...indicator_elems] =>
+         if (seq_elem |> Code.elem_is_multi_line) {
+           let rect_a =
+             Code.force_get_snode_elem(steps @ [a])
+             |> get_relative_bounding_rect;
+           let rect_b =
+             Code.force_get_snode_elem(steps @ [b])
+             |> get_relative_bounding_rect;
+
+           indicator_elem0
+           |> JSUtil.place_over_rect({
+                left: rect_a.left,
+                top: rect_a.top,
+                right: rect_b.right,
+                bottom: rect_b.bottom,
+              });
+           let seq_sline_elems =
+             JSUtil.force_get_elem_by_id(cell_id)
+             |> Code.sline_elems_of_snode_elem(seq_elem);
+           range(~lo=a + 1, b + 1)
+           |> List.map(List.nth(seq_sline_elems))
+           |> List.combine(indicator_elems)
+           |> List.iter(((indicator_elem, sline_elem)) => {
+                let rect = sline_elem |> get_relative_bounding_rect;
+                indicator_elem |> JSUtil.place_over_rect(rect);
+              });
+         } else {
+           let rect_a =
+             Code.force_get_snode_elem(steps @ [a])
+             |> get_relative_bounding_rect;
+           let rect_b =
+             Code.force_get_snode_elem(steps @ [b])
+             |> get_relative_bounding_rect;
+
+           indicator_elem0
+           |> JSUtil.place_over_rect({
+                left: rect_a.left,
+                top: rect_a.top,
+                right: rect_b.right,
+                bottom: rect_b.bottom,
+              });
+         }
+       };
+     });
+};
+
 let draw_box_term_indicator = (~cursor_info, cursor_elem) => {
   let steps =
     cursor_elem
@@ -886,7 +1342,7 @@ let draw_box_term_indicator = (~cursor_info, cursor_elem) => {
     |> Path.steps_of_sexp;
   let term_elem = Code.force_get_snode_elem(steps);
   let term_rect = term_elem |> get_relative_bounding_rect;
-  let indent = term_elem |> indent_of_snode_elem;
+  let indent = term_elem |> Code.indent_of_snode_elem;
   if (term_elem |> Code.snode_elem_is_Block) {
     let all_sline_elems =
       JSUtil.force_get_elem_by_id(cell_id)
@@ -901,6 +1357,7 @@ let draw_box_term_indicator = (~cursor_info, cursor_elem) => {
       |> filteri((i, _) => i >= first_sline_index)
       |> List.map(get_relative_bounding_rect)
       |> JSUtil.get_covering_rect;
+
     JSUtil.force_get_elem_by_id(box_tm_indicator_id)
     |> JSUtil.place_over_rect(
          ~indent,
@@ -938,6 +1395,7 @@ let draw_box_term_indicator = (~cursor_info, cursor_elem) => {
       |> JSUtil.force_get_next_sibling_elem;
     let empty_hole_rect =
       empty_hole_conclusion_elem |> get_relative_bounding_rect;
+
     JSUtil.force_get_elem_by_id(empty_hole_conclusion_mask_id)
     |> JSUtil.place_over_rect(
          ~indent=-0.8,
@@ -985,17 +1443,22 @@ let draw_op_node_indicator = op_elem => {
 
 let draw_multi_line_seq_term_indicator = (steps, (a, b), opseq_elem) => {
   let a_elem = steps @ [a] |> node_id |> JSUtil.force_get_elem_by_id;
+  let a_indent = Code.indent_of_snode_elem(a_elem);
   let a_rect = a_elem |> get_relative_bounding_rect;
+
   JSUtil.force_get_elem_by_id(seq_tm_indicator_id(a))
-  |> JSUtil.place_over_rect({
-       top: a_rect.top -. indicator_padding,
-       left: a_rect.left -. indicator_padding,
-       bottom:
-         a_elem |> Code.elem_is_on_last_line
-           ? a_rect.bottom +. indicator_padding
-           : a_rect.bottom -. indicator_padding,
-       right: a_rect.right +. indicator_padding,
-     });
+  |> JSUtil.place_over_rect(
+       ~indent=a_indent,
+       {
+         top: a_rect.top -. indicator_padding,
+         left: a_rect.left -. indicator_padding,
+         bottom:
+           a_elem |> Code.elem_is_on_last_line
+             ? a_rect.bottom +. indicator_padding
+             : a_rect.bottom -. indicator_padding,
+         right: a_rect.right +. indicator_padding,
+       },
+     );
   let sline_elems =
     JSUtil.force_get_elem_by_id(cell_id)
     |> Code.sline_elems_of_snode_elem(opseq_elem);
@@ -1003,6 +1466,7 @@ let draw_multi_line_seq_term_indicator = (steps, (a, b), opseq_elem) => {
   |> List.map(List.nth(sline_elems))
   |> List.iteri((i, sline_elem) => {
        let rect = sline_elem |> get_relative_bounding_rect;
+
        JSUtil.force_get_elem_by_id(seq_tm_indicator_id(a + 1 + i))
        |> JSUtil.place_over_rect({
             top: rect.top -. indicator_padding,
@@ -1057,8 +1521,10 @@ let place_vertical_shift_target = (rect, shift_target_elem) => {
 
 let draw_current_shifting_delim_indicator = (~cursor_info, sdelim_elem) => {
   let rect = sdelim_elem |> get_relative_bounding_rect;
+
   JSUtil.force_get_elem_by_id(current_shifting_delim_indicator_id)
   |> JSUtil.place_over_rect(rect);
+
   JSUtil.force_get_elem_by_id(current_horizontal_shift_target_id)
   |> place_horizontal_shift_target({
        left:
@@ -1092,6 +1558,7 @@ let draw_horizontal_shift_rail = sdelim_elem => {
     sdelim_elem |> Code.elem_is_on_last_line
       ? rect.bottom +. indicator_padding : rect.bottom -. indicator_padding;
   let midpoint = (delim_bottom +. indicator_bottom) /. 2.0;
+
   JSUtil.force_get_elem_by_id(horizontal_shift_rail_id)
   |> JSUtil.place_over_rect({
        top: midpoint -. 1.0,
@@ -1105,6 +1572,7 @@ let draw_vertical_shift_rail = () => {
   let cell_border_left = 0.0 -. cell_padding -. cell_border;
   let cell_border_right = 0.0 -. cell_padding;
   let midpoint = (cell_border_left +. cell_border_right) /. 2.0;
+
   JSUtil.force_get_elem_by_id(vertical_shift_rail_id)
   |> JSUtil.place_over_rect({
        right: midpoint +. 1.0,

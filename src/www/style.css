@@ -11,7 +11,8 @@
   --node-indicator-z-index: -10;
   --child-indicator-z-index: -5;
   --term-indicator-z-index: -4;
-  --shift-indicator-z-index: -3;
+  --hole-indicator-z-index: -3;
+  --shift-indicator-z-index: -2;
   --code-z-index: 0;
   --node-indicator-normal-color: rgb(230, 255, 230);
   --node-indicator-staging-color: #e4faff;
@@ -865,6 +866,34 @@ button:disabled {
 }
 .child-indicator.staging {
   background-color: var(--child-indicator-staging-color);
+}
+
+.hole-indicator, .skel-hole-indicator, .ap-hole-indicator {
+  position: absolute;
+  z-index: var(--hole-indicator-z-index);
+  background-color: transparent;
+}
+
+.hole-indicator {
+  border: 1px dashed var(--nonempty-hole-color);
+}
+
+.skel-hole-indicator, .ap-hole-indicator {
+  display: none;
+}
+
+.skel-hole-indicator, .ap-hole-indicator {
+  display: block;
+  border-top: 1px dashed var(--nonempty-hole-color);
+  border-bottom: 1px dashed var(--nonempty-hole-color);
+}
+
+.skel-hole-indicator-first, .ap-hole-indicator-first {
+  border-left: 1px dashed var(--nonempty-hole-color);
+}
+
+.skel-hole-indicator-first, .ap-hole-indicator-last {
+  border-right: 1px dashed var(--nonempty-hole-color);
 }
 
 .current-shifting-delim-indicator {
