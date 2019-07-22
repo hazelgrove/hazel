@@ -1647,7 +1647,7 @@ let rec syn_perform_pat =
       | Failed
       | CantShift
       | CursorEscaped(_) => assert(false)
-      | Succeeded((zp, _, ctx, u_gen)) => syn_perform_pat(ctx, u_gen, a, zp)
+      | Succeeded((zp, _, _, u_gen)) => syn_perform_pat(ctx, u_gen, a, zp)
       };
     switch (side) {
     | Before => move_then_perform(MoveLeft)
@@ -2324,7 +2324,7 @@ and ana_perform_pat =
       | Failed
       | CantShift
       | CursorEscaped(_) => assert(false)
-      | Succeeded((zp, ctx, u_gen)) => ana_perform_pat(ctx, u_gen, a, zp, ty)
+      | Succeeded((zp, _, u_gen)) => ana_perform_pat(ctx, u_gen, a, zp, ty)
       };
     switch (side) {
     | Before => move_then_perform(MoveLeft)
