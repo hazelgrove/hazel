@@ -136,6 +136,18 @@ let is_concluding_let_line = ci =>
   | (_, _) => false
   };
 
+let force_get_exp_frame =
+    (ci): (UHExp.lines, option(ZExp.opseq_surround), option(UHExp.block)) =>
+  switch (ci.frame) {
+  | TypFrame(_)
+  | PatFrame(_) => assert(false)
+  | ExpFrame(prefix, surround, suffix_block) => (
+      prefix,
+      surround,
+      suffix_block,
+    )
+  };
+
 let is_staging = ci =>
   switch (ci.position) {
   | Staging(_) => true

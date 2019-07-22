@@ -149,9 +149,11 @@ let rec perform_ty = (a: t, zty: ZTyp.t): result(ZTyp.t) =>
       CursorT(Staging(_), Hole | Unit | Num | Bool | OpSeq(_, _)),
     ) =>
     // invalid cursor position
-    Failed
+    JSUtil.log("3");
+    Failed;
   | (_, CursorT(cursor, uty)) when !ZTyp.is_valid_cursor(cursor, uty) =>
-    Failed
+    JSUtil.log("4");
+    Failed;
   /* Staging */
   | (ShiftUp | ShiftDown, _) =>
     // only can shift up and down in blocks
@@ -314,6 +316,23 @@ let rec perform_ty = (a: t, zty: ZTyp.t): result(ZTyp.t) =>
       }
     }
   /* Construction */
+  | (Construct(SOp(SSpace)), CursorT(OnDelim(_, After), _)) =>
+    JSUtil.log("0");
+    perform_ty(MoveRight, zty);
+  | (Construct(_) as a, CursorT(OnDelim(_, side), _))
+      when !ZTyp.is_before(zty) && !ZTyp.is_after(zty) =>
+    JSUtil.log("1");
+    let move_then_perform = move_action =>
+      switch (perform_ty(move_action, zty)) {
+      | Failed
+      | CantShift
+      | CursorEscaped(_) => assert(false)
+      | Succeeded(zty) => perform_ty(a, zty)
+      };
+    switch (side) {
+    | Before => move_then_perform(MoveLeft)
+    | After => move_then_perform(MoveRight)
+    };
   | (
       Construct(SLine),
       CursorT(Staging(k), (Parenthesized(_) | List(_)) as uty),
@@ -330,6 +349,7 @@ let rec perform_ty = (a: t, zty: ZTyp.t): result(ZTyp.t) =>
   | (Construct(SBool), CursorT(_, _)) => Failed
   | (Construct(SList), CursorT(_, _)) => Succeeded(ListZ(zty))
   | (Construct(SOp(os)), CursorT(_, _)) =>
+    JSUtil.log("6");
     let uty = ZTyp.erase(zty);
     if (ZTyp.is_before(zty)) {
       switch (ty_op_of(os)) {
@@ -348,6 +368,8 @@ let rec perform_ty = (a: t, zty: ZTyp.t): result(ZTyp.t) =>
         Succeeded(make_ty_OpSeqZ(zty0, surround));
       };
     };
+  | (Construct(SOp(SSpace)), OpSeqZ(_, CursorT(OnDelim(_, After), _), _)) =>
+    perform_ty(MoveRight, zty)
   | (Construct(SOp(os)), OpSeqZ(_, CursorT(_, _) as zty, surround)) =>
     let uty = ZTyp.erase(zty);
     if (ZTyp.is_before(zty)) {
@@ -1442,6 +1464,22 @@ let rec syn_perform_pat =
       }
     }
   /* Construct */
+  | (Construct(SOp(SSpace)), CursorP(OnDelim(_, After), _))
+      when !ZPat.is_after(zp) =>
+    syn_perform_pat(ctx, u_gen, MoveRight, zp)
+  | (Construct(_) as a, CursorP(OnDelim(_, side), _))
+      when !ZPat.is_before(zp) && !ZPat.is_after(zp) =>
+    let move_then_perform = move_action =>
+      switch (syn_perform_pat(ctx, u_gen, move_action, zp)) {
+      | Failed
+      | CantShift
+      | CursorEscaped(_) => assert(false)
+      | Succeeded((zp, _, ctx, u_gen)) => syn_perform_pat(ctx, u_gen, a, zp)
+      };
+    switch (side) {
+    | Before => move_then_perform(MoveLeft)
+    | After => move_then_perform(MoveRight)
+    };
   | (
       Construct(SLine),
       CursorP(Staging(k), (Parenthesized(_) | Inj(_, _, _)) as uty),
@@ -1539,6 +1577,12 @@ let rec syn_perform_pat =
     let zp = ZPat.place_after(ListNil(NotInHole));
     Succeeded((zp, List(Hole), ctx, u_gen));
   | (Construct(SListNil), CursorP(_, _)) => Failed
+  | (
+      Construct(SOp(SSpace)),
+      OpSeqZ(_, CursorP(OnDelim(_, After), _) as zp0, _),
+    )
+      when !ZPat.is_after(zp0) =>
+    syn_perform_pat(ctx, u_gen, MoveRight, zp)
   | (Construct(SOp(os)), OpSeqZ(_, zp0, surround)) when ZPat.is_after(zp0) =>
     switch (pat_op_of(os)) {
     | None => Failed
@@ -2089,6 +2133,22 @@ and ana_perform_pat =
       }
     }
   /* Construct */
+  | (Construct(SOp(SSpace)), CursorP(OnDelim(_, After), _))
+      when !ZPat.is_after(zp) =>
+    ana_perform_pat(ctx, u_gen, MoveRight, zp, ty)
+  | (Construct(_) as a, CursorP(OnDelim(_, side), _))
+      when !ZPat.is_before(zp) && !ZPat.is_after(zp) =>
+    let move_then_perform = move_action =>
+      switch (ana_perform_pat(ctx, u_gen, move_action, zp, ty)) {
+      | Failed
+      | CantShift
+      | CursorEscaped(_) => assert(false)
+      | Succeeded((zp, ctx, u_gen)) => ana_perform_pat(ctx, u_gen, a, zp, ty)
+      };
+    switch (side) {
+    | Before => move_then_perform(MoveLeft)
+    | After => move_then_perform(MoveRight)
+    };
   | (
       Construct(SLine),
       CursorP(Staging(k), (Parenthesized(_) | Inj(_, _, _)) as p),
@@ -2173,6 +2233,12 @@ and ana_perform_pat =
       let zp = ZPat.InjZ(InHole(TypeInconsistent, u), side, zp1);
       Succeeded((zp, ctx, u_gen));
     }
+  | (
+      Construct(SOp(SSpace)),
+      OpSeqZ(_, CursorP(OnDelim(_, After), _) as zp0, _),
+    )
+      when !ZPat.is_after(zp0) =>
+    ana_perform_pat(ctx, u_gen, MoveRight, zp, ty)
   | (Construct(SOp(os)), OpSeqZ(_, zp0, surround)) when ZPat.is_after(zp0) =>
     switch (pat_op_of(os)) {
     | None => Failed
@@ -3184,7 +3250,7 @@ and syn_perform_lines =
       ~ci: CursorInfo.t,
       ctx: Contexts.t,
       a: t,
-      (zlines, u_gen): (ZExp.zlines, MetaVarGen.t),
+      (zlines, u_gen) as edit_state: (ZExp.zlines, MetaVarGen.t),
     )
     : result((ZExp.zlines, Contexts.t, MetaVarGen.t)) =>
   switch (a, zlines) {
@@ -3256,6 +3322,11 @@ and syn_perform_lines =
       }
     }
   /* Construction */
+  | (
+      Construct(SOp(SSpace)),
+      (_, CursorL(OnDelim(_, After), LetLine(_, _, _)), _),
+    ) =>
+    syn_perform_lines(~ci, ctx, MoveRight, edit_state)
   | (Construct(SLine), (prefix, zline, suffix))
       when ZExp.is_before_line(zline) =>
     let zlines = (prefix @ [EmptyLine], zline, suffix);
@@ -4163,6 +4234,35 @@ and syn_perform_exp =
       Statics.syn_fix_holes_zexp(ctx, u_gen, CursorE(OnDelim(k, After), e));
     Succeeded((E(new_ze), ty, u_gen));
   | (Construct(_), CursorE(Staging(_), _)) => Failed
+  | (
+      Construct(SOp(SSpace)),
+      CursorE(OnDelim(_, After), _) |
+      CaseZR(_, _, (_, CursorR(OnDelim(_, After), _), _), _),
+    )
+      when !ZExp.is_after_exp(ze) =>
+    syn_perform_exp(~ci, ctx, MoveRight, edit_state)
+  | (Construct(_) as a, CursorE(OnDelim(_, side), _))
+      when !ZExp.is_before_exp(ze) && !ZExp.is_after_exp(ze) =>
+    let move_then_perform = move_action =>
+      switch (syn_perform_exp(~ci, ctx, move_action, edit_state)) {
+      | Failed
+      | CantShift
+      | CursorEscaped(_)
+      | Succeeded((B(_), _, _)) => assert(false)
+      | Succeeded((E(ze), ty, u_gen)) =>
+        CursorInfo.syn_cursor_info(
+          ~frame=ci |> CursorInfo.force_get_exp_frame,
+          ctx,
+          ze,
+        )
+        |> Opt.map_default(~default=Failed, ci =>
+             syn_perform_exp(~ci, ctx, a, (ze, ty, u_gen))
+           )
+      };
+    switch (side) {
+    | Before => move_then_perform(MoveLeft)
+    | After => move_then_perform(MoveRight)
+    };
   | (Construct(SLine), CursorE(_, _))
   | (Construct(SLet), CursorE(_, _)) =>
     /* handled at block or line level */
@@ -4327,6 +4427,12 @@ and syn_perform_exp =
     let ty = HTyp.List(Hole);
     Succeeded((E(ze), ty, u_gen));
   | (Construct(SListNil), CursorE(_, _)) => Failed
+  | (
+      Construct(SOp(SSpace)),
+      OpSeqZ(_, CursorE(OnDelim(_, After), _) as ze0, _),
+    )
+      when !ZExp.is_after_exp(ze0) =>
+    syn_perform_exp(~ci, ctx, MoveRight, edit_state)
   | (Construct(SOp(os)), OpSeqZ(_, ze0, surround))
       when ZExp.is_after_exp(ze0) =>
     switch (exp_op_of(os)) {
@@ -6040,6 +6146,36 @@ and ana_perform_exp =
       );
     Succeeded((E(new_ze), u_gen));
   | (Construct(_), CursorE(Staging(_), _)) => Failed
+  | (
+      Construct(SOp(SSpace)),
+      CursorE(OnDelim(_, After), _) |
+      CaseZR(_, _, (_, CursorR(OnDelim(_, After), _), _), _),
+    )
+      when !ZExp.is_after_exp(ze) =>
+    ana_perform_exp(~ci, ctx, MoveRight, edit_state, ty)
+  | (Construct(_) as a, CursorE(OnDelim(_, side), _))
+      when !ZExp.is_before_exp(ze) && !ZExp.is_after_exp(ze) =>
+    let move_then_perform = move_action =>
+      switch (ana_perform_exp(~ci, ctx, move_action, edit_state, ty)) {
+      | Failed
+      | CantShift
+      | CursorEscaped(_)
+      | Succeeded((B(_), _)) => assert(false)
+      | Succeeded((E(ze), u_gen)) =>
+        CursorInfo.ana_cursor_info(
+          ~frame=ci |> CursorInfo.force_get_exp_frame,
+          ctx,
+          ze,
+          ty,
+        )
+        |> Opt.map_default(~default=Failed, ci =>
+             ana_perform_exp(~ci, ctx, a, (ze, u_gen), ty)
+           )
+      };
+    switch (side) {
+    | Before => move_then_perform(MoveLeft)
+    | After => move_then_perform(MoveRight)
+    };
   | (Construct(SLine), CursorE(_, _))
   | (Construct(SLet), CursorE(_, _)) =>
     /* handled at block or line level */
@@ -6152,6 +6288,12 @@ and ana_perform_exp =
         );
       Succeeded((E(ze), u_gen));
     }
+  | (
+      Construct(SOp(SSpace)),
+      OpSeqZ(_, CursorE(OnDelim(_, After), _) as ze0, _),
+    )
+      when !ZExp.is_after_exp(ze0) =>
+    ana_perform_exp(~ci, ctx, MoveRight, edit_state, ty)
   | (Construct(SOp(os)), OpSeqZ(_, ze0, surround))
       when ZExp.is_after_exp(ze0) =>
     switch (exp_op_of(os)) {
