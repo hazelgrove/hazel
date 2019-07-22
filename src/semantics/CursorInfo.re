@@ -935,7 +935,6 @@ and syn_cursor_info_skel =
       ze_n: ZExp.t,
     )
     : option(t) => {
-  let (prefix, surround, suffix) = frame;
   switch (skel) {
   | Placeholder(n') =>
     if (n == n') {
@@ -966,94 +965,65 @@ and syn_cursor_info_skel =
     }
   | BinOp(_, Space, Placeholder(n') as skel1, skel2) =>
     if (n == n') {
-      let e_n = ZExp.erase(ze_n);
-      switch (ZExp.cursor_on_outer_expr(ze_n)) {
-      | Some((
-          Block(_, Var(InHole(TypeInconsistent, _), _, _)) as outer_block,
-          position,
-        ))
-      | Some((
-          Block(_, NumLit(InHole(TypeInconsistent, _), _)) as outer_block,
-          position,
-        ))
-      | Some((
-          Block(_, BoolLit(InHole(TypeInconsistent, _), _)) as outer_block,
-          position,
-        ))
-      | Some((
-          Block(_, ListNil(InHole(TypeInconsistent, _))) as outer_block,
-          position,
-        ))
-      | Some((
-          Block(_, Lam(InHole(TypeInconsistent, _), _, _, _)) as outer_block,
-          position,
-        ))
-      | Some((
-          Block(_, Inj(InHole(TypeInconsistent, _), _, _)) as outer_block,
-          position,
-        ))
-      | Some((
-          Block(_, Case(InHole(TypeInconsistent, _), _, _, _)) as outer_block,
-          position,
-        ))
-      | Some((
-          Block(_, ApPalette(InHole(TypeInconsistent, _), _, _, _)) as outer_block,
-          position,
-        )) =>
-        let outer_block_nih =
-          UHExp.set_err_status_block(NotInHole, outer_block);
-        switch (Statics.syn_block(ctx, outer_block_nih)) {
-        | None => None
-        | Some(ty) =>
-          Some(
-            mk_cursor_info(
-              SynErrorArrow(Arrow(Hole, Hole), ty),
-              Exp(e_n),
-              ExpFrame(prefix, surround, suffix),
-              position,
-              ctx,
-            ),
-          )
-        };
-      | Some((Block(_, Var(_, InVHole(Keyword(k), _), _)), position)) =>
-        Some(
-          mk_cursor_info(
-            SynKeywordArrow(Arrow(Hole, Hole), k),
-            Exp(e_n),
-            ExpFrame(prefix, surround, suffix),
-            position,
-            ctx,
-          ),
-        )
-      | Some((Block(_, Var(_, InVHole(Free, _), _)), position)) =>
-        Some(
-          mk_cursor_info(
-            SynFreeArrow(Arrow(Hole, Hole)),
-            Exp(e_n),
-            ExpFrame(prefix, surround, suffix),
-            position,
-            ctx,
-          ),
-        )
-      | Some((outer_block, position)) =>
-        switch (Statics.syn_block(ctx, outer_block)) {
-        | None => None
-        | Some(ty) =>
-          switch (HTyp.matched_arrow(ty)) {
+      switch (syn_cursor_info(~frame, ctx, ze_n)) {
+      | None => None
+      | Some(ci) =>
+        switch (ZExp.cursor_on_outer_expr(ze_n)) {
+        | Some((
+            Block(_, Var(InHole(TypeInconsistent, _), _, _)) as outer_block,
+            _position,
+          ))
+        | Some((
+            Block(_, NumLit(InHole(TypeInconsistent, _), _)) as outer_block,
+            _position,
+          ))
+        | Some((
+            Block(_, BoolLit(InHole(TypeInconsistent, _), _)) as outer_block,
+            _position,
+          ))
+        | Some((
+            Block(_, ListNil(InHole(TypeInconsistent, _))) as outer_block,
+            _position,
+          ))
+        | Some((
+            Block(_, Lam(InHole(TypeInconsistent, _), _, _, _)) as outer_block,
+            _position,
+          ))
+        | Some((
+            Block(_, Inj(InHole(TypeInconsistent, _), _, _)) as outer_block,
+            _position,
+          ))
+        | Some((
+            Block(_, Case(InHole(TypeInconsistent, _), _, _, _)) as outer_block,
+            _position,
+          ))
+        | Some((
+            Block(_, ApPalette(InHole(TypeInconsistent, _), _, _, _)) as outer_block,
+            _position,
+          )) =>
+          let outer_block_nih =
+            UHExp.set_err_status_block(NotInHole, outer_block);
+          switch (Statics.syn_block(ctx, outer_block_nih)) {
           | None => None
-          | Some((ty1, ty2)) =>
-            Some(
-              mk_cursor_info(
-                SynMatchingArrow(ty, Arrow(ty1, ty2)),
-                Exp(e_n),
-                ExpFrame(prefix, surround, suffix),
-                position,
-                ctx,
-              ),
-            )
+          | Some(ty) =>
+            Some({...ci, typed: SynErrorArrow(Arrow(Hole, Hole), ty)})
+          };
+        | Some((Block(_, Var(_, InVHole(Keyword(k), _), _)), _position)) =>
+          Some({...ci, typed: SynKeywordArrow(Arrow(Hole, Hole), k)})
+        | Some((Block(_, Var(_, InVHole(Free, _), _)), _position)) =>
+          Some({...ci, typed: SynFreeArrow(Arrow(Hole, Hole))})
+        | Some((outer_block, _position)) =>
+          switch (Statics.syn_block(ctx, outer_block)) {
+          | None => None
+          | Some(ty) =>
+            switch (HTyp.matched_arrow(ty)) {
+            | None => None
+            | Some((ty1, ty2)) =>
+              Some({...ci, typed: SynMatchingArrow(ty, Arrow(ty1, ty2))})
+            }
           }
+        | None => syn_cursor_info(~frame, ctx, ze_n)
         }
-      | None => syn_cursor_info(~frame, ctx, ze_n)
       };
     } else {
       switch (Statics.syn_skel(ctx, skel1, seq, None)) {
