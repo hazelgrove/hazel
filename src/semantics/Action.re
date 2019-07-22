@@ -4660,7 +4660,7 @@ and syn_perform_exp =
     switch (ZExp.erase(ze)) {
     | OpSeq(skel, seq) =>
       switch (Statics.syn_skel(ctx, skel, seq, Some(i))) {
-      | Some((ty, Some(mode))) =>
+      | Some((_, Some(mode))) =>
         switch (mode) {
         | AnalyzedAgainst(ty0) =>
           switch (ana_perform_exp(~ci, ctx, a, (ze0, u_gen), ty0)) {
@@ -4682,12 +4682,9 @@ and syn_perform_exp =
                 }
               };
             let (ze0, surround) = OpSeqUtil.Exp.resurround(ze0, surround);
-            /* TODO: Does this need to call make_and_syn/ana_OpSeqZ? */
-            Succeeded((
-              E(OpSeqUtil.Exp.mk_OpSeqZ(ze0, surround)),
-              ty,
-              u_gen,
-            ));
+            let (ze, ty, u_gen) =
+              make_and_syn_OpSeqZ(ctx, u_gen, ze0, surround);
+            Succeeded((E(ze), ty, u_gen));
           }
         | Synthesized(ty0) =>
           switch (syn_perform_exp(~ci, ctx, a, (ze0, ty0, u_gen))) {
