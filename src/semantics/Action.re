@@ -149,11 +149,9 @@ let rec perform_ty = (a: t, zty: ZTyp.t): result(ZTyp.t) =>
       CursorT(Staging(_), Hole | Unit | Num | Bool | OpSeq(_, _)),
     ) =>
     // invalid cursor position
-    JSUtil.log("3");
-    Failed;
+    Failed
   | (_, CursorT(cursor, uty)) when !ZTyp.is_valid_cursor(cursor, uty) =>
-    JSUtil.log("4");
-    Failed;
+    Failed
   /* Staging */
   | (ShiftUp | ShiftDown, _) =>
     // only can shift up and down in blocks
@@ -317,11 +315,9 @@ let rec perform_ty = (a: t, zty: ZTyp.t): result(ZTyp.t) =>
     }
   /* Construction */
   | (Construct(SOp(SSpace)), CursorT(OnDelim(_, After), _)) =>
-    JSUtil.log("0");
-    perform_ty(MoveRight, zty);
+    perform_ty(MoveRight, zty)
   | (Construct(_) as a, CursorT(OnDelim(_, side), _))
       when !ZTyp.is_before(zty) && !ZTyp.is_after(zty) =>
-    JSUtil.log("1");
     let move_then_perform = move_action =>
       switch (perform_ty(move_action, zty)) {
       | Failed
@@ -349,7 +345,6 @@ let rec perform_ty = (a: t, zty: ZTyp.t): result(ZTyp.t) =>
   | (Construct(SBool), CursorT(_, _)) => Failed
   | (Construct(SList), CursorT(_, _)) => Succeeded(ListZ(zty))
   | (Construct(SOp(os)), CursorT(_, _)) =>
-    JSUtil.log("6");
     let uty = ZTyp.erase(zty);
     if (ZTyp.is_before(zty)) {
       switch (ty_op_of(os)) {
