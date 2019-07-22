@@ -1811,8 +1811,19 @@ let entered_single_key =
       Pat(NumLit(_, _) | BoolLit(_, _) | Var(_, _, _)),
       _,
     ) =>
-    let nodeValue = JSUtil.force_get_anchor_node_value();
-    let anchorOffset = JSUtil.get_anchor_offset();
+    let (nodeValue, anchorOffset) =
+      switch (ci.node, ci.position) {
+      | (Exp(NumLit(_, n)) | Pat(NumLit(_, n)), OnText(j)) => (
+          string_of_int(n),
+          j,
+        )
+      | (Exp(BoolLit(_, b)) | Pat(BoolLit(_, b)), OnText(j)) => (
+          b ? "true" : "false",
+          j,
+        )
+      | (Exp(Var(_, _, x)) | Pat(Var(_, _, x)), OnText(j)) => (x, j)
+      | (_, _) => assert(false)
+      };
     let key_string = JSUtil.single_key_string(single_key);
     let newNodeValue = string_insert(nodeValue, anchorOffset, key_string);
     switch (int_of_string_opt(newNodeValue), single_key) {
