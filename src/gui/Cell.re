@@ -1766,6 +1766,90 @@ let draw_vertical_shift_target_in_frame = (~side, ~index, sline_elem) => {
      });
 };
 
+let entered_single_key =
+    (
+      ~prevent_stop_inject,
+      ci: CursorInfo.t,
+      single_key: JSUtil.single_key,
+      opt_kc: option(KeyCombo.t),
+    )
+    : option(Vdom.Event.t) =>
+  switch (ci.node, opt_kc) {
+  | (Typ(_), Some((Key_B | Key_L | Key_N) as kc)) =>
+    Some(
+      prevent_stop_inject(
+        Update.Action.EditAction(Hashtbl.find(kc_actions, kc)),
+      ),
+    )
+  | (Pat(EmptyHole(_)), _) =>
+    let shape =
+      switch (single_key) {
+      | Number(n) => Action.SNumLit(n, OnText(num_digits(n)))
+      | Letter(x) => Action.SVar(x, OnText(Var.length(x)))
+      | Underscore => Action.SWild
+      };
+    Some(prevent_stop_inject(Update.Action.EditAction(Construct(shape))));
+  | (Pat(Wild(_)), _) =>
+    let shape =
+      switch (single_key) {
+      | Number(n) =>
+        Action.SVar("_" ++ string_of_int(n), OnText(num_digits(n) + 1))
+      | Letter(x) => Action.SVar("_" ++ x, OnText(Var.length(x) + 1))
+      | Underscore => Action.SVar("__", OnText(2))
+      };
+    Some(prevent_stop_inject(Update.Action.EditAction(Construct(shape))));
+  | (Line(EmptyLine | ExpLine(EmptyHole(_))) | Exp(EmptyHole(_)), _) =>
+    let shape =
+      switch (single_key) {
+      | Number(n) => Action.SNumLit(n, OnText(num_digits(n)))
+      | Letter(x) => Action.SVar(x, OnText(Var.length(x)))
+      | Underscore => Action.SVar("_", OnText(1))
+      };
+    Some(prevent_stop_inject(Update.Action.EditAction(Construct(shape))));
+  | (
+      Exp(NumLit(_, _) | BoolLit(_, _) | Var(_, _, _)) |
+      Pat(NumLit(_, _) | BoolLit(_, _) | Var(_, _, _)),
+      _,
+    ) =>
+    let nodeValue = JSUtil.force_get_anchor_node_value();
+    let anchorOffset = JSUtil.get_anchor_offset();
+    let key_string = JSUtil.single_key_string(single_key);
+    let newNodeValue = string_insert(nodeValue, anchorOffset, key_string);
+    switch (int_of_string_opt(newNodeValue), single_key) {
+    | (Some(_), Underscore) =>
+      // OCaml accepts and ignores underscores
+      // when parsing ints from strings, we don't
+      Some(Vdom.Event.Ignore)
+    | (Some(new_n), _) =>
+      Some(
+        // defensive check in case OCaml is
+        // doing any other weird things
+        num_digits(new_n) != String.length(newNodeValue)
+          ? Vdom.Event.Ignore
+          : prevent_stop_inject(
+              Update.Action.EditAction(
+                Action.Construct(
+                  Action.SNumLit(new_n, OnText(anchorOffset + 1)),
+                ),
+              ),
+            ),
+      )
+    | (None, _) =>
+      Some(
+        Var.is_valid(newNodeValue)
+          ? prevent_stop_inject(
+              Update.Action.EditAction(
+                Action.Construct(
+                  Action.SVar(newNodeValue, OnText(anchorOffset + 1)),
+                ),
+              ),
+            )
+          : prevent_stop_inject(Update.Action.InvalidVar(newNodeValue)),
+      )
+    };
+  | (Line(_) | Exp(_) | Rule(_) | Pat(_) | Typ(_), _) => None
+  };
+
 let view =
     (~inject: Update.Action.t => Vdom.Event.t, model: Model.t): Vdom.Node.t => {
   Vdom.(
@@ -1806,9 +1890,9 @@ let view =
             ),
             Attr.on_keydown(evt => {
               let prevent_stop_inject = a =>
-                Event.Many([
-                  Event.Prevent_default,
-                  Event.Stop_propagation,
+                Vdom.Event.Many([
+                  Vdom.Event.Prevent_default,
+                  Vdom.Event.Stop_propagation,
                   inject(a),
                 ]);
               let ci = model.cursor_info;
@@ -1833,97 +1917,51 @@ let view =
               | (OnText(_) | OnDelim(_, _), true, _, _) => Event.Many([])
               | (_, _, None, None) => Event.Ignore
               | (_, _, Some(single_key), opt_kc) =>
-                switch (ci.node, opt_kc) {
-                | (Typ(_), Some((Key_B | Key_L | Key_N) as kc)) =>
-                  prevent_stop_inject(
-                    Update.Action.EditAction(Hashtbl.find(kc_actions, kc)),
+                switch (
+                  entered_single_key(
+                    ~prevent_stop_inject,
+                    ci,
+                    single_key,
+                    opt_kc,
                   )
-                | (Pat(EmptyHole(_)), _) =>
-                  let shape =
-                    switch (single_key) {
-                    | Number(n) => Action.SNumLit(n, OnText(num_digits(n)))
-                    | Letter(x) => Action.SVar(x, OnText(Var.length(x)))
-                    | Underscore => Action.SWild
-                    };
-                  prevent_stop_inject(
-                    Update.Action.EditAction(Construct(shape)),
-                  );
-                | (Pat(Wild(_)), _) =>
-                  let shape =
-                    switch (single_key) {
-                    | Number(n) =>
-                      Action.SVar(
-                        "_" ++ string_of_int(n),
-                        OnText(num_digits(n) + 1),
-                      )
-                    | Letter(x) =>
-                      Action.SVar("_" ++ x, OnText(Var.length(x) + 1))
-                    | Underscore => Action.SVar("__", OnText(2))
-                    };
-                  prevent_stop_inject(
-                    Update.Action.EditAction(Construct(shape)),
-                  );
-                | (
-                    Line(EmptyLine | ExpLine(EmptyHole(_))) |
-                    Exp(EmptyHole(_)),
-                    _,
-                  ) =>
-                  let shape =
-                    switch (single_key) {
-                    | Number(n) => Action.SNumLit(n, OnText(num_digits(n)))
-                    | Letter(x) => Action.SVar(x, OnText(Var.length(x)))
-                    | Underscore => Action.SVar("_", OnText(1))
-                    };
-                  prevent_stop_inject(
-                    Update.Action.EditAction(Construct(shape)),
-                  );
-                | (
-                    Exp(NumLit(_, _) | BoolLit(_, _) | Var(_, _, _)) |
-                    Pat(NumLit(_, _) | BoolLit(_, _) | Var(_, _, _)),
-                    _,
-                  ) =>
-                  let nodeValue = JSUtil.force_get_anchor_node_value();
-                  let anchorOffset = JSUtil.get_anchor_offset();
-                  let key_string = JSUtil.single_key_string(single_key);
-                  let newNodeValue =
-                    string_insert(nodeValue, anchorOffset, key_string);
-                  switch (int_of_string_opt(newNodeValue), single_key) {
-                  | (Some(_), Underscore) =>
-                    // OCaml accepts and ignores underscores
-                    // when parsing ints from strings, we don't
-                    Event.Ignore
-                  | (Some(new_n), _) =>
-                    // defensive check in case OCaml is
-                    // doing any other weird things
-                    num_digits(new_n) != String.length(newNodeValue)
-                      ? Event.Ignore
-                      : prevent_stop_inject(
-                          Update.Action.EditAction(
-                            Action.Construct(
-                              Action.SNumLit(
-                                new_n,
-                                OnText(anchorOffset + 1),
-                              ),
-                            ),
-                          ),
+                ) {
+                | Some(event) => event
+                | None =>
+                  let zblock = model |> Model.zblock;
+                  switch (ci.position) {
+                  | Staging(_)
+                  | OnText(_) => Event.Ignore
+                  | OnDelim(_, side) =>
+                    let move_cursor =
+                      switch (side) {
+                      | Before => ZExp.move_cursor_left_block
+                      | After => ZExp.move_cursor_right_block
+                      };
+                    switch (zblock |> move_cursor) {
+                    | None => Event.Ignore
+                    | Some(zblock) =>
+                      switch (
+                        CursorInfo.syn_cursor_info_block(
+                          Contexts.empty,
+                          zblock,
                         )
-                  | (None, _) =>
-                    Var.is_valid(newNodeValue)
-                      ? prevent_stop_inject(
-                          Update.Action.EditAction(
-                            Action.Construct(
-                              Action.SVar(
-                                newNodeValue,
-                                OnText(anchorOffset + 1),
-                              ),
-                            ),
-                          ),
-                        )
-                      : prevent_stop_inject(
-                          Update.Action.InvalidVar(newNodeValue),
-                        )
+                      ) {
+                      | None => Event.Ignore
+                      | Some(ci) =>
+                        switch (
+                          entered_single_key(
+                            ~prevent_stop_inject,
+                            ci,
+                            single_key,
+                            opt_kc,
+                          )
+                        ) {
+                        | None => Event.Ignore
+                        | Some(event) => event
+                        }
+                      }
+                    };
                   };
-                | (Line(_) | Exp(_) | Rule(_) | Pat(_) | Typ(_), _) => Event.Ignore
                 }
               | (_, _, _, Some((Backspace | Delete) as kc)) =>
                 let (string_edit, update, cursor_escaped) =
