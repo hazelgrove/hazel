@@ -271,7 +271,8 @@ let rec _ana_cursor_found_pat =
   | NumLit(InHole(TypeInconsistent, _), _)
   | BoolLit(InHole(TypeInconsistent, _), _)
   | ListNil(InHole(TypeInconsistent, _))
-  | Inj(InHole(TypeInconsistent, _), _, _) =>
+  | Inj(InHole(TypeInconsistent, _), _, _)
+  | OpSeq(BinOp(InHole(TypeInconsistent, _), _, _, _), _) =>
     let p_nih = UHPat.set_err_status_t(NotInHole, p);
     switch (Statics.syn_pat(ctx, p_nih)) {
     | None => None
