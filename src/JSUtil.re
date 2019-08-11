@@ -17,16 +17,12 @@ let get_attr = (attr: string, elem: Js.t(Dom_html.element)): option(string) =>
   |> U.Opt.map(s => Js.to_string(s));
 
 let force_get_attr = (attr: string, elem: Js.t(Dom_html.element)): string => {
-  log("0");
   switch (elem |> get_attr(attr)) {
   | None =>
     log(elem);
     log(attr);
-    log("1");
     assert(false);
-  | Some(s) =>
-    log("2");
-    s;
+  | Some(s) => s
   };
 };
 
