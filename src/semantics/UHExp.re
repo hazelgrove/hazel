@@ -780,9 +780,22 @@ let favored_child_of_exp: t => option((child_index, block)) =
   | Case(_, block, _, _)
   | Parenthesized(block) => Some((0, block));
 
+let has_concluding_let_line =
+  fun
+  | Block(leading, conclusion) =>
+    switch (leading |> split_last, conclusion) {
+    | (Some((_, LetLine(_, _, _))), EmptyHole(_)) => true
+    | (_, _) => false
+    };
+
 let rec is_multi_line =
   fun
-  | Block(lines, e) => List.length(lines) > 0 || is_multi_line_exp(e)
+  | Block(lines, e) as block =>
+    if (List.length(lines) == 1 && has_concluding_let_line(block)) {
+      false;
+    } else {
+      List.length(lines) > 0 || is_multi_line_exp(e);
+    }
 and is_multi_line_exp =
   fun
   | EmptyHole(_)
@@ -797,3 +810,8 @@ and is_multi_line_exp =
   | Parenthesized(body) => is_multi_line(body)
   | OpSeq(_, seq) =>
     seq |> OperatorSeq.tms |> List.exists(is_multi_line_exp);
+
+let is_trivial_block =
+  fun
+  | Block([], EmptyHole(_)) => true
+  | _ => false;

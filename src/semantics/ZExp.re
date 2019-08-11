@@ -1282,3 +1282,8 @@ and move_cursor_right_rule = (zrule: zrule): option(zrule) =>
 type zexp_or_zblock =
   | E(t)
   | B(zblock);
+
+let has_concluding_let_line = zblock =>
+  zblock |> erase_block |> UHExp.has_concluding_let_line;
+
+let is_multi_line = zblock => zblock |> erase_block |> UHExp.is_multi_line;

@@ -1384,6 +1384,8 @@ let draw_box_term_indicator = (~cursor_info, cursor_elem) => {
   };
   if (cursor_info |> CursorInfo.is_concluding_let_line) {
     // TODO encapsulate these details in Code.re
+    JSUtil.log("1");
+    JSUtil.log(cursor_elem);
     let empty_hole_conclusion_elem =
       cursor_elem
       |> JSUtil.force_get_parent_elem
