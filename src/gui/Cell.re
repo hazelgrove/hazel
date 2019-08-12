@@ -1329,14 +1329,8 @@ let draw_hole_indicators = (model: Model.t) => {
      });
 };
 
-let draw_box_term_indicator = (~cursor_info, cursor_elem) => {
-  let steps =
-    cursor_elem
-    |> JSUtil.get_attr("term")
-    |> Opt.get(() => assert(false))
-    |> Sexplib.Sexp.of_string
-    |> Path.steps_of_sexp;
-  let term_elem = Code.force_get_snode_elem(steps);
+let draw_box_term_indicator = (~cursor_info: CursorInfo.t, cursor_elem) => {
+  let term_elem = Code.force_get_snode_elem(cursor_info.term_steps);
   let term_rect = term_elem |> get_relative_bounding_rect;
   let indent = term_elem |> Code.indent_of_snode_elem;
   if (term_elem |> Code.snode_elem_is_Block) {

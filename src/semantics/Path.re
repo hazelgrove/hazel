@@ -97,6 +97,80 @@ let append = ((appendee_steps, appendee_cursor): t, steps): t => (
   appendee_cursor,
 );
 
+let steps_of_zblock = zblock => {
+  let (steps, _) = of_zblock(zblock);
+  steps;
+};
+let steps_of_zexp = ze => {
+  let (steps, _) = of_zexp(ze);
+  steps;
+};
+
+let rec term_steps_of_ztyp: ZTyp.t => steps =
+  fun
+  | CursorT(_, _) => []
+  | ListZ(zbody)
+  | ParenthesizedZ(zbody) => [0, ...term_steps_of_ztyp(zbody)]
+  | OpSeqZ(_, ztm, surround) => [
+      OperatorSeq.surround_prefix_length(surround),
+      ...term_steps_of_ztyp(ztm),
+    ];
+
+let rec term_steps_of_zpat: ZPat.t => steps =
+  fun
+  | CursorP(_, _) => []
+  | InjZ(_, _, zbody)
+  | ParenthesizedZ(zbody) => [0, ...term_steps_of_zpat(zbody)]
+  | OpSeqZ(_, ztm, surround) => [
+      OperatorSeq.surround_prefix_length(surround),
+      ...term_steps_of_zpat(ztm),
+    ];
+
+let rec term_steps_of_zblock: ZExp.zblock => steps =
+  fun
+  | BlockZL((_, CursorL(_, EmptyLine | LetLine(_, _, _)), _), _) => []
+  | BlockZL(zlines, _) => term_steps_of_zlines(zlines)
+  | BlockZE(lines, ze) => [List.length(lines), ...term_steps_of_zexp(ze)]
+and term_steps_of_zlines = zlines => {
+  let prefix_len = ZList.prefix_length(zlines);
+  let zline = ZList.prj_z(zlines);
+  [prefix_len, ...term_steps_of_zline(zline)];
+}
+and term_steps_of_zline =
+  fun
+  | CursorL(_, _) => [] /* should never happen */
+  | ExpLineZ(ze) => term_steps_of_zexp(ze)
+  | LetLineZP(zp, _, _) => [0, ...term_steps_of_zpat(zp)]
+  | LetLineZA(_, zann, _) => [1, ...term_steps_of_ztyp(zann)]
+  | LetLineZE(_, _, zdef) => [2, ...term_steps_of_zblock(zdef)]
+and term_steps_of_zexp =
+  fun
+  | CursorE(_) => []
+  | InjZ(_, _, zbody)
+  | ParenthesizedZ(zbody) => [0, ...term_steps_of_zblock(zbody)]
+  | OpSeqZ(_, ztm, surround) => [
+      OperatorSeq.surround_prefix_length(surround),
+      ...term_steps_of_zexp(ztm),
+    ]
+  | LamZP(_, zp, _, _) => [0, ...term_steps_of_zpat(zp)]
+  | LamZA(_, _, zann, _) => [1, ...term_steps_of_ztyp(zann)]
+  | LamZE(_, _, _, zdef) => [2, ...term_steps_of_zblock(zdef)]
+  | CaseZE(_, zscrut, _, _) => [0, ...term_steps_of_zblock(zscrut)]
+  | CaseZR(_, _, (prefix, zrule, _), _) => [
+      1 + List.length(prefix),
+      ...term_steps_of_zrule(zrule),
+    ]
+  | CaseZA(_, _, rules, zann) => [
+      1 + List.length(rules),
+      ...term_steps_of_ztyp(zann),
+    ]
+  | ApPaletteZ(_, _, _, _) => []
+and term_steps_of_zrule =
+  fun
+  | CursorR(_, _) => []
+  | RuleZP(zp, _) => [0, ...term_steps_of_zpat(zp)]
+  | RuleZE(_, zclause) => [1, ...term_steps_of_zblock(zclause)];
+
 let rec before_typ = (~steps=[], ty: UHTyp.t): t =>
   switch (ty) {
   | Hole

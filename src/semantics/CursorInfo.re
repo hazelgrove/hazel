@@ -109,19 +109,28 @@ type t = {
   frame,
   ctx: Contexts.t,
   position: cursor_position,
+  node_steps: Path.steps,
+  // not quite the term steps because we don't have an indexing
+  // scheme into all semantic terms (e.g. subblock beginning with
+  // a let line, subseq rooted at an op), so we overapproximate
+  // (e.g. give the steps of the whole block, of the whole opseq)
+  term_steps: Path.steps,
 };
 
-let mk_cursor_info = (typed, node, frame, position, ctx) => {
+let mk_cursor_info =
+    (typed, node, frame, position, ctx, node_steps, term_steps) => {
   typed,
   node,
   frame,
   position,
   ctx,
+  node_steps,
+  term_steps,
 };
 
 let update_node = (ci: t, node): t => {
-  let {typed, node: _, frame, position, ctx} = ci;
-  {typed, node, frame, position, ctx};
+  let {typed, node: _, frame, position, ctx, node_steps, term_steps} = ci;
+  {typed, node, frame, position, ctx, node_steps, term_steps};
 };
 
 let update_position = (position, ci: t): t => {...ci, position};
@@ -250,14 +259,31 @@ let preserved_child_term_of_node = ci =>
   };
 
 let rec cursor_info_typ =
-        (~frame=None, ctx: Contexts.t, zty: ZTyp.t): option(t) =>
+        (
+          ~node_steps: Path.steps,
+          ~term_steps: Path.steps,
+          ~frame: option(ZTyp.opseq_surround)=?,
+          ctx: Contexts.t,
+          zty: ZTyp.t,
+        )
+        : option(t) =>
   switch (zty) {
   | CursorT(cursor, ty) =>
-    Some(mk_cursor_info(OnType, Typ(ty), TypFrame(frame), cursor, ctx))
+    Some(
+      mk_cursor_info(
+        OnType,
+        Typ(ty),
+        TypFrame(frame),
+        cursor,
+        ctx,
+        node_steps,
+        term_steps,
+      ),
+    )
   | ParenthesizedZ(zty1)
-  | ListZ(zty1) => cursor_info_typ(ctx, zty1)
+  | ListZ(zty1) => cursor_info_typ(~node_steps, ~term_steps, ctx, zty1)
   | OpSeqZ(_, zty1, surround) =>
-    cursor_info_typ(~frame=Some(surround), ctx, zty1)
+    cursor_info_typ(~node_steps, ~term_steps, ~frame=surround, ctx, zty1)
   };
 
 let rec _ana_cursor_found_pat =
@@ -319,16 +345,35 @@ let rec _ana_cursor_found_pat =
   };
 
 let ana_cursor_found_pat =
-    (~frame, ctx: Contexts.t, p: UHPat.t, ty: HTyp.t, cursor: cursor_position)
+    (
+      ~node_steps,
+      ~term_steps,
+      ~frame,
+      ctx: Contexts.t,
+      p: UHPat.t,
+      ty: HTyp.t,
+      cursor: cursor_position,
+    )
     : option(t) =>
   switch (_ana_cursor_found_pat(ctx, p, ty)) {
   | None => None
   | Some((typed, node, ctx)) =>
-    Some(mk_cursor_info(typed, node, PatFrame(frame), cursor, ctx))
+    Some(
+      mk_cursor_info(
+        typed,
+        node,
+        PatFrame(frame),
+        cursor,
+        ctx,
+        node_steps,
+        term_steps,
+      ),
+    )
   };
 
-let rec syn_cursor_info_pat =
-        (~frame=None, ctx: Contexts.t, zp: ZPat.t): option(t) =>
+let rec _syn_cursor_info_pat =
+        (~node_steps, ~term_steps, ~frame=None, ctx: Contexts.t, zp: ZPat.t)
+        : option(t) =>
   switch (zp) {
   // TODO special case OpSeq
   | CursorP(cursor, Var(_, InVHole(Keyword(k), _), _) as p) =>
@@ -339,6 +384,8 @@ let rec syn_cursor_info_pat =
         PatFrame(frame),
         cursor,
         ctx,
+        node_steps,
+        term_steps,
       ),
     )
   | CursorP(cursor, p) =>
@@ -352,19 +399,34 @@ let rec syn_cursor_info_pat =
           PatFrame(frame),
           cursor,
           ctx,
+          node_steps,
+          term_steps,
         ),
       )
     }
-  | InjZ(_, _, zp1) => syn_cursor_info_pat(ctx, zp1)
-  | ParenthesizedZ(zp1) => syn_cursor_info_pat(ctx, zp1)
+  | InjZ(_, _, zp1) =>
+    _syn_cursor_info_pat(~node_steps, ~term_steps, ctx, zp1)
+  | ParenthesizedZ(zp1) =>
+    _syn_cursor_info_pat(~node_steps, ~term_steps, ctx, zp1)
   | OpSeqZ(skel, zp1, surround) =>
     let p1 = ZPat.erase(zp1);
     let seq = OperatorSeq.opseq_of_exp_and_surround(p1, surround);
     let n = OperatorSeq.surround_prefix_length(surround);
-    syn_cursor_info_pat_skel(~frame=Some(surround), ctx, skel, seq, n, zp1);
+    _syn_cursor_info_pat_skel(
+      ~node_steps,
+      ~term_steps,
+      ~frame=Some(surround),
+      ctx,
+      skel,
+      seq,
+      n,
+      zp1,
+    );
   }
-and syn_cursor_info_pat_skel =
+and _syn_cursor_info_pat_skel =
     (
+      ~node_steps,
+      ~term_steps,
       ~frame: option(ZPat.opseq_surround),
       ctx: Contexts.t,
       skel: UHPat.skel_t,
@@ -376,36 +438,107 @@ and syn_cursor_info_pat_skel =
   switch (skel) {
   | Placeholder(n') =>
     if (n == n') {
-      syn_cursor_info_pat(ctx, zp1);
+      _syn_cursor_info_pat(~node_steps, ~term_steps, ctx, zp1);
     } else {
       None;
     }
   | BinOp(_, Comma, skel1, skel2) =>
-    switch (syn_cursor_info_pat_skel(~frame, ctx, skel1, seq, n, zp1)) {
+    switch (
+      _syn_cursor_info_pat_skel(
+        ~node_steps,
+        ~term_steps,
+        ~frame,
+        ctx,
+        skel1,
+        seq,
+        n,
+        zp1,
+      )
+    ) {
     | Some(_) as result => result
-    | None => syn_cursor_info_pat_skel(~frame, ctx, skel2, seq, n, zp1)
+    | None =>
+      _syn_cursor_info_pat_skel(
+        ~node_steps,
+        ~term_steps,
+        ~frame,
+        ctx,
+        skel2,
+        seq,
+        n,
+        zp1,
+      )
     }
   | BinOp(_, Space, skel1, skel2) =>
     switch (
-      ana_cursor_info_pat_skel(~frame, ctx, skel1, seq, n, zp1, HTyp.Hole)
+      _ana_cursor_info_pat_skel(
+        ~node_steps,
+        ~term_steps,
+        ~frame,
+        ctx,
+        skel1,
+        seq,
+        n,
+        zp1,
+        HTyp.Hole,
+      )
     ) {
     | Some(_) as result => result
-    | None => ana_cursor_info_pat_skel(~frame, ctx, skel2, seq, n, zp1, Hole)
+    | None =>
+      _ana_cursor_info_pat_skel(
+        ~node_steps,
+        ~term_steps,
+        ~frame,
+        ctx,
+        skel2,
+        seq,
+        n,
+        zp1,
+        Hole,
+      )
     }
   | BinOp(_, Cons, skel1, skel2) =>
-    switch (syn_cursor_info_pat_skel(~frame, ctx, skel1, seq, n, zp1)) {
+    switch (
+      _syn_cursor_info_pat_skel(
+        ~node_steps,
+        ~term_steps,
+        ~frame,
+        ctx,
+        skel1,
+        seq,
+        n,
+        zp1,
+      )
+    ) {
     | Some(_) as result => result
     | None =>
       switch (Statics.syn_skel_pat(ctx, skel1, seq, None)) {
       | None => None
       | Some((ty_elt, ctx, _)) =>
         let list_ty = HTyp.List(ty_elt);
-        ana_cursor_info_pat_skel(~frame, ctx, skel2, seq, n, zp1, list_ty);
+        _ana_cursor_info_pat_skel(
+          ~node_steps,
+          ~term_steps,
+          ~frame,
+          ctx,
+          skel2,
+          seq,
+          n,
+          zp1,
+          list_ty,
+        );
       }
     }
   }
-and ana_cursor_info_pat =
-    (~frame=None, ctx: Contexts.t, zp: ZPat.t, ty: HTyp.t): option(t) =>
+and _ana_cursor_info_pat =
+    (
+      ~node_steps,
+      ~term_steps,
+      ~frame=None,
+      ctx: Contexts.t,
+      zp: ZPat.t,
+      ty: HTyp.t,
+    )
+    : option(t) =>
   switch (zp) {
   /* TODO special case OpSeq */
   | CursorP(cursor, Var(_, InVHole(Keyword(k), _), _) as p) =>
@@ -416,23 +549,29 @@ and ana_cursor_info_pat =
         PatFrame(frame),
         cursor,
         ctx,
+        node_steps,
+        term_steps,
       ),
     )
-  | CursorP(cursor, p) => ana_cursor_found_pat(~frame, ctx, p, ty, cursor)
+  | CursorP(cursor, p) =>
+    ana_cursor_found_pat(~node_steps, ~term_steps, ~frame, ctx, p, ty, cursor)
   | InjZ(InHole(WrongLength, _), _, _) => None
-  | InjZ(InHole(TypeInconsistent, _), _, _) => syn_cursor_info_pat(ctx, zp)
+  | InjZ(InHole(TypeInconsistent, _), _, _) =>
+    _syn_cursor_info_pat(~node_steps, ~term_steps, ctx, zp)
   | InjZ(NotInHole, position, zp1) =>
     switch (HTyp.matched_sum(ty)) {
     | None => None
     | Some((tyL, tyR)) =>
       let ty1 = pick_side(position, tyL, tyR);
-      ana_cursor_info_pat(ctx, zp1, ty1);
+      _ana_cursor_info_pat(~node_steps, ~term_steps, ctx, zp1, ty1);
     }
   | OpSeqZ(skel, zp1, surround) =>
     let p1 = ZPat.erase(zp1);
     let seq = OperatorSeq.opseq_of_exp_and_surround(p1, surround);
     let n = OperatorSeq.surround_prefix_length(surround);
-    ana_cursor_info_pat_skel(
+    _ana_cursor_info_pat_skel(
+      ~node_steps,
+      ~term_steps,
       ~frame=Some(surround),
       ctx,
       skel,
@@ -441,10 +580,13 @@ and ana_cursor_info_pat =
       zp1,
       ty,
     );
-  | ParenthesizedZ(zp) => ana_cursor_info_pat(ctx, zp, ty)
+  | ParenthesizedZ(zp) =>
+    _ana_cursor_info_pat(~node_steps, ~term_steps, ctx, zp, ty)
   }
-and ana_cursor_info_pat_skel =
+and _ana_cursor_info_pat_skel =
     (
+      ~node_steps,
+      ~term_steps,
       ~frame: option(ZPat.opseq_surround),
       ctx: Contexts.t,
       skel: UHPat.skel_t,
@@ -457,19 +599,50 @@ and ana_cursor_info_pat_skel =
   switch (skel) {
   | Placeholder(n') =>
     if (n == n') {
-      ana_cursor_info_pat(~frame, ctx, zp1, ty);
+      _ana_cursor_info_pat(~node_steps, ~term_steps, ~frame, ctx, zp1, ty);
     } else {
       None;
     }
   | BinOp(InHole(TypeInconsistent, _), _, _, _) =>
-    syn_cursor_info_pat_skel(~frame, ctx, skel, seq, n, zp1)
+    _syn_cursor_info_pat_skel(
+      ~node_steps,
+      ~term_steps,
+      ~frame,
+      ctx,
+      skel,
+      seq,
+      n,
+      zp1,
+    )
   | BinOp(NotInHole, Comma, skel1, skel2) =>
     switch (ty) {
     | Hole =>
-      switch (ana_cursor_info_pat_skel(~frame, ctx, skel1, seq, n, zp1, Hole)) {
+      switch (
+        _ana_cursor_info_pat_skel(
+          ~node_steps,
+          ~term_steps,
+          ~frame,
+          ctx,
+          skel1,
+          seq,
+          n,
+          zp1,
+          Hole,
+        )
+      ) {
       | Some(_) as result => result
       | None =>
-        ana_cursor_info_pat_skel(~frame, ctx, skel2, seq, n, zp1, Hole)
+        _ana_cursor_info_pat_skel(
+          ~node_steps,
+          ~term_steps,
+          ~frame,
+          ctx,
+          skel2,
+          seq,
+          n,
+          zp1,
+          Hole,
+        )
       }
     | Prod(ty1, ty2) =>
       let types = HTyp.get_tuple(ty1, ty2);
@@ -483,7 +656,17 @@ and ana_cursor_info_pat_skel =
             | Some(_) as result => result
             | None =>
               let (skel, ty) = skel_ty;
-              ana_cursor_info_pat_skel(~frame, ctx, skel, seq, n, zp1, ty);
+              _ana_cursor_info_pat_skel(
+                ~node_steps,
+                ~term_steps,
+                ~frame,
+                ctx,
+                skel,
+                seq,
+                n,
+                zp1,
+                ty,
+              );
             },
           None,
           ListMinTwo.to_list(zipped),
@@ -504,7 +687,17 @@ and ana_cursor_info_pat_skel =
             | Some(_) as result => result
             | None =>
               let (skel, ty) = skel_ty;
-              ana_cursor_info_pat_skel(~frame, ctx, skel, seq, n, zp1, ty);
+              _ana_cursor_info_pat_skel(
+                ~node_steps,
+                ~term_steps,
+                ~frame,
+                ctx,
+                skel,
+                seq,
+                n,
+                zp1,
+                ty,
+              );
             },
           None,
           ListMinTwo.to_list(zipped),
@@ -516,7 +709,17 @@ and ana_cursor_info_pat_skel =
           (opt_result, skel) =>
             switch (opt_result) {
             | Some(_) as result => result
-            | None => syn_cursor_info_pat_skel(~frame, ctx, skel, seq, n, zp1)
+            | None =>
+              _syn_cursor_info_pat_skel(
+                ~node_steps,
+                ~term_steps,
+                ~frame,
+                ctx,
+                skel,
+                seq,
+                n,
+                zp1,
+              )
             },
           None,
           remainder,
@@ -530,16 +733,45 @@ and ana_cursor_info_pat_skel =
     | None => None
     | Some(ty_elt) =>
       switch (
-        ana_cursor_info_pat_skel(~frame, ctx, skel1, seq, n, zp1, ty_elt)
+        _ana_cursor_info_pat_skel(
+          ~node_steps,
+          ~term_steps,
+          ~frame,
+          ctx,
+          skel1,
+          seq,
+          n,
+          zp1,
+          ty_elt,
+        )
       ) {
       | Some(_) as result => result
       | None =>
         let ty_list = HTyp.List(ty_elt);
-        ana_cursor_info_pat_skel(~frame, ctx, skel2, seq, n, zp1, ty_list);
+        _ana_cursor_info_pat_skel(
+          ~node_steps,
+          ~term_steps,
+          ~frame,
+          ctx,
+          skel2,
+          seq,
+          n,
+          zp1,
+          ty_list,
+        );
       }
     }
   | BinOp(NotInHole, Space, _, _) =>
-    syn_cursor_info_pat_skel(~frame, ctx, skel, seq, n, zp1)
+    _syn_cursor_info_pat_skel(
+      ~node_steps,
+      ~term_steps,
+      ~frame,
+      ctx,
+      skel,
+      seq,
+      n,
+      zp1,
+    )
   };
 
 let rec _ana_cursor_found_block =
@@ -645,7 +877,15 @@ and _ana_cursor_found_exp =
   };
 
 let ana_cursor_found_exp =
-    (~frame, ctx: Contexts.t, e: UHExp.t, ty: HTyp.t, cursor: cursor_position)
+    (
+      ~node_steps,
+      ~term_steps,
+      ~frame,
+      ctx: Contexts.t,
+      e: UHExp.t,
+      ty: HTyp.t,
+      cursor: cursor_position,
+    )
     : option(t) =>
   switch (_ana_cursor_found_exp(ctx, e, ty)) {
   | None => None
@@ -658,18 +898,23 @@ let ana_cursor_found_exp =
         ExpFrame(prefix, surround, suffix),
         cursor,
         ctx,
+        node_steps,
+        term_steps,
       ),
     );
   };
 
-let rec syn_cursor_info_block =
-        (ctx: Contexts.t, zblock: ZExp.zblock): option(t) =>
+let rec _syn_cursor_info_block =
+        (~node_steps, ~term_steps, ctx: Contexts.t, zblock: ZExp.zblock)
+        : option(t) =>
   switch (zblock) {
   | BlockZL((prefix, zline, suffix), conclusion) =>
     switch (Statics.syn_lines(ctx, prefix)) {
     | None => None
     | Some(ctx) =>
-      syn_cursor_info_line(
+      _syn_cursor_info_line(
+        ~node_steps,
+        ~term_steps,
         ~frame=(prefix, None, Some(UHExp.Block(suffix, conclusion))),
         ctx,
         zline,
@@ -678,11 +923,19 @@ let rec syn_cursor_info_block =
   | BlockZE(lines, ze) =>
     switch (Statics.syn_lines(ctx, lines)) {
     | None => None
-    | Some(ctx) => syn_cursor_info(~frame=(lines, None, None), ctx, ze)
+    | Some(ctx) =>
+      _syn_cursor_info(
+        ~node_steps,
+        ~term_steps,
+        ~frame=(lines, None, None),
+        ctx,
+        ze,
+      )
     }
   }
-and syn_cursor_info_line =
-    (~frame, ctx: Contexts.t, zli: ZExp.zline): option(t) =>
+and _syn_cursor_info_line =
+    (~node_steps, ~term_steps, ~frame, ctx: Contexts.t, zli: ZExp.zline)
+    : option(t) =>
   switch (zli) {
   | CursorL(cursor, line) =>
     let (prefix, _, suffix) = frame;
@@ -693,31 +946,38 @@ and syn_cursor_info_line =
         ExpFrame(prefix, None, suffix),
         cursor,
         ctx,
+        node_steps,
+        term_steps,
       ),
     );
-  | ExpLineZ(ze) => syn_cursor_info(~frame, ctx, ze)
+  | ExpLineZ(ze) =>
+    _syn_cursor_info(~node_steps, ~term_steps, ~frame, ctx, ze)
   | LetLineZP(zp, ann, block) =>
     switch (ann) {
     | Some(uty1) =>
       let ty1 = UHTyp.expand(uty1);
-      ana_cursor_info_pat(ctx, zp, ty1);
+      _ana_cursor_info_pat(~node_steps, ~term_steps, ctx, zp, ty1);
     | None =>
       switch (Statics.syn_block(ctx, block)) {
       | None => None
-      | Some(ty1) => ana_cursor_info_pat(ctx, zp, ty1)
+      | Some(ty1) =>
+        _ana_cursor_info_pat(~node_steps, ~term_steps, ctx, zp, ty1)
       }
     }
-  | LetLineZA(_, zann, _) => cursor_info_typ(ctx, zann)
+  | LetLineZA(_, zann, _) =>
+    cursor_info_typ(~node_steps, ~term_steps, ctx, zann)
   | LetLineZE(p, ann, zblock) =>
     switch (ann) {
     | Some(uty1) =>
       let ty1 = UHTyp.expand(uty1);
       let ctx1 = Statics.ctx_for_let(ctx, p, ty1, ZExp.erase_block(zblock));
-      ana_cursor_info_block(ctx1, zblock, ty1);
-    | None => syn_cursor_info_block(ctx, zblock)
+      _ana_cursor_info_block(~node_steps, ~term_steps, ctx1, zblock, ty1);
+    | None => _syn_cursor_info_block(~node_steps, ~term_steps, ctx, zblock)
     }
   }
-and syn_cursor_info = (~frame, ctx: Contexts.t, ze: ZExp.t): option(t) => {
+and _syn_cursor_info =
+    (~node_steps, ~term_steps, ~frame, ctx: Contexts.t, ze: ZExp.t)
+    : option(t) => {
   let (prefix, surround, suffix) = frame;
   switch (ze) {
   | CursorE(cursor, Var(_, InVHole(Keyword(k), _), _) as e) =>
@@ -728,6 +988,8 @@ and syn_cursor_info = (~frame, ctx: Contexts.t, ze: ZExp.t): option(t) => {
         ExpFrame(prefix, surround, suffix),
         cursor,
         ctx,
+        node_steps,
+        term_steps,
       ),
     )
   | CursorE(cursor, Var(_, InVHole(Free, _), _) as e) =>
@@ -738,6 +1000,8 @@ and syn_cursor_info = (~frame, ctx: Contexts.t, ze: ZExp.t): option(t) => {
         ExpFrame(prefix, surround, suffix),
         cursor,
         ctx,
+        node_steps,
+        term_steps,
       ),
     )
   | CursorE(cursor, e) =>
@@ -751,6 +1015,8 @@ and syn_cursor_info = (~frame, ctx: Contexts.t, ze: ZExp.t): option(t) => {
           ExpFrame(prefix, surround, suffix),
           cursor,
           ctx,
+          node_steps,
+          term_steps,
         ),
       )
     }
@@ -758,7 +1024,9 @@ and syn_cursor_info = (~frame, ctx: Contexts.t, ze: ZExp.t): option(t) => {
     let e0 = ZExp.erase(ze0);
     let seq = OperatorSeq.opseq_of_exp_and_surround(e0, surround);
     let n = OperatorSeq.surround_prefix_length(surround);
-    syn_cursor_info_skel(
+    _syn_cursor_info_skel(
+      ~node_steps,
+      ~term_steps,
       ~frame=(prefix, Some(surround), suffix),
       ctx,
       skel,
@@ -766,15 +1034,17 @@ and syn_cursor_info = (~frame, ctx: Contexts.t, ze: ZExp.t): option(t) => {
       n,
       ze0,
     );
-  | ParenthesizedZ(zblock) => syn_cursor_info_block(ctx, zblock)
+  | ParenthesizedZ(zblock) =>
+    _syn_cursor_info_block(~node_steps, ~term_steps, ctx, zblock)
   | LamZP(_, zp, ann, _) =>
     let ty1 =
       switch (ann) {
       | Some(uty1) => UHTyp.expand(uty1)
       | None => Hole
       };
-    ana_cursor_info_pat(ctx, zp, ty1);
-  | LamZA(_, _, zann, _) => cursor_info_typ(ctx, zann)
+    _ana_cursor_info_pat(~node_steps, ~term_steps, ctx, zp, ty1);
+  | LamZA(_, _, zann, _) =>
+    cursor_info_typ(~node_steps, ~term_steps, ctx, zann)
   | LamZE(_, p, ann, zblock) =>
     let ty1 =
       switch (ann) {
@@ -783,34 +1053,47 @@ and syn_cursor_info = (~frame, ctx: Contexts.t, ze: ZExp.t): option(t) => {
       };
     switch (Statics.ana_pat(ctx, p, ty1)) {
     | None => None
-    | Some(ctx1) => syn_cursor_info_block(ctx1, zblock)
+    | Some(ctx1) =>
+      _syn_cursor_info_block(~node_steps, ~term_steps, ctx1, zblock)
     };
-  | InjZ(_, _, zblock) => syn_cursor_info_block(ctx, zblock)
+  | InjZ(_, _, zblock) =>
+    _syn_cursor_info_block(~node_steps, ~term_steps, ctx, zblock)
   | CaseZE(_, _, _, None)
   | CaseZR(_, _, _, None) => None
-  | CaseZE(_, zblock, _, Some(_)) => syn_cursor_info_block(ctx, zblock)
+  | CaseZE(_, zblock, _, Some(_)) =>
+    _syn_cursor_info_block(~node_steps, ~term_steps, ctx, zblock)
   | CaseZR(_, block, zrules, Some(uty)) =>
     let ty = UHTyp.expand(uty);
     switch (Statics.syn_block(ctx, block)) {
     | None => None
     | Some(ty1) =>
       let zrule = GeneralUtil.ZList.prj_z(zrules);
-      ana_cursor_info_rule(ctx, zrule, ty1, ty);
+      _ana_cursor_info_rule(~node_steps, ~term_steps, ctx, zrule, ty1, ty);
     };
-  | CaseZA(_, _, _, zann) => cursor_info_typ(ctx, zann)
+  | CaseZA(_, _, _, zann) =>
+    cursor_info_typ(~node_steps, ~term_steps, ctx, zann)
   | ApPaletteZ(_, _, _, zpsi) =>
     let (ty, zblock) = GeneralUtil.ZNatMap.prj_z_v(zpsi.zsplice_map);
-    ana_cursor_info_block(ctx, zblock, ty);
+    _ana_cursor_info_block(~node_steps, ~term_steps, ctx, zblock, ty);
   };
 }
-and ana_cursor_info_block =
-    (ctx: Contexts.t, zblock: ZExp.zblock, ty: HTyp.t): option(t) =>
+and _ana_cursor_info_block =
+    (
+      ~node_steps,
+      ~term_steps,
+      ctx: Contexts.t,
+      zblock: ZExp.zblock,
+      ty: HTyp.t,
+    )
+    : option(t) =>
   switch (zblock) {
   | BlockZL((prefix, zline, suffix), conclusion) =>
     switch (Statics.syn_lines(ctx, prefix)) {
     | None => None
     | Some(ctx) =>
-      syn_cursor_info_line(
+      _syn_cursor_info_line(
+        ~node_steps,
+        ~term_steps,
         ~frame=(prefix, None, Some(Block(suffix, conclusion))),
         ctx,
         zline,
@@ -819,21 +1102,41 @@ and ana_cursor_info_block =
   | BlockZE(lines, ze) =>
     switch (Statics.syn_lines(ctx, lines)) {
     | None => None
-    | Some(ctx) => ana_cursor_info(~frame=(lines, None, None), ctx, ze, ty)
+    | Some(ctx) =>
+      _ana_cursor_info(
+        ~node_steps,
+        ~term_steps,
+        ~frame=(lines, None, None),
+        ctx,
+        ze,
+        ty,
+      )
     }
   }
-and ana_cursor_info =
-    (~frame, ctx: Contexts.t, ze: ZExp.t, ty: HTyp.t): option(t) =>
+and _ana_cursor_info =
+    (
+      ~node_steps,
+      ~term_steps,
+      ~frame,
+      ctx: Contexts.t,
+      ze: ZExp.t,
+      ty: HTyp.t,
+    )
+    : option(t) =>
   switch (ze) {
-  | CursorE(cursor, e) => ana_cursor_found_exp(~frame, ctx, e, ty, cursor)
+  | CursorE(cursor, e) =>
+    ana_cursor_found_exp(~node_steps, ~term_steps, ~frame, ctx, e, ty, cursor)
   /* zipper cases */
-  | ParenthesizedZ(zblock) => ana_cursor_info_block(ctx, zblock, ty)
+  | ParenthesizedZ(zblock) =>
+    _ana_cursor_info_block(~node_steps, ~term_steps, ctx, zblock, ty)
   | OpSeqZ(skel, ze0, surround) =>
     let e0 = ZExp.erase(ze0);
     let seq = OperatorSeq.opseq_of_exp_and_surround(e0, surround);
     let n = OperatorSeq.surround_prefix_length(surround);
     let (prefix, _, suffix) = frame;
-    ana_cursor_info_skel(
+    _ana_cursor_info_skel(
+      ~node_steps,
+      ~term_steps,
       ~frame=(prefix, Some(surround), suffix),
       ctx,
       skel,
@@ -859,7 +1162,7 @@ and ana_cursor_info =
   | CaseZR(InHole(TypeInconsistent, _), _, _, _)
   | CaseZA(InHole(TypeInconsistent, _), _, _, _)
   | ApPaletteZ(InHole(TypeInconsistent, _), _, _, _) =>
-    syn_cursor_info(~frame, ctx, ze)
+    _syn_cursor_info(~node_steps, ~term_steps, ~frame, ctx, ze)
   /* zipper not in hole */
   | LamZP(NotInHole, zp, ann, _) =>
     switch (HTyp.matched_arrow(ty)) {
@@ -870,9 +1173,10 @@ and ana_cursor_info =
         | Some(uty1) => UHTyp.expand(uty1)
         | None => ty1_given
         };
-      ana_cursor_info_pat(ctx, zp, ty1);
+      _ana_cursor_info_pat(~node_steps, ~term_steps, ctx, zp, ty1);
     }
-  | LamZA(NotInHole, _, zann, _) => cursor_info_typ(ctx, zann)
+  | LamZA(NotInHole, _, zann, _) =>
+    cursor_info_typ(~node_steps, ~term_steps, ctx, zann)
   | LamZE(NotInHole, p, ann, zblock) =>
     switch (HTyp.matched_arrow(ty)) {
     | None => None
@@ -884,28 +1188,45 @@ and ana_cursor_info =
         };
       switch (Statics.ana_pat(ctx, p, ty1)) {
       | None => None
-      | Some(ctx) => ana_cursor_info_block(ctx, zblock, ty2)
+      | Some(ctx) =>
+        _ana_cursor_info_block(~node_steps, ~term_steps, ctx, zblock, ty2)
       };
     }
   | InjZ(NotInHole, position, zblock) =>
     switch (HTyp.matched_sum(ty)) {
     | None => None
     | Some((ty1, ty2)) =>
-      ana_cursor_info_block(ctx, zblock, pick_side(position, ty1, ty2))
+      _ana_cursor_info_block(
+        ~node_steps,
+        ~term_steps,
+        ctx,
+        zblock,
+        pick_side(position, ty1, ty2),
+      )
     }
-  | CaseZE(NotInHole, zblock, _, _) => syn_cursor_info_block(ctx, zblock)
+  | CaseZE(NotInHole, zblock, _, _) =>
+    _syn_cursor_info_block(~node_steps, ~term_steps, ctx, zblock)
   | CaseZR(NotInHole, block, zrules, _) =>
     switch (Statics.syn_block(ctx, block)) {
     | None => None
     | Some(ty1) =>
       let zrule = ZList.prj_z(zrules);
-      ana_cursor_info_rule(ctx, zrule, ty1, ty);
+      _ana_cursor_info_rule(~node_steps, ~term_steps, ctx, zrule, ty1, ty);
     }
-  | CaseZA(NotInHole, _, _, zann) => cursor_info_typ(ctx, zann)
-  | ApPaletteZ(NotInHole, _, _, _) => syn_cursor_info(~frame, ctx, ze)
+  | CaseZA(NotInHole, _, _, zann) =>
+    cursor_info_typ(~node_steps, ~term_steps, ctx, zann)
+  | ApPaletteZ(NotInHole, _, _, _) =>
+    _syn_cursor_info(~node_steps, ~term_steps, ~frame, ctx, ze)
   }
-and ana_cursor_info_rule =
-    (ctx: Contexts.t, zrule: ZExp.zrule, pat_ty: HTyp.t, clause_ty: HTyp.t)
+and _ana_cursor_info_rule =
+    (
+      ~node_steps,
+      ~term_steps,
+      ctx: Contexts.t,
+      zrule: ZExp.zrule,
+      pat_ty: HTyp.t,
+      clause_ty: HTyp.t,
+    )
     : option(t) =>
   switch (zrule) {
   | CursorR(cursor, rule) =>
@@ -916,17 +1237,23 @@ and ana_cursor_info_rule =
         ExpFrame([], None, None),
         cursor,
         ctx,
+        node_steps,
+        term_steps,
       ),
     )
-  | RuleZP(zp, _) => ana_cursor_info_pat(ctx, zp, pat_ty)
+  | RuleZP(zp, _) =>
+    _ana_cursor_info_pat(~node_steps, ~term_steps, ctx, zp, pat_ty)
   | RuleZE(p, zblock) =>
     switch (Statics.ana_pat(ctx, p, pat_ty)) {
     | None => None
-    | Some(ctx) => ana_cursor_info_block(ctx, zblock, clause_ty)
+    | Some(ctx) =>
+      _ana_cursor_info_block(~node_steps, ~term_steps, ctx, zblock, clause_ty)
     }
   }
-and syn_cursor_info_skel =
+and _syn_cursor_info_skel =
     (
+      ~node_steps,
+      ~term_steps,
       ~frame,
       ctx: Contexts.t,
       skel: UHExp.skel_t,
@@ -938,7 +1265,7 @@ and syn_cursor_info_skel =
   switch (skel) {
   | Placeholder(n') =>
     if (n == n') {
-      syn_cursor_info(~frame, ctx, ze_n);
+      _syn_cursor_info(~node_steps, ~term_steps, ~frame, ctx, ze_n);
     } else {
       None;
     }
@@ -946,26 +1273,74 @@ and syn_cursor_info_skel =
   | BinOp(_, Plus, skel1, skel2)
   | BinOp(_, Times, skel1, skel2)
   | BinOp(_, LessThan, skel1, skel2) =>
-    switch (ana_cursor_info_skel(~frame, ctx, skel1, seq, n, ze_n, Num)) {
+    switch (
+      _ana_cursor_info_skel(
+        ~node_steps,
+        ~term_steps,
+        ~frame,
+        ctx,
+        skel1,
+        seq,
+        n,
+        ze_n,
+        Num,
+      )
+    ) {
     | Some(_) as result => result
     | None =>
-      switch (ana_cursor_info_skel(~frame, ctx, skel2, seq, n, ze_n, Num)) {
+      switch (
+        _ana_cursor_info_skel(
+          ~node_steps,
+          ~term_steps,
+          ~frame,
+          ctx,
+          skel2,
+          seq,
+          n,
+          ze_n,
+          Num,
+        )
+      ) {
       | Some(_) as result => result
       | None => None
       }
     }
   | BinOp(_, And | Or, skel1, skel2) =>
-    switch (ana_cursor_info_skel(~frame, ctx, skel1, seq, n, ze_n, Bool)) {
+    switch (
+      _ana_cursor_info_skel(
+        ~node_steps,
+        ~term_steps,
+        ~frame,
+        ctx,
+        skel1,
+        seq,
+        n,
+        ze_n,
+        Bool,
+      )
+    ) {
     | Some(_) as result => result
     | None =>
-      switch (ana_cursor_info_skel(~frame, ctx, skel2, seq, n, ze_n, Bool)) {
+      switch (
+        _ana_cursor_info_skel(
+          ~node_steps,
+          ~term_steps,
+          ~frame,
+          ctx,
+          skel2,
+          seq,
+          n,
+          ze_n,
+          Bool,
+        )
+      ) {
       | Some(_) as result => result
       | None => None
       }
     }
   | BinOp(_, Space, Placeholder(n') as skel1, skel2) =>
     if (n == n') {
-      switch (syn_cursor_info(~frame, ctx, ze_n)) {
+      switch (_syn_cursor_info(~node_steps, ~term_steps, ~frame, ctx, ze_n)) {
       | None => None
       | Some(ci) =>
         switch (ZExp.cursor_on_outer_expr(ze_n)) {
@@ -1022,7 +1397,8 @@ and syn_cursor_info_skel =
               Some({...ci, typed: SynMatchingArrow(ty, Arrow(ty1, ty2))})
             }
           }
-        | None => syn_cursor_info(~frame, ctx, ze_n)
+        | None =>
+          _syn_cursor_info(~node_steps, ~term_steps, ~frame, ctx, ze_n)
         }
       };
     } else {
@@ -1032,12 +1408,33 @@ and syn_cursor_info_skel =
         switch (HTyp.matched_arrow(ty)) {
         | None => None
         | Some((ty1, _)) =>
-          ana_cursor_info_skel(~frame, ctx, skel2, seq, n, ze_n, ty1)
+          _ana_cursor_info_skel(
+            ~node_steps,
+            ~term_steps,
+            ~frame,
+            ctx,
+            skel2,
+            seq,
+            n,
+            ze_n,
+            ty1,
+          )
         }
       };
     }
   | BinOp(_, Space, skel1, skel2) =>
-    switch (syn_cursor_info_skel(~frame, ctx, skel1, seq, n, ze_n)) {
+    switch (
+      _syn_cursor_info_skel(
+        ~node_steps,
+        ~term_steps,
+        ~frame,
+        ctx,
+        skel1,
+        seq,
+        n,
+        ze_n,
+      )
+    ) {
     | Some(_) as result => result
     | None =>
       switch (Statics.syn_skel(ctx, skel1, seq, None)) {
@@ -1046,30 +1443,84 @@ and syn_cursor_info_skel =
         switch (HTyp.matched_arrow(ty)) {
         | None => None
         | Some((ty1, _)) =>
-          ana_cursor_info_skel(~frame, ctx, skel2, seq, n, ze_n, ty1)
+          _ana_cursor_info_skel(
+            ~node_steps,
+            ~term_steps,
+            ~frame,
+            ctx,
+            skel2,
+            seq,
+            n,
+            ze_n,
+            ty1,
+          )
         }
       }
     }
   | BinOp(_, Comma, skel1, skel2) =>
-    switch (syn_cursor_info_skel(~frame, ctx, skel1, seq, n, ze_n)) {
+    switch (
+      _syn_cursor_info_skel(
+        ~node_steps,
+        ~term_steps,
+        ~frame,
+        ctx,
+        skel1,
+        seq,
+        n,
+        ze_n,
+      )
+    ) {
     | Some(_) as result => result
-    | None => syn_cursor_info_skel(~frame, ctx, skel2, seq, n, ze_n)
+    | None =>
+      _syn_cursor_info_skel(
+        ~node_steps,
+        ~term_steps,
+        ~frame,
+        ctx,
+        skel2,
+        seq,
+        n,
+        ze_n,
+      )
     }
   | BinOp(_, Cons, skel1, skel2) =>
-    switch (syn_cursor_info_skel(~frame, ctx, skel1, seq, n, ze_n)) {
+    switch (
+      _syn_cursor_info_skel(
+        ~node_steps,
+        ~term_steps,
+        ~frame,
+        ctx,
+        skel1,
+        seq,
+        n,
+        ze_n,
+      )
+    ) {
     | Some(_) as result => result
     | None =>
       switch (Statics.syn_skel(ctx, skel1, seq, None)) {
       | None => None
       | Some((ty_elt, _)) =>
         let ty_list = HTyp.List(ty_elt);
-        ana_cursor_info_skel(~frame, ctx, skel2, seq, n, ze_n, ty_list);
+        _ana_cursor_info_skel(
+          ~node_steps,
+          ~term_steps,
+          ~frame,
+          ctx,
+          skel2,
+          seq,
+          n,
+          ze_n,
+          ty_list,
+        );
       }
     }
   };
 }
-and ana_cursor_info_skel =
+and _ana_cursor_info_skel =
     (
+      ~node_steps,
+      ~term_steps,
       ~frame,
       ctx: Contexts.t,
       skel: UHExp.skel_t,
@@ -1082,18 +1533,50 @@ and ana_cursor_info_skel =
   switch (skel) {
   | Placeholder(n') =>
     if (n == n') {
-      ana_cursor_info(~frame, ctx, ze_n, ty);
+      _ana_cursor_info(~node_steps, ~term_steps, ~frame, ctx, ze_n, ty);
     } else {
       None;
     }
   | BinOp(InHole(TypeInconsistent, _), _, _, _) =>
-    syn_cursor_info_skel(~frame, ctx, skel, seq, n, ze_n)
+    _syn_cursor_info_skel(
+      ~node_steps,
+      ~term_steps,
+      ~frame,
+      ctx,
+      skel,
+      seq,
+      n,
+      ze_n,
+    )
   | BinOp(NotInHole, Comma, skel1, skel2) =>
     switch (ty) {
     | Hole =>
-      switch (ana_cursor_info_skel(~frame, ctx, skel1, seq, n, ze_n, Hole)) {
+      switch (
+        _ana_cursor_info_skel(
+          ~node_steps,
+          ~term_steps,
+          ~frame,
+          ctx,
+          skel1,
+          seq,
+          n,
+          ze_n,
+          Hole,
+        )
+      ) {
       | Some(_) as result => result
-      | None => ana_cursor_info_skel(~frame, ctx, skel2, seq, n, ze_n, Hole)
+      | None =>
+        _ana_cursor_info_skel(
+          ~node_steps,
+          ~term_steps,
+          ~frame,
+          ctx,
+          skel2,
+          seq,
+          n,
+          ze_n,
+          Hole,
+        )
       }
     | Prod(ty1, ty2) =>
       let types = HTyp.get_tuple(ty1, ty2);
@@ -1107,7 +1590,17 @@ and ana_cursor_info_skel =
             | Some(_) as result => result
             | None =>
               let (skel, ty) = skel_ty;
-              ana_cursor_info_skel(~frame, ctx, skel, seq, n, ze_n, ty);
+              _ana_cursor_info_skel(
+                ~node_steps,
+                ~term_steps,
+                ~frame,
+                ctx,
+                skel,
+                seq,
+                n,
+                ze_n,
+                ty,
+              );
             },
           None,
           ListMinTwo.to_list(zipped),
@@ -1128,7 +1621,17 @@ and ana_cursor_info_skel =
             | Some(_) as result => result
             | None =>
               let (skel, ty) = skel_ty;
-              ana_cursor_info_skel(~frame, ctx, skel, seq, n, ze_n, ty);
+              _ana_cursor_info_skel(
+                ~node_steps,
+                ~term_steps,
+                ~frame,
+                ctx,
+                skel,
+                seq,
+                n,
+                ze_n,
+                ty,
+              );
             },
           None,
           ListMinTwo.to_list(zipped),
@@ -1140,7 +1643,17 @@ and ana_cursor_info_skel =
           (opt_result, skel) =>
             switch (opt_result) {
             | Some(_) as result => result
-            | None => syn_cursor_info_skel(~frame, ctx, skel, seq, n, ze_n)
+            | None =>
+              _syn_cursor_info_skel(
+                ~node_steps,
+                ~term_steps,
+                ~frame,
+                ctx,
+                skel,
+                seq,
+                n,
+                ze_n,
+              )
             },
           None,
           remainder,
@@ -1153,11 +1666,33 @@ and ana_cursor_info_skel =
     switch (HTyp.matched_list(ty)) {
     | None => None
     | Some(ty_elt) =>
-      switch (ana_cursor_info_skel(~frame, ctx, skel1, seq, n, ze_n, ty_elt)) {
+      switch (
+        _ana_cursor_info_skel(
+          ~node_steps,
+          ~term_steps,
+          ~frame,
+          ctx,
+          skel1,
+          seq,
+          n,
+          ze_n,
+          ty_elt,
+        )
+      ) {
       | Some(_) as result => result
       | None =>
         let ty_list = HTyp.List(ty_elt);
-        ana_cursor_info_skel(~frame, ctx, skel2, seq, n, ze_n, ty_list);
+        _ana_cursor_info_skel(
+          ~node_steps,
+          ~term_steps,
+          ~frame,
+          ctx,
+          skel2,
+          seq,
+          n,
+          ze_n,
+          ty_list,
+        );
       }
     }
   | BinOp(_, Minus | And | Or, _, _)
@@ -1165,5 +1700,32 @@ and ana_cursor_info_skel =
   | BinOp(_, Times, _, _)
   | BinOp(_, LessThan, _, _)
   | BinOp(_, Space, _, _) =>
-    syn_cursor_info_skel(~frame, ctx, skel, seq, n, ze_n)
+    _syn_cursor_info_skel(
+      ~node_steps,
+      ~term_steps,
+      ~frame,
+      ctx,
+      skel,
+      seq,
+      n,
+      ze_n,
+    )
   };
+
+let syn_cursor_info_block = (ctx, zblock) => {
+  let node_steps = Path.steps_of_zblock(zblock);
+  let term_steps = Path.term_steps_of_zblock(zblock);
+  _syn_cursor_info_block(~node_steps, ~term_steps, ctx, zblock);
+};
+
+let syn_cursor_info = (~frame, ctx, ze) => {
+  let node_steps = Path.steps_of_zexp(ze);
+  let term_steps = Path.term_steps_of_zexp(ze);
+  _syn_cursor_info(~node_steps, ~term_steps, ~frame, ctx, ze);
+};
+
+let ana_cursor_info = (~frame, ctx, ze, ty) => {
+  let node_steps = Path.steps_of_zexp(ze);
+  let term_steps = Path.term_steps_of_zexp(ze);
+  _ana_cursor_info(~node_steps, ~term_steps, ~frame, ctx, ze, ty);
+};
