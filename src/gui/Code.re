@@ -503,12 +503,39 @@ let snode_elem_occupies_full_sline = elem => {
      );
 };
 
+/**
+ * Internal data type used by view_of_* functions to
+ * accumulate and apply indentation.
+ */
+[@deriving sexp]
+type indent_level =
+  | ToBeIndented(int)
+  | Indented(int);
+
+let tab_length = 2;
+let tab = (~k=1) =>
+  fun
+  | ToBeIndented(m) => ToBeIndented(m + k * tab_length)
+  | Indented(m) => Indented(m + k * tab_length);
+
+let indent_level_of_snode_elem = elem =>
+  elem
+  |> JSUtil.force_get_attr("indent_level")
+  |> Sexp.of_string
+  |> indent_level_of_sexp;
+
 let cls_Block = "Block";
 
 let snode_elem_is_Block = JSUtil.elem_has_cls(cls_Block);
 
+let indent_level_attr = indent_level =>
+  Vdom.Attr.create(
+    "indent_level",
+    Sexp.to_string(sexp_of_indent_level(indent_level)),
+  );
+
 let snode_attrs =
-    (~inject: Update.Action.t => Vdom.Event.t, snode: snode)
+    (~inject: Update.Action.t => Vdom.Event.t, ~indent_level, snode: snode)
     : list(Vdom.Attr.t) => {
   Vdom.(
     switch (snode) {
@@ -518,6 +545,7 @@ let snode_attrs =
           [cls_SNode, cls_SSeq, inline_div_cls]
           @ multi_line_clss(is_multi_line),
         ),
+        indent_level_attr(indent_level),
       ]
     | SBox(steps, is_multi_line, err_status, ap_err_status, shape, _) =>
       let base_clss =
@@ -578,6 +606,7 @@ let snode_attrs =
           |> sexp_of_child_indices
           |> Sexplib.Sexp.to_string,
         ),
+        indent_level_attr(indent_level),
         ...shape_attrs,
       ]
       @ (
@@ -646,27 +675,6 @@ let vindentation = (~steps_of_first_sword=?, ~first_sword=?, m) => {
   );
 };
 
-/**
- * Internal data type used by view_of_* functions to
- * accumulate and apply indentation.
- */
-[@deriving sexp]
-type indent_level =
-  | ToBeIndented(int)
-  | Indented(int);
-
-let tab_length = 2;
-let tab = (~k=1) =>
-  fun
-  | ToBeIndented(m) => ToBeIndented(m + k * tab_length)
-  | Indented(m) => Indented(m + k * tab_length);
-
-let indent_of_snode_elem = elem =>
-  switch (elem |> JSUtil.get_attr("indent")) {
-  | None => 0.0
-  | Some(m) => float_of_int(int_of_string(m))
-  };
-
 let view_of_sseq_line =
     (~cls, ~sseq_steps: Path.steps, ~tm_index: child_index, vwords)
     : Vdom.Node.t =>
@@ -691,7 +699,7 @@ let rec view_of_snode =
           snode,
         )
         : Vdom.Node.t => {
-  let attrs = snode_attrs(~inject, snode);
+  let attrs = snode_attrs(~inject, ~indent_level, snode);
   switch (snode) {
   | SSeq(steps, is_multi_line, shead, stail) =>
     let (shd, sargs) = shead;
@@ -795,15 +803,7 @@ let rec view_of_snode =
         }
       | _ => is_multi_line ? vlines |> join(Vdom.Node.br([])) : vlines
       };
-    let indentation =
-      switch (indent_level) {
-      | ToBeIndented(m)
-      | Indented(m) => m
-      };
-    Vdom.Node.div(
-      [Vdom.Attr.create("indent", string_of_int(indentation)), ...attrs],
-      newlined_vlines,
-    );
+    Vdom.Node.div(attrs, newlined_vlines);
   };
 }
 and view_of_sline =

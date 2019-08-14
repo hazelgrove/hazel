@@ -1238,7 +1238,11 @@ let draw_box_node_indicator = () => {
     |> Sexp.of_string
     |> CursorInfo.child_indices_of_sexp;
   let cursor_elem = Code.force_get_snode_elem(steps);
-  let indent = cursor_elem |> Code.indent_of_snode_elem;
+  let indent =
+    switch (Code.indent_level_of_snode_elem(cursor_elem)) {
+    | Indented(_) => 0.0
+    | ToBeIndented(indentation) => float_of_int(indentation)
+    };
 
   // shade current node
   let rect = cursor_elem |> get_relative_bounding_rect;
@@ -1291,7 +1295,11 @@ let draw_box_term_indicator = () => {
     |> Path.steps_of_sexp;
   let term_elem = Code.force_get_snode_elem(term_steps);
   let term_rect = term_elem |> get_relative_bounding_rect;
-  let indent = term_elem |> Code.indent_of_snode_elem;
+  let indent =
+    switch (Code.indent_level_of_snode_elem(term_elem)) {
+    | Indented(_) => 0.0
+    | ToBeIndented(m) => float_of_int(m)
+    };
   let node_indicator_elem =
     JSUtil.force_get_elem_by_id(box_node_indicator_id);
   let cursor_elem =
@@ -1450,7 +1458,11 @@ let draw_multi_line_seq_indicators = () => {
     |> Sexp.of_string
     |> Skel.range_of_sexp;
   let a_elem = seq_steps @ [a] |> node_id |> JSUtil.force_get_elem_by_id;
-  let a_indent = Code.indent_of_snode_elem(a_elem);
+  let a_indent =
+    switch (Code.indent_level_of_snode_elem(a_elem)) {
+    | Indented(_) => 0.0
+    | ToBeIndented(m) => float_of_int(m)
+    };
   let a_rect = a_elem |> get_relative_bounding_rect;
   JSUtil.force_get_elem_by_id(multi_line_seq_tm_indicator_id(a))
   |> JSUtil.place_over_rect(
