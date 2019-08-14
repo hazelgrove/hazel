@@ -407,10 +407,10 @@ let child_elems_of_snode_elem = elem =>
  * nodes in front of the most ancestral skinny slines.
  */
 let is_skinny =
-  List.exists(
+  List.for_all(
     fun
-    | SToken(_) => false
-    | SNode(snode) => snode |> is_multi_line,
+    | SToken(_) => true
+    | SNode(snode) => !(snode |> is_multi_line),
   );
 
 let parent_snode_elem_of_snode_elem = elem =>
