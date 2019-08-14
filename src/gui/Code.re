@@ -1458,13 +1458,12 @@ let snode_of_ListNil =
 let snode_of_LetLine =
     (~user_newlines=?, ~steps, sp: snode, sann: option(snode), sdef: snode) => {
   let is_multi_line =
-    switch (user_newlines) {
-    | None => is_multi_line(sdef)
-    | Some(user_newlines) =>
-      user_newlines
-      |> Model.user_entered_newline_at(steps @ [2])
-      || is_multi_line(sdef)
-    };
+    user_newlines
+    |> Opt.map_default(
+         ~default=false,
+         Model.user_entered_newline_at(steps @ [2]),
+       )
+    |> (user_newline => user_newline || is_multi_line(sdef));
   let slines = [
     mk_SLine(
       ~steps_of_first_sword=steps,
@@ -1497,9 +1496,11 @@ let snode_of_Parenthesized =
     : snode => {
   let is_multi_line =
     user_newlines
-    |> Opt.map(Model.user_entered_newline_at(steps @ [0]))
-    |> Opt.map(user_newline => user_newline || is_multi_line(sbody))
-    |> Opt.test;
+    |> Opt.map_default(
+         ~default=false,
+         Model.user_entered_newline_at(steps @ [0]),
+       )
+    |> (user_newline => user_newline || is_multi_line(sbody));
   mk_SBox(
     ~ap_err_status,
     ~steps,
@@ -1579,9 +1580,11 @@ let snode_of_Lam =
     : snode => {
   let is_multi_line =
     user_newlines
-    |> Opt.map(Model.user_entered_newline_at(steps @ [2]))
-    |> Opt.map(user_newline => user_newline || is_multi_line(sbody))
-    |> Opt.test;
+    |> Opt.map_default(
+         ~default=false,
+         Model.user_entered_newline_at(steps @ [2]),
+       )
+    |> (user_newline => user_newline || is_multi_line(sbody));
   let swords_ann =
     switch (sann) {
     | None => []
@@ -1621,9 +1624,11 @@ let snode_of_Inj =
     : snode => {
   let is_multi_line =
     user_newlines
-    |> Opt.map(Model.user_entered_newline_at(steps @ [0]))
-    |> Opt.map(user_newline => user_newline || is_multi_line(sbody))
-    |> Opt.test;
+    |> Opt.map_default(
+         ~default=false,
+         Model.user_entered_newline_at(steps @ [0]),
+       )
+    |> (user_newline => user_newline || is_multi_line(sbody));
   mk_SBox(
     ~ap_err_status,
     ~err_status,
@@ -1731,9 +1736,11 @@ let snode_of_Case =
 let snode_of_Rule = (~user_newlines=?, ~steps, sp: snode, sclause: snode) => {
   let is_multi_line =
     user_newlines
-    |> Opt.map(Model.user_entered_newline_at(steps @ [1]))
-    |> Opt.map(user_newline => user_newline || is_multi_line(sclause))
-    |> Opt.test;
+    |> Opt.map_default(
+         ~default=false,
+         Model.user_entered_newline_at(steps @ [1]),
+       )
+    |> (user_newline => user_newline || is_multi_line(sclause));
   mk_SBox(
     ~steps,
     ~shape=Rule,
