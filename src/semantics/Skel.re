@@ -6,6 +6,9 @@ type t('op) =
   | Placeholder(int)
   | BinOp(err_status, 'op, t('op), t('op));
 
+[@deriving sexp]
+type range = (int, int);
+
 let rec leftmost_op =
   fun
   | Placeholder(_) => None
@@ -42,7 +45,7 @@ let rec rightmost_tm_index = (skel: t(_)): int =>
   | BinOp(_, _, _, skel2) => rightmost_tm_index(skel2)
   };
 
-let rec range = (skel: t(_)): (int, int) =>
+let rec range = (skel: t(_)): range =>
   switch (skel) {
   | Placeholder(n) => (n, n)
   | BinOp(_, _, skel1, skel2) =>
@@ -51,8 +54,9 @@ let rec range = (skel: t(_)): (int, int) =>
     (a, b);
   };
 
-// return bool indicates whether the
-// accompanying skel is the target subskel
+// return bool is for internal use,
+// indicates whether the accompanying
+// skel is the target subskel
 let rec _subskel_rooted_at_op =
         (op_index: op_index, skel: t('op)): (bool, t('op)) =>
   switch (skel) {

@@ -110,15 +110,29 @@ type t = {
   ctx: Contexts.t,
   position: cursor_position,
   node_steps: Path.steps,
-  // not quite the term steps because we don't have an indexing
-  // scheme into all semantic terms (e.g. subblock beginning with
-  // a let line, subseq rooted at an op), so we overapproximate
-  // (e.g. give the steps of the whole block, of the whole opseq)
+  // Not quite the term steps because steps don't account for
+  // all semantic terms (e.g. subblock beginning with a let
+  // line, subseq rooted at an op), so we overapproximate
+  // (e.g. give the steps of the whole block, of the whole opseq).
+  // For such steps-blind terms, subskel_range and subblock_start
+  // provide the additional necessary information.
   term_steps: Path.steps,
+  subskel_range: option(Skel.range),
+  subblock_start: option(int),
 };
 
 let mk_cursor_info =
-    (typed, node, frame, position, ctx, node_steps, term_steps) => {
+    (
+      ~subskel_range=?,
+      ~subblock_start=?,
+      typed,
+      node,
+      frame,
+      position,
+      ctx,
+      node_steps,
+      term_steps,
+    ) => {
   typed,
   node,
   frame,
@@ -126,12 +140,11 @@ let mk_cursor_info =
   ctx,
   node_steps,
   term_steps,
+  subskel_range,
+  subblock_start,
 };
 
-let update_node = (ci: t, node): t => {
-  let {typed, node: _, frame, position, ctx, node_steps, term_steps} = ci;
-  {typed, node, frame, position, ctx, node_steps, term_steps};
-};
+let update_node = (ci: t, node): t => {...ci, node};
 
 let update_position = (position, ci: t): t => {...ci, position};
 
@@ -209,6 +222,9 @@ let staging_right_border = ci =>
   | _ => false
   };
 
+[@deriving sexp]
+type child_indices = list(int);
+
 let child_indices_of_current_node = ci =>
   switch (ci.node) {
   | Line(li) => UHExp.child_indices_line(li)
@@ -271,6 +287,12 @@ let rec cursor_info_typ =
   | CursorT(cursor, ty) =>
     Some(
       mk_cursor_info(
+        ~subskel_range=?
+          switch (cursor, ty) {
+          | (OnDelim(k, _), OpSeq(skel, _)) =>
+            Some(Skel.range_of_subskel_rooted_at_op(k, skel))
+          | _ => None
+          },
         OnType,
         Typ(ty),
         TypFrame(frame),
@@ -360,6 +382,12 @@ let ana_cursor_found_pat =
   | Some((typed, node, ctx)) =>
     Some(
       mk_cursor_info(
+        ~subskel_range=?
+          switch (cursor, p) {
+          | (OnDelim(k, _), OpSeq(skel, _)) =>
+            Some(Skel.range_of_subskel_rooted_at_op(k, skel))
+          | _ => None
+          },
         typed,
         node,
         PatFrame(frame),
@@ -394,6 +422,12 @@ let rec _syn_cursor_info_pat =
     | Some((ty, _)) =>
       Some(
         mk_cursor_info(
+          ~subskel_range=?
+            switch (cursor, p) {
+            | (OnDelim(k, _), OpSeq(skel, _)) =>
+              Some(Skel.range_of_subskel_rooted_at_op(k, skel))
+            | _ => None
+            },
           PatSynthesized(ty),
           Pat(p),
           PatFrame(frame),
@@ -893,6 +927,12 @@ let ana_cursor_found_exp =
     let (prefix, surround, suffix) = frame;
     Some(
       mk_cursor_info(
+        ~subskel_range=?
+          switch (cursor, e) {
+          | (OnDelim(k, _), OpSeq(skel, _)) =>
+            Some(Skel.range_of_subskel_rooted_at_op(k, skel))
+          | _ => None
+          },
         mode,
         sort,
         ExpFrame(prefix, surround, suffix),
@@ -916,6 +956,7 @@ let rec _syn_cursor_info_block =
         ~node_steps,
         ~term_steps,
         ~frame=(prefix, None, Some(UHExp.Block(suffix, conclusion))),
+        ~line_no=List.length(prefix),
         ctx,
         zline,
       )
@@ -934,13 +975,21 @@ let rec _syn_cursor_info_block =
     }
   }
 and _syn_cursor_info_line =
-    (~node_steps, ~term_steps, ~frame, ctx: Contexts.t, zli: ZExp.zline)
+    (
+      ~node_steps,
+      ~term_steps,
+      ~frame,
+      ~line_no,
+      ctx: Contexts.t,
+      zli: ZExp.zline,
+    )
     : option(t) =>
   switch (zli) {
   | CursorL(cursor, line) =>
     let (prefix, _, suffix) = frame;
     Some(
       mk_cursor_info(
+        ~subblock_start=line_no,
         OnLine,
         Line(line),
         ExpFrame(prefix, None, suffix),
@@ -1010,6 +1059,12 @@ and _syn_cursor_info =
     | Some(ty) =>
       Some(
         mk_cursor_info(
+          ~subskel_range=?
+            switch (cursor, e) {
+            | (OnDelim(k, _), OpSeq(skel, _)) =>
+              Some(Skel.range_of_subskel_rooted_at_op(k, skel))
+            | _ => None
+            },
           Synthesized(ty),
           Exp(e),
           ExpFrame(prefix, surround, suffix),
@@ -1095,6 +1150,7 @@ and _ana_cursor_info_block =
         ~node_steps,
         ~term_steps,
         ~frame=(prefix, None, Some(Block(suffix, conclusion))),
+        ~line_no=List.length(prefix),
         ctx,
         zline,
       )

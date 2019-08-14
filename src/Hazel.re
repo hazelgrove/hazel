@@ -1,9 +1,9 @@
 module Js = Js_of_ocaml.Js;
 module Dom = Js_of_ocaml.Dom;
 module Dom_html = Js_of_ocaml.Dom_html;
-open Incr_dom;
-open ViewUtil;
+open GeneralUtil;
 open SemanticsCommon;
+open Incr_dom;
 
 // https://github.com/janestreet/incr_dom/blob/6aa4aca2cfc82a17bbcc0424ff6b0ae3d6d8d540/example/text_input/README.md
 // https://github.com/janestreet/incr_dom/blob/master/src/app_intf.ml
@@ -45,7 +45,28 @@ let create =
       (state: State.t, ~schedule_action: Update.Action.t => unit) => {
         let path = model |> Model.path;
         if (! state.changing_cards^) {
-          Cell.draw_hole_indicators(model);
+          // Currently drawing non-empty hole borders along with the
+          // cursor indicators on each render. This is due to an
+          // unfortunate confluence of contenteditable, indented
+          // multi-lining, and the desire to not include indentation
+          // when decorating a deeply indented Hazel ast node.
+          // contenteditable requires us to make all dom elements
+          // representing editable code be inline elements (otherwise
+          // the caret moves in strange ways). Now suppose we have a
+          // dom element representing some deeply indented multi-line
+          // node of the Hazel program. Due to its inline layout, the
+          // dom element must structurally include the indentation. So
+          // if we simply decorated this dom element by styling that
+          // element, we would include the indentation, resulting in
+          // strange term and non-empty hole indicators that extend
+          // beyond the textual code. Thus, we need to draw non-empty
+          // hole indicators along with cursor indicators after the
+          // code text has been rendered so we can position them in
+          // terms of viewport coordinates.
+          // TODO figure out better solution
+          CursorIndicators.draw_hole_indicators(
+            model,
+          );
         };
         if (state.changing_cards^) {
           switch (Code.caret_position_of_path(path)) {
@@ -56,81 +77,23 @@ let create =
           };
           state.changing_cards := false;
         } else if (model.is_cell_focused) {
-          let (steps, cursor) = path;
-          let cursor_elem = JSUtil.force_get_elem_by_cls("cursor");
+          let (_, cursor) = path;
           switch (cursor) {
           | OnText(_)
           | OnDelim(_, _) =>
             if (!Code.is_caret_consistent_with_path(path)) {
-              switch (Code.caret_position_of_path(path)) {
-              | None => assert(false)
-              | Some((node, offset)) =>
-                state.setting_caret := true;
-                JSUtil.set_caret(node, offset);
-              };
+              state.setting_caret := true;
+              let (node, offset) =
+                Code.caret_position_of_path(path)
+                |> Opt.get(_ => assert(false));
+              JSUtil.set_caret(node, offset);
             } else {
               state.setting_caret := false;
-              // cursor_elem is either SBox or SSeq
-              if (cursor_elem |> Code.elem_is_SBox) {
-                cursor_elem
-                |> Cell.draw_box_node_indicator(
-                     ~child_indices=
-                       model.cursor_info
-                       |> CursorInfo.child_indices_of_current_node,
-                   );
-                cursor_elem
-                |> Cell.draw_box_term_indicator(
-                     ~cursor_info=model.cursor_info,
-                   );
-              } else {
-                // cursor_elem is SSeq
-                switch (model.cursor_info.position) {
-                | Staging(_) => assert(false)
-                | OnText(_) => assert(false)
-                | OnDelim(k, _) =>
-                  let (steps, _) = model |> Model.path;
-                  let op_elem = JSUtil.force_get_elem_by_id(op_id(steps, k));
-                  op_elem |> Cell.draw_op_node_indicator;
-                  switch (op_elem |> JSUtil.get_attr("op-range")) {
-                  | None => assert(false)
-                  | Some(ssexp) =>
-                    let (a, b) =
-                      Code.seq_range_of_sexp(Sexplib.Sexp.of_string(ssexp));
-                    if (cursor_elem |> Code.elem_is_multi_line) {
-                      Cell.draw_multi_line_seq_term_indicator(
-                        steps,
-                        (a, b),
-                        cursor_elem,
-                      );
-                    } else {
-                      let tm_a =
-                        JSUtil.force_get_elem_by_id(node_id(steps @ [a]));
-                      let tm_b =
-                        JSUtil.force_get_elem_by_id(node_id(steps @ [b]));
-                      Cell.draw_box_term_indicator_over_single_line_seq(
-                        tm_a,
-                        tm_b,
-                      );
-                    };
-                  };
-                };
-              };
+              CursorIndicators.draw(~ci=model.cursor_info);
             }
           | Staging(delim_index) =>
             JSUtil.unset_caret();
-            // only SBox elems can be in staging mode
-            cursor_elem
-            |> Cell.draw_box_node_indicator(
-                 ~child_indices=
-                   model.cursor_info
-                   |> CursorInfo.child_indices_of_current_node,
-               );
-            let sdelim_elem =
-              Code.force_get_sdelim_elem((steps, delim_index));
-            Cell.draw_shift_targets(
-              ~cursor_info=model.cursor_info,
-              sdelim_elem,
-            );
+            CursorIndicators.draw(~ci=model.cursor_info);
           };
         };
       },

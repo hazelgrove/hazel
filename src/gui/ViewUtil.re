@@ -3,6 +3,15 @@ open SemanticsCommon;
 
 exception MalformedView(int);
 
+let font_size = 20.0;
+let line_height = 1.5;
+
+let indicator_padding = font_size *. (line_height -. 1.0) /. 2.0 -. 1.5;
+
+let cell_padding = 10.0;
+let cell_border = 2.0;
+let shift_target_thickness = indicator_padding;
+
 [@deriving sexp]
 type delim_path = (Path.steps, delim_index);
 [@deriving sexp]
@@ -68,7 +77,9 @@ let box_node_indicator_id = "box_node_indicator";
 let child_indicator_id = i => "child_indicator__" ++ string_of_int(i);
 let empty_hole_conclusion_mask_id = "empty_hole_conclusion_mask";
 let box_tm_indicator_id = "box_tm_indicator";
-let seq_tm_indicator_id = i => "seq_tm_indicator__" ++ string_of_int(i);
+let single_line_seq_tm_indicator_id = "single_line_seq_tm_indicator";
+let multi_line_seq_tm_indicator_id = i =>
+  "seq_tm_indicator__" ++ string_of_int(i);
 let op_node_indicator_id = "op_node_indicator";
 
 let current_shifting_delim_indicator_id = "current_shifting_delim_indicator";
