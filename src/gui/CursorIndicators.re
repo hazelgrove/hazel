@@ -1292,8 +1292,10 @@ let draw_box_term_indicator = () => {
   let term_elem = Code.force_get_snode_elem(term_steps);
   let term_rect = term_elem |> get_relative_bounding_rect;
   let indent = term_elem |> Code.indent_of_snode_elem;
+  let node_indicator_elem =
+    JSUtil.force_get_elem_by_id(box_node_indicator_id);
   let cursor_elem =
-    JSUtil.force_get_elem_by_id(box_node_indicator_id)
+    node_indicator_elem
     |> JSUtil.force_get_attr("steps")
     |> Sexp.of_string
     |> Path.steps_of_sexp
@@ -1342,7 +1344,7 @@ let draw_box_term_indicator = () => {
        );
   };
   let is_concluding_let_line =
-    cursor_elem
+    node_indicator_elem
     |> JSUtil.force_get_attr("is-concluding-let-line")
     |> bool_of_string;
   if (is_concluding_let_line) {
