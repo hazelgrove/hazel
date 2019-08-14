@@ -831,26 +831,20 @@ and view_of_sline =
     switch (sline) {
     | SLine(rel_indent, steps_of_first_sword, swords) =>
       let is_skinny = swords |> is_skinny;
-      switch (node_indent_level, is_skinny, swords) {
+      switch (node_indent_level |> tab(~k=rel_indent), is_skinny, swords) {
       | (_, _, []) => assert(false)
-      | (Indented(_), _, _)
-      | (_, false, _) => (
+      | (Indented(_) as indent_level, _, _)
+      | (indent_level, false, _) => (
           [],
           swords
           |> List.map(
                fun
-               | SNode(snode) =>
-                 view_of_snode(
-                   ~inject,
-                   ~indent_level=node_indent_level,
-                   snode,
-                 )
+               | SNode(snode) => view_of_snode(~inject, ~indent_level, snode)
                | SToken(stoken) =>
                  view_of_stoken(~inject, ~node_steps, stoken),
              ),
         )
-      | (ToBeIndented(abs_indent), true, [first_sword, ..._]) =>
-        let indentation = abs_indent + tab_length * rel_indent;
+      | (ToBeIndented(indentation), true, [first_sword, ..._]) =>
         let vindentation =
           indentation == 0
             ? []
