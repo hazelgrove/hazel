@@ -156,6 +156,7 @@ and term_steps_of_zexp =
   | LamZA(_, _, zann, _) => [1, ...term_steps_of_ztyp(zann)]
   | LamZE(_, _, _, zdef) => [2, ...term_steps_of_zblock(zdef)]
   | CaseZE(_, zscrut, _, _) => [0, ...term_steps_of_zblock(zscrut)]
+  | CaseZR(_, _, (_, CursorR(_, _), _), _) => []
   | CaseZR(_, _, (prefix, zrule, _), _) => [
       1 + List.length(prefix),
       ...term_steps_of_zrule(zrule),
