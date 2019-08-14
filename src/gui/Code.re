@@ -874,15 +874,10 @@ and view_of_sline =
         (vindentation, vwords);
       };
     };
-  let shape_cls =
-    switch (sline) {
-    | SLine(_, _, _) => "SLine"
-    };
-
   Vdom.(
     Node.div(
       [
-        Attr.classes([shape_cls, inline_div_cls] @ sline_clss(line_no)),
+        Attr.classes(["SLine", inline_div_cls] @ sline_clss(line_no)),
         ...goto_steps_attrs,
       ],
       vindentation @ vwords,
