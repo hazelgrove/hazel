@@ -343,22 +343,22 @@ module PaletteViewCtx = {
 };
 
 module PaletteContexts = {
-  type t = (PaletteCtx.t, PaletteViewCtx.t);
-  let empty = (PaletteViewCtx.empty, PaletteCtx.empty);
+  type t = (LivelitCtx.t, PaletteViewCtx.t);
+  let empty = (PaletteViewCtx.empty, LivelitCtx.empty);
   let extend:
-    (t, (PaletteName.t, PaletteDefinition.t, serialized_view_fn_t)) => t =
-    ((palette_ctx, palette_view_ctx), (name, defn, view_fn)) => {
+    (t, (LivelitName.t, LivelitDefinition.t, serialized_view_fn_t)) => t =
+    ((livelit_ctx, palette_view_ctx), (name, defn, view_fn)) => {
       let palette_view_ctx' =
         PaletteViewCtx.extend(palette_view_ctx, (name, view_fn));
-      let palette_ctx' = PaletteCtx.extend(palette_ctx, (name, defn));
-      (palette_ctx', palette_view_ctx');
+      let livelit_ctx' = LivelitCtx.extend(livelit_ctx, (name, defn));
+      (livelit_ctx', palette_view_ctx');
     };
 };
 
 module PaletteAdapter = (P: PALETTE) => {
   /* generate palette definition for Semantics */
-  let palette_defn =
-    PaletteDefinition.{
+  let livelit_defn =
+    LivelitDefinition.{
       expansion_ty: P.expansion_ty,
       init_model: SpliceGenMonad.return(""),
       /* UHExp.HoleRefs.Bnd(
@@ -375,7 +375,7 @@ module PaletteAdapter = (P: PALETTE) => {
       update_fn(P.serialize(model))
     );
 
-  let contexts_entry = (P.name, palette_defn, serialized_view_fn);
+  let contexts_entry = (P.name, livelit_defn, serialized_view_fn);
 };
 /*
  module CheckboxPaletteAdapter = PaletteAdapter(CheckboxPalette);
@@ -384,7 +384,7 @@ module PaletteAdapter = (P: PALETTE) => {
  module PairPaletteAdapter = PaletteAdapter(PairPalette);
  */
 let empty_palette_contexts = PaletteContexts.empty;
-let (initial_palette_ctx, initial_palette_view_ctx) = empty_palette_contexts;
+let (initial_livelit_ctx, initial_palette_view_ctx) = empty_palette_contexts;
 /*
  PaletteContexts.extend(
    PaletteContexts.extend(

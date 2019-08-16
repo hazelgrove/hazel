@@ -449,7 +449,7 @@ and syn_exp = (ctx: Contexts.t, e: UHExp.t): option(HTyp.t) =>
   | Lam(InHole(TypeInconsistent, _), _, _, _)
   | Inj(InHole(TypeInconsistent, _), _, _)
   | Case(InHole(TypeInconsistent, _), _, _, _)
-  | ApPalette(InHole(TypeInconsistent, _), _, _, _) =>
+  | ApLivelit(InHole(TypeInconsistent, _), _, _, _) =>
     let e' = UHExp.set_err_status_t(NotInHole, e);
     switch (syn_exp(ctx, e')) {
     | None => None
@@ -462,8 +462,9 @@ and syn_exp = (ctx: Contexts.t, e: UHExp.t): option(HTyp.t) =>
   | Lam(InHole(WrongLength, _), _, _, _)
   | Inj(InHole(WrongLength, _), _, _)
   | Case(InHole(WrongLength, _), _, _, _)
-  | ApPalette(InHole(WrongLength, _), _, _, _) => None
-  /* not in hole */
+  | ApLivelit(InHole(WrongLength, _), _, _, _) =>
+    /* invalid forms */
+    None
   | Var(NotInHole, NotInVHole, x) => VarMap.lookup(Contexts.gamma(ctx), x)
   | Var(NotInHole, InVHole(_, _), _) => Some(Hole)
   | NumLit(NotInHole, _) => Some(Num)
@@ -494,16 +495,16 @@ and syn_exp = (ctx: Contexts.t, e: UHExp.t): option(HTyp.t) =>
     }
   | Case(NotInHole, _, _, Some(uty)) => Some(UHTyp.expand(uty))
   | Case(NotInHole, _, _, None) => None
-  | ApPalette(NotInHole, name, serialized_model, psi) =>
-    let palette_ctx = Contexts.palette_ctx(ctx);
-    switch (PaletteCtx.lookup(palette_ctx, name)) {
+  | ApLivelit(NotInHole, name, serialized_model, si) =>
+    let livelit_ctx = Contexts.livelit_ctx(ctx);
+    switch (LivelitCtx.lookup(livelit_ctx, name)) {
     | None => None
-    | Some(palette_defn) =>
-      switch (ana_splice_map(ctx, SpliceInfo.splice_map(psi))) {
+    | Some(livelit_defn) =>
+      switch (ana_splice_map(ctx, si.splice_map)) {
       | None => None
       | Some(splice_ctx) =>
-        let expansion_ty = palette_defn.expansion_ty;
-        let expand = palette_defn.expand;
+        let expansion_ty = livelit_defn.expansion_ty;
+        let expand = livelit_defn.expand;
         let expansion = expand(serialized_model);
         switch (ana_block(splice_ctx, expansion, expansion_ty)) {
         | None => None
@@ -511,6 +512,7 @@ and syn_exp = (ctx: Contexts.t, e: UHExp.t): option(HTyp.t) =>
         };
       }
     };
+  | ApUnboundLivelit(_, _) => Some(Hole)
   | Parenthesized(block) => syn_block(ctx, block)
   | OpSeq(skel, seq) =>
     /* NOTE: doesn't check if skel is the correct parse of seq!!! */
@@ -662,7 +664,7 @@ and ana_exp = (ctx: Contexts.t, e: UHExp.t, ty: HTyp.t): option(unit) =>
   | Lam(InHole(TypeInconsistent, _), _, _, _)
   | Inj(InHole(TypeInconsistent, _), _, _)
   | Case(InHole(TypeInconsistent, _), _, _, _)
-  | ApPalette(InHole(TypeInconsistent, _), _, _, _) =>
+  | ApLivelit(InHole(TypeInconsistent, _), _, _, _) =>
     let e' = UHExp.set_err_status_t(NotInHole, e);
     switch (syn_exp(ctx, e')) {
     | None => None
@@ -675,26 +677,14 @@ and ana_exp = (ctx: Contexts.t, e: UHExp.t, ty: HTyp.t): option(unit) =>
   | Lam(InHole(WrongLength, _), _, _, _)
   | Inj(InHole(WrongLength, _), _, _)
   | Case(InHole(WrongLength, _), _, _, _)
-  | ApPalette(InHole(WrongLength, _), _, _, _) => None
-  /* not in hole */
+  | ApLivelit(InHole(WrongLength, _), _, _, _) =>
+    /* invalid form */
+    None
   | ListNil(NotInHole) =>
     switch (HTyp.matched_list(ty)) {
     | None => None
     | Some(_) => Some()
     }
-  | Var(NotInHole, _, _)
-  | NumLit(NotInHole, _)
-  | BoolLit(NotInHole, _) =>
-    let e' = UHExp.set_err_status_t(NotInHole, e);
-    switch (syn_exp(ctx, e')) {
-    | None => None
-    | Some(ty') =>
-      if (HTyp.consistent(ty, ty')) {
-        Some();
-      } else {
-        None;
-      }
-    };
   | Lam(NotInHole, p, ann, block) =>
     switch (HTyp.matched_arrow(ty)) {
     | None => None
@@ -737,7 +727,18 @@ and ana_exp = (ctx: Contexts.t, e: UHExp.t, ty: HTyp.t): option(unit) =>
     | None => None
     | Some(ty1) => ana_rules(ctx, rules, ty1, ty)
     }
-  | ApPalette(NotInHole, _, _, _) =>
+  | Parenthesized(block) => ana_block(ctx, block, ty)
+  | OpSeq(skel, seq) =>
+    switch (ana_skel(ctx, skel, seq, ty, None)) {
+    | None => None
+    | Some(_) => Some()
+    }
+  | Var(NotInHole, _, _)
+  | NumLit(NotInHole, _)
+  | BoolLit(NotInHole, _)
+  | ApLivelit(NotInHole, _, _, _)
+  | ApUnboundLivelit(_, _) =>
+    /* subsumption */
     switch (syn_exp(ctx, e)) {
     | None => None
     | Some(ty') =>
@@ -746,12 +747,6 @@ and ana_exp = (ctx: Contexts.t, e: UHExp.t, ty: HTyp.t): option(unit) =>
       } else {
         None;
       }
-    }
-  | Parenthesized(block) => ana_block(ctx, block, ty)
-  | OpSeq(skel, seq) =>
-    switch (ana_skel(ctx, skel, seq, ty, None)) {
-    | None => None
-    | Some(_) => Some()
     }
   }
 and ana_rules =
@@ -1529,22 +1524,48 @@ and syn_fix_holes_exp =
         HTyp.Hole,
       );
     (Case(NotInHole, block, rules, Some(Hole)), HTyp.Hole, u_gen);
-  | ApPalette(_, name, serialized_model, psi) =>
-    let palette_ctx = Contexts.palette_ctx(ctx);
-    switch (PaletteCtx.lookup(palette_ctx, name)) {
-    | None => raise(PaletteCtx.InvalidPaletteHoleName) /* TODO invalid palette name hole */
-    | Some(palette_defn) =>
+  | ApLivelit(_, name, serialized_model, si) =>
+    let livelit_ctx = Contexts.livelit_ctx(ctx);
+    switch (LivelitCtx.lookup(livelit_ctx, name)) {
+    | None =>
+      let (u, u_gen) = MetaVarGen.next(u_gen);
+      (ApUnboundLivelit(u, name), Hole, u_gen);
+    | Some(livelit_defn) =>
       let (splice_map, u_gen) =
         ana_fix_holes_splice_map(
           ctx,
           u_gen,
           ~renumber_empty_holes,
-          SpliceInfo.splice_map(psi),
+          SpliceInfo.splice_map(si),
         );
-      let psi = SpliceInfo.update_splice_map(psi, splice_map);
-      let expansion_ty = palette_defn.expansion_ty;
+      let si = SpliceInfo.update_splice_map(si, splice_map);
+      let expansion_ty = livelit_defn.expansion_ty;
       (
-        ApPalette(NotInHole, name, serialized_model, psi),
+        ApLivelit(NotInHole, name, serialized_model, si),
+        expansion_ty,
+        u_gen,
+      );
+    };
+  | ApUnboundLivelit(_, name) =>
+    let livelit_ctx = Contexts.livelit_ctx(ctx);
+    switch (LivelitCtx.lookup(livelit_ctx, name)) {
+    | None => (e, Hole, u_gen)
+    | Some(livelit_defn) =>
+      /* initialize the livelit if it has come into scope */
+      let init_model_cmd = livelit_defn.init_model;
+      let (init_serialized_model, init_splice_info, u_gen) =
+        SpliceGenMonad.exec(init_model_cmd, SpliceInfo.empty, u_gen);
+      let (splice_map, u_gen) =
+        ana_fix_holes_splice_map(
+          ctx,
+          u_gen,
+          ~renumber_empty_holes,
+          init_splice_info.splice_map,
+        );
+      let si = SpliceInfo.update_splice_map(init_splice_info, splice_map);
+      let expansion_ty = livelit_defn.expansion_ty;
+      (
+        ApLivelit(NotInHole, name, init_serialized_model, si),
         expansion_ty,
         u_gen,
       );
@@ -1649,17 +1670,6 @@ and ana_fix_holes_exp =
     } else {
       (e, u_gen);
     }
-  | Var(_, _, _)
-  | NumLit(_, _)
-  | BoolLit(_, _) =>
-    let (e, ty', u_gen) =
-      syn_fix_holes_exp(ctx, u_gen, ~renumber_empty_holes, e);
-    if (HTyp.consistent(ty, ty')) {
-      (UHExp.set_err_status_t(NotInHole, e), u_gen);
-    } else {
-      let (u, u_gen) = MetaVarGen.next(u_gen);
-      (UHExp.set_err_status_t(InHole(TypeInconsistent, u), e), u_gen);
-    };
   | ListNil(_) =>
     switch (HTyp.matched_list(ty)) {
     | Some(_) => (UHExp.set_err_status_t(NotInHole, e), u_gen)
@@ -1779,7 +1789,12 @@ and ana_fix_holes_exp =
     let (rules, u_gen) =
       ana_fix_holes_rules(ctx, u_gen, ~renumber_empty_holes, rules, ty1, ty);
     (Case(NotInHole, e1, rules, None), u_gen);
-  | ApPalette(_, _, _, _) =>
+  | Var(_, _, _)
+  | NumLit(_, _)
+  | BoolLit(_, _)
+  | ApLivelit(_, _, _, _)
+  | ApUnboundLivelit(_, _) =>
+    /* subsumption */
     let (e', ty', u_gen) =
       syn_fix_holes_exp(ctx, u_gen, ~renumber_empty_holes, e);
     if (HTyp.consistent(ty, ty')) {

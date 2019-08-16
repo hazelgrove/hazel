@@ -8,7 +8,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
   let action_button = (a: Action.t, lbl, key_combo) => {
     let can_perform =
       Action.can_perform(
-        (VarCtx.empty, Palettes.initial_palette_ctx),
+        (VarCtx.empty, Palettes.initial_livelit_ctx),
         edit_state,
         cursor_info,
         a,
@@ -257,22 +257,6 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
       KeyCombo.Details.alt_C,
     );
 
-  /*
-   let can_insert_ap_palette_rs =
-     S.l1(Action.can_construct_palette, cursor_info_rs);
-
-   let constructApPalette =
-     action_input_button(
-       v => Action.Construct(Action.SApPalette("$" ++ v)),
-       s => PaletteName.is_valid("$" ++ s) ? Some(s) : None,
-       can_insert_ap_palette_rs,
-       Vdom.Node.text("apply palette"),
-       "ap_palette_input",
-       KeyCombo.Details.dollar,
-       "enter palette name",
-     );
-   */
-
   let type_construction_actions =
     Vdom.(
       Node.div(
@@ -418,7 +402,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
              let a = action(arg);
              switch (
                Action.syn_perform_block(
-                 (VarCtx.empty, Palettes.initial_palette_ctx),
+                 (VarCtx.empty, Palettes.initial_livelit_ctx),
                  a,
                  m,
                )
@@ -530,7 +514,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
    let constructApPalette =
      action_input_button(
        v => Action.Construct(Action.SApPalette("$" ++ v)),
-       s => PaletteName.is_valid("$" ++ s) ? Some(s) : None,
+       s => LivelitName.is_valid("$" ++ s) ? Some(s) : None,
        can_insert_ap_palette_rs,
        Vdom.Node.text("apply palette"),
        "ap_palette_input",

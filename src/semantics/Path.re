@@ -70,9 +70,9 @@ and of_zexp = (ze: ZExp.t): t =>
     cons'(prefix_len + 1, of_zrule(zrule));
   | CaseZA(_, _, rules, zann) =>
     cons'(List.length(rules) + 1, of_ztyp(zann))
-  | ApPaletteZ(_, _, _, zpsi) =>
-    let zhole_map = zpsi.zsplice_map;
-    let (n, (_, zblock)) = ZNatMap.prj_z_kv(zhole_map);
+  | ApLivelitZ(_, _, _, zsi) =>
+    let zsplice_map = zsi.zsplice_map;
+    let (n, (_, zblock)) = ZNatMap.prj_z_kv(zsplice_map);
     cons'(n, of_zblock(zblock));
   }
 and of_zrule = (zrule: ZExp.zrule): t =>
@@ -164,7 +164,11 @@ and term_steps_of_zexp =
       1 + List.length(rules),
       ...term_steps_of_ztyp(zann),
     ]
-  | ApPaletteZ(_, _, _, _) => []
+  | ApLivelitZ(_, _, _, zsi) => {
+      let zsplice_map = zsi.zsplice_map;
+      let (n, (_, zblock)) = ZNatMap.prj_z_kv(zsplice_map);
+      [n, ...term_steps_of_zblock(zblock)];
+    }
 and term_steps_of_zrule =
   fun
   | CursorR(_, _) => []
@@ -221,8 +225,9 @@ and before_exp = (~steps=[], e: UHExp.t): t =>
   | Lam(_, _, _, _)
   | Inj(_, _, _)
   | Case(_, _, _, _)
-  | Parenthesized(_)
-  | ApPalette(_, _, _, _) => (steps, OnDelim(0, Before))
+  | Parenthesized(_) => (steps, OnDelim(0, Before))
+  | ApLivelit(_, _, _, _)
+  | ApUnboundLivelit(_) => (steps, OnText(0))
   | OpSeq(_, seq) =>
     let (first, _) = seq |> OperatorSeq.split0;
     before_exp(~steps=steps @ [0], first);
@@ -459,7 +464,8 @@ and follow_exp_and_place_cursor =
     | (_, Var(_, _, _))
     | (_, NumLit(_, _))
     | (_, BoolLit(_, _))
-    | (_, ListNil(_)) => None
+    | (_, ListNil(_))
+    | (_, ApUnboundLivelit(_)) => None
     /* inner nodes */
     | (0, Parenthesized(block)) =>
       switch (
@@ -538,9 +544,9 @@ and follow_exp_and_place_cursor =
         | Some(zrules) => Some(CaseZR(err, block, zrules, ann))
         }
       }
-    | (n, ApPalette(_, name, serialized_model, splice_info)) =>
+    | (n, ApLivelit(err, name, model, si)) =>
       switch (
-        ZSpliceInfo.select_opt(splice_info, n, ((ty, block)) =>
+        ZSpliceInfo.select_opt(si, n, ((ty, block)) =>
           switch (
             follow_block_and_place_cursor(xs, pcl, pce, pcr, pcp, pct, block)
           ) {
@@ -550,8 +556,7 @@ and follow_exp_and_place_cursor =
         )
       ) {
       | None => None
-      | Some(zsplice_info) =>
-        Some(ApPaletteZ(NotInHole, name, serialized_model, zsplice_info))
+      | Some(zsi) => Some(ApLivelitZ(err, name, model, zsi))
       }
     }
   }
@@ -748,6 +753,7 @@ let follow_e_or_fail = (path: t, e: UHExp.t): ZExp.t =>
 
 type hole_desc =
   | VHole(MetaVar.t)
+  | LivelitHole(MetaVar.t)
   | TypHole
   | PatHole(MetaVar.t)
   | ExpHole(MetaVar.t);
@@ -887,6 +893,24 @@ let rec holes_pat =
        )
   };
 
+let holes_of_err_exp = (e, err, rev_steps, holes) =>
+  switch (err) {
+  | NotInHole => holes
+  | InHole(_, u) => [
+      (ExpHole(u), rev_steps |> List.rev |> append(before_exp(e))),
+      ...holes,
+    ]
+  };
+
+let holes_of_var_err_exp = (e, var_err, rev_steps, holes) =>
+  switch (var_err) {
+  | NotInVHole => holes
+  | InVHole(_, u) => [
+      (VHole(u), rev_steps |> List.rev |> append(before_exp(e))),
+      ...holes,
+    ]
+  };
+
 let rec holes_block =
         (
           Block(lines, e): UHExp.block,
@@ -930,25 +954,13 @@ and holes_exp =
       (ExpHole(u), (rev_steps |> List.rev, OnDelim(0, Before))),
       ...holes,
     ]
-  | Var(InHole(_, u), _, _)
-  | NumLit(InHole(_, u), _)
-  | BoolLit(InHole(_, u), _)
-  | ListNil(InHole(_, u))
-  | Lam(InHole(_, u), _, _, _)
-  | Inj(InHole(_, u), _, _)
-  | Case(InHole(_, u), _, _, _)
-  | ApPalette(InHole(_, u), _, _, _) => [
-      (ExpHole(u), rev_steps |> List.rev |> append(before_exp(e))),
-      ...holes,
-    ]
-  | Var(_, InVHole(_, u), _) => [
-      (VHole(u), (rev_steps |> List.rev, OnText(0))),
-      ...holes,
-    ]
-  | Var(NotInHole, NotInVHole, _) => holes
-  | NumLit(NotInHole, _) => holes
-  | BoolLit(NotInHole, _) => holes
-  | ListNil(NotInHole) => holes
+  | Var(err, var_err, _) =>
+    holes
+    |> holes_of_err_exp(e, err, rev_steps)
+    |> holes_of_var_err_exp(e, var_err, rev_steps)
+  | NumLit(err, _)
+  | BoolLit(err, _)
+  | ListNil(err) => holes_of_err_exp(e, err, rev_steps, holes)
   | Parenthesized(block) => holes_block(block, [0, ...rev_steps], holes)
   | OpSeq(skel, seq) =>
     holes
@@ -961,16 +973,19 @@ and holes_exp =
          skel,
          seq,
        )
-  | Inj(NotInHole, _, block) => holes_block(block, [0, ...rev_steps], holes)
-  | Lam(NotInHole, p, ann, block) =>
+  | Inj(err, _, block) =>
+    holes_block(block, [0, ...rev_steps], holes)
+    |> holes_of_err_exp(e, err, rev_steps)
+  | Lam(err, p, ann, block) =>
     let holes = holes_block(block, [2, ...rev_steps], holes);
     let holes =
       switch (ann) {
       | Some(uty) => holes_uty(uty, [1, ...rev_steps], holes)
       | None => holes
       };
-    holes_pat(p, [0, ...rev_steps], holes);
-  | Case(NotInHole, block, rules, ann) =>
+    holes_pat(p, [0, ...rev_steps], holes)
+    |> holes_of_err_exp(e, err, rev_steps);
+  | Case(err, block, rules, ann) =>
     let holes =
       switch (ann) {
       | None => holes
@@ -978,19 +993,26 @@ and holes_exp =
         holes_uty(uty, [List.length(rules) + 1, ...rev_steps], holes)
       };
     let holes = holes_rules(rules, 1, rev_steps, holes);
-    holes_block(block, [0, ...rev_steps], holes);
-  | ApPalette(NotInHole, _, _, psi) =>
-    let splice_map = psi.splice_map;
-    let splice_order = psi.splice_order;
-    List.fold_right(
-      (i, holes) =>
-        switch (NatMap.lookup(splice_map, i)) {
-        | None => holes
-        | Some((_, block)) => holes_block(block, [i, ...rev_steps], holes)
-        },
-      splice_order,
-      holes,
-    );
+    holes_block(block, [0, ...rev_steps], holes)
+    |> holes_of_err_exp(e, err, rev_steps);
+  | ApLivelit(err, _, _, si) =>
+    let splice_map = si.splice_map;
+    let splice_order = si.splice_order;
+    let holes =
+      List.fold_right(
+        (i, holes) =>
+          switch (NatMap.lookup(splice_map, i)) {
+          | None => holes
+          | Some((_, block)) => holes_block(block, [i, ...rev_steps], holes)
+          },
+        splice_order,
+        holes,
+      );
+    holes_of_err_exp(e, err, rev_steps, holes);
+  | ApUnboundLivelit(u, _) => [
+      (LivelitHole(u), rev_steps |> List.rev |> append(before_exp(e))),
+      ...holes,
+    ]
   }
 and holes_rules =
     (rules: UHExp.rules, offset: int, rev_steps: rev_steps, holes: hole_list)
@@ -1573,7 +1595,12 @@ and holes_ze = (ze: ZExp.t, rev_steps: rev_steps): zhole_list =>
     ) =>
     /* invalid cursor position */
     no_holes
-  | CursorE(_, ApPalette(_, _, _, _)) => no_holes /* TODO[livelits] */
+  | CursorE(_, ApLivelit(_, _, _, _) as e1) => {
+      holes_before: [],
+      hole_selected: None,
+      holes_after: holes_exp(e1, rev_steps, []),
+    }
+  | CursorE(_, ApUnboundLivelit(_, _)) => no_holes
   | OpSeqZ(skel, ze0, surround) =>
     holes_OpSeqZ(
       ~holes_tm=holes_exp,
@@ -1667,12 +1694,12 @@ and holes_ze = (ze: ZExp.t, rev_steps: rev_steps): zhole_list =>
       hole_selected,
       holes_after,
     };
-  | ApPaletteZ(_, _, _, zpsi) =>
-    let zsplice_map = zpsi.zsplice_map;
+  | ApLivelitZ(_, _, _, zsi) =>
+    let zsplice_map = zsi.zsplice_map;
     let (n, (_, zblock)) = ZNatMap.prj_z_kv(zsplice_map);
     let {holes_before, hole_selected, holes_after} =
       holes_zblock(zblock, [n, ...rev_steps]);
-    let splice_order = zpsi.splice_order;
+    let splice_order = zsi.splice_order;
     let splice_map = ZNatMap.prj_map(zsplice_map);
     let (splices_before, splices_after) =
       GeneralUtil.split_at(splice_order, n);
@@ -1762,7 +1789,8 @@ let path_to_hole = (hole_list: hole_list, u: MetaVar.t): option(t) =>
         switch (hole_desc) {
         | ExpHole(u')
         | PatHole(u')
-        | VHole(u') => MetaVar.eq(u, u')
+        | VHole(u')
+        | LivelitHole(u') => MetaVar.eq(u, u')
         | TypHole => false
         },
       hole_list,
@@ -1779,6 +1807,7 @@ let path_to_hole_z = (zhole_list: zhole_list, u: MetaVar.t): option(t) => {
   | None =>
     switch (hole_selected) {
     | Some((VHole(u'), path))
+    | Some((LivelitHole(u'), path))
     | Some((ExpHole(u'), path))
     | Some((PatHole(u'), path)) =>
       MetaVar.eq(u, u') ? Some(path) : path_to_hole(holes_after, u)
@@ -1905,7 +1934,7 @@ and prune_trivial_suffix_block__exp = (~steps_of_first_line, e) =>
   switch (e, steps_of_first_line) {
   | (
       EmptyHole(_) | Var(_, _, _) | NumLit(_, _) | BoolLit(_, _) | ListNil(_) |
-      ApPalette(_, _, _, _),
+      ApUnboundLivelit(_, _),
       _,
     )
   | (_, []) => e
@@ -1916,33 +1945,40 @@ and prune_trivial_suffix_block__exp = (~steps_of_first_line, e) =>
       ann,
       prune_trivial_suffix_block(~steps_of_first_line=xs, body),
     )
+  | (Lam(_, _, _, _), _) => e
   | (Inj(err_status, side, body), [0, ...xs]) =>
     Inj(
       err_status,
       side,
       prune_trivial_suffix_block(~steps_of_first_line=xs, body),
     )
+  | (Inj(_, _, _), _) => e
   | (Parenthesized(body), [0, ...xs]) =>
     Parenthesized(prune_trivial_suffix_block(~steps_of_first_line=xs, body))
+  | (Parenthesized(_), _) => e
   | (Case(err_status, scrut, rules, ann), [x, ...xs]) =>
-    switch (x == 0, rules |> ZList.split_at(x - 1)) {
-    | (true, _) =>
+    if (x == 0) {
       Case(
         err_status,
         prune_trivial_suffix_block(~steps_of_first_line=xs, scrut),
         rules,
         ann,
-      )
-    | (false, Some((prefix, rule, suffix))) =>
-      Case(
-        err_status,
-        scrut,
-        prefix
-        @ [prune_trivial_suffix_block__rule(~steps_of_first_line=xs, rule)]
-        @ suffix,
-        ann,
-      )
-    | (false, None) => e
+      );
+    } else {
+      switch (rules |> ZList.split_at(x - 1)) {
+      | Some((prefix, rule, suffix)) =>
+        Case(
+          err_status,
+          scrut,
+          prefix
+          @ [
+            prune_trivial_suffix_block__rule(~steps_of_first_line=xs, rule),
+          ]
+          @ suffix,
+          ann,
+        )
+      | None => e
+      };
     }
   | (OpSeq(skel, seq), [x, ...xs]) =>
     switch (seq |> OperatorSeq.nth_tm(x)) {
@@ -1957,7 +1993,20 @@ and prune_trivial_suffix_block__exp = (~steps_of_first_line, e) =>
         |> Opt.get(() => assert(false));
       OpSeq(skel, seq);
     }
-  | (Lam(_, _, _, _) | Inj(_, _, _) | Parenthesized(_), [_, ..._]) => e
+  | (ApLivelit(err, name, model, si), [i, ...xs]) =>
+    switch (GeneralUtil.NatMap.lookup(si.splice_map, i)) {
+    | Some((ty, block_i)) =>
+      let block_i =
+        prune_trivial_suffix_block(~steps_of_first_line=xs, block_i);
+      let splice_map =
+        GeneralUtil.NatMap.insert_or_update(
+          si.splice_map,
+          (i, (ty, block_i)),
+        );
+      let si = {...si, splice_map};
+      ApLivelit(err, name, model, si);
+    | None => e
+    }
   }
 and prune_trivial_suffix_block__rule =
     (~steps_of_first_line, Rule(p, clause) as rule) =>

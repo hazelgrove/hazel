@@ -966,7 +966,7 @@ module DHExp = {
     | Lam(InHole(TypeInconsistent as reason, u), _, _, _)
     | Inj(InHole(TypeInconsistent as reason, u), _, _)
     | Case(InHole(TypeInconsistent as reason, u), _, _, _)
-    | ApPalette(InHole(TypeInconsistent as reason, u), _, _, _) =>
+    | ApLivelit(InHole(TypeInconsistent as reason, u), _, _, _) =>
       let e' = UHExp.set_err_status_t(NotInHole, e);
       switch (syn_expand_exp(ctx, delta, e')) {
       | DoesNotExpand => DoesNotExpand
@@ -1062,14 +1062,22 @@ module DHExp = {
         }
       };
     | Case(NotInHole, _, _, None) => DoesNotExpand
-    | ApPalette(NotInHole, _name, _serialized_model, _hole_data) =>
-      DoesNotExpand
-    /* TODO fix me */
-    /* let (_, palette_ctx) = ctx in
-       begin match (VarMap.lookup palette_ctx name) with
-       | Some palette_defn ->
-         let expansion_ty = UHExp.PaletteDefinition.expansion_ty palette_defn in
-         let to_exp = UHExp.PaletteDefinition.to_exp palette_defn in
+    | ApLivelit(NotInHole, name, serialized_model, si) =>
+      let livelit_ctx = Contexts.livelit_ctx(ctx);
+      switch (LivelitCtx.lookup(livelit_ctx, name)) {
+      | None => DoesNotExpand
+      | Some(livelit_defn) =>
+        let expand = livelit_defn.expand;
+        let expansion = expand(serialized_model);
+        expansion;
+        let expansion_ty = livelit_defn.expansion_ty;
+        ana_expand_exp(ctx, bound_expansion, ty);
+      };
+    /* let (_, livelit_ctx) = ctx in
+       begin match (VarMap.lookup livelit_ctx name) with
+       | Some livelit_defn ->
+         let expansion_ty = UHExp.LivelitDefinition.expansion_ty livelit_defn in
+         let to_exp = UHExp.LivelitDefinition.to_exp livelit_defn in
          let expansion = to_exp serialized_model in
          let (_, hole_map) = hole_data in
          (* bind each free variable in expansion by wrapping expansion

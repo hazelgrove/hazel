@@ -17,3 +17,4 @@ let check_valid = (s, result) =>
   } else {
     None;
   };
+let length = String.length;

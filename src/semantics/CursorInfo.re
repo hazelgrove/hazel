@@ -18,7 +18,9 @@ type typed =
     ) /* expected type */
   /* cursor is on a tuple of the wrong length */
   | AnaFree(HTyp.t)
-  /* cursor is on a free variable */
+  /* cursor is on a free variable in synthetic position */
+  | AnaFreeLivelit(HTyp.t)
+  /* cursor is on a free livelit */
   | Analyzed(HTyp.t)
   /* none of the above and didn't go through subsumption */
   | AnaSubsumed(HTyp.t, HTyp.t)
@@ -43,6 +45,8 @@ type typed =
   /* cursor is on a keyword in the function position of an ap */
   | SynFree
   /* none of the above, cursor is on a free variable */
+  | SynFreeLivelit
+  /* cursor is on a free livelit in synthetic position */
   | SynKeyword(keyword)
   /* cursor is on a keyword */
   | Synthesized(HTyp.t)
@@ -797,7 +801,7 @@ and _ana_cursor_found_exp =
   | Lam(InHole(TypeInconsistent, _), _, _, _)
   | Inj(InHole(TypeInconsistent, _), _, _)
   | Case(InHole(TypeInconsistent, _), _, _, _)
-  | ApPalette(InHole(TypeInconsistent, _), _, _, _)
+  | ApLivelit(InHole(TypeInconsistent, _), _, _, _)
   | OpSeq(BinOp(InHole(TypeInconsistent, _), _, _, _), _) =>
     let e_nih = UHExp.set_err_status_t(NotInHole, e);
     switch (Statics.syn_exp(ctx, e_nih)) {
@@ -811,7 +815,9 @@ and _ana_cursor_found_exp =
   | Lam(InHole(WrongLength, _), _, _, _)
   | Inj(InHole(WrongLength, _), _, _)
   | Case(InHole(WrongLength, _), _, _, _)
-  | ApPalette(InHole(WrongLength, _), _, _, _) => None
+  | ApLivelit(InHole(WrongLength, _), _, _, _) =>
+    /* Invalid term */
+    None
   | OpSeq(BinOp(InHole(reason, _), Comma, skel1, skel2), _) =>
     switch (ty, reason) {
     | (Prod(ty1, ty2), WrongLength) =>
@@ -828,15 +834,9 @@ and _ana_cursor_found_exp =
   | Var(_, InVHole(Keyword(k), _), _) =>
     Some((AnaKeyword(ty, k), Exp(e), ctx))
   | Var(_, InVHole(Free, _), _) => Some((AnaFree(ty), Exp(e), ctx))
+  | ApUnboundLivelit(_, _) => Some((AnaFreeLivelit(ty), Exp(e), ctx))
   | ListNil(NotInHole) => Some((Analyzed(ty), Exp(e), ctx))
   | EmptyHole(_)
-  | Var(NotInHole, NotInVHole, _)
-  | NumLit(NotInHole, _)
-  | BoolLit(NotInHole, _) =>
-    switch (Statics.syn_exp(ctx, e)) {
-    | None => None
-    | Some(ty') => Some((AnaSubsumed(ty, ty'), Exp(e), ctx))
-    }
   | Case(NotInHole, _, _, _) => Some((Analyzed(ty), Exp(e), ctx))
   | Lam(NotInHole, _, ann, _) =>
     switch (HTyp.matched_arrow(ty)) {
@@ -864,7 +864,11 @@ and _ana_cursor_found_exp =
   | OpSeq(BinOp(NotInHole, Times, _, _), _)
   | OpSeq(BinOp(NotInHole, LessThan, _, _), _)
   | OpSeq(BinOp(NotInHole, Space, _, _), _)
-  | ApPalette(NotInHole, _, _, _) =>
+  | Var(NotInHole, NotInVHole, _)
+  | NumLit(NotInHole, _)
+  | BoolLit(NotInHole, _)
+  | ApLivelit(NotInHole, _, _, _) =>
+    /* subsumption */
     switch (Statics.syn_exp(ctx, e)) {
     | None => None
     | Some(ty') => Some((AnaSubsumed(ty, ty'), Exp(e), ctx))
@@ -1072,8 +1076,8 @@ and _syn_cursor_info =
     };
   | CaseZA(_, _, _, zann) =>
     cursor_info_typ(~node_steps, ~term_steps, ctx, zann)
-  | ApPaletteZ(_, _, _, zpsi) =>
-    let (ty, zblock) = GeneralUtil.ZNatMap.prj_z_v(zpsi.zsplice_map);
+  | ApLivelitZ(_, _, _, zsi) =>
+    let (ty, zblock) = GeneralUtil.ZNatMap.prj_z_v(zsi.zsplice_map);
     _ana_cursor_info_block(~node_steps, ~term_steps, ctx, zblock, ty);
   };
 }
@@ -1153,7 +1157,9 @@ and _ana_cursor_info =
   | CaseZE(InHole(WrongLength, _), _, _, _)
   | CaseZR(InHole(WrongLength, _), _, _, _)
   | CaseZA(InHole(WrongLength, _), _, _, _)
-  | ApPaletteZ(InHole(WrongLength, _), _, _, _) => None
+  | ApLivelitZ(InHole(WrongLength, _), _, _, _) =>
+    /* invalid term */
+    None
   | LamZP(InHole(TypeInconsistent, _), _, _, _)
   | LamZA(InHole(TypeInconsistent, _), _, _, _)
   | LamZE(InHole(TypeInconsistent, _), _, _, _)
@@ -1161,7 +1167,7 @@ and _ana_cursor_info =
   | CaseZE(InHole(TypeInconsistent, _), _, _, _)
   | CaseZR(InHole(TypeInconsistent, _), _, _, _)
   | CaseZA(InHole(TypeInconsistent, _), _, _, _)
-  | ApPaletteZ(InHole(TypeInconsistent, _), _, _, _) =>
+  | ApLivelitZ(InHole(TypeInconsistent, _), _, _, _) =>
     _syn_cursor_info(~node_steps, ~term_steps, ~frame, ctx, ze)
   /* zipper not in hole */
   | LamZP(NotInHole, zp, ann, _) =>
@@ -1215,7 +1221,7 @@ and _ana_cursor_info =
     }
   | CaseZA(NotInHole, _, _, zann) =>
     cursor_info_typ(~node_steps, ~term_steps, ctx, zann)
-  | ApPaletteZ(NotInHole, _, _, _) =>
+  | ApLivelitZ(NotInHole, _, _, _) =>
     _syn_cursor_info(~node_steps, ~term_steps, ~frame, ctx, ze)
   }
 and _ana_cursor_info_rule =
@@ -1373,7 +1379,7 @@ and _syn_cursor_info_skel =
             _position,
           ))
         | Some((
-            Block(_, ApPalette(InHole(TypeInconsistent, _), _, _, _)) as outer_block,
+            Block(_, ApLivelit(InHole(TypeInconsistent, _), _, _, _)) as outer_block,
             _position,
           )) =>
           let outer_block_nih =

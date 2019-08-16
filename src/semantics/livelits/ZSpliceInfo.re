@@ -34,3 +34,16 @@ let select_opt =
     }
   };
 };
+
+let prj_ze = (zsi: t('exp, 'zexp)): 'zexp => {
+  let (_, ze) = GeneralUtil.ZNatMap.prj_z_v(zsi.zsplice_map);
+  ze;
+};
+
+let prj_z = (zsi: t('exp, 'zexp)): (HTyp.t, 'zexp) =>
+  GeneralUtil.ZNatMap.prj_z_v(zsi.zsplice_map);
+
+let update_z = (zsi: t('exp, 'zexp), z: (HTyp.t, 'zexp)): t('exp, 'zexp) => {
+  ...zsi,
+  zsplice_map: GeneralUtil.ZNatMap.update_z(zsi.zsplice_map, z),
+};

@@ -107,7 +107,7 @@ type shape =
   | SLine
   | SCase
   | SOp(op_shape)
-  | SApPalette(PaletteName.t)
+  | SApPalette(LivelitName.t)
   /* pattern-only shapes */
   | SWild;
 
@@ -4730,18 +4730,18 @@ and syn_perform_exp =
       }
     }
   | (Construct(SApPalette(name)), CursorE(_, EmptyHole(_))) =>
-    let palette_ctx = Contexts.palette_ctx(ctx);
-    switch (PaletteCtx.lookup(palette_ctx, name)) {
+    let livelit_ctx = Contexts.livelit_ctx(ctx);
+    switch (LivelitCtx.lookup(livelit_ctx, name)) {
     | None => Failed
-    | Some(palette_defn) =>
-      let init_model_cmd = palette_defn.init_model;
+    | Some(livelit_defn) =>
+      let init_model_cmd = livelit_defn.init_model;
       let (init_model, init_splice_info, u_gen) =
         SpliceGenMonad.exec(init_model_cmd, SpliceInfo.empty, u_gen);
       switch (Statics.ana_splice_map(ctx, init_splice_info.splice_map)) {
       | None => Failed
       | Some(splice_ctx) =>
-        let expansion_ty = palette_defn.expansion_ty;
-        let expand = palette_defn.expand;
+        let expansion_ty = livelit_defn.expansion_ty;
+        let expand = livelit_defn.expand;
         let expansion = expand(init_model);
         switch (Statics.ana_block(splice_ctx, expansion, expansion_ty)) {
         | None => Failed
@@ -4761,14 +4761,14 @@ and syn_perform_exp =
   | (Construct(SApPalette(_)), CursorE(_, _)) => Failed
   /* TODO
      | (UpdateApPalette(_), CursorE(_, ApPalette(_, _name, _, _hole_data))) =>
-        let (_, palette_ctx) = ctx;
-        switch (PaletteCtx.lookup(palette_ctx, name)) {
-        | Some(palette_defn) =>
+        let (_, livelit_ctx) = ctx;
+        switch (LivelitCtx.lookup(livelit_ctx, name)) {
+        | Some(livelit_defn) =>
           let (q, u_gen') = UHExp.HoleRefs.exec(monad, hole_data, u_gen);
           let (serialized_model, hole_data') = q;
-          let expansion_ty = UHExp.PaletteDefinition.expansion_ty(palette_defn);
+          let expansion_ty = UHExp.LivelitDefinition.expansion_ty(livelit_defn);
           let expansion =
-            (UHExp.PaletteDefinition.to_exp(palette_defn))(serialized_model);
+            (UHExp.LivelitDefinition.to_exp(livelit_defn))(serialized_model);
           let (_, hole_map') = hole_data';
           let expansion_ctx =
             UHExp.PaletteHoleData.extend_ctx_with_hole_map(ctx, hole_map');

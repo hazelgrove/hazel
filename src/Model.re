@@ -134,7 +134,7 @@ exception MissingCursorInfo;
 let cursor_info_of_edit_state = ((zblock, _, _): edit_state): CursorInfo.t =>
   switch (
     CursorInfo.syn_cursor_info_block(
-      (VarCtx.empty, Palettes.initial_palette_ctx),
+      (VarCtx.empty, Palettes.initial_livelit_ctx),
       zblock,
     )
   ) {
@@ -148,7 +148,7 @@ let result_of_edit_state = ((zblock, _, _): edit_state): result => {
   open Dynamics;
   let expanded =
     DHExp.syn_expand_block(
-      (VarCtx.empty, Palettes.initial_palette_ctx),
+      (VarCtx.empty, Palettes.initial_livelit_ctx),
       Delta.empty,
       ZExp.erase_block(zblock),
     );
@@ -366,7 +366,7 @@ let perform_edit_action = (model: t, a: Action.t): t => {
   switch (
     Action.syn_perform_block(
       ~ci=model.cursor_info,
-      (VarCtx.empty, Palettes.initial_palette_ctx),
+      (VarCtx.empty, Palettes.initial_livelit_ctx),
       a,
       edit_state_of(model),
     )
@@ -428,7 +428,7 @@ let load_example = (model: t, block: UHExp.block): t =>
   model
   |> update_edit_state(
        Statics.syn_fix_holes_zblock(
-         (VarCtx.empty, PaletteCtx.empty),
+         (VarCtx.empty, LivelitCtx.empty),
          MetaVarGen.init,
          ZExp.place_before_block(block),
        ),
