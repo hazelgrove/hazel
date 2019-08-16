@@ -944,10 +944,7 @@ and view_of_sseq_head_arg =
               indentation,
             ),
           ],
-        [
-          sspace_vnode,
-          view_of_snode(~inject, ~indent_level=Indented(indentation), sarg),
-        ],
+        [view_of_snode(~inject, ~indent_level=Indented(indentation), sarg)],
       )
     };
   view_of_sseq_line(
@@ -1060,11 +1057,7 @@ and view_of_sseq_tail_arg =
     switch (sseq_indent_level |> tab, is_skinny) {
     | (Indented(_), _) => (
         [],
-        (
-          trimmed_op_stokens
-          |> List.map(view_of_stoken(~inject, ~node_steps=sseq_steps))
-        )
-        @ [
+        [
           sspace_vnode,
           view_of_snode(~inject, ~indent_level=sseq_indent_level, snode),
         ],
@@ -1076,7 +1069,6 @@ and view_of_sseq_tail_arg =
           |> List.map(view_of_stoken(~inject, ~node_steps=sseq_steps))
         )
         @ [
-          sspace_vnode,
           view_of_snode(
             ~inject,
             ~indent_level=ToBeIndented(indentation + op_margin),
@@ -1092,12 +1084,7 @@ and view_of_sseq_tail_arg =
             indentation + op_margin,
           ),
         ],
-        (
-          trimmed_op_stokens
-          |> List.map(view_of_stoken(~inject, ~node_steps=sseq_steps))
-        )
-        @ [
-          sspace_vnode,
+        [
           view_of_snode(
             ~inject,
             ~indent_level=Indented(indentation + op_margin),
