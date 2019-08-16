@@ -518,6 +518,11 @@ let tab = (~k=1) =>
   | ToBeIndented(m) => ToBeIndented(m + k * tab_length)
   | Indented(m) => Indented(m + k * tab_length);
 
+let increment = (~k=1) =>
+  fun
+  | ToBeIndented(m) => ToBeIndented(m + k)
+  | Indented(m) => Indented(m + k);
+
 let indent_level_of_snode_elem = elem =>
   elem
   |> JSUtil.force_get_attr("indent_level")
@@ -528,14 +533,27 @@ let cls_Block = "Block";
 
 let snode_elem_is_Block = JSUtil.elem_has_cls(cls_Block);
 
-let indent_level_attr = indent_level =>
-  Vdom.Attr.create(
-    "indent_level",
-    Sexp.to_string(sexp_of_indent_level(indent_level)),
-  );
+let indent_level_attr = (~op_margin=?, indent_level) =>
+  switch (op_margin) {
+  | None =>
+    Vdom.Attr.create(
+      "indent_level",
+      Sexp.to_string(sexp_of_indent_level(indent_level)),
+    )
+  | Some(k) =>
+    Vdom.Attr.create(
+      "indent_level",
+      Sexp.to_string(sexp_of_indent_level(indent_level |> increment(~k))),
+    )
+  };
 
 let snode_attrs =
-    (~inject: Update.Action.t => Vdom.Event.t, ~indent_level, snode: snode)
+    (
+      ~inject: Update.Action.t => Vdom.Event.t,
+      ~op_margin=?,
+      ~indent_level,
+      snode: snode,
+    )
     : list(Vdom.Attr.t) => {
   Vdom.(
     switch (snode) {
@@ -606,7 +624,7 @@ let snode_attrs =
           |> sexp_of_child_indices
           |> Sexplib.Sexp.to_string,
         ),
-        indent_level_attr(indent_level),
+        indent_level_attr(~op_margin?, indent_level),
         ...shape_attrs,
       ]
       @ (
@@ -699,7 +717,7 @@ let rec view_of_snode =
           snode,
         )
         : Vdom.Node.t => {
-  let attrs = snode_attrs(~inject, ~indent_level, snode);
+  let attrs = snode_attrs(~inject, ~op_margin?, ~indent_level, snode);
   switch (snode) {
   | SSeq(steps, is_multi_line, shead, stail) =>
     let (shd, sargs) = shead;
