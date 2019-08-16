@@ -787,32 +787,44 @@ let rec view_of_snode =
         ~line_no=i,
         sline,
       );
+    let indent_levels =
+      indent_level
+      |> replicate(List.length(slines))
+      |> List.mapi((i, indent_level) =>
+           switch (indent_level) {
+           | Indented(_) => indent_level
+           | ToBeIndented(n) =>
+             switch (op_margin) {
+             | None =>
+               switch (shape, i == List.length(slines) - 1) {
+               | (Block(true), true) =>
+                 // If this SBox is a Block that concludes with a let line
+                 // followed by a trailing empty hole, then we do not separate
+                 // those last two lines by a newline even when the whole
+                 // block is multi-line. Thus, we also need to take care not
+                 // to print indentation before the trailing empty hole.
+                 Indented(n)
+               | (_, _) => indent_level
+               }
+             | Some(m) =>
+               // If this SBox is trailing an operator in a multi-line opseq,
+               // then we have already printed the indentation for the first
+               // sline of this SBox before the operator. Also need to increase
+               // the to-be-applied indentation of the remaining slines.
+               i == 0 ? Indented(m + n) : ToBeIndented(m + n)
+             }
+           }
+         );
     let vlines =
-      switch (op_margin) {
-      | None =>
-        slines |> List.mapi(view_of_sline(~node_indent_level=indent_level))
-      | Some(m) =>
-        // If this SBox is trailing an operator in a multi-line opseq,
-        // then we have already printed the indentation for the first
-        // sline of this SBox before the operator. Also need to increase
-        // the to-be-applied indentation of the remaining slines.
-        slines
-        |> List.mapi((i, sline) =>
-             view_of_sline(
-               ~node_indent_level=
-                 switch (indent_level, i) {
-                 | (Indented(_), _) => assert(false)
-                 | (ToBeIndented(n), 0) => Indented(m + n)
-                 | (ToBeIndented(n), _) => ToBeIndented(m + n)
-                 },
-               i,
-               sline,
-             )
-           )
-      };
+      List.combine(slines, indent_levels)
+      |> List.mapi((i, (sline, indent_level)) =>
+           view_of_sline(~node_indent_level=indent_level, i, sline)
+         );
     let newlined_vlines =
       switch (shape) {
       | Block(true) =>
+        // do not add a let line between a let line
+        // and its concluding trailing empty hole
         switch (vlines |> split_last) {
         | None => assert(false)
         | Some((vleading, vconclusion)) =>
