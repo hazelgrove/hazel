@@ -4451,6 +4451,22 @@ and syn_perform_exp =
     Succeeded((E(new_ze), ty, u_gen));
   | (Construct(_), CursorE(Staging(_), _)) => Failed
   | (
+      Construct(SLine),
+      CaseZR(err, scrut, (prefix, CursorR(Staging(k), rule), suffix), ann),
+    ) =>
+    let (new_ze, ty, u_gen) =
+      Statics.syn_fix_holes_zexp(
+        ctx,
+        u_gen,
+        CaseZR(
+          err,
+          scrut,
+          (prefix, CursorR(OnDelim(k, After), rule), suffix),
+          ann,
+        ),
+      );
+    Succeeded((E(new_ze), ty, u_gen));
+  | (
       Construct(SOp(SSpace)),
       CursorE(OnDelim(_, After), _) |
       CaseZR(_, _, (_, CursorR(OnDelim(_, After), _), _), _),
@@ -6367,6 +6383,23 @@ and ana_perform_exp =
       );
     Succeeded((E(new_ze), u_gen));
   | (Construct(_), CursorE(Staging(_), _)) => Failed
+  | (
+      Construct(SLine),
+      CaseZR(err, scrut, (prefix, CursorR(Staging(k), rule), suffix), ann),
+    ) =>
+    let (new_ze, u_gen) =
+      Statics.ana_fix_holes_zexp(
+        ctx,
+        u_gen,
+        CaseZR(
+          err,
+          scrut,
+          (prefix, CursorR(OnDelim(k, After), rule), suffix),
+          ann,
+        ),
+        ty,
+      );
+    Succeeded((E(new_ze), u_gen));
   | (
       Construct(SOp(SSpace)),
       CursorE(OnDelim(_, After), _) |
