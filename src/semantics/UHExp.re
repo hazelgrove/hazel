@@ -734,11 +734,18 @@ let has_concluding_let_line =
 let rec is_multi_line =
   fun
   | Block(lines, e) as block =>
-    if (List.length(lines) == 1 && has_concluding_let_line(block)) {
+    if (lines |> List.exists(is_multi_line_line) || is_multi_line_exp(e)) {
+      true;
+    } else if (List.length(lines) == 1 && has_concluding_let_line(block)) {
       false;
     } else {
       List.length(lines) > 0 || is_multi_line_exp(e);
     }
+and is_multi_line_line =
+  fun
+  | EmptyLine => false
+  | ExpLine(e) => is_multi_line_exp(e)
+  | LetLine(_, _, def) => is_multi_line(def)
 and is_multi_line_exp =
   fun
   | EmptyHole(_)
