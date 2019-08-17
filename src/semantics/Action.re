@@ -119,7 +119,7 @@ type t =
   | MoveRight
   | MoveToNextHole
   | MoveToPrevHole
-  | LivelitAction(SerializedAction.t)
+  | PerformLivelitAction(SerializedAction.t)
   | Delete
   | Backspace
   | Construct(shape)
@@ -446,7 +446,7 @@ let rec perform_ty = (a: t, zty: ZTyp.t): result(ZTyp.t) =>
       Succeeded(OpSeqZ(skel, zty0, surround));
     }
   /* Invalid actions at the type level */
-  | (UpdateApPalette(_), _)
+  | (PerformLivelitAction(_), _)
   | (Construct(SAsc), _)
   | (Construct(SLet), _)
   | (Construct(SLine), _)
@@ -456,7 +456,7 @@ let rec perform_ty = (a: t, zty: ZTyp.t): result(ZTyp.t) =>
   | (Construct(SListNil), _)
   | (Construct(SInj(_)), _)
   | (Construct(SCase), _)
-  | (Construct(SApPalette(_)), _)
+  | (Construct(SLivelitName(_)), _)
   | (Construct(SWild), _) => Failed
   };
 
@@ -1898,8 +1898,8 @@ let rec syn_perform_pat =
       }
     | _ => Failed /* should never happen */
     };
-  | (UpdateApPalette(_), _)
-  | (Construct(SApPalette(_)), _)
+  | (PerformLivelitAction(_), _)
+  | (Construct(SLivelitName(_)), _)
   | (Construct(SNum), _)
   | (Construct(SBool), _)
   | (Construct(SList), _)
@@ -2588,8 +2588,8 @@ and ana_perform_pat =
       }
     }
   /* Invalid actions at the pattern level */
-  | (UpdateApPalette(_), _)
-  | (Construct(SApPalette(_)), _)
+  | (PerformLivelitAction(_), _)
+  | (Construct(SLivelitName(_)), _)
   | (Construct(SNum), _)
   | (Construct(SBool), _)
   | (Construct(SList), _)
@@ -3412,7 +3412,7 @@ let rec syn_perform_block =
     syn_perform_block(~ci, ctx, keyword_action(k), (zblock, Hole, u_gen));
   /* Zipper Cases */
   | (
-      Backspace | Delete | Construct(_) | UpdateApPalette(_) | ShiftLeft |
+      Backspace | Delete | Construct(_) | PerformLivelitAction(_) | ShiftLeft |
       ShiftRight |
       ShiftUp |
       ShiftDown,
@@ -3431,7 +3431,7 @@ let rec syn_perform_block =
       Succeeded((zblock, ty, u_gen));
     }
   | (
-      Backspace | Delete | Construct(_) | UpdateApPalette(_) | ShiftLeft |
+      Backspace | Delete | Construct(_) | PerformLivelitAction(_) | ShiftLeft |
       ShiftRight |
       ShiftUp |
       ShiftDown,
@@ -3908,7 +3908,6 @@ and syn_perform_line =
         }
       };
     }
-  | (UpdateApPalette(_), _) => Failed
   }
 and syn_perform_exp =
     (
