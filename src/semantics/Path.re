@@ -1103,7 +1103,7 @@ let rec _holes_surround =
     } else {
       ([], []);
     };
-  | BinOp(err, op, skel1, skel2) =>
+  | BinOp(err, op, skel1, skel2) when op |> is_space =>
     let (holes_before1, holes_after1) =
       _holes_surround(
         ~holes_tm,
@@ -1132,45 +1132,64 @@ let rec _holes_surround =
       holes_before1 @ holes_before2,
       holes_after1 @ holes_after2,
     );
-    let steps = rev_steps |> List.rev;
-    switch (
-      err,
-      op |> is_space,
-      surrounded_index < (skel2 |> Skel.leftmost_tm_index),
-    ) {
-    | (NotInHole, _, _) => (holes_before, holes_after)
-    | (InHole(_, u), true, _) =>
-      let tm_before_space =
+    switch (err) {
+    | NotInHole => (holes_before, holes_after)
+    | InHole(_, u) =>
+      let steps = rev_steps |> List.rev;
+      let spaced_subseq_hd_index = skel1 |> Skel.leftmost_tm_index;
+      let spaced_subseq_hd =
         seq
-        |> OperatorSeq.nth_tm((skel2 |> Skel.leftmost_tm_index) - 1)
+        |> OperatorSeq.nth_tm(spaced_subseq_hd_index)
         |> Opt.get(() => assert(false));
-      (
-        holes_before
-        @ [
-          (hole_desc(u), steps |> append(path_before_tm(tm_before_space))),
-        ],
-        holes_after,
+      let hole = (
+        hole_desc(u),
+        steps |> append(path_before_tm(spaced_subseq_hd)),
       );
-    | (InHole(_, u), false, true) => (
-        holes_before
-        @ [
-          (
-            hole_desc(u),
-            (steps, OnDelim(skel2 |> Skel.leftmost_tm_index, Before)),
-          ),
-        ],
-        holes_after,
-      )
-    | (InHole(_, u), false, false) => (
-        holes_before,
-        [
-          (
-            hole_desc(u),
-            (steps, OnDelim(skel2 |> Skel.leftmost_tm_index, Before)),
-          ),
-          ...holes_after,
-        ],
-      )
+      // hole around whole Space skel comes before any hole in subskels
+      ([hole, ...holes_before], holes_after);
+    };
+  | BinOp(err, _, skel1, skel2) =>
+    let (holes_before1, holes_after1) =
+      _holes_surround(
+        ~holes_tm,
+        ~hole_desc,
+        ~is_space,
+        ~path_before_tm,
+        ~rev_steps,
+        ~surrounded_index,
+        skel1,
+        seq,
+      );
+    let (holes_before2, holes_after2) =
+      _holes_surround(
+        ~holes_tm,
+        ~hole_desc,
+        ~is_space,
+        ~path_before_tm,
+        ~rev_steps,
+        ~surrounded_index,
+        skel2,
+        seq,
+      );
+    // holes_after1 is nonempty iff holes_before2 is empty,
+    // therefore it's safe to crisscross
+    let (holes_before, holes_after) = (
+      holes_before1 @ holes_before2,
+      holes_after1 @ holes_after2,
+    );
+    switch (err) {
+    | NotInHole => (holes_before, holes_after)
+    | InHole(_, u) =>
+      let hole = (
+        hole_desc(u),
+        (
+          rev_steps |> List.rev,
+          OnDelim(skel2 |> Skel.leftmost_tm_index, Before),
+        ),
+      );
+      surrounded_index < (skel2 |> Skel.leftmost_tm_index)
+        ? (holes_before @ [hole], holes_after)
+        : (holes_before, [hole, ...holes_after]);
     };
   };
 };
