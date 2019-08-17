@@ -773,7 +773,7 @@ let rec holes_skel =
   | Placeholder(n) =>
     let tm_n = seq |> OperatorSeq.nth_tm(n) |> Opt.get(() => assert(false));
     holes |> holes_tm(tm_n, [n, ...rev_steps]);
-  | BinOp(err_status, op, skel1, skel2) =>
+  | BinOp(err, op, skel1, skel2) when op |> is_space =>
     holes
     |> holes_skel(
          ~holes_tm,
@@ -786,24 +786,50 @@ let rec holes_skel =
        )
     |> (
       holes =>
-        switch (err_status, op |> is_space) {
-        | (NotInHole, _) => holes
-        | (InHole(_, u), true) =>
-          let before_space_index = (skel2 |> Skel.leftmost_tm_index) - 1;
-          let tm_before_space =
+        switch (err) {
+        | NotInHole => holes
+        | InHole(_, u) =>
+          let spaced_subseq_hd_index = skel1 |> Skel.leftmost_tm_index;
+          let spaced_subseq_hd =
             seq
-            |> OperatorSeq.nth_tm(before_space_index)
+            |> OperatorSeq.nth_tm(spaced_subseq_hd_index)
             |> Opt.get(() => assert(false));
           [
             (
               hole_desc(u),
-              [before_space_index, ...rev_steps]
+              [spaced_subseq_hd_index, ...rev_steps]
               |> List.rev
-              |> append(path_before_tm(tm_before_space)),
+              |> append(path_before_tm(spaced_subseq_hd)),
             ),
             ...holes,
           ];
-        | (InHole(_, u), false) => [
+        }
+    )
+    |> holes_skel(
+         ~holes_tm,
+         ~hole_desc,
+         ~path_before_tm,
+         ~is_space,
+         ~rev_steps,
+         skel1,
+         seq,
+       )
+  | BinOp(err, _, skel1, skel2) =>
+    holes
+    |> holes_skel(
+         ~holes_tm,
+         ~hole_desc,
+         ~path_before_tm,
+         ~is_space,
+         ~rev_steps,
+         skel2,
+         seq,
+       )
+    |> (
+      holes =>
+        switch (err) {
+        | NotInHole => holes
+        | InHole(_, u) => [
             (
               hole_desc(u),
               (
