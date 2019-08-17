@@ -424,7 +424,7 @@ and syn_line = (ctx: Contexts.t, line: UHExp.line): option(Contexts.t) =>
   | LetLine(p, ann, block) =>
     switch (ann) {
     | Some(uty) =>
-      let ty = UHTyp.expand(uty);
+      let ty = UHTyp.elab(uty);
       let ctx_block = ctx_for_let(ctx, p, ty, block);
       switch (ana_block(ctx_block, block, ty)) {
       | None => None
@@ -473,7 +473,7 @@ and syn_exp = (ctx: Contexts.t, e: UHExp.t): option(HTyp.t) =>
   | Lam(NotInHole, p, ann, block) =>
     let ty1 =
       switch (ann) {
-      | Some(uty) => UHTyp.expand(uty)
+      | Some(uty) => UHTyp.elab(uty)
       | None => HTyp.Hole
       };
     switch (ana_pat(ctx, p, ty1)) {
@@ -493,7 +493,7 @@ and syn_exp = (ctx: Contexts.t, e: UHExp.t): option(HTyp.t) =>
       | R => Some(Sum(Hole, ty))
       }
     }
-  | Case(NotInHole, _, _, Some(uty)) => Some(UHTyp.expand(uty))
+  | Case(NotInHole, _, _, Some(uty)) => Some(UHTyp.elab(uty))
   | Case(NotInHole, _, _, None) => None
   | ApLivelit(NotInHole, name, serialized_model, si) =>
     let livelit_ctx = Contexts.livelit_ctx(ctx);
@@ -512,7 +512,7 @@ and syn_exp = (ctx: Contexts.t, e: UHExp.t): option(HTyp.t) =>
         };
       }
     };
-  | ApUnboundLivelit(_, _) => Some(Hole)
+  | FreeLivelit(_, _) => Some(Hole)
   | Parenthesized(block) => syn_block(ctx, block)
   | OpSeq(skel, seq) =>
     /* NOTE: doesn't check if skel is the correct parse of seq!!! */
@@ -691,7 +691,7 @@ and ana_exp = (ctx: Contexts.t, e: UHExp.t, ty: HTyp.t): option(unit) =>
     | Some((ty1_given, ty2)) =>
       switch (ann) {
       | Some(uty1) =>
-        let ty1_ann = UHTyp.expand(uty1);
+        let ty1_ann = UHTyp.elab(uty1);
         switch (HTyp.consistent(ty1_ann, ty1_given)) {
         | false => None
         | true =>
@@ -713,7 +713,7 @@ and ana_exp = (ctx: Contexts.t, e: UHExp.t, ty: HTyp.t): option(unit) =>
     | Some((ty1, ty2)) => ana_block(ctx, block, pick_side(side, ty1, ty2))
     }
   | Case(NotInHole, block, rules, Some(uty)) =>
-    let ty2 = UHTyp.expand(uty);
+    let ty2 = UHTyp.elab(uty);
     if (HTyp.consistent(ty, ty2)) {
       switch (syn_block(ctx, block)) {
       | None => None
@@ -737,7 +737,7 @@ and ana_exp = (ctx: Contexts.t, e: UHExp.t, ty: HTyp.t): option(unit) =>
   | NumLit(NotInHole, _)
   | BoolLit(NotInHole, _)
   | ApLivelit(NotInHole, _, _, _)
-  | ApUnboundLivelit(_, _) =>
+  | FreeLivelit(_, _) =>
     /* subsumption */
     switch (syn_exp(ctx, e)) {
     | None => None
@@ -1413,7 +1413,7 @@ and syn_fix_holes_line =
   | LetLine(p, ann, block) =>
     switch (ann) {
     | Some(uty1) =>
-      let ty1 = UHTyp.expand(uty1);
+      let ty1 = UHTyp.elab(uty1);
       let ctx_block = ctx_for_let(ctx, p, ty1, block);
       let (block, u_gen) =
         ana_fix_holes_block(
@@ -1487,7 +1487,7 @@ and syn_fix_holes_exp =
   | Lam(_, p, ann, block) =>
     let ty1 =
       switch (ann) {
-      | Some(uty1) => UHTyp.expand(uty1)
+      | Some(uty1) => UHTyp.elab(uty1)
       | None => HTyp.Hole
       };
     let (p, ctx, u_gen) =
@@ -1505,7 +1505,7 @@ and syn_fix_holes_exp =
       };
     (Inj(NotInHole, side, block), ty, u_gen);
   | Case(_, block, rules, Some(uty)) =>
-    let ty = UHTyp.expand(uty);
+    let ty = UHTyp.elab(uty);
     let (block, ty1, u_gen) =
       syn_fix_holes_block(ctx, u_gen, ~renumber_empty_holes, block);
     let (rules, u_gen) =
@@ -1529,7 +1529,7 @@ and syn_fix_holes_exp =
     switch (LivelitCtx.lookup(livelit_ctx, name)) {
     | None =>
       let (u, u_gen) = MetaVarGen.next(u_gen);
-      (ApUnboundLivelit(u, name), Hole, u_gen);
+      (FreeLivelit(u, name), Hole, u_gen);
     | Some(livelit_defn) =>
       let (splice_map, u_gen) =
         ana_fix_holes_splice_map(
@@ -1546,7 +1546,7 @@ and syn_fix_holes_exp =
         u_gen,
       );
     };
-  | ApUnboundLivelit(_, name) =>
+  | FreeLivelit(_, name) =>
     let livelit_ctx = Contexts.livelit_ctx(ctx);
     switch (LivelitCtx.lookup(livelit_ctx, name)) {
     | None => (e, Hole, u_gen)
@@ -1697,7 +1697,7 @@ and ana_fix_holes_exp =
     | Some((ty1_given, ty2)) =>
       switch (ann) {
       | Some(uty1) =>
-        let ty1_ann = UHTyp.expand(uty1);
+        let ty1_ann = UHTyp.elab(uty1);
         if (HTyp.consistent(ty1_ann, ty1_given)) {
           let (p, ctx, u_gen) =
             ana_fix_holes_pat(ctx, u_gen, ~renumber_empty_holes, p, ty1_ann);
@@ -1752,7 +1752,7 @@ and ana_fix_holes_exp =
       };
     }
   | Case(_, block, rules, Some(uty)) =>
-    let ty2 = UHTyp.expand(uty);
+    let ty2 = UHTyp.elab(uty);
     if (HTyp.consistent(ty, ty2)) {
       let (block, ty1, u_gen) =
         syn_fix_holes_block(ctx, u_gen, ~renumber_empty_holes, block);
@@ -1793,7 +1793,7 @@ and ana_fix_holes_exp =
   | NumLit(_, _)
   | BoolLit(_, _)
   | ApLivelit(_, _, _, _)
-  | ApUnboundLivelit(_, _) =>
+  | FreeLivelit(_, _) =>
     /* subsumption */
     let (e', ty', u_gen) =
       syn_fix_holes_exp(ctx, u_gen, ~renumber_empty_holes, e);

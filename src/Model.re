@@ -143,18 +143,18 @@ let cursor_info_of_edit_state = ((zblock, _, _): edit_state): CursorInfo.t =>
   };
 
 exception InvalidInput;
-exception DoesNotExpand;
+exception DoesNotElab;
 let result_of_edit_state = ((zblock, _, _): edit_state): result => {
   open Dynamics;
   let expanded =
-    DHExp.syn_expand_block(
+    DHExp.syn_elab_block(
       (VarCtx.empty, Palettes.initial_livelit_ctx),
       Delta.empty,
       ZExp.erase_block(zblock),
     );
   switch (expanded) {
-  | DoesNotExpand => raise(DoesNotExpand)
-  | Expands(d, _, _) =>
+  | DoesNotElab => raise(DoesNotElab)
+  | Elabs(d, _, _) =>
     switch (Evaluator.evaluate(d)) {
     | InvalidInput(n) =>
       JSUtil.log("InvalidInput " ++ string_of_int(n));

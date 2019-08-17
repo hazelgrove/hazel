@@ -23,5 +23,6 @@ let update_splice_map = ({next, splice_order, _}, splice_map) => {
   splice_order,
 };
 
+let splice_var_prefix = "__hazel_splice_";
 let var_of_splice_name = splice_name =>
-  "__hazel_splice_" ++ string_of_int(splice_name);
+  splice_var_prefix ++ string_of_int(splice_name);

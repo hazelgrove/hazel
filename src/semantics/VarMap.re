@@ -60,3 +60,4 @@ let rec length =
   | [_, ...ctx'] => 1 + length(ctx');
 
 let to_list = ctx => ctx;
+let of_list = ctx => ctx;

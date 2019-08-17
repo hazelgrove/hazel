@@ -44,7 +44,7 @@ and t =
   | Parenthesized(block)
   | OpSeq(skel_t, opseq) /* invariant: skeleton is consistent with opseq */
   | ApLivelit(err_status, LivelitName.t, SerializedModel.t, splice_info)
-  | ApUnboundLivelit(MetaVar.t, LivelitName.t)
+  | FreeLivelit(MetaVar.t, LivelitName.t)
 and opseq = OperatorSeq.opseq(t, op)
 and rules = list(rule)
 and rule =
@@ -169,7 +169,7 @@ let bidelimited = (e: t): bool =>
   | ListNil(_)
   | Inj(_, _, _)
   | ApLivelit(_, _, _, _)
-  | ApUnboundLivelit(_)
+  | FreeLivelit(_)
   | Parenthesized(_) => true
   /* non-bidelimited */
   | Case(_, _, _, _)
@@ -190,7 +190,7 @@ let rec get_err_status_block = (Block(_, e): block): err_status =>
 and get_err_status_t = (e: t): err_status =>
   switch (e) {
   | EmptyHole(_)
-  | ApUnboundLivelit(_) => NotInHole
+  | FreeLivelit(_) => NotInHole
   | Var(err, _, _)
   | NumLit(err, _)
   | BoolLit(err, _)
@@ -215,7 +215,7 @@ let rec set_err_status_block =
 and set_err_status_t = (err: err_status, e: t): t =>
   switch (e) {
   | EmptyHole(_) => e
-  | ApUnboundLivelit(_) => e
+  | FreeLivelit(_) => e
   | Var(_, var_err, x) => Var(err, var_err, x)
   | NumLit(_, n) => NumLit(err, n)
   | BoolLit(_, b) => BoolLit(err, b)
@@ -270,7 +270,7 @@ and make_t_inconsistent = (u_gen: MetaVarGen.t, e: t): (t, MetaVarGen.t) =>
   | Inj(InHole(TypeInconsistent, _), _, _)
   | Case(InHole(TypeInconsistent, _), _, _, _)
   | ApLivelit(InHole(TypeInconsistent, _), _, _, _)
-  | ApUnboundLivelit(_) => (e, u_gen)
+  | FreeLivelit(_) => (e, u_gen)
   /* not in hole */
   | Var(NotInHole | InHole(WrongLength, _), _, _)
   | NumLit(NotInHole | InHole(WrongLength, _), _)
@@ -373,7 +373,7 @@ and max_degree_exp =
     ]
     |> List.fold_left(max, List.length(rules) + 2)
   | ApLivelit(_, _, _, _)
-  | ApUnboundLivelit(_) => 0
+  | FreeLivelit(_) => 0
 and max_degree_rule =
   fun
   | Rule(p, clause) => max(UHPat.max_degree(p), max_degree_block(clause));
@@ -399,7 +399,7 @@ let child_indices_exp =
   | Parenthesized(_) => [0]
   | OpSeq(_, seq) => range(OperatorSeq.seq_length(seq))
   | ApLivelit(_, _, _, _)
-  | ApUnboundLivelit(_) => [];
+  | FreeLivelit(_) => [];
 let child_indices_rule =
   fun
   | Rule(_, _) => [0, 1];
@@ -777,7 +777,7 @@ let favored_child_of_exp: t => option((child_index, block)) =
   | ListNil(_)
   | OpSeq(_, _)
   | ApLivelit(_, _, _, _)
-  | ApUnboundLivelit(_) => None
+  | FreeLivelit(_) => None
   | Lam(_, _, _, block) => Some((2, block))
   | Inj(_, _, block)
   | Case(_, block, _, _)
@@ -807,7 +807,7 @@ and is_multi_line_exp =
   | BoolLit(_, _)
   | ListNil(_)
   | ApLivelit(_, _, _, _)
-  | ApUnboundLivelit(_) => false
+  | FreeLivelit(_) => false
   | Lam(_, _, _, body) => is_multi_line(body)
   | Inj(_, _, body) => is_multi_line(body)
   | Case(_, _, _, _) => true

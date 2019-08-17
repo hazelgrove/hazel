@@ -107,7 +107,7 @@ type shape =
   | SLine
   | SCase
   | SOp(op_shape)
-  | SApPalette(LivelitName.t)
+  | SLivelitName(LivelitName.t)
   /* pattern-only shapes */
   | SWild;
 
@@ -119,7 +119,7 @@ type t =
   | MoveRight
   | MoveToNextHole
   | MoveToPrevHole
-  | UpdateApPalette(SpliceGenMonad.t(SerializedModel.t))
+  | LivelitAction(SerializedAction.t)
   | Delete
   | Backspace
   | Construct(shape)
@@ -3789,7 +3789,7 @@ and syn_perform_line =
   | (Construct(SAsc), LetLineZP(zp, Some(uty), block)) =>
     /* just move the cursor over if there is already an ascription */
     let p = ZPat.erase(zp);
-    switch (Statics.ana_pat(ctx, p, UHTyp.expand(uty))) {
+    switch (Statics.ana_pat(ctx, p, UHTyp.elab(uty))) {
     | None => Failed
     | Some(ctx) =>
       let zty = ZTyp.place_before(uty);
@@ -3815,7 +3815,7 @@ and syn_perform_line =
   | (_, LetLineZP(zp, ann, block)) =>
     switch (ann) {
     | Some(uty) =>
-      let ty = UHTyp.expand(uty);
+      let ty = UHTyp.elab(uty);
       switch (ana_perform_pat(ctx, u_gen, a, zp, ty)) {
       | Failed => Failed
       | CantShift => CantShift
@@ -3859,7 +3859,7 @@ and syn_perform_line =
     | CursorEscaped(After) =>
       syn_perform_line(~ci, ctx, MoveRight, (zline, u_gen))
     | Succeeded(zann) =>
-      let ty = UHTyp.expand(ZTyp.erase(zann));
+      let ty = UHTyp.elab(ZTyp.erase(zann));
       let (p, ctx_after, u_gen) =
         Statics.ana_fix_holes_pat(ctx, u_gen, p, ty);
       let ctx_block = Statics.ctx_for_let(ctx, p, ty, block);
@@ -3871,7 +3871,7 @@ and syn_perform_line =
   | (_, LetLineZE(p, ann, zblock)) =>
     switch (ann) {
     | Some(uty) =>
-      let ty = UHTyp.expand(uty);
+      let ty = UHTyp.elab(uty);
       let ctx_block =
         Statics.ctx_for_let(ctx, p, ty, ZExp.erase_block(zblock));
       switch (ana_perform_block(~ci, ctx_block, a, (zblock, u_gen), ty)) {
@@ -4805,7 +4805,7 @@ and syn_perform_exp =
   | (_, LamZP(_, zp, ann, block)) =>
     let ty1 =
       switch (ann) {
-      | Some(uty1) => UHTyp.expand(uty1)
+      | Some(uty1) => UHTyp.elab(uty1)
       | None => HTyp.Hole
       };
     switch (ana_perform_pat(ctx, u_gen, a, zp, ty1)) {
@@ -4831,7 +4831,7 @@ and syn_perform_exp =
     | CursorEscaped(After) =>
       syn_perform_exp(~ci, ctx, MoveRight, edit_state)
     | Succeeded(zann) =>
-      let ty1 = UHTyp.expand(ZTyp.erase(zann));
+      let ty1 = UHTyp.elab(ZTyp.erase(zann));
       let (p, ctx, u_gen) = Statics.ana_fix_holes_pat(ctx, u_gen, p, ty1);
       let (block, ty2, u_gen) =
         Statics.syn_fix_holes_block(ctx, u_gen, block);
@@ -4844,7 +4844,7 @@ and syn_perform_exp =
     | Some((_, ty2)) =>
       let ty1 =
         switch (ann) {
-        | Some(uty1) => UHTyp.expand(uty1)
+        | Some(uty1) => UHTyp.elab(uty1)
         | None => HTyp.Hole
         };
       switch (Statics.ana_pat(ctx, p, ty1)) {
@@ -4978,7 +4978,7 @@ and syn_perform_exp =
       | CursorEscaped(After) =>
         syn_perform_exp(~ci, ctx, MoveRight, edit_state)
       | Succeeded((zblock, ty1, u_gen)) =>
-        let ty = UHTyp.expand(uty);
+        let ty = UHTyp.elab(uty);
         let (rules, u_gen) =
           Statics.ana_fix_holes_rules(ctx, u_gen, rules, ty1, ty);
         let ze = ZExp.CaseZE(NotInHole, zblock, rules, ann);
@@ -5000,7 +5000,7 @@ and syn_perform_exp =
         | CursorEscaped(After) =>
           syn_perform_exp(~ci, ctx, MoveRight, edit_state)
         | Succeeded((zp, ctx, u_gen)) =>
-          let ty = UHTyp.expand(uty);
+          let ty = UHTyp.elab(uty);
           let (clause, u_gen) =
             Statics.ana_fix_holes_block(ctx, u_gen, clause, ty);
           let zrule = ZExp.RuleZP(zp, clause);
@@ -5017,7 +5017,7 @@ and syn_perform_exp =
         switch (Statics.ana_pat(ctx, p, ty1)) {
         | None => Failed
         | Some(ctx) =>
-          let ty = UHTyp.expand(uty);
+          let ty = UHTyp.elab(uty);
           switch (ana_perform_block(~ci, ctx, a, (zclause, u_gen), ty)) {
           | Failed => Failed
           | CantShift => CantShift
@@ -5051,7 +5051,7 @@ and syn_perform_exp =
       | CursorEscaped(After) =>
         syn_perform_exp(~ci, ctx, MoveRight, edit_state)
       | Succeeded(zann) =>
-        let ty = UHTyp.expand(ZTyp.erase(zann));
+        let ty = UHTyp.elab(ZTyp.erase(zann));
         let (rules, u_gen) =
           Statics.ana_fix_holes_rules(ctx, u_gen, rules, ty1, ty);
         let ze = ZExp.CaseZA(NotInHole, block, rules, zann);
@@ -6621,7 +6621,7 @@ and ana_perform_exp =
     | Some((ty1_given, ty2)) =>
       let ty1 =
         switch (ann) {
-        | Some(uty1) => UHTyp.expand(uty1)
+        | Some(uty1) => UHTyp.elab(uty1)
         | None => ty1_given
         };
       switch (ana_perform_pat(ctx, u_gen, a, zp, ty1)) {
@@ -6650,7 +6650,7 @@ and ana_perform_exp =
       | CursorEscaped(After) =>
         ana_perform_exp(~ci, ctx, MoveRight, edit_state, ty)
       | Succeeded(zann) =>
-        let ty1 = UHTyp.expand(ZTyp.erase(zann));
+        let ty1 = UHTyp.elab(ZTyp.erase(zann));
         HTyp.consistent(ty1, ty1_given)
           ? {
             let (p, ctx, u_gen) =
@@ -6677,7 +6677,7 @@ and ana_perform_exp =
     | Some((ty1_given, ty2)) =>
       let ty1 =
         switch (ann) {
-        | Some(uty1) => UHTyp.expand(uty1)
+        | Some(uty1) => UHTyp.elab(uty1)
         | None => ty1_given
         };
       switch (Statics.ana_pat(ctx, p, ty1)) {
@@ -6794,7 +6794,7 @@ and ana_perform_exp =
       | CursorEscaped(After) =>
         ana_perform_exp(~ci, ctx, MoveRight, edit_state, ty)
       | Succeeded(zann) =>
-        let ty2 = UHTyp.expand(ZTyp.erase(zann));
+        let ty2 = UHTyp.elab(ZTyp.erase(zann));
         let (rules, u_gen) =
           Statics.ana_fix_holes_rules(ctx, u_gen, rules, ty1, ty2);
         let ze = ZExp.CaseZA(NotInHole, block, rules, zann);

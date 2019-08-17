@@ -82,7 +82,7 @@ let valid_cursors_exp = (e: UHExp.t): list(cursor_position) =>
     |> List.map(k => delim_cursors_k(k))
     |> List.flatten
   | ApLivelit(_, name, _, _) => text_cursors(LivelitName.length(name))
-  | ApUnboundLivelit(_, name) => text_cursors(LivelitName.length(name))
+  | FreeLivelit(_, name) => text_cursors(LivelitName.length(name))
   };
 let valid_cursors_rule = (_: UHExp.rule): list(cursor_position) =>
   delim_cursors(2);
@@ -155,7 +155,7 @@ and is_before_exp = (ze: t): bool =>
   | CursorE(cursor, Var(_, _, _))
   | CursorE(cursor, NumLit(_, _))
   | CursorE(cursor, BoolLit(_, _)) => cursor == OnText(0)
-  | CursorE(cursor, ApUnboundLivelit(_, _)) => cursor == OnText(0)
+  | CursorE(cursor, FreeLivelit(_, _)) => cursor == OnText(0)
   /* inner nodes */
   | CursorE(cursor, Lam(_, _, _, _))
   | CursorE(cursor, Inj(_, _, _))
@@ -209,7 +209,7 @@ and is_after_exp = (ze: t): bool =>
   | CursorE(cursor, NumLit(_, n)) => cursor == OnText(num_digits(n))
   | CursorE(cursor, BoolLit(_, true)) => cursor == OnText(4)
   | CursorE(cursor, BoolLit(_, false)) => cursor == OnText(5)
-  | CursorE(cursor, ApUnboundLivelit(_, name)) =>
+  | CursorE(cursor, FreeLivelit(_, name)) =>
     cursor == OnText(LivelitName.length(name))
   /* inner nodes */
   | CursorE(_, Lam(_, _, _, _)) => false
@@ -339,7 +339,7 @@ and place_before_exp = (e: UHExp.t): t =>
     let surround = OperatorSeq.EmptyPrefix(suffix);
     OpSeqZ(skel, ze1, surround);
   | ApLivelit(_, _, _, _)
-  | ApUnboundLivelit(_, _) => CursorE(OnText(0), e)
+  | FreeLivelit(_, _) => CursorE(OnText(0), e)
   };
 let place_before_lines = (lines: UHExp.lines): option(zlines) =>
   switch (lines) {
@@ -380,7 +380,7 @@ and place_after_exp = (e: UHExp.t): t =>
     let surround = OperatorSeq.EmptySuffix(prefix);
     OpSeqZ(skel, ze1, surround);
   | ApLivelit(_, _, _, _)
-  | ApUnboundLivelit(_, _) => CursorE(OnText(0), e)
+  | FreeLivelit(_, _) => CursorE(OnText(0), e)
   };
 let place_after_lines = (lines: UHExp.lines): option(zlines) =>
   switch (split_last(lines)) {
@@ -841,7 +841,7 @@ and move_cursor_left_exp = (ze: t): option(t) =>
   | CursorE(
       OnDelim(_, _),
       Var(_, _, _) | BoolLit(_, _) | NumLit(_, _) | ApLivelit(_, _, _, _) |
-      ApUnboundLivelit(_, _),
+      FreeLivelit(_, _),
     ) =>
     // invalid cursor position
     None
@@ -1143,7 +1143,7 @@ and move_cursor_right_exp = (ze: t): option(t) =>
   | CursorE(
       OnDelim(_, _),
       Var(_, _, _) | BoolLit(_, _) | NumLit(_, _) | ApLivelit(_, _, _, _) |
-      ApUnboundLivelit(_, _),
+      FreeLivelit(_, _),
     ) =>
     // invalid cursor position
     None

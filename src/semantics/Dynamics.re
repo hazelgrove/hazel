@@ -59,12 +59,12 @@ module DHPat = {
     | Ap(_, _) => false
     };
 
-  type expand_result =
-    | Expands(t, HTyp.t, Contexts.t, Delta.t)
-    | DoesNotExpand;
+  type elab_result =
+    | Elabs(t, HTyp.t, Contexts.t, Delta.t)
+    | DoesNotElab;
 
-  let rec syn_expand =
-          (ctx: Contexts.t, delta: Delta.t, p: UHPat.t): expand_result =>
+  let rec syn_elab =
+          (ctx: Contexts.t, delta: Delta.t, p: UHPat.t): elab_result =>
     switch (p) {
     | Wild(InHole(TypeInconsistent as reason, u))
     | Var(InHole(TypeInconsistent as reason, u), _, _)
@@ -73,110 +73,110 @@ module DHPat = {
     | ListNil(InHole(TypeInconsistent as reason, u))
     | Inj(InHole(TypeInconsistent as reason, u), _, _) =>
       let p' = UHPat.set_err_status_t(NotInHole, p);
-      switch (syn_expand(ctx, delta, p')) {
-      | DoesNotExpand => DoesNotExpand
-      | Expands(dp, _, ctx, delta) =>
+      switch (syn_elab(ctx, delta, p')) {
+      | DoesNotElab => DoesNotElab
+      | Elabs(dp, _, ctx, delta) =>
         let gamma = Contexts.gamma(ctx);
         let delta =
           MetaVarMap.extend_unique(delta, (u, (PatternHole, Hole, gamma)));
-        Expands(NonEmptyHole(reason, u, 0, dp), Hole, ctx, delta);
+        Elabs(NonEmptyHole(reason, u, 0, dp), Hole, ctx, delta);
       };
     | Wild(InHole(WrongLength, _))
     | Var(InHole(WrongLength, _), _, _)
     | NumLit(InHole(WrongLength, _), _)
     | BoolLit(InHole(WrongLength, _), _)
     | ListNil(InHole(WrongLength, _))
-    | Inj(InHole(WrongLength, _), _, _) => DoesNotExpand
+    | Inj(InHole(WrongLength, _), _, _) => DoesNotElab
     | EmptyHole(u) =>
       let gamma = Contexts.gamma(ctx);
       let dp = EmptyHole(u, 0);
       let ty = HTyp.Hole;
       let delta =
         MetaVarMap.extend_unique(delta, (u, (PatternHole, ty, gamma)));
-      Expands(dp, ty, ctx, delta);
-    | Wild(NotInHole) => Expands(Wild, Hole, ctx, delta)
+      Elabs(dp, ty, ctx, delta);
+    | Wild(NotInHole) => Elabs(Wild, Hole, ctx, delta)
     | Var(NotInHole, InVHole(Free, _), _) => raise(FreeVarInPat)
     | Var(NotInHole, InVHole(Keyword(k), u), _) =>
-      Expands(Keyword(u, 0, k), Hole, ctx, delta)
+      Elabs(Keyword(u, 0, k), Hole, ctx, delta)
     | Var(NotInHole, NotInVHole, x) =>
       let ctx = Contexts.extend_gamma(ctx, (x, Hole));
-      Expands(Var(x), Hole, ctx, delta);
-    | NumLit(NotInHole, n) => Expands(NumLit(n), Num, ctx, delta)
-    | BoolLit(NotInHole, b) => Expands(BoolLit(b), Bool, ctx, delta)
-    | ListNil(NotInHole) => Expands(ListNil, List(Hole), ctx, delta)
-    | Parenthesized(p1) => syn_expand(ctx, delta, p1)
-    | OpSeq(skel, seq) => syn_expand_skel(ctx, delta, skel, seq)
+      Elabs(Var(x), Hole, ctx, delta);
+    | NumLit(NotInHole, n) => Elabs(NumLit(n), Num, ctx, delta)
+    | BoolLit(NotInHole, b) => Elabs(BoolLit(b), Bool, ctx, delta)
+    | ListNil(NotInHole) => Elabs(ListNil, List(Hole), ctx, delta)
+    | Parenthesized(p1) => syn_elab(ctx, delta, p1)
+    | OpSeq(skel, seq) => syn_elab_skel(ctx, delta, skel, seq)
     | Inj(NotInHole, side, p) =>
-      switch (syn_expand(ctx, delta, p)) {
-      | DoesNotExpand => DoesNotExpand
-      | Expands(dp1, ty1, ctx, delta) =>
+      switch (syn_elab(ctx, delta, p)) {
+      | DoesNotElab => DoesNotElab
+      | Elabs(dp1, ty1, ctx, delta) =>
         let dp = Inj(side, dp1);
         let ty =
           switch (side) {
           | L => HTyp.Sum(ty1, Hole)
           | R => HTyp.Sum(Hole, ty1)
           };
-        Expands(dp, ty, ctx, delta);
+        Elabs(dp, ty, ctx, delta);
       }
     }
-  and syn_expand_skel =
+  and syn_elab_skel =
       (ctx: Contexts.t, delta: Delta.t, skel: UHPat.skel_t, seq: UHPat.opseq)
-      : expand_result =>
+      : elab_result =>
     switch (skel) {
     | Placeholder(n) =>
       switch (OperatorSeq.nth_tm(n, seq)) {
-      | None => DoesNotExpand
-      | Some(pn) => syn_expand(ctx, delta, pn)
+      | None => DoesNotElab
+      | Some(pn) => syn_elab(ctx, delta, pn)
       }
     | BinOp(InHole(TypeInconsistent as reason, u), op, skel1, skel2)
     | BinOp(InHole(WrongLength as reason, u), Comma as op, skel1, skel2) =>
       let skel_not_in_hole = Skel.BinOp(NotInHole, op, skel1, skel2);
-      switch (syn_expand_skel(ctx, delta, skel_not_in_hole, seq)) {
-      | DoesNotExpand => DoesNotExpand
-      | Expands(dp, _, ctx, delta) =>
+      switch (syn_elab_skel(ctx, delta, skel_not_in_hole, seq)) {
+      | DoesNotElab => DoesNotElab
+      | Elabs(dp, _, ctx, delta) =>
         let gamma = Contexts.gamma(ctx);
         let delta =
           MetaVarMap.extend_unique(delta, (u, (PatternHole, Hole, gamma)));
-        Expands(NonEmptyHole(reason, u, 0, dp), Hole, ctx, delta);
+        Elabs(NonEmptyHole(reason, u, 0, dp), Hole, ctx, delta);
       };
-    | BinOp(InHole(WrongLength, _), _, _, _) => DoesNotExpand
+    | BinOp(InHole(WrongLength, _), _, _, _) => DoesNotElab
     | BinOp(NotInHole, Comma, skel1, skel2) =>
-      switch (syn_expand_skel(ctx, delta, skel1, seq)) {
-      | DoesNotExpand => DoesNotExpand
-      | Expands(dp1, ty1, ctx, delta) =>
-        switch (syn_expand_skel(ctx, delta, skel2, seq)) {
-        | DoesNotExpand => DoesNotExpand
-        | Expands(dp2, ty2, ctx, delta) =>
+      switch (syn_elab_skel(ctx, delta, skel1, seq)) {
+      | DoesNotElab => DoesNotElab
+      | Elabs(dp1, ty1, ctx, delta) =>
+        switch (syn_elab_skel(ctx, delta, skel2, seq)) {
+        | DoesNotElab => DoesNotElab
+        | Elabs(dp2, ty2, ctx, delta) =>
           let dp = Pair(dp1, dp2);
-          Expands(dp, Prod(ty1, ty2), ctx, delta);
+          Elabs(dp, Prod(ty1, ty2), ctx, delta);
         }
       }
     | BinOp(NotInHole, Space, skel1, skel2) =>
-      switch (syn_expand_skel(ctx, delta, skel1, seq)) {
-      | DoesNotExpand => DoesNotExpand
-      | Expands(dp1, _, ctx, delta) =>
-        switch (syn_expand_skel(ctx, delta, skel2, seq)) {
-        | DoesNotExpand => DoesNotExpand
-        | Expands(dp2, _, ctx, delta) =>
+      switch (syn_elab_skel(ctx, delta, skel1, seq)) {
+      | DoesNotElab => DoesNotElab
+      | Elabs(dp1, _, ctx, delta) =>
+        switch (syn_elab_skel(ctx, delta, skel2, seq)) {
+        | DoesNotElab => DoesNotElab
+        | Elabs(dp2, _, ctx, delta) =>
           let dp = Ap(dp1, dp2);
-          Expands(dp, Hole, ctx, delta);
+          Elabs(dp, Hole, ctx, delta);
         }
       }
     | BinOp(NotInHole, Cons, skel1, skel2) =>
-      switch (syn_expand_skel(ctx, delta, skel1, seq)) {
-      | DoesNotExpand => DoesNotExpand
-      | Expands(dp1, ty1, ctx, delta) =>
+      switch (syn_elab_skel(ctx, delta, skel1, seq)) {
+      | DoesNotElab => DoesNotElab
+      | Elabs(dp1, ty1, ctx, delta) =>
         let ty = HTyp.List(ty1);
-        switch (ana_expand_skel(ctx, delta, skel2, seq, ty)) {
-        | DoesNotExpand => DoesNotExpand
-        | Expands(dp2, _, ctx, delta) =>
+        switch (ana_elab_skel(ctx, delta, skel2, seq, ty)) {
+        | DoesNotElab => DoesNotElab
+        | Elabs(dp2, _, ctx, delta) =>
           let dp = Cons(dp1, dp2);
-          Expands(dp, ty, ctx, delta);
+          Elabs(dp, ty, ctx, delta);
         };
       }
     }
-  and ana_expand =
-      (ctx: Contexts.t, delta: Delta.t, p: UHPat.t, ty: HTyp.t): expand_result =>
+  and ana_elab =
+      (ctx: Contexts.t, delta: Delta.t, p: UHPat.t, ty: HTyp.t): elab_result =>
     switch (p) {
     | Wild(InHole(TypeInconsistent as reason, u))
     | Var(InHole(TypeInconsistent as reason, u), _, _)
@@ -185,61 +185,61 @@ module DHPat = {
     | ListNil(InHole(TypeInconsistent as reason, u))
     | Inj(InHole(TypeInconsistent as reason, u), _, _) =>
       let p' = UHPat.set_err_status_t(NotInHole, p);
-      switch (syn_expand(ctx, delta, p')) {
-      | DoesNotExpand => DoesNotExpand
-      | Expands(dp1, _, ctx, delta) =>
+      switch (syn_elab(ctx, delta, p')) {
+      | DoesNotElab => DoesNotElab
+      | Elabs(dp1, _, ctx, delta) =>
         let dp = NonEmptyHole(reason, u, 0, dp1);
         let gamma = Contexts.gamma(ctx);
         let delta =
           MetaVarMap.extend_unique(delta, (u, (PatternHole, ty, gamma)));
-        Expands(dp, ty, ctx, delta);
+        Elabs(dp, ty, ctx, delta);
       };
     | Wild(InHole(WrongLength, _))
     | Var(InHole(WrongLength, _), _, _)
     | NumLit(InHole(WrongLength, _), _)
     | BoolLit(InHole(WrongLength, _), _)
     | ListNil(InHole(WrongLength, _))
-    | Inj(InHole(WrongLength, _), _, _) => DoesNotExpand
+    | Inj(InHole(WrongLength, _), _, _) => DoesNotElab
     | EmptyHole(u) =>
       let gamma = Contexts.gamma(ctx);
       let dp = EmptyHole(u, 0);
       let delta =
         MetaVarMap.extend_unique(delta, (u, (PatternHole, ty, gamma)));
-      Expands(dp, ty, ctx, delta);
+      Elabs(dp, ty, ctx, delta);
     | Var(NotInHole, InVHole(Free, _), _) => raise(FreeVarInPat)
     | Var(NotInHole, InVHole(Keyword(k), u), _) =>
-      Expands(Keyword(u, 0, k), ty, ctx, delta)
+      Elabs(Keyword(u, 0, k), ty, ctx, delta)
     | Var(NotInHole, NotInVHole, x) =>
       let ctx = Contexts.extend_gamma(ctx, (x, ty));
-      Expands(Var(x), ty, ctx, delta);
-    | Wild(NotInHole) => Expands(Wild, ty, ctx, delta)
+      Elabs(Var(x), ty, ctx, delta);
+    | Wild(NotInHole) => Elabs(Wild, ty, ctx, delta)
     | NumLit(NotInHole, _)
-    | BoolLit(NotInHole, _) => syn_expand(ctx, delta, p)
+    | BoolLit(NotInHole, _) => syn_elab(ctx, delta, p)
     | ListNil(NotInHole) =>
       switch (HTyp.matched_list(ty)) {
-      | None => DoesNotExpand
-      | Some(ty_elt) => Expands(ListNil, HTyp.List(ty_elt), ctx, delta)
+      | None => DoesNotElab
+      | Some(ty_elt) => Elabs(ListNil, HTyp.List(ty_elt), ctx, delta)
       }
-    | Parenthesized(p) => ana_expand(ctx, delta, p, ty)
-    | OpSeq(skel, seq) => ana_expand_skel(ctx, delta, skel, seq, ty)
+    | Parenthesized(p) => ana_elab(ctx, delta, p, ty)
+    | OpSeq(skel, seq) => ana_elab_skel(ctx, delta, skel, seq, ty)
     | Inj(NotInHole, side, p1) =>
       switch (HTyp.matched_sum(ty)) {
-      | None => DoesNotExpand
+      | None => DoesNotElab
       | Some((tyL, tyR)) =>
         let ty1 = pick_side(side, tyL, tyR);
-        switch (ana_expand(ctx, delta, p1, ty1)) {
-        | DoesNotExpand => DoesNotExpand
-        | Expands(dp1, ty1, ctx, delta) =>
+        switch (ana_elab(ctx, delta, p1, ty1)) {
+        | DoesNotElab => DoesNotElab
+        | Elabs(dp1, ty1, ctx, delta) =>
           let ty =
             switch (side) {
             | L => HTyp.Sum(ty1, tyR)
             | R => HTyp.Sum(tyL, ty1)
             };
-          Expands(Inj(side, dp1), ty, ctx, delta);
+          Elabs(Inj(side, dp1), ty, ctx, delta);
         };
       }
     }
-  and ana_expand_skel =
+  and ana_elab_skel =
       (
         ctx: Contexts.t,
         delta: Delta.t,
@@ -247,36 +247,36 @@ module DHPat = {
         seq: UHPat.opseq,
         ty: HTyp.t,
       )
-      : expand_result =>
+      : elab_result =>
     switch (skel) {
     | Placeholder(n) =>
       switch (OperatorSeq.nth_tm(n, seq)) {
-      | None => DoesNotExpand
-      | Some(pn) => ana_expand(ctx, delta, pn, ty)
+      | None => DoesNotElab
+      | Some(pn) => ana_elab(ctx, delta, pn, ty)
       }
     | BinOp(InHole(TypeInconsistent as reason, u), op, skel1, skel2) =>
       let skel_not_in_hole = Skel.BinOp(NotInHole, op, skel1, skel2);
-      switch (syn_expand_skel(ctx, delta, skel_not_in_hole, seq)) {
-      | DoesNotExpand => DoesNotExpand
-      | Expands(dp1, _, ctx, delta) =>
+      switch (syn_elab_skel(ctx, delta, skel_not_in_hole, seq)) {
+      | DoesNotElab => DoesNotElab
+      | Elabs(dp1, _, ctx, delta) =>
         let dp = NonEmptyHole(reason, u, 0, dp1);
         let gamma = Contexts.gamma(ctx);
         let delta =
           MetaVarMap.extend_unique(delta, (u, (PatternHole, ty, gamma)));
-        Expands(dp, ty, ctx, delta);
+        Elabs(dp, ty, ctx, delta);
       };
     | BinOp(NotInHole, Comma, skel1, skel2) =>
       switch (HTyp.matched_prod(ty)) {
-      | None => DoesNotExpand
+      | None => DoesNotElab
       | Some((ty1, ty2)) =>
-        switch (ana_expand_skel(ctx, delta, skel1, seq, ty1)) {
-        | DoesNotExpand => DoesNotExpand
-        | Expands(dp1, ty1, ctx, delta) =>
-          switch (ana_expand_skel(ctx, delta, skel2, seq, ty2)) {
-          | DoesNotExpand => DoesNotExpand
-          | Expands(dp2, ty2, ctx, delta) =>
+        switch (ana_elab_skel(ctx, delta, skel1, seq, ty1)) {
+        | DoesNotElab => DoesNotElab
+        | Elabs(dp1, ty1, ctx, delta) =>
+          switch (ana_elab_skel(ctx, delta, skel2, seq, ty2)) {
+          | DoesNotElab => DoesNotElab
+          | Elabs(dp2, ty2, ctx, delta) =>
             let dp = Pair(dp1, dp2);
-            Expands(dp, Prod(ty1, ty2), ctx, delta);
+            Elabs(dp, Prod(ty1, ty2), ctx, delta);
           }
         }
       }
@@ -293,20 +293,20 @@ module DHPat = {
               | None => None
               | Some((elts, ctx, delta)) =>
                 let (skel, ty) = skel_ty;
-                switch (ana_expand_skel(ctx, delta, skel, seq, ty)) {
-                | DoesNotExpand => None
-                | Expands(dp, ty, ctx, delta) =>
+                switch (ana_elab_skel(ctx, delta, skel, seq, ty)) {
+                | DoesNotElab => None
+                | Elabs(dp, ty, ctx, delta) =>
                   Some((ListMinTwo.Cons((dp, ty), elts), ctx, delta))
                 };
               },
             zipped,
             ((skel1, ty1), (skel2, ty2)) =>
-              switch (ana_expand_skel(ctx, delta, skel1, seq, ty1)) {
-              | DoesNotExpand => None
-              | Expands(dp1, ty1, ctx, delta) =>
-                switch (ana_expand_skel(ctx, delta, skel2, seq, ty2)) {
-                | DoesNotExpand => None
-                | Expands(dp2, ty2, ctx, delta) =>
+              switch (ana_elab_skel(ctx, delta, skel1, seq, ty1)) {
+              | DoesNotElab => None
+              | Elabs(dp1, ty1, ctx, delta) =>
+                switch (ana_elab_skel(ctx, delta, skel2, seq, ty2)) {
+                | DoesNotElab => None
+                | Elabs(dp2, ty2, ctx, delta) =>
                   Some((
                     ListMinTwo.Pair((dp1, ty1), (dp2, ty2)),
                     ctx,
@@ -316,7 +316,7 @@ module DHPat = {
               },
           );
         switch (processed1) {
-        | None => DoesNotExpand
+        | None => DoesNotElab
         | Some((elts1, ctx, delta)) =>
           let processed2 =
             List.fold_right(
@@ -324,9 +324,9 @@ module DHPat = {
                 switch (opt_result) {
                 | None => None
                 | Some((elts, ctx, delta)) =>
-                  switch (syn_expand_skel(ctx, delta, skel, seq)) {
-                  | DoesNotExpand => None
-                  | Expands(dp, ty, ctx, delta) =>
+                  switch (syn_elab_skel(ctx, delta, skel, seq)) {
+                  | DoesNotElab => None
+                  | Elabs(dp, ty, ctx, delta) =>
                     Some(([(dp, ty), ...elts], ctx, delta))
                   }
                 },
@@ -334,42 +334,42 @@ module DHPat = {
               Some(([], ctx, delta)),
             );
           switch (processed2) {
-          | None => DoesNotExpand
+          | None => DoesNotElab
           | Some((elts2, ctx, delta)) =>
             let elts = ListMinTwo.append_list(elts1, elts2);
             let (ds, tys) = ListMinTwo.unzip(elts);
             let d = make_tuple(ds);
             let ty = HTyp.make_tuple(tys);
-            Expands(d, ty, ctx, delta);
+            Elabs(d, ty, ctx, delta);
           };
         };
-      | _ => DoesNotExpand
+      | _ => DoesNotElab
       }
-    | BinOp(InHole(WrongLength, _), _, _, _) => DoesNotExpand
+    | BinOp(InHole(WrongLength, _), _, _, _) => DoesNotElab
     | BinOp(NotInHole, Space, skel1, skel2) =>
-      switch (ana_expand_skel(ctx, delta, skel1, seq, Hole)) {
-      | DoesNotExpand => DoesNotExpand
-      | Expands(dp1, _ty1, ctx, delta) =>
-        switch (ana_expand_skel(ctx, delta, skel2, seq, Hole)) {
-        | DoesNotExpand => DoesNotExpand
-        | Expands(dp2, _ty2, ctx, delta) =>
+      switch (ana_elab_skel(ctx, delta, skel1, seq, Hole)) {
+      | DoesNotElab => DoesNotElab
+      | Elabs(dp1, _ty1, ctx, delta) =>
+        switch (ana_elab_skel(ctx, delta, skel2, seq, Hole)) {
+        | DoesNotElab => DoesNotElab
+        | Elabs(dp2, _ty2, ctx, delta) =>
           let dp = Ap(dp1, dp2);
-          Expands(dp, Hole, ctx, delta);
+          Elabs(dp, Hole, ctx, delta);
         }
       }
     | BinOp(NotInHole, Cons, skel1, skel2) =>
       switch (HTyp.matched_list(ty)) {
-      | None => DoesNotExpand
+      | None => DoesNotElab
       | Some(ty_elt) =>
-        switch (ana_expand_skel(ctx, delta, skel1, seq, ty_elt)) {
-        | DoesNotExpand => DoesNotExpand
-        | Expands(dp1, _, ctx, delta) =>
+        switch (ana_elab_skel(ctx, delta, skel1, seq, ty_elt)) {
+        | DoesNotElab => DoesNotElab
+        | Elabs(dp1, _, ctx, delta) =>
           let ty_list = HTyp.List(ty_elt);
-          switch (ana_expand_skel(ctx, delta, skel2, seq, ty_list)) {
-          | DoesNotExpand => DoesNotExpand
-          | Expands(dp2, _, ctx, delta) =>
+          switch (ana_elab_skel(ctx, delta, skel2, seq, ty_list)) {
+          | DoesNotElab => DoesNotElab
+          | Elabs(dp2, _, ctx, delta) =>
             let dp = Cons(dp1, dp2);
-            Expands(dp, ty, ctx, delta);
+            Elabs(dp, ty, ctx, delta);
           };
         }
       }
@@ -405,35 +405,40 @@ module DHExp = {
     | LessThan => LessThan
     };
 
-  module DHExp = {
+  [@deriving sexp]
+  type t =
+    | EmptyHole(MetaVar.t, inst_num, env)
+    | NonEmptyHole(in_hole_reason, MetaVar.t, inst_num, env, t)
+    | Keyword(MetaVar.t, inst_num, env, keyword)
+    | FreeVar(MetaVar.t, inst_num, env, Var.t)
+    | FreeLivelit(MetaVar.t, inst_num, env, LivelitName.t)
+    | BoundVar(Var.t)
+    | Let(DHPat.t, t, t)
+    | FixF(Var.t, HTyp.t, t)
+    | Lam(DHPat.t, HTyp.t, t)
+    | Ap(t, t)
+    | BoolLit(bool)
+    | NumLit(int)
+    | BinNumOp(bin_num_op, t, t)
+    | And(t, t)
+    | Or(t, t)
+    | ListNil(HTyp.t)
+    | Cons(t, t)
+    | Inj(HTyp.t, inj_side, t)
+    | Pair(t, t)
+    | Triv
+    | Case(t, list(rule), int)
+    | Cast(t, HTyp.t, HTyp.t)
+    | FailedCast(t, HTyp.t, HTyp.t)
+  and rule =
+    | Rule(DHPat.t, t)
+  and env = VarMap.t_(t);
+
+  module Environment = {
     [@deriving sexp]
-    type t =
-      | EmptyHole(MetaVar.t, inst_num, VarMap.t_(t))
-      | NonEmptyHole(in_hole_reason, MetaVar.t, inst_num, VarMap.t_(t), t)
-      | Keyword(MetaVar.t, inst_num, VarMap.t_(t), keyword)
-      | FreeVar(MetaVar.t, inst_num, VarMap.t_(t), Var.t)
-      | BoundVar(Var.t)
-      | Let(DHPat.t, t, t)
-      | FixF(Var.t, HTyp.t, t)
-      | Lam(DHPat.t, HTyp.t, t)
-      | Ap(t, t)
-      | BoolLit(bool)
-      | NumLit(int)
-      | BinNumOp(bin_num_op, t, t)
-      | And(t, t)
-      | Or(t, t)
-      | ListNil(HTyp.t)
-      | Cons(t, t)
-      | Inj(HTyp.t, inj_side, t)
-      | Pair(t, t)
-      | Triv
-      | Case(t, list(rule), int)
-      | Cast(t, HTyp.t, HTyp.t)
-      | FailedCast(t, HTyp.t, HTyp.t)
-    and rule =
-      | Rule(DHPat.t, t);
+    type t = env;
+    include VarMap;
   };
-  include DHExp;
 
   let constructor_string = (d: t): string =>
     switch (d) {
@@ -442,6 +447,7 @@ module DHExp = {
     | Keyword(_, _, _, _) => "Keyword"
     | FreeVar(_, _, _, _) => "FreeVar"
     | BoundVar(_) => "BoundVar"
+    | FreeLivelit(_, _, _, _) => "FreeLivelit"
     | Let(_, _, _) => "Let"
     | FixF(_, _, _) => "FixF"
     | Lam(_, _, _) => "Lam"
@@ -486,12 +492,6 @@ module DHExp = {
       casts,
     );
 
-  module Environment = {
-    [@deriving sexp]
-    type t = VarMap.t_(DHExp.t);
-    include VarMap;
-  };
-
   /* closed substitution [d1/x]d2*/
   let rec subst_var = (d1: t, x: Var.t, d2: t): t =>
     switch (d2) {
@@ -503,6 +503,7 @@ module DHExp = {
       }
     | FreeVar(_, _, _, _) => d2
     | Keyword(_, _, _, _) => d2
+    | FreeLivelit(_, _, _, _) => d2
     | Let(dp, d3, d4) =>
       let d3 = subst_var(d1, x, d3);
       let d4 =
@@ -740,6 +741,7 @@ module DHExp = {
     | BoundVar(_) => DoesNotMatch
     | FreeVar(_, _, _, _) => Indet
     | Keyword(_, _, _, _) => Indet
+    | FreeLivelit(_, _, _, _) => Indet
     | Let(_, _, _) => Indet
     | FixF(_, _, _) => DoesNotMatch
     | Lam(_, _, _) => DoesNotMatch
@@ -794,6 +796,7 @@ module DHExp = {
     | BoundVar(_) => DoesNotMatch
     | FreeVar(_, _, _, _) => Indet
     | Keyword(_, _, _, _) => Indet
+    | FreeLivelit(_, _, _, _) => Indet
     | Let(_, _, _) => Indet
     | FixF(_, _, _) => DoesNotMatch
     | Lam(_, _, _) => DoesNotMatch
@@ -843,6 +846,7 @@ module DHExp = {
     | BoundVar(_) => DoesNotMatch
     | FreeVar(_, _, _, _) => Indet
     | Keyword(_, _, _, _) => Indet
+    | FreeLivelit(_, _, _, _) => Indet
     | Let(_, _, _) => Indet
     | FixF(_, _, _) => DoesNotMatch
     | Lam(_, _, _) => DoesNotMatch
@@ -862,72 +866,96 @@ module DHExp = {
     | FailedCast(_, _, _) => Indet
     };
 
-  type expand_result_lines =
-    | LinesExpand(t => t, Contexts.t, Delta.t)
-    | LinesDoNotExpand;
+  type elab_result_lines =
+    | LinesElab(t => t, Contexts.t, Delta.t)
+    | LinesDoNotElab;
 
-  type expand_result =
-    | Expands(t, HTyp.t, Delta.t)
-    | DoesNotExpand;
+  type elab_result =
+    | Elabs(t, HTyp.t, Delta.t)
+    | DoesNotElab;
 
   let id_env = (ctx: VarCtx.t): Environment.t =>
     VarMap.map(
       xt => {
         let (x, _) = xt;
-        DHExp.BoundVar(x);
+        BoundVar(x);
       },
       ctx,
     );
 
-  let rec syn_expand_block =
-          (ctx: Contexts.t, delta: Delta.t, block: UHExp.block): expand_result =>
+  type names_to_vars_map = GeneralUtil.NatMap.t(Var.t);
+  let to_ctx = (SpliceInfo.{splice_map, _}) => {
+    let splice_list = GeneralUtil.NatMap.to_list(splice_map);
+
+    let names_to_vars_list =
+      splice_list
+      |> List.map(((i, _)) => {
+           let x = SpliceInfo.var_of_splice_name(i);
+           (i, x);
+         });
+    let names_to_vars = GeneralUtil.NatMap.of_list(names_to_vars_list);
+
+    let var_ctx_list =
+      splice_list
+      |> List.map(((i, (ty, _))) => {
+           let x = SpliceInfo.var_of_splice_name(i);
+           (x, ty);
+         });
+    let var_ctx = VarCtx.of_list(var_ctx_list);
+    let livelit_ctx = LivelitCtx.empty;
+    let ctx: Contexts.t = (var_ctx, livelit_ctx);
+
+    (ctx, names_to_vars);
+  };
+
+  let rec syn_elab_block =
+          (ctx: Contexts.t, delta: Delta.t, block: UHExp.block): elab_result =>
     switch (block) {
     | Block(lines, e) =>
-      switch (syn_expand_lines(ctx, delta, lines)) {
-      | LinesDoNotExpand => DoesNotExpand
-      | LinesExpand(prelude, ctx, delta) =>
-        switch (syn_expand_exp(ctx, delta, e)) {
-        | DoesNotExpand => DoesNotExpand
-        | Expands(d, ty, delta) => Expands(prelude(d), ty, delta)
+      switch (syn_elab_lines(ctx, delta, lines)) {
+      | LinesDoNotElab => DoesNotElab
+      | LinesElab(prelude, ctx, delta) =>
+        switch (syn_elab_exp(ctx, delta, e)) {
+        | DoesNotElab => DoesNotElab
+        | Elabs(d, ty, delta) => Elabs(prelude(d), ty, delta)
         }
       }
     }
-  and syn_expand_lines =
-      (ctx: Contexts.t, delta: Delta.t, lines: UHExp.lines)
-      : expand_result_lines =>
+  and syn_elab_lines =
+      (ctx: Contexts.t, delta: Delta.t, lines: UHExp.lines): elab_result_lines =>
     switch (lines) {
-    | [] => LinesExpand(d => d, ctx, delta)
+    | [] => LinesElab(d => d, ctx, delta)
     | [line, ...lines] =>
-      switch (syn_expand_line(ctx, delta, line)) {
-      | LinesDoNotExpand => LinesDoNotExpand
-      | LinesExpand(prelude_line, ctx, delta) =>
-        switch (syn_expand_lines(ctx, delta, lines)) {
-        | LinesDoNotExpand => LinesDoNotExpand
-        | LinesExpand(prelude_lines, ctx, delta) =>
-          LinesExpand(d => prelude_line(prelude_lines(d)), ctx, delta)
+      switch (syn_elab_line(ctx, delta, line)) {
+      | LinesDoNotElab => LinesDoNotElab
+      | LinesElab(prelude_line, ctx, delta) =>
+        switch (syn_elab_lines(ctx, delta, lines)) {
+        | LinesDoNotElab => LinesDoNotElab
+        | LinesElab(prelude_lines, ctx, delta) =>
+          LinesElab(d => prelude_line(prelude_lines(d)), ctx, delta)
         }
       }
     }
-  and syn_expand_line =
-      (ctx: Contexts.t, delta: Delta.t, line: UHExp.line): expand_result_lines =>
+  and syn_elab_line =
+      (ctx: Contexts.t, delta: Delta.t, line: UHExp.line): elab_result_lines =>
     switch (line) {
     | ExpLine(e1) =>
-      switch (syn_expand_exp(ctx, delta, e1)) {
-      | DoesNotExpand => LinesDoNotExpand
-      | Expands(d1, _, delta) =>
-        let prelude = d2 => DHExp.Let(Wild, d1, d2);
-        LinesExpand(prelude, ctx, delta);
+      switch (syn_elab_exp(ctx, delta, e1)) {
+      | DoesNotElab => LinesDoNotElab
+      | Elabs(d1, _, delta) =>
+        let prelude = d2 => Let(Wild, d1, d2);
+        LinesElab(prelude, ctx, delta);
       }
-    | EmptyLine => LinesExpand(d => d, ctx, delta)
+    | EmptyLine => LinesElab(d => d, ctx, delta)
     | LetLine(p, ann, block) =>
       switch (ann) {
       | Some(uty1) =>
-        let ty1 = UHTyp.expand(uty1);
+        let ty1 = UHTyp.elab(uty1);
         let (ctx1, is_recursive_fn) =
           Statics.ctx_for_let'(ctx, p, ty1, block);
-        switch (ana_expand_block(ctx1, delta, block, ty1)) {
-        | DoesNotExpand => LinesDoNotExpand
-        | Expands(d1, ty1', delta) =>
+        switch (ana_elab_block(ctx1, delta, block, ty1)) {
+        | DoesNotElab => LinesDoNotElab
+        | Elabs(d1, ty1', delta) =>
           let d1 =
             switch (is_recursive_fn) {
             | None => d1
@@ -935,28 +963,28 @@ module DHExp = {
               FixF(x, ty1', subst_var(cast(BoundVar(x), ty1', ty1), x, d1))
             };
           let d1 = cast(d1, ty1', ty1);
-          switch (DHPat.ana_expand(ctx, delta, p, ty1)) {
-          | DoesNotExpand => LinesDoNotExpand
-          | Expands(dp, _, ctx, delta) =>
-            let prelude = d2 => DHExp.Let(dp, d1, d2);
-            LinesExpand(prelude, ctx, delta);
+          switch (DHPat.ana_elab(ctx, delta, p, ty1)) {
+          | DoesNotElab => LinesDoNotElab
+          | Elabs(dp, _, ctx, delta) =>
+            let prelude = d2 => Let(dp, d1, d2);
+            LinesElab(prelude, ctx, delta);
           };
         };
       | None =>
-        switch (syn_expand_block(ctx, delta, block)) {
-        | DoesNotExpand => LinesDoNotExpand
-        | Expands(d1, ty1, delta) =>
-          switch (DHPat.ana_expand(ctx, delta, p, ty1)) {
-          | DoesNotExpand => LinesDoNotExpand
-          | Expands(dp, _, ctx, delta) =>
-            let prelude = d2 => DHExp.Let(dp, d1, d2);
-            LinesExpand(prelude, ctx, delta);
+        switch (syn_elab_block(ctx, delta, block)) {
+        | DoesNotElab => LinesDoNotElab
+        | Elabs(d1, ty1, delta) =>
+          switch (DHPat.ana_elab(ctx, delta, p, ty1)) {
+          | DoesNotElab => LinesDoNotElab
+          | Elabs(dp, _, ctx, delta) =>
+            let prelude = d2 => Let(dp, d1, d2);
+            LinesElab(prelude, ctx, delta);
           }
         }
       }
     }
-  and syn_expand_exp =
-      (ctx: Contexts.t, delta: Delta.t, e: UHExp.t): expand_result =>
+  and syn_elab_exp =
+      (ctx: Contexts.t, delta: Delta.t, e: UHExp.t): elab_result =>
     switch (e) {
     /* in hole */
     | Var(InHole(TypeInconsistent as reason, u), _, _)
@@ -968,9 +996,9 @@ module DHExp = {
     | Case(InHole(TypeInconsistent as reason, u), _, _, _)
     | ApLivelit(InHole(TypeInconsistent as reason, u), _, _, _) =>
       let e' = UHExp.set_err_status_t(NotInHole, e);
-      switch (syn_expand_exp(ctx, delta, e')) {
-      | DoesNotExpand => DoesNotExpand
-      | Expands(d, _, delta) =>
+      switch (syn_elab_exp(ctx, delta, e')) {
+      | DoesNotElab => DoesNotElab
+      | Elabs(d, _, delta) =>
         let gamma = Contexts.gamma(ctx);
         let sigma = id_env(gamma);
         let delta =
@@ -978,7 +1006,7 @@ module DHExp = {
             delta,
             (u, (ExpressionHole, Hole, gamma)),
           );
-        Expands(NonEmptyHole(reason, u, 0, sigma, d), Hole, delta);
+        Elabs(NonEmptyHole(reason, u, 0, sigma, d), Hole, delta);
       };
     | Var(InHole(WrongLength, _), _, _)
     | NumLit(InHole(WrongLength, _), _)
@@ -987,21 +1015,21 @@ module DHExp = {
     | Lam(InHole(WrongLength, _), _, _, _)
     | Inj(InHole(WrongLength, _), _, _)
     | Case(InHole(WrongLength, _), _, _, _)
-    | ApPalette(InHole(WrongLength, _), _, _, _) => DoesNotExpand
+    | ApLivelit(InHole(WrongLength, _), _, _, _) => DoesNotElab
     /* not in hole */
     | EmptyHole(u) =>
       let gamma = Contexts.gamma(ctx);
       let sigma = id_env(gamma);
-      let d = DHExp.EmptyHole(u, 0, sigma);
+      let d = EmptyHole(u, 0, sigma);
       let ty = HTyp.Hole;
       let delta =
         MetaVarMap.extend_unique(delta, (u, (ExpressionHole, ty, gamma)));
-      Expands(d, ty, delta);
+      Elabs(d, ty, delta);
     | Var(NotInHole, NotInVHole, x) =>
       let gamma = Contexts.gamma(ctx);
       switch (VarMap.lookup(gamma, x)) {
-      | Some(ty) => Expands(BoundVar(x), ty, delta)
-      | None => DoesNotExpand
+      | Some(ty) => Elabs(BoundVar(x), ty, delta)
+      | None => DoesNotElab
       };
     | Var(NotInHole, InVHole(reason, u), x) =>
       let gamma = Contexts.gamma(ctx);
@@ -1010,110 +1038,151 @@ module DHExp = {
         MetaVarMap.extend_unique(delta, (u, (ExpressionHole, Hole, gamma)));
       let d =
         switch (reason) {
-        | Free => DHExp.FreeVar(u, 0, sigma, x)
-        | Keyword(k) => DHExp.Keyword(u, 0, sigma, k)
+        | Free => FreeVar(u, 0, sigma, x)
+        | Keyword(k) => Keyword(u, 0, sigma, k)
         };
-      Expands(d, Hole, delta);
-    | NumLit(NotInHole, n) => Expands(NumLit(n), Num, delta)
-    | BoolLit(NotInHole, b) => Expands(BoolLit(b), Bool, delta)
+      Elabs(d, Hole, delta);
+    | FreeLivelit(u, name) =>
+      let gamma = Contexts.gamma(ctx);
+      let sigma = id_env(gamma);
+      let delta =
+        MetaVarMap.extend_unique(delta, (u, (ExpressionHole, Hole, gamma)));
+      let d = FreeLivelit(u, 0, sigma, name);
+      Elabs(d, Hole, delta);
+    | NumLit(NotInHole, n) => Elabs(NumLit(n), Num, delta)
+    | BoolLit(NotInHole, b) => Elabs(BoolLit(b), Bool, delta)
     | ListNil(NotInHole) =>
       let elt_ty = HTyp.Hole;
-      Expands(ListNil(elt_ty), List(elt_ty), delta);
-    | Parenthesized(block) => syn_expand_block(ctx, delta, block)
-    | OpSeq(skel, seq) => syn_expand_skel(ctx, delta, skel, seq)
+      Elabs(ListNil(elt_ty), List(elt_ty), delta);
+    | Parenthesized(block) => syn_elab_block(ctx, delta, block)
+    | OpSeq(skel, seq) => syn_elab_skel(ctx, delta, skel, seq)
     | Lam(NotInHole, p, ann, block) =>
       let ty1 =
         switch (ann) {
-        | Some(uty1) => UHTyp.expand(uty1)
+        | Some(uty1) => UHTyp.elab(uty1)
         | None => HTyp.Hole
         };
-      switch (DHPat.ana_expand(ctx, delta, p, ty1)) {
-      | DoesNotExpand => DoesNotExpand
-      | Expands(dp, _, ctx, delta) =>
-        switch (syn_expand_block(ctx, delta, block)) {
-        | DoesNotExpand => DoesNotExpand
-        | Expands(d1, ty2, delta) =>
+      switch (DHPat.ana_elab(ctx, delta, p, ty1)) {
+      | DoesNotElab => DoesNotElab
+      | Elabs(dp, _, ctx, delta) =>
+        switch (syn_elab_block(ctx, delta, block)) {
+        | DoesNotElab => DoesNotElab
+        | Elabs(d1, ty2, delta) =>
           let d = Lam(dp, ty1, d1);
-          Expands(d, Arrow(ty1, ty2), delta);
+          Elabs(d, Arrow(ty1, ty2), delta);
         }
       };
     | Inj(NotInHole, side, block) =>
-      switch (syn_expand_block(ctx, delta, block)) {
-      | DoesNotExpand => DoesNotExpand
-      | Expands(d1, ty1, delta) =>
-        let d = DHExp.Inj(Hole, side, d1);
+      switch (syn_elab_block(ctx, delta, block)) {
+      | DoesNotElab => DoesNotElab
+      | Elabs(d1, ty1, delta) =>
+        let d = Inj(Hole, side, d1);
         let ty =
           switch (side) {
           | L => HTyp.Sum(ty1, Hole)
           | R => HTyp.Sum(Hole, ty1)
           };
-        Expands(d, ty, delta);
+        Elabs(d, ty, delta);
       }
     | Case(NotInHole, block, rules, Some(uty)) =>
-      let ty = UHTyp.expand(uty);
-      switch (syn_expand_block(ctx, delta, block)) {
-      | DoesNotExpand => DoesNotExpand
-      | Expands(d1, ty1, delta) =>
-        switch (ana_expand_rules(ctx, delta, rules, ty1, ty)) {
-        | None => DoesNotExpand
+      let ty = UHTyp.elab(uty);
+      switch (syn_elab_block(ctx, delta, block)) {
+      | DoesNotElab => DoesNotElab
+      | Elabs(d1, ty1, delta) =>
+        switch (ana_elab_rules(ctx, delta, rules, ty1, ty)) {
+        | None => DoesNotElab
         | Some((drs, delta)) =>
           let d = Case(d1, drs, 0);
-          Expands(d, ty, delta);
+          Elabs(d, ty, delta);
         }
       };
-    | Case(NotInHole, _, _, None) => DoesNotExpand
+    | Case(NotInHole, _, _, None) => DoesNotElab
     | ApLivelit(NotInHole, name, serialized_model, si) =>
       let livelit_ctx = Contexts.livelit_ctx(ctx);
       switch (LivelitCtx.lookup(livelit_ctx, name)) {
-      | None => DoesNotExpand
+      | None => DoesNotElab
       | Some(livelit_defn) =>
-        let expand = livelit_defn.expand;
-        let expansion = expand(serialized_model);
-        expansion;
         let expansion_ty = livelit_defn.expansion_ty;
-        ana_expand_exp(ctx, bound_expansion, ty);
+        let expand = livelit_defn.expand;
+        let proto_expansion = expand(serialized_model);
+        let (proto_elaboration_ctx, names_to_vars) = to_ctx(si);
+        let proto_elaboration_result =
+          ana_elab_block(
+            proto_elaboration_ctx,
+            delta,
+            proto_expansion,
+            expansion_ty,
+          );
+        switch (proto_elaboration_result) {
+        | DoesNotElab => DoesNotElab
+        | Elabs(proto_elaboration, _, delta) =>
+          let elaboration_opt =
+            wrap_proto_elaboration(
+              ctx,
+              delta,
+              names_to_vars,
+              proto_elaboration,
+              si,
+            );
+          switch (elaboration_opt) {
+          | None => DoesNotElab
+          | Some((elaboration, delta)) =>
+            Elabs(elaboration, expansion_ty, delta)
+          };
+        };
       };
-    /* let (_, livelit_ctx) = ctx in
-       begin match (VarMap.lookup livelit_ctx name) with
-       | Some livelit_defn ->
-         let expansion_ty = UHExp.LivelitDefinition.expansion_ty livelit_defn in
-         let to_exp = UHExp.LivelitDefinition.to_exp livelit_defn in
-         let expansion = to_exp serialized_model in
-         let (_, hole_map) = hole_data in
-         (* bind each free variable in expansion by wrapping expansion
-          * in lambda, then apply lambda to args in hole data
-          *)
-         let bound_expansion :=
-             NatMap.fold hole_map
-               (fun bound entry ->
-                 let (n, typ_exp) = entry in
-                 let (htyp, hexp) = typ_exp in
-                 let lam = UHExp.Tm NotInHole (UHExp.Lam (UHExp.PaletteHoleData.mk_hole_ref_var_name n) bound) in
-                 let hexp_ann = UHExp.Tm NotInHole (UHExp.Asc (UHExp.Parenthesized hexp) (UHTyp.contract htyp)) in
-                 let opseq = OperatorSeq.ExpOpExp (UHExp.Parenthesized lam) UHExp.Space (UHExp.Parenthesized hexp_ann) in
-                 let ap = UHExp.OpSeq (Associator.associate_exp opseq) opseq in
-                 UHExp.Tm NotInHole ap
-               )
-               expansion in
-         ana_expand_exp ctx bound_expansion expansion_ty
-       | None -> DoesNotExpand
-       end */
     }
-  and syn_expand_skel =
+  and wrap_proto_elaboration =
+      (
+        ctx: Contexts.t,
+        delta: Delta.t,
+        names_to_vars: GeneralUtil.NatMap.t(Var.t),
+        proto_elaboration,
+        si: UHExp.splice_info,
+      )
+      : option((t, Delta.t)) => {
+    let splice_map = si.splice_map;
+    let names_to_vars_list: list((SpliceInfo.splice_name, Var.t)) =
+      GeneralUtil.NatMap.to_list(names_to_vars);
+    List.fold_left(
+      (
+        res: option((t, Delta.t)),
+        (name: SpliceInfo.splice_name, var: Var.t),
+      ) => {
+        switch (res) {
+        | None => None
+        | Some((elaboration, delta)) =>
+          switch (GeneralUtil.NatMap.lookup(splice_map, name)) {
+          | None => None
+          | Some((ty, block)) =>
+            switch (ana_elab_block(ctx, delta, block, ty)) {
+            | DoesNotElab => None
+            | Elabs(d, _, delta) =>
+              let elaboration = Ap(Lam(DHPat.Var(var), ty, elaboration), d);
+              Some((elaboration, delta));
+            }
+          }
+        }
+      },
+      Some((proto_elaboration, delta)),
+      names_to_vars_list,
+    );
+  }
+  and syn_elab_skel =
       (ctx: Contexts.t, delta: Delta.t, skel: UHExp.skel_t, seq: UHExp.opseq)
-      : expand_result =>
+      : elab_result =>
     switch (skel) {
     | Placeholder(n) =>
       switch (OperatorSeq.nth_tm(n, seq)) {
-      | None => DoesNotExpand
-      | Some(en) => syn_expand_exp(ctx, delta, en)
+      | None => DoesNotElab
+      | Some(en) => syn_elab_exp(ctx, delta, en)
       }
     | BinOp(InHole(TypeInconsistent as reason, u), op, skel1, skel2)
     | BinOp(InHole(WrongLength as reason, u), Comma as op, skel1, skel2) =>
       let skel_not_in_hole = Skel.BinOp(NotInHole, op, skel1, skel2);
-      switch (syn_expand_skel(ctx, delta, skel_not_in_hole, seq)) {
-      | DoesNotExpand => DoesNotExpand
-      | Expands(d, _, delta) =>
+      switch (syn_elab_skel(ctx, delta, skel_not_in_hole, seq)) {
+      | DoesNotElab => DoesNotElab
+      | Elabs(d, _, delta) =>
         let gamma = Contexts.gamma(ctx);
         let sigma = id_env(gamma);
         let delta =
@@ -1121,110 +1190,110 @@ module DHExp = {
             delta,
             (u, (ExpressionHole, Hole, gamma)),
           );
-        Expands(NonEmptyHole(reason, u, 0, sigma, d), Hole, delta);
+        Elabs(NonEmptyHole(reason, u, 0, sigma, d), Hole, delta);
       };
-    | BinOp(InHole(WrongLength, _), _, _, _) => DoesNotExpand
+    | BinOp(InHole(WrongLength, _), _, _, _) => DoesNotElab
     | BinOp(NotInHole, Space, skel1, skel2) =>
       switch (Statics.syn_skel(ctx, skel1, seq, None)) {
-      | None => DoesNotExpand
+      | None => DoesNotElab
       | Some((ty1, _)) =>
         switch (HTyp.matched_arrow(ty1)) {
-        | None => DoesNotExpand
+        | None => DoesNotElab
         | Some((ty2, ty)) =>
           let ty2_arrow_ty = HTyp.Arrow(ty2, ty);
-          switch (ana_expand_skel(ctx, delta, skel1, seq, ty2_arrow_ty)) {
-          | DoesNotExpand => DoesNotExpand
-          | Expands(d1, ty1', delta) =>
-            switch (ana_expand_skel(ctx, delta, skel2, seq, ty2)) {
-            | DoesNotExpand => DoesNotExpand
-            | Expands(d2, ty2', delta) =>
+          switch (ana_elab_skel(ctx, delta, skel1, seq, ty2_arrow_ty)) {
+          | DoesNotElab => DoesNotElab
+          | Elabs(d1, ty1', delta) =>
+            switch (ana_elab_skel(ctx, delta, skel2, seq, ty2)) {
+            | DoesNotElab => DoesNotElab
+            | Elabs(d2, ty2', delta) =>
               let dc1 = cast(d1, ty1', ty2_arrow_ty);
               let dc2 = cast(d2, ty2', ty2);
               let d = Ap(dc1, dc2);
-              Expands(d, ty, delta);
+              Elabs(d, ty, delta);
             }
           };
         }
       }
     | BinOp(NotInHole, Comma, skel1, skel2) =>
-      switch (syn_expand_skel(ctx, delta, skel1, seq)) {
-      | DoesNotExpand => DoesNotExpand
-      | Expands(d1, ty1, delta) =>
-        switch (syn_expand_skel(ctx, delta, skel2, seq)) {
-        | DoesNotExpand => DoesNotExpand
-        | Expands(d2, ty2, delta) =>
+      switch (syn_elab_skel(ctx, delta, skel1, seq)) {
+      | DoesNotElab => DoesNotElab
+      | Elabs(d1, ty1, delta) =>
+        switch (syn_elab_skel(ctx, delta, skel2, seq)) {
+        | DoesNotElab => DoesNotElab
+        | Elabs(d2, ty2, delta) =>
           let d = Pair(d1, d2);
           let ty = HTyp.Prod(ty1, ty2);
-          Expands(d, ty, delta);
+          Elabs(d, ty, delta);
         }
       }
     | BinOp(NotInHole, Cons, skel1, skel2) =>
-      switch (syn_expand_skel(ctx, delta, skel1, seq)) {
-      | DoesNotExpand => DoesNotExpand
-      | Expands(d1, ty1, delta) =>
+      switch (syn_elab_skel(ctx, delta, skel1, seq)) {
+      | DoesNotElab => DoesNotElab
+      | Elabs(d1, ty1, delta) =>
         let ty = HTyp.List(ty1);
-        switch (ana_expand_skel(ctx, delta, skel2, seq, ty)) {
-        | DoesNotExpand => DoesNotExpand
-        | Expands(d2, ty2, delta) =>
+        switch (ana_elab_skel(ctx, delta, skel2, seq, ty)) {
+        | DoesNotElab => DoesNotElab
+        | Elabs(d2, ty2, delta) =>
           let d2c = cast(d2, ty2, ty);
           let d = Cons(d1, d2c);
-          Expands(d, ty, delta);
+          Elabs(d, ty, delta);
         };
       }
     | BinOp(NotInHole, Minus as op, skel1, skel2)
     | BinOp(NotInHole, Plus as op, skel1, skel2)
     | BinOp(NotInHole, Times as op, skel1, skel2)
     | BinOp(NotInHole, LessThan as op, skel1, skel2) =>
-      switch (ana_expand_skel(ctx, delta, skel1, seq, Num)) {
-      | DoesNotExpand => DoesNotExpand
-      | Expands(d1, ty1, delta) =>
-        switch (ana_expand_skel(ctx, delta, skel2, seq, Num)) {
-        | DoesNotExpand => DoesNotExpand
-        | Expands(d2, ty2, delta) =>
+      switch (ana_elab_skel(ctx, delta, skel1, seq, Num)) {
+      | DoesNotElab => DoesNotElab
+      | Elabs(d1, ty1, delta) =>
+        switch (ana_elab_skel(ctx, delta, skel2, seq, Num)) {
+        | DoesNotElab => DoesNotElab
+        | Elabs(d2, ty2, delta) =>
           let dc1 = cast(d1, ty1, Num);
           let dc2 = cast(d2, ty2, Num);
           switch (of_op(op)) {
-          | None => DoesNotExpand
+          | None => DoesNotElab
           | Some((op, ty)) =>
             let d = BinNumOp(op, dc1, dc2);
-            Expands(d, ty, delta);
+            Elabs(d, ty, delta);
           };
         }
       }
     | BinOp(NotInHole, (And | Or) as op, skel1, skel2) =>
-      switch (ana_expand_skel(ctx, delta, skel1, seq, Bool)) {
-      | DoesNotExpand => DoesNotExpand
-      | Expands(d1, ty1, delta) =>
-        switch (ana_expand_skel(ctx, delta, skel2, seq, Bool)) {
-        | DoesNotExpand => DoesNotExpand
-        | Expands(d2, ty2, delta) =>
+      switch (ana_elab_skel(ctx, delta, skel1, seq, Bool)) {
+      | DoesNotElab => DoesNotElab
+      | Elabs(d1, ty1, delta) =>
+        switch (ana_elab_skel(ctx, delta, skel2, seq, Bool)) {
+        | DoesNotElab => DoesNotElab
+        | Elabs(d2, ty2, delta) =>
           let dc1 = cast(d1, ty1, Bool);
           let dc2 = cast(d2, ty2, Bool);
           switch (of_op(op)) {
-          | None => DoesNotExpand
+          | None => DoesNotElab
           | Some((op, ty)) =>
             let d = BinNumOp(op, dc1, dc2);
-            Expands(d, ty, delta);
+            Elabs(d, ty, delta);
           };
         }
       }
     }
-  and ana_expand_block =
+  and ana_elab_block =
       (ctx: Contexts.t, delta: Delta.t, block: UHExp.block, ty: HTyp.t)
-      : expand_result =>
+      : elab_result =>
     switch (block) {
     | Block(lines, e) =>
-      switch (syn_expand_lines(ctx, delta, lines)) {
-      | LinesDoNotExpand => DoesNotExpand
-      | LinesExpand(prelude, ctx, delta) =>
-        switch (ana_expand_exp(ctx, delta, e, ty)) {
-        | DoesNotExpand => DoesNotExpand
-        | Expands(d, ty, delta) => Expands(prelude(d), ty, delta)
+      switch (syn_elab_lines(ctx, delta, lines)) {
+      | LinesDoNotElab => DoesNotElab
+      | LinesElab(prelude, ctx, delta) =>
+        switch (ana_elab_exp(ctx, delta, e, ty)) {
+        | DoesNotElab => DoesNotElab
+        | Elabs(d, ty, delta) => Elabs(prelude(d), ty, delta)
         }
       }
     }
-  and ana_expand_exp =
-      (ctx: Contexts.t, delta: Delta.t, e: UHExp.t, ty: HTyp.t): expand_result =>
+  and ana_elab_exp =
+      (ctx: Contexts.t, delta: Delta.t, e: UHExp.t, ty: HTyp.t): elab_result =>
     switch (e) {
     /* in hole */
     | Var(InHole(TypeInconsistent as reason, u), _, _)
@@ -1234,16 +1303,16 @@ module DHExp = {
     | Lam(InHole(TypeInconsistent as reason, u), _, _, _)
     | Inj(InHole(TypeInconsistent as reason, u), _, _)
     | Case(InHole(TypeInconsistent as reason, u), _, _, _)
-    | ApPalette(InHole(TypeInconsistent as reason, u), _, _, _) =>
+    | ApLivelit(InHole(TypeInconsistent as reason, u), _, _, _) =>
       let e' = UHExp.set_err_status_t(NotInHole, e);
-      switch (syn_expand_exp(ctx, delta, e')) {
-      | DoesNotExpand => DoesNotExpand
-      | Expands(d, _, delta) =>
+      switch (syn_elab_exp(ctx, delta, e')) {
+      | DoesNotElab => DoesNotElab
+      | Elabs(d, _, delta) =>
         let gamma = Contexts.gamma(ctx);
         let sigma = id_env(gamma);
         let delta =
           MetaVarMap.extend_unique(delta, (u, (ExpressionHole, ty, gamma)));
-        Expands(NonEmptyHole(reason, u, 0, sigma, d), ty, delta);
+        Elabs(NonEmptyHole(reason, u, 0, sigma, d), ty, delta);
       };
     | Var(InHole(WrongLength, _), _, _)
     | NumLit(InHole(WrongLength, _), _)
@@ -1252,7 +1321,7 @@ module DHExp = {
     | Lam(InHole(WrongLength, _), _, _, _)
     | Inj(InHole(WrongLength, _), _, _)
     | Case(InHole(WrongLength, _), _, _, _)
-    | ApPalette(InHole(WrongLength, _), _, _, _) => DoesNotExpand
+    | ApLivelit(InHole(WrongLength, _), _, _, _) => DoesNotElab
     /* not in hole */
     | EmptyHole(u) =>
       let gamma = Contexts.gamma(ctx);
@@ -1260,7 +1329,7 @@ module DHExp = {
       let d = EmptyHole(u, 0, sigma);
       let delta =
         MetaVarMap.extend_unique(delta, (u, (ExpressionHole, ty, gamma)));
-      Expands(d, ty, delta);
+      Elabs(d, ty, delta);
     | Var(NotInHole, InVHole(reason, u), x) =>
       let gamma = Contexts.gamma(ctx);
       let sigma = id_env(gamma);
@@ -1271,102 +1340,109 @@ module DHExp = {
         | Free => FreeVar(u, 0, sigma, x)
         | Keyword(k) => Keyword(u, 0, sigma, k)
         };
-      Expands(d, ty, delta);
-    | Parenthesized(block) => ana_expand_block(ctx, delta, block, ty)
-    | OpSeq(skel, seq) => ana_expand_skel(ctx, delta, skel, seq, ty)
+      Elabs(d, ty, delta);
+    | FreeLivelit(u, name) =>
+      let gamma = Contexts.gamma(ctx);
+      let sigma = id_env(gamma);
+      let delta =
+        MetaVarMap.extend_unique(delta, (u, (ExpressionHole, ty, gamma)));
+      let d = FreeLivelit(u, 0, sigma, name);
+      Elabs(d, ty, delta);
+    | Parenthesized(block) => ana_elab_block(ctx, delta, block, ty)
+    | OpSeq(skel, seq) => ana_elab_skel(ctx, delta, skel, seq, ty)
     | Lam(NotInHole, p, ann, block) =>
       switch (HTyp.matched_arrow(ty)) {
-      | None => DoesNotExpand
+      | None => DoesNotElab
       | Some((ty1_given, ty2)) =>
         switch (ann) {
         | Some(uty1) =>
-          let ty1_ann = UHTyp.expand(uty1);
+          let ty1_ann = UHTyp.elab(uty1);
           switch (HTyp.consistent(ty1_ann, ty1_given)) {
-          | false => DoesNotExpand
+          | false => DoesNotElab
           | true =>
-            switch (DHPat.ana_expand(ctx, delta, p, ty1_ann)) {
-            | DoesNotExpand => DoesNotExpand
-            | Expands(dp, ty1p, ctx, delta) =>
-              switch (ana_expand_block(ctx, delta, block, ty2)) {
-              | DoesNotExpand => DoesNotExpand
-              | Expands(d1, ty2, delta) =>
+            switch (DHPat.ana_elab(ctx, delta, p, ty1_ann)) {
+            | DoesNotElab => DoesNotElab
+            | Elabs(dp, ty1p, ctx, delta) =>
+              switch (ana_elab_block(ctx, delta, block, ty2)) {
+              | DoesNotElab => DoesNotElab
+              | Elabs(d1, ty2, delta) =>
                 let ty = HTyp.Arrow(ty1p, ty2);
                 let d = Lam(dp, ty1p, d1);
-                Expands(d, ty, delta);
+                Elabs(d, ty, delta);
               }
             }
           };
         | None =>
-          switch (DHPat.ana_expand(ctx, delta, p, ty1_given)) {
-          | DoesNotExpand => DoesNotExpand
-          | Expands(dp, ty1, ctx, delta) =>
-            switch (ana_expand_block(ctx, delta, block, ty2)) {
-            | DoesNotExpand => DoesNotExpand
-            | Expands(d1, ty2, delta) =>
+          switch (DHPat.ana_elab(ctx, delta, p, ty1_given)) {
+          | DoesNotElab => DoesNotElab
+          | Elabs(dp, ty1, ctx, delta) =>
+            switch (ana_elab_block(ctx, delta, block, ty2)) {
+            | DoesNotElab => DoesNotElab
+            | Elabs(d1, ty2, delta) =>
               let ty = HTyp.Arrow(ty1, ty2);
               let d = Lam(dp, ty1, d1);
-              Expands(d, ty, delta);
+              Elabs(d, ty, delta);
             }
           }
         }
       }
     | Inj(NotInHole, side, block) =>
       switch (HTyp.matched_sum(ty)) {
-      | None => DoesNotExpand
+      | None => DoesNotElab
       | Some((ty1, ty2)) =>
         let e1ty = pick_side(side, ty1, ty2);
-        switch (ana_expand_block(ctx, delta, block, e1ty)) {
-        | DoesNotExpand => DoesNotExpand
-        | Expands(d1, e1ty', delta) =>
+        switch (ana_elab_block(ctx, delta, block, e1ty)) {
+        | DoesNotElab => DoesNotElab
+        | Elabs(d1, e1ty', delta) =>
           let (ann_ty, ty) =
             switch (side) {
             | L => (ty2, HTyp.Sum(e1ty', ty2))
             | R => (ty1, HTyp.Sum(ty1, e1ty'))
             };
           let d = Inj(ann_ty, side, d1);
-          Expands(d, ty, delta);
+          Elabs(d, ty, delta);
         };
       }
     | Case(NotInHole, block, rules, Some(uty)) =>
-      let ty2 = UHTyp.expand(uty);
+      let ty2 = UHTyp.elab(uty);
       switch (HTyp.consistent(ty, ty2)) {
-      | false => DoesNotExpand
+      | false => DoesNotElab
       | true =>
-        switch (syn_expand_block(ctx, delta, block)) {
-        | DoesNotExpand => DoesNotExpand
-        | Expands(d1, ty1, delta) =>
-          switch (ana_expand_rules(ctx, delta, rules, ty1, ty2)) {
-          | None => DoesNotExpand
+        switch (syn_elab_block(ctx, delta, block)) {
+        | DoesNotElab => DoesNotElab
+        | Elabs(d1, ty1, delta) =>
+          switch (ana_elab_rules(ctx, delta, rules, ty1, ty2)) {
+          | None => DoesNotElab
           | Some((drs, delta)) =>
             let d = Case(d1, drs, 0);
-            Expands(d, ty, delta);
+            Elabs(d, ty, delta);
           }
         }
       };
     | Case(NotInHole, block, rules, None) =>
-      switch (syn_expand_block(ctx, delta, block)) {
-      | DoesNotExpand => DoesNotExpand
-      | Expands(d1, ty1, delta) =>
-        switch (ana_expand_rules(ctx, delta, rules, ty1, ty)) {
-        | None => DoesNotExpand
+      switch (syn_elab_block(ctx, delta, block)) {
+      | DoesNotElab => DoesNotElab
+      | Elabs(d1, ty1, delta) =>
+        switch (ana_elab_rules(ctx, delta, rules, ty1, ty)) {
+        | None => DoesNotElab
         | Some((drs, delta)) =>
           let d = Case(d1, drs, 0);
-          Expands(d, ty, delta);
+          Elabs(d, ty, delta);
         }
       }
     | ListNil(NotInHole) =>
       switch (HTyp.matched_list(ty)) {
-      | None => DoesNotExpand
-      | Some(elt_ty) => Expands(ListNil(elt_ty), List(elt_ty), delta)
+      | None => DoesNotElab
+      | Some(elt_ty) => Elabs(ListNil(elt_ty), List(elt_ty), delta)
       }
     | Var(NotInHole, NotInVHole, _)
     | BoolLit(NotInHole, _)
     | NumLit(NotInHole, _)
-    | ApPalette(NotInHole, _, _, _) =>
+    | ApLivelit(NotInHole, _, _, _) =>
       /* subsumption */
-      syn_expand_exp(ctx, delta, e)
+      syn_elab_exp(ctx, delta, e)
     }
-  and ana_expand_rules =
+  and ana_elab_rules =
       (
         ctx: Contexts.t,
         delta: Delta.t,
@@ -1380,7 +1456,7 @@ module DHExp = {
         switch (b) {
         | None => None
         | Some((drs, delta)) =>
-          switch (ana_expand_rule(ctx, delta, r, pat_ty, clause_ty)) {
+          switch (ana_elab_rule(ctx, delta, r, pat_ty, clause_ty)) {
           | None => None
           | Some((dr, delta)) =>
             let drs = drs @ [dr];
@@ -1390,7 +1466,7 @@ module DHExp = {
       Some(([], delta)),
       rules,
     )
-  and ana_expand_rule =
+  and ana_elab_rule =
       (
         ctx: Contexts.t,
         delta: Delta.t,
@@ -1400,17 +1476,17 @@ module DHExp = {
       )
       : option((rule, Delta.t)) => {
     let UHExp.Rule(p, block) = r;
-    switch (DHPat.ana_expand(ctx, delta, p, pat_ty)) {
-    | DoesNotExpand => None
-    | Expands(dp, _, ctx, delta) =>
-      switch (ana_expand_block(ctx, delta, block, clause_ty)) {
-      | DoesNotExpand => None
-      | Expands(d1, ty1, delta) =>
+    switch (DHPat.ana_elab(ctx, delta, p, pat_ty)) {
+    | DoesNotElab => None
+    | Elabs(dp, _, ctx, delta) =>
+      switch (ana_elab_block(ctx, delta, block, clause_ty)) {
+      | DoesNotElab => None
+      | Elabs(d1, ty1, delta) =>
         Some((Rule(dp, cast(d1, ty1, clause_ty)), delta))
       }
     };
   }
-  and ana_expand_skel =
+  and ana_elab_skel =
       (
         ctx: Contexts.t,
         delta: Delta.t,
@@ -1418,37 +1494,37 @@ module DHExp = {
         seq: UHExp.opseq,
         ty: HTyp.t,
       )
-      : expand_result =>
+      : elab_result =>
     switch (skel) {
     | Placeholder(n) =>
       switch (OperatorSeq.nth_tm(n, seq)) {
-      | None => DoesNotExpand
-      | Some(en) => ana_expand_exp(ctx, delta, en, ty)
+      | None => DoesNotElab
+      | Some(en) => ana_elab_exp(ctx, delta, en, ty)
       }
     | BinOp(InHole(TypeInconsistent as reason, u), op, skel1, skel2) =>
       let skel_not_in_hole = Skel.BinOp(NotInHole, op, skel1, skel2);
-      switch (syn_expand_skel(ctx, delta, skel_not_in_hole, seq)) {
-      | DoesNotExpand => DoesNotExpand
-      | Expands(d1, _, delta) =>
+      switch (syn_elab_skel(ctx, delta, skel_not_in_hole, seq)) {
+      | DoesNotElab => DoesNotElab
+      | Elabs(d1, _, delta) =>
         let gamma = Contexts.gamma(ctx);
         let sigma = id_env(gamma);
         let delta =
           MetaVarMap.extend_unique(delta, (u, (ExpressionHole, ty, gamma)));
-        let d = DHExp.NonEmptyHole(reason, u, 0, sigma, d1);
-        Expands(d, ty, delta);
+        let d = NonEmptyHole(reason, u, 0, sigma, d1);
+        Elabs(d, ty, delta);
       };
     | BinOp(NotInHole, Comma, skel1, skel2) =>
       switch (HTyp.matched_prod(ty)) {
-      | None => DoesNotExpand
+      | None => DoesNotElab
       | Some((ty1, ty2)) =>
-        switch (ana_expand_skel(ctx, delta, skel1, seq, ty1)) {
-        | DoesNotExpand => DoesNotExpand
-        | Expands(d1, ty1, delta) =>
-          switch (ana_expand_skel(ctx, delta, skel2, seq, ty2)) {
-          | DoesNotExpand => DoesNotExpand
-          | Expands(d2, ty2, delta) =>
+        switch (ana_elab_skel(ctx, delta, skel1, seq, ty1)) {
+        | DoesNotElab => DoesNotElab
+        | Elabs(d1, ty1, delta) =>
+          switch (ana_elab_skel(ctx, delta, skel2, seq, ty2)) {
+          | DoesNotElab => DoesNotElab
+          | Elabs(d2, ty2, delta) =>
             let d = Pair(d1, d2);
-            Expands(d, Prod(ty1, ty2), delta);
+            Elabs(d, Prod(ty1, ty2), delta);
           }
         }
       }
@@ -1465,26 +1541,26 @@ module DHExp = {
               | None => None
               | Some((elts, delta)) =>
                 let (skel, ty) = skel_ty;
-                switch (ana_expand_skel(ctx, delta, skel, seq, ty)) {
-                | DoesNotExpand => None
-                | Expands(d, ty, delta) =>
+                switch (ana_elab_skel(ctx, delta, skel, seq, ty)) {
+                | DoesNotElab => None
+                | Elabs(d, ty, delta) =>
                   Some((ListMinTwo.Cons((d, ty), elts), delta))
                 };
               },
             zipped,
             ((skel1, ty1), (skel2, ty2)) =>
-              switch (ana_expand_skel(ctx, delta, skel1, seq, ty1)) {
-              | DoesNotExpand => None
-              | Expands(d1, ty1, delta) =>
-                switch (ana_expand_skel(ctx, delta, skel2, seq, ty2)) {
-                | DoesNotExpand => None
-                | Expands(d2, ty2, delta) =>
+              switch (ana_elab_skel(ctx, delta, skel1, seq, ty1)) {
+              | DoesNotElab => None
+              | Elabs(d1, ty1, delta) =>
+                switch (ana_elab_skel(ctx, delta, skel2, seq, ty2)) {
+                | DoesNotElab => None
+                | Elabs(d2, ty2, delta) =>
                   Some((ListMinTwo.Pair((d1, ty1), (d2, ty2)), delta))
                 }
               },
           );
         switch (processed1) {
-        | None => DoesNotExpand
+        | None => DoesNotElab
         | Some((elts1, delta)) =>
           let processed2 =
             List.fold_right(
@@ -1492,9 +1568,9 @@ module DHExp = {
                 switch (opt_result) {
                 | None => None
                 | Some((elts, delta)) =>
-                  switch (syn_expand_skel(ctx, delta, skel, seq)) {
-                  | DoesNotExpand => None
-                  | Expands(d, ty, delta) =>
+                  switch (syn_elab_skel(ctx, delta, skel, seq)) {
+                  | DoesNotElab => None
+                  | Elabs(d, ty, delta) =>
                     Some(([(d, ty), ...elts], delta))
                   }
                 },
@@ -1502,33 +1578,33 @@ module DHExp = {
               Some(([], delta)),
             );
           switch (processed2) {
-          | None => DoesNotExpand
+          | None => DoesNotElab
           | Some((elts2, delta)) =>
             let elts = ListMinTwo.append_list(elts1, elts2);
             let (ds, tys) = ListMinTwo.unzip(elts);
             let d = make_tuple(ds);
             let ty = HTyp.make_tuple(tys);
-            Expands(d, ty, delta);
+            Elabs(d, ty, delta);
           };
         };
-      | _ => DoesNotExpand
+      | _ => DoesNotElab
       }
-    | BinOp(InHole(WrongLength, _), _, _, _) => DoesNotExpand
+    | BinOp(InHole(WrongLength, _), _, _, _) => DoesNotElab
     | BinOp(NotInHole, Cons, skel1, skel2) =>
       switch (HTyp.matched_list(ty)) {
-      | None => DoesNotExpand
+      | None => DoesNotElab
       | Some(ty_elt) =>
-        switch (ana_expand_skel(ctx, delta, skel1, seq, ty_elt)) {
-        | DoesNotExpand => DoesNotExpand
-        | Expands(d1, ty_elt', delta) =>
+        switch (ana_elab_skel(ctx, delta, skel1, seq, ty_elt)) {
+        | DoesNotElab => DoesNotElab
+        | Elabs(d1, ty_elt', delta) =>
           let d1c = cast(d1, ty_elt', ty_elt);
           let ty_list = HTyp.List(ty_elt);
-          switch (ana_expand_skel(ctx, delta, skel2, seq, ty_list)) {
-          | DoesNotExpand => DoesNotExpand
-          | Expands(d2, ty2, delta) =>
+          switch (ana_elab_skel(ctx, delta, skel2, seq, ty_list)) {
+          | DoesNotElab => DoesNotElab
+          | Elabs(d2, ty2, delta) =>
             let d2c = cast(d2, ty2, ty_list);
             let d = Cons(d1c, d2c);
-            Expands(d, ty_list, delta);
+            Elabs(d, ty_list, delta);
           };
         }
       }
@@ -1537,13 +1613,13 @@ module DHExp = {
     | BinOp(_, Times, _, _)
     | BinOp(_, LessThan, _, _)
     | BinOp(_, Space, _, _) =>
-      switch (syn_expand_skel(ctx, delta, skel, seq)) {
-      | DoesNotExpand => DoesNotExpand
-      | Expands(d, ty', delta) =>
+      switch (syn_elab_skel(ctx, delta, skel, seq)) {
+      | DoesNotElab => DoesNotElab
+      | Elabs(d, ty', delta) =>
         if (HTyp.consistent(ty, ty')) {
-          Expands(d, ty', delta);
+          Elabs(d, ty', delta);
         } else {
-          DoesNotExpand;
+          DoesNotElab;
         }
       }
     };
@@ -1672,8 +1748,8 @@ module DHExp = {
     };
 
   let rec renumber_result_only =
-          (path: InstancePath.t, hii: HoleInstanceInfo.t, d: DHExp.t)
-          : (DHExp.t, HoleInstanceInfo.t) =>
+          (path: InstancePath.t, hii: HoleInstanceInfo.t, d: t)
+          : (t, HoleInstanceInfo.t) =>
     switch (d) {
     | BoundVar(_)
     | BoolLit(_)
@@ -1734,6 +1810,9 @@ module DHExp = {
     | Keyword(u, _, sigma, k) =>
       let (i, hii) = HoleInstanceInfo.next(hii, u, sigma, path);
       (Keyword(u, i, sigma, k), hii);
+    | FreeLivelit(u, _, sigma, name) =>
+      let (i, hii) = HoleInstanceInfo.next(hii, u, sigma, path);
+      (FreeLivelit(u, i, sigma, name), hii);
     | Cast(d1, ty1, ty2) =>
       let (d1, hii) = renumber_result_only(path, hii, d1);
       (Cast(d1, ty1, ty2), hii);
@@ -1759,8 +1838,8 @@ module DHExp = {
     );
 
   let rec renumber_sigmas_only =
-          (path: InstancePath.t, hii: HoleInstanceInfo.t, d: DHExp.t)
-          : (DHExp.t, HoleInstanceInfo.t) =>
+          (path: InstancePath.t, hii: HoleInstanceInfo.t, d: t)
+          : (t, HoleInstanceInfo.t) =>
     switch (d) {
     | BoundVar(_)
     | BoolLit(_)
@@ -1825,6 +1904,10 @@ module DHExp = {
       let (sigma, hii) = renumber_sigma(path, u, i, hii, sigma);
       let hii = HoleInstanceInfo.update_environment(hii, (u, i), sigma);
       (Keyword(u, i, sigma, k), hii);
+    | FreeLivelit(u, i, sigma, name) =>
+      let (sigma, hii) = renumber_sigma(path, u, i, hii, sigma);
+      let hii = HoleInstanceInfo.update_environment(hii, (u, i), sigma);
+      (FreeLivelit(u, i, sigma, name), hii);
     | Cast(d1, ty1, ty2) =>
       let (d1, hii) = renumber_sigmas_only(path, hii, d1);
       (Cast(d1, ty1, ty2), hii);
@@ -1859,7 +1942,7 @@ module DHExp = {
       : (Environment.t, HoleInstanceInfo.t) => {
     let (sigma, hii) =
       List.fold_right(
-        (xd: (Var.t, DHExp.t), acc: (Environment.t, HoleInstanceInfo.t)) => {
+        (xd: (Var.t, t), acc: (Environment.t, HoleInstanceInfo.t)) => {
           let (x, d) = xd;
           let (sigma_in, hii) = acc;
           let path = [((u, i), x), ...path];
@@ -1872,7 +1955,7 @@ module DHExp = {
       );
 
     List.fold_right(
-      (xd: (Var.t, DHExp.t), acc: (Environment.t, HoleInstanceInfo.t)) => {
+      (xd: (Var.t, t), acc: (Environment.t, HoleInstanceInfo.t)) => {
         let (x, d) = xd;
         let (sigma_in, hii) = acc;
         let path = [((u, i), x), ...path];
@@ -1886,7 +1969,7 @@ module DHExp = {
   };
 
   let renumber =
-      (path: InstancePath.t, hii: HoleInstanceInfo.t, d: DHExp.t)
+      (path: InstancePath.t, hii: HoleInstanceInfo.t, d: t)
       : (t, HoleInstanceInfo.t) => {
     let (d, hii) = renumber_result_only(path, hii, d);
     renumber_sigmas_only(path, hii, d);
@@ -2086,6 +2169,7 @@ module Evaluator = {
       }
     | FreeVar(_, _, _, _) => Indet(d)
     | Keyword(_, _, _, _) => Indet(d)
+    | FreeLivelit(_, _, _, _) => Indet(d)
     | Cast(d1, ty, ty') =>
       switch (evaluate(d1)) {
       | InvalidInput(msg) => InvalidInput(msg)

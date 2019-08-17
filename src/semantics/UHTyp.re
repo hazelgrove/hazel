@@ -67,34 +67,34 @@ let rec contract = (ty: HTyp.t): t => {
   };
 };
 
-let rec expand = (uty: t): HTyp.t =>
+let rec elab = (uty: t): HTyp.t =>
   switch (uty) {
   | Hole => Hole
   | Unit => Unit
   | Num => Num
   | Bool => Bool
-  | Parenthesized(uty1) => expand(uty1)
-  | List(uty1) => List(expand(uty1))
-  | OpSeq(skel, seq) => expand_skel(skel, seq)
+  | Parenthesized(uty1) => elab(uty1)
+  | List(uty1) => List(elab(uty1))
+  | OpSeq(skel, seq) => elab_skel(skel, seq)
   }
-and expand_skel = (skel: skel_t, seq: opseq): HTyp.t =>
+and elab_skel = (skel: skel_t, seq: opseq): HTyp.t =>
   switch (skel) {
   | Placeholder(n) =>
     switch (OperatorSeq.nth_tm(n, seq)) {
-    | Some(uty_n) => expand(uty_n)
+    | Some(uty_n) => elab(uty_n)
     | None => Hole /* should never happen */
     }
   | BinOp(_, Arrow, skel1, skel2) =>
-    let uty1 = expand_skel(skel1, seq);
-    let uty2 = expand_skel(skel2, seq);
+    let uty1 = elab_skel(skel1, seq);
+    let uty2 = elab_skel(skel2, seq);
     Arrow(uty1, uty2);
   | BinOp(_, Prod, skel1, skel2) =>
-    let uty1 = expand_skel(skel1, seq);
-    let uty2 = expand_skel(skel2, seq);
+    let uty1 = elab_skel(skel1, seq);
+    let uty2 = elab_skel(skel2, seq);
     Prod(uty1, uty2);
   | BinOp(_, Sum, skel1, skel2) =>
-    let uty1 = expand_skel(skel1, seq);
-    let uty2 = expand_skel(skel2, seq);
+    let uty1 = elab_skel(skel1, seq);
+    let uty2 = elab_skel(skel2, seq);
     Sum(uty1, uty2);
   };
 

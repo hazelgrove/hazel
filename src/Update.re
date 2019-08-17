@@ -114,8 +114,8 @@ let apply_action =
     | exception Model.InvalidInput =>
       JSUtil.log("[Model.InvalidInput");
       model;
-    | exception Model.DoesNotExpand =>
-      JSUtil.log("[Model.DoesNotExpand]");
+    | exception Model.DoesNotElab =>
+      JSUtil.log("[Model.DoesNotElab]");
       model;
     }
   | ToggleLeftSidebar => Model.toggle_left_sidebar(model)

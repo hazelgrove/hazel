@@ -834,7 +834,7 @@ and _ana_cursor_found_exp =
   | Var(_, InVHole(Keyword(k), _), _) =>
     Some((AnaKeyword(ty, k), Exp(e), ctx))
   | Var(_, InVHole(Free, _), _) => Some((AnaFree(ty), Exp(e), ctx))
-  | ApUnboundLivelit(_, _) => Some((AnaFreeLivelit(ty), Exp(e), ctx))
+  | FreeLivelit(_, _) => Some((AnaFreeLivelit(ty), Exp(e), ctx))
   | ListNil(NotInHole) => Some((Analyzed(ty), Exp(e), ctx))
   | EmptyHole(_)
   | Case(NotInHole, _, _, _) => Some((Analyzed(ty), Exp(e), ctx))
@@ -844,7 +844,7 @@ and _ana_cursor_found_exp =
     | Some((ty1_given, ty2)) =>
       switch (ann) {
       | Some(uty1) =>
-        let ty1_ann = UHTyp.expand(uty1);
+        let ty1_ann = UHTyp.elab(uty1);
         switch (HTyp.consistent(ty1_ann, ty1_given)) {
         | false => None
         | true =>
@@ -959,7 +959,7 @@ and _syn_cursor_info_line =
   | LetLineZP(zp, ann, block) =>
     switch (ann) {
     | Some(uty1) =>
-      let ty1 = UHTyp.expand(uty1);
+      let ty1 = UHTyp.elab(uty1);
       _ana_cursor_info_pat(~node_steps, ~term_steps, ctx, zp, ty1);
     | None =>
       switch (Statics.syn_block(ctx, block)) {
@@ -973,7 +973,7 @@ and _syn_cursor_info_line =
   | LetLineZE(p, ann, zblock) =>
     switch (ann) {
     | Some(uty1) =>
-      let ty1 = UHTyp.expand(uty1);
+      let ty1 = UHTyp.elab(uty1);
       let ctx1 = Statics.ctx_for_let(ctx, p, ty1, ZExp.erase_block(zblock));
       _ana_cursor_info_block(~node_steps, ~term_steps, ctx1, zblock, ty1);
     | None => _syn_cursor_info_block(~node_steps, ~term_steps, ctx, zblock)
@@ -1043,7 +1043,7 @@ and _syn_cursor_info =
   | LamZP(_, zp, ann, _) =>
     let ty1 =
       switch (ann) {
-      | Some(uty1) => UHTyp.expand(uty1)
+      | Some(uty1) => UHTyp.elab(uty1)
       | None => Hole
       };
     _ana_cursor_info_pat(~node_steps, ~term_steps, ctx, zp, ty1);
@@ -1052,7 +1052,7 @@ and _syn_cursor_info =
   | LamZE(_, p, ann, zblock) =>
     let ty1 =
       switch (ann) {
-      | Some(uty1) => UHTyp.expand(uty1)
+      | Some(uty1) => UHTyp.elab(uty1)
       | None => Hole
       };
     switch (Statics.ana_pat(ctx, p, ty1)) {
@@ -1067,7 +1067,7 @@ and _syn_cursor_info =
   | CaseZE(_, zblock, _, Some(_)) =>
     _syn_cursor_info_block(~node_steps, ~term_steps, ctx, zblock)
   | CaseZR(_, block, zrules, Some(uty)) =>
-    let ty = UHTyp.expand(uty);
+    let ty = UHTyp.elab(uty);
     switch (Statics.syn_block(ctx, block)) {
     | None => None
     | Some(ty1) =>
@@ -1176,7 +1176,7 @@ and _ana_cursor_info =
     | Some((ty1_given, _)) =>
       let ty1 =
         switch (ann) {
-        | Some(uty1) => UHTyp.expand(uty1)
+        | Some(uty1) => UHTyp.elab(uty1)
         | None => ty1_given
         };
       _ana_cursor_info_pat(~node_steps, ~term_steps, ctx, zp, ty1);
@@ -1189,7 +1189,7 @@ and _ana_cursor_info =
     | Some((ty1_given, ty2)) =>
       let ty1 =
         switch (ann) {
-        | Some(uty1) => UHTyp.expand(uty1)
+        | Some(uty1) => UHTyp.elab(uty1)
         | None => ty1_given
         };
       switch (Statics.ana_pat(ctx, p, ty1)) {

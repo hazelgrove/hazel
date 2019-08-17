@@ -227,7 +227,7 @@ and before_exp = (~steps=[], e: UHExp.t): t =>
   | Case(_, _, _, _)
   | Parenthesized(_) => (steps, OnDelim(0, Before))
   | ApLivelit(_, _, _, _)
-  | ApUnboundLivelit(_) => (steps, OnText(0))
+  | FreeLivelit(_) => (steps, OnText(0))
   | OpSeq(_, seq) =>
     let (first, _) = seq |> OperatorSeq.split0;
     before_exp(~steps=steps @ [0], first);
@@ -465,7 +465,7 @@ and follow_exp_and_place_cursor =
     | (_, NumLit(_, _))
     | (_, BoolLit(_, _))
     | (_, ListNil(_))
-    | (_, ApUnboundLivelit(_)) => None
+    | (_, FreeLivelit(_)) => None
     /* inner nodes */
     | (0, Parenthesized(block)) =>
       switch (
@@ -1009,7 +1009,7 @@ and holes_exp =
         holes,
       );
     holes_of_err_exp(e, err, rev_steps, holes);
-  | ApUnboundLivelit(u, _) => [
+  | FreeLivelit(u, _) => [
       (LivelitHole(u), rev_steps |> List.rev |> append(before_exp(e))),
       ...holes,
     ]
@@ -1600,7 +1600,7 @@ and holes_ze = (ze: ZExp.t, rev_steps: rev_steps): zhole_list =>
       hole_selected: None,
       holes_after: holes_exp(e1, rev_steps, []),
     }
-  | CursorE(_, ApUnboundLivelit(_, _)) => no_holes
+  | CursorE(_, FreeLivelit(_, _)) => no_holes
   | OpSeqZ(skel, ze0, surround) =>
     holes_OpSeqZ(
       ~holes_tm=holes_exp,
@@ -1934,7 +1934,7 @@ and prune_trivial_suffix_block__exp = (~steps_of_first_line, e) =>
   switch (e, steps_of_first_line) {
   | (
       EmptyHole(_) | Var(_, _, _) | NumLit(_, _) | BoolLit(_, _) | ListNil(_) |
-      ApUnboundLivelit(_, _),
+      FreeLivelit(_, _),
       _,
     )
   | (_, []) => e
