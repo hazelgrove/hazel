@@ -888,6 +888,24 @@ let rec holes_pat =
        )
   };
 
+let holes_of_err_exp = (e, err, rev_steps, holes) =>
+  switch (err) {
+  | NotInHole => holes
+  | InHole(_, u) => [
+      (ExpHole(u), rev_steps |> List.rev |> append(before_exp(e))),
+      ...holes,
+    ]
+  };
+
+let holes_of_var_err_exp = (e, var_err, rev_steps, holes) =>
+  switch (var_err) {
+  | NotInVHole => holes
+  | InVHole(_, u) => [
+      (VHole(u), rev_steps |> List.rev |> append(before_exp(e))),
+      ...holes,
+    ]
+  };
+
 let rec holes_block =
         (
           Block(lines, e): UHExp.block,
@@ -931,25 +949,13 @@ and holes_exp =
       (ExpHole(u), (rev_steps |> List.rev, OnDelim(0, Before))),
       ...holes,
     ]
-  | Var(InHole(_, u), _, _)
-  | NumLit(InHole(_, u), _)
-  | BoolLit(InHole(_, u), _)
-  | ListNil(InHole(_, u))
-  | Lam(InHole(_, u), _, _, _)
-  | Inj(InHole(_, u), _, _)
-  | Case(InHole(_, u), _, _, _)
-  | ApPalette(InHole(_, u), _, _, _) => [
-      (ExpHole(u), rev_steps |> List.rev |> append(before_exp(e))),
-      ...holes,
-    ]
-  | Var(_, InVHole(_, u), _) => [
-      (VHole(u), (rev_steps |> List.rev, OnText(0))),
-      ...holes,
-    ]
-  | Var(NotInHole, NotInVHole, _) => holes
-  | NumLit(NotInHole, _) => holes
-  | BoolLit(NotInHole, _) => holes
-  | ListNil(NotInHole) => holes
+  | Var(err, var_err, _) =>
+    holes
+    |> holes_of_err_exp(e, err, rev_steps)
+    |> holes_of_var_err_exp(e, var_err, rev_steps)
+  | NumLit(err, _)
+  | BoolLit(err, _)
+  | ListNil(err) => holes_of_err_exp(e, err, rev_steps, holes)
   | Parenthesized(block) => holes_block(block, [0, ...rev_steps], holes)
   | OpSeq(skel, seq) =>
     holes
@@ -962,16 +968,19 @@ and holes_exp =
          skel,
          seq,
        )
-  | Inj(NotInHole, _, block) => holes_block(block, [0, ...rev_steps], holes)
-  | Lam(NotInHole, p, ann, block) =>
+  | Inj(err, _, block) =>
+    holes_block(block, [0, ...rev_steps], holes)
+    |> holes_of_err_exp(e, err, rev_steps)
+  | Lam(err, p, ann, block) =>
     let holes = holes_block(block, [2, ...rev_steps], holes);
     let holes =
       switch (ann) {
       | Some(uty) => holes_uty(uty, [1, ...rev_steps], holes)
       | None => holes
       };
-    holes_pat(p, [0, ...rev_steps], holes);
-  | Case(NotInHole, block, rules, ann) =>
+    holes_pat(p, [0, ...rev_steps], holes)
+    |> holes_of_err_exp(e, err, rev_steps);
+  | Case(err, block, rules, ann) =>
     let holes =
       switch (ann) {
       | None => holes
@@ -979,8 +988,9 @@ and holes_exp =
         holes_uty(uty, [List.length(rules) + 1, ...rev_steps], holes)
       };
     let holes = holes_rules(rules, 1, rev_steps, holes);
-    holes_block(block, [0, ...rev_steps], holes);
-  | ApPalette(NotInHole, _, _, psi) =>
+    holes_block(block, [0, ...rev_steps], holes)
+    |> holes_of_err_exp(e, err, rev_steps);
+  | ApPalette(err, _, _, psi) =>
     let splice_map = psi.splice_map;
     let splice_order = psi.splice_order;
     List.fold_right(
@@ -991,7 +1001,8 @@ and holes_exp =
         },
       splice_order,
       holes,
-    );
+    )
+    |> holes_of_err_exp(e, err, rev_steps);
   }
 and holes_rules =
     (rules: UHExp.rules, offset: int, rev_steps: rev_steps, holes: hole_list)
