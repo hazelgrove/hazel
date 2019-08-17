@@ -747,12 +747,14 @@ let follow_e_or_fail = (path: t, e: UHExp.t): ZExp.t =>
   | Some(ze) => ze
   };
 
+[@deriving sexp]
 type hole_desc =
   | VHole(MetaVar.t)
   | TypHole
   | PatHole(MetaVar.t)
   | ExpHole(MetaVar.t);
 
+[@deriving sexp]
 type hole_list = list((hole_desc, t));
 
 let rec holes_skel =
@@ -787,14 +789,15 @@ let rec holes_skel =
         switch (err_status, op |> is_space) {
         | (NotInHole, _) => holes
         | (InHole(_, u), true) =>
+          let before_space_index = (skel2 |> Skel.leftmost_tm_index) - 1;
           let tm_before_space =
             seq
-            |> OperatorSeq.nth_tm((skel2 |> Skel.leftmost_tm_index) - 1)
+            |> OperatorSeq.nth_tm(before_space_index)
             |> Opt.get(() => assert(false));
           [
             (
               hole_desc(u),
-              rev_steps
+              [before_space_index, ...rev_steps]
               |> List.rev
               |> append(path_before_tm(tm_before_space)),
             ),
@@ -1021,6 +1024,7 @@ and holes_rule =
 };
 
 /* two hole lists, one for before the cursor, one for after */
+[@deriving sexp]
 type zhole_list = {
   holes_before: hole_list,
   hole_selected: option((hole_desc, t)),
