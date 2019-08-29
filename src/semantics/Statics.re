@@ -1554,7 +1554,7 @@ and syn_fix_holes_exp =
       /* initialize the livelit if it has come into scope */
       let init_model_cmd = livelit_defn.init_model;
       let (init_serialized_model, init_splice_info, u_gen) =
-        SpliceGenMonad.exec(init_model_cmd, SpliceInfo.empty, u_gen);
+        SpliceGenCmd.exec(init_model_cmd, SpliceInfo.empty, u_gen);
       let (splice_map, u_gen) =
         ana_fix_holes_splice_map(
           ctx,

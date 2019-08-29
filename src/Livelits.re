@@ -21,7 +21,7 @@ module type PALETTE = {
   let expansion_ty: HTyp.t;
 
   type model;
-  let init_model: SpliceGenMonad.t(model);
+  let init_model: SpliceGenCmd.t(model);
 
   type model_updater = model => unit;
   /* model_updater must _not_ be invoked until well after view has completed */
@@ -360,7 +360,7 @@ module PaletteAdapter = (P: PALETTE) => {
   let livelit_defn =
     LivelitDefinition.{
       expansion_ty: P.expansion_ty,
-      init_model: SpliceGenMonad.return(""),
+      init_model: SpliceGenCmd.return(""),
       /* UHExp.HoleRefs.Bnd(
            args = (
              P.init_model,

@@ -107,7 +107,7 @@ type shape =
   | SLine
   | SCase
   | SOp(op_shape)
-  | SLivelitName(LivelitName.t)
+  | SLivelitName(LivelitName.t, cursor_position)
   /* pattern-only shapes */
   | SWild;
 
@@ -3769,7 +3769,7 @@ and syn_perform_line =
       (CursorL(OnDelim(k, After), li), u_gen),
     )
   /* Construction */
-  | (Construct(_), CursorL(_, _)) =>
+  | (Construct(_) | PerformLivelitAction(_), CursorL(_, _)) =>
     /* handled at lines level */
     Failed
   | (Construct(SAsc), LetLineZP(zp, None, block)) =>
@@ -3922,22 +3922,23 @@ and syn_perform_exp =
       _,
       CursorE(
         OnDelim(_, _),
-        Var(_, _, _) | NumLit(_, _) | BoolLit(_, _) | ApPalette(_, _, _, _),
+        Var(_, _, _) | NumLit(_, _) | BoolLit(_, _) | ApLivelit(_, _, _, _) |
+        FreeLivelit(_),
       ) |
       CursorE(
         OnText(_),
         EmptyHole(_) | ListNil(_) | Lam(_, _, _, _) | Inj(_, _, _) |
         Case(_, _, _, _) |
         Parenthesized(_) |
-        OpSeq(_, _) |
-        ApPalette(_, _, _, _),
+        OpSeq(_, _),
       ) |
       CursorE(
         Staging(_),
         EmptyHole(_) | Var(_, _, _) | NumLit(_, _) | BoolLit(_, _) |
         ListNil(_) |
         OpSeq(_, _) |
-        ApPalette(_, _, _, _),
+        ApLivelit(_, _, _, _) |
+        FreeLivelit(_),
       ),
     ) =>
     Failed
@@ -4056,7 +4057,11 @@ and syn_perform_exp =
       : CursorEscaped(After)
   | (
       Backspace | Delete,
-      CursorE(OnText(_), Var(_, _, _) | NumLit(_, _) | BoolLit(_, _)),
+      CursorE(
+        OnText(_),
+        Var(_, _, _) | NumLit(_, _) | BoolLit(_, _) | ApLivelit(_, _, _, _) |
+        FreeLivelit(_),
+      ),
     )
   | (Backspace | Delete, CursorE(OnDelim(_, _), ListNil(_))) =>
     let (ze, u_gen) = ZExp.new_EmptyHole(u_gen);
@@ -4562,7 +4567,9 @@ and syn_perform_exp =
   | (Construct(SVar(x, cursor)), CursorE(_, EmptyHole(_)))
   | (Construct(SVar(x, cursor)), CursorE(_, Var(_, _, _)))
   | (Construct(SVar(x, cursor)), CursorE(_, NumLit(_, _)))
-  | (Construct(SVar(x, cursor)), CursorE(_, BoolLit(_, _))) =>
+  | (Construct(SVar(x, cursor)), CursorE(_, BoolLit(_, _)))
+  | (Construct(SVar(x, cursor)), CursorE(_, ApLivelit(_, _, _, _)))
+  | (Construct(SVar(x, cursor)), CursorE(_, FreeLivelit(_))) =>
     if (String.equal(x, "true")) {
       Succeeded((
         E(CursorE(cursor, BoolLit(NotInHole, true))),
@@ -4625,7 +4632,9 @@ and syn_perform_exp =
   | (Construct(SNumLit(n, cursor)), CursorE(_, EmptyHole(_)))
   | (Construct(SNumLit(n, cursor)), CursorE(_, NumLit(_, _)))
   | (Construct(SNumLit(n, cursor)), CursorE(_, BoolLit(_, _)))
-  | (Construct(SNumLit(n, cursor)), CursorE(_, Var(_, _, _))) =>
+  | (Construct(SNumLit(n, cursor)), CursorE(_, Var(_, _, _)))
+  | (Construct(SNumLit(n, cursor)), CursorE(_, ApLivelit(_, _, _, _)))
+  | (Construct(SNumLit(n, cursor)), CursorE(_, FreeLivelit(_))) =>
     Succeeded((E(CursorE(cursor, NumLit(NotInHole, n))), Num, u_gen))
   | (Construct(SNumLit(_, _)), CursorE(_, _)) => Failed
   | (Construct(SInj(side)), CursorE(_, _)) =>
@@ -4728,67 +4737,64 @@ and syn_perform_exp =
         Failed;
       }
     }
-  | (Construct(SApPalette(name)), CursorE(_, EmptyHole(_))) =>
+  | (
+      Construct(SLivelitName(name, cursor_position)),
+      CursorE(_, EmptyHole(_) as e) | CursorE(_, ApLivelit(_, _, _, _) as e) |
+      CursorE(_, FreeLivelit(_, _) as e) |
+      CursorE(_, Var(_, _, _) as e) |
+      CursorE(_, NumLit(_, _) as e) |
+      CursorE(_, BoolLit(_, _) as e),
+    ) =>
+    let livelit_ctx = Contexts.livelit_ctx(ctx);
+    switch (LivelitCtx.lookup(livelit_ctx, name)) {
+    | None =>
+      let (u, u_gen) = UHExp.scavenge_u(e, u_gen);
+      Succeeded((
+        E(ZExp.CursorE(cursor_position, UHExp.FreeLivelit(u, name))),
+        HTyp.Hole,
+        u_gen,
+      ));
+    | Some(livelit_defn) =>
+      let init_model_cmd = livelit_defn.init_model;
+      let (init_model, init_si, u_gen) =
+        SpliceGenCmd.exec(init_model_cmd, SpliceInfo.empty, u_gen);
+      let expansion_ty = livelit_defn.expansion_ty;
+      Succeeded((
+        E(
+          ZExp.CursorE(
+            cursor_position,
+            UHExp.ApLivelit(NotInHole, name, init_model, init_si),
+          ),
+        ),
+        expansion_ty,
+        u_gen,
+      ));
+    };
+  | (Construct(SLivelitName(_, _)), CursorE(_, _)) => Failed
+  | (
+      PerformLivelitAction(serialized_action),
+      CursorE(cursor_position, ApLivelit(err, name, serialized_model, si)),
+    ) =>
     let livelit_ctx = Contexts.livelit_ctx(ctx);
     switch (LivelitCtx.lookup(livelit_ctx, name)) {
     | None => Failed
     | Some(livelit_defn) =>
-      let init_model_cmd = livelit_defn.init_model;
-      let (init_model, init_splice_info, u_gen) =
-        SpliceGenMonad.exec(init_model_cmd, SpliceInfo.empty, u_gen);
-      switch (Statics.ana_splice_map(ctx, init_splice_info.splice_map)) {
-      | None => Failed
-      | Some(splice_ctx) =>
-        let expansion_ty = livelit_defn.expansion_ty;
-        let expand = livelit_defn.expand;
-        let expansion = expand(init_model);
-        switch (Statics.ana_block(splice_ctx, expansion, expansion_ty)) {
-        | None => Failed
-        | Some(_) =>
-          Succeeded((
-            E(
-              ZExp.place_before_exp(
-                ApPalette(NotInHole, name, init_model, init_splice_info),
-              ),
-            ),
-            expansion_ty,
-            u_gen,
-          ))
-        };
-      };
+      let update = livelit_defn.update;
+      let cmd = update(serialized_action, serialized_model);
+      let (serialized_model, si, u_gen) = SpliceGenCmd.exec(cmd, si, u_gen);
+      let expansion_ty = livelit_defn.expansion_ty;
+      Succeeded((
+        E(
+          ZExp.CursorE(
+            cursor_position,
+            UHExp.ApLivelit(err, name, serialized_model, si),
+          ),
+        ),
+        expansion_ty,
+        u_gen,
+      ));
     };
-  | (Construct(SApPalette(_)), CursorE(_, _)) => Failed
-  /* TODO
-     | (UpdateApPalette(_), CursorE(_, ApPalette(_, _name, _, _hole_data))) =>
-        let (_, livelit_ctx) = ctx;
-        switch (LivelitCtx.lookup(livelit_ctx, name)) {
-        | Some(livelit_defn) =>
-          let (q, u_gen') = UHExp.HoleRefs.exec(monad, hole_data, u_gen);
-          let (serialized_model, hole_data') = q;
-          let expansion_ty = UHExp.LivelitDefinition.expansion_ty(livelit_defn);
-          let expansion =
-            (UHExp.LivelitDefinition.to_exp(livelit_defn))(serialized_model);
-          let (_, hole_map') = hole_data';
-          let expansion_ctx =
-            UHExp.PaletteHoleData.extend_ctx_with_hole_map(ctx, hole_map');
-          switch (Statics.ana(expansion_ctx, expansion, expansion_ty)) {
-          | Some(_) =>
-            Succeeded((
-              CursorE(
-                After,
-                Tm(
-                  NotInHole,
-                  ApPalette(name, serialized_model, hole_data'),
-                ),
-              ),
-              expansion_ty,
-              u_gen,
-            ))
-          | None => Failed
-          };
-        | None => Failed
-        }; */
-  | (UpdateApPalette(_), CursorE(_, _)) => Failed
+  | (PerformLivelitAction(_), CursorE(_, _)) => Failed
   /* Zipper Cases */
   | (_, ParenthesizedZ(zblock)) =>
     switch (syn_perform_block(~ci, ctx, a, (zblock, ty, u_gen))) {
@@ -4944,25 +4950,6 @@ and syn_perform_exp =
       }
     | _ => Failed /* should never happen */
     };
-  | (_, ApPaletteZ(_, _name, _serialized_model, _z_hole_data)) => Failed
-  /* TODO let (next_lbl, z_nat_map) = z_hole_data;
-     let (rest_map, z_data) = z_nat_map;
-     let (cell_lbl, cell_data) = z_data;
-     let (cell_ty, cell_ze) = cell_data;
-     switch (ana_perform_exp(~ci, ctx, a, (cell_ze, u_gen), cell_ty)) {
-     | Failed => Failed
-     | CantShift => CantShift
-     | Succeeded((cell_ze', u_gen')) =>
-       let z_hole_data' = (
-         next_lbl,
-         (rest_map, (cell_lbl, (cell_ty, cell_ze'))),
-       );
-       Succeeded((
-         ApPaletteZ(NotInHole, name, serialized_model, z_hole_data'),
-         ty,
-         u_gen',
-       ));
-     }; */
   | (_, CaseZE(_, _, _, None))
   | (_, CaseZR(_, _, _, None)) => Failed
   | (_, CaseZE(_, zblock, rules, Some(uty) as ann)) =>
@@ -5057,6 +5044,17 @@ and syn_perform_exp =
         Succeeded((E(ze), ty, u_gen));
       }
     }
+  | (_, ApLivelitZ(err, name, serialized_model, zsi)) =>
+    let (ty, zblock) = ZSpliceInfo.prj_z(zsi);
+    switch (ana_perform_block(~ci, ctx, a, (zblock, u_gen), ty)) {
+    | Failed => Failed
+    | CantShift => CantShift
+    | CursorEscaped(_) => Failed /* TODO we need a better protocol for this */
+    | Succeeded((zblock, u_gen)) =>
+      let zsi = ZSpliceInfo.update_z(zsi, (ty, zblock));
+      let ze = ZExp.ApLivelitZ(err, name, serialized_model, zsi);
+      Succeeded((E(ze), ty, u_gen));
+    };
   /* Invalid actions at expression level */
   | (Construct(SNum), _)
   | (Construct(SBool), _)
@@ -5748,7 +5746,7 @@ and ana_perform_block =
     ana_perform_block(~ci, ctx, keyword_action(k), (zblock, u_gen), ty);
   /* Zipper Cases */
   | (
-      Backspace | Delete | Construct(_) | UpdateApPalette(_) | ShiftLeft |
+      Backspace | Delete | Construct(_) | PerformLivelitAction(_) | ShiftLeft |
       ShiftRight |
       ShiftUp |
       ShiftDown,
@@ -5768,7 +5766,7 @@ and ana_perform_block =
       Succeeded(Statics.ana_fix_holes_zblock(ctx, u_gen, zblock, ty));
     }
   | (
-      Backspace | Delete | Construct(_) | UpdateApPalette(_) | ShiftLeft |
+      Backspace | Delete | Construct(_) | PerformLivelitAction(_) | ShiftLeft |
       ShiftRight |
       ShiftUp |
       ShiftDown,
@@ -5814,22 +5812,23 @@ and ana_perform_exp =
       _,
       CursorE(
         OnDelim(_, _),
-        Var(_, _, _) | NumLit(_, _) | BoolLit(_, _) | ApPalette(_, _, _, _),
+        Var(_, _, _) | NumLit(_, _) | BoolLit(_, _) | ApLivelit(_, _, _, _) |
+        FreeLivelit(_),
       ) |
       CursorE(
         OnText(_),
         EmptyHole(_) | ListNil(_) | Lam(_, _, _, _) | Inj(_, _, _) |
         Case(_, _, _, _) |
         Parenthesized(_) |
-        OpSeq(_, _) |
-        ApPalette(_, _, _, _),
+        OpSeq(_, _),
       ) |
       CursorE(
         Staging(_),
         EmptyHole(_) | Var(_, _, _) | NumLit(_, _) | BoolLit(_, _) |
         ListNil(_) |
         OpSeq(_, _) |
-        ApPalette(_, _, _, _),
+        ApLivelit(_, _, _, _) |
+        FreeLivelit(_),
       ),
     ) =>
     Failed
@@ -5963,7 +5962,11 @@ and ana_perform_exp =
       : CursorEscaped(After)
   | (
       Backspace | Delete,
-      CursorE(OnText(_), Var(_, _, _) | NumLit(_, _) | BoolLit(_, _)),
+      CursorE(
+        OnText(_),
+        Var(_, _, _) | NumLit(_, _) | BoolLit(_, _) | ApLivelit(_, _, _, _) |
+        FreeLivelit(_),
+      ),
     )
   | (Backspace | Delete, CursorE(OnDelim(_, _), ListNil(_))) =>
     let (ze, u_gen) = ZExp.new_EmptyHole(u_gen);
@@ -6861,13 +6864,13 @@ and ana_perform_exp =
     | _ => Failed /* should never happen */
     };
   /* Subsumption */
-  | (UpdateApPalette(_), _)
-  | (Construct(SApPalette(_)), _)
+  | (PerformLivelitAction(_), _)
+  | (Construct(SLivelitName(_)), _)
   | (Construct(SLine), _)
   | (Construct(SVar(_, _)), _)
   | (Construct(SNumLit(_, _)), _)
   | (Construct(SListNil), _)
-  | (_, ApPaletteZ(_, _, _, _)) =>
+  | (_, ApLivelitZ(_, _, _, _)) =>
     ana_perform_exp_subsume(~ci, ctx, a, (ze, u_gen), ty)
   /* Invalid actions at expression level */
   | (Construct(SNum), _)
@@ -6950,7 +6953,7 @@ let can_perform =
     | Pat(_) => false
     }
   | Construct(SAsc)
-  | Construct(SApPalette(_))
+  | Construct(SLivelitName(_))
   | Construct(SLam)
   | Construct(SVar(_, _)) /* see can_enter_varchar below */
   | Construct(SWild)
@@ -6964,7 +6967,7 @@ let can_perform =
   | MoveToPrevHole
   | MoveLeft
   | MoveRight
-  | UpdateApPalette(_)
+  | PerformLivelitAction(_)
   | Delete
   | Backspace
   | ShiftLeft

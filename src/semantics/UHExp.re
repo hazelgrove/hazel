@@ -128,6 +128,33 @@ let is_EmptyHole = (e: t): bool =>
   | _ => false
   };
 
+let scavenge_u = (e: t, u_gen: MetaVarGen.t): (MetaVar.t, MetaVarGen.t) => {
+  switch (e) {
+  | EmptyHole(u)
+  | Var(InHole(_, u), _, _)
+  | Var(NotInHole, InVHole(_, u), _)
+  | NumLit(InHole(_, u), _)
+  | BoolLit(InHole(_, u), _)
+  | ListNil(InHole(_, u))
+  | Lam(InHole(_, u), _, _, _)
+  | Inj(InHole(_, u), _, _)
+  | Case(InHole(_, u), _, _, _)
+  | OpSeq(Skel.BinOp(InHole(_, u), _, _, _), _)
+  | ApLivelit(InHole(_, u), _, _, _)
+  | FreeLivelit(u, _) => (u, u_gen)
+  | Var(NotInHole, _, _)
+  | NumLit(NotInHole, _)
+  | BoolLit(NotInHole, _)
+  | ListNil(NotInHole)
+  | Lam(NotInHole, _, _, _)
+  | Inj(NotInHole, _, _)
+  | Case(NotInHole, _, _, _)
+  | Parenthesized(_)
+  | OpSeq(_, _)
+  | ApLivelit(NotInHole, _, _, _) => MetaVarGen.next(u_gen)
+  };
+};
+
 let empty_rule = (u_gen: MetaVarGen.t): (rule, MetaVarGen.t) => {
   let (p, u_gen) = UHPat.new_EmptyHole(u_gen);
   let (e, u_gen) = new_EmptyHole(u_gen);
