@@ -5,32 +5,37 @@ module Vdom = Virtual_dom.Vdom;
 
 type div_type = Vdom.Node.t;
 
-module HTMLWithCells = {
-  type m_html_with_cells =
-    | NewCellFor(SpliceInfo.splice_name)
-    | Bind(m_html_with_cells, div_type => m_html_with_cells)
-    | Ret(div_type);
+/* module HTMLWithCells = {
+     type m_html_with_cells =
+       | NewCellFor(SpliceInfo.splice_name)
+       | Bind(m_html_with_cells, div_type => m_html_with_cells)
+       | Ret(div_type);
+   }; */
+
+module LivelitView = {
+  type t =
+    | Inline(div_type)
+    | MultiLine(div_type);
 };
 
-type view_type =
-  | Inline(Vdom.Node.t)
-  | MultiLine(HTMLWithCells.m_html_with_cells);
-
-module type PALETTE = {
-  let name: string;
+module type LIVELIT = {
+  let name: LivelitName.t;
   let expansion_ty: HTyp.t;
 
   type model;
+  type action;
+  type trigger = action => unit;
+
   let init_model: SpliceGenCmd.t(model);
-
-  type model_updater = model => unit;
-  /* model_updater must _not_ be invoked until well after view has completed */
-  let view: (model, model_updater) => view_type;
-
+  let update: (model, action) => SpliceGenCmd.t(model);
+  let view: (model, trigger) => LivelitView.t;
   let expand: model => UHExp.block;
 
-  let serialize: model => SerializedModel.t;
-  let deserialize: SerializedModel.t => model;
+  let serialize_model: model => SerializedModel.t;
+  let deserialize_model: SerializedModel.t => model;
+
+  let serialize_action: action => SerializedAction.t;
+  let deserialize_action: SerializedAction.t => action;
 };
 
 /*
@@ -334,32 +339,14 @@ module type PALETTE = {
    stuff below is infrastructure
    ---------- */
 
-type model_updater = SerializedModel.t => unit;
-type serialized_view_fn_t = (SerializedModel.t, model_updater) => view_type;
+type trigger_serialized = SerializedAction.t => unit;
+type serialized_view_fn_t = (SerializedModel.t, trigger_serialized) => LivelitView.t;
 
-module PaletteViewCtx = {
-  type t = VarMap.t_(serialized_view_fn_t);
-  include VarMap;
-};
-
-module PaletteContexts = {
-  type t = (LivelitCtx.t, PaletteViewCtx.t);
-  let empty = (PaletteViewCtx.empty, LivelitCtx.empty);
-  let extend:
-    (t, (LivelitName.t, LivelitDefinition.t, serialized_view_fn_t)) => t =
-    ((livelit_ctx, palette_view_ctx), (name, defn, view_fn)) => {
-      let palette_view_ctx' =
-        PaletteViewCtx.extend(palette_view_ctx, (name, view_fn));
-      let livelit_ctx' = LivelitCtx.extend(livelit_ctx, (name, defn));
-      (livelit_ctx', palette_view_ctx');
-    };
-};
-
-module PaletteAdapter = (P: PALETTE) => {
+module LivelitAdapter = (L: LIVELIT) => {
   /* generate palette definition for Semantics */
   let livelit_defn =
     LivelitDefinition.{
-      expansion_ty: P.expansion_ty,
+      expansion_ty: L.expansion_ty,
       init_model: SpliceGenCmd.return(""),
       /* UHExp.HoleRefs.Bnd(
            args = (

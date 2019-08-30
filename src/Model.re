@@ -134,7 +134,7 @@ exception MissingCursorInfo;
 let cursor_info_of_edit_state = ((zblock, _, _): edit_state): CursorInfo.t =>
   switch (
     CursorInfo.syn_cursor_info_block(
-      (VarCtx.empty, Palettes.initial_livelit_ctx),
+      (VarCtx.empty, Livelits.initial_livelit_ctx),
       zblock,
     )
   ) {
