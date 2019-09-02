@@ -2747,6 +2747,22 @@ let make_zexp_or_zblock_inconsistent =
     (B(zblock), u_gen);
   };
 
+let rec replace_cursor_in_zexp =
+        (zexp_with_cursor: ZExp.t, replacement_zexp: ZExp.t) =>
+  switch (zexp_with_cursor) {
+  | CursorE(_) => replacement_zexp
+  | OpSeqZ(skel, zexp, surround) =>
+    OpSeqZ(skel, replace_cursor_in_zexp(zexp, replacement_zexp), surround)
+  | zexp => zexp
+  };
+
+let zexp_is_suitable_for_var_split = (zexp: ZExp.t) =>
+  switch (ZExp.cursor_on_var(zexp)) {
+  | Some((OnText(pos), Var(err, verr, name))) =>
+    pos > 0 && pos <= String.length(name) - 1
+  | _ => false
+  };
+
 let rec syn_perform_block =
         (
           ~ci: CursorInfo.t,
@@ -2754,7 +2770,13 @@ let rec syn_perform_block =
           a: t,
           (zblock, ty, u_gen): (ZExp.zblock, HTyp.t, MetaVarGen.t),
         )
-        : result((ZExp.zblock, HTyp.t, MetaVarGen.t)) =>
+        : result((ZExp.zblock, HTyp.t, MetaVarGen.t)) => {
+  print_endline("=======");
+  let str = Core_kernel.Sexp.to_string(sexp_of_t(a));
+  print_endline(str);
+  let str = Core_kernel.Sexp.to_string(ZExp.sexp_of_zblock(zblock));
+  print_endline(str);
+  print_endline("=======");
   switch (a, zblock) {
   /* Staging */
   | (
@@ -3410,6 +3432,34 @@ let rec syn_perform_block =
     let (ze, u_gen) = ZExp.new_EmptyHole(u_gen);
     let zblock = ZExp.BlockZE(lines, ze);
     syn_perform_block(~ci, ctx, keyword_action(k), (zblock, Hole, u_gen));
+
+  /* Variable Splitting */
+
+  | (Construct(SOp(SPlus)), BlockZE(lines, zexp) as zblock)
+      when zexp_is_suitable_for_var_split(zexp) =>
+    print_endline("Matched");
+    switch (ZExp.cursor_on_var(zexp)) {
+    | Some((OnText(pos), Var(err, verr, name))) =>
+      let left_var = String.sub(name, 0, pos);
+      let right_var = String.sub(name, pos, String.length(name) - pos);
+      let cursor =
+        ZExp.CursorE(
+          OnText(String.length(name) - pos),
+          Var(err, verr, right_var),
+        );
+      let new_zexp =
+        ZExp.OpSeqZ(
+          Skel.BinOp(err, UHExp.Plus, Placeholder(0), Placeholder(1)),
+          cursor,
+          OperatorSeq.EmptySuffix(
+            ExpPrefix(UHExp.Var(err, verr, left_var), UHExp.Plus),
+          ),
+        );
+      let zexp = replace_cursor_in_zexp(zexp, new_zexp);
+      Succeeded((BlockZE(lines, zexp), ty, u_gen));
+    | _ => Failed
+    };
+
   /* Zipper Cases */
   | (
       Backspace | Delete | Construct(_) | UpdateApPalette(_) | ShiftLeft |
@@ -3460,7 +3510,8 @@ let rec syn_perform_block =
         }
       }
     }
-  }
+  };
+}
 and syn_perform_lines =
     (
       ~ci: CursorInfo.t,
