@@ -3,7 +3,7 @@ open Sexplib.Std;
 [@deriving (show({with_path: false}), sexp)]
 type t = string;
 
-let eq = (x: t, y: t) => x === y;
+let eq = (x: t, y: t) => x == y;
 let _is_valid_internal = Var.is_valid;
 let valid_regex = Js_of_ocaml.Regexp.regexp("^\\$[_a-zA-Z][_a-zA-Z0-9']*$");
 let is_valid = s =>

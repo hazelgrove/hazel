@@ -1,9 +1,9 @@
-open Tyxml_js;
 module Dom_html = Js_of_ocaml.Dom_html;
 module Dom = Js_of_ocaml.Dom;
 module Js = Js_of_ocaml.Js;
+module Vdom = Virtual_dom.Vdom;
 
-type div_type = Html5.elt(Html_types.div);
+type div_type = Vdom.Node.t;
 
 module HTMLWithCells = {
   type m_html_with_cells =
@@ -13,7 +13,7 @@ module HTMLWithCells = {
 };
 
 type view_type =
-  | Inline(Html5.elt([ Html_types.span]))
+  | Inline(Vdom.Node.t)
   | MultiLine(HTMLWithCells.m_html_with_cells);
 
 module type PALETTE = {
@@ -67,7 +67,7 @@ module type PALETTE = {
        UHExp.(
          Tm(
            NotInHole,
-           Var(NotInVHole, PaletteHoleData.mk_hole_ref_var_name(id)),
+           Var(NotInVarHole, PaletteHoleData.mk_hole_ref_var_name(id)),
          )
        );
      let fVarName = "f";
@@ -76,7 +76,7 @@ module type PALETTE = {
        UHExp.(
          OperatorSeq.(
            exp_op_seq(
-             Tm(NotInHole, Var(NotInVHole, fVarName)),
+             Tm(NotInHole, Var(NotInVarHole, fVarName)),
              Space,
              ExpOpExp(to_uhvar(leftID), Space, to_uhvar(rightID)),
            )
@@ -175,7 +175,7 @@ module type PALETTE = {
        UHExp.(
          OperatorSeq.(
            exp_op_seq(
-             Tm(NotInHole, Var(NotInVHole, fVarName)),
+             Tm(NotInHole, Var(NotInVarHole, fVarName)),
              Space,
              exp_op_seq(r_num, Space, ExpOpExp(g_num, Space, b_num)),
            )

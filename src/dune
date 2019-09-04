@@ -9,10 +9,10 @@
   (deps (glob_files www/*)))
 
 (executable
-  (name hazel)
+  (name main)
   (js_of_ocaml (flags (:include js-of-ocaml-flags-%{profile})))
-  (libraries js_of_ocaml.tyxml tyxml react reactiveData sexplib)
-  (preprocess (pps ppx_deriving.show js_of_ocaml.ppx ppx_sexp_conv)))
+  (libraries sexplib incr_dom)
+  (preprocess (pps ppx_deriving.show js_of_ocaml.ppx ppx_sexp_conv ppx_let)))
 
 (rule
   (write-file js-of-ocaml-flags-dev "(:standard --debuginfo --noinline)"))

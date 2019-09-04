@@ -1,3 +1,6 @@
+open Sexplib.Std;
+
+[@deriving sexp]
 type t_('a) = list((Var.t, 'a));
 
 let empty = [];
