@@ -741,10 +741,7 @@ let follow_rule = ((steps, cursor): t, rule: UHExp.rule): option(ZExp.zrule) =>
 exception UHBlockNodeNotFound;
 let follow_block_or_fail = (path: t, block: UHExp.block): ZExp.zblock =>
   switch (follow_block(path, block)) {
-  | None =>
-    JSUtil.log_sexp(sexp_of_t(path));
-    JSUtil.log_sexp(UHExp.sexp_of_block(block));
-    raise(UHBlockNodeNotFound);
+  | None => raise(UHBlockNodeNotFound)
   | Some(zblock) => zblock
   };
 
