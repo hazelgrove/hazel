@@ -33,17 +33,17 @@ and line =
 and t =
   /* outer nodes */
   | EmptyHole(MetaVar.t)
-  | Var(err_status, var_err_status, Var.t)
-  | NumLit(err_status, int)
-  | BoolLit(err_status, bool)
-  | ListNil(err_status)
+  | Var(ErrStatus.t, var_err_status, Var.t)
+  | NumLit(ErrStatus.t, int)
+  | BoolLit(ErrStatus.t, bool)
+  | ListNil(ErrStatus.t)
   /* inner nodes */
-  | Lam(err_status, UHPat.t, option(UHTyp.t), block)
-  | Inj(err_status, inj_side, block)
-  | Case(err_status, block, rules, option(UHTyp.t))
+  | Lam(ErrStatus.t, UHPat.t, option(UHTyp.t), block)
+  | Inj(ErrStatus.t, inj_side, block)
+  | Case(ErrStatus.t, block, rules, option(UHTyp.t))
   | Parenthesized(block)
   | OpSeq(skel_t, opseq) /* invariant: skeleton is consistent with opseq */
-  | ApPalette(err_status, PaletteName.t, SerializedModel.t, splice_info)
+  | ApPalette(ErrStatus.t, PaletteName.t, SerializedModel.t, splice_info)
 and opseq = OperatorSeq.opseq(t, op)
 and rules = list(rule)
 and rule =
@@ -58,36 +58,36 @@ let letline = (p: UHPat.t, ~ann: option(UHTyp.t)=?, block: block): line =>
 
 let var =
     (
-      ~err_status: err_status=NotInHole,
+      ~err: ErrStatus.t=NotInHole,
       ~var_err_status: var_err_status=NotInVHole,
       x: Var.t,
     )
     : t =>
-  Var(err_status, var_err_status, x);
+  Var(err, var_err_status, x);
 
-let numlit = (~e: err_status=NotInHole, n: int): t => NumLit(e, n);
+let numlit = (~err: ErrStatus.t=NotInHole, n: int): t => NumLit(err, n);
 
 let lam =
     (
-      ~err_status: err_status=NotInHole,
+      ~err: ErrStatus.t=NotInHole,
       p: UHPat.t,
       ~ann: option(UHTyp.t)=?,
       body: block,
     )
     : t =>
-  Lam(err_status, p, ann, body);
+  Lam(err, p, ann, body);
 
 let case =
     (
-      ~err_status: err_status=NotInHole,
+      ~err: ErrStatus.t=NotInHole,
       ~ann: option(UHTyp.t)=?,
       scrut: block,
       rules: rules,
     )
     : t =>
-  Case(err_status, scrut, rules, ann);
+  Case(err, scrut, rules, ann);
 
-let listnil = (~e: err_status=NotInHole, ()): t => ListNil(e);
+let listnil = (~err: ErrStatus.t=NotInHole, ()): t => ListNil(err);
 
 let wrap_in_block = (e: t): block => Block([], e);
 
@@ -108,7 +108,7 @@ let rec get_tuple = (skel1: skel_t, skel2: skel_t): ListMinTwo.t(skel_t) =>
   | Placeholder(_) => Pair(skel1, skel2)
   };
 
-let rec make_tuple = (err: err_status, skels: ListMinTwo.t(skel_t)): skel_t =>
+let rec make_tuple = (err: ErrStatus.t, skels: ListMinTwo.t(skel_t)): skel_t =>
   switch (skels) {
   | Pair(skel1, skel2) => BinOp(err, Comma, skel1, skel2)
   | Cons(skel1, skels) =>
@@ -183,9 +183,9 @@ let bidelimit = (e: t): t =>
     Parenthesized(wrap_in_block(e));
   };
 
-let rec get_err_status_block = (Block(_, e): block): err_status =>
+let rec get_err_status_block = (Block(_, e): block): ErrStatus.t =>
   get_err_status_t(e)
-and get_err_status_t = (e: t): err_status =>
+and get_err_status_t = (e: t): ErrStatus.t =>
   switch (e) {
   | EmptyHole(_) => NotInHole
   | Var(err, _, _)
@@ -206,10 +206,10 @@ and get_err_status_t = (e: t): err_status =>
   };
 
 let rec set_err_status_block =
-        (err: err_status, Block(lines, e): block): block =>
+        (err: ErrStatus.t, Block(lines, e): block): block =>
   Block(lines, set_err_status_t(err, e))
 /* put e in the specified hole */
-and set_err_status_t = (err: err_status, e: t): t =>
+and set_err_status_t = (err: ErrStatus.t, e: t): t =>
   switch (e) {
   | EmptyHole(_) => e
   | Var(_, var_err, x) => Var(err, var_err, x)
@@ -226,7 +226,7 @@ and set_err_status_t = (err: err_status, e: t): t =>
     OpSeq(skel, seq);
   }
 and set_err_status_opseq =
-    (err: err_status, skel: skel_t, seq: opseq): (skel_t, opseq) =>
+    (err: ErrStatus.t, skel: skel_t, seq: opseq): (skel_t, opseq) =>
   switch (skel) {
   | Placeholder(n) =>
     switch (OperatorSeq.nth_tm(n, seq)) {
@@ -278,7 +278,7 @@ and make_t_inconsistent = (u_gen: MetaVarGen.t, e: t): (t, MetaVarGen.t) =>
     let (u, u_gen) = MetaVarGen.next(u_gen);
     let e = set_err_status_t(InHole(TypeInconsistent, u), e);
     (e, u_gen);
-  /* err_status in constructor args */
+  /* err in constructor args */
   | Parenthesized(block) =>
     let (block, u_gen) = make_block_inconsistent(u_gen, block);
     (Parenthesized(block), u_gen);

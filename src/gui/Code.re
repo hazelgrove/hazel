@@ -23,7 +23,7 @@ type is_multi_line = bool;
 [@deriving sexp]
 type ap_err_status =
   | NotInApHole
-  | InApHole(err_status, Skel.range);
+  | InApHole(ErrStatus.t, Skel.range);
 
 [@deriving sexp]
 type has_skinny_concluding_let_line = bool;
@@ -62,7 +62,7 @@ and sbox_shape =
       option(VarMap.t_(Dynamics.DHExp.t)),
     )
   | NonEmptyHoleInstance(
-      in_hole_reason,
+      ErrStatus.InHoleReason.t,
       MetaVar.t,
       Dynamics.inst_num,
       option(VarMap.t_(Dynamics.DHExp.t)),
@@ -85,7 +85,7 @@ type snode =
   | SBox(
       Path.steps,
       is_multi_line,
-      err_status,
+      ErrStatus.t,
       ap_err_status,
       sbox_shape,
       list(sline),
@@ -106,7 +106,7 @@ and stoken =
   | SEmptyLine
   | SEmptyHole(string)
   | SDelim(delim_index, string)
-  | SOp(op_index, err_status, string)
+  | SOp(op_index, ErrStatus.t, string)
   | SText(var_err_status, string)
   | SCastArrow
   | SFailedCastArrow
@@ -131,14 +131,14 @@ let mk_SSeq =
 let mk_SBox =
     (
       ~is_multi_line=false,
-      ~err_status=NotInHole,
+      ~err: ErrStatus.t=NotInHole,
       ~ap_err_status=NotInApHole,
       ~steps: Path.steps,
       ~shape: sbox_shape,
       slines: list(sline),
     )
     : snode => {
-  SBox(steps, is_multi_line, err_status, ap_err_status, shape, slines);
+  SBox(steps, is_multi_line, err, ap_err_status, shape, slines);
 };
 
 let mk_SLine =
@@ -180,19 +180,18 @@ let prepend_tokens_on_SBox = (stokens, snode) =>
     }
   };
 
-let mk_SOp = (~index: op_index, ~err_status, s: string) =>
-  SOp(index, err_status, s);
+let mk_SOp = (~index: op_index, ~err, s: string) => SOp(index, err, s);
 
 let mk_op_stokens =
     (
       ~index: op_index,
-      ~err_status=NotInHole,
+      ~err: ErrStatus.t=NotInHole,
       ~space_before=false,
       ~space_after=false,
       s: string,
     ) =>
   (space_before ? [SSpace] : [])
-  @ [mk_SOp(~err_status, ~index, s)]
+  @ [mk_SOp(~err, ~index, s)]
   @ (space_after ? [SSpace] : []);
 
 let steps_of_snode =
@@ -280,7 +279,7 @@ let rec partition_into_spaced_tms_typ =
 type spaced_tms_pat = (ap_err_status, UHPat.t, list(UHPat.t));
 let rec partition_into_spaced_tms_pat =
         (skel: UHPat.skel_t, seq: UHPat.opseq)
-        : (spaced_tms_pat, list((err_status, UHPat.op, spaced_tms_pat))) =>
+        : (spaced_tms_pat, list((ErrStatus.t, UHPat.op, spaced_tms_pat))) =>
   switch (skel) {
   | Placeholder(n) =>
     switch (seq |> OperatorSeq.nth_tm(n)) {
@@ -311,7 +310,7 @@ let rec partition_into_spaced_tms_pat =
 type spaced_tms_exp = (ap_err_status, UHExp.t, list(UHExp.t));
 let rec partition_into_spaced_tms_exp =
         (skel: UHExp.skel_t, seq: UHExp.opseq)
-        : (spaced_tms_exp, list((err_status, UHExp.op, spaced_tms_exp))) =>
+        : (spaced_tms_exp, list((ErrStatus.t, UHExp.op, spaced_tms_exp))) =>
   switch (skel) {
   | Placeholder(n) =>
     switch (seq |> OperatorSeq.nth_tm(n)) {
@@ -337,7 +336,7 @@ let rec partition_into_spaced_tms_exp =
 
 let multi_line_clss = is_multi_line => is_multi_line ? ["multi-line"] : [];
 
-let err_status_clss =
+let err_status_clss: ErrStatus.t => list(cls) =
   fun
   | NotInHole => []
   | InHole(_, _) => ["in-hole"];
@@ -565,11 +564,11 @@ let snode_attrs =
         ),
         indent_level_attr(indent_level),
       ]
-    | SBox(steps, is_multi_line, err_status, ap_err_status, shape, _) =>
+    | SBox(steps, is_multi_line, err, ap_err_status, shape, _) =>
       let base_clss =
         [cls_SNode, cls_SBox, inline_div_cls]
         @ multi_line_clss(is_multi_line)
-        @ err_status_clss(err_status);
+        @ err_status_clss(err);
       let shape_attrs =
         switch (shape) {
         | Block(_) => [Attr.classes([cls_Block, ...base_clss])]
@@ -1231,7 +1230,7 @@ and view_of_stoken =
       ],
       [delim_before, delim_txt, delim_after],
     );
-  | SOp(index, err_status, s) =>
+  | SOp(index, err, s) =>
     open Vdom;
     let op_before =
       Node.span(
@@ -1274,7 +1273,7 @@ and view_of_stoken =
         Attr.classes(
           [inline_div_cls, "SOp"]
           @ (
-            switch (err_status) {
+            switch (err) {
             | NotInHole => []
             | InHole(_, _) => ["in-hole"]
             }
@@ -1395,17 +1394,11 @@ let snode_of_EmptyHole =
   );
 
 let snode_of_Var =
-    (
-      ~ap_err_status=NotInApHole,
-      ~err_status,
-      ~var_err_status,
-      ~steps,
-      x: Var.t,
-    )
+    (~ap_err_status=NotInApHole, ~err, ~var_err_status, ~steps, x: Var.t)
     : snode =>
   mk_SBox(
     ~ap_err_status,
-    ~err_status,
+    ~err,
     ~steps,
     ~shape=Var,
     [
@@ -1417,10 +1410,10 @@ let snode_of_Var =
   );
 
 let snode_of_NumLit =
-    (~ap_err_status=NotInApHole, ~err_status, ~steps, n: int): snode =>
+    (~ap_err_status=NotInApHole, ~err, ~steps, n: int): snode =>
   mk_SBox(
     ~ap_err_status,
-    ~err_status,
+    ~err,
     ~steps,
     ~shape=NumLit,
     [
@@ -1432,10 +1425,10 @@ let snode_of_NumLit =
   );
 
 let snode_of_BoolLit =
-    (~ap_err_status=NotInApHole, ~err_status, ~steps, b: bool): snode =>
+    (~ap_err_status=NotInApHole, ~err, ~steps, b: bool): snode =>
   mk_SBox(
     ~ap_err_status,
-    ~err_status,
+    ~err,
     ~steps,
     ~shape=BoolLit,
     [
@@ -1446,11 +1439,10 @@ let snode_of_BoolLit =
     ],
   );
 
-let snode_of_ListNil =
-    (~ap_err_status=NotInApHole, ~err_status, ~steps, ()): snode =>
+let snode_of_ListNil = (~ap_err_status=NotInApHole, ~err, ~steps, ()): snode =>
   mk_SBox(
     ~ap_err_status,
-    ~err_status,
+    ~err,
     ~steps,
     ~shape=ListNil,
     [
@@ -1577,7 +1569,7 @@ let snode_of_Lam =
     (
       ~user_newlines=?,
       ~ap_err_status=NotInApHole,
-      ~err_status,
+      ~err,
       ~steps,
       sarg: snode,
       sann: option(snode),
@@ -1598,7 +1590,7 @@ let snode_of_Lam =
     };
   mk_SBox(
     ~ap_err_status,
-    ~err_status,
+    ~err,
     ~steps,
     ~shape=Lam,
     ~is_multi_line,
@@ -1622,7 +1614,7 @@ let snode_of_Inj =
     (
       ~user_newlines=?,
       ~ap_err_status=NotInApHole,
-      ~err_status,
+      ~err,
       ~steps,
       side,
       sbody: snode,
@@ -1637,7 +1629,7 @@ let snode_of_Inj =
     |> (user_newline => user_newline || is_multi_line(sbody));
   mk_SBox(
     ~ap_err_status,
-    ~err_status,
+    ~err,
     ~steps,
     ~shape=Inj,
     ~is_multi_line,
@@ -1666,10 +1658,9 @@ let snode_of_Inj =
   );
 };
 
-let snode_of_InjAnn =
-    (~err_status, ~steps, sty: snode, side, sbody: snode): snode =>
+let snode_of_InjAnn = (~err, ~steps, sty: snode, side, sbody: snode): snode =>
   mk_SBox(
-    ~err_status,
+    ~err,
     ~steps,
     ~shape=InjAnn,
     ~is_multi_line=is_multi_line(sbody),
@@ -1692,13 +1683,7 @@ let snode_of_InjAnn =
   );
 
 let snode_of_Case =
-    (
-      ~err_status,
-      ~steps,
-      sscrut: snode,
-      srules: list(snode),
-      sann: option(snode),
-    )
+    (~err, ~steps, sscrut: snode, srules: list(snode), sann: option(snode))
     : snode => {
   let sline_case =
     mk_SLine(
@@ -1731,7 +1716,7 @@ let snode_of_Case =
       )
     };
   mk_SBox(
-    ~err_status,
+    ~err,
     ~steps,
     ~shape=Case,
     ~is_multi_line=true,
@@ -1772,9 +1757,9 @@ let snode_of_Rule = (~user_newlines=?, ~steps, sp: snode, sclause: snode) => {
   );
 };
 
-let snode_of_Triv = (~err_status, ~steps) =>
+let snode_of_Triv = (~err, ~steps) =>
   mk_SBox(
-    ~err_status,
+    ~err,
     ~steps,
     ~shape=Triv,
     [
@@ -1885,9 +1870,9 @@ let rec snode_of_pat =
   switch (p) {
   | EmptyHole(u) =>
     snode_of_EmptyHole(~ap_err_status, ~steps, string_of_int(u + 1))
-  | Wild(err_status) =>
+  | Wild(err) =>
     mk_SBox(
-      ~err_status,
+      ~err,
       ~steps,
       ~shape=Wild,
       [
@@ -1897,17 +1882,14 @@ let rec snode_of_pat =
         ),
       ],
     )
-  | Var(err_status, var_err_status, x) =>
-    snode_of_Var(~ap_err_status, ~err_status, ~var_err_status, ~steps, x)
-  | NumLit(err_status, n) =>
-    snode_of_NumLit(~ap_err_status, ~err_status, ~steps, n)
-  | BoolLit(err_status, b) =>
-    snode_of_BoolLit(~ap_err_status, ~err_status, ~steps, b)
-  | ListNil(err_status) =>
-    snode_of_ListNil(~ap_err_status, ~err_status, ~steps, ())
-  | Inj(err_status, side, body) =>
+  | Var(err, var_err_status, x) =>
+    snode_of_Var(~ap_err_status, ~err, ~var_err_status, ~steps, x)
+  | NumLit(err, n) => snode_of_NumLit(~ap_err_status, ~err, ~steps, n)
+  | BoolLit(err, b) => snode_of_BoolLit(~ap_err_status, ~err, ~steps, b)
+  | ListNil(err) => snode_of_ListNil(~ap_err_status, ~err, ~steps, ())
+  | Inj(err, side, body) =>
     let sbody = snode_of_pat(~steps=steps @ [0], body);
-    snode_of_Inj(~ap_err_status, ~err_status, ~steps, side, sbody);
+    snode_of_Inj(~ap_err_status, ~err, ~steps, side, sbody);
   | Parenthesized(body) =>
     let sbody = snode_of_pat(~steps=steps @ [0], body);
     snode_of_Parenthesized(~ap_err_status, ~steps, sbody);
@@ -1930,13 +1912,13 @@ let rec snode_of_pat =
       |> List.fold_left(
            (
              (k: int, stail: list((op_stokens, spaced_stms))),
-             (err_status, op, spaced_tms),
+             (err, op, spaced_tms),
            ) => {
              let (space_before, space_after) = space_before_after_op_pat(op);
              let op_stokens: list(stoken) =
                mk_op_stokens(
                  ~index=k,
-                 ~err_status,
+                 ~err,
                  ~space_before,
                  ~space_after,
                  string_of_op_pat(op),
@@ -2042,13 +2024,13 @@ and snode_of_exp =
   switch (e) {
   /* outer nodes */
   | EmptyHole(u) => snode_of_EmptyHole(~steps, string_of_int(u + 1))
-  | Var(err_status, var_err_status, x) =>
-    snode_of_Var(~ap_err_status, ~err_status, ~var_err_status, ~steps, x)
-  | NumLit(err_status, n) => snode_of_NumLit(~err_status, ~steps, n)
-  | BoolLit(err_status, b) => snode_of_BoolLit(~err_status, ~steps, b)
-  | ListNil(err_status) => snode_of_ListNil(~err_status, ~steps, ())
+  | Var(err, var_err_status, x) =>
+    snode_of_Var(~ap_err_status, ~err, ~var_err_status, ~steps, x)
+  | NumLit(err, n) => snode_of_NumLit(~err, ~steps, n)
+  | BoolLit(err, b) => snode_of_BoolLit(~err, ~steps, b)
+  | ListNil(err) => snode_of_ListNil(~err, ~steps, ())
   /* inner nodes */
-  | Lam(err_status, arg, ann, body) =>
+  | Lam(err, arg, ann, body) =>
     let sarg = snode_of_pat(~steps=steps @ [0], arg);
     let sann =
       switch (ann) {
@@ -2060,15 +2042,15 @@ and snode_of_exp =
       ~user_newlines?,
       ~ap_err_status,
       ~steps,
-      ~err_status,
+      ~err,
       sarg,
       sann,
       sbody,
     );
-  | Inj(err_status, side, body) =>
+  | Inj(err, side, body) =>
     let sbody = snode_of_block(~user_newlines?, ~steps=steps @ [0], body);
-    snode_of_Inj(~user_newlines?, ~err_status, ~steps, side, sbody);
-  | Case(err_status, scrut, rules, ann) =>
+    snode_of_Inj(~user_newlines?, ~err, ~steps, side, sbody);
+  | Case(err, scrut, rules, ann) =>
     let sscrut = snode_of_block(~user_newlines?, ~steps=steps @ [0], scrut);
     let srules =
       rules
@@ -2081,7 +2063,7 @@ and snode_of_exp =
       | Some(ann) =>
         Some(snode_of_typ(~steps=steps @ [List.length(rules) + 1], ann))
       };
-    snode_of_Case(~err_status, ~steps, sscrut, srules, sann);
+    snode_of_Case(~err, ~steps, sscrut, srules, sann);
   | Parenthesized(body) =>
     let sbody = snode_of_block(~user_newlines?, ~steps=steps @ [0], body);
     snode_of_Parenthesized(~user_newlines?, ~steps, sbody);
@@ -2105,13 +2087,13 @@ and snode_of_exp =
       |> List.fold_left(
            (
              (k: int, stail: list((op_stokens, spaced_stms))),
-             (err_status, op, spaced_tms),
+             (err, op, spaced_tms),
            ) => {
              let (space_before, space_after) = space_before_after_op_exp(op);
              let op_stokens: list(stoken) =
                mk_op_stokens(
                  ~index=k,
-                 ~err_status,
+                 ~err,
                  ~space_before,
                  ~space_after,
                  string_of_op_exp(op),
@@ -2224,9 +2206,9 @@ let rec snode_of_zpat =
   | ParenthesizedZ(zbody) =>
     let szbody = snode_of_zpat(~steps=steps @ [0], zbody);
     snode_of_Parenthesized(~ap_err_status, ~steps, szbody);
-  | InjZ(err_status, side, zbody) =>
+  | InjZ(err, side, zbody) =>
     let szbody = snode_of_zpat(~steps=steps @ [0], zbody);
-    snode_of_Inj(~ap_err_status, ~err_status, ~steps, side, szbody);
+    snode_of_Inj(~ap_err_status, ~err, ~steps, side, szbody);
   | OpSeqZ(skel, ztm, surround) =>
     let seq =
       OperatorSeq.opseq_of_exp_and_surround(ZPat.erase(ztm), surround);
@@ -2250,13 +2232,13 @@ let rec snode_of_zpat =
       |> List.fold_left(
            (
              (k: int, stail: list((op_stokens, spaced_stms))),
-             (err_status, op, spaced_tms),
+             (err, op, spaced_tms),
            ) => {
              let (space_before, space_after) = space_before_after_op_pat(op);
              let op_stokens: list(stoken) =
                mk_op_stokens(
                  ~index=k,
-                 ~err_status,
+                 ~err,
                  ~space_before,
                  ~space_after,
                  string_of_op_pat(op),
@@ -2459,13 +2441,13 @@ and snode_of_zexp =
       |> List.fold_left(
            (
              (k: int, stail: list((op_stokens, spaced_stms))),
-             (err_status, op, spaced_tms),
+             (err, op, spaced_tms),
            ) => {
              let (space_before, space_after) = space_before_after_op_exp(op);
              let op_stokens: list(stoken) =
                mk_op_stokens(
                  ~index=k,
-                 ~err_status,
+                 ~err,
                  ~space_before,
                  ~space_after,
                  string_of_op_exp(op),
@@ -2484,7 +2466,7 @@ and snode_of_zexp =
            (tail_start, []),
          );
     snode_of_OpSeq(~steps, shead, stail);
-  | LamZP(err_status, zarg, ann, body) =>
+  | LamZP(err, zarg, ann, body) =>
     let szarg = snode_of_zpat(~steps=steps @ [0], zarg);
     let sann =
       switch (ann) {
@@ -2496,12 +2478,12 @@ and snode_of_zexp =
       ~user_newlines?,
       ~ap_err_status,
       ~steps,
-      ~err_status,
+      ~err,
       szarg,
       sann,
       sbody,
     );
-  | LamZA(err_status, arg, zann, body) =>
+  | LamZA(err, arg, zann, body) =>
     let sarg = snode_of_pat(~steps=steps @ [0], arg);
     let szann = snode_of_ztyp(~steps=steps @ [1], zann);
     let sbody = snode_of_block(~user_newlines?, ~steps=steps @ [2], body);
@@ -2509,12 +2491,12 @@ and snode_of_zexp =
       ~user_newlines?,
       ~ap_err_status,
       ~steps,
-      ~err_status,
+      ~err,
       sarg,
       Some(szann),
       sbody,
     );
-  | LamZE(err_status, arg, ann, zbody) =>
+  | LamZE(err, arg, ann, zbody) =>
     let sarg = snode_of_pat(~steps=steps @ [0], arg);
     let sann =
       switch (ann) {
@@ -2526,22 +2508,15 @@ and snode_of_zexp =
       ~user_newlines?,
       ~ap_err_status,
       ~steps,
-      ~err_status,
+      ~err,
       sarg,
       sann,
       szbody,
     );
-  | InjZ(err_status, side, zbody) =>
+  | InjZ(err, side, zbody) =>
     let szbody = snode_of_zblock(~user_newlines?, ~steps=steps @ [0], zbody);
-    snode_of_Inj(
-      ~user_newlines?,
-      ~ap_err_status,
-      ~err_status,
-      ~steps,
-      side,
-      szbody,
-    );
-  | CaseZE(err_status, zscrut, rules, ann) =>
+    snode_of_Inj(~user_newlines?, ~ap_err_status, ~err, ~steps, side, szbody);
+  | CaseZE(err, zscrut, rules, ann) =>
     let szscrut =
       snode_of_zblock(~user_newlines?, ~steps=steps @ [0], zscrut);
     let srules =
@@ -2555,8 +2530,8 @@ and snode_of_zexp =
       | Some(ann) =>
         Some(snode_of_typ(~steps=steps @ [List.length(rules) + 1], ann))
       };
-    snode_of_Case(~err_status, ~steps, szscrut, srules, sann);
-  | CaseZR(err_status, scrut, (prefix, zrule, suffix), ann) =>
+    snode_of_Case(~err, ~steps, szscrut, srules, sann);
+  | CaseZR(err, scrut, (prefix, zrule, suffix), ann) =>
     let sscrut = snode_of_block(~user_newlines?, ~steps=steps @ [0], scrut);
     let szrules =
       (
@@ -2588,8 +2563,8 @@ and snode_of_zexp =
       | Some(ann) =>
         Some(snode_of_typ(~steps=steps @ [List.length(szrules) + 1], ann))
       };
-    snode_of_Case(~err_status, ~steps, sscrut, szrules, sann);
-  | CaseZA(err_status, scrut, rules, zann) =>
+    snode_of_Case(~err, ~steps, sscrut, szrules, sann);
+  | CaseZA(err, scrut, rules, zann) =>
     let sscrut = snode_of_block(~user_newlines?, ~steps=steps @ [0], scrut);
     let srules =
       rules
@@ -2598,7 +2573,7 @@ and snode_of_zexp =
          );
     let szann =
       snode_of_ztyp(~steps=steps @ [List.length(rules) + 1], zann);
-    snode_of_Case(~err_status, ~steps, sscrut, srules, Some(szann));
+    snode_of_Case(~err, ~steps, sscrut, srules, Some(szann));
   | ApPaletteZ(_, _, _, _) => raise(InvariantViolated)
   }
 and snode_of_zrule =
@@ -2724,7 +2699,7 @@ let rec precedence_dhexp = (d: DHExp.t) =>
 let snode_of_BinOp =
     (
       ~mb_par=maybe_parenthesize(false),
-      ~err_status=NotInHole,
+      ~err: ErrStatus.t=NotInHole,
       ~steps,
       s1: snode,
       sop: string,
@@ -2732,24 +2707,23 @@ let snode_of_BinOp =
     )
     : snode =>
   mk_SBox(
-    ~err_status,
+    ~err,
     ~steps,
     ~shape=SkelBinOp,
     [mk_SLine(mb_par([SNode(s1), SToken(SReadOnly(sop)), SNode(s2)]))],
   );
 
-let snode_of_SpaceOp = (~err_status, ~steps, s1: snode, s2: snode): snode =>
+let snode_of_SpaceOp = (~err, ~steps, s1: snode, s2: snode): snode =>
   mk_SBox(
-    ~err_status,
+    ~err,
     ~steps,
     ~shape=SkelBinOp,
     [mk_SLine([SNode(s1), SToken(SSpace), SNode(s2)])],
   );
 
-let snode_of_Let =
-    (~err_status, ~steps, sp: snode, sdef: snode, sbody: snode): snode =>
+let snode_of_Let = (~err, ~steps, sp: snode, sdef: snode, sbody: snode): snode =>
   mk_SBox(
-    ~err_status,
+    ~err,
     ~steps,
     ~shape=Let,
     ~is_multi_line=true,
@@ -2765,9 +2739,9 @@ let snode_of_Let =
   );
 
 let snode_of_FixF =
-    (~err_status, ~steps, sarg: snode, sty: snode, sbody: snode): snode =>
+    (~err, ~steps, sarg: snode, sty: snode, sbody: snode): snode =>
   mk_SBox(
-    ~err_status,
+    ~err,
     ~steps,
     ~shape=FixF,
     ~is_multi_line=is_multi_line(sbody),
@@ -2840,7 +2814,12 @@ let rec snode_of_htyp =
 };
 
 let rec snode_of_dhpat =
-        (~parenthesize=false, ~err_status=NotInHole, ~steps=[], dp: DHPat.t)
+        (
+          ~parenthesize=false,
+          ~err: ErrStatus.t=NotInHole,
+          ~steps=[],
+          dp: DHPat.t,
+        )
         : snode => {
   let mb_par = maybe_parenthesize(parenthesize);
   switch (dp) {
@@ -2852,13 +2831,9 @@ let rec snode_of_dhpat =
       [mk_SLine(mb_par([SToken(SEmptyHole(hole_label_of(u, i)))]))],
     )
   | NonEmptyHole(reason, u, i, dp1) =>
-    /* TODO revisit this and consider whether err_status should be on sp1 or parent */
+    /* TODO revisit this and consider whether err should be on sp1 or parent */
     let sp1 =
-      snode_of_dhpat(
-        ~err_status=InHole(reason, u),
-        ~steps=steps @ [0],
-        dp1,
-      );
+      snode_of_dhpat(~err=InHole(reason, u), ~steps=steps @ [0], dp1);
     mk_SBox(
       ~steps,
       ~shape=NonEmptyHoleInstance(reason, u, i, None),
@@ -2866,26 +2841,26 @@ let rec snode_of_dhpat =
     );
   | Wild =>
     mk_SBox(
-      ~err_status,
+      ~err,
       ~steps,
       ~shape=Wild,
       [mk_SLine([SToken(mk_SDelim(~index=0, "_"))])],
     )
   | Keyword(u, _, k) =>
     snode_of_Var(
-      ~err_status,
+      ~err,
       ~var_err_status=InVHole(Keyword(k), u),
       ~steps,
       Var.of_keyword(k),
     )
-  | Var(x) => snode_of_Var(~err_status, ~var_err_status=NotInVHole, ~steps, x)
-  | BoolLit(b) => snode_of_BoolLit(~err_status, ~steps, b)
-  | NumLit(n) => snode_of_NumLit(~err_status, ~steps, n)
-  | Triv => snode_of_Triv(~err_status, ~steps)
-  | ListNil => snode_of_ListNil(~err_status, ~steps, ())
+  | Var(x) => snode_of_Var(~err, ~var_err_status=NotInVHole, ~steps, x)
+  | BoolLit(b) => snode_of_BoolLit(~err, ~steps, b)
+  | NumLit(n) => snode_of_NumLit(~err, ~steps, n)
+  | Triv => snode_of_Triv(~err, ~steps)
+  | ListNil => snode_of_ListNil(~err, ~steps, ())
   | Inj(side, dp1) =>
     let sp1 = snode_of_dhpat(~steps=steps @ [0], dp1);
-    snode_of_Inj(~err_status, ~steps, side, sp1);
+    snode_of_Inj(~err, ~steps, side, sp1);
   | Cons(dp1, dp2) =>
     let sp1 =
       snode_of_dhpat(
@@ -2899,11 +2874,11 @@ let rec snode_of_dhpat =
         ~steps=steps @ [1],
         dp2,
       );
-    snode_of_BinOp(~err_status, ~steps, sp1, string_of_op_pat(Cons), sp2);
+    snode_of_BinOp(~err, ~steps, sp1, string_of_op_pat(Cons), sp2);
   | Pair(dp1, dp2) =>
     let sp1 = snode_of_dhpat(~steps=steps @ [0], dp1);
     let sp2 = snode_of_dhpat(~steps=steps @ [1], dp2);
-    snode_of_BinOp(~err_status, ~steps, sp1, string_of_op_pat(Comma), sp2);
+    snode_of_BinOp(~err, ~steps, sp1, string_of_op_pat(Comma), sp2);
   | Ap(dp1, dp2) =>
     let sp1 =
       snode_of_dhpat(
@@ -2917,12 +2892,17 @@ let rec snode_of_dhpat =
         ~steps=steps @ [1],
         dp2,
       );
-    snode_of_SpaceOp(~err_status, ~steps, sp1, sp2);
+    snode_of_SpaceOp(~err, ~steps, sp1, sp2);
   };
 };
 
 let rec snode_of_dhexp =
-        (~parenthesize=false, ~err_status=NotInHole, ~steps=[], d: DHExp.t)
+        (
+          ~parenthesize=false,
+          ~err: ErrStatus.t=NotInHole,
+          ~steps=[],
+          d: DHExp.t,
+        )
         : snode => {
   let mb_par = maybe_parenthesize(parenthesize);
   switch (d) {
@@ -2934,25 +2914,23 @@ let rec snode_of_dhexp =
       [mk_SLine(mb_par([SToken(SEmptyHole(hole_label_of(u, i)))]))],
     )
   | NonEmptyHole(reason, u, i, sigma, d1) =>
-    let s1 =
-      snode_of_dhexp(~err_status=InHole(reason, u), ~steps=steps @ [0], d1);
+    let s1 = snode_of_dhexp(~err=InHole(reason, u), ~steps=steps @ [0], d1);
     /* TODO add SHOW_SIGMAS flag */
     mk_SBox(
       ~steps,
       ~shape=NonEmptyHoleInstance(reason, u, i, Some(sigma)),
       [mk_SLine(mb_par([SNode(s1)]))],
     );
-  | Triv => snode_of_Triv(~err_status, ~steps)
-  | BoolLit(b) => snode_of_BoolLit(~err_status, ~steps, b)
-  | NumLit(n) => snode_of_NumLit(~err_status, ~steps, n)
-  | ListNil(_) => snode_of_ListNil(~err_status, ~steps, ())
-  | BoundVar(x) =>
-    snode_of_Var(~err_status, ~var_err_status=NotInVHole, ~steps, x)
+  | Triv => snode_of_Triv(~err, ~steps)
+  | BoolLit(b) => snode_of_BoolLit(~err, ~steps, b)
+  | NumLit(n) => snode_of_NumLit(~err, ~steps, n)
+  | ListNil(_) => snode_of_ListNil(~err, ~steps, ())
+  | BoundVar(x) => snode_of_Var(~err, ~var_err_status=NotInVHole, ~steps, x)
   | FreeVar(u, _, _, x) =>
-    snode_of_Var(~err_status, ~var_err_status=InVHole(Free, u), ~steps, x)
+    snode_of_Var(~err, ~var_err_status=InVHole(Free, u), ~steps, x)
   | Keyword(u, _, _, k) =>
     snode_of_Var(
-      ~err_status,
+      ~err,
       ~var_err_status=InVHole(Keyword(k), u),
       ~steps,
       Var.of_keyword(k),
@@ -2961,27 +2939,27 @@ let rec snode_of_dhexp =
     let sp = snode_of_dhpat(~steps=steps @ [0], dp);
     let sdef = snode_of_dhexp(~steps=steps @ [1], ddef);
     let sbody = snode_of_dhexp(~steps=steps @ [2], dbody);
-    snode_of_Let(~err_status, ~steps, sp, sdef, sbody);
+    snode_of_Let(~err, ~steps, sp, sdef, sbody);
   | FixF(x, ty, dbody) =>
     let sx =
       snode_of_Var(
-        ~err_status=NotInHole,
+        ~err=NotInHole,
         ~var_err_status=NotInVHole,
         ~steps=steps @ [0],
         x,
       );
     let sty = snode_of_htyp(~steps=steps @ [1], ty);
     let sbody = snode_of_dhexp(~steps=steps @ [2], dbody);
-    snode_of_FixF(~err_status, ~steps, sx, sty, sbody);
+    snode_of_FixF(~err, ~steps, sx, sty, sbody);
   | Lam(darg, dann, dbody) =>
     let sarg = snode_of_dhpat(~steps=steps @ [0], darg);
     let sann = snode_of_htyp(~steps=steps @ [1], dann);
     let sbody = snode_of_dhexp(~steps=steps @ [2], dbody);
-    snode_of_Lam(~err_status, ~steps, sarg, Some(sann), sbody);
+    snode_of_Lam(~err, ~steps, sarg, Some(sann), sbody);
   | Inj(ty, side, dbody) =>
     let sty = snode_of_htyp(~steps=steps @ [0], ty);
     let sbody = snode_of_dhexp(~steps=steps @ [1], dbody);
-    snode_of_InjAnn(~err_status, ~steps, sty, side, sbody);
+    snode_of_InjAnn(~err, ~steps, sty, side, sbody);
   | Case(dscrut, drules, _) =>
     /* TODO: probably need to do something with current rule */
     /* | Case(d1, (x, d2), (y, d3)) => */
@@ -2991,7 +2969,7 @@ let rec snode_of_dhexp =
       |> List.mapi((i, drule) =>
            snode_of_drule(~steps=steps @ [i + 1], drule)
          );
-    snode_of_Case(~err_status, ~steps, sscrut, srules, None);
+    snode_of_Case(~err, ~steps, sscrut, srules, None);
   | BinNumOp(dop, d1, d2) =>
     let sop = string_of_op_exp(DHExp.to_op(dop));
     let s1 =
@@ -3006,7 +2984,7 @@ let rec snode_of_dhexp =
         ~steps=steps @ [1],
         d2,
       );
-    snode_of_BinOp(~err_status, ~steps, s1, sop, s2);
+    snode_of_BinOp(~err, ~steps, s1, sop, s2);
   | And(d1, d2) =>
     let sop = string_of_op_exp(And);
     let s1 =
@@ -3021,7 +2999,7 @@ let rec snode_of_dhexp =
         ~steps=steps @ [1],
         d2,
       );
-    snode_of_BinOp(~err_status, ~steps, s1, sop, s2);
+    snode_of_BinOp(~err, ~steps, s1, sop, s2);
   | Or(d1, d2) =>
     let sop = string_of_op_exp(Or);
     let s1 =
@@ -3036,7 +3014,7 @@ let rec snode_of_dhexp =
         ~steps=steps @ [1],
         d2,
       );
-    snode_of_BinOp(~err_status, ~steps, s1, sop, s2);
+    snode_of_BinOp(~err, ~steps, s1, sop, s2);
   | Ap(d1, d2) =>
     let s1 =
       snode_of_dhexp(
@@ -3050,15 +3028,15 @@ let rec snode_of_dhexp =
         ~steps=steps @ [1],
         d2,
       );
-    snode_of_SpaceOp(~err_status, ~steps, s1, s2);
+    snode_of_SpaceOp(~err, ~steps, s1, s2);
   | Pair(d1, d2) =>
     let s1 = snode_of_dhexp(~steps=steps @ [0], d1);
     let s2 = snode_of_dhexp(~steps=steps @ [1], d2);
-    snode_of_BinOp(~err_status, ~steps, s1, string_of_op_exp(Comma), s2);
+    snode_of_BinOp(~err, ~steps, s1, string_of_op_exp(Comma), s2);
   | Cons(d1, d2) =>
     let s1 = snode_of_dhexp(~steps=steps @ [0], d1);
     let s2 = snode_of_dhexp(~steps=steps @ [1], d2);
-    snode_of_BinOp(~err_status, ~steps, s1, string_of_op_exp(Cons), s2);
+    snode_of_BinOp(~err, ~steps, s1, string_of_op_exp(Cons), s2);
   | Cast(Cast(d1, ty1, ty2), ty2', ty3) when HTyp.eq(ty2, ty2') =>
     let s1 =
       snode_of_dhexp(
@@ -3070,7 +3048,7 @@ let rec snode_of_dhexp =
     let sty2 = snode_of_htyp(~steps=steps @ [0, 2], ty2);
     let sty3 = snode_of_htyp(~steps=steps @ [2], ty3);
     mk_SBox(
-      ~err_status,
+      ~err,
       ~steps,
       ~shape=Cast,
       _SHOW_CASTS
@@ -3098,7 +3076,7 @@ let rec snode_of_dhexp =
     let sty1 = snode_of_htyp(~steps=steps @ [1], ty1);
     let sty2 = snode_of_htyp(~steps=steps @ [2], ty2);
     mk_SBox(
-      ~err_status,
+      ~err,
       ~steps,
       ~shape=Cast,
       _SHOW_CASTS
@@ -3125,7 +3103,7 @@ let rec snode_of_dhexp =
     let sty2 = snode_of_htyp(~steps=steps @ [0, 2], ty2);
     let sty3 = snode_of_htyp(~steps=steps @ [2], ty3);
     mk_SBox(
-      ~err_status,
+      ~err,
       ~steps,
       ~shape=FailedCast,
       [
@@ -3151,7 +3129,7 @@ let rec snode_of_dhexp =
     let sty1 = snode_of_htyp(~steps=steps @ [1], ty1);
     let sty2 = snode_of_htyp(~steps=steps @ [2], ty2);
     mk_SBox(
-      ~err_status,
+      ~err,
       ~steps,
       ~shape=FailedCast,
       [
@@ -3208,15 +3186,12 @@ let view_of_hole_instance =
 let view_of_Var =
     (
       ~inject,
-      ~err_status=NotInHole,
+      ~err: ErrStatus.t=NotInHole,
       ~var_err_status=NotInVHole,
       ~steps=[],
       x: Var.t,
     ) =>
-  view_of_snode(
-    ~inject,
-    snode_of_Var(~err_status, ~var_err_status, ~steps, x),
-  );
+  view_of_snode(~inject, snode_of_Var(~err, ~var_err_status, ~steps, x));
 
 let is_multi_line_exp = e => snode_of_exp(e) |> is_multi_line;
 let is_multi_line_pat = p => snode_of_pat(p) |> is_multi_line;

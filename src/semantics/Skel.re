@@ -4,7 +4,7 @@ open Sexplib.Std;
 [@deriving sexp]
 type t('op) =
   | Placeholder(int)
-  | BinOp(err_status, 'op, t('op), t('op));
+  | BinOp(ErrStatus.t, 'op, t('op), t('op));
 
 [@deriving sexp]
 type range = (int, int);

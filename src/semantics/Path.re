@@ -2,6 +2,21 @@ open Sexplib.Std;
 open SemanticsCommon;
 open GeneralUtil;
 
+/*
+ module Steps : {
+   type t;
+   let prepend_step : child_index => t => t;
+   let append_step : t => child_index => t;
+   let to_list : t => list(child_index);
+ } = {
+   type t = list(child_index);
+
+   let prepend_step = (step, steps) => [step, ...steps];
+   let append_step = (steps, step) => steps ++ [step];
+   let to_list = steps => steps;
+ }
+ */
+
 [@deriving (show({with_path: false}), sexp)]
 type steps = list(child_index);
 [@deriving (show({with_path: false}), sexp)]
@@ -917,7 +932,8 @@ let rec holes_pat =
        )
   };
 
-let holes_of_err_exp = (e, err, rev_steps, holes) =>
+let holes_of_err_exp =
+    (e: UHExp.t, err: ErrStatus.t, rev_steps: rev_steps, holes: hole_list) =>
   switch (err) {
   | NotInHole => holes
   | InHole(_, u) => [
@@ -1081,7 +1097,7 @@ let rec _holes_surround =
     } else {
       ([], []);
     };
-  | BinOp(err_status, op, skel1, skel2) =>
+  | BinOp(err, op, skel1, skel2) =>
     let (holes_before1, holes_after1) =
       _holes_surround(
         ~holes_tm,
@@ -1112,7 +1128,7 @@ let rec _holes_surround =
     );
     let steps = rev_steps |> List.rev;
     switch (
-      err_status,
+      err,
       op |> is_space,
       surrounded_index < (skel2 |> Skel.leftmost_tm_index),
     ) {
@@ -1262,7 +1278,7 @@ let rec holes_Cursor_OpSeq =
         hole_selected: None,
         holes_after: [],
       };
-  | BinOp(err_status, _, skel1, skel2) =>
+  | BinOp(err, _, skel1, skel2) =>
     let {
       holes_before: holes_before1,
       hole_selected: hole_selected1,
@@ -1301,7 +1317,7 @@ let rec holes_Cursor_OpSeq =
       holes_after1 @ holes_after2,
     );
     let steps = rev_steps |> List.rev;
-    switch (err_status) {
+    switch (err) {
     | NotInHole => {holes_before, hole_selected, holes_after}
     | InHole(_, u) =>
       let current_op_index = skel2 |> Skel.leftmost_tm_index;
@@ -1951,33 +1967,29 @@ and prune_trivial_suffix_block__exp = (~steps_of_first_line, e) =>
       _,
     )
   | (_, []) => e
-  | (Lam(err_status, arg, ann, body), [2, ...xs]) =>
+  | (Lam(err, arg, ann, body), [2, ...xs]) =>
     Lam(
-      err_status,
+      err,
       arg,
       ann,
       prune_trivial_suffix_block(~steps_of_first_line=xs, body),
     )
-  | (Inj(err_status, side, body), [0, ...xs]) =>
-    Inj(
-      err_status,
-      side,
-      prune_trivial_suffix_block(~steps_of_first_line=xs, body),
-    )
+  | (Inj(err, side, body), [0, ...xs]) =>
+    Inj(err, side, prune_trivial_suffix_block(~steps_of_first_line=xs, body))
   | (Parenthesized(body), [0, ...xs]) =>
     Parenthesized(prune_trivial_suffix_block(~steps_of_first_line=xs, body))
-  | (Case(err_status, scrut, rules, ann), [x, ...xs]) =>
+  | (Case(err, scrut, rules, ann), [x, ...xs]) =>
     switch (x == 0, rules |> ZList.split_at(x - 1)) {
     | (true, _) =>
       Case(
-        err_status,
+        err,
         prune_trivial_suffix_block(~steps_of_first_line=xs, scrut),
         rules,
         ann,
       )
     | (false, Some((prefix, rule, suffix))) =>
       Case(
-        err_status,
+        err,
         scrut,
         prefix
         @ [prune_trivial_suffix_block__rule(~steps_of_first_line=xs, rule)]

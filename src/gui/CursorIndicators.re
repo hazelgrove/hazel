@@ -55,7 +55,7 @@ let concat_holes =
   ap_holes1 @ ap_holes2,
 );
 
-let err_holes =
+let err_holes: ErrStatus.t => holes_steps =
   fun
   | NotInHole => ([], [], [])
   | InHole(_, _) => ([[]], [], []);

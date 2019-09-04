@@ -2,21 +2,6 @@ open Sexplib.Std;
 open GeneralUtil;
 
 [@deriving sexp]
-type in_hole_reason =
-  | TypeInconsistent
-  | WrongLength;
-
-[@deriving sexp]
-type err_status =
-  | NotInHole
-  | InHole(in_hole_reason, MetaVar.t);
-
-let err_status_to_string =
-  fun
-  | NotInHole => "NotInHole"
-  | InHole(_, _) => "InHole";
-
-[@deriving sexp]
 type keyword =
   | Let
   | Case;

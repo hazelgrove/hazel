@@ -20,7 +20,7 @@ module DHPat = {
   [@deriving sexp]
   type t =
     | EmptyHole(MetaVar.t, inst_num)
-    | NonEmptyHole(in_hole_reason, MetaVar.t, inst_num, t)
+    | NonEmptyHole(ErrStatus.InHoleReason.t, MetaVar.t, inst_num, t)
     | Wild
     | Keyword(MetaVar.t, inst_num, keyword)
     | Var(Var.t)
@@ -409,7 +409,13 @@ module DHExp = {
     [@deriving sexp]
     type t =
       | EmptyHole(MetaVar.t, inst_num, VarMap.t_(t))
-      | NonEmptyHole(in_hole_reason, MetaVar.t, inst_num, VarMap.t_(t), t)
+      | NonEmptyHole(
+          ErrStatus.InHoleReason.t,
+          MetaVar.t,
+          inst_num,
+          VarMap.t_(t),
+          t,
+        )
       | Keyword(MetaVar.t, inst_num, VarMap.t_(t), keyword)
       | FreeVar(MetaVar.t, inst_num, VarMap.t_(t), Var.t)
       | BoundVar(Var.t)
