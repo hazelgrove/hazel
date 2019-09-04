@@ -1000,11 +1000,11 @@ button:disabled {
   border: 0px !important;
 }
 
-.InVHole {
+.InVarHole {
   border: 1px dashed #ce5f00;
 }
 
-.InVHole.Keyword {
+.InVarHole.Keyword {
 	font-weight: bold;
 }
 

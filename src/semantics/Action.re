@@ -1692,7 +1692,7 @@ let rec syn_perform_pat =
     } else if (Var.is_let(x)) {
       let (u, u_gen) = MetaVarGen.next(u_gen);
       Succeeded((
-        CursorP(cursor, Var(NotInHole, InVHole(Keyword(Let), u), x)),
+        CursorP(cursor, Var(NotInHole, InVarHole(Keyword(Let), u), x)),
         Hole,
         ctx,
         u_gen,
@@ -1700,7 +1700,7 @@ let rec syn_perform_pat =
     } else if (Var.is_case(x)) {
       let (u, u_gen) = MetaVarGen.next(u_gen);
       Succeeded((
-        CursorP(cursor, Var(NotInHole, InVHole(Keyword(Case), u), x)),
+        CursorP(cursor, Var(NotInHole, InVarHole(Keyword(Case), u), x)),
         Hole,
         ctx,
         u_gen,
@@ -1711,7 +1711,7 @@ let rec syn_perform_pat =
         {
           let ctx = Contexts.extend_gamma(ctx, (x, Hole));
           Succeeded((
-            ZPat.CursorP(cursor, Var(NotInHole, NotInVHole, x)),
+            ZPat.CursorP(cursor, Var(NotInHole, NotInVarHole, x)),
             HTyp.Hole,
             ctx,
             u_gen,
@@ -2368,14 +2368,14 @@ and ana_perform_pat =
     if (Var.is_let(x)) {
       let (u, u_gen) = MetaVarGen.next(u_gen);
       Succeeded((
-        CursorP(cursor, Var(NotInHole, InVHole(Keyword(Let), u), x)),
+        CursorP(cursor, Var(NotInHole, InVarHole(Keyword(Let), u), x)),
         ctx,
         u_gen,
       ));
     } else if (Var.is_case(x)) {
       let (u, u_gen) = MetaVarGen.next(u_gen);
       Succeeded((
-        CursorP(cursor, Var(NotInHole, InVHole(Keyword(Case), u), x)),
+        CursorP(cursor, Var(NotInHole, InVarHole(Keyword(Case), u), x)),
         ctx,
         u_gen,
       ));
@@ -2385,7 +2385,7 @@ and ana_perform_pat =
         {
           let ctx = Contexts.extend_gamma(ctx, (x, ty));
           Succeeded((
-            ZPat.CursorP(cursor, Var(NotInHole, NotInVHole, x)),
+            ZPat.CursorP(cursor, Var(NotInHole, NotInVarHole, x)),
             ctx,
             u_gen,
           ));
@@ -2720,8 +2720,8 @@ let keyword_suffix_to_exp =
     (OpSeq(skel, opseq), u_gen);
   };
 
-let keyword_action = (k: keyword): t =>
-  switch (k) {
+let keyword_action = (kw: Keyword.t): t =>
+  switch (kw) {
   | Let => Construct(SLet)
   | Case => Construct(SCase)
   };
@@ -3347,7 +3347,7 @@ let rec syn_perform_block =
           ExpLineZ(
             OpSeqZ(
               _,
-              CursorE(_, Var(_, InVHole(Keyword(k), _), _)) as ze0,
+              CursorE(_, Var(_, InVarHole(Keyword(k), _), _)) as ze0,
               EmptyPrefix(opseq_suffix),
             ),
           ),
@@ -3367,7 +3367,7 @@ let rec syn_perform_block =
       BlockZL(
         (
           prefix,
-          ExpLineZ(CursorE(_, Var(_, InVHole(Keyword(k), _), _)) as ze0),
+          ExpLineZ(CursorE(_, Var(_, InVarHole(Keyword(k), _), _)) as ze0),
           suffix,
         ),
         e2,
@@ -3383,7 +3383,7 @@ let rec syn_perform_block =
         lines,
         OpSeqZ(
           _,
-          CursorE(_, Var(_, InVHole(Keyword(k), _), _)) as ze0,
+          CursorE(_, Var(_, InVarHole(Keyword(k), _), _)) as ze0,
           EmptyPrefix(suffix),
         ),
       ),
@@ -3399,7 +3399,10 @@ let rec syn_perform_block =
     };
   | (
       Construct(SOp(SSpace)),
-      BlockZE(lines, CursorE(_, Var(_, InVHole(Keyword(k), _), _)) as ze0),
+      BlockZE(
+        lines,
+        CursorE(_, Var(_, InVarHole(Keyword(k), _), _)) as ze0,
+      ),
     )
       when ZExp.is_after_exp(ze0) =>
     let (ze, u_gen) = ZExp.new_EmptyHole(u_gen);
@@ -3621,7 +3624,7 @@ and syn_perform_lines =
         ExpLineZ(
           OpSeqZ(
             _,
-            CursorE(_, Var(_, InVHole(Keyword(k), _), _)) as ze0,
+            CursorE(_, Var(_, InVarHole(Keyword(k), _), _)) as ze0,
             EmptyPrefix(opseq_suffix),
           ),
         ),
@@ -3637,7 +3640,7 @@ and syn_perform_lines =
       Construct(SOp(SSpace)),
       (
         prefix,
-        ExpLineZ(CursorE(_, Var(_, InVHole(Keyword(k), _), _)) as ze0),
+        ExpLineZ(CursorE(_, Var(_, InVarHole(Keyword(k), _), _)) as ze0),
         suffix,
       ),
     )
@@ -4588,14 +4591,16 @@ and syn_perform_exp =
     } else if (Var.is_let(x)) {
       let (u, u_gen) = MetaVarGen.next(u_gen);
       Succeeded((
-        E(CursorE(cursor, Var(NotInHole, InVHole(Keyword(Let), u), x))),
+        E(CursorE(cursor, Var(NotInHole, InVarHole(Keyword(Let), u), x))),
         Hole,
         u_gen,
       ));
     } else if (Var.is_case(x)) {
       let (u, u_gen) = MetaVarGen.next(u_gen);
       Succeeded((
-        E(CursorE(cursor, Var(NotInHole, InVHole(Keyword(Case), u), x))),
+        E(
+          CursorE(cursor, Var(NotInHole, InVarHole(Keyword(Case), u), x)),
+        ),
         Hole,
         u_gen,
       ));
@@ -4607,7 +4612,7 @@ and syn_perform_exp =
           switch (VarMap.lookup(gamma, x)) {
           | Some(xty) =>
             Succeeded((
-              ZExp.E(ZExp.CursorE(cursor, Var(NotInHole, NotInVHole, x))),
+              ZExp.E(ZExp.CursorE(cursor, Var(NotInHole, NotInVarHole, x))),
               xty,
               u_gen,
             ))
@@ -4615,7 +4620,7 @@ and syn_perform_exp =
             let (u, u_gen) = MetaVarGen.next(u_gen);
             Succeeded((
               ZExp.E(
-                ZExp.CursorE(cursor, Var(NotInHole, InVHole(Free, u), x)),
+                ZExp.CursorE(cursor, Var(NotInHole, InVarHole(Free, u), x)),
               ),
               HTyp.Hole,
               u_gen,
@@ -5697,7 +5702,7 @@ and ana_perform_block =
           ExpLineZ(
             OpSeqZ(
               _,
-              CursorE(_, Var(_, InVHole(Keyword(k), _), _)) as ze0,
+              CursorE(_, Var(_, InVarHole(Keyword(k), _), _)) as ze0,
               EmptyPrefix(opseq_suffix),
             ),
           ),
@@ -5717,7 +5722,7 @@ and ana_perform_block =
       BlockZL(
         (
           prefix,
-          ExpLineZ(CursorE(_, Var(_, InVHole(Keyword(k), _), _)) as ze0),
+          ExpLineZ(CursorE(_, Var(_, InVarHole(Keyword(k), _), _)) as ze0),
           suffix,
         ),
         e2,
@@ -5733,7 +5738,7 @@ and ana_perform_block =
         lines,
         OpSeqZ(
           _,
-          CursorE(_, Var(_, InVHole(Keyword(k), _), _)) as ze0,
+          CursorE(_, Var(_, InVarHole(Keyword(k), _), _)) as ze0,
           EmptyPrefix(suffix),
         ),
       ),
@@ -5745,7 +5750,10 @@ and ana_perform_block =
     ana_perform_block(~ci, ctx, keyword_action(k), (zblock, u_gen), ty);
   | (
       Construct(SOp(SSpace)),
-      BlockZE(lines, CursorE(_, Var(_, InVHole(Keyword(k), _), _)) as ze0),
+      BlockZE(
+        lines,
+        CursorE(_, Var(_, InVarHole(Keyword(k), _), _)) as ze0,
+      ),
     )
       when ZExp.is_after_exp(ze0) =>
     let (ze, u_gen) = ZExp.new_EmptyHole(u_gen);

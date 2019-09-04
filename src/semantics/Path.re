@@ -908,11 +908,11 @@ let rec holes_pat =
       (PatHole(u), rev_steps |> List.rev |> append(before_pat(p))),
       ...holes,
     ]
-  | Var(_, InVHole(_, u), _) => [
+  | Var(_, InVarHole(_, u), _) => [
       (PatHole(u), (rev_steps |> List.rev, OnText(0))),
       ...holes,
     ]
-  | Var(NotInHole, NotInVHole, _) => holes
+  | Var(NotInHole, NotInVarHole, _) => holes
   | Wild(NotInHole) => holes
   | NumLit(NotInHole, _) => holes
   | BoolLit(NotInHole, _) => holes
@@ -942,10 +942,16 @@ let holes_of_err_exp =
     ]
   };
 
-let holes_of_var_err_exp = (e, var_err, rev_steps, holes) =>
+let holes_of_var_err_exp =
+    (
+      e: UHExp.t,
+      var_err: VarErrStatus.t,
+      rev_steps: rev_steps,
+      holes: hole_list,
+    ) =>
   switch (var_err) {
-  | NotInVHole => holes
-  | InVHole(_, u) => [
+  | NotInVarHole => holes
+  | InVarHole(_, u) => [
       (VHole(u), rev_steps |> List.rev |> append(before_exp(e))),
       ...holes,
     ]

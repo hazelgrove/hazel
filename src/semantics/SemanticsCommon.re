@@ -1,21 +1,6 @@
 open Sexplib.Std;
 open GeneralUtil;
 
-[@deriving sexp]
-type keyword =
-  | Let
-  | Case;
-
-[@deriving sexp]
-type in_vhole_reason =
-  | Free
-  | Keyword(keyword);
-
-[@deriving sexp]
-type var_err_status =
-  | NotInVHole
-  | InVHole(in_vhole_reason, MetaVar.t);
-
 exception FreeVarInPat;
 
 [@deriving (show({with_path: false}), sexp)]

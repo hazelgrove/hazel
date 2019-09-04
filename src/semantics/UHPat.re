@@ -21,7 +21,7 @@ type t =
   /* outer nodes */
   | EmptyHole(MetaVar.t)
   | Wild(ErrStatus.t)
-  | Var(ErrStatus.t, var_err_status, Var.t)
+  | Var(ErrStatus.t, VarErrStatus.t, Var.t)
   | NumLit(ErrStatus.t, int)
   | BoolLit(ErrStatus.t, bool)
   | ListNil(ErrStatus.t)
@@ -34,8 +34,13 @@ and opseq = OperatorSeq.opseq(t, op);
 exception SkelInconsistentWithOpSeq(skel_t, opseq);
 
 let var =
-    (~err: ErrStatus.t=NotInHole, ~v: var_err_status=NotInVHole, x: Var.t): t =>
-  Var(err, v, x);
+    (
+      ~err: ErrStatus.t=NotInHole,
+      ~var_err: VarErrStatus.t=NotInVarHole,
+      x: Var.t,
+    )
+    : t =>
+  Var(err, var_err, x);
 
 let boollit = (~err: ErrStatus.t=NotInHole, b: bool) => BoolLit(err, b);
 

@@ -62,7 +62,7 @@ and sbox_shape =
       option(VarMap.t_(Dynamics.DHExp.t)),
     )
   | NonEmptyHoleInstance(
-      ErrStatus.InHoleReason.t,
+      ErrStatus.HoleReason.t,
       MetaVar.t,
       Dynamics.inst_num,
       option(VarMap.t_(Dynamics.DHExp.t)),
@@ -107,7 +107,7 @@ and stoken =
   | SEmptyHole(string)
   | SDelim(delim_index, string)
   | SOp(op_index, ErrStatus.t, string)
-  | SText(var_err_status, string)
+  | SText(VarErrStatus.t, string)
   | SCastArrow
   | SFailedCastArrow
   | SSpace
@@ -201,8 +201,8 @@ let steps_of_snode =
 
 let mk_SDelim = (~index: delim_index, s: string): stoken => SDelim(index, s);
 
-let mk_SText = (~var_err_status=NotInVHole, s: string): stoken =>
-  SText(var_err_status, s);
+let mk_SText = (~var_err: VarErrStatus.t=NotInVarHole, s: string): stoken =>
+  SText(var_err, s);
 
 let sspace_vnode =
   Vdom.(
@@ -641,13 +641,13 @@ let snode_attrs =
   );
 };
 
-let var_err_status_clss =
+let var_err_clss: VarErrStatus.t => list(cls) =
   fun
-  | NotInVHole => []
-  | InVHole(Free, u) => ["InVHole", "InVHole_" ++ string_of_int(u)]
-  | InVHole(Keyword(_), u) => [
-      "InVHole",
-      "InVHole_" ++ string_of_int(u),
+  | NotInVarHole => []
+  | InVarHole(Free, u) => ["InVarHole", "InVarHole_" ++ string_of_int(u)]
+  | InVarHole(Keyword(_), u) => [
+      "InVarHole",
+      "InVarHole_" ++ string_of_int(u),
       "Keyword",
     ];
 
@@ -1283,14 +1283,12 @@ and view_of_stoken =
       ],
       [op_before, op_txt, op_after],
     );
-  | SText(var_err_status, s) =>
+  | SText(var_err, s) =>
     Vdom.(
       Node.div(
         [
           Attr.id(text_id(node_steps)),
-          Attr.classes(
-            [inline_div_cls, "SText"] @ var_err_status_clss(var_err_status),
-          ),
+          Attr.classes([inline_div_cls, "SText"] @ var_err_clss(var_err)),
         ],
         [Node.text(s)],
       )
@@ -1394,8 +1392,7 @@ let snode_of_EmptyHole =
   );
 
 let snode_of_Var =
-    (~ap_err_status=NotInApHole, ~err, ~var_err_status, ~steps, x: Var.t)
-    : snode =>
+    (~ap_err_status=NotInApHole, ~err, ~var_err, ~steps, x: Var.t): snode =>
   mk_SBox(
     ~ap_err_status,
     ~err,
@@ -1404,7 +1401,7 @@ let snode_of_Var =
     [
       mk_SLine(
         ~steps_of_first_sword=steps,
-        [SToken(mk_SText(~var_err_status, x))],
+        [SToken(mk_SText(~var_err, x))],
       ),
     ],
   );
@@ -1882,8 +1879,8 @@ let rec snode_of_pat =
         ),
       ],
     )
-  | Var(err, var_err_status, x) =>
-    snode_of_Var(~ap_err_status, ~err, ~var_err_status, ~steps, x)
+  | Var(err, var_err, x) =>
+    snode_of_Var(~ap_err_status, ~err, ~var_err, ~steps, x)
   | NumLit(err, n) => snode_of_NumLit(~ap_err_status, ~err, ~steps, n)
   | BoolLit(err, b) => snode_of_BoolLit(~ap_err_status, ~err, ~steps, b)
   | ListNil(err) => snode_of_ListNil(~ap_err_status, ~err, ~steps, ())
@@ -2024,8 +2021,8 @@ and snode_of_exp =
   switch (e) {
   /* outer nodes */
   | EmptyHole(u) => snode_of_EmptyHole(~steps, string_of_int(u + 1))
-  | Var(err, var_err_status, x) =>
-    snode_of_Var(~ap_err_status, ~err, ~var_err_status, ~steps, x)
+  | Var(err, var_err, x) =>
+    snode_of_Var(~ap_err_status, ~err, ~var_err, ~steps, x)
   | NumLit(err, n) => snode_of_NumLit(~err, ~steps, n)
   | BoolLit(err, b) => snode_of_BoolLit(~err, ~steps, b)
   | ListNil(err) => snode_of_ListNil(~err, ~steps, ())
@@ -2846,14 +2843,14 @@ let rec snode_of_dhpat =
       ~shape=Wild,
       [mk_SLine([SToken(mk_SDelim(~index=0, "_"))])],
     )
-  | Keyword(u, _, k) =>
+  | Keyword(u, _, kw) =>
     snode_of_Var(
       ~err,
-      ~var_err_status=InVHole(Keyword(k), u),
+      ~var_err=InVarHole(Keyword(kw), u),
       ~steps,
-      Var.of_keyword(k),
+      Keyword.to_string(kw),
     )
-  | Var(x) => snode_of_Var(~err, ~var_err_status=NotInVHole, ~steps, x)
+  | Var(x) => snode_of_Var(~err, ~var_err=NotInVarHole, ~steps, x)
   | BoolLit(b) => snode_of_BoolLit(~err, ~steps, b)
   | NumLit(n) => snode_of_NumLit(~err, ~steps, n)
   | Triv => snode_of_Triv(~err, ~steps)
@@ -2925,15 +2922,15 @@ let rec snode_of_dhexp =
   | BoolLit(b) => snode_of_BoolLit(~err, ~steps, b)
   | NumLit(n) => snode_of_NumLit(~err, ~steps, n)
   | ListNil(_) => snode_of_ListNil(~err, ~steps, ())
-  | BoundVar(x) => snode_of_Var(~err, ~var_err_status=NotInVHole, ~steps, x)
+  | BoundVar(x) => snode_of_Var(~err, ~var_err=NotInVarHole, ~steps, x)
   | FreeVar(u, _, _, x) =>
-    snode_of_Var(~err, ~var_err_status=InVHole(Free, u), ~steps, x)
-  | Keyword(u, _, _, k) =>
+    snode_of_Var(~err, ~var_err=InVarHole(Free, u), ~steps, x)
+  | Keyword(u, _, _, kw) =>
     snode_of_Var(
       ~err,
-      ~var_err_status=InVHole(Keyword(k), u),
+      ~var_err=InVarHole(Keyword(kw), u),
       ~steps,
-      Var.of_keyword(k),
+      Keyword.to_string(kw),
     )
   | Let(dp, ddef, dbody) =>
     let sp = snode_of_dhpat(~steps=steps @ [0], dp);
@@ -2944,7 +2941,7 @@ let rec snode_of_dhexp =
     let sx =
       snode_of_Var(
         ~err=NotInHole,
-        ~var_err_status=NotInVHole,
+        ~var_err=NotInVarHole,
         ~steps=steps @ [0],
         x,
       );
@@ -3185,13 +3182,13 @@ let view_of_hole_instance =
 
 let view_of_Var =
     (
-      ~inject,
+      ~inject: Update.Action.t => Vdom.Event.t,
       ~err: ErrStatus.t=NotInHole,
-      ~var_err_status=NotInVHole,
-      ~steps=[],
+      ~var_err: VarErrStatus.t=NotInVarHole,
+      ~steps: Path.steps=[],
       x: Var.t,
     ) =>
-  view_of_snode(~inject, snode_of_Var(~err, ~var_err_status, ~steps, x));
+  view_of_snode(~inject, snode_of_Var(~err, ~var_err, ~steps, x));
 
 let is_multi_line_exp = e => snode_of_exp(e) |> is_multi_line;
 let is_multi_line_pat = p => snode_of_pat(p) |> is_multi_line;

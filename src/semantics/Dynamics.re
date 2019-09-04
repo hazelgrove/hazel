@@ -20,9 +20,9 @@ module DHPat = {
   [@deriving sexp]
   type t =
     | EmptyHole(MetaVar.t, inst_num)
-    | NonEmptyHole(ErrStatus.InHoleReason.t, MetaVar.t, inst_num, t)
+    | NonEmptyHole(ErrStatus.HoleReason.t, MetaVar.t, inst_num, t)
     | Wild
-    | Keyword(MetaVar.t, inst_num, keyword)
+    | Keyword(MetaVar.t, inst_num, Keyword.t)
     | Var(Var.t)
     | NumLit(int)
     | BoolLit(bool)
@@ -95,10 +95,10 @@ module DHPat = {
         MetaVarMap.extend_unique(delta, (u, (PatternHole, ty, gamma)));
       Expands(dp, ty, ctx, delta);
     | Wild(NotInHole) => Expands(Wild, Hole, ctx, delta)
-    | Var(NotInHole, InVHole(Free, _), _) => raise(FreeVarInPat)
-    | Var(NotInHole, InVHole(Keyword(k), u), _) =>
+    | Var(NotInHole, InVarHole(Free, _), _) => raise(FreeVarInPat)
+    | Var(NotInHole, InVarHole(Keyword(k), u), _) =>
       Expands(Keyword(u, 0, k), Hole, ctx, delta)
-    | Var(NotInHole, NotInVHole, x) =>
+    | Var(NotInHole, NotInVarHole, x) =>
       let ctx = Contexts.extend_gamma(ctx, (x, Hole));
       Expands(Var(x), Hole, ctx, delta);
     | NumLit(NotInHole, n) => Expands(NumLit(n), Num, ctx, delta)
@@ -206,10 +206,10 @@ module DHPat = {
       let delta =
         MetaVarMap.extend_unique(delta, (u, (PatternHole, ty, gamma)));
       Expands(dp, ty, ctx, delta);
-    | Var(NotInHole, InVHole(Free, _), _) => raise(FreeVarInPat)
-    | Var(NotInHole, InVHole(Keyword(k), u), _) =>
+    | Var(NotInHole, InVarHole(Free, _), _) => raise(FreeVarInPat)
+    | Var(NotInHole, InVarHole(Keyword(k), u), _) =>
       Expands(Keyword(u, 0, k), ty, ctx, delta)
-    | Var(NotInHole, NotInVHole, x) =>
+    | Var(NotInHole, NotInVarHole, x) =>
       let ctx = Contexts.extend_gamma(ctx, (x, ty));
       Expands(Var(x), ty, ctx, delta);
     | Wild(NotInHole) => Expands(Wild, ty, ctx, delta)
@@ -410,13 +410,13 @@ module DHExp = {
     type t =
       | EmptyHole(MetaVar.t, inst_num, VarMap.t_(t))
       | NonEmptyHole(
-          ErrStatus.InHoleReason.t,
+          ErrStatus.HoleReason.t,
           MetaVar.t,
           inst_num,
           VarMap.t_(t),
           t,
         )
-      | Keyword(MetaVar.t, inst_num, VarMap.t_(t), keyword)
+      | Keyword(MetaVar.t, inst_num, VarMap.t_(t), Keyword.t)
       | FreeVar(MetaVar.t, inst_num, VarMap.t_(t), Var.t)
       | BoundVar(Var.t)
       | Let(DHPat.t, t, t)
@@ -1003,13 +1003,13 @@ module DHExp = {
       let delta =
         MetaVarMap.extend_unique(delta, (u, (ExpressionHole, ty, gamma)));
       Expands(d, ty, delta);
-    | Var(NotInHole, NotInVHole, x) =>
+    | Var(NotInHole, NotInVarHole, x) =>
       let gamma = Contexts.gamma(ctx);
       switch (VarMap.lookup(gamma, x)) {
       | Some(ty) => Expands(BoundVar(x), ty, delta)
       | None => DoesNotExpand
       };
-    | Var(NotInHole, InVHole(reason, u), x) =>
+    | Var(NotInHole, InVarHole(reason, u), x) =>
       let gamma = Contexts.gamma(ctx);
       let sigma = id_env(gamma);
       let delta =
@@ -1259,7 +1259,7 @@ module DHExp = {
       let delta =
         MetaVarMap.extend_unique(delta, (u, (ExpressionHole, ty, gamma)));
       Expands(d, ty, delta);
-    | Var(NotInHole, InVHole(reason, u), x) =>
+    | Var(NotInHole, InVarHole(reason, u), x) =>
       let gamma = Contexts.gamma(ctx);
       let sigma = id_env(gamma);
       let delta =
@@ -1357,7 +1357,7 @@ module DHExp = {
       | None => DoesNotExpand
       | Some(elt_ty) => Expands(ListNil(elt_ty), List(elt_ty), delta)
       }
-    | Var(NotInHole, NotInVHole, _)
+    | Var(NotInHole, NotInVarHole, _)
     | BoolLit(NotInHole, _)
     | NumLit(NotInHole, _)
     | ApPalette(NotInHole, _, _, _) =>

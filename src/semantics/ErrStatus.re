@@ -1,13 +1,13 @@
-module InHoleReason = {
-  /* Variables: `reason` */
+module HoleReason = {
+  /* Variable: `reason` */
   [@deriving sexp]
   type t =
     | TypeInconsistent
     | WrongLength;
 };
 
-/* Variables: `err` */
+/* Variable: `err` */
 [@deriving sexp]
 type t =
   | NotInHole
-  | InHole(InHoleReason.t, MetaVar.t);
+  | InHole(HoleReason.t, MetaVar.t);

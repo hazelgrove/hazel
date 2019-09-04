@@ -23,7 +23,7 @@ type typed =
   /* none of the above and didn't go through subsumption */
   | AnaSubsumed(HTyp.t, HTyp.t)
   /* none of the above and went through subsumption */
-  | AnaKeyword(HTyp.t, keyword)
+  | AnaKeyword(HTyp.t, Keyword.t)
   /* cursor is on a keyword */
   /*
    *  # cursor in synthetic position
@@ -39,11 +39,11 @@ type typed =
   | SynFreeArrow(HTyp.t)
   /* cursor is on a free variable in the function
      position of an ap */
-  | SynKeywordArrow(HTyp.t, keyword)
+  | SynKeywordArrow(HTyp.t, Keyword.t)
   /* cursor is on a keyword in the function position of an ap */
   | SynFree
   /* none of the above, cursor is on a free variable */
-  | SynKeyword(keyword)
+  | SynKeyword(Keyword.t)
   /* cursor is on a keyword */
   | Synthesized(HTyp.t)
   /* none of the above */
@@ -62,14 +62,14 @@ type typed =
   /* none of the above and didn't go through subsumption */
   | PatAnaSubsumed(HTyp.t, HTyp.t)
   /* none of the above and went through subsumption */
-  | PatAnaKeyword(HTyp.t, keyword)
+  | PatAnaKeyword(HTyp.t, Keyword.t)
   /* cursor is on a keyword */
   /*
    * # cursor in synthetic pattern position
    */
   | PatSynthesized(HTyp.t)
   /* cursor is on a keyword */
-  | PatSynKeyword(keyword)
+  | PatSynKeyword(Keyword.t)
   /*
    * # cursor in type position
    */
@@ -334,7 +334,7 @@ let rec _ana_cursor_found_pat =
   | ListNil(InHole(WrongLength, _))
   | Inj(InHole(WrongLength, _), _, _) => None
   /* not in hole */
-  | Var(NotInHole, InVHole(Keyword(k), _), _) =>
+  | Var(NotInHole, InVarHole(Keyword(k), _), _) =>
     Some((PatAnaKeyword(ty, k), Pat(p), ctx))
   | Wild(NotInHole)
   | Var(NotInHole, _, _)
@@ -404,7 +404,7 @@ let rec _syn_cursor_info_pat =
         : option(t) =>
   switch (zp) {
   // TODO special case OpSeq
-  | CursorP(cursor, Var(_, InVHole(Keyword(k), _), _) as p) =>
+  | CursorP(cursor, Var(_, InVarHole(Keyword(k), _), _) as p) =>
     Some(
       mk_cursor_info(
         PatSynKeyword(k),
@@ -575,7 +575,7 @@ and _ana_cursor_info_pat =
     : option(t) =>
   switch (zp) {
   /* TODO special case OpSeq */
-  | CursorP(cursor, Var(_, InVHole(Keyword(k), _), _) as p) =>
+  | CursorP(cursor, Var(_, InVarHole(Keyword(k), _), _) as p) =>
     Some(
       mk_cursor_info(
         PatAnaKeyword(ty, k),
@@ -859,12 +859,12 @@ and _ana_cursor_found_exp =
     }
   | OpSeq(BinOp(InHole(WrongLength, _), _, _, _), _) => None
   /* not in hole */
-  | Var(_, InVHole(Keyword(k), _), _) =>
+  | Var(_, InVarHole(Keyword(k), _), _) =>
     Some((AnaKeyword(ty, k), Exp(e), ctx))
-  | Var(_, InVHole(Free, _), _) => Some((AnaFree(ty), Exp(e), ctx))
+  | Var(_, InVarHole(Free, _), _) => Some((AnaFree(ty), Exp(e), ctx))
   | ListNil(NotInHole) => Some((Analyzed(ty), Exp(e), ctx))
   | EmptyHole(_)
-  | Var(NotInHole, NotInVHole, _)
+  | Var(NotInHole, NotInVarHole, _)
   | NumLit(NotInHole, _)
   | BoolLit(NotInHole, _) =>
     switch (Statics.syn_exp(ctx, e)) {
@@ -1029,7 +1029,7 @@ and _syn_cursor_info =
     : option(t) => {
   let (prefix, surround, suffix) = frame;
   switch (ze) {
-  | CursorE(cursor, Var(_, InVHole(Keyword(k), _), _) as e) =>
+  | CursorE(cursor, Var(_, InVarHole(Keyword(k), _), _) as e) =>
     Some(
       mk_cursor_info(
         SynKeyword(k),
@@ -1041,7 +1041,7 @@ and _syn_cursor_info =
         term_steps,
       ),
     )
-  | CursorE(cursor, Var(_, InVHole(Free, _), _) as e) =>
+  | CursorE(cursor, Var(_, InVarHole(Free, _), _) as e) =>
     Some(
       mk_cursor_info(
         SynFree,
@@ -1439,9 +1439,9 @@ and _syn_cursor_info_skel =
           | Some(ty) =>
             Some({...ci, typed: SynErrorArrow(Arrow(Hole, Hole), ty)})
           };
-        | Some((Block(_, Var(_, InVHole(Keyword(k), _), _)), _position)) =>
+        | Some((Block(_, Var(_, InVarHole(Keyword(k), _), _)), _position)) =>
           Some({...ci, typed: SynKeywordArrow(Arrow(Hole, Hole), k)})
-        | Some((Block(_, Var(_, InVHole(Free, _), _)), _position)) =>
+        | Some((Block(_, Var(_, InVarHole(Free, _), _)), _position)) =>
           Some({...ci, typed: SynFreeArrow(Arrow(Hole, Hole))})
         | Some((outer_block, _position)) =>
           switch (Statics.syn_block(ctx, outer_block)) {

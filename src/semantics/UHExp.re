@@ -33,7 +33,7 @@ and line =
 and t =
   /* outer nodes */
   | EmptyHole(MetaVar.t)
-  | Var(ErrStatus.t, var_err_status, Var.t)
+  | Var(ErrStatus.t, VarErrStatus.t, Var.t)
   | NumLit(ErrStatus.t, int)
   | BoolLit(ErrStatus.t, bool)
   | ListNil(ErrStatus.t)
@@ -59,7 +59,7 @@ let letline = (p: UHPat.t, ~ann: option(UHTyp.t)=?, block: block): line =>
 let var =
     (
       ~err: ErrStatus.t=NotInHole,
-      ~var_err_status: var_err_status=NotInVHole,
+      ~var_err_status: VarErrStatus.t=NotInVarHole,
       x: Var.t,
     )
     : t =>
