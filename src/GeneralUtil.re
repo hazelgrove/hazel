@@ -1,11 +1,51 @@
 open Sexplib.Std;
 
+let string_of_sexp = sexp => Sexplib.Sexp.to_string(sexp);
+
 let opt_to_bool =
   fun
   | None => false
   | Some(_) => true;
 
+let num_digits = (n: int): int => String.length(string_of_int(n));
+
+let fmin = (a: float, b: float) => a <= b ? a : b;
+let fmax = (a: float, b: float) => a >= b ? a : b;
+
+/**
+ * List of ints starting from lo,
+ * up to and excluding hi.
+ */
+let rec range = (~lo=0, hi: int): list(int) =>
+  if (lo >= hi) {
+    [];
+  } else {
+    [lo, ...range(~lo=lo + 1, hi)];
+  };
+
 /* Section ListUtil */
+
+let rec join = (sep: 'a, xs: list('a)): list('a) =>
+  switch (xs) {
+  | [] => []
+  | [x] => [x]
+  | [x, ...xs] => [x, sep, ...join(sep, xs)]
+  };
+
+let rec zip = (xs: list('a), ys: list('b)): list(('a, 'b)) =>
+  switch (xs, ys) {
+  | ([], _) => []
+  | (_, []) => []
+  | ([x, ...xs], [y, ...ys]) => [(x, y), ...zip(xs, ys)]
+  };
+
+let rec unzip = (xys: list(('a, 'b))): (list('a), list('b)) =>
+  switch (xys) {
+  | [] => ([], [])
+  | [(x, y), ...xys] =>
+    let (xs, ys) = xys |> unzip;
+    ([x, ...xs], [y, ...ys]);
+  };
 
 /* repeat an element n times */
 let replicate = (n: int, e: 'a): list('a) => {
@@ -49,7 +89,39 @@ let rec _findmapi = (i, xs, f) =>
 
 let findmapi = (xs, f) => _findmapi(0, xs, f);
 
+let filteri = (pred, xs) =>
+  xs
+  |> List.mapi((i, x) => (i, x))
+  |> List.filter(((i, x)) => pred(i, x))
+  |> List.map(((_, x)) => x);
+
 let any = (xs, f) => opt_to_bool(List.find_opt(f, xs));
+
+let contains = (y: 'a, xs: list('a)): bool => List.exists(x => x == y, xs);
+
+let first = (xs: list('a)): option('a) => List.nth_opt(xs, 0);
+
+let last = (xs: list('a)): option('a) => first(List.rev(xs));
+
+let split_last = (xs: list('a)): option((list('a), 'a)) =>
+  switch (List.rev(xs)) {
+  | [] => None
+  | [y, ...ys] => Some((List.rev(ys), y))
+  };
+
+let rec elem_before = (x: 'a, xs: list('a)): option('a) =>
+  switch (xs) {
+  | []
+  | [_] => None
+  | [y1, y2, ...ys] => x == y2 ? Some(y1) : elem_before(x, [y2, ...ys])
+  };
+
+let rec elem_after = (x: 'a, xs: list('a)): option('a) =>
+  switch (xs) {
+  | []
+  | [_] => None
+  | [y1, y2, ...ys] => x == y1 ? Some(y2) : elem_after(x, [y2, ...ys])
+  };
 
 let rec split_at = (xs, n) =>
   switch (xs) {
@@ -62,6 +134,22 @@ let rec split_at = (xs, n) =>
         ([y, ...before], after);
       }
   };
+
+let partition_i =
+    (f: (int, 'a) => bool, xs: list('a)): (list('a), list('a)) => {
+  let (indexed_left, indexed_right) =
+    xs
+    |> List.mapi((i, x) => (i, x))
+    |> List.partition(((i, x)) => f(i, x));
+  let (_, left) = indexed_left |> List.split;
+  let (_, right) = indexed_right |> List.split;
+  (left, right);
+};
+
+let fold_left_i = (f: ('a, (int, 'b)) => 'a, acc: 'a, xs: list('b)): 'a => {
+  let ixs = List.mapi((i, x) => (i, x), xs);
+  List.fold_left(f, acc, ixs);
+};
 
 let fold_right_i = (f: ((int, 'a), 'b) => 'b, xs: list('a), acc: 'b): 'b => {
   let ixs = List.mapi((i, x) => (i, x), xs);
@@ -130,6 +218,7 @@ let string_of_opt = string_of_elt =>
 /* End ListUtil */
 
 module ZList = {
+  [@deriving sexp]
   type t('z, 'a) = (list('a), 'z, list('a));
 
   let singleton = (z: 'z): t('z, 'a) => ([], z, []);
@@ -195,6 +284,26 @@ module ZList = {
     let (prefix, z, suffix) = xs;
     let a = erase_z(z);
     prefix @ [a, ...suffix];
+  };
+
+  let shift_next = (zxs: t('a, 'a)) => {
+    let (prefix, z, suffix) = zxs;
+    switch (suffix) {
+    | [] => zxs
+    | [next, ...suffix] =>
+      let prefix = prefix @ [z];
+      (prefix, next, suffix);
+    };
+  };
+
+  let shift_prev = (zxs: t('a, 'a)) => {
+    let (prefix, z, suffix) = zxs;
+    switch (List.rev(prefix)) {
+    | [] => zxs
+    | [prev, ...rev_prefix] =>
+      let suffix = [z, ...suffix];
+      (List.rev(rev_prefix), prev, suffix);
+    };
   };
 };
 
@@ -301,6 +410,7 @@ module NatMap = {
 /* Zippered finite map over nats, used with Z expressions
  * i.e. there is a selected element of type Z and the rest is a int map of type A */
 module ZNatMap = {
+  [@deriving sexp]
   type t('a, 'z) = (NatMap.t('a), (int, 'z));
   let make =
       (m: NatMap.t('a), (n, _) as nz: (int, 'z)): option(t('a, 'z)) =>
@@ -368,6 +478,9 @@ module ListMinTwo = {
     | (Cons(x, xs), _) => Cons(x, append_list(xs, ys))
     };
 
+  let mk = (x: 'a, y: 'a, zs: list('a)): t('a) =>
+    append_list(Pair(x, y), zs);
+
   /**
    * Like List.fold_left, but the initial accumulator is a
    * function f0 on the first two elements in the tuple list.
@@ -411,5 +524,28 @@ module ListMinTwo = {
     | Cons((x, y), xys) =>
       let (xs, ys) = unzip(xys);
       (Cons(x, xs), Cons(y, ys));
+    };
+};
+
+module Opt = {
+  let map = (f: 'a => 'b, opt: option('a)): option('b) =>
+    switch (opt) {
+    | None => None
+    | Some(a) => Some(f(a))
+    };
+  let map_default = (~default: 'b, f: 'a => 'b, opt: option('a)): 'b =>
+    switch (opt) {
+    | None => default
+    | Some(a) => f(a)
+    };
+  let get = (if_absent: unit => 'a, opt: option('a)): 'a =>
+    switch (opt) {
+    | None => if_absent()
+    | Some(a) => a
+    };
+  let test = (opt: option(_)): bool =>
+    switch (opt) {
+    | None => false
+    | Some(_) => true
     };
 };

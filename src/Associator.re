@@ -13,11 +13,14 @@ let parse_typ = s => {
 let string_of_expr_op = (op: UHExp.op) =>
   switch (op) {
   | UHExp.Plus => "+"
+  | UHExp.Minus => "-"
   | UHExp.Times => "*"
   | UHExp.LessThan => "<"
   | UHExp.Space => "_"
   | UHExp.Comma => ","
   | UHExp.Cons => "::"
+  | And => "&"
+  | Or => "|"
   };
 let string_of_pat_op = (op: UHPat.op) =>
   switch (op) {

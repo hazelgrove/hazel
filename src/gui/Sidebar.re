@@ -1,5 +1,6 @@
-open Tyxml_js;
+open Incr_dom;
 module Js = Js_of_ocaml.Js;
+module Dom_html = Js_of_ocaml.Dom_html;
 
 let make_sidebar =
     (
@@ -11,67 +12,62 @@ let make_sidebar =
       slidable_body_id: string,
       body_padding_id: string,
       body_id: string,
-    ) => {
-  /* Adds and removes CSS classes to trigger the show/hide animation. */
-  let onclick =
-    Html.a_onclick(_ => {
-      let sidebar = JSUtil.forceGetElementById(collapsible_sidebar_id);
-      let collapsed_sidebar_class = Js.string("collapsed-sidebar");
-
-      let tab = JSUtil.forceGetElementById(tab_id);
-
-      let body_padding = JSUtil.forceGetElementById(body_padding_id);
-      let body_padding_expanded_class =
-        Js.string("sidebar-body-padding-expanded");
-
-      if (Js.to_bool(sidebar##.classList##contains(collapsed_sidebar_class))) {
-        sidebar##.classList##remove(collapsed_sidebar_class);
-        tab##.innerHTML := Js.string("");
-        let _ = tab##appendChild(To_dom.of_node(tab_opened_icon()));
-        body_padding##.classList##remove(body_padding_expanded_class);
-      } else {
-        sidebar##.classList##add(collapsed_sidebar_class);
-        tab##.innerHTML := Js.string("");
-        let _ = tab##appendChild(To_dom.of_node(tab_closed_icon()));
-        body_padding##.classList##add(body_padding_expanded_class);
-      };
-
-      true;
-    });
-
-  Html.(
-    div(
-      ~a=[a_id(collapsible_sidebar_id), a_class(["collapsible-sidebar"])],
+      sidebar_open: bool,
+      ~on_toggle: Js.t(Dom_html.mouseEvent) => Vdom.Event.t,
+    ) =>
+  Vdom.(
+    Node.div(
       [
-        div(
-          ~a=[a_class(["sidebar"])],
+        Attr.id(collapsible_sidebar_id),
+        Attr.classes(
+          ["collapsible-sidebar"]
+          @ (sidebar_open ? [] : ["collapsed-sidebar"]),
+        ),
+      ],
+      [
+        Node.div(
+          [Attr.classes(["sidebar"])],
           [
-            div(
-              ~a=[a_id(slidable_body_id), a_class(["sidebar-body-slider"])],
+            Node.div(
               [
-                div(
-                  ~a=[
-                    a_id(body_padding_id),
-                    a_class(["sidebar-body-padding"]),
-                    onclick,
+                Attr.id(slidable_body_id),
+                Attr.classes(["sidebar-body-slider"]),
+              ],
+              [
+                Node.div(
+                  [
+                    Attr.id(body_padding_id),
+                    Attr.classes(
+                      ["sidebar-body-padding"]
+                      @ (
+                        sidebar_open ? [] : ["sidebar-body-padding-expanded"]
+                      ),
+                    ),
+                    Attr.on_click(on_toggle),
                   ],
                   [],
                 ),
-                div(~a=[a_id(body_id), a_class(["sidebar-body"])], panels),
+                Node.div(
+                  [Attr.id(body_id), Attr.classes(["sidebar-body"])],
+                  panels,
+                ),
               ],
             ),
-            div(
-              ~a=[a_id(tab_id), a_class(["sidebar-tab"]), onclick],
-              [tab_opened_icon()],
+            Node.div(
+              [
+                Attr.id(tab_id),
+                Attr.classes(["sidebar-tab"]),
+                Attr.on_click(on_toggle),
+              ],
+              [sidebar_open ? tab_opened_icon() : tab_closed_icon()],
             ),
           ],
         ),
       ],
     )
   );
-};
 
-let left = left_panels => {
+let left = (~inject, sidebar_open, left_panels) => {
   make_sidebar(
     left_panels,
     "collapsible-left-bar",
@@ -81,10 +77,13 @@ let left = left_panels => {
     "slidable-left-bar-body",
     "left-bar-body-padding",
     "left-bar-body",
+    sidebar_open,
+    ~on_toggle=_ =>
+    inject(Update.Action.ToggleLeftSidebar)
   );
 };
 
-let right = right_panels => {
+let right = (~inject, sidebar_open, right_panels) => {
   make_sidebar(
     right_panels,
     "collapsible-right-bar",
@@ -94,5 +93,8 @@ let right = right_panels => {
     "slidable-right-bar-body",
     "right-bar-body-padding",
     "right-bar-body",
+    sidebar_open,
+    ~on_toggle=_ =>
+    inject(Update.Action.ToggleRightSidebar)
   );
 };
