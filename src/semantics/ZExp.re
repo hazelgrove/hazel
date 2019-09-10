@@ -181,7 +181,8 @@ let is_before_rule =
 
 let rec cursor_on_var =
   fun
-  | CursorE(OnText(_) as text, Var(_, _, _) as var) => Some((text, var))
+  | CursorE(OnText(pos), Var(err, verr, name)) =>
+    Some((pos, err, verr, name))
   | OpSeqZ(_, zexp, _) => cursor_on_var(zexp)
   | _ => None;
 

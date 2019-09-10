@@ -260,6 +260,17 @@ let surround_suffix_append_exp = (surround, op1, e) =>
     BothNonEmpty(prefix, suffix');
   };
 
+let surround_prefix_append_exp = (surround, op1, e) =>
+  switch (surround) {
+  | EmptyPrefix(suffix) => BothNonEmpty(ExpPrefix(e, op1), suffix)
+  | EmptySuffix(prefix) =>
+    let prefix' = prefix_append_exp(prefix, e, op1);
+    EmptySuffix(prefix');
+  | BothNonEmpty(prefix, suffix) =>
+    let prefix' = prefix_append_exp(prefix, e, op1);
+    BothNonEmpty(prefix', suffix);
+  };
+
 let rec split = (n, seq) =>
   switch (n, seq) {
   | (0, ExpOpExp(e1, op, e2)) =>

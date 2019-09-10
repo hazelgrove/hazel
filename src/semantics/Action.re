@@ -2758,8 +2758,7 @@ let rec replace_cursor_in_zexp =
 
 let zexp_is_suitable_for_var_split = (zexp: ZExp.t) =>
   switch (ZExp.cursor_on_var(zexp)) {
-  | Some((OnText(pos), Var(err, verr, name))) =>
-    pos > 0 && pos <= String.length(name) - 1
+  | Some((pos, _, _, name)) => pos > 0 && pos <= String.length(name) - 1
   | _ => false
   };
 
@@ -2772,9 +2771,9 @@ let rec syn_perform_block =
         )
         : result((ZExp.zblock, HTyp.t, MetaVarGen.t)) => {
   print_endline("=======");
-  let str = Core_kernel.Sexp.to_string(sexp_of_t(a));
+  let str = Core_kernel.Sexp.to_string_hum(sexp_of_t(a));
   print_endline(str);
-  let str = Core_kernel.Sexp.to_string(ZExp.sexp_of_zblock(zblock));
+  let str = Core_kernel.Sexp.to_string_hum(ZExp.sexp_of_zblock(zblock));
   print_endline(str);
   print_endline("=======");
   switch (a, zblock) {
@@ -3433,11 +3432,9 @@ let rec syn_perform_block =
 
   /* Variable Splitting */
 
-  | (Construct(SOp(SPlus)), BlockZE(lines, zexp) as zblock)
+  | (Construct(SOp(op)), BlockZE(lines, zexp))
       when zexp_is_suitable_for_var_split(zexp) =>
-    print_endline("Matched");
-    switch (ZExp.cursor_on_var(zexp)) {
-    | Some((OnText(pos), Var(err, verr, name))) =>
+    let split_var = (pos, err, verr, name) => {
       let left_var = String.sub(name, 0, pos);
       let right_var = String.sub(name, pos, String.length(name) - pos);
       let cursor =
@@ -3445,17 +3442,32 @@ let rec syn_perform_block =
           OnText(String.length(name) - pos),
           Var(err, verr, right_var),
         );
-      let new_zexp =
-        ZExp.OpSeqZ(
-          Skel.BinOp(err, UHExp.Plus, Placeholder(0), Placeholder(1)),
-          cursor,
-          OperatorSeq.EmptySuffix(
-            ExpPrefix(UHExp.Var(err, verr, left_var), UHExp.Plus),
-          ),
-        );
-      let zexp = replace_cursor_in_zexp(zexp, new_zexp);
-      Succeeded((BlockZE(lines, zexp), ty, u_gen));
-    | _ => Failed
+      let left_var = UHExp.Var(err, verr, left_var);
+      (left_var, cursor);
+    };
+    switch (exp_op_of(op)) {
+    | Some(op) =>
+      switch (ZExp.cursor_on_var(zexp)) {
+      | Some((pos, err, verr, name)) =>
+        let (left_var, cursor) = split_var(pos, err, verr, name);
+        switch (zexp) {
+        | ZExp.OpSeqZ(_, _, surround) =>
+          let new_surround =
+            OperatorSeq.surround_prefix_append_exp(surround, op, left_var);
+          let new_zexp = OpSeqUtil.Exp.mk_OpSeqZ(cursor, new_surround);
+          Succeeded((BlockZE(lines, new_zexp), ty, u_gen));
+
+        | CursorE(OnText(pos), Var(err, verr, name)) =>
+          let (left_var, cursor) = split_var(pos, err, verr, name);
+          let surround = OperatorSeq.(EmptySuffix(ExpPrefix(left_var, op)));
+          let zexp = OpSeqUtil.Exp.mk_OpSeqZ(cursor, surround);
+          Succeeded((BlockZE(lines, zexp), ty, u_gen));
+
+        | _ => Failed
+        };
+      | _ => Failed
+      }
+    | None => Failed
     };
 
   /* Zipper Cases */
