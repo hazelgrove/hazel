@@ -2747,15 +2747,6 @@ let make_zexp_or_zblock_inconsistent =
     (B(zblock), u_gen);
   };
 
-let rec replace_cursor_in_zexp =
-        (zexp_with_cursor: ZExp.t, replacement_zexp: ZExp.t) =>
-  switch (zexp_with_cursor) {
-  | CursorE(_) => replacement_zexp
-  | OpSeqZ(skel, zexp, surround) =>
-    OpSeqZ(skel, replace_cursor_in_zexp(zexp, replacement_zexp), surround)
-  | zexp => zexp
-  };
-
 let zexp_is_suitable_for_var_split = (zexp: ZExp.t) =>
   switch (ZExp.cursor_on_var(zexp)) {
   | Some((pos, _, _, name)) => pos > 0 && pos <= String.length(name) - 1
