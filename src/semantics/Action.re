@@ -3436,6 +3436,7 @@ let rec syn_perform_block =
       let left_var = UHExp.Var(err, verr, left_var);
       (left_var, cursor);
     };
+
     switch (exp_op_of(op)) {
     | Some(op) =>
       switch (ZExp.cursor_on_var(zexp)) {
@@ -3448,8 +3449,7 @@ let rec syn_perform_block =
           let new_zexp = OpSeqUtil.Exp.mk_OpSeqZ(cursor, new_surround);
           Succeeded((BlockZE(lines, new_zexp), ty, u_gen));
 
-        | CursorE(OnText(pos), Var(err, verr, name)) =>
-          let (left_var, cursor) = split_var(pos, err, verr, name);
+        | CursorE(_, _) =>
           let surround = OperatorSeq.(EmptySuffix(ExpPrefix(left_var, op)));
           let zexp = OpSeqUtil.Exp.mk_OpSeqZ(cursor, surround);
           Succeeded((BlockZE(lines, zexp), ty, u_gen));
