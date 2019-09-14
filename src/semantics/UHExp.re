@@ -59,11 +59,11 @@ let letline = (p: UHPat.t, ~ann: option(UHTyp.t)=?, block: block): line =>
 let var =
     (
       ~err: ErrStatus.t=NotInHole,
-      ~var_err_status: VarErrStatus.t=NotInVarHole,
+      ~var_err: VarErrStatus.t=NotInVarHole,
       x: Var.t,
     )
     : t =>
-  Var(err, var_err_status, x);
+  Var(err, var_err, x);
 
 let numlit = (~err: ErrStatus.t=NotInHole, n: int): t => NumLit(err, n);
 
