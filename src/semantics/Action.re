@@ -3425,40 +3425,44 @@ let rec syn_perform_block =
 
   | (Construct(SOp(op)), BlockZE(lines, zexp))
       when zexp_is_suitable_for_var_split(zexp) =>
-    let split_var = (pos, err, verr, name) => {
-      let left_var = String.sub(name, 0, pos);
-      let right_var = String.sub(name, pos, String.length(name) - pos);
-      let cursor =
-        ZExp.CursorE(
-          OnText(String.length(name) - pos),
-          Var(err, verr, right_var),
-        );
-      let left_var = UHExp.Var(err, verr, left_var);
-      (left_var, cursor);
+    let split_var = (pos, name) => {
+      let make_var = (idx, len) => UHExp.var(String.sub(name, idx, len));
+      let left_var = make_var(0, pos);
+      let right_var = make_var(pos, String.length(name) - pos);
+      (left_var, right_var);
     };
 
-    switch (exp_op_of(op)) {
-    | Some(op) =>
-      switch (ZExp.cursor_on_var(zexp)) {
-      | Some((pos, err, verr, name)) =>
-        let (left_var, cursor) = split_var(pos, err, verr, name);
-        switch (zexp) {
-        | ZExp.OpSeqZ(_, _, surround) =>
-          let new_surround =
-            OperatorSeq.surround_prefix_append_exp(surround, op, left_var);
-          let new_zexp = OpSeqUtil.Exp.mk_OpSeqZ(cursor, new_surround);
-          Succeeded((BlockZE(lines, new_zexp), ty, u_gen));
+    switch (exp_op_of(op), ZExp.cursor_on_var(zexp)) {
+    | (Some(op), Some((pos, _, _, name))) =>
+      let (left_var, right_var) = split_var(pos, name);
+      switch (zexp) {
+      | ZExp.OpSeqZ(_, _, surround) =>
+        let surround =
+          OperatorSeq.surround_suffix_prepend_exp(surround, op, right_var);
+        let delim_pos = OperatorSeq.surround_prefix_length(surround) + 1;
+        let zexp =
+          OpSeqUtil.Exp.mk_OpSeqZ(CursorE(OnText(0), left_var), surround);
+        let uhexp = ZExp.erase(zexp);
+        let zexp = ZExp.CursorE(OnDelim(delim_pos, After), uhexp);
+        let zblock = ZExp.BlockZE(lines, zexp);
+        let (zblock, ty, _) =
+          Statics.syn_fix_holes_zblock(ctx, u_gen, zblock);
+        Succeeded((zblock, ty, u_gen));
 
-        | CursorE(_, _) =>
-          let surround = OperatorSeq.(EmptySuffix(ExpPrefix(left_var, op)));
-          let zexp = OpSeqUtil.Exp.mk_OpSeqZ(cursor, surround);
-          Succeeded((BlockZE(lines, zexp), ty, u_gen));
+      | CursorE(_, _) =>
+        let cursor =
+          ZExp.CursorE(
+            OnDelim(1, After),
+            OpSeqUtil.Exp.mk_OpSeq(ExpOpExp(left_var, op, right_var)),
+          );
+        let zblock = ZExp.BlockZE(lines, cursor);
+        let (zblock, ty, _) =
+          Statics.syn_fix_holes_zblock(ctx, u_gen, zblock);
+        Succeeded((zblock, ty, u_gen));
 
-        | _ => Failed
-        };
       | _ => Failed
-      }
-    | None => Failed
+      };
+    | _ => Failed
     };
 
   /* Zipper Cases */
