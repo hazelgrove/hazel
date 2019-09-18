@@ -1172,3 +1172,36 @@ button:disabled {
   padding: 4px;
   margin-left: 5px;
 }
+
+.feature-header {
+  display: grid;
+  grid-template-columns: auto auto auto auto;
+  grid-template-rows: auto;
+  grid-column-gap: 20px;
+  grid-template-areas:
+    "automatic-hole-insertion linear-editing-affordances visual-tree-signifiers node-staging-mode"
+}
+
+.automatic-hole-insertion {
+  grid-area: "automatic-hole-insertion";
+}
+
+.linear-editing-affordances {
+  grid-area: "linear-editing-affordances";
+}
+
+.visual-tree-signifiers {
+  grid-area: "visual-tree-signifiers";
+}
+
+.node-staging-mode {
+  grid-area: "node-staging-mode";
+}
+
+.feature.selected {
+  text-decoration: underline;
+}
+
+.feature.unselected {
+  opacity: 0.5;
+}

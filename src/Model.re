@@ -5,6 +5,7 @@ module ZList = GeneralUtil.ZList;
 
 type cardstacks = list(CardStack.t);
 let cardstacks: cardstacks = [
+  MWPLS19Cards.cardstack,
   TutorialCards.cardstack,
   RCStudyCards.cardstack,
 ];
