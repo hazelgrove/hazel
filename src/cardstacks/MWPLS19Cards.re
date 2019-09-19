@@ -1,4 +1,5 @@
 module Vdom = Virtual_dom.Vdom;
+open GeneralUtil;
 open OperatorSeq;
 open OpSeqUtil;
 
@@ -88,252 +89,310 @@ let syntax = (~selected) =>
     ],
   );
 
-let cards: list(Card.t) = [
-  {
-    caption: feature_header(),
-    init_zblock:
-      UHExp.(wrap_in_block(EmptyHole(-1))) |> ZExp.place_before_block,
-  },
-  {
-    caption: feature_header(~selected="automatic-hole-insertion", ()),
-    init_zblock:
-      UHExp.(wrap_in_block(EmptyHole(-1))) |> ZExp.place_before_block,
-  },
-  {
-    caption: feature_header(~selected="linear-editing-affordances", ()),
-    init_zblock:
-      UHExp.(
-        wrap_in_block(
-          ExpOpExp(
-            numlit(2),
-            Times,
-            var(~var_err_status=InVarHole(Free, 0), "x"),
+let simple = i =>
+  div(
+    [Attr.id("simple-container")],
+    [
+      div(
+        [Attr.id("simple")],
+        [
+          Vdom.Node.create(
+            "img",
+            [Attr.create("src", "simple-" ++ string_of_int(i) ++ ".png")],
+            [],
+          ),
+        ],
+      ),
+    ],
+  );
+
+let cards: list(Card.t) =
+  [
+    (
+      {
+        caption: feature_header(),
+        init_zblock:
+          UHExp.(wrap_in_block(EmptyHole(-1))) |> ZExp.place_before_block,
+      }: Card.t
+    ),
+    {
+      caption: feature_header(~selected="automatic-hole-insertion", ()),
+      init_zblock:
+        UHExp.(wrap_in_block(EmptyHole(-1))) |> ZExp.place_before_block,
+    },
+    {
+      caption: feature_header(~selected="linear-editing-affordances", ()),
+      init_zblock:
+        UHExp.(
+          wrap_in_block(
+            ExpOpExp(
+              numlit(2),
+              Times,
+              var(~var_err_status=InVarHole(Free, 0), "x"),
+            )
+            |> Exp.mk_OpSeq,
           )
-          |> Exp.mk_OpSeq,
         )
-      )
-      |> ZExp.place_after_block,
-  },
-  {
-    caption:
-      feature_header(
-        ~selected="linear-editing-affordances",
-        ~body=syntax(~selected="uhexp-syntax"),
-        (),
-      ),
-    init_zblock:
-      UHExp.(
-        Block(
-          [LetLine(UHPat.var("x"), None, wrap_in_block(numlit(1)))],
-          SeqOpExp(ExpOpExp(numlit(2), Times, var("x")), Plus, numlit(3))
-          |> Exp.mk_OpSeq,
+        |> ZExp.place_after_block,
+    },
+  ]
+  @ (
+    range(~lo=1, 8)
+    |> List.map(
+         i => {
+           caption:
+             feature_header(
+               ~selected="linear-editing-affordances",
+               ~body=simple(i),
+               (),
+             ),
+           init_zblock:
+             UHExp.(
+               Block(
+                 [
+                   LetLine(UHPat.var("x"), None, wrap_in_block(numlit(1))),
+                 ],
+                 SeqOpExp(
+                   ExpOpExp(numlit(2), Times, var("x")),
+                   Plus,
+                   numlit(3),
+                 )
+                 |> Exp.mk_OpSeq,
+               )
+             )
+             |> ZExp.place_after_block,
+         }: int => Card.t,
+       )
+  )
+  @ [
+    {
+      caption:
+        feature_header(
+          ~selected="linear-editing-affordances",
+          ~body=syntax(~selected="uhexp-syntax"),
+          (),
+        ),
+      init_zblock:
+        UHExp.(
+          Block(
+            [LetLine(UHPat.var("x"), None, wrap_in_block(numlit(1)))],
+            SeqOpExp(
+              ExpOpExp(numlit(2), Times, var("x")),
+              Plus,
+              numlit(3),
+            )
+            |> Exp.mk_OpSeq,
+          )
         )
-      )
-      |> ZExp.place_after_block,
-  },
-  {
-    caption:
-      feature_header(
-        ~selected="visual-tree-signifiers",
-        ~body=syntax(~selected="hexp-syntax"),
-        (),
-      ),
-    init_zblock:
-      UHExp.(
-        Block(
-          [LetLine(UHPat.var("x"), None, wrap_in_block(numlit(1)))],
-          SeqOpExp(ExpOpExp(numlit(2), Times, var("x")), Plus, numlit(3))
-          |> Exp.mk_OpSeq,
+        |> ZExp.place_after_block,
+    },
+    {
+      caption:
+        feature_header(
+          ~selected="visual-tree-signifiers",
+          ~body=syntax(~selected="hexp-syntax"),
+          (),
+        ),
+      init_zblock:
+        UHExp.(
+          Block(
+            [LetLine(UHPat.var("x"), None, wrap_in_block(numlit(1)))],
+            SeqOpExp(
+              ExpOpExp(numlit(2), Times, var("x")),
+              Plus,
+              numlit(3),
+            )
+            |> Exp.mk_OpSeq,
+          )
         )
-      )
-      |> ZExp.place_after_block,
-  },
-  {
-    caption:
-      feature_header(
-        ~selected="visual-tree-signifiers",
-        ~body=syntax(~selected="hexp-syntax"),
-        (),
-      ),
-    init_zblock:
-      UHExp.Block(
-        [
-          UHExp.letline(
-            UHPat.var("damage"),
-            ~ann=
-              UHTyp.(
-                ExpOpExp(
-                  Parenthesized(ExpOpExp(Bool, Prod, Num) |> Typ.mk_OpSeq),
-                  Arrow,
-                  Num,
-                )
-                |> Typ.mk_OpSeq
-              ),
-            UHExp.(
-              wrap_in_block(
-                lam(
-                  UHPat.(
-                    Parenthesized(
-                      ExpOpExp(var("is_melee"), Comma, var("crit_hit"))
-                      |> Pat.mk_OpSeq,
-                    )
-                  ),
-                  wrap_in_block(
-                    case(
-                      var("is_melee") |> wrap_in_block,
-                      [
-                        Rule(
-                          UHPat.boollit(false),
-                          numlit(5) |> wrap_in_block,
-                        ),
-                        Rule(
-                          UHPat.boollit(true),
-                          SeqOpExp(
-                            ExpOpExp(numlit(2), Times, var("crit_hit")),
-                            Plus,
-                            numlit(1),
-                          )
-                          |> Exp.mk_OpSeq
-                          |> wrap_in_block,
-                        ),
-                      ],
+        |> ZExp.place_after_block,
+    },
+    {
+      caption:
+        feature_header(
+          ~selected="visual-tree-signifiers",
+          ~body=syntax(~selected="hexp-syntax"),
+          (),
+        ),
+      init_zblock:
+        UHExp.Block(
+          [
+            UHExp.letline(
+              UHPat.var("damage"),
+              ~ann=
+                UHTyp.(
+                  ExpOpExp(
+                    Parenthesized(ExpOpExp(Bool, Prod, Num) |> Typ.mk_OpSeq),
+                    Arrow,
+                    Num,
+                  )
+                  |> Typ.mk_OpSeq
+                ),
+              UHExp.(
+                wrap_in_block(
+                  lam(
+                    UHPat.(
+                      Parenthesized(
+                        ExpOpExp(var("is_melee"), Comma, var("crit_hit"))
+                        |> Pat.mk_OpSeq,
+                      )
+                    ),
+                    wrap_in_block(
+                      case(
+                        var("is_melee") |> wrap_in_block,
+                        [
+                          Rule(
+                            UHPat.boollit(false),
+                            numlit(5) |> wrap_in_block,
+                          ),
+                          Rule(
+                            UHPat.boollit(true),
+                            SeqOpExp(
+                              ExpOpExp(numlit(2), Times, var("crit_hit")),
+                              Plus,
+                              numlit(1),
+                            )
+                            |> Exp.mk_OpSeq
+                            |> wrap_in_block,
+                          ),
+                        ],
+                      ),
                     ),
                   ),
-                ),
-              )
-            ),
-          ),
-        ],
-        EmptyHole(-1),
-      )
-      |> ZExp.place_before_block,
-  },
-  {
-    caption:
-      feature_header(
-        ~selected="node-staging-mode",
-        ~body=syntax(~selected="uhexp-syntax"),
-        (),
-      ),
-    init_zblock:
-      UHExp.Block(
-        [
-          UHExp.letline(
-            UHPat.var("damage"),
-            ~ann=
-              UHTyp.(
-                ExpOpExp(
-                  Parenthesized(ExpOpExp(Bool, Prod, Num) |> Typ.mk_OpSeq),
-                  Arrow,
-                  Num,
                 )
-                |> Typ.mk_OpSeq
               ),
-            UHExp.(
-              wrap_in_block(
-                lam(
-                  UHPat.(
-                    Parenthesized(
-                      ExpOpExp(var("is_melee"), Comma, var("crit_hit"))
-                      |> Pat.mk_OpSeq,
-                    )
-                  ),
-                  wrap_in_block(
-                    case(
-                      var("is_melee") |> wrap_in_block,
-                      [
-                        Rule(
-                          UHPat.boollit(false),
-                          numlit(5) |> wrap_in_block,
-                        ),
-                        Rule(
-                          UHPat.boollit(true),
-                          SeqOpExp(
-                            ExpOpExp(numlit(2), Times, var("crit_hit")),
-                            Plus,
-                            numlit(1),
-                          )
-                          |> Exp.mk_OpSeq
-                          |> wrap_in_block,
-                        ),
-                      ],
+            ),
+          ],
+          EmptyHole(-1),
+        )
+        |> ZExp.place_before_block,
+    },
+    {
+      caption:
+        feature_header(
+          ~selected="node-staging-mode",
+          ~body=syntax(~selected="uhexp-syntax"),
+          (),
+        ),
+      init_zblock:
+        UHExp.Block(
+          [
+            UHExp.letline(
+              UHPat.var("damage"),
+              ~ann=
+                UHTyp.(
+                  ExpOpExp(
+                    Parenthesized(ExpOpExp(Bool, Prod, Num) |> Typ.mk_OpSeq),
+                    Arrow,
+                    Num,
+                  )
+                  |> Typ.mk_OpSeq
+                ),
+              UHExp.(
+                wrap_in_block(
+                  lam(
+                    UHPat.(
+                      Parenthesized(
+                        ExpOpExp(var("is_melee"), Comma, var("crit_hit"))
+                        |> Pat.mk_OpSeq,
+                      )
+                    ),
+                    wrap_in_block(
+                      case(
+                        var("is_melee") |> wrap_in_block,
+                        [
+                          Rule(
+                            UHPat.boollit(false),
+                            numlit(5) |> wrap_in_block,
+                          ),
+                          Rule(
+                            UHPat.boollit(true),
+                            SeqOpExp(
+                              ExpOpExp(numlit(2), Times, var("crit_hit")),
+                              Plus,
+                              numlit(1),
+                            )
+                            |> Exp.mk_OpSeq
+                            |> wrap_in_block,
+                          ),
+                        ],
+                      ),
                     ),
                   ),
-                ),
-              )
-            ),
-          ),
-        ],
-        EmptyHole(-1),
-      )
-      |> ZExp.place_before_block,
-  },
-  {
-    caption:
-      feature_header(
-        ~selected="node-staging-mode",
-        ~body=syntax(~selected="uhexp-syntax"),
-        (),
-      ),
-    init_zblock:
-      UHExp.Block(
-        [
-          UHExp.letline(
-            UHPat.var("defense_score"),
-            ~ann=UHTyp.Num,
-            UHExp.EmptyHole(-1) |> UHExp.wrap_in_block,
-          ),
-          UHExp.EmptyLine,
-          UHExp.letline(
-            UHPat.var("damage"),
-            ~ann=
-              UHTyp.(
-                ExpOpExp(
-                  Parenthesized(ExpOpExp(Bool, Prod, Num) |> Typ.mk_OpSeq),
-                  Arrow,
-                  Num,
                 )
-                |> Typ.mk_OpSeq
               ),
-            UHExp.(
-              wrap_in_block(
-                lam(
-                  UHPat.(
-                    Parenthesized(
-                      ExpOpExp(var("is_melee"), Comma, var("crit_hit"))
-                      |> Pat.mk_OpSeq,
-                    )
-                  ),
-                  wrap_in_block(
-                    case(
-                      var("is_melee") |> wrap_in_block,
-                      [
-                        Rule(
-                          UHPat.boollit(false),
-                          numlit(5) |> wrap_in_block,
-                        ),
-                        Rule(
-                          UHPat.boollit(true),
-                          SeqOpExp(
-                            ExpOpExp(numlit(2), Times, var("crit_hit")),
-                            Plus,
-                            numlit(1),
-                          )
-                          |> Exp.mk_OpSeq
-                          |> wrap_in_block,
-                        ),
-                      ],
+            ),
+          ],
+          EmptyHole(-1),
+        )
+        |> ZExp.place_before_block,
+    },
+    {
+      caption:
+        feature_header(
+          ~selected="node-staging-mode",
+          ~body=syntax(~selected="uhexp-syntax"),
+          (),
+        ),
+      init_zblock:
+        UHExp.Block(
+          [
+            UHExp.letline(
+              UHPat.var("defense_score"),
+              ~ann=UHTyp.Num,
+              UHExp.EmptyHole(-1) |> UHExp.wrap_in_block,
+            ),
+            UHExp.EmptyLine,
+            UHExp.letline(
+              UHPat.var("damage"),
+              ~ann=
+                UHTyp.(
+                  ExpOpExp(
+                    Parenthesized(ExpOpExp(Bool, Prod, Num) |> Typ.mk_OpSeq),
+                    Arrow,
+                    Num,
+                  )
+                  |> Typ.mk_OpSeq
+                ),
+              UHExp.(
+                wrap_in_block(
+                  lam(
+                    UHPat.(
+                      Parenthesized(
+                        ExpOpExp(var("is_melee"), Comma, var("crit_hit"))
+                        |> Pat.mk_OpSeq,
+                      )
+                    ),
+                    wrap_in_block(
+                      case(
+                        var("is_melee") |> wrap_in_block,
+                        [
+                          Rule(
+                            UHPat.boollit(false),
+                            numlit(5) |> wrap_in_block,
+                          ),
+                          Rule(
+                            UHPat.boollit(true),
+                            SeqOpExp(
+                              ExpOpExp(numlit(2), Times, var("crit_hit")),
+                              Plus,
+                              numlit(1),
+                            )
+                            |> Exp.mk_OpSeq
+                            |> wrap_in_block,
+                          ),
+                        ],
+                      ),
                     ),
                   ),
-                ),
-              )
+                )
+              ),
             ),
-          ),
-        ],
-        EmptyHole(-1),
-      )
-      |> ZExp.place_before_block,
-  },
-];
+          ],
+          EmptyHole(-1),
+        )
+        |> ZExp.place_before_block,
+    },
+  ];
 
 let cardstack: CardStack.t = {title: "MWPLS '19", cards};

@@ -1245,3 +1245,9 @@ button:disabled {
 .selected-syntax img {
   border: 1.5px solid black;
 }
+
+#simple img {
+  display: block;
+  margin: 0 auto;
+  width: 30%;
+}
