@@ -1226,17 +1226,20 @@ button:disabled {
   display: grid;
   grid-template-columns: 1fr 1fr;
   grid-template-rows: auto;
-  column-gap: 80px;
   align-items: center;
   justify-items: center;
 }
 
 #uhexp-syntax img {
   width: 100%;
+  display: block;
+  margin: 0 auto;
 }
 
 #hexp-syntax img {
   width: 85%;
+  display: block;
+  margin: 0 auto;
 }
 
 .selected-syntax img {
