@@ -154,7 +154,7 @@ let page_view =
               [Attr.classes(["logo-text"]), Attr.href("https://hazel.org")],
               [Node.text("Hazel")],
             ),
-            cardstacks_select(~inject, model.cardstacks),
+            /* cardstacks_select(~inject, model.cardstacks), */
           ],
         ),
         Node.div(
@@ -197,7 +197,7 @@ let page_view =
                         cardstack_controls(~inject, model),
                       ],
                     ),
-                    examples_select(~inject),
+                    /* examples_select(~inject), */
                     /*
                      Node.button(
                        [
