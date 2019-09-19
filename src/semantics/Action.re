@@ -2747,6 +2747,13 @@ let make_zexp_or_zblock_inconsistent =
     (B(zblock), u_gen);
   };
 
+let split_variable_name = (pos, name) => {
+  let make_var = (idx, len) => UHExp.var(String.sub(name, idx, len));
+  let left_var = make_var(0, pos);
+  let right_var = make_var(pos, String.length(name) - pos);
+  (left_var, right_var);
+};
+
 let zexp_is_suitable_for_var_split = (zexp: ZExp.t) =>
   switch (ZExp.cursor_on_var(zexp)) {
   | Some((pos, _, _, name)) => pos > 0 && pos <= String.length(name) - 1
@@ -3422,19 +3429,40 @@ let rec syn_perform_block =
     syn_perform_block(~ci, ctx, keyword_action(k), (zblock, Hole, u_gen));
 
   /* Variable Splitting */
+  | (Construct(SOp(SSpace)), BlockZE(lines, zexp))
+      when zexp_is_suitable_for_var_split(zexp) =>
+    /* Space case should go to the left of the right variable */
+    switch (ZExp.cursor_on_var(zexp)) {
+    | Some((pos, _, _, name)) =>
+      let (left_var, right_var) = split_variable_name(pos, name);
+      let cursor = ZExp.CursorE(OnText(0), right_var);
+      let build_zblock = surround => {
+        let cursor_zexp = OpSeqUtil.Exp.mk_OpSeqZ(cursor, surround);
+        let zblock = ZExp.BlockZE(lines, cursor_zexp);
+        let (zblock, ty, _) =
+          Statics.syn_fix_holes_zblock(ctx, u_gen, zblock);
+        Succeeded((zblock, ty, u_gen));
+      };
+      switch (zexp) {
+      | ZExp.OpSeqZ(_, _, surround) =>
+        let surround =
+          OperatorSeq.surround_prefix_append_exp(surround, Space, left_var);
+        build_zblock(surround);
+      | CursorE(_) =>
+        let surround =
+          OperatorSeq.(EmptySuffix(ExpPrefix(left_var, UHExp.Space)));
+        build_zblock(surround);
+      | _ => Failed
+      };
+
+    | None => Failed
+    }
 
   | (Construct(SOp(op)), BlockZE(lines, zexp))
       when zexp_is_suitable_for_var_split(zexp) =>
-    let split_var = (pos, name) => {
-      let make_var = (idx, len) => UHExp.var(String.sub(name, idx, len));
-      let left_var = make_var(0, pos);
-      let right_var = make_var(pos, String.length(name) - pos);
-      (left_var, right_var);
-    };
-
     switch (exp_op_of(op), ZExp.cursor_on_var(zexp)) {
     | (Some(op), Some((pos, _, _, name))) =>
-      let (left_var, right_var) = split_var(pos, name);
+      let (left_var, right_var) = split_variable_name(pos, name);
       switch (zexp) {
       | ZExp.OpSeqZ(_, _, surround) =>
         let surround =
@@ -3463,7 +3491,7 @@ let rec syn_perform_block =
       | _ => Failed
       };
     | _ => Failed
-    };
+    }
 
   /* Zipper Cases */
   | (
