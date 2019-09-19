@@ -1173,13 +1173,28 @@ button:disabled {
   margin-left: 5px;
 }
 
-.feature-header {
+#feature-container {
+  display: grid;
+  grid-template-columns: auto;
+  grid-template-rows: auto auto;
+  grid-row-gap: 20px;
+  grid-template-areas:
+    "header"
+    "body";
+}
+
+#feature-header {
+  grid-area: "header";
   display: grid;
   grid-template-columns: auto auto auto auto;
   grid-template-rows: auto;
   grid-column-gap: 20px;
   grid-template-areas:
     "automatic-hole-insertion linear-editing-affordances visual-tree-signifiers node-staging-mode"
+}
+
+#feature-body {
+  grid-area: "body"
 }
 
 .automatic-hole-insertion {
@@ -1204,4 +1219,26 @@ button:disabled {
 
 .feature.unselected {
   opacity: 0.5;
+}
+
+#syntax-container {
+  width: 100%;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: auto;
+  column-gap: 80px;
+  align-items: center;
+  justify-items: center;
+}
+
+#uhexp-syntax img {
+  width: 100%;
+}
+
+#hexp-syntax img {
+  width: 85%;
+}
+
+.selected-syntax img {
+  border: 1.5px solid black;
 }

@@ -14,42 +14,76 @@ let selected_feature_clss = (selected, feature) =>
   | Some(s) => [feature, "feature", s == feature ? "selected" : "unselected"]
   };
 
-[@warning "-27"]
-let feature_header = (~selected: option(string)=?, (): unit): Vdom.Node.t =>
+let feature_header = (~selected=?, ~body=?, ()): Vdom.Node.t => {
+  let header =
+    div(
+      [Attr.id("feature-header")],
+      [
+        div(
+          [
+            Attr.classes(
+              selected_feature_clss(selected, "automatic-hole-insertion"),
+            ),
+          ],
+          [span([], [txt("Automatic Hole Insertion")])],
+        ),
+        div(
+          [
+            Attr.classes(
+              selected_feature_clss(selected, "linear-editing-affordances"),
+            ),
+          ],
+          [span([], [txt("Linear Editing Affordances")])],
+        ),
+        div(
+          [
+            Attr.classes(
+              selected_feature_clss(selected, "visual-tree-signifiers"),
+            ),
+          ],
+          [span([], [txt("Visual Tree Signifiers")])],
+        ),
+        div(
+          [
+            Attr.classes(
+              selected_feature_clss(selected, "node-staging-mode"),
+            ),
+          ],
+          [span([], [txt("Node Staging Mode")])],
+        ),
+      ],
+    );
   div(
-    // for some reason incr_dom freaks out when
-    // I use Attr.classes(["feature-header"])...
-    [Attr.create("class", "feature-header")],
+    [Attr.id("feature-container")],
+    [
+      header,
+      switch (body) {
+      | None => div([], [])
+      | Some(body) => body
+      },
+    ],
+  );
+};
+
+let syntax = (~selected) =>
+  div(
+    [Attr.id("syntax-container")],
     [
       div(
         [
+          Attr.id("uhexp-syntax"),
           Attr.classes(
-            selected_feature_clss(selected, "automatic-hole-insertion"),
+            selected == "uhexp-syntax" ? ["selected-syntax"] : [],
           ),
         ],
-        [span([], [txt("Automatic Hole Insertion")])],
+        [Vdom.Node.create("img", [Attr.create("src", "uhexp.png")], [])],
       ),
       div(
         [
-          Attr.classes(
-            selected_feature_clss(selected, "linear-editing-affordances"),
-          ),
+          Attr.id("hexp-syntax"),
+          Attr.classes(selected == "hexp-syntax" ? ["selected-syntax"] : []),
         ],
-        [span([], [txt("Linear Editing Affordances")])],
-      ),
-      div(
-        [
-          Attr.classes(
-            selected_feature_clss(selected, "visual-tree-signifiers"),
-          ),
-        ],
-        [span([], [txt("Visual Tree Signifiers")])],
-      ),
-      div(
-        [
-          Attr.classes(selected_feature_clss(selected, "node-staging-mode")),
-        ],
-        [span([], [txt("Node Staging Mode")])],
+        [Vdom.Node.create("img", [Attr.create("src", "hexp.png")], [])],
       ),
     ],
   );
@@ -81,7 +115,29 @@ let cards: list(Card.t) = [
       |> ZExp.place_after_block,
   },
   {
-    caption: feature_header(~selected="visual-tree-signifiers", ()),
+    caption:
+      feature_header(
+        ~selected="linear-editing-affordances",
+        ~body=syntax(~selected="uhexp-syntax"),
+        (),
+      ),
+    init_zblock:
+      UHExp.(
+        Block(
+          [LetLine(UHPat.var("x"), None, wrap_in_block(numlit(1)))],
+          SeqOpExp(ExpOpExp(numlit(2), Times, var("x")), Plus, numlit(3))
+          |> Exp.mk_OpSeq,
+        )
+      )
+      |> ZExp.place_after_block,
+  },
+  {
+    caption:
+      feature_header(
+        ~selected="visual-tree-signifiers",
+        ~body=syntax(~selected="hexp-syntax"),
+        (),
+      ),
     init_zblock:
       UHExp.(wrap_in_block(EmptyHole(-1))) |> ZExp.place_before_block,
   },
