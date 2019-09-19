@@ -2760,6 +2760,73 @@ let zexp_is_suitable_for_var_split = (zexp: ZExp.t) =>
   | _ => false
   };
 
+/* Variable splitting common code */
+let handle_variable_split =
+    (
+      a: t,
+      zblock: ZExp.zblock,
+      fixup_zblock_and_wrap_in_success: ZExp.zblock => result('success),
+    ) =>
+  switch (a, zblock) {
+  | (Construct(SOp(SSpace)), BlockZE(lines, zexp))
+      when zexp_is_suitable_for_var_split(zexp) =>
+    /* Space case should go to the left of the right variable */
+    switch (ZExp.cursor_on_var(zexp)) {
+    | Some((pos, _, _, name)) =>
+      let (left_var, right_var) = split_variable_name(pos, name);
+      let cursor = ZExp.CursorE(OnText(0), right_var);
+      let build_zblock = surround => {
+        let cursor_zexp = OpSeqUtil.Exp.mk_OpSeqZ(cursor, surround);
+        let zblock = ZExp.BlockZE(lines, cursor_zexp);
+        fixup_zblock_and_wrap_in_success(zblock);
+      };
+      switch (zexp) {
+      | ZExp.OpSeqZ(_, _, surround) =>
+        let surround =
+          OperatorSeq.surround_prefix_append_exp(surround, Space, left_var);
+        build_zblock(surround);
+      | CursorE(_) =>
+        let surround =
+          OperatorSeq.(EmptySuffix(ExpPrefix(left_var, UHExp.Space)));
+        build_zblock(surround);
+      | _ => Failed
+      };
+
+    | None => Failed
+    }
+
+  | (Construct(SOp(op)), BlockZE(lines, zexp))
+      when zexp_is_suitable_for_var_split(zexp) =>
+    switch (exp_op_of(op), ZExp.cursor_on_var(zexp)) {
+    | (Some(op), Some((pos, _, _, name))) =>
+      let (left_var, right_var) = split_variable_name(pos, name);
+      switch (zexp) {
+      | ZExp.OpSeqZ(_, _, surround) =>
+        let surround =
+          OperatorSeq.surround_suffix_prepend_exp(surround, op, right_var);
+        let delim_pos = OperatorSeq.surround_prefix_length(surround) + 1;
+        let zexp =
+          OpSeqUtil.Exp.mk_OpSeqZ(CursorE(OnText(0), left_var), surround);
+        let uhexp = ZExp.erase(zexp);
+        let zexp = ZExp.CursorE(OnDelim(delim_pos, After), uhexp);
+        let zblock = ZExp.BlockZE(lines, zexp);
+        fixup_zblock_and_wrap_in_success(zblock);
+
+      | CursorE(_, _) =>
+        let cursor =
+          ZExp.CursorE(
+            OnDelim(1, After),
+            OpSeqUtil.Exp.mk_OpSeq(ExpOpExp(left_var, op, right_var)),
+          );
+        let zblock = ZExp.BlockZE(lines, cursor);
+        fixup_zblock_and_wrap_in_success(zblock);
+      | _ => Failed
+      };
+    | _ => Failed
+    }
+  | _ => Failed
+  };
+
 let rec syn_perform_block =
         (
           ~ci: CursorInfo.t,
@@ -3396,6 +3463,8 @@ let rec syn_perform_block =
     let zlines = (prefix, ZExp.place_before_line(EmptyLine), suffix);
     let zblock = ZExp.BlockZL(zlines, e2);
     syn_perform_block(~ci, ctx, keyword_action(k), (zblock, ty, u_gen));
+
+  /* Space to keyword exp */
   | (
       Construct(SOp(SSpace)),
       BlockZE(
@@ -3429,69 +3498,13 @@ let rec syn_perform_block =
     syn_perform_block(~ci, ctx, keyword_action(k), (zblock, Hole, u_gen));
 
   /* Variable Splitting */
-  | (Construct(SOp(SSpace)), BlockZE(lines, zexp))
+  | (Construct(SOp(_)) as a, BlockZE(_, zexp) as zblock)
       when zexp_is_suitable_for_var_split(zexp) =>
-    /* Space case should go to the left of the right variable */
-    switch (ZExp.cursor_on_var(zexp)) {
-    | Some((pos, _, _, name)) =>
-      let (left_var, right_var) = split_variable_name(pos, name);
-      let cursor = ZExp.CursorE(OnText(0), right_var);
-      let build_zblock = surround => {
-        let cursor_zexp = OpSeqUtil.Exp.mk_OpSeqZ(cursor, surround);
-        let zblock = ZExp.BlockZE(lines, cursor_zexp);
-        let (zblock, ty, _) =
-          Statics.syn_fix_holes_zblock(ctx, u_gen, zblock);
-        Succeeded((zblock, ty, u_gen));
-      };
-      switch (zexp) {
-      | ZExp.OpSeqZ(_, _, surround) =>
-        let surround =
-          OperatorSeq.surround_prefix_append_exp(surround, Space, left_var);
-        build_zblock(surround);
-      | CursorE(_) =>
-        let surround =
-          OperatorSeq.(EmptySuffix(ExpPrefix(left_var, UHExp.Space)));
-        build_zblock(surround);
-      | _ => Failed
-      };
-
-    | None => Failed
-    }
-
-  | (Construct(SOp(op)), BlockZE(lines, zexp))
-      when zexp_is_suitable_for_var_split(zexp) =>
-    switch (exp_op_of(op), ZExp.cursor_on_var(zexp)) {
-    | (Some(op), Some((pos, _, _, name))) =>
-      let (left_var, right_var) = split_variable_name(pos, name);
-      switch (zexp) {
-      | ZExp.OpSeqZ(_, _, surround) =>
-        let surround =
-          OperatorSeq.surround_suffix_prepend_exp(surround, op, right_var);
-        let delim_pos = OperatorSeq.surround_prefix_length(surround) + 1;
-        let zexp =
-          OpSeqUtil.Exp.mk_OpSeqZ(CursorE(OnText(0), left_var), surround);
-        let uhexp = ZExp.erase(zexp);
-        let zexp = ZExp.CursorE(OnDelim(delim_pos, After), uhexp);
-        let zblock = ZExp.BlockZE(lines, zexp);
-        let (zblock, ty, _) =
-          Statics.syn_fix_holes_zblock(ctx, u_gen, zblock);
-        Succeeded((zblock, ty, u_gen));
-
-      | CursorE(_, _) =>
-        let cursor =
-          ZExp.CursorE(
-            OnDelim(1, After),
-            OpSeqUtil.Exp.mk_OpSeq(ExpOpExp(left_var, op, right_var)),
-          );
-        let zblock = ZExp.BlockZE(lines, cursor);
-        let (zblock, ty, _) =
-          Statics.syn_fix_holes_zblock(ctx, u_gen, zblock);
-        Succeeded((zblock, ty, u_gen));
-
-      | _ => Failed
-      };
-    | _ => Failed
-    }
+    let fixup_zexp_and_wrap_in_success = (zblock: ZExp.zblock) => {
+      let (zblock, ty, _) = Statics.syn_fix_holes_zblock(ctx, u_gen, zblock);
+      Succeeded((zblock, ty, u_gen));
+    };
+    handle_variable_split(a, zblock, fixup_zexp_and_wrap_in_success);
 
   /* Zipper Cases */
   | (
@@ -5845,6 +5858,17 @@ and ana_perform_block =
     let (ze, u_gen) = ZExp.new_EmptyHole(u_gen);
     let zblock = ZExp.BlockZE(lines, ze);
     ana_perform_block(~ci, ctx, keyword_action(k), (zblock, u_gen), ty);
+
+  /* Variable Splitting */
+  | (Construct(SOp(_)) as a, BlockZE(_, zexp) as zblock)
+      when zexp_is_suitable_for_var_split(zexp) =>
+    let fixup_zexp_and_wrap_in_success = (zblock: ZExp.zblock) => {
+      let (zblock, u_gen) =
+        Statics.ana_fix_holes_zblock(ctx, u_gen, zblock, ty);
+      Succeeded((zblock, u_gen));
+    };
+    handle_variable_split(a, zblock, fixup_zexp_and_wrap_in_success);
+
   /* Zipper Cases */
   | (
       Backspace | Delete | Construct(_) | UpdateApPalette(_) | ShiftLeft |
