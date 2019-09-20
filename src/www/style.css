@@ -71,9 +71,6 @@ html, body {
   padding-left: var(--page-padding);
   padding-right: var(--page-padding);
   background-color: var(--title-bar-color);
-  color: white;
-  font-weight: bold;
-  font-size: 14pt;
   width: 100%;
   display: flex;
   flex-direction: row;
@@ -109,7 +106,8 @@ html, body {
 .logo-text {
   color: white;
   text-decoration: none;
-  margin-right: var(--page-padding);
+  font-weight: bold;
+  font-size: 14pt;
 }
 
 /* arrangement of main area */
@@ -141,7 +139,7 @@ html, body {
 /* sidebars */
 
 .collapsible-sidebar {
-  width: 350px;
+  width: 300px;
   flex-shrink: 0;
   transition: width 0.3s ease;
   overflow-x: auto;
@@ -1218,7 +1216,7 @@ button:disabled {
 }
 
 .feature.unselected {
-  opacity: 0.5;
+  opacity: 0.4;
 }
 
 #syntax-container {
@@ -1250,4 +1248,51 @@ button:disabled {
   display: block;
   margin: 0 auto;
   width: 30%;
+}
+
+#scratch-container {
+  margin: 0 auto;
+  width: 60%;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: auto;
+  align-items: center;
+}
+#scratch-logo img {
+  display: block;
+  margin: 0 auto;
+  width: 50%;
+}
+#scratch img {
+  display: block;
+  margin: 0 auto;
+}
+
+#mps-container {
+  margin: 0 auto;
+  width: 80%;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: auto;
+  align-items: center;
+}
+#mps-logo img {
+  display: block;
+  margin: 0 auto;
+  width: 30%;
+}
+#mps img {
+  display: block;
+  margin: 0 auto;
+  width: 90%;
+}
+
+.feature.absent {
+  text-decoration: line-through;
+}
+
+#berger {
+  display: block;
+  margin: 0 auto;
+  width: 60%;
 }

@@ -1,6 +1,7 @@
 module Js = Js_of_ocaml.Js;
 module Vdom = Virtual_dom.Vdom;
 module ZList = GeneralUtil.ZList;
+module KeyCombo = JSUtil.KeyCombo;
 
 let examples_select = (~inject: Update.Action.t => Vdom.Event.t) =>
   Vdom.(
@@ -150,10 +151,7 @@ let page_view =
         Node.div(
           [Attr.classes(["top-bar"])],
           [
-            Node.a(
-              [Attr.classes(["logo-text"]), Attr.href("https://hazel.org")],
-              [Node.text("Hazel")],
-            ),
+            card.header,
             /* cardstacks_select(~inject, model.cardstacks), */
           ],
         ),
@@ -177,7 +175,10 @@ let page_view =
                       [Attr.classes(["page"])],
                       [
                         Node.div(
-                          [Attr.classes(["card-caption"])],
+                          [
+                            Attr.create("style", "width:725px;"),
+                            Attr.classes(["card-caption"]),
+                          ],
                           [card.caption],
                           /* [
                                Node.text("Hazel is an experiment in "),
@@ -194,7 +195,7 @@ let page_view =
                         ),
                         Cell.view(~inject, model),
                         cell_status,
-                        cardstack_controls(~inject, model),
+                        /* cardstack_controls(~inject, model), */
                       ],
                     ),
                     /* examples_select(~inject), */

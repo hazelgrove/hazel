@@ -210,6 +210,10 @@ let view =
                 JSUtil.is_single_key(evt),
                 KeyCombo.of_evt(evt),
               ) {
+              | (_, _, _, Some(Alt_P)) =>
+                prevent_stop_inject(Update.Action.PrevCard)
+              | (_, _, _, Some(Alt_N)) =>
+                prevent_stop_inject(Update.Action.NextCard)
               | (Staging(_), true, _, _) =>
                 switch (evt |> JSUtil.get_key) {
                 | "ArrowLeft" =>
