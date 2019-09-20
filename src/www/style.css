@@ -116,10 +116,17 @@ html, body {
   font-size: 14pt;
 }
 
+.tagline .removed {
+  color: var(--title-bar-color);
+}
+
 #tagline-1 {
   font-size: 16pt;
   font-weight: bold;
   color: #fceac5;
+}
+.removed #tagline-1 {
+  color: var(--title-bar-color);
 }
 
 #tagline-2 {
@@ -127,11 +134,17 @@ html, body {
   font-weight: bold;
   color: var(--node-indicator-normal-color);
 }
+.removed #tagline-2 {
+  color: var(--title-bar-color);
+}
 
 #tagline-3 {
   font-size: 16pt;
   font-weight: bold;
   color: var(--shifting-indicator-color);
+}
+.removed {
+  color: var(--title-bar-color);
 }
 
 /* arrangement of main area */
