@@ -14,7 +14,7 @@ let strong = Node.strong;
 
 let selected_feature_clss = (selected, feature) =>
   switch (selected) {
-  | None => [feature, "feature"]
+  | None => [feature, "feature", "selected"]
   | Some(s) => [feature, "feature", s == feature ? "selected" : "unselected"]
   };
 

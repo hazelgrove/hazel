@@ -228,7 +228,7 @@ let page_view =
               [
                 CursorInspector.view(~inject, model),
                 ContextInspector.view(~inject, model),
-                OptionsPanel.view(~inject, model),
+                // OptionsPanel.view(~inject, model),
               ],
             ),
           ],

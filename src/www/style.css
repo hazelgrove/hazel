@@ -107,7 +107,31 @@ html, body {
   color: white;
   text-decoration: none;
   font-weight: bold;
+  font-size: 18pt;
+}
+
+.tagline {
+  color: white;
+  text-decoration: none;
   font-size: 14pt;
+}
+
+#tagline-1 {
+  font-size: 16pt;
+  font-weight: bold;
+  color: #fceac5;
+}
+
+#tagline-2 {
+  font-size: 16pt;
+  font-weight: bold;
+  color: var(--node-indicator-normal-color);
+}
+
+#tagline-3 {
+  font-size: 16pt;
+  font-weight: bold;
+  color: var(--shifting-indicator-color);
 }
 
 /* arrangement of main area */
@@ -664,7 +688,7 @@ html, body {
 }
 
 .card-caption {
-  max-width: 9in;
+  font-size: 14pt;
 }
 
 h1 {
@@ -1173,22 +1197,25 @@ button:disabled {
 
 #feature-container {
   display: grid;
-  grid-template-columns: auto;
-  grid-template-rows: auto auto;
-  grid-row-gap: 20px;
+  grid-template-columns: auto auto;
+  grid-template-rows: auto;
+  grid-column-gap: 10px;
+  align-items: start;
   grid-template-areas:
-    "header"
-    "body";
+    "header body";
 }
 
 #feature-header {
   grid-area: "header";
   display: grid;
-  grid-template-columns: auto auto auto auto;
-  grid-template-rows: auto;
-  grid-column-gap: 20px;
+  grid-template-columns: auto;
+  grid-template-rows: auto auto auto auto;
+  grid-row-gap: 10px;
   grid-template-areas:
-    "automatic-hole-insertion linear-editing-affordances visual-tree-signifiers node-staging-mode"
+    "automatic-hole-insertion"
+    "linear-editing-affordances"
+    "visual-tree-signifiers"
+    "node-staging-mode";
 }
 
 #feature-body {
@@ -1222,20 +1249,21 @@ button:disabled {
 #syntax-container {
   width: 100%;
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: auto;
   grid-template-rows: auto;
+  row-gap: 10px;
   align-items: center;
   justify-items: center;
 }
 
 #uhexp-syntax img {
-  width: 100%;
+  width: 90%;
   display: block;
   margin: 0 auto;
 }
 
 #hexp-syntax img {
-  width: 85%;
+  width: 80%;
   display: block;
   margin: 0 auto;
 }
@@ -1247,7 +1275,7 @@ button:disabled {
 #simple img {
   display: block;
   margin: 0 auto;
-  width: 30%;
+  width: 55%;
 }
 
 #scratch-container {
