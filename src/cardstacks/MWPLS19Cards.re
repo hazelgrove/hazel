@@ -14,7 +14,7 @@ let strong = Node.strong;
 
 let selected_feature_clss = (selected, feature) =>
   switch (selected) {
-  | None => [feature, "feature", "selected"]
+  | None => [feature, "feature"]
   | Some(s) => [feature, "feature", s == feature ? "selected" : "unselected"]
   };
 
@@ -31,10 +31,38 @@ let page_header_0 =
         [
           txt(" is a "),
           strong([Attr.id("tagline-1")], [txt("live")]),
-          txt(" functional programming environment featuring a "),
+          txt(" functional programming environment with a "),
           strong([Attr.id("tagline-2")], [txt("type-aware")]),
           txt(" "),
           strong([Attr.id("tagline-3")], [txt("structure editor")]),
+        ],
+      ),
+    ],
+  );
+
+let page_header_0b =
+  span(
+    [Attr.id("page-header-0")],
+    [
+      a(
+        [Attr.classes(["logo-text"]), Attr.href("https://hazel.org")],
+        [txt("Hazel")],
+      ),
+      span(
+        [Attr.classes(["tagline"])],
+        [
+          txt(" is a "),
+          strong([Attr.id("tagline-1")], [txt("live")]),
+          txt(" functional programming environment "),
+          span(
+            [Attr.classes(["removed"])],
+            [
+              txt("with a "),
+              strong([Attr.id("tagline-2")], [txt("type-aware")]),
+              txt(" "),
+              strong([Attr.id("tagline-3")], [txt("structure editor")]),
+            ],
+          ),
         ],
       ),
     ],
@@ -51,14 +79,16 @@ let page_header_1 =
       span(
         [Attr.classes(["tagline"])],
         [
-          txt(" is a "),
+          txt(" is "),
           span(
             [Attr.classes(["removed"])],
             [
+              txt("a "),
               strong([Attr.id("tagline-1")], [txt("live")]),
-              txt(" functional programming environment featuring a "),
+              txt(" functional programming environment with"),
             ],
           ),
+          txt(" a "),
           strong([Attr.id("tagline-2")], [txt("type-aware")]),
           txt(" "),
           strong([Attr.id("tagline-3")], [txt("structure editor")]),
@@ -78,21 +108,52 @@ let page_header_2 =
       span(
         [Attr.classes(["tagline"])],
         [
-          txt(" is a "),
+          txt(" is "),
           span(
             [Attr.classes(["removed"])],
             [
+              txt("a "),
               strong([Attr.id("tagline-1")], [txt("live")]),
-              txt(" functional programming environment featuring a "),
-              strong([Attr.id("tagline-2")], [txt("type-aware")]),
-              txt(" "),
+              txt(" functional programming environment with"),
             ],
           ),
+          txt(" a "),
+          strong([Attr.id("tagline-2")], [txt("type-aware")]),
+          txt(" "),
           strong([Attr.id("tagline-3")], [txt("structure editor")]),
         ],
       ),
     ],
   );
+
+/*
+ span(
+   [Attr.id("page-header-2")],
+   [
+     a(
+       [Attr.classes(["logo-text"]), Attr.href("https://hazel.org")],
+       [txt("Hazel")],
+     ),
+     span(
+       [Attr.classes(["tagline"])],
+       [
+         txt(" is "),
+         span(
+           [Attr.classes(["removed"])],
+           [
+             txt("a "),
+             strong([Attr.id("tagline-1")], [txt("live")]),
+             txt(" functional programming environment featuring a "),
+             strong([Attr.id("tagline-2")], [txt("type-aware")]),
+             txt(" "),
+           ],
+         ),
+         strong([Attr.id("tagline-3")], [txt("structure editor")]),
+       ],
+     ),
+   ],
+ );
+ */
 
 let feature_header = (~selected=?, ~body=?, ()): Vdom.Node.t => {
   let header =
@@ -130,6 +191,31 @@ let feature_header = (~selected=?, ~body=?, ()): Vdom.Node.t => {
             ),
           ],
           [span([], [txt("Node Staging Mode")])],
+        ),
+        div([Attr.classes(["feature-spacer"])], [span([], [txt(" ")])]),
+        div(
+          [
+            Attr.classes(
+              switch (selected) {
+              | None => ["related-work"]
+              | Some("related-work") => ["related-work", "selected"]
+              | Some(_) => ["related-work", "unselected"]
+              },
+            ),
+          ],
+          [span([], [txt("Related Work")])],
+        ),
+        div(
+          [
+            Attr.classes(
+              switch (selected) {
+              | None => ["future-work"]
+              | Some("future-work") => ["future-work", "selected"]
+              | Some(_) => ["future-work", "unselected"]
+              },
+            ),
+          ],
+          [span([], [txt("Future Work")])],
         ),
       ],
     );
@@ -184,6 +270,92 @@ let simple = i =>
       ),
     ],
   );
+
+let partial = i =>
+  div(
+    [Attr.id("partial")],
+    [
+      Node.create(
+        "img",
+        [Attr.create("src", "partial-" ++ string_of_int(i) ++ ".png")],
+        [],
+      ),
+    ],
+  );
+
+let complete = i =>
+  div(
+    [Attr.id("complete")],
+    [
+      Node.create(
+        "img",
+        [Attr.create("src", "complete-" ++ string_of_int(i) ++ ".png")],
+        [],
+      ),
+    ],
+  );
+
+let linear_mid =
+  UHExp.(
+    Block(
+      [LetLine(UHPat.var("x"), None, wrap_in_block(numlit(1)))],
+      SeqOpExp(ExpOpExp(numlit(2), Times, var("x")), Plus, numlit(3))
+      |> Exp.mk_OpSeq,
+    )
+  )
+  |> ZExp.place_after_block;
+
+let linear_end = linear_mid;
+
+let damage =
+  UHExp.Block(
+    [
+      UHExp.letline(
+        UHPat.var("damage"),
+        ~ann=
+          UHTyp.(
+            ExpOpExp(
+              Parenthesized(ExpOpExp(Bool, Prod, Num) |> Typ.mk_OpSeq),
+              Arrow,
+              Num,
+            )
+            |> Typ.mk_OpSeq
+          ),
+        UHExp.(
+          wrap_in_block(
+            lam(
+              UHPat.(
+                Parenthesized(
+                  ExpOpExp(var("is_melee"), Comma, var("crit_hit"))
+                  |> Pat.mk_OpSeq,
+                )
+              ),
+              wrap_in_block(
+                case(
+                  var("is_melee") |> wrap_in_block,
+                  [
+                    Rule(UHPat.boollit(false), numlit(5) |> wrap_in_block),
+                    Rule(
+                      UHPat.boollit(true),
+                      SeqOpExp(
+                        ExpOpExp(numlit(2), Times, var("crit_hit")),
+                        Plus,
+                        numlit(1),
+                      )
+                      |> Exp.mk_OpSeq
+                      |> wrap_in_block,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          )
+        ),
+      ),
+    ],
+    EmptyHole(-1),
+  )
+  |> ZExp.place_before_block;
 
 let damage_refactor_start =
   UHExp.Block(
@@ -328,51 +500,141 @@ let damage_refactor_end =
 let init_zblock =
   UHExp.(wrap_in_block(EmptyHole(-1))) |> ZExp.place_before_block;
 
+let map_example: UHExp.block = {
+  open OperatorSeq;
+  let case_node =
+    UHExp.(
+      case(
+        wrap_in_block(var("xs")),
+        [
+          Rule(UHPat.listnil(), wrap_in_block(listnil())),
+          Rule(
+            Pat.mk_OpSeq(ExpOpExp(UHPat.var("y"), Cons, UHPat.var("ys"))),
+            wrap_in_block(
+              Exp.mk_OpSeq(
+                ExpOpExp(
+                  Parenthesized(
+                    wrap_in_block(
+                      Exp.mk_OpSeq(ExpOpExp(var("f"), Space, var("y"))),
+                    ),
+                  ),
+                  Cons,
+                  Parenthesized(
+                    wrap_in_block(
+                      Exp.mk_OpSeq(
+                        SeqOpExp(
+                          ExpOpExp(var("map"), Space, var("f")),
+                          Space,
+                          var("ys"),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      )
+    );
+  let lam_node =
+    UHExp.(
+      lam(
+        UHPat.var("f"),
+        wrap_in_block(lam(UHPat.var("xs"), wrap_in_block(case_node))),
+      )
+    );
+  let letline_node =
+    UHExp.(
+      letline(
+        UHPat.var("map"),
+        ~ann=
+          Typ.mk_OpSeq(
+            SeqOpExp(
+              ExpOpExp(
+                Parenthesized(Typ.mk_OpSeq(ExpOpExp(Num, Arrow, Num))),
+                Arrow,
+                List(Num),
+              ),
+              Arrow,
+              List(Num),
+            ),
+          ),
+        wrap_in_block(lam_node),
+      )
+    );
+  UHExp.(
+    Block(
+      [letline_node],
+      SeqOpExp(
+        ExpOpExp(var("map"), Space, var("f")),
+        Space,
+        Parenthesized(
+          SeqOpExp(
+            SeqOpExp(
+              ExpOpExp(numlit(1), Cons, numlit(2)),
+              Cons,
+              numlit(3),
+            ),
+            Cons,
+            listnil(),
+          )
+          |> Exp.mk_OpSeq
+          |> wrap_in_block,
+        ),
+      )
+      |> Exp.mk_OpSeq,
+    )
+  );
+};
+
 let cards: list(Card.t) =
   [
     ({header: page_header_0, caption: div([], []), init_zblock}: Card.t), // wtf required type annotation
     {
-      header: page_header_0,
-      caption: txt("something about invariant"),
-      init_zblock,
+      header: page_header_0b,
+      caption:
+        div(
+          [],
+          [
+            div(
+              [],
+              [
+                span(
+                  [Attr.create("style", "text-decoration: underline;")],
+                  [
+                    txt(
+                      "Every edit state is statically and dynamically well-defined",
+                    ),
+                  ],
+                ),
+              ],
+            ),
+            div(
+              [Attr.id("citation-container")],
+              [
+                span([Attr.id("citation-fill")], [txt("")]),
+                span(
+                  [Attr.classes(["citation"])],
+                  [txt("[Omar et al. POPL'17, Omar et al. POPL'19]")],
+                ),
+              ],
+            ),
+          ],
+        ),
+      init_zblock: map_example |> ZExp.place_after_block,
     },
-    {
-      header: page_header_0,
-      caption: txt("something about cool affordances"),
-      init_zblock,
-    },
-    {
-      header: page_header_1,
-      caption: txt("something about cool affordances"),
-      init_zblock,
-    },
-    {
-      header: page_header_1,
-      caption: feature_header(),
-      init_zblock:
-        UHExp.(wrap_in_block(EmptyHole(-1))) |> ZExp.place_before_block,
-    },
+    {header: page_header_1, caption: div([], []), init_zblock},
+    {header: page_header_1, caption: feature_header(), init_zblock},
     {
       header: page_header_1,
       caption: feature_header(~selected="automatic-hole-insertion", ()),
-      init_zblock:
-        UHExp.(wrap_in_block(EmptyHole(-1))) |> ZExp.place_before_block,
+      init_zblock,
     },
     {
       header: page_header_2,
       caption: feature_header(~selected="linear-editing-affordances", ()),
-      init_zblock:
-        UHExp.(
-          wrap_in_block(
-            ExpOpExp(
-              numlit(2),
-              Times,
-              var(~var_err_status=InVarHole(Free, 0), "x"),
-            )
-            |> Exp.mk_OpSeq,
-          )
-        )
-        |> ZExp.place_after_block,
+      init_zblock,
     },
   ]
   @ (
@@ -386,21 +648,37 @@ let cards: list(Card.t) =
                ~body=simple(i),
                (),
              ),
-           init_zblock:
-             UHExp.(
-               Block(
-                 [
-                   LetLine(UHPat.var("x"), None, wrap_in_block(numlit(1))),
-                 ],
-                 SeqOpExp(
-                   ExpOpExp(numlit(2), Times, var("x")),
-                   Plus,
-                   numlit(3),
-                 )
-                 |> Exp.mk_OpSeq,
-               )
-             )
-             |> ZExp.place_after_block,
+           init_zblock: linear_end,
+         }: int => Card.t,
+       )
+  )
+  @ (
+    [1, 2]
+    |> List.map(
+         i => {
+           header: page_header_2,
+           caption:
+             feature_header(
+               ~selected="linear-editing-affordances",
+               ~body=partial(i),
+               (),
+             ),
+           init_zblock: linear_end,
+         }: int => Card.t,
+       )
+  )
+  @ (
+    [1, 2]
+    |> List.map(
+         i => {
+           header: page_header_2,
+           caption:
+             feature_header(
+               ~selected="linear-editing-affordances",
+               ~body=complete(i),
+               (),
+             ),
+           init_zblock: linear_end,
          }: int => Card.t,
        )
   )
@@ -409,54 +687,26 @@ let cards: list(Card.t) =
       header: page_header_2,
       caption:
         feature_header(
-          ~selected="linear-editing-affordances",
-          ~body=syntax(~selected="uhexp-syntax"),
+          ~selected="visual-tree-signifiers",
+          ~body=complete(2),
           (),
         ),
-      init_zblock:
-        UHExp.(
-          Block(
-            [LetLine(UHPat.var("x"), None, wrap_in_block(numlit(1)))],
-            SeqOpExp(
-              ExpOpExp(numlit(2), Times, var("x")),
-              Plus,
-              numlit(3),
-            )
-            |> Exp.mk_OpSeq,
-          )
-        )
-        |> ZExp.place_after_block,
+      init_zblock: linear_end,
     },
     {
       header: page_header_2,
       caption:
         feature_header(
           ~selected="visual-tree-signifiers",
-          ~body=syntax(~selected="hexp-syntax"),
+          ~body=complete(2),
           (),
         ),
-      init_zblock:
-        UHExp.(
-          Block(
-            [LetLine(UHPat.var("x"), None, wrap_in_block(numlit(1)))],
-            SeqOpExp(
-              ExpOpExp(numlit(2), Times, var("x")),
-              Plus,
-              numlit(3),
-            )
-            |> Exp.mk_OpSeq,
-          )
-        )
-        |> ZExp.place_after_block,
+      init_zblock: damage,
     },
     {
       header: page_header_2,
       caption:
-        feature_header(
-          ~selected="visual-tree-signifiers",
-          ~body=syntax(~selected="hexp-syntax"),
-          (),
-        ),
+        feature_header(~selected="node-staging-mode", ~body=complete(2), ()),
       init_zblock:
         UHExp.Block(
           [
@@ -513,72 +763,7 @@ let cards: list(Card.t) =
     {
       header: page_header_2,
       caption:
-        feature_header(
-          ~selected="node-staging-mode",
-          ~body=syntax(~selected="uhexp-syntax"),
-          (),
-        ),
-      init_zblock:
-        UHExp.Block(
-          [
-            UHExp.letline(
-              UHPat.var("damage"),
-              ~ann=
-                UHTyp.(
-                  ExpOpExp(
-                    Parenthesized(ExpOpExp(Bool, Prod, Num) |> Typ.mk_OpSeq),
-                    Arrow,
-                    Num,
-                  )
-                  |> Typ.mk_OpSeq
-                ),
-              UHExp.(
-                wrap_in_block(
-                  lam(
-                    UHPat.(
-                      Parenthesized(
-                        ExpOpExp(var("is_melee"), Comma, var("crit_hit"))
-                        |> Pat.mk_OpSeq,
-                      )
-                    ),
-                    wrap_in_block(
-                      case(
-                        var("is_melee") |> wrap_in_block,
-                        [
-                          Rule(
-                            UHPat.boollit(false),
-                            numlit(5) |> wrap_in_block,
-                          ),
-                          Rule(
-                            UHPat.boollit(true),
-                            SeqOpExp(
-                              ExpOpExp(numlit(2), Times, var("crit_hit")),
-                              Plus,
-                              numlit(1),
-                            )
-                            |> Exp.mk_OpSeq
-                            |> wrap_in_block,
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                )
-              ),
-            ),
-          ],
-          EmptyHole(-1),
-        )
-        |> ZExp.place_before_block,
-    },
-    {
-      header: page_header_2,
-      caption:
-        feature_header(
-          ~selected="node-staging-mode",
-          ~body=syntax(~selected="uhexp-syntax"),
-          (),
-        ),
+        feature_header(~selected="node-staging-mode", ~body=complete(2), ()),
       init_zblock: damage_refactor_start,
     },
     {
@@ -595,16 +780,28 @@ let cards: list(Card.t) =
                   [span([], [txt("Automatic Hole Insertion")])],
                 ),
                 div(
-                  [Attr.classes(["feature", "absent"])],
-                  [span([], [txt("Linear Editing Affordances")])],
+                  [Attr.classes(["feature"])],
+                  [span([], [txt("❌ Linear Editing Affordances")])],
                 ),
                 div(
                   [Attr.classes(["feature"])],
-                  [span([], [txt("Visual Tree Signifiers")])],
+                  [span([], [txt("✅ Visual Tree Signifiers")])],
                 ),
                 div(
                   [Attr.classes(["feature", "unselected"])],
                   [span([], [txt("Node Staging Mode")])],
+                ),
+                div(
+                  [Attr.classes(["feature-spacer"])],
+                  [span([], [txt(" ")])],
+                ),
+                div(
+                  [Attr.classes(["related-work", "selected"])],
+                  [span([], [txt("Related Work")])],
+                ),
+                div(
+                  [Attr.classes(["future-work", "unselected"])],
+                  [span([], [txt("Future Work")])],
                 ),
               ],
             ),
@@ -652,15 +849,27 @@ let cards: list(Card.t) =
                 ),
                 div(
                   [Attr.classes(["feature"])],
-                  [span([], [txt("Linear Editing Affordances")])],
+                  [span([], [txt("✅ Linear Editing Affordances")])],
                 ),
                 div(
-                  [Attr.classes(["feature", "absent"])],
-                  [span([], [txt("Visual Tree Signifiers")])],
+                  [Attr.classes(["feature"])],
+                  [span([], [txt("❌ Visual Tree Signifiers")])],
                 ),
                 div(
                   [Attr.classes(["feature", "unselected"])],
                   [span([], [txt("Node Staging Mode")])],
+                ),
+                div(
+                  [Attr.classes(["feature-spacer"])],
+                  [span([], [txt(" ")])],
+                ),
+                div(
+                  [Attr.classes(["related-work", "selected"])],
+                  [span([], [txt("Related Work")])],
+                ),
+                div(
+                  [Attr.classes(["future-work", "unselected"])],
+                  [span([], [txt("Future Work")])],
                 ),
               ],
             ),
@@ -668,21 +877,21 @@ let cards: list(Card.t) =
               [Attr.id("mps-container")],
               [
                 div(
-                  [Attr.id("mps")],
-                  [
-                    Vdom.Node.create(
-                      "img",
-                      [Attr.create("src", "mps.png")],
-                      [],
-                    ),
-                  ],
-                ),
-                div(
                   [Attr.id("mps-logo")],
                   [
                     Vdom.Node.create(
                       "img",
                       [Attr.create("src", "mps-logo.png")],
+                      [],
+                    ),
+                  ],
+                ),
+                div(
+                  [Attr.id("mps")],
+                  [
+                    Vdom.Node.create(
+                      "img",
+                      [Attr.create("src", "mps.png")],
                       [],
                     ),
                   ],
@@ -708,15 +917,27 @@ let cards: list(Card.t) =
                 ),
                 div(
                   [Attr.classes(["feature"])],
-                  [span([], [txt("Linear Editing Affordances")])],
+                  [span([], [txt("✅ Linear Editing Affordances")])],
                 ),
                 div(
-                  [Attr.classes(["feature", "absent"])],
-                  [span([], [txt("Visual Tree Signifiers")])],
+                  [Attr.classes(["feature"])],
+                  [span([], [txt("❌ Visual Tree Signifiers")])],
                 ),
                 div(
                   [Attr.classes(["feature", "unselected"])],
                   [span([], [txt("Node Staging Mode")])],
+                ),
+                div(
+                  [Attr.classes(["feature-spacer"])],
+                  [span([], [txt(" ")])],
+                ),
+                div(
+                  [Attr.classes(["related-work", "selected"])],
+                  [span([], [txt("Related Work")])],
+                ),
+                div(
+                  [Attr.classes(["future-work", "unselected"])],
+                  [span([], [txt("Future Work")])],
                 ),
               ],
             ),
