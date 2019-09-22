@@ -18,14 +18,19 @@ let selected_feature_clss = (selected, feature) =>
   | Some(s) => [feature, "feature", s == feature ? "selected" : "unselected"]
   };
 
-let page_header_0 =
+let hazel_logo =
+  a(
+    [Attr.classes(["logo-text"]), Attr.href("https://hazel.org")],
+    [txt("Hazel")],
+  );
+
+let page_header_0a = span([], [hazel_logo]);
+
+let page_header_0b =
   span(
-    [Attr.id("page-header-0")],
+    [],
     [
-      a(
-        [Attr.classes(["logo-text"]), Attr.href("https://hazel.org")],
-        [txt("Hazel")],
-      ),
+      hazel_logo,
       span(
         [Attr.classes(["tagline"])],
         [
@@ -40,14 +45,11 @@ let page_header_0 =
     ],
   );
 
-let page_header_0b =
+let page_header_0c =
   span(
-    [Attr.id("page-header-0")],
+    [],
     [
-      a(
-        [Attr.classes(["logo-text"]), Attr.href("https://hazel.org")],
-        [txt("Hazel")],
-      ),
+      hazel_logo,
       span(
         [Attr.classes(["tagline"])],
         [
@@ -72,10 +74,7 @@ let page_header_1 =
   span(
     [Attr.id("page-header-1")],
     [
-      a(
-        [Attr.classes(["logo-text"]), Attr.href("https://hazel.org")],
-        [txt("Hazel")],
-      ),
+      hazel_logo,
       span(
         [Attr.classes(["tagline"])],
         [
@@ -500,7 +499,7 @@ let damage_refactor_end =
 let init_zblock =
   UHExp.(wrap_in_block(EmptyHole(-1))) |> ZExp.place_before_block;
 
-let map_example: UHExp.block = {
+let map_example = {
   open OperatorSeq;
   let case_node =
     UHExp.(
@@ -564,67 +563,71 @@ let map_example: UHExp.block = {
       )
     );
   UHExp.(
-    Block(
+    ZExp.BlockZE(
       [letline_node],
-      SeqOpExp(
-        ExpOpExp(var("map"), Space, var("f")),
-        Space,
-        Parenthesized(
-          SeqOpExp(
-            SeqOpExp(
-              ExpOpExp(numlit(1), Cons, numlit(2)),
-              Cons,
-              numlit(3),
+      Exp.mk_OpSeqZ(
+        var("f") |> ZExp.place_before_exp,
+        BothNonEmpty(
+          ExpPrefix(var("map"), Space),
+          ExpSuffix(
+            Space,
+            Parenthesized(
+              SeqOpExp(
+                SeqOpExp(
+                  ExpOpExp(numlit(1), Cons, numlit(2)),
+                  Cons,
+                  numlit(3),
+                ),
+                Cons,
+                listnil(),
+              )
+              |> Exp.mk_OpSeq
+              |> wrap_in_block,
             ),
-            Cons,
-            listnil(),
-          )
-          |> Exp.mk_OpSeq
-          |> wrap_in_block,
+          ),
         ),
-      )
-      |> Exp.mk_OpSeq,
+      ),
     )
   );
 };
 
+let invariant =
+  div(
+    [],
+    [
+      div(
+        [],
+        [
+          span(
+            [Attr.create("style", "text-decoration: underline;")],
+            [
+              txt(
+                "Every edit state is statically and dynamically well-defined",
+              ),
+            ],
+          ),
+        ],
+      ),
+      div(
+        [Attr.id("citation-container")],
+        [
+          span([Attr.id("citation-fill")], [txt("")]),
+          span(
+            [Attr.classes(["citation"])],
+            [txt("[Omar et al. POPL'17, Omar et al. POPL'19]")],
+          ),
+        ],
+      ),
+    ],
+  );
+
 let cards: list(Card.t) =
   [
-    ({header: page_header_0, caption: div([], []), init_zblock}: Card.t), // wtf required type annotation
-    {
-      header: page_header_0b,
-      caption:
-        div(
-          [],
-          [
-            div(
-              [],
-              [
-                span(
-                  [Attr.create("style", "text-decoration: underline;")],
-                  [
-                    txt(
-                      "Every edit state is statically and dynamically well-defined",
-                    ),
-                  ],
-                ),
-              ],
-            ),
-            div(
-              [Attr.id("citation-container")],
-              [
-                span([Attr.id("citation-fill")], [txt("")]),
-                span(
-                  [Attr.classes(["citation"])],
-                  [txt("[Omar et al. POPL'17, Omar et al. POPL'19]")],
-                ),
-              ],
-            ),
-          ],
-        ),
-      init_zblock: map_example |> ZExp.place_after_block,
-    },
-    {header: page_header_1, caption: div([], []), init_zblock},
+    ({header: page_header_0a, caption: div([], []), init_zblock}: Card.t), // wtf required type annotation
+    {header: page_header_0b, caption: div([], []), init_zblock},
+    {header: page_header_0c, caption: invariant, init_zblock},
+    {header: page_header_0c, caption: invariant, init_zblock: map_example},
+    {header: page_header_1, caption: invariant, init_zblock: map_example},
     {header: page_header_1, caption: feature_header(), init_zblock},
     {
       header: page_header_1,
