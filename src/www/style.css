@@ -1430,3 +1430,7 @@ button:disabled {
   width: 80%;
   margin-top: 10px;
 }
+
+#compute_results {
+  display: none;
+}

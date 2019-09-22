@@ -214,6 +214,12 @@ let view =
                 prevent_stop_inject(Update.Action.PrevCard)
               | (_, _, _, Some(Alt_N)) =>
                 prevent_stop_inject(Update.Action.NextCard)
+              | (_, _, _, Some(Alt_Enter)) =>
+                prevent_stop_inject(
+                  Update.Action.SetComputeResultsFlag(
+                    !model.compute_results_flag,
+                  ),
+                )
               | (Staging(_), true, _, _) =>
                 switch (evt |> JSUtil.get_key) {
                 | "ArrowLeft" =>

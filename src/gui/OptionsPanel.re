@@ -4,7 +4,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, _: Model.t): Vdom.Node.t =
   let compute_results_flag_checkbox =
     Vdom.(
       Node.div(
-        [],
+        [Attr.id("compute_results")],
         [
           Node.input(
             [

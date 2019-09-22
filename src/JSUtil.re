@@ -475,6 +475,7 @@ module KeyCombo = {
     let key_L = no_ctrl_alt_meta(Key.the_key("L"));
     let alt_N = ctrl(Key.the_key("]"));
     let alt_P = ctrl(Key.the_key("["));
+    let alt_Enter = ctrl(Key.code2("Enter", "Enter", "NumpadEnter"));
   };
 
   type t =
@@ -506,7 +507,8 @@ module KeyCombo = {
     | Alt_R
     | Alt_C
     | Alt_N
-    | Alt_P;
+    | Alt_P
+    | Alt_Enter;
 
   let get_details =
     fun
@@ -538,7 +540,8 @@ module KeyCombo = {
     | Alt_R => Details.alt_R
     | Alt_C => Details.alt_C
     | Alt_N => Details.alt_N
-    | Alt_P => Details.alt_P;
+    | Alt_P => Details.alt_P
+    | Alt_Enter => Details.alt_Enter;
 
   let of_evt = (evt: Js.t(Dom_html.keyboardEvent)): option(t) => {
     let evt_matches = details => Details.matches(details, evt);
@@ -600,6 +603,8 @@ module KeyCombo = {
       Some(Alt_P);
     } else if (evt_matches(Details.alt_N)) {
       Some(Alt_N);
+    } else if (evt_matches(Details.alt_Enter)) {
+      Some(Alt_Enter);
     } else {
       None;
     };

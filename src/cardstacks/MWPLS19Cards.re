@@ -358,6 +358,18 @@ let linear_end =
   )
   |> ZExp.place_after_block;
 
+let linear_final =
+  UHExp.(
+    ZExp.BlockZE(
+      [LetLine(UHPat.var("x"), None, wrap_in_block(numlit(1)))],
+      CursorE(
+        OnDelim(2, After),
+        SeqOpExp(ExpOpExp(numlit(2), Times, var("x")), Plus, numlit(3))
+        |> Exp.mk_OpSeq,
+      ),
+    )
+  );
+
 let damage =
   UHExp.Block(
     [
@@ -769,6 +781,12 @@ let cards: list(Card.t) =
       caption:
         feature_header(~selected="visual-tree-signifiers", ~body=syntax1, ()),
       init_zblock: linear_end,
+    },
+    {
+      header: page_header_2,
+      caption:
+        feature_header(~selected="visual-tree-signifiers", ~body=syntax2, ()),
+      init_zblock: linear_final,
     },
     {
       header: page_header_2,
