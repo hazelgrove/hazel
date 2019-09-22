@@ -1323,6 +1323,23 @@ button:disabled {
   width: 55%;
 }
 
+#linear-prior-container {
+  display: grid;
+  grid-template-columns: 1.5fr 1fr;
+  grid-template-rows: auto;
+  align-items: start;
+}
+
+#linear-prior-fig img {
+  display: block;
+  margin: 0 auto;
+  width: 90%;
+}
+
+#linear-prior-cite {
+  font-size: 12pt;
+}
+
 #scratch-container {
   display: grid;
   grid-template-columns: 1fr 3fr;

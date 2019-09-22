@@ -11,6 +11,7 @@ let txt = Node.text;
 let p = Node.p;
 let a = Node.a;
 let strong = Node.strong;
+let br = Node.br;
 
 let selected_feature_clss = (selected, feature) =>
   switch (selected) {
@@ -270,6 +271,34 @@ let simple = i =>
     ],
   );
 
+let linear_prior =
+  div(
+    [Attr.id("linear-prior-container")],
+    [
+      div(
+        [Attr.id("linear-prior-fig")],
+        [
+          Vdom.Node.create("img", [Attr.create("src", "simple-7.png")], []),
+        ],
+      ),
+      div(
+        [Attr.id("linear-prior-cite")],
+        [
+          span(
+            [],
+            [
+              txt("Prior work:"),
+              br([]),
+              txt("- text escapes"),
+              br([]),
+              txt("- online precedence parsing"),
+            ],
+          ),
+        ],
+      ),
+    ],
+  );
+
 let partial = i =>
   div(
     [Attr.id("partial")],
@@ -294,7 +323,13 @@ let complete = i =>
     ],
   );
 
-let linear_mid =
+let linear_start =
+  UHExp.(
+    ExpOpExp(numlit(2), Times, var("x")) |> Exp.mk_OpSeq |> wrap_in_block
+  )
+  |> ZExp.place_after_block;
+
+let linear_end =
   UHExp.(
     Block(
       [LetLine(UHPat.var("x"), None, wrap_in_block(numlit(1)))],
@@ -303,8 +338,6 @@ let linear_mid =
     )
   )
   |> ZExp.place_after_block;
-
-let linear_end = linear_mid;
 
 let damage =
   UHExp.Block(
@@ -637,7 +670,7 @@ let cards: list(Card.t) =
     {
       header: page_header_2,
       caption: feature_header(~selected="linear-editing-affordances", ()),
-      init_zblock: linear_mid,
+      init_zblock: linear_start,
     },
   ]
   @ (
@@ -655,6 +688,20 @@ let cards: list(Card.t) =
          }: int => Card.t,
        )
   )
+  @ [
+    (
+      {
+        header: page_header_2,
+        caption:
+          feature_header(
+            ~selected="linear-editing-affordances",
+            ~body=linear_prior,
+            (),
+          ),
+        init_zblock: linear_end,
+      }: Card.t
+    ),
+  ]
   @ (
     [1, 2]
     |> List.map(
