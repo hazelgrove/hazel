@@ -126,35 +126,6 @@ let page_header_2 =
     ],
   );
 
-/*
- span(
-   [Attr.id("page-header-2")],
-   [
-     a(
-       [Attr.classes(["logo-text"]), Attr.href("https://hazel.org")],
-       [txt("Hazel")],
-     ),
-     span(
-       [Attr.classes(["tagline"])],
-       [
-         txt(" is "),
-         span(
-           [Attr.classes(["removed"])],
-           [
-             txt("a "),
-             strong([Attr.id("tagline-1")], [txt("live")]),
-             txt(" functional programming environment featuring a "),
-             strong([Attr.id("tagline-2")], [txt("type-aware")]),
-             txt(" "),
-           ],
-         ),
-         strong([Attr.id("tagline-3")], [txt("structure editor")]),
-       ],
-     ),
-   ],
- );
- */
-
 let feature_header = (~selected=?, ~body=?, ()): Vdom.Node.t => {
   let header =
     div(
@@ -193,30 +164,32 @@ let feature_header = (~selected=?, ~body=?, ()): Vdom.Node.t => {
           [span([], [txt("Node Staging Mode")])],
         ),
         div([Attr.classes(["feature-spacer"])], [span([], [txt(" ")])]),
-        div(
-          [
-            Attr.classes(
-              switch (selected) {
-              | None => ["related-work"]
-              | Some("related-work") => ["related-work", "selected"]
-              | Some(_) => ["related-work", "unselected"]
-              },
-            ),
-          ],
-          [span([], [txt("Related Work")])],
-        ),
-        div(
-          [
-            Attr.classes(
-              switch (selected) {
-              | None => ["future-work"]
-              | Some("future-work") => ["future-work", "selected"]
-              | Some(_) => ["future-work", "unselected"]
-              },
-            ),
-          ],
-          [span([], [txt("Future Work")])],
-        ),
+        /*
+         div(
+           [
+             Attr.classes(
+               switch (selected) {
+               | None => ["related-work"]
+               | Some("related-work") => ["related-work", "selected"]
+               | Some(_) => ["related-work", "unselected"]
+               },
+             ),
+           ],
+           [span([], [txt("Related Work")])],
+         ),
+         div(
+           [
+             Attr.classes(
+               switch (selected) {
+               | None => ["future-work"]
+               | Some("future-work") => ["future-work", "selected"]
+               | Some(_) => ["future-work", "unselected"]
+               },
+             ),
+           ],
+           [span([], [txt("Future Work")])],
+         ),
+         */
       ],
     );
   div(
