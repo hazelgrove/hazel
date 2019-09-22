@@ -227,6 +227,17 @@ let syntax = (~selected) =>
     ],
   );
 
+let syntax1 =
+  div(
+    [Attr.id("syntax")],
+    [Node.create("img", [Attr.create("src", "syntax-1.png")], [])],
+  );
+let syntax2 =
+  div(
+    [Attr.id("syntax")],
+    [Node.create("img", [Attr.create("src", "syntax-2.png")], [])],
+  );
+
 let simple = i =>
   div(
     [Attr.id("simple-container")],
@@ -674,39 +685,49 @@ let cards: list(Card.t) =
         init_zblock: linear_end,
       }: Card.t
     ),
+    {
+      header: page_header_2,
+      caption:
+        feature_header(
+          ~selected="linear-editing-affordances",
+          ~body=syntax1,
+          (),
+        ),
+      init_zblock: linear_end,
+    },
   ]
   /*
-   @ (
-     [1, 2]
-     |> List.map(
-          i => {
-            header: page_header_2,
-            caption:
-              feature_header(
-                ~selected="linear-editing-affordances",
-                ~body=partial(i),
-                (),
-              ),
-            init_zblock: linear_end,
-          }: int => Card.t,
-        )
-   )
+    @ (
+      [1, 2]
+      |> List.map(
+           i => {
+             header: page_header_2,
+             caption:
+               feature_header(
+                 ~selected="linear-editing-affordances",
+                 ~body=partial(i),
+                 (),
+               ),
+             init_zblock: linear_end,
+           }: int => Card.t,
+         )
+    )
+    @ (
+      [1, 2]
+      |> List.map(
+            i => {
+              header: page_header_2,
+              caption:
+                feature_header(
+                  ~selected="linear-editing-affordances",
+                  ~body=complete(i),
+                  (),
+                ),
+              init_zblock: linear_end,
+            }: int => Card.t,
+          )
+    )
    */
-  @ (
-    [1, 2]
-    |> List.map(
-         i => {
-           header: page_header_2,
-           caption:
-             feature_header(
-               ~selected="linear-editing-affordances",
-               ~body=complete(i),
-               (),
-             ),
-           init_zblock: linear_end,
-         }: int => Card.t,
-       )
-  )
   @ [
     {
       header: page_header_2,

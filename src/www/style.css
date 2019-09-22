@@ -1301,6 +1301,12 @@ button:disabled {
   justify-items: center;
 }
 
+#syntax img {
+  width: 90%;
+  display: block;
+  margin: 0 auto;
+}
+
 #uhexp-syntax img {
   width: 90%;
   display: block;
