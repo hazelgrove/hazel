@@ -798,72 +798,142 @@ let cards: list(Card.t) =
         feature_header(~selected="visual-tree-signifiers", ~body=syntax2, ()),
       init_zblock: linear_final,
     },
-    /*
-     {
-       header: page_header_2,
-       caption:
-         feature_header(~selected="visual-tree-signifiers", ~body=syntax2, ()),
-       init_zblock: damage,
-     },
-      {
-        header: page_header_2,
-        caption:
-          feature_header(~selected="node-staging-mode", ~body=syntax2, ()),
-        init_zblock:
-          UHExp.Block(
-            [
-              UHExp.letline(
-                UHPat.var("damage"),
-                ~ann=
-                  UHTyp.(
-                    ExpOpExp(
-                      Parenthesized(ExpOpExp(Bool, Prod, Num) |> Typ.mk_OpSeq),
-                      Arrow,
-                      Num,
-                    )
-                    |> Typ.mk_OpSeq
-                  ),
-                UHExp.(
-                  wrap_in_block(
-                    lam(
-                      UHPat.(
-                        Parenthesized(
-                          ExpOpExp(var("is_melee"), Comma, var("crit_hit"))
-                          |> Pat.mk_OpSeq,
-                        )
-                      ),
-                      wrap_in_block(
-                        case(
-                          var("is_melee") |> wrap_in_block,
-                          [
-                            Rule(
-                              UHPat.boollit(false),
-                              numlit(5) |> wrap_in_block,
-                            ),
-                            Rule(
-                              UHPat.boollit(true),
-                              SeqOpExp(
-                                ExpOpExp(numlit(2), Times, var("crit_hit")),
-                                Plus,
-                                numlit(1),
-                              )
-                              |> Exp.mk_OpSeq
-                              |> wrap_in_block,
-                            ),
-                          ],
+    {
+      header: page_header_2,
+      caption:
+        feature_header(
+          ~selected="visual-tree-signifiers",
+          ~body=
+            div(
+              [Attr.id("mps-container")],
+              [
+                div(
+                  [Attr.id("mps-logo")],
+                  [
+                    Vdom.Node.create(
+                      "img",
+                      [Attr.create("src", "mps-logo.png")],
+                      [],
+                    ),
+                  ],
+                ),
+                div(
+                  [Attr.id("mps")],
+                  [
+                    Vdom.Node.create(
+                      "img",
+                      [Attr.create("src", "mps.png")],
+                      [],
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          (),
+        ),
+      init_zblock: linear_final,
+    },
+    {
+      header: page_header_2,
+      caption:
+        feature_header(
+          ~selected="visual-tree-signifiers",
+          ~body=
+            div(
+              [],
+              [
+                div(
+                  [],
+                  [
+                    span(
+                      [Attr.classes(["citation"])],
+                      [txt("[Berger et al. FSE'16]")],
+                    ),
+                  ],
+                ),
+                div(
+                  [],
+                  [
+                    Vdom.Node.create(
+                      "img",
+                      [Attr.id("berger"), Attr.create("src", "berger.png")],
+                      [],
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          (),
+        ),
+      init_zblock: linear_final,
+    },
+    {
+      /*
+       {
+         header: page_header_2,
+         caption:
+           feature_header(~selected="visual-tree-signifiers", ~body=syntax2, ()),
+         init_zblock: damage,
+       },
+        {
+          header: page_header_2,
+          caption:
+            feature_header(~selected="node-staging-mode", ~body=syntax2, ()),
+          init_zblock:
+            UHExp.Block(
+              [
+                UHExp.letline(
+                  UHPat.var("damage"),
+                  ~ann=
+                    UHTyp.(
+                      ExpOpExp(
+                        Parenthesized(ExpOpExp(Bool, Prod, Num) |> Typ.mk_OpSeq),
+                        Arrow,
+                        Num,
+                      )
+                      |> Typ.mk_OpSeq
+                    ),
+                  UHExp.(
+                    wrap_in_block(
+                      lam(
+                        UHPat.(
+                          Parenthesized(
+                            ExpOpExp(var("is_melee"), Comma, var("crit_hit"))
+                            |> Pat.mk_OpSeq,
+                          )
+                        ),
+                        wrap_in_block(
+                          case(
+                            var("is_melee") |> wrap_in_block,
+                            [
+                              Rule(
+                                UHPat.boollit(false),
+                                numlit(5) |> wrap_in_block,
+                              ),
+                              Rule(
+                                UHPat.boollit(true),
+                                SeqOpExp(
+                                  ExpOpExp(numlit(2), Times, var("crit_hit")),
+                                  Plus,
+                                  numlit(1),
+                                )
+                                |> Exp.mk_OpSeq
+                                |> wrap_in_block,
+                              ),
+                            ],
+                          ),
                         ),
                       ),
-                    ),
-                  )
+                    )
+                  ),
                 ),
-              ),
-            ],
-            EmptyHole(-1),
-          )
-          |> ZExp.place_before_block,
-      },
-      */
-    {
+              ],
+              EmptyHole(-1),
+            )
+            |> ZExp.place_before_block,
+        },
+        */
+
       header: page_header_2,
       caption:
         feature_header(~selected="node-staging-mode", ~body=syntax2, ()),
