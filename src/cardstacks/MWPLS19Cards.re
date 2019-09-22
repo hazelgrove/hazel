@@ -675,21 +675,23 @@ let cards: list(Card.t) =
       }: Card.t
     ),
   ]
-  @ (
-    [1, 2]
-    |> List.map(
-         i => {
-           header: page_header_2,
-           caption:
-             feature_header(
-               ~selected="linear-editing-affordances",
-               ~body=partial(i),
-               (),
-             ),
-           init_zblock: linear_end,
-         }: int => Card.t,
-       )
-  )
+  /*
+   @ (
+     [1, 2]
+     |> List.map(
+          i => {
+            header: page_header_2,
+            caption:
+              feature_header(
+                ~selected="linear-editing-affordances",
+                ~body=partial(i),
+                (),
+              ),
+            init_zblock: linear_end,
+          }: int => Card.t,
+        )
+   )
+   */
   @ (
     [1, 2]
     |> List.map(
