@@ -257,31 +257,66 @@ let simple = i =>
 
 let linear_prior =
   div(
-    [Attr.id("linear-prior-container")],
+    [Attr.id("linear-prior")],
     [
-      div(
-        [Attr.id("linear-prior-fig")],
+      span([], [txt("Prior work")]),
+      Node.ul(
+        [],
         [
-          Vdom.Node.create("img", [Attr.create("src", "simple-7.png")], []),
-        ],
-      ),
-      div(
-        [Attr.id("linear-prior-cite")],
-        [
-          span(
+          Node.li(
             [],
             [
-              txt("Prior work:"),
+              txt("text escapes"),
               br([]),
-              txt("- text escapes"),
+              span(
+                [Attr.classes(["citation"])],
+                [txt("[Teitelbaum & Reps CACM'81]")],
+              ),
+            ],
+          ),
+          Node.li(
+            [],
+            [
+              txt("online precedence parsing"),
               br([]),
-              txt("- online precedence parsing"),
+              span(
+                [Attr.classes(["citation"])],
+                [txt("[Sufrin & de Moor '99, Voelter et al. SLE'16]")],
+              ),
             ],
           ),
         ],
       ),
     ],
   );
+/*
+ div(
+   [Attr.id("linear-prior-container")],
+   [
+     div(
+       [Attr.id("linear-prior-fig")],
+       [
+         Vdom.Node.create("img", [Attr.create("src", "simple-7.png")], []),
+       ],
+     ),
+     div(
+       [Attr.id("linear-prior-cite")],
+       [
+         span(
+           [],
+           [
+             txt("Prior work:"),
+             br([]),
+             txt("- text escapes"),
+             br([]),
+             txt("- online precedence parsing"),
+           ],
+         ),
+       ],
+     ),
+   ],
+ );
+ */
 
 let partial = i =>
   div(
@@ -732,21 +767,13 @@ let cards: list(Card.t) =
     {
       header: page_header_2,
       caption:
-        feature_header(
-          ~selected="visual-tree-signifiers",
-          ~body=complete(2),
-          (),
-        ),
+        feature_header(~selected="visual-tree-signifiers", ~body=syntax1, ()),
       init_zblock: linear_end,
     },
     {
       header: page_header_2,
       caption:
-        feature_header(
-          ~selected="visual-tree-signifiers",
-          ~body=complete(2),
-          (),
-        ),
+        feature_header(~selected="visual-tree-signifiers", ~body=syntax2, ()),
       init_zblock: damage,
     },
     {
