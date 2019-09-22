@@ -3498,6 +3498,34 @@ let rec syn_perform_block =
     syn_perform_block(~ci, ctx, keyword_action(k), (zblock, Hole, u_gen));
 
   /* Variable Splitting */
+  | (
+      Construct(SOp(SSpace)),
+      BlockZE(lines, CursorE(OnText(pos), Var(_, _, name))),
+    )
+      when Keyword.of_string(String.sub(name, 0, pos)) != None =>
+    let keyword =
+      String.sub(name, 0, pos) |> Keyword.of_string |> GeneralUtil.Opt.get_exn;
+    let var = String.sub(name, pos, String.length(name) - pos);
+    let (ze, u_gen) = ZExp.new_EmptyHole(u_gen);
+    let zblock = ZExp.BlockZE(lines, ze);
+    switch (
+      syn_perform_block(
+        ~ci,
+        ctx,
+        keyword_action(keyword),
+        (zblock, Hole, u_gen),
+      )
+    ) {
+    | Succeeded((zblock, ty, u_gen)) =>
+      syn_perform_block(
+        ~ci,
+        ctx,
+        Construct(SVar(var, OnText(String.length(name) - pos))),
+        (zblock, ty, u_gen),
+      )
+    | res => res
+    };
+
   | (Construct(SOp(_)) as a, BlockZE(_, zexp) as zblock)
       when zexp_is_suitable_for_var_split(zexp) =>
     let fixup_zexp_and_wrap_in_success = (zblock: ZExp.zblock) => {
@@ -5860,6 +5888,36 @@ and ana_perform_block =
     ana_perform_block(~ci, ctx, keyword_action(k), (zblock, u_gen), ty);
 
   /* Variable Splitting */
+  | (
+      Construct(SOp(SSpace)),
+      BlockZE(lines, CursorE(OnText(pos), Var(_, _, name))),
+    )
+      when Keyword.of_string(String.sub(name, 0, pos)) != None =>
+    let keyword =
+      String.sub(name, 0, pos) |> Keyword.of_string |> GeneralUtil.Opt.get_exn;
+    let var = String.sub(name, pos, String.length(name) - pos);
+    let (ze, u_gen) = ZExp.new_EmptyHole(u_gen);
+    let zblock = ZExp.BlockZE(lines, ze);
+    switch (
+      ana_perform_block(
+        ~ci,
+        ctx,
+        keyword_action(keyword),
+        (zblock, u_gen),
+        ty,
+      )
+    ) {
+    | Succeeded((zblock, u_gen)) =>
+      ana_perform_block(
+        ~ci,
+        ctx,
+        Construct(SVar(var, OnText(String.length(name) - pos))),
+        (zblock, u_gen),
+        ty,
+      )
+    | res => res
+    };
+
   | (Construct(SOp(_)) as a, BlockZE(_, zexp) as zblock)
       when zexp_is_suitable_for_var_split(zexp) =>
     let fixup_zexp_and_wrap_in_success = (zblock: ZExp.zblock) => {

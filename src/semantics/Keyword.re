@@ -9,3 +9,10 @@ let to_string = (kw: t): string =>
   | Let => "let"
   | Case => "case"
   };
+
+let of_string = (str: string): option(t) =>
+  switch (str) {
+  | "let" => Some(Let)
+  | "case" => Some(Case)
+  | _ => None
+  };

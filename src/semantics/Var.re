@@ -29,3 +29,5 @@ let is_false = s => eq(s, "false");
 let is_let = s => eq(s, "let");
 
 let is_case = s => eq(s, "case");
+
+let is_keyword = s => is_let(s) || is_case(s);
