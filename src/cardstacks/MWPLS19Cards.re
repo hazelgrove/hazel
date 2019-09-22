@@ -204,6 +204,15 @@ let feature_header = (~selected=?, ~body=?, ()): Vdom.Node.t => {
   );
 };
 
+let hexp =
+  div(
+    [Attr.id("hexp")],
+    [
+      Node.create("img", [Attr.create("src", "hexp.png")], []),
+      div([Attr.classes(["citation"])], [txt("[Omar et al. POPL'17]")]),
+    ],
+  );
+
 let syntax = (~selected) =>
   div(
     [Attr.id("syntax-container")],
@@ -695,7 +704,8 @@ let cards: list(Card.t) =
     {header: page_header_1, caption: feature_header(), init_zblock},
     {
       header: page_header_1,
-      caption: feature_header(~selected="automatic-hole-insertion", ()),
+      caption:
+        feature_header(~selected="automatic-hole-insertion", ~body=hexp, ()),
       init_zblock,
     },
     {
@@ -788,269 +798,273 @@ let cards: list(Card.t) =
         feature_header(~selected="visual-tree-signifiers", ~body=syntax2, ()),
       init_zblock: linear_final,
     },
-    {
-      header: page_header_2,
-      caption:
-        feature_header(~selected="visual-tree-signifiers", ~body=syntax2, ()),
-      init_zblock: damage,
-    },
-    {
-      header: page_header_2,
-      caption:
-        feature_header(~selected="node-staging-mode", ~body=complete(2), ()),
-      init_zblock:
-        UHExp.Block(
-          [
-            UHExp.letline(
-              UHPat.var("damage"),
-              ~ann=
-                UHTyp.(
-                  ExpOpExp(
-                    Parenthesized(ExpOpExp(Bool, Prod, Num) |> Typ.mk_OpSeq),
-                    Arrow,
-                    Num,
-                  )
-                  |> Typ.mk_OpSeq
-                ),
-              UHExp.(
-                wrap_in_block(
-                  lam(
-                    UHPat.(
-                      Parenthesized(
-                        ExpOpExp(var("is_melee"), Comma, var("crit_hit"))
-                        |> Pat.mk_OpSeq,
-                      )
-                    ),
-                    wrap_in_block(
-                      case(
-                        var("is_melee") |> wrap_in_block,
-                        [
-                          Rule(
-                            UHPat.boollit(false),
-                            numlit(5) |> wrap_in_block,
-                          ),
-                          Rule(
-                            UHPat.boollit(true),
-                            SeqOpExp(
-                              ExpOpExp(numlit(2), Times, var("crit_hit")),
-                              Plus,
-                              numlit(1),
-                            )
-                            |> Exp.mk_OpSeq
-                            |> wrap_in_block,
-                          ),
-                        ],
+    /*
+     {
+       header: page_header_2,
+       caption:
+         feature_header(~selected="visual-tree-signifiers", ~body=syntax2, ()),
+       init_zblock: damage,
+     },
+      {
+        header: page_header_2,
+        caption:
+          feature_header(~selected="node-staging-mode", ~body=syntax2, ()),
+        init_zblock:
+          UHExp.Block(
+            [
+              UHExp.letline(
+                UHPat.var("damage"),
+                ~ann=
+                  UHTyp.(
+                    ExpOpExp(
+                      Parenthesized(ExpOpExp(Bool, Prod, Num) |> Typ.mk_OpSeq),
+                      Arrow,
+                      Num,
+                    )
+                    |> Typ.mk_OpSeq
+                  ),
+                UHExp.(
+                  wrap_in_block(
+                    lam(
+                      UHPat.(
+                        Parenthesized(
+                          ExpOpExp(var("is_melee"), Comma, var("crit_hit"))
+                          |> Pat.mk_OpSeq,
+                        )
+                      ),
+                      wrap_in_block(
+                        case(
+                          var("is_melee") |> wrap_in_block,
+                          [
+                            Rule(
+                              UHPat.boollit(false),
+                              numlit(5) |> wrap_in_block,
+                            ),
+                            Rule(
+                              UHPat.boollit(true),
+                              SeqOpExp(
+                                ExpOpExp(numlit(2), Times, var("crit_hit")),
+                                Plus,
+                                numlit(1),
+                              )
+                              |> Exp.mk_OpSeq
+                              |> wrap_in_block,
+                            ),
+                          ],
+                        ),
                       ),
                     ),
-                  ),
-                )
+                  )
+                ),
               ),
-            ),
-          ],
-          EmptyHole(-1),
-        )
-        |> ZExp.place_before_block,
-    },
+            ],
+            EmptyHole(-1),
+          )
+          |> ZExp.place_before_block,
+      },
+      */
     {
       header: page_header_2,
       caption:
-        feature_header(~selected="node-staging-mode", ~body=complete(2), ()),
+        feature_header(~selected="node-staging-mode", ~body=syntax2, ()),
       init_zblock: damage_refactor_start,
     },
-    {
-      header: page_header_2,
-      caption:
-        div(
-          [Attr.id("feature-container")],
-          [
-            div(
-              [Attr.id("feature-header")],
-              [
-                div(
-                  [Attr.classes(["feature", "unselected"])],
-                  [span([], [txt("Automatic Hole Insertion")])],
-                ),
-                div(
-                  [Attr.classes(["feature"])],
-                  [span([], [txt("❌ Linear Editing Affordances")])],
-                ),
-                div(
-                  [Attr.classes(["feature"])],
-                  [span([], [txt("✅ Visual Tree Signifiers")])],
-                ),
-                div(
-                  [Attr.classes(["feature", "unselected"])],
-                  [span([], [txt("Node Staging Mode")])],
-                ),
-                div(
-                  [Attr.classes(["feature-spacer"])],
-                  [span([], [txt(" ")])],
-                ),
-                div(
-                  [Attr.classes(["related-work", "selected"])],
-                  [span([], [txt("Related Work")])],
-                ),
-                div(
-                  [Attr.classes(["future-work", "unselected"])],
-                  [span([], [txt("Future Work")])],
-                ),
-              ],
-            ),
-            div(
-              [Attr.id("scratch-container")],
-              [
-                div(
-                  [Attr.id("scratch-logo")],
-                  [
-                    Vdom.Node.create(
-                      "img",
-                      [Attr.create("src", "scratch-logo.png")],
-                      [],
-                    ),
-                  ],
-                ),
-                div(
-                  [Attr.id("scratch")],
-                  [
-                    Vdom.Node.create(
-                      "img",
-                      [Attr.create("src", "scratch.png")],
-                      [],
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ],
-        ),
-      init_zblock: damage_refactor_end,
-    },
-    {
-      header: page_header_2,
-      caption:
-        div(
-          [Attr.id("feature-container")],
-          [
-            div(
-              [Attr.id("feature-header")],
-              [
-                div(
-                  [Attr.classes(["feature", "unselected"])],
-                  [span([], [txt("Automatic Hole Insertion")])],
-                ),
-                div(
-                  [Attr.classes(["feature"])],
-                  [span([], [txt("✅ Linear Editing Affordances")])],
-                ),
-                div(
-                  [Attr.classes(["feature"])],
-                  [span([], [txt("❌ Visual Tree Signifiers")])],
-                ),
-                div(
-                  [Attr.classes(["feature", "unselected"])],
-                  [span([], [txt("Node Staging Mode")])],
-                ),
-                div(
-                  [Attr.classes(["feature-spacer"])],
-                  [span([], [txt(" ")])],
-                ),
-                div(
-                  [Attr.classes(["related-work", "selected"])],
-                  [span([], [txt("Related Work")])],
-                ),
-                div(
-                  [Attr.classes(["future-work", "unselected"])],
-                  [span([], [txt("Future Work")])],
-                ),
-              ],
-            ),
-            div(
-              [Attr.id("mps-container")],
-              [
-                div(
-                  [Attr.id("mps-logo")],
-                  [
-                    Vdom.Node.create(
-                      "img",
-                      [Attr.create("src", "mps-logo.png")],
-                      [],
-                    ),
-                  ],
-                ),
-                div(
-                  [Attr.id("mps")],
-                  [
-                    Vdom.Node.create(
-                      "img",
-                      [Attr.create("src", "mps.png")],
-                      [],
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ],
-        ),
-      init_zblock: damage_refactor_end,
-    },
-    {
-      header: page_header_2,
-      caption:
-        div(
-          [Attr.id("feature-container")],
-          [
-            div(
-              [Attr.id("feature-header")],
-              [
-                div(
-                  [Attr.classes(["feature", "unselected"])],
-                  [span([], [txt("Automatic Hole Insertion")])],
-                ),
-                div(
-                  [Attr.classes(["feature"])],
-                  [span([], [txt("✅ Linear Editing Affordances")])],
-                ),
-                div(
-                  [Attr.classes(["feature"])],
-                  [span([], [txt("❌ Visual Tree Signifiers")])],
-                ),
-                div(
-                  [Attr.classes(["feature", "unselected"])],
-                  [span([], [txt("Node Staging Mode")])],
-                ),
-                div(
-                  [Attr.classes(["feature-spacer"])],
-                  [span([], [txt(" ")])],
-                ),
-                div(
-                  [Attr.classes(["related-work", "selected"])],
-                  [span([], [txt("Related Work")])],
-                ),
-                div(
-                  [Attr.classes(["future-work", "unselected"])],
-                  [span([], [txt("Future Work")])],
-                ),
-              ],
-            ),
-            div(
-              [],
-              [
-                div(
-                  [],
-                  [
-                    Vdom.Node.create(
-                      "img",
-                      [Attr.id("berger"), Attr.create("src", "berger.png")],
-                      [],
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ],
-        ),
-      init_zblock: damage_refactor_end,
-    },
+    /*
+     {
+       header: page_header_2,
+       caption:
+         div(
+           [Attr.id("feature-container")],
+           [
+             div(
+               [Attr.id("feature-header")],
+               [
+                 div(
+                   [Attr.classes(["feature", "unselected"])],
+                   [span([], [txt("Automatic Hole Insertion")])],
+                 ),
+                 div(
+                   [Attr.classes(["feature"])],
+                   [span([], [txt("❌ Linear Editing Affordances")])],
+                 ),
+                 div(
+                   [Attr.classes(["feature"])],
+                   [span([], [txt("✅ Visual Tree Signifiers")])],
+                 ),
+                 div(
+                   [Attr.classes(["feature", "unselected"])],
+                   [span([], [txt("Node Staging Mode")])],
+                 ),
+                 div(
+                   [Attr.classes(["feature-spacer"])],
+                   [span([], [txt(" ")])],
+                 ),
+                 div(
+                   [Attr.classes(["related-work", "selected"])],
+                   [span([], [txt("Related Work")])],
+                 ),
+                 div(
+                   [Attr.classes(["future-work", "unselected"])],
+                   [span([], [txt("Future Work")])],
+                 ),
+               ],
+             ),
+             div(
+               [Attr.id("scratch-container")],
+               [
+                 div(
+                   [Attr.id("scratch-logo")],
+                   [
+                     Vdom.Node.create(
+                       "img",
+                       [Attr.create("src", "scratch-logo.png")],
+                       [],
+                     ),
+                   ],
+                 ),
+                 div(
+                   [Attr.id("scratch")],
+                   [
+                     Vdom.Node.create(
+                       "img",
+                       [Attr.create("src", "scratch.png")],
+                       [],
+                     ),
+                   ],
+                 ),
+               ],
+             ),
+           ],
+         ),
+       init_zblock: damage_refactor_end,
+     },
+     {
+       header: page_header_2,
+       caption:
+         div(
+           [Attr.id("feature-container")],
+           [
+             div(
+               [Attr.id("feature-header")],
+               [
+                 div(
+                   [Attr.classes(["feature", "unselected"])],
+                   [span([], [txt("Automatic Hole Insertion")])],
+                 ),
+                 div(
+                   [Attr.classes(["feature"])],
+                   [span([], [txt("✅ Linear Editing Affordances")])],
+                 ),
+                 div(
+                   [Attr.classes(["feature"])],
+                   [span([], [txt("❌ Visual Tree Signifiers")])],
+                 ),
+                 div(
+                   [Attr.classes(["feature", "unselected"])],
+                   [span([], [txt("Node Staging Mode")])],
+                 ),
+                 div(
+                   [Attr.classes(["feature-spacer"])],
+                   [span([], [txt(" ")])],
+                 ),
+                 div(
+                   [Attr.classes(["related-work", "selected"])],
+                   [span([], [txt("Related Work")])],
+                 ),
+                 div(
+                   [Attr.classes(["future-work", "unselected"])],
+                   [span([], [txt("Future Work")])],
+                 ),
+               ],
+             ),
+             div(
+               [Attr.id("mps-container")],
+               [
+                 div(
+                   [Attr.id("mps-logo")],
+                   [
+                     Vdom.Node.create(
+                       "img",
+                       [Attr.create("src", "mps-logo.png")],
+                       [],
+                     ),
+                   ],
+                 ),
+                 div(
+                   [Attr.id("mps")],
+                   [
+                     Vdom.Node.create(
+                       "img",
+                       [Attr.create("src", "mps.png")],
+                       [],
+                     ),
+                   ],
+                 ),
+               ],
+             ),
+           ],
+         ),
+       init_zblock: damage_refactor_end,
+     },
+     {
+       header: page_header_2,
+       caption:
+         div(
+           [Attr.id("feature-container")],
+           [
+             div(
+               [Attr.id("feature-header")],
+               [
+                 div(
+                   [Attr.classes(["feature", "unselected"])],
+                   [span([], [txt("Automatic Hole Insertion")])],
+                 ),
+                 div(
+                   [Attr.classes(["feature"])],
+                   [span([], [txt("✅ Linear Editing Affordances")])],
+                 ),
+                 div(
+                   [Attr.classes(["feature"])],
+                   [span([], [txt("❌ Visual Tree Signifiers")])],
+                 ),
+                 div(
+                   [Attr.classes(["feature", "unselected"])],
+                   [span([], [txt("Node Staging Mode")])],
+                 ),
+                 div(
+                   [Attr.classes(["feature-spacer"])],
+                   [span([], [txt(" ")])],
+                 ),
+                 div(
+                   [Attr.classes(["related-work", "selected"])],
+                   [span([], [txt("Related Work")])],
+                 ),
+                 div(
+                   [Attr.classes(["future-work", "unselected"])],
+                   [span([], [txt("Future Work")])],
+                 ),
+               ],
+             ),
+             div(
+               [],
+               [
+                 div(
+                   [],
+                   [
+                     Vdom.Node.create(
+                       "img",
+                       [Attr.id("berger"), Attr.create("src", "berger.png")],
+                       [],
+                     ),
+                   ],
+                 ),
+               ],
+             ),
+           ],
+         ),
+       init_zblock: damage_refactor_end,
+     },
+     */
   ];
 
 let cardstack: CardStack.t = {title: "MWPLS '19", cards};
