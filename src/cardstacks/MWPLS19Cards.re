@@ -637,7 +637,7 @@ let cards: list(Card.t) =
     {
       header: page_header_2,
       caption: feature_header(~selected="linear-editing-affordances", ()),
-      init_zblock,
+      init_zblock: linear_mid,
     },
   ]
   @ (
