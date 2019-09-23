@@ -699,8 +699,7 @@ let invariant =
 
 let cards: list(Card.t) =
   [
-    ({header: page_header_0a, caption: div([], []), init_zblock}: Card.t), // wtf required type annotation
-    {header: page_header_0b, caption: div([], []), init_zblock},
+    ({header: page_header_0b, caption: div([], []), init_zblock}: Card.t),
     {header: page_header_0c, caption: invariant, init_zblock},
     {header: page_header_0c, caption: invariant, init_zblock: map_example},
     {header: page_header_1, caption: invariant, init_zblock: map_example},
