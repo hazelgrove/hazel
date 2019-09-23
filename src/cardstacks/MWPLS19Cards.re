@@ -884,6 +884,12 @@ let cards: list(Card.t) =
       header: page_header_2,
       caption:
         feature_header(~selected="node-staging-mode", ~body=syntax1, ()),
+      init_zblock: damage,
+    },
+    {
+      header: page_header_2,
+      caption:
+        feature_header(~selected="node-staging-mode", ~body=syntax1, ()),
       init_zblock: damage_refactor_start,
     },
     {
