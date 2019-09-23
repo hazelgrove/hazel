@@ -10,7 +10,7 @@ let cardstacks: cardstacks = [
   //RCStudyCards.cardstack,
 ];
 
-let init_compute_results_flag = false;
+let init_compute_results_flag = true;
 
 type user_newlines = Path.StepsMap.t(unit);
 
