@@ -1441,7 +1441,11 @@ button:disabled {
   width: 85%;
 }
 
-#hexp .citation {
-  display: block;
-  margin: 0 auto;
+#hexp-container .citation {
+  float: right;
+}
+
+#conclusion {
+  display: flex;
+  flex-direction: column;
 }

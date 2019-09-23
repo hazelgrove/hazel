@@ -206,9 +206,12 @@ let feature_header = (~selected=?, ~body=?, ()): Vdom.Node.t => {
 
 let hexp =
   div(
-    [Attr.id("hexp")],
+    [Attr.id("hexp-container")],
     [
-      Node.create("img", [Attr.create("src", "hexp.png")], []),
+      div(
+        [Attr.id("hexp")],
+        [Node.create("img", [Attr.create("src", "hexp.png")], [])],
+      ),
       div([Attr.classes(["citation"])], [txt("[Omar et al. POPL'17]")]),
     ],
   );
@@ -705,6 +708,16 @@ let cards: list(Card.t) =
     {
       header: page_header_1,
       caption:
+        feature_header(
+          ~selected="automatic-hole-insertion",
+          ~body=div([], []),
+          (),
+        ),
+      init_zblock,
+    },
+    {
+      header: page_header_1,
+      caption:
         feature_header(~selected="automatic-hole-insertion", ~body=hexp, ()),
       init_zblock,
     },
@@ -868,76 +881,34 @@ let cards: list(Card.t) =
       init_zblock: linear_final,
     },
     {
-      /*
-       {
-         header: page_header_2,
-         caption:
-           feature_header(~selected="visual-tree-signifiers", ~body=syntax2, ()),
-         init_zblock: damage,
-       },
-        {
-          header: page_header_2,
-          caption:
-            feature_header(~selected="node-staging-mode", ~body=syntax2, ()),
-          init_zblock:
-            UHExp.Block(
-              [
-                UHExp.letline(
-                  UHPat.var("damage"),
-                  ~ann=
-                    UHTyp.(
-                      ExpOpExp(
-                        Parenthesized(ExpOpExp(Bool, Prod, Num) |> Typ.mk_OpSeq),
-                        Arrow,
-                        Num,
-                      )
-                      |> Typ.mk_OpSeq
-                    ),
-                  UHExp.(
-                    wrap_in_block(
-                      lam(
-                        UHPat.(
-                          Parenthesized(
-                            ExpOpExp(var("is_melee"), Comma, var("crit_hit"))
-                            |> Pat.mk_OpSeq,
-                          )
-                        ),
-                        wrap_in_block(
-                          case(
-                            var("is_melee") |> wrap_in_block,
-                            [
-                              Rule(
-                                UHPat.boollit(false),
-                                numlit(5) |> wrap_in_block,
-                              ),
-                              Rule(
-                                UHPat.boollit(true),
-                                SeqOpExp(
-                                  ExpOpExp(numlit(2), Times, var("crit_hit")),
-                                  Plus,
-                                  numlit(1),
-                                )
-                                |> Exp.mk_OpSeq
-                                |> wrap_in_block,
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    )
-                  ),
-                ),
-              ],
-              EmptyHole(-1),
-            )
-            |> ZExp.place_before_block,
-        },
-        */
-
       header: page_header_2,
       caption:
-        feature_header(~selected="node-staging-mode", ~body=syntax2, ()),
+        feature_header(~selected="node-staging-mode", ~body=syntax1, ()),
       init_zblock: damage_refactor_start,
+    },
+    {
+      header: page_header_2,
+      caption:
+        feature_header(
+          ~body=
+            div(
+              [Attr.id("conclusion")],
+              [
+                div(
+                  [],
+                  [
+                    txt(
+                      "Goal: to design an efficient and easy-to-use structure editor",
+                    ),
+                  ],
+                ),
+                div([], [txt("Pilot study in July 2019, more to come")]),
+                div([], [txt("Play with Hazel at the poster session!")]),
+              ],
+            ),
+          (),
+        ),
+      init_zblock: damage_refactor_end,
     },
     /*
      {
