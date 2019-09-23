@@ -718,7 +718,7 @@ let cards: list(Card.t) =
       header: page_header_1,
       caption:
         feature_header(~selected="automatic-hole-insertion", ~body=hexp, ()),
-      init_zblock,
+      init_zblock: linear_start,
     },
     {
       header: page_header_2,
