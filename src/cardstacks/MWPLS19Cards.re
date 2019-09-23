@@ -818,28 +818,9 @@ let cards: list(Card.t) =
           ~selected="visual-tree-signifiers",
           ~body=
             div(
-              [Attr.id("mps-container")],
+              [Attr.id("mps")],
               [
-                div(
-                  [Attr.id("mps-logo")],
-                  [
-                    Vdom.Node.create(
-                      "img",
-                      [Attr.create("src", "mps-logo.png")],
-                      [],
-                    ),
-                  ],
-                ),
-                div(
-                  [Attr.id("mps")],
-                  [
-                    Vdom.Node.create(
-                      "img",
-                      [Attr.create("src", "mps.png")],
-                      [],
-                    ),
-                  ],
-                ),
+                Vdom.Node.create("img", [Attr.create("src", "mps.png")], []),
               ],
             ),
           (),
@@ -895,8 +876,53 @@ let cards: list(Card.t) =
     {
       header: page_header_2,
       caption:
-        feature_header(
-          ~body=
+        div(
+          [Attr.id("conclusion-container")],
+          [
+            div(
+              [Attr.id("feature-header")],
+              [
+                div(
+                  [
+                    Attr.classes(
+                      selected_feature_clss(None, "automatic-hole-insertion"),
+                    ),
+                  ],
+                  [span([], [txt("Automatic Hole Insertion")])],
+                ),
+                div(
+                  [
+                    Attr.classes(
+                      selected_feature_clss(
+                        None,
+                        "linear-editing-affordances",
+                      ),
+                    ),
+                  ],
+                  [span([], [txt("Linear Editing Affordances")])],
+                ),
+                div(
+                  [
+                    Attr.classes(
+                      selected_feature_clss(None, "visual-tree-signifiers"),
+                    ),
+                  ],
+                  [span([], [txt("Visual Tree Signifiers")])],
+                ),
+                div(
+                  [
+                    Attr.classes(
+                      selected_feature_clss(None, "node-staging-mode"),
+                    ),
+                  ],
+                  [span([], [txt("Node Staging Mode")])],
+                ),
+                div(
+                  [Attr.classes(["feature-spacer"])],
+                  [span([], [txt(" ")])],
+                ),
+              ],
+            ),
             div(
               [Attr.id("conclusion")],
               [
@@ -912,7 +938,7 @@ let cards: list(Card.t) =
                 div([], [txt("Play with Hazel at the poster session!")]),
               ],
             ),
-          (),
+          ],
         ),
       init_zblock: damage_refactor_end,
     },

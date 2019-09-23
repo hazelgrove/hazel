@@ -1376,7 +1376,7 @@ button:disabled {
 #mps img {
   display: block;
   margin: 0 auto;
-  width: 100%;
+  width: 90%;
 }
 
 .feature.absent {
@@ -1446,6 +1446,15 @@ button:disabled {
 }
 
 #conclusion {
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-rows: auto auto auto;
+  row-gap: 10px;
+}
+
+#conclusion-container {
+  display: grid;
+  grid-template-columns: auto auto;
+  grid-template-rows: auto;
+  column-gap: 50px;
+  align-items: start;
 }
