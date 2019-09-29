@@ -654,41 +654,6 @@ and erase_rule = (zr: zrule): UHExp.rule =>
 
 let is_inconsistent = ze => ze |> erase |> UHExp.is_inconsistent;
 
-let rec cursor_on_opseq_block = (zblock: zblock): bool =>
-  switch (zblock) {
-  | BlockZL(zlines, _) => cursor_on_opseq_lines(zlines)
-  | BlockZE(_, ze) => cursor_on_opseq_exp(ze)
-  }
-and cursor_on_opseq_lines = ((_, zline, _): zlines): bool =>
-  switch (zline) {
-  | CursorL(_, _) => false
-  | LetLineZP(zp, _, _) => ZPat.cursor_on_opseq(zp)
-  | LetLineZA(_, zann, _) => ZTyp.cursor_on_opseq(zann)
-  | LetLineZE(_, _, zblock) => cursor_on_opseq_block(zblock)
-  | ExpLineZ(ze) => cursor_on_opseq_exp(ze)
-  }
-and cursor_on_opseq_exp = (ze: t): bool =>
-  switch (ze) {
-  | CursorE(_, OpSeq(_, _)) => true
-  | CursorE(_, _) => false
-  | ParenthesizedZ(zblock) => cursor_on_opseq_block(zblock)
-  | OpSeqZ(_, ze, _) => cursor_on_opseq_exp(ze)
-  | LamZP(_, zp, _, _) => ZPat.cursor_on_opseq(zp)
-  | LamZA(_, _, zann, _) => ZTyp.cursor_on_opseq(zann)
-  | LamZE(_, _, _, zblock) => cursor_on_opseq_block(zblock)
-  | InjZ(_, _, zblock) => cursor_on_opseq_block(zblock)
-  | CaseZE(_, zblock, _, _) => cursor_on_opseq_block(zblock)
-  | CaseZR(_, _, zrules, _) => cursor_on_opseq_rules(zrules)
-  | CaseZA(_, _, _, zann) => ZTyp.cursor_on_opseq(zann)
-  | ApPaletteZ(_, _, _, _) => false /* TODO[livelits] */
-  }
-and cursor_on_opseq_rules = ((_, zrule, _): zrules): bool =>
-  switch (zrule) {
-  | CursorR(_, _) => false
-  | RuleZP(zp, _) => ZPat.cursor_on_opseq(zp)
-  | RuleZE(_, zblock) => cursor_on_opseq_block(zblock)
-  };
-
 let zblock_to_zlines = (zblock: zblock): zlines =>
   switch (zblock) {
   | BlockZL((prefix, zline, suffix), e) => (

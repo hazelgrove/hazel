@@ -18,7 +18,7 @@ and operand =
   | List(t);
 
 type skel = OpSeq.skel(operator);
-type seq = OpSeq.seq(opernd, operator);
+type seq = OpSeq.seq(operand, operator);
 exception InconsistentOpSeq(skel, seq);
 
 let bidelimited =
@@ -30,7 +30,8 @@ let bidelimited =
   | Parenthesized(_)
   | List(_) => true;
 
-let wrap_in_opseq = operand => OpSeq(Placeholder(0), Operand(operand));
+let wrap_in_opseq = (operand: operand): OpSeq.t(operand, _) =>
+  OpSeq(Placeholder(0), S(operand, E));
 
 let unwrap_parentheses = (operand: operand): opseq =>
   switch (operand) {
@@ -47,7 +48,7 @@ let contract = (ty: HTyp.t): t => {
   let mk_operand = operand => Parenthesized(operand |> wrap_in_opseq);
   let mk_seq_operand = (op, a, b) => {
     let skel = Skel.BinOp(NotInHole, op, Placeholder(0), Placeholder(1));
-    let seq = Seq.Seq(Operand(a), op, b);
+    let seq = Seq.mk(a, [(op, b)]);
     Parenthesized(OpSeq(skel, seq));
   };
   /* Save it for another day
@@ -94,11 +95,7 @@ and expand_opseq =
   | OpSeq(skel, seq) => expand_skel(skel, seq)
 and expand_skel = (skel, seq) =>
   switch (skel) {
-  | Placeholder(n) =>
-    switch (Seq.nth_operand(n, seq)) {
-    | None => raise(InconsistentOpSeq(skel, seq))
-    | Some(uty_n) => expand_operand(uty_n)
-    }
+  | Placeholder(n) => seq |> Seq.nth_operand(n) |> expand_operand
   | BinOp(_, Arrow, skel1, skel2) =>
     let ty1 = expand_skel(skel1, seq);
     let ty2 = expand_skel(skel2, seq);
@@ -129,7 +126,7 @@ let child_indices_operand =
   | Bool => []
   | Parenthesized(_)
   | List(_) => [0];
-let child_indices_opseq =
+let child_indices_opseq: opseq => list(int) =
   fun
   | OpSeq(_, seq) => seq |> Seq.length |> range;
 let child_indices = child_indices_opseq;

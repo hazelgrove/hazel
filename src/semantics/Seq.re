@@ -1,4 +1,3 @@
-open Sexplib.Std;
 open GeneralUtil;
 
 /**
@@ -24,6 +23,16 @@ and affix('operand, 'operator) =
   | E
   /* Affix */
   | A('operator, t('operand, 'operator));
+
+let rec mk_affix =
+        (op_pairs: list(('operator, 'operand))): affix('operand, 'operator) =>
+  switch (op_pairs) {
+  | [] => E
+  | [(op, operand), ...rest] => A(op, S(operand, mk_affix(rest)))
+  };
+let mk =
+    (hd: 'operand, tl: list(('operator, 'operand))): t('operand, 'operator) =>
+  S(hd, mk_affix(tl));
 
 let rev = (seq: t('operand, 'operator)): t('operand, 'operator) => {
   let rec rev_t = (rev: affix(_, _), seq) => {
@@ -156,7 +165,7 @@ let rec split_nth_operand =
   switch (n, seq) {
   | (_, _) when n < 0 => raise(exn)
   | (0, S(hd, tl)) => (hd, (E, tl))
-  | (_, S(hd, E)) => raise(exn)
+  | (_, S(_, E)) => raise(exn)
   | (_, S(hd, A(op, seq))) =>
     let (found, (prefix, suffix)) = seq |> split_nth_operand(n - 1);
     (found, (affix_affix(prefix, A(op, S(hd, E))), suffix));
@@ -169,7 +178,7 @@ let rec split_nth_operator =
   let exn = Invalid_argument("Seq.split_nth_operator");
   switch (n, seq) {
   | (_, _) when n < 0 => raise(exn)
-  | (_, S(hd, E)) => raise(exn)
+  | (_, S(_, E)) => raise(exn)
   | (0, S(hd, A(op, seq))) => (op, (S(hd, E), seq))
   | (_, S(hd, A(op, seq))) =>
     let (found, (prefix, suffix)) = seq |> split_nth_operator(n - 1);
@@ -177,5 +186,11 @@ let rec split_nth_operator =
   };
 };
 
-let split_first_and_suffix = seq => split_nth_operand(0, seq);
-let split_prefix_and_last = seq => split_nth_operand(length(seq) - 1, seq);
+let split_first_and_suffix = seq => {
+  let (first, (_, suffix)) = split_nth_operand(0, seq);
+  (first, suffix);
+};
+let split_prefix_and_last = seq => {
+  let (last, (prefix, _)) = split_nth_operand(length(seq) - 1, seq);
+  (prefix, last);
+};

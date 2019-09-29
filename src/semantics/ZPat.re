@@ -242,15 +242,6 @@ let new_EmptyHole = (u_gen: MetaVarGen.t): (t, MetaVarGen.t) => {
 
 let is_inconsistent = (zp: t): bool => UHPat.is_inconsistent(erase(zp));
 
-let rec cursor_on_opseq = (zp: t): bool =>
-  switch (zp) {
-  | CursorP(_, OpSeq(_, _)) => true
-  | CursorP(_, _) => false
-  | ParenthesizedZ(zp) => cursor_on_opseq(zp)
-  | OpSeqZ(_, zp, _) => cursor_on_opseq(zp)
-  | InjZ(_, _, zp) => cursor_on_opseq(zp)
-  };
-
 let rec move_cursor_left = (zp: t): option(t) =>
   switch (zp) {
   | _ when is_before(zp) => None
