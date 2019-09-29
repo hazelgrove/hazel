@@ -262,11 +262,11 @@ let space_before_after_op_exp: UHExp.op => (bool, bool) =
 
 type spaced_tms_typ = (UHTyp.t, list(UHTyp.t));
 let rec partition_into_spaced_tms_typ =
-        (skel: UHTyp.skel_t, seq: UHTyp.opseq)
+        (skel: UHTyp.skel, seq: UHTyp.opseq)
         : (spaced_tms_typ, list((UHTyp.op, spaced_tms_typ))) =>
   switch (skel) {
   | Placeholder(n) =>
-    switch (seq |> OperatorSeq.nth_tm(n)) {
+    switch (seq |> Seq.nth_operand(n)) {
     | None => assert(false)
     | Some(p) => ((p, []), [])
     }
@@ -278,11 +278,11 @@ let rec partition_into_spaced_tms_typ =
 
 type spaced_tms_pat = (ap_err_status, UHPat.t, list(UHPat.t));
 let rec partition_into_spaced_tms_pat =
-        (skel: UHPat.skel_t, seq: UHPat.opseq)
+        (skel: UHPat.skel, seq: UHPat.opseq)
         : (spaced_tms_pat, list((ErrStatus.t, UHPat.op, spaced_tms_pat))) =>
   switch (skel) {
   | Placeholder(n) =>
-    switch (seq |> OperatorSeq.nth_tm(n)) {
+    switch (seq |> Seq.nth_operand(n)) {
     | None => assert(false)
     | Some(p) => ((NotInApHole, p, []), [])
     }
@@ -290,7 +290,7 @@ let rec partition_into_spaced_tms_pat =
     // if we see Space, we know all ops in subtrees are also Space
     let (a, _) = skel1 |> Skel.range;
     let (_, b) = skel2 |> Skel.range;
-    switch (seq |> OperatorSeq.tms_of_range((a, b))) {
+    switch (seq |> Seq.operands_of_range((a, b))) {
     | None
     | Some([]) => assert(false)
     | Some([p, ...ps]) =>
@@ -309,11 +309,11 @@ let rec partition_into_spaced_tms_pat =
 
 type spaced_tms_exp = (ap_err_status, UHExp.t, list(UHExp.t));
 let rec partition_into_spaced_tms_exp =
-        (skel: UHExp.skel_t, seq: UHExp.opseq)
+        (skel: UHExp.skel, seq: UHExp.opseq)
         : (spaced_tms_exp, list((ErrStatus.t, UHExp.op, spaced_tms_exp))) =>
   switch (skel) {
   | Placeholder(n) =>
-    switch (seq |> OperatorSeq.nth_tm(n)) {
+    switch (seq |> Seq.nth_operand(n)) {
     | None => assert(false)
     | Some(e) => ((NotInApHole, e, []), [])
     }
@@ -321,7 +321,7 @@ let rec partition_into_spaced_tms_exp =
     // if we see Space, we know all ops in subtrees are also Space
     let (a, _) = skel1 |> Skel.range;
     let (_, b) = skel2 |> Skel.range;
-    switch (seq |> OperatorSeq.tms_of_range((a, b))) {
+    switch (seq |> Seq.operands_of_range((a, b))) {
     | None
     | Some([]) => assert(false)
     | Some([e, ...es]) =>
@@ -698,10 +698,10 @@ let view_of_sseq_line =
   Vdom.(
     Node.div(
       [
-        Attr.classes([cls, inline_div_cls] @ sline_clss(tm_index)),
+        Attr.classes([cls, inline_div_cls] @ sline_clss(operand_index)),
         Vdom.Attr.create(
           "goto-steps",
-          Sexp.to_string(Path.sexp_of_steps(sseq_steps @ [tm_index])),
+          Sexp.to_string(Path.sexp_of_steps(sseq_steps @ [operand_index])),
         ),
       ],
       vwords,
@@ -732,7 +732,7 @@ let rec view_of_snode =
               view_of_sseq_head_arg(
                 ~inject,
                 ~sseq_steps=steps,
-                ~tm_index=i + 1,
+                ~operand_index=i + 1,
                 ~sseq_indent_level=indent_level,
                 sarg,
               )
@@ -748,7 +748,7 @@ let rec view_of_snode =
                  ~inject,
                  ~sseq_steps=steps,
                  ~sseq_is_multi_line=is_multi_line,
-                 ~tm_index=num_lines_so_far,
+                 ~operand_index=num_lines_so_far,
                  ~sseq_indent_level=indent_level,
                  op_stokens,
                  fst,
@@ -759,7 +759,7 @@ let rec view_of_snode =
                          ~inject,
                          ~sseq_steps=steps,
                          ~sseq_is_multi_line=is_multi_line,
-                         ~tm_index=num_lines_so_far + 1 + i,
+                         ~operand_index=num_lines_so_far + 1 + i,
                          ~sseq_indent_level=indent_level,
                          op_stokens,
                          arg,
@@ -939,7 +939,7 @@ and view_of_sseq_head =
   view_of_sseq_line(
     ~cls="SSeqHead",
     ~sseq_steps,
-    ~tm_index=0,
+    ~operand_index=0,
     vindentation @ vwords,
   );
 }
@@ -948,7 +948,7 @@ and view_of_sseq_head_arg =
       ~inject: Update.Action.t => Vdom.Event.t,
       ~sseq_steps: Path.steps,
       ~sseq_indent_level: indent_level,
-      ~tm_index: child_index,
+      ~operand_index: child_index,
       sarg: snode,
     )
     : Vdom.Node.t => {
@@ -968,7 +968,7 @@ and view_of_sseq_head_arg =
           ? []
           : [
             vindentation(
-              ~steps_of_first_sword=sseq_steps @ [tm_index],
+              ~steps_of_first_sword=sseq_steps @ [operand_index],
               ~first_sword=SNode(sarg),
               indentation,
             ),
@@ -979,7 +979,7 @@ and view_of_sseq_head_arg =
   view_of_sseq_line(
     ~cls="SSeqHeadArg",
     ~sseq_steps,
-    ~tm_index,
+    ~operand_index,
     vindentation @ vwords,
   );
 }
@@ -989,7 +989,7 @@ and view_of_sseq_tail =
       ~sseq_steps: Path.steps,
       ~sseq_indent_level: indent_level,
       ~sseq_is_multi_line: bool,
-      ~tm_index: child_index,
+      ~operand_index: child_index,
       op_stokens,
       snode,
     )
@@ -1023,7 +1023,7 @@ and view_of_sseq_tail =
         ? []
         : [
           vindentation(
-            ~steps_of_first_sword=sseq_steps @ [tm_index],
+            ~steps_of_first_sword=sseq_steps @ [operand_index],
             ~first_sword=SNode(snode),
             indentation,
           ),
@@ -1051,7 +1051,7 @@ and view_of_sseq_tail =
   view_of_sseq_line(
     ~cls="SSeqTail",
     ~sseq_steps,
-    ~tm_index,
+    ~operand_index,
     vindentation @ vwords,
   );
 }
@@ -1061,7 +1061,7 @@ and view_of_sseq_tail_arg =
       ~sseq_steps: Path.steps,
       ~sseq_indent_level: indent_level,
       ~sseq_is_multi_line: bool,
-      ~tm_index: child_index,
+      ~operand_index: child_index,
       op_stokens,
       snode,
     )
@@ -1108,7 +1108,7 @@ and view_of_sseq_tail_arg =
     | (ToBeIndented(indentation), true) => (
         [
           vindentation(
-            ~steps_of_first_sword=sseq_steps @ [tm_index],
+            ~steps_of_first_sword=sseq_steps @ [operand_index],
             ~first_sword=SNode(snode),
             indentation + op_margin,
           ),
@@ -1125,7 +1125,7 @@ and view_of_sseq_tail_arg =
   view_of_sseq_line(
     ~cls="SSeqTailArg",
     ~sseq_steps,
-    ~tm_index,
+    ~operand_index,
     vindentation @ vwords,
   );
 }
@@ -1843,8 +1843,8 @@ let rec snode_of_typ = (~steps: Path.steps=[], uty: UHTyp.t): snode =>
                  ~space_after,
                  string_of_op_typ(op),
                );
-             let (tm, args) = spaced_tms;
-             let stm = snode_of_typ(~steps=steps @ [k], tm);
+             let (operand, args) = spaced_tms;
+             let stm = snode_of_typ(~steps=steps @ [k], operand);
              let (k, sargs) =
                args
                |> List.fold_left(
@@ -1920,8 +1920,9 @@ let rec snode_of_pat =
                  ~space_after,
                  string_of_op_pat(op),
                );
-             let (ap_err_status, tm, args) = spaced_tms;
-             let stm = snode_of_pat(~ap_err_status, ~steps=steps @ [k], tm);
+             let (ap_err_status, operand, args) = spaced_tms;
+             let stm =
+               snode_of_pat(~ap_err_status, ~steps=steps @ [k], operand);
              let (k, sargs) =
                args
                |> List.fold_left(
@@ -2095,13 +2096,13 @@ and snode_of_exp =
                  ~space_after,
                  string_of_op_exp(op),
                );
-             let (ap_err_status, tm, args) = spaced_tms;
+             let (ap_err_status, operand, args) = spaced_tms;
              let stm =
                snode_of_exp(
                  ~user_newlines?,
                  ~ap_err_status,
                  ~steps=steps @ [k],
-                 tm,
+                 operand,
                );
              let (k, sargs) =
                args
@@ -2148,13 +2149,12 @@ let rec snode_of_ztyp = (~steps: Path.steps, zty: ZTyp.t): snode =>
     let szbody = snode_of_ztyp(~steps=steps @ [0], zbody);
     snode_of_List(~steps, szbody);
   | OpSeqZ(skel, ztm, surround) =>
-    let seq =
-      OperatorSeq.opseq_of_exp_and_surround(ZTyp.erase(ztm), surround);
+    let seq = Seq.t_of_operand_and_surround(ZTyp.erase(ztm), surround);
     let (head, tail) = partition_into_spaced_tms_typ(skel, seq);
-    let snode_of_tm_or_ztm = (k, tm) => {
-      k == OperatorSeq.surround_prefix_length(surround)
+    let snode_of_tm_or_ztm = (k, operand) => {
+      k == Seq.surround_prefix_length(surround)
         ? snode_of_ztyp(~steps=steps @ [k], ztm)
-        : snode_of_typ(~steps=steps @ [k], tm);
+        : snode_of_typ(~steps=steps @ [k], operand);
     };
     let shead: spaced_stms = {
       let (hd, hd_args) = head;
@@ -2180,8 +2180,8 @@ let rec snode_of_ztyp = (~steps: Path.steps, zty: ZTyp.t): snode =>
                  ~space_after,
                  string_of_op_typ(op),
                );
-             let (tm, args) = spaced_tms;
-             let stm: snode = snode_of_tm_or_ztm(k, tm);
+             let (operand, args) = spaced_tms;
+             let stm: snode = snode_of_tm_or_ztm(k, operand);
              let (k, sargs) =
                args
                |> List.fold_left(
@@ -2207,13 +2207,12 @@ let rec snode_of_zpat =
     let szbody = snode_of_zpat(~steps=steps @ [0], zbody);
     snode_of_Inj(~ap_err_status, ~err, ~steps, side, szbody);
   | OpSeqZ(skel, ztm, surround) =>
-    let seq =
-      OperatorSeq.opseq_of_exp_and_surround(ZPat.erase(ztm), surround);
+    let seq = Seq.t_of_operand_and_surround(ZPat.erase(ztm), surround);
     let (head, tail) = partition_into_spaced_tms_pat(skel, seq);
-    let snode_of_tm_or_ztm = (~ap_err_status=NotInApHole, k, tm) => {
-      k == OperatorSeq.surround_prefix_length(surround)
+    let snode_of_tm_or_ztm = (~ap_err_status=NotInApHole, k, operand) => {
+      k == Seq.surround_prefix_length(surround)
         ? snode_of_zpat(~ap_err_status, ~steps=steps @ [k], ztm)
-        : snode_of_pat(~ap_err_status, ~steps=steps @ [k], tm);
+        : snode_of_pat(~ap_err_status, ~steps=steps @ [k], operand);
     };
     let shead: spaced_stms = {
       let (ap_err_status, hd, hd_args) = head;
@@ -2240,8 +2239,8 @@ let rec snode_of_zpat =
                  ~space_after,
                  string_of_op_pat(op),
                );
-             let (ap_err_status, tm, args) = spaced_tms;
-             let stm = snode_of_tm_or_ztm(~ap_err_status, k, tm);
+             let (ap_err_status, operand, args) = spaced_tms;
+             let stm = snode_of_tm_or_ztm(~ap_err_status, k, operand);
              let (k, sargs) =
                args
                |> List.fold_left(
@@ -2406,11 +2405,10 @@ and snode_of_zexp =
     let szbody = snode_of_zblock(~user_newlines?, ~steps=steps @ [0], zbody);
     snode_of_Parenthesized(~user_newlines?, ~ap_err_status, ~steps, szbody);
   | OpSeqZ(skel, ztm, surround) =>
-    let seq =
-      OperatorSeq.opseq_of_exp_and_surround(ZExp.erase(ztm), surround);
+    let seq = Seq.t_of_operand_and_surround(ZExp.erase(ztm), surround);
     let (head, tail) = partition_into_spaced_tms_exp(skel, seq);
-    let snode_of_tm_or_ztm = (~ap_err_status=NotInApHole, k, tm) => {
-      k == OperatorSeq.surround_prefix_length(surround)
+    let snode_of_tm_or_ztm = (~ap_err_status=NotInApHole, k, operand) => {
+      k == Seq.surround_prefix_length(surround)
         ? snode_of_zexp(
             ~user_newlines?,
             ~ap_err_status,
@@ -2421,7 +2419,7 @@ and snode_of_zexp =
             ~user_newlines?,
             ~ap_err_status,
             ~steps=steps @ [k],
-            tm,
+            operand,
           );
     };
     let shead: spaced_stms = {
@@ -2449,8 +2447,8 @@ and snode_of_zexp =
                  ~space_after,
                  string_of_op_exp(op),
                );
-             let (ap_err_status, tm, args) = spaced_tms;
-             let stm = snode_of_tm_or_ztm(~ap_err_status, k, tm);
+             let (ap_err_status, operand, args) = spaced_tms;
+             let stm = snode_of_tm_or_ztm(~ap_err_status, k, operand);
              let (k: int, sargs: list(snode)) =
                args
                |> List.fold_left(

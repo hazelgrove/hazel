@@ -444,8 +444,8 @@ let rec _syn_cursor_info_pat =
     _syn_cursor_info_pat(~node_steps, ~term_steps, ctx, zp1)
   | OpSeqZ(skel, zp1, surround) =>
     let p1 = ZPat.erase(zp1);
-    let seq = OperatorSeq.opseq_of_exp_and_surround(p1, surround);
-    let n = OperatorSeq.surround_prefix_length(surround);
+    let seq = Seq.t_of_operand_and_surround(p1, surround);
+    let n = Seq.surround_prefix_length(surround);
     _syn_cursor_info_pat_skel(
       ~node_steps,
       ~term_steps,
@@ -463,7 +463,7 @@ and _syn_cursor_info_pat_skel =
       ~term_steps,
       ~frame: option(ZPat.opseq_surround),
       ctx: Contexts.t,
-      skel: UHPat.skel_t,
+      skel: UHPat.skel,
       seq: UHPat.opseq,
       n: int,
       zp1: ZPat.t,
@@ -601,8 +601,8 @@ and _ana_cursor_info_pat =
     }
   | OpSeqZ(skel, zp1, surround) =>
     let p1 = ZPat.erase(zp1);
-    let seq = OperatorSeq.opseq_of_exp_and_surround(p1, surround);
-    let n = OperatorSeq.surround_prefix_length(surround);
+    let seq = Seq.t_of_operand_and_surround(p1, surround);
+    let n = Seq.surround_prefix_length(surround);
     _ana_cursor_info_pat_skel(
       ~node_steps,
       ~term_steps,
@@ -623,7 +623,7 @@ and _ana_cursor_info_pat_skel =
       ~term_steps,
       ~frame: option(ZPat.opseq_surround),
       ctx: Contexts.t,
-      skel: UHPat.skel_t,
+      skel: UHPat.skel,
       seq: UHPat.opseq,
       n: int,
       zp1: ZPat.t,
@@ -685,7 +685,7 @@ and _ana_cursor_info_pat_skel =
       | None => None
       | Some(zipped) =>
         List.fold_left(
-          (opt_result, skel_ty: (UHPat.skel_t, HTyp.t)) =>
+          (opt_result, skel_ty: (UHPat.skel, HTyp.t)) =>
             switch (opt_result) {
             | Some(_) as result => result
             | None =>
@@ -716,7 +716,7 @@ and _ana_cursor_info_pat_skel =
       let (zipped, remainder) = HTyp.zip_with_skels(skels, types);
       let ana_zipped =
         List.fold_left(
-          (opt_result, skel_ty: (UHPat.skel_t, HTyp.t)) =>
+          (opt_result, skel_ty: (UHPat.skel, HTyp.t)) =>
             switch (opt_result) {
             | Some(_) as result => result
             | None =>
@@ -1077,8 +1077,8 @@ and _syn_cursor_info =
     }
   | OpSeqZ(skel, ze0, surround) =>
     let e0 = ZExp.erase(ze0);
-    let seq = OperatorSeq.opseq_of_exp_and_surround(e0, surround);
-    let n = OperatorSeq.surround_prefix_length(surround);
+    let seq = Seq.t_of_operand_and_surround(e0, surround);
+    let n = Seq.surround_prefix_length(surround);
     _syn_cursor_info_skel(
       ~node_steps,
       ~term_steps,
@@ -1187,8 +1187,8 @@ and _ana_cursor_info =
     _ana_cursor_info_block(~node_steps, ~term_steps, ctx, zblock, ty)
   | OpSeqZ(skel, ze0, surround) =>
     let e0 = ZExp.erase(ze0);
-    let seq = OperatorSeq.opseq_of_exp_and_surround(e0, surround);
-    let n = OperatorSeq.surround_prefix_length(surround);
+    let seq = Seq.t_of_operand_and_surround(e0, surround);
+    let n = Seq.surround_prefix_length(surround);
     let (prefix, _, suffix) = frame;
     _ana_cursor_info_skel(
       ~node_steps,
@@ -1312,7 +1312,7 @@ and _syn_cursor_info_skel =
       ~term_steps,
       ~frame,
       ctx: Contexts.t,
-      skel: UHExp.skel_t,
+      skel: UHExp.skel,
       seq: UHExp.opseq,
       n: int,
       ze_n: ZExp.t,
@@ -1579,7 +1579,7 @@ and _ana_cursor_info_skel =
       ~term_steps,
       ~frame,
       ctx: Contexts.t,
-      skel: UHExp.skel_t,
+      skel: UHExp.skel,
       seq: UHExp.opseq,
       n: int,
       ze_n: ZExp.t,
@@ -1641,7 +1641,7 @@ and _ana_cursor_info_skel =
       | None => None
       | Some(zipped) =>
         List.fold_left(
-          (opt_result, skel_ty: (UHExp.skel_t, HTyp.t)) =>
+          (opt_result, skel_ty: (UHExp.skel, HTyp.t)) =>
             switch (opt_result) {
             | Some(_) as result => result
             | None =>
@@ -1672,7 +1672,7 @@ and _ana_cursor_info_skel =
       let (zipped, remainder) = HTyp.zip_with_skels(skels, types);
       let ana_zipped =
         List.fold_left(
-          (opt_result, skel_ty: (UHExp.skel_t, HTyp.t)) =>
+          (opt_result, skel_ty: (UHExp.skel, HTyp.t)) =>
             switch (opt_result) {
             | Some(_) as result => result
             | None =>

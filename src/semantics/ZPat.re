@@ -2,19 +2,19 @@ open SemanticsCommon;
 open GeneralUtil;
 
 [@deriving sexp]
-type opseq_surround = OperatorSeq.opseq_surround(UHPat.t, UHPat.op);
-type opseq_prefix = OperatorSeq.opseq_prefix(UHPat.t, UHPat.op);
-type opseq_suffix = OperatorSeq.opseq_suffix(UHPat.t, UHPat.op);
+type opseq_surround = Seq.opseq_surround(UHPat.t, UHPat.op);
+type prefix = Seq.prefix(UHPat.t, UHPat.op);
+type suffix = Seq.suffix(UHPat.t, UHPat.op);
 
 [@deriving sexp]
 type t =
   | CursorP(cursor_position, UHPat.t)
   /* zipper cases */
   | ParenthesizedZ(t)
-  | OpSeqZ(UHPat.skel_t, t, opseq_surround)
+  | OpSeqZ(UHPat.skel, t, opseq_surround)
   | InjZ(ErrStatus.t, inj_side, t);
 
-exception SkelInconsistentWithOpSeq;
+exception InconsistentOpSeq;
 
 let valid_cursors = (p: UHPat.t): list(cursor_position) =>
   switch (p) {
@@ -27,7 +27,7 @@ let valid_cursors = (p: UHPat.t): list(cursor_position) =>
   | Inj(_, _, _) => delim_cursors(2)
   | Parenthesized(_) => delim_cursors(2)
   | OpSeq(_, seq) =>
-    range(~lo=1, OperatorSeq.seq_length(seq))
+    range(~lo=1, Seq.length(seq))
     |> List.map(k => delim_cursors_k(k))
     |> List.flatten
   };
@@ -61,20 +61,20 @@ let rec set_err_status_t = (err: ErrStatus.t, zp: t): t =>
     OpSeqZ(skel, zp_n, surround);
   }
 and set_err_status_opseq =
-    (err: ErrStatus.t, skel: UHPat.skel_t, zp_n: t, surround: opseq_surround)
-    : (UHPat.skel_t, t, opseq_surround) =>
+    (err: ErrStatus.t, skel: UHPat.skel, zp_n: t, surround: opseq_surround)
+    : (UHPat.skel, t, opseq_surround) =>
   switch (skel) {
   | Placeholder(m) =>
-    if (m === OperatorSeq.surround_prefix_length(surround)) {
+    if (m === Seq.surround_prefix_length(surround)) {
       let zp_n = set_err_status_t(err, zp_n);
       (skel, zp_n, surround);
     } else {
-      switch (OperatorSeq.surround_nth(m, surround)) {
-      | None => raise(SkelInconsistentWithOpSeq)
+      switch (Seq.surround_nth(m, surround)) {
+      | None => raise(InconsistentOpSeq)
       | Some(p_m) =>
         let p_m = UHPat.set_err_status_t(err, p_m);
-        switch (OperatorSeq.surround_update_nth(m, surround, p_m)) {
-        | None => raise(SkelInconsistentWithOpSeq)
+        switch (Seq.surround_update_nth(m, surround, p_m)) {
+        | None => raise(InconsistentOpSeq)
         | Some(surround) => (skel, zp_n, surround)
         };
       };
@@ -104,25 +104,20 @@ let rec make_t_inconsistent = (u_gen: MetaVarGen.t, zp: t): (t, MetaVarGen.t) =>
     (OpSeqZ(skel, zp_n, surround), u_gen);
   }
 and make_opseq_inconsistent =
-    (
-      u_gen: MetaVarGen.t,
-      skel: UHPat.skel_t,
-      zp_n: t,
-      surround: opseq_surround,
-    )
-    : (UHPat.skel_t, t, opseq_surround, MetaVarGen.t) =>
+    (u_gen: MetaVarGen.t, skel: UHPat.skel, zp_n: t, surround: opseq_surround)
+    : (UHPat.skel, t, opseq_surround, MetaVarGen.t) =>
   switch (skel) {
   | Placeholder(m) =>
-    if (m === OperatorSeq.surround_prefix_length(surround)) {
+    if (m === Seq.surround_prefix_length(surround)) {
       let (zp_n, u_gen) = make_t_inconsistent(u_gen, zp_n);
       (skel, zp_n, surround, u_gen);
     } else {
-      switch (OperatorSeq.surround_nth(m, surround)) {
-      | None => raise(SkelInconsistentWithOpSeq)
+      switch (Seq.surround_nth(m, surround)) {
+      | None => raise(InconsistentOpSeq)
       | Some(p_m) =>
         let (p_m, u_gen) = UHPat.make_t_inconsistent(u_gen, p_m);
-        switch (OperatorSeq.surround_update_nth(m, surround, p_m)) {
-        | None => raise(SkelInconsistentWithOpSeq)
+        switch (Seq.surround_update_nth(m, surround, p_m)) {
+        | None => raise(InconsistentOpSeq)
         | Some(surround) => (skel, zp_n, surround, u_gen)
         };
       };
@@ -151,7 +146,7 @@ let rec erase = (zp: t): UHPat.t =>
   | ParenthesizedZ(zp) => Parenthesized(erase(zp))
   | OpSeqZ(skel, zp1, surround) =>
     let p1 = erase(zp1);
-    OpSeq(skel, OperatorSeq.opseq_of_exp_and_surround(p1, surround));
+    OpSeq(skel, Seq.t_of_operand_and_surround(p1, surround));
   };
 
 let rec is_before = (zp: t): bool =>
@@ -210,8 +205,8 @@ let rec place_before = (p: UHPat.t): t =>
   | Inj(_, _, _)
   | Parenthesized(_) => CursorP(OnDelim(0, Before), p)
   | OpSeq(skel, seq) =>
-    let (p0, suffix) = OperatorSeq.split0(seq);
-    let surround = OperatorSeq.EmptyPrefix(suffix);
+    let (p0, suffix) = OpSeqSurround.split_first_and_suffix(seq);
+    let surround = Seq.EmptyPrefix(suffix);
     let zp0 = place_before(p0);
     OpSeqZ(skel, zp0, surround);
   };
@@ -230,8 +225,8 @@ let rec place_after = (p: UHPat.t): t =>
   | Inj(_, _, _) => CursorP(OnDelim(1, After), p)
   | Parenthesized(_) => CursorP(OnDelim(1, After), p)
   | OpSeq(skel, seq) =>
-    let (p0, prefix) = OperatorSeq.split_tail(seq);
-    let surround = OperatorSeq.EmptySuffix(prefix);
+    let (p0, prefix) = OpSeqSurround.split_prefix_and_last(seq);
+    let surround = Seq.EmptySuffix(prefix);
     let zp0 = place_after(p0);
     OpSeqZ(skel, zp0, surround);
   };
@@ -270,7 +265,7 @@ let rec move_cursor_left = (zp: t): option(t) =>
     // _k == 1
     Some(InjZ(err, side, place_after(p1)))
   | CursorP(OnDelim(k, Before), OpSeq(skel, seq)) =>
-    switch (seq |> OperatorSeq.split(k - 1)) {
+    switch (seq |> Seq.split(k - 1)) {
     | None => None // should never happen
     | Some((p1, surround)) => Some(OpSeqZ(skel, place_after(p1), surround))
     }
@@ -293,20 +288,18 @@ let rec move_cursor_left = (zp: t): option(t) =>
     | None =>
       switch (surround) {
       | EmptyPrefix(_) => None
-      | EmptySuffix(ExpPrefix(_, Space) | SeqPrefix(_, Space))
-      | BothNonEmpty(ExpPrefix(_, Space) | SeqPrefix(_, Space), _) =>
-        let k = OperatorSeq.surround_prefix_length(surround);
-        let seq =
-          OperatorSeq.opseq_of_exp_and_surround(erase(zp1), surround);
-        switch (seq |> OperatorSeq.split(k - 1)) {
+      | EmptySuffix(OperandPrefix(_, Space) | SeqPrefix(_, Space))
+      | BothNonEmpty(OperandPrefix(_, Space) | SeqPrefix(_, Space), _) =>
+        let k = Seq.surround_prefix_length(surround);
+        let seq = Seq.t_of_operand_and_surround(erase(zp1), surround);
+        switch (seq |> Seq.split(k - 1)) {
         | None => None // should never happen
         | Some((p1, surround)) =>
           Some(OpSeqZ(skel, place_after(p1), surround))
         };
       | _ =>
-        let k = OperatorSeq.surround_prefix_length(surround);
-        let seq =
-          OperatorSeq.opseq_of_exp_and_surround(erase(zp1), surround);
+        let k = Seq.surround_prefix_length(surround);
+        let seq = Seq.t_of_operand_and_surround(erase(zp1), surround);
         Some(CursorP(OnDelim(k, After), OpSeq(skel, seq)));
       }
     }
@@ -326,7 +319,7 @@ let rec move_cursor_right = (zp: t): option(t) =>
     // _k == 0
     Some(InjZ(err, side, place_before(p1)))
   | CursorP(OnDelim(k, After), OpSeq(skel, seq)) =>
-    switch (seq |> OperatorSeq.split(k)) {
+    switch (seq |> Seq.split(k)) {
     | None => None // should never happen
     | Some((p1, surround)) =>
       Some(OpSeqZ(skel, place_before(p1), surround))
@@ -351,20 +344,18 @@ let rec move_cursor_right = (zp: t): option(t) =>
     | None =>
       switch (surround) {
       | EmptySuffix(_) => None
-      | EmptyPrefix(ExpSuffix(Space, _) | SeqSuffix(Space, _))
-      | BothNonEmpty(_, ExpSuffix(Space, _) | SeqSuffix(Space, _)) =>
-        let k = OperatorSeq.surround_prefix_length(surround);
-        let seq =
-          OperatorSeq.opseq_of_exp_and_surround(erase(zp1), surround);
-        switch (seq |> OperatorSeq.split(k + 1)) {
+      | EmptyPrefix(OperandSuffix(Space, _) | SeqSuffix(Space, _))
+      | BothNonEmpty(_, OperandSuffix(Space, _) | SeqSuffix(Space, _)) =>
+        let k = Seq.surround_prefix_length(surround);
+        let seq = Seq.t_of_operand_and_surround(erase(zp1), surround);
+        switch (seq |> Seq.split(k + 1)) {
         | None => None // should never happen
         | Some((p1, surround)) =>
           Some(OpSeqZ(skel, place_before(p1), surround))
         };
       | _ =>
-        let k = OperatorSeq.surround_prefix_length(surround);
-        let seq =
-          OperatorSeq.opseq_of_exp_and_surround(erase(zp1), surround);
+        let k = Seq.surround_prefix_length(surround);
+        let seq = Seq.t_of_operand_and_surround(erase(zp1), surround);
         Some(CursorP(OnDelim(k + 1, Before), OpSeq(skel, seq)));
       }
     }

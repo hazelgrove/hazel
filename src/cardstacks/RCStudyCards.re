@@ -1,5 +1,5 @@
 module Vdom = Virtual_dom.Vdom;
-open OperatorSeq;
+open OpSeq;
 open OpSeqUtil;
 
 let span = Vdom.Node.span;

@@ -120,11 +120,11 @@ module DHPat = {
       }
     }
   and syn_expand_skel =
-      (ctx: Contexts.t, delta: Delta.t, skel: UHPat.skel_t, seq: UHPat.opseq)
+      (ctx: Contexts.t, delta: Delta.t, skel: UHPat.skel, seq: UHPat.opseq)
       : expand_result =>
     switch (skel) {
     | Placeholder(n) =>
-      switch (OperatorSeq.nth_tm(n, seq)) {
+      switch (Seq.nth_operand(n, seq)) {
       | None => DoesNotExpand
       | Some(pn) => syn_expand(ctx, delta, pn)
       }
@@ -243,14 +243,14 @@ module DHPat = {
       (
         ctx: Contexts.t,
         delta: Delta.t,
-        skel: UHPat.skel_t,
+        skel: UHPat.skel,
         seq: UHPat.opseq,
         ty: HTyp.t,
       )
       : expand_result =>
     switch (skel) {
     | Placeholder(n) =>
-      switch (OperatorSeq.nth_tm(n, seq)) {
+      switch (Seq.nth_operand(n, seq)) {
       | None => DoesNotExpand
       | Some(pn) => ana_expand(ctx, delta, pn, ty)
       }
@@ -288,7 +288,7 @@ module DHPat = {
         let (zipped, remainder) = HTyp.zip_with_skels(skels, types);
         let processed1 =
           ListMinTwo.fold_right(
-            (skel_ty: (UHPat.skel_t, HTyp.t), opt_result) =>
+            (skel_ty: (UHPat.skel, HTyp.t), opt_result) =>
               switch (opt_result) {
               | None => None
               | Some((elts, ctx, delta)) =>
@@ -320,7 +320,7 @@ module DHPat = {
         | Some((elts1, ctx, delta)) =>
           let processed2 =
             List.fold_right(
-              (skel: UHPat.skel_t, opt_result) =>
+              (skel: UHPat.skel, opt_result) =>
                 switch (opt_result) {
                 | None => None
                 | Some((elts, ctx, delta)) =>
@@ -1088,7 +1088,7 @@ module DHExp = {
                  let (htyp, hexp) = typ_exp in
                  let lam = UHExp.Tm NotInHole (UHExp.Lam (UHExp.PaletteHoleData.mk_hole_ref_var_name n) bound) in
                  let hexp_ann = UHExp.Tm NotInHole (UHExp.Asc (UHExp.Parenthesized hexp) (UHTyp.contract htyp)) in
-                 let opseq = OperatorSeq.ExpOpExp (UHExp.Parenthesized lam) UHExp.Space (UHExp.Parenthesized hexp_ann) in
+                 let opseq = Seq.ExpOpExp (UHExp.Parenthesized lam) UHExp.Space (UHExp.Parenthesized hexp_ann) in
                  let ap = UHExp.OpSeq (Associator.associate_exp opseq) opseq in
                  UHExp.Tm NotInHole ap
                )
@@ -1098,11 +1098,11 @@ module DHExp = {
        end */
     }
   and syn_expand_skel =
-      (ctx: Contexts.t, delta: Delta.t, skel: UHExp.skel_t, seq: UHExp.opseq)
+      (ctx: Contexts.t, delta: Delta.t, skel: UHExp.skel, seq: UHExp.opseq)
       : expand_result =>
     switch (skel) {
     | Placeholder(n) =>
-      switch (OperatorSeq.nth_tm(n, seq)) {
+      switch (Seq.nth_operand(n, seq)) {
       | None => DoesNotExpand
       | Some(en) => syn_expand_exp(ctx, delta, en)
       }
@@ -1412,14 +1412,14 @@ module DHExp = {
       (
         ctx: Contexts.t,
         delta: Delta.t,
-        skel: UHExp.skel_t,
+        skel: UHExp.skel,
         seq: UHExp.opseq,
         ty: HTyp.t,
       )
       : expand_result =>
     switch (skel) {
     | Placeholder(n) =>
-      switch (OperatorSeq.nth_tm(n, seq)) {
+      switch (Seq.nth_operand(n, seq)) {
       | None => DoesNotExpand
       | Some(en) => ana_expand_exp(ctx, delta, en, ty)
       }
@@ -1458,7 +1458,7 @@ module DHExp = {
         let (zipped, remainder) = HTyp.zip_with_skels(skels, types);
         let processed1 =
           ListMinTwo.fold_right(
-            (skel_ty: (UHExp.skel_t, HTyp.t), opt_result) =>
+            (skel_ty: (UHExp.skel, HTyp.t), opt_result) =>
               switch (opt_result) {
               | None => None
               | Some((elts, delta)) =>
@@ -1486,7 +1486,7 @@ module DHExp = {
         | Some((elts1, delta)) =>
           let processed2 =
             List.fold_right(
-              (skel: UHExp.skel_t, opt_result) =>
+              (skel: UHExp.skel, opt_result) =>
                 switch (opt_result) {
                 | None => None
                 | Some((elts, delta)) =>

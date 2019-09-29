@@ -14,24 +14,24 @@ let is_Space =
   | _ => false;
 
 [@deriving sexp]
-type skel_t = Skel.t(op);
+type skel = Skel.t(op);
 
 [@deriving sexp]
-type t =
-  /* outer nodes */
+type t = opseq
+and opseq =
+  | OpSeq(skel, seq)
+and seq = Seq.t(operand, op)
+and operand =
   | EmptyHole(MetaVar.t)
   | Wild(ErrStatus.t)
   | Var(ErrStatus.t, VarErrStatus.t, Var.t)
   | NumLit(ErrStatus.t, int)
   | BoolLit(ErrStatus.t, bool)
   | ListNil(ErrStatus.t)
-  /* inner nodes */
   | Parenthesized(t)
-  | OpSeq(skel_t, opseq)
-  | Inj(ErrStatus.t, inj_side, t)
-and opseq = OperatorSeq.opseq(t, op);
+  | Inj(ErrStatus.t, inj_side, t);
 
-exception SkelInconsistentWithOpSeq(skel_t, opseq);
+exception InconsistentOpSeq(skel, seq);
 
 let var =
     (
@@ -39,14 +39,14 @@ let var =
       ~var_err: VarErrStatus.t=NotInVarHole,
       x: Var.t,
     )
-    : t =>
+    : operand =>
   Var(err, var_err, x);
 
 let boollit = (~err: ErrStatus.t=NotInHole, b: bool) => BoolLit(err, b);
 
-let listnil = (~err: ErrStatus.t=NotInHole, ()): t => ListNil(err);
+let listnil = (~err: ErrStatus.t=NotInHole, ()) => ListNil(err);
 
-let rec get_tuple = (skel1: skel_t, skel2: skel_t): ListMinTwo.t(skel_t) =>
+let rec get_tuple = (skel1: skel, skel2: skel): ListMinTwo.t(skel) =>
   switch (skel2) {
   | BinOp(_, Comma, skel21, skel22) =>
     ListMinTwo.Cons(skel1, get_tuple(skel21, skel22))
@@ -54,7 +54,7 @@ let rec get_tuple = (skel1: skel_t, skel2: skel_t): ListMinTwo.t(skel_t) =>
   | Placeholder(_) => ListMinTwo.Pair(skel1, skel2)
   };
 
-let rec make_tuple = (err: ErrStatus.t, skels: ListMinTwo.t(skel_t)) =>
+let rec make_tuple = (err: ErrStatus.t, skels: ListMinTwo.t(skel)) =>
   switch (skels) {
   | Pair(skel1, skel2) => Skel.BinOp(err, Comma, skel1, skel2)
   | Cons(skel1, skels) =>
@@ -65,20 +65,16 @@ let rec make_tuple = (err: ErrStatus.t, skels: ListMinTwo.t(skel_t)) =>
 /* bidelimited patterns are those that don't have
  * sub-patterns at their outer left or right edge
  * in the concrete syntax */
-let bidelimited = (p: t): bool =>
-  switch (p) {
-  /* outer nodes */
+let bidelimited =
+  fun
   | EmptyHole(_)
   | Wild(_)
   | Var(_, _, _)
   | NumLit(_, _)
   | BoolLit(_, _)
-  | ListNil(_) => true
-  /* inner nodes */
-  | Inj(_, _, _) => true
-  | Parenthesized(_) => true
-  | OpSeq(_, _) => false
-  };
+  | ListNil(_)
+  | Inj(_, _, _)
+  | Parenthesized(_) => true;
 
 /* if p is not bidelimited, bidelimit e parenthesizes it */
 let bidelimit = p =>
@@ -111,8 +107,8 @@ let rec get_err_status_t = (p: t): ErrStatus.t =>
   | Parenthesized(p) => get_err_status_t(p)
   | OpSeq(BinOp(err, _, _, _), _) => err
   | OpSeq(Placeholder(n) as skel, seq) =>
-    switch (OperatorSeq.nth_tm(n, seq)) {
-    | None => raise(SkelInconsistentWithOpSeq(skel, seq))
+    switch (Seq.nth_operand(n, seq)) {
+    | None => raise(InconsistentOpSeq(skel, seq))
     | Some(p_n) => get_err_status_t(p_n)
     }
   };
@@ -132,15 +128,15 @@ let rec set_err_status_t = (err: ErrStatus.t, p: t): t =>
     OpSeq(skel, seq);
   }
 and set_err_status_opseq =
-    (err: ErrStatus.t, skel: skel_t, seq: opseq): (skel_t, opseq) =>
+    (err: ErrStatus.t, skel: skel, seq: opseq): (skel, opseq) =>
   switch (skel) {
   | Placeholder(n) =>
-    switch (OperatorSeq.nth_tm(n, seq)) {
-    | None => raise(SkelInconsistentWithOpSeq(skel, seq))
+    switch (Seq.nth_operand(n, seq)) {
+    | None => raise(InconsistentOpSeq(skel, seq))
     | Some(p_n) =>
       let p_n = set_err_status_t(err, p_n);
-      switch (OperatorSeq.seq_update_nth(n, seq, p_n)) {
-      | None => raise(SkelInconsistentWithOpSeq(skel, seq))
+      switch (Seq.seq_update_nth(n, seq, p_n)) {
+      | None => raise(InconsistentOpSeq(skel, seq))
       | Some(seq) => (skel, seq)
       };
     }
@@ -182,16 +178,16 @@ let rec make_t_inconsistent = (u_gen: MetaVarGen.t, p: t): (t, MetaVarGen.t) =>
     (OpSeq(skel, seq), u_gen);
   }
 and make_opseq_inconsistent =
-    (u_gen: MetaVarGen.t, skel: skel_t, seq: opseq)
-    : (skel_t, opseq, MetaVarGen.t) =>
+    (u_gen: MetaVarGen.t, skel: skel, seq: opseq)
+    : (skel, opseq, MetaVarGen.t) =>
   switch (skel) {
   | Placeholder(n) =>
-    switch (OperatorSeq.nth_tm(n, seq)) {
-    | None => raise(SkelInconsistentWithOpSeq(skel, seq))
+    switch (Seq.nth_operand(n, seq)) {
+    | None => raise(InconsistentOpSeq(skel, seq))
     | Some(p_n) =>
       let (p_n, u_gen) = make_t_inconsistent(u_gen, p_n);
-      switch (OperatorSeq.seq_update_nth(n, seq, p_n)) {
-      | None => raise(SkelInconsistentWithOpSeq(skel, seq))
+      switch (Seq.seq_update_nth(n, seq, p_n)) {
+      | None => raise(InconsistentOpSeq(skel, seq))
       | Some(seq) => (skel, seq, u_gen)
       };
     }
@@ -214,7 +210,7 @@ let child_indices =
   | ListNil(_) => []
   | Parenthesized(_) => [0]
   | Inj(_, _, _) => [0]
-  | OpSeq(_, seq) => range(OperatorSeq.seq_length(seq));
+  | OpSeq(_, seq) => range(Seq.length(seq));
 
 let favored_child: t => option((child_index, t)) =
   fun

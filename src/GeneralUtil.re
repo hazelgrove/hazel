@@ -25,6 +25,14 @@ let rec range = (~lo=0, hi: int): list(int) =>
 
 /* Section ListUtil */
 
+let sublist = (~lo=0, hi: int, xs: list('a)): list('a) =>
+  if (lo < 0 || hi > List.length(xs)) {
+    raise(Invalid_argument("GeneralUtil.sublist"));
+  } else {
+    range(~lo, hi)
+    |> List.map(n => List.nth(xs, n))
+  };
+
 let rec join = (sep: 'a, xs: list('a)): list('a) =>
   switch (xs) {
   | [] => []

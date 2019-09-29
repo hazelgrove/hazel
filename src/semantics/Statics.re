@@ -69,10 +69,10 @@ let rec syn_pat =
     }
   }
 and syn_skel_pat =
-    (ctx: Contexts.t, skel: UHPat.skel_t, seq: UHPat.opseq, monitor) =>
+    (ctx: Contexts.t, skel: UHPat.skel, seq: UHPat.opseq, monitor) =>
   switch (skel) {
   | Placeholder(n) =>
-    switch (OperatorSeq.nth_tm(n, seq)) {
+    switch (Seq.nth_operand(n, seq)) {
     | None => None
     | Some(pn) =>
       switch (UHPat.bidelimited(pn)) {
@@ -198,17 +198,11 @@ and ana_pat = (ctx: Contexts.t, p: UHPat.t, ty: HTyp.t): option(Contexts.t) =>
   | Parenthesized(p) => ana_pat(ctx, p, ty)
   }
 and ana_skel_pat =
-    (
-      ctx: Contexts.t,
-      skel: UHPat.skel_t,
-      seq: UHPat.opseq,
-      ty: HTyp.t,
-      monitor,
-    )
+    (ctx: Contexts.t, skel: UHPat.skel, seq: UHPat.opseq, ty: HTyp.t, monitor)
     : option((Contexts.t, option(type_mode))) =>
   switch (skel) {
   | Placeholder(n) =>
-    switch (OperatorSeq.nth_tm(n, seq)) {
+    switch (Seq.nth_operand(n, seq)) {
     | None => None
     | Some(pn) =>
       switch (UHPat.bidelimited(pn)) {
@@ -257,7 +251,7 @@ and ana_skel_pat =
       | None => None
       | Some(zipped) =>
         ListMinTwo.fold_left(
-          (opt_result, skel_ty: (UHPat.skel_t, HTyp.t)) =>
+          (opt_result, skel_ty: (UHPat.skel, HTyp.t)) =>
             switch (opt_result) {
             | None => None
             | Some((ctx, mode)) =>
@@ -298,7 +292,7 @@ and ana_skel_pat =
           let (zipped, remainder) = HTyp.zip_with_skels(skels, types);
           let ana_zipped: option((Contexts.t, option(type_mode))) =
             ListMinTwo.fold_left(
-              (opt_result, skel_ty: (UHPat.skel_t, HTyp.t)) =>
+              (opt_result, skel_ty: (UHPat.skel, HTyp.t)) =>
                 switch (opt_result) {
                 | None => None
                 | Some((ctx, mode)) =>
@@ -522,14 +516,14 @@ and syn_exp = (ctx: Contexts.t, e: UHExp.t): option(HTyp.t) =>
 and syn_skel =
     (
       ctx: Contexts.t,
-      skel: UHExp.skel_t,
+      skel: UHExp.skel,
       seq: UHExp.opseq,
       monitor: option(int),
     )
     : option((HTyp.t, option(type_mode))) =>
   switch (skel) {
   | Placeholder(n) =>
-    switch (OperatorSeq.nth_tm(n, seq)) {
+    switch (Seq.nth_operand(n, seq)) {
     | None => None
     | Some(en) =>
       switch (UHExp.bidelimited(en)) {
@@ -778,7 +772,7 @@ and ana_rule =
 and ana_skel =
     (
       ctx: Contexts.t,
-      skel: UHExp.skel_t,
+      skel: UHExp.skel,
       seq: UHExp.opseq,
       ty: HTyp.t,
       monitor: option(int),
@@ -786,7 +780,7 @@ and ana_skel =
     : option(option(type_mode)) =>
   switch (skel) {
   | Placeholder(n) =>
-    switch (OperatorSeq.nth_tm(n, seq)) {
+    switch (Seq.nth_operand(n, seq)) {
     | None => None
     | Some(en) =>
       switch (UHExp.bidelimited(en)) {
@@ -827,7 +821,7 @@ and ana_skel =
       | None => None
       | Some(zipped) =>
         ListMinTwo.fold_left(
-          (opt_result, skel_ty: (UHExp.skel_t, HTyp.t)) =>
+          (opt_result, skel_ty: (UHExp.skel, HTyp.t)) =>
             switch (opt_result) {
             | None => None
             | Some(mode) =>
@@ -868,7 +862,7 @@ and ana_skel =
           let (zipped, remainder) = HTyp.zip_with_skels(skels, types);
           let ana_zipped: option(option(type_mode)) = (
             ListMinTwo.fold_left(
-              (opt_result, skel_ty: (UHExp.skel_t, HTyp.t)) =>
+              (opt_result, skel_ty: (UHExp.skel, HTyp.t)) =>
                 switch (opt_result) {
                 | None => None
                 | Some(mode) =>
@@ -1004,19 +998,19 @@ and syn_fix_holes_pat_skel =
       ctx: Contexts.t,
       u_gen: MetaVarGen.t,
       ~renumber_empty_holes=false,
-      skel: UHPat.skel_t,
+      skel: UHPat.skel,
       seq: UHPat.opseq,
     )
-    : (UHPat.skel_t, UHPat.opseq, HTyp.t, Contexts.t, MetaVarGen.t) =>
+    : (UHPat.skel, UHPat.opseq, HTyp.t, Contexts.t, MetaVarGen.t) =>
   switch (skel) {
   | Placeholder(n) =>
-    switch (OperatorSeq.nth_tm(n, seq)) {
-    | None => raise(UHPat.SkelInconsistentWithOpSeq(skel, seq))
+    switch (Seq.nth_operand(n, seq)) {
+    | None => raise(UHPat.InconsistentOpSeq(skel, seq))
     | Some(pn) =>
       let (pn, ty, ctx, u_gen) =
         syn_fix_holes_pat(ctx, u_gen, ~renumber_empty_holes, pn);
-      switch (OperatorSeq.seq_update_nth(n, seq, pn)) {
-      | None => raise(UHPat.SkelInconsistentWithOpSeq(skel, seq))
+      switch (Seq.seq_update_nth(n, seq, pn)) {
+      | None => raise(UHPat.InconsistentOpSeq(skel, seq))
       | Some(seq) => (skel, seq, ty, ctx, u_gen)
       };
     }
@@ -1144,20 +1138,20 @@ and ana_fix_holes_pat_skel =
       ctx: Contexts.t,
       u_gen: MetaVarGen.t,
       ~renumber_empty_holes=false,
-      skel: UHPat.skel_t,
+      skel: UHPat.skel,
       seq: UHPat.opseq,
       ty: HTyp.t,
     )
-    : (UHPat.skel_t, UHPat.opseq, Contexts.t, MetaVarGen.t) =>
+    : (UHPat.skel, UHPat.opseq, Contexts.t, MetaVarGen.t) =>
   switch (skel) {
   | Placeholder(n) =>
-    switch (OperatorSeq.nth_tm(n, seq)) {
-    | None => raise(UHPat.SkelInconsistentWithOpSeq(skel, seq))
+    switch (Seq.nth_operand(n, seq)) {
+    | None => raise(UHPat.InconsistentOpSeq(skel, seq))
     | Some(pn) =>
       let (pn, ctx, u_gen) =
         ana_fix_holes_pat(ctx, u_gen, ~renumber_empty_holes, pn, ty);
-      switch (OperatorSeq.seq_update_nth(n, seq, pn)) {
-      | None => raise(UHPat.SkelInconsistentWithOpSeq(skel, seq))
+      switch (Seq.seq_update_nth(n, seq, pn)) {
+      | None => raise(UHPat.InconsistentOpSeq(skel, seq))
       | Some(seq) => (skel, seq, ctx, u_gen)
       };
     }
@@ -1189,9 +1183,9 @@ and ana_fix_holes_pat_skel =
       let skels = UHPat.get_tuple(skel1, skel2);
       let f =
           (
-            (skel, ty): (UHPat.skel_t, HTyp.t),
+            (skel, ty): (UHPat.skel, HTyp.t),
             (skels, seq, ctx, u_gen): (
-              ListMinTwo.t(UHPat.skel_t),
+              ListMinTwo.t(UHPat.skel),
               UHPat.opseq,
               Contexts.t,
               MetaVarGen.t,
@@ -1210,8 +1204,8 @@ and ana_fix_holes_pat_skel =
       };
       let f0 =
           (
-            (skel1, ty1): (UHPat.skel_t, HTyp.t),
-            (skel2, ty2): (UHPat.skel_t, HTyp.t),
+            (skel1, ty1): (UHPat.skel, HTyp.t),
+            (skel2, ty2): (UHPat.skel, HTyp.t),
           ) => {
         let (skel1, seq, ctx, u_gen) =
           ana_fix_holes_pat_skel(
@@ -1243,7 +1237,7 @@ and ana_fix_holes_pat_skel =
         let (skels1, seq, ctx, u_gen) = ListMinTwo.fold_right(f, zipped, f0);
         let (skels2, seq, ctx, u_gen) =
           List.fold_right(
-            (skel: UHPat.skel_t, (skels, seq, ctx, u_gen)) => {
+            (skel: UHPat.skel, (skels, seq, ctx, u_gen)) => {
               let (skel, seq, _, ctx, u_gen) =
                 syn_fix_holes_pat_skel(
                   ctx,
@@ -1485,8 +1479,7 @@ and syn_fix_holes_exp =
     switch (
       syn_fix_holes_exp_skel(ctx, u_gen, ~renumber_empty_holes, skel, seq)
     ) {
-    | (Placeholder(_), _, _, _) =>
-      raise(UHExp.SkelInconsistentWithOpSeq(skel, seq))
+    | (Placeholder(_), _, _, _) => raise(UHExp.InconsistentOpSeq(skel, seq))
     | (skel, seq, ty, u_gen) => (OpSeq(skel, seq), ty, u_gen)
     }
   | Lam(_, p, ann, block) =>
@@ -1676,7 +1669,7 @@ and ana_fix_holes_exp =
       ana_fix_holes_exp_skel(ctx, u_gen, ~renumber_empty_holes, skel, seq, ty)
     ) {
     | (Skel.Placeholder(_), _, _) =>
-      raise(UHExp.SkelInconsistentWithOpSeq(skel, seq))
+      raise(UHExp.InconsistentOpSeq(skel, seq))
     | (Skel.BinOp(_, _, _, _) as skel, seq, u_gen) => (
         OpSeq(skel, seq),
         u_gen,
@@ -1794,19 +1787,19 @@ and syn_fix_holes_exp_skel =
       ctx: Contexts.t,
       u_gen: MetaVarGen.t,
       ~renumber_empty_holes=false,
-      skel: UHExp.skel_t,
+      skel: UHExp.skel,
       seq: UHExp.opseq,
     )
-    : (UHExp.skel_t, UHExp.opseq, HTyp.t, MetaVarGen.t) =>
+    : (UHExp.skel, UHExp.opseq, HTyp.t, MetaVarGen.t) =>
   switch (skel) {
   | Placeholder(n) =>
-    switch (OperatorSeq.nth_tm(n, seq)) {
-    | None => raise(UHExp.SkelInconsistentWithOpSeq(skel, seq))
+    switch (Seq.nth_operand(n, seq)) {
+    | None => raise(UHExp.InconsistentOpSeq(skel, seq))
     | Some(en) =>
       let (en, ty, u_gen) =
         syn_fix_holes_exp(ctx, u_gen, ~renumber_empty_holes, en);
-      switch (OperatorSeq.seq_update_nth(n, seq, en)) {
-      | None => raise(UHExp.SkelInconsistentWithOpSeq(skel, seq))
+      switch (Seq.seq_update_nth(n, seq, en)) {
+      | None => raise(UHExp.InconsistentOpSeq(skel, seq))
       | Some(seq) => (skel, seq, ty, u_gen)
       };
     }
@@ -1930,20 +1923,20 @@ and ana_fix_holes_exp_skel =
       ctx: Contexts.t,
       u_gen: MetaVarGen.t,
       ~renumber_empty_holes=false,
-      skel: UHExp.skel_t,
+      skel: UHExp.skel,
       seq: UHExp.opseq,
       ty: HTyp.t,
     )
-    : (UHExp.skel_t, UHExp.opseq, MetaVarGen.t) =>
+    : (UHExp.skel, UHExp.opseq, MetaVarGen.t) =>
   switch (skel) {
   | Placeholder(n) =>
-    switch (OperatorSeq.nth_tm(n, seq)) {
-    | None => raise(UHExp.SkelInconsistentWithOpSeq(skel, seq))
+    switch (Seq.nth_operand(n, seq)) {
+    | None => raise(UHExp.InconsistentOpSeq(skel, seq))
     | Some(en) =>
       let (en, u_gen) =
         ana_fix_holes_exp(ctx, u_gen, ~renumber_empty_holes, en, ty);
-      switch (OperatorSeq.seq_update_nth(n, seq, en)) {
-      | None => raise(UHExp.SkelInconsistentWithOpSeq(skel, seq))
+      switch (Seq.seq_update_nth(n, seq, en)) {
+      | None => raise(UHExp.InconsistentOpSeq(skel, seq))
       | Some(seq) => (skel, seq, u_gen)
       };
     }
@@ -1975,9 +1968,9 @@ and ana_fix_holes_exp_skel =
       let skels = UHExp.get_tuple(skel1, skel2);
       let f =
           (
-            (skel, ty): (UHExp.skel_t, HTyp.t),
+            (skel, ty): (UHExp.skel, HTyp.t),
             (skels, seq, u_gen): (
-              ListMinTwo.t(UHExp.skel_t),
+              ListMinTwo.t(UHExp.skel),
               UHExp.opseq,
               MetaVarGen.t,
             ),
@@ -1995,8 +1988,8 @@ and ana_fix_holes_exp_skel =
       };
       let f0 =
           (
-            (skel1, ty1): (UHExp.skel_t, HTyp.t),
-            (skel2, ty2): (UHExp.skel_t, HTyp.t),
+            (skel1, ty1): (UHExp.skel, HTyp.t),
+            (skel2, ty2): (UHExp.skel, HTyp.t),
           ) => {
         let (skel1, seq, u_gen) =
           ana_fix_holes_exp_skel(
@@ -2028,7 +2021,7 @@ and ana_fix_holes_exp_skel =
         let (skels1, seq, u_gen) = ListMinTwo.fold_right(f, zipped, f0);
         let (skels2, seq, u_gen) =
           List.fold_right(
-            (skel: UHExp.skel_t, (skels, seq, u_gen)) => {
+            (skel: UHExp.skel, (skels, seq, u_gen)) => {
               let (skel, seq, _, u_gen) =
                 syn_fix_holes_exp_skel(
                   ctx,

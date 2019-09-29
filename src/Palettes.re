@@ -74,8 +74,8 @@ module type PALETTE = {
      let fVarPat = UHPat.Pat(NotInHole, UHPat.Var(fVarName));
      let apOpSeq =
        UHExp.(
-         OperatorSeq.(
-           exp_op_seq(
+         Seq.(
+           operand_op_seq(
              Tm(NotInHole, Var(NotInVarHole, fVarName)),
              Space,
              ExpOpExp(to_uhvar(leftID), Space, to_uhvar(rightID)),
@@ -173,11 +173,11 @@ module type PALETTE = {
      let b_num = UHExp.(Tm(NotInHole, NumLit(b)));
      let body =
        UHExp.(
-         OperatorSeq.(
-           exp_op_seq(
+         Seq.(
+           operand_op_seq(
              Tm(NotInHole, Var(NotInVarHole, fVarName)),
              Space,
-             exp_op_seq(r_num, Space, ExpOpExp(g_num, Space, b_num)),
+             operand_op_seq(r_num, Space, ExpOpExp(g_num, Space, b_num)),
            )
          )
        );

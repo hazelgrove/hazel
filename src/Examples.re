@@ -14,7 +14,7 @@ let holey_lambda: UHExp.block = {
       )
     );
   let arg = UHExp.EmptyHole(2);
-  let seq = OperatorSeq.ExpOpExp(lam, UHExp.Space, arg);
+  let seq = Seq.ExpOpExp(lam, UHExp.Space, arg);
   let skel = Associator.associate_exp(seq);
   UHExp.wrap_in_block(OpSeq(skel, seq));
 };
@@ -33,7 +33,7 @@ let let_line: UHExp.block =
   );
 
 let map_example: UHExp.block = {
-  open OperatorSeq;
+  open OpSeq;
   let case_node =
     UHExp.(
       case(

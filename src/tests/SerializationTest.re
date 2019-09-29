@@ -1,6 +1,6 @@
 open OUnit2;
 open Printf;
-let nih = tm => UHExp.Tm(NotInHole, tm);
+let nih = operand => UHExp.Tm(NotInHole, operand);
 let nihVar = s => nih(UHExp.Var(NotInVarHole, s));
 let var' = nihVar("v");
 let varN' = n => nihVar(sprintf("v%d", n));
@@ -10,12 +10,13 @@ type ezOpTree('op, 'v) =
 type seqInfo('op, 'v) =
   | Empty
   | LoneTm('v)
-  | FullSeq(OperatorSeq.opseq('v, 'op));
-let updateSeq = (mSeq, optOp, tm) =>
+  | FullSeq(Seq.t('v, 'op));
+let updateSeq = (mSeq, optOp, operand) =>
   switch (mSeq, optOp) {
-  | (Empty, None) => LoneTm(tm)
-  | (LoneTm(tm1), Some(op)) => FullSeq(OperatorSeq.ExpOpExp(tm1, op, tm))
-  | (FullSeq(seq), Some(op)) => FullSeq(OperatorSeq.SeqOpExp(seq, op, tm))
+  | (Empty, None) => LoneTm(operand)
+  | (LoneTm(operand1), Some(op)) =>
+    FullSeq(Seq.ExpOpExp(operand1, op, operand))
+  | (FullSeq(seq), Some(op)) => FullSeq(Seq.SeqOpExp(seq, op, operand))
   | _ => assert_failure("Invalid seqInfo state for updateSeq")
   };
 let skelAndSeqOfEZOpTree = eztree => {

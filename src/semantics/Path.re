@@ -35,7 +35,7 @@ let rec of_ztyp = (zty: ZTyp.t): t =>
   | ParenthesizedZ(zty1) => cons'(0, of_ztyp(zty1))
   | ListZ(zty1) => cons'(0, of_ztyp(zty1))
   | OpSeqZ(_, zty1, surround) =>
-    let n = OperatorSeq.surround_prefix_length(surround);
+    let n = Seq.surround_prefix_length(surround);
     cons'(n, of_ztyp(zty1));
   };
 
@@ -44,7 +44,7 @@ let rec of_zpat = (zp: ZPat.t): t =>
   | CursorP(cursor, _) => ([], cursor)
   | ParenthesizedZ(zp1) => cons'(0, of_zpat(zp1))
   | OpSeqZ(_, zp1, surround) =>
-    let n = OperatorSeq.surround_prefix_length(surround);
+    let n = Seq.surround_prefix_length(surround);
     cons'(n, of_zpat(zp1));
   | InjZ(_, _, zp1) => cons'(0, of_zpat(zp1))
   };
@@ -72,7 +72,7 @@ and of_zexp = (ze: ZExp.t): t =>
   | CursorE(cursor, _) => ([], cursor)
   | ParenthesizedZ(zblock) => cons'(0, of_zblock(zblock))
   | OpSeqZ(_, ze, surround) =>
-    let n = OperatorSeq.surround_prefix_length(surround);
+    let n = Seq.surround_prefix_length(surround);
     cons'(n, of_zexp(ze));
   | LamZP(_, zp, _, _) => cons'(0, of_zpat(zp))
   | LamZA(_, _, zann, _) => cons'(1, of_ztyp(zann))
@@ -98,12 +98,12 @@ and of_zrule = (zrule: ZExp.zrule): t =>
   };
 
 let of_OpSeqZ = (ze: ZExp.t, surround: ZExp.opseq_surround): t => {
-  let n = OperatorSeq.surround_prefix_length(surround);
+  let n = Seq.surround_prefix_length(surround);
   cons'(n, of_zexp(ze));
 };
 
 let of_OpSeqZ_pat = (zp: ZPat.t, surround: ZPat.opseq_surround): t => {
-  let n = OperatorSeq.surround_prefix_length(surround);
+  let n = Seq.surround_prefix_length(surround);
   cons'(n, of_zpat(zp));
 };
 
@@ -127,7 +127,7 @@ let rec term_steps_of_ztyp: ZTyp.t => steps =
   | ListZ(zbody)
   | ParenthesizedZ(zbody) => [0, ...term_steps_of_ztyp(zbody)]
   | OpSeqZ(_, ztm, surround) => [
-      OperatorSeq.surround_prefix_length(surround),
+      Seq.surround_prefix_length(surround),
       ...term_steps_of_ztyp(ztm),
     ];
 
@@ -137,7 +137,7 @@ let rec term_steps_of_zpat: ZPat.t => steps =
   | InjZ(_, _, zbody)
   | ParenthesizedZ(zbody) => [0, ...term_steps_of_zpat(zbody)]
   | OpSeqZ(_, ztm, surround) => [
-      OperatorSeq.surround_prefix_length(surround),
+      Seq.surround_prefix_length(surround),
       ...term_steps_of_zpat(ztm),
     ];
 
@@ -164,7 +164,7 @@ and term_steps_of_zexp =
   | InjZ(_, _, zbody)
   | ParenthesizedZ(zbody) => [0, ...term_steps_of_zblock(zbody)]
   | OpSeqZ(_, ztm, surround) => [
-      OperatorSeq.surround_prefix_length(surround),
+      Seq.surround_prefix_length(surround),
       ...term_steps_of_zexp(ztm),
     ]
   | LamZP(_, zp, _, _) => [0, ...term_steps_of_zpat(zp)]
@@ -196,7 +196,7 @@ let rec before_typ = (~steps=[], ty: UHTyp.t): t =>
   | Parenthesized(_)
   | List(_) => (steps, OnDelim(0, Before))
   | OpSeq(_, seq) =>
-    let (first, _) = seq |> OperatorSeq.split0;
+    let (first, _) = seq |> OpSeqSurround.split_first_and_suffix;
     before_typ(~steps=steps @ [0], first);
   };
 
@@ -211,7 +211,7 @@ let rec before_pat = (~steps=[], p: UHPat.t): t =>
   | Parenthesized(_)
   | Inj(_, _, _) => (steps, OnDelim(0, Before))
   | OpSeq(_, seq) =>
-    let (first, _) = seq |> OperatorSeq.split0;
+    let (first, _) = seq |> OpSeqSurround.split_first_and_suffix;
     before_pat(~steps=steps @ [0], first);
   };
 
@@ -240,7 +240,7 @@ and before_exp = (~steps=[], e: UHExp.t): t =>
   | Parenthesized(_)
   | ApPalette(_, _, _, _) => (steps, OnDelim(0, Before))
   | OpSeq(_, seq) =>
-    let (first, _) = seq |> OperatorSeq.split0;
+    let (first, _) = seq |> OpSeqSurround.split_first_and_suffix;
     before_exp(~steps=steps @ [0], first);
   };
 
@@ -274,7 +274,7 @@ let rec follow_ty_and_place_cursor =
       | _ => None
       }
     | OpSeq(skel, seq) =>
-      switch (OperatorSeq.split(x, seq)) {
+      switch (Seq.split(x, seq)) {
       | None => None
       | Some((uty_n, surround)) =>
         switch (follow_ty_and_place_cursor(xs, place_cursor, uty_n)) {
@@ -331,7 +331,7 @@ let rec follow_pat_and_place_cursor =
       }
     | (_, Parenthesized(_)) => None
     | (_, OpSeq(skel, seq)) =>
-      switch (OperatorSeq.split(x, seq)) {
+      switch (Seq.split(x, seq)) {
       | None => None
       | Some((p, surround)) =>
         switch (follow_pat_and_place_cursor(xs, place_cursor, p)) {
@@ -486,7 +486,7 @@ and follow_exp_and_place_cursor =
       }
     | (_, Parenthesized(_)) => None
     | (_, OpSeq(skel, seq)) =>
-      switch (OperatorSeq.split(x, seq)) {
+      switch (Seq.split(x, seq)) {
       | None => None
       | Some((e, surround)) =>
         switch (follow_exp_and_place_cursor(xs, pcl, pce, pcr, pcp, pct, e)) {
@@ -771,20 +771,21 @@ type hole_list = list((hole_desc, t));
 
 let rec holes_skel =
         (
-          ~holes_tm: ('tm, steps, hole_list) => hole_list,
+          ~holes_tm: ('operand, steps, hole_list) => hole_list,
           ~hole_desc: MetaVar.t => hole_desc,
-          ~path_before_tm: 'tm => t,
+          ~path_before_tm: 'operand => t,
           ~is_space: 'op => bool,
           ~rev_steps: rev_steps,
           skel: Skel.t('op),
-          seq: OperatorSeq.opseq('tm, 'op),
+          seq: Seq.t('operand, 'op),
           holes: hole_list,
         )
         : hole_list => {
   switch (skel) {
   | Placeholder(n) =>
-    let tm_n = seq |> OperatorSeq.nth_tm(n) |> Opt.get(() => assert(false));
-    holes |> holes_tm(tm_n, [n, ...rev_steps]);
+    let operand_n =
+      seq |> Seq.nth_operand(n) |> Opt.get(() => assert(false));
+    holes |> holes_tm(operand_n, [n, ...rev_steps]);
   | BinOp(err, op, skel1, skel2) when op |> is_space =>
     holes
     |> holes_skel(
@@ -804,7 +805,7 @@ let rec holes_skel =
           let spaced_subseq_hd_index = skel1 |> Skel.leftmost_tm_index;
           let spaced_subseq_hd =
             seq
-            |> OperatorSeq.nth_tm(spaced_subseq_hd_index)
+            |> Seq.nth_operand(spaced_subseq_hd_index)
             |> Opt.get(() => assert(false));
           [
             (
@@ -1080,23 +1081,24 @@ let no_holes = {holes_before: [], hole_selected: None, holes_after: []};
 
 let rec _holes_surround =
         (
-          ~holes_tm: ('tm, steps, hole_list) => hole_list,
+          ~holes_tm: ('operand, steps, hole_list) => hole_list,
           ~hole_desc: MetaVar.t => hole_desc,
           ~is_space: 'op => bool,
-          ~path_before_tm: 'tm => t,
+          ~path_before_tm: 'operand => t,
           ~rev_steps: rev_steps,
           ~surrounded_index: int,
           skel: Skel.t('op),
-          seq: OperatorSeq.opseq('tm, 'op),
+          seq: Seq.t('operand, 'op),
         )
         : (hole_list, hole_list) => {
   switch (skel) {
   | Placeholder(n) =>
-    let tm_n = seq |> OperatorSeq.nth_tm(n) |> Opt.get(() => assert(false));
+    let operand_n =
+      seq |> Seq.nth_operand(n) |> Opt.get(() => assert(false));
     if (n > surrounded_index) {
-      ([], holes_tm(tm_n, [n, ...rev_steps], []));
+      ([], holes_tm(operand_n, [n, ...rev_steps], []));
     } else if (n < surrounded_index) {
-      (holes_tm(tm_n, [n, ...rev_steps], []), []);
+      (holes_tm(operand_n, [n, ...rev_steps], []), []);
     } else {
       ([], []);
     };
@@ -1136,7 +1138,7 @@ let rec _holes_surround =
       let spaced_subseq_hd_index = skel1 |> Skel.leftmost_tm_index;
       let spaced_subseq_hd =
         seq
-        |> OperatorSeq.nth_tm(spaced_subseq_hd_index)
+        |> Seq.nth_operand(spaced_subseq_hd_index)
         |> Opt.get(() => assert(false));
       let hole = (
         hole_desc(u),
@@ -1193,19 +1195,19 @@ let rec _holes_surround =
 
 let holes_surround =
     (
-      ~holes_tm: ('tm, steps, hole_list) => hole_list,
+      ~holes_tm: ('operand, steps, hole_list) => hole_list,
       ~hole_desc: MetaVar.t => hole_desc,
       ~is_space: 'op => bool,
-      ~path_before_tm: 'tm => t,
+      ~path_before_tm: 'operand => t,
       ~rev_steps: rev_steps,
-      ~erase: 'ztm => 'tm,
+      ~erase: 'ztm => 'operand,
       skel: Skel.t('op),
       ztm: 'ztm,
-      surround: OperatorSeq.opseq_surround('tm, 'op),
+      surround: Seq.opseq_surround('operand, 'op),
     )
     : (hole_list, hole_list) => {
-  let seq = OperatorSeq.opseq_of_exp_and_surround(erase(ztm), surround);
-  let surrounded_index = surround |> OperatorSeq.surround_prefix_length;
+  let seq = Seq.t_of_operand_and_surround(erase(ztm), surround);
+  let surrounded_index = surround |> Seq.surround_prefix_length;
   _holes_surround(
     ~holes_tm,
     ~hole_desc,
@@ -1220,16 +1222,16 @@ let holes_surround =
 
 let holes_OpSeqZ =
     (
-      ~holes_tm: ('tm, steps, hole_list) => hole_list,
+      ~holes_tm: ('operand, steps, hole_list) => hole_list,
       ~holes_ztm: ('ztm, steps) => zhole_list,
       ~hole_desc: MetaVar.t => hole_desc,
       ~is_space: 'op => bool,
-      ~path_before_tm: 'tm => t,
+      ~path_before_tm: 'operand => t,
       ~rev_steps: rev_steps,
-      ~erase: 'ztm => 'tm,
+      ~erase: 'ztm => 'operand,
       skel: Skel.t('op),
       ztm: 'ztm,
-      surround: OperatorSeq.opseq_surround('tm, 'op),
+      surround: Seq.opseq_surround('operand, 'op),
     )
     : zhole_list => {
   let (holes_prefix, holes_suffix) =
@@ -1244,7 +1246,7 @@ let holes_OpSeqZ =
       ztm,
       surround,
     );
-  let prefix_len = OperatorSeq.surround_prefix_length(surround);
+  let prefix_len = Seq.surround_prefix_length(surround);
   let {holes_before, hole_selected, holes_after} =
     holes_ztm(ztm, [prefix_len, ...rev_steps]);
   let holes_before = holes_prefix @ holes_before;
@@ -1278,25 +1280,25 @@ let holes_Cursor_bracketed =
 
 let rec holes_Cursor_OpSeq =
         (
-          ~holes_tm: ('tm, steps, hole_list) => hole_list,
+          ~holes_tm: ('operand, steps, hole_list) => hole_list,
           ~hole_desc: MetaVar.t => hole_desc,
           ~op_index: op_index,
           ~rev_steps: rev_steps,
           skel: Skel.t('op),
-          seq: OperatorSeq.opseq('tm, 'op),
+          seq: Seq.t('operand, 'op),
         )
         : zhole_list => {
   switch (skel) {
   | Placeholder(n) =>
-    let tm_n = seq |> OperatorSeq.nth_tm(n) |> Opt.get(_ => assert(false));
+    let operand_n = seq |> Seq.nth_operand(n) |> Opt.get(_ => assert(false));
     n >= op_index
       ? {
         holes_before: [],
         hole_selected: None,
-        holes_after: holes_tm(tm_n, [n, ...rev_steps], []),
+        holes_after: holes_tm(operand_n, [n, ...rev_steps], []),
       }
       : {
-        holes_before: holes_tm(tm_n, [n, ...rev_steps], []),
+        holes_before: holes_tm(operand_n, [n, ...rev_steps], []),
         hole_selected: None,
         holes_after: [],
       };
@@ -2021,14 +2023,14 @@ and prune_trivial_suffix_block__exp = (~steps_of_first_line, e) =>
     | (false, None) => e
     }
   | (OpSeq(skel, seq), [x, ...xs]) =>
-    switch (seq |> OperatorSeq.nth_tm(x)) {
+    switch (seq |> Seq.nth_operand(x)) {
     | None => e
-    | Some(tm) =>
+    | Some(operand) =>
       let seq =
-        OperatorSeq.seq_update_nth(
+        Seq.seq_update_nth(
           x,
           seq,
-          prune_trivial_suffix_block__exp(~steps_of_first_line=xs, tm),
+          prune_trivial_suffix_block__exp(~steps_of_first_line=xs, operand),
         )
         |> Opt.get(() => assert(false));
       OpSeq(skel, seq);

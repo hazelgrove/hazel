@@ -136,10 +136,101 @@ type result('success) =
 
 let make_ty_OpSeqZ = (zty0: ZTyp.t, surround: ZTyp.opseq_surround): ZTyp.t => {
   let uty0 = ZTyp.erase(zty0);
-  let seq = OperatorSeq.opseq_of_exp_and_surround(uty0, surround);
+  let seq = Seq.t_of_operand_and_surround(uty0, surround);
   let skel = Associator.associate_ty(seq);
   OpSeqZ(skel, zty0, surround);
 };
+
+module Typ {
+  let rec perform = (a: t, zty: ZTyp.t): result(ZTyp.t) => perform_opseq(a, zty)
+  and perform_opseq = (a: t, zopseq: ZTyp.zopseq): result(ZTyp.zopseq) =>
+    switch (a, zopseq) {
+    /* Invalid */
+    | (_, CursorS(OnText(_), _)) => Failed
+    | (_, CursorS(cursor, opseq)) when !ZTyp.is_valid_cursor_opseq(cursor, opseq) =>
+      Failed
+    | (ShiftLeft | ShiftRight | ShiftUp | ShiftDown, CursorS(_, _)) =>
+      // can't shift operators in opseq
+      Failed
+    /* Movement */
+    | (MoveTo(path), _) =>
+      switch (Path.Typ.follow_opseq(path, zopseq |> ZTyp.erase_opseq)) {
+      | None => Failed
+      | Some(zopseq) => Succeeded(zopseq)
+      }
+    | (MoveToBefore(steps), _) =>
+      switch (Path.Typ.follow_opseq_and_place_before(steps, zopseq |> ZTyp.erase_opseq)) {
+      | None => Failed
+      | Some(zopseq) => Succeeded(zopseq)
+      }
+    | (MoveToPrevHole, _) =>
+      switch (Path.prev_hole_path(Path.Typ.holes_zopseq(zopseq, []))) {
+      | None => Failed
+      | Some(path) => perform_ty(MoveTo(path), zopseq)
+      }
+    | (MoveToNextHole, _) =>
+      switch (Path.next_hole_path(Path.Typ.holes_zopseq(zopseq, []))) {
+      | None => Failed
+      | Some(path) =>
+        perform_ty(MoveTo(path), zopseq)
+      }
+    | (MoveLeft, _) =>
+      ZTyp.move_cursor_left_opseq(zopseq)
+      |> Opt.map_default(~default=CursorEscaped(Before), z => Succeeded(z))
+    | (MoveRight, _) =>
+      ZTyp.move_cursor_right_opseq(zopseq)
+      |> Opt.map_default(~default=CursorEscaped(After), z => Succeeded(z))
+    /* Deletion */
+    | (Backspace, _) when ZTyp.is_before_opseq(zopseq) => CursorEscaped(Before)
+    | (Delete, _) when ZTyp.is_after_opseq(zopseq) => CursorEscaped(After)
+    /* Delete before delimiter == Backspace after delimiter */
+    | (
+        Delete,
+        CursorT(
+          OnDelim(k, Before),
+          (Parenthesized(_) | List(_) | OpSeq(_, _)) as uty,
+        ),
+      ) =>
+      perform_ty(Backspace, CursorT(OnDelim(k, After), uty))
+    /* ... + [k-2] + [k-1] +<| [k] + ...   ==>   ... + [k-2] + [k-1]| + ... */
+    | (Backspace, CursorT(OnDelim(k, After), OpSeq(_, seq))) =>
+      switch (Seq.split(k, seq)) {
+      | None => Failed /* invalid cursor position */
+      | Some((_, surround)) =>
+        switch (surround) {
+        | EmptyPrefix(_) => Failed /* invalid cursor position */
+        | EmptySuffix(prefix) =>
+          switch (prefix) {
+          | OperandPrefix(ty, _) => Succeeded(ZTyp.place_after(ty))
+          | SeqPrefix(seq, _) =>
+            let skel = Associator.associate_ty(seq);
+            Succeeded(ZTyp.place_after(OpSeq(skel, seq)));
+          }
+        | BothNonEmpty(prefix, suffix) =>
+          let (zty0: ZTyp.t, surround: ZTyp.opseq_surround) =
+            switch (prefix) {
+            | OperandPrefix(ty, _) => (
+                ZTyp.place_after(ty),
+                EmptyPrefix(suffix),
+              )
+            | SeqPrefix(ExpOpExp(ty1, op, ty2), _) => (
+                ZTyp.place_after(ty2),
+                BothNonEmpty(OperandPrefix(ty1, op), suffix),
+              )
+            | SeqPrefix(SeqOpExp(seq, op, ty), _) => (
+                ZTyp.place_after(ty),
+                BothNonEmpty(SeqPrefix(seq, op), suffix),
+              )
+            };
+          let skel =
+            Associator.associate_ty(
+              Seq.t_of_operand_and_surround(ZTyp.erase(zty0), surround),
+            );
+          Succeeded(OpSeqZ(skel, zty0, surround));
+        }
+      }
+
+    };
 
 let rec perform_ty = (a: t, zty: ZTyp.t): result(ZTyp.t) =>
   switch (a, zty) {
@@ -276,43 +367,6 @@ let rec perform_ty = (a: t, zty: ZTyp.t): result(ZTyp.t) =>
         }
       ),
     )
-  /* ... + [k-2] + [k-1] +<| [k] + ...   ==>   ... + [k-2] + [k-1]| + ... */
-  | (Backspace, CursorT(OnDelim(k, After), OpSeq(_, seq))) =>
-    switch (OperatorSeq.split(k, seq)) {
-    | None => Failed /* invalid cursor position */
-    | Some((_, surround)) =>
-      switch (surround) {
-      | EmptyPrefix(_) => Failed /* invalid cursor position */
-      | EmptySuffix(prefix) =>
-        switch (prefix) {
-        | ExpPrefix(ty, _) => Succeeded(ZTyp.place_after(ty))
-        | SeqPrefix(seq, _) =>
-          let skel = Associator.associate_ty(seq);
-          Succeeded(ZTyp.place_after(OpSeq(skel, seq)));
-        }
-      | BothNonEmpty(prefix, suffix) =>
-        let (zty0: ZTyp.t, surround: ZTyp.opseq_surround) =
-          switch (prefix) {
-          | ExpPrefix(ty, _) => (ZTyp.place_after(ty), EmptyPrefix(suffix))
-          | SeqPrefix(ExpOpExp(ty1, op, ty2), _) => (
-              ZTyp.place_after(ty2),
-              BothNonEmpty(ExpPrefix(ty1, op), suffix),
-            )
-          | SeqPrefix(SeqOpExp(seq, op, ty), _) => (
-              ZTyp.place_after(ty),
-              BothNonEmpty(SeqPrefix(seq, op), suffix),
-            )
-          };
-        let skel =
-          Associator.associate_ty(
-            OperatorSeq.opseq_of_exp_and_surround(
-              ZTyp.erase(zty0),
-              surround,
-            ),
-          );
-        Succeeded(OpSeqZ(skel, zty0, surround));
-      }
-    }
   /* Construction */
   | (Construct(SOp(SSpace)), CursorT(OnDelim(_, After), _)) =>
     perform_ty(MoveRight, zty)
@@ -350,7 +404,7 @@ let rec perform_ty = (a: t, zty: ZTyp.t): result(ZTyp.t) =>
       switch (ty_op_of(os)) {
       | None => Failed
       | Some(op) =>
-        let surround = OperatorSeq.EmptyPrefix(ExpSuffix(op, uty));
+        let surround = Seq.EmptyPrefix(OperandSuffix(op, uty));
         let zty0 = ZTyp.place_before(Hole);
         Succeeded(make_ty_OpSeqZ(zty0, surround));
       };
@@ -358,7 +412,7 @@ let rec perform_ty = (a: t, zty: ZTyp.t): result(ZTyp.t) =>
       switch (ty_op_of(os)) {
       | None => Failed
       | Some(op) =>
-        let surround = OperatorSeq.EmptySuffix(ExpPrefix(uty, op));
+        let surround = Seq.EmptySuffix(OperandPrefix(uty, op));
         let zty0 = ZTyp.place_before(Hole);
         Succeeded(make_ty_OpSeqZ(zty0, surround));
       };
@@ -374,20 +428,20 @@ let rec perform_ty = (a: t, zty: ZTyp.t): result(ZTyp.t) =>
         switch (surround) {
         | EmptyPrefix(suffix) =>
           /* |zty0 suffix -> |_ op uty0 suffix */
-          let suffix' = OperatorSeq.suffix_prepend_exp(suffix, op, uty);
-          let surround' = OperatorSeq.EmptyPrefix(suffix');
+          let suffix' = Seq.suffix_prepend_exp(suffix, op, uty);
+          let surround' = Seq.EmptyPrefix(suffix');
           let zty0' = ZTyp.place_before(Hole);
           Succeeded(make_ty_OpSeqZ(zty0', surround'));
         | EmptySuffix(prefix) =>
           /* prefix |zty0 -> prefix |_ op uty0 */
-          let suffix' = OperatorSeq.ExpSuffix(op, uty);
-          let surround' = OperatorSeq.BothNonEmpty(prefix, suffix');
+          let suffix' = Seq.OperandSuffix(op, uty);
+          let surround' = Seq.BothNonEmpty(prefix, suffix');
           let zty0' = ZTyp.place_before(Hole);
           Succeeded(make_ty_OpSeqZ(zty0', surround'));
         | BothNonEmpty(prefix, suffix) =>
           /* prefix |zty0 suffix -> prefix |_ op uty0 suffix */
-          let suffix' = OperatorSeq.suffix_prepend_exp(suffix, op, uty);
-          let surround' = OperatorSeq.BothNonEmpty(prefix, suffix');
+          let suffix' = Seq.suffix_prepend_exp(suffix, op, uty);
+          let surround' = Seq.BothNonEmpty(prefix, suffix');
           let zty0' = ZTyp.place_before(Hole);
           Succeeded(make_ty_OpSeqZ(zty0', surround'));
         }
@@ -399,20 +453,20 @@ let rec perform_ty = (a: t, zty: ZTyp.t): result(ZTyp.t) =>
         switch (surround) {
         | EmptyPrefix(suffix) =>
           /* zty0| suffix -> uty0 op |_ suffix */
-          let prefix' = OperatorSeq.ExpPrefix(uty, op);
-          let surround' = OperatorSeq.BothNonEmpty(prefix', suffix);
+          let prefix' = Seq.OperandPrefix(uty, op);
+          let surround' = Seq.BothNonEmpty(prefix', suffix);
           let zty0' = ZTyp.place_before(Hole);
           Succeeded(make_ty_OpSeqZ(zty0', surround'));
         | EmptySuffix(prefix) =>
           /* prefix zty0| -> prefix uty0 op |_ */
-          let prefix' = OperatorSeq.prefix_append_exp(prefix, uty, op);
-          let surround' = OperatorSeq.EmptySuffix(prefix');
+          let prefix' = Seq.prefix_append_operand(prefix, uty, op);
+          let surround' = Seq.EmptySuffix(prefix');
           let zty0' = ZTyp.place_before(Hole);
           Succeeded(make_ty_OpSeqZ(zty0', surround'));
         | BothNonEmpty(prefix, suffix) =>
           /* prefix zty0| suffix -> prefix uty0 op |_ suffix */
-          let prefix' = OperatorSeq.prefix_append_exp(prefix, uty, op);
-          let surround' = OperatorSeq.BothNonEmpty(prefix', suffix);
+          let prefix' = Seq.prefix_append_operand(prefix, uty, op);
+          let surround' = Seq.BothNonEmpty(prefix', suffix);
           let zty0' = ZTyp.place_before(Hole);
           Succeeded(make_ty_OpSeqZ(zty0', surround'));
         }
@@ -460,13 +514,15 @@ let rec perform_ty = (a: t, zty: ZTyp.t): result(ZTyp.t) =>
   | (Construct(SWild), _) => Failed
   };
 
+
+}
+
 let abs_perform_Backspace_Before_op =
     (
       combine_for_Backspace_Space: ('e, 'z) => 'z,
       z_typecheck_fix_holes: (Contexts.t, MetaVarGen.t, 'z) => 'm,
       make_and_typecheck_OpSeqZ:
-        (Contexts.t, MetaVarGen.t, 'z, OperatorSeq.opseq_surround('e, 'op)) =>
-        'm,
+        (Contexts.t, MetaVarGen.t, 'z, Seq.opseq_surround('e, 'op)) => 'm,
       is_EmptyHole: 'e => bool,
       is_Space: 'op => bool,
       _Space: 'op,
@@ -475,14 +531,14 @@ let abs_perform_Backspace_Before_op =
       u_gen: MetaVarGen.t,
       e0: 'e,
       ze0: 'z,
-      surround: OperatorSeq.opseq_surround('e, 'op),
+      surround: Seq.surround('e, 'op),
     )
     : option('m) =>
   switch (surround) {
   | EmptyPrefix(_) => None
   | EmptySuffix(prefix) =>
     switch (prefix) {
-    | ExpPrefix(e1, op1) =>
+    | OperandPrefix(e1, op1) =>
       /* e1 op1 |ze0 */
       if (is_Space(op1)) {
         /* e1 |ze0 */
@@ -503,7 +559,7 @@ let abs_perform_Backspace_Before_op =
           Some(z_typecheck_fix_holes(ctx, u_gen, ze0'));
         | (false, false) =>
           /* e1 op1 |ze0 --> e1 |ze0 */
-          let surround' = OperatorSeq.EmptySuffix(ExpPrefix(e1, _Space));
+          let surround' = Seq.EmptySuffix(OperandPrefix(e1, _Space));
           Some(make_and_typecheck_OpSeqZ(ctx, u_gen, ze0, surround'));
         };
       }
@@ -512,55 +568,55 @@ let abs_perform_Backspace_Before_op =
       is_Space(op1)
         /* seq1 |ze0 */
         ? {
-          let (e1, prefix') = OperatorSeq.split_tail(seq1);
-          let surround' = OperatorSeq.EmptySuffix(prefix');
+          let (e1, prefix') = OpSeqSurround.split_prefix_and_last(seq1);
+          let surround' = Seq.EmptySuffix(prefix');
           let ze0' = combine_for_Backspace_Space(e1, ze0);
           Some(make_and_typecheck_OpSeqZ(ctx, u_gen, ze0', surround'));
         }
         : {
-          let (e1, prefix') = OperatorSeq.split_tail(seq1);
+          let (e1, prefix') = OpSeqSurround.split_prefix_and_last(seq1);
           if (is_EmptyHole(e0)) {
             /* prefix' e1 op1 |_0 --> prefix' e1| */
-            let surround' = OperatorSeq.EmptySuffix(prefix');
+            let surround' = Seq.EmptySuffix(prefix');
             let ze0' = place_after(e1);
             Some(make_and_typecheck_OpSeqZ(ctx, u_gen, ze0', surround'));
           } else if (is_EmptyHole(e1)) {
             /* prefix' _1 op1 |e0 --> prefix' |e0 */
-            let surround' = OperatorSeq.EmptySuffix(prefix');
+            let surround' = Seq.EmptySuffix(prefix');
             Some(make_and_typecheck_OpSeqZ(ctx, u_gen, ze0, surround'));
           } else {
             /* seq1 op1 |ze0 --> seq1 |ze0 */
-            let prefix' = OperatorSeq.SeqPrefix(seq1, _Space);
-            let surround' = OperatorSeq.EmptySuffix(prefix');
+            let prefix' = Seq.SeqPrefix(seq1, _Space);
+            let surround' = Seq.EmptySuffix(prefix');
             Some(make_and_typecheck_OpSeqZ(ctx, u_gen, ze0, surround'));
           };
         }
     }
   | BothNonEmpty(prefix, suffix) =>
     switch (prefix) {
-    | ExpPrefix(e1, op1) =>
+    | OperandPrefix(e1, op1) =>
       /* e1 op1 |ze0 ...suffix */
       is_Space(op1)
         /* e1 |ze0 ...suffix */
         ? {
           let ze0' = combine_for_Backspace_Space(e1, ze0);
-          let surround' = OperatorSeq.EmptyPrefix(suffix);
+          let surround' = Seq.EmptyPrefix(suffix);
           Some(make_and_typecheck_OpSeqZ(ctx, u_gen, ze0', surround'));
         }
         : (
           if (is_EmptyHole(e0)) {
             /* e1 op1 |_0 suffix --> e1| suffix */
-            let surround' = OperatorSeq.EmptyPrefix(suffix);
+            let surround' = Seq.EmptyPrefix(suffix);
             let ze0' = place_after(e1);
             Some(make_and_typecheck_OpSeqZ(ctx, u_gen, ze0', surround'));
           } else if (is_EmptyHole(e1)) {
             /* _1 op1 |e0 suffix --> |e0 suffix */
-            let surround' = OperatorSeq.EmptyPrefix(suffix);
+            let surround' = Seq.EmptyPrefix(suffix);
             Some(make_and_typecheck_OpSeqZ(ctx, u_gen, ze0, surround'));
           } else {
             /* e1 op1 |ze0 --> e1 |ze0 ...suffix */
             let surround' =
-              OperatorSeq.BothNonEmpty(ExpPrefix(e1, _Space), suffix);
+              Seq.BothNonEmpty(OperandPrefix(e1, _Space), suffix);
             Some(make_and_typecheck_OpSeqZ(ctx, u_gen, ze0, surround'));
           }
         )
@@ -569,26 +625,26 @@ let abs_perform_Backspace_Before_op =
       is_Space(op1)
         /* seq1 |ze0 ...suffix */
         ? {
-          let (e1, prefix') = OperatorSeq.split_tail(seq1);
+          let (e1, prefix') = OpSeqSurround.split_prefix_and_last(seq1);
           let ze0' = combine_for_Backspace_Space(e1, ze0);
-          let surround' = OperatorSeq.BothNonEmpty(prefix', suffix);
+          let surround' = Seq.BothNonEmpty(prefix', suffix);
           Some(make_and_typecheck_OpSeqZ(ctx, u_gen, ze0', surround'));
         }
         : {
-          let (e1, prefix') = OperatorSeq.split_tail(seq1);
+          let (e1, prefix') = OpSeqSurround.split_prefix_and_last(seq1);
           if (is_EmptyHole(e0)) {
             /* prefix' e1 op1 |_0 suffix --> prefix' e1| suffix */
-            let surround' = OperatorSeq.BothNonEmpty(prefix', suffix);
+            let surround' = Seq.BothNonEmpty(prefix', suffix);
             let ze0' = place_after(e1);
             Some(make_and_typecheck_OpSeqZ(ctx, u_gen, ze0', surround'));
           } else if (is_EmptyHole(e1)) {
             /* prefix' _1 op1 |e0 suffix --> prefix' |e0 suffix */
-            let surround' = OperatorSeq.BothNonEmpty(prefix', suffix);
+            let surround' = Seq.BothNonEmpty(prefix', suffix);
             Some(make_and_typecheck_OpSeqZ(ctx, u_gen, ze0, surround'));
           } else {
             /* seq1 op1 |ze0 suffix --> seq1 |ze0 suffix */
-            let prefix' = OperatorSeq.SeqPrefix(seq1, _Space);
-            let surround' = OperatorSeq.BothNonEmpty(prefix', suffix);
+            let prefix' = Seq.SeqPrefix(seq1, _Space);
+            let surround' = Seq.BothNonEmpty(prefix', suffix);
             Some(make_and_typecheck_OpSeqZ(ctx, u_gen, ze0, surround'));
           };
         }
@@ -600,8 +656,7 @@ let abs_perform_Delete_After_op =
       combine_for_Delete_Space: ('z, 'e) => 'z,
       z_typecheck_fix_holes: (Contexts.t, MetaVarGen.t, 'z) => 'm,
       make_and_typecheck_OpSeqZ:
-        (Contexts.t, MetaVarGen.t, 'z, OperatorSeq.opseq_surround('e, 'op)) =>
-        'm,
+        (Contexts.t, MetaVarGen.t, 'z, Seq.opseq_surround('e, 'op)) => 'm,
       is_EmptyHole: 'e => bool,
       is_Space: 'op => bool,
       _Space: 'op,
@@ -610,14 +665,14 @@ let abs_perform_Delete_After_op =
       u_gen: MetaVarGen.t,
       e0: 'e,
       ze0: 'z,
-      surround: OperatorSeq.opseq_surround('e, 'op),
+      surround: Seq.opseq_surround('e, 'op),
     )
     : option('m) =>
   switch (surround) {
   | EmptySuffix(_) => None /* precluded by pattern begin match above */
   | EmptyPrefix(suffix) =>
     switch (suffix) {
-    | ExpSuffix(op, e1) =>
+    | OperandSuffix(op, e1) =>
       is_Space(op)
         ? {
           let ze0' = combine_for_Delete_Space(ze0, e1);
@@ -637,89 +692,86 @@ let abs_perform_Delete_After_op =
             Some(z_typecheck_fix_holes(ctx, u_gen, ze0))
           | (false, false) =>
             /* e0| op e1 --> e0| e1 */
-            let surround' = OperatorSeq.EmptyPrefix(ExpSuffix(_Space, e1));
+            let surround' = Seq.EmptyPrefix(OperandSuffix(_Space, e1));
             Some(make_and_typecheck_OpSeqZ(ctx, u_gen, ze0, surround'));
           }
         )
     | SeqSuffix(op, seq) =>
       is_Space(op)
         ? {
-          let (e, suffix') = OperatorSeq.split0(seq);
-          let surround' = OperatorSeq.EmptyPrefix(suffix');
+          let (e, suffix') = OpSeqSurround.split_first_and_suffix(seq);
+          let surround' = Seq.EmptyPrefix(suffix');
           let ze0' = combine_for_Delete_Space(ze0, e);
           Some(make_and_typecheck_OpSeqZ(ctx, u_gen, ze0', surround'));
         }
         : {
-          let (e1, suffix') = OperatorSeq.split0(seq);
+          let (e1, suffix') = OpSeqSurround.split_first_and_suffix(seq);
           if (is_EmptyHole(e1)) {
             /* e0| op _ suffix' --> e0| suffix' */
-            let surround' = OperatorSeq.EmptyPrefix(suffix');
+            let surround' = Seq.EmptyPrefix(suffix');
             Some(make_and_typecheck_OpSeqZ(ctx, u_gen, ze0, surround'));
           } else if (is_EmptyHole(e0)) {
             /* _0| op e1 suffix' --> |e1 suffix' */
-            let surround' = OperatorSeq.EmptyPrefix(suffix');
+            let surround' = Seq.EmptyPrefix(suffix');
             let ze1 = place_before(e1);
             Some(make_and_typecheck_OpSeqZ(ctx, u_gen, ze1, surround'));
           } else {
             /* e0| op seq --> e0| seq */
-            let suffix' = OperatorSeq.SeqSuffix(_Space, seq);
-            let surround' = OperatorSeq.EmptyPrefix(suffix');
+            let suffix' = Seq.SeqSuffix(_Space, seq);
+            let surround' = Seq.EmptyPrefix(suffix');
             Some(make_and_typecheck_OpSeqZ(ctx, u_gen, ze0, surround'));
           };
         }
     }
   | BothNonEmpty(prefix, suffix) =>
     switch (suffix) {
-    | ExpSuffix(op, e1) =>
+    | OperandSuffix(op, e1) =>
       is_Space(op)
         ? {
           let ze0' = combine_for_Delete_Space(ze0, e1);
-          let surround' = OperatorSeq.EmptySuffix(prefix);
+          let surround' = Seq.EmptySuffix(prefix);
           Some(make_and_typecheck_OpSeqZ(ctx, u_gen, ze0', surround'));
         }
         : (
           if (is_EmptyHole(e1)) {
             /* prefix e0| op _ --> prefix e0| */
-            let surround' = OperatorSeq.EmptySuffix(prefix);
+            let surround' = Seq.EmptySuffix(prefix);
             Some(make_and_typecheck_OpSeqZ(ctx, u_gen, ze0, surround'));
           } else if (is_EmptyHole(e0)) {
             /* prefix _0| op e1 --> prefix |e1 */
-            let surround' = OperatorSeq.EmptySuffix(prefix);
+            let surround' = Seq.EmptySuffix(prefix);
             let ze1 = place_before(e1);
             Some(make_and_typecheck_OpSeqZ(ctx, u_gen, ze1, surround'));
           } else {
             /* prefix e0| op e1 --> e0| e1 */
             let surround' =
-              OperatorSeq.BothNonEmpty(
-                prefix,
-                OperatorSeq.ExpSuffix(_Space, e1),
-              );
+              Seq.BothNonEmpty(prefix, Seq.OperandSuffix(_Space, e1));
             Some(make_and_typecheck_OpSeqZ(ctx, u_gen, ze0, surround'));
           }
         )
     | SeqSuffix(op, seq) =>
       is_Space(op)
         ? {
-          let (e, suffix') = OperatorSeq.split0(seq);
+          let (e, suffix') = OpSeqSurround.split_first_and_suffix(seq);
           let ze0' = combine_for_Delete_Space(ze0, e);
-          let surround' = OperatorSeq.BothNonEmpty(prefix, suffix');
+          let surround' = Seq.BothNonEmpty(prefix, suffix');
           Some(make_and_typecheck_OpSeqZ(ctx, u_gen, ze0', surround'));
         }
         : {
-          let (e1, suffix') = OperatorSeq.split0(seq);
+          let (e1, suffix') = OpSeqSurround.split_first_and_suffix(seq);
           if (is_EmptyHole(e1)) {
             /* prefix e0| op _ suffix' --> prefix e0| suffix' */
-            let surround' = OperatorSeq.BothNonEmpty(prefix, suffix');
+            let surround' = Seq.BothNonEmpty(prefix, suffix');
             Some(make_and_typecheck_OpSeqZ(ctx, u_gen, ze0, surround'));
           } else if (is_EmptyHole(e0)) {
             /* prefix _0| op e1 suffix' --> prefix |e1 suffix' */
-            let surround' = OperatorSeq.BothNonEmpty(prefix, suffix');
+            let surround' = Seq.BothNonEmpty(prefix, suffix');
             let ze1 = place_before(e1);
             Some(make_and_typecheck_OpSeqZ(ctx, u_gen, ze1, surround'));
           } else {
             /* prefix e| op seq --> e| seq */
-            let suffix' = OperatorSeq.SeqSuffix(_Space, seq);
-            let surround' = OperatorSeq.BothNonEmpty(prefix, suffix');
+            let suffix' = Seq.SeqSuffix(_Space, seq);
+            let surround' = Seq.BothNonEmpty(prefix, suffix');
             Some(make_and_typecheck_OpSeqZ(ctx, u_gen, ze0, surround'));
           };
         }
@@ -732,8 +784,7 @@ let abs_perform_Construct_SOp_After =
       new_EmptyHole: MetaVarGen.t => ('e, MetaVarGen.t),
       make_and_typecheck_OpSeq,
       make_and_typecheck_OpSeqZ:
-        (Contexts.t, MetaVarGen.t, 'z, OperatorSeq.opseq_surround('e, 'op)) =>
-        'm,
+        (Contexts.t, MetaVarGen.t, 'z, Seq.opseq_surround('e, 'op)) => 'm,
       is_Space: 'op => bool,
       place_before: 'e => 'z,
       ctx: Contexts.t,
@@ -745,11 +796,11 @@ let abs_perform_Construct_SOp_After =
   let e' = bidelimit(e);
   let (new_tm, u_gen) = new_EmptyHole(u_gen);
   if (is_Space(op)) {
-    let prefix = OperatorSeq.ExpPrefix(e', op);
-    let surround = OperatorSeq.EmptySuffix(prefix);
+    let prefix = Seq.OperandPrefix(e', op);
+    let surround = Seq.EmptySuffix(prefix);
     make_and_typecheck_OpSeqZ(ctx, u_gen, place_before(new_tm), surround);
   } else {
-    let new_seq = OperatorSeq.ExpOpExp(e', op, new_tm);
+    let new_seq = Seq.ExpOpExp(e', op, new_tm);
     make_and_typecheck_OpSeq(ctx, u_gen, OnDelim(1, After), new_seq);
   };
 };
@@ -759,16 +810,9 @@ let abs_perform_Construct_SOp_Before =
       bidelimit: 'e => 'e,
       new_EmptyHole: MetaVarGen.t => ('e, MetaVarGen.t),
       make_and_typecheck_OpSeq:
-        (
-          Contexts.t,
-          MetaVarGen.t,
-          cursor_position,
-          OperatorSeq.opseq('e, 'op)
-        ) =>
-        'm,
+        (Contexts.t, MetaVarGen.t, cursor_position, Seq.t('e, 'op)) => 'm,
       make_and_typecheck_OpSeqZ:
-        (Contexts.t, MetaVarGen.t, 'z, OperatorSeq.opseq_surround('e, 'op)) =>
-        'm,
+        (Contexts.t, MetaVarGen.t, 'z, Seq.opseq_surround('e, 'op)) => 'm,
       is_Space: 'op => bool,
       place_before: 'e => 'z,
       ctx: Contexts.t,
@@ -780,11 +824,11 @@ let abs_perform_Construct_SOp_Before =
   let e' = bidelimit(e);
   let (new_tm, u_gen) = new_EmptyHole(u_gen);
   if (is_Space(op)) {
-    let suffix = OperatorSeq.ExpSuffix(op, e');
-    let surround = OperatorSeq.EmptyPrefix(suffix);
+    let suffix = Seq.OperandSuffix(op, e');
+    let surround = Seq.EmptyPrefix(suffix);
     make_and_typecheck_OpSeqZ(ctx, u_gen, place_before(new_tm), surround);
   } else {
-    let new_seq = OperatorSeq.ExpOpExp(new_tm, op, e');
+    let new_seq = Seq.ExpOpExp(new_tm, op, e');
     make_and_typecheck_OpSeq(ctx, u_gen, OnDelim(1, After), new_seq);
   };
 };
@@ -793,16 +837,9 @@ let abs_perform_Construct_SOp_After_surround =
     (
       new_EmptyHole: MetaVarGen.t => ('e, MetaVarGen.t),
       make_and_typecheck_OpSeq:
-        (
-          Contexts.t,
-          MetaVarGen.t,
-          cursor_position,
-          OperatorSeq.opseq('e, 'op)
-        ) =>
-        'm,
+        (Contexts.t, MetaVarGen.t, cursor_position, Seq.t('e, 'op)) => 'm,
       make_and_typecheck_OpSeqZ:
-        (Contexts.t, MetaVarGen.t, 'z, OperatorSeq.opseq_surround('e, 'op)) =>
-        'm,
+        (Contexts.t, MetaVarGen.t, 'z, Seq.opseq_surround('e, 'op)) => 'm,
       is_Space: 'op => bool,
       _Space: 'op,
       place_before: 'e => 'z,
@@ -810,38 +847,36 @@ let abs_perform_Construct_SOp_After_surround =
       u_gen: MetaVarGen.t,
       e: 'e,
       op: 'op,
-      surround: OperatorSeq.opseq_surround('e, 'op),
+      surround: Seq.opseq_surround('e, 'op),
     )
     : 'm =>
   switch (surround) {
   | EmptySuffix(prefix) =>
     let (new_tm, u_gen) = u_gen |> new_EmptyHole;
     if (is_Space(op)) {
-      let prefix' = OperatorSeq.prefix_append_exp(prefix, e, op);
-      let surround' = OperatorSeq.EmptySuffix(prefix');
+      let prefix' = Seq.prefix_append_operand(prefix, e, op);
+      let surround' = Seq.EmptySuffix(prefix');
       let ztm = place_before(new_tm);
       make_and_typecheck_OpSeqZ(ctx, u_gen, ztm, surround');
     } else {
       let new_seq =
-        OperatorSeq.(
-          SeqOpExp(opseq_of_prefix_and_exp(prefix, e), op, new_tm)
-        );
+        Seq.(SeqOpExp(t_of_prefix_and_last(prefix, e), op, new_tm));
       make_and_typecheck_OpSeq(
         ctx,
         u_gen,
-        OnDelim(OperatorSeq.seq_length(new_seq) - 1, After),
+        OnDelim(Seq.length(new_seq) - 1, After),
         new_seq,
       );
     };
   | EmptyPrefix(suffix) =>
     switch (suffix) {
-    | OperatorSeq.ExpSuffix(op', e') =>
+    | Seq.OperandSuffix(op', e') =>
       is_Space(op)
         /* e| op' e' --> e |_ op' e' */
         ? {
-          let prefix' = OperatorSeq.ExpPrefix(e, op);
-          let suffix' = OperatorSeq.ExpSuffix(op', e');
-          let surround' = OperatorSeq.BothNonEmpty(prefix', suffix');
+          let prefix' = Seq.OperandPrefix(e, op);
+          let suffix' = Seq.OperandSuffix(op', e');
+          let surround' = Seq.BothNonEmpty(prefix', suffix');
           let (new_tm, u_gen) = new_EmptyHole(u_gen);
           make_and_typecheck_OpSeqZ(
             ctx,
@@ -853,7 +888,7 @@ let abs_perform_Construct_SOp_After_surround =
         : is_Space(op')
             /* e| e' --> e op| e' */
             ? {
-              let new_seq = OperatorSeq.ExpOpExp(e, op, e');
+              let new_seq = Seq.ExpOpExp(e, op, e');
               make_and_typecheck_OpSeq(
                 ctx,
                 u_gen,
@@ -864,8 +899,7 @@ let abs_perform_Construct_SOp_After_surround =
             /* e| op' e' --> e op| _ op' e' */
             : {
               let (new_tm, u_gen) = u_gen |> new_EmptyHole;
-              let new_seq =
-                OperatorSeq.SeqOpExp(ExpOpExp(e, op, new_tm), op', e');
+              let new_seq = Seq.SeqOpExp(ExpOpExp(e, op, new_tm), op', e');
               make_and_typecheck_OpSeq(
                 ctx,
                 u_gen,
@@ -877,8 +911,8 @@ let abs_perform_Construct_SOp_After_surround =
       is_Space(op)
         /* e| op' seq' --> e |_ op' seq' */
         ? {
-          let prefix' = OperatorSeq.ExpPrefix(e, op);
-          let surround' = OperatorSeq.BothNonEmpty(prefix', suffix);
+          let prefix' = Seq.OperandPrefix(e, op);
+          let surround' = Seq.BothNonEmpty(prefix', suffix);
           let (new_tm, u_gen) = new_EmptyHole(u_gen);
           make_and_typecheck_OpSeqZ(
             ctx,
@@ -890,7 +924,7 @@ let abs_perform_Construct_SOp_After_surround =
         : is_Space(op')
             /* e| seq' --> e op| seq' */
             ? {
-              let new_seq = OperatorSeq.exp_op_seq(e, op, seq');
+              let new_seq = Seq.operand_op_seq(e, op, seq');
               make_and_typecheck_OpSeq(
                 ctx,
                 u_gen,
@@ -902,10 +936,10 @@ let abs_perform_Construct_SOp_After_surround =
             : {
               let (new_tm, u_gen) = u_gen |> new_EmptyHole;
               let new_seq =
-                OperatorSeq.exp_op_seq(
+                Seq.operand_op_seq(
                   e,
                   op,
-                  OperatorSeq.exp_op_seq(new_tm, op', seq'),
+                  Seq.operand_op_seq(new_tm, op', seq'),
                 );
               make_and_typecheck_OpSeq(
                 ctx,
@@ -917,13 +951,13 @@ let abs_perform_Construct_SOp_After_surround =
     }
   | BothNonEmpty(prefix, suffix) =>
     switch (suffix) {
-    | ExpSuffix(op', e') =>
+    | OperandSuffix(op', e') =>
       is_Space(op)
         /* prefix e| op' e' --> prefix e |_ op' e' */
         ? {
-          let prefix' = OperatorSeq.prefix_append_exp(prefix, e, op);
-          let suffix' = OperatorSeq.ExpSuffix(op', e');
-          let surround' = OperatorSeq.BothNonEmpty(prefix', suffix');
+          let prefix' = Seq.prefix_append_operand(prefix, e, op);
+          let suffix' = Seq.OperandSuffix(op', e');
+          let surround' = Seq.BothNonEmpty(prefix', suffix');
           let (new_tm, u_gen) = new_EmptyHole(u_gen);
           make_and_typecheck_OpSeqZ(
             ctx,
@@ -936,10 +970,8 @@ let abs_perform_Construct_SOp_After_surround =
             /* prefix e| e' --> prefix e op| e' */
             ? {
               let new_seq =
-                OperatorSeq.(
-                  SeqOpExp(opseq_of_prefix_and_exp(prefix, e), op, e')
-                );
-              let k = OperatorSeq.prefix_length(prefix) + 1;
+                Seq.(SeqOpExp(t_of_prefix_and_last(prefix, e), op, e'));
+              let k = Seq.prefix_length(prefix) + 1;
               make_and_typecheck_OpSeq(
                 ctx,
                 u_gen,
@@ -951,14 +983,14 @@ let abs_perform_Construct_SOp_After_surround =
             : {
               let (new_tm, u_gen) = u_gen |> new_EmptyHole;
               let new_seq =
-                OperatorSeq.(
+                Seq.(
                   SeqOpExp(
-                    SeqOpExp(opseq_of_prefix_and_exp(prefix, e), op, new_tm),
+                    SeqOpExp(t_of_prefix_and_last(prefix, e), op, new_tm),
                     op',
                     e',
                   )
                 );
-              let k = OperatorSeq.prefix_length(prefix) + 1;
+              let k = Seq.prefix_length(prefix) + 1;
               make_and_typecheck_OpSeq(
                 ctx,
                 u_gen,
@@ -970,8 +1002,8 @@ let abs_perform_Construct_SOp_After_surround =
       is_Space(op)
         /* prefix e| op' seq' --> prefix e |_ op' seq' */
         ? {
-          let prefix' = OperatorSeq.prefix_append_exp(prefix, e, op);
-          let surround' = OperatorSeq.BothNonEmpty(prefix', suffix);
+          let prefix' = Seq.prefix_append_operand(prefix, e, op);
+          let surround' = Seq.BothNonEmpty(prefix', suffix);
           let (new_tm, u_gen) = new_EmptyHole(u_gen);
           make_and_typecheck_OpSeqZ(
             ctx,
@@ -984,10 +1016,8 @@ let abs_perform_Construct_SOp_After_surround =
             /* prefix e| seq' --> prefix e op| seq' */
             ? {
               let new_seq =
-                OperatorSeq.(
-                  seq_op_seq(opseq_of_prefix_and_exp(prefix, e), op, seq')
-                );
-              let k = OperatorSeq.prefix_length(prefix) + 1;
+                Seq.(seq_op_seq(t_of_prefix_and_last(prefix, e), op, seq'));
+              let k = Seq.prefix_length(prefix) + 1;
               make_and_typecheck_OpSeq(
                 ctx,
                 u_gen,
@@ -999,14 +1029,14 @@ let abs_perform_Construct_SOp_After_surround =
             : {
               let (new_tm, u_gen) = u_gen |> new_EmptyHole;
               let new_seq =
-                OperatorSeq.(
+                Seq.(
                   seq_op_seq(
-                    SeqOpExp(opseq_of_prefix_and_exp(prefix, e), op, new_tm),
+                    SeqOpExp(t_of_prefix_and_last(prefix, e), op, new_tm),
                     op',
                     seq',
                   )
                 );
-              let k = OperatorSeq.prefix_length(prefix) + 1;
+              let k = Seq.prefix_length(prefix) + 1;
               make_and_typecheck_OpSeq(
                 ctx,
                 u_gen,
@@ -1021,16 +1051,9 @@ let abs_perform_Construct_SOp_Before_surround =
     (
       new_EmptyHole: MetaVarGen.t => ('e, MetaVarGen.t),
       make_and_typecheck_OpSeq:
-        (
-          Contexts.t,
-          MetaVarGen.t,
-          cursor_position,
-          OperatorSeq.opseq('e, 'op)
-        ) =>
-        'm,
+        (Contexts.t, MetaVarGen.t, cursor_position, Seq.t('e, 'op)) => 'm,
       make_and_typecheck_OpSeqZ:
-        (Contexts.t, MetaVarGen.t, 'z, OperatorSeq.opseq_surround('e, 'op)) =>
-        'm,
+        (Contexts.t, MetaVarGen.t, 'z, Seq.opseq_surround('e, 'op)) => 'm,
       is_Space: 'op => bool,
       _Space: 'op,
       place_before: 'e => 'z,
@@ -1038,23 +1061,23 @@ let abs_perform_Construct_SOp_Before_surround =
       u_gen: MetaVarGen.t,
       e0: 'e,
       op: 'op,
-      surround: OperatorSeq.opseq_surround('e, 'op),
+      surround: Seq.opseq_surround('e, 'op),
     )
     : 'm =>
   switch (surround) {
   | EmptyPrefix(suffix) =>
     /* |e0 ... --> |_ op e0 ... */
-    let suffix' = OperatorSeq.suffix_prepend_exp(suffix, op, e0);
-    let surround' = OperatorSeq.EmptyPrefix(suffix');
+    let suffix' = Seq.suffix_prepend_exp(suffix, op, e0);
+    let surround' = Seq.EmptyPrefix(suffix');
     let (new_tm, u_gen) = new_EmptyHole(u_gen);
     make_and_typecheck_OpSeqZ(ctx, u_gen, place_before(new_tm), surround');
-  | EmptySuffix(ExpPrefix(e1, op') as prefix) =>
+  | EmptySuffix(OperandPrefix(e1, op') as prefix) =>
     is_Space(op')
       ? is_Space(op)
           /* e1 |e0 --> e1 |_ e0 */
           ? {
-            let suffix' = OperatorSeq.ExpSuffix(_Space, e0);
-            let surround' = OperatorSeq.BothNonEmpty(prefix, suffix');
+            let suffix' = Seq.OperandSuffix(_Space, e0);
+            let surround' = Seq.BothNonEmpty(prefix, suffix');
             let (new_tm, u_gen) = new_EmptyHole(u_gen);
             make_and_typecheck_OpSeqZ(
               ctx,
@@ -1065,14 +1088,13 @@ let abs_perform_Construct_SOp_Before_surround =
           }
           /* e1 |e0 --> e1 op| e0 */
           : {
-            let new_seq = OperatorSeq.ExpOpExp(e1, op, e0);
+            let new_seq = Seq.ExpOpExp(e1, op, e0);
             make_and_typecheck_OpSeq(ctx, u_gen, OnDelim(1, After), new_seq);
           }
       /* e1 op' |e0 --> e1 op' _ op| e0 */
       : {
         let (new_tm, u_gen) = new_EmptyHole(u_gen);
-        let new_seq =
-          OperatorSeq.(SeqOpExp(ExpOpExp(e1, op', new_tm), op, e0));
+        let new_seq = Seq.(SeqOpExp(ExpOpExp(e1, op', new_tm), op, e0));
         make_and_typecheck_OpSeq(ctx, u_gen, OnDelim(2, After), new_seq);
       }
   | EmptySuffix(SeqPrefix(seq1, op') as prefix) =>
@@ -1080,8 +1102,8 @@ let abs_perform_Construct_SOp_Before_surround =
       ? is_Space(op)
           /* seq1 |e0 --> seq1 |_ e0 */
           ? {
-            let suffix' = OperatorSeq.ExpSuffix(_Space, e0);
-            let surround' = OperatorSeq.BothNonEmpty(prefix, suffix');
+            let suffix' = Seq.OperandSuffix(_Space, e0);
+            let surround' = Seq.BothNonEmpty(prefix, suffix');
             let (new_tm, u_gen) = new_EmptyHole(u_gen);
             make_and_typecheck_OpSeqZ(
               ctx,
@@ -1092,25 +1114,24 @@ let abs_perform_Construct_SOp_Before_surround =
           }
           /* seq1 |e0 --> seq1 op| e0 */
           : {
-            let new_seq = OperatorSeq.SeqOpExp(seq1, op, e0);
-            let k = OperatorSeq.seq_length(seq1);
+            let new_seq = Seq.SeqOpExp(seq1, op, e0);
+            let k = Seq.length(seq1);
             make_and_typecheck_OpSeq(ctx, u_gen, OnDelim(k, After), new_seq);
           }
       /* seq1 op' |e0 --> seq1 op' _ op| e0 */
       : {
         let (new_tm, u_gen) = new_EmptyHole(u_gen);
-        let new_seq =
-          OperatorSeq.(SeqOpExp(SeqOpExp(seq1, op', new_tm), op, e0));
-        let k = OperatorSeq.seq_length(seq1) + 1;
+        let new_seq = Seq.(SeqOpExp(SeqOpExp(seq1, op', new_tm), op, e0));
+        let k = Seq.length(seq1) + 1;
         make_and_typecheck_OpSeq(ctx, u_gen, OnDelim(k, After), new_seq);
       }
-  | BothNonEmpty(ExpPrefix(e1, op') as prefix, suffix) =>
+  | BothNonEmpty(OperandPrefix(e1, op') as prefix, suffix) =>
     is_Space(op')
       ? is_Space(op)
           /* e1 |e0 suffix --> e1 |_ e0 suffix */
           ? {
-            let suffix' = OperatorSeq.suffix_prepend_exp(suffix, _Space, e0);
-            let surround' = OperatorSeq.BothNonEmpty(prefix, suffix');
+            let suffix' = Seq.suffix_prepend_exp(suffix, _Space, e0);
+            let surround' = Seq.BothNonEmpty(prefix, suffix');
             let (new_tm, u_gen) = new_EmptyHole(u_gen);
             make_and_typecheck_OpSeqZ(
               ctx,
@@ -1122,17 +1143,15 @@ let abs_perform_Construct_SOp_Before_surround =
           /* e1 |e0 suffix --> e1 op| e0 suffix */
           : {
             let new_seq =
-              OperatorSeq.(
-                opseq_of_seq_and_suffix(ExpOpExp(e1, op, e0), suffix)
-              );
+              Seq.(t_of_seq_and_suffix(ExpOpExp(e1, op, e0), suffix));
             make_and_typecheck_OpSeq(ctx, u_gen, OnDelim(1, After), new_seq);
           }
       /* e1 op' |e0 suffix --> e1 op' _ op| e0 suffix */
       : {
         let (new_tm, u_gen) = new_EmptyHole(u_gen);
         let new_seq =
-          OperatorSeq.(
-            opseq_of_seq_and_suffix(
+          Seq.(
+            t_of_seq_and_suffix(
               SeqOpExp(ExpOpExp(e1, op', new_tm), op, e0),
               suffix,
             )
@@ -1144,8 +1163,8 @@ let abs_perform_Construct_SOp_Before_surround =
       ? is_Space(op)
           /* seq1 |e0 suffix --> seq1 |_ e0 suffix */
           ? {
-            let suffix' = OperatorSeq.suffix_prepend_exp(suffix, _Space, e0);
-            let surround' = OperatorSeq.BothNonEmpty(prefix, suffix');
+            let suffix' = Seq.suffix_prepend_exp(suffix, _Space, e0);
+            let surround' = Seq.BothNonEmpty(prefix, suffix');
             let (new_tm, u_gen) = new_EmptyHole(u_gen);
             make_and_typecheck_OpSeqZ(
               ctx,
@@ -1157,23 +1176,21 @@ let abs_perform_Construct_SOp_Before_surround =
           /* seq1 |e0 suffix --> seq1 op| e0 suffix */
           : {
             let new_seq =
-              OperatorSeq.(
-                opseq_of_seq_and_suffix(SeqOpExp(seq1, op, e0), suffix)
-              );
-            let k = OperatorSeq.seq_length(seq1);
+              Seq.(t_of_seq_and_suffix(SeqOpExp(seq1, op, e0), suffix));
+            let k = Seq.length(seq1);
             make_and_typecheck_OpSeq(ctx, u_gen, OnDelim(k, After), new_seq);
           }
       /* seq1 op' |e0 suffix --> seq op' _ op| e0 suffix */
       : {
         let (new_tm, u_gen) = new_EmptyHole(u_gen);
         let new_seq =
-          OperatorSeq.(
-            opseq_of_seq_and_suffix(
+          Seq.(
+            t_of_seq_and_suffix(
               SeqOpExp(SeqOpExp(seq1, op', new_tm), op, e0),
               suffix,
             )
           );
-        let k = OperatorSeq.seq_length(seq1) + 1;
+        let k = Seq.length(seq1) + 1;
         make_and_typecheck_OpSeq(ctx, u_gen, OnDelim(k, After), new_seq);
       }
   };
@@ -1192,7 +1209,7 @@ let make_and_syn_OpSeqZ_pat =
    * logic specific to Z-exps) */
   let path0 = Path.of_OpSeqZ_pat(zp0, surround);
   let p0 = ZPat.erase(zp0);
-  let seq = OperatorSeq.opseq_of_exp_and_surround(p0, surround);
+  let seq = Seq.t_of_operand_and_surround(p0, surround);
   let skel = Associator.associate_pat(seq);
   let (skel, seq, ty, ctx, u_gen) =
     Statics.syn_fix_holes_pat_skel(ctx, u_gen, skel, seq);
@@ -1216,7 +1233,7 @@ let make_and_ana_OpSeqZ_pat =
    * logic specific to Z-exps) */
   let path0 = Path.of_OpSeqZ_pat(zp0, surround);
   let p0 = ZPat.erase(zp0);
-  let seq = OperatorSeq.opseq_of_exp_and_surround(p0, surround);
+  let seq = Seq.t_of_operand_and_surround(p0, surround);
   let skel = Associator.associate_pat(seq);
   let (skel, seq, ctx, u_gen) =
     Statics.ana_fix_holes_pat_skel(ctx, u_gen, skel, seq, ty);
@@ -1448,7 +1465,7 @@ let rec syn_perform_pat =
   | (Backspace, CursorP(OnDelim(k, After), OpSeq(_, seq))) =>
     /* validity check at top of switch statement ensures
      * that op between [k-1] and [k] is not Space */
-    switch (OperatorSeq.split(k - 1, seq), OperatorSeq.split(k, seq)) {
+    switch (Seq.split(k - 1, seq), Seq.split(k, seq)) {
     /* invalid cursor position */
     | (None, _)
     | (_, None) => Failed
@@ -1461,7 +1478,7 @@ let rec syn_perform_pat =
       | EmptySuffix(prefix) =>
         let zp: ZPat.t =
           switch (prefix) {
-          | ExpPrefix(p, _) => ZPat.place_after(p)
+          | OperandPrefix(p, _) => ZPat.place_after(p)
           | SeqPrefix(seq, _) =>
             let skel = Associator.associate_pat(seq);
             ZPat.place_after(OpSeq(skel, seq));
@@ -1471,10 +1488,13 @@ let rec syn_perform_pat =
       | BothNonEmpty(prefix, suffix) =>
         let (zp0: ZPat.t, surround: ZPat.opseq_surround) =
           switch (prefix) {
-          | ExpPrefix(p, _) => (ZPat.place_after(p), EmptyPrefix(suffix))
+          | OperandPrefix(p, _) => (
+              ZPat.place_after(p),
+              EmptyPrefix(suffix),
+            )
           | SeqPrefix(ExpOpExp(p1, op, p2), _) => (
               ZPat.place_after(p2),
-              BothNonEmpty(ExpPrefix(p1, op), suffix),
+              BothNonEmpty(OperandPrefix(p1, op), suffix),
             )
           | SeqPrefix(SeqOpExp(seq, op, p), _) => (
               ZPat.place_after(p),
@@ -1483,7 +1503,7 @@ let rec syn_perform_pat =
           };
         let skel =
           Associator.associate_pat(
-            OperatorSeq.opseq_of_exp_and_surround(ZPat.erase(zp0), surround),
+            Seq.t_of_operand_and_surround(ZPat.erase(zp0), surround),
           );
         let zp = ZPat.OpSeqZ(skel, zp0, surround);
         Succeeded(Statics.syn_fix_holes_zpat(ctx, u_gen, zp));
@@ -1497,7 +1517,7 @@ let rec syn_perform_pat =
       | EmptyPrefix(suffix) =>
         let zp: ZPat.t =
           switch (suffix) {
-          | ExpSuffix(_, p) => ZPat.place_before(p)
+          | OperandSuffix(_, p) => ZPat.place_before(p)
           | SeqSuffix(_, seq) =>
             let skel = Associator.associate_pat(seq);
             ZPat.place_before(OpSeq(skel, seq));
@@ -1507,9 +1527,8 @@ let rec syn_perform_pat =
       | BothNonEmpty(prefix, suffix) =>
         let seq =
           switch (suffix) {
-          | ExpSuffix(_, p) => OperatorSeq.opseq_of_prefix_and_exp(prefix, p)
-          | SeqSuffix(_, seq) =>
-            OperatorSeq.opseq_of_prefix_and_seq(prefix, seq)
+          | OperandSuffix(_, p) => Seq.t_of_prefix_and_last(prefix, p)
+          | SeqSuffix(_, seq) => Seq.t_of_prefix_and_seq(prefix, seq)
           };
         let skel = Associator.associate_pat(seq);
         let zp = ZPat.CursorP(OnDelim(k - 1, After), OpSeq(skel, seq));
@@ -1517,7 +1536,7 @@ let rec syn_perform_pat =
       }
     /* ... + [k-1] +<| [k] + ...   ==>   ... + [k-1]| [k] + ... */
     | (Some((p0, surround)), _) =>
-      switch (OperatorSeq.replace_following_op(surround, UHPat.Space)) {
+      switch (Seq.replace_following_op(surround, UHPat.Space)) {
       | None => Failed /* invalid */
       | Some(surround) =>
         Succeeded(
@@ -1537,8 +1556,8 @@ let rec syn_perform_pat =
         _,
         CursorP(_, EmptyHole(_)) as zp0,
         (
-          EmptySuffix(ExpPrefix(_, Space) | SeqPrefix(_, Space)) |
-          BothNonEmpty(ExpPrefix(_, Space) | SeqPrefix(_, Space), _)
+          EmptySuffix(OperandPrefix(_, Space) | SeqPrefix(_, Space)) |
+          BothNonEmpty(OperandPrefix(_, Space) | SeqPrefix(_, Space), _)
         ) as surround,
       ),
     )
@@ -1548,7 +1567,7 @@ let rec syn_perform_pat =
     | EmptySuffix(prefix) =>
       let p: UHPat.t =
         switch (prefix) {
-        | ExpPrefix(p1, _space) => p1
+        | OperandPrefix(p1, _space) => p1
         | SeqPrefix(seq, _space) =>
           let skel = Associator.associate_pat(seq);
           OpSeq(skel, seq);
@@ -1558,26 +1577,26 @@ let rec syn_perform_pat =
       );
     | BothNonEmpty(prefix, suffix) =>
       switch (prefix) {
-      | ExpPrefix(p1, _space) =>
+      | OperandPrefix(p1, _space) =>
         let zp1 = ZPat.place_after(p1);
-        let surround = OperatorSeq.EmptyPrefix(suffix);
+        let surround = Seq.EmptyPrefix(suffix);
         let skel =
           Associator.associate_pat(
-            OperatorSeq.opseq_of_exp_and_surround(p1, surround),
+            Seq.t_of_operand_and_surround(p1, surround),
           );
         let zp = ZPat.OpSeqZ(skel, zp1, surround);
         Succeeded(Statics.syn_fix_holes_zpat(ctx, u_gen, zp));
       | SeqPrefix(seq, _space) =>
-        let (prefix: ZPat.opseq_prefix, p0) =
+        let (prefix: ZPat.prefix, p0) =
           switch (seq) {
-          | ExpOpExp(p1, op, p2) => (ExpPrefix(p1, op), p2)
+          | ExpOpExp(p1, op, p2) => (OperandPrefix(p1, op), p2)
           | SeqOpExp(seq, op, p1) => (SeqPrefix(seq, op), p1)
           };
         let zp0 = ZPat.place_after(p0);
-        let surround = OperatorSeq.BothNonEmpty(prefix, suffix);
+        let surround = Seq.BothNonEmpty(prefix, suffix);
         let skel =
           Associator.associate_pat(
-            OperatorSeq.opseq_of_exp_and_surround(p0, surround),
+            Seq.t_of_operand_and_surround(p0, surround),
           );
         let zp = ZPat.OpSeqZ(skel, zp0, surround);
         Succeeded(Statics.syn_fix_holes_zpat(ctx, u_gen, zp));
@@ -1590,8 +1609,8 @@ let rec syn_perform_pat =
         _,
         CursorP(_, EmptyHole(_)) as zp0,
         (
-          EmptyPrefix(ExpSuffix(Space, _) | SeqSuffix(Space, _)) |
-          BothNonEmpty(_, ExpSuffix(Space, _) | SeqSuffix(Space, _))
+          EmptyPrefix(OperandSuffix(Space, _) | SeqSuffix(Space, _)) |
+          BothNonEmpty(_, OperandSuffix(Space, _) | SeqSuffix(Space, _))
         ) as surround,
       ),
     )
@@ -1601,7 +1620,7 @@ let rec syn_perform_pat =
     | EmptyPrefix(suffix) =>
       let p: UHPat.t =
         switch (suffix) {
-        | ExpSuffix(_space, p1) => p1
+        | OperandSuffix(_space, p1) => p1
         | SeqSuffix(_space, seq) =>
           let skel = Associator.associate_pat(seq);
           OpSeq(skel, seq);
@@ -1611,26 +1630,26 @@ let rec syn_perform_pat =
       );
     | BothNonEmpty(prefix, suffix) =>
       switch (suffix) {
-      | ExpSuffix(_space, p1) =>
+      | OperandSuffix(_space, p1) =>
         let zp1 = ZPat.place_before(p1);
-        let surround = OperatorSeq.EmptyPrefix(suffix);
+        let surround = Seq.EmptyPrefix(suffix);
         let skel =
           Associator.associate_pat(
-            OperatorSeq.opseq_of_exp_and_surround(p1, surround),
+            Seq.t_of_operand_and_surround(p1, surround),
           );
         let zp = ZPat.OpSeqZ(skel, zp1, surround);
         Succeeded(Statics.syn_fix_holes_zpat(ctx, u_gen, zp));
       | SeqSuffix(_space, seq) =>
-        let (p0, suffix: ZPat.opseq_suffix) =
+        let (p0, suffix: ZPat.suffix) =
           switch (seq) {
-          | ExpOpExp(p1, op, p2) => (p1, ExpSuffix(op, p2))
+          | ExpOpExp(p1, op, p2) => (p1, OperandSuffix(op, p2))
           | SeqOpExp(seq, op, p1) => (p1, SeqSuffix(op, seq))
           };
         let zp0 = ZPat.place_before(p0);
-        let surround = OperatorSeq.BothNonEmpty(prefix, suffix);
+        let surround = Seq.BothNonEmpty(prefix, suffix);
         let skel =
           Associator.associate_pat(
-            OperatorSeq.opseq_of_exp_and_surround(p0, surround),
+            Seq.t_of_operand_and_surround(p0, surround),
           );
         let zp = ZPat.OpSeqZ(skel, zp0, surround);
         Succeeded(Statics.syn_fix_holes_zpat(ctx, u_gen, zp));
@@ -1860,7 +1879,7 @@ let rec syn_perform_pat =
       Succeeded((zp, ty, ctx, u_gen));
     }
   | (_, OpSeqZ(_, zp0, surround)) =>
-    let i = OperatorSeq.surround_prefix_length(surround);
+    let i = Seq.surround_prefix_length(surround);
     switch (ZPat.erase(zp)) {
     | OpSeq(skel, seq) =>
       switch (Statics.syn_skel_pat(ctx, skel, seq, Some(i))) {
@@ -2124,7 +2143,7 @@ and ana_perform_pat =
   | (Backspace, CursorP(OnDelim(k, After), OpSeq(_, seq))) =>
     /* validity check at top of switch statement ensures
      * that op between [k-1] and [k] is not Space */
-    switch (OperatorSeq.split(k - 1, seq), OperatorSeq.split(k, seq)) {
+    switch (Seq.split(k - 1, seq), Seq.split(k, seq)) {
     /* invalid cursor position */
     | (None, _)
     | (_, None) => Failed
@@ -2137,7 +2156,7 @@ and ana_perform_pat =
       | EmptySuffix(prefix) =>
         let zp: ZPat.t =
           switch (prefix) {
-          | ExpPrefix(p, _) => ZPat.place_after(p)
+          | OperandPrefix(p, _) => ZPat.place_after(p)
           | SeqPrefix(seq, _) =>
             let skel = Associator.associate_pat(seq);
             ZPat.place_after(OpSeq(skel, seq));
@@ -2147,10 +2166,13 @@ and ana_perform_pat =
       | BothNonEmpty(prefix, suffix) =>
         let (zp0: ZPat.t, surround: ZPat.opseq_surround) =
           switch (prefix) {
-          | ExpPrefix(p, _) => (ZPat.place_after(p), EmptyPrefix(suffix))
+          | OperandPrefix(p, _) => (
+              ZPat.place_after(p),
+              EmptyPrefix(suffix),
+            )
           | SeqPrefix(ExpOpExp(p1, op, p2), _) => (
               ZPat.place_after(p2),
-              BothNonEmpty(ExpPrefix(p1, op), suffix),
+              BothNonEmpty(OperandPrefix(p1, op), suffix),
             )
           | SeqPrefix(SeqOpExp(seq, op, p), _) => (
               ZPat.place_after(p),
@@ -2159,7 +2181,7 @@ and ana_perform_pat =
           };
         let skel =
           Associator.associate_pat(
-            OperatorSeq.opseq_of_exp_and_surround(ZPat.erase(zp0), surround),
+            Seq.t_of_operand_and_surround(ZPat.erase(zp0), surround),
           );
         let zp = ZPat.OpSeqZ(skel, zp0, surround);
         Succeeded(Statics.ana_fix_holes_zpat(ctx, u_gen, zp, ty));
@@ -2173,7 +2195,7 @@ and ana_perform_pat =
       | EmptyPrefix(suffix) =>
         let zp: ZPat.t =
           switch (suffix) {
-          | ExpSuffix(_, p) => ZPat.place_before(p)
+          | OperandSuffix(_, p) => ZPat.place_before(p)
           | SeqSuffix(_, seq) =>
             let skel = Associator.associate_pat(seq);
             ZPat.place_before(OpSeq(skel, seq));
@@ -2183,9 +2205,8 @@ and ana_perform_pat =
       | BothNonEmpty(prefix, suffix) =>
         let seq =
           switch (suffix) {
-          | ExpSuffix(_, p) => OperatorSeq.opseq_of_prefix_and_exp(prefix, p)
-          | SeqSuffix(_, seq) =>
-            OperatorSeq.opseq_of_prefix_and_seq(prefix, seq)
+          | OperandSuffix(_, p) => Seq.t_of_prefix_and_last(prefix, p)
+          | SeqSuffix(_, seq) => Seq.t_of_prefix_and_seq(prefix, seq)
           };
         let skel = Associator.associate_pat(seq);
         let zp = ZPat.CursorP(OnDelim(k - 1, After), OpSeq(skel, seq));
@@ -2193,7 +2214,7 @@ and ana_perform_pat =
       }
     /* ... + [k-1] +<| [k] + ...   ==>   ... + [k-1]| [k] + ... */
     | (Some((p0, surround)), _) =>
-      switch (OperatorSeq.replace_following_op(surround, UHPat.Space)) {
+      switch (Seq.replace_following_op(surround, UHPat.Space)) {
       | None => Failed /* invalid */
       | Some(surround) =>
         Succeeded(
@@ -2214,8 +2235,8 @@ and ana_perform_pat =
         _,
         CursorP(_, EmptyHole(_)) as zp0,
         (
-          EmptySuffix(ExpPrefix(_, Space) | SeqPrefix(_, Space)) |
-          BothNonEmpty(ExpPrefix(_, Space) | SeqPrefix(_, Space), _)
+          EmptySuffix(OperandPrefix(_, Space) | SeqPrefix(_, Space)) |
+          BothNonEmpty(OperandPrefix(_, Space) | SeqPrefix(_, Space), _)
         ) as surround,
       ),
     )
@@ -2225,7 +2246,7 @@ and ana_perform_pat =
     | EmptySuffix(prefix) =>
       let p: UHPat.t =
         switch (prefix) {
-        | ExpPrefix(p1, _space) => p1
+        | OperandPrefix(p1, _space) => p1
         | SeqPrefix(seq, _space) =>
           let skel = Associator.associate_pat(seq);
           OpSeq(skel, seq);
@@ -2235,26 +2256,26 @@ and ana_perform_pat =
       );
     | BothNonEmpty(prefix, suffix) =>
       switch (prefix) {
-      | ExpPrefix(p1, _space) =>
+      | OperandPrefix(p1, _space) =>
         let zp1 = ZPat.place_after(p1);
-        let surround = OperatorSeq.EmptyPrefix(suffix);
+        let surround = Seq.EmptyPrefix(suffix);
         let skel =
           Associator.associate_pat(
-            OperatorSeq.opseq_of_exp_and_surround(p1, surround),
+            Seq.t_of_operand_and_surround(p1, surround),
           );
         let zp = ZPat.OpSeqZ(skel, zp1, surround);
         Succeeded(Statics.ana_fix_holes_zpat(ctx, u_gen, zp, ty));
       | SeqPrefix(seq, _space) =>
-        let (prefix: ZPat.opseq_prefix, p0) =
+        let (prefix: ZPat.prefix, p0) =
           switch (seq) {
-          | ExpOpExp(p1, op, p2) => (ExpPrefix(p1, op), p2)
+          | ExpOpExp(p1, op, p2) => (OperandPrefix(p1, op), p2)
           | SeqOpExp(seq, op, p1) => (SeqPrefix(seq, op), p1)
           };
         let zp0 = ZPat.place_after(p0);
-        let surround = OperatorSeq.BothNonEmpty(prefix, suffix);
+        let surround = Seq.BothNonEmpty(prefix, suffix);
         let skel =
           Associator.associate_pat(
-            OperatorSeq.opseq_of_exp_and_surround(p0, surround),
+            Seq.t_of_operand_and_surround(p0, surround),
           );
         let zp = ZPat.OpSeqZ(skel, zp0, surround);
         Succeeded(Statics.ana_fix_holes_zpat(ctx, u_gen, zp, ty));
@@ -2267,8 +2288,8 @@ and ana_perform_pat =
         _,
         CursorP(_, EmptyHole(_)) as zp0,
         (
-          EmptyPrefix(ExpSuffix(Space, _) | SeqSuffix(Space, _)) |
-          BothNonEmpty(_, ExpSuffix(Space, _) | SeqSuffix(Space, _))
+          EmptyPrefix(OperandSuffix(Space, _) | SeqSuffix(Space, _)) |
+          BothNonEmpty(_, OperandSuffix(Space, _) | SeqSuffix(Space, _))
         ) as surround,
       ),
     )
@@ -2278,7 +2299,7 @@ and ana_perform_pat =
     | EmptyPrefix(suffix) =>
       let p: UHPat.t =
         switch (suffix) {
-        | ExpSuffix(_space, p1) => p1
+        | OperandSuffix(_space, p1) => p1
         | SeqSuffix(_space, seq) =>
           let skel = Associator.associate_pat(seq);
           OpSeq(skel, seq);
@@ -2288,26 +2309,26 @@ and ana_perform_pat =
       );
     | BothNonEmpty(prefix, suffix) =>
       switch (suffix) {
-      | ExpSuffix(_space, p1) =>
+      | OperandSuffix(_space, p1) =>
         let zp1 = ZPat.place_before(p1);
-        let surround = OperatorSeq.EmptyPrefix(suffix);
+        let surround = Seq.EmptyPrefix(suffix);
         let skel =
           Associator.associate_pat(
-            OperatorSeq.opseq_of_exp_and_surround(p1, surround),
+            Seq.t_of_operand_and_surround(p1, surround),
           );
         let zp = ZPat.OpSeqZ(skel, zp1, surround);
         Succeeded(Statics.ana_fix_holes_zpat(ctx, u_gen, zp, ty));
       | SeqSuffix(_space, seq) =>
-        let (p0, suffix: ZPat.opseq_suffix) =
+        let (p0, suffix: ZPat.suffix) =
           switch (seq) {
-          | ExpOpExp(p1, op, p2) => (p1, ExpSuffix(op, p2))
+          | ExpOpExp(p1, op, p2) => (p1, OperandSuffix(op, p2))
           | SeqOpExp(seq, op, p1) => (p1, SeqSuffix(op, seq))
           };
         let zp0 = ZPat.place_before(p0);
-        let surround = OperatorSeq.BothNonEmpty(prefix, suffix);
+        let surround = Seq.BothNonEmpty(prefix, suffix);
         let skel =
           Associator.associate_pat(
-            OperatorSeq.opseq_of_exp_and_surround(p0, surround),
+            Seq.t_of_operand_and_surround(p0, surround),
           );
         let zp = ZPat.OpSeqZ(skel, zp0, surround);
         Succeeded(Statics.ana_fix_holes_zpat(ctx, u_gen, zp, ty));
@@ -2534,7 +2555,7 @@ and ana_perform_pat =
       };
     }
   | (_, OpSeqZ(_, zp0, surround)) =>
-    let i = OperatorSeq.surround_prefix_length(surround);
+    let i = Seq.surround_prefix_length(surround);
     switch (ZPat.erase(zp)) {
     | OpSeq(skel, seq) =>
       switch (Statics.ana_skel_pat(ctx, skel, seq, ty, Some(i))) {
@@ -2614,7 +2635,7 @@ let make_and_syn_OpSeqZ =
    * logic specific to Z-exps) */
   let path0 = Path.of_OpSeqZ(ze0, surround);
   let e0 = ZExp.erase(ze0);
-  let seq = OperatorSeq.opseq_of_exp_and_surround(e0, surround);
+  let seq = Seq.t_of_operand_and_surround(e0, surround);
   let skel = Associator.associate_exp(seq);
   let (skel, seq, ty, u_gen) =
     Statics.syn_fix_holes_exp_skel(ctx, u_gen, skel, seq);
@@ -2638,11 +2659,10 @@ let make_and_ana_OpSeqZ =
    * logic specific to Z-exps) */
   let path0 = Path.of_OpSeqZ(ze0, surround);
   let e0 = ZExp.erase(ze0);
-  let seq = OperatorSeq.opseq_of_exp_and_surround(e0, surround);
+  let seq = Seq.t_of_operand_and_surround(e0, surround);
   let skel = Associator.associate_exp(seq);
   switch (Statics.ana_fix_holes_exp_skel(ctx, u_gen, skel, seq, ty)) {
-  | (Placeholder(_), _, _) =>
-    raise(UHExp.SkelInconsistentWithOpSeq(skel, seq))
+  | (Placeholder(_), _, _) => raise(UHExp.InconsistentOpSeq(skel, seq))
   | (BinOp(_, _, _, _) as skel, seq, u_gen) =>
     let e = UHExp.OpSeq(skel, seq);
     let ze = Path.follow_e_or_fail(path0, e);
@@ -2701,21 +2721,18 @@ let combine_for_Delete_Space = (ze0: ZExp.t, e: UHExp.t): ZExp.t =>
  * new expression.
  */
 let keyword_suffix_to_exp =
-    (
-      suffix: OperatorSeq.opseq_suffix(UHExp.t, UHExp.op),
-      u_gen: MetaVarGen.t,
-    )
+    (suffix: Seq.suffix(UHExp.t, UHExp.op), u_gen: MetaVarGen.t)
     : (UHExp.t, MetaVarGen.t) =>
   switch (suffix) {
-  | ExpSuffix(Space, e) => (e, u_gen)
+  | OperandSuffix(Space, e) => (e, u_gen)
   | SeqSuffix(Space, seq) => (
       OpSeq(Associator.associate_exp(seq), seq),
       u_gen,
     )
-  | ExpSuffix(_, _)
+  | OperandSuffix(_, _)
   | SeqSuffix(_, _) =>
     let (hole, u_gen) = UHExp.new_EmptyHole(u_gen);
-    let opseq = OperatorSeq.opseq_of_exp_and_suffix(hole, suffix);
+    let opseq = Seq.t_of_first_and_suffix(hole, suffix);
     let skel = Associator.associate_exp(opseq);
     (OpSeq(skel, opseq), u_gen);
   };
@@ -3348,7 +3365,7 @@ let rec syn_perform_block =
             OpSeqZ(
               _,
               CursorE(_, Var(_, InVarHole(Keyword(k), _), _)) as ze0,
-              EmptyPrefix(opseq_suffix),
+              EmptyPrefix(suffix),
             ),
           ),
           suffix,
@@ -3357,7 +3374,7 @@ let rec syn_perform_block =
       ),
     )
       when ZExp.is_after_exp(ze0) =>
-    let (e, u_gen) = keyword_suffix_to_exp(opseq_suffix, u_gen);
+    let (e, u_gen) = keyword_suffix_to_exp(suffix, u_gen);
     let ze = ZExp.place_before_exp(e);
     let zlines = (prefix, ZExp.ExpLineZ(ze), suffix);
     let zblock = ZExp.BlockZL(zlines, e2);
@@ -3625,14 +3642,14 @@ and syn_perform_lines =
           OpSeqZ(
             _,
             CursorE(_, Var(_, InVarHole(Keyword(k), _), _)) as ze0,
-            EmptyPrefix(opseq_suffix),
+            EmptyPrefix(suffix),
           ),
         ),
         suffix,
       ),
     )
       when ZExp.is_after_exp(ze0) =>
-    let (e, u_gen) = keyword_suffix_to_exp(opseq_suffix, u_gen);
+    let (e, u_gen) = keyword_suffix_to_exp(suffix, u_gen);
     let ze = ZExp.place_before_exp(e);
     let zlines = (prefix, ZExp.ExpLineZ(ze), suffix);
     syn_perform_lines(~ci, ctx, keyword_action(k), (zlines, u_gen));
@@ -4253,7 +4270,7 @@ and syn_perform_exp =
   | (Backspace, CursorE(OnDelim(k, After), OpSeq(_, seq))) =>
     /* validity check at top of switch statement ensures
      * that op between [k-1] and [k] is not Space */
-    switch (OperatorSeq.split(k - 1, seq), OperatorSeq.split(k, seq)) {
+    switch (Seq.split(k - 1, seq), Seq.split(k, seq)) {
     /* invalid cursor position */
     | (None, _)
     | (_, None) => Failed
@@ -4266,7 +4283,7 @@ and syn_perform_exp =
       | EmptySuffix(prefix) =>
         let ze: ZExp.t =
           switch (prefix) {
-          | ExpPrefix(e, _) => ZExp.place_after_exp(e)
+          | OperandPrefix(e, _) => ZExp.place_after_exp(e)
           | SeqPrefix(seq, _) =>
             let skel = Associator.associate_exp(seq);
             ZExp.place_after_exp(OpSeq(skel, seq));
@@ -4277,13 +4294,13 @@ and syn_perform_exp =
       | BothNonEmpty(prefix, suffix) =>
         let (ze0: ZExp.t, surround: ZExp.opseq_surround) =
           switch (prefix) {
-          | ExpPrefix(e, _) => (
+          | OperandPrefix(e, _) => (
               ZExp.place_after_exp(e),
               EmptyPrefix(suffix),
             )
           | SeqPrefix(ExpOpExp(e1, op, e2), _) => (
               ZExp.place_after_exp(e2),
-              BothNonEmpty(ExpPrefix(e1, op), suffix),
+              BothNonEmpty(OperandPrefix(e1, op), suffix),
             )
           | SeqPrefix(SeqOpExp(seq, op, e), _) => (
               ZExp.place_after_exp(e),
@@ -4292,7 +4309,7 @@ and syn_perform_exp =
           };
         let skel =
           Associator.associate_exp(
-            OperatorSeq.opseq_of_exp_and_surround(ZExp.erase(ze0), surround),
+            Seq.t_of_operand_and_surround(ZExp.erase(ze0), surround),
           );
         let ze = ZExp.OpSeqZ(skel, ze0, surround);
         let (ze, ty, u_gen) = Statics.syn_fix_holes_zexp(ctx, u_gen, ze);
@@ -4307,7 +4324,7 @@ and syn_perform_exp =
       | EmptyPrefix(suffix) =>
         let ze: ZExp.t =
           switch (suffix) {
-          | ExpSuffix(_, e) => ZExp.place_before_exp(e)
+          | OperandSuffix(_, e) => ZExp.place_before_exp(e)
           | SeqSuffix(_, seq) =>
             let skel = Associator.associate_exp(seq);
             ZExp.place_before_exp(OpSeq(skel, seq));
@@ -4318,9 +4335,8 @@ and syn_perform_exp =
       | BothNonEmpty(prefix, suffix) =>
         let seq =
           switch (suffix) {
-          | ExpSuffix(_, e) => OperatorSeq.opseq_of_prefix_and_exp(prefix, e)
-          | SeqSuffix(_, seq) =>
-            OperatorSeq.opseq_of_prefix_and_seq(prefix, seq)
+          | OperandSuffix(_, e) => Seq.t_of_prefix_and_last(prefix, e)
+          | SeqSuffix(_, seq) => Seq.t_of_prefix_and_seq(prefix, seq)
           };
         let skel = Associator.associate_exp(seq);
         let ze = ZExp.CursorE(OnDelim(k - 1, After), OpSeq(skel, seq));
@@ -4329,7 +4345,7 @@ and syn_perform_exp =
       }
     /* ... + [k-1] +<| [k] + ...   ==>   ... + [k-1]| [k] + ... */
     | (Some((e0, surround)), _) =>
-      switch (OperatorSeq.replace_following_op(surround, UHExp.Space)) {
+      switch (Seq.replace_following_op(surround, UHExp.Space)) {
       | None => Failed /* invalid */
       | Some(surround) =>
         let (ze, ty, u_gen) =
@@ -4349,8 +4365,8 @@ and syn_perform_exp =
         _,
         CursorE(_, EmptyHole(_)) as ze0,
         (
-          EmptySuffix(ExpPrefix(_, Space) | SeqPrefix(_, Space)) |
-          BothNonEmpty(ExpPrefix(_, Space) | SeqPrefix(_, Space), _)
+          EmptySuffix(OperandPrefix(_, Space) | SeqPrefix(_, Space)) |
+          BothNonEmpty(OperandPrefix(_, Space) | SeqPrefix(_, Space), _)
         ) as surround,
       ),
     )
@@ -4360,7 +4376,7 @@ and syn_perform_exp =
     | EmptySuffix(prefix) =>
       let e: UHExp.t =
         switch (prefix) {
-        | ExpPrefix(e1, _space) => e1
+        | OperandPrefix(e1, _space) => e1
         | SeqPrefix(seq, _space) =>
           let skel = Associator.associate_exp(seq);
           OpSeq(skel, seq);
@@ -4370,22 +4386,22 @@ and syn_perform_exp =
       Succeeded((E(ze), ty, u_gen));
     | BothNonEmpty(prefix, suffix) =>
       switch (prefix) {
-      | ExpPrefix(e1, _space) =>
+      | OperandPrefix(e1, _space) =>
         let ze1 = ZExp.place_after_exp(e1);
-        let seq = OperatorSeq.opseq_of_exp_and_suffix(e1, suffix);
+        let seq = Seq.t_of_first_and_suffix(e1, suffix);
         let skel = Associator.associate_exp(seq);
         let ze = ZExp.OpSeqZ(skel, ze1, EmptyPrefix(suffix));
         let (ze, ty, u_gen) = Statics.syn_fix_holes_zexp(ctx, u_gen, ze);
         Succeeded((E(ze), ty, u_gen));
       | SeqPrefix(seq, _space) =>
-        let (prefix: ZExp.opseq_prefix, e0) =
+        let (prefix: ZExp.prefix, e0) =
           switch (seq) {
-          | ExpOpExp(e1, op, e2) => (ExpPrefix(e1, op), e2)
+          | ExpOpExp(e1, op, e2) => (OperandPrefix(e1, op), e2)
           | SeqOpExp(seq, op, e1) => (SeqPrefix(seq, op), e1)
           };
         let ze0 = ZExp.place_after_exp(e0);
-        let surround = OperatorSeq.BothNonEmpty(prefix, suffix);
-        let seq = OperatorSeq.opseq_of_exp_and_surround(e0, surround);
+        let surround = Seq.BothNonEmpty(prefix, suffix);
+        let seq = Seq.t_of_operand_and_surround(e0, surround);
         let skel = Associator.associate_exp(seq);
         let ze = ZExp.OpSeqZ(skel, ze0, surround);
         let (ze, ty, u_gen) = Statics.syn_fix_holes_zexp(ctx, u_gen, ze);
@@ -4399,8 +4415,8 @@ and syn_perform_exp =
         _,
         CursorE(_, EmptyHole(_)) as ze0,
         (
-          EmptyPrefix(ExpSuffix(Space, _) | SeqSuffix(Space, _)) |
-          BothNonEmpty(_, ExpSuffix(Space, _) | SeqSuffix(Space, _))
+          EmptyPrefix(OperandSuffix(Space, _) | SeqSuffix(Space, _)) |
+          BothNonEmpty(_, OperandSuffix(Space, _) | SeqSuffix(Space, _))
         ) as surround,
       ),
     )
@@ -4410,7 +4426,7 @@ and syn_perform_exp =
     | EmptyPrefix(suffix) =>
       let e =
         switch (suffix) {
-        | ExpSuffix(_space, e1) => e1
+        | OperandSuffix(_space, e1) => e1
         | SeqSuffix(_space, seq) =>
           let skel = Associator.associate_exp(seq);
           OpSeq(skel, seq);
@@ -4420,22 +4436,22 @@ and syn_perform_exp =
       Succeeded((E(ze), ty, u_gen));
     | BothNonEmpty(prefix, suffix) =>
       switch (suffix) {
-      | ExpSuffix(_space, e1) =>
+      | OperandSuffix(_space, e1) =>
         let ze1 = ZExp.place_before_exp(e1);
-        let seq = OperatorSeq.opseq_of_prefix_and_exp(prefix, e1);
+        let seq = Seq.t_of_prefix_and_last(prefix, e1);
         let skel = Associator.associate_exp(seq);
         let ze = ZExp.OpSeqZ(skel, ze1, EmptySuffix(prefix));
         let (ze, ty, u_gen) = Statics.syn_fix_holes_zexp(ctx, u_gen, ze);
         Succeeded((E(ze), ty, u_gen));
       | SeqSuffix(_space, seq) =>
-        let (e0, suffix: ZExp.opseq_suffix) =
+        let (e0, suffix: ZExp.suffix) =
           switch (seq) {
-          | ExpOpExp(e1, op, e2) => (e1, ExpSuffix(op, e2))
+          | ExpOpExp(e1, op, e2) => (e1, OperandSuffix(op, e2))
           | SeqOpExp(seq, op, e1) => (e1, SeqSuffix(op, seq))
           };
         let ze0 = ZExp.place_before_exp(e0);
-        let surround = OperatorSeq.BothNonEmpty(prefix, suffix);
-        let seq = OperatorSeq.opseq_of_exp_and_surround(e0, surround);
+        let surround = Seq.BothNonEmpty(prefix, suffix);
+        let seq = Seq.t_of_operand_and_surround(e0, surround);
         let skel = Associator.associate_exp(seq);
         let ze = ZExp.OpSeqZ(skel, ze0, surround);
         let (ze, ty, u_gen) = Statics.syn_fix_holes_zexp(ctx, u_gen, ze);
@@ -4899,7 +4915,7 @@ and syn_perform_exp =
     | _ => Failed /* should never happen */
     }
   | (_, OpSeqZ(_, ze0, surround)) =>
-    let i = OperatorSeq.surround_prefix_length(surround);
+    let i = Seq.surround_prefix_length(surround);
     switch (ZExp.erase(ze)) {
     | OpSeq(skel, seq) =>
       switch (Statics.syn_skel(ctx, skel, seq, Some(i))) {
@@ -5703,7 +5719,7 @@ and ana_perform_block =
             OpSeqZ(
               _,
               CursorE(_, Var(_, InVarHole(Keyword(k), _), _)) as ze0,
-              EmptyPrefix(opseq_suffix),
+              EmptyPrefix(suffix),
             ),
           ),
           suffix,
@@ -5712,7 +5728,7 @@ and ana_perform_block =
       ),
     )
       when ZExp.is_after_exp(ze0) =>
-    let (e, u_gen) = keyword_suffix_to_exp(opseq_suffix, u_gen);
+    let (e, u_gen) = keyword_suffix_to_exp(suffix, u_gen);
     let ze = ZExp.place_before_exp(e);
     let zlines = (prefix, ZExp.ExpLineZ(ze), suffix);
     let zblock = ZExp.BlockZL(zlines, e2);
@@ -6178,7 +6194,7 @@ and ana_perform_exp =
   | (Backspace, CursorE(OnDelim(k, After), OpSeq(_, seq))) =>
     /* validity check at top of switch statement ensures
      * that op between [k-1] and [k] is not Space */
-    switch (OperatorSeq.split(k - 1, seq), OperatorSeq.split(k, seq)) {
+    switch (Seq.split(k - 1, seq), Seq.split(k, seq)) {
     /* invalid cursor position */
     | (None, _)
     | (_, None) => Failed
@@ -6191,7 +6207,7 @@ and ana_perform_exp =
       | EmptySuffix(prefix) =>
         let ze: ZExp.t =
           switch (prefix) {
-          | ExpPrefix(e, _) => ZExp.place_after_exp(e)
+          | OperandPrefix(e, _) => ZExp.place_after_exp(e)
           | SeqPrefix(seq, _) =>
             let skel = Associator.associate_exp(seq);
             ZExp.place_after_exp(OpSeq(skel, seq));
@@ -6202,13 +6218,13 @@ and ana_perform_exp =
       | BothNonEmpty(prefix, suffix) =>
         let (ze0: ZExp.t, surround: ZExp.opseq_surround) =
           switch (prefix) {
-          | ExpPrefix(e, _) => (
+          | OperandPrefix(e, _) => (
               ZExp.place_after_exp(e),
               EmptyPrefix(suffix),
             )
           | SeqPrefix(ExpOpExp(e1, op, e2), _) => (
               ZExp.place_after_exp(e2),
-              BothNonEmpty(ExpPrefix(e1, op), suffix),
+              BothNonEmpty(OperandPrefix(e1, op), suffix),
             )
           | SeqPrefix(SeqOpExp(seq, op, e), _) => (
               ZExp.place_after_exp(e),
@@ -6217,7 +6233,7 @@ and ana_perform_exp =
           };
         let skel =
           Associator.associate_exp(
-            OperatorSeq.opseq_of_exp_and_surround(ZExp.erase(ze0), surround),
+            Seq.t_of_operand_and_surround(ZExp.erase(ze0), surround),
           );
         let ze = ZExp.OpSeqZ(skel, ze0, surround);
         let (ze, u_gen) = Statics.ana_fix_holes_zexp(ctx, u_gen, ze, ty);
@@ -6232,7 +6248,7 @@ and ana_perform_exp =
       | EmptyPrefix(suffix) =>
         let ze: ZExp.t =
           switch (suffix) {
-          | ExpSuffix(_, e) => ZExp.place_before_exp(e)
+          | OperandSuffix(_, e) => ZExp.place_before_exp(e)
           | SeqSuffix(_, seq) =>
             let skel = Associator.associate_exp(seq);
             ZExp.place_before_exp(OpSeq(skel, seq));
@@ -6243,9 +6259,8 @@ and ana_perform_exp =
       | BothNonEmpty(prefix, suffix) =>
         let seq =
           switch (suffix) {
-          | ExpSuffix(_, e) => OperatorSeq.opseq_of_prefix_and_exp(prefix, e)
-          | SeqSuffix(_, seq) =>
-            OperatorSeq.opseq_of_prefix_and_seq(prefix, seq)
+          | OperandSuffix(_, e) => Seq.t_of_prefix_and_last(prefix, e)
+          | SeqSuffix(_, seq) => Seq.t_of_prefix_and_seq(prefix, seq)
           };
         let skel = Associator.associate_exp(seq);
         let ze = ZExp.CursorE(OnDelim(k - 1, After), OpSeq(skel, seq));
@@ -6254,7 +6269,7 @@ and ana_perform_exp =
       }
     /* ... + [k-1] +<| [k] + ...   ==>   ... + [k-1]| [k] + ... */
     | (Some((e0, surround)), _) =>
-      switch (OperatorSeq.replace_following_op(surround, UHExp.Space)) {
+      switch (Seq.replace_following_op(surround, UHExp.Space)) {
       | None => Failed /* invalid */
       | Some(surround) =>
         let (ze, u_gen) =
@@ -6275,8 +6290,8 @@ and ana_perform_exp =
         _,
         CursorE(_, EmptyHole(_)) as ze0,
         (
-          EmptySuffix(ExpPrefix(_, Space) | SeqPrefix(_, Space)) |
-          BothNonEmpty(ExpPrefix(_, Space) | SeqPrefix(_, Space), _)
+          EmptySuffix(OperandPrefix(_, Space) | SeqPrefix(_, Space)) |
+          BothNonEmpty(OperandPrefix(_, Space) | SeqPrefix(_, Space), _)
         ) as surround,
       ),
     )
@@ -6286,7 +6301,7 @@ and ana_perform_exp =
     | EmptySuffix(prefix) =>
       let e: UHExp.t =
         switch (prefix) {
-        | ExpPrefix(e1, _space) => e1
+        | OperandPrefix(e1, _space) => e1
         | SeqPrefix(seq, _space) =>
           let skel = Associator.associate_exp(seq);
           OpSeq(skel, seq);
@@ -6296,22 +6311,22 @@ and ana_perform_exp =
       Succeeded((E(ze), u_gen));
     | BothNonEmpty(prefix, suffix) =>
       switch (prefix) {
-      | ExpPrefix(e1, _space) =>
+      | OperandPrefix(e1, _space) =>
         let ze1 = ZExp.place_after_exp(e1);
-        let seq = OperatorSeq.opseq_of_exp_and_suffix(e1, suffix);
+        let seq = Seq.t_of_first_and_suffix(e1, suffix);
         let skel = Associator.associate_exp(seq);
         let ze = ZExp.OpSeqZ(skel, ze1, EmptyPrefix(suffix));
         let (ze, u_gen) = Statics.ana_fix_holes_zexp(ctx, u_gen, ze, ty);
         Succeeded((E(ze), u_gen));
       | SeqPrefix(seq, _space) =>
-        let (prefix: ZExp.opseq_prefix, e0) =
+        let (prefix: ZExp.prefix, e0) =
           switch (seq) {
-          | ExpOpExp(e1, op, e2) => (ExpPrefix(e1, op), e2)
+          | ExpOpExp(e1, op, e2) => (OperandPrefix(e1, op), e2)
           | SeqOpExp(seq, op, e1) => (SeqPrefix(seq, op), e1)
           };
         let ze0 = ZExp.place_after_exp(e0);
-        let surround = OperatorSeq.BothNonEmpty(prefix, suffix);
-        let seq = OperatorSeq.opseq_of_exp_and_surround(e0, surround);
+        let surround = Seq.BothNonEmpty(prefix, suffix);
+        let seq = Seq.t_of_operand_and_surround(e0, surround);
         let skel = Associator.associate_exp(seq);
         let ze = ZExp.OpSeqZ(skel, ze0, surround);
         let (ze, u_gen) = Statics.ana_fix_holes_zexp(ctx, u_gen, ze, ty);
@@ -6325,8 +6340,8 @@ and ana_perform_exp =
         _,
         CursorE(_, EmptyHole(_)) as ze0,
         (
-          EmptyPrefix(ExpSuffix(Space, _) | SeqSuffix(Space, _)) |
-          BothNonEmpty(_, ExpSuffix(Space, _) | SeqSuffix(Space, _))
+          EmptyPrefix(OperandSuffix(Space, _) | SeqSuffix(Space, _)) |
+          BothNonEmpty(_, OperandSuffix(Space, _) | SeqSuffix(Space, _))
         ) as surround,
       ),
     )
@@ -6336,7 +6351,7 @@ and ana_perform_exp =
     | EmptyPrefix(suffix) =>
       let e =
         switch (suffix) {
-        | ExpSuffix(_space, e1) => e1
+        | OperandSuffix(_space, e1) => e1
         | SeqSuffix(_space, seq) =>
           let skel = Associator.associate_exp(seq);
           OpSeq(skel, seq);
@@ -6346,22 +6361,22 @@ and ana_perform_exp =
       Succeeded((E(ze), u_gen));
     | BothNonEmpty(prefix, suffix) =>
       switch (suffix) {
-      | ExpSuffix(_space, e1) =>
+      | OperandSuffix(_space, e1) =>
         let ze1 = ZExp.place_before_exp(e1);
-        let seq = OperatorSeq.opseq_of_prefix_and_exp(prefix, e1);
+        let seq = Seq.t_of_prefix_and_last(prefix, e1);
         let skel = Associator.associate_exp(seq);
         let ze = ZExp.OpSeqZ(skel, ze1, EmptySuffix(prefix));
         let (ze, u_gen) = Statics.ana_fix_holes_zexp(ctx, u_gen, ze, ty);
         Succeeded((E(ze), u_gen));
       | SeqSuffix(_space, seq) =>
-        let (e0, suffix: ZExp.opseq_suffix) =
+        let (e0, suffix: ZExp.suffix) =
           switch (seq) {
-          | ExpOpExp(e1, op, e2) => (e1, ExpSuffix(op, e2))
+          | ExpOpExp(e1, op, e2) => (e1, OperandSuffix(op, e2))
           | SeqOpExp(seq, op, e1) => (e1, SeqSuffix(op, seq))
           };
         let ze0 = ZExp.place_before_exp(e0);
-        let surround = OperatorSeq.BothNonEmpty(prefix, suffix);
-        let seq = OperatorSeq.opseq_of_exp_and_surround(e0, surround);
+        let surround = Seq.BothNonEmpty(prefix, suffix);
+        let seq = Seq.t_of_operand_and_surround(e0, surround);
         let skel = Associator.associate_exp(seq);
         let ze = ZExp.OpSeqZ(skel, ze0, surround);
         let (ze, u_gen) = Statics.ana_fix_holes_zexp(ctx, u_gen, ze, ty);
@@ -6830,7 +6845,7 @@ and ana_perform_exp =
       }
     }
   | (_, OpSeqZ(_, ze0, surround)) =>
-    let i = OperatorSeq.surround_prefix_length(surround);
+    let i = Seq.surround_prefix_length(surround);
     switch (ZExp.erase(ze)) {
     | OpSeq(skel, seq) =>
       switch (Statics.ana_skel(ctx, skel, seq, ty, Some(i))) {

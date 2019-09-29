@@ -2,17 +2,19 @@ open GeneralUtil;
 open SemanticsCommon;
 
 [@deriving sexp]
-type opseq_surround = OperatorSeq.opseq_surround(UHTyp.t, UHTyp.op);
-type opseq_prefix = OperatorSeq.opseq_prefix(UHTyp.t, UHTyp.op);
-type opseq_suffix = OperatorSeq.opseq_suffix(UHTyp.t, UHTyp.op);
+type surround = Seq.surround(UHTyp.operand, UHTyp.op);
+type prefix = Seq.prefix(UHTyp.operand, UHTyp.op);
+type suffix = Seq.suffix(UHTyp.operand, UHTyp.op);
 
 [@deriving sexp]
-type t =
-  | CursorT(cursor_position, UHTyp.t)
-  /* zipper cases */
+type t = zopseq
+and zopseq =
+  | CursorS(cursor_position, UHTyp.opseq)
+  | OpSeqZ(UHTyp.skel, zoperand, surround)
+and zoperand =
+  | CursorO(cursor_position, UHTyp.operand)
   | ParenthesizedZ(t)
-  | ListZ(t)
-  | OpSeqZ(UHTyp.skel_t, t, opseq_surround);
+  | ListZ(t);
 
 let valid_cursors = (uty: UHTyp.t): list(cursor_position) =>
   switch (uty) {
@@ -23,7 +25,7 @@ let valid_cursors = (uty: UHTyp.t): list(cursor_position) =>
   | Parenthesized(_)
   | List(_) => delim_cursors(2)
   | OpSeq(_, seq) =>
-    range(~lo=1, OperatorSeq.seq_length(seq))
+    range(~lo=1, Seq.length(seq))
     |> List.map(k => delim_cursors_k(k))
     |> List.flatten
   };
@@ -38,7 +40,7 @@ let rec erase = (zty: t): UHTyp.t =>
   | ListZ(zty1) => List(erase(zty1))
   | OpSeqZ(skel, zty1, surround) =>
     let uty1 = erase(zty1);
-    let opseq = OperatorSeq.opseq_of_exp_and_surround(uty1, surround);
+    let opseq = Seq.t_of_operand_and_surround(uty1, surround);
     OpSeq(skel, opseq);
   };
 
@@ -88,8 +90,8 @@ let rec place_before = (uty: UHTyp.t): t =>
   | Parenthesized(_)
   | List(_) => CursorT(OnDelim(0, Before), uty)
   | OpSeq(skel, seq) =>
-    let (uty, suffix) = OperatorSeq.split0(seq);
-    let surround = OperatorSeq.EmptyPrefix(suffix);
+    let (uty, suffix) = OpSeqSurround.split_first_and_suffix(seq);
+    let surround = Seq.EmptyPrefix(suffix);
     let zty = place_before(uty);
     OpSeqZ(skel, zty, surround);
   };
@@ -105,8 +107,8 @@ let rec place_after = (uty: UHTyp.t): t =>
   | Parenthesized(_)
   | List(_) => CursorT(OnDelim(1, After), uty)
   | OpSeq(skel, seq) =>
-    let (uty, prefix) = OperatorSeq.split_tail(seq);
-    let surround = OperatorSeq.EmptySuffix(prefix);
+    let (uty, prefix) = OpSeqSurround.split_prefix_and_last(seq);
+    let surround = Seq.EmptySuffix(prefix);
     let zty = place_after(uty);
     OpSeqZ(skel, zty, surround);
   };
@@ -137,7 +139,7 @@ let rec move_cursor_left = (zty: t): option(t) =>
     // _k == 1
     Some(ListZ(place_after(ty1)))
   | CursorT(OnDelim(k, Before), OpSeq(skel, seq)) =>
-    switch (seq |> OperatorSeq.split(k - 1)) {
+    switch (seq |> Seq.split(k - 1)) {
     | None => None // should never happen
     | Some((ty1, surround)) =>
       Some(OpSeqZ(skel, place_after(ty1), surround))
@@ -159,8 +161,8 @@ let rec move_cursor_left = (zty: t): option(t) =>
     switch (move_cursor_left(zty1)) {
     | Some(zty1) => Some(OpSeqZ(skel, zty1, surround))
     | None =>
-      let k = OperatorSeq.surround_prefix_length(surround);
-      let seq = OperatorSeq.opseq_of_exp_and_surround(erase(zty1), surround);
+      let k = Seq.surround_prefix_length(surround);
+      let seq = Seq.t_of_operand_and_surround(erase(zty1), surround);
       Some(CursorT(OnDelim(k, After), OpSeq(skel, seq)));
     }
   };
@@ -179,7 +181,7 @@ let rec move_cursor_right = (zty: t): option(t) =>
     // _k == 0
     Some(ListZ(place_before(ty1)))
   | CursorT(OnDelim(k, After), OpSeq(skel, seq)) =>
-    switch (seq |> OperatorSeq.split(k)) {
+    switch (seq |> Seq.split(k)) {
     | None => None // should never happen
     | Some((ty1, surround)) =>
       Some(OpSeqZ(skel, place_before(ty1), surround))
@@ -202,8 +204,8 @@ let rec move_cursor_right = (zty: t): option(t) =>
     switch (move_cursor_right(zty1)) {
     | Some(zty1) => Some(OpSeqZ(skel, zty1, surround))
     | None =>
-      let k = OperatorSeq.surround_prefix_length(surround);
-      let seq = OperatorSeq.opseq_of_exp_and_surround(erase(zty1), surround);
+      let k = Seq.surround_prefix_length(surround);
+      let seq = Seq.t_of_operand_and_surround(erase(zty1), surround);
       Some(CursorT(OnDelim(k + 1, Before), OpSeq(skel, seq)));
     }
   };

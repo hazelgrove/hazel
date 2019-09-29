@@ -20,7 +20,7 @@ let is_Space =
   | _ => false;
 
 [@deriving sexp]
-type skel_t = Skel.t(op);
+type skel = Skel.t(op);
 
 [@deriving sexp]
 type block =
@@ -42,16 +42,16 @@ and t =
   | Inj(ErrStatus.t, inj_side, block)
   | Case(ErrStatus.t, block, rules, option(UHTyp.t))
   | Parenthesized(block)
-  | OpSeq(skel_t, opseq) /* invariant: skeleton is consistent with opseq */
+  | OpSeq(skel, opseq) /* invariant: skeleton is consistent with opseq */
   | ApPalette(ErrStatus.t, PaletteName.t, SerializedModel.t, splice_info)
-and opseq = OperatorSeq.opseq(t, op)
+and opseq = Seq.t(t, op)
 and rules = list(rule)
 and rule =
   | Rule(UHPat.t, block)
 and splice_info = SpliceInfo.t(block)
 and splice_map = SpliceInfo.splice_map(block);
 
-exception SkelInconsistentWithOpSeq(skel_t, opseq);
+exception InconsistentOpSeq(skel, opseq);
 
 let letline = (p: UHPat.t, ~ann: option(UHTyp.t)=?, block: block): line =>
   LetLine(p, ann, block);
@@ -100,7 +100,7 @@ let prune_empty_hole_line = (li: line): line =>
   };
 let prune_empty_hole_lines: lines => lines = List.map(prune_empty_hole_line);
 
-let rec get_tuple = (skel1: skel_t, skel2: skel_t): ListMinTwo.t(skel_t) =>
+let rec get_tuple = (skel1: skel, skel2: skel): ListMinTwo.t(skel) =>
   switch (skel2) {
   | BinOp(_, Comma, skel21, skel22) =>
     Cons(skel1, get_tuple(skel21, skel22))
@@ -108,7 +108,7 @@ let rec get_tuple = (skel1: skel_t, skel2: skel_t): ListMinTwo.t(skel_t) =>
   | Placeholder(_) => Pair(skel1, skel2)
   };
 
-let rec make_tuple = (err: ErrStatus.t, skels: ListMinTwo.t(skel_t)): skel_t =>
+let rec make_tuple = (err: ErrStatus.t, skels: ListMinTwo.t(skel)): skel =>
   switch (skels) {
   | Pair(skel1, skel2) => BinOp(err, Comma, skel1, skel2)
   | Cons(skel1, skels) =>
@@ -199,8 +199,8 @@ and get_err_status_t = (e: t): ErrStatus.t =>
   | Parenthesized(block) => get_err_status_block(block)
   | OpSeq(BinOp(err, _, _, _), _) => err
   | OpSeq(Placeholder(n) as skel, seq) =>
-    switch (OperatorSeq.nth_tm(n, seq)) {
-    | None => raise(SkelInconsistentWithOpSeq(skel, seq))
+    switch (Seq.nth_operand(n, seq)) {
+    | None => raise(InconsistentOpSeq(skel, seq))
     | Some(e_n) => get_err_status_t(e_n)
     }
   };
@@ -226,15 +226,15 @@ and set_err_status_t = (err: ErrStatus.t, e: t): t =>
     OpSeq(skel, seq);
   }
 and set_err_status_opseq =
-    (err: ErrStatus.t, skel: skel_t, seq: opseq): (skel_t, opseq) =>
+    (err: ErrStatus.t, skel: skel, seq: opseq): (skel, opseq) =>
   switch (skel) {
   | Placeholder(n) =>
-    switch (OperatorSeq.nth_tm(n, seq)) {
-    | None => raise(SkelInconsistentWithOpSeq(skel, seq))
+    switch (Seq.nth_operand(n, seq)) {
+    | None => raise(InconsistentOpSeq(skel, seq))
     | Some(en) =>
       let en = set_err_status_t(err, en);
-      switch (OperatorSeq.seq_update_nth(n, seq, en)) {
-      | None => raise(SkelInconsistentWithOpSeq(skel, seq))
+      switch (Seq.seq_update_nth(n, seq, en)) {
+      | None => raise(InconsistentOpSeq(skel, seq))
       | Some(seq) => (skel, seq)
       };
     }
@@ -288,16 +288,16 @@ and make_t_inconsistent = (u_gen: MetaVarGen.t, e: t): (t, MetaVarGen.t) =>
   }
 /* put skel in a new hole, if it is not already in a hole */
 and make_opseq_inconsistent =
-    (u_gen: MetaVarGen.t, skel: skel_t, seq: opseq)
-    : (skel_t, opseq, MetaVarGen.t) =>
+    (u_gen: MetaVarGen.t, skel: skel, seq: opseq)
+    : (skel, opseq, MetaVarGen.t) =>
   switch (skel) {
   | Placeholder(n) =>
-    switch (OperatorSeq.nth_tm(n, seq)) {
-    | None => raise(SkelInconsistentWithOpSeq(skel, seq))
+    switch (Seq.nth_operand(n, seq)) {
+    | None => raise(InconsistentOpSeq(skel, seq))
     | Some(en) =>
       let (en, u_gen) = make_t_inconsistent(u_gen, en);
-      switch (OperatorSeq.seq_update_nth(n, seq, en)) {
-      | None => raise(SkelInconsistentWithOpSeq(skel, seq))
+      switch (Seq.seq_update_nth(n, seq, en)) {
+      | None => raise(InconsistentOpSeq(skel, seq))
       | Some(seq) => (skel, seq, u_gen)
       };
     }
@@ -334,7 +334,7 @@ let child_indices_exp =
   | Case(_, _, rules, Some(_)) => range(List.length(rules) + 2)
   | Inj(_, _, _) => [0]
   | Parenthesized(_) => [0]
-  | OpSeq(_, seq) => range(OperatorSeq.seq_length(seq))
+  | OpSeq(_, seq) => range(Seq.length(seq))
   | ApPalette(_, _, _, _) => [];
 let child_indices_rule =
   fun
@@ -758,8 +758,7 @@ and is_multi_line_exp =
   | Inj(_, _, body) => is_multi_line(body)
   | Case(_, _, _, _) => true
   | Parenthesized(body) => is_multi_line(body)
-  | OpSeq(_, seq) =>
-    seq |> OperatorSeq.tms |> List.exists(is_multi_line_exp);
+  | OpSeq(_, seq) => seq |> Seq.operands |> List.exists(is_multi_line_exp);
 
 let is_trivial_block =
   fun

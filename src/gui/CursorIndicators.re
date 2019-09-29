@@ -31,7 +31,7 @@ type holes_steps = (
   // + range of each skel
   list((op_path, Skel.range, bool)),
   // err holes around skels rooted at a space op
-  // (where steps is to first tm of the space-sep seq)
+  // (where steps is to first operand of the space-sep seq)
   // + range of each skel
   list((Path.steps, Skel.range, bool)),
 );
@@ -75,7 +75,7 @@ and collect_holes_pat_skel = (skel, seq) =>
   switch (skel) {
   | Placeholder(n) =>
     seq
-    |> OperatorSeq.nth_tm(n)
+    |> Seq.nth_operand(n)
     |> Opt.get(() => assert(false))
     |> collect_holes_pat
     |> cons_holes(n)
@@ -172,7 +172,7 @@ and collect_holes_exp: UHExp.t => holes_steps =
   | OpSeq(skel, seq) =>
     collect_holes_skel(
       ~is_multi_line=
-        seq |> OperatorSeq.tms |> List.exists(UHExp.is_multi_line_exp),
+        seq |> Seq.operands |> List.exists(UHExp.is_multi_line_exp),
       skel,
       seq,
     )
@@ -187,7 +187,7 @@ and collect_holes_skel = (~is_multi_line, skel, seq) =>
   switch (skel) {
   | Placeholder(n) =>
     seq
-    |> OperatorSeq.nth_tm(n)
+    |> Seq.nth_operand(n)
     |> Opt.get(() => assert(false))
     |> collect_holes_exp
     |> cons_holes(n)
@@ -485,19 +485,16 @@ let horizontal_shift_targets_in_subject = (~ci: CursorInfo.t) => {
       switch (ci.node) {
       | Typ(List(OpSeq(_, seq)) | Parenthesized(OpSeq(_, seq))) =>
         k == 0
-          ? range(~lo=1, seq |> OperatorSeq.seq_length)
-          : range((seq |> OperatorSeq.seq_length) - 1)
+          ? range(~lo=1, seq |> Seq.length) : range((seq |> Seq.length) - 1)
       | Pat(Inj(_, _, OpSeq(_, seq)) | Parenthesized(OpSeq(_, seq))) =>
         k == 0
-          ? range(~lo=1, seq |> OperatorSeq.seq_length)
-          : range((seq |> OperatorSeq.seq_length) - 1)
+          ? range(~lo=1, seq |> Seq.length) : range((seq |> Seq.length) - 1)
       | Exp(
           Inj(_, _, Block([], OpSeq(_, seq))) |
           Parenthesized(Block([], OpSeq(_, seq))),
         ) =>
         k == 0
-          ? range(~lo=1, seq |> OperatorSeq.seq_length)
-          : range((seq |> OperatorSeq.seq_length) - 1)
+          ? range(~lo=1, seq |> Seq.length) : range((seq |> Seq.length) - 1)
       | _ => assert(false)
       };
     subject_indices
@@ -656,22 +653,19 @@ let horizontal_shift_targets_in_frame = (~ci: CursorInfo.t) => {
     let surround_indices =
       switch (ci.frame) {
       | TypFrame(Some(surround)) =>
-        let (prefix_tms, suffix_tms) =
-          surround |> OperatorSeq.tms_of_surround;
+        let (prefix_tms, suffix_tms) = surround |> Seq.operands_of_surround;
         let prefix_len = prefix_tms |> List.length;
         k == 0
           ? range(prefix_len)
           : suffix_tms |> List.mapi((i, _) => prefix_len + 1 + i);
       | PatFrame(Some(surround)) =>
-        let (prefix_tms, suffix_tms) =
-          surround |> OperatorSeq.tms_of_surround;
+        let (prefix_tms, suffix_tms) = surround |> Seq.operands_of_surround;
         let prefix_len = prefix_tms |> List.length;
         k == 0
           ? range(prefix_len)
           : suffix_tms |> List.mapi((i, _) => prefix_len + 1 + i);
       | ExpFrame(_, Some(surround), _) =>
-        let (prefix_tms, suffix_tms) =
-          surround |> OperatorSeq.tms_of_surround;
+        let (prefix_tms, suffix_tms) = surround |> Seq.operands_of_surround;
         let prefix_len = prefix_tms |> List.length;
         k == 0
           ? range(prefix_len)
