@@ -1,19 +1,14 @@
 open GeneralUtil;
 
 [@deriving sexp]
-type op =
+type operator =
   | Arrow
   | Prod
   | Sum;
 
 [@deriving sexp]
-type skel = Skel.t(op);
-
-[@deriving sexp]
 type t = opseq
-and opseq =
-  | OpSeq(skel, seq)
-and seq = Seq.t(operand, op)
+and opseq = OpSeq.t(operand, operator)
 and operand =
   | Hole
   | Unit
@@ -22,6 +17,8 @@ and operand =
   | Parenthesized(t)
   | List(t);
 
+type skel = OpSeq.skel(operator);
+type seq = OpSeq.seq(opernd, operator);
 exception InconsistentOpSeq(skel, seq);
 
 let bidelimited =

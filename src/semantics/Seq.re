@@ -1,66 +1,117 @@
 open Sexplib.Std;
+open GeneralUtil;
 
+/**
+ * An unassociated infix operator sequence.
+ * Also used to represent the prefix or suffix
+ * of a selected operator in a seq, in both
+ * cases such that the head operand neighbors
+ * the selected operator.
+ */
+[@deriving sexp]
 type t('operand, 'operator) =
   /* Seq */
   | S('operand, affix('operand, 'operator))
+/**
+ * An unassociated infix operator sequence
+ * without a head operand. Used to represent
+ * the prefix or suffix of a selected operand
+ * in a seq, in both cases such that the head
+ * operator neighbors the selected operand.
+ */
 and affix('operand, 'operator) =
   /* Empty */
   | E
   /* Affix */
   | A('operator, t('operand, 'operator));
 
-let rec concat_affixes = (affix1: affix('operand, 'operator), affix2: affix('operand, 'operator)): affix('operand, 'operator) =>
-  switch (affix1) {
-  | E => affix2
-  | A(op, S(operand, affix_rest)) => A(op, S(operand, concat_affixes(affix_rest, affix2)))
-  };
-
-let concat_seqs = (seq1: t('operand, 'operator), op: 'operator, seq2: t('operand, 'operator)): t('operand, 'operator) => {
-  let S(hd1, tl1) = seq1;
-  S(hd1, concat_affixes(tl1, A(op, seq2)));
+let rev = (seq: t('operand, 'operator)): t('operand, 'operator) => {
+  let rec rev_t = (rev: affix(_, _), seq) => {
+    let S(hd, tl) = seq;
+    rev_affix(S(hd, rev), tl);
+  }
+  and rev_affix = (rev: t(_, _), affix) =>
+    switch (affix) {
+    | E => rev
+    | A(op, seq) => rev_t(A(op, rev), seq)
+    };
+  rev_t(E, seq);
 };
 
-/**
- * An unassociated infix operator sequence.
- */
-[@deriving sexp]
-type t('operand, 'operator) = ('operand, Affix.t('operand, 'operator));
+let rec affix_affix =
+        (
+          affix1: affix('operand, 'operator),
+          affix2: affix('operand, 'operator),
+        )
+        : affix('operand, 'operator) =>
+  switch (affix1) {
+  | E => affix2
+  | A(op, S(hd, tl)) => A(op, S(hd, affix_affix(tl, affix2)))
+  };
 
-let mk_affix = (op: 'operator, (first, tail): t('operand, 'operator)): Affix.t('operand, 'operator) =>
-  [(op, first), ...tail];
+let seq_op_seq =
+    (
+      seq1: t('operand, 'operator),
+      op: 'operator,
+      seq2: t('operand, 'operator),
+    )
+    : t('operand, 'operator) => {
+  let S(hd1, tl1) = seq1;
+  S(hd1, affix_affix(tl1, A(op, seq2)));
+};
+
+let prefix_seq =
+    (prefix: affix('operand, 'operator), seq: t('operand, 'operator))
+    : t('operand, 'operator) =>
+  switch (prefix) {
+  | E => seq
+  | A(op, prefix_seq) => seq_op_seq(prefix_seq |> rev, op, seq)
+  };
+
+let seq_suffix =
+    (seq: t('operand, 'operator), suffix: affix('operand, 'operator))
+    : t('operand, 'operator) =>
+  switch (suffix) {
+  | E => seq
+  | A(op, suffix_seq) => seq_op_seq(seq, op, suffix_seq)
+  };
 
 /**
- * Concatenates two seqs.
+ * Returns the number of operands.
  */
-let seq_op_seq = ((first, tail): t('operand, 'operator), op: 'operator, seq: t('operand, 'operator)): t('operand, 'operator) =>
-  (first, tail @ mk_affix(op, seq));
-
-/**
- * Returns number of operands in seq.
- */
-let length =
+let rec length =
   fun
-  | (_, tail) => 1 + List.length(tail);
+  | S(_, tail) => 1 + length_of_affix(tail)
+and length_of_affix =
+  fun
+  | E => 0
+  | A(_, seq) => length(seq);
 
 /**
  * Returns the nth operand in seq if it exists,
  * otherwise raises `Invalid_argument`
  */
-let nth_operand = (n: int, seq: t('operand, _)): 'operand =>
-  switch (n, seq) {
-  | (0, (first, _)) => first
-  | (i, (_, tail)) => tail |> Affix.nth_operand(i - 1)
+let rec nth_operand = (n: int, seq: t('operand, _)): 'operand => {
+  let S(hd, tl) = seq;
+  n === 0 ? hd : tl |> nth_operand_of_affix(n - 1);
+}
+and nth_operand_of_affix = (n: int, affix: affix('operand, _)): 'operand =>
+  switch (affix) {
+  | E => raise(Invalid_argument("Seq.nth_operand_of_affix"))
+  | A(_, seq) => seq |> nth_operand(n)
   };
 
-let operands_of_range = (range: (int, int), seq: t('operand, _)): list('operand) =>
-  switch (range, seq) {
-  | ((0, 0), (first, _)) => [operand]
-  | ((0, b), (first, tail)) =>
-    [first, ...(tail |> Affix.operands |> sublist(b))]
+let operands_in_range =
+    ((a, b): (int, int), seq: t('operand, _)): list('operand) =>
+  range(~lo=a, b + 1) |> List.map(n => seq |> nth_operand(n));
 
-let operands =
+let rec operands =
   fun
-  | (first, tail) => [first, ...Affix.operands(tail)];
+  | S(hd, tl) => [hd, ...operands_of_affix(tl)]
+and operands_of_affix =
+  fun
+  | E => []
+  | A(_, seq) => operands(seq);
 
 /*
  let rec join = (operands: ListMinTwo.t('operand), op: 'op): t('operand, 'op) =>
@@ -70,143 +121,61 @@ let operands =
    };
  */
 
-let operators =
+let rec operators =
   fun
-  | (_, tail) => Affix.operators(tail)
+  | S(_, tl) => operators_of_affix(tl)
+and operators_of_affix =
+  fun
+  | E => []
+  | A(op, seq) => [op, ...operators(seq)];
 
 /* update the nth operand in seq, if it exists */
-let update_nth_operand = (n: int, operand: 'operand, seq: t('operand, 'operator)): t('operand, 'operator) =>
+let rec update_nth_operand =
+        (n: int, operand: 'operand, seq: t('operand, 'operator))
+        : t('operand, 'operator) =>
   switch (n, seq) {
-  | (0, (_, tail)) => (operand, tail)
-  | (_, (first, tail)) => (first, tail |> Affix.update_nth_operand(n - 1, operand))
+  | (0, S(_, tl)) => S(operand, tl)
+  | (_, S(hd, tl)) =>
+    S(hd, tl |> update_nth_operand_of_affix(n - 1, operand))
+  }
+and update_nth_operand_of_affix =
+    (n: int, operand: 'operand, affix: affix('operand, 'operator))
+    : affix('operand, 'operator) =>
+  switch (affix) {
+  | E => E
+  | A(op, seq) => A(op, seq |> update_nth_operand(n, operand))
   };
 
-/**
- * What surrounds a selected operand in a seq.
- * Both prefix and suffix are ordered from the
- * perspective of the selected operand, i.e.,
- * operands neighboring selected operand come first.
- */
-[@deriving sexp]
-type surround('operand, 'op) = (
-  prefix('operand, 'op),
-  suffix('operand, 'op),
-)
-and prefix('operand, 'op) = affix('operand, 'op)
-and suffix('operand, 'op) = affix('operand, 'op)
-and affix('operand, 'op) = list(('op, 'operand));
-
-let empty_prefix = [];
-let empty_suffix = [];
-
-let mk_surround = (~prefix=empty_prefix, ~suffix=empty_suffix, ()) => (
-  prefix,
-  suffix,
-);
-let empty_surround = mk_surround();
-
-let operands_of_affix = (affix: affix('operand, _)): list('operand) =>
-  affix |> List.map(((_, operand)) => operand);
-
-let operands_of_surround =
-    ((prefix, suffix): surround('operand, _))
-    : (list('operand), list('operand)) => (
-  operands_of_affix(prefix),
-  operands_of_affix(suffix) |> List.rev,
-);
-
-let ops_of_affix = (affix: affix(_, 'op)): list('op) =>
-  affix |> List.map(((op, _)) => op);
-
-let ops_of_surround =
-    ((prefix, suffix): surround(_, 'op)): (list('op), list('op)) => (
-  ops_of_affix(prefix),
-  ops_of_affix(suffix) |> List.rev,
-);
-
-let rec split_prefix_and_last =
-        (seq: t('operand, 'op)): (prefix('operand, 'op), 'operand) =>
-  switch (seq) {
-  | Operand(operand) => (empty_prefix, operand)
-  | Seq(seq, op, operand) =>
-    let (prefix, last) = split_prefix_and_last(seq);
-    ([(op, operand), ...prefix], last);
-  };
-
-let rec split_first_and_suffix =
-        (seq: t('operand, 'op)): ('operand, suffix('operand, 'op)) =>
-  switch (seq) {
-  | Operand(operand) => (operand, empty_suffix)
-  | Seq(seq, op, operand) =>
-    let (first, suffix) = split_first_and_suffix(seq);
-    (first, suffix @ [(op, operand)]);
-  };
-
-let rec split =
-        (n: int, seq: t('operand, 'op))
-        : option(('operand, surround('operand, 'op))) =>
+let rec split_nth_operand =
+        (n: int, seq: t('operand, 'operator))
+        : (
+            'operand,
+            (affix('operand, 'operator), affix('operand, 'operator)),
+          ) => {
+  let exn = Invalid_argument("Seq.split_nth_operand");
   switch (n, seq) {
-  | (0, Operand(operand)) => Some((operand, empty_surround))
-  | (_, Operand(_)) => None
-  | (_, Seq(seq, op, operand)) =>
-    let length = length(seq);
-    if (n < length) {
-      switch (split(n, seq)) {
-      | None => None
-      | Some((found, (prefix, suffix))) =>
-        Some((
-          found,
-          mk_surround(~prefix, ~suffix=suffix @ [(op, operand)], ()),
-        ))
-      };
-    } else if (n === length) {
-      let (prefix, last) = split_prefix_and_last(seq);
-      Some((operand, mk_surround(~prefix=[(op, last), ...prefix], ())));
-    } else {
-      None;
-    };
+  | (_, _) when n < 0 => raise(exn)
+  | (0, S(hd, tl)) => (hd, (E, tl))
+  | (_, S(hd, E)) => raise(exn)
+  | (_, S(hd, A(op, seq))) =>
+    let (found, (prefix, suffix)) = seq |> split_nth_operand(n - 1);
+    (found, (affix_affix(prefix, A(op, S(hd, E))), suffix));
   };
+};
 
-let prefix_length = List.length;
-let suffix_length = List.length;
-
-let surround_prefix_length = ((prefix, _): surround(_, _)): int =>
-  prefix_length(prefix);
-let surround_suffix_length = ((_, suffix): surround(_, _)): int =>
-  suffix_length(suffix);
-
-let rec t_of_prefix_and_seq = (prefix, seq) =>
-  switch (prefix) {
-  | [] => seq
-  | [(op, operand), ...prefix_rest] =>
-    t_of_prefix_and_seq(prefix_rest, operand_op_seq(operand, op, seq))
+let rec split_nth_operator =
+        (n: int, seq: t('operand, 'operator))
+        : ('operator, (t('operand, 'operator), t('operand, 'operator))) => {
+  let exn = Invalid_argument("Seq.split_nth_operator");
+  switch (n, seq) {
+  | (_, _) when n < 0 => raise(exn)
+  | (_, S(hd, E)) => raise(exn)
+  | (0, S(hd, A(op, seq))) => (op, (S(hd, E), seq))
+  | (_, S(hd, A(op, seq))) =>
+    let (found, (prefix, suffix)) = seq |> split_nth_operator(n - 1);
+    (found, (seq_suffix(prefix, A(op, S(hd, E))), suffix));
   };
+};
 
-let rec t_of_seq_and_suffix = (seq, suffix) =>
-  switch (suffix) {
-  | [] => seq
-  | [(op, operand), ...suffix_rest] =>
-    t_of_seq_and_suffix(Seq(seq, op, operand), suffix_rest)
-  };
-
-let t_of_prefix_and_last =
-    (prefix: prefix('operand, 'op), last: 'operand): t('operand, 'op) =>
-  t_of_prefix_and_seq(prefix, Operand(last));
-
-let t_of_first_and_suffix =
-    (first: 'operand, suffix: suffix('operand, 'op)): t('operand, 'op) =>
-  t_of_seq_and_suffix(Operand(first), suffix);
-
-let t_of_operand_and_surround =
-    (operand: 'operand, (prefix, suffix): surround('operand, 'op)) =>
-  t_of_prefix_and_seq(prefix, t_of_first_and_suffix(operand, suffix));
-
-let nest_surrounds =
-    (
-      (inner_prefix, inner_suffix): surround('operand, 'op),
-      (outer_prefix, outer_suffix): surround('operand, 'op),
-    )
-    : surround('operand, 'op) => (
-  inner_prefix @ outer_prefix,
-  inner_suffix @ outer_suffix,
-);
+let split_first_and_suffix = seq => split_nth_operand(0, seq);
+let split_prefix_and_last = seq => split_nth_operand(length(seq) - 1, seq);

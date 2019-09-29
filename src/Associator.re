@@ -37,7 +37,8 @@ let rec make_skel_str' =
           seq: Seq.t('operand, 'op),
           counter: ref(int),
           ph_map: Hashtbl.t(int, 'operand),
-        ): string =>
+        )
+        : string =>
   switch (seq) {
   | ExpOpExp(e1, op, e2) =>
     let n = counter^;

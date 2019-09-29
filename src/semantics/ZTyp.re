@@ -2,119 +2,78 @@ open GeneralUtil;
 open SemanticsCommon;
 
 [@deriving sexp]
-type surround = Seq.surround(UHTyp.operand, UHTyp.op);
-type prefix = Seq.prefix(UHTyp.operand, UHTyp.op);
-type suffix = Seq.suffix(UHTyp.operand, UHTyp.op);
-
-[@deriving sexp]
 type t = zopseq
-and zopseq =
-  | CursorS(cursor_position, UHTyp.opseq)
-  | OpSeqZ(UHTyp.skel, zoperand, surround)
+and zopseq = OpSeqZ.t(UHTyp.operand, UHTyp.operator, zoperand, zoperator)
 and zoperand =
-  | CursorO(cursor_position, UHTyp.operand)
+  | CursorT(cursor_position, UHTyp.operand)
   | ParenthesizedZ(t)
-  | ListZ(t);
+  | ListZ(t)
+and zoperator = (side, UHTyp.operator);
 
-let valid_cursors = (uty: UHTyp.t): list(cursor_position) =>
-  switch (uty) {
+let valid_cursors: UHTyp.operand => list(cursor_position) =
+  fun
   | Hole
   | Unit
   | Num
   | Bool => delim_cursors(1)
   | Parenthesized(_)
-  | List(_) => delim_cursors(2)
-  | OpSeq(_, seq) =>
-    range(~lo=1, Seq.length(seq))
-    |> List.map(k => delim_cursors_k(k))
-    |> List.flatten
-  };
+  | List(_) => delim_cursors(2);
 
-let is_valid_cursor = (cursor: cursor_position, uty: UHTyp.t): bool =>
+let is_valid_cursor = (cursor: cursor_position, operand: UHTyp.operand): bool =>
   valid_cursors(uty) |> contains(cursor);
 
-let rec erase = (zty: t): UHTyp.t =>
-  switch (zty) {
-  | CursorT(_, ty) => ty
-  | ParenthesizedZ(zty1) => Parenthesized(erase(zty1))
-  | ListZ(zty1) => List(erase(zty1))
-  | OpSeqZ(skel, zty1, surround) =>
-    let uty1 = erase(zty1);
-    let opseq = Seq.t_of_operand_and_surround(uty1, surround);
-    OpSeq(skel, opseq);
-  };
+let rec erase = (zty: t): UHTyp.t => erase_opseq(zty)
+and erase_opseq = OpSeqZ.erase(~erase_operand, ~erase_operator)
+and erase_operand =
+  fun
+  | CursorT(_, operand) => operand
+  | ParenthesizedZ(zty) => Parenthesized(erase(zty))
+  | ListZ(zty) => List(erase(zty));
 
-let rec is_before = (zty: t): bool =>
-  switch (zty) {
-  /* outer nodes */
+let rec is_before = (zty: t): bool => is_before_opseq(zty)
+and is_before_opseq = OpSeqZ.is_before(~is_before_operand)
+and is_before_operand =
+  fun
   | CursorT(cursor, Hole)
   | CursorT(cursor, Unit)
   | CursorT(cursor, Num)
-  | CursorT(cursor, Bool) => cursor == OnDelim(0, Before)
-  /* inner nodes */
+  | CursorT(cursor, Bool)
   | CursorT(cursor, Parenthesized(_))
   | CursorT(cursor, List(_)) => cursor == OnDelim(0, Before)
-  | CursorT(_, OpSeq(_, _)) => false
-  /* zipper cases */
   | ParenthesizedZ(_) => false
-  | ListZ(_) => false
-  | OpSeqZ(_, zty, EmptyPrefix(_)) => is_before(zty)
-  | OpSeqZ(_, _, _) => false
-  };
+  | ListZ(_) => false;
 
-let rec is_after = (zty: t): bool =>
-  switch (zty) {
-  /* outer nodes */
+let rec is_after = (zty: t): bool => is_after_opseq(zty)
+and is_after_opseq = OpSeqZ.is_after(~is_after_operand)
+and is_after_operand =
+  fun
   | CursorT(cursor, Hole)
   | CursorT(cursor, Unit)
   | CursorT(cursor, Num)
   | CursorT(cursor, Bool) => cursor == OnDelim(0, After)
-  /* inner nodes */
   | CursorT(cursor, Parenthesized(_))
   | CursorT(cursor, List(_)) => cursor == OnDelim(1, After)
-  | CursorT(_, OpSeq(_, _)) => false
   | ParenthesizedZ(_) => false
-  | ListZ(_) => false
-  | OpSeqZ(_, zty, EmptySuffix(_)) => is_after(zty)
-  | OpSeqZ(_, _, _) => false
-  };
+  | ListZ(_) => false;
 
-let rec place_before = (uty: UHTyp.t): t =>
-  switch (uty) {
-  /* outer nodes */
-  | Hole
-  | Unit
-  | Num
-  | Bool
-  /* inner nodes */
-  | Parenthesized(_)
-  | List(_) => CursorT(OnDelim(0, Before), uty)
-  | OpSeq(skel, seq) =>
-    let (uty, suffix) = OpSeqSurround.split_first_and_suffix(seq);
-    let surround = Seq.EmptyPrefix(suffix);
-    let zty = place_before(uty);
-    OpSeqZ(skel, zty, surround);
-  };
+let rec place_before = (uty: UHTyp.t): t => place_before_opseq(uty)
+and place_before_opseq = OpSeqZ.place_before(~place_before_operand)
+and place_before_operand =
+  fun
+  | (Hole | Unit | Num | Bool | Parenthesized(_) | List(_)) as operand =>
+    CursorT(OnDelim(0, Before), uty);
 
-let rec place_after = (uty: UHTyp.t): t =>
-  switch (uty) {
-  /* outer nodes */
-  | Hole
-  | Unit
-  | Num
-  | Bool => CursorT(OnDelim(0, After), uty)
-  /* inner nodes */
-  | Parenthesized(_)
-  | List(_) => CursorT(OnDelim(1, After), uty)
-  | OpSeq(skel, seq) =>
-    let (uty, prefix) = OpSeqSurround.split_prefix_and_last(seq);
-    let surround = Seq.EmptySuffix(prefix);
-    let zty = place_after(uty);
-    OpSeqZ(skel, zty, surround);
-  };
+let rec place_after = (uty: UHTyp.t): t => place_after_opseq(uty)
+and place_after_opseq = OpSeqZ.place_after(~place_after_operand)
+and place_after_operand =
+  fun
+  | (Hole | Unit | Num | Bool) as operand =>
+    CursorT(OnDelim(0, After), operand)
+  | (Parenthesized(_) | List(_)) as operand =>
+    CursorT(OnDelim(1, After), operand);
 
-let place_cursor = (cursor: cursor_position, uty: UHTyp.t): option(t) =>
-  is_valid_cursor(cursor, uty) ? Some(CursorT(cursor, uty)) : None;
+let place_cursor = (cursor: cursor_position, operand: UHTyp.operand): option(zoperand) =>
+  is_valid_cursor(cursor, operand) ? Some(CursorT(cursor, operand)) : None;
 
 let rec cursor_on_opseq = (zty: t): bool =>
   switch (zty) {
