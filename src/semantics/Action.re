@@ -2394,7 +2394,7 @@ and ana_perform_pat =
       if (HTyp.consistent(ty, ty')) {
         Succeeded((zp, ctx, u_gen));
       } else {
-        let (zp, u_gen) = ZPat.make_t_inconsistent(u_gen, zp);
+        let (zp, u_gen) = ZPat.make_inconsistent(u_gen, zp);
         Succeeded((zp, ctx, u_gen));
       }
     }
@@ -2621,7 +2621,7 @@ and ana_perform_pat =
       if (HTyp.consistent(ty, ty')) {
         Succeeded((zp, ctx, u_gen));
       } else {
-        let (zp, u_gen) = ZPat.make_t_inconsistent(u_gen, zp);
+        let (zp, u_gen) = ZPat.make_inconsistent(u_gen, zp);
         Succeeded((zp, ctx, u_gen));
       }
     }
@@ -2774,7 +2774,7 @@ let make_zexp_or_zblock_inconsistent =
     : (zexp_or_zblock, MetaVarGen.t) =>
   switch (ze_zb) {
   | E(ze) =>
-    let (ze, u_gen) = ZExp.make_t_inconsistent(u_gen, ze);
+    let (ze, u_gen) = ZExp.make_inconsistent(u_gen, ze);
     (E(ze), u_gen);
   | B(zblock) =>
     let (zblock, u_gen) = ZExp.make_block_inconsistent(u_gen, zblock);

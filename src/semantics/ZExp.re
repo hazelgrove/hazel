@@ -503,16 +503,16 @@ let rec make_block_inconsistent =
         (u_gen: MetaVarGen.t, zblock: zblock): (zblock, MetaVarGen.t) =>
   switch (zblock) {
   | BlockZL(zlines, e) =>
-    let (e, u_gen) = UHExp.make_t_inconsistent(u_gen, e);
+    let (e, u_gen) = UHExp.make_inconsistent(u_gen, e);
     (BlockZL(zlines, e), u_gen);
   | BlockZE(lines, ze) =>
-    let (ze, u_gen) = make_t_inconsistent(u_gen, ze);
+    let (ze, u_gen) = make_inconsistent(u_gen, ze);
     (BlockZE(lines, ze), u_gen);
   }
-and make_t_inconsistent = (u_gen: MetaVarGen.t, ze: t): (t, MetaVarGen.t) =>
+and make_inconsistent = (u_gen: MetaVarGen.t, ze: t): (t, MetaVarGen.t) =>
   switch (ze) {
   | CursorE(cursor, e) =>
-    let (e, u_gen) = UHExp.make_t_inconsistent(u_gen, e);
+    let (e, u_gen) = UHExp.make_inconsistent(u_gen, e);
     (CursorE(cursor, e), u_gen);
   | ParenthesizedZ(zblock) =>
     let (zblock, u_gen) = make_block_inconsistent(u_gen, zblock);
@@ -549,13 +549,13 @@ and make_skel_inconsistent =
   switch (skel) {
   | Placeholder(m) =>
     if (m === Seq.surround_prefix_length(surround)) {
-      let (ze_n, u_gen) = make_t_inconsistent(u_gen, ze_n);
+      let (ze_n, u_gen) = make_inconsistent(u_gen, ze_n);
       (skel, ze_n, surround, u_gen);
     } else {
       switch (Seq.surround_nth(m, surround)) {
       | None => raise(InconsistentOpSeq)
       | Some(e_m) =>
-        let (e_m, u_gen) = UHExp.make_t_inconsistent(u_gen, e_m);
+        let (e_m, u_gen) = UHExp.make_inconsistent(u_gen, e_m);
         switch (Seq.surround_update_nth(m, surround, e_m)) {
         | None => raise(InconsistentOpSeq)
         | Some(surround) => (skel, ze_n, surround, u_gen)

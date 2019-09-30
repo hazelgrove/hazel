@@ -254,7 +254,7 @@ let rec make_block_inconsistent =
   (block, u_gen);
 }
 /* put e in a new hole, if it is not already in a hole */
-and make_t_inconsistent = (u_gen: MetaVarGen.t, e: t): (t, MetaVarGen.t) =>
+and make_inconsistent = (u_gen: MetaVarGen.t, e: t): (t, MetaVarGen.t) =>
   switch (e) {
   /* already in hole */
   | EmptyHole(_)
@@ -295,7 +295,7 @@ and make_opseq_inconsistent =
     switch (Seq.nth_operand(n, seq)) {
     | None => raise(InconsistentOpSeq(skel, seq))
     | Some(en) =>
-      let (en, u_gen) = make_t_inconsistent(u_gen, en);
+      let (en, u_gen) = make_inconsistent(u_gen, en);
       switch (Seq.seq_update_nth(n, seq, en)) {
       | None => raise(InconsistentOpSeq(skel, seq))
       | Some(seq) => (skel, seq, u_gen)

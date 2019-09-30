@@ -17,10 +17,6 @@ and operand =
   | Parenthesized(t)
   | List(t);
 
-type skel = OpSeq.skel(operator);
-type seq = OpSeq.seq(operand, operator);
-exception InconsistentOpSeq(skel, seq);
-
 let bidelimited =
   fun
   | Hole
@@ -30,22 +26,19 @@ let bidelimited =
   | Parenthesized(_)
   | List(_) => true;
 
-let wrap_in_opseq = (operand: operand): OpSeq.t(operand, _) =>
-  OpSeq(Placeholder(0), S(operand, E));
-
 let unwrap_parentheses = (operand: operand): opseq =>
   switch (operand) {
   | Hole
   | Unit
   | Num
   | Bool
-  | List(_) => wrap_in_opseq(operand)
+  | List(_) => OpSeq.wrap(operand)
   | Parenthesized(opseq) => opseq
   };
 
 /* TODO fix this to only parenthesize when necessary */
 let contract = (ty: HTyp.t): t => {
-  let mk_operand = operand => Parenthesized(operand |> wrap_in_opseq);
+  let mk_operand = operand => Parenthesized(OpSeq.wrap(operand));
   let mk_seq_operand = (op, a, b) => {
     let skel = Skel.BinOp(NotInHole, op, Placeholder(0), Placeholder(1));
     let seq = Seq.mk(a, [(op, b)]);
@@ -84,7 +77,7 @@ let contract = (ty: HTyp.t): t => {
         contract_to_operand(ty1),
         contract_to_operand(ty2),
       )
-    | List(ty1) => List(ty1 |> contract_to_operand |> wrap_in_opseq);
+    | List(ty1) => List(ty1 |> contract_to_operand |> OpSeq.wrap);
 
   ty |> contract_to_operand |> unwrap_parentheses;
 };

@@ -22,22 +22,22 @@ let valid_cursors: UHTyp.operand => list(cursor_position) =
 let is_valid_cursor = (cursor: cursor_position, operand: UHTyp.operand): bool =>
   valid_cursors(operand) |> contains(cursor);
 
-let erase_operator =
+let erase_zoperator =
   fun
   | (_, operator) => operator;
 
-let rec erase = (zty: t): UHTyp.t => erase_opseq(zty)
-and erase_opseq = opseq =>
-  ZOpSeq.erase(~erase_operand, ~erase_operator, opseq)
-and erase_operand =
+let rec erase = (zty: t): UHTyp.t => erase_zopseq(zty)
+and erase_zopseq = zopseq =>
+  ZOpSeq.erase(~erase_zoperand, ~erase_zoperator, zopseq)
+and erase_zoperand =
   fun
   | CursorT(_, operand) => operand
   | ParenthesizedZ(zty) => Parenthesized(erase(zty))
   | ListZ(zty) => List(erase(zty));
 
-let rec is_before = (zty: t): bool => is_before_opseq(zty)
-and is_before_opseq = opseq => ZOpSeq.is_before(~is_before_operand, opseq)
-and is_before_operand =
+let rec is_before = (zty: t): bool => is_before_zopseq(zty)
+and is_before_zopseq = zopseq => ZOpSeq.is_before(~is_before_zoperand, zopseq)
+and is_before_zoperand =
   fun
   | CursorT(cursor, Hole)
   | CursorT(cursor, Unit)
@@ -48,9 +48,9 @@ and is_before_operand =
   | ParenthesizedZ(_) => false
   | ListZ(_) => false;
 
-let rec is_after = (zty: t): bool => is_after_opseq(zty)
-and is_after_opseq = opseq => ZOpSeq.is_after(~is_after_operand, opseq)
-and is_after_operand =
+let rec is_after = (zty: t): bool => is_after_zopseq(zty)
+and is_after_zopseq = zopseq => ZOpSeq.is_after(~is_after_zoperand, zopseq)
+and is_after_zoperand =
   fun
   | CursorT(cursor, Hole)
   | CursorT(cursor, Unit)
@@ -85,26 +85,26 @@ let place_cursor =
     (cursor: cursor_position, operand: UHTyp.operand): option(zoperand) =>
   is_valid_cursor(cursor, operand) ? Some(CursorT(cursor, operand)) : None;
 
-let move_cursor_left_operator =
+let move_cursor_left_zoperator =
   fun
   | (Before, _) => None
   | (After, op) => Some((Before, op));
 
 let rec move_cursor_left = (zty: t): option(t) =>
-  move_cursor_left_opseq(zty)
-and move_cursor_left_opseq = opseq =>
+  move_cursor_left_zopseq(zty)
+and move_cursor_left_zopseq = zopseq =>
   ZOpSeq.move_cursor_left(
-    ~move_cursor_left_operand,
-    ~move_cursor_left_operator,
+    ~move_cursor_left_zoperand,
+    ~move_cursor_left_zoperator,
     ~place_after_operand,
     ~place_after_operator,
-    ~erase_operand,
-    ~erase_operator,
-    opseq,
+    ~erase_zoperand,
+    ~erase_zoperator,
+    zopseq,
   )
-and move_cursor_left_operand =
+and move_cursor_left_zoperand =
   fun
-  | zoperand when is_before_operand(zoperand) => None
+  | z when is_before_zoperand(z) => None
   | CursorT(OnText(_) | Staging(_), _) => None
   | CursorT(OnDelim(k, After), ty) =>
     Some(CursorT(OnDelim(k, Before), ty))
@@ -126,26 +126,26 @@ and move_cursor_left_operand =
     | None => Some(CursorT(OnDelim(0, After), List(erase(zty1))))
     };
 
-let move_cursor_right_operator =
+let move_cursor_right_zoperator =
   fun
   | (After, _) => None
   | (Before, op) => Some((After, op));
 
 let rec move_cursor_right = (zty: t): option(t) =>
-  move_cursor_right_opseq(zty)
-and move_cursor_right_opseq = opseq =>
+  move_cursor_right_zopseq(zty)
+and move_cursor_right_zopseq = zopseq =>
   ZOpSeq.move_cursor_right(
-    ~move_cursor_right_operand,
-    ~move_cursor_right_operator,
+    ~move_cursor_right_zoperand,
+    ~move_cursor_right_zoperator,
     ~place_before_operand,
     ~place_before_operator,
-    ~erase_operand,
-    ~erase_operator,
-    opseq,
+    ~erase_zoperand,
+    ~erase_zoperator,
+    zopseq,
   )
-and move_cursor_right_operand =
+and move_cursor_right_zoperand =
   fun
-  | zoperand when is_after_operand(zoperand) => None
+  | z when is_after_zoperand(z) => None
   | CursorT(OnText(_) | Staging(_), _) => None
   | CursorT(OnDelim(k, Before), ty) =>
     Some(CursorT(OnDelim(k, After), ty))
