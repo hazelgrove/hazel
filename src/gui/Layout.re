@@ -11,7 +11,7 @@ type t('tag) =
   | Tagged('tag, t('tag));
 
 let strings_of_layout: t('tag) => list(string) = {
-  let rec go: t('tag) => (bool, list(string)) =
+  let rec go: t('tag) => (bool /*lines are aligned*/, list(string)) =
     fun
     | VZero => (false, [])
     | VCat(l1, l2) => {
@@ -23,9 +23,11 @@ let strings_of_layout: t('tag) => list(string) = {
         let (a1, s1) = go(l1);
         let (a2, s2) = go(l2);
         switch (GeneralUtil.split_last(s1), s2) {
-        | (None, []) => failwith("unimplemented")
-        | (None, [_head, ..._tail]) => failwith("unimplemented")
-        | (Some((_init, _last)), []) => failwith("unimplemented")
+        | (None, []) => failwith("unimplemented:strings_of_layout.1")
+        | (None, [_head, ..._tail]) =>
+          failwith("unimplemented:strings_of_layout.2")
+        | (Some((_init, _last)), []) =>
+          failwith("unimplemented:strings_of_layout.3")
         | (Some((init, last)), [head, ...tail]) =>
           let tail' =
             if (a2) {
