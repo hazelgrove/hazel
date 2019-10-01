@@ -10,7 +10,7 @@ let parse_typ = s => {
   let lexbuf = Lexing.from_string(s);
   SkelTypParser.skel_typ(SkelTypLexer.read, lexbuf);
 };
-let string_of_expr_op: UHExp.op => string =
+let string_of_expr_op: UHExp.operator => string =
   fun
   | Plus => "+"
   | Minus => "-"
@@ -21,12 +21,12 @@ let string_of_expr_op: UHExp.op => string =
   | Cons => "::"
   | And => "&"
   | Or => "|";
-let string_of_pat_op: UHPat.op => string =
+let string_of_pat_op: UHPat.operator => string =
   fun
   | Space => "_"
   | Comma => ","
   | Cons => "::";
-let string_of_ty_op: UHTyp.op => string =
+let string_of_ty_op: UHTyp.operator => string =
   fun
   | Sum => "|"
   | Prod => ","

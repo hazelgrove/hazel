@@ -27,7 +27,7 @@ let rec syn_pat =
   | BoolLit(InHole(TypeInconsistent, _), _)
   | ListNil(InHole(TypeInconsistent, _))
   | Inj(InHole(TypeInconsistent, _), _, _) =>
-    let p' = UHPat.set_err_status_t(NotInHole, p);
+    let p' = UHPat.set_err_status_operand(NotInHole, p);
     switch (syn_pat(ctx, p')) {
     | None => None
     | Some((_, gamma)) => Some((Hole, gamma))
@@ -150,7 +150,7 @@ and ana_pat = (ctx: Contexts.t, p: UHPat.t, ty: HTyp.t): option(Contexts.t) =>
   | BoolLit(InHole(TypeInconsistent, _), _)
   | ListNil(InHole(TypeInconsistent, _))
   | Inj(InHole(TypeInconsistent, _), _, _) =>
-    let p' = UHPat.set_err_status_t(NotInHole, p);
+    let p' = UHPat.set_err_status_operand(NotInHole, p);
     switch (syn_pat(ctx, p')) {
     | None => None
     | Some((_, ctx)) => Some(ctx)
@@ -444,7 +444,7 @@ and syn_exp = (ctx: Contexts.t, e: UHExp.t): option(HTyp.t) =>
   | Inj(InHole(TypeInconsistent, _), _, _)
   | Case(InHole(TypeInconsistent, _), _, _, _)
   | ApPalette(InHole(TypeInconsistent, _), _, _, _) =>
-    let e' = UHExp.set_err_status_t(NotInHole, e);
+    let e' = UHExp.set_err_status_operand(NotInHole, e);
     switch (syn_exp(ctx, e')) {
     | None => None
     | Some(_) => Some(Hole)
@@ -657,7 +657,7 @@ and ana_exp = (ctx: Contexts.t, e: UHExp.t, ty: HTyp.t): option(unit) =>
   | Inj(InHole(TypeInconsistent, _), _, _)
   | Case(InHole(TypeInconsistent, _), _, _, _)
   | ApPalette(InHole(TypeInconsistent, _), _, _, _) =>
-    let e' = UHExp.set_err_status_t(NotInHole, e);
+    let e' = UHExp.set_err_status_operand(NotInHole, e);
     switch (syn_exp(ctx, e')) {
     | None => None
     | Some(_) => Some() /* this is a consequence of subsumption and hole universality */
@@ -679,7 +679,7 @@ and ana_exp = (ctx: Contexts.t, e: UHExp.t, ty: HTyp.t): option(unit) =>
   | Var(NotInHole, _, _)
   | NumLit(NotInHole, _)
   | BoolLit(NotInHole, _) =>
-    let e' = UHExp.set_err_status_t(NotInHole, e);
+    let e' = UHExp.set_err_status_operand(NotInHole, e);
     switch (syn_exp(ctx, e')) {
     | None => None
     | Some(ty') =>
@@ -955,7 +955,7 @@ let rec syn_fix_holes_pat =
           p: UHPat.t,
         )
         : (UHPat.t, HTyp.t, Contexts.t, MetaVarGen.t) => {
-  let p_nih = UHPat.set_err_status_t(NotInHole, p);
+  let p_nih = UHPat.set_err_status_operand(NotInHole, p);
   switch (p) {
   | EmptyHole(_) =>
     if (renumber_empty_holes) {
@@ -1071,7 +1071,7 @@ and ana_fix_holes_pat =
       ty: HTyp.t,
     )
     : (UHPat.t, Contexts.t, MetaVarGen.t) => {
-  let p_nih = UHPat.set_err_status_t(NotInHole, p);
+  let p_nih = UHPat.set_err_status_operand(NotInHole, p);
   switch (p) {
   | EmptyHole(_) =>
     if (renumber_empty_holes) {
@@ -1091,10 +1091,14 @@ and ana_fix_holes_pat =
     let (p', ty', ctx, u_gen) =
       syn_fix_holes_pat(ctx, u_gen, ~renumber_empty_holes, p);
     if (HTyp.consistent(ty, ty')) {
-      (UHPat.set_err_status_t(NotInHole, p'), ctx, u_gen);
+      (UHPat.set_err_status_operand(NotInHole, p'), ctx, u_gen);
     } else {
       let (u, u_gen) = MetaVarGen.next(u_gen);
-      (UHPat.set_err_status_t(InHole(TypeInconsistent, u), p'), ctx, u_gen);
+      (
+        UHPat.set_err_status_operand(InHole(TypeInconsistent, u), p'),
+        ctx,
+        u_gen,
+      );
     };
   | ListNil(_) =>
     switch (HTyp.matched_list(ty)) {
@@ -1441,7 +1445,7 @@ and syn_fix_holes_exp =
       e: UHExp.t,
     )
     : (UHExp.t, HTyp.t, MetaVarGen.t) => {
-  let e_nih = UHExp.set_err_status_t(NotInHole, e);
+  let e_nih = UHExp.set_err_status_operand(NotInHole, e);
   switch (e) {
   | EmptyHole(_) =>
     if (renumber_empty_holes) {
@@ -1648,14 +1652,14 @@ and ana_fix_holes_exp =
     let (e, ty', u_gen) =
       syn_fix_holes_exp(ctx, u_gen, ~renumber_empty_holes, e);
     if (HTyp.consistent(ty, ty')) {
-      (UHExp.set_err_status_t(NotInHole, e), u_gen);
+      (UHExp.set_err_status_operand(NotInHole, e), u_gen);
     } else {
       let (u, u_gen) = MetaVarGen.next(u_gen);
-      (UHExp.set_err_status_t(InHole(TypeInconsistent, u), e), u_gen);
+      (UHExp.set_err_status_operand(InHole(TypeInconsistent, u), e), u_gen);
     };
   | ListNil(_) =>
     switch (HTyp.matched_list(ty)) {
-    | Some(_) => (UHExp.set_err_status_t(NotInHole, e), u_gen)
+    | Some(_) => (UHExp.set_err_status_operand(NotInHole, e), u_gen)
     | None =>
       let (u, u_gen) = MetaVarGen.next(u_gen);
       (ListNil(InHole(TypeInconsistent, u)), u_gen);
@@ -1697,7 +1701,10 @@ and ana_fix_holes_exp =
           let (e', _, u_gen) =
             syn_fix_holes_exp(ctx, u_gen, ~renumber_empty_holes, e);
           let (u, u_gen) = MetaVarGen.next(u_gen);
-          (UHExp.set_err_status_t(InHole(TypeInconsistent, u), e'), u_gen);
+          (
+            UHExp.set_err_status_operand(InHole(TypeInconsistent, u), e'),
+            u_gen,
+          );
         };
       | None =>
         let (p, ctx, u_gen) =
@@ -1710,7 +1717,10 @@ and ana_fix_holes_exp =
       let (e', _, u_gen) =
         syn_fix_holes_exp(ctx, u_gen, ~renumber_empty_holes, e);
       let (u, u_gen) = MetaVarGen.next(u_gen);
-      (UHExp.set_err_status_t(InHole(TypeInconsistent, u), e'), u_gen);
+      (
+        UHExp.set_err_status_operand(InHole(TypeInconsistent, u), e'),
+        u_gen,
+      );
     }
   | Inj(_, side, block) =>
     switch (HTyp.matched_sum(ty)) {
@@ -1728,10 +1738,13 @@ and ana_fix_holes_exp =
       let (e', ty', u_gen) =
         syn_fix_holes_exp(ctx, u_gen, ~renumber_empty_holes, e);
       if (HTyp.consistent(ty, ty')) {
-        (UHExp.set_err_status_t(NotInHole, e'), u_gen);
+        (UHExp.set_err_status_operand(NotInHole, e'), u_gen);
       } else {
         let (u, u_gen) = MetaVarGen.next(u_gen);
-        (UHExp.set_err_status_t(InHole(TypeInconsistent, u), e'), u_gen);
+        (
+          UHExp.set_err_status_operand(InHole(TypeInconsistent, u), e'),
+          u_gen,
+        );
       };
     }
   | Case(_, block, rules, Some(uty)) =>
@@ -1764,7 +1777,10 @@ and ana_fix_holes_exp =
       let (e', _, u_gen) =
         syn_fix_holes_exp(ctx, u_gen, ~renumber_empty_holes, e);
       let (u, u_gen) = MetaVarGen.next(u_gen);
-      (UHExp.set_err_status_t(InHole(TypeInconsistent, u), e'), u_gen);
+      (
+        UHExp.set_err_status_operand(InHole(TypeInconsistent, u), e'),
+        u_gen,
+      );
     };
   | Case(_, block, rules, None) =>
     let (e1, ty1, u_gen) =
@@ -1776,10 +1792,13 @@ and ana_fix_holes_exp =
     let (e', ty', u_gen) =
       syn_fix_holes_exp(ctx, u_gen, ~renumber_empty_holes, e);
     if (HTyp.consistent(ty, ty')) {
-      (UHExp.set_err_status_t(NotInHole, e'), u_gen);
+      (UHExp.set_err_status_operand(NotInHole, e'), u_gen);
     } else {
       let (u, u_gen) = MetaVarGen.next(u_gen);
-      (UHExp.set_err_status_t(InHole(TypeInconsistent, u), e'), u_gen);
+      (
+        UHExp.set_err_status_operand(InHole(TypeInconsistent, u), e'),
+        u_gen,
+      );
     };
   }
 and syn_fix_holes_exp_skel =

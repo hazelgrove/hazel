@@ -3,11 +3,6 @@ open SemanticsCommon;
 open GeneralUtil;
 
 [@deriving sexp]
-type opseq_surround = Seq.opseq_surround(UHExp.t, UHExp.op);
-type prefix = Seq.prefix(UHExp.t, UHExp.op);
-type suffix = Seq.suffix(UHExp.t, UHExp.op);
-
-[@deriving sexp]
 type zblock =
   | BlockZL(zlines, UHExp.t)
   | BlockZE(UHExp.lines, t)
@@ -419,12 +414,12 @@ let prune_empty_hole_lines = ((prefix, zline, suffix): zlines): zlines => (
 /* TODO refactor to erase and call UHExp.get_err_status */
 let rec get_err_status_block = (zblock: zblock): ErrStatus.t =>
   switch (zblock) {
-  | BlockZL(_, e) => UHExp.get_err_status_t(e)
-  | BlockZE(_, ze) => get_err_status_t(ze)
+  | BlockZL(_, e) => UHExp.get_err_status_operand(e)
+  | BlockZE(_, ze) => get_err_status_operand(ze)
   }
-and get_err_status_t = (ze: t): ErrStatus.t =>
+and get_err_status_operand = (ze: t): ErrStatus.t =>
   switch (ze) {
-  | CursorE(_, e) => UHExp.get_err_status_t(e)
+  | CursorE(_, e) => UHExp.get_err_status_operand(e)
   | ParenthesizedZ(zblock) => get_err_status_block(zblock)
   | OpSeqZ(skel, ze_n, surround) =>
     get_err_status_opseq(skel, ze_n, surround)
@@ -442,11 +437,11 @@ and get_err_status_opseq =
   switch (skel) {
   | Placeholder(m) =>
     if (m === Seq.surround_prefix_length(surround)) {
-      get_err_status_t(ze_n);
+      get_err_status_operand(ze_n);
     } else {
       switch (Seq.surround_nth(m, surround)) {
       | None => raise(InconsistentOpSeq)
-      | Some(e_m) => UHExp.get_err_status_t(e_m)
+      | Some(e_m) => UHExp.get_err_status_operand(e_m)
       };
     }
   | BinOp(err, _, _, _) => err
@@ -454,12 +449,14 @@ and get_err_status_opseq =
 
 let rec set_err_status_block = (err: ErrStatus.t, zblock: zblock): zblock =>
   switch (zblock) {
-  | BlockZL(zlines, e) => BlockZL(zlines, UHExp.set_err_status_t(err, e))
-  | BlockZE(lines, ze) => BlockZE(lines, set_err_status_t(err, ze))
+  | BlockZL(zlines, e) =>
+    BlockZL(zlines, UHExp.set_err_status_operand(err, e))
+  | BlockZE(lines, ze) => BlockZE(lines, set_err_status_operand(err, ze))
   }
-and set_err_status_t = (err: ErrStatus.t, ze: t): t =>
+and set_err_status_operand = (err: ErrStatus.t, ze: t): t =>
   switch (ze) {
-  | CursorE(cursor, eo) => CursorE(cursor, UHExp.set_err_status_t(err, eo))
+  | CursorE(cursor, eo) =>
+    CursorE(cursor, UHExp.set_err_status_operand(err, eo))
   | ParenthesizedZ(zblock) =>
     ParenthesizedZ(set_err_status_block(err, zblock))
   | OpSeqZ(skel, ze_n, surround) =>
@@ -481,13 +478,13 @@ and set_err_status_opseq =
   switch (skel) {
   | Placeholder(m) =>
     if (m === Seq.surround_prefix_length(surround)) {
-      let ze_n = set_err_status_t(err, ze_n);
+      let ze_n = set_err_status_operand(err, ze_n);
       (skel, ze_n, surround);
     } else {
       switch (Seq.surround_nth(m, surround)) {
       | None => raise(InconsistentOpSeq)
       | Some(e_m) =>
-        let e_m = UHExp.set_err_status_t(err, e_m);
+        let e_m = UHExp.set_err_status_operand(err, e_m);
         switch (Seq.surround_update_nth(m, surround, e_m)) {
         | None => raise(InconsistentOpSeq)
         | Some(surround) => (skel, ze_n, surround)
@@ -540,7 +537,7 @@ and make_inconsistent = (u_gen: MetaVarGen.t, ze: t): (t, MetaVarGen.t) =>
   | CaseZA(NotInHole | InHole(WrongLength, _), _, _, _)
   | ApPaletteZ(NotInHole | InHole(WrongLength, _), _, _, _) =>
     let (u, u_gen) = MetaVarGen.next(u_gen);
-    let ze = set_err_status_t(InHole(TypeInconsistent, u), ze);
+    let ze = set_err_status_operand(InHole(TypeInconsistent, u), ze);
     (ze, u_gen);
   }
 and make_skel_inconsistent =

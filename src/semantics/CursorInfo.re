@@ -228,7 +228,7 @@ type child_indices = list(int);
 let child_indices_of_current_node = ci =>
   switch (ci.node) {
   | Line(li) => UHExp.child_indices_line(li)
-  | Exp(e) => UHExp.child_indices_exp(e)
+  | Exp(e) => UHExp.child_indices_operand(e)
   | Rule(rule) => UHExp.child_indices_rule(rule)
   | Pat(p) => UHPat.child_indices(p)
   | Typ(ty) => UHTyp.child_indices(ty)
@@ -246,7 +246,7 @@ let preserved_child_term_of_node = ci =>
          | (i, block) => Some((i, Expression(block))),
        )
   | Exp(e) =>
-    switch (e |> UHExp.favored_child_of_exp, ci.frame) {
+    switch (e |> UHExp.favored_child_of_operand, ci.frame) {
     | (None, _) => None
     | (_, TypFrame(_) | PatFrame(_)) => None
     | (Some((_, Block([], EmptyHole(_)))), _) => None
@@ -321,7 +321,7 @@ let rec _ana_cursor_found_pat =
   | ListNil(InHole(TypeInconsistent, _))
   | Inj(InHole(TypeInconsistent, _), _, _)
   | OpSeq(BinOp(InHole(TypeInconsistent, _), _, _, _), _) =>
-    let p_nih = UHPat.set_err_status_t(NotInHole, p);
+    let p_nih = UHPat.set_err_status_operand(NotInHole, p);
     switch (Statics.syn_pat(ctx, p_nih)) {
     | None => None
     | Some((ty', _)) =>
@@ -833,7 +833,7 @@ and _ana_cursor_found_exp =
   | Case(InHole(TypeInconsistent, _), _, _, _)
   | ApPalette(InHole(TypeInconsistent, _), _, _, _)
   | OpSeq(BinOp(InHole(TypeInconsistent, _), _, _, _), _) =>
-    let e_nih = UHExp.set_err_status_t(NotInHole, e);
+    let e_nih = UHExp.set_err_status_operand(NotInHole, e);
     switch (Statics.syn_exp(ctx, e_nih)) {
     | None => None
     | Some(ty') => Some((AnaTypeInconsistent(ty, ty'), Exp(e), ctx))

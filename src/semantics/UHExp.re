@@ -3,7 +3,7 @@ open SemanticsCommon;
 open GeneralUtil;
 
 [@deriving sexp]
-type op =
+type operator =
   | Plus
   | Minus
   | Times
@@ -20,41 +20,34 @@ let is_Space =
   | _ => false;
 
 [@deriving sexp]
-type skel = Skel.t(op);
-
-[@deriving sexp]
-type block =
-  | Block(lines, t)
+type t = block
+and block =
+  | Block(lines, opseq)
 and lines = list(line)
 and line =
-  | ExpLine(t)
+  | ExpLine(opseq)
   | EmptyLine
-  | LetLine(UHPat.t, option(UHTyp.t), block)
-and t =
-  /* outer nodes */
+  | LetLine(UHPat.t, option(UHTyp.t), t)
+and opseq = OpSeq.t(operand, operator)
+and operand =
   | EmptyHole(MetaVar.t)
   | Var(ErrStatus.t, VarErrStatus.t, Var.t)
   | NumLit(ErrStatus.t, int)
   | BoolLit(ErrStatus.t, bool)
   | ListNil(ErrStatus.t)
-  /* inner nodes */
-  | Lam(ErrStatus.t, UHPat.t, option(UHTyp.t), block)
-  | Inj(ErrStatus.t, inj_side, block)
-  | Case(ErrStatus.t, block, rules, option(UHTyp.t))
-  | Parenthesized(block)
-  | OpSeq(skel, opseq) /* invariant: skeleton is consistent with opseq */
+  | Lam(ErrStatus.t, UHPat.t, option(UHTyp.t), t)
+  | Inj(ErrStatus.t, inj_side, t)
+  | Case(ErrStatus.t, t, rules, option(UHTyp.t))
+  | Parenthesized(t)
   | ApPalette(ErrStatus.t, PaletteName.t, SerializedModel.t, splice_info)
-and opseq = Seq.t(t, op)
 and rules = list(rule)
 and rule =
-  | Rule(UHPat.t, block)
-and splice_info = SpliceInfo.t(block)
-and splice_map = SpliceInfo.splice_map(block);
+  | Rule(UHPat.t, t)
+and splice_info = SpliceInfo.t(t)
+and splice_map = SpliceInfo.splice_map(t);
 
-exception InconsistentOpSeq(skel, opseq);
-
-let letline = (p: UHPat.t, ~ann: option(UHTyp.t)=?, block: block): line =>
-  LetLine(p, ann, block);
+let letline = (p: UHPat.t, ~ann: option(UHTyp.t)=?, def: t): line =>
+  LetLine(p, ann, def);
 
 let var =
     (
@@ -62,19 +55,20 @@ let var =
       ~var_err: VarErrStatus.t=NotInVarHole,
       x: Var.t,
     )
-    : t =>
+    : operand =>
   Var(err, var_err, x);
 
-let numlit = (~err: ErrStatus.t=NotInHole, n: int): t => NumLit(err, n);
+let numlit = (~err: ErrStatus.t=NotInHole, n: int): operand =>
+  NumLit(err, n);
 
 let lam =
     (
       ~err: ErrStatus.t=NotInHole,
       p: UHPat.t,
       ~ann: option(UHTyp.t)=?,
-      body: block,
+      body: t,
     )
-    : t =>
+    : operand =>
   Lam(err, p, ann, body);
 
 let case =
@@ -84,54 +78,54 @@ let case =
       scrut: block,
       rules: rules,
     )
-    : t =>
+    : operand =>
   Case(err, scrut, rules, ann);
 
-let listnil = (~err: ErrStatus.t=NotInHole, ()): t => ListNil(err);
+let listnil = (~err: ErrStatus.t=NotInHole, ()): operand => ListNil(err);
 
-let wrap_in_block = (e: t): block => Block([], e);
+let wrap_in_block = (opseq: opseq): block => Block([], opseq);
 
 let prune_empty_hole_line = (li: line): line =>
   switch (li) {
-  | ExpLine(EmptyHole(_)) => EmptyLine
+  | ExpLine(OpSeq(_, S(EmptyHole(_), E))) => EmptyLine
   | ExpLine(_)
   | EmptyLine
   | LetLine(_, _, _) => li
   };
 let prune_empty_hole_lines: lines => lines = List.map(prune_empty_hole_line);
 
-let rec get_tuple = (skel1: skel, skel2: skel): ListMinTwo.t(skel) =>
-  switch (skel2) {
-  | BinOp(_, Comma, skel21, skel22) =>
-    Cons(skel1, get_tuple(skel21, skel22))
-  | BinOp(_, _, _, _)
-  | Placeholder(_) => Pair(skel1, skel2)
-  };
+/*
+ let rec get_tuple = (skel1: skel, skel2: skel): ListMinTwo.t(skel) =>
+   switch (skel2) {
+   | BinOp(_, Comma, skel21, skel22) =>
+     Cons(skel1, get_tuple(skel21, skel22))
+   | BinOp(_, _, _, _)
+   | Placeholder(_) => Pair(skel1, skel2)
+   };
 
-let rec make_tuple = (err: ErrStatus.t, skels: ListMinTwo.t(skel)): skel =>
-  switch (skels) {
-  | Pair(skel1, skel2) => BinOp(err, Comma, skel1, skel2)
-  | Cons(skel1, skels) =>
-    BinOp(err, Comma, skel1, make_tuple(NotInHole, skels))
-  };
+ let rec make_tuple = (err: ErrStatus.t, skels: ListMinTwo.t(skel)): skel =>
+   switch (skels) {
+   | Pair(skel1, skel2) => BinOp(err, Comma, skel1, skel2)
+   | Cons(skel1, skels) =>
+     BinOp(err, Comma, skel1, make_tuple(NotInHole, skels))
+   };
+ */
 
 /* helper function for constructing a new empty hole */
-let new_EmptyHole = (u_gen: MetaVarGen.t): (t, MetaVarGen.t) => {
-  let (u, u_gen) = MetaVarGen.next(u_gen);
+let new_EmptyHole = (u_gen: MetaVarGen.t): (operand, MetaVarGen.t) => {
+  let (u, u_gen) = u_gen |> MetaVarGen.next;
   (EmptyHole(u), u_gen);
 };
 
-let is_EmptyHole = (e: t): bool =>
-  switch (e) {
+let is_EmptyHole =
+  fun
   | EmptyHole(_) => true
-  | _ => false
-  };
+  | _ => false;
 
 let empty_rule = (u_gen: MetaVarGen.t): (rule, MetaVarGen.t) => {
   let (p, u_gen) = UHPat.new_EmptyHole(u_gen);
   let (e, u_gen) = new_EmptyHole(u_gen);
-  let block = wrap_in_block(e);
-  let rule = Rule(p, block);
+  let rule = Rule(p |> OpSeq.wrap, e |> OpSeq.wrap |> wrap_in_block);
   (rule, u_gen);
 };
 
@@ -158,9 +152,8 @@ let block_to_lines = (Block(lines, e)) => lines @ [ExpLine(e)];
  * the opseq. For consistency, we require that case expressions
  * always be parenthesized in an opseq.
  */
-let bidelimited = (e: t): bool =>
-  switch (e) {
-  /* bidelimited */
+let bidelimited =
+  fun
   | EmptyHole(_)
   | Var(_, _, _)
   | NumLit(_, _)
@@ -169,24 +162,23 @@ let bidelimited = (e: t): bool =>
   | Inj(_, _, _)
   | ApPalette(_, _, _, _)
   | Parenthesized(_) => true
-  /* non-bidelimited */
   | Case(_, _, _, _)
-  | Lam(_, _, _, _)
-  | OpSeq(_, _) => false
-  };
+  | Lam(_, _, _, _) => false;
 
 /* if e is not bidelimited, bidelimit e parenthesizes it */
-let bidelimit = (e: t): t =>
-  if (bidelimited(e)) {
-    e;
+let bidelimit = (operand): operand =>
+  if (bidelimited(operand)) {
+    operand;
   } else {
-    Parenthesized(wrap_in_block(e));
+    Parenthesized(operand |> OpSeq.wrap |> wrap_in_block);
   };
 
-let rec get_err_status_block = (Block(_, e): block): ErrStatus.t =>
-  get_err_status_t(e)
-and get_err_status_t = (e: t): ErrStatus.t =>
-  switch (e) {
+let rec get_err_status = (e: t): ErrStatus.t => get_err_status_block(e)
+and get_err_status_block = (Block(_, opseq)) => get_err_status_opseq(opseq)
+and get_err_status_opseq = opseq =>
+  OpSeq.get_err_status(~get_err_status_operand, opseq)
+and get_err_status_operand =
+  fun
   | EmptyHole(_) => NotInHole
   | Var(err, _, _)
   | NumLit(err, _)
@@ -196,66 +188,49 @@ and get_err_status_t = (e: t): ErrStatus.t =>
   | Inj(err, _, _)
   | Case(err, _, _, _)
   | ApPalette(err, _, _, _) => err
-  | Parenthesized(block) => get_err_status_block(block)
-  | OpSeq(BinOp(err, _, _, _), _) => err
-  | OpSeq(Placeholder(n) as skel, seq) =>
-    switch (Seq.nth_operand(n, seq)) {
-    | None => raise(InconsistentOpSeq(skel, seq))
-    | Some(e_n) => get_err_status_t(e_n)
-    }
-  };
+  | Parenthesized(e) => get_err_status(e);
 
-let rec set_err_status_block =
-        (err: ErrStatus.t, Block(lines, e): block): block =>
-  Block(lines, set_err_status_t(err, e))
 /* put e in the specified hole */
-and set_err_status_t = (err: ErrStatus.t, e: t): t =>
-  switch (e) {
-  | EmptyHole(_) => e
+let rec set_err_status = (err: ErrStatus.t, e: t): t =>
+  set_err_status_block(err, e)
+and set_err_status_block =
+    (err: ErrStatus.t, Block(lines, opseq): block): block =>
+  Block(lines, set_err_status_opseq(err, opseq))
+and set_err_status_opseq = (err, opseq) =>
+  OpSeq.set_err_status(~set_err_status_operand, err, opseq)
+and set_err_status_operand = (err, operand) =>
+  switch (operand) {
+  | EmptyHole(_) => operand
   | Var(_, var_err, x) => Var(err, var_err, x)
   | NumLit(_, n) => NumLit(err, n)
   | BoolLit(_, b) => BoolLit(err, b)
   | ListNil(_) => ListNil(err)
-  | Lam(_, p, ann, block) => Lam(err, p, ann, block)
-  | Inj(_, inj_side, block) => Inj(err, inj_side, block)
-  | Case(_, block, rules, ann) => Case(err, block, rules, ann)
+  | Lam(_, p, ann, def) => Lam(err, p, ann, def)
+  | Inj(_, inj_side, body) => Inj(err, inj_side, body)
+  | Case(_, scrut, rules, ann) => Case(err, scrut, rules, ann)
   | ApPalette(_, name, model, si) => ApPalette(err, name, model, si)
-  | Parenthesized(block) => Parenthesized(set_err_status_block(err, block))
-  | OpSeq(skel, seq) =>
-    let (skel, seq) = set_err_status_opseq(err, skel, seq);
-    OpSeq(skel, seq);
-  }
-and set_err_status_opseq =
-    (err: ErrStatus.t, skel: skel, seq: opseq): (skel, opseq) =>
-  switch (skel) {
-  | Placeholder(n) =>
-    switch (Seq.nth_operand(n, seq)) {
-    | None => raise(InconsistentOpSeq(skel, seq))
-    | Some(en) =>
-      let en = set_err_status_t(err, en);
-      switch (Seq.seq_update_nth(n, seq, en)) {
-      | None => raise(InconsistentOpSeq(skel, seq))
-      | Some(seq) => (skel, seq)
-      };
-    }
-  | BinOp(_, op, skel1, skel2) => (BinOp(err, op, skel1, skel2), seq)
+  | Parenthesized(body) => Parenthesized(set_err_status_block(err, body))
   };
 
-let is_inconsistent = e =>
-  switch (e |> get_err_status_t) {
+let is_inconsistent = operand =>
+  switch (operand |> get_err_status_operand) {
   | InHole(TypeInconsistent, _) => true
   | _ => false
   };
 
-let rec make_block_inconsistent =
-        (u_gen: MetaVarGen.t, block: block): (block, MetaVarGen.t) => {
-  let (u, u_gen) = MetaVarGen.next(u_gen);
-  let block = set_err_status_block(InHole(TypeInconsistent, u), block);
-  (block, u_gen);
-}
 /* put e in a new hole, if it is not already in a hole */
-and make_inconsistent = (u_gen: MetaVarGen.t, e: t): (t, MetaVarGen.t) =>
-  switch (e) {
+let rec make_inconsistent = (u_gen: MetaVarGen.t, e: t): (t, MetaVarGen.t) =>
+  make_inconsistent_block(u_gen, e)
+and make_inconsistent_block =
+    (u_gen: MetaVarGen.t, Block(leading, conclusion): block)
+    : (block, MetaVarGen.t) => {
+  let (conclusion, u_gen) = conclusion |> make_inconsistent_opseq(u_gen);
+  (Block(leading, conclusion), u_gen);
+}
+and make_inconsistent_opseq = (u_gen, opseq) =>
+  OpSeq.make_inconsistent(~make_inconsistent_operand, u_gen, opseq)
+and make_inconsistent_operand = (u_gen, operand) =>
+  switch (operand) {
   /* already in hole */
   | EmptyHole(_)
   | Var(InHole(TypeInconsistent, _), _, _)
@@ -265,7 +240,7 @@ and make_inconsistent = (u_gen: MetaVarGen.t, e: t): (t, MetaVarGen.t) =>
   | Lam(InHole(TypeInconsistent, _), _, _, _)
   | Inj(InHole(TypeInconsistent, _), _, _)
   | Case(InHole(TypeInconsistent, _), _, _, _)
-  | ApPalette(InHole(TypeInconsistent, _), _, _, _) => (e, u_gen)
+  | ApPalette(InHole(TypeInconsistent, _), _, _, _) => (operand, u_gen)
   /* not in hole */
   | Var(NotInHole | InHole(WrongLength, _), _, _)
   | NumLit(NotInHole | InHole(WrongLength, _), _)
@@ -275,44 +250,22 @@ and make_inconsistent = (u_gen: MetaVarGen.t, e: t): (t, MetaVarGen.t) =>
   | Inj(NotInHole | InHole(WrongLength, _), _, _)
   | Case(NotInHole | InHole(WrongLength, _), _, _, _)
   | ApPalette(NotInHole | InHole(WrongLength, _), _, _, _) =>
-    let (u, u_gen) = MetaVarGen.next(u_gen);
-    let e = set_err_status_t(InHole(TypeInconsistent, u), e);
-    (e, u_gen);
+    let (u, u_gen) = u_gen |> MetaVarGen.next;
+    let operand =
+      operand |> set_err_status_operand(InHole(TypeInconsistent, u));
+    (operand, u_gen);
   /* err in constructor args */
-  | Parenthesized(block) =>
-    let (block, u_gen) = make_block_inconsistent(u_gen, block);
-    (Parenthesized(block), u_gen);
-  | OpSeq(skel, seq) =>
-    let (skel, seq, u_gen) = make_opseq_inconsistent(u_gen, skel, seq);
-    (OpSeq(skel, seq), u_gen);
-  }
-/* put skel in a new hole, if it is not already in a hole */
-and make_opseq_inconsistent =
-    (u_gen: MetaVarGen.t, skel: skel, seq: opseq)
-    : (skel, opseq, MetaVarGen.t) =>
-  switch (skel) {
-  | Placeholder(n) =>
-    switch (Seq.nth_operand(n, seq)) {
-    | None => raise(InconsistentOpSeq(skel, seq))
-    | Some(en) =>
-      let (en, u_gen) = make_inconsistent(u_gen, en);
-      switch (Seq.seq_update_nth(n, seq, en)) {
-      | None => raise(InconsistentOpSeq(skel, seq))
-      | Some(seq) => (skel, seq, u_gen)
-      };
-    }
-  | BinOp(InHole(TypeInconsistent, _), _, _, _) => (skel, seq, u_gen)
-  | BinOp(NotInHole, op, skel1, skel2)
-  | BinOp(InHole(WrongLength, _), op, skel1, skel2) =>
-    let (u, u_gen) = MetaVarGen.next(u_gen);
-    (BinOp(InHole(TypeInconsistent, u), op, skel1, skel2), seq, u_gen);
+  | Parenthesized(body) =>
+    let (body, u_gen) = body |> make_inconsistent(u_gen);
+    (Parenthesized(body), u_gen);
   };
 
-let rec drop_outer_parentheses = (e: t): block =>
-  switch (e) {
-  | Parenthesized(Block([], e)) => drop_outer_parentheses(e)
-  | Parenthesized(block) => block
-  | _ => Block([], e)
+let rec drop_outer_parentheses = (operand): t =>
+  switch (operand) {
+  | Parenthesized(Block([], OpSeq(_, S(operand, E)))) =>
+    drop_outer_parentheses(operand)
+  | Parenthesized(e) => e
+  | _ => Block([], operand |> OpSeq.wrap)
   };
 
 let child_indices_line =
@@ -321,7 +274,7 @@ let child_indices_line =
   | ExpLine(_) => []
   | LetLine(_, None, _) => [0, 2]
   | LetLine(_, Some(_), _) => [0, 1, 2];
-let child_indices_exp =
+let child_indices_operand =
   fun
   | EmptyHole(_)
   | Var(_, _, _)
@@ -334,7 +287,6 @@ let child_indices_exp =
   | Case(_, _, rules, Some(_)) => range(List.length(rules) + 2)
   | Inj(_, _, _) => [0]
   | Parenthesized(_) => [0]
-  | OpSeq(_, seq) => range(Seq.length(seq))
   | ApPalette(_, _, _, _) => [];
 let child_indices_rule =
   fun
@@ -342,12 +294,7 @@ let child_indices_rule =
 
 let num_lines_in_block = (Block(leading, _)) => List.length(leading) + 1;
 
-[@deriving sexp]
-type exp_or_block =
-  | E(t)
-  | B(block);
-
-let rec first_contiguous_empty_lines = lines =>
+let rec first_contiguous_empty_lines = (lines: lines): (lines, lines) =>
   switch (lines) {
   | [] => ([], [])
   | [EmptyLine, ...rest] =>
@@ -356,13 +303,14 @@ let rec first_contiguous_empty_lines = lines =>
   | [_, ..._] => ([], lines)
   };
 
-let last_contiguous_empty_lines = lines => {
+let last_contiguous_empty_lines = (lines: lines): (lines, lines) => {
   let (empty_lines, rev_prefix) =
     lines |> List.rev |> first_contiguous_empty_lines;
   (List.rev(rev_prefix), empty_lines);
 };
 
-let first_line_and_trailing_contiguous_empty_lines = lines =>
+let first_line_and_trailing_contiguous_empty_lines =
+    (lines: lines): option((line, lines, lines)) =>
   switch (lines) {
   | [] => None
   | [line, ...rest] =>
@@ -371,7 +319,7 @@ let first_line_and_trailing_contiguous_empty_lines = lines =>
   };
 
 let rec first_contiguous_empty_lines_and_nonempty_line =
-        (lines): (lines, option(line), lines) =>
+        (lines: lines): (lines, option(line), lines) =>
   switch (lines) {
   | [] => ([], None, [])
   | [EmptyLine, ...lines] =>
@@ -381,7 +329,8 @@ let rec first_contiguous_empty_lines_and_nonempty_line =
   | [nonempty_line, ...rest] => ([], Some(nonempty_line), rest)
   };
 
-let last_nonempty_line_and_trailing_contiguous_empty_lines = lines => {
+let last_nonempty_line_and_trailing_contiguous_empty_lines =
+    (lines: lines): (lines, option(line), lines) => {
   List.fold_right(
     (line, (prefix, nonempty_line, empty_lines)) =>
       switch (line, nonempty_line) {
@@ -394,7 +343,8 @@ let last_nonempty_line_and_trailing_contiguous_empty_lines = lines => {
   );
 };
 
-let last_line_and_leading_contiguous_empty_lines = lines =>
+let last_line_and_leading_contiguous_empty_lines =
+    (lines: lines): option((lines, lines, line)) =>
   switch (lines |> split_last) {
   | None => None
   | Some((prefix, last)) =>
@@ -409,10 +359,14 @@ let shift_line_to_prefix =
     leading |> first_line_and_trailing_contiguous_empty_lines,
     conclusion,
   ) {
-  | (None, EmptyHole(_)) => None
+  | (None, OpSeq(_, S(EmptyHole(_), E))) => None
   | (None, _) =>
     let (hole, u_gen) = u_gen |> new_EmptyHole;
-    Some((prefix @ [ExpLine(conclusion)], hole |> wrap_in_block, u_gen));
+    Some((
+      prefix @ [ExpLine(conclusion)],
+      hole |> OpSeq.wrap |> wrap_in_block,
+      u_gen,
+    ));
   | (Some((next_line, empty_lines, leading_rest)), _) =>
     Some((
       prefix @ [next_line, ...empty_lines],
@@ -429,7 +383,7 @@ let shift_line_from_prefix =
     Some(([], Block(empty_lines @ leading, conclusion), u_gen))
   | (new_prefix, Some(nonempty_line), empty_lines) =>
     switch (nonempty_line, leading, conclusion) {
-    | (ExpLine(e), [], EmptyHole(_)) =>
+    | (ExpLine(e), [], OpSeq(_, S(EmptyHole(_), E))) =>
       Some((new_prefix, e |> wrap_in_block, u_gen))
     | (_, _, _) =>
       Some((
@@ -455,10 +409,10 @@ let shift_line_from_suffix_block =
       suffix_leading |> first_contiguous_empty_lines_and_nonempty_line,
       suffix_conclusion,
     ) {
-    | ((_, None, _), EmptyHole(_)) => None
+    | ((_, None, _), OpSeq(_, S(EmptyHole(_), E))) => None
     | ((empty_lines, None, _), _) =>
       switch (is_node_terminal, conclusion) {
-      | (false, EmptyHole(_) as recycled_hole) =>
+      | (false, OpSeq(_, S(EmptyHole(_), E)) as recycled_hole) =>
         Some((
           Block(leading @ empty_lines, suffix_conclusion),
           Some(recycled_hole |> wrap_in_block),
@@ -471,10 +425,10 @@ let shift_line_from_suffix_block =
             leading @ empty_lines @ [ExpLine(conclusion)],
             suffix_conclusion,
           ),
-          Some(hole |> wrap_in_block),
+          Some(hole |> OpSeq.wrap |> wrap_in_block),
           u_gen,
         ));
-      | (true, EmptyHole(_)) =>
+      | (true, OpSeq(_, S(EmptyHole(_), E))) =>
         Some((Block(leading @ empty_lines, suffix_conclusion), None, u_gen))
       | (true, _) =>
         Some((
@@ -485,10 +439,10 @@ let shift_line_from_suffix_block =
       }
     | (
         (empty_lines, Some(LetLine(_, _, _) as let_line), []),
-        EmptyHole(_) as let_line_hole,
+        OpSeq(_, S(EmptyHole(_), E)) as let_line_hole,
       ) =>
       switch (is_node_terminal, conclusion) {
-      | (false, EmptyHole(_)) =>
+      | (false, OpSeq(_, S(EmptyHole(_), E))) =>
         Some((
           Block(leading @ empty_lines @ [let_line], conclusion),
           Some(let_line_hole |> wrap_in_block),
@@ -499,12 +453,12 @@ let shift_line_from_suffix_block =
         Some((
           Block(
             leading @ [ExpLine(conclusion)] @ empty_lines @ [let_line],
-            hole,
+            hole |> OpSeq.wrap,
           ),
           Some(let_line_hole |> wrap_in_block),
           u_gen,
         ));
-      | (true, EmptyHole(_)) =>
+      | (true, OpSeq(_, S(EmptyHole(_), E))) =>
         Some((
           Block(leading @ empty_lines @ [let_line], let_line_hole),
           None,
@@ -525,11 +479,14 @@ let shift_line_from_suffix_block =
       let (new_block, u_gen) =
         switch (conclusion, nonempty_line) {
         | (_, EmptyLine) => assert(false)
-        | (EmptyHole(_), ExpLine(e)) => (
+        | (OpSeq(_, S(EmptyHole(_), E)), ExpLine(e)) => (
             Block(leading @ empty_lines, e),
             u_gen,
           )
-        | (EmptyHole(_) as recycled_hole, LetLine(_, _, _) as let_line) => (
+        | (
+            OpSeq(_, S(EmptyHole(_), E)) as recycled_hole,
+            LetLine(_, _, _) as let_line,
+          ) => (
             Block(leading @ empty_lines @ [let_line], recycled_hole),
             u_gen,
           )
@@ -538,7 +495,7 @@ let shift_line_from_suffix_block =
           (
             Block(
               leading @ [ExpLine(conclusion)] @ empty_lines @ [let_line],
-              hole,
+              hole |> OpSeq.wrap,
             ),
             u_gen,
           );
@@ -563,14 +520,14 @@ let shift_line_to_suffix_block =
     // TODO decouple
     : option((block, option(block), MetaVarGen.t)) => {
   switch (leading |> last_line_and_leading_contiguous_empty_lines, conclusion) {
-  | (None, EmptyHole(_)) => None
+  | (None, OpSeq(_, S(EmptyHole(_), E))) => None
   | (None, _) =>
     switch (suffix_block) {
     | None =>
       let (hole, u_gen) = u_gen |> new_EmptyHole;
-      let new_block = hole |> wrap_in_block;
+      let new_block = hole |> OpSeq.wrap |> wrap_in_block;
       Some((new_block, Some(conclusion |> wrap_in_block), u_gen));
-    | Some(Block([], EmptyHole(_) as recycled_hole)) =>
+    | Some(Block([], OpSeq(_, S(EmptyHole(_), E)) as recycled_hole)) =>
       Some((
         recycled_hole |> wrap_in_block,
         Some(conclusion |> wrap_in_block),
@@ -578,7 +535,7 @@ let shift_line_to_suffix_block =
       ))
     | Some(Block(suffix_leading, suffix_conclusion)) =>
       let (hole, u_gen) = u_gen |> new_EmptyHole;
-      let new_block = hole |> wrap_in_block;
+      let new_block = hole |> OpSeq.wrap |> wrap_in_block;
       Some((
         new_block,
         Some(
@@ -590,10 +547,11 @@ let shift_line_to_suffix_block =
         u_gen,
       ));
     }
-  | (Some((_, _, EmptyLine)), EmptyHole(_)) => assert(false)
+  | (Some((_, _, EmptyLine)), OpSeq(_, S(EmptyHole(_), E))) =>
+    assert(false)
   | (
       Some((prefix, empty_lines, LetLine(_, _, _) as last_line)),
-      EmptyHole(_),
+      OpSeq(_, S(EmptyHole(_), E)),
     ) =>
     switch (prefix |> split_last) {
     | None
@@ -605,7 +563,7 @@ let shift_line_to_suffix_block =
         Block(prefix, conclusion),
         Some(
           switch (suffix_block) {
-          | None => Block(empty_lines @ [last_line], hole)
+          | None => Block(empty_lines @ [last_line], hole |> OpSeq.wrap)
           | Some(Block(suffix_leading, suffix_conclusion)) =>
             Block(
               empty_lines @ [last_line] @ suffix_leading,
@@ -646,7 +604,7 @@ let shift_line_to_suffix_block =
       | Some((_, LetLine(_, _, _))) =>
         let (hole, u_gen) = u_gen |> new_EmptyHole;
         Some((
-          Block(leading_prefix, hole),
+          Block(leading_prefix, hole |> OpSeq.wrap),
           Some(Block(empty_lines, conclusion)),
           u_gen,
         ));
@@ -664,7 +622,7 @@ let shift_line_to_suffix_block =
       | (
           None | Some((_, LetLine(_, _, _))),
           [],
-          EmptyHole(_) as recycled_hole,
+          OpSeq(_, S(EmptyHole(_), E)) as recycled_hole,
         ) =>
         Some((
           Block(leading_prefix, recycled_hole),
@@ -674,7 +632,7 @@ let shift_line_to_suffix_block =
       | (None | Some((_, LetLine(_, _, _))), _, _) =>
         let (hole, u_gen) = u_gen |> new_EmptyHole;
         Some((
-          Block(leading_prefix, hole),
+          Block(leading_prefix, hole |> OpSeq.wrap),
           Some(
             Block(
               empty_lines @ [ExpLine(conclusion)] @ suffix_leading,
@@ -687,7 +645,8 @@ let shift_line_to_suffix_block =
         Some((
           Block(leading_prefix_prefix, e),
           switch (suffix_leading, suffix_conclusion) {
-          | ([], EmptyHole(_)) => Some(Block(empty_lines, conclusion))
+          | ([], OpSeq(_, S(EmptyHole(_), E))) =>
+            Some(Block(empty_lines, conclusion))
           | (_, _) =>
             Some(
               Block(
@@ -703,50 +662,52 @@ let shift_line_to_suffix_block =
   };
 };
 
-let favored_child_of_line: line => option((child_index, block)) =
+let favored_child_of_line: line => option((child_index, t)) =
   fun
   | EmptyLine
   | ExpLine(_) => None
   | LetLine(_, _, def) => Some((2, def));
 
-let favored_child_of_exp: t => option((child_index, block)) =
+let favored_child_of_operand: operand => option((child_index, t)) =
   fun
   | EmptyHole(_)
   | Var(_, _, _)
   | NumLit(_, _)
   | BoolLit(_, _)
   | ListNil(_)
-  | OpSeq(_, _)
   | ApPalette(_, _, _, _) => None
-  | Lam(_, _, _, block) => Some((2, block))
-  | Inj(_, _, block)
-  | Case(_, block, _, _)
-  | Parenthesized(block) => Some((0, block));
+  | Lam(_, _, _, e) => Some((2, e))
+  | Inj(_, _, e)
+  | Case(_, e, _, _)
+  | Parenthesized(e) => Some((0, e));
 
 let has_concluding_let_line =
   fun
   | Block(leading, conclusion) =>
     switch (leading |> split_last, conclusion) {
-    | (Some((_, LetLine(_, _, _))), EmptyHole(_)) => true
+    | (Some((_, LetLine(_, _, _))), OpSeq(_, S(EmptyHole(_), E))) => true
     | (_, _) => false
     };
 
-let rec is_multi_line =
+let rec is_multi_line = block => is_multi_line_block(block)
+and is_multi_line_block =
   fun
   | Block(lines, e) as block =>
-    if (lines |> List.exists(is_multi_line_line) || is_multi_line_exp(e)) {
+    if (lines |> List.exists(is_multi_line_line) || is_multi_line_operand(e)) {
       true;
     } else if (List.length(lines) == 1 && has_concluding_let_line(block)) {
       false;
     } else {
-      List.length(lines) > 0 || is_multi_line_exp(e);
+      List.length(lines) > 0 || is_multi_line_operand(e);
     }
 and is_multi_line_line =
   fun
   | EmptyLine => false
-  | ExpLine(e) => is_multi_line_exp(e)
+  | ExpLine(opseq) => is_multi_line_opseq(opseq)
   | LetLine(_, _, def) => is_multi_line(def)
-and is_multi_line_exp =
+and is_multi_line_opseq = (opseq: opseq): bool =>
+  OpSeq.is_multi_line(~is_multi_line_operand, opseq)
+and is_multi_line_operand =
   fun
   | EmptyHole(_)
   | Var(_, _, _)
@@ -757,10 +718,9 @@ and is_multi_line_exp =
   | Lam(_, _, _, body) => is_multi_line(body)
   | Inj(_, _, body) => is_multi_line(body)
   | Case(_, _, _, _) => true
-  | Parenthesized(body) => is_multi_line(body)
-  | OpSeq(_, seq) => seq |> Seq.operands |> List.exists(is_multi_line_exp);
+  | Parenthesized(body) => is_multi_line(body);
 
 let is_trivial_block =
   fun
-  | Block([], EmptyHole(_)) => true
+  | Block([], OpSeq(_, S(EmptyHole(_), E))) => true
   | _ => false;

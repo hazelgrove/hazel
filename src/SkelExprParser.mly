@@ -28,7 +28,7 @@
 %left TIMES
 %left SPACEOP
 
-%start <UHExp.op Skel.t> skel_expr
+%start <UHExp.operator Skel.t> skel_expr
 
 (* %% ends the declarations section of the grammar definition *)
 

@@ -172,7 +172,7 @@ and collect_holes_exp: UHExp.t => holes_steps =
   | OpSeq(skel, seq) =>
     collect_holes_skel(
       ~is_multi_line=
-        seq |> Seq.operands |> List.exists(UHExp.is_multi_line_exp),
+        seq |> Seq.operands |> List.exists(UHExp.is_multi_line_operand),
       skel,
       seq,
     )
@@ -1066,7 +1066,7 @@ let view = (~is_cell_focused: bool, ~holes_steps, ~ci: CursorInfo.t) => {
   (
     switch (ci.node) {
     | Exp(OpSeq(_, _) as e) =>
-      Code.is_multi_line_exp(e)
+      Code.is_multi_line_operand(e)
         ? multi_line_seq_indicators(~is_cell_focused, ~ci)
         : single_line_seq_indicators(~is_cell_focused, ~ci)
     | Pat(OpSeq(_, _) as p) =>

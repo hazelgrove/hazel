@@ -66,3 +66,11 @@ let make_inconsistent =
 let child_indices =
   fun
   | OpSeq(_, seq) => seq |> Seq.length |> range;
+
+let is_multi_line =
+    (
+      ~is_multi_line_operand: 'operand => bool,
+      OpSeq(_, seq): t('operand, 'operator),
+    )
+    : bool =>
+  seq |> Seq.operands |> List.exists(is_multi_line_operand);

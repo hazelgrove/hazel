@@ -72,7 +72,7 @@ module DHPat = {
     | BoolLit(InHole(TypeInconsistent as reason, u), _)
     | ListNil(InHole(TypeInconsistent as reason, u))
     | Inj(InHole(TypeInconsistent as reason, u), _, _) =>
-      let p' = UHPat.set_err_status_t(NotInHole, p);
+      let p' = UHPat.set_err_status_operand(NotInHole, p);
       switch (syn_expand(ctx, delta, p')) {
       | DoesNotExpand => DoesNotExpand
       | Expands(dp, _, ctx, delta) =>
@@ -184,7 +184,7 @@ module DHPat = {
     | BoolLit(InHole(TypeInconsistent as reason, u), _)
     | ListNil(InHole(TypeInconsistent as reason, u))
     | Inj(InHole(TypeInconsistent as reason, u), _, _) =>
-      let p' = UHPat.set_err_status_t(NotInHole, p);
+      let p' = UHPat.set_err_status_operand(NotInHole, p);
       switch (syn_expand(ctx, delta, p')) {
       | DoesNotExpand => DoesNotExpand
       | Expands(dp1, _, ctx, delta) =>
@@ -384,7 +384,7 @@ module DHExp = {
     | Times
     | LessThan;
 
-  let of_op = (op: UHExp.op): option((bin_num_op, HTyp.t)) =>
+  let of_op = (op: UHExp.operator): option((bin_num_op, HTyp.t)) =>
     switch (op) {
     | Minus => Some((Minus, Num))
     | Plus => Some((Plus, Num))
@@ -397,7 +397,7 @@ module DHExp = {
     | Comma => None
     };
 
-  let to_op = (bno: bin_num_op): UHExp.op =>
+  let to_op = (bno: bin_num_op): UHExp.operator =>
     switch (bno) {
     | Minus => Minus
     | Plus => Plus
@@ -973,7 +973,7 @@ module DHExp = {
     | Inj(InHole(TypeInconsistent as reason, u), _, _)
     | Case(InHole(TypeInconsistent as reason, u), _, _, _)
     | ApPalette(InHole(TypeInconsistent as reason, u), _, _, _) =>
-      let e' = UHExp.set_err_status_t(NotInHole, e);
+      let e' = UHExp.set_err_status_operand(NotInHole, e);
       switch (syn_expand_exp(ctx, delta, e')) {
       | DoesNotExpand => DoesNotExpand
       | Expands(d, _, delta) =>
@@ -1233,7 +1233,7 @@ module DHExp = {
     | Inj(InHole(TypeInconsistent as reason, u), _, _)
     | Case(InHole(TypeInconsistent as reason, u), _, _, _)
     | ApPalette(InHole(TypeInconsistent as reason, u), _, _, _) =>
-      let e' = UHExp.set_err_status_t(NotInHole, e);
+      let e' = UHExp.set_err_status_operand(NotInHole, e);
       switch (syn_expand_exp(ctx, delta, e')) {
       | DoesNotExpand => DoesNotExpand
       | Expands(d, _, delta) =>

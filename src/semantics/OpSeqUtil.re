@@ -164,7 +164,7 @@ module Typ = {
     OpSeqZ(skel, zty, surround);
   };
 
-  let concat = (ty1: UHTyp.t, op: UHTyp.op, ty2: UHTyp.t): UHTyp.t =>
+  let concat = (ty1: UHTyp.t, op: UHTyp.operator, ty2: UHTyp.t): UHTyp.t =>
     mk_OpSeq(
       switch (ty1, ty2) {
       | (OpSeq(_, seq1), OpSeq(_, seq2)) => Seq.seq_op_seq(seq1, op, seq2)
@@ -223,7 +223,7 @@ module Pat = {
     OpSeqZ(skel, zp, surround);
   };
 
-  let concat = (p1: UHPat.t, op: UHPat.op, p2: UHPat.t): UHPat.t =>
+  let concat = (p1: UHPat.t, op: UHPat.operator, p2: UHPat.t): UHPat.t =>
     mk_OpSeq(
       switch (p1, p2) {
       | (OpSeq(_, seq1), OpSeq(_, seq2)) => Seq.seq_op_seq(seq1, op, seq2)
@@ -282,7 +282,7 @@ module Exp = {
     OpSeqZ(skel, ze, surround);
   };
 
-  let concat = (e1: UHExp.t, op: UHExp.op, e2: UHExp.t): UHExp.t =>
+  let concat = (e1: UHExp.t, op: UHExp.operator, e2: UHExp.t): UHExp.t =>
     mk_OpSeq(
       switch (e1, e2) {
       | (OpSeq(_, seq1), OpSeq(_, seq2)) => Seq.seq_op_seq(seq1, op, seq2)
@@ -292,13 +292,14 @@ module Exp = {
       },
     );
 
-  let prepend_seq = (seq: UHExp.opseq, op: UHExp.op, e: UHExp.t): UHExp.t =>
+  let prepend_seq =
+      (seq: UHExp.opseq, op: UHExp.operator, e: UHExp.t): UHExp.t =>
     switch (e) {
     | OpSeq(_, seq') => Seq.seq_op_seq(seq, op, seq') |> mk_OpSeq
     | _ => Seq.SeqOpExp(seq, op, e) |> mk_OpSeq
     };
 
-  let append_seq = (e: UHExp.t, op: UHExp.op, seq: UHExp.opseq): UHExp.t =>
+  let append_seq = (e: UHExp.t, op: UHExp.operator, seq: UHExp.opseq): UHExp.t =>
     switch (e) {
     | OpSeq(_, seq') => Seq.seq_op_seq(seq', op, seq) |> mk_OpSeq
     | _ => Seq.operand_op_seq(e, op, seq) |> mk_OpSeq

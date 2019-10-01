@@ -17,7 +17,7 @@ type op_shape =
   | SAnd
   | SOr;
 
-let ty_op_of = (os: op_shape): option(UHTyp.op) =>
+let ty_op_of = (os: op_shape): option(UHTyp.operator) =>
   switch (os) {
   | SArrow => Some(Arrow)
   | SComma => Some(Prod)
@@ -32,14 +32,14 @@ let ty_op_of = (os: op_shape): option(UHTyp.op) =>
   | SCons => None
   };
 
-let op_shape_of_ty_op = (op: UHTyp.op): op_shape =>
+let op_shape_of_ty_op = (op: UHTyp.operator): op_shape =>
   switch (op) {
   | Arrow => SArrow
   | Prod => SComma
   | Sum => SVBar
   };
 
-let pat_op_of = (os: op_shape): option(UHPat.op) =>
+let pat_op_of = (os: op_shape): option(UHPat.operator) =>
   switch (os) {
   | SComma => Some(Comma)
   | SSpace => Some(Space)
@@ -54,14 +54,14 @@ let pat_op_of = (os: op_shape): option(UHPat.op) =>
   | SVBar => None
   };
 
-let op_shape_of_pat_op = (op: UHPat.op): op_shape =>
+let op_shape_of_pat_op = (op: UHPat.operator): op_shape =>
   switch (op) {
   | Comma => SComma
   | Space => SSpace
   | Cons => SCons
   };
 
-let exp_op_of = (os: op_shape): option(UHExp.op) =>
+let exp_op_of = (os: op_shape): option(UHExp.operator) =>
   switch (os) {
   | SPlus => Some(Plus)
   | SMinus => Some(Minus)
@@ -76,7 +76,7 @@ let exp_op_of = (os: op_shape): option(UHExp.op) =>
   | SVBar => None
   };
 
-let op_shape_of_exp_op = (op: UHExp.op): op_shape =>
+let op_shape_of_exp_op = (op: UHExp.operator): op_shape =>
   switch (op) {
   | Minus => SMinus
   | Plus => SPlus
@@ -1969,8 +1969,8 @@ and ana_perform_pat =
   | (_, CursorP(cursor, p)) when !ZPat.is_valid_cursor(cursor, p) => Failed
   /* switch to synthesis if in a hole */
   | (_, _) when ZPat.is_inconsistent(zp) =>
-    let err = zp |> ZPat.erase |> UHPat.get_err_status_t;
-    let zp_not_in_hole = ZPat.set_err_status_t(NotInHole, zp);
+    let err = zp |> ZPat.erase |> UHPat.get_err_status_operand;
+    let zp_not_in_hole = ZPat.set_err_status_operand(NotInHole, zp);
     let p = ZPat.erase(zp_not_in_hole);
     switch (Statics.syn_pat(ctx, p)) {
     | None => Failed
@@ -1981,7 +1981,7 @@ and ana_perform_pat =
         if (HTyp.consistent(ty, ty')) {
           Succeeded((zp1, ctx, u_gen));
         } else {
-          Succeeded((ZPat.set_err_status_t(err, zp1), ctx, u_gen));
+          Succeeded((ZPat.set_err_status_operand(err, zp1), ctx, u_gen));
         }
       }
     };
@@ -2738,7 +2738,7 @@ let combine_for_Delete_Space = (ze0: ZExp.t, e: UHExp.t): ZExp.t =>
  * new expression.
  */
 let keyword_suffix_to_exp =
-    (suffix: Seq.suffix(UHExp.t, UHExp.op), u_gen: MetaVarGen.t)
+    (suffix: Seq.suffix(UHExp.t, UHExp.operator), u_gen: MetaVarGen.t)
     : (UHExp.t, MetaVarGen.t) =>
   switch (suffix) {
   | OperandSuffix(Space, e) => (e, u_gen)
@@ -2765,7 +2765,7 @@ type zexp_or_zblock = ZExp.zexp_or_zblock;
 let set_err_status_zexp_or_zblock =
     (err: ErrStatus.t, ze_zb: zexp_or_zblock): zexp_or_zblock =>
   switch (ze_zb) {
-  | E(ze) => E(ZExp.set_err_status_t(err, ze))
+  | E(ze) => E(ZExp.set_err_status_operand(err, ze))
   | B(zblock) => B(ZExp.set_err_status_block(err, zblock))
   };
 
@@ -5882,8 +5882,8 @@ and ana_perform_exp =
   | (_, CursorE(cursor, e)) when !ZExp.is_valid_cursor_exp(cursor, e) =>
     Failed
   | (_, _) when ZExp.is_inconsistent(ze) =>
-    let err = ze |> ZExp.get_err_status_t;
-    let ze' = ZExp.set_err_status_t(NotInHole, ze);
+    let err = ze |> ZExp.get_err_status_operand;
+    let ze' = ZExp.set_err_status_operand(NotInHole, ze);
     let e' = ZExp.erase(ze');
     switch (Statics.syn_exp(ctx, e')) {
     | None => Failed

@@ -14,9 +14,6 @@ let is_Space =
   | _ => false;
 
 [@deriving sexp]
-type skel = Skel.t(operator);
-
-[@deriving sexp]
 type t = opseq
 and opseq = OpSeq.t(operand, operator)
 and operand =
@@ -28,6 +25,8 @@ and operand =
   | ListNil(ErrStatus.t)
   | Parenthesized(t)
   | Inj(ErrStatus.t, inj_side, t);
+
+type skel = OpSeq.skel(operator);
 
 let var =
     (

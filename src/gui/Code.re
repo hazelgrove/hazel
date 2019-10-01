@@ -212,19 +212,19 @@ let sspace_vnode =
     )
   );
 
-let string_of_op_typ: UHTyp.op => string =
+let string_of_op_typ: UHTyp.operator => string =
   fun
   | Arrow => LangUtil.typeArrowSym
   | Sum => "|"
   | Prod => ",";
 
-let string_of_op_pat: UHPat.op => string =
+let string_of_op_pat: UHPat.operator => string =
   fun
   | Comma => ","
   | Space => " "
   | Cons => "::";
 
-let string_of_op_exp: UHExp.op => string =
+let string_of_op_exp: UHExp.operator => string =
   fun
   | And => "&"
   | Or => "|"
@@ -236,19 +236,19 @@ let string_of_op_exp: UHExp.op => string =
   | Comma => ","
   | Cons => "::";
 
-let space_before_after_op_typ: UHTyp.op => (bool, bool) =
+let space_before_after_op_typ: UHTyp.operator => (bool, bool) =
   fun
   | Arrow => (true, true)
   | Sum => (true, true)
   | Prod => (false, true);
 
-let space_before_after_op_pat: UHPat.op => (bool, bool) =
+let space_before_after_op_pat: UHPat.operator => (bool, bool) =
   fun
   | Comma => (false, true)
   | Space => (false, false)
   | Cons => (false, false);
 
-let space_before_after_op_exp: UHExp.op => (bool, bool) =
+let space_before_after_op_exp: UHExp.operator => (bool, bool) =
   fun
   | And => (true, true)
   | Or => (true, true)
@@ -263,7 +263,7 @@ let space_before_after_op_exp: UHExp.op => (bool, bool) =
 type spaced_tms_typ = (UHTyp.t, list(UHTyp.t));
 let rec partition_into_spaced_tms_typ =
         (skel: UHTyp.skel, seq: UHTyp.opseq)
-        : (spaced_tms_typ, list((UHTyp.op, spaced_tms_typ))) =>
+        : (spaced_tms_typ, list((UHTyp.operator, spaced_tms_typ))) =>
   switch (skel) {
   | Placeholder(n) =>
     switch (seq |> Seq.nth_operand(n)) {
@@ -279,7 +279,10 @@ let rec partition_into_spaced_tms_typ =
 type spaced_tms_pat = (ap_err_status, UHPat.t, list(UHPat.t));
 let rec partition_into_spaced_tms_pat =
         (skel: UHPat.skel, seq: UHPat.opseq)
-        : (spaced_tms_pat, list((ErrStatus.t, UHPat.op, spaced_tms_pat))) =>
+        : (
+            spaced_tms_pat,
+            list((ErrStatus.t, UHPat.operator, spaced_tms_pat)),
+          ) =>
   switch (skel) {
   | Placeholder(n) =>
     switch (seq |> Seq.nth_operand(n)) {
@@ -310,7 +313,10 @@ let rec partition_into_spaced_tms_pat =
 type spaced_tms_exp = (ap_err_status, UHExp.t, list(UHExp.t));
 let rec partition_into_spaced_tms_exp =
         (skel: UHExp.skel, seq: UHExp.opseq)
-        : (spaced_tms_exp, list((ErrStatus.t, UHExp.op, spaced_tms_exp))) =>
+        : (
+            spaced_tms_exp,
+            list((ErrStatus.t, UHExp.operator, spaced_tms_exp)),
+          ) =>
   switch (skel) {
   | Placeholder(n) =>
     switch (seq |> Seq.nth_operand(n)) {
@@ -3188,6 +3194,6 @@ let view_of_Var =
     ) =>
   view_of_snode(~inject, snode_of_Var(~err, ~var_err, ~steps, x));
 
-let is_multi_line_exp = e => snode_of_exp(e) |> is_multi_line;
+let is_multi_line_operand = e => snode_of_exp(e) |> is_multi_line;
 let is_multi_line_pat = p => snode_of_pat(p) |> is_multi_line;
 let is_multi_line_typ = ty => snode_of_typ(ty) |> is_multi_line;
