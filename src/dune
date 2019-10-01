@@ -8,10 +8,17 @@
   (name default)
   (deps (glob_files www/*)))
 
+(library
+  (name hazellib)
+  (modules (((:standard \ Main) \ HistoryPanel) \ DocOfTerm))
+  (libraries sexplib incr_dom)
+  (preprocess (pps ppx_deriving.show js_of_ocaml.ppx ppx_sexp_conv ppx_let)))
+
 (executable
   (name main)
+  (modules Main)
   (js_of_ocaml (flags (:include js-of-ocaml-flags-%{profile})))
-  (libraries sexplib incr_dom)
+  (libraries hazellib sexplib incr_dom)
   (preprocess (pps ppx_deriving.show js_of_ocaml.ppx ppx_sexp_conv ppx_let)))
 
 (rule
