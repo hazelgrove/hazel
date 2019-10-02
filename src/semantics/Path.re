@@ -602,7 +602,7 @@ let follow_block_and_place_before =
   follow_block_and_place_cursor(
     steps,
     line => Some(ZExp.place_before_line(line)),
-    e => Some(ZExp.place_before_exp(e)),
+    e => Some(ZExp.place_before_operand(e)),
     rule => Some(ZExp.place_before_rule(rule)),
     p => Some(ZPat.place_before(p)),
     uty => Some(ZTyp.place_before(uty)),
@@ -613,7 +613,7 @@ let follow_line_and_place_before =
   follow_line_and_place_cursor(
     steps,
     line => Some(ZExp.place_before_line(line)),
-    e => Some(ZExp.place_before_exp(e)),
+    e => Some(ZExp.place_before_operand(e)),
     rule => Some(ZExp.place_before_rule(rule)),
     p => Some(ZPat.place_before(p)),
     uty => Some(ZTyp.place_before(uty)),
@@ -623,7 +623,7 @@ let follow_exp_and_place_before = (steps: steps, e: UHExp.t): option(ZExp.t) =>
   follow_exp_and_place_cursor(
     steps,
     line => Some(ZExp.place_before_line(line)),
-    e => Some(ZExp.place_before_exp(e)),
+    e => Some(ZExp.place_before_operand(e)),
     rule => Some(ZExp.place_before_rule(rule)),
     p => Some(ZPat.place_before(p)),
     uty => Some(ZTyp.place_before(uty)),
@@ -634,7 +634,7 @@ let follow_rule_and_place_before =
   follow_rule_and_place_cursor(
     steps,
     line => Some(ZExp.place_before_line(line)),
-    e => Some(ZExp.place_before_exp(e)),
+    e => Some(ZExp.place_before_operand(e)),
     rule => Some(ZExp.place_before_rule(rule)),
     p => Some(ZPat.place_before(p)),
     uty => Some(ZTyp.place_before(uty)),
@@ -646,7 +646,7 @@ let follow_block_and_place_after =
   follow_block_and_place_cursor(
     steps,
     line => Some(ZExp.place_after_line(line)),
-    e => Some(ZExp.place_after_exp(e)),
+    e => Some(ZExp.place_after_operand(e)),
     rule => Some(ZExp.place_after_rule(rule)),
     p => Some(ZPat.place_after(p)),
     uty => Some(ZTyp.place_after(uty)),
@@ -657,7 +657,7 @@ let follow_line_and_place_after =
   follow_line_and_place_cursor(
     steps,
     line => Some(ZExp.place_after_line(line)),
-    e => Some(ZExp.place_after_exp(e)),
+    e => Some(ZExp.place_after_operand(e)),
     rule => Some(ZExp.place_after_rule(rule)),
     p => Some(ZPat.place_after(p)),
     uty => Some(ZTyp.place_after(uty)),
@@ -667,7 +667,7 @@ let follow_exp_and_place_after = (steps: steps, e: UHExp.t): option(ZExp.t) =>
   follow_exp_and_place_cursor(
     steps,
     line => Some(ZExp.place_after_line(line)),
-    e => Some(ZExp.place_after_exp(e)),
+    e => Some(ZExp.place_after_operand(e)),
     rule => Some(ZExp.place_after_rule(rule)),
     p => Some(ZPat.place_after(p)),
     uty => Some(ZTyp.place_after(uty)),
@@ -678,7 +678,7 @@ let follow_rule_and_place_after =
   follow_rule_and_place_cursor(
     steps,
     line => Some(ZExp.place_after_line(line)),
-    e => Some(ZExp.place_after_exp(e)),
+    e => Some(ZExp.place_after_operand(e)),
     rule => Some(ZExp.place_after_rule(rule)),
     p => Some(ZPat.place_after(p)),
     uty => Some(ZTyp.place_after(uty)),
@@ -690,7 +690,7 @@ let follow_block =
   follow_block_and_place_cursor(
     steps,
     ZExp.place_cursor_line(cursor),
-    ZExp.place_cursor_exp(cursor),
+    ZExp.place_cursor_operand(cursor),
     ZExp.place_cursor_rule(cursor),
     ZPat.place_cursor(cursor),
     ZTyp.place_cursor(cursor),
@@ -701,7 +701,7 @@ let follow_lines =
   follow_lines_and_place_cursor(
     steps,
     ZExp.place_cursor_line(cursor),
-    ZExp.place_cursor_exp(cursor),
+    ZExp.place_cursor_operand(cursor),
     ZExp.place_cursor_rule(cursor),
     ZPat.place_cursor(cursor),
     ZTyp.place_cursor(cursor),
@@ -711,7 +711,7 @@ let follow_line = ((steps, cursor): t, line: UHExp.line): option(ZExp.zline) =>
   follow_line_and_place_cursor(
     steps,
     ZExp.place_cursor_line(cursor),
-    ZExp.place_cursor_exp(cursor),
+    ZExp.place_cursor_operand(cursor),
     ZExp.place_cursor_rule(cursor),
     ZPat.place_cursor(cursor),
     ZTyp.place_cursor(cursor),
@@ -721,7 +721,7 @@ let follow_exp = ((steps, cursor): t, e: UHExp.t): option(ZExp.t) =>
   follow_exp_and_place_cursor(
     steps,
     ZExp.place_cursor_line(cursor),
-    ZExp.place_cursor_exp(cursor),
+    ZExp.place_cursor_operand(cursor),
     ZExp.place_cursor_rule(cursor),
     ZPat.place_cursor(cursor),
     ZTyp.place_cursor(cursor),
@@ -731,7 +731,7 @@ let follow_rule = ((steps, cursor): t, rule: UHExp.rule): option(ZExp.zrule) =>
   follow_rule_and_place_cursor(
     steps,
     ZExp.place_cursor_line(cursor),
-    ZExp.place_cursor_exp(cursor),
+    ZExp.place_cursor_operand(cursor),
     ZExp.place_cursor_rule(cursor),
     ZPat.place_cursor(cursor),
     ZTyp.place_cursor(cursor),

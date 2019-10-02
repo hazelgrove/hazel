@@ -27,6 +27,7 @@ and operand =
   | Inj(ErrStatus.t, inj_side, t);
 
 type skel = OpSeq.skel(operator);
+type seq = OpSeq.seq(operand, operator);
 
 let var =
     (

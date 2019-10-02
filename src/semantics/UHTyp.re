@@ -17,6 +17,9 @@ and operand =
   | Parenthesized(t)
   | List(t);
 
+type skel = OpSeq.skel(operator);
+type seq = OpSeq.seq(operand, operator);
+
 let bidelimited =
   fun
   | Hole

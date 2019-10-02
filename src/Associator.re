@@ -40,20 +40,17 @@ let rec make_skel_str' =
         )
         : string =>
   switch (seq) {
-  | ExpOpExp(e1, op, e2) =>
+  | S(hd, E) =>
     let n = counter^;
-    counter := n + 2;
-    Hashtbl.add(ph_map, n, e1);
-    Hashtbl.add(ph_map, n + 1, e2);
-    let op_str = string_of_op(op);
-    string_of_int(n) ++ op_str ++ string_of_int(n + 1);
-  | SeqOpExp(seq', op, e) =>
-    let skel_str = make_skel_str'(string_of_op, seq', counter, ph_map);
-    let op_str = string_of_op(op);
+    Hashtbl.add(ph_map, n, hd);
+    string_of_int(n);
+  | S(hd, A(op, seq)) =>
     let n = counter^;
     counter := n + 1;
-    Hashtbl.add(ph_map, n, e);
-    skel_str ++ op_str ++ string_of_int(n);
+    Hashtbl.add(ph_map, n, hd);
+    let skel_str = make_skel_str'(string_of_op, seq, counter, ph_map);
+    let op_str = string_of_op(op);
+    string_of_int(n) ++ op_str ++ skel_str;
   };
 
 let make_skel_str = (seq: Seq.t('operand, 'op), string_of_op: 'op => string) => {
@@ -62,15 +59,15 @@ let make_skel_str = (seq: Seq.t('operand, 'op), string_of_op: 'op => string) => 
   let skel_str = make_skel_str'(string_of_op, seq, counter, ph_map);
   (skel_str, ph_map);
 };
-let associate_exp = (seq: UHExp.opseq) => {
+let associate_exp = (seq: UHExp.seq) => {
   let (skel_str, _) = make_skel_str(seq, string_of_expr_op);
   parse_expr(skel_str);
 };
-let associate_pat = (seq: UHPat.opseq) => {
+let associate_pat = (seq: UHPat.seq) => {
   let (skel_str, _) = make_skel_str(seq, string_of_pat_op);
   parse_pat(skel_str);
 };
-let associate_ty = (seq: UHTyp.opseq) => {
+let associate_ty = (seq: UHTyp.seq) => {
   let (skel_str, _) = make_skel_str(seq, string_of_ty_op);
   parse_typ(skel_str);
 };

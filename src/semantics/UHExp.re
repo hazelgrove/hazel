@@ -46,6 +46,9 @@ and rule =
 and splice_info = SpliceInfo.t(t)
 and splice_map = SpliceInfo.splice_map(t);
 
+type skel = OpSeq.skel(operator);
+type seq = OpSeq.seq(operand, operator);
+
 let letline = (p: UHPat.t, ~ann: option(UHTyp.t)=?, def: t): line =>
   LetLine(p, ann, def);
 
@@ -173,8 +176,8 @@ let bidelimit = (operand): operand =>
     Parenthesized(operand |> OpSeq.wrap |> wrap_in_block);
   };
 
-let rec get_err_status = (e: t): ErrStatus.t => get_err_status_block(e)
-and get_err_status_block = (Block(_, opseq)) => get_err_status_opseq(opseq)
+let rec get_err_status = (e: t): ErrStatus.t => get_err_status_zblock(e)
+and get_err_status_zblock = (Block(_, opseq)) => get_err_status_opseq(opseq)
 and get_err_status_opseq = opseq =>
   OpSeq.get_err_status(~get_err_status_operand, opseq)
 and get_err_status_operand =
@@ -692,13 +695,15 @@ let has_concluding_let_line =
 let rec is_multi_line = block => is_multi_line_block(block)
 and is_multi_line_block =
   fun
-  | Block(lines, e) as block =>
-    if (lines |> List.exists(is_multi_line_line) || is_multi_line_operand(e)) {
+  | Block(leading, conclusion) as block =>
+    if (leading
+        |> List.exists(is_multi_line_line)
+        || is_multi_line_opseq(conclusion)) {
       true;
-    } else if (List.length(lines) == 1 && has_concluding_let_line(block)) {
+    } else if (List.length(leading) == 1 && has_concluding_let_line(block)) {
       false;
     } else {
-      List.length(lines) > 0 || is_multi_line_operand(e);
+      List.length(leading) > 0 || is_multi_line_opseq(conclusion);
     }
 and is_multi_line_line =
   fun

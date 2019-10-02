@@ -26,7 +26,7 @@ let add = (action: Action.t, history: t): t => {
 /* Construct the expression corresponding to the current position in the history. */
 let construct_code = (_history: t): ZExp.t => {
   /* TODO: Implement this. For now, I'm constructing a dummy expression (constant 7) */
-  ZExp.place_before_exp(
+  ZExp.place_before_operand(
     NumLit(NotInHole, 7),
   );
 };

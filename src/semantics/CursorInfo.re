@@ -178,18 +178,18 @@ let is_staging = ci =>
 
 let is_before_node = ci =>
   switch (ci.node) {
-  | Line(li) => ZExp.is_before_line(CursorL(ci.position, li))
-  | Exp(e) => ZExp.is_before_exp(CursorE(ci.position, e))
-  | Rule(rule) => ZExp.is_before_rule(CursorR(ci.position, rule))
+  | Line(li) => ZExp.is_before_zline(CursorL(ci.position, li))
+  | Exp(e) => ZExp.is_before_zoperand(CursorE(ci.position, e))
+  | Rule(rule) => ZExp.is_before_zrule(CursorR(ci.position, rule))
   | Pat(p) => ZPat.is_before(CursorP(ci.position, p))
   | Typ(ty) => ZTyp.is_before(CursorT(ci.position, ty))
   };
 
 let is_after_node = ci =>
   switch (ci.node) {
-  | Line(li) => ZExp.is_after_line(CursorL(ci.position, li))
-  | Exp(e) => ZExp.is_after_exp(CursorE(ci.position, e))
-  | Rule(rule) => ZExp.is_after_rule(CursorR(ci.position, rule))
+  | Line(li) => ZExp.is_after_zline(CursorL(ci.position, li))
+  | Exp(e) => ZExp.is_after_zoperand(CursorE(ci.position, e))
+  | Rule(rule) => ZExp.is_after_zrule(CursorR(ci.position, rule))
   | Pat(p) => ZPat.is_after(CursorP(ci.position, p))
   | Typ(ty) => ZTyp.is_after(CursorT(ci.position, ty))
   };
