@@ -15,7 +15,7 @@
     TutorialCards RCStudyCards Model Update Sidebar OptionsPanel Code ActionPanel
     CursorInspector CursorIndicators ContextInspector Cell Page Hazel
     Logger JSUtil Helper)))
-  (libraries testlib sexplib str)
+  (libraries sexplib str)
   (preprocess (pps ppx_deriving.show ppx_sexp_conv ppx_let)))
 
 (library
