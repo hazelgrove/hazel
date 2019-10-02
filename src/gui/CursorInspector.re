@@ -1,3 +1,4 @@
+open Hazellib;
 module Vdom = Virtual_dom.Vdom;
 
 type err_state_b =

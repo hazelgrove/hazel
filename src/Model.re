@@ -1,3 +1,4 @@
+open Hazellib;
 open Sexplib.Std;
 open GeneralUtil;
 
@@ -156,9 +157,9 @@ let result_of_edit_state = ((zblock, _, _): edit_state): result => {
   | DoesNotExpand => raise(DoesNotExpand)
   | Expands(d, _, _) =>
     switch (Evaluator.evaluate(d)) {
-    | InvalidInput(n) =>
-      JSUtil.log("InvalidInput " ++ string_of_int(n));
-      raise(InvalidInput);
+    | InvalidInput(_n) =>
+      //JSUtil.log("InvalidInput " ++ string_of_int(n));
+      raise(InvalidInput)
     | BoxedValue(d) =>
       let (d_renumbered, hii) =
         DHExp.renumber([], DHExp.HoleInstanceInfo.empty, d);
@@ -384,8 +385,8 @@ let move_to_hole = (model: t, u: MetaVar.t): t => {
     Path.path_to_hole(Path.holes_block(ZExp.erase_block(zblock), [], []), u)
   ) {
   | None =>
-    JSUtil.log("Path not found!");
-    model;
+    //JSUtil.log("Path not found!");
+    model
   | Some(hole_path) => perform_edit_action(model, Action.MoveTo(hole_path))
   };
 };

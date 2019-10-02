@@ -1,3 +1,4 @@
+open Hazellib;
 module Vdom = Virtual_dom.Vdom;
 module KeyCombo = JSUtil.KeyCombo;
 

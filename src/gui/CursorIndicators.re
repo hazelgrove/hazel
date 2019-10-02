@@ -1,3 +1,4 @@
+open Hazellib;
 open GeneralUtil;
 open SemanticsCommon;
 open ViewUtil;
