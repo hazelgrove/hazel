@@ -95,36 +95,68 @@ let vertical_shift_target_in_frame_id = i =>
 let horizontal_shift_rail_id = "horizontal_shift_rail";
 let vertical_shift_rail_id = "vertical_shift_rail";
 
-let steps_of_node_id = s =>
-  if (!Str.string_match(Str.regexp("^node__(.*)$"), s, 0)) {
+/*
+ let steps_of_id = (prefix: string, f: string => 'a, s: string): option('a) => {
+   if (String.length(s) < String.length(prefix) || !String.equal(prefix, String.sub(s, 0, String.length(prefix)))) {
+     None;
+   } else {
+     Some(f())
+   };
+ };*/
+
+let steps_of_node_id = s => {
+  Printf.printf("+steps_of_node_id\n");
+  if (!Re.Str.string_match(Re.Str.regexp("^node__\\(.*\\)$"), s, 0)) {
+    Printf.printf("-steps_of_node_id\n");
     None;
   } else {
+    Printf.printf("-steps_of_node_id\n");
     Some(
-      Path.steps_of_sexp(Sexplib.Sexp.of_string(Str.matched_group(1, s))),
+      Path.steps_of_sexp(
+        Sexplib.Sexp.of_string(Re.Str.matched_group(1, s)),
+      ),
     );
   };
-let steps_of_text_id = s =>
-  if (!Str.string_match(Str.regexp("^text__(.*)$"), s, 0)) {
+};
+let steps_of_text_id = s => {
+  Printf.printf("+steps_of_text_id\n");
+  if (!Re.Str.string_match(Re.Str.regexp("^text__\\(.*\\)$"), s, 0)) {
+    Printf.printf("-steps_of_text_id\n");
     None;
   } else {
+    Printf.printf("-steps_of_text_id\n");
     Some(
-      Path.steps_of_sexp(Sexplib.Sexp.of_string(Str.matched_group(1, s))),
+      Path.steps_of_sexp(
+        Sexplib.Sexp.of_string(Re.Str.matched_group(1, s)),
+      ),
     );
   };
-let path_of_path_id = s =>
-  if (!Str.string_match(Str.regexp("^path__(.*)$"), s, 0)) {
+};
+let path_of_path_id = s => {
+  Printf.printf("+steps_of_path_id: <%s>\n", s);
+  if (!Re.Str.string_match(Re.Str.regexp("^path__\\(.*\\)$"), s, 0)) {
+    Printf.printf("-steps_of_path_id\n");
     None;
   } else {
-    Some(Path.t_of_sexp(Sexplib.Sexp.of_string(Str.matched_group(1, s))));
+    let x = Re.Str.matched_group(1, s);
+    Printf.printf("-steps_of_path_id: <%s>\n", x);
+    Some(Path.t_of_sexp(Sexplib.Sexp.of_string(x)));
   };
-let delim_path_of_delim_id = s =>
-  if (!Str.string_match(Str.regexp("^delim__(.*)$"), s, 0)) {
+};
+let delim_path_of_delim_id = s => {
+  Printf.printf("+delim_path_of_delim_id\n");
+  if (!Re.Str.string_match(Re.Str.regexp("^delim__\\(.*\\)$"), s, 0)) {
+    Printf.printf("-delim_path_of_delim_id\n");
     None;
   } else {
+    Printf.printf("-delim_path_of_delim_id\n");
     Some(
-      delim_path_of_sexp(Sexplib.Sexp.of_string(Str.matched_group(1, s))),
+      delim_path_of_sexp(
+        Sexplib.Sexp.of_string(Re.Str.matched_group(1, s)),
+      ),
     );
   };
+};
 
 let cls_sline = "sline";
 let sline_clss = line_no => [
@@ -133,10 +165,10 @@ let sline_clss = line_no => [
 ];
 
 let line_no_of_sline_cls = cls =>
-  if (!Str.string_match(Str.regexp("^sline-(.*)$"), cls, 0)) {
+  if (!Re.Str.string_match(Re.Str.regexp("^sline-(.*)$"), cls, 0)) {
     None;
   } else {
-    Some(int_of_string(Str.matched_group(1, cls)));
+    Some(int_of_string(Re.Str.matched_group(1, cls)));
   };
 
 let indentation_cls = "indentation";

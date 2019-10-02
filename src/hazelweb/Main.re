@@ -1,5 +1,4 @@
 open Incr_dom;
-open Front_end;
 let () = {
   Logger.init_log();
   Start_app.start(
