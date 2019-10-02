@@ -1,3 +1,4 @@
+open Hazellib;
 module Dom_html = Js_of_ocaml.Dom_html;
 module Dom = Js_of_ocaml.Dom;
 module Js = Js_of_ocaml.Js;

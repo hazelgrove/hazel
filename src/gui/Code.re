@@ -1,3 +1,4 @@
+open Hazellib;
 let _SHOW_CASTS = false;
 let _SHOW_FN_BODIES = false;
 

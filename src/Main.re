@@ -1,5 +1,5 @@
 open Incr_dom;
-open Hazellib;
+open Front_end;
 let () = {
   Logger.init_log();
   Start_app.start(

@@ -2106,8 +2106,8 @@ module Evaluator = {
               Indet(FailedCast(d1', ty, ty'));
             }
           | _ =>
-            JSUtil.log(DHExp.constructor_string(d1'));
-            InvalidInput(6);
+            // TODO: can we omit this? or maybe call logging? JSUtil.log(DHExp.constructor_string(d1'));
+            InvalidInput(6)
           }
         | (Hole, NotGroundOrHole(ty'_grounded)) =>
           /* ITExpand rule */

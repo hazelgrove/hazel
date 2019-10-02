@@ -1,3 +1,4 @@
+open Hazellib;
 module Vdom = Virtual_dom.Vdom;
 open OperatorSeq;
 open OpSeqUtil;
