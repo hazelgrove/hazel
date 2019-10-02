@@ -4,9 +4,9 @@
 (include_subdirs unqualified) ; does not include dirs that specify `(include_subdirs no)`
 
 
-;(alias
-;  (name default)
-;  (deps (glob_files www/*)))
+(alias
+  (name default)
+  (deps (glob_files www/*)))
 
 ;(library
 ;  (name hazellib)
@@ -27,19 +27,19 @@
 ;    Logger JSUtil Helper)
 ;  (libraries hazellib sexplib incr_dom)
 ;  (preprocess (pps ppx_deriving.show js_of_ocaml.ppx ppx_sexp_conv ppx_let)))
-;
-;(executable
-;  (name main)
+
+(executable
+  (name main)
 ;  (modules Main)
-;  (js_of_ocaml (flags (:include js-of-ocaml-flags-%{profile})))
-;  (libraries hazellib front_end sexplib incr_dom)
-;  (preprocess (pps ppx_deriving.show js_of_ocaml.ppx ppx_sexp_conv ppx_let)))
+  (js_of_ocaml (flags (:include js-of-ocaml-flags-%{profile})))
+  (libraries hazellib sexplib incr_dom)
+  (preprocess (pps ppx_deriving.show js_of_ocaml.ppx ppx_sexp_conv ppx_let)))
 
-;(rule
-;  (write-file js-of-ocaml-flags-dev "(:standard --debuginfo --noinline)"))
+(rule
+  (write-file js-of-ocaml-flags-dev "(:standard --debuginfo --noinline)"))
 
-;(rule
-;  (write-file js-of-ocaml-flags-release "(:standard)"))
+(rule
+  (write-file js-of-ocaml-flags-release "(:standard)"))
 
 ;(ocamllex
 ;  (modules SkelExprLexer SkelPatLexer SkelTypLexer))

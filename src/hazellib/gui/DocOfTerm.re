@@ -1,4 +1,3 @@
-open Hazellib;
 type node_shape =
   | Block(UHExp.block)
   | Line(UHExp.line)
