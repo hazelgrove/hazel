@@ -5,6 +5,9 @@ debug:
 release:
 	dune build src --profile release
 
+test:
+	dune runtest
+
 repl:
 	dune utop src/hazelcore
 
