@@ -75,6 +75,11 @@ let mk_layout_of_doc =
         min(List.map(go, range(memo.left, memo.right)));
       }
     | String(string) => (Fin(1), String(string)) // TODO: overlength strings
+    | Align(d) => layout_of_doc({...memo, left: memo.first_left}, d)
+    | Tagged(tag, d) => {
+        let (c, l) = layout_of_doc(memo, d);
+        (c, Tagged(tag, l));
+      }
     | Choice(d1, d2) => {
         let (c1, l1) = layout_of_doc(memo, d1);
         let (c2, l2) = layout_of_doc(memo, d2);
@@ -83,17 +88,6 @@ let mk_layout_of_doc =
           (c1, l1);
         } else {
           (c2, l2);
-        };
-      }
-    | Tagged(tag, d) => {
-        let (c, l) = layout_of_doc(memo, d);
-        (c, Tagged(tag, l));
-      }
-    | SingleLine(d) => {
-        let (c, l) = layout_of_doc(memo, d);
-        switch (c) {
-        | Fin(0 | 1) => (c, l)
-        | _ => (Inf, l)
         };
       };
   d =>
