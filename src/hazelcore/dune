@@ -5,13 +5,12 @@
 
 (library
   (name hazelcore)
-  (libraries sexplib re)
+  (libraries re sexplib)
   (wrapped false)
-  (preprocess (pps ppx_deriving.show ppx_sexp_conv ppx_let)))
+  (preprocess (pps ppx_deriving.show ppx_sexp_conv)))
 
 (ocamllex
   (modules SkelExprLexer SkelPatLexer SkelTypLexer))
 
 (menhir
-  (infer false)
   (modules SkelExprParser SkelPatParser SkelTypParser))
