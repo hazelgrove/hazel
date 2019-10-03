@@ -42,12 +42,12 @@ The `make release` command does three things:
 
 1. Generates some parsers using `menhir`.
 2. Compiles the Reason code to OCaml bytecode using the OCaml compiler.
-3. Compiles the OCaml bytecode to JavaScript (`_build/default/src/www/hazel.js`) using `js_of_ocaml`.
+3. Compiles the OCaml bytecode to JavaScript (`_build/default/src/hazelweb/www/hazel.js`) using `js_of_ocaml`.
 
 If something weird is going on, it sometimes helps to do a `make clean`.
 
 ### Results
-You can now open `_build/default/src/www/hazel.html` in a browser to see Hazel in action.
+You can now open `_build/default/src/hazelweb/www/hazel.html` in a browser to see Hazel in action.
 
 ### Debugging
 Invoking `make` by itself is equivalent to invoking `make debug`. With these commands we pass additional flags to `js_of_ocaml`, which causes the insertion of comments that map locations in the generated JS to locations in the source files. This is useful for debugging purposes.
