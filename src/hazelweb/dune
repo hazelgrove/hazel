@@ -7,11 +7,20 @@
   (name default)
   (deps (glob_files www/*)))
 
+; This library ensures that all modules are type checked even if they are not used.
+(library
+  (name mainlib)
+  (modules (:standard \ Main))
+  (libraries hazellib incr_dom)
+  (wrapped false)
+  (preprocess (pps ppx_deriving.show js_of_ocaml.ppx ppx_sexp_conv ppx_let))
+  (js_of_ocaml (flags (:include js-of-ocaml-flags-%{profile}))))
+
 (executable
   (name main)
-  (js_of_ocaml (flags (:include js-of-ocaml-flags-%{profile})))
-  (libraries hazellib incr_dom)
-  (preprocess (pps ppx_deriving.show js_of_ocaml.ppx ppx_sexp_conv ppx_let)))
+  (modules Main)
+  (libraries mainlib)
+  (js_of_ocaml (flags (:include js-of-ocaml-flags-%{profile}))))
 
 (rule
   (write-file js-of-ocaml-flags-dev "(:standard --debuginfo --noinline)"))

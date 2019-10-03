@@ -1,4 +1,3 @@
-open Hazellib;
 open Sexplib.Std;
 module U = GeneralUtil;
 module Js = Js_of_ocaml.Js;
