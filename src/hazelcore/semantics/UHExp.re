@@ -4,11 +4,13 @@ open GeneralUtil;
 
 [@deriving sexp]
 type op =
+  | Space
   | Plus
   | Minus
   | Times
   | LessThan
-  | Space
+  | GreaterThan
+  | Equals
   | Comma
   | Cons
   | And
