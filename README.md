@@ -58,3 +58,5 @@ Invoking `make` by itself is equivalent to invoking `make debug`. With these com
 `make debug` also auto-formats Reason source files using `refmt` (this is what the `@src/fmt` alias is for). This ensures code from all contributors follows the same style.
 
 You can also run `dune utop src/hazelcore` to get a REPL in which you can play with the core Hazel functions.
+(Note that, currently, this generates a warning about Hazel's `Path` module conflicting with OCaml's `Path` module.
+This is a known issue that can be safely ignored.)
