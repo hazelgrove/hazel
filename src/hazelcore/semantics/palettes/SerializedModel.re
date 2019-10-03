@@ -1,4 +1,4 @@
 open Sexplib.Std;
 
-[@deriving (show({with_path: false}), sexp)]
+[@deriving sexp]
 type t = string;

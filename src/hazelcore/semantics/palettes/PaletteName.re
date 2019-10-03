@@ -1,6 +1,6 @@
 open Sexplib.Std;
 
-[@deriving (show({with_path: false}), sexp)]
+[@deriving sexp]
 type t = string;
 
 let eq = (x: t, y: t) => x == y;
