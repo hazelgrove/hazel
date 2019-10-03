@@ -4,7 +4,7 @@
 (include_subdirs unqualified) ; does not include dirs that specify `(include_subdirs no)`
 
 (library
-  (name hazellib)
+  (name hazelcore)
   (libraries sexplib re)
   (wrapped false)
   (preprocess (pps ppx_deriving.show ppx_sexp_conv ppx_let)))
