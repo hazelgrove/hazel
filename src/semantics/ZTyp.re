@@ -8,7 +8,7 @@ type opseq_prefix = OperatorSeq.opseq_prefix(UHTyp.t, UHTyp.op);
 [@deriving (show, sexp)]
 type opseq_suffix = OperatorSeq.opseq_suffix(UHTyp.t, UHTyp.op);
 
-[@deriving sexp, show]
+[@deriving sexp]
 type t =
   | CursorT(cursor_position, UHTyp.t)
   /* zipper cases */
@@ -133,7 +133,9 @@ let rec cursor_on_opseq = (zty: t): bool =>
   | CursorT(_, OpSeq(_, _)) => true
   | CursorT(_, _) => false
   | ParenthesizedZ(zty) => cursor_on_opseq(zty)
-  | ListZ(zty) => cursor_on_opseq(zty)
+  | ListZ(zty) =>
+    cursor_o;
+    n_opseq(zty);
   | OpSeqZ(_, zty, _) => cursor_on_opseq(zty)
   };
 

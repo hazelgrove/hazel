@@ -65,9 +65,9 @@ let rec syn_pat =
   | Inj(InHole(WrongLength, _), _, _) => None
   /* not in hole */
   | Wild(NotInHole) => Some((Hole, ctx))
-  | Var(NotInHole, InVHole(Free, _), _) => raise(FreeVarInPat)
-  | Var(NotInHole, InVHole(Keyword(_), _), _) => Some((Hole, ctx))
-  | Var(NotInHole, NotInVHole, x) =>
+  | Var(NotInHole, InVarHole(Free, _), _) => raise(FreeVarInPat)
+  | Var(NotInHole, InVarHole(Keyword(_), _), _) => Some((Hole, ctx))
+  | Var(NotInHole, NotInVarHole, x) =>
     Var.check_valid(
       x,
       Some((HTyp.Hole, Contexts.extend_vars(ctx, (x, Hole)))),
@@ -187,9 +187,9 @@ and ana_pat = (ctx: Contexts.t, p: UHPat.t, ty: HTyp.t): option(Contexts.t) =>
   | ListNil(InHole(WrongLength, _))
   | Inj(InHole(WrongLength, _), _, _) => None
   /* not in hole */
-  | Var(NotInHole, InVHole(Free, _), _) => raise(FreeVarInPat)
-  | Var(NotInHole, InVHole(Keyword(_), _), _) => Some(ctx)
-  | Var(NotInHole, NotInVHole, x) =>
+  | Var(NotInHole, InVarHole(Free, _), _) => raise(FreeVarInPat)
+  | Var(NotInHole, InVarHole(Keyword(_), _), _) => Some(ctx)
+  | Var(NotInHole, NotInVarHole, x) =>
     Var.check_valid(x, Some(Contexts.extend_gamma(ctx, (x, ty))))
   | Wild(NotInHole) => Some(ctx)
   | NumLit(NotInHole, _)
@@ -403,7 +403,7 @@ and ana_skel_pat =
 let ctx_for_let =
     (ctx: Contexts.t, p: UHPat.t, ty: HTyp.t, block: UHExp.block): Contexts.t =>
   switch (p, block) {
-  | (Var(_, NotInVHole, x), Block([], Lam(_, _, _, _))) =>
+  | (Var(_, NotInVarHole, x), Block([], Lam(_, _, _, _))) =>
     switch (HTyp.matched_arrow(ty)) {
     | Some(_) => Contexts.extend_vars(ctx, (x, ty))
     | None => ctx
@@ -416,7 +416,7 @@ let ctx_for_let' =
     (ctx: Contexts.t, p: UHPat.t, ty: HTyp.t, block: UHExp.block)
     : (Contexts.t, option(Var.t)) =>
   switch (p, block) {
-  | (Var(_, NotInVHole, x), Block([], Lam(_, _, _, _))) =>
+  | (Var(_, NotInVarHole, x), Block([], Lam(_, _, _, _))) =>
     switch (HTyp.matched_arrow(ty)) {
     | Some(_) => (Contexts.extend_vars(ctx, (x, ty)), Some(x))
     | None => (ctx, None)
@@ -554,8 +554,8 @@ and syn_exp = (ctx: Contexts.t, e: UHExp.t): option(HTyp.t) =>
   | Case(InHole(WrongLength, _), _, _, _)
   | ApPalette(InHole(WrongLength, _), _, _, _) => None
   /* not in hole */
-  | Var(NotInHole, NotInVHole, x) => VarMap.lookup(Contexts.gamma(ctx), x)
-  | Var(NotInHole, InVHole(_, _), _) => Some(Hole)
+  | Var(NotInHole, NotInVarHole, x) => VarMap.lookup(Contexts.gamma(ctx), x)
+  | Var(NotInHole, InVarHole(_, _), _) => Some(Hole)
   | NumLit(NotInHole, _) => Some(Num)
   | BoolLit(NotInHole, _) => Some(Bool)
   | ListNil(NotInHole) => Some(List(Hole))
@@ -1068,9 +1068,9 @@ let rec syn_fix_holes_pat =
       (p, HTyp.Hole, ctx, u_gen);
     }
   | Wild(_) => (p_nih, Hole, ctx, u_gen)
-  | Var(_, InVHole(Free, _), _) => raise(FreeVarInPat)
-  | Var(_, InVHole(Keyword(_), _), _) => (p_nih, Hole, ctx, u_gen)
-  | Var(_, NotInVHole, x) =>
+  | Var(_, InVarHole(Free, _), _) => raise(FreeVarInPat)
+  | Var(_, InVarHole(Keyword(_), _), _) => (p_nih, Hole, ctx, u_gen)
+  | Var(_, NotInVarHole, x) =>
     let ctx = Contexts.extend_gamma(ctx, (x, Hole));
     (p_nih, Hole, ctx, u_gen);
   | NumLit(_, _) => (p_nih, Num, ctx, u_gen)
@@ -1184,9 +1184,9 @@ and ana_fix_holes_pat =
       (p, ctx, u_gen);
     }
   | Wild(_) => (p_nih, ctx, u_gen)
-  | Var(_, InVHole(Free, _), _) => raise(FreeVarInPat)
-  | Var(_, InVHole(Keyword(_), _), _) => (p_nih, ctx, u_gen)
-  | Var(_, NotInVHole, x) =>
+  | Var(_, InVarHole(Free, _), _) => raise(FreeVarInPat)
+  | Var(_, InVarHole(Keyword(_), _), _) => (p_nih, ctx, u_gen)
+  | Var(_, NotInVarHole, x) =>
     let ctx = Contexts.extend_gamma(ctx, (x, ty));
     (p_nih, ctx, u_gen);
   | NumLit(_, _)
@@ -1558,19 +1558,19 @@ and syn_fix_holes_exp =
   | Var(_, var_err_status, x) =>
     let gamma = Contexts.gamma(ctx);
     switch (VarMap.lookup(gamma, x)) {
-    | Some(ty) => (UHExp.Var(NotInHole, NotInVHole, x), ty, u_gen)
+    | Some(ty) => (UHExp.Var(NotInHole, NotInVarHole, x), ty, u_gen)
     | None =>
       switch (var_err_status) {
-      | InVHole(_, _) => (e_nih, HTyp.Hole, u_gen)
-      | NotInVHole =>
+      | InVarHole(_, _) => (e_nih, HTyp.Hole, u_gen)
+      | NotInVarHole =>
         let (u, u_gen) = MetaVarGen.next(u_gen);
-        let in_vhole_reason =
+        let reason: VarErrStatus.HoleReason.t =
           switch (Var.is_let(x), Var.is_case(x)) {
           | (true, _) => Keyword(Let)
           | (_, true) => Keyword(Case)
           | _ => Free
           };
-        (Var(NotInHole, InVHole(in_vhole_reason, u), x), Hole, u_gen);
+        (Var(NotInHole, InVarHole(reason, u), x), Hole, u_gen);
       }
     };
   | NumLit(_, _) => (e_nih, Num, u_gen)
@@ -1592,7 +1592,7 @@ and syn_fix_holes_exp =
     let ctx = tpat_wf(ctx, tpat);
     let (block, ty, u_gen) = syn_fix_holes_block(ctx, u_gen, block);
     (TyLam(tpat, block), Forall(tpat, ty), u_gen);
-  | Lam(p, ann, block) =>
+  | Lam(_, p, ann, block) =>
     let (uty1, u_gen) =
       switch (ann) {
       | Some(uty1) =>

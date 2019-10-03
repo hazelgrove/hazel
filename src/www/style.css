@@ -203,6 +203,7 @@ html, body {
 }
 
 .sidebar-body-slider {
+  width: 100%;
   height: 100%;
   display: flex;
 }
@@ -218,6 +219,7 @@ html, body {
 
 .sidebar-body {
   flex-grow: 1;
+  width: calc(100% - 7px);
   height: 100%;
   direction: ltr; /* reset text direction */
   display: flex;
@@ -1005,11 +1007,11 @@ button:disabled {
   border: 0px !important;
 }
 
-.InVHole {
+.InVarHole {
   border: 1px dashed #ce5f00;
 }
 
-.InVHole.Keyword {
+.InVarHole.Keyword {
 	font-weight: bold;
 }
 

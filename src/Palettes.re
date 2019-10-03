@@ -67,7 +67,7 @@ module type PALETTE = {
        UHExp.(
          Tm(
            NotInHole,
-           Var(NotInVHole, PaletteHoleData.mk_hole_ref_var_name(id)),
+           Var(NotInVarHole, PaletteHoleData.mk_hole_ref_var_name(id)),
          )
        );
      let fVarName = "f";
@@ -76,7 +76,7 @@ module type PALETTE = {
        UHExp.(
          OperatorSeq.(
            exp_op_seq(
-             Tm(NotInHole, Var(NotInVHole, fVarName)),
+             Tm(NotInHole, Var(NotInVarHole, fVarName)),
              Space,
              ExpOpExp(to_uhvar(leftID), Space, to_uhvar(rightID)),
            )
@@ -175,7 +175,7 @@ module type PALETTE = {
        UHExp.(
          OperatorSeq.(
            exp_op_seq(
-             Tm(NotInHole, Var(NotInVHole, fVarName)),
+             Tm(NotInHole, Var(NotInVarHole, fVarName)),
              Space,
              exp_op_seq(r_num, Space, ExpOpExp(g_num, Space, b_num)),
            )

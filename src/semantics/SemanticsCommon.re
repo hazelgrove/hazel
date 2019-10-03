@@ -1,41 +1,4 @@
-open Sexplib.Std;
 open GeneralUtil;
-
-[@deriving sexp]
-type in_hole_reason =
-  | TypeInconsistent
-  | WrongLength;
-
-[@deriving (sexp, show)]
-type err_status =
-  | NotInHole
-  | InHole(in_hole_reason, MetaVar.t);
-
-let err_status_to_string =
-  fun
-  | NotInHole => "NotInHole"
-  | InHole(_, _) => "InHole";
-
-[@deriving (sexp, show)]
-type keyword =
-  | Let
-  | Case
-  | Forall
-  | Type
-  | Num
-  | Bool
-  | List
-  | Fn;
-
-[@deriving (sexp, show)]
-type in_vhole_reason =
-  | Free
-  | Keyword(keyword);
-
-[@deriving (sexp, show)]
-type var_err_status =
-  | NotInVHole
-  | InVHole(in_vhole_reason, MetaVar.t);
 
 exception FreeVarInPat;
 
@@ -83,5 +46,6 @@ let delim_cursors_k = (k: int): list(cursor_position) => [
   OnDelim(k, After),
   Staging(k),
 ];
+
 let delim_cursors = (num_delim: int): list(cursor_position) =>
   range(num_delim) |> List.map(k => delim_cursors_k(k)) |> List.flatten;

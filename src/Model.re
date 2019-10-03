@@ -211,8 +211,8 @@ let remove_user_newline = (steps, model) => {
   user_newlines: model.user_newlines |> Path.StepsMap.remove(steps),
 };
 
-let user_entered_newline_at = (steps, model): bool =>
-  model.user_newlines |> Path.StepsMap.mem(steps);
+let user_entered_newline_at = (steps, user_newlines): bool =>
+  user_newlines |> Path.StepsMap.mem(steps);
 
 let update_edit_state = ((new_zblock, ty, u_gen): edit_state, model: t): t => {
   let new_block = new_zblock |> ZExp.erase_block;

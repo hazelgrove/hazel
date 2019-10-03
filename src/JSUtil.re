@@ -16,7 +16,7 @@ let get_attr = (attr: string, elem: Js.t(Dom_html.element)): option(string) =>
   Js.Opt.to_option(elem##getAttribute(Js.string(attr)))
   |> U.Opt.map(s => Js.to_string(s));
 
-let force_get_attr = (attr: string, elem: Js.t(Dom_html.element)): string =>
+let force_get_attr = (attr: string, elem: Js.t(Dom_html.element)): string => {
   switch (elem |> get_attr(attr)) {
   | None =>
     log(elem);
@@ -24,6 +24,7 @@ let force_get_attr = (attr: string, elem: Js.t(Dom_html.element)): string =>
     assert(false);
   | Some(s) => s
   };
+};
 
 let has_attr = (attr: string, elem: Js.t(Dom_html.element)): bool =>
   switch (Js.Opt.to_option(elem##getAttribute(Js.string(attr)))) {
@@ -249,6 +250,8 @@ let get_bounding_rect = (~top_origin=0.0, ~left_origin=0.0, elem) => {
   };
 };
 
+// indent parameter is how many ch units by which to trim
+// left edge to handle snode elems that contain indented lines
 let place_over_rect = (~indent=0.0, rect, elem) => {
   elem##.style##.top := Js.string(rect.top |> px);
   elem##.style##.height := Js.string(rect.bottom -. rect.top |> px);

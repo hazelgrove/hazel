@@ -197,8 +197,8 @@ let page_view =
                         cardstack_controls(~inject, model),
                       ],
                     ),
+                    examples_select(~inject),
                     /*
-                     examples_select(~inject),
                      Node.button(
                        [
                          Attr.on_click(_ => {

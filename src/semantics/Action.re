@@ -463,7 +463,6 @@ let rec perform_ty = (a: t, zty: ZTyp.t): result(ZTyp.t) =>
   | (Construct(SApPalette(_)), _)
   | (Construct(SWild), _) => Failed
   };
-};
 
 let abs_perform_Backspace_Before_op =
     (
@@ -1320,7 +1319,7 @@ let rec syn_perform_pat =
         ZPat.CursorP(
           Staging(k),
           switch (staged) {
-          | Inj(err_status, side, _) => Inj(err_status, side, new_body)
+          | Inj(err, side, _) => Inj(err, side, new_body)
           | _parenthesized => Parenthesized(new_body)
           },
         );
@@ -1697,7 +1696,7 @@ let rec syn_perform_pat =
     } else if (Var.is_let(x)) {
       let (u, u_gen) = MetaVarGen.next(u_gen);
       Succeeded((
-        CursorP(cursor, Var(NotInHole, InVHole(Keyword(Let), u), x)),
+        CursorP(cursor, Var(NotInHole, InVarHole(Keyword(Let), u), x)),
         Hole,
         ctx,
         u_gen,
@@ -1705,7 +1704,7 @@ let rec syn_perform_pat =
     } else if (Var.is_case(x)) {
       let (u, u_gen) = MetaVarGen.next(u_gen);
       Succeeded((
-        CursorP(cursor, Var(NotInHole, InVHole(Keyword(Case), u), x)),
+        CursorP(cursor, Var(NotInHole, InVarHole(Keyword(Case), u), x)),
         Hole,
         ctx,
         u_gen,
@@ -1716,7 +1715,7 @@ let rec syn_perform_pat =
         {
           let ctx = Contexts.extend_gamma(ctx, (x, Hole));
           Succeeded((
-            ZPat.CursorP(cursor, Var(NotInHole, NotInVHole, x)),
+            ZPat.CursorP(cursor, Var(NotInHole, NotInVarHole, x)),
             HTyp.Hole,
             ctx,
             u_gen,
@@ -1997,7 +1996,7 @@ and ana_perform_pat =
         ZPat.CursorP(
           Staging(k),
           switch (staged) {
-          | Inj(err_status, side, _) => Inj(err_status, side, new_body)
+          | Inj(err, side, _) => Inj(err, side, new_body)
           | _parenthesized => Parenthesized(new_body)
           },
         );
@@ -2390,7 +2389,7 @@ and ana_perform_pat =
     } else if (Var.is_case(x)) {
       let (u, u_gen) = MetaVarGen.next(u_gen);
       Succeeded((
-        CursorP(cursor, Var(NotInHole, InVHole(Keyword(Case), u), x)),
+        CursorP(cursor, Var(NotInHole, InVarHole(Keyword(Case), u), x)),
         ctx,
         u_gen,
       ));
@@ -2400,7 +2399,7 @@ and ana_perform_pat =
         {
           let ctx = Contexts.extend_gamma(ctx, (x, ty));
           Succeeded((
-            ZPat.CursorP(cursor, Var(NotInHole, NotInVHole, x)),
+            ZPat.CursorP(cursor, Var(NotInHole, NotInVarHole, x)),
             ctx,
             u_gen,
           ));
@@ -2738,8 +2737,8 @@ let keyword_suffix_to_exp =
     (OpSeq(skel, opseq), u_gen);
   };
 
-let keyword_action = (k: keyword): t =>
-  switch (k) {
+let keyword_action = (kw: Keyword.t): t =>
+  switch (kw) {
   | Let => Construct(SLet)
   | Case => Construct(SCase)
   };
@@ -2747,7 +2746,7 @@ let keyword_action = (k: keyword): t =>
 type zexp_or_zblock = ZExp.zexp_or_zblock;
 
 let set_err_status_zexp_or_zblock =
-    (err: err_status, ze_zb: zexp_or_zblock): zexp_or_zblock =>
+    (err: ErrStatus.t, ze_zb: zexp_or_zblock): zexp_or_zblock =>
   switch (ze_zb) {
   | E(ze) => E(ZExp.set_err_status_t(err, ze))
   | B(zblock) => B(ZExp.set_err_status_block(err, zblock))
@@ -2843,9 +2842,8 @@ let rec syn_perform_block =
     | Some((new_prefix, new_block, u_gen)) =>
       let new_e_line =
         switch (e_line) {
-        | Inj(err_status, side, _) => UHExp.Inj(err_status, side, new_block)
-        | Case(err_status, _, rules, ann) =>
-          Case(err_status, new_block, rules, ann)
+        | Inj(err, side, _) => UHExp.Inj(err, side, new_block)
+        | Case(err, _, rules, ann) => Case(err, new_block, rules, ann)
         | _ => Parenthesized(new_block)
         };
       let new_zblock =
@@ -2881,7 +2879,7 @@ let rec syn_perform_block =
     | Some((new_block, None, u_gen)) =>
       let new_conclusion: UHExp.t =
         switch (e_line) {
-        | Inj(err_status, side, _) => Inj(err_status, side, new_block)
+        | Inj(err, side, _) => Inj(err, side, new_block)
         | _ => Parenthesized(new_block)
         };
       let new_zblock = ZExp.BlockZE(prefix, CursorE(cursor, new_conclusion));
@@ -2889,7 +2887,7 @@ let rec syn_perform_block =
     | Some((new_block, Some(Block(new_suffix, new_e)), u_gen)) =>
       let new_e_line: UHExp.t =
         switch (e_line) {
-        | Inj(err_status, side, _) => Inj(err_status, side, new_block)
+        | Inj(err, side, _) => Inj(err, side, new_block)
         | _ => Parenthesized(new_block)
         };
       let new_zblock =
@@ -2905,10 +2903,7 @@ let rec syn_perform_block =
         (
           prefix,
           ExpLineZ(
-            CursorE(
-              Staging(1) as cursor,
-              Case(err_status, scrut, rules, None),
-            ),
+            CursorE(Staging(1) as cursor, Case(err, scrut, rules, None)),
           ),
           suffix,
         ),
@@ -2928,7 +2923,7 @@ let rec syn_perform_block =
       | Some((new_last_clause, None, u_gen)) =>
         let new_e =
           UHExp.Case(
-            err_status,
+            err,
             scrut,
             leading_rules @ [Rule(last_p, new_last_clause)],
             None,
@@ -2938,7 +2933,7 @@ let rec syn_perform_block =
       | Some((new_last_clause, Some(Block(new_suffix, new_e)), u_gen)) =>
         let new_e_line =
           UHExp.Case(
-            err_status,
+            err,
             scrut,
             leading_rules @ [Rule(last_p, new_last_clause)],
             None,
@@ -2968,8 +2963,8 @@ let rec syn_perform_block =
         ZExp.CursorE(
           cursor,
           switch (staged) {
-          | Inj(err_status, side, _) =>
-            Inj(err_status, side, new_body |> UHExp.wrap_in_block)
+          | Inj(err, side, _) =>
+            Inj(err, side, new_body |> UHExp.wrap_in_block)
           | _parenthesized => Parenthesized(new_body |> UHExp.wrap_in_block)
           },
         );
@@ -3117,8 +3112,8 @@ let rec syn_perform_block =
         ZExp.CursorE(
           cursor,
           switch (staged) {
-          | Inj(err_status, side, _) =>
-            Inj(err_status, side, new_body |> UHExp.wrap_in_block)
+          | Inj(err, side, _) =>
+            Inj(err, side, new_body |> UHExp.wrap_in_block)
           | _parenthesized => Parenthesized(new_body |> UHExp.wrap_in_block)
           },
         );
@@ -3150,9 +3145,8 @@ let rec syn_perform_block =
     | Some((new_leading, new_block, u_gen)) =>
       let new_conclusion =
         switch (conclusion) {
-        | Inj(err_status, side, _) => UHExp.Inj(err_status, side, new_block)
-        | Case(err_status, _, rules, ann) =>
-          Case(err_status, new_block, rules, ann)
+        | Inj(err, side, _) => UHExp.Inj(err, side, new_block)
+        | Case(err, _, rules, ann) => Case(err, new_block, rules, ann)
         | _ => Parenthesized(new_block)
         };
       let new_zblock =
@@ -3370,7 +3364,7 @@ let rec syn_perform_block =
           ExpLineZ(
             OpSeqZ(
               _,
-              CursorE(_, Var(_, InVHole(Keyword(k), _), _)) as ze0,
+              CursorE(_, Var(_, InVarHole(Keyword(k), _), _)) as ze0,
               EmptyPrefix(opseq_suffix),
             ),
           ),
@@ -3390,7 +3384,7 @@ let rec syn_perform_block =
       BlockZL(
         (
           prefix,
-          ExpLineZ(CursorE(_, Var(_, InVHole(Keyword(k), _), _)) as ze0),
+          ExpLineZ(CursorE(_, Var(_, InVarHole(Keyword(k), _), _)) as ze0),
           suffix,
         ),
         e2,
@@ -3406,7 +3400,7 @@ let rec syn_perform_block =
         lines,
         OpSeqZ(
           _,
-          CursorE(_, Var(_, InVHole(Keyword(k), _), _)) as ze0,
+          CursorE(_, Var(_, InVarHole(Keyword(k), _), _)) as ze0,
           EmptyPrefix(suffix),
         ),
       ),
@@ -3422,7 +3416,10 @@ let rec syn_perform_block =
     };
   | (
       Construct(SOp(SSpace)),
-      BlockZE(lines, CursorE(_, Var(_, InVHole(Keyword(k), _), _)) as ze0),
+      BlockZE(
+        lines,
+        CursorE(_, Var(_, InVarHole(Keyword(k), _), _)) as ze0,
+      ),
     )
       when ZExp.is_after_exp(ze0) =>
     let (ze, u_gen) = ZExp.new_EmptyHole(u_gen);
@@ -3478,8 +3475,7 @@ let rec syn_perform_block =
         }
       }
     }
-  };
-}
+  }
 and syn_perform_lines =
     (
       ~ci: CursorInfo.t,
@@ -3645,7 +3641,7 @@ and syn_perform_lines =
         ExpLineZ(
           OpSeqZ(
             _,
-            CursorE(_, Var(_, InVHole(Keyword(k), _), _)) as ze0,
+            CursorE(_, Var(_, InVarHole(Keyword(k), _), _)) as ze0,
             EmptyPrefix(opseq_suffix),
           ),
         ),
@@ -3661,7 +3657,7 @@ and syn_perform_lines =
       Construct(SOp(SSpace)),
       (
         prefix,
-        ExpLineZ(CursorE(_, Var(_, InVHole(Keyword(k), _), _)) as ze0),
+        ExpLineZ(CursorE(_, Var(_, InVarHole(Keyword(k), _), _)) as ze0),
         suffix,
       ),
     )
@@ -4003,8 +3999,8 @@ and syn_perform_exp =
         ZExp.CursorE(
           Staging(k),
           switch (staged) {
-          | Inj(err_status, side, _) =>
-            Inj(err_status, side, new_body |> UHExp.wrap_in_block)
+          | Inj(err, side, _) =>
+            Inj(err, side, new_body |> UHExp.wrap_in_block)
           | _parenthesized => Parenthesized(new_body |> UHExp.wrap_in_block)
           },
         );
@@ -4206,7 +4202,7 @@ and syn_perform_exp =
   | (
       Delete,
       CaseZR(
-        err_status,
+        err,
         scrut,
         (prefix, CursorR(OnDelim(k, Before), rule), suffix),
         ann,
@@ -4218,7 +4214,7 @@ and syn_perform_exp =
       Backspace,
       (
         ZExp.CaseZR(
-          err_status,
+          err,
           scrut,
           (prefix, CursorR(OnDelim(k, After), rule), suffix),
           ann,
@@ -4230,7 +4226,7 @@ and syn_perform_exp =
   | (
       Backspace,
       CaseZR(
-        err_status,
+        err,
         scrut,
         (prefix, CursorR(OnDelim(k, After), rule), suffix),
         ann,
@@ -4239,7 +4235,7 @@ and syn_perform_exp =
     Succeeded((
       E(
         CaseZR(
-          err_status,
+          err,
           scrut,
           (prefix, CursorR(Staging(k), rule), suffix),
           ann,
@@ -4470,6 +4466,22 @@ and syn_perform_exp =
     Succeeded((E(new_ze), ty, u_gen));
   | (Construct(_), CursorE(Staging(_), _)) => Failed
   | (
+      Construct(SLine),
+      CaseZR(err, scrut, (prefix, CursorR(Staging(k), rule), suffix), ann),
+    ) =>
+    let (new_ze, ty, u_gen) =
+      Statics.syn_fix_holes_zexp(
+        ctx,
+        u_gen,
+        CaseZR(
+          err,
+          scrut,
+          (prefix, CursorR(OnDelim(k, After), rule), suffix),
+          ann,
+        ),
+      );
+    Succeeded((E(new_ze), ty, u_gen));
+  | (
       Construct(SOp(SSpace)),
       CursorE(OnDelim(_, After), _) |
       CaseZR(_, _, (_, CursorR(OnDelim(_, After), _), _), _),
@@ -4565,14 +4577,12 @@ and syn_perform_exp =
   | (Construct(SParenthesized), CursorE(_, _)) =>
     let zblock = ZExp.BlockZE([], ze);
     Succeeded((E(ParenthesizedZ(zblock)), ty, u_gen));
-  | (Construct(SAsc), LamZP(err_status, zp, None, e1)) =>
-    let ze =
-      ZExp.LamZA(err_status, ZPat.erase(zp), ZTyp.place_before(Hole), e1);
+  | (Construct(SAsc), LamZP(err, zp, None, e1)) =>
+    let ze = ZExp.LamZA(err, ZPat.erase(zp), ZTyp.place_before(Hole), e1);
     Succeeded((E(ze), ty, u_gen));
-  | (Construct(SAsc), LamZP(err_status, zp, Some(uty1), e1)) =>
+  | (Construct(SAsc), LamZP(err, zp, Some(uty1), e1)) =>
     /* just move the cursor over if there is already an ascription */
-    let ze =
-      ZExp.LamZA(err_status, ZPat.erase(zp), ZTyp.place_before(uty1), e1);
+    let ze = ZExp.LamZA(err, ZPat.erase(zp), ZTyp.place_before(uty1), e1);
     Succeeded((E(ze), ty, u_gen));
   | (Construct(SAsc), CursorE(_, Case(_, e1, rules, Some(uty)))) =>
     /* just move the cursor over if there is already an ascription */
@@ -4598,21 +4608,23 @@ and syn_perform_exp =
     } else if (Var.is_let(x)) {
       let (u, u_gen) = MetaVarGen.next(u_gen);
       Succeeded((
-        E(CursorE(cursor, Var(NotInHole, InVHole(Keyword(Let), u), x))),
+        E(CursorE(cursor, Var(NotInHole, InVarHole(Keyword(Let), u), x))),
         Hole,
         u_gen,
       ));
     } else if (Var.is_type(x)) {
       let (u, u_gen) = MetaVarGen.next(u_gen);
       Some((
-        CursorE(side, Tm(NotInHole, Var(InVHole(Keyword(Type), u), x))),
+        CursorE(side, Tm(NotInHole, Var(InVarHole(Keyword(Type), u), x))),
         Hole,
         u_gen,
       ));
     } else if (Var.is_case(x)) {
       let (u, u_gen) = MetaVarGen.next(u_gen);
       Succeeded((
-        E(CursorE(cursor, Var(NotInHole, InVHole(Keyword(Case), u), x))),
+        E(
+          CursorE(cursor, Var(NotInHole, InVarHole(Keyword(Case), u), x)),
+        ),
         Hole,
         u_gen,
       ));
@@ -4623,7 +4635,7 @@ and syn_perform_exp =
           switch (VarMap.lookup(ctx.vars, x)) {
           | Some(xty) =>
             Succeeded((
-              ZExp.E(ZExp.CursorE(cursor, Var(NotInHole, NotInVHole, x))),
+              ZExp.E(ZExp.CursorE(cursor, Var(NotInHole, NotInVarHole, x))),
               xty,
               u_gen,
             ))
@@ -4631,7 +4643,7 @@ and syn_perform_exp =
             let (u, u_gen) = MetaVarGen.next(u_gen);
             Succeeded((
               ZExp.E(
-                ZExp.CursorE(cursor, Var(NotInHole, InVHole(Free, u), x)),
+                ZExp.CursorE(cursor, Var(NotInHole, InVarHole(Free, u), x)),
               ),
               HTyp.Hole,
               u_gen,
@@ -5085,10 +5097,7 @@ and syn_perform_exp =
     }
   /* Invalid actions at expression level */
   | (Construct(SNum), _)
-  | (Construct(SForall), _)
   | (Construct(SBool), _)
-  | (Construct(SType), _)
-  | (Construct(SForall), _)
   | (Construct(SList), _)
   | (Construct(SWild), _) => Failed
   }
@@ -5169,9 +5178,8 @@ and ana_perform_block =
     | Some((new_prefix, new_block, u_gen)) =>
       let new_e_line =
         switch (e_line) {
-        | Inj(err_status, side, _) => UHExp.Inj(err_status, side, new_block)
-        | Case(err_status, _, rules, ann) =>
-          Case(err_status, new_block, rules, ann)
+        | Inj(err, side, _) => UHExp.Inj(err, side, new_block)
+        | Case(err, _, rules, ann) => Case(err, new_block, rules, ann)
         | _ => Parenthesized(new_block)
         };
       let new_zblock =
@@ -5207,7 +5215,7 @@ and ana_perform_block =
     | Some((new_block, None, u_gen)) =>
       let new_conclusion =
         switch (e_line) {
-        | Inj(err_status, side, _) => UHExp.Inj(err_status, side, new_block)
+        | Inj(err, side, _) => UHExp.Inj(err, side, new_block)
         | _ => Parenthesized(new_block)
         };
       let new_zblock = ZExp.BlockZE(prefix, CursorE(cursor, new_conclusion));
@@ -5215,7 +5223,7 @@ and ana_perform_block =
     | Some((new_block, Some(Block(new_suffix, new_e)), u_gen)) =>
       let new_e_line =
         switch (e_line) {
-        | Inj(err_status, side, _) => UHExp.Inj(err_status, side, new_block)
+        | Inj(err, side, _) => UHExp.Inj(err, side, new_block)
         | _ => Parenthesized(new_block)
         };
       let new_zblock =
@@ -5231,10 +5239,7 @@ and ana_perform_block =
         (
           prefix,
           ExpLineZ(
-            CursorE(
-              Staging(1) as cursor,
-              Case(err_status, scrut, rules, None),
-            ),
+            CursorE(Staging(1) as cursor, Case(err, scrut, rules, None)),
           ),
           suffix,
         ),
@@ -5254,7 +5259,7 @@ and ana_perform_block =
       | Some((new_last_clause, None, u_gen)) =>
         let new_conclusion =
           UHExp.Case(
-            err_status,
+            err,
             scrut,
             leading_rules @ [Rule(last_p, new_last_clause)],
             None,
@@ -5271,7 +5276,7 @@ and ana_perform_block =
                 CursorE(
                   Staging(1),
                   Case(
-                    err_status,
+                    err,
                     scrut,
                     leading_rules @ [Rule(last_p, new_last_clause)],
                     None,
@@ -5302,8 +5307,8 @@ and ana_perform_block =
         ZExp.CursorE(
           cursor,
           switch (staged) {
-          | Inj(err_status, side, _) =>
-            Inj(err_status, side, new_body |> UHExp.wrap_in_block)
+          | Inj(err, side, _) =>
+            Inj(err, side, new_body |> UHExp.wrap_in_block)
           | _parenthesized => Parenthesized(new_body |> UHExp.wrap_in_block)
           },
         );
@@ -5454,8 +5459,8 @@ and ana_perform_block =
         ZExp.CursorE(
           cursor,
           switch (staged) {
-          | Inj(err_status, side, _) =>
-            Inj(err_status, side, new_body |> UHExp.wrap_in_block)
+          | Inj(err, side, _) =>
+            Inj(err, side, new_body |> UHExp.wrap_in_block)
           | _parenthesized => Parenthesized(new_body |> UHExp.wrap_in_block)
           },
         );
@@ -5487,9 +5492,8 @@ and ana_perform_block =
     | Some((new_leading, new_block, u_gen)) =>
       let new_conclusion =
         switch (conclusion) {
-        | Inj(err_status, side, _) => UHExp.Inj(err_status, side, new_block)
-        | Case(err_status, _, rules, ann) =>
-          Case(err_status, new_block, rules, ann)
+        | Inj(err, side, _) => UHExp.Inj(err, side, new_block)
+        | Case(err, _, rules, ann) => Case(err, new_block, rules, ann)
         | _ => Parenthesized(new_block)
         };
       let new_zblock =
@@ -5721,7 +5725,7 @@ and ana_perform_block =
           ExpLineZ(
             OpSeqZ(
               _,
-              CursorE(_, Var(_, InVHole(Keyword(k), _), _)) as ze0,
+              CursorE(_, Var(_, InVarHole(Keyword(k), _), _)) as ze0,
               EmptyPrefix(opseq_suffix),
             ),
           ),
@@ -5741,7 +5745,7 @@ and ana_perform_block =
       BlockZL(
         (
           prefix,
-          ExpLineZ(CursorE(_, Var(_, InVHole(Keyword(k), _), _)) as ze0),
+          ExpLineZ(CursorE(_, Var(_, InVarHole(Keyword(k), _), _)) as ze0),
           suffix,
         ),
         e2,
@@ -5757,7 +5761,7 @@ and ana_perform_block =
         lines,
         OpSeqZ(
           _,
-          CursorE(_, Var(_, InVHole(Keyword(k), _), _)) as ze0,
+          CursorE(_, Var(_, InVarHole(Keyword(k), _), _)) as ze0,
           EmptyPrefix(suffix),
         ),
       ),
@@ -5769,7 +5773,10 @@ and ana_perform_block =
     ana_perform_block(~ci, ctx, keyword_action(k), (zblock, u_gen), ty);
   | (
       Construct(SOp(SSpace)),
-      BlockZE(lines, CursorE(_, Var(_, InVHole(Keyword(k), _), _)) as ze0),
+      BlockZE(
+        lines,
+        CursorE(_, Var(_, InVarHole(Keyword(k), _), _)) as ze0,
+      ),
     )
       when ZExp.is_after_exp(ze0) =>
     let (ze, u_gen) = ZExp.new_EmptyHole(u_gen);
@@ -5921,8 +5928,8 @@ and ana_perform_exp =
         ZExp.CursorE(
           Staging(k),
           switch (staged) {
-          | Inj(err_status, side, _) =>
-            Inj(err_status, side, new_body |> UHExp.wrap_in_block)
+          | Inj(err, side, _) =>
+            Inj(err, side, new_body |> UHExp.wrap_in_block)
           | _parenthesized => Parenthesized(new_body |> UHExp.wrap_in_block)
           },
         );
@@ -6128,7 +6135,7 @@ and ana_perform_exp =
   | (
       Delete,
       CaseZR(
-        err_status,
+        err,
         scrut,
         (prefix, CursorR(OnDelim(k, Before), rule), suffix),
         ann,
@@ -6140,7 +6147,7 @@ and ana_perform_exp =
       Backspace,
       (
         ZExp.CaseZR(
-          err_status,
+          err,
           scrut,
           (prefix, CursorR(OnDelim(k, After), rule), suffix),
           ann,
@@ -6152,7 +6159,7 @@ and ana_perform_exp =
   | (
       Backspace,
       CaseZR(
-        err_status,
+        err,
         scrut,
         (prefix, CursorR(OnDelim(k, After), rule), suffix),
         ann,
@@ -6161,7 +6168,7 @@ and ana_perform_exp =
     Succeeded((
       E(
         CaseZR(
-          err_status,
+          err,
           scrut,
           (prefix, CursorR(Staging(k), rule), suffix),
           ann,
@@ -6396,6 +6403,23 @@ and ana_perform_exp =
     Succeeded((E(new_ze), u_gen));
   | (Construct(_), CursorE(Staging(_), _)) => Failed
   | (
+      Construct(SLine),
+      CaseZR(err, scrut, (prefix, CursorR(Staging(k), rule), suffix), ann),
+    ) =>
+    let (new_ze, u_gen) =
+      Statics.ana_fix_holes_zexp(
+        ctx,
+        u_gen,
+        CaseZR(
+          err,
+          scrut,
+          (prefix, CursorR(OnDelim(k, After), rule), suffix),
+          ann,
+        ),
+        ty,
+      );
+    Succeeded((E(new_ze), u_gen));
+  | (
       Construct(SOp(SSpace)),
       CursorE(OnDelim(_, After), _) |
       CaseZR(_, _, (_, CursorR(OnDelim(_, After), _), _), _),
@@ -6481,14 +6505,12 @@ and ana_perform_exp =
   | (Construct(SCase), CursorE(_, _)) => Failed
   | (Construct(SParenthesized), CursorE(_, _)) =>
     Succeeded((E(ParenthesizedZ(ZExp.wrap_in_block(ze))), u_gen))
-  | (Construct(SAsc), LamZP(err_status, zp, None, e1)) =>
-    let ze =
-      ZExp.LamZA(err_status, ZPat.erase(zp), ZTyp.place_before(Hole), e1);
+  | (Construct(SAsc), LamZP(err, zp, None, e1)) =>
+    let ze = ZExp.LamZA(err, ZPat.erase(zp), ZTyp.place_before(Hole), e1);
     Succeeded((E(ze), u_gen));
-  | (Construct(SAsc), LamZP(err_status, zp, Some(uty1), e1)) =>
+  | (Construct(SAsc), LamZP(err, zp, Some(uty1), e1)) =>
     /* just move the cursor over if there is already an ascription */
-    let ze =
-      ZExp.LamZA(err_status, ZPat.erase(zp), ZTyp.place_before(uty1), e1);
+    let ze = ZExp.LamZA(err, ZPat.erase(zp), ZTyp.place_before(uty1), e1);
     Succeeded((E(ze), u_gen));
   | (Construct(SAsc), CursorE(_, Case(_, e1, rules, None))) =>
     let ze = ZExp.CaseZA(NotInHole, e1, rules, ZTyp.place_before(Hole));

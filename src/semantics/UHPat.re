@@ -19,26 +19,31 @@ type skel_t = Skel.t(op);
 type t =
   /* outer nodes */
   | EmptyHole(MetaVar.t)
-  | Wild(err_status)
-  | Var(err_status, var_err_status, Var.t)
-  | NumLit(err_status, int)
-  | BoolLit(err_status, bool)
-  | ListNil(err_status)
+  | Wild(ErrStatus.t)
+  | Var(ErrStatus.t, VarErrStatus.t, Var.t)
+  | NumLit(ErrStatus.t, int)
+  | BoolLit(ErrStatus.t, bool)
+  | ListNil(ErrStatus.t)
   /* inner nodes */
   | Parenthesized(t)
   | OpSeq(skel_t, opseq)
-  | Inj(err_status, inj_side, t)
+  | Inj(ErrStatus.t, inj_side, t)
 and opseq = OperatorSeq.opseq(t, op);
 
 exception SkelInconsistentWithOpSeq(skel_t, opseq);
 
 let var =
-    (~e: err_status=NotInHole, ~v: var_err_status=NotInVHole, x: Var.t): t =>
-  Var(e, v, x);
+    (
+      ~err: ErrStatus.t=NotInHole,
+      ~var_err: VarErrStatus.t=NotInVarHole,
+      x: Var.t,
+    )
+    : t =>
+  Var(err, var_err, x);
 
-let boollit = (~e: err_status=NotInHole, b: bool) => BoolLit(e, b);
+let boollit = (~err: ErrStatus.t=NotInHole, b: bool) => BoolLit(err, b);
 
-let listnil = (~e: err_status=NotInHole, ()): t => ListNil(e);
+let listnil = (~err: ErrStatus.t=NotInHole, ()): t => ListNil(err);
 
 let rec get_tuple = (skel1: skel_t, skel2: skel_t): ListMinTwo.t(skel_t) =>
   switch (skel2) {
@@ -48,7 +53,7 @@ let rec get_tuple = (skel1: skel_t, skel2: skel_t): ListMinTwo.t(skel_t) =>
   | Placeholder(_) => ListMinTwo.Pair(skel1, skel2)
   };
 
-let rec make_tuple = (err: err_status, skels: ListMinTwo.t(skel_t)) =>
+let rec make_tuple = (err: ErrStatus.t, skels: ListMinTwo.t(skel_t)) =>
   switch (skels) {
   | Pair(skel1, skel2) => Skel.BinOp(err, Comma, skel1, skel2)
   | Cons(skel1, skels) =>
@@ -93,7 +98,7 @@ let is_EmptyHole =
   | EmptyHole(_) => true
   | _ => false;
 
-let rec get_err_status_t = (p: t): err_status =>
+let rec get_err_status_t = (p: t): ErrStatus.t =>
   switch (p) {
   | EmptyHole(_) => NotInHole
   | Wild(err) => err
@@ -111,7 +116,7 @@ let rec get_err_status_t = (p: t): err_status =>
     }
   };
 
-let rec set_err_status_t = (err: err_status, p: t): t =>
+let rec set_err_status_t = (err: ErrStatus.t, p: t): t =>
   switch (p) {
   | EmptyHole(_) => p
   | Wild(_) => Wild(err)
@@ -126,7 +131,7 @@ let rec set_err_status_t = (err: err_status, p: t): t =>
     OpSeq(skel, seq);
   }
 and set_err_status_opseq =
-    (err: err_status, skel: skel_t, seq: opseq): (skel_t, opseq) =>
+    (err: ErrStatus.t, skel: skel_t, seq: opseq): (skel_t, opseq) =>
   switch (skel) {
   | Placeholder(n) =>
     switch (OperatorSeq.nth_tm(n, seq)) {
@@ -197,21 +202,6 @@ and make_opseq_inconsistent =
       set_err_status_opseq(InHole(TypeInconsistent, u), skel, seq);
     (skel, seq, u_gen);
   };
-
-let rec max_degree =
-  fun
-  | EmptyHole(_)
-  | Wild(_)
-  | Var(_, _, _)
-  | NumLit(_, _)
-  | BoolLit(_, _)
-  | ListNil(_) => 0
-  | Parenthesized(body)
-  | Inj(_, _, body) => max(1, max_degree(body))
-  | OpSeq(_, seq) =>
-    OperatorSeq.tms(seq)
-    |> List.map(max_degree)
-    |> List.fold_left(max, OperatorSeq.seq_length(seq));
 
 let child_indices =
   fun

@@ -14,7 +14,7 @@ type t =
   /* zipper cases */
   | ParenthesizedZ(t)
   | OpSeqZ(UHPat.skel_t, t, opseq_surround)
-  | InjZ(err_status, inj_side, t);
+  | InjZ(ErrStatus.t, inj_side, t);
 
 exception SkelInconsistentWithOpSeq;
 
@@ -50,7 +50,7 @@ let bidelimit = (zp: t): t =>
   | OpSeqZ(_, _, _) => ParenthesizedZ(zp)
   };
 
-let rec set_err_status_t = (err: err_status, zp: t): t =>
+let rec set_err_status_t = (err: ErrStatus.t, zp: t): t =>
   switch (zp) {
   | CursorP(cursor, p) =>
     let p = UHPat.set_err_status_t(err, p);
@@ -63,7 +63,7 @@ let rec set_err_status_t = (err: err_status, zp: t): t =>
     OpSeqZ(skel, zp_n, surround);
   }
 and set_err_status_opseq =
-    (err: err_status, skel: UHPat.skel_t, zp_n: t, surround: opseq_surround)
+    (err: ErrStatus.t, skel: UHPat.skel_t, zp_n: t, surround: opseq_surround)
     : (UHPat.skel_t, t, opseq_surround) =>
   switch (skel) {
   | Placeholder(m) =>
@@ -149,7 +149,7 @@ and make_opseq_inconsistent =
 let rec erase = (zp: t): UHPat.t =>
   switch (zp) {
   | CursorP(_, p) => p
-  | InjZ(err_status, inj_side, zp1) => Inj(err_status, inj_side, erase(zp1))
+  | InjZ(err, inj_side, zp1) => Inj(err, inj_side, erase(zp1))
   | ParenthesizedZ(zp) => Parenthesized(erase(zp))
   | OpSeqZ(skel, zp1, surround) =>
     let p1 = erase(zp1);
@@ -268,9 +268,9 @@ let rec move_cursor_left = (zp: t): option(t) =>
   | CursorP(OnDelim(_k, Before), Parenthesized(p1)) =>
     // _k == 1
     Some(ParenthesizedZ(place_after(p1)))
-  | CursorP(OnDelim(_k, Before), Inj(err_status, side, p1)) =>
+  | CursorP(OnDelim(_k, Before), Inj(err, side, p1)) =>
     // _k == 1
-    Some(InjZ(err_status, side, place_after(p1)))
+    Some(InjZ(err, side, place_after(p1)))
   | CursorP(OnDelim(k, Before), OpSeq(skel, seq)) =>
     switch (seq |> OperatorSeq.split(k - 1)) {
     | None => None // should never happen
@@ -284,11 +284,10 @@ let rec move_cursor_left = (zp: t): option(t) =>
     | Some(zp1) => Some(ParenthesizedZ(zp1))
     | None => Some(CursorP(OnDelim(0, After), Parenthesized(erase(zp1))))
     }
-  | InjZ(err_status, side, zp1) =>
+  | InjZ(err, side, zp1) =>
     switch (move_cursor_left(zp1)) {
-    | Some(zp1) => Some(InjZ(err_status, side, zp1))
-    | None =>
-      Some(CursorP(OnDelim(0, After), Inj(err_status, side, erase(zp1))))
+    | Some(zp1) => Some(InjZ(err, side, zp1))
+    | None => Some(CursorP(OnDelim(0, After), Inj(err, side, erase(zp1))))
     }
   | OpSeqZ(skel, zp1, surround) =>
     switch (move_cursor_left(zp1)) {
@@ -325,9 +324,9 @@ let rec move_cursor_right = (zp: t): option(t) =>
   | CursorP(OnDelim(_k, After), Parenthesized(p1)) =>
     // _k == 0
     Some(ParenthesizedZ(place_before(p1)))
-  | CursorP(OnDelim(_k, After), Inj(err_status, side, p1)) =>
+  | CursorP(OnDelim(_k, After), Inj(err, side, p1)) =>
     // _k == 0
-    Some(InjZ(err_status, side, place_before(p1)))
+    Some(InjZ(err, side, place_before(p1)))
   | CursorP(OnDelim(k, After), OpSeq(skel, seq)) =>
     switch (seq |> OperatorSeq.split(k)) {
     | None => None // should never happen
@@ -342,11 +341,11 @@ let rec move_cursor_right = (zp: t): option(t) =>
     | Some(zp1) => Some(ParenthesizedZ(zp1))
     | None => Some(CursorP(OnDelim(1, Before), Parenthesized(erase(zp1))))
     }
-  | InjZ(err_status, side, zp1) =>
+  | InjZ(err, side, zp1) =>
     switch (move_cursor_right(zp1)) {
-    | Some(zp1) => Some(InjZ(err_status, side, zp1))
+    | Some(zp1) => Some(InjZ(err, side, zp1))
     | None =>
-      Some(CursorP(OnDelim(1, Before), Inj(err_status, side, erase(zp1))))
+      Some(CursorP(OnDelim(1, Before), Inj(err, side, erase(zp1))))
     }
   | OpSeqZ(skel, zp1, surround) =>
     switch (move_cursor_right(zp1)) {

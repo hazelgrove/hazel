@@ -2,6 +2,21 @@ open Sexplib.Std;
 open SemanticsCommon;
 open GeneralUtil;
 
+/*
+ module Steps : {
+   type t;
+   let prepend_step : child_index => t => t;
+   let append_step : t => child_index => t;
+   let to_list : t => list(child_index);
+ } = {
+   type t = list(child_index);
+
+   let prepend_step = (step, steps) => [step, ...steps];
+   let append_step = (steps, step) => steps ++ [step];
+   let to_list = steps => steps;
+ }
+ */
+
 [@deriving (show({with_path: false}), sexp)]
 type steps = list(child_index);
 [@deriving (show({with_path: false}), sexp)]
@@ -101,6 +116,81 @@ let append = ((appendee_steps, appendee_cursor): t, steps): t => (
   appendee_cursor,
 );
 
+let steps_of_zblock = zblock => {
+  let (steps, _) = of_zblock(zblock);
+  steps;
+};
+let steps_of_zexp = ze => {
+  let (steps, _) = of_zexp(ze);
+  steps;
+};
+
+let rec term_steps_of_ztyp: ZTyp.t => steps =
+  fun
+  | CursorT(_, _) => []
+  | ListZ(zbody)
+  | ParenthesizedZ(zbody) => [0, ...term_steps_of_ztyp(zbody)]
+  | OpSeqZ(_, ztm, surround) => [
+      OperatorSeq.surround_prefix_length(surround),
+      ...term_steps_of_ztyp(ztm),
+    ];
+
+let rec term_steps_of_zpat: ZPat.t => steps =
+  fun
+  | CursorP(_, _) => []
+  | InjZ(_, _, zbody)
+  | ParenthesizedZ(zbody) => [0, ...term_steps_of_zpat(zbody)]
+  | OpSeqZ(_, ztm, surround) => [
+      OperatorSeq.surround_prefix_length(surround),
+      ...term_steps_of_zpat(ztm),
+    ];
+
+let rec term_steps_of_zblock: ZExp.zblock => steps =
+  fun
+  | BlockZL((_, CursorL(_, EmptyLine | LetLine(_, _, _)), _), _) => []
+  | BlockZL(zlines, _) => term_steps_of_zlines(zlines)
+  | BlockZE(lines, ze) => [List.length(lines), ...term_steps_of_zexp(ze)]
+and term_steps_of_zlines = zlines => {
+  let prefix_len = ZList.prefix_length(zlines);
+  let zline = ZList.prj_z(zlines);
+  [prefix_len, ...term_steps_of_zline(zline)];
+}
+and term_steps_of_zline =
+  fun
+  | CursorL(_, _) => [] /* should never happen */
+  | ExpLineZ(ze) => term_steps_of_zexp(ze)
+  | LetLineZP(zp, _, _) => [0, ...term_steps_of_zpat(zp)]
+  | LetLineZA(_, zann, _) => [1, ...term_steps_of_ztyp(zann)]
+  | LetLineZE(_, _, zdef) => [2, ...term_steps_of_zblock(zdef)]
+and term_steps_of_zexp =
+  fun
+  | CursorE(_) => []
+  | InjZ(_, _, zbody)
+  | ParenthesizedZ(zbody) => [0, ...term_steps_of_zblock(zbody)]
+  | OpSeqZ(_, ztm, surround) => [
+      OperatorSeq.surround_prefix_length(surround),
+      ...term_steps_of_zexp(ztm),
+    ]
+  | LamZP(_, zp, _, _) => [0, ...term_steps_of_zpat(zp)]
+  | LamZA(_, _, zann, _) => [1, ...term_steps_of_ztyp(zann)]
+  | LamZE(_, _, _, zdef) => [2, ...term_steps_of_zblock(zdef)]
+  | CaseZE(_, zscrut, _, _) => [0, ...term_steps_of_zblock(zscrut)]
+  | CaseZR(_, _, (_, CursorR(_, _), _), _) => []
+  | CaseZR(_, _, (prefix, zrule, _), _) => [
+      1 + List.length(prefix),
+      ...term_steps_of_zrule(zrule),
+    ]
+  | CaseZA(_, _, rules, zann) => [
+      1 + List.length(rules),
+      ...term_steps_of_ztyp(zann),
+    ]
+  | ApPaletteZ(_, _, _, _) => []
+and term_steps_of_zrule =
+  fun
+  | CursorR(_, _) => []
+  | RuleZP(zp, _) => [0, ...term_steps_of_zpat(zp)]
+  | RuleZE(_, zclause) => [1, ...term_steps_of_zblock(zclause)];
+
 let rec before_typ = (~steps=[], ty: UHTyp.t): t =>
   switch (ty) {
   | Hole
@@ -181,6 +271,7 @@ let rec follow_ty_and_place_cursor =
         switch (follow_ty((xs, cursor_side), uty1)) {
         | Some(uty1) => Some(ForallZT(tpat, uty1))
         | None => None
+        | Some(zty) => Some(ParenthesizedZ(zty))
         }
       | _ => None
       }
@@ -671,10 +762,7 @@ let follow_rule = ((steps, cursor): t, rule: UHExp.rule): option(ZExp.zrule) =>
 exception UHBlockNodeNotFound;
 let follow_block_or_fail = (path: t, block: UHExp.block): ZExp.zblock =>
   switch (follow_block(path, block)) {
-  | None =>
-    JSUtil.log_sexp(sexp_of_t(path));
-    JSUtil.log_sexp(UHExp.sexp_of_block(block));
-    raise(UHBlockNodeNotFound);
+  | None => raise(UHBlockNodeNotFound)
   | Some(zblock) => zblock
   };
 
@@ -699,6 +787,7 @@ type hole_desc =
   | PatHole(MetaVar.t)
   | ExpHole(MetaVar.t);
 
+[@deriving sexp]
 type hole_list = list((hole_desc, t));
 
 let rec holes_skel =
@@ -717,7 +806,7 @@ let rec holes_skel =
   | Placeholder(n) =>
     let tm_n = seq |> OperatorSeq.nth_tm(n) |> Opt.get(() => assert(false));
     holes |> holes_tm(tm_n, [n, ...rev_steps]);
-  | BinOp(err_status, op, skel1, skel2) =>
+  | BinOp(err, op, skel1, skel2) when op |> is_space =>
     holes
     |> holes_skel(
          ~holes_tm,
@@ -730,23 +819,50 @@ let rec holes_skel =
        )
     |> (
       holes =>
-        switch (err_status, op |> is_space) {
-        | (NotInHole, _) => holes
-        | (InHole(_, u), true) =>
-          let tm_before_space =
+        switch (err) {
+        | NotInHole => holes
+        | InHole(_, u) =>
+          let spaced_subseq_hd_index = skel1 |> Skel.leftmost_tm_index;
+          let spaced_subseq_hd =
             seq
-            |> OperatorSeq.nth_tm((skel2 |> Skel.leftmost_tm_index) - 1)
+            |> OperatorSeq.nth_tm(spaced_subseq_hd_index)
             |> Opt.get(() => assert(false));
           [
             (
               hole_desc(u),
-              rev_steps
+              [spaced_subseq_hd_index, ...rev_steps]
               |> List.rev
-              |> append(path_before_tm(tm_before_space)),
+              |> append(path_before_tm(spaced_subseq_hd)),
             ),
             ...holes,
           ];
-        | (InHole(_, u), false) => [
+        }
+    )
+    |> holes_skel(
+         ~holes_tm,
+         ~hole_desc,
+         ~path_before_tm,
+         ~is_space,
+         ~rev_steps,
+         skel1,
+         seq,
+       )
+  | BinOp(err, _, skel1, skel2) =>
+    holes
+    |> holes_skel(
+         ~holes_tm,
+         ~hole_desc,
+         ~path_before_tm,
+         ~is_space,
+         ~rev_steps,
+         skel2,
+         seq,
+       )
+    |> (
+      holes =>
+        switch (err) {
+        | NotInHole => holes
+        | InHole(_, u) => [
             (
               hole_desc(u),
               (
@@ -810,11 +926,11 @@ let rec holes_pat =
       (PatHole(u), rev_steps |> List.rev |> append(before_pat(p))),
       ...holes,
     ]
-  | Var(_, InVHole(_, u), _) => [
+  | Var(_, InVarHole(_, u), _) => [
       (PatHole(u), (rev_steps |> List.rev, OnText(0))),
       ...holes,
     ]
-  | Var(NotInHole, NotInVHole, _) => holes
+  | Var(NotInHole, NotInVarHole, _) => holes
   | Wild(NotInHole) => holes
   | NumLit(NotInHole, _) => holes
   | BoolLit(NotInHole, _) => holes
@@ -838,6 +954,31 @@ let holes_tpat = (tp: TPat.t, steps: steps, holes: hole_list): hole_list =>
   switch (tp) {
   | TPat.Hole(u) => [(ExpForallHole(u), steps), ...holes]
   | TPat.Var(_) => holes
+  };
+
+let holes_of_err_exp =
+    (e: UHExp.t, err: ErrStatus.t, rev_steps: rev_steps, holes: hole_list) =>
+  switch (err) {
+  | NotInHole => holes
+  | InHole(_, u) => [
+      (ExpHole(u), rev_steps |> List.rev |> append(before_exp(e))),
+      ...holes,
+    ]
+  };
+
+let holes_of_var_err_exp =
+    (
+      e: UHExp.t,
+      var_err: VarErrStatus.t,
+      rev_steps: rev_steps,
+      holes: hole_list,
+    ) =>
+  switch (var_err) {
+  | NotInVarHole => holes
+  | InVarHole(_, u) => [
+      (VHole(u), rev_steps |> List.rev |> append(before_exp(e))),
+      ...holes,
+    ]
   };
 
 let rec holes_block =
@@ -883,25 +1024,13 @@ and holes_exp =
       (ExpHole(u), (rev_steps |> List.rev, OnDelim(0, Before))),
       ...holes,
     ]
-  | Var(InHole(_, u), _, _)
-  | NumLit(InHole(_, u), _)
-  | BoolLit(InHole(_, u), _)
-  | ListNil(InHole(_, u))
-  | Lam(InHole(_, u), _, _, _)
-  | Inj(InHole(_, u), _, _)
-  | Case(InHole(_, u), _, _, _)
-  | ApPalette(InHole(_, u), _, _, _) => [
-      (ExpHole(u), rev_steps |> List.rev |> append(before_exp(e))),
-      ...holes,
-    ]
-  | Var(_, InVHole(_, u), _) => [
-      (VHole(u), (rev_steps |> List.rev, OnText(0))),
-      ...holes,
-    ]
-  | Var(NotInHole, NotInVHole, _) => holes
-  | NumLit(NotInHole, _) => holes
-  | BoolLit(NotInHole, _) => holes
-  | ListNil(NotInHole) => holes
+  | Var(err, var_err, _) =>
+    holes
+    |> holes_of_err_exp(e, err, rev_steps)
+    |> holes_of_var_err_exp(e, var_err, rev_steps)
+  | NumLit(err, _)
+  | BoolLit(err, _)
+  | ListNil(err) => holes_of_err_exp(e, err, rev_steps, holes)
   | Parenthesized(block) => holes_block(block, [0, ...rev_steps], holes)
   | OpSeq(skel, seq) =>
     holes
@@ -914,16 +1043,19 @@ and holes_exp =
          skel,
          seq,
        )
-  | Inj(NotInHole, _, block) => holes_block(block, [0, ...rev_steps], holes)
-  | Lam(NotInHole, p, ann, block) =>
+  | Inj(err, _, block) =>
+    holes_block(block, [0, ...rev_steps], holes)
+    |> holes_of_err_exp(e, err, rev_steps)
+  | Lam(err, p, ann, block) =>
     let holes = holes_block(block, [2, ...rev_steps], holes);
     let holes =
       switch (ann) {
       | Some(uty) => holes_uty(uty, [1, ...rev_steps], holes)
       | None => holes
       };
-    holes_pat(p, [0, ...rev_steps], holes);
-  | Case(NotInHole, block, rules, ann) =>
+    holes_pat(p, [0, ...rev_steps], holes)
+    |> holes_of_err_exp(e, err, rev_steps);
+  | Case(err, block, rules, ann) =>
     let holes =
       switch (ann) {
       | None => holes
@@ -931,8 +1063,9 @@ and holes_exp =
         holes_uty(uty, [List.length(rules) + 1, ...rev_steps], holes)
       };
     let holes = holes_rules(rules, 1, rev_steps, holes);
-    holes_block(block, [0, ...rev_steps], holes);
-  | ApPalette(NotInHole, _, _, psi) =>
+    holes_block(block, [0, ...rev_steps], holes)
+    |> holes_of_err_exp(e, err, rev_steps);
+  | ApPalette(err, _, _, psi) =>
     let splice_map = psi.splice_map;
     let splice_order = psi.splice_order;
     List.fold_right(
@@ -943,7 +1076,8 @@ and holes_exp =
         },
       splice_order,
       holes,
-    );
+    )
+    |> holes_of_err_exp(e, err, rev_steps);
   }
 and holes_rules =
     (rules: UHExp.rules, offset: int, rev_steps: rev_steps, holes: hole_list)
@@ -993,7 +1127,7 @@ let rec _holes_surround =
     } else {
       ([], []);
     };
-  | BinOp(err_status, op, skel1, skel2) =>
+  | BinOp(err, op, skel1, skel2) when op |> is_space =>
     let (holes_before1, holes_after1) =
       _holes_surround(
         ~holes_tm,
@@ -1022,45 +1156,64 @@ let rec _holes_surround =
       holes_before1 @ holes_before2,
       holes_after1 @ holes_after2,
     );
-    let steps = rev_steps |> List.rev;
-    switch (
-      err_status,
-      op |> is_space,
-      surrounded_index < (skel2 |> Skel.leftmost_tm_index),
-    ) {
-    | (NotInHole, _, _) => (holes_before, holes_after)
-    | (InHole(_, u), true, _) =>
-      let tm_before_space =
+    switch (err) {
+    | NotInHole => (holes_before, holes_after)
+    | InHole(_, u) =>
+      let steps = rev_steps |> List.rev;
+      let spaced_subseq_hd_index = skel1 |> Skel.leftmost_tm_index;
+      let spaced_subseq_hd =
         seq
-        |> OperatorSeq.nth_tm((skel2 |> Skel.leftmost_tm_index) - 1)
+        |> OperatorSeq.nth_tm(spaced_subseq_hd_index)
         |> Opt.get(() => assert(false));
-      (
-        holes_before
-        @ [
-          (hole_desc(u), steps |> append(path_before_tm(tm_before_space))),
-        ],
-        holes_after,
+      let hole = (
+        hole_desc(u),
+        steps |> append(path_before_tm(spaced_subseq_hd)),
       );
-    | (InHole(_, u), false, true) => (
-        holes_before
-        @ [
-          (
-            hole_desc(u),
-            (steps, OnDelim(skel2 |> Skel.leftmost_tm_index, Before)),
-          ),
-        ],
-        holes_after,
-      )
-    | (InHole(_, u), false, false) => (
-        holes_before,
-        [
-          (
-            hole_desc(u),
-            (steps, OnDelim(skel2 |> Skel.leftmost_tm_index, Before)),
-          ),
-          ...holes_after,
-        ],
-      )
+      // hole around whole Space skel comes before any hole in subskels
+      ([hole, ...holes_before], holes_after);
+    };
+  | BinOp(err, _, skel1, skel2) =>
+    let (holes_before1, holes_after1) =
+      _holes_surround(
+        ~holes_tm,
+        ~hole_desc,
+        ~is_space,
+        ~path_before_tm,
+        ~rev_steps,
+        ~surrounded_index,
+        skel1,
+        seq,
+      );
+    let (holes_before2, holes_after2) =
+      _holes_surround(
+        ~holes_tm,
+        ~hole_desc,
+        ~is_space,
+        ~path_before_tm,
+        ~rev_steps,
+        ~surrounded_index,
+        skel2,
+        seq,
+      );
+    // holes_after1 is nonempty iff holes_before2 is empty,
+    // therefore it's safe to crisscross
+    let (holes_before, holes_after) = (
+      holes_before1 @ holes_before2,
+      holes_after1 @ holes_after2,
+    );
+    switch (err) {
+    | NotInHole => (holes_before, holes_after)
+    | InHole(_, u) =>
+      let hole = (
+        hole_desc(u),
+        (
+          rev_steps |> List.rev,
+          OnDelim(skel2 |> Skel.leftmost_tm_index, Before),
+        ),
+      );
+      surrounded_index < (skel2 |> Skel.leftmost_tm_index)
+        ? (holes_before @ [hole], holes_after)
+        : (holes_before, [hole, ...holes_after]);
     };
   };
 };
@@ -1174,7 +1327,7 @@ let rec holes_Cursor_OpSeq =
         hole_selected: None,
         holes_after: [],
       };
-  | BinOp(err_status, _, skel1, skel2) =>
+  | BinOp(err, _, skel1, skel2) =>
     let {
       holes_before: holes_before1,
       hole_selected: hole_selected1,
@@ -1213,7 +1366,7 @@ let rec holes_Cursor_OpSeq =
       holes_after1 @ holes_after2,
     );
     let steps = rev_steps |> List.rev;
-    switch (err_status) {
+    switch (err) {
     | NotInHole => {holes_before, hole_selected, holes_after}
     | InHole(_, u) =>
       let current_op_index = skel2 |> Skel.leftmost_tm_index;
@@ -1866,33 +2019,29 @@ and prune_trivial_suffix_block__exp = (~steps_of_first_line, e) =>
       _,
     )
   | (_, []) => e
-  | (Lam(err_status, arg, ann, body), [2, ...xs]) =>
+  | (Lam(err, arg, ann, body), [2, ...xs]) =>
     Lam(
-      err_status,
+      err,
       arg,
       ann,
       prune_trivial_suffix_block(~steps_of_first_line=xs, body),
     )
-  | (Inj(err_status, side, body), [0, ...xs]) =>
-    Inj(
-      err_status,
-      side,
-      prune_trivial_suffix_block(~steps_of_first_line=xs, body),
-    )
+  | (Inj(err, side, body), [0, ...xs]) =>
+    Inj(err, side, prune_trivial_suffix_block(~steps_of_first_line=xs, body))
   | (Parenthesized(body), [0, ...xs]) =>
     Parenthesized(prune_trivial_suffix_block(~steps_of_first_line=xs, body))
-  | (Case(err_status, scrut, rules, ann), [x, ...xs]) =>
+  | (Case(err, scrut, rules, ann), [x, ...xs]) =>
     switch (x == 0, rules |> ZList.split_at(x - 1)) {
     | (true, _) =>
       Case(
-        err_status,
+        err,
         prune_trivial_suffix_block(~steps_of_first_line=xs, scrut),
         rules,
         ann,
       )
     | (false, Some((prefix, rule, suffix))) =>
       Case(
-        err_status,
+        err,
         scrut,
         prefix
         @ [prune_trivial_suffix_block__rule(~steps_of_first_line=xs, rule)]
