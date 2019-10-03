@@ -1,4 +1,3 @@
-open Hazellib;
 module Vdom = Virtual_dom.Vdom;
 module Dom = Js_of_ocaml.Dom;
 module Dom_html = Js_of_ocaml.Dom_html;
