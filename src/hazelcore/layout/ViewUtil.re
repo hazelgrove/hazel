@@ -1,4 +1,3 @@
-module Regexp = Js_of_ocaml.Regexp;
 open SemanticsCommon;
 
 exception MalformedView(int);
@@ -97,43 +96,42 @@ let horizontal_shift_rail_id = "horizontal_shift_rail";
 let vertical_shift_rail_id = "vertical_shift_rail";
 
 let steps_of_node_id = s =>
-  switch (Regexp.string_match(Regexp.regexp("^node__(.*)$"), s, 0)) {
-  | None => None
-  | Some(result) =>
-    switch (Regexp.matched_group(result, 1)) {
-    | None => None
-    | Some(ssexp) =>
-      Some(Path.steps_of_sexp(Sexplib.Sexp.of_string(ssexp)))
-    }
+  if (!Re.Str.string_match(Re.Str.regexp("^node__\\(.*\\)$"), s, 0)) {
+    None;
+  } else {
+    Some(
+      Path.steps_of_sexp(
+        Sexplib.Sexp.of_string(Re.Str.matched_group(1, s)),
+      ),
+    );
   };
 let steps_of_text_id = s =>
-  switch (Regexp.string_match(Regexp.regexp("^text__(.*)$"), s, 0)) {
-  | None => None
-  | Some(result) =>
-    switch (Regexp.matched_group(result, 1)) {
-    | None => None
-    | Some(ssexp) =>
-      Some(Path.steps_of_sexp(Sexplib.Sexp.of_string(ssexp)))
-    }
+  if (!Re.Str.string_match(Re.Str.regexp("^text__\\(.*\\)$"), s, 0)) {
+    None;
+  } else {
+    Some(
+      Path.steps_of_sexp(
+        Sexplib.Sexp.of_string(Re.Str.matched_group(1, s)),
+      ),
+    );
   };
 let path_of_path_id = s =>
-  switch (Regexp.string_match(Regexp.regexp("^path__(.*)$"), s, 0)) {
-  | None => None
-  | Some(result) =>
-    switch (Regexp.matched_group(result, 1)) {
-    | None => None
-    | Some(ssexp) => Some(Path.t_of_sexp(Sexplib.Sexp.of_string(ssexp)))
-    }
+  if (!Re.Str.string_match(Re.Str.regexp("^path__\\(.*\\)$"), s, 0)) {
+    None;
+  } else {
+    Some(
+      Path.t_of_sexp(Sexplib.Sexp.of_string(Re.Str.matched_group(1, s))),
+    );
   };
 let delim_path_of_delim_id = s =>
-  switch (Regexp.string_match(Regexp.regexp("^delim__(.*)$"), s, 0)) {
-  | None => None
-  | Some(result) =>
-    switch (Regexp.matched_group(result, 1)) {
-    | None => None
-    | Some(ssexp) =>
-      Some(delim_path_of_sexp(Sexplib.Sexp.of_string(ssexp)))
-    }
+  if (!Re.Str.string_match(Re.Str.regexp("^delim__\\(.*\\)$"), s, 0)) {
+    None;
+  } else {
+    Some(
+      delim_path_of_sexp(
+        Sexplib.Sexp.of_string(Re.Str.matched_group(1, s)),
+      ),
+    );
   };
 
 let cls_sline = "sline";
@@ -143,13 +141,10 @@ let sline_clss = line_no => [
 ];
 
 let line_no_of_sline_cls = cls =>
-  switch (Regexp.string_match(Regexp.regexp("^sline-(.*)$"), cls, 0)) {
-  | None => None
-  | Some(result) =>
-    switch (Regexp.matched_group(result, 1)) {
-    | None => None
-    | Some(s) => Some(int_of_string(s))
-    }
+  if (!Re.Str.string_match(Re.Str.regexp("^sline-(.*)$"), cls, 0)) {
+    None;
+  } else {
+    Some(int_of_string(Re.Str.matched_group(1, cls)));
   };
 
 let indentation_cls = "indentation";

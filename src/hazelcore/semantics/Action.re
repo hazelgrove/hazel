@@ -3,7 +3,7 @@ open SemanticsCommon;
 open GeneralUtil;
 open Sexplib.Std;
 
-[@deriving (show({with_path: false}), sexp)]
+[@deriving sexp]
 type op_shape =
   | SMinus
   | SPlus
@@ -89,7 +89,7 @@ let op_shape_of_exp_op = (op: UHExp.op): op_shape =>
   | Or => SOr
   };
 
-[@deriving (show({with_path: false}), sexp)]
+[@deriving sexp]
 type shape =
   | SParenthesized
   /* type shapes */
@@ -114,7 +114,7 @@ type shape =
   /* pattern-only shapes */
   | SWild;
 
-[@deriving (show({with_path: false}), sexp)]
+[@deriving sexp]
 type t =
   | MoveTo(Path.t)
   | MoveToBefore(Path.steps)
