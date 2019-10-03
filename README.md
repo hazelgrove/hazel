@@ -4,9 +4,9 @@ Hazel is a live functional programming environment rooted in the principles
 of type theory. You can find the relevant papers and more motivation at
 [the Hazel website](http://hazel.org/).
 
-## Building Hazel
+## Building and Running Hazel
 
-You can build Hazel using the following instructions.
+You can build and run Hazel using the following instructions.
 
 ### Prerequisites
 
@@ -31,7 +31,7 @@ Hazel is implemented in Reason/OCaml, and is compiled to Javascript for the web 
     > make deps
     ```
 
-### Compilation
+### Compiling
 
 We can now build the application.
 
@@ -47,7 +47,7 @@ The `make release` command does three things:
 
 If something weird is going on, it sometimes helps to do a `make clean`.
 
-### Results
+### Running
 
 You can now open `_build/default/src/hazelweb/www/hazel.html` in a browser to see Hazel in action.
 
