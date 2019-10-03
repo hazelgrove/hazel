@@ -9,7 +9,7 @@
 
 ; This library ensures that all modules are type checked even if they are not used.
 (library
-  (name mainlib)
+  (name hazelweb)
   (modules (:standard \ Main))
   (libraries hazelcore incr_dom)
   (wrapped false)
@@ -19,7 +19,7 @@
 (executable
   (name main)
   (modules Main)
-  (libraries mainlib)
+  (libraries hazelweb)
   (js_of_ocaml (flags (:include js-of-ocaml-flags-%{profile}))))
 
 (rule
