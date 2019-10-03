@@ -1,5 +1,6 @@
 debug:
-	-dune build src @src/fmt --profile dev --auto-promote
+	dune build @src/fmt --auto-promote || true
+	dune build src --profile dev
 
 release:
 	dune build src --profile release
