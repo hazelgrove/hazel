@@ -10,7 +10,7 @@ type t('tag) =
   | Align(t('tag))
   | Tagged('tag, t('tag));
 
-let strings_of_layout: t('tag) => list(string) = {
+let string_of_layout: t('tag) => string = {
   let rec go: t('tag) => (bool /*lines are aligned*/, list(string)) =
     fun
     | VZero => (false, [])
@@ -22,22 +22,22 @@ let strings_of_layout: t('tag) => list(string) = {
     | HCat(l1, l2) => {
         let (a1, s1) = go(l1);
         let (a2, s2) = go(l2);
-        switch (GeneralUtil.split_last(s1), s2) {
-        | (None, []) => failwith("unimplemented:strings_of_layout.1")
-        | (None, [_head, ..._tail]) =>
-          failwith("unimplemented:strings_of_layout.2")
-        | (Some((_init, _last)), []) =>
-          failwith("unimplemented:strings_of_layout.3")
-        | (Some((init, last)), [head, ...tail]) =>
-          let tail' =
-            if (a2) {
-              let indent = String.make(String.length(last), ' ');
-              List.map(s => indent ++ s, tail);
-            } else {
-              tail;
-            };
-          (a1, init @ [last ++ head, ...tail']);
-        };
+        (
+          a1,
+          switch (GeneralUtil.split_last(s1), s2) {
+          | (None, _) => s2
+          | (_, []) => s1
+          | (Some((init, last)), [head, ...tail]) =>
+            let tail' =
+              if (a2) {
+                let indent = String.make(String.length(last), ' ');
+                List.map(s => indent ++ s, tail);
+              } else {
+                tail;
+              };
+            init @ [last ++ head, ...tail'];
+          },
+        );
       }
     | String(string) => (false, [string])
     | Align(l) => {
@@ -45,5 +45,5 @@ let strings_of_layout: t('tag) => list(string) = {
         (true, s);
       }
     | Tagged(_tag, l) => go(l);
-  l => snd(go(l));
+  l => String.concat("\n", snd(go(l)));
 };
