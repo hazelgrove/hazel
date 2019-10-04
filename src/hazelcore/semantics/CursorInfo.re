@@ -1019,7 +1019,7 @@ and _syn_cursor_info_line =
     switch (ann) {
     | Some(uty1) =>
       let ty1 = UHTyp.expand(uty1);
-      let ctx1 = Statics.ctx_for_let(ctx, p, ty1, ZExp.erase_block(zblock));
+      let ctx1 = Statics.ctx_for_let(ctx, p, ty1, ZExp.erase_zblock(zblock));
       _ana_cursor_info_block(~node_steps, ~term_steps, ctx1, zblock, ty1);
     | None => _syn_cursor_info_block(~node_steps, ~term_steps, ctx, zblock)
     }
@@ -1076,7 +1076,7 @@ and _syn_cursor_info =
       )
     }
   | OpSeqZ(skel, ze0, surround) =>
-    let e0 = ZExp.erase(ze0);
+    let e0 = ZExp.erase_zoperand(ze0);
     let seq = Seq.t_of_operand_and_surround(e0, surround);
     let n = Seq.surround_prefix_length(surround);
     _syn_cursor_info_skel(
@@ -1186,7 +1186,7 @@ and _ana_cursor_info =
   | ParenthesizedZ(zblock) =>
     _ana_cursor_info_block(~node_steps, ~term_steps, ctx, zblock, ty)
   | OpSeqZ(skel, ze0, surround) =>
-    let e0 = ZExp.erase(ze0);
+    let e0 = ZExp.erase_zoperand(ze0);
     let seq = Seq.t_of_operand_and_surround(e0, surround);
     let n = Seq.surround_prefix_length(surround);
     let (prefix, _, suffix) = frame;

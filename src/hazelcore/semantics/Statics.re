@@ -945,7 +945,7 @@ and ana_skel =
   };
 
 let syn_zlines = (ctx: Contexts.t, zlines: ZExp.zlines): option(Contexts.t) =>
-  syn_lines(ctx, ZExp.erase_lines(zlines));
+  syn_lines(ctx, ZExp.erase_zlines(zlines));
 
 let rec syn_fix_holes_pat =
         (
@@ -2130,7 +2130,7 @@ let syn_fix_holes_zexp =
     (ctx: Contexts.t, u_gen: MetaVarGen.t, ze: ZExp.t)
     : (ZExp.t, HTyp.t, MetaVarGen.t) => {
   let path = Path.of_zexp(ze);
-  let e = ZExp.erase(ze);
+  let e = ZExp.erase_zoperand(ze);
   let (e, ty, u_gen) = syn_fix_holes_exp(ctx, u_gen, e);
   let ze = Path.follow_e_or_fail(path, e);
   (ze, ty, u_gen);
@@ -2140,7 +2140,7 @@ let syn_fix_holes_zblock =
     (ctx: Contexts.t, u_gen: MetaVarGen.t, zblock: ZExp.zblock)
     : (ZExp.zblock, HTyp.t, MetaVarGen.t) => {
   let path = Path.of_zblock(zblock);
-  let block = ZExp.erase_block(zblock);
+  let block = ZExp.erase_zblock(zblock);
   let (block, ty, u_gen) = syn_fix_holes_block(ctx, u_gen, block);
   let zblock = Path.follow_block_or_fail(path, block);
   (zblock, ty, u_gen);
@@ -2150,7 +2150,7 @@ let syn_fix_holes_zlines =
     (ctx: Contexts.t, u_gen: MetaVarGen.t, zlines: ZExp.zlines)
     : (ZExp.zlines, Contexts.t, MetaVarGen.t) => {
   let path = Path.of_zlines(zlines);
-  let lines = ZExp.erase_lines(zlines);
+  let lines = ZExp.erase_zlines(zlines);
   let (lines, ctx, u_gen) = syn_fix_holes_lines(ctx, u_gen, lines);
   let zlines = Path.follow_lines_or_fail(path, lines);
   (zlines, ctx, u_gen);
@@ -2160,7 +2160,7 @@ let ana_fix_holes_zblock =
     (ctx: Contexts.t, u_gen: MetaVarGen.t, zblock: ZExp.zblock, ty: HTyp.t)
     : (ZExp.zblock, MetaVarGen.t) => {
   let (steps, _) as path = Path.of_zblock(zblock);
-  let block = ZExp.erase_block(zblock);
+  let block = ZExp.erase_zblock(zblock);
   let (block, u_gen) = ana_fix_holes_block(ctx, u_gen, block, ty);
   switch (Path.follow_block(path, block)) {
   | None =>
@@ -2185,7 +2185,7 @@ let ana_fix_holes_zexp =
     (ctx: Contexts.t, u_gen: MetaVarGen.t, ze: ZExp.t, ty: HTyp.t)
     : (ZExp.t, MetaVarGen.t) => {
   let (steps, _) as path = Path.of_zexp(ze);
-  let e = ZExp.erase(ze);
+  let e = ZExp.erase_zoperand(ze);
   let (e, u_gen) = ana_fix_holes_exp(ctx, u_gen, e, ty);
   switch (Path.follow_exp(path, e)) {
   | None =>
@@ -2220,7 +2220,7 @@ let fix_and_renumber_holes =
 let fix_and_renumber_holes_z =
     (ctx: Contexts.t, zblock: ZExp.zblock): edit_state => {
   let (block, ty, u_gen) =
-    fix_and_renumber_holes(ctx, zblock |> ZExp.erase_block);
+    fix_and_renumber_holes(ctx, zblock |> ZExp.erase_zblock);
   let zblock = Path.follow_block_or_fail(Path.of_zblock(zblock), block);
   (zblock, ty, u_gen);
 };

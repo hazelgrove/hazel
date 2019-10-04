@@ -277,7 +277,8 @@ module Exp = {
   };
 
   let mk_OpSeqZ = (ze: ZExp.t, surround: ZExp.opseq_surround): ZExp.t => {
-    let seq = Seq.t_of_operand_and_surround(ZExp.erase(ze), surround);
+    let seq =
+      Seq.t_of_operand_and_surround(ZExp.erase_zoperand(ze), surround);
     let skel = Associator.associate_exp(seq);
     OpSeqZ(skel, ze, surround);
   };

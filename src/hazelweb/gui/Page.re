@@ -203,7 +203,7 @@ let page_view =
                        [
                          Attr.on_click(_ => {
                            let block =
-                             model |> Model.zblock |> ZExp.erase_block;
+                             model |> Model.zblock |> ZExp.erase_zblock;
                            JSUtil.log(
                              Js.string(
                                Sexplib.Sexp.to_string(

@@ -113,7 +113,7 @@ let zblock = model => {
   zblock;
 };
 
-let block = model => model |> zblock |> ZExp.erase_block;
+let block = model => model |> zblock |> ZExp.erase_zblock;
 
 let path = model => {
   let (zblock, _, _) = edit_state_of(model);
@@ -150,7 +150,7 @@ let result_of_edit_state = ((zblock, _, _): edit_state): result => {
     DHExp.syn_expand_block(
       (VarCtx.empty, Palettes.initial_palette_ctx),
       Delta.empty,
-      ZExp.erase_block(zblock),
+      ZExp.erase_zblock(zblock),
     );
   switch (expanded) {
   | DoesNotExpand => raise(DoesNotExpand)
@@ -215,7 +215,7 @@ let user_entered_newline_at = (steps, user_newlines): bool =>
   user_newlines |> Path.StepsMap.mem(steps);
 
 let update_edit_state = ((new_zblock, ty, u_gen): edit_state, model: t): t => {
-  let new_block = new_zblock |> ZExp.erase_block;
+  let new_block = new_zblock |> ZExp.erase_zblock;
   let (new_steps, _) = Path.of_zblock(new_zblock);
   let (new_zblock, new_user_newlines) =
     model.user_newlines
@@ -241,7 +241,7 @@ let update_edit_state = ((new_zblock, ty, u_gen): edit_state, model: t): t => {
                  let new_path = Path.of_zblock(new_zblock);
                  (
                    new_zblock
-                   |> ZExp.erase_block
+                   |> ZExp.erase_zblock
                    |> Path.prune_trivial_suffix_block(
                         ~steps_of_first_line=steps,
                       )
@@ -381,7 +381,10 @@ let perform_edit_action = (model: t, a: Action.t): t => {
 let move_to_hole = (model: t, u: MetaVar.t): t => {
   let (zblock, _, _) = edit_state_of(model);
   switch (
-    Path.path_to_hole(Path.holes_block(ZExp.erase_block(zblock), [], []), u)
+    Path.path_to_hole(
+      Path.holes_block(ZExp.erase_zblock(zblock), [], []),
+      u,
+    )
   ) {
   | None =>
     //JSUtil.log("Path not found!");

@@ -2411,7 +2411,8 @@ and snode_of_zexp =
     let szbody = snode_of_zblock(~user_newlines?, ~steps=steps @ [0], zbody);
     snode_of_Parenthesized(~user_newlines?, ~ap_err_status, ~steps, szbody);
   | OpSeqZ(skel, ztm, surround) =>
-    let seq = Seq.t_of_operand_and_surround(ZExp.erase(ztm), surround);
+    let seq =
+      Seq.t_of_operand_and_surround(ZExp.erase_zoperand(ztm), surround);
     let (head, tail) = partition_into_spaced_tms_exp(skel, seq);
     let snode_of_tm_or_ztm = (~ap_err_status=NotInApHole, k, operand) => {
       k == Seq.surround_prefix_length(surround)

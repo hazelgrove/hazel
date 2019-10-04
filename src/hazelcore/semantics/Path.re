@@ -1664,7 +1664,7 @@ and holes_ze = (ze: ZExp.t, rev_steps: rev_steps): zhole_list =>
       ~is_space=op => op == UHExp.Space,
       ~path_before_tm=before_exp,
       ~rev_steps,
-      ~erase=ZExp.erase,
+      ~erase=ZExp.erase_zoperand,
       skel,
       ze0,
       surround,

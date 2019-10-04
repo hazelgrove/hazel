@@ -242,8 +242,8 @@ let view =
                   | OnDelim(_, side) =>
                     let move_cursor =
                       switch (side) {
-                      | Before => ZExp.move_cursor_left_block
-                      | After => ZExp.move_cursor_right_block
+                      | Before => ZExp.move_cursor_left_zblock
+                      | After => ZExp.move_cursor_right_zblock
                       };
                     switch (zblock |> move_cursor) {
                     | None => Event.Ignore
