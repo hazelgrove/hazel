@@ -7,7 +7,7 @@ let action_log = {
   new array_empty;
 };
 let action_log_global = "action_log";
-let _ = Js.Unsafe.set(Dom_html.window, action_log_global, action_log);
+Js.Unsafe.set(Dom_html.window, action_log_global, action_log);
 
 let init_log = () => ();
 

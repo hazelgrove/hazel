@@ -2,4 +2,4 @@
 
 (tests
   (names SerializationTest)
-  (libraries oUnit str Semantics))
+  (libraries oUnit str hazelcore))

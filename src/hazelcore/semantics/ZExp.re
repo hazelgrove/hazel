@@ -360,8 +360,10 @@ let place_after_lines = (lines: UHExp.lines): option(zlines) =>
 let place_after_rule = (Rule(p, block): UHExp.rule): zrule =>
   RuleZE(p, place_after_block(block));
 
-let place_cursor_operand = (cursor: cursor_position, operand: UHExp.operand): option(zoperand) =>
-  is_valid_cursor_operand(cursor, operand) ? Some(CursorE(cursor, operand)) : None;
+let place_cursor_operand =
+    (cursor: cursor_position, operand: UHExp.operand): option(zoperand) =>
+  is_valid_cursor_operand(cursor, operand)
+    ? Some(CursorE(cursor, operand)) : None;
 let place_cursor_line =
     (cursor: cursor_position, line: UHExp.line): option(zline) =>
   switch (line) {

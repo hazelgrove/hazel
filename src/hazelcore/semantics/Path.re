@@ -17,12 +17,12 @@ open GeneralUtil;
  }
  */
 
-[@deriving (show({with_path: false}), sexp)]
+[@deriving sexp]
 type steps = list(child_index);
-[@deriving (show({with_path: false}), sexp)]
+[@deriving sexp]
 type rev_steps = steps;
 
-[@deriving (show({with_path: false}), sexp)]
+[@deriving sexp]
 type t = (steps, cursor_position);
 
 let cons' = (step: int, (steps, cursor): t): t => {

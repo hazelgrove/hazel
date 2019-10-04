@@ -3,7 +3,7 @@ open GeneralUtil;
 
 exception FreeVarInPat;
 
-[@deriving (show({with_path: false}), sexp)]
+[@deriving sexp]
 type inj_side =
   | L
   | R;
@@ -14,16 +14,16 @@ let pick_side = (side, l, r) =>
   | R => r
   };
 
-[@deriving (show({with_path: false}), sexp)]
+[@deriving sexp]
 type delim_index = int;
-[@deriving (show({with_path: false}), sexp)]
+[@deriving sexp]
 type op_index = int;
-[@deriving (show({with_path: false}), sexp)]
+[@deriving sexp]
 type char_index = int;
-[@deriving (show({with_path: false}), sexp)]
+[@deriving sexp]
 type child_index = int;
 
-[@deriving (show({with_path: false}), sexp)]
+[@deriving sexp]
 type side =
   | Before
   | After;
@@ -33,7 +33,7 @@ let toggle_side =
   | Before => After
   | After => Before;
 
-[@deriving (show({with_path: false}), sexp)]
+[@deriving sexp]
 type cursor_position =
   | OnText(char_index)
   | OnDelim(delim_index, side)

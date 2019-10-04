@@ -7,9 +7,9 @@ type t('tag) =
   | VCat(t('tag), t('tag))
   | HCat(t('tag), t('tag))
   | String(string)
-  | Choice(t('tag), t('tag))
+  | Align(t('tag))
   | Tagged('tag, t('tag))
-  | SingleLine(t('tag));
+  | Choice(t('tag), t('tag));
 
 /* identity for HCat */
 let hzero = String("");
