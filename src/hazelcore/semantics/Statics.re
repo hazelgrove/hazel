@@ -1342,20 +1342,20 @@ and ana_fix_holes_pat_skel =
 let syn_fix_holes_zpat =
     (ctx: Contexts.t, u_gen: MetaVarGen.t, zp: ZPat.t)
     : (ZPat.t, HTyp.t, Contexts.t, MetaVarGen.t) => {
-  let path = Path.of_zpat(zp);
+  let path = CursorPath.of_zpat(zp);
   let p = ZPat.erase(zp);
   let (p, ty, ctx, u_gen) = syn_fix_holes_pat(ctx, u_gen, p);
-  let zp = Path.follow_pat_or_fail(path, p);
+  let zp = CursorPath.follow_pat_or_fail(path, p);
   (zp, ty, ctx, u_gen);
 };
 
 let ana_fix_holes_zpat =
     (ctx: Contexts.t, u_gen: MetaVarGen.t, zp: ZPat.t, ty: HTyp.t)
     : (ZPat.t, Contexts.t, MetaVarGen.t) => {
-  let path = Path.of_zpat(zp);
+  let path = CursorPath.of_zpat(zp);
   let p = ZPat.erase(zp);
   let (p, ctx, u_gen) = ana_fix_holes_pat(ctx, u_gen, p, ty);
-  let zp = Path.follow_pat_or_fail(path, p);
+  let zp = CursorPath.follow_pat_or_fail(path, p);
   (zp, ctx, u_gen);
 };
 
@@ -2117,40 +2117,40 @@ and ana_fix_holes_exp_skel =
 let syn_fix_holes_zexp =
     (ctx: Contexts.t, u_gen: MetaVarGen.t, ze: ZExp.t)
     : (ZExp.t, HTyp.t, MetaVarGen.t) => {
-  let path = Path.of_zexp(ze);
+  let path = CursorPath.of_zexp(ze);
   let e = ZExp.erase(ze);
   let (e, ty, u_gen) = syn_fix_holes_exp(ctx, u_gen, e);
-  let ze = Path.follow_e_or_fail(path, e);
+  let ze = CursorPath.follow_e_or_fail(path, e);
   (ze, ty, u_gen);
 };
 
 let syn_fix_holes_zblock =
     (ctx: Contexts.t, u_gen: MetaVarGen.t, zblock: ZExp.zblock)
     : (ZExp.zblock, HTyp.t, MetaVarGen.t) => {
-  let path = Path.of_zblock(zblock);
+  let path = CursorPath.of_zblock(zblock);
   let block = ZExp.erase_block(zblock);
   let (block, ty, u_gen) = syn_fix_holes_block(ctx, u_gen, block);
-  let zblock = Path.follow_block_or_fail(path, block);
+  let zblock = CursorPath.follow_block_or_fail(path, block);
   (zblock, ty, u_gen);
 };
 
 let syn_fix_holes_zlines =
     (ctx: Contexts.t, u_gen: MetaVarGen.t, zlines: ZExp.zlines)
     : (ZExp.zlines, Contexts.t, MetaVarGen.t) => {
-  let path = Path.of_zlines(zlines);
+  let path = CursorPath.of_zlines(zlines);
   let lines = ZExp.erase_lines(zlines);
   let (lines, ctx, u_gen) = syn_fix_holes_lines(ctx, u_gen, lines);
-  let zlines = Path.follow_lines_or_fail(path, lines);
+  let zlines = CursorPath.follow_lines_or_fail(path, lines);
   (zlines, ctx, u_gen);
 };
 
 let ana_fix_holes_zblock =
     (ctx: Contexts.t, u_gen: MetaVarGen.t, zblock: ZExp.zblock, ty: HTyp.t)
     : (ZExp.zblock, MetaVarGen.t) => {
-  let (steps, _) as path = Path.of_zblock(zblock);
+  let (steps, _) as path = CursorPath.of_zblock(zblock);
   let block = ZExp.erase_block(zblock);
   let (block, u_gen) = ana_fix_holes_block(ctx, u_gen, block, ty);
-  switch (Path.follow_block(path, block)) {
+  switch (CursorPath.follow_block(path, block)) {
   | None =>
     // Only way this can happen now is path was originally
     // on case type annotation and ana_fix_holes stripped
@@ -2160,7 +2160,7 @@ let ana_fix_holes_zblock =
     switch (steps |> split_last) {
     | None => assert(false)
     | Some((case_steps, _)) =>
-      switch (Path.follow_block_and_place_after(case_steps, block)) {
+      switch (CursorPath.follow_block_and_place_after(case_steps, block)) {
       | None => assert(false)
       | Some(zblock) => (zblock, u_gen)
       }
@@ -2172,10 +2172,10 @@ let ana_fix_holes_zblock =
 let ana_fix_holes_zexp =
     (ctx: Contexts.t, u_gen: MetaVarGen.t, ze: ZExp.t, ty: HTyp.t)
     : (ZExp.t, MetaVarGen.t) => {
-  let (steps, _) as path = Path.of_zexp(ze);
+  let (steps, _) as path = CursorPath.of_zexp(ze);
   let e = ZExp.erase(ze);
   let (e, u_gen) = ana_fix_holes_exp(ctx, u_gen, e, ty);
-  switch (Path.follow_exp(path, e)) {
+  switch (CursorPath.follow_exp(path, e)) {
   | None =>
     // Only way this can happen now is path was originally
     // on case type annotation and ana_fix_holes stripped
@@ -2185,7 +2185,7 @@ let ana_fix_holes_zexp =
     switch (steps |> split_last) {
     | None => assert(false)
     | Some((case_steps, _)) =>
-      switch (Path.follow_exp_and_place_after(case_steps, e)) {
+      switch (CursorPath.follow_exp_and_place_after(case_steps, e)) {
       | None => assert(false)
       | Some(ze) => (ze, u_gen)
       }
@@ -2209,6 +2209,7 @@ let fix_and_renumber_holes_z =
     (ctx: Contexts.t, zblock: ZExp.zblock): edit_state => {
   let (block, ty, u_gen) =
     fix_and_renumber_holes(ctx, zblock |> ZExp.erase_block);
-  let zblock = Path.follow_block_or_fail(Path.of_zblock(zblock), block);
+  let zblock =
+    CursorPath.follow_block_or_fail(CursorPath.of_zblock(zblock), block);
   (zblock, ty, u_gen);
 };

@@ -7,7 +7,7 @@ type node_shape =
   | Typ(UHTyp.t);
 
 type tag = {
-  steps: Path.steps,
+  steps: CursorPath.steps,
   node_shape,
 };
 
@@ -76,7 +76,7 @@ and child_start =
        (single_line_choices, multi_line_choices);
      };
 
- let rec doc_of_block = (~steps: Path.steps, block: UHExp.block) => {
+ let rec doc_of_block = (~steps: CursorPath.steps, block: UHExp.block) => {
    let Block(leading, conclusion) = block;
    let leading_docs =
      leading |> List.mapi((i, line) => doc_of_line(~steps=steps @ [i], line));
@@ -85,7 +85,7 @@ and child_start =
    let docs = Docs.vcats(leading_docs @ [conclusion_doc]);
    Tagged({steps, node_shape: Block(block)}, docs);
  }
- and doc_of_line = (~steps: Path.steps, line: UHExp.line) => {
+ and doc_of_line = (~steps: CursorPath.steps, line: UHExp.line) => {
    let tag = {steps, node_shape: Line(line)};
    switch (line) {
    | ExpLine(e) => doc_of_exp(~steps, e)
@@ -127,7 +127,7 @@ and child_start =
      Tagged(tag, Doc.choices(choices_of_tokens(tokens)));
    };
  }
- and doc_of_exp = (~steps: Path.steps, e: UHExp.t) => {
+ and doc_of_exp = (~steps: CursorPath.steps, e: UHExp.t) => {
    let doc =
      switch (e) {
      | EmptyHole(u) => Doc.hzero

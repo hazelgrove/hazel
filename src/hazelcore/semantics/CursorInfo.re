@@ -109,14 +109,14 @@ type t = {
   frame,
   ctx: Contexts.t,
   position: cursor_position,
-  node_steps: Path.steps,
+  node_steps: CursorPath.steps,
   // Not quite the term steps because steps don't account for
   // all semantic terms (e.g. subblock beginning with a let
   // line, subseq rooted at an op), so we overapproximate
   // (e.g. give the steps of the whole block, of the whole opseq).
   // For such steps-blind terms, subskel_range and subblock_start
   // provide the additional necessary information.
-  term_steps: Path.steps,
+  term_steps: CursorPath.steps,
   subskel_range: option(Skel.range),
   subblock_start: option(int),
 };
@@ -276,8 +276,8 @@ let preserved_child_term_of_node = ci =>
 
 let rec cursor_info_typ =
         (
-          ~node_steps: Path.steps,
-          ~term_steps: Path.steps,
+          ~node_steps: CursorPath.steps,
+          ~term_steps: CursorPath.steps,
           ~frame: option(ZTyp.opseq_surround)=?,
           ctx: Contexts.t,
           zty: ZTyp.t,
@@ -1769,19 +1769,19 @@ and _ana_cursor_info_skel =
   };
 
 let syn_cursor_info_block = (ctx, zblock) => {
-  let node_steps = Path.steps_of_zblock(zblock);
-  let term_steps = Path.term_steps_of_zblock(zblock);
+  let node_steps = CursorPath.steps_of_zblock(zblock);
+  let term_steps = CursorPath.term_steps_of_zblock(zblock);
   _syn_cursor_info_block(~node_steps, ~term_steps, ctx, zblock);
 };
 
 let syn_cursor_info = (~frame, ctx, ze) => {
-  let node_steps = Path.steps_of_zexp(ze);
-  let term_steps = Path.term_steps_of_zexp(ze);
+  let node_steps = CursorPath.steps_of_zexp(ze);
+  let term_steps = CursorPath.term_steps_of_zexp(ze);
   _syn_cursor_info(~node_steps, ~term_steps, ~frame, ctx, ze);
 };
 
 let ana_cursor_info = (~frame, ctx, ze, ty) => {
-  let node_steps = Path.steps_of_zexp(ze);
-  let term_steps = Path.term_steps_of_zexp(ze);
+  let node_steps = CursorPath.steps_of_zexp(ze);
+  let term_steps = CursorPath.term_steps_of_zexp(ze);
   _ana_cursor_info(~node_steps, ~term_steps, ~frame, ctx, ze, ty);
 };
