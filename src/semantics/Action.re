@@ -2761,8 +2761,8 @@ let zexp_is_suitable_for_var_split = (zexp: ZExp.t) =>
   };
 
 let is_zexp_split_on_keyword = (zexp: ZExp.t) => {
-  switch (zexp) {
-  | CursorE(OnText(pos), Var(_, _, name)) =>
+  switch (ZExp.cursor_on_var(zexp)) {
+  | Some((pos, _, _, name)) =>
     Keyword.of_string(String.sub(name, 0, pos)) != None
   | _ => false
   };
