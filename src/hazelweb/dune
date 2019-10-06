@@ -3,26 +3,26 @@
 
 (include_subdirs unqualified) ; does not include dirs that specify `(include_subdirs no)`
 
-
 (alias
   (name default)
   (deps (glob_files www/*)))
 
+; This library ensures that all modules are type checked even if they are not used.
+(library
+  (name hazelweb)
+  (modules :standard \ Main)
+  (libraries hazelcore incr_dom)
+  (wrapped false)
+  (preprocess (pps js_of_ocaml.ppx ppx_sexp_conv ppx_let)))
+
 (executable
   (name main)
-  (js_of_ocaml (flags (:include js-of-ocaml-flags-%{profile})))
-  (libraries sexplib incr_dom)
-  (preprocess (pps ppx_deriving.show js_of_ocaml.ppx ppx_sexp_conv ppx_let)))
+  (modules Main)
+  (libraries hazelweb)
+  (js_of_ocaml (flags (:include js-of-ocaml-flags-%{profile}))))
 
 (rule
   (write-file js-of-ocaml-flags-dev "(:standard --debuginfo --noinline)"))
 
 (rule
   (write-file js-of-ocaml-flags-release "(:standard)"))
-
-(ocamllex
-  (modules SkelExprLexer SkelPatLexer SkelTypLexer))
-
-(menhir
-  (infer false)
-  (modules SkelExprParser SkelPatParser SkelTypParser))

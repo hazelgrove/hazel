@@ -1,4 +1,3 @@
-module Regexp = Js_of_ocaml.Regexp;
 open SemanticsCommon;
 
 exception MalformedView(int);
@@ -13,18 +12,18 @@ let cell_border = 2.0;
 let shift_target_thickness = indicator_padding;
 
 [@deriving sexp]
-type delim_path = (Path.steps, delim_index);
+type delim_path = (CursorPath.steps, delim_index);
 [@deriving sexp]
-type op_path = (Path.steps, op_index);
+type op_path = (CursorPath.steps, op_index);
 
 let cell_id = "cell";
 
 let node_id = steps =>
-  "node__" ++ Sexplib.Sexp.to_string(Path.sexp_of_steps(steps));
+  "node__" ++ Sexplib.Sexp.to_string(CursorPath.sexp_of_steps(steps));
 let text_id = steps =>
-  "text__" ++ Sexplib.Sexp.to_string(Path.sexp_of_steps(steps));
+  "text__" ++ Sexplib.Sexp.to_string(CursorPath.sexp_of_steps(steps));
 let path_id = path =>
-  "path__" ++ Sexplib.Sexp.to_string(Path.sexp_of_t(path));
+  "path__" ++ Sexplib.Sexp.to_string(CursorPath.sexp_of_t(path));
 let delim_id = ((steps, delim_index) as _delim_path) =>
   "delim__"
   ++ Sexplib.Sexp.to_string(sexp_of_delim_path((steps, delim_index)));
@@ -33,7 +32,7 @@ let op_id = (steps, op_index) =>
 
 let multi_line_skel_hole_id = (steps, (a, b), i) =>
   "multi_line_skel_hole__"
-  ++ Sexplib.Sexp.to_string(Path.sexp_of_steps(steps))
+  ++ Sexplib.Sexp.to_string(CursorPath.sexp_of_steps(steps))
   ++ "__"
   ++ "("
   ++ string_of_int(a)
@@ -44,7 +43,7 @@ let multi_line_skel_hole_id = (steps, (a, b), i) =>
   ++ string_of_int(i);
 let single_line_skel_hole_id = (steps, (a, b)) =>
   "multi_line_skel_hole__"
-  ++ Sexplib.Sexp.to_string(Path.sexp_of_steps(steps))
+  ++ Sexplib.Sexp.to_string(CursorPath.sexp_of_steps(steps))
   ++ "__"
   ++ "("
   ++ string_of_int(a)
@@ -54,7 +53,7 @@ let single_line_skel_hole_id = (steps, (a, b)) =>
 
 let multi_line_ap_hole_id = (steps, (a, b), i) =>
   "multi_line_ap_hole__"
-  ++ Sexplib.Sexp.to_string(Path.sexp_of_steps(steps))
+  ++ Sexplib.Sexp.to_string(CursorPath.sexp_of_steps(steps))
   ++ "__"
   ++ "("
   ++ string_of_int(a)
@@ -65,7 +64,7 @@ let multi_line_ap_hole_id = (steps, (a, b), i) =>
   ++ string_of_int(i);
 let single_line_ap_hole_id = (steps, (a, b)) =>
   "multi_line_ap_hole__"
-  ++ Sexplib.Sexp.to_string(Path.sexp_of_steps(steps))
+  ++ Sexplib.Sexp.to_string(CursorPath.sexp_of_steps(steps))
   ++ "__"
   ++ "("
   ++ string_of_int(a)
@@ -97,43 +96,44 @@ let horizontal_shift_rail_id = "horizontal_shift_rail";
 let vertical_shift_rail_id = "vertical_shift_rail";
 
 let steps_of_node_id = s =>
-  switch (Regexp.string_match(Regexp.regexp("^node__(.*)$"), s, 0)) {
-  | None => None
-  | Some(result) =>
-    switch (Regexp.matched_group(result, 1)) {
-    | None => None
-    | Some(ssexp) =>
-      Some(Path.steps_of_sexp(Sexplib.Sexp.of_string(ssexp)))
-    }
+  if (!Re.Str.string_match(Re.Str.regexp("^node__\\(.*\\)$"), s, 0)) {
+    None;
+  } else {
+    Some(
+      CursorPath.steps_of_sexp(
+        Sexplib.Sexp.of_string(Re.Str.matched_group(1, s)),
+      ),
+    );
   };
 let steps_of_text_id = s =>
-  switch (Regexp.string_match(Regexp.regexp("^text__(.*)$"), s, 0)) {
-  | None => None
-  | Some(result) =>
-    switch (Regexp.matched_group(result, 1)) {
-    | None => None
-    | Some(ssexp) =>
-      Some(Path.steps_of_sexp(Sexplib.Sexp.of_string(ssexp)))
-    }
+  if (!Re.Str.string_match(Re.Str.regexp("^text__\\(.*\\)$"), s, 0)) {
+    None;
+  } else {
+    Some(
+      CursorPath.steps_of_sexp(
+        Sexplib.Sexp.of_string(Re.Str.matched_group(1, s)),
+      ),
+    );
   };
 let path_of_path_id = s =>
-  switch (Regexp.string_match(Regexp.regexp("^path__(.*)$"), s, 0)) {
-  | None => None
-  | Some(result) =>
-    switch (Regexp.matched_group(result, 1)) {
-    | None => None
-    | Some(ssexp) => Some(Path.t_of_sexp(Sexplib.Sexp.of_string(ssexp)))
-    }
+  if (!Re.Str.string_match(Re.Str.regexp("^path__\\(.*\\)$"), s, 0)) {
+    None;
+  } else {
+    Some(
+      CursorPath.t_of_sexp(
+        Sexplib.Sexp.of_string(Re.Str.matched_group(1, s)),
+      ),
+    );
   };
 let delim_path_of_delim_id = s =>
-  switch (Regexp.string_match(Regexp.regexp("^delim__(.*)$"), s, 0)) {
-  | None => None
-  | Some(result) =>
-    switch (Regexp.matched_group(result, 1)) {
-    | None => None
-    | Some(ssexp) =>
-      Some(delim_path_of_sexp(Sexplib.Sexp.of_string(ssexp)))
-    }
+  if (!Re.Str.string_match(Re.Str.regexp("^delim__\\(.*\\)$"), s, 0)) {
+    None;
+  } else {
+    Some(
+      delim_path_of_sexp(
+        Sexplib.Sexp.of_string(Re.Str.matched_group(1, s)),
+      ),
+    );
   };
 
 let cls_sline = "sline";
@@ -143,13 +143,10 @@ let sline_clss = line_no => [
 ];
 
 let line_no_of_sline_cls = cls =>
-  switch (Regexp.string_match(Regexp.regexp("^sline-(.*)$"), cls, 0)) {
-  | None => None
-  | Some(result) =>
-    switch (Regexp.matched_group(result, 1)) {
-    | None => None
-    | Some(s) => Some(int_of_string(s))
-    }
+  if (!Re.Str.string_match(Re.Str.regexp("^sline-(.*)$"), cls, 0)) {
+    None;
+  } else {
+    Some(int_of_string(Re.Str.matched_group(1, cls)));
   };
 
 let indentation_cls = "indentation";
