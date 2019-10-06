@@ -2871,9 +2871,9 @@ let rec syn_perform_block =
         )
         : result((ZExp.zblock, HTyp.t, MetaVarGen.t)) => {
   print_endline("======= SYN PERFORM BLOCK");
-  let str = Core_kernel.Sexp.to_string_hum(sexp_of_t(a));
+  let str = Sexplib.Sexp.to_string_hum(sexp_of_t(a));
   print_endline(str);
-  let str = Core_kernel.Sexp.to_string_hum(ZExp.sexp_of_zblock(zblock));
+  let str = Sexplib.Sexp.to_string_hum(ZExp.sexp_of_zblock(zblock));
   print_endline(str);
   print_endline("=======");
   switch (a, zblock) {
