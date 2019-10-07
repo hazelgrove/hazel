@@ -90,7 +90,6 @@ let log_action = (action: Action.t, _: State.t): unit => {
   };
 };
 
-[@warning "-27"]
 let apply_action =
     (model: Model.t, action: Action.t, state: State.t, ~schedule_action)
     : Model.t => {
@@ -138,7 +137,7 @@ let apply_action =
         ),
     }
   | SelectHoleInstance(u, i) => Model.select_hole_instance(model, (u, i))
-  | InvalidVar(x) => model
+  | InvalidVar(_) => model
   | MoveToHole(u) => Model.move_to_hole(model, u)
   | FocusCell => model |> Model.focus_cell
   | FocusWindow =>
@@ -211,7 +210,7 @@ let apply_action =
         } else if (has_cls("unselectable-before") && anchorOffset == 2) {
           switch (path_of_path_id(Js.to_string(closest_elem##.id))) {
           | None => raise(MalformedView(6))
-          | Some(path) => schedule_action(Action.EditAction(MoveLeft))
+          | Some(_) => schedule_action(Action.EditAction(MoveLeft))
           };
         } else if (has_cls("unselectable-after")
                    && (anchorOffset == 2 || anchorOffset == 3)) {
@@ -222,7 +221,7 @@ let apply_action =
         } else if (has_cls("unselectable-after") && anchorOffset == 1) {
           switch (path_of_path_id(Js.to_string(closest_elem##.id))) {
           | None => raise(MalformedView(8))
-          | Some(path) => schedule_action(Action.EditAction(MoveRight))
+          | Some(_) => schedule_action(Action.EditAction(MoveRight))
           };
         } else if (has_cls("SSpace")) {
           let attr = anchorOffset == 0 ? "path-before" : "path-after";
