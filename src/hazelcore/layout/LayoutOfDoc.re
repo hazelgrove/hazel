@@ -55,8 +55,10 @@ module type Tag = {
 
 let rec all: Doc.t('tag) => list(Layout.t('tag)) =
   fun
-  | Doc.VZero => [Layout.Empty]
-  | Doc.String(string) => [Layout.Text(string)]
+  | Doc.Empty => [Layout.Empty]
+  | Doc.Text(string) => [Layout.Text(string)]
+  | Doc.Align(d) => List.map(l => Layout.Align(l), all(d))
+  | Doc.Tagged(tag, d) => List.map(l => Layout.Tagged(tag, l), all(d))
   | Doc.VCat(d1, d2) => {
       let ls1 = all(d1);
       let ls2 = all(d2);
@@ -71,8 +73,6 @@ let rec all: Doc.t('tag) => list(Layout.t('tag)) =
         List.map(l1 => List.map(l2 => Layout.HCat(l1, l2), ls2), ls1),
       );
     }
-  | Doc.Align(d) => List.map(l => Layout.Align(l), all(d))
-  | Doc.Tagged(tag, d) => List.map(l => Layout.Tagged(tag, l), all(d))
   | Doc.Choice(d1, d2) => all(d1) @ all(d2);
 
 // TODO: optimize duplicates in memoization table
@@ -96,7 +96,12 @@ module Make = (Tag: Tag) => {
         Weak_hashtbl.find_or_add(memo_table, memo, ~default=() =>
           Core_kernel.Heap_block.create_exn(
             switch (memo.doc) {
-            | Doc.VZero => (Fin(0), Layout.Empty)
+            | Doc.Empty => (Fin(0), Layout.Empty)
+            | Doc.Text(string) => (Fin(1), Layout.Text(string)) // TODO: overlength strings
+            | Doc.Align(d) => go({...memo, left: memo.first_left, doc: d})
+            | Doc.Tagged(tag, d) =>
+              let (c, l) = go({...memo, doc: d});
+              (c, Layout.Tagged(tag, l));
             | Doc.VCat(d1, d2) =>
               let (c1, l1) = go({...memo, doc: d1});
               let (c2, l2) = go({...memo, doc: d2});
@@ -112,11 +117,6 @@ module Make = (Tag: Tag) => {
               // TODO: do we allow zero width last and first lines?
               // TODO: what about when left >= right?
               min(List.map(go2, range(memo.left, memo.right)));
-            | Doc.String(string) => (Fin(1), Layout.Text(string)) // TODO: overlength strings
-            | Doc.Align(d) => go({...memo, left: memo.first_left, doc: d})
-            | Doc.Tagged(tag, d) =>
-              let (c, l) = go({...memo, doc: d});
-              (c, Layout.Tagged(tag, l));
             | Doc.Choice(d1, d2) =>
               let (c1, l1) = go({...memo, doc: d1});
               let (c2, l2) = go({...memo, doc: d2});

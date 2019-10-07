@@ -13,14 +13,10 @@ type tag = {
 
 type doc = Doc.t(tag);
 
-let space = Doc.String(" ");
-let hspace = (doc1, doc2) => Doc.hcats([doc1, space, doc2]);
-let hspaces = docs => Doc.hcats(GeneralUtil.join(space, docs));
-
 let tab_length = 2;
 let indent = (~n=1, doc: doc): doc =>
   n === 0
-    ? doc : Doc.hcats([String(String.make(n * tab_length, ' ')), doc]);
+    ? doc : Doc.hcats([Doc.Text(String.make(n * tab_length, ' ')), doc]);
 
 /**
  * Alternating list of delimiters and children in
@@ -89,13 +85,13 @@ and child_start =
    let tag = {steps, node_shape: Line(line)};
    switch (line) {
    | ExpLine(e) => doc_of_exp(~steps, e)
-   | EmptyLine => Tagged(tag, String(""))
+   | EmptyLine => Tagged(tag, Text(""))
    | LetLine(p, ann, def) =>
-     let let_delim = String("let");
+     let let_delim = Text("let");
      let p_doc = doc_of_pat(~steps=steps @ [0], p);
-     let eq_delim = String("=");
+     let eq_delim = Text("=");
      let def_doc = doc_of_block(~steps=steps @ [2], def);
-     let in_delim = String("in");
+     let in_delim = Text("in");
      let tokens =
        switch (ann) {
        | None =>
@@ -106,7 +102,7 @@ and child_start =
            ),
          )
        | Some(ann) =>
-         let colon_delim = String(":");
+         let colon_delim = Text(":");
          let ann_doc = doc_of_typ(~steps=steps @ [1], ann);
          DelimStart(
            DCons(
@@ -131,14 +127,14 @@ and child_start =
    let doc =
      switch (e) {
      | EmptyHole(u) => Doc.hzero
-     | Var(_, _, x) => String(x)
-     | NumLit(_, n) => String(string_of_int(n))
-     | BoolLit(_, b) => String(string_of_bool(b))
-     | ListNil(_) => String("[]")
+     | Var(_, _, x) => Text(x)
+     | NumLit(_, n) => Text(string_of_int(n))
+     | BoolLit(_, b) => Text(string_of_bool(b))
+     | ListNil(_) => Text("[]")
      | Lam(_, p, ann, body) =>
-       let lam_delim = Doc.String(LangUtil.lamSym);
+       let lam_delim = Doc.Text(LangUtil.lamSym);
        let p_doc = doc_of_pat(~steps=steps @ [0], p);
-       let dot_delim = Doc.String(".");
+       let dot_delim = Doc.Text(".");
        let body_doc = doc_of_block(~steps=steps @ [2], body);
        let tokens =
          switch (ann) {
@@ -150,7 +146,7 @@ and child_start =
              ),
            )
          | Some(ann) =>
-           let colon_delim = Doc.String(":");
+           let colon_delim = Doc.Text(":");
            let ann_doc = doc_of_typ(~steps=steps @ [1], ann);
            DelimStart(
              DCons(
@@ -167,28 +163,28 @@ and child_start =
          };
        Doc.choices(choices_of_tokens(tokens));
      | Inj(_, side, body) =>
-       let open_delim = Doc.String("inj[" ++ (side == L ? "L" : "R") ++ "](");
+       let open_delim = Doc.Text("inj[" ++ (side == L ? "L" : "R") ++ "](");
        let body_doc = doc_of_block(~steps=steps @ [0], body);
-       let close_delim = Doc.String(")");
+       let close_delim = Doc.Text(")");
        let tokens =
          DelimStart(DCons(open_delim, CCons(body_doc, DEnd(close_delim))));
        Doc.choices(choices_of_tokens(tokens));
      | Parenthesized(body) =>
-       let open_delim = Doc.String("(");
+       let open_delim = Doc.Text("(");
        let body_doc = doc_of_block(~steps=steps @ [0], body);
-       let close_delim = Doc.String(")");
+       let close_delim = Doc.Text(")");
        let tokens =
          DelimStart(DCons(open_delim, CCons(body_doc, DEnd(close_delim))));
        Doc.choices(choices_of_tokens(tokens));
      | Case(_, scrut, rules, ann) =>
-       let case_delim = Doc.String("case");
+       let case_delim = Doc.Text("case");
        let scrut_doc = doc_of_block(~steps=steps @ [0], doc);
        let rules_docs =
          rules
          |> List.mapi((i, rule) => doc_of_rule(~steps=steps @ [i + 1], rule));
        switch (ann) {
        | None =>
-         let end_delim = Doc.String("end");
+         let end_delim = Doc.Text("end");
          Doc.choices([
            Doc.vcats(
              [hspaces([case_delim, scrut_doc]), ...rules_docs] @ [end_delim],
@@ -198,7 +194,7 @@ and child_start =
            ),
          ]);
        | Some(ann) =>
-         let end_delim = Doc.String("end :");
+         let end_delim = Doc.Text("end :");
          Doc.choices([
            Doc.vcats(
              [hspaces([case_delim, scrut_doc]), ...rules_docs]
