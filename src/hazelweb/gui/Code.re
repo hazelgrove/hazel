@@ -1132,13 +1132,9 @@ and view_of_sseq_tail_arg =
     vindentation @ vwords,
   );
 }
-[@warning "-27"]
-// for inject since we'll need it in the future
-// e.g. invoking node staging by clicking and
-// dragging a delimiter
 and view_of_stoken =
     (
-      ~inject: Update.Action.t => Vdom.Event.t,
+      ~inject as _: Update.Action.t => Vdom.Event.t, /* we'll need `inject` in the future e.g. invoking node staging by clicking and dragging a delimiter */
       ~node_steps: CursorPath.steps,
       stoken: stoken,
     )
