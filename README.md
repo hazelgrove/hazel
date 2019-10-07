@@ -16,11 +16,19 @@ both OCaml and the necessary libraries is to install
 [opam](https://opam.ocaml.org/). After having installed `opam` using
 the instructions on their website, follow these steps:
 
-  - Make sure you have OCaml 4.07.1+:
+  - Make sure you have OCaml 4.08.1 (some older versions such as
+    4.07.1 also work):
 
     ```sh
     > ocaml --version
-    The OCaml toplevel, version 4.07.1
+    The OCaml toplevel, version 4.08.1
+    ```
+
+    If you do not have OCaml 4.08.1, you can install it with the
+    following: 
+
+    ```sh
+    > opam switch create 4.08.1
     ```
 
   - Make sure opam is updated:
@@ -61,12 +69,12 @@ browser to see Hazel in action.
 
 ### Debugging
 
-Invoking `make` by itself is equivalent to invoking `make debug`. With
-these commands we pass additional flags to `js_of_ocaml`, which causes
+Invoking `make` by itself is equivalent to invoking `make dev`. With
+these commands we pass additional flags to `js_of_ocaml` that cause
 the insertion of comments that map locations in the generated JS to
 locations in the source files. This is useful for debugging purposes.
 
-`make debug` also auto-formats Reason source files using `refmt` (this
+`make dev` also auto-formats Reason source files using `refmt` (this
 is what the `@src/fmt` alias is for). This ensures code from all
 contributors follows the same style.
 
