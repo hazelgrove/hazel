@@ -3,12 +3,12 @@ open Sexplib.Std;
 /* Variable: `layout` */
 [@deriving sexp]
 type t('tag) =
-  | Empty /* identity for VCat and HCat */
-  | VCat(t('tag), t('tag)) /*associative*/
-  | HCat(t('tag), t('tag)) // associative
-  | Text(string) /* Text("") is identity for HCat if not Empty */
+  | Empty // identity for VCat and HCat
+  | Text(string) // Text("") is identity for HCat if the other t is not Empty
   | Align(t('tag))
-  | Tagged('tag, t('tag));
+  | Tagged('tag, t('tag))
+  | VCat(t('tag), t('tag)) // associative
+  | HCat(t('tag), t('tag)); // associative
 
 let string_of_layout: t('tag) => string = {
   let rec go =
@@ -17,6 +17,9 @@ let string_of_layout: t('tag) => string = {
     // Assert first_left >= left
     fun
     | Empty => []
+    | Text(string) => [(first_left, string)]
+    | Align(l) => go(first_left, first_left, l)
+    | Tagged(_tag, l) => go(first_left, left, l)
     | VCat(l1, l2) => {
         switch (go(first_left, left, l1)) {
         | [] => go(first_left, left, l2)
@@ -31,10 +34,7 @@ let string_of_layout: t('tag) => string = {
         | [] => init @ [(indent, last)]
         | [(_, head), ...tail] => init @ [(indent, last ++ head), ...tail]
         }
-      }
-    | Text(string) => [(first_left, string)]
-    | Align(l) => go(first_left, first_left, l)
-    | Tagged(_tag, l) => go(first_left, left, l);
+      };
   let indent = ((i: int, string: string)): string =>
     String.make(i, ' ') ++ string;
   layout => {
