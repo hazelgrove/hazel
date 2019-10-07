@@ -1,10 +1,12 @@
-// TODO: use a weak hash table
-// TODO: use a hash table that is generic over the 'tag, or have a better way to represent this
-type memo = {
+open Sexplib.Std;
+
+[@deriving sexp]
+type memo('tag) = {
   left: int,
   right: int,
   first_left: int,
   last_right: int,
+  doc: Doc.t('tag),
 };
 
 // TODO: move `cost` to own module?
@@ -46,53 +48,68 @@ let min = (_: list('a)): 'a => {
   failwith("unimplemented");
 };
 
-// TODO: use ptr equality for Doc.t but structural equality for memo in hash table
-let mk_layout_of_doc =
-    (width: int): (Doc.t('tag) => (cost, Layout.t('tag))) => {
-  /*
-   let memo:
-     Hashtbl.t(Doc.t('tag), Hashtbl.t(memo, (cost, Layout.t('tag)))) =
-     Hashtbl.create(0);
-     */
-  let rec layout_of_doc =
-          (memo: memo): (Doc.t('tag) => (cost, Layout.t('tag))) =>
-    fun
-    | VZero => (Fin(0), VZero)
-    | VCat(d1, d2) => {
-        let (c1, l1) = layout_of_doc(memo, d1);
-        let (c2, l2) = layout_of_doc(memo, d2);
-        (cost_plus(c1, c2), VCat(l1, l2));
-      }
-    | HCat(d1, d2) => {
-        let go = (i: int): (cost, Layout.t('tag)) => {
-          let (c1, l1) = layout_of_doc({...memo, last_right: i}, d1);
-          let (c2, l2) = layout_of_doc({...memo, first_left: i}, d2);
-          (cost_sub1(cost_plus(c1, c2)), HCat(l1, l2));
-        };
-        // TODO: left biased
-        // TODO: do we allow zero width last and first lines?
-        // TODO: what about when left >= right?
-        min(List.map(go, range(memo.left, memo.right)));
-      }
-    | String(string) => (Fin(1), String(string)) // TODO: overlength strings
-    | Align(d) => layout_of_doc({...memo, left: memo.first_left}, d)
-    | Tagged(tag, d) => {
-        let (c, l) = layout_of_doc(memo, d);
-        (c, Tagged(tag, l));
-      }
-    | Choice(d1, d2) => {
-        let (c1, l1) = layout_of_doc(memo, d1);
-        let (c2, l2) = layout_of_doc(memo, d2);
-        // TODO: left biased
-        if (cost_le(c1, c2)) {
-          (c1, l1);
-        } else {
-          (c2, l2);
-        };
-      };
-  d =>
-    layout_of_doc(
-      {left: 0, first_left: 0, right: width, last_right: width},
-      d,
-    );
+module type Tag = {
+  type t;
+  let sexp_of_t: t => Sexplib.Sexp.t;
+};
+
+// TODO: optimize duplicates in memoization table
+// TODO: is there a simpler way to do this
+// TODO: use ptr equality for Doc.t but structural equality for shape in hash table
+// TODO: move `width` to an inner parameter
+module Make = (Tag: Tag) => {
+  module Key = {
+    type t = memo(Tag.t);
+    let hash = (_: memo(Tag.t)): int => 0;
+    let compare = (_: memo(Tag.t), _: memo(Tag.t)): int => 0;
+    let sexp_of_t = sexp_of_memo(Tag.sexp_of_t);
+  };
+  let memo_table: Weak_hashtbl.t(memo(Tag.t), (cost, Layout.t(Tag.t))) =
+    Weak_hashtbl.create((module Key));
+
+  let layout_of_doc =
+      (width: int): (Doc.t(Tag.t) => (cost, Layout.t(Tag.t))) => {
+    let rec go = (memo: memo(Tag.t)): (cost, Layout.t(Tag.t)) => {
+      Core_kernel.Heap_block.value(
+        Weak_hashtbl.find_or_add(memo_table, memo, ~default=() =>
+          Core_kernel.Heap_block.create_exn(
+            switch (memo.doc) {
+            | Doc.VZero => (Fin(0), Layout.Empty)
+            | Doc.VCat(d1, d2) =>
+              let (c1, l1) = go({...memo, doc: d1});
+              let (c2, l2) = go({...memo, doc: d2});
+              (cost_plus(c1, c2), Layout.VCat(l1, l2));
+            | Doc.HCat(d1, d2) =>
+              let go2 = (i: int): (cost, Layout.t(Tag.t)) => {
+                let (c1, l1) = go({...memo, last_right: i, doc: d1});
+                let (c2, l2) = go({...memo, first_left: i, doc: d2});
+                (cost_sub1(cost_plus(c1, c2)), Layout.HCat(l1, l2));
+              };
+              // TODO: left biased
+              // TODO: if same length, prefer ones that end at earlier column
+              // TODO: do we allow zero width last and first lines?
+              // TODO: what about when left >= right?
+              min(List.map(go2, range(memo.left, memo.right)));
+            | Doc.String(string) => (Fin(1), Layout.Text(string)) // TODO: overlength strings
+            | Doc.Align(d) => go({...memo, left: memo.first_left, doc: d})
+            | Doc.Tagged(tag, d) =>
+              let (c, l) = go({...memo, doc: d});
+              (c, Layout.Tagged(tag, l));
+            | Doc.Choice(d1, d2) =>
+              let (c1, l1) = go({...memo, doc: d1});
+              let (c2, l2) = go({...memo, doc: d2});
+              // TODO: left biased
+              if (cost_le(c1, c2)) {
+                (c1, l1);
+              } else {
+                (c2, l2);
+              };
+            },
+          )
+        ),
+      );
+    };
+    d =>
+      go({left: 0, first_left: 0, right: width, last_right: width, doc: d});
+  };
 };
