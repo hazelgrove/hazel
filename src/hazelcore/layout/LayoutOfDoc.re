@@ -53,6 +53,28 @@ module type Tag = {
   let sexp_of_t: t => Sexplib.Sexp.t;
 };
 
+let rec all: Doc.t('tag) => list(Layout.t('tag)) =
+  fun
+  | Doc.VZero => [Layout.Empty]
+  | Doc.String(string) => [Layout.Text(string)]
+  | Doc.VCat(d1, d2) => {
+      let ls1 = all(d1);
+      let ls2 = all(d2);
+      List.concat(
+        List.map(l1 => List.map(l2 => Layout.VCat(l1, l2), ls2), ls1),
+      );
+    }
+  | Doc.HCat(d1, d2) => {
+      let ls1 = all(d1);
+      let ls2 = all(d2);
+      List.concat(
+        List.map(l1 => List.map(l2 => Layout.HCat(l1, l2), ls2), ls1),
+      );
+    }
+  | Doc.Align(d) => List.map(l => Layout.Align(l), all(d))
+  | Doc.Tagged(tag, d) => List.map(l => Layout.Tagged(tag, l), all(d))
+  | Doc.Choice(d1, d2) => all(d1) @ all(d2);
+
 // TODO: optimize duplicates in memoization table
 // TODO: is there a simpler way to do this
 // TODO: use ptr equality for Doc.t but structural equality for shape in hash table
