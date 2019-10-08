@@ -8,7 +8,7 @@
   (flags
    (:include js-of-ocaml-flags-%{profile})))
  (preprocess
-  (pps ppx_sexp_conv)))
+  (pps ppx_let ppx_sexp_conv)))
 
 (ocamllex
  (modules SkelExprLexer SkelPatLexer SkelTypLexer))
