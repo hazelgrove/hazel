@@ -353,9 +353,16 @@ let view =
                   Update.Action.EditAction(Hashtbl.find(kc_actions, Enter)),
                 )
               | (_, _, _, Some(kc)) =>
-                prevent_stop_inject(
-                  Update.Action.EditAction(Hashtbl.find(kc_actions, kc)),
-                )
+                switch (ci.node, Some(kc)) {
+                | (Typ(_), Some(GT)) =>
+                  prevent_stop_inject(
+                    Update.Action.EditAction(Construct(SOp(SArrow))),
+                  )
+                | (_, _) =>
+                  prevent_stop_inject(
+                    Update.Action.EditAction(Hashtbl.find(kc_actions, kc)),
+                  )
+                }
               };
             }),
           ],
