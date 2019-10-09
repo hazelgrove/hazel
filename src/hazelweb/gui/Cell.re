@@ -31,36 +31,40 @@ let string_delete = (s, offset, ctrlKey) => {
   (prefix ++ suffix, offset);
 };
 
-let kc_actions: Hashtbl.t(KeyCombo.t, Action.t) =
+let kc_actions: Hashtbl.t(KeyCombo.t, CursorInfo.node => Action.t) =
   Hashtbl.of_seq(
     [
-      (KeyCombo.Backspace, Action.Backspace),
-      (KeyCombo.Delete, Action.Delete),
-      (KeyCombo.ShiftTab, Action.MoveToPrevHole),
-      (KeyCombo.Tab, Action.MoveToNextHole),
-      (KeyCombo.Key_N, Action.Construct(SNum)),
-      (KeyCombo.Key_B, Action.Construct(SBool)),
-      (KeyCombo.GT, Action.Construct(SOp(SArrow))),
-      (KeyCombo.Ampersand, Action.Construct(SOp(SAnd))),
-      (KeyCombo.VBar, Action.Construct(SOp(SOr))),
-      (KeyCombo.Key_L, Action.Construct(SList)),
-      (KeyCombo.LeftParen, Action.Construct(SParenthesized)),
-      (KeyCombo.Colon, Action.Construct(SAsc)),
-      (KeyCombo.Equals, Action.Construct(SOp(SEquals))), // '=' no longer trigger 'let' clause
-      (KeyCombo.Enter, Action.Construct(SLine)),
-      (KeyCombo.Backslash, Action.Construct(SLam)),
-      (KeyCombo.Plus, Action.Construct(SOp(SPlus))),
-      (KeyCombo.Minus, Action.Construct(SOp(SMinus))),
-      (KeyCombo.Asterisk, Action.Construct(SOp(STimes))),
-      (KeyCombo.LT, Action.Construct(SOp(SLessThan))),
-      (KeyCombo.GT, Action.Construct(SOp(SGreaterThan))),
-      (KeyCombo.Space, Action.Construct(SOp(SSpace))),
-      (KeyCombo.Comma, Action.Construct(SOp(SComma))),
-      (KeyCombo.LeftBracket, Action.Construct(SListNil)),
-      (KeyCombo.Semicolon, Action.Construct(SOp(SCons))),
-      (KeyCombo.Alt_L, Action.Construct(SInj(L))),
-      (KeyCombo.Alt_R, Action.Construct(SInj(R))),
-      (KeyCombo.Alt_C, Action.Construct(SCase)),
+      (KeyCombo.Backspace, _ => Action.Backspace),
+      (KeyCombo.Delete, _ => Action.Delete),
+      (KeyCombo.ShiftTab, _ => Action.MoveToPrevHole),
+      (KeyCombo.Tab, _ => Action.MoveToNextHole),
+      (KeyCombo.Key_N, _ => Action.Construct(SNum)),
+      (KeyCombo.Key_B, _ => Action.Construct(SBool)),
+      (
+        KeyCombo.GT,
+        fun
+        | CursorInfo.Typ(_) => Action.Construct(SOp(SArrow))
+        | _ => Action.Construct(SOp(SGreaterThan)),
+      ),
+      (KeyCombo.Ampersand, _ => Action.Construct(SOp(SAnd))),
+      (KeyCombo.VBar, _ => Action.Construct(SOp(SOr))),
+      (KeyCombo.Key_L, _ => Action.Construct(SList)),
+      (KeyCombo.LeftParen, _ => Action.Construct(SParenthesized)),
+      (KeyCombo.Colon, _ => Action.Construct(SAsc)),
+      (KeyCombo.Equals, _ => Action.Construct(SOp(SEquals))), // '=' no longer trigger 'let' clause
+      (KeyCombo.Enter, _ => Action.Construct(SLine)),
+      (KeyCombo.Backslash, _ => Action.Construct(SLam)),
+      (KeyCombo.Plus, _ => Action.Construct(SOp(SPlus))),
+      (KeyCombo.Minus, _ => Action.Construct(SOp(SMinus))),
+      (KeyCombo.Asterisk, _ => Action.Construct(SOp(STimes))),
+      (KeyCombo.LT, _ => Action.Construct(SOp(SLessThan))),
+      (KeyCombo.Space, _ => Action.Construct(SOp(SSpace))),
+      (KeyCombo.Comma, _ => Action.Construct(SOp(SComma))),
+      (KeyCombo.LeftBracket, _ => Action.Construct(SListNil)),
+      (KeyCombo.Semicolon, _ => Action.Construct(SOp(SCons))),
+      (KeyCombo.Alt_L, _ => Action.Construct(SInj(L))),
+      (KeyCombo.Alt_R, _ => Action.Construct(SInj(R))),
+      (KeyCombo.Alt_C, _ => Action.Construct(SCase)),
     ]
     |> List.to_seq,
   );
@@ -74,11 +78,12 @@ let entered_single_key =
     : option(Vdom.Event.t) =>
   switch (ci.node, opt_kc) {
   | (Typ(_), Some((Key_B | Key_L | Key_N) as kc)) =>
+    JSUtil.log("pressed");
     Some(
       prevent_stop_inject(
-        Update.Action.EditAction(Hashtbl.find(kc_actions, kc)),
+        Update.Action.EditAction(ci.node |> Hashtbl.find(kc_actions, kc)),
       ),
-    )
+    );
   | (Pat(EmptyHole(_)), _) =>
     let shape =
       switch (single_key) {
@@ -344,25 +349,22 @@ let view =
                 | (_, _, _) =>
                   prevent_stop_inject(
                     Update.Action.EditAction(
-                      Hashtbl.find(kc_actions, Enter),
+                      ci.node |> Hashtbl.find(kc_actions, Enter),
                     ),
                   )
                 }
               | (Staging(_), _, _, Some(Escape)) =>
                 prevent_stop_inject(
-                  Update.Action.EditAction(Hashtbl.find(kc_actions, Enter)),
+                  Update.Action.EditAction(
+                    ci.node |> Hashtbl.find(kc_actions, Enter),
+                  ),
                 )
               | (_, _, _, Some(kc)) =>
-                switch (ci.node, Some(kc)) {
-                | (Typ(_), Some(GT)) =>
-                  prevent_stop_inject(
-                    Update.Action.EditAction(Construct(SOp(SArrow))),
-                  )
-                | (_, _) =>
-                  prevent_stop_inject(
-                    Update.Action.EditAction(Hashtbl.find(kc_actions, kc)),
-                  )
-                }
+                prevent_stop_inject(
+                  Update.Action.EditAction(
+                    ci.node |> Hashtbl.find(kc_actions, kc),
+                  ),
+                )
               };
             }),
           ],
