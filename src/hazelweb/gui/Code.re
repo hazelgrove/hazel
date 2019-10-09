@@ -77,13 +77,13 @@ and sbox_shape =
 [@deriving sexp]
 type snode =
   | SSeq(
-      Path.steps,
+      CursorPath.steps,
       is_multi_line,
       spaced_stms,
       list((op_stokens, spaced_stms)),
     )
   | SBox(
-      Path.steps,
+      CursorPath.steps,
       is_multi_line,
       ErrStatus.t,
       ap_err_status,
@@ -96,7 +96,7 @@ and spaced_stms = (snode, list(snode))
 and op_stokens = list(stoken)
 [@deriving sexp]
 and sline =
-  | SLine(int, option(Path.steps), list(sword))
+  | SLine(int, option(CursorPath.steps), list(sword))
 [@deriving sexp]
 and sword =
   | SNode(snode)
@@ -121,7 +121,7 @@ let is_multi_line =
 let mk_SSeq =
     (
       ~is_multi_line=false,
-      ~steps: Path.steps,
+      ~steps: CursorPath.steps,
       shead: spaced_stms,
       stail: list((op_stokens, spaced_stms)),
     )
@@ -133,7 +133,7 @@ let mk_SBox =
       ~is_multi_line=false,
       ~err: ErrStatus.t=NotInHole,
       ~ap_err_status=NotInApHole,
-      ~steps: Path.steps,
+      ~steps: CursorPath.steps,
       ~shape: sbox_shape,
       slines: list(sline),
     )
@@ -144,7 +144,7 @@ let mk_SBox =
 let mk_SLine =
     (
       ~rel_indent=0, // relative indentation by tabbing
-      ~steps_of_first_sword: option(Path.steps)=?,
+      ~steps_of_first_sword: option(CursorPath.steps)=?,
       swords: list(sword),
     )
     : sline =>
@@ -659,12 +659,15 @@ let vindentation = (~steps_of_first_sword=?, ~first_sword=?, m) => {
   // attrs used in editable code to determine where
   // to transport cursor if user clicks indentation
   let goto_path = path => [
-    Vdom.Attr.create("goto-path", Sexp.to_string(Path.sexp_of_t(path))),
+    Vdom.Attr.create(
+      "goto-path",
+      Sexp.to_string(CursorPath.sexp_of_t(path)),
+    ),
   ];
   let goto_steps = steps => [
     Vdom.Attr.create(
       "goto-steps",
-      Sexp.to_string(Path.sexp_of_steps(steps)),
+      Sexp.to_string(CursorPath.sexp_of_steps(steps)),
     ),
   ];
   let goto_attrs =
@@ -697,7 +700,7 @@ let vindentation = (~steps_of_first_sword=?, ~first_sword=?, m) => {
 };
 
 let view_of_sseq_line =
-    (~cls, ~sseq_steps: Path.steps, ~tm_index: child_index, vwords)
+    (~cls, ~sseq_steps: CursorPath.steps, ~tm_index: child_index, vwords)
     : Vdom.Node.t =>
   Vdom.(
     Node.div(
@@ -705,7 +708,7 @@ let view_of_sseq_line =
         Attr.classes([cls, inline_div_cls] @ sline_clss(tm_index)),
         Vdom.Attr.create(
           "goto-steps",
-          Sexp.to_string(Path.sexp_of_steps(sseq_steps @ [tm_index])),
+          Sexp.to_string(CursorPath.sexp_of_steps(sseq_steps @ [tm_index])),
         ),
       ],
       vwords,
@@ -842,7 +845,7 @@ let rec view_of_snode =
 and view_of_sline =
     (
       ~inject: Update.Action.t => Vdom.Event.t,
-      ~node_steps: Path.steps,
+      ~node_steps: CursorPath.steps,
       ~line_no: int,
       ~node_indent_level,
       sline,
@@ -856,7 +859,7 @@ and view_of_sline =
     | Some(steps) => [
         Vdom.Attr.create(
           "goto-steps",
-          Sexp.to_string(Path.sexp_of_steps(steps)),
+          Sexp.to_string(CursorPath.sexp_of_steps(steps)),
         ),
       ]
     };
@@ -914,7 +917,7 @@ and view_of_sline =
 and view_of_sseq_head =
     (
       ~inject: Update.Action.t => Vdom.Event.t,
-      ~sseq_steps: Path.steps,
+      ~sseq_steps: CursorPath.steps,
       ~sseq_indent_level: indent_level,
       shd: snode,
     )
@@ -950,7 +953,7 @@ and view_of_sseq_head =
 and view_of_sseq_head_arg =
     (
       ~inject: Update.Action.t => Vdom.Event.t,
-      ~sseq_steps: Path.steps,
+      ~sseq_steps: CursorPath.steps,
       ~sseq_indent_level: indent_level,
       ~tm_index: child_index,
       sarg: snode,
@@ -990,7 +993,7 @@ and view_of_sseq_head_arg =
 and view_of_sseq_tail =
     (
       ~inject: Update.Action.t => Vdom.Event.t,
-      ~sseq_steps: Path.steps,
+      ~sseq_steps: CursorPath.steps,
       ~sseq_indent_level: indent_level,
       ~sseq_is_multi_line: bool,
       ~tm_index: child_index,
@@ -1062,7 +1065,7 @@ and view_of_sseq_tail =
 and view_of_sseq_tail_arg =
     (
       ~inject: Update.Action.t => Vdom.Event.t,
-      ~sseq_steps: Path.steps,
+      ~sseq_steps: CursorPath.steps,
       ~sseq_indent_level: indent_level,
       ~sseq_is_multi_line: bool,
       ~tm_index: child_index,
@@ -1133,14 +1136,10 @@ and view_of_sseq_tail_arg =
     vindentation @ vwords,
   );
 }
-[@warning "-27"]
-// for inject since we'll need it in the future
-// e.g. invoking node staging by clicking and
-// dragging a delimiter
 and view_of_stoken =
     (
-      ~inject: Update.Action.t => Vdom.Event.t,
-      ~node_steps: Path.steps,
+      ~inject as _: Update.Action.t => Vdom.Event.t, /* we'll need `inject` in the future e.g. invoking node staging by clicking and dragging a delimiter */
+      ~node_steps: CursorPath.steps,
       stoken: stoken,
     )
     : Vdom.Node.t =>
@@ -1171,12 +1170,14 @@ and view_of_stoken =
           Attr.create(
             "path-before",
             Sexp.to_string(
-              Path.sexp_of_t((node_steps, OnDelim(0, Before))),
+              CursorPath.sexp_of_t((node_steps, OnDelim(0, Before))),
             ),
           ),
           Attr.create(
             "path-after",
-            Sexp.to_string(Path.sexp_of_t((node_steps, OnDelim(0, After)))),
+            Sexp.to_string(
+              CursorPath.sexp_of_t((node_steps, OnDelim(0, After))),
+            ),
           ),
         ],
         [
@@ -1215,13 +1216,13 @@ and view_of_stoken =
           Attr.create(
             "path-before",
             Sexp.to_string(
-              Path.sexp_of_t((node_steps, OnDelim(index, Before))),
+              CursorPath.sexp_of_t((node_steps, OnDelim(index, Before))),
             ),
           ),
           Attr.create(
             "path-after",
             Sexp.to_string(
-              Path.sexp_of_t((node_steps, OnDelim(index, After))),
+              CursorPath.sexp_of_t((node_steps, OnDelim(index, After))),
             ),
           ),
         ],
@@ -1260,13 +1261,13 @@ and view_of_stoken =
           Attr.create(
             "path-before",
             Sexp.to_string(
-              Path.sexp_of_t((node_steps, OnDelim(index, Before))),
+              CursorPath.sexp_of_t((node_steps, OnDelim(index, Before))),
             ),
           ),
           Attr.create(
             "path-after",
             Sexp.to_string(
-              Path.sexp_of_t((node_steps, OnDelim(index, After))),
+              CursorPath.sexp_of_t((node_steps, OnDelim(index, After))),
             ),
           ),
         ],
@@ -1807,7 +1808,7 @@ let snode_of_Unit = (~steps, ()) =>
     ],
   );
 
-let rec snode_of_typ = (~steps: Path.steps=[], uty: UHTyp.t): snode =>
+let rec snode_of_typ = (~steps: CursorPath.steps=[], uty: UHTyp.t): snode =>
   switch (uty) {
   | Hole => snode_of_EmptyHole(~steps, "?")
   | Unit => snode_of_Unit(~steps, ())
@@ -1867,7 +1868,8 @@ let rec snode_of_typ = (~steps: Path.steps=[], uty: UHTyp.t): snode =>
   };
 
 let rec snode_of_pat =
-        (~ap_err_status=NotInApHole, ~steps: Path.steps=[], p: UHPat.t): snode =>
+        (~ap_err_status=NotInApHole, ~steps: CursorPath.steps=[], p: UHPat.t)
+        : snode =>
   switch (p) {
   | EmptyHole(u) =>
     snode_of_EmptyHole(~ap_err_status, ~steps, string_of_int(u + 1))
@@ -1946,7 +1948,7 @@ let rec snode_of_pat =
 let rec snode_of_block =
         (
           ~user_newlines: option(Model.user_newlines)=?,
-          ~steps: Path.steps=[],
+          ~steps: CursorPath.steps=[],
           Block(line_items, e) as block: UHExp.block,
         )
         : snode => {
@@ -1992,7 +1994,7 @@ let rec snode_of_block =
 and snode_of_line_item =
     (
       ~user_newlines: option(Model.user_newlines)=?,
-      ~steps: Path.steps,
+      ~steps: CursorPath.steps,
       li: UHExp.line,
     )
     : snode =>
@@ -2018,7 +2020,7 @@ and snode_of_exp =
     (
       ~ap_err_status=NotInApHole,
       ~user_newlines: option(Model.user_newlines)=?,
-      ~steps: Path.steps=[],
+      ~steps: CursorPath.steps=[],
       e: UHExp.t,
     )
     : snode =>
@@ -2134,7 +2136,7 @@ and snode_of_exp =
 and snode_of_rule =
     (
       ~user_newlines: option(Model.user_newlines)=?,
-      ~steps: Path.steps,
+      ~steps: CursorPath.steps,
       Rule(p, clause): UHExp.rule,
     ) => {
   let sp = snode_of_pat(~steps=steps @ [0], p);
@@ -2142,7 +2144,7 @@ and snode_of_rule =
   snode_of_Rule(~user_newlines?, ~steps, sp, sclause);
 };
 
-let rec snode_of_ztyp = (~steps: Path.steps, zty: ZTyp.t): snode =>
+let rec snode_of_ztyp = (~steps: CursorPath.steps, zty: ZTyp.t): snode =>
   switch (zty) {
   | CursorT(_, uty) => snode_of_typ(~steps, uty)
   | ParenthesizedZ(zbody) =>
@@ -2201,7 +2203,8 @@ let rec snode_of_ztyp = (~steps: Path.steps, zty: ZTyp.t): snode =>
   };
 
 let rec snode_of_zpat =
-        (~ap_err_status=NotInApHole, ~steps: Path.steps, zp: ZPat.t): snode =>
+        (~ap_err_status=NotInApHole, ~steps: CursorPath.steps, zp: ZPat.t)
+        : snode =>
   switch (zp) {
   | CursorP(_, p) => snode_of_pat(~steps, p)
   | ParenthesizedZ(zbody) =>
@@ -2263,7 +2266,7 @@ let rec snode_of_zpat =
 let rec snode_of_zblock =
         (
           ~user_newlines: option(Model.user_newlines)=?,
-          ~steps: Path.steps=[],
+          ~steps: CursorPath.steps=[],
           zblock: ZExp.zblock,
         )
         : snode =>
@@ -2366,7 +2369,7 @@ let rec snode_of_zblock =
 and snode_of_zline_item =
     (
       ~user_newlines: option(Model.user_newlines)=?,
-      ~steps: Path.steps,
+      ~steps: CursorPath.steps,
       zli: ZExp.zline,
     )
     : snode =>
@@ -2401,7 +2404,7 @@ and snode_of_zexp =
     (
       ~user_newlines: option(Model.user_newlines)=?,
       ~ap_err_status=NotInApHole,
-      ~steps: Path.steps,
+      ~steps: CursorPath.steps,
       ze: ZExp.t,
     ) =>
   switch (ze) {
@@ -2763,7 +2766,7 @@ let snode_of_FixF =
   );
 
 let rec snode_of_htyp =
-        (~parenthesize=false, ~steps: Path.steps=[], ty: HTyp.t): snode => {
+        (~parenthesize=false, ~steps: CursorPath.steps=[], ty: HTyp.t): snode => {
   let mb_par = maybe_parenthesize(parenthesize);
   switch (ty) {
   | Hole => snode_of_EmptyHole(~steps, "?")
@@ -3193,7 +3196,7 @@ let view_of_Var =
       ~inject: Update.Action.t => Vdom.Event.t,
       ~err: ErrStatus.t=NotInHole,
       ~var_err: VarErrStatus.t=NotInVarHole,
-      ~steps: Path.steps=[],
+      ~steps: CursorPath.steps=[],
       x: Var.t,
     ) =>
   view_of_snode(~inject, snode_of_Var(~err, ~var_err, ~steps, x));

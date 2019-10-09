@@ -1,16 +1,23 @@
-; normal build: dune build
-; debug build: dune build --profile debug
-
-(include_subdirs unqualified) ; does not include dirs that specify `(include_subdirs no)`
+(include_subdirs unqualified)
 
 (library
-  (name hazelcore)
-  (libraries re sexplib)
-  (wrapped false)
-  (preprocess (pps ppx_sexp_conv)))
+ (name hazelcore)
+ (libraries core_kernel.weak_hashtbl re sexplib)
+ (wrapped false)
+ (js_of_ocaml
+  (flags
+   (:include js-of-ocaml-flags-%{profile})))
+ (preprocess
+  (pps ppx_let ppx_sexp_conv)))
 
 (ocamllex
-  (modules SkelExprLexer SkelPatLexer SkelTypLexer))
+ (modules SkelExprLexer SkelPatLexer SkelTypLexer))
 
 (menhir
-  (modules SkelExprParser SkelPatParser SkelTypParser))
+ (modules SkelExprParser SkelPatParser SkelTypParser))
+
+(rule
+ (write-file js-of-ocaml-flags-dev "(:standard --debuginfo --noinline)"))
+
+(rule
+ (write-file js-of-ocaml-flags-release "(:standard)"))

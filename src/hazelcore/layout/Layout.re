@@ -3,47 +3,41 @@ open Sexplib.Std;
 /* Variable: `layout` */
 [@deriving sexp]
 type t('tag) =
-  | VZero /* identity for VCat */
-  | VCat(t('tag), t('tag))
-  | HCat(t('tag), t('tag))
-  | String(string)
+  | Empty // identity for VCat and HCat
+  | Text(string) // Text("") is identity for HCat if the other t is not Empty
   | Align(t('tag))
-  | Tagged('tag, t('tag));
+  | Tagged('tag, t('tag))
+  | VCat(t('tag), t('tag)) // associative
+  | HCat(t('tag), t('tag)); // associative
 
-let strings_of_layout: t('tag) => list(string) = {
-  let rec go: t('tag) => (bool /*lines are aligned*/, list(string)) =
+let string_of_layout: t('tag) => string = {
+  let rec go =
+          (first_left: int, left: int)
+          : (t('tag) => list((int /* indent */, string))) =>
+    // Assert first_left >= left
     fun
-    | VZero => (false, [])
+    | Empty => []
+    | Text(string) => [(first_left, string)]
+    | Align(l) => go(first_left, first_left, l)
+    | Tagged(_tag, l) => go(first_left, left, l)
     | VCat(l1, l2) => {
-        let (a1, s1) = go(l1);
-        let (_a2, s2) = go(l2);
-        (a1, s1 @ s2);
-      }
-    | HCat(l1, l2) => {
-        let (a1, s1) = go(l1);
-        let (a2, s2) = go(l2);
-        switch (GeneralUtil.split_last(s1), s2) {
-        | (None, []) => failwith("unimplemented:strings_of_layout.1")
-        | (None, [_head, ..._tail]) =>
-          failwith("unimplemented:strings_of_layout.2")
-        | (Some((_init, _last)), []) =>
-          failwith("unimplemented:strings_of_layout.3")
-        | (Some((init, last)), [head, ...tail]) =>
-          let tail' =
-            if (a2) {
-              let indent = String.make(String.length(last), ' ');
-              List.map(s => indent ++ s, tail);
-            } else {
-              tail;
-            };
-          (a1, init @ [last ++ head, ...tail']);
+        switch (go(first_left, left, l1)) {
+        | [] => go(first_left, left, l2)
+        | s1 => s1 @ go(left, left, l2)
         };
       }
-    | String(string) => (false, [string])
-    | Align(l) => {
-        let (_a, s) = go(l);
-        (true, s);
-      }
-    | Tagged(_tag, l) => go(l);
-  l => snd(go(l));
+    | HCat(l1, l2) =>
+      switch (GeneralUtil.split_last(go(first_left, left, l1))) {
+      | None => go(first_left, left, l2)
+      | Some((init, (indent, last))) =>
+        switch (go(indent + String.length(last), left, l2)) {
+        | [] => init @ [(indent, last)]
+        | [(_, head), ...tail] => init @ [(indent, last ++ head), ...tail]
+        }
+      };
+  let indent = ((i: int, string: string)): string =>
+    String.make(i, ' ') ++ string;
+  layout => {
+    String.concat("\n", List.map(indent, go(0, 0, layout)));
+  };
 };
