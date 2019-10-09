@@ -64,8 +64,13 @@ clean`.
 
 ### Running
 
-You can now open `_build/default/src/hazelweb/www/hazel.html` in a
-browser to see Hazel in action.
+Once Hazel is compiled, you can see it in action with `make chrome`,
+`make chromium`, or `make firefox` depending on which browser you
+want to open it with.
+
+Alternatively, you can manually open
+`_build/default/src/hazelweb/www/hazel.html` in whatever your
+preferred browser is.
 
 ### Debugging
 
