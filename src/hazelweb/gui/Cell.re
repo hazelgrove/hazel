@@ -51,7 +51,7 @@ let kc_actions: Hashtbl.t(KeyCombo.t, CursorInfo.node => Action.t) =
       (KeyCombo.Key_L, _ => Action.Construct(SList)),
       (KeyCombo.LeftParen, _ => Action.Construct(SParenthesized)),
       (KeyCombo.Colon, _ => Action.Construct(SAsc)),
-      (KeyCombo.Equals, _ => Action.Construct(SOp(SEquals))), // '=' no longer trigger 'let' clause
+      (KeyCombo.Equals, _ => Action.Construct(SOp(SEquals))),
       (KeyCombo.Enter, _ => Action.Construct(SLine)),
       (KeyCombo.Backslash, _ => Action.Construct(SLam)),
       (KeyCombo.Plus, _ => Action.Construct(SOp(SPlus))),
