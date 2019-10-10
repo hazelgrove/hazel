@@ -78,7 +78,6 @@ let entered_single_key =
     : option(Vdom.Event.t) =>
   switch (ci.node, opt_kc) {
   | (Typ(_), Some((Key_B | Key_L | Key_N) as kc)) =>
-    JSUtil.log("pressed");
     Some(
       prevent_stop_inject(
         Update.Action.EditAction(ci.node |> Hashtbl.find(kc_actions, kc)),
