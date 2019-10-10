@@ -9,6 +9,8 @@ type op_shape =
   | SPlus
   | STimes
   | SLessThan
+  | SGreaterThan
+  | SEquals
   | SSpace
   | SComma
   | SArrow
@@ -28,6 +30,8 @@ let ty_op_of = (os: op_shape): option(UHTyp.op) =>
   | SAnd
   | SOr
   | SLessThan
+  | SGreaterThan
+  | SEquals
   | SSpace
   | SCons => None
   };
@@ -50,6 +54,8 @@ let pat_op_of = (os: op_shape): option(UHPat.op) =>
   | SPlus
   | STimes
   | SLessThan
+  | SGreaterThan
+  | SEquals
   | SArrow
   | SVBar => None
   };
@@ -67,6 +73,8 @@ let exp_op_of = (os: op_shape): option(UHExp.op) =>
   | SMinus => Some(Minus)
   | STimes => Some(Times)
   | SLessThan => Some(LessThan)
+  | SGreaterThan => Some(GreaterThan)
+  | SEquals => Some(Equals)
   | SSpace => Some(Space)
   | SComma => Some(Comma)
   | SCons => Some(Cons)
@@ -82,6 +90,8 @@ let op_shape_of_exp_op = (op: UHExp.op): op_shape =>
   | Plus => SPlus
   | Times => STimes
   | LessThan => SLessThan
+  | GreaterThan => SGreaterThan
+  | Equals => SEquals
   | Space => SSpace
   | Comma => SComma
   | Cons => SCons
