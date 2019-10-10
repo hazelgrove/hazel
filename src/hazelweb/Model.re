@@ -5,12 +5,13 @@ module ZList = GeneralUtil.ZList;
 
 type cardstacks = list(CardStack.t);
 let cardstacks: cardstacks = [
+  UIPL19.cardstack,
   MWPLS19Cards.cardstack,
   TutorialCards.cardstack,
   RCStudyCards.cardstack,
 ];
 
-let init_compute_results_flag = true;
+let init_compute_results_flag = false;
 
 type user_newlines = CursorPath.StepsMap.t(unit);
 
