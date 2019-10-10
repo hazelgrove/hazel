@@ -99,8 +99,8 @@ let set_img_container = (~width, img1, img2, img3) =>
 
 let cards: list(Card.t) =
   Vdom.[
-    {
-      caption:
+    Card.mk(
+      ~caption=
         span(
           [],
           [
@@ -135,61 +135,60 @@ let cards: list(Card.t) =
             ),
           ],
         ),
-      init_zblock:
-        UHExp.Block(
-          [
-            UHExp.letline(
-              UHPat.var("damage"),
-              ~ann=
-                UHTyp.(
-                  ExpOpExp(
-                    Parenthesized(ExpOpExp(Bool, Prod, Num) |> Typ.mk_OpSeq),
-                    Arrow,
-                    Num,
-                  )
-                  |> Typ.mk_OpSeq
-                ),
-              UHExp.(
-                wrap_in_block(
-                  lam(
-                    UHPat.(
-                      Parenthesized(
-                        ExpOpExp(var("is_melee"), Comma, var("crit_hit"))
-                        |> Pat.mk_OpSeq,
-                      )
-                    ),
-                    wrap_in_block(
-                      case(
-                        var("is_melee") |> wrap_in_block,
-                        [
-                          Rule(
-                            UHPat.boollit(false),
-                            numlit(5) |> wrap_in_block,
-                          ),
-                          Rule(
-                            UHPat.boollit(true),
-                            SeqOpExp(
-                              ExpOpExp(numlit(2), Times, var("crit_hit")),
-                              Plus,
-                              numlit(1),
-                            )
-                            |> Exp.mk_OpSeq
-                            |> wrap_in_block,
-                          ),
-                        ],
-                      ),
+      UHExp.Block(
+        [
+          UHExp.letline(
+            UHPat.var("damage"),
+            ~ann=
+              UHTyp.(
+                ExpOpExp(
+                  Parenthesized(ExpOpExp(Bool, Prod, Num) |> Typ.mk_OpSeq),
+                  Arrow,
+                  Num,
+                )
+                |> Typ.mk_OpSeq
+              ),
+            UHExp.(
+              wrap_in_block(
+                lam(
+                  UHPat.(
+                    Parenthesized(
+                      ExpOpExp(var("is_melee"), Comma, var("crit_hit"))
+                      |> Pat.mk_OpSeq,
+                    )
+                  ),
+                  wrap_in_block(
+                    case(
+                      var("is_melee") |> wrap_in_block,
+                      [
+                        Rule(
+                          UHPat.boollit(false),
+                          numlit(5) |> wrap_in_block,
+                        ),
+                        Rule(
+                          UHPat.boollit(true),
+                          SeqOpExp(
+                            ExpOpExp(numlit(2), Times, var("crit_hit")),
+                            Plus,
+                            numlit(1),
+                          )
+                          |> Exp.mk_OpSeq
+                          |> wrap_in_block,
+                        ),
+                      ],
                     ),
                   ),
-                )
-              ),
+                ),
+              )
             ),
-          ],
-          EmptyHole(-1),
-        )
-        |> ZExp.place_before_block,
-    },
-    {
-      caption:
+          ),
+        ],
+        EmptyHole(-1),
+      )
+      |> ZExp.place_before_block,
+    ),
+    Card.mk(
+      ~caption=
         span(
           [],
           [
@@ -236,67 +235,66 @@ let cards: list(Card.t) =
             ),
           ],
         ),
-      init_zblock:
-        UHExp.Block(
-          [
-            UHExp.letline(
-              UHPat.var("defense_score"),
-              ~ann=UHTyp.Num,
-              UHExp.EmptyHole(-1) |> UHExp.wrap_in_block,
-            ),
-            UHExp.EmptyLine,
-            UHExp.letline(
-              UHPat.var("damage"),
-              ~ann=
-                UHTyp.(
-                  ExpOpExp(
-                    Parenthesized(ExpOpExp(Bool, Prod, Num) |> Typ.mk_OpSeq),
-                    Arrow,
-                    Num,
-                  )
-                  |> Typ.mk_OpSeq
-                ),
-              UHExp.(
-                wrap_in_block(
-                  lam(
-                    UHPat.(
-                      Parenthesized(
-                        ExpOpExp(var("is_melee"), Comma, var("crit_hit"))
-                        |> Pat.mk_OpSeq,
-                      )
-                    ),
-                    wrap_in_block(
-                      case(
-                        var("is_melee") |> wrap_in_block,
-                        [
-                          Rule(
-                            UHPat.boollit(false),
-                            numlit(5) |> wrap_in_block,
-                          ),
-                          Rule(
-                            UHPat.boollit(true),
-                            SeqOpExp(
-                              ExpOpExp(numlit(2), Times, var("crit_hit")),
-                              Plus,
-                              numlit(1),
-                            )
-                            |> Exp.mk_OpSeq
-                            |> wrap_in_block,
-                          ),
-                        ],
-                      ),
+      UHExp.Block(
+        [
+          UHExp.letline(
+            UHPat.var("defense_score"),
+            ~ann=UHTyp.Num,
+            UHExp.EmptyHole(-1) |> UHExp.wrap_in_block,
+          ),
+          UHExp.EmptyLine,
+          UHExp.letline(
+            UHPat.var("damage"),
+            ~ann=
+              UHTyp.(
+                ExpOpExp(
+                  Parenthesized(ExpOpExp(Bool, Prod, Num) |> Typ.mk_OpSeq),
+                  Arrow,
+                  Num,
+                )
+                |> Typ.mk_OpSeq
+              ),
+            UHExp.(
+              wrap_in_block(
+                lam(
+                  UHPat.(
+                    Parenthesized(
+                      ExpOpExp(var("is_melee"), Comma, var("crit_hit"))
+                      |> Pat.mk_OpSeq,
+                    )
+                  ),
+                  wrap_in_block(
+                    case(
+                      var("is_melee") |> wrap_in_block,
+                      [
+                        Rule(
+                          UHPat.boollit(false),
+                          numlit(5) |> wrap_in_block,
+                        ),
+                        Rule(
+                          UHPat.boollit(true),
+                          SeqOpExp(
+                            ExpOpExp(numlit(2), Times, var("crit_hit")),
+                            Plus,
+                            numlit(1),
+                          )
+                          |> Exp.mk_OpSeq
+                          |> wrap_in_block,
+                        ),
+                      ],
                     ),
                   ),
-                )
-              ),
+                ),
+              )
             ),
-          ],
-          EmptyHole(-1),
-        )
-        |> ZExp.place_before_block,
-    },
-    {
-      caption:
+          ),
+        ],
+        EmptyHole(-1),
+      )
+      |> ZExp.place_before_block,
+    ),
+    Card.mk(
+      ~caption=
         span(
           [],
           [
@@ -328,140 +326,133 @@ let cards: list(Card.t) =
             ),
           ],
         ),
-      init_zblock:
-        UHExp.Block(
-          [
-            append_letline,
-            UHExp.EmptyLine,
-            UHExp.letline(
-              UHPat.var("rotate"),
-              ~ann=
-                UHTyp.(
-                  ExpOpExp(List(Num), Arrow, List(Num)) |> Typ.mk_OpSeq
-                ),
-              UHExp.(
-                wrap_in_block(
-                  lam(
-                    UHPat.var("xs"),
-                    wrap_in_block(
-                      case(
-                        var("xs") |> wrap_in_block,
-                        [
-                          Rule(UHPat.listnil(), listnil() |> wrap_in_block),
-                          Rule(
-                            UHPat.(
-                              ExpOpExp(var("y"), Cons, var("ys"))
-                              |> Pat.mk_OpSeq
-                            ),
-                            UHExp.(
-                              SeqOpExp(
-                                ExpOpExp(var("append"), Space, var("ys")),
-                                Space,
-                                Parenthesized(
-                                  ExpOpExp(var("y"), Cons, listnil())
-                                  |> Exp.mk_OpSeq
-                                  |> wrap_in_block,
-                                ),
-                              )
-                              |> Exp.mk_OpSeq
-                              |> wrap_in_block
-                            ),
+      UHExp.Block(
+        [
+          append_letline,
+          UHExp.EmptyLine,
+          UHExp.letline(
+            UHPat.var("rotate"),
+            ~ann=
+              UHTyp.(ExpOpExp(List(Num), Arrow, List(Num)) |> Typ.mk_OpSeq),
+            UHExp.(
+              wrap_in_block(
+                lam(
+                  UHPat.var("xs"),
+                  wrap_in_block(
+                    case(
+                      var("xs") |> wrap_in_block,
+                      [
+                        Rule(UHPat.listnil(), listnil() |> wrap_in_block),
+                        Rule(
+                          UHPat.(
+                            ExpOpExp(var("y"), Cons, var("ys"))
+                            |> Pat.mk_OpSeq
                           ),
-                        ],
-                      ),
+                          UHExp.(
+                            SeqOpExp(
+                              ExpOpExp(var("append"), Space, var("ys")),
+                              Space,
+                              Parenthesized(
+                                ExpOpExp(var("y"), Cons, listnil())
+                                |> Exp.mk_OpSeq
+                                |> wrap_in_block,
+                              ),
+                            )
+                            |> Exp.mk_OpSeq
+                            |> wrap_in_block
+                          ),
+                        ),
+                      ],
                     ),
                   ),
-                )
-              ),
-            ),
-            UHExp.EmptyLine,
-            UHExp.letline(
-              UHPat.var("step"),
-              ~ann=
-                UHTyp.(
-                  ExpOpExp(
-                    Parenthesized(
-                      SeqOpExp(
-                        ExpOpExp(List(Num), Prod, List(Num)),
-                        Prod,
-                        List(Num),
-                      )
-                      |> Typ.mk_OpSeq,
-                    ),
-                    Arrow,
-                    Parenthesized(
-                      SeqOpExp(
-                        ExpOpExp(List(Num), Prod, List(Num)),
-                        Prod,
-                        List(Num),
-                      )
-                      |> Typ.mk_OpSeq,
-                    ),
-                  )
-                  |> Typ.mk_OpSeq
                 ),
-              UHExp.(
-                Block(
-                  [EmptyLine],
-                  lam(
-                    UHPat.(
-                      Parenthesized(
-                        SeqOpExp(
-                          ExpOpExp(var("reel1"), Comma, var("reel2")),
-                          Comma,
-                          var("reel3"),
-                        )
-                        |> Pat.mk_OpSeq,
+              )
+            ),
+          ),
+          UHExp.EmptyLine,
+          UHExp.letline(
+            UHPat.var("step"),
+            ~ann=
+              UHTyp.(
+                ExpOpExp(
+                  Parenthesized(
+                    SeqOpExp(
+                      ExpOpExp(List(Num), Prod, List(Num)),
+                      Prod,
+                      List(Num),
+                    )
+                    |> Typ.mk_OpSeq,
+                  ),
+                  Arrow,
+                  Parenthesized(
+                    SeqOpExp(
+                      ExpOpExp(List(Num), Prod, List(Num)),
+                      Prod,
+                      List(Num),
+                    )
+                    |> Typ.mk_OpSeq,
+                  ),
+                )
+                |> Typ.mk_OpSeq
+              ),
+            UHExp.(
+              Block(
+                [EmptyLine],
+                lam(
+                  UHPat.(
+                    Parenthesized(
+                      SeqOpExp(
+                        ExpOpExp(var("reel1"), Comma, var("reel2")),
+                        Comma,
+                        var("reel3"),
                       )
-                    ),
-                    Block(
-                      [EmptyLine],
-                      Parenthesized(
-                        wrap_in_block(
+                      |> Pat.mk_OpSeq,
+                    )
+                  ),
+                  Block(
+                    [EmptyLine],
+                    Parenthesized(
+                      wrap_in_block(
+                        SeqOpExp(
                           SeqOpExp(
                             SeqOpExp(
                               SeqOpExp(
-                                SeqOpExp(
-                                  ExpOpExp(
-                                    var("rotate"),
-                                    Space,
-                                    var("reel1"),
-                                  ),
-                                  Comma,
+                                ExpOpExp(
                                   var("rotate"),
+                                  Space,
+                                  var("reel1"),
                                 ),
-                                Space,
-                                Parenthesized(
-                                  ExpOpExp(
-                                    var("rotate"),
-                                    Space,
-                                    var("reel2"),
-                                  )
-                                  |> Exp.mk_OpSeq
-                                  |> wrap_in_block,
-                                ),
+                                Comma,
+                                var("rotate"),
                               ),
-                              Comma,
-                              var("rotate"),
+                              Space,
+                              Parenthesized(
+                                ExpOpExp(var("rotate"), Space, var("reel2"))
+                                |> Exp.mk_OpSeq
+                                |> wrap_in_block,
+                              ),
                             ),
-                            Space,
-                            var("reel3"),
-                          )
-                          |> Exp.mk_OpSeq,
-                        ),
+                            Comma,
+                            var("rotate"),
+                          ),
+                          Space,
+                          var("reel3"),
+                        )
+                        |> Exp.mk_OpSeq,
                       ),
                     ),
                   ),
-                )
-              ),
+                ),
+              )
             ),
-          ],
-          UHExp.EmptyHole(-1),
-        )
-        |> ZExp.place_before_block,
-    },
-    {
-      caption:
+          ),
+        ],
+        UHExp.EmptyHole(-1),
+      )
+      |> ZExp.place_before_block,
+    ),
+    Card.mk(
+      ~caption=
         span(
           [],
           [
@@ -502,145 +493,136 @@ let cards: list(Card.t) =
             ),
           ],
         ),
-      init_zblock:
-        UHExp.Block(
-          [
-            append_letline,
-            UHExp.EmptyLine,
-            UHExp.letline(
-              UHPat.var("rotate"),
-              ~ann=
-                UHTyp.(
-                  SeqOpExp(
-                    ExpOpExp(Num, Arrow, List(Num)),
-                    Arrow,
-                    List(Num),
-                  )
-                  |> Typ.mk_OpSeq
-                ),
-              UHExp.(
-                wrap_in_block(
-                  lam(
-                    UHPat.var("xs"),
-                    wrap_in_block(
-                      case(
-                        var("xs") |> wrap_in_block,
-                        [
-                          Rule(UHPat.listnil(), listnil() |> wrap_in_block),
-                          Rule(
-                            UHPat.(
-                              ExpOpExp(var("y"), Cons, var("ys"))
-                              |> Pat.mk_OpSeq
-                            ),
-                            UHExp.(
-                              SeqOpExp(
-                                ExpOpExp(var("append"), Space, var("ys")),
-                                Space,
-                                Parenthesized(
-                                  ExpOpExp(var("y"), Cons, listnil())
-                                  |> Exp.mk_OpSeq
-                                  |> wrap_in_block,
-                                ),
-                              )
-                              |> Exp.mk_OpSeq
-                              |> wrap_in_block
-                            ),
+      UHExp.Block(
+        [
+          append_letline,
+          UHExp.EmptyLine,
+          UHExp.letline(
+            UHPat.var("rotate"),
+            ~ann=
+              UHTyp.(
+                SeqOpExp(ExpOpExp(Num, Arrow, List(Num)), Arrow, List(Num))
+                |> Typ.mk_OpSeq
+              ),
+            UHExp.(
+              wrap_in_block(
+                lam(
+                  UHPat.var("xs"),
+                  wrap_in_block(
+                    case(
+                      var("xs") |> wrap_in_block,
+                      [
+                        Rule(UHPat.listnil(), listnil() |> wrap_in_block),
+                        Rule(
+                          UHPat.(
+                            ExpOpExp(var("y"), Cons, var("ys"))
+                            |> Pat.mk_OpSeq
                           ),
-                        ],
-                      ),
+                          UHExp.(
+                            SeqOpExp(
+                              ExpOpExp(var("append"), Space, var("ys")),
+                              Space,
+                              Parenthesized(
+                                ExpOpExp(var("y"), Cons, listnil())
+                                |> Exp.mk_OpSeq
+                                |> wrap_in_block,
+                              ),
+                            )
+                            |> Exp.mk_OpSeq
+                            |> wrap_in_block
+                          ),
+                        ),
+                      ],
                     ),
                   ),
-                )
-              ),
-            ),
-            UHExp.EmptyLine,
-            UHExp.letline(
-              UHPat.var("step"),
-              ~ann=
-                UHTyp.(
-                  ExpOpExp(
-                    Parenthesized(
-                      SeqOpExp(
-                        ExpOpExp(List(Num), Prod, List(Num)),
-                        Prod,
-                        List(Num),
-                      )
-                      |> Typ.mk_OpSeq,
-                    ),
-                    Arrow,
-                    Parenthesized(
-                      SeqOpExp(
-                        ExpOpExp(List(Num), Prod, List(Num)),
-                        Prod,
-                        List(Num),
-                      )
-                      |> Typ.mk_OpSeq,
-                    ),
-                  )
-                  |> Typ.mk_OpSeq
                 ),
-              UHExp.(
-                Block(
-                  [EmptyLine],
-                  lam(
-                    UHPat.(
-                      Parenthesized(
-                        SeqOpExp(
-                          ExpOpExp(var("reel1"), Comma, var("reel2")),
-                          Comma,
-                          var("reel3"),
-                        )
-                        |> Pat.mk_OpSeq,
+              )
+            ),
+          ),
+          UHExp.EmptyLine,
+          UHExp.letline(
+            UHPat.var("step"),
+            ~ann=
+              UHTyp.(
+                ExpOpExp(
+                  Parenthesized(
+                    SeqOpExp(
+                      ExpOpExp(List(Num), Prod, List(Num)),
+                      Prod,
+                      List(Num),
+                    )
+                    |> Typ.mk_OpSeq,
+                  ),
+                  Arrow,
+                  Parenthesized(
+                    SeqOpExp(
+                      ExpOpExp(List(Num), Prod, List(Num)),
+                      Prod,
+                      List(Num),
+                    )
+                    |> Typ.mk_OpSeq,
+                  ),
+                )
+                |> Typ.mk_OpSeq
+              ),
+            UHExp.(
+              Block(
+                [EmptyLine],
+                lam(
+                  UHPat.(
+                    Parenthesized(
+                      SeqOpExp(
+                        ExpOpExp(var("reel1"), Comma, var("reel2")),
+                        Comma,
+                        var("reel3"),
                       )
-                    ),
-                    Block(
-                      [EmptyLine],
-                      Parenthesized(
-                        wrap_in_block(
+                      |> Pat.mk_OpSeq,
+                    )
+                  ),
+                  Block(
+                    [EmptyLine],
+                    Parenthesized(
+                      wrap_in_block(
+                        SeqOpExp(
                           SeqOpExp(
                             SeqOpExp(
                               SeqOpExp(
-                                SeqOpExp(
-                                  ExpOpExp(
-                                    var("rotate"),
-                                    Space,
-                                    var("reel1"),
-                                  ),
-                                  Comma,
+                                ExpOpExp(
                                   var("rotate"),
+                                  Space,
+                                  var("reel1"),
                                 ),
-                                Space,
-                                Parenthesized(
-                                  ExpOpExp(
-                                    var("rotate"),
-                                    Space,
-                                    var("reel2"),
-                                  )
-                                  |> Exp.mk_OpSeq
-                                  |> wrap_in_block,
-                                ),
+                                Comma,
+                                var("rotate"),
                               ),
-                              Comma,
-                              var("rotate"),
+                              Space,
+                              Parenthesized(
+                                ExpOpExp(var("rotate"), Space, var("reel2"))
+                                |> Exp.mk_OpSeq
+                                |> wrap_in_block,
+                              ),
                             ),
-                            Space,
-                            var("reel3"),
-                          )
-                          |> Exp.mk_OpSeq,
-                        ),
+                            Comma,
+                            var("rotate"),
+                          ),
+                          Space,
+                          var("reel3"),
+                        )
+                        |> Exp.mk_OpSeq,
                       ),
                     ),
                   ),
-                )
-              ),
+                ),
+              )
             ),
-          ],
-          UHExp.EmptyHole(-1),
-        )
-        |> ZExp.place_before_block,
-    },
-    {
-      caption:
+          ),
+        ],
+        UHExp.EmptyHole(-1),
+      )
+      |> ZExp.place_before_block,
+    ),
+    Card.mk(
+      ~caption=
         span(
           [],
           [
@@ -708,7 +690,7 @@ let cards: list(Card.t) =
             ),
           ],
         ),
-      init_zblock: {
+      {
         let num_triple =
           UHTyp.(
             Parenthesized(
@@ -740,9 +722,9 @@ let cards: list(Card.t) =
         )
         |> ZExp.place_before_block;
       },
-    },
-    {
-      caption:
+    ),
+    Card.mk(
+      ~caption=
         span(
           [],
           [
@@ -861,7 +843,7 @@ let cards: list(Card.t) =
             ),
           ],
         ),
-      init_zblock: {
+      {
         let num_triple =
           UHTyp.(
             Parenthesized(
@@ -938,7 +920,7 @@ let cards: list(Card.t) =
         )
         |> ZExp.place_before_block;
       },
-    },
+    ),
   ];
 
 let cardstack: CardStack.t = {title: "RC Study Questions", cards};
