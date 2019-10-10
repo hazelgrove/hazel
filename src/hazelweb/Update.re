@@ -26,8 +26,8 @@ module Action = {
     | FocusCell
     | BlurCell
     | FocusWindow
-    | AddUserNewline(Path.steps)
-    | RemoveUserNewline(Path.steps);
+    | AddUserNewline(CursorPath.steps)
+    | RemoveUserNewline(CursorPath.steps);
 };
 
 [@deriving sexp]
@@ -90,7 +90,6 @@ let log_action = (action: Action.t, _: State.t): unit => {
   };
 };
 
-[@warning "-27"]
 let apply_action =
     (model: Model.t, action: Action.t, state: State.t, ~schedule_action)
     : Model.t => {
@@ -138,7 +137,7 @@ let apply_action =
         ),
     }
   | SelectHoleInstance(u, i) => Model.select_hole_instance(model, (u, i))
-  | InvalidVar(x) => model
+  | InvalidVar(_) => model
   | MoveToHole(u) => Model.move_to_hole(model, u)
   | FocusCell => model |> Model.focus_cell
   | FocusWindow =>
@@ -178,7 +177,7 @@ let apply_action =
             closest_elem
             |> JSUtil.get_attr(attr)
             |> Opt.get(() => raise(MalformedView(3)));
-          let path = Path.t_of_sexp(Sexp.of_string(ssexp));
+          let path = CursorPath.t_of_sexp(Sexp.of_string(ssexp));
           schedule_action(Action.EditAction(MoveTo(path)));
         } else if (has_cls(indentation_cls)) {
           switch (
@@ -187,10 +186,10 @@ let apply_action =
           ) {
           | (None, None) => raise(MalformedView(4))
           | (Some(ssexp), _) =>
-            let path = Path.t_of_sexp(Sexp.of_string(ssexp));
+            let path = CursorPath.t_of_sexp(Sexp.of_string(ssexp));
             schedule_action(Action.EditAction(MoveTo(path)));
           | (_, Some(ssexp)) =>
-            let steps = Path.steps_of_sexp(Sexp.of_string(ssexp));
+            let steps = CursorPath.steps_of_sexp(Sexp.of_string(ssexp));
             schedule_action(Action.EditAction(MoveToBefore(steps)));
           };
         } else if (has_cls("sline")
@@ -199,7 +198,7 @@ let apply_action =
           switch (closest_elem |> JSUtil.get_attr("goto-steps")) {
           | None => assert(false)
           | Some(ssexp) =>
-            let steps = Path.steps_of_sexp(Sexp.of_string(ssexp));
+            let steps = CursorPath.steps_of_sexp(Sexp.of_string(ssexp));
             schedule_action(Action.EditAction(MoveToBefore(steps)));
           };
         } else if (has_cls("unselectable-before")
@@ -211,7 +210,7 @@ let apply_action =
         } else if (has_cls("unselectable-before") && anchorOffset == 2) {
           switch (path_of_path_id(Js.to_string(closest_elem##.id))) {
           | None => raise(MalformedView(6))
-          | Some(path) => schedule_action(Action.EditAction(MoveLeft))
+          | Some(_) => schedule_action(Action.EditAction(MoveLeft))
           };
         } else if (has_cls("unselectable-after")
                    && (anchorOffset == 2 || anchorOffset == 3)) {
@@ -222,7 +221,7 @@ let apply_action =
         } else if (has_cls("unselectable-after") && anchorOffset == 1) {
           switch (path_of_path_id(Js.to_string(closest_elem##.id))) {
           | None => raise(MalformedView(8))
-          | Some(path) => schedule_action(Action.EditAction(MoveRight))
+          | Some(_) => schedule_action(Action.EditAction(MoveRight))
           };
         } else if (has_cls("SSpace")) {
           let attr = anchorOffset == 0 ? "path-before" : "path-after";
@@ -230,7 +229,7 @@ let apply_action =
             closest_elem
             |> JSUtil.get_attr(attr)
             |> Opt.get(() => raise(MalformedView(9)));
-          let path = Path.t_of_sexp(Sexp.of_string(ssexp));
+          let path = CursorPath.t_of_sexp(Sexp.of_string(ssexp));
           schedule_action(Action.EditAction(MoveTo(path)));
         } else if (has_cls("SEmptyLine")
                    && (anchorOffset == 0 || anchorOffset == 4)) {
@@ -263,7 +262,7 @@ let apply_action =
               };
             };
           let (zblock, _, _) = Model.edit_state_of(model);
-          let (current_steps, current_cursor) = Path.of_zblock(zblock);
+          let (current_steps, current_cursor) = CursorPath.of_zblock(zblock);
           switch (anchorNode |> JSUtil.query_ancestors(is_cursor_position)) {
           | None => ()
           | Some((next_steps, None)) =>

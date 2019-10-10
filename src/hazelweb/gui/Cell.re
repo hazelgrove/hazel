@@ -297,7 +297,8 @@ let view =
                   };
                 switch (
                   kc,
-                  model.user_newlines |> Path.StepsMap.mem(ci.node_steps),
+                  model.user_newlines
+                  |> CursorPath.StepsMap.mem(ci.node_steps),
                   cursor_escaped,
                   ci.position,
                 ) {
@@ -342,7 +343,8 @@ let view =
                 };
               | (OnText(_) | OnDelim(_, _), _, _, Some(Enter)) =>
                 switch (
-                  model.user_newlines |> Path.StepsMap.mem(ci.node_steps),
+                  model.user_newlines
+                  |> CursorPath.StepsMap.mem(ci.node_steps),
                   model |> Model.zblock |> ZExp.is_after_case_rule,
                   model |> Model.zblock |> ZExp.is_on_user_newlineable_hole,
                 ) {

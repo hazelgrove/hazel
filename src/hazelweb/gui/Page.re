@@ -238,7 +238,6 @@ let page_view =
   );
 };
 
-[@warning "-27"]
 let view =
     (~inject: Update.Action.t => Vdom.Event.t, model: Model.t): Vdom.Node.t =>
   page_view(~inject, model);

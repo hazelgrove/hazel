@@ -3,7 +3,7 @@ open SemanticsCommon;
 open GeneralUtil;
 open Sexplib.Std;
 
-[@deriving (show({with_path: false}), sexp)]
+[@deriving sexp]
 type op_shape =
   | SMinus
   | SPlus
@@ -89,7 +89,7 @@ let op_shape_of_exp_op = (op: UHExp.op): op_shape =>
   | Or => SOr
   };
 
-[@deriving (show({with_path: false}), sexp)]
+[@deriving sexp]
 type shape =
   | SParenthesized
   /* type shapes */
@@ -111,10 +111,10 @@ type shape =
   /* pattern-only shapes */
   | SWild;
 
-[@deriving (show({with_path: false}), sexp)]
+[@deriving sexp]
 type t =
-  | MoveTo(Path.t)
-  | MoveToBefore(Path.steps)
+  | MoveTo(CursorPath.t)
+  | MoveToBefore(CursorPath.steps)
   | MoveLeft
   | MoveRight
   | MoveToNextHole
@@ -198,22 +198,22 @@ let rec perform_ty = (a: t, zty: ZTyp.t): result(ZTyp.t) =>
     };
   /* Movement */
   | (MoveTo(path), _) =>
-    switch (Path.follow_ty(path, ZTyp.erase(zty))) {
+    switch (CursorPath.follow_ty(path, ZTyp.erase(zty))) {
     | None => Failed
     | Some(zty) => Succeeded(zty)
     }
   | (MoveToBefore(steps), _) =>
-    switch (Path.follow_ty_and_place_before(steps, ZTyp.erase(zty))) {
+    switch (CursorPath.follow_ty_and_place_before(steps, ZTyp.erase(zty))) {
     | None => Failed
     | Some(zty) => Succeeded(zty)
     }
   | (MoveToPrevHole, _) =>
-    switch (Path.prev_hole_path(Path.holes_zty(zty, []))) {
+    switch (CursorPath.prev_hole_path(CursorPath.holes_zty(zty, []))) {
     | None => Failed
     | Some(path) => perform_ty(MoveTo(path), zty)
     }
   | (MoveToNextHole, _) =>
-    switch (Path.next_hole_path(Path.holes_zty(zty, []))) {
+    switch (CursorPath.next_hole_path(CursorPath.holes_zty(zty, []))) {
     | None => Failed
     | Some(path) =>
       /* [debug] let path = Helper.log_path path in */
@@ -1190,14 +1190,14 @@ let make_and_syn_OpSeqZ_pat =
    * to reconstitute the Z-exp after calling into the UHExp hole
    * insertion logic (otherwise we'd have to do a version of that
    * logic specific to Z-exps) */
-  let path0 = Path.of_OpSeqZ_pat(zp0, surround);
+  let path0 = CursorPath.of_OpSeqZ_pat(zp0, surround);
   let p0 = ZPat.erase(zp0);
   let seq = OperatorSeq.opseq_of_exp_and_surround(p0, surround);
   let skel = Associator.associate_pat(seq);
   let (skel, seq, ty, ctx, u_gen) =
     Statics.syn_fix_holes_pat_skel(ctx, u_gen, skel, seq);
   let p = UHPat.OpSeq(skel, seq);
-  let zp = Path.follow_pat_or_fail(path0, p);
+  let zp = CursorPath.follow_pat_or_fail(path0, p);
   (zp, ty, ctx, u_gen);
 };
 
@@ -1214,14 +1214,14 @@ let make_and_ana_OpSeqZ_pat =
    * to reconstitute the Z-exp after calling into the UHExp hole
    * insertion logic (otherwise we'd have to do a version of that
    * logic specific to Z-exps) */
-  let path0 = Path.of_OpSeqZ_pat(zp0, surround);
+  let path0 = CursorPath.of_OpSeqZ_pat(zp0, surround);
   let p0 = ZPat.erase(zp0);
   let seq = OperatorSeq.opseq_of_exp_and_surround(p0, surround);
   let skel = Associator.associate_pat(seq);
   let (skel, seq, ctx, u_gen) =
     Statics.ana_fix_holes_pat_skel(ctx, u_gen, skel, seq, ty);
   let p = UHPat.OpSeq(skel, seq);
-  let zp = Path.follow_pat_or_fail(path0, p);
+  let zp = CursorPath.follow_pat_or_fail(path0, p);
   (zp, ctx, u_gen);
 };
 
@@ -1335,7 +1335,7 @@ let rec syn_perform_pat =
     switch (Statics.syn_pat(ctx, p)) {
     | None => Failed
     | Some((ty, ctx)) =>
-      switch (Path.follow_pat(path, p)) {
+      switch (CursorPath.follow_pat(path, p)) {
       | None => Failed
       | Some(zp) => Succeeded((zp, ty, ctx, u_gen))
       }
@@ -1345,18 +1345,18 @@ let rec syn_perform_pat =
     switch (Statics.syn_pat(ctx, p)) {
     | None => Failed
     | Some((ty, ctx)) =>
-      switch (Path.follow_pat_and_place_before(steps, p)) {
+      switch (CursorPath.follow_pat_and_place_before(steps, p)) {
       | None => Failed
       | Some(zp) => Succeeded((zp, ty, ctx, u_gen))
       }
     };
   | (MoveToPrevHole, _) =>
-    switch (Path.prev_hole_path(Path.holes_zpat(zp, []))) {
+    switch (CursorPath.prev_hole_path(CursorPath.holes_zpat(zp, []))) {
     | None => Failed
     | Some(path) => syn_perform_pat(ctx, u_gen, MoveTo(path), zp)
     }
   | (MoveToNextHole, _) =>
-    switch (Path.next_hole_path(Path.holes_zpat(zp, []))) {
+    switch (CursorPath.next_hole_path(CursorPath.holes_zpat(zp, []))) {
     | None => Failed
     | Some(path) => syn_perform_pat(ctx, u_gen, MoveTo(path), zp)
     }
@@ -2006,7 +2006,7 @@ and ana_perform_pat =
    * we include it */
   | (MoveTo(path), _) =>
     let p = ZPat.erase(zp);
-    switch (Statics.ana_pat(ctx, p, ty), Path.follow_pat(path, p)) {
+    switch (Statics.ana_pat(ctx, p, ty), CursorPath.follow_pat(path, p)) {
     | (None, _) => Failed
     | (_, None) => Failed
     | (Some(ctx), Some(zp)) => Succeeded((zp, ctx, u_gen))
@@ -2015,19 +2015,19 @@ and ana_perform_pat =
     let p = ZPat.erase(zp);
     switch (
       Statics.ana_pat(ctx, p, ty),
-      Path.follow_pat_and_place_before(steps, p),
+      CursorPath.follow_pat_and_place_before(steps, p),
     ) {
     | (None, _) => Failed
     | (_, None) => Failed
     | (Some(ctx), Some(zp)) => Succeeded((zp, ctx, u_gen))
     };
   | (MoveToPrevHole, _) =>
-    switch (Path.prev_hole_path(Path.holes_zpat(zp, []))) {
+    switch (CursorPath.prev_hole_path(CursorPath.holes_zpat(zp, []))) {
     | None => Failed
     | Some(path) => ana_perform_pat(ctx, u_gen, MoveTo(path), zp, ty)
     }
   | (MoveToNextHole, _) =>
-    switch (Path.next_hole_path(Path.holes_zpat(zp, []))) {
+    switch (CursorPath.next_hole_path(CursorPath.holes_zpat(zp, []))) {
     | None => Failed
     | Some(path) => ana_perform_pat(ctx, u_gen, MoveTo(path), zp, ty)
     }
@@ -2612,14 +2612,14 @@ let make_and_syn_OpSeqZ =
    * to reconstitute the Z-exp after calling into the UHExp hole
    * insertion logic (otherwise we'd have to do a version of that
    * logic specific to Z-exps) */
-  let path0 = Path.of_OpSeqZ(ze0, surround);
+  let path0 = CursorPath.of_OpSeqZ(ze0, surround);
   let e0 = ZExp.erase(ze0);
   let seq = OperatorSeq.opseq_of_exp_and_surround(e0, surround);
   let skel = Associator.associate_exp(seq);
   let (skel, seq, ty, u_gen) =
     Statics.syn_fix_holes_exp_skel(ctx, u_gen, skel, seq);
   let e = UHExp.OpSeq(skel, seq);
-  let ze = Path.follow_e_or_fail(path0, e);
+  let ze = CursorPath.follow_e_or_fail(path0, e);
   (ze, ty, u_gen);
 };
 
@@ -2636,7 +2636,7 @@ let make_and_ana_OpSeqZ =
    * to reconstitute the Z-exp after calling into the UHExp hole
    * insertion logic (otherwise we'd have to do a version of that
    * logic specific to Z-exps) */
-  let path0 = Path.of_OpSeqZ(ze0, surround);
+  let path0 = CursorPath.of_OpSeqZ(ze0, surround);
   let e0 = ZExp.erase(ze0);
   let seq = OperatorSeq.opseq_of_exp_and_surround(e0, surround);
   let skel = Associator.associate_exp(seq);
@@ -2645,7 +2645,7 @@ let make_and_ana_OpSeqZ =
     raise(UHExp.SkelInconsistentWithOpSeq(skel, seq))
   | (BinOp(_, _, _, _) as skel, seq, u_gen) =>
     let e = UHExp.OpSeq(skel, seq);
-    let ze = Path.follow_e_or_fail(path0, e);
+    let ze = CursorPath.follow_e_or_fail(path0, e);
     (ze, u_gen);
   };
 };
@@ -3139,24 +3139,24 @@ let rec syn_perform_block =
   /* Movement */
   | (MoveTo(path), _) =>
     let block = ZExp.erase_block(zblock);
-    switch (Path.follow_block(path, block)) {
+    switch (CursorPath.follow_block(path, block)) {
     | None => Failed
     | Some(zblock) => Succeeded((zblock, ty, u_gen))
     };
   | (MoveToBefore(steps), _) =>
     let block = ZExp.erase_block(zblock);
-    switch (Path.follow_block_and_place_before(steps, block)) {
+    switch (CursorPath.follow_block_and_place_before(steps, block)) {
     | None => Failed
     | Some(zblock) => Succeeded((zblock, ty, u_gen))
     };
   | (MoveToPrevHole, _) =>
-    switch (Path.prev_hole_path_zblock(zblock)) {
+    switch (CursorPath.prev_hole_path_zblock(zblock)) {
     | None => Failed
     | Some(path) =>
       syn_perform_block(~ci, ctx, MoveTo(path), (zblock, ty, u_gen))
     }
   | (MoveToNextHole, _) =>
-    switch (Path.next_hole_path_zblock(zblock)) {
+    switch (CursorPath.next_hole_path_zblock(zblock)) {
     | None => Failed
     | Some(path) =>
       syn_perform_block(~ci, ctx, MoveTo(path), (zblock, ty, u_gen))
@@ -4008,26 +4008,26 @@ and syn_perform_exp =
   /* Movement */
   | (MoveTo(path), _) =>
     let e = ZExp.erase(ze);
-    switch (Path.follow_exp(path, e)) {
+    switch (CursorPath.follow_exp(path, e)) {
     | None => Failed
     | Some(ze) => Succeeded((E(ze), ty, u_gen))
     };
   | (MoveToBefore(steps), _) =>
     let e = ZExp.erase(ze);
-    switch (Path.follow_exp_and_place_before(steps, e)) {
+    switch (CursorPath.follow_exp_and_place_before(steps, e)) {
     | None => Failed
     | Some(ze) => Succeeded((E(ze), ty, u_gen))
     };
   | (MoveToPrevHole, _) =>
-    let holes = Path.holes_ze(ze, []);
-    switch (Path.prev_hole_path(holes)) {
+    let holes = CursorPath.holes_ze(ze, []);
+    switch (CursorPath.prev_hole_path(holes)) {
     | None => Failed
     | Some(path) =>
       syn_perform_exp(~ci, ctx, MoveTo(path), (ze, ty, u_gen))
     };
   | (MoveToNextHole, _) =>
-    let holes = Path.holes_ze(ze, []);
-    switch (Path.next_hole_path(holes)) {
+    let holes = CursorPath.holes_ze(ze, []);
+    switch (CursorPath.next_hole_path(holes)) {
     | None => Failed
     | Some(path) =>
       syn_perform_exp(~ci, ctx, MoveTo(path), (ze, ty, u_gen))
@@ -5480,24 +5480,24 @@ and ana_perform_block =
   /* Movement */
   | (MoveTo(path), _) =>
     let block = ZExp.erase_block(zblock);
-    switch (Path.follow_block(path, block)) {
+    switch (CursorPath.follow_block(path, block)) {
     | None => Failed
     | Some(zblock) => Succeeded((zblock, u_gen))
     };
   | (MoveToBefore(steps), _) =>
     let block = ZExp.erase_block(zblock);
-    switch (Path.follow_block_and_place_before(steps, block)) {
+    switch (CursorPath.follow_block_and_place_before(steps, block)) {
     | None => Failed
     | Some(zblock) => Succeeded((zblock, u_gen))
     };
   | (MoveToPrevHole, _) =>
-    switch (Path.prev_hole_path_zblock(zblock)) {
+    switch (CursorPath.prev_hole_path_zblock(zblock)) {
     | None => Failed
     | Some(path) =>
       ana_perform_block(~ci, ctx, MoveTo(path), (zblock, u_gen), ty)
     }
   | (MoveToNextHole, _) =>
-    switch (Path.next_hole_path_zblock(zblock)) {
+    switch (CursorPath.next_hole_path_zblock(zblock)) {
     | None => Failed
     | Some(path) =>
       ana_perform_block(~ci, ctx, MoveTo(path), (zblock, u_gen), ty)
@@ -5931,24 +5931,24 @@ and ana_perform_exp =
   /* Movement */
   | (MoveTo(path), _) =>
     let e = ZExp.erase(ze);
-    switch (Path.follow_exp(path, e)) {
+    switch (CursorPath.follow_exp(path, e)) {
     | Some(ze') => Succeeded((E(ze'), u_gen))
     | None => Failed
     };
   | (MoveToBefore(steps), _) =>
     let e = ZExp.erase(ze);
-    switch (Path.follow_exp_and_place_before(steps, e)) {
+    switch (CursorPath.follow_exp_and_place_before(steps, e)) {
     | Some(ze') => Succeeded((E(ze'), u_gen))
     | None => Failed
     };
   | (MoveToPrevHole, _) =>
-    switch (Path.prev_hole_path(Path.holes_ze(ze, []))) {
+    switch (CursorPath.prev_hole_path(CursorPath.holes_ze(ze, []))) {
     | None => Failed
     | Some(path) =>
       ana_perform_exp(~ci, ctx, MoveTo(path), (ze, u_gen), ty)
     }
   | (MoveToNextHole, _) =>
-    switch (Path.next_hole_path(Path.holes_ze(ze, []))) {
+    switch (CursorPath.next_hole_path(CursorPath.holes_ze(ze, []))) {
     | None => Failed
     | Some(path) =>
       ana_perform_exp(~ci, ctx, MoveTo(path), (ze, u_gen), ty)
