@@ -580,7 +580,7 @@ and syn_skel =
       | Some(mode2) => Some((Bool, combine_modes(mode1, mode2)))
       }
     }
-  | BinOp(NotInHole, LessThan, skel1, skel2) =>
+  | BinOp(NotInHole, LessThan | GreaterThan | Equals, skel1, skel2) =>
     switch (ana_skel(ctx, skel1, seq, Num, monitor)) {
     | None => None
     | Some(mode1) =>
@@ -933,12 +933,12 @@ and ana_skel =
       }
     }
   | BinOp(InHole(TypeInconsistent, _), _, _, _)
-  | BinOp(NotInHole, And | Or, _, _)
-  | BinOp(NotInHole, Minus, _, _)
-  | BinOp(NotInHole, Plus, _, _)
-  | BinOp(NotInHole, Times, _, _)
-  | BinOp(NotInHole, LessThan, _, _)
-  | BinOp(NotInHole, Space, _, _) =>
+  | BinOp(
+      NotInHole,
+      And | Or | Minus | Plus | Times | LessThan | GreaterThan | Equals | Space,
+      _,
+      _,
+    ) =>
     switch (syn_skel(ctx, skel, seq, monitor)) {
     | None => None
     | Some((ty', mode)) =>
@@ -1810,9 +1810,7 @@ and syn_fix_holes_exp_skel =
       | Some(seq) => (skel, seq, ty, u_gen)
       };
     }
-  | BinOp(_, Minus as op, skel1, skel2)
-  | BinOp(_, Plus as op, skel1, skel2)
-  | BinOp(_, Times as op, skel1, skel2) =>
+  | BinOp(_, (Minus | Plus | Times) as op, skel1, skel2) =>
     let (skel1, seq, u_gen) =
       ana_fix_holes_exp_skel(
         ctx,
@@ -1852,7 +1850,7 @@ and syn_fix_holes_exp_skel =
         HTyp.Bool,
       );
     (BinOp(NotInHole, op, skel1, skel2), seq, Bool, u_gen);
-  | BinOp(_, LessThan as op, skel1, skel2) =>
+  | BinOp(_, (LessThan | GreaterThan | Equals) as op, skel1, skel2) =>
     let (skel1, seq, u_gen) =
       ana_fix_holes_exp_skel(
         ctx,
@@ -2099,12 +2097,12 @@ and ana_fix_holes_exp_skel =
         Skel.BinOp(InHole(TypeInconsistent, u), UHExp.Cons, skel1, skel2);
       (skel, seq, u_gen);
     }
-  | BinOp(_, And | Or, _, _)
-  | BinOp(_, Minus, _, _)
-  | BinOp(_, Plus, _, _)
-  | BinOp(_, Times, _, _)
-  | BinOp(_, LessThan, _, _)
-  | BinOp(_, Space, _, _) =>
+  | BinOp(
+      _,
+      And | Or | Minus | Plus | Times | LessThan | GreaterThan | Equals | Space,
+      _,
+      _,
+    ) =>
     let (skel, seq, ty', u_gen) =
       syn_fix_holes_exp_skel(ctx, u_gen, ~renumber_empty_holes, skel, seq);
     if (HTyp.consistent(ty, ty')) {

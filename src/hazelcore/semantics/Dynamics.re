@@ -382,7 +382,9 @@ module DHExp = {
     | Minus
     | Plus
     | Times
-    | LessThan;
+    | LessThan
+    | GreaterThan
+    | Equals;
 
   let of_op = (op: UHExp.op): option((bin_num_op, HTyp.t)) =>
     switch (op) {
@@ -390,6 +392,8 @@ module DHExp = {
     | Plus => Some((Plus, Num))
     | Times => Some((Times, Num))
     | LessThan => Some((LessThan, Bool))
+    | GreaterThan => Some((GreaterThan, Bool))
+    | Equals => Some((Equals, Bool))
     | And
     | Or
     | Space
@@ -403,6 +407,8 @@ module DHExp = {
     | Plus => Plus
     | Times => Times
     | LessThan => LessThan
+    | GreaterThan => GreaterThan
+    | Equals => Equals
     };
 
   module DHExp = {
@@ -1172,7 +1178,7 @@ module DHExp = {
     | BinOp(NotInHole, Minus as op, skel1, skel2)
     | BinOp(NotInHole, Plus as op, skel1, skel2)
     | BinOp(NotInHole, Times as op, skel1, skel2)
-    | BinOp(NotInHole, LessThan as op, skel1, skel2) =>
+    | BinOp(NotInHole, (LessThan | GreaterThan | Equals) as op, skel1, skel2) =>
       switch (ana_expand_skel(ctx, delta, skel1, seq, Num)) {
       | DoesNotExpand => DoesNotExpand
       | Expands(d1, ty1, delta) =>
@@ -1533,7 +1539,7 @@ module DHExp = {
     | BinOp(_, Minus | And | Or, _, _)
     | BinOp(_, Plus, _, _)
     | BinOp(_, Times, _, _)
-    | BinOp(_, LessThan, _, _)
+    | BinOp(_, LessThan | GreaterThan | Equals, _, _)
     | BinOp(_, Space, _, _) =>
       switch (syn_expand_skel(ctx, delta, skel, seq)) {
       | DoesNotExpand => DoesNotExpand
@@ -1941,6 +1947,8 @@ module Evaluator = {
     | Plus => NumLit(n1 + n2)
     | Times => NumLit(n1 * n2)
     | LessThan => BoolLit(n1 < n2)
+    | GreaterThan => BoolLit(n1 > n2)
+    | Equals => BoolLit(n1 == n2)
     };
 
   let rec evaluate = (d: DHExp.t): result =>
