@@ -80,9 +80,16 @@ type typed =
   | OnOp;
 
 [@deriving sexp]
+type uses_list = list(CursorPath.t);
+
+[@deriving sexp]
+type pat_node =
+  | VarPat(UHPat.t, uses_list) | OtherPat(UHPat.t);
+
+[@deriving sexp]
 type node =
   | Typ(UHTyp.t)
-  | Pat(UHPat.t)
+  | Pat(pat_node)
   | Exp(UHExp.t)
   | Line(UHExp.line)
   | Rule(UHExp.rule);
