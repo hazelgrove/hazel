@@ -18,25 +18,26 @@ module type Tag = {
 
 let rec all: Doc.t('tag) => list(Layout.t('tag)) =
   fun
-  | Doc.Empty => [Layout.Empty]
-  | Doc.Text(string) => [Layout.Text(string)]
-  | Doc.Align(d) => List.map(l => Layout.Align(l), all(d))
-  | Doc.Tagged(tag, d) => List.map(l => Layout.Tagged(tag, l), all(d))
-  | Doc.VCat(d1, d2) => {
+  | Fail => failwith("unimplemented: all Fail")
+  | Empty => [Layout.Empty]
+  | Text(string) => [Layout.Text(string)]
+  | Align(d) => List.map(l => Layout.Align(l), all(d))
+  | Tagged(tag, d) => List.map(l => Layout.Tagged(tag, l), all(d))
+  | VCat(d1, d2) => {
       let ls1 = all(d1);
       let ls2 = all(d2);
       List.concat(
         List.map(l1 => List.map(l2 => Layout.VCat(l1, l2), ls2), ls1),
       );
     }
-  | Doc.HCat(d1, d2) => {
+  | HCat(d1, d2) => {
       let ls1 = all(d1);
       let ls2 = all(d2);
       List.concat(
         List.map(l1 => List.map(l2 => Layout.HCat(l1, l2), ls2), ls1),
       );
     }
-  | Doc.Choice(d1, d2) => all(d1) @ all(d2);
+  | Choice(d1, d2) => all(d1) @ all(d2);
 
 type m('t) = option((int, 't));
 
@@ -92,17 +93,18 @@ module Make = (Tag: Tag) => {
         Weak_hashtbl.find_or_add(memo_table, memo, ~default=() =>
           Core_kernel.Heap_block.create_exn(
             switch (memo.doc) {
-            | Doc.Empty => Some((0, Layout.Empty))
-            | Doc.Text(string) => Some((1, Layout.Text(string))) // TODO: overlength strings
-            | Doc.Align(d) => go({...memo, left: memo.first_left, doc: d})
-            | Doc.Tagged(tag, d) =>
+            | Fail => failwith("unimplemented: layout_of_doc Fail")
+            | Empty => Some((0, Layout.Empty))
+            | Text(string) => Some((1, Layout.Text(string))) // TODO: overlength strings
+            | Align(d) => go({...memo, left: memo.first_left, doc: d})
+            | Tagged(tag, d) =>
               let%bind l = go({...memo, doc: d});
               return(Layout.Tagged(tag, l));
-            | Doc.VCat(d1, d2) =>
+            | VCat(d1, d2) =>
               let%bind l1 = go({...memo, doc: d1});
               let%bind l2 = go({...memo, doc: d2});
               return(Layout.VCat(l1, l2));
-            | Doc.HCat(d1, d2) =>
+            | HCat(d1, d2) =>
               let go2 = (i: int): m(Layout.t(Tag.t)) => {
                 let%bind l1 = go({...memo, last_right: i, doc: d1});
                 let%bind l2 = go({...memo, first_left: i, doc: d2});
@@ -115,7 +117,7 @@ module Make = (Tag: Tag) => {
               let choices =
                 List.map(go2, GeneralUtil.range(~lo=memo.left, memo.right));
               List.fold_left(min_cost, None, choices);
-            | Doc.Choice(d1, d2) =>
+            | Choice(d1, d2) =>
               min_cost(go({...memo, doc: d1}), go({...memo, doc: d2}))
             },
           )

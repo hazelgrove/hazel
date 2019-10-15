@@ -3,6 +3,7 @@ open Sexplib.Std;
 /* Variable: `doc` */
 [@deriving sexp]
 type t('tag) =
+  | Fail // identity for Choice
   | Empty // identity for VCat and HCat
   | Text(string) // Text("") is identity for HCat if the other t is not Empty
   | Align(t('tag))
@@ -23,10 +24,9 @@ let vcats: list(t('tag)) => t('tag) =
   | [doc, ...docs] =>
     docs |> List.fold_left((acc, d) => VCat(acc, d), doc);
 
-/* expects non-empty list */
 let choices: list(t('tag)) => t('tag) =
   fun
-  | [] => assert(false)
+  | [] => Fail
   | [doc, ...docs] =>
     docs |> List.fold_left((acc, d) => Choice(acc, d), doc);
 

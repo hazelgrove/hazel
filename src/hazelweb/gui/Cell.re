@@ -82,7 +82,7 @@ let entered_single_key =
       prevent_stop_inject(
         Update.Action.EditAction(ci.node |> Hashtbl.find(kc_actions, kc)),
       ),
-    );
+    )
   | (Pat(EmptyHole(_)), _) =>
     let shape =
       switch (single_key) {
