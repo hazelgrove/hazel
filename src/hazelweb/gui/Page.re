@@ -198,6 +198,52 @@ let page_view =
                       ],
                     ),
                     examples_select(~inject),
+                    Node.button(
+                      [
+                        Attr.on_click(_ => {
+                          module TermTag = {
+                            type t = DocOfTerm.tag;
+                            let sexp_of_t = DocOfTerm.sexp_of_tag;
+                          };
+                          let block =
+                            model |> Model.zblock |> ZExp.erase_block;
+                          module Foo = LayoutOfDoc.Make(TermTag);
+                          let doc =
+                            DocOfTerm.doc_of_block(
+                              ~wrap=true,
+                              ~steps=[],
+                              block,
+                            );
+                          Printf.printf(
+                            "%s\n",
+                            "doc sexp: "
+                            ++ Sexplib.Sexp.to_string(
+                                 DocOfTerm.sexp_of_doc(doc),
+                               ),
+                          );
+                          JSUtil.log(
+                            Js.string(
+                              switch (doc |> Foo.layout_of_doc(80)) {
+                              | None => "FAILED"
+                              | Some((_cost, layout)) =>
+                                JSUtil.log(
+                                  "layout sexp: "
+                                  ++ Sexplib.Sexp.to_string(
+                                       Layout.sexp_of_t(
+                                         DocOfTerm.sexp_of_tag,
+                                         layout,
+                                       ),
+                                     ),
+                                );
+                                layout |> Layout.string_of_layout;
+                              },
+                            ),
+                          );
+                          Event.Ignore;
+                        }),
+                      ],
+                      [Node.text("Serialize layout")],
+                    ),
                     /*
                      Node.button(
                        [
