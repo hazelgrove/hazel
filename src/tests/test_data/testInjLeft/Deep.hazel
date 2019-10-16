@@ -1,2 +1,0 @@
-let v = {} in
-inj[L](inj[L](v))
