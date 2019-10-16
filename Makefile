@@ -12,9 +12,6 @@ dev debug:
 release:
 	dune build src --profile release
 
-test:
-	dune runtest
-
 chrome:
 	chrome-browser _build/default/src/hazelweb/www/hazel.html
 
