@@ -223,9 +223,11 @@ let page_view =
                           );
                           JSUtil.log(
                             Js.string(
-                              switch (doc |> Foo.layout_of_doc(80)) {
+                              switch (
+                                Foo.layout_of_doc(doc, ~width=80, ~pos=0)
+                              ) {
                               | None => "FAILED"
-                              | Some((_cost, layout)) =>
+                              | Some(layout) =>
                                 JSUtil.log(
                                   "layout sexp: "
                                   ++ Sexplib.Sexp.to_string(
