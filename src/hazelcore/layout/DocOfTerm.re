@@ -22,7 +22,6 @@ module TermTag = {
   type t = tag;
   let sexp_of_t = sexp_of_tag;
 };
-module LayoutOfDoc = LayoutOfDoc.Make(TermTag);
 
 let tab_length = 2;
 let indent = (~n=1, doc: doc): doc =>
@@ -49,9 +48,9 @@ let indent = (~n=1, doc: doc): doc =>
        choices_of_child_start(child_start);
      let delim_single_line_choices =
        single_line_choices
-       |> List.map(choice => Doc.hspaces([delim_doc, choice]));
+       |> List.map(choice => Doc.hseps([delim_doc, choice]));
      let delim_multi_line_choices =
-       multi_line_choices |> List.map(choice => Doc.vcats([delim_doc, choice]));
+       multi_line_choices |> List.map(choice => Doc.vseps([delim_doc, choice]));
      delim_single_line_choices @ delim_multi_line_choices;
    }
  // fst of return pair is set of choices if starting child is single line,
@@ -62,10 +61,10 @@ let indent = (~n=1, doc: doc): doc =>
    | CCons(child_doc, delim_start) => {
        let choices = choices_of_delim_start(delim_start);
        let single_line_choices =
-         choices |> List.map(_choice => Doc.hspaces([child_doc, ...choices]));
+         choices |> List.map(_choice => Doc.hseps([child_doc, ...choices]));
        let multi_line_choices =
          choices
-         |> List.map(_choice => Doc.vcats([indent(child_doc), ...choices]));
+         |> List.map(_choice => Doc.vseps([indent(child_doc), ...choices]));
        (single_line_choices, multi_line_choices);
      };
  */
@@ -84,12 +83,12 @@ let doc_of_Parenthesized = (~wrap: bool, body_doc: (~wrap: bool) => doc): doc =>
   let open_delim = Doc.Text("(");
   let close_delim = Doc.Text(")");
   let single_line_doc =
-    Doc.hspaces([open_delim, body_doc(~wrap=false), close_delim]);
+    Doc.hseps([open_delim, body_doc(~wrap=false), close_delim]);
   wrap
     ? Doc.(
         choices([
           single_line_doc,
-          vcats([open_delim, indent(body_doc(~wrap=true)), close_delim]),
+          vseps([open_delim, indent(body_doc(~wrap=true)), close_delim]),
         ])
       )
     : single_line_doc;
@@ -100,12 +99,12 @@ let doc_of_Inj =
   let open_delim = Doc.Text("inj[" ++ (side == L ? "L" : "R") ++ "](");
   let close_delim = Doc.Text(")");
   let single_line_doc =
-    Doc.hspaces([open_delim, body_doc(~wrap=false), close_delim]);
+    Doc.hseps([open_delim, body_doc(~wrap=false), close_delim]);
   wrap
     ? Doc.(
         choices([
           single_line_doc,
-          vcats([open_delim, indent(body_doc(~wrap=true)), close_delim]),
+          vseps([open_delim, indent(body_doc(~wrap=true)), close_delim]),
         ])
       )
     : single_line_doc;
@@ -149,7 +148,7 @@ let rec doc_of_block =
         ~steps=steps @ [List.length(leading)],
         conclusion,
       );
-    let docs = Doc.vcats(leading_docs @ [conclusion_doc]);
+    let docs = Doc.vseps(leading_docs @ [conclusion_doc]);
     Tagged({steps, node_shape: Block(block)}, docs);
   }
 and doc_of_line = (~steps: CursorPath.steps, line: UHExp.line): doc => {
@@ -168,24 +167,24 @@ and doc_of_line = (~steps: CursorPath.steps, line: UHExp.line): doc => {
       | None =>
         Doc.(
           choices([
-            hspaces([
+            hseps([
               let_delim,
               p_doc(~wrap=false),
               eq_delim,
               def_doc(~wrap=false),
               in_delim,
             ]),
-            vcats([
+            vseps([
               let_delim,
               indent(p_doc(~wrap=true)),
-              hspaces([eq_delim, def_doc(~wrap=false), in_delim]),
+              hseps([eq_delim, def_doc(~wrap=false), in_delim]),
             ]),
-            vcats([
-              hspaces([let_delim, p_doc(~wrap=false), eq_delim]),
+            vseps([
+              hseps([let_delim, p_doc(~wrap=false), eq_delim]),
               indent(def_doc(~wrap=true)),
               in_delim,
             ]),
-            vcats([
+            vseps([
               let_delim,
               indent(p_doc(~wrap=true)),
               eq_delim,
@@ -199,7 +198,7 @@ and doc_of_line = (~steps: CursorPath.steps, line: UHExp.line): doc => {
         let ann_doc = doc_of_typ(~steps=steps @ [1], ann);
         Doc.(
           choices([
-            hspaces([
+            hseps([
               let_delim,
               p_doc(~wrap=false),
               colon_delim,
@@ -208,8 +207,8 @@ and doc_of_line = (~steps: CursorPath.steps, line: UHExp.line): doc => {
               def_doc(~wrap=false),
               in_delim,
             ]),
-            vcats([
-              hspaces([
+            vseps([
+              hseps([
                 let_delim,
                 p_doc(~wrap=false),
                 colon_delim,
@@ -219,22 +218,22 @@ and doc_of_line = (~steps: CursorPath.steps, line: UHExp.line): doc => {
               indent(def_doc(~wrap=true)),
               in_delim,
             ]),
-            vcats([
-              hspaces([let_delim, p_doc(~wrap=false), colon_delim]),
+            vseps([
+              hseps([let_delim, p_doc(~wrap=false), colon_delim]),
               indent(ann_doc(~wrap=true)),
-              hspaces([eq_delim, def_doc(~wrap=false), in_delim]),
+              hseps([eq_delim, def_doc(~wrap=false), in_delim]),
             ]),
-            vcats([
-              hspaces([let_delim, p_doc(~wrap=false), colon_delim]),
+            vseps([
+              hseps([let_delim, p_doc(~wrap=false), colon_delim]),
               indent(ann_doc(~wrap=true)),
               eq_delim,
               indent(def_doc(~wrap=true)),
               in_delim,
             ]),
-            vcats([
+            vseps([
               let_delim,
               indent(p_doc(~wrap=true)),
-              hspaces([
+              hseps([
                 colon_delim,
                 ann_doc(~wrap=false),
                 eq_delim,
@@ -242,21 +241,21 @@ and doc_of_line = (~steps: CursorPath.steps, line: UHExp.line): doc => {
                 in_delim,
               ]),
             ]),
-            vcats([
+            vseps([
               let_delim,
               indent(p_doc(~wrap=true)),
-              hspaces([colon_delim, ann_doc(~wrap=false), eq_delim]),
+              hseps([colon_delim, ann_doc(~wrap=false), eq_delim]),
               indent(def_doc(~wrap=true)),
               in_delim,
             ]),
-            vcats([
+            vseps([
               let_delim,
               indent(p_doc(~wrap=true)),
               colon_delim,
               indent(ann_doc(~wrap=true)),
-              hspaces([eq_delim, def_doc(~wrap=false), in_delim]),
+              hseps([eq_delim, def_doc(~wrap=false), in_delim]),
             ]),
-            vcats([
+            vseps([
               let_delim,
               indent(p_doc(~wrap=true)),
               colon_delim,
@@ -285,7 +284,7 @@ and doc_of_exp = (~wrap: bool, ~steps: CursorPath.steps, e: UHExp.t): doc => {
       let dot_delim = Doc.Text(".");
       let body_doc = doc_of_block(~steps=steps @ [2], body);
       let single_line_doc =
-        Doc.hspaces([
+        Doc.hseps([
           lam_delim,
           p_doc(~wrap=false),
           dot_delim,
@@ -295,16 +294,16 @@ and doc_of_exp = (~wrap: bool, ~steps: CursorPath.steps, e: UHExp.t): doc => {
         ? Doc.(
             choices([
               single_line_doc,
-              vcats([
+              vseps([
                 lam_delim,
                 indent(p_doc(~wrap=true)),
-                hspaces([dot_delim, body_doc(~wrap=false)]),
+                hseps([dot_delim, body_doc(~wrap=false)]),
               ]),
-              vcats([
-                hspaces([lam_delim, p_doc(~wrap=false), dot_delim]),
+              vseps([
+                hseps([lam_delim, p_doc(~wrap=false), dot_delim]),
                 indent(body_doc(~wrap=true)),
               ]),
-              vcats([
+              vseps([
                 lam_delim,
                 indent(p_doc(~wrap=true)),
                 dot_delim,
@@ -321,7 +320,7 @@ and doc_of_exp = (~wrap: bool, ~steps: CursorPath.steps, e: UHExp.t): doc => {
       let dot_delim = Doc.Text(".");
       let body_doc = doc_of_block(~steps=steps @ [2], body);
       let single_line_doc =
-        Doc.hspaces([
+        Doc.hseps([
           lam_delim,
           p_doc(~wrap=false),
           colon_delim,
@@ -333,8 +332,8 @@ and doc_of_exp = (~wrap: bool, ~steps: CursorPath.steps, e: UHExp.t): doc => {
         ? Doc.(
             choices([
               single_line_doc,
-              vcats([
-                hspaces([
+              vseps([
+                hseps([
                   lam_delim,
                   p_doc(~wrap=false),
                   colon_delim,
@@ -343,41 +342,41 @@ and doc_of_exp = (~wrap: bool, ~steps: CursorPath.steps, e: UHExp.t): doc => {
                 ]),
                 indent(body_doc(~wrap=true)),
               ]),
-              vcats([
-                hspaces([lam_delim, p_doc(~wrap=false), colon_delim]),
+              vseps([
+                hseps([lam_delim, p_doc(~wrap=false), colon_delim]),
                 indent(ann_doc(~wrap=true)),
-                hspaces([dot_delim, body_doc(~wrap=false)]),
+                hseps([dot_delim, body_doc(~wrap=false)]),
               ]),
-              vcats([
-                hspaces([lam_delim, p_doc(~wrap=false), colon_delim]),
+              vseps([
+                hseps([lam_delim, p_doc(~wrap=false), colon_delim]),
                 indent(ann_doc(~wrap=true)),
                 dot_delim,
                 indent(body_doc(~wrap=true)),
               ]),
-              vcats([
+              vseps([
                 lam_delim,
                 indent(p_doc(~wrap=true)),
-                hspaces([
+                hseps([
                   colon_delim,
                   ann_doc(~wrap=false),
                   dot_delim,
                   body_doc(~wrap=false),
                 ]),
               ]),
-              vcats([
+              vseps([
                 lam_delim,
                 indent(p_doc(~wrap=true)),
-                hspaces([colon_delim, ann_doc(~wrap=false), dot_delim]),
+                hseps([colon_delim, ann_doc(~wrap=false), dot_delim]),
                 indent(body_doc(~wrap=true)),
               ]),
-              vcats([
+              vseps([
                 lam_delim,
                 indent(p_doc(~wrap=true)),
                 colon_delim,
                 indent(ann_doc(~wrap=true)),
-                hspaces([dot_delim, body_doc(~wrap=false)]),
+                hseps([dot_delim, body_doc(~wrap=false)]),
               ]),
-              vcats([
+              vseps([
                 lam_delim,
                 indent(p_doc(~wrap=true)),
                 colon_delim,
@@ -407,14 +406,14 @@ and doc_of_exp = (~wrap: bool, ~steps: CursorPath.steps, e: UHExp.t): doc => {
         | None =>
           let end_delim = Doc.Text("end");
           Doc.choices([
-            Doc.vcats(
+            Doc.vseps(
               [
-                Doc.hspaces([case_delim, scrut_doc(~wrap=false)]),
+                Doc.hseps([case_delim, scrut_doc(~wrap=false)]),
                 ...rules_docs,
               ]
               @ [end_delim],
             ),
-            Doc.vcats(
+            Doc.vseps(
               [case_delim, indent(scrut_doc(~wrap=true)), ...rules_docs]
               @ [end_delim],
             ),
@@ -424,25 +423,25 @@ and doc_of_exp = (~wrap: bool, ~steps: CursorPath.steps, e: UHExp.t): doc => {
           let ann_doc =
             doc_of_typ(~steps=steps @ [1 + List.length(rules)], ann);
           Doc.choices([
-            Doc.vcats(
+            Doc.vseps(
               [
-                Doc.hspaces([case_delim, scrut_doc(~wrap=false)]),
+                Doc.hseps([case_delim, scrut_doc(~wrap=false)]),
                 ...rules_docs,
               ]
-              @ [Doc.hspaces([end_delim, ann_doc(~wrap=false)])],
+              @ [Doc.hseps([end_delim, ann_doc(~wrap=false)])],
             ),
-            Doc.vcats(
+            Doc.vseps(
               [case_delim, indent(scrut_doc(~wrap=true)), ...rules_docs]
-              @ [Doc.hspaces([end_delim, ann_doc(~wrap=false)])],
+              @ [Doc.hseps([end_delim, ann_doc(~wrap=false)])],
             ),
-            Doc.vcats(
+            Doc.vseps(
               [
-                Doc.hspaces([case_delim, scrut_doc(~wrap=false)]),
+                Doc.hseps([case_delim, scrut_doc(~wrap=false)]),
                 ...rules_docs,
               ]
               @ [end_delim, indent(ann_doc(~wrap=true))],
             ),
-            Doc.vcats(
+            Doc.vseps(
               [case_delim, indent(scrut_doc(~wrap=true)), ...rules_docs]
               @ [end_delim, indent(ann_doc(~wrap=true))],
             ),

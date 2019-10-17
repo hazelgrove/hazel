@@ -2,25 +2,18 @@ open Sexplib.Std;
 
 let rec all: 'tag. Doc.t('tag) => list(Layout.t('tag)) =
   fun
-  | Fail => failwith("unimplemented: all Fail")
-  | Empty => [Layout.Empty]
   | Text(string) => [Layout.Text(string)]
+  | Cat(d1, d2) => {
+      let ls1 = all(d1);
+      let ls2 = all(d2);
+      List.concat(
+        List.map(l1 => List.map(l2 => Layout.Cat(l1, l2), ls2), ls1),
+      );
+    }
+  | Linebreak => [Layout.Linebreak]
   | Align(d) => List.map(l => Layout.Align(l), all(d))
   | Tagged(tag, d) => List.map(l => Layout.Tagged(tag, l), all(d))
-  | VCat(d1, d2) => {
-      let ls1 = all(d1);
-      let ls2 = all(d2);
-      List.concat(
-        List.map(l1 => List.map(l2 => Layout.VCat(l1, l2), ls2), ls1),
-      );
-    }
-  | HCat(d1, d2) => {
-      let ls1 = all(d1);
-      let ls2 = all(d2);
-      List.concat(
-        List.map(l1 => List.map(l2 => Layout.HCat(l1, l2), ls2), ls1),
-      );
-    }
+  | Fail => failwith("unimplemented: all Fail")
   | Choice(d1, d2) => all(d1) @ all(d2);
 
 // TODO: does Reason have 'type classes'? operators?
@@ -109,7 +102,7 @@ module Let_syntax = {
     (~width, ~pos: int) =>
       m(~width, ~pos) |> PosMap.map(((cost, x)) => (cost, f(x)));
   let bind: 'a 'b. (m('a), ~f: 'a => m('b)) => m('b) =
-    (_m, ~f as _, ~width as _: int, ~pos as _: int) => {
+    (m, ~f, ~width: int, ~pos: int) => {
       /*
              let u: (int, (int, 'a), PosMap.t((int, 'a))) => PosMap.t((int, 'b)) =
                (pos, (cost, x), pos_map) => {
@@ -121,15 +114,11 @@ module Let_syntax = {
                };
        */
       // (pos, (cost, x), z) => {m'_union(z, f(x, ~width, ~pos))},
-      failwith(
-        "...",
-        /*
-               PosMap.fold_left(
-                 (_pos, z, _x) => z,
-                 PosMap.empty,
-                 m(~width, ~pos),
-               );
-         */
+      PosMap.fold_left(
+        (pos, z, (cost, x)) =>
+          m'_union(z, add_cost(cost, f(x, ~width, ~pos))),
+        PosMap.empty,
+        m(~width, ~pos),
       );
     };
 };
@@ -194,25 +183,19 @@ module Make = (Tag: Tag) => {
           ~default=() => {
             let ret: m(Layout.t(Tag.t)) = {
               switch (doc) {
-              | Fail => fail
-              | Empty => return(Layout.Empty)
               | Text(string) =>
                 let%bind () = advance_position(String.length(string));
                 return(Layout.Text(string));
+              | Cat(d1, d2) =>
+                let%bind l1 = go(d1);
+                let%bind l2 = go(d2);
+                return(Layout.Cat(l1, l2));
+              | Linebreak => failwith(__LOC__ ++ ": unimplemented")
               | Align(_d) => failwith("Unimplemented: " ++ __LOC__)
               | Tagged(tag, d) =>
                 let%bind l: m(Layout.t(Tag.t)) = go(d);
                 return(Layout.Tagged(tag, l));
-              | VCat(d1, d2) =>
-                let%bind l1 = go(d1);
-                let%bind () = reset_position;
-                let%bind () = cost(1);
-                let%bind l2 = go(d2);
-                return(Layout.VCat(l1, l2));
-              | HCat(d1, d2) =>
-                let%bind l1 = go(d1);
-                let%bind l2 = go(d2);
-                return(Layout.HCat(l1, l2));
+              | Fail => fail
               | Choice(d1, d2) => m_union(go(d1), go(d2))
               };
             };
