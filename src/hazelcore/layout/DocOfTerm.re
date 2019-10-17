@@ -70,32 +70,69 @@ let indent = (~n=1, doc: doc): doc =>
      };
  */
 
+let doc_of_EmptyHole = (u: MetaVarGen.t): doc => Text(string_of_int(u));
+
 let doc_of_Var = (x: Var.t): doc => Text(x);
 
 let doc_of_NumLit = (n: int): doc => Text(string_of_int(n));
 
 let doc_of_BoolLit = (b: bool): doc => Text(string_of_bool(b));
 
-let doc_of_Parenthesized = (body_doc: (~wrap: bool) => doc): doc => {
+let doc_of_ListNil: doc = Text("[]");
+
+let doc_of_Parenthesized = (~wrap: bool, body_doc: (~wrap: bool) => doc): doc => {
   let open_delim = Doc.Text("(");
   let close_delim = Doc.Text(")");
-  Doc.(
-    choices([
-      hspaces([open_delim, body_doc(~wrap=false), close_delim]),
-      vcats([open_delim, indent(body_doc(~wrap=true)), close_delim]),
-    ])
-  );
+  let single_line_doc =
+    Doc.hspaces([open_delim, body_doc(~wrap=false), close_delim]);
+  wrap
+    ? Doc.(
+        choices([
+          single_line_doc,
+          vcats([open_delim, indent(body_doc(~wrap=true)), close_delim]),
+        ])
+      )
+    : single_line_doc;
 };
 
-let doc_of_Inj = (side: inj_side, body_doc: (~wrap: bool) => doc): doc => {
+let doc_of_Inj =
+    (~wrap: bool, side: inj_side, body_doc: (~wrap: bool) => doc): doc => {
   let open_delim = Doc.Text("inj[" ++ (side == L ? "L" : "R") ++ "](");
   let close_delim = Doc.Text(")");
-  Doc.(
-    choices([
-      hspaces([open_delim, body_doc(~wrap=false), close_delim]),
-      vcats([open_delim, indent(body_doc(~wrap=true)), close_delim]),
-    ])
-  );
+  let single_line_doc =
+    Doc.hspaces([open_delim, body_doc(~wrap=false), close_delim]);
+  wrap
+    ? Doc.(
+        choices([
+          single_line_doc,
+          vcats([open_delim, indent(body_doc(~wrap=true)), close_delim]),
+        ])
+      )
+    : single_line_doc;
+};
+
+let doc_of_typ =
+    (~wrap as _: bool, ~steps as _: CursorPath.steps, _e: UHTyp.t) =>
+  Doc.Text("typ");
+
+let rec doc_of_pat = (~wrap: bool, ~steps: CursorPath.steps, p: UHPat.t) => {
+  let doc: doc =
+    switch (p) {
+    | EmptyHole(u) => doc_of_EmptyHole(u)
+    | Wild(_) => Text("_")
+    | Var(_, _, x) => doc_of_Var(x)
+    | NumLit(_, n) => doc_of_NumLit(n)
+    | BoolLit(_, b) => doc_of_BoolLit(b)
+    | ListNil(_) => doc_of_ListNil
+    | Inj(_, side, body) =>
+      let body_doc = doc_of_pat(~steps=steps @ [0], body);
+      doc_of_Inj(~wrap, side, body_doc);
+    | Parenthesized(body) =>
+      let body_doc = doc_of_pat(~steps=steps @ [0], body);
+      doc_of_Parenthesized(~wrap, body_doc);
+    | OpSeq(_, _) => failwith("unimplemented: doc_of_pat OpSeq")
+    };
+  Tagged({steps, node_shape: Pat(p)}, doc);
 };
 
 let rec doc_of_block =
@@ -115,11 +152,10 @@ let rec doc_of_block =
     let docs = Doc.vcats(leading_docs @ [conclusion_doc]);
     Tagged({steps, node_shape: Block(block)}, docs);
   }
-and doc_of_line =
-    (~wrap=true, ~steps: CursorPath.steps, line: UHExp.line): doc => {
+and doc_of_line = (~steps: CursorPath.steps, line: UHExp.line): doc => {
   let tag = {steps, node_shape: Line(line)};
   switch (line) {
-  | ExpLine(e) => doc_of_exp(~wrap, ~steps, e)
+  | ExpLine(e) => doc_of_exp(~wrap=true, ~steps, e)
   | EmptyLine => Tagged(tag, Doc.Text(""))
   | LetLine(p, ann, def) =>
     let let_delim = Doc.Text("let");
@@ -235,28 +271,30 @@ and doc_of_line =
     Tagged(tag, choices);
   };
 }
-and doc_of_exp = (~wrap, ~steps: CursorPath.steps, e: UHExp.t): doc => {
+and doc_of_exp = (~wrap: bool, ~steps: CursorPath.steps, e: UHExp.t): doc => {
   let doc: doc =
     switch (e) {
-    | EmptyHole(u) => Doc.Text(string_of_int(u))
+    | EmptyHole(u) => doc_of_EmptyHole(u)
     | Var(_, _, x) => doc_of_Var(x)
     | NumLit(_, n) => doc_of_NumLit(n)
     | BoolLit(_, b) => doc_of_BoolLit(b)
-    | ListNil(_) => Text("[]")
+    | ListNil(_) => doc_of_ListNil
     | Lam(_, p, None, body) =>
       let lam_delim = Doc.Text(LangUtil.lamSym);
       let p_doc = doc_of_pat(~steps=steps @ [0], p);
       let dot_delim = Doc.Text(".");
       let body_doc = doc_of_block(~steps=steps @ [2], body);
+      let single_line_doc =
+        Doc.hspaces([
+          lam_delim,
+          p_doc(~wrap=false),
+          dot_delim,
+          body_doc(~wrap=false),
+        ]);
       wrap
         ? Doc.(
             choices([
-              hspaces([
-                lam_delim,
-                p_doc(~wrap=false),
-                dot_delim,
-                body_doc(~wrap=false),
-              ]),
+              single_line_doc,
               vcats([
                 lam_delim,
                 indent(p_doc(~wrap=true)),
@@ -274,12 +312,7 @@ and doc_of_exp = (~wrap, ~steps: CursorPath.steps, e: UHExp.t): doc => {
               ]),
             ])
           )
-        : Doc.hspaces([
-            lam_delim,
-            p_doc(~wrap=false),
-            dot_delim,
-            body_doc(~wrap=false),
-          ]);
+        : single_line_doc;
     | Lam(_, p, Some(ann), body) =>
       let lam_delim = Doc.Text(LangUtil.lamSym);
       let p_doc = doc_of_pat(~steps=steps @ [0], p);
@@ -287,17 +320,19 @@ and doc_of_exp = (~wrap, ~steps: CursorPath.steps, e: UHExp.t): doc => {
       let ann_doc = doc_of_typ(~steps=steps @ [1], ann);
       let dot_delim = Doc.Text(".");
       let body_doc = doc_of_block(~steps=steps @ [2], body);
+      let single_line_doc =
+        Doc.hspaces([
+          lam_delim,
+          p_doc(~wrap=false),
+          colon_delim,
+          ann_doc(~wrap=false),
+          dot_delim,
+          body_doc(~wrap=false),
+        ]);
       wrap
         ? Doc.(
             choices([
-              hspaces([
-                lam_delim,
-                p_doc(~wrap=false),
-                colon_delim,
-                ann_doc(~wrap=false),
-                dot_delim,
-                body_doc(~wrap=false),
-              ]),
+              single_line_doc,
               vcats([
                 hspaces([
                   lam_delim,
@@ -352,81 +387,74 @@ and doc_of_exp = (~wrap, ~steps: CursorPath.steps, e: UHExp.t): doc => {
               ]),
             ])
           )
-        : Doc.hspaces([
-            lam_delim,
-            p_doc(~wrap=false),
-            colon_delim,
-            ann_doc(~wrap=false),
-            dot_delim,
-            body_doc(~wrap=false),
-          ]);
+        : single_line_doc;
     | Inj(_, side, body) =>
       let body_doc = doc_of_block(~steps=steps @ [0], body);
-      doc_of_Inj(side, body_doc);
+      doc_of_Inj(~wrap, side, body_doc);
     | Parenthesized(body) =>
       let body_doc = doc_of_block(~steps=steps @ [0], body);
-      doc_of_Parenthesized(body_doc);
+      doc_of_Parenthesized(~wrap, body_doc);
     | Case(_, scrut, rules, ann) =>
-      let case_delim = Doc.Text("case");
-      let scrut_doc = doc_of_block(~steps=steps @ [0], scrut);
-      let rules_docs =
-        rules
-        |> List.mapi((i, rule) => doc_of_rule(~steps=steps @ [i + 1], rule));
-      switch (ann) {
-      | None =>
-        let end_delim = Doc.Text("end");
-        Doc.choices([
-          Doc.vcats(
-            [
-              Doc.hspaces([case_delim, scrut_doc(~wrap=false)]),
-              ...rules_docs,
-            ]
-            @ [end_delim],
-          ),
-          Doc.vcats(
-            [case_delim, indent(scrut_doc(~wrap=true)), ...rules_docs]
-            @ [end_delim],
-          ),
-        ]);
-      | Some(ann) =>
-        let end_delim = Doc.Text("end :");
-        let ann_doc =
-          doc_of_typ(~steps=steps @ [1 + List.length(rules)], ann);
-        Doc.choices([
-          Doc.vcats(
-            [
-              Doc.hspaces([case_delim, scrut_doc(~wrap=false)]),
-              ...rules_docs,
-            ]
-            @ [Doc.hspaces([end_delim, ann_doc(~wrap=false)])],
-          ),
-          Doc.vcats(
-            [case_delim, indent(scrut_doc(~wrap=true)), ...rules_docs]
-            @ [Doc.hspaces([end_delim, ann_doc(~wrap=false)])],
-          ),
-          Doc.vcats(
-            [
-              Doc.hspaces([case_delim, scrut_doc(~wrap=false)]),
-              ...rules_docs,
-            ]
-            @ [end_delim, indent(ann_doc(~wrap=true))],
-          ),
-          Doc.vcats(
-            [case_delim, indent(scrut_doc(~wrap=true)), ...rules_docs]
-            @ [end_delim, indent(ann_doc(~wrap=true))],
-          ),
-        ]);
-      };
+      if (wrap) {
+        let case_delim = Doc.Text("case");
+        let scrut_doc = doc_of_block(~steps=steps @ [0], scrut);
+        let rules_docs =
+          rules
+          |> List.mapi((i, rule) =>
+               doc_of_rule(~steps=steps @ [i + 1], rule)
+             );
+        switch (ann) {
+        | None =>
+          let end_delim = Doc.Text("end");
+          Doc.choices([
+            Doc.vcats(
+              [
+                Doc.hspaces([case_delim, scrut_doc(~wrap=false)]),
+                ...rules_docs,
+              ]
+              @ [end_delim],
+            ),
+            Doc.vcats(
+              [case_delim, indent(scrut_doc(~wrap=true)), ...rules_docs]
+              @ [end_delim],
+            ),
+          ]);
+        | Some(ann) =>
+          let end_delim = Doc.Text("end :");
+          let ann_doc =
+            doc_of_typ(~steps=steps @ [1 + List.length(rules)], ann);
+          Doc.choices([
+            Doc.vcats(
+              [
+                Doc.hspaces([case_delim, scrut_doc(~wrap=false)]),
+                ...rules_docs,
+              ]
+              @ [Doc.hspaces([end_delim, ann_doc(~wrap=false)])],
+            ),
+            Doc.vcats(
+              [case_delim, indent(scrut_doc(~wrap=true)), ...rules_docs]
+              @ [Doc.hspaces([end_delim, ann_doc(~wrap=false)])],
+            ),
+            Doc.vcats(
+              [
+                Doc.hspaces([case_delim, scrut_doc(~wrap=false)]),
+                ...rules_docs,
+              ]
+              @ [end_delim, indent(ann_doc(~wrap=true))],
+            ),
+            Doc.vcats(
+              [case_delim, indent(scrut_doc(~wrap=true)), ...rules_docs]
+              @ [end_delim, indent(ann_doc(~wrap=true))],
+            ),
+          ]);
+        };
+      } else {
+        Fail;
+      }
     | OpSeq(_, _) => Doc.Text("of_exp/OpSeq")
     | ApPalette(_, _, _, _) => failwith("unimplemented: of_exp ApPalette")
     };
   Tagged({steps, node_shape: Exp(e)}, doc);
 }
-and doc_of_typ =
-    (~wrap as _: bool, ~steps as _: CursorPath.steps, _e: UHTyp.t) =>
-  Doc.Text("typ")
-and doc_of_pat =
-    (~wrap as _: bool, ~steps as _: CursorPath.steps, _e: UHPat.t) =>
-  Doc.Text("pat")
 and doc_of_rule = (~steps as _: CursorPath.steps, _e: UHExp.rule) =>
   Doc.Text("rule");
