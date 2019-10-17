@@ -3,33 +3,38 @@ open Sexplib.Std;
 /* Variable: `doc` */
 [@deriving sexp]
 type t('tag) =
-  | Fail // identity for Choice
-  | Empty // identity for VCat and HCat
-  | Text(string) // Text("") is identity for HCat if the other t is not Empty
+  | Text(string) // Text("") is identity for `Cat`
+  | Cat(t('tag), t('tag)) // associative
+  | Linebreak
   | Align(t('tag))
   | Tagged('tag, t('tag))
-  | VCat(t('tag), t('tag)) // associative
-  | HCat(t('tag), t('tag)) // associative
+  | Fail // identity for `Choice`
   | Choice(t('tag), t('tag));
 
+let empty = Text("");
+let space = Text(" ");
+
+let hcat = (x, y) => Cat(x, y);
 let hcats: list(t('tag)) => t('tag) =
   fun
-  | [] => Empty
-  | [doc, ...docs] =>
-    docs |> List.fold_left((acc, d) => HCat(acc, d), doc);
+  | [] => empty
+  | [doc, ...docs] => List.fold_left(hcat, doc, docs);
 
-let vcats: list(t('tag)) => t('tag) =
+let hsep = (x, y) => Cat(x, Cat(space, y));
+let hseps: list(t('tag)) => t('tag) =
   fun
-  | [] => Empty
-  | [doc, ...docs] =>
-    docs |> List.fold_left((acc, d) => VCat(acc, d), doc);
+  | [] => empty
+  | [doc, ...docs] => List.fold_left(hsep, doc, docs);
 
+let vsep = (x, y) => Cat(x, Cat(Linebreak, y));
+let vseps: list(t('tag)) => t('tag) =
+  fun
+  | [] => failwith(__LOC__ ++ ": vcats requires a non-empty list")
+  | [doc] => doc
+  | [doc, ...docs] => List.fold_left(vsep, doc, docs);
+
+let choice = (x, y) => Choice(x, y);
 let choices: list(t('tag)) => t('tag) =
   fun
   | [] => Fail
-  | [doc, ...docs] =>
-    docs |> List.fold_left((acc, d) => Choice(acc, d), doc);
-
-let space = Text(" ");
-let hspace = (doc1, doc2) => hcats([doc1, space, doc2]);
-let hspaces = docs => hcats(GeneralUtil.join(space, docs));
+  | [doc, ...docs] => List.fold_left(choice, doc, docs);
