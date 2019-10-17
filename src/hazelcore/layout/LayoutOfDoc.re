@@ -1,6 +1,6 @@
 open Sexplib.Std;
 
-let rec all: Doc.t('tag) => list(Layout.t('tag)) =
+let rec all: 'tag. Doc.t('tag) => list(Layout.t('tag)) =
   fun
   | Fail => failwith("unimplemented: all Fail")
   | Empty => [Layout.Empty]
@@ -24,6 +24,7 @@ let rec all: Doc.t('tag) => list(Layout.t('tag)) =
   | Choice(d1, d2) => all(d1) @ all(d2);
 
 // TODO: does Reason have 'type classes'? operators?
+// TODO: unions are left biased
 
 module type Tag = {
   type t;
@@ -47,38 +48,59 @@ module OrderedInt = {
 
 // Maps keyed by an end position
 module PosMap = {
+  // Invarient: keys are assending and unique
   type t('a) = list((int, 'a));
   type key = int;
-  let empty: t('a) = [];
-  let singleton = (pos: int, x: 'a): t('a) => [(pos, x)];
-  let union = (_f: ('a, 'a) => 'a, _t1: t('a), _t2: t('a)): t('a) =>
-    failwith("...");
-  let map = (_f: 'a => 'a, _t: t('a)): t('a) => failwith("...");
-  let fold = (_f: (int, (int, 'a), 'b) => 'b, _z: 'b, _t: t('a)): 'b =>
-    failwith("...");
+  let empty: 'a. t('a) = [];
+  let singleton: 'a. (int, 'a) => t('a) = (pos, x) => [(pos, x)];
+  let rec union: 'a. (('a, 'a) => 'a, t('a), t('a)) => t('a) =
+    (f, t1, t2) =>
+      switch (t1, t2) {
+      | ([], t_other) => t_other
+      | (t_other, []) => t_other
+      | ([(p1, x1), ...xs1], [(p2, x2), ...xs2]) =>
+        if (p1 < p2) {
+          [(p1, x1), ...union(f, xs1, [(p2, x2), ...xs2])];
+        } else if (p1 > p2) {
+          [(p2, x2), ...union(f, [(p1, x1), ...xs1], xs2)];
+        } else {
+          [(p1, f(x1, x2)), ...union(f, xs1, xs2)];
+        }
+      };
+  let rec map: 'a 'b. ('a => 'b, t('a)) => t('b) =
+    f =>
+      fun
+      | [] => []
+      | [(pos, x), ...rest] => [(pos, f(x)), ...map(f, rest)];
+  let rec fold_left: 'a 'b. ((int, 'b, 'a) => 'b, 'b, t('a)) => 'b =
+    (f, z) =>
+      fun
+      | [] => z
+      | [(pos, x), ...rest] => fold_left(f, f(pos, z, x), rest);
 };
 
 // NOTE: pos is relative to most recent `Align`
-type m'('t) = PosMap.t((int /*cost*/, 't));
-type m('t) = (~width: int, ~pos: int) => m'('t);
+type m'('a) = PosMap.t((int /*cost*/, 'a));
+type m('a) = (~width: int, ~pos: int) => m'('a);
 
-// TODO: left biased
-let tuple_union =
-    ((cost1: int, _: 'a) as t1, (cost2: int, _: 'a) as t2): (int, 'a) =>
+let add_cost: 'a. (int, m'('a)) => m'('a) =
+  (cost, m) => {
+    PosMap.map(((x_cost, x)) => (cost + x_cost, x), m);
+  };
+
+let cost_union = ((cost1, _) as t1, (cost2, _) as t2) =>
   if (cost1 <= cost2) {
     t1;
   } else {
     t2;
   };
 
-let posMap_union =
-    (p1: PosMap.t((int, 'a)), p2: PosMap.t((int, 'a)))
-    : PosMap.t((int, 'a)) =>
-  PosMap.union(tuple_union, p1, p2);
+let m'_union: 'a. (m'('a), m'('a)) => m'('a) =
+  (p1, p2) => PosMap.union(cost_union, p1, p2);
 
-let m_union = (m1: m('a), m2: m('a)): m('a) =>
-  (~width: int, ~pos: int) =>
-    posMap_union(m1(~width, ~pos), m2(~width, ~pos));
+let m_union: 'a. (m('a), m('a)) => m('a) =
+  (m1, m2, ~width: int, ~pos: int) =>
+    m'_union(m1(~width, ~pos), m2(~width, ~pos));
 
 module Let_syntax = {
   let return = (x: 'a): m('a) =>
@@ -86,24 +108,29 @@ module Let_syntax = {
   let map = (m: m('a), ~f: 'a => 'b): m('b) =>
     (~width, ~pos: int) =>
       m(~width, ~pos) |> PosMap.map(((cost, x)) => (cost, f(x)));
-  let u =
-      (_pos: int, (_cost, _x): (int, 'b), _pos_map: PosMap.t('b))
-      : PosMap.t('b) => {
-    /*
-               posMap_union(
-                 f(x, ~width, ~pos)
-                 |> PosMap.map(((f_cost, f_x)) => (cost + f_cost, f_x)),
-                 pos_map,
-               )
-     */
-    // pos_map;
-    failwith(
-      "...",
-    );
-  };
-  let bind = (m: m('a), ~f as _: 'a => m('b)): m('b) =>
-    (~width: int, ~pos: int) => {
-      PosMap.fold(u, m(~width, ~pos), PosMap.empty);
+  let bind: 'a 'b. (m('a), ~f: 'a => m('b)) => m('b) =
+    (_m, ~f as _, ~width as _: int, ~pos as _: int) => {
+      /*
+             let u: (int, (int, 'a), PosMap.t((int, 'a))) => PosMap.t((int, 'b)) =
+               (pos, (cost, x), pos_map) => {
+                 m'_union(
+                   f(x, ~width, ~pos)
+                   |> PosMap.map(((f_cost, f_x)) => (cost + f_cost, f_x)),
+                   pos_map,
+                 );
+               };
+       */
+      // (pos, (cost, x), z) => {m'_union(z, f(x, ~width, ~pos))},
+      failwith(
+        "...",
+        /*
+               PosMap.fold_left(
+                 (_pos, z, _x) => z,
+                 PosMap.empty,
+                 m(~width, ~pos),
+               );
+         */
+      );
     };
 };
 let return = Let_syntax.return;
@@ -118,7 +145,7 @@ let advance_position = (amount: int): m(unit) =>
     } else {
       PosMap.singleton(pos + amount, (0, ()));
     };
-let reset_position = (): m(unit) =>
+let reset_position: m(unit) =
   (~width as _: int, ~pos as _: int) => PosMap.singleton(0, (0, ()));
 // TODO: line = reset+cost(1)
 // TODO: getWidth
@@ -169,35 +196,17 @@ module Make = (Tag: Tag) => {
               switch (doc) {
               | Fail => fail
               | Empty => return(Layout.Empty)
-              | Text(_string) => failwith("Unimplemented: " ++ __LOC__)
-              /*
-               | Text(string) =>
-                 let%bind _ = advance_position(String.length(string));
-                 return(Layout.Text(string));
-                 */
+              | Text(string) =>
+                let%bind () = advance_position(String.length(string));
+                return(Layout.Text(string));
               | Align(_d) => failwith("Unimplemented: " ++ __LOC__)
-              | Tagged(_tag, d) =>
-                let f = (_l: Layout.t(Tag.t)): m(Layout.t(Tag.t)) =>
-                  //return(Layout.Tagged(tag, l): Layout.t(Tag.t))
-                  failwith("Unimplemented: " ++ __LOC__);
-                let bind =
-                    (
-                      m: m(Layout.t(Tag.t)),
-                      ~f: Layout.t(Tag.t) => m(Layout.t(Tag.t)),
-                    )
-                    : m(Layout.t(Tag.t)) =>
-                  Let_syntax.bind(~f, m);
-                bind(go(d), ~f);
-              /*
-                                   let%bind l: m(Layout.t(Tag.t)) = go(d);
-                                   (
-                                     return(Layout.Tagged(tag, l): Layout.t(Tag.t)):
-                                       m(Layout.t(Tag.t))
-                                   );
-               */
+              | Tagged(tag, d) =>
+                let%bind l: m(Layout.t(Tag.t)) = go(d);
+                return(Layout.Tagged(tag, l));
               | VCat(d1, d2) =>
                 let%bind l1 = go(d1);
-                //TODO: let%bind () = reset_position();
+                let%bind () = reset_position;
+                let%bind () = cost(1);
                 let%bind l2 = go(d2);
                 return(Layout.VCat(l1, l2));
               | HCat(d1, d2) =>
