@@ -102,7 +102,7 @@ module Let_syntax = {
     (~width, ~pos: int) =>
       m(~width, ~pos) |> PosMap.map(((cost, x)) => (cost, f(x)));
   let bind: 'a 'b. (m('a), ~f: 'a => m('b)) => m('b) =
-    (_m, ~f as _, ~width as _: int, ~pos as _: int) => {
+    (m, ~f, ~width: int, ~pos: int) => {
       /*
              let u: (int, (int, 'a), PosMap.t((int, 'a))) => PosMap.t((int, 'b)) =
                (pos, (cost, x), pos_map) => {
@@ -114,15 +114,11 @@ module Let_syntax = {
                };
        */
       // (pos, (cost, x), z) => {m'_union(z, f(x, ~width, ~pos))},
-      failwith(
-        "...",
-        /*
-               PosMap.fold_left(
-                 (_pos, z, _x) => z,
-                 PosMap.empty,
-                 m(~width, ~pos),
-               );
-         */
+      PosMap.fold_left(
+        (pos, z, (cost, x)) =>
+          m'_union(z, add_cost(cost, f(x, ~width, ~pos))),
+        PosMap.empty,
+        m(~width, ~pos),
       );
     };
 };
