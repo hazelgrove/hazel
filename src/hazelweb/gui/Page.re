@@ -201,13 +201,8 @@ let page_view =
                     Node.button(
                       [
                         Attr.on_click(_ => {
-                          module TermTag = {
-                            type t = DocOfTerm.tag;
-                            let sexp_of_t = DocOfTerm.sexp_of_tag;
-                          };
                           let block =
                             model |> Model.zblock |> ZExp.erase_block;
-                          module Foo = LayoutOfDoc.Make(TermTag);
                           let doc =
                             DocOfTerm.doc_of_block(
                               ~wrap=true,
@@ -215,32 +210,34 @@ let page_view =
                               block,
                             );
                           Printf.printf(
-                            "%s\n",
-                            "doc sexp: "
-                            ++ Sexplib.Sexp.to_string(
-                                 DocOfTerm.sexp_of_doc(doc),
-                               ),
-                          );
-                          JSUtil.log(
-                            Js.string(
-                              switch (
-                                Foo.layout_of_doc(doc, ~width=80, ~pos=0)
-                              ) {
-                              | None => "FAILED"
-                              | Some(layout) =>
-                                JSUtil.log(
-                                  "layout sexp: "
-                                  ++ Sexplib.Sexp.to_string(
-                                       Layout.sexp_of_t(
-                                         DocOfTerm.sexp_of_tag,
-                                         layout,
-                                       ),
-                                     ),
-                                );
-                                layout |> Layout.string_of_layout;
-                              },
+                            "doc sexp: %s\n",
+                            Sexplib.Sexp.to_string(
+                              DocOfTerm.sexp_of_doc(doc),
                             ),
                           );
+                          switch (
+                            DocOfTerm.LayoutOfDoc.layout_of_doc(
+                              doc,
+                              ~width=80,
+                              ~pos=0,
+                            )
+                          ) {
+                          | None => Printf.printf("layout FAILED\n")
+                          | Some(layout) =>
+                            Printf.printf(
+                              "layout sexp: %s\n",
+                              Sexplib.Sexp.to_string(
+                                Layout.sexp_of_t(
+                                  DocOfTerm.sexp_of_tag,
+                                  layout,
+                                ),
+                              ),
+                            );
+                            Printf.printf(
+                              "%s\n",
+                              layout |> Layout.string_of_layout,
+                            );
+                          };
                           Event.Ignore;
                         }),
                       ],

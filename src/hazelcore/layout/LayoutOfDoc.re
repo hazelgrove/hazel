@@ -19,23 +19,6 @@ let rec all: 'tag. Doc.t('tag) => list(Layout.t('tag)) =
 // TODO: does Reason have 'type classes'? operators?
 // TODO: unions are left biased
 
-module type Tag = {
-  type t;
-  let sexp_of_t: t => Sexplib.Sexp.t;
-};
-
-module OrderedInt = {
-  type t = int;
-  let compare = (x: t, y: t): int =>
-    if (x < y) {
-      (-1);
-    } else if (x == y) {
-      0;
-    } else {
-      0;
-    };
-};
-
 // Maps keyed by an end position
 //module PosMap = Map.Make(OrderedInt);
 
@@ -76,20 +59,22 @@ module PosMap = {
 type m'('a) = PosMap.t((int /*cost*/, 'a));
 type m('a) = (~width: int, ~pos: int) => m'('a);
 
+// Functions for m'
 let add_cost: 'a. (int, m'('a)) => m'('a) =
   (cost, m) => {
     PosMap.map(((x_cost, x)) => (cost + x_cost, x), m);
   };
 
-let cost_union = ((cost1, _) as t1, (cost2, _) as t2) =>
-  if (cost1 <= cost2) {
-    t1;
-  } else {
-    t2;
-  };
-
 let m'_union: 'a. (m'('a), m'('a)) => m'('a) =
-  (p1, p2) => PosMap.union(cost_union, p1, p2);
+  (p1, p2) => {
+    let cost_union = ((cost1, _) as t1, (cost2, _) as t2) =>
+      if (cost1 <= cost2) {
+        t1;
+      } else {
+        t2;
+      };
+    PosMap.union(cost_union, p1, p2);
+  };
 
 // Monad interface
 module Let_syntax = {
@@ -144,23 +129,17 @@ let modify_position = (delta: int): m(unit) => {
 // TODO: encode an existential to eliminate need for `Make`
 // TODO: use ptr equality for Doc.t but structural equality for shape in hash table
 // TODO: move `width` to an inner parameter
-module Make = (Tag: Tag) => {
-  [@deriving sexp]
-  type memo('tag) = {
-    width: int,
-    pos: int,
-    doc: Doc.t('tag),
-  };
-
+module Make = (Tag: {type t;}) => {
   module Key = {
-    type t = memo(Tag.t);
-    let hash = ({width, pos, doc}: memo(Tag.t)): int =>
-      17 * width + 19 * pos + 23 * Hashtbl.hash(doc);
+    type t = {
+      width: int,
+      pos: int,
+      doc: Doc.t(Tag.t),
+    };
+    let hash = ({width, pos, doc}: t): int =>
+      17 * width + 19 * 97 * pos + 23 * Hashtbl.hash(doc);
     let equal =
-        (
-          {width: w1, pos: p1, doc: d1}: memo(Tag.t),
-          {width: w2, pos: p2, doc: d2}: memo(Tag.t),
-        )
+        ({width: w1, pos: p1, doc: d1}: t, {width: w2, pos: p2, doc: d2}: t)
         : bool => {
       w1 == w2 && p1 == p2 && d1 === d2;
     };
@@ -173,7 +152,7 @@ module Make = (Tag: Tag) => {
 
   let rec go = (doc: Doc.t(Tag.t)): m(Layout.t(Tag.t)) =>
     (~width: int, ~pos: int) => {
-      let key = {width, pos, doc};
+      let key: Key.t = {width, pos, doc};
       switch (Weak_hashtbl.find_opt(memo_table, key)) {
       | Some(x) => x
       | None =>
