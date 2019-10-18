@@ -141,6 +141,7 @@ let modify_position = (delta: int): m(unit) => {
   set_position(pos + delta);
 };
 
+// TODO: encode an existential to eliminate need for `Make`
 // TODO: use ptr equality for Doc.t but structural equality for shape in hash table
 // TODO: move `width` to an inner parameter
 module Make = (Tag: Tag) => {
@@ -155,70 +156,66 @@ module Make = (Tag: Tag) => {
     type t = memo(Tag.t);
     let hash = ({width, pos, doc}: memo(Tag.t)): int =>
       17 * width + 19 * pos + 23 * Hashtbl.hash(doc);
-    let compare =
+    let equal =
         (
           {width: w1, pos: p1, doc: d1}: memo(Tag.t),
           {width: w2, pos: p2, doc: d2}: memo(Tag.t),
         )
-        : int => {
-      switch (compare(w1, w2)) {
-      | 0 =>
-        switch (compare(p1, p2)) {
-        | 0 => compare(d1, d2)
-        | c => c
-        }
-      | c => c
-      };
+        : bool => {
+      w1 == w2 && p1 == p2 && d1 === d2;
     };
-    let sexp_of_t = sexp_of_memo(Tag.sexp_of_t);
   };
-  let memo_table: Weak_hashtbl.t(Key.t, m'(Layout.t(Tag.t))) =
-    Weak_hashtbl.create((module Key));
+
+  module Weak_hashtbl = Ephemeron.K1.Make(Key);
+  let memo_table: Weak_hashtbl.t(m'(Layout.t(Tag.t))) = {
+    Weak_hashtbl.create(3);
+  };
 
   let rec go = (doc: Doc.t(Tag.t)): m(Layout.t(Tag.t)) =>
     (~width: int, ~pos: int) => {
-      Core_kernel.Heap_block.value(
-        Weak_hashtbl.find_or_add(
-          memo_table,
-          {width, pos, doc},
-          ~default=() => {
-            let ret: m(Layout.t(Tag.t)) = {
-              switch (doc) {
-              | Text(string) =>
-                let%bind () = modify_position(String.length(string));
-                return(Layout.Text(string));
-              | Cat(d1, d2) =>
-                let%bind l1 = go(d1);
-                let%bind l2 = go(d2);
-                return(Layout.Cat(l1, l2));
-              | Linebreak =>
-                let%bind () = tell_cost(1);
-                let%bind () = set_position(0);
-                return(Layout.Linebreak);
-              | Align(d) =>
-                let%bind pos = get_position;
-                let%bind width = ask_width;
-                let%bind l =
-                  with_width(
-                    width - pos,
-                    {
-                      let%bind () = set_position(0);
-                      go(d);
-                    },
-                  );
-                let%bind () = modify_position(pos);
-                return(Layout.Align(l));
-              | Tagged(tag, d) =>
-                let%bind l: m(Layout.t(Tag.t)) = go(d);
-                return(Layout.Tagged(tag, l));
-              | Fail => fail
-              | Choice(d1, d2) => union(go(d1), go(d2))
-              };
+      let key = {width, pos, doc};
+      switch (Weak_hashtbl.find_opt(memo_table, key)) {
+      | Some(x) => x
+      | None =>
+        let v = {
+          let ret: m(Layout.t(Tag.t)) = {
+            switch (doc) {
+            | Text(string) =>
+              let%bind () = modify_position(String.length(string));
+              return(Layout.Text(string));
+            | Cat(d1, d2) =>
+              let%bind l1 = go(d1);
+              let%bind l2 = go(d2);
+              return(Layout.Cat(l1, l2));
+            | Linebreak =>
+              let%bind () = tell_cost(1);
+              let%bind () = set_position(0);
+              return(Layout.Linebreak);
+            | Align(d) =>
+              let%bind pos = get_position;
+              let%bind width = ask_width;
+              let%bind l =
+                with_width(
+                  width - pos,
+                  {
+                    let%bind () = set_position(0);
+                    go(d);
+                  },
+                );
+              let%bind () = modify_position(pos);
+              return(Layout.Align(l));
+            | Tagged(tag, d) =>
+              let%bind l: m(Layout.t(Tag.t)) = go(d);
+              return(Layout.Tagged(tag, l));
+            | Fail => fail
+            | Choice(d1, d2) => union(go(d1), go(d2))
             };
-            Core_kernel.Heap_block.create_exn(ret(~width, ~pos));
-          },
-        ),
-      );
+          };
+          ret(~width, ~pos);
+        };
+        Weak_hashtbl.add(memo_table, key, v);
+        v;
+      };
     };
   let layout_of_doc =
       (doc: Doc.t(Tag.t), ~width: int, ~pos: int): option(Layout.t(Tag.t)) => {
