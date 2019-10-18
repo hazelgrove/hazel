@@ -54,6 +54,8 @@ and rule =
 and splice_info = SpliceInfo.t(block)
 and splice_map = SpliceInfo.splice_map(block);
 
+let my_line: line = CommentLine("my comment");
+
 exception SkelInconsistentWithOpSeq(skel_t, opseq);
 
 let letline = (p: UHPat.t, ~ann: option(UHTyp.t)=?, block: block): line =>
@@ -94,11 +96,16 @@ let listnil = (~err: ErrStatus.t=NotInHole, ()): t => ListNil(err);
 
 let wrap_in_block = (e: t): block => Block([], e);
 
+/**
+ * Replace a line item consisting of a single empty hole
+ * with an empty line.
+ */
 let prune_empty_hole_line = (li: line): line =>
   switch (li) {
   | ExpLine(EmptyHole(_)) => EmptyLine
   | ExpLine(_)
   | EmptyLine
+  | CommentLine(_)
   | LetLine(_, _, _) => li
   };
 let prune_empty_hole_lines: lines => lines = List.map(prune_empty_hole_line);
@@ -318,12 +325,16 @@ let rec drop_outer_parentheses = (e: t): block =>
   | _ => Block([], e)
   };
 
+/**
+ * Indices used to construct CursorPath
+ */
 let child_indices_line =
   fun
   | EmptyLine => []
   | ExpLine(_) => []
   | LetLine(_, None, _) => [0, 2]
-  | LetLine(_, Some(_), _) => [0, 1, 2];
+  | LetLine(_, Some(_), _) => [0, 1, 2]
+  | CommentLine(_) => [0];
 let child_indices_exp =
   fun
   | EmptyHole(_)
@@ -549,6 +560,7 @@ let shift_line_from_suffix_block =
             Block(leading @ [ExpLine(conclusion)] @ empty_lines, e),
             u_gen,
           )
+        | (_, CommentLine(_)) => failwith("unimplemented")
         };
       Some((new_block, new_suffix_block, u_gen));
     }
@@ -638,6 +650,7 @@ let shift_line_to_suffix_block =
         u_gen,
       ))
     | Some((_, EmptyLine)) => assert(false)
+    | Some((_, CommentLine(_))) => failwith("unimplemented")
     }
   | (Some((_, _, _)), _) =>
     let (leading_prefix, empty_lines) =
@@ -660,6 +673,7 @@ let shift_line_to_suffix_block =
           u_gen,
         ))
       | Some((_, EmptyLine)) => assert(false)
+      | Some((_, CommentLine(_))) => failwith("unimplemented")
       }
     | Some(Block(suffix_leading, suffix_conclusion)) =>
       switch (leading_prefix |> split_last, suffix_leading, suffix_conclusion) {
@@ -701,16 +715,29 @@ let shift_line_to_suffix_block =
           },
           u_gen,
         ))
+      | (Some((_, CommentLine(_))), _, _) => failwith("unimplemented")
       }
     };
   };
 };
 
+/**
+ * The child node left behind when deleting the given node.
+ */
 let favored_child_of_line: line => option((child_index, block)) =
   fun
   | EmptyLine
-  | ExpLine(_) => None
+  | ExpLine(_)
+  | CommentLine(_) => None
   | LetLine(_, _, def) => Some((2, def));
+/*
+ let favored_child_of_line_2 = (line: line): option((child_index, block)) =>
+   switch (line) {
+   | EmptyLine
+   | ExpLine(_) => None
+   | LetLine(_, _, def) => Some((2, def))
+   };
+ */
 
 let favored_child_of_exp: t => option((child_index, block)) =
   fun
@@ -734,6 +761,9 @@ let has_concluding_let_line =
     | (_, _) => false
     };
 
+/**
+ * Whether a node takes up multiple visual lines
+ */
 let rec is_multi_line =
   fun
   | Block(lines, e) as block =>
@@ -746,6 +776,7 @@ let rec is_multi_line =
     }
 and is_multi_line_line =
   fun
+  | CommentLine(_)
   | EmptyLine => false
   | ExpLine(e) => is_multi_line_exp(e)
   | LetLine(_, _, def) => is_multi_line(def)
