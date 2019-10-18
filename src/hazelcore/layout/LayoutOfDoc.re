@@ -13,7 +13,7 @@ let rec all: 'tag. Doc.t('tag) => list(Layout.t('tag)) =
   | Linebreak => [Layout.Linebreak]
   | Align(d) => List.map(l => Layout.Align(l), all(d))
   | Tagged(tag, d) => List.map(l => Layout.Tagged(tag, l), all(d))
-  | Fail => failwith("unimplemented: all Fail")
+  | Fail => []
   | Choice(d1, d2) => all(d1) @ all(d2);
 
 // TODO: does Reason have 'type classes'? operators?
@@ -91,10 +91,7 @@ let cost_union = ((cost1, _) as t1, (cost2, _) as t2) =>
 let m'_union: 'a. (m'('a), m'('a)) => m'('a) =
   (p1, p2) => PosMap.union(cost_union, p1, p2);
 
-let m_union: 'a. (m('a), m('a)) => m('a) =
-  (m1, m2, ~width: int, ~pos: int) =>
-    m'_union(m1(~width, ~pos), m2(~width, ~pos));
-
+// Monad interface
 module Let_syntax = {
   let return = (x: 'a): m('a) =>
     (~width as _: int, ~pos: int) => PosMap.singleton(pos, (0, x));
@@ -103,17 +100,6 @@ module Let_syntax = {
       m(~width, ~pos) |> PosMap.map(((cost, x)) => (cost, f(x)));
   let bind: 'a 'b. (m('a), ~f: 'a => m('b)) => m('b) =
     (m, ~f, ~width: int, ~pos: int) => {
-      /*
-             let u: (int, (int, 'a), PosMap.t((int, 'a))) => PosMap.t((int, 'b)) =
-               (pos, (cost, x), pos_map) => {
-                 m'_union(
-                   f(x, ~width, ~pos)
-                   |> PosMap.map(((f_cost, f_x)) => (cost + f_cost, f_x)),
-                   pos_map,
-                 );
-               };
-       */
-      // (pos, (cost, x), z) => {m'_union(z, f(x, ~width, ~pos))},
       PosMap.fold_left(
         (pos, z, (cost, x)) =>
           m'_union(z, add_cost(cost, f(x, ~width, ~pos))),
@@ -123,38 +109,38 @@ module Let_syntax = {
     };
 };
 let return = Let_syntax.return;
-let (>>=) = (m, f) => Let_syntax.bind(m, ~f);
+
+// Choice (a non-determinism monad)
 let fail: m('a) = (~width as _: int, ~pos as _: int) => PosMap.empty;
-let cost = (c: int): m(unit) =>
+let union: 'a. (m('a), m('a)) => m('a) =
+  (m1, m2, ~width: int, ~pos: int) =>
+    m'_union(m1(~width, ~pos), m2(~width, ~pos));
+
+// Cost (a writer monad)
+let tell_cost = (c: int): m(unit) =>
   (~width as _: int, ~pos: int) => PosMap.singleton(pos, (c, ()));
-let advance_position = (amount: int): m(unit) =>
-  (~width: int, ~pos: int) =>
-    if (pos + amount > width) {
+
+// Width (a reader monad)
+let ask_width: m(int) =
+  (~width: int, ~pos: int) => PosMap.singleton(pos, (0, width));
+let with_width: 'a. (int, m('a)) => m('a) =
+  (width, m, ~width as _: int, ~pos: int) => m(~width, ~pos);
+
+// Position (a state monad)
+let get_position: m(int) =
+  (~width as _: int, ~pos: int) => PosMap.singleton(pos, (0, pos));
+let set_position = (pos: int): m(unit) =>
+  (~width: int, ~pos as _: int) =>
+    if (pos > width) {
       PosMap.empty;
     } else {
-      PosMap.singleton(pos + amount, (0, ()));
+      PosMap.singleton(pos, (0, ()));
     };
-let reset_position: m(unit) =
-  (~width as _: int, ~pos as _: int) => PosMap.singleton(0, (0, ()));
-// TODO: line = reset+cost(1)
-// TODO: getWidth
+let modify_position = (delta: int): m(unit) => {
+  let%bind pos = get_position;
+  set_position(pos + delta);
+};
 
-/*
- let min_cost = (x: m('a), y: m('a)): m('a) =>
-   switch (x, y) {
-   | (None, _) => y
-   | (_, None) => x
-   | (Some((x_i, _)), Some((y_i, _))) =>
-     if (x_i <= y_i) {
-       x;
-     } else {
-       y;
-     }
-   };
-   */
-
-// TODO: optimize duplicates in memoization table
-// TODO: is there a simpler way to do this
 // TODO: use ptr equality for Doc.t but structural equality for shape in hash table
 // TODO: move `width` to an inner parameter
 module Make = (Tag: Tag) => {
@@ -167,8 +153,23 @@ module Make = (Tag: Tag) => {
 
   module Key = {
     type t = memo(Tag.t);
-    let hash = (_: memo(Tag.t)): int => 0;
-    let compare = (_: memo(Tag.t), _: memo(Tag.t)): int => 0;
+    let hash = ({width, pos, doc}: memo(Tag.t)): int =>
+      17 * width + 19 * pos + 23 * Hashtbl.hash(doc);
+    let compare =
+        (
+          {width: w1, pos: p1, doc: d1}: memo(Tag.t),
+          {width: w2, pos: p2, doc: d2}: memo(Tag.t),
+        )
+        : int => {
+      switch (compare(w1, w2)) {
+      | 0 =>
+        switch (compare(p1, p2)) {
+        | 0 => compare(d1, d2)
+        | c => c
+        }
+      | c => c
+      };
+    };
     let sexp_of_t = sexp_of_memo(Tag.sexp_of_t);
   };
   let memo_table: Weak_hashtbl.t(Key.t, m'(Layout.t(Tag.t))) =
@@ -184,46 +185,58 @@ module Make = (Tag: Tag) => {
             let ret: m(Layout.t(Tag.t)) = {
               switch (doc) {
               | Text(string) =>
-                let%bind () = advance_position(String.length(string));
+                let%bind () = modify_position(String.length(string));
                 return(Layout.Text(string));
               | Cat(d1, d2) =>
                 let%bind l1 = go(d1);
                 let%bind l2 = go(d2);
                 return(Layout.Cat(l1, l2));
-              | Linebreak => failwith(__LOC__ ++ ": unimplemented")
-              | Align(_d) => failwith("Unimplemented: " ++ __LOC__)
+              | Linebreak =>
+                let%bind () = tell_cost(1);
+                let%bind () = set_position(0);
+                return(Layout.Linebreak);
+              | Align(d) =>
+                let%bind pos = get_position;
+                let%bind width = ask_width;
+                let%bind l =
+                  with_width(
+                    width - pos,
+                    {
+                      let%bind () = set_position(0);
+                      go(d);
+                    },
+                  );
+                let%bind () = modify_position(pos);
+                return(Layout.Align(l));
               | Tagged(tag, d) =>
                 let%bind l: m(Layout.t(Tag.t)) = go(d);
                 return(Layout.Tagged(tag, l));
               | Fail => fail
-              | Choice(d1, d2) => m_union(go(d1), go(d2))
+              | Choice(d1, d2) => union(go(d1), go(d2))
               };
             };
             Core_kernel.Heap_block.create_exn(ret(~width, ~pos));
           },
         ),
-        //  PosMap.t((int, Layout.t(Tag.t))) //go({...memo, left: memo.first_left, doc: d})
-        // TODO: if same length, prefer ones that end at earlier column
-        // TODO: do we allow zero width last and first lines?
-        // TODO: what about when left >= right?
       );
     };
-  // TODO: check if result has infinite cost
   let layout_of_doc =
       (doc: Doc.t(Tag.t), ~width: int, ~pos: int): option(Layout.t(Tag.t)) => {
     let rec minimum =
-            ((cost, acc): (int, option('a)))
-            : (list((int, 'a)) => option('a)) => {
+            ((pos, (cost, t)): (int, (int, option('a))))
+            : (list((int, (int, 'a))) => option('a)) => {
       fun
-      | [] => acc
-      | [(x_cost, x), ...xs] =>
-        if (x_cost < cost) {
-          minimum((x_cost, Some(x)), xs);
+      | [] => t
+      | [(x_pos, (x_cost, x)), ...rest] =>
+        // Prefer lowest cost, or if same cost, prefer ending at an earlier column
+        // (Columns are unique by construction of PosMap.)
+        if (x_cost < cost || x_cost == cost && x_pos < pos) {
+          minimum((x_pos, (x_cost, Some(x))), rest);
         } else {
-          minimum((cost, acc), xs);
+          minimum((pos, (cost, t)), rest);
         };
     };
     // TODO: use options instead of max_int
-    minimum((max_int, None), List.map(snd, go(doc, ~width, ~pos)));
+    minimum((max_int, (max_int, None)), go(doc, ~width, ~pos));
   };
 };
