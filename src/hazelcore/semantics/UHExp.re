@@ -32,6 +32,7 @@ and line =
   | ExpLine(t)
   | EmptyLine
   | LetLine(UHPat.t, option(UHTyp.t), block)
+  | CommentLine(string)
 and t =
   /* outer nodes */
   | EmptyHole(MetaVar.t)
