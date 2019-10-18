@@ -18,10 +18,10 @@ type tag = {
 [@deriving sexp]
 type doc = Doc.t(tag);
 
-module TermTag = {
-  type t = tag;
-  let sexp_of_t = sexp_of_tag;
-};
+module LayoutOfDoc =
+  LayoutOfDoc.Make({
+    type t = tag;
+  });
 
 let tab_length = 2;
 let indent = (~n=1, doc: doc): doc =>
