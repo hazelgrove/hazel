@@ -232,6 +232,8 @@ let string_of_op_exp: UHExp.op => string =
   | Plus => "+"
   | Times => "*"
   | LessThan => "<"
+  | GreaterThan => ">"
+  | Equals => "=="
   | Space => " "
   | Comma => ","
   | Cons => "::";
@@ -256,6 +258,8 @@ let space_before_after_op_exp: UHExp.op => (bool, bool) =
   | Plus => (true, true)
   | Times => (true, true)
   | LessThan => (true, true)
+  | GreaterThan => (true, true)
+  | Equals => (true, true)
   | Space => (false, false)
   | Comma => (false, true)
   | Cons => (false, false);
@@ -1132,13 +1136,9 @@ and view_of_sseq_tail_arg =
     vindentation @ vwords,
   );
 }
-[@warning "-27"]
-// for inject since we'll need it in the future
-// e.g. invoking node staging by clicking and
-// dragging a delimiter
 and view_of_stoken =
     (
-      ~inject: Update.Action.t => Vdom.Event.t,
+      ~inject as _: Update.Action.t => Vdom.Event.t, /* we'll need `inject` in the future e.g. invoking node staging by clicking and dragging a delimiter */
       ~node_steps: CursorPath.steps,
       stoken: stoken,
     )
@@ -2651,6 +2651,8 @@ let precedence_Plus = 3;
 let precedence_Minus = 3;
 let precedence_Cons = 4;
 let precedence_LessThan = 5;
+let precedence_GreaterThan = 5;
+let precedence_Equals = 5;
 let precedence_And = 6;
 let precedence_Or = 7;
 let precedence_Comma = 8;
@@ -2694,6 +2696,8 @@ let rec precedence_dhexp = (d: DHExp.t) =>
   | BinNumOp(Plus, _, _) => precedence_Plus
   | BinNumOp(Minus, _, _) => precedence_Minus
   | BinNumOp(LessThan, _, _) => precedence_LessThan
+  | BinNumOp(GreaterThan, _, _) => precedence_GreaterThan
+  | BinNumOp(Equals, _, _) => precedence_Equals
   | Cons(_, _) => precedence_Cons
   | NonEmptyHole(_, _, _, _, d1) => precedence_dhexp(d1)
   | And(_, _) => precedence_And
