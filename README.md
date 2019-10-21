@@ -16,33 +16,33 @@ both OCaml and the necessary libraries is to install
 [opam](https://opam.ocaml.org/). After having installed `opam` using
 the instructions on their website, follow these steps:
 
-  - Make sure you have OCaml 4.08.1 (some older versions such as
-    4.07.1 also work):
+- Make sure you have OCaml 4.08.1 (some older versions such as
+  4.07.1 also work):
 
-    ```sh
-    > ocaml --version
-    The OCaml toplevel, version 4.08.1
-    ```
+  ```sh
+  > ocaml --version
+  The OCaml toplevel, version 4.08.1
+  ```
 
-    If you do not have OCaml 4.08.1, you can install it with the
-    following: 
+  If you do not have OCaml 4.08.1, you can install it with the
+  following:
 
-    ```sh
-    > opam switch create 4.08.1
-    ```
+  ```sh
+  > opam switch create 4.08.1
+  ```
 
-  - Make sure opam is updated:
+- Make sure `opam` is updated:
 
-    ```sh
-    > opam update
-    ```
+  ```sh
+  > opam update
+  ```
 
-  - Run the Makefile in the `hazel` root folder to install the
-    necessary OCaml dependencies:
+- Run the Makefile in the `hazel` root folder to install the
+  necessary OCaml dependencies:
 
-    ```sh
-    > make deps
-    ```
+  ```sh
+  > make deps
+  ```
 
 ### Compiling
 
