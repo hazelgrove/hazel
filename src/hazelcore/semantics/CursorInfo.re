@@ -80,11 +80,12 @@ type typed =
   | OnOp;
 
 [@deriving sexp]
-type uses_list = list(CursorPath.t);
+type uses_list = list(CursorPath.steps);
 
 [@deriving sexp]
 type pat_node =
-  | VarPat(UHPat.t, uses_list) | OtherPat(UHPat.t);
+  | VarPat(UHPat.t, uses_list)
+  | OtherPat(UHPat.t);
 
 [@deriving sexp]
 type node =
@@ -188,7 +189,8 @@ let is_before_node = ci =>
   | Line(li) => ZExp.is_before_line(CursorL(ci.position, li))
   | Exp(e) => ZExp.is_before_exp(CursorE(ci.position, e))
   | Rule(rule) => ZExp.is_before_rule(CursorR(ci.position, rule))
-  | Pat(p) => ZPat.is_before(CursorP(ci.position, p))
+  | Pat(VarPat(p, _))
+  | Pat(OtherPat(p)) => ZPat.is_before(CursorP(ci.position, p))
   | Typ(ty) => ZTyp.is_before(CursorT(ci.position, ty))
   };
 
@@ -197,7 +199,8 @@ let is_after_node = ci =>
   | Line(li) => ZExp.is_after_line(CursorL(ci.position, li))
   | Exp(e) => ZExp.is_after_exp(CursorE(ci.position, e))
   | Rule(rule) => ZExp.is_after_rule(CursorR(ci.position, rule))
-  | Pat(p) => ZPat.is_after(CursorP(ci.position, p))
+  | Pat(VarPat(p, _))
+  | Pat(OtherPat(p)) => ZPat.is_after(CursorP(ci.position, p))
   | Typ(ty) => ZTyp.is_after(CursorT(ci.position, ty))
   };
 
@@ -209,7 +212,11 @@ let staging_left_border = ci =>
       Exp(
         Inj(_, _, _) | Parenthesized(_) | Case(_, _, _, _) | Lam(_, _, _, _),
       ) |
-      Pat(Inj(_, _, _) | Parenthesized(_)) |
+      Pat(
+        VarPat(Inj(_, _, _), _) | VarPat(Parenthesized(_), _) |
+        OtherPat(Inj(_, _, _)) |
+        OtherPat(Parenthesized(_)),
+      ) |
       Typ(List(_) | Parenthesized(_)),
     ) =>
     true
@@ -222,7 +229,11 @@ let staging_right_border = ci =>
   | (
       Staging(1),
       Exp(Inj(_, _, _) | Parenthesized(_) | Case(_, _, _, _)) |
-      Pat(Inj(_, _, _) | Parenthesized(_)) |
+      Pat(
+        VarPat(Inj(_, _, _), _) | VarPat(Parenthesized(_), _) |
+        OtherPat(Inj(_, _, _)) |
+        OtherPat(Parenthesized(_)),
+      ) |
       Typ(List(_) | Parenthesized(_)),
     ) =>
     true
@@ -237,7 +248,8 @@ let child_indices_of_current_node = ci =>
   | Line(li) => UHExp.child_indices_line(li)
   | Exp(e) => UHExp.child_indices_exp(e)
   | Rule(rule) => UHExp.child_indices_rule(rule)
-  | Pat(p) => UHPat.child_indices(p)
+  | Pat(VarPat(p, _))
+  | Pat(OtherPat(p)) => UHPat.child_indices(p)
   | Typ(ty) => UHTyp.child_indices(ty)
   };
 
@@ -275,7 +287,12 @@ let preserved_child_term_of_node = ci =>
     | (Some((_, Block(_, _))), ExpFrame(_, Some(_surround), _)) => None
     }
   | Pat(p) =>
-    p |> UHPat.favored_child |> Opt.map(((i, p)) => (i, Pattern(p)))
+    switch (p) {
+    | VarPat(p, _) =>
+      p |> UHPat.favored_child |> Opt.map(((i, p)) => (i, Pattern(p)))
+    | OtherPat(p) =>
+      p |> UHPat.favored_child |> Opt.map(((i, p)) => (i, Pattern(p)))
+    }
   | Typ(ty) =>
     ty |> UHTyp.favored_child |> Opt.map(((i, ty)) => (i, Type(ty)))
   | Rule(_) => None
@@ -320,7 +337,7 @@ let rec _ana_cursor_found_pat =
         : option((typed, node, Contexts.t)) =>
   switch (p) {
   /* in hole */
-  | EmptyHole(_) => Some((PatAnaSubsumed(ty, Hole), Pat(p), ctx))
+  | EmptyHole(_) => Some((PatAnaSubsumed(ty, Hole), Pat(OtherPat(p)), ctx))
   | Wild(InHole(TypeInconsistent, _))
   | Var(InHole(TypeInconsistent, _), _, _)
   | NumLit(InHole(TypeInconsistent, _), _)
@@ -332,7 +349,7 @@ let rec _ana_cursor_found_pat =
     switch (Statics.syn_pat(ctx, p_nih)) {
     | None => None
     | Some((ty', _)) =>
-      Some((PatAnaTypeInconsistent(ty, ty'), Pat(p), ctx))
+      Some((PatAnaTypeInconsistent(ty, ty'), Pat(OtherPat(p)), ctx))
     };
   | Wild(InHole(WrongLength, _))
   | Var(InHole(WrongLength, _), _, _)
@@ -415,7 +432,7 @@ let rec _syn_cursor_info_pat =
     Some(
       mk_cursor_info(
         PatSynKeyword(k),
-        Pat(p),
+        Pat(OtherPat(p)),
         PatFrame(frame),
         cursor,
         ctx,
@@ -436,7 +453,7 @@ let rec _syn_cursor_info_pat =
             | _ => None
             },
           PatSynthesized(ty),
-          Pat(p),
+          Pat(OtherPat(p)),
           PatFrame(frame),
           cursor,
           ctx,
@@ -586,7 +603,7 @@ and _ana_cursor_info_pat =
     Some(
       mk_cursor_info(
         PatAnaKeyword(ty, k),
-        Pat(p),
+        Pat(OtherPat(p)),
         PatFrame(frame),
         cursor,
         ctx,
@@ -949,6 +966,95 @@ let ana_cursor_found_exp =
         term_steps,
       ),
     );
+  };
+
+let rec find_uses_block = (x: Var.t, block: UHExp.block, steps): uses_list => {
+  let Block(lines, e) = block;
+  find_uses_lines(x, lines, steps @ [0]) @ find_uses_exp(x, e, steps @ [1]);
+}
+and find_uses_lines =
+    (x: Var.t, lines: UHExp.lines, steps, index, shadow): (uses_list, bool) =>
+  switch (lines, shadow) {
+  | ([], _)
+  | (_, true) => ([], true)
+  | ([line, ...lines], false) =>
+    let (line_uses, shadow) = find_uses_line(x, line, steps @ [index]);
+    let (lines_uses, shadow) =
+      find_uses_lines(x, lines, steps, index + 1, shadow);
+    (line_uses @ lines_uses, shadow);
+  }
+and find_uses_line = (x: Var.t, line: UHExp.line, steps): (uses_list, bool) =>
+  switch (line) {
+  | ExpLine(e) => (find_uses_exp(x, e, steps), false)
+  | EmptyLine => ([], false)
+  | LetLine(p, _, block) => (
+      find_uses_block(x, block, steps @ [1]),
+      shadow_in_pat(x, p),
+    )
+  }
+and find_uses_exp = (x: Var.t, e: UHExp.t, steps): uses_list =>
+  switch (e) {
+  | EmptyHole(_)
+  | Var(_, InVarHole(_, _), _)
+  | Var(InHole(_, _), _, _)
+  | NumLit(_, _)
+  | BoolLit(_, _)
+  | ListNil(_)
+  | Lam(InHole(_, _), _, _, _)
+  | Inj(InHole(_, _), _, _)
+  | Case(InHole(_, _), _, _, _)
+  | ApPalette(_, _, _, _) => []
+  | Var(NotInHole, NotInVarHole, y) => x == y ? [steps] : []
+  | Lam(NotInHole, p, _, block) =>
+    shadow_in_pat(x, p) ? [] : find_uses_block(x, block, steps @ [1])
+  | Inj(NotInHole, _, block) => find_uses_block(x, block, steps @ [0])
+  | Case(NotInHole, block, rules, _) =>
+    find_uses_block(x, block, steps @ [0])
+    @ find_uses_rules(x, rules, steps, 0)
+  | Parenthesized(block) => find_uses_block(x, block, steps @ [0])
+  | OpSeq(_, opseq) =>
+    // TODO: check corresponding ErrStatus in skel_t
+    let (uses, _) = find_uses_opseq(x, opseq, steps);
+    uses;
+  }
+and find_uses_rules =
+    (x: Var.t, rules: UHExp.rules, steps, prefix_length): uses_list =>
+  switch (rules) {
+  | [] => []
+  | [rule, ...rules] =>
+    let UHExp.Rule(p, block) = rule;
+    let uses =
+      shadow_in_pat(x, p)
+        ? [] : find_uses_block(x, block, steps @ [prefix_length, 1]);
+    uses @ find_uses_rules(x, rules, steps, prefix_length + 1);
+  }
+and find_uses_opseq = (x: Var.t, opseq: UHExp.opseq, steps): (uses_list, int) =>
+  switch (opseq) {
+  | ExpOpExp(e1, _, e2) => (
+      find_uses_exp(x, e1, steps @ [0]) @ find_uses_exp(x, e2, steps @ [1]),
+      2,
+    )
+  | SeqOpExp(seq, _, e) =>
+    let (uses, length) = find_uses_opseq(x, seq, steps);
+    (uses @ find_uses_exp(x, e, steps @ [length]), length + 1);
+  }
+and shadow_in_pat = (x: Var.t, p: UHPat.t): bool =>
+  switch (p) {
+  | EmptyHole(_)
+  | Wild(_)
+  | Var(_, InVarHole(_, _), _)
+  | Var(InHole(_, _), _, _)
+  | NumLit(_, _)
+  | BoolLit(_, _)
+  | ListNil(_)
+  | Inj(InHole(_, _), _, _) => false
+  | Var(NotInHole, NotInVarHole, y) => x == y
+  | Parenthesized(e) => shadow_in_pat(x, e)
+  | OpSeq(_, ExpOpExp(e1, _, e2)) =>
+    shadow_in_pat(x, e1) || shadow_in_pat(x, e2)
+  | OpSeq(skel, SeqOpExp(seq1, _, e1)) =>
+    shadow_in_pat(x, e1) || shadow_in_pat(x, OpSeq(skel, seq1)) // TODO: check corresponding ErrStatus in skel_t
+  | Inj(NotInHole, _, e) => shadow_in_pat(x, e)
   };
 
 let rec _syn_cursor_info_block =
