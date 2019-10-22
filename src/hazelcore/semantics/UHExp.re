@@ -38,7 +38,8 @@ and t =
   | ListNil(ErrStatus.t)
   /* inner nodes */
   | Lam(ErrStatus.t, UHPat.t, option(UHTyp.t), block)
-  | TyLam(TPat.t, block)
+  /* cc: add error status */
+  | TyLam(ErrStatus.t, TPat.t, block)
   | Inj(ErrStatus.t, inj_side, block)
   | Case(ErrStatus.t, block, rules, option(UHTyp.t))
   | Parenthesized(block)
@@ -169,7 +170,7 @@ let bidelimited = (e: t): bool =>
   | Inj(_, _, _)
   | ApPalette(_, _, _, _)
   | Parenthesized(_) => true
-  | TyLam(_, _) => raise(Failure("unimplemented"))
+  | TyLam(_, _, _) => raise(Failure("unimplemented"))
   /* non-bidelimited */
   | Case(_, _, _, _)
   | Lam(_, _, _, _)
@@ -189,7 +190,7 @@ let rec get_err_status_block = (Block(_, e): block): ErrStatus.t =>
 and get_err_status_t = (e: t): ErrStatus.t =>
   switch (e) {
   | EmptyHole(_) => NotInHole
-  | TyLam(_, _) => raise(Failure("unimplemented"))
+  | TyLam(_, _, _) => raise(Failure("unimplemented"))
   | Var(err, _, _)
   | NumLit(err, _)
   | BoolLit(err, _)
@@ -214,7 +215,7 @@ let rec set_err_status_block =
 and set_err_status_t = (err: ErrStatus.t, e: t): t =>
   switch (e) {
   | EmptyHole(_) => e
-  | TyLam(_, _) => raise(Failure("unimplemented"))
+  | TyLam(_, _, _) => raise(Failure("unimplemented"))
   | Var(_, var_err, x) => Var(err, var_err, x)
   | NumLit(_, n) => NumLit(err, n)
   | BoolLit(_, b) => BoolLit(err, b)
@@ -269,7 +270,7 @@ and make_t_inconsistent = (u_gen: MetaVarGen.t, e: t): (t, MetaVarGen.t) =>
   | Inj(InHole(TypeInconsistent, _), _, _)
   | Case(InHole(TypeInconsistent, _), _, _, _)
   | ApPalette(InHole(TypeInconsistent, _), _, _, _) => (e, u_gen)
-  | TyLam(_, _) => raise(Failure("unimplemented"))
+  | TyLam(_, _, _) => raise(Failure("unimplemented"))
   /* not in hole */
   | Var(NotInHole | InHole(WrongLength, _), _, _)
   | NumLit(NotInHole | InHole(WrongLength, _), _)
@@ -337,7 +338,7 @@ let child_indices_exp =
   | Case(_, _, rules, None) => range(List.length(rules) + 1)
   | Case(_, _, rules, Some(_)) => range(List.length(rules) + 2)
   | Inj(_, _, _) => [0]
-  | TyLam(_, _) => raise(Failure("unimplemented"))
+  | TyLam(_, _, _) => raise(Failure("unimplemented"))
   | Parenthesized(_) => [0]
   | OpSeq(_, seq) => range(OperatorSeq.seq_length(seq))
   | ApPalette(_, _, _, _) => [];
@@ -723,7 +724,7 @@ let favored_child_of_exp: t => option((child_index, block)) =
   | ListNil(_)
   | OpSeq(_, _)
   | ApPalette(_, _, _, _) => None
-  | TyLam(_, _) => raise(Failure("unimplemented"))
+  | TyLam(_, _, _) => raise(Failure("unimplemented"))
   | Lam(_, _, _, block) => Some((2, block))
   | Inj(_, _, block)
   | Case(_, block, _, _)
@@ -761,7 +762,7 @@ and is_multi_line_exp =
   | ListNil(_)
   | ApPalette(_, _, _, _) => false
   | Lam(_, _, _, body) => is_multi_line(body)
-  | TyLam(_, _) => raise(Failure("unimplemented"))
+  | TyLam(_, _, _) => raise(Failure("unimplemented"))
   | Inj(_, _, body) => is_multi_line(body)
   | Case(_, _, _, _) => true
   | Parenthesized(body) => is_multi_line(body)

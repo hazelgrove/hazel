@@ -1,4 +1,4 @@
-open Sexplib.Std;
+/* open Sexplib.Std; */
 open SemanticsCommon;
 open GeneralUtil;
 
@@ -25,8 +25,8 @@ and t =
   | LamZP(ErrStatus.t, ZPat.t, option(UHTyp.t), UHExp.block)
   | LamZA(ErrStatus.t, UHPat.t, ZTyp.t, UHExp.block)
   | LamZE(ErrStatus.t, UHPat.t, option(UHTyp.t), zblock)
-  | TyLamZP(ZTPat.t, UHExp.block)
-  | TyLamZE(TPat.t, zblock)
+  | TyLamZP(ErrStatus.t, ZTPat.t, UHExp.block)
+  | TyLamZE(ErrStatus.t, TPat.t, zblock)
   | InjZ(ErrStatus.t, inj_side, zblock)
   | CaseZE(ErrStatus.t, zblock, list(UHExp.rule), option(UHTyp.t))
   | CaseZR(ErrStatus.t, UHExp.block, zrules, option(UHTyp.t))
@@ -84,7 +84,7 @@ let valid_cursors_exp = (e: UHExp.t): list(cursor_position) =>
     |> List.map(k => delim_cursors_k(k))
     |> List.flatten
   | ApPalette(_, _, _, _) => delim_cursors(1) /* TODO[livelits] */
-  | TyLam(_, _) => raise(Failure("unimplemented"))
+  | TyLam(_, _, _) => raise(Failure("unimplemented"))
   };
 let valid_cursors_rule = (_: UHExp.rule): list(cursor_position) =>
   delim_cursors(2);
@@ -120,8 +120,8 @@ let bidelimit = (ze: t): t =>
   | LamZP(_, _, _, _)
   | LamZA(_, _, _, _)
   | LamZE(_, _, _, _) => parenthesize(ze)
-  | TyLamZP(_, _)
-  | TyLamZE(_, _) => raise(Failure("unimplemented"))
+  | TyLamZP(_, _, _)
+  | TyLamZE(_, _, _) => raise(Failure("unimplemented"))
   };
 
 exception SkelInconsistentWithOpSeq;
@@ -162,6 +162,7 @@ and is_before_exp = (ze: t): bool =>
   | CursorE(cursor, NumLit(_, _))
   | CursorE(cursor, BoolLit(_, _)) => cursor == OnText(0)
   /* inner nodes */
+  | CursorE(cursor, TyLam(_, _, _))
   | CursorE(cursor, Lam(_, _, _, _))
   | CursorE(cursor, Inj(_, _, _))
   | CursorE(cursor, Case(_, _, _, _))
@@ -171,6 +172,8 @@ and is_before_exp = (ze: t): bool =>
   /* zipper cases */
   | ParenthesizedZ(_) => false
   | OpSeqZ(_, ze1, EmptyPrefix(_)) => is_before_exp(ze1)
+  | TyLamZP(_, _, _)
+  | TyLamZE(_, _, _) => false
   | OpSeqZ(_, _, _) => false
   | LamZP(_, _, _, _)
   | LamZA(_, _, _, _)
@@ -215,6 +218,7 @@ and is_after_exp = (ze: t): bool =>
   | CursorE(cursor, BoolLit(_, true)) => cursor == OnText(4)
   | CursorE(cursor, BoolLit(_, false)) => cursor == OnText(5)
   /* inner nodes */
+  | CursorE(_, TyLam(_, _, _)) => false
   | CursorE(_, Lam(_, _, _, _)) => false
   | CursorE(_, Case(_, _, _, Some(_))) => false
   | CursorE(cursor, Case(_, _, _, None)) => cursor == OnDelim(1, After)
@@ -226,8 +230,10 @@ and is_after_exp = (ze: t): bool =>
   | ParenthesizedZ(_) => false
   | OpSeqZ(_, ze1, EmptySuffix(_)) => is_after_exp(ze1)
   | OpSeqZ(_, _, _) => false
+  | TyLamZP(_, _, _) => false
   | LamZP(_, _, _, _)
   | LamZA(_, _, _, _) => false
+  | TyLamZE(_, _, zblock) => is_after_block(zblock)
   | LamZE(_, _, _, zblock) => is_after_block(zblock)
   | InjZ(_, _, _) => false
   | CaseZE(_, _, _, _)
@@ -261,10 +267,12 @@ and is_after_case_rule_exp =
   | CaseZR(_, _, (_, RuleZE(_, zclause), _), _) => zclause |> is_after_block
   | ParenthesizedZ(zblock)
   | InjZ(_, _, zblock)
+  | TyLamZE(_, _, zblock)
   | LamZE(_, _, _, zblock)
   | CaseZE(_, zblock, _, _) => zblock |> is_after_case_rule
   | OpSeqZ(_, ztm, _) => ztm |> is_after_case_rule_exp
   | CursorE(_, _)
+  | TyLamZP(_, _, _)
   | LamZP(_, _, _, _)
   | LamZA(_, _, _, _)
   | CaseZR(_, _, (_, CursorR(_, _), _), _)
@@ -292,12 +300,14 @@ and is_on_user_newlineable_hole__zexp =
   fun
   | CursorE(_, _) => false
   | ParenthesizedZ(zblock)
+  | TyLamZE(_, _, zblock)
   | LamZE(_, _, _, zblock)
   | InjZ(_, _, zblock)
   | CaseZE(_, zblock, _, _)
   | CaseZR(_, _, (_, RuleZE(_, zblock), _), _) =>
     zblock |> is_on_user_newlineable_hole
   | OpSeqZ(_, ztm, _) => ztm |> is_on_user_newlineable_hole__zexp
+  | TyLamZP(_, _, _)
   | LamZP(_, _, _, _)
   | LamZA(_, _, _, _)
   | CaseZR(_, _, (_, CursorR(_, _) | RuleZP(_, _), _), _)
@@ -328,6 +338,7 @@ and place_before_exp = (e: UHExp.t): t =>
   | NumLit(_, _)
   | BoolLit(_, _) => CursorE(OnText(0), e)
   /* inner nodes */
+  | TyLam(_, _, _)
   | Lam(_, _, _, _)
   | Inj(_, _, _)
   | Case(_, _, _, _)
@@ -339,12 +350,12 @@ and place_before_exp = (e: UHExp.t): t =>
     OpSeqZ(skel, ze1, surround);
   | ApPalette(_, _, _, _) => CursorE(OnDelim(0, Before), e) /* TODO[livelits] */
   };
-let place_before_lines = (lines: UHExp.lines): option(zlines) =>
+let _place_before_lines = (lines: UHExp.lines): option(zlines) =>
   switch (lines) {
   | [] => None
   | [line, ...lines] => Some(([], place_before_line(line), lines))
   };
-let place_before_rule = (rule: UHExp.rule): zrule =>
+let _place_before_rule = (rule: UHExp.rule): zrule =>
   CursorR(OnDelim(0, Before), rule);
 
 let rec place_after_block = (Block(lines, e): UHExp.block): zblock =>
@@ -366,6 +377,8 @@ and place_after_exp = (e: UHExp.t): t =>
   | BoolLit(_, true) => CursorE(OnText(4), e)
   | BoolLit(_, false) => CursorE(OnText(5), e)
   /* inner nodes */
+  /* cc: marking for later */
+  | TyLam(err, p, block) => TyLamZE(err, p, place_after_block(block))
   | Lam(err, p, ann, block) => LamZE(err, p, ann, place_after_block(block))
   | Case(err, block, rules, Some(uty)) =>
     CaseZA(err, block, rules, ZTyp.place_after(uty))
@@ -402,7 +415,7 @@ let place_cursor_line =
   | LetLine(_, _, _) =>
     is_valid_cursor_line(cursor, line) ? Some(CursorL(cursor, line)) : None
   };
-let place_cursor_rule =
+let _place_cursor_rule =
     (cursor: cursor_position, rule: UHExp.rule): option(zrule) =>
   is_valid_cursor_rule(cursor, rule) ? Some(CursorR(cursor, rule)) : None;
 
@@ -435,6 +448,8 @@ and get_err_status_t = (ze: t): ErrStatus.t =>
   | LamZP(err, _, _, _)
   | LamZA(err, _, _, _)
   | LamZE(err, _, _, _)
+  | TyLamZP(err, _, _)
+  | TyLamZE(err, _, _)
   | InjZ(err, _, _)
   | CaseZE(err, _, _, _)
   | CaseZR(err, _, _, _)
@@ -470,6 +485,8 @@ and set_err_status_t = (err: ErrStatus.t, ze: t): t =>
     let (skel, ze_n, surround) =
       set_err_status_opseq(err, skel, ze_n, surround);
     OpSeqZ(skel, ze_n, surround);
+  | TyLamZP(_, zp, block) => TyLamZP(err, zp, block)
+  | TyLamZE(_, p, zblock) => TyLamZE(err, p, zblock)
   | LamZP(_, zp, ann, block) => LamZP(err, zp, ann, block)
   | LamZA(_, p, zann, block) => LamZA(err, p, zann, block)
   | LamZE(_, p, ann, zblock) => LamZE(err, p, ann, zblock)
@@ -528,6 +545,8 @@ and make_t_inconsistent = (u_gen: MetaVarGen.t, ze: t): (t, MetaVarGen.t) =>
       make_skel_inconsistent(u_gen, skel, ze_n, surround);
     (OpSeqZ(skel, ze_n, surround), u_gen);
   /* already in hole */
+  | TyLamZP(InHole(TypeInconsistent, _), _, _)
+  | TyLamZE(InHole(TypeInconsistent, _), _, _)
   | LamZP(InHole(TypeInconsistent, _), _, _, _)
   | LamZA(InHole(TypeInconsistent, _), _, _, _)
   | LamZE(InHole(TypeInconsistent, _), _, _, _)
@@ -537,6 +556,8 @@ and make_t_inconsistent = (u_gen: MetaVarGen.t, ze: t): (t, MetaVarGen.t) =>
   | CaseZA(InHole(TypeInconsistent, _), _, _, _)
   | ApPaletteZ(InHole(TypeInconsistent, _), _, _, _) => (ze, u_gen)
   /* not in hole */
+  | TyLamZP(NotInHole | InHole(WrongLength, _), _, _)
+  | TyLamZE(NotInHole | InHole(WrongLength, _), _, _)
   | LamZP(NotInHole | InHole(WrongLength, _), _, _, _)
   | LamZA(NotInHole | InHole(WrongLength, _), _, _, _)
   | LamZE(NotInHole | InHole(WrongLength, _), _, _, _)
@@ -602,6 +623,8 @@ let rec cursor_on_outer_expr =
   | ParenthesizedZ(BlockZE([], ze)) => cursor_on_outer_expr(ze)
   | ParenthesizedZ(_)
   | OpSeqZ(_, _, _)
+  | TyLamZP(_, _, _)
+  | TyLamZE(_, _, _)
   | LamZP(_, _, _, _)
   | LamZA(_, _, _, _)
   | LamZE(_, _, _, _)
@@ -641,6 +664,8 @@ and erase = (ze: t): UHExp.t =>
   | OpSeqZ(skel, ze', surround) =>
     let e = erase(ze');
     OpSeq(skel, OperatorSeq.opseq_of_exp_and_surround(e, surround));
+  | TyLamZP(err, zp, block) => TyLam(err, ZTPat.erase(zp), block)
+  | TyLamZE(err, p, zblock) => TyLam(err, p, erase_block(zblock))
   | LamZP(err, zp, ann, block) => Lam(err, ZPat.erase(zp), ann, block)
   | LamZA(err, p, zann, block) =>
     Lam(err, p, Some(ZTyp.erase(zann)), block)
@@ -684,6 +709,8 @@ and cursor_on_opseq_exp = (ze: t): bool =>
   | CursorE(_, _) => false
   | ParenthesizedZ(zblock) => cursor_on_opseq_block(zblock)
   | OpSeqZ(_, ze, _) => cursor_on_opseq_exp(ze)
+  | TyLamZP(_, ztp, _) => ZTPat.cursor_on_opseq(ztp)
+  | TyLamZE(_, _, zblock) => cursor_on_opseq_block(zblock)
   | LamZP(_, zp, _, _) => ZPat.cursor_on_opseq(zp)
   | LamZA(_, _, zann, _) => ZTyp.cursor_on_opseq(zann)
   | LamZE(_, _, _, zblock) => cursor_on_opseq_block(zblock)
@@ -819,13 +846,22 @@ and move_cursor_left_exp = (ze: t): option(t) =>
     | Some((e1, surround)) =>
       Some(OpSeqZ(skel, place_after_exp(e1), surround))
     }
-  | CursorE(OnDelim(k, Before), Lam(err, arg, ann, body)) =>
-    // k == 1 || k == 2
-    switch (k == 1, ann) {
-    | (true, _) => Some(LamZP(err, ZPat.place_after(arg), ann, body))
-    | (_, None) => Some(LamZP(err, ZPat.place_after(arg), ann, body))
-    | (_, Some(ann)) => Some(LamZA(err, arg, ZTyp.place_after(ann), body))
+  | CursorE(OnDelim(k, Before), TyLam(err, tp, body)) =>
+    if (k == 0) {
+      Some(TyLamZP(err, ZTPat.place_after(tp), body));
+    } else {
+      Some(TyLamZP(err, ZTPat.place_after(tp), body));
     }
+  | CursorE(OnDelim(k, Before), Lam(err, arg, ann, body)) =>
+    if (k == 1) {
+      Some(LamZP(err, ZPat.place_after(arg), ann, body));
+    } else {
+      switch (ann) {
+      | None => Some(LamZP(err, ZPat.place_after(arg), ann, body))
+      | Some(ann) => Some(LamZA(err, arg, ZTyp.place_after(ann), body))
+      };
+    }
+  // k == 1 || k == 2
   | CursorE(OnDelim(_k, Before), Case(err, scrut, rules, ann)) =>
     // _k == 1
     switch (List.rev(rules)) {
@@ -878,6 +914,18 @@ and move_cursor_left_exp = (ze: t): option(t) =>
           OperatorSeq.opseq_of_exp_and_surround(erase(ze1), surround);
         Some(CursorE(OnDelim(k, After), OpSeq(skel, seq)));
       }
+    }
+  | TyLamZP(err, ztp, body) =>
+    switch (ZTPat.move_cursor_left(ztp)) {
+    | Some(ztp) => Some(TyLamZP(err, ztp, body))
+    | None =>
+      Some(CursorE(OnDelim(0, After), TyLam(err, ZTPat.erase(ztp), body)))
+    }
+  | TyLamZE(err, tp, zbody) =>
+    switch (move_cursor_left_block(zbody)) {
+    | Some(zbody) => Some(TyLamZE(err, tp, zbody))
+    | None =>
+      Some(CursorE(OnDelim(1, After), TyLam(err, tp, erase_block(zbody))))
     }
   | LamZP(err, zarg, ann, body) =>
     switch (ZPat.move_cursor_left(zarg)) {
@@ -1100,6 +1148,16 @@ and move_cursor_right_exp = (ze: t): option(t) =>
     | Some((e1, surround)) =>
       Some(OpSeqZ(skel, place_before_exp(e1), surround))
     }
+  | CursorE(OnDelim(k, After), TyLam(err, tp, body)) =>
+    // k == 0 || k == 1 || k == 2
+    if (k == 0) {
+      Some(TyLamZP(err, ZTPat.place_before(tp), body));
+    } else if (k == 1) {
+      None; /* cc: is this true? */
+          // invalid cursor position
+    } else {
+      Some(TyLamZE(err, tp, place_before_block(body)));
+    }
   | CursorE(OnDelim(k, After), Lam(err, arg, ann, body)) =>
     // k == 0 || k == 1 || k == 2
     switch (k == 0, k == 1, ann) {
@@ -1193,6 +1251,23 @@ and move_cursor_right_exp = (ze: t): option(t) =>
     switch (move_cursor_right_block(zbody)) {
     | None => None
     | Some(zbody) => Some(LamZE(err, arg, ann, zbody))
+    }
+  | TyLamZP(err, ztp, body) =>
+    switch (ZTPat.move_cursor_right(ztp)) {
+    | Some(ztp) => Some(TyLamZP(err, ztp, body))
+    | None =>
+      Some(
+        CursorE(
+          /* cc: is this right? */
+          OnDelim(1, Before),
+          TyLam(err, ZTPat.erase(ztp), body),
+        ),
+      )
+    }
+  | TyLamZE(err, tp, zbody) =>
+    switch (move_cursor_right_block(zbody)) {
+    | None => None
+    | Some(zbody) => Some(TyLamZE(err, tp, zbody))
     }
   | CaseZE(err, zscrut, rules, ann) =>
     switch (move_cursor_right_block(zscrut)) {

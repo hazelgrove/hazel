@@ -1,6 +1,14 @@
-[@deriving sexp]
-type t = (VarCtx.t, PaletteCtx.t);
-let empty = (VarCtx.empty, PaletteCtx.empty);
+type t = {
+  tvars: TVarCtx.t,
+  vars: VarCtx.t,
+  palettes: PaletteCtx.t,
+};
+
+let empty = {
+  tvars: TVarCtx.empty,
+  palettes: PaletteCtx.empty,
+  vars: VarCtx.empty,
+};
 
 let extend_vars = (ctx: t, binding: (Var.t, HTyp.t)): t => {
   {...ctx, vars: VarCtx.extend(ctx.vars, binding)};

@@ -78,6 +78,8 @@ and of_zexp = (ze: ZExp.t): t =>
   | OpSeqZ(_, ze, surround) =>
     let n = OperatorSeq.surround_prefix_length(surround);
     cons'(n, of_zexp(ze));
+  | TyLamZP(_, ztp, _) => cons'(0, of_ztpat(ztp))
+  | TyLamZE(_, _, zblock) => cons'(1, of_zblock(zblock))
   | LamZP(_, zp, _, _) => cons'(0, of_zpat(zp))
   | LamZA(_, _, zann, _) => cons'(1, of_ztyp(zann))
   | LamZE(_, _, _, zblock) => cons'(2, of_zblock(zblock))
@@ -125,9 +127,13 @@ let steps_of_zexp = ze => {
   steps;
 };
 
+let term_steps_of_ztpat = _ => [];
+
 let rec term_steps_of_ztyp: ZTyp.t => steps =
   fun
   | CursorT(_, _) => []
+  | ForallZP(ztp, _) => [0, ...term_steps_of_ztpat(ztp)]
+  | ForallZT(_, zbody) => [1, ...term_steps_of_ztyp(zbody)]
   | ListZ(zbody)
   | ParenthesizedZ(zbody) => [0, ...term_steps_of_ztyp(zbody)]
   | OpSeqZ(_, ztm, surround) => [
@@ -171,6 +177,8 @@ and term_steps_of_zexp =
       OperatorSeq.surround_prefix_length(surround),
       ...term_steps_of_zexp(ztm),
     ]
+  | TyLamZP(_, ztp, _) => [0, ...term_steps_of_ztpat(ztp)]
+  | TyLamZE(_, _, zdef) => [1, ...term_steps_of_zblock(zdef)]
   | LamZP(_, zp, _, _) => [0, ...term_steps_of_zpat(zp)]
   | LamZA(_, _, zann, _) => [1, ...term_steps_of_ztyp(zann)]
   | LamZE(_, _, _, zdef) => [2, ...term_steps_of_zblock(zdef)]
@@ -197,6 +205,8 @@ let rec before_typ = (~steps=[], ty: UHTyp.t): t =>
   | Unit
   | Num
   | Bool => (steps, OnDelim(0, Before))
+  | TVar(_, _) => (steps, OnText(0))
+  | Forall(_, _)
   | Parenthesized(_)
   | List(_) => (steps, OnDelim(0, Before))
   | OpSeq(_, seq) =>
@@ -238,6 +248,7 @@ and before_exp = (~steps=[], e: UHExp.t): t =>
   | Var(_, _, _)
   | NumLit(_, _)
   | BoolLit(_, _) => (steps, OnText(0))
+  | TyLam(_, _, _)
   | Lam(_, _, _, _)
   | Inj(_, _, _)
   | Case(_, _, _, _)
@@ -248,11 +259,24 @@ and before_exp = (~steps=[], e: UHExp.t): t =>
     before_exp(~steps=steps @ [0], first);
   };
 
+let follow_tpat_and_place_cursor =
+    (steps: steps, pctp: TPat.t => option(ZTPat.t), tpat: TPat.t)
+    : option(ZTPat.t) =>
+  switch (steps) {
+  | [] => pctp(tpat)
+  | _ => None
+  };
+
 let rec follow_ty_and_place_cursor =
-        (steps: steps, place_cursor: UHTyp.t => option(ZTyp.t), uty: UHTyp.t)
+        (
+          steps: steps,
+          pct: UHTyp.t => option(ZTyp.t),
+          pctp: TPat.t => option(ZTPat.t),
+          uty: UHTyp.t,
+        )
         : option(ZTyp.t) =>
   switch (steps) {
-  | [] => place_cursor(uty)
+  | [] => pct(uty)
   | [x, ...xs] =>
     switch (uty) {
     | TVar(_)
@@ -263,15 +287,14 @@ let rec follow_ty_and_place_cursor =
     | Forall(tpat, uty1) =>
       switch (x) {
       | 0 =>
-        switch (follow_tpat(cursor_side, tpat)) {
+        switch (follow_tpat_and_place_cursor(xs, pctp, tpat)) {
         | Some(ztpat) => Some(ForallZP(ztpat, uty1))
         | None => None
         }
       | 1 =>
-        switch (follow_ty((xs, cursor_side), uty1)) {
-        | Some(uty1) => Some(ForallZT(tpat, uty1))
+        switch (follow_ty_and_place_cursor(xs, pct, pctp, uty1)) {
+        | Some(zty1) => Some(ForallZT(tpat, zty1))
         | None => None
-        | Some(zty) => Some(ParenthesizedZ(zty))
         }
       | _ => None
       }
@@ -279,7 +302,7 @@ let rec follow_ty_and_place_cursor =
     | Parenthesized(uty1) =>
       switch (x) {
       | 0 =>
-        switch (follow_ty_and_place_cursor(xs, place_cursor, uty1)) {
+        switch (follow_ty_and_place_cursor(xs, pct, pctp, uty1)) {
         | None => None
         | Some(zty) => Some(ParenthesizedZ(zty))
         }
@@ -288,7 +311,7 @@ let rec follow_ty_and_place_cursor =
     | List(uty1) =>
       switch (x) {
       | 0 =>
-        switch (follow_ty_and_place_cursor(xs, place_cursor, uty1)) {
+        switch (follow_ty_and_place_cursor(xs, pct, pctp, uty1)) {
         | None => None
         | Some(zty) => Some(ListZ(zty))
         }
@@ -298,7 +321,7 @@ let rec follow_ty_and_place_cursor =
       switch (OperatorSeq.split(x, seq)) {
       | None => None
       | Some((uty_n, surround)) =>
-        switch (follow_ty_and_place_cursor(xs, place_cursor, uty_n)) {
+        switch (follow_ty_and_place_cursor(xs, pct, pctp, uty_n)) {
         | None => None
         | Some(zty_n) => Some(OpSeqZ(skel, zty_n, surround))
         }
@@ -310,6 +333,7 @@ let follow_ty_and_place_before = (steps: steps, uty: UHTyp.t): option(ZTyp.t) =>
   follow_ty_and_place_cursor(
     steps,
     uty => Some(ZTyp.place_before(uty)),
+    tp => Some(ZTPat.place_before(tp)),
     uty,
   );
 
@@ -317,16 +341,22 @@ let follow_ty_and_place_after = (steps: steps, uty: UHTyp.t): option(ZTyp.t) =>
   follow_ty_and_place_cursor(
     steps,
     uty => Some(ZTyp.place_after(uty)),
+    tp => Some(ZTPat.place_before(tp)),
     uty,
   );
 
-let follow_ty = ((steps, cursor): t, uty: UHTyp.t): option(ZTyp.t) =>
-  follow_ty_and_place_cursor(steps, ZTyp.place_cursor(cursor), uty);
+let follow_ty = (steps: steps, uty: UHTyp.t): option(ZTyp.t) =>
+  follow_ty_and_place_cursor(
+    steps,
+    uty => Some(ZTyp.place_after(uty)),
+    tp => Some(ZTPat.place_before(tp)),
+    uty,
+  );
 
-exception UHTypeNodeNotFound(t, UHTyp.t);
-let follow_ty_or_fail = (path: t, uty: UHTyp.t): ZTyp.t =>
-  switch (follow_ty(path, uty)) {
-  | None => raise(UHTypeNodeNotFound(path, uty))
+exception UHTypeNodeNotFound(steps, UHTyp.t);
+let follow_ty_or_fail = (steps: steps, uty: UHTyp.t): ZTyp.t =>
+  switch (follow_ty(steps, uty)) {
+  | None => raise(UHTypeNodeNotFound(steps, uty))
   | Some(zty) => zty
   };
 
@@ -393,6 +423,7 @@ let rec follow_block_and_place_cursor =
           pcr: UHExp.rule => option(ZExp.zrule),
           pcp: UHPat.t => option(ZPat.t),
           pct: UHTyp.t => option(ZTyp.t),
+          pctp: TPat.t => option(ZTPat.t),
           Block(lines, e): UHExp.block,
         )
         : option(ZExp.zblock) =>
@@ -400,13 +431,24 @@ let rec follow_block_and_place_cursor =
   | [] => None /* no block level cursor */
   | [x, ...xs] =>
     if (x === List.length(lines)) {
-      switch (follow_exp_and_place_cursor(xs, pcl, pce, pcr, pcp, pct, e)) {
+      switch (
+        follow_exp_and_place_cursor(xs, pcl, pce, pcr, pcp, pct, pctp, e)
+      ) {
       | None => None
       | Some(ze) => Some(BlockZE(lines, ze))
       };
     } else {
       switch (
-        follow_lines_and_place_cursor(steps, pcl, pce, pcr, pcp, pct, lines)
+        follow_lines_and_place_cursor(
+          steps,
+          pcl,
+          pce,
+          pcr,
+          pcp,
+          pct,
+          pctp,
+          lines,
+        )
       ) {
       | None => None
       | Some(zlines) => Some(BlockZL(zlines, e))
@@ -421,6 +463,7 @@ and follow_lines_and_place_cursor =
       pcr: UHExp.rule => option(ZExp.zrule),
       pcp: UHPat.t => option(ZPat.t),
       pct: UHTyp.t => option(ZTyp.t),
+      pctp: TPat.t => option(ZTPat.t),
       lines: UHExp.lines,
     )
     : option(ZExp.zlines) =>
@@ -431,7 +474,7 @@ and follow_lines_and_place_cursor =
     | None => None
     | Some(split_lines) =>
       ZList.optmap_z(
-        follow_line_and_place_cursor(xs, pcl, pce, pcr, pcp, pct),
+        follow_line_and_place_cursor(xs, pcl, pce, pcr, pcp, pct, pctp),
         split_lines,
       )
     }
@@ -444,12 +487,15 @@ and follow_line_and_place_cursor =
       pcr: UHExp.rule => option(ZExp.zrule),
       pcp: UHPat.t => option(ZPat.t),
       pct: UHTyp.t => option(ZTyp.t),
+      pctp: TPat.t => option(ZTPat.t),
       line: UHExp.line,
     )
     : option(ZExp.zline) =>
   switch (steps, line) {
   | (_, ExpLine(e)) =>
-    switch (follow_exp_and_place_cursor(steps, pcl, pce, pcr, pcp, pct, e)) {
+    switch (
+      follow_exp_and_place_cursor(steps, pcl, pce, pcr, pcp, pct, pctp, e)
+    ) {
     | None => None
     | Some(ze) => Some(ExpLineZ(ze))
     }
@@ -464,13 +510,15 @@ and follow_line_and_place_cursor =
     switch (ann) {
     | None => None
     | Some(ann_ty) =>
-      switch (follow_ty_and_place_cursor(xs, pct, ann_ty)) {
+      switch (follow_ty_and_place_cursor(xs, pct, pctp, ann_ty)) {
       | None => None
       | Some(zann) => Some(LetLineZA(p, zann, e1))
       }
     }
   | ([2, ...xs], LetLine(p, ann, block)) =>
-    switch (follow_block_and_place_cursor(xs, pcl, pce, pcr, pcp, pct, block)) {
+    switch (
+      follow_block_and_place_cursor(xs, pcl, pce, pcr, pcp, pct, pctp, block)
+    ) {
     | None => None
     | Some(zblock) => Some(LetLineZE(p, ann, zblock))
     }
@@ -484,6 +532,7 @@ and follow_exp_and_place_cursor =
       pcr: UHExp.rule => option(ZExp.zrule),
       pcp: UHPat.t => option(ZPat.t),
       pct: UHTyp.t => option(ZTyp.t),
+      pctp: TPat.t => option(ZTPat.t),
       e: UHExp.t,
     )
     : option(ZExp.t) =>
@@ -500,7 +549,16 @@ and follow_exp_and_place_cursor =
     /* inner nodes */
     | (0, Parenthesized(block)) =>
       switch (
-        follow_block_and_place_cursor(xs, pcl, pce, pcr, pcp, pct, block)
+        follow_block_and_place_cursor(
+          xs,
+          pcl,
+          pce,
+          pcr,
+          pcp,
+          pct,
+          pctp,
+          block,
+        )
       ) {
       | None => None
       | Some(zblock) => Some(ParenthesizedZ(zblock))
@@ -510,11 +568,35 @@ and follow_exp_and_place_cursor =
       switch (OperatorSeq.split(x, seq)) {
       | None => None
       | Some((e, surround)) =>
-        switch (follow_exp_and_place_cursor(xs, pcl, pce, pcr, pcp, pct, e)) {
+        switch (
+          follow_exp_and_place_cursor(xs, pcl, pce, pcr, pcp, pct, pctp, e)
+        ) {
         | Some(ze) => Some(OpSeqZ(skel, ze, surround))
         | None => None
         }
       }
+    | (0, TyLam(err, tp, block)) =>
+      switch (follow_tpat_and_place_cursor(xs, pctp, tp)) {
+      | None => None
+      | Some(ztp) => Some(TyLamZP(err, ztp, block))
+      }
+    | (1, TyLam(err, tp, block)) =>
+      switch (
+        follow_block_and_place_cursor(
+          xs,
+          pcl,
+          pce,
+          pcr,
+          pcp,
+          pct,
+          pctp,
+          block,
+        )
+      ) {
+      | None => None
+      | Some(zblock) => Some(TyLamZE(err, tp, zblock))
+      }
+    | (_, TyLam(_, _, _)) => None
     | (0, Lam(err, p, ann, block)) =>
       switch (follow_pat_and_place_cursor(xs, pcp, p)) {
       | None => None
@@ -524,14 +606,23 @@ and follow_exp_and_place_cursor =
       switch (ann) {
       | None => None
       | Some(ann_ty) =>
-        switch (follow_ty_and_place_cursor(xs, pct, ann_ty)) {
+        switch (follow_ty_and_place_cursor(xs, pct, pctp, ann_ty)) {
         | None => None
         | Some(zann) => Some(LamZA(err, p, zann, block))
         }
       }
     | (2, Lam(err, p, ann, block)) =>
       switch (
-        follow_block_and_place_cursor(xs, pcl, pce, pcr, pcp, pct, block)
+        follow_block_and_place_cursor(
+          xs,
+          pcl,
+          pce,
+          pcr,
+          pcp,
+          pct,
+          pctp,
+          block,
+        )
       ) {
       | None => None
       | Some(zblock) => Some(LamZE(err, p, ann, zblock))
@@ -539,7 +630,16 @@ and follow_exp_and_place_cursor =
     | (_, Lam(_, _, _, _)) => None
     | (0, Inj(err, side, block)) =>
       switch (
-        follow_block_and_place_cursor(xs, pcl, pce, pcr, pcp, pct, block)
+        follow_block_and_place_cursor(
+          xs,
+          pcl,
+          pce,
+          pcr,
+          pcp,
+          pct,
+          pctp,
+          block,
+        )
       ) {
       | None => None
       | Some(zblock) => Some(InjZ(err, side, zblock))
@@ -547,7 +647,16 @@ and follow_exp_and_place_cursor =
     | (_, Inj(_, _, _)) => None
     | (0, Case(err, block, rules, ann)) =>
       switch (
-        follow_block_and_place_cursor(xs, pcl, pce, pcr, pcp, pct, block)
+        follow_block_and_place_cursor(
+          xs,
+          pcl,
+          pce,
+          pcr,
+          pcp,
+          pct,
+          pctp,
+          block,
+        )
       ) {
       | None => None
       | Some(zblock) => Some(CaseZE(err, zblock, rules, ann))
@@ -556,7 +665,7 @@ and follow_exp_and_place_cursor =
       switch (ann) {
       | None => None
       | Some(ty) =>
-        switch (follow_ty_and_place_cursor(xs, pct, ty)) {
+        switch (follow_ty_and_place_cursor(xs, pct, pctp, ty)) {
         | None => None
         | Some(zann) => Some(CaseZA(err, block, rules, zann))
         }
@@ -567,7 +676,7 @@ and follow_exp_and_place_cursor =
       | Some(split_rules) =>
         switch (
           ZList.optmap_z(
-            follow_rule_and_place_cursor(xs, pcl, pce, pcr, pcp, pct),
+            follow_rule_and_place_cursor(xs, pcl, pce, pcr, pcp, pct, pctp),
             split_rules,
           )
         ) {
@@ -579,7 +688,16 @@ and follow_exp_and_place_cursor =
       switch (
         ZSpliceInfo.select_opt(splice_info, n, ((ty, block)) =>
           switch (
-            follow_block_and_place_cursor(xs, pcl, pce, pcr, pcp, pct, block)
+            follow_block_and_place_cursor(
+              xs,
+              pcl,
+              pce,
+              pcr,
+              pcp,
+              pct,
+              pctp,
+              block,
+            )
           ) {
           | None => None
           | Some(zblock) => Some((ty, zblock))
@@ -600,6 +718,7 @@ and follow_rule_and_place_cursor =
       pcr: UHExp.rule => option(ZExp.zrule),
       pcp: UHPat.t => option(ZPat.t),
       pct: UHTyp.t => option(ZTyp.t),
+      pctp: TPat.t => option(ZTPat.t),
       Rule(p, block) as rule: UHExp.rule,
     )
     : option(ZExp.zrule) =>
@@ -611,7 +730,9 @@ and follow_rule_and_place_cursor =
     | Some(zp) => Some(RuleZP(zp, block))
     }
   | [1, ...xs] =>
-    switch (follow_block_and_place_cursor(xs, pcl, pce, pcr, pcp, pct, block)) {
+    switch (
+      follow_block_and_place_cursor(xs, pcl, pce, pcr, pcp, pct, pctp, block)
+    ) {
     | None => None
     | Some(zblock) => Some(RuleZE(p, zblock))
     }
@@ -627,6 +748,7 @@ let follow_block_and_place_before =
     rule => Some(ZExp.place_before_rule(rule)),
     p => Some(ZPat.place_before(p)),
     uty => Some(ZTyp.place_before(uty)),
+    tp => Some(ZTPat.place_before(tp)),
     block,
   );
 let follow_line_and_place_before =
@@ -638,6 +760,7 @@ let follow_line_and_place_before =
     rule => Some(ZExp.place_before_rule(rule)),
     p => Some(ZPat.place_before(p)),
     uty => Some(ZTyp.place_before(uty)),
+    tp => Some(ZTPat.place_before(tp)),
     line,
   );
 let follow_exp_and_place_before = (steps: steps, e: UHExp.t): option(ZExp.t) =>
@@ -648,6 +771,7 @@ let follow_exp_and_place_before = (steps: steps, e: UHExp.t): option(ZExp.t) =>
     rule => Some(ZExp.place_before_rule(rule)),
     p => Some(ZPat.place_before(p)),
     uty => Some(ZTyp.place_before(uty)),
+    tp => Some(ZTPat.place_before(tp)),
     e,
   );
 let follow_rule_and_place_before =
@@ -659,6 +783,7 @@ let follow_rule_and_place_before =
     rule => Some(ZExp.place_before_rule(rule)),
     p => Some(ZPat.place_before(p)),
     uty => Some(ZTyp.place_before(uty)),
+    tp => Some(ZTPat.place_before(tp)),
     rule,
   );
 
@@ -671,6 +796,7 @@ let follow_block_and_place_after =
     rule => Some(ZExp.place_after_rule(rule)),
     p => Some(ZPat.place_after(p)),
     uty => Some(ZTyp.place_after(uty)),
+    tp => Some(ZTPat.place_before(tp)),
     block,
   );
 let follow_line_and_place_after =
@@ -682,6 +808,7 @@ let follow_line_and_place_after =
     rule => Some(ZExp.place_after_rule(rule)),
     p => Some(ZPat.place_after(p)),
     uty => Some(ZTyp.place_after(uty)),
+    tp => Some(ZTPat.place_before(tp)),
     line,
   );
 let follow_exp_and_place_after = (steps: steps, e: UHExp.t): option(ZExp.t) =>
@@ -692,6 +819,7 @@ let follow_exp_and_place_after = (steps: steps, e: UHExp.t): option(ZExp.t) =>
     rule => Some(ZExp.place_after_rule(rule)),
     p => Some(ZPat.place_after(p)),
     uty => Some(ZTyp.place_after(uty)),
+    tp => Some(ZTPat.place_before(tp)),
     e,
   );
 let follow_rule_and_place_after =
@@ -703,6 +831,7 @@ let follow_rule_and_place_after =
     rule => Some(ZExp.place_after_rule(rule)),
     p => Some(ZPat.place_after(p)),
     uty => Some(ZTyp.place_after(uty)),
+    tp => Some(ZTPat.place_before(tp)),
     rule,
   );
 
@@ -715,6 +844,7 @@ let follow_block =
     ZExp.place_cursor_rule(cursor),
     ZPat.place_cursor(cursor),
     ZTyp.place_cursor(cursor),
+    ZTPat.place_cursor(cursor),
     block,
   );
 let follow_lines =
@@ -726,6 +856,7 @@ let follow_lines =
     ZExp.place_cursor_rule(cursor),
     ZPat.place_cursor(cursor),
     ZTyp.place_cursor(cursor),
+    ZTPat.place_cursor(cursor),
     lines,
   );
 let follow_line = ((steps, cursor): t, line: UHExp.line): option(ZExp.zline) =>
@@ -736,6 +867,7 @@ let follow_line = ((steps, cursor): t, line: UHExp.line): option(ZExp.zline) =>
     ZExp.place_cursor_rule(cursor),
     ZPat.place_cursor(cursor),
     ZTyp.place_cursor(cursor),
+    ZTPat.place_cursor(cursor),
     line,
   );
 let follow_exp = ((steps, cursor): t, e: UHExp.t): option(ZExp.t) =>
@@ -746,6 +878,7 @@ let follow_exp = ((steps, cursor): t, e: UHExp.t): option(ZExp.t) =>
     ZExp.place_cursor_rule(cursor),
     ZPat.place_cursor(cursor),
     ZTyp.place_cursor(cursor),
+    ZTPat.place_cursor(cursor),
     e,
   );
 let follow_rule = ((steps, cursor): t, rule: UHExp.rule): option(ZExp.zrule) =>
@@ -756,6 +889,7 @@ let follow_rule = ((steps, cursor): t, rule: UHExp.rule): option(ZExp.zrule) =>
     ZExp.place_cursor_rule(cursor),
     ZPat.place_cursor(cursor),
     ZTyp.place_cursor(cursor),
+    ZTPat.place_cursor(cursor),
     rule,
   );
 
@@ -784,6 +918,7 @@ let follow_e_or_fail = (path: t, e: UHExp.t): ZExp.t =>
 type hole_desc =
   | VHole(MetaVar.t)
   | TypHole
+  | TVarHole(MetaVar.t)
   | PatHole(MetaVar.t)
   | ExpHole(MetaVar.t);
 
@@ -885,6 +1020,16 @@ let rec holes_skel =
   };
 };
 
+let rec holes_tpat =
+        (tp: TPat.t, rev_steps: rev_steps, holes: hole_list): hole_list =>
+  switch (tp) {
+  | Hole(u) => [
+      (TVarHole(u), (rev_steps |> List.rev, OnDelim(0, Before))),
+      ...holes,
+    ]
+  | Var(_) => holes
+  };
+
 let rec holes_uty =
         (uty: UHTyp.t, rev_steps: rev_steps, holes: hole_list): hole_list =>
   switch (uty) {
@@ -892,6 +1037,15 @@ let rec holes_uty =
       (TypHole, (rev_steps |> List.rev, OnDelim(0, Before))),
       ...holes,
     ]
+  | TVar(NotInVarHole, _) => holes
+  | TVar(InVarHole(_, u), _) => [
+      (TVarHole(u), (rev_steps |> List.rev, OnText(0))),
+      ...holes,
+    ]
+  | Forall(tp, uty1) =>
+    holes
+    |> holes_uty(uty1, [1, ...rev_steps])
+    |> holes_tpat(tp, [0, ...rev_steps])
   | Unit => holes
   | Num => holes
   | Bool => holes
@@ -948,12 +1102,6 @@ let rec holes_pat =
          skel,
          seq,
        )
-  };
-
-let holes_tpat = (tp: TPat.t, steps: steps, holes: hole_list): hole_list =>
-  switch (tp) {
-  | TPat.Hole(u) => [(ExpForallHole(u), steps), ...holes]
-  | TPat.Var(_) => holes
   };
 
 let holes_of_err_exp =
@@ -1045,6 +1193,11 @@ and holes_exp =
        )
   | Inj(err, _, block) =>
     holes_block(block, [0, ...rev_steps], holes)
+    |> holes_of_err_exp(e, err, rev_steps)
+  | TyLam(err, tp, block) =>
+    holes
+    |> holes_block(block, [2, ...rev_steps])
+    |> holes_tpat(tp, [0, ...rev_steps])
     |> holes_of_err_exp(e, err, rev_steps)
   | Lam(err, p, ann, block) =>
     let holes = holes_block(block, [2, ...rev_steps], holes);
