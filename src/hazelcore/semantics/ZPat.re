@@ -3,9 +3,9 @@ open GeneralUtil;
 
 [@deriving sexp]
 type opseq_surround = OperatorSeq.opseq_surround(UHPat.t, UHPat.op);
-[@deriving (sexp, show)]
+[@deriving sexp]
 type opseq_prefix = OperatorSeq.opseq_prefix(UHPat.t, UHPat.op);
-[@deriving (sexp, show)]
+[@deriving sexp]
 type opseq_suffix = OperatorSeq.opseq_suffix(UHPat.t, UHPat.op);
 
 [@deriving sexp]

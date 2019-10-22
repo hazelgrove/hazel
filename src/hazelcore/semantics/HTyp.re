@@ -1,10 +1,10 @@
 open GeneralUtil;
 
-[@deriving (sexp, show)]
+[@deriving sexp]
 type idx = int; /* we use de Bruijn indices */
 
 /* Types with holes */
-[@deriving (sexp, show)]
+[@deriving sexp]
 type t =
   | TVar(idx, Var.t) /* bound type variables */
   | TVarHole(MetaVar.t, Var.t) /* free type variables */
@@ -90,6 +90,9 @@ let rec num_tms = (ty: t): int =>
   | Arrow(ty1, ty2)
   | Prod(ty1, ty2)
   | Sum(ty1, ty2) => num_tms(ty1) + num_tms(ty2)
+  | TVar(_, _)
+  | TVarHole(_, _)
+  | Forall(_, _) => raise(Failure("unimplemented"))
   };
 
 /* # Type equivalence */

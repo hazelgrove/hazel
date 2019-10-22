@@ -3,7 +3,7 @@ open Sexplib.Std;
 
 /* charles: add a comment explaining this */
 
-[@deriving (sexp, show)]
+[@deriving sexp]
 type t('op) =
   | Placeholder(int)
   | BinOp(ErrStatus.t, 'op, t('op), t('op));

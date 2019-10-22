@@ -1,7 +1,7 @@
 open SemanticsCommon;
 
-[@deriving (show, sexp)]
+[@deriving sexp]
 type t =
-  | Cursor(cursor_side, TPat.t);
+  | Cursor(cursor_position, TPat.t);
 
 let erase = (Cursor(_, tpat)) => tpat;

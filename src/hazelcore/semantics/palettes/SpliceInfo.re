@@ -1,10 +1,10 @@
 open Sexplib.Std;
 
-[@deriving (sexp, show)]
+[@deriving sexp]
 type splice_name = int;
-[@deriving (sexp, show)]
+[@deriving sexp]
 type splice_map('exp) = GeneralUtil.NatMap.t((HTyp.t, 'exp));
-[@deriving (sexp, show)]
+[@deriving sexp]
 type t('exp) = {
   next: splice_name,
   splice_map: splice_map('exp),

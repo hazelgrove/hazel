@@ -7,12 +7,12 @@ type op =
   | Prod
   | Sum;
 
-[@deriving (sexp, show)]
+[@deriving sexp]
 type skel_t = Skel.t(op);
 
-[@deriving (sexp, show)]
+[@deriving sexp]
 type t =
-  | TVar(var_err_status, Var.t) /* bound type variables */
+  | TVar(VarErrStatus.t, Var.t) /* bound type variables */
   | Hole
   | Unit
   | Num
@@ -22,7 +22,7 @@ type t =
   | OpSeq(skel_t, OperatorSeq.opseq(t, op))
   | Forall(TPat.t, t);
 
-exception SkelInconsistentWithOpSeq(skel_t, opseq);
+type opseq = OperatorSeq.opseq(t, op);
 
 exception SkelInconsistentWithOpSeq(skel_t, opseq);
 
@@ -84,8 +84,8 @@ let rec contract = (ty: HTyp.t): t => {
      */
 
   switch (ty) {
-  | HTyp.TVar(_, t) => TVar(NotInVHole, t)
-  | HTyp.TVarHole(u, t) => TVar(InVHole(Free, u), t)
+  | HTyp.TVar(_, t) => TVar(NotInVarHole, t)
+  | HTyp.TVarHole(u, t) => TVar(InVarHole(Free, u), t)
   | HTyp.Hole => Hole
   | HTyp.Unit => Unit
   | HTyp.Num => Num
@@ -101,8 +101,8 @@ let rec contract = (ty: HTyp.t): t => {
 let rec expand = (uty: t): HTyp.t =>
   switch (uty) {
   /*! fix this */
-  | TVar(NotInVHole, t) => HTyp.TVar(0, t)
-  | TVar(InVHole(_, u), ty) => HTyp.TVarHole(u, ty)
+  | TVar(NotInVarHole, t) => HTyp.TVar(0, t)
+  | TVar(InVarHole(_, u), ty) => HTyp.TVarHole(u, ty)
   | Hole => HTyp.Hole
   | Unit => HTyp.Unit
   | Num => HTyp.Num
@@ -141,7 +141,9 @@ let child_indices =
   | Bool => []
   | Parenthesized(_)
   | List(_) => [0]
-  | OpSeq(_, seq) => range(OperatorSeq.seq_length(seq));
+  | OpSeq(_, seq) => range(OperatorSeq.seq_length(seq))
+  | TVar(_, _)
+  | Forall(_, _) => raise(Failure("unimplemented"));
 
 let favored_child: t => option((child_index, t)) =
   fun
@@ -151,7 +153,9 @@ let favored_child: t => option((child_index, t)) =
   | Bool
   | OpSeq(_, _) => None
   | Parenthesized(ty)
-  | List(ty) => Some((0, ty));
+  | List(ty) => Some((0, ty))
+  | TVar(_, _)
+  | Forall(_, _) => raise(Failure("unimplemented"));
 
 let new_ForallHole = (u_gen: MetaVarGen.t): (t, MetaVarGen.t) => {
   let (u, u_gen) = MetaVarGen.next(u_gen);

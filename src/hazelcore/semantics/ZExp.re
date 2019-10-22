@@ -84,6 +84,7 @@ let valid_cursors_exp = (e: UHExp.t): list(cursor_position) =>
     |> List.map(k => delim_cursors_k(k))
     |> List.flatten
   | ApPalette(_, _, _, _) => delim_cursors(1) /* TODO[livelits] */
+  | TyLam(_, _) => raise(Failure("unimplemented"))
   };
 let valid_cursors_rule = (_: UHExp.rule): list(cursor_position) =>
   delim_cursors(2);
@@ -119,6 +120,8 @@ let bidelimit = (ze: t): t =>
   | LamZP(_, _, _, _)
   | LamZA(_, _, _, _)
   | LamZE(_, _, _, _) => parenthesize(ze)
+  | TyLamZP(_, _)
+  | TyLamZE(_, _) => raise(Failure("unimplemented"))
   };
 
 exception SkelInconsistentWithOpSeq;
@@ -128,6 +131,8 @@ let rec is_before_block = (zblock: zblock): bool =>
   | BlockZL(zlines, _) => is_before_lines(zlines)
   | BlockZE([], ze) => is_before_exp(ze)
   | BlockZE(_, _) => false
+  /* cc: what is this? */
+  /* | CursorT(OnDelim(_, After), TVar(_, _) | Forall(_, _)) */
   }
 and is_before_lines = ((prefix, zline, _): zlines): bool =>
   switch (prefix) {

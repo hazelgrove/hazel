@@ -323,7 +323,7 @@ let char_in_range_b = (ch, s, e) =>
   };
 
 module NatMap = {
-  [@deriving (sexp, show)]
+  [@deriving sexp]
   type t('a) = list((int, 'a));
 
   let empty = [];

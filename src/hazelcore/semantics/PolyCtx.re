@@ -18,7 +18,7 @@ let drop_after = (ctx: t, x: MetaVar.t): t => {
   let rec loop = (ctx: t, x: MetaVar.t, acc: t): t =>
     switch (ctx) {
     | [] => List.rev(acc)
-    | [Marker(x), ..._] => List.rev(acc)
+    | [Marker(_x), ..._] => List.rev(acc)
     | [hd, ...rest] => loop(rest, x, [hd, ...acc])
     };
   loop(ctx, x, []);
