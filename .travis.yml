@@ -10,11 +10,11 @@ install:
  - sudo add-apt-repository -y ppa:ansible/bubblewrap
  - sudo apt-get update
  - sudo apt-get  --assume-yes install bubblewrap
- - wget https://github.com/ocaml/opam/releases/download/2.0.2/opam-2.0.2-x86_64-linux
- - sudo cp ./opam-2.0.2-x86_64-linux /usr/local/bin/opam
+ - wget https://github.com/ocaml/opam/releases/download/2.0.5/opam-2.0.5-x86_64-linux
+ - sudo cp ./opam-2.0.5-x86_64-linux /usr/local/bin/opam
  - sudo chmod a+x /usr/local/bin/opam
  - export OPAMYES=1
- - opam init -a
+ - opam init --compiler=ocaml-base-compiler.4.07.1
  - eval `opam env`
  - make deps
 
