@@ -2,6 +2,7 @@ echo "build here"
 
 echo "Compiling new static content"
 make release
+BUILD_WWW=`make build_www`
 
 echo "chmod"
 chmod 600 deploy-key
@@ -20,8 +21,19 @@ echo "move to hazel"
 cd hazel
 echo "switch to gh-pages"
 git checkout gh-pages
-echo "get latest files"
-cp -r ../_build/default/src/www/* .
+
+echo "clear gh-pages subdir $TRAVIS_BRANCH"
+if [ -d "$TRAVIS_BRANCH" ]
+then
+  echo "subdir found, clearing contents"
+  git rm -rf $TRAVIS_BRANCH/*
+else
+  echo "subdir not found, creating new"
+  mkdir "$TRAVIS_BRANCH"
+fi
+echo "cp new build contents into subdir"
+cp -r ../$BUILD_WWW/* $TRAVIS_BRANCH
+
 echo "git add"
 git add .
 echo "commit"
