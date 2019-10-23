@@ -1,3 +1,5 @@
+BUILD_WWW = "_build/default/src/hazelweb/www"
+
 all: dev
 
 deps:
@@ -9,17 +11,20 @@ dev debug:
 	dune build @src/fmt --auto-promote || true
 	dune build src --profile dev
 
+build_www:
+	@echo $(BUILD_WWW)
+
 release:
 	dune build src --profile release
 
 chrome:
-	chrome-browser _build/default/src/hazelweb/www/hazel.html
+	chrome-browser $(BUILD_WWW)/hazel.html
 
 chromium:
-	chromium-browser _build/default/src/hazelweb/www/hazel.html
+	chromium-browser $(BUILD_WWW)/hazel.html
 
 firefox:
-	firefox _build/default/src/hazelweb/www/hazel.html
+	firefox $(BUILD_WWW)/hazel.html
 
 repl:
 	dune utop src/hazelcore
