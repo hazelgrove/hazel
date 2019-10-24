@@ -1,5 +1,5 @@
 module U = GeneralUtil;
-open Tyxml_js;
+open Js_of_ocaml_tyxml.Tyxml_js;
 open React;
 module Js = Js_of_ocaml.Js;
 module Dom = Js_of_ocaml.Dom;

@@ -1,4 +1,4 @@
-open Tyxml_js;
+open Js_of_ocaml_tyxml.Tyxml_js;
 open SemanticsCommon;
 include EditorBoxTypes;
 module Dom_html = Js_of_ocaml.Dom_html;
@@ -225,7 +225,7 @@ let mk =
       [view],
     );
 
-  let pp_view_dom = Tyxml_js.To_dom.of_div(pp_view);
+  let pp_view_dom = Js_of_ocaml_tyxml.Tyxml_js.To_dom.of_div(pp_view);
   let preventDefault_handler = evt => {
     Dom.preventDefault(evt);
     ();

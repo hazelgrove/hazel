@@ -886,7 +886,7 @@ let rec of_dhpat' =
         let hole_label = hole_label_of(inst);
         let r = hole_label;
         let attrs = [
-          Tyxml_js.Html5.a_onclick(_ => {
+          Js_of_ocaml_tyxml.Tyxml_js.Html5.a_onclick(_ => {
             instance_click_fn(inst);
             true;
           }),
@@ -1255,7 +1255,7 @@ let rec of_dhexp' =
               ^^ of_sigma(instance_click_fn, prefix, rev_path, sigma)
             : hole_label;
         let attrs = [
-          Tyxml_js.Html5.a_onclick(_ => {
+          Js_of_ocaml_tyxml.Tyxml_js.Html5.a_onclick(_ => {
             instance_click_fn(inst);
             true;
           }),

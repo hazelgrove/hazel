@@ -1,4 +1,4 @@
-open Tyxml_js;
+open Js_of_ocaml_tyxml.Tyxml_js;
 
 let main_title_bar = (title_text: string) =>
   Html.(

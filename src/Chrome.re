@@ -1,4 +1,4 @@
-open Tyxml_js;
+open Js_of_ocaml_tyxml.Tyxml_js;
 open Model;
 open SemanticsCommon;
 module Js = Js_of_ocaml.Js;
@@ -35,7 +35,7 @@ let view = (model: Model.t) => {
   let pp_view' =
     React.S.map(({EditorBox.pp_view, _}) => [pp_view], editor_box_rs);
   let pp_view = R.Html5.(div(ReactiveData.RList.from_signal(pp_view')));
-  let pp_view_dom = Tyxml_js.To_dom.of_div(pp_view);
+  let pp_view_dom = Js_of_ocaml_tyxml.Tyxml_js.To_dom.of_div(pp_view);
   let pp_view_parent =
     Html5.(div(~a=[a_id("pp_view"), a_class(["ModelExp"])], [pp_view]));
 
@@ -693,7 +693,7 @@ let view = (model: Model.t) => {
     );
 
   let num_changes_si_counter_dom =
-    Tyxml_js.To_dom.of_div(num_changes_counter);
+    Js_of_ocaml_tyxml.Tyxml_js.To_dom.of_div(num_changes_counter);
 
   let _ =
     Js_of_ocaml.MutationObserver.observe(
@@ -725,7 +725,8 @@ let view = (model: Model.t) => {
       )
     );
 
-  let num_changes_counter_dom = Tyxml_js.To_dom.of_div(num_changes_counter);
+  let num_changes_counter_dom =
+    Js_of_ocaml_tyxml.Tyxml_js.To_dom.of_div(num_changes_counter);
 
   let _ =
     Js_of_ocaml.MutationObserver.observe(
@@ -812,7 +813,7 @@ let view = (model: Model.t) => {
     );
 
   let chrome =
-    Tyxml_js.To_dom.of_div(
+    Js_of_ocaml_tyxml.Tyxml_js.To_dom.of_div(
       Html5.(
         div(
           ~a=[a_id("root")],
@@ -820,9 +821,29 @@ let view = (model: Model.t) => {
             div(
               ~a=[a_class(["top-bar"])],
               [
-                a(
-                  ~a=[a_class(["logo-text"]), a_href("http://hazel.org/")],
-                  [txt("Hazel")],
+                div(
+                  ~a=[a_id("logo")],
+                  [
+                    a(
+                      ~a=[
+                        a_class(["logo-text"]),
+                        a_href("http://hazel.org/"),
+                      ],
+                      [txt("Hazel")],
+                    ),
+                  ],
+                ),
+                div(
+                  ~a=[a_id("link-to-dev")],
+                  [
+                    a(
+                      ~a=[
+                        a_id("link-to-dev-text"),
+                        a_href("http://hazel.org/hazel-build/dev/hazel.html"),
+                      ],
+                      [txt("Danger Zone")],
+                    ),
+                  ],
                 ),
               ],
             ),

@@ -1,4 +1,4 @@
-open Tyxml_js;
+open Js_of_ocaml_tyxml.Tyxml_js;
 let typebar_width = 80000;
 let html_of_ty = View.html_of_ty(typebar_width);
 let typebar = (prefix, ty) => {

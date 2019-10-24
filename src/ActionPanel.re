@@ -1,4 +1,4 @@
-open Tyxml_js;
+open Js_of_ocaml_tyxml.Tyxml_js;
 open React;
 open Model;
 module Dom_html = Js_of_ocaml.Dom_html;

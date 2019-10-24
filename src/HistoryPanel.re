@@ -1,4 +1,4 @@
-open Tyxml_js;
+open Js_of_ocaml_tyxml.Tyxml_js;
 
 let make =
     (code_history_rs: Model.code_history_rs): Html.elt([> Html_types.div]) => {

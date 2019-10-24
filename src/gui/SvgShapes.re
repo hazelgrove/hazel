@@ -1,10 +1,10 @@
-module Svg = Tyxml_js.Svg;
+module Svg = Js_of_ocaml_tyxml.Tyxml_js.Svg;
 
 /* Create an icon from a set of points with coords between 0 and 100.
  * The actual size of the icon can be styled using a CSS class.
  */
 let icon = (classes, points) =>
-  Tyxml_js.Html.svg(
+  Js_of_ocaml_tyxml.Tyxml_js.Html.svg(
     ~a=[Svg.a_class(classes), Svg.a_viewBox((0.0, 0.0, 100.0, 100.0))],
     [Svg.polygon(~a=[Svg.a_points(points)], [])],
   );

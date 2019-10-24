@@ -1,4 +1,4 @@
-open Tyxml_js;
+open Js_of_ocaml_tyxml.Tyxml_js;
 module Js = Js_of_ocaml.Js;
 
 let make_sidebar =

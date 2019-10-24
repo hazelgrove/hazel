@@ -47,6 +47,9 @@ html, body {
   color: white;
   font-weight: bold;
   font-size: 14pt;
+  display: flex;
+  flex-direction: row;
+  justify-content: space-between;
 }
 
 .logo-text {
@@ -652,7 +655,7 @@ h1 {
   margin-top: 20px;
   background-color: white;
   border: 2px solid #CCC;
-  line-height: 1.33; 
+  line-height: 1.33;
 }
 
 .ModelExp :focus {
