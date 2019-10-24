@@ -11,7 +11,7 @@ type t('tag) =
 
 let string_of_layout: 'tag. t('tag) => string =
   layout => {
-    let output: ref(list(string)) = ref([]); // Stored in revese order
+    let output: ref(list(string)) = ref([]); // Stored in reverse order
     let column: ref(int) = ref(0);
     let print = (string: string): unit => output := [string, ...output^];
     let rec go: 'tag. (int, t('tag)) => unit =
