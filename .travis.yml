@@ -16,7 +16,6 @@ script:
 - bash .travis-ci.sh
 branches:
   only:
-  - master
   - dev
 env:
   matrix:
