@@ -9,3 +9,7 @@ deps:
 
 clean:
 	dune clean
+
+BUILD_WWW = "_build/default/src/hazelweb/www"
+build_www:
+	@echo $(BUILD_WWW)
