@@ -1,11 +1,5 @@
 language: bash
-
 sudo: required
-
-before_install:
-- openssl aes-256-cbc -K $encrypted_9155b263749f_key -iv $encrypted_9155b263749f_iv
-  -in deploy-key.enc -out deploy-key -d
-
 install:
  - sudo add-apt-repository -y ppa:ansible/bubblewrap
  - sudo apt-get update
@@ -19,10 +13,10 @@ install:
  - make deps
 
 script:
-  - bash .travis-ci.sh
-
-#Only run on Master currently
+- bash .travis-ci.sh
 branches:
   only:
-  - master
   - dev
+env:
+  matrix:
+    secure: YMBNehK3OeKSyofZjMhNa/3uBnYnxa38LmFe/zsetfHkaQH0Zh8HMj7AqWQLdI4RpUFkSULoUonQSUfHtu/qYbzp9B8qadW4RhZkK+5Aah3HPNqvGI5Zb1oA5zzKjq63XLym4vRSmueNmDqb8MTrWOhMWLY4BnD8p+yKFtNLnPrzl6FK0p/iwyI2LUq4PNnXZqXSX8YTC6WmF7Hlvf0QwwqGcDf3LQPb+HbC/VMiVMASFm/SSsLRVFJuyFhsXkO1NODqMLD50mskCD1jMrb57GULgma+t0AbIiSHF1qQMTrNOP4q5fCsT2+ugRrwXnSyT35uT6inld9+Mnrm2h7YtRaLB3Zno0lAa30uTCN16YGz2hYS3WeKFXlbxOqKciyJKOlkXdEGXsmPU4kXt4A3aQGvhudxLbCeCgqiS4l1iyE5ArKVf+MBgNYQX1t1GRIF03usDyuP2FD8OdrKagXvu8G/W0GbCGP1C1i0+POVdCM2RjDzDpgSwTsqxGLR7Z6PtEx98DCoF54QPn3cNM7vQ/feWNKNFzCWOM9x17zAtonHpou181L+yFV7gpYh5t2XSpxsta+S8RniMhQPiXxmtZVzqk0I+A39Ojmg4U5f+0AiQDng7CC38MDnEQL/mvSSb5LomK8vV/Zolq1mB5NTOR9VP+d4qfuHIuHWfGV/jvs=
