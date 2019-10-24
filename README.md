@@ -47,7 +47,7 @@ The `make release` command does three things:
 If something weird is going on, it sometimes helps to do a `make clean`.
 
 ### Results
-You can now open `_build/default/src/www/hazel.html` in a browser to see Hazel in action.
+You can now open `_build/default/src/www/index.html` in a browser to see Hazel in action.
 
 ### Debugging
 Invoking `make` by itself is equivalent to invoking `make debug`. With these commands we pass additional flags to `js_of_ocaml`, which causes the insertion of comments that map locations in the generated JS to locations in the source files. This is useful for debugging purposes.

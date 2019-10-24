@@ -839,7 +839,7 @@ let view = (model: Model.t) => {
                     a(
                       ~a=[
                         a_id("link-to-dev-text"),
-                        a_href("http://hazel.org/hazel-build/dev/hazel.html"),
+                        a_href("http://hazel.org/build/dev/index.html"),
                       ],
                       [txt("Danger Zone")],
                     ),
