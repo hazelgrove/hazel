@@ -18,13 +18,13 @@ release:
 	dune build src --profile release
 
 chrome:
-	chrome-browser $(BUILD_WWW)/hazel.html
+	chrome-browser $(BUILD_WWW)/index.html
 
 chromium:
-	chromium-browser $(BUILD_WWW)/hazel.html
+	chromium-browser $(BUILD_WWW)/index.html
 
 firefox:
-	firefox $(BUILD_WWW)/hazel.html
+	firefox $(BUILD_WWW)/index.html
 
 repl:
 	dune utop src/hazelcore
