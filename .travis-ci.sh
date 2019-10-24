@@ -27,7 +27,8 @@ echo "clear contents of subdir $TRAVIS_BRANCH"
 if [ -d "$TRAVIS_BRANCH" ]
 then
   echo "subdir found, clearing contents"
-  git rm -rf $TRAVIS_BRANCH/*
+  rm -rf $TRAVIS_BRANCH
+  mkdir "$TRAVIS_BRANCH"
 else
   echo "subdir not found, creating new"
   mkdir "$TRAVIS_BRANCH"
