@@ -143,7 +143,7 @@ let sline_clss = line_no => [
 ];
 
 let line_no_of_sline_cls = cls =>
-  if (!Re.Str.string_match(Re.Str.regexp("^sline-(.*)$"), cls, 0)) {
+  if (!Re.Str.string_match(Re.Str.regexp("^sline-\\(.*\\)$"), cls, 0)) {
     None;
   } else {
     Some(int_of_string(Re.Str.matched_group(1, cls)));
