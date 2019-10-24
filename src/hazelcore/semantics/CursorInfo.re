@@ -1002,6 +1002,8 @@ and _ana_cursor_found_exp =
   | OpSeq(BinOp(NotInHole, Plus, _, _), _)
   | OpSeq(BinOp(NotInHole, Times, _, _), _)
   | OpSeq(BinOp(NotInHole, LessThan, _, _), _)
+  | OpSeq(BinOp(NotInHole, GreaterThan, _, _), _)
+  | OpSeq(BinOp(NotInHole, Equals, _, _), _)
   | OpSeq(BinOp(NotInHole, Space, _, _), _)
   | ApPalette(NotInHole, _, _, _) =>
     switch (Statics.syn_exp(ctx, e)) {
@@ -1543,7 +1545,7 @@ and _syn_cursor_info_skel =
   | BinOp(_, Minus, skel1, skel2)
   | BinOp(_, Plus, skel1, skel2)
   | BinOp(_, Times, skel1, skel2)
-  | BinOp(_, LessThan, skel1, skel2) =>
+  | BinOp(_, LessThan | GreaterThan | Equals, skel1, skel2) =>
     switch (
       _ana_cursor_info_skel(
         ~node_steps,
@@ -2025,7 +2027,7 @@ and _ana_cursor_info_skel =
   | BinOp(_, Minus | And | Or, _, _)
   | BinOp(_, Plus, _, _)
   | BinOp(_, Times, _, _)
-  | BinOp(_, LessThan, _, _)
+  | BinOp(_, LessThan | GreaterThan | Equals, _, _)
   | BinOp(_, Space, _, _) =>
     _syn_cursor_info_skel(
       ~node_steps,

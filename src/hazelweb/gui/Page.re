@@ -198,25 +198,68 @@ let page_view =
                       ],
                     ),
                     examples_select(~inject),
-                    /*
-                     Node.button(
-                       [
-                         Attr.on_click(_ => {
-                           let block =
-                             model |> Model.zblock |> ZExp.erase_block;
-                           JSUtil.log(
-                             Js.string(
-                               Sexplib.Sexp.to_string(
-                                 UHExp.sexp_of_block(block),
-                               ),
-                             ),
-                           );
-                           Event.Ignore;
-                         }),
-                       ],
-                       [Node.text("Serialize to console")],
-                     ),
-                     */
+                    Node.button(
+                      [
+                        Attr.on_click(_ => {
+                          let block =
+                            model |> Model.zblock |> ZExp.erase_block;
+                          let doc =
+                            DocOfTerm.doc_of_block(
+                              ~wrap=true,
+                              ~steps=[],
+                              block,
+                            );
+                          Printf.printf(
+                            "doc sexp: %s\n",
+                            Sexplib.Sexp.to_string(
+                              DocOfTerm.sexp_of_doc(doc),
+                            ),
+                          );
+                          switch (
+                            DocOfTerm.LayoutOfDoc.layout_of_doc(
+                              doc,
+                              ~width=80,
+                              ~pos=0,
+                            )
+                          ) {
+                          | None => Printf.printf("layout FAILED\n")
+                          | Some(layout) =>
+                            Printf.printf(
+                              "layout sexp: %s\n",
+                              Sexplib.Sexp.to_string(
+                                Layout.sexp_of_t(
+                                  DocOfTerm.sexp_of_tag,
+                                  layout,
+                                ),
+                              ),
+                            );
+                            Printf.printf(
+                              "%s\n",
+                              layout |> Layout.string_of_layout,
+                            );
+                          };
+                          Event.Ignore;
+                        }),
+                      ],
+                      [Node.text("Serialize layout")],
+                    ),
+                    Node.button(
+                      [
+                        Attr.on_click(_ => {
+                          let block =
+                            model |> Model.zblock |> ZExp.erase_block;
+                          JSUtil.log(
+                            Js.string(
+                              Sexplib.Sexp.to_string(
+                                UHExp.sexp_of_block(block),
+                              ),
+                            ),
+                          );
+                          Event.Ignore;
+                        }),
+                      ],
+                      [Node.text("Serialize to console")],
+                    ),
                   ],
                 ),
               ],
