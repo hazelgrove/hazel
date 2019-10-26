@@ -16,6 +16,7 @@
 %right AMP
 
 %start <UHTyp.op Skel.t> skel_typ
+%type <UHTyp.op Skel.t> ty
 
 (* %% ends the declarations section of the grammar definition *)
 
