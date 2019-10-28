@@ -310,26 +310,24 @@ let rec cursor_info_typ =
           ctx: Contexts.t,
           zty: ZTyp.t,
         )
-        : option(cursor_t) =>
+        : option(t) =>
   switch (zty) {
   | CursorT(cursor, ty) =>
     Some(
-      CursorNotOnVar(
-        mk_cursor_info(
-          ~subskel_range=?
-            switch (cursor, ty) {
-            | (OnDelim(k, _), OpSeq(skel, _)) =>
-              Some(Skel.range_of_subskel_rooted_at_op(k, skel))
-            | _ => None
-            },
-          OnType,
-          Typ(ty),
-          TypFrame(frame),
-          cursor,
-          ctx,
-          node_steps,
-          term_steps,
-        ),
+      mk_cursor_info(
+        ~subskel_range=?
+          switch (cursor, ty) {
+          | (OnDelim(k, _), OpSeq(skel, _)) =>
+            Some(Skel.range_of_subskel_rooted_at_op(k, skel))
+          | _ => None
+          },
+        OnType,
+        Typ(ty),
+        TypFrame(frame),
+        cursor,
+        ctx,
+        node_steps,
+        term_steps,
       ),
     )
   | ParenthesizedZ(zty1)
@@ -1027,28 +1025,26 @@ let ana_cursor_found_exp =
       ty: HTyp.t,
       cursor: cursor_position,
     )
-    : option(cursor_t) =>
+    : option(t) =>
   switch (_ana_cursor_found_exp(ctx, e, ty)) {
   | None => None
   | Some((mode, sort, ctx)) =>
     let (prefix, surround, suffix) = frame;
     Some(
-      CursorNotOnVar(
-        mk_cursor_info(
-          ~subskel_range=?
-            switch (cursor, e) {
-            | (OnDelim(k, _), OpSeq(skel, _)) =>
-              Some(Skel.range_of_subskel_rooted_at_op(k, skel))
-            | _ => None
-            },
-          mode,
-          sort,
-          ExpFrame(prefix, surround, suffix),
-          cursor,
-          ctx,
-          node_steps,
-          term_steps,
-        ),
+      mk_cursor_info(
+        ~subskel_range=?
+          switch (cursor, e) {
+          | (OnDelim(k, _), OpSeq(skel, _)) =>
+            Some(Skel.range_of_subskel_rooted_at_op(k, skel))
+          | _ => None
+          },
+        mode,
+        sort,
+        ExpFrame(prefix, surround, suffix),
+        cursor,
+        ctx,
+        node_steps,
+        term_steps,
       ),
     );
   };
@@ -1145,7 +1141,7 @@ and shadow_in_pat = (x: Var.t, p: UHPat.t): bool =>
 
 let rec _syn_cursor_info_block =
         (~node_steps, ~term_steps, ctx: Contexts.t, zblock: ZExp.zblock)
-        : option(cursor_t) =>
+        : option(t) =>
   switch (zblock) {
   | BlockZL((prefix, zline, suffix), conclusion) =>
     switch (Statics.syn_lines(ctx, prefix)) {
@@ -1162,10 +1158,10 @@ let rec _syn_cursor_info_block =
         )
       ) {
       | None => None
-      | Some(CursorNotOnVar(_)) as cursor => cursor
+      | Some(CursorNotOnVar(ci)) => Some(ci)
       | Some(CursorOnVar(deferred_ci, x)) =>
         let uses = find_uses_block(x, Block(suffix, conclusion), node_steps); // TODO: use correct steps
-        Some(CursorNotOnVar(uses |> deferred_ci));
+        Some(uses |> deferred_ci);
       }
     }
   | BlockZE(lines, ze) =>
@@ -1209,7 +1205,10 @@ and _syn_cursor_info_line =
       ),
     );
   | ExpLineZ(ze) =>
-    _syn_cursor_info(~node_steps, ~term_steps, ~frame, ctx, ze)
+    switch (_syn_cursor_info(~node_steps, ~term_steps, ~frame, ctx, ze)) {
+    | None => None
+    | Some(ci) => Some(CursorNotOnVar(ci))
+    }
   | LetLineZP(zp, ann, block) =>
     switch (ann) {
     | Some(uty1) =>
@@ -1223,47 +1222,55 @@ and _syn_cursor_info_line =
       }
     }
   | LetLineZA(_, zann, _) =>
-    cursor_info_typ(~node_steps, ~term_steps, ctx, zann)
+    switch (cursor_info_typ(~node_steps, ~term_steps, ctx, zann)) {
+    | None => None
+    | Some(ci) => Some(CursorNotOnVar(ci))
+    }
   | LetLineZE(p, ann, zblock) =>
     switch (ann) {
     | Some(uty1) =>
       let ty1 = UHTyp.expand(uty1);
       let ctx1 = Statics.ctx_for_let(ctx, p, ty1, ZExp.erase_block(zblock));
-      _ana_cursor_info_block(~node_steps, ~term_steps, ctx1, zblock, ty1);
-    | None => _syn_cursor_info_block(~node_steps, ~term_steps, ctx, zblock)
+      switch (
+        _ana_cursor_info_block(~node_steps, ~term_steps, ctx1, zblock, ty1)
+      ) {
+      | None => None
+      | Some(ci) => Some(CursorNotOnVar(ci))
+      };
+    | None =>
+      switch (_syn_cursor_info_block(~node_steps, ~term_steps, ctx, zblock)) {
+      | None => None
+      | Some(ci) => Some(CursorNotOnVar(ci))
+      }
     }
   }
 and _syn_cursor_info =
     (~node_steps, ~term_steps, ~frame, ctx: Contexts.t, ze: ZExp.t)
-    : option(cursor_t) => {
+    : option(t) => {
   let (prefix, surround, suffix) = frame;
   switch (ze) {
   | CursorE(cursor, Var(_, InVarHole(Keyword(k), _), _) as e) =>
     Some(
-      CursorNotOnVar(
-        mk_cursor_info(
-          SynKeyword(k),
-          Exp(e),
-          ExpFrame(prefix, surround, suffix),
-          cursor,
-          ctx,
-          node_steps,
-          term_steps,
-        ),
+      mk_cursor_info(
+        SynKeyword(k),
+        Exp(e),
+        ExpFrame(prefix, surround, suffix),
+        cursor,
+        ctx,
+        node_steps,
+        term_steps,
       ),
     )
   | CursorE(cursor, Var(_, InVarHole(Free, _), _) as e) =>
     Some(
-      CursorNotOnVar(
-        mk_cursor_info(
-          SynFree,
-          Exp(e),
-          ExpFrame(prefix, surround, suffix),
-          cursor,
-          ctx,
-          node_steps,
-          term_steps,
-        ),
+      mk_cursor_info(
+        SynFree,
+        Exp(e),
+        ExpFrame(prefix, surround, suffix),
+        cursor,
+        ctx,
+        node_steps,
+        term_steps,
       ),
     )
   | CursorE(cursor, e) =>
@@ -1271,22 +1278,20 @@ and _syn_cursor_info =
     | None => None
     | Some(ty) =>
       Some(
-        CursorNotOnVar(
-          mk_cursor_info(
-            ~subskel_range=?
-              switch (cursor, e) {
-              | (OnDelim(k, _), OpSeq(skel, _)) =>
-                Some(Skel.range_of_subskel_rooted_at_op(k, skel))
-              | _ => None
-              },
-            Synthesized(ty),
-            Exp(e),
-            ExpFrame(prefix, surround, suffix),
-            cursor,
-            ctx,
-            node_steps,
-            term_steps,
-          ),
+        mk_cursor_info(
+          ~subskel_range=?
+            switch (cursor, e) {
+            | (OnDelim(k, _), OpSeq(skel, _)) =>
+              Some(Skel.range_of_subskel_rooted_at_op(k, skel))
+            | _ => None
+            },
+          Synthesized(ty),
+          Exp(e),
+          ExpFrame(prefix, surround, suffix),
+          cursor,
+          ctx,
+          node_steps,
+          term_steps,
         ),
       )
     }
@@ -1306,13 +1311,19 @@ and _syn_cursor_info =
     );
   | ParenthesizedZ(zblock) =>
     _syn_cursor_info_block(~node_steps, ~term_steps, ctx, zblock)
-  | LamZP(_, zp, ann, _) =>
+  | LamZP(_, zp, ann, block) =>
     let ty1 =
       switch (ann) {
       | Some(uty1) => UHTyp.expand(uty1)
       | None => Hole
       };
-    _ana_cursor_info_pat(~node_steps, ~term_steps, ctx, zp, ty1);
+    switch (_ana_cursor_info_pat(~node_steps, ~term_steps, ctx, zp, ty1)) {
+    | None => None
+    | Some(CursorNotOnVar(ci)) => Some(ci)
+    | Some(CursorOnVar(deferred_ci, x)) =>
+      let uses = find_uses_block(x, block, node_steps);
+      Some(uses |> deferred_ci);
+    };
   | LamZA(_, _, zann, _) =>
     cursor_info_typ(~node_steps, ~term_steps, ctx, zann)
   | LamZE(_, p, ann, zblock) =>
@@ -1355,20 +1366,28 @@ and _ana_cursor_info_block =
       zblock: ZExp.zblock,
       ty: HTyp.t,
     )
-    : option(cursor_t) =>
+    : option(t) =>
   switch (zblock) {
   | BlockZL((prefix, zline, suffix), conclusion) =>
     switch (Statics.syn_lines(ctx, prefix)) {
     | None => None
     | Some(ctx) =>
-      _syn_cursor_info_line(
-        ~node_steps,
-        ~term_steps,
-        ~frame=(prefix, None, Some(Block(suffix, conclusion))),
-        ~line_no=List.length(prefix),
-        ctx,
-        zline,
-      )
+      switch (
+        _syn_cursor_info_line(
+          ~node_steps,
+          ~term_steps,
+          ~frame=(prefix, None, Some(UHExp.Block(suffix, conclusion))),
+          ~line_no=List.length(prefix),
+          ctx,
+          zline,
+        )
+      ) {
+      | None => None
+      | Some(CursorNotOnVar(ci)) => Some(ci)
+      | Some(CursorOnVar(deferred_ci, x)) =>
+        let uses = find_uses_block(x, Block(suffix, conclusion), node_steps); // TODO: use correct steps
+        Some(uses |> deferred_ci);
+      }
     }
   | BlockZE(lines, ze) =>
     switch (Statics.syn_lines(ctx, lines)) {
@@ -1393,7 +1412,7 @@ and _ana_cursor_info =
       ze: ZExp.t,
       ty: HTyp.t,
     )
-    : option(cursor_t) =>
+    : option(t) =>
   switch (ze) {
   | CursorE(cursor, e) =>
     ana_cursor_found_exp(~node_steps, ~term_steps, ~frame, ctx, e, ty, cursor)
@@ -1435,7 +1454,7 @@ and _ana_cursor_info =
   | ApPaletteZ(InHole(TypeInconsistent, _), _, _, _) =>
     _syn_cursor_info(~node_steps, ~term_steps, ~frame, ctx, ze)
   /* zipper not in hole */
-  | LamZP(NotInHole, zp, ann, _) =>
+  | LamZP(NotInHole, zp, ann, block) =>
     switch (HTyp.matched_arrow(ty)) {
     | None => None
     | Some((ty1_given, _)) =>
@@ -1444,7 +1463,13 @@ and _ana_cursor_info =
         | Some(uty1) => UHTyp.expand(uty1)
         | None => ty1_given
         };
-      _ana_cursor_info_pat(~node_steps, ~term_steps, ctx, zp, ty1);
+      switch (_ana_cursor_info_pat(~node_steps, ~term_steps, ctx, zp, ty1)) {
+      | None => None
+      | Some(CursorNotOnVar(ci)) => Some(ci)
+      | Some(CursorOnVar(deferred_ci, x)) =>
+        let uses = find_uses_block(x, block, node_steps);
+        Some(uses |> deferred_ci);
+      };
     }
   | LamZA(NotInHole, _, zann, _) =>
     cursor_info_typ(~node_steps, ~term_steps, ctx, zann)
@@ -1498,24 +1523,28 @@ and _ana_cursor_info_rule =
       pat_ty: HTyp.t,
       clause_ty: HTyp.t,
     )
-    : option(cursor_t) =>
+    : option(t) =>
   switch (zrule) {
   | CursorR(cursor, rule) =>
     Some(
-      CursorNotOnVar(
-        mk_cursor_info(
-          OnRule,
-          Rule(rule),
-          ExpFrame([], None, None),
-          cursor,
-          ctx,
-          node_steps,
-          term_steps,
-        ),
+      mk_cursor_info(
+        OnRule,
+        Rule(rule),
+        ExpFrame([], None, None),
+        cursor,
+        ctx,
+        node_steps,
+        term_steps,
       ),
     )
-  | RuleZP(zp, _) =>
-    _ana_cursor_info_pat(~node_steps, ~term_steps, ctx, zp, pat_ty)
+  | RuleZP(zp, block) =>
+    switch (_ana_cursor_info_pat(~node_steps, ~term_steps, ctx, zp, pat_ty)) {
+    | None => None
+    | Some(CursorNotOnVar(ci)) => Some(ci)
+    | Some(CursorOnVar(deferred_ci, x)) =>
+      let uses = find_uses_block(x, block, node_steps);
+      Some(uses |> deferred_ci);
+    }
   | RuleZE(p, zblock) =>
     switch (Statics.ana_pat(ctx, p, pat_ty)) {
     | None => None
@@ -1534,7 +1563,7 @@ and _syn_cursor_info_skel =
       n: int,
       ze_n: ZExp.t,
     )
-    : option(cursor_t) => {
+    : option(t) => {
   switch (skel) {
   | Placeholder(n') =>
     if (n == n') {
@@ -1615,7 +1644,7 @@ and _syn_cursor_info_skel =
     if (n == n') {
       switch (_syn_cursor_info(~node_steps, ~term_steps, ~frame, ctx, ze_n)) {
       | None => None
-      | Some(cursor) =>
+      | Some(ci) =>
         switch (ZExp.cursor_on_outer_expr(ze_n)) {
         | Some((
             Block(_, Var(InHole(TypeInconsistent, _), _, _)) as outer_block,
@@ -1654,54 +1683,12 @@ and _syn_cursor_info_skel =
           switch (Statics.syn_block(ctx, outer_block_nih)) {
           | None => None
           | Some(ty) =>
-            switch (cursor) {
-            | CursorNotOnVar(ci) =>
-              Some(
-                CursorNotOnVar({
-                  ...ci,
-                  typed: SynErrorArrow(Arrow(Hole, Hole), ty),
-                }),
-              )
-            | CursorOnVar(deferred_ci, x) =>
-              let deferred_ci = uses => {
-                let ci = uses |> deferred_ci;
-                {...ci, typed: SynErrorArrow(Arrow(Hole, Hole), ty)};
-              };
-              Some(CursorOnVar(deferred_ci, x));
-            }
+            Some({...ci, typed: SynErrorArrow(Arrow(Hole, Hole), ty)})
           };
         | Some((Block(_, Var(_, InVarHole(Keyword(k), _), _)), _position)) =>
-          switch (cursor) {
-          | CursorNotOnVar(ci) =>
-            Some(
-              CursorNotOnVar({
-                ...ci,
-                typed: SynKeywordArrow(Arrow(Hole, Hole), k),
-              }),
-            )
-          | CursorOnVar(deferred_ci, x) =>
-            let deferred_ci = uses => {
-              let ci = uses |> deferred_ci;
-              {...ci, typed: SynKeywordArrow(Arrow(Hole, Hole), k)};
-            };
-            Some(CursorOnVar(deferred_ci, x));
-          }
+          Some({...ci, typed: SynKeywordArrow(Arrow(Hole, Hole), k)})
         | Some((Block(_, Var(_, InVarHole(Free, _), _)), _position)) =>
-          switch (cursor) {
-          | CursorNotOnVar(ci) =>
-            Some(
-              CursorNotOnVar({
-                ...ci,
-                typed: SynFreeArrow(Arrow(Hole, Hole)),
-              }),
-            )
-          | CursorOnVar(deferred_ci, x) =>
-            let deferred_ci = uses => {
-              let ci = uses |> deferred_ci;
-              {...ci, typed: SynFreeArrow(Arrow(Hole, Hole))};
-            };
-            Some(CursorOnVar(deferred_ci, x));
-          }
+          Some({...ci, typed: SynFreeArrow(Arrow(Hole, Hole))})
         | Some((outer_block, _position)) =>
           switch (Statics.syn_block(ctx, outer_block)) {
           | None => None
@@ -1709,21 +1696,7 @@ and _syn_cursor_info_skel =
             switch (HTyp.matched_arrow(ty)) {
             | None => None
             | Some((ty1, ty2)) =>
-              switch (cursor) {
-              | CursorNotOnVar(ci) =>
-                Some(
-                  CursorNotOnVar({
-                    ...ci,
-                    typed: SynMatchingArrow(ty, Arrow(ty1, ty2)),
-                  }),
-                )
-              | CursorOnVar(deferred_ci, x) =>
-                let deferred_ci = uses => {
-                  let ci = uses |> deferred_ci;
-                  {...ci, typed: SynMatchingArrow(ty, Arrow(ty1, ty2))};
-                };
-                Some(CursorOnVar(deferred_ci, x));
-              }
+              Some({...ci, typed: SynMatchingArrow(ty, Arrow(ty1, ty2))})
             }
           }
         | None =>
@@ -1858,7 +1831,7 @@ and _ana_cursor_info_skel =
       ze_n: ZExp.t,
       ty: HTyp.t,
     )
-    : option(cursor_t) =>
+    : option(t) =>
   switch (skel) {
   | Placeholder(n') =>
     if (n == n') {
