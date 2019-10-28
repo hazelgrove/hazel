@@ -17,7 +17,7 @@ both OCaml and the necessary libraries is to install
 the instructions on their website, follow these steps:
 
 - Make sure you have OCaml 4.08.1 (some older versions such as
-  4.07.1 also work):
+  4.07.1 may also work, but 4.09 does not yet work):
 
   ```sh
   > ocaml --version
