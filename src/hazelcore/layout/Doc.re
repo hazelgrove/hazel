@@ -14,6 +14,9 @@ type t('tag) =
 let empty = Text("");
 let space = Text(" ");
 
+let align = doc => Align(doc);
+let tag = (tag, doc) => Tagged(tag, doc);
+
 let hcat = (x, y) => Cat(x, y);
 let hcats: list(t('tag)) => t('tag) =
   fun

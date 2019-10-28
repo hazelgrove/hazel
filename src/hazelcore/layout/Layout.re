@@ -9,32 +9,54 @@ type t('tag) =
   | Align(t('tag))
   | Tagged('tag, t('tag));
 
-let string_of_layout: 'tag. t('tag) => string =
-  layout => {
-    let output: ref(list(string)) = ref([]); // Stored in revese order
+type text('tag, 'imp, 't) = {
+  imp_of_string: string => 'imp,
+  imp_of_tag: ('tag, 'imp) => 'imp,
+  imp_append: ('imp, 'imp) => 'imp,
+  imp_newline: 'imp,
+  t_of_imp: 'imp => 't,
+};
+
+let make_of_layout: (text('tag, 'imp, 't), t('tag)) => 't =
+  (text, layout) => {
+    //let output: ref(list(string)) = ref([]); // Stored in reverse order
     let column: ref(int) = ref(0);
-    let print = (string: string): unit => output := [string, ...output^];
-    let rec go: 'tag. (int, t('tag)) => unit =
+    //let print = (string: string): unit => output := [string, ...output^];
+    let rec go: (int, t('tag)) => 'imp =
       indent => {
         fun
         | Text(string) => {
             column := column^ + String.length(string);
-            print(string);
+            text.imp_of_string(string);
           }
         | Cat(l1, l2) => {
-            go(indent, l1);
-            go(indent, l2);
+            text.imp_append(go(indent, l1), go(indent, l2));
           }
         | Linebreak => {
-            print("\n");
-            print(String.make(indent, ' '));
+            // TODO: no indent if on final line break
             column := indent;
+            text.imp_append(
+              text.imp_newline,
+              text.imp_of_string(String.make(indent, ' ')),
+            );
           }
         | Align(l) => {
             go(column^, l);
           }
-        | Tagged(_tag, l) => go(indent, l);
+        | Tagged(tag, l) => text.imp_of_tag(tag, go(indent, l));
       };
-    go(0, layout);
-    String.concat("", List.rev(output^));
+    text.t_of_imp(go(0, layout));
+    //String.concat("", List.rev(output^));
+  };
+
+let string_of_layout: 'tag. t('tag) => string =
+  layout => {
+    let record: 'tag. text('tag, string, string) = {
+      imp_of_string: string => string,
+      imp_of_tag: (_, string) => string,
+      imp_append: (s1, s2) => s1 ++ s2,
+      imp_newline: "\n",
+      t_of_imp: s => s,
+    };
+    make_of_layout(record, layout);
   };
