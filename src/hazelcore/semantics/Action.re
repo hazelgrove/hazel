@@ -6972,7 +6972,7 @@ let can_perform =
     | Line(_) => false
     | Exp(EmptyHole(_)) => true
     | Exp(_) => false
-    | Pat(EmptyHole(_)) => true
+    | Pat(OtherPat(EmptyHole(_))) => true
     | Pat(_) => false
     | Typ(_) => false
     | Rule(_) => false
@@ -7026,11 +7026,12 @@ let can_enter_varchar = (ci: CursorInfo.t): bool =>
   | Exp(Var(_, _, _))
   | Exp(EmptyHole(_))
   | Exp(BoolLit(_, _))
-  | Pat(Var(_, _, _))
-  | Pat(EmptyHole(_))
-  | Pat(BoolLit(_, _)) => true
+  | Pat(VarPat(Var(_, _, _), _))
+  | Pat(OtherPat(EmptyHole(_)))
+  | Pat(OtherPat(BoolLit(_, _))) => true
+  | Pat(VarPat(_, _)) => assert(false)
   | Exp(NumLit(_, _))
-  | Pat(NumLit(_, _)) =>
+  | Pat(OtherPat(NumLit(_, _))) =>
     switch (ci.position) {
     | OnText(_) => true
     | _ => false
@@ -7048,8 +7049,8 @@ let can_enter_numeral = (ci: CursorInfo.t): bool =>
   | Line(ExpLine(EmptyHole(_)))
   | Exp(NumLit(_, _))
   | Exp(EmptyHole(_))
-  | Pat(NumLit(_, _))
-  | Pat(EmptyHole(_)) => true
+  | Pat(OtherPat(NumLit(_, _)))
+  | Pat(OtherPat(EmptyHole(_))) => true
   | Line(_)
   | Exp(_)
   | Rule(_)

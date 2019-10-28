@@ -464,7 +464,10 @@ let horizontal_shift_targets_in_subject = (~ci: CursorInfo.t) => {
   | (Staging(k), Typ(List(OpSeq(_, _)) | Parenthesized(OpSeq(_, _))))
   | (
       Staging(k),
-      Pat(Inj(_, _, OpSeq(_, _)) | Parenthesized(OpSeq(_, _))),
+      Pat(
+        OtherPat(Inj(_, _, OpSeq(_, _))) |
+        OtherPat(Parenthesized(OpSeq(_, _))),
+      ),
     )
   | (
       Staging(k),
@@ -487,7 +490,10 @@ let horizontal_shift_targets_in_subject = (~ci: CursorInfo.t) => {
         k == 0
           ? range(~lo=1, seq |> OperatorSeq.seq_length)
           : range((seq |> OperatorSeq.seq_length) - 1)
-      | Pat(Inj(_, _, OpSeq(_, seq)) | Parenthesized(OpSeq(_, seq))) =>
+      | Pat(
+          OtherPat(Inj(_, _, OpSeq(_, seq))) |
+          OtherPat(Parenthesized(OpSeq(_, seq))),
+        ) =>
         k == 0
           ? range(~lo=1, seq |> OperatorSeq.seq_length)
           : range((seq |> OperatorSeq.seq_length) - 1)
@@ -645,7 +651,11 @@ let horizontal_shift_targets_in_frame = (~ci: CursorInfo.t) => {
   | (_, _, PatFrame(None))
   | (_, _, ExpFrame(_, None, _)) => []
   | (Staging(k), Typ(List(_) | Parenthesized(_)), TypFrame(Some(_)))
-  | (Staging(k), Pat(Inj(_, _, _) | Parenthesized(_)), PatFrame(Some(_)))
+  | (
+      Staging(k),
+      Pat(OtherPat(Inj(_, _, _) | Parenthesized(_))),
+      PatFrame(Some(_)),
+    )
   | (
       Staging(k),
       Exp(Inj(_, _, _) | Parenthesized(_)),
@@ -1077,7 +1087,7 @@ let view = (~is_cell_focused: bool, ~holes_steps, ~ci: CursorInfo.t) => {
       Code.is_multi_line_exp(e)
         ? multi_line_seq_indicators(~is_cell_focused, ~ci)
         : single_line_seq_indicators(~is_cell_focused, ~ci)
-    | Pat(OpSeq(_, _) as p) =>
+    | Pat(OtherPat(OpSeq(_, _) as p)) =>
       Code.is_multi_line_pat(p)
         ? multi_line_seq_indicators(~is_cell_focused, ~ci)
         : single_line_seq_indicators(~is_cell_focused, ~ci)
