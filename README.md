@@ -69,7 +69,7 @@ Once Hazel is compiled, you can see it in action with `make chrome`,
 want to open it with.
 
 Alternatively, you can manually open
-`_build/default/src/hazelweb/www/hazel.html` in whatever your
+`_build/default/src/hazelweb/www/index.html` in whatever your
 preferred browser is.
 
 ### Debugging
