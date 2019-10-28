@@ -731,5 +731,5 @@ let content_editable_of_layout: Layout.t('tag) => Vdom.Node.t =
       imp_newline: [Vdom.Node.br([])],
       t_of_imp: s => Vdom.Node.span([], s) // TODO: use something other than `span`?
     };
-    Layout.t_of_layout(record, layout);
+    Layout.make_of_layout(record, layout);
   };

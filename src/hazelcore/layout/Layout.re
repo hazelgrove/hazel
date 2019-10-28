@@ -17,7 +17,7 @@ type text('tag, 'imp, 't) = {
   t_of_imp: 'imp => 't,
 };
 
-let t_of_layout: (text('tag, 'imp, 't), t('tag)) => 't =
+let make_of_layout: (text('tag, 'imp, 't), t('tag)) => 't =
   (text, layout) => {
     //let output: ref(list(string)) = ref([]); // Stored in reverse order
     let column: ref(int) = ref(0);
@@ -58,5 +58,5 @@ let string_of_layout: 'tag. t('tag) => string =
       imp_newline: "\n",
       t_of_imp: s => s,
     };
-    t_of_layout(record, layout);
+    make_of_layout(record, layout);
   };
