@@ -129,9 +129,9 @@ type t = {
   subblock_start: option(int),
 };
 
-type cursor_t =
-  | CursorNotOnVar(t)
-  | CursorOnVar(uses_list => t, Var.t);
+type deferrable_t =
+  | CursorNotOnDeferredVarPat(t)
+  | CursorOnDeferredVarPat(uses_list => t, Var.t);
 
 let mk_cursor_info =
     (
@@ -426,14 +426,14 @@ let ana_cursor_found_pat =
       ty: HTyp.t,
       cursor: cursor_position,
     )
-    : option(cursor_t) =>
+    : option(deferrable_t) =>
   switch (_ana_cursor_found_pat(ctx, p, ty)) {
   | None => None
   | Some((typed, deferred_node, ctx, x)) =>
     switch (x) {
     | None =>
       Some(
-        CursorNotOnVar(
+        CursorNotOnDeferredVarPat(
           mk_cursor_info(
             ~subskel_range=?
               switch (cursor, p) {
@@ -453,7 +453,7 @@ let ana_cursor_found_pat =
       )
     | Some(x) =>
       Some(
-        CursorOnVar(
+        CursorOnDeferredVarPat(
           uses =>
             mk_cursor_info(
               ~subskel_range=?
@@ -478,12 +478,12 @@ let ana_cursor_found_pat =
 
 let rec _syn_cursor_info_pat =
         (~node_steps, ~term_steps, ~frame=None, ctx: Contexts.t, zp: ZPat.t)
-        : option(cursor_t) =>
+        : option(deferrable_t) =>
   switch (zp) {
   // TODO special case OpSeq
   | CursorP(cursor, Var(_, InVarHole(Keyword(k), _), _) as p) =>
     Some(
-      CursorNotOnVar(
+      CursorNotOnDeferredVarPat(
         mk_cursor_info(
           PatSynKeyword(k),
           Pat(OtherPat(p)),
@@ -500,7 +500,7 @@ let rec _syn_cursor_info_pat =
     | None => None
     | Some((ty, _)) =>
       Some(
-        CursorOnVar(
+        CursorOnDeferredVarPat(
           uses =>
             mk_cursor_info(
               PatSynthesized(ty),
@@ -520,7 +520,7 @@ let rec _syn_cursor_info_pat =
     | None => None
     | Some((ty, _)) =>
       Some(
-        CursorNotOnVar(
+        CursorNotOnDeferredVarPat(
           mk_cursor_info(
             ~subskel_range=?
               switch (cursor, p) {
@@ -569,7 +569,7 @@ and _syn_cursor_info_pat_skel =
       n: int,
       zp1: ZPat.t,
     )
-    : option(cursor_t) =>
+    : option(deferrable_t) =>
   switch (skel) {
   | Placeholder(n') =>
     if (n == n') {
@@ -673,12 +673,12 @@ and _ana_cursor_info_pat =
       zp: ZPat.t,
       ty: HTyp.t,
     )
-    : option(cursor_t) =>
+    : option(deferrable_t) =>
   switch (zp) {
   /* TODO special case OpSeq */
   | CursorP(cursor, Var(_, InVarHole(Keyword(k), _), _) as p) =>
     Some(
-      CursorNotOnVar(
+      CursorNotOnDeferredVarPat(
         mk_cursor_info(
           PatAnaKeyword(ty, k),
           Pat(OtherPat(p)),
@@ -732,7 +732,7 @@ and _ana_cursor_info_pat_skel =
       zp1: ZPat.t,
       ty: HTyp.t,
     )
-    : option(cursor_t) =>
+    : option(deferrable_t) =>
   switch (skel) {
   | Placeholder(n') =>
     if (n == n') {
@@ -1158,8 +1158,8 @@ let rec _syn_cursor_info_block =
         )
       ) {
       | None => None
-      | Some(CursorNotOnVar(ci)) => Some(ci)
-      | Some(CursorOnVar(deferred_ci, x)) =>
+      | Some(CursorNotOnDeferredVarPat(ci)) => Some(ci)
+      | Some(CursorOnDeferredVarPat(deferred_ci, x)) =>
         let uses = find_uses_block(x, Block(suffix, conclusion), node_steps); // TODO: use correct steps
         Some(uses |> deferred_ci);
       }
@@ -1186,12 +1186,12 @@ and _syn_cursor_info_line =
       ctx: Contexts.t,
       zli: ZExp.zline,
     )
-    : option(cursor_t) =>
+    : option(deferrable_t) =>
   switch (zli) {
   | CursorL(cursor, line) =>
     let (prefix, _, suffix) = frame;
     Some(
-      CursorNotOnVar(
+      CursorNotOnDeferredVarPat(
         mk_cursor_info(
           ~subblock_start=line_no,
           OnLine,
@@ -1207,7 +1207,7 @@ and _syn_cursor_info_line =
   | ExpLineZ(ze) =>
     switch (_syn_cursor_info(~node_steps, ~term_steps, ~frame, ctx, ze)) {
     | None => None
-    | Some(ci) => Some(CursorNotOnVar(ci))
+    | Some(ci) => Some(CursorNotOnDeferredVarPat(ci))
     }
   | LetLineZP(zp, ann, block) =>
     switch (ann) {
@@ -1224,7 +1224,7 @@ and _syn_cursor_info_line =
   | LetLineZA(_, zann, _) =>
     switch (cursor_info_typ(~node_steps, ~term_steps, ctx, zann)) {
     | None => None
-    | Some(ci) => Some(CursorNotOnVar(ci))
+    | Some(ci) => Some(CursorNotOnDeferredVarPat(ci))
     }
   | LetLineZE(p, ann, zblock) =>
     switch (ann) {
@@ -1235,12 +1235,12 @@ and _syn_cursor_info_line =
         _ana_cursor_info_block(~node_steps, ~term_steps, ctx1, zblock, ty1)
       ) {
       | None => None
-      | Some(ci) => Some(CursorNotOnVar(ci))
+      | Some(ci) => Some(CursorNotOnDeferredVarPat(ci))
       };
     | None =>
       switch (_syn_cursor_info_block(~node_steps, ~term_steps, ctx, zblock)) {
       | None => None
-      | Some(ci) => Some(CursorNotOnVar(ci))
+      | Some(ci) => Some(CursorNotOnDeferredVarPat(ci))
       }
     }
   }
@@ -1319,8 +1319,8 @@ and _syn_cursor_info =
       };
     switch (_ana_cursor_info_pat(~node_steps, ~term_steps, ctx, zp, ty1)) {
     | None => None
-    | Some(CursorNotOnVar(ci)) => Some(ci)
-    | Some(CursorOnVar(deferred_ci, x)) =>
+    | Some(CursorNotOnDeferredVarPat(ci)) => Some(ci)
+    | Some(CursorOnDeferredVarPat(deferred_ci, x)) =>
       let uses = find_uses_block(x, block, node_steps);
       Some(uses |> deferred_ci);
     };
@@ -1383,8 +1383,8 @@ and _ana_cursor_info_block =
         )
       ) {
       | None => None
-      | Some(CursorNotOnVar(ci)) => Some(ci)
-      | Some(CursorOnVar(deferred_ci, x)) =>
+      | Some(CursorNotOnDeferredVarPat(ci)) => Some(ci)
+      | Some(CursorOnDeferredVarPat(deferred_ci, x)) =>
         let uses = find_uses_block(x, Block(suffix, conclusion), node_steps); // TODO: use correct steps
         Some(uses |> deferred_ci);
       }
@@ -1465,8 +1465,8 @@ and _ana_cursor_info =
         };
       switch (_ana_cursor_info_pat(~node_steps, ~term_steps, ctx, zp, ty1)) {
       | None => None
-      | Some(CursorNotOnVar(ci)) => Some(ci)
-      | Some(CursorOnVar(deferred_ci, x)) =>
+      | Some(CursorNotOnDeferredVarPat(ci)) => Some(ci)
+      | Some(CursorOnDeferredVarPat(deferred_ci, x)) =>
         let uses = find_uses_block(x, block, node_steps);
         Some(uses |> deferred_ci);
       };
@@ -1540,8 +1540,8 @@ and _ana_cursor_info_rule =
   | RuleZP(zp, block) =>
     switch (_ana_cursor_info_pat(~node_steps, ~term_steps, ctx, zp, pat_ty)) {
     | None => None
-    | Some(CursorNotOnVar(ci)) => Some(ci)
-    | Some(CursorOnVar(deferred_ci, x)) =>
+    | Some(CursorNotOnDeferredVarPat(ci)) => Some(ci)
+    | Some(CursorOnDeferredVarPat(deferred_ci, x)) =>
       let uses = find_uses_block(x, block, node_steps);
       Some(uses |> deferred_ci);
     }
