@@ -203,12 +203,7 @@ let page_view =
                         Attr.on_click(_ => {
                           let block =
                             model |> Model.zblock |> ZExp.erase_block;
-                          let doc =
-                            DocOfTerm.doc_of_block(
-                              ~wrap=true,
-                              ~steps=[],
-                              block,
-                            );
+                          let doc = DocOfTerm.doc_of_block(~steps=[], block);
                           Printf.printf(
                             "doc sexp: %s\n",
                             Sexplib.Sexp.to_string(
