@@ -1149,7 +1149,7 @@ let rec _syn_cursor_info_block =
     | Some(ctx) =>
       switch (
         _syn_cursor_info_line(
-          ~node_steps,
+          ~node_steps=node_steps @ [List.length(prefix)],
           ~term_steps,
           ~frame=(prefix, None, Some(UHExp.Block(suffix, conclusion))),
           ~line_no=List.length(prefix),
@@ -1169,7 +1169,7 @@ let rec _syn_cursor_info_block =
     | None => None
     | Some(ctx) =>
       _syn_cursor_info(
-        ~node_steps,
+        ~node_steps=node_steps @ [List.length(lines)],
         ~term_steps,
         ~frame=(lines, None, None),
         ctx,
@@ -1210,6 +1210,7 @@ and _syn_cursor_info_line =
     | Some(ci) => Some(CursorNotOnDeferredVarPat(ci))
     }
   | LetLineZP(zp, ann, block) =>
+    let node_steps = node_steps @ [0];
     switch (ann) {
     | Some(uty1) =>
       let ty1 = UHTyp.expand(uty1);
@@ -1220,13 +1221,15 @@ and _syn_cursor_info_line =
       | Some(ty1) =>
         _ana_cursor_info_pat(~node_steps, ~term_steps, ctx, zp, ty1)
       }
-    }
+    };
   | LetLineZA(_, zann, _) =>
+    let node_steps = node_steps @ [1];
     switch (cursor_info_typ(~node_steps, ~term_steps, ctx, zann)) {
     | None => None
     | Some(ci) => Some(CursorNotOnDeferredVarPat(ci))
-    }
+    };
   | LetLineZE(p, ann, zblock) =>
+    let node_steps = node_steps @ [2];
     switch (ann) {
     | Some(uty1) =>
       let ty1 = UHTyp.expand(uty1);
@@ -1242,7 +1245,7 @@ and _syn_cursor_info_line =
       | None => None
       | Some(ci) => Some(CursorNotOnDeferredVarPat(ci))
       }
-    }
+    };
   }
 and _syn_cursor_info =
     (~node_steps, ~term_steps, ~frame, ctx: Contexts.t, ze: ZExp.t)
@@ -1300,7 +1303,7 @@ and _syn_cursor_info =
     let seq = OperatorSeq.opseq_of_exp_and_surround(e0, surround);
     let n = OperatorSeq.surround_prefix_length(surround);
     _syn_cursor_info_skel(
-      ~node_steps,
+      ~node_steps=node_steps @ [n],
       ~term_steps,
       ~frame=(prefix, Some(surround), suffix),
       ctx,
@@ -1310,14 +1313,27 @@ and _syn_cursor_info =
       ze0,
     );
   | ParenthesizedZ(zblock) =>
-    _syn_cursor_info_block(~node_steps, ~term_steps, ctx, zblock)
+    _syn_cursor_info_block(
+      ~node_steps=node_steps @ [0],
+      ~term_steps,
+      ctx,
+      zblock,
+    )
   | LamZP(_, zp, ann, block) =>
     let ty1 =
       switch (ann) {
       | Some(uty1) => UHTyp.expand(uty1)
       | None => Hole
       };
-    switch (_ana_cursor_info_pat(~node_steps, ~term_steps, ctx, zp, ty1)) {
+    switch (
+      _ana_cursor_info_pat(
+        ~node_steps=node_steps @ [0],
+        ~term_steps,
+        ctx,
+        zp,
+        ty1,
+      )
+    ) {
     | None => None
     | Some(CursorNotOnDeferredVarPat(ci)) => Some(ci)
     | Some(CursorOnDeferredVarPat(deferred_ci, x)) =>
@@ -1325,7 +1341,7 @@ and _syn_cursor_info =
       Some(uses |> deferred_ci);
     };
   | LamZA(_, _, zann, _) =>
-    cursor_info_typ(~node_steps, ~term_steps, ctx, zann)
+    cursor_info_typ(~node_steps=node_steps @ [1], ~term_steps, ctx, zann)
   | LamZE(_, p, ann, zblock) =>
     let ty1 =
       switch (ann) {
@@ -1335,27 +1351,61 @@ and _syn_cursor_info =
     switch (Statics.ana_pat(ctx, p, ty1)) {
     | None => None
     | Some(ctx1) =>
-      _syn_cursor_info_block(~node_steps, ~term_steps, ctx1, zblock)
+      _syn_cursor_info_block(
+        ~node_steps=node_steps @ [2],
+        ~term_steps,
+        ctx1,
+        zblock,
+      )
     };
   | InjZ(_, _, zblock) =>
-    _syn_cursor_info_block(~node_steps, ~term_steps, ctx, zblock)
+    _syn_cursor_info_block(
+      ~node_steps=node_steps @ [0],
+      ~term_steps,
+      ctx,
+      zblock,
+    )
   | CaseZE(_, _, _, None)
   | CaseZR(_, _, _, None) => None
   | CaseZE(_, zblock, _, Some(_)) =>
-    _syn_cursor_info_block(~node_steps, ~term_steps, ctx, zblock)
+    _syn_cursor_info_block(
+      ~node_steps=node_steps @ [0],
+      ~term_steps,
+      ctx,
+      zblock,
+    )
   | CaseZR(_, block, zrules, Some(uty)) =>
     let ty = UHTyp.expand(uty);
     switch (Statics.syn_block(ctx, block)) {
     | None => None
     | Some(ty1) =>
+      let prefix_len = List.length(GeneralUtil.ZList.prj_prefix(zrules));
       let zrule = GeneralUtil.ZList.prj_z(zrules);
-      _ana_cursor_info_rule(~node_steps, ~term_steps, ctx, zrule, ty1, ty);
+      _ana_cursor_info_rule(
+        ~node_steps=node_steps @ [prefix_len + 1],
+        ~term_steps,
+        ctx,
+        zrule,
+        ty1,
+        ty,
+      );
     };
-  | CaseZA(_, _, _, zann) =>
-    cursor_info_typ(~node_steps, ~term_steps, ctx, zann)
+  | CaseZA(_, _, rules, zann) =>
+    cursor_info_typ(
+      ~node_steps=node_steps @ [List.length(rules)],
+      ~term_steps,
+      ctx,
+      zann,
+    )
   | ApPaletteZ(_, _, _, zpsi) =>
-    let (ty, zblock) = GeneralUtil.ZNatMap.prj_z_v(zpsi.zsplice_map);
-    _ana_cursor_info_block(~node_steps, ~term_steps, ctx, zblock, ty);
+    let (n, (ty, zblock)) = GeneralUtil.ZNatMap.prj_z_kv(zpsi.zsplice_map);
+    _ana_cursor_info_block(
+      ~node_steps=node_steps @ [n],
+      ~term_steps,
+      ctx,
+      zblock,
+      ty,
+    );
   };
 }
 and _ana_cursor_info_block =
@@ -1374,7 +1424,7 @@ and _ana_cursor_info_block =
     | Some(ctx) =>
       switch (
         _syn_cursor_info_line(
-          ~node_steps,
+          ~node_steps=node_steps @ [List.length(prefix)],
           ~term_steps,
           ~frame=(prefix, None, Some(UHExp.Block(suffix, conclusion))),
           ~line_no=List.length(prefix),
@@ -1394,7 +1444,7 @@ and _ana_cursor_info_block =
     | None => None
     | Some(ctx) =>
       _ana_cursor_info(
-        ~node_steps,
+        ~node_steps=node_steps @ [List.length(lines)],
         ~term_steps,
         ~frame=(lines, None, None),
         ctx,
@@ -1418,14 +1468,20 @@ and _ana_cursor_info =
     ana_cursor_found_exp(~node_steps, ~term_steps, ~frame, ctx, e, ty, cursor)
   /* zipper cases */
   | ParenthesizedZ(zblock) =>
-    _ana_cursor_info_block(~node_steps, ~term_steps, ctx, zblock, ty)
+    _ana_cursor_info_block(
+      ~node_steps=node_steps @ [0],
+      ~term_steps,
+      ctx,
+      zblock,
+      ty,
+    )
   | OpSeqZ(skel, ze0, surround) =>
     let e0 = ZExp.erase(ze0);
     let seq = OperatorSeq.opseq_of_exp_and_surround(e0, surround);
     let n = OperatorSeq.surround_prefix_length(surround);
     let (prefix, _, suffix) = frame;
     _ana_cursor_info_skel(
-      ~node_steps,
+      ~node_steps=node_steps @ [n],
       ~term_steps,
       ~frame=(prefix, Some(surround), suffix),
       ctx,
@@ -1463,7 +1519,15 @@ and _ana_cursor_info =
         | Some(uty1) => UHTyp.expand(uty1)
         | None => ty1_given
         };
-      switch (_ana_cursor_info_pat(~node_steps, ~term_steps, ctx, zp, ty1)) {
+      switch (
+        _ana_cursor_info_pat(
+          ~node_steps=node_steps @ [0],
+          ~term_steps,
+          ctx,
+          zp,
+          ty1,
+        )
+      ) {
       | None => None
       | Some(CursorNotOnDeferredVarPat(ci)) => Some(ci)
       | Some(CursorOnDeferredVarPat(deferred_ci, x)) =>
@@ -1472,7 +1536,7 @@ and _ana_cursor_info =
       };
     }
   | LamZA(NotInHole, _, zann, _) =>
-    cursor_info_typ(~node_steps, ~term_steps, ctx, zann)
+    cursor_info_typ(~node_steps=node_steps @ [1], ~term_steps, ctx, zann)
   | LamZE(NotInHole, p, ann, zblock) =>
     switch (HTyp.matched_arrow(ty)) {
     | None => None
@@ -1485,7 +1549,13 @@ and _ana_cursor_info =
       switch (Statics.ana_pat(ctx, p, ty1)) {
       | None => None
       | Some(ctx) =>
-        _ana_cursor_info_block(~node_steps, ~term_steps, ctx, zblock, ty2)
+        _ana_cursor_info_block(
+          ~node_steps=node_steps @ [2],
+          ~term_steps,
+          ctx,
+          zblock,
+          ty2,
+        )
       };
     }
   | InjZ(NotInHole, position, zblock) =>
@@ -1493,7 +1563,7 @@ and _ana_cursor_info =
     | None => None
     | Some((ty1, ty2)) =>
       _ana_cursor_info_block(
-        ~node_steps,
+        ~node_steps=node_steps @ [0],
         ~term_steps,
         ctx,
         zblock,
@@ -1501,18 +1571,43 @@ and _ana_cursor_info =
       )
     }
   | CaseZE(NotInHole, zblock, _, _) =>
-    _syn_cursor_info_block(~node_steps, ~term_steps, ctx, zblock)
+    _syn_cursor_info_block(
+      ~node_steps=node_steps @ [0],
+      ~term_steps,
+      ctx,
+      zblock,
+    )
   | CaseZR(NotInHole, block, zrules, _) =>
     switch (Statics.syn_block(ctx, block)) {
     | None => None
     | Some(ty1) =>
+      let prefix_len = List.length(GeneralUtil.ZList.prj_prefix(zrules));
       let zrule = ZList.prj_z(zrules);
-      _ana_cursor_info_rule(~node_steps, ~term_steps, ctx, zrule, ty1, ty);
+      _ana_cursor_info_rule(
+        ~node_steps=node_steps @ [prefix_len + 1],
+        ~term_steps,
+        ctx,
+        zrule,
+        ty1,
+        ty,
+      );
     }
-  | CaseZA(NotInHole, _, _, zann) =>
-    cursor_info_typ(~node_steps, ~term_steps, ctx, zann)
-  | ApPaletteZ(NotInHole, _, _, _) =>
-    _syn_cursor_info(~node_steps, ~term_steps, ~frame, ctx, ze)
+  | CaseZA(NotInHole, _, rules, zann) =>
+    cursor_info_typ(
+      ~node_steps=node_steps @ [List.length(rules)],
+      ~term_steps,
+      ctx,
+      zann,
+    )
+  | ApPaletteZ(NotInHole, _, _, zpsi) =>
+    let (n, _) = GeneralUtil.ZNatMap.prj_z_kv(zpsi.zsplice_map);
+    _syn_cursor_info(
+      ~node_steps=node_steps @ [n],
+      ~term_steps,
+      ~frame,
+      ctx,
+      ze,
+    );
   }
 and _ana_cursor_info_rule =
     (
@@ -1538,7 +1633,15 @@ and _ana_cursor_info_rule =
       ),
     )
   | RuleZP(zp, block) =>
-    switch (_ana_cursor_info_pat(~node_steps, ~term_steps, ctx, zp, pat_ty)) {
+    switch (
+      _ana_cursor_info_pat(
+        ~node_steps=node_steps @ [0],
+        ~term_steps,
+        ctx,
+        zp,
+        pat_ty,
+      )
+    ) {
     | None => None
     | Some(CursorNotOnDeferredVarPat(ci)) => Some(ci)
     | Some(CursorOnDeferredVarPat(deferred_ci, x)) =>
@@ -1549,7 +1652,13 @@ and _ana_cursor_info_rule =
     switch (Statics.ana_pat(ctx, p, pat_ty)) {
     | None => None
     | Some(ctx) =>
-      _ana_cursor_info_block(~node_steps, ~term_steps, ctx, zblock, clause_ty)
+      _ana_cursor_info_block(
+        ~node_steps=node_steps @ [1],
+        ~term_steps,
+        ctx,
+        zblock,
+        clause_ty,
+      )
     }
   }
 and _syn_cursor_info_skel =
@@ -2015,19 +2124,16 @@ and _ana_cursor_info_skel =
   };
 
 let syn_cursor_info_block = (ctx, zblock) => {
-  let node_steps = CursorPath.steps_of_zblock(zblock);
   let term_steps = CursorPath.term_steps_of_zblock(zblock);
-  _syn_cursor_info_block(~node_steps, ~term_steps, ctx, zblock);
+  _syn_cursor_info_block(~node_steps=[], ~term_steps, ctx, zblock);
 };
 
 let syn_cursor_info = (~frame, ctx, ze) => {
-  let node_steps = CursorPath.steps_of_zexp(ze);
   let term_steps = CursorPath.term_steps_of_zexp(ze);
-  _syn_cursor_info(~node_steps, ~term_steps, ~frame, ctx, ze);
+  _syn_cursor_info(~node_steps=[], ~term_steps, ~frame, ctx, ze);
 };
 
 let ana_cursor_info = (~frame, ctx, ze, ty) => {
-  let node_steps = CursorPath.steps_of_zexp(ze);
   let term_steps = CursorPath.term_steps_of_zexp(ze);
-  _ana_cursor_info(~node_steps, ~term_steps, ~frame, ctx, ze, ty);
+  _ana_cursor_info(~node_steps=[], ~term_steps, ~frame, ctx, ze, ty);
 };

@@ -110,7 +110,9 @@ let entered_single_key =
     Some(prevent_stop_inject(Update.Action.EditAction(Construct(shape))));
   | (
       Exp(NumLit(_, _) | BoolLit(_, _) | Var(_, _, _)) |
-      Pat(OtherPat(NumLit(_, _) | BoolLit(_, _)) | VarPat(Var(_, _, _), _)),
+      Pat(
+        OtherPat(NumLit(_, _) | BoolLit(_, _)) | VarPat(Var(_, _, _), _),
+      ),
       _,
     ) =>
     let (nodeValue, anchorOffset) =
