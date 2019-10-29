@@ -126,93 +126,79 @@ let modify_position = (delta: int): m(unit) => {
   set_position(pos + delta);
 };
 
-// TODO: encode an existential to eliminate need for `Make`
-// TODO: use ptr equality for Doc.t but structural equality for shape in hash table
-// TODO: move `width` to an inner parameter
-module Make = (Tag: {type t;}) => {
-  module Key = {
-    type t = {
-      width: int,
-      pos: int,
-      doc: Doc.t(Tag.t),
-    };
-    let hash = ({width, pos, doc}: t): int =>
-      17 * width + 19 * 97 * pos + 23 * Hashtbl.hash(doc);
-    let equal =
-        ({width: w1, pos: p1, doc: d1}: t, {width: w2, pos: p2, doc: d2}: t)
-        : bool => {
-      w1 == w2 && p1 == p2 && d1 === d2;
-    };
-  };
+module WidthPosKey = {
+  type t = (int, int);
+  let hash = ((width, pos)) => 256 * 256 * width + pos;
+  let equal = ((w1, p1), (w2, p2)) => w1 == w2 && p1 == p2;
+};
+module StrongWidthPosKey = Memoize.Strong(WidthPosKey);
 
-  module Weak_hashtbl = Ephemeron.K1.Make(Key);
-  let memo_table: Weak_hashtbl.t(m'(Layout.t(Tag.t))) = {
-    Weak_hashtbl.create(3);
-  };
+let rec layout_of_doc': 'tag. Doc.t('tag) => m(Layout.t('tag)) =
+  (doc, ~width: int, ~pos: int) => {
+    Obj.magic(Lazy.force(memo_table, Obj.magic(doc), ~width, ~pos));
+  }
 
-  let rec go = (doc: Doc.t(Tag.t)): m(Layout.t(Tag.t)) =>
-    (~width: int, ~pos: int) => {
-      let key: Key.t = {width, pos, doc};
-      switch (Weak_hashtbl.find_opt(memo_table, key)) {
-      | Some(x) => x
-      | None =>
-        let v = {
-          let ret: m(Layout.t(Tag.t)) = {
-            switch (doc) {
-            | Text(string) =>
-              let%bind () = modify_position(String.length(string));
-              return(Layout.Text(string));
-            | Cat(d1, d2) =>
-              let%bind l1 = go(d1);
-              let%bind l2 = go(d2);
-              return(Layout.Cat(l1, l2));
-            | Linebreak =>
-              let%bind () = tell_cost(1);
-              let%bind () = set_position(0);
-              return(Layout.Linebreak);
-            | Align(d) =>
-              let%bind pos = get_position;
-              let%bind width = ask_width;
-              let%bind l =
-                with_width(
-                  width - pos,
-                  {
-                    let%bind () = set_position(0);
-                    go(d);
-                  },
-                );
-              let%bind () = modify_position(pos);
-              return(Layout.Align(l));
-            | Tagged(tag, d) =>
-              let%bind l: m(Layout.t(Tag.t)) = go(d);
-              return(Layout.Tagged(tag, l));
-            | Fail => fail
-            | Choice(d1, d2) => union(go(d1), go(d2))
-            };
-          };
-          ret(~width, ~pos);
+and memo_table: Lazy.t(Doc.t(unit) => m(Layout.t(unit))) =
+  lazy(Memoize.WeakPoly.make(layout_of_doc''))
+
+and layout_of_doc'': Doc.t(unit) => m(Layout.t(unit)) =
+  doc => {
+    let g = ((width, pos): (int, int)): m'(Layout.t(unit)) => {
+      let ret: m(Layout.t(unit)) = {
+        switch (doc) {
+        | Text(string) =>
+          let%bind () = modify_position(String.length(string));
+          return(Layout.Text(string));
+        | Cat(d1, d2) =>
+          let%bind l1 = layout_of_doc'(d1);
+          let%bind l2 = layout_of_doc'(d2);
+          return(Layout.Cat(l1, l2));
+        | Linebreak =>
+          let%bind () = tell_cost(1);
+          let%bind () = set_position(0);
+          return(Layout.Linebreak);
+        | Align(d) =>
+          let%bind pos = get_position;
+          let%bind width = ask_width;
+          let%bind l =
+            with_width(
+              width - pos,
+              {
+                let%bind () = set_position(0);
+                layout_of_doc'(d);
+              },
+            );
+          let%bind () = modify_position(pos);
+          return(Layout.Align(l));
+        | Tagged(tag, d) =>
+          let%bind l: m(Layout.t(unit)) = layout_of_doc'(d);
+          return(Layout.Tagged(tag, l));
+        | Fail => fail
+        | Choice(d1, d2) => union(layout_of_doc'(d1), layout_of_doc'(d2))
         };
-        Weak_hashtbl.add(memo_table, key, v);
-        v;
       };
+      ret(~width, ~pos);
     };
-  let layout_of_doc =
-      (doc: Doc.t(Tag.t), ~width: int, ~pos: int): option(Layout.t(Tag.t)) => {
-    let rec minimum =
-            ((pos, (cost, t)): (int, (int, option('a))))
-            : (list((int, (int, 'a))) => option('a)) => {
-      fun
-      | [] => t
-      | [(x_pos, (x_cost, x)), ...rest] =>
-        // Prefer lowest cost, or if same cost, prefer ending at an earlier column
-        // (Columns are unique by construction of PosMap.)
-        if (x_cost < cost || x_cost == cost && x_pos < pos) {
-          minimum((x_pos, (x_cost, Some(x))), rest);
-        } else {
-          minimum((pos, (cost, t)), rest);
-        };
-    };
-    // TODO: use options instead of max_int
-    minimum((max_int, (max_int, None)), go(doc, ~width, ~pos));
+    let h = StrongWidthPosKey.make(g);
+    (~width, ~pos) => h((width, pos));
   };
+
+let layout_of_doc =
+    (doc: Doc.t('tag), ~width: int, ~pos: int): option(Layout.t('tag)) => {
+  let rec minimum =
+          ((pos, (cost, t)): (int, (int, option('a))))
+          : (list((int, (int, 'a))) => option('a)) => {
+    fun
+    | [] => t
+    | [(x_pos, (x_cost, x)), ...rest] =>
+      // Prefer lowest cost, or if same cost, prefer ending at an earlier column
+      // (Columns are unique by construction of PosMap.)
+      if (x_cost < cost || x_cost == cost && x_pos < pos) {
+        minimum((x_pos, (x_cost, Some(x))), rest);
+      } else {
+        minimum((pos, (cost, t)), rest);
+      };
+  };
+  // TODO: use options instead of max_int
+  minimum((max_int, (max_int, None)), layout_of_doc'(doc, ~width, ~pos));
 };

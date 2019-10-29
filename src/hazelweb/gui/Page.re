@@ -216,11 +216,7 @@ let page_view =
                             ),
                           );
                           switch (
-                            DocOfTerm.LayoutOfDoc.layout_of_doc(
-                              doc,
-                              ~width=80,
-                              ~pos=0,
-                            )
+                            LayoutOfDoc.layout_of_doc(doc, ~width=80, ~pos=0)
                           ) {
                           | None => Printf.printf("layout FAILED\n")
                           | Some(layout) =>
