@@ -1,4 +1,4 @@
-BUILD_WWW = "_build/default/src/hazelweb/www"
+BUILD_WWW=_build/default/src/hazelweb/www
 
 all: dev
 
@@ -20,8 +20,11 @@ release:
 chrome:
 	chrome-browser $(BUILD_WWW)/index.html
 
-chromium:
+chromium-browser:
 	chromium-browser $(BUILD_WWW)/index.html
+
+chromium:
+	chromium $(BUILD_WWW)/index.html
 
 firefox:
 	firefox $(BUILD_WWW)/index.html
@@ -32,4 +35,4 @@ repl:
 clean:
 	dune clean
 
-.PHONY: all deps dev debug release test chrome chromium firefox repl clean
+.PHONY: all deps dev debug release test chrome chromium chromium-browser firefox repl clean
