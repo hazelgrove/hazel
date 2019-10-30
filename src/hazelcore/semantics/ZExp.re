@@ -14,6 +14,14 @@ type zblock =
 and zlines = ZList.t(zline, UHExp.line)
 and zline =
   | CursorL(cursor_position, UHExp.line)
+  // CursorL(OnDelim(0, Before), CommentLine("hello"))
+  // |# hello
+  // CursorL(OnText(3), CommentLine("hello"))
+  // # hell|o
+  // CursorL(OnDelim(0, After), CommentLine("goodbye"))
+  // #| goodbye
+  // CursorL(OnText(0), CommentLine("goodbye"))
+  // # |goodbye
   | ExpLineZ(t)
   | LetLineZP(ZPat.t, option(UHTyp.t), UHExp.block)
   | LetLineZA(UHPat.t, ZTyp.t, UHExp.block)
@@ -44,6 +52,11 @@ and zrule =
 
 let valid_cursors_line = (line: UHExp.line): list(cursor_position) =>
   switch (line) {
+  | CommentLine(comment) =>
+    // f(x) == x |> f
+    // [1, 2] @ [3, 4] == [1, 2, 3, 4]
+    [OnDelim(0, Before), OnDelim(0, After)]
+    @ (range(String.length(comment) + 1) |> List.map(i => OnText(i)))
   | ExpLine(_) => []
   | EmptyLine => [OnText(0)]
   | LetLine(_, ann, _) =>
@@ -121,25 +134,32 @@ let bidelimit = (ze: t): t =>
 
 exception SkelInconsistentWithOpSeq;
 
+/**
+ * Whether the cursor is before the whole block
+ */
 let rec is_before_block = (zblock: zblock): bool =>
   switch (zblock) {
   | BlockZL(zlines, _) => is_before_lines(zlines)
   | BlockZE([], ze) => is_before_exp(ze)
-  | BlockZE(_, _) => false
+  | BlockZE([_, ..._], _ze) => false
   }
+/**
+ * Whether the cursor is before the list of lines
+ */
 and is_before_lines = ((prefix, zline, _): zlines): bool =>
   switch (prefix) {
   | [] => is_before_line(zline)
-  | _ => false
+  | [_, ..._] => false
   }
+/**
+ * Whether the cursor is before the line
+ */
 and is_before_line = (zline: zline): bool =>
   switch (zline) {
-  /* outer nodes */
+  | CursorL(cursor, CommentLine(_)) => cursor == OnDelim(0, Before)
   | CursorL(cursor, EmptyLine) => cursor == OnText(0)
-  /* inner nodes */
   | CursorL(cursor, LetLine(_, _, _)) => cursor == OnDelim(0, Before)
   | CursorL(_, ExpLine(_)) => false /* ghost node */
-  /* zipper cases */
   | ExpLineZ(ze) => is_before_exp(ze)
   | LetLineZP(_, _, _)
   | LetLineZA(_, _, _)
