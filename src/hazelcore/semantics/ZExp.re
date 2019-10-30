@@ -206,7 +206,8 @@ let rec is_after_block = (zblock: zblock): bool =>
   }
 and is_after_line = (zli: zline): bool =>
   switch (zli) {
-  /* outer nodes */
+  | CursorL(cursor, CommentLine(comment)) =>
+    cursor == OnText(String.length(comment))
   | CursorL(cursor, EmptyLine) => cursor == OnText(0)
   /* inner nodes */
   | CursorL(cursor, LetLine(_, _, _)) => cursor == OnDelim(3, After)
@@ -327,6 +328,7 @@ let rec place_before_block = (block: UHExp.block): zblock =>
   }
 and place_before_line = (line: UHExp.line): zline =>
   switch (line) {
+  | CommentLine(_) => CursorL(OnDelim(0, Before), line)
   | EmptyLine => CursorL(OnText(0), EmptyLine)
   | LetLine(_, _, _) => CursorL(OnDelim(0, Before), line)
   | ExpLine(e) => ExpLineZ(place_before_exp(e))
@@ -364,6 +366,7 @@ let rec place_after_block = (Block(lines, e): UHExp.block): zblock =>
   BlockZE(lines, place_after_exp(e))
 and place_after_line = (line: UHExp.line): zline =>
   switch (line) {
+  | CommentLine(comment) => CursorL(OnText(String.length(comment)), line)
   | EmptyLine => CursorL(OnText(0), line)
   | LetLine(_, _, _) => CursorL(OnDelim(3, After), line)
   | ExpLine(e) => ExpLineZ(place_after_exp(e))
@@ -412,6 +415,7 @@ let place_cursor_line =
     | Some(ze) => Some(ExpLineZ(ze))
     }
   | EmptyLine
+  | CommentLine(_)
   | LetLine(_, _, _) =>
     is_valid_cursor_line(cursor, line) ? Some(CursorL(cursor, line)) : None
   };
@@ -762,9 +766,24 @@ and move_cursor_left_line = (zline: zline): option(zline) =>
   switch (zline) {
   | _ when is_before_line(zline) => None
   | CursorL(Staging(_), _) => None
-  | CursorL(OnText(_), _) => None
+  | CursorL(OnDelim(_, Before), CommentLine(_)) => None
+
+  // OnDelim case
   | CursorL(OnDelim(k, After), line) =>
     Some(CursorL(OnDelim(k, Before), line))
+
+  | CursorL(OnText(_), EmptyLine) => None
+
+  // For CommentLine
+  | CursorL(OnText(0), CommentLine(_) as line) =>
+    Some(CursorL(OnDelim(0, After), line))
+
+  | CursorL(OnText(k), CommentLine(_) as line) =>
+    Some(CursorL(OnText(k - 1), line))
+
+  // Ontext case for non-commentline
+  | CursorL(OnText(_), ExpLine(_) | LetLine(_, _, _)) => None
+
   | CursorL(OnDelim(_, _), EmptyLine | ExpLine(_)) => None
   | CursorL(OnDelim(k, Before), LetLine(p, ann, def)) =>
     // k == 1 || k == 2 || k == 3
@@ -1023,9 +1042,15 @@ and move_cursor_right_line = (zline: zline): option(zline) => {
   switch (zline) {
   | _ when is_after_line(zline) => None
   | CursorL(Staging(_), _) => None
+  | CursorL(OnText(k), CommentLine(_) as line) =>
+    Some(CursorL(OnText(k + 1), line))
   | CursorL(OnText(_), _) => None
   | CursorL(OnDelim(k, Before), line) =>
     Some(CursorL(OnDelim(k, After), line))
+
+  | CursorL(OnDelim(_, After), CommentLine(_) as line) =>
+    Some(CursorL(OnText(0), line))
+
   | CursorL(OnDelim(_, _), EmptyLine | ExpLine(_)) => None
   | CursorL(OnDelim(k, After), LetLine(p, ann, def)) =>
     // k == 0 || k == 1 || k == 2 || k == 3
