@@ -1,4 +1,4 @@
-# Hazel
+# Hazel [![Build Status](https://travis-ci.org/hazelgrove/hazel.svg?branch=dev)](https://travis-ci.org/hazelgrove/hazel)
 
 Hazel is a live functional programming environment rooted in the
 principles of type theory. You can find the relevant papers and more
