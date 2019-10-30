@@ -266,6 +266,11 @@ let view =
                       ) {
                       | None => Event.Ignore
                       | Some(ci) =>
+                        switch (ci.node) {
+                        | Pat(VarPat(_, uses)) =>
+                          JSUtil.log_sexp(CursorInfo.sexp_of_uses_list(uses))
+                        | _ => JSUtil.log("not varpat")
+                        };
                         switch (
                           entered_single_key(
                             ~prevent_stop_inject,
@@ -276,7 +281,7 @@ let view =
                         ) {
                         | None => Event.Ignore
                         | Some(event) => event
-                        }
+                        };
                       }
                     };
                   };

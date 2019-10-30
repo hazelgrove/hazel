@@ -1049,15 +1049,18 @@ let ana_cursor_found_exp =
     );
   };
 
-let rec find_uses_block = (x: Var.t, block: UHExp.block, steps): uses_list => {
+let rec find_uses_block =
+        (x: Var.t, block: UHExp.block, steps, index): uses_list => {
   let UHExp.Block(lines, e) = block;
-  let (uses, shadow) = find_uses_lines(x, lines, steps @ [0], 0, false);
-  shadow ? uses : uses @ find_uses_exp(x, e, steps @ [1]);
+  let (uses, shadow) = find_uses_lines(x, lines, steps @ [0], index, false);
+  shadow
+    ? uses
+    : uses @ find_uses_exp(x, e, steps @ [index + List.length(lines)]);
 }
 and find_uses_lines =
     (x: Var.t, lines: UHExp.lines, steps, index, shadow): (uses_list, bool) =>
   switch (lines, shadow) {
-  | ([], _)
+  | ([], shadow) => ([], shadow)
   | (_, true) => ([], true)
   | ([line, ...lines], false) =>
     let (line_uses, shadow) = find_uses_line(x, line, steps @ [index]);
@@ -1070,7 +1073,7 @@ and find_uses_line = (x: Var.t, line: UHExp.line, steps): (uses_list, bool) =>
   | ExpLine(e) => (find_uses_exp(x, e, steps), false)
   | EmptyLine => ([], false)
   | LetLine(p, _, block) => (
-      find_uses_block(x, block, steps @ [1]),
+      find_uses_block(x, block, steps @ [1], 0),
       shadow_in_pat(x, p),
     )
   }
@@ -1086,14 +1089,16 @@ and find_uses_exp = (x: Var.t, e: UHExp.t, steps): uses_list =>
   | Inj(InHole(_, _), _, _)
   | Case(InHole(_, _), _, _, _)
   | ApPalette(_, _, _, _) => []
-  | Var(NotInHole, NotInVarHole, y) => x == y ? [steps] : []
+  | Var(NotInHole, NotInVarHole, y) =>
+    Printf.printf("x is used\n");
+    x == y ? [steps] : [];
   | Lam(NotInHole, p, _, block) =>
-    shadow_in_pat(x, p) ? [] : find_uses_block(x, block, steps @ [1])
-  | Inj(NotInHole, _, block) => find_uses_block(x, block, steps @ [0])
+    shadow_in_pat(x, p) ? [] : find_uses_block(x, block, steps @ [1], 0)
+  | Inj(NotInHole, _, block) => find_uses_block(x, block, steps @ [0], 0)
   | Case(NotInHole, block, rules, _) =>
-    find_uses_block(x, block, steps @ [0])
+    find_uses_block(x, block, steps @ [0], 0)
     @ find_uses_rules(x, rules, steps, 0)
-  | Parenthesized(block) => find_uses_block(x, block, steps @ [0])
+  | Parenthesized(block) => find_uses_block(x, block, steps @ [0], 0)
   | OpSeq(_, opseq) =>
     // TODO: check corresponding ErrStatus in skel_t
     let (uses, _) = find_uses_opseq(x, opseq, steps);
@@ -1107,7 +1112,7 @@ and find_uses_rules =
     let UHExp.Rule(p, block) = rule;
     let uses =
       shadow_in_pat(x, p)
-        ? [] : find_uses_block(x, block, steps @ [prefix_length, 1]);
+        ? [] : find_uses_block(x, block, steps @ [prefix_length], 0);
     uses @ find_uses_rules(x, rules, steps, prefix_length + 1);
   }
 and find_uses_opseq = (x: Var.t, opseq: UHExp.opseq, steps): (uses_list, int) =>
@@ -1160,7 +1165,13 @@ let rec _syn_cursor_info_block =
       | None => None
       | Some(CursorNotOnDeferredVarPat(ci)) => Some(ci)
       | Some(CursorOnDeferredVarPat(deferred_ci, x)) =>
-        let uses = find_uses_block(x, Block(suffix, conclusion), node_steps); // TODO: use correct steps
+        let uses =
+          find_uses_block(
+            x,
+            Block(suffix, conclusion),
+            node_steps,
+            List.length(prefix) + 1,
+          ); // TODO: use correct steps
         Some(uses |> deferred_ci);
       }
     }
@@ -1337,7 +1348,7 @@ and _syn_cursor_info =
     | None => None
     | Some(CursorNotOnDeferredVarPat(ci)) => Some(ci)
     | Some(CursorOnDeferredVarPat(deferred_ci, x)) =>
-      let uses = find_uses_block(x, block, node_steps);
+      let uses = find_uses_block(x, block, node_steps @ [2], 0); // TODO correct steps
       Some(uses |> deferred_ci);
     };
   | LamZA(_, _, zann, _) =>
@@ -1435,7 +1446,13 @@ and _ana_cursor_info_block =
       | None => None
       | Some(CursorNotOnDeferredVarPat(ci)) => Some(ci)
       | Some(CursorOnDeferredVarPat(deferred_ci, x)) =>
-        let uses = find_uses_block(x, Block(suffix, conclusion), node_steps); // TODO: use correct steps
+        let uses =
+          find_uses_block(
+            x,
+            Block(suffix, conclusion),
+            node_steps,
+            List.length(prefix) + 1,
+          );
         Some(uses |> deferred_ci);
       }
     }
@@ -1531,7 +1548,7 @@ and _ana_cursor_info =
       | None => None
       | Some(CursorNotOnDeferredVarPat(ci)) => Some(ci)
       | Some(CursorOnDeferredVarPat(deferred_ci, x)) =>
-        let uses = find_uses_block(x, block, node_steps);
+        let uses = find_uses_block(x, block, node_steps @ [2], 0);
         Some(uses |> deferred_ci);
       };
     }
@@ -1645,7 +1662,7 @@ and _ana_cursor_info_rule =
     | None => None
     | Some(CursorNotOnDeferredVarPat(ci)) => Some(ci)
     | Some(CursorOnDeferredVarPat(deferred_ci, x)) =>
-      let uses = find_uses_block(x, block, node_steps);
+      let uses = find_uses_block(x, block, node_steps, 0);
       Some(uses |> deferred_ci);
     }
   | RuleZE(p, zblock) =>

@@ -139,7 +139,13 @@ let cursor_info_of_edit_state = ((zblock, _, _): edit_state): CursorInfo.t =>
     )
   ) {
   | None => raise(MissingCursorInfo)
-  | Some(ci) => ci
+  | Some(ci) =>
+    switch (ci.node) {
+    | Pat(VarPat(_, uses)) =>
+      JSUtil.log_sexp(CursorInfo.sexp_of_uses_list(uses))
+    | _ => JSUtil.log("not varpat")
+    };
+    ci;
   };
 
 exception InvalidInput;
