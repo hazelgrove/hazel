@@ -21,7 +21,7 @@ echo "git config"
 git config --global user.email "travis@travis-ci.org"
 git config --global user.name "Push From Travis"
 echo "move to hazel-build"
-cd hazel-build
+cd build
 
 echo "clear contents of subdir $TRAVIS_BRANCH"
 if [ -d "$TRAVIS_BRANCH" ]
