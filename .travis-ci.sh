@@ -16,7 +16,7 @@ eval `ssh-agent -s`
 ssh-add hazel-build-key
 
 echo "git clone"
-git clone git@github.com:hazelgrove/hazel-build.git
+git clone git@github.com:hazelgrove/build.git
 echo "git config"
 git config --global user.email "travis@travis-ci.org"
 git config --global user.name "Push From Travis"
