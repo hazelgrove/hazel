@@ -12,6 +12,9 @@ type t =
   | Sum(t, t)
   | List(t);
 
+// Prod(Num, Num)  ==  (Num, Num)
+// (Prod(Num, Num), Bool)  ==  (Num, Num, Bool)
+
 let rec num_tms = (ty: t): int =>
   switch (ty) {
   | Hole

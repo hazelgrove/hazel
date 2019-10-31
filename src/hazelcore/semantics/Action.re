@@ -5833,6 +5833,7 @@ and ana_perform_exp =
     )
     : result((zexp_or_zblock, MetaVarGen.t)) =>
   switch (a, ze) {
+  // invalid cursor states
   | (
       _,
       CursorE(
@@ -6490,6 +6491,18 @@ and ana_perform_exp =
       };
     Succeeded((E(ze), u_gen));
   | (Construct(SCase), CursorE(_, _)) => Failed
+  | (Construct(SParenthesized), CursorE(_, EmptyHole(_))) =>
+    // get tuple elements
+    let rec get_tuple = (ty: HTyp.t): list(HTyp.t) =>
+      switch (ty) {
+      | Prod(ty1, ty2) => [ty1, ...get_tuple(ty2)]
+      | _ => [ty]
+      };
+    switch (get_tuple(ty)) {
+    | [] => assert(false)
+    | [ty] => // do normal thing
+    | [ty1, ty2, ...tys] => // insert extra holes
+    }
   | (Construct(SParenthesized), CursorE(_, _)) =>
     Succeeded((E(ParenthesizedZ(ZExp.wrap_in_block(ze))), u_gen))
   | (Construct(SAsc), LamZP(err, zp, None, e1)) =>

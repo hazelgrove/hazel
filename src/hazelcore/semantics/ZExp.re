@@ -12,6 +12,7 @@ type zblock =
   | BlockZL(zlines, UHExp.t)
   | BlockZE(UHExp.lines, t)
 and zlines = ZList.t(zline, UHExp.line)
+// zlines == (list(line), zline, list(line))
 and zline =
   | CursorL(cursor_position, UHExp.line)
   | ExpLineZ(t)
