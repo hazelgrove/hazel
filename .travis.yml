@@ -1,11 +1,10 @@
 language: bash
 sudo: required
 install:
- - sudo add-apt-repository -y ppa:avsm/ppa
+ - sudo add-apt-repository --yes ppa:avsm/ppa
  - sudo apt-get update
  - sudo apt-get --assume-yes install opam
- - export OPAMYES=1
- - opam init --compiler=ocaml-base-compiler.4.08.1
+ - opam init --yes --compiler=ocaml-base-compiler.4.08.1
  - eval `opam env`
  - make deps
 
