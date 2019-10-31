@@ -4,14 +4,12 @@ Hazel is a live functional programming environment rooted in the
 principles of type theory. You can find the relevant papers and more
 motivation at [the Hazel website](http://hazel.org/).
 
+## Building and Running Hazel
+
 ### Build Status
 
 - Development branch (`dev`) : [![Build Status](https://travis-ci.org/hazelgrove/hazel.svg?branch=dev)](https://travis-ci.org/hazelgrove/hazel)
 - Stable branch (`master`): [![Build Status](https://travis-ci.org/hazelgrove/hazel.svg?branch=master)](https://travis-ci.org/hazelgrove/hazel)
-
-## Building and Running Hazel
-
-You can build and run Hazel using the following instructions.
 
 ### Prerequisites
 
