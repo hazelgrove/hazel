@@ -129,10 +129,6 @@ type t = {
   subblock_start: option(int),
 };
 
-type deferrable_t =
-  | CursorNotOnDeferredVarPat(t)
-  | CursorOnDeferredVarPat(uses_list => t, Var.t);
-
 let mk_cursor_info =
     (
       ~subskel_range=?,
@@ -336,13 +332,23 @@ let rec cursor_info_typ =
     cursor_info_typ(~node_steps, ~term_steps, ~frame=surround, ctx, zty1)
   };
 
+type deferrable('t) =
+  | CursorNotOnDeferredVarPat('t)
+  | CursorOnDeferredVarPat(uses_list => 't, Var.t);
+
 let rec _ana_cursor_found_pat =
         (ctx: Contexts.t, p: UHPat.t, ty: HTyp.t)
-        : option((typed, uses_list => node, Contexts.t, option(Var.t))) =>
+        : option(deferrable((typed, node, Contexts.t))) =>
   switch (p) {
   /* in hole */
   | EmptyHole(_) =>
-    Some((PatAnaSubsumed(ty, Hole), (_ => Pat(OtherPat(p))), ctx, None))
+    Some(
+      CursorNotOnDeferredVarPat((
+        PatAnaSubsumed(ty, Hole),
+        Pat(OtherPat(p)),
+        ctx,
+      )),
+    )
   | Wild(InHole(TypeInconsistent, _))
   | Var(InHole(TypeInconsistent, _), _, _)
   | NumLit(InHole(TypeInconsistent, _), _)
@@ -354,12 +360,13 @@ let rec _ana_cursor_found_pat =
     switch (Statics.syn_pat(ctx, p_nih)) {
     | None => None
     | Some((ty', _)) =>
-      Some((
-        PatAnaTypeInconsistent(ty, ty'),
-        (_ => Pat(OtherPat(p))),
-        ctx,
-        None,
-      ))
+      Some(
+        CursorNotOnDeferredVarPat((
+          PatAnaTypeInconsistent(ty, ty'),
+          Pat(OtherPat(p)),
+          ctx,
+        )),
+      )
     };
   | Wild(InHole(WrongLength, _))
   | Var(InHole(WrongLength, _), _, _)
@@ -369,46 +376,80 @@ let rec _ana_cursor_found_pat =
   | Inj(InHole(WrongLength, _), _, _) => None
   /* not in hole */
   | Var(NotInHole, InVarHole(Keyword(k), _), _) =>
-    Some((PatAnaKeyword(ty, k), (_ => Pat(OtherPat(p))), ctx, None))
+    Some(
+      CursorNotOnDeferredVarPat((
+        PatAnaKeyword(ty, k),
+        Pat(OtherPat(p)),
+        ctx,
+      )),
+    )
   | Wild(NotInHole)
   | ListNil(NotInHole) =>
-    Some((PatAnalyzed(ty), (_ => Pat(OtherPat(p))), ctx, None))
+    Some(
+      CursorNotOnDeferredVarPat((PatAnalyzed(ty), Pat(OtherPat(p)), ctx)),
+    )
   | Var(NotInHole, _, x) =>
-    Some((PatAnalyzed(ty), (uses => Pat(VarPat(p, uses))), ctx, Some(x)))
+    Some(
+      CursorOnDeferredVarPat(
+        uses => (PatAnalyzed(ty), Pat(VarPat(p, uses)), ctx),
+        x,
+      ),
+    )
   | NumLit(NotInHole, _) =>
-    Some((PatAnaSubsumed(ty, Num), (_ => Pat(OtherPat(p))), ctx, None))
+    Some(
+      CursorNotOnDeferredVarPat((
+        PatAnaSubsumed(ty, Num),
+        Pat(OtherPat(p)),
+        ctx,
+      )),
+    )
   | BoolLit(NotInHole, _) =>
-    Some((PatAnaSubsumed(ty, Bool), (_ => Pat(OtherPat(p))), ctx, None))
+    Some(
+      CursorNotOnDeferredVarPat((
+        PatAnaSubsumed(ty, Bool),
+        Pat(OtherPat(p)),
+        ctx,
+      )),
+    )
   | Inj(NotInHole, _, _) =>
-    Some((PatAnalyzed(ty), (_ => Pat(OtherPat(p))), ctx, None))
+    Some(
+      CursorNotOnDeferredVarPat((PatAnalyzed(ty), Pat(OtherPat(p)), ctx)),
+    )
   | Parenthesized(p1) =>
     switch (_ana_cursor_found_pat(ctx, p1, ty)) {
     | None => None
-    | Some((mode, _, ctx, _)) =>
-      Some((mode, (_ => Pat(OtherPat(p))), ctx, None))
+    | Some(CursorNotOnDeferredVarPat((mode, _, ctx))) =>
+      Some(CursorNotOnDeferredVarPat((mode, Pat(OtherPat(p)), ctx)))
+    | Some(CursorOnDeferredVarPat(deferred, _)) =>
+      let (mode, _, ctx) = [] |> deferred;
+      Some(CursorNotOnDeferredVarPat((mode, Pat(OtherPat(p)), ctx)));
     }
   | OpSeq(BinOp(NotInHole, Comma, _, _), _)
   | OpSeq(BinOp(NotInHole, Cons, _, _), _) =>
-    Some((PatAnalyzed(ty), (_ => Pat(OtherPat(p))), ctx, None))
+    Some(
+      CursorNotOnDeferredVarPat((PatAnalyzed(ty), Pat(OtherPat(p)), ctx)),
+    )
   | OpSeq(BinOp(InHole(reason, _), Comma, skel1, skel2), _) =>
     switch (ty, reason) {
     | (Prod(ty1, ty2), WrongLength) =>
       let n_elts = ListMinTwo.length(UHPat.get_tuple(skel1, skel2));
       let n_types = ListMinTwo.length(HTyp.get_tuple(ty1, ty2));
-      Some((
-        PatAnaWrongLength(n_types, n_elts, ty),
-        (_ => Pat(OtherPat(p))),
-        ctx,
-        None,
-      ));
+      Some(
+        CursorNotOnDeferredVarPat((
+          PatAnaWrongLength(n_types, n_elts, ty),
+          Pat(OtherPat(p)),
+          ctx,
+        )),
+      );
     | (_, TypeInconsistent) =>
       let n_elts = ListMinTwo.length(UHPat.get_tuple(skel1, skel2));
-      Some((
-        PatAnaWrongLength(1, n_elts, ty),
-        (_ => Pat(OtherPat(p))),
-        ctx,
-        None,
-      ));
+      Some(
+        CursorNotOnDeferredVarPat((
+          PatAnaWrongLength(1, n_elts, ty),
+          Pat(OtherPat(p)),
+          ctx,
+        )),
+      );
     | (_, _) => None
     }
   | OpSeq(BinOp(InHole(_, _), Cons, _, _), _) => None
@@ -426,14 +467,34 @@ let ana_cursor_found_pat =
       ty: HTyp.t,
       cursor: cursor_position,
     )
-    : option(deferrable_t) =>
+    : option(deferrable(t)) =>
   switch (_ana_cursor_found_pat(ctx, p, ty)) {
   | None => None
-  | Some((typed, deferred_node, ctx, x)) =>
-    switch (x) {
-    | None =>
-      Some(
-        CursorNotOnDeferredVarPat(
+  | Some(CursorNotOnDeferredVarPat((typed, node, ctx))) =>
+    Some(
+      CursorNotOnDeferredVarPat(
+        mk_cursor_info(
+          ~subskel_range=?
+            switch (cursor, p) {
+            | (OnDelim(k, _), OpSeq(skel, _)) =>
+              Some(Skel.range_of_subskel_rooted_at_op(k, skel))
+            | _ => None
+            },
+          typed,
+          node,
+          PatFrame(frame),
+          cursor,
+          ctx,
+          node_steps,
+          term_steps,
+        ),
+      ),
+    )
+  | Some(CursorOnDeferredVarPat(deferred, x)) =>
+    Some(
+      CursorOnDeferredVarPat(
+        uses => {
+          let (typed, node, ctx) = uses |> deferred;
           mk_cursor_info(
             ~subskel_range=?
               switch (cursor, p) {
@@ -442,43 +503,22 @@ let ana_cursor_found_pat =
               | _ => None
               },
             typed,
-            [] |> deferred_node,
+            node,
             PatFrame(frame),
             cursor,
             ctx,
             node_steps,
             term_steps,
-          ),
-        ),
-      )
-    | Some(x) =>
-      Some(
-        CursorOnDeferredVarPat(
-          uses =>
-            mk_cursor_info(
-              ~subskel_range=?
-                switch (cursor, p) {
-                | (OnDelim(k, _), OpSeq(skel, _)) =>
-                  Some(Skel.range_of_subskel_rooted_at_op(k, skel))
-                | _ => None
-                },
-              typed,
-              uses |> deferred_node,
-              PatFrame(frame),
-              cursor,
-              ctx,
-              node_steps,
-              term_steps,
-            ),
-          x,
-        ),
-      )
-    }
+          );
+        },
+        x,
+      ),
+    )
   };
 
 let rec _syn_cursor_info_pat =
         (~node_steps, ~term_steps, ~frame=None, ctx: Contexts.t, zp: ZPat.t)
-        : option(deferrable_t) =>
+        : option(deferrable(t)) =>
   switch (zp) {
   // TODO special case OpSeq
   | CursorP(cursor, Var(_, InVarHole(Keyword(k), _), _) as p) =>
@@ -569,7 +609,7 @@ and _syn_cursor_info_pat_skel =
       n: int,
       zp1: ZPat.t,
     )
-    : option(deferrable_t) =>
+    : option(deferrable(t)) =>
   switch (skel) {
   | Placeholder(n') =>
     if (n == n') {
@@ -673,7 +713,7 @@ and _ana_cursor_info_pat =
       zp: ZPat.t,
       ty: HTyp.t,
     )
-    : option(deferrable_t) =>
+    : option(deferrable(t)) =>
   switch (zp) {
   /* TODO special case OpSeq */
   | CursorP(cursor, Var(_, InVarHole(Keyword(k), _), _) as p) =>
@@ -732,7 +772,7 @@ and _ana_cursor_info_pat_skel =
       zp1: ZPat.t,
       ty: HTyp.t,
     )
-    : option(deferrable_t) =>
+    : option(deferrable(t)) =>
   switch (skel) {
   | Placeholder(n') =>
     if (n == n') {
@@ -1197,7 +1237,7 @@ and _syn_cursor_info_line =
       ctx: Contexts.t,
       zli: ZExp.zline,
     )
-    : option(deferrable_t) =>
+    : option(deferrable(t)) =>
   switch (zli) {
   | CursorL(cursor, line) =>
     let (prefix, _, suffix) = frame;
