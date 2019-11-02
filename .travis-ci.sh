@@ -1,7 +1,7 @@
 echo "build here"
 echo "compile new static content"
 make release
-BUILD_WWW=`make build_www`
+HTML_DIR=`make echo-html-dir`
 
 # cf.
 # http://markbucciarelli.com/posts/2019-01-26_how-to-push-to-github-from-travis-ci.html
@@ -27,14 +27,14 @@ echo "clear contents of subdir $TRAVIS_BRANCH"
 if [ -d "$TRAVIS_BRANCH" ]
 then
   echo "subdir found, clearing contents"
-  rm -rf $TRAVIS_BRANCH
+  rm -rf "$TRAVIS_BRANCH"
   mkdir "$TRAVIS_BRANCH"
 else
   echo "subdir not found, creating new"
   mkdir "$TRAVIS_BRANCH"
 fi
 echo "cp new build contents into subdir"
-cp -r ../$BUILD_WWW/* $TRAVIS_BRANCH
+cp -r ../"$HTML_DIR"/* "$TRAVIS_BRANCH"
 
 echo "git add"
 git add .
