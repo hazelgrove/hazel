@@ -1,3 +1,5 @@
+BUILD_WWW=_build/default/src/hazelweb/www
+
 all: dev
 
 deps:
@@ -9,17 +11,23 @@ dev debug:
 	dune build @src/fmt --auto-promote || true
 	dune build src --profile dev
 
+build_www:
+	@echo $(BUILD_WWW)
+
 release:
 	dune build src --profile release
 
 chrome:
-	chrome-browser _build/default/src/hazelweb/www/hazel.html
+	chrome-browser $(BUILD_WWW)/index.html
+
+chromium-browser:
+	chromium-browser $(BUILD_WWW)/index.html
 
 chromium:
-	chromium-browser _build/default/src/hazelweb/www/hazel.html
+	chromium $(BUILD_WWW)/index.html
 
 firefox:
-	firefox _build/default/src/hazelweb/www/hazel.html
+	firefox $(BUILD_WWW)/index.html
 
 repl:
 	dune utop src/hazelcore
@@ -27,4 +35,4 @@ repl:
 clean:
 	dune clean
 
-.PHONY: all deps dev debug release test chrome chromium firefox repl clean
+.PHONY: all deps dev debug release test chrome chromium chromium-browser firefox repl clean

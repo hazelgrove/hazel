@@ -1318,7 +1318,10 @@ let draw_box_term_indicator = () => {
       cursor_elem
       |> JSUtil.force_get_parent_elem
       |> Code.line_no_of_sline_elem
-      |> Opt.get(() => assert(false));
+      |> Opt.get(() => {
+           JSUtil.log(cursor_elem);
+           assert(false);
+         });
     let sub_block_rect =
       all_sline_elems
       |> filteri((i, _) => i >= first_sline_index)

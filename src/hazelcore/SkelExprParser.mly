@@ -33,6 +33,7 @@
 %left SPACEOP
 
 %start <UHExp.op Skel.t> skel_expr
+%type <UHExp.op Skel.t> expr
 
 (* %% ends the declarations section of the grammar definition *)
 
