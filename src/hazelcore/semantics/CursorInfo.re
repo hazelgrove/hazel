@@ -1,6 +1,7 @@
 open Sexplib.Std;
 open SemanticsCommon;
 open GeneralUtil;
+open UsageAnalysis;
 
 [@deriving sexp]
 type typed =
@@ -78,9 +79,6 @@ type typed =
   | OnLine
   | OnRule
   | OnOp;
-
-[@deriving sexp]
-type uses_list = list(CursorPath.steps);
 
 [@deriving sexp]
 type pat_node =
@@ -332,6 +330,12 @@ let rec cursor_info_typ =
     cursor_info_typ(~node_steps, ~term_steps, ~frame=surround, ctx, zty1)
   };
 
+/*
+ * there are cases we can't determine where to find the uses of a variable
+ * immediately after we see its binding site.
+ * in this case, we will return a deferrable('t) and go up the tree
+ * until we could find uses and feed it to (uses_list => 't).
+ */
 type deferrable('t) =
   | CursorNotOnDeferredVarPat('t)
   | CursorOnDeferredVarPat(uses_list => 't, Var.t);
@@ -1087,101 +1091,6 @@ let ana_cursor_found_exp =
         term_steps,
       ),
     );
-  };
-
-let rec find_uses_block =
-        (x: Var.t, block: UHExp.block, steps, index): uses_list => {
-  let UHExp.Block(lines, e) = block;
-  let (uses, shadow) = find_uses_lines(x, lines, steps @ [0], index, false);
-  shadow
-    ? uses
-    : uses @ find_uses_exp(x, e, steps @ [index + List.length(lines)]);
-}
-and find_uses_lines =
-    (x: Var.t, lines: UHExp.lines, steps, index, shadow): (uses_list, bool) =>
-  switch (lines, shadow) {
-  | ([], shadow) => ([], shadow)
-  | (_, true) => ([], true)
-  | ([line, ...lines], false) =>
-    let (line_uses, shadow) = find_uses_line(x, line, steps @ [index]);
-    let (lines_uses, shadow) =
-      find_uses_lines(x, lines, steps, index + 1, shadow);
-    (line_uses @ lines_uses, shadow);
-  }
-and find_uses_line = (x: Var.t, line: UHExp.line, steps): (uses_list, bool) =>
-  switch (line) {
-  | ExpLine(e) => (find_uses_exp(x, e, steps), false)
-  | EmptyLine => ([], false)
-  | LetLine(p, _, block) => (
-      find_uses_block(x, block, steps @ [1], 0),
-      shadow_in_pat(x, p),
-    )
-  }
-and find_uses_exp = (x: Var.t, e: UHExp.t, steps): uses_list =>
-  switch (e) {
-  | EmptyHole(_)
-  | Var(_, InVarHole(_, _), _)
-  | Var(InHole(_, _), _, _)
-  | NumLit(_, _)
-  | BoolLit(_, _)
-  | ListNil(_)
-  | Lam(InHole(_, _), _, _, _)
-  | Inj(InHole(_, _), _, _)
-  | Case(InHole(_, _), _, _, _)
-  | ApPalette(_, _, _, _) => []
-  | Var(NotInHole, NotInVarHole, y) =>
-    Printf.printf("x is used\n");
-    x == y ? [steps] : [];
-  | Lam(NotInHole, p, _, block) =>
-    shadow_in_pat(x, p) ? [] : find_uses_block(x, block, steps @ [1], 0)
-  | Inj(NotInHole, _, block) => find_uses_block(x, block, steps @ [0], 0)
-  | Case(NotInHole, block, rules, _) =>
-    find_uses_block(x, block, steps @ [0], 0)
-    @ find_uses_rules(x, rules, steps, 0)
-  | Parenthesized(block) => find_uses_block(x, block, steps @ [0], 0)
-  | OpSeq(_, opseq) =>
-    // TODO: check corresponding ErrStatus in skel_t
-    let (uses, _) = find_uses_opseq(x, opseq, steps);
-    uses;
-  }
-and find_uses_rules =
-    (x: Var.t, rules: UHExp.rules, steps, prefix_length): uses_list =>
-  switch (rules) {
-  | [] => []
-  | [rule, ...rules] =>
-    let UHExp.Rule(p, block) = rule;
-    let uses =
-      shadow_in_pat(x, p)
-        ? [] : find_uses_block(x, block, steps @ [prefix_length], 0);
-    uses @ find_uses_rules(x, rules, steps, prefix_length + 1);
-  }
-and find_uses_opseq = (x: Var.t, opseq: UHExp.opseq, steps): (uses_list, int) =>
-  switch (opseq) {
-  | ExpOpExp(e1, _, e2) => (
-      find_uses_exp(x, e1, steps @ [0]) @ find_uses_exp(x, e2, steps @ [1]),
-      2,
-    )
-  | SeqOpExp(seq, _, e) =>
-    let (uses, length) = find_uses_opseq(x, seq, steps);
-    (uses @ find_uses_exp(x, e, steps @ [length]), length + 1);
-  }
-and shadow_in_pat = (x: Var.t, p: UHPat.t): bool =>
-  switch (p) {
-  | EmptyHole(_)
-  | Wild(_)
-  | Var(_, InVarHole(_, _), _)
-  | Var(InHole(_, _), _, _)
-  | NumLit(_, _)
-  | BoolLit(_, _)
-  | ListNil(_)
-  | Inj(InHole(_, _), _, _) => false
-  | Var(NotInHole, NotInVarHole, y) => x == y
-  | Parenthesized(e) => shadow_in_pat(x, e)
-  | OpSeq(_, ExpOpExp(e1, _, e2)) =>
-    shadow_in_pat(x, e1) || shadow_in_pat(x, e2)
-  | OpSeq(skel, SeqOpExp(seq1, _, e1)) =>
-    shadow_in_pat(x, e1) || shadow_in_pat(x, OpSeq(skel, seq1))
-  | Inj(NotInHole, _, e) => shadow_in_pat(x, e)
   };
 
 let rec _syn_cursor_info_block =

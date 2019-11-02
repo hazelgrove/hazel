@@ -142,7 +142,7 @@ let cursor_info_of_edit_state = ((zblock, _, _): edit_state): CursorInfo.t =>
   | Some(ci) =>
     switch (ci.node) {
     | Pat(VarPat(_, uses)) =>
-      JSUtil.log_sexp(CursorInfo.sexp_of_uses_list(uses))
+      JSUtil.log_sexp(UsageAnalysis.sexp_of_uses_list(uses))
     | _ => JSUtil.log("not varpat")
     };
     ci;
