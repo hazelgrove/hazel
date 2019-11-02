@@ -7047,8 +7047,7 @@ let can_enter_numeral = (ci: CursorInfo.t): bool =>
   | Line(ExpLine(EmptyHole(_)))
   | Exp(NumLit(_, _))
   | Exp(EmptyHole(_))
-  | Pat(OtherPat(NumLit(_, _)))
-  | Pat(OtherPat(EmptyHole(_))) => true
+  | Pat(OtherPat(NumLit(_, _) | EmptyHole(_))) => true
   | Line(_)
   | Exp(_)
   | Rule(_)
