@@ -57,7 +57,6 @@ and find_uses_exp = (x: Var.t, e: UHExp.t, steps): uses_list =>
   switch (e) {
   | EmptyHole(_)
   | Var(_, InVarHole(_, _), _)
-  | Var(InHole(_, _), _, _)
   | NumLit(_, _)
   | BoolLit(_, _)
   | ListNil(_)
@@ -65,7 +64,7 @@ and find_uses_exp = (x: Var.t, e: UHExp.t, steps): uses_list =>
   | Inj(InHole(_, _), _, _)
   | Case(InHole(_, _), _, _, _)
   | ApPalette(_, _, _, _) => []
-  | Var(NotInHole, NotInVarHole, y) => x == y ? [steps] : []
+  | Var(_, NotInVarHole, y) => x == y ? [steps] : []
   | Lam(NotInHole, p, _, block) =>
     binds_var(x, p) ? [] : find_uses_block(x, block, steps @ [1], 0)
   | Inj(NotInHole, _, block) => find_uses_block(x, block, steps @ [0], 0)
