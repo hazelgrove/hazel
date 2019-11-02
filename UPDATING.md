@@ -36,7 +36,8 @@ TODO: How to test in browser.
 
 - Update the version number in `.travis.yml`
 
-- Check that travis builds correctly.
+- Check that travis builds correctly by going to
+  `https://travis-ci.org/hazelgrove/hazel`.
 
 - Update the version numbers in `README.md`
 
