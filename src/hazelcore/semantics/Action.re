@@ -7026,10 +7026,8 @@ let can_enter_varchar = (ci: CursorInfo.t): bool =>
   | Exp(Var(_, _, _))
   | Exp(EmptyHole(_))
   | Exp(BoolLit(_, _))
-  | Pat(VarPat(Var(_, _, _), _))
-  | Pat(OtherPat(EmptyHole(_)))
-  | Pat(OtherPat(BoolLit(_, _))) => true
-  | Pat(VarPat(_, _)) => assert(false)
+  | Pat(VarPat(_, _) | OtherPat(EmptyHole(_)) | OtherPat(BoolLit(_, _))) =>
+    true
   | Exp(NumLit(_, _))
   | Pat(OtherPat(NumLit(_, _))) =>
     switch (ci.position) {

@@ -110,9 +110,7 @@ let entered_single_key =
     Some(prevent_stop_inject(Update.Action.EditAction(Construct(shape))));
   | (
       Exp(NumLit(_, _) | BoolLit(_, _) | Var(_, _, _)) |
-      Pat(
-        OtherPat(NumLit(_, _) | BoolLit(_, _)) | VarPat(Var(_, _, _), _),
-      ),
+      Pat(OtherPat(NumLit(_, _) | BoolLit(_, _)) | VarPat(_, _)),
       _,
     ) =>
     let (nodeValue, anchorOffset) =
@@ -125,10 +123,7 @@ let entered_single_key =
           b ? "true" : "false",
           j,
         )
-      | (Exp(Var(_, _, x)) | Pat(VarPat(Var(_, _, x), _)), OnText(j)) => (
-          x,
-          j,
-        )
+      | (Exp(Var(_, _, x)) | Pat(VarPat(x, _)), OnText(j)) => (x, j)
       | (_, _) => assert(false)
       };
     let key_string = JSUtil.single_key_string(single_key);

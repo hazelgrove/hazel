@@ -82,7 +82,7 @@ type typed =
 
 [@deriving sexp]
 type pat_node =
-  | VarPat(UHPat.t, uses_list)
+  | VarPat(Var.t, uses_list)
   | OtherPat(UHPat.t);
 
 [@deriving sexp]
@@ -187,8 +187,13 @@ let is_before_node = ci =>
   | Line(li) => ZExp.is_before_line(CursorL(ci.position, li))
   | Exp(e) => ZExp.is_before_exp(CursorE(ci.position, e))
   | Rule(rule) => ZExp.is_before_rule(CursorR(ci.position, rule))
-  | Pat(VarPat(p, _))
-  | Pat(OtherPat(p)) => ZPat.is_before(CursorP(ci.position, p))
+  | Pat(pat_node) =>
+    let p =
+      switch (pat_node) {
+      | VarPat(x, _) => UHPat.Var(NotInHole, NotInVarHole, x)
+      | OtherPat(p) => p
+      };
+    ZPat.is_before(CursorP(ci.position, p));
   | Typ(ty) => ZTyp.is_before(CursorT(ci.position, ty))
   };
 
@@ -197,8 +202,13 @@ let is_after_node = ci =>
   | Line(li) => ZExp.is_after_line(CursorL(ci.position, li))
   | Exp(e) => ZExp.is_after_exp(CursorE(ci.position, e))
   | Rule(rule) => ZExp.is_after_rule(CursorR(ci.position, rule))
-  | Pat(VarPat(p, _))
-  | Pat(OtherPat(p)) => ZPat.is_after(CursorP(ci.position, p))
+  | Pat(pat_node) =>
+    let p =
+      switch (pat_node) {
+      | VarPat(x, _) => UHPat.Var(NotInHole, NotInVarHole, x)
+      | OtherPat(p) => p
+      };
+    ZPat.is_after(CursorP(ci.position, p));
   | Typ(ty) => ZTyp.is_after(CursorT(ci.position, ty))
   };
 
@@ -210,11 +220,7 @@ let staging_left_border = ci =>
       Exp(
         Inj(_, _, _) | Parenthesized(_) | Case(_, _, _, _) | Lam(_, _, _, _),
       ) |
-      Pat(
-        VarPat(Inj(_, _, _), _) | VarPat(Parenthesized(_), _) |
-        OtherPat(Inj(_, _, _)) |
-        OtherPat(Parenthesized(_)),
-      ) |
+      Pat(OtherPat(Inj(_, _, _)) | OtherPat(Parenthesized(_))) |
       Typ(List(_) | Parenthesized(_)),
     ) =>
     true
@@ -227,11 +233,7 @@ let staging_right_border = ci =>
   | (
       Staging(1),
       Exp(Inj(_, _, _) | Parenthesized(_) | Case(_, _, _, _)) |
-      Pat(
-        VarPat(Inj(_, _, _), _) | VarPat(Parenthesized(_), _) |
-        OtherPat(Inj(_, _, _)) |
-        OtherPat(Parenthesized(_)),
-      ) |
+      Pat(OtherPat(Inj(_, _, _)) | OtherPat(Parenthesized(_))) |
       Typ(List(_) | Parenthesized(_)),
     ) =>
     true
@@ -246,8 +248,13 @@ let child_indices_of_current_node = ci =>
   | Line(li) => UHExp.child_indices_line(li)
   | Exp(e) => UHExp.child_indices_exp(e)
   | Rule(rule) => UHExp.child_indices_rule(rule)
-  | Pat(VarPat(p, _))
-  | Pat(OtherPat(p)) => UHPat.child_indices(p)
+  | Pat(pat_node) =>
+    let p =
+      switch (pat_node) {
+      | VarPat(x, _) => UHPat.Var(NotInHole, NotInVarHole, x)
+      | OtherPat(p) => p
+      };
+    UHPat.child_indices(p);
   | Typ(ty) => UHTyp.child_indices(ty)
   };
 
@@ -284,13 +291,13 @@ let preserved_child_term_of_node = ci =>
       }
     | (Some((_, Block(_, _))), ExpFrame(_, Some(_surround), _)) => None
     }
-  | Pat(p) =>
-    switch (p) {
-    | VarPat(p, _) =>
-      p |> UHPat.favored_child |> Opt.map(((i, p)) => (i, Pattern(p)))
-    | OtherPat(p) =>
-      p |> UHPat.favored_child |> Opt.map(((i, p)) => (i, Pattern(p)))
-    }
+  | Pat(pat_node) =>
+    let p =
+      switch (pat_node) {
+      | VarPat(x, _) => UHPat.Var(NotInHole, NotInVarHole, x)
+      | OtherPat(p) => p
+      };
+    p |> UHPat.favored_child |> Opt.map(((i, p)) => (i, Pattern(p)));
   | Typ(ty) =>
     ty |> UHTyp.favored_child |> Opt.map(((i, ty)) => (i, Type(ty)))
   | Rule(_) => None
@@ -395,7 +402,7 @@ let rec _ana_cursor_found_pat =
   | Var(NotInHole, _, x) =>
     Some(
       CursorOnDeferredVarPat(
-        uses => (PatAnalyzed(ty), Pat(VarPat(p, uses)), ctx),
+        uses => (PatAnalyzed(ty), Pat(VarPat(x, uses)), ctx),
         x,
       ),
     )
@@ -548,7 +555,7 @@ let rec _syn_cursor_info_pat =
           uses =>
             mk_cursor_info(
               PatSynthesized(ty),
-              Pat(VarPat(p, uses)),
+              Pat(VarPat(x, uses)),
               PatFrame(frame),
               cursor,
               ctx,
