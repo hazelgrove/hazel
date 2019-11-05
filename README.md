@@ -148,4 +148,3 @@ same style.
 
 You can also run `make repl` to get a REPL in which you can play with the core
 Hazel functions.
-  
