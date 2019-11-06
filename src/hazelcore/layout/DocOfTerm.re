@@ -154,6 +154,7 @@ let rec doc_of_block =
 and doc_of_line = (~steps: CursorPath.steps, line: UHExp.line): doc => {
   let tag = {steps, node_shape: Line(line)};
   switch (line) {
+  | CommentLine(comment) => Tagged(tag, Doc.Text("# " ++ comment))
   | ExpLine(e) => doc_of_exp(~wrap=true, ~steps, e)
   | EmptyLine => Tagged(tag, Doc.Text(""))
   | LetLine(p, ann, def) =>

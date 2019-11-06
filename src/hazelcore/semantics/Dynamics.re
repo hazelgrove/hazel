@@ -931,6 +931,7 @@ module DHExp = {
         LinesExpand(prelude, ctx, delta);
       }
     | EmptyLine => LinesExpand(d => d, ctx, delta)
+    | CommentLine(_) => LinesExpand(d => d, ctx, delta)
     | LetLine(p, ann, block) =>
       switch (ann) {
       | Some(uty1) =>
