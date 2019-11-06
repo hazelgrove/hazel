@@ -2,37 +2,75 @@ open Sexplib.Std;
 open GeneralUtil;
 open SemanticsCommon;
 
-[@deriving sexp]
-type node_shape =
-  | Block(UHExp.block)
-  | Line(UHExp.line)
-  | Exp(UHExp.t)
-  | Rule(UHExp.rule)
-  | Pat(UHPat.t)
-  | Typ(UHTyp.t);
+module NodeTag = {
+  [@deriving sexp]
+  type t = {
+    steps: CursorPath.steps,
+    shape,
+  }
+  and shape =
+    | Block(UHExp.block)
+    | Line(UHExp.line)
+    | Exp(UHExp.t)
+    | Rule(UHExp.rule)
+    | Pat(UHPat.t)
+    | Typ(UHTyp.t);
 
-[@deriving sexp]
-type node_tag = {
-  steps: CursorPath.steps,
-  shape: node_shape,
+  let mk = (
+    ~steps: CursorPath.steps,
+    ~shape: shape,
+  ): t => { steps, shape };
 };
-[@deriving sexp]
-type delim_tag = {
-  text: string,
-  index: delim_index,
+
+module DelimTag = {
+  [@deriving sexp]
+  type t = {
+    text: string,
+    index: delim_index,
+    padding_left: string,
+    padding_right: string,
+  };
+
+  let mk = (
+    ~text: string,
+    ~index: delim_index,
+    ~padding_left: string,
+    ~padding_right: string,
+  ): t => {
+    text,
+    index,
+    padding_left,
+    padding_right,
+  }
 };
-[@deriving sexp]
-type padding_tag = {
-  text: string,
-  path_before: CursorPath.t,
-  path_after: CursorPath.t,
+
+module OpTag = {
+  [@deriving sexp]
+  type t = {
+    text: string,
+    index: op_index,
+    padding_left: string,
+    padding_right: string,
+  };
+
+  let mk = (
+    ~text: string,
+    ~index: op_index,
+    ~padding_left: string,
+    ~padding_right: string,
+  ): t => {
+    text,
+    index,
+    padding_left,
+    padding_right,
+  }
 };
 
 [@deriving sexp]
 type tag =
-  | Node(node_tag)
-  | Delim(delim_tag)
-  | Padding(padding_tag);
+  | Node(NodeTag.t)
+  | Delim(DelimTag.t)
+  | Op(OpTag.t);
 
 [@deriving sexp]
 type doc = Doc.t(tag);

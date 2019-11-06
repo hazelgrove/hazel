@@ -2,6 +2,7 @@ module Js = Js_of_ocaml.Js;
 module Vdom = Virtual_dom.Vdom;
 open GeneralUtil;
 open ViewUtil;
+open SemanticsCommon;
 
 let contenteditable_of_layout: Layout.t('tag) => Vdom.Node.t =
   layout => {
@@ -15,15 +16,22 @@ let contenteditable_of_layout: Layout.t('tag) => Vdom.Node.t =
     Layout.make_of_layout(record, layout);
   };
 
-type snode =
-  | SNode(DocOfTerm.node_tag, list(sline))
+type sblock =
+  | SBlock(DocOfTerm.NodeTag.t, list(sline), sseq)
 and sline =
-  | SLine(int, list(sword))
-and sword =
-  | SChild(snode)
-  | SDelim(DocOfTerm.delim_tag)
-  | SPadding(DocOfTerm.padding_tag)
-  | SText(string);
+  | SEmptyLine
+  | SExpLine(sseq)
+  | SLetLine(stree)
+and sseq =
+  | SSeq(DocOfTerm.SeqTag.t, Seq.t(stree, DocOfTerm.OpTag.t))
+and stree =
+  | STree(DocOfTerm.NodeTag.t, list(srow))
+and srow =
+  | SDividerRow(list(stoken))
+  | SChildBlock(sblock)
+and stoken =
+  | SDelim(DocOfTerm.DelimTag.t)
+  | SChildSeq(sseq);
 
 let is_whitespace = s => Re.Str.string_match(Re.Str.regexp("\\s*"), s, 0);
 
