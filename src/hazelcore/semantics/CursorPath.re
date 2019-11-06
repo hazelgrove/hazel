@@ -433,9 +433,9 @@ and follow_line_and_place_cursor =
     | None => None
     | Some(ze) => Some(ExpLineZ(ze))
     }
-  | (_, CommentLine(_)) => None
   | ([], _) => pcl(line)
-  | (_, EmptyLine) => None
+  | ([_, ..._], EmptyLine) => None
+  | ([_, ..._], CommentLine(_)) => None
   | ([0, ...xs], LetLine(p, ann, e1)) =>
     switch (follow_pat_and_place_cursor(xs, pcp, p)) {
     | None => None
@@ -1978,7 +1978,7 @@ let rec prune_trivial_suffix_block =
 and prune_trivial_suffix_block__line = (~steps_of_first_line, line) =>
   switch (line, steps_of_first_line) {
   | (EmptyLine, _)
-  | (CommentLine(_), _)
+  | (CommentLine(_), _) => failwith("CommentLine")
   | (_, []) => line
   | (ExpLine(e), _) =>
     ExpLine(prune_trivial_suffix_block__exp(~steps_of_first_line, e))

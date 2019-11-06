@@ -3520,6 +3520,7 @@ and syn_perform_lines =
     | [] => Failed
     | [line2, ...suffix] =>
       switch (line2) {
+      | CommentLine(_) => Failed
       | ExpLine(_) => Failed
       | LetLine(_, _, _) => Failed
       | EmptyLine =>
@@ -3537,6 +3538,7 @@ and syn_perform_lines =
       switch (line1) {
       | ExpLine(_) => Failed
       | LetLine(_, _, _) => Failed
+      | CommentLine(_) => Failed
       | EmptyLine =>
         let zlines = (prefix, zline2, suffix);
         switch (Statics.syn_zlines(ctx, zlines)) {
@@ -3601,6 +3603,7 @@ and syn_perform_lines =
         (UHExp.wrap_in_block(e2), u_gen);
       | Some((lines, last_line)) =>
         switch (last_line) {
+        | CommentLine(_)
         | EmptyLine
         | LetLine(_, _, _) =>
           let (e2, u_gen) = UHExp.new_EmptyHole(u_gen);
@@ -3744,6 +3747,24 @@ and syn_perform_line =
   /* Backspace & Delete */
   | (Backspace, _) when ZExp.is_before_line(zline) => CursorEscaped(Before)
   | (Delete, _) when ZExp.is_after_line(zline) => CursorEscaped(After)
+
+
+  | (Delete, CursorL(OnDelim(_, Before), CommentLine(_))) => 
+    Succeeded((([], CursorE(OnText(0), EmptyLine), []), ctx, u_gen))
+  | (Delete, CursorL(OnDelim(_, After), CommentLine(_) as line)) => 
+    Succeeded((([], CursorL(OnText(0), line), []), ctx, u_gen))
+  | (Delete, CursorL(Ontext(k), CommentLine(comment))) => 
+    if (k == String.length(comment)) {
+      CursorEscaped(After)
+    } else {
+      // Check ocaml functions (STL)
+    }
+
+  | (Backspace, CursorL(OnDelim(_, Before), CommentLine(_))) => CursorEscaped(Before)
+  | (Backspace, CursorL(OnDelim(_, After), CommentLine(_))) => 
+  | (Backspace, CursorL(Ontext(k), CommentLine(comment))) => 
+
+
   | (Backspace | Delete, CursorL(Staging(_), _)) =>
     // handled at blocks level
     Failed
