@@ -3748,22 +3748,34 @@ and syn_perform_line =
   | (Backspace, _) when ZExp.is_before_line(zline) => CursorEscaped(Before)
   | (Delete, _) when ZExp.is_after_line(zline) => CursorEscaped(After)
 
-
-  | (Delete, CursorL(OnDelim(_, Before), CommentLine(_))) => 
-    Succeeded((([], CursorE(OnText(0), EmptyLine), []), ctx, u_gen))
-  | (Delete, CursorL(OnDelim(_, After), CommentLine(_) as line)) => 
+  | (Delete, CursorL(OnDelim(_, Before), CommentLine(_))) =>
+    // just delete the commentline (need future modification)
+    Succeeded((([], CursorL(OnText(0), EmptyLine), []), ctx, u_gen))
+  | (Delete, CursorL(OnDelim(_, After), CommentLine(_) as line)) =>
     Succeeded((([], CursorL(OnText(0), line), []), ctx, u_gen))
-  | (Delete, CursorL(Ontext(k), CommentLine(comment))) => 
+  | (Delete, CursorL(OnText(k), CommentLine(comment))) =>
     if (k == String.length(comment)) {
-      CursorEscaped(After)
+      CursorEscaped(After);
     } else {
       // Check ocaml functions (STL)
+      // Need to modify the string
+      failwith(
+        "Ops! This method is not implemented!",
+      );
     }
 
-  | (Backspace, CursorL(OnDelim(_, Before), CommentLine(_))) => CursorEscaped(Before)
-  | (Backspace, CursorL(OnDelim(_, After), CommentLine(_))) => 
-  | (Backspace, CursorL(Ontext(k), CommentLine(comment))) => 
-
+  | (Backspace, CursorL(OnDelim(_, Before), CommentLine(_))) =>
+    CursorEscaped(Before)
+  | (Backspace, CursorL(OnDelim(_, After), CommentLine(_))) =>
+    // just delete the commentline (need future modification)
+    Succeeded((([], CursorL(OnText(0), EmptyLine), []), ctx, u_gen))
+  | (Backspace, CursorL(OnText(k), CommentLine(_) as line)) =>
+    // if the cursor is at the start of the string
+    if (k == 0) {
+      Succeeded((([], CursorL(OnDelim(0, After), line), []), ctx, u_gen));
+    } else {
+      failwith("Ops! This method is not implemented!");
+    }
 
   | (Backspace | Delete, CursorL(Staging(_), _)) =>
     // handled at blocks level
