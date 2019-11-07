@@ -4,24 +4,23 @@ open Sexplib.Std;
 [@deriving sexp]
 type t('tag) =
   | Text(string) // Invariant: contains no newlines. Text("") is identity for `Cat`
-  | Cat(t('tag), t('tag)) // associative
+  | Cat(t('tag), t('tag)) // associative // TODO: list
   | Linebreak
   | Align(t('tag))
-  | Tagged('tag, t('tag));
+  | Tagged('tag, t('tag)); // TODO: annot
 
 type text('tag, 'imp, 't) = {
+  // TODO: rename `imp`
   imp_of_string: string => 'imp,
-  imp_of_tag: ('tag, 'imp) => 'imp,
   imp_append: ('imp, 'imp) => 'imp,
-  imp_newline: 'imp,
+  imp_newline: int => 'imp,
+  imp_of_tag: ('tag, 'imp) => 'imp,
   t_of_imp: 'imp => 't,
 };
 
 let make_of_layout: (text('tag, 'imp, 't), t('tag)) => 't =
   (text, layout) => {
-    //let output: ref(list(string)) = ref([]); // Stored in reverse order
     let column: ref(int) = ref(0);
-    //let print = (string: string): unit => output := [string, ...output^];
     let rec go: (int, t('tag)) => 'imp =
       indent => {
         fun
@@ -35,10 +34,7 @@ let make_of_layout: (text('tag, 'imp, 't), t('tag)) => 't =
         | Linebreak => {
             // TODO: no indent if on final line break
             column := indent;
-            text.imp_append(
-              text.imp_newline,
-              text.imp_of_string(String.make(indent, ' ')),
-            );
+            text.imp_newline(indent);
           }
         | Align(l) => {
             go(column^, l);
@@ -46,17 +42,16 @@ let make_of_layout: (text('tag, 'imp, 't), t('tag)) => 't =
         | Tagged(tag, l) => text.imp_of_tag(tag, go(indent, l));
       };
     text.t_of_imp(go(0, layout));
-    //String.concat("", List.rev(output^));
   };
 
 let string_of_layout: 'tag. t('tag) => string =
   layout => {
     let record: 'tag. text('tag, string, string) = {
       imp_of_string: string => string,
-      imp_of_tag: (_, string) => string,
       imp_append: (s1, s2) => s1 ++ s2,
-      imp_newline: "\n",
-      t_of_imp: s => s,
+      imp_newline: indent => "\n" ++ String.make(indent, ' '),
+      imp_of_tag: (_, imp) => imp,
+      t_of_imp: imp => imp,
     };
     make_of_layout(record, layout);
   };
