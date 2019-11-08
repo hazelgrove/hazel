@@ -1,4 +1,4 @@
-open Sexplib.Std;
+/* open Sexplib.Std; */
 open SemanticsCommon;
 open GeneralUtil;
 
@@ -917,7 +917,9 @@ let follow_e_or_fail = (path: t, e: UHExp.t): ZExp.t =>
 [@deriving sexp]
 type hole_desc =
   | VHole(MetaVar.t)
+  /* charles: this should have a metavar */
   | TypHole
+  /* charles: this should be called a TPatHole */
   | TVarHole(MetaVar.t)
   | PatHole(MetaVar.t)
   | ExpHole(MetaVar.t);
@@ -1020,8 +1022,8 @@ let rec holes_skel =
   };
 };
 
-let rec holes_tpat =
-        (tp: TPat.t, rev_steps: rev_steps, holes: hole_list): hole_list =>
+let holes_tpat =
+    (tp: TPat.t, rev_steps: rev_steps, holes: hole_list): hole_list =>
   switch (tp) {
   | Hole(u) => [
       (TVarHole(u), (rev_steps |> List.rev, OnDelim(0, Before))),
@@ -1546,6 +1548,18 @@ let rec holes_Cursor_OpSeq =
   };
 };
 
+let holes_ztpat = (ztpat: ZTPat.t, rev_steps: rev_steps): zhole_list => {
+  switch (ztpat) {
+  | Cursor(_cursor_position, Hole(u)) => {
+      holes_before: [],
+      hole_selected:
+        Some((TVarHole(u), (rev_steps |> List.rev, OnDelim(0, Before)))),
+      holes_after: [],
+    }
+  | Cursor(_cursor_position, Var(_)) => no_holes
+  };
+};
+
 let rec holes_zty = (zty: ZTyp.t, rev_steps: rev_steps): zhole_list => {
   switch (zty) {
   | CursorT(Staging(_), _) => no_holes
@@ -1555,12 +1569,28 @@ let rec holes_zty = (zty: ZTyp.t, rev_steps: rev_steps): zhole_list => {
         Some((TypHole, (rev_steps |> List.rev, OnDelim(0, Before)))),
       holes_after: [],
     }
+  | CursorT(_, TVar(_))
   | CursorT(_, Unit)
   | CursorT(_, Num)
   | CursorT(_, Bool) => {
       holes_before: [],
       hole_selected: None,
       holes_after: [],
+    }
+  | CursorT(OnDelim(k, _), Forall(tpat, uty1)) =>
+    switch (k) {
+    | 0 =>
+      let holes = holes_tpat(tpat, [0, ...rev_steps], []);
+      let holes = holes_uty(uty1, [1, ...rev_steps], holes);
+      {holes_before: [], hole_selected: None, holes_after: holes};
+    | 1 =>
+      let holes_tpat = holes_tpat(tpat, [0, ...rev_steps], []);
+      let holes_uty = holes_uty(uty1, [1, ...rev_steps], []);
+      {holes_before: holes_tpat, hole_selected: None, holes_after: holes_uty};
+    | _ =>
+      failwith(
+        "bug: there should only be two possible cursor positions for forall's",
+      )
     }
   | CursorT(OnDelim(k, _), Parenthesized(uty1))
   | CursorT(OnDelim(k, _), List(uty1)) =>
@@ -1574,11 +1604,26 @@ let rec holes_zty = (zty: ZTyp.t, rev_steps: rev_steps): zhole_list => {
       skel,
       seq,
     )
-  | CursorT(OnText(_), Parenthesized(_) | List(_) | OpSeq(_, _)) =>
+  | CursorT(
+      OnText(_),
+      Forall(_, _) | Parenthesized(_) | List(_) | OpSeq(_, _),
+    ) =>
     /* invalid cursor position */
-    no_holes
+    failwith("bug: ontext is not a valid cursor position for these")
   | ParenthesizedZ(zty1) => holes_zty(zty1, [0, ...rev_steps])
   | ListZ(zty1) => holes_zty(zty1, [0, ...rev_steps])
+  | ForallZP(ztpat, ty1) =>
+    let zhl = holes_ztpat(ztpat, [0, ...rev_steps]);
+    {
+      ...zhl,
+      holes_after: holes_uty(ty1, [1, ...rev_steps], zhl.holes_after),
+    };
+  | ForallZT(tpat, zty1) =>
+    let zhl = holes_zty(zty1, [1, ...rev_steps]);
+    {
+      ...zhl,
+      holes_before: holes_tpat(tpat, [0, ...rev_steps], zhl.holes_before),
+    };
   | OpSeqZ(skel, zty0, surround) =>
     holes_OpSeqZ(
       ~holes_tm=holes_uty,
@@ -1769,6 +1814,22 @@ and holes_ze = (ze: ZExp.t, rev_steps: rev_steps): zhole_list =>
   | CursorE(OnDelim(k, _), Inj(_, _, block))
   | CursorE(OnDelim(k, _), Parenthesized(block)) =>
     holes_Cursor_bracketed(holes_block, k, block, rev_steps)
+  | CursorE(OnDelim(k, _), TyLam(_, tpat, block)) =>
+    let holes_tp = holes_tpat(tpat, [0, ...rev_steps], []);
+    let holes_block = holes_block(block, [1, ...rev_steps], []);
+    switch (k) {
+    | 0 => {
+        holes_before: [],
+        hole_selected: None,
+        holes_after: holes_tp @ holes_block,
+      }
+    | 1 => {
+        holes_before: holes_tp,
+        hole_selected: None,
+        holes_after: holes_block,
+      }
+    | _ => no_holes
+    };
   | CursorE(OnDelim(k, _), Lam(_, p, ann, block)) =>
     let holes_p = holes_pat(p, [0, ...rev_steps], []);
     let holes_ann =
@@ -1828,7 +1889,8 @@ and holes_ze = (ze: ZExp.t, rev_steps: rev_steps): zhole_list =>
     )
   | CursorE(
       OnText(_),
-      Inj(_, _, _) | Parenthesized(_) | Lam(_, _, _, _) | Case(_, _, _, _) |
+      Inj(_, _, _) | Parenthesized(_) | TyLam(_, _, _) | Lam(_, _, _, _) |
+      Case(_, _, _, _) |
       OpSeq(_, _),
     ) =>
     /* invalid cursor position */
@@ -1848,6 +1910,16 @@ and holes_ze = (ze: ZExp.t, rev_steps: rev_steps): zhole_list =>
       surround,
     )
   | ParenthesizedZ(zblock) => holes_zblock(zblock, [0, ...rev_steps])
+  | TyLamZP(_, ztp, block) =>
+    let {holes_before, hole_selected, holes_after} =
+      holes_ztpat(ztp, [0, ...rev_steps]);
+    let holes_block = holes_block(block, [1, ...rev_steps], []);
+    {holes_before, hole_selected, holes_after: holes_after @ holes_block};
+  | TyLamZE(_, tp, zblock) =>
+    let {holes_before, hole_selected, holes_after} =
+      holes_zblock(zblock, [1, ...rev_steps]);
+    let holes_p = holes_tpat(tp, [0, ...rev_steps], []);
+    {holes_before: holes_p @ holes_before, hole_selected, holes_after};
   | LamZP(_, zp, ann, block) =>
     let {holes_before, hole_selected, holes_after} =
       holes_zpat(zp, [0, ...rev_steps]);
@@ -2020,9 +2092,7 @@ let path_to_hole = (hole_list: hole_list, u: MetaVar.t): option(t) =>
     List.find_opt(
       ((hole_desc, _)) =>
         switch (hole_desc) {
-        | TypeVarHole(u')
-        | TypeForallHole(u')
-        | ExpForallHole(u')
+        | TVarHole(u')
         | ExpHole(u')
         | PatHole(u')
         | VHole(u') => MetaVar.eq(u, u')
@@ -2043,6 +2113,7 @@ let path_to_hole_z = (zhole_list: zhole_list, u: MetaVar.t): option(t) => {
     switch (hole_selected) {
     | Some((VHole(u'), path))
     | Some((ExpHole(u'), path))
+    | Some((TVarHole(u'), path))
     | Some((PatHole(u'), path)) =>
       MetaVar.eq(u, u') ? Some(path) : path_to_hole(holes_after, u)
     | Some((TypHole, _))
@@ -2172,6 +2243,12 @@ and prune_trivial_suffix_block__exp = (~steps_of_first_line, e) =>
       _,
     )
   | (_, []) => e
+  | (TyLam(err, arg, body), [1, ...xs]) =>
+    TyLam(
+      err,
+      arg,
+      prune_trivial_suffix_block(~steps_of_first_line=xs, body),
+    )
   | (Lam(err, arg, ann, body), [2, ...xs]) =>
     Lam(
       err,
@@ -2216,7 +2293,10 @@ and prune_trivial_suffix_block__exp = (~steps_of_first_line, e) =>
         |> Opt.get(() => assert(false));
       OpSeq(skel, seq);
     }
-  | (Lam(_, _, _, _) | Inj(_, _, _) | Parenthesized(_), [_, ..._]) => e
+  | (
+      Lam(_, _, _, _) | TyLam(_, _, _) | Inj(_, _, _) | Parenthesized(_),
+      [_, ..._],
+    ) => e
   }
 and prune_trivial_suffix_block__rule =
     (~steps_of_first_line, Rule(p, clause) as rule) =>

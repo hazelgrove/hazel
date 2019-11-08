@@ -190,7 +190,7 @@ and ana_pat = (ctx: Contexts.t, p: UHPat.t, ty: HTyp.t): option(Contexts.t) =>
   | Var(NotInHole, InVarHole(Free, _), _) => raise(FreeVarInPat)
   | Var(NotInHole, InVarHole(Keyword(_), _), _) => Some(ctx)
   | Var(NotInHole, NotInVarHole, x) =>
-    Var.check_valid(x, Some(Contexts.extend_gamma(ctx, (x, ty))))
+    Var.check_valid(x, Some(Contexts.extend_vars(ctx, (x, ty))))
   | Wild(NotInHole) => Some(ctx)
   | NumLit(NotInHole, _)
   | BoolLit(NotInHole, _) =>
