@@ -4,6 +4,7 @@ set -x # Print commands and their arguments as they are executed.
 set -e # Exit immediately if a command exits with a non-zero status.
 
 make release
+HTML_DIR=$(make echo-html-dir)
 
 # cf.
 # http://markbucciarelli.com/posts/2019-01-26_how-to-push-to-github-from-travis-ci.html
@@ -31,7 +32,7 @@ else
   echo "subdir not found, creating new"
   mkdir "$TRAVIS_BRANCH"
 fi
-cp -r ../"$(make echo-html-dir)"/* "$TRAVIS_BRANCH"
+cp -r ../"$HTML_DIR"/* "$TRAVIS_BRANCH"
 
 git add .
 git commit -m "Travis Build"
