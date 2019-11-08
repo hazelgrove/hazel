@@ -1,4 +1,3 @@
-open SemanticsCommon;
 open GeneralUtil;
 
 [@deriving sexp]
@@ -40,7 +39,7 @@ let rec syn_pat =
   | Inj(InHole(WrongLength, _), _, _) => None
   /* not in hole */
   | Wild(NotInHole) => Some((Hole, ctx))
-  | Var(NotInHole, InVarHole(Free, _), _) => raise(FreeVarInPat)
+  | Var(NotInHole, InVarHole(Free, _), _) => raise(UHPat.FreeVarInPat)
   | Var(NotInHole, InVarHole(Keyword(_), _), _) => Some((Hole, ctx))
   | Var(NotInHole, NotInVarHole, x) =>
     Var.check_valid(
@@ -162,7 +161,7 @@ and ana_pat = (ctx: Contexts.t, p: UHPat.t, ty: HTyp.t): option(Contexts.t) =>
   | ListNil(InHole(WrongLength, _))
   | Inj(InHole(WrongLength, _), _, _) => None
   /* not in hole */
-  | Var(NotInHole, InVarHole(Free, _), _) => raise(FreeVarInPat)
+  | Var(NotInHole, InVarHole(Free, _), _) => raise(UHPat.FreeVarInPat)
   | Var(NotInHole, InVarHole(Keyword(_), _), _) => Some(ctx)
   | Var(NotInHole, NotInVarHole, x) =>
     Var.check_valid(x, Some(Contexts.extend_gamma(ctx, (x, ty))))
@@ -187,7 +186,7 @@ and ana_pat = (ctx: Contexts.t, p: UHPat.t, ty: HTyp.t): option(Contexts.t) =>
     switch (HTyp.matched_sum(ty)) {
     | None => None
     | Some((tyL, tyR)) =>
-      let ty1 = pick_side(side, tyL, tyR);
+      let ty1 = InjSide.pick(side, tyL, tyR);
       ana_pat(ctx, p1, ty1);
     }
   | OpSeq(skel, seq) =>
@@ -720,7 +719,8 @@ and ana_exp = (ctx: Contexts.t, e: UHExp.t, ty: HTyp.t): option(unit) =>
   | Inj(NotInHole, side, block) =>
     switch (HTyp.matched_sum(ty)) {
     | None => None
-    | Some((ty1, ty2)) => ana_block(ctx, block, pick_side(side, ty1, ty2))
+    | Some((ty1, ty2)) =>
+      ana_block(ctx, block, InjSide.pick(side, ty1, ty2))
     }
   | Case(NotInHole, block, rules, Some(uty)) =>
     let ty2 = UHTyp.expand(uty);
@@ -971,7 +971,7 @@ let rec syn_fix_holes_pat =
       (p, HTyp.Hole, ctx, u_gen);
     }
   | Wild(_) => (p_nih, Hole, ctx, u_gen)
-  | Var(_, InVarHole(Free, _), _) => raise(FreeVarInPat)
+  | Var(_, InVarHole(Free, _), _) => raise(UHPat.FreeVarInPat)
   | Var(_, InVarHole(Keyword(_), _), _) => (p_nih, Hole, ctx, u_gen)
   | Var(_, NotInVarHole, x) =>
     let ctx = Contexts.extend_gamma(ctx, (x, Hole));
@@ -1087,7 +1087,7 @@ and ana_fix_holes_pat =
       (p, ctx, u_gen);
     }
   | Wild(_) => (p_nih, ctx, u_gen)
-  | Var(_, InVarHole(Free, _), _) => raise(FreeVarInPat)
+  | Var(_, InVarHole(Free, _), _) => raise(UHPat.FreeVarInPat)
   | Var(_, InVarHole(Keyword(_), _), _) => (p_nih, ctx, u_gen)
   | Var(_, NotInVarHole, x) =>
     let ctx = Contexts.extend_gamma(ctx, (x, ty));
@@ -1127,7 +1127,7 @@ and ana_fix_holes_pat =
   | Inj(_, side, p1) =>
     switch (HTyp.matched_sum(ty)) {
     | Some((tyL, tyR)) =>
-      let ty1 = pick_side(side, tyL, tyR);
+      let ty1 = InjSide.pick(side, tyL, tyR);
       let (p1, ctx, u_gen) =
         ana_fix_holes_pat(ctx, u_gen, ~renumber_empty_holes, p1, ty1);
       (Inj(NotInHole, side, p1), ctx, u_gen);
@@ -1728,7 +1728,7 @@ and ana_fix_holes_exp =
           u_gen,
           ~renumber_empty_holes,
           block,
-          pick_side(side, ty1, ty2),
+          InjSide.pick(side, ty1, ty2),
         );
       (Inj(NotInHole, side, e1), u_gen);
     | None =>

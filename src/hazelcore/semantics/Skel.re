@@ -1,4 +1,3 @@
-open SemanticsCommon;
 open Sexplib.Std;
 
 [@deriving sexp]
@@ -58,7 +57,7 @@ let rec range = (skel: t(_)): range =>
 // indicates whether the accompanying
 // skel is the target subskel
 let rec _subskel_rooted_at_op =
-        (op_index: op_index, skel: t('op)): (bool, t('op)) =>
+        (op_index: OpIndex.t, skel: t('op)): (bool, t('op)) =>
   switch (skel) {
   | Placeholder(_) => (false, skel)
   | BinOp(_, _, skel1, skel2) =>
@@ -70,7 +69,7 @@ let rec _subskel_rooted_at_op =
     | (false, false) => (leftmost_tm_index(subskel2) == op_index, skel)
     };
   };
-let subskel_rooted_at_op = (op_index: op_index, skel: t('op)): t('op) => {
+let subskel_rooted_at_op = (op_index: OpIndex.t, skel: t('op)): t('op) => {
   let (_, subskel) = _subskel_rooted_at_op(op_index, skel);
   subskel;
 };
