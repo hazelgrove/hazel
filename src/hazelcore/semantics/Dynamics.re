@@ -1,4 +1,3 @@
-open SemanticsCommon;
 open GeneralUtil;
 open Sexplib.Std;
 
@@ -26,7 +25,7 @@ module DHPat = {
     | Var(Var.t)
     | NumLit(int)
     | BoolLit(bool)
-    | Inj(inj_side, t)
+    | Inj(InjSide.t, t)
     | ListNil
     | Cons(t, t)
     | Pair(t, t)
@@ -95,7 +94,7 @@ module DHPat = {
         MetaVarMap.extend_unique(delta, (u, (PatternHole, ty, gamma)));
       Expands(dp, ty, ctx, delta);
     | Wild(NotInHole) => Expands(Wild, Hole, ctx, delta)
-    | Var(NotInHole, InVarHole(Free, _), _) => raise(FreeVarInPat)
+    | Var(NotInHole, InVarHole(Free, _), _) => raise(UHPat.FreeVarInPat)
     | Var(NotInHole, InVarHole(Keyword(k), u), _) =>
       Expands(Keyword(u, 0, k), Hole, ctx, delta)
     | Var(NotInHole, NotInVarHole, x) =>
@@ -206,7 +205,7 @@ module DHPat = {
       let delta =
         MetaVarMap.extend_unique(delta, (u, (PatternHole, ty, gamma)));
       Expands(dp, ty, ctx, delta);
-    | Var(NotInHole, InVarHole(Free, _), _) => raise(FreeVarInPat)
+    | Var(NotInHole, InVarHole(Free, _), _) => raise(UHPat.FreeVarInPat)
     | Var(NotInHole, InVarHole(Keyword(k), u), _) =>
       Expands(Keyword(u, 0, k), ty, ctx, delta)
     | Var(NotInHole, NotInVarHole, x) =>
@@ -226,7 +225,7 @@ module DHPat = {
       switch (HTyp.matched_sum(ty)) {
       | None => DoesNotExpand
       | Some((tyL, tyR)) =>
-        let ty1 = pick_side(side, tyL, tyR);
+        let ty1 = InjSide.pick(side, tyL, tyR);
         switch (ana_expand(ctx, delta, p1, ty1)) {
         | DoesNotExpand => DoesNotExpand
         | Expands(dp1, ty1, ctx, delta) =>
@@ -436,7 +435,7 @@ module DHExp = {
       | Or(t, t)
       | ListNil(HTyp.t)
       | Cons(t, t)
-      | Inj(HTyp.t, inj_side, t)
+      | Inj(HTyp.t, InjSide.t, t)
       | Pair(t, t)
       | Triv
       | Case(t, list(rule), int)
@@ -719,7 +718,7 @@ module DHExp = {
     }
   and matches_cast_Inj =
       (
-        side: inj_side,
+        side: InjSide.t,
         dp: DHPat.t,
         d: t,
         casts: list((HTyp.t, HTyp.t, HTyp.t, HTyp.t)),
@@ -1318,7 +1317,7 @@ module DHExp = {
       switch (HTyp.matched_sum(ty)) {
       | None => DoesNotExpand
       | Some((ty1, ty2)) =>
-        let e1ty = pick_side(side, ty1, ty2);
+        let e1ty = InjSide.pick(side, ty1, ty2);
         switch (ana_expand_block(ctx, delta, block, e1ty)) {
         | DoesNotExpand => DoesNotExpand
         | Expands(d1, e1ty', delta) =>

@@ -6,7 +6,6 @@ module Sexp = Sexplib.Sexp;
 open Sexplib.Std;
 open GeneralUtil;
 open ViewUtil;
-open SemanticsCommon;
 
 module Action = {
   [@deriving sexp]
@@ -255,7 +254,7 @@ let apply_action =
               ) {
               | (None, None, None) => None
               | (Some(steps), _, _) =>
-                Some((steps, Some(OnText(anchorOffset))))
+                Some((steps, Some(CursorPosition.OnText(anchorOffset))))
               | (_, Some((steps, cursor)), _) =>
                 Some((steps, Some(cursor)))
               | (_, _, Some(steps)) => Some((steps, None))
