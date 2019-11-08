@@ -32,7 +32,12 @@ To update do the following:
 
   - `firefox $(make echo-html)`.
 
-TODO: How to test in browser.
+  TODO: How to test in browser.
+
+- Test that the `reason-vscode` plugin works with the OCaml version.  (See
+  https://github.com/jaredly/reason-language-server/issues/317)
+
+  TODO: how to test `reason-vscode`
 
 - Update the version number in `.travis.yml`
 
@@ -45,18 +50,21 @@ TODO: How to test in browser.
 
 ### Current version
 
-The most recent version that we can use is Ocaml 4.08.1.
+The most recent version that we use is Ocaml 4.07.1.
 
-Using OCaml 4.09.0, will generate the following error when running `make deps`:
+- Using OCaml 4.09.0, generates the following error when running `make deps`:
 
-```Text
-The following dependencies couldn't be met:
-  - incr_dom → js_of_ocaml >= 3.0 → ocaml < 4.09.0
-      base of this switch (use `--unlock-base' to force)
-```
+  ```Text
+  The following dependencies couldn't be met:
+    - incr_dom → js_of_ocaml >= 3.0 → ocaml < 4.09.0
+        base of this switch (use `--unlock-base' to force)
+  ```
 
-This is known limitation of `js_of_ocaml`, and we are waiting for the
-`js_of_ocaml` maintainers to release a fix.
+  This is known limitation of `js_of_ocaml`, and we are waiting for the
+  `js_of_ocaml` maintainers to release a fix.
+
+- The `reason-vscode` plugin for VS Code does not (yet) support OCaml 4.08.
+  (See https://github.com/jaredly/reason-language-server/issues/317)
 
 ## How to update the `master` branch
 
