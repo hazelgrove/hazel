@@ -35,5 +35,6 @@ fi
 cp -r ../"$HTML_DIR"/* "$TRAVIS_BRANCH"
 
 git add .
-git commit -m "Travis Build"
-git push origin master
+if git commit -m "Travis Build"; then
+  git push origin master
+fi
