@@ -721,7 +721,7 @@ let has_class_satisfying =
 let force_opt = x => Js.Opt.get(x, () => failwith("forced opt"));
 
 // TODO: find better Module to put this in
-module Vdom = Virtual_dom.Vdom;
+//module Vdom = Virtual_dom.Vdom;
 let content_editable_of_layout: Layout.t('tag) => Vdom.Node.t =
   layout => {
     let record: Layout.text('tag, list(Vdom.Node.t), Vdom.Node.t) = {
