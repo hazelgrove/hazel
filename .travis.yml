@@ -5,7 +5,7 @@ install:
 - sudo apt update
 - sudo apt --assume-yes install opam
 - export OPAMYES=1
-- opam init --compiler=ocaml-base-compiler.4.08.1
+- opam init --compiler=ocaml-base-compiler.4.07.1
 - eval $(opam env)
 - make deps
 script:
