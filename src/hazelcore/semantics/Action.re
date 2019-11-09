@@ -3757,11 +3757,14 @@ and syn_perform_line =
     if (k == String.length(comment)) {
       CursorEscaped(After);
     } else {
-      // Check ocaml functions (STL)
-      // Need to modify the string
-      failwith(
-        "Ops! This method is not implemented!",
-      );
+      let str_before = String.sub(comment(0, k));
+      let str_after =
+        String.sub(comment(k + 1, String.length(comment) - k - 1));
+      ();
+      let comment = str_before^;
+      str_after;
+      // I am still wondering the correct syntax of the code:
+      // let comment = String.concat str_before [""; str_after]
     }
 
   | (Backspace, CursorL(OnDelim(_, Before), CommentLine(_))) =>
@@ -3774,7 +3777,11 @@ and syn_perform_line =
     if (k == 0) {
       Succeeded((([], CursorL(OnDelim(0, After), line), []), ctx, u_gen));
     } else {
-      failwith("Ops! This method is not implemented!");
+      let str_before = String.sub(comment(0, k - 1));
+      let str_after = String.sub;
+      comment(k, String.length(comment) - k + 1);
+      let comment = str_before^;
+      str_after;
     }
 
   | (Backspace | Delete, CursorL(Staging(_), _)) =>
