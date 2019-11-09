@@ -1,4 +1,3 @@
-open SemanticsCommon;
 open GeneralUtil;
 
 [@deriving sexp]
@@ -8,31 +7,31 @@ type opseq_suffix = OperatorSeq.opseq_suffix(UHPat.t, UHPat.op);
 
 [@deriving sexp]
 type t =
-  | CursorP(cursor_position, UHPat.t)
+  | CursorP(CursorPosition.t, UHPat.t)
   /* zipper cases */
   | ParenthesizedZ(t)
   | OpSeqZ(UHPat.skel_t, t, opseq_surround)
-  | InjZ(ErrStatus.t, inj_side, t);
+  | InjZ(ErrStatus.t, InjSide.t, t);
 
 exception SkelInconsistentWithOpSeq;
 
-let valid_cursors = (p: UHPat.t): list(cursor_position) =>
+let valid_cursors = (p: UHPat.t): list(CursorPosition.t) =>
   switch (p) {
-  | EmptyHole(_) => delim_cursors(1)
-  | Wild(_) => delim_cursors(1)
-  | Var(_, _, x) => text_cursors(Var.length(x))
-  | NumLit(_, n) => text_cursors(num_digits(n))
-  | BoolLit(_, b) => text_cursors(b ? 4 : 5)
-  | ListNil(_) => delim_cursors(1)
-  | Inj(_, _, _) => delim_cursors(2)
-  | Parenthesized(_) => delim_cursors(2)
+  | EmptyHole(_) => CursorPosition.delim_cursors(1)
+  | Wild(_) => CursorPosition.delim_cursors(1)
+  | Var(_, _, x) => CursorPosition.text_cursors(Var.length(x))
+  | NumLit(_, n) => CursorPosition.text_cursors(num_digits(n))
+  | BoolLit(_, b) => CursorPosition.text_cursors(b ? 4 : 5)
+  | ListNil(_) => CursorPosition.delim_cursors(1)
+  | Inj(_, _, _) => CursorPosition.delim_cursors(2)
+  | Parenthesized(_) => CursorPosition.delim_cursors(2)
   | OpSeq(_, seq) =>
     range(~lo=1, OperatorSeq.seq_length(seq))
-    |> List.map(k => delim_cursors_k(k))
+    |> List.map(k => CursorPosition.delim_cursors_k(k))
     |> List.flatten
   };
 
-let is_valid_cursor = (cursor: cursor_position, p: UHPat.t): bool =>
+let is_valid_cursor = (cursor: CursorPosition.t, p: UHPat.t): bool =>
   valid_cursors(p) |> contains(cursor);
 
 let bidelimit = (zp: t): t =>
@@ -236,7 +235,7 @@ let rec place_after = (p: UHPat.t): t =>
     OpSeqZ(skel, zp0, surround);
   };
 
-let place_cursor = (cursor: cursor_position, p: UHPat.t): option(t) =>
+let place_cursor = (cursor: CursorPosition.t, p: UHPat.t): option(t) =>
   is_valid_cursor(cursor, p) ? Some(CursorP(cursor, p)) : None;
 
 /* helper function for constructing a new empty hole */

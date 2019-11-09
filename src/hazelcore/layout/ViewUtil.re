@@ -1,5 +1,3 @@
-open SemanticsCommon;
-
 exception MalformedView(int);
 
 type cls = string;
@@ -14,9 +12,9 @@ let cell_border = 2.0;
 let shift_target_thickness = indicator_padding;
 
 [@deriving sexp]
-type delim_path = (CursorPath.steps, delim_index);
+type delim_path = (CursorPath.steps, DelimIndex.t);
 [@deriving sexp]
-type op_path = (CursorPath.steps, op_index);
+type op_path = (CursorPath.steps, OpIndex.t);
 
 let cell_id = "cell";
 
