@@ -2353,6 +2353,35 @@ and ana_perform_pat =
       ),
     )
   | (Construct(_), CursorP(Staging(_), _)) => Failed
+  | (Construct(SParenthesized), CursorP(_, EmptyHole(_) as hole1)) =>
+    switch (HTyp.get_tuple_list(ty)) {
+    | [] => assert(false)
+    | [_] =>
+      // do normal thing
+      Succeeded((ParenthesizedZ(zp), ctx, u_gen))
+    | [_, _, ...tys] =>
+      // insert extra holes
+
+      // for expected n-tuple type, generate n-1 new holes
+      let (hole2, u_gen) = UHPat.new_EmptyHole(u_gen);
+      let (holes: list(UHPat.t), u_gen: MetaVarGen.t) =
+        tys
+        |> List.fold_left(
+             ((holes_so_far, u_gen), _) => {
+               let (new_hole, u_gen) = UHPat.new_EmptyHole(u_gen);
+               (holes_so_far @ [new_hole], u_gen);
+             },
+             ([], u_gen),
+           );
+      let tuple_seq: UHPat.opseq =
+        holes
+        |> List.fold_left(
+             (seq: UHPat.opseq, hole: UHPat.t) => SeqOpExp(seq, Comma, hole),
+             ExpOpExp(hole1, Comma, hole2),
+           );
+      let tuple: UHPat.t = OpSeqUtil.Pat.mk_OpSeq(tuple_seq);
+      Succeeded((ParenthesizedZ(ZPat.place_before(tuple)), ctx, u_gen));
+    }
   | (Construct(SParenthesized), CursorP(_, _)) =>
     switch (Statics.ana_pat(ctx, ZPat.erase(zp), ty)) {
     | None => Failed
