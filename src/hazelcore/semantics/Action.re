@@ -6492,16 +6492,15 @@ and ana_perform_exp =
     Succeeded((E(ze), u_gen));
   | (Construct(SCase), CursorE(_, _)) => Failed
   | (Construct(SParenthesized), CursorE(_, EmptyHole(_))) =>
-    // get tuple elements
-    let rec get_tuple = (ty: HTyp.t): list(HTyp.t) =>
-      switch (ty) {
-      | Prod(ty1, ty2) => [ty1, ...get_tuple(ty2)]
-      | _ => [ty]
-      };
-    switch (get_tuple(ty)) {
+    switch (get_tuple_list(ty)) {
     | [] => assert(false)
-    | [ty] => // do normal thing
-    | [ty1, ty2, ...tys] => // insert extra holes
+    | [ty] => 
+        // do normal thing
+      | (Construct(SParenthesized), CursorE(_, _)) =>
+        Succeeded((E(ParenthesizedZ(ZExp.wrap_in_block(ze))), u_gen))
+    | [ty1, ty2, ...tys] => 
+    // insert extra holes
+      | 
     }
   | (Construct(SParenthesized), CursorE(_, _)) =>
     Succeeded((E(ParenthesizedZ(ZExp.wrap_in_block(ze))), u_gen))
