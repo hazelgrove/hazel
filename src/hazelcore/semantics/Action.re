@@ -6491,16 +6491,43 @@ and ana_perform_exp =
       };
     Succeeded((E(ze), u_gen));
   | (Construct(SCase), CursorE(_, _)) => Failed
-  | (Construct(SParenthesized), CursorE(_, EmptyHole(_))) =>
-    switch (get_tuple_list(ty)) {
+  | (Construct(SParenthesized), CursorE(_, EmptyHole(_) as hole1)) =>
+    switch (HTyp.get_tuple_list(ty)) {
     | [] => assert(false)
-    | [ty] => 
-        // do normal thing
-      | (Construct(SParenthesized), CursorE(_, _)) =>
-        Succeeded((E(ParenthesizedZ(ZExp.wrap_in_block(ze))), u_gen))
-    | [ty1, ty2, ...tys] => 
-    // insert extra holes
-      | 
+    | [_] =>
+      // do normal thing
+      Succeeded((E(ParenthesizedZ(ZExp.wrap_in_block(ze))), u_gen))
+    | [_, _, ...tys] =>
+      // insert extra holes
+
+      // for expected n-tuple type, generate n-1 new holes
+      let (hole2, u_gen) = UHExp.new_EmptyHole(u_gen);
+      let (holes: list(UHExp.t), u_gen: MetaVarGen.t) =
+        tys
+        |> List.fold_left(
+             // folding func
+             ((holes_so_far, u_gen), _) => {
+               let (new_hole, u_gen) = UHExp.new_EmptyHole(u_gen);
+               (holes_so_far @ [new_hole], u_gen);
+             },
+             // initial accumulator
+             ([], u_gen),
+           );
+      // construct tuple expression with empty holes
+      let tuple_seq: UHExp.opseq =
+        holes
+        |> List.fold_left(
+             (seq: UHExp.opseq, hole: UHExp.t) => SeqOpExp(seq, Comma, hole),
+             ExpOpExp(hole1, Comma, hole2),
+           );
+      let tuple: UHExp.t = OpSeqUtil.Exp.mk_OpSeq(tuple_seq);
+      // put the tuple expression into the overall context and succeed
+      Succeeded((
+        E(
+          ParenthesizedZ(ZExp.wrap_in_block(ZExp.place_before_exp(tuple))),
+        ),
+        u_gen,
+      ));
     }
   | (Construct(SParenthesized), CursorE(_, _)) =>
     Succeeded((E(ParenthesizedZ(ZExp.wrap_in_block(ze))), u_gen))

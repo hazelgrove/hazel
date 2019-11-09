@@ -98,12 +98,11 @@ let has_matched_prod =
   | Prod(_, _) => true
   | _ => false;
 
-
-let rec get_tuple_list = (ty: HTyp.t): list(HTyp.t) =>
+let rec get_tuple_list = (ty: t): list(t) =>
   switch (ty) {
   | Prod(ty1, ty2) => [ty1, ...get_tuple_list(ty2)]
   | _ => [ty]
-  }; 
+  };
 
 let rec get_tuple = (ty1: t, ty2: t): ListMinTwo.t(t) =>
   switch (ty2) {
