@@ -3763,8 +3763,8 @@ and syn_perform_line =
       ();
       let comment = str_before^;
       str_after;
-      // I am still wondering the correct syntax of the code:
-      // let comment = String.concat str_before [""; str_after]
+      let comment = String.concat(str_before, str_after);
+      ();
     }
 
   | (Backspace, CursorL(OnDelim(_, Before), CommentLine(_))) =>
