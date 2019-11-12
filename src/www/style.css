@@ -52,6 +52,11 @@ html, body {
   justify-content: space-between;
 }
 
+#link-to-dev-text {
+  color: white;
+  text-decoration: none;
+}
+
 .logo-text {
   color: white;
   text-decoration: none;
