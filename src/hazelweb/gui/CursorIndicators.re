@@ -130,6 +130,7 @@ let rec collect_holes: UHExp.block => holes_steps =
 and collect_holes_line: UHExp.line => holes_steps =
   fun
   | EmptyLine => ([], [], [])
+  | CommentLine(_) => ([], [], [])
   | ExpLine(e) => collect_holes_exp(e)
   | LetLine(p, _, def) =>
     concat_holes(

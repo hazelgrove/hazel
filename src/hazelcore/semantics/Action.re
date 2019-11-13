@@ -101,6 +101,8 @@ let op_shape_of_exp_op = (op: UHExp.op): op_shape =>
 
 [@deriving sexp]
 type shape =
+  | SCommentText(string, cursor_position)
+  | SCommentLine // initializer
   | SParenthesized
   /* type shapes */
   | SNum
@@ -3560,6 +3562,8 @@ and syn_perform_lines =
     | None => Failed
     | Some(ctx) => Succeeded((zlines, ctx, u_gen))
     };
+  | (Construct(SCommentLine), (prefix, CursorL(_, EmptyLine), suffix)) =>
+    Succeeded((CursorL(Ontext(0), CommentLine("")), ctx, u_gen))
   | (Construct(SLine), (prefix, zline, suffix))
       when ZExp.is_after_line(zline) =>
     let line = ZExp.erase_line(zline);
