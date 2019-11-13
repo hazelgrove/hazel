@@ -105,7 +105,6 @@ and sword =
 [@deriving sexp]
 and stoken =
   | SEmptyLine
-  | SCommentLine(string)
   | SEmptyHole(string)
   | SDelim(delim_index, string)
   | SOp(op_index, ErrStatus.t, string)
@@ -2015,7 +2014,11 @@ and snode_of_line_item =
       [
         mk_SLine(
           ~steps_of_first_sword=steps,
-          [SToken(SCommentLine(comment))],
+          [
+            SToken(SDelim(0, "#")),
+            SToken(SSpace),
+            SToken(mk_SText(comment)),
+          ],
         ),
       ],
     )
