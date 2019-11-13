@@ -3,7 +3,8 @@ module HoleReason = {
   [@deriving sexp]
   type t =
     | TypeInconsistent
-    | WrongLength;
+    | WrongLength
+    | InconsistentBranches;
 };
 
 /* Variable: `err` */
