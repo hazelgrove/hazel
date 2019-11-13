@@ -502,10 +502,12 @@ module KeyCombo = {
     | Semicolon
     | Alt_L
     | Alt_R
-    | Alt_C;
+    | Alt_C
+    | Pound;
 
   let get_details =
     fun
+    | Pound => Details.pound
     | Escape => Details.escape
     | Backspace => Details.backspace
     | Delete => Details.delete
@@ -536,7 +538,9 @@ module KeyCombo = {
 
   let of_evt = (evt: Js.t(Dom_html.keyboardEvent)): option(t) => {
     let evt_matches = details => Details.matches(details, evt);
-    if (evt_matches(Details.escape)) {
+    if (evt_matches(Details.pound)) {
+      Some(Pound);
+    } else if (evt_matches(Details.escape)) {
       Some(Escape);
     } else if (evt_matches(Details.backspace)) {
       Some(Backspace);
