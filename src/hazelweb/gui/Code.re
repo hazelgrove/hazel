@@ -1999,6 +1999,7 @@ and snode_of_line_item =
     )
     : snode =>
   switch (li) {
+  | CommentLine(_) => 
   | EmptyLine =>
     mk_SBox(
       ~steps,
