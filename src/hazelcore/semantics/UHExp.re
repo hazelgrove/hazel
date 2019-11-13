@@ -41,7 +41,7 @@ and t =
   /* inner nodes */
   | Lam(ErrStatus.t, UHPat.t, option(UHTyp.t), block)
   | Inj(ErrStatus.t, InjSide.t, block)
-  | Case(ErrStatus.t, block, rules, option(UHTyp.t))
+  | Case(ErrStatus.t, block, rules)
   | Parenthesized(block)
   | OpSeq(skel_t, opseq) /* invariant: skeleton is consistent with opseq */
   | ApPalette(ErrStatus.t, PaletteName.t, SerializedModel.t, splice_info)
@@ -78,15 +78,8 @@ let lam =
     : t =>
   Lam(err, p, ann, body);
 
-let case =
-    (
-      ~err: ErrStatus.t=NotInHole,
-      ~ann: option(UHTyp.t)=?,
-      scrut: block,
-      rules: rules,
-    )
-    : t =>
-  Case(err, scrut, rules, ann);
+let case = (~err: ErrStatus.t=NotInHole, scrut: block, rules: rules): t =>
+  Case(err, scrut, rules);
 
 let listnil = (~err: ErrStatus.t=NotInHole, ()): t => ListNil(err);
 
@@ -171,7 +164,7 @@ let bidelimited = (e: t): bool =>
   | ApPalette(_, _, _, _)
   | Parenthesized(_) => true
   /* non-bidelimited */
-  | Case(_, _, _, _)
+  | Case(_, _, _)
   | Lam(_, _, _, _)
   | OpSeq(_, _) => false
   };
@@ -195,7 +188,7 @@ and get_err_status_t = (e: t): ErrStatus.t =>
   | ListNil(err)
   | Lam(err, _, _, _)
   | Inj(err, _, _)
-  | Case(err, _, _, _)
+  | Case(err, _, _)
   | ApPalette(err, _, _, _) => err
   | Parenthesized(block) => get_err_status_block(block)
   | OpSeq(BinOp(err, _, _, _), _) => err
@@ -219,7 +212,7 @@ and set_err_status_t = (err: ErrStatus.t, e: t): t =>
   | ListNil(_) => ListNil(err)
   | Lam(_, p, ann, block) => Lam(err, p, ann, block)
   | Inj(_, inj_side, block) => Inj(err, inj_side, block)
-  | Case(_, block, rules, ann) => Case(err, block, rules, ann)
+  | Case(_, block, rules) => Case(err, block, rules)
   | ApPalette(_, name, model, si) => ApPalette(err, name, model, si)
   | Parenthesized(block) => Parenthesized(set_err_status_block(err, block))
   | OpSeq(skel, seq) =>
@@ -265,17 +258,27 @@ and make_t_inconsistent = (u_gen: MetaVarGen.t, e: t): (t, MetaVarGen.t) =>
   | ListNil(InHole(TypeInconsistent, _))
   | Lam(InHole(TypeInconsistent, _), _, _, _)
   | Inj(InHole(TypeInconsistent, _), _, _)
-  | Case(InHole(TypeInconsistent, _), _, _, _)
+  | Case(InHole(TypeInconsistent | InconsistentBranches(_), _), _, _)
   | ApPalette(InHole(TypeInconsistent, _), _, _, _) => (e, u_gen)
   /* not in hole */
-  | Var(NotInHole | InHole(WrongLength, _), _, _)
-  | NumLit(NotInHole | InHole(WrongLength, _), _)
-  | BoolLit(NotInHole | InHole(WrongLength, _), _)
-  | ListNil(NotInHole | InHole(WrongLength, _))
-  | Lam(NotInHole | InHole(WrongLength, _), _, _, _)
-  | Inj(NotInHole | InHole(WrongLength, _), _, _)
-  | Case(NotInHole | InHole(WrongLength, _), _, _, _)
-  | ApPalette(NotInHole | InHole(WrongLength, _), _, _, _) =>
+  | Var(NotInHole | InHole(WrongLength | InconsistentBranches(_), _), _, _)
+  | NumLit(NotInHole | InHole(WrongLength | InconsistentBranches(_), _), _)
+  | BoolLit(NotInHole | InHole(WrongLength | InconsistentBranches(_), _), _)
+  | ListNil(NotInHole | InHole(WrongLength | InconsistentBranches(_), _))
+  | Lam(
+      NotInHole | InHole(WrongLength | InconsistentBranches(_), _),
+      _,
+      _,
+      _,
+    )
+  | Inj(NotInHole | InHole(WrongLength | InconsistentBranches(_), _), _, _)
+  | Case(NotInHole | InHole(WrongLength, _), _, _)
+  | ApPalette(
+      NotInHole | InHole(WrongLength | InconsistentBranches(_), _),
+      _,
+      _,
+      _,
+    ) =>
     let (u, u_gen) = MetaVarGen.next(u_gen);
     let e = set_err_status_t(InHole(TypeInconsistent, u), e);
     (e, u_gen);
@@ -304,7 +307,7 @@ and make_opseq_inconsistent =
     }
   | BinOp(InHole(TypeInconsistent, _), _, _, _) => (skel, seq, u_gen)
   | BinOp(NotInHole, op, skel1, skel2)
-  | BinOp(InHole(WrongLength, _), op, skel1, skel2) =>
+  | BinOp(InHole(WrongLength | InconsistentBranches(_), _), op, skel1, skel2) =>
     let (u, u_gen) = MetaVarGen.next(u_gen);
     (BinOp(InHole(TypeInconsistent, u), op, skel1, skel2), seq, u_gen);
   };
@@ -331,8 +334,7 @@ let child_indices_exp =
   | ListNil(_) => []
   | Lam(_, _, None, _) => [0, 2]
   | Lam(_, _, Some(_), _) => [0, 1, 2]
-  | Case(_, _, rules, None) => range(List.length(rules) + 1)
-  | Case(_, _, rules, Some(_)) => range(List.length(rules) + 2)
+  | Case(_, _, rules) => range(List.length(rules) + 1)
   | Inj(_, _, _) => [0]
   | Parenthesized(_) => [0]
   | OpSeq(_, seq) => range(OperatorSeq.seq_length(seq))
@@ -721,7 +723,7 @@ let favored_child_of_exp: t => option((ChildIndex.t, block)) =
   | ApPalette(_, _, _, _) => None
   | Lam(_, _, _, block) => Some((2, block))
   | Inj(_, _, block)
-  | Case(_, block, _, _)
+  | Case(_, block, _)
   | Parenthesized(block) => Some((0, block));
 
 let has_concluding_let_line =
@@ -757,7 +759,7 @@ and is_multi_line_exp =
   | ApPalette(_, _, _, _) => false
   | Lam(_, _, _, body) => is_multi_line(body)
   | Inj(_, _, body) => is_multi_line(body)
-  | Case(_, _, _, _) => true
+  | Case(_, _, _) => true
   | Parenthesized(body) => is_multi_line(body)
   | OpSeq(_, seq) =>
     seq |> OperatorSeq.tms |> List.exists(is_multi_line_exp);
