@@ -870,6 +870,10 @@ button:disabled {
   background-color: var(--child-indicator-staging-color);
 }
 
+#cell .SNode.var-pat-usage {
+  background-color: red;
+}
+
 .hole-indicator, .skel-hole-indicator, .ap-hole-indicator {
   position: absolute;
   z-index: var(--hole-indicator-z-index);

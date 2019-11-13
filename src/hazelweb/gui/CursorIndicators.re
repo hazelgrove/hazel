@@ -1237,6 +1237,32 @@ let view = (~is_cell_focused: bool, ~holes_steps, ~ci: CursorInfo.t) => {
   @ hole_indicators(holes_steps);
 };
 
+let rec _remove_box_var_uses_indicator =
+        (~elems: list(Js.t(Dom_html.element))) =>
+  switch (elems) {
+  | [] => ()
+  | [elem, ...elems] =>
+    elem##.classList##remove(Js.string("var-pat-usage"));
+    _remove_box_var_uses_indicator(~elems);
+  };
+
+let remove_box_var_uses_indicator = () => {
+  let var_pat_usage_elems =
+    Dom_html.document##getElementsByClassName(Js.string("var-pat-usage"))
+    |> Dom.list_of_nodeList;
+  _remove_box_var_uses_indicator(~elems=var_pat_usage_elems);
+};
+
+let draw_box_var_uses_indicator = (~uses: UsageAnalysis.uses_list) =>
+  List.iter(
+    steps => {
+      let var_elem = Code.force_get_snode_elem(steps);
+      let classList = var_elem##.classList;
+      classList##add(Js.string("var-pat-usage"));
+    },
+    uses,
+  );
+
 let draw_box_node_indicator = () => {
   let indicator_elem = JSUtil.force_get_elem_by_id(box_node_indicator_id);
   let steps =
@@ -1810,18 +1836,25 @@ let draw_SSeq_indicators = (~cursor_elem) => {
     ? draw_multi_line_seq_indicators() : draw_single_line_seq_indicators();
 };
 
-let draw_SBox_indicators = () => {
+let draw_SBox_indicators = (~ci: CursorInfo.t) => {
+  let uses =
+    switch (ci.node) {
+    | Pat(VarPat(_, uses)) => uses
+    | _ => []
+    };
+  draw_box_var_uses_indicator(~uses);
   draw_box_node_indicator();
   draw_box_term_indicator();
 };
 
 let draw = (~ci: CursorInfo.t) => {
+  remove_box_var_uses_indicator();
   let cursor_elem = Code.force_get_snode_elem(ci.node_steps);
   switch (ci.position) {
   | OnText(_)
   | OnDelim(_, _) =>
     cursor_elem |> Code.elem_is_SBox
-      ? draw_SBox_indicators() : draw_SSeq_indicators(~cursor_elem)
+      ? draw_SBox_indicators(~ci) : draw_SSeq_indicators(~cursor_elem)
   | Staging(delim_index) =>
     draw_box_node_indicator();
     draw_shift_targets(
