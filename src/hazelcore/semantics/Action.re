@@ -3757,14 +3757,15 @@ and syn_perform_line =
     if (k == String.length(comment)) {
       CursorEscaped(After);
     } else {
-      let str_before = String.sub(comment(0, k));
+      let str_before = String.sub(comment, 0, k);
       let str_after =
-        String.sub(comment(k + 1, String.length(comment) - k - 1));
-      ();
-      let comment = str_before^;
-      str_after;
-      let comment = String.concat(str_before, str_after);
-      ();
+        String.sub(comment, k + 1, String.length(comment) - k - 1);
+      let new_comment = str_before ++ str_after;
+      Succeeded((
+        ([], CursorL(OnText(k), CommentLine(new_comment)), []),
+        ctx,
+        u_gen,
+      ));
     }
 
   | (Backspace, CursorL(OnDelim(_, Before), CommentLine(_))) =>
@@ -3772,16 +3773,19 @@ and syn_perform_line =
   | (Backspace, CursorL(OnDelim(_, After), CommentLine(_))) =>
     // just delete the commentline (need future modification)
     Succeeded((([], CursorL(OnText(0), EmptyLine), []), ctx, u_gen))
-  | (Backspace, CursorL(OnText(k), CommentLine(_) as line)) =>
+  | (Backspace, CursorL(OnText(k), CommentLine(comment) as line)) =>
     // if the cursor is at the start of the string
     if (k == 0) {
       Succeeded((([], CursorL(OnDelim(0, After), line), []), ctx, u_gen));
     } else {
-      let str_before = String.sub(comment(0, k - 1));
-      let str_after = String.sub;
-      comment(k, String.length(comment) - k + 1);
-      let comment = str_before^;
-      str_after;
+      let str_before = String.sub(comment, 0, k - 1);
+      let str_after = String.sub(comment, k, String.length(comment) - k + 1);
+      let new_comment = str_before ++ str_after;
+      Succeeded((
+        ([], CursorL(OnText(k - 1), CommentLine(new_comment)), []),
+        ctx,
+        u_gen,
+      ));
     }
 
   | (Backspace | Delete, CursorL(Staging(_), _)) =>
