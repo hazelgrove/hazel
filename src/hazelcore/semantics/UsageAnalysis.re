@@ -70,7 +70,7 @@ and find_uses_exp = (x: Var.t, e: UHExp.t, steps): uses_list =>
   | Inj(NotInHole, _, block) => find_uses_block(x, block, steps @ [0], 0)
   | Case(NotInHole, block, rules, _) =>
     find_uses_block(x, block, steps @ [0], 0)
-    @ find_uses_rules(x, rules, steps, 0)
+    @ find_uses_rules(x, rules, steps, 1)
   | Parenthesized(block) => find_uses_block(x, block, steps @ [0], 0)
   | OpSeq(_, opseq) =>
     let (uses, _) = find_uses_opseq(x, opseq, steps);
@@ -84,7 +84,7 @@ and find_uses_rules =
     let UHExp.Rule(p, block) = rule;
     let uses =
       binds_var(x, p)
-        ? [] : find_uses_block(x, block, steps @ [prefix_length], 0);
+        ? [] : find_uses_block(x, block, steps @ [prefix_length, 1], 0);
     uses @ find_uses_rules(x, rules, steps, prefix_length + 1);
   }
 and find_uses_opseq = (x: Var.t, opseq: UHExp.opseq, steps): (uses_list, int) =>

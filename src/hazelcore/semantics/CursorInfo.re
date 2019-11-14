@@ -332,9 +332,17 @@ let rec cursor_info_typ =
       ),
     )
   | ParenthesizedZ(zty1)
-  | ListZ(zty1) => cursor_info_typ(~node_steps, ~term_steps, ctx, zty1)
+  | ListZ(zty1) =>
+    cursor_info_typ(~node_steps=node_steps @ [0], ~term_steps, ctx, zty1)
   | OpSeqZ(_, zty1, surround) =>
-    cursor_info_typ(~node_steps, ~term_steps, ~frame=surround, ctx, zty1)
+    let n = OperatorSeq.surround_prefix_length(surround);
+    cursor_info_typ(
+      ~node_steps=node_steps @ [n],
+      ~term_steps,
+      ~frame=surround,
+      ctx,
+      zty1,
+    );
   };
 
 /*
@@ -758,7 +766,7 @@ and _ana_cursor_info_pat =
     let seq = OperatorSeq.opseq_of_exp_and_surround(p1, surround);
     let n = OperatorSeq.surround_prefix_length(surround);
     _ana_cursor_info_pat_skel(
-      ~node_steps,
+      ~node_steps=node_steps @ [n],
       ~term_steps,
       ~frame=Some(surround),
       ctx,
@@ -1618,7 +1626,7 @@ and _ana_cursor_info_rule =
     | None => None
     | Some(CursorNotOnDeferredVarPat(ci)) => Some(ci)
     | Some(CursorOnDeferredVarPat(deferred_ci, x)) =>
-      let uses = find_uses_block(x, block, node_steps, 0);
+      let uses = find_uses_block(x, block, node_steps @ [1], 0);
       Some(uses |> deferred_ci);
     }
   | RuleZE(p, zblock) =>
