@@ -2375,14 +2375,17 @@ and ana_perform_pat =
     if (Var.is_let(x)) {
       let (u, u_gen) = MetaVarGen.next(u_gen);
       Succeeded((
-        CursorP(cursor, Var(NotInHole, InVHole(Keyword(Let), u), x)),
+        CursorP(cursor, Var(NotInHole, InVarHole(Keyword(Let), u), x)),
         ctx,
         u_gen,
       ));
     } else if (Var.is_type(x)) {
       let (u, u_gen) = MetaVarGen.next(u_gen);
       Some((
-        CursorP(side, Pat(NotInHole, Var(InVHole(Keyword(Type), u), x))),
+        CursorP(
+          side,
+          Pat(NotInHole, Var(InVarHole(Keyword(Type), u), x)),
+        ),
         ctx,
         u_gen,
       ));

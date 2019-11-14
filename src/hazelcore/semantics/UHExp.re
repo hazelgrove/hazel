@@ -38,7 +38,6 @@ and t =
   | ListNil(ErrStatus.t)
   /* inner nodes */
   | Lam(ErrStatus.t, UHPat.t, option(UHTyp.t), block)
-  /* cc: add error status */
   | TyLam(ErrStatus.t, TPat.t, block)
   | Inj(ErrStatus.t, inj_side, block)
   | Case(ErrStatus.t, block, rules, option(UHTyp.t))

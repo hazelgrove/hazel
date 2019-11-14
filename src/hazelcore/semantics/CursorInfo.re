@@ -1,4 +1,3 @@
-open Sexplib.Std;
 open SemanticsCommon;
 open GeneralUtil;
 
@@ -278,6 +277,8 @@ let preserved_child_term_of_node = ci =>
   | Rule(_) => None
   };
 
+let cursor_info_tpat = () => raise(Failure("unimplemented"));
+
 let rec cursor_info_typ =
         (
           ~node_steps: Path.steps,
@@ -308,6 +309,9 @@ let rec cursor_info_typ =
     )
   | ParenthesizedZ(zty1)
   | ListZ(zty1) => cursor_info_typ(~node_steps, ~term_steps, ctx, zty1)
+  | ForallZP(ztp, _) => cursor_info_tpat(~node_steps, ~term_steps, ctx, ztp)
+  | ForallZT(_, zty1) =>
+    cursor_info_tpat(~node_steps, ~term_steps, ctx, zty1)
   | OpSeqZ(_, zty1, surround) =>
     cursor_info_typ(~node_steps, ~term_steps, ~frame=surround, ctx, zty1)
   };

@@ -440,7 +440,7 @@ let rec fix_holes_ty_skel =
         : (UHTyp.skel_t, UHTyp.opseq, MetaVarGen.t) =>
   switch (skel) {
   | Placeholder(n) =>
-    switch (OperatorSeq.seq_nth(n, seq)) {
+    switch (OperatorSeq.nth_tm(n, seq)) {
     | None => raise(UHTyp.SkelInconsistentWithOpSeq(skel, seq))
     | Some(ty) =>
       let (ty, u_gen) = fix_holes_ty(ctx, ty, u_gen);
@@ -459,18 +459,18 @@ and fix_holes_ty =
     (ctx: Contexts.t, ty: UHTyp.t, u_gen: MetaVarGen.t)
     : (UHTyp.t, MetaVarGen.t) =>
   switch (ty) {
-  | TVar(InVHole(Free, u), t) =>
+  | TVar(InVarHole(Free, u), t) =>
     if (TVarCtx.includes(ctx.tvars, t)) {
-      (TVar(NotInVHole, t), u_gen);
+      (TVar(NotInVarHole, t), u_gen);
     } else {
-      (TVar(InVHole(Free, u), t), u_gen);
+      (TVar(InVarHole(Free, u), t), u_gen);
     }
   | TVar(_, t) =>
     if (TVarCtx.includes(ctx.tvars, t)) {
-      (TVar(NotInVHole, t), u_gen);
+      (TVar(NotInVarHole, t), u_gen);
     } else {
       let (u, u_gen) = MetaVarGen.next(u_gen);
-      (TVar(InVHole(Free, u), t), u_gen);
+      (TVar(InVarHole(Free, u), t), u_gen);
     }
   | Hole
   | Num
@@ -554,7 +554,7 @@ and syn_exp = (ctx: Contexts.t, e: UHExp.t): option(HTyp.t) =>
   | Case(InHole(WrongLength, _), _, _, _)
   | ApPalette(InHole(WrongLength, _), _, _, _) => None
   /* not in hole */
-  | Var(NotInHole, NotInVarHole, x) => VarMap.lookup(Contexts.gamma(ctx), x)
+  | Var(NotInHole, NotInVarHole, x) => VarMap.lookup(ctx.vars, x)
   | Var(NotInHole, InVarHole(_, _), _) => Some(Hole)
   | NumLit(NotInHole, _) => Some(Num)
   | BoolLit(NotInHole, _) => Some(Bool)
@@ -573,7 +573,7 @@ and syn_exp = (ctx: Contexts.t, e: UHExp.t): option(HTyp.t) =>
       | Some(ty2) => Some(HTyp.Arrow(ty1, ty2))
       }
     };
-  | TyLam(tpat, block) =>
+  | TyLam(_error_status, tpat, block) =>
     let ctx = tpat_wf(ctx, tpat);
     switch (syn_block(ctx, block)) {
     | None => None
@@ -591,8 +591,7 @@ and syn_exp = (ctx: Contexts.t, e: UHExp.t): option(HTyp.t) =>
   | Case(NotInHole, _, _, Some(uty)) => Some(UHTyp.expand(uty))
   | Case(NotInHole, _, _, None) => None
   | ApPalette(NotInHole, name, serialized_model, psi) =>
-    let palette_ctx = Contexts.palette_ctx(ctx);
-    switch (PaletteCtx.lookup(palette_ctx, name)) {
+    switch (PaletteCtx.lookup(ctx.palettes, name)) {
     | None => None
     | Some(palette_defn) =>
       switch (ana_splice_map(ctx, SpliceInfo.splice_map(psi))) {
@@ -606,7 +605,7 @@ and syn_exp = (ctx: Contexts.t, e: UHExp.t): option(HTyp.t) =>
         | Some(_) => Some(expansion_ty)
         };
       }
-    };
+    }
   | Parenthesized(block) => syn_block(ctx, block)
   | OpSeq(skel, seq) =>
     /* NOTE: doesn't check if skel is the correct parse of seq!!! */
@@ -791,7 +790,7 @@ and ana_exp = (ctx: Contexts.t, e: UHExp.t, ty: HTyp.t): option(unit) =>
         None;
       }
     };
-  | TyLam(_p, _block) => raise(Failure("unimplemented13"))
+  | TyLam(_error_status, _p, _block) => raise(Failure("unimplemented13"))
   | Lam(NotInHole, p, ann, block) =>
     switch (HTyp.matched_arrow(ty)) {
     | None => None
@@ -1071,7 +1070,7 @@ let rec syn_fix_holes_pat =
   | Var(_, InVarHole(Free, _), _) => raise(FreeVarInPat)
   | Var(_, InVarHole(Keyword(_), _), _) => (p_nih, Hole, ctx, u_gen)
   | Var(_, NotInVarHole, x) =>
-    let ctx = Contexts.extend_gamma(ctx, (x, Hole));
+    let ctx = Contexts.extend_vars(ctx, (x, Hole));
     (p_nih, Hole, ctx, u_gen);
   | NumLit(_, _) => (p_nih, Num, ctx, u_gen)
   | BoolLit(_, _) => (p_nih, Bool, ctx, u_gen)
@@ -1187,7 +1186,7 @@ and ana_fix_holes_pat =
   | Var(_, InVarHole(Free, _), _) => raise(FreeVarInPat)
   | Var(_, InVarHole(Keyword(_), _), _) => (p_nih, ctx, u_gen)
   | Var(_, NotInVarHole, x) =>
-    let ctx = Contexts.extend_gamma(ctx, (x, ty));
+    let ctx = Contexts.extend_vars(ctx, (x, ty));
     (p_nih, ctx, u_gen);
   | NumLit(_, _)
   | BoolLit(_, _) =>
@@ -1556,8 +1555,7 @@ and syn_fix_holes_exp =
       (e, Hole, u_gen);
     }
   | Var(_, var_err_status, x) =>
-    let gamma = Contexts.gamma(ctx);
-    switch (VarMap.lookup(gamma, x)) {
+    switch (VarMap.lookup(ctx.vars, x)) {
     | Some(ty) => (UHExp.Var(NotInHole, NotInVarHole, x), ty, u_gen)
     | None =>
       switch (var_err_status) {
@@ -1572,7 +1570,7 @@ and syn_fix_holes_exp =
           };
         (Var(NotInHole, InVarHole(reason, u), x), Hole, u_gen);
       }
-    };
+    }
   | NumLit(_, _) => (e_nih, Num, u_gen)
   | BoolLit(_, _) => (e_nih, Bool, u_gen)
   | ListNil(_) => (e_nih, List(Hole), u_gen)
@@ -1588,10 +1586,11 @@ and syn_fix_holes_exp =
       raise(UHExp.SkelInconsistentWithOpSeq(skel, seq))
     | (skel, seq, ty, u_gen) => (OpSeq(skel, seq), ty, u_gen)
     }
-  | TyLam(tpat, block) =>
+  | TyLam(err_status, tpat, block) =>
     let ctx = tpat_wf(ctx, tpat);
     let (block, ty, u_gen) = syn_fix_holes_block(ctx, u_gen, block);
-    (TyLam(tpat, block), Forall(tpat, ty), u_gen);
+    /* cc: should we do something with the err status here? */
+    (TyLam(err_status, tpat, block), Forall(tpat, ty), u_gen);
   | Lam(_, p, ann, block) =>
     let (uty1, u_gen) =
       switch (ann) {
@@ -1638,8 +1637,7 @@ and syn_fix_holes_exp =
       );
     (Case(NotInHole, block, rules, Some(Hole)), HTyp.Hole, u_gen);
   | ApPalette(_, name, serialized_model, psi) =>
-    let palette_ctx = Contexts.palette_ctx(ctx);
-    switch (PaletteCtx.lookup(palette_ctx, name)) {
+    switch (PaletteCtx.lookup(ctx.palettes, name)) {
     | None => raise(PaletteCtx.InvalidPaletteHoleName) /* TODO invalid palette name hole */
     | Some(palette_defn) =>
       let (splice_map, u_gen) =
@@ -1656,7 +1654,7 @@ and syn_fix_holes_exp =
         expansion_ty,
         u_gen,
       );
-    };
+    }
   };
 }
 and ana_fix_holes_rules =
@@ -1790,7 +1788,7 @@ and ana_fix_holes_exp =
         u_gen,
       )
     }
-  | TyLam(_p, _block) => raise(Failure("unimplemented15"))
+  | TyLam(_err_status, _p, _block) => raise(Failure("unimplemented15"))
   | Lam(_, p, ann, block) =>
     switch (HTyp.matched_arrow(ty)) {
     | Some((ty1_given, ty2)) =>

@@ -1,4 +1,7 @@
 /* make this unit a `kind` when ready */
+open Sexplib.Std;
+
+[@deriving sexp]
 type t = list(Var.t);
 
 let extend = (lst, item) => [item, ...lst];

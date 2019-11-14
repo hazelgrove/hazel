@@ -113,7 +113,7 @@ module DHPat = {
     | Var(NotInHole, InVarHole(Keyword(k), u), _) =>
       Expands(Keyword(u, 0, k), Hole, ctx, delta)
     | Var(NotInHole, NotInVarHole, x) =>
-      let ctx = Contexts.extend_gamma(ctx, (x, Hole));
+      let ctx = Contexts.extend_vars(ctx, (x, Hole));
       Expands(Var(x), Hole, ctx, delta);
     | NumLit(NotInHole, n) => Expands(NumLit(n), Num, ctx, delta)
     | BoolLit(NotInHole, b) => Expands(BoolLit(b), Bool, ctx, delta)
@@ -224,7 +224,7 @@ module DHPat = {
     | Var(NotInHole, InVarHole(Keyword(k), u), _) =>
       Expands(Keyword(u, 0, k), ty, ctx, delta)
     | Var(NotInHole, NotInVarHole, x) =>
-      let ctx = Contexts.extend_gamma(ctx, (x, ty));
+      let ctx = Contexts.extend_vars(ctx, (x, ty));
       Expands(Var(x), ty, ctx, delta);
     | Wild(NotInHole) => Expands(Wild, ty, ctx, delta)
     | NumLit(NotInHole, _)

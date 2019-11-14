@@ -1,3 +1,4 @@
+[@deriving sexp]
 type t = {
   tvars: TVarCtx.t,
   vars: VarCtx.t,
