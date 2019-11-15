@@ -17,6 +17,7 @@
 %left SPACEOP
 
 %start <UHPat.operator Skel.t> skel_pat
+%type <UHPat.operator Skel.t> pat
 
 (* %% ends the declarations section of the grammar definition *)
 

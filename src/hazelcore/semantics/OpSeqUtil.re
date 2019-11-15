@@ -1,7 +1,8 @@
 open GeneralUtil;
 
 type seq('operand, 'operator) = OpSeq.seq('operand, 'operator);
-type operand_surround('operand, 'operator) = ZOpSeq.operand_surround('operand, 'operator);
+type operand_surround('operand, 'operator) =
+  ZOpSeq.operand_surround('operand, 'operator);
 
 let _shift_optm_from_prefix =
     (
@@ -159,7 +160,8 @@ module Typ = {
   };
 
   let mk_OpSeqZ = (zty: ZTyp.t, operand_surround: ZTyp.opseq_surround): ZTyp.t => {
-    let seq = Seq.t_of_operand_and_surround(ZTyp.erase(zty), operand_surround);
+    let seq =
+      Seq.t_of_operand_and_surround(ZTyp.erase(zty), operand_surround);
     let skel = Associator.associate_ty(seq);
     OpSeqZ(skel, zty, operand_surround);
   };
@@ -218,7 +220,8 @@ module Pat = {
   };
 
   let mk_OpSeqZ = (zp: ZPat.t, operand_surround: ZPat.opseq_surround): ZPat.t => {
-    let seq = Seq.t_of_operand_and_surround(ZPat.erase(zp), operand_surround);
+    let seq =
+      Seq.t_of_operand_and_surround(ZPat.erase(zp), operand_surround);
     let skel = Associator.associate_pat(seq);
     OpSeqZ(skel, zp, operand_surround);
   };
@@ -278,7 +281,10 @@ module Exp = {
 
   let mk_OpSeqZ = (ze: ZExp.t, operand_surround: ZExp.opseq_surround): ZExp.t => {
     let seq =
-      Seq.t_of_operand_and_surround(ZExp.erase_zoperand(ze), operand_surround);
+      Seq.t_of_operand_and_surround(
+        ZExp.erase_zoperand(ze),
+        operand_surround,
+      );
     let skel = Associator.associate_exp(seq);
     OpSeqZ(skel, ze, operand_surround);
   };

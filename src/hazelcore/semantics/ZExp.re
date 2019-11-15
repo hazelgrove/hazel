@@ -1,5 +1,4 @@
 open Sexplib.Std;
-open SemanticsCommon;
 open GeneralUtil;
 
 [@deriving sexp]
@@ -9,19 +8,19 @@ and zblock =
   | BlockZE(UHExp.lines, zopseq)
 and zlines = ZList.t(zline, UHExp.line)
 and zline =
-  | CursorL(cursor_position, UHExp.line)
+  | CursorL(CursorPosition.t, UHExp.line)
   | ExpLineZ(zopseq)
   | LetLineZP(ZPat.t, option(UHTyp.t), UHExp.t)
   | LetLineZA(UHPat.t, ZTyp.t, UHExp.t)
   | LetLineZE(UHPat.t, option(UHTyp.t), t)
 and zopseq = ZOpSeq.t(UHExp.operand, UHExp.operator, zoperand, zoperator)
 and zoperand =
-  | CursorE(cursor_position, UHExp.operand)
+  | CursorE(CursorPosition.t, UHExp.operand)
   | ParenthesizedZ(t)
   | LamZP(ErrStatus.t, ZPat.t, option(UHTyp.t), UHExp.t)
   | LamZA(ErrStatus.t, UHPat.t, ZTyp.t, UHExp.t)
   | LamZE(ErrStatus.t, UHPat.t, option(UHTyp.t), t)
-  | InjZ(ErrStatus.t, inj_side, t)
+  | InjZ(ErrStatus.t, InjSide.t, t)
   | CaseZE(ErrStatus.t, t, list(UHExp.rule), option(UHTyp.t))
   | CaseZR(ErrStatus.t, UHExp.t, zrules, option(UHTyp.t))
   | CaseZA(ErrStatus.t, UHExp.t, list(UHExp.rule), ZTyp.t)
@@ -31,14 +30,14 @@ and zoperand =
       SerializedModel.t,
       ZSpliceInfo.t(UHExp.t, t),
     )
-and zoperator = (side, UHExp.operator)
+and zoperator = (Side.t, UHExp.operator)
 and zrules = ZList.t(zrule, UHExp.rule)
 and zrule =
-  | CursorR(cursor_position, UHExp.rule)
+  | CursorR(CursorPosition.t, UHExp.rule)
   | RuleZP(ZPat.t, UHExp.t)
   | RuleZE(UHPat.t, t);
 
-let valid_cursors_line = (line: UHExp.line): list(cursor_position) =>
+let valid_cursors_line = (line: UHExp.line): list(CursorPosition.t) =>
   switch (line) {
   | ExpLine(_) => []
   | EmptyLine => [OnText(0)]
@@ -46,44 +45,46 @@ let valid_cursors_line = (line: UHExp.line): list(cursor_position) =>
     let ann_cursors =
       switch (ann) {
       | None => []
-      | Some(_) => delim_cursors_k(1)
+      | Some(_) => CursorPosition.delim_cursors_k(1)
       };
-    delim_cursors_k(0)
+    CursorPosition.delim_cursors_k(0)
     @ ann_cursors
-    @ delim_cursors_k(2)
-    @ delim_cursors_k(3);
+    @ CursorPosition.delim_cursors_k(2)
+    @ CursorPosition.delim_cursors_k(3);
   };
-let valid_cursors_operand = (e: UHExp.operand): list(cursor_position) =>
+let valid_cursors_operand = (e: UHExp.operand): list(CursorPosition.t) =>
   switch (e) {
   /* outer nodes - delimiter */
   | EmptyHole(_)
-  | ListNil(_) => delim_cursors(1)
+  | ListNil(_) => CursorPosition.delim_cursors(1)
   /* outer nodes - text */
-  | Var(_, _, x) => text_cursors(Var.length(x))
-  | NumLit(_, n) => text_cursors(num_digits(n))
-  | BoolLit(_, b) => text_cursors(b ? 4 : 5)
+  | Var(_, _, x) => CursorPosition.text_cursors(Var.length(x))
+  | NumLit(_, n) => CursorPosition.text_cursors(num_digits(n))
+  | BoolLit(_, b) => CursorPosition.text_cursors(b ? 4 : 5)
   /* inner nodes */
   | Lam(_, _, ann, _) =>
     let colon_positions =
       switch (ann) {
-      | Some(_) => delim_cursors_k(1)
+      | Some(_) => CursorPosition.delim_cursors_k(1)
       | None => []
       };
-    delim_cursors_k(0) @ colon_positions @ delim_cursors_k(2);
-  | Inj(_, _, _) => delim_cursors(2)
-  | Case(_, _, _, _) => delim_cursors(2)
-  | Parenthesized(_) => delim_cursors(2)
-  | ApPalette(_, _, _, _) => delim_cursors(1) /* TODO[livelits] */
+    CursorPosition.delim_cursors_k(0)
+    @ colon_positions
+    @ CursorPosition.delim_cursors_k(2);
+  | Inj(_, _, _) => CursorPosition.delim_cursors(2)
+  | Case(_, _, _, _) => CursorPosition.delim_cursors(2)
+  | Parenthesized(_) => CursorPosition.delim_cursors(2)
+  | ApPalette(_, _, _, _) => CursorPosition.delim_cursors(1) /* TODO[livelits] */
   };
-let valid_cursors_rule = (_: UHExp.rule): list(cursor_position) =>
-  delim_cursors(2);
+let valid_cursors_rule = (_: UHExp.rule): list(CursorPosition.t) =>
+  CursorPosition.delim_cursors(2);
 
-let is_valid_cursor_line = (cursor: cursor_position, line: UHExp.line): bool =>
+let is_valid_cursor_line = (cursor: CursorPosition.t, line: UHExp.line): bool =>
   valid_cursors_line(line) |> contains(cursor);
 let is_valid_cursor_operand =
-    (cursor: cursor_position, operand: UHExp.operand): bool =>
+    (cursor: CursorPosition.t, operand: UHExp.operand): bool =>
   valid_cursors_operand(operand) |> contains(cursor);
-let is_valid_cursor_rule = (cursor: cursor_position, rule: UHExp.rule): bool =>
+let is_valid_cursor_rule = (cursor: CursorPosition.t, rule: UHExp.rule): bool =>
   valid_cursors_rule(rule) |> contains(cursor);
 
 let wrap_in_block = (zconclusion: zopseq): zblock =>
@@ -323,7 +324,7 @@ let place_before_lines = (lines: UHExp.lines): option(zlines) =>
   };
 let place_before_rule = (rule: UHExp.rule): zrule =>
   CursorR(OnDelim(0, Before), rule);
-let place_before_operator = op => (Before, op);
+let place_before_operator = (op: UHExp.operator): zoperator => (Before, op);
 
 let rec place_after = (e: UHExp.t): t => place_after_block(e)
 and place_after_block = (Block(leading, conclusion): UHExp.block): zblock =>
@@ -360,25 +361,25 @@ let place_after_lines = (lines: UHExp.lines): option(zlines) =>
   };
 let place_after_rule = (Rule(p, clause): UHExp.rule): zrule =>
   RuleZE(p, place_after(clause));
-let place_after_operator = op => (After, op);
+let place_after_operator = (op: UHExp.operator): zoperator => (After, op);
 
 let place_cursor_operand =
-    (cursor: cursor_position, operand: UHExp.operand): option(zoperand) =>
+    (cursor: CursorPosition.t, operand: UHExp.operand): option(zoperand) =>
   is_valid_cursor_operand(cursor, operand)
     ? Some(CursorE(cursor, operand)) : None;
 let place_cursor_line =
-    (cursor: cursor_position, line: UHExp.line): option(zline) =>
+    (cursor: CursorPosition.t, line: UHExp.line): option(zline) =>
   switch (line) {
   | ExpLine(_) =>
     // all cursor positions in a zopseq are
-    // encoded in steps, not cursor_position
+    // encoded in steps, not CursorPosition.t
     None
   | EmptyLine
   | LetLine(_, _, _) =>
     is_valid_cursor_line(cursor, line) ? Some(CursorL(cursor, line)) : None
   };
 let place_cursor_rule =
-    (cursor: cursor_position, rule: UHExp.rule): option(zrule) =>
+    (cursor: CursorPosition.t, rule: UHExp.rule): option(zrule) =>
   is_valid_cursor_rule(cursor, rule) ? Some(CursorR(cursor, rule)) : None;
 
 let prune_empty_hole_line = (zli: zline): zline =>
@@ -477,7 +478,7 @@ let new_EmptyHole = (u_gen: MetaVarGen.t): (zoperand, MetaVarGen.t) => {
 };
 
 let rec cursor_on_outer_expr =
-        (zoperand: zoperand): option((UHExp.t, cursor_position)) =>
+        (zoperand: zoperand): option((UHExp.t, CursorPosition.t)) =>
   switch (zoperand) {
   | CursorE(cursor, operand) =>
     Some((UHExp.drop_outer_parentheses(operand), cursor))

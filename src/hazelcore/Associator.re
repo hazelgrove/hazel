@@ -16,6 +16,8 @@ let string_of_expr_op: UHExp.operator => string =
   | Minus => "-"
   | Times => "*"
   | LessThan => "<"
+  | GreaterThan => ">"
+  | Equals => "="
   | Space => "_"
   | Comma => ","
   | Cons => "::"

@@ -1,27 +1,28 @@
-open SemanticsCommon;
 open GeneralUtil;
 
 [@deriving sexp]
 type t = zopseq
 and zopseq = ZOpSeq.t(UHPat.operand, UHPat.operator, zoperand, zoperator)
 and zoperand =
-  | CursorP(cursor_position, UHPat.operand)
+  | CursorP(CursorPosition.t, UHPat.operand)
   | ParenthesizedZ(t)
-  | InjZ(ErrStatus.t, inj_side, t)
-and zoperator = (side, UHPat.operator);
+  | InjZ(ErrStatus.t, InjSide.t, t)
+and zoperator = (Side.t, UHPat.operator);
 
-let valid_cursors: UHPat.operand => list(cursor_position) =
-  fun
-  | EmptyHole(_) => delim_cursors(1)
-  | Wild(_) => delim_cursors(1)
-  | Var(_, _, x) => text_cursors(Var.length(x))
-  | NumLit(_, n) => text_cursors(num_digits(n))
-  | BoolLit(_, b) => text_cursors(b ? 4 : 5)
-  | ListNil(_) => delim_cursors(1)
-  | Inj(_, _, _) => delim_cursors(2)
-  | Parenthesized(_) => delim_cursors(2);
+let valid_cursors: UHPat.operand => list(CursorPosition.t) =
+  CursorPosition.(
+    fun
+    | EmptyHole(_) => delim_cursors(1)
+    | Wild(_) => delim_cursors(1)
+    | Var(_, _, x) => text_cursors(Var.length(x))
+    | NumLit(_, n) => text_cursors(num_digits(n))
+    | BoolLit(_, b) => text_cursors(b ? 4 : 5)
+    | ListNil(_) => delim_cursors(1)
+    | Inj(_, _, _) => delim_cursors(2)
+    | Parenthesized(_) => delim_cursors(2)
+  );
 
-let is_valid_cursor = (cursor: cursor_position, operand: UHPat.operand): bool =>
+let is_valid_cursor = (cursor: CursorPosition.t, operand: UHPat.operand): bool =>
   valid_cursors(operand) |> contains(cursor);
 
 let bidelimit = zoperand =>
@@ -124,7 +125,7 @@ and place_before_operand = operand =>
   | Inj(_, _, _)
   | Parenthesized(_) => CursorP(OnDelim(0, Before), operand)
   };
-let place_before_operator = op => (Before, op);
+let place_before_operator = (op: UHPat.operator): zoperator => (Before, op);
 
 let rec place_after = (p: UHPat.t): t => place_after_opseq(p)
 and place_after_opseq = opseq =>
@@ -140,10 +141,10 @@ and place_after_operand = operand =>
   | Inj(_, _, _) => CursorP(OnDelim(1, After), operand)
   | Parenthesized(_) => CursorP(OnDelim(1, After), operand)
   };
-let place_after_operator = op => (After, op);
+let place_after_operator = (op: UHPat.operator): zoperator => (After, op);
 
 let place_cursor =
-    (cursor: cursor_position, operand: UHPat.operand): option(zoperand) =>
+    (cursor: CursorPosition.t, operand: UHPat.operand): option(zoperand) =>
   is_valid_cursor(cursor, operand) ? Some(CursorP(cursor, operand)) : None;
 
 /* helper function for constructing a new empty hole */
@@ -154,7 +155,7 @@ let new_EmptyHole = (u_gen: MetaVarGen.t): (zoperand, MetaVarGen.t) => {
 
 let is_inconsistent = (zp: t): bool => UHPat.is_inconsistent(erase(zp));
 
-let move_cursor_left_zoperator =
+let move_cursor_left_zoperator: zoperator => option(zoperator) =
   fun
   | (Before, _) => None
   | (After, op) => Some((Before, op));
@@ -198,7 +199,7 @@ and move_cursor_left_zoperand =
     | None => Some(CursorP(OnDelim(0, After), Inj(err, side, erase(zp))))
     };
 
-let move_cursor_right_zoperator =
+let move_cursor_right_zoperator: zoperator => option(zoperator) =
   fun
   | (After, _) => None
   | (Before, op) => Some((After, op));

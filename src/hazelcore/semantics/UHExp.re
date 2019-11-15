@@ -1,14 +1,15 @@
 open Sexplib.Std;
-open SemanticsCommon;
 open GeneralUtil;
 
 [@deriving sexp]
 type operator =
+  | Space
   | Plus
   | Minus
   | Times
   | LessThan
-  | Space
+  | GreaterThan
+  | Equals
   | Comma
   | Cons
   | And
@@ -36,7 +37,7 @@ and operand =
   | BoolLit(ErrStatus.t, bool)
   | ListNil(ErrStatus.t)
   | Lam(ErrStatus.t, UHPat.t, option(UHTyp.t), t)
-  | Inj(ErrStatus.t, inj_side, t)
+  | Inj(ErrStatus.t, InjSide.t, t)
   | Case(ErrStatus.t, t, rules, option(UHTyp.t))
   | Parenthesized(t)
   | ApPalette(ErrStatus.t, PaletteName.t, SerializedModel.t, splice_info)
@@ -665,13 +666,13 @@ let shift_line_to_suffix_block =
   };
 };
 
-let favored_child_of_line: line => option((child_index, t)) =
+let favored_child_of_line: line => option((ChildIndex.t, block)) =
   fun
   | EmptyLine
   | ExpLine(_) => None
   | LetLine(_, _, def) => Some((2, def));
 
-let favored_child_of_operand: operand => option((child_index, t)) =
+let favored_child_of_operand: operand => option((ChildIndex.t, block)) =
   fun
   | EmptyHole(_)
   | Var(_, _, _)

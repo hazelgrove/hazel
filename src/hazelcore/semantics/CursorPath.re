@@ -1,15 +1,14 @@
 open Sexplib.Std;
-open SemanticsCommon;
 open GeneralUtil;
 
 /*
  module Steps : {
    type t;
-   let prepend_step : child_index => t => t;
-   let append_step : t => child_index => t;
-   let to_list : t => list(child_index);
+   let prepend_step : ChildIndex.t => t => t;
+   let append_step : t => ChildIndex.t => t;
+   let to_list : t => list(ChildIndex.t);
  } = {
-   type t = list(child_index);
+   type t = list(ChildIndex.t);
 
    let prepend_step = (step, steps) => [step, ...steps];
    let append_step = (steps, step) => steps ++ [step];
@@ -18,12 +17,12 @@ open GeneralUtil;
  */
 
 [@deriving sexp]
-type steps = list(child_index);
+type steps = list(ChildIndex.t);
 [@deriving sexp]
 type rev_steps = steps;
 
 [@deriving sexp]
-type t = (steps, cursor_position);
+type t = (steps, CursorPosition.t);
 
 let cons' = (step: int, (steps, cursor): t): t => {
   ([step, ...steps], cursor);
@@ -1183,7 +1182,7 @@ let rec _holes_surround =
         hole_desc(u),
         (
           rev_steps |> List.rev,
-          OnDelim(skel2 |> Skel.leftmost_tm_index, Before),
+          CursorPosition.OnDelim(skel2 |> Skel.leftmost_tm_index, Before),
         ),
       );
       surrounded_index < (skel2 |> Skel.leftmost_tm_index)
@@ -1257,7 +1256,7 @@ let holes_OpSeqZ =
 let holes_Cursor_bracketed =
     (
       holes_fn: ('t, steps, hole_list) => hole_list,
-      k: delim_index,
+      k: DelimIndex.t,
       bracketed_t: 't,
       rev_steps: rev_steps,
     )
@@ -1282,7 +1281,7 @@ let rec holes_Cursor_OpSeq =
         (
           ~holes_tm: ('operand, steps, hole_list) => hole_list,
           ~hole_desc: MetaVar.t => hole_desc,
-          ~op_index: op_index,
+          ~op_index: OpIndex.t,
           ~rev_steps: rev_steps,
           skel: Skel.t('op),
           seq: Seq.t('operand, 'op),
@@ -1347,7 +1346,7 @@ let rec holes_Cursor_OpSeq =
       let current_op_index = skel2 |> Skel.leftmost_tm_index;
       let current_hole = (
         hole_desc(u),
-        (steps, OnDelim(op_index, Before)),
+        (steps, CursorPosition.OnDelim(op_index, Before)),
       );
       if (current_op_index < op_index) {
         {
@@ -1871,10 +1870,10 @@ let path_to_hole_z = (zhole_list: zhole_list, u: MetaVar.t): option(t) => {
 };
 
 let opt_steps_to_opt_path =
-    (cursor_position: cursor_position, opt_steps: option(steps)): option(t) =>
+    (cursor: CursorPosition.t, opt_steps: option(steps)): option(t) =>
   switch (opt_steps) {
   | None => None
-  | Some(steps) => Some((List.rev(steps), cursor_position))
+  | Some(steps) => Some((List.rev(steps), cursor))
   };
 
 let next_hole_path = (zhole_list: zhole_list): option(t) => {

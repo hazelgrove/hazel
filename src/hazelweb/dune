@@ -1,28 +1,32 @@
-; normal build: dune build
-; debug build: dune build --profile debug
-
-(include_subdirs unqualified) ; does not include dirs that specify `(include_subdirs no)`
+(include_subdirs unqualified)
 
 (alias
-  (name default)
-  (deps (glob_files www/*)))
+ (name default)
+ (deps
+  (glob_files www/*)))
 
-; This library ensures that all modules are type checked even if they are not used.
 (library
-  (name hazelweb)
-  (modules :standard \ Main)
-  (libraries hazelcore incr_dom)
-  (wrapped false)
-  (preprocess (pps js_of_ocaml.ppx ppx_sexp_conv ppx_let)))
+ ;; This library ensures that all modules are type checked even if they are not used.
+ (name hazelweb)
+ (modules :standard \ Main)
+ (libraries hazelcore incr_dom)
+ (wrapped false)
+ (js_of_ocaml
+  (flags
+   (:include js-of-ocaml-flags-%{profile})))
+ (preprocess
+  (pps js_of_ocaml.ppx ppx_let ppx_sexp_conv)))
 
 (executable
-  (name main)
-  (modules Main)
-  (libraries hazelweb)
-  (js_of_ocaml (flags (:include js-of-ocaml-flags-%{profile}))))
+ (name main)
+ (modules Main)
+ (libraries hazelweb)
+ (js_of_ocaml
+  (flags
+   (:include js-of-ocaml-flags-%{profile}))))
 
 (rule
-  (write-file js-of-ocaml-flags-dev "(:standard --debuginfo --noinline)"))
+ (write-file js-of-ocaml-flags-dev "(:standard --debuginfo --noinline)"))
 
 (rule
-  (write-file js-of-ocaml-flags-release "(:standard)"))
+ (write-file js-of-ocaml-flags-release "(:standard)"))

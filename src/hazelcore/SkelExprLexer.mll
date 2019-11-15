@@ -16,6 +16,8 @@ rule read =
   | "," { COMMA }
   | "::" { CONS }
   | "<" { LT }
+  | ">" { GT }
+  | "=" { EQ }
   | "|" { OR }
   | "&" { AND }
   | placeholder { PLACEHOLDER (int_of_string (Lexing.lexeme lexbuf)) }

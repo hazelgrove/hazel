@@ -1,6 +1,7 @@
 open Sexplib.Std;
-open SemanticsCommon;
 open GeneralUtil;
+
+exception FreeVarInPat;
 
 [@deriving sexp]
 type operator =
@@ -24,7 +25,7 @@ and operand =
   | BoolLit(ErrStatus.t, bool)
   | ListNil(ErrStatus.t)
   | Parenthesized(t)
-  | Inj(ErrStatus.t, inj_side, t);
+  | Inj(ErrStatus.t, InjSide.t, t);
 
 type skel = OpSeq.skel(operator);
 type seq = OpSeq.seq(operand, operator);
@@ -173,7 +174,7 @@ let child_indices_operand =
 let child_indices_opseq = OpSeq.child_indices;
 let child_indices = child_indices_opseq;
 
-let favored_child: operand => option((child_index, t)) =
+let favored_child: operand => option((ChildIndex.t, t)) =
   fun
   | EmptyHole(_)
   | Wild(_)

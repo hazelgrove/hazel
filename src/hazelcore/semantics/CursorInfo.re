@@ -1,5 +1,4 @@
 open Sexplib.Std;
-open SemanticsCommon;
 open GeneralUtil;
 
 [@deriving sexp]
@@ -100,7 +99,7 @@ type term =
   | Expression(UHExp.block);
 
 [@deriving sexp]
-type child_term = (child_index, term);
+type child_term = (ChildIndex.t, term);
 
 [@deriving sexp]
 type t = {
@@ -108,15 +107,15 @@ type t = {
   node,
   frame,
   ctx: Contexts.t,
-  position: cursor_position,
-  node_steps: Path.steps,
+  position: CursorPosition.t,
+  node_steps: CursorPath.steps,
   // Not quite the term steps because steps don't account for
   // all semantic terms (e.g. subblock beginning with a let
   // line, subseq rooted at an op), so we overapproximate
   // (e.g. give the steps of the whole block, of the whole opseq).
   // For such steps-blind terms, subskel_range and subblock_start
   // provide the additional necessary information.
-  term_steps: Path.steps,
+  term_steps: CursorPath.steps,
   subskel_range: option(Skel.range),
   subblock_start: option(int),
 };
@@ -276,8 +275,8 @@ let preserved_child_term_of_node = ci =>
 
 let rec cursor_info_typ =
         (
-          ~node_steps: Path.steps,
-          ~term_steps: Path.steps,
+          ~node_steps: CursorPath.steps,
+          ~term_steps: CursorPath.steps,
           ~frame: option(ZTyp.opseq_surround)=?,
           ctx: Contexts.t,
           zty: ZTyp.t,
@@ -374,7 +373,7 @@ let ana_cursor_found_pat =
       ctx: Contexts.t,
       p: UHPat.t,
       ty: HTyp.t,
-      cursor: cursor_position,
+      cursor: CursorPosition.t,
     )
     : option(t) =>
   switch (_ana_cursor_found_pat(ctx, p, ty)) {
@@ -596,7 +595,7 @@ and _ana_cursor_info_pat =
     switch (HTyp.matched_sum(ty)) {
     | None => None
     | Some((tyL, tyR)) =>
-      let ty1 = pick_side(position, tyL, tyR);
+      let ty1 = InjSide.pick(position, tyL, tyR);
       _ana_cursor_info_pat(~node_steps, ~term_steps, ctx, zp1, ty1);
     }
   | OpSeqZ(skel, zp1, surround) =>
@@ -897,6 +896,8 @@ and _ana_cursor_found_exp =
   | OpSeq(BinOp(NotInHole, Plus, _, _), _)
   | OpSeq(BinOp(NotInHole, Times, _, _), _)
   | OpSeq(BinOp(NotInHole, LessThan, _, _), _)
+  | OpSeq(BinOp(NotInHole, GreaterThan, _, _), _)
+  | OpSeq(BinOp(NotInHole, Equals, _, _), _)
   | OpSeq(BinOp(NotInHole, Space, _, _), _)
   | ApPalette(NotInHole, _, _, _) =>
     switch (Statics.syn_exp(ctx, e)) {
@@ -918,7 +919,7 @@ let ana_cursor_found_exp =
       ctx: Contexts.t,
       e: UHExp.t,
       ty: HTyp.t,
-      cursor: cursor_position,
+      cursor: CursorPosition.t,
     )
     : option(t) =>
   switch (_ana_cursor_found_exp(ctx, e, ty)) {
@@ -1257,7 +1258,7 @@ and _ana_cursor_info =
         ~term_steps,
         ctx,
         zblock,
-        pick_side(position, ty1, ty2),
+        InjSide.pick(position, ty1, ty2),
       )
     }
   | CaseZE(NotInHole, zblock, _, _) =>
@@ -1328,7 +1329,7 @@ and _syn_cursor_info_skel =
   | BinOp(_, Minus, skel1, skel2)
   | BinOp(_, Plus, skel1, skel2)
   | BinOp(_, Times, skel1, skel2)
-  | BinOp(_, LessThan, skel1, skel2) =>
+  | BinOp(_, LessThan | GreaterThan | Equals, skel1, skel2) =>
     switch (
       _ana_cursor_info_skel(
         ~node_steps,
@@ -1754,7 +1755,7 @@ and _ana_cursor_info_skel =
   | BinOp(_, Minus | And | Or, _, _)
   | BinOp(_, Plus, _, _)
   | BinOp(_, Times, _, _)
-  | BinOp(_, LessThan, _, _)
+  | BinOp(_, LessThan | GreaterThan | Equals, _, _)
   | BinOp(_, Space, _, _) =>
     _syn_cursor_info_skel(
       ~node_steps,
@@ -1769,19 +1770,19 @@ and _ana_cursor_info_skel =
   };
 
 let syn_cursor_info_block = (ctx, zblock) => {
-  let node_steps = Path.steps_of_zblock(zblock);
-  let term_steps = Path.term_steps_of_zblock(zblock);
+  let node_steps = CursorPath.steps_of_zblock(zblock);
+  let term_steps = CursorPath.term_steps_of_zblock(zblock);
   _syn_cursor_info_block(~node_steps, ~term_steps, ctx, zblock);
 };
 
 let syn_cursor_info = (~frame, ctx, ze) => {
-  let node_steps = Path.steps_of_zexp(ze);
-  let term_steps = Path.term_steps_of_zexp(ze);
+  let node_steps = CursorPath.steps_of_zexp(ze);
+  let term_steps = CursorPath.term_steps_of_zexp(ze);
   _syn_cursor_info(~node_steps, ~term_steps, ~frame, ctx, ze);
 };
 
 let ana_cursor_info = (~frame, ctx, ze, ty) => {
-  let node_steps = Path.steps_of_zexp(ze);
-  let term_steps = Path.term_steps_of_zexp(ze);
+  let node_steps = CursorPath.steps_of_zexp(ze);
+  let term_steps = CursorPath.term_steps_of_zexp(ze);
   _ana_cursor_info(~node_steps, ~term_steps, ~frame, ctx, ze, ty);
 };

@@ -128,7 +128,7 @@ let child_indices_opseq: opseq => list(int) =
 let child_indices = child_indices_opseq;
 
 /* TODO(dmoon)
-   let favored_child: t => option((child_index, t)) =
+   let favored_child: t => option((ChildIndex.t, t)) =
      fun
      | Hole
      | Unit

@@ -1,25 +1,24 @@
 open GeneralUtil;
-open SemanticsCommon;
 
 [@deriving sexp]
 type t = zopseq
 and zopseq = ZOpSeq.t(UHTyp.operand, UHTyp.operator, zoperand, zoperator)
 and zoperand =
-  | CursorT(cursor_position, UHTyp.operand)
+  | CursorT(CursorPosition.t, UHTyp.operand)
   | ParenthesizedZ(t)
   | ListZ(t)
-and zoperator = (side, UHTyp.operator);
+and zoperator = (Side.t, UHTyp.operator);
 
-let valid_cursors: UHTyp.operand => list(cursor_position) =
+let valid_cursors: UHTyp.operand => list(CursorPosition.t) =
   fun
   | Hole
   | Unit
   | Num
-  | Bool => delim_cursors(1)
+  | Bool => CursorPosition.delim_cursors(1)
   | Parenthesized(_)
-  | List(_) => delim_cursors(2);
+  | List(_) => CursorPosition.delim_cursors(2);
 
-let is_valid_cursor = (cursor: cursor_position, operand: UHTyp.operand): bool =>
+let is_valid_cursor = (cursor: CursorPosition.t, operand: UHTyp.operand): bool =>
   valid_cursors(operand) |> contains(cursor);
 
 let erase_zoperator =
@@ -68,7 +67,7 @@ and place_before_operand =
   fun
   | (Hole | Unit | Num | Bool | Parenthesized(_) | List(_)) as operand =>
     CursorT(OnDelim(0, Before), operand);
-let place_before_operator = op => (Before, op);
+let place_before_operator = (op: UHTyp.operator): zoperator => (Before, op);
 
 let rec place_after = (uty: UHTyp.t): t => place_after_opseq(uty)
 and place_after_opseq = opseq =>
@@ -79,13 +78,13 @@ and place_after_operand =
     CursorT(OnDelim(0, After), operand)
   | (Parenthesized(_) | List(_)) as operand =>
     CursorT(OnDelim(1, After), operand);
-let place_after_operator = op => (After, op);
+let place_after_operator = (op: UHTyp.operator): zoperator => (After, op);
 
 let place_cursor =
-    (cursor: cursor_position, operand: UHTyp.operand): option(zoperand) =>
+    (cursor: CursorPosition.t, operand: UHTyp.operand): option(zoperand) =>
   is_valid_cursor(cursor, operand) ? Some(CursorT(cursor, operand)) : None;
 
-let move_cursor_left_zoperator =
+let move_cursor_left_zoperator: zoperator => option(zoperator) =
   fun
   | (Before, _) => None
   | (After, op) => Some((Before, op));
@@ -126,7 +125,7 @@ and move_cursor_left_zoperand =
     | None => Some(CursorT(OnDelim(0, After), List(erase(zty1))))
     };
 
-let move_cursor_right_zoperator =
+let move_cursor_right_zoperator: zoperator => option(zoperator) =
   fun
   | (After, _) => None
   | (Before, op) => Some((After, op));
