@@ -216,17 +216,12 @@ let string_of_opt = string_of_elt =>
   | Some(elt) => "Some(" ++ string_of_elt(elt) ++ ")";
 
 let combos2 = (xs: list('x), ys: list('y)): list(('x, 'y)) =>
-  xs
-  |> List.map(x =>
-    ys |> List.map(y => (x, y))
-  )
-  |> List.flatten;
+  xs |> List.map(x => ys |> List.map(y => (x, y))) |> List.flatten;
 
-let combos3 = (xs: list('x), ys: list('y), zs: list('z)): list(('x, 'y, 'z)) =>
+let combos3 =
+    (xs: list('x), ys: list('y), zs: list('z)): list(('x, 'y, 'z)) =>
   combos2(xs, ys)
-  |> List.map(((x, y)) =>
-    zs |> List.map(z => (x, y, z))
-  )
+  |> List.map(((x, y)) => zs |> List.map(z => (x, y, z)))
   |> List.flatten;
 
 /* End ListUtil */
