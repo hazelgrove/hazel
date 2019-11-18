@@ -14,7 +14,8 @@ deploy:
   script: bash .travis-deploy.sh
   skip_cleanup: true
   on:
-    condition: ("$TRAVIS_PULL_REQUEST" == false) && ("$TRAVIS_BRANCH" == dev || "$TRAVIS_BRANCH" == master)
+    all_branches: true
+    condition: ("$TRAVIS_PULL_REQUEST" == false) && ("$TRAVIS_BRANCH" =~ ^(dev|master)$)
 
 # General settings
 cache:
