@@ -2888,12 +2888,6 @@ let rec syn_perform_block =
           (zblock, ty, u_gen): (ZExp.zblock, HTyp.t, MetaVarGen.t),
         )
         : result((ZExp.zblock, HTyp.t, MetaVarGen.t)) => {
-  print_endline("======= SYN PERFORM BLOCK");
-  let str = Sexplib.Sexp.to_string_hum(sexp_of_t(a));
-  print_endline(str);
-  let str = Sexplib.Sexp.to_string_hum(ZExp.sexp_of_zblock(zblock));
-  print_endline(str);
-  print_endline("=======");
   switch (a, zblock) {
   /* Staging */
   | (
