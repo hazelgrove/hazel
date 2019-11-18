@@ -1,5 +1,8 @@
 language: bash
 sudo: required
+cache:
+  directories:
+  - $HOME/.opam
 install:
 - sudo add-apt-repository --yes ppa:avsm/ppa
 - sudo apt update
