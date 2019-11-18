@@ -16,6 +16,8 @@ script:
 deploy:
   provider: script
   script: bash .travis-deploy.sh
+  on:
+    branch: dev
 branches:
   only:
   - dev
