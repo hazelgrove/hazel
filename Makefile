@@ -10,6 +10,6 @@ deps:
 clean:
 	dune clean
 
-BUILD_WWW = "_build/default/src/www"
-build_www:
-	@echo $(BUILD_WWW)
+HTML_DIR=_build/default/src/www
+echo-html-dir:
+	@echo "$(HTML_DIR)"
