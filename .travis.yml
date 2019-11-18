@@ -10,7 +10,7 @@ install:
 script: make release
 deploy:
   provider: script
-  script: .travis-deploy.sh
+  script: bash .travis-deploy.sh
   skip_cleanup: true
   on:
     branch: dev
