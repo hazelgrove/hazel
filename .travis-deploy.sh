@@ -12,7 +12,7 @@ echo "set up private key to push to hazelgrove/build"
 # So `echo -n -e` will do the proper translation
 eval `ssh-agent -s`
 #set +x # Prevent echoing of $DEPLOY_KEY
-ssh-add <(echo -n "$DEPLOY_KEY")
+ssh-add <(echo "$DEPLOY_KEY")
 #set -x
 
 echo "clone hazelgrove/build"
