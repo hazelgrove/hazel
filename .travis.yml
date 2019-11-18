@@ -14,7 +14,7 @@ deploy:
   script: bash .travis-deploy.sh
   skip_cleanup: true
   on:
-    condition: type != pull_request AND branch IN (dev, master)
+    condition: ("$TRAVIS_PULL_REQUEST" == false) && ("$TRAVIS_BRANCH" == dev || "$TRAVIS_BRANCH" == master)
 
 # General settings
 cache:
