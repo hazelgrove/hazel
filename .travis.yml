@@ -9,7 +9,10 @@ install:
 - eval $(opam env)
 - make deps
 script:
-- bash .travis-ci.sh
+- make release
+deploy:
+  provider: script
+  script: bash .travis-deploy.sh
 branches:
   only:
   - dev
