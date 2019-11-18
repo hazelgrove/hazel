@@ -14,12 +14,13 @@ deploy:
   script: bash .travis-deploy.sh
   skip_cleanup: true
   on:
-    branch: dev
+    condition: type != pull_request AND branch IN (dev, master)
 
 # General settings
 cache:
   directories:
   - $HOME/.opam
+language: minimal
 notifications:
   # Notifications on #hazel-dev channel of hazelgrove Slack
   slack:
