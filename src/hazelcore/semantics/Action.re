@@ -2761,11 +2761,15 @@ let make_zexp_or_zblock_inconsistent =
     (B(zblock), u_gen);
   };
 
-let split_variable_name = (pos, name) => {
-  let make_var = (idx, len) => UHExp.var(String.sub(name, idx, len));
-  let left_var = make_var(0, pos);
-  let right_var = make_var(pos, String.length(name) - pos);
+let split_variable_name_into_strings = (pos, name) => {
+  let left_var = String.sub(name, 0, pos);
+  let right_var = String.sub(name, pos, String.length(name) - pos);
   (left_var, right_var);
+};
+
+let split_variable_name = (pos, name) => {
+  let (left_name, right_name) = split_variable_name_into_strings(pos, name);
+  (UHExp.var(left_name), UHExp.var(right_name));
 };
 
 let zexp_is_suitable_for_var_split = (zexp: ZExp.t) =>
@@ -2843,7 +2847,7 @@ let handle_variable_split =
       let zblock = ZExp.BlockZL((prefix, ExpLineZ(zexp), suffix), lines);
       Succeeded(fixup_zblock(zblock));
     | None => Failed
-    }
+    };
 
   | (Construct(SOp(SSpace)), BlockZE(lines, zexp))
       when zexp_is_suitable_for_var_split(zexp) =>
@@ -3497,6 +3501,7 @@ let rec syn_perform_block =
     let zlines = (prefix, ZExp.ExpLineZ(ze), suffix);
     let zblock = ZExp.BlockZL(zlines, e2);
     syn_perform_block(~ci, ctx, keyword_action(k), (zblock, ty, u_gen));
+
   | (
       Construct(SOp(SSpace)),
       BlockZL(
@@ -3512,6 +3517,41 @@ let rec syn_perform_block =
     let zlines = (prefix, ZExp.place_before_line(EmptyLine), suffix);
     let zblock = ZExp.BlockZL(zlines, e2);
     syn_perform_block(~ci, ctx, keyword_action(k), (zblock, ty, u_gen));
+
+  | (
+      Construct(SOp(SSpace)),
+      BlockZL(
+        (
+          prefix,
+          ExpLineZ(CursorE(OnText(pos), Var(_, _, name)) as ze0),
+          suffix,
+        ),
+        e2,
+      ),
+    )
+      when
+        zexp_is_suitable_for_var_split(ze0) && is_zexp_split_on_keyword(ze0) =>
+    let zlines = (prefix, ZExp.place_before_line(EmptyLine), suffix);
+    let zblock = ZExp.BlockZL(zlines, e2);
+    let (left_var, right_var) = split_variable_name_into_strings(pos, name);
+    let keyword = left_var |> Keyword.of_string |> GeneralUtil.Opt.get_exn;
+    let result =
+      syn_perform_block(
+        ~ci,
+        ctx,
+        keyword_action(keyword),
+        (zblock, ty, u_gen),
+      );
+    switch (result) {
+    | Succeeded(block_ty_ugen) =>
+      syn_perform_block(
+        ~ci,
+        ctx,
+        Construct(SVar(right_var, OnText(String.length(right_var)))),
+        block_ty_ugen,
+      )
+    | _ => result
+    };
 
   /* Space to keyword exp */
   | (
@@ -3576,9 +3616,14 @@ let rec syn_perform_block =
         | Some(zexp) =>
           let zblock = ZExp.BlockZE(lines, zexp);
           let tuple = Statics.syn_fix_holes_zblock(ctx, u_gen, zblock);
-          Succeeded(tuple);
+          switch (
+            syn_perform_block(~ci, ctx, keyword_action(keyword), tuple)
+          ) {
+          | Succeeded(result) => syn_perform_block(~ci, ctx, action, result)
+          | res => res
+          };
         | None => Failed
-        }
+        };
       | _ => Failed
       };
     | None => Failed
@@ -5950,6 +5995,43 @@ and ana_perform_block =
     let (ze, u_gen) = ZExp.new_EmptyHole(u_gen);
     let zblock = ZExp.BlockZE(lines, ze);
     ana_perform_block(~ci, ctx, keyword_action(k), (zblock, u_gen), ty);
+
+  | (
+      Construct(SOp(SSpace)),
+      BlockZL(
+        (
+          prefix,
+          ExpLineZ(CursorE(OnText(pos), Var(_, _, name)) as ze0),
+          suffix,
+        ),
+        e2,
+      ),
+    )
+      when
+        zexp_is_suitable_for_var_split(ze0) && is_zexp_split_on_keyword(ze0) =>
+    let zlines = (prefix, ZExp.place_before_line(EmptyLine), suffix);
+    let zblock = ZExp.BlockZL(zlines, e2);
+    let (left_var, right_var) = split_variable_name_into_strings(pos, name);
+    let keyword = left_var |> Keyword.of_string |> GeneralUtil.Opt.get_exn;
+    let result =
+      ana_perform_block(
+        ~ci,
+        ctx,
+        keyword_action(keyword),
+        (zblock, u_gen),
+        ty,
+      );
+    switch (result) {
+    | Succeeded(block_ugen) =>
+      ana_perform_block(
+        ~ci,
+        ctx,
+        Construct(SVar(right_var, OnText(String.length(right_var)))),
+        block_ugen,
+        ty,
+      )
+    | _ => result
+    };
 
   /* Variable Splitting */
   | (Construct(SOp(SSpace)), BlockZE(lines, zexp))
