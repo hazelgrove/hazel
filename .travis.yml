@@ -1,9 +1,8 @@
 # Build phases
-before_install:
+install:
 - sudo add-apt-repository --yes ppa:avsm/ppa
 - sudo apt update
 - sudo apt --assume-yes install m4 opam
-install:
 - export OPAMYES=1
 - opam init --compiler=ocaml-base-compiler.4.07.1
 - eval $(opam env)
