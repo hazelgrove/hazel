@@ -8,8 +8,8 @@ HTML_DIR=$(make echo-html-dir)
 # DEPLOY_KEY was generated and set using:
 #   $ ssh-keygen -b 4096 -N '' -C '' -f deploy-key
 #   $ travis env set DEPLOY_KEY -- "$(cat deploy-key)"
-eval `ssh-agent -s`
-ssh-add <(echo "$DEPLOY_KEY")
+eval $(ssh-agent -s)
+ssh-add <(set +x; echo "$DEPLOY_KEY") # set +x prevents leaking $DEPLOY_KEY
 
 git clone git@github.com:hazelgrove/build.git
 git config --global user.email "travis@travis-ci.org"
