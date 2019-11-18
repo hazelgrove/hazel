@@ -1185,18 +1185,57 @@ and _syn_cursor_info_line =
     | Some(ci) => Some(CursorNotOnDeferredVarPat(ci))
     }
   | LetLineZP(zp, ann, block) =>
-    let node_steps = node_steps @ [0];
     switch (ann) {
     | Some(uty1) =>
       let ty1 = UHTyp.expand(uty1);
-      _ana_cursor_info_pat(~node_steps, ~term_steps, ctx, zp, ty1);
+      switch (
+        _ana_cursor_info_pat(
+          ~node_steps=node_steps @ [0],
+          ~term_steps,
+          ctx,
+          zp,
+          ty1,
+        )
+      ) {
+      | None => None
+      | Some(CursorNotOnDeferredVarPat(_)) as deferrable => deferrable
+      | Some(CursorOnDeferredVarPat(deferred, x)) as deferrable =>
+        switch (HTyp.matched_arrow(ty1)) {
+        | None => deferrable
+        | Some(_) =>
+          let rec_uses = find_uses_block(x, block, node_steps @ [2], 0);
+          Some(
+            CursorOnDeferredVarPat(uses => rec_uses @ uses |> deferred, x),
+          );
+        }
+      };
     | None =>
       switch (Statics.syn_block(ctx, block)) {
       | None => None
       | Some(ty1) =>
-        _ana_cursor_info_pat(~node_steps, ~term_steps, ctx, zp, ty1)
+        switch (
+          _ana_cursor_info_pat(
+            ~node_steps=node_steps @ [0],
+            ~term_steps,
+            ctx,
+            zp,
+            ty1,
+          )
+        ) {
+        | None => None
+        | Some(CursorNotOnDeferredVarPat(_)) as deferrable => deferrable
+        | Some(CursorOnDeferredVarPat(deferred, x)) as deferrable =>
+          switch (HTyp.matched_arrow(ty1)) {
+          | None => deferrable
+          | Some(_) =>
+            let rec_uses = find_uses_block(x, block, node_steps @ [2], 0);
+            Some(
+              CursorOnDeferredVarPat(uses => rec_uses @ uses |> deferred, x),
+            );
+          }
+        }
       }
-    };
+    }
   | LetLineZA(_, zann, _) =>
     let node_steps = node_steps @ [1];
     switch (cursor_info_typ(~node_steps, ~term_steps, ctx, zann)) {
