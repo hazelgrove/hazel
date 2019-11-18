@@ -7,7 +7,7 @@ deps:
 		core dune incr_dom oUnit ppx_let ppx_sexp_conv reason re \
 		rtop sexplib utop
 
-dev debug:
+dev:
 	dune build @src/fmt --auto-promote || true
 	dune build src --profile dev
 
