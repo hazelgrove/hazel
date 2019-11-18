@@ -1,6 +1,7 @@
 open Sexplib.Std;
-open SemanticsCommon;
 open GeneralUtil;
+
+exception FreeVarInPat;
 
 [@deriving sexp]
 type op =
@@ -28,7 +29,7 @@ type t =
   /* inner nodes */
   | Parenthesized(t)
   | OpSeq(skel_t, opseq)
-  | Inj(ErrStatus.t, inj_side, t)
+  | Inj(ErrStatus.t, InjSide.t, t)
 and opseq = OperatorSeq.opseq(t, op);
 
 exception SkelInconsistentWithOpSeq(skel_t, opseq);
@@ -216,7 +217,7 @@ let child_indices =
   | Inj(_, _, _) => [0]
   | OpSeq(_, seq) => range(OperatorSeq.seq_length(seq));
 
-let favored_child: t => option((child_index, t)) =
+let favored_child: t => option((ChildIndex.t, t)) =
   fun
   | EmptyHole(_)
   | Wild(_)
