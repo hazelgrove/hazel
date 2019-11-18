@@ -2847,7 +2847,7 @@ let handle_variable_split =
       let zblock = ZExp.BlockZL((prefix, ExpLineZ(zexp), suffix), lines);
       Succeeded(fixup_zblock(zblock));
     | None => Failed
-    };
+    }
 
   | (Construct(SOp(SSpace)), BlockZE(lines, zexp))
       when zexp_is_suitable_for_var_split(zexp) =>
@@ -3617,7 +3617,7 @@ let rec syn_perform_block =
           | res => res
           };
         | None => Failed
-        };
+        }
       | _ => Failed
       };
     | None => Failed
