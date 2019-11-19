@@ -23,11 +23,8 @@ echo-html:
 win-chrome:
 	"/mnt/c/Program Files (x86)/Google/Chrome/Application/chrome.exe" $(make echo-html)
 
-#TODO: win-chromium:
-
 win-firefox:
 	"/mnt/c/Program Files (x86)/Mozilla Firefox/firefox.exe" $(make echo-html)
-
 
 repl:
 	dune utop src/hazelcore
@@ -35,4 +32,4 @@ repl:
 clean:
 	dune clean
 
-.PHONY: all deps dev debug release test chrome chromium chromium-browser firefox repl clean
+.PHONY: all deps dev release echo-html-dir echo-html win-chrome win-firefox repl clean
