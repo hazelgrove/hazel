@@ -219,7 +219,7 @@ let staging_left_border = ci =>
       Staging(0),
       Line(LetLine(_, _, _)) |
       Exp(
-        Inj(_, _, _) | Parenthesized(_) | Case(_, _, _, _) | Lam(_, _, _, _),
+        Inj(_, _, _) | Parenthesized(_) | Case(_, _, _) | Lam(_, _, _, _),
       ) |
       Pat(OtherPat(Inj(_, _, _)) | OtherPat(Parenthesized(_))) |
       Typ(List(_) | Parenthesized(_)),
@@ -233,7 +233,7 @@ let staging_right_border = ci =>
   | (Staging(3), Line(LetLine(_, _, _)))
   | (
       Staging(1),
-      Exp(Inj(_, _, _) | Parenthesized(_) | Case(_, _, _, _)) |
+      Exp(Inj(_, _, _) | Parenthesized(_) | Case(_, _, _)) |
       Pat(OtherPat(Inj(_, _, _)) | OtherPat(Parenthesized(_))) |
       Typ(List(_) | Parenthesized(_)),
     ) =>
@@ -985,7 +985,7 @@ and _ana_cursor_found_exp =
   | ListNil(InHole(TypeInconsistent, _))
   | Lam(InHole(TypeInconsistent, _), _, _, _)
   | Inj(InHole(TypeInconsistent, _), _, _)
-  | Case(InHole(TypeInconsistent, _), _, _, _)
+  | Case(InHole(TypeInconsistent, _), _, _)
   | ApPalette(InHole(TypeInconsistent, _), _, _, _)
   | OpSeq(BinOp(InHole(TypeInconsistent, _), _, _, _), _) =>
     let e_nih = UHExp.set_err_status_t(NotInHole, e);
@@ -999,7 +999,7 @@ and _ana_cursor_found_exp =
   | ListNil(InHole(WrongLength, _)) => None
   | Lam(InHole(WrongLength, _), _, _, _)
   | Inj(InHole(WrongLength, _), _, _)
-  | Case(InHole(WrongLength, _), _, _, _)
+  | Case(InHole(WrongLength, _), _, _)
   | ApPalette(InHole(WrongLength, _), _, _, _) => None
   | OpSeq(BinOp(InHole(reason, _), Comma, skel1, skel2), _) =>
     switch (ty, reason) {
@@ -1026,7 +1026,7 @@ and _ana_cursor_found_exp =
     | None => None
     | Some(ty') => Some((AnaSubsumed(ty, ty'), Exp(e), ctx))
     }
-  | Case(NotInHole, _, _, _) => Some((Analyzed(ty), Exp(e), ctx))
+  | Case(NotInHole, _, _) => Some((Analyzed(ty), Exp(e), ctx))
   | Lam(NotInHole, _, ann, _) =>
     switch (HTyp.matched_arrow(ty)) {
     | None => None
@@ -1372,38 +1372,27 @@ and _syn_cursor_info =
       ctx,
       zblock,
     )
-  | CaseZE(_, _, _, None)
-  | CaseZR(_, _, _, None) => None
-  | CaseZE(_, zblock, _, Some(_)) =>
+  | CaseZE(_, zblock, _) =>
     _syn_cursor_info_block(
       ~node_steps=node_steps @ [0],
       ~term_steps,
       ctx,
       zblock,
     )
-  | CaseZR(_, block, zrules, Some(uty)) =>
-    let ty = UHTyp.expand(uty);
+  | CaseZR(_, block, zrules) =>
     switch (Statics.syn_block(ctx, block)) {
     | None => None
-    | Some(ty1) =>
+    | Some(ty) =>
       let prefix_len = List.length(GeneralUtil.ZList.prj_prefix(zrules));
       let zrule = GeneralUtil.ZList.prj_z(zrules);
-      _ana_cursor_info_rule(
+      _syn_cursor_info_rule(
         ~node_steps=node_steps @ [prefix_len + 1],
         ~term_steps,
         ctx,
         zrule,
-        ty1,
         ty,
       );
     };
-  | CaseZA(_, _, rules, zann) =>
-    cursor_info_typ(
-      ~node_steps=node_steps @ [List.length(rules)],
-      ~term_steps,
-      ctx,
-      zann,
-    )
   | ApPaletteZ(_, _, _, zpsi) =>
     let (n, (ty, zblock)) = GeneralUtil.ZNatMap.prj_z_kv(zpsi.zsplice_map);
     _ana_cursor_info_block(
@@ -1509,17 +1498,15 @@ and _ana_cursor_info =
   | LamZA(InHole(WrongLength, _), _, _, _)
   | LamZE(InHole(WrongLength, _), _, _, _)
   | InjZ(InHole(WrongLength, _), _, _)
-  | CaseZE(InHole(WrongLength, _), _, _, _)
-  | CaseZR(InHole(WrongLength, _), _, _, _)
-  | CaseZA(InHole(WrongLength, _), _, _, _)
+  | CaseZE(InHole(WrongLength, _), _, _)
+  | CaseZR(InHole(WrongLength, _), _, _)
   | ApPaletteZ(InHole(WrongLength, _), _, _, _) => None
   | LamZP(InHole(TypeInconsistent, _), _, _, _)
   | LamZA(InHole(TypeInconsistent, _), _, _, _)
   | LamZE(InHole(TypeInconsistent, _), _, _, _)
   | InjZ(InHole(TypeInconsistent, _), _, _)
-  | CaseZE(InHole(TypeInconsistent, _), _, _, _)
-  | CaseZR(InHole(TypeInconsistent, _), _, _, _)
-  | CaseZA(InHole(TypeInconsistent, _), _, _, _)
+  | CaseZE(InHole(TypeInconsistent, _), _, _)
+  | CaseZR(InHole(TypeInconsistent, _), _, _)
   | ApPaletteZ(InHole(TypeInconsistent, _), _, _, _) =>
     _syn_cursor_info(~node_steps, ~term_steps, ~frame, ctx, ze)
   /* zipper not in hole */
@@ -1583,14 +1570,14 @@ and _ana_cursor_info =
         InjSide.pick(position, ty1, ty2),
       )
     }
-  | CaseZE(NotInHole, zblock, _, _) =>
+  | CaseZE(NotInHole, zblock, _) =>
     _syn_cursor_info_block(
       ~node_steps=node_steps @ [0],
       ~term_steps,
       ctx,
       zblock,
     )
-  | CaseZR(NotInHole, block, zrules, _) =>
+  | CaseZR(NotInHole, block, zrules) =>
     switch (Statics.syn_block(ctx, block)) {
     | None => None
     | Some(ty1) =>
@@ -1604,14 +1591,6 @@ and _ana_cursor_info =
         ty1,
         ty,
       );
-    }
-  | CaseZA(NotInHole, _, rules, zann) =>
-    cursor_info_typ(
-      ~node_steps=node_steps @ [List.length(rules)],
-      ~term_steps,
-      ctx,
-      zann,
-    )
   | ApPaletteZ(NotInHole, _, _, zpsi) =>
     let (n, _) = GeneralUtil.ZNatMap.prj_z_kv(zpsi.zsplice_map);
     _syn_cursor_info(
@@ -1793,7 +1772,7 @@ and _syn_cursor_info_skel =
             _position,
           ))
         | Some((
-            Block(_, Case(InHole(TypeInconsistent, _), _, _, _)) as outer_block,
+            Block(_, Case(InHole(TypeInconsistent, _), _, _)) as outer_block,
             _position,
           ))
         | Some((

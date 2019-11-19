@@ -90,8 +90,7 @@ let rec make_t_inconsistent = (u_gen: MetaVarGen.t, zp: t): (t, MetaVarGen.t) =>
   | CursorP(cursor, p) =>
     let (p, u_gen) = UHPat.make_t_inconsistent(u_gen, p);
     (CursorP(cursor, p), u_gen);
-  | InjZ(InHole(TypeInconsistent, _), _, _) 
-  | InjZ(InHole(InconsistentBranches, _), _, _) => (zp, u_gen)
+  | InjZ(InHole(TypeInconsistent, _), _, _) => (zp, u_gen)
   | InjZ(NotInHole | InHole(WrongLength, _), inj_side, zp1) =>
     let (u, u_gen) = MetaVarGen.next(u_gen);
     (InjZ(InHole(TypeInconsistent, u), inj_side, zp1), u_gen);
@@ -127,8 +126,7 @@ and make_opseq_inconsistent =
         };
       };
     }
-  | BinOp(InHole(TypeInconsistent, _), _, _, _) 
-  | BinOp(InHole(InconsistentBranches, _), _, _, _) => (
+  | BinOp(InHole(TypeInconsistent, _), _, _, _) => (
       skel,
       zp_n,
       surround,
