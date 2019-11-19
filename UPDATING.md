@@ -35,14 +35,14 @@ To update do the following:
   TODO: How to test in browser.
 
 - Test that the `reason-vscode` plugin works with the OCaml version.  (See
-  https://github.com/jaredly/reason-language-server/issues/317)
+  <https://github.com/jaredly/reason-language-server/issues/317>)
 
   TODO: how to test `reason-vscode`
 
 - Update the version number in `.travis.yml`
 
 - Check that travis builds correctly by going to
-  `https://travis-ci.org/hazelgrove/hazel`.
+  <https://travis-ci.org/hazelgrove/hazel>.
 
 - Update the version numbers in `README.md`
 
@@ -64,7 +64,7 @@ The most recent version that we use is Ocaml 4.07.1.
   `js_of_ocaml` maintainers to release a fix.
 
 - The `reason-vscode` plugin for VS Code does not (yet) support OCaml 4.08.
-  (See https://github.com/jaredly/reason-language-server/issues/317)
+  (See <https://github.com/jaredly/reason-language-server/issues/317>)
 
 ## How to update the `master` branch
 
