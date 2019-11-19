@@ -1685,7 +1685,7 @@ let snode_of_InjAnn = (~err, ~steps, sty: snode, side, sbody: snode): snode =>
   );
 
 let snode_of_Case =
-    (~err, ~steps, sscrut: snode, srules: list(snode), sann: option(snode))
+    (~err, ~steps, sscrut: snode, srules: list(snode))
     : snode => {
   let sline_case =
     mk_SLine(
@@ -1705,18 +1705,10 @@ let snode_of_Case =
          )
        );
   let sline_end =
-    switch (sann) {
-    | None =>
-      mk_SLine(
-        ~steps_of_first_sword=steps,
-        [SToken(mk_SDelim(~index=1, "end"))],
-      )
-    | Some(sann) =>
-      mk_SLine(
-        ~steps_of_first_sword=steps,
-        [SToken(mk_SDelim(~index=1, "end : ")), SNode(sann)],
-      )
-    };
+    mk_SLine(
+      ~steps_of_first_sword=steps,
+      [SToken(mk_SDelim(~index=1, "end"))],
+    )
   mk_SBox(
     ~err,
     ~steps,
@@ -2053,20 +2045,14 @@ and snode_of_exp =
   | Inj(err, side, body) =>
     let sbody = snode_of_block(~user_newlines?, ~steps=steps @ [0], body);
     snode_of_Inj(~user_newlines?, ~err, ~steps, side, sbody);
-  | Case(err, scrut, rules, ann) =>
+  | Case(err, scrut, rules) =>
     let sscrut = snode_of_block(~user_newlines?, ~steps=steps @ [0], scrut);
     let srules =
       rules
       |> List.mapi((i, rule) =>
            snode_of_rule(~user_newlines?, ~steps=steps @ [i + 1], rule)
          );
-    let sann =
-      switch (ann) {
-      | None => None
-      | Some(ann) =>
-        Some(snode_of_typ(~steps=steps @ [List.length(rules) + 1], ann))
-      };
-    snode_of_Case(~err, ~steps, sscrut, srules, sann);
+    snode_of_Case(~err, ~steps, sscrut, srules);
   | Parenthesized(body) =>
     let sbody = snode_of_block(~user_newlines?, ~steps=steps @ [0], body);
     snode_of_Parenthesized(~user_newlines?, ~steps, sbody);
@@ -2520,7 +2506,7 @@ and snode_of_zexp =
   | InjZ(err, side, zbody) =>
     let szbody = snode_of_zblock(~user_newlines?, ~steps=steps @ [0], zbody);
     snode_of_Inj(~user_newlines?, ~ap_err_status, ~err, ~steps, side, szbody);
-  | CaseZE(err, zscrut, rules, ann) =>
+  | CaseZE(err, zscrut, rules) =>
     let szscrut =
       snode_of_zblock(~user_newlines?, ~steps=steps @ [0], zscrut);
     let srules =
@@ -2528,14 +2514,8 @@ and snode_of_zexp =
       |> List.mapi((i, rule) =>
            snode_of_rule(~user_newlines?, ~steps=steps @ [i + 1], rule)
          );
-    let sann =
-      switch (ann) {
-      | None => None
-      | Some(ann) =>
-        Some(snode_of_typ(~steps=steps @ [List.length(rules) + 1], ann))
-      };
-    snode_of_Case(~err, ~steps, szscrut, srules, sann);
-  | CaseZR(err, scrut, (prefix, zrule, suffix), ann) =>
+    snode_of_Case(~err, ~steps, szscrut, srules);
+  | CaseZR(err, scrut, (prefix, zrule, suffix)) =>
     let sscrut = snode_of_block(~user_newlines?, ~steps=steps @ [0], scrut);
     let szrules =
       (
@@ -2561,23 +2541,7 @@ and snode_of_zexp =
              )
            )
       );
-    let sann =
-      switch (ann) {
-      | None => None
-      | Some(ann) =>
-        Some(snode_of_typ(~steps=steps @ [List.length(szrules) + 1], ann))
-      };
-    snode_of_Case(~err, ~steps, sscrut, szrules, sann);
-  | CaseZA(err, scrut, rules, zann) =>
-    let sscrut = snode_of_block(~user_newlines?, ~steps=steps @ [0], scrut);
-    let srules =
-      rules
-      |> List.mapi((i, rule) =>
-           snode_of_rule(~user_newlines?, ~steps=steps @ [i + 1], rule)
-         );
-    let szann =
-      snode_of_ztyp(~steps=steps @ [List.length(rules) + 1], zann);
-    snode_of_Case(~err, ~steps, sscrut, srules, Some(szann));
+    snode_of_Case(~err, ~steps, sscrut, szrules);
   | ApPaletteZ(_, _, _, _) => raise(InvariantViolated)
   }
 and snode_of_zrule =
@@ -2977,7 +2941,7 @@ let rec snode_of_dhexp =
       |> List.mapi((i, drule) =>
            snode_of_drule(~steps=steps @ [i + 1], drule)
          );
-    snode_of_Case(~err, ~steps, sscrut, srules, None);
+    snode_of_Case(~err, ~steps, sscrut, srules);
   | BinNumOp(dop, d1, d2) =>
     let sop = string_of_op_exp(DHExp.to_op(dop));
     let s1 =

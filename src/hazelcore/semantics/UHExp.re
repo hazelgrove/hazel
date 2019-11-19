@@ -265,15 +265,7 @@ and make_t_inconsistent = (u_gen: MetaVarGen.t, e: t): (t, MetaVarGen.t) =>
   | Lam(InHole(TypeInconsistent, _), _, _, _)
   | Inj(InHole(TypeInconsistent, _), _, _)
   | Case(InHole(TypeInconsistent, _), _, _)
-  | ApPalette(InHole(TypeInconsistent, _), _, _, _)
-  | Var(InHole(InconsistentBranches, _), _, _)
-  | NumLit(InHole(InconsistentBranches, _), _)
-  | BoolLit(InHole(InconsistentBranches, _), _)
-  | ListNil(InHole(InconsistentBranches, _))
-  | Lam(InHole(InconsistentBranches, _), _, _, _)
-  | Inj(InHole(InconsistentBranches, _), _, _)
-  | Case(InHole(InconsistentBranches, _), _, _)
-  | ApPalette(InHole(InconsistentBranches, _), _, _, _) => (e, u_gen)
+  | ApPalette(InHole(TypeInconsistent, _), _, _, _) => (e, u_gen)
   /* not in hole */
   | Var(NotInHole | InHole(WrongLength, _), _, _)
   | NumLit(NotInHole | InHole(WrongLength, _), _)
@@ -309,8 +301,7 @@ and make_opseq_inconsistent =
       | Some(seq) => (skel, seq, u_gen)
       };
     }
-  | BinOp(InHole(TypeInconsistent, _), _, _, _) 
-  | BinOp(InHole(InconsistentBranches, _), _, _, _) => (skel, seq, u_gen)
+  | BinOp(InHole(TypeInconsistent, _), _, _, _) => (skel, seq, u_gen)
   | BinOp(NotInHole, op, skel1, skel2)
   | BinOp(InHole(WrongLength, _), op, skel1, skel2) =>
     let (u, u_gen) = MetaVarGen.next(u_gen);

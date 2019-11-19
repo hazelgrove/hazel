@@ -976,7 +976,7 @@ module DHExp = {
     | ListNil(InHole(TypeInconsistent as reason, u))
     | Lam(InHole(TypeInconsistent as reason, u), _, _, _)
     | Inj(InHole(TypeInconsistent as reason, u), _, _)
-    | Case(InHole(TypeInconsistent as reason, u), _, _, _)
+    | Case(InHole(TypeInconsistent as reason, u), _, _)
     | ApPalette(InHole(TypeInconsistent as reason, u), _, _, _) =>
       let e' = UHExp.set_err_status_t(NotInHole, e);
       switch (syn_expand_exp(ctx, delta, e')) {
@@ -997,7 +997,7 @@ module DHExp = {
     | ListNil(InHole(WrongLength, _))
     | Lam(InHole(WrongLength, _), _, _, _)
     | Inj(InHole(WrongLength, _), _, _)
-    | Case(InHole(WrongLength, _), _, _, _)
+    | Case(InHole(WrongLength, _), _, _)
     | ApPalette(InHole(WrongLength, _), _, _, _) => DoesNotExpand
     /* not in hole */
     | EmptyHole(u) =>
@@ -1060,19 +1060,7 @@ module DHExp = {
           };
         Expands(d, ty, delta);
       }
-    | Case(NotInHole, block, rules, Some(uty)) =>
-      let ty = UHTyp.expand(uty);
-      switch (syn_expand_block(ctx, delta, block)) {
-      | DoesNotExpand => DoesNotExpand
-      | Expands(d1, ty1, delta) =>
-        switch (ana_expand_rules(ctx, delta, rules, ty1, ty)) {
-        | None => DoesNotExpand
-        | Some((drs, delta)) =>
-          let d = Case(d1, drs, 0);
-          Expands(d, ty, delta);
-        }
-      };
-    | Case(NotInHole, _, _, None) => DoesNotExpand
+    | Case(NotInHole, _, _) => DoesNotExpand
     | ApPalette(NotInHole, _name, _serialized_model, _hole_data) =>
       DoesNotExpand
     /* TODO fix me */
@@ -1236,7 +1224,7 @@ module DHExp = {
     | ListNil(InHole(TypeInconsistent as reason, u))
     | Lam(InHole(TypeInconsistent as reason, u), _, _, _)
     | Inj(InHole(TypeInconsistent as reason, u), _, _)
-    | Case(InHole(TypeInconsistent as reason, u), _, _, _)
+    | Case(InHole(TypeInconsistent as reason, u), _, _)
     | ApPalette(InHole(TypeInconsistent as reason, u), _, _, _) =>
       let e' = UHExp.set_err_status_t(NotInHole, e);
       switch (syn_expand_exp(ctx, delta, e')) {
@@ -1254,7 +1242,7 @@ module DHExp = {
     | ListNil(InHole(WrongLength, _))
     | Lam(InHole(WrongLength, _), _, _, _)
     | Inj(InHole(WrongLength, _), _, _)
-    | Case(InHole(WrongLength, _), _, _, _)
+    | Case(InHole(WrongLength, _), _, _)
     | ApPalette(InHole(WrongLength, _), _, _, _) => DoesNotExpand
     /* not in hole */
     | EmptyHole(u) =>
@@ -1330,23 +1318,7 @@ module DHExp = {
           Expands(d, ty, delta);
         };
       }
-    | Case(NotInHole, block, rules, Some(uty)) =>
-      let ty2 = UHTyp.expand(uty);
-      switch (HTyp.consistent(ty, ty2)) {
-      | false => DoesNotExpand
-      | true =>
-        switch (syn_expand_block(ctx, delta, block)) {
-        | DoesNotExpand => DoesNotExpand
-        | Expands(d1, ty1, delta) =>
-          switch (ana_expand_rules(ctx, delta, rules, ty1, ty2)) {
-          | None => DoesNotExpand
-          | Some((drs, delta)) =>
-            let d = Case(d1, drs, 0);
-            Expands(d, ty, delta);
-          }
-        }
-      };
-    | Case(NotInHole, block, rules, None) =>
+    | Case(NotInHole, block, rules) =>
       switch (syn_expand_block(ctx, delta, block)) {
       | DoesNotExpand => DoesNotExpand
       | Expands(d1, ty1, delta) =>

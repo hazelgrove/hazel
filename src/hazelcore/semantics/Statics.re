@@ -447,7 +447,7 @@ and syn_exp = (ctx: Contexts.t, e: UHExp.t): option(HTyp.t) =>
   | ListNil(InHole(TypeInconsistent, _))
   | Lam(InHole(TypeInconsistent, _), _, _, _)
   | Inj(InHole(TypeInconsistent, _), _, _)
-  | Case(InHole(TypeInconsistent, _), _, _, _)
+  | Case(InHole(TypeInconsistent, _), _, _)
   | ApPalette(InHole(TypeInconsistent, _), _, _, _) =>
     let e' = UHExp.set_err_status_t(NotInHole, e);
     switch (syn_exp(ctx, e')) {
@@ -460,7 +460,7 @@ and syn_exp = (ctx: Contexts.t, e: UHExp.t): option(HTyp.t) =>
   | ListNil(InHole(WrongLength, _))
   | Lam(InHole(WrongLength, _), _, _, _)
   | Inj(InHole(WrongLength, _), _, _)
-  | Case(InHole(WrongLength, _), _, _, _)
+  | Case(InHole(WrongLength, _), _, _)
   | ApPalette(InHole(WrongLength, _), _, _, _) => None
   /* not in hole */
   | Var(NotInHole, NotInVarHole, x) => VarMap.lookup(Contexts.gamma(ctx), x)
@@ -491,8 +491,7 @@ and syn_exp = (ctx: Contexts.t, e: UHExp.t): option(HTyp.t) =>
       | R => Some(Sum(Hole, ty))
       }
     }
-  | Case(NotInHole, _, _, Some(uty)) => Some(UHTyp.expand(uty))
-  | Case(NotInHole, _, _, None) => None
+  | Case(NotInHole, _, _) => None
   | ApPalette(NotInHole, name, serialized_model, psi) =>
     let palette_ctx = Contexts.palette_ctx(ctx);
     switch (PaletteCtx.lookup(palette_ctx, name)) {
@@ -660,7 +659,7 @@ and ana_exp = (ctx: Contexts.t, e: UHExp.t, ty: HTyp.t): option(unit) =>
   | ListNil(InHole(TypeInconsistent, _))
   | Lam(InHole(TypeInconsistent, _), _, _, _)
   | Inj(InHole(TypeInconsistent, _), _, _)
-  | Case(InHole(TypeInconsistent, _), _, _, _)
+  | Case(InHole(TypeInconsistent, _), _, _)
   | ApPalette(InHole(TypeInconsistent, _), _, _, _) =>
     let e' = UHExp.set_err_status_t(NotInHole, e);
     switch (syn_exp(ctx, e')) {
@@ -673,7 +672,7 @@ and ana_exp = (ctx: Contexts.t, e: UHExp.t, ty: HTyp.t): option(unit) =>
   | ListNil(InHole(WrongLength, _))
   | Lam(InHole(WrongLength, _), _, _, _)
   | Inj(InHole(WrongLength, _), _, _)
-  | Case(InHole(WrongLength, _), _, _, _)
+  | Case(InHole(WrongLength, _), _, _)
   | ApPalette(InHole(WrongLength, _), _, _, _) => None
   /* not in hole */
   | ListNil(NotInHole) =>
@@ -722,17 +721,7 @@ and ana_exp = (ctx: Contexts.t, e: UHExp.t, ty: HTyp.t): option(unit) =>
     | Some((ty1, ty2)) =>
       ana_block(ctx, block, InjSide.pick(side, ty1, ty2))
     }
-  | Case(NotInHole, block, rules, Some(uty)) =>
-    let ty2 = UHTyp.expand(uty);
-    if (HTyp.consistent(ty, ty2)) {
-      switch (syn_block(ctx, block)) {
-      | None => None
-      | Some(ty1) => ana_rules(ctx, rules, ty1, ty2)
-      };
-    } else {
-      None;
-    };
-  | Case(NotInHole, block, rules, None) =>
+  | Case(NotInHole, block, rules) =>
     switch (syn_block(ctx, block)) {
     | None => None
     | Some(ty1) => ana_rules(ctx, rules, ty1, ty)
@@ -1509,14 +1498,7 @@ and syn_fix_holes_exp =
       | R => HTyp.Sum(Hole, ty1)
       };
     (Inj(NotInHole, side, block), ty, u_gen);
-  | Case(_, block, rules, Some(uty)) =>
-    let ty = UHTyp.expand(uty);
-    let (block, ty1, u_gen) =
-      syn_fix_holes_block(ctx, u_gen, ~renumber_empty_holes, block);
-    let (rules, u_gen) =
-      ana_fix_holes_rules(ctx, u_gen, ~renumber_empty_holes, rules, ty1, ty);
-    (Case(NotInHole, block, rules, Some(uty)), ty, u_gen);
-  | Case(_, block, rules, None) =>
+  | Case(_, block, rules) =>
     let (block, ty1, u_gen) =
       syn_fix_holes_block(ctx, u_gen, ~renumber_empty_holes, block);
     let (rules, u_gen) =
@@ -1526,9 +1508,8 @@ and syn_fix_holes_exp =
         ~renumber_empty_holes,
         rules,
         ty1,
-        HTyp.Hole,
       );
-    (Case(NotInHole, block, rules, Some(Hole)), HTyp.Hole, u_gen);
+    (Case(NotInHole, block, rules), HTyp.Hole, u_gen);  /* TODO: What about the Some(Hole)?  */
   | ApPalette(_, name, serialized_model, psi) =>
     let palette_ctx = Contexts.palette_ctx(ctx);
     switch (PaletteCtx.lookup(palette_ctx, name)) {
@@ -1741,44 +1722,12 @@ and ana_fix_holes_exp =
         (UHExp.set_err_status_t(InHole(TypeInconsistent, u), e'), u_gen);
       };
     }
-  | Case(_, block, rules, Some(uty)) =>
-    let ty2 = UHTyp.expand(uty);
-    if (HTyp.consistent(ty, ty2)) {
-      let (block, ty1, u_gen) =
-        syn_fix_holes_block(ctx, u_gen, ~renumber_empty_holes, block);
-      let (rules, u_gen) =
-        ana_fix_holes_rules(
-          ctx,
-          u_gen,
-          ~renumber_empty_holes,
-          rules,
-          ty1,
-          ty,
-        );
-      (
-        Case(
-          NotInHole,
-          block,
-          rules,
-          switch (ty2) {
-          | Hole => None
-          | _ => Some(uty)
-          },
-        ),
-        u_gen,
-      );
-    } else {
-      let (e', _, u_gen) =
-        syn_fix_holes_exp(ctx, u_gen, ~renumber_empty_holes, e);
-      let (u, u_gen) = MetaVarGen.next(u_gen);
-      (UHExp.set_err_status_t(InHole(TypeInconsistent, u), e'), u_gen);
-    };
-  | Case(_, block, rules, None) =>
+  | Case(_, block, rules) =>
     let (e1, ty1, u_gen) =
       syn_fix_holes_block(ctx, u_gen, ~renumber_empty_holes, block);
     let (rules, u_gen) =
       ana_fix_holes_rules(ctx, u_gen, ~renumber_empty_holes, rules, ty1, ty);
-    (Case(NotInHole, e1, rules, None), u_gen);
+    (Case(NotInHole, e1, rules), u_gen);
   | ApPalette(_, _, _, _) =>
     let (e', ty', u_gen) =
       syn_fix_holes_exp(ctx, u_gen, ~renumber_empty_holes, e);
