@@ -515,14 +515,7 @@ and make_t_inconsistent = (u_gen: MetaVarGen.t, ze: t): (t, MetaVarGen.t) =>
   | InjZ(InHole(TypeInconsistent, _), _, _)
   | CaseZE(InHole(TypeInconsistent, _), _, _)
   | CaseZR(InHole(TypeInconsistent, _), _, _)
-  | ApPaletteZ(InHole(TypeInconsistent, _), _, _, _)
-  | LamZP(InHole(InconsistentBranches, _), _, _, _)
-  | LamZA(InHole(InconsistentBranches, _), _, _, _)
-  | LamZE(InHole(InconsistentBranches, _), _, _, _)
-  | InjZ(InHole(InconsistentBranches, _), _, _)
-  | CaseZE(InHole(InconsistentBranches, _), _, _)
-  | CaseZR(InHole(InconsistentBranches, _), _, _)
-  | ApPaletteZ(InHole(InconsistentBranches, _), _, _, _) => (ze, u_gen)
+  | ApPaletteZ(InHole(TypeInconsistent, _), _, _, _) => (ze, u_gen)
   /* not in hole */
   | LamZP(NotInHole | InHole(WrongLength, _), _, _, _)
   | LamZA(NotInHole | InHole(WrongLength, _), _, _, _)
@@ -559,8 +552,7 @@ and make_skel_inconsistent =
         };
       };
     }
-  | BinOp(InHole(TypeInconsistent, _), _, _, _) 
-  | BinOp(InHole(InconsistentBranches, _), _, _, _)=> (
+  | BinOp(InHole(TypeInconsistent, _), _, _, _) => (
       skel,
       ze_n,
       surround,
