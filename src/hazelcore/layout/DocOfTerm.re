@@ -75,13 +75,9 @@ let doc_of_Lam = (sp_doc: doc, sann_doc: option(doc), sbody_doc: doc): doc => {
 };
 
 let doc_of_Case =
-    (sscrut_doc: doc, rule_docs: list(doc), sann_doc: option(doc)): doc => {
+    (sscrut_doc: doc, rule_docs: list(doc)): doc => {
   let case_delim = Doc.Text("case");
-  let end_line =
-    switch (sann_doc) {
-    | None => Doc.Text("end")
-    | Some(sann_doc) => Doc.hcats([Text("end"), sann_doc])
-    };
+  let end_line = Doc.Text("end")
   Doc.(
     hcats([
       case_delim,
@@ -306,7 +302,7 @@ and doc_of_exp = (~may_wrap: bool, ~steps: CursorPath.steps, e: UHExp.t): doc =>
           body,
         );
       doc_of_Parenthesized(sbody_doc);
-    | Case(_, scrut, rules, ann) =>
+    | Case(_, scrut, rules) =>
       if (!may_wrap) {
         Fail;
       } else {
@@ -322,16 +318,7 @@ and doc_of_exp = (~may_wrap: bool, ~steps: CursorPath.steps, e: UHExp.t): doc =>
           |> List.mapi((i, rule) =>
                doc_of_rule(~steps=steps @ [1 + i], rule)
              );
-        let sann_doc =
-          ann
-          |> Opt.map(
-               doc_of_separated_typ(
-                 ~surround=Left(Doc.space),
-                 ~may_wrap=true,
-                 ~steps=steps @ [1 + List.length(rules)],
-               ),
-             );
-        doc_of_Case(sscrut_doc, rule_docs, sann_doc);
+        doc_of_Case(sscrut_doc, rule_docs);
       }
     | OpSeq(_, _) => failwith("unimplemented: doc_of_exp/OpSeq")
     | ApPalette(_, _, _, _) =>

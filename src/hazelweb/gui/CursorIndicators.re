@@ -151,7 +151,7 @@ and collect_holes_exp: UHExp.t => holes_steps =
       ),
     )
   | Inj(_, _, _) => ([], [], [])
-  | Case(err, scrut, rules, _) =>
+  | Case(err, scrut, rules) =>
     concat_holes(
       err_holes(err),
       concat_holes(
@@ -537,7 +537,7 @@ let vertical_shift_targets_in_subject = (~ci: CursorInfo.t) => {
   | (
       Staging(0),
       Exp(
-        Case(_, subject_block, _, _) | Parenthesized(subject_block) |
+        Case(_, subject_block, _) | Parenthesized(subject_block) |
         Inj(_, _, subject_block),
       ),
       ExpFrame(prefix, None, _),
