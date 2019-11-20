@@ -79,6 +79,12 @@ type typed =
   | OnRule
   | OnOp;
 
+/*
+ * pat_node is used to distinguish whether that
+ * the cursor is on a variable pattern or not,
+ * and we need to know where that variable is used
+ * for such variable pattern
+ */
 [@deriving sexp]
 type pat_node =
   | VarPat(Var.t, uses_list)
