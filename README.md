@@ -30,12 +30,12 @@ install both Reason and the necessary libraries is to use
   opam update
   ```
 
-- Install OCaml 4.07.1 (some older versions such as may also work, but see the
+- Install OCaml 4.08.1 (some older versions such as may also work, but see the
   ["Current version" section of `Updating.md`](UPDATING.md#current-version) for
   why we do not use newer versions).
 
   ```sh
-  opam switch create 4.07.1
+  opam switch create 4.08.1
   ```
 
 - Run the Makefile in the `hazel` root folder to install the necessary OCaml
