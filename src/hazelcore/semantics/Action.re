@@ -102,7 +102,7 @@ let op_shape_of_exp_op = (op: UHExp.op): op_shape =>
 [@deriving sexp]
 type shape =
   | SCommentText(string, cursor_position)
-  | SCommentLine // initializer
+  | SCommentLine // Default constructor (create a new CommentLine)
   | SParenthesized
   /* type shapes */
   | SNum
@@ -326,6 +326,11 @@ let rec perform_ty = (a: t, zty: ZTyp.t): result(ZTyp.t) =>
       }
     }
   /* Construction */
+  // Currently set to failed.
+  // ------------------------------------------------------------------------------
+  | (Construct(SCommentLine), CursorT(OnDelim(_, _), _)) => Failed // What to do?
+  | (Construct(SCommentText(_, _)), CursorT(OnDelim(_, _), _)) => Failed
+  // ------------------------------------------------------------------------------
   | (Construct(SOp(SSpace)), CursorT(OnDelim(_, After), _)) =>
     perform_ty(MoveRight, zty)
   | (Construct(_) as a, CursorT(OnDelim(_, side), _))
@@ -1270,6 +1275,7 @@ let rec syn_perform_pat =
         (ctx: Contexts.t, u_gen: MetaVarGen.t, a: t, zp: ZPat.t)
         : result((ZPat.t, HTyp.t, Contexts.t, MetaVarGen.t)) => {
   switch (a, zp) {
+  | (Construct(SCommentLine | SCommentText(_, _)), CursorP(_, _)) => Failed
   | (
       _,
       CursorP(
@@ -1926,6 +1932,7 @@ and ana_perform_pat =
     (ctx: Contexts.t, u_gen: MetaVarGen.t, a: t, zp: ZPat.t, ty: HTyp.t)
     : result((ZPat.t, Contexts.t, MetaVarGen.t)) =>
   switch (a, zp) {
+  | (Construct(SCommentLine | SCommentText(_, _)), CursorP(_, _)) => Failed
   | (
       _,
       CursorP(
@@ -3563,7 +3570,11 @@ and syn_perform_lines =
     | Some(ctx) => Succeeded((zlines, ctx, u_gen))
     };
   | (Construct(SCommentLine), (prefix, CursorL(_, EmptyLine), suffix)) =>
-    Succeeded((CursorL(Ontext(0), CommentLine("")), ctx, u_gen))
+    Succeeded((
+      (prefix, CursorL(OnText(0), CommentLine("")), suffix),
+      ctx,
+      u_gen,
+    ))
   | (Construct(SLine), (prefix, zline, suffix))
       when ZExp.is_after_line(zline) =>
     let line = ZExp.erase_line(zline);
@@ -3975,6 +3986,7 @@ and syn_perform_exp =
     )
     : result((zexp_or_zblock, HTyp.t, MetaVarGen.t)) =>
   switch (a, ze) {
+  | (Construct(SCommentLine | SCommentText(_, _)), CursorE(_, _)) => Failed
   | (
       _,
       CursorE(
@@ -5881,6 +5893,7 @@ and ana_perform_exp =
     )
     : result((zexp_or_zblock, MetaVarGen.t)) =>
   switch (a, ze) {
+  | (Construct(SCommentLine | SCommentText(_, _)), CursorE(_, _)) => Failed
   | (
       _,
       CursorE(
@@ -6994,6 +7007,7 @@ let can_perform =
     )
     : bool =>
   switch (a) {
+  | Construct(SCommentText(_, _) | SCommentLine) => false
   | Construct(SParenthesized) => true
   | Construct(SLine)
   | Construct(SLet)
