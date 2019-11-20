@@ -4,8 +4,8 @@ all: dev
 
 deps:
 	opam install \
-		core dune incr_dom oUnit ppx_let ppx_sexp_conv reason re \
-		rtop sexplib utop
+		dune reason utop rtop \
+		incr_dom js_of_ocaml ppx_let ppx_sexp_conv re sexplib
 
 dev:
 	dune build @src/fmt --auto-promote || true
