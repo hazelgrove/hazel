@@ -83,7 +83,7 @@ let entered_single_key =
         Update.Action.EditAction(ci.node |> Hashtbl.find(kc_actions, kc)),
       ),
     )
-  | (Pat(EmptyHole(_)), _) =>
+  | (Pat(OtherPat(EmptyHole(_))), _) =>
     let shape =
       switch (single_key) {
       | Number(n) => Action.SNumLit(n, OnText(num_digits(n)))
@@ -91,7 +91,7 @@ let entered_single_key =
       | Underscore => Action.SWild
       };
     Some(prevent_stop_inject(Update.Action.EditAction(Construct(shape))));
-  | (Pat(Wild(_)), _) =>
+  | (Pat(OtherPat(Wild(_))), _) =>
     let shape =
       switch (single_key) {
       | Number(n) =>
@@ -110,20 +110,20 @@ let entered_single_key =
     Some(prevent_stop_inject(Update.Action.EditAction(Construct(shape))));
   | (
       Exp(NumLit(_, _) | BoolLit(_, _) | Var(_, _, _)) |
-      Pat(NumLit(_, _) | BoolLit(_, _) | Var(_, _, _)),
+      Pat(OtherPat(NumLit(_, _) | BoolLit(_, _)) | VarPat(_, _)),
       _,
     ) =>
     let (nodeValue, anchorOffset) =
       switch (ci.node, ci.position) {
-      | (Exp(NumLit(_, n)) | Pat(NumLit(_, n)), OnText(j)) => (
+      | (Exp(NumLit(_, n)) | Pat(OtherPat(NumLit(_, n))), OnText(j)) => (
           string_of_int(n),
           j,
         )
-      | (Exp(BoolLit(_, b)) | Pat(BoolLit(_, b)), OnText(j)) => (
+      | (Exp(BoolLit(_, b)) | Pat(OtherPat(BoolLit(_, b))), OnText(j)) => (
           b ? "true" : "false",
           j,
         )
-      | (Exp(Var(_, _, x)) | Pat(Var(_, _, x)), OnText(j)) => (x, j)
+      | (Exp(Var(_, _, x)) | Pat(VarPat(x, _)), OnText(j)) => (x, j)
       | (_, _) => assert(false)
       };
     let key_string = JSUtil.single_key_string(single_key);
