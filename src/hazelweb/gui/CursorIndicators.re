@@ -1,5 +1,4 @@
 open GeneralUtil;
-open SemanticsCommon;
 open ViewUtil;
 module Js = Js_of_ocaml.Js;
 module Dom = Js_of_ocaml.Dom;
@@ -519,7 +518,7 @@ let horizontal_shift_targets_in_subject = (~ci: CursorInfo.t) => {
                ),
                Attr.create(
                  "target-side",
-                 Sexp.to_string(sexp_of_side(k == 0 ? Before : After)),
+                 Sexp.to_string(Side.sexp_of_t(k == 0 ? Before : After)),
                ),
              ],
              [],
@@ -701,7 +700,7 @@ let horizontal_shift_targets_in_frame = (~ci: CursorInfo.t) => {
                ),
                Attr.create(
                  "target-side",
-                 Sexp.to_string(sexp_of_side(k == 0 ? Before : After)),
+                 Sexp.to_string(Side.sexp_of_t(k == 0 ? Before : After)),
                ),
              ],
              [],
@@ -1549,7 +1548,7 @@ let steps_and_side_of_horizontal_shift_target_elem = shift_target_elem => (
   shift_target_elem
   |> JSUtil.force_get_attr("target-side")
   |> Sexp.of_string
-  |> side_of_sexp,
+  |> Side.t_of_sexp,
 );
 
 let steps_and_alignment_of_vertical_shift_target_elem = shift_target_elem => (
@@ -1737,7 +1736,8 @@ let draw_shift_targets = (~cursor_info, sdelim_elem) => {
   draw_vertical_shift_rail();
 };
 
-let draw_horizontal_shift_target_in_subject = (~side, ~index, snode_elem) => {
+let draw_horizontal_shift_target_in_subject =
+    (~side: Side.t, ~index, snode_elem) => {
   let rect = snode_elem |> get_relative_bounding_rect;
   let xpos =
     switch (side) {
@@ -1756,7 +1756,8 @@ let draw_horizontal_shift_target_in_subject = (~side, ~index, snode_elem) => {
      });
 };
 
-let draw_horizontal_shift_target_in_frame = (~side, ~index, snode_elem) => {
+let draw_horizontal_shift_target_in_frame =
+    (~side: Side.t, ~index, snode_elem) => {
   let rect = snode_elem |> get_relative_bounding_rect;
   let xpos =
     switch (side) {
@@ -1775,7 +1776,8 @@ let draw_horizontal_shift_target_in_frame = (~side, ~index, snode_elem) => {
      });
 };
 
-let draw_vertical_shift_target_in_subject = (~side, ~index, sline_elem) => {
+let draw_vertical_shift_target_in_subject =
+    (~side: Side.t, ~index, sline_elem) => {
   let rect = sline_elem |> get_relative_bounding_rect;
   let ypos =
     switch (side) {
@@ -1803,7 +1805,7 @@ let draw_vertical_shift_target_in_subject = (~side, ~index, sline_elem) => {
      });
 };
 
-let draw_vertical_shift_target_in_frame = (~side, ~index, sline_elem) => {
+let draw_vertical_shift_target_in_frame = (~side: Side.t, ~index, sline_elem) => {
   let rect = sline_elem |> get_relative_bounding_rect;
   let ypos =
     switch (side) {
