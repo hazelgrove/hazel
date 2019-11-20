@@ -1236,20 +1236,14 @@ let view = (~is_cell_focused: bool, ~holes_steps, ~ci: CursorInfo.t) => {
   @ hole_indicators(holes_steps);
 };
 
-let rec _remove_box_var_uses_indicator =
-        (~elems: list(Js.t(Dom_html.element))) =>
-  switch (elems) {
-  | [] => ()
-  | [elem, ...elems] =>
-    elem##.classList##remove(Js.string("var-pat-usage"));
-    _remove_box_var_uses_indicator(~elems);
-  };
-
 let remove_box_var_uses_indicator = () => {
   let var_pat_usage_elems =
     Dom_html.document##getElementsByClassName(Js.string("var-pat-usage"))
     |> Dom.list_of_nodeList;
-  _remove_box_var_uses_indicator(~elems=var_pat_usage_elems);
+  List.iter(
+    elem => {elem##.classList##remove(Js.string("var-pat-usage"))},
+    var_pat_usage_elems,
+  );
 };
 
 let draw_box_var_uses_indicator = (~uses: UsageAnalysis.uses_list) =>

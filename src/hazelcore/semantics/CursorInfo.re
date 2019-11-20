@@ -199,7 +199,7 @@ let is_before_node = ci =>
   | Exp(e) => ZExp.is_before_exp(CursorE(ci.position, e))
   | Rule(rule) => ZExp.is_before_rule(CursorR(ci.position, rule))
   | Pat(pat_node) =>
-    ZPat.is_before(CursorP(ci.position, p_of_pat_node(pat_node)));
+    ZPat.is_before(CursorP(ci.position, p_of_pat_node(pat_node)))
   | Typ(ty) => ZTyp.is_before(CursorT(ci.position, ty))
   };
 
@@ -209,7 +209,7 @@ let is_after_node = ci =>
   | Exp(e) => ZExp.is_after_exp(CursorE(ci.position, e))
   | Rule(rule) => ZExp.is_after_rule(CursorR(ci.position, rule))
   | Pat(pat_node) =>
-    ZPat.is_after(CursorP(ci.position, p_of_pat_node(pat_node)));
+    ZPat.is_after(CursorP(ci.position, p_of_pat_node(pat_node)))
   | Typ(ty) => ZTyp.is_after(CursorT(ci.position, ty))
   };
 
