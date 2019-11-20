@@ -84,6 +84,12 @@ type pat_node =
   | VarPat(Var.t, uses_list)
   | OtherPat(UHPat.t);
 
+let p_of_pat_node = pat_node =>
+  switch (pat_node) {
+  | VarPat(x, _) => UHPat.Var(NotInHole, NotInVarHole, x)
+  | OtherPat(p) => p
+  };
+
 [@deriving sexp]
 type node =
   | Typ(UHTyp.t)
@@ -187,12 +193,7 @@ let is_before_node = ci =>
   | Exp(e) => ZExp.is_before_exp(CursorE(ci.position, e))
   | Rule(rule) => ZExp.is_before_rule(CursorR(ci.position, rule))
   | Pat(pat_node) =>
-    let p =
-      switch (pat_node) {
-      | VarPat(x, _) => UHPat.Var(NotInHole, NotInVarHole, x)
-      | OtherPat(p) => p
-      };
-    ZPat.is_before(CursorP(ci.position, p));
+    ZPat.is_before(CursorP(ci.position, p_of_pat_node(pat_node)));
   | Typ(ty) => ZTyp.is_before(CursorT(ci.position, ty))
   };
 
@@ -202,12 +203,7 @@ let is_after_node = ci =>
   | Exp(e) => ZExp.is_after_exp(CursorE(ci.position, e))
   | Rule(rule) => ZExp.is_after_rule(CursorR(ci.position, rule))
   | Pat(pat_node) =>
-    let p =
-      switch (pat_node) {
-      | VarPat(x, _) => UHPat.Var(NotInHole, NotInVarHole, x)
-      | OtherPat(p) => p
-      };
-    ZPat.is_after(CursorP(ci.position, p));
+    ZPat.is_after(CursorP(ci.position, p_of_pat_node(pat_node)));
   | Typ(ty) => ZTyp.is_after(CursorT(ci.position, ty))
   };
 
@@ -247,13 +243,7 @@ let child_indices_of_current_node = ci =>
   | Line(li) => UHExp.child_indices_line(li)
   | Exp(e) => UHExp.child_indices_exp(e)
   | Rule(rule) => UHExp.child_indices_rule(rule)
-  | Pat(pat_node) =>
-    let p =
-      switch (pat_node) {
-      | VarPat(x, _) => UHPat.Var(NotInHole, NotInVarHole, x)
-      | OtherPat(p) => p
-      };
-    UHPat.child_indices(p);
+  | Pat(pat_node) => UHPat.child_indices(p_of_pat_node(pat_node))
   | Typ(ty) => UHTyp.child_indices(ty)
   };
 
@@ -291,12 +281,10 @@ let preserved_child_term_of_node = ci =>
     | (Some((_, Block(_, _))), ExpFrame(_, Some(_surround), _)) => None
     }
   | Pat(pat_node) =>
-    let p =
-      switch (pat_node) {
-      | VarPat(x, _) => UHPat.Var(NotInHole, NotInVarHole, x)
-      | OtherPat(p) => p
-      };
-    p |> UHPat.favored_child |> Opt.map(((i, p)) => (i, Pattern(p)));
+    pat_node
+    |> p_of_pat_node
+    |> UHPat.favored_child
+    |> Opt.map(((i, p)) => (i, Pattern(p)))
   | Typ(ty) =>
     ty |> UHTyp.favored_child |> Opt.map(((i, ty)) => (i, Type(ty)))
   | Rule(_) => None
