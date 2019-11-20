@@ -1,5 +1,4 @@
 open Sexplib.Std;
-open SemanticsCommon;
 open GeneralUtil;
 
 [@deriving sexp]
@@ -100,7 +99,7 @@ type term =
   | Expression(UHExp.block);
 
 [@deriving sexp]
-type child_term = (child_index, term);
+type child_term = (ChildIndex.t, term);
 
 [@deriving sexp]
 type t = {
@@ -108,7 +107,7 @@ type t = {
   node,
   frame,
   ctx: Contexts.t,
-  position: cursor_position,
+  position: CursorPosition.t,
   node_steps: CursorPath.steps,
   // Not quite the term steps because steps don't account for
   // all semantic terms (e.g. subblock beginning with a let
@@ -374,7 +373,7 @@ let ana_cursor_found_pat =
       ctx: Contexts.t,
       p: UHPat.t,
       ty: HTyp.t,
-      cursor: cursor_position,
+      cursor: CursorPosition.t,
     )
     : option(t) =>
   switch (_ana_cursor_found_pat(ctx, p, ty)) {
@@ -596,7 +595,7 @@ and _ana_cursor_info_pat =
     switch (HTyp.matched_sum(ty)) {
     | None => None
     | Some((tyL, tyR)) =>
-      let ty1 = pick_side(position, tyL, tyR);
+      let ty1 = InjSide.pick(position, tyL, tyR);
       _ana_cursor_info_pat(~node_steps, ~term_steps, ctx, zp1, ty1);
     }
   | OpSeqZ(skel, zp1, surround) =>
@@ -920,7 +919,7 @@ let ana_cursor_found_exp =
       ctx: Contexts.t,
       e: UHExp.t,
       ty: HTyp.t,
-      cursor: cursor_position,
+      cursor: CursorPosition.t,
     )
     : option(t) =>
   switch (_ana_cursor_found_exp(ctx, e, ty)) {
@@ -1259,7 +1258,7 @@ and _ana_cursor_info =
         ~term_steps,
         ctx,
         zblock,
-        pick_side(position, ty1, ty2),
+        InjSide.pick(position, ty1, ty2),
       )
     }
   | CaseZE(NotInHole, zblock, _, _) =>

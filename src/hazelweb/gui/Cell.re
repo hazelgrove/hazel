@@ -6,7 +6,6 @@ module Sexp = Sexplib.Sexp;
 module KeyCombo = JSUtil.KeyCombo;
 open GeneralUtil;
 open ViewUtil;
-open SemanticsCommon;
 open Sexplib.Std;
 
 let string_insert = (s1, offset, s2) => {

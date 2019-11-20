@@ -1,5 +1,4 @@
 open Sexplib.Std;
-open SemanticsCommon;
 open GeneralUtil;
 
 [@deriving sexp]
@@ -42,7 +41,7 @@ and t =
   | ListNil(ErrStatus.t)
   /* inner nodes */
   | Lam(ErrStatus.t, UHPat.t, option(UHTyp.t), block)
-  | Inj(ErrStatus.t, inj_side, block)
+  | Inj(ErrStatus.t, InjSide.t, block)
   | Case(ErrStatus.t, block, rules, option(UHTyp.t))
   | Parenthesized(block)
   | OpSeq(skel_t, opseq) /* invariant: skeleton is consistent with opseq */
@@ -724,7 +723,7 @@ let shift_line_to_suffix_block =
 /**
  * The child node left behind when deleting the given node.
  */
-let favored_child_of_line: line => option((child_index, block)) =
+let favored_child_of_line: line => option((ChildIndex.t, block)) =
   fun
   | EmptyLine
   | ExpLine(_)
@@ -739,7 +738,7 @@ let favored_child_of_line: line => option((child_index, block)) =
    };
  */
 
-let favored_child_of_exp: t => option((child_index, block)) =
+let favored_child_of_exp: t => option((ChildIndex.t, block)) =
   fun
   | EmptyHole(_)
   | Var(_, _, _)

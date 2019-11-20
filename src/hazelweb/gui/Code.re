@@ -6,7 +6,6 @@ module Dom = Js_of_ocaml.Dom;
 module Dom_html = Js_of_ocaml.Dom_html;
 module Vdom = Virtual_dom.Vdom;
 open GeneralUtil;
-open SemanticsCommon;
 open ViewUtil;
 open Sexplib.Std;
 module Sexp = Sexplib.Sexp;
@@ -106,8 +105,8 @@ and sword =
 and stoken =
   | SEmptyLine
   | SEmptyHole(string)
-  | SDelim(delim_index, string)
-  | SOp(op_index, ErrStatus.t, string)
+  | SDelim(DelimIndex.t, string)
+  | SOp(OpIndex.t, ErrStatus.t, string)
   | SText(VarErrStatus.t, string)
   | SCastArrow
   | SFailedCastArrow
@@ -181,11 +180,11 @@ let prepend_tokens_on_SBox = (stokens, snode) =>
     }
   };
 
-let mk_SOp = (~index: op_index, ~err, s: string) => SOp(index, err, s);
+let mk_SOp = (~index: OpIndex.t, ~err, s: string) => SOp(index, err, s);
 
 let mk_op_stokens =
     (
-      ~index: op_index,
+      ~index: OpIndex.t,
       ~err: ErrStatus.t=NotInHole,
       ~space_before=false,
       ~space_after=false,
@@ -200,7 +199,8 @@ let steps_of_snode =
   | SSeq(steps, _, _, _)
   | SBox(steps, _, _, _, _, _) => steps;
 
-let mk_SDelim = (~index: delim_index, s: string): stoken => SDelim(index, s);
+let mk_SDelim = (~index: DelimIndex.t, s: string): stoken =>
+  SDelim(index, s);
 
 let mk_SText = (~var_err: VarErrStatus.t=NotInVarHole, s: string): stoken =>
   SText(var_err, s);
@@ -702,7 +702,7 @@ let vindentation = (~steps_of_first_sword=?, ~first_sword=?, m) => {
 };
 
 let view_of_sseq_line =
-    (~cls, ~sseq_steps: CursorPath.steps, ~tm_index: child_index, vwords)
+    (~cls, ~sseq_steps: CursorPath.steps, ~tm_index: ChildIndex.t, vwords)
     : Vdom.Node.t =>
   Vdom.(
     Node.div(
@@ -957,7 +957,7 @@ and view_of_sseq_head_arg =
       ~inject: Update.Action.t => Vdom.Event.t,
       ~sseq_steps: CursorPath.steps,
       ~sseq_indent_level: indent_level,
-      ~tm_index: child_index,
+      ~tm_index: ChildIndex.t,
       sarg: snode,
     )
     : Vdom.Node.t => {
@@ -998,7 +998,7 @@ and view_of_sseq_tail =
       ~sseq_steps: CursorPath.steps,
       ~sseq_indent_level: indent_level,
       ~sseq_is_multi_line: bool,
-      ~tm_index: child_index,
+      ~tm_index: ChildIndex.t,
       op_stokens,
       snode,
     )
@@ -1070,7 +1070,7 @@ and view_of_sseq_tail_arg =
       ~sseq_steps: CursorPath.steps,
       ~sseq_indent_level: indent_level,
       ~sseq_is_multi_line: bool,
-      ~tm_index: child_index,
+      ~tm_index: ChildIndex.t,
       op_stokens,
       snode,
     )
@@ -1335,7 +1335,7 @@ and view_of_stoken =
   };
 
 let caret_position_of_path =
-    ((steps, cursor) as path): option((Js.t(Dom.node), int)) =>
+    ((steps, cursor) as path: CursorPath.t): option((Js.t(Dom.node), int)) =>
   switch (cursor) {
   | Staging(_) => None
   | OnDelim(_, _) =>

@@ -6,7 +6,7 @@ let white = [' ']+
 let digit = ['0'-'9']
 let placeholder = digit+
 
-rule read = 
+rule read =
   parse
   | white { read lexbuf }
   | "_" { SPACEOP }

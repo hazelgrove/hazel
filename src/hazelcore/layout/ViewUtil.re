@@ -1,5 +1,3 @@
-open SemanticsCommon;
-
 exception MalformedView(int);
 
 let font_size = 20.0;
@@ -12,9 +10,9 @@ let cell_border = 2.0;
 let shift_target_thickness = indicator_padding;
 
 [@deriving sexp]
-type delim_path = (CursorPath.steps, delim_index);
+type delim_path = (CursorPath.steps, DelimIndex.t);
 [@deriving sexp]
-type op_path = (CursorPath.steps, op_index);
+type op_path = (CursorPath.steps, OpIndex.t);
 
 let cell_id = "cell";
 
@@ -143,7 +141,7 @@ let sline_clss = line_no => [
 ];
 
 let line_no_of_sline_cls = cls =>
-  if (!Re.Str.string_match(Re.Str.regexp("^sline-(.*)$"), cls, 0)) {
+  if (!Re.Str.string_match(Re.Str.regexp("^sline-\\(.*\\)$"), cls, 0)) {
     None;
   } else {
     Some(int_of_string(Re.Str.matched_group(1, cls)));
