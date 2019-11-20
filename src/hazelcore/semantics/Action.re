@@ -1,5 +1,4 @@
 let _TEST_PERFORM = false;
-open SemanticsCommon;
 open GeneralUtil;
 open Sexplib.Std;
 
@@ -101,7 +100,7 @@ let op_shape_of_exp_op = (op: UHExp.op): op_shape =>
 
 [@deriving sexp]
 type shape =
-  | SCommentText(string, cursor_position)
+  | SCommentText(string, CursorPosition.t)
   | SCommentLine // Default constructor (create a new CommentLine)
   | SParenthesized
   /* type shapes */
@@ -110,11 +109,11 @@ type shape =
   | SList
   /* expression shapes */
   | SAsc
-  | SVar(Var.t, cursor_position)
+  | SVar(Var.t, CursorPosition.t)
   | SLam
-  | SNumLit(int, cursor_position)
+  | SNumLit(int, CursorPosition.t)
   | SListNil
-  | SInj(inj_side)
+  | SInj(InjSide.t)
   | SLet
   | SLine
   | SCase
@@ -142,7 +141,7 @@ type t =
 
 type result('success) =
   | Succeeded('success)
-  | CursorEscaped(side)
+  | CursorEscaped(Side.t)
   | CantShift
   | Failed;
 
@@ -767,7 +766,12 @@ let abs_perform_Construct_SOp_After =
     make_and_typecheck_OpSeqZ(ctx, u_gen, place_before(new_tm), surround);
   } else {
     let new_seq = OperatorSeq.ExpOpExp(e', op, new_tm);
-    make_and_typecheck_OpSeq(ctx, u_gen, OnDelim(1, After), new_seq);
+    make_and_typecheck_OpSeq(
+      ctx,
+      u_gen,
+      CursorPosition.OnDelim(1, After),
+      new_seq,
+    );
   };
 };
 
@@ -779,7 +783,7 @@ let abs_perform_Construct_SOp_Before =
         (
           Contexts.t,
           MetaVarGen.t,
-          cursor_position,
+          CursorPosition.t,
           OperatorSeq.opseq('e, 'op)
         ) =>
         'm,
@@ -813,7 +817,7 @@ let abs_perform_Construct_SOp_After_surround =
         (
           Contexts.t,
           MetaVarGen.t,
-          cursor_position,
+          CursorPosition.t,
           OperatorSeq.opseq('e, 'op)
         ) =>
         'm,
@@ -1041,7 +1045,7 @@ let abs_perform_Construct_SOp_Before_surround =
         (
           Contexts.t,
           MetaVarGen.t,
-          cursor_position,
+          CursorPosition.t,
           OperatorSeq.opseq('e, 'op)
         ) =>
         'm,
@@ -1246,7 +1250,7 @@ let make_and_syn_OpSeq_pat =
     (
       ctx: Contexts.t,
       u_gen: MetaVarGen.t,
-      cursor: cursor_position,
+      cursor: CursorPosition.t,
       seq: UHPat.opseq,
     ) => {
   let zp = ZPat.CursorP(cursor, OpSeqUtil.Pat.mk_OpSeq(seq));
@@ -1257,7 +1261,7 @@ let make_and_ana_OpSeq_pat =
     (
       ctx: Contexts.t,
       u_gen: MetaVarGen.t,
-      cursor: cursor_position,
+      cursor: CursorPosition.t,
       seq: UHPat.opseq,
       ty,
     ) => {
@@ -2422,7 +2426,7 @@ and ana_perform_pat =
   | (Construct(SInj(side)), CursorP(_, _) as zp1) =>
     switch (HTyp.matched_sum(ty)) {
     | Some((tyL, tyR)) =>
-      let ty1 = pick_side(side, tyL, tyR);
+      let ty1 = InjSide.pick(side, tyL, tyR);
       let (zp1, ctx, u_gen) =
         Statics.ana_fix_holes_zpat(ctx, u_gen, zp1, ty1);
       let zp = ZPat.InjZ(NotInHole, side, zp1);
@@ -2539,7 +2543,7 @@ and ana_perform_pat =
     switch (HTyp.matched_sum(ty)) {
     | None => Failed
     | Some((tyL, tyR)) =>
-      let ty1 = pick_side(side, tyL, tyR);
+      let ty1 = InjSide.pick(side, tyL, tyR);
       switch (ana_perform_pat(ctx, u_gen, a, zp1, ty1)) {
       | Failed => Failed
       | CantShift => CantShift
@@ -2673,7 +2677,7 @@ let make_and_syn_OpSeq =
     (
       ctx: Contexts.t,
       u_gen: MetaVarGen.t,
-      cursor: cursor_position,
+      cursor: CursorPosition.t,
       seq: UHExp.opseq,
     ) => {
   let ze = ZExp.CursorE(cursor, OpSeqUtil.Exp.mk_OpSeq(seq));
@@ -2684,7 +2688,7 @@ let make_and_ana_OpSeq =
     (
       ctx: Contexts.t,
       u_gen: MetaVarGen.t,
-      cursor: cursor_position,
+      cursor: CursorPosition.t,
       seq: UHExp.opseq,
       ty,
     ) => {
@@ -4950,7 +4954,7 @@ and syn_perform_exp =
   | (_, InjZ(_, side, zblock)) =>
     switch (ty) {
     | Sum(ty1, ty2) =>
-      let ty_side = pick_side(side, ty1, ty2);
+      let ty_side = InjSide.pick(side, ty1, ty2);
       switch (syn_perform_block(~ci, ctx, a, (zblock, ty_side, u_gen))) {
       | Failed => Failed
       | CantShift => CantShift
@@ -6592,7 +6596,7 @@ and ana_perform_exp =
   | (Construct(SInj(side)), CursorE(_, _) as ze1) =>
     switch (HTyp.matched_sum(ty)) {
     | Some((tyL, tyR)) =>
-      let ty1 = pick_side(side, tyL, tyR);
+      let ty1 = InjSide.pick(side, tyL, tyR);
       let (ze1, u_gen) = Statics.ana_fix_holes_zexp(ctx, u_gen, ze1, ty1);
       let ze = ZExp.InjZ(NotInHole, side, ZExp.wrap_in_block(ze1));
       Succeeded((E(ze), u_gen));
@@ -6798,7 +6802,7 @@ and ana_perform_exp =
     switch (HTyp.matched_sum(ty)) {
     | None => Failed
     | Some((ty1, ty2)) =>
-      let picked = pick_side(side, ty1, ty2);
+      let picked = InjSide.pick(side, ty1, ty2);
       switch (ana_perform_block(~ci, ctx, a, (zblock, u_gen), picked)) {
       | Failed => Failed
       | CantShift => CantShift
