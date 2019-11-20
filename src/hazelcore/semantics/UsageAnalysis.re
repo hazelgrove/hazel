@@ -45,6 +45,7 @@ and find_uses_lines =
   }
 and find_uses_line = (x: Var.t, line: UHExp.line, steps): (uses_list, bool) =>
   switch (line) {
+  | CommentLine(_) => ([], false)
   | ExpLine(e) => (find_uses_exp(x, e, steps), false)
   | EmptyLine => ([], false)
   | LetLine(p, _, block) => (
