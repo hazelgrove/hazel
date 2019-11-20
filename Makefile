@@ -21,10 +21,10 @@ echo-html:
 	@echo "$(HTML_DIR)/index.html"
 
 win-chrome:
-	"/mnt/c/Program Files (x86)/Google/Chrome/Application/chrome.exe" $(make echo-html)
+	"/mnt/c/Program Files (x86)/Google/Chrome/Application/chrome.exe" "$(HTML_DIR)"
 
 win-firefox:
-	"/mnt/c/Program Files (x86)/Mozilla Firefox/firefox.exe" $(make echo-html)
+	"/mnt/c/Program Files (x86)/Mozilla Firefox/firefox.exe" "$(HTML_DIR)"
 
 repl:
 	dune utop src/hazelcore
