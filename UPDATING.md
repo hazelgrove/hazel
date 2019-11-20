@@ -2,7 +2,7 @@
 
 ## How to update Hazel to use a new version of ocaml
 
-There are new releases of Ocaml 2-4 times per year.
+There are new releases of OCaml 2-4 times per year.
 
 To update do the following:
 
@@ -34,42 +34,151 @@ To update do the following:
 
   TODO: How to test in browser.
 
-- Test that the `reason-vscode` plugin works with the OCaml version.  (See
-  <https://github.com/jaredly/reason-language-server/issues/317>)
+- Test that the `reason-vscode` extension works with the OCaml version.
 
-  TODO: how to test `reason-vscode`
+  To test this, ensure the `reason-vscode` extension is installed and then open
+  a `*.re` file in a fresh instance of Visual Studio Code.  If the plugin does
+  not support the OCaml version, after a few seconds a notification will appear
+  in the lower right corner that says:
+
+  ```Text
+  Unsupported OCaml version: <version number>.
+  Source: reason-vscode (Extension)
+  ```
+
+  If this notification does not appear, then the extension supports the OCaml
+  version.
 
 - Update the version number in `.travis.yml`
 
-- Check that travis builds correctly by going to
-  <https://travis-ci.org/hazelgrove/hazel>.
+  - Check that travis builds correctly by going to
+    <https://travis-ci.org/hazelgrove/hazel>.
+
+  - Test that the travis build works by going to
+    <http://hazel.org/build/dev/index.html>
+
+- Update the version number in `.travis.yml` on the `master` branch.
+
+  - Check that travis builds correctly by going to
+    <https://travis-ci.org/hazelgrove/hazel>.
+
+  - Test that the travis build works by going to
+    <http://hazel.org/build/master/index.html>
 
 - Update the version numbers in `README.md`
 
 - Update the "Current Version" section in `UPDATING.md`
 
-### Current version
+- Announce the reversion change on the `#hazel-dev` channel of the `hazelgrove`
+  Slack by sending the following message.
 
-The most recent version that we use is Ocaml 4.07.1.
+      @channel
+      The `reason-vscode` extension for VS code was just updated to support OCaml 4.08.1.  You can update to 4.08.1 by doing the following two things.
 
-- Using OCaml 4.09.0, generates the following error when running `make deps`:
+      - First, update your VS code extensions by pressing Ctrl+Shift+P to open
+        the command pallet then typing or selecting the command
+        `Extensions: Check for Extension Updates`.  If there is an update for
+        the `reason-vscode` extension, click the `Update` button.
+
+      - Second, update your OCaml installation by running the following:
+
+        ```
+        opam update
+        opam switch create 4.08.1
+        make deps
+        ```
+
+## Current version
+
+The most recent version that we use is Ocaml 4.08.1.
+
+- Using OCaml 4.09.0, generates the following rather long error message when running `make deps`.
+
+  We are still investigating why this error happens.
 
   ```Text
   The following dependencies couldn't be met:
-    - incr_dom → js_of_ocaml >= 3.0 → ocaml < 4.09.0
+    - incr_dom → async_js → uri-sexp → ppx_sexp_conv < v0.13 → ppxlib < 0.3.0 → ocaml < 4.08.0
         base of this switch (use `--unlock-base' to force)
+    - incr_dom → async_js → uri-sexp → ppx_sexp_conv < v0.13 → ppx_core < v0.11 → ocaml < 4.06.0
+        base of this switch (use `--unlock-base' to force)
+    - incr_dom → async_js → uri-sexp → ppx_sexp_conv < v0.13 → ppx_core < v0.11 → ppx_ast < v0.11 → ocaml < 4.08.0
+        base of this switch (use `--unlock-base' to force)
+    - incr_dom → async_js → uri-sexp → ppx_sexp_conv < v0.13 → ocaml < 4.03
+        base of this switch (use `--unlock-base' to force)
+    - incr_dom → async_js → uri-sexp → ppx_sexp_conv < v0.13 → base < v0.12 → ocaml < 4.08.0
+        base of this switch (use `--unlock-base' to force)
+    - incr_dom → async_js → ppx_jane < v0.12 → ocaml = 4.02.3
+        base of this switch (use `--unlock-base' to force)
+    - incr_dom → async_js → ppx_jane < v0.12 → ppx_custom_printf < 113.34.00+4.03 → ppx_core < 113.34.00+4.03 → ocaml < 4.05
+        base of this switch (use `--unlock-base' to force)
+    - incr_dom → async_js → ppx_jane < v0.12 → ppx_custom_printf < 113.34.00+4.03 → ocaml < 4.03
+        base of this switch (use `--unlock-base' to force)
+    - incr_dom → async_js → ppx_jane < v0.12 → ppx_here < v0.10 → ppx_driver = v0.9.0 → ocaml < 4.06.0
+        base of this switch (use `--unlock-base' to force)
+    - incr_dom → async_js → ppx_jane < v0.12 → ppx_here < v0.10 → ppx_core < v0.10 → ocaml < 4.06.0
+        base of this switch (use `--unlock-base' to force)
+    - incr_dom → async_js → ppx_jane < v0.12 → ppx_here < v0.10 → ppx_core < v0.10 → ppx_ast < v0.10 → ocaml < 4.08.0
+        base of this switch (use `--unlock-base' to force)
+    - incr_dom → async_js → ppx_jane < v0.12 → ppx_here < v0.10 → ocaml < 4.03
+        base of this switch (use `--unlock-base' to force)
+    - incr_dom → async_js → ppx_jane < v0.12 → ppx_inline_test < v0.12 → ppx_core < v0.10 → ocaml < 4.06.0
+        base of this switch (use `--unlock-base' to force)
+    - incr_dom → async_js → ppx_jane < v0.12 → ppx_inline_test < v0.12 → ppx_core < v0.10 → ppx_ast < v0.10 → ocaml < 4.08.0
+        base of this switch (use `--unlock-base' to force)
+    - incr_dom → async_js → ppx_jane < v0.12 → ppx_inline_test < v0.12 → ocaml < 4.03
+        base of this switch (use `--unlock-base' to force)
+    - incr_dom → async_js → ppx_jane < v0.12 → ppx_inline_test < v0.12 → jbuilder < 1.0+beta8 → ocaml < 4.08.0
+        base of this switch (use `--unlock-base' to force)
+    - incr_dom → async_js → ppx_jane < v0.12 → ppx_inline_test < v0.12 → base < v0.12 → ocaml < 4.08.0
+        base of this switch (use `--unlock-base' to force)
+    - incr_dom → async_js → ppx_jane < v0.12 → ppx_sexp_conv < 113.25.00 → ppx_core < 113.25.00 → ocaml < 4.03.0
+        base of this switch (use `--unlock-base' to force)
+    - incr_dom → async_js → ppx_jane < v0.12 → ppx_sexp_conv < 113.25.00 → ocaml < 4.03
+        base of this switch (use `--unlock-base' to force)
+    - incr_dom → async_js → ppx_jane < v0.12 → ppx_sexp_message < 113.25.00 → ppx_core < 113.25.00 → ocaml < 4.03.0
+        base of this switch (use `--unlock-base' to force)
+    - incr_dom → async_js → ocaml < 4.06.0
+        base of this switch (use `--unlock-base' to force)
+    - incr_dom → async_js → js_of_ocaml < 3.5.0 → ocaml < 4.09.0
+        base of this switch (use `--unlock-base' to force)
+    - incr_dom → core_kernel >= v0.13 → ppx_sexp_conv >= v0.13
+    - incr_dom → ppx_jane < v0.12 → ppx_sexp_message < 113.25.00 → ppx_core < 113.25.00 → ocaml < 4.03.0
+        base of this switch (use `--unlock-base' to force)
+    - incr_dom → ppx_jane < v0.12 → ppx_sexp_conv < 113.25.00 → ocaml < 4.03
+        base of this switch (use `--unlock-base' to force)
+    - incr_dom → ppx_jane < v0.12 → ppx_sexp_conv < 113.25.00 → ppx_core < 113.25.00 → ocaml < 4.03.0
+        base of this switch (use `--unlock-base' to force)
+    - incr_dom → ppx_jane < v0.12 → ppx_inline_test < v0.12 → base < v0.12 → ocaml < 4.08.0
+        base of this switch (use `--unlock-base' to force)
+    - incr_dom → ppx_jane < v0.12 → ppx_inline_test < v0.12 → jbuilder < 1.0+beta8 → ocaml < 4.08.0
+        base of this switch (use `--unlock-base' to force)
+    - incr_dom → ppx_jane < v0.12 → ppx_inline_test < v0.12 → ocaml < 4.03
+        base of this switch (use `--unlock-base' to force)
+    - incr_dom → ppx_jane < v0.12 → ppx_inline_test < v0.12 → ppx_core < v0.10 → ppx_ast < v0.10 → ocaml < 4.08.0
+        base of this switch (use `--unlock-base' to force)
+    - incr_dom → ppx_jane < v0.12 → ppx_inline_test < v0.12 → ppx_core < v0.10 → ocaml < 4.06.0
+        base of this switch (use `--unlock-base' to force)
+    - incr_dom → ppx_jane < v0.12 → ppx_here < v0.10 → ocaml < 4.03
+        base of this switch (use `--unlock-base' to force)
+    - incr_dom → ppx_jane < v0.12 → ppx_here < v0.10 → ppx_core < v0.10 → ppx_ast < v0.10 → ocaml < 4.08.0
+        base of this switch (use `--unlock-base' to force)
+    - incr_dom → ppx_jane < v0.12 → ppx_here < v0.10 → ppx_core < v0.10 → ocaml < 4.06.0
+        base of this switch (use `--unlock-base' to force)
+    - incr_dom → ppx_jane < v0.12 → ppx_here < v0.10 → ppx_driver = v0.9.0 → ocaml < 4.06.0
+        base of this switch (use `--unlock-base' to force)
+    - incr_dom → ppx_jane < v0.12 → ppx_custom_printf < 113.34.00+4.03 → ocaml < 4.03
+        base of this switch (use `--unlock-base' to force)
+    - incr_dom → ppx_jane < v0.12 → ppx_custom_printf < 113.34.00+4.03 → ppx_core < 113.34.00+4.03 → ocaml < 4.05
+        base of this switch (use `--unlock-base' to force)
+    - incr_dom → ppx_jane < v0.12 → ocaml = 4.02.3
+        base of this switch (use `--unlock-base' to force)
+  Your request can't be satisfied:
+    - No available version of ppx_sexp_conv satisfies the constraints
+
+  No solution found, exiting
   ```
 
-  This is known limitation of `js_of_ocaml`, and we are waiting for the
-  `js_of_ocaml` maintainers to release a fix.
-
-- The `reason-vscode` plugin for VS Code does not (yet) support OCaml 4.08.
-  (See <https://github.com/jaredly/reason-language-server/issues/317>)
-
-## How to update the `master` branch
-
-TODO: explain how to update (need info from Cyrus)
-
-- Test that everything works
-
-  TODO: explain how to test that everything works
+- The `reason-vscode` plugin for VS Code does not (yet) support OCaml 4.09.
+  See <https://github.com/jaredly/reason-language-server/pull/351>
+  and <https://github.com/jaredly/reason-language-server/issues/309>.
