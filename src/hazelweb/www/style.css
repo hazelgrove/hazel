@@ -871,7 +871,7 @@ button:disabled {
 }
 
 #cell .SNode.var-pat-usage {
-  background-color: rgba(3, 244, 252, 0.3);
+  background-color: rgba(175, 175, 175, 0.3);
 }
 
 .hole-indicator, .skel-hole-indicator, .ap-hole-indicator {

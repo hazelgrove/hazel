@@ -1,30 +1,30 @@
-BUILD_WWW = "_build/default/src/hazelweb/www"
+HTML_DIR=_build/default/src/hazelweb/www
 
 all: dev
 
 deps:
 	opam install \
-		core dune incr_dom oUnit ppx_let ppx_sexp_conv reason re \
-		rtop sexplib utop
+		dune reason utop rtop \
+		incr_dom js_of_ocaml ppx_let ppx_sexp_conv re sexplib
 
-dev debug:
+dev:
 	dune build @src/fmt --auto-promote || true
 	dune build src --profile dev
-
-build_www:
-	@echo $(BUILD_WWW)
 
 release:
 	dune build src --profile release
 
-chrome:
-	chrome-browser $(BUILD_WWW)/index.html
+echo-html-dir:
+	@echo "$(HTML_DIR)"
 
-chromium:
-	chromium-browser $(BUILD_WWW)/index.html
+echo-html:
+	@echo "$(HTML_DIR)/index.html"
 
-firefox:
-	firefox $(BUILD_WWW)/index.html
+win-chrome:
+	"/mnt/c/Program Files (x86)/Google/Chrome/Application/chrome.exe" $(make echo-html)
+
+win-firefox:
+	"/mnt/c/Program Files (x86)/Mozilla Firefox/firefox.exe" $(make echo-html)
 
 repl:
 	dune utop src/hazelcore
@@ -32,4 +32,4 @@ repl:
 clean:
 	dune clean
 
-.PHONY: all deps dev debug release test chrome chromium firefox repl clean
+.PHONY: all deps dev release echo-html-dir echo-html win-chrome win-firefox repl clean

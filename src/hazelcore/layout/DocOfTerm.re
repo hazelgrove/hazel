@@ -1,5 +1,4 @@
 open GeneralUtil;
-open SemanticsCommon;
 
 [@deriving sexp]
 type node_shape =
@@ -30,11 +29,6 @@ type sep_surround =
   | Left(doc)
   | Both(doc, doc);
 
-module LayoutOfDoc =
-  LayoutOfDoc.Make({
-    type t = tag;
-  });
-
 let tab_length = 2;
 let align_and_indent = (~n=1, doc: doc): doc =>
   n === 0
@@ -56,7 +50,7 @@ let doc_of_Parenthesized = (sbody_doc: doc): doc => {
   Doc.hcats([open_delim, sbody_doc, close_delim]);
 };
 
-let doc_of_Inj = (side: inj_side, sbody_doc: doc): doc => {
+let doc_of_Inj = (side: InjSide.t, sbody_doc: doc): doc => {
   let open_delim = Doc.Text("inj[" ++ (side == L ? "L" : "R") ++ "](");
   let close_delim = Doc.Text(")");
   Doc.hcats([open_delim, sbody_doc, close_delim]);
