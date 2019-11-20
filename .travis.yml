@@ -5,7 +5,7 @@ before_install:
 - sudo apt --assume-yes install m4 opam
 install:
 - export OPAMYES=1
-- opam init --compiler=ocaml-base-compiler.4.07.1
+- opam init --compiler=ocaml-base-compiler.4.08.1
 - eval $(opam env)
 - make deps
 script: make release
