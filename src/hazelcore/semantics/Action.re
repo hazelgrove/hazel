@@ -3297,10 +3297,7 @@ let rec syn_perform_block =
           | _three => ZExp.place_after_block
           };
         let (inner_prefix, zline, inner_suffix) =
-          block
-          |> place_cursor
-          |> ZExp.zblock_to_zlines
-          |> ZExp.prune_empty_hole_lines;
+          block |> place_cursor |> ZExp.prune_empty_hole_lines;
         Some(
           BlockZL(
             (prefix @ inner_prefix, zline, inner_suffix @ suffix),
@@ -3855,8 +3852,7 @@ and syn_perform_line =
         let zline = ZExp.prune_empty_hole_line(ExpLineZ(ze));
         Succeeded((([], zline, []), ctx, u_gen));
       | Succeeded((B(zblock), _, u_gen)) =>
-        let zlines =
-          ZExp.prune_empty_hole_lines(ZExp.zblock_to_zlines(zblock));
+        let zlines = zblock |> ZExp.prune_empty_hole_lines;
         Succeeded((zlines, ctx, u_gen));
       }
     }
@@ -5639,10 +5635,7 @@ and ana_perform_block =
           | _three => ZExp.place_after_block
           };
         let (inner_prefix, zline, inner_suffix) =
-          block
-          |> place_cursor
-          |> ZExp.zblock_to_zlines
-          |> ZExp.prune_empty_hole_lines;
+          block |> place_cursor |> ZExp.prune_empty_hole_lines;
         Some(
           BlockZL(
             (prefix @ inner_prefix, zline, inner_suffix @ suffix),

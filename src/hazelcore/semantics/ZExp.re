@@ -3,10 +3,7 @@ open GeneralUtil;
 
 [@deriving sexp]
 type t = zblock
-and zblock =
-  | BlockZL(zlines, UHExp.opseq)
-  | BlockZE(UHExp.lines, zopseq)
-and zlines = ZList.t(zline, UHExp.line)
+and zblock = ZList.t(zline, UHExp.line)
 and zline =
   | CursorL(CursorPosition.t, UHExp.line)
   | ExpLineZ(zopseq)
@@ -87,8 +84,19 @@ let is_valid_cursor_operand =
 let is_valid_cursor_rule = (cursor: CursorPosition.t, rule: UHExp.rule): bool =>
   valid_cursors_rule(rule) |> contains(cursor);
 
-let wrap_in_block = (zconclusion: zopseq): zblock =>
-  BlockZE([], zconclusion);
+let wrap_in_block = (zconclusion: zopseq): zblock => (
+  [],
+  ExpLineZ(zconclusion),
+  [],
+);
+
+let force_get_zopseq =
+  fun
+  | CursorL(_, _)
+  | LetLineZP(_, _, _)
+  | LetLineZA(_, _, _)
+  | LetLineZE(_, _, _) => failwith("force_get_zopseq: expected ExpLineZ")
+  | ExpLineZ(zopseq) => zopseq;
 
 let parenthesize = (zbody: zoperand): zoperand =>
   ParenthesizedZ(zbody |> ZOpSeq.wrap |> wrap_in_block);
@@ -117,13 +125,7 @@ let bidelimit = (zoperand: zoperand): zoperand =>
 exception InconsistentOpSeq;
 
 let rec is_before = (ze: t): bool => is_before_zblock(ze)
-and is_before_zblock = (zblock: zblock): bool =>
-  switch (zblock) {
-  | BlockZL(zleading, _) => is_before_zlines(zleading)
-  | BlockZE([], zconclusion) => is_before_zopseq(zconclusion)
-  | BlockZE(_, _) => false
-  }
-and is_before_zlines = ((prefix, zline, _): zlines): bool =>
+and is_before_zblock = ((prefix, zline, _): zblock): bool =>
   switch (prefix) {
   | [] => is_before_zline(zline)
   | _ => false
@@ -166,10 +168,11 @@ let is_before_zrule =
   | _ => false;
 
 let rec is_after = ze => is_after_zblock(ze)
-and is_after_zblock =
-  fun
-  | BlockZL(_, _) => false
-  | BlockZE(_, zopseq) => is_after_zopseq(zopseq)
+and is_after_zblock = ((_, zline, suffix): zblock): bool =>
+  switch (suffix) {
+  | [] => is_after_zline(zline)
+  | _ => false
+  }
 and is_after_zline =
   fun
   | CursorL(cursor, EmptyLine) => cursor == OnText(0)
@@ -203,11 +206,6 @@ and is_after_zoperand =
   | CaseZR(_, _, _, _) => false
   | CaseZA(_, _, _, zann) => ZTyp.is_after(zann)
   | ApPaletteZ(_, _, _, _) => false;
-let is_after_zlines = ((_, zline, suffix): zlines): bool =>
-  switch (suffix) {
-  | [] => is_after_zline(zline)
-  | _ => false
-  };
 let is_after_zrule =
   fun
   | RuleZE(_, zclause) => is_after(zclause)
@@ -216,8 +214,7 @@ let is_after_zrule =
 let rec is_after_case_rule = ze => is_after_case_rule_zblock(ze)
 and is_after_case_rule_zblock =
   fun
-  | BlockZL((_, zline, _), _) => zline |> is_after_case_rule_line
-  | BlockZE(_, zconclusion) => zconclusion |> is_after_case_rule_zopseq
+  | (_, zline, _) => zline |> is_after_case_rule_line
 and is_after_case_rule_line =
   fun
   | CursorL(_, _) => false
@@ -244,64 +241,61 @@ and is_after_case_rule_zoperand =
   | CaseZA(_, _, _, _)
   | ApPaletteZ(_, _, _, _) => false;
 
-let rec is_on_user_newlineable_hole = (~is_root=true, ze) =>
-  is_on_user_newlineable_hole_zblock(~is_root, ze)
-and is_on_user_newlineable_hole_zblock = (~is_root=true, zblock) =>
-  switch (zblock) {
-  | BlockZL((_, zline, _), _) => zline |> is_on_user_newlineable_hole_zline
-  | BlockZE(leading, zconclusion) =>
-    switch (leading |> split_last, zconclusion) {
-    | (None, ZOperand(_, CursorE(_, EmptyHole(_)), _)) => !is_root
-    | (
-        Some((_, LetLine(_, _, _))),
-        ZOperand(_, CursorE(_, EmptyHole(_)), _),
-      ) =>
-      true
-    | (_, _) => zconclusion |> is_on_user_newlineable_hole_zopseq
-    }
-  }
-and is_on_user_newlineable_hole_zline =
-  fun
-  | CursorL(_, _) => false
-  | ExpLineZ(zopseq) => zopseq |> is_on_user_newlineable_hole_zopseq
-  | LetLineZP(_, _, _)
-  | LetLineZA(_, _, _) => false
-  | LetLineZE(_, _, zdef) => zdef |> is_on_user_newlineable_hole
-and is_on_user_newlineable_hole_zopseq =
-  fun
-  | ZOperator(_, _, _) => false
-  | ZOperand(_, zoperand, _) =>
-    is_on_user_newlineable_hole_zoperand(zoperand)
-and is_on_user_newlineable_hole_zoperand =
-  fun
-  | CursorE(_, _) => false
-  | ParenthesizedZ(zblock)
-  | LamZE(_, _, _, zblock)
-  | InjZ(_, _, zblock)
-  | CaseZE(_, zblock, _, _)
-  | CaseZR(_, _, (_, RuleZE(_, zblock), _), _) =>
-    zblock |> is_on_user_newlineable_hole
-  | LamZP(_, _, _, _)
-  | LamZA(_, _, _, _)
-  | CaseZR(_, _, (_, CursorR(_, _) | RuleZP(_, _), _), _)
-  | CaseZA(_, _, _, _)
-  | ApPaletteZ(_, _, _, _) => false;
+/*
+ let rec is_on_user_newlineable_hole = (~is_root=true, ze) =>
+   is_on_user_newlineable_hole_zblock(~is_root, ze)
+ and is_on_user_newlineable_hole_zblock = (~is_root=true, zblock) =>
+   switch (zblock) {
+   | (_, zline, _) => zline |> is_on_user_newlineable_hole_zline
+   | BlockZE(leading, zconclusion) =>
+     switch (leading |> split_last, zconclusion) {
+     | (None, ZOperand(_, CursorE(_, EmptyHole(_)), _)) => !is_root
+     | (
+         Some((_, LetLine(_, _, _))),
+         ZOperand(_, CursorE(_, EmptyHole(_)), _),
+       ) =>
+       true
+     | (_, _) => zconclusion |> is_on_user_newlineable_hole_zopseq
+     }
+   }
+ and is_on_user_newlineable_hole_zline =
+   fun
+   | CursorL(_, _) => false
+   | ExpLineZ(zopseq) => zopseq |> is_on_user_newlineable_hole_zopseq
+   | LetLineZP(_, _, _)
+   | LetLineZA(_, _, _) => false
+   | LetLineZE(_, _, zdef) => zdef |> is_on_user_newlineable_hole
+ and is_on_user_newlineable_hole_zopseq =
+   fun
+   | ZOperator(_, _, _) => false
+   | ZOperand(_, zoperand, _) =>
+     is_on_user_newlineable_hole_zoperand(zoperand)
+ and is_on_user_newlineable_hole_zoperand =
+   fun
+   | CursorE(_, _) => false
+   | ParenthesizedZ(zblock)
+   | LamZE(_, _, _, zblock)
+   | InjZ(_, _, zblock)
+   | CaseZE(_, zblock, _, _)
+   | CaseZR(_, _, (_, RuleZE(_, zblock), _), _) =>
+     zblock |> is_on_user_newlineable_hole
+   | LamZP(_, _, _, _)
+   | LamZA(_, _, _, _)
+   | CaseZR(_, _, (_, CursorR(_, _) | RuleZP(_, _), _), _)
+   | CaseZA(_, _, _, _)
+   | ApPaletteZ(_, _, _, _) => false;
+ */
 
 let rec place_before = (e: UHExp.t): t => place_before_block(e)
-and place_before_block = (block: UHExp.block): zblock =>
-  switch (block) {
-  | Block([], conclusion) => BlockZE([], place_before_opseq(conclusion))
-  | Block([line, ...lines], conclusion) =>
-    let zline = place_before_line(line);
-    let zlines = ([], zline, lines);
-    BlockZL(zlines, conclusion);
-  }
-and place_before_line = (line: UHExp.line): zline =>
-  switch (line) {
+and place_before_block =
+  fun
+  | [] => failwith("place_before_block: empty block")
+  | [first, ...rest] => ([], first |> place_before_line, rest)
+and place_before_line =
+  fun
   | EmptyLine => CursorL(OnText(0), EmptyLine)
-  | LetLine(_, _, _) => CursorL(OnDelim(0, Before), line)
+  | LetLine(_, _, _) as line => CursorL(OnDelim(0, Before), line)
   | ExpLine(opseq) => ExpLineZ(place_before_opseq(opseq))
-  }
 and place_before_opseq = opseq =>
   ZOpSeq.place_before(~place_before_operand, opseq)
 and place_before_operand = operand =>
@@ -317,24 +311,21 @@ and place_before_operand = operand =>
   | Parenthesized(_) => CursorE(OnDelim(0, Before), operand)
   | ApPalette(_, _, _, _) => CursorE(OnDelim(0, Before), operand) /* TODO[livelits] */
   };
-let place_before_lines = (lines: UHExp.lines): option(zlines) =>
-  switch (lines) {
-  | [] => None
-  | [line, ...lines] => Some(([], place_before_line(line), lines))
-  };
 let place_before_rule = (rule: UHExp.rule): zrule =>
   CursorR(OnDelim(0, Before), rule);
 let place_before_operator = (op: UHExp.operator): zoperator => (Before, op);
 
 let rec place_after = (e: UHExp.t): t => place_after_block(e)
-and place_after_block = (Block(leading, conclusion): UHExp.block): zblock =>
-  BlockZE(leading, place_after_opseq(conclusion))
-and place_after_line = (line: UHExp.line): zline =>
-  switch (line) {
-  | EmptyLine => CursorL(OnText(0), line)
-  | LetLine(_, _, _) => CursorL(OnDelim(3, After), line)
-  | ExpLine(e) => ExpLineZ(place_after_opseq(e))
+and place_after_block = (block: UHExp.block): zblock =>
+  switch (block |> split_last) {
+  | None => failwith("place_after_block: empty block")
+  | Some((leading, last)) => (leading, last |> place_after_line, [])
   }
+and place_after_line =
+  fun
+  | EmptyLine => CursorL(OnText(0), EmptyLine)
+  | LetLine(_, _, _) as line => CursorL(OnDelim(3, After), line)
+  | ExpLine(e) => ExpLineZ(place_after_opseq(e))
 and place_after_opseq = opseq =>
   ZOpSeq.place_after(~place_after_operand, opseq)
 and place_after_operand = operand =>
@@ -352,12 +343,6 @@ and place_after_operand = operand =>
   | Inj(_, _, _) => CursorE(OnDelim(1, After), operand)
   | Parenthesized(_) => CursorE(OnDelim(1, After), operand)
   | ApPalette(_, _, _, _) => CursorE(OnDelim(0, After), operand) /* TODO[livelits] */
-  };
-let place_after_lines = (lines: UHExp.lines): option(zlines) =>
-  switch (split_last(lines)) {
-  | None => None
-  | Some((prefix, last_line)) =>
-    Some((prefix, place_after_line(last_line), []))
   };
 let place_after_rule = (Rule(p, clause): UHExp.rule): zrule =>
   RuleZE(p, place_after(clause));
@@ -392,7 +377,7 @@ let prune_empty_hole_line = (zli: zline): zline =>
   | LetLineZE(_, _, _)
   | CursorL(_) => zli
   };
-let prune_empty_hole_lines = ((prefix, zline, suffix): zlines): zlines => (
+let prune_empty_hole_lines = ((prefix, zline, suffix): zblock): zblock => (
   UHExp.prune_empty_hole_lines(prefix),
   prune_empty_hole_line(zline),
   UHExp.prune_empty_hole_lines(suffix),
@@ -400,12 +385,19 @@ let prune_empty_hole_lines = ((prefix, zline, suffix): zlines): zlines => (
 
 let rec set_err_status = (err: ErrStatus.t, ze: t): t =>
   set_err_status_zblock(err, ze)
-and set_err_status_zblock = (err: ErrStatus.t, zblock: zblock): zblock =>
-  switch (zblock) {
-  | BlockZL(zlines, conclusion) =>
-    BlockZL(zlines, UHExp.set_err_status_opseq(err, conclusion))
-  | BlockZE(lines, zconclusion) =>
-    BlockZE(lines, set_err_status_zopseq(err, zconclusion))
+and set_err_status_zblock =
+    (err: ErrStatus.t, (prefix, zline, suffix): zblock): zblock =>
+  switch (suffix |> split_last) {
+  | None =>
+    let zopseq = zline |> force_get_zopseq;
+    (prefix, ExpLineZ(zopseq |> set_err_status_zopseq(err)), []);
+  | Some((suffix_leading, suffix_last)) =>
+    let opseq = suffix_last |> UHExp.force_get_opseq;
+    (
+      prefix,
+      zline,
+      suffix_leading @ [ExpLine(opseq |> UHExp.set_err_status_opseq(err))],
+    );
   }
 and set_err_status_zopseq = (err, zopseq) =>
   ZOpSeq.set_err_status(~set_err_status_zoperand, err, zopseq)
@@ -428,16 +420,19 @@ and set_err_status_zoperand = (err, zoperand) =>
 let rec make_inconsistent = (u_gen: MetaVarGen.t, ze: t): (t, MetaVarGen.t) =>
   make_inconsistent_zblock(u_gen, ze)
 and make_inconsistent_zblock =
-    (u_gen: MetaVarGen.t, zblock: zblock): (zblock, MetaVarGen.t) =>
-  switch (zblock) {
-  | BlockZL(zlines, conclusion) =>
-    let (conclusion, u_gen) =
-      conclusion |> UHExp.make_inconsistent_opseq(u_gen);
-    (BlockZL(zlines, conclusion), u_gen);
-  | BlockZE(lines, zconclusion) =>
+    (u_gen: MetaVarGen.t, (prefix, zline, suffix): zblock)
+    : (zblock, MetaVarGen.t) =>
+  switch (suffix |> split_last) {
+  | None =>
     let (zconclusion, u_gen) =
-      zconclusion |> make_inconsistent_zopseq(u_gen);
-    (BlockZE(lines, zconclusion), u_gen);
+      zline |> force_get_zopseq |> make_inconsistent_zopseq(u_gen);
+    ((prefix, ExpLineZ(zconclusion), []), u_gen);
+  | Some((suffix_leading, suffix_last)) =>
+    let (conclusion, u_gen) =
+      suffix_last
+      |> UHExp.force_get_opseq
+      |> UHExp.make_inconsistent_opseq(u_gen);
+    ((prefix, zline, suffix_leading @ [ExpLine(conclusion)]), u_gen);
   }
 and make_inconsistent_zopseq = (u_gen, zopseq) =>
   ZOpSeq.make_inconsistent(~make_inconsistent_zoperand, u_gen, zopseq)
@@ -482,7 +477,7 @@ let rec cursor_on_outer_expr =
   switch (zoperand) {
   | CursorE(cursor, operand) =>
     Some((UHExp.drop_outer_parentheses(operand), cursor))
-  | ParenthesizedZ(BlockZE([], ZOperand(_, zoperand, _))) =>
+  | ParenthesizedZ(([], ExpLineZ(ZOperand(_, zoperand, _)), [])) =>
     cursor_on_outer_expr(zoperand)
   | ParenthesizedZ(_)
   | LamZP(_, _, _, _)
@@ -504,23 +499,15 @@ let empty_zrule = (u_gen: MetaVarGen.t): (zrule, MetaVarGen.t) => {
 };
 
 let rec erase = (ze: t): UHExp.t => erase_zblock(ze)
-and erase_zblock = (zblock: zblock): UHExp.block =>
-  switch (zblock) {
-  | BlockZL(zleading, conclusion) =>
-    Block(erase_zlines(zleading), conclusion)
-  | BlockZE(leading, zconclusion) =>
-    Block(leading, erase_zopseq(zconclusion))
-  }
-and erase_zlines = (zlis: zlines): UHExp.lines =>
-  ZList.erase(zlis, erase_zline)
-and erase_zline = (zline: zline): UHExp.line =>
-  switch (zline) {
+and erase_zblock = ((prefix, zline, suffix): zblock): UHExp.block =>
+  prefix @ [zline |> erase_zline] @ suffix
+and erase_zline =
+  fun
   | CursorL(_, line) => line
   | ExpLineZ(zopseq) => ExpLine(erase_zopseq(zopseq))
   | LetLineZP(zp, ann, block) => LetLine(ZPat.erase(zp), ann, block)
   | LetLineZA(p, zann, block) => LetLine(p, Some(ZTyp.erase(zann)), block)
   | LetLineZE(p, ann, zblock) => LetLine(p, ann, erase_zblock(zblock))
-  }
 and erase_zopseq = zopseq =>
   ZOpSeq.erase(~erase_zoperand, ~erase_zoperator, zopseq)
 and erase_zoperator =
@@ -553,54 +540,23 @@ and erase_zrule =
 let is_inconsistent = zoperand =>
   zoperand |> erase_zoperand |> UHExp.is_inconsistent;
 
-let zblock_to_zlines = (zblock: zblock): zlines =>
-  switch (zblock) {
-  | BlockZL((prefix, zline, suffix), e) => (
-      prefix,
-      zline,
-      suffix @ [ExpLine(e)],
-    )
-  | BlockZE(lines, ze) => (lines, ExpLineZ(ze), [])
-  };
-
 let rec move_cursor_left = (ze: t): option(t) => move_cursor_left_zblock(ze)
-and move_cursor_left_zblock = (zblock: zblock): option(zblock) =>
-  switch (zblock) {
-  | BlockZL((prefix, zline, suffix), e) =>
+and move_cursor_left_zblock =
+  fun
+  | (prefix, zline, suffix) =>
     switch (move_cursor_left_zline(zline)) {
-    | Some(zline) => Some(BlockZL((prefix, zline, suffix), e))
+    | Some(zline) => Some((prefix, zline, suffix))
     | None =>
-      switch (List.rev(prefix)) {
-      | [] => None
-      | [line_before, ...rev_prefix] =>
-        Some(
-          BlockZL(
-            (
-              List.rev(rev_prefix),
-              place_after_line(line_before),
-              [erase_zline(zline), ...suffix],
-            ),
-            e,
-          ),
-        )
-      }
+      prefix
+      |> split_last
+      |> Opt.map(((prefix_leading, prefix_last)) =>
+           (
+             prefix_leading,
+             prefix_last |> place_after_line,
+             [zline |> erase_zline, ...suffix],
+           )
+         )
     }
-  | BlockZE(leading, zconclusion) =>
-    switch (move_cursor_left_zopseq(zconclusion)) {
-    | Some(zconclusion) => Some(BlockZE(leading, zconclusion))
-    | None =>
-      switch (List.rev(leading)) {
-      | [] => None
-      | [last_line, ...rev_prefix] =>
-        Some(
-          BlockZL(
-            (List.rev(rev_prefix), place_after_line(last_line), []),
-            erase_zopseq(zconclusion),
-          ),
-        )
-      }
-    }
-  }
 and move_cursor_left_zline = (zline: zline): option(zline) =>
   switch (zline) {
   | _ when is_before_zline(zline) => None
@@ -821,35 +777,19 @@ let rec move_cursor_right = (ze: t): option(t) =>
   move_cursor_right_zblock(ze)
 and move_cursor_right_zblock =
   fun
-  | BlockZL((prefix, zline, suffix), conclusion) =>
+  | (prefix, zline, suffix) =>
     switch (move_cursor_right_zline(zline)) {
-    | Some(zline) => Some(BlockZL((prefix, zline, suffix), conclusion))
+    | Some(zline) => Some((prefix, zline, suffix))
     | None =>
       switch (suffix) {
-      | [] =>
-        Some(
-          BlockZE(
-            prefix @ [erase_zline(zline)] @ suffix,
-            place_before_opseq(conclusion),
-          ),
-        )
-      | [line_after, ...suffix] =>
-        Some(
-          BlockZL(
-            (
-              prefix @ [erase_zline(zline)],
-              place_before_line(line_after),
-              suffix,
-            ),
-            conclusion,
-          ),
-        )
+      | [] => None
+      | [suffix_first, ...suffix_trailing] =>
+        Some((
+          prefix @ [erase_zline(zline)],
+          place_before_line(suffix_first),
+          suffix_trailing,
+        ))
       }
-    }
-  | BlockZE(leading, zconclusion) =>
-    switch (move_cursor_right_zopseq(zconclusion)) {
-    | None => None
-    | Some(zconclusion) => Some(BlockZE(leading, zconclusion))
     }
 and move_cursor_right_zline =
   fun

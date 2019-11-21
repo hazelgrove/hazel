@@ -22,9 +22,7 @@ let is_Space =
 
 [@deriving sexp]
 type t = block
-and block =
-  | Block(lines, opseq)
-and lines = list(line)
+and block = list(line)
 and line =
   | ExpLine(opseq)
   | EmptyLine
@@ -87,7 +85,7 @@ let case =
 
 let listnil = (~err: ErrStatus.t=NotInHole, ()): operand => ListNil(err);
 
-let wrap_in_block = (opseq: opseq): block => Block([], opseq);
+let wrap_in_block = (opseq: opseq): block => [ExpLine(opseq)];
 
 let prune_empty_hole_line = (li: line): line =>
   switch (li) {
@@ -96,7 +94,7 @@ let prune_empty_hole_line = (li: line): line =>
   | EmptyLine
   | LetLine(_, _, _) => li
   };
-let prune_empty_hole_lines: lines => lines = List.map(prune_empty_hole_line);
+let prune_empty_hole_lines = List.map(prune_empty_hole_line);
 
 /*
  let rec get_tuple = (skel1: skel, skel2: skel): ListMinTwo.t(skel) =>
@@ -132,14 +130,6 @@ let empty_rule = (u_gen: MetaVarGen.t): (rule, MetaVarGen.t) => {
   let rule = Rule(p |> OpSeq.wrap, e |> OpSeq.wrap |> wrap_in_block);
   (rule, u_gen);
 };
-
-let prepend_leading_line = (line, Block(lines, e)) =>
-  Block([line, ...lines], e);
-
-let append_concluding_exp = (new_conclusion, Block(lines, conclusion)) =>
-  Block(lines @ [ExpLine(conclusion)], new_conclusion);
-
-let block_to_lines = (Block(lines, e)) => lines @ [ExpLine(e)];
 
 /**
  * Bidelimited expressions are those that do not need to
@@ -177,8 +167,26 @@ let bidelimit = (operand): operand =>
     Parenthesized(operand |> OpSeq.wrap |> wrap_in_block);
   };
 
-let rec get_err_status = (e: t): ErrStatus.t => get_err_status_zblock(e)
-and get_err_status_zblock = (Block(_, opseq)) => get_err_status_opseq(opseq)
+let force_get_opseq =
+  fun
+  | EmptyLine
+  | LetLine(_, _, _) => failwith("force_get_opseq: expected ExpLine")
+  | ExpLine(opseq) => opseq;
+
+let split_conclusion = (block: block): (list(line), opseq) =>
+  switch (block |> split_last) {
+  | None => failwith("split_conclusion: empty block")
+  | Some((leading, last)) => (leading, last |> force_get_opseq)
+  };
+
+let join_conclusion = (leading: list(line), conclusion: opseq): block =>
+  leading @ [ExpLine(conclusion)];
+
+let rec get_err_status = (e: t): ErrStatus.t => get_err_status_block(e)
+and get_err_status_block = block => {
+  let (_, conclusion) = block |> split_conclusion;
+  conclusion |> get_err_status_opseq;
+}
 and get_err_status_opseq = opseq =>
   OpSeq.get_err_status(~get_err_status_operand, opseq)
 and get_err_status_operand =
@@ -197,9 +205,10 @@ and get_err_status_operand =
 /* put e in the specified hole */
 let rec set_err_status = (err: ErrStatus.t, e: t): t =>
   set_err_status_block(err, e)
-and set_err_status_block =
-    (err: ErrStatus.t, Block(lines, opseq): block): block =>
-  Block(lines, set_err_status_opseq(err, opseq))
+and set_err_status_block = (err: ErrStatus.t, block: block): block => {
+  let (leading, conclusion) = block |> split_conclusion;
+  join_conclusion(leading, conclusion |> set_err_status_opseq(err));
+}
 and set_err_status_opseq = (err, opseq) =>
   OpSeq.set_err_status(~set_err_status_operand, err, opseq)
 and set_err_status_operand = (err, operand) =>
@@ -226,10 +235,10 @@ let is_inconsistent = operand =>
 let rec make_inconsistent = (u_gen: MetaVarGen.t, e: t): (t, MetaVarGen.t) =>
   make_inconsistent_block(u_gen, e)
 and make_inconsistent_block =
-    (u_gen: MetaVarGen.t, Block(leading, conclusion): block)
-    : (block, MetaVarGen.t) => {
+    (u_gen: MetaVarGen.t, block: block): (block, MetaVarGen.t) => {
+  let (leading, conclusion) = block |> split_conclusion;
   let (conclusion, u_gen) = conclusion |> make_inconsistent_opseq(u_gen);
-  (Block(leading, conclusion), u_gen);
+  (join_conclusion(leading, conclusion), u_gen);
 }
 and make_inconsistent_opseq = (u_gen, opseq) =>
   OpSeq.make_inconsistent(~make_inconsistent_operand, u_gen, opseq)
@@ -266,10 +275,10 @@ and make_inconsistent_operand = (u_gen, operand) =>
 
 let rec drop_outer_parentheses = (operand): t =>
   switch (operand) {
-  | Parenthesized(Block([], OpSeq(_, S(operand, E)))) =>
+  | Parenthesized([ExpLine(OpSeq(_, S(operand, E)))]) =>
     drop_outer_parentheses(operand)
   | Parenthesized(e) => e
-  | _ => Block([], operand |> OpSeq.wrap)
+  | _ => operand |> OpSeq.wrap |> wrap_in_block
   };
 
 let child_indices_line =
@@ -296,375 +305,377 @@ let child_indices_rule =
   fun
   | Rule(_, _) => [0, 1];
 
-let num_lines_in_block = (Block(leading, _)) => List.length(leading) + 1;
+let num_lines_in_block = List.length;
 
-let rec first_contiguous_empty_lines = (lines: lines): (lines, lines) =>
-  switch (lines) {
-  | [] => ([], [])
-  | [EmptyLine, ...rest] =>
-    let (empty_lines, rest) = first_contiguous_empty_lines(rest);
-    ([EmptyLine, ...empty_lines], rest);
-  | [_, ..._] => ([], lines)
-  };
+/*
+ let rec first_contiguous_empty_lines = (lines: lines): (lines, lines) =>
+   switch (lines) {
+   | [] => ([], [])
+   | [EmptyLine, ...rest] =>
+     let (empty_lines, rest) = first_contiguous_empty_lines(rest);
+     ([EmptyLine, ...empty_lines], rest);
+   | [_, ..._] => ([], lines)
+   };
 
-let last_contiguous_empty_lines = (lines: lines): (lines, lines) => {
-  let (empty_lines, rev_prefix) =
-    lines |> List.rev |> first_contiguous_empty_lines;
-  (List.rev(rev_prefix), empty_lines);
-};
+ let last_contiguous_empty_lines = (lines: lines): (lines, lines) => {
+   let (empty_lines, rev_prefix) =
+     lines |> List.rev |> first_contiguous_empty_lines;
+   (List.rev(rev_prefix), empty_lines);
+ };
 
-let first_line_and_trailing_contiguous_empty_lines =
-    (lines: lines): option((line, lines, lines)) =>
-  switch (lines) {
-  | [] => None
-  | [line, ...rest] =>
-    let (empty_lines, rest) = first_contiguous_empty_lines(rest);
-    Some((line, empty_lines, rest));
-  };
+ let first_line_and_trailing_contiguous_empty_lines =
+     (lines: lines): option((line, lines, lines)) =>
+   switch (lines) {
+   | [] => None
+   | [line, ...rest] =>
+     let (empty_lines, rest) = first_contiguous_empty_lines(rest);
+     Some((line, empty_lines, rest));
+   };
 
-let rec first_contiguous_empty_lines_and_nonempty_line =
-        (lines: lines): (lines, option(line), lines) =>
-  switch (lines) {
-  | [] => ([], None, [])
-  | [EmptyLine, ...lines] =>
-    let (empty_lines, nonempty_line, rest) =
-      first_contiguous_empty_lines_and_nonempty_line(lines);
-    ([EmptyLine, ...empty_lines], nonempty_line, rest);
-  | [nonempty_line, ...rest] => ([], Some(nonempty_line), rest)
-  };
+ let rec first_contiguous_empty_lines_and_nonempty_line =
+         (lines: lines): (lines, option(line), lines) =>
+   switch (lines) {
+   | [] => ([], None, [])
+   | [EmptyLine, ...lines] =>
+     let (empty_lines, nonempty_line, rest) =
+       first_contiguous_empty_lines_and_nonempty_line(lines);
+     ([EmptyLine, ...empty_lines], nonempty_line, rest);
+   | [nonempty_line, ...rest] => ([], Some(nonempty_line), rest)
+   };
 
-let last_nonempty_line_and_trailing_contiguous_empty_lines =
-    (lines: lines): (lines, option(line), lines) => {
-  List.fold_right(
-    (line, (prefix, nonempty_line, empty_lines)) =>
-      switch (line, nonempty_line) {
-      | (EmptyLine, None) => ([], None, [EmptyLine, ...empty_lines])
-      | (_, None) => ([], Some(line), empty_lines)
-      | (_, Some(_)) => ([line, ...prefix], nonempty_line, empty_lines)
-      },
-    lines,
-    ([], None, []),
-  );
-};
+ let last_nonempty_line_and_trailing_contiguous_empty_lines =
+     (lines: lines): (lines, option(line), lines) => {
+   List.fold_right(
+     (line, (prefix, nonempty_line, empty_lines)) =>
+       switch (line, nonempty_line) {
+       | (EmptyLine, None) => ([], None, [EmptyLine, ...empty_lines])
+       | (_, None) => ([], Some(line), empty_lines)
+       | (_, Some(_)) => ([line, ...prefix], nonempty_line, empty_lines)
+       },
+     lines,
+     ([], None, []),
+   );
+ };
 
-let last_line_and_leading_contiguous_empty_lines =
-    (lines: lines): option((lines, lines, line)) =>
-  switch (lines |> split_last) {
-  | None => None
-  | Some((prefix, last)) =>
-    let (prefix, empty_lines) = last_contiguous_empty_lines(prefix);
-    Some((prefix, empty_lines, last));
-  };
+ let last_line_and_leading_contiguous_empty_lines =
+     (lines: lines): option((lines, lines, line)) =>
+   switch (lines |> split_last) {
+   | None => None
+   | Some((prefix, last)) =>
+     let (prefix, empty_lines) = last_contiguous_empty_lines(prefix);
+     Some((prefix, empty_lines, last));
+   };
 
-let shift_line_to_prefix =
-    (~u_gen: MetaVarGen.t, prefix: lines, Block(leading, conclusion))
-    : option((lines, block, MetaVarGen.t)) =>
-  switch (
-    leading |> first_line_and_trailing_contiguous_empty_lines,
-    conclusion,
-  ) {
-  | (None, OpSeq(_, S(EmptyHole(_), E))) => None
-  | (None, _) =>
-    let (hole, u_gen) = u_gen |> new_EmptyHole;
-    Some((
-      prefix @ [ExpLine(conclusion)],
-      hole |> OpSeq.wrap |> wrap_in_block,
-      u_gen,
-    ));
-  | (Some((next_line, empty_lines, leading_rest)), _) =>
-    Some((
-      prefix @ [next_line, ...empty_lines],
-      Block(leading_rest, conclusion),
-      u_gen,
-    ))
-  };
+ let shift_line_to_prefix =
+     (~u_gen: MetaVarGen.t, prefix: lines, Block(leading, conclusion))
+     : option((lines, block, MetaVarGen.t)) =>
+   switch (
+     leading |> first_line_and_trailing_contiguous_empty_lines,
+     conclusion,
+   ) {
+   | (None, OpSeq(_, S(EmptyHole(_), E))) => None
+   | (None, _) =>
+     let (hole, u_gen) = u_gen |> new_EmptyHole;
+     Some((
+       prefix @ [ExpLine(conclusion)],
+       hole |> OpSeq.wrap |> wrap_in_block,
+       u_gen,
+     ));
+   | (Some((next_line, empty_lines, leading_rest)), _) =>
+     Some((
+       prefix @ [next_line, ...empty_lines],
+       Block(leading_rest, conclusion),
+       u_gen,
+     ))
+   };
 
-let shift_line_from_prefix =
-    (~u_gen: MetaVarGen.t, prefix: lines, Block(leading, conclusion))
-    : option((lines, block, MetaVarGen.t)) =>
-  switch (prefix |> last_nonempty_line_and_trailing_contiguous_empty_lines) {
-  | (_, None, empty_lines) =>
-    Some(([], Block(empty_lines @ leading, conclusion), u_gen))
-  | (new_prefix, Some(nonempty_line), empty_lines) =>
-    switch (nonempty_line, leading, conclusion) {
-    | (ExpLine(e), [], OpSeq(_, S(EmptyHole(_), E))) =>
-      Some((new_prefix, e |> wrap_in_block, u_gen))
-    | (_, _, _) =>
-      Some((
-        new_prefix,
-        Block([nonempty_line] @ empty_lines @ leading, conclusion),
-        u_gen,
-      ))
-    }
-  };
+ let shift_line_from_prefix =
+     (~u_gen: MetaVarGen.t, prefix: lines, Block(leading, conclusion))
+     : option((lines, block, MetaVarGen.t)) =>
+   switch (prefix |> last_nonempty_line_and_trailing_contiguous_empty_lines) {
+   | (_, None, empty_lines) =>
+     Some(([], Block(empty_lines @ leading, conclusion), u_gen))
+   | (new_prefix, Some(nonempty_line), empty_lines) =>
+     switch (nonempty_line, leading, conclusion) {
+     | (ExpLine(e), [], OpSeq(_, S(EmptyHole(_), E))) =>
+       Some((new_prefix, e |> wrap_in_block, u_gen))
+     | (_, _, _) =>
+       Some((
+         new_prefix,
+         Block([nonempty_line] @ empty_lines @ leading, conclusion),
+         u_gen,
+       ))
+     }
+   };
 
-let shift_line_from_suffix_block =
-    (
-      ~is_node_terminal: bool,
-      ~u_gen: MetaVarGen.t,
-      suffix_block: option(block),
-      Block(leading, conclusion),
-    )
-    : option((block, option(block), MetaVarGen.t)) =>
-  switch (suffix_block) {
-  | None => assert(false)
-  | Some(Block(suffix_leading, suffix_conclusion)) =>
-    switch (
-      suffix_leading |> first_contiguous_empty_lines_and_nonempty_line,
-      suffix_conclusion,
-    ) {
-    | ((_, None, _), OpSeq(_, S(EmptyHole(_), E))) => None
-    | ((empty_lines, None, _), _) =>
-      switch (is_node_terminal, conclusion) {
-      | (false, OpSeq(_, S(EmptyHole(_), E)) as recycled_hole) =>
-        Some((
-          Block(leading @ empty_lines, suffix_conclusion),
-          Some(recycled_hole |> wrap_in_block),
-          u_gen,
-        ))
-      | (false, _) =>
-        let (hole, u_gen) = u_gen |> new_EmptyHole;
-        Some((
-          Block(
-            leading @ empty_lines @ [ExpLine(conclusion)],
-            suffix_conclusion,
-          ),
-          Some(hole |> OpSeq.wrap |> wrap_in_block),
-          u_gen,
-        ));
-      | (true, OpSeq(_, S(EmptyHole(_), E))) =>
-        Some((Block(leading @ empty_lines, suffix_conclusion), None, u_gen))
-      | (true, _) =>
-        Some((
-          Block(leading @ [ExpLine(conclusion)], suffix_conclusion),
-          None,
-          u_gen,
-        ))
-      }
-    | (
-        (empty_lines, Some(LetLine(_, _, _) as let_line), []),
-        OpSeq(_, S(EmptyHole(_), E)) as let_line_hole,
-      ) =>
-      switch (is_node_terminal, conclusion) {
-      | (false, OpSeq(_, S(EmptyHole(_), E))) =>
-        Some((
-          Block(leading @ empty_lines @ [let_line], conclusion),
-          Some(let_line_hole |> wrap_in_block),
-          u_gen,
-        ))
-      | (false, _) =>
-        let (hole, u_gen) = u_gen |> new_EmptyHole;
-        Some((
-          Block(
-            leading @ [ExpLine(conclusion)] @ empty_lines @ [let_line],
-            hole |> OpSeq.wrap,
-          ),
-          Some(let_line_hole |> wrap_in_block),
-          u_gen,
-        ));
-      | (true, OpSeq(_, S(EmptyHole(_), E))) =>
-        Some((
-          Block(leading @ empty_lines @ [let_line], let_line_hole),
-          None,
-          u_gen,
-        ))
-      | (true, _) =>
-        Some((
-          Block(
-            leading @ [ExpLine(conclusion)] @ empty_lines @ [let_line],
-            let_line_hole,
-          ),
-          None,
-          u_gen,
-        ))
-      }
-    | ((empty_lines, Some(nonempty_line), rest), _) =>
-      let new_suffix_block = Some(Block(rest, suffix_conclusion));
-      let (new_block, u_gen) =
-        switch (conclusion, nonempty_line) {
-        | (_, EmptyLine) => assert(false)
-        | (OpSeq(_, S(EmptyHole(_), E)), ExpLine(e)) => (
-            Block(leading @ empty_lines, e),
-            u_gen,
-          )
-        | (
-            OpSeq(_, S(EmptyHole(_), E)) as recycled_hole,
-            LetLine(_, _, _) as let_line,
-          ) => (
-            Block(leading @ empty_lines @ [let_line], recycled_hole),
-            u_gen,
-          )
-        | (_, LetLine(_, _, _) as let_line) =>
-          let (hole, u_gen) = u_gen |> new_EmptyHole;
-          (
-            Block(
-              leading @ [ExpLine(conclusion)] @ empty_lines @ [let_line],
-              hole |> OpSeq.wrap,
-            ),
-            u_gen,
-          );
-        | (_, ExpLine(e)) => (
-            Block(leading @ [ExpLine(conclusion)] @ empty_lines, e),
-            u_gen,
-          )
-        };
-      Some((new_block, new_suffix_block, u_gen));
-    }
-  };
+ let shift_line_from_suffix_block =
+     (
+       ~is_node_terminal: bool,
+       ~u_gen: MetaVarGen.t,
+       suffix_block: option(block),
+       Block(leading, conclusion),
+     )
+     : option((block, option(block), MetaVarGen.t)) =>
+   switch (suffix_block) {
+   | None => assert(false)
+   | Some(Block(suffix_leading, suffix_conclusion)) =>
+     switch (
+       suffix_leading |> first_contiguous_empty_lines_and_nonempty_line,
+       suffix_conclusion,
+     ) {
+     | ((_, None, _), OpSeq(_, S(EmptyHole(_), E))) => None
+     | ((empty_lines, None, _), _) =>
+       switch (is_node_terminal, conclusion) {
+       | (false, OpSeq(_, S(EmptyHole(_), E)) as recycled_hole) =>
+         Some((
+           Block(leading @ empty_lines, suffix_conclusion),
+           Some(recycled_hole |> wrap_in_block),
+           u_gen,
+         ))
+       | (false, _) =>
+         let (hole, u_gen) = u_gen |> new_EmptyHole;
+         Some((
+           Block(
+             leading @ empty_lines @ [ExpLine(conclusion)],
+             suffix_conclusion,
+           ),
+           Some(hole |> OpSeq.wrap |> wrap_in_block),
+           u_gen,
+         ));
+       | (true, OpSeq(_, S(EmptyHole(_), E))) =>
+         Some((Block(leading @ empty_lines, suffix_conclusion), None, u_gen))
+       | (true, _) =>
+         Some((
+           Block(leading @ [ExpLine(conclusion)], suffix_conclusion),
+           None,
+           u_gen,
+         ))
+       }
+     | (
+         (empty_lines, Some(LetLine(_, _, _) as let_line), []),
+         OpSeq(_, S(EmptyHole(_), E)) as let_line_hole,
+       ) =>
+       switch (is_node_terminal, conclusion) {
+       | (false, OpSeq(_, S(EmptyHole(_), E))) =>
+         Some((
+           Block(leading @ empty_lines @ [let_line], conclusion),
+           Some(let_line_hole |> wrap_in_block),
+           u_gen,
+         ))
+       | (false, _) =>
+         let (hole, u_gen) = u_gen |> new_EmptyHole;
+         Some((
+           Block(
+             leading @ [ExpLine(conclusion)] @ empty_lines @ [let_line],
+             hole |> OpSeq.wrap,
+           ),
+           Some(let_line_hole |> wrap_in_block),
+           u_gen,
+         ));
+       | (true, OpSeq(_, S(EmptyHole(_), E))) =>
+         Some((
+           Block(leading @ empty_lines @ [let_line], let_line_hole),
+           None,
+           u_gen,
+         ))
+       | (true, _) =>
+         Some((
+           Block(
+             leading @ [ExpLine(conclusion)] @ empty_lines @ [let_line],
+             let_line_hole,
+           ),
+           None,
+           u_gen,
+         ))
+       }
+     | ((empty_lines, Some(nonempty_line), rest), _) =>
+       let new_suffix_block = Some(Block(rest, suffix_conclusion));
+       let (new_block, u_gen) =
+         switch (conclusion, nonempty_line) {
+         | (_, EmptyLine) => assert(false)
+         | (OpSeq(_, S(EmptyHole(_), E)), ExpLine(e)) => (
+             Block(leading @ empty_lines, e),
+             u_gen,
+           )
+         | (
+             OpSeq(_, S(EmptyHole(_), E)) as recycled_hole,
+             LetLine(_, _, _) as let_line,
+           ) => (
+             Block(leading @ empty_lines @ [let_line], recycled_hole),
+             u_gen,
+           )
+         | (_, LetLine(_, _, _) as let_line) =>
+           let (hole, u_gen) = u_gen |> new_EmptyHole;
+           (
+             Block(
+               leading @ [ExpLine(conclusion)] @ empty_lines @ [let_line],
+               hole |> OpSeq.wrap,
+             ),
+             u_gen,
+           );
+         | (_, ExpLine(e)) => (
+             Block(leading @ [ExpLine(conclusion)] @ empty_lines, e),
+             u_gen,
+           )
+         };
+       Some((new_block, new_suffix_block, u_gen));
+     }
+   };
 
-let shift_line_to_suffix_block =
-    (
-      ~u_gen: MetaVarGen.t,
-      suffix_block: option(block),
-      Block(leading, conclusion),
-    )
-    // return type should be option((block, block, MetaVarGen.t))
-    // but I've already coupled this type with that of
-    // shift_line_from_suffix block via their use in Action.re
-    // TODO decouple
-    : option((block, option(block), MetaVarGen.t)) => {
-  switch (leading |> last_line_and_leading_contiguous_empty_lines, conclusion) {
-  | (None, OpSeq(_, S(EmptyHole(_), E))) => None
-  | (None, _) =>
-    switch (suffix_block) {
-    | None =>
-      let (hole, u_gen) = u_gen |> new_EmptyHole;
-      let new_block = hole |> OpSeq.wrap |> wrap_in_block;
-      Some((new_block, Some(conclusion |> wrap_in_block), u_gen));
-    | Some(Block([], OpSeq(_, S(EmptyHole(_), E)) as recycled_hole)) =>
-      Some((
-        recycled_hole |> wrap_in_block,
-        Some(conclusion |> wrap_in_block),
-        u_gen,
-      ))
-    | Some(Block(suffix_leading, suffix_conclusion)) =>
-      let (hole, u_gen) = u_gen |> new_EmptyHole;
-      let new_block = hole |> OpSeq.wrap |> wrap_in_block;
-      Some((
-        new_block,
-        Some(
-          Block(
-            [ExpLine(conclusion), ...suffix_leading],
-            suffix_conclusion,
-          ),
-        ),
-        u_gen,
-      ));
-    }
-  | (Some((_, _, EmptyLine)), OpSeq(_, S(EmptyHole(_), E))) =>
-    assert(false)
-  | (
-      Some((prefix, empty_lines, LetLine(_, _, _) as last_line)),
-      OpSeq(_, S(EmptyHole(_), E)),
-    ) =>
-    switch (prefix |> split_last) {
-    | None
-    | Some((_, LetLine(_, _, _))) =>
-      let (hole, u_gen) = u_gen |> new_EmptyHole;
-      Some((
-        // recycle existing hole if prefix
-        // does not have a conclusion
-        Block(prefix, conclusion),
-        Some(
-          switch (suffix_block) {
-          | None => Block(empty_lines @ [last_line], hole |> OpSeq.wrap)
-          | Some(Block(suffix_leading, suffix_conclusion)) =>
-            Block(
-              empty_lines @ [last_line] @ suffix_leading,
-              suffix_conclusion,
-            )
-          },
-        ),
-        u_gen,
-      ));
-    | Some((prefix_prefix, ExpLine(e))) =>
-      Some((
-        Block(prefix_prefix, e),
-        Some(
-          switch (suffix_block) {
-          | None =>
-            // if prefix does have a conclusion
-            // and therefore does not need its
-            // existing hole, recycle here
-            Block(empty_lines @ [last_line], conclusion)
-          | Some(Block(suffix_leading, suffix_conclusion)) =>
-            Block(
-              empty_lines @ [last_line] @ suffix_leading,
-              suffix_conclusion,
-            )
-          },
-        ),
-        u_gen,
-      ))
-    | Some((_, EmptyLine)) => assert(false)
-    }
-  | (Some((_, _, _)), _) =>
-    let (leading_prefix, empty_lines) =
-      leading |> last_contiguous_empty_lines;
-    switch (suffix_block) {
-    | None =>
-      switch (leading_prefix |> split_last) {
-      | None
-      | Some((_, LetLine(_, _, _))) =>
-        let (hole, u_gen) = u_gen |> new_EmptyHole;
-        Some((
-          Block(leading_prefix, hole |> OpSeq.wrap),
-          Some(Block(empty_lines, conclusion)),
-          u_gen,
-        ));
-      | Some((leading_prefix_prefix, ExpLine(e))) =>
-        Some((
-          Block(leading_prefix_prefix, e),
-          Some(Block(empty_lines, conclusion)),
-          u_gen,
-        ))
-      | Some((_, EmptyLine)) => assert(false)
-      }
-    | Some(Block(suffix_leading, suffix_conclusion)) =>
-      switch (leading_prefix |> split_last, suffix_leading, suffix_conclusion) {
-      | (Some((_, EmptyLine)), _, _) => assert(false)
-      | (
-          None | Some((_, LetLine(_, _, _))),
-          [],
-          OpSeq(_, S(EmptyHole(_), E)) as recycled_hole,
-        ) =>
-        Some((
-          Block(leading_prefix, recycled_hole),
-          Some(Block(empty_lines, conclusion)),
-          u_gen,
-        ))
-      | (None | Some((_, LetLine(_, _, _))), _, _) =>
-        let (hole, u_gen) = u_gen |> new_EmptyHole;
-        Some((
-          Block(leading_prefix, hole |> OpSeq.wrap),
-          Some(
-            Block(
-              empty_lines @ [ExpLine(conclusion)] @ suffix_leading,
-              suffix_conclusion,
-            ),
-          ),
-          u_gen,
-        ));
-      | (Some((leading_prefix_prefix, ExpLine(e))), _, _) =>
-        Some((
-          Block(leading_prefix_prefix, e),
-          switch (suffix_leading, suffix_conclusion) {
-          | ([], OpSeq(_, S(EmptyHole(_), E))) =>
-            Some(Block(empty_lines, conclusion))
-          | (_, _) =>
-            Some(
-              Block(
-                empty_lines @ [ExpLine(conclusion)] @ suffix_leading,
-                suffix_conclusion,
-              ),
-            )
-          },
-          u_gen,
-        ))
-      }
-    };
-  };
-};
+ let shift_line_to_suffix_block =
+     (
+       ~u_gen: MetaVarGen.t,
+       suffix_block: option(block),
+       Block(leading, conclusion),
+     )
+     // return type should be option((block, block, MetaVarGen.t))
+     // but I've already coupled this type with that of
+     // shift_line_from_suffix block via their use in Action.re
+     // TODO decouple
+     : option((block, option(block), MetaVarGen.t)) => {
+   switch (leading |> last_line_and_leading_contiguous_empty_lines, conclusion) {
+   | (None, OpSeq(_, S(EmptyHole(_), E))) => None
+   | (None, _) =>
+     switch (suffix_block) {
+     | None =>
+       let (hole, u_gen) = u_gen |> new_EmptyHole;
+       let new_block = hole |> OpSeq.wrap |> wrap_in_block;
+       Some((new_block, Some(conclusion |> wrap_in_block), u_gen));
+     | Some(Block([], OpSeq(_, S(EmptyHole(_), E)) as recycled_hole)) =>
+       Some((
+         recycled_hole |> wrap_in_block,
+         Some(conclusion |> wrap_in_block),
+         u_gen,
+       ))
+     | Some(Block(suffix_leading, suffix_conclusion)) =>
+       let (hole, u_gen) = u_gen |> new_EmptyHole;
+       let new_block = hole |> OpSeq.wrap |> wrap_in_block;
+       Some((
+         new_block,
+         Some(
+           Block(
+             [ExpLine(conclusion), ...suffix_leading],
+             suffix_conclusion,
+           ),
+         ),
+         u_gen,
+       ));
+     }
+   | (Some((_, _, EmptyLine)), OpSeq(_, S(EmptyHole(_), E))) =>
+     assert(false)
+   | (
+       Some((prefix, empty_lines, LetLine(_, _, _) as last_line)),
+       OpSeq(_, S(EmptyHole(_), E)),
+     ) =>
+     switch (prefix |> split_last) {
+     | None
+     | Some((_, LetLine(_, _, _))) =>
+       let (hole, u_gen) = u_gen |> new_EmptyHole;
+       Some((
+         // recycle existing hole if prefix
+         // does not have a conclusion
+         Block(prefix, conclusion),
+         Some(
+           switch (suffix_block) {
+           | None => Block(empty_lines @ [last_line], hole |> OpSeq.wrap)
+           | Some(Block(suffix_leading, suffix_conclusion)) =>
+             Block(
+               empty_lines @ [last_line] @ suffix_leading,
+               suffix_conclusion,
+             )
+           },
+         ),
+         u_gen,
+       ));
+     | Some((prefix_prefix, ExpLine(e))) =>
+       Some((
+         Block(prefix_prefix, e),
+         Some(
+           switch (suffix_block) {
+           | None =>
+             // if prefix does have a conclusion
+             // and therefore does not need its
+             // existing hole, recycle here
+             Block(empty_lines @ [last_line], conclusion)
+           | Some(Block(suffix_leading, suffix_conclusion)) =>
+             Block(
+               empty_lines @ [last_line] @ suffix_leading,
+               suffix_conclusion,
+             )
+           },
+         ),
+         u_gen,
+       ))
+     | Some((_, EmptyLine)) => assert(false)
+     }
+   | (Some((_, _, _)), _) =>
+     let (leading_prefix, empty_lines) =
+       leading |> last_contiguous_empty_lines;
+     switch (suffix_block) {
+     | None =>
+       switch (leading_prefix |> split_last) {
+       | None
+       | Some((_, LetLine(_, _, _))) =>
+         let (hole, u_gen) = u_gen |> new_EmptyHole;
+         Some((
+           Block(leading_prefix, hole |> OpSeq.wrap),
+           Some(Block(empty_lines, conclusion)),
+           u_gen,
+         ));
+       | Some((leading_prefix_prefix, ExpLine(e))) =>
+         Some((
+           Block(leading_prefix_prefix, e),
+           Some(Block(empty_lines, conclusion)),
+           u_gen,
+         ))
+       | Some((_, EmptyLine)) => assert(false)
+       }
+     | Some(Block(suffix_leading, suffix_conclusion)) =>
+       switch (leading_prefix |> split_last, suffix_leading, suffix_conclusion) {
+       | (Some((_, EmptyLine)), _, _) => assert(false)
+       | (
+           None | Some((_, LetLine(_, _, _))),
+           [],
+           OpSeq(_, S(EmptyHole(_), E)) as recycled_hole,
+         ) =>
+         Some((
+           Block(leading_prefix, recycled_hole),
+           Some(Block(empty_lines, conclusion)),
+           u_gen,
+         ))
+       | (None | Some((_, LetLine(_, _, _))), _, _) =>
+         let (hole, u_gen) = u_gen |> new_EmptyHole;
+         Some((
+           Block(leading_prefix, hole |> OpSeq.wrap),
+           Some(
+             Block(
+               empty_lines @ [ExpLine(conclusion)] @ suffix_leading,
+               suffix_conclusion,
+             ),
+           ),
+           u_gen,
+         ));
+       | (Some((leading_prefix_prefix, ExpLine(e))), _, _) =>
+         Some((
+           Block(leading_prefix_prefix, e),
+           switch (suffix_leading, suffix_conclusion) {
+           | ([], OpSeq(_, S(EmptyHole(_), E))) =>
+             Some(Block(empty_lines, conclusion))
+           | (_, _) =>
+             Some(
+               Block(
+                 empty_lines @ [ExpLine(conclusion)] @ suffix_leading,
+                 suffix_conclusion,
+               ),
+             )
+           },
+           u_gen,
+         ))
+       }
+     };
+   };
+ };
+ */
 
 let favored_child_of_line: line => option((ChildIndex.t, block)) =
   fun
@@ -685,27 +696,17 @@ let favored_child_of_operand: operand => option((ChildIndex.t, block)) =
   | Case(_, e, _, _)
   | Parenthesized(e) => Some((0, e));
 
-let has_concluding_let_line =
-  fun
-  | Block(leading, conclusion) =>
-    switch (leading |> split_last, conclusion) {
-    | (Some((_, LetLine(_, _, _))), OpSeq(_, S(EmptyHole(_), E))) => true
-    | (_, _) => false
-    };
+let has_concluding_let_line = (block: block): bool => {
+  let (leading, conclusion) = block |> split_conclusion;
+  switch (leading |> split_last, conclusion) {
+  | (Some((_, LetLine(_, _, _))), OpSeq(_, S(EmptyHole(_), E))) => true
+  | (_, _) => false
+  };
+};
 
-let rec is_multi_line = block => is_multi_line_block(block)
-and is_multi_line_block =
-  fun
-  | Block(leading, conclusion) as block =>
-    if (leading
-        |> List.exists(is_multi_line_line)
-        || is_multi_line_opseq(conclusion)) {
-      true;
-    } else if (List.length(leading) == 1 && has_concluding_let_line(block)) {
-      false;
-    } else {
-      List.length(leading) > 0 || is_multi_line_opseq(conclusion);
-    }
+let rec is_multi_line = e => is_multi_line_block(e)
+and is_multi_line_block = block =>
+  List.length(block) > 1 || block |> List.exists(is_multi_line_line)
 and is_multi_line_line =
   fun
   | EmptyLine => false
@@ -728,5 +729,5 @@ and is_multi_line_operand =
 
 let is_trivial_block =
   fun
-  | Block([], OpSeq(_, S(EmptyHole(_), E))) => true
+  | [ExpLine(OpSeq(_, S(EmptyHole(_), E)))] => true
   | _ => false;
