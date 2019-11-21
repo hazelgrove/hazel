@@ -108,7 +108,7 @@ You can try Hazel online with either the
   eval $(opam env)
   ```
 
-### Installing OCaml
+### Install OCaml
 
 - Update the list of available `opam` packages:
 
@@ -147,7 +147,7 @@ You can try Hazel online with either the
   and [Troubleshooting
   SSH](https://help.github.com/en/github/authenticating-to-github/troubleshooting-ssh).
 
-### Installing Dependencies
+### Install Library Dependencies
 
 - Use the `cd` command to change to the directory containing the Hazel source
   code.  If you just ran the `git clone` command, you can do this by running the
@@ -177,7 +177,7 @@ You can try Hazel online with either the
   make deps
   ```
 
-### Compiling
+### Compile Hazel
 
 - You can now compile Hazel by running one of the following.
 
@@ -196,7 +196,7 @@ You can try Hazel online with either the
 If the build fails, it sometimes helps to do a `make clean` before running `make
 dev` or `make release` again.
 
-### Running
+### Run Hazel
 
 - Once Hazel is compiled, you can see it in action by running one of the
   following commands.
@@ -221,27 +221,6 @@ You can also launch Hazel directly by opening
 echo-html` echos that path to the terminal, so that you don't have to remember
 it.
 
-## Build System Details
-
-Hazel is implemented in Reason (a dialect of OCaml) and is compiled to
-Javascript for the web browser via the `js_of_ocaml` compiler.
-
-The `make release` command does three things:
-
-1. Generates some parsers using `menhir`.
-2. Compiles the Reason code to OCaml bytecode using the OCaml compiler.
-3. Compiles the OCaml bytecode to JavaScript
-   (`_build/default/src/hazelweb/www/hazel.js`) using `js_of_ocaml`.
-
-Invoking `make` by itself is equivalent to invoking `make dev`. With these
-commands we pass additional flags to `js_of_ocaml` that cause the insertion of
-comments that map locations in the generated JS to locations in the source
-files. This is useful for debugging purposes.
-
-`make dev` also auto-formats Reason source files using `refmt` (this is what the
-`@src/fmt` alias is for). This ensures code from all contributors follows the
-same style.
-
 You can also run `make repl` to get a REPL in which you can play with the core
 Hazel functions.
 
@@ -250,7 +229,7 @@ Hazel functions.
 Most of our team uses VisualStudio Code to write code.  If you use VS Code, here
 are a few extensions that might be helpful.
 
-- For editing ReasonML and Dune source code:
+- These extensions provide support for editing ReasonML and Dune source code:
 
   - [reason-vscode](https://marketplace.visualstudio.com/items?itemName=jaredly.reason-vscode)
   - [Dune](https://marketplace.visualstudio.com/items?itemName=maelvalais.dune)
@@ -261,3 +240,27 @@ are a few extensions that might be helpful.
   - [Bracket Pair Colorizer 2](https://marketplace.visualstudio.com/items?itemName=coenraads.bracket-pair-colorizer-2)
   - [Indenticator](https://marketplace.visualstudio.com/items?itemName=sirtori.indenticator)
   - [indent-rainbow](https://marketplace.visualstudio.com/items?itemName=oderwat.indent-rainbow)
+
+## Build System Details
+
+Hazel is implemented in Reason (a dialect of OCaml) and is compiled to
+Javascript for the web browser via the `js_of_ocaml` compiler.
+
+Though, `make` targets are provided as a convenience, they mostly translate to
+`dune` commands.
+
+Invoking `make` by itself is equivalent to invoking `make dev`. With these
+commands we pass additional flags to `js_of_ocaml` that cause the insertion of
+comments that map locations in the generated JS to locations in the source
+files. This is useful for debugging purposes.
+
+`make dev` also auto-formats Reason source files using `refmt` (this is what the
+`@src/fmt` alias is for). This ensures code from all contributors follows the
+same style.
+
+The `make dev` and `make release` commands do three things:
+
+1. Generate some parsers using `menhir`.
+2. Compile the Reason code to OCaml bytecode using the OCaml compiler.
+3. Compile the OCaml bytecode to JavaScript
+   (`_build/default/src/hazelweb/www/hazel.js`) using `js_of_ocaml`.
