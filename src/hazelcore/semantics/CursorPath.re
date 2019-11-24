@@ -1155,6 +1155,13 @@ module Exp = {
     | Some(ze) => ze
     };
 
+  let follow_operand_or_fail =
+      (path: t, operand: UHExp.operand): ZExp.zoperand =>
+    switch (follow_operand(path, operand)) {
+    | None => raise(UHExpNodeNotFound)
+    | Some(zoperand) => zoperand
+    };
+
   let hole_desc = (u: MetaVar.t): hole_desc => ExpHole(u);
   let holes_err = holes_err(~hole_desc);
   let holes_verr = holes_verr(~hole_desc);

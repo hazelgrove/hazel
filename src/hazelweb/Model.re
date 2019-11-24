@@ -439,7 +439,7 @@ let toggle_right_sidebar = (model: t): t => {
 let load_example = (model: t, block: UHExp.block): t =>
   model
   |> update_edit_state(
-       Statics.syn_fix_holes_zblock(
+       Statics.Exp.syn_fix_holes_z(
          (VarCtx.empty, PaletteCtx.empty),
          MetaVarGen.init,
          ZExp.place_before_block(block),

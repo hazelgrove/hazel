@@ -139,20 +139,35 @@ and operators_of_affix =
   | A(op, seq) => [op, ...operators(seq)];
 
 /* update the nth operand in seq, if it exists */
-let rec update_nth_operand =
+let rec opt_update_nth_operand =
         (n: int, operand: 'operand, seq: t('operand, 'operator))
-        : t('operand, 'operator) =>
-  switch (n, seq) {
-  | (0, S(_, tl)) => S(operand, tl)
-  | (_, S(hd, tl)) =>
-    S(hd, tl |> update_nth_operand_of_affix(n - 1, operand))
+        : option(t('operand, 'operator)) =>
+  if (n < 0 || n >= length(seq)) {
+    None;
+  } else {
+    switch (n, seq) {
+    | (0, S(_, tl)) => Some(S(operand, tl))
+    | (_, S(hd, tl)) =>
+      tl
+      |> opt_update_nth_operand_of_affix(n - 1, operand)
+      |> Opt.map(affix => S(hd, affix))
+    };
   }
-and update_nth_operand_of_affix =
+and opt_update_nth_operand_of_affix =
     (n: int, operand: 'operand, affix: affix('operand, 'operator))
-    : affix('operand, 'operator) =>
+    : option(affix('operand, 'operator)) =>
   switch (affix) {
-  | E => E
-  | A(op, seq) => A(op, seq |> update_nth_operand(n, operand))
+  | E => Some(E)
+  | A(op, seq) =>
+    seq |> opt_update_nth_operand(n, operand) |> Opt.map(seq => A(op, seq))
+  };
+
+let update_nth_operand =
+    (n: int, operand: 'operand, seq: t('operand, 'operator))
+    : t('operand, 'operator) =>
+  switch (seq |> opt_update_nth_operand(n, operand)) {
+  | None => failwith("update_nth_operand: index out of bounds")
+  | Some(seq) => seq
   };
 
 let rec opt_split_nth_operand =

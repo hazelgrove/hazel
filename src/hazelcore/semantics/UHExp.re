@@ -96,22 +96,20 @@ let prune_empty_hole_line = (li: line): line =>
   };
 let prune_empty_hole_lines = List.map(prune_empty_hole_line);
 
-/*
- let rec get_tuple = (skel1: skel, skel2: skel): ListMinTwo.t(skel) =>
-   switch (skel2) {
-   | BinOp(_, Comma, skel21, skel22) =>
-     Cons(skel1, get_tuple(skel21, skel22))
-   | BinOp(_, _, _, _)
-   | Placeholder(_) => Pair(skel1, skel2)
-   };
+let rec get_tuple = (skel1: skel, skel2: skel): ListMinTwo.t(skel) =>
+  switch (skel2) {
+  | BinOp(_, Comma, skel21, skel22) =>
+    Cons(skel1, get_tuple(skel21, skel22))
+  | BinOp(_, _, _, _)
+  | Placeholder(_) => Pair(skel1, skel2)
+  };
 
- let rec make_tuple = (err: ErrStatus.t, skels: ListMinTwo.t(skel)): skel =>
-   switch (skels) {
-   | Pair(skel1, skel2) => BinOp(err, Comma, skel1, skel2)
-   | Cons(skel1, skels) =>
-     BinOp(err, Comma, skel1, make_tuple(NotInHole, skels))
-   };
- */
+let rec make_tuple = (err: ErrStatus.t, skels: ListMinTwo.t(skel)): skel =>
+  switch (skels) {
+  | Pair(skel1, skel2) => BinOp(err, Comma, skel1, skel2)
+  | Cons(skel1, skels) =>
+    BinOp(err, Comma, skel1, make_tuple(NotInHole, skels))
+  };
 
 /* helper function for constructing a new empty hole */
 let new_EmptyHole = (u_gen: MetaVarGen.t): (operand, MetaVarGen.t) => {
@@ -167,16 +165,29 @@ let bidelimit = (operand): operand =>
     Parenthesized(operand |> OpSeq.wrap |> wrap_in_block);
   };
 
-let force_get_opseq =
+let get_opseq =
   fun
   | EmptyLine
-  | LetLine(_, _, _) => failwith("force_get_opseq: expected ExpLine")
-  | ExpLine(opseq) => opseq;
+  | LetLine(_, _, _) => None
+  | ExpLine(opseq) => Some(opseq);
+let force_get_opseq = line =>
+  line
+  |> get_opseq
+  |> Opt.get(_ => failwith("force_get_opseq: expected ExpLine"));
 
-let split_conclusion = (block: block): (list(line), opseq) =>
+let split_conclusion = (block: block): option((list(line), opseq)) =>
   switch (block |> split_last) {
-  | None => failwith("split_conclusion: empty block")
-  | Some((leading, last)) => (leading, last |> force_get_opseq)
+  | None => None
+  | Some((leading, last)) =>
+    switch (last |> get_opseq) {
+    | None => None
+    | Some(opseq) => Some((leading, opseq))
+    }
+  };
+let force_split_conclusion = (block: block): (list(line), opseq) =>
+  switch (block |> split_conclusion) {
+  | None => failwith("force_split_conclusion: unconcluded block")
+  | Some((leading, conclusion)) => (leading, conclusion)
   };
 
 let join_conclusion = (leading: list(line), conclusion: opseq): block =>
@@ -184,7 +195,7 @@ let join_conclusion = (leading: list(line), conclusion: opseq): block =>
 
 let rec get_err_status = (e: t): ErrStatus.t => get_err_status_block(e)
 and get_err_status_block = block => {
-  let (_, conclusion) = block |> split_conclusion;
+  let (_, conclusion) = block |> force_split_conclusion;
   conclusion |> get_err_status_opseq;
 }
 and get_err_status_opseq = opseq =>
@@ -206,7 +217,7 @@ and get_err_status_operand =
 let rec set_err_status = (err: ErrStatus.t, e: t): t =>
   set_err_status_block(err, e)
 and set_err_status_block = (err: ErrStatus.t, block: block): block => {
-  let (leading, conclusion) = block |> split_conclusion;
+  let (leading, conclusion) = block |> force_split_conclusion;
   join_conclusion(leading, conclusion |> set_err_status_opseq(err));
 }
 and set_err_status_opseq = (err, opseq) =>
@@ -236,7 +247,7 @@ let rec make_inconsistent = (u_gen: MetaVarGen.t, e: t): (t, MetaVarGen.t) =>
   make_inconsistent_block(u_gen, e)
 and make_inconsistent_block =
     (u_gen: MetaVarGen.t, block: block): (block, MetaVarGen.t) => {
-  let (leading, conclusion) = block |> split_conclusion;
+  let (leading, conclusion) = block |> force_split_conclusion;
   let (conclusion, u_gen) = conclusion |> make_inconsistent_opseq(u_gen);
   (join_conclusion(leading, conclusion), u_gen);
 }
@@ -697,7 +708,7 @@ let favored_child_of_operand: operand => option((ChildIndex.t, block)) =
   | Parenthesized(e) => Some((0, e));
 
 let has_concluding_let_line = (block: block): bool => {
-  let (leading, conclusion) = block |> split_conclusion;
+  let (leading, conclusion) = block |> force_split_conclusion;
   switch (leading |> split_last, conclusion) {
   | (Some((_, LetLine(_, _, _))), OpSeq(_, S(EmptyHole(_), E))) => true
   | (_, _) => false

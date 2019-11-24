@@ -321,7 +321,7 @@ let rec _ana_cursor_found_pat =
   | Inj(InHole(TypeInconsistent, _), _, _)
   | OpSeq(BinOp(InHole(TypeInconsistent, _), _, _, _), _) =>
     let p_nih = UHPat.set_err_status_operand(NotInHole, p);
-    switch (Statics.syn_pat(ctx, p_nih)) {
+    switch (Statics.Pat.syn(ctx, p_nih)) {
     | None => None
     | Some((ty', _)) =>
       Some((PatAnaTypeInconsistent(ty, ty'), Pat(p), ctx))
@@ -416,7 +416,7 @@ let rec _syn_cursor_info_pat =
       ),
     )
   | CursorP(cursor, p) =>
-    switch (Statics.syn_pat(ctx, p)) {
+    switch (Statics.Pat.syn(ctx, p)) {
     | None => None
     | Some((ty, _)) =>
       Some(
@@ -544,7 +544,7 @@ and _syn_cursor_info_pat_skel =
     ) {
     | Some(_) as result => result
     | None =>
-      switch (Statics.syn_skel_pat(ctx, skel1, seq, None)) {
+      switch (Statics.Pat.syn_skel(ctx, skel1, seq, None)) {
       | None => None
       | Some((ty_elt, ctx, _)) =>
         let list_ty = HTyp.List(ty_elt);
@@ -833,7 +833,7 @@ and _ana_cursor_found_exp =
   | ApPalette(InHole(TypeInconsistent, _), _, _, _)
   | OpSeq(BinOp(InHole(TypeInconsistent, _), _, _, _), _) =>
     let e_nih = UHExp.set_err_status_operand(NotInHole, e);
-    switch (Statics.syn_exp(ctx, e_nih)) {
+    switch (Statics.Exp.syn_operand(ctx, e_nih)) {
     | None => None
     | Some(ty') => Some((AnaTypeInconsistent(ty, ty'), Exp(e), ctx))
     };
@@ -866,7 +866,7 @@ and _ana_cursor_found_exp =
   | Var(NotInHole, NotInVarHole, _)
   | NumLit(NotInHole, _)
   | BoolLit(NotInHole, _) =>
-    switch (Statics.syn_exp(ctx, e)) {
+    switch (Statics.Exp.syn_operand(ctx, e)) {
     | None => None
     | Some(ty') => Some((AnaSubsumed(ty, ty'), Exp(e), ctx))
     }
@@ -900,7 +900,7 @@ and _ana_cursor_found_exp =
   | OpSeq(BinOp(NotInHole, Equals, _, _), _)
   | OpSeq(BinOp(NotInHole, Space, _, _), _)
   | ApPalette(NotInHole, _, _, _) =>
-    switch (Statics.syn_exp(ctx, e)) {
+    switch (Statics.Exp.syn_operand(ctx, e)) {
     | None => None
     | Some(ty') => Some((AnaSubsumed(ty, ty'), Exp(e), ctx))
     }
@@ -1055,7 +1055,7 @@ and _syn_cursor_info =
       ),
     )
   | CursorE(cursor, e) =>
-    switch (Statics.syn_exp(ctx, e)) {
+    switch (Statics.Exp.syn_operand(ctx, e)) {
     | None => None
     | Some(ty) =>
       Some(
@@ -1107,7 +1107,7 @@ and _syn_cursor_info =
       | Some(uty1) => UHTyp.expand(uty1)
       | None => Hole
       };
-    switch (Statics.ana_pat(ctx, p, ty1)) {
+    switch (Statics.Pat.ana(ctx, p, ty1)) {
     | None => None
     | Some(ctx1) =>
       _syn_cursor_info_block(~node_steps, ~term_steps, ctx1, zblock)
@@ -1243,7 +1243,7 @@ and _ana_cursor_info =
         | Some(uty1) => UHTyp.expand(uty1)
         | None => ty1_given
         };
-      switch (Statics.ana_pat(ctx, p, ty1)) {
+      switch (Statics.Pat.ana(ctx, p, ty1)) {
       | None => None
       | Some(ctx) =>
         _ana_cursor_info_block(~node_steps, ~term_steps, ctx, zblock, ty2)
@@ -1301,7 +1301,7 @@ and _ana_cursor_info_rule =
   | RuleZP(zp, _) =>
     _ana_cursor_info_pat(~node_steps, ~term_steps, ctx, zp, pat_ty)
   | RuleZE(p, zblock) =>
-    switch (Statics.ana_pat(ctx, p, pat_ty)) {
+    switch (Statics.Pat.ana(ctx, p, pat_ty)) {
     | None => None
     | Some(ctx) =>
       _ana_cursor_info_block(~node_steps, ~term_steps, ctx, zblock, clause_ty)
