@@ -390,7 +390,7 @@ let perform_edit_action = (model: t, a: Action.t): t => {
 let move_to_hole = (model: t, u: MetaVar.t): t => {
   let (zblock, _, _) = edit_state_of(model);
   switch (
-    CursorPath.path_to_hole(
+    CursorPath.steps_to_hole(
       CursorPath.holes_block(ZExp.erase_zblock(zblock), [], []),
       u,
     )

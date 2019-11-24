@@ -4,6 +4,7 @@ open GeneralUtil;
 type t =
   | OnText(CharIndex.t)
   | OnDelim(DelimIndex.t, Side.t)
+  | OnOp(Side.t)
   | Staging(DelimIndex.t);
 
 let text_cursors = (len: int): list(t) =>

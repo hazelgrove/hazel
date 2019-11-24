@@ -7,9 +7,9 @@ and zoperand =
   | CursorP(CursorPosition.t, UHPat.operand)
   | ParenthesizedZ(t)
   | InjZ(ErrStatus.t, InjSide.t, t)
-and zoperator = (Side.t, UHPat.operator);
+and zoperator = (CursorPosition.t, UHPat.operator);
 
-let valid_cursors: UHPat.operand => list(CursorPosition.t) =
+let valid_cursors_operand: UHPat.operand => list(CursorPosition.t) =
   CursorPosition.(
     fun
     | EmptyHole(_) => delim_cursors(1)
@@ -21,9 +21,16 @@ let valid_cursors: UHPat.operand => list(CursorPosition.t) =
     | Inj(_, _, _) => delim_cursors(2)
     | Parenthesized(_) => delim_cursors(2)
   );
+let valid_cursors_operator: UHPat.operator => list(CursorPosition.t) =
+  fun
+  | _ => [OnOp(Before), OnOp(After)];
 
-let is_valid_cursor = (cursor: CursorPosition.t, operand: UHPat.operand): bool =>
-  valid_cursors(operand) |> contains(cursor);
+let is_valid_cursor_operand =
+    (cursor: CursorPosition.t, operand: UHPat.operand): bool =>
+  valid_cursors_operand(operand) |> contains(cursor);
+let is_valid_cursor_operator =
+    (cursor: CursorPosition.t, operator: UHPat.operator): bool =>
+  valid_cursors_operator(operator) |> contains(cursor);
 
 let bidelimit = zoperand =>
   switch (zoperand) {
@@ -125,7 +132,10 @@ and place_before_operand = operand =>
   | Inj(_, _, _)
   | Parenthesized(_) => CursorP(OnDelim(0, Before), operand)
   };
-let place_before_operator = (op: UHPat.operator): zoperator => (Before, op);
+let place_before_operator = (op: UHPat.operator): zoperator => (
+  OnOp(Before),
+  op,
+);
 
 let rec place_after = (p: UHPat.t): t => place_after_opseq(p)
 and place_after_opseq = opseq =>
@@ -141,11 +151,19 @@ and place_after_operand = operand =>
   | Inj(_, _, _) => CursorP(OnDelim(1, After), operand)
   | Parenthesized(_) => CursorP(OnDelim(1, After), operand)
   };
-let place_after_operator = (op: UHPat.operator): zoperator => (After, op);
+let place_after_operator = (op: UHPat.operator): zoperator => (
+  OnOp(After),
+  op,
+);
 
-let place_cursor =
+let place_cursor_operand =
     (cursor: CursorPosition.t, operand: UHPat.operand): option(zoperand) =>
-  is_valid_cursor(cursor, operand) ? Some(CursorP(cursor, operand)) : None;
+  is_valid_cursor_operand(cursor, operand)
+    ? Some(CursorP(cursor, operand)) : None;
+let place_cursor_operator =
+    (cursor: CursorPosition.t, operator: UHPat.operator): option(zoperator) =>
+  is_valid_cursor_operator(cursor, operator)
+    ? Some((cursor, operator)) : None;
 
 /* helper function for constructing a new empty hole */
 let new_EmptyHole = (u_gen: MetaVarGen.t): (zoperand, MetaVarGen.t) => {
@@ -157,8 +175,9 @@ let is_inconsistent = (zp: t): bool => UHPat.is_inconsistent(erase(zp));
 
 let move_cursor_left_zoperator: zoperator => option(zoperator) =
   fun
-  | (Before, _) => None
-  | (After, op) => Some((Before, op));
+  | (Staging(_) | OnText(_) | OnDelim(_, _), _) => None
+  | (OnOp(Before), _) => None
+  | (OnOp(After), op) => Some((OnOp(Before), op));
 
 let rec move_cursor_left = (zp: t): option(t) => move_cursor_left_zopseq(zp)
 and move_cursor_left_zopseq = zopseq =>
@@ -174,7 +193,7 @@ and move_cursor_left_zopseq = zopseq =>
 and move_cursor_left_zoperand =
   fun
   | z when is_before_zoperand(z) => None
-  | CursorP(Staging(_), _) => None
+  | CursorP(OnOp(_) | Staging(_), _) => None
   | CursorP(OnText(j), operand) => Some(CursorP(OnText(j - 1), operand))
   | CursorP(OnDelim(k, After), operand) =>
     Some(CursorP(OnDelim(k, Before), operand))
@@ -201,8 +220,9 @@ and move_cursor_left_zoperand =
 
 let move_cursor_right_zoperator: zoperator => option(zoperator) =
   fun
-  | (After, _) => None
-  | (Before, op) => Some((After, op));
+  | (Staging(_) | OnText(_) | OnDelim(_, _), _) => None
+  | (OnOp(After), _) => None
+  | (OnOp(Before), op) => Some((OnOp(After), op));
 
 let rec move_cursor_right = (zp: t): option(t) =>
   move_cursor_right_zopseq(zp)
@@ -219,7 +239,7 @@ and move_cursor_right_zopseq = zopseq =>
 and move_cursor_right_zoperand =
   fun
   | z when is_after_zoperand(z) => None
-  | CursorP(Staging(_), _) => None
+  | CursorP(OnOp(_) | Staging(_), _) => None
   | CursorP(OnText(j), p) => Some(CursorP(OnText(j + 1), p))
   | CursorP(OnDelim(k, Before), p) => Some(CursorP(OnDelim(k, After), p))
   | CursorP(OnDelim(_, After), EmptyHole(_) | Wild(_) | ListNil(_)) => None

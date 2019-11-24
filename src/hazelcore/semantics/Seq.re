@@ -155,36 +155,57 @@ and update_nth_operand_of_affix =
   | A(op, seq) => A(op, seq |> update_nth_operand(n, operand))
   };
 
-let rec split_nth_operand =
+let rec opt_split_nth_operand =
         (n: int, seq: t('operand, 'operator))
-        : (
-            'operand,
-            (affix('operand, 'operator), affix('operand, 'operator)),
+        : option(
+            (
+              'operand,
+              (affix('operand, 'operator), affix('operand, 'operator)),
+            ),
           ) => {
-  let exn = Invalid_argument("Seq.split_nth_operand");
   switch (n, seq) {
-  | (_, _) when n < 0 => raise(exn)
-  | (0, S(hd, tl)) => (hd, (E, tl))
-  | (_, S(_, E)) => raise(exn)
+  | (_, _) when n < 0 => None
+  | (0, S(hd, tl)) => Some((hd, (E, tl)))
+  | (_, S(_, E)) => None
   | (_, S(hd, A(op, seq))) =>
-    let (found, (prefix, suffix)) = seq |> split_nth_operand(n - 1);
-    (found, (affix_affix(prefix, A(op, S(hd, E))), suffix));
+    seq
+    |> opt_split_nth_operand(n - 1)
+    |> Opt.map(((found, (prefix, suffix))) =>
+         (found, (affix_affix(prefix, A(op, S(hd, E))), suffix))
+       )
   };
 };
+let split_nth_operand =
+    (n: int, seq: t('operand, 'operator))
+    : ('operand, (affix('operand, 'operator), affix('operand, 'operator))) =>
+  switch (opt_split_nth_operand(n, seq)) {
+  | None => raise(Invalid_argument("Seq.split_nth_operand"))
+  | Some(result) => result
+  };
 
-let rec split_nth_operator =
+let rec opt_split_nth_operator =
         (n: int, seq: t('operand, 'operator))
-        : ('operator, (t('operand, 'operator), t('operand, 'operator))) => {
-  let exn = Invalid_argument("Seq.split_nth_operator");
+        : option(
+            ('operator, (t('operand, 'operator), t('operand, 'operator))),
+          ) =>
   switch (n, seq) {
-  | (_, _) when n < 0 => raise(exn)
-  | (_, S(_, E)) => raise(exn)
-  | (0, S(hd, A(op, seq))) => (op, (S(hd, E), seq))
+  | (_, _) when n < 0 => None
+  | (_, S(_, E)) => None
+  | (0, S(hd, A(op, seq))) => Some((op, (S(hd, E), seq)))
   | (_, S(hd, A(op, seq))) =>
-    let (found, (prefix, suffix)) = seq |> split_nth_operator(n - 1);
-    (found, (seq_suffix(prefix, A(op, S(hd, E))), suffix));
+    seq
+    |> opt_split_nth_operator(n - 1)
+    |> Opt.map(((found, (prefix, suffix))) =>
+         (found, (seq_suffix(prefix, A(op, S(hd, E))), suffix))
+       )
   };
-};
+let split_nth_operator =
+    (n: int, seq: t('operand, 'operator))
+    : ('operator, (t('operand, 'operator), t('operand, 'operator))) =>
+  switch (seq |> opt_split_nth_operator(n)) {
+  | None => raise(Invalid_argument("Seq.split_nth_operator"))
+  | Some(result) => result
+  };
 
 let split_first_and_suffix = seq => {
   let (first, (_, suffix)) = split_nth_operand(0, seq);

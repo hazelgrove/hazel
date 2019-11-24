@@ -181,14 +181,14 @@ module Typ = {
       }
     | (MoveToPrevHole, _) =>
       switch (
-        CursorPath.prev_hole_path(CursorPath.Typ.holes_zopseq(zopseq, []))
+        CursorPath.prev_hole_steps(CursorPath.Typ.holes_zopseq(zopseq, []))
       ) {
       | None => Failed
       | Some(path) => perform_ty(MoveTo(path), zopseq)
       }
     | (MoveToNextHole, _) =>
       switch (
-        CursorPath.next_hole_path(CursorPath.Typ.holes_zopseq(zopseq, []))
+        CursorPath.next_hole_steps(CursorPath.Typ.holes_zopseq(zopseq, []))
       ) {
       | None => Failed
       | Some(path) => perform_ty(MoveTo(path), zopseq)
@@ -308,22 +308,22 @@ module Typ = {
       };
     /* Movement */
     | (MoveTo(path), _) =>
-      switch (CursorPath.follow_ty(path, ZTyp.erase(zty))) {
+      switch (CursorPath.Typ.follow(path, ZTyp.erase(zty))) {
       | None => Failed
       | Some(zty) => Succeeded(zty)
       }
     | (MoveToBefore(steps), _) =>
-      switch (CursorPath.follow_ty_and_place_before(steps, ZTyp.erase(zty))) {
+      switch (CursorPath.Typ.follow_and_place_before(steps, ZTyp.erase(zty))) {
       | None => Failed
       | Some(zty) => Succeeded(zty)
       }
     | (MoveToPrevHole, _) =>
-      switch (CursorPath.prev_hole_path(CursorPath.holes_zty(zty, []))) {
+      switch (CursorPath.prev_hole_steps(CursorPath.holes_zty(zty, []))) {
       | None => Failed
       | Some(path) => perform_ty(MoveTo(path), zty)
       }
     | (MoveToNextHole, _) =>
-      switch (CursorPath.next_hole_path(CursorPath.holes_zty(zty, []))) {
+      switch (CursorPath.next_hole_steps(CursorPath.holes_zty(zty, []))) {
       | None => Failed
       | Some(path) =>
         /* [debug] let path = Helper.log_path path in */
@@ -1398,12 +1398,12 @@ let rec syn_perform_pat =
       }
     };
   | (MoveToPrevHole, _) =>
-    switch (CursorPath.prev_hole_path(CursorPath.holes_zpat(zp, []))) {
+    switch (CursorPath.prev_hole_steps(CursorPath.holes_zpat(zp, []))) {
     | None => Failed
     | Some(path) => syn_perform_pat(ctx, u_gen, MoveTo(path), zp)
     }
   | (MoveToNextHole, _) =>
-    switch (CursorPath.next_hole_path(CursorPath.holes_zpat(zp, []))) {
+    switch (CursorPath.next_hole_steps(CursorPath.holes_zpat(zp, []))) {
     | None => Failed
     | Some(path) => syn_perform_pat(ctx, u_gen, MoveTo(path), zp)
     }
@@ -2071,12 +2071,12 @@ and ana_perform_pat =
     | (Some(ctx), Some(zp)) => Succeeded((zp, ctx, u_gen))
     };
   | (MoveToPrevHole, _) =>
-    switch (CursorPath.prev_hole_path(CursorPath.holes_zpat(zp, []))) {
+    switch (CursorPath.prev_hole_steps(CursorPath.holes_zpat(zp, []))) {
     | None => Failed
     | Some(path) => ana_perform_pat(ctx, u_gen, MoveTo(path), zp, ty)
     }
   | (MoveToNextHole, _) =>
-    switch (CursorPath.next_hole_path(CursorPath.holes_zpat(zp, []))) {
+    switch (CursorPath.next_hole_steps(CursorPath.holes_zpat(zp, []))) {
     | None => Failed
     | Some(path) => ana_perform_pat(ctx, u_gen, MoveTo(path), zp, ty)
     }
@@ -3198,13 +3198,13 @@ let rec syn_perform_block =
     | Some(zblock) => Succeeded((zblock, ty, u_gen))
     };
   | (MoveToPrevHole, _) =>
-    switch (CursorPath.prev_hole_path_zblock(zblock)) {
+    switch (CursorPath.Exp.prev_hole_steps_z(zblock)) {
     | None => Failed
     | Some(path) =>
       syn_perform_block(~ci, ctx, MoveTo(path), (zblock, ty, u_gen))
     }
   | (MoveToNextHole, _) =>
-    switch (CursorPath.next_hole_path_zblock(zblock)) {
+    switch (CursorPath.Exp.next_hole_steps_z(zblock)) {
     | None => Failed
     | Some(path) =>
       syn_perform_block(~ci, ctx, MoveTo(path), (zblock, ty, u_gen))
@@ -4066,14 +4066,14 @@ and syn_perform_exp =
     };
   | (MoveToPrevHole, _) =>
     let holes = CursorPath.holes_ze(ze, []);
-    switch (CursorPath.prev_hole_path(holes)) {
+    switch (CursorPath.prev_hole_steps(holes)) {
     | None => Failed
     | Some(path) =>
       syn_perform_exp(~ci, ctx, MoveTo(path), (ze, ty, u_gen))
     };
   | (MoveToNextHole, _) =>
     let holes = CursorPath.holes_ze(ze, []);
-    switch (CursorPath.next_hole_path(holes)) {
+    switch (CursorPath.next_hole_steps(holes)) {
     | None => Failed
     | Some(path) =>
       syn_perform_exp(~ci, ctx, MoveTo(path), (ze, ty, u_gen))
@@ -5539,13 +5539,13 @@ and ana_perform_block =
     | Some(zblock) => Succeeded((zblock, u_gen))
     };
   | (MoveToPrevHole, _) =>
-    switch (CursorPath.prev_hole_path_zblock(zblock)) {
+    switch (CursorPath.Exp.prev_hole_steps_z(zblock)) {
     | None => Failed
     | Some(path) =>
       ana_perform_block(~ci, ctx, MoveTo(path), (zblock, u_gen), ty)
     }
   | (MoveToNextHole, _) =>
-    switch (CursorPath.next_hole_path_zblock(zblock)) {
+    switch (CursorPath.Exp.next_hole_steps_z(zblock)) {
     | None => Failed
     | Some(path) =>
       ana_perform_block(~ci, ctx, MoveTo(path), (zblock, u_gen), ty)
@@ -5988,13 +5988,13 @@ and ana_perform_exp =
     | None => Failed
     };
   | (MoveToPrevHole, _) =>
-    switch (CursorPath.prev_hole_path(CursorPath.holes_ze(ze, []))) {
+    switch (CursorPath.prev_hole_steps(CursorPath.holes_ze(ze, []))) {
     | None => Failed
     | Some(path) =>
       ana_perform_exp(~ci, ctx, MoveTo(path), (ze, u_gen), ty)
     }
   | (MoveToNextHole, _) =>
-    switch (CursorPath.next_hole_path(CursorPath.holes_ze(ze, []))) {
+    switch (CursorPath.next_hole_steps(CursorPath.holes_ze(ze, []))) {
     | None => Failed
     | Some(path) =>
       ana_perform_exp(~ci, ctx, MoveTo(path), (ze, u_gen), ty)

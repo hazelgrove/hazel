@@ -27,7 +27,7 @@ and zoperand =
       SerializedModel.t,
       ZSpliceInfo.t(UHExp.t, t),
     )
-and zoperator = (Side.t, UHExp.operator)
+and zoperator = (CursorPosition.t, UHExp.operator)
 and zrules = ZList.t(zrule, UHExp.rule)
 and zrule =
   | CursorR(CursorPosition.t, UHExp.rule)
@@ -49,8 +49,11 @@ let valid_cursors_line = (line: UHExp.line): list(CursorPosition.t) =>
     @ CursorPosition.delim_cursors_k(2)
     @ CursorPosition.delim_cursors_k(3);
   };
-let valid_cursors_operand = (e: UHExp.operand): list(CursorPosition.t) =>
-  switch (e) {
+let valid_cursors_operator: UHExp.operator => list(CursorPosition.t) =
+  fun
+  | _ => [OnOp(Before), OnOp(After)];
+let valid_cursors_operand: UHExp.operand => list(CursorPosition.t) =
+  fun
   /* outer nodes - delimiter */
   | EmptyHole(_)
   | ListNil(_) => CursorPosition.delim_cursors(1)
@@ -59,20 +62,20 @@ let valid_cursors_operand = (e: UHExp.operand): list(CursorPosition.t) =>
   | NumLit(_, n) => CursorPosition.text_cursors(num_digits(n))
   | BoolLit(_, b) => CursorPosition.text_cursors(b ? 4 : 5)
   /* inner nodes */
-  | Lam(_, _, ann, _) =>
-    let colon_positions =
-      switch (ann) {
-      | Some(_) => CursorPosition.delim_cursors_k(1)
-      | None => []
-      };
-    CursorPosition.delim_cursors_k(0)
-    @ colon_positions
-    @ CursorPosition.delim_cursors_k(2);
+  | Lam(_, _, ann, _) => {
+      let colon_positions =
+        switch (ann) {
+        | Some(_) => CursorPosition.delim_cursors_k(1)
+        | None => []
+        };
+      CursorPosition.delim_cursors_k(0)
+      @ colon_positions
+      @ CursorPosition.delim_cursors_k(2);
+    }
   | Inj(_, _, _) => CursorPosition.delim_cursors(2)
   | Case(_, _, _, _) => CursorPosition.delim_cursors(2)
   | Parenthesized(_) => CursorPosition.delim_cursors(2)
-  | ApPalette(_, _, _, _) => CursorPosition.delim_cursors(1) /* TODO[livelits] */
-  };
+  | ApPalette(_, _, _, _) => CursorPosition.delim_cursors(1); /* TODO[livelits] */
 let valid_cursors_rule = (_: UHExp.rule): list(CursorPosition.t) =>
   CursorPosition.delim_cursors(2);
 
@@ -81,6 +84,9 @@ let is_valid_cursor_line = (cursor: CursorPosition.t, line: UHExp.line): bool =>
 let is_valid_cursor_operand =
     (cursor: CursorPosition.t, operand: UHExp.operand): bool =>
   valid_cursors_operand(operand) |> contains(cursor);
+let is_valid_cursor_operator =
+    (cursor: CursorPosition.t, operator: UHExp.operator): bool =>
+  valid_cursors_operator(operator) |> contains(cursor);
 let is_valid_cursor_rule = (cursor: CursorPosition.t, rule: UHExp.rule): bool =>
   valid_cursors_rule(rule) |> contains(cursor);
 
@@ -313,7 +319,10 @@ and place_before_operand = operand =>
   };
 let place_before_rule = (rule: UHExp.rule): zrule =>
   CursorR(OnDelim(0, Before), rule);
-let place_before_operator = (op: UHExp.operator): zoperator => (Before, op);
+let place_before_operator = (op: UHExp.operator): zoperator => (
+  OnOp(Before),
+  op,
+);
 
 let rec place_after = (e: UHExp.t): t => place_after_block(e)
 and place_after_block = (block: UHExp.block): zblock =>
@@ -346,8 +355,15 @@ and place_after_operand = operand =>
   };
 let place_after_rule = (Rule(p, clause): UHExp.rule): zrule =>
   RuleZE(p, place_after(clause));
-let place_after_operator = (op: UHExp.operator): zoperator => (After, op);
+let place_after_operator = (op: UHExp.operator): zoperator => (
+  OnOp(After),
+  op,
+);
 
+let place_cursor_operator =
+    (cursor: CursorPosition.t, operator: UHExp.operator): option(zoperator) =>
+  is_valid_cursor_operator(cursor, operator)
+    ? Some((cursor, operator)) : None;
 let place_cursor_operand =
     (cursor: CursorPosition.t, operand: UHExp.operand): option(zoperand) =>
   is_valid_cursor_operand(cursor, operand)
@@ -560,7 +576,7 @@ and move_cursor_left_zblock =
 and move_cursor_left_zline = (zline: zline): option(zline) =>
   switch (zline) {
   | _ when is_before_zline(zline) => None
-  | CursorL(Staging(_), _) => None
+  | CursorL(OnOp(_) | Staging(_), _) => None
   | CursorL(OnText(_), _) => None
   | CursorL(OnDelim(k, After), line) =>
     Some(CursorL(OnDelim(k, Before), line))
@@ -617,12 +633,13 @@ and move_cursor_left_zopseq = zopseq =>
   )
 and move_cursor_left_zoperator =
   fun
-  | (After, op) => Some((Before, op))
-  | (Before, _) => None
+  | (Staging(_) | OnText(_) | OnDelim(_, _), _) => None
+  | (OnOp(Before), _) => None
+  | (OnOp(After), op) => Some((OnOp(Before), op))
 and move_cursor_left_zoperand =
   fun
   | z when is_before_zoperand(z) => None
-  | CursorE(Staging(_), _) => None
+  | CursorE(OnOp(_) | Staging(_), _) => None
   | CursorE(OnText(j), e) => Some(CursorE(OnText(j - 1), e))
   | CursorE(OnDelim(k, After), e) => Some(CursorE(OnDelim(k, Before), e))
   | CursorE(OnDelim(_, Before), EmptyHole(_) | ListNil(_)) => None
@@ -754,7 +771,7 @@ and move_cursor_left_zoperand =
 and move_cursor_left_zrule =
   fun
   | z when is_before_zrule(z) => None
-  | CursorR(Staging(_), _) => None
+  | CursorR(OnOp(_) | Staging(_), _) => None
   | CursorR(OnText(_), _) => None
   | CursorR(OnDelim(k, After), rule) =>
     Some(CursorR(OnDelim(k, Before), rule))
@@ -794,7 +811,7 @@ and move_cursor_right_zblock =
 and move_cursor_right_zline =
   fun
   | z when is_after_zline(z) => None
-  | CursorL(Staging(_), _) => None
+  | CursorL(OnOp(_) | Staging(_), _) => None
   | CursorL(OnText(_), _) => None
   | CursorL(OnDelim(k, Before), line) =>
     Some(CursorL(OnDelim(k, After), line))
@@ -862,12 +879,13 @@ and move_cursor_right_zopseq = zopseq =>
   )
 and move_cursor_right_zoperator =
   fun
-  | (Before, op) => Some((After, op))
-  | (After, _) => None
+  | (Staging(_) | OnText(_) | OnDelim(_, _), _) => None
+  | (OnOp(After), _) => None
+  | (OnOp(Before), op) => Some((OnOp(After), op))
 and move_cursor_right_zoperand =
   fun
   | z when is_after_zoperand(z) => None
-  | CursorE(Staging(_), _) => None
+  | CursorE(OnOp(_) | Staging(_), _) => None
   | CursorE(OnText(j), e) => Some(CursorE(OnText(j + 1), e))
   | CursorE(OnDelim(k, Before), e) => Some(CursorE(OnDelim(k, After), e))
   | CursorE(OnDelim(_, After), EmptyHole(_) | ListNil(_)) => None
@@ -999,7 +1017,7 @@ and move_cursor_right_zoperand =
 and move_cursor_right_zrule =
   fun
   | z when is_after_zrule(z) => None
-  | CursorR(Staging(_), _) => None
+  | CursorR(OnOp(_) | Staging(_), _) => None
   | CursorR(OnText(_), _) => None
   | CursorR(OnDelim(k, Before), rule) =>
     Some(CursorR(OnDelim(k, After), rule))
