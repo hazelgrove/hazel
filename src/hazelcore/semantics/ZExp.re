@@ -34,6 +34,9 @@ and zrule =
   | RuleZP(ZPat.t, UHExp.t)
   | RuleZE(UHPat.t, t);
 
+type operand_surround = Seq.operand_surround(UHExp.operand, UHExp.operator);
+type operator_surround = Seq.operator_surround(UHExp.operand, UHExp.operator);
+
 let valid_cursors_line = (line: UHExp.line): list(CursorPosition.t) =>
   switch (line) {
   | ExpLine(_) => []

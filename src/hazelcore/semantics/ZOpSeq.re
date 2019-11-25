@@ -3,21 +3,41 @@ type t('operand, 'operator, 'zoperand, 'zoperator) =
   | ZOperand(
       OpSeq.skel('operator),
       'zoperand,
-      operand_surround('operand, 'operator),
+      Seq.operand_surround('operand, 'operator),
     )
   | ZOperator(
       OpSeq.skel('operator),
       'zoperator,
-      operator_surround('operand, 'operator),
+      Seq.operator_surround('operand, 'operator),
+    );
+
+let mk_ZOperand =
+    (
+      ~associate: Seq.t('operand, 'operator) => Skel.t('operator),
+      ~erase_zoperand: 'zoperand => 'operand,
+      zoperand: 'zoperand,
+      surround: Seq.operand_surround('operand, 'operator),
     )
-and operand_surround('operand, 'operator) = (
-  Seq.affix('operand, 'operator),
-  Seq.affix('operand, 'operator),
-)
-and operator_surround('operand, 'operator) = (
-  Seq.t('operand, 'operator),
-  Seq.t('operand, 'operator),
-);
+    : t('operand, 'operator, 'zoperand, 'zoperator) => {
+  let seq =
+    Seq.t_of_operand_and_surround(erase_zoperand(zoperand), surround);
+  let skel = associate(seq);
+  ZOperand(skel, zoperand, surround);
+};
+
+let mk_ZOperator =
+    (
+      ~associate: Seq.t('operand, 'operator) => Skel.t('operator),
+      ~erase_zoperator: 'zoperator => 'operator,
+      zoperator: 'zoperator,
+      surround: Seq.operator_surround('operand, 'operator),
+    )
+    : t('operand, 'operator, 'zoperand, 'zoperator) => {
+  let seq =
+    Seq.t_of_operator_and_surround(erase_zoperator(zoperator), surround);
+  let skel = associate(seq);
+  ZOperator(skel, zoperator, surround);
+};
 
 let wrap = zoperand => ZOperand(Placeholder(0), zoperand, (E, E));
 

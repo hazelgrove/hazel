@@ -9,6 +9,9 @@ and zoperand =
   | ListZ(t)
 and zoperator = (CursorPosition.t, UHTyp.operator);
 
+type operand_surround = Seq.operand_surround(UHTyp.operand, UHTyp.operator);
+type operator_surround = Seq.operator_surround(UHTyp.operand, UHTyp.operator);
+
 let valid_cursors_operand: UHTyp.operand => list(CursorPosition.t) =
   fun
   | Hole

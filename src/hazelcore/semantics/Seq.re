@@ -170,14 +170,20 @@ let update_nth_operand =
   | Some(seq) => seq
   };
 
+[@deriving sexp]
+type operand_surround('operand, 'operator) = (
+  affix('operand, 'operator),
+  affix('operand, 'operator),
+);
+[@deriving sexp]
+type operator_surround('operand, 'operator) = (
+  t('operand, 'operator),
+  t('operand, 'operator),
+);
+
 let rec opt_split_nth_operand =
         (n: int, seq: t('operand, 'operator))
-        : option(
-            (
-              'operand,
-              (affix('operand, 'operator), affix('operand, 'operator)),
-            ),
-          ) => {
+        : option(('operand, operand_surround('operand, 'operator))) => {
   switch (n, seq) {
   | (_, _) when n < 0 => None
   | (0, S(hd, tl)) => Some((hd, (E, tl)))
@@ -192,7 +198,7 @@ let rec opt_split_nth_operand =
 };
 let split_nth_operand =
     (n: int, seq: t('operand, 'operator))
-    : ('operand, (affix('operand, 'operator), affix('operand, 'operator))) =>
+    : ('operand, operand_surround('operand, 'operator)) =>
   switch (opt_split_nth_operand(n, seq)) {
   | None => raise(Invalid_argument("Seq.split_nth_operand"))
   | Some(result) => result
@@ -200,9 +206,7 @@ let split_nth_operand =
 
 let rec opt_split_nth_operator =
         (n: int, seq: t('operand, 'operator))
-        : option(
-            ('operator, (t('operand, 'operator), t('operand, 'operator))),
-          ) =>
+        : option(('operator, operator_surround('operand, 'operator))) =>
   switch (n, seq) {
   | (_, _) when n < 0 => None
   | (_, S(_, E)) => None
@@ -216,7 +220,7 @@ let rec opt_split_nth_operator =
   };
 let split_nth_operator =
     (n: int, seq: t('operand, 'operator))
-    : ('operator, (t('operand, 'operator), t('operand, 'operator))) =>
+    : ('operator, operator_surround('operand, 'operator)) =>
   switch (seq |> opt_split_nth_operator(n)) {
   | None => raise(Invalid_argument("Seq.split_nth_operator"))
   | Some(result) => result
@@ -230,3 +234,19 @@ let split_prefix_and_last = seq => {
   let (last, (prefix, _)) = split_nth_operand(length(seq) - 1, seq);
   (prefix, last);
 };
+
+let t_of_operand_and_surround =
+    (
+      operand: 'operand,
+      (prefix, suffix): operand_surround('operand, 'operator),
+    )
+    : t('operand, 'operator) =>
+  prefix_seq(prefix, S(operand, suffix));
+
+let t_of_operator_and_surround =
+    (
+      operator: 'operator,
+      (prefix, suffix): operator_surround('operand, 'operator),
+    )
+    : t('operand, 'operator) =>
+  prefix_seq(A(operator, prefix), suffix);

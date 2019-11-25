@@ -9,6 +9,9 @@ and zoperand =
   | InjZ(ErrStatus.t, InjSide.t, t)
 and zoperator = (CursorPosition.t, UHPat.operator);
 
+type operand_surround = Seq.operand_surround(UHPat.operand, UHPat.operator);
+type operator_surround = Seq.operator_surround(UHPat.operand, UHPat.operator);
+
 let valid_cursors_operand: UHPat.operand => list(CursorPosition.t) =
   CursorPosition.(
     fun

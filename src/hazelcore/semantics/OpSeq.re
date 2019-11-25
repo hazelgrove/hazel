@@ -6,6 +6,14 @@ type t('operand, 'operator) =
 and skel('operator) = Skel.t('operator)
 and seq('operand, 'operator) = Seq.t('operand, 'operator);
 
+let mk =
+    (
+      ~associate: seq('operand, 'operator) => Skel.t('operator),
+      seq: seq('operand, 'operator),
+    )
+    : t('operand, 'operator) =>
+  OpSeq(seq |> associate, seq);
+
 let wrap = (operand: 'operand): t('operand, _) =>
   OpSeq(Placeholder(0), S(operand, E));
 
