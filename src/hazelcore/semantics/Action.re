@@ -2770,6 +2770,7 @@ let make_zexp_or_zblock_inconsistent =
     (B(zblock), u_gen);
   };
 
+// - add a case for constructing comments in the case BlockZE
 let rec syn_perform_block =
         (
           ~ci: CursorInfo.t,
@@ -3573,6 +3574,13 @@ and syn_perform_lines =
     | None => Failed
     | Some(ctx) => Succeeded((zlines, ctx, u_gen))
     };
+  // - this can be moved down to syn_perform_line
+  // - add actions for modifying the comment text down in syn_perform_line
+  //
+  // - after you get Action.re done, consider how to change the styling of
+  //   comments so that they are lighter than the rest of the code
+  //   - use the Chrome inspector to see how CommentLine gets put in the DOM
+  //   - add appropriate styling for appropriate CSS selector in style.css
   | (Construct(SCommentLine), (prefix, CursorL(_, EmptyLine), suffix)) =>
     Succeeded((
       (prefix, CursorL(OnText(0), CommentLine("")), suffix),
