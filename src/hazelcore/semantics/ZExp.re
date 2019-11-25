@@ -576,7 +576,7 @@ and move_cursor_left_zblock =
 and move_cursor_left_zline = (zline: zline): option(zline) =>
   switch (zline) {
   | _ when is_before_zline(zline) => None
-  | CursorL(OnOp(_) | Staging(_), _) => None
+  | CursorL(OnOp(_), _) => None
   | CursorL(OnText(_), _) => None
   | CursorL(OnDelim(k, After), line) =>
     Some(CursorL(OnDelim(k, Before), line))
@@ -633,13 +633,13 @@ and move_cursor_left_zopseq = zopseq =>
   )
 and move_cursor_left_zoperator =
   fun
-  | (Staging(_) | OnText(_) | OnDelim(_, _), _) => None
+  | (OnText(_) | OnDelim(_, _), _) => None
   | (OnOp(Before), _) => None
   | (OnOp(After), op) => Some((OnOp(Before), op))
 and move_cursor_left_zoperand =
   fun
   | z when is_before_zoperand(z) => None
-  | CursorE(OnOp(_) | Staging(_), _) => None
+  | CursorE(OnOp(_), _) => None
   | CursorE(OnText(j), e) => Some(CursorE(OnText(j - 1), e))
   | CursorE(OnDelim(k, After), e) => Some(CursorE(OnDelim(k, Before), e))
   | CursorE(OnDelim(_, Before), EmptyHole(_) | ListNil(_)) => None
@@ -771,7 +771,7 @@ and move_cursor_left_zoperand =
 and move_cursor_left_zrule =
   fun
   | z when is_before_zrule(z) => None
-  | CursorR(OnOp(_) | Staging(_), _) => None
+  | CursorR(OnOp(_), _) => None
   | CursorR(OnText(_), _) => None
   | CursorR(OnDelim(k, After), rule) =>
     Some(CursorR(OnDelim(k, Before), rule))
@@ -811,7 +811,7 @@ and move_cursor_right_zblock =
 and move_cursor_right_zline =
   fun
   | z when is_after_zline(z) => None
-  | CursorL(OnOp(_) | Staging(_), _) => None
+  | CursorL(OnOp(_), _) => None
   | CursorL(OnText(_), _) => None
   | CursorL(OnDelim(k, Before), line) =>
     Some(CursorL(OnDelim(k, After), line))
@@ -879,13 +879,13 @@ and move_cursor_right_zopseq = zopseq =>
   )
 and move_cursor_right_zoperator =
   fun
-  | (Staging(_) | OnText(_) | OnDelim(_, _), _) => None
+  | (OnText(_) | OnDelim(_, _), _) => None
   | (OnOp(After), _) => None
   | (OnOp(Before), op) => Some((OnOp(After), op))
 and move_cursor_right_zoperand =
   fun
   | z when is_after_zoperand(z) => None
-  | CursorE(OnOp(_) | Staging(_), _) => None
+  | CursorE(OnOp(_), _) => None
   | CursorE(OnText(j), e) => Some(CursorE(OnText(j + 1), e))
   | CursorE(OnDelim(k, Before), e) => Some(CursorE(OnDelim(k, After), e))
   | CursorE(OnDelim(_, After), EmptyHole(_) | ListNil(_)) => None
@@ -1017,7 +1017,7 @@ and move_cursor_right_zoperand =
 and move_cursor_right_zrule =
   fun
   | z when is_after_zrule(z) => None
-  | CursorR(OnOp(_) | Staging(_), _) => None
+  | CursorR(OnOp(_), _) => None
   | CursorR(OnText(_), _) => None
   | CursorR(OnDelim(k, Before), rule) =>
     Some(CursorR(OnDelim(k, After), rule))

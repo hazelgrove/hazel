@@ -175,7 +175,7 @@ let is_inconsistent = (zp: t): bool => UHPat.is_inconsistent(erase(zp));
 
 let move_cursor_left_zoperator: zoperator => option(zoperator) =
   fun
-  | (Staging(_) | OnText(_) | OnDelim(_, _), _) => None
+  | (OnText(_) | OnDelim(_, _), _) => None
   | (OnOp(Before), _) => None
   | (OnOp(After), op) => Some((OnOp(Before), op));
 
@@ -193,7 +193,7 @@ and move_cursor_left_zopseq = zopseq =>
 and move_cursor_left_zoperand =
   fun
   | z when is_before_zoperand(z) => None
-  | CursorP(OnOp(_) | Staging(_), _) => None
+  | CursorP(OnOp(_), _) => None
   | CursorP(OnText(j), operand) => Some(CursorP(OnText(j - 1), operand))
   | CursorP(OnDelim(k, After), operand) =>
     Some(CursorP(OnDelim(k, Before), operand))
@@ -220,7 +220,7 @@ and move_cursor_left_zoperand =
 
 let move_cursor_right_zoperator: zoperator => option(zoperator) =
   fun
-  | (Staging(_) | OnText(_) | OnDelim(_, _), _) => None
+  | (OnText(_) | OnDelim(_, _), _) => None
   | (OnOp(After), _) => None
   | (OnOp(Before), op) => Some((OnOp(After), op));
 
@@ -239,7 +239,7 @@ and move_cursor_right_zopseq = zopseq =>
 and move_cursor_right_zoperand =
   fun
   | z when is_after_zoperand(z) => None
-  | CursorP(OnOp(_) | Staging(_), _) => None
+  | CursorP(OnOp(_), _) => None
   | CursorP(OnText(j), p) => Some(CursorP(OnText(j + 1), p))
   | CursorP(OnDelim(k, Before), p) => Some(CursorP(OnDelim(k, After), p))
   | CursorP(OnDelim(_, After), EmptyHole(_) | Wild(_) | ListNil(_)) => None

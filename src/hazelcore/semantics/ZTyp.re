@@ -105,7 +105,7 @@ let place_cursor_operator =
 
 let move_cursor_left_zoperator: zoperator => option(zoperator) =
   fun
-  | (OnText(_) | OnDelim(_, _) | Staging(_), _) => None
+  | (OnText(_) | OnDelim(_, _), _) => None
   | (OnOp(Before), _) => None
   | (OnOp(After), op) => Some((OnOp(Before), op));
 
@@ -124,7 +124,7 @@ and move_cursor_left_zopseq = zopseq =>
 and move_cursor_left_zoperand =
   fun
   | z when is_before_zoperand(z) => None
-  | CursorT(OnOp(_) | OnText(_) | Staging(_), _) => None
+  | CursorT(OnOp(_) | OnText(_), _) => None
   | CursorT(OnDelim(k, After), ty) =>
     Some(CursorT(OnDelim(k, Before), ty))
   | CursorT(OnDelim(_, Before), Hole | Unit | Num | Bool) => None
@@ -147,7 +147,7 @@ and move_cursor_left_zoperand =
 
 let move_cursor_right_zoperator: zoperator => option(zoperator) =
   fun
-  | (OnText(_) | OnDelim(_, _) | Staging(_), _) => None
+  | (OnText(_) | OnDelim(_, _), _) => None
   | (OnOp(After), _) => None
   | (OnOp(Before), op) => Some((OnOp(After), op));
 
@@ -166,7 +166,7 @@ and move_cursor_right_zopseq = zopseq =>
 and move_cursor_right_zoperand =
   fun
   | z when is_after_zoperand(z) => None
-  | CursorT(OnOp(_) | OnText(_) | Staging(_), _) => None
+  | CursorT(OnOp(_) | OnText(_), _) => None
   | CursorT(OnDelim(k, Before), ty) =>
     Some(CursorT(OnDelim(k, After), ty))
   | CursorT(OnDelim(_, After), Hole | Unit | Num | Bool) => None

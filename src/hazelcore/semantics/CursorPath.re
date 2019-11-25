@@ -529,7 +529,6 @@ module Typ = {
   and holes_zoperand =
       (zoperand: ZTyp.zoperand, rev_steps: rev_steps): zhole_list =>
     switch (zoperand) {
-    | CursorT(Staging(_), _) => no_holes
     | CursorT(_, Hole) =>
       mk_zholes(~hole_selected=Some((TypHole, rev_steps |> List.rev)), ())
     | CursorT(_, Unit | Num | Bool) => no_holes
@@ -712,7 +711,7 @@ module Pat = {
   and holes_zoperand =
       (zoperand: ZPat.zoperand, rev_steps: rev_steps): zhole_list =>
     switch (zoperand) {
-    | CursorP(Staging(_) | OnOp(_), _) => no_holes
+    | CursorP(OnOp(_), _) => no_holes
     | CursorP(_, EmptyHole(u)) =>
       mk_zholes(
         ~hole_selected=Some((PatHole(u), rev_steps |> List.rev)),
@@ -1290,7 +1289,7 @@ module Exp = {
   }
   and holes_zline = (zline: ZExp.zline, rev_steps: rev_steps): zhole_list =>
     switch (zline) {
-    | CursorL(OnOp(_) | Staging(_), _) => no_holes
+    | CursorL(OnOp(_), _) => no_holes
     | CursorL(_, EmptyLine) => no_holes
     | CursorL(_, ExpLine(_)) => no_holes /* invalid cursor position */
     | CursorL(cursor, LetLine(p, ann, def)) =>
@@ -1375,7 +1374,7 @@ module Exp = {
   and holes_zoperand =
       (zoperand: ZExp.zoperand, rev_steps: rev_steps): zhole_list =>
     switch (zoperand) {
-    | CursorE(OnOp(_) | Staging(_), _) => no_holes
+    | CursorE(OnOp(_), _) => no_holes
     | CursorE(_, EmptyHole(u)) =>
       mk_zholes(
         ~hole_selected=Some((ExpHole(u), rev_steps |> List.rev)),
@@ -1699,7 +1698,7 @@ module Exp = {
     }
   and holes_zrule = (zrule: ZExp.zrule, rev_steps: rev_steps) =>
     switch (zrule) {
-    | CursorR(OnOp(_) | OnText(_) | Staging(_), _) =>
+    | CursorR(OnOp(_) | OnText(_), _) =>
       // invalid cursor position
       no_holes
     | CursorR(OnDelim(k, _), Rule(p, clause)) =>
