@@ -333,7 +333,7 @@ let child_indices_line =
   | ExpLine(_) => []
   | LetLine(_, None, _) => [0, 2]
   | LetLine(_, Some(_), _) => [0, 1, 2]
-  | CommentLine(_) => [0];
+  | CommentLine(_) => [];
 let child_indices_exp =
   fun
   | EmptyHole(_)
