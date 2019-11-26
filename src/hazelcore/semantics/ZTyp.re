@@ -1,5 +1,4 @@
 open GeneralUtil;
-open SemanticsCommon;
 
 [@deriving sexp]
 type opseq_surround = OperatorSeq.opseq_surround(UHTyp.t, UHTyp.op);
@@ -10,7 +9,7 @@ type opseq_suffix = OperatorSeq.opseq_suffix(UHTyp.t, UHTyp.op);
 
 [@deriving sexp]
 type t =
-  | CursorT(cursor_position, UHTyp.t)
+  | CursorT(CursorPosition.t, UHTyp.t)
   /* zipper cases */
   | ParenthesizedZ(t)
   | ListZ(t)
@@ -20,23 +19,23 @@ type t =
   /* in the type */
   | ForallZT(TPat.t, t);
 
-let valid_cursors = (uty: UHTyp.t): list(cursor_position) =>
+let valid_cursors = (uty: UHTyp.t): list(CursorPosition.t) =>
   switch (uty) {
   | TVar(_)
   | Forall(_, _)
   | Hole
   | Unit
   | Num
-  | Bool => delim_cursors(1)
+  | Bool => CursorPosition.delim_cursors(1)
   | Parenthesized(_)
-  | List(_) => delim_cursors(2)
+  | List(_) => CursorPosition.delim_cursors(2)
   | OpSeq(_, seq) =>
     range(~lo=1, OperatorSeq.seq_length(seq))
-    |> List.map(k => delim_cursors_k(k))
+    |> List.map(k => CursorPosition.delim_cursors_k(k))
     |> List.flatten
   };
 
-let is_valid_cursor = (cursor: cursor_position, uty: UHTyp.t): bool =>
+let is_valid_cursor = (cursor: CursorPosition.t, uty: UHTyp.t): bool =>
   valid_cursors(uty) |> contains(cursor);
 
 let rec erase = (zty: t): UHTyp.t =>
@@ -133,7 +132,7 @@ let rec place_after = (uty: UHTyp.t): t =>
     OpSeqZ(skel, zty, surround);
   };
 
-let place_cursor = (cursor: cursor_position, uty: UHTyp.t): option(t) =>
+let place_cursor = (cursor: CursorPosition.t, uty: UHTyp.t): option(t) =>
   is_valid_cursor(cursor, uty) ? Some(CursorT(cursor, uty)) : None;
 
 let rec cursor_on_opseq = (zty: t): bool =>

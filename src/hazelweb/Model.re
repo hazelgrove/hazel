@@ -11,7 +11,7 @@ let cardstacks: cardstacks = [
 
 let init_compute_results_flag = false;
 
-type user_newlines = Path.StepsMap.t(unit);
+type user_newlines = CursorPath.StepsMap.t(unit);
 
 type edit_state = Statics.edit_state;
 
@@ -117,7 +117,7 @@ let block = model => model |> zblock |> ZExp.erase_block;
 
 let path = model => {
   let (zblock, _, _) = edit_state_of(model);
-  Path.of_zblock(zblock);
+  CursorPath.of_zblock(zblock);
 };
 
 let steps = model => {
@@ -139,7 +139,15 @@ let cursor_info_of_edit_state = ((zblock, _, _): edit_state): CursorInfo.t =>
     )
   ) {
   | None => raise(MissingCursorInfo)
-  | Some(ci) => ci
+  | Some(ci) =>
+    /* uncomment to see where variable is used
+           switch (ci.node) {
+           | Pat(VarPat(_, uses)) =>
+             JSUtil.log_sexp(UsageAnalysis.sexp_of_uses_list(uses))
+           | _ => JSUtil.log("not varpat")
+           };
+       */
+    ci
   };
 
 exception InvalidInput;
@@ -187,46 +195,55 @@ let result_state_of_edit_state = (edit_state, compute_results_flag) =>
   };
 
 let remove_keys_outside_prefix =
-    (~prefix: Path.steps, user_newlines): (user_newlines, list(Path.steps)) => {
+    (~prefix: CursorPath.steps, user_newlines)
+    : (user_newlines, list(CursorPath.steps)) => {
   let (inside_prefix, outside_prefix) =
     user_newlines
-    |> Path.StepsMap.partition((steps, _) =>
-         prefix |> Path.is_prefix_of(steps)
+    |> CursorPath.StepsMap.partition((steps, _) =>
+         prefix |> CursorPath.is_prefix_of(steps)
        );
   (
     inside_prefix,
     outside_prefix
-    |> Path.StepsMap.bindings
+    |> CursorPath.StepsMap.bindings
     |> List.map(((steps, _)) => steps),
   );
 };
 
 let add_user_newline = (steps, model) => {
   ...model,
-  user_newlines: model.user_newlines |> Path.StepsMap.add(steps, ()),
+  user_newlines: model.user_newlines |> CursorPath.StepsMap.add(steps, ()),
 };
 
 let remove_user_newline = (steps, model) => {
   ...model,
-  user_newlines: model.user_newlines |> Path.StepsMap.remove(steps),
+  user_newlines: model.user_newlines |> CursorPath.StepsMap.remove(steps),
 };
 
 let user_entered_newline_at = (steps, user_newlines): bool =>
-  user_newlines |> Path.StepsMap.mem(steps);
+  user_newlines |> CursorPath.StepsMap.mem(steps);
 
 let update_edit_state = ((new_zblock, ty, u_gen): edit_state, model: t): t => {
   let new_block = new_zblock |> ZExp.erase_block;
-  let (new_steps, _) = Path.of_zblock(new_zblock);
+  let (new_steps, _) = CursorPath.of_zblock(new_zblock);
   let (new_zblock, new_user_newlines) =
     model.user_newlines
-    |> Path.StepsMap.bindings
+    |> CursorPath.StepsMap.bindings
     |> List.fold_left(
          ((new_zblock, newlines), (steps, _)) =>
-           switch (new_block |> Path.follow_block_and_place_after(steps)) {
-           | None => (new_zblock, newlines |> Path.StepsMap.remove(steps))
+           switch (
+             new_block |> CursorPath.follow_block_and_place_after(steps)
+           ) {
+           | None => (
+               new_zblock,
+               newlines |> CursorPath.StepsMap.remove(steps),
+             )
            | Some(zblock) =>
              switch (CursorInfo.syn_cursor_info_block(Contexts.empty, zblock)) {
-             | None => (new_zblock, newlines |> Path.StepsMap.remove(steps))
+             | None => (
+                 new_zblock,
+                 newlines |> CursorPath.StepsMap.remove(steps),
+               )
              | Some(ci) =>
                let newlines =
                  switch (ci.node) {
@@ -235,19 +252,19 @@ let update_edit_state = ((new_zblock, ty, u_gen): edit_state, model: t): t => {
                  | _ =>
                    // something nontrivial present, no more
                    // need to keep track of ephemeral newline
-                   newlines |> Path.StepsMap.remove(steps)
+                   newlines |> CursorPath.StepsMap.remove(steps)
                  };
-               if (Path.compare_steps(new_steps, steps) < 0) {
-                 let new_path = Path.of_zblock(new_zblock);
+               if (CursorPath.compare_steps(new_steps, steps) < 0) {
+                 let new_path = CursorPath.of_zblock(new_zblock);
                  (
                    new_zblock
                    |> ZExp.erase_block
-                   |> Path.prune_trivial_suffix_block(
+                   |> CursorPath.prune_trivial_suffix_block(
                         ~steps_of_first_line=steps,
                       )
-                   |> Path.follow_block(new_path)
+                   |> CursorPath.follow_block(new_path)
                    |> Opt.get(() => assert(false)),
-                   newlines |> Path.StepsMap.remove(steps),
+                   newlines |> CursorPath.StepsMap.remove(steps),
                  );
                } else {
                  (new_zblock, newlines);
@@ -284,7 +301,7 @@ let update_cardstack_state = (model, cardstack_state) => {
   let result_state =
     result_state_of_edit_state(edit_state, model.compute_results_flag);
   let cursor_info = cursor_info_of_edit_state(edit_state);
-  let user_newlines = Path.StepsMap.empty;
+  let user_newlines = CursorPath.StepsMap.empty;
   let cardstacks_state =
     ZList.replace_z(model.cardstacks_state, cardstack_state);
   {
@@ -355,7 +372,7 @@ let init = (): t => {
     right_sidebar_open: true,
     selected_example: None,
     is_cell_focused: false,
-    user_newlines: Path.StepsMap.empty,
+    user_newlines: CursorPath.StepsMap.empty,
   };
 };
 
@@ -381,7 +398,10 @@ let perform_edit_action = (model: t, a: Action.t): t => {
 let move_to_hole = (model: t, u: MetaVar.t): t => {
   let (zblock, _, _) = edit_state_of(model);
   switch (
-    Path.path_to_hole(Path.holes_block(ZExp.erase_block(zblock), [], []), u)
+    CursorPath.path_to_hole(
+      CursorPath.holes_block(ZExp.erase_block(zblock), [], []),
+      u,
+    )
   ) {
   | None =>
     //JSUtil.log("Path not found!");

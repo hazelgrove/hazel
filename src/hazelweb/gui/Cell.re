@@ -6,7 +6,6 @@ module Sexp = Sexplib.Sexp;
 module KeyCombo = JSUtil.KeyCombo;
 open GeneralUtil;
 open ViewUtil;
-open SemanticsCommon;
 open Sexplib.Std;
 
 let string_insert = (s1, offset, s2) => {
@@ -31,35 +30,40 @@ let string_delete = (s, offset, ctrlKey) => {
   (prefix ++ suffix, offset);
 };
 
-let kc_actions: Hashtbl.t(KeyCombo.t, Action.t) =
+let kc_actions: Hashtbl.t(KeyCombo.t, CursorInfo.node => Action.t) =
   Hashtbl.of_seq(
     [
-      (KeyCombo.Backspace, Action.Backspace),
-      (KeyCombo.Delete, Action.Delete),
-      (KeyCombo.ShiftTab, Action.MoveToPrevHole),
-      (KeyCombo.Tab, Action.MoveToNextHole),
-      (KeyCombo.Key_N, Action.Construct(SNum)),
-      (KeyCombo.Key_B, Action.Construct(SBool)),
-      (KeyCombo.GT, Action.Construct(SOp(SArrow))),
-      (KeyCombo.Ampersand, Action.Construct(SOp(SAnd))),
-      (KeyCombo.VBar, Action.Construct(SOp(SOr))),
-      (KeyCombo.Key_L, Action.Construct(SList)),
-      (KeyCombo.LeftParen, Action.Construct(SParenthesized)),
-      (KeyCombo.Colon, Action.Construct(SAsc)),
-      (KeyCombo.Equals, Action.Construct(SLet)),
-      (KeyCombo.Enter, Action.Construct(SLine)),
-      (KeyCombo.Backslash, Action.Construct(SLam)),
-      (KeyCombo.Plus, Action.Construct(SOp(SPlus))),
-      (KeyCombo.Minus, Action.Construct(SOp(SMinus))),
-      (KeyCombo.Asterisk, Action.Construct(SOp(STimes))),
-      (KeyCombo.LT, Action.Construct(SOp(SLessThan))),
-      (KeyCombo.Space, Action.Construct(SOp(SSpace))),
-      (KeyCombo.Comma, Action.Construct(SOp(SComma))),
-      (KeyCombo.LeftBracket, Action.Construct(SListNil)),
-      (KeyCombo.Semicolon, Action.Construct(SOp(SCons))),
-      (KeyCombo.Alt_L, Action.Construct(SInj(L))),
-      (KeyCombo.Alt_R, Action.Construct(SInj(R))),
-      (KeyCombo.Alt_C, Action.Construct(SCase)),
+      (KeyCombo.Backspace, _ => Action.Backspace),
+      (KeyCombo.Delete, _ => Action.Delete),
+      (KeyCombo.ShiftTab, _ => Action.MoveToPrevHole),
+      (KeyCombo.Tab, _ => Action.MoveToNextHole),
+      (KeyCombo.Key_N, _ => Action.Construct(SNum)),
+      (KeyCombo.Key_B, _ => Action.Construct(SBool)),
+      (
+        KeyCombo.GT,
+        fun
+        | CursorInfo.Typ(_) => Action.Construct(SOp(SArrow))
+        | _ => Action.Construct(SOp(SGreaterThan)),
+      ),
+      (KeyCombo.Ampersand, _ => Action.Construct(SOp(SAnd))),
+      (KeyCombo.VBar, _ => Action.Construct(SOp(SOr))),
+      (KeyCombo.Key_L, _ => Action.Construct(SList)),
+      (KeyCombo.LeftParen, _ => Action.Construct(SParenthesized)),
+      (KeyCombo.Colon, _ => Action.Construct(SAsc)),
+      (KeyCombo.Equals, _ => Action.Construct(SOp(SEquals))),
+      (KeyCombo.Enter, _ => Action.Construct(SLine)),
+      (KeyCombo.Backslash, _ => Action.Construct(SLam)),
+      (KeyCombo.Plus, _ => Action.Construct(SOp(SPlus))),
+      (KeyCombo.Minus, _ => Action.Construct(SOp(SMinus))),
+      (KeyCombo.Asterisk, _ => Action.Construct(SOp(STimes))),
+      (KeyCombo.LT, _ => Action.Construct(SOp(SLessThan))),
+      (KeyCombo.Space, _ => Action.Construct(SOp(SSpace))),
+      (KeyCombo.Comma, _ => Action.Construct(SOp(SComma))),
+      (KeyCombo.LeftBracket, _ => Action.Construct(SListNil)),
+      (KeyCombo.Semicolon, _ => Action.Construct(SOp(SCons))),
+      (KeyCombo.Alt_L, _ => Action.Construct(SInj(L))),
+      (KeyCombo.Alt_R, _ => Action.Construct(SInj(R))),
+      (KeyCombo.Alt_C, _ => Action.Construct(SCase)),
     ]
     |> List.to_seq,
   );
@@ -75,10 +79,10 @@ let entered_single_key =
   | (Typ(_), Some((Key_B | Key_L | Key_N) as kc)) =>
     Some(
       prevent_stop_inject(
-        Update.Action.EditAction(Hashtbl.find(kc_actions, kc)),
+        Update.Action.EditAction(ci.node |> Hashtbl.find(kc_actions, kc)),
       ),
     )
-  | (Pat(EmptyHole(_)), _) =>
+  | (Pat(OtherPat(EmptyHole(_))), _) =>
     let shape =
       switch (single_key) {
       | Number(n) => Action.SNumLit(n, OnText(num_digits(n)))
@@ -86,7 +90,7 @@ let entered_single_key =
       | Underscore => Action.SWild
       };
     Some(prevent_stop_inject(Update.Action.EditAction(Construct(shape))));
-  | (Pat(Wild(_)), _) =>
+  | (Pat(OtherPat(Wild(_))), _) =>
     let shape =
       switch (single_key) {
       | Number(n) =>
@@ -105,20 +109,20 @@ let entered_single_key =
     Some(prevent_stop_inject(Update.Action.EditAction(Construct(shape))));
   | (
       Exp(NumLit(_, _) | BoolLit(_, _) | Var(_, _, _)) |
-      Pat(NumLit(_, _) | BoolLit(_, _) | Var(_, _, _)),
+      Pat(OtherPat(NumLit(_, _) | BoolLit(_, _)) | VarPat(_, _)),
       _,
     ) =>
     let (nodeValue, anchorOffset) =
       switch (ci.node, ci.position) {
-      | (Exp(NumLit(_, n)) | Pat(NumLit(_, n)), OnText(j)) => (
+      | (Exp(NumLit(_, n)) | Pat(OtherPat(NumLit(_, n))), OnText(j)) => (
           string_of_int(n),
           j,
         )
-      | (Exp(BoolLit(_, b)) | Pat(BoolLit(_, b)), OnText(j)) => (
+      | (Exp(BoolLit(_, b)) | Pat(OtherPat(BoolLit(_, b))), OnText(j)) => (
           b ? "true" : "false",
           j,
         )
-      | (Exp(Var(_, _, x)) | Pat(Var(_, _, x)), OnText(j)) => (x, j)
+      | (Exp(Var(_, _, x)) | Pat(VarPat(x, _)), OnText(j)) => (x, j)
       | (_, _) => assert(false)
       };
     let key_string = JSUtil.single_key_string(single_key);
@@ -287,7 +291,8 @@ let view =
                   };
                 switch (
                   kc,
-                  model.user_newlines |> Path.StepsMap.mem(ci.node_steps),
+                  model.user_newlines
+                  |> CursorPath.StepsMap.mem(ci.node_steps),
                   cursor_escaped,
                   ci.position,
                 ) {
@@ -332,7 +337,8 @@ let view =
                 };
               | (OnText(_) | OnDelim(_, _), _, _, Some(Enter)) =>
                 switch (
-                  model.user_newlines |> Path.StepsMap.mem(ci.node_steps),
+                  model.user_newlines
+                  |> CursorPath.StepsMap.mem(ci.node_steps),
                   model |> Model.zblock |> ZExp.is_after_case_rule,
                   model |> Model.zblock |> ZExp.is_on_user_newlineable_hole,
                 ) {
@@ -343,17 +349,21 @@ let view =
                 | (_, _, _) =>
                   prevent_stop_inject(
                     Update.Action.EditAction(
-                      Hashtbl.find(kc_actions, Enter),
+                      ci.node |> Hashtbl.find(kc_actions, Enter),
                     ),
                   )
                 }
               | (Staging(_), _, _, Some(Escape)) =>
                 prevent_stop_inject(
-                  Update.Action.EditAction(Hashtbl.find(kc_actions, Enter)),
+                  Update.Action.EditAction(
+                    ci.node |> Hashtbl.find(kc_actions, Enter),
+                  ),
                 )
               | (_, _, _, Some(kc)) =>
                 prevent_stop_inject(
-                  Update.Action.EditAction(Hashtbl.find(kc_actions, kc)),
+                  Update.Action.EditAction(
+                    ci.node |> Hashtbl.find(kc_actions, kc),
+                  ),
                 )
               };
             }),

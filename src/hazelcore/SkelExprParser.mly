@@ -11,6 +11,8 @@
 %token OR
 %token AND
 %token LT
+%token GT
+%token EQ
 %token CONS
 %token PLUS
 %token MINUS
@@ -22,6 +24,8 @@
 %left OR
 %left AND
 %left LT
+%left GT
+%left EQ
 %right CONS
 %left PLUS
 %left MINUS
@@ -29,6 +33,7 @@
 %left SPACEOP
 
 %start <UHExp.op Skel.t> skel_expr
+%type <UHExp.op Skel.t> expr
 
 (* %% ends the declarations section of the grammar definition *)
 
@@ -49,6 +54,16 @@ expr:
     Skel.BinOp(
       NotInHole,
       UHExp.LessThan,
+      e1, e2) }
+  | e1 = expr; GT; e2 = expr {
+    Skel.BinOp(
+      NotInHole,
+      UHExp.GreaterThan,
+      e1, e2) }
+  | e1 = expr; EQ; e2 = expr {
+    Skel.BinOp(
+      NotInHole,
+      UHExp.Equals,
       e1, e2) }
   | e1 = expr; CONS; e2 = expr {
     Skel.BinOp(

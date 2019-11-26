@@ -1,13 +1,14 @@
-open SemanticsCommon;
 open GeneralUtil;
 
 [@deriving sexp]
 type op =
+  | Space
   | Plus
   | Minus
   | Times
   | LessThan
-  | Space
+  | GreaterThan
+  | Equals
   | Comma
   | Cons
   | And
@@ -39,7 +40,7 @@ and t =
   /* inner nodes */
   | Lam(ErrStatus.t, UHPat.t, option(UHTyp.t), block)
   | TyLam(ErrStatus.t, TPat.t, block)
-  | Inj(ErrStatus.t, inj_side, block)
+  | Inj(ErrStatus.t, InjSide.t, block)
   | Case(ErrStatus.t, block, rules, option(UHTyp.t))
   | Parenthesized(block)
   | OpSeq(skel_t, opseq) /* invariant: skeleton is consistent with opseq */
@@ -708,13 +709,13 @@ let shift_line_to_suffix_block =
   };
 };
 
-let favored_child_of_line: line => option((child_index, block)) =
+let favored_child_of_line: line => option((ChildIndex.t, block)) =
   fun
   | EmptyLine
   | ExpLine(_) => None
   | LetLine(_, _, def) => Some((2, def));
 
-let favored_child_of_exp: t => option((child_index, block)) =
+let favored_child_of_exp: t => option((ChildIndex.t, block)) =
   fun
   | EmptyHole(_)
   | Var(_, _, _)

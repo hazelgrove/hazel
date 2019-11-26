@@ -1,5 +1,4 @@
 open GeneralUtil;
-open SemanticsCommon;
 
 [@deriving sexp]
 type op =
@@ -145,7 +144,7 @@ let child_indices =
   | TVar(_, _)
   | Forall(_, _) => raise(Failure("unimplemented"));
 
-let favored_child: t => option((child_index, t)) =
+let favored_child: t => option((ChildIndex.t, t)) =
   fun
   | Hole
   | Unit

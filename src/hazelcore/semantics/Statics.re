@@ -1,4 +1,3 @@
-open SemanticsCommon;
 open GeneralUtil;
 
 [@deriving sexp]
@@ -65,7 +64,7 @@ let rec syn_pat =
   | Inj(InHole(WrongLength, _), _, _) => None
   /* not in hole */
   | Wild(NotInHole) => Some((Hole, ctx))
-  | Var(NotInHole, InVarHole(Free, _), _) => raise(FreeVarInPat)
+  | Var(NotInHole, InVarHole(Free, _), _) => raise(UHPat.FreeVarInPat)
   | Var(NotInHole, InVarHole(Keyword(_), _), _) => Some((Hole, ctx))
   | Var(NotInHole, NotInVarHole, x) =>
     Var.check_valid(
@@ -187,7 +186,7 @@ and ana_pat = (ctx: Contexts.t, p: UHPat.t, ty: HTyp.t): option(Contexts.t) =>
   | ListNil(InHole(WrongLength, _))
   | Inj(InHole(WrongLength, _), _, _) => None
   /* not in hole */
-  | Var(NotInHole, InVarHole(Free, _), _) => raise(FreeVarInPat)
+  | Var(NotInHole, InVarHole(Free, _), _) => raise(UHPat.FreeVarInPat)
   | Var(NotInHole, InVarHole(Keyword(_), _), _) => Some(ctx)
   | Var(NotInHole, NotInVarHole, x) =>
     Var.check_valid(x, Some(Contexts.extend_vars(ctx, (x, ty))))
@@ -212,7 +211,7 @@ and ana_pat = (ctx: Contexts.t, p: UHPat.t, ty: HTyp.t): option(Contexts.t) =>
     switch (HTyp.matched_sum(ty)) {
     | None => None
     | Some((tyL, tyR)) =>
-      let ty1 = pick_side(side, tyL, tyR);
+      let ty1 = InjSide.pick(side, tyL, tyR);
       ana_pat(ctx, p1, ty1);
     }
   | OpSeq(skel, seq) =>
@@ -675,7 +674,7 @@ and syn_skel =
       | Some(mode2) => Some((Bool, combine_modes(mode1, mode2)))
       }
     }
-  | BinOp(NotInHole, LessThan, skel1, skel2) =>
+  | BinOp(NotInHole, LessThan | GreaterThan | Equals, skel1, skel2) =>
     switch (ana_skel(ctx, skel1, seq, Num, monitor)) {
     | None => None
     | Some(mode1) =>
@@ -816,7 +815,8 @@ and ana_exp = (ctx: Contexts.t, e: UHExp.t, ty: HTyp.t): option(unit) =>
   | Inj(NotInHole, side, block) =>
     switch (HTyp.matched_sum(ty)) {
     | None => None
-    | Some((ty1, ty2)) => ana_block(ctx, block, pick_side(side, ty1, ty2))
+    | Some((ty1, ty2)) =>
+      ana_block(ctx, block, InjSide.pick(side, ty1, ty2))
     }
   | Case(NotInHole, block, rules, Some(uty)) =>
     let ty2 = UHTyp.expand(uty);
@@ -1029,12 +1029,12 @@ and ana_skel =
       }
     }
   | BinOp(InHole(TypeInconsistent, _), _, _, _)
-  | BinOp(NotInHole, And | Or, _, _)
-  | BinOp(NotInHole, Minus, _, _)
-  | BinOp(NotInHole, Plus, _, _)
-  | BinOp(NotInHole, Times, _, _)
-  | BinOp(NotInHole, LessThan, _, _)
-  | BinOp(NotInHole, Space, _, _) =>
+  | BinOp(
+      NotInHole,
+      And | Or | Minus | Plus | Times | LessThan | GreaterThan | Equals | Space,
+      _,
+      _,
+    ) =>
     switch (syn_skel(ctx, skel, seq, monitor)) {
     | None => None
     | Some((ty', mode)) =>
@@ -1067,7 +1067,7 @@ let rec syn_fix_holes_pat =
       (p, HTyp.Hole, ctx, u_gen);
     }
   | Wild(_) => (p_nih, Hole, ctx, u_gen)
-  | Var(_, InVarHole(Free, _), _) => raise(FreeVarInPat)
+  | Var(_, InVarHole(Free, _), _) => raise(UHPat.FreeVarInPat)
   | Var(_, InVarHole(Keyword(_), _), _) => (p_nih, Hole, ctx, u_gen)
   | Var(_, NotInVarHole, x) =>
     let ctx = Contexts.extend_vars(ctx, (x, Hole));
@@ -1183,7 +1183,7 @@ and ana_fix_holes_pat =
       (p, ctx, u_gen);
     }
   | Wild(_) => (p_nih, ctx, u_gen)
-  | Var(_, InVarHole(Free, _), _) => raise(FreeVarInPat)
+  | Var(_, InVarHole(Free, _), _) => raise(UHPat.FreeVarInPat)
   | Var(_, InVarHole(Keyword(_), _), _) => (p_nih, ctx, u_gen)
   | Var(_, NotInVarHole, x) =>
     let ctx = Contexts.extend_vars(ctx, (x, ty));
@@ -1223,7 +1223,7 @@ and ana_fix_holes_pat =
   | Inj(_, side, p1) =>
     switch (HTyp.matched_sum(ty)) {
     | Some((tyL, tyR)) =>
-      let ty1 = pick_side(side, tyL, tyR);
+      let ty1 = InjSide.pick(side, tyL, tyR);
       let (p1, ctx, u_gen) =
         ana_fix_holes_pat(ctx, u_gen, ~renumber_empty_holes, p1, ty1);
       (Inj(NotInHole, side, p1), ctx, u_gen);
@@ -1438,20 +1438,20 @@ and ana_fix_holes_pat_skel =
 let syn_fix_holes_zpat =
     (ctx: Contexts.t, u_gen: MetaVarGen.t, zp: ZPat.t)
     : (ZPat.t, HTyp.t, Contexts.t, MetaVarGen.t) => {
-  let path = Path.of_zpat(zp);
+  let path = CursorPath.of_zpat(zp);
   let p = ZPat.erase(zp);
   let (p, ty, ctx, u_gen) = syn_fix_holes_pat(ctx, u_gen, p);
-  let zp = Path.follow_pat_or_fail(path, p);
+  let zp = CursorPath.follow_pat_or_fail(path, p);
   (zp, ty, ctx, u_gen);
 };
 
 let ana_fix_holes_zpat =
     (ctx: Contexts.t, u_gen: MetaVarGen.t, zp: ZPat.t, ty: HTyp.t)
     : (ZPat.t, Contexts.t, MetaVarGen.t) => {
-  let path = Path.of_zpat(zp);
+  let path = CursorPath.of_zpat(zp);
   let p = ZPat.erase(zp);
   let (p, ctx, u_gen) = ana_fix_holes_pat(ctx, u_gen, p, ty);
-  let zp = Path.follow_pat_or_fail(path, p);
+  let zp = CursorPath.follow_pat_or_fail(path, p);
   (zp, ctx, u_gen);
 };
 
@@ -1836,7 +1836,7 @@ and ana_fix_holes_exp =
           u_gen,
           ~renumber_empty_holes,
           block,
-          pick_side(side, ty1, ty2),
+          InjSide.pick(side, ty1, ty2),
         );
       (Inj(NotInHole, side, e1), u_gen);
     | None =>
@@ -1918,9 +1918,7 @@ and syn_fix_holes_exp_skel =
       | Some(seq) => (skel, seq, ty, u_gen)
       };
     }
-  | BinOp(_, Minus as op, skel1, skel2)
-  | BinOp(_, Plus as op, skel1, skel2)
-  | BinOp(_, Times as op, skel1, skel2) =>
+  | BinOp(_, (Minus | Plus | Times) as op, skel1, skel2) =>
     let (skel1, seq, u_gen) =
       ana_fix_holes_exp_skel(
         ctx,
@@ -1960,7 +1958,7 @@ and syn_fix_holes_exp_skel =
         HTyp.Bool,
       );
     (BinOp(NotInHole, op, skel1, skel2), seq, Bool, u_gen);
-  | BinOp(_, LessThan as op, skel1, skel2) =>
+  | BinOp(_, (LessThan | GreaterThan | Equals) as op, skel1, skel2) =>
     let (skel1, seq, u_gen) =
       ana_fix_holes_exp_skel(
         ctx,
@@ -2207,12 +2205,12 @@ and ana_fix_holes_exp_skel =
         Skel.BinOp(InHole(TypeInconsistent, u), UHExp.Cons, skel1, skel2);
       (skel, seq, u_gen);
     }
-  | BinOp(_, And | Or, _, _)
-  | BinOp(_, Minus, _, _)
-  | BinOp(_, Plus, _, _)
-  | BinOp(_, Times, _, _)
-  | BinOp(_, LessThan, _, _)
-  | BinOp(_, Space, _, _) =>
+  | BinOp(
+      _,
+      And | Or | Minus | Plus | Times | LessThan | GreaterThan | Equals | Space,
+      _,
+      _,
+    ) =>
     let (skel, seq, ty', u_gen) =
       syn_fix_holes_exp_skel(ctx, u_gen, ~renumber_empty_holes, skel, seq);
     if (HTyp.consistent(ty, ty')) {
@@ -2225,40 +2223,40 @@ and ana_fix_holes_exp_skel =
 let syn_fix_holes_zexp =
     (ctx: Contexts.t, u_gen: MetaVarGen.t, ze: ZExp.t)
     : (ZExp.t, HTyp.t, MetaVarGen.t) => {
-  let path = Path.of_zexp(ze);
+  let path = CursorPath.of_zexp(ze);
   let e = ZExp.erase(ze);
   let (e, ty, u_gen) = syn_fix_holes_exp(ctx, u_gen, e);
-  let ze = Path.follow_e_or_fail(path, e);
+  let ze = CursorPath.follow_e_or_fail(path, e);
   (ze, ty, u_gen);
 };
 
 let syn_fix_holes_zblock =
     (ctx: Contexts.t, u_gen: MetaVarGen.t, zblock: ZExp.zblock)
     : (ZExp.zblock, HTyp.t, MetaVarGen.t) => {
-  let path = Path.of_zblock(zblock);
+  let path = CursorPath.of_zblock(zblock);
   let block = ZExp.erase_block(zblock);
   let (block, ty, u_gen) = syn_fix_holes_block(ctx, u_gen, block);
-  let zblock = Path.follow_block_or_fail(path, block);
+  let zblock = CursorPath.follow_block_or_fail(path, block);
   (zblock, ty, u_gen);
 };
 
 let syn_fix_holes_zlines =
     (ctx: Contexts.t, u_gen: MetaVarGen.t, zlines: ZExp.zlines)
     : (ZExp.zlines, Contexts.t, MetaVarGen.t) => {
-  let path = Path.of_zlines(zlines);
+  let path = CursorPath.of_zlines(zlines);
   let lines = ZExp.erase_lines(zlines);
   let (lines, ctx, u_gen) = syn_fix_holes_lines(ctx, u_gen, lines);
-  let zlines = Path.follow_lines_or_fail(path, lines);
+  let zlines = CursorPath.follow_lines_or_fail(path, lines);
   (zlines, ctx, u_gen);
 };
 
 let ana_fix_holes_zblock =
     (ctx: Contexts.t, u_gen: MetaVarGen.t, zblock: ZExp.zblock, ty: HTyp.t)
     : (ZExp.zblock, MetaVarGen.t) => {
-  let (steps, _) as path = Path.of_zblock(zblock);
+  let (steps, _) as path = CursorPath.of_zblock(zblock);
   let block = ZExp.erase_block(zblock);
   let (block, u_gen) = ana_fix_holes_block(ctx, u_gen, block, ty);
-  switch (Path.follow_block(path, block)) {
+  switch (CursorPath.follow_block(path, block)) {
   | None =>
     // Only way this can happen now is path was originally
     // on case type annotation and ana_fix_holes stripped
@@ -2268,7 +2266,7 @@ let ana_fix_holes_zblock =
     switch (steps |> split_last) {
     | None => assert(false)
     | Some((case_steps, _)) =>
-      switch (Path.follow_block_and_place_after(case_steps, block)) {
+      switch (CursorPath.follow_block_and_place_after(case_steps, block)) {
       | None => assert(false)
       | Some(zblock) => (zblock, u_gen)
       }
@@ -2280,10 +2278,10 @@ let ana_fix_holes_zblock =
 let ana_fix_holes_zexp =
     (ctx: Contexts.t, u_gen: MetaVarGen.t, ze: ZExp.t, ty: HTyp.t)
     : (ZExp.t, MetaVarGen.t) => {
-  let (steps, _) as path = Path.of_zexp(ze);
+  let (steps, _) as path = CursorPath.of_zexp(ze);
   let e = ZExp.erase(ze);
   let (e, u_gen) = ana_fix_holes_exp(ctx, u_gen, e, ty);
-  switch (Path.follow_exp(path, e)) {
+  switch (CursorPath.follow_exp(path, e)) {
   | None =>
     // Only way this can happen now is path was originally
     // on case type annotation and ana_fix_holes stripped
@@ -2293,7 +2291,7 @@ let ana_fix_holes_zexp =
     switch (steps |> split_last) {
     | None => assert(false)
     | Some((case_steps, _)) =>
-      switch (Path.follow_exp_and_place_after(case_steps, e)) {
+      switch (CursorPath.follow_exp_and_place_after(case_steps, e)) {
       | None => assert(false)
       | Some(ze) => (ze, u_gen)
       }
@@ -2317,6 +2315,7 @@ let fix_and_renumber_holes_z =
     (ctx: Contexts.t, zblock: ZExp.zblock): edit_state => {
   let (block, ty, u_gen) =
     fix_and_renumber_holes(ctx, zblock |> ZExp.erase_block);
-  let zblock = Path.follow_block_or_fail(Path.of_zblock(zblock), block);
+  let zblock =
+    CursorPath.follow_block_or_fail(CursorPath.of_zblock(zblock), block);
   (zblock, ty, u_gen);
 };

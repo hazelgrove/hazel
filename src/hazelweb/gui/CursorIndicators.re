@@ -1,5 +1,4 @@
 open GeneralUtil;
-open SemanticsCommon;
 open ViewUtil;
 module Js = Js_of_ocaml.Js;
 module Dom = Js_of_ocaml.Dom;
@@ -26,14 +25,14 @@ let get_relative_bounding_rect = elem => {
 
 type holes_steps = (
   // err holes around tms
-  list(Path.steps),
+  list(CursorPath.steps),
   // err holes around skels rooted at a non-space op
   // + range of each skel
   list((op_path, Skel.range, bool)),
   // err holes around skels rooted at a space op
   // (where steps is to first tm of the space-sep seq)
   // + range of each skel
-  list((Path.steps, Skel.range, bool)),
+  list((CursorPath.steps, Skel.range, bool)),
 );
 
 let cons_holes = (i, (holes, skel_holes, ap_holes)) => (
@@ -363,7 +362,7 @@ let op_node_indicator = (~is_cell_focused, ~ci: CursorInfo.t) =>
         ]),
         Attr.create(
           "steps",
-          ci.node_steps |> Path.sexp_of_steps |> Sexp.to_string,
+          ci.node_steps |> CursorPath.sexp_of_steps |> Sexp.to_string,
         ),
         Attr.create(
           "op-index",
@@ -449,7 +448,7 @@ let child_indicators = (~is_cell_focused: bool, ~ci: CursorInfo.t) => {
              ]),
              Attr.create(
                "steps",
-               Sexp.to_string(Path.sexp_of_steps(parent_steps @ [i])),
+               Sexp.to_string(CursorPath.sexp_of_steps(parent_steps @ [i])),
              ),
            ],
            [],
@@ -464,7 +463,10 @@ let horizontal_shift_targets_in_subject = (~ci: CursorInfo.t) => {
   | (Staging(k), Typ(List(OpSeq(_, _)) | Parenthesized(OpSeq(_, _))))
   | (
       Staging(k),
-      Pat(Inj(_, _, OpSeq(_, _)) | Parenthesized(OpSeq(_, _))),
+      Pat(
+        OtherPat(Inj(_, _, OpSeq(_, _))) |
+        OtherPat(Parenthesized(OpSeq(_, _))),
+      ),
     )
   | (
       Staging(k),
@@ -487,7 +489,10 @@ let horizontal_shift_targets_in_subject = (~ci: CursorInfo.t) => {
         k == 0
           ? range(~lo=1, seq |> OperatorSeq.seq_length)
           : range((seq |> OperatorSeq.seq_length) - 1)
-      | Pat(Inj(_, _, OpSeq(_, seq)) | Parenthesized(OpSeq(_, seq))) =>
+      | Pat(
+          OtherPat(Inj(_, _, OpSeq(_, seq))) |
+          OtherPat(Parenthesized(OpSeq(_, seq))),
+        ) =>
         k == 0
           ? range(~lo=1, seq |> OperatorSeq.seq_length)
           : range((seq |> OperatorSeq.seq_length) - 1)
@@ -509,11 +514,11 @@ let horizontal_shift_targets_in_subject = (~ci: CursorInfo.t) => {
                Attr.classes(["horizontal-shift-target-in-subject"]),
                Attr.create(
                  "target-steps",
-                 Sexp.to_string(Path.sexp_of_steps(target_steps)),
+                 Sexp.to_string(CursorPath.sexp_of_steps(target_steps)),
                ),
                Attr.create(
                  "target-side",
-                 Sexp.to_string(sexp_of_side(k == 0 ? Before : After)),
+                 Sexp.to_string(Side.sexp_of_t(k == 0 ? Before : After)),
                ),
              ],
              [],
@@ -565,7 +570,7 @@ let vertical_shift_targets_in_subject = (~ci: CursorInfo.t) => {
                Attr.classes(["vertical-shift-target-in-subject"]),
                Attr.create(
                  "target-steps",
-                 Sexp.to_string(Path.sexp_of_steps(target_steps)),
+                 Sexp.to_string(CursorPath.sexp_of_steps(target_steps)),
                ),
                Attr.create(
                  "target-side",
@@ -621,7 +626,7 @@ let vertical_shift_targets_in_subject = (~ci: CursorInfo.t) => {
                Attr.classes(["vertical-shift-target-in-subject"]),
                Attr.create(
                  "target-steps",
-                 Sexp.to_string(Path.sexp_of_steps(target_steps)),
+                 Sexp.to_string(CursorPath.sexp_of_steps(target_steps)),
                ),
                Attr.create(
                  "target-side",
@@ -645,7 +650,11 @@ let horizontal_shift_targets_in_frame = (~ci: CursorInfo.t) => {
   | (_, _, PatFrame(None))
   | (_, _, ExpFrame(_, None, _)) => []
   | (Staging(k), Typ(List(_) | Parenthesized(_)), TypFrame(Some(_)))
-  | (Staging(k), Pat(Inj(_, _, _) | Parenthesized(_)), PatFrame(Some(_)))
+  | (
+      Staging(k),
+      Pat(OtherPat(Inj(_, _, _) | Parenthesized(_))),
+      PatFrame(Some(_)),
+    )
   | (
       Staging(k),
       Exp(Inj(_, _, _) | Parenthesized(_)),
@@ -687,11 +696,11 @@ let horizontal_shift_targets_in_frame = (~ci: CursorInfo.t) => {
                Attr.classes(["horizontal-shift-target-in-frame"]),
                Attr.create(
                  "target-steps",
-                 Sexp.to_string(Path.sexp_of_steps(target_steps)),
+                 Sexp.to_string(CursorPath.sexp_of_steps(target_steps)),
                ),
                Attr.create(
                  "target-side",
-                 Sexp.to_string(sexp_of_side(k == 0 ? Before : After)),
+                 Sexp.to_string(Side.sexp_of_t(k == 0 ? Before : After)),
                ),
              ],
              [],
@@ -738,7 +747,7 @@ let vertical_shift_targets_in_frame = (~ci: CursorInfo.t) => {
                Attr.classes(["vertical-shift-target-in-frame"]),
                Attr.create(
                  "target-steps",
-                 Sexp.to_string(Path.sexp_of_steps(target_steps)),
+                 Sexp.to_string(CursorPath.sexp_of_steps(target_steps)),
                ),
                Attr.create(
                  "target-side",
@@ -801,7 +810,7 @@ let vertical_shift_targets_in_frame = (~ci: CursorInfo.t) => {
                Attr.classes(["vertical-shift-target-in-frame"]),
                Attr.create(
                  "target-steps",
-                 Sexp.to_string(Path.sexp_of_steps(target_steps)),
+                 Sexp.to_string(CursorPath.sexp_of_steps(target_steps)),
                ),
                Attr.create(
                  "target-side",
@@ -826,7 +835,7 @@ let hole_indicators = ((holes, skel_holes, ap_holes)) => {
                Attr.classes(["hole-indicator"]),
                Attr.create(
                  "steps",
-                 Sexplib.Sexp.to_string(Path.sexp_of_steps(steps)),
+                 Sexplib.Sexp.to_string(CursorPath.sexp_of_steps(steps)),
                ),
              ],
              [],
@@ -911,7 +920,9 @@ let hole_indicators = ((holes, skel_holes, ap_holes)) => {
                         ),
                         Attr.create(
                           "steps",
-                          Sexplib.Sexp.to_string(Path.sexp_of_steps(steps)),
+                          Sexplib.Sexp.to_string(
+                            CursorPath.sexp_of_steps(steps),
+                          ),
                         ),
                       ],
                       [],
@@ -930,7 +941,7 @@ let hole_indicators = ((holes, skel_holes, ap_holes)) => {
                    ]),
                    Attr.create(
                      "steps",
-                     Sexplib.Sexp.to_string(Path.sexp_of_steps(steps)),
+                     Sexplib.Sexp.to_string(CursorPath.sexp_of_steps(steps)),
                    ),
                  ],
                  [],
@@ -954,7 +965,7 @@ let skel_hole_indicator_elems = (op_path): list(Js.t(Dom_html.element)) =>
 
 let ap_hole_selector = steps =>
   ".ap-hole-indicator[steps=\'"
-  ++ Sexplib.Sexp.to_string(Path.sexp_of_steps(steps))
+  ++ Sexplib.Sexp.to_string(CursorPath.sexp_of_steps(steps))
   ++ "\']";
 let ap_hole_indicator_elems = steps =>
   Dom_html.document##querySelectorAll(Js.string(ap_hole_selector(steps)))
@@ -969,7 +980,7 @@ let draw_hole_indicators = (model: Model.t) => {
          indicator_elem
          |> JSUtil.force_get_attr("steps")
          |> Sexplib.Sexp.of_string
-         |> Path.steps_of_sexp
+         |> CursorPath.steps_of_sexp
          |> Code.force_get_snode_elem;
 
        indicator_elem
@@ -1075,7 +1086,7 @@ let view = (~is_cell_focused: bool, ~holes_steps, ~ci: CursorInfo.t) => {
       Code.is_multi_line_exp(e)
         ? multi_line_seq_indicators(~is_cell_focused, ~ci)
         : single_line_seq_indicators(~is_cell_focused, ~ci)
-    | Pat(OpSeq(_, _) as p) =>
+    | Pat(OtherPat(OpSeq(_, _) as p)) =>
       Code.is_multi_line_pat(p)
         ? multi_line_seq_indicators(~is_cell_focused, ~ci)
         : single_line_seq_indicators(~is_cell_focused, ~ci)
@@ -1100,7 +1111,7 @@ let view = (~is_cell_focused: bool, ~holes_steps, ~ci: CursorInfo.t) => {
             ]),
             Attr.create(
               "steps",
-              Sexp.to_string(Path.sexp_of_steps(ci.node_steps)),
+              Sexp.to_string(CursorPath.sexp_of_steps(ci.node_steps)),
             ),
             Attr.create(
               "child-indices",
@@ -1129,7 +1140,7 @@ let view = (~is_cell_focused: bool, ~holes_steps, ~ci: CursorInfo.t) => {
             ]),
             Attr.create(
               "steps",
-              Sexp.to_string(Path.sexp_of_steps(ci.term_steps)),
+              Sexp.to_string(CursorPath.sexp_of_steps(ci.term_steps)),
             ),
           ],
           [],
@@ -1225,13 +1236,33 @@ let view = (~is_cell_focused: bool, ~holes_steps, ~ci: CursorInfo.t) => {
   @ hole_indicators(holes_steps);
 };
 
+let remove_box_var_uses_indicator = () => {
+  let var_pat_usage_elems =
+    Dom_html.document##getElementsByClassName(Js.string("var-pat-usage"))
+    |> Dom.list_of_nodeList;
+  List.iter(
+    elem => {elem##.classList##remove(Js.string("var-pat-usage"))},
+    var_pat_usage_elems,
+  );
+};
+
+let draw_box_var_uses_indicator = (~uses: UsageAnalysis.uses_list) =>
+  List.iter(
+    steps => {
+      let var_elem = Code.force_get_snode_elem(steps);
+      let classList = var_elem##.classList;
+      classList##add(Js.string("var-pat-usage"));
+    },
+    uses,
+  );
+
 let draw_box_node_indicator = () => {
   let indicator_elem = JSUtil.force_get_elem_by_id(box_node_indicator_id);
   let steps =
     indicator_elem
     |> JSUtil.force_get_attr("steps")
     |> Sexp.of_string
-    |> Path.steps_of_sexp;
+    |> CursorPath.steps_of_sexp;
   let child_indices =
     indicator_elem
     |> JSUtil.force_get_attr("child-indices")
@@ -1292,7 +1323,7 @@ let draw_box_term_indicator = () => {
     indicator_elem
     |> JSUtil.force_get_attr("steps")
     |> Sexp.of_string
-    |> Path.steps_of_sexp;
+    |> CursorPath.steps_of_sexp;
   let term_elem = Code.force_get_snode_elem(term_steps);
   let term_rect = term_elem |> get_relative_bounding_rect;
   let indent =
@@ -1306,7 +1337,7 @@ let draw_box_term_indicator = () => {
     node_indicator_elem
     |> JSUtil.force_get_attr("steps")
     |> Sexp.of_string
-    |> Path.steps_of_sexp
+    |> CursorPath.steps_of_sexp
     |> Code.force_get_snode_elem;
   if (term_elem |> Code.snode_elem_is_Block) {
     let all_sline_elems =
@@ -1316,7 +1347,10 @@ let draw_box_term_indicator = () => {
       cursor_elem
       |> JSUtil.force_get_parent_elem
       |> Code.line_no_of_sline_elem
-      |> Opt.get(() => assert(false));
+      |> Opt.get(() => {
+           JSUtil.log(cursor_elem);
+           assert(false);
+         });
     let sub_block_rect =
       all_sline_elems
       |> filteri((i, _) => i >= first_sline_index)
@@ -1403,7 +1437,7 @@ let draw_single_line_seq_indicators = () => {
     op_node_indicator_elem
     |> JSUtil.force_get_attr("steps")
     |> Sexp.of_string
-    |> Path.steps_of_sexp;
+    |> CursorPath.steps_of_sexp;
   let op_index =
     op_node_indicator_elem
     |> JSUtil.force_get_attr("op-index")
@@ -1443,7 +1477,7 @@ let draw_multi_line_seq_indicators = () => {
     op_node_indicator_elem
     |> JSUtil.force_get_attr("steps")
     |> Sexp.of_string
-    |> Path.steps_of_sexp;
+    |> CursorPath.steps_of_sexp;
   let op_index =
     op_node_indicator_elem
     |> JSUtil.force_get_attr("op-index")
@@ -1504,18 +1538,18 @@ let steps_and_side_of_horizontal_shift_target_elem = shift_target_elem => (
   shift_target_elem
   |> JSUtil.force_get_attr("target-steps")
   |> Sexp.of_string
-  |> Path.steps_of_sexp,
+  |> CursorPath.steps_of_sexp,
   shift_target_elem
   |> JSUtil.force_get_attr("target-side")
   |> Sexp.of_string
-  |> side_of_sexp,
+  |> Side.t_of_sexp,
 );
 
 let steps_and_alignment_of_vertical_shift_target_elem = shift_target_elem => (
   shift_target_elem
   |> JSUtil.force_get_attr("target-steps")
   |> Sexp.of_string
-  |> Path.steps_of_sexp,
+  |> CursorPath.steps_of_sexp,
   shift_target_elem
   |> JSUtil.force_get_attr("target-side")
   |> Sexp.of_string
@@ -1696,7 +1730,8 @@ let draw_shift_targets = (~cursor_info, sdelim_elem) => {
   draw_vertical_shift_rail();
 };
 
-let draw_horizontal_shift_target_in_subject = (~side, ~index, snode_elem) => {
+let draw_horizontal_shift_target_in_subject =
+    (~side: Side.t, ~index, snode_elem) => {
   let rect = snode_elem |> get_relative_bounding_rect;
   let xpos =
     switch (side) {
@@ -1715,7 +1750,8 @@ let draw_horizontal_shift_target_in_subject = (~side, ~index, snode_elem) => {
      });
 };
 
-let draw_horizontal_shift_target_in_frame = (~side, ~index, snode_elem) => {
+let draw_horizontal_shift_target_in_frame =
+    (~side: Side.t, ~index, snode_elem) => {
   let rect = snode_elem |> get_relative_bounding_rect;
   let xpos =
     switch (side) {
@@ -1734,7 +1770,8 @@ let draw_horizontal_shift_target_in_frame = (~side, ~index, snode_elem) => {
      });
 };
 
-let draw_vertical_shift_target_in_subject = (~side, ~index, sline_elem) => {
+let draw_vertical_shift_target_in_subject =
+    (~side: Side.t, ~index, sline_elem) => {
   let rect = sline_elem |> get_relative_bounding_rect;
   let ypos =
     switch (side) {
@@ -1762,7 +1799,7 @@ let draw_vertical_shift_target_in_subject = (~side, ~index, sline_elem) => {
      });
 };
 
-let draw_vertical_shift_target_in_frame = (~side, ~index, sline_elem) => {
+let draw_vertical_shift_target_in_frame = (~side: Side.t, ~index, sline_elem) => {
   let rect = sline_elem |> get_relative_bounding_rect;
   let ypos =
     switch (side) {
@@ -1795,18 +1832,25 @@ let draw_SSeq_indicators = (~cursor_elem) => {
     ? draw_multi_line_seq_indicators() : draw_single_line_seq_indicators();
 };
 
-let draw_SBox_indicators = () => {
+let draw_SBox_indicators = (~ci: CursorInfo.t) => {
+  let uses =
+    switch (ci.node) {
+    | Pat(VarPat(_, uses)) => uses
+    | _ => []
+    };
+  draw_box_var_uses_indicator(~uses);
   draw_box_node_indicator();
   draw_box_term_indicator();
 };
 
 let draw = (~ci: CursorInfo.t) => {
+  remove_box_var_uses_indicator();
   let cursor_elem = Code.force_get_snode_elem(ci.node_steps);
   switch (ci.position) {
   | OnText(_)
   | OnDelim(_, _) =>
     cursor_elem |> Code.elem_is_SBox
-      ? draw_SBox_indicators() : draw_SSeq_indicators(~cursor_elem)
+      ? draw_SBox_indicators(~ci) : draw_SSeq_indicators(~cursor_elem)
   | Staging(delim_index) =>
     draw_box_node_indicator();
     draw_shift_targets(
