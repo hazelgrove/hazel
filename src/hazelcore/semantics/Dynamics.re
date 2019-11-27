@@ -131,11 +131,96 @@ module Pat = {
       (
         ctx: Contexts.t,
         delta: Delta.t,
-        OpSeq(skel, seq): UHPat.opseq,
+        OpSeq(skel, seq) as opseq: UHPat.opseq,
         ty: HTyp.t,
       )
-      : expand_result =>
-    ana_expand_skel(ctx, delta, skel, seq, ty)
+      : expand_result => {
+    // handle n-tuples
+    let skels = skel |> UHPat.get_tuple_elements;
+    let tys = ty |> HTyp.get_tuple_elements;
+    switch (opt_zip(skels, tys)) {
+    | Some(skel_tys) =>
+      skel_tys
+      |> List.fold_left(
+           (
+             acc: option((list(DHPat.t), Contexts.t, Delta.t)),
+             (skel: UHPat.skel, ty: HTyp.t),
+           ) =>
+             switch (acc) {
+             | None => None
+             | Some((rev_dps, ctx, delta)) =>
+               switch (ana_expand_skel(ctx, delta, skel, seq, ty)) {
+               | DoesNotExpand => None
+               | Expands(dp, _, ctx, delta) =>
+                 Some(([dp, ...rev_dps], ctx, delta))
+               }
+             },
+           Some(([], ctx, delta)),
+         )
+      |> (
+        fun
+        | None => DoesNotExpand
+        | Some((rev_dps, ctx, delta)) => {
+            let dp = rev_dps |> List.rev |> DHPat.make_tuple;
+            Expands(dp, ty, ctx, delta);
+          }
+      )
+    | None =>
+      switch (skels, tys) {
+      | ([Placeholder(n)], _) =>
+        ana_expand_operand(ctx, delta, seq |> Seq.nth_operand(n), ty)
+      | (_, [Hole]) =>
+        skels
+        |> List.fold_left(
+             (
+               acc: option((list(DHPat.t), Contexts.t, Delta.t)),
+               skel: UHPat.skel,
+             ) =>
+               switch (acc) {
+               | None => None
+               | Some((rev_dps, ctx, delta)) =>
+                 switch (ana_expand_skel(ctx, delta, skel, seq, HTyp.Hole)) {
+                 | DoesNotExpand => None
+                 | Expands(dp, _, ctx, delta) =>
+                   Some(([dp, ...rev_dps], ctx, delta))
+                 }
+               },
+             Some(([], ctx, delta)),
+           )
+        |> (
+          fun
+          | None => DoesNotExpand
+          | Some((rev_dps, ctx, delta)) => {
+              let dp = rev_dps |> List.rev |> DHPat.make_tuple;
+              Expands(dp, ty, ctx, delta);
+            }
+        )
+      | _ =>
+        switch (opseq |> UHPat.get_err_status_opseq) {
+        | NotInHole
+        | InHole(TypeInconsistent, _) => DoesNotExpand
+        | InHole(WrongLength as reason, u) =>
+          switch (
+            syn_expand_opseq(
+              ctx,
+              delta,
+              opseq |> UHPat.set_err_status_opseq(NotInHole),
+            )
+          ) {
+          | DoesNotExpand => DoesNotExpand
+          | Expands(dp, _, _, delta) =>
+            let gamma = ctx |> Contexts.gamma;
+            let delta =
+              MetaVarMap.extend_unique(
+                delta,
+                (u, (PatternHole, ty, gamma)),
+              );
+            Expands(NonEmptyHole(reason, u, 0, dp), ty, ctx, delta);
+          }
+        }
+      }
+    };
+  }
   and ana_expand_skel =
       (
         ctx: Contexts.t,
@@ -146,6 +231,10 @@ module Pat = {
       )
       : expand_result =>
     switch (skel) {
+    | BinOp(_, Comma, _, _)
+    | BinOp(InHole(WrongLength, _), _, _, _) =>
+      // tuples handled at opseq level
+      DoesNotExpand
     | Placeholder(n) =>
       let pn = seq |> Seq.nth_operand(n);
       ana_expand_operand(ctx, delta, pn, ty);
@@ -160,87 +249,6 @@ module Pat = {
           MetaVarMap.extend_unique(delta, (u, (PatternHole, ty, gamma)));
         Expands(dp, ty, ctx, delta);
       };
-    | BinOp(NotInHole, Comma, skel1, skel2) =>
-      switch (HTyp.matched_prod(ty)) {
-      | None => DoesNotExpand
-      | Some((ty1, ty2)) =>
-        switch (ana_expand_skel(ctx, delta, skel1, seq, ty1)) {
-        | DoesNotExpand => DoesNotExpand
-        | Expands(dp1, ty1, ctx, delta) =>
-          switch (ana_expand_skel(ctx, delta, skel2, seq, ty2)) {
-          | DoesNotExpand => DoesNotExpand
-          | Expands(dp2, ty2, ctx, delta) =>
-            let dp = DHPat.Pair(dp1, dp2);
-            Expands(dp, Prod(ty1, ty2), ctx, delta);
-          }
-        }
-      }
-    | BinOp(InHole(WrongLength, _), Comma, skel1, skel2) =>
-      switch (ty) {
-      | HTyp.Prod(ty1, ty2) =>
-        let types = HTyp.get_tuple(ty1, ty2);
-        let skels = UHPat.get_tuple(skel1, skel2);
-        let (zipped, remainder) = HTyp.zip_with_skels(skels, types);
-        let processed1 =
-          ListMinTwo.fold_right(
-            (skel_ty: (UHPat.skel, HTyp.t), opt_result) =>
-              switch (opt_result) {
-              | None => None
-              | Some((elts, ctx, delta)) =>
-                let (skel, ty) = skel_ty;
-                switch (ana_expand_skel(ctx, delta, skel, seq, ty)) {
-                | DoesNotExpand => None
-                | Expands(dp, ty, ctx, delta) =>
-                  Some((ListMinTwo.Cons((dp, ty), elts), ctx, delta))
-                };
-              },
-            zipped,
-            ((skel1, ty1), (skel2, ty2)) =>
-              switch (ana_expand_skel(ctx, delta, skel1, seq, ty1)) {
-              | DoesNotExpand => None
-              | Expands(dp1, ty1, ctx, delta) =>
-                switch (ana_expand_skel(ctx, delta, skel2, seq, ty2)) {
-                | DoesNotExpand => None
-                | Expands(dp2, ty2, ctx, delta) =>
-                  Some((
-                    ListMinTwo.Pair((dp1, ty1), (dp2, ty2)),
-                    ctx,
-                    delta,
-                  ))
-                }
-              },
-          );
-        switch (processed1) {
-        | None => DoesNotExpand
-        | Some((elts1, ctx, delta)) =>
-          let processed2 =
-            List.fold_right(
-              (skel: UHPat.skel, opt_result) =>
-                switch (opt_result) {
-                | None => None
-                | Some((elts, ctx, delta)) =>
-                  switch (syn_expand_skel(ctx, delta, skel, seq)) {
-                  | DoesNotExpand => None
-                  | Expands(dp, ty, ctx, delta) =>
-                    Some(([(dp, ty), ...elts], ctx, delta))
-                  }
-                },
-              remainder,
-              Some(([], ctx, delta)),
-            );
-          switch (processed2) {
-          | None => DoesNotExpand
-          | Some((elts2, ctx, delta)) =>
-            let elts = ListMinTwo.append_list(elts1, elts2);
-            let (ds, tys) = ListMinTwo.unzip(elts);
-            let d = DHPat.make_tuple(ds);
-            let ty = HTyp.make_tuple(tys);
-            Expands(d, ty, ctx, delta);
-          };
-        };
-      | _ => DoesNotExpand
-      }
-    | BinOp(InHole(WrongLength, _), _, _, _) => DoesNotExpand
     | BinOp(NotInHole, Space, skel1, skel2) =>
       switch (ana_expand_skel(ctx, delta, skel1, seq, Hole)) {
       | DoesNotExpand => DoesNotExpand
@@ -881,9 +889,9 @@ module Exp = {
       };
     | BinOp(InHole(WrongLength, _), _, _, _) => DoesNotExpand
     | BinOp(NotInHole, Space, skel1, skel2) =>
-      switch (Statics.Exp.syn_skel(ctx, skel1, seq, None)) {
+      switch (Statics.Exp.syn_skel(ctx, skel1, seq)) {
       | None => DoesNotExpand
-      | Some((ty1, _)) =>
+      | Some(ty1) =>
         switch (HTyp.matched_arrow(ty1)) {
         | None => DoesNotExpand
         | Some((ty2, ty)) =>
@@ -1122,11 +1130,92 @@ module Exp = {
       (
         ctx: Contexts.t,
         delta: Delta.t,
-        OpSeq(skel, seq): UHExp.opseq,
+        OpSeq(skel, seq) as opseq: UHExp.opseq,
         ty: HTyp.t,
       )
-      : expand_result =>
-    ana_expand_skel(ctx, delta, skel, seq, ty)
+      : expand_result => {
+    // handle n-tuples
+    let skels = skel |> UHExp.get_tuple_elements;
+    let tys = ty |> HTyp.get_tuple_elements;
+    switch (opt_zip(skels, tys)) {
+    | Some(skel_tys) =>
+      skel_tys
+      |> List.fold_left(
+           (
+             acc: option((list(DHExp.t), Delta.t)),
+             (skel: UHExp.skel, ty: HTyp.t),
+           ) =>
+             switch (acc) {
+             | None => None
+             | Some((rev_ds, delta)) =>
+               switch (ana_expand_skel(ctx, delta, skel, seq, ty)) {
+               | DoesNotExpand => None
+               | Expands(d, _, delta) => Some(([d, ...rev_ds], delta))
+               }
+             },
+           Some(([], delta)),
+         )
+      |> (
+        fun
+        | None => DoesNotExpand
+        | Some((rev_ds, delta)) => {
+            let d = rev_ds |> List.rev |> DHExp.make_tuple;
+            Expands(d, ty, delta);
+          }
+      )
+    | None =>
+      switch (skels, tys) {
+      | ([Placeholder(n)], _) =>
+        ana_expand_operand(ctx, delta, seq |> Seq.nth_operand(n), ty)
+      | (_, [Hole]) =>
+        skels
+        |> List.fold_left(
+             (acc: option((list(DHExp.t), Delta.t)), skel: UHExp.skel) =>
+               switch (acc) {
+               | None => None
+               | Some((rev_ds, delta)) =>
+                 switch (ana_expand_skel(ctx, delta, skel, seq, HTyp.Hole)) {
+                 | DoesNotExpand => None
+                 | Expands(d, _, delta) => Some(([d, ...rev_ds], delta))
+                 }
+               },
+             Some(([], delta)),
+           )
+        |> (
+          fun
+          | None => DoesNotExpand
+          | Some((rev_ds, delta)) => {
+              let d = rev_ds |> List.rev |> DHExp.make_tuple;
+              Expands(d, ty, delta);
+            }
+        )
+      | _ =>
+        switch (opseq |> UHExp.get_err_status_opseq) {
+        | NotInHole
+        | InHole(TypeInconsistent, _) => DoesNotExpand
+        | InHole(WrongLength as reason, u) =>
+          switch (
+            syn_expand_opseq(
+              ctx,
+              delta,
+              opseq |> UHExp.set_err_status_opseq(NotInHole),
+            )
+          ) {
+          | DoesNotExpand => DoesNotExpand
+          | Expands(d, _, delta) =>
+            let gamma = ctx |> Contexts.gamma;
+            let sigma = gamma |> id_env;
+            let delta =
+              MetaVarMap.extend_unique(
+                delta,
+                (u, (ExpressionHole, ty, gamma)),
+              );
+            Expands(NonEmptyHole(reason, u, 0, sigma, d), ty, delta);
+          }
+        }
+      }
+    };
+  }
   and ana_expand_skel =
       (
         ctx: Contexts.t,
@@ -1137,6 +1226,10 @@ module Exp = {
       )
       : expand_result =>
     switch (skel) {
+    | BinOp(_, Comma, _, _)
+    | BinOp(InHole(WrongLength, _), _, _, _) =>
+      // tuples handled at opseq level
+      DoesNotExpand
     | Placeholder(n) =>
       let en = seq |> Seq.nth_operand(n);
       ana_expand_operand(ctx, delta, en, ty);
@@ -1152,83 +1245,6 @@ module Exp = {
         let d = DHExp.NonEmptyHole(reason, u, 0, sigma, d1);
         Expands(d, ty, delta);
       };
-    | BinOp(NotInHole, Comma, skel1, skel2) =>
-      switch (HTyp.matched_prod(ty)) {
-      | None => DoesNotExpand
-      | Some((ty1, ty2)) =>
-        switch (ana_expand_skel(ctx, delta, skel1, seq, ty1)) {
-        | DoesNotExpand => DoesNotExpand
-        | Expands(d1, ty1, delta) =>
-          switch (ana_expand_skel(ctx, delta, skel2, seq, ty2)) {
-          | DoesNotExpand => DoesNotExpand
-          | Expands(d2, ty2, delta) =>
-            let d = DHExp.Pair(d1, d2);
-            Expands(d, Prod(ty1, ty2), delta);
-          }
-        }
-      }
-    | BinOp(InHole(WrongLength, _), Comma, skel1, skel2) =>
-      switch (ty) {
-      | Prod(ty1, ty2) =>
-        let types = HTyp.get_tuple(ty1, ty2);
-        let skels = UHExp.get_tuple(skel1, skel2);
-        let (zipped, remainder) = HTyp.zip_with_skels(skels, types);
-        let processed1 =
-          ListMinTwo.fold_right(
-            (skel_ty: (UHExp.skel, HTyp.t), opt_result) =>
-              switch (opt_result) {
-              | None => None
-              | Some((elts, delta)) =>
-                let (skel, ty) = skel_ty;
-                switch (ana_expand_skel(ctx, delta, skel, seq, ty)) {
-                | DoesNotExpand => None
-                | Expands(d, ty, delta) =>
-                  Some((ListMinTwo.Cons((d, ty), elts), delta))
-                };
-              },
-            zipped,
-            ((skel1, ty1), (skel2, ty2)) =>
-              switch (ana_expand_skel(ctx, delta, skel1, seq, ty1)) {
-              | DoesNotExpand => None
-              | Expands(d1, ty1, delta) =>
-                switch (ana_expand_skel(ctx, delta, skel2, seq, ty2)) {
-                | DoesNotExpand => None
-                | Expands(d2, ty2, delta) =>
-                  Some((ListMinTwo.Pair((d1, ty1), (d2, ty2)), delta))
-                }
-              },
-          );
-        switch (processed1) {
-        | None => DoesNotExpand
-        | Some((elts1, delta)) =>
-          let processed2 =
-            List.fold_right(
-              (skel: UHExp.skel, opt_result) =>
-                switch (opt_result) {
-                | None => None
-                | Some((elts, delta)) =>
-                  switch (syn_expand_skel(ctx, delta, skel, seq)) {
-                  | DoesNotExpand => None
-                  | Expands(d, ty, delta) =>
-                    Some(([(d, ty), ...elts], delta))
-                  }
-                },
-              remainder,
-              Some(([], delta)),
-            );
-          switch (processed2) {
-          | None => DoesNotExpand
-          | Some((elts2, delta)) =>
-            let elts = ListMinTwo.append_list(elts1, elts2);
-            let (ds, tys) = ListMinTwo.unzip(elts);
-            let d = DHExp.make_tuple(ds);
-            let ty = HTyp.make_tuple(tys);
-            Expands(d, ty, delta);
-          };
-        };
-      | _ => DoesNotExpand
-      }
-    | BinOp(InHole(WrongLength, _), _, _, _) => DoesNotExpand
     | BinOp(NotInHole, Cons, skel1, skel2) =>
       switch (HTyp.matched_list(ty)) {
       | None => DoesNotExpand

@@ -11,6 +11,7 @@ and zoperator = (CursorPosition.t, UHPat.operator);
 
 type operand_surround = Seq.operand_surround(UHPat.operand, UHPat.operator);
 type operator_surround = Seq.operator_surround(UHPat.operand, UHPat.operator);
+type zseq = ZSeq.t(UHPat.operand, UHPat.operator, zoperand, zoperator);
 
 let valid_cursors_operand: UHPat.operand => list(CursorPosition.t) =
   CursorPosition.(
@@ -78,18 +79,19 @@ and make_inconsistent_zoperand = (u_gen, zoperand) =>
     (ParenthesizedZ(zp), u_gen);
   };
 
-let erase_zoperator =
-  fun
-  | (_, op) => op;
-
 let rec erase = (zp: t): UHPat.t => erase_zopseq(zp)
-and erase_zopseq = zopseq =>
-  ZOpSeq.erase(~erase_zoperand, ~erase_zoperator, zopseq)
+and erase_zopseq =
+  fun
+  | ZOpSeq(skel, zseq) => OpSeq(skel, zseq |> erase_zseq)
+and erase_zseq = zseq => zseq |> ZSeq.erase(~erase_zoperand, ~erase_zoperator)
 and erase_zoperand =
   fun
   | CursorP(_, operand) => operand
   | InjZ(err, inj_side, zp) => Inj(err, inj_side, erase(zp))
-  | ParenthesizedZ(zp) => Parenthesized(erase(zp));
+  | ParenthesizedZ(zp) => Parenthesized(erase(zp))
+and erase_zoperator =
+  fun
+  | (_, op) => op;
 
 let rec is_before = (zp: t): bool => is_before_zopseq(zp)
 and is_before_zopseq = zopseq => ZOpSeq.is_before(~is_before_zoperand, zopseq)

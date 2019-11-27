@@ -1,5 +1,28 @@
 open Sexplib.Std;
 
+module Opt = {
+  let map = (f: 'a => 'b, opt: option('a)): option('b) =>
+    switch (opt) {
+    | None => None
+    | Some(a) => Some(f(a))
+    };
+  let map_default = (~default: 'b, f: 'a => 'b, opt: option('a)): 'b =>
+    switch (opt) {
+    | None => default
+    | Some(a) => f(a)
+    };
+  let get = (if_absent: unit => 'a, opt: option('a)): 'a =>
+    switch (opt) {
+    | None => if_absent()
+    | Some(a) => a
+    };
+  let test = (opt: option(_)): bool =>
+    switch (opt) {
+    | None => false
+    | Some(_) => true
+    };
+};
+
 let string_of_sexp = sexp => Sexplib.Sexp.to_string(sexp);
 
 let opt_to_bool =
@@ -39,6 +62,22 @@ let rec join = (sep: 'a, xs: list('a)): list('a) =>
   | [x, ...xs] => [x, sep, ...join(sep, xs)]
   };
 
+/**
+ * Zips together two lists, returning None if different lengths
+ */
+let rec opt_zip = (xs: list('x), ys: list('y)): option(list(('x, 'y))) =>
+  switch (xs, ys) {
+  | ([], [_, ..._])
+  | ([_, ..._], []) => None
+  | ([], []) => Some([])
+  | ([x, ...xs], [y, ...ys]) =>
+    opt_zip(xs, ys) |> Opt.map(xys => [(x, y), ...xys])
+  };
+
+/**
+ * Zips together the prefixes of two lists,
+ * up to the length of the shorter list
+ */
 let rec zip = (xs: list('a), ys: list('b)): list(('a, 'b)) =>
   switch (xs, ys) {
   | ([], _) => []
@@ -438,121 +477,4 @@ module ZNatMap = {
     let (_, (_, z)) = zmap;
     z;
   };
-};
-
-/**
- * List containing at least two elements. Used
- * to collect and manipulate tuple elements.
- */
-module ListMinTwo = {
-  type t('a) =
-    | Pair('a, 'a)
-    | Cons('a, t('a));
-
-  let rec to_list = (xs: t('a)): list('a) =>
-    switch (xs) {
-    | Pair(x1, x2) => [x1, x2]
-    | Cons(x, xs) => [x, ...to_list(xs)]
-    };
-
-  exception LessThanTwoElements;
-
-  let rec to_tuple_list = (xs: list('a)): t('a) =>
-    switch (xs) {
-    | []
-    | [_] => raise(LessThanTwoElements)
-    | [x1, x2] => Pair(x1, x2)
-    | [x, ...xs] => Cons(x, to_tuple_list(xs))
-    };
-
-  let rec length = (xs: t('a)): int =>
-    switch (xs) {
-    | Pair(_, _) => 2
-    | Cons(_, xs) => 1 + length(xs)
-    };
-
-  let rec append = (xs: t('a), ys: t('a)): t('a) =>
-    switch (xs) {
-    | Pair(x1, x2) => Cons(x1, Cons(x2, ys))
-    | Cons(x, xs) => Cons(x, append(xs, ys))
-    };
-
-  let rec append_list = (xs: t('a), ys: list('a)): t('a) =>
-    switch (xs, ys) {
-    | (_, []) => xs
-    | (Pair(x1, x2), [y]) => Cons(x1, Pair(x2, y))
-    | (Pair(_, _), _) => append(xs, to_tuple_list(ys))
-    | (Cons(x, xs), _) => Cons(x, append_list(xs, ys))
-    };
-
-  let mk = (x: 'a, y: 'a, zs: list('a)): t('a) =>
-    append_list(Pair(x, y), zs);
-
-  /**
-   * Like List.fold_left, but the initial accumulator is a
-   * function f0 on the first two elements in the tuple list.
-   */
-  let fold_left = (f: ('a, 'b) => 'a, f0: ('b, 'b) => 'a, xs: t('b)): 'a =>
-    switch (xs) {
-    | Pair(x1, x2) => f0(x1, x2)
-    | Cons(x1, xs) =>
-      let (x2, ys) =
-        switch (xs) {
-        | Pair(x2, x3) => (x2, [x3])
-        | Cons(x2, xs) => (x2, to_list(xs))
-        };
-      List.fold_left(f, f0(x1, x2), ys);
-    };
-
-  /**
-   * Like List.fold_right, but the initial accumulator is a
-   * function f0 on the final two elements in the tuple list.
-   */
-  let rec fold_right = (f: ('a, 'b) => 'b, xs: t('a), f0: ('a, 'a) => 'b): 'b =>
-    switch (xs) {
-    | Pair(x1, x2) => f0(x1, x2)
-    | Cons(x, xs) => f(x, fold_right(f, xs, f0))
-    };
-
-  let rec zip_eq = (xs: t('a), ys: t('b)): option(t(('a, 'b))) =>
-    switch (xs, ys) {
-    | (Pair(x1, x2), Pair(y1, y2)) => Some(Pair((x1, y1), (x2, y2)))
-    | (Cons(x, xs), Cons(y, ys)) =>
-      switch (zip_eq(xs, ys)) {
-      | None => None
-      | Some(xys) => Some(Cons((x, y), xys))
-      }
-    | _ => None
-    };
-
-  let rec unzip = (xys: t(('a, 'b))): (t('a), t('b)) =>
-    switch (xys) {
-    | Pair((x1, y1), (x2, y2)) => (Pair(x1, x2), Pair(y1, y2))
-    | Cons((x, y), xys) =>
-      let (xs, ys) = unzip(xys);
-      (Cons(x, xs), Cons(y, ys));
-    };
-};
-
-module Opt = {
-  let map = (f: 'a => 'b, opt: option('a)): option('b) =>
-    switch (opt) {
-    | None => None
-    | Some(a) => Some(f(a))
-    };
-  let map_default = (~default: 'b, f: 'a => 'b, opt: option('a)): 'b =>
-    switch (opt) {
-    | None => default
-    | Some(a) => f(a)
-    };
-  let get = (if_absent: unit => 'a, opt: option('a)): 'a =>
-    switch (opt) {
-    | None => if_absent()
-    | Some(a) => a
-    };
-  let test = (opt: option(_)): bool =>
-    switch (opt) {
-    | None => false
-    | Some(_) => true
-    };
 };

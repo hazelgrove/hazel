@@ -1,5 +1,4 @@
 open Sexplib.Std;
-open GeneralUtil;
 
 [@deriving sexp]
 type t =
@@ -17,17 +16,15 @@ type t =
   | Triv /* unit intro */
   | Ap(t, t);
 
-let rec make_tuple = (ds: ListMinTwo.t(t)): t =>
-  switch (ds) {
-  | Pair(d1, d2) => Pair(d1, d2)
-  | Cons(d1, ds) =>
-    let d2 = make_tuple(ds);
-    Pair(d1, d2);
-  };
+let rec make_tuple: list(t) => t =
+  fun
+  | [] => failwith("make_tuple: expected at least 1 element")
+  | [dp] => dp
+  | [dp, ...dps] => Pair(dp, make_tuple(dps));
 
 /**
-   * Whether dp contains the variable x outside of a hole.
-   */
+ * Whether dp contains the variable x outside of a hole.
+ */
 let rec binds_var = (x: Var.t, dp: t): bool =>
   switch (dp) {
   | EmptyHole(_, _)

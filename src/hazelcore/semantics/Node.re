@@ -21,6 +21,12 @@ module Exp = {
     | Operator(UHExp.operator);
 };
 
+/**
+ * Nodes upon which the cursor can be placed.
+ * Note that there are neither block- nor
+ * opseq-level cursors, only cursors on their
+ * constituents.
+ */
 [@deriving sexp]
 type t =
   | Typ(Typ.t)

@@ -1,5 +1,4 @@
 open Sexplib.Std;
-open GeneralUtil;
 
 exception FreeVarInPat;
 
@@ -43,20 +42,18 @@ let boollit = (~err: ErrStatus.t=NotInHole, b: bool) => BoolLit(err, b);
 
 let listnil = (~err: ErrStatus.t=NotInHole, ()) => ListNil(err);
 
-let rec get_tuple = (skel1: skel, skel2: skel): ListMinTwo.t(skel) =>
-  switch (skel2) {
-  | BinOp(_, Comma, skel21, skel22) =>
-    ListMinTwo.Cons(skel1, get_tuple(skel21, skel22))
-  | BinOp(_, _, _, _)
-  | Placeholder(_) => ListMinTwo.Pair(skel1, skel2)
-  };
+let rec get_tuple_elements: skel => list(skel) =
+  fun
+  | BinOp(_, Comma, skel1, skel2) =>
+    get_tuple_elements(skel1) @ get_tuple_elements(skel2)
+  | skel => [skel];
 
-let rec make_tuple = (err: ErrStatus.t, skels: ListMinTwo.t(skel)) =>
-  switch (skels) {
-  | Pair(skel1, skel2) => Skel.BinOp(err, Comma, skel1, skel2)
-  | Cons(skel1, skels) =>
-    let skel2 = make_tuple(NotInHole, skels);
-    Skel.BinOp(err, Comma, skel1, skel2);
+let rec make_tuple = (err: ErrStatus.t, elements: list(skel)): skel =>
+  switch (elements) {
+  | [] => failwith("make_tuple: expected at least 1 element")
+  | [skel] => skel
+  | [skel, ...skels] =>
+    BinOp(err, Comma, skel, make_tuple(NotInHole, skels))
   };
 
 /* bidelimited patterns are those that don't have

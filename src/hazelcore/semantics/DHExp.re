@@ -1,5 +1,4 @@
 open Sexplib.Std;
-open GeneralUtil;
 
 [@deriving sexp]
 type bin_num_op =
@@ -94,13 +93,11 @@ let constructor_string = (d: t): string =>
   | FailedCast(_, _, _) => "FailedCast"
   };
 
-let rec make_tuple = (ds: ListMinTwo.t(t)): t =>
-  switch (ds) {
-  | Pair(d1, d2) => Pair(d1, d2)
-  | Cons(d1, ds) =>
-    let d2 = make_tuple(ds);
-    Pair(d1, d2);
-  };
+let rec make_tuple: list(t) => t =
+  fun
+  | [] => failwith("make_tuple: expected at least 1 element")
+  | [d] => d
+  | [d, ...ds] => Pair(d, make_tuple(ds));
 
 let cast = (d: t, t1: HTyp.t, t2: HTyp.t): t =>
   if (HTyp.eq(t1, t2)) {

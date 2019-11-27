@@ -29,11 +29,15 @@ let cons' = (step: int, (steps, cursor): t): t => {
 };
 
 let of_zopseq =
-    (~of_zoperand: 'zoperand => t, zopseq: ZOpSeq.t(_, _, 'zoperand, _)): t =>
-  switch (zopseq) {
-  | ZOperand(_, zoperand, (prefix, _)) =>
+    (
+      ~of_zoperand: 'zoperand => t,
+      ZOpSeq(_, zseq): ZOpSeq.t(_, _, 'zoperand, _),
+    )
+    : t =>
+  switch (zseq) {
+  | ZOperand(zoperand, (prefix, _)) =>
     cons'(Seq.length_of_affix(prefix), of_zoperand(zoperand))
-  | ZOperator(_, (cursor, _), (prefix, suffix)) =>
+  | ZOperator((cursor, _), (prefix, suffix)) =>
     let length = Seq.length(prefix) + Seq.length(suffix);
     ([length + Seq.length(prefix)], cursor);
   };
@@ -101,11 +105,15 @@ let follow_opseq =
     | (Some((operand, surround)), _) =>
       operand
       |> follow_operand((xs, cursor))
-      |> Opt.map(zoperand => ZOpSeq.ZOperand(skel, zoperand, surround))
+      |> Opt.map(zoperand =>
+           ZOpSeq.ZOpSeq(skel, ZOperand(zoperand, surround))
+         )
     | (_, Some((operator, surround))) =>
       operator
       |> follow_operator((xs, cursor))
-      |> Opt.map(zoperator => ZOpSeq.ZOperator(skel, zoperator, surround))
+      |> Opt.map(zoperator =>
+           ZOpSeq.ZOpSeq(skel, ZOperator(zoperator, surround))
+         )
     }
   };
 
@@ -131,11 +139,15 @@ let follow_steps_opseq =
     | (Some((operand, surround)), _) =>
       operand
       |> follow_steps_operand(~side, xs)
-      |> Opt.map(zoperand => ZOpSeq.ZOperand(skel, zoperand, surround))
+      |> Opt.map(zoperand =>
+           ZOpSeq.ZOpSeq(skel, ZOperand(zoperand, surround))
+         )
     | (_, Some((operator, surround))) =>
       operator
       |> follow_steps_operator(~side, xs)
-      |> Opt.map(zoperator => ZOpSeq.ZOperator(skel, zoperator, surround))
+      |> Opt.map(zoperator =>
+           ZOpSeq.ZOpSeq(skel, ZOperator(zoperator, surround))
+         )
     }
   };
 
@@ -237,7 +249,8 @@ let holes_zopseq =
       ~erase_zopseq:
          ZOpSeq.t('operand, 'operator, 'zoperand, 'zoperator) =>
          OpSeq.t('operand, 'operator),
-      zopseq: ZOpSeq.t('operand, 'operator, 'zoperand, 'zoperator),
+      ZOpSeq(skel, zseq) as zopseq:
+        ZOpSeq.t('operand, 'operator, 'zoperand, 'zoperator),
     )
     : zhole_list => {
   let OpSeq(_, seq) = zopseq |> erase_zopseq;
@@ -251,8 +264,8 @@ let holes_zopseq =
       seq,
       [],
     );
-  switch (zopseq) {
-  | ZOperator(skel, _, (prefix, _)) =>
+  switch (zseq) {
+  | ZOperator(_, (prefix, _)) =>
     let preceding_operand_index = Seq.length(prefix) - 1;
     let rec go: Skel.t(_) => zhole_list = (
       fun
@@ -309,7 +322,7 @@ let holes_zopseq =
         }
     );
     go(skel);
-  | ZOperand(skel, zoperand, (prefix, _)) =>
+  | ZOperand(zoperand, (prefix, _)) =>
     let zoperand_index = Seq.length_of_affix(prefix);
     let rec go: Skel.t(_) => zhole_list = (
       fun

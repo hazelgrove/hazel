@@ -233,8 +233,9 @@ and is_after_case_rule_line =
   | LetLineZE(_, _, zdef) => zdef |> is_after_case_rule
 and is_after_case_rule_zopseq =
   fun
-  | ZOperator(_, _, _) => false
-  | ZOperand(_, zoperand, _) => is_after_case_rule_zoperand(zoperand)
+  | ZOpSeq(_, ZOperator(_, _)) => false
+  | ZOpSeq(_, ZOperand(zoperand, _)) =>
+    is_after_case_rule_zoperand(zoperand)
 and is_after_case_rule_zoperand =
   fun
   | CaseZR(_, _, (_, RuleZE(_, zclause), _), _) => is_after(zclause)
@@ -388,7 +389,7 @@ let place_cursor_rule =
 
 let prune_empty_hole_line = (zli: zline): zline =>
   switch (zli) {
-  | ExpLineZ(ZOperand(_, CursorE(_, EmptyHole(_)), (E, E))) =>
+  | ExpLineZ(ZOpSeq(_, ZOperand(CursorE(_, EmptyHole(_)), (E, E)))) =>
     place_before_line(EmptyLine)
   | ExpLineZ(_)
   | LetLineZP(_, _, _)
@@ -496,7 +497,7 @@ let rec cursor_on_outer_expr =
   switch (zoperand) {
   | CursorE(cursor, operand) =>
     Some((UHExp.drop_outer_parentheses(operand), cursor))
-  | ParenthesizedZ(([], ExpLineZ(ZOperand(_, zoperand, _)), [])) =>
+  | ParenthesizedZ(([], ExpLineZ(ZOpSeq(_, ZOperand(zoperand, _))), [])) =>
     cursor_on_outer_expr(zoperand)
   | ParenthesizedZ(_)
   | LamZP(_, _, _, _)

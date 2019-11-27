@@ -15,3 +15,9 @@ let delim_cursors_k = (k: int): list(t) => [
 ];
 let delim_cursors = (num_delim: int): list(t) =>
   range(num_delim) |> List.map(k => delim_cursors_k(k)) |> List.flatten;
+
+let force_get_OnText =
+  fun
+  | OnDelim(_, _)
+  | OnOp(_) => failwith("force_get_OnText: expected OnText")
+  | OnText(j) => j;

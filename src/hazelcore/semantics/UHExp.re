@@ -96,19 +96,18 @@ let prune_empty_hole_line = (li: line): line =>
   };
 let prune_empty_hole_lines = List.map(prune_empty_hole_line);
 
-let rec get_tuple = (skel1: skel, skel2: skel): ListMinTwo.t(skel) =>
-  switch (skel2) {
-  | BinOp(_, Comma, skel21, skel22) =>
-    Cons(skel1, get_tuple(skel21, skel22))
-  | BinOp(_, _, _, _)
-  | Placeholder(_) => Pair(skel1, skel2)
-  };
+let rec get_tuple_elements: skel => list(skel) =
+  fun
+  | BinOp(_, Comma, skel1, skel2) =>
+    get_tuple_elements(skel1) @ get_tuple_elements(skel2)
+  | skel => [skel];
 
-let rec make_tuple = (err: ErrStatus.t, skels: ListMinTwo.t(skel)): skel =>
-  switch (skels) {
-  | Pair(skel1, skel2) => BinOp(err, Comma, skel1, skel2)
-  | Cons(skel1, skels) =>
-    BinOp(err, Comma, skel1, make_tuple(NotInHole, skels))
+let rec make_tuple = (err: ErrStatus.t, elements: list(skel)): skel =>
+  switch (elements) {
+  | [] => failwith("make_tuple: expected at least 1 element")
+  | [skel] => skel
+  | [skel, ...skels] =>
+    BinOp(err, Comma, skel, make_tuple(NotInHole, skels))
   };
 
 /* helper function for constructing a new empty hole */

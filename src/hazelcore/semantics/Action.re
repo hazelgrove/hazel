@@ -3,7 +3,7 @@ open GeneralUtil;
 open Sexplib.Std;
 
 [@deriving sexp]
-type op_shape =
+type operator_shape =
   | SMinus
   | SPlus
   | STimes
@@ -18,31 +18,7 @@ type op_shape =
   | SAnd
   | SOr;
 
-let ty_op_of = (os: op_shape): option(UHTyp.operator) =>
-  switch (os) {
-  | SArrow => Some(Arrow)
-  | SComma => Some(Prod)
-  | SVBar => Some(Sum)
-  | SMinus
-  | SPlus
-  | STimes
-  | SAnd
-  | SOr
-  | SLessThan
-  | SGreaterThan
-  | SEquals
-  | SSpace
-  | SCons => None
-  };
-
-let op_shape_of_ty_op = (op: UHTyp.operator): op_shape =>
-  switch (op) {
-  | Arrow => SArrow
-  | Prod => SComma
-  | Sum => SVBar
-  };
-
-let pat_op_of = (os: op_shape): option(UHPat.operator) =>
+let pat_op_of = (os: operator_shape): option(UHPat.operator) =>
   switch (os) {
   | SComma => Some(Comma)
   | SSpace => Some(Space)
@@ -59,14 +35,14 @@ let pat_op_of = (os: op_shape): option(UHPat.operator) =>
   | SVBar => None
   };
 
-let op_shape_of_pat_op = (op: UHPat.operator): op_shape =>
+let op_shape_of_pat_op = (op: UHPat.operator): operator_shape =>
   switch (op) {
   | Comma => SComma
   | Space => SSpace
   | Cons => SCons
   };
 
-let exp_op_of = (os: op_shape): option(UHExp.operator) =>
+let exp_op_of = (os: operator_shape): option(UHExp.operator) =>
   switch (os) {
   | SPlus => Some(Plus)
   | SMinus => Some(Minus)
@@ -83,7 +59,7 @@ let exp_op_of = (os: op_shape): option(UHExp.operator) =>
   | SVBar => None
   };
 
-let op_shape_of_exp_op = (op: UHExp.operator): op_shape =>
+let op_shape_of_exp_op = (op: UHExp.operator): operator_shape =>
   switch (op) {
   | Minus => SMinus
   | Plus => SPlus
@@ -107,15 +83,14 @@ type shape =
   | SList
   /* expression shapes */
   | SAsc
-  | SVar(Var.t, CursorPosition.t)
+  | SChar(string)
   | SLam
-  | SNumLit(int, CursorPosition.t)
   | SListNil
   | SInj(InjSide.t)
   | SLet
   | SLine
   | SCase
-  | SOp(op_shape)
+  | SOp(operator_shape)
   | SApPalette(PaletteName.t)
   /* pattern-only shapes */
   | SWild;
@@ -143,14 +118,37 @@ type result('success) =
   | CantShift
   | Failed;
 
-let make_ty_OpSeqZ = (zty0: ZTyp.t, surround: ZTyp.opseq_surround): ZTyp.t => {
-  let uty0 = ZTyp.erase(zty0);
-  let seq = Seq.t_of_operand_and_surround(uty0, surround);
-  let skel = Associator.associate_ty(seq);
-  OpSeqZ(skel, zty0, surround);
-};
-
 module Typ = {
+  let operator_of_shape = (os: operator_shape): option(UHTyp.operator) =>
+    switch (os) {
+    | SArrow => Some(Arrow)
+    | SComma => Some(Prod)
+    | SVBar => Some(Sum)
+    | SMinus
+    | SPlus
+    | STimes
+    | SAnd
+    | SOr
+    | SLessThan
+    | SGreaterThan
+    | SEquals
+    | SSpace
+    | SCons => None
+    };
+
+  let shape_of_operator = (op: UHTyp.operator): operator_shape =>
+    switch (op) {
+    | Arrow => SArrow
+    | Prod => SComma
+    | Sum => SVBar
+    };
+
+  let mk_ZOperand =
+    ZOpSeq.mk_ZOperator(
+      ~associate=Associator.associate_ty,
+      ~erase_zoperand=ZTyp.erase_zoperand,
+    );
+
   let rec perform = (a: t, zty: ZTyp.t): result(ZTyp.t) =>
     perform_opseq(a, zty)
   and perform_opseq = (a: t, zopseq: ZTyp.zopseq): result(ZTyp.zopseq) =>
@@ -302,7 +300,7 @@ module Typ = {
         let new_zty =
           switch (new_surround) {
           | None => new_ztm
-          | Some(surround) => OpSeqUtil.Typ.mk_OpSeqZ(new_ztm, surround)
+          | Some(surround) => OpSeqUtil.Typ.mk_ZOpSeq(new_ztm, surround)
           };
         Succeeded(new_zty);
       };
@@ -430,20 +428,20 @@ module Typ = {
     | (Construct(SOp(os)), CursorT(_, _)) =>
       let uty = ZTyp.erase(zty);
       if (ZTyp.is_before(zty)) {
-        switch (ty_op_of(os)) {
+        switch (operator_of_shape(os)) {
         | None => Failed
         | Some(op) =>
           let surround = Seq.EmptyPrefix(OperandSuffix(op, uty));
           let zty0 = ZTyp.place_before(Hole);
-          Succeeded(make_ty_OpSeqZ(zty0, surround));
+          Succeeded(mk_ZOperand(zty0, surround));
         };
       } else {
-        switch (ty_op_of(os)) {
+        switch (operator_of_shape(os)) {
         | None => Failed
         | Some(op) =>
           let surround = Seq.EmptySuffix(OperandPrefix(uty, op));
           let zty0 = ZTyp.place_before(Hole);
-          Succeeded(make_ty_OpSeqZ(zty0, surround));
+          Succeeded(mk_ZOperand(zty0, surround));
         };
       };
     | (
@@ -454,7 +452,7 @@ module Typ = {
     | (Construct(SOp(os)), OpSeqZ(_, CursorT(_, _) as zty, surround)) =>
       let uty = ZTyp.erase(zty);
       if (ZTyp.is_before(zty)) {
-        switch (ty_op_of(os)) {
+        switch (operator_of_shape(os)) {
         | None => Failed
         | Some(op) =>
           switch (surround) {
@@ -463,23 +461,23 @@ module Typ = {
             let suffix' = Seq.suffix_prepend_exp(suffix, op, uty);
             let surround' = Seq.EmptyPrefix(suffix');
             let zty0' = ZTyp.place_before(Hole);
-            Succeeded(make_ty_OpSeqZ(zty0', surround'));
+            Succeeded(mk_ZOperand(zty0', surround'));
           | EmptySuffix(prefix) =>
             /* prefix |zty0 -> prefix |_ op uty0 */
             let suffix' = Seq.OperandSuffix(op, uty);
             let surround' = Seq.BothNonEmpty(prefix, suffix');
             let zty0' = ZTyp.place_before(Hole);
-            Succeeded(make_ty_OpSeqZ(zty0', surround'));
+            Succeeded(mk_ZOperand(zty0', surround'));
           | BothNonEmpty(prefix, suffix) =>
             /* prefix |zty0 suffix -> prefix |_ op uty0 suffix */
             let suffix' = Seq.suffix_prepend_exp(suffix, op, uty);
             let surround' = Seq.BothNonEmpty(prefix, suffix');
             let zty0' = ZTyp.place_before(Hole);
-            Succeeded(make_ty_OpSeqZ(zty0', surround'));
+            Succeeded(mk_ZOperand(zty0', surround'));
           }
         };
       } else {
-        switch (ty_op_of(os)) {
+        switch (operator_of_shape(os)) {
         | None => Failed
         | Some(op) =>
           switch (surround) {
@@ -488,19 +486,19 @@ module Typ = {
             let prefix' = Seq.OperandPrefix(uty, op);
             let surround' = Seq.BothNonEmpty(prefix', suffix);
             let zty0' = ZTyp.place_before(Hole);
-            Succeeded(make_ty_OpSeqZ(zty0', surround'));
+            Succeeded(mk_ZOperand(zty0', surround'));
           | EmptySuffix(prefix) =>
             /* prefix zty0| -> prefix uty0 op |_ */
             let prefix' = Seq.prefix_append_operand(prefix, uty, op);
             let surround' = Seq.EmptySuffix(prefix');
             let zty0' = ZTyp.place_before(Hole);
-            Succeeded(make_ty_OpSeqZ(zty0', surround'));
+            Succeeded(mk_ZOperand(zty0', surround'));
           | BothNonEmpty(prefix, suffix) =>
             /* prefix zty0| suffix -> prefix uty0 op |_ suffix */
             let prefix' = Seq.prefix_append_operand(prefix, uty, op);
             let surround' = Seq.BothNonEmpty(prefix', suffix);
             let zty0' = ZTyp.place_before(Hole);
-            Succeeded(make_ty_OpSeqZ(zty0', surround'));
+            Succeeded(mk_ZOperand(zty0', surround'));
           }
         };
       };
@@ -1369,7 +1367,7 @@ let rec syn_perform_pat =
       let new_zp =
         switch (new_surround) {
         | None => new_ztm
-        | Some(surround) => OpSeqUtil.Pat.mk_OpSeqZ(new_ztm, surround)
+        | Some(surround) => OpSeqUtil.Pat.mk_ZOpSeq(new_ztm, surround)
         };
       Succeeded(Statics.Pat.syn_fix_holes_z(ctx, u_gen, new_zp));
     };
@@ -2045,7 +2043,7 @@ and ana_perform_pat =
       let new_zp =
         switch (new_surround) {
         | None => new_ztm
-        | Some(surround) => OpSeqUtil.Pat.mk_OpSeqZ(new_ztm, surround)
+        | Some(surround) => OpSeqUtil.Pat.mk_ZOpSeq(new_ztm, surround)
         };
       Succeeded(Statics.Pat.ana_fix_holes_z(ctx, u_gen, new_zp, ty));
     };
@@ -3003,7 +3001,7 @@ let rec syn_perform_block =
       let new_ze =
         switch (new_surround) {
         | None => new_ztm
-        | Some(surround) => OpSeqUtil.Exp.mk_OpSeqZ(new_ztm, surround)
+        | Some(surround) => OpSeqUtil.Exp.mk_ZOpSeq(new_ztm, surround)
         };
       let new_zblock = ZExp.BlockZE(leading, new_ze);
       Succeeded(Statics.Exp.syn_fix_holes_z(ctx, u_gen, new_zblock));
@@ -3152,7 +3150,7 @@ let rec syn_perform_block =
       let new_ze =
         switch (new_surround) {
         | None => new_ztm
-        | Some(surround) => OpSeqUtil.Exp.mk_OpSeqZ(new_ztm, surround)
+        | Some(surround) => OpSeqUtil.Exp.mk_ZOpSeq(new_ztm, surround)
         };
       let new_zblock = ZExp.BlockZE(leading, new_ze);
       Succeeded(Statics.Exp.syn_fix_holes_z(ctx, u_gen, new_zblock));
@@ -4037,7 +4035,7 @@ and syn_perform_exp =
       let new_ze =
         switch (new_surround) {
         | None => new_ztm
-        | Some(surround) => OpSeqUtil.Exp.mk_OpSeqZ(new_ztm, surround)
+        | Some(surround) => OpSeqUtil.Exp.mk_ZOpSeq(new_ztm, surround)
         };
       let (new_ze, ty, u_gen) =
         Statics.Exp.syn_fix_holes_zoperand(ctx, u_gen, new_ze);
@@ -5361,7 +5359,7 @@ and ana_perform_block =
       let new_ze =
         switch (new_surround) {
         | None => new_ztm
-        | Some(surround) => OpSeqUtil.Exp.mk_OpSeqZ(new_ztm, surround)
+        | Some(surround) => OpSeqUtil.Exp.mk_ZOpSeq(new_ztm, surround)
         };
       let new_zblock = ZExp.BlockZE(leading, new_ze);
       Succeeded(Statics.ana_fix_holes_zblock(ctx, u_gen, new_zblock, ty));
@@ -5513,7 +5511,7 @@ and ana_perform_block =
       let new_ze =
         switch (new_surround) {
         | None => new_ztm
-        | Some(surround) => OpSeqUtil.Exp.mk_OpSeqZ(new_ztm, surround)
+        | Some(surround) => OpSeqUtil.Exp.mk_ZOpSeq(new_ztm, surround)
         };
       let new_zblock = ZExp.BlockZE(leading, new_ze);
       Succeeded(Statics.ana_fix_holes_zblock(ctx, u_gen, new_zblock, ty));
@@ -5980,7 +5978,7 @@ and ana_perform_exp =
       let new_ze =
         switch (new_surround) {
         | None => new_ztm
-        | Some(surround) => OpSeqUtil.Exp.mk_OpSeqZ(new_ztm, surround)
+        | Some(surround) => OpSeqUtil.Exp.mk_ZOpSeq(new_ztm, surround)
         };
       let (new_ze, u_gen) =
         Statics.Exp.ana_fix_holes_zoperand(ctx, u_gen, new_ze, ty);

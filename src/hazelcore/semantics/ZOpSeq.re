@@ -1,14 +1,10 @@
+open GeneralUtil;
+
 [@deriving sexp]
 type t('operand, 'operator, 'zoperand, 'zoperator) =
-  | ZOperand(
-      OpSeq.skel('operator),
-      'zoperand,
-      Seq.operand_surround('operand, 'operator),
-    )
-  | ZOperator(
-      OpSeq.skel('operator),
-      'zoperator,
-      Seq.operator_surround('operand, 'operator),
+  | ZOpSeq(
+      Skel.t('operator),
+      ZSeq.t('operand, 'operator, 'zoperand, 'zoperator),
     );
 
 let mk_ZOperand =
@@ -22,7 +18,7 @@ let mk_ZOperand =
   let seq =
     Seq.t_of_operand_and_surround(erase_zoperand(zoperand), surround);
   let skel = associate(seq);
-  ZOperand(skel, zoperand, surround);
+  ZOpSeq(skel, ZOperand(zoperand, surround));
 };
 
 let mk_ZOperator =
@@ -36,96 +32,93 @@ let mk_ZOperator =
   let seq =
     Seq.t_of_operator_and_surround(erase_zoperator(zoperator), surround);
   let skel = associate(seq);
-  ZOperator(skel, zoperator, surround);
+  ZOpSeq(skel, ZOperator(zoperator, surround));
 };
 
-let wrap = zoperand => ZOperand(Placeholder(0), zoperand, (E, E));
+let wrap = zoperand => ZOpSeq(Placeholder(0), zoperand |> ZSeq.wrap);
 
 let set_err_status =
     (
       ~set_err_status_zoperand: (ErrStatus.t, 'zoperand) => 'zoperand,
       err: ErrStatus.t,
-      zopseq: t('operand, 'operator, 'zoperand, 'zoperator),
+      ZOpSeq(skel, zseq): t('operand, 'operator, 'zoperand, 'zoperator),
     )
-    : t('operand, 'operator, 'zoperand, 'zoperator) =>
-  switch (zopseq) {
-  | ZOperator(Placeholder(_), _, _) => assert(false)
-  | ZOperator(BinOp(_, op, skel1, skel2), zop, surround) =>
-    ZOperator(BinOp(err, op, skel1, skel2), zop, surround)
-  | ZOperand(Placeholder(_) as skel, zoperand, surround) =>
-    ZOperand(skel, zoperand |> set_err_status_zoperand(err), surround)
-  | ZOperand(BinOp(_, op, skel1, skel2), zoperand, surround) =>
-    ZOperand(BinOp(err, op, skel1, skel2), zoperand, surround)
-  };
+    : t('operand, 'operator, 'zoperand, 'zoperator) => {
+  let (skel: Skel.t(_), zseq: ZSeq.t(_)) =
+    switch (skel, zseq) {
+    | (Placeholder(_), ZOperator(_, _)) => assert(false)
+    | (BinOp(_, op, skel1, skel2), ZOperator(zop, surround)) => (
+        BinOp(err, op, skel1, skel2),
+        ZOperator(zop, surround),
+      )
+    | (Placeholder(_), ZOperand(zoperand, surround)) => (
+        skel,
+        ZOperand(zoperand |> set_err_status_zoperand(err), surround),
+      )
+    | (BinOp(_, op, skel1, skel2), ZOperand(zoperand, surround)) => (
+        BinOp(err, op, skel1, skel2),
+        ZOperand(zoperand, surround),
+      )
+    };
+  ZOpSeq(skel, zseq);
+};
 
 let make_inconsistent =
     (
       ~make_inconsistent_zoperand:
          (MetaVarGen.t, 'zoperand) => ('zoperand, MetaVarGen.t),
       u_gen: MetaVarGen.t,
-      zopseq: t('operand, 'operator, 'zoperand, 'zoperator),
+      ZOpSeq(skel, zseq): t('operand, 'operator, 'zoperand, 'zoperator),
     )
-    : (t('operand, 'operator, 'zoperand, 'zoperator), MetaVarGen.t) =>
-  switch (zopseq) {
-  | ZOperator(Placeholder(_), _, _) => assert(false)
-  | ZOperator(BinOp(_, op, skel1, skel2), zop, surround) =>
-    let (u, u_gen) = u_gen |> MetaVarGen.next;
-    (
-      ZOperator(
+    : (t('operand, 'operator, 'zoperand, 'zoperator), MetaVarGen.t) => {
+  let (skel: Skel.t(_), zseq: ZSeq.t(_), u_gen) =
+    switch (skel, zseq) {
+    | (Placeholder(_), ZOperator(_, _)) => assert(false)
+    | (BinOp(_, op, skel1, skel2), ZOperator(zop, surround)) =>
+      let (u, u_gen) = u_gen |> MetaVarGen.next;
+      (
         BinOp(InHole(TypeInconsistent, u), op, skel1, skel2),
-        zop,
-        surround,
-      ),
-      u_gen,
-    );
-  | ZOperand(Placeholder(_) as skel, zoperand, surround) =>
-    let (zoperand, u_gen) = zoperand |> make_inconsistent_zoperand(u_gen);
-    (ZOperand(skel, zoperand, surround), u_gen);
-  | ZOperand(BinOp(_, op, skel1, skel2), zoperand, surround) =>
-    let (u, u_gen) = u_gen |> MetaVarGen.next;
-    (
-      ZOperand(
+        ZOperator(zop, surround),
+        u_gen,
+      );
+    | (Placeholder(_), ZOperand(zoperand, surround)) =>
+      let (zoperand, u_gen) = zoperand |> make_inconsistent_zoperand(u_gen);
+      (skel, ZOperand(zoperand, surround), u_gen);
+    | (BinOp(_, op, skel1, skel2), ZOperand(zoperand, surround)) =>
+      let (u, u_gen) = u_gen |> MetaVarGen.next;
+      (
         BinOp(InHole(TypeInconsistent, u), op, skel1, skel2),
-        zoperand,
-        surround,
-      ),
-      u_gen,
-    );
-  };
+        ZOperand(zoperand, surround),
+        u_gen,
+      );
+    };
+  (ZOpSeq(skel, zseq), u_gen);
+};
 
 let erase =
     (
       ~erase_zoperand: 'zoperand => 'operand,
       ~erase_zoperator: 'zoperator => 'operator,
-      zopseq: t('operand, 'operator, 'zoperand, 'zoperator),
+      ZOpSeq(skel, zseq): t('operand, 'operator, 'zoperand, 'zoperator),
     )
     : OpSeq.t('operand, 'operator) =>
-  switch (zopseq) {
-  | ZOperand(skel, zoperand, (prefix, suffix)) =>
-    let operand = zoperand |> erase_zoperand;
-    let seq = Seq.prefix_seq(prefix, S(operand, suffix));
-    OpSeq(skel, seq);
-  | ZOperator(skel, zoperator, (prefix, suffix)) =>
-    let operator = zoperator |> erase_zoperator;
-    let seq = Seq.seq_suffix(prefix, A(operator, suffix));
-    OpSeq(skel, seq);
-  };
+  OpSeq(skel, zseq |> ZSeq.erase(~erase_zoperand, ~erase_zoperator));
 
 let is_before =
-    (~is_before_zoperand: 'zoperand => bool, zopseq: t(_, _, 'zoperand, _))
+    (
+      ~is_before_zoperand: 'zoperand => bool,
+      ZOpSeq(_, zseq): t(_, _, 'zoperand, _),
+    )
     : bool =>
-  switch (zopseq) {
-  | ZOperator(_, _, _) => false
-  | ZOperand(_, zoperand, _) => is_before_zoperand(zoperand)
-  };
+  zseq |> ZSeq.is_before(~is_before_zoperand);
 
 let is_after =
-    (~is_after_zoperand: 'zoperand => bool, zopseq: t(_, _, 'zoperand, _))
+    (
+      ~is_after_zoperand: 'zoperand => bool,
+      ZOpSeq(_, zseq): t(_, _, 'zoperand, _),
+    )
     : bool =>
-  switch (zopseq) {
-  | ZOperator(_, _, _) => false
-  | ZOperand(_, zoperand, _) => is_after_zoperand(zoperand)
-  };
+  zseq |> ZSeq.is_after(~is_after_zoperand);
 
 let place_before =
     (
@@ -134,7 +127,7 @@ let place_before =
     )
     : t('operand, 'operator, 'zoperand, 'zoperator) => {
   let (first, suffix) = seq |> Seq.split_first_and_suffix;
-  ZOperand(skel, first |> place_before_operand, (E, suffix));
+  ZOpSeq(skel, ZOperand(first |> place_before_operand, (E, suffix)));
 };
 
 let place_after =
@@ -144,7 +137,7 @@ let place_after =
     )
     : t('operand, 'operator, 'zoperand, 'zoperator) => {
   let (prefix, last) = seq |> Seq.split_prefix_and_last;
-  ZOperand(skel, last |> place_after_operand, (prefix, E));
+  ZOpSeq(skel, ZOperand(last |> place_after_operand, (prefix, E)));
 };
 
 let move_cursor_left =
@@ -155,29 +148,19 @@ let move_cursor_left =
       ~place_after_operator: 'operator => 'zoperator,
       ~erase_zoperand: 'zoperand => 'operand,
       ~erase_zoperator: 'zoperator => 'operator,
-      zopseq: t('operand, 'operator, 'zoperand, 'zoperator),
+      ZOpSeq(skel, zseq): t('operand, 'operator, 'zoperand, 'zoperator),
     )
     : option(t('operand, 'operator, 'zoperand, 'zoperator)) =>
-  switch (zopseq) {
-  | ZOperand(skel, zoperand, surround) =>
-    switch (move_cursor_left_zoperand(zoperand), surround) {
-    | (None, (E, _)) => None
-    | (None, (A(left_op, preseq), suffix)) =>
-      let operand = zoperand |> erase_zoperand;
-      let left_zop = left_op |> place_after_operator;
-      Some(ZOperator(skel, left_zop, (preseq, S(operand, suffix))));
-    | (Some(zoperand), _) => Some(ZOperand(skel, zoperand, surround))
-    }
-  | ZOperator(skel, zop, surround) =>
-    switch (move_cursor_left_zoperator(zop), surround) {
-    | (None, (preseq, sufseq)) =>
-      let op = zop |> erase_zoperator;
-      let (prefix, left_operand) = preseq |> Seq.split_prefix_and_last;
-      let left_zoperand = left_operand |> place_after_operand;
-      Some(ZOperand(skel, left_zoperand, (prefix, A(op, sufseq))));
-    | (Some(zop), _) => Some(ZOperator(skel, zop, surround))
-    }
-  };
+  zseq
+  |> ZSeq.move_cursor_left(
+       ~move_cursor_left_zoperand,
+       ~move_cursor_left_zoperator,
+       ~place_after_operand,
+       ~place_after_operator,
+       ~erase_zoperand,
+       ~erase_zoperator,
+     )
+  |> Opt.map(zseq => ZOpSeq(skel, zseq));
 
 let move_cursor_right =
     (
@@ -187,26 +170,16 @@ let move_cursor_right =
       ~place_before_operator: 'operator => 'zoperator,
       ~erase_zoperand: 'zoperand => 'operand,
       ~erase_zoperator: 'zoperator => 'operator,
-      zopseq: t('operand, 'operator, 'zoperand, 'zoperator),
+      ZOpSeq(skel, zseq): t('operand, 'operator, 'zoperand, 'zoperator),
     )
     : option(t('operand, 'operator, 'zoperand, 'zoperator)) =>
-  switch (zopseq) {
-  | ZOperand(skel, zoperand, surround) =>
-    switch (move_cursor_right_zoperand(zoperand), surround) {
-    | (None, (_, E)) => None
-    | (None, (prefix, A(right_op, sufseq))) =>
-      let operand = zoperand |> erase_zoperand;
-      let right_zop = right_op |> place_before_operator;
-      Some(ZOperator(skel, right_zop, (S(operand, prefix), sufseq)));
-    | (Some(zoperand), _) => Some(ZOperand(skel, zoperand, surround))
-    }
-  | ZOperator(skel, zop, surround) =>
-    switch (move_cursor_right_zoperator(zop), surround) {
-    | (None, (preseq, sufseq)) =>
-      let op = zop |> erase_zoperator;
-      let (right_operand, suffix) = sufseq |> Seq.split_first_and_suffix;
-      let right_zoperand = right_operand |> place_before_operand;
-      Some(ZOperand(skel, right_zoperand, (A(op, preseq), suffix)));
-    | (Some(zop), _) => Some(ZOperator(skel, zop, surround))
-    }
-  };
+  zseq
+  |> ZSeq.move_cursor_right(
+       ~move_cursor_right_zoperand,
+       ~move_cursor_right_zoperator,
+       ~place_before_operand,
+       ~place_before_operator,
+       ~erase_zoperand,
+       ~erase_zoperator,
+     )
+  |> Opt.map(zseq => ZOpSeq(skel, zseq));

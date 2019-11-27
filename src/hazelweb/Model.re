@@ -11,8 +11,6 @@ let cardstacks: cardstacks = [
 
 let init_compute_results_flag = false;
 
-type user_newlines = CursorPath.StepsMap.t(unit);
-
 type edit_state = Statics.edit_state;
 
 type card_state = {
@@ -94,7 +92,6 @@ type t = {
   compute_results_flag: bool,
   result_state,
   /* UI state */
-  user_newlines,
   selected_example: option(UHExp.block),
   is_cell_focused: bool,
   left_sidebar_open: bool,
@@ -186,85 +183,9 @@ let result_state_of_edit_state = (edit_state, compute_results_flag) =>
     });
   };
 
-let remove_keys_outside_prefix =
-    (~prefix: CursorPath.steps, user_newlines)
-    : (user_newlines, list(CursorPath.steps)) => {
-  let (inside_prefix, outside_prefix) =
-    user_newlines
-    |> CursorPath.StepsMap.partition((steps, _) =>
-         prefix |> CursorPath.is_prefix_of(steps)
-       );
-  (
-    inside_prefix,
-    outside_prefix
-    |> CursorPath.StepsMap.bindings
-    |> List.map(((steps, _)) => steps),
-  );
-};
-
-let add_user_newline = (steps, model) => {
-  ...model,
-  user_newlines: model.user_newlines |> CursorPath.StepsMap.add(steps, ()),
-};
-
-let remove_user_newline = (steps, model) => {
-  ...model,
-  user_newlines: model.user_newlines |> CursorPath.StepsMap.remove(steps),
-};
-
-let user_entered_newline_at = (steps, user_newlines): bool =>
-  user_newlines |> CursorPath.StepsMap.mem(steps);
-
 let update_edit_state = ((new_zblock, ty, u_gen): edit_state, model: t): t => {
   let new_block = new_zblock |> ZExp.erase_zblock;
   let (new_steps, _) = CursorPath.of_zblock(new_zblock);
-  let (new_zblock, new_user_newlines) =
-    model.user_newlines
-    |> CursorPath.StepsMap.bindings
-    |> List.fold_left(
-         ((new_zblock, newlines), (steps, _)) =>
-           switch (
-             new_block |> CursorPath.follow_block_and_place_after(steps)
-           ) {
-           | None => (
-               new_zblock,
-               newlines |> CursorPath.StepsMap.remove(steps),
-             )
-           | Some(zblock) =>
-             switch (CursorInfo.syn_cursor_info_block(Contexts.empty, zblock)) {
-             | None => (
-                 new_zblock,
-                 newlines |> CursorPath.StepsMap.remove(steps),
-               )
-             | Some(ci) =>
-               let newlines =
-                 switch (ci.node) {
-                 | Exp(EmptyHole(_))
-                 | Line(EmptyLine) => newlines
-                 | _ =>
-                   // something nontrivial present, no more
-                   // need to keep track of ephemeral newline
-                   newlines |> CursorPath.StepsMap.remove(steps)
-                 };
-               if (CursorPath.compare_steps(new_steps, steps) < 0) {
-                 let new_path = CursorPath.of_zblock(new_zblock);
-                 (
-                   new_zblock
-                   |> ZExp.erase_zblock
-                   |> CursorPath.prune_trivial_suffix_block(
-                        ~steps_of_first_line=steps,
-                      )
-                   |> CursorPath.follow_block(new_path)
-                   |> Opt.get(() => assert(false)),
-                   newlines |> CursorPath.StepsMap.remove(steps),
-                 );
-               } else {
-                 (new_zblock, newlines);
-               };
-             }
-           },
-         (new_zblock, model.user_newlines),
-       );
   let new_edit_state = (new_zblock, ty, u_gen);
   let new_result_state =
     result_state_of_edit_state(new_edit_state, model.compute_results_flag);
@@ -284,7 +205,6 @@ let update_edit_state = ((new_zblock, ty, u_gen): edit_state, model: t): t => {
     cardstacks_state: new_cardstacks_state,
     cursor_info: new_cursor_info,
     result_state: new_result_state,
-    user_newlines: new_user_newlines,
   };
 };
 
@@ -293,7 +213,6 @@ let update_cardstack_state = (model, cardstack_state) => {
   let result_state =
     result_state_of_edit_state(edit_state, model.compute_results_flag);
   let cursor_info = cursor_info_of_edit_state(edit_state);
-  let user_newlines = CursorPath.StepsMap.empty;
   let cardstacks_state =
     ZList.replace_z(model.cardstacks_state, cardstack_state);
   {
@@ -302,7 +221,6 @@ let update_cardstack_state = (model, cardstack_state) => {
     cardstacks_state,
     result_state,
     cursor_info,
-    user_newlines,
   };
 };
 
@@ -364,7 +282,6 @@ let init = (): t => {
     right_sidebar_open: true,
     selected_example: None,
     is_cell_focused: false,
-    user_newlines: CursorPath.StepsMap.empty,
   };
 };
 
