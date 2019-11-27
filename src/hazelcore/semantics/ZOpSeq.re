@@ -37,6 +37,15 @@ let mk_ZOperator =
 
 let wrap = zoperand => ZOpSeq(Placeholder(0), zoperand |> ZSeq.wrap);
 
+let skel_contains_cursor =
+    (skel: Skel.t('operator), zseq: ZSeq.t(_, 'operator, _, _)): bool =>
+  switch (zseq) {
+  | ZOperator(_, (prefix, _)) =>
+    Skel.rightmost_tm_index(skel) >= Seq.length(prefix)
+  | ZOperand(_, (prefix, _)) =>
+    Skel.rightmost_tm_index(skel) > Seq.length_of_affix(prefix)
+  };
+
 let set_err_status =
     (
       ~set_err_status_zoperand: (ErrStatus.t, 'zoperand) => 'zoperand,
