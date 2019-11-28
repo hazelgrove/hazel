@@ -57,6 +57,10 @@ and is_before_zoperand =
   | CursorT(cursor, List(_)) => cursor == OnDelim(0, Before)
   | ParenthesizedZ(_) => false
   | ListZ(_) => false;
+let is_before_zoperator: zoperator => bool =
+  fun
+  | (OnOp(Before), _) => true
+  | _ => false;
 
 let rec is_after = (zty: t): bool => is_after_zopseq(zty)
 and is_after_zopseq = zopseq => ZOpSeq.is_after(~is_after_zoperand, zopseq)
@@ -70,6 +74,10 @@ and is_after_zoperand =
   | CursorT(cursor, List(_)) => cursor == OnDelim(1, After)
   | ParenthesizedZ(_) => false
   | ListZ(_) => false;
+let is_after_zoperator: zoperator => bool =
+  fun
+  | (OnOp(After), _) => true
+  | _ => false;
 
 let rec place_before = (uty: UHTyp.t): t => place_before_opseq(uty)
 and place_before_opseq = opseq =>
