@@ -149,8 +149,7 @@ module Pat = {
     switch (skel) {
     | BinOp(_, Comma, _, _)
     | BinOp(InHole(WrongLength, _), _, _, _) =>
-      // tuples handled at opseq level
-      None
+      failwith("Pat.ana_skel: expected tuples to be handled at opseq level")
     | Placeholder(n) =>
       let pn = Seq.nth_operand(n, seq);
       ana_operand(ctx, pn, ty);
@@ -795,7 +794,7 @@ module Exp = {
     /* not in hole */
     | Var(NotInHole, NotInVarHole, x) =>
       VarMap.lookup(Contexts.gamma(ctx), x)
-    | Var(NotInHole, InVarHole(_, _), _) => Some(Hole)
+    | Var(NotInHole, InVarHole(_), _) => Some(Hole)
     | NumLit(NotInHole, _) => Some(Num)
     | BoolLit(NotInHole, _) => Some(Bool)
     | ListNil(NotInHole) => Some(List(Hole))
@@ -878,22 +877,14 @@ module Exp = {
   and ana_opseq =
       (ctx: Contexts.t, OpSeq(skel, seq) as opseq: UHExp.opseq, ty: HTyp.t)
       : option(unit) => {
-    //
+    // handle n-tuples
     let skels = skel |> UHExp.get_tuple_elements;
     let tys = ty |> HTyp.get_tuple_elements;
     switch (opt_zip(skels, tys)) {
     | Some(skel_tys) =>
       skel_tys
       |> List.map(((skel, ty)) => ana_skel(ctx, skel, seq, ty))
-      |> List.fold_left(
-           (acc: option(unit), ana_result: option(unit)) =>
-             switch (acc, ana_result) {
-             | (None, _)
-             | (_, None) => None
-             | (Some (), Some ()) => Some()
-             },
-           Some(),
-         )
+      |> List.fold_left(Opt.map2((_, _) => ()), Some())
     | None =>
       switch (skels, tys) {
       | ([Placeholder(n)], _) =>
@@ -902,15 +893,7 @@ module Exp = {
       | (_, [Hole]) =>
         skels
         |> List.map(skel => ana_skel(ctx, skel, seq, Hole))
-        |> List.fold_left(
-             (acc: option(unit), ana_result: option(unit)) =>
-               switch (acc, ana_result) {
-               | (None, _)
-               | (_, None) => None
-               | (Some (), Some ()) => Some()
-               },
-             Some(),
-           )
+        |> List.fold_left(Opt.map2((_, _) => ()), Some())
       | _ =>
         switch (opseq |> UHExp.get_err_status_opseq) {
         | NotInHole

@@ -36,6 +36,7 @@ and zrule =
 
 type operand_surround = Seq.operand_surround(UHExp.operand, UHExp.operator);
 type operator_surround = Seq.operator_surround(UHExp.operand, UHExp.operator);
+type zseq = ZSeq.t(UHExp.operand, UHExp.operator, zoperand, zoperator);
 
 let valid_cursors_line = (line: UHExp.line): list(CursorPosition.t) =>
   switch (line) {
@@ -556,6 +557,8 @@ and erase_zrule =
   | CursorR(_, rule) => rule
   | RuleZP(zp, clause) => Rule(ZPat.erase(zp), clause)
   | RuleZE(p, zclause) => Rule(p, erase(zclause));
+
+let erase_zseq = ZSeq.erase(~erase_zoperand, ~erase_zoperator);
 
 let is_inconsistent = zoperand =>
   zoperand |> erase_zoperand |> UHExp.is_inconsistent;

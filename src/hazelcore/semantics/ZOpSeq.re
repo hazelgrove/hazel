@@ -46,6 +46,22 @@ let skel_contains_cursor =
     Skel.rightmost_tm_index(skel) > Seq.length_of_affix(prefix)
   };
 
+let skel_is_rooted_at_cursor =
+    (skel: Skel.t('operator), zseq: ZSeq.t(_, 'operator, _, _)): bool =>
+  switch (zseq) {
+  | ZOperand(_, (prefix, _)) =>
+    switch (skel) {
+    | Placeholder(n) => n == Seq.length_of_affix(prefix)
+    | BinOp(_) => false
+    }
+  | ZOperator(_, (prefix, _)) =>
+    switch (skel) {
+    | Placeholder(_) => false
+    | BinOp(_, _, skel1, _) =>
+      Skel.rightmost_tm_index(skel1) == Seq.length(prefix) - 1
+    }
+  };
+
 let set_err_status =
     (
       ~set_err_status_zoperand: (ErrStatus.t, 'zoperand) => 'zoperand,
