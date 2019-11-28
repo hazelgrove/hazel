@@ -74,6 +74,11 @@ and sbox_shape =
   | FailedCast;
 
 [@deriving sexp]
+type deferrable('a) =
+  | Deferred(int => 'a)
+  | NotDeferred('a);
+
+[@deriving sexp]
 type snode =
   | SSeq(
       CursorPath.steps,
@@ -107,6 +112,7 @@ and stoken =
   | SDelim(DelimIndex.t, string)
   | SOp(OpIndex.t, ErrStatus.t, string)
   | SText(VarErrStatus.t, string)
+  | STextWithBadge(VarErrStatus.t, string, int)
   | SCastArrow
   | SFailedCastArrow
   | SSpace
@@ -203,6 +209,10 @@ let mk_SDelim = (~index: DelimIndex.t, s: string): stoken =>
 
 let mk_SText = (~var_err: VarErrStatus.t=NotInVarHole, s: string): stoken =>
   SText(var_err, s);
+
+let mk_STextWithBadge =
+    (~var_err: VarErrStatus.t=NotInVarHole, s: string, count: int): stoken =>
+  STextWithBadge(var_err, s, count);
 
 let sspace_vnode =
   Vdom.(
@@ -681,7 +691,13 @@ let vindentation = (~steps_of_first_sword=?, ~first_sword=?, m) => {
       []
     | (
         Some(steps),
-        Some(SNode(_) | SToken(SEmptyHole(_) | SText(_, _) | SEmptyLine)),
+        Some(
+          SNode(_) |
+          SToken(
+            SEmptyHole(_) | SText(_, _) | STextWithBadge(_, _, _) |
+            SEmptyLine,
+          ),
+        ),
       ) =>
       goto_steps(steps)
     | (Some(steps), Some(SToken(SDelim(k, _) | SOp(k, _, _)))) =>
@@ -1298,6 +1314,17 @@ and view_of_stoken =
         [Node.text(s)],
       )
     )
+  | STextWithBadge(var_err, s, count) =>
+    Vdom.(
+      Node.div(
+        [
+          Attr.id(text_id(node_steps)),
+          Attr.classes([inline_div_cls, "SText"] @ var_err_clss(var_err)),
+          Attr.create("num-of-uses", Sexp.to_string(sexp_of_int(count))),
+        ],
+        [Node.text(s)],
+      )
+    )
   | SCastArrow =>
     Vdom.(
       Node.div(
@@ -1456,39 +1483,148 @@ let snode_of_ListNil = (~ap_err_status=NotInApHole, ~err, ~steps, ()): snode =>
   );
 
 let snode_of_LetLine =
-    (~user_newlines=?, ~steps, sp: snode, sann: option(snode), sdef: snode) => {
+    (
+      ~user_newlines=?,
+      ~steps,
+      sp: deferrable(snode),
+      sann: option(snode),
+      sdef: deferrable(snode),
+    ) => {
   let is_multi_line =
     user_newlines
     |> Opt.map_default(
          ~default=false,
          Model.user_entered_newline_at(steps @ [2]),
        )
-    |> (user_newline => user_newline || is_multi_line(sdef));
-  let slines = [
-    mk_SLine(
-      ~steps_of_first_sword=steps,
-      [SToken(mk_SDelim(~index=0, "let")), SToken(SSpace), SNode(sp)]
-      @ (
-        switch (sann) {
-        | None => []
-        | Some(sann) => [
+    |> (
+      user_newline =>
+        user_newline
+        || is_multi_line(
+             switch (sdef) {
+             | NotDeferred(sdef) => sdef
+             | Deferred(deferred_sdef) => 0 |> deferred_sdef
+             },
+           )
+    );
+  let deferrable_slines =
+    switch (sp, sdef) {
+    | (NotDeferred(sp), NotDeferred(sdef)) =>
+      NotDeferred([
+        mk_SLine(
+          ~steps_of_first_sword=steps,
+          [SToken(mk_SDelim(~index=0, "let")), SToken(SSpace), SNode(sp)]
+          @ (
+            switch (sann) {
+            | None => []
+            | Some(sann) => [
+                SToken(SSpace),
+                SToken(mk_SDelim(~index=1, ":")),
+                SToken(SSpace),
+                SNode(sann),
+              ]
+            }
+          )
+          @ [
             SToken(SSpace),
-            SToken(mk_SDelim(~index=1, ":")),
+            SToken(mk_SDelim(~index=2, "=")),
             SToken(SSpace),
-            SNode(sann),
-          ]
-        }
+          ],
+        ),
+        mk_SLine(~rel_indent=1, [SNode(sdef)]),
+        mk_SLine(
+          is_multi_line
+            ? [SToken(mk_SDelim(~index=3, "in"))]
+            : [SToken(SSpace), SToken(mk_SDelim(~index=3, "in"))],
+        ),
+      ])
+    | (Deferred(sp), NotDeferred(sdef)) =>
+      Deferred(
+        count =>
+          [
+            mk_SLine(
+              ~steps_of_first_sword=steps,
+              [
+                SToken(mk_SDelim(~index=0, "let")),
+                SToken(SSpace),
+                SNode(count |> sp),
+              ]
+              @ (
+                switch (sann) {
+                | None => []
+                | Some(sann) => [
+                    SToken(SSpace),
+                    SToken(mk_SDelim(~index=1, ":")),
+                    SToken(SSpace),
+                    SNode(sann),
+                  ]
+                }
+              )
+              @ [
+                SToken(SSpace),
+                SToken(mk_SDelim(~index=2, "=")),
+                SToken(SSpace),
+              ],
+            ),
+            mk_SLine(~rel_indent=1, [SNode(sdef)]),
+            mk_SLine(
+              is_multi_line
+                ? [SToken(mk_SDelim(~index=3, "in"))]
+                : [SToken(SSpace), SToken(mk_SDelim(~index=3, "in"))],
+            ),
+          ],
       )
-      @ [SToken(SSpace), SToken(mk_SDelim(~index=2, "=")), SToken(SSpace)],
-    ),
-    mk_SLine(~rel_indent=1, [SNode(sdef)]),
-    mk_SLine(
-      is_multi_line
-        ? [SToken(mk_SDelim(~index=3, "in"))]
-        : [SToken(SSpace), SToken(mk_SDelim(~index=3, "in"))],
-    ),
-  ];
-  mk_SBox(~steps, ~shape=LetLine, ~is_multi_line, slines);
+    | (NotDeferred(sp), Deferred(sdef)) =>
+      Deferred(
+        count =>
+          [
+            mk_SLine(
+              ~steps_of_first_sword=steps,
+              [
+                SToken(mk_SDelim(~index=0, "let")),
+                SToken(SSpace),
+                SNode(sp),
+              ]
+              @ (
+                switch (sann) {
+                | None => []
+                | Some(sann) => [
+                    SToken(SSpace),
+                    SToken(mk_SDelim(~index=1, ":")),
+                    SToken(SSpace),
+                    SNode(sann),
+                  ]
+                }
+              )
+              @ [
+                SToken(SSpace),
+                SToken(mk_SDelim(~index=2, "=")),
+                SToken(SSpace),
+              ],
+            ),
+            mk_SLine(~rel_indent=1, [SNode(count |> sdef)]),
+            mk_SLine(
+              is_multi_line
+                ? [SToken(mk_SDelim(~index=3, "in"))]
+                : [SToken(SSpace), SToken(mk_SDelim(~index=3, "in"))],
+            ),
+          ],
+      )
+    | (Deferred(_), Deferred(_)) => assert(false)
+    };
+  switch (deferrable_slines) {
+  | NotDeferred(slines) =>
+    NotDeferred(mk_SBox(~steps, ~shape=LetLine, ~is_multi_line, slines))
+  | Deferred(deferred_slines) =>
+    Deferred(
+      count =>
+        mk_SBox(
+          ~steps,
+          ~shape=LetLine,
+          ~is_multi_line,
+          count |> deferred_slines,
+        ),
+    )
+  };
 };
 
 let snode_of_Parenthesized =
@@ -1696,14 +1832,32 @@ let snode_of_Case =
         SNode(sscrut),
       ],
     );
+  /* understand why right-hand side of let rec is not allowed
+     let rec srules_is_deferred = switch (srules) {
+     | [] => false
+     | [srule, ...tail] => switch (srule) {
+       | NotDeferred(_) => srules_is_deferred(tail)
+       | Deferred(_) => true
+       }
+     };*/
+  /* TODO: delete
+     let srules_is_deferred =
+       srules
+       |> List.find_opt(snode =>
+            switch (snode) {
+            | NotDeferred(_) => false
+            | Deferred(_) => true
+            }
+          );
+          */
   let slines_rules =
     srules
-    |> List.map(snode =>
+    |> List.map(snode => {
          mk_SLine(
            ~steps_of_first_sword=steps_of_snode(snode),
            [SNode(snode)],
          )
-       );
+       });
   let sline_end =
     switch (sann) {
     | None =>
@@ -2007,14 +2161,18 @@ and snode_of_line_item =
     )
   | ExpLine(e) => snode_of_exp(~user_newlines?, ~steps, e) /* ghost node */
   | LetLine(p, ann, def) =>
-    let sp = snode_of_pat(~steps=steps @ [0], p);
+    let sp = NotDeferred(snode_of_pat(~steps=steps @ [0], p));
     let sann =
       switch (ann) {
       | None => None
       | Some(ann) => Some(snode_of_typ(~steps=steps @ [1], ann))
       };
-    let sdef = snode_of_block(~user_newlines?, ~steps=steps @ [2], def);
-    snode_of_LetLine(~user_newlines?, ~steps, sp, sann, sdef);
+    let sdef =
+      NotDeferred(snode_of_block(~user_newlines?, ~steps=steps @ [2], def));
+    switch (snode_of_LetLine(~user_newlines?, ~steps, sp, sann, sdef)) {
+    | NotDeferred(snode) => snode
+    | Deferred(_) => assert(false)
+    };
   }
 and snode_of_exp =
     (
@@ -2138,7 +2296,8 @@ and snode_of_rule =
       ~user_newlines: option(Model.user_newlines)=?,
       ~steps: CursorPath.steps,
       Rule(p, clause): UHExp.rule,
-    ) => {
+    )
+    : snode => {
   let sp = snode_of_pat(~steps=steps @ [0], p);
   let sclause = snode_of_block(~user_newlines?, ~steps=steps @ [1], clause);
   snode_of_Rule(~user_newlines?, ~steps, sp, sclause);
@@ -2202,17 +2361,45 @@ let rec snode_of_ztyp = (~steps: CursorPath.steps, zty: ZTyp.t): snode =>
     snode_of_OpSeq(~steps, shead, stail);
   };
 
+let extend_deferrable =
+    (deferrable: deferrable('a), func: 'a => 'b): deferrable('b) =>
+  switch (deferrable) {
+  | NotDeferred(snode) => NotDeferred(func(snode))
+  | Deferred(deferred_snode) =>
+    Deferred(count => func(count |> deferred_snode))
+  };
+
 let rec snode_of_zpat =
         (~ap_err_status=NotInApHole, ~steps: CursorPath.steps, zp: ZPat.t)
-        : snode =>
+        : deferrable(snode) =>
   switch (zp) {
-  | CursorP(_, p) => snode_of_pat(~steps, p)
+  | CursorP(_, Var(err, var_err, x)) =>
+    Deferred(
+      count =>
+        mk_SBox(
+          ~ap_err_status,
+          ~err,
+          ~steps,
+          ~shape=Var,
+          [
+            mk_SLine(
+              ~steps_of_first_sword=steps,
+              [SToken(mk_STextWithBadge(~var_err, x, count))],
+            ),
+          ],
+        ),
+    )
+  | CursorP(_, p) => NotDeferred(snode_of_pat(~steps, p))
   | ParenthesizedZ(zbody) =>
     let szbody = snode_of_zpat(~steps=steps @ [0], zbody);
-    snode_of_Parenthesized(~ap_err_status, ~steps, szbody);
+    extend_deferrable(szbody, szbody =>
+      snode_of_Parenthesized(~ap_err_status, ~steps, szbody)
+    );
   | InjZ(err, side, zbody) =>
     let szbody = snode_of_zpat(~steps=steps @ [0], zbody);
-    snode_of_Inj(~ap_err_status, ~err, ~steps, side, szbody);
+    extend_deferrable(szbody, szbody =>
+      snode_of_Inj(~ap_err_status, ~err, ~steps, side, szbody)
+    );
   | OpSeqZ(skel, ztm, surround) =>
     let seq =
       OperatorSeq.opseq_of_exp_and_surround(ZPat.erase(ztm), surround);
@@ -2220,14 +2407,22 @@ let rec snode_of_zpat =
     let snode_of_tm_or_ztm = (~ap_err_status=NotInApHole, k, tm) => {
       k == OperatorSeq.surround_prefix_length(surround)
         ? snode_of_zpat(~ap_err_status, ~steps=steps @ [k], ztm)
-        : snode_of_pat(~ap_err_status, ~steps=steps @ [k], tm);
+        : NotDeferred(snode_of_pat(~ap_err_status, ~steps=steps @ [k], tm));
     };
     let shead: spaced_stms = {
       let (ap_err_status, hd, hd_args) = head;
       (
-        snode_of_tm_or_ztm(~ap_err_status, 0, hd),
+        switch (snode_of_tm_or_ztm(~ap_err_status, 0, hd)) {
+        | NotDeferred(snode) => snode
+        | Deferred(_) => assert(false)
+        },
         hd_args
-        |> List.mapi((i, hd_arg) => snode_of_tm_or_ztm(i + 1, hd_arg)),
+        |> List.mapi((i, hd_arg) =>
+             switch (snode_of_tm_or_ztm(i + 1, hd_arg)) {
+             | NotDeferred(snode) => snode
+             | Deferred(_) => assert(false)
+             }
+           ),
       );
     };
     let tail_start = List.length(shead |> snd) + 1;
@@ -2235,7 +2430,7 @@ let rec snode_of_zpat =
       tail
       |> List.fold_left(
            (
-             (k: int, stail: list((op_stokens, spaced_stms))),
+             (k: int, stail: deferrable(list((op_stokens, spaced_stms)))),
              (err, op, spaced_tms),
            ) => {
              let (space_before, space_after) = space_before_after_op_pat(op);
@@ -2249,18 +2444,51 @@ let rec snode_of_zpat =
                );
              let (ap_err_status, tm, args) = spaced_tms;
              let stm = snode_of_tm_or_ztm(~ap_err_status, k, tm);
+             JSUtil.log_sexp(UHPat.sexp_of_t(tm));
              let (k, sargs) =
                args
                |> List.fold_left(
                     ((k: int, sargs: list(snode)), arg) =>
-                      (k + 1, sargs @ [snode_of_tm_or_ztm(k, arg)]),
+                      (
+                        k + 1,
+                        sargs
+                        @ [
+                          switch (snode_of_tm_or_ztm(k, arg)) {
+                          | NotDeferred(snode) => snode
+                          | Deferred(snode) =>
+                            JSUtil.log_sexp(sexp_of_snode(0 |> snode));
+                            assert(false);
+                          },
+                        ],
+                      ),
                     (k + 1, []),
                   );
-             (k, stail @ [(op_stokens, (stm, sargs))]);
+             switch (stail, stm) {
+             | (NotDeferred(stail), NotDeferred(stm)) => (
+                 k,
+                 NotDeferred(stail @ [(op_stokens, (stm, sargs))]),
+               )
+             | (NotDeferred(stail), Deferred(deferred_stm)) => (
+                 k,
+                 Deferred(
+                   count =>
+                     stail @ [(op_stokens, (count |> deferred_stm, sargs))],
+                 ),
+               )
+             | (Deferred(deferred_stail), NotDeferred(stm)) => (
+                 k,
+                 Deferred(
+                   count =>
+                     (count |> deferred_stail)
+                     @ [(op_stokens, (stm, sargs))],
+                 ),
+               )
+             | (Deferred(_), Deferred(_)) => assert(false)
+             };
            },
-           (tail_start, []),
+           (tail_start, NotDeferred([])),
          );
-    snode_of_OpSeq(~steps, shead, stail);
+    extend_deferrable(stail, stail => snode_of_OpSeq(~steps, shead, stail));
   };
 
 let rec snode_of_zblock =
@@ -2269,7 +2497,7 @@ let rec snode_of_zblock =
           ~steps: CursorPath.steps=[],
           zblock: ZExp.zblock,
         )
-        : snode =>
+        : deferrable(snode) =>
   switch (zblock) {
   | BlockZL((prefix, zline_item, suffix), e) =>
     let sprefix =
@@ -2311,20 +2539,22 @@ let rec snode_of_zblock =
           )
         }
       );
-    mk_SBox(
-      ~steps,
-      ~shape=Block(has_skinny_concluding_let_line),
-      ~is_multi_line=ZExp.is_multi_line(zblock),
-      sprefix
-      @ [szline_item]
-      @ ssuffix
-      @ [se]
-      |> List.map(snode =>
-           mk_SLine(
-             ~steps_of_first_sword=steps_of_snode(snode),
-             [SNode(snode)],
-           )
-         ),
+    extend_deferrable(szline_item, szline_item =>
+      mk_SBox(
+        ~steps,
+        ~shape=Block(has_skinny_concluding_let_line),
+        ~is_multi_line=ZExp.is_multi_line(zblock),
+        sprefix
+        @ [szline_item]
+        @ ssuffix
+        @ [se]
+        |> List.map(snode =>
+             mk_SLine(
+               ~steps_of_first_sword=steps_of_snode(snode),
+               [SNode(snode)],
+             )
+           ),
+      )
     );
   | BlockZE(line_items, ze) =>
     let sline_items =
@@ -2352,18 +2582,20 @@ let rec snode_of_zblock =
           )
         }
       );
-    mk_SBox(
-      ~steps,
-      ~shape=Block(has_skinny_concluding_let_line),
-      ~is_multi_line=ZExp.is_multi_line(zblock),
-      sline_items
-      @ [sze]
-      |> List.map(snode =>
-           mk_SLine(
-             ~steps_of_first_sword=steps_of_snode(snode),
-             [SNode(snode)],
-           )
-         ),
+    extend_deferrable(sze, sze =>
+      mk_SBox(
+        ~steps,
+        ~shape=Block(has_skinny_concluding_let_line),
+        ~is_multi_line=ZExp.is_multi_line(zblock),
+        sline_items
+        @ [sze]
+        |> List.map(snode =>
+             mk_SLine(
+               ~steps_of_first_sword=steps_of_snode(snode),
+               [SNode(snode)],
+             )
+           ),
+      )
     );
   }
 and snode_of_zline_item =
@@ -2372,9 +2604,10 @@ and snode_of_zline_item =
       ~steps: CursorPath.steps,
       zli: ZExp.zline,
     )
-    : snode =>
+    : deferrable(snode) =>
   switch (zli) {
-  | CursorL(_, li) => snode_of_line_item(~user_newlines?, ~steps, li)
+  | CursorL(_, li) =>
+    NotDeferred(snode_of_line_item(~user_newlines?, ~steps, li))
   | ExpLineZ(ze) => snode_of_zexp(~user_newlines?, ~steps, ze)
   | LetLineZP(zp, ann, def) =>
     let szp = snode_of_zpat(~steps=steps @ [0], zp);
@@ -2383,15 +2616,17 @@ and snode_of_zline_item =
       | None => None
       | Some(ann) => Some(snode_of_typ(~steps=steps @ [1], ann))
       };
-    let sdef = snode_of_block(~user_newlines?, ~steps=steps @ [2], def);
+    let sdef =
+      NotDeferred(snode_of_block(~user_newlines?, ~steps=steps @ [2], def));
     snode_of_LetLine(~user_newlines?, ~steps, szp, sann, sdef);
   | LetLineZA(p, zann, def) =>
-    let sp = snode_of_pat(~steps=steps @ [0], p);
+    let sp = NotDeferred(snode_of_pat(~steps=steps @ [0], p));
     let szann = snode_of_ztyp(~steps=steps @ [1], zann);
-    let sdef = snode_of_block(~user_newlines?, ~steps=steps @ [2], def);
+    let sdef =
+      NotDeferred(snode_of_block(~user_newlines?, ~steps=steps @ [2], def));
     snode_of_LetLine(~user_newlines?, ~steps, sp, Some(szann), sdef);
   | LetLineZE(p, ann, zdef) =>
-    let sp = snode_of_pat(~steps=steps @ [0], p);
+    let sp = NotDeferred(snode_of_pat(~steps=steps @ [0], p));
     let sann =
       switch (ann) {
       | None => None
@@ -2406,24 +2641,50 @@ and snode_of_zexp =
       ~ap_err_status=NotInApHole,
       ~steps: CursorPath.steps,
       ze: ZExp.t,
-    ) =>
+    )
+    : deferrable(snode) =>
   switch (ze) {
-  | CursorE(_, e) => snode_of_exp(~user_newlines?, ~steps, e)
+  | CursorE(_, e) => NotDeferred(snode_of_exp(~user_newlines?, ~steps, e))
   | ParenthesizedZ(zbody) =>
     let szbody = snode_of_zblock(~user_newlines?, ~steps=steps @ [0], zbody);
-    snode_of_Parenthesized(~user_newlines?, ~ap_err_status, ~steps, szbody);
+    switch (szbody) {
+    | NotDeferred(szbody) =>
+      NotDeferred(
+        snode_of_Parenthesized(
+          ~user_newlines?,
+          ~ap_err_status,
+          ~steps,
+          szbody,
+        ),
+      )
+    | Deferred(szbody) =>
+      Deferred(
+        count =>
+          snode_of_Parenthesized(
+            ~user_newlines?,
+            ~ap_err_status,
+            ~steps,
+            count |> szbody,
+          ),
+      )
+    };
   | OpSeqZ(skel, ztm, surround) =>
     let seq =
       OperatorSeq.opseq_of_exp_and_surround(ZExp.erase(ztm), surround);
     let (head, tail) = partition_into_spaced_tms_exp(skel, seq);
     let snode_of_tm_or_ztm = (~ap_err_status=NotInApHole, k, tm) => {
       k == OperatorSeq.surround_prefix_length(surround)
-        ? snode_of_zexp(
-            ~user_newlines?,
-            ~ap_err_status,
-            ~steps=steps @ [k],
-            ztm,
-          )
+        ? switch (
+            snode_of_zexp(
+              ~user_newlines?,
+              ~ap_err_status,
+              ~steps=steps @ [k],
+              ztm,
+            )
+          ) {
+          | NotDeferred(snode_of_zexp) => snode_of_zexp
+          | Deferred(_) => assert(false)
+          }
         : snode_of_exp(
             ~user_newlines?,
             ~ap_err_status,
@@ -2469,7 +2730,7 @@ and snode_of_zexp =
            },
            (tail_start, []),
          );
-    snode_of_OpSeq(~steps, shead, stail);
+    NotDeferred(snode_of_OpSeq(~steps, shead, stail));
   | LamZP(err, zarg, ann, body) =>
     let szarg = snode_of_zpat(~steps=steps @ [0], zarg);
     let sann =
@@ -2478,27 +2739,47 @@ and snode_of_zexp =
       | Some(ann) => Some(snode_of_typ(~steps=steps @ [1], ann))
       };
     let sbody = snode_of_block(~user_newlines?, ~steps=steps @ [2], body);
-    snode_of_Lam(
-      ~user_newlines?,
-      ~ap_err_status,
-      ~steps,
-      ~err,
-      szarg,
-      sann,
-      sbody,
-    );
+    switch (szarg) {
+    | NotDeferred(szarg) =>
+      NotDeferred(
+        snode_of_Lam(
+          ~user_newlines?,
+          ~ap_err_status,
+          ~steps,
+          ~err,
+          szarg,
+          sann,
+          sbody,
+        ),
+      )
+    | Deferred(deferred_szarg) =>
+      Deferred(
+        count =>
+          snode_of_Lam(
+            ~user_newlines?,
+            ~ap_err_status,
+            ~steps,
+            ~err,
+            count |> deferred_szarg,
+            sann,
+            sbody,
+          ),
+      )
+    };
   | LamZA(err, arg, zann, body) =>
     let sarg = snode_of_pat(~steps=steps @ [0], arg);
     let szann = snode_of_ztyp(~steps=steps @ [1], zann);
     let sbody = snode_of_block(~user_newlines?, ~steps=steps @ [2], body);
-    snode_of_Lam(
-      ~user_newlines?,
-      ~ap_err_status,
-      ~steps,
-      ~err,
-      sarg,
-      Some(szann),
-      sbody,
+    NotDeferred(
+      snode_of_Lam(
+        ~user_newlines?,
+        ~ap_err_status,
+        ~steps,
+        ~err,
+        sarg,
+        Some(szann),
+        sbody,
+      ),
     );
   | LamZE(err, arg, ann, zbody) =>
     let sarg = snode_of_pat(~steps=steps @ [0], arg);
@@ -2508,18 +2789,60 @@ and snode_of_zexp =
       | Some(ann) => Some(snode_of_typ(~steps=steps @ [1], ann))
       };
     let szbody = snode_of_zblock(~user_newlines?, ~steps=steps @ [2], zbody);
-    snode_of_Lam(
-      ~user_newlines?,
-      ~ap_err_status,
-      ~steps,
-      ~err,
-      sarg,
-      sann,
-      szbody,
-    );
+    switch (szbody) {
+    | NotDeferred(szbody) =>
+      NotDeferred(
+        snode_of_Lam(
+          ~user_newlines?,
+          ~ap_err_status,
+          ~steps,
+          ~err,
+          sarg,
+          sann,
+          szbody,
+        ),
+      )
+    | Deferred(deferred_szbody) =>
+      Deferred(
+        count =>
+          snode_of_Lam(
+            ~user_newlines?,
+            ~ap_err_status,
+            ~steps,
+            ~err,
+            sarg,
+            sann,
+            count |> deferred_szbody,
+          ),
+      )
+    };
   | InjZ(err, side, zbody) =>
     let szbody = snode_of_zblock(~user_newlines?, ~steps=steps @ [0], zbody);
-    snode_of_Inj(~user_newlines?, ~ap_err_status, ~err, ~steps, side, szbody);
+    switch (szbody) {
+    | NotDeferred(szbody) =>
+      NotDeferred(
+        snode_of_Inj(
+          ~user_newlines?,
+          ~ap_err_status,
+          ~err,
+          ~steps,
+          side,
+          szbody,
+        ),
+      )
+    | Deferred(deferred_szbody) =>
+      Deferred(
+        count =>
+          snode_of_Inj(
+            ~user_newlines?,
+            ~ap_err_status,
+            ~err,
+            ~steps,
+            side,
+            count |> deferred_szbody,
+          ),
+      )
+    };
   | CaseZE(err, zscrut, rules, ann) =>
     let szscrut =
       snode_of_zblock(~user_newlines?, ~steps=steps @ [0], zscrut);
@@ -2534,40 +2857,61 @@ and snode_of_zexp =
       | Some(ann) =>
         Some(snode_of_typ(~steps=steps @ [List.length(rules) + 1], ann))
       };
-    snode_of_Case(~err, ~steps, szscrut, srules, sann);
+    extend_deferrable(szscrut, szscrut =>
+      snode_of_Case(~err, ~steps, szscrut, srules, sann)
+    );
   | CaseZR(err, scrut, (prefix, zrule, suffix), ann) =>
     let sscrut = snode_of_block(~user_newlines?, ~steps=steps @ [0], scrut);
+    let szrule =
+      snode_of_zrule(
+        ~user_newlines?,
+        ~steps=steps @ [List.length(prefix) + 1],
+        zrule,
+      );
     let szrules =
-      (
-        prefix
-        |> List.mapi((i, rule) =>
-             snode_of_rule(~user_newlines?, ~steps=steps @ [i + 1], rule)
-           )
-      )
-      @ [
-        snode_of_zrule(
-          ~user_newlines?,
-          ~steps=steps @ [List.length(prefix) + 1],
-          zrule,
-        ),
-      ]
-      @ (
-        suffix
-        |> List.mapi((i, rule) =>
-             snode_of_rule(
-               ~user_newlines?,
-               ~steps=steps @ [i + List.length(prefix) + 2],
-               rule,
+      extend_deferrable(szrule, szrule =>
+        (
+          prefix
+          |> List.mapi((i, rule) =>
+               snode_of_rule(~user_newlines?, ~steps=steps @ [i + 1], rule)
              )
-           )
+        )
+        @ [szrule]
+        @ (
+          suffix
+          |> List.mapi((i, rule) =>
+               snode_of_rule(
+                 ~user_newlines?,
+                 ~steps=steps @ [i + List.length(prefix) + 2],
+                 rule,
+               )
+             )
+        )
       );
     let sann =
       switch (ann) {
       | None => None
       | Some(ann) =>
-        Some(snode_of_typ(~steps=steps @ [List.length(szrules) + 1], ann))
+        Some(
+          snode_of_typ(
+            ~steps=
+              steps
+              @ [
+                List.length(
+                  switch (szrules) {
+                  | NotDeferred(szrules) => szrules
+                  | Deferred(deferred_szrules) => 0 |> deferred_szrules
+                  },
+                )
+                + 1,
+              ],
+            ann,
+          ),
+        )
       };
-    snode_of_Case(~err, ~steps, sscrut, szrules, sann);
+    extend_deferrable(szrules, szrules =>
+      snode_of_Case(~err, ~steps, sscrut, szrules, sann)
+    );
   | CaseZA(err, scrut, rules, zann) =>
     let sscrut = snode_of_block(~user_newlines?, ~steps=steps @ [0], scrut);
     let srules =
@@ -2577,23 +2921,51 @@ and snode_of_zexp =
          );
     let szann =
       snode_of_ztyp(~steps=steps @ [List.length(rules) + 1], zann);
-    snode_of_Case(~err, ~steps, sscrut, srules, Some(szann));
+    NotDeferred(snode_of_Case(~err, ~steps, sscrut, srules, Some(szann)));
   | ApPaletteZ(_, _, _, _) => raise(InvariantViolated)
   }
 and snode_of_zrule =
-    (~user_newlines: option(Model.user_newlines)=?, ~steps, zrule) =>
+    (~user_newlines: option(Model.user_newlines)=?, ~steps, zrule)
+    : deferrable(snode) =>
   switch (zrule) {
-  | CursorR(_, rule) => snode_of_rule(~user_newlines?, ~steps, rule)
+  | CursorR(_, rule) =>
+    NotDeferred(snode_of_rule(~user_newlines?, ~steps, rule))
   | RuleZP(zp, clause) =>
     let sp = snode_of_zpat(~steps=steps @ [0], zp);
     let sclause =
       snode_of_block(~user_newlines?, ~steps=steps @ [1], clause);
-    snode_of_Rule(~user_newlines?, ~steps, sp, sclause);
+    switch (sp) {
+    | NotDeferred(sp) =>
+      NotDeferred(snode_of_Rule(~user_newlines?, ~steps, sp, sclause))
+    | Deferred(deferred_sp) =>
+      Deferred(
+        count =>
+          snode_of_Rule(
+            ~user_newlines?,
+            ~steps,
+            count |> deferred_sp,
+            sclause,
+          ),
+      )
+    };
   | RuleZE(p, zclause) =>
     let sp = snode_of_pat(~steps=steps @ [0], p);
     let sclause =
       snode_of_zblock(~user_newlines?, ~steps=steps @ [1], zclause);
-    snode_of_Rule(~user_newlines?, ~steps, sp, sclause);
+    switch (sclause) {
+    | NotDeferred(sclause) =>
+      NotDeferred(snode_of_Rule(~user_newlines?, ~steps, sp, sclause))
+    | Deferred(deferred_sclause) =>
+      Deferred(
+        count =>
+          snode_of_Rule(
+            ~user_newlines?,
+            ~steps,
+            sp,
+            count |> deferred_sclause,
+          ),
+      )
+    };
   };
 
 let view_of_zblock =
@@ -2601,9 +2973,20 @@ let view_of_zblock =
       ~inject: Update.Action.t => Vdom.Event.t,
       ~user_newlines,
       zblock: ZExp.zblock,
+      cursor_info: CursorInfo.t,
     )
     : Vdom.Node.t => {
-  view_of_snode(~inject, snode_of_zblock(~user_newlines, zblock));
+  let snode =
+    switch (snode_of_zblock(~user_newlines, zblock)) {
+    | NotDeferred(snode) => snode
+    | Deferred(deferred_snode) =>
+      switch (cursor_info.node) {
+      | Pat(VarPat(_, uses_list)) =>
+        List.length(uses_list) |> deferred_snode
+      | _ => assert(false)
+      }
+    };
+  view_of_snode(~inject, snode);
 };
 
 let view_of_block =

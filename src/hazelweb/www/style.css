@@ -809,6 +809,21 @@ button:disabled {
   white-space: pre;
 }
 
+.SText[num-of-uses]:after {
+  content:attr(num-of-uses);
+  position:absolute;
+  top:-10px;
+  right:-10px;
+  font-size:.7em;
+  background:green;
+  color:white;
+  width:15px;height:15px;
+  text-align:center;
+  line-height:18px;
+  border-radius:50%;
+  box-shadow:0 0 1px #333;
+}
+
 .term-indicator {
   position: absolute;
   z-index: var(--term-indicator-z-index);
