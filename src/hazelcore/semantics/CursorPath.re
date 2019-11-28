@@ -86,7 +86,7 @@ let next_hole_steps = (zhole_list: zhole_list): option(steps) => {
   };
 };
 
-let follow_opseq =
+let _follow_opseq =
     (
       ~follow_operand: (t, 'operand) => option('zoperand),
       ~follow_operator: (t, 'operator) => option('zoperator),
@@ -117,7 +117,7 @@ let follow_opseq =
     }
   };
 
-let follow_steps_opseq =
+let _follow_steps_opseq =
     (
       ~follow_steps_operand:
          (~side: Side.t, steps, 'operand) => option('zoperand),
@@ -424,7 +424,9 @@ module Typ = {
    */
 
   let rec follow = (path: t, uty: UHTyp.t): option(ZTyp.t) =>
-    follow_opseq(~follow_operand, ~follow_operator, path, uty)
+    follow_opseq(path, uty)
+  and follow_opseq = (path: t, opseq: UHTyp.opseq): option(ZTyp.zopseq) =>
+    _follow_opseq(~follow_operand, ~follow_operator, path, opseq)
   and follow_operand =
       ((steps, cursor): t, operand: UHTyp.operand): option(ZTyp.zoperand) =>
     switch (steps) {
@@ -460,12 +462,15 @@ module Typ = {
 
   let rec follow_steps =
           (~side: Side.t=Before, steps: steps, uty: UHTyp.t): option(ZTyp.t) =>
-    follow_steps_opseq(
+    follow_steps_opseq(~side, steps, uty)
+  and follow_steps_opseq =
+      (~side: Side.t, steps: steps, opseq: UHTyp.opseq): option(ZTyp.zopseq) =>
+    _follow_steps_opseq(
       ~follow_steps_operand,
       ~follow_steps_operator,
       ~side,
       steps,
-      uty,
+      opseq,
     )
   and follow_steps_operand =
       (~side: Side.t, steps: steps, operand: UHTyp.operand)
@@ -569,7 +574,9 @@ module Pat = {
     | InjZ(_, _, zbody) => cons'(0, of_z(zbody));
 
   let rec follow = (path: t, p: UHPat.t): option(ZPat.t) =>
-    follow_opseq(~follow_operand, ~follow_operator, path, p)
+    follow_opseq(path, p)
+  and follow_opseq = (path: t, opseq: UHPat.opseq): option(ZPat.zopseq) =>
+    _follow_opseq(~follow_operand, ~follow_operator, path, opseq)
   and follow_operand =
       ((steps, cursor): t, operand: UHPat.operand): option(ZPat.zoperand) =>
     switch (steps) {
@@ -609,12 +616,15 @@ module Pat = {
 
   let rec follow_steps =
           (~side: Side.t=Before, steps: steps, p: UHPat.t): option(ZPat.t) =>
-    follow_steps_opseq(
+    follow_steps_opseq(~side, steps, p)
+  and follow_steps_opseq =
+      (~side: Side.t, steps: steps, opseq: UHPat.opseq): option(ZPat.zopseq) =>
+    _follow_steps_opseq(
       ~follow_steps_operand,
       ~follow_steps_operator,
       ~side,
       steps,
-      p,
+      opseq,
     )
   and follow_steps_operand =
       (~side: Side.t, steps: steps, operand: UHPat.operand)
@@ -848,8 +858,7 @@ module Exp = {
       ((steps, cursor) as path: t, line: UHExp.line): option(ZExp.zline) =>
     switch (steps, line) {
     | (_, ExpLine(opseq)) =>
-      follow_opseq(~follow_operand, ~follow_operator, path, opseq)
-      |> Opt.map(zopseq => ZExp.ExpLineZ(zopseq))
+      follow_opseq(path, opseq) |> Opt.map(zopseq => ZExp.ExpLineZ(zopseq))
     | ([], EmptyLine | LetLine(_, _, _)) =>
       line |> ZExp.place_cursor_line(cursor)
     | ([_, ..._], EmptyLine) => None
@@ -874,6 +883,8 @@ module Exp = {
       | _ => None
       }
     }
+  and follow_opseq = (path: t, opseq: UHExp.opseq): option(ZExp.zopseq) =>
+    _follow_opseq(~follow_operand, ~follow_operator, path, opseq)
   and follow_operator =
       ((steps, cursor): t, operator: UHExp.operator): option(ZExp.zoperator) =>
     switch (steps) {
@@ -1001,13 +1012,7 @@ module Exp = {
       (~side: Side.t, steps: steps, line: UHExp.line): option(ZExp.zline) =>
     switch (steps, line) {
     | (_, ExpLine(opseq)) =>
-      follow_steps_opseq(
-        ~follow_steps_operand,
-        ~follow_steps_operator,
-        ~side,
-        steps,
-        opseq,
-      )
+      follow_steps_opseq(~side, steps, opseq)
       |> Opt.map(zopseq => ZExp.ExpLineZ(zopseq))
     | ([], EmptyLine | LetLine(_, _, _)) =>
       switch (side) {
@@ -1036,6 +1041,15 @@ module Exp = {
       | _ => None
       }
     }
+  and follow_steps_opseq =
+      (~side: Side.t, steps: steps, opseq: UHExp.opseq): option(ZExp.zopseq) =>
+    _follow_steps_opseq(
+      ~follow_steps_operand,
+      ~follow_steps_operator,
+      ~side,
+      steps,
+      opseq,
+    )
   and follow_steps_operator =
       (~side: Side.t, steps: steps, operator: UHExp.operator)
       : option(ZExp.zoperator) =>
