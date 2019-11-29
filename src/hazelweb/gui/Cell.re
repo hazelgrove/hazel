@@ -389,6 +389,10 @@ let view =
                ),
           ],
         ),
+        Node.footer(
+          [Attr.id("bottom"), Attr.classes(["clamped--sticky"])],
+          [Node.text("")],
+        ),
       ],
     )
   );

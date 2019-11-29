@@ -298,6 +298,21 @@ let place_over_elem =
     (under_elem: Js.t(Dom_html.element), over_elem: Js.t(Dom_html.element)) =>
   over_elem |> place_over_rect(under_elem |> get_bounding_rect);
 
+let is_in_viewport = (elem: Js.t(Dom_html.element)) => {
+  let rect = elem##getBoundingClientRect;
+  rect##.top >= 0.0
+  &&
+  rect##.left >= 0.0
+  && Float.to_int(rect##.right)
+  <= Js.Optdef.get(Dom_html.window##.innerWidth, () =>
+       Dom_html.document##.documentElement##.clientWidth
+     )
+  && Float.to_int(rect##.bottom)
+  <= Js.Optdef.get(Dom_html.window##.innerHeight, () =>
+       Dom_html.document##.documentElement##.clientHeight
+     );
+};
+
 let get_key = (evt: Js.t(Dom_html.keyboardEvent)) =>
   Js.to_string(Js.Optdef.get(evt##.key, () => assert(false)));
 let get_code = (evt: Js.t(Dom_html.keyboardEvent)) =>

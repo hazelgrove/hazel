@@ -2414,7 +2414,16 @@ let rec snode_of_zpat =
       (
         switch (snode_of_tm_or_ztm(~ap_err_status, 0, hd)) {
         | NotDeferred(snode) => snode
-        | Deferred(_) => assert(false)
+        | Deferred(_) =>
+          let rec foo = args =>
+            switch (args) {
+            | [] => JSUtil.log("end")
+            | [arg, ...args] =>
+              JSUtil.log_sexp(UHPat.sexp_of_t(arg));
+              foo(args);
+            };
+          foo(hd_args);
+          assert(false);
         },
         hd_args
         |> List.mapi((i, hd_arg) =>
@@ -2444,7 +2453,6 @@ let rec snode_of_zpat =
                );
              let (ap_err_status, tm, args) = spaced_tms;
              let stm = snode_of_tm_or_ztm(~ap_err_status, k, tm);
-             JSUtil.log_sexp(UHPat.sexp_of_t(tm));
              let (k, sargs) =
                args
                |> List.fold_left(
@@ -2455,9 +2463,7 @@ let rec snode_of_zpat =
                         @ [
                           switch (snode_of_tm_or_ztm(k, arg)) {
                           | NotDeferred(snode) => snode
-                          | Deferred(snode) =>
-                            JSUtil.log_sexp(sexp_of_snode(0 |> snode));
-                            assert(false);
+                          | Deferred(_) => assert(false)
                           },
                         ],
                       ),

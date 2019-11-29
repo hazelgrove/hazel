@@ -1832,6 +1832,27 @@ let draw_SSeq_indicators = (~cursor_elem) => {
     ? draw_multi_line_seq_indicators() : draw_single_line_seq_indicators();
 };
 
+let update_footer = () => {
+  let var_pat_usage_elems =
+    Dom_html.document##getElementsByClassName(Js.string("var-pat-usage"))
+    |> Dom.list_of_nodeList;
+  let count =
+    var_pat_usage_elems
+    |> List.fold_left(
+         (count, elem) => {JSUtil.is_in_viewport(elem) ? count : count + 1},
+         0,
+       );
+  count == 0
+    ? ()
+    : JSUtil.force_get_elem_by_id("bottom")##.innerHTML :=
+        Js.string(Int.to_string(count) ++ " uses below");
+};
+
+let empty_footer = () => {
+  let footer = JSUtil.force_get_elem_by_id("bottom");
+  footer##.innerHTML := Js.string("");
+};
+
 let draw_SBox_indicators = (~ci: CursorInfo.t) => {
   let uses =
     switch (ci.node) {
@@ -1839,12 +1860,14 @@ let draw_SBox_indicators = (~ci: CursorInfo.t) => {
     | _ => []
     };
   draw_box_var_uses_indicator(~uses);
+  update_footer();
   draw_box_node_indicator();
   draw_box_term_indicator();
 };
 
 let draw = (~ci: CursorInfo.t) => {
   remove_box_var_uses_indicator();
+  empty_footer();
   let cursor_elem = Code.force_get_snode_elem(ci.node_steps);
   switch (ci.position) {
   | OnText(_)
