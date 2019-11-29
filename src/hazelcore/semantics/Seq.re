@@ -69,15 +69,15 @@ let seq_op_seq =
   S(hd1, affix_affix(tl1, A(op, seq2)));
 };
 
-let prefix_seq =
+let affix_seq =
     (prefix: affix('operand, 'operator), seq: t('operand, 'operator))
     : t('operand, 'operator) =>
   switch (prefix) {
   | E => seq
-  | A(op, prefix_seq) => seq_op_seq(prefix_seq |> rev, op, seq)
+  | A(op, affix_seq) => seq_op_seq(affix_seq |> rev, op, seq)
   };
 
-let seq_suffix =
+let seq_affix =
     (seq: t('operand, 'operator), suffix: affix('operand, 'operator))
     : t('operand, 'operator) =>
   switch (suffix) {
@@ -215,7 +215,7 @@ let rec opt_split_nth_operator =
     seq
     |> opt_split_nth_operator(n - 1)
     |> Opt.map(((found, (prefix, suffix))) =>
-         (found, (seq_suffix(prefix, A(op, S(hd, E))), suffix))
+         (found, (seq_affix(prefix, A(op, S(hd, E))), suffix))
        )
   };
 let split_nth_operator =
@@ -241,7 +241,7 @@ let t_of_operand_and_surround =
       (prefix, suffix): operand_surround('operand, 'operator),
     )
     : t('operand, 'operator) =>
-  prefix_seq(prefix, S(operand, suffix));
+  affix_seq(prefix, S(operand, suffix));
 
 let t_of_operator_and_surround =
     (
@@ -249,4 +249,4 @@ let t_of_operator_and_surround =
       (prefix, suffix): operator_surround('operand, 'operator),
     )
     : t('operand, 'operator) =>
-  prefix_seq(A(operator, prefix), suffix);
+  affix_seq(A(operator, prefix), suffix);

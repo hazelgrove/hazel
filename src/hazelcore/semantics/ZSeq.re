@@ -15,10 +15,10 @@ let erase =
   switch (zseq) {
   | ZOperand(zoperand, (prefix, suffix)) =>
     let operand = zoperand |> erase_zoperand;
-    Seq.prefix_seq(prefix, S(operand, suffix));
+    Seq.affix_seq(prefix, S(operand, suffix));
   | ZOperator(zoperator, (prefix, suffix)) =>
     let operator = zoperator |> erase_zoperator;
-    Seq.seq_suffix(prefix, A(operator, suffix));
+    Seq.seq_affix(prefix, A(operator, suffix));
   };
 
 let is_before =

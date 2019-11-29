@@ -239,7 +239,7 @@ let holes_opseq =
     hs,
   );
 
-let holes_zopseq =
+let _holes_zopseq =
     (
       ~holes_operand: ('operand, rev_steps, hole_list) => hole_list,
       ~holes_zoperand: ('zoperand, rev_steps) => zhole_list,
@@ -552,18 +552,19 @@ module Typ = {
 
   let rec holes_z = (zty: ZTyp.t, rev_steps: rev_steps): zhole_list =>
     switch (zty) {
-    | ZT1(zt1) =>
-      holes_zopseq(
-        ~holes_operand,
-        ~holes_zoperand,
-        ~hole_desc,
-        ~is_space,
-        ~rev_steps,
-        ~erase_zopseq=ZTyp.erase_zopseq,
-        zt1,
-      )
-    | ZT0(zt0) => holes_zoperand(zt0, rev_steps)
+    | ZT1(zty1) => holes_zopseq(zty1, rev_steps)
+    | ZT0(zty0) => holes_zoperand(zty0, rev_steps)
     }
+  and holes_zopseq = (zopseq: ZTyp.zopseq, rev_steps: rev_steps): zhole_list =>
+    _holes_zopseq(
+      ~holes_operand,
+      ~holes_zoperand,
+      ~hole_desc,
+      ~is_space,
+      ~rev_steps,
+      ~erase_zopseq=ZTyp.erase_zopseq,
+      zopseq,
+    )
   and holes_zoperand =
       (zoperand: ZTyp.zoperand, rev_steps: rev_steps): zhole_list =>
     switch (zoperand) {
@@ -759,7 +760,7 @@ module Pat = {
   let rec holes_z = (zp: ZPat.t, rev_steps: rev_steps): zhole_list =>
     switch (zp) {
     | ZP1(zp1) =>
-      holes_zopseq(
+      _holes_zopseq(
         ~holes_operand,
         ~holes_zoperand,
         ~hole_desc,
@@ -1358,7 +1359,7 @@ module Exp = {
     switch (ze) {
     | ZE2(ze2) => holes_zblock(ze2, rev_steps)
     | ZE1(ze1) =>
-      holes_zopseq(
+      _holes_zopseq(
         ~holes_operand,
         ~holes_zoperand,
         ~hole_desc,
@@ -1428,7 +1429,7 @@ module Exp = {
       | _ => no_holes
       };
     | ExpLineZ(zopseq) =>
-      holes_zopseq(
+      _holes_zopseq(
         ~holes_operand,
         ~holes_zoperand,
         ~hole_desc,
