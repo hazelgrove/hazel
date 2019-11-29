@@ -11,7 +11,10 @@ module Pat = {
 
   let rec syn_expand =
           (ctx: Contexts.t, delta: Delta.t, p: UHPat.t): expand_result =>
-    syn_expand_opseq(ctx, delta, p)
+    switch (p) {
+    | P1(p1) => syn_expand_opseq(ctx, delta, p1)
+    | P0(p0) => syn_expand_operand(ctx, delta, p0)
+    }
   and syn_expand_opseq =
       (ctx: Contexts.t, delta: Delta.t, OpSeq(skel, seq): UHPat.opseq)
       : expand_result =>
@@ -126,7 +129,10 @@ module Pat = {
     }
   and ana_expand =
       (ctx: Contexts.t, delta: Delta.t, p: UHPat.t, ty: HTyp.t): expand_result =>
-    ana_expand_opseq(ctx, delta, p, ty)
+    switch (p) {
+    | P1(p1) => ana_expand_opseq(ctx, delta, p1, ty)
+    | P0(p0) => ana_expand_operand(ctx, delta, p0, ty)
+    }
   and ana_expand_opseq =
       (
         ctx: Contexts.t,
@@ -779,7 +785,11 @@ module Exp = {
 
   let rec syn_expand =
           (ctx: Contexts.t, delta: Delta.t, e: UHExp.t): expand_result =>
-    syn_expand_block(ctx, delta, e)
+    switch (e) {
+    | E2(e2) => syn_expand_block(ctx, delta, e2)
+    | E1(e1) => syn_expand_opseq(ctx, delta, e1)
+    | E0(e0) => syn_expand_operand(ctx, delta, e0)
+    }
   and syn_expand_block =
       (ctx: Contexts.t, delta: Delta.t, block: UHExp.block): expand_result =>
     switch (block |> UHExp.split_conclusion) {
@@ -1110,7 +1120,11 @@ module Exp = {
     }
   and ana_expand =
       (ctx: Contexts.t, delta: Delta.t, e: UHExp.t, ty: HTyp.t): expand_result =>
-    ana_expand_block(ctx, delta, e, ty)
+    switch (e) {
+    | E2(e2) => ana_expand_block(ctx, delta, e2, ty)
+    | E1(e1) => ana_expand_opseq(ctx, delta, e1, ty)
+    | E0(e0) => ana_expand_operand(ctx, delta, e0, ty)
+    }
   and ana_expand_block =
       (ctx: Contexts.t, delta: Delta.t, block: UHExp.block, ty: HTyp.t)
       : expand_result =>
@@ -1382,12 +1396,12 @@ module Exp = {
           Expands(d, ty, delta);
         };
       }
-    | Case(NotInHole, block, rules, Some(uty)) =>
+    | Case(NotInHole, scrut, rules, Some(uty)) =>
       let ty2 = UHTyp.expand(uty);
       switch (HTyp.consistent(ty, ty2)) {
       | false => DoesNotExpand
       | true =>
-        switch (syn_expand_block(ctx, delta, block)) {
+        switch (syn_expand(ctx, delta, scrut)) {
         | DoesNotExpand => DoesNotExpand
         | Expands(d1, ty1, delta) =>
           switch (ana_expand_rules(ctx, delta, rules, ty1, ty2)) {

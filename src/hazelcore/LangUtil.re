@@ -1,5 +1,5 @@
 exception InvalidSyntax(string);
-exception IllFormed(UHExp.block);
+exception IllFormed(UHExp.t);
 let string_of_side = (side: InjSide.t) =>
   switch (side) {
   | L => "L"

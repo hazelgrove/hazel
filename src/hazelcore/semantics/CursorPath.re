@@ -403,7 +403,10 @@ let holes_zopseq =
 };
 
 module Typ = {
-  let rec of_z = (zty: ZTyp.t): t => of_zopseq(~of_zoperand, zty)
+  let rec of_z: ZTyp.t => t =
+    fun
+    | ZT1(zt1) => of_zopseq(~of_zoperand, zt1)
+    | ZT0(zt0) => of_zoperand(zt0)
   and of_zoperand =
     fun
     | CursorT(cursor, _) => ([], cursor)
@@ -424,7 +427,10 @@ module Typ = {
    */
 
   let rec follow = (path: t, uty: UHTyp.t): option(ZTyp.t) =>
-    follow_opseq(path, uty)
+    switch (uty) {
+    | T1(t1) => follow_opseq(path, t1) |> Opt.map(z => ZTyp.ZT1(z))
+    | T0(t0) => follow_operand(path, t0) |> Opt.map(z => ZTyp.ZT0(z))
+    }
   and follow_opseq = (path: t, opseq: UHTyp.opseq): option(ZTyp.zopseq) =>
     _follow_opseq(~follow_operand, ~follow_operator, path, opseq)
   and follow_operand =
@@ -462,7 +468,13 @@ module Typ = {
 
   let rec follow_steps =
           (~side: Side.t=Before, steps: steps, uty: UHTyp.t): option(ZTyp.t) =>
-    follow_steps_opseq(~side, steps, uty)
+    switch (uty) {
+    | T1(t1) =>
+      follow_steps_opseq(~side, steps, t1) |> Opt.map(z => ZTyp.ZT1(z))
+    | T0(t0) =>
+      follow_steps_operand(~side, steps, t0) |> Opt.map(z => ZTyp.ZT0(z))
+    }
+
   and follow_steps_opseq =
       (~side: Side.t, steps: steps, opseq: UHTyp.opseq): option(ZTyp.zopseq) =>
     _follow_steps_opseq(
@@ -522,7 +534,11 @@ module Typ = {
 
   let rec holes =
           (uty: UHTyp.t, rev_steps: rev_steps, hs: hole_list): hole_list =>
-    holes_opseq(~holes_operand, ~hole_desc, ~is_space, ~rev_steps, uty, hs)
+    switch (uty) {
+    | T1(t1) =>
+      hs |> holes_opseq(~holes_operand, ~hole_desc, ~is_space, ~rev_steps, t1)
+    | T0(t0) => hs |> holes_operand(t0, rev_steps)
+    }
   and holes_operand =
       (operand: UHTyp.operand, rev_steps: rev_steps, hs: hole_list): hole_list =>
     switch (operand) {
@@ -535,15 +551,19 @@ module Typ = {
     };
 
   let rec holes_z = (zty: ZTyp.t, rev_steps: rev_steps): zhole_list =>
-    holes_zopseq(
-      ~holes_operand,
-      ~holes_zoperand,
-      ~hole_desc,
-      ~is_space,
-      ~rev_steps,
-      ~erase_zopseq=ZTyp.erase_zopseq,
-      zty,
-    )
+    switch (zty) {
+    | ZT1(zt1) =>
+      holes_zopseq(
+        ~holes_operand,
+        ~holes_zoperand,
+        ~hole_desc,
+        ~is_space,
+        ~rev_steps,
+        ~erase_zopseq=ZTyp.erase_zopseq,
+        zt1,
+      )
+    | ZT0(zt0) => holes_zoperand(zt0, rev_steps)
+    }
   and holes_zoperand =
       (zoperand: ZTyp.zoperand, rev_steps: rev_steps): zhole_list =>
     switch (zoperand) {
@@ -566,7 +586,10 @@ module Typ = {
 };
 
 module Pat = {
-  let rec of_z = (zp: ZPat.t): t => of_zopseq(~of_zoperand, zp)
+  let rec of_z: ZPat.t => t =
+    fun
+    | ZP1(zp1) => of_zopseq(~of_zoperand, zp1)
+    | ZP0(zp0) => of_zoperand(zp0)
   and of_zoperand =
     fun
     | CursorP(cursor, _) => ([], cursor)
@@ -574,7 +597,10 @@ module Pat = {
     | InjZ(_, _, zbody) => cons'(0, of_z(zbody));
 
   let rec follow = (path: t, p: UHPat.t): option(ZPat.t) =>
-    follow_opseq(path, p)
+    switch (p) {
+    | P1(p1) => follow_opseq(path, p1) |> Opt.map(z => ZPat.ZP1(z))
+    | P0(p0) => follow_operand(path, p0) |> Opt.map(z => ZPat.ZP0(z))
+    }
   and follow_opseq = (path: t, opseq: UHPat.opseq): option(ZPat.zopseq) =>
     _follow_opseq(~follow_operand, ~follow_operator, path, opseq)
   and follow_operand =
@@ -616,7 +642,12 @@ module Pat = {
 
   let rec follow_steps =
           (~side: Side.t=Before, steps: steps, p: UHPat.t): option(ZPat.t) =>
-    follow_steps_opseq(~side, steps, p)
+    switch (p) {
+    | P1(p1) =>
+      follow_steps_opseq(~side, steps, p1) |> Opt.map(z => ZPat.ZP1(z))
+    | P0(p0) =>
+      follow_steps_operand(~side, steps, p0) |> Opt.map(z => ZPat.ZP0(z))
+    }
   and follow_steps_opseq =
       (~side: Side.t, steps: steps, opseq: UHPat.opseq): option(ZPat.zopseq) =>
     _follow_steps_opseq(
@@ -683,14 +714,18 @@ module Pat = {
   let hole_desc = (u: MetaVar.t): hole_desc => PatHole(u);
 
   let rec holes = (p: UHPat.t, rev_steps: rev_steps, hs: hole_list): hole_list =>
-    holes_opseq(
-      ~holes_operand,
-      ~hole_desc,
-      ~is_space=UHPat.is_Space,
-      ~rev_steps,
-      p,
-      hs,
-    )
+    switch (p) {
+    | P1(p1) =>
+      hs
+      |> holes_opseq(
+           ~holes_operand,
+           ~hole_desc,
+           ~is_space=UHPat.is_Space,
+           ~rev_steps,
+           p1,
+         )
+    | P0(p0) => hs |> holes_operand(p0, rev_steps)
+    }
   and holes_operand =
       (operand: UHPat.operand, rev_steps: rev_steps, hs: hole_list): hole_list =>
     switch (operand) {
@@ -722,15 +757,19 @@ module Pat = {
     };
 
   let rec holes_z = (zp: ZPat.t, rev_steps: rev_steps): zhole_list =>
-    holes_zopseq(
-      ~holes_operand,
-      ~holes_zoperand,
-      ~hole_desc,
-      ~is_space=UHPat.is_Space,
-      ~rev_steps,
-      ~erase_zopseq=ZPat.erase_zopseq,
-      zp,
-    )
+    switch (zp) {
+    | ZP1(zp1) =>
+      holes_zopseq(
+        ~holes_operand,
+        ~holes_zoperand,
+        ~hole_desc,
+        ~is_space=UHPat.is_Space,
+        ~rev_steps,
+        ~erase_zopseq=ZPat.erase_zopseq,
+        zp1,
+      )
+    | ZP0(zp0) => holes_zoperand(zp0, rev_steps)
+    }
   and holes_zoperand =
       (zoperand: ZPat.zoperand, rev_steps: rev_steps): zhole_list =>
     switch (zoperand) {
@@ -801,7 +840,11 @@ module Pat = {
 };
 
 module Exp = {
-  let rec of_z = (ze: ZExp.t): t => of_zblock(ze)
+  let rec of_z: ZExp.t => t =
+    fun
+    | ZE2(ze2) => of_zblock(ze2)
+    | ZE1(ze1) => of_zopseq(~of_zoperand, ze1)
+    | ZE0(ze0) => of_zoperand(ze0)
   and of_zblock = (zblock: ZExp.zblock): t => {
     let prefix_len = ZList.prefix_length(zblock);
     let zline = ZList.prj_z(zblock);
@@ -812,18 +855,18 @@ module Exp = {
     | CursorL(cursor, _) => ([], cursor)
     | LetLineZP(zp, _, _) => cons'(0, Pat.of_z(zp))
     | LetLineZA(_, zann, _) => cons'(1, Typ.of_z(zann))
-    | LetLineZE(_, _, zblock) => cons'(2, of_zblock(zblock))
+    | LetLineZE(_, _, zdef) => cons'(2, of_z(zdef))
     | ExpLineZ(zopseq) => of_zopseq(~of_zoperand, zopseq)
     }
   and of_zoperand = (zoperand: ZExp.zoperand): t =>
     switch (zoperand) {
     | CursorE(cursor, _) => ([], cursor)
-    | ParenthesizedZ(zblock) => cons'(0, of_zblock(zblock))
+    | ParenthesizedZ(zbody) => cons'(0, of_z(zbody))
     | LamZP(_, zp, _, _) => cons'(0, Pat.of_z(zp))
     | LamZA(_, _, zann, _) => cons'(1, Typ.of_z(zann))
-    | LamZE(_, _, _, zblock) => cons'(2, of_zblock(zblock))
-    | InjZ(_, _, zblock) => cons'(0, of_zblock(zblock))
-    | CaseZE(_, zblock, _, _) => cons'(0, of_zblock(zblock))
+    | LamZE(_, _, _, zdef) => cons'(2, of_z(zdef))
+    | InjZ(_, _, zbody) => cons'(0, of_z(zbody))
+    | CaseZE(_, zscrut, _, _) => cons'(0, of_z(zscrut))
     | CaseZR(_, _, zrules, _) =>
       let prefix_len = List.length(ZList.prj_prefix(zrules));
       let zrule = ZList.prj_z(zrules);
@@ -832,17 +875,22 @@ module Exp = {
       cons'(List.length(rules) + 1, Typ.of_z(zann))
     | ApPaletteZ(_, _, _, zpsi) =>
       let zhole_map = zpsi.zsplice_map;
-      let (n, (_, zblock)) = ZNatMap.prj_z_kv(zhole_map);
-      cons'(n, of_zblock(zblock));
+      let (n, (_, ze)) = ZNatMap.prj_z_kv(zhole_map);
+      cons'(n, of_z(ze));
     }
   and of_zrule = (zrule: ZExp.zrule): t =>
     switch (zrule) {
     | CursorR(cursor, _) => ([], cursor)
     | RuleZP(zp, _) => cons'(0, Pat.of_z(zp))
-    | RuleZE(_, zblock) => cons'(1, of_zblock(zblock))
+    | RuleZE(_, zclause) => cons'(1, of_z(zclause))
     };
 
-  let rec follow = (path: t, e: UHExp.t) => follow_block(path, e)
+  let rec follow = (path: t, e: UHExp.t): option(ZExp.t) =>
+    switch (e) {
+    | E2(e2) => follow_block(path, e2) |> Opt.map(z => ZExp.ZE2(z))
+    | E1(e1) => follow_opseq(path, e1) |> Opt.map(z => ZExp.ZE1(z))
+    | E0(e0) => follow_operand(path, e0) |> Opt.map(z => ZExp.ZE0(z))
+    }
   and follow_block =
       ((steps, cursor): t, block: UHExp.block): option(ZExp.zblock) =>
     switch (steps) {
@@ -995,8 +1043,16 @@ module Exp = {
       }
     };
 
-  let rec follow_steps = (~side: Side.t=Before, steps: steps, e: UHExp.t) =>
-    follow_steps_block(~side, steps, e)
+  let rec follow_steps =
+          (~side: Side.t=Before, steps: steps, e: UHExp.t): option(ZExp.t) =>
+    switch (e) {
+    | E2(e2) =>
+      follow_steps_block(~side, steps, e2) |> Opt.map(z => ZExp.ZE2(z))
+    | E1(e1) =>
+      follow_steps_opseq(~side, steps, e1) |> Opt.map(z => ZExp.ZE1(z))
+    | E0(e0) =>
+      follow_steps_operand(~side, steps, e0) |> Opt.map(z => ZExp.ZE0(z))
+    }
   and follow_steps_block =
       (~side: Side.t, steps: steps, block: UHExp.block): option(ZExp.zblock) =>
     switch (steps) {
@@ -1193,7 +1249,19 @@ module Exp = {
   let holes_verr = holes_verr(~hole_desc);
 
   let rec holes = (e: UHExp.t, rev_steps: rev_steps, hs: hole_list): hole_list =>
-    holes_block(e, rev_steps, hs)
+    switch (e) {
+    | E2(e2) => hs |> holes_block(e2, rev_steps)
+    | E1(e1) =>
+      hs
+      |> holes_opseq(
+           ~holes_operand,
+           ~hole_desc,
+           ~is_space=UHExp.is_Space,
+           ~rev_steps,
+           e1,
+         )
+    | E0(e0) => hs |> holes_operand(e0, rev_steps)
+    }
   and holes_block =
       (block: UHExp.block, rev_steps: rev_steps, hs: hole_list): hole_list =>
     hs
@@ -1268,10 +1336,10 @@ module Exp = {
       let splice_map = psi.splice_map;
       let splice_order = psi.splice_order;
       List.fold_right(
-        (i, holes) =>
+        (i, hs) =>
           switch (NatMap.lookup(splice_map, i)) {
-          | None => holes
-          | Some((_, block)) => holes_block(block, [i, ...rev_steps], holes)
+          | None => hs
+          | Some((_, e)) => hs |> holes(e, [i, ...rev_steps])
           },
         splice_order,
         hs,
@@ -1287,7 +1355,20 @@ module Exp = {
   };
 
   let rec holes_z = (ze: ZExp.t, rev_steps: rev_steps): zhole_list =>
-    holes_zblock(ze, rev_steps)
+    switch (ze) {
+    | ZE2(ze2) => holes_zblock(ze2, rev_steps)
+    | ZE1(ze1) =>
+      holes_zopseq(
+        ~holes_operand,
+        ~holes_zoperand,
+        ~hole_desc,
+        ~is_space=UHExp.is_Space,
+        ~rev_steps,
+        ~erase_zopseq=ZExp.erase_zopseq,
+        ze1,
+      )
+    | ZE0(ze0) => holes_zoperand(ze0, rev_steps)
+    }
   and holes_zblock =
       ((prefix, zline, suffix): ZExp.zblock, rev_steps: rev_steps)
       : zhole_list => {
@@ -1688,31 +1769,29 @@ module Exp = {
       };
     | ApPaletteZ(_, _, _, zpsi) =>
       let zsplice_map = zpsi.zsplice_map;
-      let (n, (_, zblock)) = ZNatMap.prj_z_kv(zsplice_map);
+      let (n, (_, ze)) = ZNatMap.prj_z_kv(zsplice_map);
       let {holes_before, hole_selected, holes_after} =
-        holes_zblock(zblock, [n, ...rev_steps]);
+        holes_z(ze, [n, ...rev_steps]);
       let splice_order = zpsi.splice_order;
       let splice_map = ZNatMap.prj_map(zsplice_map);
       let (splices_before, splices_after) =
         GeneralUtil.split_at(splice_order, n);
       let holes_splices_before =
         List.fold_left(
-          (holes, n) =>
+          (hs, n) =>
             switch (NatMap.lookup(splice_map, n)) {
-            | None => holes
-            | Some((_, block)) =>
-              holes @ holes_block(block, [n, ...rev_steps], [])
+            | None => hs
+            | Some((_, e)) => hs @ holes(e, [n, ...rev_steps], [])
             },
           [],
           splices_before,
         );
       let holes_splices_after =
         List.fold_left(
-          (holes, n) =>
+          (hs, n) =>
             switch (NatMap.lookup(splice_map, n)) {
-            | None => holes
-            | Some((_, block)) =>
-              holes @ holes_block(block, [n, ...rev_steps], [])
+            | None => hs
+            | Some((_, e)) => hs @ holes(e, [n, ...rev_steps], [])
             },
           [],
           splices_after,

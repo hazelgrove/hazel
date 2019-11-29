@@ -150,7 +150,10 @@ module Typ = {
 
 module Pat = {
   let rec syn_cursor_info = (ctx: Contexts.t, zp: ZPat.t): option(t) =>
-    syn_cursor_info_zopseq(ctx, zp)
+    switch (zp) {
+    | ZP1(zp1) => syn_cursor_info_zopseq(ctx, zp1)
+    | ZP0(zp0) => syn_cursor_info_zoperand(ctx, zp0)
+    }
   and syn_cursor_info_zopseq =
       (ctx: Contexts.t, ZOpSeq(skel, zseq): ZPat.zopseq): option(t) => {
     // handle n-tuples:
@@ -266,7 +269,10 @@ module Pat = {
     | ParenthesizedZ(zbody) => syn_cursor_info(ctx, zbody)
     }
   and ana_cursor_info = (ctx: Contexts.t, zp: ZPat.t, ty: HTyp.t): option(t) =>
-    ana_cursor_info_zopseq(ctx, zp, ty)
+    switch (zp) {
+    | ZP1(zp1) => ana_cursor_info_zopseq(ctx, zp1, ty)
+    | ZP0(zp0) => ana_cursor_info_zoperand(ctx, zp0, ty)
+    }
   and ana_cursor_info_zopseq =
       (
         ctx: Contexts.t,
@@ -498,31 +504,26 @@ module Exp = {
           };
         Some((err, verr));
       }
-    | ParenthesizedZ((_, zline, suffix)) =>
-      switch (suffix) {
-      | [_, ..._] => None
-      | [] =>
-        switch (zline) {
-        | CursorL(_)
-        | LetLineZP(_)
-        | LetLineZA(_)
-        | LetLineZE(_) => None
-        | ExpLineZ(ZOpSeq(skel, zseq)) =>
-          if (ZOpSeq.skel_is_rooted_at_cursor(skel, zseq)) {
-            switch (skel, zseq) {
-            | (BinOp(err, _, _, _), _) => Some((err, NotInVarHole))
-            | (_, ZOperand(zoperand, _)) => cursor_on_outer_expr(zoperand)
-            | _ => None
-            };
-          } else {
-            None;
-          }
-        }
+    | ParenthesizedZ(ZE0(zoperand)) => cursor_on_outer_expr(zoperand)
+    | ParenthesizedZ(ZE1(ZOpSeq(skel, zseq)))
+    | ParenthesizedZ(ZE2((_, ExpLineZ(ZOpSeq(skel, zseq)), []))) =>
+      if (ZOpSeq.skel_is_rooted_at_cursor(skel, zseq)) {
+        switch (skel, zseq) {
+        | (BinOp(err, _, _, _), _) => Some((err, NotInVarHole))
+        | (_, ZOperand(zoperand, _)) => cursor_on_outer_expr(zoperand)
+        | _ => None
+        };
+      } else {
+        None;
       }
     | _ => None;
 
   let rec syn_cursor_info = (ctx: Contexts.t, ze: ZExp.t): option(t) =>
-    syn_cursor_info_zblock(ctx, ze)
+    switch (ze) {
+    | ZE2(ze2) => syn_cursor_info_zblock(ctx, ze2)
+    | ZE1(ze1) => syn_cursor_info_zopseq(ctx, ze1)
+    | ZE0(ze0) => syn_cursor_info_zoperand(ctx, ze0)
+    }
   and syn_cursor_info_zblock =
       (ctx: Contexts.t, (prefix, zline, _): ZExp.zblock): option(t) =>
     switch (Statics.Exp.syn_lines(ctx, prefix)) {
@@ -728,7 +729,11 @@ module Exp = {
     };
   }
   and ana_cursor_info = (ctx: Contexts.t, ze: ZExp.t, ty: HTyp.t): option(t) =>
-    ana_cursor_info_zblock(ctx, ze, ty)
+    switch (ze) {
+    | ZE2(ze2) => ana_cursor_info_zblock(ctx, ze2, ty)
+    | ZE1(ze1) => ana_cursor_info_zopseq(ctx, ze1, ty)
+    | ZE0(ze0) => ana_cursor_info_zoperand(ctx, ze0, ty)
+    }
   and ana_cursor_info_zblock =
       (ctx: Contexts.t, (prefix, zline, suffix): ZExp.zblock, ty: HTyp.t)
       : option(t) =>

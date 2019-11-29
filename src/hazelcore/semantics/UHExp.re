@@ -21,12 +21,15 @@ let is_Space =
   | _ => false;
 
 [@deriving sexp]
-type t = block
+type t =
+  | E2(block)
+  | E1(opseq)
+  | E0(operand)
 and block = list(line)
 and line =
-  | ExpLine(opseq)
   | EmptyLine
   | LetLine(UHPat.t, option(UHTyp.t), t)
+  | ExpLine(opseq)
 and opseq = OpSeq.t(operand, operator)
 and operand =
   | EmptyHole(MetaVar.t)
@@ -77,7 +80,7 @@ let case =
     (
       ~err: ErrStatus.t=NotInHole,
       ~ann: option(UHTyp.t)=?,
-      scrut: block,
+      scrut: t,
       rules: rules,
     )
     : operand =>
@@ -124,7 +127,7 @@ let is_EmptyHole =
 let empty_rule = (u_gen: MetaVarGen.t): (rule, MetaVarGen.t) => {
   let (p, u_gen) = UHPat.new_EmptyHole(u_gen);
   let (e, u_gen) = new_EmptyHole(u_gen);
-  let rule = Rule(p |> OpSeq.wrap, e |> OpSeq.wrap |> wrap_in_block);
+  let rule = Rule(P0(p), E0(e));
   (rule, u_gen);
 };
 
@@ -161,7 +164,7 @@ let bidelimit = (operand): operand =>
   if (bidelimited(operand)) {
     operand;
   } else {
-    Parenthesized(operand |> OpSeq.wrap |> wrap_in_block);
+    Parenthesized(E0(operand));
   };
 
 let get_opseq =
@@ -192,7 +195,11 @@ let force_split_conclusion = (block: block): (list(line), opseq) =>
 let join_conclusion = (leading: list(line), conclusion: opseq): block =>
   leading @ [ExpLine(conclusion)];
 
-let rec get_err_status = (e: t): ErrStatus.t => get_err_status_block(e)
+let rec get_err_status: t => ErrStatus.t =
+  fun
+  | E2(e2) => e2 |> get_err_status_block
+  | E1(e1) => e1 |> get_err_status_opseq
+  | E0(e0) => e0 |> get_err_status_operand
 and get_err_status_block = block => {
   let (_, conclusion) = block |> force_split_conclusion;
   conclusion |> get_err_status_opseq;
@@ -214,7 +221,11 @@ and get_err_status_operand =
 
 /* put e in the specified hole */
 let rec set_err_status = (err: ErrStatus.t, e: t): t =>
-  set_err_status_block(err, e)
+  switch (e) {
+  | E2(e2) => E2(e2 |> set_err_status_block(err))
+  | E1(e1) => E1(e1 |> set_err_status_opseq(err))
+  | E0(e0) => E0(e0 |> set_err_status_operand(err))
+  }
 and set_err_status_block = (err: ErrStatus.t, block: block): block => {
   let (leading, conclusion) = block |> force_split_conclusion;
   join_conclusion(leading, conclusion |> set_err_status_opseq(err));
@@ -232,7 +243,7 @@ and set_err_status_operand = (err, operand) =>
   | Inj(_, inj_side, body) => Inj(err, inj_side, body)
   | Case(_, scrut, rules, ann) => Case(err, scrut, rules, ann)
   | ApPalette(_, name, model, si) => ApPalette(err, name, model, si)
-  | Parenthesized(body) => Parenthesized(set_err_status_block(err, body))
+  | Parenthesized(body) => Parenthesized(body |> set_err_status(err))
   };
 
 let is_inconsistent = operand =>
@@ -243,7 +254,17 @@ let is_inconsistent = operand =>
 
 /* put e in a new hole, if it is not already in a hole */
 let rec make_inconsistent = (u_gen: MetaVarGen.t, e: t): (t, MetaVarGen.t) =>
-  make_inconsistent_block(u_gen, e)
+  switch (e) {
+  | E2(e2) =>
+    let (e2, u_gen) = e2 |> make_inconsistent_block(u_gen);
+    (E2(e2), u_gen);
+  | E1(e1) =>
+    let (e1, u_gen) = e1 |> make_inconsistent_opseq(u_gen);
+    (E1(e1), u_gen);
+  | E0(e0) =>
+    let (e0, u_gen) = e0 |> make_inconsistent_operand(u_gen);
+    (E0(e0), u_gen);
+  }
 and make_inconsistent_block =
     (u_gen: MetaVarGen.t, block: block): (block, MetaVarGen.t) => {
   let (leading, conclusion) = block |> force_split_conclusion;
@@ -285,10 +306,9 @@ and make_inconsistent_operand = (u_gen, operand) =>
 
 let rec drop_outer_parentheses = (operand): t =>
   switch (operand) {
-  | Parenthesized([ExpLine(OpSeq(_, S(operand, E)))]) =>
-    drop_outer_parentheses(operand)
+  | Parenthesized(E0(operand)) => drop_outer_parentheses(operand)
   | Parenthesized(e) => e
-  | _ => operand |> OpSeq.wrap |> wrap_in_block
+  | _ => E0(operand)
   };
 
 let child_indices_line =
@@ -687,13 +707,13 @@ let num_lines_in_block = List.length;
  };
  */
 
-let favored_child_of_line: line => option((ChildIndex.t, block)) =
+let favored_child_of_line: line => option((ChildIndex.t, t)) =
   fun
   | EmptyLine
   | ExpLine(_) => None
   | LetLine(_, _, def) => Some((2, def));
 
-let favored_child_of_operand: operand => option((ChildIndex.t, block)) =
+let favored_child_of_operand: operand => option((ChildIndex.t, t)) =
   fun
   | EmptyHole(_)
   | Var(_, _, _)
@@ -714,7 +734,11 @@ let has_concluding_let_line = (block: block): bool => {
   };
 };
 
-let rec is_multi_line = e => is_multi_line_block(e)
+let rec is_multi_line: t => bool =
+  fun
+  | E2(e2) => e2 |> is_multi_line_block
+  | E1(e1) => e1 |> is_multi_line_opseq
+  | E0(e0) => e0 |> is_multi_line_operand
 and is_multi_line_block = block =>
   List.length(block) > 1 || block |> List.exists(is_multi_line_line)
 and is_multi_line_line =

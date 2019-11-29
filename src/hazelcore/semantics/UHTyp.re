@@ -7,7 +7,9 @@ type operator =
   | Sum;
 
 [@deriving sexp]
-type t = opseq
+type t =
+  | T1(opseq)
+  | T0(operand)
 and opseq = OpSeq.t(operand, operator)
 and operand =
   | Hole
@@ -29,23 +31,23 @@ let bidelimited =
   | Parenthesized(_)
   | List(_) => true;
 
-let unwrap_parentheses = (operand: operand): opseq =>
+let unwrap_parentheses = (operand: operand): t =>
   switch (operand) {
   | Hole
   | Unit
   | Num
   | Bool
-  | List(_) => OpSeq.wrap(operand)
-  | Parenthesized(opseq) => opseq
+  | List(_) => T0(operand)
+  | Parenthesized(p) => p
   };
 
 /* TODO fix this to only parenthesize when necessary */
 let contract = (ty: HTyp.t): t => {
-  let mk_operand = operand => Parenthesized(OpSeq.wrap(operand));
+  let mk_operand = operand => Parenthesized(T0(operand));
   let mk_seq_operand = (op, a, b) => {
     let skel = Skel.BinOp(NotInHole, op, Placeholder(0), Placeholder(1));
     let seq = Seq.mk(a, [(op, b)]);
-    Parenthesized(OpSeq(skel, seq));
+    Parenthesized(T1(OpSeq(skel, seq)));
   };
   /* Save it for another day
      match (a, b) with
@@ -80,12 +82,15 @@ let contract = (ty: HTyp.t): t => {
         contract_to_operand(ty1),
         contract_to_operand(ty2),
       )
-    | List(ty1) => List(ty1 |> contract_to_operand |> OpSeq.wrap);
+    | List(ty1) => List(T0(ty1 |> contract_to_operand));
 
   ty |> contract_to_operand |> unwrap_parentheses;
 };
 
-let rec expand = (uty: t): HTyp.t => expand_opseq(uty)
+let rec expand: t => HTyp.t =
+  fun
+  | T1(opseq) => opseq |> expand_opseq
+  | T0(operand) => operand |> expand_operand
 and expand_opseq =
   fun
   | OpSeq(skel, seq) => expand_skel(skel, seq)

@@ -5,71 +5,72 @@ let mk_OpSeq_typ = OpSeq.mk(~associate=Associator.associate_ty);
 let mk_OpSeq_pat = OpSeq.mk(~associate=Associator.associate_pat);
 let mk_OpSeq_exp = OpSeq.mk(~associate=Associator.associate_exp);
 
-let just_hole: UHExp.block =
-  UHExp.EmptyHole(0) |> OpSeq.wrap |> UHExp.wrap_in_block;
+let just_hole: UHExp.t = E0(EmptyHole(0));
 
-let opseq = OpSeq.wrap;
-let block = (operand: UHExp.operand) =>
-  operand |> OpSeq.wrap |> UHExp.wrap_in_block;
-
-let holey_lambda: UHExp.block = {
+let holey_lambda: UHExp.t = {
   let lam =
     UHExp.(
       Parenthesized(
-        lam(
-          UHPat.EmptyHole(0) |> OpSeq.wrap,
-          ~ann=UHTyp.Hole |> OpSeq.wrap,
-          UHExp.EmptyHole(1) |> OpSeq.wrap |> wrap_in_block,
-        )
-        |> OpSeq.wrap
-        |> wrap_in_block,
+        E0(
+          lam(
+            UHPat.P0(EmptyHole(0)),
+            ~ann=UHTyp.T0(Hole),
+            E0(UHExp.EmptyHole(1)),
+          ),
+        ),
       )
     );
   let arg = UHExp.EmptyHole(2);
-  Seq.mk(lam, [(UHExp.Space, arg)]) |> mk_OpSeq_exp |> UHExp.wrap_in_block;
+  E1(Seq.mk(lam, [(UHExp.Space, arg)]) |> mk_OpSeq_exp);
 };
 
-let let_line: UHExp.block =
-  UHExp.[
-    letline(UHPat.var("y") |> opseq, EmptyHole(0) |> block),
-    EmptyLine,
-    letline(UHPat.var("x") |> opseq, EmptyHole(1) |> block),
-    ExpLine(var("x") |> opseq),
-    ExpLine(var("y") |> opseq),
-  ];
+let let_line: UHExp.t =
+  UHExp.(
+    E2([
+      letline(UHPat.(P0(var("y"))), E0(EmptyHole(0))),
+      EmptyLine,
+      letline(UHPat.(P0(var("x"))), E0(EmptyHole(1))),
+      ExpLine(var("x") |> OpSeq.wrap),
+      ExpLine(var("y") |> OpSeq.wrap),
+    ])
+  );
 
-let map_example: UHExp.block = {
+let map_example: UHExp.t = {
   let case_node =
     UHExp.(
       case(
-        var("xs") |> block,
+        E0(var("xs")),
         [
-          Rule(UHPat.listnil() |> opseq, listnil() |> block),
+          Rule(UHPat.(P0(listnil())), E0(listnil())),
           Rule(
-            Seq.mk(UHPat.var("y"), [(UHPat.Cons, UHPat.var("ys"))])
-            |> mk_OpSeq_pat,
-            Seq.mk(
-              Parenthesized(
-                Seq.mk(var("f"), [(UHExp.Space, var("y"))])
-                |> mk_OpSeq_exp
-                |> wrap_in_block,
-              ),
-              [
-                (
-                  Cons,
-                  Parenthesized(
-                    Seq.mk(
-                      var("map"),
-                      [(Space, var("f")), (Space, var("ys"))],
-                    )
-                    |> mk_OpSeq_exp
-                    |> wrap_in_block,
+            UHPat.(
+              P1(Seq.mk(var("y"), [(Cons, var("ys"))]) |> mk_OpSeq_pat)
+            ),
+            E1(
+              Seq.mk(
+                Parenthesized(
+                  E1(
+                    Seq.mk(var("f"), [(UHExp.Space, var("y"))])
+                    |> mk_OpSeq_exp,
                   ),
                 ),
-              ],
-            )
-            |> mk_OpSeq_exp
-            |> wrap_in_block,
+                [
+                  (
+                    Cons,
+                    Parenthesized(
+                      E1(
+                        Seq.mk(
+                          var("map"),
+                          [(Space, var("f")), (Space, var("ys"))],
+                        )
+                        |> mk_OpSeq_exp,
+                      ),
+                    ),
+                  ),
+                ],
+              )
+              |> mk_OpSeq_exp,
+            ),
           ),
         ],
       )
@@ -77,59 +78,66 @@ let map_example: UHExp.block = {
   let lam_node =
     UHExp.(
       lam(
-        UHPat.var("f") |> opseq,
-        lam(UHPat.var("xs") |> opseq, case_node |> block) |> block,
+        UHPat.(P0(var("f"))),
+        E0(lam(UHPat.(P0(var("xs"))), E0(case_node))),
       )
     );
   let letline_node =
     UHExp.(
       letline(
-        UHPat.var("map") |> opseq,
+        UHPat.(P0(var("map"))),
         ~ann=
-          Seq.mk(
-            UHTyp.Parenthesized(
-              Seq.mk(UHTyp.Num, [(UHTyp.Arrow, Num)]) |> mk_OpSeq_typ,
-            ),
-            [
-              (UHTyp.Arrow, List(UHTyp.Num |> opseq)),
-              (Arrow, List(UHTyp.Num |> opseq)),
-            ],
-          )
-          |> mk_OpSeq_typ,
-        lam_node |> block,
+          T1(
+            Seq.mk(
+              UHTyp.Parenthesized(
+                T1(
+                  Seq.mk(UHTyp.Num, [(UHTyp.Arrow, Num)]) |> mk_OpSeq_typ,
+                ),
+              ),
+              [
+                (UHTyp.Arrow, List(UHTyp.T0(Num))),
+                (Arrow, List(UHTyp.T0(Num))),
+              ],
+            )
+            |> mk_OpSeq_typ,
+          ),
+        E0(lam_node),
       )
     );
-  UHExp.[letline_node, ExpLine(EmptyHole(0) |> opseq)];
+  UHExp.(E2([letline_node, ExpLine(EmptyHole(0) |> OpSeq.wrap)]));
 };
 
-let qsort_example: UHExp.block = {
+let qsort_example: UHExp.t = {
   let append_case =
     UHExp.(
       case(
-        var("xs") |> block,
+        E0(var("xs")),
         [
-          Rule(UHPat.listnil() |> opseq, var("ys") |> block),
+          Rule(UHPat.(P0(listnil())), E0(var("ys"))),
           Rule(
-            Seq.mk(UHPat.var("z"), [(UHPat.Cons, UHPat.var("zs"))])
-            |> mk_OpSeq_pat,
-            Seq.mk(
-              var("z"),
-              [
-                (
-                  Cons,
-                  Parenthesized(
-                    Seq.mk(
-                      var("append"),
-                      [(Space, var("zs")), (Space, var("ys"))],
-                    )
-                    |> mk_OpSeq_exp
-                    |> wrap_in_block,
+            UHPat.(
+              P1(Seq.mk(var("z"), [(Cons, var("zs"))]) |> mk_OpSeq_pat)
+            ),
+            E1(
+              Seq.mk(
+                var("z"),
+                [
+                  (
+                    Cons,
+                    Parenthesized(
+                      E1(
+                        Seq.mk(
+                          var("append"),
+                          [(Space, var("zs")), (Space, var("ys"))],
+                        )
+                        |> mk_OpSeq_exp,
+                      ),
+                    ),
                   ),
-                ),
-              ],
-            )
-            |> mk_OpSeq_exp
-            |> wrap_in_block,
+                ],
+              )
+              |> mk_OpSeq_exp,
+            ),
           ),
         ],
       )
@@ -137,96 +145,106 @@ let qsort_example: UHExp.block = {
   let append_lam =
     UHExp.(
       lam(
-        UHPat.var("xs") |> opseq,
-        lam(UHPat.var("ys") |> opseq, append_case |> block) |> block,
+        UHPat.(P0(var("xs"))),
+        E0(lam(UHPat.(P0(var("ys"))), E0(append_case))),
       )
     );
   let append_letline =
     UHExp.(
       letline(
-        UHPat.var("append") |> opseq,
+        UHPat.(P0(var("append"))),
         ~ann=
-          Seq.mk(
-            UHTyp.List(UHTyp.Num |> opseq),
-            [
-              (UHTyp.Arrow, List(UHTyp.Num |> opseq)),
-              (Arrow, List(UHTyp.Num |> opseq)),
-            ],
-          )
-          |> mk_OpSeq_typ,
-        append_lam |> block,
+          UHTyp.(
+            T1(
+              Seq.mk(
+                List(T0(Num)),
+                [(Arrow, List(T0(Num))), (Arrow, List(T0(Num)))],
+              )
+              |> mk_OpSeq_typ,
+            )
+          ),
+        E0(append_lam),
       )
     );
 
   let partition_case =
     UHExp.(
       case(
-        var("xs") |> block,
+        E0(var("xs")),
         [
           Rule(
-            UHPat.listnil() |> opseq,
-            Parenthesized(
-              Seq.mk(listnil(), [(Comma, listnil())])
-              |> mk_OpSeq_exp
-              |> wrap_in_block,
-            )
-            |> block,
+            UHPat.(P0(listnil())),
+            E0(
+              Parenthesized(
+                E1(
+                  Seq.mk(listnil(), [(Comma, listnil())]) |> mk_OpSeq_exp,
+                ),
+              ),
+            ),
           ),
           Rule(
-            Seq.mk(UHPat.var("y"), [(UHPat.Cons, UHPat.var("ys"))])
-            |> mk_OpSeq_pat,
-            [
+            UHPat.(
+              P1(Seq.mk(var("y"), [(Cons, var("ys"))]) |> mk_OpSeq_pat)
+            ),
+            E2([
               letline(
-                UHPat.Parenthesized(
-                  Seq.mk(
-                    UHPat.var("ys1"),
-                    [(UHPat.Comma, UHPat.var("ys2"))],
+                UHPat.(
+                  P0(
+                    Parenthesized(
+                      P1(
+                        Seq.mk(var("ys1"), [(Comma, var("ys2"))])
+                        |> mk_OpSeq_pat,
+                      ),
+                    ),
                   )
-                  |> mk_OpSeq_pat,
-                )
-                |> opseq,
-                Seq.mk(
-                  var("partition"),
-                  [(Space, var("f")), (Space, var("ys"))],
-                )
-                |> mk_OpSeq_exp
-                |> wrap_in_block,
+                ),
+                E1(
+                  Seq.mk(
+                    var("partition"),
+                    [(Space, var("f")), (Space, var("ys"))],
+                  )
+                  |> mk_OpSeq_exp,
+                ),
               ),
               ExpLine(
                 case(
-                  Seq.mk(var("f"), [(Space, var("y"))])
-                  |> mk_OpSeq_exp
-                  |> wrap_in_block,
+                  E1(
+                    Seq.mk(var("f"), [(Space, var("y"))]) |> mk_OpSeq_exp,
+                  ),
                   [
                     Rule(
-                      UHPat.boollit(true) |> opseq,
-                      Parenthesized(
-                        Seq.mk(
-                          var("y"),
-                          [(Cons, var("ys1")), (Comma, var("ys2"))],
-                        )
-                        |> mk_OpSeq_exp
-                        |> wrap_in_block,
-                      )
-                      |> block,
+                      UHPat.(P0(boollit(true))),
+                      E0(
+                        Parenthesized(
+                          E1(
+                            Seq.mk(
+                              var("y"),
+                              [(Cons, var("ys1")), (Comma, var("ys2"))],
+                            )
+                            |> mk_OpSeq_exp,
+                          ),
+                        ),
+                      ),
                     ),
                     Rule(
-                      UHPat.boollit(false) |> opseq,
-                      Parenthesized(
-                        Seq.mk(
-                          var("ys1"),
-                          [(Comma, var("y")), (Cons, var("ys2"))],
-                        )
-                        |> mk_OpSeq_exp
-                        |> wrap_in_block,
-                      )
-                      |> block,
+                      UHPat.(P0(boollit(false))),
+                      E0(
+                        Parenthesized(
+                          E1(
+                            Seq.mk(
+                              var("ys1"),
+                              [(Comma, var("y")), (Cons, var("ys2"))],
+                            )
+                            |> mk_OpSeq_exp,
+                          ),
+                        ),
+                      ),
                     ),
                   ],
                 )
-                |> opseq,
+                |> OpSeq.wrap,
               ),
-            ],
+            ]),
           ),
         ],
       )
@@ -234,35 +252,38 @@ let qsort_example: UHExp.block = {
   let partition_lam =
     UHExp.(
       lam(
-        UHPat.var("f") |> opseq,
-        lam(UHPat.var("xs") |> opseq, partition_case |> block) |> block,
+        UHPat.(P0(var("f"))),
+        E0(lam(UHPat.(P0(var("xs"))), E0(partition_case))),
       )
     );
   let partition_letline =
     UHExp.(
       letline(
-        UHPat.var("partition") |> opseq,
+        UHPat.(P0(var("partition"))),
         ~ann=
-          Seq.mk(
-            UHTyp.Parenthesized(
-              Seq.mk(UHTyp.Num, [(UHTyp.Arrow, Bool)]) |> mk_OpSeq_typ,
-            ),
-            [
-              (UHTyp.Arrow, List(UHTyp.Num |> opseq)),
-              (
-                Arrow,
+          UHTyp.(
+            T1(
+              Seq.mk(
                 Parenthesized(
-                  Seq.mk(
-                    UHTyp.List(UHTyp.Num |> opseq),
-                    [(UHTyp.Prod, List(UHTyp.Num |> opseq))],
-                  )
-                  |> mk_OpSeq_typ,
+                  T1(Seq.mk(Num, [(Arrow, Bool)]) |> mk_OpSeq_typ),
                 ),
-              ),
-            ],
-          )
-          |> mk_OpSeq_typ,
-        partition_lam |> block,
+                [
+                  (Arrow, List(T0(Num))),
+                  (
+                    Arrow,
+                    Parenthesized(
+                      T1(
+                        Seq.mk(List(T0(Num)), [(Prod, List(T0(Num)))])
+                        |> mk_OpSeq_typ,
+                      ),
+                    ),
+                  ),
+                ],
+              )
+              |> mk_OpSeq_typ,
+            )
+          ),
+        E0(partition_lam),
       )
     );
 
@@ -275,20 +296,21 @@ let qsort_example: UHExp.block = {
             (
               Space,
               Parenthesized(
-                Seq.mk(
-                  numlit(4),
-                  [
-                    (Cons, numlit(2)),
-                    (Cons, numlit(6)),
-                    (Cons, numlit(5)),
-                    (Cons, numlit(3)),
-                    (Cons, numlit(1)),
-                    (Cons, numlit(7)),
-                    (Cons, listnil()),
-                  ],
-                )
-                |> mk_OpSeq_exp
-                |> wrap_in_block,
+                E1(
+                  Seq.mk(
+                    numlit(4),
+                    [
+                      (Cons, numlit(2)),
+                      (Cons, numlit(6)),
+                      (Cons, numlit(5)),
+                      (Cons, numlit(3)),
+                      (Cons, numlit(1)),
+                      (Cons, numlit(7)),
+                      (Cons, listnil()),
+                    ],
+                  )
+                  |> mk_OpSeq_exp,
+                ),
               ),
             ),
           ],
@@ -297,7 +319,9 @@ let qsort_example: UHExp.block = {
       )
     );
 
-  UHExp.[append_letline, EmptyLine, partition_letline, EmptyLine, qsort_line];
+  UHExp.(
+    E2([append_letline, EmptyLine, partition_letline, EmptyLine, qsort_line])
+  );
 };
 
 [@deriving sexp]

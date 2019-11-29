@@ -1,7 +1,9 @@
 open GeneralUtil;
 
 [@deriving sexp]
-type t = zopseq
+type t =
+  | ZT1(zopseq)
+  | ZT0(zoperand)
 and zopseq = ZOpSeq.t(UHTyp.operand, UHTyp.operator, zoperand, zoperator)
 and zoperand =
   | CursorT(CursorPosition.t, UHTyp.operand)
@@ -36,7 +38,10 @@ let erase_zoperator =
   fun
   | (_, operator) => operator;
 
-let rec erase = (zty: t): UHTyp.t => erase_zopseq(zty)
+let rec erase: t => UHTyp.t =
+  fun
+  | ZT1(zopseq) => T1(zopseq |> erase_zopseq)
+  | ZT0(zoperand) => T0(zoperand |> erase_zoperand)
 and erase_zopseq = zopseq =>
   ZOpSeq.erase(~erase_zoperand, ~erase_zoperator, zopseq)
 and erase_zoperand =
@@ -45,7 +50,10 @@ and erase_zoperand =
   | ParenthesizedZ(zty) => Parenthesized(erase(zty))
   | ListZ(zty) => List(erase(zty));
 
-let rec is_before = (zty: t): bool => is_before_zopseq(zty)
+let rec is_before: t => bool =
+  fun
+  | ZT1(zopseq) => zopseq |> is_before_zopseq
+  | ZT0(zoperand) => zoperand |> is_before_zoperand
 and is_before_zopseq = zopseq => ZOpSeq.is_before(~is_before_zoperand, zopseq)
 and is_before_zoperand =
   fun
@@ -62,7 +70,10 @@ let is_before_zoperator: zoperator => bool =
   | (OnOp(Before), _) => true
   | _ => false;
 
-let rec is_after = (zty: t): bool => is_after_zopseq(zty)
+let rec is_after: t => bool =
+  fun
+  | ZT1(zopseq) => zopseq |> is_after_zopseq
+  | ZT0(zoperand) => zoperand |> is_after_zoperand
 and is_after_zopseq = zopseq => ZOpSeq.is_after(~is_after_zoperand, zopseq)
 and is_after_zoperand =
   fun
@@ -79,7 +90,10 @@ let is_after_zoperator: zoperator => bool =
   | (OnOp(After), _) => true
   | _ => false;
 
-let rec place_before = (uty: UHTyp.t): t => place_before_opseq(uty)
+let rec place_before: UHTyp.t => t =
+  fun
+  | T1(opseq) => ZT1(opseq |> place_before_opseq)
+  | T0(operand) => ZT0(operand |> place_before_operand)
 and place_before_opseq = opseq =>
   ZOpSeq.place_before(~place_before_operand, opseq)
 and place_before_operand =
@@ -91,7 +105,10 @@ let place_before_operator = (op: UHTyp.operator): zoperator => (
   op,
 );
 
-let rec place_after = (uty: UHTyp.t): t => place_after_opseq(uty)
+let rec place_after: UHTyp.t => t =
+  fun
+  | T1(opseq) => ZT1(opseq |> place_after_opseq)
+  | T0(operand) => ZT0(operand |> place_after_operand)
 and place_after_opseq = opseq =>
   ZOpSeq.place_after(~place_after_operand, opseq)
 and place_after_operand =
@@ -120,8 +137,11 @@ let move_cursor_left_zoperator: zoperator => option(zoperator) =
   | (OnOp(Before), _) => None
   | (OnOp(After), op) => Some((OnOp(Before), op));
 
-let rec move_cursor_left = (zty: t): option(t) =>
-  move_cursor_left_zopseq(zty)
+let rec move_cursor_left: t => option(t) =
+  fun
+  | ZT1(zopseq) => zopseq |> move_cursor_left_zopseq |> Opt.map(z => ZT1(z))
+  | ZT0(zoperand) =>
+    zoperand |> move_cursor_left_zoperand |> Opt.map(z => ZT0(z))
 and move_cursor_left_zopseq = zopseq =>
   ZOpSeq.move_cursor_left(
     ~move_cursor_left_zoperand,
@@ -162,8 +182,11 @@ let move_cursor_right_zoperator: zoperator => option(zoperator) =
   | (OnOp(After), _) => None
   | (OnOp(Before), op) => Some((OnOp(After), op));
 
-let rec move_cursor_right = (zty: t): option(t) =>
-  move_cursor_right_zopseq(zty)
+let rec move_cursor_right: t => option(t) =
+  fun
+  | ZT1(zopseq) => zopseq |> move_cursor_right_zopseq |> Opt.map(z => ZT1(z))
+  | ZT0(zoperand) =>
+    zoperand |> move_cursor_left_zoperand |> Opt.map(z => ZT0(z))
 and move_cursor_right_zopseq = zopseq =>
   ZOpSeq.move_cursor_right(
     ~move_cursor_right_zoperand,
