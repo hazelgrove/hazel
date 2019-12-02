@@ -89,6 +89,34 @@ type t = {
 
 let mk_cursor_info = (typed, ctx) => {typed, ctx};
 
+let type_mode = (ci: t): option(Statics.type_mode) =>
+  switch (ci.typed) {
+  | AnaAnnotatedLambda(ty, _)
+  | AnaTypeInconsistent(ty, _)
+  | AnaWrongLength(_, _, ty)
+  | AnaFree(ty)
+  | AnaKeyword(ty, _)
+  | Analyzed(ty)
+  | AnaSubsumed(ty, _)
+  | PatAnaTypeInconsistent(ty, _)
+  | PatAnaWrongLength(_, _, ty)
+  | PatAnaKeyword(ty, _)
+  | PatAnaSubsumed(ty, _)
+  | PatAnalyzed(ty) => Some(Ana(ty))
+  | Synthesized(_)
+  | SynErrorArrow(_)
+  | SynMatchingArrow(_)
+  | SynFreeArrow(_)
+  | SynKeywordArrow(_)
+  | SynFree
+  | SynKeyword(_)
+  | PatSynthesized(_)
+  | PatSynKeyword(_) => Some(Syn)
+  | OnType
+  | OnLine
+  | OnRule => None
+  };
+
 /*
  [@deriving sexp]
  type child_indices = list(int);

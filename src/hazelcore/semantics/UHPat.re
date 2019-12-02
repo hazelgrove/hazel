@@ -40,6 +40,8 @@ let var =
     : operand =>
   Var(err, var_err, x);
 
+let wild = (~err: ErrStatus.t=NotInHole, ()) => Wild(err);
+
 let boollit = (~err: ErrStatus.t=NotInHole, b: bool) => BoolLit(err, b);
 
 let listnil = (~err: ErrStatus.t=NotInHole, ()) => ListNil(err);

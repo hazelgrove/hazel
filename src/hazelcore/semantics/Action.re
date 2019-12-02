@@ -18,30 +18,6 @@ type operator_shape =
   | SAnd
   | SOr;
 
-let pat_op_of = (os: operator_shape): option(UHPat.operator) =>
-  switch (os) {
-  | SComma => Some(Comma)
-  | SSpace => Some(Space)
-  | SCons => Some(Cons)
-  | SAnd
-  | SOr
-  | SMinus
-  | SPlus
-  | STimes
-  | SLessThan
-  | SGreaterThan
-  | SEquals
-  | SArrow
-  | SVBar => None
-  };
-
-let op_shape_of_pat_op = (op: UHPat.operator): operator_shape =>
-  switch (op) {
-  | Comma => SComma
-  | Space => SSpace
-  | Cons => SCons
-  };
-
 let exp_op_of = (os: operator_shape): option(UHExp.operator) =>
   switch (os) {
   | SPlus => Some(Plus)
@@ -116,45 +92,30 @@ type result('success) =
 
 let _cursor_escaped_zopseq =
     (
-      ~place_before_operand: 'operand => 'zoperand,
-      ~place_before_operator: 'operator => 'zoperator,
-      ~place_after_operand: 'operand => 'zoperand,
-      ~place_after_operator: 'operator => 'zoperator,
-      ~erase_zoperand: 'zoperand => 'operand,
-      ~erase_zoperator: 'zoperator => 'operator,
+      ~move_cursor_left:
+         ZOpSeq.t('operand, 'operator, 'zoperand, 'zoperator) =>
+         option(ZOpSeq.t('operand, 'operator, 'zoperand, 'zoperator)),
+      ~move_cursor_right:
+         ZOpSeq.t('operand, 'operator, 'zoperand, 'zoperator) =>
+         option(ZOpSeq.t('operand, 'operator, 'zoperand, 'zoperator)),
       ~mk_result:
          ZOpSeq.t('operand, 'operator, 'zoperand, 'zoperator) =>
          result('success),
       side: Side.t,
-      ZOpSeq(skel, zseq):
-        ZOpSeq.t('operand, 'operator, 'zoperand, 'zoperator),
+      zopseq: ZOpSeq.t('operand, 'operator, 'zoperand, 'zoperator),
     )
     : result('success) =>
-  switch (side, zseq) {
-  | (Before, ZOperand(zoperand, (prefix, suffix))) =>
-    switch (prefix) {
-    | E => CursorEscaped(Before)
-    | A(prefix_hd, new_prefix) =>
-      let zop = prefix_hd |> place_after_operator;
-      let new_suffix = Seq.S(zoperand |> erase_zoperand, suffix);
-      mk_result(ZOpSeq(skel, ZOperator(zop, (new_prefix, new_suffix))));
+  switch (side) {
+  | Before =>
+    switch (zopseq |> move_cursor_left) {
+    | None => CursorEscaped(Before)
+    | Some(zopseq) => mk_result(zopseq)
     }
-  | (After, ZOperand(zoperand, (prefix, suffix))) =>
-    switch (suffix) {
-    | E => CursorEscaped(After)
-    | A(suffix_hd, new_suffix) =>
-      let zop = suffix_hd |> place_before_operator;
-      let new_prefix = Seq.S(zoperand |> erase_zoperand, prefix);
-      mk_result(ZOpSeq(skel, ZOperator(zop, (new_prefix, new_suffix))));
+  | After =>
+    switch (zopseq |> move_cursor_right) {
+    | None => CursorEscaped(After)
+    | Some(zopseq) => mk_result(zopseq)
     }
-  | (Before, ZOperator(zoperator, (S(prefix_hd, new_prefix), suffix))) =>
-    let zoperand = prefix_hd |> place_after_operand;
-    let new_suffix = Seq.A(zoperator |> erase_zoperator, suffix);
-    mk_result(ZOpSeq(skel, ZOperand(zoperand, (new_prefix, new_suffix))));
-  | (After, ZOperator(zoperator, (prefix, S(suffix_hd, new_suffix)))) =>
-    let zoperand = suffix_hd |> place_before_operand;
-    let new_prefix = Seq.A(zoperator |> erase_zoperator, prefix);
-    mk_result(ZOpSeq(skel, ZOperand(zoperand, (new_prefix, new_suffix))));
   };
 
 module Typ = {
@@ -191,15 +152,32 @@ module Typ = {
 
   let cursor_escaped_zopseq =
     _cursor_escaped_zopseq(
-      ~place_before_operand=ZTyp.place_before_operand,
-      ~place_before_operator=ZTyp.place_before_operator,
-      ~place_after_operand=ZTyp.place_after_operand,
-      ~place_after_operator=ZTyp.place_after_operator,
-      ~erase_zoperand=ZTyp.erase_zoperand,
-      ~erase_zoperator=ZTyp.erase_zoperator,
+      ~move_cursor_left=ZTyp.move_cursor_left_zopseq,
+      ~move_cursor_right=ZTyp.move_cursor_right_zopseq,
       ~mk_result=z =>
       Succeeded(ZTyp.ZT1(z))
     );
+
+  let construct_operator =
+      (
+        operator: UHTyp.operator,
+        zoperand: ZTyp.zoperand,
+        (prefix, suffix): ZTyp.operand_surround,
+      )
+      : ZTyp.zopseq => {
+    let operand = zoperand |> ZTyp.erase_zoperand;
+    let (zoperand, surround) =
+      if (ZTyp.is_before_zoperand(zoperand)) {
+        let zoperand = UHTyp.Hole |> ZTyp.place_before_operand;
+        let new_suffix = Seq.A(operator, S(operand, suffix));
+        (zoperand, (prefix, new_suffix));
+      } else {
+        let zoperand = UHTyp.Hole |> ZTyp.place_before_operand;
+        let new_prefix = Seq.A(operator, S(operand, prefix));
+        (zoperand, (new_prefix, suffix));
+      };
+    mk_ZOpSeq(ZOperand(zoperand, surround));
+  };
 
   let rec perform = (a: t, zty: ZTyp.t): result(ZTyp.t) =>
     switch (zty) {
@@ -209,6 +187,21 @@ module Typ = {
   and perform_opseq =
       (a: t, ZOpSeq(skel, zseq) as zopseq: ZTyp.zopseq): result(ZTyp.t) =>
     switch (a, zseq) {
+    /* Invalid actions at the type level */
+    | (
+        UpdateApPalette(_) |
+        Construct(
+          SAsc | SLet | SLine | SVar(_) | SLam | SNumLit(_) | SListNil |
+          SInj(_) |
+          SCase |
+          SApPalette(_) |
+          SWild,
+        ),
+        _,
+      )
+    /* Invalid cursor positions */
+    | (_, ZOperator((OnText(_) | OnDelim(_), _), _)) => Failed
+
     /* Movement */
     | (MoveTo(path), _) =>
       switch (CursorPath.Typ.follow_opseq(path, zopseq |> ZTyp.erase_zopseq)) {
@@ -252,13 +245,14 @@ module Typ = {
       |> Opt.map_default(~default=CursorEscaped(After), z =>
            Succeeded(ZTyp.ZT1(z))
          )
-    | (Construct(SOp(SSpace)), ZOperand(zoperand, _))
-        when ZTyp.is_after_zoperand(zoperand) =>
-      perform_opseq(MoveRight, zopseq)
-    | (Construct(SOp(SSpace)), ZOperator(_)) =>
-      perform_opseq(MoveRight, zopseq)
 
     /* Deletion */
+
+    | (Delete, ZOperator((OnOp(After), _), _)) =>
+      cursor_escaped_zopseq(After, zopseq)
+    | (Backspace, ZOperator((OnOp(Before), _), _)) =>
+      cursor_escaped_zopseq(Before, zopseq)
+
     /* Delete before operator == Backspace after operator */
     | (Delete, ZOperator((OnOp(Before), op), surround)) =>
       perform_opseq(
@@ -266,7 +260,7 @@ module Typ = {
         ZOpSeq(skel, ZOperator((OnOp(After), op), surround)),
       )
     /* ... + [k-2] + [k-1] +<| [k] + ...   ==>   ... + [k-2] + [k-1]| + ...
-     * (for now until we have inductive datatypes) */
+     * (for now until we have proper type constructors) */
     | (Backspace, ZOperator((OnOp(After), op), (prefix, suffix))) =>
       let S(prefix_hd, new_prefix) = prefix;
       let zoperand = prefix_hd |> ZTyp.place_after_operand;
@@ -276,47 +270,29 @@ module Typ = {
       );
 
     /* Construction */
-    | (
-        Construct(SOp(os)),
-        ZOperand(CursorT(_) as zoperand, (prefix, suffix)),
-      ) =>
+    /* construction on operators becomes movement... */
+    | (Construct(SOp(SSpace)), ZOperator(_)) =>
+      perform_opseq(MoveRight, zopseq)
+    /* ...or construction after movement */
+    | (Construct(_) as a, ZOperator(zoperator, _)) =>
+      let move_cursor =
+        ZTyp.is_before_zoperator(zoperator)
+          ? ZTyp.move_cursor_left_zopseq : ZTyp.move_cursor_right_zopseq;
+      switch (zopseq |> move_cursor) {
+      | None => Failed
+      | Some(zopseq) => perform_opseq(a, zopseq)
+      };
+
+    /* Space becomes movement until we have proper type constructors */
+    | (Construct(SOp(SSpace)), ZOperand(zoperand, _))
+        when ZTyp.is_after_zoperand(zoperand) =>
+      perform_opseq(MoveRight, zopseq)
+
+    | (Construct(SOp(os)), ZOperand(CursorT(_) as zoperand, surround)) =>
       switch (operator_of_shape(os)) {
       | None => Failed
       | Some(op) =>
-        let operand = zoperand |> ZTyp.erase_zoperand;
-        if (ZTyp.is_before_zoperand(zoperand)) {
-          let zoperand = UHTyp.Hole |> ZTyp.place_before_operand;
-          let new_suffix = Seq.A(op, S(operand, suffix));
-          Succeeded(
-            ZT1(mk_ZOpSeq(ZOperand(zoperand, (prefix, new_suffix)))),
-          );
-        } else {
-          let zoperand = UHTyp.Hole |> ZTyp.place_before_operand;
-          let new_prefix = Seq.A(op, S(operand, prefix));
-          Succeeded(
-            ZT1(mk_ZOpSeq(ZOperand(zoperand, (new_prefix, suffix)))),
-          );
-        };
-      }
-    | (Construct(SOp(os)), ZOperator(zoperator, (prefix, suffix))) =>
-      switch (operator_of_shape(os)) {
-      | None => Failed
-      | Some(op) =>
-        if (ZTyp.is_before_zoperator(zoperator)) {
-          let new_prefix = Seq.A(op, prefix);
-          let zoperand = UHTyp.Hole |> ZTyp.place_before_operand;
-          let new_suffix = Seq.A(zoperator |> ZTyp.erase_zoperator, suffix);
-          Succeeded(
-            ZT1(mk_ZOpSeq(ZOperand(zoperand, (new_prefix, new_suffix)))),
-          );
-        } else {
-          let new_prefix = Seq.A(zoperator |> ZTyp.erase_zoperator, prefix);
-          let zoperand = UHTyp.Hole |> ZTyp.place_before_operand;
-          let new_suffix = Seq.A(op, suffix);
-          Succeeded(
-            ZT1(mk_ZOpSeq(ZOperand(zoperand, (new_prefix, new_suffix)))),
-          );
-        }
+        Succeeded(ZT1(construct_operator(op, zoperand, surround)))
       }
 
     /* Zipper */
@@ -342,24 +318,25 @@ module Typ = {
           );
         }
       }
-    | (_, ZOperator(zoperator, surround)) =>
-      switch (perform_operator(a, zoperator)) {
-      | Failed => Failed
-      | CursorEscaped(side) => cursor_escaped_zopseq(side, zopseq)
-      | Succeeded(zoperator) =>
-        Succeeded(ZT1(mk_ZOpSeq(ZOperator(zoperator, surround))))
-      }
-    }
-  and perform_operator =
-      (a: t, zoperator: ZTyp.zoperator): result(ZTyp.zoperator) =>
-    // TODO: design and implement character-level edits
-    switch (a, zoperator) {
-    | (Backspace, (OnOp(Before), _)) => CursorEscaped(Before)
-    | (Delete, (OnOp(After), _)) => CursorEscaped(After)
-    | _ => Failed
     }
   and perform_operand = (a: t, zoperand: ZTyp.zoperand): result(ZTyp.t) =>
     switch (a, zoperand) {
+    /* Invalid actions at the type level */
+    | (
+        UpdateApPalette(_) |
+        Construct(
+          SAsc | SLet | SLine | SVar(_) | SLam | SNumLit(_) | SListNil |
+          SInj(_) |
+          SCase |
+          SApPalette(_) |
+          SWild,
+        ),
+        _,
+      ) =>
+      Failed
+
+    /* Invalid cursor positions */
+    | (_, CursorT(OnText(_) | OnOp(_), _)) => Failed
     | (_, CursorT(cursor, operand))
         when !ZTyp.is_valid_cursor_operand(cursor, operand) =>
       Failed
@@ -399,9 +376,7 @@ module Typ = {
         )
       ) {
       | None => Failed
-      | Some(steps) =>
-        /* [debug] let path = Helper.log_path path in */
-        perform_operand(MoveToBefore(steps), zoperand)
+      | Some(steps) => perform_operand(MoveToBefore(steps), zoperand)
       }
     | (MoveLeft, _) =>
       zoperand
@@ -415,37 +390,39 @@ module Typ = {
       |> Opt.map_default(~default=CursorEscaped(After), zoperand =>
            Succeeded(ZTyp.ZT0(zoperand))
          )
+
     /* Backspace and Delete */
-    | (Backspace, _) when zoperand |> ZTyp.is_before_zoperand =>
-      CursorEscaped(Before)
-    | (Delete, _) when zoperand |> ZTyp.is_after_zoperand =>
-      CursorEscaped(After)
-    | (Backspace, CursorT(_, Hole as uty)) =>
-      zoperand |> ZTyp.is_after_zoperand
-        ? Succeeded(ZT0(uty |> ZTyp.place_before_operand)) : Failed
-    | (Delete, CursorT(_, Hole as uty)) =>
-      zoperand |> ZTyp.is_before_zoperand
-        ? Succeeded(ZT0(uty |> ZTyp.place_after_operand)) : Failed
-    | (Backspace | Delete, CursorT(_, Unit | Num | Bool)) =>
-      Succeeded(ZT0(ZTyp.place_before_operand(Hole)))
+
     /* ( _ <|)   ==>   ( _| ) */
-    /* ... + [k-2] + [k-1] <|+ [k] + ...   ==>   ... + [k-2] + [k-1]| + [k] + ... */
-    | (Backspace, CursorT(OnDelim(_, Before), Parenthesized(_) | List(_))) =>
-      perform_operand(MoveLeft, zoperand)
+    | (Backspace, CursorT(OnDelim(_, Before), _)) =>
+      zoperand |> ZTyp.is_before_zoperand
+        ? CursorEscaped(Before) : perform_operand(MoveLeft, zoperand)
     /* (|> _ )   ==>   ( |_ ) */
-    /* ... + [k-1] +|> [k] + [k+1] + ...   ==>   ... + [k-1] + |[k] + [k+1] + ... */
-    | (Delete, CursorT(OnDelim(_, After), Parenthesized(_) | List(_))) =>
-      perform_operand(MoveRight, zoperand)
+    | (Delete, CursorT(OnDelim(_, After), _)) =>
+      zoperand |> ZTyp.is_after_zoperand
+        ? CursorEscaped(After) : perform_operand(MoveRight, zoperand)
+
     /* Delete before delimiter == Backspace after delimiter */
+    | (Delete, CursorT(OnDelim(k, Before), operand)) =>
+      perform_operand(Backspace, CursorT(OnDelim(k, After), operand))
+
+    | (Backspace, CursorT(OnDelim(_, After), Hole)) =>
+      Succeeded(ZT0(ZTyp.place_before_operand(Hole)))
+
+    | (Backspace, CursorT(OnDelim(_, After), Unit | Num | Bool)) =>
+      Succeeded(ZT0(ZTyp.place_before_operand(Hole)))
+
+    /* ( _ )<|  ==>  _| */
+    /* (<| _ )  ==>  |_ */
     | (
-        Delete,
-        CursorT(OnDelim(k, Before), (Parenthesized(_) | List(_)) as uty),
+        Backspace,
+        CursorT(OnDelim(k, After), Parenthesized(body) | List(body)),
       ) =>
-      perform_operand(Backspace, CursorT(OnDelim(k, After), uty))
-    /* ( _ )<|  ==>  ( _ [)] */
-    | (Backspace, CursorT(OnDelim(k, After), Parenthesized(_) | List(_))) =>
-      Succeeded(ZT0(UHTyp.Hole |> ZTyp.place_after_operand))
+      let place_cursor = k == 0 ? ZTyp.place_before : ZTyp.place_after;
+      Succeeded(body |> place_cursor);
+
     /* Construction */
+
     | (Construct(SOp(SSpace)), CursorT(OnDelim(_, After), _)) =>
       perform_operand(MoveRight, zoperand)
     | (Construct(_) as a, CursorT(OnDelim(_, side), _))
@@ -462,23 +439,28 @@ module Typ = {
       | Before => move_then_perform(MoveLeft)
       | After => move_then_perform(MoveRight)
       };
-    /*
-     | (
-         Construct(SLine),
-         CursorT(Staging(k), (Parenthesized(_) | List(_)) as uty),
-       ) =>
-       Succeeded(CursorT(OnDelim(k, k == 0 ? Before : After), uty))
-     */
-    | (Construct(SParenthesized), CursorT(_, _)) =>
-      Succeeded(ZT0(ParenthesizedZ(ZT0(zoperand))))
+
     | (Construct(SNum), CursorT(_, Hole)) =>
       Succeeded(ZT0(ZTyp.place_after_operand(Num)))
-    | (Construct(SNum), CursorT(_, _)) => Failed
+    | (Construct(SNum), CursorT(_)) => Failed
+
     | (Construct(SBool), CursorT(_, Hole)) =>
       Succeeded(ZT0(ZTyp.place_after_operand(Bool)))
-    | (Construct(SBool), CursorT(_, _)) => Failed
-    | (Construct(SList), CursorT(_, _)) =>
+    | (Construct(SBool), CursorT(_)) => Failed
+
+    | (Construct(SList), CursorT(_)) =>
       Succeeded(ZT0(ListZ(ZT0(zoperand))))
+
+    | (Construct(SParenthesized), CursorT(_)) =>
+      Succeeded(ZT0(ParenthesizedZ(ZT0(zoperand))))
+
+    | (Construct(SOp(os)), CursorT(_)) =>
+      switch (operator_of_shape(os)) {
+      | None => Failed
+      | Some(op) =>
+        Succeeded(ZT1(construct_operator(op, zoperand, (E, E))))
+      }
+
     /* Zipper Cases */
     | (_, ParenthesizedZ(zbody)) =>
       switch (perform(a, zbody)) {
@@ -494,769 +476,688 @@ module Typ = {
       | CursorEscaped(After) => perform_operand(MoveRight, zoperand)
       | Succeeded(zbody) => Succeeded(ZT0(ListZ(zbody)))
       }
-    /* Invalid actions at the type level */
-    | (UpdateApPalette(_), _)
-    | (Construct(SAsc), _)
-    | (Construct(SLet), _)
-    | (Construct(SLine), _)
-    | (Construct(SVar(_, _)), _)
-    | (Construct(SLam), _)
-    | (Construct(SNumLit(_, _)), _)
-    | (Construct(SListNil), _)
-    | (Construct(SInj(_)), _)
-    | (Construct(SCase), _)
-    | (Construct(SApPalette(_)), _)
-    | (Construct(SWild), _) => Failed
     };
 };
 
-let abs_perform_Backspace_Before_op =
-    (
-      combine_for_Backspace_Space: ('e, 'z) => 'z,
-      z_typecheck_fix_holes: (Contexts.t, MetaVarGen.t, 'z) => 'm,
-      make_and_typecheck_OpSeqZ:
-        (Contexts.t, MetaVarGen.t, 'z, Seq.opseq_surround('e, 'op)) => 'm,
-      is_EmptyHole: 'e => bool,
-      is_Space: 'op => bool,
-      _Space: 'op,
-      place_after: 'e => 'z,
-      ctx: Contexts.t,
-      u_gen: MetaVarGen.t,
-      e0: 'e,
-      ze0: 'z,
-      surround: Seq.surround('e, 'op),
-    )
-    : option('m) =>
-  switch (surround) {
-  | EmptyPrefix(_) => None
-  | EmptySuffix(prefix) =>
-    switch (prefix) {
-    | OperandPrefix(e1, op1) =>
-      /* e1 op1 |ze0 */
-      if (is_Space(op1)) {
-        /* e1 |ze0 */
-        let ze0' = combine_for_Backspace_Space(e1, ze0);
-        Some(z_typecheck_fix_holes(ctx, u_gen, ze0'));
-      } else {
-        switch (is_EmptyHole(e1), is_EmptyHole(e0)) {
-        | (true, true) =>
-          /* _1 op1 |_0 --> _1| */
-          let ze0' = place_after(e1);
-          Some(z_typecheck_fix_holes(ctx, u_gen, ze0'));
-        | (true, _) =>
-          /* _1 op1 |e0 --> |e0 */
-          Some(z_typecheck_fix_holes(ctx, u_gen, ze0))
-        | (false, true) =>
-          /* e1 op1 |_0 --> e1| */
-          let ze0' = place_after(e1);
-          Some(z_typecheck_fix_holes(ctx, u_gen, ze0'));
-        | (false, false) =>
-          /* e1 op1 |ze0 --> e1 |ze0 */
-          let surround' = Seq.EmptySuffix(OperandPrefix(e1, _Space));
-          Some(make_and_typecheck_OpSeqZ(ctx, u_gen, ze0, surround'));
-        };
-      }
-    | SeqPrefix(seq1, op1) =>
-      /* seq1 op1 |ze0 */
-      is_Space(op1)
-        /* seq1 |ze0 */
-        ? {
-          let (e1, prefix') = OpSeqSurround.split_prefix_and_last(seq1);
-          let surround' = Seq.EmptySuffix(prefix');
-          let ze0' = combine_for_Backspace_Space(e1, ze0);
-          Some(make_and_typecheck_OpSeqZ(ctx, u_gen, ze0', surround'));
-        }
-        : {
-          let (e1, prefix') = OpSeqSurround.split_prefix_and_last(seq1);
-          if (is_EmptyHole(e0)) {
-            /* prefix' e1 op1 |_0 --> prefix' e1| */
-            let surround' = Seq.EmptySuffix(prefix');
-            let ze0' = place_after(e1);
-            Some(make_and_typecheck_OpSeqZ(ctx, u_gen, ze0', surround'));
-          } else if (is_EmptyHole(e1)) {
-            /* prefix' _1 op1 |e0 --> prefix' |e0 */
-            let surround' = Seq.EmptySuffix(prefix');
-            Some(make_and_typecheck_OpSeqZ(ctx, u_gen, ze0, surround'));
-          } else {
-            /* seq1 op1 |ze0 --> seq1 |ze0 */
-            let prefix' = Seq.SeqPrefix(seq1, _Space);
-            let surround' = Seq.EmptySuffix(prefix');
-            Some(make_and_typecheck_OpSeqZ(ctx, u_gen, ze0, surround'));
-          };
-        }
-    }
-  | BothNonEmpty(prefix, suffix) =>
-    switch (prefix) {
-    | OperandPrefix(e1, op1) =>
-      /* e1 op1 |ze0 ...suffix */
-      is_Space(op1)
-        /* e1 |ze0 ...suffix */
-        ? {
-          let ze0' = combine_for_Backspace_Space(e1, ze0);
-          let surround' = Seq.EmptyPrefix(suffix);
-          Some(make_and_typecheck_OpSeqZ(ctx, u_gen, ze0', surround'));
-        }
-        : (
-          if (is_EmptyHole(e0)) {
-            /* e1 op1 |_0 suffix --> e1| suffix */
-            let surround' = Seq.EmptyPrefix(suffix);
-            let ze0' = place_after(e1);
-            Some(make_and_typecheck_OpSeqZ(ctx, u_gen, ze0', surround'));
-          } else if (is_EmptyHole(e1)) {
-            /* _1 op1 |e0 suffix --> |e0 suffix */
-            let surround' = Seq.EmptyPrefix(suffix);
-            Some(make_and_typecheck_OpSeqZ(ctx, u_gen, ze0, surround'));
-          } else {
-            /* e1 op1 |ze0 --> e1 |ze0 ...suffix */
-            let surround' =
-              Seq.BothNonEmpty(OperandPrefix(e1, _Space), suffix);
-            Some(make_and_typecheck_OpSeqZ(ctx, u_gen, ze0, surround'));
-          }
-        )
-    | SeqPrefix(seq1, op1) =>
-      /* seq1 op1 |ze0 ...suffix */
-      is_Space(op1)
-        /* seq1 |ze0 ...suffix */
-        ? {
-          let (e1, prefix') = OpSeqSurround.split_prefix_and_last(seq1);
-          let ze0' = combine_for_Backspace_Space(e1, ze0);
-          let surround' = Seq.BothNonEmpty(prefix', suffix);
-          Some(make_and_typecheck_OpSeqZ(ctx, u_gen, ze0', surround'));
-        }
-        : {
-          let (e1, prefix') = OpSeqSurround.split_prefix_and_last(seq1);
-          if (is_EmptyHole(e0)) {
-            /* prefix' e1 op1 |_0 suffix --> prefix' e1| suffix */
-            let surround' = Seq.BothNonEmpty(prefix', suffix);
-            let ze0' = place_after(e1);
-            Some(make_and_typecheck_OpSeqZ(ctx, u_gen, ze0', surround'));
-          } else if (is_EmptyHole(e1)) {
-            /* prefix' _1 op1 |e0 suffix --> prefix' |e0 suffix */
-            let surround' = Seq.BothNonEmpty(prefix', suffix);
-            Some(make_and_typecheck_OpSeqZ(ctx, u_gen, ze0, surround'));
-          } else {
-            /* seq1 op1 |ze0 suffix --> seq1 |ze0 suffix */
-            let prefix' = Seq.SeqPrefix(seq1, _Space);
-            let surround' = Seq.BothNonEmpty(prefix', suffix);
-            Some(make_and_typecheck_OpSeqZ(ctx, u_gen, ze0, surround'));
-          };
-        }
-    }
-  };
+/*
+ let abs_perform_Backspace_Before_op =
+     (
+       combine_for_Backspace_Space: ('e, 'z) => 'z,
+       z_typecheck_fix_holes: (Contexts.t, MetaVarGen.t, 'z) => 'm,
+       make_and_typecheck_OpSeqZ:
+         (Contexts.t, MetaVarGen.t, 'z, Seq.opseq_surround('e, 'op)) => 'm,
+       is_EmptyHole: 'e => bool,
+       is_Space: 'op => bool,
+       _Space: 'op,
+       place_after: 'e => 'z,
+       ctx: Contexts.t,
+       u_gen: MetaVarGen.t,
+       e0: 'e,
+       ze0: 'z,
+       surround: Seq.surround('e, 'op),
+     )
+     : option('m) =>
+   switch (surround) {
+   | EmptyPrefix(_) => None
+   | EmptySuffix(prefix) =>
+     switch (prefix) {
+     | OperandPrefix(e1, op1) =>
+       /* e1 op1 |ze0 */
+       if (is_Space(op1)) {
+         /* e1 |ze0 */
+         let ze0' = combine_for_Backspace_Space(e1, ze0);
+         Some(z_typecheck_fix_holes(ctx, u_gen, ze0'));
+       } else {
+         switch (is_EmptyHole(e1), is_EmptyHole(e0)) {
+         | (true, true) =>
+           /* _1 op1 |_0 --> _1| */
+           let ze0' = place_after(e1);
+           Some(z_typecheck_fix_holes(ctx, u_gen, ze0'));
+         | (true, _) =>
+           /* _1 op1 |e0 --> |e0 */
+           Some(z_typecheck_fix_holes(ctx, u_gen, ze0))
+         | (false, true) =>
+           /* e1 op1 |_0 --> e1| */
+           let ze0' = place_after(e1);
+           Some(z_typecheck_fix_holes(ctx, u_gen, ze0'));
+         | (false, false) =>
+           /* e1 op1 |ze0 --> e1 |ze0 */
+           let surround' = Seq.EmptySuffix(OperandPrefix(e1, _Space));
+           Some(make_and_typecheck_OpSeqZ(ctx, u_gen, ze0, surround'));
+         };
+       }
+     | SeqPrefix(seq1, op1) =>
+       /* seq1 op1 |ze0 */
+       is_Space(op1)
+         /* seq1 |ze0 */
+         ? {
+           let (e1, prefix') = OpSeqSurround.split_prefix_and_last(seq1);
+           let surround' = Seq.EmptySuffix(prefix');
+           let ze0' = combine_for_Backspace_Space(e1, ze0);
+           Some(make_and_typecheck_OpSeqZ(ctx, u_gen, ze0', surround'));
+         }
+         : {
+           let (e1, prefix') = OpSeqSurround.split_prefix_and_last(seq1);
+           if (is_EmptyHole(e0)) {
+             /* prefix' e1 op1 |_0 --> prefix' e1| */
+             let surround' = Seq.EmptySuffix(prefix');
+             let ze0' = place_after(e1);
+             Some(make_and_typecheck_OpSeqZ(ctx, u_gen, ze0', surround'));
+           } else if (is_EmptyHole(e1)) {
+             /* prefix' _1 op1 |e0 --> prefix' |e0 */
+             let surround' = Seq.EmptySuffix(prefix');
+             Some(make_and_typecheck_OpSeqZ(ctx, u_gen, ze0, surround'));
+           } else {
+             /* seq1 op1 |ze0 --> seq1 |ze0 */
+             let prefix' = Seq.SeqPrefix(seq1, _Space);
+             let surround' = Seq.EmptySuffix(prefix');
+             Some(make_and_typecheck_OpSeqZ(ctx, u_gen, ze0, surround'));
+           };
+         }
+     }
+   | BothNonEmpty(prefix, suffix) =>
+     switch (prefix) {
+     | OperandPrefix(e1, op1) =>
+       /* e1 op1 |ze0 ...suffix */
+       is_Space(op1)
+         /* e1 |ze0 ...suffix */
+         ? {
+           let ze0' = combine_for_Backspace_Space(e1, ze0);
+           let surround' = Seq.EmptyPrefix(suffix);
+           Some(make_and_typecheck_OpSeqZ(ctx, u_gen, ze0', surround'));
+         }
+         : (
+           if (is_EmptyHole(e0)) {
+             /* e1 op1 |_0 suffix --> e1| suffix */
+             let surround' = Seq.EmptyPrefix(suffix);
+             let ze0' = place_after(e1);
+             Some(make_and_typecheck_OpSeqZ(ctx, u_gen, ze0', surround'));
+           } else if (is_EmptyHole(e1)) {
+             /* _1 op1 |e0 suffix --> |e0 suffix */
+             let surround' = Seq.EmptyPrefix(suffix);
+             Some(make_and_typecheck_OpSeqZ(ctx, u_gen, ze0, surround'));
+           } else {
+             /* e1 op1 |ze0 --> e1 |ze0 ...suffix */
+             let surround' =
+               Seq.BothNonEmpty(OperandPrefix(e1, _Space), suffix);
+             Some(make_and_typecheck_OpSeqZ(ctx, u_gen, ze0, surround'));
+           }
+         )
+     | SeqPrefix(seq1, op1) =>
+       /* seq1 op1 |ze0 ...suffix */
+       is_Space(op1)
+         /* seq1 |ze0 ...suffix */
+         ? {
+           let (e1, prefix') = OpSeqSurround.split_prefix_and_last(seq1);
+           let ze0' = combine_for_Backspace_Space(e1, ze0);
+           let surround' = Seq.BothNonEmpty(prefix', suffix);
+           Some(make_and_typecheck_OpSeqZ(ctx, u_gen, ze0', surround'));
+         }
+         : {
+           let (e1, prefix') = OpSeqSurround.split_prefix_and_last(seq1);
+           if (is_EmptyHole(e0)) {
+             /* prefix' e1 op1 |_0 suffix --> prefix' e1| suffix */
+             let surround' = Seq.BothNonEmpty(prefix', suffix);
+             let ze0' = place_after(e1);
+             Some(make_and_typecheck_OpSeqZ(ctx, u_gen, ze0', surround'));
+           } else if (is_EmptyHole(e1)) {
+             /* prefix' _1 op1 |e0 suffix --> prefix' |e0 suffix */
+             let surround' = Seq.BothNonEmpty(prefix', suffix);
+             Some(make_and_typecheck_OpSeqZ(ctx, u_gen, ze0, surround'));
+           } else {
+             /* seq1 op1 |ze0 suffix --> seq1 |ze0 suffix */
+             let prefix' = Seq.SeqPrefix(seq1, _Space);
+             let surround' = Seq.BothNonEmpty(prefix', suffix);
+             Some(make_and_typecheck_OpSeqZ(ctx, u_gen, ze0, surround'));
+           };
+         }
+     }
+   };
 
-let abs_perform_Delete_After_op =
-    (
-      combine_for_Delete_Space: ('z, 'e) => 'z,
-      z_typecheck_fix_holes: (Contexts.t, MetaVarGen.t, 'z) => 'm,
-      make_and_typecheck_OpSeqZ:
-        (Contexts.t, MetaVarGen.t, 'z, Seq.opseq_surround('e, 'op)) => 'm,
-      is_EmptyHole: 'e => bool,
-      is_Space: 'op => bool,
-      _Space: 'op,
-      place_before: 'e => 'z,
-      ctx: Contexts.t,
-      u_gen: MetaVarGen.t,
-      e0: 'e,
-      ze0: 'z,
-      surround: Seq.opseq_surround('e, 'op),
-    )
-    : option('m) =>
-  switch (surround) {
-  | EmptySuffix(_) => None /* precluded by pattern begin match above */
-  | EmptyPrefix(suffix) =>
-    switch (suffix) {
-    | OperandSuffix(op, e1) =>
-      is_Space(op)
-        ? {
-          let ze0' = combine_for_Delete_Space(ze0, e1);
-          Some(z_typecheck_fix_holes(ctx, u_gen, ze0'));
-        }
-        : (
-          switch (is_EmptyHole(e0), is_EmptyHole(e1)) {
-          | (true, true) =>
-            /* _0| op _1 --> _0| */
-            Some(z_typecheck_fix_holes(ctx, u_gen, ze0))
-          | (true, false) =>
-            /* _0| op e1 --> |e1 */
-            let ze1 = place_before(e1);
-            Some(z_typecheck_fix_holes(ctx, u_gen, ze1));
-          | (false, true) =>
-            /* e0| op _ --> e0| */
-            Some(z_typecheck_fix_holes(ctx, u_gen, ze0))
-          | (false, false) =>
-            /* e0| op e1 --> e0| e1 */
-            let surround' = Seq.EmptyPrefix(OperandSuffix(_Space, e1));
-            Some(make_and_typecheck_OpSeqZ(ctx, u_gen, ze0, surround'));
-          }
-        )
-    | SeqSuffix(op, seq) =>
-      is_Space(op)
-        ? {
-          let (e, suffix') = OpSeqSurround.split_first_and_suffix(seq);
-          let surround' = Seq.EmptyPrefix(suffix');
-          let ze0' = combine_for_Delete_Space(ze0, e);
-          Some(make_and_typecheck_OpSeqZ(ctx, u_gen, ze0', surround'));
-        }
-        : {
-          let (e1, suffix') = OpSeqSurround.split_first_and_suffix(seq);
-          if (is_EmptyHole(e1)) {
-            /* e0| op _ suffix' --> e0| suffix' */
-            let surround' = Seq.EmptyPrefix(suffix');
-            Some(make_and_typecheck_OpSeqZ(ctx, u_gen, ze0, surround'));
-          } else if (is_EmptyHole(e0)) {
-            /* _0| op e1 suffix' --> |e1 suffix' */
-            let surround' = Seq.EmptyPrefix(suffix');
-            let ze1 = place_before(e1);
-            Some(make_and_typecheck_OpSeqZ(ctx, u_gen, ze1, surround'));
-          } else {
-            /* e0| op seq --> e0| seq */
-            let suffix' = Seq.SeqSuffix(_Space, seq);
-            let surround' = Seq.EmptyPrefix(suffix');
-            Some(make_and_typecheck_OpSeqZ(ctx, u_gen, ze0, surround'));
-          };
-        }
-    }
-  | BothNonEmpty(prefix, suffix) =>
-    switch (suffix) {
-    | OperandSuffix(op, e1) =>
-      is_Space(op)
-        ? {
-          let ze0' = combine_for_Delete_Space(ze0, e1);
-          let surround' = Seq.EmptySuffix(prefix);
-          Some(make_and_typecheck_OpSeqZ(ctx, u_gen, ze0', surround'));
-        }
-        : (
-          if (is_EmptyHole(e1)) {
-            /* prefix e0| op _ --> prefix e0| */
-            let surround' = Seq.EmptySuffix(prefix);
-            Some(make_and_typecheck_OpSeqZ(ctx, u_gen, ze0, surround'));
-          } else if (is_EmptyHole(e0)) {
-            /* prefix _0| op e1 --> prefix |e1 */
-            let surround' = Seq.EmptySuffix(prefix);
-            let ze1 = place_before(e1);
-            Some(make_and_typecheck_OpSeqZ(ctx, u_gen, ze1, surround'));
-          } else {
-            /* prefix e0| op e1 --> e0| e1 */
-            let surround' =
-              Seq.BothNonEmpty(prefix, Seq.OperandSuffix(_Space, e1));
-            Some(make_and_typecheck_OpSeqZ(ctx, u_gen, ze0, surround'));
-          }
-        )
-    | SeqSuffix(op, seq) =>
-      is_Space(op)
-        ? {
-          let (e, suffix') = OpSeqSurround.split_first_and_suffix(seq);
-          let ze0' = combine_for_Delete_Space(ze0, e);
-          let surround' = Seq.BothNonEmpty(prefix, suffix');
-          Some(make_and_typecheck_OpSeqZ(ctx, u_gen, ze0', surround'));
-        }
-        : {
-          let (e1, suffix') = OpSeqSurround.split_first_and_suffix(seq);
-          if (is_EmptyHole(e1)) {
-            /* prefix e0| op _ suffix' --> prefix e0| suffix' */
-            let surround' = Seq.BothNonEmpty(prefix, suffix');
-            Some(make_and_typecheck_OpSeqZ(ctx, u_gen, ze0, surround'));
-          } else if (is_EmptyHole(e0)) {
-            /* prefix _0| op e1 suffix' --> prefix |e1 suffix' */
-            let surround' = Seq.BothNonEmpty(prefix, suffix');
-            let ze1 = place_before(e1);
-            Some(make_and_typecheck_OpSeqZ(ctx, u_gen, ze1, surround'));
-          } else {
-            /* prefix e| op seq --> e| seq */
-            let suffix' = Seq.SeqSuffix(_Space, seq);
-            let surround' = Seq.BothNonEmpty(prefix, suffix');
-            Some(make_and_typecheck_OpSeqZ(ctx, u_gen, ze0, surround'));
-          };
-        }
-    }
-  };
+ let abs_perform_Delete_After_op =
+     (
+       combine_for_Delete_Space: ('z, 'e) => 'z,
+       z_typecheck_fix_holes: (Contexts.t, MetaVarGen.t, 'z) => 'm,
+       make_and_typecheck_OpSeqZ:
+         (Contexts.t, MetaVarGen.t, 'z, Seq.opseq_surround('e, 'op)) => 'm,
+       is_EmptyHole: 'e => bool,
+       is_Space: 'op => bool,
+       _Space: 'op,
+       place_before: 'e => 'z,
+       ctx: Contexts.t,
+       u_gen: MetaVarGen.t,
+       e0: 'e,
+       ze0: 'z,
+       surround: Seq.opseq_surround('e, 'op),
+     )
+     : option('m) =>
+   switch (surround) {
+   | EmptySuffix(_) => None /* precluded by pattern begin match above */
+   | EmptyPrefix(suffix) =>
+     switch (suffix) {
+     | OperandSuffix(op, e1) =>
+       is_Space(op)
+         ? {
+           let ze0' = combine_for_Delete_Space(ze0, e1);
+           Some(z_typecheck_fix_holes(ctx, u_gen, ze0'));
+         }
+         : (
+           switch (is_EmptyHole(e0), is_EmptyHole(e1)) {
+           | (true, true) =>
+             /* _0| op _1 --> _0| */
+             Some(z_typecheck_fix_holes(ctx, u_gen, ze0))
+           | (true, false) =>
+             /* _0| op e1 --> |e1 */
+             let ze1 = place_before(e1);
+             Some(z_typecheck_fix_holes(ctx, u_gen, ze1));
+           | (false, true) =>
+             /* e0| op _ --> e0| */
+             Some(z_typecheck_fix_holes(ctx, u_gen, ze0))
+           | (false, false) =>
+             /* e0| op e1 --> e0| e1 */
+             let surround' = Seq.EmptyPrefix(OperandSuffix(_Space, e1));
+             Some(make_and_typecheck_OpSeqZ(ctx, u_gen, ze0, surround'));
+           }
+         )
+     | SeqSuffix(op, seq) =>
+       is_Space(op)
+         ? {
+           let (e, suffix') = OpSeqSurround.split_first_and_suffix(seq);
+           let surround' = Seq.EmptyPrefix(suffix');
+           let ze0' = combine_for_Delete_Space(ze0, e);
+           Some(make_and_typecheck_OpSeqZ(ctx, u_gen, ze0', surround'));
+         }
+         : {
+           let (e1, suffix') = OpSeqSurround.split_first_and_suffix(seq);
+           if (is_EmptyHole(e1)) {
+             /* e0| op _ suffix' --> e0| suffix' */
+             let surround' = Seq.EmptyPrefix(suffix');
+             Some(make_and_typecheck_OpSeqZ(ctx, u_gen, ze0, surround'));
+           } else if (is_EmptyHole(e0)) {
+             /* _0| op e1 suffix' --> |e1 suffix' */
+             let surround' = Seq.EmptyPrefix(suffix');
+             let ze1 = place_before(e1);
+             Some(make_and_typecheck_OpSeqZ(ctx, u_gen, ze1, surround'));
+           } else {
+             /* e0| op seq --> e0| seq */
+             let suffix' = Seq.SeqSuffix(_Space, seq);
+             let surround' = Seq.EmptyPrefix(suffix');
+             Some(make_and_typecheck_OpSeqZ(ctx, u_gen, ze0, surround'));
+           };
+         }
+     }
+   | BothNonEmpty(prefix, suffix) =>
+     switch (suffix) {
+     | OperandSuffix(op, e1) =>
+       is_Space(op)
+         ? {
+           let ze0' = combine_for_Delete_Space(ze0, e1);
+           let surround' = Seq.EmptySuffix(prefix);
+           Some(make_and_typecheck_OpSeqZ(ctx, u_gen, ze0', surround'));
+         }
+         : (
+           if (is_EmptyHole(e1)) {
+             /* prefix e0| op _ --> prefix e0| */
+             let surround' = Seq.EmptySuffix(prefix);
+             Some(make_and_typecheck_OpSeqZ(ctx, u_gen, ze0, surround'));
+           } else if (is_EmptyHole(e0)) {
+             /* prefix _0| op e1 --> prefix |e1 */
+             let surround' = Seq.EmptySuffix(prefix);
+             let ze1 = place_before(e1);
+             Some(make_and_typecheck_OpSeqZ(ctx, u_gen, ze1, surround'));
+           } else {
+             /* prefix e0| op e1 --> e0| e1 */
+             let surround' =
+               Seq.BothNonEmpty(prefix, Seq.OperandSuffix(_Space, e1));
+             Some(make_and_typecheck_OpSeqZ(ctx, u_gen, ze0, surround'));
+           }
+         )
+     | SeqSuffix(op, seq) =>
+       is_Space(op)
+         ? {
+           let (e, suffix') = OpSeqSurround.split_first_and_suffix(seq);
+           let ze0' = combine_for_Delete_Space(ze0, e);
+           let surround' = Seq.BothNonEmpty(prefix, suffix');
+           Some(make_and_typecheck_OpSeqZ(ctx, u_gen, ze0', surround'));
+         }
+         : {
+           let (e1, suffix') = OpSeqSurround.split_first_and_suffix(seq);
+           if (is_EmptyHole(e1)) {
+             /* prefix e0| op _ suffix' --> prefix e0| suffix' */
+             let surround' = Seq.BothNonEmpty(prefix, suffix');
+             Some(make_and_typecheck_OpSeqZ(ctx, u_gen, ze0, surround'));
+           } else if (is_EmptyHole(e0)) {
+             /* prefix _0| op e1 suffix' --> prefix |e1 suffix' */
+             let surround' = Seq.BothNonEmpty(prefix, suffix');
+             let ze1 = place_before(e1);
+             Some(make_and_typecheck_OpSeqZ(ctx, u_gen, ze1, surround'));
+           } else {
+             /* prefix e| op seq --> e| seq */
+             let suffix' = Seq.SeqSuffix(_Space, seq);
+             let surround' = Seq.BothNonEmpty(prefix, suffix');
+             Some(make_and_typecheck_OpSeqZ(ctx, u_gen, ze0, surround'));
+           };
+         }
+     }
+   };
 
-let abs_perform_Construct_SOp_After =
-    (
-      bidelimit: 'e => 'e,
-      new_EmptyHole: MetaVarGen.t => ('e, MetaVarGen.t),
-      make_and_typecheck_OpSeq,
-      make_and_typecheck_OpSeqZ:
-        (Contexts.t, MetaVarGen.t, 'z, Seq.opseq_surround('e, 'op)) => 'm,
-      is_Space: 'op => bool,
-      place_before: 'e => 'z,
-      ctx: Contexts.t,
-      u_gen: MetaVarGen.t,
-      e: 'e,
-      op: 'op,
-    )
-    : 'm => {
-  let e' = bidelimit(e);
-  let (new_tm, u_gen) = new_EmptyHole(u_gen);
-  if (is_Space(op)) {
-    let prefix = Seq.OperandPrefix(e', op);
-    let surround = Seq.EmptySuffix(prefix);
-    make_and_typecheck_OpSeqZ(ctx, u_gen, place_before(new_tm), surround);
-  } else {
-    let new_seq = Seq.ExpOpExp(e', op, new_tm);
-    make_and_typecheck_OpSeq(ctx, u_gen, OnDelim(1, After), new_seq);
-  };
-};
+ let abs_perform_Construct_SOp_After =
+     (
+       bidelimit: 'e => 'e,
+       new_EmptyHole: MetaVarGen.t => ('e, MetaVarGen.t),
+       make_and_typecheck_OpSeq,
+       make_and_typecheck_OpSeqZ:
+         (Contexts.t, MetaVarGen.t, 'z, Seq.opseq_surround('e, 'op)) => 'm,
+       is_Space: 'op => bool,
+       place_before: 'e => 'z,
+       ctx: Contexts.t,
+       u_gen: MetaVarGen.t,
+       e: 'e,
+       op: 'op,
+     )
+     : 'm => {
+   let e' = bidelimit(e);
+   let (new_tm, u_gen) = new_EmptyHole(u_gen);
+   if (is_Space(op)) {
+     let prefix = Seq.OperandPrefix(e', op);
+     let surround = Seq.EmptySuffix(prefix);
+     make_and_typecheck_OpSeqZ(ctx, u_gen, place_before(new_tm), surround);
+   } else {
+     let new_seq = Seq.ExpOpExp(e', op, new_tm);
+     make_and_typecheck_OpSeq(ctx, u_gen, OnDelim(1, After), new_seq);
+   };
+ };
 
-let abs_perform_Construct_SOp_Before =
-    (
-      bidelimit: 'e => 'e,
-      new_EmptyHole: MetaVarGen.t => ('e, MetaVarGen.t),
-      make_and_typecheck_OpSeq:
-        (Contexts.t, MetaVarGen.t, CursorPosition.t, Seq.t('e, 'op)) => 'm,
-      make_and_typecheck_OpSeqZ:
-        (Contexts.t, MetaVarGen.t, 'z, Seq.opseq_surround('e, 'op)) => 'm,
-      is_Space: 'op => bool,
-      place_before: 'e => 'z,
-      ctx: Contexts.t,
-      u_gen: MetaVarGen.t,
-      e: 'e,
-      op: 'op,
-    )
-    : 'm => {
-  let e' = bidelimit(e);
-  let (new_tm, u_gen) = new_EmptyHole(u_gen);
-  if (is_Space(op)) {
-    let suffix = Seq.OperandSuffix(op, e');
-    let surround = Seq.EmptyPrefix(suffix);
-    make_and_typecheck_OpSeqZ(ctx, u_gen, place_before(new_tm), surround);
-  } else {
-    let new_seq = Seq.ExpOpExp(new_tm, op, e');
-    make_and_typecheck_OpSeq(ctx, u_gen, OnDelim(1, After), new_seq);
-  };
-};
+ let abs_perform_Construct_SOp_Before =
+     (
+       bidelimit: 'e => 'e,
+       new_EmptyHole: MetaVarGen.t => ('e, MetaVarGen.t),
+       make_and_typecheck_OpSeq:
+         (Contexts.t, MetaVarGen.t, CursorPosition.t, Seq.t('e, 'op)) => 'm,
+       make_and_typecheck_OpSeqZ:
+         (Contexts.t, MetaVarGen.t, 'z, Seq.opseq_surround('e, 'op)) => 'm,
+       is_Space: 'op => bool,
+       place_before: 'e => 'z,
+       ctx: Contexts.t,
+       u_gen: MetaVarGen.t,
+       e: 'e,
+       op: 'op,
+     )
+     : 'm => {
+   let e' = bidelimit(e);
+   let (new_tm, u_gen) = new_EmptyHole(u_gen);
+   if (is_Space(op)) {
+     let suffix = Seq.OperandSuffix(op, e');
+     let surround = Seq.EmptyPrefix(suffix);
+     make_and_typecheck_OpSeqZ(ctx, u_gen, place_before(new_tm), surround);
+   } else {
+     let new_seq = Seq.ExpOpExp(new_tm, op, e');
+     make_and_typecheck_OpSeq(ctx, u_gen, OnDelim(1, After), new_seq);
+   };
+ };
 
-let abs_perform_Construct_SOp_After_surround =
-    (
-      new_EmptyHole: MetaVarGen.t => ('e, MetaVarGen.t),
-      make_and_typecheck_OpSeq:
-        (Contexts.t, MetaVarGen.t, CursorPosition.t, Seq.t('e, 'op)) => 'm,
-      make_and_typecheck_OpSeqZ:
-        (Contexts.t, MetaVarGen.t, 'z, Seq.opseq_surround('e, 'op)) => 'm,
-      is_Space: 'op => bool,
-      _Space: 'op,
-      place_before: 'e => 'z,
-      ctx: Contexts.t,
-      u_gen: MetaVarGen.t,
-      e: 'e,
-      op: 'op,
-      surround: Seq.opseq_surround('e, 'op),
-    )
-    : 'm =>
-  switch (surround) {
-  | EmptySuffix(prefix) =>
-    let (new_tm, u_gen) = u_gen |> new_EmptyHole;
-    if (is_Space(op)) {
-      let prefix' = Seq.prefix_append_operand(prefix, e, op);
-      let surround' = Seq.EmptySuffix(prefix');
-      let ztm = place_before(new_tm);
-      make_and_typecheck_OpSeqZ(ctx, u_gen, ztm, surround');
-    } else {
-      let new_seq =
-        Seq.(SeqOpExp(t_of_prefix_and_last(prefix, e), op, new_tm));
-      make_and_typecheck_OpSeq(
-        ctx,
-        u_gen,
-        OnDelim(Seq.length(new_seq) - 1, After),
-        new_seq,
-      );
-    };
-  | EmptyPrefix(suffix) =>
-    switch (suffix) {
-    | Seq.OperandSuffix(op', e') =>
-      is_Space(op)
-        /* e| op' e' --> e |_ op' e' */
-        ? {
-          let prefix' = Seq.OperandPrefix(e, op);
-          let suffix' = Seq.OperandSuffix(op', e');
-          let surround' = Seq.BothNonEmpty(prefix', suffix');
-          let (new_tm, u_gen) = new_EmptyHole(u_gen);
-          make_and_typecheck_OpSeqZ(
-            ctx,
-            u_gen,
-            place_before(new_tm),
-            surround',
-          );
-        }
-        : is_Space(op')
-            /* e| e' --> e op| e' */
-            ? {
-              let new_seq = Seq.ExpOpExp(e, op, e');
-              make_and_typecheck_OpSeq(
-                ctx,
-                u_gen,
-                OnDelim(1, After),
-                new_seq,
-              );
-            }
-            /* e| op' e' --> e op| _ op' e' */
-            : {
-              let (new_tm, u_gen) = u_gen |> new_EmptyHole;
-              let new_seq = Seq.SeqOpExp(ExpOpExp(e, op, new_tm), op', e');
-              make_and_typecheck_OpSeq(
-                ctx,
-                u_gen,
-                OnDelim(1, After),
-                new_seq,
-              );
-            }
-    | SeqSuffix(op', seq') =>
-      is_Space(op)
-        /* e| op' seq' --> e |_ op' seq' */
-        ? {
-          let prefix' = Seq.OperandPrefix(e, op);
-          let surround' = Seq.BothNonEmpty(prefix', suffix);
-          let (new_tm, u_gen) = new_EmptyHole(u_gen);
-          make_and_typecheck_OpSeqZ(
-            ctx,
-            u_gen,
-            place_before(new_tm),
-            surround',
-          );
-        }
-        : is_Space(op')
-            /* e| seq' --> e op| seq' */
-            ? {
-              let new_seq = Seq.operand_op_seq(e, op, seq');
-              make_and_typecheck_OpSeq(
-                ctx,
-                u_gen,
-                OnDelim(1, After),
-                new_seq,
-              );
-            }
-            /* e| op' seq' --> e op| _ op' seq' */
-            : {
-              let (new_tm, u_gen) = u_gen |> new_EmptyHole;
-              let new_seq =
-                Seq.operand_op_seq(
-                  e,
-                  op,
-                  Seq.operand_op_seq(new_tm, op', seq'),
-                );
-              make_and_typecheck_OpSeq(
-                ctx,
-                u_gen,
-                OnDelim(1, After),
-                new_seq,
-              );
-            }
-    }
-  | BothNonEmpty(prefix, suffix) =>
-    switch (suffix) {
-    | OperandSuffix(op', e') =>
-      is_Space(op)
-        /* prefix e| op' e' --> prefix e |_ op' e' */
-        ? {
-          let prefix' = Seq.prefix_append_operand(prefix, e, op);
-          let suffix' = Seq.OperandSuffix(op', e');
-          let surround' = Seq.BothNonEmpty(prefix', suffix');
-          let (new_tm, u_gen) = new_EmptyHole(u_gen);
-          make_and_typecheck_OpSeqZ(
-            ctx,
-            u_gen,
-            place_before(new_tm),
-            surround',
-          );
-        }
-        : is_Space(op')
-            /* prefix e| e' --> prefix e op| e' */
-            ? {
-              let new_seq =
-                Seq.(SeqOpExp(t_of_prefix_and_last(prefix, e), op, e'));
-              let k = Seq.prefix_length(prefix) + 1;
-              make_and_typecheck_OpSeq(
-                ctx,
-                u_gen,
-                OnDelim(k, After),
-                new_seq,
-              );
-            }
-            /* prefix e| op' e' --> prefix e op| _ op' e' */
-            : {
-              let (new_tm, u_gen) = u_gen |> new_EmptyHole;
-              let new_seq =
-                Seq.(
-                  SeqOpExp(
-                    SeqOpExp(t_of_prefix_and_last(prefix, e), op, new_tm),
-                    op',
-                    e',
-                  )
-                );
-              let k = Seq.prefix_length(prefix) + 1;
-              make_and_typecheck_OpSeq(
-                ctx,
-                u_gen,
-                OnDelim(k, After),
-                new_seq,
-              );
-            }
-    | SeqSuffix(op', seq') =>
-      is_Space(op)
-        /* prefix e| op' seq' --> prefix e |_ op' seq' */
-        ? {
-          let prefix' = Seq.prefix_append_operand(prefix, e, op);
-          let surround' = Seq.BothNonEmpty(prefix', suffix);
-          let (new_tm, u_gen) = new_EmptyHole(u_gen);
-          make_and_typecheck_OpSeqZ(
-            ctx,
-            u_gen,
-            place_before(new_tm),
-            surround',
-          );
-        }
-        : is_Space(op')
-            /* prefix e| seq' --> prefix e op| seq' */
-            ? {
-              let new_seq =
-                Seq.(seq_op_seq(t_of_prefix_and_last(prefix, e), op, seq'));
-              let k = Seq.prefix_length(prefix) + 1;
-              make_and_typecheck_OpSeq(
-                ctx,
-                u_gen,
-                OnDelim(k, After),
-                new_seq,
-              );
-            }
-            /* prefix e| op' seq' --> prefix e op| _ op' seq' */
-            : {
-              let (new_tm, u_gen) = u_gen |> new_EmptyHole;
-              let new_seq =
-                Seq.(
-                  seq_op_seq(
-                    SeqOpExp(t_of_prefix_and_last(prefix, e), op, new_tm),
-                    op',
-                    seq',
-                  )
-                );
-              let k = Seq.prefix_length(prefix) + 1;
-              make_and_typecheck_OpSeq(
-                ctx,
-                u_gen,
-                OnDelim(k, After),
-                new_seq,
-              );
-            }
-    }
-  };
+ let abs_perform_Construct_SOp_After_surround =
+     (
+       new_EmptyHole: MetaVarGen.t => ('e, MetaVarGen.t),
+       make_and_typecheck_OpSeq:
+         (Contexts.t, MetaVarGen.t, CursorPosition.t, Seq.t('e, 'op)) => 'm,
+       make_and_typecheck_OpSeqZ:
+         (Contexts.t, MetaVarGen.t, 'z, Seq.opseq_surround('e, 'op)) => 'm,
+       is_Space: 'op => bool,
+       _Space: 'op,
+       place_before: 'e => 'z,
+       ctx: Contexts.t,
+       u_gen: MetaVarGen.t,
+       e: 'e,
+       op: 'op,
+       surround: Seq.opseq_surround('e, 'op),
+     )
+     : 'm =>
+   switch (surround) {
+   | EmptySuffix(prefix) =>
+     let (new_tm, u_gen) = u_gen |> new_EmptyHole;
+     if (is_Space(op)) {
+       let prefix' = Seq.prefix_append_operand(prefix, e, op);
+       let surround' = Seq.EmptySuffix(prefix');
+       let ztm = place_before(new_tm);
+       make_and_typecheck_OpSeqZ(ctx, u_gen, ztm, surround');
+     } else {
+       let new_seq =
+         Seq.(SeqOpExp(t_of_prefix_and_last(prefix, e), op, new_tm));
+       make_and_typecheck_OpSeq(
+         ctx,
+         u_gen,
+         OnDelim(Seq.length(new_seq) - 1, After),
+         new_seq,
+       );
+     };
+   | EmptyPrefix(suffix) =>
+     switch (suffix) {
+     | Seq.OperandSuffix(op', e') =>
+       is_Space(op)
+         /* e| op' e' --> e |_ op' e' */
+         ? {
+           let prefix' = Seq.OperandPrefix(e, op);
+           let suffix' = Seq.OperandSuffix(op', e');
+           let surround' = Seq.BothNonEmpty(prefix', suffix');
+           let (new_tm, u_gen) = new_EmptyHole(u_gen);
+           make_and_typecheck_OpSeqZ(
+             ctx,
+             u_gen,
+             place_before(new_tm),
+             surround',
+           );
+         }
+         : is_Space(op')
+             /* e| e' --> e op| e' */
+             ? {
+               let new_seq = Seq.ExpOpExp(e, op, e');
+               make_and_typecheck_OpSeq(
+                 ctx,
+                 u_gen,
+                 OnDelim(1, After),
+                 new_seq,
+               );
+             }
+             /* e| op' e' --> e op| _ op' e' */
+             : {
+               let (new_tm, u_gen) = u_gen |> new_EmptyHole;
+               let new_seq = Seq.SeqOpExp(ExpOpExp(e, op, new_tm), op', e');
+               make_and_typecheck_OpSeq(
+                 ctx,
+                 u_gen,
+                 OnDelim(1, After),
+                 new_seq,
+               );
+             }
+     | SeqSuffix(op', seq') =>
+       is_Space(op)
+         /* e| op' seq' --> e |_ op' seq' */
+         ? {
+           let prefix' = Seq.OperandPrefix(e, op);
+           let surround' = Seq.BothNonEmpty(prefix', suffix);
+           let (new_tm, u_gen) = new_EmptyHole(u_gen);
+           make_and_typecheck_OpSeqZ(
+             ctx,
+             u_gen,
+             place_before(new_tm),
+             surround',
+           );
+         }
+         : is_Space(op')
+             /* e| seq' --> e op| seq' */
+             ? {
+               let new_seq = Seq.operand_op_seq(e, op, seq');
+               make_and_typecheck_OpSeq(
+                 ctx,
+                 u_gen,
+                 OnDelim(1, After),
+                 new_seq,
+               );
+             }
+             /* e| op' seq' --> e op| _ op' seq' */
+             : {
+               let (new_tm, u_gen) = u_gen |> new_EmptyHole;
+               let new_seq =
+                 Seq.operand_op_seq(
+                   e,
+                   op,
+                   Seq.operand_op_seq(new_tm, op', seq'),
+                 );
+               make_and_typecheck_OpSeq(
+                 ctx,
+                 u_gen,
+                 OnDelim(1, After),
+                 new_seq,
+               );
+             }
+     }
+   | BothNonEmpty(prefix, suffix) =>
+     switch (suffix) {
+     | OperandSuffix(op', e') =>
+       is_Space(op)
+         /* prefix e| op' e' --> prefix e |_ op' e' */
+         ? {
+           let prefix' = Seq.prefix_append_operand(prefix, e, op);
+           let suffix' = Seq.OperandSuffix(op', e');
+           let surround' = Seq.BothNonEmpty(prefix', suffix');
+           let (new_tm, u_gen) = new_EmptyHole(u_gen);
+           make_and_typecheck_OpSeqZ(
+             ctx,
+             u_gen,
+             place_before(new_tm),
+             surround',
+           );
+         }
+         : is_Space(op')
+             /* prefix e| e' --> prefix e op| e' */
+             ? {
+               let new_seq =
+                 Seq.(SeqOpExp(t_of_prefix_and_last(prefix, e), op, e'));
+               let k = Seq.prefix_length(prefix) + 1;
+               make_and_typecheck_OpSeq(
+                 ctx,
+                 u_gen,
+                 OnDelim(k, After),
+                 new_seq,
+               );
+             }
+             /* prefix e| op' e' --> prefix e op| _ op' e' */
+             : {
+               let (new_tm, u_gen) = u_gen |> new_EmptyHole;
+               let new_seq =
+                 Seq.(
+                   SeqOpExp(
+                     SeqOpExp(t_of_prefix_and_last(prefix, e), op, new_tm),
+                     op',
+                     e',
+                   )
+                 );
+               let k = Seq.prefix_length(prefix) + 1;
+               make_and_typecheck_OpSeq(
+                 ctx,
+                 u_gen,
+                 OnDelim(k, After),
+                 new_seq,
+               );
+             }
+     | SeqSuffix(op', seq') =>
+       is_Space(op)
+         /* prefix e| op' seq' --> prefix e |_ op' seq' */
+         ? {
+           let prefix' = Seq.prefix_append_operand(prefix, e, op);
+           let surround' = Seq.BothNonEmpty(prefix', suffix);
+           let (new_tm, u_gen) = new_EmptyHole(u_gen);
+           make_and_typecheck_OpSeqZ(
+             ctx,
+             u_gen,
+             place_before(new_tm),
+             surround',
+           );
+         }
+         : is_Space(op')
+             /* prefix e| seq' --> prefix e op| seq' */
+             ? {
+               let new_seq =
+                 Seq.(seq_op_seq(t_of_prefix_and_last(prefix, e), op, seq'));
+               let k = Seq.prefix_length(prefix) + 1;
+               make_and_typecheck_OpSeq(
+                 ctx,
+                 u_gen,
+                 OnDelim(k, After),
+                 new_seq,
+               );
+             }
+             /* prefix e| op' seq' --> prefix e op| _ op' seq' */
+             : {
+               let (new_tm, u_gen) = u_gen |> new_EmptyHole;
+               let new_seq =
+                 Seq.(
+                   seq_op_seq(
+                     SeqOpExp(t_of_prefix_and_last(prefix, e), op, new_tm),
+                     op',
+                     seq',
+                   )
+                 );
+               let k = Seq.prefix_length(prefix) + 1;
+               make_and_typecheck_OpSeq(
+                 ctx,
+                 u_gen,
+                 OnDelim(k, After),
+                 new_seq,
+               );
+             }
+     }
+   };
 
-let abs_perform_Construct_SOp_Before_surround =
-    (
-      new_EmptyHole: MetaVarGen.t => ('e, MetaVarGen.t),
-      make_and_typecheck_OpSeq:
-        (Contexts.t, MetaVarGen.t, CursorPosition.t, Seq.t('e, 'op)) => 'm,
-      make_and_typecheck_OpSeqZ:
-        (Contexts.t, MetaVarGen.t, 'z, Seq.opseq_surround('e, 'op)) => 'm,
-      is_Space: 'op => bool,
-      _Space: 'op,
-      place_before: 'e => 'z,
-      ctx: Contexts.t,
-      u_gen: MetaVarGen.t,
-      e0: 'e,
-      op: 'op,
-      surround: Seq.opseq_surround('e, 'op),
-    )
-    : 'm =>
-  switch (surround) {
-  | EmptyPrefix(suffix) =>
-    /* |e0 ... --> |_ op e0 ... */
-    let suffix' = Seq.suffix_prepend_exp(suffix, op, e0);
-    let surround' = Seq.EmptyPrefix(suffix');
-    let (new_tm, u_gen) = new_EmptyHole(u_gen);
-    make_and_typecheck_OpSeqZ(ctx, u_gen, place_before(new_tm), surround');
-  | EmptySuffix(OperandPrefix(e1, op') as prefix) =>
-    is_Space(op')
-      ? is_Space(op)
-          /* e1 |e0 --> e1 |_ e0 */
-          ? {
-            let suffix' = Seq.OperandSuffix(_Space, e0);
-            let surround' = Seq.BothNonEmpty(prefix, suffix');
-            let (new_tm, u_gen) = new_EmptyHole(u_gen);
-            make_and_typecheck_OpSeqZ(
-              ctx,
-              u_gen,
-              place_before(new_tm),
-              surround',
-            );
-          }
-          /* e1 |e0 --> e1 op| e0 */
-          : {
-            let new_seq = Seq.ExpOpExp(e1, op, e0);
-            make_and_typecheck_OpSeq(ctx, u_gen, OnDelim(1, After), new_seq);
-          }
-      /* e1 op' |e0 --> e1 op' _ op| e0 */
-      : {
-        let (new_tm, u_gen) = new_EmptyHole(u_gen);
-        let new_seq = Seq.(SeqOpExp(ExpOpExp(e1, op', new_tm), op, e0));
-        make_and_typecheck_OpSeq(ctx, u_gen, OnDelim(2, After), new_seq);
-      }
-  | EmptySuffix(SeqPrefix(seq1, op') as prefix) =>
-    is_Space(op')
-      ? is_Space(op)
-          /* seq1 |e0 --> seq1 |_ e0 */
-          ? {
-            let suffix' = Seq.OperandSuffix(_Space, e0);
-            let surround' = Seq.BothNonEmpty(prefix, suffix');
-            let (new_tm, u_gen) = new_EmptyHole(u_gen);
-            make_and_typecheck_OpSeqZ(
-              ctx,
-              u_gen,
-              place_before(new_tm),
-              surround',
-            );
-          }
-          /* seq1 |e0 --> seq1 op| e0 */
-          : {
-            let new_seq = Seq.SeqOpExp(seq1, op, e0);
-            let k = Seq.length(seq1);
-            make_and_typecheck_OpSeq(ctx, u_gen, OnDelim(k, After), new_seq);
-          }
-      /* seq1 op' |e0 --> seq1 op' _ op| e0 */
-      : {
-        let (new_tm, u_gen) = new_EmptyHole(u_gen);
-        let new_seq = Seq.(SeqOpExp(SeqOpExp(seq1, op', new_tm), op, e0));
-        let k = Seq.length(seq1) + 1;
-        make_and_typecheck_OpSeq(ctx, u_gen, OnDelim(k, After), new_seq);
-      }
-  | BothNonEmpty(OperandPrefix(e1, op') as prefix, suffix) =>
-    is_Space(op')
-      ? is_Space(op)
-          /* e1 |e0 suffix --> e1 |_ e0 suffix */
-          ? {
-            let suffix' = Seq.suffix_prepend_exp(suffix, _Space, e0);
-            let surround' = Seq.BothNonEmpty(prefix, suffix');
-            let (new_tm, u_gen) = new_EmptyHole(u_gen);
-            make_and_typecheck_OpSeqZ(
-              ctx,
-              u_gen,
-              place_before(new_tm),
-              surround',
-            );
-          }
-          /* e1 |e0 suffix --> e1 op| e0 suffix */
-          : {
-            let new_seq =
-              Seq.(t_of_seq_and_suffix(ExpOpExp(e1, op, e0), suffix));
-            make_and_typecheck_OpSeq(ctx, u_gen, OnDelim(1, After), new_seq);
-          }
-      /* e1 op' |e0 suffix --> e1 op' _ op| e0 suffix */
-      : {
-        let (new_tm, u_gen) = new_EmptyHole(u_gen);
-        let new_seq =
-          Seq.(
-            t_of_seq_and_suffix(
-              SeqOpExp(ExpOpExp(e1, op', new_tm), op, e0),
-              suffix,
-            )
-          );
-        make_and_typecheck_OpSeq(ctx, u_gen, OnDelim(2, After), new_seq);
-      }
-  | BothNonEmpty(SeqPrefix(seq1, op') as prefix, suffix) =>
-    is_Space(op')
-      ? is_Space(op)
-          /* seq1 |e0 suffix --> seq1 |_ e0 suffix */
-          ? {
-            let suffix' = Seq.suffix_prepend_exp(suffix, _Space, e0);
-            let surround' = Seq.BothNonEmpty(prefix, suffix');
-            let (new_tm, u_gen) = new_EmptyHole(u_gen);
-            make_and_typecheck_OpSeqZ(
-              ctx,
-              u_gen,
-              place_before(new_tm),
-              surround',
-            );
-          }
-          /* seq1 |e0 suffix --> seq1 op| e0 suffix */
-          : {
-            let new_seq =
-              Seq.(t_of_seq_and_suffix(SeqOpExp(seq1, op, e0), suffix));
-            let k = Seq.length(seq1);
-            make_and_typecheck_OpSeq(ctx, u_gen, OnDelim(k, After), new_seq);
-          }
-      /* seq1 op' |e0 suffix --> seq op' _ op| e0 suffix */
-      : {
-        let (new_tm, u_gen) = new_EmptyHole(u_gen);
-        let new_seq =
-          Seq.(
-            t_of_seq_and_suffix(
-              SeqOpExp(SeqOpExp(seq1, op', new_tm), op, e0),
-              suffix,
-            )
-          );
-        let k = Seq.length(seq1) + 1;
-        make_and_typecheck_OpSeq(ctx, u_gen, OnDelim(k, After), new_seq);
-      }
-  };
-
-let make_and_syn_OpSeqZ_pat =
-    (
-      ctx: Contexts.t,
-      u_gen: MetaVarGen.t,
-      zp0: ZPat.t,
-      surround: ZPat.opseq_surround,
-    )
-    : (ZPat.t, HTyp.t, Contexts.t, MetaVarGen.t) => {
-  /* figure out the current path so that we can follow it again
-   * to reconstitute the Z-exp after calling into the UHExp hole
-   * insertion logic (otherwise we'd have to do a version of that
-   * logic specific to Z-exps) */
-  let path0 = CursorPath.of_OpSeqZ_pat(zp0, surround);
-  let p0 = ZPat.erase(zp0);
-  let seq = Seq.t_of_operand_and_surround(p0, surround);
-  let skel = Associator.associate_pat(seq);
-  let (skel, seq, ty, ctx, u_gen) =
-    Statics.Pat.syn_fix_holes_skel(ctx, u_gen, skel, seq);
-  let p = UHPat.OpSeq(skel, seq);
-  let zp = CursorPath.follow_pat_or_fail(path0, p);
-  (zp, ty, ctx, u_gen);
-};
-
-let make_and_ana_OpSeqZ_pat =
-    (
-      ctx: Contexts.t,
-      u_gen: MetaVarGen.t,
-      zp0: ZPat.t,
-      surround: ZPat.opseq_surround,
-      ty: HTyp.t,
-    )
-    : (ZPat.t, Contexts.t, MetaVarGen.t) => {
-  /* figure out the current path so that we can follow it again
-   * to reconstitute the Z-exp after calling into the UHExp hole
-   * insertion logic (otherwise we'd have to do a version of that
-   * logic specific to Z-exps) */
-  let path0 = CursorPath.of_OpSeqZ_pat(zp0, surround);
-  let p0 = ZPat.erase(zp0);
-  let seq = Seq.t_of_operand_and_surround(p0, surround);
-  let skel = Associator.associate_pat(seq);
-  let (skel, seq, ctx, u_gen) =
-    Statics.ana_fix_holes_pat_skel(ctx, u_gen, skel, seq, ty);
-  let p = UHPat.OpSeq(skel, seq);
-  let zp = CursorPath.follow_pat_or_fail(path0, p);
-  (zp, ctx, u_gen);
-};
-
-let make_and_syn_OpSeq_pat =
-    (
-      ctx: Contexts.t,
-      u_gen: MetaVarGen.t,
-      cursor: CursorPosition.t,
-      seq: UHPat.opseq,
-    ) => {
-  let zp = ZPat.CursorP(cursor, OpSeqUtil.Pat.mk_OpSeq(seq));
-  Statics.Pat.syn_fix_holes_z(ctx, u_gen, zp);
-};
-
-let make_and_ana_OpSeq_pat =
-    (
-      ctx: Contexts.t,
-      u_gen: MetaVarGen.t,
-      cursor: CursorPosition.t,
-      seq: UHPat.opseq,
-      ty,
-    ) => {
-  let zp = ZPat.CursorP(cursor, OpSeqUtil.Pat.mk_OpSeq(seq));
-  Statics.Pat.ana_fix_holes_z(ctx, u_gen, zp, ty);
-};
+ let abs_perform_Construct_SOp_Before_surround =
+     (
+       new_EmptyHole: MetaVarGen.t => ('e, MetaVarGen.t),
+       make_and_typecheck_OpSeq:
+         (Contexts.t, MetaVarGen.t, CursorPosition.t, Seq.t('e, 'op)) => 'm,
+       make_and_typecheck_OpSeqZ:
+         (Contexts.t, MetaVarGen.t, 'z, Seq.opseq_surround('e, 'op)) => 'm,
+       is_Space: 'op => bool,
+       _Space: 'op,
+       place_before: 'e => 'z,
+       ctx: Contexts.t,
+       u_gen: MetaVarGen.t,
+       e0: 'e,
+       op: 'op,
+       surround: Seq.opseq_surround('e, 'op),
+     )
+     : 'm =>
+   switch (surround) {
+   | EmptyPrefix(suffix) =>
+     /* |e0 ... --> |_ op e0 ... */
+     let suffix' = Seq.suffix_prepend_exp(suffix, op, e0);
+     let surround' = Seq.EmptyPrefix(suffix');
+     let (new_tm, u_gen) = new_EmptyHole(u_gen);
+     make_and_typecheck_OpSeqZ(ctx, u_gen, place_before(new_tm), surround');
+   | EmptySuffix(OperandPrefix(e1, op') as prefix) =>
+     is_Space(op')
+       ? is_Space(op)
+           /* e1 |e0 --> e1 |_ e0 */
+           ? {
+             let suffix' = Seq.OperandSuffix(_Space, e0);
+             let surround' = Seq.BothNonEmpty(prefix, suffix');
+             let (new_tm, u_gen) = new_EmptyHole(u_gen);
+             make_and_typecheck_OpSeqZ(
+               ctx,
+               u_gen,
+               place_before(new_tm),
+               surround',
+             );
+           }
+           /* e1 |e0 --> e1 op| e0 */
+           : {
+             let new_seq = Seq.ExpOpExp(e1, op, e0);
+             make_and_typecheck_OpSeq(ctx, u_gen, OnDelim(1, After), new_seq);
+           }
+       /* e1 op' |e0 --> e1 op' _ op| e0 */
+       : {
+         let (new_tm, u_gen) = new_EmptyHole(u_gen);
+         let new_seq = Seq.(SeqOpExp(ExpOpExp(e1, op', new_tm), op, e0));
+         make_and_typecheck_OpSeq(ctx, u_gen, OnDelim(2, After), new_seq);
+       }
+   | EmptySuffix(SeqPrefix(seq1, op') as prefix) =>
+     is_Space(op')
+       ? is_Space(op)
+           /* seq1 |e0 --> seq1 |_ e0 */
+           ? {
+             let suffix' = Seq.OperandSuffix(_Space, e0);
+             let surround' = Seq.BothNonEmpty(prefix, suffix');
+             let (new_tm, u_gen) = new_EmptyHole(u_gen);
+             make_and_typecheck_OpSeqZ(
+               ctx,
+               u_gen,
+               place_before(new_tm),
+               surround',
+             );
+           }
+           /* seq1 |e0 --> seq1 op| e0 */
+           : {
+             let new_seq = Seq.SeqOpExp(seq1, op, e0);
+             let k = Seq.length(seq1);
+             make_and_typecheck_OpSeq(ctx, u_gen, OnDelim(k, After), new_seq);
+           }
+       /* seq1 op' |e0 --> seq1 op' _ op| e0 */
+       : {
+         let (new_tm, u_gen) = new_EmptyHole(u_gen);
+         let new_seq = Seq.(SeqOpExp(SeqOpExp(seq1, op', new_tm), op, e0));
+         let k = Seq.length(seq1) + 1;
+         make_and_typecheck_OpSeq(ctx, u_gen, OnDelim(k, After), new_seq);
+       }
+   | BothNonEmpty(OperandPrefix(e1, op') as prefix, suffix) =>
+     is_Space(op')
+       ? is_Space(op)
+           /* e1 |e0 suffix --> e1 |_ e0 suffix */
+           ? {
+             let suffix' = Seq.suffix_prepend_exp(suffix, _Space, e0);
+             let surround' = Seq.BothNonEmpty(prefix, suffix');
+             let (new_tm, u_gen) = new_EmptyHole(u_gen);
+             make_and_typecheck_OpSeqZ(
+               ctx,
+               u_gen,
+               place_before(new_tm),
+               surround',
+             );
+           }
+           /* e1 |e0 suffix --> e1 op| e0 suffix */
+           : {
+             let new_seq =
+               Seq.(t_of_seq_and_suffix(ExpOpExp(e1, op, e0), suffix));
+             make_and_typecheck_OpSeq(ctx, u_gen, OnDelim(1, After), new_seq);
+           }
+       /* e1 op' |e0 suffix --> e1 op' _ op| e0 suffix */
+       : {
+         let (new_tm, u_gen) = new_EmptyHole(u_gen);
+         let new_seq =
+           Seq.(
+             t_of_seq_and_suffix(
+               SeqOpExp(ExpOpExp(e1, op', new_tm), op, e0),
+               suffix,
+             )
+           );
+         make_and_typecheck_OpSeq(ctx, u_gen, OnDelim(2, After), new_seq);
+       }
+   | BothNonEmpty(SeqPrefix(seq1, op') as prefix, suffix) =>
+     is_Space(op')
+       ? is_Space(op)
+           /* seq1 |e0 suffix --> seq1 |_ e0 suffix */
+           ? {
+             let suffix' = Seq.suffix_prepend_exp(suffix, _Space, e0);
+             let surround' = Seq.BothNonEmpty(prefix, suffix');
+             let (new_tm, u_gen) = new_EmptyHole(u_gen);
+             make_and_typecheck_OpSeqZ(
+               ctx,
+               u_gen,
+               place_before(new_tm),
+               surround',
+             );
+           }
+           /* seq1 |e0 suffix --> seq1 op| e0 suffix */
+           : {
+             let new_seq =
+               Seq.(t_of_seq_and_suffix(SeqOpExp(seq1, op, e0), suffix));
+             let k = Seq.length(seq1);
+             make_and_typecheck_OpSeq(ctx, u_gen, OnDelim(k, After), new_seq);
+           }
+       /* seq1 op' |e0 suffix --> seq op' _ op| e0 suffix */
+       : {
+         let (new_tm, u_gen) = new_EmptyHole(u_gen);
+         let new_seq =
+           Seq.(
+             t_of_seq_and_suffix(
+               SeqOpExp(SeqOpExp(seq1, op', new_tm), op, e0),
+               suffix,
+             )
+           );
+         let k = Seq.length(seq1) + 1;
+         make_and_typecheck_OpSeq(ctx, u_gen, OnDelim(k, After), new_seq);
+       }
+   };
+ */
 
 let check_valid = (x: Var.t, result: result('a)): result('a) =>
   if (Var.is_valid(x)) {
@@ -1264,1427 +1165,1141 @@ let check_valid = (x: Var.t, result: result('a)): result('a) =>
   } else {
     Failed;
   };
-let rec syn_perform_pat =
-        (ctx: Contexts.t, u_gen: MetaVarGen.t, a: t, zp: ZPat.t)
-        : result((ZPat.t, HTyp.t, Contexts.t, MetaVarGen.t)) => {
-  switch (a, zp) {
-  | (
-      _,
-      CursorP(
-        OnText(_),
-        EmptyHole(_) | Wild(_) | ListNil(_) | Parenthesized(_) | OpSeq(_, _) |
-        Inj(_, _, _),
-      ) |
-      CursorP(OnDelim(_, _), Var(_, _, _) | NumLit(_, _) | BoolLit(_, _)) |
-      CursorP(
-        Staging(_),
-        EmptyHole(_) | Wild(_) | ListNil(_) | Var(_) | NumLit(_, _) |
-        BoolLit(_, _) |
-        OpSeq(_, _),
-      ),
-    ) =>
-    Failed
-  | (_, CursorP(cursor, p)) when !ZPat.is_valid_cursor(cursor, p) => Failed
-  /* Staging */
-  | (ShiftUp | ShiftDown, _) =>
-    // can only shift up and down in blocks
-    Failed
-  | (ShiftLeft | ShiftRight, CursorP(OnText(_) | OnDelim(_, _), _)) =>
-    Failed
-  | (
-      ShiftLeft | ShiftRight,
-      CursorP(
-        Staging(k),
-        (Parenthesized(body) | Inj(_, _, body)) as staged,
-      ) |
-      OpSeqZ(
-        _,
-        CursorP(
-          Staging(k),
-          (Parenthesized(body) | Inj(_, _, body)) as staged,
-        ),
-        _,
-      ),
-    ) =>
-    let shift_optm =
-      switch (k, a) {
-      | (0, ShiftLeft) => OpSeqUtil.Pat.shift_optm_from_prefix
-      | (0, ShiftRight) => OpSeqUtil.Pat.shift_optm_to_prefix
-      | (1, ShiftLeft) => OpSeqUtil.Pat.shift_optm_to_suffix
-      | (_one, _shift_right) => OpSeqUtil.Pat.shift_optm_from_suffix
-      };
-    let surround =
-      switch (zp) {
-      | OpSeqZ(_, _, surround) => Some(surround)
-      | _cursor_p => None
-      };
-    switch (body |> shift_optm(~surround)) {
-    | None => CantShift
-    | Some((new_body, new_surround)) =>
-      let new_ztm =
-        ZPat.CursorP(
-          Staging(k),
-          switch (staged) {
-          | Inj(err, side, _) => Inj(err, side, new_body)
-          | _parenthesized => Parenthesized(new_body)
-          },
-        );
-      let new_zp =
-        switch (new_surround) {
-        | None => new_ztm
-        | Some(surround) => OpSeqUtil.Pat.mk_ZOpSeq(new_ztm, surround)
-        };
-      Succeeded(Statics.Pat.syn_fix_holes_z(ctx, u_gen, new_zp));
-    };
-  /* Movement */
-  /* NOTE: we don't need to handle movement actions here for the purposes of the UI,
-   * since it's handled at the top (expression) level, but for the sake of API completeness
-   * we include it */
-  | (MoveTo(path), _) =>
-    let p = ZPat.erase(zp);
-    switch (Statics.Pat.syn(ctx, p)) {
-    | None => Failed
-    | Some((ty, ctx)) =>
-      switch (CursorPath.follow_pat(path, p)) {
-      | None => Failed
-      | Some(zp) => Succeeded((zp, ty, ctx, u_gen))
-      }
-    };
-  | (MoveToBefore(steps), _) =>
-    let p = ZPat.erase(zp);
-    switch (Statics.Pat.syn(ctx, p)) {
-    | None => Failed
-    | Some((ty, ctx)) =>
-      switch (CursorPath.follow_pat_and_place_before(steps, p)) {
-      | None => Failed
-      | Some(zp) => Succeeded((zp, ty, ctx, u_gen))
-      }
-    };
-  | (MoveToPrevHole, _) =>
-    switch (CursorPath.prev_hole_steps(CursorPath.holes_zpat(zp, []))) {
-    | None => Failed
-    | Some(path) => syn_perform_pat(ctx, u_gen, MoveTo(path), zp)
-    }
-  | (MoveToNextHole, _) =>
-    switch (CursorPath.next_hole_steps(CursorPath.holes_zpat(zp, []))) {
-    | None => Failed
-    | Some(path) => syn_perform_pat(ctx, u_gen, MoveTo(path), zp)
-    }
-  | (MoveLeft, _) =>
-    let p = ZPat.erase(zp);
-    switch (Statics.Pat.syn(ctx, p), ZPat.move_cursor_left(zp)) {
-    | (None, _) => Failed
-    | (_, None) => CursorEscaped(Before)
-    | (Some((ty, ctx)), Some(zp)) => Succeeded((zp, ty, ctx, u_gen))
-    };
-  | (MoveRight, _) =>
-    let p = ZPat.erase(zp);
-    switch (Statics.Pat.syn(ctx, p), ZPat.move_cursor_right(zp)) {
-    | (None, _) => Failed
-    | (_, None) => CursorEscaped(After)
-    | (Some((ty, ctx)), Some(zp)) => Succeeded((zp, ty, ctx, u_gen))
-    };
-  /* Backspace and Delete */
-  | (Backspace, _) when ZPat.is_before(zp) => CursorEscaped(Before)
-  | (Delete, _) when ZPat.is_after(zp) => CursorEscaped(After)
-  | (Backspace, CursorP(_, EmptyHole(_) as p)) =>
-    ZPat.is_after(zp)
-      ? Succeeded((ZPat.place_before(p), Hole, ctx, u_gen))
-      : CursorEscaped(Before)
-  | (Delete, CursorP(_, EmptyHole(_) as p)) =>
-    ZPat.is_before(zp)
-      ? Succeeded((ZPat.place_after(p), Hole, ctx, u_gen))
-      : CursorEscaped(After)
-  | (
-      Backspace | Delete,
-      CursorP(
-        OnText(_) | OnDelim(_, _),
-        Var(_, _, _) | Wild(_) | NumLit(_, _) | BoolLit(_, _) | ListNil(_),
-      ),
-    ) =>
-    let (zp, u_gen) = ZPat.new_EmptyHole(u_gen);
-    Succeeded((zp, Hole, ctx, u_gen));
-  /* ( _ <|)   ==>   ( _| ) */
-  /* ... + [k-1] <|+ [k] + ...   ==>   ... + [k-1]| + [k] + ... */
-  | (
-      Backspace,
-      CursorP(
-        OnDelim(_, Before),
-        Parenthesized(_) | Inj(_, _, _) | OpSeq(_, _),
-      ),
-    ) =>
-    syn_perform_pat(ctx, u_gen, MoveLeft, zp)
-  /* (|> _ )   ==>   ( |_ ) */
-  /* ... + [k-1] +|> [k] + ...   ==>   ... + [k-1] + |[k] + ... */
-  | (
-      Delete,
-      CursorP(
-        OnDelim(_, After),
-        Parenthesized(_) | Inj(_, _, _) | OpSeq(_, _),
-      ),
-    ) =>
-    syn_perform_pat(ctx, u_gen, MoveRight, zp)
-  /* Delete before delimiter == Backspace after delimiter */
-  | (
-      Delete,
-      CursorP(
-        OnDelim(k, Before),
-        (Parenthesized(_) | Inj(_, _, _) | OpSeq(_, _)) as p,
-      ),
-    ) =>
-    syn_perform_pat(ctx, u_gen, Backspace, CursorP(OnDelim(k, After), p))
-  /* ( _ )<|  ==>  ( _ [)] */
-  | (
-      Backspace,
-      CursorP(OnDelim(k, After), (Parenthesized(_) | Inj(_, _, _)) as p),
-    ) =>
-    Succeeded(
-      Statics.Pat.syn_fix_holes_z(ctx, u_gen, CursorP(Staging(k), p)),
+
+let _construct_operator_after_zoperand =
+    (
+      ~is_Space: 'operator => bool,
+      ~new_EmptyHole: MetaVarGen.t => ('operand, MetaVarGen.t),
+      ~erase_zoperand: 'zoperand => 'operand,
+      ~place_before_operand: 'operand => 'zoperand,
+      ~place_after_operator: 'operator => option('zoperator),
+      u_gen: MetaVarGen.t,
+      operator: 'operator,
+      zoperand: 'zoperand,
+      (prefix, suffix): Seq.operand_surround('operand, 'operator),
     )
-  | (
-      Backspace | Delete,
-      CursorP(Staging(k), Parenthesized(body) | Inj(_, _, body)),
-    ) =>
-    let result =
-      body
-      |> (
-        switch (k) {
-        | 0 => ZPat.place_before
-        | _one => ZPat.place_after
-        }
-      );
-    Succeeded(Statics.Pat.syn_fix_holes_z(ctx, u_gen, result));
-  /* ... + [k-1] +<| [k] + ... */
-  | (Backspace, CursorP(OnDelim(k, After), OpSeq(_, seq))) =>
-    /* validity check at top of switch statement ensures
-     * that op between [k-1] and [k] is not Space */
-    switch (Seq.split(k - 1, seq), Seq.split(k, seq)) {
-    /* invalid cursor position */
-    | (None, _)
-    | (_, None) => Failed
-    /* ... + [k-1] +<| _ + ... */
-    | (_, Some((EmptyHole(_), surround))) =>
-      switch (surround) {
-      /* invalid */
-      | EmptyPrefix(_) => Failed
-      /* ... + [k-1] +<| _   ==>   ... + [k-1]| */
-      | EmptySuffix(prefix) =>
-        let zp: ZPat.t =
-          switch (prefix) {
-          | OperandPrefix(p, _) => ZPat.place_after(p)
-          | SeqPrefix(seq, _) =>
-            let skel = Associator.associate_pat(seq);
-            ZPat.place_after(OpSeq(skel, seq));
-          };
-        Succeeded(Statics.Pat.syn_fix_holes_z(ctx, u_gen, zp));
-      /* ... + [k-1] +<| _ + ...   ==>   ... + [k-1]| + ... */
-      | BothNonEmpty(prefix, suffix) =>
-        let (zp0: ZPat.t, surround: ZPat.opseq_surround) =
-          switch (prefix) {
-          | OperandPrefix(p, _) => (
-              ZPat.place_after(p),
-              EmptyPrefix(suffix),
-            )
-          | SeqPrefix(ExpOpExp(p1, op, p2), _) => (
-              ZPat.place_after(p2),
-              BothNonEmpty(OperandPrefix(p1, op), suffix),
-            )
-          | SeqPrefix(SeqOpExp(seq, op, p), _) => (
-              ZPat.place_after(p),
-              BothNonEmpty(SeqPrefix(seq, op), suffix),
-            )
-          };
-        let skel =
-          Associator.associate_pat(
-            Seq.t_of_operand_and_surround(ZPat.erase(zp0), surround),
-          );
-        let zp = ZPat.OpSeqZ(skel, zp0, surround);
-        Succeeded(Statics.Pat.syn_fix_holes_z(ctx, u_gen, zp));
-      }
-    /* ... + _ +<| [k] + ... */
-    | (Some((EmptyHole(_), surround)), _) =>
-      switch (surround) {
-      /* invalid */
-      | EmptySuffix(_) => Failed
-      /* _ +<| [k] + ...   ==>   |[k] + ... */
-      | EmptyPrefix(suffix) =>
-        let zp: ZPat.t =
-          switch (suffix) {
-          | OperandSuffix(_, p) => ZPat.place_before(p)
-          | SeqSuffix(_, seq) =>
-            let skel = Associator.associate_pat(seq);
-            ZPat.place_before(OpSeq(skel, seq));
-          };
-        Succeeded(Statics.Pat.syn_fix_holes_z(ctx, u_gen, zp));
-      /* ... + [k-2] + _ +<| [k] + ...   ==>   ... + [k-2] +| [k] + ... */
-      | BothNonEmpty(prefix, suffix) =>
-        let seq =
-          switch (suffix) {
-          | OperandSuffix(_, p) => Seq.t_of_prefix_and_last(prefix, p)
-          | SeqSuffix(_, seq) => Seq.t_of_prefix_and_seq(prefix, seq)
-          };
-        let skel = Associator.associate_pat(seq);
-        let zp = ZPat.CursorP(OnDelim(k - 1, After), OpSeq(skel, seq));
-        Succeeded(Statics.Pat.syn_fix_holes_z(ctx, u_gen, zp));
-      }
-    /* ... + [k-1] +<| [k] + ...   ==>   ... + [k-1]| [k] + ... */
-    | (Some((p0, surround)), _) =>
-      switch (Seq.replace_following_op(surround, UHPat.Space)) {
-      | None => Failed /* invalid */
-      | Some(surround) =>
-        Succeeded(
-          make_and_syn_OpSeqZ_pat(
-            ctx,
-            u_gen,
-            ZPat.place_after(p0),
-            surround,
-          ),
-        )
-      }
-    }
-  /* ... + [k-1]  <|_ + [k+1] + ...  ==>   ... + [k-1]| + [k+1] + ... */
-  | (
-      Backspace,
-      OpSeqZ(
-        _,
-        CursorP(_, EmptyHole(_)) as zp0,
-        (
-          EmptySuffix(OperandPrefix(_, Space) | SeqPrefix(_, Space)) |
-          BothNonEmpty(OperandPrefix(_, Space) | SeqPrefix(_, Space), _)
-        ) as surround,
-      ),
-    )
-      when ZPat.is_before(zp0) =>
-    switch (surround) {
-    | EmptyPrefix(_) => CursorEscaped(Before) /* should never happen */
-    | EmptySuffix(prefix) =>
-      let p: UHPat.t =
-        switch (prefix) {
-        | OperandPrefix(p1, _space) => p1
-        | SeqPrefix(seq, _space) =>
-          let skel = Associator.associate_pat(seq);
-          OpSeq(skel, seq);
-        };
-      Succeeded(
-        Statics.Pat.syn_fix_holes_z(ctx, u_gen, ZPat.place_after(p)),
-      );
-    | BothNonEmpty(prefix, suffix) =>
-      switch (prefix) {
-      | OperandPrefix(p1, _space) =>
-        let zp1 = ZPat.place_after(p1);
-        let surround = Seq.EmptyPrefix(suffix);
-        let skel =
-          Associator.associate_pat(
-            Seq.t_of_operand_and_surround(p1, surround),
-          );
-        let zp = ZPat.OpSeqZ(skel, zp1, surround);
-        Succeeded(Statics.Pat.syn_fix_holes_z(ctx, u_gen, zp));
-      | SeqPrefix(seq, _space) =>
-        let (prefix: ZPat.prefix, p0) =
-          switch (seq) {
-          | ExpOpExp(p1, op, p2) => (OperandPrefix(p1, op), p2)
-          | SeqOpExp(seq, op, p1) => (SeqPrefix(seq, op), p1)
-          };
-        let zp0 = ZPat.place_after(p0);
-        let surround = Seq.BothNonEmpty(prefix, suffix);
-        let skel =
-          Associator.associate_pat(
-            Seq.t_of_operand_and_surround(p0, surround),
-          );
-        let zp = ZPat.OpSeqZ(skel, zp0, surround);
-        Succeeded(Statics.Pat.syn_fix_holes_z(ctx, u_gen, zp));
-      }
-    }
-  /* ... + [k-1] + _|>  [k+1] + ...  ==>   ... + [k-1] + |[k+1] + ... */
-  | (
-      Delete,
-      OpSeqZ(
-        _,
-        CursorP(_, EmptyHole(_)) as zp0,
-        (
-          EmptyPrefix(OperandSuffix(Space, _) | SeqSuffix(Space, _)) |
-          BothNonEmpty(_, OperandSuffix(Space, _) | SeqSuffix(Space, _))
-        ) as surround,
-      ),
-    )
-      when ZPat.is_after(zp0) =>
-    switch (surround) {
-    | EmptySuffix(_) => CursorEscaped(After) /* should never happen */
-    | EmptyPrefix(suffix) =>
-      let p: UHPat.t =
-        switch (suffix) {
-        | OperandSuffix(_space, p1) => p1
-        | SeqSuffix(_space, seq) =>
-          let skel = Associator.associate_pat(seq);
-          OpSeq(skel, seq);
-        };
-      Succeeded(
-        Statics.Pat.syn_fix_holes_z(ctx, u_gen, ZPat.place_before(p)),
-      );
-    | BothNonEmpty(prefix, suffix) =>
+    : (ZSeq.t('operand, 'operator, 'zoperand, 'zoperator), MetaVarGen.t) => {
+  let operand = zoperand |> erase_zoperand;
+  switch (operator |> place_after_operator) {
+  | None =>
+    // operator == Space
+    // ... + [k]| + [k+1] + ...   ==>   ... + [k]  |_ + [k+1] + ...
+    let (hole, u_gen) = u_gen |> new_EmptyHole;
+    let new_prefix = Seq.A(operator, S(operand, prefix));
+    let new_zoperand = hole |> place_before_operand;
+    (ZOperand(new_zoperand, (new_prefix, suffix)), u_gen);
+  | Some(zoperator) =>
+    let new_prefix = Seq.S(operand, prefix);
+    let (new_suffix, u_gen) =
       switch (suffix) {
-      | OperandSuffix(_space, p1) =>
-        let zp1 = ZPat.place_before(p1);
-        let surround = Seq.EmptyPrefix(suffix);
-        let skel =
-          Associator.associate_pat(
-            Seq.t_of_operand_and_surround(p1, surround),
-          );
-        let zp = ZPat.OpSeqZ(skel, zp1, surround);
-        Succeeded(Statics.Pat.syn_fix_holes_z(ctx, u_gen, zp));
-      | SeqSuffix(_space, seq) =>
-        let (p0, suffix: ZPat.suffix) =
-          switch (seq) {
-          | ExpOpExp(p1, op, p2) => (p1, OperandSuffix(op, p2))
-          | SeqOpExp(seq, op, p1) => (p1, SeqSuffix(op, seq))
-          };
-        let zp0 = ZPat.place_before(p0);
-        let surround = Seq.BothNonEmpty(prefix, suffix);
-        let skel =
-          Associator.associate_pat(
-            Seq.t_of_operand_and_surround(p0, surround),
-          );
-        let zp = ZPat.OpSeqZ(skel, zp0, surround);
-        Succeeded(Statics.Pat.syn_fix_holes_z(ctx, u_gen, zp));
-      }
-    }
-  /* Construct */
-  | (Construct(SOp(SSpace)), CursorP(OnDelim(_, After), _))
-      when !ZPat.is_after(zp) =>
-    syn_perform_pat(ctx, u_gen, MoveRight, zp)
-  | (Construct(_) as a, CursorP(OnDelim(_, side), _))
-      when !ZPat.is_before(zp) && !ZPat.is_after(zp) =>
-    let move_then_perform = move_action =>
-      switch (syn_perform_pat(ctx, u_gen, move_action, zp)) {
-      | Failed
-      | CantShift
-      | CursorEscaped(_) => assert(false)
-      | Succeeded((zp, _, _, u_gen)) => syn_perform_pat(ctx, u_gen, a, zp)
+      | A(op, new_suffix) when op |> is_Space =>
+        // zoperator overwrites Space
+        // ... + [k]|  [k+1] + ...   ==>   ... + [k] *| [k+1] + ...
+        (new_suffix, u_gen)
+      | _ =>
+        // ... + [k]| + [k+1] + ...   ==>   ... + [k] *| _ + [k+1] + ...
+        let (hole, u_gen) = u_gen |> new_EmptyHole;
+        (Seq.S(hole, suffix), u_gen);
       };
-    switch (side) {
-    | Before => move_then_perform(MoveLeft)
-    | After => move_then_perform(MoveRight)
-    };
-  | (
-      Construct(SLine),
-      CursorP(Staging(k), (Parenthesized(_) | Inj(_, _, _)) as uty),
-    ) =>
-    Succeeded(
-      Statics.Pat.syn_fix_holes_z(
-        ctx,
-        u_gen,
-        CursorP(OnDelim(k, k == 0 ? Before : After), uty),
-      ),
-    )
-  | (Construct(_), CursorP(Staging(_), _)) => Failed
-  | (Construct(SParenthesized), CursorP(_, _)) =>
-    switch (Statics.Pat.syn(ctx, ZPat.erase(zp))) {
-    | None => Failed
-    | Some((ty, ctx)) => Succeeded((ParenthesizedZ(zp), ty, ctx, u_gen))
-    }
-  | (Construct(SVar(x, cursor)), CursorP(_, EmptyHole(_)))
-  | (Construct(SVar(x, cursor)), CursorP(_, Wild(_)))
-  | (Construct(SVar(x, cursor)), CursorP(_, Var(_, _, _)))
-  | (Construct(SVar(x, cursor)), CursorP(_, NumLit(_, _)))
-  | (Construct(SVar(x, cursor)), CursorP(_, BoolLit(_, _))) =>
-    if (Var.is_true(x)) {
-      Succeeded((
-        CursorP(cursor, BoolLit(NotInHole, true)),
-        Bool,
-        ctx,
-        u_gen,
-      ));
-    } else if (Var.is_false(x)) {
-      Succeeded((
-        CursorP(cursor, BoolLit(NotInHole, false)),
-        Bool,
-        ctx,
-        u_gen,
-      ));
-    } else if (Var.is_let(x)) {
-      let (u, u_gen) = MetaVarGen.next(u_gen);
-      Succeeded((
-        CursorP(cursor, Var(NotInHole, InVarHole(Keyword(Let), u), x)),
-        Hole,
-        ctx,
-        u_gen,
-      ));
-    } else if (Var.is_case(x)) {
-      let (u, u_gen) = MetaVarGen.next(u_gen);
-      Succeeded((
-        CursorP(cursor, Var(NotInHole, InVarHole(Keyword(Case), u), x)),
-        Hole,
-        ctx,
-        u_gen,
-      ));
-    } else {
-      check_valid(
-        x,
-        {
-          let ctx = Contexts.extend_gamma(ctx, (x, Hole));
-          Succeeded((
-            ZPat.CursorP(cursor, Var(NotInHole, NotInVarHole, x)),
-            HTyp.Hole,
-            ctx,
-            u_gen,
-          ));
-        },
-      );
-    }
-  | (Construct(SVar(_, _)), CursorP(_, _)) => Failed
-  | (Construct(SWild), CursorP(_, EmptyHole(_)))
-  | (Construct(SWild), CursorP(_, Wild(_)))
-  | (Construct(SWild), CursorP(_, Var(_, _, _)))
-  | (Construct(SWild), CursorP(_, NumLit(_, _)))
-  | (Construct(SWild), CursorP(_, BoolLit(_, _))) =>
-    Succeeded((ZPat.place_after(Wild(NotInHole)), Hole, ctx, u_gen))
-  | (Construct(SWild), CursorP(_, _)) => Failed
-  | (Construct(SNumLit(n, cursor)), CursorP(_, EmptyHole(_)))
-  | (Construct(SNumLit(n, cursor)), CursorP(_, Wild(_)))
-  | (Construct(SNumLit(n, cursor)), CursorP(_, Var(_, _, _)))
-  | (Construct(SNumLit(n, cursor)), CursorP(_, NumLit(_, _)))
-  | (Construct(SNumLit(n, cursor)), CursorP(_, BoolLit(_, _))) =>
-    Succeeded((CursorP(cursor, NumLit(NotInHole, n)), Num, ctx, u_gen))
-  | (Construct(SNumLit(_, _)), CursorP(_, _)) => Failed
-  | (Construct(SInj(side)), CursorP(_, _)) =>
-    switch (Statics.Pat.syn(ctx, ZPat.erase(zp))) {
-    | None => Failed
-    | Some((ty1, ctx)) =>
-      let zp = ZPat.InjZ(NotInHole, side, zp);
-      let ty =
-        switch (side) {
-        | L => HTyp.Sum(ty1, Hole)
-        | R => HTyp.Sum(Hole, ty1)
-        };
-      Succeeded((zp, ty, ctx, u_gen));
-    }
-  | (Construct(SListNil), CursorP(_, EmptyHole(_))) =>
-    let zp = ZPat.place_after(ListNil(NotInHole));
-    Succeeded((zp, List(Hole), ctx, u_gen));
-  | (Construct(SListNil), CursorP(_, _)) => Failed
-  | (
-      Construct(SOp(SSpace)),
-      OpSeqZ(_, CursorP(OnDelim(_, After), _) as zp0, _),
-    )
-      when !ZPat.is_after(zp0) =>
-    syn_perform_pat(ctx, u_gen, MoveRight, zp)
-  | (Construct(SOp(os)), OpSeqZ(_, zp0, surround)) when ZPat.is_after(zp0) =>
-    switch (pat_op_of(os)) {
-    | None => Failed
-    | Some(op) =>
-      Succeeded(
-        abs_perform_Construct_SOp_After_surround(
-          UHPat.new_EmptyHole,
-          make_and_syn_OpSeq_pat,
-          make_and_syn_OpSeqZ_pat,
-          UHPat.is_Space,
-          UHPat.Space,
-          ZPat.place_before,
-          ctx,
-          u_gen,
-          ZPat.erase(zp0),
-          op,
-          surround,
-        ),
-      )
-    }
-  | (Construct(SOp(os)), OpSeqZ(_, zp0, surround)) when ZPat.is_before(zp0) =>
-    switch (pat_op_of(os)) {
-    | None => Failed
-    | Some(op) =>
-      Succeeded(
-        abs_perform_Construct_SOp_Before_surround(
-          UHPat.new_EmptyHole,
-          make_and_syn_OpSeq_pat,
-          make_and_syn_OpSeqZ_pat,
-          UHPat.is_Space,
-          UHPat.Space,
-          ZPat.place_before,
-          ctx,
-          u_gen,
-          ZPat.erase(zp0),
-          op,
-          surround,
-        ),
-      )
-    }
-  | (Construct(SOp(os)), CursorP(_, _)) =>
-    switch (pat_op_of(os)) {
-    | None => Failed
-    | Some(op) =>
-      if (ZPat.is_before(zp)) {
-        Succeeded(
-          abs_perform_Construct_SOp_Before(
-            UHPat.bidelimit,
-            UHPat.new_EmptyHole,
-            make_and_syn_OpSeq_pat,
-            make_and_syn_OpSeqZ_pat,
-            UHPat.is_Space,
-            ZPat.place_before,
-            ctx,
-            u_gen,
-            ZPat.erase(zp),
-            op,
-          ),
-        );
-      } else if (ZPat.is_after(zp)) {
-        Succeeded(
-          abs_perform_Construct_SOp_After(
-            UHPat.bidelimit,
-            UHPat.new_EmptyHole,
-            make_and_syn_OpSeq_pat,
-            make_and_syn_OpSeqZ_pat,
-            UHPat.is_Space,
-            ZPat.place_before,
-            ctx,
-            u_gen,
-            ZPat.erase(zp),
-            op,
-          ),
-        );
-      } else {
-        Failed;
-      }
-    }
-  /* Zipper */
-  | (_, ParenthesizedZ(zp1)) =>
-    switch (syn_perform_pat(ctx, u_gen, a, zp1)) {
-    | Failed => Failed
-    | CantShift => CantShift
-    | CursorEscaped(Before) => syn_perform_pat(ctx, u_gen, MoveLeft, zp)
-    | CursorEscaped(After) => syn_perform_pat(ctx, u_gen, MoveRight, zp)
-    | Succeeded((zp1, ty, ctx, u_gen)) =>
-      Succeeded((ParenthesizedZ(zp1), ty, ctx, u_gen))
-    }
-  | (_, InjZ(_, side, zp1)) =>
-    switch (syn_perform_pat(ctx, u_gen, a, zp1)) {
-    | Failed => Failed
-    | CantShift => CantShift
-    | CursorEscaped(Before) => syn_perform_pat(ctx, u_gen, MoveLeft, zp)
-    | CursorEscaped(After) => syn_perform_pat(ctx, u_gen, MoveRight, zp)
-    | Succeeded((zp1, ty1, ctx, u_gen)) =>
-      let zp = ZPat.InjZ(NotInHole, side, zp1);
-      let ty =
-        switch (side) {
-        | L => HTyp.Sum(ty1, Hole)
-        | R => HTyp.Sum(Hole, ty1)
-        };
-      Succeeded((zp, ty, ctx, u_gen));
-    }
-  | (_, OpSeqZ(_, zp0, surround)) =>
-    let i = Seq.surround_prefix_length(surround);
-    switch (ZPat.erase(zp)) {
-    | OpSeq(skel, seq) =>
-      switch (Statics.Pat.syn_skel(ctx, skel, seq, Some(i))) {
-      | Some((_ty, ctx, Some(mode))) =>
-        switch (mode) {
-        | Statics.AnalyzedAgainst(ty0) =>
-          switch (ana_perform_pat(ctx, u_gen, a, zp0, ty0)) {
-          | Failed => Failed
-          | CantShift => CantShift
-          | CursorEscaped(Before) =>
-            syn_perform_pat(ctx, u_gen, MoveLeft, zp)
-          | CursorEscaped(After) =>
-            syn_perform_pat(ctx, u_gen, MoveRight, zp)
-          | Succeeded((zp0, ctx, u_gen)) =>
-            let zp0 = ZPat.bidelimit(zp0);
-            let (zp0, surround) = OpSeqUtil.Pat.resurround(zp0, surround);
-            Succeeded(make_and_syn_OpSeqZ_pat(ctx, u_gen, zp0, surround));
-          }
-        | Statics.Synthesized(_) =>
-          switch (syn_perform_pat(ctx, u_gen, a, zp0)) {
-          | Failed => Failed
-          | CantShift => CantShift
-          | CursorEscaped(Before) =>
-            syn_perform_pat(ctx, u_gen, MoveLeft, zp)
-          | CursorEscaped(After) =>
-            syn_perform_pat(ctx, u_gen, MoveRight, zp)
-          | Succeeded((zp0, _ty0, ctx, u_gen)) =>
-            let zp0 = ZPat.bidelimit(zp0);
-            let (zp0, surround) = OpSeqUtil.Pat.resurround(zp0, surround);
-            Succeeded(make_and_syn_OpSeqZ_pat(ctx, u_gen, zp0, surround));
-          }
-        }
-      | Some(_) => Failed /* should never happen */
-      | None => Failed /* should never happen */
-      }
-    | _ => Failed /* should never happen */
-    };
-  | (UpdateApPalette(_), _)
-  | (Construct(SApPalette(_)), _)
-  | (Construct(SNum), _)
-  | (Construct(SBool), _)
-  | (Construct(SList), _)
-  | (Construct(SAsc), _)
-  | (Construct(SLet), _)
-  | (Construct(SLine), _)
-  | (Construct(SLam), _)
-  | (Construct(SCase), _) => Failed
+    (ZOperator(zoperator, (new_prefix, new_suffix)), u_gen);
   };
-}
-and ana_perform_pat =
-    (ctx: Contexts.t, u_gen: MetaVarGen.t, a: t, zp: ZPat.t, ty: HTyp.t)
-    : result((ZPat.t, Contexts.t, MetaVarGen.t)) =>
-  switch (a, zp) {
-  | (
-      _,
-      CursorP(
-        OnText(_),
-        EmptyHole(_) | Wild(_) | ListNil(_) | Parenthesized(_) | OpSeq(_, _) |
-        Inj(_, _, _),
-      ) |
-      CursorP(OnDelim(_, _), Var(_, _, _) | NumLit(_, _) | BoolLit(_, _)) |
-      CursorP(
-        Staging(_),
-        EmptyHole(_) | Wild(_) | ListNil(_) | Var(_) | NumLit(_, _) |
-        BoolLit(_, _) |
-        OpSeq(_, _),
-      ),
-    ) =>
-    Failed
-  | (_, CursorP(cursor, p)) when !ZPat.is_valid_cursor(cursor, p) => Failed
-  /* switch to synthesis if in a hole */
-  | (_, _) when ZPat.is_inconsistent(zp) =>
-    let err = zp |> ZPat.erase |> UHPat.get_err_status_operand;
-    let zp_not_in_hole = ZPat.set_err_status_operand(NotInHole, zp);
-    let p = ZPat.erase(zp_not_in_hole);
-    switch (Statics.Pat.syn(ctx, p)) {
-    | None => Failed
-    | Some((_, _)) =>
-      switch (syn_perform_pat(ctx, u_gen, a, zp_not_in_hole)) {
-      | (Failed | CantShift | CursorEscaped(_)) as err => err
-      | Succeeded((zp1, ty', ctx, u_gen)) =>
-        if (HTyp.consistent(ty, ty')) {
-          Succeeded((zp1, ctx, u_gen));
-        } else {
-          Succeeded((ZPat.set_err_status_operand(err, zp1), ctx, u_gen));
-        }
-      }
-    };
-  /* Staging */
-  | (ShiftUp | ShiftDown, _) =>
-    // can only shift up and down in blocks
-    Failed
-  | (ShiftLeft | ShiftRight, CursorP(OnText(_) | OnDelim(_, _), _)) =>
-    Failed
-  | (
-      ShiftLeft | ShiftRight,
-      CursorP(
-        Staging(k),
-        (Parenthesized(body) | Inj(_, _, body)) as staged,
-      ) |
-      OpSeqZ(
-        _,
-        CursorP(
-          Staging(k),
-          (Parenthesized(body) | Inj(_, _, body)) as staged,
-        ),
-        _,
-      ),
-    ) =>
-    let shift_optm =
-      switch (k, a) {
-      | (0, ShiftLeft) => OpSeqUtil.Pat.shift_optm_from_prefix
-      | (0, ShiftRight) => OpSeqUtil.Pat.shift_optm_to_prefix
-      | (1, ShiftLeft) => OpSeqUtil.Pat.shift_optm_to_suffix
-      | (_one, _shift_right) => OpSeqUtil.Pat.shift_optm_from_suffix
-      };
-    let surround =
-      switch (zp) {
-      | OpSeqZ(_, _, surround) => Some(surround)
-      | _cursor_p => None
-      };
-    switch (body |> shift_optm(~surround)) {
-    | None => CantShift
-    | Some((new_body, new_surround)) =>
-      let new_ztm =
-        ZPat.CursorP(
-          Staging(k),
-          switch (staged) {
-          | Inj(err, side, _) => Inj(err, side, new_body)
-          | _parenthesized => Parenthesized(new_body)
-          },
-        );
-      let new_zp =
-        switch (new_surround) {
-        | None => new_ztm
-        | Some(surround) => OpSeqUtil.Pat.mk_ZOpSeq(new_ztm, surround)
-        };
-      Succeeded(Statics.Pat.ana_fix_holes_z(ctx, u_gen, new_zp, ty));
-    };
-  /* Movement */
-  /* NOTE: we don't need to handle movement actions here for the purposes of the UI,
-   * since it's handled at the top (expression) level, but for the sake of API completeness
-   * we include it */
-  | (MoveTo(path), _) =>
-    let p = ZPat.erase(zp);
-    switch (Statics.Pat.ana(ctx, p, ty), CursorPath.follow_pat(path, p)) {
-    | (None, _) => Failed
-    | (_, None) => Failed
-    | (Some(ctx), Some(zp)) => Succeeded((zp, ctx, u_gen))
-    };
-  | (MoveToBefore(steps), _) =>
-    let p = ZPat.erase(zp);
-    switch (
-      Statics.Pat.ana(ctx, p, ty),
-      CursorPath.follow_pat_and_place_before(steps, p),
-    ) {
-    | (None, _) => Failed
-    | (_, None) => Failed
-    | (Some(ctx), Some(zp)) => Succeeded((zp, ctx, u_gen))
-    };
-  | (MoveToPrevHole, _) =>
-    switch (CursorPath.prev_hole_steps(CursorPath.holes_zpat(zp, []))) {
-    | None => Failed
-    | Some(path) => ana_perform_pat(ctx, u_gen, MoveTo(path), zp, ty)
-    }
-  | (MoveToNextHole, _) =>
-    switch (CursorPath.next_hole_steps(CursorPath.holes_zpat(zp, []))) {
-    | None => Failed
-    | Some(path) => ana_perform_pat(ctx, u_gen, MoveTo(path), zp, ty)
-    }
-  | (MoveLeft, _) =>
-    let p = ZPat.erase(zp);
-    switch (Statics.Pat.ana(ctx, p, ty), ZPat.move_cursor_left(zp)) {
-    | (None, _) => Failed
-    | (_, None) => CursorEscaped(Before)
-    | (Some(ctx), Some(zp)) => Succeeded((zp, ctx, u_gen))
-    };
-  | (MoveRight, _) =>
-    let p = ZPat.erase(zp);
-    switch (Statics.Pat.ana(ctx, p, ty), ZPat.move_cursor_right(zp)) {
-    | (None, _) => Failed
-    | (_, None) => CursorEscaped(After)
-    | (Some(ctx), Some(zp)) => Succeeded((zp, ctx, u_gen))
-    };
-  /* Backspace and Delete */
-  | (Backspace, _) when ZPat.is_before(zp) => CursorEscaped(Before)
-  | (Delete, _) when ZPat.is_after(zp) => CursorEscaped(After)
-  | (Backspace, CursorP(_, EmptyHole(_) as p)) =>
-    ZPat.is_after(zp)
-      ? Succeeded((ZPat.place_before(p), ctx, u_gen))
-      : CursorEscaped(Before)
-  | (Delete, CursorP(_, EmptyHole(_) as p)) =>
-    ZPat.is_before(zp)
-      ? Succeeded((ZPat.place_after(p), ctx, u_gen)) : CursorEscaped(After)
-  | (
-      Backspace | Delete,
-      CursorP(
-        OnText(_) | OnDelim(_, _),
-        Var(_, _, _) | Wild(_) | NumLit(_, _) | BoolLit(_, _) | ListNil(_),
-      ),
-    ) =>
-    let (zp, u_gen) = ZPat.new_EmptyHole(u_gen);
-    Succeeded((zp, ctx, u_gen));
-  /* ( _ <|)   ==>   ( _| ) */
-  /* ... + [k-1] <|+ [k] + ...   ==>   ... + [k-1]| + [k] + ... */
-  | (
-      Backspace,
-      CursorP(
-        OnDelim(_, Before),
-        Parenthesized(_) | Inj(_, _, _) | OpSeq(_, _),
-      ),
-    ) =>
-    ana_perform_pat(ctx, u_gen, MoveLeft, zp, ty)
-  /* (|> _ )   ==>   ( |_ ) */
-  /* ... + [k-1] +|> [k] + ...   ==>   ... + [k-1] + |[k] + ... */
-  | (
-      Delete,
-      CursorP(
-        OnDelim(_, After),
-        Parenthesized(_) | Inj(_, _, _) | OpSeq(_, _),
-      ),
-    ) =>
-    ana_perform_pat(ctx, u_gen, MoveRight, zp, ty)
-  /* Delete before delimiter == Backspace after delimiter */
-  | (
-      Delete,
-      CursorP(
-        OnDelim(k, Before),
-        (Parenthesized(_) | Inj(_, _, _) | OpSeq(_, _)) as p,
-      ),
-    ) =>
-    ana_perform_pat(
-      ctx,
+};
+let _construct_operator_before_zoperand =
+    (
+      ~is_Space: 'operator => bool,
+      ~new_EmptyHole: MetaVarGen.t => ('operand, MetaVarGen.t),
+      ~erase_zoperand: 'zoperand => 'operand,
+      ~place_before_operand: 'operand => 'zoperand,
+      ~place_after_operator: 'operator => option('zoperator),
+      u_gen: MetaVarGen.t,
+      operator: 'operator,
+      zoperand: 'zoperand,
+      (prefix, suffix): Seq.operand_surround('operand, 'operator),
+    )
+    : (ZSeq.t('operand, 'operator, 'zoperand, 'zoperator), MetaVarGen.t) => {
+  // symmetric to construct_operator_after_zoperand
+  let mirror_surround = (suffix, prefix);
+  let (mirror_zseq, u_gen) =
+    _construct_operator_after_zoperand(
+      ~is_Space,
+      ~new_EmptyHole,
+      ~erase_zoperand,
+      ~place_before_operand,
+      ~place_after_operator,
       u_gen,
-      Backspace,
-      CursorP(OnDelim(k, Before), p),
-      ty,
-    )
-  /* ( _ )<|  ==>  ( _ [)] */
-  | (
-      Backspace,
-      CursorP(OnDelim(k, After), (Parenthesized(_) | Inj(_, _, _)) as p),
-    ) =>
-    Succeeded(
-      Statics.Pat.ana_fix_holes_z(ctx, u_gen, CursorP(Staging(k), p), ty),
-    )
-  | (
-      Backspace | Delete,
-      CursorP(Staging(k), Parenthesized(body) | Inj(_, _, body)),
-    ) =>
-    let result =
-      body
-      |> (
-        switch (k) {
-        | 0 => ZPat.place_before
-        | _one => ZPat.place_after
-        }
-      );
-    Succeeded(Statics.Pat.ana_fix_holes_z(ctx, u_gen, result, ty));
-  /* ... + [k-1] +<| [k] + ... */
-  | (Backspace, CursorP(OnDelim(k, After), OpSeq(_, seq))) =>
-    /* validity check at top of switch statement ensures
-     * that op between [k-1] and [k] is not Space */
-    switch (Seq.split(k - 1, seq), Seq.split(k, seq)) {
-    /* invalid cursor position */
-    | (None, _)
-    | (_, None) => Failed
-    /* ... + [k-1] +<| _ + ... */
-    | (_, Some((EmptyHole(_), surround))) =>
-      switch (surround) {
-      /* invalid */
-      | EmptyPrefix(_) => Failed
-      /* ... + [k-1] +<| _   ==>   ... + [k-1]| */
-      | EmptySuffix(prefix) =>
-        let zp: ZPat.t =
-          switch (prefix) {
-          | OperandPrefix(p, _) => ZPat.place_after(p)
-          | SeqPrefix(seq, _) =>
-            let skel = Associator.associate_pat(seq);
-            ZPat.place_after(OpSeq(skel, seq));
-          };
-        Succeeded(Statics.Pat.ana_fix_holes_z(ctx, u_gen, zp, ty));
-      /* ... + [k-1] +<| _ + ...   ==>   ... + [k-1]| + ... */
-      | BothNonEmpty(prefix, suffix) =>
-        let (zp0: ZPat.t, surround: ZPat.opseq_surround) =
-          switch (prefix) {
-          | OperandPrefix(p, _) => (
-              ZPat.place_after(p),
-              EmptyPrefix(suffix),
-            )
-          | SeqPrefix(ExpOpExp(p1, op, p2), _) => (
-              ZPat.place_after(p2),
-              BothNonEmpty(OperandPrefix(p1, op), suffix),
-            )
-          | SeqPrefix(SeqOpExp(seq, op, p), _) => (
-              ZPat.place_after(p),
-              BothNonEmpty(SeqPrefix(seq, op), suffix),
-            )
-          };
-        let skel =
-          Associator.associate_pat(
-            Seq.t_of_operand_and_surround(ZPat.erase(zp0), surround),
-          );
-        let zp = ZPat.OpSeqZ(skel, zp0, surround);
-        Succeeded(Statics.Pat.ana_fix_holes_z(ctx, u_gen, zp, ty));
-      }
-    /* ... + _ +<| [k] + ... */
-    | (Some((EmptyHole(_), surround)), _) =>
-      switch (surround) {
-      /* invalid */
-      | EmptySuffix(_) => Failed
-      /* _ +<| [k] + ...   ==>   |[k] + ... */
-      | EmptyPrefix(suffix) =>
-        let zp: ZPat.t =
-          switch (suffix) {
-          | OperandSuffix(_, p) => ZPat.place_before(p)
-          | SeqSuffix(_, seq) =>
-            let skel = Associator.associate_pat(seq);
-            ZPat.place_before(OpSeq(skel, seq));
-          };
-        Succeeded(Statics.Pat.ana_fix_holes_z(ctx, u_gen, zp, ty));
-      /* ... + [k-2] + _ +<| [k] + ...   ==>   ... + [k-2] +| [k] + ... */
-      | BothNonEmpty(prefix, suffix) =>
-        let seq =
-          switch (suffix) {
-          | OperandSuffix(_, p) => Seq.t_of_prefix_and_last(prefix, p)
-          | SeqSuffix(_, seq) => Seq.t_of_prefix_and_seq(prefix, seq)
-          };
-        let skel = Associator.associate_pat(seq);
-        let zp = ZPat.CursorP(OnDelim(k - 1, After), OpSeq(skel, seq));
-        Succeeded(Statics.Pat.ana_fix_holes_z(ctx, u_gen, zp, ty));
-      }
-    /* ... + [k-1] +<| [k] + ...   ==>   ... + [k-1]| [k] + ... */
-    | (Some((p0, surround)), _) =>
-      switch (Seq.replace_following_op(surround, UHPat.Space)) {
-      | None => Failed /* invalid */
-      | Some(surround) =>
-        Succeeded(
-          make_and_ana_OpSeqZ_pat(
-            ctx,
-            u_gen,
-            ZPat.place_after(p0),
-            surround,
-            ty,
-          ),
-        )
-      }
-    }
-  /* ... + [k-1]  <|_ + [k+1] + ...  ==>   ... + [k-1]| + [k+1] + ... */
-  | (
-      Backspace,
-      OpSeqZ(
-        _,
-        CursorP(_, EmptyHole(_)) as zp0,
-        (
-          EmptySuffix(OperandPrefix(_, Space) | SeqPrefix(_, Space)) |
-          BothNonEmpty(OperandPrefix(_, Space) | SeqPrefix(_, Space), _)
-        ) as surround,
-      ),
-    )
-      when ZPat.is_before(zp0) =>
-    switch (surround) {
-    | EmptyPrefix(_) => CursorEscaped(Before) /* should never happen */
-    | EmptySuffix(prefix) =>
-      let p: UHPat.t =
-        switch (prefix) {
-        | OperandPrefix(p1, _space) => p1
-        | SeqPrefix(seq, _space) =>
-          let skel = Associator.associate_pat(seq);
-          OpSeq(skel, seq);
-        };
-      Succeeded(
-        Statics.Pat.ana_fix_holes_z(ctx, u_gen, ZPat.place_after(p), ty),
-      );
-    | BothNonEmpty(prefix, suffix) =>
-      switch (prefix) {
-      | OperandPrefix(p1, _space) =>
-        let zp1 = ZPat.place_after(p1);
-        let surround = Seq.EmptyPrefix(suffix);
-        let skel =
-          Associator.associate_pat(
-            Seq.t_of_operand_and_surround(p1, surround),
-          );
-        let zp = ZPat.OpSeqZ(skel, zp1, surround);
-        Succeeded(Statics.Pat.ana_fix_holes_z(ctx, u_gen, zp, ty));
-      | SeqPrefix(seq, _space) =>
-        let (prefix: ZPat.prefix, p0) =
-          switch (seq) {
-          | ExpOpExp(p1, op, p2) => (OperandPrefix(p1, op), p2)
-          | SeqOpExp(seq, op, p1) => (SeqPrefix(seq, op), p1)
-          };
-        let zp0 = ZPat.place_after(p0);
-        let surround = Seq.BothNonEmpty(prefix, suffix);
-        let skel =
-          Associator.associate_pat(
-            Seq.t_of_operand_and_surround(p0, surround),
-          );
-        let zp = ZPat.OpSeqZ(skel, zp0, surround);
-        Succeeded(Statics.Pat.ana_fix_holes_z(ctx, u_gen, zp, ty));
-      }
-    }
-  /* ... + [k-1] + _|>  [k+1] + ...  ==>   ... + [k-1] + |[k+1] + ... */
-  | (
-      Delete,
-      OpSeqZ(
-        _,
-        CursorP(_, EmptyHole(_)) as zp0,
-        (
-          EmptyPrefix(OperandSuffix(Space, _) | SeqSuffix(Space, _)) |
-          BothNonEmpty(_, OperandSuffix(Space, _) | SeqSuffix(Space, _))
-        ) as surround,
-      ),
-    )
-      when ZPat.is_after(zp0) =>
-    switch (surround) {
-    | EmptySuffix(_) => CursorEscaped(After) /* should never happen */
-    | EmptyPrefix(suffix) =>
-      let p: UHPat.t =
-        switch (suffix) {
-        | OperandSuffix(_space, p1) => p1
-        | SeqSuffix(_space, seq) =>
-          let skel = Associator.associate_pat(seq);
-          OpSeq(skel, seq);
-        };
-      Succeeded(
-        Statics.Pat.ana_fix_holes_z(ctx, u_gen, ZPat.place_before(p), ty),
-      );
-    | BothNonEmpty(prefix, suffix) =>
-      switch (suffix) {
-      | OperandSuffix(_space, p1) =>
-        let zp1 = ZPat.place_before(p1);
-        let surround = Seq.EmptyPrefix(suffix);
-        let skel =
-          Associator.associate_pat(
-            Seq.t_of_operand_and_surround(p1, surround),
-          );
-        let zp = ZPat.OpSeqZ(skel, zp1, surround);
-        Succeeded(Statics.Pat.ana_fix_holes_z(ctx, u_gen, zp, ty));
-      | SeqSuffix(_space, seq) =>
-        let (p0, suffix: ZPat.suffix) =
-          switch (seq) {
-          | ExpOpExp(p1, op, p2) => (p1, OperandSuffix(op, p2))
-          | SeqOpExp(seq, op, p1) => (p1, SeqSuffix(op, seq))
-          };
-        let zp0 = ZPat.place_before(p0);
-        let surround = Seq.BothNonEmpty(prefix, suffix);
-        let skel =
-          Associator.associate_pat(
-            Seq.t_of_operand_and_surround(p0, surround),
-          );
-        let zp = ZPat.OpSeqZ(skel, zp0, surround);
-        Succeeded(Statics.Pat.ana_fix_holes_z(ctx, u_gen, zp, ty));
-      }
-    }
-  /* Construct */
-  | (Construct(SOp(SSpace)), CursorP(OnDelim(_, After), _))
-      when !ZPat.is_after(zp) =>
-    ana_perform_pat(ctx, u_gen, MoveRight, zp, ty)
-  | (Construct(_) as a, CursorP(OnDelim(_, side), _))
-      when !ZPat.is_before(zp) && !ZPat.is_after(zp) =>
-    let move_then_perform = move_action =>
-      switch (ana_perform_pat(ctx, u_gen, move_action, zp, ty)) {
-      | Failed
-      | CantShift
-      | CursorEscaped(_) => assert(false)
-      | Succeeded((zp, _, u_gen)) => ana_perform_pat(ctx, u_gen, a, zp, ty)
-      };
-    switch (side) {
-    | Before => move_then_perform(MoveLeft)
-    | After => move_then_perform(MoveRight)
+      operator,
+      zoperand,
+      mirror_surround,
+    );
+  let zseq: ZSeq.t(_) =
+    switch (mirror_zseq) {
+    | ZOperator(z, (suffix, prefix)) => ZOperator(z, (prefix, suffix))
+    | ZOperand(z, (suffix, prefix)) => ZOperand(z, (prefix, suffix))
     };
-  | (
-      Construct(SLine),
-      CursorP(Staging(k), (Parenthesized(_) | Inj(_, _, _)) as p),
-    ) =>
-    Succeeded(
-      Statics.Pat.ana_fix_holes_z(
-        ctx,
-        u_gen,
-        CursorP(OnDelim(k, k == 0 ? Before : After), p),
-        ty,
-      ),
+  (zseq, u_gen);
+};
+
+let _delete_operator =
+    (
+      ~is_EmptyHole: 'operand => bool,
+      ~place_before_operand: 'operand => 'zoperand,
+      ~place_after_operand: 'operand => 'zoperand,
+      ~place_after_operator: 'operator => option('zoperator),
+      (prefix, suffix): Seq.operator_surround('operand, 'operator),
     )
-  | (Construct(_), CursorP(Staging(_), _)) => Failed
-  | (Construct(SParenthesized), CursorP(_, _)) =>
-    switch (Statics.Pat.ana(ctx, ZPat.erase(zp), ty)) {
-    | None => Failed
-    | Some(ctx) => Succeeded((ParenthesizedZ(zp), ctx, u_gen))
-    }
-  | (Construct(SVar("true", _)), _)
-  | (Construct(SVar("false", _)), _) =>
-    switch (syn_perform_pat(ctx, u_gen, a, zp)) {
-    | (Failed | CantShift | CursorEscaped(_)) as err => err
-    | Succeeded((zp, ty', ctx, u_gen)) =>
-      if (HTyp.consistent(ty, ty')) {
-        Succeeded((zp, ctx, u_gen));
-      } else {
-        let (zp, u_gen) = ZPat.make_inconsistent(u_gen, zp);
-        Succeeded((zp, ctx, u_gen));
-      }
-    }
-  | (Construct(SVar(x, cursor)), CursorP(_, EmptyHole(_)))
-  | (Construct(SVar(x, cursor)), CursorP(_, Wild(_)))
-  | (Construct(SVar(x, cursor)), CursorP(_, Var(_, _, _)))
-  | (Construct(SVar(x, cursor)), CursorP(_, NumLit(_, _)))
-  | (Construct(SVar(x, cursor)), CursorP(_, BoolLit(_, _))) =>
-    if (Var.is_let(x)) {
-      let (u, u_gen) = MetaVarGen.next(u_gen);
-      Succeeded((
-        CursorP(cursor, Var(NotInHole, InVarHole(Keyword(Let), u), x)),
-        ctx,
-        u_gen,
-      ));
-    } else if (Var.is_case(x)) {
-      let (u, u_gen) = MetaVarGen.next(u_gen);
-      Succeeded((
-        CursorP(cursor, Var(NotInHole, InVarHole(Keyword(Case), u), x)),
-        ctx,
-        u_gen,
-      ));
-    } else {
-      check_valid(
-        x,
-        {
-          let ctx = Contexts.extend_gamma(ctx, (x, ty));
-          Succeeded((
-            ZPat.CursorP(cursor, Var(NotInHole, NotInVarHole, x)),
-            ctx,
-            u_gen,
-          ));
-        },
-      );
-    }
-  | (Construct(SVar(_, _)), CursorP(_, _)) => Failed
-  | (Construct(SWild), CursorP(_, EmptyHole(_)))
-  | (Construct(SWild), CursorP(_, Wild(_)))
-  | (Construct(SWild), CursorP(_, Var(_, _, _)))
-  | (Construct(SWild), CursorP(_, NumLit(_, _)))
-  | (Construct(SWild), CursorP(_, BoolLit(_, _))) =>
-    Succeeded((ZPat.place_after(Wild(NotInHole)), ctx, u_gen))
-  | (Construct(SWild), CursorP(_, _)) => Failed
-  | (Construct(SInj(side)), CursorP(_, _) as zp1) =>
-    switch (HTyp.matched_sum(ty)) {
-    | Some((tyL, tyR)) =>
-      let ty1 = InjSide.pick(side, tyL, tyR);
-      let (zp1, ctx, u_gen) =
-        Statics.Pat.ana_fix_holes_z(ctx, u_gen, zp1, ty1);
-      let zp = ZPat.InjZ(NotInHole, side, zp1);
-      Succeeded((zp, ctx, u_gen));
+    : ZSeq.t('operand, 'operator, 'zoperand, 'zoperator) =>
+  switch (prefix, suffix) {
+  /* _ +<| [1] + ...   ==>   |[1] + ... */
+  | (S(operand, E as prefix), S(suffix_hd, new_suffix))
+      when operand |> is_EmptyHole =>
+    let zoperand = suffix_hd |> place_before_operand;
+    ZOperand(zoperand, (prefix, new_suffix));
+
+  | (S(operand, A(operator, prefix_tl) as prefix), suffix)
+      when operand |> is_EmptyHole =>
+    switch (operator |> place_after_operator) {
+    /* ... + [k-2]  _ +<| [k] + ...   ==>  ... + [k-2] |[k] + ... */
     | None =>
-      let (zp1, _, ctx, u_gen) =
-        Statics.Pat.syn_fix_holes_z(ctx, u_gen, zp1);
-      let (u, u_gen) = MetaVarGen.next(u_gen);
-      let zp = ZPat.InjZ(InHole(TypeInconsistent, u), side, zp1);
-      Succeeded((zp, ctx, u_gen));
+      let S(suffix_hd, new_suffix) = suffix;
+      let zoperand = suffix_hd |> place_before_operand;
+      ZOperand(zoperand, (prefix, new_suffix));
+    /* ... + [k-2] + _ +<| [k] + ...   ==>   ... + [k-2] +| [k] + ... */
+    | Some(zoperator) =>
+      let new_prefix = prefix_tl;
+      ZOperator(zoperator, (new_prefix, suffix));
     }
-  | (
-      Construct(SOp(SSpace)),
-      OpSeqZ(_, CursorP(OnDelim(_, After), _) as zp0, _),
-    )
-      when !ZPat.is_after(zp0) =>
-    ana_perform_pat(ctx, u_gen, MoveRight, zp, ty)
-  | (Construct(SOp(os)), OpSeqZ(_, zp0, surround)) when ZPat.is_after(zp0) =>
-    switch (pat_op_of(os)) {
+
+  /* ... + [k-1] +<|  _ + ...   ==>   ... + [k-1]| + ... */
+  | (S(prefix_hd, new_prefix), S(operand, new_suffix))
+      when operand |> is_EmptyHole =>
+    let zoperand = prefix_hd |> place_after_operand;
+    ZOperand(zoperand, (new_prefix, new_suffix));
+
+  /* ... + [k-1] +<| [k] + ...   ==>   ... + [k-1]| [k] + ... */
+  | (S(prefix_hd, new_prefix), _) =>
+    let zoperand = prefix_hd |> place_after_operand;
+    let new_suffix = Seq.A(UHPat.Space, suffix);
+    ZOperand(zoperand, (new_prefix, new_suffix));
+  };
+
+module Pat = {
+  let operator_of_shape: operator_shape => option(UHPat.operator) =
+    fun
+    | SComma => Some(Comma)
+    | SSpace => Some(Space)
+    | SCons => Some(Cons)
+    | SAnd
+    | SOr
+    | SMinus
+    | SPlus
+    | STimes
+    | SLessThan
+    | SGreaterThan
+    | SEquals
+    | SArrow
+    | SVBar => None;
+
+  let shape_of_operator: UHPat.operator => operator_shape =
+    fun
+    | Comma => SComma
+    | Space => SSpace
+    | Cons => SCons;
+
+  let mk_ZOpSeq =
+    ZOpSeq.mk(
+      ~associate=Associator.associate_pat,
+      ~erase_zoperand=ZPat.erase_zoperand,
+      ~erase_zoperator=ZPat.erase_zoperator,
+    );
+
+  let mk_and_syn_fix_ZOpSeq =
+      (ctx: Contexts.t, u_gen: MetaVarGen.t, zseq: ZPat.zseq)
+      : (ZPat.t, HTyp.t, Contexts.t, MetaVarGen.t) => {
+    let zopseq = mk_ZOpSeq(zseq);
+    Statics.Pat.syn_fix_holes_z(ctx, u_gen, ZP1(zopseq));
+  };
+  let mk_and_ana_fix_ZOpSeq =
+      (ctx: Contexts.t, u_gen: MetaVarGen.t, zseq: ZPat.zseq, ty: HTyp.t)
+      : (ZPat.t, Contexts.t, MetaVarGen.t) => {
+    let zopseq = mk_ZOpSeq(zseq);
+    Statics.Pat.ana_fix_holes_z(ctx, u_gen, ZP1(zopseq), ty);
+  };
+
+  let mk_syn_result = (ctx: Contexts.t, u_gen: MetaVarGen.t, zp: ZPat.t) =>
+    switch (Statics.Pat.syn(ctx, zp |> ZPat.erase)) {
     | None => Failed
-    | Some(op) =>
-      Succeeded(
-        abs_perform_Construct_SOp_After_surround(
-          UHPat.new_EmptyHole,
-          (ctx, u_gen, cursor, seq) =>
-            make_and_ana_OpSeq_pat(ctx, u_gen, cursor, seq, ty),
-          (ctx, u_gen, zp, surround) =>
-            make_and_ana_OpSeqZ_pat(ctx, u_gen, zp, surround, ty),
-          UHPat.is_Space,
-          UHPat.Space,
-          ZPat.place_before,
-          ctx,
-          u_gen,
-          ZPat.erase(zp0),
-          op,
-          surround,
-        ),
+    | Some((ty, ctx)) => Succeeded((zp, ty, ctx, u_gen))
+    };
+  let mk_ana_result =
+      (ctx: Contexts.t, u_gen: MetaVarGen.t, zp: ZPat.t, ty: HTyp.t) =>
+    switch (Statics.Pat.ana(ctx, zp |> ZPat.erase, ty)) {
+    | None => Failed
+    | Some(ctx) => Succeeded((zp, ctx, u_gen))
+    };
+
+  let syn_cursor_escaped_zopseq = (ctx: Contexts.t, u_gen: MetaVarGen.t) =>
+    _cursor_escaped_zopseq(
+      ~move_cursor_left=ZPat.move_cursor_left_zopseq,
+      ~move_cursor_right=ZPat.move_cursor_right_zopseq,
+      ~mk_result=zopseq =>
+      mk_syn_result(ctx, u_gen, ZP1(zopseq))
+    );
+  let ana_cursor_escaped_zopseq =
+      (ctx: Contexts.t, u_gen: MetaVarGen.t, ty: HTyp.t) =>
+    _cursor_escaped_zopseq(
+      ~move_cursor_left=ZPat.move_cursor_left_zopseq,
+      ~move_cursor_right=ZPat.move_cursor_right_zopseq,
+      ~mk_result=zopseq =>
+      mk_ana_result(ctx, u_gen, ZP1(zopseq), ty)
+    );
+
+  let construct_operator_before_zoperand =
+    _construct_operator_before_zoperand(
+      ~is_Space=UHPat.is_Space,
+      ~new_EmptyHole=UHPat.new_EmptyHole,
+      ~erase_zoperand=ZPat.erase_zoperand,
+      ~place_before_operand=ZPat.place_before_operand,
+      ~place_after_operator=ZPat.place_after_operator,
+    );
+  let construct_operator_after_zoperand =
+    _construct_operator_after_zoperand(
+      ~is_Space=UHPat.is_Space,
+      ~new_EmptyHole=UHPat.new_EmptyHole,
+      ~erase_zoperand=ZPat.erase_zoperand,
+      ~place_before_operand=ZPat.place_before_operand,
+      ~place_after_operator=ZPat.place_after_operator,
+    );
+
+  let delete_operator =
+    _delete_operator(
+      ~is_EmptyHole=UHPat.is_EmptyHole,
+      ~place_before_operand=ZPat.place_before_operand,
+      ~place_after_operand=ZPat.place_after_operand,
+      ~place_after_operator=ZPat.place_after_operator,
+    );
+
+  let resurround =
+      (zp: ZPat.t, (prefix, suffix) as surround: ZPat.operand_surround)
+      : ZPat.zseq =>
+    switch (zp) {
+    | ZP0(zoperand) => ZOperand(zoperand, surround)
+    | ZP1(ZOpSeq(_, ZOperand(zoperand, (inner_prefix, inner_suffix)))) =>
+      let new_prefix = Seq.affix_affix(inner_prefix, prefix);
+      let new_suffix = Seq.affix_affix(inner_suffix, suffix);
+      ZOperand(zoperand, (new_prefix, new_suffix));
+    | ZP1(ZOpSeq(_, ZOperator(zoperator, (inner_prefix, inner_suffix)))) =>
+      let new_prefix = Seq.seq_affix(inner_prefix, prefix);
+      let new_suffix = Seq.seq_affix(inner_suffix, suffix);
+      ZOperator(zoperator, (new_prefix, new_suffix));
+    };
+
+  let rec syn_perform =
+          (ctx: Contexts.t, u_gen: MetaVarGen.t, a: t, zp: ZPat.t)
+          : result((ZPat.t, HTyp.t, Contexts.t, MetaVarGen.t)) =>
+    switch (zp) {
+    | ZP1(zp1) => syn_perform_opseq(ctx, u_gen, a, zp1)
+    | ZP0(zp0) => syn_perform_operand(ctx, u_gen, a, zp0)
+    }
+  and syn_perform_opseq =
+      (
+        ctx: Contexts.t,
+        u_gen: MetaVarGen.t,
+        a: t,
+        ZOpSeq(skel, zseq) as zopseq: ZPat.zopseq,
       )
-    }
-  | (Construct(SOp(os)), OpSeqZ(_, zp0, surround)) when ZPat.is_before(zp0) =>
-    switch (pat_op_of(os)) {
-    | None => Failed
-    | Some(op) =>
-      Succeeded(
-        abs_perform_Construct_SOp_Before_surround(
-          UHPat.new_EmptyHole,
-          (ctx, u_gen, cursor, seq) =>
-            make_and_ana_OpSeq_pat(ctx, u_gen, cursor, seq, ty),
-          (ctx, u_gen, zp, surround) =>
-            make_and_ana_OpSeqZ_pat(ctx, u_gen, zp, surround, ty),
-          UHPat.is_Space,
-          UHPat.Space,
-          ZPat.place_before,
-          ctx,
-          u_gen,
-          zp0 |> ZPat.erase,
-          op,
-          surround,
-        ),
-      )
-    }
-  | (Construct(SOp(os)), CursorP(_, _)) =>
-    switch (pat_op_of(os)) {
-    | None => Failed
-    | Some(op) =>
-      if (ZPat.is_before(zp)) {
-        Succeeded(
-          abs_perform_Construct_SOp_Before(
-            UHPat.bidelimit,
-            UHPat.new_EmptyHole,
-            (ctx, u_gen, cursor, seq) =>
-              make_and_ana_OpSeq_pat(ctx, u_gen, cursor, seq, ty),
-            (ctx, u_gen, zp, surround) =>
-              make_and_ana_OpSeqZ_pat(ctx, u_gen, zp, surround, ty),
-            UHPat.is_Space,
-            ZPat.place_before,
-            ctx,
-            u_gen,
-            ZPat.erase(zp),
-            op,
-          ),
-        );
-      } else if (ZPat.is_after(zp)) {
-        Succeeded(
-          abs_perform_Construct_SOp_After(
-            UHPat.bidelimit,
-            UHPat.new_EmptyHole,
-            (ctx, u_gen, cursor, seq) =>
-              make_and_ana_OpSeq_pat(ctx, u_gen, cursor, seq, ty),
-            (ctx, u_gen, zp, surround) =>
-              make_and_ana_OpSeqZ_pat(ctx, u_gen, zp, surround, ty),
-            UHPat.is_Space,
-            ZPat.place_before,
-            ctx,
-            u_gen,
-            ZPat.erase(zp),
-            op,
-          ),
-        );
-      } else {
-        Failed;
+      : result((ZPat.t, HTyp.t, Contexts.t, MetaVarGen.t)) =>
+    switch (a, zseq) {
+    /* Invalid cursor positions */
+    | (_, ZOperator((OnText(_) | OnDelim(_), _), _)) => Failed
+
+    /* Invalid actions */
+    | (UpdateApPalette(_), ZOperator(_)) => Failed
+
+    /* Movement */
+    | (MoveTo(path), _) =>
+      switch (CursorPath.Pat.follow(path, P1(zopseq |> ZPat.erase_zopseq))) {
+      | None => Failed
+      | Some(zp) => mk_syn_result(ctx, u_gen, zp)
       }
-    }
-  /* Zipper */
-  | (_, ParenthesizedZ(zp1)) =>
-    switch (ana_perform_pat(ctx, u_gen, a, zp1, ty)) {
-    | Failed => Failed
-    | CantShift => CantShift
-    | CursorEscaped(Before) => ana_perform_pat(ctx, u_gen, MoveLeft, zp, ty)
-    | CursorEscaped(After) => ana_perform_pat(ctx, u_gen, MoveRight, zp, ty)
-    | Succeeded((zp1, ctx, u_gen)) =>
-      Succeeded((ParenthesizedZ(zp1), ctx, u_gen))
-    }
-  | (_, InjZ(_, side, zp1)) =>
-    switch (HTyp.matched_sum(ty)) {
-    | None => Failed
-    | Some((tyL, tyR)) =>
-      let ty1 = InjSide.pick(side, tyL, tyR);
-      switch (ana_perform_pat(ctx, u_gen, a, zp1, ty1)) {
-      | Failed => Failed
-      | CantShift => CantShift
-      | CursorEscaped(Before) =>
-        ana_perform_pat(ctx, u_gen, MoveLeft, zp, ty)
-      | CursorEscaped(After) =>
-        ana_perform_pat(ctx, u_gen, MoveRight, zp, ty)
-      | Succeeded((zp1, ctx, u_gen)) =>
-        let zp = ZPat.InjZ(NotInHole, side, zp1);
-        Succeeded((zp, ctx, u_gen));
+    | (MoveToBefore(steps), _) =>
+      switch (
+        CursorPath.Pat.follow_steps(
+          ~side=Before,
+          steps,
+          P1(zopseq |> ZPat.erase_zopseq),
+        )
+      ) {
+      | None => Failed
+      | Some(zp) => mk_syn_result(ctx, u_gen, zp)
+      }
+    | (MoveToPrevHole, _) =>
+      switch (CursorPath.(prev_hole_steps(Pat.holes_zopseq(zopseq, [])))) {
+      | None => Failed
+      | Some(steps) =>
+        syn_perform_opseq(ctx, u_gen, MoveToBefore(steps), zopseq)
+      }
+    | (MoveToNextHole, _) =>
+      switch (CursorPath.(next_hole_steps(Pat.holes_zopseq(zopseq, [])))) {
+      | None => Failed
+      | Some(steps) =>
+        syn_perform_opseq(ctx, u_gen, MoveToBefore(steps), zopseq)
+      }
+    | (MoveLeft, _) =>
+      switch (ZPat.(ZP1(zopseq) |> move_cursor_left)) {
+      | None => CursorEscaped(Before)
+      | Some(zp) => mk_syn_result(ctx, u_gen, zp)
+      }
+    | (MoveRight, _) =>
+      switch (ZPat.(ZP1(zopseq) |> move_cursor_right)) {
+      | None => CursorEscaped(After)
+      | Some(zp) => mk_syn_result(ctx, u_gen, zp)
+      }
+
+    /* Deletion */
+
+    | (Delete, ZOperator((OnOp(After), _), _)) =>
+      syn_cursor_escaped_zopseq(ctx, u_gen, After, zopseq)
+    | (Backspace, ZOperator((OnOp(Before), _), _)) =>
+      syn_cursor_escaped_zopseq(ctx, u_gen, Before, zopseq)
+
+    /* Delete before operator == Backspace after operator */
+    | (Delete, ZOperator((OnOp(Before), op), surround)) =>
+      syn_perform_opseq(
+        ctx,
+        u_gen,
+        Backspace,
+        ZOpSeq(skel, ZOperator((OnOp(After), op), surround)),
+      )
+
+    /* ... + [k-1] +<| [k] + ... */
+    | (Backspace, ZOperator((OnOp(After), _), surround)) =>
+      let new_zseq = delete_operator(surround);
+      Succeeded(mk_and_syn_fix_ZOpSeq(ctx, u_gen, new_zseq));
+
+    /* ... + [k-1]  <|_ + [k+1] + ...  ==>   ... + [k-1]| + [k+1] + ... */
+    | (
+        Backspace,
+        ZOperand(
+          CursorP(_, EmptyHole(_)) as zhole,
+          (A(Space, prefix_tl), suffix),
+        ),
+      )
+        when ZPat.is_before_zoperand(zhole) =>
+      let S(operand, new_prefix) = prefix_tl;
+      let zoperand = operand |> ZPat.place_after_operand;
+      let new_zseq = ZSeq.ZOperand(zoperand, (new_prefix, suffix));
+      Succeeded(mk_and_syn_fix_ZOpSeq(ctx, u_gen, new_zseq));
+
+    /* ... + [k-1] + _|>  [k+1] + ...  ==>   ... + [k-1] + |[k+1] + ... */
+    | (
+        Delete,
+        ZOperand(
+          CursorP(_, EmptyHole(_)) as zhole,
+          (prefix, A(Space, suffix_tl)),
+        ),
+      )
+        when ZPat.is_after_zoperand(zhole) =>
+      let S(operand, new_suffix) = suffix_tl;
+      let zoperand = operand |> ZPat.place_before_operand;
+      let new_zseq = ZSeq.ZOperand(zoperand, (prefix, new_suffix));
+      Succeeded(mk_and_syn_fix_ZOpSeq(ctx, u_gen, new_zseq));
+
+    /* Construction */
+
+    /* construction on operators either becomes movement... */
+    | (Construct(SOp(SSpace)), ZOperator(zoperator, _))
+        when ZPat.is_after_zoperator(zoperator) =>
+      syn_perform_opseq(ctx, u_gen, MoveRight, zopseq)
+    /* ...or construction after movement */
+    | (Construct(_) as a, ZOperator(zoperator, _)) =>
+      let move_cursor =
+        ZPat.is_before_zoperator(zoperator)
+          ? ZPat.move_cursor_left_zopseq : ZPat.move_cursor_right_zopseq;
+      switch (zopseq |> move_cursor) {
+      | None => Failed
+      | Some(zopseq) => syn_perform_opseq(ctx, u_gen, a, zopseq)
       };
-    }
-  | (_, OpSeqZ(_, zp0, surround)) =>
-    let i = Seq.surround_prefix_length(surround);
-    switch (ZPat.erase(zp)) {
-    | OpSeq(skel, seq) =>
-      switch (Statics.Pat.ana_skel(ctx, skel, seq, ty, Some(i))) {
-      | Some((_, Some(mode))) =>
-        switch (mode) {
-        | Statics.AnalyzedAgainst(ty0) =>
-          switch (ana_perform_pat(ctx, u_gen, a, zp0, ty0)) {
+
+    | (Construct(SOp(os)), ZOperand(zoperand, surround))
+        when
+          ZPat.is_before_zoperand(zoperand)
+          || ZPat.is_after_zoperand(zoperand) =>
+      switch (operator_of_shape(os)) {
+      | None => Failed
+      | Some(operator) =>
+        let construct_operator =
+          ZPat.is_before_zoperand(zoperand)
+            ? construct_operator_before_zoperand
+            : construct_operator_after_zoperand;
+        let (zseq, u_gen) =
+          construct_operator(u_gen, operator, zoperand, surround);
+        Succeeded(mk_and_syn_fix_ZOpSeq(ctx, u_gen, zseq));
+      }
+
+    /* Zipper */
+    | (_, ZOperand(zoperand, surround)) =>
+      switch (CursorInfo.Pat.syn_cursor_info_zopseq(ctx, zopseq)) {
+      | None => Failed
+      | Some(ci) =>
+        switch (ci |> CursorInfo.type_mode) {
+        | None => Failed
+        | Some(Syn) =>
+          switch (syn_perform_operand(ctx, u_gen, a, zoperand)) {
           | Failed => Failed
-          | CantShift => CantShift
-          | CursorEscaped(Before) =>
-            ana_perform_pat(ctx, u_gen, MoveLeft, zp, ty)
-          | CursorEscaped(After) =>
-            ana_perform_pat(ctx, u_gen, MoveRight, zp, ty)
-          | Succeeded((zp0, _, u_gen)) =>
-            let zp0 = ZPat.bidelimit(zp0);
-            Succeeded(
-              make_and_ana_OpSeqZ_pat(ctx, u_gen, zp0, surround, ty),
-            );
+          | CursorEscaped(side) =>
+            syn_cursor_escaped_zopseq(ctx, u_gen, side, zopseq)
+          | Succeeded((zp, _, _, u_gen)) =>
+            let zseq = resurround(zp, surround);
+            Succeeded(mk_and_syn_fix_ZOpSeq(ctx, u_gen, zseq));
           }
-        | Statics.Synthesized(_) =>
-          switch (syn_perform_pat(ctx, u_gen, a, zp0)) {
+        | Some(Ana(ty_zoperand)) =>
+          switch (ana_perform_operand(ctx, u_gen, a, zoperand, ty_zoperand)) {
           | Failed => Failed
-          | CantShift => CantShift
-          | CursorEscaped(Before) =>
-            ana_perform_pat(ctx, u_gen, MoveLeft, zp, ty)
-          | CursorEscaped(After) =>
-            ana_perform_pat(ctx, u_gen, MoveRight, zp, ty)
-          | Succeeded((zp0, _, _, u_gen)) =>
-            let zp0 = ZPat.bidelimit(zp0);
-            Succeeded(
-              make_and_ana_OpSeqZ_pat(ctx, u_gen, zp0, surround, ty),
-            );
+          | CursorEscaped(side) =>
+            syn_cursor_escaped_zopseq(ctx, u_gen, side, zopseq)
+          | Succeeded((zp, _, u_gen)) =>
+            let new_zseq = resurround(zp, surround);
+            Succeeded(mk_and_syn_fix_ZOpSeq(ctx, u_gen, zseq));
           }
         }
-      | Some(_) => Failed /* should never happen */
-      | None => Failed /* should never happen */
-      }
-    | _ => Failed /* should never happen */
-    };
-  /* Subsumption */
-  | (Construct(SNumLit(_, _)), _)
-  | (Construct(SListNil), _) =>
-    switch (syn_perform_pat(ctx, u_gen, a, zp)) {
-    | (Failed | CantShift | CursorEscaped(_)) as err => err
-    | Succeeded((zp, ty', ctx, u_gen)) =>
-      if (HTyp.consistent(ty, ty')) {
-        Succeeded((zp, ctx, u_gen));
-      } else {
-        let (zp, u_gen) = ZPat.make_inconsistent(u_gen, zp);
-        Succeeded((zp, ctx, u_gen));
       }
     }
-  /* Invalid actions at the pattern level */
-  | (UpdateApPalette(_), _)
-  | (Construct(SApPalette(_)), _)
-  | (Construct(SNum), _)
-  | (Construct(SBool), _)
-  | (Construct(SList), _)
-  | (Construct(SAsc), _)
-  | (Construct(SLet), _)
-  | (Construct(SLine), _)
-  | (Construct(SLam), _)
-  | (Construct(SCase), _) => Failed
-  };
+  and syn_perform_operand =
+      (ctx: Contexts.t, u_gen: MetaVarGen.t, a: t, zoperand: ZPat.zoperand)
+      : result((ZPat.t, HTyp.t, Contexts.t, MetaVarGen.t)) => {
+    switch (a, zoperand) {
+    /* Invalid cursor positions */
+    | (
+        _,
+        CursorP(
+          OnText(_),
+          EmptyHole(_) | Wild(_) | ListNil(_) | Parenthesized(_) | Inj(_),
+        ) |
+        CursorP(OnDelim(_), Var(_) | NumLit(_) | BoolLit(_)) |
+        CursorP(OnOp(_), _),
+      ) =>
+      Failed
+    | (_, CursorP(cursor, operand))
+        when !ZPat.is_valid_cursor_operand(cursor, operand) =>
+      Failed
 
-let make_and_syn_OpSeqZ =
-    (
-      ctx: Contexts.t,
-      u_gen: MetaVarGen.t,
-      ze0: ZExp.t,
-      surround: ZExp.opseq_surround,
-    )
-    : (ZExp.t, HTyp.t, MetaVarGen.t) => {
-  /* figure out the current path so that we can follow it again
-   * to reconstitute the Z-exp after calling into the UHExp hole
-   * insertion logic (otherwise we'd have to do a version of that
-   * logic specific to Z-exps) */
-  let path0 = CursorPath.of_OpSeqZ(ze0, surround);
-  let e0 = ZExp.erase_zoperand(ze0);
-  let seq = Seq.t_of_operand_and_surround(e0, surround);
-  let skel = Associator.associate_exp(seq);
-  let (skel, seq, ty, u_gen) =
-    Statics.Exp.syn_fix_holes_skel(ctx, u_gen, skel, seq);
-  let e = UHExp.OpSeq(skel, seq);
-  let ze = CursorPath.follow_e_or_fail(path0, e);
-  (ze, ty, u_gen);
-};
+    /* Invalid actions */
+    | (
+        Construct(
+          SApPalette(_) | SNum | SBool | SList | SAsc | SLet | SLine | SLam |
+          SCase,
+        ) |
+        UpdateApPalette(_),
+        _,
+      ) =>
+      Failed
 
-let make_and_ana_OpSeqZ =
-    (
-      ctx: Contexts.t,
-      u_gen: MetaVarGen.t,
-      ze0: ZExp.t,
-      surround: ZExp.opseq_surround,
-      ty: HTyp.t,
-    )
-    : (ZExp.t, MetaVarGen.t) => {
-  /* figure out the current path so that we can follow it again
-   * to reconstitute the Z-exp after calling into the UHExp hole
-   * insertion logic (otherwise we'd have to do a version of that
-   * logic specific to Z-exps) */
-  let path0 = CursorPath.of_OpSeqZ(ze0, surround);
-  let e0 = ZExp.erase_zoperand(ze0);
-  let seq = Seq.t_of_operand_and_surround(e0, surround);
-  let skel = Associator.associate_exp(seq);
-  switch (Statics.ana_fix_holes_exp_skel(ctx, u_gen, skel, seq, ty)) {
-  | (Placeholder(_), _, _) => raise(UHExp.InconsistentOpSeq(skel, seq))
-  | (BinOp(_, _, _, _) as skel, seq, u_gen) =>
-    let e = UHExp.OpSeq(skel, seq);
-    let ze = CursorPath.follow_e_or_fail(path0, e);
-    (ze, u_gen);
-  };
-};
+    /* Movement */
+    /* NOTE: we don't need to handle movement actions here for the purposes of the UI,
+     * since it's handled at the top (expression) level, but for the sake of API completeness
+     * we include it */
+    | (MoveTo(path), _) =>
+      let operand = zoperand |> ZPat.erase_zoperand;
+      switch (CursorPath.Pat.follow(path, P0(operand))) {
+      | None => Failed
+      | Some(zp) => mk_syn_result(ctx, u_gen, zp)
+      };
+    | (MoveToBefore(steps), _) =>
+      let operand = zoperand |> ZPat.erase_zoperand;
+      switch (CursorPath.Pat.follow_steps(steps, P0(operand))) {
+      | None => Failed
+      | Some(zp) => mk_syn_result(ctx, u_gen, zp)
+      };
+    | (MoveToPrevHole, _) =>
+      switch (CursorPath.(prev_hole_steps(Pat.holes_zoperand(zoperand, [])))) {
+      | None => Failed
+      | Some(steps) =>
+        syn_perform_operand(ctx, u_gen, MoveToBefore(steps), zoperand)
+      }
+    | (MoveToNextHole, _) =>
+      switch (CursorPath.(next_hole_steps(Pat.holes_zoperand(zoperand, [])))) {
+      | None => Failed
+      | Some(steps) =>
+        syn_perform_operand(ctx, u_gen, MoveToBefore(steps), zoperand)
+      }
+    | (MoveLeft, _) =>
+      switch (ZPat.(ZP0(zoperand) |> move_cursor_left)) {
+      | None => CursorEscaped(Before)
+      | Some(zp) => mk_syn_result(ctx, u_gen, zp)
+      }
+    | (MoveRight, _) =>
+      switch (ZPat.(ZP0(zoperand) |> move_cursor_right)) {
+      | None => CursorEscaped(After)
+      | Some(zp) => mk_syn_result(ctx, u_gen, zp)
+      }
 
-let make_and_syn_OpSeq =
-    (
-      ctx: Contexts.t,
-      u_gen: MetaVarGen.t,
-      cursor: CursorPosition.t,
-      seq: UHExp.opseq,
-    ) => {
-  let ze = ZExp.CursorE(cursor, OpSeqUtil.Exp.mk_OpSeq(seq));
-  Statics.Exp.syn_fix_holes_zoperand(ctx, u_gen, ze);
-};
+    /* Backspace and Delete */
 
-let make_and_ana_OpSeq =
-    (
-      ctx: Contexts.t,
-      u_gen: MetaVarGen.t,
-      cursor: CursorPosition.t,
-      seq: UHExp.opseq,
-      ty,
-    ) => {
-  let ze = ZExp.CursorE(cursor, OpSeqUtil.Exp.mk_OpSeq(seq));
-  Statics.Exp.ana_fix_holes_zoperand(ctx, u_gen, ze, ty);
+    | (Backspace, _) when ZPat.is_before_zoperand(zoperand) =>
+      CursorEscaped(Before)
+    | (Delete, _) when ZPat.is_after_zoperand(zoperand) =>
+      CursorEscaped(After)
+
+    /* ( _ <|)   ==>   ( _| ) */
+    | (Backspace, CursorP(OnDelim(_, Before), _)) =>
+      zoperand |> ZPat.is_before_zoperand
+        ? CursorEscaped(Before)
+        : syn_perform_operand(ctx, u_gen, MoveLeft, zoperand)
+    /* (|> _ )   ==>   ( |_ ) */
+    | (Delete, CursorP(OnDelim(_, After), _)) =>
+      zoperand |> ZPat.is_after_zoperand
+        ? CursorEscaped(After)
+        : syn_perform_operand(ctx, u_gen, MoveRight, zoperand)
+
+    /* Delete before delimiter == Backspace after delimiter */
+    | (Delete, CursorP(OnDelim(k, Before), operand)) =>
+      syn_perform_operand(
+        ctx,
+        u_gen,
+        Backspace,
+        CursorP(OnDelim(k, After), operand),
+      )
+
+    | (Backspace, CursorP(_, EmptyHole(_) as operand)) =>
+      if (ZPat.is_after_zoperand(zoperand)) {
+        let zp = ZPat.(ZP0(place_before_operand(operand)));
+        Succeeded((zp, Hole, ctx, u_gen));
+      } else {
+        CursorEscaped(Before);
+      }
+    | (Delete, CursorP(_, EmptyHole(_) as operand)) =>
+      if (ZPat.is_before_zoperand(zoperand)) {
+        let zp = ZPat.(ZP0(place_after_operand(operand)));
+        Succeeded((zp, Hole, ctx, u_gen));
+      } else {
+        CursorEscaped(After);
+      }
+
+    | (
+        Backspace | Delete,
+        CursorP(
+          OnText(_) | OnDelim(_, _),
+          Var(_, _, _) | Wild(_) | NumLit(_, _) | BoolLit(_, _) | ListNil(_),
+        ),
+      ) =>
+      let (zhole, u_gen) = ZPat.new_EmptyHole(u_gen);
+      let zp = ZPat.ZP0(zhole);
+      Succeeded((zp, Hole, ctx, u_gen));
+
+    /* ( _ )<|  ==>  _| */
+    /* (<| _ )  ==>  |_ */
+    | (
+        Backspace,
+        CursorP(OnDelim(k, After), Parenthesized(body) | Inj(_, _, body)),
+      ) =>
+      let place_cursor = k == 0 ? ZPat.place_before : ZPat.place_after;
+      Succeeded(
+        Statics.Pat.syn_fix_holes_z(ctx, u_gen, body |> place_cursor),
+      );
+
+    /* Construction */
+
+    | (Construct(SOp(SSpace)), CursorP(OnDelim(_, After), _)) =>
+      syn_perform_operand(ctx, u_gen, MoveRight, zoperand)
+    | (Construct(_) as a, CursorP(OnDelim(_, side), _))
+        when
+          !ZPat.is_before_zoperand(zoperand)
+          && !ZPat.is_after_zoperand(zoperand) =>
+      let move_then_perform = move_action =>
+        switch (syn_perform_operand(ctx, u_gen, move_action, zoperand)) {
+        | Failed
+        | CursorEscaped(_) => assert(false)
+        | Succeeded((zp, _, _, u_gen)) => syn_perform(ctx, u_gen, a, zp)
+        };
+      switch (side) {
+      | Before => move_then_perform(MoveLeft)
+      | After => move_then_perform(MoveRight)
+      };
+
+    | (
+        Construct(SVar(x, cursor)),
+        CursorP(_, EmptyHole(_) | Wild(_) | Var(_) | NumLit(_) | BoolLit(_)),
+      ) =>
+      if (Var.is_true(x)) {
+        let zp = ZPat.(ZP0(CursorP(cursor, BoolLit(NotInHole, true))));
+        Succeeded((zp, Bool, ctx, u_gen));
+      } else if (Var.is_false(x)) {
+        let zp = ZPat.(ZP0(CursorP(cursor, BoolLit(NotInHole, false))));
+        Succeeded((zp, Bool, ctx, u_gen));
+      } else if (Var.is_let(x)) {
+        let (u, u_gen) = MetaVarGen.next(u_gen);
+        let var = UHPat.Var(NotInHole, InVarHole(Keyword(Let), u), x);
+        let zp = ZPat.(ZP0(CursorP(cursor, var)));
+        Succeeded((zp, Hole, ctx, u_gen));
+      } else if (Var.is_case(x)) {
+        let (u, u_gen) = MetaVarGen.next(u_gen);
+        let var = UHPat.Var(NotInHole, InVarHole(Keyword(Case), u), x);
+        let zp = ZPat.(ZP0(CursorP(cursor, var)));
+        Succeeded((zp, Hole, ctx, u_gen));
+      } else {
+        check_valid(
+          x,
+          {
+            let ctx = Contexts.extend_gamma(ctx, (x, Hole));
+            let zp = ZPat.(ZP0(CursorP(cursor, UHPat.var(x))));
+            Succeeded((zp, HTyp.Hole, ctx, u_gen));
+          },
+        );
+      }
+    | (Construct(SVar(_)), CursorP(_)) => Failed
+
+    | (
+        Construct(SWild),
+        CursorP(_, EmptyHole(_) | Wild(_) | Var(_) | NumLit(_) | BoolLit(_)),
+      ) =>
+      let zp = ZPat.(ZP0(place_after_operand(Wild(NotInHole))));
+      Succeeded((zp, Hole, ctx, u_gen));
+    | (Construct(SWild), CursorP(_)) => Failed
+
+    | (
+        Construct(SNumLit(n, cursor)),
+        CursorP(_, EmptyHole(_) | Wild(_) | Var(_) | NumLit(_) | BoolLit(_)),
+      ) =>
+      let zp = ZPat.ZP0(CursorP(cursor, NumLit(NotInHole, n)));
+      Succeeded((zp, Num, ctx, u_gen));
+    | (Construct(SNumLit(_, _)), CursorP(_)) => Failed
+
+    | (Construct(SListNil), CursorP(_, EmptyHole(_))) =>
+      let zp = ZPat.(ZP0(place_after_operand(ListNil(NotInHole))));
+      Succeeded((zp, List(Hole), ctx, u_gen));
+    | (Construct(SListNil), CursorP(_, _)) => Failed
+
+    | (Construct(SParenthesized), CursorP(_)) =>
+      mk_syn_result(ctx, u_gen, ZPat.ZP0(ParenthesizedZ(ZP0(zoperand))))
+
+    | (Construct(SInj(side)), CursorP(_) as zbody) =>
+      let zp = ZPat.ZP0(InjZ(NotInHole, side, ZP0(zbody)));
+      switch (Statics.Pat.syn(ctx, zp |> ZPat.erase)) {
+      | None => Failed
+      | Some((body_ty, ctx)) =>
+        let ty =
+          switch (side) {
+          | L => HTyp.Sum(body_ty, Hole)
+          | R => HTyp.Sum(Hole, body_ty)
+          };
+        Succeeded((zp, ty, ctx, u_gen));
+      };
+
+    | (Construct(SOp(os)), CursorP(_)) =>
+      switch (operator_of_shape(os)) {
+      | None => Failed
+      | Some(operator) =>
+        let construct_operator =
+          ZPat.is_before_zoperand(zoperand)
+            ? construct_operator_before_zoperand
+            : construct_operator_after_zoperand;
+        let (zseq, u_gen) =
+          construct_operator(u_gen, operator, zoperand, (E, E));
+        Succeeded(mk_and_syn_fix_ZOpSeq(ctx, u_gen, zseq));
+      }
+
+    /* Zipper */
+    | (_, ParenthesizedZ(zbody)) =>
+      switch (syn_perform(ctx, u_gen, a, zbody)) {
+      | Failed => Failed
+      | CursorEscaped(Before) =>
+        syn_perform_operand(ctx, u_gen, MoveLeft, zoperand)
+      | CursorEscaped(After) =>
+        syn_perform_operand(ctx, u_gen, MoveRight, zoperand)
+      | Succeeded((zbody, ty, ctx, u_gen)) =>
+        Succeeded((ZP0(ParenthesizedZ(zbody)), ty, ctx, u_gen))
+      }
+    | (_, InjZ(_, side, zbody)) =>
+      switch (syn_perform(ctx, u_gen, a, zbody)) {
+      | Failed => Failed
+      | CursorEscaped(Before) =>
+        syn_perform_operand(ctx, u_gen, MoveLeft, zoperand)
+      | CursorEscaped(After) =>
+        syn_perform_operand(ctx, u_gen, MoveRight, zoperand)
+      | Succeeded((zbody, ty1, ctx, u_gen)) =>
+        let zp = ZPat.(ZP0(InjZ(NotInHole, side, zbody)));
+        let ty =
+          switch (side) {
+          | L => HTyp.Sum(ty1, Hole)
+          | R => HTyp.Sum(Hole, ty1)
+          };
+        Succeeded((zp, ty, ctx, u_gen));
+      }
+    };
+  }
+  and ana_perform =
+      (ctx: Contexts.t, u_gen: MetaVarGen.t, a: t, zp: ZPat.t, ty: HTyp.t)
+      : result((ZPat.t, Contexts.t, MetaVarGen.t)) =>
+    switch (zp) {
+    | ZP1(zp1) => ana_perform_opseq(ctx, u_gen, a, zp1, ty)
+    | ZP0(zp0) => ana_perform_operand(ctx, u_gen, a, zp0, ty)
+    }
+  and ana_perform_opseq =
+      (
+        ctx: Contexts.t,
+        u_gen: MetaVarGen.t,
+        a: t,
+        ZOpSeq(skel, zseq) as zopseq: ZPat.zopseq,
+        ty: HTyp.t,
+      )
+      : result((ZPat.t, Contexts.t, MetaVarGen.t)) =>
+    switch (a, zseq) {
+    /* Invalid cursor positions */
+    | (_, ZOperator((OnText(_) | OnDelim(_), _), _)) => Failed
+
+    /* Invalid actions */
+    | (UpdateApPalette(_), ZOperator(_)) => Failed
+
+    /* Movement */
+    | (MoveTo(path), _) =>
+      switch (CursorPath.Pat.follow(path, P1(zopseq |> ZPat.erase_zopseq))) {
+      | None => Failed
+      | Some(zp) => mk_ana_result(ctx, u_gen, zp, ty)
+      }
+    | (MoveToBefore(steps), _) =>
+      switch (
+        CursorPath.Pat.follow_steps(
+          ~side=Before,
+          steps,
+          P1(zopseq |> ZPat.erase_zopseq),
+        )
+      ) {
+      | None => Failed
+      | Some(zp) => mk_ana_result(ctx, u_gen, zp, ty)
+      }
+    | (MoveToPrevHole, _) =>
+      switch (CursorPath.(prev_hole_steps(Pat.holes_zopseq(zopseq, [])))) {
+      | None => Failed
+      | Some(steps) =>
+        ana_perform_opseq(ctx, u_gen, MoveToBefore(steps), zopseq, ty)
+      }
+    | (MoveToNextHole, _) =>
+      switch (CursorPath.(next_hole_steps(Pat.holes_zopseq(zopseq, [])))) {
+      | None => Failed
+      | Some(steps) =>
+        ana_perform_opseq(ctx, u_gen, MoveToBefore(steps), zopseq, ty)
+      }
+    | (MoveLeft, _) =>
+      switch (ZPat.(ZP1(zopseq) |> move_cursor_left)) {
+      | None => CursorEscaped(Before)
+      | Some(zp) => mk_ana_result(ctx, u_gen, zp, ty)
+      }
+    | (MoveRight, _) =>
+      switch (ZPat.(ZP1(zopseq) |> move_cursor_right)) {
+      | None => CursorEscaped(After)
+      | Some(zp) => mk_ana_result(ctx, u_gen, zp, ty)
+      }
+
+    /* Deletion */
+
+    | (Delete, ZOperator((OnOp(After), _), _)) =>
+      ana_cursor_escaped_zopseq(ctx, u_gen, ty, After, zopseq)
+    | (Backspace, ZOperator((OnOp(Before), _), _)) =>
+      ana_cursor_escaped_zopseq(ctx, u_gen, ty, Before, zopseq)
+
+    /* Delete before operator == Backspace after operator */
+    | (Delete, ZOperator((OnOp(Before), op), surround)) =>
+      ana_perform_opseq(
+        ctx,
+        u_gen,
+        Backspace,
+        ZOpSeq(skel, ZOperator((OnOp(After), op), surround)),
+        ty,
+      )
+
+    /* ... + [k-1] +<| [k] + ... */
+    | (Backspace, ZOperator((OnOp(After), _), surround)) =>
+      let new_zseq = delete_operator(surround);
+      Succeeded(mk_and_ana_fix_ZOpSeq(ctx, u_gen, new_zseq, ty));
+
+    /* ... + [k-1]  <|_ + [k+1] + ...  ==>   ... + [k-1]| + [k+1] + ... */
+    | (
+        Backspace,
+        ZOperand(
+          CursorP(_, EmptyHole(_)) as zhole,
+          (A(Space, prefix_tl), suffix),
+        ),
+      )
+        when ZPat.is_before_zoperand(zhole) =>
+      let S(operand, new_prefix) = prefix_tl;
+      let zoperand = operand |> ZPat.place_after_operand;
+      let new_zseq = ZSeq.ZOperand(zoperand, (new_prefix, suffix));
+      Succeeded(mk_and_ana_fix_ZOpSeq(ctx, u_gen, new_zseq, ty));
+
+    /* ... + [k-1] + _|>  [k+1] + ...  ==>   ... + [k-1] + |[k+1] + ... */
+    | (
+        Delete,
+        ZOperand(
+          CursorP(_, EmptyHole(_)) as zhole,
+          (prefix, A(Space, suffix_tl)),
+        ),
+      )
+        when ZPat.is_after_zoperand(zhole) =>
+      let S(operand, new_suffix) = suffix_tl;
+      let zoperand = operand |> ZPat.place_before_operand;
+      let new_zseq = ZSeq.ZOperand(zoperand, (prefix, new_suffix));
+      Succeeded(mk_and_ana_fix_ZOpSeq(ctx, u_gen, new_zseq, ty));
+
+    /* Construction */
+
+    /* construction on operators either becomes movement... */
+    | (Construct(SOp(SSpace)), ZOperator(zoperator, _))
+        when ZPat.is_after_zoperator(zoperator) =>
+      ana_perform_opseq(ctx, u_gen, MoveRight, zopseq, ty)
+    /* ...or construction after movement */
+    | (Construct(_) as a, ZOperator(zoperator, _)) =>
+      let move_cursor =
+        ZPat.is_before_zoperator(zoperator)
+          ? ZPat.move_cursor_left_zopseq : ZPat.move_cursor_right_zopseq;
+      switch (zopseq |> move_cursor) {
+      | None => Failed
+      | Some(zopseq) => ana_perform_opseq(ctx, u_gen, a, zopseq, ty)
+      };
+
+    | (Construct(SOp(os)), ZOperand(zoperand, surround))
+        when
+          ZPat.is_before_zoperand(zoperand)
+          || ZPat.is_after_zoperand(zoperand) =>
+      switch (operator_of_shape(os)) {
+      | None => Failed
+      | Some(operator) =>
+        let construct_operator =
+          ZPat.is_before_zoperand(zoperand)
+            ? construct_operator_before_zoperand
+            : construct_operator_after_zoperand;
+        let (zseq, u_gen) =
+          construct_operator(u_gen, operator, zoperand, surround);
+        Succeeded(mk_and_ana_fix_ZOpSeq(ctx, u_gen, zseq, ty));
+      }
+
+    /* Zipper */
+    | (_, ZOperand(zoperand, surround)) =>
+      switch (CursorInfo.Pat.ana_cursor_info_zopseq(ctx, zopseq, ty)) {
+      | None => Failed
+      | Some(ci) =>
+        switch (ci |> CursorInfo.type_mode) {
+        | None => Failed
+        | Some(Syn) =>
+          switch (syn_perform_operand(ctx, u_gen, a, zoperand)) {
+          | Failed => Failed
+          | CursorEscaped(side) =>
+            ana_cursor_escaped_zopseq(ctx, u_gen, ty, side, zopseq)
+          | Succeeded((zp, _, _, u_gen)) =>
+            let zseq = resurround(zp, surround);
+            Succeeded(mk_and_ana_fix_ZOpSeq(ctx, u_gen, zseq, ty));
+          }
+        | Some(Ana(ty_zoperand)) =>
+          switch (ana_perform_operand(ctx, u_gen, a, zoperand, ty_zoperand)) {
+          | Failed => Failed
+          | CursorEscaped(side) =>
+            ana_cursor_escaped_zopseq(ctx, u_gen, ty, side, zopseq)
+          | Succeeded((zp, _, u_gen)) =>
+            let new_zseq = resurround(zp, surround);
+            Succeeded(mk_and_ana_fix_ZOpSeq(ctx, u_gen, zseq, ty));
+          }
+        }
+      }
+    }
+  and ana_perform_operand =
+      (
+        ctx: Contexts.t,
+        u_gen: MetaVarGen.t,
+        a: t,
+        zoperand: ZPat.zoperand,
+        ty: HTyp.t,
+      )
+      : result((ZPat.t, Contexts.t, MetaVarGen.t)) =>
+    switch (a, zoperand) {
+    /* Invalid cursor positions */
+    | (
+        _,
+        CursorP(
+          OnText(_),
+          EmptyHole(_) | Wild(_) | ListNil(_) | Parenthesized(_) | Inj(_),
+        ) |
+        CursorP(OnDelim(_), Var(_) | NumLit(_) | BoolLit(_)) |
+        CursorP(OnOp(_), _),
+      ) =>
+      Failed
+    | (_, CursorP(cursor, operand))
+        when !ZPat.is_valid_cursor_operand(cursor, operand) =>
+      Failed
+
+    /* Invalid actions */
+    | (
+        Construct(
+          SApPalette(_) | SNum | SBool | SList | SAsc | SLet | SLine | SLam |
+          SCase,
+        ) |
+        UpdateApPalette(_),
+        _,
+      ) =>
+      Failed
+
+    /* switch to synthesis if in a hole */
+    | (_, _) when ZPat.is_inconsistent(ZP0(zoperand)) =>
+      let zp = ZPat.ZP0(zoperand);
+      let err = zp |> ZPat.erase |> UHPat.get_err_status;
+      let zp' = zp |> ZPat.set_err_status(NotInHole);
+      let p' = zp' |> ZPat.erase;
+      switch (Statics.Pat.syn(ctx, p')) {
+      | None => Failed
+      | Some(_) =>
+        switch (syn_perform(ctx, u_gen, a, zp')) {
+        | (Failed | CursorEscaped(_)) as err => err
+        | Succeeded((zp, ty', ctx, u_gen)) =>
+          if (HTyp.consistent(ty, ty')) {
+            Succeeded((zp, ctx, u_gen));
+          } else {
+            Succeeded((zp |> ZPat.set_err_status(err), ctx, u_gen));
+          }
+        }
+      };
+
+    /* Movement */
+    /* NOTE: we don't need to handle movement actions here for the purposes of the UI,
+     * since it's handled at the top (expression) level, but for the sake of API completeness
+     * we include it */
+    | (MoveTo(path), _) =>
+      let operand = zoperand |> ZPat.erase_zoperand;
+      switch (CursorPath.Pat.follow(path, P0(operand))) {
+      | None => Failed
+      | Some(zp) => mk_ana_result(ctx, u_gen, zp, ty)
+      };
+    | (MoveToBefore(steps), _) =>
+      let operand = zoperand |> ZPat.erase_zoperand;
+      switch (CursorPath.Pat.follow_steps(steps, P0(operand))) {
+      | None => Failed
+      | Some(zp) => mk_ana_result(ctx, u_gen, zp, ty)
+      };
+    | (MoveToPrevHole, _) =>
+      switch (CursorPath.(prev_hole_steps(Pat.holes_zoperand(zoperand, [])))) {
+      | None => Failed
+      | Some(steps) =>
+        ana_perform_operand(ctx, u_gen, MoveToBefore(steps), zoperand, ty)
+      }
+    | (MoveToNextHole, _) =>
+      switch (CursorPath.(next_hole_steps(Pat.holes_zoperand(zoperand, [])))) {
+      | None => Failed
+      | Some(steps) =>
+        ana_perform_operand(ctx, u_gen, MoveToBefore(steps), zoperand, ty)
+      }
+    | (MoveLeft, _) =>
+      switch (ZPat.(ZP0(zoperand) |> move_cursor_left)) {
+      | None => CursorEscaped(Before)
+      | Some(zp) => mk_ana_result(ctx, u_gen, zp, ty)
+      }
+    | (MoveRight, _) =>
+      switch (ZPat.(ZP0(zoperand) |> move_cursor_right)) {
+      | None => CursorEscaped(After)
+      | Some(zp) => mk_ana_result(ctx, u_gen, zp, ty)
+      }
+
+    /* Backspace and Delete */
+
+    | (Backspace, _) when ZPat.is_before_zoperand(zoperand) =>
+      CursorEscaped(Before)
+    | (Delete, _) when ZPat.is_after_zoperand(zoperand) =>
+      CursorEscaped(After)
+
+    /* ( _ <|)   ==>   ( _| ) */
+    | (Backspace, CursorP(OnDelim(_, Before), _)) =>
+      ana_perform_operand(ctx, u_gen, MoveLeft, zoperand, ty)
+    /* (|> _ )   ==>   ( |_ ) */
+    | (Delete, CursorP(OnDelim(_, After), _)) =>
+      ana_perform_operand(ctx, u_gen, MoveRight, zoperand, ty)
+
+    /* Delete before delimiter == Backspace after delimiter */
+    | (Delete, CursorP(OnDelim(k, Before), operand)) =>
+      ana_perform_operand(
+        ctx,
+        u_gen,
+        Backspace,
+        CursorP(OnDelim(k, Before), operand),
+        ty,
+      )
+
+    | (Backspace, CursorP(_, EmptyHole(_) as operand)) =>
+      if (ZPat.is_after_zoperand(zoperand)) {
+        let zp = ZPat.(ZP0(place_before_operand(operand)));
+        Succeeded((zp, ctx, u_gen));
+      } else {
+        CursorEscaped(Before);
+      }
+    | (Delete, CursorP(_, EmptyHole(_) as operand)) =>
+      if (ZPat.is_before_zoperand(zoperand)) {
+        let zp = ZPat.(ZP0(place_after_operand(operand)));
+        Succeeded((zp, ctx, u_gen));
+      } else {
+        CursorEscaped(After);
+      }
+
+    | (
+        Backspace | Delete,
+        CursorP(
+          OnText(_) | OnDelim(_, _),
+          Var(_, _, _) | Wild(_) | NumLit(_, _) | BoolLit(_, _) | ListNil(_),
+        ),
+      ) =>
+      let (zhole, u_gen) = ZPat.new_EmptyHole(u_gen);
+      let zp = ZPat.ZP0(zhole);
+      Succeeded((zp, ctx, u_gen));
+
+    /* ( _ )<|  ==>  _| */
+    /* (<| _ )  ==>  |_ */
+    | (
+        Backspace,
+        CursorP(OnDelim(k, After), Parenthesized(body) | Inj(_, _, body)),
+      ) =>
+      let place_cursor = k == 0 ? ZPat.place_before : ZPat.place_after;
+      Succeeded(
+        Statics.Pat.ana_fix_holes_z(ctx, u_gen, body |> place_cursor, ty),
+      );
+
+    /* Construct */
+    | (Construct(SOp(SSpace)), CursorP(OnDelim(_, After), _)) =>
+      ana_perform_operand(ctx, u_gen, MoveRight, zoperand, ty)
+    | (Construct(_) as a, CursorP(OnDelim(_, side), _))
+        when
+          !ZPat.is_before_zoperand(zoperand)
+          && !ZPat.is_after_zoperand(zoperand) =>
+      let move_then_perform = move_action =>
+        switch (ana_perform_operand(ctx, u_gen, move_action, zoperand, ty)) {
+        | Failed
+        | CursorEscaped(_) => assert(false)
+        | Succeeded((zp, _, u_gen)) => ana_perform(ctx, u_gen, a, zp, ty)
+        };
+      switch (side) {
+      | Before => move_then_perform(MoveLeft)
+      | After => move_then_perform(MoveRight)
+      };
+
+    | (Construct(SVar("true", _)), _)
+    | (Construct(SVar("false", _)), _) =>
+      switch (syn_perform_operand(ctx, u_gen, a, zoperand)) {
+      | (Failed | CursorEscaped(_)) as err => err
+      | Succeeded((zp, ty', ctx, u_gen)) =>
+        if (HTyp.consistent(ty, ty')) {
+          Succeeded((zp, ctx, u_gen));
+        } else {
+          let (zp, u_gen) = zp |> ZPat.make_inconsistent(u_gen);
+          Succeeded((zp, ctx, u_gen));
+        }
+      }
+
+    | (
+        Construct(SVar(x, cursor)),
+        CursorP(_, EmptyHole(_) | Wild(_) | Var(_) | NumLit(_) | BoolLit(_)),
+      ) =>
+      if (Var.is_let(x)) {
+        let (u, u_gen) = u_gen |> MetaVarGen.next;
+        let var = UHPat.var(~var_err=InVarHole(Keyword(Let), u), x);
+        let zp = ZPat.ZP0(CursorP(cursor, var));
+        Succeeded((zp, ctx, u_gen));
+      } else if (Var.is_case(x)) {
+        let (u, u_gen) = u_gen |> MetaVarGen.next;
+        let var = UHPat.var(~var_err=InVarHole(Keyword(Case), u), x);
+        let zp = ZPat.ZP0(CursorP(cursor, var));
+        Succeeded((zp, ctx, u_gen));
+      } else {
+        check_valid(
+          x,
+          {
+            let ctx = Contexts.extend_gamma(ctx, (x, ty));
+            let zp = ZPat.ZP0(CursorP(cursor, UHPat.var(x)));
+            Succeeded((zp, ctx, u_gen));
+          },
+        );
+      }
+    | (Construct(SVar(_)), CursorP(_)) => Failed
+
+    | (
+        Construct(SWild),
+        CursorP(_, EmptyHole(_) | Wild(_) | Var(_) | NumLit(_) | BoolLit(_)),
+      ) =>
+      Succeeded((ZPat.place_after(P0(UHPat.wild())), ctx, u_gen))
+    | (Construct(SWild), CursorP(_)) => Failed
+
+    | (Construct(SParenthesized), CursorP(_)) =>
+      mk_ana_result(
+        ctx,
+        u_gen,
+        ZPat.ZP0(ParenthesizedZ(ZP0(zoperand))),
+        ty,
+      )
+
+    | (Construct(SInj(side)), CursorP(_)) =>
+      switch (HTyp.matched_sum(ty)) {
+      | Some((tyL, tyR)) =>
+        let body_ty = InjSide.pick(side, tyL, tyR);
+        let (zbody, ctx, u_gen) =
+          Statics.Pat.ana_fix_holes_z(ctx, u_gen, ZP0(zoperand), body_ty);
+        let zp = ZPat.ZP0(InjZ(NotInHole, side, zbody));
+        Succeeded((zp, ctx, u_gen));
+      | None =>
+        let (zbody, _, ctx, u_gen) =
+          Statics.Pat.syn_fix_holes_z(ctx, u_gen, ZP0(zoperand));
+        let (u, u_gen) = u_gen |> MetaVarGen.next;
+        let zp = ZPat.ZP0(InjZ(InHole(TypeInconsistent, u), side, zbody));
+        Succeeded((zp, ctx, u_gen));
+      }
+
+    | (Construct(SOp(os)), CursorP(_)) =>
+      switch (operator_of_shape(os)) {
+      | None => Failed
+      | Some(operator) =>
+        let construct_operator =
+          ZPat.is_before_zoperand(zoperand)
+            ? construct_operator_before_zoperand
+            : construct_operator_after_zoperand;
+        let (zseq, u_gen) =
+          construct_operator(u_gen, operator, zoperand, (E, E));
+        Succeeded(mk_and_ana_fix_ZOpSeq(ctx, u_gen, zseq, ty));
+      }
+
+    /* Zipper */
+    | (_, ParenthesizedZ(zbody)) =>
+      switch (ana_perform(ctx, u_gen, a, zbody, ty)) {
+      | Failed => Failed
+      | CursorEscaped(Before) =>
+        ana_perform_operand(ctx, u_gen, MoveLeft, zoperand, ty)
+      | CursorEscaped(After) =>
+        ana_perform_operand(ctx, u_gen, MoveRight, zoperand, ty)
+      | Succeeded((zbody, ctx, u_gen)) =>
+        let zp = ZPat.ZP0(ParenthesizedZ(zbody));
+        Succeeded((zp, ctx, u_gen));
+      }
+    | (_, InjZ(_, side, zbody)) =>
+      switch (HTyp.matched_sum(ty)) {
+      | None => Failed
+      | Some((tyL, tyR)) =>
+        let body_ty = InjSide.pick(side, tyL, tyR);
+        switch (ana_perform(ctx, u_gen, a, zbody, body_ty)) {
+        | Failed => Failed
+        | CursorEscaped(Before) =>
+          ana_perform_operand(ctx, u_gen, MoveLeft, zoperand, ty)
+        | CursorEscaped(After) =>
+          ana_perform_operand(ctx, u_gen, MoveRight, zoperand, ty)
+        | Succeeded((zbody, ctx, u_gen)) =>
+          let zp = ZPat.ZP0(InjZ(NotInHole, side, zbody));
+          Succeeded((zp, ctx, u_gen));
+        };
+      }
+
+    /* Subsumption */
+    | (Construct(SNumLit(_, _)), _)
+    | (Construct(SListNil), _) =>
+      switch (syn_perform_operand(ctx, u_gen, a, zoperand)) {
+      | (Failed | CursorEscaped(_)) as err => err
+      | Succeeded((zp, ty', ctx, u_gen)) =>
+        if (HTyp.consistent(ty, ty')) {
+          Succeeded((zp, ctx, u_gen));
+        } else {
+          let (zp, u_gen) = zp |> ZPat.make_inconsistent(u_gen);
+          Succeeded((zp, ctx, u_gen));
+        }
+      }
+    };
 };
 
 let combine_for_Backspace_Space = (e1: UHExp.t, ze0: ZExp.t): ZExp.t =>
@@ -3824,7 +3439,7 @@ and syn_perform_line =
     switch (ann) {
     | Some(uty) =>
       let ty = UHTyp.expand(uty);
-      switch (ana_perform_pat(ctx, u_gen, a, zp, ty)) {
+      switch (Pat.ana_perform(ctx, u_gen, a, zp, ty)) {
       | Failed => Failed
       | CantShift => CantShift
       | CursorEscaped(Before) =>
@@ -3843,7 +3458,7 @@ and syn_perform_line =
       switch (Statics.syn_block(ctx, block)) {
       | None => Failed
       | Some(ty) =>
-        switch (ana_perform_pat(ctx, u_gen, a, zp, ty)) {
+        switch (Pat.ana_perform(ctx, u_gen, a, zp, ty)) {
         | Failed => Failed
         | CantShift => CantShift
         | CursorEscaped(Before) =>
@@ -4854,7 +4469,7 @@ and syn_perform_exp =
       | Some(uty1) => UHTyp.expand(uty1)
       | None => HTyp.Hole
       };
-    switch (ana_perform_pat(ctx, u_gen, a, zp, ty1)) {
+    switch (Pat.ana_perform(ctx, u_gen, a, zp, ty1)) {
     | Failed => Failed
     | CantShift => CantShift
     | CursorEscaped(Before) =>
@@ -5038,7 +4653,7 @@ and syn_perform_exp =
       switch (ZList.prj_z(zrules)) {
       | CursorR(_, _) => Failed /* handled in earlier case */
       | RuleZP(zp, clause) =>
-        switch (ana_perform_pat(ctx, u_gen, a, zp, ty1)) {
+        switch (Pat.ana_perform(ctx, u_gen, a, zp, ty1)) {
         | Failed => Failed
         | CantShift => CantShift
         | CursorEscaped(Before) =>
@@ -6703,7 +6318,7 @@ and ana_perform_exp =
         | Some(uty1) => UHTyp.expand(uty1)
         | None => ty1_given
         };
-      switch (ana_perform_pat(ctx, u_gen, a, zp, ty1)) {
+      switch (Pat.ana_perform(ctx, u_gen, a, zp, ty1)) {
       | Failed => Failed
       | CantShift => CantShift
       | CursorEscaped(Before) =>
@@ -6816,7 +6431,7 @@ and ana_perform_exp =
       switch (ZList.prj_z(zrules)) {
       | CursorR(_, _) => Failed /* handled in earlier case */
       | RuleZP(zp, clause) =>
-        switch (ana_perform_pat(ctx, u_gen, a, zp, ty1)) {
+        switch (Pat.ana_perform(ctx, u_gen, a, zp, ty1)) {
         | Failed => Failed
         | CantShift => CantShift
         | CursorEscaped(Before) =>

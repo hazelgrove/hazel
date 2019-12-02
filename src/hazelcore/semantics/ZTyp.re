@@ -13,6 +13,7 @@ and zoperator = (CursorPosition.t, UHTyp.operator);
 
 type operand_surround = Seq.operand_surround(UHTyp.operand, UHTyp.operator);
 type operator_surround = Seq.operator_surround(UHTyp.operand, UHTyp.operator);
+type zseq = ZSeq.t(UHTyp.operand, UHTyp.operator, zoperand, zoperator);
 
 let valid_cursors_operand: UHTyp.operand => list(CursorPosition.t) =
   fun
@@ -100,10 +101,8 @@ and place_before_operand =
   fun
   | (Hole | Unit | Num | Bool | Parenthesized(_) | List(_)) as operand =>
     CursorT(OnDelim(0, Before), operand);
-let place_before_operator = (op: UHTyp.operator): zoperator => (
-  OnOp(Before),
-  op,
-);
+let place_before_operator = (op: UHTyp.operator): option(zoperator) =>
+  Some((OnOp(Before), op));
 
 let rec place_after: UHTyp.t => t =
   fun
@@ -117,10 +116,8 @@ and place_after_operand =
     CursorT(OnDelim(0, After), operand)
   | (Parenthesized(_) | List(_)) as operand =>
     CursorT(OnDelim(1, After), operand);
-let place_after_operator = (op: UHTyp.operator): zoperator => (
-  OnOp(After),
-  op,
-);
+let place_after_operator = (op: UHTyp.operator): option(zoperator) =>
+  Some((OnOp(After), op));
 
 let place_cursor_operand =
     (cursor: CursorPosition.t, operand: UHTyp.operand): option(zoperand) =>

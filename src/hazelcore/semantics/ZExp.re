@@ -343,10 +343,11 @@ and place_before_operand = operand =>
   };
 let place_before_rule = (rule: UHExp.rule): zrule =>
   CursorR(OnDelim(0, Before), rule);
-let place_before_operator = (op: UHExp.operator): zoperator => (
-  OnOp(Before),
-  op,
-);
+let place_before_operator = (op: UHExp.operator): option(zoperator) =>
+  switch (op) {
+  | Space => None
+  | _ => Some((OnOp(Before), op))
+  };
 
 let rec place_after: UHExp.t => t =
   fun
@@ -383,10 +384,11 @@ and place_after_operand = operand =>
   };
 let place_after_rule = (Rule(p, clause): UHExp.rule): zrule =>
   RuleZE(p, place_after(clause));
-let place_after_operator = (op: UHExp.operator): zoperator => (
-  OnOp(After),
-  op,
-);
+let place_after_operator = (op: UHExp.operator): option(zoperator) =>
+  switch (op) {
+  | Space => None
+  | _ => Some((OnOp(After), op))
+  };
 
 let place_cursor_operator =
     (cursor: CursorPosition.t, operator: UHExp.operator): option(zoperator) =>

@@ -125,6 +125,10 @@ and is_before_zoperand =
   | CursorP(cursor, Parenthesized(_)) => cursor == OnDelim(0, Before)
   | InjZ(_, _, _)
   | ParenthesizedZ(_) => false;
+let is_before_zoperator: zoperator => bool =
+  fun
+  | (OnOp(Before), _) => true
+  | _ => false;
 
 let rec is_after: t => bool =
   fun
@@ -143,6 +147,10 @@ and is_after_zoperand =
   | CursorP(cursor, Parenthesized(_)) => cursor == OnDelim(1, After)
   | InjZ(_, _, _)
   | ParenthesizedZ(_) => false;
+let is_after_zoperator: zoperator => bool =
+  fun
+  | (OnOp(After), _) => true
+  | _ => false;
 
 let rec place_before: UHPat.t => t =
   fun
@@ -161,10 +169,11 @@ and place_before_operand = operand =>
   | Inj(_, _, _)
   | Parenthesized(_) => CursorP(OnDelim(0, Before), operand)
   };
-let place_before_operator = (op: UHPat.operator): zoperator => (
-  OnOp(Before),
-  op,
-);
+let place_before_operator = (op: UHPat.operator): option(zoperator) =>
+  switch (op) {
+  | Space => None
+  | _ => Some((OnOp(Before), op))
+  };
 
 let rec place_after: UHPat.t => t =
   fun
@@ -183,10 +192,11 @@ and place_after_operand = operand =>
   | Inj(_, _, _) => CursorP(OnDelim(1, After), operand)
   | Parenthesized(_) => CursorP(OnDelim(1, After), operand)
   };
-let place_after_operator = (op: UHPat.operator): zoperator => (
-  OnOp(After),
-  op,
-);
+let place_after_operator = (op: UHPat.operator): option(zoperator) =>
+  switch (op) {
+  | Space => None
+  | _ => Some((OnOp(After), op))
+  };
 
 let place_cursor_operand =
     (cursor: CursorPosition.t, operand: UHPat.operand): option(zoperand) =>

@@ -3,6 +3,10 @@ open GeneralUtil;
 [@deriving sexp]
 type edit_state = (ZExp.t, HTyp.t, MetaVarGen.t);
 
+type type_mode =
+  | Syn
+  | Ana(HTyp.t);
+
 module Pat = {
   let rec syn = (ctx: Contexts.t, p: UHPat.t): option((HTyp.t, Contexts.t)) =>
     switch (p) {
