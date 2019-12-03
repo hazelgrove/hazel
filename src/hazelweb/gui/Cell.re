@@ -373,8 +373,8 @@ let view =
               ? Code.view_of_zblock(
                   ~inject,
                   ~user_newlines=model.user_newlines,
+                  ~node=model.cursor_info.node,
                   model |> Model.zblock,
-                  model.cursor_info,
                 )
               : Code.view_of_block(
                   ~inject,
