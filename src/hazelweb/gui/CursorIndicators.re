@@ -1842,10 +1842,9 @@ let update_footer = () => {
          (count, elem) => {JSUtil.is_in_viewport(elem) ? count : count + 1},
          0,
        );
-  count == 0
-    ? ()
-    : JSUtil.force_get_elem_by_id("bottom")##.innerHTML :=
-        Js.string(Int.to_string(count) ++ " uses below");
+  JSUtil.force_get_elem_by_id("bottom")##.innerHTML :=
+    count == 0
+      ? Js.string("") : Js.string(Int.to_string(count) ++ " uses below");
 };
 
 let empty_footer = () => {

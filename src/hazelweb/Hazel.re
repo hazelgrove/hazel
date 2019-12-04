@@ -17,6 +17,11 @@ let on_startup = (~schedule_action, _) => {
       Dom.Event.make("selectionchange"), Dom_html.document, _ =>
       schedule_action(Update.Action.SelectionChange)
     );
+  let _ =
+    JSUtil.listen_to_t(
+      Dom.Event.make("scroll"), JSUtil.force_get_elem_by_cls("page-area"), _ =>
+      CursorIndicators.update_footer()
+    );
   Dom_html.window##.onfocus :=
     Dom_html.handler(_ => {
       schedule_action(Update.Action.FocusWindow);
