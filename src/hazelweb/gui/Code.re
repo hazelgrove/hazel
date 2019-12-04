@@ -1684,9 +1684,7 @@ let snode_of_InjAnn = (~err, ~steps, sty: snode, side, sbody: snode): snode =>
     ],
   );
 
-let snode_of_Case =
-    (~err, ~steps, sscrut: snode, srules: list(snode))
-    : snode => {
+let snode_of_Case = (~err, ~steps, sscrut: snode, srules: list(snode)): snode => {
   let sline_case =
     mk_SLine(
       ~steps_of_first_sword=steps,
@@ -1708,7 +1706,7 @@ let snode_of_Case =
     mk_SLine(
       ~steps_of_first_sword=steps,
       [SToken(mk_SDelim(~index=1, "end"))],
-    )
+    );
   mk_SBox(
     ~err,
     ~steps,

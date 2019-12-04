@@ -524,7 +524,7 @@ and follow_exp_and_place_cursor =
       | None => None
       | Some(zblock) => Some(CaseZE(err, zblock, rules))
       }
-    | (x, Case(err, block, rules)) when x === List.length(rules) + 1 => None
+    | (x, Case(_, _, rules)) when x === List.length(rules) + 1 => None
     | (x, Case(err, block, rules)) =>
       switch (ZList.split_at(x - 1, rules)) {
       | None => None
@@ -1684,20 +1684,12 @@ and holes_ze = (ze: ZExp.t, rev_steps: rev_steps): zhole_list =>
     let {holes_before, hole_selected, holes_after} =
       holes_zblock(zblock, [0, ...rev_steps]);
     let holes_rules = holes_rules(rules, 1, rev_steps, []);
-    {
-      holes_before,
-      hole_selected,
-      holes_after: holes_after @ holes_rules,
-    };
+    {holes_before, hole_selected, holes_after: holes_after @ holes_rules};
   | CaseZR(_, block, zrules) =>
     let {holes_before, hole_selected, holes_after} =
       holes_zrules(zrules, 1, rev_steps);
     let holes_block = holes_block(block, [0, ...rev_steps], []);
-    {
-      holes_before: holes_block @ holes_before,
-      hole_selected,
-      holes_after: holes_after,
-    };
+    {holes_before: holes_block @ holes_before, hole_selected, holes_after};
   | ApPaletteZ(_, _, _, zpsi) =>
     let zsplice_map = zpsi.zsplice_map;
     let (n, (_, zblock)) = ZNatMap.prj_z_kv(zsplice_map);
