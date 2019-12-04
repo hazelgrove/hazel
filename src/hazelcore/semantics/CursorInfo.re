@@ -380,12 +380,12 @@ let rec _ana_cursor_found_pat =
         )),
       )
     };
-  | Wild(InHole(WrongLength, _))
-  | Var(InHole(WrongLength, _), _, _)
-  | NumLit(InHole(WrongLength, _), _)
-  | BoolLit(InHole(WrongLength, _), _)
-  | ListNil(InHole(WrongLength, _))
-  | Inj(InHole(WrongLength, _), _, _) => None
+  | Wild(InHole(WrongLength | InconsistentBranches(_), _))
+  | Var(InHole(WrongLength | InconsistentBranches(_), _), _, _)
+  | NumLit(InHole(WrongLength | InconsistentBranches(_), _), _)
+  | BoolLit(InHole(WrongLength | InconsistentBranches(_), _), _)
+  | ListNil(InHole(WrongLength | InconsistentBranches(_), _))
+  | Inj(InHole(WrongLength | InconsistentBranches(_), _), _, _) => None
   /* not in hole */
   | Var(NotInHole, InVarHole(Keyword(k), _), _) =>
     Some(
@@ -744,7 +744,7 @@ and _ana_cursor_info_pat =
     )
   | CursorP(cursor, p) =>
     ana_cursor_found_pat(~node_steps, ~term_steps, ~frame, ctx, p, ty, cursor)
-  | InjZ(InHole(WrongLength, _), _, _) => None
+  | InjZ(InHole(WrongLength | InconsistentBranches(_), _), _, _) => None
   | InjZ(InHole(TypeInconsistent, _), _, _) =>
     _syn_cursor_info_pat(~node_steps, ~term_steps, ctx, zp)
   | InjZ(NotInHole, position, zp1) =>
@@ -916,7 +916,7 @@ and _ana_cursor_info_pat_skel =
       };
     | _ => None
     }
-  | BinOp(InHole(WrongLength, _), _, _, _) => None
+  | BinOp(InHole(WrongLength | InconsistentBranches(_), _), _, _, _) => None
   | BinOp(NotInHole, Cons, skel1, skel2) =>
     switch (HTyp.matched_list(ty)) {
     | None => None
@@ -993,14 +993,15 @@ and _ana_cursor_found_exp =
     | None => None
     | Some(ty') => Some((AnaTypeInconsistent(ty, ty'), Exp(e), ctx))
     };
-  | Var(InHole(WrongLength, _), _, _)
-  | NumLit(InHole(WrongLength, _), _)
-  | BoolLit(InHole(WrongLength, _), _)
-  | ListNil(InHole(WrongLength, _)) => None
-  | Lam(InHole(WrongLength, _), _, _, _)
-  | Inj(InHole(WrongLength, _), _, _)
-  | Case(InHole(WrongLength, _), _, _)
-  | ApPalette(InHole(WrongLength, _), _, _, _) => None
+  | Var(InHole(WrongLength | InconsistentBranches(_), _), _, _)
+  | NumLit(InHole(WrongLength | InconsistentBranches(_), _), _)
+  | BoolLit(InHole(WrongLength | InconsistentBranches(_), _), _)
+  | ListNil(InHole(WrongLength | InconsistentBranches(_), _)) => None
+  | Lam(InHole(WrongLength | InconsistentBranches(_), _), _, _, _)
+  | Inj(InHole(WrongLength | InconsistentBranches(_), _), _, _)
+  | Case(InHole(WrongLength | InconsistentBranches(_), _), _, _)
+  | ApPalette(InHole(WrongLength | InconsistentBranches(_), _), _, _, _) =>
+    None
   | OpSeq(BinOp(InHole(reason, _), Comma, skel1, skel2), _) =>
     switch (ty, reason) {
     | (Prod(ty1, ty2), WrongLength) =>
@@ -1012,7 +1013,11 @@ and _ana_cursor_found_exp =
       Some((AnaWrongLength(1, n_elts, ty), Exp(e), ctx));
     | _ => None
     }
-  | OpSeq(BinOp(InHole(WrongLength, _), _, _, _), _) => None
+  | OpSeq(
+      BinOp(InHole(WrongLength | InconsistentBranches(_), _), _, _, _),
+      _,
+    ) =>
+    None
   /* not in hole */
   | Var(_, InVarHole(Keyword(k), _), _) =>
     Some((AnaKeyword(ty, k), Exp(e), ctx))
@@ -1494,19 +1499,20 @@ and _ana_cursor_info =
       ty,
     );
   /* zipper in hole */
-  | LamZP(InHole(WrongLength, _), _, _, _)
-  | LamZA(InHole(WrongLength, _), _, _, _)
-  | LamZE(InHole(WrongLength, _), _, _, _)
-  | InjZ(InHole(WrongLength, _), _, _)
+  | LamZP(InHole(WrongLength | InconsistentBranches(_), _), _, _, _)
+  | LamZA(InHole(WrongLength | InconsistentBranches(_), _), _, _, _)
+  | LamZE(InHole(WrongLength | InconsistentBranches(_), _), _, _, _)
+  | InjZ(InHole(WrongLength | InconsistentBranches(_), _), _, _)
   | CaseZE(InHole(WrongLength, _), _, _)
   | CaseZR(InHole(WrongLength, _), _, _)
-  | ApPaletteZ(InHole(WrongLength, _), _, _, _) => None
+  | ApPaletteZ(InHole(WrongLength | InconsistentBranches(_), _), _, _, _) =>
+    None
   | LamZP(InHole(TypeInconsistent, _), _, _, _)
   | LamZA(InHole(TypeInconsistent, _), _, _, _)
   | LamZE(InHole(TypeInconsistent, _), _, _, _)
   | InjZ(InHole(TypeInconsistent, _), _, _)
-  | CaseZE(InHole(TypeInconsistent, _), _, _)
-  | CaseZR(InHole(TypeInconsistent, _), _, _)
+  | CaseZE(InHole(TypeInconsistent | InconsistentBranches(_), _), _, _)
+  | CaseZR(InHole(TypeInconsistent | InconsistentBranches(_), _), _, _)
   | ApPaletteZ(InHole(TypeInconsistent, _), _, _, _) =>
     _syn_cursor_info(~node_steps, ~term_steps, ~frame, ctx, ze)
   /* zipper not in hole */
@@ -2064,7 +2070,7 @@ and _ana_cursor_info_skel =
       };
     | _ => None
     }
-  | BinOp(InHole(WrongLength, _), _, _, _) => None
+  | BinOp(InHole(WrongLength | InconsistentBranches(_), _), _, _, _) => None
   | BinOp(NotInHole, Cons, skel1, skel2) =>
     switch (HTyp.matched_list(ty)) {
     | None => None

@@ -80,12 +80,13 @@ module DHPat = {
           MetaVarMap.extend_unique(delta, (u, (PatternHole, Hole, gamma)));
         Expands(NonEmptyHole(reason, u, 0, dp), Hole, ctx, delta);
       };
-    | Wild(InHole(WrongLength, _))
-    | Var(InHole(WrongLength, _), _, _)
-    | NumLit(InHole(WrongLength, _), _)
-    | BoolLit(InHole(WrongLength, _), _)
-    | ListNil(InHole(WrongLength, _))
-    | Inj(InHole(WrongLength, _), _, _) => DoesNotExpand
+    | Wild(InHole(WrongLength | InconsistentBranches(_), _))
+    | Var(InHole(WrongLength | InconsistentBranches(_), _), _, _)
+    | NumLit(InHole(WrongLength | InconsistentBranches(_), _), _)
+    | BoolLit(InHole(WrongLength | InconsistentBranches(_), _), _)
+    | ListNil(InHole(WrongLength | InconsistentBranches(_), _))
+    | Inj(InHole(WrongLength | InconsistentBranches(_), _), _, _) =>
+      DoesNotExpand
     | EmptyHole(u) =>
       let gamma = Contexts.gamma(ctx);
       let dp = EmptyHole(u, 0);
@@ -138,7 +139,8 @@ module DHPat = {
           MetaVarMap.extend_unique(delta, (u, (PatternHole, Hole, gamma)));
         Expands(NonEmptyHole(reason, u, 0, dp), Hole, ctx, delta);
       };
-    | BinOp(InHole(WrongLength, _), _, _, _) => DoesNotExpand
+    | BinOp(InHole(WrongLength | InconsistentBranches(_), _), _, _, _) =>
+      DoesNotExpand
     | BinOp(NotInHole, Comma, skel1, skel2) =>
       switch (syn_expand_skel(ctx, delta, skel1, seq)) {
       | DoesNotExpand => DoesNotExpand
@@ -193,12 +195,13 @@ module DHPat = {
           MetaVarMap.extend_unique(delta, (u, (PatternHole, ty, gamma)));
         Expands(dp, ty, ctx, delta);
       };
-    | Wild(InHole(WrongLength, _))
-    | Var(InHole(WrongLength, _), _, _)
-    | NumLit(InHole(WrongLength, _), _)
-    | BoolLit(InHole(WrongLength, _), _)
-    | ListNil(InHole(WrongLength, _))
-    | Inj(InHole(WrongLength, _), _, _) => DoesNotExpand
+    | Wild(InHole(WrongLength | InconsistentBranches(_), _))
+    | Var(InHole(WrongLength | InconsistentBranches(_), _), _, _)
+    | NumLit(InHole(WrongLength | InconsistentBranches(_), _), _)
+    | BoolLit(InHole(WrongLength | InconsistentBranches(_), _), _)
+    | ListNil(InHole(WrongLength | InconsistentBranches(_), _))
+    | Inj(InHole(WrongLength | InconsistentBranches(_), _), _, _) =>
+      DoesNotExpand
     | EmptyHole(u) =>
       let gamma = Contexts.gamma(ctx);
       let dp = EmptyHole(u, 0);
@@ -344,7 +347,8 @@ module DHPat = {
         };
       | _ => DoesNotExpand
       }
-    | BinOp(InHole(WrongLength, _), _, _, _) => DoesNotExpand
+    | BinOp(InHole(WrongLength | InconsistentBranches(_), _), _, _, _) =>
+      DoesNotExpand
     | BinOp(NotInHole, Space, skel1, skel2) =>
       switch (ana_expand_skel(ctx, delta, skel1, seq, Hole)) {
       | DoesNotExpand => DoesNotExpand
@@ -981,7 +985,14 @@ module DHExp = {
     | ListNil(InHole(TypeInconsistent as reason, u))
     | Lam(InHole(TypeInconsistent as reason, u), _, _, _)
     | Inj(InHole(TypeInconsistent as reason, u), _, _)
-    | Case(InHole(TypeInconsistent as reason, u), _, _)
+    | Case(
+        InHole(
+          TypeInconsistent as reason | InconsistentBranches(_) as reason,
+          u,
+        ),
+        _,
+        _,
+      )
     | ApPalette(InHole(TypeInconsistent as reason, u), _, _, _) =>
       let e' = UHExp.set_err_status_t(NotInHole, e);
       switch (syn_expand_exp(ctx, delta, e')) {
@@ -996,14 +1007,15 @@ module DHExp = {
           );
         Expands(NonEmptyHole(reason, u, 0, sigma, d), Hole, delta);
       };
-    | Var(InHole(WrongLength, _), _, _)
-    | NumLit(InHole(WrongLength, _), _)
-    | BoolLit(InHole(WrongLength, _), _)
-    | ListNil(InHole(WrongLength, _))
-    | Lam(InHole(WrongLength, _), _, _, _)
-    | Inj(InHole(WrongLength, _), _, _)
+    | Var(InHole(WrongLength | InconsistentBranches(_), _), _, _)
+    | NumLit(InHole(WrongLength | InconsistentBranches(_), _), _)
+    | BoolLit(InHole(WrongLength | InconsistentBranches(_), _), _)
+    | ListNil(InHole(WrongLength | InconsistentBranches(_), _))
+    | Lam(InHole(WrongLength | InconsistentBranches(_), _), _, _, _)
+    | Inj(InHole(WrongLength | InconsistentBranches(_), _), _, _)
     | Case(InHole(WrongLength, _), _, _)
-    | ApPalette(InHole(WrongLength, _), _, _, _) => DoesNotExpand
+    | ApPalette(InHole(WrongLength | InconsistentBranches(_), _), _, _, _) =>
+      DoesNotExpand
     /* not in hole */
     | EmptyHole(u) =>
       let gamma = Contexts.gamma(ctx);
@@ -1119,7 +1131,8 @@ module DHExp = {
           );
         Expands(NonEmptyHole(reason, u, 0, sigma, d), Hole, delta);
       };
-    | BinOp(InHole(WrongLength, _), _, _, _) => DoesNotExpand
+    | BinOp(InHole(WrongLength | InconsistentBranches(_), _), _, _, _) =>
+      DoesNotExpand
     | BinOp(NotInHole, Space, skel1, skel2) =>
       switch (Statics.syn_skel(ctx, skel1, seq, None)) {
       | None => DoesNotExpand
@@ -1229,7 +1242,14 @@ module DHExp = {
     | ListNil(InHole(TypeInconsistent as reason, u))
     | Lam(InHole(TypeInconsistent as reason, u), _, _, _)
     | Inj(InHole(TypeInconsistent as reason, u), _, _)
-    | Case(InHole(TypeInconsistent as reason, u), _, _)
+    | Case(
+        InHole(
+          TypeInconsistent as reason | InconsistentBranches(_) as reason,
+          u,
+        ),
+        _,
+        _,
+      )
     | ApPalette(InHole(TypeInconsistent as reason, u), _, _, _) =>
       let e' = UHExp.set_err_status_t(NotInHole, e);
       switch (syn_expand_exp(ctx, delta, e')) {
@@ -1241,14 +1261,15 @@ module DHExp = {
           MetaVarMap.extend_unique(delta, (u, (ExpressionHole, ty, gamma)));
         Expands(NonEmptyHole(reason, u, 0, sigma, d), ty, delta);
       };
-    | Var(InHole(WrongLength, _), _, _)
-    | NumLit(InHole(WrongLength, _), _)
-    | BoolLit(InHole(WrongLength, _), _)
-    | ListNil(InHole(WrongLength, _))
-    | Lam(InHole(WrongLength, _), _, _, _)
-    | Inj(InHole(WrongLength, _), _, _)
+    | Var(InHole(WrongLength | InconsistentBranches(_), _), _, _)
+    | NumLit(InHole(WrongLength | InconsistentBranches(_), _), _)
+    | BoolLit(InHole(WrongLength | InconsistentBranches(_), _), _)
+    | ListNil(InHole(WrongLength | InconsistentBranches(_), _))
+    | Lam(InHole(WrongLength | InconsistentBranches(_), _), _, _, _)
+    | Inj(InHole(WrongLength | InconsistentBranches(_), _), _, _)
     | Case(InHole(WrongLength, _), _, _)
-    | ApPalette(InHole(WrongLength, _), _, _, _) => DoesNotExpand
+    | ApPalette(InHole(WrongLength | InconsistentBranches(_), _), _, _, _) =>
+      DoesNotExpand
     /* not in hole */
     | EmptyHole(u) =>
       let gamma = Contexts.gamma(ctx);
@@ -1493,7 +1514,8 @@ module DHExp = {
         };
       | _ => DoesNotExpand
       }
-    | BinOp(InHole(WrongLength, _), _, _, _) => DoesNotExpand
+    | BinOp(InHole(WrongLength | InconsistentBranches(_), _), _, _, _) =>
+      DoesNotExpand
     | BinOp(NotInHole, Cons, skel1, skel2) =>
       switch (HTyp.matched_list(ty)) {
       | None => DoesNotExpand

@@ -517,13 +517,41 @@ and make_t_inconsistent = (u_gen: MetaVarGen.t, ze: t): (t, MetaVarGen.t) =>
   | CaseZR(InHole(TypeInconsistent, _), _, _)
   | ApPaletteZ(InHole(TypeInconsistent, _), _, _, _) => (ze, u_gen)
   /* not in hole */
-  | LamZP(NotInHole | InHole(WrongLength, _), _, _, _)
-  | LamZA(NotInHole | InHole(WrongLength, _), _, _, _)
-  | LamZE(NotInHole | InHole(WrongLength, _), _, _, _)
-  | InjZ(NotInHole | InHole(WrongLength, _), _, _)
-  | CaseZE(NotInHole | InHole(WrongLength, _), _, _)
-  | CaseZR(NotInHole | InHole(WrongLength, _), _, _)
-  | ApPaletteZ(NotInHole | InHole(WrongLength, _), _, _, _) =>
+  | LamZP(
+      NotInHole | InHole(WrongLength | InconsistentBranches(_), _),
+      _,
+      _,
+      _,
+    )
+  | LamZA(
+      NotInHole | InHole(WrongLength | InconsistentBranches(_), _),
+      _,
+      _,
+      _,
+    )
+  | LamZE(
+      NotInHole | InHole(WrongLength | InconsistentBranches(_), _),
+      _,
+      _,
+      _,
+    )
+  | InjZ(NotInHole | InHole(WrongLength | InconsistentBranches(_), _), _, _)
+  | CaseZE(
+      NotInHole | InHole(WrongLength | InconsistentBranches(_), _),
+      _,
+      _,
+    )
+  | CaseZR(
+      NotInHole | InHole(WrongLength | InconsistentBranches(_), _),
+      _,
+      _,
+    )
+  | ApPaletteZ(
+      NotInHole | InHole(WrongLength | InconsistentBranches(_), _),
+      _,
+      _,
+      _,
+    ) =>
     let (u, u_gen) = MetaVarGen.next(u_gen);
     let ze = set_err_status_t(InHole(TypeInconsistent, u), ze);
     (ze, u_gen);
@@ -559,7 +587,7 @@ and make_skel_inconsistent =
       u_gen,
     )
   | BinOp(NotInHole, op, skel1, skel2)
-  | BinOp(InHole(WrongLength, _), op, skel1, skel2) =>
+  | BinOp(InHole(WrongLength | InconsistentBranches(_), _), op, skel1, skel2) =>
     let (u, u_gen) = MetaVarGen.next(u_gen);
     (
       BinOp(InHole(TypeInconsistent, u), op, skel1, skel2),
@@ -624,8 +652,7 @@ and erase = (ze: t): UHExp.t =>
     Lam(err, p, Some(ZTyp.erase(zann)), block)
   | LamZE(err, p, ann, zblock) => Lam(err, p, ann, erase_block(zblock))
   | InjZ(err, side, zblock) => Inj(err, side, erase_block(zblock))
-  | CaseZE(err, zblock, rules) =>
-    Case(err, erase_block(zblock), rules)
+  | CaseZE(err, zblock, rules) => Case(err, erase_block(zblock), rules)
   | CaseZR(err, block, zrules) =>
     Case(err, block, ZList.erase(zrules, erase_rule))
   | ApPaletteZ(err, palette_name, serialized_model, zpsi) =>
@@ -878,10 +905,7 @@ and move_cursor_left_exp = (ze: t): option(t) =>
     | Some(zscrut) => Some(CaseZE(err, zscrut, rules))
     | None =>
       Some(
-        CursorE(
-          OnDelim(0, After),
-          Case(err, erase_block(zscrut), rules),
-        ),
+        CursorE(OnDelim(0, After), Case(err, erase_block(zscrut), rules)),
       )
     }
   | CaseZR(err, scrut, (prefix, zrule, suffix)) =>
@@ -1154,11 +1178,7 @@ and move_cursor_right_exp = (ze: t): option(t) =>
         )
       | [r, ...rs] =>
         Some(
-          CaseZR(
-            err,
-            erase_block(zscrut),
-            ([], place_before_rule(r), rs),
-          ),
+          CaseZR(err, erase_block(zscrut), ([], place_before_rule(r), rs)),
         )
       }
     }

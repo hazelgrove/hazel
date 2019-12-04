@@ -78,13 +78,7 @@ let lam =
     : t =>
   Lam(err, p, ann, body);
 
-let case =
-    (
-      ~err: ErrStatus.t=NotInHole,
-      scrut: block,
-      rules: rules,
-    )
-    : t =>
+let case = (~err: ErrStatus.t=NotInHole, scrut: block, rules: rules): t =>
   Case(err, scrut, rules);
 
 let listnil = (~err: ErrStatus.t=NotInHole, ()): t => ListNil(err);
@@ -264,17 +258,27 @@ and make_t_inconsistent = (u_gen: MetaVarGen.t, e: t): (t, MetaVarGen.t) =>
   | ListNil(InHole(TypeInconsistent, _))
   | Lam(InHole(TypeInconsistent, _), _, _, _)
   | Inj(InHole(TypeInconsistent, _), _, _)
-  | Case(InHole(TypeInconsistent, _), _, _)
+  | Case(InHole(TypeInconsistent | InconsistentBranches(_), _), _, _)
   | ApPalette(InHole(TypeInconsistent, _), _, _, _) => (e, u_gen)
   /* not in hole */
-  | Var(NotInHole | InHole(WrongLength, _), _, _)
-  | NumLit(NotInHole | InHole(WrongLength, _), _)
-  | BoolLit(NotInHole | InHole(WrongLength, _), _)
-  | ListNil(NotInHole | InHole(WrongLength, _))
-  | Lam(NotInHole | InHole(WrongLength, _), _, _, _)
-  | Inj(NotInHole | InHole(WrongLength, _), _, _)
+  | Var(NotInHole | InHole(WrongLength | InconsistentBranches(_), _), _, _)
+  | NumLit(NotInHole | InHole(WrongLength | InconsistentBranches(_), _), _)
+  | BoolLit(NotInHole | InHole(WrongLength | InconsistentBranches(_), _), _)
+  | ListNil(NotInHole | InHole(WrongLength | InconsistentBranches(_), _))
+  | Lam(
+      NotInHole | InHole(WrongLength | InconsistentBranches(_), _),
+      _,
+      _,
+      _,
+    )
+  | Inj(NotInHole | InHole(WrongLength | InconsistentBranches(_), _), _, _)
   | Case(NotInHole | InHole(WrongLength, _), _, _)
-  | ApPalette(NotInHole | InHole(WrongLength, _), _, _, _) =>
+  | ApPalette(
+      NotInHole | InHole(WrongLength | InconsistentBranches(_), _),
+      _,
+      _,
+      _,
+    ) =>
     let (u, u_gen) = MetaVarGen.next(u_gen);
     let e = set_err_status_t(InHole(TypeInconsistent, u), e);
     (e, u_gen);
@@ -303,7 +307,7 @@ and make_opseq_inconsistent =
     }
   | BinOp(InHole(TypeInconsistent, _), _, _, _) => (skel, seq, u_gen)
   | BinOp(NotInHole, op, skel1, skel2)
-  | BinOp(InHole(WrongLength, _), op, skel1, skel2) =>
+  | BinOp(InHole(WrongLength | InconsistentBranches(_), _), op, skel1, skel2) =>
     let (u, u_gen) = MetaVarGen.next(u_gen);
     (BinOp(InHole(TypeInconsistent, u), op, skel1, skel2), seq, u_gen);
   };
