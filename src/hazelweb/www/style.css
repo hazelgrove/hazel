@@ -823,8 +823,8 @@ button:disabled {
   top:-10px;
   right:-10px;
   font-size:.7em;
-  background:green;
-  color:white;
+  background: rgba(175, 175, 175, 0.3);
+  color: black;
   width:15px;height:15px;
   text-align:center;
   line-height:18px;
