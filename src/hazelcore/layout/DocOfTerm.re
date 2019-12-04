@@ -1,33 +1,103 @@
+open Sexplib.Std;
 open GeneralUtil;
 
-[@deriving sexp]
-type node_shape =
-  | Block(UHExp.block)
-  | Line(UHExp.line)
-  | Exp(UHExp.t)
-  | Rule(UHExp.rule)
-  | Pat(UHPat.t)
-  | Typ(UHTyp.t);
+module NodeTag = {
+  [@deriving sexp]
+  type t = {
+    steps: CursorPath.steps,
+    shape,
+  }
+  and shape =
+    | Block(UHExp.block)
+    | Line(UHExp.line)
+    | Exp(UHExp.t)
+    | Rule(UHExp.rule)
+    | Pat(UHPat.t)
+    | Typ(UHTyp.t);
+
+  let mk = (
+    ~steps: CursorPath.steps,
+    ~shape: shape,
+  ): t => { steps, shape };
+};
+
+module DelimTag = {
+  [@deriving sexp]
+  type t = {
+    text: string,
+    index: delim_index,
+    padding_left: string,
+    padding_right: string,
+  };
+
+  let mk = (
+    ~text: string,
+    ~index: delim_index,
+    ~padding_left: string,
+    ~padding_right: string,
+  ): t => {
+    text,
+    index,
+    padding_left,
+    padding_right,
+  }
+};
+
+module OpTag = {
+  [@deriving sexp]
+  type t = {
+    text: string,
+    index: op_index,
+    padding_left: string,
+    padding_right: string,
+  };
+
+  let mk = (
+    ~text: string,
+    ~index: op_index,
+    ~padding_left: string,
+    ~padding_right: string,
+  ): t => {
+    text,
+    index,
+    padding_left,
+    padding_right,
+  }
+};
 
 [@deriving sexp]
-type tag = {
-  steps: CursorPath.steps,
-  node_shape,
-};
+type tag =
+  | Node(NodeTag.t)
+  | Delim(DelimTag.t)
+  | Op(OpTag.t);
 
 [@deriving sexp]
 type doc = Doc.t(tag);
 
-/**
- * How a node is separated from surrounding
- * delimiters in the parent node (if there is
- * one). Constructor args represent default
- * separators if the surrounded node is inlined.
- */
-type sep_surround =
-  | None
-  | Left(doc)
-  | Both(doc, doc);
+type padding = string;
+type child_padding =
+  | Left(padding)
+  | LeftRight(padding, padding);
+
+type padded_child = (padding, doc, padding);
+
+let doc_of_padding = (padding: padding): doc =>
+  padding == "\n"
+  ? Linebreak
+  : Text(padding);
+
+let doc_of_delim = (
+  ~text: string,
+  ~index: delim_index,
+  ~left_padding: padding,
+  ~right_padding: padding,
+) =>
+  Doc.(
+    Tagged(
+      Delim({text, index, left_padding, right_padding}),
+      hcats([doc_of_padding(left_padding), Text(text), doc_of_padding(right_padding)]),
+    )
+  );
 
 let tab_length = 2;
 let align_and_indent = (~n=1, doc: doc): doc =>
@@ -94,23 +164,48 @@ let doc_of_Case =
   );
 };
 
-let doc_of_LetLine = (sp_doc: doc, sann_doc: option(doc), sdef_doc: doc): doc => {
-  let let_delim = Doc.Text("let");
-  let eq_delim = Doc.Text("=");
-  let in_delim = Doc.Text("in");
-  switch (sann_doc) {
-  | None => Doc.hcats([let_delim, sp_doc, eq_delim, sdef_doc, in_delim])
-  | Some(sann_doc) =>
-    let colon_delim = Doc.Text(":");
-    Doc.hcats([
-      let_delim,
-      sp_doc,
-      colon_delim,
-      sann_doc,
-      eq_delim,
-      sdef_doc,
-      in_delim,
-    ]);
+let doc_of_LetLine = (
+  p_choices: list(padded_child),
+  ann_choices: option(list(padded_child)),
+  def_choices: list(padded_child),
+): doc => {
+  let let_delim = doc_of_delim(~text="let", ~index=0);
+  let eq_delim = doc_of_delim(~text="=", ~index=2);
+  let in_delim = doc_of_delim(~text="in", ~index=3);
+  switch (ann_choices) {
+  | None =>
+    combos2(p_choices, def_choices)
+    |> List.map((((p_left, p_doc, p_right), (def_left, def_doc, def_right))) =>
+        Doc.(
+          hcats([
+            let_delim(~left_padding="", ~right_padding=p_left),
+            p_doc,
+            eq_delim(~left_padding=p_right, ~right_padding=def_left),
+            def_doc,
+            in_delim(~left_padding=def_right, ~right_padding=""),
+          ])
+        )
+      )
+  | Some(ann_choices) =>
+    let colon_delim = doc_of_delim(~text=":", ~index=1);
+    combos3(p_choices, ann_choices, def_choices)
+    |> List.map(((
+        (p_left, p_doc, p_right),
+        (ann_left, ann_doc, ann_right),
+        (def_left, def_doc, def_right),
+      )) =>
+        Doc.(
+          hcats([
+            let_delim(~left_padding="", ~right_padding=p_left),
+            p_doc,
+            colon_delim(~left_padding=p_right, ~right_padding=ann_left),
+            ann_doc,
+            eq_delim(~left_padding=ann_right, ~right_padding=def_left),
+            def_doc,
+            in_delim(~left_padding=def_right, ~right_padding=""),
+          ])
+        )
+    );
   };
 };
 
@@ -137,7 +232,7 @@ let apply_seps = (surround: sep_surround, doc: (~may_wrap: bool) => doc): doc =>
     )
   };
 
-let doc_of_separated_typ =
+let choices_of_padded_child_typ =
     (
       ~surround as _: sep_surround,
       ~may_wrap as _: bool,
@@ -146,7 +241,7 @@ let doc_of_separated_typ =
     ) =>
   Doc.Text("typ");
 
-let rec doc_of_separated_pat =
+let rec choices_of_padded_child_pat =
         (
           ~surround: sep_surround,
           ~may_wrap as _: bool,
@@ -164,8 +259,8 @@ let rec doc_of_separated_pat =
       | ListNil(_) => doc_of_ListNil
       | Inj(_, side, body) =>
         let sbody_doc =
-          doc_of_separated_pat(
-            ~surround=Both(Doc.empty, Doc.empty),
+          choices_of_padded_child_pat(
+            ~single_line_padding=LeftRight(Doc.empty, Doc.empty),
             ~may_wrap,
             ~steps=steps @ [0],
             body,
@@ -173,8 +268,8 @@ let rec doc_of_separated_pat =
         doc_of_Inj(side, sbody_doc);
       | Parenthesized(body) =>
         let sbody_doc =
-          doc_of_separated_pat(
-            ~surround=Both(Doc.empty, Doc.empty),
+          choices_of_padded_child_pat(
+            ~single_line_padding=LeftRight(Doc.empty, Doc.empty),
             ~may_wrap,
             ~steps=steps @ [0],
             body,
@@ -183,24 +278,40 @@ let rec doc_of_separated_pat =
       | OpSeq(_, _) => failwith("unimplemented: doc_of_pat/OpSeq")
       }
     )
-    |> Doc.tag({steps, node_shape: Pat(p)});
+    |> Doc.tag(Node({steps, shape: Pat(p)}));
   p_doc |> apply_seps(surround);
 };
 
-let rec doc_of_separated_block =
+let rec choices_of_padded_child_block =
         (
-          ~surround: sep_surround,
-          ~may_wrap: bool,
+          ~single_line_padding: child_padding,
           ~steps: CursorPath.steps,
           block: UHExp.block,
         )
-        : doc => {
-  let tag = Doc.tag({steps, node_shape: Block(block)});
+        : list((doc, doc, doc)) =>
+  switch (block) {
+  | Block([], _) =>
+    let block_doc = doc_of_block(~steps, block);
+    block_doc |> padding_choices(~single_line_padding);
+  | Block([_, ..._], _) =>
+    // if block has leading lines, then
+    // it must be separated by linebreaks
+    let block_doc = doc_of_block(~may_wrap=true, ~steps, block);
+    switch (single_line_padding) {
+    | Left(_) => [(Linebreak, block_doc, Doc.empty)]
+    | LeftRight(_, _) => [(Linebreak, block_doc, Linebreak)]
+    };
+  }
+and doc_of_block = (
+  ~may_wrap: bool,
+  ~steps: CursorPath.steps,
+  block: UHExp.block,
+): doc => {
+  let tag_block = Doc.tag(Node({steps, shape: Block(block)}));
   switch (may_wrap, block) {
   | (_, Block([], conclusion)) =>
-    let block_doc = (~may_wrap: bool) =>
-      doc_of_exp(~may_wrap, ~steps=steps @ [0], conclusion) |> tag;
-    block_doc |> apply_seps(surround);
+    doc_of_exp(~may_wrap, ~steps=steps @ [0], conclusion);
+    |> tag_block
   | (false, Block([_, ..._], _)) => Fail
   | (true, Block([_, ..._] as leading, conclusion)) =>
     let leading_docs =
@@ -212,47 +323,39 @@ let rec doc_of_separated_block =
         ~steps=steps @ [List.length(leading)],
         conclusion,
       );
-    let block_doc =
-      Doc.vseps(leading_docs @ [conclusion_doc]) |> Doc.align |> tag;
-    // if block has leading lines, then it
-    // must be separated by linebreaks
-    switch (surround) {
-    | None => block_doc
-    | Left(_) => Doc.hcats([Linebreak, block_doc])
-    | Both(_, _) => Doc.hcats([Linebreak, block_doc, Linebreak])
-    };
-  };
+    Doc.vseps(leading_docs @ [conclusion_doc]) |> Doc.align |> tag_block;
+  }
 }
 and doc_of_line = (~steps: CursorPath.steps, line: UHExp.line): doc => {
-  let tag = Doc.tag({steps, node_shape: Line(line)});
+  let tag_line = Doc.tag(Node({steps, shape: Line(line)}));
   switch (line) {
-  | ExpLine(e) => doc_of_exp(~may_wrap=true, ~steps, e) |> tag
-  | EmptyLine => Doc.Text("") |> tag
+  | ExpLine(e) =>
+    // ghost node, do not tag
+    doc_of_exp(~may_wrap=true, ~steps, e)
+  | EmptyLine => Doc.Text("") |> tag_line
   | LetLine(p, ann, def) =>
-    let sp_doc =
-      doc_of_separated_pat(
-        ~surround=Both(Doc.space, Doc.space),
-        ~may_wrap=true,
+    let p_choices =
+      choices_of_padded_child_pat(
+        ~single_line_padding=LeftRight(Doc.space, Doc.space),
         ~steps=steps @ [0],
         p,
       );
-    let sann_doc =
+    let ann_choices =
       ann
       |> Opt.map(
-           doc_of_separated_typ(
-             ~surround=Both(Doc.space, Doc.space),
-             ~may_wrap=true,
+           choices_of_padded_child_typ(
+             ~single_line_padding=LeftRight(Doc.space, Doc.space),
              ~steps=steps @ [1],
            ),
          );
-    let sdef_doc =
-      doc_of_separated_block(
-        ~surround=Both(Doc.space, Doc.space),
-        ~may_wrap=true,
+    let def_choices =
+      choices_of_padded_child_block(
+        ~single_line_padding=LeftRight(Doc.space, Doc.space),
         ~steps=steps @ [2],
         def,
       );
-    doc_of_LetLine(sp_doc, sann_doc, sdef_doc) |> tag;
+    doc_of_LetLine(p_choices, ann_choices, def_choices)
+    |> tag_line;
   };
 }
 and doc_of_exp = (~may_wrap: bool, ~steps: CursorPath.steps, e: UHExp.t): doc => {
@@ -265,8 +368,8 @@ and doc_of_exp = (~may_wrap: bool, ~steps: CursorPath.steps, e: UHExp.t): doc =>
     | ListNil(_) => doc_of_ListNil
     | Lam(_, p, ann, body) =>
       let sp_doc =
-        doc_of_separated_pat(
-          ~surround=Both(Doc.empty, Doc.empty),
+        choices_of_padded_child_pat(
+          ~single_line_padding=LeftRight(Doc.empty, Doc.empty),
           ~may_wrap,
           ~steps=steps @ [0],
           p,
@@ -274,24 +377,22 @@ and doc_of_exp = (~may_wrap: bool, ~steps: CursorPath.steps, e: UHExp.t): doc =>
       let sann_doc =
         ann
         |> Opt.map(
-             doc_of_separated_typ(
-               ~surround=Both(Doc.empty, Doc.empty),
-               ~may_wrap,
+             choices_of_padded_child_typ(
+               ~single_line_padding=LeftRight(Doc.empty, Doc.empty),
                ~steps=steps @ [1],
              ),
            );
       let sbody_doc =
-        doc_of_separated_block(
-          ~surround=Left(Doc.empty),
-          ~may_wrap,
+        choices_of_padded_child_block(
+          ~single_line_padding=Left(Doc.empty),
           ~steps=steps @ [2],
           body,
         );
       doc_of_Lam(sp_doc, sann_doc, sbody_doc);
     | Inj(_, side, body) =>
       let sbody_doc =
-        doc_of_separated_block(
-          ~surround=Both(Doc.empty, Doc.empty),
+        choices_of_padded_child_block(
+          ~single_line_padding=LeftRight(Doc.empty, Doc.empty),
           ~may_wrap,
           ~steps=steps @ [0],
           body,
@@ -299,8 +400,8 @@ and doc_of_exp = (~may_wrap: bool, ~steps: CursorPath.steps, e: UHExp.t): doc =>
       doc_of_Inj(side, sbody_doc);
     | Parenthesized(body) =>
       let sbody_doc =
-        doc_of_separated_block(
-          ~surround=Both(Doc.empty, Doc.empty),
+        choices_of_padded_child_block(
+          ~single_line_padding=LeftRight(Doc.empty, Doc.empty),
           ~may_wrap,
           ~steps=steps @ [0],
           body,
@@ -311,8 +412,8 @@ and doc_of_exp = (~may_wrap: bool, ~steps: CursorPath.steps, e: UHExp.t): doc =>
         Fail;
       } else {
         let sscrut_doc =
-          doc_of_separated_block(
-            ~surround=Left(Doc.space),
+          choices_of_padded_child_block(
+            ~single_line_padding=Left(Doc.space),
             ~may_wrap=true,
             ~steps=steps @ [0],
             scrut,
@@ -325,8 +426,8 @@ and doc_of_exp = (~may_wrap: bool, ~steps: CursorPath.steps, e: UHExp.t): doc =>
         let sann_doc =
           ann
           |> Opt.map(
-               doc_of_separated_typ(
-                 ~surround=Left(Doc.space),
+               choices_of_padded_child_typ(
+                 ~single_line_padding=Left(Doc.space),
                  ~may_wrap=true,
                  ~steps=steps @ [1 + List.length(rules)],
                ),
@@ -337,20 +438,20 @@ and doc_of_exp = (~may_wrap: bool, ~steps: CursorPath.steps, e: UHExp.t): doc =>
     | ApPalette(_, _, _, _) =>
       failwith("unimplemented: doc_of_exp/ApPalette")
     };
-  Tagged({steps, node_shape: Exp(e)}, doc);
+  Tagged(Node({steps, shape: Exp(e)}), doc);
 }
 and doc_of_rule =
     (~steps: CursorPath.steps, Rule(p, clause) as rule: UHExp.rule) => {
   let sp_doc =
-    doc_of_separated_pat(
-      ~surround=Both(Doc.space, Doc.space),
+    choices_of_padded_child_pat(
+      ~single_line_padding=LeftRight(Doc.space, Doc.space),
       ~may_wrap=false,
       ~steps=steps @ [0],
       p,
     );
   let sclause_doc =
-    doc_of_separated_block(
-      ~surround=Left(Doc.space),
+    choices_of_padded_child_block(
+      ~single_line_padding=Left(Doc.space),
       ~may_wrap=true,
       ~steps=steps @ [1],
       clause,
@@ -362,6 +463,6 @@ and doc_of_rule =
       Text(LangUtil.caseArrowSym),
       sclause_doc,
     ]);
-  rule_doc |> Doc.tag({steps, node_shape: Rule(rule)});
+  rule_doc |> Doc.tag(Node({steps, shape: Rule(rule)}));
 };
-let doc_of_block = doc_of_separated_block(~surround=None, ~may_wrap=true);
+let doc_of_block = choices_of_padded_child_block(~surround=None, ~may_wrap=true);

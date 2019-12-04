@@ -1,5 +1,7 @@
 exception MalformedView(int);
 
+type cls = string;
+
 let font_size = 20.0;
 let line_height = 1.5;
 
