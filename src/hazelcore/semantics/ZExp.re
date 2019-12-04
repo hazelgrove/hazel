@@ -183,6 +183,10 @@ let is_before_zrule =
   fun
   | CursorR(OnDelim(0, Before), _) => true
   | _ => false;
+let is_before_zoperator: zoperator => bool =
+  fun
+  | (OnOp(Before), _) => true
+  | _ => false;
 
 let rec is_after: t => bool =
   fun
@@ -230,6 +234,10 @@ and is_after_zoperand =
 let is_after_zrule =
   fun
   | RuleZE(_, zclause) => is_after(zclause)
+  | _ => false;
+let is_after_zoperator: zoperator => bool =
+  fun
+  | (OnOp(After), _) => true
   | _ => false;
 
 let rec is_after_case_rule: t => bool =
@@ -584,13 +592,16 @@ and erase_zoperand =
   | InjZ(err, side, zbody) => Inj(err, side, erase(zbody))
   | CaseZE(err, zscrut, rules, ann) => Case(err, erase(zscrut), rules, ann)
   | CaseZR(err, scrut, zrules, ann) =>
-    Case(err, scrut, ZList.erase(zrules, erase_zrule), ann)
+    Case(err, scrut, erase_zrules(zrules), ann)
   | CaseZA(err, scrut, rules, zann) =>
     Case(err, scrut, rules, Some(ZTyp.erase(zann)))
   | ApPaletteZ(err, palette_name, serialized_model, zpsi) => {
       let psi = ZSpliceInfo.erase(zpsi, ((ty, z)) => (ty, erase(z)));
       ApPalette(err, palette_name, serialized_model, psi);
     }
+and erase_zrules =
+  fun
+  | zrules => ZList.erase(zrules, erase_zrule)
 and erase_zrule =
   fun
   | CursorR(_, rule) => rule
@@ -767,34 +778,11 @@ and move_cursor_left_zoperand =
         CursorE(OnDelim(0, After), Case(err, erase(zscrut), rules, ann)),
       )
     }
-  | CaseZR(err, scrut, (prefix, zrule, suffix), ann) =>
-    switch (move_cursor_left_zrule(zrule)) {
-    | Some(zrule) => Some(CaseZR(err, scrut, (prefix, zrule, suffix), ann))
+  | CaseZR(err, scrut, zrules, ann) =>
+    switch (zrules |> move_cursor_left_zrules) {
+    | Some(zrules) => Some(CaseZR(err, scrut, zrules, ann))
     | None =>
-      switch (List.rev(prefix)) {
-      | [] =>
-        Some(
-          CaseZE(
-            err,
-            place_after(scrut),
-            prefix @ [erase_zrule(zrule)] @ suffix,
-            ann,
-          ),
-        )
-      | [rule_before, ...rev_prefix] =>
-        Some(
-          CaseZR(
-            err,
-            scrut,
-            (
-              List.rev(rev_prefix),
-              place_after_rule(rule_before),
-              [erase_zrule(zrule), ...suffix],
-            ),
-            ann,
-          ),
-        )
-      }
+      Some(CaseZE(err, scrut |> place_after, zrules |> erase_zrules, ann))
     }
   | CaseZA(err, scrut, rules, zann) =>
     switch (ZTyp.move_cursor_left(zann)) {
@@ -808,6 +796,22 @@ and move_cursor_left_zoperand =
       )
     }
   | ApPaletteZ(_, _, _, _) => None
+and move_cursor_left_zrules =
+  fun
+  | (prefix, zrule, suffix) =>
+    switch (move_cursor_left_zrule(zrule)) {
+    | Some(zrule) => Some((prefix, zrule, suffix))
+    | None =>
+      switch (List.rev(prefix)) {
+      | [] => None
+      | [rule_before, ...rev_prefix] =>
+        Some((
+          List.rev(rev_prefix),
+          place_after_rule(rule_before),
+          [erase_zrule(zrule), ...suffix],
+        ))
+      }
+    }
 and move_cursor_left_zrule =
   fun
   | z when is_before_zrule(z) => None
@@ -1023,32 +1027,16 @@ and move_cursor_right_zoperand =
         )
       }
     }
-  | CaseZR(err, scrut, (prefix, zrule, suffix), ann) =>
-    switch (move_cursor_right_zrule(zrule)) {
-    | Some(zrule) => Some(CaseZR(err, scrut, (prefix, zrule, suffix), ann))
+  | CaseZR(err, scrut, zrules, ann) =>
+    switch (zrules |> move_cursor_right_zrules) {
+    | Some(zrules) => Some(CaseZR(err, scrut, zrules, ann))
     | None =>
-      switch (suffix) {
-      | [] =>
-        Some(
-          CursorE(
-            OnDelim(1, Before),
-            Case(err, scrut, prefix @ [erase_zrule(zrule)], ann),
-          ),
-        )
-      | [rule_after, ...new_suffix] =>
-        Some(
-          CaseZR(
-            err,
-            scrut,
-            (
-              prefix @ [erase_zrule(zrule)],
-              place_before_rule(rule_after),
-              new_suffix,
-            ),
-            ann,
-          ),
-        )
-      }
+      Some(
+        CursorE(
+          OnDelim(1, Before),
+          Case(err, scrut, zrules |> erase_zrules, ann),
+        ),
+      )
     }
   | CaseZA(err, scrut, rules, zann) =>
     switch (ZTyp.move_cursor_right(zann)) {
@@ -1056,6 +1044,22 @@ and move_cursor_right_zoperand =
     | Some(zann) => Some(CaseZA(err, scrut, rules, zann))
     }
   | ApPaletteZ(_, _, _, _) => None
+and move_cursor_right_zrules =
+  fun
+  | (prefix, zrule, suffix) =>
+    switch (move_cursor_right_zrule(zrule)) {
+    | Some(zrule) => Some((prefix, zrule, suffix))
+    | None =>
+      switch (suffix) {
+      | [] => None
+      | [rule_after, ...new_suffix] =>
+        Some((
+          prefix @ [erase_zrule(zrule)],
+          place_before_rule(rule_after),
+          new_suffix,
+        ))
+      }
+    }
 and move_cursor_right_zrule =
   fun
   | z when is_after_zrule(z) => None

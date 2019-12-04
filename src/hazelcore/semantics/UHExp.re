@@ -66,6 +66,9 @@ let var =
 let numlit = (~err: ErrStatus.t=NotInHole, n: int): operand =>
   NumLit(err, n);
 
+let boollit = (~err: ErrStatus.t=NotInHole, b: bool): operand =>
+  BoolLit(err, b);
+
 let lam =
     (
       ~err: ErrStatus.t=NotInHole,

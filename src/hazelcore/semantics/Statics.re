@@ -860,7 +860,7 @@ module Exp = {
           let expansion_ty = palette_defn.expansion_ty;
           let expand = palette_defn.expand;
           let expansion = expand(serialized_model);
-          switch (ana_block(splice_ctx, expansion, expansion_ty)) {
+          switch (ana(splice_ctx, expansion, expansion_ty)) {
           | None => None
           | Some(_) => Some(expansion_ty)
           };
@@ -1919,47 +1919,23 @@ module Exp = {
       };
     };
 
-  /*
-   let syn_fix_holes_zblock =
-       (ctx: Contexts.t, u_gen: MetaVarGen.t, zblock: ZExp.zblock)
-       : (ZExp.zblock, HTyp.t, MetaVarGen.t) => {
-     let path = CursorPath.Exp.of_zblock(zblock);
-     let block = ZExp.erase_zblock(zblock);
-     let (block, ty, u_gen) = syn_fix_holes_block(ctx, u_gen, block);
-     let zblock = CursorPath.Exp.follow_or_fail(path, block);
-     (zblock, ty, u_gen);
-   };
-   */
-
-  /*
-   let syn_fix_holes_zlines =
-       (ctx: Contexts.t, u_gen: MetaVarGen.t, zlines: ZExp.zlines)
-       : (ZExp.zlines, Contexts.t, MetaVarGen.t) => {
-     let path = CursorPath.of_zlines(zlines);
-     let lines = ZExp.erase_zlines(zlines);
-     let (lines, ctx, u_gen) = syn_fix_holes_lines(ctx, u_gen, lines);
-     let zlines = CursorPath.follow_lines_or_fail(path, lines);
-     (zlines, ctx, u_gen);
-   };
-   */
-
-  let syn_fix_holes_zoperand =
-      (ctx: Contexts.t, u_gen: MetaVarGen.t, zoperand: ZExp.zoperand)
-      : (ZExp.zoperand, HTyp.t, MetaVarGen.t) => {
-    let path = CursorPath.Exp.of_zoperand(zoperand);
-    let operand = ZExp.erase_zoperand(zoperand);
-    let (operand, ty, u_gen) = syn_fix_holes_operand(ctx, u_gen, operand);
-    let zoperand = CursorPath.Exp.follow_operand_or_fail(path, operand);
-    (zoperand, ty, u_gen);
+  let syn_fix_holes_z =
+      (ctx: Contexts.t, u_gen: MetaVarGen.t, ze: ZExp.t)
+      : (ZExp.t, HTyp.t, MetaVarGen.t) => {
+    let path = CursorPath.Exp.of_z(ze);
+    let e = ze |> ZExp.erase;
+    let (e, ty, u_gen) = syn_fix_holes(ctx, u_gen, e);
+    let ze = CursorPath.Exp.follow_or_fail(path, e);
+    (ze, ty, u_gen);
   };
 
-  let ana_fix_holes_zblock =
-      (ctx: Contexts.t, u_gen: MetaVarGen.t, zblock: ZExp.zblock, ty: HTyp.t)
-      : (ZExp.zblock, MetaVarGen.t) => {
-    let (steps, _) as path = CursorPath.Exp.of_zblock(zblock);
-    let block = ZExp.erase_zblock(zblock);
-    let (block, u_gen) = ana_fix_holes_block(ctx, u_gen, block, ty);
-    switch (CursorPath.Exp.follow_block(path, block)) {
+  let ana_fix_holes_z =
+      (ctx: Contexts.t, u_gen: MetaVarGen.t, ze: ZExp.t, ty: HTyp.t)
+      : (ZExp.t, MetaVarGen.t) => {
+    let (steps, _) as path = CursorPath.Exp.of_z(ze);
+    let e = ze |> ZExp.erase;
+    let (e, u_gen) = ana_fix_holes(ctx, u_gen, e, ty);
+    switch (CursorPath.Exp.follow(path, e)) {
     | None =>
       // Only way this can happen now is path was originally
       // on case type annotation and ana_fix_holes stripped
@@ -1969,50 +1945,12 @@ module Exp = {
       switch (steps |> split_last) {
       | None => assert(false)
       | Some((case_steps, _)) =>
-        switch (
-          CursorPath.Exp.follow_steps_block(~side=After, case_steps, block)
-        ) {
+        switch (CursorPath.Exp.follow_steps(~side=After, case_steps, e)) {
         | None => assert(false)
-        | Some(zblock) => (zblock, u_gen)
+        | Some(ze) => (ze, u_gen)
         }
       }
-    | Some(zblock) => (zblock, u_gen)
-    };
-  };
-
-  let ana_fix_holes_zoperand =
-      (
-        ctx: Contexts.t,
-        u_gen: MetaVarGen.t,
-        zoperand: ZExp.zoperand,
-        ty: HTyp.t,
-      )
-      : (ZExp.zoperand, MetaVarGen.t) => {
-    let (steps, _) as path = CursorPath.Exp.of_zoperand(zoperand);
-    let operand = ZExp.erase_zoperand(zoperand);
-    let (operand, u_gen) = ana_fix_holes_operand(ctx, u_gen, operand, ty);
-    switch (CursorPath.Exp.follow_operand(path, operand)) {
-    | None =>
-      // Only way this can happen now is path was originally
-      // on case type annotation and ana_fix_holes stripped
-      // the annotation, in which case we can just place cursor
-      // at end of case node. We might just wanna write a proper
-      // recursive traversal for hole-fixing zexps/blocks.
-      switch (steps |> split_last) {
-      | None => assert(false)
-      | Some((case_steps, _)) =>
-        switch (
-          CursorPath.Exp.follow_steps_operand(
-            ~side=After,
-            case_steps,
-            operand,
-          )
-        ) {
-        | None => assert(false)
-        | Some(zoperand) => (zoperand, u_gen)
-        }
-      }
-    | Some(zoperand) => (zoperand, u_gen)
+    | Some(ze) => (ze, u_gen)
     };
   };
 

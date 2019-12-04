@@ -195,10 +195,10 @@ let update_edit_state = ((new_zblock, ty, u_gen): edit_state, model: t): t => {
   let new_card_state = {...card_state, edit_state: new_edit_state};
   let new_cardstack_state = {
     ...cardstack_state,
-    zcards: ZList.replace_z(cardstack_state.zcards, new_card_state),
+    zcards: cardstack_state.zcards |> ZList.replace_z(new_card_state),
   };
   let new_cardstacks_state =
-    ZList.replace_z(cardstacks_state, new_cardstack_state);
+    cardstacks_state |> ZList.replace_z(new_cardstack_state);
   let new_cursor_info = cursor_info_of_edit_state(new_edit_state);
   {
     ...model,
@@ -214,7 +214,7 @@ let update_cardstack_state = (model, cardstack_state) => {
     result_state_of_edit_state(edit_state, model.compute_results_flag);
   let cursor_info = cursor_info_of_edit_state(edit_state);
   let cardstacks_state =
-    ZList.replace_z(model.cardstacks_state, cardstack_state);
+    model.cardstacks_state |> ZList.replace_z(cardstack_state);
   {
     ...model,
 

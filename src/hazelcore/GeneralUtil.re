@@ -293,10 +293,11 @@ module ZList = {
       };
     };
 
-  let replace_z = (zs: t('z, 'a), z: 'z): t('z, 'a) => {
-    let (prefix, _, suffix) = zs;
-    (prefix, z, suffix);
-  };
+  let replace_z = (z: 'z, (prefix, _, suffix): t('z, 'a)): t('z, 'a) => (
+    prefix,
+    z,
+    suffix,
+  );
 
   let optmap_z =
       (f: 'z1 => option('z2), zs: t('z1, 'a)): option(t('z2, 'a)) => {
