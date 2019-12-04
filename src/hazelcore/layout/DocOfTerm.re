@@ -74,10 +74,9 @@ let doc_of_Lam = (sp_doc: doc, sann_doc: option(doc), sbody_doc: doc): doc => {
   };
 };
 
-let doc_of_Case =
-    (sscrut_doc: doc, rule_docs: list(doc)): doc => {
+let doc_of_Case = (sscrut_doc: doc, rule_docs: list(doc)): doc => {
   let case_delim = Doc.Text("case");
-  let end_line = Doc.Text("end")
+  let end_line = Doc.Text("end");
   Doc.(
     hcats([
       case_delim,
