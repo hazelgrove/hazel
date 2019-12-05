@@ -17,11 +17,3 @@ let check_valid = (s, result) =>
   } else {
     None;
   };
-
-let is_true = s => eq(s, "true");
-
-let is_false = s => eq(s, "false");
-
-let is_let = s => eq(s, "let");
-
-let is_case = s => eq(s, "case");

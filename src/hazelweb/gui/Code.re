@@ -2662,7 +2662,7 @@ let precedence_dhpat = (dp: DHPat.t) =>
   | EmptyHole(_)
   | NonEmptyHole(_, _, _, _)
   | Wild
-  | Keyword(_, _, _)
+  | IntermediateKW(_, _, _)
   | Var(_)
   | NumLit(_)
   | BoolLit(_)
@@ -2677,7 +2677,7 @@ let rec precedence_dhexp = (d: DHExp.t) =>
   switch (d) {
   | BoundVar(_)
   | FreeVar(_, _, _, _)
-  | Keyword(_, _, _, _)
+  | IntermediateKW(_, _, _, _)
   | BoolLit(_)
   | NumLit(_)
   | ListNil(_)
@@ -2854,12 +2854,12 @@ let rec snode_of_dhpat =
       ~shape=Wild,
       [mk_SLine([SToken(mk_SDelim(~index=0, "_"))])],
     )
-  | Keyword(u, _, kw) =>
+  | IntermediateKW(u, _, kw) =>
     snode_of_Var(
       ~err,
       ~var_err=InVarHole(Keyword(kw), u),
       ~steps,
-      Keyword.to_string(kw),
+      IntermediateKeyword.to_var(kw),
     )
   | Var(x) => snode_of_Var(~err, ~var_err=NotInVarHole, ~steps, x)
   | BoolLit(b) => snode_of_BoolLit(~err, ~steps, b)
@@ -2936,12 +2936,12 @@ let rec snode_of_dhexp =
   | BoundVar(x) => snode_of_Var(~err, ~var_err=NotInVarHole, ~steps, x)
   | FreeVar(u, _, _, x) =>
     snode_of_Var(~err, ~var_err=InVarHole(Free, u), ~steps, x)
-  | Keyword(u, _, _, kw) =>
+  | IntermediateKW(u, _, _, kw) =>
     snode_of_Var(
       ~err,
       ~var_err=InVarHole(Keyword(kw), u),
       ~steps,
-      Keyword.to_string(kw),
+      IntermediateKeyword.to_var(kw),
     )
   | Let(dp, ddef, dbody) =>
     let sp = snode_of_dhpat(~steps=steps @ [0], dp);
