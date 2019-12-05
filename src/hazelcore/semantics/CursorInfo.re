@@ -23,7 +23,7 @@ type typed =
   /* none of the above and didn't go through subsumption */
   | AnaSubsumed(HTyp.t, HTyp.t)
   /* none of the above and went through subsumption */
-  | AnaKeyword(HTyp.t, Keyword.t)
+  | AnaKeyword(HTyp.t, IntermediateKeyword.t)
   /* cursor is on a keyword */
   /*
    *  # cursor in synthetic position
@@ -39,11 +39,11 @@ type typed =
   | SynFreeArrow(HTyp.t)
   /* cursor is on a free variable in the function
      position of an ap */
-  | SynKeywordArrow(HTyp.t, Keyword.t)
+  | SynKeywordArrow(HTyp.t, IntermediateKeyword.t)
   /* cursor is on a keyword in the function position of an ap */
   | SynFree
   /* none of the above, cursor is on a free variable */
-  | SynKeyword(Keyword.t)
+  | SynKeyword(IntermediateKeyword.t)
   /* cursor is on a keyword */
   | Synthesized(HTyp.t)
   /* none of the above */
@@ -62,14 +62,14 @@ type typed =
   /* none of the above and didn't go through subsumption */
   | PatAnaSubsumed(HTyp.t, HTyp.t)
   /* none of the above and went through subsumption */
-  | PatAnaKeyword(HTyp.t, Keyword.t)
+  | PatAnaKeyword(HTyp.t, IntermediateKeyword.t)
   /* cursor is on a keyword */
   /*
    * # cursor in synthetic pattern position
    */
   | PatSynthesized(HTyp.t)
   /* cursor is on a keyword */
-  | PatSynKeyword(Keyword.t)
+  | PatSynKeyword(IntermediateKeyword.t)
   /*
    * # cursor in type position
    */
