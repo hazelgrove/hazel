@@ -1,12 +1,11 @@
 open Sexplib.Std;
-open GeneralUtil;
 
 module ZList = GeneralUtil.ZList;
 
 type cardstacks = list(CardStack.t);
 let cardstacks: cardstacks = [
   TutorialCards.cardstack,
-  RCStudyCards.cardstack,
+  // RCStudyCards.cardstack,
 ];
 
 let init_compute_results_flag = false;
@@ -32,8 +31,8 @@ let mk_cardstack_state = (cardstack: CardStack.t) => {
         {
           card,
           edit_state:
-            card.init_zblock
-            |> Statics.fix_and_renumber_holes_z(Contexts.empty),
+            card.init_zexp
+            |> Statics.Exp.fix_and_renumber_holes_z(Contexts.empty),
         },
       cardstack.cards,
     );
@@ -54,30 +53,26 @@ let mk_cardstacks_state = cardstacks => {
 };
 
 [@deriving sexp]
-type result = (
-  Dynamics.DHExp.t,
-  Dynamics.DHExp.HoleInstanceInfo.t,
-  Dynamics.Evaluator.result,
-);
+type result = (DHExp.t, HoleInstanceInfo.t, Dynamics.Evaluator.result);
 
 module UserSelectedInstances = {
   [@deriving sexp]
-  type t = MetaVarMap.t(Dynamics.inst_num);
+  type t = MetaVarMap.t(MetaVarInst.t);
   let init = MetaVarMap.empty;
   let update = (usi, inst) => MetaVarMap.insert_or_update(usi, inst);
 };
 
 [@deriving sexp]
 type context_inspector = {
-  next_state: option(Dynamics.DHExp.HoleInstance.t),
-  prev_state: option(Dynamics.DHExp.HoleInstance.t),
+  next_state: option(HoleInstance.t),
+  prev_state: option(HoleInstance.t),
 };
 
 type has_result_state = {
   result,
   context_inspector,
   user_selected_instances: UserSelectedInstances.t,
-  selected_instance: option((MetaVar.t, Dynamics.inst_num)),
+  selected_instance: option((MetaVar.t, MetaVarInst.t)),
 };
 
 type result_state =
@@ -105,16 +100,16 @@ let edit_state_of = model =>
 
 let cutoff = (m1, m2) => m1 == m2;
 
-let zblock = model => {
-  let (zblock, _, _) = edit_state_of(model);
-  zblock;
+let zexp = model => {
+  let (ze, _, _) = edit_state_of(model);
+  ze;
 };
 
-let block = model => model |> zblock |> ZExp.erase_zblock;
+let exp = model => model |> zexp |> ZExp.erase;
 
 let path = model => {
-  let (zblock, _, _) = edit_state_of(model);
-  CursorPath.of_zblock(zblock);
+  let (ze, _, _) = edit_state_of(model);
+  CursorPath.Exp.of_z(ze);
 };
 
 let steps = model => {
@@ -128,11 +123,11 @@ let u_gen = model => {
 };
 
 exception MissingCursorInfo;
-let cursor_info_of_edit_state = ((zblock, _, _): edit_state): CursorInfo.t =>
+let cursor_info_of_edit_state = ((ze, _, _): edit_state): CursorInfo.t =>
   switch (
-    CursorInfo.syn_cursor_info_block(
+    CursorInfo.Exp.syn_cursor_info(
       (VarCtx.empty, Palettes.initial_palette_ctx),
-      zblock,
+      ze,
     )
   ) {
   | None => raise(MissingCursorInfo)
@@ -141,13 +136,13 @@ let cursor_info_of_edit_state = ((zblock, _, _): edit_state): CursorInfo.t =>
 
 exception InvalidInput;
 exception DoesNotExpand;
-let result_of_edit_state = ((zblock, _, _): edit_state): result => {
+let result_of_edit_state = ((ze, _, _): edit_state): result => {
   open Dynamics;
   let expanded =
-    DHExp.syn_expand_block(
+    Exp.syn_expand(
       (VarCtx.empty, Palettes.initial_palette_ctx),
       Delta.empty,
-      ZExp.erase_zblock(zblock),
+      ze |> ZExp.erase,
     );
   switch (expanded) {
   | DoesNotExpand => raise(DoesNotExpand)
@@ -157,12 +152,10 @@ let result_of_edit_state = ((zblock, _, _): edit_state): result => {
       //JSUtil.log("InvalidInput " ++ string_of_int(n));
       raise(InvalidInput)
     | BoxedValue(d) =>
-      let (d_renumbered, hii) =
-        DHExp.renumber([], DHExp.HoleInstanceInfo.empty, d);
+      let (d_renumbered, hii) = Exp.renumber([], HoleInstanceInfo.empty, d);
       (d_renumbered, hii, BoxedValue(d_renumbered));
     | Indet(d) =>
-      let (d_renumbered, hii) =
-        DHExp.renumber([], DHExp.HoleInstanceInfo.empty, d);
+      let (d_renumbered, hii) = Exp.renumber([], HoleInstanceInfo.empty, d);
       (d_renumbered, hii, Indet(d_renumbered));
     }
   };
@@ -183,10 +176,8 @@ let result_state_of_edit_state = (edit_state, compute_results_flag) =>
     });
   };
 
-let update_edit_state = ((new_zblock, ty, u_gen): edit_state, model: t): t => {
-  let new_block = new_zblock |> ZExp.erase_zblock;
-  let (new_steps, _) = CursorPath.of_zblock(new_zblock);
-  let new_edit_state = (new_zblock, ty, u_gen);
+let update_edit_state = ((new_ze, ty, u_gen): edit_state, model: t): t => {
+  let new_edit_state = (new_ze, ty, u_gen);
   let new_result_state =
     result_state_of_edit_state(new_edit_state, model.compute_results_flag);
   let cardstacks_state = model.cardstacks_state;
@@ -287,11 +278,9 @@ let init = (): t => {
 
 exception FailedAction;
 exception CursorEscaped;
-exception CantShift;
 let perform_edit_action = (model: t, a: Action.t): t => {
   switch (
-    Action.syn_perform_block(
-      ~ci=model.cursor_info,
+    Action.Exp.syn_perform(
       (VarCtx.empty, Palettes.initial_palette_ctx),
       a,
       edit_state_of(model),
@@ -299,23 +288,23 @@ let perform_edit_action = (model: t, a: Action.t): t => {
   ) {
   | Failed => raise(FailedAction)
   | CursorEscaped(_) => raise(CursorEscaped)
-  | CantShift => raise(CantShift)
   | Succeeded(new_edit_state) => model |> update_edit_state(new_edit_state)
   };
 };
 
 let move_to_hole = (model: t, u: MetaVar.t): t => {
-  let (zblock, _, _) = edit_state_of(model);
+  let (ze, _, _) = edit_state_of(model);
   switch (
     CursorPath.steps_to_hole(
-      CursorPath.holes_block(ZExp.erase_zblock(zblock), [], []),
+      CursorPath.Exp.holes(ze |> ZExp.erase, [], []),
       u,
     )
   ) {
   | None =>
     //JSUtil.log("CursorPath not found!");
     model
-  | Some(hole_path) => perform_edit_action(model, Action.MoveTo(hole_path))
+  | Some(hole_steps) =>
+    perform_edit_action(model, Action.MoveToBefore(hole_steps))
   };
 };
 
@@ -335,7 +324,7 @@ let select_hole_instance = (model, (u, i) as inst) => {
       context_inspector: {
         prev_state: i > 0 ? Some((u, i - 1)) : None,
         next_state:
-          i < Dynamics.DHExp.HoleInstanceInfo.num_instances(hii, u) - 1
+          i < HoleInstanceInfo.num_instances(hii, u) - 1
             ? Some((u, i + 1)) : None,
       },
     };
@@ -353,13 +342,13 @@ let toggle_right_sidebar = (model: t): t => {
   right_sidebar_open: !model.right_sidebar_open,
 };
 
-let load_example = (model: t, block: UHExp.block): t =>
+let load_example = (model: t, e: UHExp.t): t =>
   model
   |> update_edit_state(
        Statics.Exp.syn_fix_holes_z(
          (VarCtx.empty, PaletteCtx.empty),
          MetaVarGen.init,
-         ZExp.place_before_block(block),
+         e |> ZExp.place_before,
        ),
      );
 

@@ -239,7 +239,7 @@ let view =
                 ) {
                 | Some(event) => event
                 | None =>
-                  let zblock = model |> Model.zblock;
+                  let zblock = model |> Model.zexp;
                   switch (ci.position) {
                   | Staging(_)
                   | OnText(_) => Event.Ignore
@@ -339,8 +339,8 @@ let view =
                 switch (
                   model.user_newlines
                   |> CursorPath.StepsMap.mem(ci.node_steps),
-                  model |> Model.zblock |> ZExp.is_after_case_rule,
-                  model |> Model.zblock |> ZExp.is_on_user_newlineable_hole,
+                  model |> Model.zexp |> ZExp.is_after_case_rule,
+                  model |> Model.zexp |> ZExp.is_on_user_newlineable_hole,
                 ) {
                 | (false, false, true) =>
                   prevent_stop_inject(
@@ -373,17 +373,17 @@ let view =
               ? Code.view_of_zblock(
                   ~inject,
                   ~user_newlines=model.user_newlines,
-                  model |> Model.zblock,
+                  model |> Model.zexp,
                 )
               : Code.view_of_block(
                   ~inject,
                   ~user_newlines=model.user_newlines,
-                  model |> Model.block,
+                  model |> Model.exp,
                 ),
             ...CursorIndicators.view(
                  ~is_cell_focused=model.is_cell_focused,
                  ~holes_steps=
-                   model |> Model.block |> CursorIndicators.collect_holes,
+                   model |> Model.exp |> CursorIndicators.collect_holes,
                  ~ci=model.cursor_info,
                ),
           ],

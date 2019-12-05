@@ -201,8 +201,7 @@ let page_view =
                     Node.button(
                       [
                         Attr.on_click(_ => {
-                          let block =
-                            model |> Model.zblock |> ZExp.erase_zblock;
+                          let block = model |> Model.zexp |> ZExp.erase_zblock;
                           let doc = DocOfTerm.doc_of_block(~steps=[], block);
                           Printf.printf(
                             "doc sexp: %s\n",
@@ -237,8 +236,7 @@ let page_view =
                     Node.button(
                       [
                         Attr.on_click(_ => {
-                          let block =
-                            model |> Model.zblock |> ZExp.erase_block;
+                          let block = model |> Model.zexp |> ZExp.erase_block;
                           JSUtil.log(
                             Js.string(
                               Sexplib.Sexp.to_string(

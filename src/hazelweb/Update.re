@@ -18,15 +18,13 @@ module Action = {
     | NextCard
     | PrevCard
     | SetComputeResultsFlag(bool)
-    | SelectHoleInstance(MetaVar.t, Dynamics.inst_num)
+    | SelectHoleInstance(MetaVar.t, MetaVarInst.t)
     | InvalidVar(string)
     | MoveToHole(MetaVar.t)
     | SelectionChange
     | FocusCell
     | BlurCell
-    | FocusWindow
-    | AddUserNewline(CursorPath.steps)
-    | RemoveUserNewline(CursorPath.steps);
+    | FocusWindow;
 };
 
 [@deriving sexp]
@@ -77,8 +75,6 @@ let log_action = (action: Action.t, _: State.t): unit => {
   | FocusCell
   | BlurCell
   | FocusWindow
-  | AddUserNewline(_)
-  | RemoveUserNewline(_)
   | MoveToHole(_) =>
     Logger.append(
       Sexp.to_string(
@@ -102,9 +98,6 @@ let apply_action =
       model;
     | exception Model.CursorEscaped =>
       JSUtil.log("[CursorEscaped]");
-      model;
-    | exception Model.CantShift =>
-      JSUtil.log("[CantShift]");
       model;
     | exception Model.MissingCursorInfo =>
       JSUtil.log("[MissingCursorInfo]");
@@ -144,15 +137,15 @@ let apply_action =
     JSUtil.reset_caret();
     model;
   | BlurCell => JSUtil.window_has_focus() ? model |> Model.blur_cell : model
-  | AddUserNewline(steps) => model |> Model.add_user_newline(steps)
-  | RemoveUserNewline(steps) => model |> Model.remove_user_newline(steps)
   | SelectionChange =>
-    let is_staging =
-      switch (model.cursor_info.position) {
-      | OnText(_)
-      | OnDelim(_, _) => false
-      | Staging(_) => true
-      };
+    let is_staging = false;
+    /*
+       switch (model.cursor_info.position) {
+       | OnText(_)
+       | OnDelim(_, _) => false
+       | Staging(_) => true
+       };
+     */
     if (!is_staging && ! state.setting_caret^) {
       let anchorNode = Dom_html.window##getSelection##.anchorNode;
       let anchorOffset = Dom_html.window##getSelection##.anchorOffset;
@@ -260,8 +253,8 @@ let apply_action =
               | (_, _, Some(steps)) => Some((steps, None))
               };
             };
-          let (zblock, _, _) = Model.edit_state_of(model);
-          let (current_steps, current_cursor) = CursorPath.of_zblock(zblock);
+          let (ze, _, _) = Model.edit_state_of(model);
+          let (current_steps, current_cursor) = CursorPath.Exp.of_z(ze);
           switch (anchorNode |> JSUtil.query_ancestors(is_cursor_position)) {
           | None => ()
           | Some((next_steps, None)) =>

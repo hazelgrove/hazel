@@ -957,7 +957,7 @@ let ap_hole_indicator_elems = steps =>
 
 let draw_hole_indicators = (model: Model.t) => {
   let (_, skel_holes, ap_holes) =
-    model |> Model.zblock |> ZExp.erase_zblock |> collect_holes;
+    model |> Model.zexp |> ZExp.erase_zblock |> collect_holes;
   JSUtil.get_elems_with_cls("hole-indicator")
   |> List.iter(indicator_elem => {
        let tm_elem =
