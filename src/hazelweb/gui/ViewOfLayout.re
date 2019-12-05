@@ -16,137 +16,44 @@ let contenteditable_of_layout: Layout.t('tag) => Vdom.Node.t =
     Layout.make_of_layout(record, layout);
   };
 
-type sblock =
-  | SBlock(DocOfTerm.NodeTag.t, list(sline), sseq)
-and sline =
-  | SEmptyLine
-  | SExpLine(sseq)
-  | SLetLine(stree)
-and sseq =
-  | SSeq(DocOfTerm.SeqTag.t, Seq.t(stree, DocOfTerm.OpTag.t))
-and stree =
-  | STree(DocOfTerm.NodeTag.t, list(srow))
-and srow =
-  | SDividerRow(list(stoken))
-  | SChildBlock(sblock)
-and stoken =
-  | SDelim(DocOfTerm.DelimTag.t)
-  | SChildSeq(sseq);
+type term_shape =
+  | TypOperand(UHTyp.operand)
+  | TypSkel(UHTyp.skel)
+  | PatOperand(UHPat.operand)
+  | PatSkel(UHPat.skel)
+  | ExpOperand(UHExp.operand)
+  | ExpRule(UHExp.rule)
+  | ExpSkel(UHExp.skel)
+  | ExpSubBlock(UHExp.line);
 
-let is_whitespace = s => Re.Str.string_match(Re.Str.regexp("\\s*"), s, 0);
-
-let slines_of_layout = (l: Layout.t(DocOfTerm.tag)): list(sline) => {
-  // make proper slines from swords grouped by line,
-  // trimming all leading whitespace in each sword-line
-  // and converting to indentation parameter of sline
-  let mk_slines: list(list(sword)) => list(sline) =
-    List.map(swords => {
-      let (indentation, reversed_swords) =
-        swords
-        |> List.fold_left(
-             ((indentation, reversed_swords), sword) =>
-               switch (reversed_swords, sword) {
-               | ([], SText(txt)) when txt |> is_whitespace => (
-                   indentation + String.length(txt),
-                   reversed_swords,
-                 )
-               | (_, _) => (indentation, [sword, ...reversed_swords])
-               },
-             (0, []),
-           );
-      SLine(indentation, reversed_swords |> List.rev);
+type tag =
+  | DelimGroup
+  | Padding({
+      path_before: CursorPath.t,
+      path_after: CursorPath.t,
+    })
+  | Delim({
+      path: delim_path,
+      caret: option(Side.t),
+    })
+  | Op({
+      steps: CursorPath.steps,
+      caret: option(Side.t),
+    })
+  | Text({
+      caret: option(Side.t),
+      length: int,
+    })
+  | Term({
+      shape: term_shape,
+      has_cursor: bool,
     });
-  // convert layout elements into swords grouped by line
-  let rec collect_swords_by_line:
-    Layout.t(DocOfTerm.tag) => list(list(sword)) =
-    fun
-    | Text(s) => [[SText(s)]]
-    | Cat(l1, l2) => {
-        let swords1 = l1 |> collect_swords_by_line;
-        let swords2 = l2 |> collect_swords_by_line;
-        switch (swords1 |> split_last, swords2) {
-        | (None, _) => swords2
-        | (_, []) => swords1
-        | (
-            Some((swords1_prefix, swords1_last)),
-            [swords2_first, ...swords2_suffix],
-          ) =>
-          swords1_prefix @ [swords1_last @ swords2_first, ...swords2_suffix]
-        };
-      }
-    | Linebreak => [[], []]
-    | Align(l) => l |> collect_swords_by_line
-    | Tagged(Delim(delim_tag), _) => [[SDelim(delim_tag)]]
-    | Tagged(Padding(padding_tag), _) => [[SPadding(padding_tag)]]
-    | Tagged(Node(node_tag), l) => [
-        [SChild(SNode(node_tag, l |> collect_swords_by_line |> mk_slines))],
-      ];
-  l |> collect_swords_by_line |> mk_slines;
-};
 
-let err_clss: ErrStatus.t => list(cls) =
-  fun
-  | NotInHole => []
-  | InHole(_, _) => ["InHole"];
+module Vdom = Virtual_dom.Vdom;
+module Node = Vdom.Node;
+module Attr = Vdom.Attr;
 
-let var_err_clss: VarErrStatus.t => list(cls) =
-  fun
-  | NotInVarHole => []
-  | InVarHole(_, _) => ["InVarHole"];
-
-let node_shape_clss: DocOfTerm.node_shape => list(cls) =
-  fun
-  | Block(_) => ["Block"]
-  | Line(ExpLine(_)) => failwith("ghost node")
-  | Line(EmptyLine) => ["EmptyLine"]
-  | Line(LetLine(_, _, _)) => ["LetLine"]
-  | Exp(e) => {
-      let variant_clss =
-        switch (e) {
-        | EmptyHole(_) => ["EmptyHole"]
-        | Var(_, var_err, _) => ["Var", ...var_err_clss(var_err)]
-        | NumLit(_, _) => ["NumLit"]
-        | BoolLit(_, _) => ["BoolLit"]
-        | ListNil(_) => ["ListNil"]
-        | Lam(_, _, _, _) => ["Lam"]
-        | Inj(_, _, _) => ["Inj"]
-        | Case(_, _, _, _) => ["Case"]
-        | ApPalette(_, _, _, _) => ["ApPalette"]
-        | Parenthesized(_) => ["Parenthesized"]
-        | OpSeq(_, _) => failwith("unimplemented: node_shape_clss/OpSeq")
-        };
-      let err_clss = e |> UHExp.get_err_status_t |> err_clss;
-      err_clss @ variant_clss;
-    }
-  | Rule(_) => ["Rule"]
-  | Pat(p) => {
-      let variant_clss =
-        switch (p) {
-        | EmptyHole(_) => ["EmptyHole"]
-        | Var(_, var_err, _) => ["Var", ...var_err_clss(var_err)]
-        | Wild(_) => ["Wild"]
-        | NumLit(_, _) => ["NumLit"]
-        | BoolLit(_, _) => ["BoolLit"]
-        | ListNil(_) => ["ListNil"]
-        | Inj(_, _, _) => ["Inj"]
-        | Parenthesized(_) => ["Parenthesized"]
-        | OpSeq(_, _) => failwith("unimplemented: node_shape_clss/OpSeq")
-        };
-      let err_clss = p |> UHPat.get_err_status_t |> err_clss;
-      err_clss @ variant_clss;
-    }
-  | Typ(Hole) => ["Hole"]
-  | Typ(Unit) => ["Unit"]
-  | Typ(Num) => ["Num"]
-  | Typ(Bool) => ["Bool"]
-  | Typ(Parenthesized(_)) => ["Parenthesized"]
-  | Typ(List(_)) => ["List"]
-  | Typ(OpSeq(_, _)) => failwith("unimplemented: node_shape_clss/OpSeq");
-
-let node_attrs = ({steps, shape}: DocOfTerm.node_tag): list(Vdom.Attr.t) =>
-  Vdom.[Attr.id(node_id(steps)), Attr.classes(node_shape_clss(shape))];
-
-let view = (~inject: Update.Action.t => Vdom.Event.t): Vdom.Node.t => {
+let view = (~inject: Action.t => Vdom.Event.t): Node.t => {
   let on_click_noneditable =
       (path_before: CursorPath.t, path_after: CursorPath.t, evt) =>
     switch (Js.Opt.to_option(evt##.target)) {
@@ -156,71 +63,137 @@ let view = (~inject: Update.Action.t => Vdom.Event.t): Vdom.Node.t => {
         float_of_int(evt##.clientX) -. target##getBoundingClientRect##.left;
       let from_right =
         target##getBoundingClientRect##.right -. float_of_int(evt##.clientX);
+      let path = from_left <= from_right ? path_before : path_after;
+      inject(Update.Action.EditAction(MoveTo(path)));
+    };
+
+  let on_click_text = (steps: CursorPath.steps, length: int, evt) =>
+    switch (Js.Opt.to_option(evt##.target)) {
+    | None => inject(Update.Action.EditAction(MoveToBefore(steps)))
+    | Some(target) =>
+      let from_left =
+        float_of_int(evt##.clientX) -. target##getBoundingClientRect##.left;
+      let from_right =
+        target##getBoundingClientRect##.right -. float_of_int(evt##.clientX);
+      let char_index =
+        floor(
+          from_left
+          /. (from_left +. from_right)
+          *. float_of_int(length)
+          +. 0.5,
+        );
       inject(
-        Update.Action.EditAction(
-          MoveTo(from_left <= from_right ? path_before : path_after),
-        ),
+        Update.Action.EditAction(MoveTo((steps, OnText(char_index)))),
       );
     };
 
-  let rec view_of_snode: snode => Vdom.Node.t =
+  let caret_from_left = (from_left: float): Node.t => {
+    assert(0.0 <= from_left && from_left <= 100.0);
+    let left_attr =
+      Attr.create("style", "left: " ++ string_of_float(from_left) ++ "%;");
+    Node.span([Attr.id("caret"), left_attr], []);
+  };
+
+  let caret_of_side: Side.t => Node.t =
     fun
-    | SNode(node_tag, slines) =>
-      Vdom.Node.div(
-        node_attrs(node_tag),
-        slines |> List.map(view_of_sline(~node_steps=node_tag.steps)),
-      )
-  and view_of_sline =
-      (~node_steps: CursorPath.steps, SLine(indentation, swords): sline)
-      : Vdom.Node.t =>
-    Vdom.(
-      Node.div(
-        [Attr.classes(["SLine"])],
-        [
-          Node.div(
-            [Attr.classes(["indent"])],
-            [Node.text(String.make(indentation, ' '))],
-          ),
-          ...swords |> List.map(view_of_sword(~node_steps)),
-        ],
-      )
-    )
-  and view_of_sword =
-      (~node_steps: CursorPath.steps, sword: sword): Vdom.Node.t =>
-    switch (sword) {
-    | SChild(snode) => view_of_snode(snode)
-    | SText(s) =>
-      Vdom.(Node.span([Attr.classes(["SText"])], [Node.text(s)]))
-    | SDelim(delim_tag) =>
-      Vdom.(
-        Node.span(
-          [
-            Attr.classes(["SDelim"]),
-            Attr.on_click(
-              on_click_noneditable(
-                (node_steps, OnDelim(delim_tag.index, Before)),
-                (node_steps, OnDelim(delim_tag.index, After)),
-              ),
-            ),
-          ],
-          [Node.text(delim_tag.text)],
-        )
-      )
-    | SPadding(padding_tag) =>
-      Vdom.(
-        Node.span(
-          [
-            Attr.classes(["SPadding"]),
-            Attr.on_click(
-              on_click_noneditable(
-                padding_tag.path_before,
-                padding_tag.path_after,
-              ),
-            ),
-          ],
-          [Node.text(padding_tag.text)],
-        )
-      )
+    | Before => caret_from_left(0.0)
+    | After => caret_from_left(100.0);
+
+  let contenteditable_of_layout: Layout.t(tag) => Node.t =
+    layout => {
+      let caret_position = (path: CursorPath.t): Node.t =>
+        Node.span([Attr.id(path_id(path))], [Node.text(nondisplay1)]);
+      let record: Layout.text('tag, list(Node.t), Node.t) = {
+        imp_of_string: str => [Node.text(str)],
+        imp_of_tag: (tag, vs) =>
+          switch (tag) {
+          | Delim({path: (steps, delim_index), _}) =>
+            let path_before = (steps, OnDelim(delim_index, Before));
+            let path_after = (steps, OnDelim(delim_index, After));
+            [caret_position(path_before)]
+            @ [Node.span([Attr.create("contenteditable", "false")], vs)]
+            @ [caret_position(path_after)];
+          | Op({steps, _}) =>
+            let path_before = (steps, OnOp(Before));
+            let path_after = (steps, OnOp(After));
+            [caret_position(path_before)]
+            @ [Node.span([Attr.create("contenteditable", "false")], vs)]
+            @ [caret_position(path_after)];
+          | DelimGroup
+          | Padding(_)
+          | Text(_)
+          | Term(_) => vs
+          },
+        imp_append: (vs1, vs2) => vs1 @ vs2,
+        imp_newline: [Node.br([])],
+        t_of_imp: vs => Node.span([], vs) // TODO: use something other than `span`?
+      };
+      Layout.make_of_layout(record, layout);
     };
-  Vdom.Node.div([], []);
+
+  let view_of_layout = (l: Layout.t(tag)): Node.t => {
+    let go = (l: Layout.t(_)): list(Node.t) =>
+      switch (l) {
+      | Text(str) => [Node.text(str)]
+      | Cat(l1, l2) => go(l1) @ go(l2)
+      | Linebreak => [Node.br([])]
+      | Align(l) => [Node.div([Attr.classes(["Align"])], go(l))]
+
+      | Tagged(DelimGroup, l) => [
+          Node.span([Attr.classes(["DelimGroup"])], go(l)),
+        ]
+
+      | Tagged(Padding({path_before, path_after}), l) => [
+          Node.span(
+            [Attr.on_click(on_click_noneditable(path_before, path_after))],
+            go(l),
+          ),
+        ]
+
+      | Tagged(Delim({path: (steps, delim_index), caret})) =>
+        let attrs = {
+          let path_before = (steps, OnDelim(delim_index, Before));
+          let path_after = (steps, OnDelim(delim_index, After));
+          [Attr.on_click(on_click_noneditable(path_before, path_after))];
+        };
+        let children =
+          switch (caret) {
+          | None => go(l)
+          | Some(side) => [caret_of_side(side), ...go(l)]
+          };
+        [Node.span(attrs, children)];
+
+      | Tagged(Op({steps, caret}), l) =>
+        let attrs = {
+          let path_before = (steps, OnOp(Before));
+          let path_after = (steps, OnOp(After));
+          [Attr.on_click(on_click_noneditable(path_before, path_after))];
+        };
+        let children =
+          switch (caret) {
+          | None => go(l)
+          | Some(side) => [caret_of_side(side), ...go(l)]
+          };
+        [Node.span(attrs, children)];
+
+      | Tagged(Text({caret, length}), l) =>
+        let attrs = [Attr.on_click(on_click_text(steps, length))];
+        let children =
+          switch (caret) {
+          | None => go(l)
+          | Some(char_index) =>
+            let index = float_of_int(char_index);
+            let length = float_of_int(length);
+            [caret_from_left(100.0 *. (index /. length)), ...go(l)];
+          };
+        [Node.span(attrs, children)];
+
+      | Tagged(Term({has_cursor, _}), l) =>
+        let attrs = has_cursor ? [Attr.classes("cursor")] : [];
+        [Node.span(attrs, go(l))];
+      };
+    Node.div([], go(l));
+  };
+
+  Node.div([], []);
 };
