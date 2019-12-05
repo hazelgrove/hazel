@@ -374,6 +374,7 @@ let view =
                   ~inject,
                   ~user_newlines=model.user_newlines,
                   ~node=model.cursor_info.node,
+                  ~ctx=model.cursor_info.ctx,
                   model |> Model.zblock,
                 )
               : Code.view_of_block(

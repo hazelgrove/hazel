@@ -107,7 +107,7 @@ and stoken =
   | SDelim(DelimIndex.t, string)
   | SOp(OpIndex.t, ErrStatus.t, string)
   | SText(VarErrStatus.t, string)
-  | STextWithBadge(VarErrStatus.t, string, int)
+  | STextWithBadge(VarErrStatus.t, string, int, bool)
   | SCastArrow
   | SFailedCastArrow
   | SSpace
@@ -206,8 +206,14 @@ let mk_SText = (~var_err: VarErrStatus.t=NotInVarHole, s: string): stoken =>
   SText(var_err, s);
 
 let mk_STextWithBadge =
-    (~var_err: VarErrStatus.t=NotInVarHole, s: string, count: int): stoken =>
-  STextWithBadge(var_err, s, count);
+    (
+      ~var_err: VarErrStatus.t=NotInVarHole,
+      s: string,
+      count: int,
+      shadowed: bool,
+    )
+    : stoken =>
+  STextWithBadge(var_err, s, count, shadowed);
 
 let sspace_vnode =
   Vdom.(
@@ -689,7 +695,7 @@ let vindentation = (~steps_of_first_sword=?, ~first_sword=?, m) => {
         Some(
           SNode(_) |
           SToken(
-            SEmptyHole(_) | SText(_, _) | STextWithBadge(_, _, _) |
+            SEmptyHole(_) | SText(_, _) | STextWithBadge(_, _, _, _) |
             SEmptyLine,
           ),
         ),
@@ -1309,17 +1315,46 @@ and view_of_stoken =
         [Node.text(s)],
       )
     )
-  | STextWithBadge(var_err, s, count) =>
-    Vdom.(
-      Node.div(
-        [
-          Attr.id(text_id(node_steps)),
-          Attr.classes([inline_div_cls, "SText"] @ var_err_clss(var_err)),
-          Attr.create("num-of-uses", Sexp.to_string(sexp_of_int(count))),
-        ],
-        [Node.text(s)],
-      )
-    )
+  | STextWithBadge(var_err, s, count, shadowed) =>
+    let str_of_count = Sexp.to_string(sexp_of_int(count));
+    shadowed
+      ? Vdom.(
+          Node.div(
+            [
+              Attr.id(text_id(node_steps)),
+              Attr.classes(
+                [inline_div_cls, "SText"] @ var_err_clss(var_err),
+              ),
+              Attr.create("semi-num-of-uses", str_of_count),
+              Attr.create("semi-shadowed", "True"),
+              Attr.create(
+                "title",
+                "Variable "
+                ++ s
+                ++ " is shadowing an existing variable with the same name, and is used for "
+                ++ str_of_count
+                ++ " times",
+              ),
+            ],
+            [Node.text(s)],
+          )
+        )
+      : Vdom.(
+          Node.div(
+            [
+              Attr.id(text_id(node_steps)),
+              Attr.classes(
+                [inline_div_cls, "SText"] @ var_err_clss(var_err),
+              ),
+              Attr.create("num-of-uses", str_of_count),
+              Attr.create(
+                "title",
+                "Variable " ++ s ++ " is used for " ++ str_of_count ++ " times",
+              ),
+            ],
+            [Node.text(s)],
+          )
+        );
   | SCastArrow =>
     Vdom.(
       Node.div(
@@ -2229,6 +2264,7 @@ let rec snode_of_zpat =
           ~ap_err_status=NotInApHole,
           ~steps: CursorPath.steps,
           ~node: CursorInfo.node,
+          ~ctx: Contexts.t,
           zp: ZPat.t,
         )
         : snode =>
@@ -2247,16 +2283,25 @@ let rec snode_of_zpat =
       [
         mk_SLine(
           ~steps_of_first_sword=steps,
-          [SToken(mk_STextWithBadge(~var_err, x, num_of_uses))],
+          [
+            SToken(
+              mk_STextWithBadge(
+                ~var_err,
+                x,
+                num_of_uses,
+                Contexts.gamma_contains(ctx, x),
+              ),
+            ),
+          ],
         ),
       ],
     );
   | CursorP(_, p) => snode_of_pat(~steps, p)
   | ParenthesizedZ(zbody) =>
-    let szbody = snode_of_zpat(~steps=steps @ [0], ~node, zbody);
+    let szbody = snode_of_zpat(~steps=steps @ [0], ~node, ~ctx, zbody);
     snode_of_Parenthesized(~ap_err_status, ~steps, szbody);
   | InjZ(err, side, zbody) =>
-    let szbody = snode_of_zpat(~steps=steps @ [0], ~node, zbody);
+    let szbody = snode_of_zpat(~steps=steps @ [0], ~node, ~ctx, zbody);
     snode_of_Inj(~ap_err_status, ~err, ~steps, side, szbody);
   | OpSeqZ(skel, ztm, surround) =>
     let seq =
@@ -2264,7 +2309,13 @@ let rec snode_of_zpat =
     let (head, tail) = partition_into_spaced_tms_pat(skel, seq);
     let snode_of_tm_or_ztm = (~ap_err_status=NotInApHole, k, tm) => {
       k == OperatorSeq.surround_prefix_length(surround)
-        ? snode_of_zpat(~ap_err_status, ~steps=steps @ [k], ~node, ztm)
+        ? snode_of_zpat(
+            ~ap_err_status,
+            ~steps=steps @ [k],
+            ~node,
+            ~ctx,
+            ztm,
+          )
         : snode_of_pat(~ap_err_status, ~steps=steps @ [k], tm);
     };
     let shead: spaced_stms = {
@@ -2313,6 +2364,7 @@ let rec snode_of_zblock =
           ~user_newlines: option(Model.user_newlines)=?,
           ~steps: CursorPath.steps=[],
           ~node: CursorInfo.node,
+          ~ctx: Contexts.t,
           zblock: ZExp.zblock,
         )
         : snode =>
@@ -2328,6 +2380,7 @@ let rec snode_of_zblock =
         ~user_newlines?,
         ~steps=steps @ [List.length(prefix)],
         ~node,
+        ~ctx,
         zline_item,
       );
     let ssuffix =
@@ -2383,7 +2436,8 @@ let rec snode_of_zblock =
       snode_of_zexp(
         ~user_newlines?,
         ~steps=steps @ [List.length(line_items)],
-        ~node: CursorInfo.node,
+        ~node,
+        ~ctx,
         ze,
       );
     let has_skinny_concluding_let_line =
@@ -2419,14 +2473,15 @@ and snode_of_zline_item =
       ~user_newlines: option(Model.user_newlines)=?,
       ~steps: CursorPath.steps,
       ~node: CursorInfo.node,
+      ~ctx: Contexts.t,
       zli: ZExp.zline,
     )
     : snode =>
   switch (zli) {
   | CursorL(_, li) => snode_of_line_item(~user_newlines?, ~steps, li)
-  | ExpLineZ(ze) => snode_of_zexp(~user_newlines?, ~steps, ~node, ze)
+  | ExpLineZ(ze) => snode_of_zexp(~user_newlines?, ~steps, ~node, ~ctx, ze)
   | LetLineZP(zp, ann, def) =>
-    let szp = snode_of_zpat(~steps=steps @ [0], ~node, zp);
+    let szp = snode_of_zpat(~steps=steps @ [0], ~node, ~ctx, zp);
     let sann =
       switch (ann) {
       | None => None
@@ -2447,7 +2502,13 @@ and snode_of_zline_item =
       | Some(ann) => Some(snode_of_typ(~steps=steps @ [1], ann))
       };
     let szdef =
-      snode_of_zblock(~user_newlines?, ~steps=steps @ [2], ~node, zdef);
+      snode_of_zblock(
+        ~user_newlines?,
+        ~steps=steps @ [2],
+        ~node,
+        ~ctx,
+        zdef,
+      );
     snode_of_LetLine(~user_newlines?, ~steps, sp, sann, szdef);
   }
 and snode_of_zexp =
@@ -2456,13 +2517,20 @@ and snode_of_zexp =
       ~ap_err_status=NotInApHole,
       ~steps: CursorPath.steps,
       ~node: CursorInfo.node,
+      ~ctx: Contexts.t,
       ze: ZExp.t,
     ) =>
   switch (ze) {
   | CursorE(_, e) => snode_of_exp(~user_newlines?, ~steps, e)
   | ParenthesizedZ(zbody) =>
     let szbody =
-      snode_of_zblock(~user_newlines?, ~steps=steps @ [0], ~node, zbody);
+      snode_of_zblock(
+        ~user_newlines?,
+        ~steps=steps @ [0],
+        ~node,
+        ~ctx,
+        zbody,
+      );
     snode_of_Parenthesized(~user_newlines?, ~ap_err_status, ~steps, szbody);
   | OpSeqZ(skel, ztm, surround) =>
     let seq =
@@ -2475,6 +2543,7 @@ and snode_of_zexp =
             ~ap_err_status,
             ~steps=steps @ [k],
             ~node: CursorInfo.node,
+            ~ctx: Contexts.t,
             ztm,
           )
         : snode_of_exp(
@@ -2524,7 +2593,7 @@ and snode_of_zexp =
          );
     snode_of_OpSeq(~steps, shead, stail);
   | LamZP(err, zarg, ann, body) =>
-    let szarg = snode_of_zpat(~steps=steps @ [0], ~node, zarg);
+    let szarg = snode_of_zpat(~steps=steps @ [0], ~node, ~ctx, zarg);
     let sann =
       switch (ann) {
       | None => None
@@ -2561,7 +2630,13 @@ and snode_of_zexp =
       | Some(ann) => Some(snode_of_typ(~steps=steps @ [1], ann))
       };
     let szbody =
-      snode_of_zblock(~user_newlines?, ~steps=steps @ [2], ~node, zbody);
+      snode_of_zblock(
+        ~user_newlines?,
+        ~steps=steps @ [2],
+        ~node,
+        ~ctx,
+        zbody,
+      );
     snode_of_Lam(
       ~user_newlines?,
       ~ap_err_status,
@@ -2573,11 +2648,23 @@ and snode_of_zexp =
     );
   | InjZ(err, side, zbody) =>
     let szbody =
-      snode_of_zblock(~user_newlines?, ~steps=steps @ [0], ~node, zbody);
+      snode_of_zblock(
+        ~user_newlines?,
+        ~steps=steps @ [0],
+        ~node,
+        ~ctx,
+        zbody,
+      );
     snode_of_Inj(~user_newlines?, ~ap_err_status, ~err, ~steps, side, szbody);
   | CaseZE(err, zscrut, rules, ann) =>
     let szscrut =
-      snode_of_zblock(~user_newlines?, ~steps=steps @ [0], ~node, zscrut);
+      snode_of_zblock(
+        ~user_newlines?,
+        ~steps=steps @ [0],
+        ~node,
+        ~ctx,
+        zscrut,
+      );
     let srules =
       rules
       |> List.mapi((i, rule) =>
@@ -2604,6 +2691,7 @@ and snode_of_zexp =
           ~user_newlines?,
           ~steps=steps @ [List.length(prefix) + 1],
           ~node,
+          ~ctx,
           zrule,
         ),
       ]
@@ -2637,18 +2725,30 @@ and snode_of_zexp =
   | ApPaletteZ(_, _, _, _) => raise(InvariantViolated)
   }
 and snode_of_zrule =
-    (~user_newlines: option(Model.user_newlines)=?, ~steps, ~node, zrule) =>
+    (
+      ~user_newlines: option(Model.user_newlines)=?,
+      ~steps,
+      ~node,
+      ~ctx,
+      zrule,
+    ) =>
   switch (zrule) {
   | CursorR(_, rule) => snode_of_rule(~user_newlines?, ~steps, rule)
   | RuleZP(zp, clause) =>
-    let sp = snode_of_zpat(~steps=steps @ [0], ~node, zp);
+    let sp = snode_of_zpat(~steps=steps @ [0], ~node, ~ctx, zp);
     let sclause =
       snode_of_block(~user_newlines?, ~steps=steps @ [1], clause);
     snode_of_Rule(~user_newlines?, ~steps, sp, sclause);
   | RuleZE(p, zclause) =>
     let sp = snode_of_pat(~steps=steps @ [0], p);
     let sclause =
-      snode_of_zblock(~user_newlines?, ~steps=steps @ [1], ~node, zclause);
+      snode_of_zblock(
+        ~user_newlines?,
+        ~steps=steps @ [1],
+        ~node,
+        ~ctx,
+        zclause,
+      );
     snode_of_Rule(~user_newlines?, ~steps, sp, sclause);
   };
 
@@ -2657,10 +2757,14 @@ let view_of_zblock =
       ~inject: Update.Action.t => Vdom.Event.t,
       ~user_newlines,
       ~node,
+      ~ctx,
       zblock: ZExp.zblock,
     )
     : Vdom.Node.t => {
-  view_of_snode(~inject, snode_of_zblock(~user_newlines, ~node, zblock));
+  view_of_snode(
+    ~inject,
+    snode_of_zblock(~user_newlines, ~node, ~ctx, zblock),
+  );
 };
 
 let view_of_block =
