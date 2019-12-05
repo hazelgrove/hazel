@@ -1832,7 +1832,7 @@ let draw_SSeq_indicators = (~cursor_elem) => {
     ? draw_multi_line_seq_indicators() : draw_single_line_seq_indicators();
 };
 
-let update_footer = () => {
+let _update_footer = () => {
   let var_pat_usage_elems =
     Dom_html.document##getElementsByClassName(Js.string("var-pat-usage"))
     |> Dom.list_of_nodeList;
@@ -1844,7 +1844,37 @@ let update_footer = () => {
        );
   JSUtil.force_get_elem_by_id("bottom")##.innerHTML :=
     count == 0
-      ? Js.string("") : Js.string(Int.to_string(count) ++ " uses below");
+      ? Js.string("")
+      : Js.string(Int.to_string(count) ++ " uses below &#x21E9");
+};
+let update_footer = () => {
+  let var_pat_usage_elems =
+    Dom_html.document##getElementsByClassName(Js.string("var-pat-usage"))
+    |> Dom.list_of_nodeList;
+  let uses_above =
+    var_pat_usage_elems
+    |> List.fold_left(
+         (count, elem) => {
+           JSUtil.is_above_viewport(elem) ? count : count + 1
+         },
+         0,
+       );
+  let uses_below =
+    var_pat_usage_elems
+    |> List.fold_left(
+         (count, elem) => {
+           JSUtil.is_below_viewport(elem) ? count : count + 1
+         },
+         0,
+       );
+  JSUtil.force_get_elem_by_id("top")##.innerHTML :=
+    uses_above == 0
+      ? Js.string("")
+      : Js.string("&#x21E7 " ++ Int.to_string(uses_above) ++ " uses &#x21E7");
+  JSUtil.force_get_elem_by_id("bottom")##.innerHTML :=
+    uses_below == 0
+      ? Js.string("")
+      : Js.string("&#x21E9 " ++ Int.to_string(uses_below) ++ " uses &#x21E9");
 };
 
 let empty_footer = () => {

@@ -298,6 +298,19 @@ let place_over_elem =
     (under_elem: Js.t(Dom_html.element), over_elem: Js.t(Dom_html.element)) =>
   over_elem |> place_over_rect(under_elem |> get_bounding_rect);
 
+let is_above_viewport = (elem: Js.t(Dom_html.element)) => {
+  let rect = elem##getBoundingClientRect;
+  rect##.top >= 0.0;
+};
+
+let is_below_viewport = (elem: Js.t(Dom_html.element)) => {
+  let rect = elem##getBoundingClientRect;
+  Float.to_int(rect##.bottom)
+  <= Js.Optdef.get(Dom_html.window##.innerHeight, () =>
+       Dom_html.document##.documentElement##.clientHeight
+     );
+};
+
 let is_in_viewport = (elem: Js.t(Dom_html.element)) => {
   let rect = elem##getBoundingClientRect;
   rect##.top >= 0.0

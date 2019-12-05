@@ -731,12 +731,22 @@ h1 {
   font-size: 12pt;
 }
 
-.clamped--sticky {
+.top-sticky {
+  position: -webkit-sticky;
+  position: sticky;
+  top: 0;
+  text-align: center;
+  color: grey;
+  background-color: white;
+}
+
+.clamped-sticky {
   position: -webkit-sticky;
   position: sticky;
   bottom: 0;
   text-align: center;
   color: grey;
+  background-color: white;
 }
 
 #num_input_id{

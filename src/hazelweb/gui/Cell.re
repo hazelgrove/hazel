@@ -183,6 +183,10 @@ let view =
         ),
       ],
       [
+        Node.header(
+          [Attr.id("top"), Attr.classes(["top-sticky"])],
+          [Node.text("")],
+        ),
         Node.div(
           [
             Attr.id(cell_id),
@@ -391,7 +395,7 @@ let view =
           ],
         ),
         Node.footer(
-          [Attr.id("bottom"), Attr.classes(["clamped--sticky"])],
+          [Attr.id("bottom"), Attr.classes(["clamped-sticky"])],
           [Node.text("")],
         ),
       ],
