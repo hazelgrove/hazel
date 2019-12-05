@@ -26,7 +26,9 @@ module Action = {
     | BlurCell
     | FocusWindow
     | AddUserNewline(CursorPath.steps)
-    | RemoveUserNewline(CursorPath.steps);
+    | RemoveUserNewline(CursorPath.steps)
+    | Redo
+    | Undo;`
 };
 
 [@deriving sexp]
@@ -60,6 +62,16 @@ let get_current_timestamp = (): timestamp => {
 };
 
 let mk_timestamped_action = (a: Action.t) => (get_current_timestamp(), a);
+let ENTRY_ACTION_TOTAL = 100;
+type record_entry= {
+  action_num: int,
+  initial_model: Model.t,
+  action_repo: list(Action.t), 
+};
+type record_repo = {
+  record_num: int,
+  recor_repo: list(record_entry),
+}
 
 let log_action = (action: Action.t, _: State.t): unit => {
   /* log interesting actions */
@@ -86,9 +98,62 @@ let log_action = (action: Action.t, _: State.t): unit => {
       ),
     )
   | SelectionChange => ()
+  | Redo
+  | Undo
   };
 };
+let record_now = {record_num:-1, recor_repo:[]};
+let add_model_to_record = 
+    (model: Model.t, record: record_repo)
+    : record_repo => {
+      {
+        record_num: record.record_num + 1,
+        record_repo: {
+          switch(record.record_repo){
+          | [] => [ {action_num: -1, initial_model: model, action_repo: []}]
+          | prevRecord => [{action_num: -1, initial_model: model, action_repo: []}, ...prevRecord]
+          }
+        }
+      }
+    };
+let add_action_to_record =
+    (action: Action.t, record: record_repo)
+    : record_repo => {
+      {
+        record_num: record.record_num,
+        record_repo: {
+          switch(record.record_repo){
+          | [] => []  /*throw exception is better, cannot add a action to empty record */
+          | [head, ...tail] => {
+                                  let new_entry = {
+                                    action_num: head.action_num + 1,
+                                    initial_model: head.initial_model,
+                                    action_repo: {
+                                      switch(head.action_repo){
+                                      | [] => [action]
+                                      | prev_action => [action, ...prev_action] 
+                                      }
+                                    }
+                      
+                                  };
+                                  [new_entry, ...prevRecord]
+          }
+          }
+        }
+      }
+    };
 
+let update_record = 
+    (model: Model.t, action: Action.t, record: record_repo)
+    : record_repo => {
+      let entry_action_num_now = {
+        switch(record.record_repo){
+        | [] => None
+        | [head, ...tail] => Some(head.action_num)
+        }
+      };
+      let 
+    };
 let apply_action =
     (model: Model.t, action: Action.t, state: State.t, ~schedule_action)
     : Model.t => {
