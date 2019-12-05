@@ -823,7 +823,7 @@ button:disabled {
     top: -11px;
     right: -11px;
     font-size: .7em;
-    background: rgba(175, 175, 175, 0.3);
+    background: rgba(220, 220, 220);
     color: black;
     width: 16px;
     height: 16px;
@@ -838,7 +838,7 @@ button:disabled {
     top: -11px;
     left: 15.5px;
     font-size: .7em;
-    background: rgba(175, 175, 175, 0.3);
+    background: rgba(220, 220, 220);
     width: 10px;
     height: 16px;
     text-align: center;
