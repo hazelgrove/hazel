@@ -1,38 +1,3 @@
-let parse_expr = s => {
-  let lexbuf = Lexing.from_string(s);
-  SkelExprParser.skel_expr(SkelExprLexer.read, lexbuf);
-};
-let parse_pat = s => {
-  let lexbuf = Lexing.from_string(s);
-  SkelPatParser.skel_pat(SkelPatLexer.read, lexbuf);
-};
-let parse_typ = s => {
-  let lexbuf = Lexing.from_string(s);
-  SkelTypParser.skel_typ(SkelTypLexer.read, lexbuf);
-};
-let string_of_expr_op: UHExp.operator => string =
-  fun
-  | Plus => "+"
-  | Minus => "-"
-  | Times => "*"
-  | LessThan => "<"
-  | GreaterThan => ">"
-  | Equals => "="
-  | Space => "_"
-  | Comma => ","
-  | Cons => "::"
-  | And => "&"
-  | Or => "|";
-let string_of_pat_op: UHPat.operator => string =
-  fun
-  | Space => "_"
-  | Comma => ","
-  | Cons => "::";
-let string_of_ty_op: UHTyp.operator => string =
-  fun
-  | Sum => "|"
-  | Prod => ","
-  | Arrow => "->";
 let rec make_skel_str' =
         (
           string_of_op: 'op => string,
@@ -61,15 +26,65 @@ let make_skel_str = (seq: Seq.t('operand, 'op), string_of_op: 'op => string) => 
   let skel_str = make_skel_str'(string_of_op, seq, counter, ph_map);
   (skel_str, ph_map);
 };
-let associate_exp = (seq: UHExp.seq) => {
-  let (skel_str, _) = make_skel_str(seq, string_of_expr_op);
-  parse_expr(skel_str);
+
+module Typ = {
+  let string_of_op: UHTyp.operator => string =
+    fun
+    | Sum => "|"
+    | Prod => ","
+    | Arrow => "->";
+
+  let parse = s => {
+    let lexbuf = Lexing.from_string(s);
+    SkelTypParser.skel_typ(SkelTypLexer.read, lexbuf);
+  };
+
+  let associate = (seq: UHTyp.seq) => {
+    let (skel_str, _) = make_skel_str(seq, string_of_op);
+    parse(skel_str);
+  };
 };
-let associate_pat = (seq: UHPat.seq) => {
-  let (skel_str, _) = make_skel_str(seq, string_of_pat_op);
-  parse_pat(skel_str);
+
+module Pat = {
+  let string_of_op: UHPat.operator => string =
+    fun
+    | Space => "_"
+    | Comma => ","
+    | Cons => "::";
+
+  let parse = s => {
+    let lexbuf = Lexing.from_string(s);
+    SkelPatParser.skel_pat(SkelPatLexer.read, lexbuf);
+  };
+
+  let associate = (seq: UHPat.seq) => {
+    let (skel_str, _) = make_skel_str(seq, string_of_op);
+    parse(skel_str);
+  };
 };
-let associate_ty = (seq: UHTyp.seq) => {
-  let (skel_str, _) = make_skel_str(seq, string_of_ty_op);
-  parse_typ(skel_str);
+
+module Exp = {
+  let string_of_op: UHExp.operator => string =
+    fun
+    | Plus => "+"
+    | Minus => "-"
+    | Times => "*"
+    | LessThan => "<"
+    | GreaterThan => ">"
+    | Equals => "="
+    | Space => "_"
+    | Comma => ","
+    | Cons => "::"
+    | And => "&"
+    | Or => "|";
+
+  let parse = s => {
+    let lexbuf = Lexing.from_string(s);
+    SkelExprParser.skel_expr(SkelExprLexer.read, lexbuf);
+  };
+
+  let associate = (seq: UHExp.seq) => {
+    let (skel_str, _) = make_skel_str(seq, string_of_op);
+    parse(skel_str);
+  };
 };
