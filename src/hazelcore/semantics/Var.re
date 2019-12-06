@@ -18,10 +18,12 @@ let check_valid = (s, result) =>
     None;
   };
 
-let is_true = s => eq(s, "true");
+let is_true = eq("true");
 
-let is_false = s => eq(s, "false");
+let is_false = eq("false");
 
-let is_let = s => eq(s, "let");
+let is_let = eq("let");
 
-let is_case = s => eq(s, "case");
+let is_case = eq("case");
+
+let is_wild = eq("_");

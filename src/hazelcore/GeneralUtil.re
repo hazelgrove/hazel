@@ -250,24 +250,6 @@ let cons_opt3 =
     }
   };
 
-let rec string_of_list' = string_of_elt =>
-  fun
-  | [] => ""
-  | [x] => string_of_elt(x)
-  | [x, ...xs] =>
-    string_of_elt(x) ++ ", " ++ string_of_list'(string_of_elt, xs);
-
-let string_of_list = (string_of_elt, xs) =>
-  "[" ++ string_of_list'(string_of_elt, xs) ++ "]";
-
-let string_of_pair = (string_of_left, string_of_right, (left, right)) =>
-  "(" ++ string_of_left(left) ++ ", " ++ string_of_right(right) ++ ")";
-
-let string_of_opt = string_of_elt =>
-  fun
-  | None => "None"
-  | Some(elt) => "Some(" ++ string_of_elt(elt) ++ ")";
-
 let combos2 = (xs: list('x), ys: list('y)): list(('x, 'y)) =>
   xs |> List.map(x => ys |> List.map(y => (x, y))) |> List.flatten;
 
@@ -372,18 +354,34 @@ module ZList = {
 
 /* Section StringUtil */
 
-let str_eqb = String.equal;
+let is_empty_string = String.equal("");
 
-let char_le_b = (ch1, ch2) => Char.code(ch1) < Char.code(ch2);
+/**
+ * A string of length n has caret positions 0 through n,
+ * where 0 places the caret at the start and n places
+ * the caret at the end. Split s at caret_index.
+ */
+let split_string = (caret_index: int, s: string): (string, string) => (
+  String.sub(s, 0, caret_index),
+  String.sub(s, caret_index, String.length(s) - caret_index),
+);
 
-let char_eq_b = (ch1, ch2) => Char.code(ch1) == Char.code(ch2);
+let insert_string = (caret_index: int, insert_s: string, s: string): string => {
+  let (l, r) = s |> split_string(caret_index);
+  l ++ insert_s ++ r;
+};
 
-let char_in_range_b = (ch, s, e) =>
-  if (char_le_b(s, ch)) {
-    char_le_b(ch, e);
-  } else {
-    false;
-  };
+let backspace_string = (caret_index: int, s: string): string => {
+  let l = String.sub(s, 0, caret_index - 1);
+  let r = String.sub(s, caret_index, String.length(s) - caret_index);
+  l ++ r;
+};
+
+let delete_string = (caret_index: int, s: string): string => {
+  let l = String.sub(s, 0, caret_index);
+  let r = String.sub(s, caret_index + 1, String.length(s) - caret_index - 1);
+  l ++ r;
+};
 
 module NatMap = {
   [@deriving sexp]

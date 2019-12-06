@@ -21,14 +21,8 @@ type operator_shape =
 [@deriving sexp]
 type shape =
   | SParenthesized
-  /* type shapes */
-  | SNum
-  | SBool
-  | SList
-  /* expression shapes */
+  | SChar(string)
   | SAsc
-  | SVar(string, CursorPosition.t)
-  | SNumLit(int, CursorPosition.t)
   | SLam
   | SListNil
   | SInj(InjSide.t)
@@ -36,9 +30,7 @@ type shape =
   | SLine
   | SCase
   | SOp(operator_shape)
-  | SApPalette(PaletteName.t)
-  /* pattern-only shapes */
-  | SWild;
+  | SApPalette(PaletteName.t);
 
 [@deriving sexp]
 type t =
@@ -162,11 +154,8 @@ module Typ = {
     | (
         UpdateApPalette(_) |
         Construct(
-          SAsc | SLet | SLine | SVar(_) | SLam | SNumLit(_) | SListNil |
-          SInj(_) |
-          SCase |
-          SApPalette(_) |
-          SWild,
+          SAsc | SLet | SLine | SLam | SListNil | SInj(_) | SCase |
+          SApPalette(_),
         ),
         _,
       )
@@ -257,11 +246,8 @@ module Typ = {
     | (
         UpdateApPalette(_) |
         Construct(
-          SAsc | SLet | SLine | SVar(_) | SLam | SNumLit(_) | SListNil |
-          SInj(_) |
-          SCase |
-          SApPalette(_) |
-          SWild,
+          SAsc | SLet | SLine | SLam | SListNil | SInj(_) | SCase |
+          SApPalette(_),
         ),
         _,
       ) =>
@@ -324,16 +310,13 @@ module Typ = {
       | Succeeded(zty) => perform(a, zty)
       }
 
-    | (Construct(SNum), CursorT(_, Hole)) =>
+    | (Construct(SChar("N")), CursorT(_, Hole)) =>
       Succeeded(UHTyp.T0(Num) |> ZTyp.place_after)
-    | (Construct(SNum), CursorT(_)) => Failed
-
-    | (Construct(SBool), CursorT(_, Hole)) =>
+    | (Construct(SChar("B")), CursorT(_, Hole)) =>
       Succeeded(UHTyp.T0(Bool) |> ZTyp.place_after)
-    | (Construct(SBool), CursorT(_)) => Failed
-
-    | (Construct(SList), CursorT(_)) =>
+    | (Construct(SChar("L")), CursorT(_)) =>
       Succeeded(ZT0(ListZ(ZT0(zoperand))))
+    | (Construct(SChar(_)), CursorT(_)) => Failed
 
     | (Construct(SParenthesized), CursorT(_)) =>
       Succeeded(ZT0(ParenthesizedZ(ZT0(zoperand))))
@@ -366,6 +349,109 @@ let check_valid = (x: Var.t, result: result('a)): result('a) =>
     result;
   } else {
     Failed;
+  };
+
+let _syn_insert_text =
+    (
+      ~mk_syn_text:
+         (Contexts.t, MetaVarGen.t, int, string) => result('success),
+      ctx: Contexts.t,
+      u_gen: MetaVarGen.t,
+      (caret_index: int, insert_text: string),
+      text: string,
+    )
+    : result('success) =>
+  mk_syn_text(
+    ctx,
+    u_gen,
+    caret_index + String.length(insert_text),
+    text |> insert_string(caret_index, insert_text),
+  );
+let _ana_insert_text =
+    (
+      ~mk_ana_text:
+         (Contexts.t, MetaVarGen.t, int, string, HTyp.t) => result('success),
+      ctx: Contexts.t,
+      u_gen: MetaVarGen.t,
+      (caret_index: int, insert_text: string),
+      text: string,
+      ty: HTyp.t,
+    )
+    : result('success) =>
+  mk_ana_text(
+    ctx,
+    u_gen,
+    caret_index + String.length(insert_text),
+    text |> insert_string(caret_index, insert_text),
+    ty,
+  );
+
+let _syn_backspace_text =
+    (
+      ~mk_syn_text:
+         (Contexts.t, MetaVarGen.t, int, string) => result('success),
+      ctx: Contexts.t,
+      u_gen: MetaVarGen.t,
+      caret_index: int,
+      text: string,
+    )
+    : result('success) =>
+  if (caret_index == 0) {
+    CursorEscaped(Before);
+  } else {
+    let new_text = text |> backspace_string(caret_index);
+    mk_syn_text(ctx, u_gen, caret_index - 1, new_text);
+  };
+let _ana_backspace_text =
+    (
+      ~mk_ana_text:
+         (Contexts.t, MetaVarGen.t, int, string, HTyp.t) => result('success),
+      ctx: Contexts.t,
+      u_gen: MetaVarGen.t,
+      caret_index: int,
+      text: string,
+      ty: HTyp.t,
+    )
+    : result('success) =>
+  if (caret_index == 0) {
+    CursorEscaped(Before);
+  } else {
+    let new_text = text |> backspace_string(caret_index);
+    mk_ana_text(ctx, u_gen, caret_index - 1, new_text, ty);
+  };
+
+let _syn_delete_text =
+    (
+      ~mk_syn_text:
+         (Contexts.t, MetaVarGen.t, int, string) => result('success),
+      ctx: Contexts.t,
+      u_gen: MetaVarGen.t,
+      caret_index: int,
+      text: string,
+    )
+    : result('success) =>
+  if (caret_index == String.length(text)) {
+    CursorEscaped(After);
+  } else {
+    let new_text = text |> delete_string(caret_index);
+    mk_syn_text(ctx, u_gen, caret_index, new_text);
+  };
+let _ana_delete_text =
+    (
+      ~mk_ana_text:
+         (Contexts.t, MetaVarGen.t, int, string, HTyp.t) => result('success),
+      ctx: Contexts.t,
+      u_gen: MetaVarGen.t,
+      caret_index: int,
+      text: string,
+      ty: HTyp.t,
+    )
+    : result('success) =>
+  if (caret_index == String.length(text)) {
+    CursorEscaped(After);
+  } else {
+    let new_text = text |> delete_string(caret_index);
+    mk_ana_text(ctx, u_gen, caret_index, new_text, ty);
   };
 
 let _construct_operator_after_zoperand =
@@ -539,6 +625,93 @@ module Pat = {
     | None => Failed
     | Some(ctx) => Succeeded((zp, ctx, u_gen))
     };
+
+  let mk_syn_text =
+      (ctx: Contexts.t, u_gen: MetaVarGen.t, caret_index: int, text: string) => {
+    let text_cursor = CursorPosition.OnText(caret_index);
+    switch (TextShape.of_text(text)) {
+    | None =>
+      if (text |> is_empty_string) {
+        let (zhole, u_gen) = u_gen |> ZPat.new_EmptyHole;
+        Succeeded((ZPat.ZP0(zhole), HTyp.Hole, ctx, u_gen));
+      } else {
+        Failed;
+      }
+    | Some(Underscore) =>
+      let zp = ZPat.ZP0(CursorP(OnDelim(0, After), UHPat.wild()));
+      Succeeded((zp, HTyp.Hole, ctx, u_gen));
+    | Some(NumLit(n)) =>
+      let zp = ZPat.ZP0(CursorP(text_cursor, UHPat.numlit(n)));
+      Succeeded((zp, HTyp.Num, ctx, u_gen));
+    | Some(BoolLit(b)) =>
+      let zp = ZPat.ZP0(CursorP(text_cursor, UHPat.boollit(b)));
+      Succeeded((zp, HTyp.Bool, ctx, u_gen));
+    | Some(Keyword(k)) =>
+      let (u, u_gen) = u_gen |> MetaVarGen.next;
+      let var =
+        UHPat.var(
+          ~var_err=InVarHole(Keyword(k), u),
+          k |> Keyword.to_string,
+        );
+      let zp = ZPat.ZP0(CursorP(text_cursor, var));
+      Succeeded((zp, HTyp.Hole, ctx, u_gen));
+    | Some(Var(x)) =>
+      let ctx = Contexts.extend_gamma(ctx, (x, Hole));
+      let zp = ZPat.ZP0(CursorP(text_cursor, UHPat.var(x)));
+      Succeeded((zp, HTyp.Hole, ctx, u_gen));
+    };
+  };
+
+  let mk_ana_text =
+      (
+        ctx: Contexts.t,
+        u_gen: MetaVarGen.t,
+        caret_index: int,
+        text: string,
+        ty: HTyp.t,
+      ) => {
+    let text_cursor = CursorPosition.OnText(caret_index);
+    switch (TextShape.of_text(text)) {
+    | None =>
+      if (text |> is_empty_string) {
+        let (zhole, u_gen) = u_gen |> ZPat.new_EmptyHole;
+        Succeeded((ZPat.ZP0(zhole), ctx, u_gen));
+      } else {
+        Failed;
+      }
+    | Some(Underscore) =>
+      let zp = ZPat.ZP0(CursorP(OnDelim(0, After), UHPat.wild()));
+      Succeeded((zp, ctx, u_gen));
+    | Some(NumLit(_))
+    | Some(BoolLit(_)) =>
+      switch (mk_syn_text(ctx, u_gen, caret_index, text)) {
+      | (Failed | CursorEscaped(_)) as err => err
+      | Succeeded((zp, ty', ctx, u_gen)) =>
+        if (HTyp.consistent(ty, ty')) {
+          Succeeded((zp, ctx, u_gen));
+        } else {
+          let (zp, u_gen) = zp |> ZPat.make_inconsistent(u_gen);
+          Succeeded((zp, ctx, u_gen));
+        }
+      }
+    | Some(Keyword(k)) =>
+      let (u, u_gen) = u_gen |> MetaVarGen.next;
+      let var = UHPat.var(~var_err=InVarHole(Keyword(k), u), text);
+      let zp = ZPat.ZP0(CursorP(text_cursor, var));
+      Succeeded((zp, ctx, u_gen));
+    | Some(Var(x)) =>
+      let ctx = Contexts.extend_gamma(ctx, (x, ty));
+      let zp = ZPat.ZP0(CursorP(text_cursor, UHPat.var(x)));
+      Succeeded((zp, ctx, u_gen));
+    };
+  };
+
+  let syn_insert_text = _syn_insert_text(~mk_syn_text);
+  let ana_insert_text = _ana_insert_text(~mk_ana_text);
+  let syn_backspace_text = _syn_backspace_text(~mk_syn_text);
+  let ana_backspace_text = _ana_backspace_text(~mk_ana_text);
+  let syn_delete_text = _syn_delete_text(~mk_syn_text);
+  let ana_delete_text = _ana_delete_text(~mk_ana_text);
 
   let delete_operator =
     _delete_operator(
@@ -775,10 +948,7 @@ module Pat = {
 
     /* Invalid actions */
     | (
-        Construct(
-          SApPalette(_) | SNum | SBool | SList | SAsc | SLet | SLine | SLam |
-          SCase,
-        ) |
+        Construct(SApPalette(_) | SAsc | SLet | SLine | SLam | SCase) |
         UpdateApPalette(_),
         _,
       ) =>
@@ -820,13 +990,24 @@ module Pat = {
       let new_zp = ZPat.ZP0(CursorP(OnDelim(k, After), operand));
       syn_perform(ctx, u_gen, Backspace, new_zp);
 
-    | (
-        Backspace | Delete,
-        CursorP(_, Var(_) | Wild(_) | NumLit(_) | BoolLit(_) | ListNil(_)),
-      ) =>
+    | (Backspace, CursorP(OnDelim(_, After), ListNil(_) | Wild(_))) =>
       let (zhole, u_gen) = ZPat.new_EmptyHole(u_gen);
       let zp = ZPat.ZP0(zhole);
       Succeeded((zp, Hole, ctx, u_gen));
+
+    | (Delete, CursorP(OnText(j), Var(_, _, x))) =>
+      syn_delete_text(ctx, u_gen, j, x)
+    | (Delete, CursorP(OnText(j), NumLit(_, n))) =>
+      syn_delete_text(ctx, u_gen, j, string_of_int(n))
+    | (Delete, CursorP(OnText(j), BoolLit(_, b))) =>
+      syn_delete_text(ctx, u_gen, j, string_of_bool(b))
+
+    | (Backspace, CursorP(OnText(j), Var(_, _, x))) =>
+      syn_backspace_text(ctx, u_gen, j, x)
+    | (Backspace, CursorP(OnText(j), NumLit(_, n))) =>
+      syn_backspace_text(ctx, u_gen, j, string_of_int(n))
+    | (Backspace, CursorP(OnText(j), BoolLit(_, b))) =>
+      syn_backspace_text(ctx, u_gen, j, string_of_bool(b))
 
     /* ( _ )<|  ==>  _| */
     /* (<| _ )  ==>  |_ */
@@ -843,62 +1024,32 @@ module Pat = {
 
     | (Construct(SOp(SSpace)), CursorP(OnDelim(_, After), _)) =>
       syn_perform(ctx, u_gen, MoveRight, ZP0(zoperand))
-    | (Construct(_) as a, CursorP(OnDelim(_, side), _))
+    | (Construct(_), CursorP(OnDelim(_, side), _))
         when
           !ZPat.is_before_zoperand(zoperand)
           && !ZPat.is_after_zoperand(zoperand) =>
       switch (syn_perform(ctx, u_gen, escape(side), ZP0(zoperand))) {
-      | (Failed | CursorEscaped(_)) as err => err
+      | Failed
+      | CursorEscaped(_) => Failed
       | Succeeded((zp, _, _, u_gen)) => syn_perform(ctx, u_gen, a, zp)
       }
 
-    | (
-        Construct(SVar(x, cursor)),
-        CursorP(_, EmptyHole(_) | Wild(_) | Var(_) | NumLit(_) | BoolLit(_)),
-      ) =>
-      if (Var.is_true(x)) {
-        let zp = ZPat.(ZP0(CursorP(cursor, UHPat.boollit(true))));
-        Succeeded((zp, Bool, ctx, u_gen));
-      } else if (Var.is_false(x)) {
-        let zp = ZPat.(ZP0(CursorP(cursor, UHPat.boollit(false))));
-        Succeeded((zp, Bool, ctx, u_gen));
-      } else if (Var.is_let(x)) {
-        let (u, u_gen) = u_gen |> MetaVarGen.next;
-        let var = UHPat.var(~var_err=InVarHole(Keyword(Let), u), x);
-        let zp = ZPat.(ZP0(CursorP(cursor, var)));
-        Succeeded((zp, Hole, ctx, u_gen));
-      } else if (Var.is_case(x)) {
-        let (u, u_gen) = u_gen |> MetaVarGen.next;
-        let var = UHPat.var(~var_err=InVarHole(Keyword(Case), u), x);
-        let zp = ZPat.(ZP0(CursorP(cursor, var)));
-        Succeeded((zp, Hole, ctx, u_gen));
-      } else {
-        check_valid(
-          x,
-          {
-            let ctx = Contexts.extend_gamma(ctx, (x, Hole));
-            let zp = ZPat.(ZP0(CursorP(cursor, UHPat.var(x))));
-            Succeeded((zp, HTyp.Hole, ctx, u_gen));
-          },
-        );
-      }
-    | (Construct(SVar(_)), CursorP(_)) => Failed
-
-    | (
-        Construct(SWild),
-        CursorP(_, EmptyHole(_) | Wild(_) | Var(_) | NumLit(_) | BoolLit(_)),
-      ) =>
-      let zp = ZPat.(ZP0(place_after_operand(Wild(NotInHole))));
-      Succeeded((zp, Hole, ctx, u_gen));
-    | (Construct(SWild), CursorP(_)) => Failed
-
-    | (
-        Construct(SNumLit(n, cursor)),
-        CursorP(_, EmptyHole(_) | Wild(_) | Var(_) | NumLit(_) | BoolLit(_)),
-      ) =>
-      let zp = ZPat.ZP0(CursorP(cursor, NumLit(NotInHole, n)));
-      Succeeded((zp, Num, ctx, u_gen));
-    | (Construct(SNumLit(_, _)), CursorP(_)) => Failed
+    | (Construct(SChar(s)), CursorP(_, EmptyHole(_))) =>
+      syn_insert_text(ctx, u_gen, (0, s), "")
+    | (Construct(SChar(s)), CursorP(OnDelim(_, side), Wild(_))) =>
+      let index =
+        switch (side) {
+        | Before => 0
+        | After => 1
+        };
+      syn_insert_text(ctx, u_gen, (index, s), "_");
+    | (Construct(SChar(s)), CursorP(OnText(j), Var(_, _, x))) =>
+      syn_insert_text(ctx, u_gen, (j, s), x)
+    | (Construct(SChar(s)), CursorP(OnText(j), NumLit(_, n))) =>
+      syn_insert_text(ctx, u_gen, (j, s), string_of_int(n))
+    | (Construct(SChar(s)), CursorP(OnText(j), BoolLit(_, b))) =>
+      syn_insert_text(ctx, u_gen, (j, s), string_of_bool(b))
+    | (Construct(SChar(_)), CursorP(_)) => Failed
 
     | (Construct(SListNil), CursorP(_, EmptyHole(_))) =>
       let zp = ZPat.(ZP0(place_after_operand(ListNil(NotInHole))));
@@ -1158,10 +1309,7 @@ module Pat = {
 
     /* Invalid actions */
     | (
-        Construct(
-          SApPalette(_) | SNum | SBool | SList | SAsc | SLet | SLine | SLam |
-          SCase,
-        ) |
+        Construct(SApPalette(_) | SAsc | SLet | SLine | SLam | SCase) |
         UpdateApPalette(_),
         _,
       ) =>
@@ -1223,13 +1371,24 @@ module Pat = {
       let new_zp = ZPat.ZP0(CursorP(OnDelim(k, After), operand));
       ana_perform(ctx, u_gen, Backspace, new_zp, ty);
 
-    | (
-        Backspace | Delete,
-        CursorP(_, Var(_) | Wild(_) | NumLit(_) | BoolLit(_) | ListNil(_)),
-      ) =>
+    | (Backspace, CursorP(OnDelim(_, After), Wild(_) | ListNil(_))) =>
       let (zhole, u_gen) = ZPat.new_EmptyHole(u_gen);
       let zp = ZPat.ZP0(zhole);
       Succeeded((zp, ctx, u_gen));
+
+    | (Delete, CursorP(OnText(j), Var(_, _, x))) =>
+      ana_delete_text(ctx, u_gen, j, x, ty)
+    | (Delete, CursorP(OnText(j), NumLit(_, n))) =>
+      ana_delete_text(ctx, u_gen, j, string_of_int(n), ty)
+    | (Delete, CursorP(OnText(j), BoolLit(_, b))) =>
+      ana_delete_text(ctx, u_gen, j, string_of_bool(b), ty)
+
+    | (Backspace, CursorP(OnText(j), Var(_, _, x))) =>
+      ana_backspace_text(ctx, u_gen, j, x, ty)
+    | (Backspace, CursorP(OnText(j), NumLit(_, n))) =>
+      ana_backspace_text(ctx, u_gen, j, string_of_int(n), ty)
+    | (Backspace, CursorP(OnText(j), BoolLit(_, b))) =>
+      ana_backspace_text(ctx, u_gen, j, string_of_bool(b), ty)
 
     /* ( _ )<|  ==>  _| */
     /* (<| _ )  ==>  |_ */
@@ -1254,52 +1413,22 @@ module Pat = {
       | Succeeded((zp, _, u_gen)) => ana_perform(ctx, u_gen, a, zp, ty)
       }
 
-    | (Construct(SVar("true", _)), _)
-    | (Construct(SVar("false", _)), _) =>
-      switch (syn_perform(ctx, u_gen, a, ZP0(zoperand))) {
-      | (Failed | CursorEscaped(_)) as err => err
-      | Succeeded((zp, ty', ctx, u_gen)) =>
-        if (HTyp.consistent(ty, ty')) {
-          Succeeded((zp, ctx, u_gen));
-        } else {
-          let (zp, u_gen) = zp |> ZPat.make_inconsistent(u_gen);
-          Succeeded((zp, ctx, u_gen));
-        }
-      }
-
-    | (
-        Construct(SVar(x, cursor)),
-        CursorP(_, EmptyHole(_) | Wild(_) | Var(_) | NumLit(_) | BoolLit(_)),
-      ) =>
-      if (Var.is_let(x)) {
-        let (u, u_gen) = u_gen |> MetaVarGen.next;
-        let var = UHPat.var(~var_err=InVarHole(Keyword(Let), u), x);
-        let zp = ZPat.ZP0(CursorP(cursor, var));
-        Succeeded((zp, ctx, u_gen));
-      } else if (Var.is_case(x)) {
-        let (u, u_gen) = u_gen |> MetaVarGen.next;
-        let var = UHPat.var(~var_err=InVarHole(Keyword(Case), u), x);
-        let zp = ZPat.ZP0(CursorP(cursor, var));
-        Succeeded((zp, ctx, u_gen));
-      } else {
-        check_valid(
-          x,
-          {
-            let ctx = Contexts.extend_gamma(ctx, (x, ty));
-            let zp = ZPat.ZP0(CursorP(cursor, UHPat.var(x)));
-            Succeeded((zp, ctx, u_gen));
-          },
-        );
-      }
-    | (Construct(SVar(_)), CursorP(_)) => Failed
-
-    | (
-        Construct(SWild),
-        CursorP(_, EmptyHole(_) | Wild(_) | Var(_) | NumLit(_) | BoolLit(_)),
-      ) =>
-      let new_zp = UHPat.(P0(wild())) |> ZPat.place_after;
-      Succeeded((new_zp, ctx, u_gen));
-    | (Construct(SWild), CursorP(_)) => Failed
+    | (Construct(SChar(s)), CursorP(_, EmptyHole(_))) =>
+      ana_insert_text(ctx, u_gen, (0, s), "", ty)
+    | (Construct(SChar(s)), CursorP(OnDelim(_, side), Wild(_))) =>
+      let index =
+        switch (side) {
+        | Before => 0
+        | After => 1
+        };
+      ana_insert_text(ctx, u_gen, (index, s), "_", ty);
+    | (Construct(SChar(s)), CursorP(OnText(j), Var(_, _, x))) =>
+      ana_insert_text(ctx, u_gen, (j, s), x, ty)
+    | (Construct(SChar(s)), CursorP(OnText(j), NumLit(_, n))) =>
+      ana_insert_text(ctx, u_gen, (j, s), string_of_int(n), ty)
+    | (Construct(SChar(s)), CursorP(OnText(j), BoolLit(_, b))) =>
+      ana_insert_text(ctx, u_gen, (j, s), string_of_bool(b), ty)
+    | (Construct(SChar(_)), CursorP(_)) => Failed
 
     | (Construct(SParenthesized), CursorP(_)) =>
       let new_zp = ZPat.ZP0(ParenthesizedZ(ZP0(zoperand)));
@@ -1360,7 +1489,6 @@ module Pat = {
       }
 
     /* Subsumption */
-    | (Construct(SNumLit(_, _)), _)
     | (Construct(SListNil), _) =>
       switch (syn_perform(ctx, u_gen, a, ZP0(zoperand))) {
       | (Failed | CursorEscaped(_)) as err => err
@@ -1452,6 +1580,99 @@ module Exp = {
     | Let => Construct(SLet)
     | Case => Construct(SCase)
     };
+
+  let mk_syn_text =
+      (ctx: Contexts.t, u_gen: MetaVarGen.t, caret_index: int, text: string) => {
+    let text_cursor = CursorPosition.OnText(caret_index);
+    switch (TextShape.of_text(text)) {
+    | None =>
+      if (text |> is_empty_string) {
+        let (zhole, u_gen) = u_gen |> ZExp.new_EmptyHole;
+        Succeeded((ZExp.ZE0(zhole), HTyp.Hole, u_gen));
+      } else {
+        Failed;
+      }
+    | Some(NumLit(n)) =>
+      let ze = ZExp.ZE0(CursorE(text_cursor, UHExp.numlit(n)));
+      Succeeded((ze, HTyp.Num, u_gen));
+    | Some(BoolLit(b)) =>
+      let ze = ZExp.ZE0(CursorE(text_cursor, UHExp.boollit(b)));
+      Succeeded((ze, HTyp.Bool, u_gen));
+    | Some(Keyword(k)) =>
+      let (u, u_gen) = u_gen |> MetaVarGen.next;
+      let var =
+        UHExp.var(
+          ~var_err=InVarHole(Keyword(k), u),
+          k |> Keyword.to_string,
+        );
+      let ze = ZExp.ZE0(CursorE(text_cursor, var));
+      Succeeded((ze, HTyp.Hole, u_gen));
+    | Some((Underscore | Var(_)) as shape) =>
+      let x =
+        switch (shape) {
+        | Var(x) => x
+        | _ => "_"
+        };
+      switch (VarMap.lookup(ctx |> Contexts.gamma, x)) {
+      | Some(ty) =>
+        let ze = ZExp.ZE0(CursorE(text_cursor, UHExp.var(x)));
+        Succeeded((ze, ty, u_gen));
+      | None =>
+        let (u, u_gen) = u_gen |> MetaVarGen.next;
+        let var = UHExp.var(~var_err=InVarHole(Free, u), x);
+        let new_ze = ZExp.ZE0(CursorE(text_cursor, var));
+        Succeeded((new_ze, Hole, u_gen));
+      };
+    };
+  };
+
+  let mk_ana_text =
+      (
+        ctx: Contexts.t,
+        u_gen: MetaVarGen.t,
+        caret_index: int,
+        text: string,
+        ty: HTyp.t,
+      ) => {
+    let text_cursor = CursorPosition.OnText(caret_index);
+    switch (TextShape.of_text(text)) {
+    | None =>
+      if (text |> is_empty_string) {
+        let (zhole, u_gen) = u_gen |> ZExp.new_EmptyHole;
+        Succeeded((ZExp.ZE0(zhole), u_gen));
+      } else {
+        Failed;
+      }
+    | Some(Keyword(k)) =>
+      let (u, u_gen) = u_gen |> MetaVarGen.next;
+      let var =
+        UHExp.var(
+          ~var_err=InVarHole(Keyword(k), u),
+          k |> Keyword.to_string,
+        );
+      let ze = ZExp.ZE0(CursorE(text_cursor, var));
+      Succeeded((ze, u_gen));
+    | Some(NumLit(_) | BoolLit(_) | Underscore | Var(_)) =>
+      // TODO: review whether subsumption correctly applied
+      switch (mk_syn_text(ctx, u_gen, caret_index, text)) {
+      | (Failed | CursorEscaped(_)) as err => err
+      | Succeeded((ze, ty', u_gen)) =>
+        if (HTyp.consistent(ty, ty')) {
+          Succeeded((ze, u_gen));
+        } else {
+          let (ze, u_gen) = ze |> ZExp.make_inconsistent(u_gen);
+          Succeeded((ze, u_gen));
+        }
+      }
+    };
+  };
+
+  let syn_insert_text = _syn_insert_text(~mk_syn_text);
+  let ana_insert_text = _ana_insert_text(~mk_ana_text);
+  let syn_backspace_text = _syn_backspace_text(~mk_syn_text);
+  let ana_backspace_text = _ana_backspace_text(~mk_ana_text);
+  let syn_delete_text = _syn_delete_text(~mk_syn_text);
+  let ana_delete_text = _ana_delete_text(~mk_ana_text);
 
   let delete_operator =
     _delete_operator(
@@ -2105,11 +2326,7 @@ module Exp = {
       Failed
 
     /* Invalid actions at expression level */
-    | (
-        Construct(SNum | SBool | SList | SLet | SLine | SWild),
-        CursorE(OnText(_), _),
-      ) =>
-      Failed
+    | (Construct(SLet | SLine), CursorE(OnText(_), _)) => Failed
 
     /* Movement handled at top level */
     | (
@@ -2147,13 +2364,24 @@ module Exp = {
       let new_ze = ZExp.ZE0(CursorE(OnDelim(k, After), operand));
       syn_perform(ctx, Backspace, (new_ze, ty, u_gen));
 
-    | (
-        Backspace | Delete,
-        CursorE(_, Var(_) | NumLit(_) | BoolLit(_) | ListNil(_)),
-      ) =>
+    | (Backspace, CursorE(OnDelim(_, After), ListNil(_))) =>
       let (zhole, u_gen) = u_gen |> ZExp.new_EmptyHole;
       let new_ze = ZExp.ZE0(zhole);
       Succeeded((new_ze, Hole, u_gen));
+
+    | (Delete, CursorE(OnText(j), Var(_, _, x))) =>
+      syn_delete_text(ctx, u_gen, j, x)
+    | (Delete, CursorE(OnText(j), NumLit(_, n))) =>
+      syn_delete_text(ctx, u_gen, j, string_of_int(n))
+    | (Delete, CursorE(OnText(j), BoolLit(_, b))) =>
+      syn_delete_text(ctx, u_gen, j, string_of_bool(b))
+
+    | (Backspace, CursorE(OnText(j), Var(_, _, x))) =>
+      syn_backspace_text(ctx, u_gen, j, x)
+    | (Backspace, CursorE(OnText(j), NumLit(_, n))) =>
+      syn_backspace_text(ctx, u_gen, j, string_of_int(n))
+    | (Backspace, CursorE(OnText(j), BoolLit(_, b))) =>
+      syn_backspace_text(ctx, u_gen, j, string_of_bool(b))
 
     /* \x :<| Num . x + 1   ==>   \x| . x + 1 */
     | (Backspace, CursorE(OnDelim(1, After), Lam(_, p, _, body))) =>
@@ -2232,53 +2460,15 @@ module Exp = {
       Succeeded((new_ze, ty, u_gen));
     | (Construct(SAsc), CursorE(_)) => Failed
 
-    | (
-        Construct(SVar(x, cursor)),
-        CursorE(_, EmptyHole(_) | Var(_) | NumLit(_) | BoolLit(_)),
-      ) =>
-      if (Var.is_true(x)) {
-        let new_ze = ZExp.(ZE0(CursorE(cursor, UHExp.boollit(true))));
-        Succeeded((new_ze, Bool, u_gen));
-      } else if (Var.is_false(x)) {
-        let new_ze = ZExp.(ZE0(CursorE(cursor, UHExp.boollit(false))));
-        Succeeded((new_ze, Bool, u_gen));
-      } else if (Var.is_let(x)) {
-        let (u, u_gen) = u_gen |> MetaVarGen.next;
-        let var = UHExp.var(~var_err=InVarHole(Keyword(Let), u), x);
-        let new_ze = ZExp.(ZE0(CursorE(cursor, var)));
-        Succeeded((new_ze, Hole, u_gen));
-      } else if (Var.is_case(x)) {
-        let (u, u_gen) = u_gen |> MetaVarGen.next;
-        let var = UHExp.var(~var_err=InVarHole(Keyword(Case), u), x);
-        let new_ze = ZExp.(ZE0(CursorE(cursor, var)));
-        Succeeded((new_ze, Hole, u_gen));
-      } else {
-        check_valid(
-          x,
-          {
-            let gamma = Contexts.gamma(ctx);
-            switch (VarMap.lookup(gamma, x)) {
-            | Some(x_ty) =>
-              let new_ze = ZExp.ZE0(CursorE(cursor, UHExp.var(x)));
-              Succeeded((new_ze, x_ty, u_gen));
-            | None =>
-              let (u, u_gen) = u_gen |> MetaVarGen.next;
-              let var = UHExp.var(~var_err=InVarHole(Free, u), x);
-              let new_ze = ZExp.ZE0(CursorE(cursor, var));
-              Succeeded((new_ze, Hole, u_gen));
-            };
-          },
-        );
-      }
-    | (Construct(SVar(_)), CursorE(_)) => Failed
-
-    | (
-        Construct(SNumLit(n, cursor)),
-        CursorE(_, EmptyHole(_) | NumLit(_) | BoolLit(_) | Var(_)),
-      ) =>
-      let new_ze = ZExp.ZE0(CursorE(cursor, UHExp.numlit(n)));
-      Succeeded((new_ze, Num, u_gen));
-    | (Construct(SNumLit(_)), CursorE(_)) => Failed
+    | (Construct(SChar(s)), CursorE(_, EmptyHole(_))) =>
+      syn_insert_text(ctx, u_gen, (0, s), "")
+    | (Construct(SChar(s)), CursorE(OnText(j), Var(_, _, x))) =>
+      syn_insert_text(ctx, u_gen, (j, s), x)
+    | (Construct(SChar(s)), CursorE(OnText(j), NumLit(_, n))) =>
+      syn_insert_text(ctx, u_gen, (j, s), string_of_int(n))
+    | (Construct(SChar(s)), CursorE(OnText(j), BoolLit(_, b))) =>
+      syn_insert_text(ctx, u_gen, (j, s), string_of_bool(b))
+    | (Construct(SChar(_)), CursorE(_)) => Failed
 
     | (Construct(SListNil), CursorE(_, EmptyHole(_))) =>
       let new_ze = UHExp.(E0(listnil())) |> ZExp.place_after;
@@ -3098,11 +3288,7 @@ module Exp = {
       Failed
 
     /* Invalid actions at expression level */
-    | (
-        Construct(SNum | SBool | SList | SLet | SLine | SWild),
-        CursorE(OnText(_), _),
-      ) =>
-      Failed
+    | (Construct(SLet | SLine), CursorE(OnText(_), _)) => Failed
 
     | _ when ZExp.is_inconsistent(zoperand) =>
       let ze = ZExp.ZE0(zoperand);
@@ -3153,13 +3339,23 @@ module Exp = {
       let new_ze = ZExp.ZE0(CursorE(OnDelim(k, After), operand));
       ana_perform(ctx, Backspace, (new_ze, u_gen), ty);
 
-    | (
-        Backspace | Delete,
-        CursorE(_, Var(_) | NumLit(_) | BoolLit(_) | ListNil(_)),
-      ) =>
+    | (Backspace, CursorE(OnDelim(_, After), ListNil(_))) =>
       let (zhole, u_gen) = u_gen |> ZExp.new_EmptyHole;
-      let new_ze = ZExp.ZE0(zhole);
-      Succeeded((new_ze, u_gen));
+      Succeeded((ZE0(zhole), u_gen));
+
+    | (Delete, CursorE(OnText(j), Var(_, _, x))) =>
+      ana_delete_text(ctx, u_gen, j, x, ty)
+    | (Delete, CursorE(OnText(j), NumLit(_, n))) =>
+      ana_delete_text(ctx, u_gen, j, string_of_int(n), ty)
+    | (Delete, CursorE(OnText(j), BoolLit(_, b))) =>
+      ana_delete_text(ctx, u_gen, j, string_of_bool(b), ty)
+
+    | (Backspace, CursorE(OnText(j), Var(_, _, x))) =>
+      ana_backspace_text(ctx, u_gen, j, x, ty)
+    | (Backspace, CursorE(OnText(j), NumLit(_, n))) =>
+      ana_backspace_text(ctx, u_gen, j, string_of_int(n), ty)
+    | (Backspace, CursorE(OnText(j), BoolLit(_, b))) =>
+      ana_backspace_text(ctx, u_gen, j, string_of_bool(b), ty)
 
     /* \x :<| Num . x + 1   ==>   \x| . x + 1 */
     | (Backspace, CursorE(OnDelim(1, After), Lam(_, p, _, body))) =>
@@ -3199,6 +3395,16 @@ module Exp = {
     /* TODO consider deletion of type ascription on case */
 
     /* Construction */
+
+    | (Construct(SChar(s)), CursorE(_, EmptyHole(_))) =>
+      ana_insert_text(ctx, u_gen, (0, s), "", ty)
+    | (Construct(SChar(s)), CursorE(OnText(j), Var(_, _, x))) =>
+      ana_insert_text(ctx, u_gen, (j, s), x, ty)
+    | (Construct(SChar(s)), CursorE(OnText(j), NumLit(_, n))) =>
+      ana_insert_text(ctx, u_gen, (j, s), string_of_int(n), ty)
+    | (Construct(SChar(s)), CursorE(OnText(j), BoolLit(_, b))) =>
+      ana_insert_text(ctx, u_gen, (j, s), string_of_bool(b), ty)
+    | (Construct(SChar(_)), CursorE(_)) => Failed
 
     | (Construct(SCase), _) when ZExp.is_before_zoperand(zoperand) =>
       let operand = zoperand |> ZExp.erase_zoperand;
@@ -3297,6 +3503,7 @@ module Exp = {
         Succeeded(mk_and_ana_fix_ZOpSeq(ctx, u_gen, zseq, ty));
       }
 
+    // TODO: consider how this interacts with subsumption case below
     | (Construct(_), CursorE(OnDelim(_, side), _))
         when
           !ZExp.is_before_zoperand(zoperand)
@@ -3454,11 +3661,7 @@ module Exp = {
       }
 
     /* Subsumption */
-    | (
-        UpdateApPalette(_) |
-        Construct(SApPalette(_) | SLine | SVar(_) | SNumLit(_) | SListNil),
-        _,
-      )
+    | (UpdateApPalette(_) | Construct(SApPalette(_) | SLine | SListNil), _)
     | (_, ApPaletteZ(_)) =>
       ana_perform_subsume(ctx, a, (ZExp.ZE0(zoperand), u_gen), ty)
     }

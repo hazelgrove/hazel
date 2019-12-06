@@ -44,6 +44,8 @@ let wild = (~err: ErrStatus.t=NotInHole, ()) => Wild(err);
 
 let boollit = (~err: ErrStatus.t=NotInHole, b: bool) => BoolLit(err, b);
 
+let numlit = (~err: ErrStatus.t=NotInHole, n: int) => NumLit(err, n);
+
 let listnil = (~err: ErrStatus.t=NotInHole, ()) => ListNil(err);
 
 let rec get_tuple_elements: skel => list(skel) =
