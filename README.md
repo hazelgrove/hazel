@@ -1,5 +1,8 @@
 # Hazel
 
+[![Build status: dev](https://img.shields.io/travis/hazelgrove/hazel/dev?label=build:%20dev)](https://travis-ci.org/hazelgrove/hazel)
+[![Build status: master](https://img.shields.io/travis/hazelgrove/hazel/master?label=build:%20master)](https://travis-ci.org/hazelgrove/hazel)
+
 ![Hazel Mascot](src/hazelweb/www/imgs/hazel-logo.png)
 
 Hazel is a live functional-programming environment rooted in the principles of
@@ -9,14 +12,6 @@ website](http://hazel.org/).
 You can try Hazel online with either the
 [stable](https://hazel.org/build/master/index.html) or
 [development](https://hazel.org/build/dev/index.html) version.
-
-### Build Status
-
-- Development branch (`dev`):
-  [![Build Status](https://travis-ci.org/hazelgrove/hazel.svg?branch=dev)](https://travis-ci.org/hazelgrove/hazel)
-
-- Stable branch (`master`):
-  [![Build Status](https://travis-ci.org/hazelgrove/hazel.svg?branch=master)](https://travis-ci.org/hazelgrove/hazel)
 
 ## Screenshot of Hazel in Action
 
