@@ -90,7 +90,7 @@ module type PALETTE = {
            None,
            Tm(
              NotInHole,
-             UHExp.OpSeq(Associator.associate_exp(apOpSeq), apOpSeq),
+             UHExp.OpSeq(Associator.Exp.associate(apOpSeq), apOpSeq),
            ),
          ),
        )
@@ -187,7 +187,7 @@ module type PALETTE = {
          Lam(
            fPat,
            None,
-           Tm(NotInHole, OpSeq(Associator.associate_exp(body), body)),
+           Tm(NotInHole, OpSeq(Associator.Exp.associate(body), body)),
          ),
        )
      );

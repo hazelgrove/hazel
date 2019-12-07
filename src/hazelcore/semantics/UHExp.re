@@ -20,6 +20,11 @@ let is_Space =
   | Space => true
   | _ => false;
 
+let is_Comma =
+  fun
+  | Comma => true
+  | _ => false;
+
 [@deriving sexp]
 type t =
   | E2(block)

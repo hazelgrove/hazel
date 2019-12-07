@@ -32,7 +32,7 @@ let hseps: list(t('tag)) => t('tag) =
 let vsep = (x, y) => Cat(x, Cat(Linebreak, y));
 let vseps: list(t('tag)) => t('tag) =
   fun
-  | [] => failwith(__LOC__ ++ ": vcats requires a non-empty list")
+  | [] => failwith(__LOC__ ++ ": vseps requires a non-empty list")
   | [doc] => doc
   | [doc, ...docs] => List.fold_left(vsep, doc, docs);
 

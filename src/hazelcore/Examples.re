@@ -1,9 +1,9 @@
 module StringMap = Map.Make(String);
 open Sexplib.Std;
 
-let mk_OpSeq_typ = OpSeq.mk(~associate=Associator.associate_ty);
-let mk_OpSeq_pat = OpSeq.mk(~associate=Associator.associate_pat);
-let mk_OpSeq_exp = OpSeq.mk(~associate=Associator.associate_exp);
+let mk_OpSeq_typ = OpSeq.mk(~associate=Associator.Typ.associate);
+let mk_OpSeq_pat = OpSeq.mk(~associate=Associator.Pat.associate);
+let mk_OpSeq_exp = OpSeq.mk(~associate=Associator.Exp.associate);
 
 let just_hole: UHExp.t = E0(EmptyHole(0));
 

@@ -82,7 +82,7 @@ module Typ = {
 
   let mk_ZOpSeq =
     ZOpSeq.mk(
-      ~associate=Associator.associate_ty,
+      ~associate=Associator.Typ.associate,
       ~erase_zoperand=ZTyp.erase_zoperand,
       ~erase_zoperator=ZTyp.erase_zoperator,
     );
@@ -596,7 +596,7 @@ module Pat = {
 
   let mk_ZOpSeq =
     ZOpSeq.mk(
-      ~associate=Associator.associate_pat,
+      ~associate=Associator.Pat.associate,
       ~erase_zoperand=ZPat.erase_zoperand,
       ~erase_zoperator=ZPat.erase_zoperator,
     );
@@ -1536,10 +1536,10 @@ module Exp = {
     | Or => SOr
     };
 
-  let mk_OpSeq = OpSeq.mk(~associate=Associator.associate_exp);
+  let mk_OpSeq = OpSeq.mk(~associate=Associator.Exp.associate);
   let mk_ZOpSeq =
     ZOpSeq.mk(
-      ~associate=Associator.associate_exp,
+      ~associate=Associator.Exp.associate,
       ~erase_zoperand=ZExp.erase_zoperand,
       ~erase_zoperator=ZExp.erase_zoperator,
     );

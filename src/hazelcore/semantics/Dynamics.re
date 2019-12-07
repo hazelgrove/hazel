@@ -1110,7 +1110,7 @@ module Exp = {
                  let lam = UHExp.Tm NotInHole (UHExp.Lam (UHExp.PaletteHoleData.mk_hole_ref_var_name n) bound) in
                  let hexp_ann = UHExp.Tm NotInHole (UHExp.Asc (UHExp.Parenthesized hexp) (UHTyp.contract htyp)) in
                  let opseq = Seq.ExpOpExp (UHExp.Parenthesized lam) UHExp.Space (UHExp.Parenthesized hexp_ann) in
-                 let ap = UHExp.OpSeq (Associator.associate_exp opseq) opseq in
+                 let ap = UHExp.OpSeq (Associator.Exp.associate opseq) opseq in
                  UHExp.Tm NotInHole ap
                )
                expansion in
