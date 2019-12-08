@@ -112,6 +112,12 @@ let replicate = (n: int, e: 'a): list('a) => {
   f(n, []);
 };
 
+let map_zip = (f: 'x => 'y, xs: list('x)): list(('x, 'y)) =>
+  zip(xs, xs |> List.map(f));
+
+let mapi_zip = (f: (int, 'x) => 'y, xs: list('x)): list(('x, 'y)) =>
+  zip(xs, xs |> List.mapi(f));
+
 /* remove the first n elements from the given list */
 let rec drop = (n: int, xs: list('a)) =>
   if (n > 0) {

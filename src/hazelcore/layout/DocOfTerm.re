@@ -254,7 +254,31 @@ let doc_of_Case =
   );
 };
 
-let rec doc_of_BinOp =
+let doc_of_tuple =
+    (
+      ~steps: CursorPath.steps,
+      ~enforce_inline: bool,
+      ~seq: Seq.t(_, 'operator),
+      elems: list(Skel.t('operator)),
+      elem_docs: list(doc),
+    )
+    : doc =>
+  switch (zip(elems, elem_docs)) {
+  | [] => failwith(__LOC__ ++ ": found empty tuple")
+  | [(_, hd_doc), ...tl] =>
+    tl
+    |> List.fold_left(
+         (tuple_so_far, (elem, elem_doc)) => {
+           let comma_index = Skel.rightmost_tm_index(elem) + Seq.length(seq);
+           let comma_doc =
+             doc_of_comma(~steps=steps @ [comma_index], ~enforce_inline, ());
+           Doc.hcats([tuple_so_far, comma_doc, elem_doc]);
+         },
+         hd_doc,
+       )
+  };
+
+let rec _doc_of_BinOp =
         (
           ~mk_BinOp_tag:
              (
@@ -274,8 +298,8 @@ let rec doc_of_BinOp =
           skel: Skel.t('operator),
         )
         : doc => {
-  let _doc_of_BinOp =
-    doc_of_BinOp(
+  let go =
+    _doc_of_BinOp(
       ~mk_BinOp_tag,
       ~doc_of_operand,
       ~doc_of_operator,
@@ -293,8 +317,8 @@ let rec doc_of_BinOp =
       let op_index = Skel.rightmost_tm_index(skel1) + Seq.length(seq);
       doc_of_operator(~steps=steps @ [op_index], op);
     };
-    let skel1_doc = _doc_of_BinOp(skel1);
-    let skel2_doc = _doc_of_BinOp(skel2);
+    let skel1_doc = go(skel1);
+    let skel2_doc = go(skel2);
     Doc.hcats([
       skel1_doc,
       op_doc |> pad_operator(~inline_padding=inline_padding_of_operator(op)),
@@ -304,9 +328,10 @@ let rec doc_of_BinOp =
   };
 };
 
-let doc_of_NTuple =
+let _doc_of_NTuple =
     (
-      ~is_Comma: 'operator => bool,
+      ~has_cursor=false,
+      ~is_comma: 'operator => bool,
       ~get_tuple_elements: Skel.t('operator) => list(Skel.t('operator)),
       ~mk_NTuple_tag: (ErrStatus.t, list(Skel.t('operator))) => Tag.t,
       ~mk_BinOp_tag:
@@ -325,7 +350,7 @@ let doc_of_NTuple =
   let elem_docs =
     elems
     |> List.map(
-         doc_of_BinOp(
+         _doc_of_BinOp(
            ~mk_BinOp_tag,
            ~doc_of_operand,
            ~doc_of_operator,
@@ -335,41 +360,225 @@ let doc_of_NTuple =
            ~seq,
          ),
        );
-  let tuple_doc =
-    switch (zip(elems, elem_docs)) {
-    | [] => failwith(__LOC__ ++ ": found empty tuple")
-    | [(_, hd_doc), ...tl] =>
-      tl
-      |> List.fold_left(
-           (tuple_so_far, (elem, elem_doc)) => {
-             let comma_index =
-               Skel.rightmost_tm_index(elem) + Seq.length(seq);
-             let comma_doc =
-               doc_of_comma(
-                 ~steps=steps @ [comma_index],
-                 ~enforce_inline,
-                 (),
-               );
-             Doc.hcats([tuple_so_far, comma_doc, elem_doc]);
-           },
-           hd_doc,
-         )
-    };
+  let doc = doc_of_tuple(~steps, ~enforce_inline, ~seq, elems, elem_docs);
   switch (skel) {
-  | BinOp(err, op, _, _) when op |> is_Comma =>
-    tuple_doc |> Doc.tag(mk_NTuple_tag(err, elems))
+  | BinOp(err, op, _, _) when op |> is_comma =>
+    doc |> Doc.tag(mk_NTuple_tag(err, elems))
   | _ =>
     // 1-tuple, no need to tag
-    tuple_doc
+    doc
+  };
+};
+
+let rec _doc_of_ZBinOp =
+        (
+          ~erase_zseq:
+             ZSeq.t('operand, 'operator, 'zoperand, 'zoperator) =>
+             Seq.t('operand, 'operator),
+          ~mk_BinOp_tag:
+             (
+               ~has_cursor: bool,
+               ErrStatus.t,
+               'operator,
+               Skel.t('operator),
+               Skel.t('operator)
+             ) =>
+             Tag.t,
+          ~doc_of_operand:
+             (~steps: CursorPath.steps, ~enforce_inline: bool, 'operand) => doc,
+          ~doc_of_operator: (~steps: CursorPath.steps, 'operator) => doc,
+          ~doc_of_zoperand:
+             (~steps: CursorPath.steps, ~enforce_inline: bool, 'zoperand) =>
+             doc,
+          ~doc_of_zoperator: (~steps: CursorPath.steps, 'zoperator) => doc,
+          ~inline_padding_of_operator: 'operator => (doc, doc),
+          ~steps: CursorPath.steps,
+          ~enforce_inline: bool,
+          ~zseq: ZSeq.t('operand, 'operator, 'zoperand, 'zoperator),
+          skel: Skel.t('operator),
+        )
+        : doc => {
+  let seq = zseq |> erase_zseq;
+  let go =
+    _doc_of_ZBinOp(
+      ~erase_zseq,
+      ~mk_BinOp_tag,
+      ~doc_of_operand,
+      ~doc_of_operator,
+      ~doc_of_zoperand,
+      ~doc_of_zoperator,
+      ~inline_padding_of_operator,
+      ~steps,
+      ~enforce_inline,
+      ~zseq,
+    );
+  let doc_of_BinOp =
+    _doc_of_BinOp(
+      ~mk_BinOp_tag=mk_BinOp_tag(~has_cursor=false),
+      ~doc_of_operand,
+      ~doc_of_operator,
+      ~inline_padding_of_operator,
+      ~steps,
+      ~enforce_inline,
+      ~seq,
+    );
+  switch (skel) {
+  | Placeholder(n) =>
+    let zoperand =
+      switch (zseq) {
+      | ZOperator(_) => assert(false)
+      | ZOperand(zoperand, _) => zoperand
+      };
+    doc_of_zoperand(~steps, ~enforce_inline, zoperand);
+  | BinOp(err, op, skel1, skel2) =>
+    let (has_cursor, op_doc, skel1_doc, skel2_doc) =
+      if (ZOpSeq.skel_is_rooted_at_cursor(skel, zseq)) {
+        let zop_doc =
+          switch (zseq) {
+          | ZOperand(_) => assert(false)
+          | ZOperator(zop, _) => doc_of_zoperator(~steps, zop)
+          };
+        (true, zop_doc, doc_of_BinOp(skel1), doc_of_BinOp(skel2));
+      } else {
+        let op_doc = {
+          let op_index = Skel.rightmost_tm_index(skel1) + Seq.length(seq);
+          doc_of_operator(~steps=steps @ [op_index], op);
+        };
+        let (skel1_doc, skel2_doc) =
+          ZOpSeq.skel_contains_cursor(skel1, zseq)
+            ? (go(skel1), doc_of_BinOp(skel2))
+            : (doc_of_BinOp(skel1), go(skel2));
+        (false, op_doc, skel1_doc, skel2_doc);
+      };
+    Doc.hcats([
+      skel1_doc,
+      op_doc |> pad_operator(~inline_padding=inline_padding_of_operator(op)),
+      skel2_doc,
+    ])
+    |> Doc.tag(mk_BinOp_tag(~has_cursor, err, op, skel1, skel2));
+  };
+};
+
+let _doc_of_ZNTuple =
+    (
+      ~is_comma: 'operator => bool,
+      ~is_zcomma: 'zoperator => bool,
+      ~erase_zseq:
+         ZSeq.t('operand, 'operator, 'zoperand, 'zoperator) =>
+         Seq.t('operand, 'operator),
+      ~get_tuple_elements: Skel.t('operator) => list(Skel.t('operator)),
+      ~mk_NTuple_tag:
+         (~has_cursor: bool, ErrStatus.t, list(Skel.t('operator))) => Tag.t,
+      ~mk_BinOp_tag:
+         (
+           ~has_cursor: bool,
+           ErrStatus.t,
+           'operator,
+           Skel.t('operator),
+           Skel.t('operator)
+         ) =>
+         Tag.t,
+      ~doc_of_operand:
+         (~steps: CursorPath.steps, ~enforce_inline: bool, 'operand) => doc,
+      ~doc_of_operator: (~steps: CursorPath.steps, 'operator) => doc,
+      ~doc_of_zoperand:
+         (~steps: CursorPath.steps, ~enforce_inline: bool, 'zoperand) => doc,
+      ~doc_of_zoperator: (~steps: CursorPath.steps, 'zoperator) => doc,
+      ~inline_padding_of_operator: 'operator => (doc, doc),
+      ~steps: CursorPath.steps,
+      ~enforce_inline: bool,
+      ZOpSeq(skel, zseq) as zopseq:
+        ZOpSeq.t('operand, 'operator, 'zoperand, 'zoperator),
+    )
+    : doc => {
+  let seq = zseq |> erase_zseq;
+  let elems = skel |> get_tuple_elements;
+  switch (zseq) {
+  | ZOperator(zop, surround) when zop |> is_zcomma =>
+    // cursor on tuple comma
+    let doc =
+      _doc_of_NTuple(
+        ~has_cursor=true,
+        ~is_comma,
+        ~get_tuple_elements,
+        ~mk_NTuple_tag=mk_NTuple_tag(~has_cursor=true),
+        ~mk_BinOp_tag=mk_BinOp_tag(~has_cursor=false),
+        ~doc_of_operand,
+        ~doc_of_operator,
+        ~inline_padding_of_operator,
+        ~steps,
+        ~enforce_inline,
+        OpSeq(skel, seq),
+      );
+    let err =
+      switch (skel) {
+      | BinOp(err, _, _, _) => err
+      | _ => assert(false)
+      };
+    doc |> Doc.tag(mk_NTuple_tag(~has_cursor=true, err, elems));
+  | _ =>
+    // cursor within tuple element
+    let doc_of_BinOp =
+      _doc_of_BinOp(
+        ~mk_BinOp_tag=mk_BinOp_tag(~has_cursor=false),
+        ~doc_of_operand,
+        ~doc_of_operator,
+        ~inline_padding_of_operator,
+        ~steps,
+        ~enforce_inline,
+        ~seq,
+      );
+    let doc_of_ZBinOp =
+      _doc_of_ZBinOp(
+        ~erase_zseq,
+        ~mk_BinOp_tag,
+        ~doc_of_operand,
+        ~doc_of_operator,
+        ~doc_of_zoperand,
+        ~doc_of_zoperator,
+        ~inline_padding_of_operator,
+        ~steps,
+        ~enforce_inline,
+        ~zseq,
+      );
+    let elem_docs =
+      elems
+      |> List.map(elem =>
+           ZOpSeq.skel_contains_cursor(elem, zseq)
+             ? doc_of_ZBinOp(elem) : doc_of_BinOp(elem)
+         );
+    let doc = doc_of_tuple(~steps, ~enforce_inline, ~seq, elems, elem_docs);
+    switch (skel) {
+    | BinOp(err, op, _, _) when op |> is_comma =>
+      doc |> Doc.tag(mk_NTuple_tag(~has_cursor=false, err, elems))
+    | _ =>
+      // 1-tuple, no need to tag
+      doc
+    };
   };
 };
 
 module Typ = {
+  let is_comma = UHTyp.is_Prod;
+  let get_tuple_elements = UHTyp.get_prod_elements;
+
   let inline_padding_of_operator =
     fun
     | UHTyp.Prod => (Doc.empty, Doc.space)
     | Arrow
     | Sum => (Doc.space, Doc.space);
+
+  let doc_of_NTuple =
+    _doc_of_NTuple(
+      ~is_comma,
+      ~get_tuple_elements,
+      ~mk_NTuple_tag=
+        (_err, elems) => Tag.mk_Term(~shape=TypNProd(elems), ()),
+      ~mk_BinOp_tag=
+        (_err, op, skel1, skel2) =>
+          Tag.mk_Term(~shape=TypBinOp(op, skel1, skel2), ()),
+      ~inline_padding_of_operator,
+    );
 
   let rec doc =
           (~steps: CursorPath.steps, ~enforce_inline: bool, uty: UHTyp.t): doc =>
@@ -381,16 +590,8 @@ module Typ = {
       (~steps: CursorPath.steps, ~enforce_inline: bool, opseq: UHTyp.opseq)
       : doc =>
     doc_of_NTuple(
-      ~is_Comma=UHTyp.is_Prod,
-      ~get_tuple_elements=UHTyp.get_prod_elements,
-      ~mk_NTuple_tag=
-        (_err, elems) => Tag.mk_Term(~shape=TypNProd(elems), ()),
-      ~mk_BinOp_tag=
-        (_err, op, skel1, skel2) =>
-          Tag.mk_Term(~shape=TypBinOp(op, skel1, skel2), ()),
       ~doc_of_operand,
       ~doc_of_operator,
-      ~inline_padding_of_operator,
       ~steps,
       ~enforce_inline,
       opseq,
@@ -423,12 +624,27 @@ module Typ = {
 };
 
 module Pat = {
+  let is_comma = UHPat.is_Comma;
+  let get_tuple_elements = UHPat.get_tuple_elements;
+
   let inline_padding_of_operator =
     Doc.(
       fun
       | UHPat.Comma => (empty, space)
       | Space
       | Cons => (empty, empty)
+    );
+
+  let doc_of_NTuple =
+    _doc_of_NTuple(
+      ~is_comma,
+      ~get_tuple_elements,
+      ~mk_NTuple_tag=
+        (err, elems) => Tag.mk_Term(~shape=PatNTuple(err, elems), ()),
+      ~mk_BinOp_tag=
+        (err, op, skel1, skel2) =>
+          Tag.mk_Term(~shape=PatBinOp(err, op, skel1, skel2), ()),
+      ~inline_padding_of_operator,
     );
 
   let rec doc =
@@ -441,16 +657,8 @@ module Pat = {
       (~steps: CursorPath.steps, ~enforce_inline: bool, opseq: UHPat.opseq)
       : doc =>
     doc_of_NTuple(
-      ~is_Comma=UHPat.is_Comma,
-      ~get_tuple_elements=UHPat.get_tuple_elements,
-      ~mk_NTuple_tag=
-        (err, elems) => Tag.mk_Term(~shape=PatNTuple(err, elems), ()),
-      ~mk_BinOp_tag=
-        (err, op, skel1, skel2) =>
-          Tag.mk_Term(~shape=PatBinOp(err, op, skel1, skel2), ()),
       ~doc_of_operand,
       ~doc_of_operator,
-      ~inline_padding_of_operator,
       ~steps,
       ~enforce_inline,
       opseq,
@@ -485,6 +693,11 @@ module Pat = {
 };
 
 module Exp = {
+  let is_comma = UHExp.is_Comma;
+  let is_zcomma = zop => zop |> ZExp.erase_zoperator |> is_comma;
+  let erase_zseq = ZExp.erase_zseq;
+  let get_tuple_elements = UHExp.get_tuple_elements;
+
   let inline_padding_of_operator =
     Doc.(
       fun
@@ -501,6 +714,36 @@ module Exp = {
       | Comma => (empty, space)
     );
 
+  let doc_of_NTuple =
+    _doc_of_NTuple(
+      ~is_comma,
+      ~get_tuple_elements,
+      ~mk_NTuple_tag=
+        (err, elems) => Tag.mk_Term(~shape=ExpNTuple(err, elems), ()),
+      ~mk_BinOp_tag=
+        (err, op, skel1, skel2) =>
+          Tag.mk_Term(~shape=ExpBinOp(err, op, skel1, skel2), ()),
+      ~inline_padding_of_operator,
+    );
+  let doc_of_ZNTuple =
+    _doc_of_ZNTuple(
+      ~is_comma,
+      ~is_zcomma,
+      ~erase_zseq,
+      ~get_tuple_elements,
+      ~mk_NTuple_tag=
+        (~has_cursor, err, elems) =>
+          Tag.mk_Term(~has_cursor, ~shape=ExpNTuple(err, elems), ()),
+      ~mk_BinOp_tag=
+        (~has_cursor, err, op, skel1, skel2) =>
+          Tag.mk_Term(
+            ~has_cursor,
+            ~shape=ExpBinOp(err, op, skel1, skel2),
+            (),
+          ),
+      ~inline_padding_of_operator,
+    );
+
   let rec doc =
           (~steps: CursorPath.steps, ~enforce_inline: bool, e: UHExp.t): doc =>
     switch (e) {
@@ -509,19 +752,22 @@ module Exp = {
     | E0(e0) => doc_of_operand(~steps, ~enforce_inline, e0)
     }
   and doc_of_block = (~steps: CursorPath.steps, block: UHExp.block): doc =>
-    switch (block |> split_last) {
-    | None => failwith(__LOC__ ++ ": doc_of_block expects a non-empty block")
-    | Some((leading, concluding)) =>
-      fold_right_i(
-        ((i, hd_line), tl_doc) => {
-          let hd_doc = doc_of_line(~steps=steps @ [i], hd_line);
-          Doc.vsep(hd_doc, tl_doc)
-          |> Doc.tag(Tag.mk_Term(~shape=ExpSubBlock(hd_line), ()));
-        },
-        leading,
-        doc_of_line(~steps=steps @ [List.length(block) - 1], concluding),
-      )
-    }
+    block
+    |> mapi_zip((i, line) => doc_of_line(~steps=steps @ [i], line))
+    |> split_last
+    |> (
+      fun
+      | None =>
+        failwith(__LOC__ ++ ": doc_of_block expected a non-empty block")
+      | Some((leading, (_, concluding_doc))) =>
+        fold_right_i(
+          ((i, (hd, hd_doc)), tl_doc) =>
+            Doc.vsep(hd_doc, tl_doc)
+            |> Doc.tag(Tag.mk_Term(~shape=ExpSubBlock(hd), ())),
+          leading,
+          concluding_doc,
+        )
+    )
   and doc_of_line = (~steps: CursorPath.steps, line: UHExp.line): doc =>
     switch (line) {
     | EmptyLine =>
@@ -579,16 +825,8 @@ module Exp = {
       (~steps: CursorPath.steps, ~enforce_inline: bool, opseq: UHExp.opseq)
       : doc =>
     doc_of_NTuple(
-      ~is_Comma=UHExp.is_Comma,
-      ~get_tuple_elements=UHExp.get_tuple_elements,
-      ~mk_NTuple_tag=
-        (err, elems) => Tag.mk_Term(~shape=ExpNTuple(err, elems), ()),
-      ~mk_BinOp_tag=
-        (err, op, skel1, skel2) =>
-          Tag.mk_Term(~shape=ExpBinOp(err, op, skel1, skel2), ()),
       ~doc_of_operand,
       ~doc_of_operator,
-      ~inline_padding_of_operator,
       ~steps,
       ~enforce_inline,
       opseq,
@@ -671,4 +909,57 @@ module Exp = {
     )
     |> Doc.tag(Tag.mk_Term(~shape=ExpRule(rule), ()));
   };
+
+  let rec doc_of_z =
+          (~steps: CursorPath.steps, ~enforce_inline: bool, ze: ZExp.t): doc =>
+    switch (ze) {
+    | ZE2(ze2) => enforce_inline ? Fail : doc_of_zblock(~steps, ze2)
+    | ZE1(ze1) => doc_of_zopseq(~steps, ~enforce_inline, ze1)
+    | ZE0(ze0) => doc_of_zoperand(~steps, ~enforce_inline, ze0)
+    }
+  and doc_of_zblock =
+      (
+        ~steps: CursorPath.steps,
+        (prefix, zline, suffix) as zblock: ZExp.zblock,
+      )
+      : doc => {
+    let block = zblock |> ZExp.erase_zblock;
+    let line_docs = {
+      let prefix_docs =
+        prefix
+        |> List.mapi((i, line) => doc_of_line(~steps=steps @ [i], line));
+      let zline_doc =
+        doc_of_zline(~steps=steps @ [List.length(prefix)], zline);
+      let suffix_docs =
+        suffix
+        |> List.mapi((i, line) =>
+             doc_of_line(~steps=steps @ [List.length(prefix) + 1 + i], line)
+           );
+      prefix_docs @ [zline_doc, ...suffix_docs];
+    };
+    switch (zip(block, line_docs) |> split_last) {
+    | None =>
+      failwith(__LOC__ ++ ": doc_of_zblock expected a non-empty block")
+    | Some((leading, (_, concluding_doc))) =>
+      fold_right_i(
+        ((i, (hd, hd_doc)), tl_doc) =>
+          Doc.vsep(hd_doc, tl_doc)
+          |> Doc.tag(Tag.mk_Term(~shape=ExpSubBlock(hd), ())),
+        leading,
+        concluding_doc,
+      )
+    };
+  }
+  and doc_of_zopseq =
+      (~steps: CursorPath.steps, ~enforce_inline: bool, zopseq: ZExp.zopseq)
+      : doc =>
+    doc_of_ZNTuple(
+      ~doc_of_operand,
+      ~doc_of_operator,
+      ~doc_of_zoperand,
+      ~doc_of_zoperator,
+      ~steps,
+      ~enforce_inline,
+      zopseq,
+    );
 };
