@@ -6,6 +6,11 @@ type operator =
   | Prod
   | Sum;
 
+let is_Prod =
+  fun
+  | Prod => true
+  | _ => false;
+
 [@deriving sexp]
 type t =
   | T1(opseq)
@@ -21,6 +26,12 @@ and operand =
 
 type skel = OpSeq.skel(operator);
 type seq = OpSeq.seq(operand, operator);
+
+let rec get_prod_elements: skel => list(skel) =
+  fun
+  | BinOp(_, Prod, skel1, skel2) =>
+    get_prod_elements(skel1) @ get_prod_elements(skel2)
+  | skel => [skel];
 
 let bidelimited =
   fun

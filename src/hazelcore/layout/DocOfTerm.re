@@ -113,9 +113,8 @@ let pad_child =
       );
 };
 
-let doc_of_EmptyHole = (~steps: CursorPath.steps, u: MetaVarGen.t): doc =>
-  Doc.Text(string_of_int(u))
-  |> Doc.tag(Tag.mk_Delim(~path=(steps, 0), ()));
+let doc_of_EmptyHole = (~steps: CursorPath.steps, u: string): doc =>
+  doc_of_delim(~path=(steps, 0), u);
 
 let doc_of_Wild = (~steps: CursorPath.steps): doc =>
   Doc.Text("_") |> Doc.tag(Tag.mk_Delim(~path=(steps, 0), ()));
@@ -147,6 +146,20 @@ let doc_of_Parenthesized =
     doc_of_delim(~path=(steps, 0), "(") |> Doc.tag(Tag.DelimGroup);
   let close_group =
     doc_of_delim(~path=(steps, 1), ")") |> Doc.tag(Tag.DelimGroup);
+  Doc.hcats([open_group, body |> pad_child(~enforce_inline), close_group]);
+};
+
+let doc_of_List =
+    (
+      ~steps: CursorPath.steps,
+      ~enforce_inline: bool,
+      body: (~enforce_inline: bool) => doc,
+    )
+    : doc => {
+  let open_group =
+    doc_of_delim(~path=(steps, 0), "[") |> Doc.tag(Tag.DelimGroup);
+  let close_group =
+    doc_of_delim(~path=(steps, 1), "]") |> Doc.tag(Tag.DelimGroup);
   Doc.hcats([open_group, body |> pad_child(~enforce_inline), close_group]);
 };
 
@@ -352,7 +365,61 @@ let doc_of_NTuple =
 };
 
 module Typ = {
-  let doc = (~steps as _, _) => failwith("unimplemented");
+  let inline_padding_of_operator =
+    fun
+    | UHTyp.Prod => (Doc.empty, Doc.space)
+    | Arrow
+    | Sum => (Doc.space, Doc.space);
+
+  let rec doc =
+          (~steps: CursorPath.steps, ~enforce_inline: bool, uty: UHTyp.t): doc =>
+    switch (uty) {
+    | T1(uty1) => doc_of_opseq(~steps, ~enforce_inline, uty1)
+    | T0(uty0) => doc_of_operand(~steps, ~enforce_inline, uty0)
+    }
+  and doc_of_opseq =
+      (~steps: CursorPath.steps, ~enforce_inline: bool, opseq: UHTyp.opseq)
+      : doc =>
+    doc_of_NTuple(
+      ~is_Comma=UHTyp.is_Prod,
+      ~get_tuple_elements=UHTyp.get_prod_elements,
+      ~mk_NTuple_tag=
+        (_err, elems) => Tag.mk_Term(~shape=TypNProd(elems), ()),
+      ~mk_BinOp_tag=
+        (_err, op, skel1, skel2) =>
+          Tag.mk_Term(~shape=TypBinOp(op, skel1, skel2), ()),
+      ~doc_of_operand,
+      ~doc_of_operator,
+      ~inline_padding_of_operator,
+      ~steps,
+      ~enforce_inline,
+      opseq,
+    )
+  and doc_of_operator = (~steps: CursorPath.steps, op: UHTyp.operator): doc =>
+    Doc.Text(Associator.Typ.string_of_op(op))
+    |> Doc.tag(Tag.mk_Op(~steps, ()))
+  and doc_of_operand =
+      (
+        ~steps: CursorPath.steps,
+        ~enforce_inline: bool,
+        operand: UHTyp.operand,
+      )
+      : doc => {
+    let doc =
+      switch (operand) {
+      | Hole => doc_of_EmptyHole(~steps, "?")
+      | Unit => doc_of_delim(~path=(steps, 0), "()")
+      | Num => doc_of_delim(~path=(steps, 0), LangUtil.typeN)
+      | Bool => doc_of_delim(~path=(steps, 0), LangUtil.typeB)
+      | Parenthesized(body) =>
+        let body_doc = doc(~steps=steps @ [0], body);
+        doc_of_Parenthesized(~steps, ~enforce_inline, body_doc);
+      | List(body) =>
+        let body_doc = doc(~steps=steps @ [0], body);
+        doc_of_List(~steps, ~enforce_inline, body_doc);
+      };
+    doc |> Doc.tag(Tag.mk_Term(~shape=TypOperand(operand), ()));
+  };
 };
 
 module Pat = {
@@ -400,7 +467,7 @@ module Pat = {
       : doc => {
     let doc =
       switch (operand) {
-      | EmptyHole(u) => doc_of_EmptyHole(~steps, u)
+      | EmptyHole(u) => doc_of_EmptyHole(~steps, string_of_int(u))
       | Wild(_) => doc_of_Wild(~steps)
       | Var(_, _, x) => doc_of_Var(~steps, x)
       | NumLit(_, n) => doc_of_NumLit(~steps, n)
@@ -538,14 +605,15 @@ module Exp = {
       : doc => {
     let doc =
       switch (operand) {
-      | EmptyHole(u) => doc_of_EmptyHole(~steps, u)
+      | EmptyHole(u) => doc_of_EmptyHole(~steps, string_of_int(u))
       | Var(_, _, x) => doc_of_Var(~steps, x)
       | NumLit(_, n) => doc_of_NumLit(~steps, n)
       | BoolLit(_, b) => doc_of_BoolLit(~steps, b)
       | ListNil(_) => doc_of_ListNil(~steps)
       | Lam(_, p, ann, body) =>
         let p_doc = Pat.doc(~steps=steps @ [0], p);
-        let ann_doc = ann |> Opt.map(Typ.doc(~steps=steps @ [1]));
+        let ann_doc =
+          ann |> Opt.map(ann => Typ.doc(~steps=steps @ [1], ann));
         let body_doc = doc(~steps=steps @ [2], body);
         doc_of_Lam(~steps, ~enforce_inline, p_doc, ann_doc, body_doc);
       | Inj(_, side, body) =>
@@ -566,7 +634,9 @@ module Exp = {
                );
           let ann_doc =
             ann
-            |> Opt.map(Typ.doc(~steps=steps @ [1 + List.length(rules)]));
+            |> Opt.map(ann =>
+                 Typ.doc(~steps=steps @ [1 + List.length(rules)], ann)
+               );
           doc_of_Case(~steps, scrut_doc, rule_docs, ann_doc);
         }
       | ApPalette(_) => failwith("unimplemented: doc_of_exp/ApPalette")
