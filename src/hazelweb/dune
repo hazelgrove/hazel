@@ -21,6 +21,7 @@
  (name main)
  (modules Main)
  (libraries hazelweb)
+ (modes js)
  (js_of_ocaml
   (flags
    (:include js-of-ocaml-flags-%{profile}))))
