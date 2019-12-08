@@ -7,7 +7,7 @@ type tag = DocOfTerm.Tag.t;
 
 let on_click_noneditable =
     (
-      ~inject: Action.t => Vdom.Event.t,
+      ~inject: Update.Action.t => Vdom.Event.t,
       path_before: CursorPath.t,
       path_after: CursorPath.t,
       evt,
@@ -26,7 +26,7 @@ let on_click_noneditable =
 
 let on_click_text =
     (
-      ~inject: Action.t => Vdom.Event.t,
+      ~inject: Update.Action.t => Vdom.Event.t,
       steps: CursorPath.steps,
       length: int,
       evt,
@@ -42,7 +42,8 @@ let on_click_text =
     let char_index =
       floor(
         from_left /. (from_left +. from_right) *. float_of_int(length) +. 0.5,
-      );
+      )
+      |> int_of_float;
     inject(Update.Action.EditAction(MoveTo((steps, OnText(char_index)))));
   };
 
@@ -65,20 +66,26 @@ let contenteditable_of_layout =
     (~inject: Update.Action.t => Vdom.Event.t, l: Layout.t(tag)): Vdom.Node.t => {
   open Vdom;
   let caret_position = (path: CursorPath.t): Node.t =>
-    Node.span([Attr.id(path_id(path))], [Node.text(nondisplay1)]);
-  let record: Layout.text('tag, list(Node.t), Node.t) = {
+    Node.span(
+      [Attr.id(path_id(path))],
+      [Node.text(LangUtil.nondisplay1)],
+    );
+  let record: Layout.text(tag, list(Node.t), Node.t) = {
     imp_of_string: str => [Node.text(str)],
     imp_of_tag: (tag, vs) =>
       switch (tag) {
       | Delim({path: (steps, delim_index), _}) =>
-        let path_before = (steps, OnDelim(delim_index, Before));
-        let path_after = (steps, OnDelim(delim_index, After));
+        let path_before: CursorPath.t = (
+          steps,
+          OnDelim(delim_index, Before),
+        );
+        let path_after: CursorPath.t = (steps, OnDelim(delim_index, After));
         [caret_position(path_before)]
         @ [Node.span([Attr.create("contenteditable", "false")], vs)]
         @ [caret_position(path_after)];
       | Op({steps, _}) =>
-        let path_before = (steps, OnOp(Before));
-        let path_after = (steps, OnOp(After));
+        let path_before: CursorPath.t = (steps, OnOp(Before));
+        let path_after: CursorPath.t = (steps, OnOp(After));
         [caret_position(path_before)]
         @ [Node.span([Attr.create("contenteditable", "false")], vs)]
         @ [caret_position(path_after)];
@@ -88,10 +95,16 @@ let contenteditable_of_layout =
       | Term(_) => vs
       },
     imp_append: (vs1, vs2) => vs1 @ vs2,
-    imp_newline: [Node.br([])],
+    imp_newline: indent => [
+      Node.br([]),
+      Node.span(
+        [Attr.create("contenteditable", "false")],
+        [Node.text(String.make(indent, ' '))],
+      ),
+    ],
     t_of_imp: vs => Node.span([], vs) // TODO: use something other than `span`?
   };
-  Layout.make_of_layout(record, layout);
+  Layout.make_of_layout(record, l);
 };
 
 let presentation_of_layout =
@@ -101,7 +114,7 @@ let presentation_of_layout =
   let on_click_noneditable = on_click_noneditable(~inject);
   let on_click_text = on_click_text(~inject);
 
-  let go = (l: Layout.t(_)): list(Node.t) =>
+  let rec go = (l: Layout.t(tag)): list(Node.t) =>
     switch (l) {
     | Text(str) => [Node.text(str)]
     | Cat(l1, l2) => go(l1) @ go(l2)
@@ -119,10 +132,13 @@ let presentation_of_layout =
         ),
       ]
 
-    | Tagged(Delim({path: (steps, delim_index), caret})) =>
+    | Tagged(Delim({path: (steps, delim_index), caret}), l) =>
       let attrs = {
-        let path_before = (steps, OnDelim(delim_index, Before));
-        let path_after = (steps, OnDelim(delim_index, After));
+        let path_before: CursorPath.t = (
+          steps,
+          OnDelim(delim_index, Before),
+        );
+        let path_after: CursorPath.t = (steps, OnDelim(delim_index, After));
         [Attr.on_click(on_click_noneditable(path_before, path_after))];
       };
       let children =
@@ -134,8 +150,8 @@ let presentation_of_layout =
 
     | Tagged(Op({steps, caret}), l) =>
       let attrs = {
-        let path_before = (steps, OnOp(Before));
-        let path_after = (steps, OnOp(After));
+        let path_before: CursorPath.t = (steps, OnOp(Before));
+        let path_after: CursorPath.t = (steps, OnOp(After));
         [Attr.on_click(on_click_noneditable(path_before, path_after))];
       };
       let children =
@@ -145,7 +161,7 @@ let presentation_of_layout =
         };
       [Node.span(attrs, children)];
 
-    | Tagged(Text({caret, length}), l) =>
+    | Tagged(Text({caret, length, steps}), l) =>
       let attrs = [Attr.on_click(on_click_text(steps, length))];
       let children =
         switch (caret) {
@@ -158,14 +174,14 @@ let presentation_of_layout =
       [Node.span(attrs, children)];
 
     | Tagged(Term({has_cursor, _}), l) =>
-      let attrs = has_cursor ? [Attr.classes("cursor")] : [];
+      let attrs = has_cursor ? [Attr.classes(["cursor"])] : [];
       [Node.span(attrs, go(l))];
     };
   Node.div([], go(l));
 };
 
 let view_of_layout =
-    (~inject: Update.Action.t => Vdom.Event.t, l: Layout.t(_))
+    (~inject: Update.Action.t => Vdom.Event.t, l: Layout.t(tag))
     : (Vdom.Node.t, Vdom.Node.t) => (
   contenteditable_of_layout(~inject, l),
   presentation_of_layout(~inject, l),
@@ -176,9 +192,12 @@ let view_of_exp =
     : (Vdom.Node.t, Vdom.Node.t) => {
   let l =
     e
-    |> DocOfTerm.Exp.doc_of(e)
-    |> LayoutOfDoc.layout_of_doc(~width=80, ~pos=0, doc);
-  view_of_layout(~inject, l);
+    |> DocOfTerm.Exp.doc(~steps=[], ~enforce_inline=false)
+    |> LayoutOfDoc.layout_of_doc(~width=80, ~pos=0);
+  switch (l) {
+  | None => failwith("unimplemented: view_of_exp on layout failure")
+  | Some(l) => view_of_layout(~inject, l)
+  };
 };
 
 let view_of_zexp =
@@ -188,5 +207,8 @@ let view_of_zexp =
     ze
     |> DocOfTerm.Exp.doc_of_z(ze)
     |> LayoutOfDoc.layout_of_doc(~width=80, ~pos=0, doc);
-  view_of_layout(~inject, l);
+  switch (l) {
+  | None => failwith("unimplemented: view_of_zexp on layout failure")
+  | Some(l) => view_of_layout(~inject, l)
+  };
 };
