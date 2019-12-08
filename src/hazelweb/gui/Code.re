@@ -3,7 +3,7 @@ module Vdom = Virtual_dom.Vdom;
 open GeneralUtil;
 open ViewUtil;
 
-type tag = DocOfTerm.tag;
+type tag = DocOfTerm.Tag.t;
 
 let on_click_noneditable =
     (

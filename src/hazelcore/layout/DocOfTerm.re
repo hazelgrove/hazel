@@ -68,10 +68,16 @@ let doc_of_delim =
   Doc.Text(delim_text) |> Doc.tag(Tag.mk_Delim(~caret?, ~path, ()));
 
 let doc_of_comma =
-    (~caret: option(Side.t)=?, ~steps: CursorPath.steps, ~inline: bool, ())
+    (
+      ~caret: option(Side.t)=?,
+      ~steps: CursorPath.steps,
+      ~enforce_inline: bool,
+      (),
+    )
     : doc => {
   let comma_doc = Doc.(Text(",") |> tag(Tag.mk_Op(~caret?, ~steps, ())));
-  let padding = Doc.(inline ? Text(" ") : choices([Text(" "), Linebreak]));
+  let padding =
+    Doc.(enforce_inline ? Text(" ") : choices([Text(" "), Linebreak]));
   Doc.hcats([comma_doc, padding]);
 };
 
@@ -88,19 +94,19 @@ let pad_operator =
 let pad_child =
     (
       ~inline_padding: (doc, doc)=(Doc.empty, Doc.empty),
-      ~inline: bool,
-      child: (~inline: bool) => doc,
+      ~enforce_inline: bool,
+      child: (~enforce_inline: bool) => doc,
     )
     : doc => {
   let (left, right) = inline_padding;
-  inline
-    ? Doc.hcats([left, child(~inline=true), right])
+  enforce_inline
+    ? Doc.hcats([left, child(~enforce_inline=true), right])
     : Doc.(
         choices([
-          hcats([left, child(~inline=true), right]),
+          hcats([left, child(~enforce_inline=true), right]),
           hcats([
             Linebreak,
-            indent_and_align(child(~inline=false)),
+            indent_and_align(child(~enforce_inline=false)),
             Linebreak,
           ]),
         ])
@@ -110,6 +116,9 @@ let pad_child =
 let doc_of_EmptyHole = (~steps: CursorPath.steps, u: MetaVarGen.t): doc =>
   Doc.Text(string_of_int(u))
   |> Doc.tag(Tag.mk_Delim(~path=(steps, 0), ()));
+
+let doc_of_Wild = (~steps: CursorPath.steps): doc =>
+  Doc.Text("_") |> Doc.tag(Tag.mk_Delim(~path=(steps, 0), ()));
 
 let doc_of_Var = (~steps: CursorPath.steps, x: Var.t): doc =>
   Doc.Text(x) |> Doc.tag(Tag.mk_Text(~steps, ~length=String.length(x), ()));
@@ -128,21 +137,25 @@ let doc_of_ListNil = (~steps: CursorPath.steps): doc =>
   Doc.Text("[]") |> Doc.tag(Tag.mk_Delim(~path=(steps, 0), ()));
 
 let doc_of_Parenthesized =
-    (~steps: CursorPath.steps, ~inline: bool, body: (~inline: bool) => doc)
+    (
+      ~steps: CursorPath.steps,
+      ~enforce_inline: bool,
+      body: (~enforce_inline: bool) => doc,
+    )
     : doc => {
   let open_group =
     doc_of_delim(~path=(steps, 0), "(") |> Doc.tag(Tag.DelimGroup);
   let close_group =
     doc_of_delim(~path=(steps, 1), ")") |> Doc.tag(Tag.DelimGroup);
-  Doc.hcats([open_group, body |> pad_child(~inline), close_group]);
+  Doc.hcats([open_group, body |> pad_child(~enforce_inline), close_group]);
 };
 
 let doc_of_Inj =
     (
       ~steps: CursorPath.steps,
-      ~inline: bool,
+      ~enforce_inline: bool,
       inj_side: InjSide.t,
-      body: (~inline: bool) => doc,
+      body: (~enforce_inline: bool) => doc,
     )
     : doc => {
   let open_group =
@@ -153,16 +166,16 @@ let doc_of_Inj =
     |> Doc.tag(Tag.DelimGroup);
   let close_group =
     doc_of_delim(~path=(steps, 1), ")") |> Doc.tag(Tag.DelimGroup);
-  Doc.hcats([open_group, body |> pad_child(~inline), close_group]);
+  Doc.hcats([open_group, body |> pad_child(~enforce_inline), close_group]);
 };
 
 let doc_of_Lam =
     (
       ~steps: CursorPath.steps,
-      ~inline: bool,
-      p: (~inline: bool) => doc,
-      ann: option((~inline: bool) => doc),
-      body: (~inline: bool) => doc,
+      ~enforce_inline: bool,
+      p: (~enforce_inline: bool) => doc,
+      ann: option((~enforce_inline: bool) => doc),
+      body: (~enforce_inline: bool) => doc,
     )
     : doc => {
   let open_group = {
@@ -170,14 +183,15 @@ let doc_of_Lam =
     let dot_delim = doc_of_delim(~path=(steps, 2), ".{");
     let doc =
       switch (ann) {
-      | None => Doc.hcats([lam_delim, p |> pad_child(~inline), dot_delim])
+      | None =>
+        Doc.hcats([lam_delim, p |> pad_child(~enforce_inline), dot_delim])
       | Some(ann) =>
         let colon_delim = doc_of_delim(~path=(steps, 1), ":");
         Doc.hcats([
           lam_delim,
-          p |> pad_child(~inline),
+          p |> pad_child(~enforce_inline),
           colon_delim,
-          ann |> pad_child(~inline),
+          ann |> pad_child(~enforce_inline),
           dot_delim,
         ]);
       };
@@ -185,15 +199,15 @@ let doc_of_Lam =
   };
   let close_group =
     doc_of_delim(~path=(steps, 3), "}") |> Doc.tag(Tag.DelimGroup);
-  Doc.hcats([open_group, body |> pad_child(~inline), close_group]);
+  Doc.hcats([open_group, body |> pad_child(~enforce_inline), close_group]);
 };
 
 let doc_of_Case =
     (
       ~steps: CursorPath.steps,
-      scrut: (~inline: bool) => doc,
+      scrut: (~enforce_inline: bool) => doc,
       rules: list(doc),
-      ann: option((~inline: bool) => doc),
+      ann: option((~enforce_inline: bool) => doc),
     )
     : doc => {
   let open_group =
@@ -205,8 +219,8 @@ let doc_of_Case =
       let end_delim = doc_of_delim(~path=(steps, 1), "end :");
       Doc.(
         choices([
-          hseps([end_delim, ann(~inline=true)]),
-          vseps([end_delim, indent_and_align(ann(~inline=false))]),
+          hseps([end_delim, ann(~enforce_inline=true)]),
+          vseps([end_delim, indent_and_align(ann(~enforce_inline=false))]),
         ])
       );
     };
@@ -214,8 +228,11 @@ let doc_of_Case =
     vseps(
       [
         choices([
-          hseps([open_group, scrut(~inline=true)]),
-          vseps([open_group, indent_and_align(scrut(~inline=false))]),
+          hseps([open_group, scrut(~enforce_inline=true)]),
+          vseps([
+            open_group,
+            indent_and_align(scrut(~enforce_inline=false)),
+          ]),
         ]),
         ...rules,
       ]
@@ -235,11 +252,11 @@ let rec doc_of_BinOp =
              ) =>
              Tag.t,
           ~doc_of_operand:
-             (~steps: CursorPath.steps, ~inline: bool, 'operand) => doc,
+             (~steps: CursorPath.steps, ~enforce_inline: bool, 'operand) => doc,
           ~doc_of_operator: (~steps: CursorPath.steps, 'operator) => doc,
           ~inline_padding_of_operator: 'operator => (doc, doc),
           ~steps: CursorPath.steps,
-          ~inline: bool,
+          ~enforce_inline: bool,
           ~seq: Seq.t('operand, 'operator),
           skel: Skel.t('operator),
         )
@@ -251,13 +268,13 @@ let rec doc_of_BinOp =
       ~doc_of_operator,
       ~inline_padding_of_operator,
       ~steps,
-      ~inline,
+      ~enforce_inline,
       ~seq,
     );
   switch (skel) {
   | Placeholder(n) =>
     let operand = seq |> Seq.nth_operand(n);
-    doc_of_operand(~steps=steps @ [n], ~inline, operand);
+    doc_of_operand(~steps=steps @ [n], ~enforce_inline, operand);
   | BinOp(err, op, skel1, skel2) =>
     let op_doc = {
       let op_index = Skel.rightmost_tm_index(skel1) + Seq.length(seq);
@@ -283,11 +300,11 @@ let doc_of_NTuple =
          (ErrStatus.t, 'operator, Skel.t('operator), Skel.t('operator)) =>
          Tag.t,
       ~doc_of_operand:
-         (~steps: CursorPath.steps, ~inline: bool, 'operand) => doc,
+         (~steps: CursorPath.steps, ~enforce_inline: bool, 'operand) => doc,
       ~doc_of_operator: (~steps: CursorPath.steps, 'operator) => doc,
       ~inline_padding_of_operator: 'operator => (doc, doc),
       ~steps: CursorPath.steps,
-      ~inline: bool,
+      ~enforce_inline: bool,
       OpSeq(skel, seq): OpSeq.t('operand, 'operator),
     )
     : doc => {
@@ -300,7 +317,7 @@ let doc_of_NTuple =
            ~doc_of_operand,
            ~doc_of_operator,
            ~inline_padding_of_operator,
-           ~inline,
+           ~enforce_inline,
            ~steps,
            ~seq,
          ),
@@ -315,7 +332,11 @@ let doc_of_NTuple =
              let comma_index =
                Skel.rightmost_tm_index(elem) + Seq.length(seq);
              let comma_doc =
-               doc_of_comma(~steps=steps @ [comma_index], ~inline, ());
+               doc_of_comma(
+                 ~steps=steps @ [comma_index],
+                 ~enforce_inline,
+                 (),
+               );
              Doc.hcats([tuple_so_far, comma_doc, elem_doc]);
            },
            hd_doc,
@@ -335,7 +356,65 @@ module Typ = {
 };
 
 module Pat = {
-  let doc = (~steps as _, _) => failwith("unimplemented");
+  let inline_padding_of_operator =
+    Doc.(
+      fun
+      | UHPat.Comma => (empty, space)
+      | Space
+      | Cons => (empty, empty)
+    );
+
+  let rec doc =
+          (~steps: CursorPath.steps, ~enforce_inline: bool, p: UHPat.t): doc =>
+    switch (p) {
+    | P1(p1) => doc_of_opseq(~steps, ~enforce_inline, p1)
+    | P0(p0) => doc_of_operand(~steps, ~enforce_inline, p0)
+    }
+  and doc_of_opseq =
+      (~steps: CursorPath.steps, ~enforce_inline: bool, opseq: UHPat.opseq)
+      : doc =>
+    doc_of_NTuple(
+      ~is_Comma=UHPat.is_Comma,
+      ~get_tuple_elements=UHPat.get_tuple_elements,
+      ~mk_NTuple_tag=
+        (err, elems) => Tag.mk_Term(~shape=PatNTuple(err, elems), ()),
+      ~mk_BinOp_tag=
+        (err, op, skel1, skel2) =>
+          Tag.mk_Term(~shape=PatBinOp(err, op, skel1, skel2), ()),
+      ~doc_of_operand,
+      ~doc_of_operator,
+      ~inline_padding_of_operator,
+      ~steps,
+      ~enforce_inline,
+      opseq,
+    )
+  and doc_of_operator = (~steps: CursorPath.steps, op: UHPat.operator): doc =>
+    Doc.Text(Associator.Pat.string_of_op(op))
+    |> Doc.tag(Tag.mk_Op(~steps, ()))
+  and doc_of_operand =
+      (
+        ~steps: CursorPath.steps,
+        ~enforce_inline: bool,
+        operand: UHPat.operand,
+      )
+      : doc => {
+    let doc =
+      switch (operand) {
+      | EmptyHole(u) => doc_of_EmptyHole(~steps, u)
+      | Wild(_) => doc_of_Wild(~steps)
+      | Var(_, _, x) => doc_of_Var(~steps, x)
+      | NumLit(_, n) => doc_of_NumLit(~steps, n)
+      | BoolLit(_, b) => doc_of_BoolLit(~steps, b)
+      | ListNil(_) => doc_of_ListNil(~steps)
+      | Parenthesized(body) =>
+        let body_doc = doc(~steps=steps @ [0], body);
+        doc_of_Parenthesized(~steps, ~enforce_inline, body_doc);
+      | Inj(_, side, body) =>
+        let body_doc = doc(~steps=steps @ [0], body);
+        doc_of_Inj(~steps, ~enforce_inline, side, body_doc);
+      };
+    doc |> Doc.tag(Tag.mk_Term(~shape=PatOperand(operand), ()));
+  };
 };
 
 module Exp = {
@@ -355,11 +434,12 @@ module Exp = {
       | Comma => (empty, space)
     );
 
-  let rec doc = (~steps: CursorPath.steps, ~inline: bool, e: UHExp.t): doc =>
+  let rec doc =
+          (~steps: CursorPath.steps, ~enforce_inline: bool, e: UHExp.t): doc =>
     switch (e) {
-    | E2(e2) => inline ? Fail : doc_of_block(~steps, e2)
-    | E1(e1) => doc_of_opseq(~steps, ~inline, e1)
-    | E0(e0) => doc_of_operand(~steps, ~inline, e0)
+    | E2(e2) => enforce_inline ? Fail : doc_of_block(~steps, e2)
+    | E1(e1) => doc_of_opseq(~steps, ~enforce_inline, e1)
+    | E0(e0) => doc_of_operand(~steps, ~enforce_inline, e0)
     }
   and doc_of_block = (~steps: CursorPath.steps, block: UHExp.block): doc =>
     switch (block |> split_last) {
@@ -379,7 +459,7 @@ module Exp = {
     switch (line) {
     | EmptyLine =>
       Doc.Text("") |> Doc.tag(Tag.mk_Text(~length=0, ~steps, ()))
-    | ExpLine(opseq) => doc_of_opseq(~steps, ~inline=false, opseq)
+    | ExpLine(opseq) => doc_of_opseq(~steps, ~enforce_inline=false, opseq)
     | LetLine(p, ann, def) =>
       let delim_group_1 = {
         let let_doc = doc_of_delim(~path=(steps, 0), "let");
@@ -391,7 +471,10 @@ module Exp = {
             Doc.hcats([
               let_doc,
               p_doc
-              |> pad_child(~inline_padding=(space, space), ~inline=false),
+              |> pad_child(
+                   ~inline_padding=(space, space),
+                   ~enforce_inline=false,
+                 ),
               eq_doc,
             ])
           | Some(ann) =>
@@ -400,10 +483,16 @@ module Exp = {
             Doc.hcats([
               let_doc,
               p_doc
-              |> pad_child(~inline_padding=(space, space), ~inline=false),
+              |> pad_child(
+                   ~inline_padding=(space, space),
+                   ~enforce_inline=false,
+                 ),
               colon_doc,
               ann_doc
-              |> pad_child(~inline_padding=(space, space), ~inline=false),
+              |> pad_child(
+                   ~inline_padding=(space, space),
+                   ~enforce_inline=false,
+                 ),
               eq_doc,
             ]);
           };
@@ -414,12 +503,14 @@ module Exp = {
         doc_of_delim(~path=(steps, 3), "in") |> Doc.tag(Tag.DelimGroup);
       Doc.hcats([
         delim_group_1,
-        def_doc |> pad_child(~inline_padding=(space, space), ~inline=false),
+        def_doc
+        |> pad_child(~inline_padding=(space, space), ~enforce_inline=false),
         delim_group_2,
       ]);
     }
   and doc_of_opseq =
-      (~steps: CursorPath.steps, ~inline: bool, opseq: UHExp.opseq): doc =>
+      (~steps: CursorPath.steps, ~enforce_inline: bool, opseq: UHExp.opseq)
+      : doc =>
     doc_of_NTuple(
       ~is_Comma=UHExp.is_Comma,
       ~get_tuple_elements=UHExp.get_tuple_elements,
@@ -432,14 +523,19 @@ module Exp = {
       ~doc_of_operator,
       ~inline_padding_of_operator,
       ~steps,
-      ~inline,
+      ~enforce_inline,
       opseq,
     )
   and doc_of_operator = (~steps: CursorPath.steps, op: UHExp.operator): doc =>
     Doc.Text(Associator.Exp.string_of_op(op))
     |> Doc.tag(Tag.mk_Op(~steps, ()))
   and doc_of_operand =
-      (~steps: CursorPath.steps, ~inline: bool, operand: UHExp.operand): doc => {
+      (
+        ~steps: CursorPath.steps,
+        ~enforce_inline: bool,
+        operand: UHExp.operand,
+      )
+      : doc => {
     let doc =
       switch (operand) {
       | EmptyHole(u) => doc_of_EmptyHole(~steps, u)
@@ -451,15 +547,15 @@ module Exp = {
         let p_doc = Pat.doc(~steps=steps @ [0], p);
         let ann_doc = ann |> Opt.map(Typ.doc(~steps=steps @ [1]));
         let body_doc = doc(~steps=steps @ [2], body);
-        doc_of_Lam(~steps, ~inline, p_doc, ann_doc, body_doc);
+        doc_of_Lam(~steps, ~enforce_inline, p_doc, ann_doc, body_doc);
       | Inj(_, side, body) =>
         let body_doc = doc(~steps=steps @ [0], body);
-        doc_of_Inj(~steps, ~inline, side, body_doc);
+        doc_of_Inj(~steps, ~enforce_inline, side, body_doc);
       | Parenthesized(body) =>
         let body_doc = doc(~steps=steps @ [0], body);
-        doc_of_Parenthesized(~steps, ~inline, body_doc);
+        doc_of_Parenthesized(~steps, ~enforce_inline, body_doc);
       | Case(_, scrut, rules, ann) =>
-        if (inline) {
+        if (enforce_inline) {
           Fail;
         } else {
           let scrut_doc = doc(~steps=steps @ [0], scrut);
@@ -486,7 +582,8 @@ module Exp = {
         doc_of_delim(~path=(steps, 1), LangUtil.caseArrowSym);
       Doc.hcats([
         bar_delim,
-        p_doc |> pad_child(~inline_padding=(space, space), ~inline=false),
+        p_doc
+        |> pad_child(~inline_padding=(space, space), ~enforce_inline=false),
         arrow_delim,
       ]);
     };
@@ -494,8 +591,11 @@ module Exp = {
     Doc.(
       hcats([
         choices([
-          hseps([delim_group, clause_doc(~inline=true)]),
-          vseps([delim_group, indent_and_align(clause_doc(~inline=false))]),
+          hseps([delim_group, clause_doc(~enforce_inline=true)]),
+          vseps([
+            delim_group,
+            indent_and_align(clause_doc(~enforce_inline=false)),
+          ]),
         ]),
       ])
     )
