@@ -1995,8 +1995,8 @@ module Exp = {
     /* Invalid cursor positions */
     | (
         _,
-        CursorL(OnDelim(_, _) | OnOp(_), EmptyLine) |
-        CursorL(OnText(_) | OnOp(_), LetLine(_, _, _)) |
+        CursorL(OnDelim(_) | OnOp(_), EmptyLine) |
+        CursorL(OnText(_) | OnOp(_), LetLine(_)) |
         CursorL(_, ExpLine(_)),
       ) =>
       Failed

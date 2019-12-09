@@ -51,6 +51,9 @@ and erase_zoperand =
   | ParenthesizedZ(zty) => Parenthesized(erase(zty))
   | ListZ(zty) => List(erase(zty));
 
+let erase_zseq = zseq =>
+  zseq |> ZSeq.erase(~erase_zoperand, ~erase_zoperator);
+
 let rec is_before: t => bool =
   fun
   | ZT1(zopseq) => zopseq |> is_before_zopseq

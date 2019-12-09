@@ -290,11 +290,37 @@ module ZList = {
       };
     };
 
+  let join = ((prefix, z, suffix): t('a, 'a)): list('a) =>
+    prefix @ [z, ...suffix];
+
   let replace_z = (z: 'z, (prefix, _, suffix): t('z, 'a)): t('z, 'a) => (
     prefix,
     z,
     suffix,
   );
+
+  let map =
+      (fz: 'y => 'z, f: 'a => 'b, (prefix, z, suffix): t('y, 'a))
+      : t('z, 'b) => (
+    prefix |> List.map(f),
+    z |> fz,
+    suffix |> List.map(f),
+  );
+
+  let mapi =
+      (
+        fz: (int, 'y) => 'z,
+        f: (int, 'a) => 'b,
+        (prefix, z, suffix): t('y, 'a),
+      )
+      : t('z, 'b) => {
+    let prefix_len = prefix |> List.length;
+    (
+      prefix |> List.mapi(f),
+      z |> fz(prefix_len),
+      suffix |> List.mapi((i, a) => f(prefix_len + 1 + i, a)),
+    );
+  };
 
   let optmap_z =
       (f: 'z1 => option('z2), zs: t('z1, 'a)): option(t('z2, 'a)) => {

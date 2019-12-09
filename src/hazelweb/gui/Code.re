@@ -1,9 +1,8 @@
 module Js = Js_of_ocaml.Js;
 module Vdom = Virtual_dom.Vdom;
-open GeneralUtil;
 open ViewUtil;
 
-type tag = DocOfTerm.Tag.t;
+type tag = TermTag.t;
 
 let on_click_noneditable =
     (
@@ -62,8 +61,7 @@ let caret_of_side: Side.t => Vdom.Node.t =
   | Before => caret_from_left(0.0)
   | After => caret_from_left(100.0);
 
-let contenteditable_of_layout =
-    (~inject: Update.Action.t => Vdom.Event.t, l: Layout.t(tag)): Vdom.Node.t => {
+let contenteditable_of_layout = (l: Layout.t(tag)): Vdom.Node.t => {
   open Vdom;
   let caret_position = (path: CursorPath.t): Node.t =>
     Node.span(
@@ -183,7 +181,7 @@ let presentation_of_layout =
 let view_of_layout =
     (~inject: Update.Action.t => Vdom.Event.t, l: Layout.t(tag))
     : (Vdom.Node.t, Vdom.Node.t) => (
-  contenteditable_of_layout(~inject, l),
+  contenteditable_of_layout(l),
   presentation_of_layout(~inject, l),
 );
 
@@ -205,8 +203,8 @@ let view_of_zexp =
     : (Vdom.Node.t, Vdom.Node.t) => {
   let l =
     ze
-    |> DocOfTerm.Exp.doc_of_z(ze)
-    |> LayoutOfDoc.layout_of_doc(~width=80, ~pos=0, doc);
+    |> DocOfTerm.Exp.doc_of_z(~steps=[], ~enforce_inline=false)
+    |> LayoutOfDoc.layout_of_doc(~width=80, ~pos=0);
   switch (l) {
   | None => failwith("unimplemented: view_of_zexp on layout failure")
   | Some(l) => view_of_layout(~inject, l)
