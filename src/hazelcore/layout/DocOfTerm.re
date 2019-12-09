@@ -494,19 +494,18 @@ let rec _doc_of_ZBinOp =
       };
     doc_of_zoperand(~steps, ~enforce_inline, zoperand);
   | BinOp(err, op, skel1, skel2) =>
+    let op_index = Skel.rightmost_tm_index(skel1) + Seq.length(seq);
     let (has_cursor, op_doc, skel1_doc, skel2_doc) =
       if (ZOpSeq.skel_is_rooted_at_cursor(skel, zseq)) {
         let zop_doc =
           switch (zseq) {
           | ZOperand(_) => assert(false)
-          | ZOperator(zop, _) => doc_of_zoperator(~steps, zop)
+          | ZOperator(zop, _) =>
+            doc_of_zoperator(~steps=steps @ [op_index], zop)
           };
         (true, zop_doc, doc_of_BinOp(skel1), doc_of_BinOp(skel2));
       } else {
-        let op_doc = {
-          let op_index = Skel.rightmost_tm_index(skel1) + Seq.length(seq);
-          doc_of_operator(~steps=steps @ [op_index], op);
-        };
+        let op_doc = doc_of_operator(~steps=steps @ [op_index], op);
         let (skel1_doc, skel2_doc) =
           ZOpSeq.skel_contains_cursor(skel1, zseq)
             ? (go(skel1), doc_of_BinOp(skel2))
