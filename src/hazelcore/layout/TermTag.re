@@ -22,10 +22,7 @@ type term_shape =
 [@deriving sexp]
 type t =
   | DelimGroup
-  | Padding({
-      path_before: CursorPath.t,
-      path_after: CursorPath.t,
-    })
+  | Padding
   | Delim({
       path: delim_path,
       caret: option(Side.t),
@@ -44,8 +41,6 @@ type t =
       has_cursor: bool,
     });
 
-let mk_Padding = (~path_before: CursorPath.t, ~path_after: CursorPath.t): t =>
-  Padding({path_before, path_after});
 let mk_Delim = (~caret: option(Side.t)=?, ~path: delim_path, ()): t =>
   Delim({caret, path});
 let mk_Op = (~caret: option(Side.t)=?, ~steps: CursorPath.steps, ()): t =>

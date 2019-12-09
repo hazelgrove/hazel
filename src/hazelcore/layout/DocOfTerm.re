@@ -23,22 +23,29 @@ let doc_of_comma =
       (),
     )
     : doc => {
+  let tag_padding = Doc.tag(TermTag.Padding);
   let comma_doc =
     Doc.(Text(",") |> tag(TermTag.mk_Op(~caret?, ~steps, ())));
   let padding =
-    Doc.(enforce_inline ? Text(" ") : choices([Text(" "), Linebreak]));
+    Doc.(
+      enforce_inline
+        ? tag_padding(Text(" "))
+        : choices([tag_padding(Text(" ")), Linebreak])
+    );
   Doc.hcats([comma_doc, padding]);
 };
 
 // for non-Comma operators
 let pad_operator =
-    (~inline_padding as (left, right): (doc, doc), operator: doc): doc =>
+    (~inline_padding as (left, right): (doc, doc), operator: doc): doc => {
+  let tag_padding = Doc.tag(TermTag.Padding);
   Doc.(
     choices([
-      hcats([left, operator, right]),
-      hcats([Linebreak, operator, right]),
+      hcats([left |> tag_padding, operator, right |> tag_padding]),
+      hcats([Linebreak, operator, right |> tag_padding]),
     ])
   );
+};
 
 let doc_of_op =
     (~caret: option(Side.t)=?, ~steps: CursorPath.steps, op_text: string, ())

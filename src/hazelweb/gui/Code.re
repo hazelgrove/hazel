@@ -90,8 +90,10 @@ let contenteditable_of_layout = (l: Layout.t(tag)): Vdom.Node.t => {
         @ [Node.span([Attr.create("contenteditable", "false")], vs)]
         @ [caret_position(path_after)];
       | Text({steps, _}) => [Node.span([Attr.id(text_id(steps))], vs)]
+      | Padding => [
+          Node.span([Attr.create("contenteditable", "false")], vs),
+        ]
       | DelimGroup
-      | Padding(_)
       | Term(_) => vs
       },
     imp_append: (vs1, vs2) => vs1 @ vs2,
@@ -148,12 +150,15 @@ let presentation_of_layout =
         Node.span([Attr.classes(["DelimGroup"])], go(l)),
       ]
 
-    | Tagged(Padding({path_before, path_after}), l) => [
-        Node.span(
-          [Attr.on_click(on_click_noneditable(path_before, path_after))],
-          go(l),
-        ),
-      ]
+    | Tagged(Padding, l) => go(l)
+    /*
+     | Tagged(Padding({path_before, path_after}), l) => [
+         Node.span(
+           [Attr.on_click(on_click_noneditable(path_before, path_after))],
+           go(l),
+         ),
+       ]
+     */
 
     | Tagged(Delim({path: (steps, delim_index), caret}), l) =>
       let attrs = {
