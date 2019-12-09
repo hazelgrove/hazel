@@ -486,13 +486,13 @@ let rec _doc_of_ZBinOp =
       ~seq,
     );
   switch (skel) {
-  | Placeholder(_) =>
+  | Placeholder(n) =>
     let zoperand =
       switch (zseq) {
       | ZOperator(_) => assert(false)
       | ZOperand(zoperand, _) => zoperand
       };
-    doc_of_zoperand(~steps, ~enforce_inline, zoperand);
+    doc_of_zoperand(~steps=steps @ [n], ~enforce_inline, zoperand);
   | BinOp(err, op, skel1, skel2) =>
     let op_index = Skel.rightmost_tm_index(skel1) + Seq.length(seq);
     let (has_cursor, op_doc, skel1_doc, skel2_doc) =
