@@ -135,6 +135,11 @@ let node_has_cls = (cls: string, node: Js.t(Dom.node)): bool =>
   | Some(elem) => elem_has_cls(cls, elem)
   };
 
+let get_selection_anchor = () => {
+  let selection = Dom_html.window##getSelection;
+  (selection##.anchorNode, selection##.anchorOffset);
+};
+
 let unset_caret = () => Dom_html.window##getSelection##removeAllRanges;
 
 let set_caret = (anchorNode, offset) => {

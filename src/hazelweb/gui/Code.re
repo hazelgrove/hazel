@@ -1,4 +1,6 @@
 module Js = Js_of_ocaml.Js;
+module Dom = Js_of_ocaml.Dom;
+module Dom_html = Js_of_ocaml.Dom_html;
 module Vdom = Virtual_dom.Vdom;
 open ViewUtil;
 
@@ -87,9 +89,9 @@ let contenteditable_of_layout = (l: Layout.t(tag)): Vdom.Node.t => {
         [caret_position(path_before)]
         @ [Node.span([Attr.create("contenteditable", "false")], vs)]
         @ [caret_position(path_after)];
+      | Text({steps, _}) => [Node.span([Attr.id(text_id(steps))], vs)]
       | DelimGroup
       | Padding(_)
-      | Text(_)
       | Term(_) => vs
       },
     imp_append: (vs1, vs2) => vs1 @ vs2,
@@ -104,6 +106,29 @@ let contenteditable_of_layout = (l: Layout.t(tag)): Vdom.Node.t => {
   };
   Layout.make_of_layout(record, l);
 };
+
+let caret_position_of_path =
+    ((steps, cursor) as path: CursorPath.t): (Js.t(Dom.node), int) =>
+  switch (cursor) {
+  | OnOp(side)
+  | OnDelim(_, side) => (
+      (
+        JSUtil.force_get_elem_by_id(path_id(path)): Js.t(Dom_html.element) :>
+          Js.t(Dom.node)
+      ),
+      switch (side) {
+      | Before => 1
+      | After => 0
+      },
+    )
+  | OnText(j) => (
+      (
+        JSUtil.force_get_elem_by_id(text_id(steps)): Js.t(Dom_html.element) :>
+          Js.t(Dom.node)
+      ),
+      j,
+    )
+  };
 
 let presentation_of_layout =
     (~inject: Update.Action.t => Vdom.Event.t, l: Layout.t(tag)): Vdom.Node.t => {
