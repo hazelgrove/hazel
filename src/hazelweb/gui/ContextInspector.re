@@ -38,7 +38,7 @@ let view =
           )
         ),
       )
-    | Some(Dynamics.DHExp.BoundVar(x')) when Var.eq(x, x') => None
+    | Some(DHExp.BoundVar(x')) when Var.eq(x, x') => None
     | Some(d) =>
       Some(
         Vdom.(
@@ -69,13 +69,13 @@ let view =
     let ctx = Contexts.gamma(model.cursor_info.ctx);
     let sigma =
       switch (model.result_state) {
-      | ResultsDisabled => Dynamics.DHExp.id_env(ctx)
+      | ResultsDisabled => DHExp.id_env(ctx)
       | Result(has_result_state) =>
         let (_, hii, _) = has_result_state.result;
         switch (has_result_state.selected_instance) {
-        | None => Dynamics.DHExp.id_env(ctx)
+        | None => DHExp.id_env(ctx)
         | Some(inst) =>
-          switch (Dynamics.DHExp.HoleInstanceInfo.lookup(hii, inst)) {
+          switch (DHExp.HoleInstanceInfo.lookup(hii, inst)) {
           | None => raise(InvalidInstance)
           | Some((sigma, _)) => sigma
           }
@@ -133,7 +133,7 @@ let view =
       )
     );
 
-  let path_view = (inst, path: Dynamics.DHExp.InstancePath.t) => {
+  let path_view = (inst, path: DHExp.InstancePath.t) => {
     let (titlebar_txt, path_area_children) =
       switch (path) {
       | [] => (
@@ -199,8 +199,7 @@ let view =
 
   let hii_summary =
       (hii, (u_, i_) as inst, context_inspector: Model.context_inspector) => {
-    let num_instances =
-      Dynamics.DHExp.HoleInstanceInfo.num_instances(hii, u_);
+    let num_instances = DHExp.HoleInstanceInfo.num_instances(hii, u_);
     let msg =
       Vdom.(
         Node.div(
@@ -349,7 +348,7 @@ let view =
             switch (has_result_state.selected_instance) {
             | Some((u', _) as inst) =>
               if (MetaVar.eq(u, u')) {
-                switch (Dynamics.DHExp.HoleInstanceInfo.lookup(hii, inst)) {
+                switch (DHExp.HoleInstanceInfo.lookup(hii, inst)) {
                 | Some((_, path)) => [
                     path_view_titlebar,
                     hii_summary(

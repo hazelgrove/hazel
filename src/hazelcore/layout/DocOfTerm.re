@@ -52,11 +52,12 @@ let pad_child =
     )
     : doc => {
   let (left, right) = inline_padding;
+  let inline_choice = Doc.hcats([left, child(~enforce_inline=true), right]);
   enforce_inline
-    ? Doc.hcats([left, child(~enforce_inline=true), right])
+    ? inline_choice
     : Doc.(
         choices([
-          hcats([left, child(~enforce_inline=true), right]),
+          inline_choice,
           hcats([
             Linebreak,
             indent_and_align(child(~enforce_inline=false)),
@@ -642,6 +643,41 @@ module Typ = {
           TermTag.mk_Term(~shape=TypBinOp(op, skel1, skel2), ()),
       ~inline_padding_of_operator,
     );
+
+  let rec doc_of_htyp =
+          (~steps: CursorPath.steps, ~enforce_inline: bool, ty: HTyp.t): doc =>
+    switch (ty) {
+    | Hole => doc_of_EmptyHole(~steps, "?")
+    | Unit => doc_of_Unit(~steps, ())
+    | Num => doc_of_Num(~steps, ())
+    | Bool => doc_of_Bool(~steps, ())
+    | List(ty) =>
+      Doc.hcats([
+        Text("["),
+        doc_of_htyp(~steps=steps @ [0], ty) |> pad_child(~enforce_inline),
+        Text("]"),
+      ])
+    | Arrow(ty1, ty2)
+    | Prod(ty1, ty2)
+    | Sum(ty1, ty2) =>
+      let padded_op =
+        switch (ty) {
+        | Arrow(_) =>
+          Doc.(
+            hcats([
+              choices([Linebreak, space]),
+              Text(LangUtil.typeArrowSym ++ " "),
+            ])
+          )
+        | Prod(_) => Doc.(hcats([Text(","), choices([Linebreak, space])]))
+        | _sum => Doc.(hcats([choices([Linebreak, space]), Text("| ")]))
+        };
+      Doc.hcats([
+        doc_of_htyp(~steps=steps @ [0], ~enforce_inline, ty1),
+        padded_op,
+        doc_of_htyp(~steps=steps @ [1], ~enforce_inline, ty2),
+      ]);
+    };
 
   let rec doc =
           (~steps: CursorPath.steps, ~enforce_inline: bool, uty: UHTyp.t): doc =>

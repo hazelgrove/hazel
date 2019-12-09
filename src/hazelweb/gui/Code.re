@@ -178,35 +178,48 @@ let presentation_of_layout =
   Node.div([], go(l));
 };
 
-let view_of_layout =
+let editor_view_of_layout =
     (~inject: Update.Action.t => Vdom.Event.t, l: Layout.t(tag))
     : (Vdom.Node.t, Vdom.Node.t) => (
   contenteditable_of_layout(l),
   presentation_of_layout(~inject, l),
 );
 
-let view_of_exp =
-    (~inject: Update.Action.t => Vdom.Event.t, e: UHExp.t)
+let view_of_htyp =
+    (~inject: Update.Action.t => Vdom.Event.t, ~width=20, ~pos=0, ty: HTyp.t)
+    : Vdom.Node.t => {
+  let l =
+    ty
+    |> DocOfTerm.Typ.doc_of_htyp(~steps=[], ~enforce_inline=false)
+    |> LayoutOfDoc.layout_of_doc(~width, ~pos);
+  switch (l) {
+  | None => failwith("unimplemented: view_of_htyp on layout failure")
+  | Some(l) => presentation_of_layout(~inject, l)
+  };
+};
+
+let editor_view_of_exp =
+    (~inject: Update.Action.t => Vdom.Event.t, ~width=80, ~pos=0, e: UHExp.t)
     : (Vdom.Node.t, Vdom.Node.t) => {
   let l =
     e
     |> DocOfTerm.Exp.doc(~steps=[], ~enforce_inline=false)
-    |> LayoutOfDoc.layout_of_doc(~width=80, ~pos=0);
+    |> LayoutOfDoc.layout_of_doc(~width, ~pos);
   switch (l) {
   | None => failwith("unimplemented: view_of_exp on layout failure")
-  | Some(l) => view_of_layout(~inject, l)
+  | Some(l) => editor_view_of_layout(~inject, l)
   };
 };
 
-let view_of_zexp =
-    (~inject: Update.Action.t => Vdom.Event.t, ze: ZExp.t)
+let editor_view_of_zexp =
+    (~inject: Update.Action.t => Vdom.Event.t, ~width=80, ~pos=0, ze: ZExp.t)
     : (Vdom.Node.t, Vdom.Node.t) => {
   let l =
     ze
     |> DocOfTerm.Exp.doc_of_z(~steps=[], ~enforce_inline=false)
-    |> LayoutOfDoc.layout_of_doc(~width=80, ~pos=0);
+    |> LayoutOfDoc.layout_of_doc(~width, ~pos);
   switch (l) {
   | None => failwith("unimplemented: view_of_zexp on layout failure")
-  | Some(l) => view_of_layout(~inject, l)
+  | Some(l) => editor_view_of_layout(~inject, l)
   };
 };

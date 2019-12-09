@@ -109,8 +109,8 @@ let view =
           {
             let (contenteditable, presentation) =
               model.is_cell_focused
-                ? Code.view_of_zexp(~inject, model |> Model.zexp)
-                : Code.view_of_exp(~inject, model |> Model.exp);
+                ? Code.editor_view_of_zexp(~inject, model |> Model.zexp)
+                : Code.editor_view_of_exp(~inject, model |> Model.exp);
             [contenteditable, presentation];
           },
           /*
