@@ -6,6 +6,8 @@ open ViewUtil;
 
 type tag = TermTag.t;
 
+let contenteditable_false = Vdom.Attr.create("contenteditable", "false");
+
 let term_attrs =
     (has_cursor: bool, shape: TermTag.term_shape): list(Vdom.Attr.t) => {
   let has_cursor_clss = has_cursor ? ["cursor"] : [];
@@ -66,9 +68,12 @@ let caret_from_left = (from_left: float): Vdom.Node.t => {
   let left_attr =
     Vdom.Attr.create(
       "style",
-      "left: " ++ string_of_float(from_left) ++ "%;",
+      "left: " ++ string_of_float(from_left) ++ "0%;",
     );
-  Vdom.Node.span([Vdom.Attr.id("caret"), left_attr], []);
+  Vdom.Node.span(
+    [Vdom.Attr.id("caret"), contenteditable_false, left_attr],
+    [],
+  );
 };
 
 let caret_of_side: Side.t => Vdom.Node.t =
@@ -94,18 +99,16 @@ let contenteditable_of_layout = (l: Layout.t(tag)): Vdom.Node.t => {
         );
         let path_after: CursorPath.t = (steps, OnDelim(delim_index, After));
         [caret_position(path_before)]
-        @ [Node.span([Attr.create("contenteditable", "false")], vs)]
+        @ [Node.span([contenteditable_false], vs)]
         @ [caret_position(path_after)];
       | Op({steps, _}) =>
         let path_before: CursorPath.t = (steps, OnOp(Before));
         let path_after: CursorPath.t = (steps, OnOp(After));
         [caret_position(path_before)]
-        @ [Node.span([Attr.create("contenteditable", "false")], vs)]
+        @ [Node.span([contenteditable_false], vs)]
         @ [caret_position(path_after)];
       | Text({steps, _}) => [Node.span([Attr.id(text_id(steps))], vs)]
-      | Padding => [
-          Node.span([Attr.create("contenteditable", "false")], vs),
-        ]
+      | Padding => [Node.span([contenteditable_false], vs)]
       | DelimGroup
       | Term(_) => vs
       },
@@ -113,7 +116,7 @@ let contenteditable_of_layout = (l: Layout.t(tag)): Vdom.Node.t => {
     imp_newline: indent => [
       Node.br([]),
       Node.span(
-        [Attr.create("contenteditable", "false")],
+        [contenteditable_false],
         [Node.text(String.make(indent, ' '))],
       ),
     ],
@@ -190,7 +193,7 @@ let presentation_of_layout =
         let path_after: CursorPath.t = (steps, OnDelim(delim_index, After));
         [
           Attr.on_click(on_click_noneditable(path_before, path_after)),
-          Attr.classes(["code-delimiter"]),
+          Attr.classes(["code-delim"]),
         ];
       };
       let children =
@@ -204,7 +207,10 @@ let presentation_of_layout =
       let attrs = {
         let path_before: CursorPath.t = (steps, OnOp(Before));
         let path_after: CursorPath.t = (steps, OnOp(After));
-        [Attr.on_click(on_click_noneditable(path_before, path_after))];
+        [
+          Attr.on_click(on_click_noneditable(path_before, path_after)),
+          Attr.classes(["code-op"]),
+        ];
       };
       let children =
         switch (caret) {
@@ -214,7 +220,10 @@ let presentation_of_layout =
       [Node.span(attrs, children)];
 
     | Tagged(Text({caret, length, steps}), l) =>
-      let attrs = [Attr.on_click(on_click_text(steps, length))];
+      let attrs = [
+        Attr.on_click(on_click_text(steps, length)),
+        Attr.classes(["code-text"]),
+      ];
       let children =
         switch (caret) {
         | None => go(l)

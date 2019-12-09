@@ -22,6 +22,8 @@
   --term-indicator-corner-size: 3px;
   --shifting-indicator-color: rgb(102, 163, 198);
   --page-padding: 15px;
+
+  --caret-color: red;
 }
 
 /* general */
@@ -763,8 +765,69 @@ button:disabled {
   font-size: 125%;
 }
 
-.code-delimiter {
+.code-delim {
   font-weight: bold;
+}
+
+.code-text, .code-op, .code-delim {
+  /* must position explicitly so that
+   * caret element can be absolutely
+   * positioned relative to container */
+  position: relative;
+}
+
+/* https://codepen.io/ArtemGordinsky/pen/GnLBq */
+#caret {
+  position: absolute;
+  display: inline-block;
+  font-weight: 100;
+  height: 1em;
+  width: 1.5px;
+  -webkit-animation: 1s blink step-end infinite;
+  -moz-animation: 1s blink step-end infinite;
+  -ms-animation: 1s blink step-end infinite;
+  -o-animation: 1s blink step-end infinite;
+  animation: 1s blink step-end infinite;
+}
+@keyframes "blink" {
+  from, to {
+    background-color: transparent;
+  }
+  50% {
+    background-color: var(--caret-color);
+  }
+}
+@-moz-keyframes blink {
+  from, to {
+    background-color: transparent;
+  }
+  50% {
+    background-color: var(--caret-color);
+  }
+}
+@-webkit-keyframes "blink" {
+  from, to {
+    background-color: transparent;
+  }
+  50% {
+    background-color: var(--caret-color);
+  }
+}
+@-ms-keyframes "blink" {
+  from, to {
+    background-color: transparent;
+  }
+  50% {
+    background-color: var(--caret-color);
+  }
+}
+@-o-keyframes "blink" {
+  from, to {
+    background-color: transparent;
+  }
+  50% {
+    background-color: var(--caret-color);
+  }
 }
 
 .SDelim-before,
