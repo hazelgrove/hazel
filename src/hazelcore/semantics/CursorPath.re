@@ -39,7 +39,7 @@ let of_zopseq =
     cons'(Seq.length_of_affix(prefix), of_zoperand(zoperand))
   | ZOperator((cursor, _), (prefix, suffix)) =>
     let length = Seq.length(prefix) + Seq.length(suffix);
-    ([length + Seq.length(prefix)], cursor);
+    ([length + Seq.length(prefix) - 1], cursor);
   };
 
 [@deriving sexp]
