@@ -117,7 +117,7 @@ let contenteditable_of_layout = (l: Layout.t(tag)): Vdom.Node.t => {
         [Node.text(String.make(indent, ' '))],
       ),
     ],
-    t_of_imp: vs => Node.span([], vs) // TODO: use something other than `span`?
+    t_of_imp: vs => Node.span([Attr.classes(["code"])], vs) // TODO: use something other than `span`?
   };
   Layout.make_of_layout(record, l);
 };
@@ -222,11 +222,11 @@ let presentation_of_layout =
         };
       [Node.span(attrs, children)];
 
-    | Tagged(Term({has_cursor, _}), l) =>
-      let attrs = has_cursor ? [Attr.classes(["cursor"])] : [];
-      [Node.span(attrs, go(l))];
+    | Tagged(Term({has_cursor, shape}), l) => [
+        Node.span(term_attrs(has_cursor, shape), go(l)),
+      ]
     };
-  Node.div([], go(l));
+  Node.div([Attr.classes(["code"])], go(l));
 };
 
 let editor_view_of_layout =
