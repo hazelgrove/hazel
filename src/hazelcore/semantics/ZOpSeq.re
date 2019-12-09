@@ -33,10 +33,20 @@ let wrap = zoperand => ZOpSeq(Placeholder(0), zoperand |> ZSeq.wrap);
 let skel_contains_cursor =
     (skel: Skel.t('operator), zseq: ZSeq.t(_, 'operator, _, _)): bool =>
   switch (zseq) {
-  | ZOperator(_, (prefix, _)) =>
-    Skel.rightmost_tm_index(skel) >= Seq.length(prefix)
+  | ZOperator(_, (prefix, suffix)) =>
+    let seq_len = Seq.length(prefix) + Seq.length(suffix);
+    let zoperator_index = seq_len + Seq.length(prefix) - 1;
+    let leftmost_operator_index = seq_len + Skel.leftmost_tm_index(skel);
+    let rightmost_operator_index =
+      seq_len + Skel.rightmost_tm_index(skel) - 1;
+    leftmost_operator_index <= zoperator_index
+    && zoperator_index <= rightmost_operator_index;
   | ZOperand(_, (prefix, _)) =>
-    Skel.rightmost_tm_index(skel) > Seq.length_of_affix(prefix)
+    let zoperand_index = Seq.length_of_affix(prefix);
+    let leftmost_operand_index = Skel.leftmost_tm_index(skel);
+    let rightmost_operand_index = Skel.rightmost_tm_index(skel);
+    leftmost_operand_index <= zoperand_index
+    && zoperand_index <= rightmost_operand_index;
   };
 
 let skel_is_rooted_at_cursor =
