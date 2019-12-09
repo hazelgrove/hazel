@@ -6,6 +6,19 @@ open ViewUtil;
 
 type tag = TermTag.t;
 
+let term_attrs =
+    (has_cursor: bool, shape: TermTag.term_shape): list(Vdom.Attr.t) => {
+  let has_cursor_clss = has_cursor ? ["cursor"] : [];
+  let shape_clss =
+    switch (shape) {
+    | TypOperand(Hole)
+    | PatOperand(EmptyHole(_))
+    | ExpOperand(EmptyHole(_)) => ["EmptyHole", "SEmptyHole-num"]
+    | _ => []
+    };
+  [Vdom.Attr.classes(has_cursor_clss @ shape_clss)];
+};
+
 let on_click_noneditable =
     (
       ~inject: Update.Action.t => Vdom.Event.t,
