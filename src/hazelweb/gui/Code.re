@@ -188,7 +188,10 @@ let presentation_of_layout =
           OnDelim(delim_index, Before),
         );
         let path_after: CursorPath.t = (steps, OnDelim(delim_index, After));
-        [Attr.on_click(on_click_noneditable(path_before, path_after))];
+        [
+          Attr.on_click(on_click_noneditable(path_before, path_after)),
+          Attr.classes(["code-delimiter"]),
+        ];
       };
       let children =
         switch (caret) {
