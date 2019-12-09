@@ -33,7 +33,9 @@ and operand =
   | Parenthesized(t)
   | Inj(ErrStatus.t, InjSide.t, t);
 
+[@deriving sexp]
 type skel = OpSeq.skel(operator);
+[@deriving sexp]
 type seq = OpSeq.seq(operand, operator);
 
 let var =

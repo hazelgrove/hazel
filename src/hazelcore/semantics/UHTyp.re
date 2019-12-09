@@ -24,7 +24,9 @@ and operand =
   | Parenthesized(t)
   | List(t);
 
+[@deriving sexp]
 type skel = OpSeq.skel(operator);
+[@deriving sexp]
 type seq = OpSeq.seq(operand, operator);
 
 let rec get_prod_elements: skel => list(skel) =

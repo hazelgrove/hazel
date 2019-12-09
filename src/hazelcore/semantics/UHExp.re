@@ -53,7 +53,9 @@ and rule =
 and splice_info = SpliceInfo.t(t)
 and splice_map = SpliceInfo.splice_map(t);
 
+[@deriving sexp]
 type skel = OpSeq.skel(operator);
+[@deriving sexp]
 type seq = OpSeq.seq(operand, operator);
 
 let letline = (p: UHPat.t, ~ann: option(UHTyp.t)=?, def: t): line =>

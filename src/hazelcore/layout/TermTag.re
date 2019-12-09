@@ -1,5 +1,7 @@
+open Sexplib.Std;
 open ViewUtil;
 
+[@deriving sexp]
 type term_shape =
   | TypOperand(UHTyp.operand)
   // invariant: skels do not contain Prod
@@ -17,6 +19,7 @@ type term_shape =
   // nested blocks starting with header line
   | ExpSubBlock(UHExp.line);
 
+[@deriving sexp]
 type t =
   | DelimGroup
   | Padding({

@@ -22,6 +22,7 @@ let view =
     );
   };
 
+  [@warning "-27"]
   let dynamic_info = (sigma, x) =>
     switch (VarMap.lookup(sigma, x)) {
     | None =>
@@ -47,7 +48,8 @@ let view =
             [
               Node.div(
                 [Attr.classes(["code"])],
-                [Code.view_of_dhexp(~inject, d)],
+                // [Code.view_of_dhexp(~inject, d)],
+                [],
               ),
             ],
           )
@@ -69,13 +71,13 @@ let view =
     let ctx = Contexts.gamma(model.cursor_info.ctx);
     let sigma =
       switch (model.result_state) {
-      | ResultsDisabled => DHExp.id_env(ctx)
+      | ResultsDisabled => Dynamics.Exp.id_env(ctx)
       | Result(has_result_state) =>
         let (_, hii, _) = has_result_state.result;
         switch (has_result_state.selected_instance) {
-        | None => DHExp.id_env(ctx)
+        | None => Dynamics.Exp.id_env(ctx)
         | Some(inst) =>
-          switch (DHExp.HoleInstanceInfo.lookup(hii, inst)) {
+          switch (HoleInstanceInfo.lookup(hii, inst)) {
           | None => raise(InvalidInstance)
           | Some((sigma, _)) => sigma
           }
@@ -106,12 +108,15 @@ let view =
     };
   };
 
+  [@warning "-26"]
   let path_view_titlebar =
     Panel.view_of_other_title_bar("Closure above observed at ");
+  [@warning "-26"]
   let instructional_msg = msg =>
     Vdom.(
       Node.div([Attr.classes(["instructional-msg"])], [Node.text(msg)])
     );
+  [@warning "-27"]
   let view_of_path_item = ((inst, x)) =>
     Vdom.(
       Node.div(
@@ -119,7 +124,8 @@ let view =
         [
           Node.div(
             [Attr.classes(["inst"])],
-            [Code.view_of_hole_instance(~inject, inst)],
+            // [Code.view_of_hole_instance(~inject, inst)],
+            [],
           ),
           Node.div(
             [Attr.classes(["inst-var-separator"])],
@@ -127,13 +133,16 @@ let view =
           ),
           Node.div(
             [Attr.classes(["path-var"])],
-            [Code.view_of_Var(~inject, x)],
+            // [Code.view_of_Var(~inject, x)],
+            [],
           ),
         ],
       )
     );
 
-  let path_view = (inst, path: DHExp.InstancePath.t) => {
+  [@warning "-26"]
+  [@warning "-27"]
+  let path_view = (inst, path: InstancePath.t) => {
     let (titlebar_txt, path_area_children) =
       switch (path) {
       | [] => (
@@ -166,7 +175,8 @@ let view =
               Vdom.(
                 Node.div(
                   [Attr.classes(["trailing-inst"])],
-                  [Code.view_of_hole_instance(~inject, inst)],
+                  // [Code.view_of_hole_instance(~inject, inst)],
+                  [],
                 )
               ),
             ],
@@ -197,9 +207,10 @@ let view =
     );
   };
 
+  [@warning "-26"]
   let hii_summary =
       (hii, (u_, i_) as inst, context_inspector: Model.context_inspector) => {
-    let num_instances = DHExp.HoleInstanceInfo.num_instances(hii, u_);
+    let num_instances = HoleInstanceInfo.num_instances(hii, u_);
     let msg =
       Vdom.(
         Node.div(
@@ -210,7 +221,8 @@ let view =
               [
                 Node.div(
                   [Attr.classes(["hii-summary-inst"])],
-                  [Code.view_of_hole_instance(~inject, inst)],
+                  // [Code.view_of_hole_instance(~inject, inst)],
+                  [],
                 ),
                 Node.text(" = hole "),
                 Node.span(
@@ -338,46 +350,52 @@ let view =
     switch (model.result_state) {
     | ResultsDisabled => Vdom.Node.div([], [])
     | Result(has_result_state) =>
-      let (_, hii, _) = has_result_state.result;
+      let (_, _hii, _) = has_result_state.result;
       if (VarMap.is_empty(Contexts.gamma(model.cursor_info.ctx))) {
         Vdom.Node.div([], []);
       } else {
-        let children =
-          switch (model.cursor_info.node) {
-          | CursorInfo.Exp(EmptyHole(u)) =>
-            switch (has_result_state.selected_instance) {
-            | Some((u', _) as inst) =>
-              if (MetaVar.eq(u, u')) {
-                switch (DHExp.HoleInstanceInfo.lookup(hii, inst)) {
-                | Some((_, path)) => [
-                    path_view_titlebar,
-                    hii_summary(
-                      hii,
-                      inst,
-                      has_result_state.context_inspector,
-                    ),
-                    path_view(inst, path),
-                  ]
-                | None => raise(InvalidInstance)
-                };
-              } else {
-                [
-                  instructional_msg(
-                    "Internal Error: cursor is not at the selected hole instance.",
-                  ),
-                ];
-              }
-            | None => [
-                instructional_msg("Click on a hole instance in the result"),
-              ]
-            }
-          | _ => [
-              instructional_msg(
-                "Move cursor to a hole, or click a hole instance in the result, to see  closures.",
-              ),
-            ]
-          };
-        Vdom.(Node.div([Attr.classes(["the-path-viewer"])], children));
+        /*
+         let children =
+           switch (model.cursor_info.node) {
+           | CursorInfo.Exp(EmptyHole(u)) =>
+             switch (has_result_state.selected_instance) {
+             | Some((u', _) as inst) =>
+               if (MetaVar.eq(u, u')) {
+                 switch (DHExp.HoleInstanceInfo.lookup(hii, inst)) {
+                 | Some((_, path)) => [
+                     path_view_titlebar,
+                     /*
+                      hii_summary(
+                        hii,
+                        inst,
+                        has_result_state.context_inspector,
+                      ),
+                      */
+                     path_view(inst, path),
+                   ]
+                 | None => raise(InvalidInstance)
+                 };
+               } else {
+                 [
+                   instructional_msg(
+                     "Internal Error: cursor is not at the selected hole instance.",
+                   ),
+                 ];
+               }
+             | None => [
+                 instructional_msg("Click on a hole instance in the result"),
+               ]
+             }
+           | _ => [
+               instructional_msg(
+                 "Move cursor to a hole, or click a hole instance in the result, to see  closures.",
+               ),
+             ]
+           };
+         */
+        Vdom.(
+          Node.div([Attr.classes(["the-path-viewer"])], [] /* children */)
+        );
       };
     };
   };

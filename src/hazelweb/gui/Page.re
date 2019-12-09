@@ -137,7 +137,8 @@ let page_view =
             ),
             Node.div(
               [Attr.classes(["result-view"])],
-              [Code.view_of_result(~inject, model)],
+              // [Code.view_of_result(~inject, model)],
+              [],
             ),
           ],
         )
@@ -201,8 +202,13 @@ let page_view =
                     Node.button(
                       [
                         Attr.on_click(_ => {
-                          let block = model |> Model.zexp |> ZExp.erase_zblock;
-                          let doc = DocOfTerm.doc_of_block(~steps=[], block);
+                          let e = model |> Model.exp;
+                          let doc =
+                            DocOfTerm.Exp.doc(
+                              ~steps=[],
+                              ~enforce_inline=false,
+                              e,
+                            );
                           Printf.printf(
                             "doc sexp: %s\n",
                             Sexplib.Sexp.to_string(
@@ -217,10 +223,7 @@ let page_view =
                             Printf.printf(
                               "layout sexp: %s\n",
                               Sexplib.Sexp.to_string(
-                                Layout.sexp_of_t(
-                                  DocOfTerm.sexp_of_tag,
-                                  layout,
-                                ),
+                                Layout.sexp_of_t(TermTag.sexp_of_t, layout),
                               ),
                             );
                             Printf.printf(
@@ -236,12 +239,10 @@ let page_view =
                     Node.button(
                       [
                         Attr.on_click(_ => {
-                          let block = model |> Model.zexp |> ZExp.erase_block;
+                          let e = model |> Model.exp;
                           JSUtil.log(
                             Js.string(
-                              Sexplib.Sexp.to_string(
-                                UHExp.sexp_of_block(block),
-                              ),
+                              Sexplib.Sexp.to_string(UHExp.sexp_of_t(e)),
                             ),
                           );
                           Event.Ignore;

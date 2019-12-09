@@ -1,5 +1,6 @@
 open GeneralUtil;
 
+[@deriving sexp]
 type doc = Doc.t(TermTag.t);
 
 let space = Doc.space;
