@@ -143,12 +143,23 @@ let get_selection_anchor = () => {
 let unset_caret = () => Dom_html.window##getSelection##removeAllRanges;
 
 let set_caret = (anchorNode, offset) => {
-  let selection = Dom_html.window##getSelection;
-  let range = Dom_html.document##createRange;
-  range##setStart(anchorNode, offset);
-  range##setEnd(anchorNode, offset);
-  selection##removeAllRanges;
-  selection##addRange(range);
+  let go = () => {
+    let selection = Dom_html.window##getSelection;
+    let range = Dom_html.document##createRange;
+    range##setStart(anchorNode, offset);
+    range##setEnd(anchorNode, offset);
+    selection##removeAllRanges;
+    selection##addRange(range);
+  };
+  switch (go()) {
+  | () => ()
+  | exception e =>
+    log(Js.string(__LOC__ ++ ": Failed to set caret"));
+    log(Js.string(Printexc.to_string(e)));
+    log(anchorNode);
+    log(offset);
+    assert(false);
+  };
 };
 
 let reset_caret = () => {

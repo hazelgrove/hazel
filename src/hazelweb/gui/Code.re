@@ -113,23 +113,31 @@ let caret_position_of_path =
     ((steps, cursor) as path: CursorPath.t): (Js.t(Dom.node), int) =>
   switch (cursor) {
   | OnOp(side)
-  | OnDelim(_, side) => (
-      (
-        JSUtil.force_get_elem_by_id(path_id(path)): Js.t(Dom_html.element) :>
-          Js.t(Dom.node)
+  | OnDelim(_, side) =>
+    let anchor_parent = (
+      JSUtil.force_get_elem_by_id(path_id(path)): Js.t(Dom_html.element) :>
+        Js.t(Dom.node)
+    );
+    (
+      Js.Opt.get(anchor_parent##.firstChild, () =>
+        failwith(__LOC__ ++ ": Found caret position without child text")
       ),
       switch (side) {
       | Before => 1
       | After => 0
       },
-    )
-  | OnText(j) => (
-      (
-        JSUtil.force_get_elem_by_id(text_id(steps)): Js.t(Dom_html.element) :>
-          Js.t(Dom.node)
+    );
+  | OnText(j) =>
+    let anchor_parent = (
+      JSUtil.force_get_elem_by_id(text_id(steps)): Js.t(Dom_html.element) :>
+        Js.t(Dom.node)
+    );
+    (
+      Js.Opt.get(anchor_parent##.firstChild, () =>
+        failwith(__LOC__ ++ ": Found Text node without child text")
       ),
       j,
-    )
+    );
   };
 
 let presentation_of_layout =
