@@ -1689,37 +1689,17 @@ let rec syn_perform_pat =
   | (Construct(SVar(x, cursor)), CursorP(_, Var(_, _, _)))
   | (Construct(SVar(x, cursor)), CursorP(_, NumLit(_, _)))
   | (Construct(SVar(x, cursor)), CursorP(_, BoolLit(_, _))) =>
-    if (Var.is_true(x)) {
-      Succeeded((
-        CursorP(cursor, BoolLit(NotInHole, true)),
-        Bool,
-        ctx,
-        u_gen,
-      ));
-    } else if (Var.is_false(x)) {
-      Succeeded((
-        CursorP(cursor, BoolLit(NotInHole, false)),
-        Bool,
-        ctx,
-        u_gen,
-      ));
-    } else if (Var.is_let(x)) {
+    switch (Keyword.transform_to_kw(x)) {
+    | TermKW(_, p, ty) => Succeeded((CursorP(cursor, p), ty, ctx, u_gen))
+    | IntermediateKW(k) =>
       let (u, u_gen) = MetaVarGen.next(u_gen);
       Succeeded((
-        CursorP(cursor, Var(NotInHole, InVarHole(Keyword(Let), u), x)),
+        CursorP(cursor, Var(NotInHole, InVarHole(Keyword(k), u), x)),
         Hole,
         ctx,
         u_gen,
       ));
-    } else if (Var.is_case(x)) {
-      let (u, u_gen) = MetaVarGen.next(u_gen);
-      Succeeded((
-        CursorP(cursor, Var(NotInHole, InVarHole(Keyword(Case), u), x)),
-        Hole,
-        ctx,
-        u_gen,
-      ));
-    } else {
+    | NotKW =>
       check_valid(
         x,
         {
@@ -1731,7 +1711,7 @@ let rec syn_perform_pat =
             u_gen,
           ));
         },
-      );
+      )
     }
   | (Construct(SVar(_, _)), CursorP(_, _)) => Failed
   | (Construct(SWild), CursorP(_, EmptyHole(_)))
@@ -2362,38 +2342,28 @@ and ana_perform_pat =
     | None => Failed
     | Some(ctx) => Succeeded((ParenthesizedZ(zp), ctx, u_gen))
     }
-  | (Construct(SVar("true", _)), _)
-  | (Construct(SVar("false", _)), _) =>
-    switch (syn_perform_pat(ctx, u_gen, a, zp)) {
-    | (Failed | CantShift | CursorEscaped(_)) as err => err
-    | Succeeded((zp, ty', ctx, u_gen)) =>
-      if (HTyp.consistent(ty, ty')) {
-        Succeeded((zp, ctx, u_gen));
-      } else {
-        let (zp, u_gen) = ZPat.make_t_inconsistent(u_gen, zp);
-        Succeeded((zp, ctx, u_gen));
-      }
-    }
   | (Construct(SVar(x, cursor)), CursorP(_, EmptyHole(_)))
   | (Construct(SVar(x, cursor)), CursorP(_, Wild(_)))
   | (Construct(SVar(x, cursor)), CursorP(_, Var(_, _, _)))
   | (Construct(SVar(x, cursor)), CursorP(_, NumLit(_, _)))
   | (Construct(SVar(x, cursor)), CursorP(_, BoolLit(_, _))) =>
-    if (Var.is_let(x)) {
+    switch (Keyword.transform_to_kw(x)) {
+    | TermKW(_, p, ty') =>
+      if (HTyp.consistent(ty, ty')) {
+        Succeeded((zp, ctx, u_gen));
+      } else {
+        let (p, u_gen) = UHPat.make_t_inconsistent(u_gen, p);
+        let zp = ZPat.CursorP(cursor, p);
+        Succeeded((zp, ctx, u_gen));
+      }
+    | IntermediateKW(k) =>
       let (u, u_gen) = MetaVarGen.next(u_gen);
       Succeeded((
-        CursorP(cursor, Var(NotInHole, InVarHole(Keyword(Let), u), x)),
+        CursorP(cursor, Var(NotInHole, InVarHole(Keyword(k), u), x)),
         ctx,
         u_gen,
       ));
-    } else if (Var.is_case(x)) {
-      let (u, u_gen) = MetaVarGen.next(u_gen);
-      Succeeded((
-        CursorP(cursor, Var(NotInHole, InVarHole(Keyword(Case), u), x)),
-        ctx,
-        u_gen,
-      ));
-    } else {
+    | NotKW =>
       check_valid(
         x,
         {
@@ -2404,7 +2374,7 @@ and ana_perform_pat =
             u_gen,
           ));
         },
-      );
+      )
     }
   | (Construct(SVar(_, _)), CursorP(_, _)) => Failed
   | (Construct(SWild), CursorP(_, EmptyHole(_)))
@@ -2734,7 +2704,7 @@ let keyword_suffix_to_exp =
     (OpSeq(skel, opseq), u_gen);
   };
 
-let keyword_action = (kw: Keyword.t): t =>
+let keyword_action = (kw: IntermediateKeyword.t): t =>
   switch (kw) {
   | Let => Construct(SLet)
   | Case => Construct(SCase)
@@ -4801,40 +4771,21 @@ and syn_perform_exp =
     /* just move the cursor over if there is already an ascription */
     let ze = ZExp.CaseZA(NotInHole, e1, rules, ZTyp.place_before(uty));
     Succeeded((E(ze), ty, u_gen));
-  | (Construct(SAsc), CursorE(_, _)) => Failed
+  | (Construct(SAsc), CursorE(_, _)) => Failed /* TODO add all the cases here */
   | (Construct(SVar(x, cursor)), CursorE(_, EmptyHole(_)))
   | (Construct(SVar(x, cursor)), CursorE(_, Var(_, _, _)))
   | (Construct(SVar(x, cursor)), CursorE(_, NumLit(_, _)))
   | (Construct(SVar(x, cursor)), CursorE(_, BoolLit(_, _))) =>
-    if (String.equal(x, "true")) {
-      Succeeded((
-        E(CursorE(cursor, BoolLit(NotInHole, true))),
-        Bool,
-        u_gen,
-      ));
-    } else if (String.equal(x, "false")) {
-      Succeeded((
-        E(CursorE(cursor, BoolLit(NotInHole, false))),
-        Bool,
-        u_gen,
-      ));
-    } else if (Var.is_let(x)) {
+    switch (Keyword.transform_to_kw(x)) {
+    | TermKW(e, _, ty) => Succeeded((E(CursorE(cursor, e)), ty, u_gen))
+    | IntermediateKW(k) =>
       let (u, u_gen) = MetaVarGen.next(u_gen);
       Succeeded((
-        E(CursorE(cursor, Var(NotInHole, InVarHole(Keyword(Let), u), x))),
+        E(CursorE(cursor, Var(NotInHole, InVarHole(Keyword(k), u), x))),
         Hole,
         u_gen,
       ));
-    } else if (Var.is_case(x)) {
-      let (u, u_gen) = MetaVarGen.next(u_gen);
-      Succeeded((
-        E(
-          CursorE(cursor, Var(NotInHole, InVarHole(Keyword(Case), u), x)),
-        ),
-        Hole,
-        u_gen,
-      ));
-    } else {
+    | NotKW =>
       check_valid(
         x,
         {
@@ -4857,7 +4808,7 @@ and syn_perform_exp =
             ));
           };
         },
-      );
+      )
     }
   | (Construct(SVar(_, _)), CursorE(_, _)) => Failed
   | (Construct(SLam), CursorE(_, _) as ze1) =>
@@ -7285,7 +7236,7 @@ let can_perform =
     | Line(_) => false
     | Exp(EmptyHole(_)) => true
     | Exp(_) => false
-    | Pat(EmptyHole(_)) => true
+    | Pat(OtherPat(EmptyHole(_))) => true
     | Pat(_) => false
     | Typ(_) => false
     | Rule(_) => false
@@ -7339,11 +7290,10 @@ let can_enter_varchar = (ci: CursorInfo.t): bool =>
   | Exp(Var(_, _, _))
   | Exp(EmptyHole(_))
   | Exp(BoolLit(_, _))
-  | Pat(Var(_, _, _))
-  | Pat(EmptyHole(_))
-  | Pat(BoolLit(_, _)) => true
+  | Pat(VarPat(_, _) | OtherPat(EmptyHole(_)) | OtherPat(BoolLit(_, _))) =>
+    true
   | Exp(NumLit(_, _))
-  | Pat(NumLit(_, _)) =>
+  | Pat(OtherPat(NumLit(_, _))) =>
     switch (ci.position) {
     | OnText(_) => true
     | _ => false
@@ -7361,8 +7311,7 @@ let can_enter_numeral = (ci: CursorInfo.t): bool =>
   | Line(ExpLine(EmptyHole(_)))
   | Exp(NumLit(_, _))
   | Exp(EmptyHole(_))
-  | Pat(NumLit(_, _))
-  | Pat(EmptyHole(_)) => true
+  | Pat(OtherPat(NumLit(_, _) | EmptyHole(_))) => true
   | Line(_)
   | Exp(_)
   | Rule(_)

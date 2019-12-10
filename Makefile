@@ -4,10 +4,10 @@ all: dev
 
 deps:
 	opam install \
-		core dune incr_dom oUnit ppx_let ppx_sexp_conv reason re \
-		rtop sexplib utop
+		dune reason utop rtop \
+		incr_dom js_of_ocaml ppx_let ppx_sexp_conv re sexplib
 
-dev debug:
+dev:
 	dune build @src/fmt --auto-promote || true
 	dune build src --profile dev
 
@@ -21,13 +21,10 @@ echo-html:
 	@echo "$(HTML_DIR)/index.html"
 
 win-chrome:
-	"/mnt/c/Program Files (x86)/Google/Chrome/Application/chrome.exe" $(make echo-html)
-
-#TODO: win-chromium:
+	"/mnt/c/Program Files (x86)/Google/Chrome/Application/chrome.exe" "$(HTML_DIR)/index.html"
 
 win-firefox:
-	"/mnt/c/Program Files (x86)/Mozilla Firefox/firefox.exe" $(make echo-html)
-
+	"/mnt/c/Program Files (x86)/Mozilla Firefox/firefox.exe" "$(HTML_DIR)/index.html"
 
 repl:
 	dune utop src/hazelcore
@@ -35,4 +32,4 @@ repl:
 clean:
 	dune clean
 
-.PHONY: all deps dev debug release test chrome chromium chromium-browser firefox repl clean
+.PHONY: all deps dev release echo-html-dir echo-html win-chrome win-firefox repl clean

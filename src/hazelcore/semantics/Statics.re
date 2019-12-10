@@ -971,11 +971,21 @@ let rec syn_fix_holes_pat =
       (p, HTyp.Hole, ctx, u_gen);
     }
   | Wild(_) => (p_nih, Hole, ctx, u_gen)
-  | Var(_, InVarHole(Free, _), _) => raise(UHPat.FreeVarInPat)
-  | Var(_, InVarHole(Keyword(_), _), _) => (p_nih, Hole, ctx, u_gen)
-  | Var(_, NotInVarHole, x) =>
-    let ctx = Contexts.extend_gamma(ctx, (x, Hole));
-    (p_nih, Hole, ctx, u_gen);
+  | Var(_, _, x) =>
+    switch (Keyword.transform_to_kw(x)) {
+    | TermKW(_, p, ty) => (p, ty, ctx, u_gen)
+    | IntermediateKW(kw) =>
+      let (u, u_gen) = MetaVarGen.next(u_gen);
+      (
+        UHPat.Var(NotInHole, InVarHole(Keyword(kw), u), x),
+        Hole,
+        ctx,
+        u_gen,
+      );
+    | NotKW =>
+      let (u, u_gen) = MetaVarGen.next(u_gen);
+      (UHPat.Var(NotInHole, InVarHole(Free, u), x), Hole, ctx, u_gen);
+    }
   | NumLit(_, _) => (p_nih, Num, ctx, u_gen)
   | BoolLit(_, _) => (p_nih, Bool, ctx, u_gen)
   | ListNil(_) => (p_nih, List(Hole), ctx, u_gen)
@@ -1456,22 +1466,19 @@ and syn_fix_holes_exp =
     } else {
       (e, Hole, u_gen);
     }
-  | Var(_, var_err_status, x) =>
+  | Var(_, _, x) =>
     let gamma = Contexts.gamma(ctx);
     switch (VarMap.lookup(gamma, x)) {
     | Some(ty) => (UHExp.Var(NotInHole, NotInVarHole, x), ty, u_gen)
     | None =>
-      switch (var_err_status) {
-      | InVarHole(_, _) => (e_nih, HTyp.Hole, u_gen)
-      | NotInVarHole =>
+      switch (Keyword.transform_to_kw(x)) {
+      | TermKW(e, _, ty) => (e, ty, u_gen)
+      | IntermediateKW(kw) =>
         let (u, u_gen) = MetaVarGen.next(u_gen);
-        let reason: VarErrStatus.HoleReason.t =
-          switch (Var.is_let(x), Var.is_case(x)) {
-          | (true, _) => Keyword(Let)
-          | (_, true) => Keyword(Case)
-          | _ => Free
-          };
-        (Var(NotInHole, InVarHole(reason, u), x), Hole, u_gen);
+        (UHExp.Var(NotInHole, InVarHole(Keyword(kw), u), x), Hole, u_gen);
+      | NotKW =>
+        let (u, u_gen) = MetaVarGen.next(u_gen);
+        (UHExp.Var(NotInHole, InVarHole(Free, u), x), Hole, u_gen);
       }
     };
   | NumLit(_, _) => (e_nih, Num, u_gen)
