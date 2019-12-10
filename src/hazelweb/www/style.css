@@ -19,7 +19,7 @@
   --child-indicator-normal-color: white;
   --child-indicator-staging-color: #fcffda;
   --term-indicator-color: #678a61;
-  --term-indicator-corner-size: 3px;
+  --term-indicator-corner-size: 5px;
   --shifting-indicator-color: rgb(102, 163, 198);
   --page-padding: 15px;
 
@@ -774,6 +774,28 @@ button:disabled {
    * caret element can be absolutely
    * positioned relative to container */
   position: relative;
+}
+
+.cursor {
+  position: relative;
+}
+#cursor-before {
+  display: block;
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: var(--term-indicator-corner-size);
+  height: var(--term-indicator-corner-size);
+  fill: red;
+}
+#cursor-after {
+  display: block;
+  position: absolute;
+  top: 100%;
+  left: 100%;
+  width: var(--term-indicator-corner-size);
+  height: var(--term-indicator-corner-size);
+  fill: red;
 }
 
 /* https://codepen.io/ArtemGordinsky/pen/GnLBq */

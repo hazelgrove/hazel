@@ -15,7 +15,7 @@ let term_attrs =
     switch (shape) {
     | TypOperand(Hole)
     | PatOperand(EmptyHole(_))
-    | ExpOperand(EmptyHole(_)) => ["EmptyHole", "SEmptyHole-num"]
+    | ExpOperand(EmptyHole(_)) => ["EmptyHole"]
     | _ => []
     };
   [Vdom.Attr.classes(has_cursor_clss @ shape_clss)];
@@ -156,6 +156,31 @@ let caret_position_of_path =
     );
   };
 
+let exp_cursor_before = _ =>
+  Vdom.(
+    Node.svg(
+      "svg",
+      [
+        Attr.id("cursor-before"),
+        Attr.classes(["exp"]),
+        Attr.create("viewBox", "0 0 1 1"),
+      ],
+      [Node.svg("polygon", [Attr.create("points", "0,0 1,0 0,1")], [])],
+    )
+  );
+let exp_cursor_after = _ =>
+  Vdom.(
+    Node.svg(
+      "svg",
+      [
+        Attr.id("cursor-after"),
+        Attr.classes(["exp"]),
+        Attr.create("viewBox", "0 0 1 1"),
+      ],
+      [Node.svg("polygon", [Attr.create("points", "1,1 1,0 0,1")], [])],
+    )
+  );
+
 let presentation_of_layout =
     (~inject: Update.Action.t => Vdom.Event.t, l: Layout.t(tag)): Vdom.Node.t => {
   open Vdom;
@@ -234,9 +259,51 @@ let presentation_of_layout =
         };
       [Node.span(attrs, children)];
 
-    | Tagged(Term({has_cursor, shape}), l) => [
-        Node.span(term_attrs(has_cursor, shape), go(l)),
-      ]
+    | Tagged(Term({has_cursor, shape: TypOperand(Hole) as shape}), _) =>
+      let has_cursor_clss = has_cursor ? ["cursor"] : [];
+      let hole_lbl =
+        Node.span([Attr.classes(["SEmptyHole-num"])], [Node.text("?")]);
+      let children =
+        has_cursor
+          ? [exp_cursor_before(shape), hole_lbl, exp_cursor_after(shape)]
+          : [hole_lbl];
+      [
+        Node.span(
+          [Attr.classes(["EmptyHole", ...has_cursor_clss])],
+          children,
+        ),
+      ];
+    | Tagged(
+        Term({has_cursor, shape: PatOperand(EmptyHole(u)) as shape}),
+        _,
+      )
+    | Tagged(
+        Term({has_cursor, shape: ExpOperand(EmptyHole(u)) as shape}),
+        _,
+      ) =>
+      let has_cursor_clss = has_cursor ? ["cursor"] : [];
+      let hole_lbl =
+        Node.span(
+          [Attr.classes(["SEmptyHole-num"])],
+          [Node.text(string_of_int(u + 1))],
+        );
+      let children =
+        has_cursor
+          ? [exp_cursor_before(shape), hole_lbl, exp_cursor_after(shape)]
+          : [hole_lbl];
+      [
+        Node.span(
+          [Attr.classes(["EmptyHole", ...has_cursor_clss])],
+          children,
+        ),
+      ];
+    | Tagged(Term({has_cursor, shape}), l) =>
+      let children =
+        has_cursor
+          ? [exp_cursor_before(shape), ...go(l)]
+            @ [exp_cursor_after(shape)]
+          : go(l);
+      [Node.span(term_attrs(has_cursor, shape), children)];
     };
   Node.div([Attr.classes(["code"])], go(l));
 };
