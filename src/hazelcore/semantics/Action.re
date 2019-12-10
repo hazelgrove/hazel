@@ -2751,7 +2751,7 @@ let zexp_is_suitable_for_var_split = (zexp: ZExp.t) =>
 let is_zexp_split_on_keyword = (zexp: ZExp.t) => {
   switch (ZExp.cursor_on_var(zexp)) {
   | Some((pos, _, _, name)) =>
-    Keyword.of_string(String.sub(name, 0, pos)) != None
+    Keyword.transform_to_kw(String.sub(name, 0, pos)) != NotKW
   | _ => false
   };
 };
@@ -3498,7 +3498,11 @@ let rec syn_perform_block =
     let zlines = (prefix, ZExp.place_before_line(EmptyLine), suffix);
     let zblock = ZExp.BlockZL(zlines, e2);
     let (left_var, right_var) = split_variable_name_into_strings(pos, name);
-    let keyword = left_var |> Keyword.of_string |> GeneralUtil.Opt.get_exn;
+    let keyword =
+      left_var
+      |> Keyword.transform_to_kw
+      |> Keyword.get_intermediate_kw
+      |> Option.get;
     let result =
       syn_perform_block(
         ~ci,
@@ -3557,8 +3561,9 @@ let rec syn_perform_block =
     | Some((pos, _, _, name)) =>
       let keyword =
         String.sub(name, 0, pos)
-        |> Keyword.of_string
-        |> GeneralUtil.Opt.get_exn;
+        |> Keyword.transform_to_kw
+        |> Keyword.get_intermediate_kw
+        |> Option.get;
       let var = String.sub(name, pos, String.length(name) - pos);
       let (ze, u_gen) = ZExp.new_EmptyHole(u_gen);
       let action = Construct(SVar(var, OnText(String.length(name) - pos)));
@@ -5957,7 +5962,11 @@ and ana_perform_block =
     let zlines = (prefix, ZExp.place_before_line(EmptyLine), suffix);
     let zblock = ZExp.BlockZL(zlines, e2);
     let (left_var, right_var) = split_variable_name_into_strings(pos, name);
-    let keyword = left_var |> Keyword.of_string |> GeneralUtil.Opt.get_exn;
+    let keyword =
+      left_var
+      |> Keyword.transform_to_kw
+      |> Keyword.get_intermediate_kw
+      |> Option.get;
     let result =
       ana_perform_block(
         ~ci,
@@ -5985,8 +5994,9 @@ and ana_perform_block =
     | Some((pos, _, _, name)) =>
       let keyword =
         String.sub(name, 0, pos)
-        |> Keyword.of_string
-        |> GeneralUtil.Opt.get_exn;
+        |> Keyword.transform_to_kw
+        |> Keyword.get_intermediate_kw
+        |> Option.get;
       let var = String.sub(name, pos, String.length(name) - pos);
       let (ze, u_gen) = ZExp.new_EmptyHole(u_gen);
       let action = Construct(SVar(var, OnText(String.length(name) - pos)));
