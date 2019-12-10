@@ -72,6 +72,8 @@ type skel = OpSeq.skel(operator);
 [@deriving sexp]
 type seq = OpSeq.seq(operand, operator);
 
+type affix = Seq.affix(operand, operator);
+
 let letline = (p: UHPat.t, ~ann: option(UHTyp.t)=?, def: t): line =>
   LetLine(p, ann, def);
 
