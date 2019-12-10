@@ -258,9 +258,15 @@ let presentation_of_layout =
         switch (caret) {
         | None => go(l)
         | Some(char_index) =>
-          let index = float_of_int(char_index);
-          let length = float_of_int(length);
-          [caret_from_left(100.0 *. (index /. length)), ...go(l)];
+          let from_left =
+            if (length == 0) {
+              0.0;
+            } else {
+              let index = float_of_int(char_index);
+              let length = float_of_int(length);
+              100.0 *. index /. length;
+            };
+          [caret_from_left(from_left), ...go(l)];
         };
       [Node.span(attrs, children)];
 
