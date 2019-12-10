@@ -8,6 +8,12 @@ type operator =
   | Space
   | Cons;
 
+let string_of_operator =
+  fun
+  | Comma => ","
+  | Space => " "
+  | Cons => "::";
+
 let is_Space =
   fun
   | Space => true

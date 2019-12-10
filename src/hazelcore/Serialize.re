@@ -1,9 +1,13 @@
 open Sexplib;
-open LangUtil;
 
 let ensure_well_typed_before_serialization = e =>
   switch (Statics.Exp.syn((VarMap.empty, PaletteCtx.empty), e)) {
-  | None => raise(IllFormed(e))
+  | None =>
+    failwith(
+      __LOC__
+      ++ ": Ill-formed expression\n"
+      ++ Sexp.to_string(UHExp.sexp_of_t(e)),
+    )
   | _ => e
   };
 

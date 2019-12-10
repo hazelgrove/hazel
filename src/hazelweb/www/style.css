@@ -852,6 +852,10 @@ button:disabled {
   }
 }
 
+.DelimGroup {
+  background-color: var(--node-indicator-normal-color);
+}
+
 .SDelim-before,
 .SDelim-after,
 .SOp-before,

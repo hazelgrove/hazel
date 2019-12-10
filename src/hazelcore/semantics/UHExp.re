@@ -15,6 +15,20 @@ type operator =
   | And
   | Or;
 
+let string_of_operator =
+  fun
+  | Space => " "
+  | Plus => "+"
+  | Minus => "-"
+  | Times => "*"
+  | LessThan => "<"
+  | GreaterThan => ">"
+  | Equals => "=="
+  | Comma => ","
+  | Cons => "::"
+  | And => "&&"
+  | Or => "||";
+
 let is_Space =
   fun
   | Space => true

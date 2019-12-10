@@ -6,6 +6,12 @@ type operator =
   | Prod
   | Sum;
 
+let string_of_operator =
+  fun
+  | Arrow => LangUtil.typeArrowSym
+  | Prod => ","
+  | Sum => "|";
+
 let is_Prod =
   fun
   | Prod => true

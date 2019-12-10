@@ -703,7 +703,7 @@ module Typ = {
       opseq,
     )
   and doc_of_operator = (~steps: CursorPath.steps, op: UHTyp.operator): doc =>
-    doc_of_op(~steps, Associator.Typ.string_of_op(op), ())
+    doc_of_op(~steps, UHTyp.string_of_operator(op), ())
   and doc_of_operand =
       (
         ~steps: CursorPath.steps,
@@ -769,7 +769,7 @@ module Typ = {
     | (OnDelim(_) | OnText(_), _) =>
       failwith(__LOC__ ++ ": invalid cursor position")
     | (OnOp(side), op) =>
-      doc_of_op(~caret=side, ~steps, Associator.Typ.string_of_op(op), ())
+      doc_of_op(~caret=side, ~steps, UHTyp.string_of_operator(op), ())
     }
   and doc_of_zoperand =
       (
@@ -892,7 +892,7 @@ module Pat = {
       opseq,
     )
   and doc_of_operator = (~steps: CursorPath.steps, op: UHPat.operator): doc =>
-    doc_of_op(~steps, Associator.Pat.string_of_op(op), ())
+    doc_of_op(~steps, UHPat.string_of_operator(op), ())
   and doc_of_operand =
       (
         ~steps: CursorPath.steps,
@@ -960,7 +960,7 @@ module Pat = {
     | (OnDelim(_) | OnText(_), _) =>
       failwith(__LOC__ ++ ": invalid cursor position")
     | (OnOp(side), op) =>
-      doc_of_op(~caret=side, ~steps, Associator.Pat.string_of_op(op), ())
+      doc_of_op(~caret=side, ~steps, UHPat.string_of_operator(op), ())
     }
   and doc_of_zoperand =
       (
@@ -1128,7 +1128,7 @@ module Exp = {
       opseq,
     )
   and doc_of_operator = (~steps: CursorPath.steps, op: UHExp.operator): doc =>
-    doc_of_op(~steps, Associator.Exp.string_of_op(op), ())
+    doc_of_op(~steps, UHExp.string_of_operator(op), ())
   and doc_of_operand =
       (
         ~steps: CursorPath.steps,
@@ -1314,7 +1314,7 @@ module Exp = {
     | (OnDelim(_) | OnText(_), _) =>
       failwith(__LOC__ ++ ": invalid cursor position")
     | (OnOp(side), op) =>
-      doc_of_op(~caret=side, ~steps, Associator.Exp.string_of_op(op), ())
+      doc_of_op(~caret=side, ~steps, UHExp.string_of_operator(op), ())
     }
   and doc_of_zoperand =
       (
