@@ -89,7 +89,7 @@ let doc_of_Bool =
 
 let doc_of_EmptyHole =
     (~caret: option(Side.t)=?, ~steps: CursorPath.steps, u: string): doc =>
-  DocOfDelim.doc(~caret?, ~path=(steps, 0), u);
+  DocOfDelim.empty_hole_doc(~caret?, ~steps, u);
 
 let doc_of_Wild =
     (~caret: option(Side.t)=?, ~steps: CursorPath.steps, ()): doc =>

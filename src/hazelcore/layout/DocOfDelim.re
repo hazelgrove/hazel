@@ -6,6 +6,13 @@ let doc =
     (~caret: option(Side.t)=?, ~path: delim_path, delim_text: string): doc =>
   Doc.Text(delim_text) |> Doc.tag(TermTag.mk_Delim(~caret?, ~path, ()));
 
+let empty_hole_doc =
+    (~caret: option(Side.t)=?, ~steps: CursorPath.steps, hole_lbl: string)
+    : doc =>
+  Doc.Text(hole_lbl)
+  |> Doc.tag(TermTag.HoleLabel)
+  |> Doc.tag(TermTag.mk_Delim(~caret?, ~path=(steps, 0), ()));
+
 let open_List = (~caret=?, steps) => doc(~caret?, ~path=(steps, 0), "[");
 let close_List = (~caret=?, steps) => doc(~caret?, ~path=(steps, 1), "]");
 

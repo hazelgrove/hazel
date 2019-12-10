@@ -23,6 +23,7 @@ type term_shape =
 type t =
   | DelimGroup
   | Padding
+  | HoleLabel
   | Delim({
       path: delim_path,
       caret: option(Side.t),

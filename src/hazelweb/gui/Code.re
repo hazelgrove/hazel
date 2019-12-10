@@ -109,6 +109,7 @@ let contenteditable_of_layout = (l: Layout.t(tag)): Vdom.Node.t => {
         @ [caret_position(path_after)];
       | Text({steps, _}) => [Node.span([Attr.id(text_id(steps))], vs)]
       | Padding => [Node.span([contenteditable_false], vs)]
+      | HoleLabel
       | DelimGroup
       | Term(_) => vs
       },
@@ -195,6 +196,10 @@ let presentation_of_layout =
     | Linebreak => [Node.br([])]
     | Align(l) => [Node.div([Attr.classes(["Align"])], go(l))]
 
+    | Tagged(HoleLabel, l) => [
+        Node.span([Attr.classes(["SEmptyHole-num"])], go(l)),
+      ]
+
     | Tagged(DelimGroup, l) => [
         Node.span([Attr.classes(["DelimGroup"])], go(l)),
       ]
@@ -259,44 +264,6 @@ let presentation_of_layout =
         };
       [Node.span(attrs, children)];
 
-    | Tagged(Term({has_cursor, shape: TypOperand(Hole) as shape}), _) =>
-      let has_cursor_clss = has_cursor ? ["cursor"] : [];
-      let hole_lbl =
-        Node.span([Attr.classes(["SEmptyHole-num"])], [Node.text("?")]);
-      let children =
-        has_cursor
-          ? [exp_cursor_before(shape), hole_lbl, exp_cursor_after(shape)]
-          : [hole_lbl];
-      [
-        Node.span(
-          [Attr.classes(["EmptyHole", ...has_cursor_clss])],
-          children,
-        ),
-      ];
-    | Tagged(
-        Term({has_cursor, shape: PatOperand(EmptyHole(u)) as shape}),
-        _,
-      )
-    | Tagged(
-        Term({has_cursor, shape: ExpOperand(EmptyHole(u)) as shape}),
-        _,
-      ) =>
-      let has_cursor_clss = has_cursor ? ["cursor"] : [];
-      let hole_lbl =
-        Node.span(
-          [Attr.classes(["SEmptyHole-num"])],
-          [Node.text(string_of_int(u + 1))],
-        );
-      let children =
-        has_cursor
-          ? [exp_cursor_before(shape), hole_lbl, exp_cursor_after(shape)]
-          : [hole_lbl];
-      [
-        Node.span(
-          [Attr.classes(["EmptyHole", ...has_cursor_clss])],
-          children,
-        ),
-      ];
     | Tagged(Term({has_cursor, shape}), l) =>
       let children =
         has_cursor
