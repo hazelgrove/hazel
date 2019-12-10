@@ -59,8 +59,14 @@ let pad_child =
       child: (~enforce_inline: bool) => doc,
     )
     : doc => {
+  let tag_padding = Doc.tag(TermTag.Padding);
   let (left, right) = inline_padding;
-  let inline_choice = Doc.hcats([left, child(~enforce_inline=true), right]);
+  let inline_choice =
+    Doc.hcats([
+      left |> tag_padding,
+      child(~enforce_inline=true),
+      right |> tag_padding,
+    ]);
   enforce_inline
     ? inline_choice
     : Doc.(
