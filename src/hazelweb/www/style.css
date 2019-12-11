@@ -759,6 +759,7 @@ button:disabled {
 
 .code {
   font-family: "Fira Mono", monospace;
+  white-space: pre;
 }
 
 .code.op {
@@ -774,6 +775,10 @@ button:disabled {
    * caret element can be absolutely
    * positioned relative to container */
   position: relative;
+}
+
+.Align {
+  display: inline-block;
 }
 
 .cursor {
