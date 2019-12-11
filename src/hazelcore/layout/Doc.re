@@ -12,7 +12,8 @@ type t('tag) =
   | Choice(t('tag), t('tag));
 
 let empty = Text("");
-let space = Text(" ");
+let space = Text(LangUtil.nbsp);
+let indent = Text(LangUtil.nbsp2);
 
 let align = doc => Align(doc);
 let tag = (tag, doc) => Tagged(tag, doc);

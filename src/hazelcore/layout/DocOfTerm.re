@@ -4,7 +4,7 @@ open GeneralUtil;
 type doc = Doc.t(TermTag.t);
 
 let space = Doc.space;
-let indent = Doc.Text("  ");
+let indent = Doc.indent;
 
 let indent_and_align = (d: doc): doc => Doc.(hcats([indent, align(d)]));
 
