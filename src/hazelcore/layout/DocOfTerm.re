@@ -1419,36 +1419,40 @@ module Exp = {
           )
         };
       | CursorE(OnDelim(k, side), Case(_, scrut, rules, ann)) =>
-        let doc_of_Case = {
-          let scrut = doc(~steps=steps @ [0], scrut);
-          let rules =
-            rules
-            |> List.mapi((i, rule) =>
-                 doc_of_rule(~steps=steps @ [1 + i], rule)
-               );
-          switch (ann) {
-          | None => doc_of_Case(~steps, ~scrut, ~rules)
-          | Some(ann) =>
-            doc_of_Case_ann(
-              ~steps,
-              ~scrut,
-              ~rules,
-              ~ann=Typ.doc(~steps=steps @ [1], ann),
+        if (enforce_inline) {
+          Fail;
+        } else {
+          let doc_of_Case = {
+            let scrut = doc(~steps=steps @ [0], scrut);
+            let rules =
+              rules
+              |> List.mapi((i, rule) =>
+                   doc_of_rule(~steps=steps @ [1 + i], rule)
+                 );
+            switch (ann) {
+            | None => doc_of_Case(~steps, ~scrut, ~rules)
+            | Some(ann) =>
+              doc_of_Case_ann(
+                ~steps,
+                ~scrut,
+                ~rules,
+                ~ann=Typ.doc(~steps=steps @ [1], ann),
+              )
+            };
+          };
+          switch (k) {
+          | 0 =>
+            doc_of_Case(
+              ~case_delim=DocOfDelim.open_Case(~caret=side, steps),
+              (),
+            )
+          | _one =>
+            doc_of_Case(
+              ~case_delim=DocOfDelim.close_Case(~caret=side, steps),
+              (),
             )
           };
-        };
-        switch (k) {
-        | 0 =>
-          doc_of_Case(
-            ~case_delim=DocOfDelim.open_Case(~caret=side, steps),
-            (),
-          )
-        | _one =>
-          doc_of_Case(
-            ~case_delim=DocOfDelim.close_Case(~caret=side, steps),
-            (),
-          )
-        };
+        }
 
       | ParenthesizedZ(zbody) =>
         let body = doc_of_z(~steps=steps @ [0], zbody);
