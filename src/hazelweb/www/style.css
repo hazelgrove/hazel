@@ -864,9 +864,9 @@ button:disabled {
     position: absolute;
     top: -11px;
     left: 5.5px;
-    color: white;
+    color: black;
     font-size: .7em;
-    background: #678a61;
+    background: #ffdd42;
     width: 10px;
     height: 16px;
     text-align: center;
