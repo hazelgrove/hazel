@@ -524,7 +524,6 @@ and follow_exp_and_place_cursor =
       | None => None
       | Some(zblock) => Some(CaseZE(err, zblock, rules))
       }
-    | (x, Case(_, _, rules)) when x === List.length(rules) + 1 => None
     | (x, Case(err, block, rules)) =>
       switch (ZList.split_at(x - 1, rules)) {
       | None => None
