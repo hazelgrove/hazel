@@ -436,6 +436,29 @@ and syn_line = (ctx: Contexts.t, line: UHExp.line): option(Contexts.t) =>
       }
     }
   }
+and syn_rules =
+    (ctx: Contexts.t, rules: UHExp.rules, pat_ty: HTyp.t): option(HTyp.t) =>
+  List.fold_left(
+    (b, r) =>
+      switch (b) {
+      | None => None
+      | Some(common_type) =>
+        switch (syn_rule(ctx, r, pat_ty)) {
+        | None => None
+        | Some(r_ty) => HTyp.join(common_type, r_ty)
+        }
+      },
+    Some(HTyp.Hole),
+    rules,
+  )
+and syn_rule =
+    (ctx: Contexts.t, rule: UHExp.rule, pat_ty: HTyp.t): option(HTyp.t) => {
+  let Rule(p, block) = rule;
+  switch (ana_pat(ctx, p, pat_ty)) {
+  | None => None
+  | Some(ctx) => syn_block(ctx, block)
+  };
+}
 /* synthesize a type, if possible, for e */
 and syn_exp = (ctx: Contexts.t, e: UHExp.t): option(HTyp.t) =>
   switch (e) {
@@ -492,7 +515,11 @@ and syn_exp = (ctx: Contexts.t, e: UHExp.t): option(HTyp.t) =>
       | R => Some(Sum(Hole, ty))
       }
     }
-  | Case(NotInHole, _, _) => None
+  | Case(NotInHole, block, rules) =>
+    switch (syn_block(ctx, block)) {
+    | None => None
+    | Some(b_ty) => syn_rules(ctx, rules, b_ty)
+    }
   | ApPalette(NotInHole, name, serialized_model, psi) =>
     let palette_ctx = Contexts.palette_ctx(ctx);
     switch (PaletteCtx.lookup(palette_ctx, name)) {
