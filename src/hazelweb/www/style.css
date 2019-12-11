@@ -839,11 +839,10 @@ button:disabled {
     content: attr(num-of-uses);
     position: absolute;
     top: -11px;
-    right: -11px;
+    left: 11px;
     font-size: .7em;
     background: rgba(220, 220, 220);
     color: black;
-    width: 16px;
     height: 16px;
     text-align: center;
     line-height: 18px;
@@ -857,7 +856,6 @@ button:disabled {
     left: 15.5px;
     font-size: .7em;
     background: rgba(220, 220, 220);
-    width: 10px;
     height: 16px;
     text-align: center;
     line-height: 18px;
