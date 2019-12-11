@@ -847,6 +847,7 @@ button:disabled {
     font-size: .7em;
     background: rgba(220, 220, 220);
     color: black;
+    min-width: 16px;
     height: 16px;
     text-align: center;
     line-height: 18px;
@@ -860,6 +861,7 @@ button:disabled {
     left: 15.5px;
     font-size: .7em;
     background: rgba(220, 220, 220);
+    min-width: 10px;
     height: 16px;
     text-align: center;
     line-height: 18px;
