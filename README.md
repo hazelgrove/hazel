@@ -10,9 +10,20 @@ You can try Hazel online with either the
 [stable](https://hazel.org/build/master/index.html) or
 [development](https://hazel.org/build/dev/index.html) version.
 
-## Screenshot of Hazel in Action
+### Demo
+
+- [Live Functional Programming with Typed Holes (POPL 2019)](https://www.youtube.com/watch?v=q58NFuUr0GU)
+
+### Screenshot
 
 ![Screenshot of Hazel](hazel-screenshot.png)
+
+Note that this screenshot is of the `master` (i.e., stable) branch circa 2019.
+Hazel is under rapid development, so this screenshot may not reflect the most
+recent version.
+
+<!-- TODO: screenshot with a hole -->
+<!-- TODO: animated gif -->
 
 ## Building and Running Hazel
 
