@@ -1119,8 +1119,27 @@ and _syn_cursor_info =
     };
   | InjZ(_, _, zblock) =>
     _syn_cursor_info_block(~node_steps, ~term_steps, ctx, zblock)
-  | CaseZE(_, _, _)
-  | CaseZR(_, _, _) => None
+  | CaseZE(_, zblock, _) =>
+    _syn_cursor_info_block(
+      ~node_steps=node_steps @ [0],
+      ~term_steps,
+      ctx,
+      zblock,
+    )
+  | CaseZR(_, block, zrules) =>
+    switch (Statics.syn_block(ctx, block)) {
+    | None => None
+    | Some(ty) =>
+      let prefix_len = List.length(GeneralUtil.ZList.prj_prefix(zrules));
+      let zrule = GeneralUtil.ZList.prj_z(zrules);
+      _syn_cursor_info_rule(
+        ~node_steps=node_steps @ [prefix_len + 1],
+        ~term_steps,
+        ctx,
+        zrule,
+        ty,
+      );
+    }
   | ApPaletteZ(_, _, _, zpsi) =>
     let (ty, zblock) = GeneralUtil.ZNatMap.prj_z_v(zpsi.zsplice_map);
     _ana_cursor_info_block(~node_steps, ~term_steps, ctx, zblock, ty);
@@ -1295,6 +1314,37 @@ and _ana_cursor_info_rule =
     | None => None
     | Some(ctx) =>
       _ana_cursor_info_block(~node_steps, ~term_steps, ctx, zblock, clause_ty)
+    }
+  }
+and _syn_cursor_info_rule =
+    (
+      ~node_steps,
+      ~term_steps,
+      ctx: Contexts.t,
+      zrule: ZExp.zrule,
+      pat_ty: HTyp.t,
+    )
+    : option(t) =>
+  switch (zrule) {
+  | CursorR(cursor, rule) =>
+    Some(
+      mk_cursor_info(
+        OnRule,
+        Rule(rule),
+        ExpFrame([], None, None),
+        cursor,
+        ctx,
+        node_steps,
+        term_steps,
+      ),
+    )
+  | RuleZP(zp, _) =>
+    _ana_cursor_info_pat(~node_steps, ~term_steps, ctx, zp, pat_ty)
+  | RuleZE(p, zblock) =>
+    switch (Statics.ana_pat(ctx, p, pat_ty)) {
+    | None => None
+    | Some(ctx) =>
+      _syn_cursor_info_block(~node_steps, ~term_steps, ctx, zblock)
     }
   }
 and _syn_cursor_info_skel =
