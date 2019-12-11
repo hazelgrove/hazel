@@ -735,18 +735,26 @@ h1 {
   position: -webkit-sticky;
   position: sticky;
   top: 0;
+  text-shadow: 2px 0 0 #FFF, 0 -2px 0 #FFF, 0 2px 0 #FFF, -2px 0 0 #FFF;
   text-align: center;
   color: grey;
-  background-color: white;
+  background-color: #e6ffe6d1;
+  width: 15%;
+  margin-left: auto;
+  margin-right: auto;
 }
 
-.clamped-sticky {
+.bottom-sticky {
   position: -webkit-sticky;
   position: sticky;
   bottom: 0;
+  text-shadow: 2px 0 0 #FFF, 0 -2px 0 #FFF, 0 2px 0 #FFF, -2px 0 0 #FFF;
   text-align: center;
   color: grey;
-  background-color: white;
+  background-color: #e6ffe6d1;
+  width: 15%;
+  margin-left: auto;
+  margin-right: auto;
 }
 
 #num_input_id{

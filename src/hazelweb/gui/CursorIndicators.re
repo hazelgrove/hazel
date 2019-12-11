@@ -1867,14 +1867,15 @@ let update_footer = () => {
          },
          0,
        );
+  let string_of_uses = num_of_uses =>
+    Int.to_string(num_of_uses) ++ (num_of_uses > 1 ? " uses" : " use");
+
   JSUtil.force_get_elem_by_id("top")##.innerHTML :=
     uses_above == 0
-      ? Js.string("")
-      : Js.string("&#x21E7 " ++ Int.to_string(uses_above) ++ " uses &#x21E7");
+      ? Js.string("") : Js.string("&#x2191 " ++ string_of_uses(uses_above));
   JSUtil.force_get_elem_by_id("bottom")##.innerHTML :=
     uses_below == 0
-      ? Js.string("")
-      : Js.string("&#x21E9 " ++ Int.to_string(uses_below) ++ " uses &#x21E9");
+      ? Js.string("") : Js.string("&#x2193 " ++ string_of_uses(uses_below));
 };
 
 let empty_footer = () => {

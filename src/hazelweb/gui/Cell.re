@@ -395,7 +395,7 @@ let view =
           ],
         ),
         Node.footer(
-          [Attr.id("bottom"), Attr.classes(["clamped-sticky"])],
+          [Attr.id("bottom"), Attr.classes(["bottom-sticky"])],
           [Node.text("")],
         ),
       ],

@@ -300,7 +300,7 @@ let place_over_elem =
 
 let is_above_viewport = (elem: Js.t(Dom_html.element)) => {
   let rect = elem##getBoundingClientRect;
-  rect##.top >= 0.0;
+  rect##.top >= float_of_int(force_get_elem_by_cls("top-bar")##.clientHeight);
 };
 
 let is_below_viewport = (elem: Js.t(Dom_html.element)) => {
