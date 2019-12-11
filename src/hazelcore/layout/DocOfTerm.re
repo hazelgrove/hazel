@@ -1104,13 +1104,14 @@ module Exp = {
       fun
       | None =>
         failwith(__LOC__ ++ ": doc_of_block expected a non-empty block")
-      | Some((leading, (_, concluding_doc))) =>
+      | Some((leading, (concluding, concluding_doc))) =>
         List.fold_right(
           ((hd, hd_doc), tl_doc) =>
             Doc.vsep(hd_doc, tl_doc)
             |> Doc.tag(TermTag.mk_Term(~shape=ExpSubBlock(hd), ())),
           leading,
-          concluding_doc,
+          concluding_doc
+          |> Doc.tag(TermTag.mk_Term(~shape=ExpSubBlock(concluding), ())),
         )
     )
   and doc_of_line = (~steps: CursorPath.steps, line: UHExp.line): doc =>
