@@ -2587,11 +2587,16 @@ module Exp = {
       ) =>
       let place_cursor =
         switch (operand) {
-        | Lam(_) => ZExp.place_before
+        | Lam(_) =>
+          switch (k) {
+          | 0
+          | 2 => ZExp.place_before
+          | _three => ZExp.place_after
+          }
         | _ =>
           switch (k) {
           | 0 => ZExp.place_before
-          | _ => ZExp.place_after
+          | _one => ZExp.place_after
           }
         };
       let new_ze = e |> place_cursor;
@@ -3626,7 +3631,12 @@ module Exp = {
       ) =>
       let place_cursor =
         switch (operand) {
-        | Lam(_) => ZExp.place_before
+        | Lam(_) =>
+          switch (k) {
+          | 0
+          | 2 => ZExp.place_before
+          | _three => ZExp.place_after
+          }
         | _ =>
           switch (k) {
           | 0 => ZExp.place_before

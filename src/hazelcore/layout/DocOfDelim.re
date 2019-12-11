@@ -32,7 +32,7 @@ let close_Inj = (~caret=?, steps) => doc(~caret?, ~path=(steps, 1), ")");
 let sym_Lam = (~caret=?, steps) =>
   doc(~caret?, ~path=(steps, 0), LangUtil.lamSym);
 let colon_Lam = (~caret=?, steps) => doc(~caret?, ~path=(steps, 1), ":");
-let open_Lam = (~caret=?, steps) => doc(~caret?, ~path=(steps, 2), "{");
+let open_Lam = (~caret=?, steps) => doc(~caret?, ~path=(steps, 2), ".{");
 let close_Lam = (~caret=?, steps) => doc(~caret?, ~path=(steps, 3), "}");
 
 let open_Case = (~caret=?, steps) => doc(~caret?, ~path=(steps, 0), "case");
