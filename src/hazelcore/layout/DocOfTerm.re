@@ -6,7 +6,8 @@ type doc = Doc.t(TermTag.t);
 let space = Doc.space;
 let indent = Doc.indent;
 
-let indent_and_align = (d: doc): doc => Doc.(hcats([indent, align(d)]));
+let indent_and_align = (d: doc): doc =>
+  Doc.(hcats([indent |> Doc.tag(TermTag.Padding), align(d)]));
 
 let doc_of_text =
     (~caret: option(int)=?, ~steps: CursorPath.steps, text: string): doc =>

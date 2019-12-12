@@ -107,7 +107,15 @@ let contenteditable_of_layout = (l: Layout.t(tag)): Vdom.Node.t => {
         @ [Node.span([contenteditable_false], vs)]
         @ [caret_position(path_after)];
       | Text({steps, _}) => [Node.span([Attr.id(text_id(steps))], vs)]
-      | Padding => [Node.span([contenteditable_false], vs)]
+      | Padding => [
+          Node.span(
+            [
+              contenteditable_false,
+              Attr.create("style", "white-space: pre;"),
+            ],
+            vs,
+          ),
+        ]
       | HoleLabel
       | DelimGroup
       | Term(_) => vs
@@ -115,10 +123,22 @@ let contenteditable_of_layout = (l: Layout.t(tag)): Vdom.Node.t => {
     imp_append: (vs1, vs2) => vs1 @ vs2,
     imp_of_string: str => [Node.text(str)],
     imp_newline: indent => [
-      Node.br([]),
       Node.span(
         [contenteditable_false],
-        [Node.text(String.make(indent, ' '))],
+        [
+          Node.br([]),
+          Node.span(
+            [Attr.create("style", "white-space: pre;")],
+            [
+              Node.text(
+                String.concat(
+                  "",
+                  GeneralUtil.replicate(indent, LangUtil.nbsp1),
+                ),
+              ),
+            ],
+          ),
+        ],
       ),
     ],
     t_of_imp: vs => Node.span([Attr.classes(["code"])], vs) // TODO: use something other than `span`?
