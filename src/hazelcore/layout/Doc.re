@@ -1,13 +1,5 @@
 open Sexplib.Std;
 
-/**
- * NOTE: Cannot use multi-byte characters for now
- * because layout optimizer uses String.length which
- * assumes single-byte characters. We'll need to use
- * Uuseg to support fancier characters.
- * https://stackoverflow.com/questions/55079287/length-of-string-that-contains-cjk-characters
- */
-
 /* Variable: `doc` */
 [@deriving sexp]
 type t('tag) =
