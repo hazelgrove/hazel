@@ -14,6 +14,3 @@ let nondisplay1 = "​";
 let nondisplay2 = "​​";
 let nondisplay3 = "​​​";
 let nondisplay4 = "​​​​";
-
-let nbsp = " ";
-let nbsp2 = "  ";

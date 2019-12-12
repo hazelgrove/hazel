@@ -3,7 +3,6 @@ module Dom = Js_of_ocaml.Dom;
 module Dom_html = Js_of_ocaml.Dom_html;
 module Vdom = Virtual_dom.Vdom;
 open ViewUtil;
-open GeneralUtil;
 
 type tag = TermTag.t;
 
@@ -90,7 +89,6 @@ let contenteditable_of_layout = (l: Layout.t(tag)): Vdom.Node.t => {
       [Node.text(LangUtil.nondisplay1)],
     );
   let record: Layout.text(tag, list(Node.t), Node.t) = {
-    imp_of_string: str => [Node.text(str)],
     imp_of_tag: (tag, vs) =>
       switch (tag) {
       | Delim({path: (steps, delim_index), _}) =>
@@ -115,11 +113,12 @@ let contenteditable_of_layout = (l: Layout.t(tag)): Vdom.Node.t => {
       | Term(_) => vs
       },
     imp_append: (vs1, vs2) => vs1 @ vs2,
+    imp_of_string: str => [Node.text(str)],
     imp_newline: indent => [
       Node.br([]),
       Node.span(
-        [contenteditable_false, Attr.create("style", "white-space: pre;")],
-        [Node.text(String.concat("", replicate(indent, LangUtil.nbsp)))],
+        [contenteditable_false],
+        [Node.text(String.make(indent, ' '))],
       ),
     ],
     t_of_imp: vs => Node.span([Attr.classes(["code"])], vs) // TODO: use something other than `span`?
