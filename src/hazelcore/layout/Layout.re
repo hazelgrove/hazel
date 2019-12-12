@@ -29,7 +29,9 @@ let make_of_layout: (text('tag, 'imp, 't), t('tag)) => 't =
             text.imp_of_string(string);
           }
         | Cat(l1, l2) => {
-            text.imp_append(go(indent, l1), go(indent, l2));
+            let imp1 = go(indent, l1);
+            let imp2 = go(indent, l2);
+            text.imp_append(imp1, imp2);
           }
         | Linebreak => {
             // TODO: no indent if on final line break
