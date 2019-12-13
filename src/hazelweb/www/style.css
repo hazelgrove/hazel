@@ -843,7 +843,6 @@ button:disabled {
     content: attr(num-of-uses);
     position: absolute;
     top: -11px;
-    left: 11px;
     font-size: .7em;
     background: rgba(220, 220, 220);
     color: black;
@@ -858,7 +857,6 @@ button:disabled {
     content: attr(semi-num-of-uses);
     position: absolute;
     top: -11px;
-    left: 15.5px;
     font-size: .7em;
     background: rgba(220, 220, 220);
     min-width: 10px;
@@ -875,7 +873,7 @@ button:disabled {
     content: "!";
     position: absolute;
     top: -11px;
-    left: 5.5px;
+    right: 0px;
     color: black;
     font-size: .7em;
     background: #ffdd42;
