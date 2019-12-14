@@ -68,9 +68,10 @@ let pad_child =
   let inline_choice =
     Doc.hcats([
       left |> tag_Padding,
-      child(~enforce_inline=true) |> tag_ChildContainer(~is_inline=true),
+      child(~enforce_inline=true),
       right |> tag_Padding,
-    ]);
+    ])
+    |> tag_ChildContainer(~is_inline=true);
   enforce_inline
     ? inline_choice
     : Doc.(
