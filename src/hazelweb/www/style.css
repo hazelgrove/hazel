@@ -23,6 +23,7 @@
   --shifting-indicator-color: rgb(102, 163, 198);
   --page-padding: 15px;
 
+  --default-code-background-color: white;
   --caret-color: red;
 }
 
@@ -857,8 +858,12 @@ button:disabled {
   }
 }
 
-.DelimGroup {
+.cursor .DelimGroup {
   background-color: var(--node-indicator-normal-color);
+}
+.cursor .DelimGroup .ChildContainer,
+.cursor .ChildContainer .DelimGroup {
+  background-color: var(--default-code-background-color);
 }
 
 .SDelim-before,
