@@ -108,14 +108,12 @@ let contenteditable_of_layout = (l: Layout.t(tag)): Vdom.Node.t => {
         @ [caret_position(path_after)];
       | Text({steps, _}) => [Node.span([Attr.id(text_id(steps))], vs)]
       | Padding => [
-          Node.span(
-            [
-              contenteditable_false,
-              Attr.create("style", "white-space: pre;"),
-            ],
-            vs,
-          ),
+          Node.span([contenteditable_false, Attr.classes(["Padding"])], vs),
         ]
+      | Indent => [
+          Node.span([contenteditable_false, Attr.classes(["Indent"])], vs),
+        ]
+      | ChildContainer(_)
       | HoleLabel
       | DelimGroup
       | Term(_) => vs
@@ -223,16 +221,25 @@ let presentation_of_layout =
     | Tagged(DelimGroup, l) => [
         Node.span([Attr.classes(["DelimGroup"])], go(l)),
       ]
+    | Tagged(Padding, l) => [
+        Node.span(
+          [contenteditable_false, Attr.classes(["Padding"])],
+          go(l),
+        ),
+      ]
+    | Tagged(Indent, l) => [
+        Node.span(
+          [contenteditable_false, Attr.classes(["Indent"])],
+          go(l),
+        ),
+      ]
 
-    | Tagged(Padding, l) => go(l)
-    /*
-     | Tagged(Padding({path_before, path_after}), l) => [
-         Node.span(
-           [Attr.on_click(on_click_noneditable(path_before, path_after))],
-           go(l),
-         ),
-       ]
-     */
+    | Tagged(ChildContainer({is_inline}), l) => [
+        Node.span(
+          [Attr.classes(["ChildContainer", is_inline ? "Inline" : "Para"])],
+          go(l),
+        ),
+      ]
 
     | Tagged(Delim({path: (steps, delim_index), caret}), l) =>
       let attrs = {

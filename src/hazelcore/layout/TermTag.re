@@ -22,8 +22,14 @@ type term_shape =
 [@deriving sexp]
 type t =
   | DelimGroup
+  | Indent
   | Padding
   | HoleLabel
+  | Text({
+      steps: CursorPath.steps,
+      length: int,
+      caret: option(int),
+    })
   | Delim({
       path: delim_path,
       caret: option(Side.t),
@@ -32,11 +38,7 @@ type t =
       steps: CursorPath.steps,
       caret: option(Side.t),
     })
-  | Text({
-      steps: CursorPath.steps,
-      length: int,
-      caret: option(int),
-    })
+  | ChildContainer({is_inline: bool})
   | Term({
       shape: term_shape,
       has_cursor: bool,
@@ -51,3 +53,5 @@ let mk_Text =
   Text({caret, steps, length});
 let mk_Term = (~has_cursor=false, ~shape: term_shape, ()): t =>
   Term({has_cursor, shape});
+let mk_ChildContainer = (~is_inline: bool, ()) =>
+  ChildContainer({is_inline: is_inline});

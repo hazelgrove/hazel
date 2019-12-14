@@ -6,8 +6,14 @@ type doc = Doc.t(TermTag.t);
 let space = Doc.space;
 let indent = Doc.indent;
 
+let tag_Indent = Doc.tag(TermTag.Indent);
+let tag_Padding = Doc.tag(TermTag.Padding);
+let tag_DelimGroup = Doc.tag(TermTag.DelimGroup);
+let tag_ChildContainer = (~is_inline) =>
+  Doc.tag(TermTag.mk_ChildContainer(~is_inline, ()));
+
 let indent_and_align = (d: doc): doc =>
-  Doc.(hcats([indent |> Doc.tag(TermTag.Padding), align(d)]));
+  Doc.(hcats([indent |> tag_Padding, align(d)]));
 
 let doc_of_text =
     (~caret: option(int)=?, ~steps: CursorPath.steps, text: string): doc =>
@@ -24,14 +30,13 @@ let doc_of_comma =
       (),
     )
     : doc => {
-  let tag_padding = Doc.tag(TermTag.Padding);
   let comma_doc =
     Doc.(Text(",") |> tag(TermTag.mk_Op(~caret?, ~steps, ())));
   let padding =
     Doc.(
       enforce_inline
-        ? tag_padding(Text(" "))
-        : choices([tag_padding(Text(" ")), Linebreak])
+        ? tag_Padding(Text(" "))
+        : choices([tag_Padding(Text(" ")), Linebreak])
     );
   Doc.hcats([comma_doc, padding]);
 };
@@ -39,11 +44,10 @@ let doc_of_comma =
 // for non-Comma operators
 let pad_operator =
     (~inline_padding as (left, right): (doc, doc), operator: doc): doc => {
-  let tag_padding = Doc.tag(TermTag.Padding);
   Doc.(
     choices([
-      hcats([left |> tag_padding, operator, right |> tag_padding]),
-      hcats([Linebreak, operator, right |> tag_padding]),
+      hcats([left |> tag_Padding, operator, right |> tag_Padding]),
+      hcats([Linebreak, operator, right |> tag_Padding]),
     ])
   );
 };
@@ -60,13 +64,12 @@ let pad_child =
       child: (~enforce_inline: bool) => doc,
     )
     : doc => {
-  let tag_padding = Doc.tag(TermTag.Padding);
   let (left, right) = inline_padding;
   let inline_choice =
     Doc.hcats([
-      left |> tag_padding,
-      child(~enforce_inline=true),
-      right |> tag_padding,
+      left |> tag_Padding,
+      child(~enforce_inline=true) |> tag_ChildContainer(~is_inline=true),
+      right |> tag_Padding,
     ]);
   enforce_inline
     ? inline_choice
@@ -75,7 +78,8 @@ let pad_child =
           inline_choice,
           hcats([
             Linebreak,
-            indent_and_align(child(~enforce_inline=false)),
+            indent_and_align(child(~enforce_inline=false))
+            |> tag_ChildContainer(~is_inline=false),
             Linebreak,
           ]),
         ])
@@ -128,8 +132,8 @@ let doc_of_Parenthesized =
       (),
     )
     : doc => {
-  let open_group = open_delim |> Doc.tag(TermTag.DelimGroup);
-  let close_group = close_delim |> Doc.tag(TermTag.DelimGroup);
+  let open_group = open_delim |> tag_DelimGroup;
+  let close_group = close_delim |> tag_DelimGroup;
   Doc.hcats([open_group, body |> pad_child(~enforce_inline), close_group]);
 };
 
@@ -143,8 +147,8 @@ let doc_of_List =
       (),
     )
     : doc => {
-  let open_group = open_delim |> Doc.tag(TermTag.DelimGroup);
-  let close_group = close_delim |> Doc.tag(TermTag.DelimGroup);
+  let open_group = open_delim |> tag_DelimGroup;
+  let close_group = close_delim |> tag_DelimGroup;
   Doc.hcats([open_group, body |> pad_child(~enforce_inline), close_group]);
 };
 
@@ -159,8 +163,8 @@ let doc_of_Inj =
       (),
     )
     : doc => {
-  let open_group = open_delim |> Doc.tag(TermTag.DelimGroup);
-  let close_group = close_delim |> Doc.tag(TermTag.DelimGroup);
+  let open_group = open_delim |> tag_DelimGroup;
+  let close_group = close_delim |> tag_DelimGroup;
   Doc.hcats([open_group, body |> pad_child(~enforce_inline), close_group]);
 };
 
@@ -192,9 +196,9 @@ let doc_of_Lam =
           open_delim,
         ])
       };
-    doc |> Doc.tag(TermTag.DelimGroup);
+    doc |> tag_DelimGroup;
   };
-  let close_group = close_delim |> Doc.tag(TermTag.DelimGroup);
+  let close_group = close_delim |> tag_DelimGroup;
   Doc.hcats([open_group, body |> pad_child(~enforce_inline), close_group]);
 };
 
@@ -208,8 +212,8 @@ let doc_of_Case =
       (),
     )
     : doc => {
-  let open_group = case_delim |> Doc.tag(TermTag.DelimGroup);
-  let close_group = end_delim |> Doc.tag(TermTag.DelimGroup);
+  let open_group = case_delim |> tag_DelimGroup;
+  let close_group = end_delim |> tag_DelimGroup;
   Doc.(
     vseps(
       [
@@ -238,7 +242,7 @@ let doc_of_Case_ann =
       (),
     )
     : doc => {
-  let open_group = case_delim |> Doc.tag(TermTag.DelimGroup);
+  let open_group = case_delim |> tag_DelimGroup;
   let close_group =
     Doc.(
       choices([
@@ -322,9 +326,9 @@ let doc_of_LetLine =
           eq_delim,
         ])
       };
-    doc |> Doc.tag(TermTag.DelimGroup);
+    doc |> tag_DelimGroup;
   };
-  let close_group = in_delim |> Doc.tag(TermTag.DelimGroup);
+  let close_group = in_delim |> tag_DelimGroup;
   Doc.hcats([
     open_group,
     def |> pad_child(~inline_padding=(space, space), ~enforce_inline=false),
