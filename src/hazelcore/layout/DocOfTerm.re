@@ -1243,10 +1243,24 @@ module Exp = {
     | None =>
       failwith(__LOC__ ++ ": doc_of_zblock expected a non-empty block")
     | Some((leading, (_, concluding_doc))) =>
-      List.fold_right(
-        ((hd, hd_doc), tl_doc) =>
+      // TODO hacky, clean up
+      fold_right_i(
+        ((i, (hd, hd_doc)), tl_doc) =>
           Doc.vsep(hd_doc, tl_doc)
-          |> Doc.tag(TermTag.mk_Term(~shape=ExpSubBlock(hd), ())),
+          |> Doc.tag(
+               TermTag.mk_Term(
+                 ~has_cursor=
+                   i == List.length(prefix)
+                   && (
+                     switch (zline) {
+                     | CursorL(_) => true
+                     | _ => false
+                     }
+                   ),
+                 ~shape=ExpSubBlock(hd),
+                 (),
+               ),
+             ),
         leading,
         concluding_doc,
       )
