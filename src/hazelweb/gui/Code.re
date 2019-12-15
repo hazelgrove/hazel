@@ -8,17 +8,94 @@ type tag = TermTag.t;
 
 let contenteditable_false = Vdom.Attr.create("contenteditable", "false");
 
+let clss_of_err: ErrStatus.t => list(cls) =
+  fun
+  | NotInHole => []
+  | InHole(_) => ["InHole"];
+
+let clss_of_verr: VarErrStatus.t => list(cls) =
+  fun
+  | NotInVarHole => []
+  | InVarHole(_) => ["InVarHole"];
+
+module Typ = {
+  let clss_of_operand: UHTyp.operand => list(cls) =
+    fun
+    | Hole => ["Hole"]
+    | Unit => ["Unit"]
+    | Num => ["Num"]
+    | Bool => ["Bool"]
+    | Parenthesized(_) => ["Parenthesized"]
+    | List(_) => ["List"];
+};
+module Pat = {
+  let clss_of_operand: UHPat.operand => list(cls) =
+    fun
+    | EmptyHole(_) => ["EmptyHole"]
+    | Wild(err) => ["Wild", ...clss_of_err(err)]
+    | Var(err, verr, _) => [
+        "Var",
+        ...clss_of_err(err) @ clss_of_verr(verr),
+      ]
+    | NumLit(err, _) => ["NumLit", ...clss_of_err(err)]
+    | BoolLit(err, _) => ["BoolLit", ...clss_of_err(err)]
+    | ListNil(err) => ["ListNil", ...clss_of_err(err)]
+    | Parenthesized(_) => ["Parenthesized"]
+    | Inj(err, _, _) => ["Inj", ...clss_of_err(err)];
+};
+module Exp = {
+  let clss_of_operand: UHExp.operand => list(cls) =
+    fun
+    | EmptyHole(_) => ["EmptyHole"]
+    | Var(err, verr, _) => [
+        "Var",
+        ...clss_of_err(err) @ clss_of_verr(verr),
+      ]
+    | NumLit(err, _) => ["NumLit", ...clss_of_err(err)]
+    | BoolLit(err, _) => ["BoolLit", ...clss_of_err(err)]
+    | ListNil(err) => ["ListNil", ...clss_of_err(err)]
+    | Lam(err, _, _, _) => ["Lam", ...clss_of_err(err)]
+    | Parenthesized(_) => ["Parenthesized"]
+    | Inj(err, _, _) => ["Inj", ...clss_of_err(err)]
+    | Case(err, _, _, _) => ["Case", ...clss_of_err(err)]
+    | ApPalette(_) => failwith(__LOC__ ++ ":unimplemented");
+};
+
 let term_attrs =
     (has_cursor: bool, shape: TermTag.term_shape): list(Vdom.Attr.t) => {
   let has_cursor_clss = has_cursor ? ["cursor"] : [];
+  let tm_family_cls =
+    switch (shape) {
+    | TypOperand(_)
+    | TypBinOp(_)
+    | TypNProd(_) => "Typ"
+    | PatOperand(_)
+    | PatBinOp(_)
+    | PatNTuple(_) => "Pat"
+    | ExpOperand(_)
+    | ExpRule(_)
+    | ExpBinOp(_)
+    | ExpNTuple(_)
+    | ExpSubBlock(_) => "Exp"
+    };
   let shape_clss =
     switch (shape) {
-    | TypOperand(Hole)
-    | PatOperand(EmptyHole(_))
-    | ExpOperand(EmptyHole(_)) => ["EmptyHole"]
-    | _ => []
+    | ExpSubBlock(_) => ["SubBlock"]
+    | ExpRule(_) => ["Rule"]
+
+    | TypBinOp(_) => ["BinOp"]
+    | PatBinOp(err, _, _, _)
+    | ExpBinOp(err, _, _, _) => ["BinOp", ...clss_of_err(err)]
+
+    | TypNProd(_)
+    | PatNTuple(_)
+    | ExpNTuple(_) => ["NTuple"]
+
+    | TypOperand(operand) => Typ.clss_of_operand(operand)
+    | PatOperand(operand) => Pat.clss_of_operand(operand)
+    | ExpOperand(operand) => Exp.clss_of_operand(operand)
     };
-  [Vdom.Attr.classes(has_cursor_clss @ shape_clss)];
+  [Vdom.Attr.classes([tm_family_cls, ...has_cursor_clss] @ shape_clss)];
 };
 
 let on_click_noneditable =
