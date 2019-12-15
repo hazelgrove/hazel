@@ -14,7 +14,7 @@
   --hole-indicator-z-index: -3;
   --shift-indicator-z-index: -2;
   --code-z-index: 0;
-  --node-indicator-normal-color: rgb(230, 255, 230);
+  --node-indicator-normal-color: rgb(197, 253, 197);
   --node-indicator-staging-color: #e4faff;
   --child-indicator-normal-color: white;
   --child-indicator-staging-color: #fcffda;
@@ -858,12 +858,68 @@ button:disabled {
   }
 }
 
-.cursor .DelimGroup {
-  background-color: var(--node-indicator-normal-color);
+/*
+.code {
+  box-sizing: border-box;
 }
-.cursor .DelimGroup .ChildContainer,
-.cursor .ChildContainer .DelimGroup {
+*/
+
+.OpenChild.Para {
+  display: inline-flex;
+  flex-direction: row;
+  align-items: stretch;
+}
+
+.Indent {
+  display: inline-block;
+}
+
+.Cursor .DelimGroup {
+  background-color: var(--node-indicator-normal-color);
+  /* simple approach would be to set outline to 3px
+   * but outline covers child borders while border
+   * does not */
+  border: 1px solid var(--node-indicator-normal-color);
+  outline: 2px solid var(--node-indicator-normal-color);
+  margin: -1px;
+}
+.Cursor .Term * {
   background-color: var(--default-code-background-color);
+  border: none;
+  outline: none;
+  margin: 0;
+}
+
+.Cursor.Exp .Typ {
+  border: 1px solid purple;
+}
+.Cursor.Exp .Term .Typ {
+  border: none;
+}
+
+.Cursor.Exp .Pat {
+  border: 1px solid blue;
+}
+.Cursor.Exp .Term .Pat {
+  border: none;
+}
+
+.Cursor.Exp .OpenChild.Para {
+  border-left: 3px solid var(--node-indicator-normal-color);
+  margin-left: -3px;
+}
+.Cursor.Exp .Term .OpenChild.Para {
+  border-left: none;
+  margin-left: 0;
+}
+
+.Cursor.Exp .OpenChild.Inline {
+  border-bottom: 3px solid var(--node-indicator-normal-color);
+  margin-bottom: -3px;
+}
+.Cursor.Exp .Term .OpenChild.Inline {
+  border-bottom: none;
+  margin-bottom: 0;
 }
 
 .SDelim-before,

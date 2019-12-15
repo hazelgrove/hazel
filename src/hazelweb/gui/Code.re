@@ -63,7 +63,7 @@ module Exp = {
 
 let term_attrs =
     (has_cursor: bool, shape: TermTag.term_shape): list(Vdom.Attr.t) => {
-  let has_cursor_clss = has_cursor ? ["cursor"] : [];
+  let has_cursor_clss = has_cursor ? ["Cursor"] : [];
   let tm_family_cls =
     switch (shape) {
     | TypOperand(_)
@@ -95,7 +95,11 @@ let term_attrs =
     | PatOperand(operand) => Pat.clss_of_operand(operand)
     | ExpOperand(operand) => Exp.clss_of_operand(operand)
     };
-  [Vdom.Attr.classes([tm_family_cls, ...has_cursor_clss] @ shape_clss)];
+  [
+    Vdom.Attr.classes(
+      ["Term", tm_family_cls, ...has_cursor_clss] @ shape_clss,
+    ),
+  ];
 };
 
 let on_click_noneditable =
@@ -190,7 +194,7 @@ let contenteditable_of_layout = (l: Layout.t(tag)): Vdom.Node.t => {
       | Indent => [
           Node.span([contenteditable_false, Attr.classes(["Indent"])], vs),
         ]
-      | ChildContainer(_)
+      | OpenChild(_)
       | HoleLabel
       | DelimGroup
       | Term(_) => vs
@@ -311,9 +315,9 @@ let presentation_of_layout =
         ),
       ]
 
-    | Tagged(ChildContainer({is_inline}), l) => [
+    | Tagged(OpenChild({is_inline}), l) => [
         Node.span(
-          [Attr.classes(["ChildContainer", is_inline ? "Inline" : "Para"])],
+          [Attr.classes(["OpenChild", is_inline ? "Inline" : "Para"])],
           go(l),
         ),
       ]

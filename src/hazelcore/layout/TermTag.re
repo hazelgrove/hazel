@@ -38,7 +38,7 @@ type t =
       steps: CursorPath.steps,
       caret: option(Side.t),
     })
-  | ChildContainer({is_inline: bool})
+  | OpenChild({is_inline: bool})
   | Term({
       shape: term_shape,
       has_cursor: bool,
@@ -53,5 +53,5 @@ let mk_Text =
   Text({caret, steps, length});
 let mk_Term = (~has_cursor=false, ~shape: term_shape, ()): t =>
   Term({has_cursor, shape});
-let mk_ChildContainer = (~is_inline: bool, ()) =>
-  ChildContainer({is_inline: is_inline});
+let mk_OpenChild = (~is_inline: bool, ()) =>
+  OpenChild({is_inline: is_inline});

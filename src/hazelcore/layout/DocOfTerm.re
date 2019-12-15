@@ -9,8 +9,8 @@ let indent = Doc.indent;
 let tag_Indent = Doc.tag(TermTag.Indent);
 let tag_Padding = Doc.tag(TermTag.Padding);
 let tag_DelimGroup = Doc.tag(TermTag.DelimGroup);
-let tag_ChildContainer = (~is_inline) =>
-  Doc.tag(TermTag.mk_ChildContainer(~is_inline, ()));
+let tag_OpenChild = (~is_inline) =>
+  Doc.tag(TermTag.mk_OpenChild(~is_inline, ()));
 
 let indent_and_align = (d: doc): doc =>
   Doc.(hcats([indent |> tag_Padding, align(d)]));
@@ -59,6 +59,7 @@ let doc_of_op =
 
 let pad_child =
     (
+      ~is_open: bool,
       ~inline_padding: (doc, doc)=(Doc.empty, Doc.empty),
       ~enforce_inline: bool,
       child: (~enforce_inline: bool) => doc,
@@ -70,22 +71,24 @@ let pad_child =
       left |> tag_Padding,
       child(~enforce_inline=true),
       right |> tag_Padding,
-    ])
-    |> tag_ChildContainer(~is_inline=true);
+    ]);
+  let para_choice = indent_and_align(child(~enforce_inline=false));
+  let (inline_choice, para_choice) =
+    is_open
+      ? (
+        inline_choice |> tag_OpenChild(~is_inline=true),
+        para_choice |> tag_OpenChild(~is_inline=false),
+      )
+      : (inline_choice, para_choice);
   enforce_inline
     ? inline_choice
     : Doc.(
-        choices([
-          inline_choice,
-          hcats([
-            Linebreak,
-            indent_and_align(child(~enforce_inline=false))
-            |> tag_ChildContainer(~is_inline=false),
-            Linebreak,
-          ]),
-        ])
+        choices([inline_choice, hcats([Linebreak, para_choice, Linebreak])])
       );
 };
+
+let pad_open_child = pad_child(~is_open=true);
+let pad_closed_child = pad_child(~is_open=false);
 
 let doc_of_Unit =
     (~caret: option(Side.t)=?, ~steps: CursorPath.steps, ()): doc =>
@@ -135,7 +138,11 @@ let doc_of_Parenthesized =
     : doc => {
   let open_group = open_delim |> tag_DelimGroup;
   let close_group = close_delim |> tag_DelimGroup;
-  Doc.hcats([open_group, body |> pad_child(~enforce_inline), close_group]);
+  Doc.hcats([
+    open_group,
+    body |> pad_open_child(~enforce_inline),
+    close_group,
+  ]);
 };
 
 let doc_of_List =
@@ -150,7 +157,11 @@ let doc_of_List =
     : doc => {
   let open_group = open_delim |> tag_DelimGroup;
   let close_group = close_delim |> tag_DelimGroup;
-  Doc.hcats([open_group, body |> pad_child(~enforce_inline), close_group]);
+  Doc.hcats([
+    open_group,
+    body |> pad_open_child(~enforce_inline),
+    close_group,
+  ]);
 };
 
 let doc_of_Inj =
@@ -166,7 +177,11 @@ let doc_of_Inj =
     : doc => {
   let open_group = open_delim |> tag_DelimGroup;
   let close_group = close_delim |> tag_DelimGroup;
-  Doc.hcats([open_group, body |> pad_child(~enforce_inline), close_group]);
+  Doc.hcats([
+    open_group,
+    body |> pad_open_child(~enforce_inline),
+    close_group,
+  ]);
 };
 
 let doc_of_Lam =
@@ -187,20 +202,28 @@ let doc_of_Lam =
     let doc =
       switch (ann) {
       | None =>
-        Doc.hcats([lam_delim, p |> pad_child(~enforce_inline), open_delim])
+        Doc.hcats([
+          lam_delim,
+          p |> pad_closed_child(~enforce_inline),
+          open_delim,
+        ])
       | Some(ann) =>
         Doc.hcats([
           lam_delim,
-          p |> pad_child(~enforce_inline),
+          p |> pad_closed_child(~enforce_inline),
           colon_delim,
-          ann |> pad_child(~enforce_inline),
+          ann |> pad_closed_child(~enforce_inline),
           open_delim,
         ])
       };
     doc |> tag_DelimGroup;
   };
   let close_group = close_delim |> tag_DelimGroup;
-  Doc.hcats([open_group, body |> pad_child(~enforce_inline), close_group]);
+  Doc.hcats([
+    open_group,
+    body |> pad_open_child(~enforce_inline),
+    close_group,
+  ]);
 };
 
 let doc_of_Case =
@@ -282,7 +305,11 @@ let doc_of_Rule =
   let delim_group =
     Doc.hcats([
       bar_delim,
-      p |> pad_child(~inline_padding=(space, space), ~enforce_inline=false),
+      p
+      |> pad_closed_child(
+           ~inline_padding=(space, space),
+           ~enforce_inline=false,
+         ),
       arrow_delim,
     ]);
   Doc.(
@@ -313,17 +340,26 @@ let doc_of_LetLine =
         Doc.hcats([
           let_delim,
           p
-          |> pad_child(~inline_padding=(space, space), ~enforce_inline=false),
+          |> pad_closed_child(
+               ~inline_padding=(space, space),
+               ~enforce_inline=false,
+             ),
           eq_delim,
         ])
       | Some(ann) =>
         Doc.hcats([
           let_delim,
           p
-          |> pad_child(~inline_padding=(space, space), ~enforce_inline=false),
+          |> pad_closed_child(
+               ~inline_padding=(space, space),
+               ~enforce_inline=false,
+             ),
           colon_delim,
           ann
-          |> pad_child(~inline_padding=(space, space), ~enforce_inline=false),
+          |> pad_closed_child(
+               ~inline_padding=(space, space),
+               ~enforce_inline=false,
+             ),
           eq_delim,
         ])
       };
@@ -332,7 +368,8 @@ let doc_of_LetLine =
   let close_group = in_delim |> tag_DelimGroup;
   Doc.hcats([
     open_group,
-    def |> pad_child(~inline_padding=(space, space), ~enforce_inline=false),
+    def
+    |> pad_open_child(~inline_padding=(space, space), ~enforce_inline=false),
     close_group,
   ]);
 };
@@ -673,7 +710,8 @@ module Typ = {
     | List(ty) =>
       Doc.hcats([
         Text("["),
-        doc_of_htyp(~steps=steps @ [0], ty) |> pad_child(~enforce_inline),
+        doc_of_htyp(~steps=steps @ [0], ty)
+        |> pad_open_child(~enforce_inline),
         Text("]"),
       ])
     | Arrow(ty1, ty2)
