@@ -195,6 +195,7 @@ let contenteditable_of_layout = (l: Layout.t(tag)): Vdom.Node.t => {
           Node.span([contenteditable_false, Attr.classes(["Indent"])], vs),
         ]
       | OpenChild(_)
+      | ClosedChild(_)
       | HoleLabel
       | DelimGroup
       | Term(_) => vs
@@ -318,6 +319,13 @@ let presentation_of_layout =
     | Tagged(OpenChild({is_inline}), l) => [
         Node.span(
           [Attr.classes(["OpenChild", is_inline ? "Inline" : "Para"])],
+          go(l),
+        ),
+      ]
+
+    | Tagged(ClosedChild({is_inline}), l) => [
+        Node.span(
+          [Attr.classes(["ClosedChild", is_inline ? "Inline" : "Para"])],
           go(l),
         ),
       ]

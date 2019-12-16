@@ -11,6 +11,8 @@ let tag_Padding = Doc.tag(TermTag.Padding);
 let tag_DelimGroup = Doc.tag(TermTag.DelimGroup);
 let tag_OpenChild = (~is_inline) =>
   Doc.tag(TermTag.mk_OpenChild(~is_inline, ()));
+let tag_ClosedChild = (~is_inline) =>
+  Doc.tag(TermTag.mk_ClosedChild(~is_inline, ()));
 
 let indent_and_align = (d: doc): doc =>
   Doc.(hcats([indent |> tag_Padding, align(d)]));
@@ -79,7 +81,10 @@ let pad_child =
         inline_choice |> tag_OpenChild(~is_inline=true),
         para_choice |> tag_OpenChild(~is_inline=false),
       )
-      : (inline_choice, para_choice);
+      : (
+        inline_choice |> tag_ClosedChild(~is_inline=true),
+        para_choice |> tag_ClosedChild(~is_inline=false),
+      );
   enforce_inline
     ? inline_choice
     : Doc.(

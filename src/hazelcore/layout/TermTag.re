@@ -39,6 +39,7 @@ type t =
       caret: option(Side.t),
     })
   | OpenChild({is_inline: bool})
+  | ClosedChild({is_inline: bool})
   | Term({
       shape: term_shape,
       has_cursor: bool,
@@ -55,3 +56,5 @@ let mk_Term = (~has_cursor=false, ~shape: term_shape, ()): t =>
   Term({has_cursor, shape});
 let mk_OpenChild = (~is_inline: bool, ()) =>
   OpenChild({is_inline: is_inline});
+let mk_ClosedChild = (~is_inline: bool, ()) =>
+  ClosedChild({is_inline: is_inline});
