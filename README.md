@@ -36,6 +36,10 @@ recent version.
 
   - From the start menu or taskbar, open the "Ubuntu" application.  This will
     open a Bash shell on Ubuntu Linux.
+    
+- If you are on MacOS:
+  
+  - Make sure you have [Homebrew](https://brew.sh/) installed.
 
 - Make sure make sure `gcc`, `git`, `make`, and `m4` are installed.
 
@@ -50,10 +54,12 @@ recent version.
     sudo apt install gcc git make m4
     ```
 
-  - If you are on MacOS, you can do this by running the following commands:
+  - If you are on MacOS, these programs should come pre-installed on your machine.
+    If you do not have these programs installed for any reason, you can install them
+    using Homebrew:
 
     ```sh
-    TODO
+    brew install gcc git make m4
     ```
 
 ### Install and Initialize `opam`
@@ -78,7 +84,7 @@ recent version.
   - If you are on MacOS, you can do this by running the following commands:
 
     ```sh
-    TODO
+    brew install opam
     ```
 
 - Check that you have the correct version of `opam` by running the following
