@@ -59,7 +59,7 @@ recent version.
     using Homebrew:
 
     ```sh
-    brew install gcc git make m4
+    brew install gcc git make
     ```
 
 ### Install and Initialize `opam`
