@@ -278,7 +278,7 @@ let doc_of_Case_ann =
         hseps([end_delim, ann(~enforce_inline=true)]),
         vseps([end_delim, indent_and_align(ann(~enforce_inline=false))]),
       ])
-      |> tag(TermTag.DelimGroup)
+      |> tag_DelimGroup
     );
   Doc.(
     vseps(
@@ -1481,28 +1481,17 @@ module Exp = {
             (),
           )
         };
-      | CursorE(OnDelim(k, side), Case(_, scrut, rules, ann)) =>
+      | CursorE(OnDelim(k, side), Case(_, scrut, rules, None)) =>
         if (enforce_inline) {
           Fail;
         } else {
-          let doc_of_Case = {
-            let scrut = doc(~steps=steps @ [0], scrut);
-            let rules =
-              rules
-              |> List.mapi((i, rule) =>
-                   doc_of_rule(~steps=steps @ [1 + i], rule)
-                 );
-            switch (ann) {
-            | None => doc_of_Case(~steps, ~scrut, ~rules)
-            | Some(ann) =>
-              doc_of_Case_ann(
-                ~steps,
-                ~scrut,
-                ~rules,
-                ~ann=Typ.doc(~steps=steps @ [1], ann),
-              )
-            };
-          };
+          let scrut = doc(~steps=steps @ [0], scrut);
+          let rules =
+            rules
+            |> List.mapi((i, rule) =>
+                 doc_of_rule(~steps=steps @ [1 + i], rule)
+               );
+          let doc_of_Case = doc_of_Case(~steps, ~scrut, ~rules);
           switch (k) {
           | 0 =>
             doc_of_Case(
@@ -1511,7 +1500,33 @@ module Exp = {
             )
           | _one =>
             doc_of_Case(
-              ~case_delim=DocOfDelim.close_Case(~caret=side, steps),
+              ~end_delim=DocOfDelim.close_Case(~caret=side, steps),
+              (),
+            )
+          };
+        }
+
+      | CursorE(OnDelim(k, side), Case(_, scrut, rules, Some(ann))) =>
+        if (enforce_inline) {
+          Fail;
+        } else {
+          let scrut = doc(~steps=steps @ [0], scrut);
+          let rules =
+            rules
+            |> List.mapi((i, rule) =>
+                 doc_of_rule(~steps=steps @ [1 + i], rule)
+               );
+          let ann = Typ.doc(~steps=steps @ [1 + List.length(rules)], ann);
+          let doc_of_Case_ann = doc_of_Case_ann(~steps, ~scrut, ~rules, ~ann);
+          switch (k) {
+          | 0 =>
+            doc_of_Case_ann(
+              ~case_delim=DocOfDelim.open_Case(~caret=side, steps),
+              (),
+            )
+          | _one =>
+            doc_of_Case_ann(
+              ~end_delim=DocOfDelim.close_Case(~caret=side, steps),
               (),
             )
           };
