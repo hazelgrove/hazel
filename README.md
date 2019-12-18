@@ -54,7 +54,7 @@ recent version.
     
 - If you are on MacOS, make sure you have [Homebrew](https://brew.sh/) installed.
 
-- Make sure make sure `gcc`, `git`, `make`, and `m4` are installed.
+- Make sure `gcc`, `git`, `make`, and `m4` are installed.
 
   - If you are on Linux or Windows, you can do this by running the following
     commands:
