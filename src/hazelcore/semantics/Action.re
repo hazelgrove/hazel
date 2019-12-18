@@ -3587,6 +3587,7 @@ and syn_perform_lines =
       ctx,
       u_gen,
     ))
+
   | (Construct(SLine), (prefix, zline, suffix))
       when ZExp.is_after_line(zline) =>
     let line = ZExp.erase_line(zline);
@@ -3736,6 +3737,8 @@ and syn_perform_line =
     )
     : result((ZExp.zlines, Contexts.t, MetaVarGen.t)) =>
   switch (a, zline) {
+  | (Construct(SCommentLine), CursorL(_, EmptyLine)) =>
+    Succeeded((([], CursorL(OnText(0), CommentLine("")), []), ctx, u_gen))
   | (
       _,
       CursorL(OnDelim(_, _) | Staging(_), EmptyLine) |
@@ -3800,20 +3803,17 @@ and syn_perform_line =
   | (Backspace, CursorL(OnDelim(_, After), CommentLine(_))) =>
     // just delete the commentline (need future modification)
     Succeeded((([], CursorL(OnText(0), EmptyLine), []), ctx, u_gen))
-  | (Backspace, CursorL(OnText(k), CommentLine(comment) as line)) =>
-    // if the cursor is at the start of the string
-    if (k == 0) {
-      Succeeded((([], CursorL(OnDelim(0, After), line), []), ctx, u_gen));
-    } else {
-      let str_before = String.sub(comment, 0, k - 1);
-      let str_after = String.sub(comment, k, String.length(comment) - k + 1);
-      let new_comment = str_before ++ str_after;
-      Succeeded((
-        ([], CursorL(OnText(k - 1), CommentLine(new_comment)), []),
-        ctx,
-        u_gen,
-      ));
-    }
+  | (
+      Construct(SCommentText(new_comment, new_cursor)),
+      CursorL(OnText(_), CommentLine(_)),
+    ) =>
+    Succeeded((
+      ([], CursorL(new_cursor, CommentLine(new_comment)), []),
+      ctx,
+      u_gen,
+    ))
+
+  | (Backspace, CursorL(OnText(_), CommentLine(_))) => Failed
 
   | (Backspace | Delete, CursorL(Staging(_), _)) =>
     // handled at blocks level

@@ -100,6 +100,30 @@ let entered_single_key =
       | Underscore => Action.SVar("__", OnText(2))
       };
     Some(prevent_stop_inject(Update.Action.EditAction(Construct(shape))));
+
+  | (Line(CommentLine(old_comment)), _) =>
+    let comment =
+      switch (single_key) {
+      | Letter(x) => old_comment ++ x
+      | Number(n) => old_comment ++ string_of_int(n)
+      | Underscore => old_comment ++ "_"
+      };
+
+    let new_cursor_posi =
+      switch (ci.position) {
+      | OnText(t) => CursorPosition.OnText(t + 1)
+      | OnDelim(_, _) => OnText(0)
+      | Staging(_) => OnText(0)
+      };
+
+    Some(
+      prevent_stop_inject(
+        Update.Action.EditAction(
+          Construct(SCommentText(comment, new_cursor_posi)),
+        ),
+      ),
+    );
+
   | (Line(EmptyLine | ExpLine(EmptyHole(_))) | Exp(EmptyHole(_)), _) =>
     let shape =
       switch (single_key) {
@@ -314,15 +338,25 @@ let view =
                   switch (
                     String.equal(nodeValue', ""),
                     int_of_string_opt(nodeValue'),
+                    ci.node,
                   ) {
-                  | (true, _) => prevent_stop_inject(update)
-                  | (false, Some(new_n)) =>
+                  | (_, _, Line(CommentLine(_))) =>
+                    JSUtil.log("Bug");
+                    prevent_stop_inject(
+                      Update.Action.EditAction(
+                        Construct(
+                          SCommentText(nodeValue', OnText(anchorOffset')),
+                        ),
+                      ),
+                    );
+                  | (true, _, _) => prevent_stop_inject(update)
+                  | (false, Some(new_n), _) =>
                     prevent_stop_inject(
                       Update.Action.EditAction(
                         Construct(SNumLit(new_n, OnText(anchorOffset'))),
                       ),
                     )
-                  | (false, None) =>
+                  | (false, None, _) =>
                     Var.is_valid(nodeValue')
                       ? prevent_stop_inject(
                           Update.Action.EditAction(
