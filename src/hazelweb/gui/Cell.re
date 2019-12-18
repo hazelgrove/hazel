@@ -113,25 +113,6 @@ let view =
                 : Code.editor_view_of_exp(~inject, model |> Model.exp);
             [contenteditable, presentation];
           },
-          /*
-           model.is_cell_focused
-             ? Code.view_of_zblock(
-                 ~inject,
-                 ~user_newlines=model.user_newlines,
-                 model |> Model.zexp,
-               )
-             : Code.view_of_block(
-                 ~inject,
-                 ~user_newlines=model.user_newlines,
-                 model |> Model.exp,
-               ),
-           ...CursorIndicators.view(
-                ~is_cell_focused=model.is_cell_focused,
-                ~holes_steps=
-                  model |> Model.exp |> CursorIndicators.collect_holes,
-                ~ci=model.cursor_info,
-              ),
-           */
         ),
       ],
     )
