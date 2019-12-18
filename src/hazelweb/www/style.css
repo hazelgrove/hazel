@@ -890,10 +890,6 @@ button:disabled {
   margin: 0;
 }
 
-.Cursor.Exp .ClosedChild {
-  border: 1px solid red;
-}
-
 .Cursor.Exp .Typ {
   border: 1px solid purple;
 }
