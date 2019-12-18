@@ -29,17 +29,30 @@ recent version.
 
 ### Prerequisites
 
-- If you are on Windows:
+- If you are on Windows, install the Windows Subsystem for Linux (WSL) by doing the
+  following.
+  
+  - WSL has to be enabled before it can be installed. So, to enable WSL, do the following:
 
-  - Go the to Microsoft Store, and search for and install "Ubuntu".  This will
-    install the Windows Subsystem for Linux and the Ubuntu Linux distribution.
+    - From the start menu or task bar, open the "PowerShell" application. This will
+      open a PowerShell command prompt.
+
+    - Run the following command at the PowerShell prompt:
+  
+      ```sh
+      Enable-WindowsOptionalFeature -Online -FeatureName Microsoft-Windows-Subsystem-Linux
+      ```
+  
+    - When this command asks you if you want to reboot, reboot by pressing `y`.
+
+  - After enabling WSL, to install WSL, go the to Microsoft Store, and search for and install "Ubuntu".
+    This will install WSL and the Ubuntu Linux distribution.
 
   - From the start menu or taskbar, open the "Ubuntu" application.  This will
-    open a Bash shell on Ubuntu Linux.
+    open a Bash shell on Ubuntu Linux.  Use this when running the commands in
+    the rest of these instructions.
     
-- If you are on MacOS:
-  
-  - Make sure you have [Homebrew](https://brew.sh/) installed.
+- If you are on MacOS, make sure you have [Homebrew](https://brew.sh/) installed.
 
 - Make sure make sure `gcc`, `git`, `make`, and `m4` are installed.
 
@@ -54,9 +67,14 @@ recent version.
     sudo apt install gcc git make m4
     ```
 
-  - If you are on MacOS, these programs should come pre-installed on your machine.
-    If you do not have these programs installed for any reason, you can install them
-    using Homebrew:
+  - If you are on MacOS, we recommend using the built-in `m4` (i.e., not the one from Homebrew).
+    
+    You can install the remaining programs (i.e., `gcc`, `git`, and `make`) by
+    running the following commands:
+
+    ```sh
+    brew update
+    ```
 
     ```sh
     brew install gcc git make
@@ -82,6 +100,10 @@ recent version.
     ```
 
   - If you are on MacOS, you can do this by running the following commands:
+
+    ```sh
+    brew update
+    ```
 
     ```sh
     brew install opam
@@ -138,11 +160,17 @@ recent version.
 - Pick a directory that you want to be the parent of the directory that contains
   the Hazel source code and use the `cd` command to change to that
   directory.
-
-- Clone a copy of the source code by running the following command:
+  
+- Clone a copy of the source code by either running the following command:
 
   ```
   git clone git@github.com:hazelgrove/hazel.git
+  ```
+
+  Or running the following command:
+
+  ```
+  git clone https://github.com/hazelgrove/hazel.git
   ```
 
   This will put create a `hazel` directory containing the Hazel source code
@@ -210,7 +238,7 @@ dev` or `make release` again.
 - Once Hazel is compiled, you can see it in action by running one of the
   following commands.
 
-  - If you are on Linux or MacOS, you can launch Hazel with `BROWSER $(make
+  - If you are on Linux, you can launch Hazel with `BROWSER $(make
     echo-html)` where (depending on your installed operating system and browser)
     `BROWSER` is one of:
 
@@ -219,6 +247,8 @@ dev` or `make release` again.
     - `chrome-browser`,
     - `chromium`, or
     - `chromium-browser`.
+
+  - If you are on MacOS, you can launch Hazell with `open $(make echo-html)`.
 
   - If you are on Windows, the path to the browser may not be so easy to type, so you
     can use the following commands to launch Hazel in the browser:
