@@ -390,6 +390,7 @@ let doc_of_tuple =
     : doc =>
   switch (zip(elems, elem_docs)) {
   | [] => failwith(__LOC__ ++ ": found empty tuple")
+  | [(_, hd_doc)] => hd_doc
   | [(_, hd_doc), ...tl] =>
     tl
     |> List.fold_left(
@@ -397,9 +398,13 @@ let doc_of_tuple =
            let comma_index = Skel.rightmost_tm_index(elem) + Seq.length(seq);
            let comma_doc =
              doc_of_comma(~steps=steps @ [comma_index], ~enforce_inline, ());
-           Doc.hcats([tuple_so_far, comma_doc, elem_doc]);
+           Doc.hcats([
+             tuple_so_far,
+             comma_doc,
+             elem_doc |> tag_OpenChild(~is_inline=true),
+           ]);
          },
-         hd_doc,
+         hd_doc |> tag_OpenChild(~is_inline=true),
        )
   };
 
@@ -445,9 +450,9 @@ let rec _doc_of_BinOp =
     let skel1_doc = go(skel1);
     let skel2_doc = go(skel2);
     Doc.hcats([
-      skel1_doc,
+      skel1_doc |> tag_OpenChild(~is_inline=true),
       op_doc |> pad_operator(~inline_padding=inline_padding_of_operator(op)),
-      skel2_doc,
+      skel2_doc |> tag_OpenChild(~is_inline=true),
     ])
     |> Doc.tag(mk_BinOp_tag(err, op, skel1, skel2));
   };
@@ -574,9 +579,9 @@ let rec _doc_of_ZBinOp =
         (false, op_doc, skel1_doc, skel2_doc);
       };
     Doc.hcats([
-      skel1_doc,
+      skel1_doc |> tag_OpenChild(~is_inline=true),
       op_doc |> pad_operator(~inline_padding=inline_padding_of_operator(op)),
-      skel2_doc,
+      skel2_doc |> tag_OpenChild(~is_inline=true),
     ])
     |> Doc.tag(mk_BinOp_tag(~has_cursor, err, op, skel1, skel2));
   };
