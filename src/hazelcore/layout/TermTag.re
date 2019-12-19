@@ -38,6 +38,7 @@ type t =
       steps: CursorPath.steps,
       caret: option(Side.t),
     })
+  | SpaceOp({steps: CursorPath.steps})
   | OpenChild({is_inline: bool})
   | ClosedChild({is_inline: bool})
   | Term({

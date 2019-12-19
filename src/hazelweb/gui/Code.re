@@ -188,6 +188,9 @@ let contenteditable_of_layout = (l: Layout.t(tag)): Vdom.Node.t => {
         [caret_position(path_before)]
         @ [Node.span([contenteditable_false], vs)]
         @ [caret_position(path_after)];
+      | SpaceOp(_) => [
+          Node.span([contenteditable_false, Attr.classes(["SpaceOp"])], vs),
+        ]
       | Text({steps, _}) => [Node.span([Attr.id(text_id(steps))], vs)]
       | Padding => [
           Node.span([contenteditable_false, Attr.classes(["Padding"])], vs),
@@ -365,6 +368,8 @@ let presentation_of_layout =
         | Some(side) => [caret_of_side(side), ...go(l)]
         };
       [Node.span(attrs, children)];
+
+    | Tagged(SpaceOp(_), l) => go(l)
 
     | Tagged(Text({caret, length, steps}), l) =>
       let attrs = [

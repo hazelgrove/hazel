@@ -59,6 +59,9 @@ let doc_of_op =
     : doc =>
   Doc.Text(op_text) |> Doc.tag(TermTag.mk_Op(~caret?, ~steps, ()));
 
+let doc_of_space_op = (~steps: CursorPath.steps, ()): doc =>
+  Doc.space |> Doc.tag(TermTag.SpaceOp({steps: steps}));
+
 let pad_child =
     (
       ~is_open: bool,
@@ -687,6 +690,7 @@ let _doc_of_ZNTuple =
 };
 
 module Typ = {
+  let is_space = _ => false;
   let is_comma = UHTyp.is_Prod;
   let is_zcomma = zop => zop |> ZTyp.erase_zoperator |> is_comma;
   let erase_zseq = ZTyp.erase_zseq;
@@ -910,6 +914,7 @@ module Typ = {
 };
 
 module Pat = {
+  let is_space = UHPat.is_Space;
   let is_comma = UHPat.is_Comma;
   let is_zcomma = zop => zop |> ZPat.erase_zoperator |> is_comma;
   let erase_zseq = ZPat.erase_zseq;
@@ -952,7 +957,9 @@ module Pat = {
       opseq,
     )
   and doc_of_operator = (~steps: CursorPath.steps, op: UHPat.operator): doc =>
-    doc_of_op(~steps, UHPat.string_of_operator(op), ())
+    op |> is_space
+      ? doc_of_space_op(~steps, ())
+      : doc_of_op(~steps, UHPat.string_of_operator(op), ())
   and doc_of_operand =
       (
         ~steps: CursorPath.steps,
@@ -1110,6 +1117,7 @@ module Pat = {
 };
 
 module Exp = {
+  let is_space = UHExp.is_Space;
   let is_comma = UHExp.is_Comma;
   let is_zcomma = zop => zop |> ZExp.erase_zoperator |> is_comma;
   let erase_zseq = ZExp.erase_zseq;
@@ -1189,7 +1197,9 @@ module Exp = {
       opseq,
     )
   and doc_of_operator = (~steps: CursorPath.steps, op: UHExp.operator): doc =>
-    doc_of_op(~steps, UHExp.string_of_operator(op), ())
+    op |> is_space
+      ? doc_of_space_op(~steps, ())
+      : doc_of_op(~steps, UHExp.string_of_operator(op), ())
   and doc_of_operand =
       (
         ~steps: CursorPath.steps,
