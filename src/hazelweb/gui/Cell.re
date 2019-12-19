@@ -102,20 +102,26 @@ let entered_single_key =
     Some(prevent_stop_inject(Update.Action.EditAction(Construct(shape))));
 
   | (Line(CommentLine(old_comment)), _) =>
+    let insert_loca =
+      switch (ci.position) {
+      | OnText(t) => t
+      | OnDelim(_, _) => 0
+      | Staging(_) => 0
+      };
+    let comment_before = String.sub(old_comment, 0, insert_loca);
+    let comment_after =
+      String.sub(
+        old_comment,
+        insert_loca,
+        String.length(old_comment) - insert_loca,
+      );
     let comment =
       switch (single_key) {
-      | Letter(x) => old_comment ++ x
-      | Number(n) => old_comment ++ string_of_int(n)
-      | Underscore => old_comment ++ "_"
+      | Letter(x) => comment_before ++ x ++ comment_after
+      | Number(n) => comment_before ++ string_of_int(n) ++ comment_after
+      | Underscore => comment_before ++ "_" ++ comment_after
       };
-
-    let new_cursor_posi =
-      switch (ci.position) {
-      | OnText(t) => CursorPosition.OnText(t + 1)
-      | OnDelim(_, _) => OnText(0)
-      | Staging(_) => OnText(0)
-      };
-
+    let new_cursor_posi = CursorPosition.OnText(insert_loca + 1);
     Some(
       prevent_stop_inject(
         Update.Action.EditAction(
@@ -234,12 +240,48 @@ let view =
                 ]);
               let ci = model.cursor_info;
               switch (
+                ci.node,
                 ci.position,
                 JSUtil.is_movement_key(evt),
                 JSUtil.is_single_key(evt),
                 KeyCombo.of_evt(evt),
               ) {
-              | (Staging(_), true, _, _) =>
+              | (
+                  Line(CommentLine(comment)),
+                  OnText(0),
+                  _,
+                  _,
+                  Some(Backspace),
+                ) =>
+                let new_cursor_posi = CursorPosition.OnDelim(0, After);
+                prevent_stop_inject(
+                  Update.Action.EditAction(
+                    Construct(SCommentText(comment, new_cursor_posi)),
+                  ),
+                );
+              | (Line(CommentLine(old_comment)), _, _, _, Some(Space)) =>
+                let insert_loca =
+                  switch (ci.position) {
+                  | OnText(t) => t
+                  | OnDelim(_, _) => 0
+                  | Staging(_) => 0
+                  };
+                let comment_before = String.sub(old_comment, 0, insert_loca);
+                let comment_after =
+                  String.sub(
+                    old_comment,
+                    insert_loca,
+                    String.length(old_comment) - insert_loca,
+                  );
+                let comment = comment_before ++ " " ++ comment_after;
+                let new_cursor_posi = CursorPosition.OnText(insert_loca + 1);
+                prevent_stop_inject(
+                  Update.Action.EditAction(
+                    Construct(SCommentText(comment, new_cursor_posi)),
+                  ),
+                );
+
+              | (_, Staging(_), true, _, _) =>
                 switch (evt |> JSUtil.get_key) {
                 | "ArrowLeft" =>
                   prevent_stop_inject(Update.Action.EditAction(ShiftLeft))
@@ -251,9 +293,9 @@ let view =
                   prevent_stop_inject(Update.Action.EditAction(ShiftDown))
                 | _ => Event.Ignore
                 }
-              | (OnText(_) | OnDelim(_, _), true, _, _) => Event.Many([])
-              | (_, _, None, None) => Event.Ignore
-              | (_, _, Some(single_key), opt_kc) =>
+              | (_, OnText(_) | OnDelim(_, _), true, _, _) => Event.Many([])
+              | (_, _, _, None, None) => Event.Ignore
+              | (_, _, _, Some(single_key), opt_kc) =>
                 switch (
                   entered_single_key(
                     ~prevent_stop_inject,
@@ -300,7 +342,7 @@ let view =
                     };
                   };
                 }
-              | (_, _, _, Some((Backspace | Delete) as kc)) =>
+              | (_, _, _, _, Some((Backspace | Delete) as kc)) =>
                 let (string_edit, update, cursor_escaped) =
                   switch (kc) {
                   | Backspace => (
@@ -341,14 +383,14 @@ let view =
                     ci.node,
                   ) {
                   | (_, _, Line(CommentLine(_))) =>
-                    JSUtil.log("Bug");
+                    // JSUtil.log("Bug");
                     prevent_stop_inject(
                       Update.Action.EditAction(
                         Construct(
                           SCommentText(nodeValue', OnText(anchorOffset')),
                         ),
                       ),
-                    );
+                    )
                   | (true, _, _) => prevent_stop_inject(update)
                   | (false, Some(new_n), _) =>
                     prevent_stop_inject(
@@ -370,7 +412,7 @@ let view =
                         )
                   };
                 };
-              | (OnText(_) | OnDelim(_, _), _, _, Some(Enter)) =>
+              | (_, OnText(_) | OnDelim(_, _), _, _, Some(Enter)) =>
                 switch (
                   model.user_newlines
                   |> CursorPath.StepsMap.mem(ci.node_steps),
@@ -388,13 +430,13 @@ let view =
                     ),
                   )
                 }
-              | (Staging(_), _, _, Some(Escape)) =>
+              | (_, Staging(_), _, _, Some(Escape)) =>
                 prevent_stop_inject(
                   Update.Action.EditAction(
                     ci.node |> Hashtbl.find(kc_actions, Enter),
                   ),
                 )
-              | (_, _, _, Some(kc)) =>
+              | (_, _, _, _, Some(kc)) =>
                 prevent_stop_inject(
                   Update.Action.EditAction(
                     ci.node |> Hashtbl.find(kc_actions, kc),

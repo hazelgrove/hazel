@@ -24,6 +24,10 @@
   --page-padding: 15px;
 }
 
+.CommentLine {
+  white-space: pre;
+}
+
 /* general */
 div {
   box-sizing: border-box;
