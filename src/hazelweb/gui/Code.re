@@ -87,14 +87,15 @@ let term_attrs =
     | PatBinOp(err, _, _, _)
     | ExpBinOp(err, _, _, _) => ["BinOp", ...clss_of_err(err)]
 
-    | TypNProd(_)
-    | PatNTuple(_)
-    | ExpNTuple(_) => ["NTuple"]
+    | TypNProd(_) => ["NTuple"]
+    | PatNTuple(err, _)
+    | ExpNTuple(err, _) => ["NTuple", ...clss_of_err(err)]
 
     | TypOperand(operand) => Typ.clss_of_operand(operand)
     | PatOperand(operand) => Pat.clss_of_operand(operand)
     | ExpOperand(operand) => Exp.clss_of_operand(operand)
     };
+
   [
     Vdom.Attr.classes(
       ["Term", tm_family_cls, ...has_cursor_clss] @ shape_clss,

@@ -864,6 +864,14 @@ button:disabled {
 }
 */
 
+.InHole {
+  border: 1px dashed var(--nonempty-hole-color);
+}
+
+.InVarHole {
+  border: 1px dashed #ce5f00;
+}
+
 .OpenChild.Para {
   display: inline-flex;
   flex-direction: row;
@@ -1155,10 +1163,6 @@ button:disabled {
 
 .in_err_hole > .in_err_hole {
   border: 0px !important;
-}
-
-.InVarHole {
-  border: 1px dashed #ce5f00;
 }
 
 .InVarHole.Keyword {
