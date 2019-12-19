@@ -819,42 +819,42 @@ button:disabled {
 }
 @keyframes "blink" {
   from, to {
-    background-color: transparent;
+    background-color: var(--caret-color);
   }
   50% {
-    background-color: var(--caret-color);
+    background-color: transparent;
   }
 }
 @-moz-keyframes blink {
   from, to {
-    background-color: transparent;
+    background-color: var(--caret-color);
   }
   50% {
-    background-color: var(--caret-color);
+    background-color: transparent;
   }
 }
 @-webkit-keyframes "blink" {
   from, to {
-    background-color: transparent;
+    background-color: var(--caret-color);
   }
   50% {
-    background-color: var(--caret-color);
+    background-color: transparent;
   }
 }
 @-ms-keyframes "blink" {
   from, to {
-    background-color: transparent;
+    background-color: var(--caret-color);
   }
   50% {
-    background-color: var(--caret-color);
+    background-color: transparent;
   }
 }
 @-o-keyframes "blink" {
   from, to {
-    background-color: transparent;
+    background-color: var(--caret-color);
   }
   50% {
-    background-color: var(--caret-color);
+    background-color: transparent;
   }
 }
 
