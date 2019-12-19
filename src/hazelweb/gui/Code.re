@@ -171,6 +171,11 @@ let contenteditable_of_layout = (l: Layout.t(tag)): Vdom.Node.t => {
       [Node.text(LangUtil.nondisplay1)],
     );
   let record: Layout.text(tag, list(Node.t), Node.t) = {
+    /* All DOM text nodes are expected to be wrapped in an
+     * element either with contenteditable set to false or
+     * tagged with the appropriate path-related metadata.
+     * cf SelectionChange clause in Update.apply_action
+     */
     imp_of_tag: (tag, vs) =>
       switch (tag) {
       | Delim({path: (steps, delim_index), _}) =>
