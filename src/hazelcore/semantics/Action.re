@@ -2055,11 +2055,11 @@ module Exp = {
   and syn_perform_line =
       (ctx: Contexts.t, a: t, (zline: ZExp.zline, u_gen: MetaVarGen.t))
       : result(line_success) => {
-    let mk_result = (u_gen, zblock) =>
-      switch (Statics.Exp.syn_lines(ctx, zblock |> ZExp.erase_zblock)) {
-      | None => Failed
-      | Some(ctx) => Succeeded(LineDone((zblock, ctx, u_gen)))
-      };
+    let mk_result = (u_gen, zlines) => {
+      let (zlines, ctx, u_gen) =
+        Statics.Exp.syn_fix_holes_zlines(ctx, u_gen, zlines);
+      Succeeded(LineDone((zlines, ctx, u_gen)));
+    };
     let escape = (u_gen, side: Side.t) => {
       let move_cursor =
         switch (side) {
@@ -2111,15 +2111,22 @@ module Exp = {
       syn_perform_line(ctx, Backspace, (new_zline, u_gen));
 
     | (Backspace, CursorL(OnDelim(k, After), LetLine(p, _, def))) =>
-      let new_zline =
-        if (k == 1) {
-          /* let x :<| Num = 2   ==>   let x| = 2 */
-          let zp = p |> ZPat.place_after;
-          ZExp.LetLineZP(zp, None, def);
-        } else {
-          ZExp.place_before_line(EmptyLine);
-        };
-      mk_result(u_gen, ([], new_zline, []));
+      if (k == 1) {
+        /* let x :<| Num = 2   ==>   let x| = 2 */
+        let zp = p |> ZPat.place_after;
+        let new_zblock = ([], ZExp.LetLineZP(zp, None, def), []);
+        mk_result(u_gen, new_zblock);
+      } else {
+        let new_ze =
+          k == 3 ? def |> ZExp.place_after : def |> ZExp.place_before;
+        let new_zblock =
+          switch (new_ze) {
+          | ZE2(zblock) => zblock
+          | ZE1(zopseq) => ([], ExpLineZ(zopseq), [])
+          | ZE0(zoperand) => ([], ExpLineZ(zoperand |> ZOpSeq.wrap), [])
+          };
+        mk_result(u_gen, new_zblock);
+      }
 
     /* Construction */
 

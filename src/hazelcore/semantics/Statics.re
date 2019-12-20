@@ -23,7 +23,7 @@ module Pat = {
     switch (skel) {
     | Placeholder(n) =>
       let pn = seq |> Seq.nth_operand(n);
-      UHPat.bidelimited(pn) ? syn_operand(ctx, pn) : None;
+      syn_operand(ctx, pn);
     | BinOp(InHole(_), op, skel1, skel2) =>
       let skel_not_in_hole = Skel.BinOp(NotInHole, op, skel1, skel2);
       switch (syn_skel(ctx, skel_not_in_hole, seq)) {
@@ -746,7 +746,7 @@ module Exp = {
     switch (skel) {
     | Placeholder(n) =>
       let en = Seq.nth_operand(n, seq);
-      UHExp.bidelimited(en) ? syn_operand(ctx, en) : None;
+      syn_operand(ctx, en);
     | BinOp(InHole(_), op, skel1, skel2) =>
       let skel_not_in_hole = Skel.BinOp(NotInHole, op, skel1, skel2);
       syn_skel(ctx, skel_not_in_hole, seq) |> Opt.map(_ => HTyp.Hole);
@@ -945,7 +945,7 @@ module Exp = {
       None
     | Placeholder(n) =>
       let en = Seq.nth_operand(n, seq);
-      UHExp.bidelimited(en) ? ana_operand(ctx, en, ty) : None;
+      ana_operand(ctx, en, ty);
     | BinOp(NotInHole, Cons, skel1, skel2) =>
       switch (HTyp.matched_list(ty)) {
       | None => None
@@ -1927,6 +1927,20 @@ module Exp = {
     let (e, ty, u_gen) = syn_fix_holes(ctx, u_gen, e);
     let ze = CursorPath.Exp.follow_or_fail(path, e);
     (ze, ty, u_gen);
+  };
+
+  let syn_fix_holes_zlines =
+      (ctx: Contexts.t, u_gen: MetaVarGen.t, zlines: ZExp.zblock)
+      : (ZExp.zblock, Contexts.t, MetaVarGen.t) => {
+    let path = CursorPath.Exp.of_zblock(zlines);
+    let lines = zlines |> ZExp.erase_zblock;
+    let (lines, ctx, u_gen) = syn_fix_holes_lines(ctx, u_gen, lines);
+    let zlines =
+      Opt.get(
+        _ => failwith("hole fix pass did not preserve paths"),
+        CursorPath.Exp.follow_block(path, lines),
+      );
+    (zlines, ctx, u_gen);
   };
 
   let ana_fix_holes_z =
