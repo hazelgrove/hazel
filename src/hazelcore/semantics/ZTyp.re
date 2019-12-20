@@ -186,7 +186,7 @@ let rec move_cursor_right: t => option(t) =
   fun
   | ZT1(zopseq) => zopseq |> move_cursor_right_zopseq |> Opt.map(z => ZT1(z))
   | ZT0(zoperand) =>
-    zoperand |> move_cursor_left_zoperand |> Opt.map(z => ZT0(z))
+    zoperand |> move_cursor_right_zoperand |> Opt.map(z => ZT0(z))
 and move_cursor_right_zopseq = zopseq =>
   ZOpSeq.move_cursor_right(
     ~move_cursor_right_zoperand,
