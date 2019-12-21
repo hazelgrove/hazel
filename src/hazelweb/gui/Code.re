@@ -268,26 +268,38 @@ let caret_position_of_path =
 
 let exp_cursor_before = _ =>
   Vdom.(
-    Node.svg(
+    Node.create_svg(
       "svg",
       [
         Attr.id("cursor-before"),
         Attr.classes(["exp"]),
         Attr.create("viewBox", "0 0 1 1"),
       ],
-      [Node.svg("polygon", [Attr.create("points", "0,0 1,0 0,1")], [])],
+      [
+        Node.create_svg(
+          "polygon",
+          [Attr.create("points", "0,0 1,0 0,1")],
+          [],
+        ),
+      ],
     )
   );
 let exp_cursor_after = _ =>
   Vdom.(
-    Node.svg(
+    Node.create_svg(
       "svg",
       [
         Attr.id("cursor-after"),
         Attr.classes(["exp"]),
         Attr.create("viewBox", "0 0 1 1"),
       ],
-      [Node.svg("polygon", [Attr.create("points", "1,1 1,0 0,1")], [])],
+      [
+        Node.create_svg(
+          "polygon",
+          [Attr.create("points", "1,1 1,0 0,1")],
+          [],
+        ),
+      ],
     )
   );
 
