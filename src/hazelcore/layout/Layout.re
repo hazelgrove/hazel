@@ -3,7 +3,14 @@ open GeneralUtil;
 
 /* Variable: `layout` */
 [@deriving sexp]
-type t('tag) =
+type t('tag) = {
+  layout: layout('tag),
+  first_width: int,
+  width: int,
+  last_width: int,
+  cost: int,
+}
+and layout('tag) =
   | Text(string) // Invariant: contains no newlines. Text("") is identity for `Cat`
   | Cat(t('tag), t('tag)) // associative // TODO: list
   | Linebreak
@@ -13,6 +20,20 @@ type t('tag) =
 let align = (l: t('tag)) => Align(l);
 let tag = (tag: 'tag, l: t('tag)) => Tagged(tag, l);
 
+let t_of_layout = (layout: layout('tag)): t('tag) => {
+  layout,
+  first_width: (-1),
+  width: (-1),
+  last_width: (-1),
+  cost: (-1),
+};
+
+// TODO?
+//let text = (string) => t_of_layout(Text(string));
+//let cat = (t1, t2) => t_of_layout(Cat(t1, t2));
+//let linebreak = t_of_layout(linebreak);
+
+// TODO: move to own module
 type text('tag, 'imp, 't) = {
   // TODO: rename `imp`
   imp_of_string: string => 'imp,
@@ -26,26 +47,22 @@ let make_of_layout: (text('tag, 'imp, 't), t('tag)) => 't =
   (text, layout) => {
     let column: ref(int) = ref(0);
     let rec go: (int, t('tag)) => 'imp =
-      indent => {
-        fun
-        | Text(string) => {
-            column := column^ + GeneralUtil.utf8_length(string);
-            text.imp_of_string(string);
-          }
-        | Cat(l1, l2) => {
-            let imp1 = go(indent, l1);
-            let imp2 = go(indent, l2);
-            text.imp_append(imp1, imp2);
-          }
-        | Linebreak => {
-            // TODO: no indent if on final line break
-            column := indent;
-            text.imp_newline(indent);
-          }
-        | Align(l) => {
-            go(column^, l);
-          }
-        | Tagged(tag, l) => text.imp_of_tag(tag, go(indent, l));
+      (indent, layout) => {
+        switch (layout.layout) {
+        | Text(string) =>
+          column := column^ + GeneralUtil.utf8_length(string);
+          text.imp_of_string(string);
+        | Cat(l1, l2) =>
+          let imp1 = go(indent, l1);
+          let imp2 = go(indent, l2);
+          text.imp_append(imp1, imp2);
+        | Linebreak =>
+          // TODO: no indent if on final line break
+          column := indent;
+          text.imp_newline(indent);
+        | Align(l) => go(column^, l)
+        | Tagged(tag, l) => text.imp_of_tag(tag, go(indent, l))
+        };
       };
     text.t_of_imp(go(0, layout));
   };
