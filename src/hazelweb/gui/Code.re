@@ -259,7 +259,7 @@ let presentation_of_layout =
   let on_click_text = on_click_text(~inject);
 
   let rec go = (l: TermLayout.t): list(Node.t) =>
-    switch (l) {
+    switch (l.layout) {
     | Text(str) => [Node.text(str)]
     | Cat(l1, l2) => go(l1) @ go(l2)
     | Linebreak => [Node.br([])]
