@@ -147,7 +147,7 @@ let page_view =
   let doc = DocOfTerm.doc_of_block(~steps=[], block);
   let layout =
     switch (LayoutOfDoc.layout_of_doc(doc, ~width=80, ~pos=0)) {
-    | None => Layout.Text("layout FAILED") // TODO
+    | None => Layout.t_of_layout(Layout.Text("layout FAILED")) // TODO
     | Some(l) => l
     };
   Vdom.(
