@@ -20,6 +20,18 @@ type term_shape =
   | ExpSubBlock(UHExp.line);
 
 [@deriving sexp]
+type term_data = {
+  shape: term_shape,
+  has_cursor: bool,
+};
+
+[@deriving sexp]
+type delim_data = {
+  path: delim_path,
+  caret: option(Side.t),
+};
+
+[@deriving sexp]
 type t =
   | DelimGroup
   | Indent
@@ -30,10 +42,7 @@ type t =
       length: int,
       caret: option(int),
     })
-  | Delim({
-      path: delim_path,
-      caret: option(Side.t),
-    })
+  | Delim(delim_data)
   | Op({
       steps: CursorPath.steps,
       caret: option(Side.t),
@@ -41,9 +50,10 @@ type t =
   | SpaceOp({steps: CursorPath.steps})
   | OpenChild({is_inline: bool})
   | ClosedChild({is_inline: bool})
+  | Step(int)
   | Term({
-      shape: term_shape,
-      has_cursor: bool,
+      child: int => (term_data, Doc.t(t)),
+      data: term_data,
     });
 
 let mk_Delim = (~caret: option(Side.t)=?, ~path: delim_path, ()): t =>
@@ -54,7 +64,7 @@ let mk_Text =
     (~caret: option(int)=?, ~steps: CursorPath.steps, ~length: int, ()): t =>
   Text({caret, steps, length});
 let mk_Term = (~has_cursor=false, ~shape: term_shape, ()): t =>
-  Term({has_cursor, shape});
+  Term({child: _ => Doc.empty, has_cursor, shape});
 let mk_OpenChild = (~is_inline: bool, ()) =>
   OpenChild({is_inline: is_inline});
 let mk_ClosedChild = (~is_inline: bool, ()) =>
