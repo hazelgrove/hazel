@@ -303,66 +303,13 @@ let exp_cursor_after = _ =>
     )
   );
 
-/*
-let decorate_layout =
-    ((cursor_steps, cursor): CursorPath.t, l: Layout.t(tag)): Layout.t(tag) => {
-  let rec tag_cursor =
-    fun
-    | (Linebreak
-    | Text(_)
-    | Tagged(
-        Indent | Padding | HoleLabel | SpaceOp(_) | Op(_) | Delim(_) | Text(_), _
-      )) as l => l
-    | Cat(l1, l2) => Cat(l1 |> tag_cursor, l2 |> tag_cursor)
-    | Align(l) => Align(l |> tag_cursor)
-    | Tagged((OpenChild(_) | ClosedChild(_)) as tag, l) =>
-      Tagged(tag, l |> tag_cursor)
-    | Tagged(
-        Term({steps, shape, _}), l,
-      ) =>
-      switch (CursorPath.is_prefix(steps, cursor_steps), shape) {
-      | None =>
-      | Some([]) =>
-      | Some([k])
-      }
-}
-*/
-
-
-
-
-/*
-let rec tag_cursor = ((steps, cursor): CursorPath.t, l: Layout.t(tag)): option(Layout.t(tag)) =>
-  switch (steps) {
-  | [] =>
-    l |> tag_caret(cursor)
-  | [next_step, ...rest_steps] =>
-    l |> step_then_tag_cursor(next_step, (rest_steps, cursor))
-  }
-*/
-
-let list_of_opt =
-  fun
-  | None => []
-  | Some(x) => [x];
-
-let rec is_prefix = (xs1: list('x), xs2: list('x)): option(list('x)) =>
-  switch (xs1, xs2) {
-  | ([], _) => Some(xs2)
-  | ([_, ..._], []) => None
-  | ([x1, ...xs1], [x2, ...xs2]) =>
-    x1 == x2
-    ? is_prefix(xs1, xs2)
-    : None
-  };
-
 let rec decorate_next_Tagged = (
-  ~decorate_Tagged: ('tag, Layout.t('tag)) => option(Layout.t('tag)),
+  ~decorate: ('tag, Layout.t('tag)) => option(Layout.t('tag)),
   l: Layout.t('tag),
 )
 : option(Layout.t('tag)) =>
 {
-  let go = decorate_next_Tagged(~decorate_Tagged);
+  let go = decorate_next_Tagged(~decorate);
   switch (l) {
   | Linebreak | Text(_) => None
   | Align(l) => go(l)
@@ -372,7 +319,7 @@ let rec decorate_next_Tagged = (
     | (Some(l1), _) => Some(Cat(l1, l2))
     | (_, Some(l2)) => Some(Cat(l1, l2))
     }
-  | Tagged(tag, l) => decorate_Tagged(tag, l)
+  | Tagged(tag, l) => decorate(tag, l)
   }
 };
 
@@ -388,7 +335,7 @@ let rec follow_steps_and_decorate =
   | [] => decorate(l)
   | [next_step, ...rest] =>
     decorate_next_Tagged(
-      ~decorate_Tagged=
+      ~decorate=
         (tag, l) =>
           switch (tag) {
           | Step(step) when step == next_step =>
@@ -404,7 +351,7 @@ let rec follow_steps_and_decorate =
 let rec decorate_caret = (cursor: CursorPosition.t, l: Layout.t(tag)): option(Layout.t(tag)) =>
   l
   |> decorate_next_Tagged(
-    ~decorate_Tagged=
+    ~decorate=
       (tag, l) =>
         switch (cursor, tag) {
         | (OnOp(side), Op(op_data)) =>
@@ -429,7 +376,7 @@ let rec decorate_caret = (cursor: CursorPosition.t, l: Layout.t(tag)): option(La
 
 let decorate_cursor = ((steps, cursor): CursorPath.t, l: Layout.t(tag)): option(Layout.t(tag)) =>
   l
-  |> follow_and_decorate(
+  |> follow_steps_and_decorate(
     ~decorate=
       fun
       | Tagged(Term(term_data), l) =>
@@ -441,295 +388,6 @@ let decorate_cursor = ((steps, cursor): CursorPath.t, l: Layout.t(tag)): option(
       | _ => None,
     steps,
   );
-
-
-
-let rec decorate_term =
-    (
-      ~decorate:
-        (TermTag.term_data, Layout.t(tag))
-        => option(Layout.t(tag)),
-      steps: CursorPath.steps,
-      l: Layout.t(tag)
-    ): option(Layout.t(tag)) => {
-  switch (steps, l) {
-  | Linebreak | Text(_)
-  | Tagged(
-      Indent | Padding | HoleLabel | SpaceOp(_),
-      _,
-    ) =>
-    None
-
-  | Align(l) =>
-    l
-    |> tag_cursor(path)
-    |> Opt.map(l => Align(l))
-  | Cat(l1, l2) =>
-    switch (l1 |> tag_cursor(path), l2 |> tag_cursor(path)) {
-    | (None, None) => None
-    | (Some(l1), _) => Cat(l1, l2)
-    | (_, Some(l2)) => Cat(l1, l2)
-    }
-  |
-      Tagged(
-        (DelimGroup | OpenChild(_) | ClosedChild(_)) as tag, l
-      )
-     =>
-    l
-    |> tag_cursor(path)
-    |> Opt.map(Doc.tag(tag))
-
-  | Tagged(Term(Operand({child_index, _} as operand_data)), l) =>
-    switch (is_prefix(list_of_opt(child_index), steps)) {
-    | None => None
-    | Some([]) =>
-      l
-      |> tag_caret(cursor)
-      |> Opt.map(l =>
-      Tagged(
-        Operand(
-          {operand_data, ...has_cursor: true},
-        ),
-        l,
-      ))
-    | Some([_, ..._] as rest) =>
-      l
-      |> tag_cursor((rest, cursor))
-      |> Opt.map(l =>
-        Tagged(Operand(operand_data), l)
-      )
-    }
-
-  | Tagged(BinOp({op_index, skel_range, seq_len, _} as binop_data), l) =>
-    switch (steps) {
-    | [] => None
-    | [next_step] =>
-      next_step == op_index
-      ? l |> tag_caret(cursor) |> Opt.map(l => Tagged(
-        BinOp(
-          {binop_data, ...has_cursor: true},
-        ),
-        l,
-      ))
-      : None
-    | [next_step, ...rest] =>
-      let (l, r) = skel_range;
-      ((l <= next_step && next_step <= r)
-      || (l + seq_len <= next_step && next_step <= r + seq_len - 1))
-      ? (l |> tag_cursor(path) |> Opt.map(l => Tagged(BinOp(binop_data), l)))
-      : None;
-    }
-
-  | Tagged(NTuple({comma_indices, _} as ntuple_data), l) =>
-    switch (steps) {
-    | [] => None
-    | [next_step] =>
-      switch (comma_indices |> List.find_opt(index => index == next_step)) {
-      | None => None
-      | Some(_) =>
-        l
-        |> tag_caret(cursor)
-        |> Opt.map(l => Tagged(NTuple({ntuple_data, ...has_cursor: true}), l))
-      }
-    | [_, ..._] =>
-      l
-      |> tag_cursor(path)
-      |> Opt.map(l => Tagged(NTuple(ntuple_data), l))
-    }
-
-  | Tagged(SubBlock())
-  }
-}
-
-let rec tag_cursor =
-    (next_step: int, rest: CursorPath.t, l: Layout.t(tag)): option(Layout.t(tag)) => {
-  let go = step_then_tag_cursor(next_step, rest);
-  switch (l) {
-  | Linebreak
-  | Text(_)
-  | Tagged(
-      Indent | Padding | HoleLabel | SpaceOp(_),
-      _,
-    ) => None
-
-  | Align(l) =>
-    go(l)
-    |> Opt.map(l => Align(l))
-  | Cat(l1, l2) =>
-    switch (go(l1), go(l2)) {
-    | (None, None) => None
-    | (Some(l1), _) => Cat(l1, l2)
-    | (_, Some(l2)) => Cat(l1, l2)
-    }
-  | (Tagged(
-      (DelimGroup | OpenChild(_) | ClosedChild(_)) as tag, l
-    ), _) => Tagged(tag, go(l))
-
-  |
-
-  | Tagged(Operand({child_index: Some(child_index), _} as operand_data), l)
-      when child_index == next_step =>
-
-
-  }
-}
-
-let tag_cursor =
-    (path: CursorPath.t, l: Layout.t(tag)): option(Layout.t(tag)) => {
-  let (steps, cursor) = path;
-  let rec go = (steps, l) => {
-    switch (steps, l) {
-    | ([], Tagged(Operand({child_index: None, _} as operand_data), l)) =>
-      l
-      |> tag_caret(cursor)
-      |> Opt.map(l_caret =>
-        Tagged(
-          {...operand_data, has_cursor: true},
-          l_caret,
-        )
-    | (
-        [next_step, ...rest],
-        Tagged(Operand({child_index: Some(child_index), _} as operand_data), l),
-      ) =>
-      if (child_index != next_step) {
-        None
-      } else {
-        switch (rest) {
-        | [] =>
-          l |> tag_caret(cursor)
-          |> Opt.map(l_caret =>
-            Tagged({...operand_data, has_cursor: true}, l_caret)
-          )
-        | [_, ..._] =>
-
-        }
-      }
-
-    };
-  };
-
-  let rec find_root_then_go =
-    fun
-    | Text(_)
-    | Linebreak => None
-    | Align(l) =>
-      l
-      |> find_root_then_go
-      |> Opt.map(l => Align(l))
-    | Cat(l1, l2) =>
-      switch (l1 |> find_root_then_go, l2 |> find_root_then_go) {
-      | (None, None) => None
-      | (Some(l1), _) => Cat(l1, l2)
-      | (_, Some(l2)) => Cat(l1, l2)
-      }
-    | Tagged(Operand(_) | BinOp(_) | NTuple(_) | SubBlock(_), _) as l =>
-      l |> go(path)
-    | Tagged(_) => None;
-
-  // follow path through tagged terms and tag
-  // found term with cursor, then continue by
-  // tagging delim/text/op with caret
-  switch (steps, steps) {
-  // expecting cursor on root term
-  | ([], Tagged(Operand({child_index: None, _} as operand_data), l)) =>
-    l
-    |> tag_caret(cursor)
-    |> Opt.map(l_caret =>
-      Tagged(
-        {...operand_data, has_cursor: true},
-        l_caret,
-      )
-  // no caret at these levels
-  | ([], Tagged(BinOp(_) | NTuple(_) | SubBlock(_), _)) =>
-    None
-
-  // did not find term according to path
-  | (_, Text(_)
-  | Linebreak
-  | Tagged(
-      Indent | Padding | HoleLabel | SpaceOp(_)
-      | Op(_) | Delim(_) | Text(_),
-      _,
-    )) =>
-    l
-
-  // don't care about these, just recurse
-  | (Cat(l1, l2), _) => Cat(l1 |> tag_cursor(path), l2 |> tag_cursor(path))
-  | (Align(l), _) => Align(l |> tag_cursor(path))
-  | (Tagged(
-      (DelimGroup | OpenChild(_) | ClosedChild(_)) as tag, l
-    ), _) => Tagged(tag, l |> tag_cursor(path))
-
-  // found a term
-  | (Tagged(Operand({child_index, _} as operand_data), l), [last_step])
-      when child_index == last_step =>
-    Tagged(
-      Operand({...operand_data, has_cursor: true}),
-      l |> tag_caret(cursor)
-    )
-  | (Tagged(Operand(o)))
-  | (
-      Tagged(BinOp({op_index, _}), l),
-      ([next_step], OnOp(side)),
-    ) =>
-
-
-  | Tagged(tag, l) =>
-    switch (path) {
-    | ([], OnOp(side)) =>
-
-    | ([], OnDelim(k, side)) =>
-      l |> tag_caret_delim((k, side))
-    | ([], OnText(j)) =>
-    }
-
-  }
-}
-
-let rec tag_cursor =
-    (path: CursorPath.t, l: Layout.t(tag)): Layout.t(tag) => {
-  let fail = () => failwith(__LOC__ ++ ": path inconsistent with layout");
-  switch (path, l) {
-  | (
-      ([], OnDelim(k, side)),
-      {first_width, width, layout: Tagged(Operand({delim, _}), _), _},
-    ) =>
-    let pos = width - first_width;
-    delim(k)
-    |> LayoutOfDoc.layout_of_doc(~width, ~pos);
-    |> tag_caret(side);
-  | (
-      ([step], OnOp(side)),
-      {first_width, width, layout: Tagged(BinOp({op, subskel, _}), _), _},
-    ) =>
-    let pos = width - first_width;
-    switch (op(step), subskel(step)) {
-    | (None, None) => fail()
-    | (Some(op_doc), _) =>
-      op_doc
-      |> LayoutOfDoc.layout_of_doc(~width, ~pos)
-      |> tag_caret(side)
-    | (_, Some(subskel_doc)) =>
-      subskel_doc
-      |> LayoutOfDoc.layout_of_doc(~width)
-    }
-  }
-
-    /*
-    | (Linebreak
-    | Text(_)
-    | Tagged(
-        Indent | Padding | HoleLabel | SpaceOp(_), _,
-      )) as l => l
-    | Cat(l1, l2) => Cat(l1 |> tag_cursor, l2 |> tag_cursor)
-    | Align(l) => Align(l |> tag_cursor)
-    | Tagged((OpenChild(_) | ClosedChild(_)) as tag, l) =>
-      Tagged(tag, l |> tag_cursor)
-    | Tagged(Delim(_) | Op(_) | Text(_), _) =>
-      failwith(__LOC__ ++ ": encountered caret node while tagging cursor")
-    | Tagged
-    */
-};
 
 let presentation_of_layout =
     (~inject: Update.Action.t => Vdom.Event.t, l: Layout.t(tag)): Vdom.Node.t => {
