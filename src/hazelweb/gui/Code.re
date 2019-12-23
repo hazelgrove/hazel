@@ -178,22 +178,23 @@ let contenteditable_of_layout = (l: Layout.t(tag)): Vdom.Node.t => {
      */
     imp_of_tag: (tag, vs) =>
       switch (tag) {
-      | Delim({path: (steps, delim_index), _}) =>
-        let path_before: CursorPath.t = (
-          steps,
-          OnDelim(delim_index, Before),
-        );
-        let path_after: CursorPath.t = (steps, OnDelim(delim_index, After));
-        [caret_position(path_before)]
-        @ [Node.span([contenteditable_false], vs)]
-        @ [caret_position(path_after)];
+      | Delim({path: (steps, index), _}) =>
+        let path_before: CursorPath.t = (steps, OnDelim(index, Before));
+        let path_after: CursorPath.t = (steps, OnDelim(index, After));
+        [
+          caret_position(path_before),
+          Node.span([contenteditable_false], vs),
+          caret_position(path_after),
+        ];
       | Op({steps, _}) =>
         let path_before: CursorPath.t = (steps, OnOp(Before));
         let path_after: CursorPath.t = (steps, OnOp(After));
-        [caret_position(path_before)]
-        @ [Node.span([contenteditable_false], vs)]
-        @ [caret_position(path_after)];
-      | SpaceOp(_) => [
+        [
+          caret_position(path_before),
+          Node.span([contenteditable_false], vs),
+          caret_position(path_after),
+        ];
+      | SpaceOp => [
           Node.span([contenteditable_false, Attr.classes(["SpaceOp"])], vs),
         ]
       | Text({steps, _}) => [Node.span([Attr.id(text_id(steps))], vs)]
@@ -205,8 +206,9 @@ let contenteditable_of_layout = (l: Layout.t(tag)): Vdom.Node.t => {
         ]
       | OpenChild(_)
       | ClosedChild(_)
-      | HoleLabel
+      | HoleLabel(_)
       | DelimGroup
+      | Step(_)
       | Term(_) => vs
       },
     imp_append: (vs1, vs2) => vs1 @ vs2,
@@ -447,7 +449,8 @@ let presentation_of_layout =
     | Linebreak => [Node.br([])]
     | Align(l) => [Node.div([Attr.classes(["Align"])], go(l))]
 
-    | Tagged(HoleLabel, l) => [
+    // TODO adjust width to num digits, use visibility none
+    | Tagged(HoleLabel(_), l) => [
         Node.span([Attr.classes(["SEmptyHole-num"])], go(l)),
       ]
 
@@ -473,7 +476,6 @@ let presentation_of_layout =
           go(l),
         ),
       ]
-
     | Tagged(ClosedChild({is_inline}), l) => [
         Node.span(
           [Attr.classes(["ClosedChild", is_inline ? "Inline" : "Para"])],
