@@ -30,6 +30,8 @@ module Opt = {
     };
 };
 
+let utf8_length = CamomileLibrary.UTF8.length;
+
 let string_of_sexp = sexp => Sexplib.Sexp.to_string(sexp);
 
 let opt_to_bool =

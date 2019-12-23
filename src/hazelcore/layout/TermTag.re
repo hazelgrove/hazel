@@ -22,7 +22,7 @@ type term_shape =
 type t =
   | Indent
   | Padding
-  | HoleLabel({u: MetaVar.t})
+  | HoleLabel({len: int})
   | Text({
       steps: CursorPath.steps,
       length: int,

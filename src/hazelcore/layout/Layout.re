@@ -25,7 +25,7 @@ let make_of_layout: (text('tag, 'imp, 't), t('tag)) => 't =
       indent => {
         fun
         | Text(string) => {
-            column := column^ + CamomileLibrary.UTF8.length(string);
+            column := column^ + GeneralUtil.utf8_length(string);
             text.imp_of_string(string);
           }
         | Cat(l1, l2) => {
