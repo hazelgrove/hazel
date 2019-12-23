@@ -441,7 +441,7 @@ let presentation_of_layout =
   let on_click_text = on_click_text(~inject);
 
   let rec go = (l: Layout.t(tag)): list(Node.t) =>
-    switch (l.layout) {
+    switch (l) {
     | Text(str) => [Node.text(str)]
     | Cat(l1, l2) => go(l1) @ go(l2)
     | Linebreak => [Node.br([])]
