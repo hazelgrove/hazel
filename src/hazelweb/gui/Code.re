@@ -399,8 +399,8 @@ let rec decorate_caret =
                   fun
                   | Delim({index, _}) when index == k => true
                   | _ => false
-                  | _ => (_ => true)
                 )
+              | _ => (_ => true)
               },
             ~decorate=(tag, l) =>
             switch (cursor, tag) {
