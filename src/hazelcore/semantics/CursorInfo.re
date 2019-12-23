@@ -117,60 +117,6 @@ let type_mode = (ci: t): option(Statics.type_mode) =>
   | OnRule => None
   };
 
-/*
- [@deriving sexp]
- type child_indices = list(int);
-
- let child_indices_of_current_node = ci =>
-   switch (ci.node) {
-   | Line(li) => UHExp.child_indices_line(li)
-   | Exp(e) => UHExp.child_indices_operand(e)
-   | Rule(rule) => UHExp.child_indices_rule(rule)
-   | Pat(p) => UHPat.child_indices(p)
-   | Typ(ty) => UHTyp.child_indices(ty)
-   };
-
- let preserved_child_term_of_node = ci =>
-   switch (ci.node) {
-   | Line(li) =>
-     li
-     |> UHExp.favored_child_of_line
-     |> Opt.map_default(
-          ~default=None,
-          fun
-          | (_, UHExp.Block([], EmptyHole(_))) => None
-          | (i, block) => Some((i, Expression(block))),
-        )
-   | Exp(e) =>
-     switch (e |> UHExp.favored_child_of_operand, ci.frame) {
-     | (None, _) => None
-     | (_, TypFrame(_) | PatFrame(_)) => None
-     | (Some((_, Block([], EmptyHole(_)))), _) => None
-     | (Some((i, block)), ExpFrame(_, None, _)) =>
-       Some((i, Expression(block)))
-     | (
-         Some((i, Block([], OpSeq(_, _)) as block)),
-         ExpFrame(_, Some(_surround), _),
-       ) =>
-       Some((i, Expression(block)))
-     | (
-         Some((i, Block([], conclusion) as block)),
-         ExpFrame(_, Some(_surround), _),
-       ) =>
-       switch (e, conclusion |> UHExp.bidelimited) {
-       | (Parenthesized(_), false) => None
-       | _ => Some((i, Expression(block)))
-       }
-     | (Some((_, Block(_, _))), ExpFrame(_, Some(_surround), _)) => None
-     }
-   | Pat(p) =>
-     p |> UHPat.favored_child |> Opt.map(((i, p)) => (i, Pattern(p)))
-   | Typ(ty) =>
-     ty |> UHTyp.favored_child |> Opt.map(((i, ty)) => (i, Type(ty)))
-   | Rule(_) => None
-   };
- */
-
 module Typ = {
   let cursor_info = (ctx: Contexts.t, _: ZTyp.t): option(t) =>
     Some(mk_cursor_info(OnType, ctx));
