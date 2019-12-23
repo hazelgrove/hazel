@@ -325,7 +325,7 @@ let rec decorate_next_Tagged = (
 
 let rec follow_steps_and_decorate =
     (
-      ~decorate: Layout.t(tag) => option(Layout.t(tag)),
+      ~decorate: (CursorPath.steps, Layout.t(tag)) => option(Layout.t(tag)),
       steps: CursorPath.steps,
       l: Layout.t(tag)
     )
@@ -336,56 +336,82 @@ let rec follow_steps_and_decorate =
   | [next_step, ...rest] =>
     decorate_next_Tagged(
       ~decorate=
-        (tag, l) =>
+        (tag, l) => {
+          let found_term = () => l |> Doc.tag(tag) |> decorate(steps);
+          let keep_searching = () => l |> go(steps) |> Opt.map(Doc.tag(tag));
+          let found_term_if = cond => cond ? found_term() : keep_searching();
+          let take_step = () => l |> go(rest) |> Opt.map(Doc.tag(tag));
           switch (tag) {
-          | Step(step) when step == next_step =>
-            l |> go(rest) |> Opt.map(Doc.tag(tag))
-          | _ =>
-            l |> go(steps) |> Opt.map(Doc.tag(tag))
-          },
+          | Indent | Padding | HoleLabel | SpaceOp(_)
+          | Op(_) | Delim(_) | Text(_) => None
+
+          | OpenChild(_) | ClosedChild(_) | DelimGroup =>
+            keep_searching()
+
+          | Step(step) =>
+            step == next_step ? take_step() : None
+
+          | Term({
+              shape: SubBlock({hd_index, _}), _,
+            }) =>
+            found_term_if(hd_index == next_step && rest == [])
+          | Term({
+              shape: NTuple({comma_indices, _}), _,
+            }) =>
+            found_term_if(comma_indices |> contains(next_step))
+          | Term({
+              shape: BinOp({op_index, _})
+            }) =>
+            found_term_if(op_index == next_step)
+          }
+        },
         l,
     );
   };
 };
 
-let rec decorate_caret = (cursor: CursorPosition.t, l: Layout.t(tag)): option(Layout.t(tag)) =>
+let rec decorate_caret = ((caret_steps, cursor): CursorPath.t, l: Layout.t(tag)): option(Layout.t(tag)) =>
   l
-  |> decorate_next_Tagged(
-    ~decorate=
-      (tag, l) =>
-        switch (cursor, tag) {
-        | (OnOp(side), Op(op_data)) =>
-          Some(
-            l |> Doc.tag(Op({...op_data, caret: Some(side)}))
-          )
-        | (OnDelim(k, side), Delim({index, _} as delim_data))
-            when k == index =>
-          Some(
-            l |> Doc.tag(Delim({...delim_data, caret: Some(side)}))
-          )
-        | (OnText(j), Text(text_data)) =>
-          Some(
-            l |> Doc.tag(Text({...text_data, caret: Some(j)})),
-          )
+  |> follow_steps_and_decorate(
+    ~decorate=(_, term_l) =>
+      term_l
+      |> decorate_next_Tagged(
+        ~decorate=(tag, l) =>
+          switch (cursor, tag) {
+          | (OnOp(side), Op(op_data)) =>
+            Some(
+              l |> Doc.tag(Op({...op_data, caret: Some(side)}))
+            )
+          | (OnDelim(k, side), Delim({index, _} as delim_data))
+              when k == index =>
+            Some(
+              l |> Doc.tag(Delim({...delim_data, caret: Some(side)}))
+            )
+          | (OnText(j), Text(text_data)) =>
+            Some(
+              l |> Doc.tag(Text({...text_data, caret: Some(j)})),
+            )
 
-        | (_, Indent | Padding | HoleLabel | SpaceOp(_) | Step(_)) => None
-        | (_, (DelimGroup | OpenChild(_) | ClosedChild(_)) as tag) =>
-          l |> decorate_caret(cursor) |> Opt.map(Doc.tag(tag))
-        }
+          | (_, Indent | Padding | HoleLabel | SpaceOp(_) | Step(_)) => None
+          | (_, (DelimGroup | OpenChild(_) | ClosedChild(_)) as tag) =>
+            l |> decorate_caret(cursor) |> Opt.map(Doc.tag(tag))
+          }
+      )
   );
 
 let decorate_cursor = ((steps, cursor): CursorPath.t, l: Layout.t(tag)): option(Layout.t(tag)) =>
   l
   |> follow_steps_and_decorate(
-    ~decorate=
-      fun
+    ~decorate=(caret_steps, term_l) =>
+      switch (term_l) {
       | Tagged(Term(term_data), l) =>
         l
-        |> decorate_caret(cursor)
+        |> decorate_caret((caret_steps, cursor))
         |> Opt.map(
           Doc.tag(Term({term_data, ...has_cursor: true}))
         )
-      | _ => None,
+      | _ => None
+      },
     steps,
   );
 

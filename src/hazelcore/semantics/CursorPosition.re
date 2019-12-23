@@ -1,5 +1,9 @@
 open GeneralUtil;
 
+// TODO(undergrad): Rename to CaretPosition
+// (including updating all variable
+// naming that assumed cursor position).
+// Talk to @d before starting.
 [@deriving sexp]
 type t =
   | OnText(CharIndex.t)
