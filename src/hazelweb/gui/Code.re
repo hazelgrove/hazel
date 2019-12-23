@@ -61,47 +61,23 @@ module Exp = {
     | ApPalette(_) => failwith(__LOC__ ++ ":unimplemented");
 };
 
-let term_attrs =
-    (has_cursor: bool, shape: TermTag.term_shape): list(Vdom.Attr.t) => {
-  let has_cursor_clss = has_cursor ? ["Cursor"] : [];
-  let tm_family_cls =
-    switch (shape) {
-    | TypOperand(_)
-    | TypBinOp(_)
-    | TypNProd(_) => "Typ"
-    | PatOperand(_)
-    | PatBinOp(_)
-    | PatNTuple(_) => "Pat"
-    | ExpOperand(_)
-    | ExpRule(_)
-    | ExpBinOp(_)
-    | ExpNTuple(_)
-    | ExpSubBlock(_) => "Exp"
-    };
-  let shape_clss =
-    switch (shape) {
-    | ExpSubBlock(_) => ["SubBlock"]
-    | ExpRule(_) => ["Rule"]
+let cursor_clss = (has_cursor: bool): list(cls) =>
+  has_cursor ? ["Cursor"] : [];
 
-    | TypBinOp(_) => ["BinOp"]
-    | PatBinOp(err, _, _, _)
-    | ExpBinOp(err, _, _, _) => ["BinOp", ...clss_of_err(err)]
+let family_clss: TermTag.term_family => list(cls) =
+  fun
+  | Typ => ["Typ"]
+  | Pat => ["Pat"]
+  | Exp => ["Exp"];
 
-    | TypNProd(_) => ["NTuple"]
-    | PatNTuple(err, _)
-    | ExpNTuple(err, _) => ["NTuple", ...clss_of_err(err)]
-
-    | TypOperand(operand) => Typ.clss_of_operand(operand)
-    | PatOperand(operand) => Pat.clss_of_operand(operand)
-    | ExpOperand(operand) => Exp.clss_of_operand(operand)
-    };
-
-  [
-    Vdom.Attr.classes(
-      ["Term", tm_family_cls, ...has_cursor_clss] @ shape_clss,
-    ),
-  ];
-};
+let shape_clss: TermTag.term_shape => list(cls) =
+  fun
+  | Rule => ["Rule"]
+  | Operand({err, verr}) =>
+    ["Operand", ...clss_of_err(err)] @ clss_of_verr(verr)
+  | BinOp({err, op_index: _}) => ["BinOp", ...clss_of_err(err)]
+  | NTuple({err, comma_indices: _}) => ["NTuple", clss_of_err(err)]
+  | SubBlock(_) => ["SubBlock"];
 
 let on_click_noneditable =
     (
@@ -541,23 +517,47 @@ let presentation_of_layout =
         };
       [Node.span(attrs, children)];
 
-    | Tagged(Term({has_cursor, shape}), l) =>
+    | Tagged(Step(_), l) => go(l)
+
+    | Tagged(Term({has_cursor, shape, family}), l) =>
       let children =
         has_cursor
           ? [exp_cursor_before(shape), ...go(l)]
             @ [exp_cursor_after(shape)]
           : go(l);
-      [Node.span(term_attrs(has_cursor, shape), children)];
+      [
+        Node.span(
+          [
+            Attr.classes(
+              List.concat([
+                ["Term"],
+                cursor_clss(has_cursor),
+                family_clss(family),
+                shape_clss(shape),
+              ]),
+            ),
+          ],
+          go(l),
+        ),
+      ];
     };
   Node.div([Attr.classes(["code"])], go(l));
 };
 
 let editor_view_of_layout =
-    (~inject: Update.Action.t => Vdom.Event.t, l: Layout.t(tag))
-    : (Vdom.Node.t, Vdom.Node.t) => (
-  contenteditable_of_layout(l),
-  presentation_of_layout(~inject, l),
-);
+    (
+      ~inject: Update.Action.t => Vdom.Event.t,
+      ~decorate_cursor: option(CursorPath.t)=?,
+      l: Layout.t(tag),
+    )
+    : (Vdom.Node.t, Vdom.Node.t) => {
+  let l =
+    switch (decorate_cursor) {
+    | None => l
+    | Some(path) => l |> decorate_cursor(path)
+    };
+  (contenteditable_of_layout(l), presentation_of_layout(~inject, l));
+};
 
 let view_of_htyp =
     (~inject: Update.Action.t => Vdom.Event.t, ~width=20, ~pos=0, ty: HTyp.t)
@@ -573,7 +573,13 @@ let view_of_htyp =
 };
 
 let editor_view_of_exp =
-    (~inject: Update.Action.t => Vdom.Event.t, ~width=80, ~pos=0, e: UHExp.t)
+    (
+      ~inject: Update.Action.t => Vdom.Event.t,
+      ~width=80,
+      ~pos=0,
+      ~decorate_cursor: option(CursorPath.t)=?,
+      e: UHExp.t,
+    )
     : (Vdom.Node.t, Vdom.Node.t) => {
   let l =
     e
@@ -581,7 +587,7 @@ let editor_view_of_exp =
     |> LayoutOfDoc.layout_of_doc(~width, ~pos);
   switch (l) {
   | None => failwith("unimplemented: view_of_exp on layout failure")
-  | Some(l) => editor_view_of_layout(~inject, l)
+  | Some(l) => editor_view_of_layout(~inject, ~decorate_cursor?, l)
   };
 };
 

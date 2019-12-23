@@ -107,10 +107,14 @@ let view =
             }),
           ],
           {
-            let (contenteditable, presentation) =
+            let code_view =
               model.is_cell_focused
-                ? Code.editor_view_of_zexp(~inject, model |> Model.zexp)
-                : Code.editor_view_of_exp(~inject, model |> Model.exp);
+                ? Code.editor_view_of_exp(
+                    ~decorate_cursor=model |> Model.path,
+                  )
+                : Code.editor_view_of_exp;
+            let (contenteditable, presentation) =
+              code_view(~inject, model |> Model.exp);
             [contenteditable, presentation];
           },
         ),

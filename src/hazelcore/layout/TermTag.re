@@ -2,6 +2,12 @@ open Sexplib.Std;
 open ViewUtil;
 
 [@deriving sexp]
+type term_family =
+  | Typ
+  | Pat
+  | Exp;
+
+[@deriving sexp]
 type term_shape =
   | Rule
   | Operand({
@@ -44,6 +50,7 @@ type t =
   | Term({
       has_cursor: bool,
       shape: term_shape,
+      family: term_family,
     });
 
 let mk_Delim = (~caret: option(Side.t)=?, ~path: delim_path, ()): t =>
@@ -53,8 +60,9 @@ let mk_Op = (~caret: option(Side.t)=?, ~steps: CursorPath.steps, ()): t =>
 let mk_Text =
     (~caret: option(int)=?, ~steps: CursorPath.steps, ~length: int, ()): t =>
   Text({caret, steps, length});
-let mk_Term = (~has_cursor=false, ~shape: term_shape, ()): t =>
-  Term({has_cursor, shape});
+let mk_Term =
+    (~has_cursor=false, ~shape: term_shape, ~family: term_family, ()): t =>
+  Term({has_cursor, shape, family});
 let mk_OpenChild = (~is_inline: bool, ()) =>
   OpenChild({is_inline: is_inline});
 let mk_ClosedChild = (~is_inline: bool, ()) =>
