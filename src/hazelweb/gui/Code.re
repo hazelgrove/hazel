@@ -244,43 +244,6 @@ let caret_position_of_path =
     );
   };
 
-let exp_cursor_before = _ =>
-  Vdom.(
-    Node.create_svg(
-      "svg",
-      [
-        Attr.id("cursor-before"),
-        Attr.classes(["exp"]),
-        Attr.create("viewBox", "0 0 1 1"),
-      ],
-      [
-        Node.create_svg(
-          "polygon",
-          [Attr.create("points", "0,0 1,0 0,1")],
-          [],
-        ),
-      ],
-    )
-  );
-let exp_cursor_after = _ =>
-  Vdom.(
-    Node.create_svg(
-      "svg",
-      [
-        Attr.id("cursor-after"),
-        Attr.classes(["exp"]),
-        Attr.create("viewBox", "0 0 1 1"),
-      ],
-      [
-        Node.create_svg(
-          "polygon",
-          [Attr.create("points", "1,1 1,0 0,1")],
-          [],
-        ),
-      ],
-    )
-  );
-
 let presentation_of_layout =
     (~inject: Update.Action.t => Vdom.Event.t, l: Layout.t(tag)): Vdom.Node.t => {
   open Vdom;
@@ -389,13 +352,7 @@ let presentation_of_layout =
 
     | Tagged(Step(_), l) => go(l)
 
-    | Tagged(Term({has_cursor, shape, family}), l) =>
-      let children =
-        has_cursor
-          ? [exp_cursor_before(shape), ...go(l)]
-            @ [exp_cursor_after(shape)]
-          : go(l);
-      [
+    | Tagged(Term({has_cursor, shape, family}), l) => [
         Node.span(
           [
             Attr.classes(
@@ -409,7 +366,7 @@ let presentation_of_layout =
           ],
           go(l),
         ),
-      ];
+      ]
     };
   Node.div([Attr.classes(["code"])], go(l));
 };
