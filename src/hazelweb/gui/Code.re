@@ -460,16 +460,3 @@ let editor_view_of_exp =
   | Some(l) => editor_view_of_layout(~inject, ~decorate_cursor?, l)
   };
 };
-
-let editor_view_of_zexp =
-    (~inject: Update.Action.t => Vdom.Event.t, ~width=80, ~pos=0, ze: ZExp.t)
-    : (Vdom.Node.t, Vdom.Node.t) => {
-  let l =
-    ze
-    |> DocOfTerm.Exp.doc_of_z(~steps=[], ~enforce_inline=false)
-    |> LayoutOfDoc.layout_of_doc(~width, ~pos);
-  switch (l) {
-  | None => failwith("unimplemented: view_of_zexp on layout failure")
-  | Some(l) => editor_view_of_layout(~inject, l)
-  };
-};
