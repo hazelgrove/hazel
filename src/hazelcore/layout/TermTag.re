@@ -3,57 +3,43 @@ open ViewUtil;
 
 [@deriving sexp]
 type term_shape =
-  | TypOperand(UHTyp.operand)
-  // invariant: skels do not contain Prod
-  | TypBinOp(UHTyp.operator, UHTyp.skel, UHTyp.skel)
-  | TypNProd(list(UHTyp.skel))
-  | PatOperand(UHPat.operand)
-  // invariant: skels do not contain Comma
-  | PatBinOp(ErrStatus.t, UHPat.operator, UHPat.skel, UHPat.skel)
-  | PatNTuple(ErrStatus.t, list(UHPat.skel))
-  | ExpOperand(UHExp.operand)
-  | ExpRule(UHExp.rule)
-  // invariant: skels do not contain Comma
-  | ExpBinOp(ErrStatus.t, UHExp.operator, UHExp.skel, UHExp.skel)
-  | ExpNTuple(ErrStatus.t, list(UHExp.skel))
-  // nested blocks starting with header line
-  | ExpSubBlock(UHExp.line);
-
-[@deriving sexp]
-type term_data = {
-  shape: term_shape,
-  has_cursor: bool,
-};
-
-[@deriving sexp]
-type delim_data = {
-  path: delim_path,
-  caret: option(Side.t),
-};
+  | Rule
+  | Operand({
+      err: ErrStatus.t,
+      verr: VarErrStatus.t,
+    })
+  | BinOp({
+      op_index: int,
+      err: ErrStatus.t,
+    })
+  | NTuple({
+      comma_indices: list(int),
+      err: ErrStatus.t,
+    })
+  | SubBlock({hd_index: int});
 
 [@deriving sexp]
 type t =
-  | DelimGroup
   | Indent
   | Padding
-  | HoleLabel
+  | HoleLabel({num_digits: int})
   | Text({
-      steps: CursorPath.steps,
       length: int,
       caret: option(int),
     })
-  | Delim(delim_data)
-  | Op({
-      steps: CursorPath.steps,
+  | Delim({
+      index: DelimIndex.t,
       caret: option(Side.t),
     })
-  | SpaceOp({steps: CursorPath.steps})
+  | Op({caret: option(Side.t)})
+  | SpaceOp
   | OpenChild({is_inline: bool})
   | ClosedChild({is_inline: bool})
+  | DelimGroup
   | Step(int)
   | Term({
-      child: int => (term_data, Doc.t(t)),
-      data: term_data,
+      has_cursor: bool,
+      shape: term_shape,
     });
 
 let mk_Delim = (~caret: option(Side.t)=?, ~path: delim_path, ()): t =>

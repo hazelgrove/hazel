@@ -354,9 +354,10 @@ let rec follow_steps_and_decorate =
       ~decorate=
         (tag, l) => {
           let found_term = () => l |> Doc.tag(tag) |> decorate(~steps);
-          let keep_searching = () =>
+          let search_for_next_step = () =>
             l |> go(steps) |> Opt.map(Doc.tag(tag));
-          let found_term_if = cond => cond ? found_term() : keep_searching();
+          let found_term_if = cond =>
+            cond ? found_term() : search_for_next_step();
           let take_step = () => l |> go(rest) |> Opt.map(Doc.tag(tag));
           switch (tag) {
           | Indent
@@ -369,7 +370,7 @@ let rec follow_steps_and_decorate =
 
           | OpenChild(_)
           | ClosedChild(_)
-          | DelimGroup => keep_searching()
+          | DelimGroup => search_for_next_step()
 
           | Step(step) => step == next_step ? take_step() : None
 
@@ -377,8 +378,9 @@ let rec follow_steps_and_decorate =
             found_term_if(hd_index == next_step && rest == [])
           | Term({shape: NTuple({comma_indices, _}), _}) =>
             found_term_if(comma_indices |> contains(next_step))
-          | Term({shape: BinOp({op_index, _})}) =>
+          | Term({shape: BinOp({op_index, _}), _}) =>
             found_term_if(op_index == next_step)
+          | Term({shape: Operand(_) | Rule, _}) => search_for_next_step()
           };
         },
       l,
