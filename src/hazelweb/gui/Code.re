@@ -399,7 +399,7 @@ let rec decorate_caret =
               switch (cursor) {
               | OnDelim(k, side) => (
                   fun
-                  | Delim({index, _}) when index == k => true
+                  | Delim({path: (_, index), _}) when index == k => true
                   | _ => false
                 )
               | _ => (_ => true)

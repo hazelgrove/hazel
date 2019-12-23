@@ -22,16 +22,20 @@ type term_shape =
 type t =
   | Indent
   | Padding
-  | HoleLabel({num_digits: int})
+  | HoleLabel({u: MetaVar.t})
   | Text({
+      steps: CursorPath.steps,
       length: int,
       caret: option(int),
     })
   | Delim({
-      index: DelimIndex.t,
+      path: delim_path,
       caret: option(Side.t),
     })
-  | Op({caret: option(Side.t)})
+  | Op({
+      steps: CursorPath.steps,
+      caret: option(Side.t),
+    })
   | SpaceOp
   | OpenChild({is_inline: bool})
   | ClosedChild({is_inline: bool})
@@ -50,7 +54,7 @@ let mk_Text =
     (~caret: option(int)=?, ~steps: CursorPath.steps, ~length: int, ()): t =>
   Text({caret, steps, length});
 let mk_Term = (~has_cursor=false, ~shape: term_shape, ()): t =>
-  Term({child: _ => Doc.empty, has_cursor, shape});
+  Term({has_cursor, shape});
 let mk_OpenChild = (~is_inline: bool, ()) =>
   OpenChild({is_inline: is_inline});
 let mk_ClosedChild = (~is_inline: bool, ()) =>
