@@ -39,13 +39,15 @@ let is_Comma =
   | Comma => true
   | _ => false;
 
-// TODO flatten
 [@deriving sexp]
 type t =
-  | E2(block)
-  | E1(opseq)
-  | E0(operand)
-and block = list(line)
+  /* laid out vertically */
+  | V(block) 
+  /* laid out horizontally when possible */
+  | H(opseq) 
+/* NOTE: empty line lists arise when an opseq is laid out vertically, e.g. 
+   due to user newlines */
+and block = (list(line), opseq) 
 and line =
   | EmptyLine
   | LetLine(UHPat.t, option(UHTyp.t), t)

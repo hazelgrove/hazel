@@ -45,7 +45,7 @@ type t =
   | Backspace
   | Construct(shape);
 
-type result('success) =
+type outcome('success) =
   | Succeeded('success)
   | CursorEscaped(Side.t)
   | Failed;
