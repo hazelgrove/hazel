@@ -204,16 +204,14 @@ let page_view =
                         Attr.on_click(_ => {
                           let e = model |> Model.exp;
                           let doc =
-                            DocOfTerm.Exp.doc(
+                            TermDoc.Exp.mk(
                               ~steps=[],
                               ~enforce_inline=false,
                               e,
                             );
                           Printf.printf(
                             "doc sexp: %s\n",
-                            Sexplib.Sexp.to_string(
-                              DocOfTerm.sexp_of_doc(doc),
-                            ),
+                            Sexplib.Sexp.to_string(TermDoc.sexp_of_t(doc)),
                           );
                           switch (
                             LayoutOfDoc.layout_of_doc(doc, ~width=80, ~pos=0)

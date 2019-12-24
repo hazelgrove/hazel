@@ -409,7 +409,7 @@ let view_of_htyp =
     : Vdom.Node.t => {
   let l =
     ty
-    |> DocOfTerm.Typ.doc_of_htyp(~steps=[], ~enforce_inline=false)
+    |> TermDoc.Typ.mk_htyp(~steps=[], ~enforce_inline=false)
     |> LayoutOfDoc.layout_of_doc(~width, ~pos);
   switch (l) {
   | None => failwith("unimplemented: view_of_htyp on layout failure")
@@ -428,7 +428,7 @@ let editor_view_of_exp =
     : (Vdom.Node.t, Vdom.Node.t) => {
   let l =
     e
-    |> DocOfTerm.Exp.doc(~steps=[], ~enforce_inline=false)
+    |> TermDoc.Exp.mk(~steps=[], ~enforce_inline=false)
     |> LayoutOfDoc.layout_of_doc(~width, ~pos);
   switch (l) {
   | None => failwith("unimplemented: view_of_exp on layout failure")
