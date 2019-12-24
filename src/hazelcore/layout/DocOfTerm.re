@@ -408,7 +408,8 @@ let rec doc_of_BinOp =
   switch (skel) {
   | Placeholder(n) =>
     let operand = seq |> Seq.nth_operand(n);
-    doc_of_operand(~steps=steps @ [n], ~enforce_inline, operand);
+    doc_of_operand(~steps=steps @ [n], ~enforce_inline, operand)
+    |> tag_Step(n);
   | BinOp(err, op, skel1, skel2) =>
     let op_index = Skel.rightmost_tm_index(skel1) + Seq.length(seq);
     let op_doc =
