@@ -2,33 +2,10 @@ open Sexplib.Std;
 open ViewUtil;
 
 [@deriving sexp]
-type term_family =
-  | Typ
-  | Pat
-  | Exp;
-
-[@deriving sexp]
-type term_shape =
-  | Rule
-  | Operand({
-      err: ErrStatus.t,
-      verr: VarErrStatus.t,
-    })
-  | BinOp({
-      op_index: int,
-      err: ErrStatus.t,
-    })
-  | NTuple({
-      comma_indices: list(int),
-      err: ErrStatus.t,
-    })
-  | SubBlock({hd_index: int});
-
-[@deriving sexp]
 type term_data = {
   has_cursor: bool,
-  shape: term_shape,
-  family: term_family,
+  shape: TermShape.t,
+  family: TermFamily.t,
 };
 
 [@deriving sexp]
@@ -64,7 +41,7 @@ let mk_Text =
     (~caret: option(int)=?, ~steps: CursorPath.steps, ~length: int, ()): t =>
   Text({caret, steps, length});
 let mk_Term =
-    (~has_cursor=false, ~shape: term_shape, ~family: term_family, ()): t =>
+    (~has_cursor=false, ~shape: TermShape.t, ~family: TermFamily.t, ()): t =>
   Term({has_cursor, shape, family});
 let mk_OpenChild = (~is_inline: bool, ()) =>
   OpenChild({is_inline: is_inline});

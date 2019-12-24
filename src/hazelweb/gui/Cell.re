@@ -107,14 +107,14 @@ let view =
             }),
           ],
           {
-            let code_view =
+            let (contenteditable, presentation) =
               model.is_cell_focused
                 ? Code.editor_view_of_exp(
+                    ~inject,
                     ~decorate_cursor=model |> Model.path,
+                    model |> Model.exp,
                   )
-                : Code.editor_view_of_exp;
-            let (contenteditable, presentation) =
-              code_view(~inject, model |> Model.exp);
+                : Code.editor_view_of_exp(~inject, model |> Model.exp);
             [contenteditable, presentation];
           },
         ),

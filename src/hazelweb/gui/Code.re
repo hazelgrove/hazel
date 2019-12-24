@@ -64,19 +64,19 @@ module Exp = {
 let cursor_clss = (has_cursor: bool): list(cls) =>
   has_cursor ? ["Cursor"] : [];
 
-let family_clss: TermTag.term_family => list(cls) =
+let family_clss: TermFamily.t => list(cls) =
   fun
   | Typ => ["Typ"]
   | Pat => ["Pat"]
   | Exp => ["Exp"];
 
-let shape_clss: TermTag.term_shape => list(cls) =
+let shape_clss: TermShape.t => list(cls) =
   fun
   | Rule => ["Rule"]
   | Operand({err, verr}) =>
     ["Operand", ...clss_of_err(err)] @ clss_of_verr(verr)
   | BinOp({err, op_index: _}) => ["BinOp", ...clss_of_err(err)]
-  | NTuple({err, comma_indices: _}) => ["NTuple", clss_of_err(err)]
+  | NTuple({err, comma_indices: _}) => ["NTuple", ...clss_of_err(err)]
   | SubBlock(_) => ["SubBlock"];
 
 let open_child_clss = (has_inline_OpenChild: bool, has_para_OpenChild: bool) =>
@@ -333,7 +333,7 @@ let presentation_of_layout =
         };
       [Node.span(attrs, children)];
 
-    | Tagged(SpaceOp(_), l) => go(l)
+    | Tagged(SpaceOp, l) => go(l)
 
     | Tagged(Text({caret, length, steps}), l) =>
       let attrs = [
@@ -368,8 +368,8 @@ let presentation_of_layout =
                 family_clss(family),
                 shape_clss(shape),
                 open_child_clss(
-                  l |> has_inline_OpenChild,
-                  l |> has_para_OpenChild,
+                  l |> TermLayout.has_inline_OpenChild,
+                  l |> TermLayout.has_para_OpenChild,
                 ),
               ]),
             ),
@@ -392,9 +392,14 @@ let editor_view_of_layout =
     switch (decorate_cursor) {
     | None => l
     | Some((steps, _) as path) =>
-      l
-      |> TermLayout.find_and_decorate_caret(~path)
-      |> TermLayout.find_and_decorate_cursor(~steps)
+      switch (l |> TermLayout.find_and_decorate_caret(~path)) {
+      | None => failwith(__LOC__ ++ ": could not find caret")
+      | Some(l) =>
+        switch (l |> TermLayout.find_and_decorate_cursor(~steps)) {
+        | None => failwith(__LOC__ ++ ": could not find cursor")
+        | Some(l) => l
+        }
+      }
     };
   (contenteditable_of_layout(l), presentation_of_layout(~inject, l));
 };
