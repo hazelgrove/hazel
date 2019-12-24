@@ -484,12 +484,6 @@ let mk_NTuple =
 };
 
 module Typ = {
-  let is_space = _ => false;
-  let is_comma = UHTyp.is_Prod;
-  let is_zcomma = zop => zop |> ZTyp.erase_zoperator |> is_comma;
-  let erase_zseq = ZTyp.erase_zseq;
-  let get_tuple_elements = UHTyp.get_prod_elements;
-
   let inline_padding_of_operator =
     fun
     | UHTyp.Prod => (Doc.empty, Doc.space)
@@ -499,7 +493,11 @@ module Typ = {
   let mk_EmptyHole = mk_EmptyHole(~family=Typ);
   let mk_Parenthesized = mk_Parenthesized(~family=Typ);
   let mk_NTuple =
-    mk_NTuple(~family=Typ, ~get_tuple_elements, ~inline_padding_of_operator);
+    mk_NTuple(
+      ~family=Typ,
+      ~get_tuple_elements=UHTyp.get_prod_elements,
+      ~inline_padding_of_operator,
+    );
 
   let rec mk_htyp =
           (~steps: CursorPath.steps, ~enforce_inline: bool, ty: HTyp.t): t => {
