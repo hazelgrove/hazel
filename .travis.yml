@@ -1,26 +1,31 @@
-language: bash
-sudo: required
-install:
+# Build phases
+before_install:
 - sudo add-apt-repository --yes ppa:avsm/ppa
 - sudo apt update
-- sudo apt --assume-yes install opam
+- sudo apt --assume-yes install m4 opam
+install:
 - export OPAMYES=1
-- opam init --compiler=ocaml-base-compiler.4.07.1
+- opam init --compiler=ocaml-base-compiler.4.08.1
 - eval $(opam env)
 - make deps
-script:
-- bash .travis-ci.sh
-branches:
-  only:
-  - dev
-env:
-  matrix:
-    # Encrypted password that can decrypt private Hazel deploy key
-    secure: YMBNehK3OeKSyofZjMhNa/3uBnYnxa38LmFe/zsetfHkaQH0Zh8HMj7AqWQLdI4RpUFkSULoUonQSUfHtu/qYbzp9B8qadW4RhZkK+5Aah3HPNqvGI5Zb1oA5zzKjq63XLym4vRSmueNmDqb8MTrWOhMWLY4BnD8p+yKFtNLnPrzl6FK0p/iwyI2LUq4PNnXZqXSX8YTC6WmF7Hlvf0QwwqGcDf3LQPb+HbC/VMiVMASFm/SSsLRVFJuyFhsXkO1NODqMLD50mskCD1jMrb57GULgma+t0AbIiSHF1qQMTrNOP4q5fCsT2+ugRrwXnSyT35uT6inld9+Mnrm2h7YtRaLB3Zno0lAa30uTCN16YGz2hYS3WeKFXlbxOqKciyJKOlkXdEGXsmPU4kXt4A3aQGvhudxLbCeCgqiS4l1iyE5ArKVf+MBgNYQX1t1GRIF03usDyuP2FD8OdrKagXvu8G/W0GbCGP1C1i0+POVdCM2RjDzDpgSwTsqxGLR7Z6PtEx98DCoF54QPn3cNM7vQ/feWNKNFzCWOM9x17zAtonHpou181L+yFV7gpYh5t2XSpxsta+S8RniMhQPiXxmtZVzqk0I+A39Ojmg4U5f+0AiQDng7CC38MDnEQL/mvSSb5LomK8vV/Zolq1mB5NTOR9VP+d4qfuHIuHWfGV/jvs=
+script: make release
+deploy:
+  provider: script
+  script: bash .travis-deploy.sh
+  skip_cleanup: true
+  on:
+    all_branches: true
+    condition: ("$TRAVIS_PULL_REQUEST" == false) && ("$TRAVIS_BRANCH" =~ ^(dev|master)$)
+
+# General settings
+cache:
+  directories:
+  - $HOME/.opam
+language: minimal
 notifications:
   # Notifications on #hazel-dev channel of hazelgrove Slack
   slack:
     rooms:
       - secure: qd+LOxXCdQy3GhLjmybzXSHf74uDSrUuTtOaWKdc+FKs+rAmzN+1EaKV0GE7sjf3lN5oRXq8XpRquXVan247wZutZqwob6ixD/tjfH7iVAXVs6cB7uYOGxSYihyMu1H+ejoPbkmBdfBkFBXXPll4shkwAEwrS9SmEqjcUjTwrth6mrLfQBHQr8mfCBBQKZjtTi7uzKB+Xi9jSfV386yDWKUsK/tmeTJBga+F60LgkCZYf67dRkOOxVFsuQAzn9100BnholwtXH/sWC70BOi3dL2LHCKyxkR+IeNW0gZ8cPUlZfEgNBNOKb3z1fbwQc3zywEJ+gb7J83GxXn+GgB8MpahQgizZn+Tk01jId4X++OYtddiYZAJeWySeR/Fb/9SxB7R1QDiyWH+2LHzreCHHjwGFQ6cjB4KNmXyPRzAX6nUr9xZpc+nOeLJD49Im1qU68ToJs4HpRoT16+A/p3ePUTWWRCoDIpDHe1Zipd4MG5nV8oeQiuXTw6KyidaHvC+boLdCPoyd3hApdIarbo79qpXoAr1wiJyR8T6eilX4rCdZfNId2RZUHzbs3yoU81VBRZ/Ly1H4M0edN7xvG5NicOBGpv+dvAnxomljgqgqVjxRhdPRca54ItXq0yVI/wZgZ/A7fadBunMK3vCw5oP0N6+NHXU5YX7FWQ5hNnTpNk=
-    on_success: never
+    on_success: change
     on_failure: always

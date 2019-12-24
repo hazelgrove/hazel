@@ -106,7 +106,7 @@ module Pat = {
     | Wild(NotInHole) => Expands(Wild, Hole, ctx, delta)
     | Var(NotInHole, InVarHole(Free, _), _) => raise(UHPat.FreeVarInPat)
     | Var(NotInHole, InVarHole(Keyword(k), u), _) =>
-      Expands(Keyword(u, 0, k), Hole, ctx, delta)
+      Expands(IntermediateKW(u, 0, k), Hole, ctx, delta)
     | Var(NotInHole, NotInVarHole, x) =>
       let ctx = Contexts.extend_gamma(ctx, (x, Hole));
       Expands(Var(x), Hole, ctx, delta);
@@ -317,7 +317,7 @@ module Pat = {
       Expands(dp, ty, ctx, delta);
     | Var(NotInHole, InVarHole(Free, _), _) => raise(UHPat.FreeVarInPat)
     | Var(NotInHole, InVarHole(Keyword(k), u), _) =>
-      Expands(Keyword(u, 0, k), ty, ctx, delta)
+      Expands(IntermediateKW(u, 0, k), ty, ctx, delta)
     | Var(NotInHole, NotInVarHole, x) =>
       let ctx = Contexts.extend_gamma(ctx, (x, ty));
       Expands(Var(x), ty, ctx, delta);
@@ -402,7 +402,7 @@ module Exp = {
         d2;
       }
     | FreeVar(_, _, _, _) => d2
-    | Keyword(_, _, _, _) => d2
+    | IntermediateKW(_, _, _, _) => d2
     | Let(dp, d3, d4) =>
       let d3 = subst_var(d1, x, d3);
       let d4 =
@@ -518,7 +518,7 @@ module Exp = {
     | (EmptyHole(_, _), _)
     | (NonEmptyHole(_, _, _, _), _) => Indet
     | (Wild, _) => Matches(Environment.empty)
-    | (Keyword(_, _, _), _) => DoesNotMatch
+    | (IntermediateKW(_, _, _), _) => DoesNotMatch
     | (Var(x), _) =>
       let env = Environment.extend(Environment.empty, (x, d));
       Matches(env);
@@ -638,7 +638,7 @@ module Exp = {
     | Cast(_, _, _) => DoesNotMatch
     | BoundVar(_) => DoesNotMatch
     | FreeVar(_, _, _, _) => Indet
-    | Keyword(_, _, _, _) => Indet
+    | IntermediateKW(_, _, _, _) => Indet
     | Let(_, _, _) => Indet
     | FixF(_, _, _) => DoesNotMatch
     | Lam(_, _, _) => DoesNotMatch
@@ -692,7 +692,7 @@ module Exp = {
     | Cast(_, _, _) => DoesNotMatch
     | BoundVar(_) => DoesNotMatch
     | FreeVar(_, _, _, _) => Indet
-    | Keyword(_, _, _, _) => Indet
+    | IntermediateKW(_, _, _, _) => Indet
     | Let(_, _, _) => Indet
     | FixF(_, _, _) => DoesNotMatch
     | Lam(_, _, _) => DoesNotMatch
@@ -746,7 +746,7 @@ module Exp = {
     | Cast(_, _, _) => DoesNotMatch
     | BoundVar(_) => DoesNotMatch
     | FreeVar(_, _, _, _) => Indet
-    | Keyword(_, _, _, _) => Indet
+    | IntermediateKW(_, _, _, _) => Indet
     | Let(_, _, _) => Indet
     | FixF(_, _, _) => DoesNotMatch
     | Lam(_, _, _) => DoesNotMatch
@@ -1039,7 +1039,7 @@ module Exp = {
       let d =
         switch (reason) {
         | Free => DHExp.FreeVar(u, 0, sigma, x)
-        | Keyword(k) => DHExp.Keyword(u, 0, sigma, k)
+        | Keyword(k) => DHExp.IntermediateKW(u, 0, sigma, k)
         };
       Expands(d, Hole, delta);
     | NumLit(NotInHole, n) => Expands(NumLit(n), Num, delta)
@@ -1339,7 +1339,7 @@ module Exp = {
       let d: DHExp.t =
         switch (reason) {
         | Free => FreeVar(u, 0, sigma, x)
-        | Keyword(k) => Keyword(u, 0, sigma, k)
+        | Keyword(k) => IntermediateKW(u, 0, sigma, k)
         };
       Expands(d, ty, delta);
     | Parenthesized(body) => ana_expand(ctx, delta, body, ty)
@@ -1540,9 +1540,9 @@ module Exp = {
     | FreeVar(u, _, sigma, x) =>
       let (i, hii) = HoleInstanceInfo.next(hii, u, sigma, path);
       (FreeVar(u, i, sigma, x), hii);
-    | Keyword(u, _, sigma, k) =>
+    | IntermediateKW(u, _, sigma, k) =>
       let (i, hii) = HoleInstanceInfo.next(hii, u, sigma, path);
-      (Keyword(u, i, sigma, k), hii);
+      (IntermediateKW(u, i, sigma, k), hii);
     | Cast(d1, ty1, ty2) =>
       let (d1, hii) = renumber_result_only(path, hii, d1);
       (Cast(d1, ty1, ty2), hii);
@@ -1634,10 +1634,10 @@ module Exp = {
       let (sigma, hii) = renumber_sigma(path, u, i, hii, sigma);
       let hii = HoleInstanceInfo.update_environment(hii, (u, i), sigma);
       (FreeVar(u, i, sigma, x), hii);
-    | Keyword(u, i, sigma, k) =>
+    | IntermediateKW(u, i, sigma, k) =>
       let (sigma, hii) = renumber_sigma(path, u, i, hii, sigma);
       let hii = HoleInstanceInfo.update_environment(hii, (u, i), sigma);
-      (Keyword(u, i, sigma, k), hii);
+      (IntermediateKW(u, i, sigma, k), hii);
     | Cast(d1, ty1, ty2) =>
       let (d1, hii) = renumber_sigmas_only(path, hii, d1);
       (Cast(d1, ty1, ty2), hii);
@@ -1904,7 +1904,7 @@ module Evaluator = {
       | Indet(d1') => Indet(NonEmptyHole(reason, u, i, sigma, d1'))
       }
     | FreeVar(_, _, _, _) => Indet(d)
-    | Keyword(_, _, _, _) => Indet(d)
+    | IntermediateKW(_, _, _, _) => Indet(d)
     | Cast(d1, ty, ty') =>
       switch (evaluate(d1)) {
       | InvalidInput(msg) => InvalidInput(msg)
