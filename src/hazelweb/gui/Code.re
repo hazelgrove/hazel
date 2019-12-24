@@ -381,7 +381,10 @@ let editor_view_of_layout =
   let l =
     switch (decorate_cursor) {
     | None => l
-    | Some(path) => l |> Decorations.decorate_cursor(path)
+    | Some((steps, _) as path) =>
+      l
+      |> TermLayout.find_and_decorate_caret(~path)
+      |> TermLayout.find_and_decorate_cursor(~steps)
     };
   (contenteditable_of_layout(l), presentation_of_layout(~inject, l));
 };

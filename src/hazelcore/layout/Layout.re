@@ -1,4 +1,5 @@
 open Sexplib.Std;
+open GeneralUtil;
 
 /* Variable: `layout` */
 [@deriving sexp]
@@ -8,6 +9,9 @@ type t('tag) =
   | Linebreak
   | Align(t('tag))
   | Tagged('tag, t('tag)); // TODO: annot
+
+let align = (l: t('tag)) => Align(l);
+let tag = (tag: 'tag, l: t('tag)) => Tagged(tag, l);
 
 type text('tag, 'imp, 't) = {
   // TODO: rename `imp`
@@ -57,3 +61,32 @@ let string_of_layout: 'tag. t('tag) => string =
     };
     make_of_layout(record, layout);
   };
+
+type decorate_result('tag) =
+  | Failed
+  | Skipped
+  | Decorated(t('tag));
+
+/* TODO got weird type inference error, see specialized instance in TermLayout
+   let rec find_and_decorate_Tagged =
+           (decorate: ('tag, t('tag)) => decorate_result('tag), l: t('tag))
+           : option(t('tag)) => {
+     let go = find_and_decorate_Tagged(decorate);
+     switch (l) {
+     | Linebreak
+     | Text(_) => None
+     | Align(l) => l |> go |> Opt.map(align)
+     | Cat(l1, l2) =>
+       switch (l1 |> go) {
+       | Some(l1) => Some(Cat(l1, l2))
+       | None => l2 |> go |> Opt.map(l2 => Cat(l1, l2))
+       }
+     | Tagged(tg, l) =>
+       switch (decorate(tag, l)) {
+       | Failed => None
+       | Skipped => l |> go |> Opt.map(tag(tg))
+       | Decorated(l) => Some(l)
+       }
+     };
+   };
+   */

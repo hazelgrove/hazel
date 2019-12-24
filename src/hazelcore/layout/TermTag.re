@@ -25,6 +25,13 @@ type term_shape =
   | SubBlock({hd_index: int});
 
 [@deriving sexp]
+type term_data = {
+  has_cursor: bool,
+  shape: term_shape,
+  family: term_family,
+};
+
+[@deriving sexp]
 type t =
   | Indent
   | Padding
@@ -47,11 +54,7 @@ type t =
   | ClosedChild({is_inline: bool})
   | DelimGroup
   | Step(int)
-  | Term({
-      has_cursor: bool,
-      shape: term_shape,
-      family: term_family,
-    });
+  | Term(term_data);
 
 let mk_Delim = (~caret: option(Side.t)=?, ~path: delim_path, ()): t =>
   Delim({caret, path});
