@@ -34,6 +34,8 @@ let utf8_length = CamomileLibrary.UTF8.length;
 
 let string_of_sexp = sexp => Sexplib.Sexp.to_string(sexp);
 
+let pp_sexp = Sexplib.Sexp.output_hum(Stdlib.stdout);
+
 let opt_to_bool =
   fun
   | None => false
