@@ -79,6 +79,12 @@ let shape_clss: TermTag.term_shape => list(cls) =
   | NTuple({err, comma_indices: _}) => ["NTuple", clss_of_err(err)]
   | SubBlock(_) => ["SubBlock"];
 
+let open_child_clss = (has_inline_OpenChild: bool, has_para_OpenChild: bool) =>
+  List.concat([
+    has_inline_OpenChild ? ["has-Inline-OpenChild"] : [],
+    has_para_OpenChild ? ["has-Para-OpenChild"] : [],
+  ]);
+
 let on_click_noneditable =
     (
       ~inject: Update.Action.t => Vdom.Event.t,
@@ -139,7 +145,7 @@ let caret_of_side: Side.t => Vdom.Node.t =
   | Before => caret_from_left(0.0)
   | After => caret_from_left(100.0);
 
-let contenteditable_of_layout = (l: Layout.t(tag)): Vdom.Node.t => {
+let contenteditable_of_layout = (l: TermLayout.t): Vdom.Node.t => {
   open Vdom;
   let caret_position = (path: CursorPath.t): Node.t =>
     Node.span(
@@ -245,13 +251,13 @@ let caret_position_of_path =
   };
 
 let presentation_of_layout =
-    (~inject: Update.Action.t => Vdom.Event.t, l: Layout.t(tag)): Vdom.Node.t => {
+    (~inject: Update.Action.t => Vdom.Event.t, l: TermLayout.t): Vdom.Node.t => {
   open Vdom;
 
   let on_click_noneditable = on_click_noneditable(~inject);
   let on_click_text = on_click_text(~inject);
 
-  let rec go = (l: Layout.t(tag)): list(Node.t) =>
+  let rec go = (l: TermLayout.t): list(Node.t) =>
     switch (l) {
     | Text(str) => [Node.text(str)]
     | Cat(l1, l2) => go(l1) @ go(l2)
@@ -361,6 +367,10 @@ let presentation_of_layout =
                 cursor_clss(has_cursor),
                 family_clss(family),
                 shape_clss(shape),
+                open_child_clss(
+                  l |> has_inline_OpenChild,
+                  l |> has_para_OpenChild,
+                ),
               ]),
             ),
           ],
@@ -375,7 +385,7 @@ let editor_view_of_layout =
     (
       ~inject: Update.Action.t => Vdom.Event.t,
       ~decorate_cursor: option(CursorPath.t)=?,
-      l: Layout.t(tag),
+      l: TermLayout.t,
     )
     : (Vdom.Node.t, Vdom.Node.t) => {
   let l =

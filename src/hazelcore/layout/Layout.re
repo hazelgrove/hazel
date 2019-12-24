@@ -62,11 +62,6 @@ let string_of_layout: 'tag. t('tag) => string =
     make_of_layout(record, layout);
   };
 
-type decorate_result('tag) =
-  | Failed
-  | Skipped
-  | Decorated(t('tag));
-
 /* TODO got weird type inference error, see specialized instance in TermLayout
    let rec find_and_decorate_Tagged =
            (decorate: ('tag, t('tag)) => decorate_result('tag), l: t('tag))
