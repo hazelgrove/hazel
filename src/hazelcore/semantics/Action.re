@@ -1572,7 +1572,7 @@ module Exp = {
       (mk_OpSeq(S(hole, suffix)), u_gen);
     };
 
-  let keyword_action = (kw: Keyword.t): t =>
+  let keyword_action = (kw: ExpandingKeyword.t): t =>
     switch (kw) {
     | Let => Construct(SLet)
     | Case => Construct(SCase)
@@ -1672,6 +1672,7 @@ module Exp = {
       (ZE2((new_prefix_lines, zline, new_suffix_lines)), u_gen);
     };
 
+  // TODO refactor these types to incorporate ExpandingKeyword.t
   type line_success =
     | LineExpandsToLet({
         u_gen: MetaVarGen.t,

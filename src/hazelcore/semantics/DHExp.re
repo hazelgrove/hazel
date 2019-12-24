@@ -44,7 +44,7 @@ type t =
       VarMap.t_(t),
       t,
     )
-  | Keyword(MetaVar.t, MetaVarInst.t, VarMap.t_(t), Keyword.t)
+  | Keyword(MetaVar.t, MetaVarInst.t, VarMap.t_(t), ExpandingKeyword.t)
   | FreeVar(MetaVar.t, MetaVarInst.t, VarMap.t_(t), Var.t)
   | BoundVar(Var.t)
   | Let(DHPat.t, t, t)

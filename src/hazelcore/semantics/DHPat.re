@@ -7,7 +7,8 @@ type t =
   | EmptyHole(MetaVar.t, MetaVarInst.t)
   | NonEmptyHole(ErrStatus.HoleReason.t, MetaVar.t, MetaVarInst.t, t)
   | Wild
-  | Keyword(MetaVar.t, MetaVarInst.t, Keyword.t)
+  // TODO rename to ExpandingKeyword
+  | Keyword(MetaVar.t, MetaVarInst.t, ExpandingKeyword.t)
   | Var(Var.t)
   | NumLit(int)
   | BoolLit(bool)
