@@ -1896,15 +1896,15 @@ module Evaluator = {
       | (BoxedValue(d1), BoxedValue(d2)) => BoxedValue(Cons(d1, d2))
       }
     | Case(d1, rules, n) => evaluate_case(d1, rules, n)
-    | EmptyHole(_, _, _) => Indet(d)
+    | EmptyHole(_) => Indet(d)
     | NonEmptyHole(reason, u, i, sigma, d1) =>
       switch (evaluate(d1)) {
       | InvalidInput(msg) => InvalidInput(msg)
       | BoxedValue(d1')
       | Indet(d1') => Indet(NonEmptyHole(reason, u, i, sigma, d1'))
       }
-    | FreeVar(_, _, _, _) => Indet(d)
-    | Keyword(_, _, _, _) => Indet(d)
+    | FreeVar(_) => Indet(d)
+    | Keyword(_) => Indet(d)
     | Cast(d1, ty, ty') =>
       switch (evaluate(d1)) {
       | InvalidInput(msg) => InvalidInput(msg)

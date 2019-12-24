@@ -39,6 +39,7 @@ let is_Comma =
   | Comma => true
   | _ => false;
 
+// TODO flatten
 [@deriving sexp]
 type t =
   | E2(block)
