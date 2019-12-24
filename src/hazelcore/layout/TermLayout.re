@@ -113,6 +113,7 @@ let find_and_decorate_caret =
                  l
                  |> Layout.tag(TermTag.Text({...text_data, caret: Some(j)})),
                )
+             | Term(_) => Skip
              | _ => Fail
              }
            )
@@ -139,6 +140,7 @@ let find_and_decorate_caret =
                         ),
                    )
                  : Fail
+             | Term(_)
              | DelimGroup => Skip
              | _ => Fail
              }
