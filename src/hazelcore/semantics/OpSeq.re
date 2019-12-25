@@ -1,5 +1,7 @@
 open GeneralUtil;
 
+// TODO
+// type t('operand, 'operator) = (Skel.t('operator), Seq.t('operand, 'operator))
 [@deriving sexp]
 type t('operand, 'operator) =
   | OpSeq(skel('operator), seq('operand, 'operator))

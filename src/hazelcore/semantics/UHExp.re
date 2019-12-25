@@ -39,12 +39,18 @@ let is_Comma =
   | Comma => true
   | _ => false;
 
-// TODO flatten
+// TODO
+// type t =
+// /* laid out vertically */
+// | V(block)
+// /* laid out horizontally */
+// | H(opseq)
 [@deriving sexp]
 type t =
   | E2(block)
   | E1(opseq)
   | E0(operand)
+// TODO (list(line), opseq)
 and block = list(line)
 and line =
   | EmptyLine

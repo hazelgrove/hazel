@@ -45,6 +45,7 @@ type t =
   | Backspace
   | Construct(shape);
 
+// TODO outcome('success)
 type result('success) =
   | Succeeded('success)
   | CursorEscaped(Side.t)

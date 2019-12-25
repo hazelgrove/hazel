@@ -87,7 +87,7 @@ let view =
                 | Some(kc) =>
                   prevent_stop_inject(
                     Update.Action.EditAction(
-                      model.cursor_info |> Hashtbl.find(kc_actions, kc),
+                      Hashtbl.find(kc_actions, kc, model.cursor_info),
                     ),
                   )
                 | None =>

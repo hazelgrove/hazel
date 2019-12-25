@@ -1,5 +1,9 @@
 open GeneralUtil;
 
+// TODO
+// type t('operand, 'operator) =
+// | S('operand, affix('operator, 'operand))
+// and affix('operator, 'operand) = option('operator, t('operand, 'operator))
 /**
  * An unassociated infix operator sequence.
  * Also used to represent the prefix or suffix
