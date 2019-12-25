@@ -647,12 +647,12 @@ module Pat = {
     | Some(BoolLit(b)) =>
       let zp = ZPat.ZP0(CursorP(text_cursor, UHPat.boollit(b)));
       Succeeded((zp, HTyp.Bool, ctx, u_gen));
-    | Some(Keyword(k)) =>
+    | Some(ExpandingKeyword(k)) =>
       let (u, u_gen) = u_gen |> MetaVarGen.next;
       let var =
         UHPat.var(
           ~var_err=InVarHole(Keyword(k), u),
-          k |> Keyword.to_string,
+          k |> ExpandingKeyword.to_string,
         );
       let zp = ZPat.ZP0(CursorP(text_cursor, var));
       Succeeded((zp, HTyp.Hole, ctx, u_gen));
@@ -695,7 +695,7 @@ module Pat = {
           Succeeded((zp, ctx, u_gen));
         }
       }
-    | Some(Keyword(k)) =>
+    | Some(ExpandingKeyword(k)) =>
       let (u, u_gen) = u_gen |> MetaVarGen.next;
       let var = UHPat.var(~var_err=InVarHole(Keyword(k), u), text);
       let zp = ZPat.ZP0(CursorP(text_cursor, var));
@@ -1798,12 +1798,12 @@ module Exp = {
     | Some(BoolLit(b)) =>
       let ze = ZExp.ZE0(CursorE(text_cursor, UHExp.boollit(b)));
       Succeeded(SynDone((ze, HTyp.Bool, u_gen)));
-    | Some(Keyword(k)) =>
+    | Some(ExpandingKeyword(k)) =>
       let (u, u_gen) = u_gen |> MetaVarGen.next;
       let var =
         UHExp.var(
           ~var_err=InVarHole(Keyword(k), u),
-          k |> Keyword.to_string,
+          k |> ExpandingKeyword.to_string,
         );
       let ze = ZExp.ZE0(CursorE(text_cursor, var));
       Succeeded(SynDone((ze, HTyp.Hole, u_gen)));
@@ -1843,12 +1843,12 @@ module Exp = {
       } else {
         Failed;
       }
-    | Some(Keyword(k)) =>
+    | Some(ExpandingKeyword(k)) =>
       let (u, u_gen) = u_gen |> MetaVarGen.next;
       let var =
         UHExp.var(
           ~var_err=InVarHole(Keyword(k), u),
-          k |> Keyword.to_string,
+          k |> ExpandingKeyword.to_string,
         );
       let ze = ZExp.ZE0(CursorE(text_cursor, var));
       Succeeded(AnaDone((ze, u_gen)));

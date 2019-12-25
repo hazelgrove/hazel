@@ -1,6 +1,5 @@
 open Sexplib.Std;
 open GeneralUtil;
-open UsageAnalysis;
 
 // TODO IntermediateKeyword
 
@@ -120,31 +119,19 @@ let type_mode = (ci: t): option(Statics.type_mode) =>
   | OnRule => None
   };
 
-/*
- * there are cases we can't determine where to find the uses of a variable
- * immediately after we see its binding site.
- * in this case, we will return a deferrable('t) and go up the tree
- * until we could find uses and feed it to (uses_list => 't).
- */
-type deferrable('t) =
-  | CursorNotOnDeferredVarPat('t)
-  | CursorOnDeferredVarPat(UsageAnalysis.uses_list => 't, Var.t);
-
 module Typ = {
   let cursor_info = (ctx: Contexts.t, _: ZTyp.t): option(t) =>
     Some(mk_cursor_info(OnType, ctx));
 };
 
 module Pat = {
-  let rec syn_cursor_info =
-          (ctx: Contexts.t, zp: ZPat.t): option(deferred(t)) =>
+  let rec syn_cursor_info = (ctx: Contexts.t, zp: ZPat.t): option(t) =>
     switch (zp) {
     | ZP1(zp1) => syn_cursor_info_zopseq(ctx, zp1)
     | ZP0(zp0) => syn_cursor_info_zoperand(ctx, zp0)
     }
   and syn_cursor_info_zopseq =
-      (ctx: Contexts.t, ZOpSeq(skel, zseq): ZPat.zopseq)
-      : option(deferred(t)) => {
+      (ctx: Contexts.t, ZOpSeq(skel, zseq): ZPat.zopseq): option(t) => {
     // handle n-tuples:
     // cannot simply defer to syn_cursor_info_skel here
     // because it assumes binary tupling -- this would
@@ -206,8 +193,7 @@ module Pat = {
     };
   }
   and syn_cursor_info_skel =
-      (ctx: Contexts.t, skel: UHPat.skel, zseq: ZPat.zseq)
-      : option(deferred(t)) => {
+      (ctx: Contexts.t, skel: UHPat.skel, zseq: ZPat.zseq): option(t) => {
     let seq = zseq |> ZPat.erase_zseq;
     if (ZOpSeq.skel_is_rooted_at_cursor(skel, zseq)) {
       // found cursor
@@ -248,7 +234,7 @@ module Pat = {
     };
   }
   and syn_cursor_info_zoperand =
-      (ctx: Contexts.t, zoperand: ZPat.zoperand): option(deferred(t)) =>
+      (ctx: Contexts.t, zoperand: ZPat.zoperand): option(t) =>
     switch (zoperand) {
     | CursorP(_, Var(_, InVarHole(Keyword(k), _), _)) =>
       Some(mk_cursor_info(PatSynKeyword(k), ctx))
@@ -258,8 +244,7 @@ module Pat = {
     | InjZ(_, _, zbody)
     | ParenthesizedZ(zbody) => syn_cursor_info(ctx, zbody)
     }
-  and ana_cursor_info =
-      (ctx: Contexts.t, zp: ZPat.t, ty: HTyp.t): option(deferred(t)) =>
+  and ana_cursor_info = (ctx: Contexts.t, zp: ZPat.t, ty: HTyp.t): option(t) =>
     switch (zp) {
     | ZP1(zp1) => ana_cursor_info_zopseq(ctx, zp1, ty)
     | ZP0(zp0) => ana_cursor_info_zoperand(ctx, zp0, ty)
@@ -270,7 +255,7 @@ module Pat = {
         ZOpSeq(skel, zseq) as zopseq: ZPat.zopseq,
         ty: HTyp.t,
       )
-      : option(deferred(t)) => {
+      : option(t) => {
     // handle n-tuples:
     // cannot simply defer to ana_cursor_info_skel here
     // because it assumes binary tupling -- this would
@@ -383,7 +368,7 @@ module Pat = {
   }
   and ana_cursor_info_skel =
       (ctx: Contexts.t, skel: UHPat.skel, zseq: ZPat.zseq, ty: HTyp.t)
-      : option(deferred(t)) => {
+      : option(t) => {
     let seq = zseq |> ZPat.erase_zseq;
     if (ZOpSeq.skel_is_rooted_at_cursor(skel, zseq)) {
       // found cursor
@@ -429,8 +414,7 @@ module Pat = {
     };
   }
   and ana_cursor_info_zoperand =
-      (ctx: Contexts.t, zoperand: ZPat.zoperand, ty: HTyp.t)
-      : option(deferred(t)) =>
+      (ctx: Contexts.t, zoperand: ZPat.zoperand, ty: HTyp.t): option(t) =>
     switch (zoperand) {
     | CursorP(_, operand) =>
       switch (operand) {

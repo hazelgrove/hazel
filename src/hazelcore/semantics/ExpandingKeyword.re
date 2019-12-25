@@ -14,3 +14,8 @@ let mk = (text: string): option(t) =>
   } else {
     None;
   };
+
+let to_string =
+  fun
+  | Let => "let"
+  | Case => "case";
