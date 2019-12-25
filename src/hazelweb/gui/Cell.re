@@ -100,5 +100,3 @@ let view =
     )
   );
 };
-
-let elem = () => JSUtil.force_get_elem_by_id(cell_id);
