@@ -27,7 +27,6 @@ let make_skel_str = (seq: Seq.t('operand, 'op), string_of_op: 'op => string) => 
   (skel_str, ph_map);
 };
 
-/* TODO move this logic to UHTyp, same with Pat and Exp below, to avoid needing to pass in the associator everywhere */
 module Typ = {
   let string_of_op: UHTyp.operator => string =
     fun

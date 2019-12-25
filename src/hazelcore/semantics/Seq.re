@@ -10,7 +10,7 @@ open GeneralUtil;
 [@deriving sexp]
 type t('operand, 'operator) =
   /* Seq */
-  | S('operand, affix('operator, 'operand))
+  | S('operand, affix('operand, 'operator))
 /**
  * An unassociated infix operator sequence
  * without a head operand. Used to represent
@@ -18,7 +18,11 @@ type t('operand, 'operator) =
  * in a seq, in both cases such that the head
  * operator neighbors the selected operand.
  */
-and affix('operator, 'operand) = option(('operator, t('operand, 'operator))); /* TODO fix order of operator and operand everywhere */
+and affix('operand, 'operator) =
+  /* Empty */
+  | E
+  /* Affix */
+  | A('operator, t('operand, 'operator));
 
 let rec mk_affix =
         (op_pairs: list(('operator, 'operand))): affix('operand, 'operator) =>
