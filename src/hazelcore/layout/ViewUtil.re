@@ -2,15 +2,6 @@ exception MalformedView(int);
 
 type cls = string;
 
-let font_size = 20.0;
-let line_height = 1.5;
-
-let indicator_padding = font_size *. (line_height -. 1.0) /. 2.0 -. 1.5;
-
-let cell_padding = 10.0;
-let cell_border = 2.0;
-let shift_target_thickness = indicator_padding;
-
 [@deriving sexp]
 type delim_path = (CursorPath.steps, DelimIndex.t);
 [@deriving sexp]
