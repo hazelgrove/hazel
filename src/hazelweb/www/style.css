@@ -715,15 +715,6 @@ h1 {
   display: inline-block;
 }
 
-.ModelExp {
-  margin-top: 20px;
-  background-color: white;
-}
-
-.ModelExp :focus {
-  outline: 0px;
-}
-
 .ModelType {
   font-size: large;
   width:100%
@@ -940,17 +931,21 @@ button:disabled {
   padding-left: 1px;
 }
 
-/*
-#pp_view {
-  overflow-x: auto;
-}
-*/
-
 #cell {
   opacity: 0.99;
-  background-color: transparent;
+  /*background-color: transparent;*/
   position: relative;
   width: auto;
+  margin-top: 20px;
+  background-color: white;
+
+  font-size: 14pt;
+  line-height: 1.5;
+  padding: 10px;
+  border: 2px solid #CCC;
+}
+#cell:focus {
+  outline: 0px;
 }
 
 #cell .SNode {

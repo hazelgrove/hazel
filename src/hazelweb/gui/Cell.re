@@ -46,79 +46,57 @@ let view =
   Vdom.(
     Node.div(
       [
-        Attr.id("pp_view"),
-        Attr.classes(["ModelExp"]),
-        Attr.create(
-          "style",
-          "font-size: "
-          ++ (font_size |> JSUtil.px)
-          ++ "; line-height: "
-          ++ string_of_float(line_height)
-          ++ "; padding: "
-          ++ (cell_padding |> JSUtil.px)
-          ++ "; border: "
-          ++ (cell_border |> JSUtil.px)
-          ++ " solid #CCC;",
+        Attr.id(cell_id),
+        Attr.create("contenteditable", "true"),
+        Attr.on("drop", _ => Event.Prevent_default),
+        Attr.on_focus(_ => inject(FocusCell)),
+        Attr.on_blur(_ => inject(BlurCell)),
+        Attr.on_keypress(evt =>
+          JSUtil.is_movement_key(evt)
+            ? Event.Many([]) : Event.Prevent_default
         ),
+        Attr.on_keydown(evt => {
+          let prevent_stop_inject = a =>
+            Vdom.Event.Many([
+              Vdom.Event.Prevent_default,
+              Vdom.Event.Stop_propagation,
+              inject(a),
+            ]);
+          if (JSUtil.is_movement_key(evt)) {
+            Event.Many([]);
+          } else {
+            switch (KeyCombo.of_evt(evt)) {
+            | Some(kc) =>
+              prevent_stop_inject(
+                Update.Action.EditAction(
+                  Hashtbl.find(kc_actions, kc, model.cursor_info),
+                ),
+              )
+            | None =>
+              switch (JSUtil.is_single_key(evt)) {
+              | None => Event.Ignore
+              | Some(single_key) =>
+                prevent_stop_inject(
+                  Update.Action.EditAction(
+                    Construct(SChar(JSUtil.single_key_string(single_key))),
+                  ),
+                )
+              }
+            };
+          };
+        }),
       ],
-      [
-        Node.div(
-          [
-            Attr.id(cell_id),
-            Attr.create("contenteditable", "true"),
-            Attr.on("drop", _ => Event.Prevent_default),
-            Attr.on_focus(_ => inject(FocusCell)),
-            Attr.on_blur(_ => inject(BlurCell)),
-            Attr.on_keypress(evt =>
-              JSUtil.is_movement_key(evt)
-                ? Event.Many([]) : Event.Prevent_default
-            ),
-            Attr.on_keydown(evt => {
-              let prevent_stop_inject = a =>
-                Vdom.Event.Many([
-                  Vdom.Event.Prevent_default,
-                  Vdom.Event.Stop_propagation,
-                  inject(a),
-                ]);
-              if (JSUtil.is_movement_key(evt)) {
-                Event.Many([]);
-              } else {
-                switch (KeyCombo.of_evt(evt)) {
-                | Some(kc) =>
-                  prevent_stop_inject(
-                    Update.Action.EditAction(
-                      Hashtbl.find(kc_actions, kc, model.cursor_info),
-                    ),
-                  )
-                | None =>
-                  switch (JSUtil.is_single_key(evt)) {
-                  | None => Event.Ignore
-                  | Some(single_key) =>
-                    prevent_stop_inject(
-                      Update.Action.EditAction(
-                        Construct(
-                          SChar(JSUtil.single_key_string(single_key)),
-                        ),
-                      ),
-                    )
-                  }
-                };
-              };
-            }),
-          ],
-          {
-            let (contenteditable, presentation) =
-              model.is_cell_focused
-                ? Code.editor_view_of_exp(
-                    ~inject,
-                    ~decorate_cursor=model |> Model.path,
-                    model |> Model.exp,
-                  )
-                : Code.editor_view_of_exp(~inject, model |> Model.exp);
-            [contenteditable, presentation];
-          },
-        ),
-      ],
+      {
+        let (contenteditable, presentation) =
+          model.is_cell_focused
+            ? Code.editor_view_of_exp(
+                ~inject,
+                ~decorate_cursor=model |> Model.path,
+                model |> Model.exp,
+              )
+            : Code.editor_view_of_exp(~inject, model |> Model.exp);
+        [contenteditable, presentation];
+      },
     )
   );
 };
