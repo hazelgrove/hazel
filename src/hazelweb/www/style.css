@@ -899,50 +899,40 @@ button:disabled {
 
 .Cursor .DelimGroup {
   background-color: var(--node-indicator-normal-color);
-  /* simple approach would be to set outline to 3px
-   * but outline covers child borders while border
-   * does not */
-  border: 1px solid var(--node-indicator-normal-color);
-  outline: 2px solid var(--node-indicator-normal-color);
-  margin: -1px;
+  box-shadow: 2px 2px 0px 0px rgb(109, 199, 109);
+  position: relative;
+  z-index: 100;
 }
-.Cursor .Term * {
+.Cursor .Term .DelimGroup {
   background-color: var(--default-code-background-color);
-  border: none;
-  outline: none;
-  margin: 0;
+  box-shadow: none;
+  z-index: auto;
 }
 
 .Cursor.Exp .Typ {
-  border: 1px solid purple;
+  outline: 1px solid purple;
 }
 .Cursor.Exp .Term .Typ {
-  border: none;
+  outline: none;
 }
 
 .Cursor.Exp .Pat {
-  border: 1px solid blue;
+  background-color: #baf1fe;
+  box-shadow: inset 2px 2px 0px 0px rgb(102, 163, 198);
+  position: relative;
+  z-index: 10;
+  border-radius: 3px;
+  line-height: 1.3;
 }
 .Cursor.Exp .Term .Pat {
-  border: none;
-}
-
-.Cursor.Exp .OpenChild.Para {
-  border-left: 3px solid var(--node-indicator-normal-color);
-  margin-left: -3px;
-}
-.Cursor.Exp .Term .OpenChild.Para {
-  border-left: none;
-  margin-left: 0;
-}
-
-.Cursor.Exp .OpenChild.Inline {
-  border-bottom: 3px solid var(--node-indicator-normal-color);
-  margin-bottom: -3px;
-}
-.Cursor.Exp .Term .OpenChild.Inline {
-  border-bottom: none;
-  margin-bottom: 0;
+  outline: none;
+  background-color: var(--default-code-background-color);
+  box-shadow: none;
+  position: relative;
+  z-index: auto;
+  border-radius: none;
+  /*  TODO turn into variable */
+  line-height: 1.5;
 }
 
 .SDelim-before,
