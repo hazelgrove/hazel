@@ -872,6 +872,31 @@ button:disabled {
   display: inline-block;
 }
 
+.Cursor.Term {
+  border-radius: 3px;
+}
+.Cursor.Term.has-Inline-OpenChild .DelimGroup {
+  border-radius: 3px 3px 0 0;
+}
+.Cursor.Term.has-Inline-OpenChild .Term .DelimGroup {
+  border-radius: none;
+}
+.Cursor.Term.has-Para-OpenChild .DelimGroup {
+  border-radius: 0 3px 3px 0;
+}
+.Cursor.Term.has-Para-OpenChild .Term .DelimGroup {
+  border-radius: none;
+}
+
+.Cursor.Term.has-Inline-OpenChild {
+  border-bottom: 3px solid var(--node-indicator-normal-color);
+  margin-bottom: -3px;
+}
+.Cursor.Term.has-Para-OpenChild {
+  border-left: 3px solid var(--node-indicator-normal-color);
+  margin-left: -3px;
+}
+
 .Cursor .DelimGroup {
   background-color: var(--node-indicator-normal-color);
   /* simple approach would be to set outline to 3px
