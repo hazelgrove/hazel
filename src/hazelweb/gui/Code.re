@@ -214,7 +214,8 @@ let contenteditable_of_layout = (l: TermLayout.t): Vdom.Node.t => {
         ],
       ),
     ],
-    t_of_imp: vs => Node.span([Attr.classes(["code"])], vs) // TODO: use something other than `span`?
+    t_of_imp: vs =>
+      Node.span([Attr.classes(["code", "contenteditable"])], vs) // TODO: use something other than `span`?
   };
   Layout.make_of_layout(record, l);
 };
@@ -378,7 +379,7 @@ let presentation_of_layout =
         ),
       ]
     };
-  Node.div([Attr.classes(["code"])], go(l));
+  Node.div([Attr.classes(["code", "presentation"])], go(l));
 };
 
 let editor_view_of_layout =

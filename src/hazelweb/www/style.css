@@ -753,9 +753,8 @@ button:disabled {
   font-family: "Fira Mono", monospace;
   white-space: pre;
 }
-
-.code.op {
-  font-size: 125%;
+.code.presentation * {
+  display: inline-block;
 }
 
 .code-delim {
