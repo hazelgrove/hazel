@@ -46,7 +46,7 @@ let has_para_OpenChild =
   contains(
     fun
     | DelimGroup => Skip
-    | ClosedChild({is_inline: false}) => Return()
+    | OpenChild({is_inline: false}) => Return()
     | _ => Fail,
   );
 
