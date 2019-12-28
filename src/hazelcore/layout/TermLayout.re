@@ -37,6 +37,7 @@ let rec contains = (query: tag => QueryResult.t(unit), l: t): bool => {
 let has_inline_OpenChild =
   contains(
     fun
+    | Step(_)
     | DelimGroup => Skip
     | OpenChild({is_inline: true}) => Return()
     | _ => Fail,
@@ -45,6 +46,7 @@ let has_inline_OpenChild =
 let has_para_OpenChild =
   contains(
     fun
+    | Step(_)
     | DelimGroup => Skip
     | OpenChild({is_inline: false}) => Return()
     | _ => Fail,
