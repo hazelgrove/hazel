@@ -897,7 +897,7 @@ button:disabled {
   content: "";
   position: absolute;
   background-color: var(--bg-color);
-  box-shadow: 1.5px 1.5px 0.5px 0.5px var(--shadow-color);
+  box-shadow: 2px 2px 0px 0px var(--shadow-color);
 }
 .Cursor.Term.has-Inline-OpenChild::before {
   top: 100%;
@@ -949,7 +949,7 @@ button:disabled {
   --bg-color: transparent;
   --shadow-color: transparent;
   background-color: var(--bg-color);
-  box-shadow: 1.5px 1.5px 0.5px 0.5px var(--shadow-color);
+  box-shadow: 2px 2px 0px 0px var(--shadow-color);
   position: relative;
   z-index: var(--delim-group-z);
 }
@@ -988,7 +988,7 @@ button:disabled {
 
 .Cursor.Term.Exp .Term.Pat {
   background-color: var(--pat-bg-color);
-  box-shadow: inset 1px 1px 0.5px 1.5px var(--pat-shadow-color);
+  box-shadow: inset 2px 2px 0px 0 var(--pat-shadow-color);
 }
 .Cursor.Term.Exp .Term .Term.Pat {
   background-color: var(--default-code-bg-color);
@@ -997,7 +997,7 @@ button:disabled {
 
 .Cursor.Term.Exp .Term.Typ {
   background-color: var(--typ-bg-color);
-  box-shadow: inset 1px 1px 0.5px 1.5px var(--typ-shadow-color);
+  box-shadow: inset 2px 2px 0px 0 var(--typ-shadow-color);
 }
 .Cursor.Term.Exp .Term .Term.Typ {
   background-color: var(--default-code-bg-color);
