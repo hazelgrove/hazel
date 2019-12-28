@@ -23,12 +23,12 @@ let rec contains = (query: tag => QueryResult.t(unit), l: t): bool => {
   switch (l) {
   | Linebreak
   | Text(_) => false
-  | Align(l) => l |> go
+  | Align(l) => go(l)
   | Cat(l1, l2) => go(l1) || go(l2)
   | Tagged(tag, l) =>
-    switch (tag |> query) {
+    switch (query(tag)) {
     | Fail => false
-    | Skip => l |> go
+    | Skip => go(l)
     | Return () => true
     }
   };
@@ -60,16 +60,16 @@ let rec find_and_decorate_Tagged =
   switch (l) {
   | Linebreak
   | Text(_) => None
-  | Align(l) => l |> go |> Opt.map(Layout.align)
+  | Align(l) => go(l) |> Opt.map(Layout.align)
   | Cat(l1, l2) =>
-    switch (l1 |> go) {
+    switch (go(l1)) {
     | Some(l1) => Some(Cat(l1, l2))
-    | None => l2 |> go |> Opt.map(l2 => Layout.Cat(l1, l2))
+    | None => go(l2) |> Opt.map(l2 => Layout.Cat(l1, l2))
     }
   | Tagged(tag, l) =>
     switch (decorate(tag, l)) {
     | Fail => None
-    | Skip => l |> go |> Opt.map(Layout.tag(tag))
+    | Skip => go(l) |> Opt.map(Layout.tag(tag))
     | Return(l) => Some(l)
     }
   };
