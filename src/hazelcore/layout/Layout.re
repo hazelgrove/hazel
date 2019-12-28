@@ -57,3 +57,27 @@ let string_of_layout: 'tag. t('tag) => string =
     };
     make_of_layout(record, layout);
   };
+
+let strings_of_layout: 'tag. t('tag) => list((int, string)) =
+  layout => {
+    let record: 'tag. text('tag, list((int, string)), list((int, string))) = {
+      imp_of_string: string => [(0, string)],
+      imp_append: (s1, s2) => {
+        switch (List.rev(s1), s2) {
+        | ([], _) => s2
+        | (_, []) => s1
+        | (
+            [(last_indent_1, last_string_1), ...rest1],
+            [(first_indent_2, first_string_2), ...rest2],
+          ) =>
+          assert(first_indent_2 == 0);
+          List.rev(rest1)
+          @ [(last_indent_1, last_string_1 ++ first_string_2), ...rest2];
+        };
+      },
+      imp_newline: indent => [(indent, "")],
+      imp_of_tag: (_, imp) => imp,
+      t_of_imp: s => s,
+    };
+    make_of_layout(record, layout);
+  };
