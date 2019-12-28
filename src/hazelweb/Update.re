@@ -18,6 +18,8 @@ module Action = {
     | NextCard
     | PrevCard
     | SetComputeResults(bool)
+    | SetShowContentEditable(bool)
+    | SetShowPresentation(bool)
     | SelectHoleInstance(MetaVar.t, Dynamics.inst_num)
     | InvalidVar(string)
     | MoveToHole(MetaVar.t)
@@ -72,6 +74,8 @@ let log_action = (action: Action.t, _: State.t): unit => {
   | NextCard
   | PrevCard
   | SetComputeResults(_)
+  | SetShowContentEditable(_)
+  | SetShowPresentation(_)
   | SelectHoleInstance(_, _)
   | InvalidVar(_)
   | FocusCell
@@ -135,6 +139,11 @@ let apply_action =
           compute_results,
         ),
     }
+  | SetShowContentEditable(show_content_editable) => {
+      ...model,
+      show_content_editable,
+    }
+  | SetShowPresentation(show_presentation) => {...model, show_presentation}
   | SelectHoleInstance(u, i) => Model.select_hole_instance(model, (u, i))
   | InvalidVar(_) => model
   | MoveToHole(u) => Model.move_to_hole(model, u)

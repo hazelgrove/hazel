@@ -99,6 +99,8 @@ type t = {
   is_cell_focused: bool,
   left_sidebar_open: bool,
   right_sidebar_open: bool,
+  show_content_editable: bool,
+  show_presentation: bool,
 };
 
 let cardstack_state_of = model => ZList.prj_z(model.cardstacks_state);
@@ -372,6 +374,8 @@ let init = (): t => {
     is_cell_focused: false,
     left_sidebar_open: false,
     right_sidebar_open: true,
+    show_content_editable: false,
+    show_presentation: false,
   };
 };
 
