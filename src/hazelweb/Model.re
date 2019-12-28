@@ -9,7 +9,7 @@ let cardstacks: cardstacks = [
   RCStudyCards.cardstack,
 ];
 
-let init_compute_results_flag = false;
+let init_compute_results = true;
 
 type user_newlines = CursorPath.StepsMap.t(unit);
 
@@ -91,7 +91,7 @@ type t = {
   cardstacks_state,
   /* these are derived from the cardstack state: */
   cursor_info: CursorInfo.t,
-  compute_results_flag: bool,
+  compute_results: bool,
   result_state,
   /* UI state */
   user_newlines,
@@ -179,8 +179,8 @@ let result_of_edit_state = ((zblock, _, _): edit_state): result => {
   };
 };
 
-let result_state_of_edit_state = (edit_state, compute_results_flag) =>
-  if (!compute_results_flag) {
+let result_state_of_edit_state = (edit_state, compute_results) =>
+  if (!compute_results) {
     ResultsDisabled;
   } else {
     Result({
@@ -275,7 +275,7 @@ let update_edit_state = ((new_zblock, ty, u_gen): edit_state, model: t): t => {
        );
   let new_edit_state = (new_zblock, ty, u_gen);
   let new_result_state =
-    result_state_of_edit_state(new_edit_state, model.compute_results_flag);
+    result_state_of_edit_state(new_edit_state, model.compute_results);
   let cardstacks_state = model.cardstacks_state;
   let cardstack_state = cardstack_state_of(model);
   let card_state = ZList.prj_z(cardstack_state.zcards);
@@ -299,7 +299,7 @@ let update_edit_state = ((new_zblock, ty, u_gen): edit_state, model: t): t => {
 let update_cardstack_state = (model, cardstack_state) => {
   let edit_state = ZList.prj_z(cardstack_state.zcards).edit_state;
   let result_state =
-    result_state_of_edit_state(edit_state, model.compute_results_flag);
+    result_state_of_edit_state(edit_state, model.compute_results);
   let cursor_info = cursor_info_of_edit_state(edit_state);
   let user_newlines = CursorPath.StepsMap.empty;
   let cardstacks_state =
@@ -360,16 +360,15 @@ let init = (): t => {
   let cardstacks_state = mk_cardstacks_state(cardstacks);
   let edit_state =
     ZList.prj_z(ZList.prj_z(cardstacks_state).zcards).edit_state;
-  let compute_results_flag = init_compute_results_flag;
+  let compute_results = init_compute_results;
   {
     cardstacks,
     cardstacks_state,
     cursor_info: cursor_info_of_edit_state(edit_state),
-    compute_results_flag,
-    result_state:
-      result_state_of_edit_state(edit_state, compute_results_flag),
     left_sidebar_open: false,
     right_sidebar_open: true,
+    compute_results,
+    result_state: result_state_of_edit_state(edit_state, compute_results),
     selected_example: None,
     is_cell_focused: false,
     user_newlines: CursorPath.StepsMap.empty,

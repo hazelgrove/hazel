@@ -17,7 +17,7 @@ module Action = {
     | LoadCardStack(int)
     | NextCard
     | PrevCard
-    | SetComputeResultsFlag(bool)
+    | SetComputeResults(bool)
     | SelectHoleInstance(MetaVar.t, Dynamics.inst_num)
     | InvalidVar(string)
     | MoveToHole(MetaVar.t)
@@ -71,7 +71,7 @@ let log_action = (action: Action.t, _: State.t): unit => {
   | LoadCardStack(_)
   | NextCard
   | PrevCard
-  | SetComputeResultsFlag(_)
+  | SetComputeResults(_)
   | SelectHoleInstance(_, _)
   | InvalidVar(_)
   | FocusCell
@@ -126,13 +126,13 @@ let apply_action =
   | PrevCard =>
     state.changing_cards := true;
     Model.prev_card(model);
-  | SetComputeResultsFlag(compute_results_flag) => {
+  | SetComputeResults(compute_results) => {
       ...model,
-      compute_results_flag,
+      compute_results,
       result_state:
         Model.result_state_of_edit_state(
           Model.edit_state_of(model),
-          compute_results_flag,
+          compute_results,
         ),
     }
   | SelectHoleInstance(u, i) => Model.select_hole_instance(model, (u, i))

@@ -1,7 +1,7 @@
 module Vdom = Virtual_dom.Vdom;
 
 let view = (~inject: Update.Action.t => Vdom.Event.t, _: Model.t): Vdom.Node.t => {
-  let compute_results_flag_checkbox =
+  let compute_results_checkbox =
     Vdom.(
       Node.div(
         [],
@@ -9,7 +9,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, _: Model.t): Vdom.Node.t =
           Node.input(
             [
               Attr.create("type", "checkbox"),
-              Attr.id("compute_results_flag_checkbox"),
+              Attr.id("compute_results_checkbox"),
               Attr.on_change((evt, _) => {
                 let target =
                   JSUtil.force_opt(
@@ -24,11 +24,11 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, _: Model.t): Vdom.Node.t =
             [],
           ),
           Node.label(
-            [Attr.create("for", "compute_results_flag_checkbox")],
+            [Attr.create("for", "compute_results_checkbox")],
             [Node.text("Compute Results")],
           ),
         ],
       )
     );
-  compute_results_flag_checkbox;
+  compute_results_checkbox;
 };
