@@ -18,7 +18,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, _: Model.t): Vdom.Node.t =
                     ),
                   );
                 let checked = Js_of_ocaml.Js.to_bool(target##.checked);
-                inject(Update.Action.SetComputeResultsFlag(checked));
+                inject(Update.Action.SetComputeResults(checked));
               }),
             ],
             [],

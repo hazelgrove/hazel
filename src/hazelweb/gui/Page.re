@@ -163,7 +163,7 @@ let page_view =
             /*
              Sidebar.left(
                ~inject,
-               false,
+               model,
                [ActionPanel.view(~inject, model)] //the_history_panel,
              ),
              */
@@ -257,7 +257,7 @@ let page_view =
             ),
             Sidebar.right(
               ~inject,
-              true,
+              model,
               [
                 CursorInspector.view(~inject, model),
                 ContextInspector.view(~inject, model),
