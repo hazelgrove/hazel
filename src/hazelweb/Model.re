@@ -365,13 +365,13 @@ let init = (): t => {
     cardstacks,
     cardstacks_state,
     cursor_info: cursor_info_of_edit_state(edit_state),
-    left_sidebar_open: false,
-    right_sidebar_open: true,
     compute_results,
     result_state: result_state_of_edit_state(edit_state, compute_results),
+    user_newlines: CursorPath.StepsMap.empty,
     selected_example: None,
     is_cell_focused: false,
-    user_newlines: CursorPath.StepsMap.empty,
+    left_sidebar_open: false,
+    right_sidebar_open: true,
   };
 };
 
