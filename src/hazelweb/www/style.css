@@ -23,8 +23,29 @@
   --shifting-indicator-color: rgb(102, 163, 198);
   --page-padding: 15px;
 
-  --default-code-background-color: white;
+  --code-line-height: 1.5;
+  --closed-child-line-height: 1.3;
+
+  --err-hole-color: red;
+  --verr-hole-color: #ce5f00;
+
+  --default-code-bg-color: transparent;
   --caret-color: red;
+
+  --exp-bg-color: rgb(197, 253, 197);
+  --exp-shadow-color: rgb(135, 204, 135);
+
+  --pat-bg-color: #baf1fe;
+  --pat-shadow-color: rgb(130, 176, 202);
+
+  --typ-bg-color: rgb(233, 221, 253);
+  --typ-shadow-color: rgb(173, 154, 202);
+
+  /* necessary for hiding portions of box shadows */
+  --para-border-z: 1;
+  --delim-group-z: 2;
+  --inline-border-z: 3;
+  --closed-child-z: 4;
 }
 
 /* general */
@@ -752,6 +773,8 @@ button:disabled {
 .code {
   font-family: "Fira Mono", monospace;
   white-space: pre;
+  font-size: 14pt;
+  line-height: 1.5;
 }
 .code.presentation * {
   display: inline-block;
@@ -855,11 +878,10 @@ button:disabled {
 */
 
 .InHole {
-  border: 1px dashed var(--nonempty-hole-color);
+  border: 1px dashed var(--err-hole-color);
 }
-
 .InVarHole {
-  border: 1px dashed #ce5f00;
+  border: 1px dashed var(--verr-hole-color);
 }
 
 .OpenChild.Para {
@@ -868,19 +890,53 @@ button:disabled {
   align-items: stretch;
 }
 
-.Indent {
-  display: inline-block;
+.Cursor.Term::before {
+  /* set by each term family */
+  --bg-color: transparent;
+  --shadow-color: transparent;
+  content: "";
+  position: absolute;
+  background-color: var(--bg-color);
+  box-shadow: 1.5px 1.5px 0.5px 0 var(--shadow-color);
+}
+.Cursor.Term.has-Inline-OpenChild::before {
+  top: 100%;
+  left: 0;
+  height: 4px;
+  width: 100%;
+  border-radius: 0 0 3px 3px;
+  z-index: var(--inline-border-z);
+}
+.Cursor.Term.has-Para-OpenChild::before {
+  top: 0px;
+  left: -4px;
+  height: 100%;
+  width: 4px;
+  border-radius: 3px 0 0 3px;
+  z-index: var(--para-border-z);
+}
+
+.Cursor.Term.Exp::before {
+  --bg-color: var(--exp-bg-color);
+  --shadow-color: var(--exp-shadow-color);
+}
+.Cursor.Term.Pat::before {
+  --bg-color: var(--pat-bg-color);
+  --shadow-color: var(--pat-shadow-color);
 }
 
 .Cursor.Term {
+  position: relative;
   border-radius: 3px;
 }
+
 .Cursor.Term.has-Inline-OpenChild .DelimGroup {
   border-radius: 3px 3px 0 0;
 }
 .Cursor.Term.has-Inline-OpenChild .Term .DelimGroup {
   border-radius: none;
 }
+
 .Cursor.Term.has-Para-OpenChild .DelimGroup {
   border-radius: 0 3px 3px 0;
 }
@@ -888,51 +944,64 @@ button:disabled {
   border-radius: none;
 }
 
-.Cursor.Term.has-Inline-OpenChild {
-  border-bottom: 3px solid var(--node-indicator-normal-color);
-  margin-bottom: -3px;
-}
-.Cursor.Term.has-Para-OpenChild {
-  border-left: 3px solid var(--node-indicator-normal-color);
-  margin-left: -3px;
-}
-
 .Cursor .DelimGroup {
-  background-color: var(--node-indicator-normal-color);
-  box-shadow: 2px 2px 0px 0px rgb(109, 199, 109);
+  /* set by each term family */
+  --bg-color: transparent;
+  --shadow-color: transparent;
+  background-color: var(--bg-color);
+  box-shadow: 1.5px 1.5px 0.5px 0 var(--shadow-color);
   position: relative;
-  z-index: 100;
+  z-index: var(--delim-group-z);
 }
 .Cursor .Term .DelimGroup {
-  background-color: var(--default-code-background-color);
+  background-color: var(--default-code-bg-color);
   box-shadow: none;
   z-index: auto;
 }
 
-.Cursor.Exp .Typ {
-  outline: 1px solid purple;
+.Cursor.Exp .DelimGroup {
+  --bg-color: var(--exp-bg-color);
+  --shadow-color: var(--exp-shadow-color);
 }
-.Cursor.Exp .Term .Typ {
-  outline: none;
+.Cursor.Pat .DelimGroup {
+  --bg-color: var(--pat-bg-color);
+  --shadow-color: var(--pat-shadow-color);
+}
+.Cursor.Typ .DelimGroup {
+  --bg-color: var(--typ-bg-color);
+  --shadow-color: var(--typ-shadow-color);
 }
 
-.Cursor.Exp .Pat {
-  background-color: #baf1fe;
-  box-shadow: inset 2px 2px 0px 0px rgb(102, 163, 198);
+.Cursor.Term.Exp .Term.Pat,
+.Cursor.Term.Exp .Term.Typ {
   position: relative;
-  z-index: 10;
+  z-index: var(--closed-child-z);
   border-radius: 3px;
-  line-height: 1.3;
+  line-height: var(--closed-child-line-height);
 }
-.Cursor.Exp .Term .Pat {
-  outline: none;
-  background-color: var(--default-code-background-color);
-  box-shadow: none;
+.Cursor.Term .Term .Term {
   position: relative;
   z-index: auto;
   border-radius: none;
-  /*  TODO turn into variable */
-  line-height: 1.5;
+  line-height: var(--code-line-height);
+}
+
+.Cursor.Term.Exp .Term.Pat {
+  background-color: var(--pat-bg-color);
+  box-shadow: inset 1px 1px 0.5px 1.5px var(--pat-shadow-color);
+}
+.Cursor.Term.Exp .Term .Term.Pat {
+  background-color: var(--default-code-bg-color);
+  box-shadow: none;
+}
+
+.Cursor.Term.Exp .Term.Typ {
+  background-color: var(--typ-bg-color);
+  box-shadow: inset 1px 1px 0.5px 1.5px var(--typ-shadow-color);
+}
+.Cursor.Term.Exp .Term .Term.Typ {
+  background-color: var(--default-code-bg-color);
+  box-shadow: none;
 }
 
 .SDelim-before,
@@ -952,9 +1021,6 @@ button:disabled {
   width: auto;
   margin-top: 20px;
   background-color: white;
-
-  font-size: 14pt;
-  line-height: 1.5;
   padding: 10px;
   border: 2px solid #CCC;
 }
