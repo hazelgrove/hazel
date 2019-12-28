@@ -176,10 +176,7 @@ let rec find_and_decorate_Term =
            |> QueryResult.of_opt;
          let found_term_if = (cond, term_data) =>
            cond && rest == []
-             ? QueryResult.Return(
-                 decorate_Term(term_data, l |> Layout.tag(tag)),
-               )
-             : Skip;
+             ? QueryResult.Return(decorate_Term(term_data, l)) : Skip;
          switch (tag) {
          | Step(step) => step == next_step ? take_step() : Fail
          | Term({shape: SubBlock({hd_index, _}), _} as term_data) =>
