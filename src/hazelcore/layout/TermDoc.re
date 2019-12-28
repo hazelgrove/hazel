@@ -318,7 +318,8 @@ let mk_Rule =
            ~enforce_inline=false,
          ),
       DelimDoc.arrow_Rule(steps),
-    ]);
+    ])
+    |> tag_DelimGroup;
   Doc.(
     choices([
       hseps([delim_group, clause(~enforce_inline=true)]),
