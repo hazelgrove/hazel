@@ -897,7 +897,7 @@ button:disabled {
   content: "";
   position: absolute;
   background-color: var(--bg-color);
-  box-shadow: 1.5px 1.5px 0.5px 0 var(--shadow-color);
+  box-shadow: 1.5px 1.5px 0.5px 0.5px var(--shadow-color);
 }
 .Cursor.Term.has-Inline-OpenChild::before {
   top: 100%;
@@ -949,7 +949,7 @@ button:disabled {
   --bg-color: transparent;
   --shadow-color: transparent;
   background-color: var(--bg-color);
-  box-shadow: 1.5px 1.5px 0.5px 0 var(--shadow-color);
+  box-shadow: 1.5px 1.5px 0.5px 0.5px var(--shadow-color);
   position: relative;
   z-index: var(--delim-group-z);
 }
