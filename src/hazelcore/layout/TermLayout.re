@@ -6,6 +6,8 @@ type tag = TermTag.t;
 [@deriving sexp]
 type t = Layout.t(tag);
 
+type metrics = Layout.metrics;
+
 module QueryResult = {
   type t('a) =
     | Fail
@@ -20,7 +22,7 @@ module QueryResult = {
 
 let rec contains = (query: tag => QueryResult.t(unit), l: t): bool => {
   let go = contains(query);
-  switch (l) {
+  switch (l.layout) {
   | Linebreak
   | Text(_) => false
   | Align(l) => go(l)
@@ -55,21 +57,22 @@ let has_para_OpenChild =
 // TODO should be possible to make polymorphic over tag
 // but was getting confusing type inference error
 let rec find_and_decorate_Tagged =
-        (decorate: (tag, t) => QueryResult.t(t), l: t): option(t) => {
+        (decorate: (metrics, tag, t) => QueryResult.t(t), l: t): option(t) => {
   let go = find_and_decorate_Tagged(decorate);
   switch (l) {
-  | Linebreak
-  | Text(_) => None
-  | Align(l) => go(l) |> Opt.map(Layout.align)
-  | Cat(l1, l2) =>
+  | {layout: Linebreak | Text(_), _} => None
+  | {layout: Align(l1), _} =>
+    go(l1) |> Opt.map(l1 => {...l, layout: Align(l1)})
+  | {layout: Cat(l1, l2), _} =>
     switch (go(l1)) {
-    | Some(l1) => Some(Cat(l1, l2))
-    | None => go(l2) |> Opt.map(l2 => Layout.Cat(l1, l2))
+    | Some(l1) => Some({...l, layout: Cat(l1, l2)})
+    | None => go(l2) |> Opt.map(l2 => {...l, layout: Cat(l1, l2)})
     }
-  | Tagged(tag, l) =>
-    switch (decorate(tag, l)) {
+  | {layout: Tagged(tag, l1), metrics} =>
+    switch (decorate(metrics, tag, l1)) {
     | Fail => None
-    | Skip => go(l) |> Opt.map(Layout.tag(tag))
+    | Skip =>
+      go(l1) |> Opt.map(l1 => {Layout.metrics, layout: Tagged(tag, l1)})
     | Return(l) => Some(l)
     }
   };
@@ -83,12 +86,12 @@ let rec follow_steps_and_decorate =
   | [] => decorate(l)
   | [next_step, ...rest] =>
     l
-    |> find_and_decorate_Tagged((tag: TermTag.t, l: t) => {
+    |> find_and_decorate_Tagged((metrics, tag: TermTag.t, l: t) => {
          switch (tag) {
          | Step(step) when step == next_step =>
            l
            |> go(~steps=rest)
-           |> Opt.map(Layout.tag(tag))
+           |> Opt.map(l => {Layout.metrics, layout: Tagged(tag, l)})
            |> QueryResult.of_opt
          | OpenChild(_)
          | ClosedChild(_)
@@ -108,39 +111,52 @@ let find_and_decorate_caret =
        ~decorate=
          switch (cursor) {
          | OnText(j) =>
-           find_and_decorate_Tagged((tag, l) =>
+           find_and_decorate_Tagged((metrics, tag, l) =>
              switch (tag) {
              | Text(text_data) =>
-               Return(
-                 l
-                 |> Layout.tag(TermTag.Text({...text_data, caret: Some(j)})),
-               )
+               Return({
+                 metrics,
+                 layout:
+                   l
+                   |> Layout.tag(
+                        TermTag.Text({...text_data, caret: Some(j)}),
+                      ),
+               })
              | Term(_) => Skip
              | _ => Fail
              }
            )
          | OnOp(side) =>
-           find_and_decorate_Tagged((tag, l) =>
+           find_and_decorate_Tagged((metrics, tag, l) =>
              switch (tag) {
              | Op(op_data) =>
-               Return(
-                 l
-                 |> Layout.tag(TermTag.Op({...op_data, caret: Some(side)})),
-               )
+               Return({
+                 metrics,
+                 layout:
+                   l
+                   |> Layout.tag(
+                        TermTag.Op({...op_data, caret: Some(side)}),
+                      ),
+               })
              | _ => Fail
              }
            )
          | OnDelim(k, side) =>
-           find_and_decorate_Tagged((tag, l) =>
+           find_and_decorate_Tagged((metrics, tag, l) =>
              switch (tag) {
              | Delim({path: (_, index), _} as delim_data) =>
                index == k
-                 ? Return(
-                     l
-                     |> Layout.tag(
-                          TermTag.Delim({...delim_data, caret: Some(side)}),
-                        ),
-                   )
+                 ? Return({
+                     metrics,
+                     layout:
+                       l
+                       |> Layout.tag(
+                            TermTag.Delim({
+                              ...delim_data,
+                              caret: Some(side),
+                            }),
+                          ),
+                   })
                  : Fail
              | Term(_)
              | DelimGroup => Skip
@@ -154,7 +170,7 @@ let find_and_decorate_caret =
 let rec find_and_decorate_Term =
         (
           ~steps: CursorPath.steps,
-          ~decorate_Term: (TermTag.term_data, t) => t,
+          ~decorate_Term: (metrics, TermTag.term_data, t) => t,
           l: t,
         )
         : option(t) => {
@@ -162,23 +178,24 @@ let rec find_and_decorate_Term =
   switch (steps) {
   | [] =>
     l
-    |> find_and_decorate_Tagged((tag, l) =>
+    |> find_and_decorate_Tagged((metrics, tag, l) =>
          switch (tag) {
-         | Term(term_data) => Return(decorate_Term(term_data, l))
+         | Term(term_data) => Return(decorate_Term(metrics, term_data, l))
          | _ => Fail
          }
        )
   | [next_step, ...rest] =>
     l
-    |> find_and_decorate_Tagged((tag, l) => {
+    |> find_and_decorate_Tagged((metrics, tag, l) => {
          let take_step = () =>
            l
            |> go(~steps=rest)
-           |> Opt.map(Layout.tag(tag))
+           |> Opt.map(l => {Layout.metrics, layout: Tagged(tag, l)})
            |> QueryResult.of_opt;
          let found_term_if = (cond, term_data) =>
            cond && rest == []
-             ? QueryResult.Return(decorate_Term(term_data, l)) : Skip;
+             ? QueryResult.Return(decorate_Term(metrics, term_data, l))
+             : Skip;
          switch (tag) {
          | Step(step) => step == next_step ? take_step() : Fail
          | Term({shape: SubBlock({hd_index, _}), _} as term_data) =>
@@ -201,6 +218,10 @@ let rec find_and_decorate_Term =
 };
 
 let find_and_decorate_cursor =
-  find_and_decorate_Term(~decorate_Term=(term_data, l) =>
-    l |> Layout.tag(TermTag.Term({...term_data, has_cursor: true}))
+  find_and_decorate_Term(~decorate_Term=(metrics, term_data, l) =>
+    {
+      metrics,
+      layout:
+        l |> Layout.tag(TermTag.Term({...term_data, has_cursor: true})),
+    }
   );

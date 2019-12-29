@@ -194,10 +194,12 @@ and layout_of_doc'': Doc.t(unit) => m(Layout.t(unit)) =
             cost,
             {
               ...layout,
-              Layout.first_width: width - pos,
-              Layout.width,
-              Layout.last_width: width - end_pos,
-              Layout.cost,
+              Layout.metrics: {
+                first_width: width - pos,
+                width,
+                last_width: width - end_pos,
+                cost,
+              },
             },
           ),
         ret(~width, ~pos),

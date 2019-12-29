@@ -4,7 +4,10 @@ open GeneralUtil;
 /* Variable: `layout` */
 [@deriving sexp]
 type t('tag) = {
+  metrics,
   layout: layout('tag),
+}
+and metrics = {
   first_width: int,
   width: int,
   last_width: int,
@@ -22,10 +25,12 @@ let tag = (tag: 'tag, l: t('tag)) => Tagged(tag, l);
 
 let t_of_layout = (layout: layout('tag)): t('tag) => {
   layout,
-  first_width: (-1),
-  width: (-1),
-  last_width: (-1),
-  cost: (-1),
+  metrics: {
+    first_width: (-1),
+    width: (-1),
+    last_width: (-1),
+    cost: (-1),
+  },
 };
 
 // TODO?
