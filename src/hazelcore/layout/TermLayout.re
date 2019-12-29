@@ -10,13 +10,13 @@ type metrics = Layout.metrics;
 
 module QueryResult = {
   type t('a) =
-    | Fail
+    | Stop
     | Skip
     | Return('a);
 
   let of_opt: option('a) => t('a) =
     fun
-    | None => Fail
+    | None => Stop
     | Some(a) => Return(a);
 };
 
@@ -29,7 +29,7 @@ let rec contains = (query: tag => QueryResult.t(unit), l: t): bool => {
   | Cat(l1, l2) => go(l1) || go(l2)
   | Tagged(tag, l) =>
     switch (query(tag)) {
-    | Fail => false
+    | Stop => false
     | Skip => go(l)
     | Return () => true
     }
@@ -42,7 +42,7 @@ let has_inline_OpenChild =
     | Step(_)
     | DelimGroup => Skip
     | OpenChild({is_inline: true}) => Return()
-    | _ => Fail,
+    | _ => Stop,
   );
 
 let has_para_OpenChild =
@@ -51,7 +51,7 @@ let has_para_OpenChild =
     | Step(_)
     | DelimGroup => Skip
     | OpenChild({is_inline: false}) => Return()
-    | _ => Fail,
+    | _ => Stop,
   );
 
 // TODO should be possible to make polymorphic over tag
@@ -70,7 +70,7 @@ let rec find_and_decorate_Tagged =
     }
   | {layout: Tagged(tag, l1), metrics} =>
     switch (decorate(metrics, tag, l1)) {
-    | Fail => None
+    | Stop => None
     | Skip =>
       go(l1) |> Opt.map(l1 => {Layout.metrics, layout: Tagged(tag, l1)})
     | Return(l) => Some(l)
@@ -97,7 +97,7 @@ let rec follow_steps_and_decorate =
          | ClosedChild(_)
          | DelimGroup
          | Term(_) => Skip
-         | _ => Fail
+         | _ => Stop
          }
        })
   };
@@ -123,7 +123,7 @@ let find_and_decorate_caret =
                       ),
                })
              | Term(_) => Skip
-             | _ => Fail
+             | _ => Stop
              }
            )
          | OnOp(side) =>
@@ -138,7 +138,7 @@ let find_and_decorate_caret =
                         TermTag.Op({...op_data, caret: Some(side)}),
                       ),
                })
-             | _ => Fail
+             | _ => Stop
              }
            )
          | OnDelim(k, side) =>
@@ -157,10 +157,10 @@ let find_and_decorate_caret =
                             }),
                           ),
                    })
-                 : Fail
+                 : Stop
              | Term(_)
              | DelimGroup => Skip
-             | _ => Fail
+             | _ => Stop
              }
            )
          },
@@ -181,7 +181,7 @@ let rec find_and_decorate_Term =
     |> find_and_decorate_Tagged((metrics, tag, l) =>
          switch (tag) {
          | Term(term_data) => Return(decorate_Term(metrics, term_data, l))
-         | _ => Fail
+         | _ => Stop
          }
        )
   | [next_step, ...rest] =>
@@ -197,7 +197,7 @@ let rec find_and_decorate_Term =
              ? QueryResult.Return(decorate_Term(metrics, term_data, l))
              : Skip;
          switch (tag) {
-         | Step(step) => step == next_step ? take_step() : Fail
+         | Step(step) => step == next_step ? take_step() : Stop
          | Term({shape: SubBlock({hd_index, _}), _} as term_data) =>
            found_term_if(hd_index == next_step, term_data)
          | Term({shape: NTuple({comma_indices, _}), _} as term_data) =>
@@ -211,7 +211,7 @@ let rec find_and_decorate_Term =
          | ClosedChild(_)
          | DelimGroup
          | Term({shape: Operand(_) | Rule, _}) => Skip
-         | _ => Fail
+         | _ => Stop
          };
        })
   };
