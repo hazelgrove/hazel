@@ -3,7 +3,7 @@ type t = (VarCtx.t, PaletteCtx.t);
 let empty = (VarCtx.empty, PaletteCtx.empty);
 
 let gamma = ((gamma, _): t): VarCtx.t => gamma;
-let extend_gamma = (ctx: t, binding: (Var.t, HTyp.t)): t => {
+let extend_gamma = (ctx: t, binding: (Var.t, (HTyp.t, CursorPath.steps))): t => {
   let (gamma, palette_ctx) = ctx;
   let gamma' = VarCtx.extend(gamma, binding);
   (gamma', palette_ctx);

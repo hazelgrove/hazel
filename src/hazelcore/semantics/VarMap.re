@@ -39,6 +39,18 @@ let rec lookup = (ctx, x) =>
     }
   };
 
+let lookup_typ = (ctx, x) =>
+  switch (lookup(ctx, x)) {
+  | None => None
+  | Some((typ, _)) => Some(typ)
+  };
+
+let lookup_path = (ctx, x) =>
+  switch (lookup(ctx, x)) {
+  | None => None
+  | Some((_, path)) => Some(path)
+  };
+
 let contains = (ctx, x) =>
   switch (lookup(ctx, x)) {
   | Some(_) => true
@@ -48,7 +60,7 @@ let contains = (ctx, x) =>
 let map = (f, xs) =>
   List.map(
     xa => {
-      let (x, _) = xa;
+      let (x, _, _) = xa;
       (x, f(xa));
     },
     xs,
