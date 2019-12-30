@@ -145,7 +145,7 @@ let caret_of_side: Side.t => Vdom.Node.t =
   | Before => caret_from_left(0.0)
   | After => caret_from_left(100.0);
 
-let contenteditable_of_layout = (l: TermLayout.t): Vdom.Node.t => {
+let contenteditable_of_layout = (~inject, l: TermLayout.t): Vdom.Node.t => {
   open Vdom;
   let caret_position = (path: CursorPath.t): Node.t =>
     Node.span(
@@ -215,7 +215,17 @@ let contenteditable_of_layout = (l: TermLayout.t): Vdom.Node.t => {
       ),
     ],
     t_of_imp: vs =>
-      Node.span([Attr.classes(["code", "contenteditable"])], vs) // TODO: use something other than `span`?
+      Node.div(
+        [
+          // TODO consolidate/organize event handlers
+          Attr.create("contenteditable", "true"),
+          Attr.on("drop", _ => Event.Prevent_default),
+          Attr.on_focus(_ => inject(Update.Action.FocusCell)),
+          Attr.on_blur(_ => inject(Update.Action.BlurCell)),
+          Attr.classes(["code", "contenteditable"]),
+        ],
+        vs,
+      ),
   };
   Layout.make_of_layout(record, l);
 };
@@ -402,7 +412,10 @@ let editor_view_of_layout =
         }
       }
     };
-  (contenteditable_of_layout(l), presentation_of_layout(~inject, l));
+  (
+    contenteditable_of_layout(~inject, l),
+    presentation_of_layout(~inject, l),
+  );
 };
 
 let view_of_htyp =

@@ -779,9 +779,24 @@ button:disabled {
 .code.presentation * {
   display: inline-block;
 }
-
 .code-delim {
   font-weight: bold;
+}
+
+.code-container {
+  position: relative;
+}
+.code.contenteditable {
+  position: absolute;
+  top: 0;
+  left: 0;
+  padding: 10px;
+  z-index: 100;
+  width: 100%;
+  color: transparent;
+}
+.code.contenteditable:focus {
+  outline: 0px;
 }
 
 .code-text, .code-op, .code-delim {

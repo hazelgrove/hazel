@@ -47,10 +47,6 @@ let view =
     Node.div(
       [
         Attr.id(cell_id),
-        Attr.create("contenteditable", "true"),
-        Attr.on("drop", _ => Event.Prevent_default),
-        Attr.on_focus(_ => inject(FocusCell)),
-        Attr.on_blur(_ => inject(BlurCell)),
         Attr.on_keypress(evt =>
           JSUtil.is_movement_key(evt)
             ? Event.Many([]) : Event.Prevent_default
@@ -95,7 +91,12 @@ let view =
                 model |> Model.exp,
               )
             : Code.editor_view_of_exp(~inject, model |> Model.exp);
-        [contenteditable, presentation];
+        [
+          Node.div(
+            [Attr.id("code-container")],
+            [contenteditable, presentation],
+          ),
+        ];
       },
     )
   );
