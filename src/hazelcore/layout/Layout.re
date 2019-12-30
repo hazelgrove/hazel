@@ -23,8 +23,6 @@ and layout('tag) =
 let align = (l: t('tag)) => Align(l);
 let tag = (tag: 'tag, l: t('tag)) => Tagged(tag, l);
 
-let mk_Tagged = (metrics, tag, l) => {metrics, layout: Tagged(tag, l)};
-
 let t_of_layout = (layout: layout('tag)): t('tag) => {
   layout,
   metrics: {
@@ -86,19 +84,26 @@ let string_of_layout: 'tag. t('tag) => string =
     make_of_layout(record, layout);
   };
 
-let rec query_next_Tagged =
-        (query: (metrics, 'tag, t('tag)) => option('a), l: t('tag))
-        : option('a) => {
-  let go = query_next_Tagged(query);
-  switch (l.layout) {
-  | Linebreak
-  | Text(_) => None
-  | Align(l1) => go(l1)
-  | Cat(l1, l2) =>
-    switch (go(l1)) {
-    | Some(_) as found => found
-    | None => go(l2)
-    }
-  | Tagged(tag, l1) => query(l.metrics, tag, l1)
-  };
-};
+/* TODO got weird type inference error, see specialized instance in TermLayout
+   let rec find_and_decorate_Tagged =
+           (decorate: ('tag, t('tag)) => decorate_result('tag), l: t('tag))
+           : option(t('tag)) => {
+     let go = find_and_decorate_Tagged(decorate);
+     switch (l) {
+     | Linebreak
+     | Text(_) => None
+     | Align(l) => l |> go |> Opt.map(align)
+     | Cat(l1, l2) =>
+       switch (l1 |> go) {
+       | Some(l1) => Some(Cat(l1, l2))
+       | None => l2 |> go |> Opt.map(l2 => Cat(l1, l2))
+       }
+     | Tagged(tg, l) =>
+       switch (decorate(tag, l)) {
+       | Failed => None
+       | Skipped => l |> go |> Opt.map(tag(tg))
+       | Decorated(l) => Some(l)
+       }
+     };
+   };
+   */

@@ -6,34 +6,76 @@ type tag = TermTag.t;
 [@deriving sexp]
 type t = Layout.t(tag);
 
-let has_inline_OpenChild = (l: t): bool => {
-  let rec go = l =>
-    Layout.query_next_Tagged(
-      (_, tag: TermTag.t, l1) =>
-        switch (tag) {
-        | Step(_)
-        | DelimGroup => go(l1)
-        | OpenChild({is_inline: true}) => Some()
-        | _ => None
-        },
-      l,
-    );
-  go(l) |> Opt.test;
+type metrics = Layout.metrics;
+
+module QueryResult = {
+  type t('a) =
+    | Stop
+    | Skip
+    | Return('a);
+
+  let of_opt: option('a) => t('a) =
+    fun
+    | None => Stop
+    | Some(a) => Return(a);
 };
 
-let has_para_OpenChild = (l: t) => {
-  let rec go = l =>
-    Layout.query_next_Tagged(
-      (_, tag: TermTag.t, l1) =>
-        switch (tag) {
-        | Step(_)
-        | DelimGroup => go(l1)
-        | OpenChild({is_inline: false}) => Some()
-        | _ => None
-        },
-      l,
-    );
-  go(l) |> Opt.test;
+let rec contains = (query: tag => QueryResult.t(unit), l: t): bool => {
+  let go = contains(query);
+  switch (l.layout) {
+  | Linebreak
+  | Text(_) => false
+  | Align(l) => go(l)
+  | Cat(l1, l2) => go(l1) || go(l2)
+  | Tagged(tag, l) =>
+    switch (query(tag)) {
+    | Stop => false
+    | Skip => go(l)
+    | Return () => true
+    }
+  };
+};
+
+let has_inline_OpenChild =
+  contains(
+    fun
+    | Step(_)
+    | DelimGroup => Skip
+    | OpenChild({is_inline: true}) => Return()
+    | _ => Stop,
+  );
+
+let has_para_OpenChild =
+  contains(
+    fun
+    | Step(_)
+    | DelimGroup => Skip
+    | OpenChild({is_inline: false}) => Return()
+    | _ => Stop,
+  );
+
+// TODO should be possible to make polymorphic over tag
+// but was getting confusing type inference error
+let rec find_and_decorate_Tagged =
+        (decorate: (metrics, tag, t) => QueryResult.t(t), l: t): option(t) => {
+  let go = find_and_decorate_Tagged(decorate);
+  switch (l) {
+  | {layout: Linebreak | Text(_), _} => None
+  | {layout: Align(l1), _} =>
+    go(l1) |> Opt.map(l1 => {...l, layout: Align(l1)})
+  | {layout: Cat(l1, l2), _} =>
+    switch (go(l1)) {
+    | Some(l1) => Some({...l, layout: Cat(l1, l2)})
+    | None => go(l2) |> Opt.map(l2 => {...l, layout: Cat(l1, l2)})
+    }
+  | {layout: Tagged(tag, l1), metrics} =>
+    switch (decorate(metrics, tag, l1)) {
+    | Stop => None
+    | Skip =>
+      go(l1) |> Opt.map(l1 => {Layout.metrics, layout: Tagged(tag, l1)})
+    | Return(l) => Some(l)
+    }
+  };
 };
 
 let rec follow_steps_and_decorate =
@@ -44,18 +86,20 @@ let rec follow_steps_and_decorate =
   | [] => decorate(l)
   | [next_step, ...rest] =>
     l
-    |> Layout.query_next_Tagged((metrics, tag: TermTag.t, l) =>
+    |> find_and_decorate_Tagged((metrics, tag: TermTag.t, l: t) => {
          switch (tag) {
          | Step(step) when step == next_step =>
-           l |> go(~steps=rest) |> Opt.map(Layout.mk_Tagged(metrics, tag))
+           l
+           |> go(~steps=rest)
+           |> Opt.map(l => {Layout.metrics, layout: Tagged(tag, l)})
+           |> QueryResult.of_opt
          | OpenChild(_)
          | ClosedChild(_)
          | DelimGroup
-         | Term(_) =>
-           l |> go(~steps) |> Opt.map(Layout.mk_Tagged(metrics, tag))
-         | _ => None
+         | Term(_) => Skip
+         | _ => Stop
          }
-       )
+       })
   };
 };
 
@@ -67,59 +111,58 @@ let find_and_decorate_caret =
        ~decorate=
          switch (cursor) {
          | OnText(j) =>
-           let rec find_Text = l =>
-             Layout.query_next_Tagged(
-               (metrics, tag: TermTag.t, l1) =>
-                 switch (tag) {
-                 | Text(text_data) =>
-                   Some(
-                     Layout.mk_Tagged(
-                       metrics,
-                       TermTag.Text({...text_data, caret: Some(j)}),
-                       l1,
-                     ),
-                   )
-                 | Term(_) => find_Text(l1)
-                 | _ => None
-                 },
-               l,
-             );
-           find_Text;
+           find_and_decorate_Tagged((metrics, tag, l) =>
+             switch (tag) {
+             | Text(text_data) =>
+               Return({
+                 metrics,
+                 layout:
+                   l
+                   |> Layout.tag(
+                        TermTag.Text({...text_data, caret: Some(j)}),
+                      ),
+               })
+             | Term(_) => Skip
+             | _ => Stop
+             }
+           )
          | OnOp(side) =>
-           Layout.query_next_Tagged((metrics, tag: TermTag.t, l) =>
+           find_and_decorate_Tagged((metrics, tag, l) =>
              switch (tag) {
              | Op(op_data) =>
-               Some(
-                 Layout.mk_Tagged(
-                   metrics,
-                   TermTag.Op({...op_data, caret: Some(side)}),
-                   l,
-                 ),
-               )
-             | _ => None
+               Return({
+                 metrics,
+                 layout:
+                   l
+                   |> Layout.tag(
+                        TermTag.Op({...op_data, caret: Some(side)}),
+                      ),
+               })
+             | _ => Stop
              }
            )
          | OnDelim(k, side) =>
-           let rec find_Delim = l =>
-             Layout.query_next_Tagged(
-               (metrics, tag: TermTag.t, l1) =>
-                 switch (tag) {
-                 | Delim({path: (_, index), _} as delim_data)
-                     when index == k =>
-                   Some(
-                     Layout.mk_Tagged(
-                       metrics,
-                       TermTag.Delim({...delim_data, caret: Some(side)}),
-                       l1,
-                     ),
-                   )
-                 | Term(_)
-                 | DelimGroup => find_Delim(l1)
-                 | _ => None
-                 },
-               l,
-             );
-           find_Delim;
+           find_and_decorate_Tagged((metrics, tag, l) =>
+             switch (tag) {
+             | Delim({path: (_, index), _} as delim_data) =>
+               index == k
+                 ? Return({
+                     metrics,
+                     layout:
+                       l
+                       |> Layout.tag(
+                            TermTag.Delim({
+                              ...delim_data,
+                              caret: Some(side),
+                            }),
+                          ),
+                   })
+                 : Stop
+             | Term(_)
+             | DelimGroup => Skip
+             | _ => Stop
+             }
+           )
          },
      );
 
@@ -127,51 +170,58 @@ let find_and_decorate_caret =
 let rec find_and_decorate_Term =
         (
           ~steps: CursorPath.steps,
-          ~decorate_Term: (Layout.metrics, TermTag.term_data, t) => t,
+          ~decorate_Term: (metrics, TermTag.term_data, t) => t,
+          l: t,
         )
-        : (t => option(t)) => {
+        : option(t) => {
   let go = find_and_decorate_Term(~decorate_Term);
   switch (steps) {
   | [] =>
-    Layout.query_next_Tagged((metrics, tag: TermTag.t, l) =>
-      switch (tag) {
-      | Term(term_data) => Some(decorate_Term(metrics, term_data, l))
-      | _ => None
-      }
-    )
+    l
+    |> find_and_decorate_Tagged((metrics, tag, l) =>
+         switch (tag) {
+         | Term(term_data) => Return(decorate_Term(metrics, term_data, l))
+         | _ => Stop
+         }
+       )
   | [next_step, ...rest] =>
-    let rec find_Step = l =>
-      Layout.query_next_Tagged(
-        (metrics, tag, l1) => {
-          let found_term_if = (cond, term_data) =>
-            cond && rest == []
-              ? Some(decorate_Term(metrics, term_data, l1)) : find_Step(l1);
-          switch (tag) {
-          | Step(step) when step == next_step =>
-            l1 |> go(~steps=rest) |> Opt.map(Layout.mk_Tagged(metrics, tag))
-          | Term({shape: SubBlock({hd_index, _}), _} as term_data) =>
-            found_term_if(hd_index == next_step, term_data)
-          | Term({shape: NTuple({comma_indices, _}), _} as term_data) =>
-            found_term_if(
-              comma_indices |> GeneralUtil.contains(next_step),
-              term_data,
-            )
-          | Term({shape: BinOp({op_index, _}), _} as term_data) =>
-            found_term_if(op_index == next_step, term_data)
-          | OpenChild(_)
-          | ClosedChild(_)
-          | DelimGroup
-          | Term({shape: Operand(_) | Rule, _}) => find_Step(l1)
-          | _ => None
-          };
-        },
-        l,
-      );
-    find_Step;
+    l
+    |> find_and_decorate_Tagged((metrics, tag, l) => {
+         let take_step = () =>
+           l
+           |> go(~steps=rest)
+           |> Opt.map(l => {Layout.metrics, layout: Tagged(tag, l)})
+           |> QueryResult.of_opt;
+         let found_term_if = (cond, term_data) =>
+           cond && rest == []
+             ? QueryResult.Return(decorate_Term(metrics, term_data, l))
+             : Skip;
+         switch (tag) {
+         | Step(step) => step == next_step ? take_step() : Stop
+         | Term({shape: SubBlock({hd_index, _}), _} as term_data) =>
+           found_term_if(hd_index == next_step, term_data)
+         | Term({shape: NTuple({comma_indices, _}), _} as term_data) =>
+           found_term_if(
+             comma_indices |> GeneralUtil.contains(next_step),
+             term_data,
+           )
+         | Term({shape: BinOp({op_index, _}), _} as term_data) =>
+           found_term_if(op_index == next_step, term_data)
+         | OpenChild(_)
+         | ClosedChild(_)
+         | DelimGroup
+         | Term({shape: Operand(_) | Rule, _}) => Skip
+         | _ => Stop
+         };
+       })
   };
 };
 
 let find_and_decorate_cursor =
-  find_and_decorate_Term(~decorate_Term=(metrics, term_data) =>
-    Layout.mk_Tagged(metrics, TermTag.Term({...term_data, has_cursor: true}))
+  find_and_decorate_Term(~decorate_Term=(metrics, term_data, l) =>
+    {
+      metrics,
+      layout:
+        l |> Layout.tag(TermTag.Term({...term_data, has_cursor: true})),
+    }
   );
