@@ -772,6 +772,7 @@ button:disabled {
 
 .code {
   font-family: "Fira Mono", monospace;
+  // TODO probably unnecessary if we commit to nbsp
   white-space: pre;
   font-size: 14pt;
   line-height: 1.5;
