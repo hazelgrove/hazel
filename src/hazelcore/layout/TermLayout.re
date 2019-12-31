@@ -6,8 +6,6 @@ type tag = TermTag.t;
 [@deriving sexp]
 type t = Layout.t(tag);
 
-type metrics = Layout.metrics;
-
 module QueryResult = {
   type t('a) =
     | Stop
@@ -57,7 +55,8 @@ let has_para_OpenChild =
 // TODO should be possible to make polymorphic over tag
 // but was getting confusing type inference error
 let rec find_and_decorate_Tagged =
-        (decorate: (metrics, tag, t) => QueryResult.t(t), l: t): option(t) => {
+        (decorate: (Layout.metrics, tag, t) => QueryResult.t(t), l: t)
+        : option(t) => {
   let go = find_and_decorate_Tagged(decorate);
   switch (l) {
   | {layout: Linebreak | Text(_), _} => None
@@ -170,7 +169,7 @@ let find_and_decorate_caret =
 let rec find_and_decorate_Term =
         (
           ~steps: CursorPath.steps,
-          ~decorate_Term: (metrics, TermTag.term_data, t) => t,
+          ~decorate_Term: (Layout.metrics, TermTag.term_data, t) => t,
           l: t,
         )
         : option(t) => {
@@ -225,3 +224,122 @@ let find_and_decorate_cursor =
         l |> Layout.tag(TermTag.Term({...term_data, has_cursor: true})),
     }
   );
+
+module PathSearchResult = {
+  type t =
+    | Found(CursorPath.t)
+    | Transport(Side.t)
+    | NotFound;
+
+  let of_opt =
+    fun
+    | None => NotFound
+    | Some(path) => Found(path);
+
+  let to_opt =
+    fun
+    | NotFound
+    | Transport(_) => None
+    | Found(path) => Some(path);
+};
+
+let path_before = (l: t): option(CursorPath.t) => {
+  let rec go = (l: t): PathSearchResult.t =>
+    switch (l.layout) {
+    | Text(_)
+    | Linebreak => NotFound
+    | Align(l) => go(l)
+    | Cat(l1, l2) =>
+      switch (go(l1)) {
+      | (NotFound | Transport(Before) | Found(_)) as fin => fin
+      | Transport(After) => go(l2)
+      }
+    | Tagged(
+        OpenChild(_) | ClosedChild(_) | DelimGroup | Step(_) | Term(_),
+        l,
+      ) =>
+      go(l)
+    | Tagged(Padding | HoleLabel(_) | SpaceOp, _) => NotFound
+    | Tagged(Indent, _) => Transport(After)
+    | Tagged(Text({steps, _}), _) => Found((steps, OnText(0)))
+    | Tagged(Op({steps, _}), _) => Found((steps, OnOp(Before)))
+    | Tagged(Delim({path: (steps, k), _}), _) =>
+      Found((steps, OnDelim(k, Before)))
+    };
+  go(l) |> PathSearchResult.to_opt;
+};
+
+let rec path_after = (l: t): option(CursorPath.t) =>
+  switch (l.layout) {
+  | Text(_)
+  | Linebreak => None
+  | Align(l) => path_after(l)
+  | Cat(_, l) => path_after(l)
+  | Tagged(OpenChild(_) | ClosedChild(_) | DelimGroup | Step(_) | Term(_), l) =>
+    path_after(l)
+  | Tagged(Padding | HoleLabel(_) | SpaceOp | Indent, _) => None
+  | Tagged(Text({steps, length, _}), _) => Some((steps, OnText(length)))
+  | Tagged(Op({steps, _}), _) => Some((steps, OnOp(After)))
+  | Tagged(Delim({path: (steps, k), _}), _) =>
+    Some((steps, OnDelim(k, After)))
+  };
+
+let path_of_caret_position = (row: int, col: int, l: t): option(CursorPath.t) => {
+  let rec go = (indent, current_row, current_col, l: t): PathSearchResult.t => {
+    let end_row = current_row + l.metrics.cost;
+    let end_col =
+      l.metrics.cost == 0
+        ? current_col + l.metrics.first_width : indent + l.metrics.last_width;
+    if (current_row == end_row && col <= indent) {
+      PathSearchResult.of_opt(path_before(l));
+    } else if (current_row == end_row && col >= end_col) {
+      PathSearchResult.of_opt(path_after(l));
+    } else {
+      // current_row != end_row || indent < col < end_col
+      let leaning_side: Side.t =
+        col - current_col <= end_col - col ? Before : After;
+      switch (l.layout) {
+      | Text(_)
+      | Linebreak
+      | Tagged(HoleLabel(_), _) => NotFound
+      | Align(l) => l |> go(current_col, current_row, current_col)
+      | Cat(l1, l2) =>
+        let mid_row = current_row + l1.metrics.cost;
+        let mid_col =
+          l1.metrics.cost == 0
+            ? current_col + l1.metrics.first_width
+            : indent + l1.metrics.last_width;
+        if (row == mid_row && col == mid_col) {
+          switch (path_after(l1), path_before(l2)) {
+          | (None, None) => NotFound
+          | (Some(path), _)
+          | (_, Some(path)) => Found(path)
+          };
+        } else if (row < mid_row || row == mid_row && col < mid_col) {
+          switch (l1 |> go(indent, current_row, current_col)) {
+          | (NotFound | Transport(Before) | Found(_)) as fin => fin
+          | Transport(After) => PathSearchResult.of_opt(path_before(l2))
+          };
+        } else {
+          switch (l2 |> go(indent, mid_row, mid_col)) {
+          | (NotFound | Transport(After) | Found(_)) as fin => fin
+          | Transport(Before) => PathSearchResult.of_opt(path_after(l1))
+          };
+        };
+      | Tagged(
+          OpenChild(_) | ClosedChild(_) | DelimGroup | Step(_) | Term(_),
+          l,
+        ) =>
+        l |> go(indent, current_row, current_col)
+      | Tagged(Indent, _) => Transport(After)
+      | Tagged(Padding | SpaceOp, _) => Transport(leaning_side)
+      | Tagged(Text({steps, _}), _) =>
+        Found((steps, OnText(col - current_col)))
+      | Tagged(Op({steps, _}), _) => Found((steps, OnOp(leaning_side)))
+      | Tagged(Delim({path: (steps, k), _}), _) =>
+        Found((steps, OnDelim(k, leaning_side)))
+      };
+    };
+  };
+  l |> go(0, 0, 0) |> PathSearchResult.to_opt;
+};
