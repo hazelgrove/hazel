@@ -196,20 +196,12 @@ let contenteditable_of_layout = (~inject, l: TermLayout.t): Vdom.Node.t => {
     imp_append: (vs1, vs2) => vs1 @ vs2,
     imp_of_string: str => [Node.text(str)],
     imp_newline: indent => [
+      Node.br([]),
       Node.span(
         [contenteditable_false],
         [
-          Node.br([]),
-          Node.span(
-            [Attr.create("style", "white-space: pre;")],
-            [
-              Node.text(
-                String.concat(
-                  "",
-                  GeneralUtil.replicate(indent, LangUtil.nbsp1),
-                ),
-              ),
-            ],
+          Node.text(
+            String.concat("", GeneralUtil.replicate(indent, LangUtil.nbsp1)),
           ),
         ],
       ),
