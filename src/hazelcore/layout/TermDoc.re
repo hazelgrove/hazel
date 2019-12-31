@@ -16,7 +16,7 @@ let tag_ClosedChild = (~is_inline) =>
 let tag_Step = step => Doc.tag(TermTag.Step(step));
 
 let indent_and_align = (d: t): t =>
-  Doc.(hcats([indent |> tag_Padding, align(d)]));
+  Doc.(hcats([indent |> tag_Indent, align(d)]));
 
 let mk_text = (~steps: CursorPath.steps, text: string): t =>
   Doc.Text(text)
