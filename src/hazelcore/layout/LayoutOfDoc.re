@@ -158,7 +158,7 @@ and layout_of_doc'': Doc.t(unit) => m(Layout.t(unit)) =
       let ret: m(Layout.t(unit)) = {
         switch (doc) {
         | Text(string) =>
-          let%bind () = modify_position(String.length(string));
+          let%bind () = modify_position(GeneralUtil.utf8_length(string));
           return(Layout.t_of_layout(Layout.Text(string)));
         | Cat(d1, d2) =>
           let%bind l1 = layout_of_doc'(d1);
