@@ -151,8 +151,7 @@ let apply_action =
           | OnText(_) => failwith("unexpected OnText cursor")
           | OnOp(Before)
           | OnDelim(_, Before) =>
-            JSUtil.log("here");
-            schedule_action(Action.EditAction(MoveLeft));
+            schedule_action(Action.EditAction(MoveLeft))
           | OnOp(After)
           | OnDelim(_, After) =>
             schedule_action(Action.EditAction(MoveRight))
