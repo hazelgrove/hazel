@@ -197,6 +197,7 @@ and layout_of_doc'': Doc.t(unit) => m(Layout.t(unit)) =
               Layout.metrics: {
                 first_width: width - pos,
                 width,
+                // TODO not last width, remainder of last line
                 last_width: width - end_pos,
                 cost,
               },
