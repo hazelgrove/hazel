@@ -289,7 +289,8 @@ let path_of_caret_position = (row: int, col: int, l: t): option(CursorPath.t) =>
     let end_row = current_row + l.metrics.cost;
     let end_col =
       l.metrics.cost == 0
-        ? current_col + l.metrics.first_width : indent + l.metrics.last_width;
+        ? current_col + (l.metrics.first_width - l.metrics.last_width)
+        : 80 - l.metrics.last_width;
     if (current_row == end_row && col <= indent) {
       PathSearchResult.of_opt(path_before(l));
     } else if (current_row == end_row && col >= end_col) {
@@ -300,15 +301,15 @@ let path_of_caret_position = (row: int, col: int, l: t): option(CursorPath.t) =>
         col - current_col <= end_col - col ? Before : After;
       switch (l.layout) {
       | Text(_)
-      | Linebreak
       | Tagged(HoleLabel(_), _) => NotFound
+      | Linebreak => Transport(Before)
       | Align(l) => l |> go(current_col, current_row, current_col)
       | Cat(l1, l2) =>
         let mid_row = current_row + l1.metrics.cost;
         let mid_col =
           l1.metrics.cost == 0
-            ? current_col + l1.metrics.first_width
-            : indent + l1.metrics.last_width;
+            ? current_col + (l1.metrics.first_width - l1.metrics.last_width)
+            : 80 - l1.metrics.last_width;
         if (row == mid_row && col == mid_col) {
           switch (path_after(l1), path_before(l2)) {
           | (None, None) => NotFound
@@ -321,6 +322,7 @@ let path_of_caret_position = (row: int, col: int, l: t): option(CursorPath.t) =>
           | Transport(After) => PathSearchResult.of_opt(path_before(l2))
           };
         } else {
+          // row >= mid_row && (row != mid_row || col > mid_col)
           switch (l2 |> go(indent, mid_row, mid_col)) {
           | (NotFound | Transport(After) | Found(_)) as fin => fin
           | Transport(Before) => PathSearchResult.of_opt(path_after(l1))
