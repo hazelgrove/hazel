@@ -13,8 +13,15 @@ module State = State;
 let on_startup = (~schedule_action, _) => {
   let _ =
     JSUtil.listen_to_t(
-      Dom.Event.make("selectionchange"), Dom_html.document, _ =>
-      schedule_action(Update.Action.SelectionChange)
+      Dom.Event.make("selectionchange"),
+      Dom_html.document,
+      _ => {
+        let anchorNode = Dom_html.window##getSelection##.anchorNode;
+        let contenteditable = JSUtil.force_get_elem_by_id("contenteditable");
+        if (JSUtil.div_contains_node(contenteditable, anchorNode)) {
+          schedule_action(Update.Action.SelectionChange);
+        };
+      },
     );
   Dom_html.window##.onfocus :=
     Dom_html.handler(_ => {

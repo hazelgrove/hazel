@@ -141,31 +141,29 @@ let apply_action =
     if (! state.setting_caret^) {
       let anchorNode = Dom_html.window##getSelection##.anchorNode;
       let anchorOffset = Dom_html.window##getSelection##.anchorOffset;
-      let contenteditable = JSUtil.force_get_elem_by_id("contenteditable");
-      if (JSUtil.div_contains_node(contenteditable, anchorNode)) {
-        let closest_elem = JSUtil.force_get_closest_elem(anchorNode);
-        let id = closest_elem |> JSUtil.force_get_attr("id");
-        switch (path_of_path_id(id), steps_of_text_id(id)) {
-        | (Some((_, cursor) as path), _) =>
-          if (path == Model.path(model)) {
-            switch (cursor) {
-            | OnText(_) => failwith("unexpected OnText cursor")
-            | OnOp(Before)
-            | OnDelim(_, Before) =>
-              schedule_action(Action.EditAction(MoveLeft))
-            | OnOp(After)
-            | OnDelim(_, After) =>
-              schedule_action(Action.EditAction(MoveRight))
-            };
-          } else {
-            schedule_action(Action.EditAction(MoveTo(path)));
-          }
-        | (_, Some(steps)) =>
-          schedule_action(
-            Action.EditAction(MoveTo((steps, OnText(anchorOffset)))),
-          )
-        | (None, None) => failwith(__LOC__ ++ ": unexpected caret position")
-        };
+      let closest_elem = JSUtil.force_get_closest_elem(anchorNode);
+      let id = closest_elem |> JSUtil.force_get_attr("id");
+      switch (path_of_path_id(id), steps_of_text_id(id)) {
+      | (None, None) => failwith(__LOC__ ++ ": unexpected caret position")
+      | (Some((_, cursor) as path), _) =>
+        if (path == Model.path(model)) {
+          switch (cursor) {
+          | OnText(_) => failwith("unexpected OnText cursor")
+          | OnOp(Before)
+          | OnDelim(_, Before) =>
+            JSUtil.log("here");
+            schedule_action(Action.EditAction(MoveLeft));
+          | OnOp(After)
+          | OnDelim(_, After) =>
+            schedule_action(Action.EditAction(MoveRight))
+          };
+        } else {
+          schedule_action(Action.EditAction(MoveTo(path)));
+        }
+      | (_, Some(steps)) =>
+        schedule_action(
+          Action.EditAction(MoveTo((steps, OnText(anchorOffset)))),
+        )
       };
     };
     model;
