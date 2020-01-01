@@ -788,12 +788,11 @@ button:disabled {
   position: relative;
 }
 .code.contenteditable {
-  position: absolute;
+  /* TODO consolidate #contenteditable vs .contenteditable */
+  position: fixed;
   top: 0;
-  left: 0;
+  left: 100%;
   padding: 10px;
-  z-index: 100;
-  width: 100%;
   color: transparent;
 }
 .code.contenteditable:focus {
