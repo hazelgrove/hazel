@@ -1015,7 +1015,7 @@ button:disabled {
 
 .Cursor.Term.Exp .Term.Pat {
   background-color: var(--pat-bg-color);
-  box-shadow: inset 2px 2px 0px 0 var(--pat-shadow-color);
+  box-shadow: inset 1px 1px 0.5px 1px var(--pat-shadow-color);
 }
 .Cursor.Term.Exp .Term .Term.Pat {
   background-color: var(--default-code-bg-color);
@@ -1024,7 +1024,7 @@ button:disabled {
 
 .Cursor.Term.Exp .Term.Typ {
   background-color: var(--typ-bg-color);
-  box-shadow: inset 2px 2px 0px 0 var(--typ-shadow-color);
+  box-shadow: inset 1px 1px 0.5px 1px var(--typ-shadow-color);
 }
 .Cursor.Term.Exp .Term .Term.Typ {
   background-color: var(--default-code-bg-color);
