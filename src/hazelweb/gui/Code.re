@@ -215,6 +215,7 @@ let contenteditable_of_layout = (~inject, l: TermLayout.t): Vdom.Node.t => {
           Attr.on_focus(_ => inject(Update.Action.FocusCell)),
           Attr.on_blur(_ => inject(Update.Action.BlurCell)),
           Attr.classes(["code", "contenteditable"]),
+          Attr.id("contenteditable"),
         ],
         vs,
       ),

@@ -141,10 +141,8 @@ let apply_action =
     if (! state.setting_caret^) {
       let anchorNode = Dom_html.window##getSelection##.anchorNode;
       let anchorOffset = Dom_html.window##getSelection##.anchorOffset;
-      if (JSUtil.div_contains_node(
-            JSUtil.force_get_elem_by_id(cell_id),
-            anchorNode,
-          )) {
+      let contenteditable = JSUtil.force_get_elem_by_id("contenteditable");
+      if (JSUtil.div_contains_node(contenteditable, anchorNode)) {
         let closest_elem = JSUtil.force_get_closest_elem(anchorNode);
         let id = closest_elem |> JSUtil.force_get_attr("id");
         switch (path_of_path_id(id), steps_of_text_id(id)) {
