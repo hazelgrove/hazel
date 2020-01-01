@@ -940,9 +940,21 @@ button:disabled {
   --shadow-color: var(--pat-shadow-color);
 }
 
+.Term {
+  border-radius: 3px;
+}
+
 .Cursor.Term {
   position: relative;
-  border-radius: 3px;
+}
+
+.Cursor.Term.Exp.Operand.no-children {
+  background-color: var(--exp-bg-color);
+  box-shadow: 2px 2px 0px 0px var(--exp-shadow-color);
+}
+.Cursor.Term.Pat.Operand.no-children {
+  background-color: var(--pat-bg-color);
+  box-shadow: 2px 2px 0px 0px var(--pat-shadow-color);
 }
 
 .Cursor.Term.has-Inline-OpenChild .DelimGroup {

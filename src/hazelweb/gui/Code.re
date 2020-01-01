@@ -85,6 +85,9 @@ let open_child_clss = (has_inline_OpenChild: bool, has_para_OpenChild: bool) =>
     has_para_OpenChild ? ["has-Para-OpenChild"] : [],
   ]);
 
+let has_child_clss = (has_child: bool) =>
+  has_child ? ["has-child"] : ["no-children"];
+
 let on_click_noneditable =
     (
       ~inject: Update.Action.t => Vdom.Event.t,
@@ -374,6 +377,7 @@ let presentation_of_layout =
                   l |> TermLayout.has_inline_OpenChild,
                   l |> TermLayout.has_para_OpenChild,
                 ),
+                has_child_clss(l |> TermLayout.has_child),
               ]),
             ),
           ],

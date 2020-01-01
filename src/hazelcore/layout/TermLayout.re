@@ -6,6 +6,7 @@ type tag = TermTag.t;
 [@deriving sexp]
 type t = Layout.t(tag);
 
+// TODO shouldn't need this, refactor to use option
 module QueryResult = {
   type t('a) =
     | Stop
@@ -33,6 +34,14 @@ let rec contains = (query: tag => QueryResult.t(unit), l: t): bool => {
     }
   };
 };
+
+let has_child =
+  contains(
+    fun
+    | OpenChild(_)
+    | ClosedChild(_) => Return()
+    | _ => Skip,
+  );
 
 let has_inline_OpenChild =
   contains(

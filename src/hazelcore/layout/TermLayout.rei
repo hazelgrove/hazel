@@ -1,6 +1,8 @@
 [@deriving sexp]
 type t = Layout.t(TermTag.t);
 
+let has_child: t => bool;
+
 let has_inline_OpenChild: t => bool;
 
 let has_para_OpenChild: t => bool;
