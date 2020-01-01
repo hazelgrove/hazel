@@ -209,13 +209,12 @@ let contenteditable_of_layout = (~inject, l: TermLayout.t): Vdom.Node.t => {
     t_of_imp: vs =>
       Node.div(
         [
-          // TODO consolidate/organize event handlers
+          Attr.id("contenteditable"),
+          Attr.classes(["code", "contenteditable"]),
           Attr.create("contenteditable", "true"),
           Attr.on("drop", _ => Event.Prevent_default),
           Attr.on_focus(_ => inject(Update.Action.FocusCell)),
           Attr.on_blur(_ => inject(Update.Action.BlurCell)),
-          Attr.classes(["code", "contenteditable"]),
-          Attr.id("contenteditable"),
         ],
         vs,
       ),
@@ -382,7 +381,39 @@ let presentation_of_layout =
         ),
       ]
     };
-  Node.div([Attr.classes(["code", "presentation"])], go(l));
+  Node.div(
+    [
+      Attr.classes(["code", "presentation"]),
+      contenteditable_false,
+      Attr.on_click(evt => {
+        let (row, col) = {
+          let elem =
+            Js.Opt.get(
+              Dom_html.CoerceTo.element(
+                Js.Opt.get(evt##.currentTarget, () =>
+                  failwith(__LOC__ ++ ": no current target")
+                ),
+              ),
+              () =>
+              failwith(__LOC__ ++ ": current target not an element")
+            );
+          let rect = elem##getBoundingClientRect;
+          let from_left = float_of_int(evt##.clientX) -. rect##.left;
+          let from_top = float_of_int(evt##.clientY) -. rect##.top;
+          // TODO systematize magic numbers
+          (
+            Float.to_int(from_top /. 27.27),
+            Float.to_int(from_left /. 11.2),
+          );
+        };
+        switch (l |> TermLayout.path_of_caret_position(row, col)) {
+        | None => Event.Many([])
+        | Some(path) => inject(Update.Action.EditAction(MoveTo(path)))
+        };
+      }),
+    ],
+    go(l),
+  );
 };
 
 let editor_view_of_layout =
