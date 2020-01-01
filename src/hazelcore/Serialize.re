@@ -2,7 +2,7 @@ open Sexplib;
 open LangUtil;
 
 let ensure_well_typed_before_serialization = block =>
-  switch (Statics.syn_block((VarMap.empty, PaletteCtx.empty), block)) {
+  switch (Statics.syn_block([], (VarMap.empty, PaletteCtx.empty), block)) {
   | None => raise(IllFormed(block))
   | _ => block
   };
