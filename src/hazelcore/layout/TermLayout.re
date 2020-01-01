@@ -302,7 +302,7 @@ let path_of_caret_position = (row: int, col: int, l: t): option(CursorPath.t) =>
       switch (l.layout) {
       | Text(_)
       | Tagged(HoleLabel(_), _) => NotFound
-      | Linebreak => Transport(Before)
+      | Linebreak => Transport(row == end_row ? After : Before)
       | Align(l) => l |> go(current_col, current_row, current_col)
       | Cat(l1, l2) =>
         let mid_row = current_row + l1.metrics.cost;
