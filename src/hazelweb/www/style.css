@@ -41,6 +41,8 @@
   --typ-bg-color: rgb(233, 221, 253);
   --typ-shadow-color: rgb(173, 154, 202);
 
+  --code-radius: 4px;
+
   /* necessary for hiding portions of box shadows */
   --para-border-z: 1;
   --delim-group-z: 2;
@@ -919,7 +921,7 @@ button:disabled {
   left: 0;
   height: 4px;
   width: 100%;
-  border-radius: 0 0 3px 3px;
+  border-radius: 0 0 var(--code-radius) var(--code-radius);
   z-index: var(--inline-border-z);
 }
 .Cursor.Term.has-Para-OpenChild::before {
@@ -927,7 +929,7 @@ button:disabled {
   left: -4px;
   height: 100%;
   width: 4px;
-  border-radius: 3px 0 0 3px;
+  border-radius: var(--code-radius) 0 0 var(--code-radius);
   z-index: var(--para-border-z);
 }
 
@@ -941,7 +943,7 @@ button:disabled {
 }
 
 .Term {
-  border-radius: 3px;
+  border-radius: var(--code-radius);
 }
 
 .Cursor.Term {
@@ -958,14 +960,14 @@ button:disabled {
 }
 
 .Cursor.Term.has-Inline-OpenChild .DelimGroup {
-  border-radius: 3px 3px 0 0;
+  border-radius: var(--code-radius) var(--code-radius) 0 0;
 }
 .Cursor.Term.has-Inline-OpenChild .Term .DelimGroup {
   border-radius: none;
 }
 
 .Cursor.Term.has-Para-OpenChild .DelimGroup {
-  border-radius: 0 3px 3px 0;
+  border-radius: 0 var(--code-radius) var(--code-radius) 0;
 }
 .Cursor.Term.has-Para-OpenChild .Term .DelimGroup {
   border-radius: none;
@@ -1003,13 +1005,11 @@ button:disabled {
 .Cursor.Term.Exp .Term.Typ {
   position: relative;
   z-index: var(--closed-child-z);
-  border-radius: 3px;
   line-height: var(--closed-child-line-height);
 }
 .Cursor.Term .Term .Term {
   position: relative;
   z-index: auto;
-  border-radius: none;
   line-height: var(--code-line-height);
 }
 
