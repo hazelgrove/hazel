@@ -838,7 +838,7 @@ button:disabled {
   display: inline-block;
   font-weight: 100;
   height: 1em;
-  width: 1.5px;
+  width: 2px;
   -webkit-animation: 1s blink step-end infinite;
   -moz-animation: 1s blink step-end infinite;
   -ms-animation: 1s blink step-end infinite;
