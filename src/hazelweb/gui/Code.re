@@ -408,7 +408,12 @@ let presentation_of_layout =
         };
         switch (l |> TermLayout.path_of_caret_position(row, col)) {
         | None => Event.Many([])
-        | Some(path) => inject(Update.Action.EditAction(MoveTo(path)))
+        | Some(path) =>
+          Event.Many([
+            inject(Update.Action.EditAction(MoveTo(path))),
+            inject(Update.Action.FocusCell),
+            Event.Prevent_default,
+          ])
         };
       }),
     ],
