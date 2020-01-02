@@ -218,7 +218,7 @@ let rec find_and_decorate_Term =
          | OpenChild(_)
          | ClosedChild(_)
          | DelimGroup
-         | Term({shape: Operand(_) | Rule, _}) => Skip
+         | Term({shape: Operand(_) | Case(_) | Rule, _}) => Skip
          | _ => Stop
          };
        })

@@ -14,6 +14,21 @@ let tag_OpenChild = (~is_inline) =>
 let tag_ClosedChild = (~is_inline) =>
   Doc.tag(TermTag.mk_ClosedChild(~is_inline, ()));
 let tag_Step = step => Doc.tag(TermTag.Step(step));
+let tag_Operand =
+    (
+      ~family: TermFamily.t,
+      ~err: ErrStatus.t=NotInHole,
+      ~verr: VarErrStatus.t=NotInVarHole,
+    ) =>
+  Doc.tag(
+    TermTag.mk_Term(
+      ~family,
+      ~shape=TermShape.mk_Operand(~err, ~verr, ()),
+      (),
+    ),
+  );
+let tag_Case = (~err: ErrStatus.t) =>
+  Doc.tag(TermTag.mk_Term(~family=Exp, ~shape=Case({err: err}), ()));
 
 let indent_and_align = (d: t): t =>
   Doc.(hcats([indent |> tag_Indent, align(d)]));
@@ -72,20 +87,6 @@ let pad_child =
 
 let pad_open_child = pad_child(~is_open=true);
 let pad_closed_child = pad_child(~is_open=false);
-
-let tag_Operand =
-    (
-      ~family: TermFamily.t,
-      ~err: ErrStatus.t=NotInHole,
-      ~verr: VarErrStatus.t=NotInVarHole,
-    ) =>
-  Doc.tag(
-    TermTag.mk_Term(
-      ~family,
-      ~shape=TermShape.mk_Operand(~err, ~verr, ()),
-      (),
-    ),
-  );
 
 let mk_Unit = (~steps: CursorPath.steps, ()): t =>
   DelimDoc.mk(~path=(steps, 0), "()") |> tag_Operand(~family=Typ);
@@ -261,7 +262,7 @@ let mk_Case =
       @ [close_group],
     )
   )
-  |> tag_Operand(~family=Exp, ~err);
+  |> tag_Case(~err);
 };
 
 let mk_Case_ann =

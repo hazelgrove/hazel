@@ -856,6 +856,14 @@ h1 {
   background-color: var(--bg-color);
   box-shadow: 2px 2px 0px 0px var(--shadow-color);
 }
+.Cursor.Term.Case::before {
+  top: 0;
+  left: calc(-1 * var(--child-border-thickness));
+  height: 100%;
+  width: var(--child-border-thickness);
+  border-radius: var(--code-radius) 0 0 var(--code-radius);
+  z-index: var(--para-border-z);
+}
 .Cursor.Term.has-Inline-OpenChild::before {
   top: calc(100% - (var(--child-border-thickness) / 2));
   left: 0;
@@ -928,6 +936,12 @@ h1 {
 }
 .Cursor.Term.has-Para-OpenChild .DelimGroup {
   border-radius: 0 var(--code-radius) var(--code-radius) 0;
+}
+.Cursor.Term.Case .DelimGroup {
+  border-radius: 0 var(--code-radius) var(--code-radius) 0;
+}
+.Cursor.Term.Rule .DelimGroup {
+  border-radius: var(--code-radius);
 }
 .Cursor .Term .DelimGroup {
   background-color: var(--default-code-bg-color);

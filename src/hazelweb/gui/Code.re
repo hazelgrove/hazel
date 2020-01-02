@@ -30,6 +30,7 @@ let family_clss: TermFamily.t => list(cls) =
 let shape_clss: TermShape.t => list(cls) =
   fun
   | Rule => ["Rule"]
+  | Case({err}) => ["Case", ...clss_of_err(err)]
   | Operand({err, verr}) =>
     ["Operand", ...clss_of_err(err)] @ clss_of_verr(verr)
   | BinOp({err, op_index: _}) => ["BinOp", ...clss_of_err(err)]
