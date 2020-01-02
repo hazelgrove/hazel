@@ -3,7 +3,7 @@ module HoleReason = {
   [@deriving sexp]
   type t =
     | Free
-    | Keyword(Keyword.t);
+    | Keyword(IntermediateKeyword.t);
 };
 
 /* Variable: var_err */
