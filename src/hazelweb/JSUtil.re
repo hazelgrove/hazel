@@ -406,7 +406,7 @@ module Key = {
       String.equal(code, c);
     | Key(k) =>
       let key = get_key(evt);
-      String.equal(key, k);
+      String.equal(String.uppercase_ascii(key), String.uppercase_ascii(k));
     };
 
   let matches = (k, evt: Js.t(Dom_html.keyboardEvent)) => {
@@ -465,18 +465,18 @@ module KeyCombo = {
     let ampersand = no_ctrl_alt_meta(Key.the_key("&"));
     let dollar = no_ctrl_alt_meta(Key.the_key("$"));
     let amp = no_ctrl_alt_meta(Key.the_key("&"));
-    let alt_L = alt(Key.the_letter_code("l"));
-    let alt_R = alt(Key.the_letter_code("r"));
-    let alt_C = alt(Key.the_letter_code("c"));
+    let alt_L = alt(Key.the_key("l"));
+    let alt_R = alt(Key.the_key("r"));
+    let alt_C = alt(Key.the_key("c"));
     let alt_PageUp = alt(Key.the_key("PageUp"));
     let alt_PageDown = alt(Key.the_key("PageDown"));
-    let alt_T = alt(Key.the_letter_code("T"));
-    let alt_F = alt(Key.the_letter_code("F"));
+    let alt_T = alt(Key.the_key("T"));
+    let alt_F = alt(Key.the_key("F"));
     let key_B = no_ctrl_alt_meta(Key.the_key("B"));
     let key_N = no_ctrl_alt_meta(Key.the_key("N"));
     let key_L = no_ctrl_alt_meta(Key.the_key("L"));
-    let ctrl_z = ctrl(Key.the_letter_code("Z"));
-    let ctrl_shift_z = ctrl_shift(Key.the_letter_code("Z"));
+    let ctrl_z = ctrl(Key.the_key("z"));
+    let ctrl_shift_z = ctrl_shift(Key.the_key("Z"));
   };
 
   type t =
