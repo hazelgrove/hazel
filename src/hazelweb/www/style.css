@@ -767,32 +767,6 @@ h1 {
   position: relative;
 }
 
-.Align {
-  display: inline-block;
-}
-
-.cursor {
-  position: relative;
-}
-#cursor-before {
-  display: block;
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: var(--term-indicator-corner-size);
-  height: var(--term-indicator-corner-size);
-  fill: red;
-}
-#cursor-after {
-  display: block;
-  position: absolute;
-  top: 100%;
-  left: 100%;
-  width: var(--term-indicator-corner-size);
-  height: var(--term-indicator-corner-size);
-  fill: red;
-}
-
 /* https://codepen.io/ArtemGordinsky/pen/GnLBq */
 #caret {
   z-index: var(--caret-z);
