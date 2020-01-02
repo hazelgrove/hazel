@@ -1177,6 +1177,10 @@ button:disabled {
   margin-left: 5px;
 }
 
+.text {
+  height: 1em; /* Ensure that empty texts still consume height */
+}
+
 .hbox {
   display: flex;
   flex-direction: row;

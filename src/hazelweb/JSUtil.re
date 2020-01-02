@@ -736,7 +736,8 @@ let content_editable_of_layout: Layout.t('tag) => Vdom.Node.t =
 
 let rec vdom_of_box = (box: Box.t('tag)): Vdom.Node.t =>
   switch (box) {
-  | Text(string) => Vdom.Node.span([], [Vdom.Node.text(string)])
+  | Text(string) =>
+    Vdom.Node.div([Vdom.Attr.classes(["text"])], [Vdom.Node.text(string)])
   | HBox(bs) =>
     Vdom.Node.div([Vdom.Attr.classes(["hbox"])], List.map(vdom_of_box, bs))
   | VBox(bs) =>
