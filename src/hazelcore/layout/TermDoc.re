@@ -411,7 +411,9 @@ let rec mk_BinOp =
   | BinOp(err, op, skel1, skel2) =>
     let op_index = Skel.rightmost_tm_index(skel1) + Seq.length(seq);
     let op_doc =
-      mk_operator(~steps=steps @ [op_index], op) |> tag_Step(op_index);
+      mk_operator(~steps=steps @ [op_index], op)
+      |> tag_Step(op_index)
+      |> tag_DelimGroup;
     let skel1_doc = go(skel1);
     let skel2_doc = go(skel2);
     Doc.hcats([
@@ -465,7 +467,8 @@ let mk_NTuple =
              let comma_doc =
                Doc.Text(",")
                |> Doc.tag(TermTag.mk_Op(~steps=steps @ [comma_index], ()))
-               |> tag_Step(comma_index);
+               |> tag_Step(comma_index)
+               |> tag_DelimGroup;
              let doc =
                Doc.hcats([
                  tuple,
