@@ -262,7 +262,13 @@ let page_view =
                       },
                     ),
                     Node.div(
-                      [Attr.style(Css_gen.white_space(`Pre))],
+                      [
+                        Attr.style(
+                          Css_gen.(
+                            white_space(`Pre) @> font_family(["monospace"])
+                          ),
+                        ),
+                      ],
                       if (!model.show_presentation) {
                         [];
                       } else {
