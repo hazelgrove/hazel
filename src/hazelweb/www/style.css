@@ -909,20 +909,6 @@ h1 {
   box-shadow: 2px 2px 0px 0px var(--typ-shadow-color);
 }
 
-.Cursor.Term.has-Inline-OpenChild .DelimGroup {
-  border-radius: var(--code-radius) var(--code-radius) 0 0;
-}
-.Cursor.Term.has-Inline-OpenChild .Term .DelimGroup {
-  border-radius: none;
-}
-
-.Cursor.Term.has-Para-OpenChild .DelimGroup {
-  border-radius: 0 var(--code-radius) var(--code-radius) 0;
-}
-.Cursor.Term.has-Para-OpenChild .Term .DelimGroup {
-  border-radius: none;
-}
-
 .Cursor .DelimGroup {
   /* set by each term family */
   --bg-color: transparent;
@@ -932,10 +918,17 @@ h1 {
   position: relative;
   z-index: var(--delim-group-z);
 }
+.Cursor.Term.has-Inline-OpenChild .DelimGroup {
+  border-radius: var(--code-radius) var(--code-radius) 0 0;
+}
+.Cursor.Term.has-Para-OpenChild .DelimGroup {
+  border-radius: 0 var(--code-radius) var(--code-radius) 0;
+}
 .Cursor .Term .DelimGroup {
   background-color: var(--default-code-bg-color);
   box-shadow: none;
   z-index: auto;
+  border-radius: none;
 }
 
 .Cursor.Exp .DelimGroup {
@@ -958,7 +951,6 @@ h1 {
   line-height: var(--closed-child-line-height);
 }
 .Cursor.Term .Term .Term {
-  position: relative;
   z-index: auto;
   line-height: var(--code-line-height);
 }
