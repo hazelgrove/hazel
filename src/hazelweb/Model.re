@@ -387,7 +387,6 @@ let init = (): t => {
     user_newlines: CursorPath.StepsMap.empty,
     selected_example: None,
     is_cell_focused: false,
-    user_newlines: CursorPath.StepsMap.empty,
     history: ([], edit_state, []),
     left_sidebar_open: false,
     right_sidebar_open: true,
