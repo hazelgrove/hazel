@@ -86,9 +86,6 @@ type result_state =
   | ResultsDisabled
   | Result(has_result_state);
 
-[@deriving sexp]
-type history = ZList.t(Statics.edit_state, Statics.edit_state);
-
 type t = {
   cardstacks,
   cardstacks_state /* these are derived from the cardstack state: */,
@@ -103,29 +100,7 @@ type t = {
   right_sidebar_open: bool,
   show_content_editable: bool,
   show_presentation: bool,
-  history,
-};
-
-let add_history = (history: history, edit_state: Statics.edit_state): history => {
-  /* first add new edit state to the end, then shift_next */
-  let add_new = (
-    ZList.prj_prefix(history),
-    ZList.prj_z(history),
-    [edit_state],
-  );
-  ZList.shift_next(add_new);
-};
-let undo_edit_state = (history): option(history) => {
-  switch (ZList.prj_prefix(history)) {
-  | [] => None
-  | _ => Some(ZList.shift_prev(history))
-  };
-};
-let redo_edit_state = (history): option(history) => {
-  switch (ZList.prj_suffix(history)) {
-  | [] => None
-  | _ => Some(ZList.shift_next(history))
-  };
+  undo_history: UndoHistory.t,
 };
 
 let cardstack_state_of = model => ZList.prj_z(model.cardstacks_state);
@@ -397,7 +372,7 @@ let init = (): t => {
     user_newlines: CursorPath.StepsMap.empty,
     selected_example: None,
     is_cell_focused: false,
-    history: ([], edit_state, []),
+    undo_history: ([], edit_state, []),
     left_sidebar_open: false,
     right_sidebar_open: true,
     show_content_editable: false,
@@ -427,7 +402,8 @@ let perform_edit_action = (model: t, a: Action.t): t => {
       | UpdateApPalette(_)
       | Delete
       | Backspace
-      | Construct(_) => add_history(model.history, new_edit_state)
+      | Construct(_) =>
+        UndoHistory.add_history(model.undo_history, new_edit_state)
       | MoveTo(_)
       | MoveToBefore(_)
       | MoveLeft
@@ -437,10 +413,10 @@ let perform_edit_action = (model: t, a: Action.t): t => {
       | ShiftLeft
       | ShiftRight
       | ShiftUp
-      | ShiftDown => model.history
+      | ShiftDown => model.undo_history
       };
     };
-    {...new_model, history: new_history};
+    {...new_model, undo_history: new_history};
   };
 };
 
@@ -459,28 +435,28 @@ let move_to_hole = (model: t, u: MetaVar.t): t => {
   };
 };
 
-let undo = (model: t): t => {
-  let new_history =
-    switch (undo_edit_state(model.history)) {
-    | Some(his) => his
-    | None => model.history
-    };
+/* let undo = (model: t): t => {
+     let new_history =
+       switch (undo_edit_state(model.undo_history)) {
+       | Some(his) => his
+       | None => model.undo_history
+       };
 
-  let new_edit_state = ZList.prj_z(new_history);
-  let new_model = model |> update_edit_state(new_edit_state);
-  {...new_model, history: new_history};
-};
+     let new_edit_state = ZList.prj_z(new_history);
+     let new_model = model |> update_edit_state(new_edit_state);
+     {...new_model, undo_history: new_history};
+   }; */
 
-let redo = (model: t): t => {
-  let new_history =
-    switch (redo_edit_state(model.history)) {
-    | Some(his) => his
-    | None => model.history
-    };
-  let new_edit_state = ZList.prj_z(new_history);
-  let new_model = model |> update_edit_state(new_edit_state);
-  {...new_model, history: new_history};
-};
+/* let redo = (model: t): t => {
+     let new_history =
+       switch (redo_edit_state(model.undo_history)) {
+       | Some(his) => his
+       | None => model.undo_history
+       };
+     let new_edit_state = ZList.prj_z(new_history);
+     let new_model = model |> update_edit_state(new_edit_state);
+     {...new_model, undo_history: new_history};
+   }; */
 let select_hole_instance = (model, (u, i) as inst) => {
   switch (model.result_state) {
   | ResultsDisabled => model
