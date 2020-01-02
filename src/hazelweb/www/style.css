@@ -3,24 +3,7 @@
 :root {
   --opseq-hover-color: rgba(255, 195, 0, 0.20);
   --empty-hole-color: #a040a0;
-  --nonempty-hole-color: red;
   --title-bar-color: #073f24;
-  --delim-cushion: 8px;
-  --indent-length: 24px;
-  --space-length: 8px;
-  --node-indicator-z-index: -10;
-  --child-indicator-z-index: -5;
-  --term-indicator-z-index: -4;
-  --hole-indicator-z-index: -3;
-  --shift-indicator-z-index: -2;
-  --code-z-index: 0;
-  --node-indicator-normal-color: rgb(197, 253, 197);
-  --node-indicator-staging-color: #e4faff;
-  --child-indicator-normal-color: white;
-  --child-indicator-staging-color: #fcffda;
-  --term-indicator-color: #678a61;
-  --term-indicator-corner-size: 5px;
-  --shifting-indicator-color: rgb(102, 163, 198);
   --page-padding: 15px;
 
   --code-line-height: 1.5;
@@ -54,10 +37,6 @@
 /* general */
 div {
   box-sizing: border-box;
-}
-
-div.inline-div {
-  display: inline;
 }
 
 .noselect {
@@ -739,22 +718,9 @@ h1 {
   display: inline-block;
 }
 
-.ModelType {
-  font-size: large;
-  width:100%
-}
-
 .typeLbl {
   font-weight: bold;
   font-size: 12pt;
-}
-
-#num_input_id{
-  width:70%;
-}
-
-button:disabled {
-
 }
 
 .HZElem{
@@ -763,14 +729,6 @@ button:disabled {
 
 .HZElem img{
   float: left;
-}
-
-.Model{
-  float:left;
-}
-
-.input-group{
-  margin-bottom: 10px;
 }
 
 .code {
@@ -1102,60 +1060,6 @@ button:disabled {
   border-right: 1px dashed var(--nonempty-hole-color);
 }
 
-.current-shifting-delim-indicator {
-  position: absolute;
-  z-index: var(--shift-indicator-z-index);
-}
-
-.empty-hole-conclusion-mask {
-  position: absolute;
-  z-index: var(--child-indicator-z-index);
-  background: white;
-}
-
-.current-horizontal-shift-target,
-.current-vertical-shift-target, .horizontal-shift-target-in-subject,
-.vertical-shift-target-in-subject, .vertical-shift-target-in-frame,
-.horizontal-shift-target-in-frame,
-.horizontal-shift-rail,
-.vertical-shift-rail {
-  position: absolute;
-  z-index: var(--shift-indicator-z-index);
-  background-color: var(--shifting-indicator-color);
-}
-
-.term-indicator.inactive,
-.node-indicator.inactive,
-.child-indicator.inactive,
-.current-shifting-delim-indicator.inactive,
-.current-horizontal-shift-target.inactive,
-.current-vertical-shift-target.inactive,
-.horizontal-shift-target-in-subject.inactive,
-.vertical-shift-target-in-subject.inactive,
-.vertical-shift-target-in-frame.inactive,
-.horizontal-shift-target-in-frame.inactive,
-.horizontal-shift-rail.inactive,
-.vertical-shift-rail.inactive {
-  display: none;
-}
-.term-indicator.active,
-.node-indicator.active,
-.child-indicator.active,
-.current-shifting-delim-indicator.active,
-.current-horizontal-shift-target.active,
-.current-vertical-shift-target.active,
-.horizontal-shift-target-in-subject.active,
-.vertical-shift-target-in-subject.active,
-.vertical-shift-target-in-frame.active,
-.horizontal-shift-target-in-frame.active,
-.horizontal-shift-rail.active,
-.vertical-shift-rail.active {
-  display: block;
-}
-
-.var {
-}
-
 .hole {
   color: var(--empty-hole-color);
 }
@@ -1169,31 +1073,6 @@ button:disabled {
 .OpSeq:hover .Ap {
   background-color: var(--opseq-hover-color);
   border-top: 1px solid var(--opseq-hover-color);
-}
-
-.cursor {
-  /*background-color: var(--cursor-color);*/
-}
-.cursor.empty-line {
-  border: none;
-}
-
-.SIndentation {
-  white-space: pre;
-  background-color: rgba(0, 0, 0, 0);
-  margin-right: 2px;
-  margin-left: -2px;
-}
-
-.NonEmptyHole {
-  /* line-height: initial; */
-}
-
-.NonEmptyHoleTerm {
-  /* padding-bottom: 1px; */
-  /* margin-bottom: -1px; */
-  margin-right: 2px;
-  border: 1px dashed var(--nonempty-hole-color);
 }
 
 .in_err_hole {
@@ -1301,30 +1180,6 @@ button:disabled {
   margin-right: 2px;
 }
 
-/* .EmptyHole {
-  -moz-user-select: all;
-  -webkit-user-select: all;
-  user-select: all;
-}
-
-.hole-before {
-  -moz-user-select: none;
-  -webkit-user-select: text;
-  user-select: none;
-}
-
-.hole-after {
-  -moz-user-select: none;
-  -webkit-user-select: text;
-  user-select: none;
-}
-
-.holeName {
-  -moz-user-select: none;
-  -webkit-user-select: text;
-  user-select: none;
-} */
-
 .SFailedCastArrow {
   color: red;
   font-weight: bold;
@@ -1333,12 +1188,6 @@ button:disabled {
 .FailedCast {
   background-color: rgba(255, 0, 0, 0.1);
 }
-
-/* .OpSeq:hover .skel-binop {
-  background-color: rgba(255, 195, 10, 0.20);
-} */
-
-/* .skel-binop:hover { */
 
 .elided {
   color: #AAA;
