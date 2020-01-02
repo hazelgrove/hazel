@@ -20,9 +20,11 @@
 
   --pat-bg-color: #baf1fe;
   --pat-shadow-color: rgb(130, 176, 202);
+  --pat-bright-shadow-color: rgb(117, 187, 228);
 
   --typ-bg-color: rgb(233, 221, 253);
   --typ-shadow-color: rgb(173, 154, 202);
+  --typ-bright-shadow-color: rgb(192, 159, 241);
 
   --code-radius: 4px;
 
@@ -957,7 +959,7 @@ h1 {
 
 .Cursor.Term.Exp .Term.Pat {
   background-color: white; /*var(--pat-bg-color);*/
-  box-shadow: inset 1px 1px 0.5px 1px var(--pat-shadow-color);
+  box-shadow: inset 1px 1px 0.5px 1px var(--pat-bright-shadow-color);
 }
 .Cursor.Term.Exp .Term .Term.Pat {
   background-color: var(--default-code-bg-color);
@@ -966,7 +968,7 @@ h1 {
 
 .Cursor.Term.Exp .Term.Typ {
   background-color: white; /*var(--typ-bg-color);*/
-  box-shadow: inset 1px 1px 0.5px 1px var(--typ-shadow-color);
+  box-shadow: inset 1px 1px 0.5px 1px var(--typ-bright-shadow-color);
 }
 .Cursor.Term.Exp .Term .Term.Typ {
   background-color: var(--default-code-bg-color);
