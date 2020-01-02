@@ -27,6 +27,7 @@
   --typ-bright-shadow-color: rgb(192, 159, 241);
 
   --code-radius: 4px;
+  --child-border-thickness: 4px;
 
   /* necessary for hiding portions of box shadows */
   --para-border-z: 1;
@@ -833,9 +834,11 @@ h1 {
 
 .InHole {
   border: 1px dashed var(--err-hole-color);
+  margin: -1px;
 }
 .InVarHole {
   border: 1px dashed var(--verr-hole-color);
+  margin: -1px;
 }
 
 .OpenChild.Para {
@@ -854,9 +857,9 @@ h1 {
   box-shadow: 2px 2px 0px 0px var(--shadow-color);
 }
 .Cursor.Term.has-Inline-OpenChild::before {
-  top: calc(100% - 4px);
+  top: calc(100% - (var(--child-border-thickness) / 2));
   left: 0;
-  height: 4px;
+  height: var(--child-border-thickness);
   width: 100%;
   border-radius: 0 0 var(--code-radius) var(--code-radius);
   z-index: var(--inline-border-z);
@@ -866,10 +869,10 @@ h1 {
   border-radius: var(--code-radius);
 }
 .Cursor.Term.has-Para-OpenChild::before {
-  top: 0px;
-  left: -4px;
+  top: 0;
+  left: calc(-1 * var(--child-border-thickness));
   height: 100%;
-  width: 4px;
+  width: var(--child-border-thickness);
   border-radius: var(--code-radius) 0 0 var(--code-radius);
   z-index: var(--para-border-z);
 }
