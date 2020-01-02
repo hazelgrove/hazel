@@ -18,49 +18,6 @@ let clss_of_verr: VarErrStatus.t => list(cls) =
   | NotInVarHole => []
   | InVarHole(_) => ["InVarHole"];
 
-module Typ = {
-  let clss_of_operand: UHTyp.operand => list(cls) =
-    fun
-    | Hole => ["Hole"]
-    | Unit => ["Unit"]
-    | Num => ["Num"]
-    | Bool => ["Bool"]
-    | Parenthesized(_) => ["Parenthesized"]
-    | List(_) => ["List"];
-};
-module Pat = {
-  let clss_of_operand: UHPat.operand => list(cls) =
-    fun
-    | EmptyHole(_) => ["EmptyHole"]
-    | Wild(err) => ["Wild", ...clss_of_err(err)]
-    | Var(err, verr, _) => [
-        "Var",
-        ...clss_of_err(err) @ clss_of_verr(verr),
-      ]
-    | NumLit(err, _) => ["NumLit", ...clss_of_err(err)]
-    | BoolLit(err, _) => ["BoolLit", ...clss_of_err(err)]
-    | ListNil(err) => ["ListNil", ...clss_of_err(err)]
-    | Parenthesized(_) => ["Parenthesized"]
-    | Inj(err, _, _) => ["Inj", ...clss_of_err(err)];
-};
-module Exp = {
-  let clss_of_operand: UHExp.operand => list(cls) =
-    fun
-    | EmptyHole(_) => ["EmptyHole"]
-    | Var(err, verr, _) => [
-        "Var",
-        ...clss_of_err(err) @ clss_of_verr(verr),
-      ]
-    | NumLit(err, _) => ["NumLit", ...clss_of_err(err)]
-    | BoolLit(err, _) => ["BoolLit", ...clss_of_err(err)]
-    | ListNil(err) => ["ListNil", ...clss_of_err(err)]
-    | Lam(err, _, _, _) => ["Lam", ...clss_of_err(err)]
-    | Parenthesized(_) => ["Parenthesized"]
-    | Inj(err, _, _) => ["Inj", ...clss_of_err(err)]
-    | Case(err, _, _, _) => ["Case", ...clss_of_err(err)]
-    | ApPalette(_) => failwith(__LOC__ ++ ":unimplemented");
-};
-
 let cursor_clss = (has_cursor: bool): list(cls) =>
   has_cursor ? ["Cursor"] : [];
 
