@@ -32,7 +32,7 @@
   --para-border-z: 1;
   --delim-group-z: 2;
   --inline-border-z: 3;
-  --closed-child-z: 4;
+  --child-z: 4;
   --caret-z: 5;
 }
 
@@ -946,10 +946,12 @@ h1 {
   --shadow-color: var(--typ-shadow-color);
 }
 
+.Cursor.Term .Term {
+  position: relative;
+  z-index: var(--child-z);
+}
 .Cursor.Term.Exp .Term.Pat,
 .Cursor.Term.Exp .Term.Typ {
-  position: relative;
-  z-index: var(--closed-child-z);
   line-height: var(--closed-child-line-height);
 }
 .Cursor.Term .Term .Term {
