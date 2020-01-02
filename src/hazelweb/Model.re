@@ -84,7 +84,7 @@ type has_result_state = {
 
 type result_state =
   | ResultsDisabled
-  | Result(has_result_state) /* type checkpoint = (Statics.edit_state, ZList.t(unit, Action.t));   type history = ZList.t(checkpoint, checkpoint); */;
+  | Result(has_result_state);
 
 [@deriving sexp]
 type history = ZList.t(Statics.edit_state, Statics.edit_state);
@@ -104,6 +104,7 @@ type t = {
 };
 
 let add_history = (history: history, edit_state: Statics.edit_state): history => {
+  /* first add new edit state to the end, then shift_next */
   let add_new = (
     ZList.prj_prefix(history),
     ZList.prj_z(history),
@@ -111,8 +112,18 @@ let add_history = (history: history, edit_state: Statics.edit_state): history =>
   );
   ZList.shift_next(add_new);
 };
-let undo_edit_state = history => ZList.shift_prev(history);
-let redo_edit_state = history => ZList.shift_next(history);
+let undo_edit_state = (history): option(history) => {
+  switch (ZList.prj_prefix(history)) {
+  | [] => None
+  | _ => Some(ZList.shift_prev(history))
+  };
+};
+let redo_edit_state = (history): option(history) => {
+  switch (ZList.prj_suffix(history)) {
+  | [] => None
+  | _ => Some(ZList.shift_next(history))
+  };
+};
 
 let cardstack_state_of = model => ZList.prj_z(model.cardstacks_state);
 
@@ -445,14 +456,23 @@ let move_to_hole = (model: t, u: MetaVar.t): t => {
 };
 
 let undo = (model: t): t => {
-  let new_history = undo_edit_state(model.history);
+  let new_history =
+    switch (undo_edit_state(model.history)) {
+    | Some(his) => his
+    | None => model.history
+    };
+
   let new_edit_state = ZList.prj_z(new_history);
   let new_model = model |> update_edit_state(new_edit_state);
   {...new_model, history: new_history};
 };
 
 let redo = (model: t): t => {
-  let new_history = redo_edit_state(model.history);
+  let new_history =
+    switch (redo_edit_state(model.history)) {
+    | Some(his) => his
+    | None => model.history
+    };
   let new_edit_state = ZList.prj_z(new_history);
   let new_model = model |> update_edit_state(new_edit_state);
   {...new_model, history: new_history};

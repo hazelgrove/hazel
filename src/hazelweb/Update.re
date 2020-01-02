@@ -81,9 +81,9 @@ let log_action = (action: Action.t, _: State.t): unit => {
   | FocusWindow
   | AddUserNewline(_)
   | RemoveUserNewline(_)
+  | MoveToHole(_)
   | Redo
-  | Undo
-  | MoveToHole(_) =>
+  | Undo =>
     Logger.append(
       Sexp.to_string(
         sexp_of_timestamped_action(mk_timestamped_action(action)),
@@ -98,8 +98,6 @@ let apply_action =
     : Model.t => {
   log_action(action, state);
   switch (action) {
-  | Redo => Model.redo(model)
-  | Undo => Model.undo(model)
   | EditAction(a) =>
     switch (Model.perform_edit_action(model, a)) {
     | new_model => new_model
@@ -289,5 +287,7 @@ let apply_action =
       };
     };
     model;
+  | Redo => Model.redo(model)
+  | Undo => Model.undo(model)
   };
 };
