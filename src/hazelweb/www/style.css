@@ -1176,3 +1176,15 @@ button:disabled {
   padding: 4px;
   margin-left: 5px;
 }
+
+.hbox {
+  display: flex;
+  flex-direction: row;
+  align-content: flex-start;
+}
+
+.vbox {
+  display: flex;
+  flex-direction: column;
+  align-content: flex-start;
+}
