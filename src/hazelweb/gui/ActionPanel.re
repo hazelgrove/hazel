@@ -255,9 +255,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
       Action.Construct(Action.SCase),
       twopiece_lbl_kw("case", ""),
       KeyCombo.Details.alt_C,
-    );
-
-  /*
+    ) /*
    let can_insert_ap_palette_rs =
      S.l1(Action.can_construct_palette, cursor_info_rs);
 
@@ -271,7 +269,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
        KeyCombo.Details.dollar,
        "enter palette name",
      );
-   */
+   */;
 
   let type_construction_actions =
     Vdom.(
@@ -324,8 +322,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
               constructInjL,
               constructInjR,
               constructCase,
-              constructAsc,
-              /* constructApPalette, */
+              constructAsc /* constructApPalette, */,
             ],
           ),
         ],
@@ -371,9 +368,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
       ],
     )
   );
-};
-
-/*
+} /*
  let action_input_button =
        (
          action,
@@ -537,4 +532,4 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
        KeyCombo.Details.dollar,
        "enter palette name",
      );
-   */
+   */;

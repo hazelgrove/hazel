@@ -25,8 +25,7 @@ type t =
   | Var(ErrStatus.t, VarErrStatus.t, Var.t)
   | NumLit(ErrStatus.t, int)
   | BoolLit(ErrStatus.t, bool)
-  | ListNil(ErrStatus.t)
-  /* inner nodes */
+  | ListNil(ErrStatus.t) /* inner nodes */
   | Parenthesized(t)
   | OpSeq(skel_t, opseq)
   | Inj(ErrStatus.t, InjSide.t, t)
@@ -61,11 +60,10 @@ let rec make_tuple = (err: ErrStatus.t, skels: ListMinTwo.t(skel_t)) =>
   | Cons(skel1, skels) =>
     let skel2 = make_tuple(NotInHole, skels);
     Skel.BinOp(err, Comma, skel1, skel2);
-  };
-
-/* bidelimited patterns are those that don't have
+  } /* bidelimited patterns are those that don't have
  * sub-patterns at their outer left or right edge
- * in the concrete syntax */
+ * in the concrete syntax */;
+
 let bidelimited = (p: t): bool =>
   switch (p) {
   /* outer nodes */
@@ -74,22 +72,19 @@ let bidelimited = (p: t): bool =>
   | Var(_, _, _)
   | NumLit(_, _)
   | BoolLit(_, _)
-  | ListNil(_) => true
-  /* inner nodes */
+  | ListNil(_) => true /* inner nodes */
   | Inj(_, _, _) => true
   | Parenthesized(_) => true
   | OpSeq(_, _) => false
-  };
+  } /* if p is not bidelimited, bidelimit e parenthesizes it */;
 
-/* if p is not bidelimited, bidelimit e parenthesizes it */
 let bidelimit = p =>
   if (bidelimited(p)) {
     p;
   } else {
-    Parenthesized(p);
+    Parenthesized(p) /* helper function for constructing a new empty hole */;
   };
 
-/* helper function for constructing a new empty hole */
 let new_EmptyHole = (u_gen: MetaVarGen.t): (t, MetaVarGen.t) => {
   let (u, u_gen) = MetaVarGen.next(u_gen);
   (EmptyHole(u), u_gen);
@@ -152,9 +147,8 @@ let is_inconsistent = (p: t): bool =>
   switch (get_err_status_t(p)) {
   | InHole(TypeInconsistent, _) => true
   | _ => false
-  };
+  } /* put p in a new hole, if it is not already in a hole */;
 
-/* put p in a new hole, if it is not already in a hole */
 let rec make_t_inconsistent = (u_gen: MetaVarGen.t, p: t): (t, MetaVarGen.t) =>
   switch (p) {
   /* already in hole */
@@ -164,8 +158,7 @@ let rec make_t_inconsistent = (u_gen: MetaVarGen.t, p: t): (t, MetaVarGen.t) =>
   | NumLit(InHole(TypeInconsistent, _), _)
   | BoolLit(InHole(TypeInconsistent, _), _)
   | ListNil(InHole(TypeInconsistent, _))
-  | Inj(InHole(TypeInconsistent, _), _, _) => (p, u_gen)
-  /* not in hole */
+  | Inj(InHole(TypeInconsistent, _), _, _) => (p, u_gen) /* not in hole */
   | Wild(NotInHole | InHole(WrongLength, _))
   | Var(NotInHole | InHole(WrongLength, _), _, _)
   | NumLit(NotInHole | InHole(WrongLength, _), _)

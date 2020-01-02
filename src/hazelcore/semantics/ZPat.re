@@ -7,8 +7,7 @@ type opseq_suffix = OperatorSeq.opseq_suffix(UHPat.t, UHPat.op);
 
 [@deriving sexp]
 type t =
-  | CursorP(CursorPosition.t, UHPat.t)
-  /* zipper cases */
+  | CursorP(CursorPosition.t, UHPat.t) /* zipper cases */
   | ParenthesizedZ(t)
   | OpSeqZ(UHPat.skel_t, t, opseq_surround)
   | InjZ(ErrStatus.t, InjSide.t, t);
@@ -158,16 +157,14 @@ let rec is_before = (zp: t): bool =>
   /* outer nodes - delimiter */
   | CursorP(cursor, EmptyHole(_))
   | CursorP(cursor, Wild(_))
-  | CursorP(cursor, ListNil(_)) => cursor == OnDelim(0, Before)
-  /* outer nodes - text */
+  | CursorP(cursor, ListNil(_)) =>
+    cursor == OnDelim(0, Before) /* outer nodes - text */
   | CursorP(cursor, Var(_, _, _))
   | CursorP(cursor, NumLit(_, _))
-  | CursorP(cursor, BoolLit(_, _)) => cursor == OnText(0)
-  /* inner nodes */
+  | CursorP(cursor, BoolLit(_, _)) => cursor == OnText(0) /* inner nodes */
   | CursorP(cursor, Inj(_, _, _))
   | CursorP(cursor, Parenthesized(_)) => cursor == OnDelim(0, Before)
-  | CursorP(_, OpSeq(_, _)) => false
-  /* zipper cases */
+  | CursorP(_, OpSeq(_, _)) => false /* zipper cases */
   | InjZ(_, _, _) => false
   | ParenthesizedZ(_) => false
   | OpSeqZ(_, zp1, EmptyPrefix(_)) => is_before(zp1)
@@ -179,16 +176,14 @@ let rec is_after = (zp: t): bool =>
   /* outer nodes - delimiter */
   | CursorP(cursor, EmptyHole(_))
   | CursorP(cursor, Wild(_))
-  | CursorP(cursor, ListNil(_)) => cursor == OnDelim(0, After)
-  /* outer nodes - text */
+  | CursorP(cursor, ListNil(_)) =>
+    cursor == OnDelim(0, After) /* outer nodes - text */
   | CursorP(cursor, Var(_, _, x)) => cursor == OnText(Var.length(x))
   | CursorP(cursor, NumLit(_, n)) => cursor == OnText(num_digits(n))
-  | CursorP(cursor, BoolLit(_, b)) => cursor == OnText(b ? 4 : 5)
-  /* inner nodes */
+  | CursorP(cursor, BoolLit(_, b)) => cursor == OnText(b ? 4 : 5) /* inner nodes */
   | CursorP(cursor, Inj(_, _, _))
   | CursorP(cursor, Parenthesized(_)) => cursor == OnDelim(1, After)
-  | CursorP(_, OpSeq(_, _)) => false
-  /* zipper cases */
+  | CursorP(_, OpSeq(_, _)) => false /* zipper cases */
   | InjZ(_, _, _) => false
   | ParenthesizedZ(_) => false
   | OpSeqZ(_, zp1, EmptySuffix(_)) => is_after(zp1)
@@ -200,12 +195,10 @@ let rec place_before = (p: UHPat.t): t =>
   /* outer nodes - delimiter */
   | EmptyHole(_)
   | Wild(_)
-  | ListNil(_) => CursorP(OnDelim(0, Before), p)
-  /* outer nodes - text */
+  | ListNil(_) => CursorP(OnDelim(0, Before), p) /* outer nodes - text */
   | Var(_, _, _)
   | NumLit(_, _)
-  | BoolLit(_, _) => CursorP(OnText(0), p)
-  /* inner nodes */
+  | BoolLit(_, _) => CursorP(OnText(0), p) /* inner nodes */
   | Inj(_, _, _)
   | Parenthesized(_) => CursorP(OnDelim(0, Before), p)
   | OpSeq(skel, seq) =>
@@ -220,12 +213,10 @@ let rec place_after = (p: UHPat.t): t =>
   /* outer nodes - delimiter */
   | EmptyHole(_)
   | Wild(_)
-  | ListNil(_) => CursorP(OnDelim(0, After), p)
-  /* outer nodes - text */
+  | ListNil(_) => CursorP(OnDelim(0, After), p) /* outer nodes - text */
   | Var(_, _, x) => CursorP(OnText(Var.length(x)), p)
   | NumLit(_, n) => CursorP(OnText(num_digits(n)), p)
-  | BoolLit(_, b) => CursorP(OnText(b ? 4 : 5), p)
-  /* inner nodes */
+  | BoolLit(_, b) => CursorP(OnText(b ? 4 : 5), p) /* inner nodes */
   | Inj(_, _, _) => CursorP(OnDelim(1, After), p)
   | Parenthesized(_) => CursorP(OnDelim(1, After), p)
   | OpSeq(skel, seq) =>
@@ -236,9 +227,8 @@ let rec place_after = (p: UHPat.t): t =>
   };
 
 let place_cursor = (cursor: CursorPosition.t, p: UHPat.t): option(t) =>
-  is_valid_cursor(cursor, p) ? Some(CursorP(cursor, p)) : None;
+  is_valid_cursor(cursor, p) ? Some(CursorP(cursor, p)) : None /* helper function for constructing a new empty hole */;
 
-/* helper function for constructing a new empty hole */
 let new_EmptyHole = (u_gen: MetaVarGen.t): (t, MetaVarGen.t) => {
   let (hole, u_gen) = UHPat.new_EmptyHole(u_gen);
   (place_before(hole), u_gen);

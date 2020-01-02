@@ -33,8 +33,7 @@ and t =
       PaletteName.t,
       SerializedModel.t,
       ZSpliceInfo.t(UHExp.block, zblock),
-    )
-/* | CursorPalette : PaletteName.t -> PaletteSerializedModel.t -> hole_ref -> t -> t */
+    ) /* | CursorPalette : PaletteName.t -> PaletteSerializedModel.t -> hole_ref -> t -> t */
 and zrules = ZList.t(zrule, UHExp.rule)
 and zrule =
   | CursorR(CursorPosition.t, UHExp.rule)
@@ -60,12 +59,10 @@ let valid_cursors_exp = (e: UHExp.t): list(CursorPosition.t) =>
   switch (e) {
   /* outer nodes - delimiter */
   | EmptyHole(_)
-  | ListNil(_) => CursorPosition.delim_cursors(1)
-  /* outer nodes - text */
+  | ListNil(_) => CursorPosition.delim_cursors(1) /* outer nodes - text */
   | Var(_, _, x) => CursorPosition.text_cursors(Var.length(x))
   | NumLit(_, n) => CursorPosition.text_cursors(num_digits(n))
-  | BoolLit(_, b) => CursorPosition.text_cursors(b ? 4 : 5)
-  /* inner nodes */
+  | BoolLit(_, b) => CursorPosition.text_cursors(b ? 4 : 5) /* inner nodes */
   | Lam(_, _, ann, _) =>
     let colon_positions =
       switch (ann) {
@@ -104,13 +101,11 @@ let bidelimit = (ze: t): t =>
     if (UHExp.bidelimited(e)) {
       ze;
     } else {
-      parenthesize(ze);
+      parenthesize(ze /* bidelimited */);
     }
-  /* bidelimited */
   | ParenthesizedZ(_)
   | InjZ(_, _, _)
-  | ApPaletteZ(_, _, _, _) => ze
-  /* not bidelimited */
+  | ApPaletteZ(_, _, _, _) => ze /* not bidelimited */
   | OpSeqZ(_, _, _)
   | CaseZE(_, _, _, _)
   | CaseZR(_, _, _, _)
@@ -136,11 +131,9 @@ and is_before_lines = ((prefix, zline, _): zlines): bool =>
 and is_before_line = (zline: zline): bool =>
   switch (zline) {
   /* outer nodes */
-  | CursorL(cursor, EmptyLine) => cursor == OnText(0)
-  /* inner nodes */
+  | CursorL(cursor, EmptyLine) => cursor == OnText(0) /* inner nodes */
   | CursorL(cursor, LetLine(_, _, _)) => cursor == OnDelim(0, Before)
-  | CursorL(_, ExpLine(_)) => false /* ghost node */
-  /* zipper cases */
+  | CursorL(_, ExpLine(_)) => false /* ghost node */ /* zipper cases */
   | ExpLineZ(ze) => is_before_exp(ze)
   | LetLineZP(_, _, _)
   | LetLineZA(_, _, _)
@@ -150,19 +143,17 @@ and is_before_exp = (ze: t): bool =>
   switch (ze) {
   /* outer nodes - delimiter */
   | CursorE(cursor, EmptyHole(_))
-  | CursorE(cursor, ListNil(_)) => cursor == OnDelim(0, Before)
-  /* outer nodes - text */
+  | CursorE(cursor, ListNil(_)) =>
+    cursor == OnDelim(0, Before) /* outer nodes - text */
   | CursorE(cursor, Var(_, _, _))
   | CursorE(cursor, NumLit(_, _))
-  | CursorE(cursor, BoolLit(_, _)) => cursor == OnText(0)
-  /* inner nodes */
+  | CursorE(cursor, BoolLit(_, _)) => cursor == OnText(0) /* inner nodes */
   | CursorE(cursor, Lam(_, _, _, _))
   | CursorE(cursor, Inj(_, _, _))
   | CursorE(cursor, Case(_, _, _, _))
   | CursorE(cursor, Parenthesized(_)) => cursor == OnDelim(0, Before)
   | CursorE(_, OpSeq(_, _)) => false
-  | CursorE(cursor, ApPalette(_, _, _, _)) => cursor == OnDelim(0, Before) /* TODO[livelits] */
-  /* zipper cases */
+  | CursorE(cursor, ApPalette(_, _, _, _)) => cursor == OnDelim(0, Before) /* TODO[livelits] */ /* zipper cases */
   | ParenthesizedZ(_) => false
   | OpSeqZ(_, ze1, EmptyPrefix(_)) => is_before_exp(ze1)
   | OpSeqZ(_, _, _) => false
@@ -188,11 +179,9 @@ let rec is_after_block = (zblock: zblock): bool =>
 and is_after_line = (zli: zline): bool =>
   switch (zli) {
   /* outer nodes */
-  | CursorL(cursor, EmptyLine) => cursor == OnText(0)
-  /* inner nodes */
+  | CursorL(cursor, EmptyLine) => cursor == OnText(0) /* inner nodes */
   | CursorL(cursor, LetLine(_, _, _)) => cursor == OnDelim(3, After)
-  | CursorL(_, ExpLine(_)) => false /* ghost node */
-  /* zipper cases */
+  | CursorL(_, ExpLine(_)) => false /* ghost node */ /* zipper cases */
   | ExpLineZ(ze) => is_after_exp(ze)
   | LetLineZP(_, _, _)
   | LetLineZA(_, _, _)
@@ -202,21 +191,19 @@ and is_after_exp = (ze: t): bool =>
   switch (ze) {
   /* outer nodes - delimiter */
   | CursorE(cursor, EmptyHole(_))
-  | CursorE(cursor, ListNil(_)) => cursor == OnDelim(0, After)
-  /* outer nodes - text */
+  | CursorE(cursor, ListNil(_)) =>
+    cursor == OnDelim(0, After) /* outer nodes - text */
   | CursorE(cursor, Var(_, _, x)) => cursor == OnText(Var.length(x))
   | CursorE(cursor, NumLit(_, n)) => cursor == OnText(num_digits(n))
   | CursorE(cursor, BoolLit(_, true)) => cursor == OnText(4)
-  | CursorE(cursor, BoolLit(_, false)) => cursor == OnText(5)
-  /* inner nodes */
+  | CursorE(cursor, BoolLit(_, false)) => cursor == OnText(5) /* inner nodes */
   | CursorE(_, Lam(_, _, _, _)) => false
   | CursorE(_, Case(_, _, _, Some(_))) => false
   | CursorE(cursor, Case(_, _, _, None)) => cursor == OnDelim(1, After)
   | CursorE(cursor, Inj(_, _, _)) => cursor == OnDelim(1, After)
   | CursorE(cursor, Parenthesized(_)) => cursor == OnDelim(1, After)
   | CursorE(_, OpSeq(_, _)) => false
-  | CursorE(_, ApPalette(_, _, _, _)) => false /* TODO[livelits] */
-  /* zipper cases */
+  | CursorE(_, ApPalette(_, _, _, _)) => false /* TODO[livelits] */ /* zipper cases */
   | ParenthesizedZ(_) => false
   | OpSeqZ(_, ze1, EmptySuffix(_)) => is_after_exp(ze1)
   | OpSeqZ(_, _, _) => false
@@ -316,12 +303,10 @@ and place_before_exp = (e: UHExp.t): t =>
   switch (e) {
   /* outer nodes - delimiter */
   | EmptyHole(_)
-  | ListNil(_) => CursorE(OnDelim(0, Before), e)
-  /* outer nodes - text */
+  | ListNil(_) => CursorE(OnDelim(0, Before), e) /* outer nodes - text */
   | Var(_, _, _)
   | NumLit(_, _)
-  | BoolLit(_, _) => CursorE(OnText(0), e)
-  /* inner nodes */
+  | BoolLit(_, _) => CursorE(OnText(0), e) /* inner nodes */
   | Lam(_, _, _, _)
   | Inj(_, _, _)
   | Case(_, _, _, _)
@@ -353,13 +338,11 @@ and place_after_exp = (e: UHExp.t): t =>
   switch (e) {
   /* outer nodes - delimiter */
   | EmptyHole(_)
-  | ListNil(_) => CursorE(OnDelim(0, After), e)
-  /* outer nodes - text */
+  | ListNil(_) => CursorE(OnDelim(0, After), e) /* outer nodes - text */
   | Var(_, _, x) => CursorE(OnText(Var.length(x)), e)
   | NumLit(_, n) => CursorE(OnText(num_digits(n)), e)
   | BoolLit(_, true) => CursorE(OnText(4), e)
-  | BoolLit(_, false) => CursorE(OnText(5), e)
-  /* inner nodes */
+  | BoolLit(_, false) => CursorE(OnText(5), e) /* inner nodes */
   | Lam(err, p, ann, block) => LamZE(err, p, ann, place_after_block(block))
   | Case(err, block, rules, Some(uty)) =>
     CaseZA(err, block, rules, ZTyp.place_after(uty))
@@ -518,8 +501,7 @@ and make_t_inconsistent = (u_gen: MetaVarGen.t, ze: t): (t, MetaVarGen.t) =>
   | OpSeqZ(skel, ze_n, surround) =>
     let (skel, ze_n, surround, u_gen) =
       make_skel_inconsistent(u_gen, skel, ze_n, surround);
-    (OpSeqZ(skel, ze_n, surround), u_gen);
-  /* already in hole */
+    (OpSeqZ(skel, ze_n, surround), u_gen /* already in hole */);
   | LamZP(InHole(TypeInconsistent, _), _, _, _)
   | LamZA(InHole(TypeInconsistent, _), _, _, _)
   | LamZE(InHole(TypeInconsistent, _), _, _, _)
@@ -527,8 +509,8 @@ and make_t_inconsistent = (u_gen: MetaVarGen.t, ze: t): (t, MetaVarGen.t) =>
   | CaseZE(InHole(TypeInconsistent, _), _, _, _)
   | CaseZR(InHole(TypeInconsistent, _), _, _, _)
   | CaseZA(InHole(TypeInconsistent, _), _, _, _)
-  | ApPaletteZ(InHole(TypeInconsistent, _), _, _, _) => (ze, u_gen)
-  /* not in hole */
+  | ApPaletteZ(InHole(TypeInconsistent, _), _, _, _) =>
+    (ze, u_gen) /* not in hole */
   | LamZP(NotInHole | InHole(WrongLength, _), _, _, _)
   | LamZA(NotInHole | InHole(WrongLength, _), _, _, _)
   | LamZE(NotInHole | InHole(WrongLength, _), _, _, _)

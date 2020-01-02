@@ -1,6 +1,5 @@
-open Sexplib.Std;
+open Sexplib.Std /* Variable: `layout` */;
 
-/* Variable: `layout` */
 [@deriving sexp]
 type t('tag) =
   | Text(string) // Invariant: contains no newlines. Text("") is identity for `Cat`

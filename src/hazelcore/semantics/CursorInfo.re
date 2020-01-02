@@ -7,84 +7,34 @@ type typed =
   /*
    *  # cursor in analytic position
    */
-  | AnaAnnotatedLambda(HTyp.t, HTyp.t)
-  /* cursor is on a lambda with an argument type annotation */
-  | AnaTypeInconsistent(HTyp.t, HTyp.t)
-  /* cursor is on a type inconsistent expression */
-  | AnaWrongLength(
-      int /* expected length */,
-      int, /* got length */
-      HTyp.t,
-    ) /* expected type */
-  /* cursor is on a tuple of the wrong length */
-  | AnaFree(HTyp.t)
-  /* cursor is on a free variable */
-  | Analyzed(HTyp.t)
-  /* none of the above and didn't go through subsumption */
-  | AnaSubsumed(HTyp.t, HTyp.t)
-  /* none of the above and went through subsumption */
-  | AnaKeyword(HTyp.t, Keyword.t)
-  /* cursor is on a keyword */
-  /*
-   *  # cursor in synthetic position
-   */
-  | SynErrorArrow(HTyp.t /* expected */, HTyp.t) /* got */
-  /* cursor is on the function position of an ap,
+  | AnaAnnotatedLambda(HTyp.t, HTyp.t) /* cursor is on a lambda with an argument type annotation */
+  | AnaTypeInconsistent(HTyp.t, HTyp.t) /* cursor is on a type inconsistent expression */
+  | AnaWrongLength(int /* expected length */, int /* got length */, HTyp.t) /* expected type */ /* cursor is on a tuple of the wrong length */
+  | AnaFree(HTyp.t) /* cursor is on a free variable */
+  | Analyzed(HTyp.t) /* none of the above and didn't go through subsumption */
+  | AnaSubsumed(HTyp.t, HTyp.t) /* none of the above and went through subsumption */
+  | AnaKeyword(HTyp.t, Keyword.t) /* *  # cursor in synthetic position */ /* cursor is on a keyword */
+  | SynErrorArrow(HTyp.t /* expected */, HTyp.t) /* got */ /* cursor is on the function position of an ap,
      and that expression does not synthesize a type
      with a matched arrow type */
-  | SynMatchingArrow(HTyp.t, HTyp.t)
-  /* cursor is on the function position of an ap,
-     and that expression does synthesize a type
-     with a matched arrow type */
-  | SynFreeArrow(HTyp.t)
-  /* cursor is on a free variable in the function
-     position of an ap */
-  | SynKeywordArrow(HTyp.t, Keyword.t)
-  /* cursor is on a keyword in the function position of an ap */
-  | SynFree
-  /* none of the above, cursor is on a free variable */
-  | SynKeyword(Keyword.t)
-  /* cursor is on a keyword */
-  | Synthesized(HTyp.t)
-  /* none of the above */
-  /*
-   *  # cursor in analytic pattern position
-   */
-  | PatAnaTypeInconsistent(HTyp.t, HTyp.t)
-  /* cursor is on a type inconsistent pattern */
-  | PatAnaWrongLength(
-      int /* expected length */,
-      int, /* got length */
-      HTyp.t,
-    ) /* expected type */
-  /* cursor is on a tuple pattern of the wrong length */
-  | PatAnalyzed(HTyp.t)
-  /* none of the above and didn't go through subsumption */
-  | PatAnaSubsumed(HTyp.t, HTyp.t)
-  /* none of the above and went through subsumption */
-  | PatAnaKeyword(HTyp.t, Keyword.t)
-  /* cursor is on a keyword */
-  /*
-   * # cursor in synthetic pattern position
-   */
-  | PatSynthesized(HTyp.t)
-  /* cursor is on a keyword */
-  | PatSynKeyword(Keyword.t)
-  /*
-   * # cursor in type position
-   */
-  | OnType
-  /* (we will have a richer structure here later) */
+  | SynMatchingArrow(HTyp.t, HTyp.t) /* cursor is on the function position of an ap,   and that expression does synthesize a type   with a matched arrow type */
+  | SynFreeArrow(HTyp.t) /* cursor is on a free variable in the function   position of an ap */
+  | SynKeywordArrow(HTyp.t, Keyword.t) /* cursor is on a keyword in the function position of an ap */
+  | SynFree /* none of the above, cursor is on a free variable */
+  | SynKeyword(Keyword.t) /* cursor is on a keyword */
+  | Synthesized(HTyp.t) /* *  # cursor in analytic pattern position */ /* none of the above */
+  | PatAnaTypeInconsistent(HTyp.t, HTyp.t) /* cursor is on a type inconsistent pattern */
+  | PatAnaWrongLength(int /* expected length */, int /* got length */, HTyp.t) /* expected type */ /* cursor is on a tuple pattern of the wrong length */
+  | PatAnalyzed(HTyp.t) /* none of the above and didn't go through subsumption */
+  | PatAnaSubsumed(HTyp.t, HTyp.t) /* none of the above and went through subsumption */
+  | PatAnaKeyword(HTyp.t, Keyword.t) /* * # cursor in synthetic pattern position */ /* cursor is on a keyword */
+  | PatSynthesized(HTyp.t) /* cursor is on a keyword */
+  | PatSynKeyword(Keyword.t) /* * # cursor in type position */
+  | OnType /* (we will have a richer structure here later) */
   | OnLine
   | OnRule
-  | OnOp;
+  | OnOp /* * pat_node is used to distinguish whether that * the cursor is on a variable pattern or not, * and we need to know where that variable is used * for such variable pattern */;
 
-/*
- * pat_node is used to distinguish whether that
- * the cursor is on a variable pattern or not,
- * and we need to know where that variable is used
- * for such variable pattern
- */
 [@deriving sexp]
 type pat_node =
   | VarPat(Var.t, uses_list)
@@ -336,14 +286,13 @@ let rec cursor_info_typ =
       ctx,
       zty1,
     );
-  };
-
-/*
+  } /*
  * there are cases we can't determine where to find the uses of a variable
  * immediately after we see its binding site.
  * in this case, we will return a deferrable('t) and go up the tree
  * until we could find uses and feed it to (uses_list => 't).
- */
+ */;
+
 type deferrable('t) =
   | CursorNotOnDeferredVarPat('t)
   | CursorOnDeferredVarPat(uses_list => 't, Var.t);
@@ -385,8 +334,7 @@ let rec _ana_cursor_found_pat =
   | NumLit(InHole(WrongLength, _), _)
   | BoolLit(InHole(WrongLength, _), _)
   | ListNil(InHole(WrongLength, _))
-  | Inj(InHole(WrongLength, _), _, _) => None
-  /* not in hole */
+  | Inj(InHole(WrongLength, _), _, _) => None /* not in hole */
   | Var(NotInHole, InVarHole(Keyword(k), _), _) =>
     Some(
       CursorNotOnDeferredVarPat((
@@ -1012,8 +960,7 @@ and _ana_cursor_found_exp =
       Some((AnaWrongLength(1, n_elts, ty), Exp(e), ctx));
     | _ => None
     }
-  | OpSeq(BinOp(InHole(WrongLength, _), _, _, _), _) => None
-  /* not in hole */
+  | OpSeq(BinOp(InHole(WrongLength, _), _, _, _), _) => None /* not in hole */
   | Var(_, InVarHole(Keyword(k), _), _) =>
     Some((AnaKeyword(ty, k), Exp(e), ctx))
   | Var(_, InVarHole(Free, _), _) => Some((AnaFree(ty), Exp(e), ctx))
@@ -1478,8 +1425,7 @@ and _ana_cursor_info =
     : option(t) =>
   switch (ze) {
   | CursorE(cursor, e) =>
-    ana_cursor_found_exp(~node_steps, ~term_steps, ~frame, ctx, e, ty, cursor)
-  /* zipper cases */
+    ana_cursor_found_exp(~node_steps, ~term_steps, ~frame, ctx, e, ty, cursor) /* zipper cases */
   | ParenthesizedZ(zblock) =>
     _ana_cursor_info_block(
       ~node_steps=node_steps @ [0],
@@ -1502,9 +1448,8 @@ and _ana_cursor_info =
       seq,
       n,
       ze0,
-      ty,
+      ty /* zipper in hole */,
     );
-  /* zipper in hole */
   | LamZP(InHole(WrongLength, _), _, _, _)
   | LamZA(InHole(WrongLength, _), _, _, _)
   | LamZE(InHole(WrongLength, _), _, _, _)
@@ -1521,8 +1466,7 @@ and _ana_cursor_info =
   | CaseZR(InHole(TypeInconsistent, _), _, _, _)
   | CaseZA(InHole(TypeInconsistent, _), _, _, _)
   | ApPaletteZ(InHole(TypeInconsistent, _), _, _, _) =>
-    _syn_cursor_info(~node_steps, ~term_steps, ~frame, ctx, ze)
-  /* zipper not in hole */
+    _syn_cursor_info(~node_steps, ~term_steps, ~frame, ctx, ze) /* zipper not in hole */
   | LamZP(NotInHole, zp, ann, block) =>
     switch (HTyp.matched_arrow(ty)) {
     | None => None

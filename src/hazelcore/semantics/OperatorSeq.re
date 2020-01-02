@@ -3,28 +3,24 @@ open GeneralUtil;
 [@deriving sexp]
 type opseq('tm, 'op) =
   | ExpOpExp('tm, 'op, 'tm)
-  | SeqOpExp(opseq('tm, 'op), 'op, 'tm);
+  | SeqOpExp(opseq('tm, 'op), 'op, 'tm) /* concatenates two opseqs */;
 
-/* concatenates two opseqs */
 let rec seq_op_seq = (seq1, op1) =>
   fun
   | ExpOpExp(e1, op2, e2) => SeqOpExp(SeqOpExp(seq1, op1, e1), op2, e2)
   | SeqOpExp(seq2', op2, ue') =>
-    SeqOpExp(seq_op_seq(seq1, op1, seq2'), op2, ue');
+    SeqOpExp(seq_op_seq(seq1, op1, seq2'), op2, ue') /* prepends an expression to seq */;
 
-/* prepends an expression to seq */
 let rec exp_op_seq = (e1, op1) =>
   fun
   | ExpOpExp(e2, op2, e3) => SeqOpExp(ExpOpExp(e1, op1, e2), op2, e3)
-  | SeqOpExp(seq', op', e') => SeqOpExp(exp_op_seq(e1, op1, seq'), op', e');
+  | SeqOpExp(seq', op', e') => SeqOpExp(exp_op_seq(e1, op1, seq'), op', e') /* returns number of expressions in seq (not ops) */;
 
-/* returns number of expressions in seq (not ops) */
 let rec seq_length =
   fun
   | ExpOpExp(_, _, _) => 2
-  | SeqOpExp(seq', _, _) => 1 + seq_length(seq');
+  | SeqOpExp(seq', _, _) => 1 + seq_length(seq') /* nth expression in seq, if it exists */;
 
-/* nth expression in seq, if it exists */
 let rec nth_tm = (n, seq) =>
   switch (n, seq) {
   | (0, ExpOpExp(e1, _, _)) => Some(e1)
@@ -92,9 +88,8 @@ let rec ops = (seq: opseq(_, 'op)): list('op) =>
   switch (seq) {
   | ExpOpExp(_, op, _) => [op]
   | SeqOpExp(seq, op, _) => ops(seq) @ [op]
-  };
+  } /* update the nth expression in seq, if it exists */;
 
-/* update the nth expression in seq, if it exists */
 let rec seq_update_nth = (n, seq, e) =>
   switch (n, seq) {
   | (0, ExpOpExp(_, op, e2)) => Some(ExpOpExp(e, op, e2))
@@ -110,21 +105,17 @@ let rec seq_update_nth = (n, seq, e) =>
       | None => None
       };
     };
-  };
+  } /* set up this way to enforce the requirement that there be at least one op */;
 
-/* set up this way to enforce the requirement that there be at least one op */
 [@deriving sexp]
 type opseq_surround('tm, 'op) =
   /* if the prefix is empty, there must be a non-empty suffix */
-  | EmptyPrefix(opseq_suffix('tm, 'op))
-  /* if the suffix is empty, there must be a non-empty prefix */
-  | EmptySuffix(opseq_prefix('tm, 'op))
-  /* both can be non-empty */
+  | EmptyPrefix(opseq_suffix('tm, 'op)) /* if the suffix is empty, there must be a non-empty prefix */
+  | EmptySuffix(opseq_prefix('tm, 'op)) /* both can be non-empty */
   | BothNonEmpty(opseq_prefix('tm, 'op), opseq_suffix('tm, 'op))
 and opseq_prefix('tm, 'op) =
   /* a non-empty prefix is either one that contains a single expression */
-  | ExpPrefix('tm, 'op)
-  /* or one that contains two or more expressions, i.e. another opseq */
+  | ExpPrefix('tm, 'op) /* or one that contains two or more expressions, i.e. another opseq */
   | SeqPrefix(opseq('tm, 'op), 'op)
 and opseq_suffix('tm, 'op) =
   /* analagous to opseq_prefix */
@@ -223,30 +214,26 @@ let replace_following_op =
     Some(EmptyPrefix(replace_outer_op_suffix(suffix, op)))
   | BothNonEmpty(prefix, suffix) =>
     Some(BothNonEmpty(prefix, replace_outer_op_suffix(suffix, op)))
-  };
+  } /* append an exp to a prefix */;
 
-/* append an exp to a prefix */
 let prefix_append_exp = (prefix, e, op2) =>
   switch (prefix) {
   | ExpPrefix(e1, op1) => SeqPrefix(ExpOpExp(e1, op1, e), op2)
   | SeqPrefix(seq1, op1) => SeqPrefix(SeqOpExp(seq1, op1, e), op2)
-  };
+  } /* prepend an exp to a suffix */;
 
-/* prepend an exp to a suffix */
 let suffix_prepend_exp = (suffix, op1, e) =>
   switch (suffix) {
   | ExpSuffix(op2, e') => SeqSuffix(op1, ExpOpExp(e, op2, e'))
   | SeqSuffix(op2, seq') => SeqSuffix(op1, exp_op_seq(e, op2, seq'))
-  };
+  } /* append an exp to a suffix */;
 
-/* append an exp to a suffix */
 let suffix_append_exp = (suffix, op2, e) =>
   switch (suffix) {
   | ExpSuffix(op1, e') => SeqSuffix(op1, ExpOpExp(e', op2, e))
   | SeqSuffix(op1, seq) => SeqSuffix(op1, SeqOpExp(seq, op2, e))
-  };
+  } /* append an exp to the suffix of a surround */;
 
-/* append an exp to the suffix of a surround */
 let surround_suffix_append_exp = (surround, op1, e) =>
   switch (surround) {
   | EmptyPrefix(suffix) =>

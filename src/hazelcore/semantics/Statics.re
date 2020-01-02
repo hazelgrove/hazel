@@ -1,9 +1,8 @@
 open GeneralUtil;
 
 [@deriving sexp]
-type edit_state = (ZExp.zblock, HTyp.t, MetaVarGen.t);
+type edit_state = (ZExp.zblock, HTyp.t, MetaVarGen.t) /* see syn_skel and ana_skel below */;
 
-/* see syn_skel and ana_skel below */
 type type_mode =
   | AnalyzedAgainst(HTyp.t)
   | Synthesized(HTyp.t);
@@ -36,8 +35,7 @@ let rec syn_pat =
   | NumLit(InHole(WrongLength, _), _)
   | BoolLit(InHole(WrongLength, _), _)
   | ListNil(InHole(WrongLength, _))
-  | Inj(InHole(WrongLength, _), _, _) => None
-  /* not in hole */
+  | Inj(InHole(WrongLength, _), _, _) => None /* not in hole */
   | Wild(NotInHole) => Some((Hole, ctx))
   | Var(NotInHole, InVarHole(Free, _), _) => raise(UHPat.FreeVarInPat)
   | Var(NotInHole, InVarHole(Keyword(_), _), _) => Some((Hole, ctx))
@@ -159,8 +157,7 @@ and ana_pat = (ctx: Contexts.t, p: UHPat.t, ty: HTyp.t): option(Contexts.t) =>
   | NumLit(InHole(WrongLength, _), _)
   | BoolLit(InHole(WrongLength, _), _)
   | ListNil(InHole(WrongLength, _))
-  | Inj(InHole(WrongLength, _), _, _) => None
-  /* not in hole */
+  | Inj(InHole(WrongLength, _), _, _) => None /* not in hole */
   | Var(NotInHole, InVarHole(Free, _), _) => raise(UHPat.FreeVarInPat)
   | Var(NotInHole, InVarHole(Keyword(_), _), _) => Some(ctx)
   | Var(NotInHole, NotInVarHole, x) =>
@@ -292,7 +289,7 @@ and ana_skel_pat =
       let n_types = ListMinTwo.length(types);
       let n_skels = ListMinTwo.length(skels);
       n_types == n_skels
-        ? None  /* make sure the lengths are actually different */
+        ? None /* make sure the lengths are actually different */
         : {
           let (zipped, remainder) = HTyp.zip_with_skels(skels, types);
           let ana_zipped: option((Contexts.t, option(type_mode))) =
@@ -383,9 +380,8 @@ let ctx_for_let =
     | None => ctx
     }
   | _ => ctx
-  };
+  } /* returns recursive ctx + name of recursively defined var */;
 
-/* returns recursive ctx + name of recursively defined var */
 let ctx_for_let' =
     (ctx: Contexts.t, p: UHPat.t, ty: HTyp.t, block: UHExp.block)
     : (Contexts.t, option(Var.t)) =>
@@ -435,8 +431,7 @@ and syn_line = (ctx: Contexts.t, line: UHExp.line): option(Contexts.t) =>
       | Some(ty) => ana_pat(ctx, p, ty)
       }
     }
-  }
-/* synthesize a type, if possible, for e */
+  } /* synthesize a type, if possible, for e */
 and syn_exp = (ctx: Contexts.t, e: UHExp.t): option(HTyp.t) =>
   switch (e) {
   /* in hole */
@@ -461,8 +456,7 @@ and syn_exp = (ctx: Contexts.t, e: UHExp.t): option(HTyp.t) =>
   | Lam(InHole(WrongLength, _), _, _, _)
   | Inj(InHole(WrongLength, _), _, _)
   | Case(InHole(WrongLength, _), _, _, _)
-  | ApPalette(InHole(WrongLength, _), _, _, _) => None
-  /* not in hole */
+  | ApPalette(InHole(WrongLength, _), _, _, _) => None /* not in hole */
   | Var(NotInHole, NotInVarHole, x) => VarMap.lookup(Contexts.gamma(ctx), x)
   | Var(NotInHole, InVarHole(_, _), _) => Some(Hole)
   | NumLit(NotInHole, _) => Some(Num)
@@ -674,8 +668,7 @@ and ana_exp = (ctx: Contexts.t, e: UHExp.t, ty: HTyp.t): option(unit) =>
   | Lam(InHole(WrongLength, _), _, _, _)
   | Inj(InHole(WrongLength, _), _, _)
   | Case(InHole(WrongLength, _), _, _, _)
-  | ApPalette(InHole(WrongLength, _), _, _, _) => None
-  /* not in hole */
+  | ApPalette(InHole(WrongLength, _), _, _, _) => None /* not in hole */
   | ListNil(NotInHole) =>
     switch (HTyp.matched_list(ty)) {
     | None => None
@@ -863,7 +856,7 @@ and ana_skel =
       let n_types = ListMinTwo.length(types);
       let n_skels = ListMinTwo.length(skels);
       n_types == n_skels
-        ? None  /* make sure the lengths are actually different */
+        ? None /* make sure the lengths are actually different */
         : {
           let (zipped, remainder) = HTyp.zip_with_skels(skels, types);
           let ana_zipped: option(option(type_mode)) = (
@@ -1357,12 +1350,11 @@ let ana_fix_holes_zpat =
   let (p, ctx, u_gen) = ana_fix_holes_pat(ctx, u_gen, p, ty);
   let zp = CursorPath.follow_pat_or_fail(path, p);
   (zp, ctx, u_gen);
-};
-
-/* If renumber_empty_holes is true, then the metavars in empty holes will be assigned
+} /* If renumber_empty_holes is true, then the metavars in empty holes will be assigned
  * new values in the same namespace as non-empty holes. Non-empty holes are renumbered
  * regardless.
- */
+ */;
+
 let rec syn_fix_holes_block =
         (
           ctx: Contexts.t,
@@ -2190,9 +2182,8 @@ let ana_fix_holes_zexp =
     }
   | Some(ze) => (ze, u_gen)
   };
-};
+} /* Only to be used on top-level expressions, as it starts hole renumbering at 0 */;
 
-/* Only to be used on top-level expressions, as it starts hole renumbering at 0 */
 let fix_and_renumber_holes =
     (ctx: Contexts.t, block: UHExp.block)
     : (UHExp.block, HTyp.t, MetaVarGen.t) =>

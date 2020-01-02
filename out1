@@ -1,0 +1,2 @@
+dune build @src/fmt --auto-promote || true
+Makefile:11: recipe for target 'dev' failed

@@ -1,6 +1,5 @@
-open GeneralUtil;
+open GeneralUtil /* types with holes */;
 
-/* types with holes */
 [@deriving sexp]
 type t =
   | Hole
@@ -22,9 +21,8 @@ let rec num_tms = (ty: t): int =>
   | Arrow(ty1, ty2)
   | Prod(ty1, ty2)
   | Sum(ty1, ty2) => num_tms(ty1) + num_tms(ty2)
-  };
+  } /* eqity */;
 
-/* eqity */
 let rec eq = (ty1, ty2) =>
   switch (ty1, ty2) {
   | (Hole, Hole) => true
@@ -43,9 +41,8 @@ let rec eq = (ty1, ty2) =>
   | (Sum(_, _), _) => false
   | (List(ty), List(ty')) => eq(ty, ty')
   | (List(_), _) => false
-  };
+  } /* type consistency */;
 
-/* type consistency */
 let rec consistent = (x, y) =>
   switch (x, y) {
   | (Hole, _)
@@ -67,9 +64,8 @@ let rec consistent = (x, y) =>
   | (List(_), _) => false
   };
 
-let inconsistent = (ty1, ty2) => !consistent(ty1, ty2);
+let inconsistent = (ty1, ty2) => !consistent(ty1, ty2) /* matched arrow types */;
 
-/* matched arrow types */
 let matched_arrow =
   fun
   | Hole => Some((Hole, Hole))
@@ -80,9 +76,8 @@ let has_matched_arrow =
   fun
   | Hole => true
   | Arrow(_, _) => true
-  | _ => false;
+  | _ => false /* matched product types */;
 
-/* matched product types */
 let matched_prod =
   fun
   | Hole => Some((Hole, Hole))
@@ -132,9 +127,8 @@ let rec zip_with_skels =
   | (Cons(skel, skels), Cons(ty, tys)) =>
     let (tail, remainder) = zip_with_skels(skels, tys);
     (Cons((skel, ty), tail), remainder);
-  };
+  } /* matched sum types */;
 
-/* matched sum types */
 let matched_sum =
   fun
   | Hole => Some((Hole, Hole))
@@ -145,9 +139,8 @@ let has_matched_sum =
   fun
   | Hole => true
   | Sum(_, _) => true
-  | _ => false;
+  | _ => false /* matched list types */;
 
-/* matched list types */
 let matched_list =
   fun
   | Hole => Some(Hole)
@@ -158,9 +151,8 @@ let has_matched_list =
   fun
   | Hole => true
   | List(_) => true
-  | _ => false;
+  | _ => false /* complete (i.e. does not have any holes) */;
 
-/* complete (i.e. does not have any holes) */
 let rec complete =
   fun
   | Hole => false

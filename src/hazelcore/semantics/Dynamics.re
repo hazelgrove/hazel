@@ -8,10 +8,9 @@ type hole_sort =
 module Delta = {
   type t = MetaVarMap.t((hole_sort, HTyp.t, VarCtx.t));
   let empty: t = (MetaVarMap.empty: t);
-};
+} /* hole instance numbers are all 0 after expansion and during evaluation --
+ * renumbering is done on the final result (see below) */;
 
-/* hole instance numbers are all 0 after expansion and during evaluation --
- * renumbering is done on the final result (see below) */
 [@deriving sexp]
 type inst_num = int;
 
@@ -38,9 +37,8 @@ module DHPat = {
     | Cons(d1, ds) =>
       let d2 = make_tuple(ds);
       Pair(d1, d2);
-    };
+    } /* whether dp contains the variable x outside of a hole */;
 
-  /* whether dp contains the variable x outside of a hole */
   let rec binds_var = (x: Var.t, dp: t): bool =>
     switch (dp) {
     | EmptyHole(_, _)
@@ -501,9 +499,8 @@ module DHExp = {
     [@deriving sexp]
     type t = VarMap.t_(DHExp.t);
     include VarMap;
-  };
+  } /* closed substitution [d1/x]d2*/;
 
-  /* closed substitution [d1/x]d2*/
   let rec subst_var = (d1: t, x: Var.t, d2: t): t =>
     switch (d2) {
     | BoundVar(y) =>
@@ -998,8 +995,8 @@ module DHExp = {
     | Lam(InHole(WrongLength, _), _, _, _)
     | Inj(InHole(WrongLength, _), _, _)
     | Case(InHole(WrongLength, _), _, _, _)
-    | ApPalette(InHole(WrongLength, _), _, _, _) => DoesNotExpand
-    /* not in hole */
+    | ApPalette(InHole(WrongLength, _), _, _, _) =>
+      DoesNotExpand /* not in hole */
     | EmptyHole(u) =>
       let gamma = Contexts.gamma(ctx);
       let sigma = id_env(gamma);
@@ -1074,33 +1071,7 @@ module DHExp = {
       };
     | Case(NotInHole, _, _, None) => DoesNotExpand
     | ApPalette(NotInHole, _name, _serialized_model, _hole_data) =>
-      DoesNotExpand
-    /* TODO fix me */
-    /* let (_, palette_ctx) = ctx in
-       begin match (VarMap.lookup palette_ctx name) with
-       | Some palette_defn ->
-         let expansion_ty = UHExp.PaletteDefinition.expansion_ty palette_defn in
-         let to_exp = UHExp.PaletteDefinition.to_exp palette_defn in
-         let expansion = to_exp serialized_model in
-         let (_, hole_map) = hole_data in
-         (* bind each free variable in expansion by wrapping expansion
-          * in lambda, then apply lambda to args in hole data
-          *)
-         let bound_expansion :=
-             NatMap.fold hole_map
-               (fun bound entry ->
-                 let (n, typ_exp) = entry in
-                 let (htyp, hexp) = typ_exp in
-                 let lam = UHExp.Tm NotInHole (UHExp.Lam (UHExp.PaletteHoleData.mk_hole_ref_var_name n) bound) in
-                 let hexp_ann = UHExp.Tm NotInHole (UHExp.Asc (UHExp.Parenthesized hexp) (UHTyp.contract htyp)) in
-                 let opseq = OperatorSeq.ExpOpExp (UHExp.Parenthesized lam) UHExp.Space (UHExp.Parenthesized hexp_ann) in
-                 let ap = UHExp.OpSeq (Associator.associate_exp opseq) opseq in
-                 UHExp.Tm NotInHole ap
-               )
-               expansion in
-         ana_expand_exp ctx bound_expansion expansion_ty
-       | None -> DoesNotExpand
-       end */
+      DoesNotExpand /* let (_, palette_ctx) = ctx in   begin match (VarMap.lookup palette_ctx name) with   | Some palette_defn ->     let expansion_ty = UHExp.PaletteDefinition.expansion_ty palette_defn in     let to_exp = UHExp.PaletteDefinition.to_exp palette_defn in     let expansion = to_exp serialized_model in     let (_, hole_map) = hole_data in     (* bind each free variable in expansion by wrapping expansion      * in lambda, then apply lambda to args in hole data      *)     let bound_expansion :=         NatMap.fold hole_map           (fun bound entry ->             let (n, typ_exp) = entry in             let (htyp, hexp) = typ_exp in             let lam = UHExp.Tm NotInHole (UHExp.Lam (UHExp.PaletteHoleData.mk_hole_ref_var_name n) bound) in             let hexp_ann = UHExp.Tm NotInHole (UHExp.Asc (UHExp.Parenthesized hexp) (UHTyp.contract htyp)) in             let opseq = OperatorSeq.ExpOpExp (UHExp.Parenthesized lam) UHExp.Space (UHExp.Parenthesized hexp_ann) in             let ap = UHExp.OpSeq (Associator.associate_exp opseq) opseq in             UHExp.Tm NotInHole ap           )           expansion in     ana_expand_exp ctx bound_expansion expansion_ty   | None -> DoesNotExpand   end */ /* TODO fix me */
     }
   and syn_expand_skel =
       (ctx: Contexts.t, delta: Delta.t, skel: UHExp.skel_t, seq: UHExp.opseq)
@@ -1255,8 +1226,8 @@ module DHExp = {
     | Lam(InHole(WrongLength, _), _, _, _)
     | Inj(InHole(WrongLength, _), _, _)
     | Case(InHole(WrongLength, _), _, _, _)
-    | ApPalette(InHole(WrongLength, _), _, _, _) => DoesNotExpand
-    /* not in hole */
+    | ApPalette(InHole(WrongLength, _), _, _, _) =>
+      DoesNotExpand /* not in hole */
     | EmptyHole(u) =>
       let gamma = Contexts.gamma(ctx);
       let sigma = id_env(gamma);
@@ -1901,23 +1872,13 @@ module Evaluator = {
   type result =
     | InvalidInput(int)
     | BoxedValue(DHExp.t)
-    | Indet(DHExp.t);
-
-  /*
-     0 = out of fuel
-     1 = free or invalid variable
-     2 = ap invalid boxed function val
-     3 = boxed value not a number literal 2
-     4 = boxed value not a number literal 1
-     5 = bad pattern match
-     6 = Cast BV Hole Ground
-   */
+    | Indet(DHExp.t) /*    0 = out of fuel    1 = free or invalid variable    2 = ap invalid boxed function val    3 = boxed value not a number literal 2    4 = boxed value not a number literal 1    5 = bad pattern match    6 = Cast BV Hole Ground  */;
 
   [@deriving sexp]
   type ground_cases =
     | Hole
     | Ground
-    | NotGroundOrHole(HTyp.t); /* the argument is the corresponding ground type */
+    | NotGroundOrHole(HTyp.t) /* the argument is the corresponding ground type */;
 
   let grounded_Arrow = NotGroundOrHole(Arrow(Hole, Hole));
   let grounded_Sum = NotGroundOrHole(Sum(Hole, Hole));

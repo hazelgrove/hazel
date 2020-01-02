@@ -1,6 +1,5 @@
-open Sexplib.Std;
+open Sexplib.Std /* Variable: `doc` */;
 
-/* Variable: `doc` */
 [@deriving sexp]
 type t('tag) =
   | Text(string) // Text("") is identity for `Cat`

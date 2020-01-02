@@ -1138,7 +1138,7 @@ and view_of_sseq_tail_arg =
 }
 and view_of_stoken =
     (
-      ~inject as _: Update.Action.t => Vdom.Event.t, /* we'll need `inject` in the future e.g. invoking node staging by clicking and dragging a delimiter */
+      ~inject as _: Update.Action.t => Vdom.Event.t /* we'll need `inject` in the future e.g. invoking node staging by clicking and dragging a delimiter */,
       ~node_steps: CursorPath.steps,
       stoken: stoken,
     )
@@ -2031,8 +2031,7 @@ and snode_of_exp =
     snode_of_Var(~ap_err_status, ~err, ~var_err, ~steps, x)
   | NumLit(err, n) => snode_of_NumLit(~err, ~steps, n)
   | BoolLit(err, b) => snode_of_BoolLit(~err, ~steps, b)
-  | ListNil(err) => snode_of_ListNil(~err, ~steps, ())
-  /* inner nodes */
+  | ListNil(err) => snode_of_ListNil(~err, ~steps, ()) /* inner nodes */
   | Lam(err, arg, ann, body) =>
     let sarg = snode_of_pat(~steps=steps @ [0], arg);
     let sann =
@@ -2922,8 +2921,7 @@ let rec snode_of_dhexp =
       [mk_SLine(mb_par([SToken(SEmptyHole(hole_label_of(u, i)))]))],
     )
   | NonEmptyHole(reason, u, i, sigma, d1) =>
-    let s1 = snode_of_dhexp(~err=InHole(reason, u), ~steps=steps @ [0], d1);
-    /* TODO add SHOW_SIGMAS flag */
+    let s1 = snode_of_dhexp(~err=InHole(reason, u), ~steps=steps @ [0], d1) /* TODO add SHOW_SIGMAS flag */;
     mk_SBox(
       ~steps,
       ~shape=NonEmptyHoleInstance(reason, u, i, Some(sigma)),

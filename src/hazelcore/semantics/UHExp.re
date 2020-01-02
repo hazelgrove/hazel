@@ -37,8 +37,7 @@ and t =
   | Var(ErrStatus.t, VarErrStatus.t, Var.t)
   | NumLit(ErrStatus.t, int)
   | BoolLit(ErrStatus.t, bool)
-  | ListNil(ErrStatus.t)
-  /* inner nodes */
+  | ListNil(ErrStatus.t) /* inner nodes */
   | Lam(ErrStatus.t, UHPat.t, option(UHTyp.t), block)
   | Inj(ErrStatus.t, InjSide.t, block)
   | Case(ErrStatus.t, block, rules, option(UHTyp.t))
@@ -114,9 +113,8 @@ let rec make_tuple = (err: ErrStatus.t, skels: ListMinTwo.t(skel_t)): skel_t =>
   | Pair(skel1, skel2) => BinOp(err, Comma, skel1, skel2)
   | Cons(skel1, skels) =>
     BinOp(err, Comma, skel1, make_tuple(NotInHole, skels))
-  };
+  } /* helper function for constructing a new empty hole */;
 
-/* helper function for constructing a new empty hole */
 let new_EmptyHole = (u_gen: MetaVarGen.t): (t, MetaVarGen.t) => {
   let (u, u_gen) = MetaVarGen.next(u_gen);
   (EmptyHole(u), u_gen);
@@ -169,14 +167,12 @@ let bidelimited = (e: t): bool =>
   | ListNil(_)
   | Inj(_, _, _)
   | ApPalette(_, _, _, _)
-  | Parenthesized(_) => true
-  /* non-bidelimited */
+  | Parenthesized(_) => true /* non-bidelimited */
   | Case(_, _, _, _)
   | Lam(_, _, _, _)
   | OpSeq(_, _) => false
-  };
+  } /* if e is not bidelimited, bidelimit e parenthesizes it */;
 
-/* if e is not bidelimited, bidelimit e parenthesizes it */
 let bidelimit = (e: t): t =>
   if (bidelimited(e)) {
     e;
@@ -208,8 +204,7 @@ and get_err_status_t = (e: t): ErrStatus.t =>
 
 let rec set_err_status_block =
         (err: ErrStatus.t, Block(lines, e): block): block =>
-  Block(lines, set_err_status_t(err, e))
-/* put e in the specified hole */
+  Block(lines, set_err_status_t(err, e)) /* put e in the specified hole */
 and set_err_status_t = (err: ErrStatus.t, e: t): t =>
   switch (e) {
   | EmptyHole(_) => e
@@ -253,8 +248,7 @@ let rec make_block_inconsistent =
   let (u, u_gen) = MetaVarGen.next(u_gen);
   let block = set_err_status_block(InHole(TypeInconsistent, u), block);
   (block, u_gen);
-}
-/* put e in a new hole, if it is not already in a hole */
+} /* put e in a new hole, if it is not already in a hole */
 and make_t_inconsistent = (u_gen: MetaVarGen.t, e: t): (t, MetaVarGen.t) =>
   switch (e) {
   /* already in hole */
@@ -266,8 +260,8 @@ and make_t_inconsistent = (u_gen: MetaVarGen.t, e: t): (t, MetaVarGen.t) =>
   | Lam(InHole(TypeInconsistent, _), _, _, _)
   | Inj(InHole(TypeInconsistent, _), _, _)
   | Case(InHole(TypeInconsistent, _), _, _, _)
-  | ApPalette(InHole(TypeInconsistent, _), _, _, _) => (e, u_gen)
-  /* not in hole */
+  | ApPalette(InHole(TypeInconsistent, _), _, _, _) =>
+    (e, u_gen) /* not in hole */
   | Var(NotInHole | InHole(WrongLength, _), _, _)
   | NumLit(NotInHole | InHole(WrongLength, _), _)
   | BoolLit(NotInHole | InHole(WrongLength, _), _)
@@ -278,16 +272,14 @@ and make_t_inconsistent = (u_gen: MetaVarGen.t, e: t): (t, MetaVarGen.t) =>
   | ApPalette(NotInHole | InHole(WrongLength, _), _, _, _) =>
     let (u, u_gen) = MetaVarGen.next(u_gen);
     let e = set_err_status_t(InHole(TypeInconsistent, u), e);
-    (e, u_gen);
-  /* err in constructor args */
+    (e, u_gen /* err in constructor args */);
   | Parenthesized(block) =>
     let (block, u_gen) = make_block_inconsistent(u_gen, block);
     (Parenthesized(block), u_gen);
   | OpSeq(skel, seq) =>
     let (skel, seq, u_gen) = make_opseq_inconsistent(u_gen, skel, seq);
     (OpSeq(skel, seq), u_gen);
-  }
-/* put skel in a new hole, if it is not already in a hole */
+  } /* put skel in a new hole, if it is not already in a hole */
 and make_opseq_inconsistent =
     (u_gen: MetaVarGen.t, skel: skel_t, seq: opseq)
     : (skel_t, opseq, MetaVarGen.t) =>

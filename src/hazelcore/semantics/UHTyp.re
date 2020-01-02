@@ -15,8 +15,7 @@ type t =
   | Hole
   | Unit
   | Num
-  | Bool
-  /* inner nodes */
+  | Bool /* inner nodes */
   | Parenthesized(t)
   | List(t)
   | OpSeq(skel_t, opseq)
@@ -30,21 +29,18 @@ let bidelimited = (uty: t): bool =>
   | Hole
   | Unit
   | Num
-  | Bool => true
-  /* inner nodes */
+  | Bool => true /* inner nodes */
   | Parenthesized(_) => true
   | List(_) => true
   | OpSeq(_, _) => false
-  };
+  } /* TODO fix this to only parenthesize when necessary */;
 
-/* TODO fix this to only parenthesize when necessary */
 let rec contract = (ty: HTyp.t): t => {
   let mk_opseq = (op', a, b) => {
     let ph = n => Skel.Placeholder(n);
     let skel = Skel.BinOp(NotInHole, op', ph(0), ph(1));
     Parenthesized(OpSeq(skel, ExpOpExp(a, op', b)));
-  };
-  /* Save it for another day
+  } /* Save it for another day
      match (a, b) with
        | (OpSeq skelA opseqA, OpSeq skelB opseqB) ->
        | (OpSeq skelA opseqA, _) ->
@@ -52,7 +48,7 @@ let rec contract = (ty: HTyp.t): t => {
        | (_, _) ->
          OpSeq (Skel.BinOp NotInHole op' ?? ??) (OperatorSeq.ExpOpExp a op' b)
      end
-     */
+     */;
 
   switch (ty) {
   | Hole => Hole

@@ -1,20 +1,5 @@
 open Sexplib.Std;
-open GeneralUtil;
-
-/*
- module Steps : {
-   type t;
-   let prepend_step : ChildIndex.t => t => t;
-   let append_step : t => ChildIndex.t => t;
-   let to_list : t => list(ChildIndex.t);
- } = {
-   type t = list(ChildIndex.t);
-
-   let prepend_step = (step, steps) => [step, ...steps];
-   let append_step = (steps, step) => steps ++ [step];
-   let to_list = steps => steps;
- }
- */
+open GeneralUtil /*   module Steps : {     type t;     let prepend_step : ChildIndex.t => t => t;     let append_step : t => ChildIndex.t => t;     let to_list : t => list(ChildIndex.t);   } = {     type t = list(ChildIndex.t);       let prepend_step = (step, steps) => [step, ...steps];     let append_step = (steps, step) => steps ++ [step];     let to_list = steps => steps;   }   */;
 
 [@deriving sexp]
 type steps = list(ChildIndex.t);
@@ -321,8 +306,7 @@ let rec follow_pat_and_place_cursor =
     | (_, Var(_, _, _))
     | (_, NumLit(_, _))
     | (_, BoolLit(_, _))
-    | (_, ListNil(_)) => None
-    /* inner nodes */
+    | (_, ListNil(_)) => None /* inner nodes */
     | (0, Parenthesized(p1)) =>
       switch (follow_pat_and_place_cursor(xs, place_cursor, p1)) {
       | None => None
@@ -474,8 +458,7 @@ and follow_exp_and_place_cursor =
     | (_, Var(_, _, _))
     | (_, NumLit(_, _))
     | (_, BoolLit(_, _))
-    | (_, ListNil(_)) => None
-    /* inner nodes */
+    | (_, ListNil(_)) => None /* inner nodes */
     | (0, Parenthesized(block)) =>
       switch (
         follow_block_and_place_cursor(xs, pcl, pce, pcr, pcp, pct, block)
@@ -1065,9 +1048,8 @@ and holes_rule =
     : hole_list => {
   let holes = holes_block(block, [1, ...rev_steps], holes);
   holes_pat(p, [0, ...rev_steps], holes);
-};
+} /* two hole lists, one for before the cursor, one for after */;
 
-/* two hole lists, one for before the cursor, one for after */
 [@deriving sexp]
 type zhole_list = {
   holes_before: hole_list,

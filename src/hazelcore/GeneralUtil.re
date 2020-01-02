@@ -20,10 +20,8 @@ let rec range = (~lo=0, hi: int): list(int) =>
   if (lo >= hi) {
     [];
   } else {
-    [lo, ...range(~lo=lo + 1, hi)];
+    [lo, ...range(~lo=lo + 1, hi) /* Section ListUtil */];
   };
-
-/* Section ListUtil */
 
 let rec join = (sep: 'a, xs: list('a)): list('a) =>
   switch (xs) {
@@ -45,9 +43,8 @@ let rec unzip = (xys: list(('a, 'b))): (list('a), list('b)) =>
   | [(x, y), ...xys] =>
     let (xs, ys) = xys |> unzip;
     ([x, ...xs], [y, ...ys]);
-  };
+  } /* repeat an element n times */;
 
-/* repeat an element n times */
 let replicate = (n: int, e: 'a): list('a) => {
   /* add c additional copies of e to xs */
   let rec f = (c, xs) =>
@@ -57,9 +54,8 @@ let replicate = (n: int, e: 'a): list('a) => {
       xs;
     };
   f(n, []);
-};
+} /* remove the first n elements from the given list */;
 
-/* remove the first n elements from the given list */
 let rec drop = (n: int, xs: list('a)) =>
   if (n > 0) {
     switch (xs) {
@@ -213,9 +209,7 @@ let string_of_pair = (string_of_left, string_of_right, (left, right)) =>
 let string_of_opt = string_of_elt =>
   fun
   | None => "None"
-  | Some(elt) => "Some(" ++ string_of_elt(elt) ++ ")";
-
-/* End ListUtil */
+  | Some(elt) => "Some(" ++ string_of_elt(elt) ++ ")" /* End ListUtil */;
 
 module ZList = {
   [@deriving sexp]
@@ -305,9 +299,7 @@ module ZList = {
       (List.rev(rev_prefix), prev, suffix);
     };
   };
-};
-
-/* Section StringUtil */
+} /* Section StringUtil */;
 
 let str_eqb = String.equal;
 
@@ -405,10 +397,9 @@ module NatMap = {
   let to_list = delta => delta;
 
   let fold = (delta, f, b) => List.fold_left(f, b, delta);
-};
+} /* Zippered finite map over nats, used with Z expressions
+ * i.e. there is a selected element of type Z and the rest is a int map of type A */;
 
-/* Zippered finite map over nats, used with Z expressions
- * i.e. there is a selected element of type Z and the rest is a int map of type A */
 module ZNatMap = {
   [@deriving sexp]
   type t('a, 'z) = (NatMap.t('a), (int, 'z));

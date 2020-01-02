@@ -7,8 +7,7 @@ type opseq_suffix = OperatorSeq.opseq_suffix(UHTyp.t, UHTyp.op);
 
 [@deriving sexp]
 type t =
-  | CursorT(CursorPosition.t, UHTyp.t)
-  /* zipper cases */
+  | CursorT(CursorPosition.t, UHTyp.t) /* zipper cases */
   | ParenthesizedZ(t)
   | ListZ(t)
   | OpSeqZ(UHTyp.skel_t, t, opseq_surround);
@@ -47,12 +46,10 @@ let rec is_before = (zty: t): bool =>
   | CursorT(cursor, Hole)
   | CursorT(cursor, Unit)
   | CursorT(cursor, Num)
-  | CursorT(cursor, Bool) => cursor == OnDelim(0, Before)
-  /* inner nodes */
+  | CursorT(cursor, Bool) => cursor == OnDelim(0, Before) /* inner nodes */
   | CursorT(cursor, Parenthesized(_))
   | CursorT(cursor, List(_)) => cursor == OnDelim(0, Before)
-  | CursorT(_, OpSeq(_, _)) => false
-  /* zipper cases */
+  | CursorT(_, OpSeq(_, _)) => false /* zipper cases */
   | ParenthesizedZ(_) => false
   | ListZ(_) => false
   | OpSeqZ(_, zty, EmptyPrefix(_)) => is_before(zty)
@@ -65,8 +62,7 @@ let rec is_after = (zty: t): bool =>
   | CursorT(cursor, Hole)
   | CursorT(cursor, Unit)
   | CursorT(cursor, Num)
-  | CursorT(cursor, Bool) => cursor == OnDelim(0, After)
-  /* inner nodes */
+  | CursorT(cursor, Bool) => cursor == OnDelim(0, After) /* inner nodes */
   | CursorT(cursor, Parenthesized(_))
   | CursorT(cursor, List(_)) => cursor == OnDelim(1, After)
   | CursorT(_, OpSeq(_, _)) => false
@@ -82,8 +78,7 @@ let rec place_before = (uty: UHTyp.t): t =>
   | Hole
   | Unit
   | Num
-  | Bool
-  /* inner nodes */
+  | Bool /* inner nodes */
   | Parenthesized(_)
   | List(_) => CursorT(OnDelim(0, Before), uty)
   | OpSeq(skel, seq) =>
@@ -99,8 +94,7 @@ let rec place_after = (uty: UHTyp.t): t =>
   | Hole
   | Unit
   | Num
-  | Bool => CursorT(OnDelim(0, After), uty)
-  /* inner nodes */
+  | Bool => CursorT(OnDelim(0, After), uty) /* inner nodes */
   | Parenthesized(_)
   | List(_) => CursorT(OnDelim(1, After), uty)
   | OpSeq(skel, seq) =>
