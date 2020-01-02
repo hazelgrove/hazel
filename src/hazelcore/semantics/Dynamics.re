@@ -21,7 +21,7 @@ module DHPat = {
     | EmptyHole(MetaVar.t, inst_num)
     | NonEmptyHole(ErrStatus.HoleReason.t, MetaVar.t, inst_num, t)
     | Wild
-    | Keyword(MetaVar.t, inst_num, Keyword.t)
+    | IntermediateKW(MetaVar.t, inst_num, IntermediateKeyword.t)
     | Var(Var.t)
     | NumLit(int)
     | BoolLit(bool)
@@ -50,7 +50,7 @@ module DHPat = {
     | BoolLit(_)
     | Triv
     | ListNil
-    | Keyword(_, _, _) => false
+    | IntermediateKW(_, _, _) => false
     | Var(y) => Var.eq(x, y)
     | Inj(_, dp1) => binds_var(x, dp1)
     | Pair(dp1, dp2) => binds_var(x, dp1) || binds_var(x, dp2)
@@ -96,7 +96,7 @@ module DHPat = {
     | Wild(NotInHole) => Expands(Wild, Hole, ctx, delta)
     | Var(NotInHole, InVarHole(Free, _), _) => raise(UHPat.FreeVarInPat)
     | Var(NotInHole, InVarHole(Keyword(k), u), _) =>
-      Expands(Keyword(u, 0, k), Hole, ctx, delta)
+      Expands(IntermediateKW(u, 0, k), Hole, ctx, delta)
     | Var(NotInHole, NotInVarHole, x) =>
       let ctx = Contexts.extend_gamma(ctx, (x, Hole));
       Expands(Var(x), Hole, ctx, delta);
@@ -207,7 +207,7 @@ module DHPat = {
       Expands(dp, ty, ctx, delta);
     | Var(NotInHole, InVarHole(Free, _), _) => raise(UHPat.FreeVarInPat)
     | Var(NotInHole, InVarHole(Keyword(k), u), _) =>
-      Expands(Keyword(u, 0, k), ty, ctx, delta)
+      Expands(IntermediateKW(u, 0, k), ty, ctx, delta)
     | Var(NotInHole, NotInVarHole, x) =>
       let ctx = Contexts.extend_gamma(ctx, (x, ty));
       Expands(Var(x), ty, ctx, delta);
@@ -421,7 +421,12 @@ module DHExp = {
           VarMap.t_(t),
           t,
         )
-      | Keyword(MetaVar.t, inst_num, VarMap.t_(t), Keyword.t)
+      | IntermediateKW(
+          MetaVar.t,
+          inst_num,
+          VarMap.t_(t),
+          IntermediateKeyword.t,
+        )
       | FreeVar(MetaVar.t, inst_num, VarMap.t_(t), Var.t)
       | BoundVar(Var.t)
       | Let(DHPat.t, t, t)
@@ -450,7 +455,7 @@ module DHExp = {
     switch (d) {
     | EmptyHole(_, _, _) => "EmptyHole"
     | NonEmptyHole(_, _, _, _, _) => "NonEmptyHole"
-    | Keyword(_, _, _, _) => "Keyword"
+    | IntermediateKW(_, _, _, _) => "Keyword"
     | FreeVar(_, _, _, _) => "FreeVar"
     | BoundVar(_) => "BoundVar"
     | Let(_, _, _) => "Let"
@@ -513,7 +518,7 @@ module DHExp = {
         d2;
       }
     | FreeVar(_, _, _, _) => d2
-    | Keyword(_, _, _, _) => d2
+    | IntermediateKW(_, _, _, _) => d2
     | Let(dp, d3, d4) =>
       let d3 = subst_var(d1, x, d3);
       let d4 =
@@ -630,7 +635,7 @@ module DHExp = {
     | (EmptyHole(_, _), _)
     | (NonEmptyHole(_, _, _, _), _) => Indet
     | (Wild, _) => Matches(Environment.empty)
-    | (Keyword(_, _, _), _) => DoesNotMatch
+    | (IntermediateKW(_, _, _), _) => DoesNotMatch
     | (Var(x), _) =>
       let env = Environment.extend(Environment.empty, (x, d));
       Matches(env);
@@ -750,7 +755,7 @@ module DHExp = {
     | Cast(_, _, _) => DoesNotMatch
     | BoundVar(_) => DoesNotMatch
     | FreeVar(_, _, _, _) => Indet
-    | Keyword(_, _, _, _) => Indet
+    | IntermediateKW(_, _, _, _) => Indet
     | Let(_, _, _) => Indet
     | FixF(_, _, _) => DoesNotMatch
     | Lam(_, _, _) => DoesNotMatch
@@ -804,7 +809,7 @@ module DHExp = {
     | Cast(_, _, _) => DoesNotMatch
     | BoundVar(_) => DoesNotMatch
     | FreeVar(_, _, _, _) => Indet
-    | Keyword(_, _, _, _) => Indet
+    | IntermediateKW(_, _, _, _) => Indet
     | Let(_, _, _) => Indet
     | FixF(_, _, _) => DoesNotMatch
     | Lam(_, _, _) => DoesNotMatch
@@ -853,7 +858,7 @@ module DHExp = {
     | Cast(_, _, _) => DoesNotMatch
     | BoundVar(_) => DoesNotMatch
     | FreeVar(_, _, _, _) => Indet
-    | Keyword(_, _, _, _) => Indet
+    | IntermediateKW(_, _, _, _) => Indet
     | Let(_, _, _) => Indet
     | FixF(_, _, _) => DoesNotMatch
     | Lam(_, _, _) => DoesNotMatch
@@ -1022,7 +1027,7 @@ module DHExp = {
       let d =
         switch (reason) {
         | Free => DHExp.FreeVar(u, 0, sigma, x)
-        | Keyword(k) => DHExp.Keyword(u, 0, sigma, k)
+        | Keyword(k) => DHExp.IntermediateKW(u, 0, sigma, k)
         };
       Expands(d, Hole, delta);
     | NumLit(NotInHole, n) => Expands(NumLit(n), Num, delta)
@@ -1272,7 +1277,7 @@ module DHExp = {
       let d =
         switch (reason) {
         | Free => FreeVar(u, 0, sigma, x)
-        | Keyword(k) => Keyword(u, 0, sigma, k)
+        | Keyword(k) => IntermediateKW(u, 0, sigma, k)
         };
       Expands(d, ty, delta);
     | Parenthesized(block) => ana_expand_block(ctx, delta, block, ty)
@@ -1652,11 +1657,11 @@ module DHExp = {
       let (i, hii) = HoleInstanceInfo.next(hii, u, sigma, path);
       let (dp1, hii) = renumber_result_only_pat(path, hii, dp1);
       (NonEmptyHole(reason, u, i, dp1), hii);
-    | Keyword(u, _, k) =>
+    | IntermediateKW(u, _, k) =>
       /* TODO: see above */
       let sigma = Environment.empty;
       let (i, hii) = HoleInstanceInfo.next(hii, u, sigma, path);
-      (Keyword(u, i, k), hii);
+      (IntermediateKW(u, i, k), hii);
     | Inj(side, dp1) =>
       let (dp1, hii) = renumber_result_only_pat(path, hii, dp1);
       (Inj(side, dp1), hii);
@@ -1734,9 +1739,9 @@ module DHExp = {
     | FreeVar(u, _, sigma, x) =>
       let (i, hii) = HoleInstanceInfo.next(hii, u, sigma, path);
       (FreeVar(u, i, sigma, x), hii);
-    | Keyword(u, _, sigma, k) =>
+    | IntermediateKW(u, _, sigma, k) =>
       let (i, hii) = HoleInstanceInfo.next(hii, u, sigma, path);
-      (Keyword(u, i, sigma, k), hii);
+      (IntermediateKW(u, i, sigma, k), hii);
     | Cast(d1, ty1, ty2) =>
       let (d1, hii) = renumber_result_only(path, hii, d1);
       (Cast(d1, ty1, ty2), hii);
@@ -1824,10 +1829,10 @@ module DHExp = {
       let (sigma, hii) = renumber_sigma(path, u, i, hii, sigma);
       let hii = HoleInstanceInfo.update_environment(hii, (u, i), sigma);
       (FreeVar(u, i, sigma, x), hii);
-    | Keyword(u, i, sigma, k) =>
+    | IntermediateKW(u, i, sigma, k) =>
       let (sigma, hii) = renumber_sigma(path, u, i, hii, sigma);
       let hii = HoleInstanceInfo.update_environment(hii, (u, i), sigma);
-      (Keyword(u, i, sigma, k), hii);
+      (IntermediateKW(u, i, sigma, k), hii);
     | Cast(d1, ty1, ty2) =>
       let (d1, hii) = renumber_sigmas_only(path, hii, d1);
       (Cast(d1, ty1, ty2), hii);
@@ -2090,7 +2095,7 @@ module Evaluator = {
       | Indet(d1') => Indet(NonEmptyHole(reason, u, i, sigma, d1'))
       }
     | FreeVar(_, _, _, _) => Indet(d)
-    | Keyword(_, _, _, _) => Indet(d)
+    | IntermediateKW(_, _, _, _) => Indet(d)
     | Cast(d1, ty, ty') =>
       switch (evaluate(d1)) {
       | InvalidInput(msg) => InvalidInput(msg)

@@ -143,6 +143,13 @@ let page_view =
         )
       )
     };
+  let block = model |> Model.zblock |> ZExp.erase_block;
+  let doc = DocOfTerm.doc_of_block(~steps=[], block);
+  let layout =
+    switch (LayoutOfDoc.layout_of_doc(doc, ~width=80, ~pos=0)) {
+    | None => Layout.t_of_layout(Layout.Text("layout FAILED")) // TODO
+    | Some(l) => l
+    };
   Vdom.(
     Node.div(
       [Attr.id("root")],
@@ -163,7 +170,7 @@ let page_view =
             /*
              Sidebar.left(
                ~inject,
-               false,
+               model,
                [ActionPanel.view(~inject, model)] //the_history_panel,
              ),
              */
@@ -201,9 +208,6 @@ let page_view =
                     Node.button(
                       [
                         Attr.on_click(_ => {
-                          let block =
-                            model |> Model.zblock |> ZExp.erase_block;
-                          let doc = DocOfTerm.doc_of_block(~steps=[], block);
                           Printf.printf(
                             "doc sexp: %s\n",
                             Sexplib.Sexp.to_string(
@@ -251,13 +255,26 @@ let page_view =
                       ],
                       [Node.text("Serialize to console")],
                     ),
+                    Node.div(
+                      [],
+                      if (!model.show_content_editable) {
+                        [];
+                      } else {
+                        [
+                          Node.pre(
+                            [],
+                            [Node.text(Layout.string_of_layout(layout))],
+                          ),
+                        ];
+                      },
+                    ),
                   ],
                 ),
               ],
             ),
             Sidebar.right(
               ~inject,
-              true,
+              model,
               [
                 CursorInspector.view(~inject, model),
                 ContextInspector.view(~inject, model),
