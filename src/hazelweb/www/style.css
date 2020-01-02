@@ -48,6 +48,7 @@
   --delim-group-z: 2;
   --inline-border-z: 3;
   --closed-child-z: 4;
+  --caret-z: 5;
 }
 
 /* general */
@@ -836,6 +837,7 @@ button:disabled {
 
 /* https://codepen.io/ArtemGordinsky/pen/GnLBq */
 #caret {
+  z-index: var(--caret-z);
   position: absolute;
   display: inline-block;
   font-weight: 100;
