@@ -917,7 +917,7 @@ button:disabled {
   box-shadow: 2px 2px 0px 0px var(--shadow-color);
 }
 .Cursor.Term.has-Inline-OpenChild::before {
-  top: 100%;
+  top: calc(100% - 4px);
   left: 0;
   height: 4px;
   width: 100%;
