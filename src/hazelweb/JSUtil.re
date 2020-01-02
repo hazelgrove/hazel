@@ -339,10 +339,11 @@ module ModKeys = {
   };
 
   let not_held = {c: NotHeld, s: NotHeld, a: NotHeld, m: NotHeld};
-  let ctrl = {c: Held, s: Any, a: NotHeld, m: NotHeld};
+  let ctrl = {c: Held, s: NotHeld, a: NotHeld, m: NotHeld};
   let shift = {c: NotHeld, s: Held, a: NotHeld, m: NotHeld};
   let alt = {c: NotHeld, s: Any, a: Held, m: NotHeld};
   let no_ctrl_alt_meta = {c: NotHeld, s: Any, a: NotHeld, m: NotHeld};
+  let ctrl_shift = {c: Held, s: Held, a: NotHeld, m: NotHeld};
 
   let req_matches = (req, mk, evt) =>
     switch (req) {
@@ -427,6 +428,7 @@ module KeyCombo = {
     let shift = key => {mod_keys: ModKeys.shift, key};
     let ctrl = key => {mod_keys: ModKeys.ctrl, key};
     let alt = key => {mod_keys: ModKeys.alt, key};
+    let ctrl_shift = key => {mod_keys: ModKeys.ctrl_shift, key};
 
     let matches = (kc, evt: Js.t(Dom_html.keyboardEvent)) =>
       ModKeys.matches(kc.mod_keys, evt) && Key.matches(kc.key, evt);
@@ -473,6 +475,8 @@ module KeyCombo = {
     let key_B = no_ctrl_alt_meta(Key.the_key("B"));
     let key_N = no_ctrl_alt_meta(Key.the_key("N"));
     let key_L = no_ctrl_alt_meta(Key.the_key("L"));
+    let ctrl_z = ctrl(Key.the_letter_code("Z"));
+    let ctrl_shift_z = ctrl_shift(Key.the_letter_code("Z"));
   };
 
   type t =
@@ -502,7 +506,9 @@ module KeyCombo = {
     | Semicolon
     | Alt_L
     | Alt_R
-    | Alt_C;
+    | Alt_C
+    | Ctrl_Z
+    | Ctrl_Shift_Z;
 
   let get_details =
     fun
@@ -532,11 +538,17 @@ module KeyCombo = {
     | Semicolon => Details.semicolon
     | Alt_L => Details.alt_L
     | Alt_R => Details.alt_R
-    | Alt_C => Details.alt_C;
+    | Alt_C => Details.alt_C
+    | Ctrl_Z => Details.ctrl_z
+    | Ctrl_Shift_Z => Details.ctrl_shift_z;
 
   let of_evt = (evt: Js.t(Dom_html.keyboardEvent)): option(t) => {
     let evt_matches = details => Details.matches(details, evt);
-    if (evt_matches(Details.escape)) {
+    if (evt_matches(Details.ctrl_z)) {
+      Some(Ctrl_Z);
+    } else if (evt_matches(Details.ctrl_shift_z)) {
+      Some(Ctrl_Shift_Z);
+    } else if (evt_matches(Details.escape)) {
       Some(Escape);
     } else if (evt_matches(Details.backspace)) {
       Some(Backspace);

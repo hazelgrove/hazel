@@ -84,22 +84,35 @@ type has_result_state = {
 
 type result_state =
   | ResultsDisabled
-  | Result(has_result_state);
+  | Result(has_result_state) /* type checkpoint = (Statics.edit_state, ZList.t(unit, Action.t));   type history = ZList.t(checkpoint, checkpoint); */;
+
+[@deriving sexp]
+type history = ZList.t(Statics.edit_state, Statics.edit_state);
 
 type t = {
   cardstacks,
-  cardstacks_state,
-  /* these are derived from the cardstack state: */
+  cardstacks_state /* these are derived from the cardstack state: */,
   cursor_info: CursorInfo.t,
   compute_results_flag: bool,
-  result_state,
-  /* UI state */
+  result_state /* UI state */,
   user_newlines,
   selected_example: option(UHExp.block),
   is_cell_focused: bool,
   left_sidebar_open: bool,
   right_sidebar_open: bool,
+  history,
 };
+
+let add_history = (history: history, edit_state: Statics.edit_state): history => {
+  let add_new = (
+    ZList.prj_prefix(history),
+    ZList.prj_z(history),
+    [edit_state],
+  );
+  ZList.shift_next(add_new);
+};
+let undo_edit_state = history => ZList.shift_prev(history);
+let redo_edit_state = history => ZList.shift_next(history);
 
 let cardstack_state_of = model => ZList.prj_z(model.cardstacks_state);
 
@@ -140,14 +153,14 @@ let cursor_info_of_edit_state = ((zblock, _, _): edit_state): CursorInfo.t =>
   ) {
   | None => raise(MissingCursorInfo)
   | Some(ci) =>
-/* uncomment to see where variable is used
-    switch (ci.node) {
-    | Pat(VarPat(_, uses)) =>
-      JSUtil.log_sexp(UsageAnalysis.sexp_of_uses_list(uses))
-    | _ => JSUtil.log("not varpat")
-    };
-*/
-    ci;
+    /* uncomment to see where variable is used
+           switch (ci.node) {
+           | Pat(VarPat(_, uses)) =>
+             JSUtil.log_sexp(UsageAnalysis.sexp_of_uses_list(uses))
+           | _ => JSUtil.log("not varpat")
+           };
+       */
+    ci
   };
 
 exception InvalidInput;
@@ -373,6 +386,7 @@ let init = (): t => {
     selected_example: None,
     is_cell_focused: false,
     user_newlines: CursorPath.StepsMap.empty,
+    history: ([], edit_state, []),
   };
 };
 
@@ -391,7 +405,27 @@ let perform_edit_action = (model: t, a: Action.t): t => {
   | Failed => raise(FailedAction)
   | CursorEscaped(_) => raise(CursorEscaped)
   | CantShift => raise(CantShift)
-  | Succeeded(new_edit_state) => model |> update_edit_state(new_edit_state)
+  | Succeeded(new_edit_state) =>
+    let new_model = model |> update_edit_state(new_edit_state);
+    let new_history = {
+      switch (a) {
+      | UpdateApPalette(_)
+      | Delete
+      | Backspace
+      | Construct(_) => add_history(model.history, new_edit_state)
+      | MoveTo(_)
+      | MoveToBefore(_)
+      | MoveLeft
+      | MoveRight
+      | MoveToNextHole
+      | MoveToPrevHole
+      | ShiftLeft
+      | ShiftRight
+      | ShiftUp
+      | ShiftDown => model.history
+      };
+    };
+    {...new_model, history: new_history};
   };
 };
 
@@ -410,6 +444,19 @@ let move_to_hole = (model: t, u: MetaVar.t): t => {
   };
 };
 
+let undo = (model: t): t => {
+  let new_history = undo_edit_state(model.history);
+  let new_edit_state = ZList.prj_z(new_history);
+  let new_model = model |> update_edit_state(new_edit_state);
+  {...new_model, history: new_history};
+};
+
+let redo = (model: t): t => {
+  let new_history = redo_edit_state(model.history);
+  let new_edit_state = ZList.prj_z(new_history);
+  let new_model = model |> update_edit_state(new_edit_state);
+  {...new_model, history: new_history};
+};
 let select_hole_instance = (model, (u, i) as inst) => {
   switch (model.result_state) {
   | ResultsDisabled => model
