@@ -948,6 +948,10 @@ button:disabled {
   --bg-color: var(--pat-bg-color);
   --shadow-color: var(--pat-shadow-color);
 }
+.Cursor.Term.Typ::before {
+  --bg-color: var(--typ-bg-color);
+  --shadow-color: var(--typ-shadow-color);
+}
 
 .Term {
   border-radius: var(--code-radius);
@@ -964,6 +968,10 @@ button:disabled {
 .Cursor.Term.Pat.Operand.no-children {
   background-color: var(--pat-bg-color);
   box-shadow: 2px 2px 0px 0px var(--pat-shadow-color);
+}
+.Cursor.Term.Typ.Operand.no-children {
+  background-color: var(--typ-bg-color);
+  box-shadow: 2px 2px 0px 0px var(--typ-shadow-color);
 }
 
 .Cursor.Term.has-Inline-OpenChild .DelimGroup {
