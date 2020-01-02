@@ -150,6 +150,8 @@ let page_view =
     | None => Layout.t_of_layout(Layout.Text("layout FAILED")) // TODO
     | Some(l) => l
     };
+  let layout = Layout.remove_tags(layout);
+  let box = Box.box_of_layout(layout);
   Vdom.(
     Node.div(
       [Attr.id("root")],
@@ -214,25 +216,16 @@ let page_view =
                               DocOfTerm.sexp_of_doc(doc),
                             ),
                           );
-                          switch (
-                            LayoutOfDoc.layout_of_doc(doc, ~width=80, ~pos=0)
-                          ) {
-                          | None => Printf.printf("layout FAILED\n")
-                          | Some(layout) =>
-                            Printf.printf(
-                              "layout sexp: %s\n",
-                              Sexplib.Sexp.to_string(
-                                Layout.sexp_of_t(
-                                  DocOfTerm.sexp_of_tag,
-                                  layout,
-                                ),
-                              ),
-                            );
-                            Printf.printf(
-                              "%s\n",
-                              layout |> Layout.string_of_layout,
-                            );
-                          };
+                          Printf.printf(
+                            "layout sexp: %s\n",
+                            Sexplib.Sexp.to_string(
+                              Layout.sexp_of_t(DocOfTerm.sexp_of_tag, layout),
+                            ),
+                          );
+                          Printf.printf(
+                            "%s\n",
+                            layout |> Layout.string_of_layout,
+                          );
                           Event.Ignore;
                         }),
                       ],
@@ -266,6 +259,14 @@ let page_view =
                             [Node.text(Layout.string_of_layout(layout))],
                           ),
                         ];
+                      },
+                    ),
+                    Node.div(
+                      [Attr.style(Css_gen.white_space(`Pre))],
+                      if (!model.show_presentation) {
+                        [];
+                      } else {
+                        [JSUtil.vdom_of_box(box)];
                       },
                     ),
                   ],
