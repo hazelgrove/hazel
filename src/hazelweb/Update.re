@@ -26,7 +26,9 @@ module Action = {
     | BlurCell
     | FocusWindow
     | AddUserNewline(CursorPath.steps)
-    | RemoveUserNewline(CursorPath.steps);
+    | RemoveUserNewline(CursorPath.steps)
+    | Redo
+    | Undo;
 };
 
 [@deriving sexp]
@@ -79,6 +81,8 @@ let log_action = (action: Action.t, _: State.t): unit => {
   | FocusWindow
   | AddUserNewline(_)
   | RemoveUserNewline(_)
+  | Redo
+  | Undo
   | MoveToHole(_) =>
     Logger.append(
       Sexp.to_string(
@@ -94,6 +98,8 @@ let apply_action =
     : Model.t => {
   log_action(action, state);
   switch (action) {
+  | Redo => Model.redo(model)
+  | Undo => Model.undo(model)
   | EditAction(a) =>
     switch (Model.perform_edit_action(model, a)) {
     | new_model => new_model
