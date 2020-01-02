@@ -887,7 +887,13 @@ module Pat = {
     | (_, ZOperand(zoperand, surround)) =>
       switch (CursorInfo.Pat.syn_cursor_info(ctx, ZP1(zopseq))) {
       | None => Failed
-      | Some(ci) =>
+      | Some(deferrable) =>
+        // TODO hack to merge usage analysis
+        let ci =
+          switch (deferrable) {
+          | CursorNotOnDeferredVarPat(ci) => ci
+          | CursorOnDeferredVarPat(deferred, _) => deferred([])
+          };
         switch (ci |> CursorInfo.type_mode) {
         | None => Failed
         | Some(Syn) =>
@@ -910,7 +916,7 @@ module Pat = {
             let new_zseq = resurround_z(zp, surround);
             Succeeded(mk_and_syn_fix_ZOpSeq(ctx, u_gen, new_zseq));
           }
-        }
+        };
       }
     }
   and syn_perform_operand =
@@ -1242,9 +1248,17 @@ module Pat = {
 
     /* Zipper */
     | (_, ZOperand(zoperand, surround)) =>
-      switch (CursorInfo.Pat.ana_cursor_info_zopseq(ctx, zopseq, ty)) {
+      switch (
+        CursorInfo.Pat.ana_cursor_info_zopseq(~steps=[], ctx, zopseq, ty)
+      ) {
       | None => Failed
-      | Some(ci) =>
+      | Some(deferrable) =>
+        // TODO hack to merge usage analysis
+        let ci =
+          switch (deferrable) {
+          | CursorNotOnDeferredVarPat(ci) => ci
+          | CursorOnDeferredVarPat(deferred, _) => deferred([])
+          };
         switch (ci |> CursorInfo.type_mode) {
         | None => Failed
         | Some(Syn) =>
@@ -1265,7 +1279,7 @@ module Pat = {
             let new_zseq = resurround_z(zp, surround);
             Succeeded(mk_and_ana_fix_ZOpSeq(ctx, u_gen, new_zseq, ty));
           }
-        }
+        };
       }
     }
   and ana_perform_operand =
