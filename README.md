@@ -1,6 +1,6 @@
-# Hazel
+# Hazel [![Build status: dev](https://img.shields.io/travis/hazelgrove/hazel/dev?label=build:%20dev)](https://travis-ci.org/hazelgrove/hazel) [![Build status: master](https://img.shields.io/travis/hazelgrove/hazel/master?label=build:%20master)](https://travis-ci.org/hazelgrove/hazel)
 
-![Hazel Mascot](src/hazelweb/www/imgs/hazel-logo.png)
+[![Hazel Mascot](src/hazelweb/www/imgs/hazel-logo.png)](https://hazel.org)
 
 Hazel is a live functional-programming environment rooted in the principles of
 type theory. You can find the relevant papers and more motivation at [the Hazel
@@ -10,31 +10,51 @@ You can try Hazel online with either the
 [stable](https://hazel.org/build/master/index.html) or
 [development](https://hazel.org/build/dev/index.html) version.
 
-### Build Status
+### Demo
 
-- Development branch (`dev`):
-  [![Build Status](https://travis-ci.org/hazelgrove/hazel.svg?branch=dev)](https://travis-ci.org/hazelgrove/hazel)
+- [Live Functional Programming with Typed Holes (POPL 2019)](https://www.youtube.com/watch?v=q58NFuUr0GU)
 
-- Stable branch (`master`):
-  [![Build Status](https://travis-ci.org/hazelgrove/hazel.svg?branch=master)](https://travis-ci.org/hazelgrove/hazel)
-
-## Screenshot of Hazel in Action
+### Screenshot
 
 ![Screenshot of Hazel](hazel-screenshot.png)
+
+Note that this screenshot is of the `master` (i.e., stable) branch circa 2019.
+Hazel is under rapid development, so this screenshot may not reflect the most
+recent version.
+
+<!-- TODO: screenshot with a hole -->
+<!-- TODO: animated gif -->
 
 ## Building and Running Hazel
 
 ### Prerequisites
 
-- If you are on Windows:
+- If you are on Windows, install the Windows Subsystem for Linux (WSL) by doing the
+  following.
+  
+  - WSL has to be enabled before it can be installed. So, to enable WSL, do the following:
 
-  - Go the to Microsoft Store, and search for and install "Ubuntu".  This will
-    install the Windows Subsystem for Linux and the Ubuntu Linux distribution.
+    - From the start menu or task bar, open the "PowerShell" application. This will
+      open a PowerShell command prompt.
+
+    - Run the following command at the PowerShell prompt:
+  
+      ```sh
+      Enable-WindowsOptionalFeature -Online -FeatureName Microsoft-Windows-Subsystem-Linux
+      ```
+  
+    - When this command asks you if you want to reboot, reboot by pressing `y`.
+
+  - After enabling WSL, to install WSL, go the to Microsoft Store, and search for and install "Ubuntu".
+    This will install WSL and the Ubuntu Linux distribution.
 
   - From the start menu or taskbar, open the "Ubuntu" application.  This will
-    open a Bash shell on Ubuntu Linux.
+    open a Bash shell on Ubuntu Linux.  Use this when running the commands in
+    the rest of these instructions.
+    
+- If you are on MacOS, make sure you have [Homebrew](https://brew.sh/) installed.
 
-- Make sure make sure `gcc`, `git`, `make`, and `m4` are installed.
+- Make sure `gcc`, `git`, `make`, and `m4` are installed.
 
   - If you are on Linux or Windows, you can do this by running the following
     commands:
@@ -47,10 +67,17 @@ You can try Hazel online with either the
     sudo apt install gcc git make m4
     ```
 
-  - If you are on MacOS, you can do this by running the following commands:
+  - If you are on MacOS, we recommend using the built-in `m4` (i.e., not the one from Homebrew).
+    
+    You can install the remaining programs (i.e., `gcc`, `git`, and `make`) by
+    running the following commands:
 
     ```sh
-    TODO
+    brew update
+    ```
+
+    ```sh
+    brew install gcc git make
     ```
 
 ### Install and Initialize `opam`
@@ -75,7 +102,11 @@ You can try Hazel online with either the
   - If you are on MacOS, you can do this by running the following commands:
 
     ```sh
-    TODO
+    brew update
+    ```
+
+    ```sh
+    brew install opam
     ```
 
 - Check that you have the correct version of `opam` by running the following
@@ -129,11 +160,17 @@ You can try Hazel online with either the
 - Pick a directory that you want to be the parent of the directory that contains
   the Hazel source code and use the `cd` command to change to that
   directory.
-
-- Clone a copy of the source code by running the following command:
+  
+- Clone a copy of the source code by either running the following command:
 
   ```
   git clone git@github.com:hazelgrove/hazel.git
+  ```
+
+  Or running the following command:
+
+  ```
+  git clone https://github.com/hazelgrove/hazel.git
   ```
 
   This will put create a `hazel` directory containing the Hazel source code
@@ -201,7 +238,7 @@ dev` or `make release` again.
 - Once Hazel is compiled, you can see it in action by running one of the
   following commands.
 
-  - If you are on Linux or MacOS, you can launch Hazel with `BROWSER $(make
+  - If you are on Linux, you can launch Hazel with `BROWSER $(make
     echo-html)` where (depending on your installed operating system and browser)
     `BROWSER` is one of:
 
@@ -210,6 +247,8 @@ dev` or `make release` again.
     - `chrome-browser`,
     - `chromium`, or
     - `chromium-browser`.
+
+  - If you are on MacOS, you can launch Hazell with `open $(make echo-html)`.
 
   - If you are on Windows, the path to the browser may not be so easy to type, so you
     can use the following commands to launch Hazel in the browser:
