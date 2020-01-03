@@ -31,8 +31,11 @@ let shape_clss: TermShape.t => list(cls) =
   fun
   | Rule => ["Rule"]
   | Case({err}) => ["Case", ...clss_of_err(err)]
-  | Operand({err, verr}) =>
-    ["Operand", ...clss_of_err(err)] @ clss_of_verr(verr)
+  | Var({err, verr, show_use}) =>
+    ["Operand", "Var", ...clss_of_err(err)]
+    @ clss_of_verr(verr)
+    @ (show_use ? ["show-use"] : [])
+  | Operand({err}) => ["Operand", ...clss_of_err(err)]
   | BinOp({err, op_index: _}) => ["BinOp", ...clss_of_err(err)]
   | NTuple({err, comma_indices: _}) => ["NTuple", ...clss_of_err(err)]
   | SubBlock(_) => ["SubBlock"];
@@ -386,12 +389,13 @@ let presentation_of_layout =
 let editor_view_of_layout =
     (
       ~inject: Update.Action.t => Vdom.Event.t,
-      ~decorate_cursor: option(CursorPath.t)=?,
+      ~path: option(CursorPath.t)=?,
+      ~ci: option(CursorInfo.t)=?,
       l: TermLayout.t,
     )
     : (Vdom.Node.t, Vdom.Node.t) => {
   let l =
-    switch (decorate_cursor) {
+    switch (path) {
     | None => l
     | Some((steps, _) as path) =>
       switch (l |> TermLayout.find_and_decorate_caret(~path)) {
@@ -402,6 +406,26 @@ let editor_view_of_layout =
         | Some(l) => l
         }
       }
+    };
+  let l =
+    switch (ci) {
+    | None
+    | Some({uses: None, _}) => l
+    | Some({uses: Some(uses), _}) =>
+      uses
+      |> List.fold_left(
+           (l, use) =>
+             l
+             |> TermLayout.find_and_decorate_var_use(~steps=use)
+             |> GeneralUtil.Opt.get(() => {
+                  failwith(
+                    __LOC__
+                    ++ ": could not find var use"
+                    ++ Sexplib.Sexp.to_string(CursorPath.sexp_of_steps(use)),
+                  )
+                }),
+           l,
+         )
     };
   (
     contenteditable_of_layout(~inject, l),
@@ -427,7 +451,8 @@ let editor_view_of_exp =
       ~inject: Update.Action.t => Vdom.Event.t,
       ~width=80,
       ~pos=0,
-      ~decorate_cursor: option(CursorPath.t)=?,
+      ~path: option(CursorPath.t)=?,
+      ~ci: option(CursorInfo.t)=?,
       e: UHExp.t,
     )
     : (Vdom.Node.t, Vdom.Node.t) => {
@@ -437,6 +462,6 @@ let editor_view_of_exp =
     |> LayoutOfDoc.layout_of_doc(~width, ~pos);
   switch (l) {
   | None => failwith("unimplemented: view_of_exp on layout failure")
-  | Some(l) => editor_view_of_layout(~inject, ~decorate_cursor?, l)
+  | Some(l) => editor_view_of_layout(~inject, ~path?, ~ci?, l)
   };
 };

@@ -87,7 +87,8 @@ let view =
           model.is_cell_focused
             ? Code.editor_view_of_exp(
                 ~inject,
-                ~decorate_cursor=model |> Model.path,
+                ~path=model |> Model.path,
+                ~ci=model.cursor_info,
                 model |> Model.exp,
               )
             : Code.editor_view_of_exp(~inject, model |> Model.exp);

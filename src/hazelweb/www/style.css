@@ -922,6 +922,10 @@ h1 {
   box-shadow: 2px 2px 0px 0px var(--typ-shadow-color);
 }
 
+.Var.show-use {
+  background-color: rgba(175, 175, 175, 0.3);
+}
+
 .Cursor .DelimGroup {
   /* set by each term family */
   --bg-color: transparent;

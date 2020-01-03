@@ -14,18 +14,18 @@ let tag_OpenChild = (~is_inline) =>
 let tag_ClosedChild = (~is_inline) =>
   Doc.tag(TermTag.mk_ClosedChild(~is_inline, ()));
 let tag_Step = step => Doc.tag(TermTag.Step(step));
-let tag_Operand =
+let tag_Var =
     (
       ~family: TermFamily.t,
       ~err: ErrStatus.t=NotInHole,
-      ~verr: VarErrStatus.t=NotInVarHole,
+      ~verr: VarErrStatus.t,
     ) =>
   Doc.tag(
-    TermTag.mk_Term(
-      ~family,
-      ~shape=TermShape.mk_Operand(~err, ~verr, ()),
-      (),
-    ),
+    TermTag.mk_Term(~family, ~shape=TermShape.mk_Var(~err, ~verr, ()), ()),
+  );
+let tag_Operand = (~family: TermFamily.t, ~err: ErrStatus.t=NotInHole) =>
+  Doc.tag(
+    TermTag.mk_Term(~family, ~shape=TermShape.mk_Operand(~err, ()), ()),
   );
 let tag_Case = (~err: ErrStatus.t) =>
   Doc.tag(TermTag.mk_Term(~family=Exp, ~shape=Case({err: err}), ()));
@@ -113,7 +113,7 @@ let mk_Var =
       x: Var.t,
     )
     : t =>
-  mk_text(~steps, x) |> tag_Operand(~family, ~err, ~verr);
+  mk_text(~steps, x) |> tag_Var(~family, ~err, ~verr);
 
 let mk_NumLit =
     (

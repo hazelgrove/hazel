@@ -234,6 +234,24 @@ let find_and_decorate_cursor =
     }
   );
 
+let find_and_decorate_var_use =
+  find_and_decorate_Term(~decorate_Term=(metrics, term_data, l) =>
+    switch (term_data) {
+    | {shape: Var(var_data), _} => {
+        metrics,
+        layout:
+          l
+          |> Layout.tag(
+               TermTag.Term({
+                 ...term_data,
+                 shape: Var({...var_data, show_use: true}),
+               }),
+             ),
+      }
+    | _ => failwith(__LOC__ ++ ": var not found")
+    }
+  );
+
 module PathSearchResult = {
   type t =
     | Found(CursorPath.t)

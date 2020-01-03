@@ -601,7 +601,13 @@ module Exp = {
     switch (Statics.Exp.syn_lines(ctx, prefix)) {
     | None => None
     | Some(ctx) =>
-      switch (syn_cursor_info_line(~steps, ctx, zline)) {
+      switch (
+        syn_cursor_info_line(
+          ~steps=steps @ [List.length(prefix)],
+          ctx,
+          zline,
+        )
+      ) {
       | None => None
       | Some(CursorNotOnDeferredVarPat(ci)) => Some(ci)
       | Some(CursorOnDeferredVarPat(deferred_ci, x)) =>
@@ -626,8 +632,7 @@ module Exp = {
       | Some(ci) => Some(CursorNotOnDeferredVarPat(ci))
       }
     | LetLineZP(zp, ann, def) =>
-      let steps = steps @ [0];
-      let pat_ci = Pat.ana_cursor_info(~steps, ctx, zp);
+      let pat_ci = Pat.ana_cursor_info(~steps=steps @ [0], ctx, zp);
       switch (ann) {
       | None =>
         switch (Statics.Exp.syn(ctx, def)) {
@@ -901,7 +906,13 @@ module Exp = {
       switch (Statics.Exp.syn_lines(ctx, prefix)) {
       | None => None
       | Some(ctx) =>
-        switch (syn_cursor_info_line(~steps, ctx, zline)) {
+        switch (
+          syn_cursor_info_line(
+            ~steps=steps @ [List.length(prefix)],
+            ctx,
+            zline,
+          )
+        ) {
         | None => None
         | Some(CursorNotOnDeferredVarPat(ci)) => Some(ci)
         | Some(CursorOnDeferredVarPat(deferred_ci, x)) =>
