@@ -359,17 +359,16 @@ let view =
                     ci.node |> Hashtbl.find(kc_actions, Enter),
                   ),
                 )
+              | (_, _, _, Some(Ctrl_Z)) =>
+                prevent_stop_inject(Update.Action.Undo)
+              | (_, _, _, Some(Ctrl_Shift_Z)) =>
+                prevent_stop_inject(Update.Action.Redo)
               | (_, _, _, Some(kc)) =>
-                switch (kc) {
-                | Ctrl_Z => prevent_stop_inject(Update.Action.Undo)
-                | Ctrl_Shift_Z => prevent_stop_inject(Update.Action.Redo)
-                | _ =>
-                  prevent_stop_inject(
-                    Update.Action.EditAction(
-                      ci.node |> Hashtbl.find(kc_actions, kc),
-                    ),
-                  )
-                }
+                prevent_stop_inject(
+                  Update.Action.EditAction(
+                    ci.node |> Hashtbl.find(kc_actions, kc),
+                  ),
+                )
               };
             }),
           ],
