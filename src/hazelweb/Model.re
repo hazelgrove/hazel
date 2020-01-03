@@ -336,7 +336,11 @@ let prev_card = model => {
   let cardstack_state = cardstack_state_of(model);
   let cardstack_state = {
     ...cardstack_state,
-    zcards: ZList.shift_prev(cardstack_state.zcards),
+    zcards:
+      switch (ZList.shift_prev(cardstack_state.zcards)) {
+      | None => cardstack_state.zcards
+      | Some(card) => card
+      },
   };
   {
     ...update_cardstack_state(model, cardstack_state),
@@ -349,7 +353,11 @@ let next_card = model => {
   let cardstack_state = cardstack_state_of(model);
   let cardstack_state = {
     ...cardstack_state,
-    zcards: ZList.shift_next(cardstack_state.zcards),
+    zcards:
+      switch (ZList.shift_next(cardstack_state.zcards)) {
+      | None => cardstack_state.zcards
+      | Some(card) => card
+      },
   };
   {
     ...update_cardstack_state(model, cardstack_state),
@@ -403,7 +411,7 @@ let perform_edit_action = (model: t, a: Action.t): t => {
       | Delete
       | Backspace
       | Construct(_) =>
-        UndoHistory.add_history(model.undo_history, new_edit_state)
+        UndoHistory.push_edit_state(model.undo_history, new_edit_state)
       | MoveTo(_)
       | MoveToBefore(_)
       | MoveLeft
@@ -435,28 +443,6 @@ let move_to_hole = (model: t, u: MetaVar.t): t => {
   };
 };
 
-/* let undo = (model: t): t => {
-     let new_history =
-       switch (undo_edit_state(model.undo_history)) {
-       | Some(his) => his
-       | None => model.undo_history
-       };
-
-     let new_edit_state = ZList.prj_z(new_history);
-     let new_model = model |> update_edit_state(new_edit_state);
-     {...new_model, undo_history: new_history};
-   }; */
-
-/* let redo = (model: t): t => {
-     let new_history =
-       switch (redo_edit_state(model.undo_history)) {
-       | Some(his) => his
-       | None => model.undo_history
-       };
-     let new_edit_state = ZList.prj_z(new_history);
-     let new_model = model |> update_edit_state(new_edit_state);
-     {...new_model, undo_history: new_history};
-   }; */
 let select_hole_instance = (model, (u, i) as inst) => {
   switch (model.result_state) {
   | ResultsDisabled => model

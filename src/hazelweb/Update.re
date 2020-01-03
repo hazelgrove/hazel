@@ -297,21 +297,12 @@ let apply_action =
     };
     model;
   | Redo =>
-    let new_history =
-      switch (UndoHistory.redo_edit_state(model.undo_history)) {
-      | Some(his) => his
-      | None => model.undo_history
-      };
+    let new_history = UndoHistory.redo_edit_state(model.undo_history);
     let new_edit_state = ZList.prj_z(new_history);
     let new_model = model |> Model.update_edit_state(new_edit_state);
     {...new_model, undo_history: new_history};
   | Undo =>
-    let new_history =
-      switch (UndoHistory.undo_edit_state(model.undo_history)) {
-      | Some(his) => his
-      | None => model.undo_history
-      };
-
+    let new_history = UndoHistory.undo_edit_state(model.undo_history);
     let new_edit_state = ZList.prj_z(new_history);
     let new_model = model |> Model.update_edit_state(new_edit_state);
     {...new_model, undo_history: new_history};
