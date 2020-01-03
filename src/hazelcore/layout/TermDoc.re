@@ -7,7 +7,7 @@ let space = Doc.space;
 let indent = Doc.indent;
 
 let tag_Indent = Doc.tag(TermTag.Indent);
-let tag_Padding = Doc.tag(TermTag.Padding);
+let tag_Padding = d => d == Doc.empty ? d : d |> Doc.tag(TermTag.Padding);
 let tag_DelimGroup = Doc.tag(TermTag.DelimGroup);
 let tag_OpenChild = (~is_inline) =>
   Doc.tag(TermTag.mk_OpenChild(~is_inline, ()));
