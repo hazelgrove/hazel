@@ -144,6 +144,15 @@ let page_view =
         )
       )
     };
+  let e = model |> Model.exp;
+  let doc = TermDoc.Exp.mk(~steps=[], ~enforce_inline=false, e);
+  let layout =
+    switch (LayoutOfDoc.layout_of_doc(doc, ~width=80, ~pos=0)) {
+    | None => Layout.t_of_layout(Layout.Text("layout FAILED")) // TODO
+    | Some(l) => l
+    };
+  let layout = Layout.remove_tags(layout);
+  let box = Box.box_of_layout(layout);
   Vdom.(
     Node.div(
       [Attr.id("root")],
@@ -164,7 +173,7 @@ let page_view =
             /*
              Sidebar.left(
                ~inject,
-               false,
+               model,
                [ActionPanel.view(~inject, model)] //the_history_panel,
              ),
              */
@@ -248,13 +257,40 @@ let page_view =
                       ],
                       [Node.text("Serialize to console")],
                     ),
+                    Node.div(
+                      [],
+                      if (!model.show_content_editable) {
+                        [];
+                      } else {
+                        [
+                          Node.pre(
+                            [],
+                            [Node.text(Layout.string_of_layout(layout))],
+                          ),
+                        ];
+                      },
+                    ),
+                    Node.div(
+                      [
+                        Attr.style(
+                          Css_gen.(
+                            white_space(`Pre) @> font_family(["monospace"])
+                          ),
+                        ),
+                      ],
+                      if (!model.show_presentation) {
+                        [];
+                      } else {
+                        [JSUtil.vdom_of_box(box)];
+                      },
+                    ),
                   ],
                 ),
               ],
             ),
             Sidebar.right(
               ~inject,
-              true,
+              model,
               [
                 CursorInspector.view(~inject, model),
                 ContextInspector.view(~inject, model),

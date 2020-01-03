@@ -33,6 +33,22 @@ let t_of_layout = (layout: layout('tag)): t('tag) => {
   },
 };
 
+let rec remove_tags = (layout: t('tag)): t('tag) => {
+  switch (layout.layout) {
+  | Tagged(_, l) => remove_tags(l)
+  | _ =>
+    let l' =
+      switch (layout.layout) {
+      | Text(string) => Text(string)
+      | Cat(l1, l2) => Cat(remove_tags(l1), remove_tags(l2))
+      | Linebreak => Linebreak
+      | Align(l) => Align(remove_tags(l))
+      | Tagged(_, _) => failwith(__LOC__)
+      };
+    {...layout, layout: l'};
+  };
+};
+
 // TODO?
 //let text = (string) => t_of_layout(Text(string));
 //let cat = (t1, t2) => t_of_layout(Cat(t1, t2));
@@ -107,3 +123,26 @@ let string_of_layout: 'tag. t('tag) => string =
      };
    };
    */
+let strings_of_layout: 'tag. t('tag) => list((int, string)) =
+  layout => {
+    let record: 'tag. text('tag, list((int, string)), list((int, string))) = {
+      imp_of_string: string => [(0, string)],
+      imp_append: (s1, s2) => {
+        switch (List.rev(s1), s2) {
+        | ([], _) => s2
+        | (_, []) => s1
+        | (
+            [(last_indent_1, last_string_1), ...rest1],
+            [(first_indent_2, first_string_2), ...rest2],
+          ) =>
+          assert(first_indent_2 == 0);
+          List.rev(rest1)
+          @ [(last_indent_1, last_string_1 ++ first_string_2), ...rest2];
+        };
+      },
+      imp_newline: indent => [(indent, "")],
+      imp_of_tag: (_, imp) => imp,
+      t_of_imp: s => s,
+    };
+    make_of_layout(record, layout);
+  };
