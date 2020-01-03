@@ -251,7 +251,11 @@ let mk_Case =
     vseps(
       [
         choices([
-          hseps([open_group, scrut(~enforce_inline=true)]),
+          hcats([
+            open_group,
+            space |> tag_Padding,
+            scrut(~enforce_inline=true),
+          ]),
           vseps([
             open_group,
             indent_and_align(scrut(~enforce_inline=false)),
@@ -279,7 +283,7 @@ let mk_Case_ann =
     let end_delim = DelimDoc.close_Case_ann(steps);
     Doc.(
       choices([
-        hseps([end_delim, ann(~enforce_inline=true)]),
+        hcats([end_delim, space |> tag_Padding, ann(~enforce_inline=true)]),
         vseps([end_delim, indent_and_align(ann(~enforce_inline=false))]),
       ])
       |> tag_DelimGroup
@@ -289,7 +293,11 @@ let mk_Case_ann =
     vseps(
       [
         choices([
-          hseps([open_group, scrut(~enforce_inline=true)]),
+          hcats([
+            open_group,
+            space |> tag_Padding,
+            scrut(~enforce_inline=true),
+          ]),
           vseps([
             open_group,
             indent_and_align(scrut(~enforce_inline=false)),
@@ -323,7 +331,11 @@ let mk_Rule =
     |> tag_DelimGroup;
   Doc.(
     choices([
-      hseps([delim_group, clause(~enforce_inline=true)]),
+      hcats([
+        delim_group,
+        space |> tag_Padding,
+        clause(~enforce_inline=true),
+      ]),
       vseps([delim_group, indent_and_align(clause(~enforce_inline=false))]),
     ])
   )
