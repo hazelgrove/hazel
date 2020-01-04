@@ -86,8 +86,8 @@ let log_action = (action: Action.t, _: State.t): unit => {
   | AddUserNewline(_)
   | RemoveUserNewline(_)
   | MoveToHole(_)
-  | Redo
-  | Undo =>
+  | Undo
+  | Redo =>
     Logger.append(
       Sexp.to_string(
         sexp_of_timestamped_action(mk_timestamped_action(action)),
@@ -296,13 +296,13 @@ let apply_action =
       };
     };
     model;
-  | Redo =>
-    let new_history = UndoHistory.redo_edit_state(model.undo_history);
+  | Undo =>
+    let new_history = UndoHistory.undo(model.undo_history);
     let new_edit_state = ZList.prj_z(new_history);
     let new_model = model |> Model.update_edit_state(new_edit_state);
     {...new_model, undo_history: new_history};
-  | Undo =>
-    let new_history = UndoHistory.undo_edit_state(model.undo_history);
+  | Redo =>
+    let new_history = UndoHistory.redo(model.undo_history);
     let new_edit_state = ZList.prj_z(new_history);
     let new_model = model |> Model.update_edit_state(new_edit_state);
     {...new_model, undo_history: new_history};
