@@ -88,8 +88,7 @@ type result_state =
 
 type t = {
   cardstacks,
-  cardstacks_state,
-  /* these are derived from the cardstack state: */
+  cardstacks_state /* these are derived from the cardstack state: */,
   cursor_info: CursorInfo.t,
   compute_results: bool,
   result_state,
@@ -101,6 +100,7 @@ type t = {
   right_sidebar_open: bool,
   show_content_editable: bool,
   show_presentation: bool,
+  undo_history: UndoHistory.t,
 };
 
 let cardstack_state_of = model => ZList.prj_z(model.cardstacks_state);
@@ -336,7 +336,11 @@ let prev_card = model => {
   let cardstack_state = cardstack_state_of(model);
   let cardstack_state = {
     ...cardstack_state,
-    zcards: ZList.shift_prev(cardstack_state.zcards),
+    zcards:
+      switch (ZList.shift_prev(cardstack_state.zcards)) {
+      | None => cardstack_state.zcards
+      | Some(card) => card
+      },
   };
   {
     ...update_cardstack_state(model, cardstack_state),
@@ -349,7 +353,11 @@ let next_card = model => {
   let cardstack_state = cardstack_state_of(model);
   let cardstack_state = {
     ...cardstack_state,
-    zcards: ZList.shift_next(cardstack_state.zcards),
+    zcards:
+      switch (ZList.shift_next(cardstack_state.zcards)) {
+      | None => cardstack_state.zcards
+      | Some(card) => card
+      },
   };
   {
     ...update_cardstack_state(model, cardstack_state),
@@ -372,6 +380,7 @@ let init = (): t => {
     user_newlines: CursorPath.StepsMap.empty,
     selected_example: None,
     is_cell_focused: false,
+    undo_history: ([], edit_state, []),
     left_sidebar_open: false,
     right_sidebar_open: true,
     show_content_editable: false,
@@ -394,7 +403,15 @@ let perform_edit_action = (model: t, a: Action.t): t => {
   | Failed => raise(FailedAction)
   | CursorEscaped(_) => raise(CursorEscaped)
   | CantShift => raise(CantShift)
-  | Succeeded(new_edit_state) => model |> update_edit_state(new_edit_state)
+  | Succeeded(new_edit_state) =>
+    let new_model = model |> update_edit_state(new_edit_state);
+    let new_history =
+      if (UndoHistory.undoable_action(a)) {
+        UndoHistory.push_edit_state(model.undo_history, new_edit_state);
+      } else {
+        model.undo_history;
+      };
+    {...new_model, undo_history: new_history};
   };
 };
 

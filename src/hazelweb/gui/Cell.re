@@ -359,6 +359,10 @@ let view =
                     ci.node |> Hashtbl.find(kc_actions, Enter),
                   ),
                 )
+              | (_, _, _, Some(Ctrl_Z)) =>
+                prevent_stop_inject(Update.Action.Undo)
+              | (_, _, _, Some(Ctrl_Shift_Z)) =>
+                prevent_stop_inject(Update.Action.Redo)
               | (_, _, _, Some(kc)) =>
                 prevent_stop_inject(
                   Update.Action.EditAction(
