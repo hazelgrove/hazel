@@ -28,7 +28,9 @@ module Action = {
     | BlurCell
     | FocusWindow
     | AddUserNewline(CursorPath.steps)
-    | RemoveUserNewline(CursorPath.steps);
+    | RemoveUserNewline(CursorPath.steps)
+    | Redo
+    | Undo;
 };
 
 [@deriving sexp]
@@ -83,7 +85,9 @@ let log_action = (action: Action.t, _: State.t): unit => {
   | FocusWindow
   | AddUserNewline(_)
   | RemoveUserNewline(_)
-  | MoveToHole(_) =>
+  | MoveToHole(_)
+  | Undo
+  | Redo =>
     Logger.append(
       Sexp.to_string(
         sexp_of_timestamped_action(mk_timestamped_action(action)),
@@ -292,5 +296,15 @@ let apply_action =
       };
     };
     model;
+  | Undo =>
+    let new_history = UndoHistory.undo(model.undo_history);
+    let new_edit_state = ZList.prj_z(new_history);
+    let new_model = model |> Model.update_edit_state(new_edit_state);
+    {...new_model, undo_history: new_history};
+  | Redo =>
+    let new_history = UndoHistory.redo(model.undo_history);
+    let new_edit_state = ZList.prj_z(new_history);
+    let new_model = model |> Model.update_edit_state(new_edit_state);
+    {...new_model, undo_history: new_history};
   };
 };

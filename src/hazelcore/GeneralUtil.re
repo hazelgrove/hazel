@@ -286,23 +286,23 @@ module ZList = {
     prefix @ [a, ...suffix];
   };
 
-  let shift_next = (zxs: t('a, 'a)) => {
+  let shift_next = (zxs: t('a, 'a)): option(t('a, 'a)) => {
     let (prefix, z, suffix) = zxs;
     switch (suffix) {
-    | [] => zxs
+    | [] => None
     | [next, ...suffix] =>
       let prefix = prefix @ [z];
-      (prefix, next, suffix);
+      Some((prefix, next, suffix));
     };
   };
 
-  let shift_prev = (zxs: t('a, 'a)) => {
+  let shift_prev = (zxs: t('a, 'a)): option(t('a, 'a)) => {
     let (prefix, z, suffix) = zxs;
     switch (List.rev(prefix)) {
-    | [] => zxs
+    | [] => None
     | [prev, ...rev_prefix] =>
       let suffix = [z, ...suffix];
-      (List.rev(rev_prefix), prev, suffix);
+      Some((List.rev(rev_prefix), prev, suffix));
     };
   };
 };
