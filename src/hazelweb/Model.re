@@ -405,25 +405,12 @@ let perform_edit_action = (model: t, a: Action.t): t => {
   | CantShift => raise(CantShift)
   | Succeeded(new_edit_state) =>
     let new_model = model |> update_edit_state(new_edit_state);
-    let new_history = {
-      switch (a) {
-      | UpdateApPalette(_)
-      | Delete
-      | Backspace
-      | Construct(_) =>
-        UndoHistory.push_edit_state(model.undo_history, new_edit_state)
-      | MoveTo(_)
-      | MoveToBefore(_)
-      | MoveLeft
-      | MoveRight
-      | MoveToNextHole
-      | MoveToPrevHole
-      | ShiftLeft
-      | ShiftRight
-      | ShiftUp
-      | ShiftDown => model.undo_history
+    let new_history =
+      if (UndoHistory.undoable_action(a)) {
+        UndoHistory.push_edit_state(model.undo_history, new_edit_state);
+      } else {
+        model.undo_history;
       };
-    };
     {...new_model, undo_history: new_history};
   };
 };
