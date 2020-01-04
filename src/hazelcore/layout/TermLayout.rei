@@ -7,8 +7,6 @@ let has_inline_OpenChild: t => bool;
 
 let has_para_OpenChild: t => bool;
 
-// TODO find_and_decorate_pattern_usage
-
 let find_and_decorate_caret: (~path: CursorPath.t, t) => option(t);
 
 // TODO rename to current term
