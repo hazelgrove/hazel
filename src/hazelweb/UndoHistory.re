@@ -10,19 +10,19 @@ let push_edit_state = (undo_history: t, edit_state: Statics.edit_state): t => {
     [edit_state],
   );
   switch (ZList.shift_next(after_push)) {
-  | None => after_push
+  | None => failwith("Impossible because suffix is non-empty")
   | Some(new_history) => new_history
   };
 };
 
-let undo_edit_state = (undo_history: t): t => {
+let undo = (undo_history: t): t => {
   switch (ZList.shift_prev(undo_history)) {
   | None => undo_history
   | Some(new_history) => new_history
   };
 };
 
-let redo_edit_state = (undo_history: t): t => {
+let redo = (undo_history: t): t => {
   switch (ZList.shift_next(undo_history)) {
   | None => undo_history
   | Some(new_history) => new_history
