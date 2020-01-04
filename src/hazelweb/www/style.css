@@ -28,6 +28,7 @@
 
   --code-radius: 4px;
   --child-border-thickness: 4px;
+  --code-shadow-thickness: 1.5px;
 
   /* necessary for hiding portions of box shadows */
   --para-border-z: 1;
@@ -743,6 +744,7 @@ h1 {
 }
 .code.presentation * {
   display: inline-block;
+  position: relative;
 }
 .code-delim {
   font-weight: bold;
@@ -761,13 +763,6 @@ h1 {
 }
 .code.contenteditable:focus {
   outline: 0px;
-}
-
-.code-text, .code-op, .code-delim {
-  /* must position explicitly so that
-   * caret element can be absolutely
-   * positioned relative to container */
-  position: relative;
 }
 
 /* https://codepen.io/ArtemGordinsky/pen/GnLBq */
@@ -854,7 +849,7 @@ h1 {
   content: "";
   position: absolute;
   background-color: var(--bg-color);
-  box-shadow: 2px 2px 0px 0px var(--shadow-color);
+  box-shadow: var(--code-shadow-thickness) var(--code-shadow-thickness) 0px 0px var(--shadow-color);
 }
 .Cursor.Term.Case::before {
   top: 0;
@@ -905,22 +900,24 @@ h1 {
   border-radius: var(--code-radius);
 }
 
-.Cursor.Term {
-  position: relative;
-}
-
 .Cursor.Term.Exp.Operand.no-children {
   background-color: var(--exp-bg-color);
-  box-shadow: 2px 2px 0px 0px var(--exp-shadow-color);
+  box-shadow: var(--code-shadow-thickness) var(--code-shadow-thickness) 0px 0px var(--exp-shadow-color);
 }
 .Cursor.Term.Pat.Operand.no-children {
   background-color: var(--pat-bg-color);
-  box-shadow: 2px 2px 0px 0px var(--pat-shadow-color);
+  box-shadow: var(--code-shadow-thickness) var(--code-shadow-thickness) 0px 0px var(--pat-shadow-color);
 }
 .Cursor.Term.Typ.Operand.no-children {
   background-color: var(--typ-bg-color);
-  box-shadow: 2px 2px 0px 0px var(--typ-shadow-color);
+  box-shadow: var(--code-shadow-thickness) var(--code-shadow-thickness) 0px 0px var(--typ-shadow-color);
 }
+/*
+.Cursor.Term.Operand.no-children {
+  top: calc(-1 * var(--code-shadow-thickness));
+  left: calc(-1 * var(--code-shadow-thickness));
+}
+*/
 
 .Var.show-use {
   background-color: rgba(175, 175, 175, 0.3);
@@ -931,9 +928,12 @@ h1 {
   --bg-color: transparent;
   --shadow-color: transparent;
   background-color: var(--bg-color);
-  box-shadow: 2px 2px 0px 0px var(--shadow-color);
-  position: relative;
+  box-shadow: var(--code-shadow-thickness) var(--code-shadow-thickness) 0px 0px var(--shadow-color);
   z-index: var(--delim-group-z);
+  /*
+  top: calc(-1 * var(--code-shadow-thickness));
+  left: calc(-1 * var(--code-shadow-thickness));
+  */
 }
 .Cursor.Term.has-Inline-OpenChild .DelimGroup {
   border-radius: var(--code-radius) var(--code-radius) 0 0;
@@ -952,6 +952,10 @@ h1 {
   box-shadow: none;
   z-index: auto;
   border-radius: none;
+  /*
+  top: 0;
+  left: 0;
+  */
 }
 
 .Cursor.Exp .DelimGroup {
@@ -968,7 +972,6 @@ h1 {
 }
 
 .Cursor.Term .Term {
-  position: relative;
   z-index: var(--child-z);
 }
 .Cursor.Term.Exp .Term.Pat,
@@ -982,21 +985,41 @@ h1 {
 
 .Cursor.Term.Exp .Term.Pat {
   background-color: white; /*var(--pat-bg-color);*/
-  box-shadow: inset 1px 1px 0.5px 1px var(--pat-bright-shadow-color);
+  box-shadow: inset 1px 1px 0.5px 0.5px var(--pat-bright-shadow-color);
 }
 .Cursor.Term.Exp .Term .Term.Pat {
   background-color: var(--default-code-bg-color);
   box-shadow: none;
 }
+/*
+.Cursor.Term.Exp .Term.Pat > * {
+  top: var(--code-shadow-thickness);
+  left: var(--code-shadow-thickness);
+}
+.Cursor.Term.Exp .Term .Term.Pat > * {
+  top: 0px;
+  left: 0px;
+}
+*/
 
 .Cursor.Term.Exp .Term.Typ {
   background-color: white; /*var(--typ-bg-color);*/
-  box-shadow: inset 1px 1px 0.5px 1px var(--typ-bright-shadow-color);
+  box-shadow: inset 1px 1px 0.5px 0.5px var(--typ-bright-shadow-color);
 }
 .Cursor.Term.Exp .Term .Term.Typ {
   background-color: var(--default-code-bg-color);
   box-shadow: none;
 }
+/*
+.Cursor.Term.Exp .Term.Typ > * {
+  top: var(--code-shadow-thickness);
+  left: var(--code-shadow-thickness);
+}
+.Cursor.Term.Exp .Term .Term.Typ > * {
+  top: 0px;
+  left: 0px;
+}
+*/
 
 .SDelim-before,
 .SDelim-after,
