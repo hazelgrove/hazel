@@ -308,7 +308,6 @@ let perform_edit_action = (model: t, a: Action.t): t => {
   ) {
   | Failed => raise(FailedAction)
   | CursorEscaped(_) => raise(CursorEscaped)
-  | CantShift => raise(CantShift)
   | Succeeded(new_edit_state) =>
     let new_model = model |> update_edit_state(new_edit_state);
     let new_history =

@@ -27,8 +27,6 @@ module Action = {
     | FocusCell
     | BlurCell
     | FocusWindow
-    | AddUserNewline(CursorPath.steps)
-    | RemoveUserNewline(CursorPath.steps)
     | Redo
     | Undo;
 };
@@ -83,8 +81,6 @@ let log_action = (action: Action.t, _: State.t): unit => {
   | FocusCell
   | BlurCell
   | FocusWindow
-  | AddUserNewline(_)
-  | RemoveUserNewline(_)
   | MoveToHole(_)
   | Undo
   | Redo =>

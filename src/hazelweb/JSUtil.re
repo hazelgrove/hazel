@@ -523,7 +523,7 @@ module KeyCombo = {
     | Alt_L
     | Alt_R
     | Alt_C
-    | Pound;
+    | Pound
     | Ctrl_Z
     | Ctrl_Shift_Z;
 
@@ -564,7 +564,7 @@ module KeyCombo = {
     let evt_matches = details => Details.matches(details, evt);
     if (evt_matches(Details.pound)) {
       Some(Pound);
-    if (evt_matches(Details.ctrl_z)) {
+    } else if (evt_matches(Details.ctrl_z)) {
       Some(Ctrl_Z);
     } else if (evt_matches(Details.ctrl_shift_z)) {
       Some(Ctrl_Shift_Z);

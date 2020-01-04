@@ -40,10 +40,6 @@ let undoable_action = (action: Action.t): bool => {
   | MoveLeft
   | MoveRight
   | MoveToNextHole
-  | MoveToPrevHole
-  | ShiftLeft
-  | ShiftRight
-  | ShiftUp
-  | ShiftDown => false
+  | MoveToPrevHole => false
   };
 };
