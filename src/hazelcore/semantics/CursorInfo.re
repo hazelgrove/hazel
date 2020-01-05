@@ -1710,37 +1710,6 @@ and _syn_cursor_info_rule =
       )
     }
   }
-and _syn_cursor_info_rule =
-    (
-      ~node_steps,
-      ~term_steps,
-      ctx: Contexts.t,
-      zrule: ZExp.zrule,
-      pat_ty: HTyp.t,
-    )
-    : option(t) =>
-  switch (zrule) {
-  | CursorR(cursor, rule) =>
-    Some(
-      mk_cursor_info(
-        OnRule,
-        Rule(rule),
-        ExpFrame([], None, None),
-        cursor,
-        ctx,
-        node_steps,
-        term_steps,
-      ),
-    )
-  | RuleZP(zp, _) =>
-    _ana_cursor_info_pat(~node_steps, ~term_steps, ctx, zp, pat_ty)
-  | RuleZE(p, zblock) =>
-    switch (Statics.ana_pat(ctx, p, pat_ty)) {
-    | None => None
-    | Some(ctx) =>
-      _syn_cursor_info_block(~node_steps, ~term_steps, ctx, zblock)
-    }
-  }
 and _syn_cursor_info_skel =
     (
       ~node_steps,
