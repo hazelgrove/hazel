@@ -61,13 +61,13 @@ and find_uses_exp = (x: Var.t, e: UHExp.t, steps): uses_list =>
   | ListNil(_)
   | Lam(InHole(_, _), _, _, _)
   | Inj(InHole(_, _), _, _)
-  | Case(InHole(_, _), _, _, _)
+  | Case(InHole(_, _), _, _)
   | ApPalette(_, _, _, _) => []
   | Var(_, NotInVarHole, y) => x == y ? [steps] : []
   | Lam(NotInHole, p, _, block) =>
     binds_var(x, p) ? [] : find_uses_block(x, block, steps @ [2], 0)
   | Inj(NotInHole, _, block) => find_uses_block(x, block, steps @ [0], 0)
-  | Case(NotInHole, block, rules, _) =>
+  | Case(NotInHole, block, rules) =>
     find_uses_block(x, block, steps @ [0], 0)
     @ find_uses_rules(x, rules, steps, 1)
   | Parenthesized(block) => find_uses_block(x, block, steps @ [0], 0)
