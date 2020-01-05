@@ -2051,20 +2051,31 @@ module Exp = {
           )
         | Succeeded(
             LineDone((
-              (inner_prefix, new_zline, inner_suffix),
+              (inner_prefix, new_zline, inner_suffix) as zblock,
               ctx_suffix,
               u_gen,
             )),
           ) =>
-          let (suffix, new_ty, u_gen) =
-            Statics.Exp.syn_fix_holes_block(ctx_suffix, u_gen, suffix);
-          let new_ze =
-            ZExp.ZE2((
-              prefix @ inner_prefix,
-              new_zline,
-              inner_suffix @ suffix,
-            ));
-          Succeeded(SynDone((new_ze, new_ty, u_gen)));
+          switch (suffix) {
+          | [] =>
+            switch (Statics.Exp.syn_block(ctx, zblock |> ZExp.erase_zblock)) {
+            | None => Failed
+            | Some(new_ty) =>
+              let new_ze =
+                ZExp.ZE2((prefix @ inner_prefix, new_zline, inner_suffix));
+              Succeeded(SynDone((new_ze, new_ty, u_gen)));
+            }
+          | [_, ..._] =>
+            let (suffix, new_ty, u_gen) =
+              Statics.Exp.syn_fix_holes_block(ctx_suffix, u_gen, suffix);
+            let new_ze =
+              ZExp.ZE2((
+                prefix @ inner_prefix,
+                new_zline,
+                inner_suffix @ suffix,
+              ));
+            Succeeded(SynDone((new_ze, new_ty, u_gen)));
+          }
         }
       }
     }
@@ -2145,6 +2156,14 @@ module Exp = {
       }
 
     /* Construction */
+
+    | (Construct(SLine), _) when zline |> ZExp.is_before_zline =>
+      let new_zblock = ([UHExp.EmptyLine], zline, []);
+      mk_result(u_gen, new_zblock);
+    | (Construct(SLine), _) when zline |> ZExp.is_after_zline =>
+      let new_zline = UHExp.EmptyLine |> ZExp.place_before_line;
+      let new_zblock = ([zline |> ZExp.erase_zline], new_zline, []);
+      mk_result(u_gen, new_zblock);
 
     | (Construct(_), CursorL(_, EmptyLine)) =>
       let (zhole, u_gen) = u_gen |> ZExp.new_EmptyHole;
