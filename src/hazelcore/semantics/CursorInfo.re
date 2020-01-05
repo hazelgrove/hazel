@@ -1397,7 +1397,7 @@ and _syn_cursor_info =
         zrule,
         ty,
       );
-    };
+    }
   | ApPaletteZ(_, _, _, zpsi) =>
     let (n, (ty, zblock)) = GeneralUtil.ZNatMap.prj_z_kv(zpsi.zsplice_map);
     _ana_cursor_info_block(
@@ -1597,6 +1597,7 @@ and _ana_cursor_info =
         ty1,
         ty,
       );
+    }
   | ApPaletteZ(NotInHole, _, _, zpsi) =>
     let (n, _) = GeneralUtil.ZNatMap.prj_z_kv(zpsi.zsplice_map);
     _syn_cursor_info(
@@ -1681,44 +1682,32 @@ and _syn_cursor_info_rule =
         term_steps,
       ),
     )
-  | RuleZP(zp, _) =>
-    _ana_cursor_info_pat(~node_steps, ~term_steps, ctx, zp, pat_ty)
-  | RuleZE(p, zblock) =>
-    switch (Statics.ana_pat(ctx, p, pat_ty)) {
-    | None => None
-    | Some(ctx) =>
-      _syn_cursor_info_block(~node_steps, ~term_steps, ctx, zblock)
-    }
-  }
-and _syn_cursor_info_rule =
-    (
-      ~node_steps,
-      ~term_steps,
-      ctx: Contexts.t,
-      zrule: ZExp.zrule,
-      pat_ty: HTyp.t,
-    )
-    : option(t) =>
-  switch (zrule) {
-  | CursorR(cursor, rule) =>
-    Some(
-      mk_cursor_info(
-        OnRule,
-        Rule(rule),
-        ExpFrame([], None, None),
-        cursor,
+  | RuleZP(zp, block) =>
+    switch (
+      _ana_cursor_info_pat(
+        ~node_steps=node_steps @ [0],
+        ~term_steps,
         ctx,
-        node_steps,
-        term_steps,
-      ),
-    )
-  | RuleZP(zp, _) =>
-    _ana_cursor_info_pat(~node_steps, ~term_steps, ctx, zp, pat_ty)
+        zp,
+        pat_ty,
+      )
+    ) {
+    | None => None
+    | Some(CursorNotOnDeferredVarPat(ci)) => Some(ci)
+    | Some(CursorOnDeferredVarPat(deferred_ci, x)) =>
+      let uses = find_uses_block(x, block, node_steps @ [1], 0);
+      Some(uses |> deferred_ci);
+    }
   | RuleZE(p, zblock) =>
     switch (Statics.ana_pat(ctx, p, pat_ty)) {
     | None => None
     | Some(ctx) =>
-      _syn_cursor_info_block(~node_steps, ~term_steps, ctx, zblock)
+      _syn_cursor_info_block(
+        ~node_steps=node_steps @ [1],
+        ~term_steps,
+        ctx,
+        zblock,
+      )
     }
   }
 and _syn_cursor_info_skel =
