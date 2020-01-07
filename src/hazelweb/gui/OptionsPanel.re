@@ -74,6 +74,20 @@ let view =
             checked =>
             Update.Action.SetShowPresentation(checked)
           ),
+          Node.button(
+            [
+              Attr.on_click(_ => {
+                Printf.printf(
+                  "%s \n%!",
+                  Extraction.extraction_call(
+                    ~block=model |> Model.zblock |> ZExp.erase_block,
+                  ),
+                );
+                Event.Ignore;
+              }),
+            ],
+            [Node.text("Extraction to Ocaml")],
+          ),
         ],
       )
     );
