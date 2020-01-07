@@ -21,7 +21,7 @@ module QueryResult = {
 
 let rec contains = (query: tag => QueryResult.t(unit), l: t): bool => {
   let go = contains(query);
-  switch (l.layout) {
+  switch (l) {
   | Linebreak
   | Text(_) => false
   | Align(l) => go(l)
@@ -64,23 +64,21 @@ let has_para_OpenChild =
 // TODO should be possible to make polymorphic over tag
 // but was getting confusing type inference error
 let rec find_and_decorate_Tagged =
-        (decorate: (Layout.metrics, tag, t) => QueryResult.t(t), l: t)
-        : option(t) => {
+        (decorate: (tag, t) => QueryResult.t(t), l: t): option(t) => {
   let go = find_and_decorate_Tagged(decorate);
   switch (l) {
-  | {layout: Linebreak | Text(_), _} => None
-  | {layout: Align(l1), _} =>
-    go(l1) |> Opt.map(l1 => {...l, layout: Align(l1)})
-  | {layout: Cat(l1, l2), _} =>
+  | Linebreak
+  | Text(_) => None
+  | Align(l1) => go(l1) |> Opt.map(l1 => Layout.Align(l1))
+  | Cat(l1, l2) =>
     switch (go(l1)) {
-    | Some(l1) => Some({...l, layout: Cat(l1, l2)})
-    | None => go(l2) |> Opt.map(l2 => {...l, layout: Cat(l1, l2)})
+    | Some(l1) => Some(Cat(l1, l2))
+    | None => go(l2) |> Opt.map(l2 => Layout.Cat(l1, l2))
     }
-  | {layout: Tagged(tag, l1), metrics} =>
-    switch (decorate(metrics, tag, l1)) {
+  | Tagged(tag, l1) =>
+    switch (decorate(tag, l1)) {
     | Stop => None
-    | Skip =>
-      go(l1) |> Opt.map(l1 => {Layout.metrics, layout: Tagged(tag, l1)})
+    | Skip => go(l1) |> Opt.map(l1 => Layout.Tagged(tag, l1))
     | Return(l) => Some(l)
     }
   };
@@ -94,12 +92,12 @@ let rec follow_steps_and_decorate =
   | [] => decorate(l)
   | [next_step, ...rest] =>
     l
-    |> find_and_decorate_Tagged((metrics, tag: TermTag.t, l: t) => {
+    |> find_and_decorate_Tagged((tag: TermTag.t, l: t) => {
          switch (tag) {
          | Step(step) when step == next_step =>
            l
            |> go(~steps=rest)
-           |> Opt.map(l => {Layout.metrics, layout: Tagged(tag, l)})
+           |> Opt.map(l => Layout.Tagged(tag, l))
            |> QueryResult.of_opt
          | OpenChild(_)
          | ClosedChild(_)
@@ -119,52 +117,39 @@ let find_and_decorate_caret =
        ~decorate=
          switch (cursor) {
          | OnText(j) =>
-           find_and_decorate_Tagged((metrics, tag, l) =>
+           find_and_decorate_Tagged((tag, l) =>
              switch (tag) {
              | Text(text_data) =>
-               Return({
-                 metrics,
-                 layout:
-                   l
-                   |> Layout.tag(
-                        TermTag.Text({...text_data, caret: Some(j)}),
-                      ),
-               })
+               Return(
+                 l
+                 |> Layout.tag(TermTag.Text({...text_data, caret: Some(j)})),
+               )
              | Term(_) => Skip
              | _ => Stop
              }
            )
          | OnOp(side) =>
-           find_and_decorate_Tagged((metrics, tag, l) =>
+           find_and_decorate_Tagged((tag, l) =>
              switch (tag) {
              | Op(op_data) =>
-               Return({
-                 metrics,
-                 layout:
-                   l
-                   |> Layout.tag(
-                        TermTag.Op({...op_data, caret: Some(side)}),
-                      ),
-               })
+               Return(
+                 l
+                 |> Layout.tag(TermTag.Op({...op_data, caret: Some(side)})),
+               )
              | _ => Stop
              }
            )
          | OnDelim(k, side) =>
-           find_and_decorate_Tagged((metrics, tag, l) =>
+           find_and_decorate_Tagged((tag, l) =>
              switch (tag) {
              | Delim({path: (_, index), _} as delim_data) =>
                index == k
-                 ? Return({
-                     metrics,
-                     layout:
-                       l
-                       |> Layout.tag(
-                            TermTag.Delim({
-                              ...delim_data,
-                              caret: Some(side),
-                            }),
-                          ),
-                   })
+                 ? Return(
+                     l
+                     |> Layout.tag(
+                          TermTag.Delim({...delim_data, caret: Some(side)}),
+                        ),
+                   )
                  : Stop
              | Term(_)
              | DelimGroup => Skip
@@ -178,7 +163,7 @@ let find_and_decorate_caret =
 let rec find_and_decorate_Term =
         (
           ~steps: CursorPath.steps,
-          ~decorate_Term: (Layout.metrics, TermTag.term_data, t) => t,
+          ~decorate_Term: (TermTag.term_data, t) => t,
           l: t,
         )
         : option(t) => {
@@ -186,24 +171,23 @@ let rec find_and_decorate_Term =
   switch (steps) {
   | [] =>
     l
-    |> find_and_decorate_Tagged((metrics, tag, l) =>
+    |> find_and_decorate_Tagged((tag, l) =>
          switch (tag) {
-         | Term(term_data) => Return(decorate_Term(metrics, term_data, l))
+         | Term(term_data) => Return(decorate_Term(term_data, l))
          | _ => Stop
          }
        )
   | [next_step, ...rest] =>
     l
-    |> find_and_decorate_Tagged((metrics, tag, l) => {
+    |> find_and_decorate_Tagged((tag, l) => {
          let take_step = () =>
            l
            |> go(~steps=rest)
-           |> Opt.map(l => {Layout.metrics, layout: Tagged(tag, l)})
+           |> Opt.map(l => Layout.Tagged(tag, l))
            |> QueryResult.of_opt;
          let found_term_if = (cond, term_data) =>
            cond && rest == []
-             ? QueryResult.Return(decorate_Term(metrics, term_data, l))
-             : Skip;
+             ? QueryResult.Return(decorate_Term(term_data, l)) : Skip;
          switch (tag) {
          | Step(step) => step == next_step ? take_step() : Stop
          | Term({shape: SubBlock({hd_index, _}), _} as term_data) =>
@@ -226,28 +210,21 @@ let rec find_and_decorate_Term =
 };
 
 let find_and_decorate_cursor =
-  find_and_decorate_Term(~decorate_Term=(metrics, term_data, l) =>
-    {
-      metrics,
-      layout:
-        l |> Layout.tag(TermTag.Term({...term_data, has_cursor: true})),
-    }
+  find_and_decorate_Term(~decorate_Term=(term_data, l) =>
+    l |> Layout.tag(TermTag.Term({...term_data, has_cursor: true}))
   );
 
 let find_and_decorate_var_use =
-  find_and_decorate_Term(~decorate_Term=(metrics, term_data, l) =>
+  find_and_decorate_Term(~decorate_Term=(term_data, l) =>
     switch (term_data) {
-    | {shape: Var(var_data), _} => {
-        metrics,
-        layout:
-          l
-          |> Layout.tag(
-               TermTag.Term({
-                 ...term_data,
-                 shape: Var({...var_data, show_use: true}),
-               }),
-             ),
-      }
+    | {shape: Var(var_data), _} =>
+      l
+      |> Layout.tag(
+           TermTag.Term({
+             ...term_data,
+             shape: Var({...var_data, show_use: true}),
+           }),
+         )
     | _ => failwith(__LOC__ ++ ": var not found")
     }
   );
@@ -272,7 +249,7 @@ module PathSearchResult = {
 
 let path_before = (l: t): option(CursorPath.t) => {
   let rec go = (l: t): PathSearchResult.t =>
-    switch (l.layout) {
+    switch (l) {
     | Text(_)
     | Linebreak => NotFound
     | Align(l) => go(l)
@@ -297,7 +274,7 @@ let path_before = (l: t): option(CursorPath.t) => {
 };
 
 let rec path_after = (l: t): option(CursorPath.t) =>
-  switch (l.layout) {
+  switch (l) {
   | Text(_)
   | Linebreak => None
   | Align(l) => path_after(l)
@@ -313,11 +290,10 @@ let rec path_after = (l: t): option(CursorPath.t) =>
 
 let path_of_caret_position = (row: int, col: int, l: t): option(CursorPath.t) => {
   let rec go = (indent, current_row, current_col, l: t): PathSearchResult.t => {
-    let end_row = current_row + l.metrics.cost;
+    let metrics = Layout.metrics(l);
+    let end_row = current_row + metrics.height - 1;
     let end_col =
-      l.metrics.cost == 0
-        ? current_col + (l.metrics.first_width - l.metrics.last_width)
-        : 80 - l.metrics.last_width;
+      (metrics.last_width_is_relative ? current_col : 0) + metrics.last_width;
     if (current_row == end_row && col <= indent) {
       PathSearchResult.of_opt(path_before(l));
     } else if (current_row == end_row && col >= end_col) {
@@ -326,17 +302,17 @@ let path_of_caret_position = (row: int, col: int, l: t): option(CursorPath.t) =>
       // current_row != end_row || indent < col < end_col
       let leaning_side: Side.t =
         col - current_col <= end_col - col ? Before : After;
-      switch (l.layout) {
+      switch (l) {
       | Text(_)
       | Tagged(HoleLabel(_), _) => NotFound
       | Linebreak => Transport(row == end_row ? After : Before)
       | Align(l) => l |> go(current_col, current_row, current_col)
       | Cat(l1, l2) =>
-        let mid_row = current_row + l1.metrics.cost;
+        let metrics1 = Layout.metrics(l1);
+        let mid_row = current_row + metrics1.height - 1;
         let mid_col =
-          l1.metrics.cost == 0
-            ? current_col + (l1.metrics.first_width - l1.metrics.last_width)
-            : 80 - l1.metrics.last_width;
+          (metrics1.last_width_is_relative ? current_col : 0)
+          + metrics1.last_width;
         if (row == mid_row && col == mid_col) {
           switch (path_after(l1), path_before(l2)) {
           | (None, None) => NotFound

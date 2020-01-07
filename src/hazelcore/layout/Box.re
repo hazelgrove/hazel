@@ -103,7 +103,7 @@ let box_of_head = (head: head('tag)): t('tag) => {
 
 let box_of_layout = (layout: Layout.t('tag)): t('tag) => {
   let rec go = (layout: Layout.t('tag)): head('tag) => {
-    switch (layout.layout) {
+    switch (layout) {
     | Text(string) => Atomic(Complete(Text(string)))
     | Cat(l1, l2) => headCat(go(l1), go(l2))
     | Linebreak => Divisible(Text(""), VBox([]), Complete(Text("")))

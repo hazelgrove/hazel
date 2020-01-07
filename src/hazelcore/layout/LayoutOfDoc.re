@@ -3,21 +3,17 @@ open Sexplib.Std;
 // TODO: compute actual layout size and use instead of t_of_layout
 let rec all: 'tag. Doc.t('tag) => list(Layout.t('tag)) = {
   fun
-  | Text(string) => [Layout.t_of_layout(Layout.Text(string))]
+  | Text(string) => [Layout.Text(string)]
   | Cat(d1, d2) => {
       let ls1 = all(d1);
       let ls2 = all(d2);
       List.concat(
-        List.map(
-          l1 => List.map(l2 => Layout.t_of_layout(Layout.Cat(l1, l2)), ls2),
-          ls1,
-        ),
+        List.map(l1 => List.map(l2 => Layout.Cat(l1, l2), ls2), ls1),
       );
     }
-  | Linebreak => [Layout.t_of_layout(Layout.Linebreak)]
-  | Align(d) => List.map(l => Layout.t_of_layout(Layout.Align(l)), all(d))
-  | Tagged(tag, d) =>
-    List.map(l => Layout.t_of_layout(Layout.Tagged(tag, l)), all(d))
+  | Linebreak => [Layout.Linebreak]
+  | Align(d) => List.map(l => Layout.Align(l), all(d))
+  | Tagged(tag, d) => List.map(l => Layout.Tagged(tag, l), all(d))
   | Fail => []
   | Choice(d1, d2) => all(d1) @ all(d2);
 };
@@ -159,15 +155,15 @@ and layout_of_doc'': Doc.t(unit) => m(Layout.t(unit)) =
         switch (doc) {
         | Text(string) =>
           let%bind () = modify_position(GeneralUtil.utf8_length(string));
-          return(Layout.t_of_layout(Layout.Text(string)));
+          return(Layout.Text(string));
         | Cat(d1, d2) =>
           let%bind l1 = layout_of_doc'(d1);
           let%bind l2 = layout_of_doc'(d2);
-          return(Layout.t_of_layout(Layout.Cat(l1, l2)));
+          return(Layout.Cat(l1, l2));
         | Linebreak =>
           let%bind () = tell_cost(1);
           let%bind () = set_position(0);
-          return(Layout.t_of_layout(Layout.Linebreak));
+          return(Layout.Linebreak);
         | Align(d) =>
           let%bind pos = get_position;
           let%bind width = ask_width;
@@ -180,31 +176,15 @@ and layout_of_doc'': Doc.t(unit) => m(Layout.t(unit)) =
               },
             );
           let%bind () = modify_position(pos);
-          return(Layout.t_of_layout(Layout.Align(l)));
+          return(Layout.Align(l));
         | Tagged(tag, d) =>
           let%bind l: m(Layout.t(unit)) = layout_of_doc'(d);
-          return(Layout.t_of_layout(Layout.Tagged(tag, l)));
+          return(Layout.Tagged(tag, l));
         | Fail => fail
         | Choice(d1, d2) => union(layout_of_doc'(d1), layout_of_doc'(d2))
         };
       };
-      PosMap.mapi(
-        (end_pos, (cost, layout)) =>
-          (
-            cost,
-            {
-              ...layout,
-              Layout.metrics: {
-                first_width: width - pos,
-                width,
-                // TODO not last width, remainder of last line
-                last_width: width - end_pos,
-                cost,
-              },
-            },
-          ),
-        ret(~width, ~pos),
-      );
+      ret(~width, ~pos);
     };
     let h = StrongWidthPosKey.make(g);
     (~width, ~pos) => h((width, pos));

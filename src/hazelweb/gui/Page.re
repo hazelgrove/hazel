@@ -148,7 +148,7 @@ let page_view =
   let doc = TermDoc.Exp.mk(~steps=[], ~enforce_inline=false, e);
   let layout =
     switch (LayoutOfDoc.layout_of_doc(doc, ~width=80, ~pos=0)) {
-    | None => Layout.t_of_layout(Layout.Text("layout FAILED")) // TODO
+    | None => Layout.Text("layout FAILED") // TODO
     | Some(l) => l
     };
   let layout = Layout.remove_tags(layout);

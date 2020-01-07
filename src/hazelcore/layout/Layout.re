@@ -1,19 +1,19 @@
 open Sexplib.Std;
 open GeneralUtil;
 
-/* Variable: `layout` */
+// type t('tag) = {
+//   metrics,
+//   layout: layout('tag),
+// }
+// and metrics = {
+//   first_width: int,
+//   width: int,
+//   last_width: int,
+//   cost: int,
+// }
+
 [@deriving sexp]
-type t('tag) = {
-  metrics,
-  layout: layout('tag),
-}
-and metrics = {
-  first_width: int,
-  width: int,
-  last_width: int,
-  cost: int,
-}
-and layout('tag) =
+type t('tag) =
   | Text(string) // Invariant: contains no newlines. Text("") is identity for `Cat`
   | Cat(t('tag), t('tag)) // associative // TODO: list
   | Linebreak
@@ -23,29 +23,51 @@ and layout('tag) =
 let align = (l: t('tag)) => Align(l);
 let tag = (tag: 'tag, l: t('tag)) => Tagged(tag, l);
 
-let t_of_layout = (layout: layout('tag)): t('tag) => {
-  layout,
-  metrics: {
-    first_width: (-1),
-    width: (-1),
-    last_width: (-1),
-    cost: (-1),
-  },
+type metrics = {
+  height: int,
+  last_width: int,
+  last_width_is_relative: bool,
 };
 
-let rec remove_tags = (layout: t('tag)): t('tag) => {
-  switch (layout.layout) {
-  | Tagged(_, l) => remove_tags(l)
-  | _ =>
-    let l' =
-      switch (layout.layout) {
-      | Text(string) => Text(string)
-      | Cat(l1, l2) => Cat(remove_tags(l1), remove_tags(l2))
-      | Linebreak => Linebreak
-      | Align(l) => Align(remove_tags(l))
-      | Tagged(_, _) => failwith(__LOC__)
+let rec metrics: 'tag. t('tag) => metrics =
+  // TODO: rename
+  layout => {
+    Obj.magic(Lazy.force(metrics_memo_table, Obj.magic(layout)));
+  }
+
+and metrics_memo_table: Lazy.t(t(unit) => metrics) =
+  lazy(Memoize.WeakPoly.make(metrics'))
+
+and metrics' = (layout: t(unit)): metrics =>
+  switch (layout) {
+  | Text(string) => {
+      height: 1,
+      last_width: String.length(string),
+      last_width_is_relative: true,
+    }
+  | Linebreak => {height: 2, last_width: 0, last_width_is_relative: false}
+  | Tagged(_, l) => metrics(l)
+  | Align(l) => {...metrics(l), last_width_is_relative: false}
+  | Cat(l1, l2) =>
+    let metrics1 = metrics(l1);
+    let metrics2 = metrics(l2);
+    let height = metrics1.height + metrics2.height - 1;
+    let metrics =
+      if (!metrics2.last_width_is_relative) {
+        metrics2;
+      } else {
+        {...metrics1, last_width: metrics1.last_width + metrics2.last_width};
       };
-    {...layout, layout: l'};
+    {...metrics, height};
+  };
+
+let rec remove_tags = (layout: t('tag)): t('tag) => {
+  switch (layout) {
+  | Tagged(_, l) => remove_tags(l)
+  | Text(string) => Text(string)
+  | Cat(l1, l2) => Cat(remove_tags(l1), remove_tags(l2))
+  | Linebreak => Linebreak
+  | Align(l) => Align(remove_tags(l))
   };
 };
 
@@ -69,7 +91,7 @@ let make_of_layout: (text('tag, 'imp, 't), t('tag)) => 't =
     let column: ref(int) = ref(0);
     let rec go: (int, t('tag)) => 'imp =
       (indent, layout) => {
-        switch (layout.layout) {
+        switch (layout) {
         | Text(string) =>
           column := column^ + GeneralUtil.utf8_length(string);
           text.imp_of_string(string);
