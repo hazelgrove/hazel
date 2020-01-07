@@ -302,7 +302,7 @@ let page_view =
               [
                 CursorInspector.view(~inject, model),
                 ContextInspector.view(~inject, model),
-                UndoHistoryList.view(~inject, model),
+                UndoHistoryList.view(),
                 OptionsPanel.view(~inject, model),
               ],
             ),
