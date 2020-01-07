@@ -145,14 +145,16 @@ let page_view =
       )
     };
   let e = model |> Model.exp;
-  let doc = TermDoc.Exp.mk(~steps=[], ~enforce_inline=false, e);
+  let doc = lazy(TermDoc.Exp.mk(~steps=[], ~enforce_inline=false, e));
   let layout =
-    switch (LayoutOfDoc.layout_of_doc(doc, ~width=80, ~pos=0)) {
-    | None => Layout.Text("layout FAILED") // TODO
-    | Some(l) => l
-    };
+    lazy(
+      switch (LayoutOfDoc.layout_of_doc(Lazy.force(doc), ~width=80, ~pos=0)) {
+      | None => Layout.Text("layout FAILED") // TODO
+      | Some(l) => l
+      }
+    );
   //let layout = Layout.remove_tags(layout);
-  let box = BoxOfLayout.box_of_layout(layout);
+  let box = lazy(BoxOfLayout.box_of_layout(Lazy.force(layout)));
   Vdom.(
     Node.div(
       [Attr.id("root")],
@@ -212,41 +214,6 @@ let page_view =
                       [
                         Attr.on_click(_ => {
                           let e = model |> Model.exp;
-                          let doc =
-                            TermDoc.Exp.mk(
-                              ~steps=[],
-                              ~enforce_inline=false,
-                              e,
-                            );
-                          Printf.printf(
-                            "doc sexp: %s\n",
-                            Sexplib.Sexp.to_string(TermDoc.sexp_of_t(doc)),
-                          );
-                          switch (
-                            LayoutOfDoc.layout_of_doc(doc, ~width=80, ~pos=0)
-                          ) {
-                          | None => Printf.printf("layout FAILED\n")
-                          | Some(layout) =>
-                            Printf.printf(
-                              "layout sexp: %s\n",
-                              Sexplib.Sexp.to_string(
-                                Layout.sexp_of_t(TermTag.sexp_of_t, layout),
-                              ),
-                            );
-                            Printf.printf(
-                              "%s\n",
-                              layout |> Layout.string_of_layout,
-                            );
-                          };
-                          Event.Ignore;
-                        }),
-                      ],
-                      [Node.text("Serialize layout")],
-                    ),
-                    Node.button(
-                      [
-                        Attr.on_click(_ => {
-                          let e = model |> Model.exp;
                           JSUtil.log(
                             Js.string(
                               Sexplib.Sexp.to_string(UHExp.sexp_of_t(e)),
@@ -265,7 +232,11 @@ let page_view =
                         [
                           Node.pre(
                             [],
-                            [Node.text(Layout.string_of_layout(layout))],
+                            [
+                              Node.text(
+                                Layout.string_of_layout(Lazy.force(layout)),
+                              ),
+                            ],
                           ),
                         ];
                       },
@@ -281,7 +252,7 @@ let page_view =
                       if (!model.show_presentation) {
                         [];
                       } else {
-                        [JSUtil.vdom_of_box(box)];
+                        [JSUtil.vdom_of_box(Lazy.force(box))];
                       },
                     ),
                   ],
