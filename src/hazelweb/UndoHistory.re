@@ -1,13 +1,21 @@
 module ZList = GeneralUtil.ZList;
+/*new edit state, the previous action, id*/
+type undo_history_entry = (Statics.edit_state, option(Action.t), int);
+type t = ZList.t(undo_history_entry, undo_history_entry);
 
-type t = ZList.t(Statics.edit_state, Statics.edit_state);
-
-let push_edit_state = (undo_history: t, edit_state: Statics.edit_state): t => {
+let push_edit_state =
+    (
+      undo_history: t,
+      edit_state: Statics.edit_state,
+      action: option(Action.t),
+    )
+    : t => {
+  let (_, _, last_id) = ZList.prj_z(undo_history);
   /* first add new edit state to the end, then shift_next */
   let after_push = (
     ZList.prj_prefix(undo_history),
     ZList.prj_z(undo_history),
-    [edit_state],
+    [(edit_state, action, last_id + 1)],
   );
   switch (ZList.shift_next(after_push)) {
   | None => failwith("Impossible because suffix is non-empty")

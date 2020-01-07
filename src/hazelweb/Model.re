@@ -380,7 +380,7 @@ let init = (): t => {
     user_newlines: CursorPath.StepsMap.empty,
     selected_example: None,
     is_cell_focused: false,
-    undo_history: ([], edit_state, []),
+    undo_history: ([], (edit_state, None, 0), []),
     left_sidebar_open: false,
     right_sidebar_open: true,
     show_content_editable: false,
@@ -407,7 +407,11 @@ let perform_edit_action = (model: t, a: Action.t): t => {
     let new_model = model |> update_edit_state(new_edit_state);
     let new_history =
       if (UndoHistory.undoable_action(a)) {
-        UndoHistory.push_edit_state(model.undo_history, new_edit_state);
+        UndoHistory.push_edit_state(
+          model.undo_history,
+          new_edit_state,
+          Some(a),
+        );
       } else {
         model.undo_history;
       };
