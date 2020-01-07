@@ -745,3 +745,16 @@ let content_editable_of_layout: Layout.t('tag) => Vdom.Node.t =
     };
     Layout.make_of_layout(record, layout);
   };
+
+let rec vdom_of_box = (box: Box.t('tag)): Vdom.Node.t =>
+  switch (box) {
+  | Text(string) =>
+    Vdom.Node.div([Vdom.Attr.classes(["text"])], [Vdom.Node.text(string)])
+  | HBox(bs) =>
+    Vdom.Node.div([Vdom.Attr.classes(["hbox"])], List.map(vdom_of_box, bs))
+  | VBox(bs) =>
+    Vdom.Node.div([Vdom.Attr.classes(["vbox"])], List.map(vdom_of_box, bs))
+  | Tagged(_, b) =>
+    // TODO
+    vdom_of_box(b)
+  };
