@@ -2,41 +2,20 @@ open Sexplib.Std;
 
 /* Variable: `layout` */
 [@deriving sexp]
-type t('tag) = {
-  layout: layout('tag),
-  first_width: int,
-  width: int,
-  last_width: int,
-  cost: int,
-}
-and layout('tag) =
+type t('tag) =
   | Text(string) // Invariant: contains no newlines. Text("") is identity for `Cat`
   | Cat(t('tag), t('tag)) // associative // TODO: list
   | Linebreak
   | Align(t('tag))
   | Tagged('tag, t('tag)); // TODO: annot
 
-let t_of_layout = (layout: layout('tag)): t('tag) => {
-  layout,
-  first_width: (-1),
-  width: (-1),
-  last_width: (-1),
-  cost: (-1),
-};
-
 let rec remove_tags = (layout: t('tag)): t('tag) => {
-  switch (layout.layout) {
+  switch (layout) {
   | Tagged(_, l) => remove_tags(l)
-  | _ =>
-    let l' =
-      switch (layout.layout) {
-      | Text(string) => Text(string)
-      | Cat(l1, l2) => Cat(remove_tags(l1), remove_tags(l2))
-      | Linebreak => Linebreak
-      | Align(l) => Align(remove_tags(l))
-      | Tagged(_, _) => failwith(__LOC__)
-      };
-    {...layout, layout: l'};
+  | Text(string) => Text(string)
+  | Cat(l1, l2) => Cat(remove_tags(l1), remove_tags(l2))
+  | Linebreak => Linebreak
+  | Align(l) => Align(remove_tags(l))
   };
 };
 
@@ -60,7 +39,7 @@ let make_of_layout: (text('tag, 'imp, 't), t('tag)) => 't =
     let column: ref(int) = ref(0);
     let rec go: (int, t('tag)) => 'imp =
       (indent, layout) => {
-        switch (layout.layout) {
+        switch (layout) {
         | Text(string) =>
           column := column^ + CamomileLibrary.UTF8.length(string);
           text.imp_of_string(string);
