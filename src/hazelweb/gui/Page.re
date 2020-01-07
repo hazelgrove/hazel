@@ -147,11 +147,11 @@ let page_view =
   let doc = DocOfTerm.doc_of_block(~steps=[], block);
   let layout =
     switch (LayoutOfDoc.layout_of_doc(doc, ~width=80, ~pos=0)) {
-    | None => Layout.t_of_layout(Layout.Text("layout FAILED")) // TODO
+    | None => Layout.Text("layout FAILED") // TODO
     | Some(l) => l
     };
-  let layout = Layout.remove_tags(layout);
-  let box = Box.box_of_layout(layout);
+  //let layout = Layout.remove_tags(layout);
+  let box = BoxOfLayout.box_of_layout(layout);
   Vdom.(
     Node.div(
       [Attr.id("root")],
