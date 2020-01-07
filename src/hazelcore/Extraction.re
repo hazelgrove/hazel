@@ -14,8 +14,6 @@ let rec indent_space = (~level: int): string =>
     "";
   };
 
-//print_endline(indent_space(2) ++ "Hello")
-
 //==============================
 //  UHTyp.re
 //==============================
@@ -110,21 +108,6 @@ and uhtyp_op_translater = (~op: UHTyp.op): string =>
 //     | Sum => " | "
 //   };
 
-// TESTCASE
-
-// let uhtyp_example1 : UHTyp.t= Parenthesized(OpSeq(
-//     BinOp(NotInHole, Arrow, Placeholder(1), Placeholder(2)),
-//     ExpOpExp(Num, Arrow, Num)));
-
-// let uhtyp_example2 : UHTyp.t= Parenthesized(OpSeq(
-//     BinOp(NotInHole, Arrow, BinOp(NotInHole, Arrow, Placeholder(0), Placeholder(1)), Placeholder(2)),
-//     SeqOpExp(ExpOpExp(Unit, Arrow, Bool), Arrow, Num)));
-
-// switch(uhtyp_translater(~t=uhtyp_example2)){
-//   | None => ()
-//   | Some(s) => print_endline(s)
-// };
-
 //==============================
 // UHPat.re
 //==============================
@@ -204,21 +187,6 @@ and uhpat_op_translater = (~op: UHPat.op): string =>
   | Space => " "
   | Cons => " :: "
   };
-
-//TESTCASE
-
-// let uhpat_example1 : UHPat.t = Parenthesized(OpSeq(
-//     BinOp(NotInHole, Cons, BinOp(NotInHole, Cons, Placeholder(0), Placeholder(1)), Placeholder(2)),
-//     SeqOpExp(ExpOpExp(NumLit(NotInHole, 1), Cons, NumLit(NotInHole, 2)), Cons, ListNil(NotInHole))));
-
-// let uhpat_example2 : UHPat.t = Parenthesized(Inj(NotInHole, L, Parenthesized(OpSeq(
-//     BinOp(NotInHole, Cons, BinOp(NotInHole, Cons, Placeholder(0), Placeholder(1)), Placeholder(2)),
-//     SeqOpExp(ExpOpExp(NumLit(NotInHole, 1), Cons, NumLit(NotInHole, 2)), Cons, ListNil(NotInHole))))))
-
-// switch(uhpat_translater(~t=uhpat_example2)){
-//   | None => ()
-//   | Some(s) => print_endline(s)
-// };
 
 //==============================
 //  UHExp.re
@@ -427,144 +395,3 @@ let extraction_call = (~block: block): string =>
   | None => "There could be some error in the code. Most possible is incomplete holes."
   | Some(s) => s
   };
-
-//TESTCASE
-
-// an example of
-// let x=3 in
-// x
-let example_let =
-  Block(
-    [
-      LetLine(
-        UHPat.Var(NotInHole, NotInVarHole, "x"),
-        None,
-        Block([], NumLit(NotInHole, 3)),
-      ),
-    ],
-    Var(NotInHole, NotInVarHole, "x"),
-  );
-
-// an example of simple 123
-let example_123 = Block([], NumLit(NotInHole, 123));
-
-let example_true = Block([], BoolLit(NotInHole, true));
-
-let example_emptyhole = Block([], EmptyHole(45));
-
-let example_listnil = Block([], ListNil(NotInHole));
-
-let example_lam1 =
-  Block(
-    [],
-    Lam(
-      NotInHole,
-      Var(NotInHole, NotInVarHole, "x"),
-      None,
-      Block([], Var(NotInHole, NotInVarHole, "x")),
-    ),
-  );
-
-let example_lam2 =
-  Block(
-    [],
-    Lam(
-      NotInHole,
-      Var(NotInHole, NotInVarHole, "x"),
-      Some(Num),
-      Block(
-        [],
-        Lam(
-          NotInHole,
-          Var(NotInHole, NotInVarHole, "y"),
-          Some(Num),
-          Block(
-            [],
-            Var(NotInHole, NotInVarHole, "xy") //need to modify
-          ),
-        ),
-      ),
-    ),
-  );
-
-let case_example1 =
-  Block(
-    [],
-    Case(
-      NotInHole,
-      Block([], Var(NotInHole, NotInVarHole, "x")),
-      [
-        Rule(ListNil(NotInHole), Block([], NumLit(NotInHole, 0))),
-        Rule(
-          Var(NotInHole, NotInVarHole, "a"),
-          Block([], BoolLit(NotInHole, true)),
-        ),
-      ],
-      Some(Unit),
-    ),
-  );
-
-let case_example2 =
-  Block(
-    [],
-    Case(
-      NotInHole,
-      Block([], Var(NotInHole, NotInVarHole, "x")),
-      [
-        Rule(
-          ListNil(NotInHole),
-          Block(
-            [],
-            Lam(
-              NotInHole,
-              Var(NotInHole, NotInVarHole, "x"),
-              Some(Num),
-              Block(
-                [],
-                Lam(
-                  NotInHole,
-                  Var(NotInHole, NotInVarHole, "y"),
-                  Some(Num),
-                  Block(
-                    [],
-                    Var(NotInHole, NotInVarHole, "xy") //need to modify
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ),
-        Rule(
-          Var(NotInHole, NotInVarHole, "a"),
-          Block([], BoolLit(NotInHole, true)),
-        ),
-        Rule(
-          Wild(NotInHole),
-          Block(
-            [],
-            Case(
-              NotInHole,
-              Block([], Var(NotInHole, NotInVarHole, "y")),
-              [
-                Rule(ListNil(NotInHole), Block([], NumLit(NotInHole, 1))),
-                Rule(
-                  Var(NotInHole, NotInVarHole, "b"),
-                  Block([], BoolLit(NotInHole, true)),
-                ),
-              ],
-              Some(Unit),
-            ),
-          ),
-        ),
-        Rule(
-          Var(NotInHole, NotInVarHole, "a"),
-          Block([], BoolLit(NotInHole, true)),
-        ),
-      ],
-      Some(Unit),
-    ),
-  );
-
-let parenthesized_example1 = Block([], Parenthesized(case_example2));
-
-print_endline(extraction_call(~block=parenthesized_example1));
