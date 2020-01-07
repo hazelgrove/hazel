@@ -3290,6 +3290,17 @@ let rec syn_perform_block =
        );
   /* Construction */
   | (
+      Construct(SCommentLine),
+      BlockZE(lines, CursorE(_, EmptyHole(_) as eh)),
+    ) =>
+    Succeeded(
+      Statics.syn_fix_holes_zblock(
+        ctx,
+        u_gen,
+        BlockZL((lines, CursorL(OnText(0), CommentLine("")), []), eh),
+      ),
+    )
+  | (
       Construct(SLine),
       BlockZL((prefix, CursorL(Staging(k), line), suffix), e),
     ) =>
