@@ -24,6 +24,22 @@ let t_of_layout = (layout: layout('tag)): t('tag) => {
   cost: (-1),
 };
 
+let rec remove_tags = (layout: t('tag)): t('tag) => {
+  switch (layout.layout) {
+  | Tagged(_, l) => remove_tags(l)
+  | _ =>
+    let l' =
+      switch (layout.layout) {
+      | Text(string) => Text(string)
+      | Cat(l1, l2) => Cat(remove_tags(l1), remove_tags(l2))
+      | Linebreak => Linebreak
+      | Align(l) => Align(remove_tags(l))
+      | Tagged(_, _) => failwith(__LOC__)
+      };
+    {...layout, layout: l'};
+  };
+};
+
 // TODO?
 //let text = (string) => t_of_layout(Text(string));
 //let cat = (t1, t2) => t_of_layout(Cat(t1, t2));

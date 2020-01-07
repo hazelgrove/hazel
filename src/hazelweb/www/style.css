@@ -1176,3 +1176,19 @@ button:disabled {
   padding: 4px;
   margin-left: 5px;
 }
+
+.text {
+  height: 1em; /* Ensure that empty texts still consume height */
+}
+
+.hbox {
+  display: flex;
+  flex-direction: row;
+  align-content: flex-start;
+}
+
+.vbox {
+  display: flex;
+  flex-direction: column;
+  align-content: flex-start;
+}
