@@ -151,8 +151,8 @@ let page_view =
     | None => Layout.Text("layout FAILED") // TODO
     | Some(l) => l
     };
-  let layout = Layout.remove_tags(layout);
-  let box = Box.box_of_layout(layout);
+  //let layout = Layout.remove_tags(layout);
+  let box = BoxOfLayout.box_of_layout(layout);
   Vdom.(
     Node.div(
       [Attr.id("root")],
