@@ -144,14 +144,16 @@ let page_view =
       )
     };
   let block = model |> Model.zblock |> ZExp.erase_block;
-  let doc = DocOfTerm.doc_of_block(~steps=[], block);
+  let doc = lazy(DocOfTerm.doc_of_block(~steps=[], block));
   let layout =
-    switch (LayoutOfDoc.layout_of_doc(doc, ~width=80, ~pos=0)) {
-    | None => Layout.Text("layout FAILED") // TODO
-    | Some(l) => l
-    };
+    lazy(
+      switch (LayoutOfDoc.layout_of_doc(Lazy.force(doc), ~width=80, ~pos=0)) {
+      | None => Layout.Text("layout FAILED") // TODO
+      | Some(l) => l
+      }
+    );
   //let layout = Layout.remove_tags(layout);
-  let box = BoxOfLayout.box_of_layout(layout);
+  let box = lazy(BoxOfLayout.box_of_layout(Lazy.force(layout)));
   Vdom.(
     Node.div(
       [Attr.id("root")],
@@ -210,30 +212,6 @@ let page_view =
                     Node.button(
                       [
                         Attr.on_click(_ => {
-                          Printf.printf(
-                            "doc sexp: %s\n",
-                            Sexplib.Sexp.to_string(
-                              DocOfTerm.sexp_of_doc(doc),
-                            ),
-                          );
-                          Printf.printf(
-                            "layout sexp: %s\n",
-                            Sexplib.Sexp.to_string(
-                              Layout.sexp_of_t(DocOfTerm.sexp_of_tag, layout),
-                            ),
-                          );
-                          Printf.printf(
-                            "%s\n",
-                            layout |> Layout.string_of_layout,
-                          );
-                          Event.Ignore;
-                        }),
-                      ],
-                      [Node.text("Serialize layout")],
-                    ),
-                    Node.button(
-                      [
-                        Attr.on_click(_ => {
                           let block =
                             model |> Model.zblock |> ZExp.erase_block;
                           JSUtil.log(
@@ -256,7 +234,11 @@ let page_view =
                         [
                           Node.pre(
                             [],
-                            [Node.text(Layout.string_of_layout(layout))],
+                            [
+                              Node.text(
+                                Layout.string_of_layout(Lazy.force(layout)),
+                              ),
+                            ],
                           ),
                         ];
                       },
@@ -272,7 +254,7 @@ let page_view =
                       if (!model.show_presentation) {
                         [];
                       } else {
-                        [JSUtil.vdom_of_box(box)];
+                        [JSUtil.vdom_of_box(Lazy.force(box))];
                       },
                     ),
                   ],
