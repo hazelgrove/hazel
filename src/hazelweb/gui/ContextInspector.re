@@ -55,7 +55,7 @@ let view =
       )
     };
 
-  let context_entry = (sigma, (x, ty)) => {
+  let context_entry = (sigma, (x, (ty, _))) => {
     let static_info = static_info((x, ty));
     let children =
       switch (dynamic_info(sigma, x)) {

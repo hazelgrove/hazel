@@ -156,6 +156,7 @@ let result_of_edit_state = ((zblock, _, _): edit_state): result => {
   open Dynamics;
   let expanded =
     DHExp.syn_expand_block(
+      [],
       (VarCtx.empty, Palettes.initial_palette_ctx),
       Delta.empty,
       ZExp.erase_block(zblock),
@@ -382,6 +383,7 @@ exception CantShift;
 let perform_edit_action = (model: t, a: Action.t): t => {
   switch (
     Action.syn_perform_block(
+      ~steps=[],
       ~ci=model.cursor_info,
       (VarCtx.empty, Palettes.initial_palette_ctx),
       a,
@@ -448,6 +450,7 @@ let load_example = (model: t, block: UHExp.block): t =>
   model
   |> update_edit_state(
        Statics.syn_fix_holes_zblock(
+         [],
          (VarCtx.empty, PaletteCtx.empty),
          MetaVarGen.init,
          ZExp.place_before_block(block),

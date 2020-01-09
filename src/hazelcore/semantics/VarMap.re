@@ -60,7 +60,7 @@ let contains = (ctx, x) =>
 let map = (f, xs) =>
   List.map(
     xa => {
-      let (x, _, _) = xa;
+      let (x, _) = xa;
       (x, f(xa));
     },
     xs,
