@@ -1883,12 +1883,27 @@ let empty_footer = () => {
   footer##.innerHTML := Js.string("");
 };
 
+let draw_box_var_def_indicator = (ctx: VarCtx.t, x: Var.t) => {
+  switch (VarMap.lookup_steps(ctx, x)) {
+  | None => ()
+  | Some(steps) =>
+    let var_def = Code.force_get_snode_elem(steps);
+    let classList = var_def##.classList;
+    classList##add(Js.string("var-pat-usage"));
+  };
+};
+
 let draw_SBox_indicators = (~ci: CursorInfo.t) => {
   let uses =
     switch (ci.node) {
     | Pat(VarPat(_, uses)) => uses
     | _ => []
     };
+  switch (ci.node) {
+  | Exp(Var(_, _, x)) =>
+    draw_box_var_def_indicator(Contexts.gamma(ci.ctx), x)
+  | _ => ()
+  };
   draw_box_var_uses_indicator(~uses);
   update_footer();
   draw_box_node_indicator();
