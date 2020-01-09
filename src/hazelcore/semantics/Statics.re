@@ -1571,6 +1571,7 @@ and syn_fix_holes_lines =
       ctx: Contexts.t,
       u_gen: MetaVarGen.t,
       ~renumber_empty_holes=false,
+      ~start_line_index: ChildIndex.t=0,
       lines: UHExp.lines,
     )
     : (UHExp.lines, Contexts.t, MetaVarGen.t) => {
@@ -1595,7 +1596,7 @@ and syn_fix_holes_lines =
           );
         ([fixed_line, ...fixed_lines], ctx, u_gen, line_index + 1);
       },
-      ([], ctx, u_gen, 0),
+      ([], ctx, u_gen, start_line_index),
       lines,
     );
   (List.rev(rev_fixed_lines), ctx, u_gen);
@@ -2600,12 +2601,14 @@ let syn_fix_holes_zlines =
       steps: CursorPath.steps,
       ctx: Contexts.t,
       u_gen: MetaVarGen.t,
+      ~start_line_index: ChildIndex.t=0,
       zlines: ZExp.zlines,
     )
     : (ZExp.zlines, Contexts.t, MetaVarGen.t) => {
   let path = CursorPath.of_zlines(zlines);
   let lines = ZExp.erase_lines(zlines);
-  let (lines, ctx, u_gen) = syn_fix_holes_lines(steps, ctx, u_gen, lines);
+  let (lines, ctx, u_gen) =
+    syn_fix_holes_lines(steps, ctx, u_gen, lines, ~start_line_index);
   let zlines = CursorPath.follow_lines_or_fail(path, lines);
   (zlines, ctx, u_gen);
 };
