@@ -78,7 +78,7 @@ let view =
             [
               Attr.on_click(_ => {
                 Printf.printf(
-                  "%s \n%!",
+                  "%s\n%!",
                   Extraction.extraction_call(
                     ~block=model |> Model.zblock |> ZExp.erase_block,
                   ),

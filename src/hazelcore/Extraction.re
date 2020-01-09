@@ -1,7 +1,18 @@
 open UHExp;
 
-// TODO: Discard the "?" holes in the first step
-//  Then carefully consider it
+//===========================
+//    Some Notice
+//===========================
+/*1. This version view "?" holes as incomplete ones, and will not extract
+        if want to pass the hazel example, please change the first case of lam_handler
+        it solves the inference of lambda expression without set a type
+    2. Known issue: Last line of the string output in console will be put into another label
+  */
+
+//TODO: FIXME: Insert ; and ;; in the extraction result
+
+// Already Done: Discard the "?" holes in the first step
+// FIXME: Then carefully consider it
 
 // TODO: Use auto-formatter in ocaml to deal with unnecessary indent and ()s
 
@@ -26,6 +37,7 @@ let rec option_string_concat =
     | _ => None
     }
   };
+
 //==============================
 //  UHTyp.re
 //==============================
@@ -40,19 +52,19 @@ let rec option_string_concat =
 let rec uhtyp_translater = (~t: UHTyp.t): option(string) =>
   switch (t) {
   | Hole => None
+  //   | Hole => Some("'a")
+  // //FIXME: Here is a version with type inference
+  // //  such as (\lambda x:?.x+1) 1 can return 2, but leave a ? hole as "Hole"
+  // //ocaml can do type inference, so just change hole to 'a
   | Num => Some("int")
   | Bool => Some("bool")
   | Unit => Some("()") //written as (), actually is unit
   | List(a) =>
-    switch (uhtyp_translater(~t=a)) {
-    | None => None
-    | Some(s) => Some(s ++ " list")
-    }
+    option_string_concat(~strs=[uhtyp_translater(~t=a), Some(" list")])
   | Parenthesized(a) =>
-    switch (uhtyp_translater(~t=a)) {
-    | None => None
-    | Some(s) => Some("(" ++ s ++ ")")
-    }
+    option_string_concat(
+      ~strs=[Some("("), uhtyp_translater(~t=a), Some(")")],
+    )
   | OpSeq(skel_t, opseq) =>
     switch (skel_t) {
     // Since skeleton is consistant with opseq, decline skel_t
@@ -63,17 +75,21 @@ let rec uhtyp_translater = (~t: UHTyp.t): option(string) =>
 and uhtyp_opseq_translater = (~opseq): option(string) =>
   switch (opseq) {
   | ExpOpExp(tm1, op, tm2) =>
-    switch (uhtyp_translater(~t=tm1), uhtyp_translater(~t=tm2)) {
-    | (Some(a), Some(b)) =>
-      Some(a ++ " " ++ uhtyp_op_translater(~op) ++ " " ++ b)
-    | _ => None
-    }
+    option_string_concat(
+      ~strs=[
+        uhtyp_translater(~t=tm1),
+        Some(uhtyp_op_translater(~op)),
+        uhtyp_translater(~t=tm2),
+      ],
+    )
   | SeqOpExp(seq, op, tm) =>
-    switch (uhtyp_opseq_translater(~opseq=seq), uhtyp_translater(~t=tm)) {
-    | (Some(a), Some(b)) =>
-      Some(a ++ " " ++ uhtyp_op_translater(~op) ++ " " ++ b)
-    | _ => None
-    }
+    option_string_concat(
+      ~strs=[
+        uhtyp_opseq_translater(~opseq=seq),
+        Some(uhtyp_op_translater(~op)),
+        uhtyp_translater(~t=tm),
+      ],
+    )
   }
 and uhtyp_op_translater = (~op: UHTyp.op): string =>
   switch (op) {
@@ -81,44 +97,6 @@ and uhtyp_op_translater = (~op: UHTyp.op): string =>
   | Prod => " * " //int*int in ocaml
   | Sum => " | "
   };
-
-//FIXME: Here is a version with type inference
-//  such as (\lambda x:?.x+1) 1 can return 2, but leave a ? hole as "Hole"
-//ocaml can do type inference, so just change hole to 'a
-// let rec uhtyp_translater = (~t : UHTyp.t) : option(string) =>
-//   switch(t) {
-//     | Hole => "'a"
-//     | Num => Some("int")
-//     | Bool => Some("bool")
-//     | Unit => Some("()") //written as (), actually is unit
-//     | List(a) => switch(uhtyp_translater(a)){
-//       | None => None
-//       | Some(s) => Some(s ++ " list")
-//     }
-//     | Parenthesized(a) => switch(uhtyp_translater(a)) {
-//       | None => None
-//       | Some(s) => Some("(" ++ s ++ ")")
-//     }
-//     | OpSeq(skel_t, opseq) => switch(skel_t){
-//       | BinOp(NotInHole, _, _, _) => uhtyp_opseq_translater(~opseq=opseq)
-//       | _ => None
-//     }
-//   }
-//   and uhtyp_opseq_translater = (~opseq) : option(string) => switch(opseq){
-//         | ExpOpExp(tm1, op, tm2) => switch((uhtyp_translater(tm1), uhtyp_translater(tm2))){
-//           | (Some(a), Some(b)) => Some(a ++ " " ++ uhtyp_op_translater(op) ++ " " ++ b)
-//           | _ => None
-//         }
-//         | SeqOpExp(seq, op, tm) => switch(uhtyp_opseq_translater(~opseq=seq), uhtyp_translater(tm)) {
-//           | (Some(a), Some(b)) => Some(a ++ " " ++ uhtyp_op_translater(op) ++ " " ++ b)
-//           | _ => None
-//         }
-//   } and uhtyp_op_translater = (~op : UHTyp.op) : string =>
-//   switch(op) {
-//     | Arrow => " -> "
-//     | Prod => " * " //int*int in ocaml
-//     | Sum => " | "
-//   };
 
 //==============================
 // UHPat.re
@@ -181,17 +159,21 @@ let rec uhpat_translater = (~t: UHPat.t): option(string) =>
 and uhpat_opseq_translater = (~opseq): option(string) =>
   switch (opseq) {
   | ExpOpExp(tm1, op, tm2) =>
-    switch (uhpat_translater(~t=tm1), uhpat_translater(~t=tm2)) {
-    | (Some(a), Some(b)) =>
-      Some(a ++ " " ++ uhpat_op_translater(~op) ++ " " ++ b)
-    | _ => None
-    }
+    option_string_concat(
+      ~strs=[
+        uhpat_translater(~t=tm1),
+        Some(uhpat_op_translater(~op)),
+        uhpat_translater(~t=tm2),
+      ],
+    )
   | SeqOpExp(seq, op, tm) =>
-    switch (uhpat_opseq_translater(~opseq=seq), uhpat_translater(~t=tm)) {
-    | (Some(a), Some(b)) =>
-      Some(a ++ " " ++ uhpat_op_translater(~op) ++ " " ++ b)
-    | _ => None
-    }
+    option_string_concat(
+      ~strs=[
+        uhpat_opseq_translater(~opseq=seq),
+        Some(uhpat_op_translater(~op)),
+        uhpat_translater(~t=tm),
+      ],
+    )
   }
 and uhpat_op_translater = (~op: UHPat.op): string =>
   switch (op) {
@@ -274,10 +256,9 @@ and type_handler = (~t: t, ~level: int): option(string) =>
     | _ => None
     }
   | Parenthesized(b) =>
-    switch (block_handler(~block=b, ~level)) {
-    | None => None
-    | Some(s) => Some("(" ++ s ++ ")")
-    }
+    option_string_concat(
+      ~strs=[Some("("), block_handler(~block=b, ~level), Some(")")],
+    )
   | OpSeq(skel_t, opseq) =>
     switch (skel_t) {
     //since invariant of skel_t and opseq, decline skel_t
@@ -300,28 +281,34 @@ and lam_handler =
   //UHTyp we receive a Some(Hole), it maybe legal to inference
   //Just use another version of uhtyp_translator
   switch (errstatus, uhpat, uhtyp) {
-  | (NotInHole, pat, None) =>
-    switch (
-      uhpat_translater(~t=pat),
-      block_handler(~block, ~level=level + 1),
-    ) {
-    //here we don't need indent because it's follow some expression like "="
-    //but maybe writting it in a new line needs
-    //FIXME: currently insert an () to protect codes, figure out whether can remove
-    | (Some(s), Some(b)) => Some("(fun " ++ s ++ " -> " ++ b ++ ")")
-    | _ => None
-    }
+  //TODO:FIXME: another "?" issue, currently just give None
+  | (NotInHole, _pat, None) => None
+  // option_string_concat(
+  //   ~strs=[
+  //     Some("(fun "),
+  //     uhpat_translater(~t=pat),
+  //     Some(" -> "),
+  //     block_handler(~block, ~level=level + 1),
+  //     Some(")"),
+  //   ],
+  // )
+
+  //here we don't need indent because it's follow some expression like "="
+  //but maybe writting it in a new line needs
+  //FIXME: currently insert an () to protect codes, figure out whether can remove
   | (NotInHole, pat, Some(typ)) =>
-    switch (
-      uhpat_translater(~t=pat),
-      uhtyp_translater(~t=typ),
-      block_handler(~block, ~level=level + 1),
-    ) {
-    //Maybe here need ()
-    | (Some(s), Some(t), Some(b)) =>
-      Some("(fun " ++ s ++ ":" ++ t ++ " -> " ++ b ++ ")")
-    | _ => None
-    }
+    option_string_concat(
+      ~strs=[
+        Some("(fun "),
+        uhpat_translater(~t=pat),
+        Some(" : "),
+        uhtyp_translater(~t=typ),
+        Some(" -> "),
+        block_handler(~block, ~level=level + 1),
+        Some(")"),
+      ],
+    )
+  //Maybe here need ()
   | _ => None
   }
 
@@ -337,23 +324,21 @@ and inj_handler =
 and opseq_handler = (~opseq: UHExp.opseq, ~level: int): option(string) =>
   switch (opseq) {
   | ExpOpExp(tm1, op, tm2) =>
-    switch (
-      type_handler(~t=tm1, ~level=level + 1),
-      type_handler(~t=tm2, ~level=level + 1),
-    ) {
-    | (Some(a), Some(b)) =>
-      Some(a ++ " " ++ uhexp_op_translater(~op) ++ " " ++ b)
-    | _ => None
-    }
+    option_string_concat(
+      ~strs=[
+        type_handler(~t=tm1, ~level=level + 1),
+        Some(uhexp_op_translater(~op)),
+        type_handler(~t=tm2, ~level=level + 1),
+      ],
+    )
   | SeqOpExp(seq, op, tm) =>
-    switch (
-      opseq_handler(~opseq=seq, ~level=level + 1),
-      type_handler(~t=tm, ~level=level + 1),
-    ) {
-    | (Some(a), Some(b)) =>
-      Some(a ++ " " ++ uhexp_op_translater(~op) ++ " " ++ b)
-    | _ => None
-    }
+    option_string_concat(
+      ~strs=[
+        opseq_handler(~opseq=seq, ~level=level + 1),
+        Some(uhexp_op_translater(~op)),
+        type_handler(~t=tm, ~level=level + 1),
+      ],
+    )
   }
 //put errstatus check into the main function
 and case_handler =
@@ -370,57 +355,63 @@ and case_handler =
   //        indeed, ocaml has nowhere to assign type for match structure
   //  Deal with the "?" holes, let x:Num = case... don't need a type at the end
   //      whether if the "?" hole itself is an incomplete expression with Holes
-  switch (
-    block_handler(~block, ~level),
-    rule_handler(~rules, ~level=level + 1),
-    uhtyp,
-  ) {
   //FIXME: Currently using () to handle nested case, but a little bit ugly for the first one
-  | (Some(b), Some(r), None) => Some("(match " ++ b ++ " with" ++ r ++ ")")
-  | (Some(b), Some(r), Some(typ)) =>
-    switch (uhtyp_translater(~t=typ)) {
-    | None => None
-    | Some(t) => Some("((match " ++ b ++ " with" ++ r ++ ") : " ++ t ++ ")")
-    }
+  switch (uhtyp) {
+  | None =>
+    option_string_concat(
+      ~strs=[
+        Some("(match "),
+        block_handler(~block, ~level),
+        Some(" with"),
+        rule_handler(~rules, ~level=level + 1),
+        Some(")"),
+      ],
+    )
+  | Some(typ) =>
+    option_string_concat(
+      ~strs=[
+        Some("((match "),
+        block_handler(~block, ~level),
+        Some(" with"),
+        rule_handler(~rules, ~level=level + 1),
+        Some(") : "),
+        uhtyp_translater(~t=typ),
+        Some(")"),
+      ],
+    )
   // if uhtyp is not None, but translater result is None, it means there's incomplete hole, can't inference
   // FIXME: This is only a tricky method, so it isn't formally good
-  | _ => None
   }
 // expected to output "\n  | expr => expr "
 and rule_handler = (~rules: list(rule), ~level: int): option(string) =>
   switch (rules) {
   | [] => Some("")
   | [rule, ...rest] =>
-    switch (rule, rule_handler(~rules=rest, ~level)) {
-    | (Rule(uhpat, block), Some(result)) =>
-      switch (
-        uhpat_translater(~t=uhpat),
-        block_handler(~block, ~level=level + 1),
-      ) {
-      // Don't proceed on level because all are same level
-      | (Some(t), Some(expr)) =>
-        Some(
-          "\n"
-          ++ indent_space(~level)
-          ++ "| "
-          ++ t
-          ++ " -> "
-          ++ expr
-          ++ result,
-        )
-      | _ => None
-      }
-    | _ => None
+    switch (rule) {
+    | Rule(uhpat, block) =>
+      option_string_concat(
+        ~strs=[
+          Some("\n"),
+          Some(indent_space(~level)),
+          Some("| "),
+          uhpat_translater(~t=uhpat),
+          Some(" -> "),
+          block_handler(~block, ~level=level + 1),
+          rule_handler(~rules=rest, ~level),
+        ],
+      )
     }
   }
 and lines_handler = (~lines: list(UHExp.line), ~level: int): option(string) =>
   switch (lines) {
   | [] => Some("")
   | [line, ...rest] =>
-    switch (line_handler(~line, ~level), lines_handler(~lines=rest, ~level)) {
-    | (Some(l), Some(r)) => Some(l ++ r)
-    | _ => None
-    }
+    option_string_concat(
+      ~strs=[
+        line_handler(~line, ~level),
+        lines_handler(~lines=rest, ~level),
+      ],
+    )
   }
 
 // we expect the every line will return a "\n" to end the line
@@ -471,5 +462,7 @@ and line_handler = (~line: UHExp.line, ~level: int): option(string) =>
 let extraction_call = (~block: block): string =>
   switch (block_handler(~block, ~level=0)) {
   | None => "There could be some error in the code. Most possible is incomplete holes."
-  | Some(s) => s
+  //FIXME: Since currently we have no code-block in hazel, no need ";"
+  //        and since use let...in, so no need other ";;"
+  | Some(s) => s ++ ";;"
   };
