@@ -8,24 +8,24 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
     switch (shape) {
     | SParenthesized => "parentheise"
     /* type shapes */
-    | SNum => "number"
-    | SBool => "bool"
-    | SList => "list"
+    | SNum => "type Num"
+    | SBool => "type Bool"
+    | SList => "type List"
     /* expression shapes */
-    | SAsc => "???"
-    | SVar(varstr, _) => "var: " ++ varstr // convert int to char? ++ Char.chr(intvar)
-    | SLam => "lambada?"
-    | SNumLit(value, _) => "numlit? " ++ string_of_int(value)
-    | SListNil => "listNil"
+    | SAsc => "add ':'"
+    | SVar(varstr, _) => "edit var: " ++ varstr // convert int to char? ++ Char.chr(intvar)
+    | SLam => "add lambada"
+    | SNumLit(value, _) => "edit number: " ++ string_of_int(value)
+    | SListNil => "add list"
     | SInj(direction) =>
       switch (direction) {
       | L => "inject left"
       | R => "inject right"
       }
-    | SLet => "let"
-    | SLine => "a new line"
-    | SCase => "case"
-    | SOp(op) => "operator " ++ Action.op_shape_to_string(op)
+    | SLet => "bulid 'let'"
+    | SLine => "add a new line"
+    | SCase => "add case"
+    | SOp(op) => "add operator " ++ Action.op_shape_to_string(op)
     | SApPalette(_) => "appalette?"
     /* pattern-only shapes */
     | SWild => "wild?"
@@ -36,7 +36,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
     | UpdateApPalette(_) => "updatePlate?"
     | Delete => "delete"
     | Backspace => "backspace"
-    | Construct(shape) => "add " ++ shape_to_string(shape)
+    | Construct(shape) => shape_to_string(shape)
     | MoveTo(_)
     | MoveToBefore(_)
     | MoveLeft
