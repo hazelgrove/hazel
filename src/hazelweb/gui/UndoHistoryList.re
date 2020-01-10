@@ -56,7 +56,10 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
     | Some(detail_ac) =>
       Vdom.(
         Node.div(
-          [Attr.on_click(_ => inject(Update.Action.ShiftHistory(id)))],
+          [
+            Attr.classes(["the-history-entry"]),
+            Attr.on_click(_ => inject(Update.Action.ShiftHistory(id))),
+          ],
           [Node.text(action_to_stirng(detail_ac))],
         )
       )
