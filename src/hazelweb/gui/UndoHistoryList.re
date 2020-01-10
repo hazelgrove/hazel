@@ -50,38 +50,62 @@ let action_to_stirng = (action: Action.t) => {
 };
 let history_entry_view = undo_history_entry => {
   let (_, action, _) = undo_history_entry;
-  let txt =
-    switch (action) {
-    | None => "no action"
-    | Some(detail_ac) => action_to_stirng(detail_ac)
-    };
-  Vdom.(Node.div([], [Node.text(txt)]));
+  switch (action) {
+  | None => Vdom.(Node.div([], []))
+  | Some(detail_ac) =>
+    Vdom.(Node.div([], [Node.text(action_to_stirng(detail_ac))]))
+  };
+};
+let prev_history_view = history => {
+  Vdom.(
+    Node.div(
+      [Attr.classes(["the-prev-history"])],
+      List.map(history_entry_view, history),
+    )
+  );
+};
+let suc_history_view = history => {
+  Vdom.(
+    Node.div(
+      [Attr.classes(["the-suc-history"])],
+      List.map(history_entry_view, history),
+    )
+  );
+};
+let now_history_view = (history: UndoHistory.undo_history_entry) => {
+  Vdom.(
+    Node.div(
+      [Attr.classes(["the-now-history"])],
+      [history_entry_view(history)],
+    )
+  );
 };
 let history_view = (model: Model.t) => {
-  let erase_func =
-      (undo_history_entry: UndoHistory.undo_history_entry)
-      : UndoHistory.undo_history_entry => undo_history_entry;
-  let history = ZList.erase(model.undo_history, erase_func);
-  switch (history) {
-  | [] =>
+  let (prev_his, now, suc_his) = model.undo_history;
+  switch (now) {
+  | (_, None, _) =>
     Vdom.(
       Node.div(
         [Attr.classes(["the-context"])],
         [
           Vdom.(
             Node.div(
-              [Attr.classes(["context-is-empty-msg"])],
-              [Node.text("no variables in scope")],
+              [Attr.classes(["history-is-empty-msg"])],
+              [Node.text("no history in scope")],
             )
           ),
         ],
       )
     )
-  | his_lst =>
+  | (_, Some(_), _) =>
     Vdom.(
       Node.div(
         [Attr.classes(["the-context"])],
-        List.map(history_entry_view, List.rev(his_lst)),
+        [
+          prev_history_view(prev_his),
+          now_history_view(now),
+          suc_history_view(suc_his),
+        ],
       )
     )
   };

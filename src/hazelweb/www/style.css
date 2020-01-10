@@ -1199,3 +1199,24 @@ button:disabled {
   flex-direction: column;
   align-content: flex-start;
 }
+
+/* edit action history panel */
+
+.history-is-empty-msg {
+  margin-top: 10px;
+  opacity: 0.50;
+  text-align: center;
+  /* text-transform: uppercase; */
+  font-size: 75%;
+}
+
+.the-prev-history {
+  color: #0d0a05;
+}
+
+.the-suc-history {
+  color: gray;
+}
+.the-now-history {
+  color: red;
+}
