@@ -30,7 +30,8 @@ module Action = {
     | AddUserNewline(CursorPath.steps)
     | RemoveUserNewline(CursorPath.steps)
     | Redo
-    | Undo;
+    | Undo
+    | ShiftHistory(int);
 };
 
 [@deriving sexp]
@@ -87,7 +88,8 @@ let log_action = (action: Action.t, _: State.t): unit => {
   | RemoveUserNewline(_)
   | MoveToHole(_)
   | Undo
-  | Redo =>
+  | Redo
+  | ShiftHistory(_) =>
     Logger.append(
       Sexp.to_string(
         sexp_of_timestamped_action(mk_timestamped_action(action)),
@@ -306,5 +308,15 @@ let apply_action =
     let (new_edit_state, _, _) = ZList.prj_z(new_history);
     let new_model = model |> Model.update_edit_state(new_edit_state);
     {...new_model, undo_history: new_history};
+  | ShiftHistory(n) =>
+    let erase_func = his => his;
+    let his_lst = ZList.erase(model.undo_history, erase_func);
+    switch (ZList.split_at(n, his_lst)) {
+    | None => failwith("Impossible because undo_history is non-empty")
+    | Some(new_history) =>
+      let (new_edit_state, _, _) = ZList.prj_z(new_history);
+      let new_model = model |> Model.update_edit_state(new_edit_state);
+      {...new_model, undo_history: new_history};
+    };
   };
 };

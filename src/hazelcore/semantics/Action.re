@@ -29,7 +29,7 @@ let op_shape_to_string = (op: op_shape) => {
   | SComma => ","
   | SArrow => "=>"
   | SVBar => "[VBar]"
-  | SCons => "[Cons]"
+  | SCons => "::"
   | SAnd => "&"
   | SOr => "|"
   };
