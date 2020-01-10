@@ -1,5 +1,4 @@
 open Sexplib.Std;
-open GeneralUtil;
 
 [@deriving sexp]
 type uses_list = list(CursorPath.steps);
@@ -37,7 +36,7 @@ and find_uses_block =
     (~offset=0, ~steps, x: Var.t, block: UHExp.block): uses_list => {
   let (uses, _) =
     block
-    |> fold_left_i(
+    |> ListUtil.fold_left_i(
          ((uses_so_far, shadowed), (i, line)) =>
            if (shadowed) {
              (uses_so_far, shadowed);

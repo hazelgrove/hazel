@@ -165,7 +165,7 @@ let contenteditable_of_layout = (~inject, l: TermLayout.t): Vdom.Node.t => {
         [contenteditable_false],
         [
           Node.text(
-            String.concat("", GeneralUtil.replicate(indent, LangUtil.nbsp1)),
+            String.concat("", ListUtil.replicate(indent, LangUtil.nbsp1)),
           ),
         ],
       ),
@@ -417,7 +417,7 @@ let editor_view_of_layout =
            (l, use) =>
              l
              |> TermLayout.find_and_decorate_var_use(~steps=use)
-             |> GeneralUtil.Opt.get(() => {
+             |> OptUtil.get(() => {
                   failwith(
                     __LOC__
                     ++ ": could not find var use"

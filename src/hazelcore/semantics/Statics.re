@@ -1,5 +1,3 @@
-open GeneralUtil;
-
 [@deriving sexp]
 type edit_state = (ZExp.t, HTyp.t, MetaVarGen.t);
 
@@ -73,7 +71,7 @@ module Pat = {
     | Inj(InHole(TypeInconsistent, _), _, _) =>
       let operand' = UHPat.set_err_status_operand(NotInHole, operand);
       syn_operand(ctx, operand')
-      |> Opt.map(((_, gamma)) => (HTyp.Hole, gamma));
+      |> OptUtil.map(((_, gamma)) => (HTyp.Hole, gamma));
     | Wild(InHole(WrongLength, _))
     | Var(InHole(WrongLength, _), _, _)
     | NumLit(InHole(WrongLength, _), _)
@@ -116,7 +114,7 @@ module Pat = {
     // handle n-tuples
     let skels = skel |> UHPat.get_tuple_elements;
     let tys = ty |> HTyp.get_tuple_elements;
-    switch (opt_zip(skels, tys)) {
+    switch (ListUtil.opt_zip(skels, tys)) {
     | Some(skel_tys) =>
       skel_tys
       |> List.fold_left(
@@ -148,7 +146,7 @@ module Pat = {
         | InHole(TypeInconsistent, _) => None
         | InHole(WrongLength, _) =>
           let opseq' = opseq |> UHPat.set_err_status_opseq(NotInHole);
-          syn_opseq(ctx, opseq') |> Opt.map(_ => ctx);
+          syn_opseq(ctx, opseq') |> OptUtil.map(_ => ctx);
         }
       }
     };
@@ -197,7 +195,7 @@ module Pat = {
     | ListNil(InHole(TypeInconsistent, _))
     | Inj(InHole(TypeInconsistent, _), _, _) =>
       let operand' = UHPat.set_err_status_operand(NotInHole, operand);
-      syn_operand(ctx, operand') |> Opt.map(((_, ctx)) => ctx);
+      syn_operand(ctx, operand') |> OptUtil.map(((_, ctx)) => ctx);
     | Wild(InHole(WrongLength, _))
     | Var(InHole(WrongLength, _), _, _)
     | NumLit(InHole(WrongLength, _), _)
@@ -397,7 +395,7 @@ module Pat = {
     // handle n-tuples
     let skels = skel |> UHPat.get_tuple_elements;
     let tys = ty |> HTyp.get_tuple_elements;
-    switch (opt_zip(skels, tys)) {
+    switch (ListUtil.opt_zip(skels, tys)) {
     | Some(skel_tys) =>
       skel_tys
       |> List.fold_left(
@@ -720,7 +718,7 @@ module Exp = {
   }
   and syn_line = (ctx: Contexts.t, line: UHExp.line): option(Contexts.t) =>
     switch (line) {
-    | ExpLine(opseq) => syn_opseq(ctx, opseq) |> Opt.map(_ => ctx)
+    | ExpLine(opseq) => syn_opseq(ctx, opseq) |> OptUtil.map(_ => ctx)
     | EmptyLine => Some(ctx)
     | LetLine(p, ann, def) =>
       switch (ann) {
@@ -749,24 +747,26 @@ module Exp = {
       syn_operand(ctx, en);
     | BinOp(InHole(_), op, skel1, skel2) =>
       let skel_not_in_hole = Skel.BinOp(NotInHole, op, skel1, skel2);
-      syn_skel(ctx, skel_not_in_hole, seq) |> Opt.map(_ => HTyp.Hole);
+      syn_skel(ctx, skel_not_in_hole, seq) |> OptUtil.map(_ => HTyp.Hole);
     | BinOp(NotInHole, Minus, skel1, skel2)
     | BinOp(NotInHole, Plus, skel1, skel2)
     | BinOp(NotInHole, Times, skel1, skel2) =>
       switch (ana_skel(ctx, skel1, seq, HTyp.Num)) {
       | None => None
-      | Some(_) => ana_skel(ctx, skel2, seq, Num) |> Opt.map(_ => HTyp.Num)
+      | Some(_) =>
+        ana_skel(ctx, skel2, seq, Num) |> OptUtil.map(_ => HTyp.Num)
       }
     | BinOp(NotInHole, And | Or, skel1, skel2) =>
       switch (ana_skel(ctx, skel1, seq, HTyp.Bool)) {
       | None => None
       | Some(_) =>
-        ana_skel(ctx, skel2, seq, HTyp.Bool) |> Opt.map(_ => HTyp.Bool)
+        ana_skel(ctx, skel2, seq, HTyp.Bool) |> OptUtil.map(_ => HTyp.Bool)
       }
     | BinOp(NotInHole, LessThan | GreaterThan | Equals, skel1, skel2) =>
       switch (ana_skel(ctx, skel1, seq, Num)) {
       | None => None
-      | Some(_) => ana_skel(ctx, skel2, seq, Num) |> Opt.map(_ => HTyp.Bool)
+      | Some(_) =>
+        ana_skel(ctx, skel2, seq, Num) |> OptUtil.map(_ => HTyp.Bool)
       }
     | BinOp(NotInHole, Space, skel1, skel2) =>
       switch (syn_skel(ctx, skel1, seq)) {
@@ -775,7 +775,7 @@ module Exp = {
         switch (HTyp.matched_arrow(ty1)) {
         | None => None
         | Some((ty2, ty)) =>
-          ana_skel(ctx, skel2, seq, ty2) |> Opt.map(_ => ty)
+          ana_skel(ctx, skel2, seq, ty2) |> OptUtil.map(_ => ty)
         }
       }
     | BinOp(NotInHole, Comma, skel1, skel2) =>
@@ -792,7 +792,7 @@ module Exp = {
       | None => None
       | Some(ty1) =>
         let ty = HTyp.List(ty1);
-        ana_skel(ctx, skel2, seq, ty) |> Opt.map(_ => ty);
+        ana_skel(ctx, skel2, seq, ty) |> OptUtil.map(_ => ty);
       }
     }
   and syn_operand = (ctx: Contexts.t, operand: UHExp.operand): option(HTyp.t) =>
@@ -808,7 +808,7 @@ module Exp = {
     | Case(InHole(TypeInconsistent, _), _, _, _)
     | ApPalette(InHole(TypeInconsistent, _), _, _, _) =>
       let operand' = UHExp.set_err_status_operand(NotInHole, operand);
-      syn_operand(ctx, operand') |> Opt.map(_ => HTyp.Hole);
+      syn_operand(ctx, operand') |> OptUtil.map(_ => HTyp.Hole);
     | Var(InHole(WrongLength, _), _, _)
     | NumLit(InHole(WrongLength, _), _)
     | BoolLit(InHole(WrongLength, _), _)
@@ -910,11 +910,11 @@ module Exp = {
     // handle n-tuples
     let skels = skel |> UHExp.get_tuple_elements;
     let tys = ty |> HTyp.get_tuple_elements;
-    switch (opt_zip(skels, tys)) {
+    switch (ListUtil.opt_zip(skels, tys)) {
     | Some(skel_tys) =>
       skel_tys
       |> List.map(((skel, ty)) => ana_skel(ctx, skel, seq, ty))
-      |> List.fold_left(Opt.map2((_, _) => ()), Some())
+      |> List.fold_left(OptUtil.map2((_, _) => ()), Some())
     | None =>
       switch (skels, tys) {
       | ([Placeholder(n)], _) =>
@@ -923,14 +923,14 @@ module Exp = {
       | (_, [Hole]) =>
         skels
         |> List.map(skel => ana_skel(ctx, skel, seq, Hole))
-        |> List.fold_left(Opt.map2((_, _) => ()), Some())
+        |> List.fold_left(OptUtil.map2((_, _) => ()), Some())
       | _ =>
         switch (opseq |> UHExp.get_err_status_opseq) {
         | NotInHole
         | InHole(TypeInconsistent, _) => None
         | InHole(WrongLength, _) =>
           let opseq' = opseq |> UHExp.set_err_status_opseq(NotInHole);
-          syn_opseq(ctx, opseq') |> Opt.map(_ => ());
+          syn_opseq(ctx, opseq') |> OptUtil.map(_ => ());
         }
       }
     };
@@ -1571,7 +1571,7 @@ module Exp = {
     // handle n-tuples
     let skels = skel |> UHExp.get_tuple_elements;
     let tys = ty |> HTyp.get_tuple_elements;
-    switch (opt_zip(skels, tys)) {
+    switch (ListUtil.opt_zip(skels, tys)) {
     | Some(skel_tys) =>
       skel_tys
       |> List.fold_left(
@@ -1936,7 +1936,7 @@ module Exp = {
     let lines = zlines |> ZExp.erase_zblock;
     let (lines, ctx, u_gen) = syn_fix_holes_lines(ctx, u_gen, lines);
     let zlines =
-      Opt.get(
+      OptUtil.get(
         _ => failwith("hole fix pass did not preserve paths"),
         CursorPath.Exp.follow_block(path, lines),
       );
@@ -1956,7 +1956,7 @@ module Exp = {
       // the annotation, in which case we can just place cursor
       // at end of case node. We might just wanna write a proper
       // recursive traversal for hole-fixing zexps/blocks.
-      switch (steps |> split_last) {
+      switch (steps |> ListUtil.split_last) {
       | None => assert(false)
       | Some((case_steps, _)) =>
         switch (CursorPath.Exp.follow_steps(~side=After, case_steps, e)) {

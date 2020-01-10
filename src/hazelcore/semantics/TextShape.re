@@ -1,5 +1,3 @@
-open GeneralUtil;
-
 type t =
   | Underscore
   | NumLit(int)
@@ -16,7 +14,7 @@ let of_text = (text: string): option(t) =>
   | (Some(n), _, _) =>
     // OCaml accepts and ignores underscores
     // when parsing ints from strings, we don't
-    num_digits(n) == String.length(text) ? Some(NumLit(n)) : None
+    IntUtil.num_digits(n) == String.length(text) ? Some(NumLit(n)) : None
   | (_, Some(b), _) => Some(BoolLit(b))
   | (_, _, Some(k)) => Some(ExpandingKeyword(k))
   | (None, None, None) =>

@@ -1,5 +1,4 @@
 open Sexplib.Std;
-open GeneralUtil;
 
 /*
  module Steps : {
@@ -105,13 +104,13 @@ let _follow_opseq =
     | (Some((operand, surround)), _) =>
       operand
       |> follow_operand((xs, cursor))
-      |> Opt.map(zoperand =>
+      |> OptUtil.map(zoperand =>
            ZOpSeq.ZOpSeq(skel, ZOperand(zoperand, surround))
          )
     | (_, Some((operator, surround))) =>
       operator
       |> follow_operator((xs, cursor))
-      |> Opt.map(zoperator =>
+      |> OptUtil.map(zoperator =>
            ZOpSeq.ZOpSeq(skel, ZOperator(zoperator, surround))
          )
     }
@@ -139,13 +138,13 @@ let _follow_steps_opseq =
     | (Some((operand, surround)), _) =>
       operand
       |> follow_steps_operand(~side, xs)
-      |> Opt.map(zoperand =>
+      |> OptUtil.map(zoperand =>
            ZOpSeq.ZOpSeq(skel, ZOperand(zoperand, surround))
          )
     | (_, Some((operator, surround))) =>
       operator
       |> follow_steps_operator(~side, xs)
-      |> Opt.map(zoperator =>
+      |> OptUtil.map(zoperator =>
            ZOpSeq.ZOpSeq(skel, ZOperator(zoperator, surround))
          )
     }
@@ -298,7 +297,7 @@ let _holes_zopseq =
           } else {
             // convert option to list
             let binop_holes =
-              binop_hole |> Opt.map_default(~default=[], hole => [hole]);
+              binop_hole |> OptUtil.map_default(~default=[], hole => [hole]);
             if (n < preceding_operand_index) {
               let holes1 = holes_skel(skel1);
               let zholes2 = go(skel2);
@@ -415,8 +414,8 @@ module Typ = {
 
   let rec follow = (path: t, uty: UHTyp.t): option(ZTyp.t) =>
     switch (uty) {
-    | T1(t1) => follow_opseq(path, t1) |> Opt.map(z => ZTyp.ZT1(z))
-    | T0(t0) => follow_operand(path, t0) |> Opt.map(z => ZTyp.ZT0(z))
+    | T1(t1) => follow_opseq(path, t1) |> OptUtil.map(z => ZTyp.ZT1(z))
+    | T0(t0) => follow_operand(path, t0) |> OptUtil.map(z => ZTyp.ZT0(z))
     }
   and follow_opseq = (path: t, opseq: UHTyp.opseq): option(ZTyp.zopseq) =>
     _follow_opseq(~follow_operand, ~follow_operator, path, opseq)
@@ -435,13 +434,15 @@ module Typ = {
         | 0 =>
           body
           |> follow((xs, cursor))
-          |> Opt.map(zbody => ZTyp.ParenthesizedZ(zbody))
+          |> OptUtil.map(zbody => ZTyp.ParenthesizedZ(zbody))
         | _ => None
         }
       | List(body) =>
         switch (x) {
         | 0 =>
-          body |> follow((xs, cursor)) |> Opt.map(zbody => ZTyp.ListZ(zbody))
+          body
+          |> follow((xs, cursor))
+          |> OptUtil.map(zbody => ZTyp.ListZ(zbody))
         | _ => None
         }
       }
@@ -457,9 +458,9 @@ module Typ = {
           (~side: Side.t=Before, steps: steps, uty: UHTyp.t): option(ZTyp.t) =>
     switch (uty) {
     | T1(t1) =>
-      follow_steps_opseq(~side, steps, t1) |> Opt.map(z => ZTyp.ZT1(z))
+      follow_steps_opseq(~side, steps, t1) |> OptUtil.map(z => ZTyp.ZT1(z))
     | T0(t0) =>
-      follow_steps_operand(~side, steps, t0) |> Opt.map(z => ZTyp.ZT0(z))
+      follow_steps_operand(~side, steps, t0) |> OptUtil.map(z => ZTyp.ZT0(z))
     }
 
   and follow_steps_opseq =
@@ -491,7 +492,7 @@ module Typ = {
         | 0 =>
           body
           |> follow_steps(~side, xs)
-          |> Opt.map(zbody => ZTyp.ParenthesizedZ(zbody))
+          |> OptUtil.map(zbody => ZTyp.ParenthesizedZ(zbody))
         | _ => None
         }
       | List(body) =>
@@ -499,7 +500,7 @@ module Typ = {
         | 0 =>
           body
           |> follow_steps(~side, xs)
-          |> Opt.map(zbody => ZTyp.ListZ(zbody))
+          |> OptUtil.map(zbody => ZTyp.ListZ(zbody))
         | _ => None
         }
       }
@@ -586,8 +587,8 @@ module Pat = {
 
   let rec follow = (path: t, p: UHPat.t): option(ZPat.t) =>
     switch (p) {
-    | P1(p1) => follow_opseq(path, p1) |> Opt.map(z => ZPat.ZP1(z))
-    | P0(p0) => follow_operand(path, p0) |> Opt.map(z => ZPat.ZP0(z))
+    | P1(p1) => follow_opseq(path, p1) |> OptUtil.map(z => ZPat.ZP1(z))
+    | P0(p0) => follow_operand(path, p0) |> OptUtil.map(z => ZPat.ZP0(z))
     }
   and follow_opseq = (path: t, opseq: UHPat.opseq): option(ZPat.zopseq) =>
     _follow_opseq(~follow_operand, ~follow_operator, path, opseq)
@@ -608,7 +609,7 @@ module Pat = {
         | 0 =>
           body
           |> follow((xs, cursor))
-          |> Opt.map(zbody => ZPat.ParenthesizedZ(zbody))
+          |> OptUtil.map(zbody => ZPat.ParenthesizedZ(zbody))
         | _ => None
         }
       | Inj(err, side, body) =>
@@ -616,7 +617,7 @@ module Pat = {
         | 0 =>
           body
           |> follow((xs, cursor))
-          |> Opt.map(zbody => ZPat.InjZ(err, side, zbody))
+          |> OptUtil.map(zbody => ZPat.InjZ(err, side, zbody))
         | _ => None
         }
       }
@@ -632,9 +633,9 @@ module Pat = {
           (~side: Side.t=Before, steps: steps, p: UHPat.t): option(ZPat.t) =>
     switch (p) {
     | P1(p1) =>
-      follow_steps_opseq(~side, steps, p1) |> Opt.map(z => ZPat.ZP1(z))
+      follow_steps_opseq(~side, steps, p1) |> OptUtil.map(z => ZPat.ZP1(z))
     | P0(p0) =>
-      follow_steps_operand(~side, steps, p0) |> Opt.map(z => ZPat.ZP0(z))
+      follow_steps_operand(~side, steps, p0) |> OptUtil.map(z => ZPat.ZP0(z))
     }
   and follow_steps_opseq =
       (~side: Side.t, steps: steps, opseq: UHPat.opseq): option(ZPat.zopseq) =>
@@ -667,7 +668,7 @@ module Pat = {
         | 0 =>
           body
           |> follow_steps(~side, xs)
-          |> Opt.map(zbody => ZPat.ParenthesizedZ(zbody))
+          |> OptUtil.map(zbody => ZPat.ParenthesizedZ(zbody))
         | _ => None
         }
       | Inj(err, inj_side, body) =>
@@ -675,7 +676,7 @@ module Pat = {
         | 0 =>
           body
           |> follow_steps(~side, xs)
-          |> Opt.map(zbody => ZPat.InjZ(err, inj_side, zbody))
+          |> OptUtil.map(zbody => ZPat.InjZ(err, inj_side, zbody))
         | _ => None
         }
       }
@@ -876,9 +877,9 @@ module Exp = {
 
   let rec follow = (path: t, e: UHExp.t): option(ZExp.t) =>
     switch (e) {
-    | E2(e2) => follow_block(path, e2) |> Opt.map(z => ZExp.ZE2(z))
-    | E1(e1) => follow_opseq(path, e1) |> Opt.map(z => ZExp.ZE1(z))
-    | E0(e0) => follow_operand(path, e0) |> Opt.map(z => ZExp.ZE0(z))
+    | E2(e2) => follow_block(path, e2) |> OptUtil.map(z => ZExp.ZE2(z))
+    | E1(e1) => follow_opseq(path, e1) |> OptUtil.map(z => ZExp.ZE1(z))
+    | E0(e0) => follow_operand(path, e0) |> OptUtil.map(z => ZExp.ZE0(z))
     }
   and follow_block =
       ((steps, cursor): t, block: UHExp.block): option(ZExp.zblock) =>
@@ -895,7 +896,8 @@ module Exp = {
       ((steps, cursor) as path: t, line: UHExp.line): option(ZExp.zline) =>
     switch (steps, line) {
     | (_, ExpLine(opseq)) =>
-      follow_opseq(path, opseq) |> Opt.map(zopseq => ZExp.ExpLineZ(zopseq))
+      follow_opseq(path, opseq)
+      |> OptUtil.map(zopseq => ZExp.ExpLineZ(zopseq))
     | ([], EmptyLine | LetLine(_, _, _)) =>
       line |> ZExp.place_cursor_line(cursor)
     | ([_, ..._], EmptyLine) => None
@@ -904,19 +906,19 @@ module Exp = {
       | 0 =>
         p
         |> Pat.follow((xs, cursor))
-        |> Opt.map(zp => ZExp.LetLineZP(zp, ann, def))
+        |> OptUtil.map(zp => ZExp.LetLineZP(zp, ann, def))
       | 1 =>
         switch (ann) {
         | None => None
         | Some(ann) =>
           ann
           |> Typ.follow((xs, cursor))
-          |> Opt.map(zann => ZExp.LetLineZA(p, zann, def))
+          |> OptUtil.map(zann => ZExp.LetLineZA(p, zann, def))
         }
       | 2 =>
         def
         |> follow((xs, cursor))
-        |> Opt.map(zdef => ZExp.LetLineZE(p, ann, zdef))
+        |> OptUtil.map(zdef => ZExp.LetLineZE(p, ann, zdef))
       | _ => None
       }
     }
@@ -944,7 +946,7 @@ module Exp = {
         | 0 =>
           body
           |> follow((xs, cursor))
-          |> Opt.map(zbody => ZExp.ParenthesizedZ(zbody))
+          |> OptUtil.map(zbody => ZExp.ParenthesizedZ(zbody))
         | _ => None
         }
       | Lam(err, p, ann, body) =>
@@ -952,19 +954,19 @@ module Exp = {
         | 0 =>
           p
           |> Pat.follow((xs, cursor))
-          |> Opt.map(zp => ZExp.LamZP(err, zp, ann, body))
+          |> OptUtil.map(zp => ZExp.LamZP(err, zp, ann, body))
         | 1 =>
           switch (ann) {
           | None => None
           | Some(ann) =>
             ann
             |> Typ.follow((xs, cursor))
-            |> Opt.map(zann => ZExp.LamZA(err, p, zann, body))
+            |> OptUtil.map(zann => ZExp.LamZA(err, p, zann, body))
           }
         | 2 =>
           body
           |> follow((xs, cursor))
-          |> Opt.map(zbody => ZExp.LamZE(err, p, ann, zbody))
+          |> OptUtil.map(zbody => ZExp.LamZE(err, p, ann, zbody))
         | _ => None
         }
       | Inj(err, side, body) =>
@@ -972,7 +974,7 @@ module Exp = {
         | 0 =>
           body
           |> follow((xs, cursor))
-          |> Opt.map(zbody => ZExp.InjZ(err, side, zbody))
+          |> OptUtil.map(zbody => ZExp.InjZ(err, side, zbody))
         | _ => None
         }
       | Case(err, scrut, rules, ann) =>
@@ -980,14 +982,14 @@ module Exp = {
         | 0 =>
           scrut
           |> follow((xs, cursor))
-          |> Opt.map(zscrut => ZExp.CaseZE(err, zscrut, rules, ann))
+          |> OptUtil.map(zscrut => ZExp.CaseZE(err, zscrut, rules, ann))
         | _ when x == List.length(rules) + 1 =>
           switch (ann) {
           | None => None
           | Some(ann) =>
             ann
             |> Typ.follow((xs, cursor))
-            |> Opt.map(zann => ZExp.CaseZA(err, scrut, rules, zann))
+            |> OptUtil.map(zann => ZExp.CaseZA(err, scrut, rules, zann))
           }
         | _ =>
           switch (ZList.split_at(x - 1, rules)) {
@@ -995,7 +997,7 @@ module Exp = {
           | Some(split_rules) =>
             split_rules
             |> ZList.optmap_z(follow_rule((xs, cursor)))
-            |> Opt.map(zrules => ZExp.CaseZR(err, scrut, zrules, ann))
+            |> OptUtil.map(zrules => ZExp.CaseZR(err, scrut, zrules, ann))
           }
         }
       | ApPalette(err, name, serialized_model, splice_info) =>
@@ -1023,11 +1025,11 @@ module Exp = {
       | 0 =>
         p
         |> Pat.follow((xs, cursor))
-        |> Opt.map(zp => ZExp.RuleZP(zp, clause))
+        |> OptUtil.map(zp => ZExp.RuleZP(zp, clause))
       | 1 =>
         clause
         |> follow((xs, cursor))
-        |> Opt.map(zclause => ZExp.RuleZE(p, zclause))
+        |> OptUtil.map(zclause => ZExp.RuleZE(p, zclause))
       | _ => None
       }
     };
@@ -1036,11 +1038,11 @@ module Exp = {
           (~side: Side.t=Before, steps: steps, e: UHExp.t): option(ZExp.t) =>
     switch (e) {
     | E2(e2) =>
-      follow_steps_block(~side, steps, e2) |> Opt.map(z => ZExp.ZE2(z))
+      follow_steps_block(~side, steps, e2) |> OptUtil.map(z => ZExp.ZE2(z))
     | E1(e1) =>
-      follow_steps_opseq(~side, steps, e1) |> Opt.map(z => ZExp.ZE1(z))
+      follow_steps_opseq(~side, steps, e1) |> OptUtil.map(z => ZExp.ZE1(z))
     | E0(e0) =>
-      follow_steps_operand(~side, steps, e0) |> Opt.map(z => ZExp.ZE0(z))
+      follow_steps_operand(~side, steps, e0) |> OptUtil.map(z => ZExp.ZE0(z))
     }
   and follow_steps_block =
       (~side: Side.t, steps: steps, block: UHExp.block): option(ZExp.zblock) =>
@@ -1058,7 +1060,7 @@ module Exp = {
     switch (steps, line) {
     | (_, ExpLine(opseq)) =>
       follow_steps_opseq(~side, steps, opseq)
-      |> Opt.map(zopseq => ZExp.ExpLineZ(zopseq))
+      |> OptUtil.map(zopseq => ZExp.ExpLineZ(zopseq))
     | ([], EmptyLine | LetLine(_, _, _)) =>
       switch (side) {
       | Before => Some(line |> ZExp.place_before_line)
@@ -1070,19 +1072,19 @@ module Exp = {
       | 0 =>
         p
         |> Pat.follow_steps(~side, xs)
-        |> Opt.map(zp => ZExp.LetLineZP(zp, ann, def))
+        |> OptUtil.map(zp => ZExp.LetLineZP(zp, ann, def))
       | 1 =>
         switch (ann) {
         | None => None
         | Some(ann) =>
           ann
           |> Typ.follow_steps(~side, xs)
-          |> Opt.map(zann => ZExp.LetLineZA(p, zann, def))
+          |> OptUtil.map(zann => ZExp.LetLineZA(p, zann, def))
         }
       | 2 =>
         def
         |> follow_steps(~side, xs)
-        |> Opt.map(zdef => ZExp.LetLineZE(p, ann, zdef))
+        |> OptUtil.map(zdef => ZExp.LetLineZE(p, ann, zdef))
       | _ => None
       }
     }
@@ -1127,7 +1129,7 @@ module Exp = {
         | 0 =>
           body
           |> follow_steps(~side, xs)
-          |> Opt.map(zbody => ZExp.ParenthesizedZ(zbody))
+          |> OptUtil.map(zbody => ZExp.ParenthesizedZ(zbody))
         | _ => None
         }
       | Lam(err, p, ann, body) =>
@@ -1135,19 +1137,19 @@ module Exp = {
         | 0 =>
           p
           |> Pat.follow_steps(~side, xs)
-          |> Opt.map(zp => ZExp.LamZP(err, zp, ann, body))
+          |> OptUtil.map(zp => ZExp.LamZP(err, zp, ann, body))
         | 1 =>
           switch (ann) {
           | None => None
           | Some(ann) =>
             ann
             |> Typ.follow_steps(~side, xs)
-            |> Opt.map(zann => ZExp.LamZA(err, p, zann, body))
+            |> OptUtil.map(zann => ZExp.LamZA(err, p, zann, body))
           }
         | 2 =>
           body
           |> follow_steps(~side, xs)
-          |> Opt.map(zbody => ZExp.LamZE(err, p, ann, zbody))
+          |> OptUtil.map(zbody => ZExp.LamZE(err, p, ann, zbody))
         | _ => None
         }
       | Inj(err, inj_side, body) =>
@@ -1155,7 +1157,7 @@ module Exp = {
         | 0 =>
           body
           |> follow_steps(~side, xs)
-          |> Opt.map(zbody => ZExp.InjZ(err, inj_side, zbody))
+          |> OptUtil.map(zbody => ZExp.InjZ(err, inj_side, zbody))
         | _ => None
         }
       | Case(err, scrut, rules, ann) =>
@@ -1163,14 +1165,14 @@ module Exp = {
         | 0 =>
           scrut
           |> follow_steps(~side, xs)
-          |> Opt.map(zscrut => ZExp.CaseZE(err, zscrut, rules, ann))
+          |> OptUtil.map(zscrut => ZExp.CaseZE(err, zscrut, rules, ann))
         | _ when x == List.length(rules) + 1 =>
           switch (ann) {
           | None => None
           | Some(ann) =>
             ann
             |> Typ.follow_steps(~side, xs)
-            |> Opt.map(zann => ZExp.CaseZA(err, scrut, rules, zann))
+            |> OptUtil.map(zann => ZExp.CaseZA(err, scrut, rules, zann))
           }
         | _ =>
           switch (ZList.split_at(x - 1, rules)) {
@@ -1178,7 +1180,7 @@ module Exp = {
           | Some(split_rules) =>
             split_rules
             |> ZList.optmap_z(follow_steps_rule(~side, xs))
-            |> Opt.map(zrules => ZExp.CaseZR(err, scrut, zrules, ann))
+            |> OptUtil.map(zrules => ZExp.CaseZR(err, scrut, zrules, ann))
           }
         }
       | ApPalette(err, name, serialized_model, splice_info) =>
@@ -1210,11 +1212,11 @@ module Exp = {
       | 0 =>
         p
         |> Pat.follow_steps(~side, xs)
-        |> Opt.map(zp => ZExp.RuleZP(zp, clause))
+        |> OptUtil.map(zp => ZExp.RuleZP(zp, clause))
       | 1 =>
         clause
         |> follow_steps(~side, xs)
-        |> Opt.map(zclause => ZExp.RuleZE(p, zclause))
+        |> OptUtil.map(zclause => ZExp.RuleZE(p, zclause))
       | _ => None
       }
     };
@@ -1254,7 +1256,7 @@ module Exp = {
   and holes_block =
       (block: UHExp.block, rev_steps: rev_steps, hs: hole_list): hole_list =>
     hs
-    |> fold_right_i(
+    |> ListUtil.fold_right_i(
          ((i, line), hs) => hs |> holes_line(line, [i, ...rev_steps]),
          block,
        )
@@ -1314,7 +1316,7 @@ module Exp = {
           Typ.holes(ann, [1 + List.length(rules), ...rev_steps])
         }
       )
-      |> fold_right_i(
+      |> ListUtil.fold_right_i(
            ((i, rule), hs) =>
              hs |> holes_rule(rule, [1 + i, ...rev_steps]),
            rules,
@@ -1353,7 +1355,7 @@ module Exp = {
       ((prefix, zline, suffix): ZExp.zblock, rev_steps: rev_steps)
       : zhole_list => {
     let holes_prefix =
-      fold_right_i(
+      ListUtil.fold_right_i(
         ((i, line), hs) => hs |> holes_line(line, [i, ...rev_steps]),
         prefix,
         [],
@@ -1361,7 +1363,7 @@ module Exp = {
     let {holes_before, hole_selected, holes_after} =
       holes_zline(zline, [List.length(prefix), ...rev_steps]);
     let holes_suffix =
-      fold_right_i(
+      ListUtil.fold_right_i(
         ((i, line), hs) =>
           hs
           |> holes_line(line, [List.length(prefix) + 1 + i, ...rev_steps]),
@@ -1553,7 +1555,7 @@ module Exp = {
         };
       let holes_scrut = holes(scrut, [0, ...rev_steps], []);
       let holes_rules =
-        fold_right_i(
+        ListUtil.fold_right_i(
           ((i, rule), hs) => hs |> holes_rule(rule, [1 + i, ...rev_steps]),
           rules,
           [],
@@ -1667,7 +1669,7 @@ module Exp = {
       let {holes_before, hole_selected, holes_after} =
         holes_z(zscrut, [0, ...rev_steps]);
       let holes_rules =
-        fold_right_i(
+        ListUtil.fold_right_i(
           ((i, rule), hs) => hs |> holes_rule(rule, [1 + i, ...rev_steps]),
           rules,
           [],
@@ -1692,7 +1694,7 @@ module Exp = {
         };
       let holes_scrut = holes(scrut, [0, ...rev_steps], []);
       let holes_prefix =
-        fold_right_i(
+        ListUtil.fold_right_i(
           ((i, rule), hs) => hs |> holes_rule(rule, [1 + i, ...rev_steps]),
           prefix,
           [],
@@ -1700,7 +1702,7 @@ module Exp = {
       let {holes_before, hole_selected, holes_after} =
         holes_zrule(zrule, [1 + List.length(prefix), ...rev_steps]);
       let holes_suffix =
-        fold_right_i(
+        ListUtil.fold_right_i(
           ((i, rule), hs) =>
             hs
             |> holes_rule(
@@ -1736,7 +1738,7 @@ module Exp = {
         };
       let holes_scrut = holes(scrut, [0, ...rev_steps], []);
       let holes_rules =
-        fold_right_i(
+        ListUtil.fold_right_i(
           ((i, rule), hs) => hs |> holes_rule(rule, [1 + i, ...rev_steps]),
           rules,
           [],
@@ -1756,7 +1758,7 @@ module Exp = {
       let splice_order = zpsi.splice_order;
       let splice_map = ZNatMap.prj_map(zsplice_map);
       let (splices_before, splices_after) =
-        GeneralUtil.split_at(splice_order, n);
+        ListUtil.split_at(splice_order, n);
       let holes_splices_before =
         List.fold_left(
           (hs, n) =>

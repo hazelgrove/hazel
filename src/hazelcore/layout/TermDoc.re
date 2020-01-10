@@ -1,5 +1,3 @@
-open GeneralUtil;
-
 [@deriving sexp]
 type t = Doc.t(TermTag.t);
 
@@ -461,7 +459,7 @@ let mk_NTuple =
       ~steps,
       ~seq,
     );
-  switch (skel |> get_tuple_elements |> map_zip(mk_BinOp)) {
+  switch (skel |> get_tuple_elements |> ListUtil.map_zip(mk_BinOp)) {
   | [] => failwith(__LOC__ ++ ": found empty tuple")
   | [(_, singleton_doc)] => singleton_doc
   | [(_, hd_doc), ...tl] =>
@@ -702,12 +700,12 @@ module Exp = {
     |> List.mapi((i, line) =>
          mk_line(~steps=steps @ [i], line) |> tag_Step(i)
        )
-    |> split_last
+    |> ListUtil.split_last
     |> (
       fun
       | None => failwith(__LOC__ ++ ": empty block")
       | Some((leading, concluding)) =>
-        fold_right_i(
+        ListUtil.fold_right_i(
           ((i, hd_doc), tl_doc) =>
             Doc.vsep(hd_doc, tl_doc) |> tag_SubBlock(~hd_index=i),
           leading,
@@ -721,7 +719,7 @@ module Exp = {
     | LetLine(p, ann, def) =>
       let p = Pat.mk_child(~steps, ~child_step=0, p);
       let ann =
-        ann |> Opt.map(ann => Typ.mk_child(~steps, ~child_step=1, ann));
+        ann |> OptUtil.map(ann => Typ.mk_child(~steps, ~child_step=1, ann));
       let def = mk_child(~steps, ~child_step=2, def);
       mk_LetLine(~steps, p, ann, def);
     }
@@ -747,7 +745,7 @@ module Exp = {
     | Lam(err, p, ann, body) =>
       let p = Pat.mk_child(~steps, ~child_step=0, p);
       let ann =
-        ann |> Opt.map(ann => Typ.mk_child(~steps, ~child_step=1, ann));
+        ann |> OptUtil.map(ann => Typ.mk_child(~steps, ~child_step=1, ann));
       let body = mk_child(~steps, ~child_step=2, body);
       mk_Lam(~err, ~steps, ~enforce_inline, p, ann, body);
     | Inj(err, inj_side, body) =>

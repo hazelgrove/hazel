@@ -1,5 +1,4 @@
 let _TEST_PERFORM = false;
-open GeneralUtil;
 open Sexplib.Std;
 
 [@deriving sexp]
@@ -137,11 +136,15 @@ module Typ = {
     | MoveLeft =>
       zty
       |> ZTyp.move_cursor_left
-      |> Opt.map_default(~default=CursorEscaped(Before), z => Succeeded(z))
+      |> OptUtil.map_default(~default=CursorEscaped(Before), z =>
+           Succeeded(z)
+         )
     | MoveRight =>
       zty
       |> ZTyp.move_cursor_right
-      |> Opt.map_default(~default=CursorEscaped(After), z => Succeeded(z))
+      |> OptUtil.map_default(~default=CursorEscaped(After), z =>
+           Succeeded(z)
+         )
     | _ =>
       switch (zty) {
       | ZT1(zty1) => perform_opseq(a, zty1)
@@ -366,7 +369,7 @@ let _syn_insert_text =
     ctx,
     u_gen,
     caret_index + String.length(insert_text),
-    text |> insert_string(caret_index, insert_text),
+    text |> StringUtil.insert(caret_index, insert_text),
   );
 let _ana_insert_text =
     (
@@ -383,7 +386,7 @@ let _ana_insert_text =
     ctx,
     u_gen,
     caret_index + String.length(insert_text),
-    text |> insert_string(caret_index, insert_text),
+    text |> StringUtil.insert(caret_index, insert_text),
     ty,
   );
 
@@ -400,7 +403,7 @@ let _syn_backspace_text =
   if (caret_index == 0) {
     CursorEscaped(Before);
   } else {
-    let new_text = text |> backspace_string(caret_index);
+    let new_text = text |> StringUtil.backspace(caret_index);
     mk_syn_text(ctx, u_gen, caret_index - 1, new_text);
   };
 let _ana_backspace_text =
@@ -417,7 +420,7 @@ let _ana_backspace_text =
   if (caret_index == 0) {
     CursorEscaped(Before);
   } else {
-    let new_text = text |> backspace_string(caret_index);
+    let new_text = text |> StringUtil.backspace(caret_index);
     mk_ana_text(ctx, u_gen, caret_index - 1, new_text, ty);
   };
 
@@ -434,7 +437,7 @@ let _syn_delete_text =
   if (caret_index == String.length(text)) {
     CursorEscaped(After);
   } else {
-    let new_text = text |> delete_string(caret_index);
+    let new_text = text |> StringUtil.delete(caret_index);
     mk_syn_text(ctx, u_gen, caret_index, new_text);
   };
 let _ana_delete_text =
@@ -451,7 +454,7 @@ let _ana_delete_text =
   if (caret_index == String.length(text)) {
     CursorEscaped(After);
   } else {
-    let new_text = text |> delete_string(caret_index);
+    let new_text = text |> StringUtil.delete(caret_index);
     mk_ana_text(ctx, u_gen, caret_index, new_text, ty);
   };
 
@@ -632,7 +635,7 @@ module Pat = {
     let text_cursor = CursorPosition.OnText(caret_index);
     switch (TextShape.of_text(text)) {
     | None =>
-      if (text |> is_empty_string) {
+      if (text |> StringUtil.is_empty) {
         let (zhole, u_gen) = u_gen |> ZPat.new_EmptyHole;
         Succeeded((ZPat.ZP0(zhole), HTyp.Hole, ctx, u_gen));
       } else {
@@ -674,7 +677,7 @@ module Pat = {
     let text_cursor = CursorPosition.OnText(caret_index);
     switch (TextShape.of_text(text)) {
     | None =>
-      if (text |> is_empty_string) {
+      if (text |> StringUtil.is_empty) {
         let (zhole, u_gen) = u_gen |> ZPat.new_EmptyHole;
         Succeeded((ZPat.ZP0(zhole), ctx, u_gen));
       } else {
@@ -1800,7 +1803,7 @@ module Exp = {
     let text_cursor = CursorPosition.OnText(caret_index);
     switch (TextShape.of_text(text)) {
     | None =>
-      if (text |> is_empty_string) {
+      if (text |> StringUtil.is_empty) {
         let (zhole, u_gen) = u_gen |> ZExp.new_EmptyHole;
         Succeeded(SynDone((ZExp.ZE0(zhole), HTyp.Hole, u_gen)));
       } else {
@@ -1851,7 +1854,7 @@ module Exp = {
     let text_cursor = CursorPosition.OnText(caret_index);
     switch (TextShape.of_text(text)) {
     | None =>
-      if (text |> is_empty_string) {
+      if (text |> StringUtil.is_empty) {
         let (zhole, u_gen) = u_gen |> ZExp.new_EmptyHole;
         Succeeded(AnaDone((ZExp.ZE0(zhole), u_gen)));
       } else {
@@ -1926,13 +1929,13 @@ module Exp = {
     | MoveLeft =>
       ze
       |> ZExp.move_cursor_left
-      |> Opt.map_default(~default=CursorEscaped(Before), ze =>
+      |> OptUtil.map_default(~default=CursorEscaped(Before), ze =>
            Succeeded((ze, ty, u_gen))
          )
     | MoveRight =>
       ze
       |> ZExp.move_cursor_right
-      |> Opt.map_default(~default=CursorEscaped(After), ze =>
+      |> OptUtil.map_default(~default=CursorEscaped(After), ze =>
            Succeeded((ze, ty, u_gen))
          )
     | _ =>
@@ -1998,7 +2001,7 @@ module Exp = {
         |> wrap_in_SynDone
       }
     | Backspace when ZExp.is_before_zline(zline) =>
-      switch (prefix |> split_last, zline |> ZExp.erase_zline) {
+      switch (prefix |> ListUtil.split_last, zline |> ZExp.erase_zline) {
       | (None, _) => CursorEscaped(Before)
       | (Some((new_prefix, prefix_hd)), EmptyLine) =>
         let new_zline = prefix_hd |> ZExp.place_after_line;
@@ -2095,7 +2098,7 @@ module Exp = {
         };
       zline
       |> move_cursor
-      |> Opt.map_default(~default=CursorEscaped(side), new_zline =>
+      |> OptUtil.map_default(~default=CursorEscaped(side), new_zline =>
            mk_result(u_gen, ([], new_zline, []))
          );
     };
@@ -2994,7 +2997,7 @@ module Exp = {
         };
       zrules
       |> move_cursor
-      |> Opt.map_default(~default=CursorEscaped(side), new_zrules =>
+      |> OptUtil.map_default(~default=CursorEscaped(side), new_zrules =>
            Succeeded((new_zrules, u_gen))
          );
     };
@@ -3028,7 +3031,7 @@ module Exp = {
         clause_ty,
       );
     | (Backspace, CursorR(OnDelim(_, After), _)) =>
-      switch (prefix |> split_last, suffix) {
+      switch (prefix |> ListUtil.split_last, suffix) {
       | (None, []) =>
         let (new_zrule, u_gen) = u_gen |> ZExp.empty_zrule;
         let new_zrules = ([], new_zrule, []);
@@ -3147,13 +3150,13 @@ module Exp = {
     | MoveLeft =>
       ze
       |> ZExp.move_cursor_left
-      |> Opt.map_default(~default=CursorEscaped(Before), ze =>
+      |> OptUtil.map_default(~default=CursorEscaped(Before), ze =>
            Succeeded((ze, u_gen))
          )
     | MoveRight =>
       ze
       |> ZExp.move_cursor_right
-      |> Opt.map_default(~default=CursorEscaped(After), ze =>
+      |> OptUtil.map_default(~default=CursorEscaped(After), ze =>
            Succeeded((ze, u_gen))
          )
     | _ =>
@@ -3221,7 +3224,7 @@ module Exp = {
         |> wrap_in_AnaDone
       }
     | (Backspace, _) when ZExp.is_before_zline(zline) =>
-      switch (prefix |> split_last, zline |> ZExp.erase_zline) {
+      switch (prefix |> ListUtil.split_last, zline |> ZExp.erase_zline) {
       | (None, _) => CursorEscaped(Before)
       | (Some((new_prefix, prefix_hd)), EmptyLine) =>
         let new_zline = prefix_hd |> ZExp.place_after_line;

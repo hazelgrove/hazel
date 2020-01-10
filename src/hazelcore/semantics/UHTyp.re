@@ -1,5 +1,3 @@
-open GeneralUtil;
-
 [@deriving sexp]
 type operator =
   | Arrow
@@ -148,17 +146,5 @@ let child_indices_operand =
   | List(_) => [0];
 let child_indices_opseq: opseq => list(int) =
   fun
-  | OpSeq(_, seq) => seq |> Seq.length |> range;
+  | OpSeq(_, seq) => seq |> Seq.length |> ListUtil.range;
 let child_indices = child_indices_opseq;
-
-/* TODO(dmoon)
-   let favored_child: t => option((ChildIndex.t, t)) =
-     fun
-     | Hole
-     | Unit
-     | Num
-     | Bool
-     | OpSeq(_, _) => None
-     | Parenthesized(ty)
-     | List(ty) => Some((0, ty));
-   */

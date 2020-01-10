@@ -1,5 +1,3 @@
-open GeneralUtil;
-
 // TODO(undergrad): Rename to CaretPosition
 // (including updating all variable
 // naming that assumed cursor position).
@@ -11,14 +9,16 @@ type t =
   | OnOp(Side.t);
 
 let text_cursors = (len: int): list(t) =>
-  range(len + 1) |> List.map(j => OnText(j));
+  ListUtil.range(len + 1) |> List.map(j => OnText(j));
 
 let delim_cursors_k = (k: int): list(t) => [
   OnDelim(k, Before),
   OnDelim(k, After),
 ];
 let delim_cursors = (num_delim: int): list(t) =>
-  range(num_delim) |> List.map(k => delim_cursors_k(k)) |> List.flatten;
+  ListUtil.range(num_delim)
+  |> List.map(k => delim_cursors_k(k))
+  |> List.flatten;
 
 let force_get_OnText =
   fun

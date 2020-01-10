@@ -1,5 +1,4 @@
 open Sexplib.Std;
-open GeneralUtil;
 
 [@deriving sexp]
 type t =
@@ -66,7 +65,7 @@ let valid_cursors_operand: UHExp.operand => list(CursorPosition.t) =
   | ListNil(_) => CursorPosition.delim_cursors(1)
   /* outer nodes - text */
   | Var(_, _, x) => CursorPosition.text_cursors(Var.length(x))
-  | NumLit(_, n) => CursorPosition.text_cursors(num_digits(n))
+  | NumLit(_, n) => CursorPosition.text_cursors(IntUtil.num_digits(n))
   | BoolLit(_, b) => CursorPosition.text_cursors(b ? 4 : 5)
   /* inner nodes */
   | Lam(_, _, ann, _) => {
@@ -88,15 +87,15 @@ let valid_cursors_rule = (_: UHExp.rule): list(CursorPosition.t) =>
   CursorPosition.delim_cursors(2);
 
 let is_valid_cursor_line = (cursor: CursorPosition.t, line: UHExp.line): bool =>
-  valid_cursors_line(line) |> contains(cursor);
+  valid_cursors_line(line) |> List.mem(cursor);
 let is_valid_cursor_operand =
     (cursor: CursorPosition.t, operand: UHExp.operand): bool =>
-  valid_cursors_operand(operand) |> contains(cursor);
+  valid_cursors_operand(operand) |> List.mem(cursor);
 let is_valid_cursor_operator =
     (cursor: CursorPosition.t, operator: UHExp.operator): bool =>
-  valid_cursors_operator(operator) |> contains(cursor);
+  valid_cursors_operator(operator) |> List.mem(cursor);
 let is_valid_cursor_rule = (cursor: CursorPosition.t, rule: UHExp.rule): bool =>
-  valid_cursors_rule(rule) |> contains(cursor);
+  valid_cursors_rule(rule) |> List.mem(cursor);
 
 let wrap_in_block = (zconclusion: zopseq): zblock => (
   [],
@@ -214,7 +213,8 @@ and is_after_zoperand =
   | CursorE(cursor, EmptyHole(_))
   | CursorE(cursor, ListNil(_)) => cursor == OnDelim(0, After)
   | CursorE(cursor, Var(_, _, x)) => cursor == OnText(Var.length(x))
-  | CursorE(cursor, NumLit(_, n)) => cursor == OnText(num_digits(n))
+  | CursorE(cursor, NumLit(_, n)) =>
+    cursor == OnText(IntUtil.num_digits(n))
   | CursorE(cursor, BoolLit(_, true)) => cursor == OnText(4)
   | CursorE(cursor, BoolLit(_, false)) => cursor == OnText(5)
   | CursorE(cursor, Lam(_)) => cursor == OnDelim(3, After)
@@ -283,7 +283,7 @@ and is_after_case_rule_zoperand =
    switch (zblock) {
    | (_, zline, _) => zline |> is_on_user_newlineable_hole_zline
    | BlockZE(leading, zconclusion) =>
-     switch (leading |> split_last, zconclusion) {
+     switch (leading |> ListUtil.split_last, zconclusion) {
      | (None, ZOperand(_, CursorE(_, EmptyHole(_)), _)) => !is_root
      | (
          Some((_, LetLine(_, _, _))),
@@ -364,7 +364,7 @@ let rec place_after: UHExp.t => t =
   | E1(e1) => ZE1(e1 |> place_after_opseq)
   | E0(e0) => ZE0(e0 |> place_after_operand)
 and place_after_block = (block: UHExp.block): zblock =>
-  switch (block |> split_last) {
+  switch (block |> ListUtil.split_last) {
   | None => failwith("place_after_block: empty block")
   | Some((leading, last)) => (leading, last |> place_after_line, [])
   }
@@ -380,7 +380,7 @@ and place_after_operand = operand =>
   | EmptyHole(_)
   | ListNil(_) => CursorE(OnDelim(0, After), operand)
   | Var(_, _, x) => CursorE(OnText(Var.length(x)), operand)
-  | NumLit(_, n) => CursorE(OnText(num_digits(n)), operand)
+  | NumLit(_, n) => CursorE(OnText(IntUtil.num_digits(n)), operand)
   | BoolLit(_, true) => CursorE(OnText(4), operand)
   | BoolLit(_, false) => CursorE(OnText(5), operand)
   | Lam(_) => CursorE(OnDelim(3, After), operand)
@@ -446,7 +446,7 @@ let rec set_err_status = (err: ErrStatus.t, ze: t): t =>
   }
 and set_err_status_zblock =
     (err: ErrStatus.t, (prefix, zline, suffix): zblock): zblock =>
-  switch (suffix |> split_last) {
+  switch (suffix |> ListUtil.split_last) {
   | None =>
     let zopseq = zline |> force_get_zopseq;
     (prefix, ExpLineZ(zopseq |> set_err_status_zopseq(err)), []);
@@ -490,7 +490,7 @@ let rec make_inconsistent = (u_gen: MetaVarGen.t, ze: t): (t, MetaVarGen.t) =>
 and make_inconsistent_zblock =
     (u_gen: MetaVarGen.t, (prefix, zline, suffix): zblock)
     : (zblock, MetaVarGen.t) =>
-  switch (suffix |> split_last) {
+  switch (suffix |> ListUtil.split_last) {
   | None =>
     let (zconclusion, u_gen) =
       zline |> force_get_zopseq |> make_inconsistent_zopseq(u_gen);
@@ -616,9 +616,9 @@ let is_inconsistent = zoperand =>
 
 let rec move_cursor_left: t => option(t) =
   fun
-  | ZE2(ze2) => ze2 |> move_cursor_left_zblock |> Opt.map(z => ZE2(z))
-  | ZE1(ze1) => ze1 |> move_cursor_left_zopseq |> Opt.map(z => ZE1(z))
-  | ZE0(ze0) => ze0 |> move_cursor_left_zoperand |> Opt.map(z => ZE0(z))
+  | ZE2(ze2) => ze2 |> move_cursor_left_zblock |> OptUtil.map(z => ZE2(z))
+  | ZE1(ze1) => ze1 |> move_cursor_left_zopseq |> OptUtil.map(z => ZE1(z))
+  | ZE0(ze0) => ze0 |> move_cursor_left_zoperand |> OptUtil.map(z => ZE0(z))
 and move_cursor_left_zblock =
   fun
   | (prefix, zline, suffix) =>
@@ -626,8 +626,8 @@ and move_cursor_left_zblock =
     | Some(zline) => Some((prefix, zline, suffix))
     | None =>
       prefix
-      |> split_last
-      |> Opt.map(((prefix_leading, prefix_last)) =>
+      |> ListUtil.split_last
+      |> OptUtil.map(((prefix_leading, prefix_last)) =>
            (
              prefix_leading,
              prefix_last |> place_after_line,
@@ -836,9 +836,9 @@ and move_cursor_left_zrule =
 
 let rec move_cursor_right: t => option(t) =
   fun
-  | ZE2(ze2) => ze2 |> move_cursor_right_zblock |> Opt.map(z => ZE2(z))
-  | ZE1(ze1) => ze1 |> move_cursor_right_zopseq |> Opt.map(z => ZE1(z))
-  | ZE0(ze0) => ze0 |> move_cursor_right_zoperand |> Opt.map(z => ZE0(z))
+  | ZE2(ze2) => ze2 |> move_cursor_right_zblock |> OptUtil.map(z => ZE2(z))
+  | ZE1(ze1) => ze1 |> move_cursor_right_zopseq |> OptUtil.map(z => ZE1(z))
+  | ZE0(ze0) => ze0 |> move_cursor_right_zoperand |> OptUtil.map(z => ZE0(z))
 and move_cursor_right_zblock =
   fun
   | (prefix, zline, suffix) =>

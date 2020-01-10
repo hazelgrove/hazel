@@ -1,7 +1,5 @@
 open Sexplib.Std;
 
-module ZList = GeneralUtil.ZList;
-
 type cardstacks = list(CardStack.t);
 let cardstacks: cardstacks = [
   TutorialCards.cardstack,
@@ -37,16 +35,13 @@ let mk_cardstack_state = (cardstack: CardStack.t) => {
       cardstack.cards,
     );
   let zcards =
-    GeneralUtil.Opt.get(
-      _ => failwith("no cards"),
-      ZList.split_at(0, card_states),
-    );
+    OptUtil.get(_ => failwith("no cards"), ZList.split_at(0, card_states));
   {cardstack, zcards};
 };
 
 let mk_cardstacks_state = cardstacks => {
   let cardstack_states = List.map(mk_cardstack_state, cardstacks);
-  GeneralUtil.Opt.get(
+  OptUtil.get(
     _ => failwith("no cardstacks"),
     ZList.split_at(0, cardstack_states),
   );

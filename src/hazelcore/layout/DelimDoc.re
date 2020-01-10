@@ -10,7 +10,7 @@ let empty_hole_doc =
     (~caret: option(Side.t)=?, ~steps: CursorPath.steps, hole_lbl: string)
     : doc =>
   Doc.Text(hole_lbl)
-  |> Doc.tag(TermTag.HoleLabel({len: hole_lbl |> GeneralUtil.utf8_length}))
+  |> Doc.tag(TermTag.HoleLabel({len: hole_lbl |> StringUtil.utf8_length}))
   |> Doc.tag(TermTag.mk_Delim(~caret?, ~path=(steps, 0), ()));
 
 let open_List = (~caret=?, steps) => mk(~caret?, ~path=(steps, 0), "[");

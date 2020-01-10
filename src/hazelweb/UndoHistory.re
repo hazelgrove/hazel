@@ -1,5 +1,3 @@
-module ZList = GeneralUtil.ZList;
-
 type t = ZList.t(Statics.edit_state, Statics.edit_state);
 
 let push_edit_state = (undo_history: t, edit_state: Statics.edit_state): t => {

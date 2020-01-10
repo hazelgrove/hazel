@@ -1,5 +1,3 @@
-open GeneralUtil;
-
 // TODO
 // type t('operand, 'operator) = (Skel.t('operator), Seq.t('operand, 'operator))
 [@deriving sexp]
@@ -75,7 +73,7 @@ let make_inconsistent =
 
 let child_indices =
   fun
-  | OpSeq(_, seq) => seq |> Seq.length |> range;
+  | OpSeq(_, seq) => seq |> Seq.length |> ListUtil.range;
 
 let is_multi_line =
     (

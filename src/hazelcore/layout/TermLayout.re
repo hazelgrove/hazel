@@ -1,5 +1,3 @@
-open GeneralUtil;
-
 [@deriving sexp]
 type tag = TermTag.t;
 
@@ -69,16 +67,16 @@ let rec find_and_decorate_Tagged =
   switch (l) {
   | Linebreak
   | Text(_) => None
-  | Align(l1) => go(l1) |> Opt.map(l1 => Layout.Align(l1))
+  | Align(l1) => go(l1) |> OptUtil.map(l1 => Layout.Align(l1))
   | Cat(l1, l2) =>
     switch (go(l1)) {
     | Some(l1) => Some(Cat(l1, l2))
-    | None => go(l2) |> Opt.map(l2 => Layout.Cat(l1, l2))
+    | None => go(l2) |> OptUtil.map(l2 => Layout.Cat(l1, l2))
     }
   | Tagged(tag, l1) =>
     switch (decorate(tag, l1)) {
     | Stop => None
-    | Skip => go(l1) |> Opt.map(l1 => Layout.Tagged(tag, l1))
+    | Skip => go(l1) |> OptUtil.map(l1 => Layout.Tagged(tag, l1))
     | Return(l) => Some(l)
     }
   };
@@ -97,7 +95,7 @@ let rec follow_steps_and_decorate =
          | Step(step) when step == next_step =>
            l
            |> go(~steps=rest)
-           |> Opt.map(l => Layout.Tagged(tag, l))
+           |> OptUtil.map(l => Layout.Tagged(tag, l))
            |> QueryResult.of_opt
          | OpenChild(_)
          | ClosedChild(_)
@@ -183,7 +181,7 @@ let rec find_and_decorate_Term =
          let take_step = () =>
            l
            |> go(~steps=rest)
-           |> Opt.map(l => Layout.Tagged(tag, l))
+           |> OptUtil.map(l => Layout.Tagged(tag, l))
            |> QueryResult.of_opt;
          let found_term_if = (cond, term_data) =>
            cond && rest == []
@@ -193,10 +191,7 @@ let rec find_and_decorate_Term =
          | Term({shape: SubBlock({hd_index, _}), _} as term_data) =>
            found_term_if(hd_index == next_step, term_data)
          | Term({shape: NTuple({comma_indices, _}), _} as term_data) =>
-           found_term_if(
-             comma_indices |> GeneralUtil.contains(next_step),
-             term_data,
-           )
+           found_term_if(comma_indices |> List.mem(next_step), term_data)
          | Term({shape: BinOp({op_index, _}), _} as term_data) =>
            found_term_if(op_index == next_step, term_data)
          | OpenChild(_)

@@ -1,5 +1,4 @@
 open Sexplib.Std;
-open GeneralUtil;
 
 [@deriving sexp]
 type operator =
@@ -208,10 +207,10 @@ let get_opseq =
 let force_get_opseq = line =>
   line
   |> get_opseq
-  |> Opt.get(_ => failwith("force_get_opseq: expected ExpLine"));
+  |> OptUtil.get(_ => failwith("force_get_opseq: expected ExpLine"));
 
 let split_conclusion = (block: block): option((list(line), opseq)) =>
-  switch (block |> split_last) {
+  switch (block |> ListUtil.split_last) {
   | None => None
   | Some((leading, last)) =>
     switch (last |> get_opseq) {
@@ -359,8 +358,8 @@ let child_indices_operand =
   | ListNil(_) => []
   | Lam(_, _, None, _) => [0, 2]
   | Lam(_, _, Some(_), _) => [0, 1, 2]
-  | Case(_, _, rules, None) => range(List.length(rules) + 1)
-  | Case(_, _, rules, Some(_)) => range(List.length(rules) + 2)
+  | Case(_, _, rules, None) => ListUtil.range(List.length(rules) + 1)
+  | Case(_, _, rules, Some(_)) => ListUtil.range(List.length(rules) + 2)
   | Inj(_, _, _) => [0]
   | Parenthesized(_) => [0]
   | ApPalette(_, _, _, _) => [];
@@ -391,7 +390,7 @@ let favored_child_of_operand: operand => option((ChildIndex.t, t)) =
 
 let has_concluding_let_line = (block: block): bool => {
   let (leading, conclusion) = block |> force_split_conclusion;
-  switch (leading |> split_last, conclusion) {
+  switch (leading |> ListUtil.split_last, conclusion) {
   | (Some((_, LetLine(_, _, _))), OpSeq(_, S(EmptyHole(_), E))) => true
   | (_, _) => false
   };

@@ -1,5 +1,3 @@
-open GeneralUtil;
-
 [@deriving sexp]
 type t('operand, 'operator, 'zoperand, 'zoperator) =
   | ZOpSeq(
@@ -188,7 +186,7 @@ let move_cursor_left =
        ~erase_zoperand,
        ~erase_zoperator,
      )
-  |> Opt.map(zseq => ZOpSeq(skel, zseq));
+  |> OptUtil.map(zseq => ZOpSeq(skel, zseq));
 
 let move_cursor_right =
     (
@@ -210,4 +208,4 @@ let move_cursor_right =
        ~erase_zoperand,
        ~erase_zoperator,
      )
-  |> Opt.map(zseq => ZOpSeq(skel, zseq));
+  |> OptUtil.map(zseq => ZOpSeq(skel, zseq));

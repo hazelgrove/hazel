@@ -25,7 +25,7 @@ let update_environment =
     MetaVarMap.update_with(
       instances => {
         let length = List.length(instances);
-        GeneralUtil.update_nth(
+        ListUtil.update_nth(
           length - i - 1,
           instances,
           (inst_info: (Environment.t, InstancePath.t)) => {

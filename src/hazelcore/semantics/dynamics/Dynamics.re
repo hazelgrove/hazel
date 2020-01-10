@@ -1,4 +1,3 @@
-open GeneralUtil;
 open Sexplib.Std;
 
 /* hole instance numbers are all 0 after expansion and during evaluation --
@@ -144,7 +143,7 @@ module Pat = {
     // handle n-tuples
     let skels = skel |> UHPat.get_tuple_elements;
     let tys = ty |> HTyp.get_tuple_elements;
-    switch (opt_zip(skels, tys)) {
+    switch (ListUtil.opt_zip(skels, tys)) {
     | Some(skel_tys) =>
       skel_tys
       |> List.fold_left(
@@ -1151,7 +1150,7 @@ module Exp = {
     // handle n-tuples
     let skels = skel |> UHExp.get_tuple_elements;
     let tys = ty |> HTyp.get_tuple_elements;
-    switch (opt_zip(skels, tys)) {
+    switch (ListUtil.opt_zip(skels, tys)) {
     | Some(skel_tys) =>
       skel_tys
       |> List.fold_left(

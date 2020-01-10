@@ -1,6 +1,5 @@
 module Js = Js_of_ocaml.Js;
 module Vdom = Virtual_dom.Vdom;
-module ZList = GeneralUtil.ZList;
 
 let examples_select = (~inject: Update.Action.t => Vdom.Event.t) =>
   Vdom.(

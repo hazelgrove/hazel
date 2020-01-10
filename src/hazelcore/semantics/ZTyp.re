@@ -1,5 +1,3 @@
-open GeneralUtil;
-
 [@deriving sexp]
 type t =
   | ZT1(zopseq)
@@ -30,10 +28,10 @@ let valid_cursors_operator: UHTyp.operator => list(CursorPosition.t) =
 
 let is_valid_cursor_operand =
     (cursor: CursorPosition.t, operand: UHTyp.operand): bool =>
-  valid_cursors_operand(operand) |> contains(cursor);
+  valid_cursors_operand(operand) |> List.mem(cursor);
 let is_valid_cursor_operator =
     (cursor: CursorPosition.t, operator: UHTyp.operator): bool =>
-  valid_cursors_operator(operator) |> contains(cursor);
+  valid_cursors_operator(operator) |> List.mem(cursor);
 
 let erase_zoperator =
   fun
@@ -139,9 +137,10 @@ let move_cursor_left_zoperator: zoperator => option(zoperator) =
 
 let rec move_cursor_left: t => option(t) =
   fun
-  | ZT1(zopseq) => zopseq |> move_cursor_left_zopseq |> Opt.map(z => ZT1(z))
+  | ZT1(zopseq) =>
+    zopseq |> move_cursor_left_zopseq |> OptUtil.map(z => ZT1(z))
   | ZT0(zoperand) =>
-    zoperand |> move_cursor_left_zoperand |> Opt.map(z => ZT0(z))
+    zoperand |> move_cursor_left_zoperand |> OptUtil.map(z => ZT0(z))
 and move_cursor_left_zopseq = zopseq =>
   ZOpSeq.move_cursor_left(
     ~move_cursor_left_zoperand,
@@ -184,9 +183,10 @@ let move_cursor_right_zoperator: zoperator => option(zoperator) =
 
 let rec move_cursor_right: t => option(t) =
   fun
-  | ZT1(zopseq) => zopseq |> move_cursor_right_zopseq |> Opt.map(z => ZT1(z))
+  | ZT1(zopseq) =>
+    zopseq |> move_cursor_right_zopseq |> OptUtil.map(z => ZT1(z))
   | ZT0(zoperand) =>
-    zoperand |> move_cursor_right_zoperand |> Opt.map(z => ZT0(z))
+    zoperand |> move_cursor_right_zoperand |> OptUtil.map(z => ZT0(z))
 and move_cursor_right_zopseq = zopseq =>
   ZOpSeq.move_cursor_right(
     ~move_cursor_right_zoperand,

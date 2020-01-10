@@ -1,5 +1,3 @@
-open GeneralUtil;
-
 [@deriving sexp]
 type t =
   | ZP1(zopseq)
@@ -21,7 +19,7 @@ let valid_cursors_operand: UHPat.operand => list(CursorPosition.t) =
     | EmptyHole(_) => delim_cursors(1)
     | Wild(_) => delim_cursors(1)
     | Var(_, _, x) => text_cursors(Var.length(x))
-    | NumLit(_, n) => text_cursors(num_digits(n))
+    | NumLit(_, n) => text_cursors(IntUtil.num_digits(n))
     | BoolLit(_, b) => text_cursors(b ? 4 : 5)
     | ListNil(_) => delim_cursors(1)
     | Inj(_, _, _) => delim_cursors(2)
@@ -33,10 +31,10 @@ let valid_cursors_operator: UHPat.operator => list(CursorPosition.t) =
 
 let is_valid_cursor_operand =
     (cursor: CursorPosition.t, operand: UHPat.operand): bool =>
-  valid_cursors_operand(operand) |> contains(cursor);
+  valid_cursors_operand(operand) |> List.mem(cursor);
 let is_valid_cursor_operator =
     (cursor: CursorPosition.t, operator: UHPat.operator): bool =>
-  valid_cursors_operator(operator) |> contains(cursor);
+  valid_cursors_operator(operator) |> List.mem(cursor);
 
 let bidelimit = zoperand =>
   switch (zoperand) {
@@ -141,7 +139,8 @@ and is_after_zoperand =
   | CursorP(cursor, Wild(_))
   | CursorP(cursor, ListNil(_)) => cursor == OnDelim(0, After)
   | CursorP(cursor, Var(_, _, x)) => cursor == OnText(Var.length(x))
-  | CursorP(cursor, NumLit(_, n)) => cursor == OnText(num_digits(n))
+  | CursorP(cursor, NumLit(_, n)) =>
+    cursor == OnText(IntUtil.num_digits(n))
   | CursorP(cursor, BoolLit(_, b)) => cursor == OnText(b ? 4 : 5)
   | CursorP(cursor, Inj(_, _, _))
   | CursorP(cursor, Parenthesized(_)) => cursor == OnDelim(1, After)
@@ -187,7 +186,7 @@ and place_after_operand = operand =>
   | Wild(_)
   | ListNil(_) => CursorP(OnDelim(0, After), operand)
   | Var(_, _, x) => CursorP(OnText(Var.length(x)), operand)
-  | NumLit(_, n) => CursorP(OnText(num_digits(n)), operand)
+  | NumLit(_, n) => CursorP(OnText(IntUtil.num_digits(n)), operand)
   | BoolLit(_, b) => CursorP(OnText(b ? 4 : 5), operand)
   | Inj(_, _, _) => CursorP(OnDelim(1, After), operand)
   | Parenthesized(_) => CursorP(OnDelim(1, After), operand)
@@ -223,8 +222,8 @@ let move_cursor_left_zoperator: zoperator => option(zoperator) =
 
 let rec move_cursor_left: t => option(t) =
   fun
-  | ZP1(zp1) => zp1 |> move_cursor_left_zopseq |> Opt.map(z => ZP1(z))
-  | ZP0(zp0) => zp0 |> move_cursor_left_zoperand |> Opt.map(z => ZP0(z))
+  | ZP1(zp1) => zp1 |> move_cursor_left_zopseq |> OptUtil.map(z => ZP1(z))
+  | ZP0(zp0) => zp0 |> move_cursor_left_zoperand |> OptUtil.map(z => ZP0(z))
 and move_cursor_left_zopseq = zopseq =>
   ZOpSeq.move_cursor_left(
     ~move_cursor_left_zoperand,
@@ -271,8 +270,8 @@ let move_cursor_right_zoperator: zoperator => option(zoperator) =
 
 let rec move_cursor_right: t => option(t) =
   fun
-  | ZP1(zp1) => zp1 |> move_cursor_right_zopseq |> Opt.map(z => ZP1(z))
-  | ZP0(zp0) => zp0 |> move_cursor_right_zoperand |> Opt.map(z => ZP0(z))
+  | ZP1(zp1) => zp1 |> move_cursor_right_zopseq |> OptUtil.map(z => ZP1(z))
+  | ZP0(zp0) => zp0 |> move_cursor_right_zoperand |> OptUtil.map(z => ZP0(z))
 and move_cursor_right_zopseq = zopseq =>
   ZOpSeq.move_cursor_right(
     ~move_cursor_right_zoperand,

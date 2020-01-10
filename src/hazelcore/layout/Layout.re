@@ -1,5 +1,4 @@
 open Sexplib.Std;
-open GeneralUtil;
 
 // type t('tag) = {
 //   metrics,
@@ -93,7 +92,7 @@ let make_of_layout: (text('tag, 'imp, 't), t('tag)) => 't =
       (indent, layout) => {
         switch (layout) {
         | Text(string) =>
-          column := column^ + GeneralUtil.utf8_length(string);
+          column := column^ + StringUtil.utf8_length(string);
           text.imp_of_string(string);
         | Cat(l1, l2) =>
           let imp1 = go(indent, l1);
@@ -130,16 +129,16 @@ let string_of_layout: 'tag. t('tag) => string =
      switch (l) {
      | Linebreak
      | Text(_) => None
-     | Align(l) => l |> go |> Opt.map(align)
+     | Align(l) => l |> go |> OptUtil.map(align)
      | Cat(l1, l2) =>
        switch (l1 |> go) {
        | Some(l1) => Some(Cat(l1, l2))
-       | None => l2 |> go |> Opt.map(l2 => Cat(l1, l2))
+       | None => l2 |> go |> OptUtil.map(l2 => Cat(l1, l2))
        }
      | Tagged(tg, l) =>
        switch (decorate(tag, l)) {
        | Failed => None
-       | Skipped => l |> go |> Opt.map(tag(tg))
+       | Skipped => l |> go |> OptUtil.map(tag(tg))
        | Decorated(l) => Some(l)
        }
      };

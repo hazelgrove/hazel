@@ -4,7 +4,6 @@ module Dom_html = Js_of_ocaml.Dom_html;
 module EditAction = Action;
 module Sexp = Sexplib.Sexp;
 open Sexplib.Std;
-open GeneralUtil;
 open ViewUtil;
 
 module Action = {
@@ -180,6 +179,7 @@ let apply_action =
         )
       };
     };
+
     model;
   | Undo =>
     let new_history = UndoHistory.undo(model.undo_history);

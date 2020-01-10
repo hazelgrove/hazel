@@ -1,5 +1,3 @@
-open Sexplib.Std;
-module U = GeneralUtil;
 module Js = Js_of_ocaml.Js;
 module Dom = Js_of_ocaml.Dom;
 module Dom_html = Js_of_ocaml.Dom_html;
@@ -7,14 +5,14 @@ module Ev = Dom_html.Event;
 
 let log = x => Js_of_ocaml.Firebug.console##log(x);
 
-let log_sexp = (sexp: Sexplib.Sexp.t) => log(U.string_of_sexp(sexp));
+let log_sexp = (sexp: Sexplib.Sexp.t) => log(Sexplib.Sexp.to_string(sexp));
 
 let get_child_nodes = (root: Js.t(Dom.node)): list(Js.t(Dom.node)) =>
   Dom.list_of_nodeList(root##.childNodes);
 
 let get_attr = (attr: string, elem: Js.t(Dom_html.element)): option(string) =>
   Js.Opt.to_option(elem##getAttribute(Js.string(attr)))
-  |> U.Opt.map(s => Js.to_string(s));
+  |> OptUtil.map(s => Js.to_string(s));
 
 let force_get_attr = (attr: string, elem: Js.t(Dom_html.element)): string => {
   switch (elem |> get_attr(attr)) {
@@ -232,87 +230,19 @@ let force_get_parent_elem = elem =>
   (elem: Js.t(Dom_html.element) :> Js.t(Dom.node))
   |> (node => node##.parentNode)
   |> Js.Opt.to_option
-  |> U.Opt.get(() => assert(false))
+  |> OptUtil.get(() => assert(false))
   |> Dom_html.CoerceTo.element
   |> Js.Opt.to_option
-  |> U.Opt.get(() => assert(false));
+  |> OptUtil.get(() => assert(false));
 
 let force_get_next_sibling_elem = elem =>
   (elem: Js.t(Dom_html.element) :> Js.t(Dom.node))
   |> (node => node##.nextSibling)
   |> Js.Opt.to_option
-  |> U.Opt.get(() => assert(false))
+  |> OptUtil.get(() => assert(false))
   |> Dom_html.CoerceTo.element
   |> Js.Opt.to_option
-  |> U.Opt.get(() => assert(false));
-
-let px = (f: float): string => string_of_float(f) ++ "0px";
-
-[@deriving sexp]
-type rect = {
-  top: float,
-  right: float,
-  bottom: float,
-  left: float,
-};
-
-let get_bounding_rect = (~top_origin=0.0, ~left_origin=0.0, elem) => {
-  let rect = elem##getBoundingClientRect;
-  {
-    top: rect##.top -. top_origin,
-    right: rect##.right -. left_origin,
-    bottom: rect##.bottom -. top_origin,
-    left: rect##.left -. left_origin,
-  };
-};
-
-// indent parameter is how many ch units by which to trim
-// left edge to handle snode elems that contain indented lines
-let place_over_rect = (~indent=0.0, rect, elem) => {
-  elem##.style##.top := Js.string(rect.top |> px);
-  elem##.style##.height := Js.string(rect.bottom -. rect.top |> px);
-  elem##.style##.left :=
-    Js.string(
-      "calc("
-      ++ (rect.left |> px)
-      ++ (
-        indent >= 0.0
-          ? " + " ++ string_of_float(indent) ++ "0"
-          : " - " ++ string_of_float((-1.0) *. indent) ++ "0"
-      )
-      ++ "ch"
-      ++ ")",
-    );
-  elem##.style##.width :=
-    Js.string(
-      "calc("
-      ++ (rect.right -. rect.left |> px)
-      ++ (
-        indent >= 0.0
-          ? " - " ++ string_of_float(indent) ++ "0"
-          : " + " ++ string_of_float((-1.0) *. indent) ++ "0"
-      )
-      ++ "ch"
-      ++ ")",
-    );
-};
-
-let get_covering_rect = rects =>
-  rects
-  |> List.fold_left(
-       (covering_rect, rect) =>
-         {
-           top: U.fmin(covering_rect.top, rect.top),
-           left: U.fmin(covering_rect.left, rect.left),
-           bottom: U.fmax(covering_rect.bottom, rect.bottom),
-           right: U.fmax(covering_rect.right, rect.right),
-         },
-       {top: max_float, left: max_float, bottom: min_float, right: min_float},
-     );
-
-let place_over_elem =
-    (under_elem: Js.t(Dom_html.element), over_elem: Js.t(Dom_html.element)) =>
-  over_elem |> place_over_rect(under_elem |> get_bounding_rect);
+  |> OptUtil.get(() => assert(false));
 
 let get_key = (evt: Js.t(Dom_html.keyboardEvent)) =>
   Js.to_string(Js.Optdef.get(evt##.key, () => assert(false)));
@@ -427,7 +357,7 @@ module Key = {
 
   let matches = (k, evt: Js.t(Dom_html.keyboardEvent)) => {
     let recognition_methods = k.recognition_methods;
-    U.any(recognition_methods, recognize(evt));
+    ListUtil.any(recognition_methods, recognize(evt));
   };
 };
 
