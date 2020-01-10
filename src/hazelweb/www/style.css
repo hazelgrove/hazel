@@ -1219,4 +1219,6 @@ button:disabled {
 }
 .the-now-history {
   color: red;
+  overflow-anchor: auto;
 }
+
