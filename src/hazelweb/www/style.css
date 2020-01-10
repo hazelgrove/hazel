@@ -1209,16 +1209,28 @@ button:disabled {
   /* text-transform: uppercase; */
   font-size: 75%;
 }
-
+.the-history-entry {
+  border: 1px outset #ffffff;
+  cursor: pointer;
+  padding: 5px;
+  font-size: 12pt;
+}
+.the-history-entry:hover {
+  color: #b30000;
+  background-color: lightgoldenrodyellow;
+}
 .the-prev-history {
   color: #0d0a05;
+  background-color: #f0fff3;
 }
 
 .the-suc-history {
-  color: gray;
+  color: dimgray;
+  background-color: lightgray;
 }
 .the-now-history {
-  color: red;
+  color: #b30000;
   overflow-anchor: auto;
+  background-color: lightgoldenrodyellow;
 }
 
