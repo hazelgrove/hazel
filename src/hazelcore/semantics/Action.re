@@ -34,6 +34,7 @@ let op_shape_to_string = (op: op_shape) => {
   | SOr => "|"
   };
 };
+
 let ty_op_of = (os: op_shape): option(UHTyp.op) =>
   switch (os) {
   | SArrow => Some(Arrow)
@@ -158,6 +159,55 @@ type result('success) =
   | CursorEscaped(Side.t)
   | CantShift
   | Failed;
+
+let shape_to_string = (shape: shape): string => {
+  switch (shape) {
+  | SParenthesized => "SParenthesized"
+  /* type shapes */
+  | SNum => "SNum"
+  | SBool => "SBool"
+  | SList => "SList"
+  /* expression shapes */
+  | SAsc => "SAsc"
+  | SVar(_, _) => "SVar"
+  | SLam => "SLam"
+  | SNumLit(_, _) => "SNumLit"
+  | SListNil => "SListNil"
+  | SInj(direction) =>
+    switch (direction) {
+    | L => "SInjL"
+    | R => "SInjR"
+    }
+  | SLet => "SLet"
+  | SLine => "SLine"
+  | SCase => "SCase"
+  | SOp(op) => "SOp" ++ op_shape_to_string(op)
+  | SApPalette(_) => "SApPalette"
+  /* pattern-only shapes */
+  | SWild => "SWild"
+  };
+};
+let action_to_comp_string = (action: t): string => {
+  switch (action) {
+  | UpdateApPalette(_) => "UpdateApPalette"
+  | Delete => "Delete"
+  | Backspace => "Backspace"
+  | Construct(shape) => shape_to_string(shape)
+  | MoveTo(_)
+  | MoveToBefore(_)
+  | MoveLeft
+  | MoveRight
+  | MoveToNextHole
+  | MoveToPrevHole
+  | ShiftLeft
+  | ShiftRight
+  | ShiftUp
+  | ShiftDown => "Not Show In undo_history"
+  };
+};
+
+let comp_action = (action_1: t, action_2: t): bool =>
+  action_to_comp_string(action_1) == action_to_comp_string(action_2);
 
 let make_ty_OpSeqZ = (zty0: ZTyp.t, surround: ZTyp.opseq_surround): ZTyp.t => {
   let uty0 = ZTyp.erase(zty0);

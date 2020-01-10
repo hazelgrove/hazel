@@ -4,7 +4,7 @@ module ZList = GeneralUtil.ZList;
 exception InvalidInstance;
 
 let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
-  let shape_to_string = (shape: Action.shape): string => {
+  let shape_to_display_string = (shape: Action.shape): string => {
     switch (shape) {
     | SParenthesized => "parentheise"
     /* type shapes */
@@ -31,12 +31,13 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
     | SWild => "wild?"
     };
   };
-  let action_to_stirng = (action: Action.t) => {
+
+  let action_to_display_string = (action: Action.t) => {
     switch (action) {
     | UpdateApPalette(_) => "updatePlate?"
     | Delete => "delete"
     | Backspace => "backspace"
-    | Construct(shape) => shape_to_string(shape)
+    | Construct(shape) => shape_to_display_string(shape)
     | MoveTo(_)
     | MoveToBefore(_)
     | MoveLeft
@@ -49,6 +50,21 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
     | ShiftDown => ""
     };
   };
+
+  /*   let rec group_history_view = (history, prev_action: option(Action.t), result) => {
+          switch(history){
+          | [] => result
+          | [head, _] => {
+            let (_,action,_)=head;
+            switch(action){
+            | None => result; //reach init history
+            | Some(action_now) =>
+            }
+
+          }
+          }
+        }
+       */
   let history_entry_view = undo_history_entry => {
     let (_, action, id) = undo_history_entry;
     switch (action) {
@@ -60,7 +76,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
             Attr.classes(["the-history-entry"]),
             Attr.on_click(_ => inject(Update.Action.ShiftHistory(id))),
           ],
-          [Node.text(action_to_stirng(detail_ac))],
+          [Node.text(action_to_display_string(detail_ac))],
         )
       )
     };
