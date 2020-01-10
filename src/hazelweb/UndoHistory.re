@@ -39,10 +39,14 @@ let redo = (undo_history: t): t => {
 
 let undoable_action = (action: Action.t): bool => {
   switch (action) {
-  | UpdateApPalette(_)
+  | UpdateApPalette(_) =>
+    JSUtil.log("UpdateApPalette!!!");
+    true;
   | Delete
-  | Backspace
-  | Construct(_) => true
+  | Backspace => true
+  | Construct(_) =>
+    JSUtil.log("Construct!!!");
+    true;
   | MoveTo(_)
   | MoveToBefore(_)
   | MoveLeft

@@ -17,7 +17,23 @@ type op_shape =
   | SCons
   | SAnd
   | SOr;
-
+let op_shape_to_string = (op: op_shape) => {
+  switch (op) {
+  | SMinus => "-"
+  | SPlus => "+"
+  | STimes => "*"
+  | SLessThan => "<"
+  | SGreaterThan => ">"
+  | SEquals => "="
+  | SSpace => "[space]"
+  | SComma => ","
+  | SArrow => "=>"
+  | SVBar => "[VBar]"
+  | SCons => "[Cons]"
+  | SAnd => "&"
+  | SOr => "|"
+  };
+};
 let ty_op_of = (os: op_shape): option(UHTyp.op) =>
   switch (os) {
   | SArrow => Some(Arrow)
