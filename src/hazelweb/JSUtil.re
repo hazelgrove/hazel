@@ -498,6 +498,7 @@ module KeyCombo = {
     let alt_PageDown = alt(Key.the_key("PageDown"));
     let alt_T = alt(Key.the_letter_code("T"));
     let alt_F = alt(Key.the_letter_code("F"));
+    let alt_LeftBracket = alt(Key.the_key("["));
     let key_B = no_ctrl_alt_meta(Key.the_key("B"));
     let key_N = no_ctrl_alt_meta(Key.the_key("N"));
     let key_L = no_ctrl_alt_meta(Key.the_key("L"));
@@ -530,7 +531,8 @@ module KeyCombo = {
     | Semicolon
     | Alt_L
     | Alt_R
-    | Alt_C;
+    | Alt_C
+    | Alt_LeftBracket;
 
   let get_details =
     fun
@@ -560,7 +562,8 @@ module KeyCombo = {
     | Semicolon => Details.semicolon
     | Alt_L => Details.alt_L
     | Alt_R => Details.alt_R
-    | Alt_C => Details.alt_C;
+    | Alt_C => Details.alt_C
+    | Alt_LeftBracket => Details.alt_LeftBracket;
 
   let of_evt = (evt: Js.t(Dom_html.keyboardEvent)): option(t) => {
     let evt_matches = details => Details.matches(details, evt);
@@ -618,6 +621,8 @@ module KeyCombo = {
       Some(Alt_R);
     } else if (evt_matches(Details.alt_C)) {
       Some(Alt_C);
+    } else if (evt_matches(Details.alt_LeftBracket)) {
+      Some(Alt_LeftBracket);
     } else {
       None;
     };

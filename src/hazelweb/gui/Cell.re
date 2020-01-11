@@ -64,6 +64,7 @@ let kc_actions: Hashtbl.t(KeyCombo.t, CursorInfo.node => Action.t) =
       (KeyCombo.Alt_L, _ => Action.Construct(SInj(L))),
       (KeyCombo.Alt_R, _ => Action.Construct(SInj(R))),
       (KeyCombo.Alt_C, _ => Action.Construct(SCase)),
+      (KeyCombo.Alt_LeftBracket, _ => Action.GoToDefinition),
     ]
     |> List.to_seq,
   );

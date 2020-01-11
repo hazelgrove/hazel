@@ -122,6 +122,7 @@ type shape =
 
 [@deriving sexp]
 type t =
+  | GoToDefinition
   | MoveTo(CursorPath.t)
   | MoveToBefore(CursorPath.steps)
   | MoveLeft
@@ -160,6 +161,9 @@ let rec perform_ty = (a: t, zty: ZTyp.t): result(ZTyp.t) =>
     // invalid cursor position
     Failed
   | (_, CursorT(cursor, uty)) when !ZTyp.is_valid_cursor(cursor, uty) =>
+    Failed
+  | (GoToDefinition, _) =>
+    // TODO: support GoToDefinition for type
     Failed
   /* Staging */
   | (ShiftUp | ShiftDown, _) =>
@@ -1272,6 +1276,7 @@ let check_valid = (x: Var.t, result: result('a)): result('a) =>
   } else {
     Failed;
   };
+
 let rec syn_perform_pat =
         (
           steps: CursorPath.steps,
@@ -1299,6 +1304,7 @@ let rec syn_perform_pat =
     ) =>
     Failed
   | (_, CursorP(cursor, p)) when !ZPat.is_valid_cursor(cursor, p) => Failed
+  | (GoToDefinition, _) => Failed
   /* Staging */
   | (ShiftUp | ShiftDown, _) =>
     // can only shift up and down in blocks
@@ -1990,6 +1996,7 @@ and ana_perform_pat =
     ) =>
     Failed
   | (_, CursorP(cursor, p)) when !ZPat.is_valid_cursor(cursor, p) => Failed
+  | (GoToDefinition, _) => Failed
   /* switch to synthesis if in a hole */
   | (_, _) when ZPat.is_inconsistent(zp) =>
     let err = zp |> ZPat.erase |> UHPat.get_err_status_t;
@@ -2849,8 +2856,24 @@ let rec syn_perform_block =
           a: t,
           (zblock, ty, u_gen): (ZExp.zblock, HTyp.t, MetaVarGen.t),
         )
-        : result((ZExp.zblock, HTyp.t, MetaVarGen.t)) =>
+        : result((ZExp.zblock, HTyp.t, MetaVarGen.t)) => {
   switch (a, zblock) {
+  | (GoToDefinition, _) =>
+    switch (ci.node) {
+    | Exp(Var(_, _, x)) =>
+      switch (VarMap.lookup_steps(Contexts.gamma(ci.ctx), x)) {
+      | None => Failed
+      | Some(def_steps) =>
+        syn_perform_block(
+          ~steps,
+          ~ci,
+          ctx,
+          MoveToBefore(def_steps),
+          (zblock, ty, u_gen),
+        );
+      }
+    | _ => Failed
+    }
   /* Staging */
   | (
       ShiftUp | ShiftDown,
@@ -3603,7 +3626,8 @@ let rec syn_perform_block =
         }
       }
     }
-  }
+  };
+}
 and syn_perform_lines =
     (
       ~steps: CursorPath.steps,
@@ -3614,6 +3638,7 @@ and syn_perform_lines =
     )
     : result((ZExp.zlines, Contexts.t, MetaVarGen.t)) =>
   switch (a, zlines) {
+  | (GoToDefinition, _) => Failed
   /* Staging */
   | (ShiftUp | ShiftDown | ShiftLeft | ShiftRight, (_, CursorL(_, _), _)) =>
     // handled at block level
@@ -3889,6 +3914,7 @@ and syn_perform_line =
     Failed
   | (_, CursorL(cursor, line)) when !ZExp.is_valid_cursor_line(cursor, line) =>
     Failed
+  | (GoToDefinition, _) => Failed
   /* Staging */
   | (ShiftUp | ShiftDown | ShiftLeft | ShiftRight, CursorL(_, _)) =>
     // handled at block level
@@ -4153,6 +4179,7 @@ and syn_perform_exp =
     Failed
   | (_, CursorE(cursor, e)) when !ZExp.is_valid_cursor_exp(cursor, e) =>
     Failed
+  | (GoToDefinition, _) => Failed
   /* Staging */
   | (ShiftUp | ShiftDown, CursorE(_, _)) =>
     // handled at block level
@@ -5405,6 +5432,23 @@ and ana_perform_block =
     )
     : result((ZExp.zblock, MetaVarGen.t)) =>
   switch (a, zblock) {
+  | (GoToDefinition, _) =>
+    switch (ci.node) {
+    | Exp(Var(_, _, x)) =>
+      switch (VarMap.lookup_steps(Contexts.gamma(ctx), x)) {
+      | None => Failed
+      | Some(def_steps) =>
+        ana_perform_block(
+          ~steps,
+          ~ci,
+          ctx,
+          MoveToBefore(def_steps),
+          (zblock, u_gen),
+          ty,
+        )
+      }
+    | _ => Failed
+    }
   /* Staging */
   | (
       ShiftUp | ShiftDown,
@@ -6257,6 +6301,7 @@ and ana_perform_exp =
         }
       }
     };
+  | (GoToDefinition, _) => Failed
   /* Staging */
   | (ShiftUp | ShiftDown, CursorE(_, _)) =>
     // handled at block level
@@ -7507,6 +7552,19 @@ let can_perform =
         | Failed => false
         }
       : true
+  | GoToDefinition =>
+    switch (ci.node) {
+    | Exp(Var(_, _, x)) =>
+      switch (VarMap.lookup(Contexts.gamma(ctx), x)) {
+      | None => false
+      | Some(_) => true
+      }
+    | Typ(_)
+    | Exp(_)
+    | Line(_)
+    | Rule(_)
+    | Pat(_) => false
+    }
   };
 
 let can_enter_varchar = (ci: CursorInfo.t): bool =>
