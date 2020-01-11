@@ -1257,33 +1257,73 @@ button:disabled {
   width: 100%;
   display: grid;
 }
-.history-tab-icon-open {
-    cursor: pointer;
-    float: right;
-    width: 0;
-    height: 0;
+.history-tab-icon {
+  cursor: pointer;
+  float: right;
+  width: 0;
+  height: 0;
+}
+.down-triangle {
     border-left: 8px solid transparent;
     border-right: 8px solid transparent;
     border-top: 10px solid #558e62;
 }
 
-.history-tab-icon-close {
-  cursor: pointer;
-  float: right;
-  width: 0;
-  height: 0;
+.left-triangle {
   border-bottom: 8px solid transparent;
   border-top: 8px solid transparent;
   border-right: 10px solid #558e62;
 }
 
+.all-history-tab-icon-open {
+  border-left: 8px solid transparent;
+  border-right: 8px solid transparent;
+  border-top: 10px solid white;
+}
+
+.all-history-tab-icon-close, .undo-button {
+border-bottom: 8px solid transparent;
+border-top: 8px solid transparent;
+border-right: 10px solid white;
+}
+.redo-button {
+  border-bottom: 8px solid transparent;
+  border-top: 8px solid transparent;
+  border-left: 10px solid white;
+}
+.redo-undo-icon {
+  display: table-cell;
+  margin-left: 10px; 
+  margin-right: 10px;
+}
+
+
 .history_button_bar {
   text-transform: uppercase;
   color: white;
-  padding: 3px;
-  padding-right: 0px;
+  padding: 3px 5px 3px 3px;
   font-size: 10pt;
-  font-weight: bold;
-  background-color: var(--title-bar-color);
-
+  background-color: #678a61;
+  display: table;
 }
+.history-button {
+  cursor: pointer;
+  margin-right: 5px; 
+  display: inline-table; 
+}
+.undo-button-txt {
+ 
+ display: table-cell;
+ padding-right: 15px;
+ vertical-align: center;
+}
+
+.redo-button-txt {
+ 
+  display: table-cell;
+  padding-left: 15px;
+  vertical-align: center;
+ }
+
+
+

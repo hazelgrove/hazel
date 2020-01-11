@@ -78,9 +78,9 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
     let (_, action, elt_id) = undo_history_entry;
     let icon_classes =
       if (is_expanded) {
-        ["history-tab-icon-open"];
+        ["down-triangle", "history-tab-icon"];
       } else {
-        ["history-tab-icon-close"];
+        ["left-triangle", "history-tab-icon"];
       };
     let history_tab_icon = (group_id: int) =>
       if (has_hidden_part) {
@@ -392,11 +392,16 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
     Vdom.(
       Node.div(
         [
-          Attr.classes(["history_button"]),
-          Attr.id("undo-button"),
+          Attr.classes(["history-button"]),
           Attr.on_click(_ => inject(Update.Action.Undo)),
         ],
-        [Node.text("Undo")],
+        [
+          Node.div(
+            [Attr.classes(["undo-button-txt"])],
+            [Node.text("Undo")],
+          ),
+          Node.div([Attr.classes(["undo-button", "redo-undo-icon"])], []),
+        ],
       )
     );
 
@@ -404,19 +409,24 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
     Vdom.(
       Node.div(
         [
-          Attr.classes(["history_button"]),
-          Attr.id("redo-button"),
+          Attr.classes(["history-button"]),
           Attr.on_click(_ => inject(Update.Action.Redo)),
         ],
-        [Node.text("Redo")],
+        [
+          Node.div([Attr.classes(["redo-button", "redo-undo-icon"])], []),
+          Node.div(
+            [Attr.classes(["redo-button-txt"])],
+            [Node.text("Redo")],
+          ),
+        ],
       )
     );
   let expand_button = (all_hidden_history_expand: bool) => {
     let icon_classes =
       if (all_hidden_history_expand) {
-        ["history-tab-icon-open"];
+        ["all-history-tab-icon-open", "history-tab-icon"];
       } else {
-        ["history-tab-icon-close"];
+        ["all-history-tab-icon-close", "history-tab-icon"];
       };
     Vdom.(
       Node.div(
