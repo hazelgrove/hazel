@@ -206,8 +206,19 @@ let action_to_comp_string = (action: t): string => {
   };
 };
 
-let comp_action = (action_1: t, action_2: t): bool =>
-  action_to_comp_string(action_1) == action_to_comp_string(action_2);
+let in_same_history_group = (action_1: option(t), action_2: option(t)): bool => {
+  let action_1_string =
+    switch (action_1) {
+    | None => "None"
+    | Some(action) => action_to_comp_string(action)
+    };
+  let action_2_string =
+    switch (action_2) {
+    | None => "None"
+    | Some(action) => action_to_comp_string(action)
+    };
+  action_1_string == action_2_string;
+};
 
 let make_ty_OpSeqZ = (zty0: ZTyp.t, surround: ZTyp.opseq_surround): ZTyp.t => {
   let uty0 = ZTyp.erase(zty0);

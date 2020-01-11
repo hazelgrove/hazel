@@ -31,7 +31,8 @@ module Action = {
     | RemoveUserNewline(CursorPath.steps)
     | Redo
     | Undo
-    | ShiftHistory(int);
+    | ShiftHistory(int, int)
+    | ToggleHistoryGroup(int);
 };
 
 [@deriving sexp]
@@ -89,7 +90,8 @@ let log_action = (action: Action.t, _: State.t): unit => {
   | MoveToHole(_)
   | Undo
   | Redo
-  | ShiftHistory(_) =>
+  | ShiftHistory(_, _)
+  | ToggleHistoryGroup(_) =>
     Logger.append(
       Sexp.to_string(
         sexp_of_timestamped_action(mk_timestamped_action(action)),
@@ -300,23 +302,51 @@ let apply_action =
     model;
   | Undo =>
     let new_history = UndoHistory.undo(model.undo_history);
-    let (new_edit_state, _, _) = ZList.prj_z(new_history);
+    let (group_now, _, _) = ZList.prj_z(model.undo_history);
+    let (new_edit_state, _, _) = ZList.prj_z(group_now);
     let new_model = model |> Model.update_edit_state(new_edit_state);
     {...new_model, undo_history: new_history};
   | Redo =>
     let new_history = UndoHistory.redo(model.undo_history);
-    let (new_edit_state, _, _) = ZList.prj_z(new_history);
+    let (group_now, _, _) = ZList.prj_z(model.undo_history);
+    let (new_edit_state, _, _) = ZList.prj_z(group_now);
     let new_model = model |> Model.update_edit_state(new_edit_state);
     {...new_model, undo_history: new_history};
-  | ShiftHistory(n) =>
+  | ShiftHistory(gp_id, ent_id) =>
     let erase_func = his => his;
     let his_lst = ZList.erase(model.undo_history, erase_func);
-    switch (ZList.split_at(n, his_lst)) {
+    switch (ZList.split_at(gp_id, his_lst)) {
     | None => failwith("Impossible because undo_history is non-empty")
     | Some(new_history) =>
-      let (new_edit_state, _, _) = ZList.prj_z(new_history);
-      let new_model = model |> Model.update_edit_state(new_edit_state);
-      {...new_model, undo_history: new_history};
+      let (new_group, _, isexpanded) = ZList.prj_z(new_history);
+      let entry_lst = ZList.erase(new_group, erase_func);
+      switch (ZList.split_at(ent_id, entry_lst)) {
+      | None => failwith("Impossible because undo_history is non-empty")
+      | Some(group) =>
+        let (new_edit_state, _, _) = ZList.prj_z(group);
+        let new_model = model |> Model.update_edit_state(new_edit_state);
+        {
+          ...new_model,
+          undo_history:
+            ZList.replace_z(new_history, (group, gp_id, isexpanded)),
+        };
+      };
+    };
+  | ToggleHistoryGroup(gp_id) =>
+    let (_, cur_gp_id, _) = ZList.prj_z(model.undo_history);
+    let erase_func = his => his;
+    let his_lst = ZList.erase(model.undo_history, erase_func);
+    switch (ZList.split_at(gp_id, his_lst)) {
+    | None => failwith("Impossible because undo_history is non-empty")
+    | Some(history) =>
+      let (gp_lst, _, isexpanded) = ZList.prj_z(history);
+      let after_toggle =
+        ZList.replace_z(history, (gp_lst, gp_id, !isexpanded));
+      let new_his_lst = ZList.erase(after_toggle, erase_func);
+      switch (ZList.split_at(cur_gp_id, new_his_lst)) {
+      | None => failwith("Impossible because undo_history is non-empty")
+      | Some(new_history) => {...model, undo_history: new_history}
+      };
     };
   };
 };
