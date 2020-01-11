@@ -380,7 +380,7 @@ let init = (): t => {
     user_newlines: CursorPath.StepsMap.empty,
     selected_example: None,
     is_cell_focused: false,
-    undo_history: ([], (edit_state, None, 0), []),
+    undo_history: ([], (([], (edit_state, None, 0), []), 0, false), []),
     left_sidebar_open: false,
     right_sidebar_open: true,
     show_content_editable: false,
