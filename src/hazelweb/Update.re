@@ -335,8 +335,6 @@ let apply_action =
       };
     };
   | ToggleHistoryGroup(gp_id) =>
-    let new_hidden_history_state =
-      Model.ignore_hidden_history_button(model.hidden_history_state);
     let (_, cur_gp_id, _) = ZList.prj_z(model.undo_history);
     let erase_func = his => his;
     let his_lst = ZList.erase(model.undo_history, erase_func);
@@ -349,13 +347,24 @@ let apply_action =
       let new_his_lst = ZList.erase(after_toggle, erase_func);
       switch (ZList.split_at(cur_gp_id, new_his_lst)) {
       | None => failwith("Impossible because undo_history is non-empty")
-      | Some(new_history) => {
-          ...model,
-          hidden_history_state: new_hidden_history_state,
-          undo_history: new_history,
-        }
+      | Some(new_history) => {...model, undo_history: new_history}
       };
     };
-  | ToggleHiddenHistoryAll => Model.toggle_hidden_history_all(model)
+  | ToggleHiddenHistoryAll =>
+    if (model.all_hidden_history_expand) {
+      {
+        ...model,
+        all_hidden_history_expand: false,
+        undo_history:
+          UndoHistory.set_all_hidden_history(model.undo_history, false),
+      };
+    } else {
+      {
+        ...model,
+        all_hidden_history_expand: true,
+        undo_history:
+          UndoHistory.set_all_hidden_history(model.undo_history, true),
+      };
+    }
   };
 };
