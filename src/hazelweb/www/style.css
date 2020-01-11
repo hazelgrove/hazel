@@ -1259,9 +1259,9 @@ button:disabled {
     float: right;
     width: 0;
     height: 0;
-    border-left: 9px solid transparent;
-    border-right: 9px solid transparent;
-    border-top: 16px solid #558e62;
+    border-left: 8px solid transparent;
+    border-right: 8px solid transparent;
+    border-top: 10px solid #558e62;
 }
 
 .history-tab-icon-close {
@@ -1269,7 +1269,7 @@ button:disabled {
   float: right;
   width: 0;
   height: 0;
-  border-bottom: 9px solid transparent;
-  border-top: 9px solid transparent;
-  border-right: 16px solid #558e62;
+  border-bottom: 8px solid transparent;
+  border-top: 8px solid transparent;
+  border-right: 10px solid #558e62;
 }
