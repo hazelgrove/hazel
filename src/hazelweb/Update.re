@@ -302,13 +302,13 @@ let apply_action =
     model;
   | Undo =>
     let new_history = UndoHistory.undo(model.undo_history);
-    let (group_now, _, _) = ZList.prj_z(model.undo_history);
+    let (group_now, _, _) = ZList.prj_z(new_history);
     let (new_edit_state, _, _) = ZList.prj_z(group_now);
     let new_model = model |> Model.update_edit_state(new_edit_state);
     {...new_model, undo_history: new_history};
   | Redo =>
     let new_history = UndoHistory.redo(model.undo_history);
-    let (group_now, _, _) = ZList.prj_z(model.undo_history);
+    let (group_now, _, _) = ZList.prj_z(new_history);
     let (new_edit_state, _, _) = ZList.prj_z(group_now);
     let new_model = model |> Model.update_edit_state(new_edit_state);
     {...new_model, undo_history: new_history};
