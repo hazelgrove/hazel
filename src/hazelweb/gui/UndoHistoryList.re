@@ -11,7 +11,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
     | SBool => "type Bool"
     | SList => "type List"
     | SAsc => "add ':'"
-    | SVar(varstr, _) => "edit var: " ++ varstr // convert int to char? ++ Char.chr(intvar)
+    | SVar(varstr, _) => "edit var: " ++ varstr
     | SLam => "add lambada"
     | SNumLit(value, _) => "edit number: " ++ string_of_int(value)
     | SListNil => "add list"
@@ -49,17 +49,17 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
     };
   };
 
-  let history_entry_view = (group_id: int, undo_history_entry) => {
-    let (_, action, id) = undo_history_entry;
+  let history_hidden_entry_view = (group_id: int, undo_history_entry) => {
+    let (_, action, elt_id) = undo_history_entry;
     switch (action) {
-    | None => Vdom.(Node.div([], []))
+    | None => Vdom.(Node.div([], [])) /* init edit-state should not be displayed */
     | Some(detail_ac) =>
       Vdom.(
         Node.div(
           [
             Attr.classes(["the-history-entry"]),
             Attr.on_click(_ =>
-              inject(Update.Action.ShiftHistory(group_id, id))
+              inject(Update.Action.ShiftHistory(group_id, elt_id))
             ),
           ],
           [Node.text(action_to_display_string(detail_ac))],
@@ -70,19 +70,19 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
 
   let history_title_entry_view =
       (
-        is_expanded: bool,
-        has_hidden_part: bool,
+        ~is_expanded: bool,
+        ~has_hidden_part: bool,
         group_id: int,
         undo_history_entry,
       ) => {
-    let (_, action, id) = undo_history_entry;
+    let (_, action, elt_id) = undo_history_entry;
     let icon_classes =
       if (is_expanded) {
         ["history-tab-icon-open"];
       } else {
         ["history-tab-icon-close"];
       };
-    let hidden_part = (group_id: int) =>
+    let history_tab_icon = (group_id: int) =>
       if (has_hidden_part) {
         Vdom.(
           Node.div(
@@ -106,15 +106,18 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
           [Attr.classes(["the-history-title"])],
           [
             Node.div(
+              [Attr.classes(["the-history-title-entry"])],
               [
-                Attr.classes(["the-history-title-entry"]),
-                Attr.on_click(_ =>
-                  inject(Update.Action.ShiftHistory(group_id, id))
+                Node.span(
+                  [
+                    Attr.classes(["the-history-title-content"]),
+                    Attr.on_click(_ =>
+                      inject(Update.Action.ShiftHistory(group_id, elt_id))
+                    ),
+                  ],
+                  [Node.text(action_to_display_string(detail_ac))],
                 ),
-              ],
-              [
-                Node.text(action_to_display_string(detail_ac)),
-                hidden_part(group_id),
+                history_tab_icon(group_id),
               ],
             ),
           ],
@@ -122,10 +125,11 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
       )
     };
   };
-  /* (ZList.t(undo_history_entry, undo_history_entry),int,bool) */
+
   let group_view =
       (
-        is_cur_group: bool,
+        ~is_cur_group: bool,
+        hidden_history_state: Model.hidden_history_state,
         group_entry: (
           ZList.t(
             UndoHistory.undo_history_entry,
@@ -135,12 +139,14 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
           bool,
         ),
       ) => {
-    let (group_lst_old_first, group_id, isexpanded) = group_entry;
+    let (group_lst_old_first, group_id, is_expanded) = group_entry;
+    /* reverse the undo_history, so the first entry shown in panel is the latest history entry */
     let group_lst_new_first = (
       List.rev(ZList.prj_suffix(group_lst_old_first)),
       ZList.prj_z(group_lst_old_first),
       List.rev(ZList.prj_prefix(group_lst_old_first)),
     );
+    /* if the group containning selected history entry, it should be splited to different css styles */
     let suc_his_classes =
       if (is_cur_group) {
         ["the-suc-history"];
@@ -155,21 +161,28 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
       };
     let cur_his_classes =
       if (is_cur_group) {
-        ["the-now-history"];
+        ["the-cur-history"];
       } else {
         [];
       };
     switch (group_lst_new_first) {
-    | ([], entry_now, prev_lst) =>
-      switch (entry_now) {
-      | (_, None, _) => Vdom.(Node.div([], []))
+    | ([], cur_entry, prev_lst) =>
+      switch (cur_entry) {
+      | (_, None, _) => Vdom.(Node.div([], [])) /* init edit-state should not be displayed */
       | (_, Some(_), _) =>
         let has_hidden_part =
           switch (prev_lst) {
           | [] => false
           | _ => true
           };
-        if (isexpanded) {
+        let is_expanded =
+          switch (hidden_history_state) {
+          | OpenAll => true
+          | CloseAll => false
+          | CurOpenIgnore
+          | CurCloseIgnore => is_expanded
+          };
+        if (is_expanded) {
           Vdom.(
             Node.div(
               [Attr.classes(["the-history-group"])],
@@ -183,10 +196,10 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
                     ],
                     [
                       history_title_entry_view(
-                        isexpanded,
-                        has_hidden_part,
+                        ~is_expanded,
+                        ~has_hidden_part,
                         group_id,
-                        entry_now,
+                        cur_entry,
                       ),
                     ],
                   )
@@ -198,7 +211,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
                         ["hidden-history-entry"] @ prev_his_classes,
                       ),
                     ],
-                    List.map(history_entry_view(group_id), prev_lst),
+                    List.map(history_hidden_entry_view(group_id), prev_lst),
                   )
                 ),
               ],
@@ -218,10 +231,10 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
                     ],
                     [
                       history_title_entry_view(
-                        isexpanded,
-                        has_hidden_part,
+                        ~is_expanded,
+                        ~has_hidden_part,
                         group_id,
-                        entry_now,
+                        cur_entry,
                       ),
                     ],
                   )
@@ -232,12 +245,13 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
         };
       }
 
-    | ([title_entry, ...suc_lst], entry_now, prev_lst) =>
-      if (isexpanded) {
+    | ([title_entry, ...suc_lst], cur_entry, prev_lst) =>
+      if (is_expanded) {
         Vdom.(
           Node.div(
             [Attr.classes(["the-history-group"])],
             [
+              /* the history title entry */
               Vdom.(
                 Node.div(
                   [
@@ -247,36 +261,39 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
                   ],
                   [
                     history_title_entry_view(
-                      isexpanded,
-                      true,
+                      ~is_expanded,
+                      ~has_hidden_part=true,
                       group_id,
                       title_entry,
                     ),
                   ],
                 )
               ),
+              /* the successor history entry */
               Vdom.(
                 Node.div(
                   [
                     Attr.classes(["hidden-history-entry"] @ suc_his_classes),
                   ],
-                  List.map(history_entry_view(group_id), suc_lst),
+                  List.map(history_hidden_entry_view(group_id), suc_lst),
                 )
               ),
+              /* the selected(current) history entry */
               Vdom.(
                 Node.div(
                   [
                     Attr.classes(["hidden-history-entry"] @ cur_his_classes),
                   ],
-                  [history_entry_view(group_id, entry_now)],
+                  [history_hidden_entry_view(group_id, cur_entry)],
                 )
               ),
+              /* the previous history entry */
               Vdom.(
                 Node.div(
                   [
                     Attr.classes(["hidden-history-entry"] @ prev_his_classes),
                   ],
-                  List.map(history_entry_view(group_id), prev_lst),
+                  List.map(history_hidden_entry_view(group_id), prev_lst),
                 )
               ),
             ],
@@ -296,8 +313,8 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
                   ],
                   [
                     history_title_entry_view(
-                      isexpanded,
-                      true,
+                      ~is_expanded,
+                      ~has_hidden_part=true,
                       group_id,
                       title_entry,
                     ),
@@ -311,23 +328,31 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
     };
   };
 
-  let prev_history_view = history => {
+  let prev_history_view =
+      (history, hidden_history_state: Model.hidden_history_state) => {
     Vdom.(
       Node.div(
         [Attr.classes(["the-prev-history"])],
-        List.map(group_view(false), history),
+        List.map(
+          group_view(~is_cur_group=false, hidden_history_state),
+          history,
+        ),
       )
     );
   };
-  let suc_history_view = history => {
+  let suc_history_view =
+      (history, hidden_history_state: Model.hidden_history_state) => {
     Vdom.(
       Node.div(
         [Attr.classes(["the-suc-history"])],
-        List.map(group_view(false), history),
+        List.map(
+          group_view(~is_cur_group=false, hidden_history_state),
+          history,
+        ),
       )
     );
   };
-  let now_history_view =
+  let cur_history_view =
       (
         history: (
           ZList.t(
@@ -337,8 +362,14 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
           int,
           bool,
         ),
+        hidden_history_state: Model.hidden_history_state,
       ) => {
-    Vdom.(Node.div([], [group_view(true, history)]));
+    Vdom.(
+      Node.div(
+        [],
+        [group_view(~is_cur_group=true, hidden_history_state, history)],
+      )
+    );
   };
   let history_view = (model: Model.t) => {
     let (prev_his, cur_group, suc_his) = model.undo_history;
@@ -347,9 +378,12 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
         Node.div(
           [Attr.classes(["the-history"])],
           [
-            suc_history_view(List.rev(suc_his)),
-            now_history_view(cur_group),
-            prev_history_view(List.rev(prev_his)),
+            suc_history_view(List.rev(suc_his), model.hidden_history_state),
+            cur_history_view(cur_group, model.hidden_history_state),
+            prev_history_view(
+              List.rev(prev_his),
+              model.hidden_history_state,
+            ),
           ],
         )
       );
@@ -378,11 +412,60 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
     | (_, Some(_), _) => display_content
     };
   };
+  let undo_button =
+    Vdom.(
+      Node.div(
+        [
+          Attr.classes(["history_button"]),
+          Attr.id("undo-button"),
+          Attr.on_click(_ => inject(Update.Action.Undo)),
+        ],
+        [Node.text("Undo")],
+      )
+    );
+
+  let redo_button =
+    Vdom.(
+      Node.div(
+        [
+          Attr.classes(["history_button"]),
+          Attr.id("redo-button"),
+          Attr.on_click(_ => inject(Update.Action.Redo)),
+        ],
+        [Node.text("Redo")],
+      )
+    );
+  let expand_button = (hidden_history_state: Model.hidden_history_state) => {
+    let icon_classes =
+      switch (hidden_history_state) {
+      | OpenAll
+      | CurOpenIgnore => ["history-tab-icon-open"]
+      | CloseAll
+      | CurCloseIgnore => ["history-tab-icon-close"]
+      };
+    Vdom.(
+      Node.div(
+        [
+          Attr.classes(icon_classes),
+          Attr.on_click(_ => inject(Update.Action.ToggleHiddenHistoryAll)),
+        ],
+        [],
+      )
+    );
+  };
+  let button_bar_view = hidden_history_state =>
+    Vdom.(
+      Node.div(
+        [Attr.classes(["history_button_bar"])],
+        [undo_button, redo_button, expand_button(hidden_history_state)],
+      )
+    );
   Vdom.(
     Node.div(
       [Attr.classes(["panel", "context-inspector-panel"])],
       [
         Panel.view_of_main_title_bar("history"),
+        button_bar_view(model.hidden_history_state),
         Node.div(
           [Attr.classes(["panel-body", "context-inspector-body"])],
           [history_view(model)],

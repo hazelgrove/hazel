@@ -1230,8 +1230,11 @@ button:disabled {
 }
 .the-history-title-entry {
   float: left;
-  cursor: pointer;
   width: 100%;
+}
+.the-history-title-content {
+  cursor: pointer;
+  float: left;
 }
 .the-prev-history {
   color: #0d0a05;
@@ -1242,7 +1245,7 @@ button:disabled {
   color: dimgray;
   background-color: lightgray;
 }
-.the-now-history {
+.the-cur-history {
   color: #b30000;
   overflow-anchor: auto;
   background-color: lightgoldenrodyellow;
@@ -1272,4 +1275,15 @@ button:disabled {
   border-bottom: 8px solid transparent;
   border-top: 8px solid transparent;
   border-right: 10px solid #558e62;
+}
+
+.history_button_bar {
+  text-transform: uppercase;
+  color: white;
+  padding: 3px;
+  padding-right: 0px;
+  font-size: 10pt;
+  font-weight: bold;
+  background-color: var(--title-bar-color);
+
 }
