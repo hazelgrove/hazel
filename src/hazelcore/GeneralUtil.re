@@ -305,6 +305,26 @@ module ZList = {
       Some((List.rev(rev_prefix), prev, suffix));
     };
   };
+
+  let shift_end = (zxs: t('a, 'a)): t('a, 'a) => {
+    let (prefix, z, suffix) = zxs;
+    switch (List.rev(suffix)) {
+    | [] => zxs
+    | [last_elt, ...tail] =>
+      let prefix = prefix @ [z] @ List.rev(tail);
+      (prefix, last_elt, []);
+    };
+  };
+
+  let shift_front = (zxs: t('a, 'a)): t('a, 'a) => {
+    let (prefix, z, suffix) = zxs;
+    switch (prefix) {
+    | [] => zxs
+    | [head, ...tail] =>
+      let suffix = tail @ [z] @ suffix;
+      ([], head, suffix);
+    };
+  };
 };
 
 /* Section StringUtil */

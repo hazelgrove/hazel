@@ -23,7 +23,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
       | R => "inject right"
       }
     | SLet => "bulid 'let'"
-    | SLine => "add a new line"
+    | SLine => "add new line[s]"
     | SCase => "add case"
     | SOp(op) => "add operator " ++ Action.op_shape_to_string(op)
     | SApPalette(_) => "appalette?"
@@ -47,7 +47,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
     | ShiftLeft
     | ShiftRight
     | ShiftUp
-    | ShiftDown => ""
+    | ShiftDown => "will not show in undo_history"
     };
   };
 

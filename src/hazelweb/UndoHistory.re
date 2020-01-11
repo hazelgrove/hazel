@@ -73,12 +73,18 @@ let push_edit_state =
    }; */
 
 let undo = (undo_history: t): t => {
+  JSUtil.log("## before undo:");
   let (group_now, gp_id, isexpanded) = ZList.prj_z(undo_history);
+  JSUtil.log("group_id is:");
+  JSUtil.log(gp_id);
   switch (ZList.shift_prev(group_now)) {
   | None =>
     switch (ZList.shift_prev(undo_history)) {
     | None => undo_history
-    | Some(new_history) => new_history
+    | Some(new_history) =>
+      let (group_lst, id, isexpanded) = ZList.prj_z(new_history);
+      let new_group = (ZList.shift_end(group_lst), id, isexpanded);
+      ZList.replace_z(new_history, new_group);
     }
   | Some(new_group) =>
     ZList.replace_z(undo_history, (new_group, gp_id, isexpanded))
@@ -89,9 +95,12 @@ let redo = (undo_history: t): t => {
   let (group_now, gp_id, isexpanded) = ZList.prj_z(undo_history);
   switch (ZList.shift_next(group_now)) {
   | None =>
-    switch (ZList.shift_prev(undo_history)) {
+    switch (ZList.shift_next(undo_history)) {
     | None => undo_history
-    | Some(new_history) => new_history
+    | Some(new_history) =>
+      let (group_lst, id, isexpanded) = ZList.prj_z(new_history);
+      let new_group = (ZList.shift_front(group_lst), id, isexpanded);
+      ZList.replace_z(new_history, new_group);
     }
   | Some(new_group) =>
     ZList.replace_z(undo_history, (new_group, gp_id, isexpanded))
