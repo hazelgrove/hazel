@@ -87,14 +87,10 @@ let redo = (undo_history: t): t => {
 
 let undoable_action = (action: Action.t): bool => {
   switch (action) {
-  | UpdateApPalette(_) =>
-    JSUtil.log("UpdateApPalette!!!");
-    true;
+  | UpdateApPalette(_)
   | Delete
-  | Backspace => true
-  | Construct(_) =>
-    JSUtil.log("Construct!!!");
-    true;
+  | Backspace
+  | Construct(_) => true
   | MoveTo(_)
   | MoveToBefore(_)
   | MoveLeft
@@ -106,4 +102,16 @@ let undoable_action = (action: Action.t): bool => {
   | ShiftUp
   | ShiftDown => false
   };
+};
+
+let set_all_hidden_history = (undo_history: t, expanded: bool): t => {
+  let close_group_entry = (entry: undo_history_group) => {
+    let (group_lst, id, _) = entry;
+    (group_lst, id, expanded);
+  };
+  (
+    List.map(close_group_entry, ZList.prj_prefix(undo_history)),
+    close_group_entry(ZList.prj_z(undo_history)),
+    List.map(close_group_entry, ZList.prj_suffix(undo_history)),
+  );
 };

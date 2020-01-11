@@ -1209,14 +1209,14 @@ button:disabled {
   /* text-transform: uppercase; */
   font-size: 75%;
 }
-.the-history-entry {
+.the-hidden-history-entry {
   cursor: pointer;
   padding: 5px 5px 5px 20px;
   font-size: 12pt;
   width: 100%;
   border: 1px outset #ffffff;
 }
-.the-history-entry:hover {
+.the-hidden-history-entry:hover {
   color: #b30000;
   background-color: lightgoldenrodyellow;
 }

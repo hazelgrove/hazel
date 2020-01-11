@@ -85,11 +85,7 @@ type has_result_state = {
 type result_state =
   | ResultsDisabled
   | Result(has_result_state);
-type hidden_history_state =
-  | OpenAll
-  | CloseAll
-  | CurOpenIgnore
-  | CurCloseIgnore;
+
 type t = {
   cardstacks,
   cardstacks_state /* these are derived from the cardstack state: */,
@@ -104,7 +100,7 @@ type t = {
   right_sidebar_open: bool,
   show_content_editable: bool,
   show_presentation: bool,
-  hidden_history_state,
+  all_hidden_history_expand: bool,
   undo_history: UndoHistory.t,
 };
 
@@ -390,7 +386,7 @@ let init = (): t => {
     right_sidebar_open: true,
     show_content_editable: false,
     show_presentation: false,
-    hidden_history_state: CloseAll,
+    all_hidden_history_expand: false,
   };
 };
 
@@ -474,24 +470,6 @@ let toggle_right_sidebar = (model: t): t => {
   right_sidebar_open: !model.right_sidebar_open,
 };
 
-let toggle_hidden_history_all = (model: t): t => {
-  ...model,
-  hidden_history_state:
-    switch (model.hidden_history_state) {
-    | OpenAll
-    | CurOpenIgnore => CloseAll
-    | CloseAll
-    | CurCloseIgnore => OpenAll
-    },
-};
-let ignore_hidden_history_button = hidden_history_state => {
-  switch (hidden_history_state) {
-  | OpenAll
-  | CurOpenIgnore => CurOpenIgnore
-  | CloseAll
-  | CurCloseIgnore => CurCloseIgnore
-  };
-};
 let load_example = (model: t, block: UHExp.block): t =>
   model
   |> update_edit_state(
