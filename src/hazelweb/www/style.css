@@ -1211,9 +1211,10 @@ button:disabled {
 }
 .the-history-entry {
   cursor: pointer;
-  padding: 5px;
+  padding: 5px 5px 5px 20px;
   font-size: 12pt;
   width: 100%;
+  border: 1px outset #ffffff;
 }
 .the-history-entry:hover {
   color: #b30000;
@@ -1222,6 +1223,10 @@ button:disabled {
 .the-history-title {
   display: inline-block; 
   padding: 5px;
+}
+.the-history-title:hover {
+  color: #b30000;
+  background-color: lightgoldenrodyellow;
 }
 .the-history-title-entry {
   float: left;
@@ -1243,16 +1248,13 @@ button:disabled {
   background-color: lightgoldenrodyellow;
 }
 
-/* .history-tab-icon-wrapper {
-  float: left;
-} */
+
 .always-display-history-entry {
-  font-weight: bold;
   border: 1px outset #ffffff;
   width: 100%;
   display: grid;
 }
-.history-tab-icon {
+.history-tab-icon-open {
     cursor: pointer;
     float: right;
     width: 0;
@@ -1260,12 +1262,14 @@ button:disabled {
     border-left: 9px solid transparent;
     border-right: 9px solid transparent;
     border-top: 16px solid #558e62;
-  
-/*   cursor: pointer;
-  padding: 4px;
-  width: 12px;
-  height: 12px;
-  flex-shrink: 0;
-  fill: black;
-  display: block;  *//* MUST do this: inline elements have in-built vertical margins */
+}
+
+.history-tab-icon-close {
+  cursor: pointer;
+  float: right;
+  width: 0;
+  height: 0;
+  border-bottom: 9px solid transparent;
+  border-top: 9px solid transparent;
+  border-right: 16px solid #558e62;
 }
