@@ -887,40 +887,31 @@ module Pat = {
 
     /* Zipper */
 
-    | (_, ZOperand(zoperand, surround)) =>
-      switch (CursorInfo.Pat.syn_cursor_info(ctx, ZP1(zopseq))) {
+    | (_, ZOperand(zoperand, (prefix, _) as surround)) =>
+      let n = Seq.length_of_affix(prefix);
+      switch (
+        Statics.Pat.syn_nth_type_mode(ctx, n, zopseq |> ZPat.erase_zopseq)
+      ) {
       | None => Failed
-      | Some(deferrable) =>
-        // TODO hack to merge usage analysis
-        let ci =
-          switch (deferrable) {
-          | CursorNotOnDeferredVarPat(ci) => ci
-          | CursorOnDeferredVarPat(deferred, _) => deferred([])
-          };
-        switch (ci |> CursorInfo.type_mode) {
-        | None => Failed
-        | Some(Syn) =>
-          switch (syn_perform(ctx, u_gen, a, ZP0(zoperand))) {
-          | Failed => Failed
-          | CursorEscaped(side) =>
-            syn_perform(ctx, u_gen, escape(side), ZP1(zopseq))
-          | Succeeded((zp, _, _, u_gen)) =>
-            let zseq = resurround_z(zp, surround);
-            Succeeded(mk_and_syn_fix_ZOpSeq(ctx, u_gen, zseq));
-          }
-        | Some(Ana(ty_zoperand)) =>
-          switch (
-            ana_perform(ctx, u_gen, a, ZPat.ZP0(zoperand), ty_zoperand)
-          ) {
-          | Failed => Failed
-          | CursorEscaped(side) =>
-            syn_perform(ctx, u_gen, escape(side), ZP1(zopseq))
-          | Succeeded((zp, _, u_gen)) =>
-            let new_zseq = resurround_z(zp, surround);
-            Succeeded(mk_and_syn_fix_ZOpSeq(ctx, u_gen, new_zseq));
-          }
-        };
-      }
+      | Some(Syn) =>
+        switch (syn_perform(ctx, u_gen, a, ZP0(zoperand))) {
+        | Failed => Failed
+        | CursorEscaped(side) =>
+          syn_perform(ctx, u_gen, escape(side), ZP1(zopseq))
+        | Succeeded((zp, _, _, u_gen)) =>
+          let zseq = resurround_z(zp, surround);
+          Succeeded(mk_and_syn_fix_ZOpSeq(ctx, u_gen, zseq));
+        }
+      | Some(Ana(ty_zoperand)) =>
+        switch (ana_perform(ctx, u_gen, a, ZPat.ZP0(zoperand), ty_zoperand)) {
+        | Failed => Failed
+        | CursorEscaped(side) =>
+          syn_perform(ctx, u_gen, escape(side), ZP1(zopseq))
+        | Succeeded((zp, _, u_gen)) =>
+          let new_zseq = resurround_z(zp, surround);
+          Succeeded(mk_and_syn_fix_ZOpSeq(ctx, u_gen, new_zseq));
+        }
+      };
     }
   and syn_perform_operand =
       (ctx: Contexts.t, u_gen: MetaVarGen.t, a: t, zoperand: ZPat.zoperand)
@@ -1250,40 +1241,31 @@ module Pat = {
       }
 
     /* Zipper */
-    | (_, ZOperand(zoperand, surround)) =>
+    | (_, ZOperand(zoperand, (prefix, _) as surround)) =>
+      let n = Seq.length_of_affix(prefix);
       switch (
-        CursorInfo.Pat.ana_cursor_info_zopseq(~steps=[], ctx, zopseq, ty)
+        Statics.Pat.ana_nth_type_mode(ctx, n, zopseq |> ZPat.erase_zopseq, ty)
       ) {
       | None => Failed
-      | Some(deferrable) =>
-        // TODO hack to merge usage analysis
-        let ci =
-          switch (deferrable) {
-          | CursorNotOnDeferredVarPat(ci) => ci
-          | CursorOnDeferredVarPat(deferred, _) => deferred([])
-          };
-        switch (ci |> CursorInfo.type_mode) {
-        | None => Failed
-        | Some(Syn) =>
-          switch (syn_perform_operand(ctx, u_gen, a, zoperand)) {
-          | Failed => Failed
-          | CursorEscaped(side) =>
-            ana_perform(ctx, u_gen, escape(side), ZP1(zopseq), ty)
-          | Succeeded((zp, _, _, u_gen)) =>
-            let zseq = resurround_z(zp, surround);
-            Succeeded(mk_and_ana_fix_ZOpSeq(ctx, u_gen, zseq, ty));
-          }
-        | Some(Ana(ty_zoperand)) =>
-          switch (ana_perform_operand(ctx, u_gen, a, zoperand, ty_zoperand)) {
-          | Failed => Failed
-          | CursorEscaped(side) =>
-            ana_perform(ctx, u_gen, escape(side), ZP1(zopseq), ty)
-          | Succeeded((zp, _, u_gen)) =>
-            let new_zseq = resurround_z(zp, surround);
-            Succeeded(mk_and_ana_fix_ZOpSeq(ctx, u_gen, new_zseq, ty));
-          }
-        };
-      }
+      | Some(Syn) =>
+        switch (syn_perform_operand(ctx, u_gen, a, zoperand)) {
+        | Failed => Failed
+        | CursorEscaped(side) =>
+          ana_perform(ctx, u_gen, escape(side), ZP1(zopseq), ty)
+        | Succeeded((zp, _, _, u_gen)) =>
+          let zseq = resurround_z(zp, surround);
+          Succeeded(mk_and_ana_fix_ZOpSeq(ctx, u_gen, zseq, ty));
+        }
+      | Some(Ana(ty_zoperand)) =>
+        switch (ana_perform_operand(ctx, u_gen, a, zoperand, ty_zoperand)) {
+        | Failed => Failed
+        | CursorEscaped(side) =>
+          ana_perform(ctx, u_gen, escape(side), ZP1(zopseq), ty)
+        | Succeeded((zp, _, u_gen)) =>
+          let new_zseq = resurround_z(zp, surround);
+          Succeeded(mk_and_ana_fix_ZOpSeq(ctx, u_gen, new_zseq, ty));
+        }
+      };
     }
   and ana_perform_operand =
       (
@@ -2443,83 +2425,80 @@ module Exp = {
     /* Zipper */
 
     | (_, ZOperand(zoperand, (prefix, suffix) as surround)) =>
-      switch (CursorInfo.Exp.syn_cursor_info(ctx, ZE1(zopseq))) {
+      let n = Seq.length_of_affix(prefix);
+      switch (
+        Statics.Exp.syn_nth_type_mode(ctx, n, zopseq |> ZExp.erase_zopseq)
+      ) {
       | None => Failed
-      | Some(ci) =>
-        switch (ci |> CursorInfo.type_mode) {
-        | None => Failed
-        | Some(Syn) =>
-          switch (syn_perform_operand(ctx, a, (zoperand, ty, u_gen))) {
-          | Failed => Failed
-          | CursorEscaped(side) =>
-            syn_perform(ctx, escape(side), (ZE1(zopseq), ty, u_gen))
-            |> wrap_in_SynDone
-          | Succeeded(SynExpandsToCase({scrut, u_gen, _})) =>
-            let (new_line, u_gen) = new_line_of_prefix(ctx, u_gen, prefix);
-            let (new_scrut, u_gen) = append_suffix(u_gen, scrut, suffix);
-            Succeeded(
-              SynExpandsToCase({
-                u_gen,
-                prefix: [new_line],
-                scrut: new_scrut,
-                suffix: [],
-              }),
-            );
-          | Succeeded(SynExpandsToLet({def, _})) =>
-            let (new_line, u_gen) = new_line_of_prefix(ctx, u_gen, prefix);
-            let (new_def, u_gen) = append_suffix(u_gen, def, suffix);
-            Succeeded(
-              SynExpandsToLet({
-                u_gen,
-                prefix: [new_line],
-                def: new_def,
-                suffix: [],
-              }),
-            );
-          | Succeeded(SynDone((ze, _, u_gen))) =>
-            let (new_ze, u_gen) = resurround_z(u_gen, ze, surround);
-            Succeeded(
-              SynDone(Statics.Exp.syn_fix_holes_z(ctx, u_gen, new_ze)),
-            );
-          }
-        | Some(Ana(ty_zoperand)) =>
-          switch (
-            ana_perform_operand(ctx, a, (zoperand, u_gen), ty_zoperand)
-          ) {
-          | Failed => Failed
-          | CursorEscaped(side) =>
-            syn_perform(ctx, escape(side), (ZE1(zopseq), ty, u_gen))
-            |> wrap_in_SynDone
-          | Succeeded(AnaExpandsToCase({scrut, _})) =>
-            let (new_line, u_gen) = new_line_of_prefix(ctx, u_gen, prefix);
-            let (new_scrut, u_gen) = append_suffix(u_gen, scrut, suffix);
-            Succeeded(
-              SynExpandsToCase({
-                u_gen,
-                prefix: [new_line],
-                scrut: new_scrut,
-                suffix: [],
-              }),
-            );
-          | Succeeded(AnaExpandsToLet({def, _})) =>
-            let (new_line, u_gen) = new_line_of_prefix(ctx, u_gen, prefix);
-            let (new_def, u_gen) = append_suffix(u_gen, def, suffix);
-            Succeeded(
-              SynExpandsToLet({
-                u_gen,
-                prefix: [new_line],
-                def: new_def,
-                suffix: [],
-              }),
-            );
-          | Succeeded(AnaDone((ze, u_gen))) =>
-            let (new_ze, u_gen) = resurround_z(u_gen, ze, surround);
-            Succeeded(
-              SynDone(Statics.Exp.syn_fix_holes_z(ctx, u_gen, new_ze)),
-            );
-          }
+      | Some(Syn) =>
+        switch (syn_perform_operand(ctx, a, (zoperand, ty, u_gen))) {
+        | Failed => Failed
+        | CursorEscaped(side) =>
+          syn_perform(ctx, escape(side), (ZE1(zopseq), ty, u_gen))
+          |> wrap_in_SynDone
+        | Succeeded(SynExpandsToCase({scrut, u_gen, _})) =>
+          let (new_line, u_gen) = new_line_of_prefix(ctx, u_gen, prefix);
+          let (new_scrut, u_gen) = append_suffix(u_gen, scrut, suffix);
+          Succeeded(
+            SynExpandsToCase({
+              u_gen,
+              prefix: [new_line],
+              scrut: new_scrut,
+              suffix: [],
+            }),
+          );
+        | Succeeded(SynExpandsToLet({def, _})) =>
+          let (new_line, u_gen) = new_line_of_prefix(ctx, u_gen, prefix);
+          let (new_def, u_gen) = append_suffix(u_gen, def, suffix);
+          Succeeded(
+            SynExpandsToLet({
+              u_gen,
+              prefix: [new_line],
+              def: new_def,
+              suffix: [],
+            }),
+          );
+        | Succeeded(SynDone((ze, _, u_gen))) =>
+          let (new_ze, u_gen) = resurround_z(u_gen, ze, surround);
+          Succeeded(
+            SynDone(Statics.Exp.syn_fix_holes_z(ctx, u_gen, new_ze)),
+          );
         }
-      }
+      | Some(Ana(ty_zoperand)) =>
+        switch (ana_perform_operand(ctx, a, (zoperand, u_gen), ty_zoperand)) {
+        | Failed => Failed
+        | CursorEscaped(side) =>
+          syn_perform(ctx, escape(side), (ZE1(zopseq), ty, u_gen))
+          |> wrap_in_SynDone
+        | Succeeded(AnaExpandsToCase({scrut, _})) =>
+          let (new_line, u_gen) = new_line_of_prefix(ctx, u_gen, prefix);
+          let (new_scrut, u_gen) = append_suffix(u_gen, scrut, suffix);
+          Succeeded(
+            SynExpandsToCase({
+              u_gen,
+              prefix: [new_line],
+              scrut: new_scrut,
+              suffix: [],
+            }),
+          );
+        | Succeeded(AnaExpandsToLet({def, _})) =>
+          let (new_line, u_gen) = new_line_of_prefix(ctx, u_gen, prefix);
+          let (new_def, u_gen) = append_suffix(u_gen, def, suffix);
+          Succeeded(
+            SynExpandsToLet({
+              u_gen,
+              prefix: [new_line],
+              def: new_def,
+              suffix: [],
+            }),
+          );
+        | Succeeded(AnaDone((ze, u_gen))) =>
+          let (new_ze, u_gen) = resurround_z(u_gen, ze, surround);
+          Succeeded(
+            SynDone(Statics.Exp.syn_fix_holes_z(ctx, u_gen, new_ze)),
+          );
+        }
+      };
     }
   and syn_perform_operand =
       (
@@ -2527,7 +2506,7 @@ module Exp = {
         a: t,
         (zoperand: ZExp.zoperand, ty: HTyp.t, u_gen: MetaVarGen.t),
       )
-      : result(syn_success) =>
+      : result(syn_success) => {
     switch (a, zoperand) {
     /* Invalid cursor positions */
     | (
@@ -2995,7 +2974,8 @@ module Exp = {
           Succeeded(SynDone((new_ze, ty, u_gen)));
         }
       }
-    }
+    };
+  }
   and ana_perform_rules =
       (
         ctx: Contexts.t,
@@ -3494,83 +3474,80 @@ module Exp = {
     /* Zipper */
 
     | (_, ZOperand(zoperand, (prefix, suffix) as surround)) =>
-      switch (CursorInfo.Exp.ana_cursor_info(ctx, ZE1(zopseq), ty)) {
+      let n = Seq.length_of_affix(prefix);
+      switch (
+        Statics.Exp.ana_nth_type_mode(ctx, n, zopseq |> ZExp.erase_zopseq, ty)
+      ) {
       | None => Failed
-      | Some(ci) =>
-        switch (ci |> CursorInfo.type_mode) {
-        | None => Failed
-        | Some(Syn) =>
-          switch (syn_perform_operand(ctx, a, (zoperand, ty, u_gen))) {
-          | Failed => Failed
-          | CursorEscaped(side) =>
-            ana_perform(ctx, escape(side), (ZE1(zopseq), u_gen), ty)
-            |> wrap_in_AnaDone
-          | Succeeded(SynExpandsToCase({scrut, u_gen, _})) =>
-            let (new_line, u_gen) = new_line_of_prefix(ctx, u_gen, prefix);
-            let (new_scrut, u_gen) = append_suffix(u_gen, scrut, suffix);
-            Succeeded(
-              AnaExpandsToCase({
-                u_gen,
-                prefix: [new_line],
-                scrut: new_scrut,
-                suffix: [],
-              }),
-            );
-          | Succeeded(SynExpandsToLet({def, _})) =>
-            let (new_line, u_gen) = new_line_of_prefix(ctx, u_gen, prefix);
-            let (new_def, u_gen) = append_suffix(u_gen, def, suffix);
-            Succeeded(
-              AnaExpandsToLet({
-                u_gen,
-                prefix: [new_line],
-                def: new_def,
-                suffix: [],
-              }),
-            );
-          | Succeeded(SynDone((ze, _, u_gen))) =>
-            let (new_ze, u_gen) = resurround_z(u_gen, ze, surround);
-            Succeeded(
-              AnaDone(Statics.Exp.ana_fix_holes_z(ctx, u_gen, new_ze, ty)),
-            );
-          }
-        | Some(Ana(ty_zoperand)) =>
-          switch (
-            ana_perform_operand(ctx, a, (zoperand, u_gen), ty_zoperand)
-          ) {
-          | Failed => Failed
-          | CursorEscaped(side) =>
-            ana_perform(ctx, escape(side), (ZE1(zopseq), u_gen), ty)
-            |> wrap_in_AnaDone
-          | Succeeded(AnaExpandsToCase({scrut, _})) =>
-            let (new_line, u_gen) = new_line_of_prefix(ctx, u_gen, prefix);
-            let (new_scrut, u_gen) = append_suffix(u_gen, scrut, suffix);
-            Succeeded(
-              AnaExpandsToCase({
-                u_gen,
-                prefix: [new_line],
-                scrut: new_scrut,
-                suffix: [],
-              }),
-            );
-          | Succeeded(AnaExpandsToLet({def, _})) =>
-            let (new_line, u_gen) = new_line_of_prefix(ctx, u_gen, prefix);
-            let (new_def, u_gen) = append_suffix(u_gen, def, suffix);
-            Succeeded(
-              AnaExpandsToLet({
-                u_gen,
-                prefix: [new_line],
-                def: new_def,
-                suffix: [],
-              }),
-            );
-          | Succeeded(AnaDone((ze, u_gen))) =>
-            let (new_ze, u_gen) = resurround_z(u_gen, ze, surround);
-            Succeeded(
-              AnaDone(Statics.Exp.ana_fix_holes_z(ctx, u_gen, new_ze, ty)),
-            );
-          }
+      | Some(Syn) =>
+        switch (syn_perform_operand(ctx, a, (zoperand, ty, u_gen))) {
+        | Failed => Failed
+        | CursorEscaped(side) =>
+          ana_perform(ctx, escape(side), (ZE1(zopseq), u_gen), ty)
+          |> wrap_in_AnaDone
+        | Succeeded(SynExpandsToCase({scrut, u_gen, _})) =>
+          let (new_line, u_gen) = new_line_of_prefix(ctx, u_gen, prefix);
+          let (new_scrut, u_gen) = append_suffix(u_gen, scrut, suffix);
+          Succeeded(
+            AnaExpandsToCase({
+              u_gen,
+              prefix: [new_line],
+              scrut: new_scrut,
+              suffix: [],
+            }),
+          );
+        | Succeeded(SynExpandsToLet({def, _})) =>
+          let (new_line, u_gen) = new_line_of_prefix(ctx, u_gen, prefix);
+          let (new_def, u_gen) = append_suffix(u_gen, def, suffix);
+          Succeeded(
+            AnaExpandsToLet({
+              u_gen,
+              prefix: [new_line],
+              def: new_def,
+              suffix: [],
+            }),
+          );
+        | Succeeded(SynDone((ze, _, u_gen))) =>
+          let (new_ze, u_gen) = resurround_z(u_gen, ze, surround);
+          Succeeded(
+            AnaDone(Statics.Exp.ana_fix_holes_z(ctx, u_gen, new_ze, ty)),
+          );
         }
-      }
+      | Some(Ana(ty_zoperand)) =>
+        switch (ana_perform_operand(ctx, a, (zoperand, u_gen), ty_zoperand)) {
+        | Failed => Failed
+        | CursorEscaped(side) =>
+          ana_perform(ctx, escape(side), (ZE1(zopseq), u_gen), ty)
+          |> wrap_in_AnaDone
+        | Succeeded(AnaExpandsToCase({scrut, _})) =>
+          let (new_line, u_gen) = new_line_of_prefix(ctx, u_gen, prefix);
+          let (new_scrut, u_gen) = append_suffix(u_gen, scrut, suffix);
+          Succeeded(
+            AnaExpandsToCase({
+              u_gen,
+              prefix: [new_line],
+              scrut: new_scrut,
+              suffix: [],
+            }),
+          );
+        | Succeeded(AnaExpandsToLet({def, _})) =>
+          let (new_line, u_gen) = new_line_of_prefix(ctx, u_gen, prefix);
+          let (new_def, u_gen) = append_suffix(u_gen, def, suffix);
+          Succeeded(
+            AnaExpandsToLet({
+              u_gen,
+              prefix: [new_line],
+              def: new_def,
+              suffix: [],
+            }),
+          );
+        | Succeeded(AnaDone((ze, u_gen))) =>
+          let (new_ze, u_gen) = resurround_z(u_gen, ze, surround);
+          Succeeded(
+            AnaDone(Statics.Exp.ana_fix_holes_z(ctx, u_gen, new_ze, ty)),
+          );
+        }
+      };
     }
   and ana_perform_operand =
       (

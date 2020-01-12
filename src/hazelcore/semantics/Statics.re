@@ -167,7 +167,7 @@ module Pat = {
       | None => None
       | Some((_, ctx)) => Some(ctx)
       };
-    | BinOp(_, Space, skel1, skel2) =>
+    | BinOp(NotInHole, Space, skel1, skel2) =>
       switch (ana_skel(ctx, skel1, seq, HTyp.Hole)) {
       | None => None
       | Some(ctx) => ana_skel(ctx, skel2, seq, HTyp.Hole)
@@ -234,6 +234,119 @@ module Pat = {
       }
     | Parenthesized(p) => ana(ctx, p, ty)
     };
+
+  /**
+   * Get type mode of nth operand of an opseq in synthetic position
+   */
+  let rec syn_nth_type_mode =
+          (ctx: Contexts.t, n: int, OpSeq(skel, seq): UHPat.opseq)
+          : option(type_mode) =>
+    _syn_nth_type_mode(ctx, n, skel, seq)
+  and _syn_nth_type_mode =
+      (ctx: Contexts.t, n: int, skel: UHPat.skel, seq: UHPat.seq)
+      : option(type_mode) => {
+    let ana_go = (skel, ty) => _ana_nth_type_mode(ctx, n, skel, seq, ty);
+    let rec go = (skel: UHPat.skel) =>
+      switch (skel) {
+      | Placeholder(n') =>
+        assert(n == n');
+        Some(Syn);
+      | BinOp(InHole(_), op, skel1, skel2) =>
+        go(BinOp(NotInHole, op, skel1, skel2))
+      | BinOp(NotInHole, Comma, skel1, skel2) =>
+        n <= Skel.rightmost_tm_index(skel1) ? go(skel1) : go(skel2)
+      | BinOp(NotInHole, Space, skel1, skel2) =>
+        switch (syn_skel(ctx, skel1, seq)) {
+        | None => None
+        | Some((ty1, _)) =>
+          if (n <= Skel.rightmost_tm_index(skel1)) {
+            go(skel1);
+          } else {
+            switch (HTyp.matched_arrow(ty1)) {
+            | None => None
+            | Some((ty2, _)) => ana_go(skel2, ty2)
+            };
+          }
+        }
+      | BinOp(NotInHole, Cons, skel1, skel2) =>
+        switch (syn_skel(ctx, skel1, seq)) {
+        | None => None
+        | Some((ty1, _)) =>
+          n <= Skel.rightmost_tm_index(skel1)
+            ? go(skel1) : ana_go(skel2, HTyp.List(ty1))
+        }
+      };
+    go(skel);
+  }
+  /**
+   * Get type mode of nth operand of an opseq in analytic position
+   */
+  and ana_nth_type_mode =
+      (
+        ctx: Contexts.t,
+        n: int,
+        OpSeq(skel, seq) as opseq: UHPat.opseq,
+        ty: HTyp.t,
+      )
+      : option(type_mode) => {
+    // handle n-tuples
+    let skels = skel |> UHPat.get_tuple_elements;
+    let tys = ty |> HTyp.get_tuple_elements;
+    switch (ListUtil.opt_zip(skels, tys)) {
+    | None =>
+      syn_nth_type_mode(
+        ctx,
+        n,
+        opseq |> UHPat.set_err_status_opseq(NotInHole),
+      )
+    | Some(skel_tys) =>
+      skel_tys
+      |> List.fold_left(
+           (found_nth, (skel, ty)) =>
+             switch (found_nth) {
+             | Some(_) as found => found
+             | None =>
+               let l = Skel.leftmost_tm_index(skel);
+               let r = Skel.rightmost_tm_index(skel);
+               l <= n && n <= r
+                 ? Some(_ana_nth_type_mode(ctx, n, skel, seq, ty)) : None;
+             },
+           None,
+         )
+      |> (
+        fun
+        | None => None
+        | Some(res) => res
+      )
+    };
+  }
+  and _ana_nth_type_mode =
+      (ctx: Contexts.t, n: int, skel: UHPat.skel, seq: UHPat.seq, ty: HTyp.t)
+      : option(type_mode) => {
+    let rec go = (skel: UHPat.skel, ty: HTyp.t) =>
+      switch (skel) {
+      | BinOp(_, Comma, _, _)
+      | BinOp(InHole(WrongLength, _), _, _, _) =>
+        failwith(__LOC__ ++ ": expected tuples to be handled at opseq level")
+      | Placeholder(n') =>
+        assert(n == n');
+        Some(Ana(ty));
+      | BinOp(InHole(TypeInconsistent, _), op, skel1, skel2) =>
+        let skel_not_in_hole = Skel.BinOp(NotInHole, op, skel1, skel2);
+        _syn_nth_type_mode(ctx, n, skel_not_in_hole, seq);
+      | BinOp(NotInHole, Space, skel1, skel2) =>
+        n <= Skel.rightmost_tm_index(skel1)
+          ? go(skel1, HTyp.Hole) : go(skel2, HTyp.Hole)
+      | BinOp(NotInHole, Cons, skel1, skel2) =>
+        switch (HTyp.matched_list(ty)) {
+        | None => None
+        | Some(ty_elt) =>
+          n <= Skel.rightmost_tm_index(skel1)
+            ? go(skel1, ty_elt) : go(skel2, ty)
+        }
+      };
+    go(skel, ty);
+  };
 
   let rec syn_fix_holes =
           (
@@ -941,8 +1054,7 @@ module Exp = {
     switch (skel) {
     | BinOp(_, Comma, _, _)
     | BinOp(InHole(WrongLength, _), _, _, _) =>
-      // tuples handled at opseq level
-      None
+      failwith(__LOC__ ++ ": tuples handled at opseq level")
     | Placeholder(n) =>
       let en = Seq.nth_operand(n, seq);
       ana_operand(ctx, en, ty);
@@ -1092,6 +1204,145 @@ module Exp = {
     | None => None
     | Some(ctx) => ana(ctx, clause, clause_ty)
     };
+
+  /**
+   * Get type mode of nth operand of an opseq in synthetic position
+   */
+  let rec syn_nth_type_mode =
+          (ctx: Contexts.t, n: int, OpSeq(skel, seq): UHExp.opseq)
+          : option(type_mode) =>
+    _syn_nth_type_mode(ctx, n, skel, seq)
+  and _syn_nth_type_mode =
+      (ctx: Contexts.t, n: int, skel: UHExp.skel, seq: UHExp.seq)
+      : option(type_mode) => {
+    let ana_go = (skel, ty) => _ana_nth_type_mode(ctx, n, skel, seq, ty);
+    let rec go = (skel: UHExp.skel) =>
+      switch (skel) {
+      | Placeholder(n') =>
+        assert(n == n');
+        Some(Syn);
+      | BinOp(InHole(_), op, skel1, skel2) =>
+        go(BinOp(NotInHole, op, skel1, skel2))
+      | BinOp(NotInHole, Comma, skel1, skel2) =>
+        n <= Skel.rightmost_tm_index(skel1) ? go(skel1) : go(skel2)
+      | BinOp(NotInHole, Space, skel1, skel2) =>
+        switch (syn_skel(ctx, skel1, seq)) {
+        | None => None
+        | Some(ty1) =>
+          if (n <= Skel.rightmost_tm_index(skel1)) {
+            go(skel1);
+          } else {
+            switch (HTyp.matched_arrow(ty1)) {
+            | None => None
+            | Some((ty2, _)) => ana_go(skel2, ty2)
+            };
+          }
+        }
+      | BinOp(NotInHole, Cons, skel1, skel2) =>
+        switch (syn_skel(ctx, skel1, seq)) {
+        | None => None
+        | Some(ty1) =>
+          n <= Skel.rightmost_tm_index(skel1)
+            ? go(skel1) : ana_go(skel2, HTyp.List(ty1))
+        }
+      | BinOp(
+          NotInHole,
+          Plus | Minus | Times | LessThan | GreaterThan,
+          skel1,
+          skel2,
+        ) =>
+        n <= Skel.rightmost_tm_index(skel1)
+          ? ana_go(skel1, Num) : ana_go(skel2, Num)
+      | BinOp(NotInHole, And | Or, skel1, skel2) =>
+        n <= Skel.rightmost_tm_index(skel1)
+          ? ana_go(skel1, Bool) : ana_go(skel2, Bool)
+      | BinOp(NotInHole, Equals, skel1, skel2) =>
+        if (n <= Skel.rightmost_tm_index(skel1)) {
+          go(skel1);
+        } else {
+          switch (syn_skel(ctx, skel1, seq)) {
+          | None => None
+          | Some(ty1) => ana_go(skel2, ty1)
+          };
+        }
+      };
+    go(skel);
+  }
+  /**
+   * Get type mode of nth operand of an opseq in analytic position
+   */
+  and ana_nth_type_mode =
+      (
+        ctx: Contexts.t,
+        n: int,
+        OpSeq(skel, seq) as opseq: UHExp.opseq,
+        ty: HTyp.t,
+      )
+      : option(type_mode) => {
+    // handle n-tuples
+    let skels = skel |> UHExp.get_tuple_elements;
+    let tys = ty |> HTyp.get_tuple_elements;
+    switch (ListUtil.opt_zip(skels, tys)) {
+    | None =>
+      syn_nth_type_mode(
+        ctx,
+        n,
+        opseq |> UHExp.set_err_status_opseq(NotInHole),
+      )
+    | Some(skel_tys) =>
+      skel_tys
+      |> List.fold_left(
+           (found_nth, (skel, ty)) =>
+             switch (found_nth) {
+             | Some(_) as found => found
+             | None =>
+               let l = Skel.leftmost_tm_index(skel);
+               let r = Skel.rightmost_tm_index(skel);
+               l <= n && n <= r
+                 ? Some(_ana_nth_type_mode(ctx, n, skel, seq, ty)) : None;
+             },
+           None,
+         )
+      |> (
+        fun
+        | None => None
+        | Some(res) => res
+      )
+    };
+  }
+  and _ana_nth_type_mode =
+      (ctx: Contexts.t, n: int, skel: UHExp.skel, seq: UHExp.seq, ty: HTyp.t)
+      : option(type_mode) => {
+    let syn_go = skel => _syn_nth_type_mode(ctx, n, skel, seq);
+    let rec go = (skel: UHExp.skel, ty: HTyp.t) =>
+      switch (skel) {
+      | BinOp(_, Comma, _, _)
+      | BinOp(InHole(WrongLength, _), _, _, _) =>
+        failwith(__LOC__ ++ ": expected tuples to be handled at opseq level")
+      | Placeholder(n') =>
+        assert(n == n');
+        Some(Ana(ty));
+      | BinOp(InHole(TypeInconsistent, _), op, skel1, skel2) =>
+        let skel_not_in_hole = Skel.BinOp(NotInHole, op, skel1, skel2);
+        syn_go(skel_not_in_hole);
+      | BinOp(NotInHole, Cons, skel1, skel2) =>
+        switch (HTyp.matched_list(ty)) {
+        | None => None
+        | Some(ty_elt) =>
+          n <= Skel.rightmost_tm_index(skel1)
+            ? go(skel1, ty_elt) : go(skel2, ty)
+        }
+      | BinOp(
+          NotInHole,
+          And | Or | Minus | Plus | Times | LessThan | GreaterThan | Equals |
+          Space,
+          _,
+          _,
+        ) =>
+        syn_go(skel)
+      };
+    go(skel, ty);
+  };
 
   /* If renumber_empty_holes is true, then the metavars in empty holes will be assigned
    * new values in the same namespace as non-empty holes. Non-empty holes are renumbered
