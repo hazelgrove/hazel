@@ -17,7 +17,9 @@ module Action = {
     | LoadCardStack(int)
     | NextCard
     | PrevCard
-    | SetComputeResultsFlag(bool)
+    | SetComputeResults(bool)
+    | SetShowContentEditable(bool)
+    | SetShowPresentation(bool)
     | SelectHoleInstance(MetaVar.t, Dynamics.inst_num)
     | InvalidVar(string)
     | MoveToHole(MetaVar.t)
@@ -26,7 +28,9 @@ module Action = {
     | BlurCell
     | FocusWindow
     | AddUserNewline(CursorPath.steps)
-    | RemoveUserNewline(CursorPath.steps);
+    | RemoveUserNewline(CursorPath.steps)
+    | Redo
+    | Undo;
 };
 
 [@deriving sexp]
@@ -71,7 +75,9 @@ let log_action = (action: Action.t, _: State.t): unit => {
   | LoadCardStack(_)
   | NextCard
   | PrevCard
-  | SetComputeResultsFlag(_)
+  | SetComputeResults(_)
+  | SetShowContentEditable(_)
+  | SetShowPresentation(_)
   | SelectHoleInstance(_, _)
   | InvalidVar(_)
   | FocusCell
@@ -79,7 +85,9 @@ let log_action = (action: Action.t, _: State.t): unit => {
   | FocusWindow
   | AddUserNewline(_)
   | RemoveUserNewline(_)
-  | MoveToHole(_) =>
+  | MoveToHole(_)
+  | Undo
+  | Redo =>
     Logger.append(
       Sexp.to_string(
         sexp_of_timestamped_action(mk_timestamped_action(action)),
@@ -126,15 +134,20 @@ let apply_action =
   | PrevCard =>
     state.changing_cards := true;
     Model.prev_card(model);
-  | SetComputeResultsFlag(compute_results_flag) => {
+  | SetComputeResults(compute_results) => {
       ...model,
-      compute_results_flag,
+      compute_results,
       result_state:
         Model.result_state_of_edit_state(
           Model.edit_state_of(model),
-          compute_results_flag,
+          compute_results,
         ),
     }
+  | SetShowContentEditable(show_content_editable) => {
+      ...model,
+      show_content_editable,
+    }
+  | SetShowPresentation(show_presentation) => {...model, show_presentation}
   | SelectHoleInstance(u, i) => Model.select_hole_instance(model, (u, i))
   | InvalidVar(_) => model
   | MoveToHole(u) => Model.move_to_hole(model, u)
@@ -283,5 +296,15 @@ let apply_action =
       };
     };
     model;
+  | Undo =>
+    let new_history = UndoHistory.undo(model.undo_history);
+    let new_edit_state = ZList.prj_z(new_history);
+    let new_model = model |> Model.update_edit_state(new_edit_state);
+    {...new_model, undo_history: new_history};
+  | Redo =>
+    let new_history = UndoHistory.redo(model.undo_history);
+    let new_edit_state = ZList.prj_z(new_history);
+    let new_model = model |> Model.update_edit_state(new_edit_state);
+    {...new_model, undo_history: new_history};
   };
 };

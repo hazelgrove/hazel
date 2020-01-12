@@ -9,7 +9,7 @@ let cardstacks: cardstacks = [
   RCStudyCards.cardstack,
 ];
 
-let init_compute_results_flag = false;
+let init_compute_results = true;
 
 type user_newlines = CursorPath.StepsMap.t(unit);
 
@@ -88,10 +88,9 @@ type result_state =
 
 type t = {
   cardstacks,
-  cardstacks_state,
-  /* these are derived from the cardstack state: */
+  cardstacks_state /* these are derived from the cardstack state: */,
   cursor_info: CursorInfo.t,
-  compute_results_flag: bool,
+  compute_results: bool,
   result_state,
   /* UI state */
   user_newlines,
@@ -99,6 +98,9 @@ type t = {
   is_cell_focused: bool,
   left_sidebar_open: bool,
   right_sidebar_open: bool,
+  show_content_editable: bool,
+  show_presentation: bool,
+  undo_history: UndoHistory.t,
 };
 
 let cardstack_state_of = model => ZList.prj_z(model.cardstacks_state);
@@ -179,8 +181,8 @@ let result_of_edit_state = ((zblock, _, _): edit_state): result => {
   };
 };
 
-let result_state_of_edit_state = (edit_state, compute_results_flag) =>
-  if (!compute_results_flag) {
+let result_state_of_edit_state = (edit_state, compute_results) =>
+  if (!compute_results) {
     ResultsDisabled;
   } else {
     Result({
@@ -275,7 +277,7 @@ let update_edit_state = ((new_zblock, ty, u_gen): edit_state, model: t): t => {
        );
   let new_edit_state = (new_zblock, ty, u_gen);
   let new_result_state =
-    result_state_of_edit_state(new_edit_state, model.compute_results_flag);
+    result_state_of_edit_state(new_edit_state, model.compute_results);
   let cardstacks_state = model.cardstacks_state;
   let cardstack_state = cardstack_state_of(model);
   let card_state = ZList.prj_z(cardstack_state.zcards);
@@ -299,7 +301,7 @@ let update_edit_state = ((new_zblock, ty, u_gen): edit_state, model: t): t => {
 let update_cardstack_state = (model, cardstack_state) => {
   let edit_state = ZList.prj_z(cardstack_state.zcards).edit_state;
   let result_state =
-    result_state_of_edit_state(edit_state, model.compute_results_flag);
+    result_state_of_edit_state(edit_state, model.compute_results);
   let cursor_info = cursor_info_of_edit_state(edit_state);
   let user_newlines = CursorPath.StepsMap.empty;
   let cardstacks_state =
@@ -334,7 +336,11 @@ let prev_card = model => {
   let cardstack_state = cardstack_state_of(model);
   let cardstack_state = {
     ...cardstack_state,
-    zcards: ZList.shift_prev(cardstack_state.zcards),
+    zcards:
+      switch (ZList.shift_prev(cardstack_state.zcards)) {
+      | None => cardstack_state.zcards
+      | Some(card) => card
+      },
   };
   {
     ...update_cardstack_state(model, cardstack_state),
@@ -347,7 +353,11 @@ let next_card = model => {
   let cardstack_state = cardstack_state_of(model);
   let cardstack_state = {
     ...cardstack_state,
-    zcards: ZList.shift_next(cardstack_state.zcards),
+    zcards:
+      switch (ZList.shift_next(cardstack_state.zcards)) {
+      | None => cardstack_state.zcards
+      | Some(card) => card
+      },
   };
   {
     ...update_cardstack_state(model, cardstack_state),
@@ -360,19 +370,21 @@ let init = (): t => {
   let cardstacks_state = mk_cardstacks_state(cardstacks);
   let edit_state =
     ZList.prj_z(ZList.prj_z(cardstacks_state).zcards).edit_state;
-  let compute_results_flag = init_compute_results_flag;
+  let compute_results = init_compute_results;
   {
     cardstacks,
     cardstacks_state,
     cursor_info: cursor_info_of_edit_state(edit_state),
-    compute_results_flag,
-    result_state:
-      result_state_of_edit_state(edit_state, compute_results_flag),
-    left_sidebar_open: false,
-    right_sidebar_open: true,
+    compute_results,
+    result_state: result_state_of_edit_state(edit_state, compute_results),
+    user_newlines: CursorPath.StepsMap.empty,
     selected_example: None,
     is_cell_focused: false,
-    user_newlines: CursorPath.StepsMap.empty,
+    undo_history: ([], edit_state, []),
+    left_sidebar_open: false,
+    right_sidebar_open: true,
+    show_content_editable: false,
+    show_presentation: false,
   };
 };
 
@@ -391,7 +403,15 @@ let perform_edit_action = (model: t, a: Action.t): t => {
   | Failed => raise(FailedAction)
   | CursorEscaped(_) => raise(CursorEscaped)
   | CantShift => raise(CantShift)
-  | Succeeded(new_edit_state) => model |> update_edit_state(new_edit_state)
+  | Succeeded(new_edit_state) =>
+    let new_model = model |> update_edit_state(new_edit_state);
+    let new_history =
+      if (UndoHistory.undoable_action(a)) {
+        UndoHistory.push_edit_state(model.undo_history, new_edit_state);
+      } else {
+        model.undo_history;
+      };
+    {...new_model, undo_history: new_history};
   };
 };
 

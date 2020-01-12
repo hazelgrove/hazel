@@ -339,10 +339,11 @@ module ModKeys = {
   };
 
   let not_held = {c: NotHeld, s: NotHeld, a: NotHeld, m: NotHeld};
-  let ctrl = {c: Held, s: Any, a: NotHeld, m: NotHeld};
+  let ctrl = {c: Held, s: NotHeld, a: NotHeld, m: NotHeld};
   let shift = {c: NotHeld, s: Held, a: NotHeld, m: NotHeld};
   let alt = {c: NotHeld, s: Any, a: Held, m: NotHeld};
   let no_ctrl_alt_meta = {c: NotHeld, s: Any, a: NotHeld, m: NotHeld};
+  let ctrl_shift = {c: Held, s: Held, a: NotHeld, m: NotHeld};
 
   let req_matches = (req, mk, evt) =>
     switch (req) {
@@ -405,7 +406,7 @@ module Key = {
       String.equal(code, c);
     | Key(k) =>
       let key = get_key(evt);
-      String.equal(key, k);
+      String.equal(String.uppercase_ascii(key), String.uppercase_ascii(k));
     };
 
   let matches = (k, evt: Js.t(Dom_html.keyboardEvent)) => {
@@ -427,6 +428,7 @@ module KeyCombo = {
     let shift = key => {mod_keys: ModKeys.shift, key};
     let ctrl = key => {mod_keys: ModKeys.ctrl, key};
     let alt = key => {mod_keys: ModKeys.alt, key};
+    let ctrl_shift = key => {mod_keys: ModKeys.ctrl_shift, key};
 
     let matches = (kc, evt: Js.t(Dom_html.keyboardEvent)) =>
       ModKeys.matches(kc.mod_keys, evt) && Key.matches(kc.key, evt);
@@ -463,16 +465,18 @@ module KeyCombo = {
     let ampersand = no_ctrl_alt_meta(Key.the_key("&"));
     let dollar = no_ctrl_alt_meta(Key.the_key("$"));
     let amp = no_ctrl_alt_meta(Key.the_key("&"));
-    let alt_L = alt(Key.the_letter_code("l"));
-    let alt_R = alt(Key.the_letter_code("r"));
-    let alt_C = alt(Key.the_letter_code("c"));
+    let alt_L = alt(Key.the_key("l"));
+    let alt_R = alt(Key.the_key("r"));
+    let alt_C = alt(Key.the_key("c"));
     let alt_PageUp = alt(Key.the_key("PageUp"));
     let alt_PageDown = alt(Key.the_key("PageDown"));
-    let alt_T = alt(Key.the_letter_code("T"));
-    let alt_F = alt(Key.the_letter_code("F"));
+    let alt_T = alt(Key.the_key("T"));
+    let alt_F = alt(Key.the_key("F"));
     let key_B = no_ctrl_alt_meta(Key.the_key("B"));
     let key_N = no_ctrl_alt_meta(Key.the_key("N"));
     let key_L = no_ctrl_alt_meta(Key.the_key("L"));
+    let ctrl_z = ctrl(Key.the_key("z"));
+    let ctrl_shift_z = ctrl_shift(Key.the_key("Z"));
   };
 
   type t =
@@ -502,7 +506,9 @@ module KeyCombo = {
     | Semicolon
     | Alt_L
     | Alt_R
-    | Alt_C;
+    | Alt_C
+    | Ctrl_Z
+    | Ctrl_Shift_Z;
 
   let get_details =
     fun
@@ -532,11 +538,17 @@ module KeyCombo = {
     | Semicolon => Details.semicolon
     | Alt_L => Details.alt_L
     | Alt_R => Details.alt_R
-    | Alt_C => Details.alt_C;
+    | Alt_C => Details.alt_C
+    | Ctrl_Z => Details.ctrl_z
+    | Ctrl_Shift_Z => Details.ctrl_shift_z;
 
   let of_evt = (evt: Js.t(Dom_html.keyboardEvent)): option(t) => {
     let evt_matches = details => Details.matches(details, evt);
-    if (evt_matches(Details.escape)) {
+    if (evt_matches(Details.ctrl_z)) {
+      Some(Ctrl_Z);
+    } else if (evt_matches(Details.ctrl_shift_z)) {
+      Some(Ctrl_Shift_Z);
+    } else if (evt_matches(Details.escape)) {
       Some(Escape);
     } else if (evt_matches(Details.backspace)) {
       Some(Backspace);
@@ -722,14 +734,27 @@ let force_opt = x => Js.Opt.get(x, () => failwith("forced opt"));
 
 // TODO: find better Module to put this in
 module Vdom = Virtual_dom.Vdom;
-let content_editable_of_layout: Layout.t('tag) => Vdom.Node.t =
-  layout => {
-    let record: Layout.text('tag, list(Vdom.Node.t), Vdom.Node.t) = {
-      imp_of_string: string => [Vdom.Node.text(string)],
-      imp_of_tag: (_, string) => [Vdom.Node.span([], string)], // TODO: add span data
-      imp_append: (s1, s2) => s1 @ s2,
-      imp_newline: _ => [Vdom.Node.br([])],
-      t_of_imp: s => Vdom.Node.span([], s) // TODO: use something other than `span`?
-    };
-    Layout.make_of_layout(record, layout);
+// let content_editable_of_layout: Layout.t('tag) => Vdom.Node.t =
+//   layout => {
+//     let record: Layout.text('tag, list(Vdom.Node.t), Vdom.Node.t) = {
+//       imp_of_string: string => [Vdom.Node.text(string)],
+//       imp_of_tag: (_, string) => [Vdom.Node.span([], string)], // TODO: add span data
+//       imp_append: (s1, s2) => s1 @ s2,
+//       imp_newline: _ => [Vdom.Node.br([])],
+//       t_of_imp: s => Vdom.Node.span([], s) // TODO: use something other than `span`?
+//     };
+//     Layout.make_of_layout(record, layout);
+//   };
+
+let rec vdom_of_box = (box: Box.t('tag)): Vdom.Node.t =>
+  switch (box) {
+  | Text(string) =>
+    Vdom.Node.div([Vdom.Attr.classes(["text"])], [Vdom.Node.text(string)])
+  | HBox(bs) =>
+    Vdom.Node.div([Vdom.Attr.classes(["hbox"])], List.map(vdom_of_box, bs))
+  | VBox(bs) =>
+    Vdom.Node.div([Vdom.Attr.classes(["vbox"])], List.map(vdom_of_box, bs))
+  | Tagged(_, b) =>
+    // TODO
+    vdom_of_box(b)
   };
