@@ -432,11 +432,15 @@ let prune_empty_hole_line = (zli: zline): zline =>
   | LetLineZE(_)
   | CursorL(_) => zli
   };
-let prune_empty_hole_lines = ((prefix, zline, suffix): zblock): zblock => (
-  UHExp.prune_empty_hole_lines(prefix),
-  prune_empty_hole_line(zline),
-  UHExp.prune_empty_hole_lines(suffix),
-);
+let prune_empty_hole_lines = ((prefix, zline, suffix): zblock): zblock =>
+  switch (suffix) {
+  | [] => (prefix |> List.map(UHExp.prune_empty_hole_line), zline, [])
+  | [_, ..._] => (
+      prefix |> List.map(UHExp.prune_empty_hole_line),
+      prune_empty_hole_line(zline),
+      UHExp.prune_empty_hole_lines(suffix),
+    )
+  };
 
 let rec set_err_status = (err: ErrStatus.t, ze: t): t =>
   switch (ze) {

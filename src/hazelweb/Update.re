@@ -162,7 +162,9 @@ let apply_action =
       | (Some((_, cursor) as path), _) =>
         if (path == Model.path(model)) {
           switch (cursor) {
-          | OnText(_) => failwith("unexpected OnText cursor")
+          | OnText(j) =>
+            // necessary for EmptyLine
+            schedule_action(Action.EditAction(j == 0 ? MoveLeft : MoveRight))
           | OnOp(Before)
           | OnDelim(_, Before) =>
             schedule_action(Action.EditAction(MoveLeft))
@@ -174,9 +176,15 @@ let apply_action =
           schedule_action(Action.EditAction(MoveTo(path)));
         }
       | (_, Some(steps)) =>
-        schedule_action(
-          Action.EditAction(MoveTo((steps, OnText(anchorOffset)))),
-        )
+        switch (model.cursor_info.typed) {
+        | OnLine =>
+          // necessary for EmptyLine
+          schedule_action(Action.EditAction(MoveTo((steps, OnText(0)))))
+        | _ =>
+          schedule_action(
+            Action.EditAction(MoveTo((steps, OnText(anchorOffset)))),
+          )
+        }
       };
     };
 

@@ -714,7 +714,7 @@ module Exp = {
     )
   and mk_line = (~steps: CursorPath.steps, line: UHExp.line): t =>
     switch (line) {
-    | EmptyLine => mk_text(~steps, "")
+    | EmptyLine => mk_text(~steps, LangUtil.nondisplay1)
     | ExpLine(opseq) => mk_opseq(~steps, ~enforce_inline=false, opseq)
     | LetLine(p, ann, def) =>
       let p = Pat.mk_child(~steps, ~child_step=0, p);

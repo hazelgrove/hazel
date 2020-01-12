@@ -122,14 +122,20 @@ let listnil = (~err: ErrStatus.t=NotInHole, ()): operand => ListNil(err);
 
 let wrap_in_block = (opseq: opseq): block => [ExpLine(opseq)];
 
+// TODO make prune function naming less confusing
 let prune_empty_hole_line = (li: line): line =>
   switch (li) {
   | ExpLine(OpSeq(_, S(EmptyHole(_), E))) => EmptyLine
   | ExpLine(_)
   | EmptyLine
-  | LetLine(_, _, _) => li
+  | LetLine(_) => li
   };
-let prune_empty_hole_lines = List.map(prune_empty_hole_line);
+let prune_empty_hole_lines = (block: block): block =>
+  switch (block |> ListUtil.split_last) {
+  | None => block
+  | Some((leading, last)) =>
+    (leading |> List.map(prune_empty_hole_line)) @ [last]
+  };
 
 let rec get_tuple_elements: skel => list(skel) =
   fun
