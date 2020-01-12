@@ -418,25 +418,20 @@ module KeyCombo = {
     let alt_PageDown = alt(Key.the_key("PageDown"));
     let alt_T = alt(Key.the_key("T"));
     let alt_F = alt(Key.the_key("F"));
-    let key_B = no_ctrl_alt_meta(Key.the_key("B"));
-    let key_N = no_ctrl_alt_meta(Key.the_key("N"));
-    let key_L = no_ctrl_alt_meta(Key.the_key("L"));
     let ctrl_z = ctrl(Key.the_key("z"));
     let ctrl_shift_z = ctrl_shift(Key.the_key("Z"));
   };
 
+  [@deriving sexp]
   type t =
     | Escape
     | Backspace
     | Delete
     | ShiftTab
     | Tab
-    | Key_N
-    | Key_B
     | GT
     | Ampersand
     | VBar
-    | Key_L
     | LeftParen
     | Colon
     | Equals
@@ -465,12 +460,9 @@ module KeyCombo = {
     | Delete => Details.delete
     | ShiftTab => Details.shift_tab
     | Tab => Details.tab
-    | Key_N => Details.key_N
-    | Key_B => Details.key_B
     | GT => Details.gt
     | Ampersand => Details.ampersand
     | VBar => Details.vbar
-    | Key_L => Details.key_L
     | LeftParen => Details.left_parens
     | Colon => Details.colon
     | Equals => Details.equals
@@ -508,18 +500,12 @@ module KeyCombo = {
       Some(ShiftTab);
     } else if (evt_matches(Details.tab)) {
       Some(Tab);
-    } else if (evt_matches(Details.key_N)) {
-      Some(Key_N);
-    } else if (evt_matches(Details.key_B)) {
-      Some(Key_B);
     } else if (evt_matches(Details.gt)) {
       Some(GT);
     } else if (evt_matches(Details.ampersand)) {
       Some(Ampersand);
     } else if (evt_matches(Details.vbar)) {
       Some(VBar);
-    } else if (evt_matches(Details.key_L)) {
-      Some(Key_L);
     } else if (evt_matches(Details.left_parens)) {
       Some(LeftParen);
     } else if (evt_matches(Details.colon)) {
