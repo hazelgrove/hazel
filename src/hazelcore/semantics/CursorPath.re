@@ -347,7 +347,7 @@ let _holes_zopseq =
               let step = skel1 |> Skel.leftmost_tm_index;
               [(hole_desc(u), [step, ...rev_steps] |> List.rev)];
             };
-          if (skel1 |> Skel.rightmost_tm_index <= zoperand_index) {
+          if (zoperand_index <= Skel.rightmost_tm_index(skel1)) {
             let zholes1 = go(skel1);
             let holes2 = holes_skel(skel2);
             mk_zholes(
@@ -376,7 +376,7 @@ let _holes_zopseq =
               let step = n + Seq.length(seq);
               [(hole_desc(u), [step, ...rev_steps] |> List.rev)];
             };
-          if (n <= zoperand_index) {
+          if (zoperand_index <= n) {
             let zholes1 = go(skel1);
             let holes2 = holes_skel(skel2);
             mk_zholes(
