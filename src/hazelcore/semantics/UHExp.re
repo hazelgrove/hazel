@@ -38,6 +38,7 @@ and t =
   | NumLit(ErrStatus.t, int)
   | BoolLit(ErrStatus.t, bool)
   | ListNil(ErrStatus.t)
+  | ListLit(ErrStatus.t)
   /* inner nodes */
   | Lam(ErrStatus.t, UHPat.t, option(UHTyp.t), block)
   | Inj(ErrStatus.t, InjSide.t, block)
@@ -167,6 +168,7 @@ let bidelimited = (e: t): bool =>
   | NumLit(_, _)
   | BoolLit(_, _)
   | ListNil(_)
+  | ListLit(_) /* Handle List Literals */
   | Inj(_, _, _)
   | ApPalette(_, _, _, _)
   | Parenthesized(_) => true
@@ -193,6 +195,7 @@ and get_err_status_t = (e: t): ErrStatus.t =>
   | NumLit(err, _)
   | BoolLit(err, _)
   | ListNil(err)
+  | ListLit(err) /* Handle List Literals */
   | Lam(err, _, _, _)
   | Inj(err, _, _)
   | Case(err, _, _, _)
@@ -217,6 +220,7 @@ and set_err_status_t = (err: ErrStatus.t, e: t): t =>
   | NumLit(_, n) => NumLit(err, n)
   | BoolLit(_, b) => BoolLit(err, b)
   | ListNil(_) => ListNil(err)
+  | ListLit(_) => ListLit(err) /* Handle List Literals */
   | Lam(_, p, ann, block) => Lam(err, p, ann, block)
   | Inj(_, inj_side, block) => Inj(err, inj_side, block)
   | Case(_, block, rules, ann) => Case(err, block, rules, ann)
