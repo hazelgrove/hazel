@@ -11,6 +11,7 @@ let rec binds_var = (x: Var.t, p: UHPat.t): bool =>
   | Var(InHole(_, _), _, _)
   | NumLit(_, _)
   | BoolLit(_, _)
+  // | StringLit(_, _)
   | ListNil(_)
   | Inj(InHole(_, _), _, _) => false
   | Var(NotInHole, NotInVarHole, y) => x == y
@@ -58,6 +59,7 @@ and find_uses_exp = (x: Var.t, e: UHExp.t, steps): uses_list =>
   | Var(_, InVarHole(_, _), _)
   | NumLit(_, _)
   | BoolLit(_, _)
+  | StringLit(_, _)
   | ListNil(_)
   | Lam(InHole(_, _), _, _, _)
   | Inj(InHole(_, _), _, _)

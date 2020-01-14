@@ -233,6 +233,7 @@ and before_exp = (~steps=[], e: UHExp.t): t =>
   | Var(_, _, _)
   | NumLit(_, _)
   | BoolLit(_, _) => (steps, OnText(0))
+  | StringLit(_, _)
   | Lam(_, _, _, _)
   | Inj(_, _, _)
   | Case(_, _, _, _)
@@ -474,6 +475,7 @@ and follow_exp_and_place_cursor =
     | (_, Var(_, _, _))
     | (_, NumLit(_, _))
     | (_, BoolLit(_, _))
+    | (_, StringLit(_, _))
     | (_, ListNil(_)) => None
     /* inner nodes */
     | (0, Parenthesized(block)) =>
@@ -1002,6 +1004,7 @@ and holes_exp =
     |> holes_of_var_err_exp(e, var_err, rev_steps)
   | NumLit(err, _)
   | BoolLit(err, _)
+  | StringLit(err, _)
   | ListNil(err) => holes_of_err_exp(e, err, rev_steps, holes)
   | Parenthesized(block) => holes_block(block, [0, ...rev_steps], holes)
   | OpSeq(skel, seq) =>
@@ -1580,6 +1583,7 @@ and holes_ze = (ze: ZExp.t, rev_steps: rev_steps): zhole_list =>
   | CursorE(_, Var(_, _, _))
   | CursorE(_, NumLit(_, _))
   | CursorE(_, BoolLit(_, _))
+  | CursorE(_, StringLit(_, _))
   | CursorE(_, ListNil(_)) => {
       holes_before: [],
       hole_selected: None,
@@ -1983,7 +1987,9 @@ and prune_trivial_suffix_block__line = (~steps_of_first_line, line) =>
 and prune_trivial_suffix_block__exp = (~steps_of_first_line, e) =>
   switch (e, steps_of_first_line) {
   | (
-      EmptyHole(_) | Var(_, _, _) | NumLit(_, _) | BoolLit(_, _) | ListNil(_) |
+      EmptyHole(_) | Var(_, _, _) | NumLit(_, _) | BoolLit(_, _) |
+      StringLit(_, _) |
+      ListNil(_) |
       ApPalette(_, _, _, _),
       _,
     )
