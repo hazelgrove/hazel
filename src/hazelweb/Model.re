@@ -86,6 +86,16 @@ type result_state =
   | ResultsDisabled
   | Result(has_result_state);
 
+/*new edit state, the previous action, id*/
+type undo_history_entry = (cardstacks_state, option(Action.t), int);
+/* group edit action, group id */
+type undo_history_group = (
+  ZList.t(undo_history_entry, undo_history_entry),
+  int,
+  bool,
+);
+type undo_history = ZList.t(undo_history_group, undo_history_group);
+
 type t = {
   cardstacks,
   cardstacks_state /* these are derived from the cardstack state: */,
@@ -101,7 +111,46 @@ type t = {
   show_content_editable: bool,
   show_presentation: bool,
   all_hidden_history_expand: bool,
-  undo_history: UndoHistory.t,
+  undo_history,
+};
+
+let push_edit_state =
+    (undo_history, cardstacks_state, action: option(Action.t)): undo_history => {
+  let (prev_group, prev_group_id, _) = ZList.prj_z(undo_history);
+  let (_, prev_action, prev_id) = ZList.prj_z(prev_group);
+  if (Action.in_same_history_group(action, prev_action)) {
+    /* first add new edit state to the end, then shift_next */
+    let after_push = (
+      ZList.prj_prefix(prev_group),
+      ZList.prj_z(prev_group),
+      [(cardstacks_state, action, prev_id + 1)],
+    );
+    let group_after_push =
+      switch (ZList.shift_next(after_push)) {
+      | None => failwith("Impossible because suffix is non-empty")
+      | Some(new_group) => new_group
+      };
+    (
+      ZList.prj_prefix(undo_history),
+      (group_after_push, prev_group_id, false),
+      [],
+    );
+  } else {
+    let new_group = (
+      ([], (cardstacks_state, action, 0), []),
+      prev_group_id + 1,
+      false,
+    );
+    let after_push = (
+      ZList.prj_prefix(undo_history),
+      ZList.prj_z(undo_history),
+      [new_group],
+    );
+    switch (ZList.shift_next(after_push)) {
+    | None => failwith("Impossible because suffix is non-empty")
+    | Some(new_history) => new_history
+    };
+  };
 };
 
 let cardstack_state_of = model => ZList.prj_z(model.cardstacks_state);
@@ -381,7 +430,11 @@ let init = (): t => {
     user_newlines: CursorPath.StepsMap.empty,
     selected_example: None,
     is_cell_focused: false,
-    undo_history: ([], (([], (edit_state, None, 0), []), 0, false), []),
+    undo_history: (
+      [],
+      (([], (cardstacks_state, None, 0), []), 0, false),
+      [],
+    ),
     left_sidebar_open: false,
     right_sidebar_open: true,
     show_content_editable: false,
@@ -409,9 +462,9 @@ let perform_edit_action = (model: t, a: Action.t): t => {
     let new_model = model |> update_edit_state(new_edit_state);
     let new_history =
       if (UndoHistory.undoable_action(a)) {
-        UndoHistory.push_edit_state(
+        push_edit_state(
           model.undo_history,
-          new_edit_state,
+          new_model.cardstacks_state,
           Some(a),
         );
       } else {
@@ -483,3 +536,59 @@ let load_example = (model: t, block: UHExp.block): t =>
 let focus_cell = model => {...model, is_cell_focused: true};
 
 let blur_cell = model => {...model, is_cell_focused: false};
+
+let undo = (model: t): t => {
+  let new_history = {
+    let (group_now, gp_id, _) = ZList.prj_z(model.undo_history);
+    switch (ZList.shift_prev(group_now)) {
+    | None =>
+      switch (ZList.shift_prev(model.undo_history)) {
+      | None => model.undo_history
+      | Some(new_history) =>
+        let (group_lst, id, _) = ZList.prj_z(new_history);
+        let new_group = (ZList.shift_end(group_lst), id, true); /* is_expanded=true because this group should be expanded*/
+        ZList.replace_z(new_history, new_group);
+      }
+    | Some(new_group) =>
+      ZList.replace_z(model.undo_history, (new_group, gp_id, true)) /* is_expanded=true because this group should be expanded*/
+    };
+  };
+  let (group_now, _, _) = ZList.prj_z(new_history);
+  let (new_cardstacks_state, _, _) = ZList.prj_z(group_now);
+  let model' = update_cardstacks_state(model, new_cardstacks_state);
+  {...model', undo_history: new_history};
+};
+
+let redo = (model: t): t => {
+  let new_history = {
+    let (group_now, gp_id, _) = ZList.prj_z(model.undo_history);
+    switch (ZList.shift_next(group_now)) {
+    | None =>
+      switch (ZList.shift_next(model.undo_history)) {
+      | None => model.undo_history
+      | Some(new_history) =>
+        let (group_lst, id, _) = ZList.prj_z(new_history);
+        let new_group = (ZList.shift_front(group_lst), id, true); /* is_expanded=true because this group should be expanded when redo*/
+        ZList.replace_z(new_history, new_group);
+      }
+    | Some(new_group) =>
+      ZList.replace_z(model.undo_history, (new_group, gp_id, true))
+    };
+  };
+  let (group_now, _, _) = ZList.prj_z(new_history);
+  let (new_cardstacks_state, _, _) = ZList.prj_z(group_now);
+  let model' = update_cardstacks_state(model, new_cardstacks_state);
+  {...model', undo_history: new_history};
+};
+
+let set_all_hidden_history = (undo_history, expanded: bool): undo_history => {
+  let close_group_entry = (entry: undo_history_group) => {
+    let (group_lst, id, _) = entry;
+    (group_lst, id, expanded);
+  };
+  (
+    List.map(close_group_entry, ZList.prj_prefix(undo_history)),
+    close_group_entry(ZList.prj_z(undo_history)),
+    List.map(close_group_entry, ZList.prj_suffix(undo_history)),
+  );
+};
