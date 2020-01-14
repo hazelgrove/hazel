@@ -262,6 +262,7 @@ and doc_of_exp = (~may_wrap: bool, ~steps: CursorPath.steps, e: UHExp.t): doc =>
     | Var(_, _, x) => doc_of_Var(x)
     | NumLit(_, n) => doc_of_NumLit(n)
     | BoolLit(_, b) => doc_of_BoolLit(b)
+    | StringLit(_, s) => doc_of_StringLit(s)
     | ListNil(_) => doc_of_ListNil
     | Lam(_, p, ann, body) =>
       let sp_doc =

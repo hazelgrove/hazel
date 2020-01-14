@@ -167,6 +167,7 @@ let bidelimited = (e: t): bool =>
   | Var(_, _, _)
   | NumLit(_, _)
   | BoolLit(_, _)
+  | StringLit(_, _)
   | ListNil(_)
   | Inj(_, _, _)
   | ApPalette(_, _, _, _)
@@ -193,6 +194,7 @@ and get_err_status_t = (e: t): ErrStatus.t =>
   | Var(err, _, _)
   | NumLit(err, _)
   | BoolLit(err, _)
+  | StringLit(err, _)
   | ListNil(err)
   | Lam(err, _, _, _)
   | Inj(err, _, _)
@@ -217,6 +219,7 @@ and set_err_status_t = (err: ErrStatus.t, e: t): t =>
   | Var(_, var_err, x) => Var(err, var_err, x)
   | NumLit(_, n) => NumLit(err, n)
   | BoolLit(_, b) => BoolLit(err, b)
+  | StringLit(_, s) => StringLit(err, s)
   | ListNil(_) => ListNil(err)
   | Lam(_, p, ann, block) => Lam(err, p, ann, block)
   | Inj(_, inj_side, block) => Inj(err, inj_side, block)
@@ -263,6 +266,7 @@ and make_t_inconsistent = (u_gen: MetaVarGen.t, e: t): (t, MetaVarGen.t) =>
   | Var(InHole(TypeInconsistent, _), _, _)
   | NumLit(InHole(TypeInconsistent, _), _)
   | BoolLit(InHole(TypeInconsistent, _), _)
+  | StringLit(InHole(TypeInconsistent, _), _)
   | ListNil(InHole(TypeInconsistent, _))
   | Lam(InHole(TypeInconsistent, _), _, _, _)
   | Inj(InHole(TypeInconsistent, _), _, _)
@@ -272,6 +276,7 @@ and make_t_inconsistent = (u_gen: MetaVarGen.t, e: t): (t, MetaVarGen.t) =>
   | Var(NotInHole | InHole(WrongLength, _), _, _)
   | NumLit(NotInHole | InHole(WrongLength, _), _)
   | BoolLit(NotInHole | InHole(WrongLength, _), _)
+  | StringLit(NotInHole | InHole(WrongLength, _), _)
   | ListNil(NotInHole | InHole(WrongLength, _))
   | Lam(NotInHole | InHole(WrongLength, _), _, _, _)
   | Inj(NotInHole | InHole(WrongLength, _), _, _)
@@ -329,6 +334,7 @@ let child_indices_exp =
   | Var(_, _, _)
   | NumLit(_, _)
   | BoolLit(_, _)
+  | StringLit(_, _)
   | ListNil(_) => []
   | Lam(_, _, None, _) => [0, 2]
   | Lam(_, _, Some(_), _) => [0, 1, 2]
@@ -717,6 +723,7 @@ let favored_child_of_exp: t => option((ChildIndex.t, block)) =
   | Var(_, _, _)
   | NumLit(_, _)
   | BoolLit(_, _)
+  | StringLit(_, _)
   | ListNil(_)
   | OpSeq(_, _)
   | ApPalette(_, _, _, _) => None
@@ -754,6 +761,7 @@ and is_multi_line_exp =
   | Var(_, _, _)
   | NumLit(_, _)
   | BoolLit(_, _)
+  | StringLit(_, _)
   | ListNil(_)
   | ApPalette(_, _, _, _) => false
   | Lam(_, _, _, body) => is_multi_line(body)
