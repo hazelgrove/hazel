@@ -37,6 +37,7 @@ and t =
   | Var(ErrStatus.t, VarErrStatus.t, Var.t)
   | NumLit(ErrStatus.t, int)
   | BoolLit(ErrStatus.t, bool)
+  | StringLit(ErrStatus.t, string)
   | ListNil(ErrStatus.t)
   /* inner nodes */
   | Lam(ErrStatus.t, UHPat.t, option(UHTyp.t), block)
