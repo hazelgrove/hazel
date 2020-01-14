@@ -131,10 +131,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
       (
         ~is_cur_group: bool,
         group_entry: (
-          ZList.t(
-            UndoHistory.undo_history_entry,
-            UndoHistory.undo_history_entry,
-          ),
+          ZList.t(Model.undo_history_entry, Model.undo_history_entry),
           int,
           bool,
         ),
@@ -340,10 +337,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
   let cur_history_view =
       (
         history: (
-          ZList.t(
-            UndoHistory.undo_history_entry,
-            UndoHistory.undo_history_entry,
-          ),
+          ZList.t(Model.undo_history_entry, Model.undo_history_entry),
           int,
           bool,
         ),

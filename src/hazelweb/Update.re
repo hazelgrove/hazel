@@ -302,18 +302,8 @@ let apply_action =
       };
     };
     model;
-  | Undo =>
-    let new_history = UndoHistory.undo(model.undo_history);
-    let (group_now, _, _) = ZList.prj_z(new_history);
-    let (new_edit_state, _, _) = ZList.prj_z(group_now);
-    let new_model = model |> Model.update_edit_state(new_edit_state);
-    {...new_model, undo_history: new_history};
-  | Redo =>
-    let new_history = UndoHistory.redo(model.undo_history);
-    let (group_now, _, _) = ZList.prj_z(new_history);
-    let (new_edit_state, _, _) = ZList.prj_z(group_now);
-    let new_model = model |> Model.update_edit_state(new_edit_state);
-    {...new_model, undo_history: new_history};
+  | Undo => Model.undo(model)
+  | Redo => Model.redo(model)
   | ShiftHistory(gp_id, ent_id) =>
     let erase_func = his => his;
     let his_lst = ZList.erase(model.undo_history, erase_func);
@@ -325,8 +315,9 @@ let apply_action =
       switch (ZList.split_at(ent_id, entry_lst)) {
       | None => failwith("Impossible because undo_history is non-empty")
       | Some(group) =>
-        let (new_edit_state, _, _) = ZList.prj_z(group);
-        let new_model = model |> Model.update_edit_state(new_edit_state);
+        let (new_cardstacks_state, _, _) = ZList.prj_z(group);
+        let new_model =
+          Model.update_cardstacks_state(model, new_cardstacks_state);
         {
           ...new_model,
           undo_history:
@@ -355,15 +346,13 @@ let apply_action =
       {
         ...model,
         all_hidden_history_expand: false,
-        undo_history:
-          UndoHistory.set_all_hidden_history(model.undo_history, false),
+        undo_history: Model.set_all_hidden_history(model.undo_history, false),
       };
     } else {
       {
         ...model,
         all_hidden_history_expand: true,
-        undo_history:
-          UndoHistory.set_all_hidden_history(model.undo_history, true),
+        undo_history: Model.set_all_hidden_history(model.undo_history, true),
       };
     }
   };
