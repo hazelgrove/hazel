@@ -1687,9 +1687,6 @@ module Exp = {
       (ZE2((new_prefix_lines, zline, new_suffix_lines)), u_gen);
     };
 
-  let append_suffix = (u_gen: MetaVarGen.t, e: UHExp.t, suffix: UHExp.affix) =>
-    resurround(u_gen, e, (E, suffix));
-
   // TODO refactor these types to incorporate ExpandingKeyword.t
   type line_success =
     | LineExpandsToLet({
