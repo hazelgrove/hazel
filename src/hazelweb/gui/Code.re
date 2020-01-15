@@ -436,7 +436,7 @@ let editor_view_of_layout =
 };
 
 let view_of_htyp =
-    (~inject: Update.Action.t => Vdom.Event.t, ~width=20, ~pos=0, ty: HTyp.t)
+    (~inject: Update.Action.t => Vdom.Event.t, ~width=25, ~pos=0, ty: HTyp.t)
     : Vdom.Node.t => {
   let l =
     ty
