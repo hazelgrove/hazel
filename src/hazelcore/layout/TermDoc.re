@@ -90,10 +90,10 @@ let mk_Unit = (~steps: CursorPath.steps, ()): t =>
   DelimDoc.mk(~path=(steps, 0), "()") |> tag_Operand(~family=Typ);
 
 let mk_Num = (~steps: CursorPath.steps, ()): t =>
-  DelimDoc.mk(~path=(steps, 0), LangUtil.typeN) |> tag_Operand(~family=Typ);
+  DelimDoc.mk(~path=(steps, 0), "Num") |> tag_Operand(~family=Typ);
 
 let mk_Bool = (~steps: CursorPath.steps, ()): t =>
-  DelimDoc.mk(~path=(steps, 0), LangUtil.typeB) |> tag_Operand(~family=Typ);
+  DelimDoc.mk(~path=(steps, 0), "Bool") |> tag_Operand(~family=Typ);
 
 let mk_EmptyHole =
     (~family: TermFamily.t, ~steps: CursorPath.steps, hole_lbl: string): t =>
