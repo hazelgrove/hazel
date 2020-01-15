@@ -1088,10 +1088,3 @@ and move_cursor_right_zrule =
     | None => None
     | Some(zclause) => Some(RuleZE(p, zclause))
     };
-
-type zexp_or_zblock =
-  | E(t)
-  | B(zblock);
-
-let has_concluding_let_line = zblock =>
-  zblock |> erase_zblock |> UHExp.has_concluding_let_line;
