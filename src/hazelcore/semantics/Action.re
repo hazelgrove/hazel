@@ -3558,6 +3558,7 @@ module Exp = {
       Failed
 
     | _ when ZExp.is_inconsistent(zoperand) =>
+      // TODO this doesn't propagate expanding keywords properly
       let ze = ZExp.ZE0(zoperand);
       let err = ze |> ZExp.erase |> UHExp.get_err_status;
       let ze' = ZExp.(ZE0(zoperand) |> set_err_status(NotInHole));
