@@ -712,17 +712,20 @@ module Exp = {
           concluding |> tag_SubBlock(~hd_index=UHExp.num_lines(block) - 1),
         )
     )
-  and mk_line = (~steps: CursorPath.steps, line: UHExp.line): t =>
-    switch (line) {
-    | EmptyLine => mk_text(~steps, LangUtil.nondisplay1)
-    | ExpLine(opseq) => mk_opseq(~steps, ~enforce_inline=false, opseq)
-    | LetLine(p, ann, def) =>
-      let p = Pat.mk_child(~steps, ~child_step=0, p);
-      let ann =
-        ann |> OptUtil.map(ann => Typ.mk_child(~steps, ~child_step=1, ann));
-      let def = mk_child(~steps, ~child_step=2, def);
-      mk_LetLine(~steps, p, ann, def);
-    }
+  and mk_line = (~steps: CursorPath.steps, line: UHExp.line): t => {
+    let doc =
+      switch (line) {
+      | EmptyLine => mk_text(~steps, LangUtil.nondisplay1)
+      | ExpLine(opseq) => mk_opseq(~steps, ~enforce_inline=false, opseq)
+      | LetLine(p, ann, def) =>
+        let p = Pat.mk_child(~steps, ~child_step=0, p);
+        let ann =
+          ann |> OptUtil.map(ann => Typ.mk_child(~steps, ~child_step=1, ann));
+        let def = mk_child(~steps, ~child_step=2, def);
+        mk_LetLine(~steps, p, ann, def);
+      };
+    doc |> Doc.tag(TermTag.Line);
+  }
   and mk_opseq =
       (~steps: CursorPath.steps, ~enforce_inline: bool, opseq: UHExp.opseq): t =>
     mk_NTuple(~mk_operand, ~mk_operator, ~steps, ~enforce_inline, opseq)

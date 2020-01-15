@@ -45,7 +45,8 @@ let has_inline_OpenChild =
   contains(
     fun
     | Step(_)
-    | DelimGroup => Skip
+    | DelimGroup
+    | Line => Skip
     | OpenChild({is_inline: true}) => Return()
     | _ => Stop,
   );
@@ -54,7 +55,8 @@ let has_para_OpenChild =
   contains(
     fun
     | Step(_)
-    | DelimGroup => Skip
+    | DelimGroup
+    | Line => Skip
     | OpenChild({is_inline: false}) => Return()
     | _ => Stop,
   );
@@ -100,6 +102,7 @@ let rec follow_steps_and_decorate =
          | OpenChild(_)
          | ClosedChild(_)
          | DelimGroup
+         | Line
          | Term(_) => Skip
          | _ => Stop
          }
@@ -150,7 +153,8 @@ let find_and_decorate_caret =
                    )
                  : Stop
              | Term(_)
-             | DelimGroup => Skip
+             | DelimGroup
+             | Line => Skip
              | _ => Stop
              }
            )
@@ -197,6 +201,7 @@ let rec find_and_decorate_Term =
          | OpenChild(_)
          | ClosedChild(_)
          | DelimGroup
+         | Line
          | Term({shape: Operand(_) | Case(_) | Rule, _}) => Skip
          | _ => Stop
          };
@@ -254,7 +259,7 @@ let path_before = (l: t): option(CursorPath.t) => {
       | Transport(After) => go(l2)
       }
     | Tagged(
-        OpenChild(_) | ClosedChild(_) | DelimGroup | Step(_) | Term(_),
+        OpenChild(_) | ClosedChild(_) | DelimGroup | Line | Step(_) | Term(_),
         l,
       ) =>
       go(l)
@@ -274,7 +279,10 @@ let rec path_after = (l: t): option(CursorPath.t) =>
   | Linebreak => None
   | Align(l) => path_after(l)
   | Cat(_, l) => path_after(l)
-  | Tagged(OpenChild(_) | ClosedChild(_) | DelimGroup | Step(_) | Term(_), l) =>
+  | Tagged(
+      OpenChild(_) | ClosedChild(_) | DelimGroup | Line | Step(_) | Term(_),
+      l,
+    ) =>
     path_after(l)
   | Tagged(Padding | HoleLabel(_) | SpaceOp | Indent, _) => None
   | Tagged(Text({steps, length, _}), _) => Some((steps, OnText(length)))
@@ -327,7 +335,7 @@ let path_of_caret_position = (row: int, col: int, l: t): option(CursorPath.t) =>
           };
         };
       | Tagged(
-          OpenChild(_) | ClosedChild(_) | DelimGroup | Step(_) | Term(_),
+          OpenChild(_) | ClosedChild(_) | DelimGroup | Line | Step(_) | Term(_),
           l,
         ) =>
         l |> go(indent, current_row, current_col)

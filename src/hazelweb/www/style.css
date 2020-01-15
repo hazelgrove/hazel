@@ -879,8 +879,40 @@ h1 {
   border-radius: var(--code-radius) 0 0 var(--code-radius);
   z-index: var(--para-border-z);
 }
-.Cursor.Term.SubBlock::before {
+.Cursor.Term.SubBlock.has-Para-Open-Child::before,
+.Cursor.Term.SubBlock.has-Inline-OpenChild::before {
+  top: 0;
+  left: calc(-1 * var(--child-border-thickness));
+  height: 100%;
+  width: var(--child-border-thickness);
+  z-index: var(--para-border-z);
   border-radius: var(--code-radius) 0 var(--code-radius) var(--code-radius);
+}
+
+.Cursor.Term.SubBlock .Line::before {
+  content: "";
+  position: absolute;
+  background-color: var(--exp-bg-color);
+  box-shadow: var(--code-shadow-thickness) var(--code-shadow-thickness) 0px 0px var(--exp-shadow-color);
+}
+.Cursor.Term.SubBlock.has-Inline-OpenChild .Line::before {
+  top: calc(100% - (var(--child-border-thickness) / 2));
+  left: 0;
+  height: var(--child-border-thickness);
+  width: 100%;
+  border-radius: 0 0 var(--code-radius) var(--code-radius);
+  z-index: var(--inline-border-z);
+}
+.Cursor.Term.SubBlock.has-Para-OpenChild .Line::before {
+  top: 0;
+  left: calc(-1 * var(--child-border-thickness));
+  height: 100%;
+  width: var(--child-border-thickness);
+  border-radius: var(--code-radius) 0 0 var(--code-radius);
+  z-index: var(--para-border-z);
+}
+.Cursor.Term.SubBlock .Term .Line::before {
+  all: unset;
 }
 
 .Cursor.Term.Exp::before {

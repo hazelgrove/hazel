@@ -154,6 +154,7 @@ let contenteditable_of_layout = (~inject, l: TermLayout.t): Vdom.Node.t => {
       | ClosedChild(_)
       | HoleLabel(_)
       | DelimGroup
+      | Line
       | Step(_)
       | Term(_) => vs
       },
@@ -239,6 +240,7 @@ let presentation_of_layout =
     | Tagged(DelimGroup, l) => [
         Node.span([Attr.classes(["DelimGroup"])], go(l)),
       ]
+    | Tagged(Line, l) => [Node.span([Attr.classes(["Line"])], go(l))]
     | Tagged(Padding, l) => [
         Node.span(
           [contenteditable_false, Attr.classes(["Padding"])],
