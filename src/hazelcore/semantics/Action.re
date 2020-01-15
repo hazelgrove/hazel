@@ -2052,7 +2052,9 @@ module Exp = {
           ) =>
           switch (suffix) {
           | [] =>
-            switch (Statics.Exp.syn_block(ctx, zblock |> ZExp.erase_zblock)) {
+            switch (
+              Statics.Exp.syn_block(ctx_zline, zblock |> ZExp.erase_zblock)
+            ) {
             | None => Failed
             | Some(new_ty) =>
               let new_ze =
