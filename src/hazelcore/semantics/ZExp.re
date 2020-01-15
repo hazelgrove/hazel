@@ -714,11 +714,16 @@ and move_cursor_left_zoperand =
     // _k == 1
     Some(InjZ(err, side, place_after(body)))
   | CursorE(OnDelim(k, Before), Lam(err, arg, ann, body)) =>
-    // k == 1 || k == 2
-    switch (k == 1, ann) {
-    | (true, _) => Some(LamZP(err, ZPat.place_after(arg), ann, body))
-    | (_, None) => Some(LamZP(err, ZPat.place_after(arg), ann, body))
-    | (_, Some(ann)) => Some(LamZA(err, arg, ZTyp.place_after(ann), body))
+    // k == 1 || k == 2 || k == 3
+    if (k == 1) {
+      Some(LamZP(err, ZPat.place_after(arg), ann, body));
+    } else if (k == 2) {
+      switch (ann) {
+      | None => Some(LamZP(err, ZPat.place_after(arg), ann, body))
+      | Some(ann) => Some(LamZA(err, arg, ZTyp.place_after(ann), body))
+      };
+    } else {
+      Some(LamZE(err, arg, ann, place_after(body)));
     }
   | CursorE(OnDelim(_k, Before), Case(err, scrut, rules, ann)) =>
     // _k == 1
@@ -1011,7 +1016,8 @@ and move_cursor_right_zoperand =
     }
   | LamZE(err, arg, ann, zbody) =>
     switch (move_cursor_right(zbody)) {
-    | None => None
+    | None =>
+      Some(CursorE(OnDelim(3, Before), Lam(err, arg, ann, erase(zbody))))
     | Some(zbody) => Some(LamZE(err, arg, ann, zbody))
     }
   | CaseZE(err, zscrut, rules, ann) =>
