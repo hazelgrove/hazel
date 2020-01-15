@@ -25,16 +25,18 @@ let is_before =
     (~is_before_zoperand: 'zoperand => bool, zseq: t(_, _, 'zoperand, _))
     : bool =>
   switch (zseq) {
-  | ZOperator(_, _) => false
-  | ZOperand(zoperand, _) => is_before_zoperand(zoperand)
+  | ZOperator(_)
+  | ZOperand(_, (A(_), _)) => false
+  | ZOperand(zoperand, (E, _)) => is_before_zoperand(zoperand)
   };
 
 let is_after =
     (~is_after_zoperand: 'zoperand => bool, zseq: t(_, _, 'zoperand, _))
     : bool =>
   switch (zseq) {
-  | ZOperator(_, _) => false
-  | ZOperand(zoperand, _) => is_after_zoperand(zoperand)
+  | ZOperator(_)
+  | ZOperand(_, (_, A(_))) => false
+  | ZOperand(zoperand, (_, E)) => is_after_zoperand(zoperand)
   };
 
 let place_before =

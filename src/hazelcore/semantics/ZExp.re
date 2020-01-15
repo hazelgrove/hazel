@@ -966,7 +966,7 @@ and move_cursor_right_zoperand =
       ? Some(CaseZE(err, place_before(scrut), rules, Some(ann)))
       : Some(CaseZA(err, scrut, rules, ZTyp.place_before(ann)))
   | CursorE(_, ApPalette(_, _, _, _)) => None
-  | CursorE(OnDelim(_, _), Var(_, _, _) | BoolLit(_, _) | NumLit(_, _)) =>
+  | CursorE(OnDelim(_), Var(_) | BoolLit(_) | NumLit(_)) =>
     // invalid cursor position
     None
   | ParenthesizedZ(zbody) =>
