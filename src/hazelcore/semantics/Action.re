@@ -1606,6 +1606,28 @@ module Exp = {
       ~place_after_operator=ZExp.place_after_operator,
     );
 
+  let lines_of_prefix =
+      (u_gen: MetaVarGen.t, prefix: UHExp.affix)
+      : (list(UHExp.line), MetaVarGen.t) =>
+    switch (prefix) {
+    | E => ([], u_gen)
+    | A(_) =>
+      let (hole, u_gen) = u_gen |> UHExp.new_EmptyHole;
+      let opseq = mk_OpSeq(Seq.affix_seq(prefix, S(hole, E)));
+      ([UHExp.ExpLine(opseq)], u_gen);
+    };
+
+  let lines_of_suffix =
+      (u_gen: MetaVarGen.t, suffix: UHExp.affix)
+      : (list(UHExp.line), MetaVarGen.t) =>
+    switch (suffix) {
+    | E => ([], u_gen)
+    | A(_) =>
+      let (hole, u_gen) = u_gen |> UHExp.new_EmptyHole;
+      let opseq = mk_OpSeq(Seq.seq_affix(S(hole, E), suffix));
+      ([UHExp.ExpLine(opseq)], u_gen);
+    };
+
   let resurround =
       (
         u_gen: MetaVarGen.t,
@@ -1622,13 +1644,9 @@ module Exp = {
       let new_seq = Seq.affix_seq(prefix, Seq.seq_affix(seq, suffix));
       (E1(mk_OpSeq(new_seq)), u_gen);
     | E2(block) =>
-      let (prefix_hole, u_gen) = u_gen |> UHExp.new_EmptyHole;
-      let (suffix_hole, u_gen) = u_gen |> UHExp.new_EmptyHole;
-      let new_prefix_line =
-        UHExp.ExpLine(mk_OpSeq(Seq.affix_seq(prefix, S(prefix_hole, E))));
-      let new_suffix_line =
-        UHExp.ExpLine(mk_OpSeq(Seq.seq_affix(S(suffix_hole, E), suffix)));
-      let new_block = [new_prefix_line, ...block] @ [new_suffix_line];
+      let (prefix_lines, u_gen) = lines_of_prefix(u_gen, prefix);
+      let (suffix_lines, u_gen) = lines_of_suffix(u_gen, suffix);
+      let new_block = List.concat([prefix_lines, block, suffix_lines]);
       (E2(new_block), u_gen);
     };
   let resurround_z =
@@ -1658,21 +1676,19 @@ module Exp = {
         u_gen,
       );
     | ZE2((prefix_lines, zline, suffix_lines)) =>
-      let (prefix_hole, u_gen) = u_gen |> UHExp.new_EmptyHole;
-      let (suffix_hole, u_gen) = u_gen |> UHExp.new_EmptyHole;
-      let new_prefix_lines = [
-        UHExp.ExpLine(mk_OpSeq(Seq.affix_seq(prefix, S(prefix_hole, E)))),
-        ...prefix_lines,
-      ];
-      let new_suffix_lines =
-        suffix_lines
-        @ [
-          UHExp.ExpLine(
-            mk_OpSeq(Seq.seq_affix(S(suffix_hole, E), suffix)),
-          ),
-        ];
+      let (new_prefix_lines, u_gen) = {
+        let (surround_prefix_lines, u_gen) = lines_of_prefix(u_gen, prefix);
+        (surround_prefix_lines @ prefix_lines, u_gen);
+      };
+      let (new_suffix_lines, u_gen) = {
+        let (surround_suffix_lines, u_gen) = lines_of_suffix(u_gen, suffix);
+        (suffix_lines @ surround_suffix_lines, u_gen);
+      };
       (ZE2((new_prefix_lines, zline, new_suffix_lines)), u_gen);
     };
+
+  let append_suffix = (u_gen: MetaVarGen.t, e: UHExp.t, suffix: UHExp.affix) =>
+    resurround(u_gen, e, (E, suffix));
 
   // TODO refactor these types to incorporate ExpandingKeyword.t
   type line_success =
@@ -1737,17 +1753,6 @@ module Exp = {
     fun
     | (Failed | CursorEscaped(_)) as err => err
     | Succeeded(ana_done) => Succeeded(AnaDone(ana_done));
-
-  let new_line_of_prefix =
-      (ctx: Contexts.t, u_gen: MetaVarGen.t, prefix: UHExp.affix) => {
-    let (hole, u_gen) = u_gen |> UHExp.new_EmptyHole;
-    let seq = Seq.affix_seq(prefix, S(hole, E));
-    let (opseq, _, u_gen) = mk_and_syn_fix_OpSeq(ctx, u_gen, seq);
-    (UHExp.ExpLine(opseq), u_gen);
-  };
-
-  let append_suffix = (u_gen: MetaVarGen.t, e: UHExp.t, suffix: UHExp.affix) =>
-    resurround(u_gen, e, (E, suffix));
 
   let zcase_of_scrut_and_suffix =
       (
@@ -2189,13 +2194,16 @@ module Exp = {
     /* Zipper */
 
     | (_, ExpLineZ(zopseq)) =>
-      let ze = ZExp.ZE1(zopseq);
-      switch (Statics.Exp.syn(ctx, ze |> ZExp.erase)) {
+      switch (Statics.Exp.syn_opseq(ctx, ZExp.erase_zopseq(zopseq))) {
       | None => Failed
       | Some(ty) =>
-        switch (syn_perform(ctx, a, (ze, ty, u_gen))) {
+        switch (syn_perform_opseq(ctx, a, (zopseq, ty, u_gen))) {
         | (Failed | CursorEscaped(_)) as err => err
-        | Succeeded((ze, _, u_gen)) =>
+        | Succeeded(SynExpandsToLet({u_gen, prefix, def, suffix})) =>
+          Succeeded(LineExpandsToLet({u_gen, prefix, def, suffix}))
+        | Succeeded(SynExpandsToCase({u_gen, prefix, scrut, suffix})) =>
+          Succeeded(LineExpandsToCase({u_gen, prefix, scrut, suffix}))
+        | Succeeded(SynDone((ze, _, u_gen))) =>
           let zblock =
             switch (ze) {
             | ZE0(zoperand) =>
@@ -2206,7 +2214,7 @@ module Exp = {
             };
           Succeeded(LineDone((zblock, ctx, u_gen)));
         }
-      };
+      }
 
     | (_, LetLineZP(zp, None, def)) =>
       switch (Statics.Exp.syn(ctx, def)) {
@@ -2369,22 +2377,6 @@ module Exp = {
       | Some(ze) => syn_perform(ctx, a, (ze, ty, u_gen)) |> wrap_in_SynDone
       };
 
-    | (Construct(SOp(os)), ZOperand(zoperand, surround))
-        when
-          ZExp.is_before_zoperand(zoperand)
-          || ZExp.is_after_zoperand(zoperand) =>
-      switch (operator_of_shape(os)) {
-      | None => Failed
-      | Some(operator) =>
-        let construct_operator =
-          ZExp.is_before_zoperand(zoperand)
-            ? construct_operator_before_zoperand
-            : construct_operator_after_zoperand;
-        let (zseq, u_gen) =
-          construct_operator(u_gen, operator, zoperand, surround);
-        Succeeded(SynDone(mk_and_syn_fix_ZOpSeq(ctx, u_gen, zseq)));
-      }
-
     | (Construct(SLine), ZOperand(zoperand, (prefix, suffix)))
         when zoperand |> ZExp.is_after_zoperand =>
       let (new_line, u_gen) = {
@@ -2438,24 +2430,24 @@ module Exp = {
         | CursorEscaped(side) =>
           syn_perform(ctx, escape(side), (ZE1(zopseq), ty, u_gen))
           |> wrap_in_SynDone
-        | Succeeded(SynExpandsToCase({scrut, u_gen, _})) =>
-          let (new_line, u_gen) = new_line_of_prefix(ctx, u_gen, prefix);
-          let (new_scrut, u_gen) = append_suffix(u_gen, scrut, suffix);
+        | Succeeded(SynExpandsToCase({scrut, u_gen, prefix: _, suffix: _})) =>
+          let (prefix_lines, u_gen) = lines_of_prefix(u_gen, prefix);
+          let (new_scrut, u_gen) = resurround(u_gen, scrut, (E, suffix));
           Succeeded(
             SynExpandsToCase({
               u_gen,
-              prefix: [new_line],
+              prefix: prefix_lines,
               scrut: new_scrut,
               suffix: [],
             }),
           );
-        | Succeeded(SynExpandsToLet({def, _})) =>
-          let (new_line, u_gen) = new_line_of_prefix(ctx, u_gen, prefix);
-          let (new_def, u_gen) = append_suffix(u_gen, def, suffix);
+        | Succeeded(SynExpandsToLet({def, u_gen, prefix: _, suffix: _})) =>
+          let (prefix_lines, u_gen) = lines_of_prefix(u_gen, prefix);
+          let (new_def, u_gen) = resurround(u_gen, def, (E, suffix));
           Succeeded(
             SynExpandsToLet({
               u_gen,
-              prefix: [new_line],
+              prefix: prefix_lines,
               def: new_def,
               suffix: [],
             }),
@@ -2472,24 +2464,24 @@ module Exp = {
         | CursorEscaped(side) =>
           syn_perform(ctx, escape(side), (ZE1(zopseq), ty, u_gen))
           |> wrap_in_SynDone
-        | Succeeded(AnaExpandsToCase({scrut, _})) =>
-          let (new_line, u_gen) = new_line_of_prefix(ctx, u_gen, prefix);
-          let (new_scrut, u_gen) = append_suffix(u_gen, scrut, suffix);
+        | Succeeded(AnaExpandsToCase({scrut, u_gen, prefix: _, suffix: _})) =>
+          let (prefix_lines, u_gen) = lines_of_prefix(u_gen, prefix);
+          let (new_scrut, u_gen) = resurround(u_gen, scrut, (E, suffix));
           Succeeded(
             SynExpandsToCase({
               u_gen,
-              prefix: [new_line],
+              prefix: prefix_lines,
               scrut: new_scrut,
               suffix: [],
             }),
           );
-        | Succeeded(AnaExpandsToLet({def, _})) =>
-          let (new_line, u_gen) = new_line_of_prefix(ctx, u_gen, prefix);
-          let (new_def, u_gen) = append_suffix(u_gen, def, suffix);
+        | Succeeded(AnaExpandsToLet({def, u_gen, prefix: _, suffix: _})) =>
+          let (prefix_lines, u_gen) = lines_of_prefix(u_gen, prefix);
+          let (new_def, u_gen) = resurround(u_gen, def, (E, suffix));
           Succeeded(
             SynExpandsToLet({
               u_gen,
-              prefix: [new_line],
+              prefix: prefix_lines,
               def: new_def,
               suffix: [],
             }),
@@ -3271,19 +3263,21 @@ module Exp = {
           | LetLineZA(_)
           | LetLineZE(_) => Failed
           | ExpLineZ(zopseq) =>
-            switch (ana_perform(ctx_zline, a, (ZE1(zopseq), u_gen), ty)) {
-            | Failed => Failed
+            switch (ana_perform_opseq(ctx_zline, a, (zopseq, u_gen), ty)) {
+            | (Failed | Succeeded(AnaExpandsToLet(_) | AnaExpandsToCase(_))) as res => res
             | CursorEscaped(side) =>
               ana_perform(ctx, escape(side), (ZE2(zblock), u_gen), ty)
               |> wrap_in_AnaDone
-            | Succeeded((ZE0(zoperand), u_gen)) =>
+            | Succeeded(AnaDone((ZE0(zoperand), u_gen))) =>
               let new_ze =
                 ZExp.ZE2((prefix, ExpLineZ(ZOpSeq.wrap(zoperand)), []));
               Succeeded(AnaDone((new_ze, u_gen)));
-            | Succeeded((ZE1(zopseq), u_gen)) =>
+            | Succeeded(AnaDone((ZE1(zopseq), u_gen))) =>
               let new_ze = ZExp.ZE2((prefix, ExpLineZ(zopseq), []));
               Succeeded(AnaDone((new_ze, u_gen)));
-            | Succeeded((ZE2((inner_prefix, zline, suffix)), u_gen)) =>
+            | Succeeded(
+                AnaDone((ZE2((inner_prefix, zline, suffix)), u_gen)),
+              ) =>
               let new_ze = ZExp.ZE2((prefix @ inner_prefix, zline, suffix));
               Succeeded(AnaDone((new_ze, u_gen)));
             }
@@ -3418,23 +3412,6 @@ module Exp = {
       | Some(ze) => ana_perform(ctx, a, (ze, u_gen), ty) |> wrap_in_AnaDone
       };
 
-    | (Construct(SOp(os)), ZOperand(zoperand, surround))
-        when
-          ZExp.is_before_zoperand(zoperand)
-          || ZExp.is_after_zoperand(zoperand) =>
-      switch (operator_of_shape(os)) {
-      | None => Failed
-      | Some(operator) =>
-        let construct_operator =
-          ZExp.is_before_zoperand(zoperand)
-            ? construct_operator_before_zoperand
-            : construct_operator_after_zoperand;
-        let (zseq, u_gen) =
-          construct_operator(u_gen, operator, zoperand, surround);
-        Succeeded(mk_and_ana_fix_ZOpSeq(ctx, u_gen, zseq, ty))
-        |> wrap_in_AnaDone;
-      }
-
     | (Construct(SLine), ZOperand(zoperand, (prefix, suffix)))
         when zoperand |> ZExp.is_after_zoperand =>
       let (new_line, u_gen) = {
@@ -3488,24 +3465,24 @@ module Exp = {
         | CursorEscaped(side) =>
           ana_perform(ctx, escape(side), (ZE1(zopseq), u_gen), ty)
           |> wrap_in_AnaDone
-        | Succeeded(SynExpandsToCase({scrut, u_gen, _})) =>
-          let (new_line, u_gen) = new_line_of_prefix(ctx, u_gen, prefix);
-          let (new_scrut, u_gen) = append_suffix(u_gen, scrut, suffix);
+        | Succeeded(SynExpandsToCase({scrut, u_gen, prefix: _, suffix: _})) =>
+          let (prefix_lines, u_gen) = lines_of_prefix(u_gen, prefix);
+          let (new_scrut, u_gen) = resurround(u_gen, scrut, (E, suffix));
           Succeeded(
             AnaExpandsToCase({
               u_gen,
-              prefix: [new_line],
+              prefix: prefix_lines,
               scrut: new_scrut,
               suffix: [],
             }),
           );
-        | Succeeded(SynExpandsToLet({def, _})) =>
-          let (new_line, u_gen) = new_line_of_prefix(ctx, u_gen, prefix);
-          let (new_def, u_gen) = append_suffix(u_gen, def, suffix);
+        | Succeeded(SynExpandsToLet({def, u_gen, prefix: _, suffix: _})) =>
+          let (prefix_lines, u_gen) = lines_of_prefix(u_gen, prefix);
+          let (new_def, u_gen) = resurround(u_gen, def, (E, suffix));
           Succeeded(
             AnaExpandsToLet({
               u_gen,
-              prefix: [new_line],
+              prefix: prefix_lines,
               def: new_def,
               suffix: [],
             }),
@@ -3522,24 +3499,24 @@ module Exp = {
         | CursorEscaped(side) =>
           ana_perform(ctx, escape(side), (ZE1(zopseq), u_gen), ty)
           |> wrap_in_AnaDone
-        | Succeeded(AnaExpandsToCase({scrut, _})) =>
-          let (new_line, u_gen) = new_line_of_prefix(ctx, u_gen, prefix);
-          let (new_scrut, u_gen) = append_suffix(u_gen, scrut, suffix);
+        | Succeeded(AnaExpandsToCase({scrut, u_gen, prefix: _, suffix: _})) =>
+          let (prefix_lines, u_gen) = lines_of_prefix(u_gen, prefix);
+          let (new_scrut, u_gen) = resurround(u_gen, scrut, (E, suffix));
           Succeeded(
             AnaExpandsToCase({
               u_gen,
-              prefix: [new_line],
+              prefix: prefix_lines,
               scrut: new_scrut,
               suffix: [],
             }),
           );
-        | Succeeded(AnaExpandsToLet({def, _})) =>
-          let (new_line, u_gen) = new_line_of_prefix(ctx, u_gen, prefix);
-          let (new_def, u_gen) = append_suffix(u_gen, def, suffix);
+        | Succeeded(AnaExpandsToLet({def, u_gen, prefix: _, suffix: _})) =>
+          let (prefix_lines, u_gen) = lines_of_prefix(u_gen, prefix);
+          let (new_def, u_gen) = resurround(u_gen, def, (E, suffix));
           Succeeded(
             AnaExpandsToLet({
               u_gen,
-              prefix: [new_line],
+              prefix: prefix_lines,
               def: new_def,
               suffix: [],
             }),
