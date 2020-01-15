@@ -19,6 +19,7 @@ type operator_shape =
 
 [@deriving sexp]
 type shape =
+  | SList
   | SParenthesized
   | SChar(string)
   | SAsc
@@ -318,9 +319,10 @@ module Typ = {
       Succeeded(UHTyp.T0(Num) |> ZTyp.place_after)
     | (Construct(SChar("B")), CursorT(_, Hole)) =>
       Succeeded(UHTyp.T0(Bool) |> ZTyp.place_after)
-    | (Construct(SChar("L")), CursorT(_)) =>
-      Succeeded(ZT0(ListZ(ZT0(zoperand))))
     | (Construct(SChar(_)), CursorT(_)) => Failed
+
+    | (Construct(SList), CursorT(_)) =>
+      Succeeded(ZT0(ListZ(ZT0(zoperand))))
 
     | (Construct(SParenthesized), CursorT(_)) =>
       Succeeded(ZT0(ParenthesizedZ(ZT0(zoperand))))
@@ -934,7 +936,7 @@ module Pat = {
 
     /* Invalid actions */
     | (
-        Construct(SApPalette(_) | SAsc | SLet | SLine | SLam | SCase) |
+        Construct(SApPalette(_) | SList | SAsc | SLet | SLine | SLam | SCase) |
         UpdateApPalette(_),
         _,
       ) =>
@@ -1294,7 +1296,7 @@ module Pat = {
 
     /* Invalid actions */
     | (
-        Construct(SApPalette(_) | SAsc | SLet | SLine | SLam | SCase) |
+        Construct(SApPalette(_) | SList | SAsc | SLet | SLine | SLam | SCase) |
         UpdateApPalette(_),
         _,
       ) =>
@@ -2528,7 +2530,8 @@ module Exp = {
       Failed
 
     /* Invalid actions at expression level */
-    | (Construct(SLine), CursorE(OnText(_), _)) => Failed
+    | (Construct(SLine), CursorE(OnText(_), _))
+    | (Construct(SList), _) => Failed
 
     /* Movement handled at top level */
     | (
@@ -3604,6 +3607,9 @@ module Exp = {
         _,
       ) =>
       Failed
+
+    /* Invalid actions at the expression level */
+    | (Construct(SList), _) => Failed
 
     /* Backspace & Delete */
 
