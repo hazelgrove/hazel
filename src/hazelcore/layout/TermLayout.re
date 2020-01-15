@@ -125,6 +125,7 @@ let find_and_decorate_caret =
                  l
                  |> Layout.tag(TermTag.Text({...text_data, caret: Some(j)})),
                )
+             | Line
              | Term(_) => Skip
              | _ => Stop
              }
