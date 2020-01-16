@@ -1,0 +1,23 @@
+(include_subdirs unqualified)
+
+(library
+ (name hazelcore)
+ (libraries re sexplib camomile)
+ (wrapped false)
+ (js_of_ocaml
+  (flags
+   (:include js-of-ocaml-flags-%{profile})))
+ (preprocess
+  (pps ppx_let ppx_sexp_conv)))
+
+(ocamllex
+ (modules SkelExprLexer SkelPatLexer SkelTypLexer))
+
+(menhir
+ (modules SkelExprParser SkelPatParser SkelTypParser))
+
+(rule
+ (write-file js-of-ocaml-flags-dev "(:standard --debuginfo --noinline)"))
+
+(rule
+ (write-file js-of-ocaml-flags-release "(:standard)"))

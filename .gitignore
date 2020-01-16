@@ -40,3 +40,11 @@ setup.log
 
 # atom reason language server
 *.lsp
+
+# IntelliJ
+.idea
+*.iml
+
+# Visual Studio Code
+.vscode
+.history
