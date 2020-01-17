@@ -2669,7 +2669,7 @@ module Exp = {
       let new_ze = UHExp.(E0(listnil())) |> ZExp.place_after;
       let new_ty = HTyp.List(Hole);
       Succeeded(SynDone((new_ze, new_ty, u_gen)));
-    | (Construct(SListNil), CursorE(_, _)) => Failed
+    | (Construct(SListNil), CursorE(_)) => Failed
 
     | (Construct(SParenthesized), CursorE(_)) =>
       let new_ze = ZExp.ZE0(ParenthesizedZ(ZE0(zoperand)));
@@ -2810,8 +2810,7 @@ module Exp = {
           [],
         ));
       Succeeded(SynDone((new_ze, ty, u_gen)));
-
-    | (Construct(_), CursorE(_)) => Failed
+    | (Construct(SLine), CursorE(_)) => Failed
 
     /* Zipper Cases */
     | (_, ParenthesizedZ(zbody)) =>
@@ -3792,25 +3791,6 @@ module Exp = {
         ana_perform(ctx, a, new_edit_state, ty) |> wrap_in_AnaDone
       }
 
-    | (Construct(SLine), CursorE(_)) when ZExp.is_before_zoperand(zoperand) =>
-      let new_ze =
-        ZExp.ZE2(([EmptyLine], ExpLineZ(ZOpSeq.wrap(zoperand)), []));
-      Succeeded(AnaDone((new_ze, u_gen)));
-    | (Construct(SLine), CursorE(_)) when ZExp.is_after_zoperand(zoperand) =>
-      let new_zline = UHExp.EmptyLine |> ZExp.place_before_line;
-      let new_ze =
-        ZExp.ZE2((
-          [
-            UHExp.ExpLine(zoperand |> ZExp.erase_zoperand |> OpSeq.wrap)
-            |> UHExp.prune_empty_hole_line,
-          ],
-          new_zline,
-          [],
-        ));
-      Succeeded(AnaDone((new_ze, u_gen)));
-
-    | (Construct(_), CursorE(_)) => Failed
-
     /* Zipper Cases */
     | (_, ParenthesizedZ(zbody)) =>
       switch (ana_perform(ctx, a, (zbody, u_gen), ty)) {
@@ -3987,6 +3967,7 @@ module Exp = {
       switch (syn_perform_operand(ctx, a, (zoperand, ty1, u_gen))) {
       | Failed
       | CursorEscaped(_)
+      // TODO propagate expanding keywords
       | Succeeded(SynExpandsToCase(_) | SynExpandsToLet(_)) => Failed
       | Succeeded(SynDone((ze, ty1, u_gen))) =>
         if (HTyp.consistent(ty, ty1)) {

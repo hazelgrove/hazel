@@ -672,9 +672,9 @@ module Exp = {
       |> List.filter(skel => ZOpSeq.skel_contains_cursor(skel, zseq))
       |> List.map(skel => syn_cursor_info_skel(~steps, ctx, skel, zseq))
       |> List.hd
-      // we know cursor is in tuple element,
-      // so the filter should produce the tuple elem with cursor,
-      // thus List.hd will not fail
+    // we know cursor is in tuple element,
+    // so the filter should produce the tuple elem with cursor,
+    // thus List.hd will not fail
     };
   }
   and syn_cursor_info_skel =
