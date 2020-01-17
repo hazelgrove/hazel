@@ -305,7 +305,7 @@ let apply_action =
   | Undo => Model.undo(model)
   | Redo => Model.redo(model)
   | ShiftHistory(gp_id, elt_id) =>
-    /*shift to the group with group_id = gp_id*/
+    /*shift to the group with group_id = gp_id, since undo_history append the latest entry to suffix rather than prefix, so shift_to ZList.length(model.undo_history) - gp_id - 1*/
     switch (
       ZList.shift_to(
         ZList.length(model.undo_history) - gp_id - 1,
@@ -318,14 +318,14 @@ let apply_action =
       /*shift to the element with elt_id*/
       switch (
         ZList.shift_to(
-          ZList.length(cur_group.state_list) - elt_id - 1,
-          cur_group.state_list,
+          ZList.length(cur_group.group_entries) - elt_id - 1,
+          cur_group.group_entries,
         )
       ) {
-      | None => failwith("Impossible because undo_history is non-empty")
-      | Some(new_state_list) =>
+      | None => failwith("Impossible because group_entries is non-empty")
+      | Some(new_group_entries) =>
         let new_cardstacks_state =
-          ZList.prj_z(new_state_list).cardstacks_state;
+          ZList.prj_z(new_group_entries).cardstacks_state;
         let new_model =
           Model.update_cardstacks_state(model, new_cardstacks_state);
         {
@@ -333,7 +333,7 @@ let apply_action =
           undo_history:
             ZList.replace_z(
               new_history,
-              {...cur_group, state_list: new_state_list},
+              {...cur_group, group_entries: new_group_entries},
             ),
         };
       };
