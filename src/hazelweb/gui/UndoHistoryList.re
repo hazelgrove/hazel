@@ -193,7 +193,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
         };
       }
 
-    | ([title_entry, ...suc_groups], cur_state, prev_states) =>
+    | ([title_entry, ...suc_states], cur_state, prev_states) =>
       if (group.is_expanded) {
         Vdom.(
           Node.div(
@@ -225,7 +225,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
                   ],
                   List.map(
                     history_hidden_entry_view(group.group_id),
-                    suc_groups,
+                    suc_states,
                   ),
                 )
               ),
@@ -302,15 +302,15 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
     Vdom.(Node.div([], [group_view(~is_cur_group=true, history)]));
   };
   let history_view = (model: Model.t) => {
-    let (prev_groups, cur_group, suc_groups) = model.undo_history;
+    let (suc_groups, cur_group, prev_groups) = model.undo_history;
     let display_content =
       Vdom.(
         Node.div(
           [Attr.classes(["the-history"])],
           [
-            prev_history_view(prev_groups),
-            cur_history_view(cur_group),
             suc_history_view(suc_groups),
+            cur_history_view(cur_group),
+            prev_history_view(prev_groups),
           ],
         )
       );
