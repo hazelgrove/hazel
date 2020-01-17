@@ -1029,6 +1029,7 @@ module Exp = {
       |> List.map(((skel, ty)) => ana_skel(ctx, skel, seq, ty))
       |> List.fold_left(OptUtil.map2((_, _) => ()), Some())
     | None =>
+      // TODO rewrite match to use HTyp.matched_tuple
       switch (skels, tys) {
       | ([Placeholder(n)], _) =>
         let operand = seq |> Seq.nth_operand(n);
