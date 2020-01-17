@@ -123,31 +123,27 @@ let push_edit_state =
   let cur_group = ZList.prj_z(undo_history);
   let cur_state = ZList.prj_z(cur_group.state_list);
   if (Action.in_same_history_group(action, cur_state.previous_action)) {
-    /* first add new edit state to the end, then shift_next */
-    let after_push = (
-      ZList.prj_prefix(cur_group.state_list),
-      ZList.prj_z(cur_group.state_list),
+    let new_state = {
+      cardstacks_state,
+      previous_action: action,
+      elt_id: cur_state.elt_id + 1,
+    };
+    let state_list_after_push = (
+      [],
+      new_state,
       [
-        {
-          cardstacks_state,
-          previous_action: action,
-          elt_id: cur_state.elt_id + 1,
-        },
+        ZList.prj_z(cur_group.state_list),
+        ...ZList.prj_suffix(cur_group.state_list),
       ],
     );
-    let state_list_after_push =
-      switch (ZList.shift_next(after_push)) {
-      | None => failwith("Impossible because suffix is non-empty")
-      | Some(new_state_list) => new_state_list
-      };
     (
-      ZList.prj_prefix(undo_history),
+      [],
       {
         state_list: state_list_after_push,
         group_id: cur_group.group_id,
         is_expanded: false,
       }, /* initial state of group should be folded*/
-      [],
+      ZList.prj_suffix(undo_history),
     );
   } else {
     let new_group = {
@@ -159,15 +155,11 @@ let push_edit_state =
       group_id: cur_group.group_id + 1,
       is_expanded: false,
     };
-    let after_push = (
-      ZList.prj_prefix(undo_history),
-      ZList.prj_z(undo_history),
-      [new_group],
+    (
+      [],
+      new_group,
+      [ZList.prj_z(undo_history), ...ZList.prj_suffix(undo_history)],
     );
-    switch (ZList.shift_next(after_push)) {
-    | None => failwith("Impossible because suffix is non-empty")
-    | Some(new_history) => new_history
-    };
   };
 };
 
@@ -568,19 +560,19 @@ let undo = (model: t): t => {
   let new_history = {
     let cur_group = ZList.prj_z(model.undo_history);
     /* shift to previous state in the same group */
-    switch (ZList.shift_prev(cur_group.state_list)) {
+    switch (ZList.shift_next(cur_group.state_list)) {
     | None =>
       /*if current group doesn't have previous state, shfit to previous group*/
-      switch (ZList.shift_prev(model.undo_history)) {
+      switch (ZList.shift_next(model.undo_history)) {
       | None => model.undo_history
       | Some(new_history) =>
-        let cur_group = ZList.prj_z(new_history);
-        let new_group = {
-          state_list: ZList.shift_end(cur_group.state_list),
-          group_id: cur_group.group_id,
+        let new_group = ZList.prj_z(new_history);
+        let new_group' = {
+          ...new_group,
+          state_list: ZList.shift_begin(new_group.state_list), /*pointer may be in the wrong position after clicking history panel*/
           is_expanded: true,
         }; /* is_expanded=true because this group should be expanded*/
-        ZList.replace_z(new_history, new_group);
+        ZList.replace_z(new_history, new_group');
       }
     | Some(new_state_list) =>
       ZList.replace_z(
@@ -604,15 +596,15 @@ let redo = (model: t): t => {
   let new_history = {
     let cur_group = ZList.prj_z(model.undo_history);
     /* shift to previous state in the same group */
-    switch (ZList.shift_next(cur_group.state_list)) {
+    switch (ZList.shift_prev(cur_group.state_list)) {
     | None =>
       /*if current group doesn't have previous state, shfit to previous group*/
-      switch (ZList.shift_next(model.undo_history)) {
+      switch (ZList.shift_prev(model.undo_history)) {
       | None => model.undo_history
       | Some(new_history) =>
         let cur_group = ZList.prj_z(new_history);
         let new_group = {
-          state_list: ZList.shift_begin(cur_group.state_list),
+          state_list: ZList.shift_end(cur_group.state_list), /*pointer may be in the wrong position after clicking history panel*/
           group_id: cur_group.group_id,
           is_expanded: true,
         }; /* is_expanded=true because this group should be expanded when redo*/
