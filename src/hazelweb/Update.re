@@ -310,33 +310,43 @@ let apply_action =
     switch (ZList.split_at(gp_id, his_lst)) {
     | None => failwith("Impossible because undo_history is non-empty")
     | Some(new_history) =>
-      let (new_group, _, isexpanded) = ZList.prj_z(new_history);
-      let entry_lst = ZList.erase(new_group, erase_func);
-      switch (ZList.split_at(ent_id, entry_lst)) {
+      let cur_group = ZList.prj_z(new_history);
+      let cur_states_list = ZList.erase(cur_group.state_list, erase_func);
+      switch (ZList.split_at(ent_id, cur_states_list)) {
       | None => failwith("Impossible because undo_history is non-empty")
-      | Some(group) =>
-        let (new_cardstacks_state, _, _) = ZList.prj_z(group);
+      | Some(new_state_list) =>
+        let new_cardstacks_state =
+          ZList.prj_z(new_state_list).cardstacks_state;
         let new_model =
           Model.update_cardstacks_state(model, new_cardstacks_state);
         {
           ...new_model,
           undo_history:
-            ZList.replace_z(new_history, (group, gp_id, isexpanded)),
+            ZList.replace_z(
+              new_history,
+              {...cur_group, state_list: new_state_list},
+            ),
         };
       };
     };
   | ToggleHistoryGroup(gp_id) =>
-    let (_, cur_gp_id, _) = ZList.prj_z(model.undo_history);
+    let cur_group = ZList.prj_z(model.undo_history);
     let erase_func = his => his;
     let his_lst = ZList.erase(model.undo_history, erase_func);
     switch (ZList.split_at(gp_id, his_lst)) {
     | None => failwith("Impossible because undo_history is non-empty")
     | Some(history) =>
-      let (gp_lst, _, isexpanded) = ZList.prj_z(history);
+      let toggle_target_group = ZList.prj_z(history);
       let after_toggle =
-        ZList.replace_z(history, (gp_lst, gp_id, !isexpanded));
+        ZList.replace_z(
+          history,
+          {
+            ...toggle_target_group,
+            is_expanded: !toggle_target_group.is_expanded,
+          },
+        );
       let new_his_lst = ZList.erase(after_toggle, erase_func);
-      switch (ZList.split_at(cur_gp_id, new_his_lst)) {
+      switch (ZList.split_at(cur_group.group_id, new_his_lst)) {
       | None => failwith("Impossible because undo_history is non-empty")
       | Some(new_history) => {...model, undo_history: new_history}
       };
