@@ -159,40 +159,38 @@ type result('success) =
   | CursorEscaped(Side.t)
   | CantShift
   | Failed;
-
-let shape_to_string = (shape: shape): string => {
+let shape_to_display_string = (shape: shape): string => {
   switch (shape) {
-  | SParenthesized => "SParenthesized"
-  /* type shapes */
-  | SNum => "SNum"
-  | SBool => "SBool"
-  | SList => "SList"
-  /* expression shapes */
-  | SAsc => "SAsc"
-  | SVar(_, _) => "SVar"
-  | SLam => "SLam"
-  | SNumLit(_, _) => "SNumLit"
-  | SListNil => "SListNil"
+  | SParenthesized => "parentheize"
+  | SNum => "type Num"
+  | SBool => "type Bool"
+  | SList => "type List"
+  | SAsc => "type inference"
+  | SVar(varstr, _) => "edit var: " ++ varstr
+  | SLam => "add lambada"
+  | SNumLit(value, _) => "edit number: " ++ string_of_int(value)
+  | SListNil => "add []"
   | SInj(direction) =>
     switch (direction) {
-    | L => "SInjL"
-    | R => "SInjR"
+    | L => "inject left"
+    | R => "inject right"
     }
-  | SLet => "SLet"
-  | SLine => "SLine"
-  | SCase => "SCase"
-  | SOp(op) => "SOp" ++ op_shape_to_string(op)
-  | SApPalette(_) => "SApPalette"
+  | SLet => "bulid 'let'"
+  | SLine => "add new line[s]"
+  | SCase => "add case"
+  | SOp(op) => "add operator " ++ op_shape_to_string(op)
+  | SApPalette(_) => "appalette?"
   /* pattern-only shapes */
-  | SWild => "SWild"
+  | SWild => "wild?"
   };
 };
-let action_to_comp_string = (action: t): string => {
+
+let action_to_display_string = (action: t) => {
   switch (action) {
-  | UpdateApPalette(_) => "UpdateApPalette"
-  | Delete => "Delete"
-  | Backspace => "Backspace"
-  | Construct(shape) => shape_to_string(shape)
+  | UpdateApPalette(_) => "updatePlate?"
+  | Delete => "delete"
+  | Backspace => "backspace"
+  | Construct(shape) => shape_to_display_string(shape)
   | MoveTo(_)
   | MoveToBefore(_)
   | MoveLeft
@@ -202,22 +200,59 @@ let action_to_comp_string = (action: t): string => {
   | ShiftLeft
   | ShiftRight
   | ShiftUp
-  | ShiftDown => "Not Show In undo_history"
+  | ShiftDown => "will not show in undo_history"
   };
 };
-
+let is_same_shape = (shape_1: shape, shape_2: shape): bool => {
+  switch (shape_1, shape_2) {
+  | (SVar(_, _), SVar(_, _))
+  | (SNumLit(_, _), SNumLit(_, _))
+  | (SLine, SLine) => true
+  | (SParenthesized, _)
+  | (SNum, _)
+  | (SBool, _)
+  | (SList, _)
+  | (SAsc, _)
+  | (SVar(_, _), _)
+  | (SLam, _)
+  | (SNumLit(_, _), _)
+  | (SListNil, _)
+  | (SInj(_), _)
+  | (SLet, _)
+  | (SLine, _)
+  | (SCase, _)
+  | (SOp(_), _)
+  | (SApPalette(_), _)
+  | (SWild, _) => false
+  };
+};
 let in_same_history_group = (action_1: option(t), action_2: option(t)): bool => {
-  let action_1_string =
-    switch (action_1) {
-    | None => "None"
-    | Some(action) => action_to_comp_string(action)
-    };
-  let action_2_string =
-    switch (action_2) {
-    | None => "None"
-    | Some(action) => action_to_comp_string(action)
-    };
-  action_1_string == action_2_string;
+  switch (action_1, action_2) {
+  | (None, _)
+  | (_, None) => false
+  | (Some(detail_action_1), Some(detail_action_2)) =>
+    switch (detail_action_1, detail_action_2) {
+    | (UpdateApPalette(_), UpdateApPalette(_))
+    | (Delete, Delete)
+    | (Backspace, Backspace) => true
+    | (Construct(shape_1), Construct(shape_2)) =>
+      is_same_shape(shape_1, shape_2)
+    | (UpdateApPalette(_), _)
+    | (Delete, _)
+    | (Backspace, _)
+    | (Construct(_), _) => false
+    | (MoveTo(_), _)
+    | (MoveToBefore(_), _)
+    | (MoveLeft, _)
+    | (MoveRight, _)
+    | (MoveToNextHole, _)
+    | (MoveToPrevHole, _)
+    | (ShiftLeft, _)
+    | (ShiftRight, _)
+    | (ShiftUp, _)
+    | (ShiftDown, _) => failwith("not undoable actions, will not be matched")
+    }
+  };
 };
 
 let make_ty_OpSeqZ = (zty0: ZTyp.t, surround: ZTyp.opseq_surround): ZTyp.t => {

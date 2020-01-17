@@ -612,7 +612,7 @@ let redo = (model: t): t => {
       | Some(new_history) =>
         let cur_group = ZList.prj_z(new_history);
         let new_group = {
-          state_list: ZList.shift_front(cur_group.state_list),
+          state_list: ZList.shift_begin(cur_group.state_list),
           group_id: cur_group.group_id,
           is_expanded: true,
         }; /* is_expanded=true because this group should be expanded when redo*/

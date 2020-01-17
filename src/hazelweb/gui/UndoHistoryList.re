@@ -1,55 +1,9 @@
 module Vdom = Virtual_dom.Vdom;
-module KeyCombo = JSUtil.KeyCombo;
 module ZList = GeneralUtil.ZList;
-exception InvalidInstance;
 type undo_history_group = Model.undo_history_group;
 type undo_history_entry = Model.undo_history_entry;
+
 let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
-  let shape_to_display_string = (shape: Action.shape): string => {
-    switch (shape) {
-    | SParenthesized => "parentheize"
-    | SNum => "type Num"
-    | SBool => "type Bool"
-    | SList => "type List"
-    | SAsc => "add ':'"
-    | SVar(varstr, _) => "edit var: " ++ varstr
-    | SLam => "add lambada"
-    | SNumLit(value, _) => "edit number: " ++ string_of_int(value)
-    | SListNil => "add list"
-    | SInj(direction) =>
-      switch (direction) {
-      | L => "inject left"
-      | R => "inject right"
-      }
-    | SLet => "bulid 'let'"
-    | SLine => "add new line[s]"
-    | SCase => "add case"
-    | SOp(op) => "add operator " ++ Action.op_shape_to_string(op)
-    | SApPalette(_) => "appalette?"
-    /* pattern-only shapes */
-    | SWild => "wild?"
-    };
-  };
-
-  let action_to_display_string = (action: Action.t) => {
-    switch (action) {
-    | UpdateApPalette(_) => "updatePlate?"
-    | Delete => "delete"
-    | Backspace => "backspace"
-    | Construct(shape) => shape_to_display_string(shape)
-    | MoveTo(_)
-    | MoveToBefore(_)
-    | MoveLeft
-    | MoveRight
-    | MoveToNextHole
-    | MoveToPrevHole
-    | ShiftLeft
-    | ShiftRight
-    | ShiftUp
-    | ShiftDown => "will not show in undo_history"
-    };
-  };
-
   let history_hidden_entry_view =
       (group_id: int, undo_history_entry: undo_history_entry) => {
     switch (undo_history_entry.previous_action) {
@@ -68,7 +22,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
               )
             ),
           ],
-          [Node.text(action_to_display_string(detail_ac))],
+          [Node.text(Action.action_to_display_string(detail_ac))],
         )
       )
     };
@@ -126,7 +80,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
                       )
                     ),
                   ],
-                  [Node.text(action_to_display_string(detail_ac))],
+                  [Node.text(Action.action_to_display_string(detail_ac))],
                 ),
                 history_tab_icon(group_id),
               ],
