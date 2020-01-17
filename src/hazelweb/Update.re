@@ -308,7 +308,7 @@ let apply_action =
     /*shift to the group with group_id = gp_id*/
     switch (
       ZList.shift_to(
-        ZList.length(model.undo_history) - gp_id,
+        ZList.length(model.undo_history) - gp_id - 1,
         model.undo_history,
       )
     ) {
@@ -318,7 +318,7 @@ let apply_action =
       /*shift to the element with elt_id*/
       switch (
         ZList.shift_to(
-          ZList.length(cur_group.state_list) - elt_id,
+          ZList.length(cur_group.state_list) - elt_id - 1,
           cur_group.state_list,
         )
       ) {
@@ -343,7 +343,7 @@ let apply_action =
     /*shift to toggle group and change expanded state*/
     switch (
       ZList.shift_to(
-        ZList.length(model.undo_history) - gp_id,
+        ZList.length(model.undo_history) - gp_id - 1,
         model.undo_history,
       )
     ) {
@@ -361,7 +361,7 @@ let apply_action =
       /*shift back to the current group*/
       switch (
         ZList.shift_to(
-          ZList.length(model.undo_history) - cur_group.group_id,
+          ZList.length(model.undo_history) - cur_group.group_id - 1,
           after_toggle,
         )
       ) {
