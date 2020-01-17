@@ -92,12 +92,6 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
   };
 
   let group_view = (~is_cur_group: bool, group: undo_history_group) => {
-    /* reverse the undo_history, so the first entry shown in panel is the latest history entry */
-    /*     let rev_state_list = (
-             List.rev(ZList.prj_suffix(group.state_list)),
-             ZList.prj_z(group.state_list),
-             List.rev(ZList.prj_prefix(group.state_list)),
-           ); */
     /* if the group containning selected history entry, it should be splited to different css styles */
     let suc_his_classes =
       if (is_cur_group) {
@@ -117,7 +111,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
       } else {
         [];
       };
-    switch (group.state_list) {
+    switch (group.group_entries) {
     | ([], cur_state, prev_states) =>
       switch (cur_state.previous_action) {
       | None => Vdom.(Node.div([], [])) /* init edit-state should not be displayed */
@@ -314,7 +308,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
           ],
         )
       );
-    let action = ZList.prj_z(cur_group.state_list).previous_action;
+    let action = ZList.prj_z(cur_group.group_entries).previous_action;
     switch (action) {
     | None =>
       /*if init state is only history entry */

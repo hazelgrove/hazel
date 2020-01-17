@@ -86,18 +86,18 @@ type result_state =
   | ResultsDisabled
   | Result(has_result_state);
 
-/*new edit state, the previous action, id*/
 type undo_history_entry = {
   cardstacks_state,
   previous_action: option(Action.t),
   elt_id: int,
 };
-/* group edit action, group id */
+
 type undo_history_group = {
-  state_list: ZList.t(undo_history_entry, undo_history_entry),
+  group_entries: ZList.t(undo_history_entry, undo_history_entry),
   group_id: int,
   is_expanded: bool,
 };
+
 type undo_history = ZList.t(undo_history_group, undo_history_group);
 
 type t = {
@@ -121,25 +121,25 @@ type t = {
 let push_edit_state =
     (undo_history, cardstacks_state, action: option(Action.t)): undo_history => {
   let cur_group = ZList.prj_z(undo_history);
-  let cur_state = ZList.prj_z(cur_group.state_list);
+  let cur_state = ZList.prj_z(cur_group.group_entries);
   if (Action.in_same_history_group(action, cur_state.previous_action)) {
     let new_state = {
       cardstacks_state,
       previous_action: action,
       elt_id: cur_state.elt_id + 1,
     };
-    let state_list_after_push = (
+    let group_entries_after_push = (
       [],
       new_state,
       [
-        ZList.prj_z(cur_group.state_list),
-        ...ZList.prj_suffix(cur_group.state_list),
+        ZList.prj_z(cur_group.group_entries),
+        ...ZList.prj_suffix(cur_group.group_entries),
       ],
     );
     (
       [],
       {
-        state_list: state_list_after_push,
+        group_entries: group_entries_after_push,
         group_id: cur_group.group_id,
         is_expanded: false,
       }, /* initial state of group should be folded*/
@@ -147,7 +147,7 @@ let push_edit_state =
     );
   } else {
     let new_group = {
-      state_list: (
+      group_entries: (
         [],
         {cardstacks_state, previous_action: action, elt_id: 0},
         [],
@@ -448,7 +448,7 @@ let init = (): t => {
     undo_history: (
       [],
       {
-        state_list: ([], undo_history_state, []),
+        group_entries: ([], undo_history_state, []),
         group_id: 0,
         is_expanded: false,
       },
@@ -560,7 +560,7 @@ let undo = (model: t): t => {
   let new_history = {
     let cur_group = ZList.prj_z(model.undo_history);
     /* shift to previous state in the same group */
-    switch (ZList.shift_next(cur_group.state_list)) {
+    switch (ZList.shift_next(cur_group.group_entries)) {
     | None =>
       /*if current group doesn't have previous state, shfit to previous group*/
       switch (ZList.shift_next(model.undo_history)) {
@@ -569,16 +569,16 @@ let undo = (model: t): t => {
         let new_group = ZList.prj_z(new_history);
         let new_group' = {
           ...new_group,
-          state_list: ZList.shift_begin(new_group.state_list), /*pointer may be in the wrong position after clicking history panel*/
+          group_entries: ZList.shift_begin(new_group.group_entries), /*pointer may be in the wrong position after clicking history panel*/
           is_expanded: true,
         }; /* is_expanded=true because this group should be expanded*/
         ZList.replace_z(new_history, new_group');
       }
-    | Some(new_state_list) =>
+    | Some(new_group_entries) =>
       ZList.replace_z(
         model.undo_history,
         {
-          state_list: new_state_list,
+          group_entries: new_group_entries,
           group_id: cur_group.group_id,
           is_expanded: true,
         },
@@ -587,7 +587,7 @@ let undo = (model: t): t => {
   };
   let cur_group' = ZList.prj_z(new_history);
   let new_cardstacks_state =
-    ZList.prj_z(cur_group'.state_list).cardstacks_state;
+    ZList.prj_z(cur_group'.group_entries).cardstacks_state;
   let model' = update_cardstacks_state(model, new_cardstacks_state);
   {...model', undo_history: new_history};
 };
@@ -596,7 +596,7 @@ let redo = (model: t): t => {
   let new_history = {
     let cur_group = ZList.prj_z(model.undo_history);
     /* shift to previous state in the same group */
-    switch (ZList.shift_prev(cur_group.state_list)) {
+    switch (ZList.shift_prev(cur_group.group_entries)) {
     | None =>
       /*if current group doesn't have previous state, shfit to previous group*/
       switch (ZList.shift_prev(model.undo_history)) {
@@ -604,17 +604,17 @@ let redo = (model: t): t => {
       | Some(new_history) =>
         let cur_group = ZList.prj_z(new_history);
         let new_group = {
-          state_list: ZList.shift_end(cur_group.state_list), /*pointer may be in the wrong position after clicking history panel*/
+          group_entries: ZList.shift_end(cur_group.group_entries), /*pointer may be in the wrong position after clicking history panel*/
           group_id: cur_group.group_id,
           is_expanded: true,
         }; /* is_expanded=true because this group should be expanded when redo*/
         ZList.replace_z(new_history, new_group);
       }
-    | Some(new_state_list) =>
+    | Some(new_group_entries) =>
       ZList.replace_z(
         model.undo_history,
         {
-          state_list: new_state_list,
+          group_entries: new_group_entries,
           group_id: cur_group.group_id,
           is_expanded: true,
         },
@@ -623,7 +623,7 @@ let redo = (model: t): t => {
   };
   let cur_group' = ZList.prj_z(new_history);
   let new_cardstacks_state =
-    ZList.prj_z(cur_group'.state_list).cardstacks_state;
+    ZList.prj_z(cur_group'.group_entries).cardstacks_state;
   let model' = update_cardstacks_state(model, new_cardstacks_state);
   {...model', undo_history: new_history};
 };
