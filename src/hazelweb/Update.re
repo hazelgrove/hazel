@@ -304,15 +304,14 @@ let apply_action =
     model;
   | Undo => Model.undo(model)
   | Redo => Model.redo(model)
-  | ShiftHistory(gp_id, ent_id) =>
-    let erase_func = his => his;
-    let his_lst = ZList.erase(model.undo_history, erase_func);
-    switch (ZList.split_at(gp_id, his_lst)) {
+  | ShiftHistory(gp_id, elt_id) =>
+    /*shift to the group with group_id = gp_id*/
+    switch (ZList.shift_to(gp_id: int, model.undo_history)) {
     | None => failwith("Impossible because undo_history is non-empty")
     | Some(new_history) =>
       let cur_group = ZList.prj_z(new_history);
-      let cur_states_list = ZList.erase(cur_group.state_list, erase_func);
-      switch (ZList.split_at(ent_id, cur_states_list)) {
+      /*shift to the element with elt_id*/
+      switch (ZList.shift_to(elt_id, cur_group.state_list)) {
       | None => failwith("Impossible because undo_history is non-empty")
       | Some(new_state_list) =>
         let new_cardstacks_state =
@@ -328,12 +327,11 @@ let apply_action =
             ),
         };
       };
-    };
+    }
   | ToggleHistoryGroup(gp_id) =>
     let cur_group = ZList.prj_z(model.undo_history);
-    let erase_func = his => his;
-    let his_lst = ZList.erase(model.undo_history, erase_func);
-    switch (ZList.split_at(gp_id, his_lst)) {
+    /*shift to toggle group and change expanded state*/
+    switch (ZList.shift_to(gp_id, model.undo_history)) {
     | None => failwith("Impossible because undo_history is non-empty")
     | Some(history) =>
       let toggle_target_group = ZList.prj_z(history);
@@ -345,8 +343,8 @@ let apply_action =
             is_expanded: !toggle_target_group.is_expanded,
           },
         );
-      let new_his_lst = ZList.erase(after_toggle, erase_func);
-      switch (ZList.split_at(cur_group.group_id, new_his_lst)) {
+      /*shift back to the current group*/
+      switch (ZList.shift_to(cur_group.group_id, after_toggle)) {
       | None => failwith("Impossible because undo_history is non-empty")
       | Some(new_history) => {...model, undo_history: new_history}
       };

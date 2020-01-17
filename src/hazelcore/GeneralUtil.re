@@ -316,7 +316,7 @@ module ZList = {
     };
   };
 
-  let shift_front = (zxs: t('a, 'a)): t('a, 'a) => {
+  let shift_begin = (zxs: t('a, 'a)): t('a, 'a) => {
     let (prefix, z, suffix) = zxs;
     switch (prefix) {
     | [] => zxs
@@ -324,6 +324,12 @@ module ZList = {
       let suffix = tail @ [z] @ suffix;
       ([], head, suffix);
     };
+  };
+
+  let shift_to = (n: int, xs: t('a, 'a)): option(t('a, 'a)) => {
+    let (prefix, z, suffix) = xs;
+    let lst = prefix @ [z, ...suffix];
+    split_at(n, lst);
   };
 };
 
