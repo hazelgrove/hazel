@@ -306,12 +306,22 @@ let apply_action =
   | Redo => Model.redo(model)
   | ShiftHistory(gp_id, elt_id) =>
     /*shift to the group with group_id = gp_id*/
-    switch (ZList.shift_to(gp_id: int, model.undo_history)) {
+    switch (
+      ZList.shift_to(
+        ZList.length(model.undo_history) - gp_id,
+        model.undo_history,
+      )
+    ) {
     | None => failwith("Impossible because undo_history is non-empty")
     | Some(new_history) =>
       let cur_group = ZList.prj_z(new_history);
       /*shift to the element with elt_id*/
-      switch (ZList.shift_to(elt_id, cur_group.state_list)) {
+      switch (
+        ZList.shift_to(
+          ZList.length(cur_group.state_list) - elt_id,
+          cur_group.state_list,
+        )
+      ) {
       | None => failwith("Impossible because undo_history is non-empty")
       | Some(new_state_list) =>
         let new_cardstacks_state =
@@ -331,7 +341,12 @@ let apply_action =
   | ToggleHistoryGroup(gp_id) =>
     let cur_group = ZList.prj_z(model.undo_history);
     /*shift to toggle group and change expanded state*/
-    switch (ZList.shift_to(gp_id, model.undo_history)) {
+    switch (
+      ZList.shift_to(
+        ZList.length(model.undo_history) - gp_id,
+        model.undo_history,
+      )
+    ) {
     | None => failwith("Impossible because undo_history is non-empty")
     | Some(history) =>
       let toggle_target_group = ZList.prj_z(history);
@@ -344,7 +359,12 @@ let apply_action =
           },
         );
       /*shift back to the current group*/
-      switch (ZList.shift_to(cur_group.group_id, after_toggle)) {
+      switch (
+        ZList.shift_to(
+          ZList.length(model.undo_history) - cur_group.group_id,
+          after_toggle,
+        )
+      ) {
       | None => failwith("Impossible because undo_history is non-empty")
       | Some(new_history) => {...model, undo_history: new_history}
       };
