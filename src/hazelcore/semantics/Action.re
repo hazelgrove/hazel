@@ -2771,76 +2771,30 @@ let handle_variable_split_space_case = (zexp: ZExp.t) => {
   };
 };
 
-let handle_variable_split =
-    (a: t, zblock: ZExp.zblock, fixup_zblock: ZExp.zblock => 'result) => {
-  let handle_general_op_case = (op, zexp) => {
-    switch (exp_op_of(op), ZExp.cursor_on_var(zexp)) {
-    | (Some(op), Some((pos, _, _, name))) =>
-      let (left_var, right_var) = split_variable_name(pos, name);
-      switch (zexp) {
-      | ZExp.OpSeqZ(_, _, surround) =>
-        let surround =
-          OperatorSeq.surround_suffix_prepend_exp(surround, op, right_var);
-        let delim_pos = OperatorSeq.surround_prefix_length(surround) + 1;
-        let zexp =
-          OpSeqUtil.Exp.mk_OpSeqZ(CursorE(OnText(0), left_var), surround);
-        let uhexp = ZExp.erase(zexp);
-        Some(ZExp.CursorE(OnDelim(delim_pos, After), uhexp));
+let handle_general_op_case = (op, zexp) => {
+  switch (exp_op_of(op), ZExp.cursor_on_var(zexp)) {
+  | (Some(op), Some((pos, name))) =>
+    let (left_var, right_var) = split_variable_name(pos, name);
+    switch (zexp) {
+    | ZExp.OpSeqZ(_, _, surround) =>
+      let surround =
+        OperatorSeq.surround_suffix_prepend_exp(surround, op, right_var);
+      let delim_pos = OperatorSeq.surround_prefix_length(surround) + 1;
+      let zexp =
+        OpSeqUtil.Exp.mk_OpSeqZ(CursorE(OnText(0), left_var), surround);
+      let uhexp = ZExp.erase(zexp);
+      Some(ZExp.CursorE(OnDelim(delim_pos, After), uhexp));
 
-      | CursorE(_, _) =>
-        let cursor =
-          ZExp.CursorE(
-            OnDelim(1, After),
-            OpSeqUtil.Exp.mk_OpSeq(ExpOpExp(left_var, op, right_var)),
-          );
-        Some(cursor);
-      | _ => None
-      };
+    | CursorE(_, _) =>
+      let cursor =
+        ZExp.CursorE(
+          OnDelim(1, After),
+          OpSeqUtil.Exp.mk_OpSeq(ExpOpExp(left_var, op, right_var)),
+        );
+      Some(cursor);
     | _ => None
     };
-  };
-
-  switch (a, zblock) {
-  | (
-      Construct(SOp(SSpace)),
-      BlockZL((prefix, ExpLineZ(zexp), suffix), lines),
-    )
-      when zexp_is_suitable_for_var_split(zexp) =>
-    switch (handle_variable_split_space_case(zexp)) {
-    | Some(zexp) =>
-      let zblock = ZExp.BlockZL((prefix, ExpLineZ(zexp), suffix), lines);
-      Succeeded(fixup_zblock(zblock));
-    | None => Failed
-    }
-
-  | (Construct(SOp(SSpace)), BlockZE(lines, zexp))
-      when zexp_is_suitable_for_var_split(zexp) =>
-    /* Space case should go to the left of the right variable */
-    switch (handle_variable_split_space_case(zexp)) {
-    | Some(zexp) =>
-      let zblock = ZExp.BlockZE(lines, zexp);
-      Succeeded(fixup_zblock(zblock));
-    | None => Failed
-    }
-
-  | (Construct(SOp(op)), BlockZL((prefix, ExpLineZ(zexp), suffix), lines))
-      when zexp_is_suitable_for_var_split(zexp) =>
-    switch (handle_general_op_case(op, zexp)) {
-    | Some(zexp) =>
-      let zblock = ZExp.BlockZL((prefix, ExpLineZ(zexp), suffix), lines);
-      Succeeded(fixup_zblock(zblock));
-    | None => Failed
-    }
-
-  | (Construct(SOp(op)), BlockZE(lines, zexp))
-      when zexp_is_suitable_for_var_split(zexp) =>
-    switch (handle_general_op_case(op, zexp)) {
-    | Some(zexp) =>
-      let zblock = ZExp.BlockZE(lines, zexp);
-      Succeeded(fixup_zblock(zblock));
-    | None => Failed
-    }
-  | _ => Failed
+  | _ => None
   };
 };
 
@@ -3552,20 +3506,22 @@ let rec syn_perform_block =
   | (Construct(SOp(SSpace)), BlockZE(lines, zexp))
       when is_zexp_split_on_keyword(zexp) =>
     switch (ZExp.cursor_on_var(zexp)) {
-    | Some((pos, _, _, name)) =>
+    | Some((pos, name)) =>
       let keyword =
         String.sub(name, 0, pos)
         |> Keyword.transform_to_kw
         |> Keyword.get_intermediate_kw
         |> Option.get;
       let var = String.sub(name, pos, String.length(name) - pos);
-      let (ze, u_gen) = ZExp.new_EmptyHole(u_gen);
-      let action = Construct(SVar(var, OnText(String.length(name) - pos)));
+      let action = Construct(SVar(var, OnText(0)));
       switch (zexp) {
       | CursorE(_) =>
+        let (ze, u_gen) = ZExp.new_EmptyHole(u_gen);
         let zblock = ZExp.BlockZE(lines, ze);
-        let tuple = Statics.syn_fix_holes_zblock(ctx, u_gen, zblock);
-        switch (syn_perform_block(~ci, ctx, keyword_action(keyword), tuple)) {
+        let edit_state = Statics.syn_fix_holes_zblock(ctx, u_gen, zblock);
+        switch (
+          syn_perform_block(~ci, ctx, keyword_action(keyword), edit_state)
+        ) {
         | Succeeded(result) => syn_perform_block(~ci, ctx, action, result)
         | res => res
         };
@@ -3578,9 +3534,9 @@ let rec syn_perform_block =
         switch (handle_variable_split_space_case(zexp)) {
         | Some(zexp) =>
           let zblock = ZExp.BlockZE(lines, zexp);
-          let tuple = Statics.syn_fix_holes_zblock(ctx, u_gen, zblock);
+          let edit_state = Statics.syn_fix_holes_zblock(ctx, u_gen, zblock);
           switch (
-            syn_perform_block(~ci, ctx, keyword_action(keyword), tuple)
+            syn_perform_block(~ci, ctx, keyword_action(keyword), edit_state)
           ) {
           | Succeeded(result) => syn_perform_block(~ci, ctx, action, result)
           | res => res
@@ -3592,19 +3548,49 @@ let rec syn_perform_block =
     | None => Failed
     }
 
-  | (Construct(SOp(_)), BlockZL((_, ExpLineZ(zexp), _), _))
+  | (
+      Construct(SOp(SSpace)),
+      BlockZL((prefix, ExpLineZ(zexp), suffix), lines),
+    )
       when zexp_is_suitable_for_var_split(zexp) =>
-    let fixup_zexp = (zblock: ZExp.zblock) => {
-      Statics.syn_fix_holes_zblock(ctx, u_gen, zblock);
-    };
-    handle_variable_split(a, zblock, fixup_zexp);
+    switch (handle_variable_split_space_case(zexp)) {
+    | Some(zexp) =>
+      let zblock = ZExp.BlockZL((prefix, ExpLineZ(zexp), suffix), lines);
+      let zblock = Statics.syn_fix_holes_zblock(ctx, u_gen, zblock);
+      Succeeded(zblock);
+    | None => Failed
+    }
 
-  | (Construct(SOp(_)) as a, BlockZE(_, zexp) as zblock)
+  | (Construct(SOp(SSpace)), BlockZE(lines, zexp))
       when zexp_is_suitable_for_var_split(zexp) =>
-    let fixup_zexp = (zblock: ZExp.zblock) => {
-      Statics.syn_fix_holes_zblock(ctx, u_gen, zblock);
-    };
-    handle_variable_split(a, zblock, fixup_zexp);
+    /* Space case should go to the left of the right variable */
+    switch (handle_variable_split_space_case(zexp)) {
+    | Some(zexp) =>
+      let zblock = ZExp.BlockZE(lines, zexp);
+      let zblock = Statics.syn_fix_holes_zblock(ctx, u_gen, zblock);
+      Succeeded(zblock);
+    | None => Failed
+    }
+
+  | (Construct(SOp(op)), BlockZL((prefix, ExpLineZ(zexp), suffix), lines))
+      when zexp_is_suitable_for_var_split(zexp) =>
+    switch (handle_general_op_case(op, zexp)) {
+    | Some(zexp) =>
+      let zblock = ZExp.BlockZL((prefix, ExpLineZ(zexp), suffix), lines);
+      let zblock = Statics.syn_fix_holes_zblock(ctx, u_gen, zblock);
+      Succeeded(zblock);
+    | None => Failed
+    }
+
+  | (Construct(SOp(op)), BlockZE(lines, zexp))
+      when zexp_is_suitable_for_var_split(zexp) =>
+    switch (handle_general_op_case(op, zexp)) {
+    | Some(zexp) =>
+      let zblock = ZExp.BlockZE(lines, zexp);
+      let zblock = Statics.syn_fix_holes_zblock(ctx, u_gen, zblock);
+      Succeeded(zblock);
+    | None => Failed
+    }
 
   /* Zipper Cases */
   | (
@@ -5993,13 +5979,19 @@ and ana_perform_block =
         |> Option.get;
       let var = String.sub(name, pos, String.length(name) - pos);
       let (ze, u_gen) = ZExp.new_EmptyHole(u_gen);
-      let action = Construct(SVar(var, OnText(String.length(name) - pos)));
+      let action = Construct(SVar(var, OnText(0)));
       switch (zexp) {
       | CursorE(_) =>
         let zblock = ZExp.BlockZE(lines, ze);
-        let tuple = Statics.ana_fix_holes_zblock(ctx, u_gen, zblock, ty);
+        let edit_state = Statics.ana_fix_holes_zblock(ctx, u_gen, zblock, ty);
         switch (
-          ana_perform_block(~ci, ctx, keyword_action(keyword), tuple, ty)
+          ana_perform_block(
+            ~ci,
+            ctx,
+            keyword_action(keyword),
+            edit_state,
+            ty,
+          )
         ) {
         | Succeeded(result) =>
           ana_perform_block(~ci, ctx, action, result, ty)
@@ -6014,8 +6006,9 @@ and ana_perform_block =
         switch (handle_variable_split_space_case(zexp)) {
         | Some(zexp) =>
           let zblock = ZExp.BlockZE(lines, zexp);
-          let tuple = Statics.ana_fix_holes_zblock(ctx, u_gen, zblock, ty);
-          Succeeded(tuple);
+          let edit_state =
+            Statics.ana_fix_holes_zblock(ctx, u_gen, zblock, ty);
+          Succeeded(edit_state);
         | None => Failed
         }
       | _ => Failed
@@ -6023,19 +6016,49 @@ and ana_perform_block =
     | None => Failed
     }
 
-  | (Construct(SOp(_)), BlockZL((_, ExpLineZ(zexp), _), _))
+  | (
+      Construct(SOp(SSpace)),
+      BlockZL((prefix, ExpLineZ(zexp), suffix), lines),
+    )
       when zexp_is_suitable_for_var_split(zexp) =>
-    let fixup_zexp = (zblock: ZExp.zblock) => {
-      Statics.ana_fix_holes_zblock(ctx, u_gen, zblock, ty);
-    };
-    handle_variable_split(a, zblock, fixup_zexp);
+    switch (handle_variable_split_space_case(zexp)) {
+    | Some(zexp) =>
+      let zblock = ZExp.BlockZL((prefix, ExpLineZ(zexp), suffix), lines);
+      let zblock = Statics.ana_fix_holes_zblock(ctx, u_gen, zblock, ty);
+      Succeeded(zblock);
+    | None => Failed
+    }
 
-  | (Construct(SOp(_)) as a, BlockZE(_, zexp) as zblock)
+  | (Construct(SOp(SSpace)), BlockZE(lines, zexp))
       when zexp_is_suitable_for_var_split(zexp) =>
-    let fixup_zexp = (zblock: ZExp.zblock) => {
-      Statics.ana_fix_holes_zblock(ctx, u_gen, zblock, ty);
-    };
-    handle_variable_split(a, zblock, fixup_zexp);
+    /* Space case should go to the left of the right variable */
+    switch (handle_variable_split_space_case(zexp)) {
+    | Some(zexp) =>
+      let zblock = ZExp.BlockZE(lines, zexp);
+      let zblock = Statics.ana_fix_holes_zblock(ctx, u_gen, zblock, ty);
+      Succeeded(zblock);
+    | None => Failed
+    }
+
+  | (Construct(SOp(op)), BlockZL((prefix, ExpLineZ(zexp), suffix), lines))
+      when zexp_is_suitable_for_var_split(zexp) =>
+    switch (handle_general_op_case(op, zexp)) {
+    | Some(zexp) =>
+      let zblock = ZExp.BlockZL((prefix, ExpLineZ(zexp), suffix), lines);
+      let zblock = Statics.ana_fix_holes_zblock(ctx, u_gen, zblock, ty);
+      Succeeded(zblock);
+    | None => Failed
+    }
+
+  | (Construct(SOp(op)), BlockZE(lines, zexp))
+      when zexp_is_suitable_for_var_split(zexp) =>
+    switch (handle_general_op_case(op, zexp)) {
+    | Some(zexp) =>
+      let zblock = ZExp.BlockZE(lines, zexp);
+      let zblock = Statics.ana_fix_holes_zblock(ctx, u_gen, zblock, ty);
+      Succeeded(zblock);
+    | None => Failed
+    }
 
   /* Zipper Cases */
   | (
