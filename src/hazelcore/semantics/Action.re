@@ -2771,7 +2771,7 @@ let handle_variable_split_space_case = (zexp: ZExp.t) => {
   };
 };
 
-let handle_general_op_case = (op, zexp) => {
+let handle_variable_split_general_op_case = (op, zexp) => {
   switch (exp_op_of(op), ZExp.cursor_on_var(zexp)) {
   | (Some(op), Some((pos, name))) =>
     let (left_var, right_var) = split_variable_name(pos, name);
@@ -3574,7 +3574,7 @@ let rec syn_perform_block =
 
   | (Construct(SOp(op)), BlockZL((prefix, ExpLineZ(zexp), suffix), lines))
       when zexp_is_suitable_for_var_split(zexp) =>
-    switch (handle_general_op_case(op, zexp)) {
+    switch (handle_variable_split_general_op_case(op, zexp)) {
     | Some(zexp) =>
       let zblock = ZExp.BlockZL((prefix, ExpLineZ(zexp), suffix), lines);
       let zblock = Statics.syn_fix_holes_zblock(ctx, u_gen, zblock);
@@ -3584,7 +3584,7 @@ let rec syn_perform_block =
 
   | (Construct(SOp(op)), BlockZE(lines, zexp))
       when zexp_is_suitable_for_var_split(zexp) =>
-    switch (handle_general_op_case(op, zexp)) {
+    switch (handle_variable_split_general_op_case(op, zexp)) {
     | Some(zexp) =>
       let zblock = ZExp.BlockZE(lines, zexp);
       let zblock = Statics.syn_fix_holes_zblock(ctx, u_gen, zblock);
@@ -6042,7 +6042,7 @@ and ana_perform_block =
 
   | (Construct(SOp(op)), BlockZL((prefix, ExpLineZ(zexp), suffix), lines))
       when zexp_is_suitable_for_var_split(zexp) =>
-    switch (handle_general_op_case(op, zexp)) {
+    switch (handle_variable_split_general_op_case(op, zexp)) {
     | Some(zexp) =>
       let zblock = ZExp.BlockZL((prefix, ExpLineZ(zexp), suffix), lines);
       let zblock = Statics.ana_fix_holes_zblock(ctx, u_gen, zblock, ty);
@@ -6052,7 +6052,7 @@ and ana_perform_block =
 
   | (Construct(SOp(op)), BlockZE(lines, zexp))
       when zexp_is_suitable_for_var_split(zexp) =>
-    switch (handle_general_op_case(op, zexp)) {
+    switch (handle_variable_split_general_op_case(op, zexp)) {
     | Some(zexp) =>
       let zblock = ZExp.BlockZE(lines, zexp);
       let zblock = Statics.ana_fix_holes_zblock(ctx, u_gen, zblock, ty);
