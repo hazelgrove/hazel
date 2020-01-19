@@ -33,7 +33,9 @@ let indent_and_align = (d: t): t =>
 
 let mk_text = (~steps: CursorPath.steps, text: string): t =>
   Doc.Text(text)
-  |> Doc.tag(TermTag.mk_Text(~steps, ~length=String.length(text), ()));
+  |> Doc.tag(
+       TermTag.mk_Text(~steps, ~length=StringUtil.utf8_length(text), ()),
+     );
 
 let pad_operator =
     (~inline_padding as (left, right): (t, t), operator: t): t => {

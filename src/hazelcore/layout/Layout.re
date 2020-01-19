@@ -41,7 +41,7 @@ and metrics' = (layout: t(unit)): metrics =>
   switch (layout) {
   | Text(string) => {
       height: 1,
-      last_width: String.length(string),
+      last_width: StringUtil.utf8_length(string),
       last_width_is_relative: true,
     }
   | Linebreak => {height: 2, last_width: 0, last_width_is_relative: false}
