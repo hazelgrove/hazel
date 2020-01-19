@@ -216,3 +216,11 @@ let combos3 =
   combos2(xs, ys)
   |> List.map(((x, y)) => zs |> List.map(z => (x, y, z)))
   |> List.flatten;
+
+let take_while = (p: 'x => bool, xs: list('x)): list('x) =>
+  xs
+  |> List.fold_left(
+       (rev_taken, x) => p(x) ? [x, ...rev_taken] : rev_taken,
+       [],
+     )
+  |> List.rev;

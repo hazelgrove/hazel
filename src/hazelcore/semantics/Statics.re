@@ -5,7 +5,30 @@ type type_mode =
   | Syn
   | Ana(HTyp.t);
 
+let _tuple_zip =
+    (
+      ~get_tuple_elements: Skel.t('op) => list(Skel.t('op)),
+      skel: Skel.t('op),
+      ty: HTyp.t,
+    )
+    : option(list((Skel.t('op), HTyp.t))) => {
+  let skels = skel |> get_tuple_elements;
+  let tys = ty |> HTyp.get_prod_elements;
+  switch (ListUtil.opt_zip(skels, tys)) {
+  | Some(_) as zipped => zipped
+  | None =>
+    switch (skels, tys) {
+    | ([_], _) => Some([(skel, ty)])
+    | (_, [Hole]) =>
+      skels |> List.map(skel => (skel, HTyp.Hole)) |> Option.some
+    | _ => None
+    }
+  };
+};
+
 module Pat = {
+  let tuple_zip = _tuple_zip(~get_tuple_elements=UHPat.get_tuple_elements);
+
   let rec syn = (ctx: Contexts.t, p: UHPat.t): option((HTyp.t, Contexts.t)) =>
     switch (p) {
     | P1(p1) => syn_opseq(ctx, p1)
@@ -110,11 +133,16 @@ module Pat = {
     }
   and ana_opseq =
       (ctx: Contexts.t, OpSeq(skel, seq) as opseq: UHPat.opseq, ty: HTyp.t)
-      : option(Contexts.t) => {
-    // handle n-tuples
-    let skels = skel |> UHPat.get_tuple_elements;
-    let tys = ty |> HTyp.get_tuple_elements;
-    switch (ListUtil.opt_zip(skels, tys)) {
+      : option(Contexts.t) =>
+    switch (tuple_zip(skel, ty)) {
+    | None =>
+      switch (opseq |> UHPat.get_err_status_opseq) {
+      | NotInHole
+      | InHole(TypeInconsistent, _) => None
+      | InHole(WrongLength, _) =>
+        let opseq' = opseq |> UHPat.set_err_status_opseq(NotInHole);
+        syn_opseq(ctx, opseq') |> OptUtil.map(_ => ctx);
+      }
     | Some(skel_tys) =>
       skel_tys
       |> List.fold_left(
@@ -125,32 +153,7 @@ module Pat = {
              },
            Some(ctx),
          )
-    | None =>
-      switch (skels, tys) {
-      | ([Placeholder(n)], _) =>
-        let operand = seq |> Seq.nth_operand(n);
-        ana_operand(ctx, operand, ty);
-      | (_, [Hole]) =>
-        skels
-        |> List.fold_left(
-             (acc: option(Contexts.t), skel) =>
-               switch (acc) {
-               | None => None
-               | Some(ctx) => ana_skel(ctx, skel, seq, Hole)
-               },
-             Some(ctx),
-           )
-      | _ =>
-        switch (opseq |> UHPat.get_err_status_opseq) {
-        | NotInHole
-        | InHole(TypeInconsistent, _) => None
-        | InHole(WrongLength, _) =>
-          let opseq' = opseq |> UHPat.set_err_status_opseq(NotInHole);
-          syn_opseq(ctx, opseq') |> OptUtil.map(_ => ctx);
-        }
-      }
-    };
-  }
+    }
   and ana_skel =
       (ctx: Contexts.t, skel: UHPat.skel, seq: UHPat.seq, ty: HTyp.t)
       : option(Contexts.t) =>
@@ -202,7 +205,7 @@ module Pat = {
     | BoolLit(InHole(WrongLength, _), _)
     | ListNil(InHole(WrongLength, _))
     | Inj(InHole(WrongLength, _), _, _) =>
-      ty |> HTyp.get_tuple_elements |> List.length > 1 ? Some(ctx) : None
+      ty |> HTyp.get_prod_elements |> List.length > 1 ? Some(ctx) : None
     /* not in hole */
     | Var(NotInHole, InVarHole(Free, _), _) => raise(UHPat.FreeVarInPat)
     | Var(NotInHole, InVarHole(Keyword(_), _), _) => Some(ctx)
@@ -291,7 +294,7 @@ module Pat = {
       : option(type_mode) => {
     // handle n-tuples
     let skels = skel |> UHPat.get_tuple_elements;
-    let tys = ty |> HTyp.get_tuple_elements;
+    let tys = ty |> HTyp.get_prod_elements;
     switch (ListUtil.opt_zip(skels, tys)) {
     | None =>
       syn_nth_type_mode(
@@ -507,7 +510,7 @@ module Pat = {
       : (UHPat.opseq, Contexts.t, MetaVarGen.t) => {
     // handle n-tuples
     let skels = skel |> UHPat.get_tuple_elements;
-    let tys = ty |> HTyp.get_tuple_elements;
+    let tys = ty |> HTyp.get_prod_elements;
     switch (ListUtil.opt_zip(skels, tys)) {
     | Some(skel_tys) =>
       skel_tys
@@ -775,6 +778,8 @@ module Pat = {
 };
 
 module Exp = {
+  let tuple_zip = _tuple_zip(~get_tuple_elements=UHExp.get_tuple_elements);
+
   let ctx_for_let =
       (ctx: Contexts.t, p: UHPat.t, ty: HTyp.t, e: UHExp.t): Contexts.t =>
     switch (p, e) {
@@ -1019,36 +1024,21 @@ module Exp = {
     }
   and ana_opseq =
       (ctx: Contexts.t, OpSeq(skel, seq) as opseq: UHExp.opseq, ty: HTyp.t)
-      : option(unit) => {
-    // handle n-tuples
-    let skels = skel |> UHExp.get_tuple_elements;
-    let tys = ty |> HTyp.get_tuple_elements;
-    switch (ListUtil.opt_zip(skels, tys)) {
+      : option(unit) =>
+    switch (tuple_zip(skel, ty)) {
+    | None =>
+      switch (opseq |> UHExp.get_err_status_opseq) {
+      | NotInHole
+      | InHole(TypeInconsistent, _) => None
+      | InHole(WrongLength, _) =>
+        let opseq' = opseq |> UHExp.set_err_status_opseq(NotInHole);
+        syn_opseq(ctx, opseq') |> OptUtil.map(_ => ());
+      }
     | Some(skel_tys) =>
       skel_tys
       |> List.map(((skel, ty)) => ana_skel(ctx, skel, seq, ty))
       |> List.fold_left(OptUtil.map2((_, _) => ()), Some())
-    | None =>
-      // TODO rewrite match to use HTyp.matched_tuple
-      switch (skels, tys) {
-      | ([Placeholder(n)], _) =>
-        let operand = seq |> Seq.nth_operand(n);
-        ana_operand(ctx, operand, ty);
-      | (_, [Hole]) =>
-        skels
-        |> List.map(skel => ana_skel(ctx, skel, seq, Hole))
-        |> List.fold_left(OptUtil.map2((_, _) => ()), Some())
-      | _ =>
-        switch (opseq |> UHExp.get_err_status_opseq) {
-        | NotInHole
-        | InHole(TypeInconsistent, _) => None
-        | InHole(WrongLength, _) =>
-          let opseq' = opseq |> UHExp.set_err_status_opseq(NotInHole);
-          syn_opseq(ctx, opseq') |> OptUtil.map(_ => ());
-        }
-      }
-    };
-  }
+    }
   and ana_skel =
       (ctx: Contexts.t, skel: UHExp.skel, seq: UHExp.seq, ty: HTyp.t)
       : option(unit) =>
@@ -1107,7 +1097,7 @@ module Exp = {
     | Inj(InHole(WrongLength, _), _, _)
     | Case(InHole(WrongLength, _), _, _, _)
     | ApPalette(InHole(WrongLength, _), _, _, _) =>
-      ty |> HTyp.get_tuple_elements |> List.length > 1 ? Some() : None
+      ty |> HTyp.get_prod_elements |> List.length > 1 ? Some() : None
     /* not in hole */
     | ListNil(NotInHole) =>
       switch (HTyp.matched_list(ty)) {
@@ -1282,7 +1272,7 @@ module Exp = {
       : option(type_mode) => {
     // handle n-tuples
     let skels = skel |> UHExp.get_tuple_elements;
-    let tys = ty |> HTyp.get_tuple_elements;
+    let tys = ty |> HTyp.get_prod_elements;
     switch (ListUtil.opt_zip(skels, tys)) {
     | None =>
       syn_nth_type_mode(
@@ -1822,7 +1812,7 @@ module Exp = {
       : (UHExp.opseq, MetaVarGen.t) => {
     // handle n-tuples
     let skels = skel |> UHExp.get_tuple_elements;
-    let tys = ty |> HTyp.get_tuple_elements;
+    let tys = ty |> HTyp.get_prod_elements;
     switch (ListUtil.opt_zip(skels, tys)) {
     | Some(skel_tys) =>
       skel_tys

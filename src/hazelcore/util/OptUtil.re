@@ -1,3 +1,6 @@
+// TODO prune redundant functions now that
+// we're on 4.08 and can use stdlib Option
+
 let map = (f: 'a => 'b, opt: option('a)): option('b) =>
   switch (opt) {
   | None => None

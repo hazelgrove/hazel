@@ -77,25 +77,12 @@ let matched_arrow =
 let has_matched_arrow =
   fun
   | Hole => true
-  | Arrow(_, _) => true
+  | Arrow(_) => true
   | _ => false;
 
-/* matched product types */
-let matched_prod =
+let rec get_prod_elements: t => list(t) =
   fun
-  | Hole => Some((Hole, Hole))
-  | Prod(ty1, ty2) => Some((ty1, ty2))
-  | _ => None;
-
-let has_matched_prod =
-  fun
-  | Hole => true
-  | Prod(_, _) => true
-  | _ => false;
-
-let rec get_tuple_elements: t => list(t) =
-  fun
-  | Prod(ty1, ty2) => get_tuple_elements(ty1) @ get_tuple_elements(ty2)
+  | Prod(ty1, ty2) => get_prod_elements(ty1) @ get_prod_elements(ty2)
   | _ as ty => [ty];
 
 let rec make_tuple: list(t) => t =
@@ -114,7 +101,7 @@ let matched_sum =
 let has_matched_sum =
   fun
   | Hole => true
-  | Sum(_, _) => true
+  | Sum(_) => true
   | _ => false;
 
 /* matched list types */
@@ -172,19 +159,19 @@ let rec join = (ty1, ty2) =>
     | (Some(ty1), Some(ty2)) => Some(Arrow(ty1, ty2))
     | _ => None
     }
-  | (Arrow(_, _), _) => None
+  | (Arrow(_), _) => None
   | (Prod(ty1, ty2), Prod(ty1', ty2')) =>
     switch (join(ty1, ty1'), join(ty2, ty2')) {
     | (Some(ty1), Some(ty2)) => Some(Prod(ty1, ty2))
     | _ => None
     }
-  | (Prod(_, _), _) => None
+  | (Prod(_), _) => None
   | (Sum(ty1, ty2), Sum(ty1', ty2')) =>
     switch (join(ty1, ty1'), join(ty2, ty2')) {
     | (Some(ty1), Some(ty2)) => Some(Sum(ty1, ty2))
     | _ => None
     }
-  | (Sum(_, _), _) => None
+  | (Sum(_), _) => None
   | (List(ty), List(ty')) =>
     switch (join(ty, ty')) {
     | Some(ty) => Some(List(ty))

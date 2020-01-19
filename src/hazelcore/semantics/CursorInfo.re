@@ -151,34 +151,29 @@ module Pat = {
            )
          )
     | _ =>
-      // cursor within tuple element:
-      // accumulate ctx over skels until skel containing
-      // cursor found, then defer to syn_cursor_info_skel
-      skels
-      |> List.fold_left(
-           (acc: option((Contexts.t, option(UHPat.skel))), skel) =>
-             switch (acc) {
-             | None as failed => failed
-             | Some((_, Some(_))) as found_cursor => found_cursor
-             | Some((ctx, None)) =>
-               if (ZOpSeq.skel_contains_cursor(skel, zseq)) {
-                 Some((ctx, Some(skel)));
-               } else {
-                 switch (Statics.Pat.syn_skel(ctx, skel, seq)) {
-                 | None => None
-                 | Some((_, ctx)) => Some((ctx, None))
-                 };
-               }
-             },
-           Some((ctx, None)),
-         )
-      |> (
-        fun
-        | None
-        | Some((_, None)) => None
-        | Some((ctx, Some(skel))) =>
-          syn_cursor_info_skel(~steps, ctx, skel, zseq)
-      )
+      // cursor within tuple element
+      let opt_ctx =
+        skels
+        |> ListUtil.take_while(skel =>
+             !ZOpSeq.skel_contains_cursor(skel, zseq)
+           )
+        |> List.fold_left(
+             (opt_ctx, skel) =>
+               switch (opt_ctx) {
+               | None => None
+               | Some(ctx) =>
+                 Statics.Pat.syn_skel(ctx, skel, seq)
+                 |> Option.map(((_, ctx)) => ctx)
+               },
+             Some(ctx),
+           );
+      switch (opt_ctx) {
+      | None => None
+      | Some(ctx) =>
+        let cursor_skel =
+          skels |> List.find(skel => ZOpSeq.skel_contains_cursor(skel, zseq));
+        syn_cursor_info_skel(~steps, ctx, cursor_skel, zseq);
+      };
     };
   }
   and syn_cursor_info_skel =
@@ -281,114 +276,53 @@ module Pat = {
     // but we want all comma operators in an opseq to
     // show the complete product type
     let seq = zseq |> ZPat.erase_zseq;
-    let skels = skel |> UHPat.get_tuple_elements;
-    let tys = ty |> HTyp.get_tuple_elements;
-    switch (ListUtil.opt_zip(skels, tys)) {
-    | Some(skel_tys) =>
-      switch (zseq) {
-      | ZOperator((_, Comma), _) =>
-        // cursor on tuple comma
-        skel_tys
-        |> List.fold_left(
-             (acc: option(Contexts.t), (skel, ty)) =>
-               switch (acc) {
-               | None => None
-               | Some(ctx) => Statics.Pat.ana_skel(ctx, skel, seq, ty)
-               },
-             Some(ctx),
-           )
-        |> OptUtil.map(_ =>
-             CursorNotOnDeferredVarPat(mk(PatAnalyzed(ty), ctx))
-           )
-      | _ =>
-        // cursor in tuple element:
-        // accumulate ctx over skels until we find skel
-        // containing cursor, then call ana_cursor_info_skel
-        skel_tys
-        |> List.fold_left(
-             (acc: option((Contexts.t, option(UHPat.skel))), (skel, ty)) =>
-               switch (acc) {
-               | None as failed => failed
-               | Some((_, Some(_))) as found_cursor => found_cursor
-               | Some((ctx, None)) =>
-                 if (ZOpSeq.skel_contains_cursor(skel, zseq)) {
-                   Some((ctx, Some(skel)));
-                 } else {
-                   switch (Statics.Pat.ana_skel(ctx, skel, seq, ty)) {
-                   | None => None
-                   | Some(ctx) => Some((ctx, None))
-                   };
-                 }
-               },
-             Some((ctx, None)),
-           )
-        |> (
-          fun
-          | None
-          | Some((_, None)) => None
-          | Some((ctx, Some(skel))) =>
-            ana_cursor_info_skel(~steps, ctx, skel, zseq, ty)
-        )
+    let skel_tys = Statics.Pat.tuple_zip(skel, ty);
+    switch (zseq) {
+    | ZOperator((_, Comma), _) =>
+      // cursor on tuple comma
+      switch (skel_tys) {
+      | Some(_) =>
+        Some(CursorNotOnDeferredVarPat(mk(PatAnalyzed(ty), ctx)))
+      | None =>
+        let expected_length = ty |> HTyp.get_prod_elements |> List.length;
+        let got_length = skel |> UHPat.get_tuple_elements |> List.length;
+        Some(
+          CursorNotOnDeferredVarPat(
+            mk(PatAnaWrongLength(expected_length, got_length, ty), ctx),
+          ),
+        );
       }
-    | None =>
-      switch (skels, tys) {
-      | ([Placeholder(_)], _) =>
-        switch (zseq) {
-        | ZOperator(_) => assert(false)
-        | ZOperand(zoperand, (prefix, _)) =>
-          ana_cursor_info_zoperand(
-            ~steps=steps @ [Seq.length_of_affix(prefix)],
-            ctx,
-            zoperand,
-            ty,
-          )
-        }
-      | (_, [Hole]) =>
-        skels
-        |> List.fold_left(
-             (acc: option((Contexts.t, option(UHPat.skel))), skel) =>
-               switch (acc) {
-               | None as failed => failed
-               | Some((_, Some(_))) as found_cursor => found_cursor
-               | Some((ctx, None)) =>
-                 if (ZOpSeq.skel_contains_cursor(skel, zseq)) {
-                   Some((ctx, Some(skel)));
-                 } else {
-                   switch (Statics.Pat.ana_skel(ctx, skel, seq, Hole)) {
-                   | None => None
-                   | Some(ctx) => Some((ctx, None))
-                   };
-                 }
-               },
-             Some((ctx, None)),
-           )
-        |> (
-          fun
-          | None
-          | Some((_, None)) => None
-          | Some((ctx, Some(skel))) =>
-            ana_cursor_info_skel(~steps, ctx, skel, zseq, Hole)
-        )
-      | _ =>
-        let opseq = zopseq |> ZPat.erase_zopseq;
-        switch (opseq |> UHPat.get_err_status_opseq) {
-        | NotInHole
-        | InHole(TypeInconsistent, _) => None
-        | InHole(WrongLength, _) =>
-          let opseq' = opseq |> UHPat.set_err_status_opseq(NotInHole);
-          Statics.Pat.syn_opseq(ctx, opseq')
-          |> OptUtil.map(_ =>
-               CursorNotOnDeferredVarPat(
-                 mk(
-                   PatAnaWrongLength(
-                     tys |> List.length,
-                     skels |> List.length,
-                     ty,
-                   ),
-                   ctx,
-                 ),
-               )
+    | _ =>
+      // cursor in tuple element
+      switch (skel_tys) {
+      | None =>
+        // wrong length, switch to syn
+        let zopseq_not_in_hole =
+          zopseq |> ZPat.set_err_status_zopseq(NotInHole);
+        syn_cursor_info_zopseq(~steps, ctx, zopseq_not_in_hole);
+      | Some(skel_tys) =>
+        let opt_ctx =
+          skel_tys
+          |> ListUtil.take_while(((skel, _)) =>
+               !ZOpSeq.skel_contains_cursor(skel, zseq)
+             )
+          |> List.fold_left(
+               (opt_ctx, (skel, ty)) =>
+                 switch (opt_ctx) {
+                 | None => None
+                 | Some(ctx) => Statics.Pat.ana_skel(ctx, skel, seq, ty)
+                 },
+               Some(ctx),
              );
+        switch (opt_ctx) {
+        | None => None
+        | Some(ctx) =>
+          let (cursor_skel, ty) =
+            skel_tys
+            |> List.find(((skel, _)) =>
+                 ZOpSeq.skel_contains_cursor(skel, zseq)
+               );
+          ana_cursor_info_skel(~steps, ctx, cursor_skel, zseq, ty);
         };
       }
     };
@@ -665,16 +599,12 @@ module Exp = {
       Statics.Exp.syn_opseq(ctx, zopseq |> ZExp.erase_zopseq)
       |> OptUtil.map(ty => mk(Synthesized(ty), ctx))
     | _ =>
-      // TODO rewrite using List.find
       // cursor within tuple element
-      skel
-      |> UHExp.get_tuple_elements
-      |> List.filter(skel => ZOpSeq.skel_contains_cursor(skel, zseq))
-      |> List.map(skel => syn_cursor_info_skel(~steps, ctx, skel, zseq))
-      |> List.hd
-    // we know cursor is in tuple element,
-    // so the filter should produce the tuple elem with cursor,
-    // thus List.hd will not fail
+      let cursor_skel =
+        skel
+        |> UHExp.get_tuple_elements
+        |> List.find(skel => ZOpSeq.skel_contains_cursor(skel, zseq));
+      syn_cursor_info_skel(~steps, ctx, cursor_skel, zseq);
     };
   }
   and syn_cursor_info_skel =
@@ -915,55 +845,32 @@ module Exp = {
         ty: HTyp.t,
       )
       : option(t) => {
-    // handle n-tuples:
-    // cannot simply defer to ana_cursor_info_skel here
-    // because it assumes binary tupling -- this would
-    // cause sub-tuples to synthesize sub-product types,
-    // but we want all comma operators in an opseq to
-    // show the complete product type
-    let opseq = zopseq |> ZExp.erase_zopseq;
-    let skels = skel |> UHExp.get_tuple_elements;
-    let tys = ty |> HTyp.get_tuple_elements;
-    switch (ListUtil.opt_zip(skels, tys)) {
-    | Some(skel_tys) =>
-      switch (zseq) {
-      | ZOperator((_, Comma), _) =>
-        // cursor on tuple comma
-        Statics.Exp.ana_opseq(ctx, opseq, ty)
-        |> OptUtil.map(_ => mk(Analyzed(ty), ctx))
-      | _ =>
-        // cursor within tuple element
-        skel_tys
-        |> List.filter(((skel, _)) =>
-             ZOpSeq.skel_contains_cursor(skel, zseq)
-           )
-        |> List.map(((skel, ty)) =>
-             ana_cursor_info_skel(~steps, ctx, skel, zseq, ty)
-           )
-        |> List.hd
+    let skel_tys = Statics.Exp.tuple_zip(skel, ty);
+    switch (zseq) {
+    | ZOperator((_, Comma), _) =>
+      // cursor on tuple comma
+      switch (skel_tys) {
+      | Some(_) => Some(mk(Analyzed(ty), ctx))
+      | None =>
+        let expected_length = ty |> HTyp.get_prod_elements |> List.length;
+        let got_length = skel |> UHExp.get_tuple_elements |> List.length;
+        Some(mk(AnaWrongLength(expected_length, got_length, ty), ctx));
       }
-    | None =>
-      switch (zseq) {
-      | ZOperator((_, Comma), _) =>
-        // cursor on tuple comma
-        Statics.Exp.ana_opseq(ctx, opseq, ty)
-        |> OptUtil.map(_ =>
-             mk(
-               AnaWrongLength(tys |> List.length, skels |> List.length, ty),
-               ctx,
-             )
-           )
-      | _ =>
-        // cursor within tuple element
-        skels
-        |> List.filter(skel => ZOpSeq.skel_contains_cursor(skel, zseq))
-        |> List.map(skel =>
-             switch (tys) {
-             | [Hole] => ana_cursor_info_skel(~steps, ctx, skel, zseq, Hole)
-             | _ => syn_cursor_info_skel(~steps, ctx, skel, zseq)
-             }
-           )
-        |> List.hd
+    | _ =>
+      // cursor in tuple element
+      switch (skel_tys) {
+      | None =>
+        // wrong length, switch to syn
+        let zopseq_not_in_hole =
+          zopseq |> ZExp.set_err_status_zopseq(NotInHole);
+        syn_cursor_info_zopseq(~steps, ctx, zopseq_not_in_hole);
+      | Some(skel_tys) =>
+        let (cursor_skel, cursor_skel_ty) =
+          skel_tys
+          |> List.find(((skel, _)) =>
+               ZOpSeq.skel_contains_cursor(skel, zseq)
+             );
+        ana_cursor_info_skel(~steps, ctx, cursor_skel, zseq, cursor_skel_ty);
       }
     };
   }
@@ -977,6 +884,9 @@ module Exp = {
         ty: HTyp.t,
       )
       : option(t) => {
+    let syn_go = skel => syn_cursor_info_skel(~steps, ctx, skel, zseq);
+    let ana_go = (skel, ty) =>
+      ana_cursor_info_skel(~steps, ctx, skel, zseq, ty);
     let seq = zseq |> ZExp.erase_zseq;
     if (ZOpSeq.skel_is_rooted_at_cursor(skel, zseq)) {
       // found cursor
@@ -996,8 +906,7 @@ module Exp = {
       // recurse toward cursor
       switch (skel) {
       | Placeholder(_) => None
-      | BinOp(InHole(_), _, _, _) =>
-        syn_cursor_info_skel(~steps, ctx, skel, zseq)
+      | BinOp(InHole(_), _, _, _) => syn_go(skel)
       | BinOp(_, Comma, _, _) =>
         failwith(
           "Exp.ana_cursor_info_skel: expected commas too be handled at opseq level",
@@ -1006,11 +915,11 @@ module Exp = {
         switch (HTyp.matched_list(ty)) {
         | None => None
         | Some(ty_elt) =>
-          switch (ana_cursor_info_skel(~steps, ctx, skel1, zseq, ty_elt)) {
+          switch (ana_go(skel1, ty_elt)) {
           | Some(_) as result => result
           | None =>
             let ty_list = HTyp.List(ty_elt);
-            ana_cursor_info_skel(~steps, ctx, skel2, zseq, ty_list);
+            ana_go(skel2, ty_list);
           }
         }
       | BinOp(
@@ -1020,7 +929,7 @@ module Exp = {
           _,
           _,
         ) =>
-        syn_cursor_info_skel(~steps, ctx, skel, zseq)
+        syn_go(skel)
       };
     };
   }

@@ -142,7 +142,7 @@ module Pat = {
       : expand_result => {
     // handle n-tuples
     let skels = skel |> UHPat.get_tuple_elements;
-    let tys = ty |> HTyp.get_tuple_elements;
+    let tys = ty |> HTyp.get_prod_elements;
     switch (ListUtil.opt_zip(skels, tys)) {
     | Some(skel_tys) =>
       skel_tys
@@ -1149,7 +1149,7 @@ module Exp = {
       : expand_result => {
     // handle n-tuples
     let skels = skel |> UHExp.get_tuple_elements;
-    let tys = ty |> HTyp.get_tuple_elements;
+    let tys = ty |> HTyp.get_prod_elements;
     switch (ListUtil.opt_zip(skels, tys)) {
     | Some(skel_tys) =>
       skel_tys
