@@ -484,7 +484,7 @@ let mk_NTuple =
                Doc.hcats([
                  tuple,
                  comma_doc,
-                 space,
+                 space |> tag_Padding,
                  elem_doc |> tag_OpenChild(~is_inline=true),
                ]);
              (doc, [comma_index, ...comma_indices]);
