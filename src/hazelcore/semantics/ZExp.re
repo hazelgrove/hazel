@@ -442,6 +442,61 @@ let prune_empty_hole_lines = ((prefix, zline, suffix): zblock): zblock =>
     )
   };
 
+let rec erase: t => UHExp.t =
+  fun
+  | ZE2(ze2) => E2(ze2 |> erase_zblock)
+  | ZE1(ze1) => E1(ze1 |> erase_zopseq)
+  | ZE0(ze0) => E0(ze0 |> erase_zoperand)
+and erase_zblock = ((prefix, zline, suffix): zblock): UHExp.block =>
+  prefix @ [zline |> erase_zline] @ suffix
+and erase_zline =
+  fun
+  | CursorL(_, line) => line
+  | ExpLineZ(zopseq) => ExpLine(erase_zopseq(zopseq))
+  | LetLineZP(zp, ann, def) => LetLine(ZPat.erase(zp), ann, def)
+  | LetLineZA(p, zann, def) => LetLine(p, Some(ZTyp.erase(zann)), def)
+  | LetLineZE(p, ann, zdef) => LetLine(p, ann, erase(zdef))
+and erase_zopseq = zopseq =>
+  ZOpSeq.erase(~erase_zoperand, ~erase_zoperator, zopseq)
+and erase_zoperator =
+  fun
+  | (_, operator) => operator
+and erase_zoperand =
+  fun
+  | CursorE(_, operand) => operand
+  | ParenthesizedZ(zbody) => Parenthesized(erase(zbody))
+  | LamZP(err, zp, ann, body) => Lam(err, ZPat.erase(zp), ann, body)
+  | LamZA(err, p, zann, body) => Lam(err, p, Some(ZTyp.erase(zann)), body)
+  | LamZE(err, p, ann, zbody) => Lam(err, p, ann, erase(zbody))
+  | InjZ(err, side, zbody) => Inj(err, side, erase(zbody))
+  | CaseZE(err, zscrut, rules, ann) => Case(err, erase(zscrut), rules, ann)
+  | CaseZR(err, scrut, zrules, ann) =>
+    Case(err, scrut, erase_zrules(zrules), ann)
+  | CaseZA(err, scrut, rules, zann) =>
+    Case(err, scrut, rules, Some(ZTyp.erase(zann)))
+  | ApPaletteZ(err, palette_name, serialized_model, zpsi) => {
+      let psi = ZSpliceInfo.erase(zpsi, ((ty, z)) => (ty, erase(z)));
+      ApPalette(err, palette_name, serialized_model, psi);
+    }
+and erase_zrules =
+  fun
+  | zrules => ZList.erase(zrules, erase_zrule)
+and erase_zrule =
+  fun
+  | CursorR(_, rule) => rule
+  | RuleZP(zp, clause) => Rule(ZPat.erase(zp), clause)
+  | RuleZE(p, zclause) => Rule(p, erase(zclause));
+
+let erase_zseq = ZSeq.erase(~erase_zoperand, ~erase_zoperator);
+
+let get_err_status = ze => ze |> erase |> UHExp.get_err_status;
+let get_err_status_zblock = zblock =>
+  zblock |> erase_zblock |> UHExp.get_err_status_block;
+let get_err_status_zopseq = zopseq =>
+  zopseq |> erase_zopseq |> UHExp.get_err_status_opseq;
+let get_err_status_zoperand = zoperand =>
+  zoperand |> erase_zoperand |> UHExp.get_err_status_operand;
+
 let rec set_err_status = (err: ErrStatus.t, ze: t): t =>
   switch (ze) {
   | ZE2(ze2) => ZE2(ze2 |> set_err_status_zblock(err))
@@ -567,53 +622,6 @@ let empty_zrule = (u_gen: MetaVarGen.t): (zrule, MetaVarGen.t) => {
   let zrule = RuleZP(ZP0(zp), E0(clause));
   (zrule, u_gen);
 };
-
-let rec erase: t => UHExp.t =
-  fun
-  | ZE2(ze2) => E2(ze2 |> erase_zblock)
-  | ZE1(ze1) => E1(ze1 |> erase_zopseq)
-  | ZE0(ze0) => E0(ze0 |> erase_zoperand)
-and erase_zblock = ((prefix, zline, suffix): zblock): UHExp.block =>
-  prefix @ [zline |> erase_zline] @ suffix
-and erase_zline =
-  fun
-  | CursorL(_, line) => line
-  | ExpLineZ(zopseq) => ExpLine(erase_zopseq(zopseq))
-  | LetLineZP(zp, ann, def) => LetLine(ZPat.erase(zp), ann, def)
-  | LetLineZA(p, zann, def) => LetLine(p, Some(ZTyp.erase(zann)), def)
-  | LetLineZE(p, ann, zdef) => LetLine(p, ann, erase(zdef))
-and erase_zopseq = zopseq =>
-  ZOpSeq.erase(~erase_zoperand, ~erase_zoperator, zopseq)
-and erase_zoperator =
-  fun
-  | (_, operator) => operator
-and erase_zoperand =
-  fun
-  | CursorE(_, operand) => operand
-  | ParenthesizedZ(zbody) => Parenthesized(erase(zbody))
-  | LamZP(err, zp, ann, body) => Lam(err, ZPat.erase(zp), ann, body)
-  | LamZA(err, p, zann, body) => Lam(err, p, Some(ZTyp.erase(zann)), body)
-  | LamZE(err, p, ann, zbody) => Lam(err, p, ann, erase(zbody))
-  | InjZ(err, side, zbody) => Inj(err, side, erase(zbody))
-  | CaseZE(err, zscrut, rules, ann) => Case(err, erase(zscrut), rules, ann)
-  | CaseZR(err, scrut, zrules, ann) =>
-    Case(err, scrut, erase_zrules(zrules), ann)
-  | CaseZA(err, scrut, rules, zann) =>
-    Case(err, scrut, rules, Some(ZTyp.erase(zann)))
-  | ApPaletteZ(err, palette_name, serialized_model, zpsi) => {
-      let psi = ZSpliceInfo.erase(zpsi, ((ty, z)) => (ty, erase(z)));
-      ApPalette(err, palette_name, serialized_model, psi);
-    }
-and erase_zrules =
-  fun
-  | zrules => ZList.erase(zrules, erase_zrule)
-and erase_zrule =
-  fun
-  | CursorR(_, rule) => rule
-  | RuleZP(zp, clause) => Rule(ZPat.erase(zp), clause)
-  | RuleZE(p, zclause) => Rule(p, erase(zclause));
-
-let erase_zseq = ZSeq.erase(~erase_zoperand, ~erase_zoperator);
 
 let is_inconsistent = zoperand =>
   zoperand |> erase_zoperand |> UHExp.is_inconsistent;

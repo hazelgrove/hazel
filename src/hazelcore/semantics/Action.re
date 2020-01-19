@@ -3556,17 +3556,19 @@ module Exp = {
       Failed
 
     | _ when ZExp.is_inconsistent(zoperand) =>
-      // TODO this doesn't propagate expanding keywords properly
-      let ze = ZExp.ZE0(zoperand);
-      let err = ze |> ZExp.erase |> UHExp.get_err_status;
-      let ze' = ZExp.(ZE0(zoperand) |> set_err_status(NotInHole));
-      let e' = ze' |> ZExp.erase;
-      switch (Statics.Exp.syn(ctx, e')) {
+      let err = zoperand |> ZExp.get_err_status_zoperand;
+      let zoperand' = zoperand |> ZExp.set_err_status_zoperand(NotInHole);
+      let operand' = zoperand' |> ZExp.erase_zoperand;
+      switch (Statics.Exp.syn_operand(ctx, operand')) {
       | None => Failed
       | Some(ty') =>
-        switch (syn_perform(ctx, a, (ze', ty', u_gen))) {
+        switch (syn_perform_operand(ctx, a, (zoperand', ty', u_gen))) {
         | (Failed | CursorEscaped(_)) as result => result
-        | Succeeded((ze', ty', u_gen)) =>
+        | Succeeded(SynExpandsToLet({u_gen, prefix, def, suffix})) =>
+          Succeeded(AnaExpandsToLet({u_gen, prefix, def, suffix}))
+        | Succeeded(SynExpandsToCase({u_gen, prefix, scrut, suffix})) =>
+          Succeeded(AnaExpandsToCase({u_gen, prefix, scrut, suffix}))
+        | Succeeded(SynDone((ze', ty', u_gen))) =>
           if (HTyp.consistent(ty', ty)) {
             Succeeded(AnaDone((ze', u_gen)));
           } else {
