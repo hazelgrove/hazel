@@ -783,7 +783,12 @@ module Exp = {
   let ctx_for_let =
       (ctx: Contexts.t, p: UHPat.t, ty: HTyp.t, e: UHExp.t): Contexts.t =>
     switch (p, e) {
-    | (P0(Var(_, NotInVarHole, x)), E0(Lam(_))) =>
+    | (
+        P0(Var(_, NotInVarHole, x)) |
+        P1(OpSeq(_, S(Var(_, NotInVarHole, x), E))),
+        E0(Lam(_)) | E1(OpSeq(_, S(Lam(_), E))) |
+        E2([ExpLine(OpSeq(_, S(Lam(_), E)))]),
+      ) =>
       switch (HTyp.matched_arrow(ty)) {
       | Some(_) => Contexts.extend_gamma(ctx, (x, ty))
       | None => ctx
