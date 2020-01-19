@@ -84,29 +84,7 @@ let next_card_button = (~inject, model: Model.t) => {
     )
   );
 };
-/* let undo_button = (~inject) => {
-     Vdom.(
-       Node.button(
-         [
-           Attr.id("undo-button"),
-           Attr.on_click(_ => inject(Update.Action.Undo)),
-         ],
-         [Node.text("Undo")],
-       )
-     );
-   };
 
-   let redo_button = (~inject) => {
-     Vdom.(
-       Node.button(
-         [
-           Attr.id("redo-button"),
-           Attr.on_click(_ => inject(Update.Action.Redo)),
-         ],
-         [Node.text("Redo")],
-       )
-     );
-   }; */
 let cardstack_controls = (~inject, model: Model.t) =>
   Vdom.(
     Node.div(

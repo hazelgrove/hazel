@@ -35,13 +35,13 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
         group_id: int,
         undo_history_entry: undo_history_entry,
       ) => {
-    let icon_classes =
+    let history_tab_icon = (group_id: int) => {      
+      let icon_classes =
       if (is_expanded) {
         ["down-triangle", "history-tab-icon"];
       } else {
         ["left-triangle", "history-tab-icon"];
       };
-    let history_tab_icon = (group_id: int) =>
       if (has_hidden_part) {
         /* expand icon*/
         Vdom.(
@@ -58,6 +58,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
       } else {
         Vdom.(Node.div([], []));
       };
+    }
     switch (undo_history_entry.previous_action) {
     | None => Vdom.(Node.div([], []))
     | Some(detail_ac) =>
@@ -70,7 +71,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
               [
                 Node.span(
                   [
-                    Attr.classes(["the-history-title-content"]),
+                    Attr.classes(["the-history-title-txt"]),
                     Attr.on_click(_ =>
                       inject(
                         Update.Action.ShiftHistory(
