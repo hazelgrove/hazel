@@ -174,14 +174,14 @@ let apply_action =
           schedule_action(Action.EditAction(MoveTo(path)));
         }
       | (_, Some(steps)) =>
-        switch (model.cursor_info.typed) {
-        | OnLine =>
-          // necessary for EmptyLine
-          schedule_action(Action.EditAction(MoveTo((steps, OnText(0)))))
-        | _ =>
+        if (closest_elem
+            |> JSUtil.force_get_parent_elem
+            |> JSUtil.elem_has_cls("EmptyLine")) {
+          schedule_action(Action.EditAction(MoveTo((steps, OnText(0)))));
+        } else {
           schedule_action(
             Action.EditAction(MoveTo((steps, OnText(anchorOffset)))),
-          )
+          );
         }
       };
     };

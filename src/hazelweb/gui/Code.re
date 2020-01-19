@@ -140,6 +140,7 @@ let contenteditable_of_layout = (~inject, l: TermLayout.t): Vdom.Node.t => {
           Node.span([contenteditable_false], vs),
           caret_position(path_after),
         ];
+      | EmptyLine => [Node.span([Attr.classes(["EmptyLine"])], vs)]
       | SpaceOp => [
           Node.span([contenteditable_false, Attr.classes(["SpaceOp"])], vs),
         ]
@@ -154,7 +155,7 @@ let contenteditable_of_layout = (~inject, l: TermLayout.t): Vdom.Node.t => {
       | ClosedChild(_)
       | HoleLabel(_)
       | DelimGroup
-      | Line
+      | LetLine
       | Step(_)
       | Term(_) => vs
       },
@@ -240,7 +241,12 @@ let presentation_of_layout =
     | Tagged(DelimGroup, l) => [
         Node.span([Attr.classes(["DelimGroup"])], go(l)),
       ]
-    | Tagged(Line, l) => [Node.span([Attr.classes(["Line"])], go(l))]
+    | Tagged(LetLine, l) => [
+        Node.span([Attr.classes(["LetLine"])], go(l)),
+      ]
+    | Tagged(EmptyLine, l) => [
+        Node.span([Attr.classes(["EmptyLine"])], go(l)),
+      ]
     | Tagged(Padding, l) => [
         Node.span(
           [contenteditable_false, Attr.classes(["Padding"])],

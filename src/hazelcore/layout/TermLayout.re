@@ -46,7 +46,7 @@ let has_inline_OpenChild =
     fun
     | Step(_)
     | DelimGroup
-    | Line => Skip
+    | LetLine => Skip
     | OpenChild({is_inline: true}) => Return()
     | _ => Stop,
   );
@@ -56,7 +56,7 @@ let has_para_OpenChild =
     fun
     | Step(_)
     | DelimGroup
-    | Line => Skip
+    | LetLine => Skip
     | OpenChild({is_inline: false}) => Return()
     | _ => Stop,
   );
@@ -102,7 +102,7 @@ let rec follow_steps_and_decorate =
          | OpenChild(_)
          | ClosedChild(_)
          | DelimGroup
-         | Line
+         | LetLine
          | Term(_) => Skip
          | _ => Stop
          }
@@ -125,7 +125,7 @@ let find_and_decorate_caret =
                  l
                  |> Layout.tag(TermTag.Text({...text_data, caret: Some(j)})),
                )
-             | Line
+             | EmptyLine
              | Term(_) => Skip
              | _ => Stop
              }
@@ -155,7 +155,7 @@ let find_and_decorate_caret =
                  : Stop
              | Term(_)
              | DelimGroup
-             | Line => Skip
+             | LetLine => Skip
              | _ => Stop
              }
            )
@@ -202,7 +202,7 @@ let rec find_and_decorate_Term =
          | OpenChild(_)
          | ClosedChild(_)
          | DelimGroup
-         | Line
+         | LetLine
          | Term({shape: Operand(_) | Case(_) | Rule, _}) => Skip
          | _ => Stop
          };
@@ -260,7 +260,9 @@ let path_before = (l: t): option(CursorPath.t) => {
       | Transport(After) => go(l2)
       }
     | Tagged(
-        OpenChild(_) | ClosedChild(_) | DelimGroup | Line | Step(_) | Term(_),
+        OpenChild(_) | ClosedChild(_) | DelimGroup | LetLine | EmptyLine |
+        Step(_) |
+        Term(_),
         l,
       ) =>
       go(l)
@@ -281,7 +283,9 @@ let rec path_after = (l: t): option(CursorPath.t) =>
   | Align(l) => path_after(l)
   | Cat(_, l) => path_after(l)
   | Tagged(
-      OpenChild(_) | ClosedChild(_) | DelimGroup | Line | Step(_) | Term(_),
+      OpenChild(_) | ClosedChild(_) | DelimGroup | LetLine | EmptyLine |
+      Step(_) |
+      Term(_),
       l,
     ) =>
     path_after(l)
@@ -336,7 +340,9 @@ let path_of_caret_position = (row: int, col: int, l: t): option(CursorPath.t) =>
           };
         };
       | Tagged(
-          OpenChild(_) | ClosedChild(_) | DelimGroup | Line | Step(_) | Term(_),
+          OpenChild(_) | ClosedChild(_) | DelimGroup | LetLine | EmptyLine |
+          Step(_) |
+          Term(_),
           l,
         ) =>
         l |> go(indent, current_row, current_col)

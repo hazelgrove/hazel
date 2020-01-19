@@ -30,7 +30,8 @@ type t =
   | OpenChild({is_inline: bool})
   | ClosedChild({is_inline: bool})
   | DelimGroup
-  | Line
+  | EmptyLine
+  | LetLine
   | Step(int)
   | Term(term_data);
 
