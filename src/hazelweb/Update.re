@@ -160,9 +160,7 @@ let apply_action =
       | (Some((_, cursor) as path), _) =>
         if (path == Model.path(model)) {
           switch (cursor) {
-          | OnText(j) =>
-            // necessary for EmptyLine
-            schedule_action(Action.EditAction(j == 0 ? MoveLeft : MoveRight))
+          | OnText(_) => failwith(__LOC__ ++ ": unexpected cursor")
           | OnOp(Before)
           | OnDelim(_, Before) =>
             schedule_action(Action.EditAction(MoveLeft))
@@ -177,7 +175,14 @@ let apply_action =
         if (closest_elem
             |> JSUtil.force_get_parent_elem
             |> JSUtil.elem_has_cls("EmptyLine")) {
-          schedule_action(Action.EditAction(MoveTo((steps, OnText(0)))));
+          let (model_steps, _) = model |> Model.path;
+          if (steps == model_steps) {
+            schedule_action(
+              Action.EditAction(anchorOffset == 0 ? MoveLeft : MoveRight),
+            );
+          } else {
+            schedule_action(Action.EditAction(MoveTo((steps, OnText(0)))));
+          };
         } else {
           schedule_action(
             Action.EditAction(MoveTo((steps, OnText(anchorOffset)))),
