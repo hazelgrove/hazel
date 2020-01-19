@@ -538,11 +538,6 @@ module Opt = {
     | None => default
     | Some(a) => f(a)
     };
-  let get_exn =
-    fun
-    | Some(a) => a
-    | None => failwith("Expected some");
-
   let get = (if_absent: unit => 'a, opt: option('a)): 'a =>
     switch (opt) {
     | None => if_absent()
