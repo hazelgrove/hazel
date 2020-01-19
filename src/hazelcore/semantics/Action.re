@@ -3262,10 +3262,28 @@ module Exp = {
           | LetLineZE(_) => Failed
           | ExpLineZ(zopseq) =>
             switch (ana_perform_opseq(ctx_zline, a, (zopseq, u_gen), ty)) {
-            | (Failed | Succeeded(AnaExpandsToLet(_) | AnaExpandsToCase(_))) as res => res
+            | Failed => Failed
             | CursorEscaped(side) =>
               ana_perform(ctx, escape(side), (ZE2(zblock), u_gen), ty)
               |> wrap_in_AnaDone
+            | Succeeded(AnaExpandsToLet(r)) =>
+              Succeeded(
+                AnaExpandsToLet({
+                  u_gen: r.u_gen,
+                  prefix: prefix @ r.prefix,
+                  def: r.def,
+                  suffix: r.suffix @ suffix,
+                }),
+              )
+            | Succeeded(AnaExpandsToCase(r)) =>
+              Succeeded(
+                AnaExpandsToCase({
+                  u_gen: r.u_gen,
+                  prefix: prefix @ r.prefix,
+                  scrut: r.scrut,
+                  suffix: r.suffix @ suffix,
+                }),
+              )
             | Succeeded(AnaDone((ZE0(zoperand), u_gen))) =>
               let new_ze =
                 ZExp.ZE2((prefix, ExpLineZ(ZOpSeq.wrap(zoperand)), []));
