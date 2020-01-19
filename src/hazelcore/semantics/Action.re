@@ -2731,26 +2731,20 @@ let make_zexp_or_zblock_inconsistent =
     (B(zblock), u_gen);
   };
 
-let split_variable_name_into_strings = (pos, name) => {
-  let left_var = String.sub(name, 0, pos);
-  let right_var = String.sub(name, pos, String.length(name) - pos);
-  (left_var, right_var);
-};
-
 let split_variable_name = (pos, name) => {
-  let (left_name, right_name) = split_variable_name_into_strings(pos, name);
+  let (left_name, right_name) = Var.split(pos, name);
   (UHExp.var(left_name), UHExp.var(right_name));
 };
 
 let zexp_is_suitable_for_var_split = (zexp: ZExp.t) =>
   switch (ZExp.cursor_on_var(zexp)) {
-  | Some((pos, _, _, name)) => pos > 0 && pos <= String.length(name) - 1
+  | Some((pos, name)) => pos > 0 && pos <= String.length(name) - 1
   | _ => false
   };
 
 let is_zexp_split_on_keyword = (zexp: ZExp.t) => {
   switch (ZExp.cursor_on_var(zexp)) {
-  | Some((pos, _, _, name)) =>
+  | Some((pos, name)) =>
     Keyword.transform_to_kw(String.sub(name, 0, pos)) != NotKW
   | _ => false
   };
@@ -2759,7 +2753,7 @@ let is_zexp_split_on_keyword = (zexp: ZExp.t) => {
 /* Variable splitting common code */
 let handle_variable_split_space_case = (zexp: ZExp.t) => {
   switch (ZExp.cursor_on_var(zexp)) {
-  | Some((pos, _, _, name)) =>
+  | Some((pos, name)) =>
     let (left_var, right_var) = split_variable_name(pos, name);
     let cursor = ZExp.CursorE(OnText(0), right_var);
     switch (zexp) {
@@ -3497,7 +3491,7 @@ let rec syn_perform_block =
         zexp_is_suitable_for_var_split(ze0) && is_zexp_split_on_keyword(ze0) =>
     let zlines = (prefix, ZExp.place_before_line(EmptyLine), suffix);
     let zblock = ZExp.BlockZL(zlines, e2);
-    let (left_var, right_var) = split_variable_name_into_strings(pos, name);
+    let (left_var, right_var) = Var.split(pos, name);
     let keyword =
       left_var
       |> Keyword.transform_to_kw
@@ -5961,7 +5955,7 @@ and ana_perform_block =
         zexp_is_suitable_for_var_split(ze0) && is_zexp_split_on_keyword(ze0) =>
     let zlines = (prefix, ZExp.place_before_line(EmptyLine), suffix);
     let zblock = ZExp.BlockZL(zlines, e2);
-    let (left_var, right_var) = split_variable_name_into_strings(pos, name);
+    let (left_var, right_var) = Var.split(pos, name);
     let keyword =
       left_var
       |> Keyword.transform_to_kw
@@ -5991,7 +5985,7 @@ and ana_perform_block =
   | (Construct(SOp(SSpace)), BlockZE(lines, zexp))
       when is_zexp_split_on_keyword(zexp) =>
     switch (ZExp.cursor_on_var(zexp)) {
-    | Some((pos, _, _, name)) =>
+    | Some((pos, name)) =>
       let keyword =
         String.sub(name, 0, pos)
         |> Keyword.transform_to_kw
