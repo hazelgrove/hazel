@@ -800,28 +800,22 @@ module Exp = {
         (prefix, zline, suffix): ZExp.zblock,
         ty: HTyp.t,
       )
-      : option(t) => {
-    let steps = steps @ [List.length(prefix)];
-    switch (suffix) {
-    | [] =>
-      switch (zline) {
-      | CursorL(_)
-      | LetLineZP(_)
-      | LetLineZA(_)
-      | LetLineZE(_) => None
-      | ExpLineZ(zopseq) => ana_cursor_info_zopseq(~steps, ctx, zopseq, ty)
-      }
-    | [_, ..._] =>
-      switch (Statics.Exp.syn_lines(ctx, prefix)) {
-      | None => None
-      | Some(ctx) =>
-        switch (
-          syn_cursor_info_line(
-            ~steps=steps @ [List.length(prefix)],
-            ctx,
-            zline,
-          )
-        ) {
+      : option(t) =>
+    switch (Statics.Exp.syn_lines(ctx, prefix)) {
+    | None => None
+    | Some(ctx) =>
+      let steps = steps @ [List.length(prefix)];
+      switch (suffix) {
+      | [] =>
+        switch (zline) {
+        | CursorL(_)
+        | LetLineZP(_)
+        | LetLineZA(_)
+        | LetLineZE(_) => None
+        | ExpLineZ(zopseq) => ana_cursor_info_zopseq(~steps, ctx, zopseq, ty)
+        }
+      | [_, ..._] =>
+        switch (syn_cursor_info_line(~steps, ctx, zline)) {
         | None => None
         | Some(CursorNotOnDeferredVarPat(ci)) => Some(ci)
         | Some(CursorOnDeferredVarPat(deferred_ci, x)) =>
@@ -834,9 +828,8 @@ module Exp = {
             );
           Some(uses |> deferred_ci);
         }
-      }
-    };
-  }
+      };
+    }
   and ana_cursor_info_zopseq =
       (
         ~steps: CursorPath.steps,
