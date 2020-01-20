@@ -780,8 +780,10 @@ module Pat = {
 module Exp = {
   let tuple_zip = _tuple_zip(~get_tuple_elements=UHExp.get_tuple_elements);
 
-  let ctx_for_let =
-      (ctx: Contexts.t, p: UHPat.t, ty: HTyp.t, e: UHExp.t): Contexts.t =>
+  /* returns recursive ctx + name of recursively defined var */
+  let ctx_for_let' =
+      (ctx: Contexts.t, p: UHPat.t, ty: HTyp.t, e: UHExp.t)
+      : (Contexts.t, option(Var.t)) =>
     switch (p, e) {
     | (
         P0(Var(_, NotInVarHole, x)) |
@@ -790,24 +792,17 @@ module Exp = {
         E2([ExpLine(OpSeq(_, S(Lam(_), E)))]),
       ) =>
       switch (HTyp.matched_arrow(ty)) {
-      | Some(_) => Contexts.extend_gamma(ctx, (x, ty))
-      | None => ctx
-      }
-    | _ => ctx
-    };
-
-  /* returns recursive ctx + name of recursively defined var */
-  let ctx_for_let' =
-      (ctx: Contexts.t, p: UHPat.t, ty: HTyp.t, e: UHExp.t)
-      : (Contexts.t, option(Var.t)) =>
-    switch (p, e) {
-    | (P0(Var(_, NotInVarHole, x)), E0(Lam(_))) =>
-      switch (HTyp.matched_arrow(ty)) {
       | Some(_) => (Contexts.extend_gamma(ctx, (x, ty)), Some(x))
       | None => (ctx, None)
       }
     | _ => (ctx, None)
     };
+
+  let ctx_for_let =
+      (ctx: Contexts.t, p: UHPat.t, ty: HTyp.t, e: UHExp.t): Contexts.t => {
+    let (ctx, _) = ctx_for_let'(ctx, p, ty, e);
+    ctx;
+  };
 
   /**
    * Synthesize a type, if possible, for e
