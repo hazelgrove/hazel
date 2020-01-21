@@ -1,7 +1,7 @@
 module Vdom = Virtual_dom.Vdom;
 module ZList = GeneralUtil.ZList;
-type undo_history_group = Model.undo_history_group;
-type undo_history_entry = Model.undo_history_entry;
+type undo_history_group = UndoHistory.undo_history_group;
+type undo_history_entry = UndoHistory.undo_history_entry;
 
 let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
   let history_hidden_entry_view =
@@ -35,13 +35,13 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
         group_id: int,
         undo_history_entry: undo_history_entry,
       ) => {
-    let history_tab_icon = (group_id: int) => {      
+    let history_tab_icon = (group_id: int) => {
       let icon_classes =
-      if (is_expanded) {
-        ["down-triangle", "history-tab-icon"];
-      } else {
-        ["left-triangle", "history-tab-icon"];
-      };
+        if (is_expanded) {
+          ["down-triangle", "history-tab-icon"];
+        } else {
+          ["left-triangle", "history-tab-icon"];
+        };
       if (has_hidden_part) {
         /* expand icon*/
         Vdom.(
@@ -58,7 +58,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
       } else {
         Vdom.(Node.div([], []));
       };
-    }
+    };
     switch (undo_history_entry.previous_action) {
     | None => Vdom.(Node.div([], []))
     | Some(detail_ac) =>

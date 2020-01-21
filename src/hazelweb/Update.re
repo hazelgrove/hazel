@@ -374,13 +374,15 @@ let apply_action =
       {
         ...model,
         all_hidden_history_expand: false,
-        undo_history: Model.set_all_hidden_history(model.undo_history, false),
+        undo_history:
+          UndoHistory.set_all_hidden_history(model.undo_history, false),
       };
     } else {
       {
         ...model,
         all_hidden_history_expand: true,
-        undo_history: Model.set_all_hidden_history(model.undo_history, true),
+        undo_history:
+          UndoHistory.set_all_hidden_history(model.undo_history, true),
       };
     }
   };
