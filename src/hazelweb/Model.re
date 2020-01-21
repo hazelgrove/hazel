@@ -473,7 +473,7 @@ let undo = (model: t): t => {
           ...new_group,
           group_entries: ZList.shift_begin(new_group.group_entries), /*pointer may be in the wrong position after clicking history panel*/
           is_expanded: true,
-        }; /* is_expanded=true because this group should be expanded*/
+        }; /* is_expanded=true because the selected group should be expanded*/
         ZList.replace_z(new_history, new_group');
       }
     | Some(new_group_entries) =>
@@ -484,7 +484,7 @@ let undo = (model: t): t => {
           group_id: cur_group.group_id,
           is_expanded: true,
         },
-      ) /* is_expanded=true because this group should be expanded*/
+      ) /* is_expanded=true because the selected group should be expanded*/
     };
   };
   let cur_group' = ZList.prj_z(new_history);
