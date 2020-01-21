@@ -465,7 +465,7 @@ let undo = (model: t): t => {
       | Some(new_history) =>
         let new_group = ZList.prj_z(new_history);
         let new_group': UndoHistory.undo_history_group = {
-          group_entries: ZList.shift_begin(new_group.group_entries), /*pointer may be in the wrong position after clicking history panel*/
+          group_entries: ZList.shift_begin(new_group.group_entries), /*pointer may be in the wrong position after clicking an arbitrary entry in the history panel*/
           is_expanded: true,
         }; /* is_expanded=true because the selected group should be expanded*/
         ZList.replace_z(new_history, new_group');
@@ -496,7 +496,7 @@ let redo = (model: t): t => {
       | Some(new_history) =>
         let cur_group = ZList.prj_z(new_history);
         let new_group: UndoHistory.undo_history_group = {
-          group_entries: ZList.shift_end(cur_group.group_entries), /*pointer may be in the wrong position after clicking history panel*/
+          group_entries: ZList.shift_end(cur_group.group_entries), /*pointer may be in the wrong position after clicking an arbitrary entry in the history panel*/
           is_expanded: true,
         }; /* is_expanded=true because this group should be expanded when redo*/
         ZList.replace_z(new_history, new_group);
