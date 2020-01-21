@@ -204,7 +204,7 @@ let rec before_pat = (~steps=[], p: UHPat.t): t =>
   | EmptyHole(_)
   | Wild(_)
   | ListNil(_) => (steps, OnDelim(0, Before))
-  | Var(_, _, _)
+  | Var(_, _, _, _)
   | NumLit(_, _)
   | BoolLit(_, _) => (steps, OnText(0))
   | Parenthesized(_)
@@ -318,7 +318,7 @@ let rec follow_pat_and_place_cursor =
     /* outer nodes */
     | (_, EmptyHole(_))
     | (_, Wild(_))
-    | (_, Var(_, _, _))
+    | (_, Var(_, _, _, _))
     | (_, NumLit(_, _))
     | (_, BoolLit(_, _))
     | (_, ListNil(_)) => None
@@ -896,7 +896,7 @@ let rec holes_pat =
       ...holes,
     ]
   | Wild(InHole(_, u))
-  | Var(InHole(_, u), _, _)
+  | Var(InHole(_, u), _, _, _)
   | NumLit(InHole(_, u), _)
   | BoolLit(InHole(_, u), _)
   | ListNil(InHole(_, u))
@@ -904,11 +904,11 @@ let rec holes_pat =
       (PatHole(u), rev_steps |> List.rev |> append(before_pat(p))),
       ...holes,
     ]
-  | Var(_, InVarHole(_, u), _) => [
+  | Var(_, InVarHole(_, u), _, _) => [
       (PatHole(u), (rev_steps |> List.rev, OnText(0))),
       ...holes,
     ]
-  | Var(NotInHole, NotInVarHole, _) => holes
+  | Var(NotInHole, NotInVarHole, _, _) => holes
   | Wild(NotInHole) => holes
   | NumLit(NotInHole, _) => holes
   | BoolLit(NotInHole, _) => holes
@@ -1424,7 +1424,7 @@ let rec holes_zpat = (zp: ZPat.t, rev_steps: rev_steps): zhole_list => {
       holes_after: [],
     }
   | CursorP(_, Wild(_))
-  | CursorP(_, Var(_, _, _))
+  | CursorP(_, Var(_, _, _, _))
   | CursorP(_, NumLit(_, _))
   | CursorP(_, BoolLit(_, _))
   | CursorP(_, ListNil(_)) => {

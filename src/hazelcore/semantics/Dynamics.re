@@ -72,7 +72,7 @@ module DHPat = {
           : expand_result =>
     switch (p) {
     | Wild(InHole(TypeInconsistent as reason, u))
-    | Var(InHole(TypeInconsistent as reason, u), _, _)
+    | Var(InHole(TypeInconsistent as reason, u), _, _, _)
     | NumLit(InHole(TypeInconsistent as reason, u), _)
     | BoolLit(InHole(TypeInconsistent as reason, u), _)
     | ListNil(InHole(TypeInconsistent as reason, u))
@@ -87,7 +87,7 @@ module DHPat = {
         Expands(NonEmptyHole(reason, u, 0, dp), Hole, ctx, delta);
       };
     | Wild(InHole(WrongLength, _))
-    | Var(InHole(WrongLength, _), _, _)
+    | Var(InHole(WrongLength, _), _, _, _)
     | NumLit(InHole(WrongLength, _), _)
     | BoolLit(InHole(WrongLength, _), _)
     | ListNil(InHole(WrongLength, _))
@@ -100,10 +100,10 @@ module DHPat = {
         MetaVarMap.extend_unique(delta, (u, (PatternHole, ty, gamma)));
       Expands(dp, ty, ctx, delta);
     | Wild(NotInHole) => Expands(Wild, Hole, ctx, delta)
-    | Var(NotInHole, InVarHole(Free, _), _) => raise(UHPat.FreeVarInPat)
-    | Var(NotInHole, InVarHole(Keyword(k), u), _) =>
+    | Var(NotInHole, InVarHole(Free, _), _, _) => raise(UHPat.FreeVarInPat)
+    | Var(NotInHole, InVarHole(Keyword(k), u), _, _) =>
       Expands(Keyword(u, 0, k), Hole, ctx, delta)
-    | Var(NotInHole, NotInVarHole, x) =>
+    | Var(NotInHole, NotInVarHole, _, x) =>
       let ctx = Contexts.extend_gamma(ctx, (x, (Hole, steps)));
       Expands(Var(x), Hole, ctx, delta);
     | NumLit(NotInHole, n) => Expands(NumLit(n), Num, ctx, delta)
@@ -197,7 +197,7 @@ module DHPat = {
       : expand_result =>
     switch (p) {
     | Wild(InHole(TypeInconsistent as reason, u))
-    | Var(InHole(TypeInconsistent as reason, u), _, _)
+    | Var(InHole(TypeInconsistent as reason, u), _, _, _)
     | NumLit(InHole(TypeInconsistent as reason, u), _)
     | BoolLit(InHole(TypeInconsistent as reason, u), _)
     | ListNil(InHole(TypeInconsistent as reason, u))
@@ -213,7 +213,7 @@ module DHPat = {
         Expands(dp, ty, ctx, delta);
       };
     | Wild(InHole(WrongLength, _))
-    | Var(InHole(WrongLength, _), _, _)
+    | Var(InHole(WrongLength, _), _, _, _)
     | NumLit(InHole(WrongLength, _), _)
     | BoolLit(InHole(WrongLength, _), _)
     | ListNil(InHole(WrongLength, _))
@@ -224,10 +224,10 @@ module DHPat = {
       let delta =
         MetaVarMap.extend_unique(delta, (u, (PatternHole, ty, gamma)));
       Expands(dp, ty, ctx, delta);
-    | Var(NotInHole, InVarHole(Free, _), _) => raise(UHPat.FreeVarInPat)
-    | Var(NotInHole, InVarHole(Keyword(k), u), _) =>
+    | Var(NotInHole, InVarHole(Free, _), _, _) => raise(UHPat.FreeVarInPat)
+    | Var(NotInHole, InVarHole(Keyword(k), u), _, _) =>
       Expands(Keyword(u, 0, k), ty, ctx, delta)
-    | Var(NotInHole, NotInVarHole, x) =>
+    | Var(NotInHole, NotInVarHole, _, x) =>
       let ctx = Contexts.extend_gamma(ctx, (x, (ty, steps)));
       Expands(Var(x), ty, ctx, delta);
     | Wild(NotInHole) => Expands(Wild, ty, ctx, delta)

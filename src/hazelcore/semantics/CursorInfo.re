@@ -92,7 +92,7 @@ type pat_node =
 
 let p_of_pat_node = pat_node =>
   switch (pat_node) {
-  | VarPat(x, _) => UHPat.Var(NotInHole, NotInVarHole, x)
+  | VarPat(x, _) => UHPat.Var(NotInHole, NotInVarHole, NoWarning, x)
   | OtherPat(p) => p
   };
 
@@ -367,7 +367,7 @@ let rec _ana_cursor_found_pat =
       )),
     )
   | Wild(InHole(TypeInconsistent, _))
-  | Var(InHole(TypeInconsistent, _), _, _)
+  | Var(InHole(TypeInconsistent, _), _, _, _)
   | NumLit(InHole(TypeInconsistent, _), _)
   | BoolLit(InHole(TypeInconsistent, _), _)
   | ListNil(InHole(TypeInconsistent, _))
@@ -386,13 +386,13 @@ let rec _ana_cursor_found_pat =
       )
     };
   | Wild(InHole(WrongLength, _))
-  | Var(InHole(WrongLength, _), _, _)
+  | Var(InHole(WrongLength, _), _, _, _)
   | NumLit(InHole(WrongLength, _), _)
   | BoolLit(InHole(WrongLength, _), _)
   | ListNil(InHole(WrongLength, _))
   | Inj(InHole(WrongLength, _), _, _) => None
   /* not in hole */
-  | Var(NotInHole, InVarHole(Keyword(k), _), _) =>
+  | Var(NotInHole, InVarHole(Keyword(k), _), _, _) =>
     Some(
       CursorNotOnDeferredVarPat((
         PatAnaKeyword(ty, k),
@@ -405,7 +405,11 @@ let rec _ana_cursor_found_pat =
     Some(
       CursorNotOnDeferredVarPat((PatAnalyzed(ty), Pat(OtherPat(p)), ctx)),
     )
-  | Var(NotInHole, _, x) =>
+  | Var(NotInHole, _, CritUnused, _) =>
+    Some(
+      CursorNotOnDeferredVarPat((PatAnalyzed(ty), Pat(OtherPat(p)), ctx)),
+    )
+  | Var(NotInHole, _, _, x) =>
     Some(
       CursorOnDeferredVarPat(
         uses => (PatAnalyzed(ty), Pat(VarPat(x, uses)), ctx),
@@ -544,7 +548,7 @@ let rec _syn_cursor_info_pat =
         : option(deferrable(t)) =>
   switch (zp) {
   // TODO special case OpSeq
-  | CursorP(cursor, Var(_, InVarHole(Keyword(k), _), _) as p) =>
+  | CursorP(cursor, Var(_, InVarHole(Keyword(k), _), _, _) as p) =>
     Some(
       CursorNotOnDeferredVarPat(
         mk_cursor_info(
@@ -558,7 +562,7 @@ let rec _syn_cursor_info_pat =
         ),
       ),
     )
-  | CursorP(cursor, Var(NotInHole, NotInVarHole, x) as p) =>
+  | CursorP(cursor, Var(NotInHole, NotInVarHole, _, x) as p) =>
     switch (Statics.syn_pat(node_steps, ctx, p)) {
     | None => None
     | Some((ty, _)) =>
@@ -744,7 +748,7 @@ and _ana_cursor_info_pat =
     : option(deferrable(t)) =>
   switch (zp) {
   /* TODO special case OpSeq */
-  | CursorP(cursor, Var(_, InVarHole(Keyword(k), _), _) as p) =>
+  | CursorP(cursor, Var(_, InVarHole(Keyword(k), _), _, _) as p) =>
     Some(
       CursorNotOnDeferredVarPat(
         mk_cursor_info(
@@ -1178,7 +1182,7 @@ let rec _syn_cursor_info_block =
             Block(suffix, conclusion),
             node_steps,
             List.length(prefix) + 1,
-          ); // TODO: use correct steps
+          );
         Some(uses |> deferred_ci);
       }
     }

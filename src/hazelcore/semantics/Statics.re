@@ -26,7 +26,7 @@ let rec syn_pat =
   /* in hole */
   | EmptyHole(_) => Some((Hole, ctx))
   | Wild(InHole(TypeInconsistent, _))
-  | Var(InHole(TypeInconsistent, _), _, _)
+  | Var(InHole(TypeInconsistent, _), _, _, _)
   | NumLit(InHole(TypeInconsistent, _), _)
   | BoolLit(InHole(TypeInconsistent, _), _)
   | ListNil(InHole(TypeInconsistent, _))
@@ -37,16 +37,16 @@ let rec syn_pat =
     | Some((_, gamma)) => Some((Hole, gamma))
     };
   | Wild(InHole(WrongLength, _))
-  | Var(InHole(WrongLength, _), _, _)
+  | Var(InHole(WrongLength, _), _, _, _)
   | NumLit(InHole(WrongLength, _), _)
   | BoolLit(InHole(WrongLength, _), _)
   | ListNil(InHole(WrongLength, _))
   | Inj(InHole(WrongLength, _), _, _) => None
   /* not in hole */
   | Wild(NotInHole) => Some((Hole, ctx))
-  | Var(NotInHole, InVarHole(Free, _), _) => raise(UHPat.FreeVarInPat)
-  | Var(NotInHole, InVarHole(Keyword(_), _), _) => Some((Hole, ctx))
-  | Var(NotInHole, NotInVarHole, x) =>
+  | Var(NotInHole, InVarHole(Free, _), _, _) => raise(UHPat.FreeVarInPat)
+  | Var(NotInHole, InVarHole(Keyword(_), _), _, _) => Some((Hole, ctx))
+  | Var(NotInHole, NotInVarHole, _, x) =>
     Var.check_valid(
       x,
       Some((HTyp.Hole, Contexts.extend_gamma(ctx, (x, (Hole, steps))))),
@@ -162,7 +162,7 @@ and ana_pat =
   /* in hole */
   | EmptyHole(_) => Some(ctx)
   | Wild(InHole(TypeInconsistent, _))
-  | Var(InHole(TypeInconsistent, _), _, _)
+  | Var(InHole(TypeInconsistent, _), _, _, _)
   | NumLit(InHole(TypeInconsistent, _), _)
   | BoolLit(InHole(TypeInconsistent, _), _)
   | ListNil(InHole(TypeInconsistent, _))
@@ -173,15 +173,15 @@ and ana_pat =
     | Some((_, ctx)) => Some(ctx)
     };
   | Wild(InHole(WrongLength, _))
-  | Var(InHole(WrongLength, _), _, _)
+  | Var(InHole(WrongLength, _), _, _, _)
   | NumLit(InHole(WrongLength, _), _)
   | BoolLit(InHole(WrongLength, _), _)
   | ListNil(InHole(WrongLength, _))
   | Inj(InHole(WrongLength, _), _, _) => None
   /* not in hole */
-  | Var(NotInHole, InVarHole(Free, _), _) => raise(UHPat.FreeVarInPat)
-  | Var(NotInHole, InVarHole(Keyword(_), _), _) => Some(ctx)
-  | Var(NotInHole, NotInVarHole, x) =>
+  | Var(NotInHole, InVarHole(Free, _), _, _) => raise(UHPat.FreeVarInPat)
+  | Var(NotInHole, InVarHole(Keyword(_), _), _, _) => Some(ctx)
+  | Var(NotInHole, NotInVarHole, _, x) =>
     Var.check_valid(x, Some(Contexts.extend_gamma(ctx, (x, (ty, steps)))))
   | Wild(NotInHole) => Some(ctx)
   | NumLit(NotInHole, _)
@@ -404,7 +404,7 @@ let ctx_for_let =
     )
     : Contexts.t(CursorPath.steps) =>
   switch (p, block) {
-  | (Var(_, NotInVarHole, x), Block([], Lam(_, _, _, _))) =>
+  | (Var(_, NotInVarHole, _, x), Block([], Lam(_, _, _, _))) =>
     switch (HTyp.matched_arrow(ty)) {
     | Some(_) => Contexts.extend_gamma(ctx, (x, (ty, steps @ [0])))
     | None => ctx
@@ -423,7 +423,7 @@ let ctx_for_let' =
     )
     : (Contexts.t(CursorPath.steps), option(Var.t)) =>
   switch (p, block) {
-  | (Var(_, NotInVarHole, x), Block([], Lam(_, _, _, _))) =>
+  | (Var(_, NotInVarHole, _, x), Block([], Lam(_, _, _, _))) =>
     switch (HTyp.matched_arrow(ty)) {
     | Some(_) => (
         Contexts.extend_gamma(ctx, (x, (ty, steps @ [0]))),
@@ -1084,9 +1084,9 @@ let rec syn_fix_holes_pat =
       (p, HTyp.Hole, ctx, u_gen);
     }
   | Wild(_) => (p_nih, Hole, ctx, u_gen)
-  | Var(_, InVarHole(Free, _), _) => raise(UHPat.FreeVarInPat)
-  | Var(_, InVarHole(Keyword(_), _), _) => (p_nih, Hole, ctx, u_gen)
-  | Var(_, NotInVarHole, x) =>
+  | Var(_, InVarHole(Free, _), _, _) => raise(UHPat.FreeVarInPat)
+  | Var(_, InVarHole(Keyword(_), _), _, _) => (p_nih, Hole, ctx, u_gen)
+  | Var(_, NotInVarHole, _, x) =>
     let ctx = Contexts.extend_gamma(ctx, (x, (Hole, steps)));
     (p_nih, Hole, ctx, u_gen);
   | NumLit(_, _) => (p_nih, Num, ctx, u_gen)
@@ -1245,9 +1245,9 @@ and ana_fix_holes_pat =
       (p, ctx, u_gen);
     }
   | Wild(_) => (p_nih, ctx, u_gen)
-  | Var(_, InVarHole(Free, _), _) => raise(UHPat.FreeVarInPat)
-  | Var(_, InVarHole(Keyword(_), _), _) => (p_nih, ctx, u_gen)
-  | Var(_, NotInVarHole, x) =>
+  | Var(_, InVarHole(Free, _), _, _) => raise(UHPat.FreeVarInPat)
+  | Var(_, InVarHole(Keyword(_), _), _, _) => (p_nih, ctx, u_gen)
+  | Var(_, NotInVarHole, _, x) =>
     let ctx = Contexts.extend_gamma(ctx, (x, (ty, steps)));
     (p_nih, ctx, u_gen);
   | NumLit(_, _)

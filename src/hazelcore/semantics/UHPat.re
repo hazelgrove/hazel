@@ -22,7 +22,7 @@ type t =
   /* outer nodes */
   | EmptyHole(MetaVar.t)
   | Wild(ErrStatus.t)
-  | Var(ErrStatus.t, VarErrStatus.t, Var.t)
+  | Var(ErrStatus.t, VarErrStatus.t, VarWarnStatus.t, Var.t)
   | NumLit(ErrStatus.t, int)
   | BoolLit(ErrStatus.t, bool)
   | ListNil(ErrStatus.t)
@@ -38,10 +38,11 @@ let var =
     (
       ~err: ErrStatus.t=NotInHole,
       ~var_err: VarErrStatus.t=NotInVarHole,
+      ~var_warn: VarWarnStatus.t=NoWarning,
       x: Var.t,
     )
     : t =>
-  Var(err, var_err, x);
+  Var(err, var_err, var_warn, x);
 
 let boollit = (~err: ErrStatus.t=NotInHole, b: bool) => BoolLit(err, b);
 
@@ -71,7 +72,7 @@ let bidelimited = (p: t): bool =>
   /* outer nodes */
   | EmptyHole(_)
   | Wild(_)
-  | Var(_, _, _)
+  | Var(_, _, _, _)
   | NumLit(_, _)
   | BoolLit(_, _)
   | ListNil(_) => true
@@ -104,7 +105,7 @@ let rec get_err_status_t = (p: t): ErrStatus.t =>
   switch (p) {
   | EmptyHole(_) => NotInHole
   | Wild(err) => err
-  | Var(err, _, _) => err
+  | Var(err, _, _, _) => err
   | NumLit(err, _) => err
   | BoolLit(err, _) => err
   | ListNil(err) => err
@@ -122,7 +123,7 @@ let rec set_err_status_t = (err: ErrStatus.t, p: t): t =>
   switch (p) {
   | EmptyHole(_) => p
   | Wild(_) => Wild(err)
-  | Var(_, var_err, x) => Var(err, var_err, x)
+  | Var(_, var_err, var_warn, x) => Var(err, var_err, var_warn, x)
   | NumLit(_, n) => NumLit(err, n)
   | BoolLit(_, b) => BoolLit(err, b)
   | ListNil(_) => ListNil(err)
@@ -160,14 +161,14 @@ let rec make_t_inconsistent = (u_gen: MetaVarGen.t, p: t): (t, MetaVarGen.t) =>
   /* already in hole */
   | EmptyHole(_)
   | Wild(InHole(TypeInconsistent, _))
-  | Var(InHole(TypeInconsistent, _), _, _)
+  | Var(InHole(TypeInconsistent, _), _, _, _)
   | NumLit(InHole(TypeInconsistent, _), _)
   | BoolLit(InHole(TypeInconsistent, _), _)
   | ListNil(InHole(TypeInconsistent, _))
   | Inj(InHole(TypeInconsistent, _), _, _) => (p, u_gen)
   /* not in hole */
   | Wild(NotInHole | InHole(WrongLength, _))
-  | Var(NotInHole | InHole(WrongLength, _), _, _)
+  | Var(NotInHole | InHole(WrongLength, _), _, _, _)
   | NumLit(NotInHole | InHole(WrongLength, _), _)
   | BoolLit(NotInHole | InHole(WrongLength, _), _)
   | ListNil(NotInHole | InHole(WrongLength, _))
@@ -209,7 +210,7 @@ let child_indices =
   fun
   | EmptyHole(_)
   | Wild(_)
-  | Var(_, _, _)
+  | Var(_, _, _, _)
   | NumLit(_, _)
   | BoolLit(_, _)
   | ListNil(_) => []
@@ -221,7 +222,7 @@ let favored_child: t => option((ChildIndex.t, t)) =
   fun
   | EmptyHole(_)
   | Wild(_)
-  | Var(_, _, _)
+  | Var(_, _, _, _)
   | NumLit(_, _)
   | BoolLit(_, _)
   | ListNil(_)

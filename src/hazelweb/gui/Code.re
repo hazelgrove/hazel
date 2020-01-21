@@ -106,8 +106,8 @@ and stoken =
   | SEmptyHole(string)
   | SDelim(DelimIndex.t, string)
   | SOp(OpIndex.t, ErrStatus.t, string)
-  | SText(VarErrStatus.t, string)
-  | STextWithBadge(VarErrStatus.t, string, int, bool)
+  | SText(VarErrStatus.t, VarWarnStatus.t, string)
+  | STextWithBadge(VarErrStatus.t, VarWarnStatus.t, string, int, bool)
   | SCastArrow
   | SFailedCastArrow
   | SSpace
@@ -202,18 +202,25 @@ let steps_of_snode =
 let mk_SDelim = (~index: DelimIndex.t, s: string): stoken =>
   SDelim(index, s);
 
-let mk_SText = (~var_err: VarErrStatus.t=NotInVarHole, s: string): stoken =>
-  SText(var_err, s);
+let mk_SText =
+    (
+      ~var_err: VarErrStatus.t=NotInVarHole,
+      ~var_warn: VarWarnStatus.t=NoWarning,
+      s: string,
+    )
+    : stoken =>
+  SText(var_err, var_warn, s);
 
 let mk_STextWithBadge =
     (
       ~var_err: VarErrStatus.t=NotInVarHole,
+      ~var_warn: VarWarnStatus.t=NoWarning,
       s: string,
       count: int,
       shadowed: bool,
     )
     : stoken =>
-  STextWithBadge(var_err, s, count, shadowed);
+  STextWithBadge(var_err, var_warn, s, count, shadowed);
 
 let sspace_vnode =
   Vdom.(
@@ -666,6 +673,11 @@ let var_err_clss: VarErrStatus.t => list(cls) =
       "Keyword",
     ];
 
+let var_warn_clss: VarWarnStatus.t => list(cls) =
+  fun
+  | NoWarning => []
+  | CritUnused => ["CritUnused"];
+
 let vindentation = (~steps_of_first_sword=?, ~first_sword=?, m) => {
   // attrs used in editable code to determine where
   // to transport cursor if user clicks indentation
@@ -695,7 +707,7 @@ let vindentation = (~steps_of_first_sword=?, ~first_sword=?, m) => {
         Some(
           SNode(_) |
           SToken(
-            SEmptyHole(_) | SText(_, _) | STextWithBadge(_, _, _, _) |
+            SEmptyHole(_) | SText(_, _, _) | STextWithBadge(_, _, _, _, _) |
             SEmptyLine,
           ),
         ),
@@ -1305,17 +1317,21 @@ and view_of_stoken =
       ],
       [op_before, op_txt, op_after],
     );
-  | SText(var_err, s) =>
+  | SText(var_err, var_warn, s) =>
     Vdom.(
       Node.div(
         [
           Attr.id(text_id(node_steps)),
-          Attr.classes([inline_div_cls, "SText"] @ var_err_clss(var_err)),
+          Attr.classes(
+            [inline_div_cls, "SText"]
+            @ var_err_clss(var_err)
+            @ var_warn_clss(var_warn),
+          ),
         ],
         [Node.text(s)],
       )
     )
-  | STextWithBadge(var_err, s, count, shadowed) =>
+  | STextWithBadge(var_err, var_warn, s, count, shadowed) =>
     let str_of_count = Sexp.to_string(sexp_of_int(count));
     shadowed
       ? Vdom.(
@@ -1323,7 +1339,9 @@ and view_of_stoken =
             [
               Attr.id(text_id(node_steps)),
               Attr.classes(
-                [inline_div_cls, "SText"] @ var_err_clss(var_err),
+                [inline_div_cls, "SText"]
+                @ var_err_clss(var_err)
+                @ var_warn_clss(var_warn),
               ),
               Attr.create("semi-num-of-uses", str_of_count),
               Attr.create("semi-shadowed", "True"),
@@ -1454,7 +1472,15 @@ let snode_of_EmptyHole =
   );
 
 let snode_of_Var =
-    (~ap_err_status=NotInApHole, ~err, ~var_err, ~steps, x: Var.t): snode =>
+    (
+      ~ap_err_status=NotInApHole,
+      ~err,
+      ~var_err,
+      ~var_warn=VarWarnStatus.NoWarning,
+      ~steps,
+      x: Var.t,
+    )
+    : snode =>
   mk_SBox(
     ~ap_err_status,
     ~err,
@@ -1463,7 +1489,7 @@ let snode_of_Var =
     [
       mk_SLine(
         ~steps_of_first_sword=steps,
-        [SToken(mk_SText(~var_err, x))],
+        [SToken(mk_SText(~var_err, ~var_warn, x))],
       ),
     ],
   );
@@ -1942,8 +1968,8 @@ let rec snode_of_pat =
         ),
       ],
     )
-  | Var(err, var_err, x) =>
-    snode_of_Var(~ap_err_status, ~err, ~var_err, ~steps, x)
+  | Var(err, var_err, var_warn, x) =>
+    snode_of_Var(~ap_err_status, ~err, ~var_err, ~var_warn, ~steps, x)
   | NumLit(err, n) => snode_of_NumLit(~ap_err_status, ~err, ~steps, n)
   | BoolLit(err, b) => snode_of_BoolLit(~ap_err_status, ~err, ~steps, b)
   | ListNil(err) => snode_of_ListNil(~ap_err_status, ~err, ~steps, ())
@@ -2269,7 +2295,7 @@ let rec snode_of_zpat =
         )
         : snode =>
   switch (zp) {
-  | CursorP(_, Var(err, var_err, x)) =>
+  | CursorP(_, Var(err, var_err, var_warn, x)) =>
     let num_of_uses =
       switch (node) {
       | Pat(VarPat(_, uses)) => List.length(uses)
@@ -2287,6 +2313,7 @@ let rec snode_of_zpat =
             SToken(
               mk_STextWithBadge(
                 ~var_err,
+                ~var_warn,
                 x,
                 num_of_uses,
                 Contexts.gamma_contains(ctx, x),

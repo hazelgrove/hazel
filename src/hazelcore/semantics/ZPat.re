@@ -19,7 +19,7 @@ let valid_cursors = (p: UHPat.t): list(CursorPosition.t) =>
   switch (p) {
   | EmptyHole(_) => CursorPosition.delim_cursors(1)
   | Wild(_) => CursorPosition.delim_cursors(1)
-  | Var(_, _, x) => CursorPosition.text_cursors(Var.length(x))
+  | Var(_, _, _, x) => CursorPosition.text_cursors(Var.length(x))
   | NumLit(_, n) => CursorPosition.text_cursors(num_digits(n))
   | BoolLit(_, b) => CursorPosition.text_cursors(b ? 4 : 5)
   | ListNil(_) => CursorPosition.delim_cursors(1)
@@ -160,7 +160,7 @@ let rec is_before = (zp: t): bool =>
   | CursorP(cursor, Wild(_))
   | CursorP(cursor, ListNil(_)) => cursor == OnDelim(0, Before)
   /* outer nodes - text */
-  | CursorP(cursor, Var(_, _, _))
+  | CursorP(cursor, Var(_, _, _, _))
   | CursorP(cursor, NumLit(_, _))
   | CursorP(cursor, BoolLit(_, _)) => cursor == OnText(0)
   /* inner nodes */
@@ -181,7 +181,7 @@ let rec is_after = (zp: t): bool =>
   | CursorP(cursor, Wild(_))
   | CursorP(cursor, ListNil(_)) => cursor == OnDelim(0, After)
   /* outer nodes - text */
-  | CursorP(cursor, Var(_, _, x)) => cursor == OnText(Var.length(x))
+  | CursorP(cursor, Var(_, _, _, x)) => cursor == OnText(Var.length(x))
   | CursorP(cursor, NumLit(_, n)) => cursor == OnText(num_digits(n))
   | CursorP(cursor, BoolLit(_, b)) => cursor == OnText(b ? 4 : 5)
   /* inner nodes */
@@ -202,7 +202,7 @@ let rec place_before = (p: UHPat.t): t =>
   | Wild(_)
   | ListNil(_) => CursorP(OnDelim(0, Before), p)
   /* outer nodes - text */
-  | Var(_, _, _)
+  | Var(_, _, _, _)
   | NumLit(_, _)
   | BoolLit(_, _) => CursorP(OnText(0), p)
   /* inner nodes */
@@ -222,7 +222,7 @@ let rec place_after = (p: UHPat.t): t =>
   | Wild(_)
   | ListNil(_) => CursorP(OnDelim(0, After), p)
   /* outer nodes - text */
-  | Var(_, _, x) => CursorP(OnText(Var.length(x)), p)
+  | Var(_, _, _, x) => CursorP(OnText(Var.length(x)), p)
   | NumLit(_, n) => CursorP(OnText(num_digits(n)), p)
   | BoolLit(_, b) => CursorP(OnText(b ? 4 : 5), p)
   /* inner nodes */
@@ -273,7 +273,7 @@ let rec move_cursor_left = (zp: t): option(t) =>
     | None => None // should never happen
     | Some((p1, surround)) => Some(OpSeqZ(skel, place_after(p1), surround))
     }
-  | CursorP(OnDelim(_, _), Var(_, _, _) | BoolLit(_, _) | NumLit(_, _)) =>
+  | CursorP(OnDelim(_, _), Var(_, _, _, _) | BoolLit(_, _) | NumLit(_, _)) =>
     // invalid cursor position
     None
   | ParenthesizedZ(zp1) =>
@@ -330,7 +330,7 @@ let rec move_cursor_right = (zp: t): option(t) =>
     | Some((p1, surround)) =>
       Some(OpSeqZ(skel, place_before(p1), surround))
     }
-  | CursorP(OnDelim(_, _), Var(_, _, _) | BoolLit(_, _) | NumLit(_, _)) =>
+  | CursorP(OnDelim(_, _), Var(_, _, _, _) | BoolLit(_, _) | NumLit(_, _)) =>
     // invalid cursor position
     None
   | ParenthesizedZ(zp1) =>

@@ -158,7 +158,7 @@ let rec doc_of_separated_pat =
       switch (p) {
       | EmptyHole(u) => doc_of_EmptyHole(u)
       | Wild(_) => Text("_")
-      | Var(_, _, x) => doc_of_Var(x)
+      | Var(_, _, _, x) => doc_of_Var(x)
       | NumLit(_, n) => doc_of_NumLit(n)
       | BoolLit(_, b) => doc_of_BoolLit(b)
       | ListNil(_) => doc_of_ListNil

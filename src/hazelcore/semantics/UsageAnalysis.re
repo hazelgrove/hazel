@@ -7,13 +7,13 @@ let rec binds_var = (x: Var.t, p: UHPat.t): bool =>
   switch (p) {
   | EmptyHole(_)
   | Wild(_)
-  | Var(_, InVarHole(_, _), _)
-  | Var(InHole(_, _), _, _)
+  | Var(_, InVarHole(_, _), _, _)
+  | Var(InHole(_, _), _, _, _)
   | NumLit(_, _)
   | BoolLit(_, _)
   | ListNil(_)
   | Inj(InHole(_, _), _, _) => false
-  | Var(NotInHole, NotInVarHole, y) => x == y
+  | Var(NotInHole, NotInVarHole, _, y) => x == y
   | Parenthesized(e) => binds_var(x, e)
   | OpSeq(_, ExpOpExp(e1, _, e2)) => binds_var(x, e1) || binds_var(x, e2)
   | OpSeq(skel, SeqOpExp(seq1, _, e1)) =>

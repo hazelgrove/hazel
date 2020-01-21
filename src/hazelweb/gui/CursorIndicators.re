@@ -63,7 +63,7 @@ let rec collect_holes_pat: UHPat.t => holes_steps =
   fun
   | EmptyHole(_) => ([], [], [])
   | Wild(err)
-  | Var(err, _, _)
+  | Var(err, _, _, _)
   | NumLit(err, _)
   | BoolLit(err, _)
   | ListNil(err) => err_holes(err)

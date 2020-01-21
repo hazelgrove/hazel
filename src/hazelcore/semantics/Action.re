@@ -1328,7 +1328,10 @@ let rec syn_perform_pat =
         EmptyHole(_) | Wild(_) | ListNil(_) | Parenthesized(_) | OpSeq(_, _) |
         Inj(_, _, _),
       ) |
-      CursorP(OnDelim(_, _), Var(_, _, _) | NumLit(_, _) | BoolLit(_, _)) |
+      CursorP(
+        OnDelim(_, _),
+        Var(_, _, _, _) | NumLit(_, _) | BoolLit(_, _),
+      ) |
       CursorP(
         Staging(_),
         EmptyHole(_) | Wild(_) | ListNil(_) | Var(_) | NumLit(_, _) |
@@ -1456,7 +1459,8 @@ let rec syn_perform_pat =
       Backspace | Delete,
       CursorP(
         OnText(_) | OnDelim(_, _),
-        Var(_, _, _) | Wild(_) | NumLit(_, _) | BoolLit(_, _) | ListNil(_),
+        Var(_, _, _, _) | Wild(_) | NumLit(_, _) | BoolLit(_, _) |
+        ListNil(_),
       ),
     ) =>
     let (zp, u_gen) = ZPat.new_EmptyHole(u_gen);
@@ -1748,7 +1752,7 @@ let rec syn_perform_pat =
     }
   | (Construct(SVar(x, cursor)), CursorP(_, EmptyHole(_)))
   | (Construct(SVar(x, cursor)), CursorP(_, Wild(_)))
-  | (Construct(SVar(x, cursor)), CursorP(_, Var(_, _, _)))
+  | (Construct(SVar(x, cursor)), CursorP(_, Var(_, _, _, _)))
   | (Construct(SVar(x, cursor)), CursorP(_, NumLit(_, _)))
   | (Construct(SVar(x, cursor)), CursorP(_, BoolLit(_, _))) =>
     if (Var.is_true(x)) {
@@ -1768,7 +1772,10 @@ let rec syn_perform_pat =
     } else if (Var.is_let(x)) {
       let (u, u_gen) = MetaVarGen.next(u_gen);
       Succeeded((
-        CursorP(cursor, Var(NotInHole, InVarHole(Keyword(Let), u), x)),
+        CursorP(
+          cursor,
+          Var(NotInHole, InVarHole(Keyword(Let), u), NoWarning, x),
+        ),
         Hole,
         ctx,
         u_gen,
@@ -1776,7 +1783,10 @@ let rec syn_perform_pat =
     } else if (Var.is_case(x)) {
       let (u, u_gen) = MetaVarGen.next(u_gen);
       Succeeded((
-        CursorP(cursor, Var(NotInHole, InVarHole(Keyword(Case), u), x)),
+        CursorP(
+          cursor,
+          Var(NotInHole, InVarHole(Keyword(Case), u), NoWarning, x),
+        ),
         Hole,
         ctx,
         u_gen,
@@ -1787,7 +1797,7 @@ let rec syn_perform_pat =
         {
           let ctx = Contexts.extend_gamma(ctx, (x, (Hole, steps)));
           Succeeded((
-            ZPat.CursorP(cursor, Var(NotInHole, NotInVarHole, x)),
+            ZPat.CursorP(cursor, Var(NotInHole, NotInVarHole, NoWarning, x)),
             HTyp.Hole,
             ctx,
             u_gen,
@@ -1798,14 +1808,14 @@ let rec syn_perform_pat =
   | (Construct(SVar(_, _)), CursorP(_, _)) => Failed
   | (Construct(SWild), CursorP(_, EmptyHole(_)))
   | (Construct(SWild), CursorP(_, Wild(_)))
-  | (Construct(SWild), CursorP(_, Var(_, _, _)))
+  | (Construct(SWild), CursorP(_, Var(_, _, _, _)))
   | (Construct(SWild), CursorP(_, NumLit(_, _)))
   | (Construct(SWild), CursorP(_, BoolLit(_, _))) =>
     Succeeded((ZPat.place_after(Wild(NotInHole)), Hole, ctx, u_gen))
   | (Construct(SWild), CursorP(_, _)) => Failed
   | (Construct(SNumLit(n, cursor)), CursorP(_, EmptyHole(_)))
   | (Construct(SNumLit(n, cursor)), CursorP(_, Wild(_)))
-  | (Construct(SNumLit(n, cursor)), CursorP(_, Var(_, _, _)))
+  | (Construct(SNumLit(n, cursor)), CursorP(_, Var(_, _, _, _)))
   | (Construct(SNumLit(n, cursor)), CursorP(_, NumLit(_, _)))
   | (Construct(SNumLit(n, cursor)), CursorP(_, BoolLit(_, _))) =>
     Succeeded((CursorP(cursor, NumLit(NotInHole, n)), Num, ctx, u_gen))
@@ -2020,7 +2030,10 @@ and ana_perform_pat =
         EmptyHole(_) | Wild(_) | ListNil(_) | Parenthesized(_) | OpSeq(_, _) |
         Inj(_, _, _),
       ) |
-      CursorP(OnDelim(_, _), Var(_, _, _) | NumLit(_, _) | BoolLit(_, _)) |
+      CursorP(
+        OnDelim(_, _),
+        Var(_, _, _, _) | NumLit(_, _) | BoolLit(_, _),
+      ) |
       CursorP(
         Staging(_),
         EmptyHole(_) | Wild(_) | ListNil(_) | Var(_) | NumLit(_, _) |
@@ -2165,7 +2178,8 @@ and ana_perform_pat =
       Backspace | Delete,
       CursorP(
         OnText(_) | OnDelim(_, _),
-        Var(_, _, _) | Wild(_) | NumLit(_, _) | BoolLit(_, _) | ListNil(_),
+        Var(_, _, _, _) | Wild(_) | NumLit(_, _) | BoolLit(_, _) |
+        ListNil(_),
       ),
     ) =>
     let (zp, u_gen) = ZPat.new_EmptyHole(u_gen);
@@ -2490,20 +2504,26 @@ and ana_perform_pat =
     }
   | (Construct(SVar(x, cursor)), CursorP(_, EmptyHole(_)))
   | (Construct(SVar(x, cursor)), CursorP(_, Wild(_)))
-  | (Construct(SVar(x, cursor)), CursorP(_, Var(_, _, _)))
+  | (Construct(SVar(x, cursor)), CursorP(_, Var(_, _, _, _)))
   | (Construct(SVar(x, cursor)), CursorP(_, NumLit(_, _)))
   | (Construct(SVar(x, cursor)), CursorP(_, BoolLit(_, _))) =>
     if (Var.is_let(x)) {
       let (u, u_gen) = MetaVarGen.next(u_gen);
       Succeeded((
-        CursorP(cursor, Var(NotInHole, InVarHole(Keyword(Let), u), x)),
+        CursorP(
+          cursor,
+          Var(NotInHole, InVarHole(Keyword(Let), u), NoWarning, x),
+        ),
         ctx,
         u_gen,
       ));
     } else if (Var.is_case(x)) {
       let (u, u_gen) = MetaVarGen.next(u_gen);
       Succeeded((
-        CursorP(cursor, Var(NotInHole, InVarHole(Keyword(Case), u), x)),
+        CursorP(
+          cursor,
+          Var(NotInHole, InVarHole(Keyword(Case), u), NoWarning, x),
+        ),
         ctx,
         u_gen,
       ));
@@ -2513,7 +2533,7 @@ and ana_perform_pat =
         {
           let ctx = Contexts.extend_gamma(ctx, (x, (ty, steps)));
           Succeeded((
-            ZPat.CursorP(cursor, Var(NotInHole, NotInVarHole, x)),
+            ZPat.CursorP(cursor, Var(NotInHole, NotInVarHole, NoWarning, x)),
             ctx,
             u_gen,
           ));
@@ -2523,7 +2543,7 @@ and ana_perform_pat =
   | (Construct(SVar(_, _)), CursorP(_, _)) => Failed
   | (Construct(SWild), CursorP(_, EmptyHole(_)))
   | (Construct(SWild), CursorP(_, Wild(_)))
-  | (Construct(SWild), CursorP(_, Var(_, _, _)))
+  | (Construct(SWild), CursorP(_, Var(_, _, _, _)))
   | (Construct(SWild), CursorP(_, NumLit(_, _)))
   | (Construct(SWild), CursorP(_, BoolLit(_, _))) =>
     Succeeded((ZPat.place_after(Wild(NotInHole)), ctx, u_gen))
