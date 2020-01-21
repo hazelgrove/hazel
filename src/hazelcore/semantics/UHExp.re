@@ -97,6 +97,8 @@ let numlit = (~err: ErrStatus.t=NotInHole, n: int): operand =>
 let boollit = (~err: ErrStatus.t=NotInHole, b: bool): operand =>
   BoolLit(err, b);
 
+let boolLitLen = (b: bool): int => b ? 4 : 5; /* true: 4 chars, false: 5 chars */
+
 let lam =
     (
       ~err: ErrStatus.t=NotInHole,
