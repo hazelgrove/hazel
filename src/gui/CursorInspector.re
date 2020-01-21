@@ -83,6 +83,8 @@ let view =
 
   let got_free_indicator =
     got_indicator("Got a free variable", typebar(HTyp.Hole));
+  let got_free_livelit_indicator =
+    got_indicator("Got a free livelit name", typebar(HTyp.Hole));
 
   let got_consistent_indicator = got_ty =>
     got_indicator("Got consistent type", typebar(got_ty));
@@ -129,6 +131,10 @@ let view =
       let ind1 = expected_ty_indicator(expected_ty);
       let ind2 = got_free_indicator;
       (ind1, ind2, BindingError);
+    | AnaFreeLivelit(expected_ty) =>
+      let ind1 = expected_ty_indicator(expected_ty);
+      let ind2 = got_free_livelit_indicator;
+      (ind1, ind2, BindingError);
     | AnaSubsumed(expected_ty, got_ty) =>
       let ind1 = expected_ty_indicator(expected_ty);
       let ind2 =
@@ -147,6 +153,10 @@ let view =
     | SynFree =>
       let ind1 = expected_any_indicator;
       let ind2 = got_free_indicator;
+      (ind1, ind2, BindingError);
+    | SynFreeLivelit =>
+      let ind1 = expected_any_indicator;
+      let ind2 = got_free_livelit_indicator;
       (ind1, ind2, BindingError);
     | SynKeyword(_keyword) =>
       let ind1 = expected_any_indicator;

@@ -148,7 +148,7 @@ let result_of_edit_state = ((zblock, _, _): edit_state): result => {
   open Dynamics;
   let expanded =
     DHExp.syn_elab_block(
-      (VarCtx.empty, Palettes.initial_livelit_ctx),
+      (VarCtx.empty, Livelits.initial_livelit_ctx),
       Delta.empty,
       ZExp.erase_block(zblock),
     );
@@ -366,7 +366,7 @@ let perform_edit_action = (model: t, a: Action.t): t => {
   switch (
     Action.syn_perform_block(
       ~ci=model.cursor_info,
-      (VarCtx.empty, Palettes.initial_livelit_ctx),
+      (VarCtx.empty, Livelits.initial_livelit_ctx),
       a,
       edit_state_of(model),
     )

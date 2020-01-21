@@ -340,29 +340,46 @@ module type LIVELIT = {
    ---------- */
 
 type trigger_serialized = SerializedAction.t => unit;
-type serialized_view_fn_t = (SerializedModel.t, trigger_serialized) => LivelitView.t;
+type serialized_view_fn_t =
+  (SerializedModel.t, trigger_serialized) => LivelitView.t;
+
+module LivelitViewCtx = {
+  type t = VarMap.t_(serialized_view_fn_t);
+  include VarMap;
+};
+
+module LivelitContexts = {
+  type t = (LivelitCtx.t, LivelitViewCtx.t);
+  let empty = (LivelitViewCtx.empty, LivelitCtx.empty);
+};
 
 module LivelitAdapter = (L: LIVELIT) => {
+  let serialize_monad = model =>
+    SpliceGenCmd.return(L.serialize_model(model));
+
   /* generate palette definition for Semantics */
   let livelit_defn =
     LivelitDefinition.{
       expansion_ty: L.expansion_ty,
-      init_model: SpliceGenCmd.return(""),
-      /* UHExp.HoleRefs.Bnd(
-           args = (
-             P.init_model,
-             model => UHExp.HoleRefs.Ret(P.serialize(model)),
-           ),
-         ), */
-      expand: serialized_model => P.expand(P.deserialize(serialized_model)),
+      init_model: SpliceGenCmd.bind(L.init_model, serialize_monad),
+      update: (serialized_action, serialized_model) =>
+        SpliceGenCmd.bind(
+          L.update(
+            L.deserialize_model(serialized_model),
+            L.deserialize_action(serialized_action),
+          ),
+          serialize_monad,
+        ),
+      expand: serialized_model =>
+        L.expand(L.deserialize_model(serialized_model)),
     };
 
   let serialized_view_fn = (serialized_model, update_fn) =>
-    P.view(P.deserialize(serialized_model), model =>
-      update_fn(P.serialize(model))
+    L.view(L.deserialize_model(serialized_model), action =>
+      update_fn(L.serialize_action(action))
     );
 
-  let contexts_entry = (P.name, livelit_defn, serialized_view_fn);
+  let contexts_entry = (L.name, livelit_defn, serialized_view_fn);
 };
 /*
  module CheckboxPaletteAdapter = PaletteAdapter(CheckboxPalette);
@@ -370,8 +387,8 @@ module LivelitAdapter = (L: LIVELIT) => {
  module ColorPaletteAdapter = PaletteAdapter(ColorPalette);
  module PairPaletteAdapter = PaletteAdapter(PairPalette);
  */
-let empty_palette_contexts = PaletteContexts.empty;
-let (initial_livelit_ctx, initial_palette_view_ctx) = empty_palette_contexts;
+let empty_livelit_contexts = LivelitContexts.empty;
+let (initial_livelit_ctx, initial_livelit_view_ctx) = empty_livelit_contexts;
 /*
  PaletteContexts.extend(
    PaletteContexts.extend(

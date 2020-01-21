@@ -18,9 +18,9 @@ type typed =
     ) /* expected type */
   /* cursor is on a tuple of the wrong length */
   | AnaFree(HTyp.t)
-  /* cursor is on a free variable in synthetic position */
+  /* cursor is on a free variable in analytic position */
   | AnaFreeLivelit(HTyp.t)
-  /* cursor is on a free livelit */
+  /* cursor is on a free livelit in analytic position */
   | Analyzed(HTyp.t)
   /* none of the above and didn't go through subsumption */
   | AnaSubsumed(HTyp.t, HTyp.t)

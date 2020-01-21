@@ -826,7 +826,8 @@ and collect_holes_exp: UHExp.t => holes_steps =
            ),
       ),
     )
-  | ApPalette(_, _, _, _) => ([], [], [])
+  | ApLivelit(_, _, _, _) => ([], [], [])
+  | FreeLivelit(_, _) => ([], [], [])
   | Parenthesized(body) => cons_holes(0, collect_holes(body))
   | OpSeq(skel, seq) =>
     collect_holes_skel(

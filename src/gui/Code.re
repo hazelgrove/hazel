@@ -2238,7 +2238,8 @@ and snode_of_exp =
            (tail_start, []),
          );
     snode_of_OpSeq(~cursor?, ~steps, shead, stail);
-  | ApPalette(_, _, _, _) => raise(InvariantViolated)
+  | ApLivelit(_, _, _, _) => raise(InvariantViolated)
+  | FreeLivelit(_, _) => raise(InvariantViolated) // TODO is this correct? use snode_of_Var?
   }
 and snode_of_rule =
     (
@@ -2696,7 +2697,7 @@ and snode_of_zexp =
     let szann =
       snode_of_ztyp(~steps=steps @ [List.length(rules) + 1], zann);
     snode_of_Case(~err_status, ~steps, sscrut, srules, Some(szann));
-  | ApPaletteZ(_, _, _, _) => raise(InvariantViolated)
+  | ApLivelitZ(_, _, _, _) => raise(InvariantViolated)
   }
 and snode_of_zrule =
     (~user_newlines: option(Model.user_newlines)=?, ~steps, zrule) =>
@@ -2794,6 +2795,7 @@ let rec precedence_dhexp = (d: DHExp.t) =>
   switch (d) {
   | BoundVar(_)
   | FreeVar(_, _, _, _)
+  | FreeLivelit(_, _, _, _)
   | Keyword(_, _, _, _)
   | BoolLit(_)
   | NumLit(_)
@@ -3048,6 +3050,9 @@ let rec snode_of_dhexp =
     snode_of_Var(~err_status, ~var_err_status=NotInVHole, ~steps, x)
   | FreeVar(u, _, _, x) =>
     snode_of_Var(~err_status, ~var_err_status=InVHole(Free, u), ~steps, x)
+  | FreeLivelit(_, _, _, _) =>
+    // TODO snode_of_Var(~err_status, ~var_err_status=InVHole(Free, u), ~steps, x)
+    raise(InvariantViolated)
   | Keyword(u, _, _, k) =>
     snode_of_Var(
       ~err_status,
