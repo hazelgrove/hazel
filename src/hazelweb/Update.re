@@ -305,7 +305,9 @@ let apply_action =
   | Undo => Model.undo(model)
   | Redo => Model.redo(model)
   | ShiftHistory(group_id, elt_id) =>
+    /* click history panel to shift to the certain history entry */
     /*shift to the group with group_id*/
+
     switch (ZList.shift_to(group_id, model.undo_history)) {
     | None => failwith("Impossible because undo_history is non-empty")
     | Some(new_history) =>

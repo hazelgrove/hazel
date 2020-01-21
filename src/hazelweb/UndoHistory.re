@@ -39,12 +39,12 @@ let push_edit_state =
     )
     : t => {
   let cur_group = ZList.prj_z(undo_history);
-  let cur_state = ZList.prj_z(cur_group.group_entries);
-  if (Action.in_same_history_group(action, cur_state.previous_action)) {
-    let new_state = {cardstacks_state, previous_action: action};
+  let cur_entry = ZList.prj_z(cur_group.group_entries);
+  if (Action.in_same_history_group(action, cur_entry.previous_action)) {
+    let new_entry = {cardstacks_state, previous_action: action};
     let group_entries_after_push = (
       [],
-      new_state,
+      new_entry,
       [
         ZList.prj_z(cur_group.group_entries),
         ...ZList.prj_suffix(cur_group.group_entries),
