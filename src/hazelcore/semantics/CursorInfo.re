@@ -124,7 +124,7 @@ type t = {
   typed,
   node,
   frame,
-  ctx: Contexts.t(CursorPath.steps),
+  ctx: Contexts.t((HTyp.t, CursorPath.steps)),
   position: CursorPosition.t,
   node_steps: CursorPath.steps,
   // Not quite the term steps because steps don't account for
@@ -301,7 +301,7 @@ let rec cursor_info_typ =
           ~node_steps: CursorPath.steps,
           ~term_steps: CursorPath.steps,
           ~frame: option(ZTyp.opseq_surround)=?,
-          ctx: Contexts.t(CursorPath.steps),
+          ctx: Contexts.t((HTyp.t, CursorPath.steps)),
           zty: ZTyp.t,
         )
         : option(t) =>
@@ -351,11 +351,15 @@ type deferrable('t) =
 let rec _ana_cursor_found_pat =
         (
           steps: CursorPath.steps,
-          ctx: Contexts.t(CursorPath.steps),
+          ctx: Contexts.t((HTyp.t, CursorPath.steps)),
           p: UHPat.t,
           ty: HTyp.t,
         )
-        : option(deferrable((typed, node, Contexts.t(CursorPath.steps)))) =>
+        : option(
+            deferrable(
+              (typed, node, Contexts.t((HTyp.t, CursorPath.steps))),
+            ),
+          ) =>
   switch (p) {
   /* in hole */
   | EmptyHole(_) =>
@@ -483,7 +487,7 @@ let ana_cursor_found_pat =
       ~node_steps,
       ~term_steps,
       ~frame,
-      ctx: Contexts.t(CursorPath.steps),
+      ctx: Contexts.t((HTyp.t, CursorPath.steps)),
       p: UHPat.t,
       ty: HTyp.t,
       cursor: CursorPosition.t,
@@ -542,7 +546,7 @@ let rec _syn_cursor_info_pat =
           ~node_steps,
           ~term_steps,
           ~frame=None,
-          ctx: Contexts.t(CursorPath.steps),
+          ctx: Contexts.t((HTyp.t, CursorPath.steps)),
           zp: ZPat.t,
         )
         : option(deferrable(t)) =>
@@ -630,7 +634,7 @@ and _syn_cursor_info_pat_skel =
       ~node_steps,
       ~term_steps,
       ~frame: option(ZPat.opseq_surround),
-      ctx: Contexts.t(CursorPath.steps),
+      ctx: Contexts.t((HTyp.t, CursorPath.steps)),
       skel: UHPat.skel_t,
       seq: UHPat.opseq,
       n: int,
@@ -741,7 +745,7 @@ and _ana_cursor_info_pat =
       ~node_steps,
       ~term_steps,
       ~frame=None,
-      ctx: Contexts.t(CursorPath.steps),
+      ctx: Contexts.t((HTyp.t, CursorPath.steps)),
       zp: ZPat.t,
       ty: HTyp.t,
     )
@@ -809,7 +813,7 @@ and _ana_cursor_info_pat_skel =
       ~node_steps,
       ~term_steps,
       ~frame: option(ZPat.opseq_surround),
-      ctx: Contexts.t(CursorPath.steps),
+      ctx: Contexts.t((HTyp.t, CursorPath.steps)),
       skel: UHPat.skel_t,
       seq: UHPat.opseq,
       n: int,
@@ -1005,7 +1009,7 @@ and _ana_cursor_info_pat_skel =
 let rec _ana_cursor_found_block =
         (
           steps: CursorPath.steps,
-          ctx: Contexts.t(CursorPath.steps),
+          ctx: Contexts.t((HTyp.t, CursorPath.steps)),
           Block(lines, e): UHExp.block,
           ty: HTyp.t,
         )
@@ -1021,11 +1025,11 @@ let rec _ana_cursor_found_block =
 and _ana_cursor_found_exp =
     (
       steps: CursorPath.steps,
-      ctx: Contexts.t(CursorPath.steps),
+      ctx: Contexts.t((HTyp.t, CursorPath.steps)),
       e: UHExp.t,
       ty: HTyp.t,
     )
-    : option((typed, node, Contexts.t(CursorPath.steps))) =>
+    : option((typed, node, Contexts.t((HTyp.t, CursorPath.steps)))) =>
   switch (e) {
   /* in hole */
   | Var(InHole(TypeInconsistent, _), _, _)
@@ -1121,7 +1125,7 @@ let ana_cursor_found_exp =
       ~node_steps,
       ~term_steps,
       ~frame,
-      ctx: Contexts.t(CursorPath.steps),
+      ctx: Contexts.t((HTyp.t, CursorPath.steps)),
       e: UHExp.t,
       ty: HTyp.t,
       cursor: CursorPosition.t,
@@ -1154,7 +1158,7 @@ let rec _syn_cursor_info_block =
         (
           ~node_steps,
           ~term_steps,
-          ctx: Contexts.t(CursorPath.steps),
+          ctx: Contexts.t((HTyp.t, CursorPath.steps)),
           zblock: ZExp.zblock,
         )
         : option(t) =>
@@ -1205,7 +1209,7 @@ and _syn_cursor_info_line =
       ~term_steps,
       ~frame,
       ~line_no,
-      ctx: Contexts.t(CursorPath.steps),
+      ctx: Contexts.t((HTyp.t, CursorPath.steps)),
       zli: ZExp.zline,
     )
     : option(deferrable(t)) =>
@@ -1315,7 +1319,7 @@ and _syn_cursor_info =
       ~node_steps,
       ~term_steps,
       ~frame,
-      ctx: Contexts.t(CursorPath.steps),
+      ctx: Contexts.t((HTyp.t, CursorPath.steps)),
       ze: ZExp.t,
     )
     : option(t) => {
@@ -1481,7 +1485,7 @@ and _ana_cursor_info_block =
     (
       ~node_steps,
       ~term_steps,
-      ctx: Contexts.t(CursorPath.steps),
+      ctx: Contexts.t((HTyp.t, CursorPath.steps)),
       zblock: ZExp.zblock,
       ty: HTyp.t,
     )
@@ -1533,7 +1537,7 @@ and _ana_cursor_info =
       ~node_steps,
       ~term_steps,
       ~frame,
-      ctx: Contexts.t(CursorPath.steps),
+      ctx: Contexts.t((HTyp.t, CursorPath.steps)),
       ze: ZExp.t,
       ty: HTyp.t,
     )
@@ -1688,7 +1692,7 @@ and _ana_cursor_info_rule =
     (
       ~node_steps,
       ~term_steps,
-      ctx: Contexts.t(CursorPath.steps),
+      ctx: Contexts.t((HTyp.t, CursorPath.steps)),
       zrule: ZExp.zrule,
       pat_ty: HTyp.t,
       clause_ty: HTyp.t,
@@ -1741,7 +1745,7 @@ and _syn_cursor_info_skel =
       ~node_steps,
       ~term_steps,
       ~frame,
-      ctx: Contexts.t(CursorPath.steps),
+      ctx: Contexts.t((HTyp.t, CursorPath.steps)),
       skel: UHExp.skel_t,
       seq: UHExp.opseq,
       n: int,
@@ -2022,7 +2026,7 @@ and _ana_cursor_info_skel =
       ~node_steps,
       ~term_steps,
       ~frame,
-      ctx: Contexts.t(CursorPath.steps),
+      ctx: Contexts.t((HTyp.t, CursorPath.steps)),
       skel: UHExp.skel_t,
       seq: UHExp.opseq,
       n: int,

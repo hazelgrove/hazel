@@ -6,7 +6,10 @@ type hole_sort =
   | PatternHole;
 
 module Delta = {
-  type t = MetaVarMap.t((hole_sort, HTyp.t, VarCtx.t(CursorPath.steps)));
+  type t =
+    MetaVarMap.t(
+      (hole_sort, HTyp.t, VarCtx.t((HTyp.t, CursorPath.steps))),
+    );
   let empty: t = (MetaVarMap.empty: t);
 };
 
@@ -59,13 +62,13 @@ module DHPat = {
     };
 
   type expand_result =
-    | Expands(t, HTyp.t, Contexts.t(CursorPath.steps), Delta.t)
+    | Expands(t, HTyp.t, Contexts.t((HTyp.t, CursorPath.steps)), Delta.t)
     | DoesNotExpand;
 
   let rec syn_expand =
           (
             steps: CursorPath.steps,
-            ctx: Contexts.t(CursorPath.steps),
+            ctx: Contexts.t((HTyp.t, CursorPath.steps)),
             delta: Delta.t,
             p: UHPat.t,
           )
@@ -127,7 +130,7 @@ module DHPat = {
   and syn_expand_skel =
       (
         steps: CursorPath.steps,
-        ctx: Contexts.t(CursorPath.steps),
+        ctx: Contexts.t((HTyp.t, CursorPath.steps)),
         delta: Delta.t,
         skel: UHPat.skel_t,
         seq: UHPat.opseq,
@@ -189,7 +192,7 @@ module DHPat = {
   and ana_expand =
       (
         steps: CursorPath.steps,
-        ctx: Contexts.t(CursorPath.steps),
+        ctx: Contexts.t((HTyp.t, CursorPath.steps)),
         delta: Delta.t,
         p: UHPat.t,
         ty: HTyp.t,
@@ -260,7 +263,7 @@ module DHPat = {
   and ana_expand_skel =
       (
         steps: CursorPath.steps,
-        ctx: Contexts.t(CursorPath.steps),
+        ctx: Contexts.t((HTyp.t, CursorPath.steps)),
         delta: Delta.t,
         skel: UHPat.skel_t,
         seq: UHPat.opseq,
@@ -894,14 +897,14 @@ module DHExp = {
     };
 
   type expand_result_lines =
-    | LinesExpand(t => t, Contexts.t(CursorPath.steps), Delta.t)
+    | LinesExpand(t => t, Contexts.t((HTyp.t, CursorPath.steps)), Delta.t)
     | LinesDoNotExpand;
 
   type expand_result =
     | Expands(t, HTyp.t, Delta.t)
     | DoesNotExpand;
 
-  let id_env = (ctx: VarCtx.t(CursorPath.steps)): Environment.t =>
+  let id_env = (ctx: VarCtx.t((HTyp.t, CursorPath.steps))): Environment.t =>
     VarMap.map(
       xt => {
         let (x, _) = xt;
@@ -913,7 +916,7 @@ module DHExp = {
   let rec syn_expand_block =
           (
             steps: CursorPath.steps,
-            ctx: Contexts.t(CursorPath.steps),
+            ctx: Contexts.t((HTyp.t, CursorPath.steps)),
             delta: Delta.t,
             block: UHExp.block,
           )
@@ -932,7 +935,7 @@ module DHExp = {
   and syn_expand_lines =
       (
         steps: CursorPath.steps,
-        ctx: Contexts.t(CursorPath.steps),
+        ctx: Contexts.t((HTyp.t, CursorPath.steps)),
         delta: Delta.t,
         lines: UHExp.lines,
         line_index: ChildIndex.t,
@@ -954,7 +957,7 @@ module DHExp = {
   and syn_expand_line =
       (
         steps: CursorPath.steps,
-        ctx: Contexts.t(CursorPath.steps),
+        ctx: Contexts.t((HTyp.t, CursorPath.steps)),
         delta: Delta.t,
         line: UHExp.line,
       )
@@ -1007,7 +1010,7 @@ module DHExp = {
   and syn_expand_exp =
       (
         steps: CursorPath.steps,
-        ctx: Contexts.t(CursorPath.steps),
+        ctx: Contexts.t((HTyp.t, CursorPath.steps)),
         delta: Delta.t,
         e: UHExp.t,
       )
@@ -1150,7 +1153,7 @@ module DHExp = {
   and syn_expand_skel =
       (
         steps: CursorPath.steps,
-        ctx: Contexts.t(CursorPath.steps),
+        ctx: Contexts.t((HTyp.t, CursorPath.steps)),
         delta: Delta.t,
         skel: UHExp.skel_t,
         seq: UHExp.opseq,
@@ -1268,7 +1271,7 @@ module DHExp = {
   and ana_expand_block =
       (
         steps: CursorPath.steps,
-        ctx: Contexts.t(CursorPath.steps),
+        ctx: Contexts.t((HTyp.t, CursorPath.steps)),
         delta: Delta.t,
         block: UHExp.block,
         ty: HTyp.t,
@@ -1290,7 +1293,7 @@ module DHExp = {
   and ana_expand_exp =
       (
         steps: CursorPath.steps,
-        ctx: Contexts.t(CursorPath.steps),
+        ctx: Contexts.t((HTyp.t, CursorPath.steps)),
         delta: Delta.t,
         e: UHExp.t,
         ty: HTyp.t,
@@ -1441,7 +1444,7 @@ module DHExp = {
   and ana_expand_rules =
       (
         steps: CursorPath.steps,
-        ctx: Contexts.t(CursorPath.steps),
+        ctx: Contexts.t((HTyp.t, CursorPath.steps)),
         delta: Delta.t,
         rules: list(UHExp.rule),
         pat_ty: HTyp.t,
@@ -1471,7 +1474,7 @@ module DHExp = {
   and ana_expand_rule =
       (
         steps: CursorPath.steps,
-        ctx: Contexts.t(CursorPath.steps),
+        ctx: Contexts.t((HTyp.t, CursorPath.steps)),
         delta: Delta.t,
         r: UHExp.rule,
         pat_ty: HTyp.t,
@@ -1492,7 +1495,7 @@ module DHExp = {
   and ana_expand_skel =
       (
         steps: CursorPath.steps,
-        ctx: Contexts.t(CursorPath.steps),
+        ctx: Contexts.t((HTyp.t, CursorPath.steps)),
         delta: Delta.t,
         skel: UHExp.skel_t,
         seq: UHExp.opseq,
