@@ -335,7 +335,6 @@ let init = (): t => {
   let undo_history_state: UndoHistory.undo_history_entry = {
     cardstacks_state,
     previous_action: None,
-    elt_id: 0,
   };
   let compute_results = init_compute_results;
   {
@@ -349,11 +348,7 @@ let init = (): t => {
     is_cell_focused: false,
     undo_history: (
       [],
-      {
-        group_entries: ([], undo_history_state, []),
-        group_id: 0,
-        is_expanded: false,
-      },
+      {group_entries: ([], undo_history_state, []), is_expanded: false},
       [],
     ),
     left_sidebar_open: false,
@@ -469,8 +464,7 @@ let undo = (model: t): t => {
       | None => model.undo_history
       | Some(new_history) =>
         let new_group = ZList.prj_z(new_history);
-        let new_group' = {
-          ...new_group,
+        let new_group': UndoHistory.undo_history_group = {
           group_entries: ZList.shift_begin(new_group.group_entries), /*pointer may be in the wrong position after clicking history panel*/
           is_expanded: true,
         }; /* is_expanded=true because the selected group should be expanded*/
@@ -479,11 +473,7 @@ let undo = (model: t): t => {
     | Some(new_group_entries) =>
       ZList.replace_z(
         model.undo_history,
-        {
-          group_entries: new_group_entries,
-          group_id: cur_group.group_id,
-          is_expanded: true,
-        },
+        {group_entries: new_group_entries, is_expanded: true},
       ) /* is_expanded=true because the selected group should be expanded*/
     };
   };
@@ -507,7 +497,6 @@ let redo = (model: t): t => {
         let cur_group = ZList.prj_z(new_history);
         let new_group: UndoHistory.undo_history_group = {
           group_entries: ZList.shift_end(cur_group.group_entries), /*pointer may be in the wrong position after clicking history panel*/
-          group_id: cur_group.group_id,
           is_expanded: true,
         }; /* is_expanded=true because this group should be expanded when redo*/
         ZList.replace_z(new_history, new_group);
@@ -515,11 +504,7 @@ let redo = (model: t): t => {
     | Some(new_group_entries) =>
       ZList.replace_z(
         model.undo_history,
-        {
-          group_entries: new_group_entries,
-          group_id: cur_group.group_id,
-          is_expanded: true,
-        },
+        {group_entries: new_group_entries, is_expanded: true},
       )
     };
   };

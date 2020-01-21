@@ -3,12 +3,10 @@ module ZList = GeneralUtil.ZList;
 type undo_history_entry = {
   cardstacks_state: CardStacks.cardstacks_state,
   previous_action: option(Action.t),
-  elt_id: int,
 };
 
 type undo_history_group = {
   group_entries: ZList.t(undo_history_entry, undo_history_entry),
-  group_id: int,
   is_expanded: bool,
 };
 
@@ -43,11 +41,7 @@ let push_edit_state =
   let cur_group = ZList.prj_z(undo_history);
   let cur_state = ZList.prj_z(cur_group.group_entries);
   if (Action.in_same_history_group(action, cur_state.previous_action)) {
-    let new_state = {
-      cardstacks_state,
-      previous_action: action,
-      elt_id: cur_state.elt_id + 1,
-    };
+    let new_state = {cardstacks_state, previous_action: action};
     let group_entries_after_push = (
       [],
       new_state,
@@ -58,21 +52,12 @@ let push_edit_state =
     );
     (
       [],
-      {
-        group_entries: group_entries_after_push,
-        group_id: cur_group.group_id,
-        is_expanded: false,
-      }, /* initial state of group should be folded*/
+      {group_entries: group_entries_after_push, is_expanded: false}, /* initial state of group should be folded*/
       ZList.prj_suffix(undo_history),
     );
   } else {
     let new_group = {
-      group_entries: (
-        [],
-        {cardstacks_state, previous_action: action, elt_id: 0},
-        [],
-      ),
-      group_id: cur_group.group_id + 1,
+      group_entries: ([], {cardstacks_state, previous_action: action}, []),
       is_expanded: false,
     };
     (
