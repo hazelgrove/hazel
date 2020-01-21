@@ -3,57 +3,16 @@ open GeneralUtil;
 
 module ZList = GeneralUtil.ZList;
 
-type cardstacks = list(CardStack.t);
-let cardstacks: cardstacks = [
-  TutorialCards.cardstack,
-  RCStudyCards.cardstack,
-];
-
 let init_compute_results = true;
 
 type user_newlines = CursorPath.StepsMap.t(unit);
 
 type edit_state = Statics.edit_state;
 
-type card_state = {
-  card: Card.t,
-  edit_state,
-};
+type cardstacks_state = CardStacks.cardstacks_state;
+type cardstacks = CardStacks.cardstacks;
 
-type cardstack_state = {
-  cardstack: CardStack.t,
-  zcards: ZList.t(card_state, card_state),
-};
-
-type cardstacks_state = ZList.t(cardstack_state, cardstack_state);
-
-let mk_cardstack_state = (cardstack: CardStack.t) => {
-  let card_states =
-    List.map(
-      card =>
-        {
-          card,
-          edit_state:
-            card.init_zblock
-            |> Statics.fix_and_renumber_holes_z(Contexts.empty),
-        },
-      cardstack.cards,
-    );
-  let zcards =
-    GeneralUtil.Opt.get(
-      _ => failwith("no cards"),
-      ZList.split_at(0, card_states),
-    );
-  {cardstack, zcards};
-};
-
-let mk_cardstacks_state = cardstacks => {
-  let cardstack_states = List.map(mk_cardstack_state, cardstacks);
-  GeneralUtil.Opt.get(
-    _ => failwith("no cardstacks"),
-    ZList.split_at(0, cardstack_states),
-  );
-};
+type undo_history = UndoHistory.t;
 
 [@deriving sexp]
 type result = (
@@ -86,20 +45,6 @@ type result_state =
   | ResultsDisabled
   | Result(has_result_state);
 
-type undo_history_entry = {
-  cardstacks_state,
-  previous_action: option(Action.t),
-  elt_id: int,
-};
-
-type undo_history_group = {
-  group_entries: ZList.t(undo_history_entry, undo_history_entry),
-  group_id: int,
-  is_expanded: bool,
-};
-
-type undo_history = ZList.t(undo_history_group, undo_history_group);
-
 type t = {
   cardstacks,
   cardstacks_state /* these are derived from the cardstack state: */,
@@ -116,51 +61,6 @@ type t = {
   show_presentation: bool,
   all_hidden_history_expand: bool,
   undo_history,
-};
-
-let push_edit_state =
-    (undo_history, cardstacks_state, action: option(Action.t)): undo_history => {
-  let cur_group = ZList.prj_z(undo_history);
-  let cur_state = ZList.prj_z(cur_group.group_entries);
-  if (Action.in_same_history_group(action, cur_state.previous_action)) {
-    let new_state = {
-      cardstacks_state,
-      previous_action: action,
-      elt_id: cur_state.elt_id + 1,
-    };
-    let group_entries_after_push = (
-      [],
-      new_state,
-      [
-        ZList.prj_z(cur_group.group_entries),
-        ...ZList.prj_suffix(cur_group.group_entries),
-      ],
-    );
-    (
-      [],
-      {
-        group_entries: group_entries_after_push,
-        group_id: cur_group.group_id,
-        is_expanded: false,
-      }, /* initial state of group should be folded*/
-      ZList.prj_suffix(undo_history),
-    );
-  } else {
-    let new_group = {
-      group_entries: (
-        [],
-        {cardstacks_state, previous_action: action, elt_id: 0},
-        [],
-      ),
-      group_id: cur_group.group_id + 1,
-      is_expanded: false,
-    };
-    (
-      [],
-      new_group,
-      [ZList.prj_z(undo_history), ...ZList.prj_suffix(undo_history)],
-    );
-  };
 };
 
 let cardstack_state_of = model => ZList.prj_z(model.cardstacks_state);
@@ -358,7 +258,8 @@ let update_edit_state = ((new_zblock, ty, u_gen): edit_state, model: t): t => {
   };
 };
 
-let update_cardstack_state = (model, cardstack_state) => {
+let update_cardstack_state =
+    (model, cardstack_state: CardStacks.cardstack_state) => {
   let edit_state = ZList.prj_z(cardstack_state.zcards).edit_state;
   let result_state =
     result_state_of_edit_state(edit_state, model.compute_results);
@@ -427,17 +328,18 @@ let next_card = model => {
 };
 
 let init = (): t => {
-  let cardstacks_state = mk_cardstacks_state(cardstacks);
+  let cardstacks_state =
+    CardStacks.mk_cardstacks_state(CardStacks.cardstacks);
   let edit_state =
     ZList.prj_z(ZList.prj_z(cardstacks_state).zcards).edit_state;
-  let undo_history_state = {
+  let undo_history_state: UndoHistory.undo_history_entry = {
     cardstacks_state,
     previous_action: None,
     elt_id: 0,
   };
   let compute_results = init_compute_results;
   {
-    cardstacks,
+    cardstacks: CardStacks.cardstacks,
     cardstacks_state,
     cursor_info: cursor_info_of_edit_state(edit_state),
     compute_results,
@@ -481,7 +383,7 @@ let perform_edit_action = (model: t, a: Action.t): t => {
     let new_model = model |> update_edit_state(new_edit_state);
     let new_history =
       if (UndoHistory.undoable_action(a)) {
-        push_edit_state(
+        UndoHistory.push_edit_state(
           model.undo_history,
           new_model.cardstacks_state,
           Some(a),
@@ -603,7 +505,7 @@ let redo = (model: t): t => {
       | None => model.undo_history
       | Some(new_history) =>
         let cur_group = ZList.prj_z(new_history);
-        let new_group = {
+        let new_group: UndoHistory.undo_history_group = {
           group_entries: ZList.shift_end(cur_group.group_entries), /*pointer may be in the wrong position after clicking history panel*/
           group_id: cur_group.group_id,
           is_expanded: true,
@@ -626,16 +528,4 @@ let redo = (model: t): t => {
     ZList.prj_z(cur_group'.group_entries).cardstacks_state;
   let model' = update_cardstacks_state(model, new_cardstacks_state);
   {...model', undo_history: new_history};
-};
-
-let set_all_hidden_history = (undo_history, expanded: bool): undo_history => {
-  let hidden_group = (group: undo_history_group) => {
-    ...group,
-    is_expanded: expanded,
-  };
-  (
-    List.map(hidden_group, ZList.prj_prefix(undo_history)),
-    hidden_group(ZList.prj_z(undo_history)),
-    List.map(hidden_group, ZList.prj_suffix(undo_history)),
-  );
 };
