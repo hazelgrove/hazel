@@ -38,6 +38,7 @@ and sbox_shape =
       // and user has not moved empty hole to new line
       (has_skinny_concluding_let_line)
   | EmptyLine
+  | SubCommentLine
   | CommentLine
   | LetLine
   | EmptyHole
@@ -578,6 +579,7 @@ let snode_attrs =
         switch (shape) {
         | Block(_) => [Attr.classes([cls_Block, ...base_clss])]
         | EmptyLine => [Attr.classes(["EmptyLine", ...base_clss])]
+        | SubCommentLine => [Attr.classes(["SubCommentLine", ...base_clss])]
         | CommentLine => [Attr.classes(["CommentLine", ...base_clss])]
         | LetLine => [Attr.classes(["LetLine", ...base_clss])]
         | EmptyHole => [Attr.classes(["EmptyHole", ...base_clss])]
@@ -2007,6 +2009,7 @@ and snode_of_line_item =
       ~shape=EmptyLine,
       [mk_SLine(~steps_of_first_sword=steps, [SToken(SEmptyLine)])],
     )
+
   | CommentLine(comment) =>
     mk_SBox(
       ~steps,
@@ -2022,6 +2025,23 @@ and snode_of_line_item =
         ),
       ],
     )
+
+  | SubCommentLine(comment) =>
+    mk_SBox(
+      ~steps,
+      ~shape=SubCommentLine,
+      [
+        mk_SLine(
+          ~steps_of_first_sword=steps,
+          [
+            SToken(SDelim(0, "$")),
+            SToken(SSpace),
+            SToken(mk_SText(comment)),
+          ],
+        ),
+      ],
+    )
+
   | ExpLine(e) => snode_of_exp(~user_newlines?, ~steps, e) /* ghost node */
   | LetLine(p, ann, def) =>
     let sp = snode_of_pat(~steps=steps @ [0], p);

@@ -51,6 +51,7 @@ and zrule =
 
 let valid_cursors_line = (line: UHExp.line): list(CursorPosition.t) =>
   switch (line) {
+  | SubCommentLine(comment)
   | CommentLine(comment) =>
     // f(x) == x |> f
     // [1, 2] @ [3, 4] == [1, 2, 3, 4]
@@ -160,6 +161,7 @@ and is_before_lines = ((prefix, zline, _): zlines): bool =>
  */
 and is_before_line = (zline: zline): bool =>
   switch (zline) {
+  | CursorL(cursor, SubCommentLine(_))
   | CursorL(cursor, CommentLine(_)) => cursor == OnDelim(0, Before)
   | CursorL(cursor, EmptyLine) => cursor == OnText(0)
   | CursorL(cursor, LetLine(_, _, _)) => cursor == OnDelim(0, Before)
@@ -210,6 +212,7 @@ let rec is_after_block = (zblock: zblock): bool =>
   }
 and is_after_line = (zli: zline): bool =>
   switch (zli) {
+  | CursorL(cursor, SubCommentLine(comment))
   | CursorL(cursor, CommentLine(comment)) =>
     cursor == OnText(String.length(comment))
   | CursorL(cursor, EmptyLine) => cursor == OnText(0)
@@ -332,6 +335,7 @@ let rec place_before_block = (block: UHExp.block): zblock =>
   }
 and place_before_line = (line: UHExp.line): zline =>
   switch (line) {
+  | SubCommentLine(_)
   | CommentLine(_) => CursorL(OnDelim(0, Before), line)
   | EmptyLine => CursorL(OnText(0), EmptyLine)
   | LetLine(_, _, _) => CursorL(OnDelim(0, Before), line)
@@ -370,6 +374,7 @@ let rec place_after_block = (Block(lines, e): UHExp.block): zblock =>
   BlockZE(lines, place_after_exp(e))
 and place_after_line = (line: UHExp.line): zline =>
   switch (line) {
+  | SubCommentLine(comment)
   | CommentLine(comment) => CursorL(OnText(String.length(comment)), line)
   | EmptyLine => CursorL(OnText(0), line)
   | LetLine(_, _, _) => CursorL(OnDelim(3, After), line)
@@ -419,6 +424,7 @@ let place_cursor_line =
     | Some(ze) => Some(ExpLineZ(ze))
     }
   | EmptyLine
+  | SubCommentLine(_)
   | CommentLine(_)
   | LetLine(_, _, _) =>
     is_valid_cursor_line(cursor, line) ? Some(CursorL(cursor, line)) : None
@@ -770,6 +776,7 @@ and move_cursor_left_line = (zline: zline): option(zline) =>
   switch (zline) {
   | _ when is_before_line(zline) => None
   | CursorL(Staging(_), _) => None
+  | CursorL(OnDelim(_, Before), SubCommentLine(_))
   | CursorL(OnDelim(_, Before), CommentLine(_)) => None
 
   // OnDelim case
@@ -779,9 +786,11 @@ and move_cursor_left_line = (zline: zline): option(zline) =>
   | CursorL(OnText(_), EmptyLine) => None
 
   // For CommentLine
+  | CursorL(OnText(0), SubCommentLine(_) as line)
   | CursorL(OnText(0), CommentLine(_) as line) =>
     Some(CursorL(OnDelim(0, After), line))
 
+  | CursorL(OnText(k), SubCommentLine(_) as line)
   | CursorL(OnText(k), CommentLine(_) as line) =>
     Some(CursorL(OnText(k - 1), line))
 
@@ -1046,12 +1055,16 @@ and move_cursor_right_line = (zline: zline): option(zline) => {
   switch (zline) {
   | _ when is_after_line(zline) => None
   | CursorL(Staging(_), _) => None
+
+  | CursorL(OnText(k), SubCommentLine(_) as line)
   | CursorL(OnText(k), CommentLine(_) as line) =>
     Some(CursorL(OnText(k + 1), line))
+
   | CursorL(OnText(_), _) => None
   | CursorL(OnDelim(k, Before), line) =>
     Some(CursorL(OnDelim(k, After), line))
 
+  | CursorL(OnDelim(_, After), SubCommentLine(_) as line)
   | CursorL(OnDelim(_, After), CommentLine(_) as line) =>
     Some(CursorL(OnText(0), line))
 

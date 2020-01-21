@@ -32,6 +32,7 @@ and line =
   | EmptyLine
   | LetLine(UHPat.t, option(UHTyp.t), block)
   | CommentLine(string)
+  | SubCommentLine(string)
 and t =
   /* outer nodes */
   | EmptyHole(MetaVar.t)
@@ -105,6 +106,7 @@ let prune_empty_hole_line = (li: line): line =>
   | ExpLine(_)
   | EmptyLine
   | CommentLine(_)
+  | SubCommentLine(_)
   | LetLine(_, _, _) => li
   };
 let prune_empty_hole_lines: lines => lines = List.map(prune_empty_hole_line);
@@ -333,6 +335,7 @@ let child_indices_line =
   | ExpLine(_) => []
   | LetLine(_, None, _) => [0, 2]
   | LetLine(_, Some(_), _) => [0, 1, 2]
+  | SubCommentLine(_)
   | CommentLine(_) => [];
 let child_indices_exp =
   fun
@@ -559,6 +562,7 @@ let shift_line_from_suffix_block =
             Block(leading @ [ExpLine(conclusion)] @ empty_lines, e),
             u_gen,
           )
+        | (_, SubCommentLine(_))
         | (_, CommentLine(_)) => failwith("unimplemented")
         };
       Some((new_block, new_suffix_block, u_gen));
@@ -649,6 +653,7 @@ let shift_line_to_suffix_block =
         u_gen,
       ))
     | Some((_, EmptyLine)) => assert(false)
+    | Some((_, SubCommentLine(_)))
     | Some((_, CommentLine(_))) => failwith("unimplemented")
     }
   | (Some((_, _, _)), _) =>
@@ -672,6 +677,7 @@ let shift_line_to_suffix_block =
           u_gen,
         ))
       | Some((_, EmptyLine)) => assert(false)
+      | Some((_, SubCommentLine(_)))
       | Some((_, CommentLine(_))) => failwith("unimplemented")
       }
     | Some(Block(suffix_leading, suffix_conclusion)) =>
@@ -714,6 +720,7 @@ let shift_line_to_suffix_block =
           },
           u_gen,
         ))
+      | (Some((_, SubCommentLine(_))), _, _)
       | (Some((_, CommentLine(_))), _, _) => failwith("unimplemented")
       }
     };
@@ -727,6 +734,7 @@ let favored_child_of_line: line => option((ChildIndex.t, block)) =
   fun
   | EmptyLine
   | ExpLine(_)
+  | SubCommentLine(_)
   | CommentLine(_) => None
   | LetLine(_, _, def) => Some((2, def));
 /*
@@ -776,6 +784,7 @@ let rec is_multi_line =
 and is_multi_line_line =
   fun
   | CommentLine(_)
+  | SubCommentLine(_)
   | EmptyLine => false
   | ExpLine(e) => is_multi_line_exp(e)
   | LetLine(_, _, def) => is_multi_line(def)
