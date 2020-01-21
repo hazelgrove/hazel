@@ -2264,7 +2264,7 @@ let rec snode_of_zpat =
           ~ap_err_status=NotInApHole,
           ~steps: CursorPath.steps,
           ~node: CursorInfo.node,
-          ~ctx: Contexts.t,
+          ~ctx: Contexts.t(CursorPath.steps),
           zp: ZPat.t,
         )
         : snode =>
@@ -2364,7 +2364,7 @@ let rec snode_of_zblock =
           ~user_newlines: option(Model.user_newlines)=?,
           ~steps: CursorPath.steps=[],
           ~node: CursorInfo.node,
-          ~ctx: Contexts.t,
+          ~ctx: Contexts.t(CursorPath.steps),
           zblock: ZExp.zblock,
         )
         : snode =>
@@ -2473,7 +2473,7 @@ and snode_of_zline_item =
       ~user_newlines: option(Model.user_newlines)=?,
       ~steps: CursorPath.steps,
       ~node: CursorInfo.node,
-      ~ctx: Contexts.t,
+      ~ctx: Contexts.t(CursorPath.steps),
       zli: ZExp.zline,
     )
     : snode =>
@@ -2517,7 +2517,7 @@ and snode_of_zexp =
       ~ap_err_status=NotInApHole,
       ~steps: CursorPath.steps,
       ~node: CursorInfo.node,
-      ~ctx: Contexts.t,
+      ~ctx: Contexts.t(CursorPath.steps),
       ze: ZExp.t,
     ) =>
   switch (ze) {
@@ -2543,7 +2543,7 @@ and snode_of_zexp =
             ~ap_err_status,
             ~steps=steps @ [k],
             ~node: CursorInfo.node,
-            ~ctx: Contexts.t,
+            ~ctx: Contexts.t(CursorPath.steps),
             ztm,
           )
         : snode_of_exp(

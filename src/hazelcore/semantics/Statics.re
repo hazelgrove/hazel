@@ -16,8 +16,12 @@ let combine_modes = (mode1, mode2) =>
   };
 
 let rec syn_pat =
-        (steps: CursorPath.steps, ctx: Contexts.t, p: UHPat.t)
-        : option((HTyp.t, Contexts.t)) =>
+        (
+          steps: CursorPath.steps,
+          ctx: Contexts.t(CursorPath.steps),
+          p: UHPat.t,
+        )
+        : option((HTyp.t, Contexts.t(CursorPath.steps))) =>
   switch (p) {
   /* in hole */
   | EmptyHole(_) => Some((Hole, ctx))
@@ -71,7 +75,7 @@ let rec syn_pat =
 and syn_skel_pat =
     (
       steps: CursorPath.steps,
-      ctx: Contexts.t,
+      ctx: Contexts.t(CursorPath.steps),
       skel: UHPat.skel_t,
       seq: UHPat.opseq,
       monitor,
@@ -147,8 +151,13 @@ and syn_skel_pat =
     }
   }
 and ana_pat =
-    (steps: CursorPath.steps, ctx: Contexts.t, p: UHPat.t, ty: HTyp.t)
-    : option(Contexts.t) =>
+    (
+      steps: CursorPath.steps,
+      ctx: Contexts.t(CursorPath.steps),
+      p: UHPat.t,
+      ty: HTyp.t,
+    )
+    : option(Contexts.t(CursorPath.steps)) =>
   switch (p) {
   /* in hole */
   | EmptyHole(_) => Some(ctx)
@@ -208,13 +217,13 @@ and ana_pat =
 and ana_skel_pat =
     (
       steps: CursorPath.steps,
-      ctx: Contexts.t,
+      ctx: Contexts.t(CursorPath.steps),
       skel: UHPat.skel_t,
       seq: UHPat.opseq,
       ty: HTyp.t,
       monitor,
     )
-    : option((Contexts.t, option(type_mode))) =>
+    : option((Contexts.t(CursorPath.steps), option(type_mode))) =>
   switch (skel) {
   | Placeholder(n) =>
     switch (OperatorSeq.nth_tm(n, seq)) {
@@ -305,7 +314,8 @@ and ana_skel_pat =
         ? None  /* make sure the lengths are actually different */
         : {
           let (zipped, remainder) = HTyp.zip_with_skels(skels, types);
-          let ana_zipped: option((Contexts.t, option(type_mode))) =
+          let ana_zipped:
+            option((Contexts.t(CursorPath.steps), option(type_mode))) =
             ListMinTwo.fold_left(
               (opt_result, skel_ty: (UHPat.skel_t, HTyp.t)) =>
                 switch (opt_result) {
@@ -387,12 +397,12 @@ and ana_skel_pat =
 let ctx_for_let =
     (
       steps: CursorPath.steps,
-      ctx: Contexts.t,
+      ctx: Contexts.t(CursorPath.steps),
       p: UHPat.t,
       ty: HTyp.t,
       block: UHExp.block,
     )
-    : Contexts.t =>
+    : Contexts.t(CursorPath.steps) =>
   switch (p, block) {
   | (Var(_, NotInVarHole, x), Block([], Lam(_, _, _, _))) =>
     switch (HTyp.matched_arrow(ty)) {
@@ -406,12 +416,12 @@ let ctx_for_let =
 let ctx_for_let' =
     (
       steps: CursorPath.steps,
-      ctx: Contexts.t,
+      ctx: Contexts.t(CursorPath.steps),
       p: UHPat.t,
       ty: HTyp.t,
       block: UHExp.block,
     )
-    : (Contexts.t, option(Var.t)) =>
+    : (Contexts.t(CursorPath.steps), option(Var.t)) =>
   switch (p, block) {
   | (Var(_, NotInVarHole, x), Block([], Lam(_, _, _, _))) =>
     switch (HTyp.matched_arrow(ty)) {
@@ -425,7 +435,11 @@ let ctx_for_let' =
   };
 
 let rec syn_block =
-        (steps: CursorPath.steps, ctx: Contexts.t, block: UHExp.block)
+        (
+          steps: CursorPath.steps,
+          ctx: Contexts.t(CursorPath.steps),
+          block: UHExp.block,
+        )
         : option(HTyp.t) =>
   switch (block) {
   | Block(lines, e) =>
@@ -435,11 +449,18 @@ let rec syn_block =
     }
   }
 and syn_lines =
-    (steps: CursorPath.steps, ctx: Contexts.t, lines: UHExp.lines)
-    : option(Contexts.t) => {
+    (
+      steps: CursorPath.steps,
+      ctx: Contexts.t(CursorPath.steps),
+      lines: UHExp.lines,
+    )
+    : option(Contexts.t(CursorPath.steps)) => {
   let (opt_ctx, _) =
     List.fold_left(
-      (opt_ctx_len: (option(Contexts.t), ChildIndex.t), line: UHExp.line) => {
+      (
+        opt_ctx_len: (option(Contexts.t(CursorPath.steps)), ChildIndex.t),
+        line: UHExp.line,
+      ) => {
         let (opt_ctx, len) = opt_ctx_len;
         switch (opt_ctx) {
         | None => (None, len)
@@ -452,8 +473,12 @@ and syn_lines =
   opt_ctx;
 }
 and syn_line =
-    (steps: CursorPath.steps, ctx: Contexts.t, line: UHExp.line)
-    : option(Contexts.t) =>
+    (
+      steps: CursorPath.steps,
+      ctx: Contexts.t(CursorPath.steps),
+      line: UHExp.line,
+    )
+    : option(Contexts.t(CursorPath.steps)) =>
   switch (line) {
   | ExpLine(_) => Some(ctx)
   | EmptyLine => Some(ctx)
@@ -475,7 +500,8 @@ and syn_line =
   }
 /* synthesize a type, if possible, for e */
 and syn_exp =
-    (steps: CursorPath.steps, ctx: Contexts.t, e: UHExp.t): option(HTyp.t) =>
+    (steps: CursorPath.steps, ctx: Contexts.t(CursorPath.steps), e: UHExp.t)
+    : option(HTyp.t) =>
   switch (e) {
   /* in hole */
   | EmptyHole(_) => Some(Hole)
@@ -561,7 +587,7 @@ and syn_exp =
 and syn_skel =
     (
       steps: CursorPath.steps,
-      ctx: Contexts.t,
+      ctx: Contexts.t(CursorPath.steps),
       skel: UHExp.skel_t,
       seq: UHExp.opseq,
       monitor: option(int),
@@ -666,8 +692,12 @@ and syn_skel =
     }
   }
 and ana_splice_map =
-    (steps: CursorPath.steps, ctx: Contexts.t, splice_map: UHExp.splice_map)
-    : option(Contexts.t) =>
+    (
+      steps: CursorPath.steps,
+      ctx: Contexts.t(CursorPath.steps),
+      splice_map: UHExp.splice_map,
+    )
+    : option(Contexts.t(CursorPath.steps)) =>
   NatMap.fold(
     splice_map,
     (c, (splice_name, (ty, block))) =>
@@ -686,7 +716,12 @@ and ana_splice_map =
     Some(Contexts.empty),
   )
 and ana_block =
-    (steps: CursorPath.steps, ctx: Contexts.t, block: UHExp.block, ty: HTyp.t)
+    (
+      steps: CursorPath.steps,
+      ctx: Contexts.t(CursorPath.steps),
+      block: UHExp.block,
+      ty: HTyp.t,
+    )
     : option(unit) =>
   switch (block) {
   | Block(lines, e) =>
@@ -696,7 +731,12 @@ and ana_block =
     }
   }
 and ana_exp =
-    (steps: CursorPath.steps, ctx: Contexts.t, e: UHExp.t, ty: HTyp.t)
+    (
+      steps: CursorPath.steps,
+      ctx: Contexts.t(CursorPath.steps),
+      e: UHExp.t,
+      ty: HTyp.t,
+    )
     : option(unit) =>
   switch (e) {
   /* in hole */
@@ -804,7 +844,7 @@ and ana_exp =
 and ana_rules =
     (
       steps: CursorPath.steps,
-      ctx: Contexts.t,
+      ctx: Contexts.t(CursorPath.steps),
       rules: UHExp.rules,
       pat_ty: HTyp.t,
       clause_ty: HTyp.t,
@@ -828,7 +868,7 @@ and ana_rules =
 and ana_rule =
     (
       steps: CursorPath.steps,
-      ctx: Contexts.t,
+      ctx: Contexts.t(CursorPath.steps),
       rule: UHExp.rule,
       pat_ty: HTyp.t,
       clause_ty: HTyp.t,
@@ -843,7 +883,7 @@ and ana_rule =
 and ana_skel =
     (
       steps: CursorPath.steps,
-      ctx: Contexts.t,
+      ctx: Contexts.t(CursorPath.steps),
       skel: UHExp.skel_t,
       seq: UHExp.opseq,
       ty: HTyp.t,
@@ -1017,19 +1057,23 @@ and ana_skel =
   };
 
 let syn_zlines =
-    (steps: CursorPath.steps, ctx: Contexts.t, zlines: ZExp.zlines)
-    : option(Contexts.t) =>
+    (
+      steps: CursorPath.steps,
+      ctx: Contexts.t(CursorPath.steps),
+      zlines: ZExp.zlines,
+    )
+    : option(Contexts.t(CursorPath.steps)) =>
   syn_lines(steps, ctx, ZExp.erase_lines(zlines));
 
 let rec syn_fix_holes_pat =
         (
           steps: CursorPath.steps,
-          ctx: Contexts.t,
+          ctx: Contexts.t(CursorPath.steps),
           u_gen: MetaVarGen.t,
           ~renumber_empty_holes=false,
           p: UHPat.t,
         )
-        : (UHPat.t, HTyp.t, Contexts.t, MetaVarGen.t) => {
+        : (UHPat.t, HTyp.t, Contexts.t(CursorPath.steps), MetaVarGen.t) => {
   let p_nih = UHPat.set_err_status_t(NotInHole, p);
   switch (p) {
   | EmptyHole(_) =>
@@ -1078,13 +1122,19 @@ let rec syn_fix_holes_pat =
 and syn_fix_holes_pat_skel =
     (
       steps: CursorPath.steps,
-      ctx: Contexts.t,
+      ctx: Contexts.t(CursorPath.steps),
       u_gen: MetaVarGen.t,
       ~renumber_empty_holes=false,
       skel: UHPat.skel_t,
       seq: UHPat.opseq,
     )
-    : (UHPat.skel_t, UHPat.opseq, HTyp.t, Contexts.t, MetaVarGen.t) =>
+    : (
+        UHPat.skel_t,
+        UHPat.opseq,
+        HTyp.t,
+        Contexts.t(CursorPath.steps),
+        MetaVarGen.t,
+      ) =>
   switch (skel) {
   | Placeholder(n) =>
     switch (OperatorSeq.nth_tm(n, seq)) {
@@ -1178,13 +1228,13 @@ and syn_fix_holes_pat_skel =
 and ana_fix_holes_pat =
     (
       steps: CursorPath.steps,
-      ctx: Contexts.t,
+      ctx: Contexts.t(CursorPath.steps),
       u_gen: MetaVarGen.t,
       ~renumber_empty_holes=false,
       p: UHPat.t,
       ty: HTyp.t,
     )
-    : (UHPat.t, Contexts.t, MetaVarGen.t) => {
+    : (UHPat.t, Contexts.t(CursorPath.steps), MetaVarGen.t) => {
   let p_nih = UHPat.set_err_status_t(NotInHole, p);
   switch (p) {
   | EmptyHole(_) =>
@@ -1271,14 +1321,14 @@ and ana_fix_holes_pat =
 and ana_fix_holes_pat_skel =
     (
       steps: CursorPath.steps,
-      ctx: Contexts.t,
+      ctx: Contexts.t(CursorPath.steps),
       u_gen: MetaVarGen.t,
       ~renumber_empty_holes=false,
       skel: UHPat.skel_t,
       seq: UHPat.opseq,
       ty: HTyp.t,
     )
-    : (UHPat.skel_t, UHPat.opseq, Contexts.t, MetaVarGen.t) =>
+    : (UHPat.skel_t, UHPat.opseq, Contexts.t(CursorPath.steps), MetaVarGen.t) =>
   switch (skel) {
   | Placeholder(n) =>
     switch (OperatorSeq.nth_tm(n, seq)) {
@@ -1332,7 +1382,7 @@ and ana_fix_holes_pat_skel =
             (skels, seq, ctx, u_gen): (
               ListMinTwo.t(UHPat.skel_t),
               UHPat.opseq,
-              Contexts.t,
+              Contexts.t(CursorPath.steps),
               MetaVarGen.t,
             ),
           ) => {
@@ -1511,11 +1561,11 @@ and ana_fix_holes_pat_skel =
 let syn_fix_holes_zpat =
     (
       steps: CursorPath.steps,
-      ctx: Contexts.t,
+      ctx: Contexts.t(CursorPath.steps),
       u_gen: MetaVarGen.t,
       zp: ZPat.t,
     )
-    : (ZPat.t, HTyp.t, Contexts.t, MetaVarGen.t) => {
+    : (ZPat.t, HTyp.t, Contexts.t(CursorPath.steps), MetaVarGen.t) => {
   let path = CursorPath.of_zpat(zp);
   let p = ZPat.erase(zp);
   let (p, ty, ctx, u_gen) = syn_fix_holes_pat(steps, ctx, u_gen, p);
@@ -1526,12 +1576,12 @@ let syn_fix_holes_zpat =
 let ana_fix_holes_zpat =
     (
       steps: CursorPath.steps,
-      ctx: Contexts.t,
+      ctx: Contexts.t(CursorPath.steps),
       u_gen: MetaVarGen.t,
       zp: ZPat.t,
       ty: HTyp.t,
     )
-    : (ZPat.t, Contexts.t, MetaVarGen.t) => {
+    : (ZPat.t, Contexts.t(CursorPath.steps), MetaVarGen.t) => {
   let path = CursorPath.of_zpat(zp);
   let p = ZPat.erase(zp);
   let (p, ctx, u_gen) = ana_fix_holes_pat(steps, ctx, u_gen, p, ty);
@@ -1546,7 +1596,7 @@ let ana_fix_holes_zpat =
 let rec syn_fix_holes_block =
         (
           steps: CursorPath.steps,
-          ctx: Contexts.t,
+          ctx: Contexts.t(CursorPath.steps),
           u_gen: MetaVarGen.t,
           ~renumber_empty_holes=false,
           block: UHExp.block,
@@ -1568,19 +1618,19 @@ let rec syn_fix_holes_block =
 and syn_fix_holes_lines =
     (
       steps: CursorPath.steps,
-      ctx: Contexts.t,
+      ctx: Contexts.t(CursorPath.steps),
       u_gen: MetaVarGen.t,
       ~renumber_empty_holes=false,
       ~start_line_index: ChildIndex.t=0,
       lines: UHExp.lines,
     )
-    : (UHExp.lines, Contexts.t, MetaVarGen.t) => {
+    : (UHExp.lines, Contexts.t(CursorPath.steps), MetaVarGen.t) => {
   let (rev_fixed_lines, ctx, u_gen, _) =
     List.fold_left(
       (
         (fixed_lines, ctx, u_gen, line_index): (
           UHExp.lines,
-          Contexts.t,
+          Contexts.t(CursorPath.steps),
           MetaVarGen.t,
           ChildIndex.t,
         ),
@@ -1604,12 +1654,12 @@ and syn_fix_holes_lines =
 and syn_fix_holes_line =
     (
       steps: CursorPath.steps,
-      ctx: Contexts.t,
+      ctx: Contexts.t(CursorPath.steps),
       u_gen: MetaVarGen.t,
       ~renumber_empty_holes=false,
       line: UHExp.line,
     )
-    : (UHExp.line, Contexts.t, MetaVarGen.t) =>
+    : (UHExp.line, Contexts.t(CursorPath.steps), MetaVarGen.t) =>
   switch (line) {
   | ExpLine(e) =>
     let (e, _, u_gen) =
@@ -1664,7 +1714,7 @@ and syn_fix_holes_line =
 and syn_fix_holes_exp =
     (
       steps: CursorPath.steps,
-      ctx: Contexts.t,
+      ctx: Contexts.t(CursorPath.steps),
       u_gen: MetaVarGen.t,
       ~renumber_empty_holes=false,
       e: UHExp.t,
@@ -1831,7 +1881,7 @@ and syn_fix_holes_exp =
 and ana_fix_holes_rules =
     (
       steps: CursorPath.steps,
-      ctx: Contexts.t,
+      ctx: Contexts.t(CursorPath.steps),
       u_gen: MetaVarGen.t,
       ~renumber_empty_holes=false,
       rules: UHExp.rules,
@@ -1862,7 +1912,7 @@ and ana_fix_holes_rules =
 and ana_rule_fix_holes =
     (
       steps: CursorPath.steps,
-      ctx: Contexts.t,
+      ctx: Contexts.t(CursorPath.steps),
       u_gen: MetaVarGen.t,
       ~renumber_empty_holes=false,
       rule: UHExp.rule,
@@ -1894,7 +1944,7 @@ and ana_rule_fix_holes =
 and ana_fix_holes_splice_map =
     (
       steps: CursorPath.steps,
-      ctx: Contexts.t,
+      ctx: Contexts.t(CursorPath.steps),
       u_gen: MetaVarGen.t,
       ~renumber_empty_holes=false,
       splice_map: UHExp.splice_map,
@@ -1921,7 +1971,7 @@ and ana_fix_holes_splice_map =
 and ana_fix_holes_block =
     (
       steps: CursorPath.steps,
-      ctx: Contexts.t,
+      ctx: Contexts.t(CursorPath.steps),
       u_gen: MetaVarGen.t,
       ~renumber_empty_holes=false,
       block: UHExp.block,
@@ -1945,7 +1995,7 @@ and ana_fix_holes_block =
 and ana_fix_holes_exp =
     (
       steps: CursorPath.steps,
-      ctx: Contexts.t,
+      ctx: Contexts.t(CursorPath.steps),
       u_gen: MetaVarGen.t,
       ~renumber_empty_holes=false,
       e: UHExp.t,
@@ -2162,7 +2212,7 @@ and ana_fix_holes_exp =
 and syn_fix_holes_exp_skel =
     (
       steps: CursorPath.steps,
-      ctx: Contexts.t,
+      ctx: Contexts.t(CursorPath.steps),
       u_gen: MetaVarGen.t,
       ~renumber_empty_holes=false,
       skel: UHExp.skel_t,
@@ -2340,7 +2390,7 @@ and syn_fix_holes_exp_skel =
 and ana_fix_holes_exp_skel =
     (
       steps: CursorPath.steps,
-      ctx: Contexts.t,
+      ctx: Contexts.t(CursorPath.steps),
       u_gen: MetaVarGen.t,
       ~renumber_empty_holes=false,
       skel: UHExp.skel_t,
@@ -2572,7 +2622,12 @@ and ana_fix_holes_exp_skel =
   };
 
 let syn_fix_holes_zexp =
-    (steps, ctx: Contexts.t, u_gen: MetaVarGen.t, ze: ZExp.t)
+    (
+      steps,
+      ctx: Contexts.t(CursorPath.steps),
+      u_gen: MetaVarGen.t,
+      ze: ZExp.t,
+    )
     : (ZExp.t, HTyp.t, MetaVarGen.t) => {
   let path = CursorPath.of_zexp(ze);
   let e = ZExp.erase(ze);
@@ -2584,7 +2639,7 @@ let syn_fix_holes_zexp =
 let syn_fix_holes_zblock =
     (
       steps: CursorPath.steps,
-      ctx: Contexts.t,
+      ctx: Contexts.t(CursorPath.steps),
       u_gen: MetaVarGen.t,
       zblock: ZExp.zblock,
     )
@@ -2599,12 +2654,12 @@ let syn_fix_holes_zblock =
 let syn_fix_holes_zlines =
     (
       steps: CursorPath.steps,
-      ctx: Contexts.t,
+      ctx: Contexts.t(CursorPath.steps),
       u_gen: MetaVarGen.t,
       ~start_line_index: ChildIndex.t=0,
       zlines: ZExp.zlines,
     )
-    : (ZExp.zlines, Contexts.t, MetaVarGen.t) => {
+    : (ZExp.zlines, Contexts.t(CursorPath.steps), MetaVarGen.t) => {
   let path = CursorPath.of_zlines(zlines);
   let lines = ZExp.erase_lines(zlines);
   let (lines, ctx, u_gen) =
@@ -2616,7 +2671,7 @@ let syn_fix_holes_zlines =
 let ana_fix_holes_zblock =
     (
       steps: CursorPath.steps,
-      ctx: Contexts.t,
+      ctx: Contexts.t(CursorPath.steps),
       u_gen: MetaVarGen.t,
       zblock: ZExp.zblock,
       ty: HTyp.t,
@@ -2647,7 +2702,7 @@ let ana_fix_holes_zblock =
 let ana_fix_holes_zexp =
     (
       steps: CursorPath.steps,
-      ctx: Contexts.t,
+      ctx: Contexts.t(CursorPath.steps),
       u_gen: MetaVarGen.t,
       ze: ZExp.t,
       ty: HTyp.t,
@@ -2677,7 +2732,7 @@ let ana_fix_holes_zexp =
 
 /* Only to be used on top-level expressions, as it starts hole renumbering at 0 */
 let fix_and_renumber_holes =
-    (ctx: Contexts.t, block: UHExp.block)
+    (ctx: Contexts.t(CursorPath.steps), block: UHExp.block)
     : (UHExp.block, HTyp.t, MetaVarGen.t) =>
   syn_fix_holes_block(
     [],
@@ -2688,7 +2743,7 @@ let fix_and_renumber_holes =
   );
 
 let fix_and_renumber_holes_z =
-    (ctx: Contexts.t, zblock: ZExp.zblock): edit_state => {
+    (ctx: Contexts.t(CursorPath.steps), zblock: ZExp.zblock): edit_state => {
   let (block, ty, u_gen) =
     fix_and_renumber_holes(ctx, zblock |> ZExp.erase_block);
   let zblock =

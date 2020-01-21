@@ -476,15 +476,21 @@ let rec perform_ty = (a: t, zty: ZTyp.t): result(ZTyp.t) =>
 let abs_perform_Backspace_Before_op =
     (
       combine_for_Backspace_Space: ('e, 'z) => 'z,
-      z_typecheck_fix_holes: (Contexts.t, MetaVarGen.t, 'z) => 'm,
+      z_typecheck_fix_holes:
+        (Contexts.t(CursorPath.steps), MetaVarGen.t, 'z) => 'm,
       make_and_typecheck_OpSeqZ:
-        (Contexts.t, MetaVarGen.t, 'z, OperatorSeq.opseq_surround('e, 'op)) =>
+        (
+          Contexts.t(CursorPath.steps),
+          MetaVarGen.t,
+          'z,
+          OperatorSeq.opseq_surround('e, 'op)
+        ) =>
         'm,
       is_EmptyHole: 'e => bool,
       is_Space: 'op => bool,
       _Space: 'op,
       place_after: 'e => 'z,
-      ctx: Contexts.t,
+      ctx: Contexts.t(CursorPath.steps),
       u_gen: MetaVarGen.t,
       e0: 'e,
       ze0: 'z,
@@ -611,15 +617,21 @@ let abs_perform_Backspace_Before_op =
 let abs_perform_Delete_After_op =
     (
       combine_for_Delete_Space: ('z, 'e) => 'z,
-      z_typecheck_fix_holes: (Contexts.t, MetaVarGen.t, 'z) => 'm,
+      z_typecheck_fix_holes:
+        (Contexts.t(CursorPath.steps), MetaVarGen.t, 'z) => 'm,
       make_and_typecheck_OpSeqZ:
-        (Contexts.t, MetaVarGen.t, 'z, OperatorSeq.opseq_surround('e, 'op)) =>
+        (
+          Contexts.t(CursorPath.steps),
+          MetaVarGen.t,
+          'z,
+          OperatorSeq.opseq_surround('e, 'op)
+        ) =>
         'm,
       is_EmptyHole: 'e => bool,
       is_Space: 'op => bool,
       _Space: 'op,
       place_before: 'e => 'z,
-      ctx: Contexts.t,
+      ctx: Contexts.t(CursorPath.steps),
       u_gen: MetaVarGen.t,
       e0: 'e,
       ze0: 'z,
@@ -745,11 +757,16 @@ let abs_perform_Construct_SOp_After =
       new_EmptyHole: MetaVarGen.t => ('e, MetaVarGen.t),
       make_and_typecheck_OpSeq,
       make_and_typecheck_OpSeqZ:
-        (Contexts.t, MetaVarGen.t, 'z, OperatorSeq.opseq_surround('e, 'op)) =>
+        (
+          Contexts.t(CursorPath.steps),
+          MetaVarGen.t,
+          'z,
+          OperatorSeq.opseq_surround('e, 'op)
+        ) =>
         'm,
       is_Space: 'op => bool,
       place_before: 'e => 'z,
-      ctx: Contexts.t,
+      ctx: Contexts.t(CursorPath.steps),
       u_gen: MetaVarGen.t,
       e: 'e,
       op: 'op,
@@ -778,18 +795,23 @@ let abs_perform_Construct_SOp_Before =
       new_EmptyHole: MetaVarGen.t => ('e, MetaVarGen.t),
       make_and_typecheck_OpSeq:
         (
-          Contexts.t,
+          Contexts.t(CursorPath.steps),
           MetaVarGen.t,
           CursorPosition.t,
           OperatorSeq.opseq('e, 'op)
         ) =>
         'm,
       make_and_typecheck_OpSeqZ:
-        (Contexts.t, MetaVarGen.t, 'z, OperatorSeq.opseq_surround('e, 'op)) =>
+        (
+          Contexts.t(CursorPath.steps),
+          MetaVarGen.t,
+          'z,
+          OperatorSeq.opseq_surround('e, 'op)
+        ) =>
         'm,
       is_Space: 'op => bool,
       place_before: 'e => 'z,
-      ctx: Contexts.t,
+      ctx: Contexts.t(CursorPath.steps),
       u_gen: MetaVarGen.t,
       e: 'e,
       op: 'op,
@@ -812,19 +834,24 @@ let abs_perform_Construct_SOp_After_surround =
       new_EmptyHole: MetaVarGen.t => ('e, MetaVarGen.t),
       make_and_typecheck_OpSeq:
         (
-          Contexts.t,
+          Contexts.t(CursorPath.steps),
           MetaVarGen.t,
           CursorPosition.t,
           OperatorSeq.opseq('e, 'op)
         ) =>
         'm,
       make_and_typecheck_OpSeqZ:
-        (Contexts.t, MetaVarGen.t, 'z, OperatorSeq.opseq_surround('e, 'op)) =>
+        (
+          Contexts.t(CursorPath.steps),
+          MetaVarGen.t,
+          'z,
+          OperatorSeq.opseq_surround('e, 'op)
+        ) =>
         'm,
       is_Space: 'op => bool,
       _Space: 'op,
       place_before: 'e => 'z,
-      ctx: Contexts.t,
+      ctx: Contexts.t(CursorPath.steps),
       u_gen: MetaVarGen.t,
       e: 'e,
       op: 'op,
@@ -1040,19 +1067,24 @@ let abs_perform_Construct_SOp_Before_surround =
       new_EmptyHole: MetaVarGen.t => ('e, MetaVarGen.t),
       make_and_typecheck_OpSeq:
         (
-          Contexts.t,
+          Contexts.t(CursorPath.steps),
           MetaVarGen.t,
           CursorPosition.t,
           OperatorSeq.opseq('e, 'op)
         ) =>
         'm,
       make_and_typecheck_OpSeqZ:
-        (Contexts.t, MetaVarGen.t, 'z, OperatorSeq.opseq_surround('e, 'op)) =>
+        (
+          Contexts.t(CursorPath.steps),
+          MetaVarGen.t,
+          'z,
+          OperatorSeq.opseq_surround('e, 'op)
+        ) =>
         'm,
       is_Space: 'op => bool,
       _Space: 'op,
       place_before: 'e => 'z,
-      ctx: Contexts.t,
+      ctx: Contexts.t(CursorPath.steps),
       u_gen: MetaVarGen.t,
       e0: 'e,
       op: 'op,
@@ -1199,12 +1231,12 @@ let abs_perform_Construct_SOp_Before_surround =
 let make_and_syn_OpSeqZ_pat =
     (
       steps: CursorPath.steps,
-      ctx: Contexts.t,
+      ctx: Contexts.t(CursorPath.steps),
       u_gen: MetaVarGen.t,
       zp0: ZPat.t,
       surround: ZPat.opseq_surround,
     )
-    : (ZPat.t, HTyp.t, Contexts.t, MetaVarGen.t) => {
+    : (ZPat.t, HTyp.t, Contexts.t(CursorPath.steps), MetaVarGen.t) => {
   /* figure out the current path so that we can follow it again
    * to reconstitute the Z-exp after calling into the UHExp hole
    * insertion logic (otherwise we'd have to do a version of that
@@ -1223,13 +1255,13 @@ let make_and_syn_OpSeqZ_pat =
 let make_and_ana_OpSeqZ_pat =
     (
       steps: CursorPath.steps,
-      ctx: Contexts.t,
+      ctx: Contexts.t(CursorPath.steps),
       u_gen: MetaVarGen.t,
       zp0: ZPat.t,
       surround: ZPat.opseq_surround,
       ty: HTyp.t,
     )
-    : (ZPat.t, Contexts.t, MetaVarGen.t) => {
+    : (ZPat.t, Contexts.t(CursorPath.steps), MetaVarGen.t) => {
   /* figure out the current path so that we can follow it again
    * to reconstitute the Z-exp after calling into the UHExp hole
    * insertion logic (otherwise we'd have to do a version of that
@@ -1248,7 +1280,7 @@ let make_and_ana_OpSeqZ_pat =
 let make_and_syn_OpSeq_pat =
     (
       steps: CursorPath.steps,
-      ctx: Contexts.t,
+      ctx: Contexts.t(CursorPath.steps),
       u_gen: MetaVarGen.t,
       cursor: CursorPosition.t,
       seq: UHPat.opseq,
@@ -1260,7 +1292,7 @@ let make_and_syn_OpSeq_pat =
 let make_and_ana_OpSeq_pat =
     (
       steps: CursorPath.steps,
-      ctx: Contexts.t,
+      ctx: Contexts.t(CursorPath.steps),
       u_gen: MetaVarGen.t,
       cursor: CursorPosition.t,
       seq: UHPat.opseq,
@@ -1280,12 +1312,14 @@ let check_valid = (x: Var.t, result: result('a)): result('a) =>
 let rec syn_perform_pat =
         (
           steps: CursorPath.steps,
-          ctx: Contexts.t,
+          ctx: Contexts.t(CursorPath.steps),
           u_gen: MetaVarGen.t,
           a: t,
           zp: ZPat.t,
         )
-        : result((ZPat.t, HTyp.t, Contexts.t, MetaVarGen.t)) => {
+        : result(
+            (ZPat.t, HTyp.t, Contexts.t(CursorPath.steps), MetaVarGen.t),
+          ) => {
   switch (a, zp) {
   | (
       _,
@@ -1971,13 +2005,13 @@ let rec syn_perform_pat =
 and ana_perform_pat =
     (
       steps: CursorPath.steps,
-      ctx: Contexts.t,
+      ctx: Contexts.t(CursorPath.steps),
       u_gen: MetaVarGen.t,
       a: t,
       zp: ZPat.t,
       ty: HTyp.t,
     )
-    : result((ZPat.t, Contexts.t, MetaVarGen.t)) =>
+    : result((ZPat.t, Contexts.t(CursorPath.steps), MetaVarGen.t)) =>
   switch (a, zp) {
   | (
       _,
@@ -2700,7 +2734,7 @@ and ana_perform_pat =
 let make_and_syn_OpSeqZ =
     (
       steps: CursorPath.steps,
-      ctx: Contexts.t,
+      ctx: Contexts.t(CursorPath.steps),
       u_gen: MetaVarGen.t,
       ze0: ZExp.t,
       surround: ZExp.opseq_surround,
@@ -2724,7 +2758,7 @@ let make_and_syn_OpSeqZ =
 let make_and_ana_OpSeqZ =
     (
       steps: CursorPath.steps,
-      ctx: Contexts.t,
+      ctx: Contexts.t(CursorPath.steps),
       u_gen: MetaVarGen.t,
       ze0: ZExp.t,
       surround: ZExp.opseq_surround,
@@ -2752,7 +2786,7 @@ let make_and_ana_OpSeqZ =
 let make_and_syn_OpSeq =
     (
       steps: CursorPath.steps,
-      ctx: Contexts.t,
+      ctx: Contexts.t(CursorPath.steps),
       u_gen: MetaVarGen.t,
       cursor: CursorPosition.t,
       seq: UHExp.opseq,
@@ -2764,7 +2798,7 @@ let make_and_syn_OpSeq =
 let make_and_ana_OpSeq =
     (
       steps: CursorPath.steps,
-      ctx: Contexts.t,
+      ctx: Contexts.t(CursorPath.steps),
       u_gen: MetaVarGen.t,
       cursor: CursorPosition.t,
       seq: UHExp.opseq,
@@ -2852,7 +2886,7 @@ let rec syn_perform_block =
         (
           ~steps: CursorPath.steps,
           ~ci: CursorInfo.t,
-          ctx: Contexts.t,
+          ctx: Contexts.t(CursorPath.steps),
           a: t,
           (zblock, ty, u_gen): (ZExp.zblock, HTyp.t, MetaVarGen.t),
         )
@@ -2870,7 +2904,7 @@ let rec syn_perform_block =
           ctx,
           MoveToBefore(def_steps),
           (zblock, ty, u_gen),
-        );
+        )
       }
     | _ => Failed
     }
@@ -3632,11 +3666,11 @@ and syn_perform_lines =
     (
       ~steps: CursorPath.steps,
       ~ci: CursorInfo.t,
-      ctx: Contexts.t,
+      ctx: Contexts.t(CursorPath.steps),
       a: t,
       (zlines, u_gen) as edit_state: (ZExp.zlines, MetaVarGen.t),
     )
-    : result((ZExp.zlines, Contexts.t, MetaVarGen.t)) =>
+    : result((ZExp.zlines, Contexts.t(CursorPath.steps), MetaVarGen.t)) =>
   switch (a, zlines) {
   | (GoToDefinition, _) => Failed
   /* Staging */
@@ -3899,11 +3933,11 @@ and syn_perform_line =
     (
       ~steps: CursorPath.steps,
       ~ci: CursorInfo.t,
-      ctx: Contexts.t,
+      ctx: Contexts.t(CursorPath.steps),
       a: t,
       (zline, u_gen): (ZExp.zline, MetaVarGen.t),
     )
-    : result((ZExp.zlines, Contexts.t, MetaVarGen.t)) =>
+    : result((ZExp.zlines, Contexts.t(CursorPath.steps), MetaVarGen.t)) =>
   switch (a, zline) {
   | (
       _,
@@ -4148,7 +4182,7 @@ and syn_perform_exp =
     (
       ~steps: CursorPath.steps,
       ~ci: CursorInfo.t,
-      ctx: Contexts.t,
+      ctx: Contexts.t(CursorPath.steps),
       a: t,
       (ze, ty, u_gen) as edit_state: (ZExp.t, HTyp.t, MetaVarGen.t),
     )
@@ -5425,7 +5459,7 @@ and ana_perform_block =
     (
       ~steps: CursorPath.steps,
       ~ci: CursorInfo.t,
-      ctx: Contexts.t,
+      ctx: Contexts.t(CursorPath.steps),
       a: t,
       (zblock, u_gen): (ZExp.zblock, MetaVarGen.t),
       ty: HTyp.t,
@@ -6252,7 +6286,7 @@ and ana_perform_exp =
     (
       ~steps: CursorPath.steps,
       ~ci: CursorInfo.t,
-      ctx: Contexts.t,
+      ctx: Contexts.t(CursorPath.steps),
       a: t,
       (ze, u_gen) as edit_state: (ZExp.t, MetaVarGen.t),
       ty: HTyp.t,
@@ -7451,7 +7485,7 @@ and ana_perform_exp_subsume =
     (
       ~steps: CursorPath.steps,
       ~ci: CursorInfo.t,
-      ctx: Contexts.t,
+      ctx: Contexts.t(CursorPath.steps),
       a: t,
       (ze, u_gen): (ZExp.t, MetaVarGen.t),
       ty: HTyp.t,
@@ -7474,7 +7508,7 @@ and ana_perform_exp_subsume =
 
 let can_perform =
     (
-      ctx: Contexts.t,
+      ctx: Contexts.t(CursorPath.steps),
       edit_state: (ZExp.zblock, HTyp.t, MetaVarGen.t),
       ci: CursorInfo.t,
       a: t,

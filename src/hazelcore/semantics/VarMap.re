@@ -45,11 +45,13 @@ let lookup_typ = (ctx, x) =>
   | Some((typ, _)) => Some(typ)
   };
 
-let lookup_steps = (ctx, x) =>
+let lookup_data = (ctx, x) =>
   switch (lookup(ctx, x)) {
   | None => None
-  | Some((_, steps)) => Some(steps)
+  | Some((_, data)) => Some(data)
   };
+
+let lookup_steps = lookup_data;
 
 let contains = (ctx, x) =>
   switch (lookup(ctx, x)) {
