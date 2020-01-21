@@ -64,8 +64,9 @@ let valid_cursors_exp = (e: UHExp.t): list(CursorPosition.t) =>
   /* outer nodes - text */
   | Var(_, _, x) => CursorPosition.text_cursors(Var.length(x))
   | NumLit(_, n) => CursorPosition.text_cursors(num_digits(n))
-  | BoolLit(_, b) => CursorPosition.text_cursors(b ? 4 : 5)
+  | BoolLit(_, b) => CursorPosition.text_cursors(UHExp.boolLitLen(b)) /* true: 4 chars, false: 5 chars */
   /* inner nodes */
+  | ListLit(_, _) => CursorPosition.delim_cursors(2)
   | Lam(_, _, ann, _) =>
     let colon_positions =
       switch (ann) {
@@ -156,6 +157,7 @@ and is_before_exp = (ze: t): bool =>
   | CursorE(cursor, NumLit(_, _))
   | CursorE(cursor, BoolLit(_, _)) => cursor == OnText(0)
   /* inner nodes */
+  | CursorE(cursor, ListLit(_, _)) => cursor == OnDelim(0, Before)
   | CursorE(cursor, Lam(_, _, _, _))
   | CursorE(cursor, Inj(_, _, _))
   | CursorE(cursor, Case(_, _, _, _))
@@ -209,6 +211,7 @@ and is_after_exp = (ze: t): bool =>
   | CursorE(cursor, BoolLit(_, true)) => cursor == OnText(4)
   | CursorE(cursor, BoolLit(_, false)) => cursor == OnText(5)
   /* inner nodes */
+  | CursorE(cursor, ListLit(_)) => cursor == OnDelim(1, After)
   | CursorE(_, Lam(_, _, _, _)) => false
   | CursorE(_, Case(_, _, _, Some(_))) => false
   | CursorE(cursor, Case(_, _, _, None)) => cursor == OnDelim(1, After)
@@ -325,6 +328,7 @@ and place_before_exp = (e: UHExp.t): t =>
   | Lam(_, _, _, _)
   | Inj(_, _, _)
   | Case(_, _, _, _)
+  | ListLit(_) => CursorE(OnDelim(0, Before), e)
   | Parenthesized(_) => CursorE(OnDelim(0, Before), e)
   | OpSeq(skel, seq) =>
     let (e1, suffix) = OperatorSeq.split0(seq);
@@ -365,6 +369,7 @@ and place_after_exp = (e: UHExp.t): t =>
     CaseZA(err, block, rules, ZTyp.place_after(uty))
   | Case(_, _, _, None) => CursorE(OnDelim(1, After), e)
   | Inj(_, _, _) => CursorE(OnDelim(1, After), e)
+  | ListLit(_) => CursorE(OnDelim(1, After), e)
   | Parenthesized(_) => CursorE(OnDelim(1, After), e)
   | OpSeq(skel, seq) =>
     let (e1, prefix) = OperatorSeq.split_tail(seq);
@@ -792,6 +797,7 @@ and move_cursor_left_exp = (ze: t): option(t) =>
   | CursorE(OnText(j), e) => Some(CursorE(OnText(j - 1), e))
   | CursorE(OnDelim(k, After), e) => Some(CursorE(OnDelim(k, Before), e))
   | CursorE(OnDelim(_, Before), EmptyHole(_) | ListNil(_)) => None
+  | CursorE(OnDelim(_, Before), ListLit(_, _)) => None
   | CursorE(OnDelim(_k, Before), Parenthesized(body)) =>
     // _k == 1
     Some(ParenthesizedZ(place_after_block(body)))
@@ -1070,6 +1076,7 @@ and move_cursor_right_exp = (ze: t): option(t) =>
   | CursorE(OnText(j), e) => Some(CursorE(OnText(j + 1), e))
   | CursorE(OnDelim(k, Before), e) => Some(CursorE(OnDelim(k, After), e))
   | CursorE(OnDelim(_, After), EmptyHole(_) | ListNil(_)) => None
+  | CursorE(OnDelim(_k, After), ListLit(_, _)) => None
   | CursorE(OnDelim(_k, After), Parenthesized(body)) =>
     // _k == 0
     Some(ParenthesizedZ(place_before_block(body)))

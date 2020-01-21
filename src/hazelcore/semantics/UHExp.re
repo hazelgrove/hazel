@@ -38,8 +38,8 @@ and t =
   | NumLit(ErrStatus.t, int)
   | BoolLit(ErrStatus.t, bool)
   | ListNil(ErrStatus.t)
-  | ListLit(ErrStatus.t)
   /* inner nodes */
+  | ListLit(ErrStatus.t, list(t))
   | Lam(ErrStatus.t, UHPat.t, option(UHTyp.t), block)
   | Inj(ErrStatus.t, InjSide.t, block)
   | Case(ErrStatus.t, block, rules, option(UHTyp.t))
@@ -68,6 +68,8 @@ let var =
   Var(err, var_err, x);
 
 let numlit = (~err: ErrStatus.t=NotInHole, n: int): t => NumLit(err, n);
+
+let boolLitLen = (b: bool): int => b ? 4 : 5; /* true: 4 chars, false: 5 chars */
 
 let lam =
     (
@@ -168,7 +170,7 @@ let bidelimited = (e: t): bool =>
   | NumLit(_, _)
   | BoolLit(_, _)
   | ListNil(_)
-  | ListLit(_) /* Handle List Literals */
+  | ListLit(_, _)
   | Inj(_, _, _)
   | ApPalette(_, _, _, _)
   | Parenthesized(_) => true
@@ -195,7 +197,7 @@ and get_err_status_t = (e: t): ErrStatus.t =>
   | NumLit(err, _)
   | BoolLit(err, _)
   | ListNil(err)
-  | ListLit(err) /* Handle List Literals */
+  | ListLit(err, _)
   | Lam(err, _, _, _)
   | Inj(err, _, _)
   | Case(err, _, _, _)
@@ -220,7 +222,7 @@ and set_err_status_t = (err: ErrStatus.t, e: t): t =>
   | NumLit(_, n) => NumLit(err, n)
   | BoolLit(_, b) => BoolLit(err, b)
   | ListNil(_) => ListNil(err)
-  | ListLit(_) => ListLit(err) /* Handle List Literals */
+  | ListLit(_, l) => ListLit(err, l)
   | Lam(_, p, ann, block) => Lam(err, p, ann, block)
   | Inj(_, inj_side, block) => Inj(err, inj_side, block)
   | Case(_, block, rules, ann) => Case(err, block, rules, ann)
@@ -267,6 +269,7 @@ and make_t_inconsistent = (u_gen: MetaVarGen.t, e: t): (t, MetaVarGen.t) =>
   | NumLit(InHole(TypeInconsistent, _), _)
   | BoolLit(InHole(TypeInconsistent, _), _)
   | ListNil(InHole(TypeInconsistent, _))
+  | ListLit(InHole(TypeInconsistent, _), _)
   | Lam(InHole(TypeInconsistent, _), _, _, _)
   | Inj(InHole(TypeInconsistent, _), _, _)
   | Case(InHole(TypeInconsistent, _), _, _, _)
@@ -276,6 +279,7 @@ and make_t_inconsistent = (u_gen: MetaVarGen.t, e: t): (t, MetaVarGen.t) =>
   | NumLit(NotInHole | InHole(WrongLength, _), _)
   | BoolLit(NotInHole | InHole(WrongLength, _), _)
   | ListNil(NotInHole | InHole(WrongLength, _))
+  | ListLit(NotInHole | InHole(WrongLength, _), _)
   | Lam(NotInHole | InHole(WrongLength, _), _, _, _)
   | Inj(NotInHole | InHole(WrongLength, _), _, _)
   | Case(NotInHole | InHole(WrongLength, _), _, _, _)
@@ -333,6 +337,7 @@ let child_indices_exp =
   | NumLit(_, _)
   | BoolLit(_, _)
   | ListNil(_) => []
+  | ListLit(_, _)
   | Lam(_, _, None, _) => [0, 2]
   | Lam(_, _, Some(_), _) => [0, 1, 2]
   | Case(_, _, rules, None) => range(List.length(rules) + 1)
@@ -721,6 +726,7 @@ let favored_child_of_exp: t => option((ChildIndex.t, block)) =
   | NumLit(_, _)
   | BoolLit(_, _)
   | ListNil(_)
+  | ListLit(_, _)
   | OpSeq(_, _)
   | ApPalette(_, _, _, _) => None
   | Lam(_, _, _, block) => Some((2, block))
@@ -758,6 +764,7 @@ and is_multi_line_exp =
   | NumLit(_, _)
   | BoolLit(_, _)
   | ListNil(_)
+  | ListLit(_, _)
   | ApPalette(_, _, _, _) => false
   | Lam(_, _, _, body) => is_multi_line(body)
   | Inj(_, _, body) => is_multi_line(body)
