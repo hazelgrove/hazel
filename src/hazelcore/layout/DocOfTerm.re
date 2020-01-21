@@ -226,6 +226,7 @@ let rec doc_of_separated_block =
 and doc_of_line = (~steps: CursorPath.steps, line: UHExp.line): doc => {
   let tag = Doc.tag({steps, node_shape: Line(line)});
   switch (line) {
+  | SubCommentLine(comment) => Doc.Text("$ " ++ comment) |> tag
   | CommentLine(comment) => Doc.Text("# " ++ comment) |> tag
   | ExpLine(e) => doc_of_exp(~may_wrap=true, ~steps, e)
   | EmptyLine => Doc.Text("") |> tag

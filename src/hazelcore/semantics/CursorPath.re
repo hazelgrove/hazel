@@ -225,6 +225,7 @@ and before_line = (~steps=[], line: UHExp.line): t =>
   | EmptyLine => (steps, OnText(0))
   | ExpLine(e) => before_exp(~steps, e)
   | CommentLine(_)
+  | SubCommentLine(_)
   | LetLine(_, _, _) => (steps, OnDelim(0, Before))
   }
 and before_exp = (~steps=[], e: UHExp.t): t =>
@@ -434,6 +435,7 @@ and follow_line_and_place_cursor =
     }
   | ([], _) => pcl(line)
   | ([_, ..._], EmptyLine) => None
+  | ([_, ..._], SubCommentLine(_))
   | ([_, ..._], CommentLine(_)) => None
   | ([0, ...xs], LetLine(p, ann, e1)) =>
     switch (follow_pat_and_place_cursor(xs, pcp, p)) {
@@ -979,6 +981,7 @@ and holes_line =
     (line: UHExp.line, rev_steps: rev_steps, holes: hole_list): hole_list =>
   switch (line) {
   | CommentLine(_)
+  | SubCommentLine(_)
   | EmptyLine => holes
   | LetLine(p, ann, block) =>
     holes
@@ -1498,6 +1501,7 @@ and holes_zlines =
 and holes_zline = (zli: ZExp.zline, rev_steps: rev_steps): zhole_list =>
   switch (zli) {
   | CursorL(Staging(_), _) => no_holes
+  | CursorL(_, SubCommentLine(_))
   | CursorL(_, CommentLine(_)) => no_holes
   | CursorL(_, EmptyLine) => no_holes
   | CursorL(_, ExpLine(_)) => no_holes /* invalid cursor position */
@@ -1977,6 +1981,7 @@ let rec prune_trivial_suffix_block =
 and prune_trivial_suffix_block__line = (~steps_of_first_line, line) =>
   switch (line, steps_of_first_line) {
   | (EmptyLine, _)
+  | (SubCommentLine(_), _)
   | (CommentLine(_), _) => failwith("CommentLine")
   | (_, []) => line
   | (ExpLine(e), _) =>

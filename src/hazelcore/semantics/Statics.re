@@ -418,6 +418,7 @@ and syn_lines = (ctx: Contexts.t, lines: UHExp.lines): option(Contexts.t) =>
   )
 and syn_line = (ctx: Contexts.t, line: UHExp.line): option(Contexts.t) =>
   switch (line) {
+  | SubCommentLine(_)
   | CommentLine(_) => Some(ctx)
   | ExpLine(_) => Some(ctx)
   | EmptyLine => Some(ctx)
@@ -1415,6 +1416,7 @@ and syn_fix_holes_line =
     let (e, _, u_gen) =
       syn_fix_holes_exp(ctx, u_gen, ~renumber_empty_holes, e);
     (ExpLine(e), ctx, u_gen);
+  | SubCommentLine(_)
   | CommentLine(_) => (line, ctx, u_gen)
   | EmptyLine => (line, ctx, u_gen)
   | LetLine(p, ann, block) =>

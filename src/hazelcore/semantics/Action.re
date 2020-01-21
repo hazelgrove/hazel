@@ -3545,6 +3545,7 @@ and syn_perform_lines =
     | [] => Failed
     | [line2, ...suffix] =>
       switch (line2) {
+      | SubCommentLine(_)
       | CommentLine(_) => Failed
       | ExpLine(_) => Failed
       | LetLine(_, _, _) => Failed
@@ -3563,6 +3564,7 @@ and syn_perform_lines =
       switch (line1) {
       | ExpLine(_) => Failed
       | LetLine(_, _, _) => Failed
+      | SubCommentLine(_)
       | CommentLine(_) => Failed
       | EmptyLine =>
         let zlines = (prefix, zline2, suffix);
@@ -3642,6 +3644,7 @@ and syn_perform_lines =
         (UHExp.wrap_in_block(e2), u_gen);
       | Some((lines, last_line)) =>
         switch (last_line) {
+        | SubCommentLine(_)
         | CommentLine(_)
         | EmptyLine
         | LetLine(_, _, _) =>
@@ -3789,11 +3792,16 @@ and syn_perform_line =
   | (Backspace, _) when ZExp.is_before_line(zline) => CursorEscaped(Before)
   | (Delete, _) when ZExp.is_after_line(zline) => CursorEscaped(After)
 
+  | (Delete, CursorL(OnDelim(_, Before), SubCommentLine(_)))
   | (Delete, CursorL(OnDelim(_, Before), CommentLine(_))) =>
     // just delete the commentline (need future modification)
     Succeeded((([], CursorL(OnText(0), EmptyLine), []), ctx, u_gen))
+
+  | (Delete, CursorL(OnDelim(_, After), SubCommentLine(_) as line))
   | (Delete, CursorL(OnDelim(_, After), CommentLine(_) as line)) =>
     Succeeded((([], CursorL(OnText(0), line), []), ctx, u_gen))
+
+  | (Delete, CursorL(OnText(k), SubCommentLine(comment)))
   | (Delete, CursorL(OnText(k), CommentLine(comment))) =>
     if (k == String.length(comment)) {
       CursorEscaped(After);
@@ -3809,11 +3817,25 @@ and syn_perform_line =
       ));
     }
 
+  | (Backspace, CursorL(OnDelim(_, Before), SubCommentLine(_)))
   | (Backspace, CursorL(OnDelim(_, Before), CommentLine(_))) =>
     CursorEscaped(Before)
+
+  | (Backspace, CursorL(OnDelim(_, After), SubCommentLine(_)))
   | (Backspace, CursorL(OnDelim(_, After), CommentLine(_))) =>
     // just delete the commentline (need future modification)
     Succeeded((([], CursorL(OnText(0), EmptyLine), []), ctx, u_gen))
+
+  | (
+      Construct(SCommentText(new_comment, new_cursor)),
+      CursorL(OnText(_), SubCommentLine(_)),
+    ) =>
+    Succeeded((
+      ([], CursorL(new_cursor, SubCommentLine(new_comment)), []),
+      ctx,
+      u_gen,
+    ))
+
   | (
       Construct(SCommentText(new_comment, new_cursor)),
       CursorL(OnText(_), CommentLine(_)),
@@ -3824,6 +3846,7 @@ and syn_perform_line =
       u_gen,
     ))
 
+  | (Backspace, CursorL(OnText(_), SubCommentLine(_)))
   | (Backspace, CursorL(OnText(_), CommentLine(_))) => Failed
 
   | (Backspace | Delete, CursorL(Staging(_), _)) =>
