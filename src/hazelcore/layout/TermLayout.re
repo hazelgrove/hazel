@@ -266,7 +266,7 @@ let path_before = (l: t): option(CursorPath.t) => {
         l,
       ) =>
       go(l)
-    | Tagged(Padding | HoleLabel(_) | SpaceOp, _) => NotFound
+    | Tagged(Padding | HoleLabel(_) | SpaceOp | UserNewline, _) => NotFound
     | Tagged(Indent, _) => Transport(After)
     | Tagged(Text({steps, _}), _) => Found((steps, OnText(0)))
     | Tagged(Op({steps, _}), _) => Found((steps, OnOp(Before)))
@@ -276,25 +276,33 @@ let path_before = (l: t): option(CursorPath.t) => {
   go(l) |> PathSearchResult.to_opt;
 };
 
-let rec path_after = (l: t): option(CursorPath.t) =>
-  switch (l) {
-  | Text(_)
-  | Linebreak => None
-  | Align(l) => path_after(l)
-  | Cat(_, l) => path_after(l)
-  | Tagged(
-      OpenChild(_) | ClosedChild(_) | DelimGroup | LetLine | EmptyLine |
-      Step(_) |
-      Term(_),
-      l,
-    ) =>
-    path_after(l)
-  | Tagged(Padding | HoleLabel(_) | SpaceOp | Indent, _) => None
-  | Tagged(Text({steps, length, _}), _) => Some((steps, OnText(length)))
-  | Tagged(Op({steps, _}), _) => Some((steps, OnOp(After)))
-  | Tagged(Delim({path: (steps, k), _}), _) =>
-    Some((steps, OnDelim(k, After)))
-  };
+let path_after = (l: t): option(CursorPath.t) => {
+  let rec go = (l: t): PathSearchResult.t =>
+    switch (l) {
+    | Text(_)
+    | Linebreak => NotFound
+    | Align(l) => go(l)
+    | Cat(l1, l2) =>
+      switch (go(l2)) {
+      | (NotFound | Transport(After) | Found(_)) as fin => fin
+      | Transport(Before) => go(l1)
+      }
+    | Tagged(
+        OpenChild(_) | ClosedChild(_) | DelimGroup | LetLine | EmptyLine |
+        Step(_) |
+        Term(_),
+        l,
+      ) =>
+      go(l)
+    | Tagged(UserNewline, _) => Transport(Before)
+    | Tagged(Padding | HoleLabel(_) | SpaceOp | Indent, _) => NotFound
+    | Tagged(Text({steps, length, _}), _) => Found((steps, OnText(length)))
+    | Tagged(Op({steps, _}), _) => Found((steps, OnOp(After)))
+    | Tagged(Delim({path: (steps, k), _}), _) =>
+      Found((steps, OnDelim(k, After)))
+    };
+  go(l) |> PathSearchResult.to_opt;
+};
 
 let path_of_caret_position = (row: int, col: int, l: t): option(CursorPath.t) => {
   let rec go = (indent, current_row, current_col, l: t): PathSearchResult.t => {
@@ -345,6 +353,7 @@ let path_of_caret_position = (row: int, col: int, l: t): option(CursorPath.t) =>
           l,
         ) =>
         l |> go(indent, current_row, current_col)
+      | Tagged(UserNewline, _) => Transport(Before)
       | Tagged(Indent, _) => Transport(After)
       | Tagged(Padding | SpaceOp, _) => Transport(leaning_side)
       | Tagged(Text({steps, _}), _) =>

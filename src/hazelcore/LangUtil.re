@@ -17,3 +17,5 @@ let nondisplay4 = "​​​​";
 
 let nbsp1 = " ";
 let nbsp2 = "  ";
+
+let user_newline = "↵";

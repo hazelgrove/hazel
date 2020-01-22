@@ -151,6 +151,7 @@ let contenteditable_of_layout = (~inject, l: TermLayout.t): Vdom.Node.t => {
       | Indent => [
           Node.span([contenteditable_false, Attr.classes(["Indent"])], vs),
         ]
+      | UserNewline => []
       | OpenChild(_)
       | ClosedChild(_)
       | HoleLabel(_)
@@ -258,6 +259,10 @@ let presentation_of_layout =
           [contenteditable_false, Attr.classes(["Indent"])],
           go(l),
         ),
+      ]
+
+    | Tagged(UserNewline, l) => [
+        Node.span([Attr.classes(["UserNewline"])], go(l)),
       ]
 
     | Tagged(OpenChild({is_inline}), l) => [
@@ -407,7 +412,11 @@ let editor_view_of_layout =
     | None => l
     | Some((steps, _) as path) =>
       switch (l |> TermLayout.find_and_decorate_caret(~path)) {
-      | None => failwith(__LOC__ ++ ": could not find caret")
+      | None =>
+        JSUtil.log(
+          Js.string(Sexplib.Sexp.to_string_hum(TermLayout.sexp_of_t(l))),
+        );
+        failwith(__LOC__ ++ ": could not find caret");
       | Some(l) =>
         switch (l |> TermLayout.find_and_decorate_cursor(~steps)) {
         | None => failwith(__LOC__ ++ ": could not find cursor")

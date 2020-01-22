@@ -144,7 +144,8 @@ let rec is_before: t => bool =
   | ZE0(ze0) => ze0 |> is_before_zoperand
 and is_before_zblock = ((prefix, zline, _): zblock): bool =>
   switch (prefix) {
-  | [] => is_before_zline(zline)
+  | []
+  | [EmptyLine] => is_before_zline(zline)
   | _ => false
   }
 and is_before_zline = (zline: zline): bool =>
@@ -329,6 +330,11 @@ let rec place_before: UHExp.t => t =
 and place_before_block =
   fun
   | [] => failwith("place_before_block: empty block")
+  | [EmptyLine, first, ...rest] => (
+      [EmptyLine],
+      first |> place_before_line,
+      rest,
+    )
   | [first, ...rest] => ([], first |> place_before_line, rest)
 and place_before_line =
   fun
@@ -637,15 +643,16 @@ and move_cursor_left_zblock =
     switch (move_cursor_left_zline(zline)) {
     | Some(zline) => Some((prefix, zline, suffix))
     | None =>
-      prefix
-      |> ListUtil.split_last
-      |> OptUtil.map(((prefix_leading, prefix_last)) =>
-           (
-             prefix_leading,
-             prefix_last |> place_after_line,
-             [zline |> erase_zline, ...suffix],
-           )
-         )
+      switch (prefix |> ListUtil.split_last) {
+      | None
+      | Some(([], EmptyLine)) => None
+      | Some((prefix_leading, prefix_last)) =>
+        Some((
+          prefix_leading,
+          prefix_last |> place_after_line,
+          [zline |> erase_zline, ...suffix],
+        ))
+      }
     }
 and move_cursor_left_zline = (zline: zline): option(zline) =>
   switch (zline) {

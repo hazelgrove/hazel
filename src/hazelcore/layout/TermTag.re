@@ -27,6 +27,7 @@ type t =
       caret: option(Side.t),
     })
   | SpaceOp
+  | UserNewline
   | OpenChild({is_inline: bool})
   | ClosedChild({is_inline: bool})
   | DelimGroup

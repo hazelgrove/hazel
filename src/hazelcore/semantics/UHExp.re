@@ -49,7 +49,8 @@ type t =
   | E2(block)
   | E1(opseq)
   | E0(operand)
-// TODO (list(line), opseq)
+// TODO
+// block = (bool /* user newline */, list(line))
 and block = list(line)
 and line =
   | EmptyLine
