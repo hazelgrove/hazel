@@ -860,7 +860,7 @@ h1 {
   z-index: var(--para-border-z);
 }
 .Cursor.Term.has-Inline-OpenChild::before {
-  top: calc(100% - (var(--child-border-thickness) / 2));
+  top: calc(100% - var(--child-border-thickness));
   left: 0;
   height: var(--child-border-thickness);
   width: 100%;
