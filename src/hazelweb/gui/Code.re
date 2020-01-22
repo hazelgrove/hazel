@@ -1335,10 +1335,15 @@ and view_of_stoken =
 let caret_position_of_path =
     ((steps, cursor) as path): option((Js.t(Dom.node), int)) =>
   switch (cursor) {
-  | Staging(_) => None
+  | Staging(_) =>
+    JSUtil.log("0");
+    None;
   | OnDelim(_, _) =>
     switch (JSUtil.get_elem_by_id(path_id(path))) {
-    | None => None
+    | None =>
+      JSUtil.log("1");
+      JSUtil.log(path_id(path));
+      None;
     | Some(anchor_parent) =>
       let has_cls = cls => anchor_parent |> JSUtil.elem_has_cls(cls);
       let anchor_offset =
@@ -1360,7 +1365,9 @@ let caret_position_of_path =
     }
   | OnText(j) =>
     switch (JSUtil.get_elem_by_id(text_id(steps))) {
-    | None => None
+    | None =>
+      JSUtil.log("2");
+      None;
     | Some(elem) =>
       let anchor_parent = (elem: Js.t(Dom_html.element) :> Js.t(Dom.node));
       let anchor =

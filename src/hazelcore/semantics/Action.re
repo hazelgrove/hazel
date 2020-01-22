@@ -355,6 +355,7 @@ let rec perform_ty = (a: t, zty: ZTyp.t): result(ZTyp.t) =>
   | (Construct(SBool), CursorT(_, _)) => Failed
   | (Construct(SList), CursorT(_, _)) => Succeeded(ListZ(zty))
   | (Construct(SOp(os)), CursorT(_, _)) =>
+    Printf.printf("here_try\n");
     let uty = ZTyp.erase(zty);
     if (ZTyp.is_before(zty)) {
       switch (ty_op_of(os)) {
@@ -1940,9 +1941,121 @@ and ana_perform_pat =
       ),
     ) =>
     Failed
+
   | (_, CursorP(cursor, p)) when !ZPat.is_valid_cursor(cursor, p) => Failed
   /* switch to synthesis if in a hole */
+  | (Construct(SOp(SComma)), CursorP(_, EmptyHole(_) as hole1)) =>
+    Printf.printf("here_test\n");
+    let list_of_tuples = HTyp.get_tuple_list(ty);
+    switch (list_of_tuples) {
+    | [] => assert(false)
+    | [_, ..._] =>
+      Printf.printf("here_test3\n");
+      let (hole2, u_gen) = UHPat.new_EmptyHole(u_gen);
+      let num_of_elements = List.length(list_of_tuples);
+      let (holes: list(UHPat.t), u_gen: MetaVarGen.t) =
+        range(num_of_elements - 2)
+        |> List.fold_left(
+             // folding func
+             ((holes_so_far, u_gen), _) => {
+               let (new_hole, u_gen) = UHPat.new_EmptyHole(u_gen);
+               (holes_so_far @ [new_hole], u_gen);
+             },
+             // initial accumulator
+             ([], u_gen),
+           );
+      // construct tuple expression with empty holes
+      let tuple_seq: UHPat.opseq =
+        holes
+        |> List.fold_left(
+             (seq: UHPat.opseq, hole: UHPat.t) => SeqOpExp(seq, Comma, hole),
+             ExpOpExp(hole1, Comma, hole2),
+           );
+      let tuple: UHPat.t = OpSeqUtil.Pat.mk_OpSeq(tuple_seq);
+      let cursor_position = OnDelim(1, Before);
+      Succeeded((CursorP(cursor_position, tuple), ctx, u_gen));
+    };
+  | (Construct(SOp(SComma)), CursorP(_, _) as ztm) =>
+    Printf.printf("here23_patkkk\n");
+    let list_of_tuples = HTyp.get_tuple_list(ty);
+    switch (HTyp.get_tuple_list(ty)) {
+    | [] => assert(false)
+    | [_, ..._] =>
+      let num_of_elements = List.length(list_of_tuples);
+      let (new_hole, u_gen) = UHPat.new_EmptyHole(u_gen);
+      let (tuple: OperatorSeq.opseq(_), u_gen: MetaVarGen.t) =
+        range(num_of_elements - 2)
+        |> List.fold_left(
+             ((tuple_seq, u_gen), _) => {
+               let (new_hole, u_gen) = UHPat.new_EmptyHole(u_gen);
+               (
+                 OperatorSeq.SeqOpExp(tuple_seq, UHPat.Comma, new_hole),
+                 u_gen,
+               );
+             },
+             (
+               OperatorSeq.ExpOpExp(ZPat.erase(ztm), UHPat.Comma, new_hole),
+               u_gen,
+             ),
+           );
+      /*
+       let seqlength =
+         OperatorSeq.seq_length(
+           ZPat.erase(ztm)
+         );
+         */
+      let tuple: UHPat.t = OpSeqUtil.Pat.mk_OpSeq(tuple);
+      let cursor_position = OnDelim(1, After);
+      Succeeded((CursorP(cursor_position, tuple), ctx, u_gen));
+    };
+  | (Construct(SOp(SComma)), OpSeqZ(_, ztm, surround) as zopseq)
+      when
+        ZPat.is_after(zopseq)
+        && !(
+             OperatorSeq.opseq_of_exp_and_surround(ZPat.erase(ztm), surround)
+             |> OperatorSeq.ops
+             |> List.mem(UHPat.Comma)
+           ) =>
+    Printf.printf("here23_pat\n");
+    /* Printf.printf("%s\n", string_of_int(4)); */
+    let list_of_tuples = HTyp.get_tuple_list(ty);
+    switch (HTyp.get_tuple_list(ty)) {
+    | [] => assert(false)
+    | [_, ..._] =>
+      let num_of_elements = List.length(list_of_tuples);
+      let (new_hole, u_gen) = UHPat.new_EmptyHole(u_gen);
+      let (tuple: OperatorSeq.opseq(_), u_gen: MetaVarGen.t) =
+        range(num_of_elements - 2)
+        |> List.fold_left(
+             ((tuple_seq, u_gen), _) => {
+               let (new_hole, u_gen) = UHPat.new_EmptyHole(u_gen);
+               (
+                 OperatorSeq.SeqOpExp(tuple_seq, UHPat.Comma, new_hole),
+                 u_gen,
+               );
+             },
+             (
+               OperatorSeq.SeqOpExp(
+                 OperatorSeq.opseq_of_exp_and_surround(
+                   ZPat.erase(ztm),
+                   surround,
+                 ),
+                 UHPat.Comma,
+                 new_hole,
+               ),
+               u_gen,
+             ),
+           );
+      let seqlength =
+        OperatorSeq.seq_length(
+          OperatorSeq.opseq_of_exp_and_surround(ZPat.erase(ztm), surround),
+        );
+      let tuple: UHPat.t = OpSeqUtil.Pat.mk_OpSeq(tuple);
+      let cursor_position = OnDelim(seqlength, After);
+      Succeeded((CursorP(cursor_position, tuple), ctx, u_gen));
+    };
   | (_, _) when ZPat.is_inconsistent(zp) =>
+    Printf.printf("here_test_pat\n");
     let err = zp |> ZPat.erase |> UHPat.get_err_status_t;
     let zp_not_in_hole = ZPat.set_err_status_t(NotInHole, zp);
     let p = ZPat.erase(zp_not_in_hole);
@@ -2460,6 +2573,7 @@ and ana_perform_pat =
       when !ZPat.is_after(zp0) =>
     ana_perform_pat(ctx, u_gen, MoveRight, zp, ty)
   | (Construct(SOp(os)), OpSeqZ(_, zp0, surround)) when ZPat.is_after(zp0) =>
+    Printf.printf("here_testhaah\n");
     switch (pat_op_of(os)) {
     | None => Failed
     | Some(op) =>
@@ -2480,8 +2594,9 @@ and ana_perform_pat =
           surround,
         ),
       )
-    }
+    };
   | (Construct(SOp(os)), OpSeqZ(_, zp0, surround)) when ZPat.is_before(zp0) =>
+    Printf.printf("here_testhaah22\n");
     switch (pat_op_of(os)) {
     | None => Failed
     | Some(op) =>
@@ -2502,8 +2617,9 @@ and ana_perform_pat =
           surround,
         ),
       )
-    }
+    };
   | (Construct(SOp(os)), CursorP(_, _)) =>
+    Printf.printf("here_testhaah2232\n");
     switch (pat_op_of(os)) {
     | None => Failed
     | Some(op) =>
@@ -2544,7 +2660,7 @@ and ana_perform_pat =
       } else {
         Failed;
       }
-    }
+    };
   /* Zipper */
   | (_, ParenthesizedZ(zp1)) =>
     switch (ana_perform_pat(ctx, u_gen, a, zp1, ty)) {
@@ -4704,6 +4820,7 @@ and syn_perform_exp =
     syn_perform_exp(~ci, ctx, MoveRight, edit_state)
   | (Construct(SOp(os)), OpSeqZ(_, ze0, surround))
       when ZExp.is_after_exp(ze0) =>
+    Printf.printf("here30\n");
     switch (exp_op_of(os)) {
     | None => Failed
     | Some(op) =>
@@ -4722,7 +4839,7 @@ and syn_perform_exp =
           surround,
         );
       Succeeded((E(ze), ty, u_gen));
-    }
+    };
   | (Construct(SOp(os)), OpSeqZ(_, ze0, surround))
       when ZExp.is_before_exp(ze0) =>
     switch (exp_op_of(os)) {
@@ -5888,7 +6005,106 @@ and ana_perform_exp =
     Failed
   | (_, CursorE(cursor, e)) when !ZExp.is_valid_cursor_exp(cursor, e) =>
     Failed
+  | (Construct(SOp(SComma)), OpSeqZ(_, ztm, surround) as zopseq)
+      when
+        ZExp.is_after_exp(zopseq)
+        && !(
+             OperatorSeq.opseq_of_exp_and_surround(ZExp.erase(ztm), surround)
+             |> OperatorSeq.ops
+             |> List.mem(UHExp.Comma)
+           ) =>
+    Printf.printf("here23\n");
+    /* Printf.printf("%s\n", string_of_int(4)); */
+    let list_of_tuples = HTyp.get_tuple_list(ty);
+    switch (HTyp.get_tuple_list(ty)) {
+    | [] => assert(false)
+    | [_, ..._] =>
+      let num_of_elements = List.length(list_of_tuples);
+      let (new_hole, u_gen) = UHExp.new_EmptyHole(u_gen);
+      let (tuple: OperatorSeq.opseq(_), u_gen: MetaVarGen.t) =
+        range(num_of_elements - 2)
+        |> List.fold_left(
+             ((tuple_seq, u_gen), _) => {
+               let (new_hole, u_gen) = UHExp.new_EmptyHole(u_gen);
+               (
+                 OperatorSeq.SeqOpExp(tuple_seq, UHExp.Comma, new_hole),
+                 u_gen,
+               );
+             },
+             (
+               OperatorSeq.SeqOpExp(
+                 OperatorSeq.opseq_of_exp_and_surround(
+                   ZExp.erase(ztm),
+                   surround,
+                 ),
+                 UHExp.Comma,
+                 new_hole,
+               ),
+               u_gen,
+             ),
+           );
+      let seqlength =
+        OperatorSeq.seq_length(
+          OperatorSeq.opseq_of_exp_and_surround(ZExp.erase(ztm), surround),
+        );
+      //Printf.printf("%s\n", string_of_int(seqlength));
+      let tuple: UHExp.t = OpSeqUtil.Exp.mk_OpSeq(tuple);
+      let cursor_position = OnDelim(seqlength, After);
+      Succeeded((E(CursorE(cursor_position, tuple)), u_gen));
+    };
+  | (Construct(SOp(SComma)), CursorE(_, EmptyHole(_) as hole1)) =>
+    Printf.printf("here_test\n");
+    let list_of_tuples = HTyp.get_tuple_list(ty);
+    switch (list_of_tuples) {
+    | [] => assert(false)
+    | [_, ..._] =>
+      Printf.printf("here_test3\n");
+      let (hole2, u_gen) = UHExp.new_EmptyHole(u_gen);
+      let num_of_elements = List.length(list_of_tuples);
+      let (holes: list(UHExp.t), u_gen: MetaVarGen.t) =
+        range(num_of_elements - 2)
+        |> List.fold_left(
+             // folding func
+             ((holes_so_far, u_gen), _) => {
+               let (new_hole, u_gen) = UHExp.new_EmptyHole(u_gen);
+               (holes_so_far @ [new_hole], u_gen);
+             },
+             // initial accumulator
+             ([], u_gen),
+           );
+      // construct tuple expression with empty holes
+      let tuple_seq: UHExp.opseq =
+        holes
+        |> List.fold_left(
+             (seq: UHExp.opseq, hole: UHExp.t) => SeqOpExp(seq, Comma, hole),
+             ExpOpExp(hole1, Comma, hole2),
+           );
+      let tuple: UHExp.t = OpSeqUtil.Exp.mk_OpSeq(tuple_seq);
+      //let seqlength = OperatorSeq.seq_length(ZExp.erase(ze));
+      /*
+       let seqlength =
+         OperatorSeq.seq_length(
+           OperatorSeq.opseq_of_exp_and_surround(ZExp.erase(ze), surround),
+         );
+         */
+      //Printf.printf("%s\n", string_of_int(seqlength));
+      let cursor_position = OnDelim(1, Before);
+      Succeeded((E(CursorE(cursor_position, tuple)), u_gen));
+    };
+  /*
+   | (Construct(SOp(SComma)), CursorE(_, _)) =>
+     Printf.printf("testing\n");
+     let list_of_tuples = HTyp.get_tuple_list(ty);
+     switch (list_of_tuples) {
+     | [] => assert(false)
+     | [_] => assert(false)
+     | [_, _, ..._] =>
+       Printf.printf("here_testing\n");
+       assert(false);
+     };
+     */
   | (_, _) when ZExp.is_inconsistent(ze) =>
+    Printf.printf("here_bug\n");
     let err = ze |> ZExp.get_err_status_t;
     let ze' = ZExp.set_err_status_t(NotInHole, ze);
     let e' = ZExp.erase(ze');
@@ -5905,6 +6121,7 @@ and ana_perform_exp =
         }
       }
     };
+
   /* Staging */
   | (ShiftUp | ShiftDown, CursorE(_, _)) =>
     // handled at block level
@@ -6410,6 +6627,7 @@ and ana_perform_exp =
     }
   /* Construction */
   | (Construct(SLine), CursorE(Staging(k), e)) =>
+    Printf.printf("here3\n");
     let (new_ze, u_gen) =
       Statics.ana_fix_holes_zexp(
         ctx,
@@ -6418,11 +6636,14 @@ and ana_perform_exp =
         ty,
       );
     Succeeded((E(new_ze), u_gen));
-  | (Construct(_), CursorE(Staging(_), _)) => Failed
+  | (Construct(_), CursorE(Staging(_), _)) =>
+    Printf.printf("here4\n");
+    Failed;
   | (
       Construct(SLine),
       CaseZR(err, scrut, (prefix, CursorR(Staging(k), rule), suffix), ann),
     ) =>
+    Printf.printf("here5\n");
     let (new_ze, u_gen) =
       Statics.ana_fix_holes_zexp(
         ctx,
@@ -6442,9 +6663,11 @@ and ana_perform_exp =
       CaseZR(_, _, (_, CursorR(OnDelim(_, After), _), _), _),
     )
       when !ZExp.is_after_exp(ze) =>
-    ana_perform_exp(~ci, ctx, MoveRight, edit_state, ty)
+    Printf.printf("here6\n");
+    ana_perform_exp(~ci, ctx, MoveRight, edit_state, ty);
   | (Construct(_) as a, CursorE(OnDelim(_, side), _))
       when !ZExp.is_before_exp(ze) && !ZExp.is_after_exp(ze) =>
+    Printf.printf("here73\n");
     let move_then_perform = move_action =>
       switch (ana_perform_exp(~ci, ctx, move_action, edit_state, ty)) {
       | Failed
@@ -6469,12 +6692,14 @@ and ana_perform_exp =
   | (Construct(SLine), CursorE(_, _))
   | (Construct(SLet), CursorE(_, _)) =>
     /* handled at block or line level */
-    Failed
+    Printf.printf("here8\n");
+    Failed;
   | (
       Construct(SLine),
       CaseZR(err, e1, (prefix, RuleZP(zp, re), suffix), ann),
     )
       when ZPat.is_before(zp) =>
+    Printf.printf("here9\n");
     let (zrule, u_gen) = ZExp.empty_zrule(u_gen);
     let prev_rule = UHExp.Rule(ZPat.erase(zp), re);
     let suffix = [prev_rule, ...suffix];
@@ -6485,6 +6710,7 @@ and ana_perform_exp =
       CaseZR(err, e1, (prefix, RuleZE(_, ze) as zrule, suffix), ann),
     )
       when ZExp.is_after_block(ze) =>
+    Printf.printf("here9\n");
     let prev_rule = ZExp.erase_rule(zrule);
     let (zrule, u_gen) = ZExp.empty_zrule(u_gen);
     let prefix = prefix @ [prev_rule];
@@ -6495,12 +6721,14 @@ and ana_perform_exp =
       CaseZR(err, e1, (prefix, RuleZP(zp, _) as zrule, suffix), ann),
     )
       when ZPat.is_after(zp) =>
+    Printf.printf("here10\n");
     let prev_rule = ZExp.erase_rule(zrule);
     let (zrule, u_gen) = ZExp.empty_zrule(u_gen);
     let prefix = prefix @ [prev_rule];
     let ze = ZExp.CaseZR(err, e1, (prefix, zrule, suffix), ann);
     Succeeded((E(ze), u_gen));
   | (Construct(SCase), ze1) when ZExp.is_before_exp(ze1) =>
+    Printf.printf("here11\n");
     let e1 = ZExp.erase(ze1);
     let (ze, u_gen) =
       switch (e1) {
@@ -6519,8 +6747,11 @@ and ana_perform_exp =
         );
       };
     Succeeded((E(ze), u_gen));
-  | (Construct(SCase), CursorE(_, _)) => Failed
+  | (Construct(SCase), CursorE(_, _)) =>
+    Printf.printf("here12\n");
+    Failed;
   | (Construct(SParenthesized), CursorE(_, EmptyHole(_) as hole1)) =>
+    Printf.printf("here13\n");
     switch (HTyp.get_tuple_list(ty)) {
     | [] => assert(false)
     | [_] =>
@@ -6557,25 +6788,33 @@ and ana_perform_exp =
         ),
         u_gen,
       ));
-    }
+    };
   | (Construct(SParenthesized), CursorE(_, _)) =>
-    Succeeded((E(ParenthesizedZ(ZExp.wrap_in_block(ze))), u_gen))
+    Printf.printf("here14\n");
+    Succeeded((E(ParenthesizedZ(ZExp.wrap_in_block(ze))), u_gen));
   | (Construct(SAsc), LamZP(err, zp, None, e1)) =>
+    Printf.printf("here15\n");
     let ze = ZExp.LamZA(err, ZPat.erase(zp), ZTyp.place_before(Hole), e1);
     Succeeded((E(ze), u_gen));
   | (Construct(SAsc), LamZP(err, zp, Some(uty1), e1)) =>
+    Printf.printf("here16\n");
     /* just move the cursor over if there is already an ascription */
     let ze = ZExp.LamZA(err, ZPat.erase(zp), ZTyp.place_before(uty1), e1);
     Succeeded((E(ze), u_gen));
   | (Construct(SAsc), CursorE(_, Case(_, e1, rules, None))) =>
+    Printf.printf("here17\n");
     let ze = ZExp.CaseZA(NotInHole, e1, rules, ZTyp.place_before(Hole));
     Succeeded((E(ze), u_gen));
   | (Construct(SAsc), CursorE(_, Case(_, e1, rules, Some(uty)))) =>
+    Printf.printf("here18\n");
     /* just move the cursor over if there is already an ascription */
     let ze = ZExp.CaseZA(NotInHole, e1, rules, ZTyp.place_before(uty));
     Succeeded((E(ze), u_gen));
-  | (Construct(SAsc), CursorE(_, _)) => Failed
+  | (Construct(SAsc), CursorE(_, _)) =>
+    Printf.printf("here19\n");
+    Failed;
   | (Construct(SLam), CursorE(_, _)) =>
+    Printf.printf("here20\n");
     let e = ZExp.erase(ze);
     switch (HTyp.matched_arrow(ty)) {
     | Some((_, ty2)) =>
@@ -6597,6 +6836,7 @@ and ana_perform_exp =
       Succeeded((E(ze), u_gen));
     };
   | (Construct(SInj(side)), CursorE(_, _) as ze1) =>
+    Printf.printf("here21\n");
     switch (HTyp.matched_sum(ty)) {
     | Some((tyL, tyR)) =>
       let ty1 = pick_side(side, tyL, tyR);
@@ -6613,15 +6853,17 @@ and ana_perform_exp =
           ZExp.wrap_in_block(ze1),
         );
       Succeeded((E(ze), u_gen));
-    }
+    };
   | (
       Construct(SOp(SSpace)),
       OpSeqZ(_, CursorE(OnDelim(_, After), _) as ze0, _),
     )
       when !ZExp.is_after_exp(ze0) =>
-    ana_perform_exp(~ci, ctx, MoveRight, edit_state, ty)
+    Printf.printf("here22\n");
+    ana_perform_exp(~ci, ctx, MoveRight, edit_state, ty);
   | (Construct(SOp(os)), OpSeqZ(_, ze0, surround))
       when ZExp.is_after_exp(ze0) =>
+    Printf.printf("here24\n");
     switch (exp_op_of(os)) {
     | None => Failed
     | Some(op) =>
@@ -6642,9 +6884,10 @@ and ana_perform_exp =
           surround,
         );
       Succeeded((E(ze), u_gen));
-    }
+    };
   | (Construct(SOp(os)), OpSeqZ(_, ze0, surround))
       when ZExp.is_before_exp(ze0) =>
+    Printf.printf("here25\n");
     switch (exp_op_of(os)) {
     | None => Failed
     | Some(op) =>
@@ -6665,8 +6908,9 @@ and ana_perform_exp =
           surround,
         );
       Succeeded((E(ze), u_gen));
-    }
+    };
   | (Construct(SOp(os)), CursorE(_, _)) =>
+    Printf.printf("here26\n");
     switch (exp_op_of(os)) {
     | None => Failed
     | Some(op) =>
@@ -6707,9 +6951,10 @@ and ana_perform_exp =
       } else {
         Failed;
       }
-    }
+    };
   /* Zipper Cases */
   | (_, ParenthesizedZ(zblock)) =>
+    Printf.printf("here27\n");
     switch (ana_perform_block(~ci, ctx, a, (zblock, u_gen), ty)) {
     | Failed => Failed
     | CantShift => CantShift
@@ -6719,8 +6964,9 @@ and ana_perform_exp =
       ana_perform_exp(~ci, ctx, MoveRight, edit_state, ty)
     | Succeeded((zblock, u_gen)) =>
       Succeeded((E(ParenthesizedZ(zblock)), u_gen))
-    }
+    };
   | (_, LamZP(err, zp, ann, block)) =>
+    Printf.printf("here28\n");
     switch (HTyp.matched_arrow(ty)) {
     | None => Failed
     | Some((ty1_given, ty2)) =>
@@ -6742,8 +6988,9 @@ and ana_perform_exp =
         let ze = ZExp.LamZP(err, zp, ann, block);
         Succeeded((E(ze), u_gen));
       };
-    }
+    };
   | (_, LamZA(_, p, zann, block)) =>
+    Printf.printf("here29\n");
     switch (HTyp.matched_arrow(ty)) {
     | None => Failed
     | Some((ty1_given, ty2)) =>
@@ -6775,7 +7022,7 @@ and ana_perform_exp =
             Succeeded((E(ze), u_gen));
           };
       }
-    }
+    };
   | (_, LamZE(err, p, ann, zblock)) =>
     switch (HTyp.matched_arrow(ty)) {
     | None => Failed

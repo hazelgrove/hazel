@@ -81,6 +81,16 @@ let create =
           | OnDelim(_, _) =>
             if (!Code.is_caret_consistent_with_path(path)) {
               state.setting_caret := true;
+              JSUtil.log(
+                Sexplib.Sexp.to_string_hum(CursorPath.sexp_of_t(path)),
+              );
+              JSUtil.log(
+                Js.string(
+                  Sexplib.Sexp.to_string_hum(
+                    Statics.sexp_of_edit_state(Model.edit_state_of(model)),
+                  ),
+                ),
+              );
               let (node, offset) =
                 Code.caret_position_of_path(path)
                 |> Opt.get(_ => assert(false));
