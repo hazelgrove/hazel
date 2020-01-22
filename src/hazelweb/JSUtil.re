@@ -442,6 +442,10 @@ module KeyCombo = {
     let delete = plain(Key.the_code("Delete"));
     let tab = plain(Key.the_code("Tab"));
     let shift_tab = shift(Key.the_code("Tab"));
+
+    // This is for creating a SubCommentLine
+    let shift_enter = shift(Key.code2("Enter", "Enter", "NumpadEnter"));
+
     let space = plain(Key.the_code("Space"));
     let lt = no_ctrl_alt_meta(Key.the_key("<"));
     let gt = no_ctrl_alt_meta(Key.the_key(">"));
@@ -491,6 +495,7 @@ module KeyCombo = {
     | Colon
     | Equals
     | Enter
+    | Shift_Enter
     | Backslash
     | Plus
     | Minus
@@ -523,6 +528,7 @@ module KeyCombo = {
     | Colon => Details.colon
     | Equals => Details.equals
     | Enter => Details.enter
+    | Shift_Enter => Details.shift_enter
     | Backslash => Details.backslash
     | Plus => Details.plus
     | Minus => Details.minus
@@ -570,6 +576,8 @@ module KeyCombo = {
       Some(Equals);
     } else if (evt_matches(Details.enter)) {
       Some(Enter);
+    } else if (evt_matches(Details.shift_enter)) {
+      Some(Shift_Enter);
     } else if (evt_matches(Details.backslash)) {
       Some(Backslash);
     } else if (evt_matches(Details.plus)) {

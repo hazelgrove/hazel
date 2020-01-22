@@ -52,7 +52,8 @@ let kc_actions: Hashtbl.t(KeyCombo.t, CursorInfo.node => Action.t) =
       (KeyCombo.Colon, _ => Action.Construct(SAsc)),
       (KeyCombo.Equals, _ => Action.Construct(SOp(SEquals))),
       (KeyCombo.Enter, _ => Action.Construct(SLine)),
-      // Create "Enter + Shift" => Action.Construct(SScommentLine)
+      (KeyCombo.Shift_Enter, _ => Action.Construct(SSCommentLine)),
+      // Create "Enter + Shift" => Action.Construct(SSCommentLine)
       (KeyCombo.Backslash, _ => Action.Construct(SLam)),
       (KeyCombo.Plus, _ => Action.Construct(SOp(SPlus))),
       (KeyCombo.Minus, _ => Action.Construct(SOp(SMinus))),

@@ -102,6 +102,8 @@ let op_shape_of_exp_op = (op: UHExp.op): op_shape =>
 type shape =
   | SCommentText(string, CursorPosition.t)
   | SCommentLine // Default constructor (create a new CommentLine)
+  | SSCommentText(string, CursorPosition.t)
+  | SSCommentLine
   | SParenthesized
   /* type shapes */
   | SNum
@@ -327,7 +329,9 @@ let rec perform_ty = (a: t, zty: ZTyp.t): result(ZTyp.t) =>
   /* Construction */
   // Currently set to failed.
   // ------------------------------------------------------------------------------
+  | (Construct(SSCommentLine), CursorT(OnDelim(_, _), _))
   | (Construct(SCommentLine), CursorT(OnDelim(_, _), _)) => Failed // What to do?
+  | (Construct(SSCommentText(_, _)), CursorT(OnDelim(_, _), _))
   | (Construct(SCommentText(_, _)), CursorT(OnDelim(_, _), _)) => Failed
   // ------------------------------------------------------------------------------
   | (Construct(SOp(SSpace)), CursorT(OnDelim(_, After), _)) =>
@@ -1279,6 +1283,7 @@ let rec syn_perform_pat =
         (ctx: Contexts.t, u_gen: MetaVarGen.t, a: t, zp: ZPat.t)
         : result((ZPat.t, HTyp.t, Contexts.t, MetaVarGen.t)) => {
   switch (a, zp) {
+  | (Construct(SSCommentLine | SSCommentText(_, _)), CursorP(_, _))
   | (Construct(SCommentLine | SCommentText(_, _)), CursorP(_, _)) => Failed
   | (
       _,
@@ -1936,6 +1941,7 @@ and ana_perform_pat =
     (ctx: Contexts.t, u_gen: MetaVarGen.t, a: t, zp: ZPat.t, ty: HTyp.t)
     : result((ZPat.t, Contexts.t, MetaVarGen.t)) =>
   switch (a, zp) {
+  | (Construct(SSCommentLine | SSCommentText(_, _)), CursorP(_, _))
   | (Construct(SCommentLine | SCommentText(_, _)), CursorP(_, _)) => Failed
   | (
       _,
@@ -3300,6 +3306,19 @@ let rec syn_perform_block =
         BlockZL((lines, CursorL(OnText(0), CommentLine("")), []), eh),
       ),
     )
+
+  | (
+      Construct(SSCommentLine),
+      BlockZE(lines, CursorE(_, EmptyHole(_) as eh)),
+    ) =>
+    Succeeded(
+      Statics.syn_fix_holes_zblock(
+        ctx,
+        u_gen,
+        BlockZL((lines, CursorL(OnText(0), SubCommentLine("")), []), eh),
+      ),
+    )
+
   | (
       Construct(SLine),
       BlockZL((prefix, CursorL(Staging(k), line), suffix), e),
@@ -3594,6 +3613,51 @@ and syn_perform_lines =
   //   comments so that they are lighter than the rest of the code
   //   - use the Chrome inspector to see how CommentLine gets put in the DOM
   //   - add appropriate styling for appropriate CSS selector in style.css
+  | (
+      Construct(SSCommentLine),
+      (prefix, CursorL(OnText(loca), CommentLine(comment)), suffix),
+    ) =>
+    // Here's an example:
+    //   # this is a mai|n comment
+    //         =>
+    //   # this is a mai
+    //   $ n comment
+
+    let com_bef = String.sub(comment, 0, loca);
+    let com_aft = String.sub(comment, loca, String.length(comment) - loca);
+
+    let com_bef_line = [UHExp.CommentLine(com_bef)];
+    let new_prefix = List.append(prefix, com_bef_line);
+
+    Succeeded((
+      (new_prefix, CursorL(OnText(0), SubCommentLine(com_aft)), suffix),
+      ctx,
+      u_gen,
+    ));
+
+  | (
+      Construct(SSCommentLine),
+      (prefix, CursorL(OnText(loca), SubCommentLine(comment)), suffix),
+    ) =>
+    // Here's an example:
+    //   # the main comment
+    //   $ this is a mai|n comment
+    //         =>
+    //   $ this is a mai
+    //   $ n comment
+
+    let com_bef = String.sub(comment, 0, loca);
+    let com_aft = String.sub(comment, loca, String.length(comment) - loca);
+
+    let com_bef_line = [UHExp.SubCommentLine(com_bef)];
+    let new_prefix = List.append(prefix, com_bef_line);
+
+    Succeeded((
+      (new_prefix, CursorL(OnText(0), SubCommentLine(com_aft)), suffix),
+      ctx,
+      u_gen,
+    ));
+
   | (Construct(SCommentLine), (prefix, CursorL(_, EmptyLine), suffix)) =>
     Succeeded((
       (prefix, CursorL(OnText(0), CommentLine("")), suffix),
@@ -3751,6 +3815,13 @@ and syn_perform_line =
     )
     : result((ZExp.zlines, Contexts.t, MetaVarGen.t)) =>
   switch (a, zline) {
+  | (Construct(SSCommentLine), CursorL(_, EmptyLine)) =>
+    Succeeded((
+      ([], CursorL(OnText(0), SubCommentLine("")), []),
+      ctx,
+      u_gen,
+    ))
+
   | (Construct(SCommentLine), CursorL(_, EmptyLine)) =>
     Succeeded((([], CursorL(OnText(0), CommentLine("")), []), ctx, u_gen))
   | (
@@ -4032,6 +4103,7 @@ and syn_perform_exp =
     )
     : result((zexp_or_zblock, HTyp.t, MetaVarGen.t)) =>
   switch (a, ze) {
+  | (Construct(SSCommentLine | SSCommentText(_, _)), CursorE(_, _))
   | (Construct(SCommentLine | SCommentText(_, _)), CursorE(_, _)) => Failed
   | (
       _,
@@ -5939,6 +6011,7 @@ and ana_perform_exp =
     )
     : result((zexp_or_zblock, MetaVarGen.t)) =>
   switch (a, ze) {
+  | (Construct(SSCommentLine | SSCommentText(_, _)), CursorE(_, _))
   | (Construct(SCommentLine | SCommentText(_, _)), CursorE(_, _)) => Failed
   | (
       _,
@@ -7053,6 +7126,7 @@ let can_perform =
     )
     : bool =>
   switch (a) {
+  | Construct(SSCommentText(_, _) | SSCommentLine)
   | Construct(SCommentText(_, _) | SCommentLine) => false
   | Construct(SParenthesized) => true
   | Construct(SLine)
