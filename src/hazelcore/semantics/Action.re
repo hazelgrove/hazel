@@ -3848,6 +3848,26 @@ module Exp = {
         ana_perform(ctx, a, new_edit_state, ty) |> wrap_in_AnaDone
       }
 
+    | (Construct(SLine), CursorE(_)) when ZExp.is_before_zoperand(zoperand) =>
+      let new_ze =
+        ZExp.ZE2(([EmptyLine], ExpLineZ(ZOpSeq.wrap(zoperand)), []));
+      Succeeded(AnaDone((new_ze, u_gen)));
+    | (Construct(SLine), CursorE(_)) when ZExp.is_after_zoperand(zoperand) =>
+      let (new_hole, u_gen) = u_gen |> UHExp.new_EmptyHole;
+      let new_zline =
+        UHExp.ExpLine(OpSeq.wrap(new_hole)) |> ZExp.place_before_line;
+      let new_ze =
+        ZExp.ZE2((
+          [
+            UHExp.ExpLine(zoperand |> ZExp.erase_zoperand |> OpSeq.wrap)
+            |> UHExp.prune_empty_hole_line,
+          ],
+          new_zline,
+          [],
+        ));
+      Succeeded(AnaDone((new_ze, u_gen)));
+    | (Construct(SLine), CursorE(_)) => Failed
+
     /* Zipper Cases */
     | (_, ParenthesizedZ(zbody)) =>
       switch (ana_perform(ctx, a, (zbody, u_gen), ty)) {
@@ -4004,7 +4024,7 @@ module Exp = {
       }
 
     /* Subsumption */
-    | (UpdateApPalette(_) | Construct(SApPalette(_) | SLine | SListNil), _)
+    | (UpdateApPalette(_) | Construct(SApPalette(_) | SListNil), _)
     | (_, ApPaletteZ(_)) =>
       ana_perform_subsume(ctx, a, (zoperand, u_gen), ty)
     }
