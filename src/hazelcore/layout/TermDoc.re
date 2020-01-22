@@ -677,7 +677,10 @@ module Exp = {
   let rec mk =
           (~steps: CursorPath.steps, ~enforce_inline: bool, e: UHExp.t): t =>
     switch (e) {
-    | E2(e2) => enforce_inline ? Fail : mk_block(~steps, e2)
+    | E2(e2) =>
+      // assumes edit states are always unwrapped,
+      // thus e2 must have two or more lines
+      enforce_inline ? Fail : mk_block(~steps, e2)
     | E1(e1) => mk_opseq(~steps, ~enforce_inline, e1)
     | E0(e0) => mk_operand(~steps, ~enforce_inline, e0)
     }
