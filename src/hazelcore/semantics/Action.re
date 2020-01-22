@@ -45,11 +45,17 @@ type t =
   | Backspace
   | Construct(shape);
 
-// TODO outcome('success)
-type result('success) =
-  | Succeeded('success)
-  | CursorEscaped(Side.t)
-  | Failed;
+module Outcome = {
+  type t('success) =
+    | Succeeded('success)
+    | CursorEscaped(Side.t)
+    | Failed;
+
+  let map = (f: 'success1 => 'success2) =>
+    fun
+    | (Failed | CursorEscaped(_)) as err => err
+    | Succeeded(s) => Succeeded(f(s));
+};
 
 let escape: Side.t => t =
   fun
@@ -109,51 +115,54 @@ module Typ = {
     mk_ZOpSeq(ZOperand(zoperand, surround));
   };
 
-  let rec perform = (a: t, zty: ZTyp.t): result(ZTyp.t) =>
-    switch (a) {
-    /* Movement */
-    | MoveTo(path) =>
-      switch (CursorPath.Typ.follow(path, zty |> ZTyp.erase)) {
-      | None => Failed
-      | Some(zty) => Succeeded(zty)
-      }
-    | MoveToBefore(steps) =>
-      switch (
-        CursorPath.Typ.follow_steps(~side=Before, steps, zty |> ZTyp.erase)
-      ) {
-      | None => Failed
-      | Some(zty) => Succeeded(zty)
-      }
-    | MoveToPrevHole =>
-      switch (CursorPath.(prev_hole_steps(Typ.holes_z(zty, [])))) {
-      | None => Failed
-      | Some(steps) => perform(MoveToBefore(steps), zty)
-      }
-    | MoveToNextHole =>
-      switch (CursorPath.(next_hole_steps(Typ.holes_z(zty, [])))) {
-      | None => Failed
-      | Some(steps) => perform(MoveToBefore(steps), zty)
-      }
-    | MoveLeft =>
-      zty
-      |> ZTyp.move_cursor_left
-      |> OptUtil.map_default(~default=CursorEscaped(Before), z =>
-           Succeeded(z)
-         )
-    | MoveRight =>
-      zty
-      |> ZTyp.move_cursor_right
-      |> OptUtil.map_default(~default=CursorEscaped(After), z =>
-           Succeeded(z)
-         )
-    | _ =>
-      switch (zty) {
-      | ZT1(zty1) => perform_opseq(a, zty1)
-      | ZT0(zty0) => perform_operand(a, zty0)
-      }
-    }
+  let rec perform = (a: t, zty: ZTyp.t): Outcome.t(ZTyp.t) => {
+    let outcome: Outcome.t(_) =
+      switch (a) {
+      /* Movement */
+      | MoveTo(path) =>
+        switch (CursorPath.Typ.follow(path, zty |> ZTyp.erase)) {
+        | None => Failed
+        | Some(zty) => Succeeded(zty)
+        }
+      | MoveToBefore(steps) =>
+        switch (
+          CursorPath.Typ.follow_steps(~side=Before, steps, zty |> ZTyp.erase)
+        ) {
+        | None => Failed
+        | Some(zty) => Succeeded(zty)
+        }
+      | MoveToPrevHole =>
+        switch (CursorPath.(prev_hole_steps(Typ.holes_z(zty, [])))) {
+        | None => Failed
+        | Some(steps) => perform(MoveToBefore(steps), zty)
+        }
+      | MoveToNextHole =>
+        switch (CursorPath.(next_hole_steps(Typ.holes_z(zty, [])))) {
+        | None => Failed
+        | Some(steps) => perform(MoveToBefore(steps), zty)
+        }
+      | MoveLeft =>
+        zty
+        |> ZTyp.move_cursor_left
+        |> OptUtil.map_default(~default=Outcome.CursorEscaped(Before), z =>
+             Succeeded(z)
+           )
+      | MoveRight =>
+        zty
+        |> ZTyp.move_cursor_right
+        |> OptUtil.map_default(~default=Outcome.CursorEscaped(After), z =>
+             Succeeded(z)
+           )
+      | _ =>
+        switch (zty) {
+        | ZT1(zty1) => perform_opseq(a, zty1)
+        | ZT0(zty0) => perform_operand(a, zty0)
+        }
+      };
+    outcome |> Outcome.map(ZTyp.unwrap);
+  }
   and perform_opseq =
-      (a: t, ZOpSeq(skel, zseq) as zopseq: ZTyp.zopseq): result(ZTyp.t) =>
+      (a: t, ZOpSeq(skel, zseq) as zopseq: ZTyp.zopseq): Outcome.t(ZTyp.t) =>
     switch (a, zseq) {
     /* Invalid actions at the type level */
     | (
@@ -245,7 +254,7 @@ module Typ = {
         }
       }
     }
-  and perform_operand = (a: t, zoperand: ZTyp.zoperand): result(ZTyp.t) =>
+  and perform_operand = (a: t, zoperand: ZTyp.zoperand): Outcome.t(ZTyp.t) =>
     switch (a, zoperand) {
     /* Invalid actions at the type level */
     | (
@@ -350,9 +359,9 @@ module Typ = {
     };
 };
 
-let check_valid = (x: Var.t, result: result('a)): result('a) =>
+let check_valid = (x: Var.t, outcome: Outcome.t('a)): Outcome.t('a) =>
   if (Var.is_valid(x)) {
-    result;
+    outcome;
   } else {
     Failed;
   };
@@ -360,13 +369,13 @@ let check_valid = (x: Var.t, result: result('a)): result('a) =>
 let _syn_insert_text =
     (
       ~mk_syn_text:
-         (Contexts.t, MetaVarGen.t, int, string) => result('success),
+         (Contexts.t, MetaVarGen.t, int, string) => Outcome.t('success),
       ctx: Contexts.t,
       u_gen: MetaVarGen.t,
       (caret_index: int, insert_text: string),
       text: string,
     )
-    : result('success) =>
+    : Outcome.t('success) =>
   mk_syn_text(
     ctx,
     u_gen,
@@ -376,14 +385,15 @@ let _syn_insert_text =
 let _ana_insert_text =
     (
       ~mk_ana_text:
-         (Contexts.t, MetaVarGen.t, int, string, HTyp.t) => result('success),
+         (Contexts.t, MetaVarGen.t, int, string, HTyp.t) =>
+         Outcome.t('success),
       ctx: Contexts.t,
       u_gen: MetaVarGen.t,
       (caret_index: int, insert_text: string),
       text: string,
       ty: HTyp.t,
     )
-    : result('success) =>
+    : Outcome.t('success) =>
   mk_ana_text(
     ctx,
     u_gen,
@@ -395,13 +405,13 @@ let _ana_insert_text =
 let _syn_backspace_text =
     (
       ~mk_syn_text:
-         (Contexts.t, MetaVarGen.t, int, string) => result('success),
+         (Contexts.t, MetaVarGen.t, int, string) => Outcome.t('success),
       ctx: Contexts.t,
       u_gen: MetaVarGen.t,
       caret_index: int,
       text: string,
     )
-    : result('success) =>
+    : Outcome.t('success) =>
   if (caret_index == 0) {
     CursorEscaped(Before);
   } else {
@@ -411,14 +421,15 @@ let _syn_backspace_text =
 let _ana_backspace_text =
     (
       ~mk_ana_text:
-         (Contexts.t, MetaVarGen.t, int, string, HTyp.t) => result('success),
+         (Contexts.t, MetaVarGen.t, int, string, HTyp.t) =>
+         Outcome.t('success),
       ctx: Contexts.t,
       u_gen: MetaVarGen.t,
       caret_index: int,
       text: string,
       ty: HTyp.t,
     )
-    : result('success) =>
+    : Outcome.t('success) =>
   if (caret_index == 0) {
     CursorEscaped(Before);
   } else {
@@ -429,13 +440,13 @@ let _ana_backspace_text =
 let _syn_delete_text =
     (
       ~mk_syn_text:
-         (Contexts.t, MetaVarGen.t, int, string) => result('success),
+         (Contexts.t, MetaVarGen.t, int, string) => Outcome.t('success),
       ctx: Contexts.t,
       u_gen: MetaVarGen.t,
       caret_index: int,
       text: string,
     )
-    : result('success) =>
+    : Outcome.t('success) =>
   if (caret_index == String.length(text)) {
     CursorEscaped(After);
   } else {
@@ -445,14 +456,15 @@ let _syn_delete_text =
 let _ana_delete_text =
     (
       ~mk_ana_text:
-         (Contexts.t, MetaVarGen.t, int, string, HTyp.t) => result('success),
+         (Contexts.t, MetaVarGen.t, int, string, HTyp.t) =>
+         Outcome.t('success),
       ctx: Contexts.t,
       u_gen: MetaVarGen.t,
       caret_index: int,
       text: string,
       ty: HTyp.t,
     )
-    : result('success) =>
+    : Outcome.t('success) =>
   if (caret_index == String.length(text)) {
     CursorEscaped(After);
   } else {
@@ -620,20 +632,23 @@ module Pat = {
     Statics.Pat.ana_fix_holes_z(ctx, u_gen, ZP1(zopseq), ty);
   };
 
-  let mk_syn_result = (ctx: Contexts.t, u_gen: MetaVarGen.t, zp: ZPat.t) =>
+  let mk_syn_result =
+      (ctx: Contexts.t, u_gen: MetaVarGen.t, zp: ZPat.t): Outcome.t(_) =>
     switch (Statics.Pat.syn(ctx, zp |> ZPat.erase)) {
     | None => Failed
     | Some((ty, ctx)) => Succeeded((zp, ty, ctx, u_gen))
     };
   let mk_ana_result =
-      (ctx: Contexts.t, u_gen: MetaVarGen.t, zp: ZPat.t, ty: HTyp.t) =>
+      (ctx: Contexts.t, u_gen: MetaVarGen.t, zp: ZPat.t, ty: HTyp.t)
+      : Outcome.t(_) =>
     switch (Statics.Pat.ana(ctx, zp |> ZPat.erase, ty)) {
     | None => Failed
     | Some(ctx) => Succeeded((zp, ctx, u_gen))
     };
 
   let mk_syn_text =
-      (ctx: Contexts.t, u_gen: MetaVarGen.t, caret_index: int, text: string) => {
+      (ctx: Contexts.t, u_gen: MetaVarGen.t, caret_index: int, text: string)
+      : Outcome.t(_) => {
     let text_cursor = CursorPosition.OnText(caret_index);
     switch (TextShape.of_text(text)) {
     | None =>
@@ -675,7 +690,8 @@ module Pat = {
         caret_index: int,
         text: string,
         ty: HTyp.t,
-      ) => {
+      )
+      : Outcome.t(_) => {
     let text_cursor = CursorPosition.OnText(caret_index);
     switch (TextShape.of_text(text)) {
     | None =>
@@ -762,47 +778,53 @@ module Pat = {
 
   let rec syn_perform =
           (ctx: Contexts.t, u_gen: MetaVarGen.t, a: t, zp: ZPat.t)
-          : result((ZPat.t, HTyp.t, Contexts.t, MetaVarGen.t)) =>
-    switch (a) {
-    /* Movement */
-    | MoveTo(path) =>
-      switch (CursorPath.Pat.follow(path, zp |> ZPat.erase)) {
-      | None => Failed
-      | Some(zp) => mk_syn_result(ctx, u_gen, zp)
-      }
-    | MoveToBefore(steps) =>
-      switch (
-        CursorPath.Pat.follow_steps(~side=Before, steps, zp |> ZPat.erase)
-      ) {
-      | None => Failed
-      | Some(zp) => mk_syn_result(ctx, u_gen, zp)
-      }
-    | MoveToPrevHole =>
-      switch (CursorPath.(prev_hole_steps(Pat.holes_z(zp, [])))) {
-      | None => Failed
-      | Some(steps) => syn_perform(ctx, u_gen, MoveToBefore(steps), zp)
-      }
-    | MoveToNextHole =>
-      switch (CursorPath.(next_hole_steps(Pat.holes_z(zp, [])))) {
-      | None => Failed
-      | Some(steps) => syn_perform(ctx, u_gen, MoveToBefore(steps), zp)
-      }
-    | MoveLeft =>
-      switch (zp |> ZPat.move_cursor_left) {
-      | None => CursorEscaped(Before)
-      | Some(zp) => mk_syn_result(ctx, u_gen, zp)
-      }
-    | MoveRight =>
-      switch (zp |> ZPat.move_cursor_right) {
-      | None => CursorEscaped(After)
-      | Some(zp) => mk_syn_result(ctx, u_gen, zp)
-      }
-    | _ =>
-      switch (zp) {
-      | ZP1(zp1) => syn_perform_opseq(ctx, u_gen, a, zp1)
-      | ZP0(zp0) => syn_perform_operand(ctx, u_gen, a, zp0)
-      }
-    }
+          : Outcome.t((ZPat.t, HTyp.t, Contexts.t, MetaVarGen.t)) => {
+    let outcome: Outcome.t(_) =
+      switch (a) {
+      /* Movement */
+      | MoveTo(path) =>
+        switch (CursorPath.Pat.follow(path, zp |> ZPat.erase)) {
+        | None => Failed
+        | Some(zp) => mk_syn_result(ctx, u_gen, zp)
+        }
+      | MoveToBefore(steps) =>
+        switch (
+          CursorPath.Pat.follow_steps(~side=Before, steps, zp |> ZPat.erase)
+        ) {
+        | None => Failed
+        | Some(zp) => mk_syn_result(ctx, u_gen, zp)
+        }
+      | MoveToPrevHole =>
+        switch (CursorPath.(prev_hole_steps(Pat.holes_z(zp, [])))) {
+        | None => Failed
+        | Some(steps) => syn_perform(ctx, u_gen, MoveToBefore(steps), zp)
+        }
+      | MoveToNextHole =>
+        switch (CursorPath.(next_hole_steps(Pat.holes_z(zp, [])))) {
+        | None => Failed
+        | Some(steps) => syn_perform(ctx, u_gen, MoveToBefore(steps), zp)
+        }
+      | MoveLeft =>
+        switch (zp |> ZPat.move_cursor_left) {
+        | None => CursorEscaped(Before)
+        | Some(zp) => mk_syn_result(ctx, u_gen, zp)
+        }
+      | MoveRight =>
+        switch (zp |> ZPat.move_cursor_right) {
+        | None => CursorEscaped(After)
+        | Some(zp) => mk_syn_result(ctx, u_gen, zp)
+        }
+      | _ =>
+        switch (zp) {
+        | ZP1(zp1) => syn_perform_opseq(ctx, u_gen, a, zp1)
+        | ZP0(zp0) => syn_perform_operand(ctx, u_gen, a, zp0)
+        }
+      };
+    outcome
+    |> Outcome.map(((zp, ty, ctx, u_gen)) =>
+         (ZPat.unwrap(zp), ty, ctx, u_gen)
+       );
+  }
   and syn_perform_opseq =
       (
         ctx: Contexts.t,
@@ -810,7 +832,7 @@ module Pat = {
         a: t,
         ZOpSeq(skel, zseq) as zopseq: ZPat.zopseq,
       )
-      : result((ZPat.t, HTyp.t, Contexts.t, MetaVarGen.t)) =>
+      : Outcome.t((ZPat.t, HTyp.t, Contexts.t, MetaVarGen.t)) =>
     switch (a, zseq) {
     /* Invalid cursor positions */
     | (_, ZOperator((OnText(_) | OnDelim(_), _), _)) => Failed
@@ -917,7 +939,7 @@ module Pat = {
     }
   and syn_perform_operand =
       (ctx: Contexts.t, u_gen: MetaVarGen.t, a: t, zoperand: ZPat.zoperand)
-      : result((ZPat.t, HTyp.t, Contexts.t, MetaVarGen.t)) => {
+      : Outcome.t((ZPat.t, HTyp.t, Contexts.t, MetaVarGen.t)) => {
     switch (a, zoperand) {
     /* Invalid cursor positions */
     | (
@@ -1100,47 +1122,53 @@ module Pat = {
   }
   and ana_perform =
       (ctx: Contexts.t, u_gen: MetaVarGen.t, a: t, zp: ZPat.t, ty: HTyp.t)
-      : result((ZPat.t, Contexts.t, MetaVarGen.t)) =>
-    switch (a) {
-    /* Movement */
-    | MoveTo(path) =>
-      switch (CursorPath.Pat.follow(path, zp |> ZPat.erase)) {
-      | None => Failed
-      | Some(zp) => mk_ana_result(ctx, u_gen, zp, ty)
-      }
-    | MoveToBefore(steps) =>
-      switch (
-        CursorPath.Pat.follow_steps(~side=Before, steps, zp |> ZPat.erase)
-      ) {
-      | None => Failed
-      | Some(zp) => mk_ana_result(ctx, u_gen, zp, ty)
-      }
-    | MoveToPrevHole =>
-      switch (CursorPath.(prev_hole_steps(Pat.holes_z(zp, [])))) {
-      | None => Failed
-      | Some(steps) => ana_perform(ctx, u_gen, MoveToBefore(steps), zp, ty)
-      }
-    | MoveToNextHole =>
-      switch (CursorPath.(next_hole_steps(Pat.holes_z(zp, [])))) {
-      | None => Failed
-      | Some(steps) => ana_perform(ctx, u_gen, MoveToBefore(steps), zp, ty)
-      }
-    | MoveLeft =>
-      switch (zp |> ZPat.move_cursor_left) {
-      | None => CursorEscaped(Before)
-      | Some(zp) => mk_ana_result(ctx, u_gen, zp, ty)
-      }
-    | MoveRight =>
-      switch (zp |> ZPat.move_cursor_right) {
-      | None => CursorEscaped(After)
-      | Some(zp) => mk_ana_result(ctx, u_gen, zp, ty)
-      }
-    | _ =>
-      switch (zp) {
-      | ZP1(zp1) => ana_perform_opseq(ctx, u_gen, a, zp1, ty)
-      | ZP0(zp0) => ana_perform_operand(ctx, u_gen, a, zp0, ty)
-      }
-    }
+      : Outcome.t((ZPat.t, Contexts.t, MetaVarGen.t)) => {
+    let outcome: Outcome.t(_) =
+      switch (a) {
+      /* Movement */
+      | MoveTo(path) =>
+        switch (CursorPath.Pat.follow(path, zp |> ZPat.erase)) {
+        | None => Failed
+        | Some(zp) => mk_ana_result(ctx, u_gen, zp, ty)
+        }
+      | MoveToBefore(steps) =>
+        switch (
+          CursorPath.Pat.follow_steps(~side=Before, steps, zp |> ZPat.erase)
+        ) {
+        | None => Failed
+        | Some(zp) => mk_ana_result(ctx, u_gen, zp, ty)
+        }
+      | MoveToPrevHole =>
+        switch (CursorPath.(prev_hole_steps(Pat.holes_z(zp, [])))) {
+        | None => Failed
+        | Some(steps) =>
+          ana_perform(ctx, u_gen, MoveToBefore(steps), zp, ty)
+        }
+      | MoveToNextHole =>
+        switch (CursorPath.(next_hole_steps(Pat.holes_z(zp, [])))) {
+        | None => Failed
+        | Some(steps) =>
+          ana_perform(ctx, u_gen, MoveToBefore(steps), zp, ty)
+        }
+      | MoveLeft =>
+        switch (zp |> ZPat.move_cursor_left) {
+        | None => CursorEscaped(Before)
+        | Some(zp) => mk_ana_result(ctx, u_gen, zp, ty)
+        }
+      | MoveRight =>
+        switch (zp |> ZPat.move_cursor_right) {
+        | None => CursorEscaped(After)
+        | Some(zp) => mk_ana_result(ctx, u_gen, zp, ty)
+        }
+      | _ =>
+        switch (zp) {
+        | ZP1(zp1) => ana_perform_opseq(ctx, u_gen, a, zp1, ty)
+        | ZP0(zp0) => ana_perform_operand(ctx, u_gen, a, zp0, ty)
+        }
+      };
+    outcome
+    |> Outcome.map(((zp, ctx, u_gen)) => (ZPat.unwrap(zp), ctx, u_gen));
+  }
   and ana_perform_opseq =
       (
         ctx: Contexts.t,
@@ -1149,7 +1177,7 @@ module Pat = {
         ZOpSeq(skel, zseq) as zopseq: ZPat.zopseq,
         ty: HTyp.t,
       )
-      : result((ZPat.t, Contexts.t, MetaVarGen.t)) =>
+      : Outcome.t((ZPat.t, Contexts.t, MetaVarGen.t)) =>
     switch (a, zseq) {
     /* Invalid cursor positions */
     | (_, ZOperator((OnText(_) | OnDelim(_), _), _)) => Failed
@@ -1277,7 +1305,7 @@ module Pat = {
         zoperand: ZPat.zoperand,
         ty: HTyp.t,
       )
-      : result((ZPat.t, Contexts.t, MetaVarGen.t)) =>
+      : Outcome.t((ZPat.t, Contexts.t, MetaVarGen.t)) =>
     switch (a, zoperand) {
     /* Invalid cursor positions */
     | (
@@ -1722,7 +1750,7 @@ module Exp = {
     SynExpandsToCase({u_gen, prefix, suffix, scrut});
   let mk_SynExpandsToLet = (~u_gen, ~prefix=[], ~suffix=[], ~def, ()) =>
     SynExpandsToLet({u_gen, prefix, suffix, def});
-  let wrap_in_SynDone: result(syn_done) => result(syn_success) =
+  let wrap_in_SynDone: Outcome.t(syn_done) => Outcome.t(syn_success) =
     fun
     | (Failed | CursorEscaped(_)) as err => err
     | Succeeded(syn_done) => Succeeded(SynDone(syn_done));
@@ -1746,7 +1774,7 @@ module Exp = {
     AnaExpandsToCase({u_gen, prefix, suffix, scrut});
   let mk_AnaExpandsToLet = (~u_gen, ~prefix=[], ~suffix=[], ~def, ()) =>
     AnaExpandsToLet({u_gen, prefix, suffix, def});
-  let wrap_in_AnaDone: result(ana_done) => result(ana_success) =
+  let wrap_in_AnaDone: Outcome.t(ana_done) => Outcome.t(ana_success) =
     fun
     | (Failed | CursorEscaped(_)) as err => err
     | Succeeded(ana_done) => Succeeded(AnaDone(ana_done));
@@ -1785,7 +1813,8 @@ module Exp = {
   };
 
   let mk_syn_text =
-      (ctx: Contexts.t, u_gen: MetaVarGen.t, caret_index: int, text: string) => {
+      (ctx: Contexts.t, u_gen: MetaVarGen.t, caret_index: int, text: string)
+      : Outcome.t(_) => {
     let text_cursor = CursorPosition.OnText(caret_index);
     switch (TextShape.of_text(text)) {
     | None =>
@@ -1836,7 +1865,8 @@ module Exp = {
         caret_index: int,
         text: string,
         ty: HTyp.t,
-      ) => {
+      )
+      : Outcome.t(_) => {
     let text_cursor = CursorPosition.OnText(caret_index);
     switch (TextShape.of_text(text)) {
     | None =>
@@ -1887,70 +1917,74 @@ module Exp = {
             a: t,
             (ze: ZExp.t, ty: HTyp.t, u_gen: MetaVarGen.t),
           )
-          : result(syn_done) =>
-    switch (a) {
-    /* Movement */
-    | MoveTo(path) =>
-      switch (CursorPath.Exp.follow(path, ze |> ZExp.erase)) {
-      | None => Failed
-      | Some(ze) => Succeeded((ze, ty, u_gen))
-      }
-    | MoveToBefore(steps) =>
-      switch (CursorPath.Exp.follow_steps(steps, ze |> ZExp.erase)) {
-      | None => Failed
-      | Some(ze) => Succeeded((ze, ty, u_gen))
-      }
-    | MoveToPrevHole =>
-      switch (CursorPath.Exp.prev_hole_steps_z(ze)) {
-      | None => Failed
-      | Some(steps) =>
-        syn_perform(ctx, MoveToBefore(steps), (ze, ty, u_gen))
-      }
-    | MoveToNextHole =>
-      switch (CursorPath.Exp.next_hole_steps_z(ze)) {
-      | None => Failed
-      | Some(steps) =>
-        syn_perform(ctx, MoveToBefore(steps), (ze, ty, u_gen))
-      }
-    | MoveLeft =>
-      ze
-      |> ZExp.move_cursor_left
-      |> OptUtil.map_default(~default=CursorEscaped(Before), ze =>
-           Succeeded((ze, ty, u_gen))
-         )
-    | MoveRight =>
-      ze
-      |> ZExp.move_cursor_right
-      |> OptUtil.map_default(~default=CursorEscaped(After), ze =>
-           Succeeded((ze, ty, u_gen))
-         )
-    | _ =>
-      let result =
-        switch (ze) {
-        | ZE2(ze2) => syn_perform_block(ctx, a, (ze2, ty, u_gen))
-        | ZE1(ze1) => syn_perform_opseq(ctx, a, (ze1, ty, u_gen))
-        | ZE0(ze0) => syn_perform_operand(ctx, a, (ze0, ty, u_gen))
+          : Outcome.t(syn_done) => {
+    let outcome: Outcome.t(_) =
+      switch (a) {
+      /* Movement */
+      | MoveTo(path) =>
+        switch (CursorPath.Exp.follow(path, ze |> ZExp.erase)) {
+        | None => Failed
+        | Some(ze) => Succeeded((ze, ty, u_gen))
+        }
+      | MoveToBefore(steps) =>
+        switch (CursorPath.Exp.follow_steps(steps, ze |> ZExp.erase)) {
+        | None => Failed
+        | Some(ze) => Succeeded((ze, ty, u_gen))
+        }
+      | MoveToPrevHole =>
+        switch (CursorPath.Exp.prev_hole_steps_z(ze)) {
+        | None => Failed
+        | Some(steps) =>
+          syn_perform(ctx, MoveToBefore(steps), (ze, ty, u_gen))
+        }
+      | MoveToNextHole =>
+        switch (CursorPath.Exp.next_hole_steps_z(ze)) {
+        | None => Failed
+        | Some(steps) =>
+          syn_perform(ctx, MoveToBefore(steps), (ze, ty, u_gen))
+        }
+      | MoveLeft =>
+        ze
+        |> ZExp.move_cursor_left
+        |> OptUtil.map_default(~default=Outcome.CursorEscaped(Before), ze =>
+             Succeeded((ze, ty, u_gen))
+           )
+      | MoveRight =>
+        ze
+        |> ZExp.move_cursor_right
+        |> OptUtil.map_default(~default=Outcome.CursorEscaped(After), ze =>
+             Succeeded((ze, ty, u_gen))
+           )
+      | _ =>
+        let outcome =
+          switch (ze) {
+          | ZE2(ze2) => syn_perform_block(ctx, a, (ze2, ty, u_gen))
+          | ZE1(ze1) => syn_perform_opseq(ctx, a, (ze1, ty, u_gen))
+          | ZE0(ze0) => syn_perform_operand(ctx, a, (ze0, ty, u_gen))
+          };
+        switch (outcome) {
+        | (Failed | CursorEscaped(_)) as err => err
+        | Succeeded(SynDone(syn_done)) => Succeeded(syn_done)
+        | Succeeded(SynExpandsToCase({prefix, scrut, suffix, u_gen})) =>
+          let (zcase, u_gen) =
+            zcase_of_scrut_and_suffix(Syn, u_gen, scrut, suffix);
+          let new_zblock =
+            (prefix, ZExp.ExpLineZ(zcase |> ZOpSeq.wrap), [])
+            |> ZExp.prune_empty_hole_lines;
+          let new_ze = ZExp.ZE2(new_zblock);
+          Succeeded(Statics.Exp.syn_fix_holes_z(ctx, u_gen, new_ze));
+        | Succeeded(SynExpandsToLet({prefix, def, suffix, u_gen})) =>
+          let (zp_hole, u_gen) = u_gen |> ZPat.new_EmptyHole;
+          let zlet = ZExp.LetLineZP(ZP0(zp_hole), None, def);
+          let new_zblock =
+            (prefix, zlet, suffix) |> ZExp.prune_empty_hole_lines;
+          let new_ze = ZExp.ZE2(new_zblock);
+          Succeeded(Statics.Exp.syn_fix_holes_z(ctx, u_gen, new_ze));
         };
-      switch (result) {
-      | (Failed | CursorEscaped(_)) as err => err
-      | Succeeded(SynDone(syn_done)) => Succeeded(syn_done)
-      | Succeeded(SynExpandsToCase({prefix, scrut, suffix, u_gen})) =>
-        let (zcase, u_gen) =
-          zcase_of_scrut_and_suffix(Syn, u_gen, scrut, suffix);
-        let new_zblock =
-          (prefix, ZExp.ExpLineZ(zcase |> ZOpSeq.wrap), [])
-          |> ZExp.prune_empty_hole_lines;
-        let new_ze = ZExp.ZE2(new_zblock);
-        Succeeded(Statics.Exp.syn_fix_holes_z(ctx, u_gen, new_ze));
-      | Succeeded(SynExpandsToLet({prefix, def, suffix, u_gen})) =>
-        let (zp_hole, u_gen) = u_gen |> ZPat.new_EmptyHole;
-        let zlet = ZExp.LetLineZP(ZP0(zp_hole), None, def);
-        let new_zblock =
-          (prefix, zlet, suffix) |> ZExp.prune_empty_hole_lines;
-        let new_ze = ZExp.ZE2(new_zblock);
-        Succeeded(Statics.Exp.syn_fix_holes_z(ctx, u_gen, new_ze));
       };
-    }
+    outcome
+    |> Outcome.map(((ze, ty, u_gen)) => (ZExp.unwrap(ze), ty, u_gen));
+  }
   and syn_perform_block =
       (
         ctx: Contexts.t,
@@ -1961,7 +1995,7 @@ module Exp = {
           u_gen: MetaVarGen.t,
         ),
       )
-      : result(syn_success) =>
+      : Outcome.t(syn_success) =>
     switch (a) {
     /* Movement handled at top level */
     | MoveTo(_)
@@ -2074,8 +2108,8 @@ module Exp = {
     }
   and syn_perform_line =
       (ctx: Contexts.t, a: t, (zline: ZExp.zline, u_gen: MetaVarGen.t))
-      : result(line_success) => {
-    let mk_result = (u_gen, zlines) => {
+      : Outcome.t(line_success) => {
+    let mk_result = (u_gen, zlines): Outcome.t(_) => {
       let (zlines, ctx, u_gen) =
         Statics.Exp.syn_fix_holes_zlines(ctx, u_gen, zlines);
       Succeeded(LineDone((zlines, ctx, u_gen)));
@@ -2088,7 +2122,7 @@ module Exp = {
         };
       zline
       |> move_cursor
-      |> OptUtil.map_default(~default=CursorEscaped(side), new_zline =>
+      |> OptUtil.map_default(~default=Outcome.CursorEscaped(side), new_zline =>
            mk_result(u_gen, ([], new_zline, []))
          );
     };
@@ -2297,7 +2331,7 @@ module Exp = {
           u_gen: MetaVarGen.t,
         ),
       )
-      : result(syn_success) =>
+      : Outcome.t(syn_success) =>
     switch (a, zseq) {
     /* Invalid cursor positions */
     | (_, ZOperator((OnText(_) | OnDelim(_), _), _)) => Failed
@@ -2499,7 +2533,7 @@ module Exp = {
         a: t,
         (zoperand: ZExp.zoperand, ty: HTyp.t, u_gen: MetaVarGen.t),
       )
-      : result(syn_success) => {
+      : Outcome.t(syn_success) => {
     switch (a, zoperand) {
     /* Invalid cursor positions */
     | (
@@ -2589,7 +2623,7 @@ module Exp = {
         Statics.Exp.syn_fix_holes(body_ctx, u_gen, body);
       let new_ze =
         ZExp.ZE0(LamZP(NotInHole, ZPat.place_after(p), None, body));
-      Succeeded((new_ze, HTyp.Arrow(Hole, body_ty), u_gen))
+      Outcome.Succeeded((new_ze, HTyp.Arrow(Hole, body_ty), u_gen))
       |> wrap_in_SynDone;
 
     | (
@@ -2980,7 +3014,7 @@ module Exp = {
         pat_ty: HTyp.t,
         clause_ty: HTyp.t,
       )
-      : result((ZExp.zrules, MetaVarGen.t)) => {
+      : Outcome.t((ZExp.zrules, MetaVarGen.t)) => {
     let escape = (side: Side.t) => {
       let move_cursor =
         switch (side) {
@@ -2989,7 +3023,7 @@ module Exp = {
         };
       zrules
       |> move_cursor
-      |> OptUtil.map_default(~default=CursorEscaped(side), new_zrules =>
+      |> OptUtil.map_default(~default=Outcome.CursorEscaped(side), new_zrules =>
            Succeeded((new_zrules, u_gen))
          );
     };
@@ -3114,72 +3148,75 @@ module Exp = {
         (ze, u_gen): (ZExp.t, MetaVarGen.t),
         ty: HTyp.t,
       )
-      : result((ZExp.t, MetaVarGen.t)) =>
-    switch (a) {
-    /* Movement */
-    | MoveTo(path) =>
-      switch (CursorPath.Exp.follow(path, ze |> ZExp.erase)) {
-      | None => Failed
-      | Some(ze) => Succeeded((ze, u_gen))
-      }
-    | MoveToBefore(steps) =>
-      switch (CursorPath.Exp.follow_steps(steps, ze |> ZExp.erase)) {
-      | None => Failed
-      | Some(ze) => Succeeded((ze, u_gen))
-      }
-    | MoveToPrevHole =>
-      switch (CursorPath.Exp.prev_hole_steps_z(ze)) {
-      | None => Failed
-      | Some(steps) =>
-        ana_perform(ctx, MoveToBefore(steps), (ze, u_gen), ty)
-      }
-    | MoveToNextHole =>
-      switch (CursorPath.Exp.next_hole_steps_z(ze)) {
-      | None => Failed
-      | Some(steps) =>
-        ana_perform(ctx, MoveToBefore(steps), (ze, u_gen), ty)
-      }
-    | MoveLeft =>
-      ze
-      |> ZExp.move_cursor_left
-      |> OptUtil.map_default(~default=CursorEscaped(Before), ze =>
-           Succeeded((ze, u_gen))
-         )
-    | MoveRight =>
-      ze
-      |> ZExp.move_cursor_right
-      |> OptUtil.map_default(~default=CursorEscaped(After), ze =>
-           Succeeded((ze, u_gen))
-         )
-    | _ =>
-      let result =
-        switch (ze) {
-        | ZE2(ze2) => ana_perform_block(ctx, a, (ze2, u_gen), ty)
-        | ZE1(ze1) => ana_perform_opseq(ctx, a, (ze1, u_gen), ty)
-        | ZE0(ze0) => ana_perform_operand(ctx, a, (ze0, u_gen), ty)
+      : Outcome.t((ZExp.t, MetaVarGen.t)) => {
+    let outcome: Outcome.t(_) =
+      switch (a) {
+      /* Movement */
+      | MoveTo(path) =>
+        switch (CursorPath.Exp.follow(path, ze |> ZExp.erase)) {
+        | None => Failed
+        | Some(ze) => Succeeded((ze, u_gen))
+        }
+      | MoveToBefore(steps) =>
+        switch (CursorPath.Exp.follow_steps(steps, ze |> ZExp.erase)) {
+        | None => Failed
+        | Some(ze) => Succeeded((ze, u_gen))
+        }
+      | MoveToPrevHole =>
+        switch (CursorPath.Exp.prev_hole_steps_z(ze)) {
+        | None => Failed
+        | Some(steps) =>
+          ana_perform(ctx, MoveToBefore(steps), (ze, u_gen), ty)
+        }
+      | MoveToNextHole =>
+        switch (CursorPath.Exp.next_hole_steps_z(ze)) {
+        | None => Failed
+        | Some(steps) =>
+          ana_perform(ctx, MoveToBefore(steps), (ze, u_gen), ty)
+        }
+      | MoveLeft =>
+        ze
+        |> ZExp.move_cursor_left
+        |> OptUtil.map_default(~default=Outcome.CursorEscaped(Before), ze =>
+             Succeeded((ze, u_gen))
+           )
+      | MoveRight =>
+        ze
+        |> ZExp.move_cursor_right
+        |> OptUtil.map_default(~default=Outcome.CursorEscaped(After), ze =>
+             Succeeded((ze, u_gen))
+           )
+      | _ =>
+        let outcome =
+          switch (ze) {
+          | ZE2(ze2) => ana_perform_block(ctx, a, (ze2, u_gen), ty)
+          | ZE1(ze1) => ana_perform_opseq(ctx, a, (ze1, u_gen), ty)
+          | ZE0(ze0) => ana_perform_operand(ctx, a, (ze0, u_gen), ty)
+          };
+        switch (outcome) {
+        | (Failed | CursorEscaped(_)) as err => err
+        | Succeeded(AnaDone(ana_done)) => Succeeded(ana_done)
+        | Succeeded(AnaExpandsToCase({prefix, scrut, suffix, u_gen})) =>
+          let (zcase, u_gen) =
+            zcase_of_scrut_and_suffix(Syn, u_gen, scrut, suffix);
+          let new_zblock =
+            (prefix, ZExp.ExpLineZ(zcase |> ZOpSeq.wrap), [])
+            |> ZExp.prune_empty_hole_lines;
+          Succeeded(
+            Statics.Exp.ana_fix_holes_z(ctx, u_gen, ZE2(new_zblock), ty),
+          );
+        | Succeeded(AnaExpandsToLet({prefix, def, suffix, u_gen})) =>
+          let (zp_hole, u_gen) = u_gen |> ZPat.new_EmptyHole;
+          let zlet = ZExp.LetLineZP(ZP0(zp_hole), None, def);
+          let new_zblock =
+            (prefix, zlet, suffix) |> ZExp.prune_empty_hole_lines;
+          Succeeded(
+            Statics.Exp.ana_fix_holes_z(ctx, u_gen, ZE2(new_zblock), ty),
+          );
         };
-      switch (result) {
-      | (Failed | CursorEscaped(_)) as err => err
-      | Succeeded(AnaDone(ana_done)) => Succeeded(ana_done)
-      | Succeeded(AnaExpandsToCase({prefix, scrut, suffix, u_gen})) =>
-        let (zcase, u_gen) =
-          zcase_of_scrut_and_suffix(Syn, u_gen, scrut, suffix);
-        let new_zblock =
-          (prefix, ZExp.ExpLineZ(zcase |> ZOpSeq.wrap), [])
-          |> ZExp.prune_empty_hole_lines;
-        Succeeded(
-          Statics.Exp.ana_fix_holes_z(ctx, u_gen, ZE2(new_zblock), ty),
-        );
-      | Succeeded(AnaExpandsToLet({prefix, def, suffix, u_gen})) =>
-        let (zp_hole, u_gen) = u_gen |> ZPat.new_EmptyHole;
-        let zlet = ZExp.LetLineZP(ZP0(zp_hole), None, def);
-        let new_zblock =
-          (prefix, zlet, suffix) |> ZExp.prune_empty_hole_lines;
-        Succeeded(
-          Statics.Exp.ana_fix_holes_z(ctx, u_gen, ZE2(new_zblock), ty),
-        );
       };
-    }
+    outcome |> Outcome.map(((ze, u_gen)) => (ZExp.unwrap(ze), u_gen));
+  }
   and ana_perform_block =
       (
         ctx: Contexts.t,
@@ -3190,7 +3227,7 @@ module Exp = {
         ),
         ty: HTyp.t,
       )
-      : result(ana_success) =>
+      : Outcome.t(ana_success) =>
     switch (a, zline) {
     /* Movement handled at top level */
     | (
@@ -3346,7 +3383,7 @@ module Exp = {
         (ZOpSeq(skel, zseq) as zopseq: ZExp.zopseq, u_gen: MetaVarGen.t),
         ty: HTyp.t,
       )
-      : result(ana_success) =>
+      : Outcome.t(ana_success) =>
     switch (a, zseq) {
     /* Invalid cursor positions */
     | (_, ZOperator((OnText(_) | OnDelim(_), _), _)) => Failed
@@ -3378,7 +3415,7 @@ module Exp = {
     /* ... + [k-1] +<| [k] + ... */
     | (Backspace, ZOperator((OnOp(After), _), surround)) =>
       let new_zseq = delete_operator(surround);
-      Succeeded(mk_and_ana_fix_ZOpSeq(ctx, u_gen, new_zseq, ty))
+      Outcome.Succeeded(mk_and_ana_fix_ZOpSeq(ctx, u_gen, new_zseq, ty))
       |> wrap_in_AnaDone;
 
     /* ... + [k-1]  <|_ + [k+1] + ...  ==>   ... + [k-1]| + [k+1] + ... */
@@ -3393,7 +3430,7 @@ module Exp = {
       let S(operand, new_prefix) = prefix_tl;
       let zoperand = operand |> ZExp.place_after_operand;
       let new_zseq = ZSeq.ZOperand(zoperand, (new_prefix, suffix));
-      Succeeded(mk_and_ana_fix_ZOpSeq(ctx, u_gen, new_zseq, ty))
+      Outcome.Succeeded(mk_and_ana_fix_ZOpSeq(ctx, u_gen, new_zseq, ty))
       |> wrap_in_AnaDone;
 
     /* ... + [k-1] + _|>  [k+1] + ...  ==>   ... + [k-1] + |[k+1] + ... */
@@ -3408,7 +3445,7 @@ module Exp = {
       let S(operand, new_suffix) = suffix_tl;
       let zoperand = operand |> ZExp.place_before_operand;
       let new_zseq = ZSeq.ZOperand(zoperand, (prefix, new_suffix));
-      Succeeded(mk_and_ana_fix_ZOpSeq(ctx, u_gen, new_zseq, ty))
+      Outcome.Succeeded(mk_and_ana_fix_ZOpSeq(ctx, u_gen, new_zseq, ty))
       |> wrap_in_AnaDone;
 
     /* Construction */
@@ -3552,7 +3589,7 @@ module Exp = {
         (zoperand, u_gen): (ZExp.zoperand, MetaVarGen.t),
         ty: HTyp.t,
       )
-      : result(ana_success) =>
+      : Outcome.t(ana_success) =>
     switch (a, zoperand) {
     /* Invalid cursor positions */
     | (
@@ -3581,7 +3618,7 @@ module Exp = {
       | None => Failed
       | Some(ty') =>
         switch (syn_perform_operand(ctx, a, (zoperand', ty', u_gen))) {
-        | (Failed | CursorEscaped(_)) as result => result
+        | (Failed | CursorEscaped(_)) as outcome => outcome
         | Succeeded(SynExpandsToLet({u_gen, prefix, def, suffix})) =>
           Succeeded(AnaExpandsToLet({u_gen, prefix, def, suffix}))
         | Succeeded(SynExpandsToCase({u_gen, prefix, scrut, suffix})) =>
@@ -3795,7 +3832,7 @@ module Exp = {
             : construct_operator_after_zoperand;
         let (zseq, u_gen) =
           construct_operator(u_gen, operator, zoperand, (E, E));
-        Succeeded(mk_and_ana_fix_ZOpSeq(ctx, u_gen, zseq, ty))
+        Outcome.Succeeded(mk_and_ana_fix_ZOpSeq(ctx, u_gen, zseq, ty))
         |> wrap_in_AnaDone;
       }
 
@@ -3978,7 +4015,7 @@ module Exp = {
         (zoperand: ZExp.zoperand, u_gen: MetaVarGen.t),
         ty: HTyp.t,
       )
-      : result(ana_success) =>
+      : Outcome.t(ana_success) =>
     switch (Statics.Exp.syn(ctx, ZExp.(ZE0(zoperand) |> erase))) {
     | None => Failed
     | Some(ty1) =>

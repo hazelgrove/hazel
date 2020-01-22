@@ -103,6 +103,13 @@ let wrap_in_block = (zconclusion: zopseq): zblock => (
   [],
 );
 
+let unwrap =
+  fun
+  | ZE2(([], ExpLineZ(ZOpSeq(_, ZOperand(zoperand, (E, E)))), []))
+  | ZE1(ZOpSeq(_, ZOperand(zoperand, (E, E)))) => ZE0(zoperand)
+  | ZE2(([], ExpLineZ(zopseq), [])) => ZE1(zopseq)
+  | ze => ze;
+
 let force_get_zopseq =
   fun
   | CursorL(_)

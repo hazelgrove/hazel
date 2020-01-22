@@ -13,6 +13,11 @@ type operand_surround = Seq.operand_surround(UHTyp.operand, UHTyp.operator);
 type operator_surround = Seq.operator_surround(UHTyp.operand, UHTyp.operator);
 type zseq = ZSeq.t(UHTyp.operand, UHTyp.operator, zoperand, zoperator);
 
+let unwrap =
+  fun
+  | ZT1(ZOpSeq(_, ZOperand(zoperand, (E, E)))) => ZT0(zoperand)
+  | zty => zty;
+
 let valid_cursors_operand: UHTyp.operand => list(CursorPosition.t) =
   fun
   | Hole
