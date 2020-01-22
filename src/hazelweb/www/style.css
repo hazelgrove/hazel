@@ -900,7 +900,7 @@ h1 {
   left: 0;
   height: var(--child-border-thickness);
   width: 100%;
-  border-radius: 0 0 var(--code-radius) var(--code-radius);
+  border-radius: 0 0 var(--code-radius) 0;
   z-index: var(--inline-border-z);
 }
 .Cursor.Term.SubBlock.has-Para-OpenChild .LetLine::before {
@@ -913,6 +913,13 @@ h1 {
 }
 .Cursor.Term.SubBlock .Term .LetLine::before {
   all: unset;
+}
+
+.Cursor.Term.SubBlock.has-Inline-OpenChild .LetLine > .DelimGroup:first-child {
+  border-radius: 0 var(--code-radius) 0 0;
+}
+.Cursor.Term.SubBlock.has-Inline-OpenChild .LetLine > .DelimGroup:last-child {
+  border-radius: var(--code-radius) var(--code-radius) 0 0;
 }
 
 .Cursor.Term.Exp::before {
