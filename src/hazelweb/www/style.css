@@ -1197,6 +1197,12 @@ h1 {
   color: #BBB;
 }
 
+.UserNewline {
+  vertical-align: middle;
+  font-size: 50%;
+  color: #BBB;
+}
+
 .hide-hole-names .holeName {
   display: none !important;
 }

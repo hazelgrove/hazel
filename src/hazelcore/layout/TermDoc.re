@@ -53,7 +53,8 @@ let mk_op = (~steps: CursorPath.steps, op_text: string, ()): t =>
 let mk_space_op = Doc.space |> Doc.tag(TermTag.SpaceOp);
 
 let user_newline =
-  Doc.Text(LangUtil.user_newline) |> Doc.tag(TermTag.UserNewline);
+  Doc.Text(LangUtil.nbsp1 ++ LangUtil.user_newline)
+  |> Doc.tag(TermTag.UserNewline);
 
 type formattable_child = (~enforce_inline: bool) => t;
 type formatted_child =
