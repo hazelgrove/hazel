@@ -975,7 +975,7 @@ h1 {
   */
 }
 .Cursor.Term.has-Inline-OpenChild .DelimGroup {
-  border-radius: var(--code-radius) var(--code-radius) 0 0;
+  border-radius: var(--code-radius);
 }
 .Cursor.Term.has-Para-OpenChild .DelimGroup {
   border-radius: 0 var(--code-radius) var(--code-radius) 0;
