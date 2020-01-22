@@ -2034,7 +2034,7 @@ and snode_of_line_item =
         mk_SLine(
           ~steps_of_first_sword=steps,
           [
-            SToken(SDelim(0, "$")),
+            SToken(SDelim(0, "|")),
             SToken(SSpace),
             SToken(mk_SText(comment)),
           ],
