@@ -27,3 +27,9 @@ let is_let = eq("let");
 let is_case = eq("case");
 
 let is_wild = eq("_");
+
+let split = (pos, name) => {
+  let left_var = String.sub(name, 0, pos);
+  let right_var = String.sub(name, pos, String.length(name) - pos);
+  (left_var, right_var);
+};
