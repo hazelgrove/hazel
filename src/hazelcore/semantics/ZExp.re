@@ -180,6 +180,12 @@ let is_before_rule =
   | CursorR(OnDelim(0, Before), _) => true
   | _ => false;
 
+let rec cursor_on_var =
+  fun
+  | CursorE(OnText(pos), Var(_, _, name)) => Some((pos, name))
+  | OpSeqZ(_, zexp, _) => cursor_on_var(zexp)
+  | _ => None;
+
 let rec is_after_block = (zblock: zblock): bool =>
   switch (zblock) {
   | BlockZL(_, _) => false

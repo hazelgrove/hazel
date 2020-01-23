@@ -21,6 +21,13 @@ let is_case = x =>
     None;
   };
 
+let get_intermediate_kw = kw =>
+  switch (kw) {
+  | IntermediateKW(kw) => Some(kw)
+  | TermKW(_)
+  | NotKW => None
+  };
+
 let transform_to_kw = x =>
   if (is_true(x)) {
     TermKW(
