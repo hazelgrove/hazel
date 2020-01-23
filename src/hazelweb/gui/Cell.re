@@ -132,6 +132,35 @@ let entered_single_key =
       ),
     );
 
+  | (Line(SubCommentLine(old_comment)), _) =>
+    let insert_loca =
+      switch (ci.position) {
+      | OnText(t) => t
+      | OnDelim(_, _) => 0
+      | Staging(_) => 0
+      };
+    let comment_before = String.sub(old_comment, 0, insert_loca);
+    let comment_after =
+      String.sub(
+        old_comment,
+        insert_loca,
+        String.length(old_comment) - insert_loca,
+      );
+    let comment =
+      switch (single_key) {
+      | Letter(x) => comment_before ++ x ++ comment_after
+      | Number(n) => comment_before ++ string_of_int(n) ++ comment_after
+      | Underscore => comment_before ++ "_" ++ comment_after
+      };
+    let new_cursor_posi = CursorPosition.OnText(insert_loca + 1);
+    Some(
+      prevent_stop_inject(
+        Update.Action.EditAction(
+          Construct(SSCommentText(comment, new_cursor_posi)),
+        ),
+      ),
+    );
+
   | (Line(EmptyLine | ExpLine(EmptyHole(_))) | Exp(EmptyHole(_)), _) =>
     let shape =
       switch (single_key) {
@@ -261,6 +290,7 @@ let view =
                     Construct(SCommentText(comment, new_cursor_posi)),
                   ),
                 );
+
               | (Line(CommentLine(old_comment)), _, _, _, Some(Space)) =>
                 let insert_loca =
                   switch (ci.position) {
@@ -280,6 +310,42 @@ let view =
                 prevent_stop_inject(
                   Update.Action.EditAction(
                     Construct(SCommentText(comment, new_cursor_posi)),
+                  ),
+                );
+
+              | (
+                  Line(SubCommentLine(comment)),
+                  OnText(0),
+                  _,
+                  _,
+                  Some(Backspace),
+                ) =>
+                let new_cursor_posi = CursorPosition.OnDelim(0, After);
+                prevent_stop_inject(
+                  Update.Action.EditAction(
+                    Construct(SCommentText(comment, new_cursor_posi)),
+                  ),
+                );
+
+              | (Line(SubCommentLine(old_comment)), _, _, _, Some(Space)) =>
+                let insert_loca =
+                  switch (ci.position) {
+                  | OnText(t) => t
+                  | OnDelim(_, _) => 0
+                  | Staging(_) => 0
+                  };
+                let comment_before = String.sub(old_comment, 0, insert_loca);
+                let comment_after =
+                  String.sub(
+                    old_comment,
+                    insert_loca,
+                    String.length(old_comment) - insert_loca,
+                  );
+                let comment = comment_before ++ " " ++ comment_after;
+                let new_cursor_posi = CursorPosition.OnText(insert_loca + 1);
+                prevent_stop_inject(
+                  Update.Action.EditAction(
+                    Construct(SSCommentText(comment, new_cursor_posi)),
                   ),
                 );
 
@@ -393,6 +459,17 @@ let view =
                         ),
                       ),
                     )
+
+                  | (_, _, Line(SubCommentLine(_))) =>
+                    // JSUtil.log("Bug");
+                    prevent_stop_inject(
+                      Update.Action.EditAction(
+                        Construct(
+                          SSCommentText(nodeValue', OnText(anchorOffset')),
+                        ),
+                      ),
+                    )
+
                   | (true, _, _) => prevent_stop_inject(update)
                   | (false, Some(new_n), _) =>
                     prevent_stop_inject(
