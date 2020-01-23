@@ -619,28 +619,31 @@ module Pat = {
       ~erase_zoperator=ZPat.erase_zoperator,
     );
 
+  type syn_success = (ZPat.t, HTyp.t, Contexts.t, MetaVarGen.t);
+  type ana_success = (ZPat.t, Contexts.t, MetaVarGen.t);
+
   let mk_and_syn_fix_ZOpSeq =
-      (ctx: Contexts.t, u_gen: MetaVarGen.t, zseq: ZPat.zseq)
-      : (ZPat.t, HTyp.t, Contexts.t, MetaVarGen.t) => {
+      (ctx: Contexts.t, u_gen: MetaVarGen.t, zseq: ZPat.zseq): syn_success => {
     let zopseq = mk_ZOpSeq(zseq);
     Statics.Pat.syn_fix_holes_z(ctx, u_gen, ZP1(zopseq));
   };
   let mk_and_ana_fix_ZOpSeq =
       (ctx: Contexts.t, u_gen: MetaVarGen.t, zseq: ZPat.zseq, ty: HTyp.t)
-      : (ZPat.t, Contexts.t, MetaVarGen.t) => {
+      : ana_success => {
     let zopseq = mk_ZOpSeq(zseq);
     Statics.Pat.ana_fix_holes_z(ctx, u_gen, ZP1(zopseq), ty);
   };
 
   let mk_syn_result =
-      (ctx: Contexts.t, u_gen: MetaVarGen.t, zp: ZPat.t): Outcome.t(_) =>
+      (ctx: Contexts.t, u_gen: MetaVarGen.t, zp: ZPat.t)
+      : Outcome.t(syn_success) =>
     switch (Statics.Pat.syn(ctx, zp |> ZPat.erase)) {
     | None => Failed
     | Some((ty, ctx)) => Succeeded((zp, ty, ctx, u_gen))
     };
   let mk_ana_result =
       (ctx: Contexts.t, u_gen: MetaVarGen.t, zp: ZPat.t, ty: HTyp.t)
-      : Outcome.t(_) =>
+      : Outcome.t(ana_success) =>
     switch (Statics.Pat.ana(ctx, zp |> ZPat.erase, ty)) {
     | None => Failed
     | Some(ctx) => Succeeded((zp, ctx, u_gen))
@@ -648,7 +651,7 @@ module Pat = {
 
   let mk_syn_text =
       (ctx: Contexts.t, u_gen: MetaVarGen.t, caret_index: int, text: string)
-      : Outcome.t(_) => {
+      : Outcome.t(syn_success) => {
     let text_cursor = CursorPosition.OnText(caret_index);
     switch (TextShape.of_text(text)) {
     | None =>
@@ -691,7 +694,7 @@ module Pat = {
         text: string,
         ty: HTyp.t,
       )
-      : Outcome.t(_) => {
+      : Outcome.t(ana_success) => {
     let text_cursor = CursorPosition.OnText(caret_index);
     switch (TextShape.of_text(text)) {
     | None =>
@@ -734,6 +737,68 @@ module Pat = {
   let ana_backspace_text = _ana_backspace_text(~mk_ana_text);
   let syn_delete_text = _syn_delete_text(~mk_syn_text);
   let ana_delete_text = _ana_delete_text(~mk_ana_text);
+
+  let syn_split_text =
+      (
+        ctx: Contexts.t,
+        u_gen: MetaVarGen.t,
+        caret_index: int,
+        sop: operator_shape,
+        text: string,
+      )
+      : Outcome.t(syn_success) => {
+    let (l, r) = text |> StringUtil.split_string(caret_index);
+    switch (
+      TextShape.of_text(l),
+      operator_of_shape(sop),
+      TextShape.of_text(r),
+    ) {
+    | (None, _, _)
+    | (_, None, _)
+    | (_, _, None) => Failed
+    | (Some(lshape), Some(op), Some(rshape)) =>
+      let (loperand, u_gen) = UHPat.text_operand(u_gen, lshape);
+      let (roperand, u_gen) = UHPat.text_operand(u_gen, rshape);
+      let new_ze = {
+        let zoperand = roperand |> ZPat.place_before_operand;
+        let zopseq =
+          mk_ZOpSeq(ZOperand(zoperand, (A(op, S(loperand, E)), E)));
+        ZPat.ZP1(zopseq);
+      };
+      Succeeded(Statics.Pat.syn_fix_holes_z(ctx, u_gen, new_ze));
+    };
+  };
+  let ana_split_text =
+      (
+        ctx: Contexts.t,
+        u_gen: MetaVarGen.t,
+        caret_index: int,
+        sop: operator_shape,
+        text: string,
+        ty: HTyp.t,
+      )
+      : Outcome.t(ana_success) => {
+    let (l, r) = text |> StringUtil.split_string(caret_index);
+    switch (
+      TextShape.of_text(l),
+      operator_of_shape(sop),
+      TextShape.of_text(r),
+    ) {
+    | (None, _, _)
+    | (_, None, _)
+    | (_, _, None) => Failed
+    | (Some(lshape), Some(op), Some(rshape)) =>
+      let (loperand, u_gen) = UHPat.text_operand(u_gen, lshape);
+      let (roperand, u_gen) = UHPat.text_operand(u_gen, rshape);
+      let new_ze = {
+        let zoperand = roperand |> ZPat.place_before_operand;
+        let zopseq =
+          mk_ZOpSeq(ZOperand(zoperand, (A(op, S(loperand, E)), E)));
+        ZPat.ZP1(zopseq);
+      };
+      Succeeded(Statics.Pat.ana_fix_holes_z(ctx, u_gen, new_ze, ty));
+    };
+  };
 
   let delete_operator =
     _delete_operator(
@@ -778,7 +843,7 @@ module Pat = {
 
   let rec syn_perform =
           (ctx: Contexts.t, u_gen: MetaVarGen.t, a: t, zp: ZPat.t)
-          : Outcome.t((ZPat.t, HTyp.t, Contexts.t, MetaVarGen.t)) => {
+          : Outcome.t(syn_success) => {
     let outcome: Outcome.t(_) =
       switch (a) {
       /* Movement */
@@ -832,7 +897,7 @@ module Pat = {
         a: t,
         ZOpSeq(skel, zseq) as zopseq: ZPat.zopseq,
       )
-      : Outcome.t((ZPat.t, HTyp.t, Contexts.t, MetaVarGen.t)) =>
+      : Outcome.t(syn_success) =>
     switch (a, zseq) {
     /* Invalid cursor positions */
     | (_, ZOperator((OnText(_) | OnDelim(_), _), _)) => Failed
@@ -939,7 +1004,7 @@ module Pat = {
     }
   and syn_perform_operand =
       (ctx: Contexts.t, u_gen: MetaVarGen.t, a: t, zoperand: ZPat.zoperand)
-      : Outcome.t((ZPat.t, HTyp.t, Contexts.t, MetaVarGen.t)) => {
+      : Outcome.t(syn_success) => {
     switch (a, zoperand) {
     /* Invalid cursor positions */
     | (
@@ -1044,6 +1109,24 @@ module Pat = {
       | Succeeded((zp, _, _, u_gen)) => syn_perform(ctx, u_gen, a, zp)
       }
 
+    // TODO consider relaxing guards and
+    // merging with regular op construction
+    | (Construct(SOp(sop)), CursorP(OnText(j), Var(_, _, x)))
+        when
+          !ZPat.is_before_zoperand(zoperand)
+          && !ZPat.is_after_zoperand(zoperand) =>
+      syn_split_text(ctx, u_gen, j, sop, x)
+    | (Construct(SOp(sop)), CursorP(OnText(j), BoolLit(_, b)))
+        when
+          !ZPat.is_before_zoperand(zoperand)
+          && !ZPat.is_after_zoperand(zoperand) =>
+      syn_split_text(ctx, u_gen, j, sop, string_of_bool(b))
+    | (Construct(SOp(sop)), CursorP(OnText(j), NumLit(_, n)))
+        when
+          !ZPat.is_before_zoperand(zoperand)
+          && !ZPat.is_after_zoperand(zoperand) =>
+      syn_split_text(ctx, u_gen, j, sop, string_of_int(n))
+
     | (Construct(SChar(s)), CursorP(_, EmptyHole(_))) =>
       syn_insert_text(ctx, u_gen, (0, s), "")
     | (Construct(SChar(s)), CursorP(OnDelim(_, side), Wild(_))) =>
@@ -1122,7 +1205,7 @@ module Pat = {
   }
   and ana_perform =
       (ctx: Contexts.t, u_gen: MetaVarGen.t, a: t, zp: ZPat.t, ty: HTyp.t)
-      : Outcome.t((ZPat.t, Contexts.t, MetaVarGen.t)) => {
+      : Outcome.t(ana_success) => {
     let outcome: Outcome.t(_) =
       switch (a) {
       /* Movement */
@@ -1177,7 +1260,7 @@ module Pat = {
         ZOpSeq(skel, zseq) as zopseq: ZPat.zopseq,
         ty: HTyp.t,
       )
-      : Outcome.t((ZPat.t, Contexts.t, MetaVarGen.t)) =>
+      : Outcome.t(ana_success) =>
     switch (a, zseq) {
     /* Invalid cursor positions */
     | (_, ZOperator((OnText(_) | OnDelim(_), _), _)) => Failed
@@ -1305,7 +1388,7 @@ module Pat = {
         zoperand: ZPat.zoperand,
         ty: HTyp.t,
       )
-      : Outcome.t((ZPat.t, Contexts.t, MetaVarGen.t)) =>
+      : Outcome.t(ana_success) =>
     switch (a, zoperand) {
     /* Invalid cursor positions */
     | (
@@ -1427,6 +1510,24 @@ module Pat = {
       | (Failed | CursorEscaped(_)) as err => err
       | Succeeded((zp, _, u_gen)) => ana_perform(ctx, u_gen, a, zp, ty)
       }
+
+    // TODO consider relaxing guards and
+    // merging with regular op construction
+    | (Construct(SOp(sop)), CursorP(OnText(j), Var(_, _, x)))
+        when
+          !ZPat.is_before_zoperand(zoperand)
+          && !ZPat.is_after_zoperand(zoperand) =>
+      ana_split_text(ctx, u_gen, j, sop, x, ty)
+    | (Construct(SOp(sop)), CursorP(OnText(j), BoolLit(_, b)))
+        when
+          !ZPat.is_before_zoperand(zoperand)
+          && !ZPat.is_after_zoperand(zoperand) =>
+      ana_split_text(ctx, u_gen, j, sop, string_of_bool(b), ty)
+    | (Construct(SOp(sop)), CursorP(OnText(j), NumLit(_, n)))
+        when
+          !ZPat.is_before_zoperand(zoperand)
+          && !ZPat.is_after_zoperand(zoperand) =>
+      ana_split_text(ctx, u_gen, j, sop, string_of_int(n), ty)
 
     | (Construct(SChar(s)), CursorP(_, EmptyHole(_))) =>
       ana_insert_text(ctx, u_gen, (0, s), "", ty)

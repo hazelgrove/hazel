@@ -213,3 +213,18 @@ let favored_child: operand => option((ChildIndex.t, t)) =
   | ListNil(_) => None
   | Parenthesized(p)
   | Inj(_, _, p) => Some((0, p));
+
+let text_operand =
+    (u_gen: MetaVarGen.t, shape: TextShape.t): (operand, MetaVarGen.t) =>
+  switch (shape) {
+  | Underscore => (wild(), u_gen)
+  | NumLit(n) => (numlit(n), u_gen)
+  | BoolLit(b) => (boollit(b), u_gen)
+  | Var(x) => (var(x), u_gen)
+  | ExpandingKeyword(kw) =>
+    let (u, u_gen) = u_gen |> MetaVarGen.next;
+    (
+      var(~var_err=InVarHole(Free, u), kw |> ExpandingKeyword.to_string),
+      u_gen,
+    );
+  };
