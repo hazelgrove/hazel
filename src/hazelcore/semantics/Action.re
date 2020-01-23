@@ -2416,7 +2416,7 @@ module Exp = {
       | Some(ze) => syn_perform(ctx, a, (ze, ty, u_gen)) |> wrap_in_SynDone
       };
 
-    | (Construct(SLine), ZOperand(zoperand, (prefix, suffix)))
+    | (Construct(SLine), ZOperand(zoperand, (prefix, A(_) as suffix)))
         when zoperand |> ZExp.is_after_zoperand =>
       let (new_line, u_gen) = {
         let operand = zoperand |> ZExp.erase_zoperand;
@@ -2435,7 +2435,7 @@ module Exp = {
 
     | (
         Construct(SLine),
-        ZOperand(CursorE(_) as zoperand, (prefix, suffix)),
+        ZOperand(CursorE(_) as zoperand, (A(_) as prefix, suffix)),
       ) =>
       let (new_line, u_gen) = {
         let (hole, u_gen) = u_gen |> UHExp.new_EmptyHole;
@@ -3477,7 +3477,7 @@ module Exp = {
       | Some(ze) => ana_perform(ctx, a, (ze, u_gen), ty) |> wrap_in_AnaDone
       };
 
-    | (Construct(SLine), ZOperand(zoperand, (prefix, suffix)))
+    | (Construct(SLine), ZOperand(zoperand, (prefix, A(_) as suffix)))
         when zoperand |> ZExp.is_after_zoperand =>
       let (new_line, u_gen) = {
         let operand = zoperand |> ZExp.erase_zoperand;
@@ -3496,7 +3496,7 @@ module Exp = {
 
     | (
         Construct(SLine),
-        ZOperand(CursorE(_) as zoperand, (prefix, suffix)),
+        ZOperand(CursorE(_) as zoperand, (A(_) as prefix, suffix)),
       ) =>
       let (new_line, u_gen) = {
         let (hole, u_gen) = u_gen |> UHExp.new_EmptyHole;
