@@ -851,7 +851,8 @@ h1 {
   background-color: var(--bg-color);
   box-shadow: var(--code-shadow-thickness) var(--code-shadow-thickness) 0px 0px var(--shadow-color);
 }
-.Cursor.Term.Case::before {
+.Cursor.Term.has-Inline-OpenChild.Case::before,
+.Cursor.Term.has-Para-OpenChild.Case::before {
   top: 0;
   left: calc(-1 * var(--child-border-thickness));
   height: 100%;
@@ -879,7 +880,7 @@ h1 {
   border-radius: var(--code-radius) 0 0 var(--code-radius);
   z-index: var(--para-border-z);
 }
-.Cursor.Term.SubBlock.has-Para-Open-Child::before,
+.Cursor.Term.SubBlock.has-Para-OpenChild::before,
 .Cursor.Term.SubBlock.has-Inline-OpenChild::before {
   top: 0;
   left: calc(-1 * var(--child-border-thickness));
@@ -887,6 +888,12 @@ h1 {
   width: var(--child-border-thickness);
   z-index: var(--para-border-z);
   border-radius: var(--code-radius) 0 var(--code-radius) var(--code-radius);
+}
+.Cursor.Term.has-Para-OpenChild.Rule::before {
+  border-radius: var(--code-radius) 0 var(--code-radius) var(--code-radius);
+}
+.Cursor.Term.has-Inline-OpenChild.Rule::before {
+  border-radius: 0 var(--code-radius) var(--code-radius) var(--code-radius);
 }
 
 .Cursor.Term.SubBlock .LetLine::before {
@@ -920,6 +927,10 @@ h1 {
 }
 .Cursor.Term.SubBlock.has-Inline-OpenChild .LetLine > .DelimGroup:last-child {
   border-radius: var(--code-radius) var(--code-radius) 0 0;
+}
+
+.Cursor.Term.Rule.has-Para-OpenChild > .DelimGroup {
+  border-radius: 0 var(--code-radius) var(--code-radius) 0;
 }
 
 .Cursor.Term.Exp::before {
