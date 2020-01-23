@@ -2028,12 +2028,18 @@ module Exp = {
     | Backspace when ZExp.is_before_zline(zline) =>
       switch (prefix |> ListUtil.split_last, zline |> ZExp.erase_zline) {
       | (None, _) => CursorEscaped(Before)
-      | (Some((new_prefix, prefix_hd)), EmptyLine) =>
-        let new_zline = prefix_hd |> ZExp.place_after_line;
-        let new_ze = ZExp.ZE2((new_prefix, new_zline, suffix));
+      | (Some(([], EmptyLine)), EmptyLine) =>
+        let new_ze = {
+          let (_, new_zline, new_suffix) = suffix |> ZExp.place_before_block;
+          ZExp.ZE2(([EmptyLine], new_zline, new_suffix));
+        };
         Succeeded(SynDone((new_ze, ty, u_gen)));
       | (Some((new_prefix, EmptyLine)), _) =>
         let new_ze = ZExp.ZE2((new_prefix, zline, suffix));
+        Succeeded(SynDone((new_ze, ty, u_gen)));
+      | (Some((new_prefix, prefix_hd)), EmptyLine) =>
+        let new_zline = prefix_hd |> ZExp.place_after_line;
+        let new_ze = ZExp.ZE2((new_prefix, new_zline, suffix));
         Succeeded(SynDone((new_ze, ty, u_gen)));
       | (
           Some((new_prefix, ExpLine(_) as prefix_hd)),
@@ -3262,12 +3268,18 @@ module Exp = {
     | (Backspace, _) when ZExp.is_before_zline(zline) =>
       switch (prefix |> ListUtil.split_last, zline |> ZExp.erase_zline) {
       | (None, _) => CursorEscaped(Before)
-      | (Some((new_prefix, prefix_hd)), EmptyLine) =>
-        let new_zline = prefix_hd |> ZExp.place_after_line;
-        let new_ze = ZExp.ZE2((new_prefix, new_zline, suffix));
+      | (Some(([], EmptyLine)), EmptyLine) =>
+        let new_ze = {
+          let (_, new_zline, new_suffix) = suffix |> ZExp.place_before_block;
+          ZExp.ZE2(([EmptyLine], new_zline, new_suffix));
+        };
         Succeeded(AnaDone((new_ze, u_gen)));
       | (Some((new_prefix, EmptyLine)), _) =>
         let new_ze = ZExp.ZE2((new_prefix, zline, suffix));
+        Succeeded(AnaDone((new_ze, u_gen)));
+      | (Some((new_prefix, prefix_hd)), EmptyLine) =>
+        let new_zline = prefix_hd |> ZExp.place_after_line;
+        let new_ze = ZExp.ZE2((new_prefix, new_zline, suffix));
         Succeeded(AnaDone((new_ze, u_gen)));
       | (
           Some((new_prefix, ExpLine(_) as prefix_hd)),
