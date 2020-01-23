@@ -300,7 +300,7 @@ let mk_Case_ann =
       @ [close_group],
     )
   )
-  |> tag_Operand(~family=Exp, ~err);
+  |> tag_Case(~err);
 };
 
 let mk_Rule =
