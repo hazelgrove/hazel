@@ -3898,7 +3898,7 @@ and syn_perform_line =
     Succeeded((([], CursorL(OnText(0), EmptyLine), []), ctx, u_gen))
 
   | (
-      Construct(SCommentText(new_comment, new_cursor)),
+      Construct(SSCommentText(new_comment, new_cursor)),
       CursorL(OnText(_), SubCommentLine(_)),
     ) =>
     Succeeded((
