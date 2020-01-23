@@ -4,6 +4,8 @@ let is_empty = String.equal("");
  * A string of length n has caret positions 0 through n,
  * where 0 places the caret at the start and n places
  * the caret at the end. Split s at caret_index.
+ *
+ * TODO rename to split
  */
 let split_string = (caret_index: int, s: string): (string, string) => (
   String.sub(s, 0, caret_index),

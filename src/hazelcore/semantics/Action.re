@@ -1814,7 +1814,7 @@ module Exp = {
 
   let mk_syn_text =
       (ctx: Contexts.t, u_gen: MetaVarGen.t, caret_index: int, text: string)
-      : Outcome.t(_) => {
+      : Outcome.t(syn_success) => {
     let text_cursor = CursorPosition.OnText(caret_index);
     switch (TextShape.of_text(text)) {
     | None =>
@@ -1910,6 +1910,92 @@ module Exp = {
   let ana_backspace_text = _ana_backspace_text(~mk_ana_text);
   let syn_delete_text = _syn_delete_text(~mk_syn_text);
   let ana_delete_text = _ana_delete_text(~mk_ana_text);
+
+  let syn_split_text =
+      (
+        ctx: Contexts.t,
+        u_gen: MetaVarGen.t,
+        caret_index: int,
+        sop: operator_shape,
+        text: string,
+      )
+      : Outcome.t(syn_success) => {
+    let (l, r) = text |> StringUtil.split_string(caret_index);
+    switch (
+      TextShape.of_text(l),
+      operator_of_shape(sop),
+      TextShape.of_text(r),
+    ) {
+    | (None, _, _)
+    | (_, None, _)
+    | (_, _, None) => Failed
+    | (Some(ExpandingKeyword(kw)), Some(Space), Some(rshape)) =>
+      let (subject, u_gen) = {
+        let (operand, u_gen) = UHExp.text_operand(u_gen, rshape);
+        (UHExp.E0(operand), u_gen);
+      };
+      Succeeded(
+        switch (kw) {
+        | Let => mk_SynExpandsToLet(~u_gen, ~def=subject, ())
+        | Case => mk_SynExpandsToCase(~u_gen, ~scrut=subject, ())
+        },
+      );
+    | (Some(lshape), Some(op), Some(rshape)) =>
+      let (loperand, u_gen) = UHExp.text_operand(u_gen, lshape);
+      let (roperand, u_gen) = UHExp.text_operand(u_gen, rshape);
+      let new_ze = {
+        let zoperand = roperand |> ZExp.place_before_operand;
+        let zopseq =
+          mk_ZOpSeq(ZOperand(zoperand, (A(op, S(loperand, E)), E)));
+        ZExp.ZE1(zopseq);
+      };
+      Succeeded(SynDone(Statics.Exp.syn_fix_holes_z(ctx, u_gen, new_ze)));
+    };
+  };
+  let ana_split_text =
+      (
+        ctx: Contexts.t,
+        u_gen: MetaVarGen.t,
+        caret_index: int,
+        sop: operator_shape,
+        text: string,
+        ty: HTyp.t,
+      )
+      : Outcome.t(ana_success) => {
+    let (l, r) = text |> StringUtil.split_string(caret_index);
+    switch (
+      TextShape.of_text(l),
+      operator_of_shape(sop),
+      TextShape.of_text(r),
+    ) {
+    | (None, _, _)
+    | (_, None, _)
+    | (_, _, None) => Failed
+    | (Some(ExpandingKeyword(kw)), Some(Space), Some(rshape)) =>
+      let (subject, u_gen) = {
+        let (operand, u_gen) = UHExp.text_operand(u_gen, rshape);
+        (UHExp.E0(operand), u_gen);
+      };
+      Succeeded(
+        switch (kw) {
+        | Let => mk_AnaExpandsToLet(~u_gen, ~def=subject, ())
+        | Case => mk_AnaExpandsToCase(~u_gen, ~scrut=subject, ())
+        },
+      );
+    | (Some(lshape), Some(op), Some(rshape)) =>
+      let (loperand, u_gen) = UHExp.text_operand(u_gen, lshape);
+      let (roperand, u_gen) = UHExp.text_operand(u_gen, rshape);
+      let new_ze = {
+        let zoperand = roperand |> ZExp.place_before_operand;
+        let zopseq =
+          mk_ZOpSeq(ZOperand(zoperand, (A(op, S(loperand, E)), E)));
+        ZExp.ZE1(zopseq);
+      };
+      Succeeded(
+        AnaDone(Statics.Exp.ana_fix_holes_z(ctx, u_gen, new_ze, ty)),
+      );
+    };
+  };
 
   let rec syn_perform =
           (
@@ -2662,6 +2748,24 @@ module Exp = {
     /* TODO consider deletion of type ascription on case */
 
     /* Construction */
+
+    // TODO consider relaxing guards and
+    // merging with regular op construction
+    | (Construct(SOp(sop)), CursorE(OnText(j), Var(_, _, x)))
+        when
+          !ZExp.is_before_zoperand(zoperand)
+          && !ZExp.is_after_zoperand(zoperand) =>
+      syn_split_text(ctx, u_gen, j, sop, x)
+    | (Construct(SOp(sop)), CursorE(OnText(j), BoolLit(_, b)))
+        when
+          !ZExp.is_before_zoperand(zoperand)
+          && !ZExp.is_after_zoperand(zoperand) =>
+      syn_split_text(ctx, u_gen, j, sop, string_of_bool(b))
+    | (Construct(SOp(sop)), CursorE(OnText(j), NumLit(_, n)))
+        when
+          !ZExp.is_before_zoperand(zoperand)
+          && !ZExp.is_after_zoperand(zoperand) =>
+      syn_split_text(ctx, u_gen, j, sop, string_of_int(n))
 
     | (
         Construct(SOp(SSpace)),
@@ -3766,6 +3870,24 @@ module Exp = {
       Succeeded(mk_AnaExpandsToCase(~u_gen, ~scrut=E0(operand), ()))
     | (Construct(SLet), CursorE(_, operand)) =>
       Succeeded(mk_AnaExpandsToLet(~u_gen, ~def=E0(operand), ()))
+
+    // TODO consider relaxing guards and
+    // merging with regular op construction
+    | (Construct(SOp(sop)), CursorE(OnText(j), Var(_, _, x)))
+        when
+          !ZExp.is_before_zoperand(zoperand)
+          && !ZExp.is_after_zoperand(zoperand) =>
+      ana_split_text(ctx, u_gen, j, sop, x, ty)
+    | (Construct(SOp(sop)), CursorE(OnText(j), BoolLit(_, b)))
+        when
+          !ZExp.is_before_zoperand(zoperand)
+          && !ZExp.is_after_zoperand(zoperand) =>
+      ana_split_text(ctx, u_gen, j, sop, string_of_bool(b), ty)
+    | (Construct(SOp(sop)), CursorE(OnText(j), NumLit(_, n)))
+        when
+          !ZExp.is_before_zoperand(zoperand)
+          && !ZExp.is_after_zoperand(zoperand) =>
+      ana_split_text(ctx, u_gen, j, sop, string_of_int(n), ty)
 
     | (Construct(SAsc), LamZP(err, zp, None, body)) =>
       let new_zann = UHTyp.T0(Hole) |> ZTyp.place_before;

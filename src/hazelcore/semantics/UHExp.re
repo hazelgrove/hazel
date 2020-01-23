@@ -434,3 +434,18 @@ let is_trivial_block =
   fun
   | [ExpLine(OpSeq(_, S(EmptyHole(_), E)))] => true
   | _ => false;
+
+let text_operand =
+    (u_gen: MetaVarGen.t, shape: TextShape.t): (operand, MetaVarGen.t) =>
+  switch (shape) {
+  | Underscore => (var("_"), u_gen)
+  | NumLit(n) => (numlit(n), u_gen)
+  | BoolLit(b) => (boollit(b), u_gen)
+  | Var(x) => (var(x), u_gen)
+  | ExpandingKeyword(kw) =>
+    let (u, u_gen) = u_gen |> MetaVarGen.next;
+    (
+      var(~var_err=InVarHole(Free, u), kw |> ExpandingKeyword.to_string),
+      u_gen,
+    );
+  };
