@@ -665,8 +665,12 @@ module Exp = {
             syn_cursor_info_zoperand(~steps=steps @ [n], ctx, zoperand)
           | Some((InHole(WrongLength, _), _)) => None
           | Some((InHole(TypeInconsistent, _), _)) =>
-            Statics.Exp.syn_operand(ctx, zoperand |> ZExp.erase_zoperand)
-            |> OptUtil.map(ty => mk(SynErrorArrow(Arrow(Hole, Hole), ty)))
+            let operand_nih =
+              zoperand
+              |> ZExp.erase_zoperand
+              |> UHExp.set_err_status_operand(NotInHole);
+            Statics.Exp.syn_operand(ctx, operand_nih)
+            |> OptUtil.map(ty => mk(SynErrorArrow(Arrow(Hole, Hole), ty)));
           | Some((_, InVarHole(Free, _))) =>
             Some(mk(SynFreeArrow(Arrow(Hole, Hole))))
           | Some((_, InVarHole(Keyword(k), _))) =>
