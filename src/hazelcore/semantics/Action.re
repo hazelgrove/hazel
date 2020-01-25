@@ -2644,6 +2644,9 @@ module Exp = {
 
     /* Zipper */
 
+    | (_, ZOperand(zoperand, (E, E))) =>
+      syn_perform_operand(ctx, a, (zoperand, ty, u_gen))
+
     | (_, ZOperand(zoperand, (prefix, suffix) as surround)) =>
       let n = Seq.length_of_affix(prefix);
       switch (
@@ -3722,6 +3725,9 @@ module Exp = {
       Succeeded(AnaDone((ZE2(new_zblock), u_gen)));
 
     /* Zipper */
+
+    | (_, ZOperand(zoperand, (E, E))) =>
+      ana_perform_operand(ctx, a, (zoperand, u_gen), ty)
 
     | (_, ZOperand(zoperand, (prefix, suffix) as surround)) =>
       let n = Seq.length_of_affix(prefix);
