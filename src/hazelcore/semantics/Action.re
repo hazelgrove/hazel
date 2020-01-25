@@ -983,19 +983,19 @@ module Pat = {
       ) {
       | None => Failed
       | Some(Syn) =>
-        switch (syn_perform(ctx, u_gen, a, ZP0(zoperand))) {
+        switch (syn_perform_operand(ctx, u_gen, a, zoperand)) {
         | Failed => Failed
         | CursorEscaped(side) =>
-          syn_perform(ctx, u_gen, escape(side), ZP1(zopseq))
+          syn_perform_opseq(ctx, u_gen, escape(side), zopseq)
         | Succeeded((zp, _, _, u_gen)) =>
           let zseq = resurround_z(zp, surround);
           Succeeded(mk_and_syn_fix_ZOpSeq(ctx, u_gen, zseq));
         }
       | Some(Ana(ty_zoperand)) =>
-        switch (ana_perform(ctx, u_gen, a, ZPat.ZP0(zoperand), ty_zoperand)) {
+        switch (ana_perform_operand(ctx, u_gen, a, zoperand, ty_zoperand)) {
         | Failed => Failed
         | CursorEscaped(side) =>
-          syn_perform(ctx, u_gen, escape(side), ZP1(zopseq))
+          syn_perform_opseq(ctx, u_gen, escape(side), zopseq)
         | Succeeded((zp, _, u_gen)) =>
           let new_zseq = resurround_z(zp, surround);
           Succeeded(mk_and_syn_fix_ZOpSeq(ctx, u_gen, new_zseq));
@@ -1364,7 +1364,7 @@ module Pat = {
         switch (syn_perform_operand(ctx, u_gen, a, zoperand)) {
         | Failed => Failed
         | CursorEscaped(side) =>
-          ana_perform(ctx, u_gen, escape(side), ZP1(zopseq), ty)
+          ana_perform_opseq(ctx, u_gen, escape(side), zopseq, ty)
         | Succeeded((zp, _, _, u_gen)) =>
           let zseq = resurround_z(zp, surround);
           Succeeded(mk_and_ana_fix_ZOpSeq(ctx, u_gen, zseq, ty));
@@ -1373,7 +1373,7 @@ module Pat = {
         switch (ana_perform_operand(ctx, u_gen, a, zoperand, ty_zoperand)) {
         | Failed => Failed
         | CursorEscaped(side) =>
-          ana_perform(ctx, u_gen, escape(side), ZP1(zopseq), ty)
+          ana_perform_opseq(ctx, u_gen, escape(side), zopseq, ty)
         | Succeeded((zp, _, u_gen)) =>
           let new_zseq = resurround_z(zp, surround);
           Succeeded(mk_and_ana_fix_ZOpSeq(ctx, u_gen, new_zseq, ty));
