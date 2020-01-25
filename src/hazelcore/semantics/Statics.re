@@ -303,24 +303,13 @@ module Pat = {
         opseq |> UHPat.set_err_status_opseq(NotInHole),
       )
     | Some(skel_tys) =>
-      skel_tys
-      |> List.fold_left(
-           (found_nth, (skel, ty)) =>
-             switch (found_nth) {
-             | Some(_) as found => found
-             | None =>
-               let l = Skel.leftmost_tm_index(skel);
-               let r = Skel.rightmost_tm_index(skel);
-               l <= n && n <= r
-                 ? Some(_ana_nth_type_mode(ctx, n, skel, seq, ty)) : None;
-             },
-           None,
-         )
-      |> (
-        fun
-        | None => None
-        | Some(res) => res
-      )
+      let (nskel, nty) =
+        skel_tys
+        |> List.find(((skel, _)) =>
+             Skel.leftmost_tm_index(skel) <= n
+             && n <= Skel.rightmost_tm_index(skel)
+           );
+      _ana_nth_type_mode(ctx, n, nskel, seq, nty);
     };
   }
   and _ana_nth_type_mode =
@@ -1281,24 +1270,13 @@ module Exp = {
         opseq |> UHExp.set_err_status_opseq(NotInHole),
       )
     | Some(skel_tys) =>
-      skel_tys
-      |> List.fold_left(
-           (found_nth, (skel, ty)) =>
-             switch (found_nth) {
-             | Some(_) as found => found
-             | None =>
-               let l = Skel.leftmost_tm_index(skel);
-               let r = Skel.rightmost_tm_index(skel);
-               l <= n && n <= r
-                 ? Some(_ana_nth_type_mode(ctx, n, skel, seq, ty)) : None;
-             },
-           None,
-         )
-      |> (
-        fun
-        | None => None
-        | Some(res) => res
-      )
+      let (nskel, nty) =
+        skel_tys
+        |> List.find(((skel, _)) =>
+             Skel.leftmost_tm_index(skel) <= n
+             && n <= Skel.rightmost_tm_index(skel)
+           );
+      _ana_nth_type_mode(ctx, n, nskel, seq, nty);
     };
   }
   and _ana_nth_type_mode =
