@@ -976,6 +976,9 @@ module Pat = {
 
     /* Zipper */
 
+    | (_, ZOperand(zoperand, (E, E))) =>
+      syn_perform_operand(ctx, u_gen, a, zoperand)
+
     | (_, ZOperand(zoperand, (prefix, _) as surround)) =>
       let n = Seq.length_of_affix(prefix);
       switch (
@@ -1354,6 +1357,9 @@ module Pat = {
       }
 
     /* Zipper */
+    | (_, ZOperand(zoperand, (E, E))) =>
+      ana_perform_operand(ctx, u_gen, a, zoperand, ty)
+
     | (_, ZOperand(zoperand, (prefix, _) as surround)) =>
       let n = Seq.length_of_affix(prefix);
       switch (
