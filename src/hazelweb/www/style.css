@@ -1,4 +1,10 @@
-@import url('https://fonts.googleapis.com/css?family=Fira+Mono');
+/* fira-mono-regular - greek-ext_greek_cyrillic_cyrillic-ext_latin_latin-ext */
+@font-face {
+  font-family: 'Fira Mono';
+  font-style: normal;
+  font-weight: 400;
+  src: local('Fira Mono Regular'), local('FiraMono-Regular'), url('FiraMono-Regular.woff2') format('woff2');
+}
 
 :root {
   --opseq-hover-color: rgba(255, 195, 0, 0.20);
