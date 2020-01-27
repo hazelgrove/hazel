@@ -748,12 +748,16 @@ h1 {
   font-size: 14pt;
   line-height: var(--code-line-height);
 }
-.code.presentation * {
+.code.presentation .Term {
   display: inline-block;
   position: relative;
 }
 .code-delim {
   font-weight: bold;
+}
+.code.presentation .Term.NTuple,
+.code.presentation .Term.BinOp {
+  display: inline;
 }
 
 .code-container {
