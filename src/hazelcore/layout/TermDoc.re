@@ -480,48 +480,142 @@ module Typ = {
       ~inline_padding_of_operator,
     );
 
-  let rec mk_htyp =
-          (~steps: CursorPath.steps, ~enforce_inline: bool, ty: HTyp.t): t => {
+  let precedence_const = 0;
+  let precedence_Prod = 1;
+  let precedence_Sum = 2;
+  let precedence_Arrow = 3;
+  let precedence_ty = (ty: HTyp.t): int =>
     switch (ty) {
-    | Hole => mk_EmptyHole(~steps, "?")
-    | Unit => mk_Unit(~steps, ())
-    | Num => mk_Num(~steps, ())
-    | Bool => mk_Bool(~steps, ())
-    | List(ty) =>
-      Doc.hcats([
-        Text("["),
-        mk_htyp_child(~enforce_inline, ~steps, ~child_step=0, ty)
-        |> pad_open_child,
-        Text("]"),
-      ])
-    | Arrow(ty1, ty2)
-    | Prod(ty1, ty2)
-    | Sum(ty1, ty2) =>
-      let padded_op =
-        switch (ty) {
-        | Arrow(_) =>
+    | Num
+    | Bool
+    | Hole
+    | Unit
+    | List(_) => precedence_const
+    | Prod(_, _) => precedence_Prod
+    | Sum(_, _) => precedence_Sum
+    | Arrow(_, _) => precedence_Arrow
+    };
+
+  let rec mk_htyp =
+          (
+            ~parenthesize=false,
+            ~steps: CursorPath.steps,
+            ~enforce_inline: bool,
+            ty: HTyp.t,
+          )
+          : t => {
+    let doc =
+      switch (ty) {
+      | Hole => mk_EmptyHole(~steps, "?")
+      | Unit => mk_Unit(~steps, ())
+      | Num => mk_Num(~steps, ())
+      | Bool => mk_Bool(~steps, ())
+      | List(ty) =>
+        Doc.hcats([
+          DelimDoc.open_List(steps),
+          mk_htyp_child(
+            ~parenthesize=false,
+            ~enforce_inline,
+            ~steps,
+            ~child_step=0,
+            ty,
+          )
+          |> pad_open_child,
+          DelimDoc.close_List(steps),
+        ])
+      | Arrow(ty1, ty2) =>
+        let padded_op =
           Doc.(
             hcats([
               choices([Linebreak, space]),
               Text(LangUtil.typeArrowSym ++ " "),
             ])
-          )
-        | Prod(_) => Doc.(hcats([Text(","), choices([Linebreak, space])]))
-        | _sum => Doc.(hcats([choices([Linebreak, space]), Text("| ")]))
-        };
-      Doc.hcats([
-        mk_htyp_child(~enforce_inline, ~steps, ~child_step=0, ty1)
-        |> pad_open_child,
-        padded_op,
-        mk_htyp_child(~enforce_inline, ~steps, ~child_step=1, ty2)
-        |> pad_open_child,
-      ]);
-    };
+          );
+        let ty1_doc =
+          ty1
+          |> mk_htyp_child(
+               ~parenthesize=precedence_ty(ty1) >= precedence_Arrow,
+               ~enforce_inline,
+               ~steps,
+               ~child_step=0,
+             )
+          |> pad_open_child;
+        let ty2_doc =
+          ty2
+          |> mk_htyp_child(
+               ~parenthesize=precedence_ty(ty2) > precedence_Arrow,
+               ~enforce_inline,
+               ~steps,
+               ~child_step=1,
+             )
+          |> pad_open_child;
+        Doc.hcats([ty1_doc, padded_op, ty2_doc]);
+      | Prod(ty1, ty2) =>
+        let padded_op =
+          Doc.(hcats([Text(","), choices([Linebreak, space])]));
+        let ty1_doc =
+          ty1
+          |> mk_htyp_child(
+               ~parenthesize=precedence_ty(ty1) >= precedence_Prod,
+               ~enforce_inline,
+               ~steps,
+               ~child_step=0,
+             )
+          |> pad_open_child;
+        let ty2_doc =
+          ty2
+          |> mk_htyp_child(
+               ~parenthesize=precedence_ty(ty2) > precedence_Prod,
+               ~enforce_inline,
+               ~steps,
+               ~child_step=1,
+             )
+          |> pad_open_child;
+        Doc.hcats([ty1_doc, padded_op, ty2_doc]);
+      | Sum(ty1, ty2) =>
+        let padded_op =
+          Doc.(hcats([choices([Linebreak, space]), Text("| ")]));
+        let ty1_doc =
+          ty1
+          |> mk_htyp_child(
+               ~parenthesize=precedence_ty(ty1) >= precedence_Sum,
+               ~enforce_inline,
+               ~steps,
+               ~child_step=0,
+             )
+          |> pad_open_child;
+        let ty2_doc =
+          ty2
+          |> mk_htyp_child(
+               ~parenthesize=precedence_ty(ty2) > precedence_Sum,
+               ~enforce_inline,
+               ~steps,
+               ~child_step=1,
+             )
+          |> pad_open_child;
+        Doc.hcats([ty1_doc, padded_op, ty2_doc]);
+      };
+    // TODO No concept of steps for display parentheses.
+    // Currently doesn't matter, but will need to address
+    // if steps ever matter here.
+    parenthesize
+      ? Doc.hcats([
+          DelimDoc.open_Parenthesized(steps),
+          doc,
+          DelimDoc.close_Parenthesized(steps),
+        ])
+      : doc;
   }
   and mk_htyp_child =
-      (~enforce_inline, ~steps, ~child_step, ty): formatted_child => {
+      (~parenthesize, ~enforce_inline, ~steps, ~child_step, ty)
+      : formatted_child => {
     let formattable = (~enforce_inline: bool) =>
-      mk_htyp(~steps=steps @ [child_step], ~enforce_inline, ty)
+      mk_htyp(
+        ~parenthesize,
+        ~steps=steps @ [child_step],
+        ~enforce_inline,
+        ty,
+      )
       |> tag_Step(child_step);
     enforce_inline
       ? EnforcedInline(formattable(~enforce_inline=true))
