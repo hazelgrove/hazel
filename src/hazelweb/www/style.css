@@ -903,6 +903,7 @@ h1 {
   border-radius: var(--code-radius) 0 var(--code-radius) var(--code-radius);
 }
 .Cursor.Term.has-Inline-OpenChild.Rule::before {
+  top: calc(100% - (var(--child-border-thickness) / 2));
   border-radius: 0 var(--code-radius) var(--code-radius) var(--code-radius);
 }
 
