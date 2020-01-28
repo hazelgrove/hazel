@@ -748,16 +748,23 @@ h1 {
   font-size: 14pt;
   line-height: var(--code-line-height);
 }
-.code.presentation .Term {
-  display: inline-block;
+.code.presentation * {
   position: relative;
 }
-.code-delim {
-  font-weight: bold;
+.code.presentation .Term.Rule,
+.code.presentation .Term.Case,
+.code.presentation .Term.Operand,
+.code.presentation .Term.SubBlock,
+.code.presentation .LetLine,
+.code.presentation .DelimGroup {
+  display: inline-block;
 }
 .code.presentation .Term.NTuple,
 .code.presentation .Term.BinOp {
   display: inline;
+}
+.code-delim {
+  font-weight: bold;
 }
 
 .code-container {
@@ -881,6 +888,13 @@ h1 {
 .Cursor.Term.BinOp::before,
 .Cursor.Term.NTuple::before {
   border-radius: var(--code-radius);
+  /* TODO Fix magic number. These elements
+   * have display:inline which causes them
+   * to have smaller heights than
+   * display:inline-block. Need to figure
+   * out cleaner solution, this is stopgap
+   * in the meantime. */
+  top: calc(100% - 1px);
 }
 .Cursor.Term.has-Para-OpenChild::before {
   top: 0;
