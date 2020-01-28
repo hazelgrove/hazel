@@ -15,7 +15,6 @@ let nondisplay2 = "​​";
 let nondisplay3 = "​​​";
 let nondisplay4 = "​​​​";
 
-let nbsp1 = " ";
-let nbsp2 = "  ";
+let nbsp = " ";
 
 let user_newline = "↵";
