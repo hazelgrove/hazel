@@ -24,22 +24,6 @@ let rec seq_length =
   | ExpOpExp(_, _, _) => 2
   | SeqOpExp(seq', _, _) => 1 + seq_length(seq');
 
-let rec contain_op = (seq: opseq('tm, 'op), op: 'op): bool =>
-  switch (seq) {
-  | ExpOpExp(_, op1, _) =>
-    if (op1 == op) {
-      true;
-    } else {
-      false;
-    }
-  | SeqOpExp(seq', op1, _) =>
-    if (op1 == op) {
-      true;
-    } else {
-      contain_op(seq', op);
-    }
-  };
-
 /* nth expression in seq, if it exists */
 let rec nth_tm = (n, seq) =>
   switch (n, seq) {
