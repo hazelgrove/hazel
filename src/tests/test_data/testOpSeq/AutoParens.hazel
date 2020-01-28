@@ -1,9 +1,0 @@
-let v = {} in
-v : num +
-  let x = v in
-  v +
-    lambda y.
-           v +
-             case v
-             L(l) => l
-             R(r) => r
