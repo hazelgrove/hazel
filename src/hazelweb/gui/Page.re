@@ -152,7 +152,6 @@ let page_view =
       | Some(l) => l
       }
     );
-  //let layout = Layout.remove_tags(layout);
   let box = lazy(BoxOfLayout.box_of_layout(Lazy.force(layout)));
   Vdom.(
     Node.div(

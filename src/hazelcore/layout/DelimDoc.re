@@ -1,17 +1,19 @@
 open ViewUtil;
 
-type doc = Doc.t(TermTag.t);
+type doc = Doc.t(TermAnnot.t);
 
 let mk =
     (~caret: option(Side.t)=?, ~path: delim_path, delim_text: string): doc =>
-  Doc.Text(delim_text) |> Doc.tag(TermTag.mk_Delim(~caret?, ~path, ()));
+  Doc.Text(delim_text) |> Doc.annot(TermAnnot.mk_Delim(~caret?, ~path, ()));
 
 let empty_hole_doc =
     (~caret: option(Side.t)=?, ~steps: CursorPath.steps, hole_lbl: string)
     : doc =>
   Doc.Text(hole_lbl)
-  |> Doc.tag(TermTag.HoleLabel({len: hole_lbl |> StringUtil.utf8_length}))
-  |> Doc.tag(TermTag.mk_Delim(~caret?, ~path=(steps, 0), ()));
+  |> Doc.annot(
+       TermAnnot.HoleLabel({len: hole_lbl |> StringUtil.utf8_length}),
+     )
+  |> Doc.annot(TermAnnot.mk_Delim(~caret?, ~path=(steps, 0), ()));
 
 let open_List = (~caret=?, steps) => mk(~caret?, ~path=(steps, 0), "[");
 let close_List = (~caret=?, steps) => mk(~caret?, ~path=(steps, 1), "]");
