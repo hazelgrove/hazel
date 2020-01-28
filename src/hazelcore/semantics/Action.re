@@ -2543,6 +2543,26 @@ module Exp = {
       );
       mk_result(u_gen, new_zblock);
 
+    | (
+        Construct(SChar(s)),
+        CursorL(OnText(j), CommentLine(comment) as line),
+      )
+    | (
+        Construct(SChar(s)),
+        CursorL(OnText(j), SubCommentLine(comment) as line),
+      ) =>
+      let new_zblock = {
+        let new_comment = comment |> StringUtil.insert(j, s);
+        let new_line: UHExp.line =
+          switch (line) {
+          | CommentLine(_) => CommentLine(new_comment)
+          | _sub_comment_line => SubCommentLine(new_comment)
+          };
+        ([], ZExp.CursorL(OnText(j + 1), new_line), []);
+      };
+      mk_result(u_gen, new_zblock);
+    | (Construct(SChar(_)), CursorL(_)) => Failed
+
     | (Construct(SLine), _) when zline |> ZExp.is_before_zline =>
       let new_zblock = ([UHExp.EmptyLine], zline, []);
       mk_result(u_gen, new_zblock);
