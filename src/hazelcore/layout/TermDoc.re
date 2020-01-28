@@ -806,7 +806,8 @@ module Exp = {
   and mk_line = (~steps: CursorPath.steps, line: UHExp.line): t =>
     switch (line) {
     | EmptyLine =>
-      mk_text(~steps, LangUtil.nondisplay1) |> Doc.annot(TermAnnot.EmptyLine)
+      // TODO: Once we figure out content-editable cursors, use `mk_text(~steps, "")`
+      mk_text(~steps, LangUtil.zwsp) |> Doc.annot(TermAnnot.EmptyLine)
     | ExpLine(opseq) => mk_opseq(~steps, ~enforce_inline=false, opseq)
     | LetLine(p, ann, def) =>
       let p = Pat.mk_child(~enforce_inline=false, ~steps, ~child_step=0, p);

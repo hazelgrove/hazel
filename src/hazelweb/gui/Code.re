@@ -114,7 +114,8 @@ let contenteditable_of_layout = (~inject, l: TermLayout.t): Vdom.Node.t => {
   let caret_position = (path: CursorPath.t): Node.t =>
     Node.span(
       [Attr.id(path_id(path))],
-      [Node.text(LangUtil.nondisplay1)],
+      // TODO: Once we figure out content-editable cursor use `Node.text("")`
+      [Node.text(LangUtil.zwsp)],
     );
   let record: Layout.text(annot, list(Node.t), Node.t) = {
     /* All DOM text nodes are expected to be wrapped in an
