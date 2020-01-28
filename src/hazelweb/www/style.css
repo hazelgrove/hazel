@@ -157,7 +157,7 @@ html, body {
 /* sidebars */
 
 .collapsible-sidebar {
-  width: 350px;
+  width: 400px;
   flex-shrink: 0;
   transition: width 0.3s ease;
   overflow-x: auto;
@@ -765,6 +765,10 @@ h1 {
 }
 .code-delim {
   font-weight: bold;
+}
+
+.static-info .code {
+  display: inline;
 }
 
 .code-container {
