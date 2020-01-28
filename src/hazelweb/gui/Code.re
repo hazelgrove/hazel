@@ -168,7 +168,7 @@ let contenteditable_of_layout = (~inject, l: TermLayout.t): Vdom.Node.t => {
         [contenteditable_false],
         [
           Node.text(
-            String.concat("", ListUtil.replicate(indent, LangUtil.nbsp1)),
+            String.concat("", ListUtil.replicate(indent, LangUtil.nbsp)),
           ),
         ],
       ),
