@@ -12,7 +12,8 @@ type t('tag) =
   | Choice(t('tag), t('tag));
 
 let empty = Text("");
-let space = Text(" ");
+let space = Text(LangUtil.nbsp1);
+let indent = Text(LangUtil.nbsp2);
 
 let align = doc => Align(doc);
 let tag = (tag, doc) => Tagged(tag, doc);
@@ -32,7 +33,7 @@ let hseps: list(t('tag)) => t('tag) =
 let vsep = (x, y) => Cat(x, Cat(Linebreak, y));
 let vseps: list(t('tag)) => t('tag) =
   fun
-  | [] => failwith(__LOC__ ++ ": vcats requires a non-empty list")
+  | [] => failwith(__LOC__ ++ ": vseps requires a non-empty list")
   | [doc] => doc
   | [doc, ...docs] => List.fold_left(vsep, doc, docs);
 

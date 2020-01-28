@@ -154,7 +154,7 @@ and layout_of_doc'': Doc.t(unit) => m(Layout.t(unit)) =
       let ret: m(Layout.t(unit)) = {
         switch (doc) {
         | Text(string) =>
-          let%bind () = modify_position(String.length(string));
+          let%bind () = modify_position(StringUtil.utf8_length(string));
           return(Layout.Text(string));
         | Cat(d1, d2) =>
           let%bind l1 = layout_of_doc'(d1);
@@ -184,11 +184,7 @@ and layout_of_doc'': Doc.t(unit) => m(Layout.t(unit)) =
         | Choice(d1, d2) => union(layout_of_doc'(d1), layout_of_doc'(d2))
         };
       };
-      // TODO: remove mapi
-      PosMap.mapi(
-        (_end_pos, (cost, layout)) => (cost, layout),
-        ret(~width, ~pos),
-      );
+      ret(~width, ~pos);
     };
     let h = StrongWidthPosKey.make(g);
     (~width, ~pos) => h((width, pos));
