@@ -6,7 +6,7 @@ type operator =
 
 let string_of_operator =
   fun
-  | Arrow => LangUtil.typeArrowSym
+  | Arrow => UnicodeConstants.typeArrowSym
   | Prod => ","
   | Sum => "|";
 

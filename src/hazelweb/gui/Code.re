@@ -115,7 +115,7 @@ let contenteditable_of_layout = (~inject, l: TermLayout.t): Vdom.Node.t => {
     Node.span(
       [Attr.id(path_id(path))],
       // TODO: Once we figure out content-editable cursor use `Node.text("")`
-      [Node.text(LangUtil.zwsp)],
+      [Node.text(UnicodeConstants.zwsp)],
     );
   let record: Layout.text(annot, list(Node.t), Node.t) = {
     /* All DOM text nodes are expected to be wrapped in an
@@ -169,7 +169,10 @@ let contenteditable_of_layout = (~inject, l: TermLayout.t): Vdom.Node.t => {
         [contenteditable_false],
         [
           Node.text(
-            String.concat("", ListUtil.replicate(indent, LangUtil.nbsp)),
+            String.concat(
+              "",
+              ListUtil.replicate(indent, UnicodeConstants.nbsp),
+            ),
           ),
         ],
       ),
