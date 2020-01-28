@@ -1,36 +1,52 @@
-@import url('https://fonts.googleapis.com/css?family=Fira+Mono');
+/* fira-mono-regular - greek-ext_greek_cyrillic_cyrillic-ext_latin_latin-ext */
+@font-face {
+  font-family: 'Fira Mono';
+  font-style: normal;
+  font-weight: 400;
+  src: local('Fira Mono Regular'), local('FiraMono-Regular'), url('FiraMono-Regular.woff2') format('woff2');
+}
 
 :root {
   --opseq-hover-color: rgba(255, 195, 0, 0.20);
   --empty-hole-color: #a040a0;
-  --nonempty-hole-color: red;
   --title-bar-color: #073f24;
-  --delim-cushion: 8px;
-  --indent-length: 24px;
-  --space-length: 8px;
-  --node-indicator-z-index: -10;
-  --child-indicator-z-index: -5;
-  --term-indicator-z-index: -4;
-  --hole-indicator-z-index: -3;
-  --shift-indicator-z-index: -2;
-  --code-z-index: 0;
-  --node-indicator-normal-color: rgb(230, 255, 230);
-  --node-indicator-staging-color: #e4faff;
-  --child-indicator-normal-color: white;
-  --child-indicator-staging-color: #fcffda;
-  --term-indicator-color: #678a61;
-  --term-indicator-corner-size: 3px;
-  --shifting-indicator-color: rgb(102, 163, 198);
   --page-padding: 15px;
+
+  --code-line-height: 1.5;
+  --closed-child-line-height: 1.25;
+
+  --err-hole-color: red;
+  --verr-hole-color: #ce5f00;
+
+  --default-code-bg-color: transparent;
+  --caret-color: red;
+
+  --exp-bg-color: rgb(197, 253, 197);
+  --exp-shadow-color: rgb(135, 204, 135);
+
+  --pat-bg-color: #baf1fe;
+  --pat-shadow-color: rgb(130, 176, 202);
+  --pat-bright-shadow-color: rgb(117, 187, 228);
+
+  --typ-bg-color: rgb(233, 221, 253);
+  --typ-shadow-color: rgb(173, 154, 202);
+  --typ-bright-shadow-color: rgb(192, 159, 241);
+
+  --code-radius: 4px;
+  --child-border-thickness: 4px;
+  --code-shadow-thickness: 1.5px;
+
+  /* necessary for hiding portions of box shadows */
+  --para-border-z: 1;
+  --delim-group-z: 2;
+  --inline-border-z: 3;
+  --child-z: 4;
+  --caret-z: 5;
 }
 
 /* general */
 div {
   box-sizing: border-box;
-}
-
-div.inline-div {
-  display: inline;
 }
 
 .noselect {
@@ -141,7 +157,7 @@ html, body {
 /* sidebars */
 
 .collapsible-sidebar {
-  width: 350px;
+  width: 400px;
   flex-shrink: 0;
   transition: width 0.3s ease;
   overflow-x: auto;
@@ -712,31 +728,9 @@ h1 {
   display: inline-block;
 }
 
-.ModelExp {
-  margin-top: 20px;
-  background-color: white;
-}
-
-.ModelExp :focus {
-  outline: 0px;
-}
-
-.ModelType {
-  font-size: large;
-  width:100%
-}
-
 .typeLbl {
   font-weight: bold;
   font-size: 12pt;
-}
-
-#num_input_id{
-  width:70%;
-}
-
-button:disabled {
-
 }
 
 .HZElem{
@@ -747,25 +741,365 @@ button:disabled {
   float: left;
 }
 
-.Model{
-  float:left;
-}
-
-.input-group{
-  margin-bottom: 10px;
-}
-
 .code {
   font-family: "Fira Mono", monospace;
+  // TODO probably unnecessary if we commit to nbsp
+  white-space: pre;
+  font-size: 14pt;
+  line-height: var(--code-line-height);
 }
-
-.code.op {
-  font-size: 125%;
+.code.presentation * {
+  position: relative;
 }
-
-.SDelim-txt {
+.code.presentation .Term.Rule,
+.code.presentation .Term.Case,
+.code.presentation .Term.Operand,
+.code.presentation .Term.SubBlock,
+.code.presentation .LetLine,
+.code.presentation .DelimGroup {
+  display: inline-block;
+}
+.code.presentation .Term.NTuple,
+.code.presentation .Term.BinOp {
+  display: inline;
+}
+.code-delim {
   font-weight: bold;
 }
+
+.static-info .code {
+  display: inline;
+}
+
+.code-container {
+  position: relative;
+}
+.code.contenteditable {
+  /* TODO consolidate #contenteditable vs .contenteditable */
+  position: fixed;
+  top: 0;
+  left: 100%;
+  padding: 10px;
+  color: transparent;
+}
+.code.contenteditable:focus {
+  outline: 0px;
+}
+
+/* https://codepen.io/ArtemGordinsky/pen/GnLBq */
+#caret {
+  z-index: var(--caret-z);
+  position: absolute;
+  display: inline-block;
+  font-weight: 100;
+  margin: calc(0.1 * var(--code-line-height) * 1em) 0;
+  height: calc(0.8 * var(--code-line-height) * 1em);
+  width: 2px;
+  -webkit-animation: 1s blink step-end infinite;
+  -moz-animation: 1s blink step-end infinite;
+  -ms-animation: 1s blink step-end infinite;
+  -o-animation: 1s blink step-end infinite;
+  animation: 1s blink step-end infinite;
+}
+@keyframes "blink" {
+  from, to {
+    background-color: var(--caret-color);
+  }
+  50% {
+    background-color: transparent;
+  }
+}
+@-moz-keyframes blink {
+  from, to {
+    background-color: var(--caret-color);
+  }
+  50% {
+    background-color: transparent;
+  }
+}
+@-webkit-keyframes "blink" {
+  from, to {
+    background-color: var(--caret-color);
+  }
+  50% {
+    background-color: transparent;
+  }
+}
+@-ms-keyframes "blink" {
+  from, to {
+    background-color: var(--caret-color);
+  }
+  50% {
+    background-color: transparent;
+  }
+}
+@-o-keyframes "blink" {
+  from, to {
+    background-color: var(--caret-color);
+  }
+  50% {
+    background-color: transparent;
+  }
+}
+
+/*
+.code {
+  box-sizing: border-box;
+}
+*/
+
+.InHole {
+  border: 1px dashed var(--err-hole-color);
+  margin: -1px;
+}
+.InVarHole {
+  border: 1px dashed var(--verr-hole-color);
+  margin: -1px;
+}
+
+.OpenChild.Para {
+  display: inline-flex;
+  flex-direction: row;
+  align-items: stretch;
+}
+
+.Cursor.Term::before {
+  /* set by each term family */
+  --bg-color: transparent;
+  --shadow-color: transparent;
+  content: "";
+  position: absolute;
+  background-color: var(--bg-color);
+  box-shadow: var(--code-shadow-thickness) var(--code-shadow-thickness) 0px 0px var(--shadow-color);
+}
+.Cursor.Term.has-Inline-OpenChild.Case::before,
+.Cursor.Term.has-Para-OpenChild.Case::before {
+  top: 0;
+  left: calc(-1 * var(--child-border-thickness));
+  height: 100%;
+  width: var(--child-border-thickness);
+  border-radius: var(--code-radius) 0 0 var(--code-radius);
+  z-index: var(--para-border-z);
+}
+.Cursor.Term.has-Inline-OpenChild::before {
+  top: calc(100% - var(--child-border-thickness));
+  left: 0;
+  height: var(--child-border-thickness);
+  width: 100%;
+  border-radius: 0 0 var(--code-radius) var(--code-radius);
+  z-index: var(--inline-border-z);
+}
+.Cursor.Term.BinOp::before,
+.Cursor.Term.NTuple::before {
+  border-radius: var(--code-radius);
+  /* TODO Fix magic number. These elements
+   * have display:inline which causes them
+   * to have smaller heights than
+   * display:inline-block. Need to figure
+   * out cleaner solution, this is stopgap
+   * in the meantime. */
+  top: calc(100% - 1px);
+}
+.Cursor.Term.has-Para-OpenChild::before {
+  top: 0;
+  left: calc(-1 * var(--child-border-thickness));
+  height: 100%;
+  width: var(--child-border-thickness);
+  border-radius: var(--code-radius) 0 0 var(--code-radius);
+  z-index: var(--para-border-z);
+}
+.Cursor.Term.SubBlock.has-Para-OpenChild::before,
+.Cursor.Term.SubBlock.has-Inline-OpenChild::before {
+  top: 0;
+  left: calc(-1 * var(--child-border-thickness));
+  height: 100%;
+  width: var(--child-border-thickness);
+  z-index: var(--para-border-z);
+  border-radius: var(--code-radius) 0 var(--code-radius) var(--code-radius);
+}
+.Cursor.Term.has-Para-OpenChild.Rule::before {
+  border-radius: var(--code-radius) 0 var(--code-radius) var(--code-radius);
+}
+.Cursor.Term.has-Inline-OpenChild.Rule::before {
+  top: calc(100% - (var(--child-border-thickness) / 2));
+  border-radius: 0 var(--code-radius) var(--code-radius) var(--code-radius);
+}
+
+.Cursor.Term.SubBlock .LetLine::before {
+  content: "";
+  position: absolute;
+  background-color: var(--exp-bg-color);
+  box-shadow: var(--code-shadow-thickness) var(--code-shadow-thickness) 0px 0px var(--exp-shadow-color);
+}
+.Cursor.Term.SubBlock.has-Inline-OpenChild .LetLine::before {
+  top: calc(100% - (var(--child-border-thickness) / 2));
+  left: 0;
+  height: var(--child-border-thickness);
+  width: 100%;
+  border-radius: 0 0 var(--code-radius) 0;
+  z-index: var(--inline-border-z);
+}
+.Cursor.Term.SubBlock.has-Para-OpenChild .LetLine::before {
+  top: 0;
+  left: calc(-1 * var(--child-border-thickness));
+  height: 100%;
+  width: var(--child-border-thickness);
+  border-radius: var(--code-radius) 0 0 var(--code-radius);
+  z-index: var(--para-border-z);
+}
+.Cursor.Term.SubBlock .Term .LetLine::before {
+  all: unset;
+}
+
+.Cursor.Term.SubBlock.has-Inline-OpenChild .LetLine > .DelimGroup:first-child {
+  border-radius: 0 var(--code-radius) 0 0;
+}
+.Cursor.Term.SubBlock.has-Inline-OpenChild .LetLine > .DelimGroup:last-child {
+  border-radius: var(--code-radius) var(--code-radius) 0 0;
+}
+
+.Cursor.Term.Rule.has-Para-OpenChild > .DelimGroup {
+  border-radius: 0 var(--code-radius) var(--code-radius) 0;
+}
+
+.Cursor.Term.Exp::before {
+  --bg-color: var(--exp-bg-color);
+  --shadow-color: var(--exp-shadow-color);
+}
+.Cursor.Term.Pat::before {
+  --bg-color: var(--pat-bg-color);
+  --shadow-color: var(--pat-shadow-color);
+}
+.Cursor.Term.Typ::before {
+  --bg-color: var(--typ-bg-color);
+  --shadow-color: var(--typ-shadow-color);
+}
+
+.Term {
+  border-radius: var(--code-radius);
+}
+
+.Cursor.Term.Exp.Operand.no-children {
+  background-color: var(--exp-bg-color);
+  box-shadow: var(--code-shadow-thickness) var(--code-shadow-thickness) 0px 0px var(--exp-shadow-color);
+}
+.Cursor.Term.Pat.Operand.no-children {
+  background-color: var(--pat-bg-color);
+  box-shadow: var(--code-shadow-thickness) var(--code-shadow-thickness) 0px 0px var(--pat-shadow-color);
+}
+.Cursor.Term.Typ.Operand.no-children {
+  background-color: var(--typ-bg-color);
+  box-shadow: var(--code-shadow-thickness) var(--code-shadow-thickness) 0px 0px var(--typ-shadow-color);
+}
+/*
+.Cursor.Term.Operand.no-children {
+  top: calc(-1 * var(--code-shadow-thickness));
+  left: calc(-1 * var(--code-shadow-thickness));
+}
+*/
+
+.Var.show-use {
+  background-color: rgba(175, 175, 175, 0.3);
+}
+
+.Cursor .DelimGroup {
+  /* set by each term family */
+  --bg-color: transparent;
+  --shadow-color: transparent;
+  background-color: var(--bg-color);
+  box-shadow: var(--code-shadow-thickness) var(--code-shadow-thickness) 0px 0px var(--shadow-color);
+  z-index: var(--delim-group-z);
+  /*
+  top: calc(-1 * var(--code-shadow-thickness));
+  left: calc(-1 * var(--code-shadow-thickness));
+  */
+}
+.Cursor.Term.has-Inline-OpenChild .DelimGroup {
+  border-radius: var(--code-radius);
+}
+.Cursor.Term.has-Para-OpenChild .DelimGroup {
+  border-radius: 0 var(--code-radius) var(--code-radius) 0;
+}
+.Cursor.Term.Case .DelimGroup {
+  border-radius: 0 var(--code-radius) var(--code-radius) 0;
+}
+.Cursor.Term.Rule .DelimGroup {
+  border-radius: var(--code-radius);
+}
+.Cursor .Term .DelimGroup {
+  background-color: var(--default-code-bg-color);
+  box-shadow: none;
+  z-index: auto;
+  border-radius: none;
+  /*
+  top: 0;
+  left: 0;
+  */
+}
+
+.Cursor.Exp .DelimGroup {
+  --bg-color: var(--exp-bg-color);
+
+  --shadow-color: var(--exp-shadow-color);
+}
+.Cursor.Pat .DelimGroup {
+  --bg-color: var(--pat-bg-color);
+  --shadow-color: var(--pat-shadow-color);
+}
+.Cursor.Typ .DelimGroup {
+  --bg-color: var(--typ-bg-color);
+  --shadow-color: var(--typ-shadow-color);
+}
+
+.Cursor.Term .Term {
+  z-index: var(--child-z);
+}
+.Cursor.Term.Exp .Term.Pat,
+.Cursor.Term.Exp .Term.Typ {
+  line-height: var(--closed-child-line-height);
+}
+.Cursor.Term .Term .Term {
+  z-index: auto;
+  line-height: var(--code-line-height);
+}
+
+.Cursor.Term.Exp .Term.Pat {
+  background-color: white; /*var(--pat-bg-color);*/
+  box-shadow: inset 1px 1px 0.5px 0.5px var(--pat-bright-shadow-color);
+}
+.Cursor.Term.Exp .Term .Term.Pat {
+  background-color: var(--default-code-bg-color);
+  box-shadow: none;
+}
+/*
+.Cursor.Term.Exp .Term.Pat > * {
+  top: var(--code-shadow-thickness);
+  left: var(--code-shadow-thickness);
+}
+.Cursor.Term.Exp .Term .Term.Pat > * {
+  top: 0px;
+  left: 0px;
+}
+*/
+
+.Cursor.Term.Exp .Term.Typ {
+  background-color: white; /*var(--typ-bg-color);*/
+  box-shadow: inset 1px 1px 0.5px 0.5px var(--typ-bright-shadow-color);
+}
+.Cursor.Term.Exp .Term .Term.Typ {
+  background-color: var(--default-code-bg-color);
+  box-shadow: none;
+}
+/*
+.Cursor.Term.Exp .Term.Typ > * {
+  top: var(--code-shadow-thickness);
+  left: var(--code-shadow-thickness);
+}
+.Cursor.Term.Exp .Term .Term.Typ > * {
+  top: 0px;
+  left: 0px;
+}
+*/
 
 .SDelim-before,
 .SDelim-after,
@@ -777,101 +1111,18 @@ button:disabled {
   padding-left: 1px;
 }
 
-/*
-#pp_view {
-  overflow-x: auto;
-}
-*/
-
 #cell {
   opacity: 0.99;
-  background-color: transparent;
+  /*background-color: transparent;*/
   position: relative;
   width: auto;
+  margin-top: 20px;
+  background-color: white;
+  padding: 10px;
+  border: 2px solid #CCC;
 }
-
-#cell .SNode {
-  position: relative;
-  z-index: var(--code-z-index);
-  background-color: transparent;
-}
-.SNode * {
-  position: relative;
-  background-color: transparent;
-  z-index: var(--code-z-index);
-}
-
-.SNode {
-  font-family: "Fira Mono", monospace;
-  width: max-content;
-}
-.indentation, .SSpaceOp {
-  white-space: pre;
-}
-
-.term-indicator {
-  position: absolute;
-  z-index: var(--term-indicator-z-index);
-  border-top: 1px solid var(--term-indicator-color);
-  border-bottom: 1px solid var(--term-indicator-color);
-  font-family: "Fira Mono", monospace;
-  font-size: 20px;
-}
-.term-indicator-first::before {
-  display: block;
-  position: absolute;
-  top: 0;
-  left: 0;
-  content: "";
-  width: 0;
-  height: 0;
-  border-left: var(--term-indicator-corner-size) solid var(--term-indicator-color);
-  border-top: var(--term-indicator-corner-size) solid var(--term-indicator-color);
-  border-right: var(--term-indicator-corner-size) solid transparent;
-  border-bottom: var(--term-indicator-corner-size) solid transparent;
-  background-color: transparent;
-}
-.term-indicator-last::after {
-  display: block;
-  position: absolute;
-  top: calc(100% - 2 * var(--term-indicator-corner-size));
-  left: calc(100% - 2 * var(--term-indicator-corner-size));
-  content: "";
-  width: 0;
-  height: 0;
-  border-left: var(--term-indicator-corner-size) solid transparent;
-  border-top: var(--term-indicator-corner-size) solid transparent;
-  border-right: var(--term-indicator-corner-size) solid var(--term-indicator-color);
-  border-bottom: var(--term-indicator-corner-size) solid var(--term-indicator-color);
-  background-color: transparent;
-}
-.node-indicator {
-  position: absolute;
-  z-index: var(--node-indicator-z-index);
-  font-family: "Fira Mono", monospace;
-  font-size: 20px;
-}
-.node-indicator.normal {
-  background-color: var(--node-indicator-normal-color);
-}
-.node-indicator.staging {
-  background-color: var(--node-indicator-staging-color);
-}
-.child-indicator {
-  position: absolute;
-  z-index: var(--child-indicator-z-index);
-  font-family: "Fira Mono", monospace;
-  font-size: 20px;
-}
-.child-indicator.normal {
-  background-color: var(--child-indicator-normal-color);
-}
-.child-indicator.staging {
-  background-color: var(--child-indicator-staging-color);
-}
-
-#cell .SNode.var-pat-usage {
-  background-color: rgba(175, 175, 175, 0.3);
+#cell:focus {
+  outline: 0px;
 }
 
 .hole-indicator, .skel-hole-indicator, .ap-hole-indicator {
@@ -904,60 +1155,6 @@ button:disabled {
   border-right: 1px dashed var(--nonempty-hole-color);
 }
 
-.current-shifting-delim-indicator {
-  position: absolute;
-  z-index: var(--shift-indicator-z-index);
-}
-
-.empty-hole-conclusion-mask {
-  position: absolute;
-  z-index: var(--child-indicator-z-index);
-  background: white;
-}
-
-.current-horizontal-shift-target,
-.current-vertical-shift-target, .horizontal-shift-target-in-subject,
-.vertical-shift-target-in-subject, .vertical-shift-target-in-frame,
-.horizontal-shift-target-in-frame,
-.horizontal-shift-rail,
-.vertical-shift-rail {
-  position: absolute;
-  z-index: var(--shift-indicator-z-index);
-  background-color: var(--shifting-indicator-color);
-}
-
-.term-indicator.inactive,
-.node-indicator.inactive,
-.child-indicator.inactive,
-.current-shifting-delim-indicator.inactive,
-.current-horizontal-shift-target.inactive,
-.current-vertical-shift-target.inactive,
-.horizontal-shift-target-in-subject.inactive,
-.vertical-shift-target-in-subject.inactive,
-.vertical-shift-target-in-frame.inactive,
-.horizontal-shift-target-in-frame.inactive,
-.horizontal-shift-rail.inactive,
-.vertical-shift-rail.inactive {
-  display: none;
-}
-.term-indicator.active,
-.node-indicator.active,
-.child-indicator.active,
-.current-shifting-delim-indicator.active,
-.current-horizontal-shift-target.active,
-.current-vertical-shift-target.active,
-.horizontal-shift-target-in-subject.active,
-.vertical-shift-target-in-subject.active,
-.vertical-shift-target-in-frame.active,
-.horizontal-shift-target-in-frame.active,
-.horizontal-shift-rail.active,
-.vertical-shift-rail.active {
-  display: block;
-}
-
-.var {
-}
-
 .hole {
   color: var(--empty-hole-color);
 }
@@ -973,41 +1170,12 @@ button:disabled {
   border-top: 1px solid var(--opseq-hover-color);
 }
 
-.cursor {
-  /*background-color: var(--cursor-color);*/
-}
-.cursor.empty-line {
-  border: none;
-}
-
-.SIndentation {
-  white-space: pre;
-  background-color: rgba(0, 0, 0, 0);
-  margin-right: 2px;
-  margin-left: -2px;
-}
-
-.NonEmptyHole {
-  /* line-height: initial; */
-}
-
-.NonEmptyHoleTerm {
-  /* padding-bottom: 1px; */
-  /* margin-bottom: -1px; */
-  margin-right: 2px;
-  border: 1px dashed var(--nonempty-hole-color);
-}
-
 .in_err_hole {
   border: 1px dashed var(--nonempty-hole-color);
 }
 
 .in_err_hole > .in_err_hole {
   border: 0px !important;
-}
-
-.InVarHole {
-  border: 1px dashed #ce5f00;
 }
 
 .InVarHole.Keyword {
@@ -1076,6 +1244,12 @@ button:disabled {
   color: #BBB;
 }
 
+.UserNewline {
+  vertical-align: middle;
+  font-size: 60%;
+  color: #BBB;
+}
+
 .hide-hole-names .holeName {
   display: none !important;
 }
@@ -1107,30 +1281,6 @@ button:disabled {
   margin-right: 2px;
 }
 
-/* .EmptyHole {
-  -moz-user-select: all;
-  -webkit-user-select: all;
-  user-select: all;
-}
-
-.hole-before {
-  -moz-user-select: none;
-  -webkit-user-select: text;
-  user-select: none;
-}
-
-.hole-after {
-  -moz-user-select: none;
-  -webkit-user-select: text;
-  user-select: none;
-}
-
-.holeName {
-  -moz-user-select: none;
-  -webkit-user-select: text;
-  user-select: none;
-} */
-
 .SFailedCastArrow {
   color: red;
   font-weight: bold;
@@ -1139,12 +1289,6 @@ button:disabled {
 .FailedCast {
   background-color: rgba(255, 0, 0, 0.1);
 }
-
-/* .OpSeq:hover .skel-binop {
-  background-color: rgba(255, 195, 10, 0.20);
-} */
-
-/* .skel-binop:hover { */
 
 .elided {
   color: #AAA;
