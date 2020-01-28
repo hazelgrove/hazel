@@ -4,7 +4,7 @@ module Dom_html = Js_of_ocaml.Dom_html;
 module Vdom = Virtual_dom.Vdom;
 open ViewUtil;
 
-type tag = TermTag.t;
+type annot = TermAnnot.t;
 
 let contenteditable_false = Vdom.Attr.create("contenteditable", "false");
 
@@ -116,14 +116,14 @@ let contenteditable_of_layout = (~inject, l: TermLayout.t): Vdom.Node.t => {
       [Attr.id(path_id(path))],
       [Node.text(LangUtil.nondisplay1)],
     );
-  let record: Layout.text(tag, list(Node.t), Node.t) = {
+  let record: Layout.text(annot, list(Node.t), Node.t) = {
     /* All DOM text nodes are expected to be wrapped in an
      * element either with contenteditable set to false or
-     * tagged with the appropriate path-related metadata.
+     * annotated with the appropriate path-related metadata.
      * cf SelectionChange clause in Update.apply_action
      */
-    imp_of_tag: (tag, vs) =>
-      switch (tag) {
+    imp_of_annot: (annot, vs) =>
+      switch (annot) {
       | Delim({path: (steps, index), _}) =>
         let path_before: CursorPath.t = (steps, OnDelim(index, Before));
         let path_after: CursorPath.t = (steps, OnDelim(index, After));
@@ -235,50 +235,50 @@ let presentation_of_layout =
     | Align(l) => [Node.div([Attr.classes(["Align"])], go(l))]
 
     // TODO adjust width to num digits, use visibility none
-    | Tagged(HoleLabel(_), l) => [
+    | Annot(HoleLabel(_), l) => [
         Node.span([Attr.classes(["SEmptyHole-num"])], go(l)),
       ]
 
-    | Tagged(DelimGroup, l) => [
+    | Annot(DelimGroup, l) => [
         Node.span([Attr.classes(["DelimGroup"])], go(l)),
       ]
-    | Tagged(LetLine, l) => [
+    | Annot(LetLine, l) => [
         Node.span([Attr.classes(["LetLine"])], go(l)),
       ]
-    | Tagged(EmptyLine, l) => [
+    | Annot(EmptyLine, l) => [
         Node.span([Attr.classes(["EmptyLine"])], go(l)),
       ]
-    | Tagged(Padding, l) => [
+    | Annot(Padding, l) => [
         Node.span(
           [contenteditable_false, Attr.classes(["Padding"])],
           go(l),
         ),
       ]
-    | Tagged(Indent, l) => [
+    | Annot(Indent, l) => [
         Node.span(
           [contenteditable_false, Attr.classes(["Indent"])],
           go(l),
         ),
       ]
 
-    | Tagged(UserNewline, l) => [
+    | Annot(UserNewline, l) => [
         Node.span([Attr.classes(["UserNewline"])], go(l)),
       ]
 
-    | Tagged(OpenChild({is_inline}), l) => [
+    | Annot(OpenChild({is_inline}), l) => [
         Node.span(
           [Attr.classes(["OpenChild", is_inline ? "Inline" : "Para"])],
           go(l),
         ),
       ]
-    | Tagged(ClosedChild({is_inline}), l) => [
+    | Annot(ClosedChild({is_inline}), l) => [
         Node.span(
           [Attr.classes(["ClosedChild", is_inline ? "Inline" : "Para"])],
           go(l),
         ),
       ]
 
-    | Tagged(Delim({path: (steps, delim_index), caret}), l) =>
+    | Annot(Delim({path: (steps, delim_index), caret}), l) =>
       let attrs = {
         let path_before: CursorPath.t = (
           steps,
@@ -297,7 +297,7 @@ let presentation_of_layout =
         };
       [Node.span(attrs, children)];
 
-    | Tagged(Op({steps, caret}), l) =>
+    | Annot(Op({steps, caret}), l) =>
       let attrs = {
         let path_before: CursorPath.t = (steps, OnOp(Before));
         let path_after: CursorPath.t = (steps, OnOp(After));
@@ -313,9 +313,9 @@ let presentation_of_layout =
         };
       [Node.span(attrs, children)];
 
-    | Tagged(SpaceOp, l) => go(l)
+    | Annot(SpaceOp, l) => go(l)
 
-    | Tagged(Text({caret, length, steps}), l) =>
+    | Annot(Text({caret, length, steps}), l) =>
       let attrs = [
         Attr.on_click(on_click_text(steps, length)),
         Attr.classes(["code-text"]),
@@ -336,9 +336,9 @@ let presentation_of_layout =
         };
       [Node.span(attrs, children)];
 
-    | Tagged(Step(_), l) => go(l)
+    | Annot(Step(_), l) => go(l)
 
-    | Tagged(Term({has_cursor, shape, family}), l) => [
+    | Annot(Term({has_cursor, shape, family}), l) => [
         Node.span(
           [
             Attr.classes(
