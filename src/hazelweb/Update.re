@@ -4,7 +4,6 @@ module Dom_html = Js_of_ocaml.Dom_html;
 module EditAction = Action;
 module Sexp = Sexplib.Sexp;
 open Sexplib.Std;
-open GeneralUtil;
 open ViewUtil;
 
 module Action = {
@@ -17,16 +16,18 @@ module Action = {
     | LoadCardStack(int)
     | NextCard
     | PrevCard
-    | SetComputeResultsFlag(bool)
-    | SelectHoleInstance(MetaVar.t, Dynamics.inst_num)
+    | SetComputeResults(bool)
+    | SetShowContentEditable(bool)
+    | SetShowPresentation(bool)
+    | SelectHoleInstance(MetaVar.t, MetaVarInst.t)
     | InvalidVar(string)
     | MoveToHole(MetaVar.t)
     | SelectionChange
     | FocusCell
     | BlurCell
     | FocusWindow
-    | AddUserNewline(CursorPath.steps)
-    | RemoveUserNewline(CursorPath.steps);
+    | Redo
+    | Undo;
 };
 
 [@deriving sexp]
@@ -71,15 +72,17 @@ let log_action = (action: Action.t, _: State.t): unit => {
   | LoadCardStack(_)
   | NextCard
   | PrevCard
-  | SetComputeResultsFlag(_)
+  | SetComputeResults(_)
+  | SetShowContentEditable(_)
+  | SetShowPresentation(_)
   | SelectHoleInstance(_, _)
   | InvalidVar(_)
   | FocusCell
   | BlurCell
   | FocusWindow
-  | AddUserNewline(_)
-  | RemoveUserNewline(_)
-  | MoveToHole(_) =>
+  | MoveToHole(_)
+  | Undo
+  | Redo =>
     Logger.append(
       Sexp.to_string(
         sexp_of_timestamped_action(mk_timestamped_action(action)),
@@ -103,9 +106,6 @@ let apply_action =
     | exception Model.CursorEscaped =>
       JSUtil.log("[CursorEscaped]");
       model;
-    | exception Model.CantShift =>
-      JSUtil.log("[CantShift]");
-      model;
     | exception Model.MissingCursorInfo =>
       JSUtil.log("[MissingCursorInfo]");
       model;
@@ -126,15 +126,20 @@ let apply_action =
   | PrevCard =>
     state.changing_cards := true;
     Model.prev_card(model);
-  | SetComputeResultsFlag(compute_results_flag) => {
+  | SetComputeResults(compute_results) => {
       ...model,
-      compute_results_flag,
+      compute_results,
       result_state:
         Model.result_state_of_edit_state(
           Model.edit_state_of(model),
-          compute_results_flag,
+          compute_results,
         ),
     }
+  | SetShowContentEditable(show_content_editable) => {
+      ...model,
+      show_content_editable,
+    }
+  | SetShowPresentation(show_presentation) => {...model, show_presentation}
   | SelectHoleInstance(u, i) => Model.select_hole_instance(model, (u, i))
   | InvalidVar(_) => model
   | MoveToHole(u) => Model.move_to_hole(model, u)
@@ -144,144 +149,58 @@ let apply_action =
     JSUtil.reset_caret();
     model;
   | BlurCell => JSUtil.window_has_focus() ? model |> Model.blur_cell : model
-  | AddUserNewline(steps) => model |> Model.add_user_newline(steps)
-  | RemoveUserNewline(steps) => model |> Model.remove_user_newline(steps)
   | SelectionChange =>
-    let is_staging =
-      switch (model.cursor_info.position) {
-      | OnText(_)
-      | OnDelim(_, _) => false
-      | Staging(_) => true
-      };
-    if (!is_staging && ! state.setting_caret^) {
+    if (! state.setting_caret^) {
       let anchorNode = Dom_html.window##getSelection##.anchorNode;
       let anchorOffset = Dom_html.window##getSelection##.anchorOffset;
-      if (JSUtil.div_contains_node(
-            JSUtil.force_get_elem_by_id(cell_id),
-            anchorNode,
-          )) {
-        let closest_elem = JSUtil.force_get_closest_elem(anchorNode);
-        let has_cls = cls => closest_elem |> JSUtil.elem_has_cls(cls);
-        if (has_cls("unselectable")) {
-          let s =
-            Js.to_string(
-              Js.Opt.get(anchorNode##.nodeValue, () =>
-                raise(MalformedView(2))
-              ),
-            );
-          let attr =
-            anchorOffset <= (String.length(s) - 1) / 2
-              ? "path-before" : "path-after";
-          let ssexp =
-            closest_elem
-            |> JSUtil.get_attr(attr)
-            |> Opt.get(() => raise(MalformedView(3)));
-          let path = CursorPath.t_of_sexp(Sexp.of_string(ssexp));
-          schedule_action(Action.EditAction(MoveTo(path)));
-        } else if (has_cls(indentation_cls)) {
-          switch (
-            closest_elem |> JSUtil.get_attr("goto-path"),
-            closest_elem |> JSUtil.get_attr("goto-steps"),
-          ) {
-          | (None, None) => raise(MalformedView(4))
-          | (Some(ssexp), _) =>
-            let path = CursorPath.t_of_sexp(Sexp.of_string(ssexp));
-            schedule_action(Action.EditAction(MoveTo(path)));
-          | (_, Some(ssexp)) =>
-            let steps = CursorPath.steps_of_sexp(Sexp.of_string(ssexp));
-            schedule_action(Action.EditAction(MoveToBefore(steps)));
+      let closest_elem = JSUtil.force_get_closest_elem(anchorNode);
+      let id = closest_elem |> JSUtil.force_get_attr("id");
+      switch (path_of_path_id(id), steps_of_text_id(id)) {
+      | (None, None) => failwith(__LOC__ ++ ": unexpected caret position")
+      | (Some((_, cursor) as path), _) =>
+        if (path == Model.path(model)) {
+          switch (cursor) {
+          | OnText(_) => failwith(__LOC__ ++ ": unexpected cursor")
+          | OnOp(Before)
+          | OnDelim(_, Before) =>
+            schedule_action(Action.EditAction(MoveLeft))
+          | OnOp(After)
+          | OnDelim(_, After) =>
+            schedule_action(Action.EditAction(MoveRight))
           };
-        } else if (has_cls("sline")
-                   && closest_elem
-                   |> JSUtil.has_attr("goto-steps")) {
-          switch (closest_elem |> JSUtil.get_attr("goto-steps")) {
-          | None => assert(false)
-          | Some(ssexp) =>
-            let steps = CursorPath.steps_of_sexp(Sexp.of_string(ssexp));
-            schedule_action(Action.EditAction(MoveToBefore(steps)));
-          };
-        } else if (has_cls("unselectable-before")
-                   && (anchorOffset == 0 || anchorOffset == 1)) {
-          switch (path_of_path_id(Js.to_string(closest_elem##.id))) {
-          | None => raise(MalformedView(5))
-          | Some(path) => schedule_action(Action.EditAction(MoveTo(path)))
-          };
-        } else if (has_cls("unselectable-before") && anchorOffset == 2) {
-          switch (path_of_path_id(Js.to_string(closest_elem##.id))) {
-          | None => raise(MalformedView(6))
-          | Some(_) => schedule_action(Action.EditAction(MoveLeft))
-          };
-        } else if (has_cls("unselectable-after")
-                   && (anchorOffset == 2 || anchorOffset == 3)) {
-          switch (path_of_path_id(Js.to_string(closest_elem##.id))) {
-          | None => raise(MalformedView(7))
-          | Some(path) => schedule_action(Action.EditAction(MoveTo(path)))
-          };
-        } else if (has_cls("unselectable-after") && anchorOffset == 1) {
-          switch (path_of_path_id(Js.to_string(closest_elem##.id))) {
-          | None => raise(MalformedView(8))
-          | Some(_) => schedule_action(Action.EditAction(MoveRight))
-          };
-        } else if (has_cls("SSpace")) {
-          let attr = anchorOffset == 0 ? "path-before" : "path-after";
-          let ssexp =
-            closest_elem
-            |> JSUtil.get_attr(attr)
-            |> Opt.get(() => raise(MalformedView(9)));
-          let path = CursorPath.t_of_sexp(Sexp.of_string(ssexp));
-          schedule_action(Action.EditAction(MoveTo(path)));
-        } else if (has_cls("SEmptyLine")
-                   && (anchorOffset == 0 || anchorOffset == 4)) {
-          switch (steps_of_text_id(Js.to_string(closest_elem##.id))) {
-          | None => raise(MalformedView(11))
-          | Some(steps) =>
-            schedule_action(Action.EditAction(MoveTo((steps, OnText(0)))))
-          };
-        } else if (has_cls("SEmptyLine") && anchorOffset == 1) {
-          schedule_action(Action.EditAction(MoveLeft));
-        } else if (has_cls("SEmptyLine") && anchorOffset == 3) {
-          schedule_action(Action.EditAction(MoveRight));
         } else {
-          let is_cursor_position = node =>
-            switch (Js.Opt.to_option(Dom_html.CoerceTo.element(node))) {
-            | None => None
-            | Some(elem) =>
-              let id = Js.to_string(elem##.id);
-              switch (
-                steps_of_text_id(id),
-                path_of_path_id(id),
-                steps_of_node_id(id),
-              ) {
-              | (None, None, None) => None
-              | (Some(steps), _, _) =>
-                Some((steps, Some(CursorPosition.OnText(anchorOffset))))
-              | (_, Some((steps, cursor)), _) =>
-                Some((steps, Some(cursor)))
-              | (_, _, Some(steps)) => Some((steps, None))
-              };
-            };
-          let (zblock, _, _) = Model.edit_state_of(model);
-          let (current_steps, current_cursor) = CursorPath.of_zblock(zblock);
-          switch (anchorNode |> JSUtil.query_ancestors(is_cursor_position)) {
-          | None => ()
-          | Some((next_steps, None)) =>
-            next_steps == current_steps
-              ? ()
-              : {
-                schedule_action(
-                  Action.EditAction(MoveToBefore(next_steps)),
-                );
-              }
-          | Some((next_steps, Some(next_cursor))) =>
-            next_steps == current_steps && next_cursor == current_cursor
-              ? ()
-              : schedule_action(
-                  Action.EditAction(MoveTo((next_steps, next_cursor))),
-                )
+          schedule_action(Action.EditAction(MoveTo(path)));
+        }
+      | (_, Some(steps)) =>
+        if (closest_elem
+            |> JSUtil.force_get_parent_elem
+            |> JSUtil.elem_has_cls("EmptyLine")) {
+          let (model_steps, _) = model |> Model.path;
+          if (steps == model_steps) {
+            schedule_action(
+              Action.EditAction(anchorOffset == 0 ? MoveLeft : MoveRight),
+            );
+          } else {
+            schedule_action(Action.EditAction(MoveTo((steps, OnText(0)))));
           };
-        };
+        } else {
+          schedule_action(
+            Action.EditAction(MoveTo((steps, OnText(anchorOffset)))),
+          );
+        }
       };
     };
+
     model;
+  | Undo =>
+    let new_history = UndoHistory.undo(model.undo_history);
+    let new_edit_state = ZList.prj_z(new_history);
+    let new_model = model |> Model.update_edit_state(new_edit_state);
+    {...new_model, undo_history: new_history};
+  | Redo =>
+    let new_history = UndoHistory.redo(model.undo_history);
+    let new_edit_state = ZList.prj_z(new_history);
+    let new_model = model |> Model.update_edit_state(new_edit_state);
+    {...new_model, undo_history: new_history};
   };
 };

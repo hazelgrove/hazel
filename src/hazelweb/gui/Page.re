@@ -1,6 +1,5 @@
 module Js = Js_of_ocaml.Js;
 module Vdom = Virtual_dom.Vdom;
-module ZList = GeneralUtil.ZList;
 
 let examples_select = (~inject: Update.Action.t => Vdom.Event.t) =>
   Vdom.(
@@ -137,12 +136,24 @@ let page_view =
             ),
             Node.div(
               [Attr.classes(["result-view"])],
-              [Code.view_of_result(~inject, model)],
+              // [Code.view_of_result(~inject, model)],
+              [],
             ),
           ],
         )
       )
     };
+  let e = model |> Model.exp;
+  let doc = lazy(TermDoc.Exp.mk(~steps=[], ~enforce_inline=false, e));
+  let layout =
+    lazy(
+      switch (LayoutOfDoc.layout_of_doc(Lazy.force(doc), ~width=80, ~pos=0)) {
+      | None => Layout.Text("layout FAILED") // TODO
+      | Some(l) => l
+      }
+    );
+  //let layout = Layout.remove_tags(layout);
+  let box = lazy(BoxOfLayout.box_of_layout(Lazy.force(layout)));
   Vdom.(
     Node.div(
       [Attr.id("root")],
@@ -163,7 +174,7 @@ let page_view =
             /*
              Sidebar.left(
                ~inject,
-               false,
+               model,
                [ActionPanel.view(~inject, model)] //the_history_panel,
              ),
              */
@@ -201,49 +212,10 @@ let page_view =
                     Node.button(
                       [
                         Attr.on_click(_ => {
-                          let block =
-                            model |> Model.zblock |> ZExp.erase_block;
-                          let doc = DocOfTerm.doc_of_block(~steps=[], block);
-                          Printf.printf(
-                            "doc sexp: %s\n",
-                            Sexplib.Sexp.to_string(
-                              DocOfTerm.sexp_of_doc(doc),
-                            ),
-                          );
-                          switch (
-                            LayoutOfDoc.layout_of_doc(doc, ~width=80, ~pos=0)
-                          ) {
-                          | None => Printf.printf("layout FAILED\n")
-                          | Some(layout) =>
-                            Printf.printf(
-                              "layout sexp: %s\n",
-                              Sexplib.Sexp.to_string(
-                                Layout.sexp_of_t(
-                                  DocOfTerm.sexp_of_tag,
-                                  layout,
-                                ),
-                              ),
-                            );
-                            Printf.printf(
-                              "%s\n",
-                              layout |> Layout.string_of_layout,
-                            );
-                          };
-                          Event.Ignore;
-                        }),
-                      ],
-                      [Node.text("Serialize layout")],
-                    ),
-                    Node.button(
-                      [
-                        Attr.on_click(_ => {
-                          let block =
-                            model |> Model.zblock |> ZExp.erase_block;
+                          let e = model |> Model.exp;
                           JSUtil.log(
                             Js.string(
-                              Sexplib.Sexp.to_string(
-                                UHExp.sexp_of_block(block),
-                              ),
+                              Sexplib.Sexp.to_string(UHExp.sexp_of_t(e)),
                             ),
                           );
                           Event.Ignore;
@@ -251,13 +223,44 @@ let page_view =
                       ],
                       [Node.text("Serialize to console")],
                     ),
+                    Node.div(
+                      [],
+                      if (!model.show_content_editable) {
+                        [];
+                      } else {
+                        [
+                          Node.pre(
+                            [],
+                            [
+                              Node.text(
+                                Layout.string_of_layout(Lazy.force(layout)),
+                              ),
+                            ],
+                          ),
+                        ];
+                      },
+                    ),
+                    Node.div(
+                      [
+                        Attr.style(
+                          Css_gen.(
+                            white_space(`Pre) @> font_family(["monospace"])
+                          ),
+                        ),
+                      ],
+                      if (!model.show_presentation) {
+                        [];
+                      } else {
+                        [JSUtil.vdom_of_box(Lazy.force(box))];
+                      },
+                    ),
                   ],
                 ),
               ],
             ),
             Sidebar.right(
               ~inject,
-              true,
+              model,
               [
                 CursorInspector.view(~inject, model),
                 ContextInspector.view(~inject, model),
