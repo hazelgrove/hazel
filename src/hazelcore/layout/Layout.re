@@ -1,16 +1,5 @@
 open Sexplib.Std;
 
-// type t('annot) = {
-//   metrics,
-//   layout: layout('annot),
-// }
-// and metrics = {
-//   first_width: int,
-//   width: int,
-//   last_width: int,
-//   cost: int,
-// }
-
 [@deriving sexp]
 type t('annot) =
   | Text(string) // Invariant: contains no newlines. Text("") is identity for `Cat`
