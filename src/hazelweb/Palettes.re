@@ -27,7 +27,7 @@ module type PALETTE = {
   /* model_updater must _not_ be invoked until well after view has completed */
   let view: (model, model_updater) => view_type;
 
-  let expand: model => UHExp.block;
+  let expand: model => UHExp.t;
 
   let serialize: model => SerializedModel.t;
   let deserialize: SerializedModel.t => model;
@@ -74,8 +74,8 @@ module type PALETTE = {
      let fVarPat = UHPat.Pat(NotInHole, UHPat.Var(fVarName));
      let apOpSeq =
        UHExp.(
-         OperatorSeq.(
-           exp_op_seq(
+         Seq.(
+           operand_op_seq(
              Tm(NotInHole, Var(NotInVarHole, fVarName)),
              Space,
              ExpOpExp(to_uhvar(leftID), Space, to_uhvar(rightID)),
@@ -90,7 +90,7 @@ module type PALETTE = {
            None,
            Tm(
              NotInHole,
-             UHExp.OpSeq(Associator.associate_exp(apOpSeq), apOpSeq),
+             UHExp.OpSeq(Associator.Exp.associate(apOpSeq), apOpSeq),
            ),
          ),
        )
@@ -173,11 +173,11 @@ module type PALETTE = {
      let b_num = UHExp.(Tm(NotInHole, NumLit(b)));
      let body =
        UHExp.(
-         OperatorSeq.(
-           exp_op_seq(
+         Seq.(
+           operand_op_seq(
              Tm(NotInHole, Var(NotInVarHole, fVarName)),
              Space,
-             exp_op_seq(r_num, Space, ExpOpExp(g_num, Space, b_num)),
+             operand_op_seq(r_num, Space, ExpOpExp(g_num, Space, b_num)),
            )
          )
        );
@@ -187,7 +187,7 @@ module type PALETTE = {
          Lam(
            fPat,
            None,
-           Tm(NotInHole, OpSeq(Associator.associate_exp(body), body)),
+           Tm(NotInHole, OpSeq(Associator.Exp.associate(body), body)),
          ),
        )
      );

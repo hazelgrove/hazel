@@ -1,6 +1,7 @@
 open Sexplib.Std;
 
-let rec all: 'tag. Doc.t('tag) => list(Layout.t('tag)) =
+// TODO: compute actual layout size and use instead of t_of_layout
+let rec all: 'tag. Doc.t('tag) => list(Layout.t('tag)) = {
   fun
   | Text(string) => [Layout.Text(string)]
   | Cat(d1, d2) => {
@@ -15,6 +16,7 @@ let rec all: 'tag. Doc.t('tag) => list(Layout.t('tag)) =
   | Tagged(tag, d) => List.map(l => Layout.Tagged(tag, l), all(d))
   | Fail => []
   | Choice(d1, d2) => all(d1) @ all(d2);
+};
 
 // TODO: does Reason have 'type classes'? operators?
 // TODO: unions are left biased
@@ -48,6 +50,11 @@ module PosMap = {
       fun
       | [] => []
       | [(pos, x), ...rest] => [(pos, f(x)), ...map(f, rest)];
+  let rec mapi: 'a 'b. ((int, 'a) => 'b, t('a)) => t('b) =
+    f =>
+      fun
+      | [] => []
+      | [(pos, x), ...rest] => [(pos, f(pos, x)), ...mapi(f, rest)];
   let rec fold_left: 'a 'b. ((int, 'b, 'a) => 'b, 'b, t('a)) => 'b =
     (f, z) =>
       fun
@@ -147,7 +154,7 @@ and layout_of_doc'': Doc.t(unit) => m(Layout.t(unit)) =
       let ret: m(Layout.t(unit)) = {
         switch (doc) {
         | Text(string) =>
-          let%bind () = modify_position(String.length(string));
+          let%bind () = modify_position(StringUtil.utf8_length(string));
           return(Layout.Text(string));
         | Cat(d1, d2) =>
           let%bind l1 = layout_of_doc'(d1);
@@ -183,6 +190,7 @@ and layout_of_doc'': Doc.t(unit) => m(Layout.t(unit)) =
     (~width, ~pos) => h((width, pos));
   };
 
+// Change pos to first_width?
 let layout_of_doc =
     (doc: Doc.t('tag), ~width: int, ~pos: int): option(Layout.t('tag)) => {
   let rec minimum =
