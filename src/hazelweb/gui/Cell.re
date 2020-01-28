@@ -96,13 +96,18 @@ let view =
                 ~inject,
                 ~path=model |> Model.path,
                 ~ci=model.cursor_info,
+                ~show_content_editable=model.show_content_editable,
                 model |> Model.exp,
               )
-            : Code.editor_view_of_exp(~inject, model |> Model.exp);
+            : Code.editor_view_of_exp(
+                ~inject,
+                ~show_content_editable=model.show_content_editable,
+                model |> Model.exp,
+              );
         [
           Node.div(
             [Attr.id("code-container")],
-            [contenteditable, presentation],
+            [presentation, contenteditable],
           ),
         ];
       },

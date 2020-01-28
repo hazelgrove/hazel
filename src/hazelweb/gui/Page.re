@@ -223,23 +223,6 @@ let page_view =
                       [Node.text("Serialize to console")],
                     ),
                     Node.div(
-                      [],
-                      if (!model.show_content_editable) {
-                        [];
-                      } else {
-                        [
-                          Node.pre(
-                            [],
-                            [
-                              Node.text(
-                                Layout.string_of_layout(Lazy.force(layout)),
-                              ),
-                            ],
-                          ),
-                        ];
-                      },
-                    ),
-                    Node.div(
                       [
                         Attr.style(
                           Css_gen.(

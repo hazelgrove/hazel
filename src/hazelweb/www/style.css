@@ -773,7 +773,10 @@ h1 {
 .code-container {
   position: relative;
 }
-.code.contenteditable {
+.contenteditable {
+  background-color: lightgray;
+}
+.hiddencontenteditable {
   /* TODO consolidate #contenteditable vs .contenteditable */
   position: fixed;
   top: 0;
@@ -781,7 +784,7 @@ h1 {
   padding: 10px;
   color: transparent;
 }
-.code.contenteditable:focus {
+.hiddencontenteditable:focus {
   outline: 0px;
 }
 
