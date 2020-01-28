@@ -57,7 +57,7 @@ let user_newline =
   Doc.(
     hcats([
       space |> annot_Padding,
-      Text(LangUtil.user_newline) |> annot(TermAnnot.UserNewline),
+      Text(UnicodeConstants.user_newline) |> annot(TermAnnot.UserNewline),
     ])
   );
 
@@ -534,7 +534,7 @@ module Typ = {
           Doc.(
             hcats([
               choices([Linebreak, space]),
-              Text(LangUtil.typeArrowSym ++ " "),
+              Text(UnicodeConstants.typeArrowSym ++ " "),
             ])
           );
         let ty1_doc =
@@ -807,7 +807,8 @@ module Exp = {
     switch (line) {
     | EmptyLine =>
       // TODO: Once we figure out content-editable cursors, use `mk_text(~steps, "")`
-      mk_text(~steps, LangUtil.zwsp) |> Doc.annot(TermAnnot.EmptyLine)
+      mk_text(~steps, UnicodeConstants.zwsp)
+      |> Doc.annot(TermAnnot.EmptyLine)
     | ExpLine(opseq) => mk_opseq(~steps, ~enforce_inline=false, opseq)
     | LetLine(p, ann, def) =>
       let p = Pat.mk_child(~enforce_inline=false, ~steps, ~child_step=0, p);
