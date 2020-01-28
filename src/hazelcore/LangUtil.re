@@ -1,8 +1,3 @@
-let string_of_side = (side: InjSide.t) =>
-  switch (side) {
-  | L => "L"
-  | R => "R"
-  };
 let lamSym = "λ";
 let caseArrowSym = "⇒";
 let typeArrowSym = "→";
