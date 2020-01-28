@@ -48,6 +48,10 @@
   white-space: pre;
 }
 
+.SubCommentLine {
+  white-space: pre;
+}
+
 /* general */
 div {
   box-sizing: border-box;
