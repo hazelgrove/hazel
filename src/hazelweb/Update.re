@@ -220,8 +220,8 @@ let apply_action =
           ...new_model,
           undo_history:
             ZList.replace_z(
-              new_history,
               {...cur_group, group_entries: new_group_entries},
+              new_history,
             ),
         };
       };
@@ -236,11 +236,11 @@ let apply_action =
       let toggle_target_group = ZList.prj_z(history);
       let after_toggle =
         ZList.replace_z(
-          history,
           {
             ...toggle_target_group,
             is_expanded: !toggle_target_group.is_expanded,
           },
+          history,
         );
       /*shift back to the current group*/
       switch (ZList.shift_to(cur_group_id, after_toggle)) {

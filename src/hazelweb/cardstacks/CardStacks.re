@@ -1,5 +1,3 @@
-module ZList = GeneralUtil.ZList;
-
 type cardstacks = list(CardStack.t);
 let cardstacks: cardstacks = [
   TutorialCards.cardstack,
