@@ -371,13 +371,14 @@ let undo = (model: t): t => {
           group_entries: ZList.shift_begin(new_group.group_entries), /*pointer may be in the wrong position after clicking an arbitrary entry in the history panel*/
           is_expanded: true,
         }; /* is_expanded=true because the selected group should be expanded*/
-        ZList.replace_z(new_history, new_group');
+        ZList.replace_z(new_group', new_history);
       }
     | Some(new_group_entries) =>
-      ZList.replace_z(
-        model.undo_history,
-        {group_entries: new_group_entries, is_expanded: true},
-      ) /* is_expanded=true because the selected group should be expanded*/
+      let new_group: UndoHistory.undo_history_group = {
+        group_entries: new_group_entries,
+        is_expanded: true,
+      };
+      ZList.replace_z(new_group, model.undo_history); /* is_expanded=true because the selected group should be expanded*/
     };
   };
   let cur_group' = ZList.prj_z(new_history);
@@ -402,13 +403,14 @@ let redo = (model: t): t => {
           group_entries: ZList.shift_end(cur_group.group_entries), /*pointer may be in the wrong position after clicking an arbitrary entry in the history panel*/
           is_expanded: true,
         }; /* is_expanded=true because this group should be expanded when redo*/
-        ZList.replace_z(new_history, new_group);
+        ZList.replace_z(new_group, new_history);
       }
     | Some(new_group_entries) =>
-      ZList.replace_z(
-        model.undo_history,
-        {group_entries: new_group_entries, is_expanded: true},
-      )
+      let new_group: UndoHistory.undo_history_group = {
+        group_entries: new_group_entries,
+        is_expanded: true,
+      };
+      ZList.replace_z(new_group, model.undo_history); /* is_expanded=true because the selected group should be expanded*/
     };
   };
   let cur_group' = ZList.prj_z(new_history);

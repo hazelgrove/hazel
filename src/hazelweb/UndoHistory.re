@@ -1,5 +1,3 @@
-module ZList = GeneralUtil.ZList;
-
 type undo_history_entry = {
   cardstacks_state: CardStacks.cardstacks_state,
   previous_action: option(Action.t),

@@ -16,7 +16,7 @@ type operator_shape =
   | SCons
   | SAnd
   | SOr;
-let op_shape_to_string = (op: op_shape) => {
+let operator_shape_to_string = (op: operator_shape) => {
   switch (op) {
   | SMinus => "-"
   | SPlus => "+"
@@ -65,13 +65,10 @@ type t =
 let shape_to_display_string = (shape: shape): string => {
   switch (shape) {
   | SParenthesized => "parentheize"
-  | SNum => "type Num"
-  | SBool => "type Bool"
   | SList => "type List"
+  | SChar(str) => "edit: " ++ str
   | SAsc => "type inference"
-  | SVar(varstr, _) => "edit var: " ++ varstr
   | SLam => "add lambada"
-  | SNumLit(value, _) => "edit number: " ++ string_of_int(value)
   | SListNil => "add []"
   | SInj(direction) =>
     switch (direction) {
@@ -81,10 +78,9 @@ let shape_to_display_string = (shape: shape): string => {
   | SLet => "bulid 'let'"
   | SLine => "add new line[s]"
   | SCase => "add case"
-  | SOp(op) => "add operator " ++ op_shape_to_string(op)
+  | SOp(op) => "add operator " ++ operator_shape_to_string(op)
   | SApPalette(_) => "appalette?"
   /* pattern-only shapes */
-  | SWild => "wild?"
   };
 };
 
@@ -99,34 +95,24 @@ let action_to_display_string = (action: t) => {
   | MoveLeft
   | MoveRight
   | MoveToNextHole
-  | MoveToPrevHole
-  | ShiftLeft
-  | ShiftRight
-  | ShiftUp
-  | ShiftDown => "will not show in undo_history"
+  | MoveToPrevHole => "will not show in undo_history"
   };
 };
 let is_same_shape = (shape_1: shape, shape_2: shape): bool => {
   switch (shape_1, shape_2) {
-  | (SVar(_, _), SVar(_, _))
-  | (SNumLit(_, _), SNumLit(_, _))
   | (SLine, SLine) => true
+  | (SChar(_), _)
   | (SParenthesized, _)
-  | (SNum, _)
-  | (SBool, _)
   | (SList, _)
   | (SAsc, _)
-  | (SVar(_, _), _)
   | (SLam, _)
-  | (SNumLit(_, _), _)
   | (SListNil, _)
   | (SInj(_), _)
   | (SLet, _)
   | (SLine, _)
   | (SCase, _)
   | (SOp(_), _)
-  | (SApPalette(_), _)
-  | (SWild, _) => false
+  | (SApPalette(_), _) => false
   };
 };
 let in_same_history_group = (action_1: option(t), action_2: option(t)): bool => {
@@ -149,11 +135,8 @@ let in_same_history_group = (action_1: option(t), action_2: option(t)): bool => 
     | (MoveLeft, _)
     | (MoveRight, _)
     | (MoveToNextHole, _)
-    | (MoveToPrevHole, _)
-    | (ShiftLeft, _)
-    | (ShiftRight, _)
-    | (ShiftUp, _)
-    | (ShiftDown, _) => failwith("not undoable actions, will not be matched")
+    | (MoveToPrevHole, _) =>
+      failwith("not undoable actions, will not be matched")
     }
   };
 };

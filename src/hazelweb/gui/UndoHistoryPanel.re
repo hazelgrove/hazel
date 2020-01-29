@@ -1,5 +1,4 @@
 module Vdom = Virtual_dom.Vdom;
-module ZList = GeneralUtil.ZList;
 type undo_history_group = UndoHistory.undo_history_group;
 type undo_history_entry = UndoHistory.undo_history_entry;
 
