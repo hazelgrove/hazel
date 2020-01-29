@@ -1,7 +1,7 @@
 open Sexplib.Std;
 
 // TODO: compute actual layout size and use instead of t_of_layout
-let rec all: 'tag. Doc.t('tag) => list(Layout.t('tag)) = {
+let rec all: 'annot. Doc.t('annot) => list(Layout.t('annot)) = {
   fun
   | Text(string) => [Layout.Text(string)]
   | Cat(d1, d2) => {
@@ -13,7 +13,7 @@ let rec all: 'tag. Doc.t('tag) => list(Layout.t('tag)) = {
     }
   | Linebreak => [Layout.Linebreak]
   | Align(d) => List.map(l => Layout.Align(l), all(d))
-  | Tagged(tag, d) => List.map(l => Layout.Tagged(tag, l), all(d))
+  | Annot(annot, d) => List.map(l => Layout.Annot(annot, l), all(d))
   | Fail => []
   | Choice(d1, d2) => all(d1) @ all(d2);
 };
@@ -140,7 +140,7 @@ module WidthPosKey = {
 };
 module StrongWidthPosKey = Memoize.Strong(WidthPosKey);
 
-let rec layout_of_doc': 'tag. Doc.t('tag) => m(Layout.t('tag)) =
+let rec layout_of_doc': 'annot. Doc.t('annot) => m(Layout.t('annot)) =
   (doc, ~width: int, ~pos: int) => {
     Obj.magic(Lazy.force(memo_table, Obj.magic(doc), ~width, ~pos));
   }
@@ -154,7 +154,7 @@ and layout_of_doc'': Doc.t(unit) => m(Layout.t(unit)) =
       let ret: m(Layout.t(unit)) = {
         switch (doc) {
         | Text(string) =>
-          let%bind () = modify_position(String.length(string));
+          let%bind () = modify_position(StringUtil.utf8_length(string));
           return(Layout.Text(string));
         | Cat(d1, d2) =>
           let%bind l1 = layout_of_doc'(d1);
@@ -177,18 +177,14 @@ and layout_of_doc'': Doc.t(unit) => m(Layout.t(unit)) =
             );
           let%bind () = modify_position(pos);
           return(Layout.Align(l));
-        | Tagged(tag, d) =>
+        | Annot(annot, d) =>
           let%bind l: m(Layout.t(unit)) = layout_of_doc'(d);
-          return(Layout.Tagged(tag, l));
+          return(Layout.Annot(annot, l));
         | Fail => fail
         | Choice(d1, d2) => union(layout_of_doc'(d1), layout_of_doc'(d2))
         };
       };
-      // TODO: remove mapi
-      PosMap.mapi(
-        (_end_pos, (cost, layout)) => (cost, layout),
-        ret(~width, ~pos),
-      );
+      ret(~width, ~pos);
     };
     let h = StrongWidthPosKey.make(g);
     (~width, ~pos) => h((width, pos));
@@ -196,7 +192,7 @@ and layout_of_doc'': Doc.t(unit) => m(Layout.t(unit)) =
 
 // Change pos to first_width?
 let layout_of_doc =
-    (doc: Doc.t('tag), ~width: int, ~pos: int): option(Layout.t('tag)) => {
+    (doc: Doc.t('annot), ~width: int, ~pos: int): option(Layout.t('annot)) => {
   let rec minimum =
           ((pos, (cost, t)): (int, (int, option('a))))
           : (list((int, (int, 'a))) => option('a)) => {

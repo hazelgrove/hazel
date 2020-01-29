@@ -3,9 +3,8 @@ module ZList = GeneralUtil.ZList;
 type cardstacks = list(CardStack.t);
 let cardstacks: cardstacks = [
   TutorialCards.cardstack,
-  RCStudyCards.cardstack,
+  // RCStudyCards.cardstack,
 ];
-
 type edit_state = Statics.edit_state;
 
 type card_state = {
@@ -27,22 +26,19 @@ let mk_cardstack_state = (cardstack: CardStack.t) => {
         {
           card,
           edit_state:
-            card.init_zblock
-            |> Statics.fix_and_renumber_holes_z(Contexts.empty),
+            card.init_zexp
+            |> Statics.Exp.fix_and_renumber_holes_z(Contexts.empty),
         },
       cardstack.cards,
     );
   let zcards =
-    GeneralUtil.Opt.get(
-      _ => failwith("no cards"),
-      ZList.split_at(0, card_states),
-    );
+    OptUtil.get(_ => failwith("no cards"), ZList.split_at(0, card_states));
   {cardstack, zcards};
 };
 
 let mk_cardstacks_state = cardstacks => {
   let cardstack_states = List.map(mk_cardstack_state, cardstacks);
-  GeneralUtil.Opt.get(
+  OptUtil.get(
     _ => failwith("no cardstacks"),
     ZList.split_at(0, cardstack_states),
   );
