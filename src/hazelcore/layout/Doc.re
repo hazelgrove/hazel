@@ -2,42 +2,43 @@ open Sexplib.Std;
 
 /* Variable: `doc` */
 [@deriving sexp]
-type t('tag) =
+type t('annot) =
   | Text(string) // Text("") is identity for `Cat`
-  | Cat(t('tag), t('tag)) // associative
+  | Cat(t('annot), t('annot)) // associative
   | Linebreak
-  | Align(t('tag))
-  | Tagged('tag, t('tag))
+  | Align(t('annot))
+  | Annot('annot, t('annot)) // Annotations
   | Fail // identity for `Choice`
-  | Choice(t('tag), t('tag));
+  | Choice(t('annot), t('annot));
 
 let empty = Text("");
-let space = Text(" ");
+let space = Text(LangUtil.nbsp1);
+let indent = Text(LangUtil.nbsp2);
 
 let align = doc => Align(doc);
-let tag = (tag, doc) => Tagged(tag, doc);
+let annot = (annot, doc) => Annot(annot, doc);
 
 let hcat = (x, y) => Cat(x, y);
-let hcats: list(t('tag)) => t('tag) =
+let hcats: list(t('annot)) => t('annot) =
   fun
   | [] => empty
   | [doc, ...docs] => List.fold_left(hcat, doc, docs);
 
 let hsep = (x, y) => Cat(x, Cat(space, y));
-let hseps: list(t('tag)) => t('tag) =
+let hseps: list(t('annot)) => t('annot) =
   fun
   | [] => empty
   | [doc, ...docs] => List.fold_left(hsep, doc, docs);
 
 let vsep = (x, y) => Cat(x, Cat(Linebreak, y));
-let vseps: list(t('tag)) => t('tag) =
+let vseps: list(t('annot)) => t('annot) =
   fun
-  | [] => failwith(__LOC__ ++ ": vcats requires a non-empty list")
+  | [] => failwith(__LOC__ ++ ": vseps requires a non-empty list")
   | [doc] => doc
   | [doc, ...docs] => List.fold_left(vsep, doc, docs);
 
 let choice = (x, y) => Choice(x, y);
-let choices: list(t('tag)) => t('tag) =
+let choices: list(t('annot)) => t('annot) =
   fun
   | [] => Fail
   | [doc, ...docs] => List.fold_left(choice, doc, docs);

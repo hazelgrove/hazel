@@ -1,5 +1,5 @@
 [@deriving sexp]
-type t('a) = SpliceInfo.t(UHExp.block) => ('a, SpliceInfo.t(UHExp.block));
+type t('a) = SpliceInfo.t(UHExp.t) => ('a, SpliceInfo.t(UHExp.t));
 let return = (x, psi) => (x, psi);
 let bind = (cmd, f, psi) => {
   let (a, psi') = cmd(psi);
