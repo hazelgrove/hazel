@@ -80,17 +80,93 @@ type typed =
   | OnLine
   | OnRule;
 
+type cursor_term =
+  | Exp(CursorPosition.t, UHExp.t)
+  | Pat(CursorPosition.t, UHPat.t)
+  | Typ(CursorPosition.t, UHTyp.t)
+  | Line(UHExp.line)
+  | Op(CursorPosition.t, UHExp.operator);
+
 // TODO refactor into variants
 // based on term family and shape
-[@deriving sexp]
+//[@deriving sexp]
 type t = {
   typed,
+  cursor_term:option(cursor_term),
   ctx: Contexts.t,
   // hack while merging
   uses: option(UsageAnalysis.uses_list),
 };
 
 let mk = (~uses=?, typed, ctx) => {typed, ctx, uses};
+
+let rec extract_cursor_exp_term = (exp: ZExp.t): option(cursor_term) => {
+  switch (exp) {
+  | ZE2(zblock) => extract_from_zline(ZList.prj_z(zblock))
+  | ZE1(zopseq) => extract_from_zopseq(zopseq)
+  | ZE0(zoperand) => extract_from_zoprand(zoprand)
+  };
+}
+and extract_from_zline = (zline: ZExp.zline): option(cursor_term) => {
+  switch (zline) {
+  | CursorL(_, _) => None /* cursor in line is not editable */
+  | ExpLineZ(zopseq) => extract_from_zopseq(zopseq)
+  | LetLineZP(zpat, _, _) => extract_cursor_pat_term(zpat)
+  | LetLineZA(_, ztyp, _) => extract_cursor_type_term(ztyp)
+  | LetLineZE(_, _, zexp) => extract_cursor_exp_term(zexp)
+  };
+}
+and extract_from_zoprand = (zoprand: ZExp.zoprand): option(cursor_term) => {
+  switch (zoperand) {
+  | CursorE(cursor_pos, operand) => option(cursor_pos, E0(operand))
+  | ParenthesizedZ(zexp) => extract_cursor_exp_term(exp_inner)
+  | LamZP(_, zpat, _, _) => extract_cursor_pat_term(zpat)
+  | LamZA(_, _, ztyp, _) => extract_cursor_type_term(ztyp)
+  | LamZE(_, _, _, zexp)
+  | InjZ(_, _, zexp)
+  | CaseZE(_, zexp, _, _) => extract_cursor_exp_term(zexp)
+  | CaseZR(_, _, zrules, _) => None /*??????*/
+  | CaseZA(_, _, _, ztyp) => extract_cursor_type_term(ztyp)
+  | ApPaletteZ(_, _, _, _) => failwith("not oprand with cursor") /*TBD???*/
+  };
+}
+and extract_from_zoprator = (zoperator: ZExp.zoperator): option(cursor_term) => {
+  let (cursor_pos, uop) = zoperator;
+  option(Op(cursor_pos, uop));
+}
+and extract_from_zopseq = (zopseq: ZExp.zopseq): option(cursor_term) => {
+  switch (zopseq) {
+  | ZOpSeq(_, zseq) =>
+    switch (zseq) {
+    | ZOperand(zoperand, _) => extract_from_zoprand(zoperand)
+    | ZOperator(zoperator, _) => extract_from_zoprator(zoperator)
+    }
+  };
+}
+and extract_cursor_pat_term = (zpat: Zpat.t): option(cursor_term) => {
+  switch (zpat) {
+  | ZP1(zopseq) => extract_from_zopseq(zopseq)
+  | ZP0(zpat_operand) =>
+    switch (zpat_operand) {
+    | CursorP(cursor_pos, upat_operand) =>
+      option(cursor_pos, P0(upat_operand))
+    | ParenthesizedZ(zpat_inner)
+    | InjZ(_, _, zpat_inner) => extract_cursor_pat_term(zpat_inner)
+    }
+  };
+}
+and extract_cursor_type_term = (ztyp: ZTyp.t): option(cursor_term) => {
+  switch (ztyp) {
+  | ZT1(zopseq) => extract_from_zopseq(zopseq)
+  | ZT0(ztyp_operand) =>
+    switch (ztyp_operand) {
+    | CursorT(cursor_pos, utyp_operand) =>
+      option(cursor_pos, T0(utyp_operand))
+    | ParenthesizedZ(ztyp_inner)
+    | ListZ(ztyp_inner) => extract_cursor_type_term(ztyp_inner)
+    }
+  };
+};
 
 module Typ = {
   let cursor_info = (~steps as _, ctx: Contexts.t, _: ZTyp.t): option(t) =>
