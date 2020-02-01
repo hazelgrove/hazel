@@ -67,6 +67,13 @@ and operand =
   | Inj(ErrStatus.t, InjSide.t, t)
   | Case(ErrStatus.t, t, rules, option(UHTyp.t))
   | Parenthesized(t)
+  /* inner nodes */
+  | ListLit(ErrStatus.t, list(t))
+  | Lam(ErrStatus.t, UHPat.t, option(UHTyp.t), block)
+  | Inj(ErrStatus.t, InjSide.t, block)
+  | Case(ErrStatus.t, block, rules, option(UHTyp.t))
+  | Parenthesized(block)
+  | OpSeq(skel_t, opseq) /* invariant: skeleton is consistent with opseq */
   | ApPalette(ErrStatus.t, PaletteName.t, SerializedModel.t, splice_info)
 and rules = list(rule)
 and rule =
@@ -98,6 +105,8 @@ let numlit = (~err: ErrStatus.t=NotInHole, n: int): operand =>
 
 let boollit = (~err: ErrStatus.t=NotInHole, b: bool): operand =>
   BoolLit(err, b);
+
+let boolLitLen = (b: bool): int => b ? 4 : 5; /* true: 4 chars, false: 5 chars */
 
 let lam =
     (
@@ -192,6 +201,7 @@ let bidelimited =
   | NumLit(_, _)
   | BoolLit(_, _)
   | ListNil(_)
+  | ListLit(_, _)
   | Inj(_, _, _)
   | ApPalette(_, _, _, _)
   | Parenthesized(_) => true
@@ -252,6 +262,7 @@ and get_err_status_operand =
   | NumLit(err, _)
   | BoolLit(err, _)
   | ListNil(err)
+  | ListLit(err, _)
   | Lam(err, _, _, _)
   | Inj(err, _, _)
   | Case(err, _, _, _)
@@ -278,9 +289,16 @@ and set_err_status_operand = (err, operand) =>
   | NumLit(_, n) => NumLit(err, n)
   | BoolLit(_, b) => BoolLit(err, b)
   | ListNil(_) => ListNil(err)
+<<<<<<< HEAD
   | Lam(_, p, ann, def) => Lam(err, p, ann, def)
   | Inj(_, inj_side, body) => Inj(err, inj_side, body)
   | Case(_, scrut, rules, ann) => Case(err, scrut, rules, ann)
+=======
+  | ListLit(_, l) => ListLit(err, l)
+  | Lam(_, p, ann, block) => Lam(err, p, ann, block)
+  | Inj(_, inj_side, block) => Inj(err, inj_side, block)
+  | Case(_, block, rules, ann) => Case(err, block, rules, ann)
+>>>>>>> 60d70ebe8e25640a8f7a483ace8ab49626030377
   | ApPalette(_, name, model, si) => ApPalette(err, name, model, si)
   | Parenthesized(body) => Parenthesized(body |> set_err_status(err))
   };
@@ -320,6 +338,7 @@ and make_inconsistent_operand = (u_gen, operand) =>
   | NumLit(InHole(TypeInconsistent, _), _)
   | BoolLit(InHole(TypeInconsistent, _), _)
   | ListNil(InHole(TypeInconsistent, _))
+  | ListLit(InHole(TypeInconsistent, _), _)
   | Lam(InHole(TypeInconsistent, _), _, _, _)
   | Inj(InHole(TypeInconsistent, _), _, _)
   | Case(InHole(TypeInconsistent, _), _, _, _)
@@ -329,6 +348,7 @@ and make_inconsistent_operand = (u_gen, operand) =>
   | NumLit(NotInHole | InHole(WrongLength, _), _)
   | BoolLit(NotInHole | InHole(WrongLength, _), _)
   | ListNil(NotInHole | InHole(WrongLength, _))
+  | ListLit(NotInHole | InHole(WrongLength, _), _)
   | Lam(NotInHole | InHole(WrongLength, _), _, _, _)
   | Inj(NotInHole | InHole(WrongLength, _), _, _)
   | Case(NotInHole | InHole(WrongLength, _), _, _, _)
@@ -363,6 +383,7 @@ let child_indices_operand =
   | NumLit(_, _)
   | BoolLit(_, _)
   | ListNil(_) => []
+  | ListLit(_, _)
   | Lam(_, _, None, _) => [0, 2]
   | Lam(_, _, Some(_), _) => [0, 1, 2]
   | Case(_, _, rules, None) => ListUtil.range(List.length(rules) + 1)
@@ -389,6 +410,11 @@ let favored_child_of_operand: operand => option((ChildIndex.t, t)) =
   | NumLit(_, _)
   | BoolLit(_, _)
   | ListNil(_)
+<<<<<<< HEAD
+=======
+  | ListLit(_, _)
+  | OpSeq(_, _)
+>>>>>>> 60d70ebe8e25640a8f7a483ace8ab49626030377
   | ApPalette(_, _, _, _) => None
   | Lam(_, _, _, e) => Some((2, e))
   | Inj(_, _, e)
@@ -424,6 +450,7 @@ and is_multi_line_operand =
   | NumLit(_, _)
   | BoolLit(_, _)
   | ListNil(_)
+  | ListLit(_, _)
   | ApPalette(_, _, _, _) => false
   | Lam(_, _, _, body) => is_multi_line(body)
   | Inj(_, _, body) => is_multi_line(body)
