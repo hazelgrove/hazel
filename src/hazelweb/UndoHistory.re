@@ -23,7 +23,7 @@ type t = ZList.t(undo_history_group, undo_history_group);
 
 let undoable_action = (action: option(Action.t)): bool => {
   switch (action) {
-  | None => failwith("Impossible, no None action will be detected")
+  | None => failwith("Impossible, no None action will be pushed into history")
   | Some(action') =>
     switch (action') {
     | UpdateApPalette(_)
@@ -76,7 +76,7 @@ let push_edit_state =
     : t => {
   let cur_group = ZList.prj_z(undo_history);
   let cur_entry = ZList.prj_z(cur_group.group_entries);
-  if (undoable_action(cur_entry.previous_action)) {
+  if (undoable_action(action)) {
     if (!cur_group.is_complete
         && in_same_history_group(action, cur_entry.previous_action)) {
       let new_entry = {
