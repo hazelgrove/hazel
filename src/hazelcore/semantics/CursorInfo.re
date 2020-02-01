@@ -81,9 +81,9 @@ type typed =
   | OnRule;
 
 type cursor_term =
-  | Exp(CursorPosition.t, UHExp.t)
-  | Pat(CursorPosition.t, UHPat.t)
-  | Typ(CursorPosition.t, UHTyp.t)
+  | Exp(CursorPosition.t, UHExp.operand)
+  | Pat(CursorPosition.t, UHPat.operand)
+  | Typ(CursorPosition.t, UHTyp.operand)
   | Line(UHExp.line) /* may be deleted TBD???*/
   | ExpOp(CursorPosition.t, UHExp.operator)
   | PatOp(CursorPosition.t, UHPat.operator)
@@ -118,7 +118,7 @@ and extract_from_zline = (zline: ZExp.zline): option(cursor_term) => {
 and extract_from_zexp_operand =
     (zexp_operand: ZExp.zoperand): option(cursor_term) => {
   switch (zexp_operand) {
-  | CursorE(cursor_pos, operand) => Some(Exp(cursor_pos, E0(operand)))
+  | CursorE(cursor_pos, operand) => Some(Exp(cursor_pos, operand))
   | ParenthesizedZ(zexp) => extract_cursor_exp_term(zexp)
   | LamZP(_, zpat, _, _) => extract_cursor_pat_term(zpat)
   | LamZA(_, _, ztyp, _) => extract_cursor_type_term(ztyp)
@@ -159,8 +159,7 @@ and extract_cursor_pat_term = (zpat: ZPat.t): option(cursor_term) => {
 and extract_from_zpat_operand =
     (zpat_operand: ZPat.zoperand): option(cursor_term) => {
   switch (zpat_operand) {
-  | CursorP(cursor_pos, upat_operand) =>
-    Some(Pat(cursor_pos, P0(upat_operand)))
+  | CursorP(cursor_pos, upat_operand) => Some(Pat(cursor_pos, upat_operand))
   | ParenthesizedZ(zpat)
   | InjZ(_, _, zpat) => extract_cursor_pat_term(zpat)
   };
@@ -183,8 +182,7 @@ and extract_cursor_type_term = (ztyp: ZTyp.t): option(cursor_term) => {
 and extract_from_ztyp_operand =
     (ztyp_operand: ZTyp.zoperand): option(cursor_term) => {
   switch (ztyp_operand) {
-  | CursorT(cursor_pos, utyp_operand) =>
-    Some(Typ(cursor_pos, T0(utyp_operand)))
+  | CursorT(cursor_pos, utyp_operand) => Some(Typ(cursor_pos, utyp_operand))
   | ParenthesizedZ(ztyp)
   | ListZ(ztyp) => extract_cursor_type_term(ztyp)
   };
