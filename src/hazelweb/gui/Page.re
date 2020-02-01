@@ -1,6 +1,5 @@
 module Js = Js_of_ocaml.Js;
 module Vdom = Virtual_dom.Vdom;
-module ZList = GeneralUtil.ZList;
 
 let examples_select = (~inject: Update.Action.t => Vdom.Event.t) =>
   Vdom.(
@@ -137,14 +136,15 @@ let page_view =
             ),
             Node.div(
               [Attr.classes(["result-view"])],
-              [Code.view_of_result(~inject, model)],
+              // [Code.view_of_result(~inject, model)],
+              [],
             ),
           ],
         )
       )
     };
-  let block = model |> Model.zblock |> ZExp.erase_block;
-  let doc = lazy(DocOfTerm.doc_of_block(~steps=[], block));
+  let e = model |> Model.exp;
+  let doc = lazy(TermDoc.Exp.mk(~steps=[], ~enforce_inline=false, e));
   let layout =
     lazy(
       switch (LayoutOfDoc.layout_of_doc(Lazy.force(doc), ~width=80, ~pos=0)) {
@@ -152,7 +152,6 @@ let page_view =
       | Some(l) => l
       }
     );
-  //let layout = Layout.remove_tags(layout);
   let box = lazy(BoxOfLayout.box_of_layout(Lazy.force(layout)));
   Vdom.(
     Node.div(
@@ -212,36 +211,16 @@ let page_view =
                     Node.button(
                       [
                         Attr.on_click(_ => {
-                          let block =
-                            model |> Model.zblock |> ZExp.erase_block;
+                          let e = model |> Model.exp;
                           JSUtil.log(
                             Js.string(
-                              Sexplib.Sexp.to_string(
-                                UHExp.sexp_of_block(block),
-                              ),
+                              Sexplib.Sexp.to_string(UHExp.sexp_of_t(e)),
                             ),
                           );
                           Event.Ignore;
                         }),
                       ],
                       [Node.text("Serialize to console")],
-                    ),
-                    Node.div(
-                      [],
-                      if (!model.show_content_editable) {
-                        [];
-                      } else {
-                        [
-                          Node.pre(
-                            [],
-                            [
-                              Node.text(
-                                Layout.string_of_layout(Lazy.force(layout)),
-                              ),
-                            ],
-                          ),
-                        ];
-                      },
                     ),
                     Node.div(
                       [

@@ -79,9 +79,9 @@ module type LIVELIT = {
      let fVarPat = UHPat.Pat(NotInHole, UHPat.Var(fVarName));
      let apOpSeq =
        UHExp.(
-         OperatorSeq.(
-           exp_op_seq(
-             Tm(NotInHole, Var(NotInVHole, fVarName)),
+         Seq.(
+           operand_op_seq(
+             Tm(NotInHole, Var(NotInVarHole, fVarName)),
              Space,
              ExpOpExp(to_uhvar(leftID), Space, to_uhvar(rightID)),
            )
@@ -95,7 +95,7 @@ module type LIVELIT = {
            None,
            Tm(
              NotInHole,
-             UHExp.OpSeq(Associator.associate_exp(apOpSeq), apOpSeq),
+             UHExp.OpSeq(Associator.Exp.associate(apOpSeq), apOpSeq),
            ),
          ),
        )
@@ -178,11 +178,11 @@ module type LIVELIT = {
      let b_num = UHExp.(Tm(NotInHole, NumLit(b)));
      let body =
        UHExp.(
-         OperatorSeq.(
-           exp_op_seq(
-             Tm(NotInHole, Var(NotInVHole, fVarName)),
+         Seq.(
+           operand_op_seq(
+             Tm(NotInHole, Var(NotInVarHole, fVarName)),
              Space,
-             exp_op_seq(r_num, Space, ExpOpExp(g_num, Space, b_num)),
+             operand_op_seq(r_num, Space, ExpOpExp(g_num, Space, b_num)),
            )
          )
        );
@@ -192,7 +192,7 @@ module type LIVELIT = {
          Lam(
            fPat,
            None,
-           Tm(NotInHole, OpSeq(Associator.associate_exp(body), body)),
+           Tm(NotInHole, OpSeq(Associator.Exp.associate(body), body)),
          ),
        )
      );

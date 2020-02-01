@@ -249,11 +249,6 @@ let view =
       let ind1 = expected_a_rule_indicator;
       let ind2 = got_a_rule_indicator;
       (ind1, ind2, OK);
-    | OnOp =>
-      /* TODO */
-      let ind1 = expected_a_rule_indicator;
-      let ind2 = got_a_rule_indicator;
-      (ind1, ind2, OK);
     };
 
   let cls_of_err_state_b =
