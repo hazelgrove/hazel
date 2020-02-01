@@ -278,7 +278,10 @@ let perform_edit_action = (model: t, a: Action.t): t => {
   | Failed => raise(FailedAction)
   | CursorEscaped(_) => raise(CursorEscaped)
   | Succeeded(new_edit_state) =>
+    let (zexp, _, _) = new_edit_state;
     let new_model = model |> update_edit_state(new_edit_state);
+    let new_cursor_info =
+      CursorInfo.update_cursor_term(zexp, new_model.cursor_info);
     let new_history =
       if (UndoHistory.undoable_action(a)) {
         UndoHistory.push_edit_state(
@@ -289,7 +292,7 @@ let perform_edit_action = (model: t, a: Action.t): t => {
       } else {
         model.undo_history;
       };
-    {...new_model, undo_history: new_history};
+    {...new_model, cursor_info: new_cursor_info, undo_history: new_history};
   };
 };
 
