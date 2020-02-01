@@ -62,42 +62,7 @@ type t =
   | Backspace
   | Construct(shape);
 
-let shape_to_display_string = (shape: shape): string => {
-  switch (shape) {
-  | SParenthesized => "parentheize"
-  | SList => "type List"
-  | SChar(str) => "edit: " ++ str
-  | SAsc => "type inference"
-  | SLam => "add lambada"
-  | SListNil => "add []"
-  | SInj(direction) =>
-    switch (direction) {
-    | L => "inject left"
-    | R => "inject right"
-    }
-  | SLet => "bulid 'let'"
-  | SLine => "add new line[s]"
-  | SCase => "add case"
-  | SOp(op) => "add operator " ++ operator_shape_to_string(op)
-  | SApPalette(_) => "appalette?"
-  /* pattern-only shapes */
-  };
-};
 
-let action_to_display_string = (action: t) => {
-  switch (action) {
-  | UpdateApPalette(_) => "updatePlate?"
-  | Delete => "delete"
-  | Backspace => "backspace"
-  | Construct(shape) => shape_to_display_string(shape)
-  | MoveTo(_)
-  | MoveToBefore(_)
-  | MoveLeft
-  | MoveRight
-  | MoveToNextHole
-  | MoveToPrevHole => "will not show in undo_history"
-  };
-};
 let is_same_shape = (shape_1: shape, shape_2: shape): bool => {
   switch (shape_1, shape_2) {
   | (SLine, SLine)

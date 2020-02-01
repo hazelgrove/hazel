@@ -18,11 +18,101 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
       ]
     };
   };
+  let display_string_of_cursor_term =
+      (cursor_term: option(CursorInfo.cursor_term)): string => {
+    switch (cursor_term) {
+    | None => failwith("Imposiible, undisplayed undo history entry")
+    | Some(cursor_term') =>
+      switch (cursor_term') {
+      | Exp(_, exp) =>
+        switch (exp) {
+        | EmptyHole(meta_var) =>
+          "edit empty hole: " ++ string_of_int(meta_var)
+        | Var(_, _, var_str) => "edit var: " ++ var_str
+        | NumLit(_, num) => "edit number: " ++ string_of_int(num)
+        | BoolLit(_, bool_val) => "edit bool: " ++ string_of_bool(bool_val)
+        | ListNil(_) => "add an empty list"
+        | Lam(_, _, _, _) => "add a lambada function"
+        | Inj(_, inj_side, _) =>
+          "add an injection: " ++ InjSide.to_string(inj_side)
+        | Case(_, _, _, _) => "edit case match"
+        | Parenthesized(_) => "add ()"
+        | ApPalette(_, _, _, _) => "I don't know its meaning"
+        }
+      | Pat(_, pat) =>
+        switch (pat) {
+        | EmptyHole(meta_var) =>
+          "edit empty hole: " ++ string_of_int(meta_var)
+        | Wild(_) => "I don't know its meaning"
+        | Var(_, _, var_str) => "edit var: " ++ var_str
+        | NumLit(_, num) => "edit number: " ++ string_of_int(num)
+        | BoolLit(_, bool_val) => "edit bool: " ++ string_of_bool(bool_val)
+        | ListNil(_) => "add an empty list"
+        | Parenthesized(_) => "add ()"
+        | Inj(_, inj_side, _) =>
+          "add an injection: " ++ InjSide.to_string(inj_side)
+        }
+      | Typ(_, typ) =>
+        switch (typ) {
+        | Hole => "type: Hole"
+        | Unit => "type: Unit"
+        | Num => "type: Num"
+        | Bool => "type: Bool"
+        | Parenthesized(_) => "type: (?)"
+        | List(_) => "type: [?]"
+        }
+      | Line(_) => "TBD aline"
+      | ExpOp(_, op) => "edit operator: " ++ UHExp.string_of_operator(op)
+      | PatOp(_, op) => "edit operator: " ++ UHPat.string_of_operator(op)
+      | TypOp(_, op) => "edit operator: " ++ UHTyp.string_of_operator(op)
+      }
+    };
+  };
+  let display_string_of_history_entry =
+      (undo_history_entry: undo_history_entry): string => {
+    let action = undo_history_entry.previous_action;
+    let cursor_term = undo_history_entry.cursor_term;
+    switch (action) {
+    | None => failwith("Imposiible, undisplayed undo history entry")
+    | Some(action') =>
+      switch (action') {
+      | MoveTo(_)
+      | MoveToBefore(_)
+      | MoveLeft
+      | MoveRight
+      | MoveToNextHole
+      | MoveToPrevHole
+      | UpdateApPalette(_) =>
+        failwith("not undoable actions, will not be matched")
+      | Delete
+      | Backspace => display_string_of_cursor_term(cursor_term)
+      | Construct(shape) =>
+        switch (shape) {
+        | SParenthesized => "parentheize"
+        | SList => "type List"
+        | SChar(_) => display_string_of_cursor_term(cursor_term)
+        | SAsc => "type inference"
+        | SLam => "add lambada"
+        | SListNil => "add []"
+        | SInj(direction) =>
+          switch (direction) {
+          | L => "inject left"
+          | R => "inject right"
+          }
+        | SLet => "bulid 'let'"
+        | SLine => "add new line[s]"
+        | SCase => "add case"
+        | SOp(op) => "add operator " ++ Action.operator_shape_to_string(op)
+        | SApPalette(_) => "appalette?"
+        }
+      }
+    };
+  };
   let history_hidden_entry_view =
       (group_id: int, elt_id: int, undo_history_entry: undo_history_entry) => {
     switch (undo_history_entry.previous_action) {
     | None => Vdom.(Node.div([], [])) /* entry in initial state should not be displayed */
-    | Some(detail_ac) =>
+    | Some(_) =>
       Vdom.(
         Node.div(
           [
@@ -31,7 +121,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
               inject(Update.Action.ShiftHistory(group_id, elt_id))
             ),
           ],
-          [Node.text(Action.action_to_display_string(detail_ac))],
+          [Node.text(display_string_of_history_entry(undo_history_entry))],
         )
       )
     };
@@ -75,7 +165,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
     };
     switch (undo_history_entry.previous_action) {
     | None => Vdom.(Node.div([], [])) /* entry in the initial state should not be displayed */
-    | Some(detail_ac) =>
+    | Some(_) =>
       Vdom.(
         Node.div(
           [Attr.classes(["the-history-title"])],
@@ -90,7 +180,11 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
                       inject(Update.Action.ShiftHistory(group_id, elt_id))
                     ),
                   ],
-                  [Node.text(Action.action_to_display_string(detail_ac))],
+                  [
+                    Node.text(
+                      display_string_of_history_entry(undo_history_entry),
+                    ),
+                  ],
                 ),
                 history_tab_icon(group_id),
               ],
