@@ -100,12 +100,7 @@ type t = {
   uses: option(UsageAnalysis.uses_list),
 };
 
-let mk = (~uses=?, typed, cursor_term, ctx) => {
-  typed,
-  cursor_term,
-  ctx,
-  uses,
-};
+let mk = (~uses=?, typed, ctx) => {typed, cursor_term: None, ctx, uses}; /*TBD?????*/
 
 let rec extract_cursor_exp_term = (exp: ZExp.t): option(cursor_term) => {
   switch (exp) {
@@ -133,7 +128,7 @@ and extract_from_zexp_operand =
   | LamZE(_, _, _, zexp)
   | InjZ(_, _, zexp)
   | CaseZE(_, zexp, _, _) => extract_cursor_exp_term(zexp)
-  | CaseZR(_, _, zrules, _) => None /*??????*/
+  | CaseZR(_, _, _, _) => None /*?????? TBD CaseZR(_, _, zrules, _)*/
   | CaseZA(_, _, _, ztyp) => extract_cursor_type_term(ztyp)
   | ApPaletteZ(_, _, _, _) => failwith("not oprand with cursor") /*TBD???*/
   };
@@ -197,10 +192,10 @@ and extract_from_ztyp_operand =
   | ListZ(ztyp) => extract_cursor_type_term(ztyp)
   };
 };
-
+/* TBD ????? */
 module Typ = {
   let cursor_info = (~steps as _, ctx: Contexts.t, _: ZTyp.t): option(t) =>
-    Some(mk(OnType, ctx));
+    Some(mk(OnType, ctx)); /*let's syn cursor_term in another func first to simplify code */
 };
 
 /*
