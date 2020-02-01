@@ -94,7 +94,6 @@ type cursor_term =
 //[@deriving sexp]
 type t = {
   typed,
-  cursor_term: option(cursor_term),
   ctx: Contexts.t,
   // hack while merging
   uses: option(UsageAnalysis.uses_list),
@@ -191,17 +190,16 @@ and extract_from_ztyp_operand =
   };
 };
 
-let update_cursor_term = (exp: ZExp.t, cursor_info: t): t => {
-  ...cursor_info,
-  cursor_term: extract_cursor_exp_term(exp),
-};
+/* let update_cursor_term = (exp: ZExp.t, cursor_info: t): t => {
+     ...cursor_info,
+     cursor_term: extract_cursor_exp_term(exp),
+   }; */
 
-let mk = (~uses=?, typed, ctx) => {typed, cursor_term: None, ctx, uses}; /*TBD?????*/
+let mk = (~uses=?, typed, ctx) => {typed, ctx, uses};
 
-/* TBD ????? */
 module Typ = {
   let cursor_info = (~steps as _, ctx: Contexts.t, _: ZTyp.t): option(t) =>
-    Some(mk(OnType, ctx)); /*let's syn cursor_term in another func first to simplify code */
+    Some(mk(OnType, ctx));
 };
 
 /*

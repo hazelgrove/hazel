@@ -100,8 +100,8 @@ let action_to_display_string = (action: t) => {
 };
 let is_same_shape = (shape_1: shape, shape_2: shape): bool => {
   switch (shape_1, shape_2) {
-  | (SLine, SLine) => true
-  | (SChar(_), _)
+  | (SLine, SLine)
+  | (SChar(_), _) => true
   | (SParenthesized, _)
   | (SList, _)
   | (SAsc, _)
@@ -115,31 +115,7 @@ let is_same_shape = (shape_1: shape, shape_2: shape): bool => {
   | (SApPalette(_), _) => false
   };
 };
-let in_same_history_group = (action_1: option(t), action_2: option(t)): bool => {
-  switch (action_1, action_2) {
-  | (None, _)
-  | (_, None) => false
-  | (Some(detail_action_1), Some(detail_action_2)) =>
-    switch (detail_action_1, detail_action_2) {
-    | (UpdateApPalette(_), UpdateApPalette(_))
-    | (Delete, Delete)
-    | (Backspace, Backspace) => true
-    | (Construct(shape_1), Construct(shape_2)) =>
-      is_same_shape(shape_1, shape_2)
-    | (UpdateApPalette(_), _)
-    | (Delete, _)
-    | (Backspace, _)
-    | (Construct(_), _) => false
-    | (MoveTo(_), _)
-    | (MoveToBefore(_), _)
-    | (MoveLeft, _)
-    | (MoveRight, _)
-    | (MoveToNextHole, _)
-    | (MoveToPrevHole, _) =>
-      failwith("not undoable actions, will not be matched")
-    }
-  };
-};
+
 module Outcome = {
   type t('success) =
     | Succeeded('success)

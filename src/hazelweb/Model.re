@@ -242,6 +242,7 @@ let init = (): t => {
   let undo_history_state: UndoHistory.undo_history_entry = {
     cardstacks_state,
     previous_action: None,
+    cursor_term: UndoHistory.get_cursor_term(cardstacks_state),
   };
   let compute_results = init_compute_results;
   {
@@ -254,7 +255,11 @@ let init = (): t => {
     is_cell_focused: false,
     undo_history: (
       [],
-      {group_entries: ([], undo_history_state, []), is_expanded: false},
+      {
+        group_entries: ([], undo_history_state, []),
+        is_expanded: false,
+        is_complete: true,
+      },
       [],
     ),
     left_sidebar_open: false,
@@ -278,21 +283,14 @@ let perform_edit_action = (model: t, a: Action.t): t => {
   | Failed => raise(FailedAction)
   | CursorEscaped(_) => raise(CursorEscaped)
   | Succeeded(new_edit_state) =>
-    let (zexp, _, _) = new_edit_state;
     let new_model = model |> update_edit_state(new_edit_state);
-    let new_cursor_info =
-      CursorInfo.update_cursor_term(zexp, new_model.cursor_info);
     let new_history =
-      if (UndoHistory.undoable_action(a)) {
-        UndoHistory.push_edit_state(
-          model.undo_history,
-          new_model.cardstacks_state,
-          Some(a),
-        );
-      } else {
-        model.undo_history;
-      };
-    {...new_model, cursor_info: new_cursor_info, undo_history: new_history};
+      UndoHistory.push_edit_state(
+        model.undo_history,
+        new_model.cardstacks_state,
+        Some(a),
+      );
+    {...new_model, undo_history: new_history};
   };
 };
 
@@ -373,6 +371,7 @@ let undo = (model: t): t => {
         let new_group': UndoHistory.undo_history_group = {
           group_entries: ZList.shift_begin(new_group.group_entries), /*pointer may be in the wrong position after clicking an arbitrary entry in the history panel*/
           is_expanded: true,
+          is_complete: new_group.is_complete,
         }; /* is_expanded=true because the selected group should be expanded*/
         ZList.replace_z(new_group', new_history);
       }
@@ -380,6 +379,7 @@ let undo = (model: t): t => {
       let new_group: UndoHistory.undo_history_group = {
         group_entries: new_group_entries,
         is_expanded: true,
+        is_complete: cur_group.is_complete,
       };
       ZList.replace_z(new_group, model.undo_history); /* is_expanded=true because the selected group should be expanded*/
     };
@@ -401,17 +401,19 @@ let redo = (model: t): t => {
       switch (ZList.shift_prev(model.undo_history)) {
       | None => model.undo_history
       | Some(new_history) =>
-        let cur_group = ZList.prj_z(new_history);
-        let new_group: UndoHistory.undo_history_group = {
-          group_entries: ZList.shift_end(cur_group.group_entries), /*pointer may be in the wrong position after clicking an arbitrary entry in the history panel*/
+        let new_group = ZList.prj_z(new_history);
+        let new_group': UndoHistory.undo_history_group = {
+          group_entries: ZList.shift_end(new_group.group_entries), /*pointer may be in the wrong position after clicking an arbitrary entry in the history panel*/
           is_expanded: true,
+          is_complete: new_group.is_complete,
         }; /* is_expanded=true because this group should be expanded when redo*/
-        ZList.replace_z(new_group, new_history);
+        ZList.replace_z(new_group', new_history);
       }
     | Some(new_group_entries) =>
       let new_group: UndoHistory.undo_history_group = {
         group_entries: new_group_entries,
         is_expanded: true,
+        is_complete: cur_group.is_complete,
       };
       ZList.replace_z(new_group, model.undo_history); /* is_expanded=true because the selected group should be expanded*/
     };

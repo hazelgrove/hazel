@@ -16,7 +16,6 @@ type cardstack_state = {
 };
 
 type cardstacks_state = ZList.t(cardstack_state, cardstack_state);
-
 let mk_cardstack_state = (cardstack: CardStack.t) => {
   let card_states =
     List.map(
