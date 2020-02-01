@@ -100,8 +100,6 @@ type t = {
   uses: option(UsageAnalysis.uses_list),
 };
 
-let mk = (~uses=?, typed, ctx) => {typed, cursor_term: None, ctx, uses}; /*TBD?????*/
-
 let rec extract_cursor_exp_term = (exp: ZExp.t): option(cursor_term) => {
   switch (exp) {
   | ZE2(zblock) => extract_from_zline(ZList.prj_z(zblock))
@@ -192,6 +190,14 @@ and extract_from_ztyp_operand =
   | ListZ(ztyp) => extract_cursor_type_term(ztyp)
   };
 };
+
+let update_cursor_term = (exp: ZExp.t, cursor_info: t): t => {
+  ...cursor_info,
+  cursor_term: extract_cursor_exp_term(exp),
+};
+
+let mk = (~uses=?, typed, ctx) => {typed, cursor_term: None, ctx, uses}; /*TBD?????*/
+
 /* TBD ????? */
 module Typ = {
   let cursor_info = (~steps as _, ctx: Contexts.t, _: ZTyp.t): option(t) =>
