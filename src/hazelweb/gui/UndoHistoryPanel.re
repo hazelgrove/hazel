@@ -18,6 +18,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
       ]
     };
   };
+  /* special case for backspace and delete */
   let back_delete_view =
       (
         action: Action.t,
