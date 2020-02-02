@@ -18,53 +18,125 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
       ]
     };
   };
+  let back_delete_view =
+      (
+        action: Action.t,
+        cursor_pos: option(CursorPosition.t),
+        otherwise_str: option(string),
+      )
+      : string => {
+    switch (cursor_pos) {
+    | None =>
+      if (action == Backspace) {
+        "backspace";
+      } else if (action == Delete) {
+        "delete";
+      } else {
+        switch (otherwise_str) {
+        | None => failwith("Imposiible, undisplayed undo history entry")
+        | Some(str) => str
+        };
+      }
+    | Some(cursor_pos') =>
+      switch (cursor_pos') {
+      | OnText(pos_index) =>
+        if (action == Backspace && pos_index == 0) {
+          "backspace";
+        } else if (action == Delete) {
+          "delete";
+        } else {
+          switch (otherwise_str) {
+          | None => failwith("Imposiible, undisplayed undo history entry")
+          | Some(str) => str
+          };
+        }
+      | OnDelim(deli, side) =>
+        switch (side) {
+        | Before => string_of_int(deli) ++ ",  before"
+        | After => string_of_int(deli) ++ ",  after"
+        }
+      | OnOp(_) =>
+        if (action == Backspace) {
+          "backspace";
+        } else if (action == Delete) {
+          "delete";
+        } else {
+          switch (otherwise_str) {
+          | None => failwith("Imposiible, undisplayed undo history entry")
+          | Some(str) => str
+          };
+        }
+      }
+    };
+  };
   let display_string_of_cursor_term =
-      (cursor_term: option(CursorInfo.cursor_term)): string => {
+      (cursor_term: option(CursorInfo.cursor_term), action: Action.t): string => {
     switch (cursor_term) {
-    | None => failwith("Imposiible, undisplayed undo history entry")
+    | None => back_delete_view(action, None, None)
     | Some(cursor_term') =>
       switch (cursor_term') {
-      | Exp(_, exp) =>
-        switch (exp) {
-        | EmptyHole(meta_var) =>
-          "edit empty hole: " ++ string_of_int(meta_var)
-        | Var(_, _, var_str) => "edit var: " ++ var_str
-        | NumLit(_, num) => "edit number: " ++ string_of_int(num)
-        | BoolLit(_, bool_val) => "edit bool: " ++ string_of_bool(bool_val)
-        | ListNil(_) => "add an empty list"
-        | Lam(_, _, _, _) => "add a lambada function"
-        | Inj(_, inj_side, _) =>
-          "add an injection: " ++ InjSide.to_string(inj_side)
-        | Case(_, _, _, _) => "edit case match"
-        | Parenthesized(_) => "add ()"
-        | ApPalette(_, _, _, _) => "I don't know its meaning"
-        }
-      | Pat(_, pat) =>
-        switch (pat) {
-        | EmptyHole(meta_var) =>
-          "edit empty hole: " ++ string_of_int(meta_var)
-        | Wild(_) => "I don't know its meaning"
-        | Var(_, _, var_str) => "edit var: " ++ var_str
-        | NumLit(_, num) => "edit number: " ++ string_of_int(num)
-        | BoolLit(_, bool_val) => "edit bool: " ++ string_of_bool(bool_val)
-        | ListNil(_) => "add an empty list"
-        | Parenthesized(_) => "add ()"
-        | Inj(_, inj_side, _) =>
-          "add an injection: " ++ InjSide.to_string(inj_side)
-        }
-      | Typ(_, typ) =>
-        switch (typ) {
-        | Hole => "type: Hole"
-        | Unit => "type: Unit"
-        | Num => "type: Num"
-        | Bool => "type: Bool"
-        | Parenthesized(_) => "type: (?)"
-        | List(_) => "type: [?]"
-        }
+      | Exp(cursor_pos, exp) =>
+        let exp_str =
+          switch (exp) {
+          | EmptyHole(meta_var) =>
+            "edit empty hole: " ++ string_of_int(meta_var)
+          | Var(_, _, var_str) => "edit var: " ++ var_str
+          | NumLit(_, num) => "edit number: " ++ string_of_int(num)
+          | BoolLit(_, bool_val) => "edit bool: " ++ string_of_bool(bool_val)
+          | ListNil(_) => "add an empty list"
+          | Lam(_, _, _, _) => "add a lambada function"
+          | Inj(_, inj_side, _) =>
+            "add an injection: " ++ InjSide.to_string(inj_side)
+          | Case(_, _, _, _) => "edit case match"
+          | Parenthesized(_) => "add ()"
+          | ApPalette(_, _, _, _) => "I don't know its meaning"
+          };
+        back_delete_view(action, Some(cursor_pos), Some(exp_str));
+      | Pat(cursor_pos, pat) =>
+        let pat_str =
+          switch (pat) {
+          | EmptyHole(meta_var) =>
+            "edit empty hole: " ++ string_of_int(meta_var)
+          | Wild(_) => "I don't know its meaning"
+          | Var(_, _, var_str) => "edit var: " ++ var_str
+          | NumLit(_, num) => "edit number: " ++ string_of_int(num)
+          | BoolLit(_, bool_val) => "edit bool: " ++ string_of_bool(bool_val)
+          | ListNil(_) => "add an empty list"
+          | Parenthesized(_) => "add ()"
+          | Inj(_, inj_side, _) =>
+            "add an injection: " ++ InjSide.to_string(inj_side)
+          };
+        back_delete_view(action, Some(cursor_pos), Some(pat_str));
+      | Typ(cursor_pos, typ) =>
+        let typ_str =
+          switch (typ) {
+          | Hole => "type: Hole"
+          | Unit => "type: Unit"
+          | Num => "type: Num"
+          | Bool => "type: Bool"
+          | Parenthesized(_) => "type: (?)"
+          | List(_) => "type: [?]"
+          };
+        back_delete_view(action, Some(cursor_pos), Some(typ_str));
       | Line(_) => "TBD aline"
-      | ExpOp(_, op) => "edit operator: " ++ UHExp.string_of_operator(op)
-      | PatOp(_, op) => "edit operator: " ++ UHPat.string_of_operator(op)
-      | TypOp(_, op) => "edit operator: " ++ UHTyp.string_of_operator(op)
+      | ExpOp(cursor_pos, op) =>
+        back_delete_view(
+          action,
+          Some(cursor_pos),
+          Some("edit operator: " ++ UHExp.string_of_operator(op)),
+        )
+      | PatOp(cursor_pos, op) =>
+        back_delete_view(
+          action,
+          Some(cursor_pos),
+          Some("edit operator: " ++ UHPat.string_of_operator(op)),
+        )
+      | TypOp(cursor_pos, op) =>
+        back_delete_view(
+          action,
+          Some(cursor_pos),
+          Some("edit operator: " ++ UHTyp.string_of_operator(op)),
+        )
       }
     };
   };
@@ -85,12 +157,12 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
       | UpdateApPalette(_) =>
         failwith("not undoable actions, will not be matched")
       | Delete
-      | Backspace => display_string_of_cursor_term(cursor_term)
+      | Backspace => display_string_of_cursor_term(cursor_term, action')
       | Construct(shape) =>
         switch (shape) {
         | SParenthesized => "parentheize"
         | SList => "type List"
-        | SChar(_) => display_string_of_cursor_term(cursor_term)
+        | SChar(_) => display_string_of_cursor_term(cursor_term, action')
         | SAsc => "type inference"
         | SLam => "add lambada"
         | SListNil => "add []"
