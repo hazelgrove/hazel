@@ -62,7 +62,6 @@ type t =
   | Backspace
   | Construct(shape);
 
-
 let is_same_shape = (shape_1: shape, shape_2: shape): bool => {
   switch (shape_1, shape_2) {
   | (SLine, SLine)
