@@ -23,6 +23,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
         action: Action.t,
         cursor_pos: option(CursorPosition.t),
         otherwise_str: option(string),
+        is_empty_line: bool,
       )
       : string => {
     switch (otherwise_str) {
@@ -39,20 +40,25 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
         }
       | Some(cursor_pos') =>
         switch (cursor_pos') {
-        | OnText(_) => "edittext " ++ str
+        | OnText(_) =>
+          if (is_empty_line) {
+            "clear the line";
+          } else {
+            "edit " ++ str;
+          }
         | OnDelim(_, side) =>
           switch (side) {
           | Before =>
             if (action == Delete) {
-              "selectdelib " ++ str;
+              "select " ++ str;
             } else {
-              "editdelib " ++ str;
+              "edit " ++ str;
             }
           | After =>
             if (action == Backspace) {
-              "selectdelia " ++ str;
+              "select " ++ str;
             } else {
-              "editdelia " ++ str;
+              "edit " ++ str;
             }
           }
         | OnOp(_) => "addop " ++ str
@@ -63,7 +69,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
   let display_string_of_cursor_term =
       (cursor_term: option(CursorInfo.cursor_term), action: Action.t): string => {
     switch (cursor_term) {
-    | None => back_delete_view(action, None, None)
+    | None => back_delete_view(action, None, None, false)
     | Some(cursor_term') =>
       switch (cursor_term') {
       | Exp(cursor_pos, exp) =>
@@ -81,7 +87,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
           | Parenthesized(_) => "()"
           | ApPalette(_, _, _, _) => "I don't know its meaning"
           };
-        back_delete_view(action, Some(cursor_pos), Some(exp_str));
+        back_delete_view(action, Some(cursor_pos), Some(exp_str), false);
       | Pat(cursor_pos, pat) =>
         let pat_str =
           switch (pat) {
@@ -95,7 +101,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
           | Inj(_, inj_side, _) =>
             "injection: " ++ InjSide.to_string(inj_side)
           };
-        back_delete_view(action, Some(cursor_pos), Some(pat_str));
+        back_delete_view(action, Some(cursor_pos), Some(pat_str), false);
       | Typ(cursor_pos, typ) =>
         let typ_str =
           switch (typ) {
@@ -106,35 +112,54 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
           | Parenthesized(_) => "type: (?)"
           | List(_) => "type: [?]"
           };
-        back_delete_view(action, Some(cursor_pos), Some(typ_str));
+        back_delete_view(action, Some(cursor_pos), Some(typ_str), false);
       | ExpOp(cursor_pos, op) =>
         back_delete_view(
           action,
           Some(cursor_pos),
           Some("operator: " ++ UHExp.string_of_operator(op)),
+          false,
         )
       | PatOp(cursor_pos, op) =>
         back_delete_view(
           action,
           Some(cursor_pos),
           Some("operator: " ++ UHPat.string_of_operator(op)),
+          false,
         )
       | TypOp(cursor_pos, op) =>
         back_delete_view(
           action,
           Some(cursor_pos),
           Some("operator: " ++ UHTyp.string_of_operator(op)),
+          false,
         )
       | Line(cursor_pos, line_content) =>
-        let line_str =
-          switch (line_content) {
-          | EmptyLine => "empty line"
-          | LetLine(_, _, _) => "let binding"
-          | ExpLine(_) => "epression line"
-          };
-        back_delete_view(action, Some(cursor_pos), Some(line_str));
+        switch (line_content) {
+        | EmptyLine =>
+          back_delete_view(
+            action,
+            Some(cursor_pos),
+            Some("empty line"),
+            true,
+          )
+        | LetLine(_, _, _) =>
+          back_delete_view(
+            action,
+            Some(cursor_pos),
+            Some("let binding"),
+            false,
+          )
+        | ExpLine(_) =>
+          back_delete_view(
+            action,
+            Some(cursor_pos),
+            Some("epression line"),
+            false,
+          )
+        }
       | Rule(cursor_pos, _) =>
-        back_delete_view(action, Some(cursor_pos), Some("rule"))
+        back_delete_view(action, Some(cursor_pos), Some("rule"), false)
       }
     };
   };
