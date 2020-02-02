@@ -62,7 +62,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
               "edit " ++ str;
             }
           }
-        | OnOp(_) => "addop " ++ str
+        | OnOp(_) => "add " ++ str
         }
       }
     };
@@ -92,7 +92,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
       | Pat(cursor_pos, pat) =>
         let pat_str =
           switch (pat) {
-          | EmptyHole(meta_var) => "empty hole: " ++ string_of_int(meta_var)
+          | EmptyHole(meta_var) => "hole: " ++ string_of_int(meta_var)
           | Wild(_) => "I don't know its meaning"
           | Var(_, _, var_str) => "var: " ++ var_str
           | NumLit(_, num) => "number: " ++ string_of_int(num)
@@ -160,7 +160,12 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
           )
         }
       | Rule(cursor_pos, _) =>
-        back_delete_view(action, Some(cursor_pos), Some("rule"), false)
+        back_delete_view(
+          action,
+          Some(cursor_pos),
+          Some("match rule"),
+          false,
+        )
       }
     };
   };
@@ -184,21 +189,21 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
       | Backspace => display_string_of_cursor_term(cursor_term, action')
       | Construct(shape) =>
         switch (shape) {
-        | SParenthesized => "parentheize"
+        | SParenthesized => "add ( )"
         | SList => "type List"
-        | SChar(_) => display_string_of_cursor_term(cursor_term, action')
         | SAsc => "type inference"
         | SLam => "add lambada"
-        | SListNil => "add []"
+        | SListNil => "add [ ]"
         | SInj(direction) =>
           switch (direction) {
           | L => "inject left"
           | R => "inject right"
           }
-        | SLet => "bulid 'let'"
+        | SLet => "add let binding"
         | SLine => "add new lines"
         | SCase => "add case"
-        | SOp(op) => "add operator " ++ Action.operator_shape_to_string(op)
+        | SChar(_)
+        | SOp(_) => display_string_of_cursor_term(cursor_term, action')
         | SApPalette(_) => "appalette?"
         }
       }
