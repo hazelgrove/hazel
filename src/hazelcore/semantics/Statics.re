@@ -45,7 +45,8 @@ let rec syn_pat =
   /* not in hole */
   | Wild(NotInHole) => Some((Hole, ctx))
   | Var(NotInHole, InVarHole(Free, _), _, _) => raise(UHPat.FreeVarInPat)
-  | Var(NotInHole, InVarHole(Keyword(_), _), _, _) => Some((Hole, ctx))
+  | Var(NotInHole, InVarHole(Keyword(_) | Duplicate, _), _, _) =>
+    Some((Hole, ctx))
   | Var(NotInHole, NotInVarHole, _, x) =>
     Var.check_valid(
       x,
@@ -180,7 +181,7 @@ and ana_pat =
   | Inj(InHole(WrongLength, _), _, _) => None
   /* not in hole */
   | Var(NotInHole, InVarHole(Free, _), _, _) => raise(UHPat.FreeVarInPat)
-  | Var(NotInHole, InVarHole(Keyword(_), _), _, _) => Some(ctx)
+  | Var(NotInHole, InVarHole(Keyword(_) | Duplicate, _), _, _) => Some(ctx)
   | Var(NotInHole, NotInVarHole, _, x) =>
     Var.check_valid(x, Some(Contexts.extend_gamma(ctx, (x, (ty, steps)))))
   | Wild(NotInHole) => Some(ctx)
@@ -1080,6 +1081,7 @@ let rec syn_fix_holes_pat =
           ctx: Contexts.t((HTyp.t, CursorPath.steps)),
           u_gen: MetaVarGen.t,
           ~renumber_empty_holes=false,
+          ~var_set=VarSet.empty,
           p: UHPat.t,
         )
         : (
@@ -1088,7 +1090,11 @@ let rec syn_fix_holes_pat =
             Contexts.t((HTyp.t, CursorPath.steps)),
             MetaVarGen.t,
           ) => {
-  let p_nih = UHPat.set_err_status_t(NotInHole, p);
+  let p_nih_nvw =
+    UHPat.set_var_warn_status_t(
+      NoWarning,
+      UHPat.set_err_status_t(NotInHole, p),
+    );
   switch (p) {
   | EmptyHole(_) =>
     if (renumber_empty_holes) {
@@ -1097,15 +1103,27 @@ let rec syn_fix_holes_pat =
     } else {
       (p, HTyp.Hole, ctx, u_gen);
     }
-  | Wild(_) => (p_nih, Hole, ctx, u_gen)
+  | Wild(_) => (p_nih_nvw, Hole, ctx, u_gen)
   | Var(_, InVarHole(Free, _), _, _) => raise(UHPat.FreeVarInPat)
-  | Var(_, InVarHole(Keyword(_), _), _, _) => (p_nih, Hole, ctx, u_gen)
-  | Var(_, NotInVarHole, _, x) =>
+  | Var(_, InVarHole(Keyword(_), _), _, _) => (p_nih_nvw, Hole, ctx, u_gen)
+  | Var(_, NotInVarHole | InVarHole(Duplicate, _), _, x)
+      when !VarSet.mem(x, var_set) =>
+    // TODO: defer var_warn
     let ctx = Contexts.extend_gamma(ctx, (x, (Hole, steps)));
-    (p_nih, Hole, ctx, u_gen);
-  | NumLit(_, _) => (p_nih, Num, ctx, u_gen)
-  | BoolLit(_, _) => (p_nih, Bool, ctx, u_gen)
-  | ListNil(_) => (p_nih, List(Hole), ctx, u_gen)
+    (Var(NotInHole, NotInVarHole, NoWarning, x), Hole, ctx, u_gen);
+  // variable pattern with duplicate name
+  | Var(_, InVarHole(Duplicate, _), _, _) => (p_nih_nvw, Hole, ctx, u_gen)
+  | Var(_, NotInVarHole, _, x) =>
+    let (u, u_gen) = MetaVarGen.next(u_gen);
+    (
+      Var(NotInHole, InVarHole(Duplicate, u), NoWarning, x),
+      Hole,
+      ctx,
+      u_gen,
+    );
+  | NumLit(_, _) => (p_nih_nvw, Num, ctx, u_gen)
+  | BoolLit(_, _) => (p_nih_nvw, Bool, ctx, u_gen)
+  | ListNil(_) => (p_nih_nvw, List(Hole), ctx, u_gen)
   | Parenthesized(p) =>
     let (p, ty, ctx, u_gen) =
       syn_fix_holes_pat(steps @ [0], ctx, u_gen, ~renumber_empty_holes, p);
@@ -1139,6 +1157,7 @@ and syn_fix_holes_pat_skel =
       ctx: Contexts.t((HTyp.t, CursorPath.steps)),
       u_gen: MetaVarGen.t,
       ~renumber_empty_holes=false,
+      ~var_set=VarSet.empty,
       skel: UHPat.skel_t,
       seq: UHPat.opseq,
     )
@@ -1148,7 +1167,13 @@ and syn_fix_holes_pat_skel =
         HTyp.t,
         Contexts.t((HTyp.t, CursorPath.steps)),
         MetaVarGen.t,
-      ) =>
+      ) => {
+  let var_set =
+    if (var_set == VarSet.empty) {
+      UHPat.variables_in_opseq(VarSet.empty, seq);
+    } else {
+      var_set;
+    };
   switch (skel) {
   | Placeholder(n) =>
     switch (OperatorSeq.nth_tm(n, seq)) {
@@ -1160,6 +1185,7 @@ and syn_fix_holes_pat_skel =
           ctx,
           u_gen,
           ~renumber_empty_holes,
+          ~var_set,
           pn,
         );
       switch (OperatorSeq.seq_update_nth(n, seq, pn)) {
@@ -1238,18 +1264,21 @@ and syn_fix_holes_pat_skel =
       );
     let skel = Skel.BinOp(NotInHole, UHPat.Cons, skel1, skel2);
     (skel, seq, ty, ctx, u_gen);
-  }
+  };
+}
 and ana_fix_holes_pat =
     (
       steps: CursorPath.steps,
       ctx: Contexts.t((HTyp.t, CursorPath.steps)),
       u_gen: MetaVarGen.t,
       ~renumber_empty_holes=false,
+      ~var_set=VarSet.empty,
       p: UHPat.t,
       ty: HTyp.t,
     )
     : (UHPat.t, Contexts.t((HTyp.t, CursorPath.steps)), MetaVarGen.t) => {
-  let p_nih = UHPat.set_err_status_t(NotInHole, p);
+  let p_nvw = UHPat.set_var_warn_status_t(NoWarning, p);
+  let p_nih_nvw = UHPat.set_err_status_t(NotInHole, p_nvw);
   switch (p) {
   | EmptyHole(_) =>
     if (renumber_empty_holes) {
@@ -1258,12 +1287,18 @@ and ana_fix_holes_pat =
     } else {
       (p, ctx, u_gen);
     }
-  | Wild(_) => (p_nih, ctx, u_gen)
+  | Wild(_) => (p_nih_nvw, ctx, u_gen)
   | Var(_, InVarHole(Free, _), _, _) => raise(UHPat.FreeVarInPat)
-  | Var(_, InVarHole(Keyword(_), _), _, _) => (p_nih, ctx, u_gen)
-  | Var(_, NotInVarHole, _, x) =>
+  | Var(_, InVarHole(Keyword(_), _), _, _) => (p_nih_nvw, ctx, u_gen)
+  | Var(_, NotInVarHole | InVarHole(Duplicate, _), _, x)
+      when !VarSet.mem(x, var_set) =>
     let ctx = Contexts.extend_gamma(ctx, (x, (ty, steps)));
-    (p_nih, ctx, u_gen);
+    (Var(NotInHole, NotInVarHole, NoWarning, x), ctx, u_gen);
+  // variable pattern with duplicate name
+  | Var(_, InVarHole(Duplicate, _), _, _) => (p_nih_nvw, ctx, u_gen)
+  | Var(_, NotInVarHole, _, x) =>
+    let (u, u_gen) = MetaVarGen.next(u_gen);
+    (Var(NotInHole, InVarHole(Duplicate, u), NoWarning, x), ctx, u_gen);
   | NumLit(_, _)
   | BoolLit(_, _) =>
     let (p', ty', ctx, u_gen) =
@@ -1288,6 +1323,7 @@ and ana_fix_holes_pat =
         ctx,
         u_gen,
         ~renumber_empty_holes,
+        ~var_set,
         p1,
         ty,
       );
@@ -1299,6 +1335,7 @@ and ana_fix_holes_pat =
         ctx,
         u_gen,
         ~renumber_empty_holes,
+        ~var_set,
         skel,
         seq,
         ty,
@@ -1314,6 +1351,7 @@ and ana_fix_holes_pat =
           ctx,
           u_gen,
           ~renumber_empty_holes,
+          ~var_set,
           p1,
           ty1,
         );
@@ -1338,6 +1376,7 @@ and ana_fix_holes_pat_skel =
       ctx: Contexts.t((HTyp.t, CursorPath.steps)),
       u_gen: MetaVarGen.t,
       ~renumber_empty_holes=false,
+      ~var_set=VarSet.empty,
       skel: UHPat.skel_t,
       seq: UHPat.opseq,
       ty: HTyp.t,
@@ -1359,6 +1398,7 @@ and ana_fix_holes_pat_skel =
           ctx,
           u_gen,
           ~renumber_empty_holes,
+          ~var_set,
           pn,
           ty,
         );
@@ -1376,6 +1416,7 @@ and ana_fix_holes_pat_skel =
           ctx,
           u_gen,
           ~renumber_empty_holes,
+          ~var_set,
           skel1,
           seq,
           HTyp.Hole,
@@ -1386,6 +1427,7 @@ and ana_fix_holes_pat_skel =
           ctx,
           u_gen,
           ~renumber_empty_holes,
+          ~var_set,
           skel2,
           seq,
           HTyp.Hole,
@@ -1411,6 +1453,7 @@ and ana_fix_holes_pat_skel =
             ctx,
             u_gen,
             ~renumber_empty_holes,
+            ~var_set,
             skel,
             seq,
             ty,
@@ -1428,6 +1471,7 @@ and ana_fix_holes_pat_skel =
             ctx,
             u_gen,
             ~renumber_empty_holes,
+            ~var_set,
             skel1,
             seq,
             ty1,
@@ -1438,6 +1482,7 @@ and ana_fix_holes_pat_skel =
             ctx,
             u_gen,
             ~renumber_empty_holes,
+            ~var_set,
             skel2,
             seq,
             ty2,
@@ -1461,6 +1506,7 @@ and ana_fix_holes_pat_skel =
                   ctx,
                   u_gen,
                   ~renumber_empty_holes,
+                  ~var_set,
                   skel,
                   seq,
                 );
@@ -1481,6 +1527,7 @@ and ana_fix_holes_pat_skel =
           ctx,
           u_gen,
           ~renumber_empty_holes,
+          ~var_set,
           skel1,
           seq,
         );
@@ -1490,6 +1537,7 @@ and ana_fix_holes_pat_skel =
           ctx,
           u_gen,
           ~renumber_empty_holes,
+          ~var_set,
           skel2,
           seq,
         );
@@ -1505,6 +1553,7 @@ and ana_fix_holes_pat_skel =
         ctx,
         u_gen,
         ~renumber_empty_holes,
+        ~var_set,
         skel1,
         seq,
         HTyp.Hole,
@@ -1515,6 +1564,7 @@ and ana_fix_holes_pat_skel =
         ctx,
         u_gen,
         ~renumber_empty_holes,
+        ~var_set,
         skel2,
         seq,
         HTyp.Hole,
@@ -1532,6 +1582,7 @@ and ana_fix_holes_pat_skel =
           ctx,
           u_gen,
           ~renumber_empty_holes,
+          ~var_set,
           skel1,
           seq,
           ty_elt,
@@ -1543,6 +1594,7 @@ and ana_fix_holes_pat_skel =
           ctx,
           u_gen,
           ~renumber_empty_holes,
+          ~var_set,
           skel2,
           seq,
           ty_list,
@@ -1556,6 +1608,7 @@ and ana_fix_holes_pat_skel =
           ctx,
           u_gen,
           ~renumber_empty_holes,
+          ~var_set,
           skel1,
           seq,
         );
@@ -1566,6 +1619,7 @@ and ana_fix_holes_pat_skel =
           ctx,
           u_gen,
           ~renumber_empty_holes,
+          ~var_set,
           skel2,
           seq,
           ty_list,
@@ -1608,6 +1662,56 @@ let ana_fix_holes_zpat =
   (zp, ctx, u_gen);
 };
 
+let rec cmplx_fold_left =
+        (
+          f:
+            (
+              (
+                UHExp.lines,
+                Contexts.t((HTyp.t, CursorPath.steps)),
+                MetaVarGen.t,
+                ChildIndex.t,
+              ),
+              UHExp.line,
+              UHExp.block
+            ) =>
+            (
+              UHExp.lines,
+              Contexts.t((HTyp.t, CursorPath.steps)),
+              MetaVarGen.t,
+              ChildIndex.t,
+            ),
+          acc: (
+            UHExp.lines,
+            Contexts.t((HTyp.t, CursorPath.steps)),
+            MetaVarGen.t,
+            ChildIndex.t,
+          ),
+          b: UHExp.block,
+          f_base:
+            (
+              UHExp.t,
+              Contexts.t((HTyp.t, CursorPath.steps)),
+              MetaVarGen.t,
+              ChildIndex.t
+            ) =>
+            (UHExp.t, HTyp.t, MetaVarGen.t),
+        )
+        : (UHExp.block, HTyp.t, MetaVarGen.t, ChildIndex.t) =>
+  switch (b) {
+  | Block([], e) =>
+    let (lines, ctx, u_gen, i) = acc;
+    let (e, ty, u_gen) = f_base(e, ctx, u_gen, i + 1);
+    (Block(lines, e), ty, u_gen, i);
+  | Block([hd, ...tl], e) =>
+    let tl_block = UHExp.Block(tl, e);
+    cmplx_fold_left(f, f(acc, hd, tl_block), tl_block, f_base);
+  };
+
+type deferrable('a) =
+  | NotDeferred('a)
+  | Deferred(list(VarWarnStatus.t) => 'a, list(Var.t));
+
 /* If renumber_empty_holes is true, then the metavars in empty holes will be assigned
  * new values in the same namespace as non-empty holes. Non-empty holes are renumbered
  * regardless.
@@ -1621,19 +1725,45 @@ let rec syn_fix_holes_block =
           block: UHExp.block,
         )
         : (UHExp.block, HTyp.t, MetaVarGen.t) => {
-  let Block(lines, e) = block;
-  let (lines, ctx, u_gen) =
-    syn_fix_holes_lines(steps, ctx, u_gen, ~renumber_empty_holes, lines);
-  let (e, ty, u_gen) =
-    syn_fix_holes_exp(
-      steps @ [List.length(lines)],
-      ctx,
-      u_gen,
-      ~renumber_empty_holes,
-      e,
+  let syn_fix_holes_line_auxiliary =
+      ((acc_lines, ctx, u_gen, i), line, lines) => {
+    let (deferrable_line, ctx, u_gen) =
+      syn_fix_holes_line(
+        steps @ [i],
+        ctx,
+        u_gen,
+        ~renumber_empty_holes,
+        line,
+      );
+    // TODO: find uses and fill in the deferred line
+    ([deferrable_line, ...acc_lines], ctx, u_gen, i + 1);
+  };
+  let (fixed_block, ty, u_gen, _) =
+    cmplx_fold_left(
+      syn_fix_holes_line_auxiliary,
+      ([], ctx, u_gen, 0),
+      block,
+      (e, ctx, u_gen, i) =>
+      syn_fix_holes_exp(steps @ [i], ctx, u_gen, ~renumber_empty_holes, e)
     );
-  (Block(lines, e), ty, u_gen);
+  (fixed_block, ty, u_gen);
 }
+/*
+ {
+   let Block(lines, e) = block;
+   let (lines, ctx, u_gen) =
+     syn_fix_holes_lines(steps, ctx, u_gen, ~renumber_empty_holes, lines);
+   let (e, ty, u_gen) =
+     syn_fix_holes_exp(
+       steps @ [List.length(lines)],
+       ctx,
+       u_gen,
+       ~renumber_empty_holes,
+       e,
+     );
+   (Block(lines, e), ty, u_gen);
+ }
+ */
 and syn_fix_holes_lines =
     (
       steps: CursorPath.steps,
@@ -2760,13 +2890,3 @@ let fix_and_renumber_holes =
     ~renumber_empty_holes=true,
     block,
   );
-
-let fix_and_renumber_holes_z =
-    (ctx: Contexts.t((HTyp.t, CursorPath.steps)), zblock: ZExp.zblock)
-    : edit_state => {
-  let (block, ty, u_gen) =
-    fix_and_renumber_holes(ctx, zblock |> ZExp.erase_block);
-  let zblock =
-    CursorPath.follow_block_or_fail(CursorPath.of_zblock(zblock), block);
-  (zblock, ty, u_gen);
-};

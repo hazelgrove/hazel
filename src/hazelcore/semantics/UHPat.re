@@ -149,6 +149,13 @@ and set_err_status_opseq =
   | BinOp(_, op, skel1, skel2) => (BinOp(err, op, skel1, skel2), seq)
   };
 
+exception SetVarWarnStatusForNoVar;
+let set_var_warn_status_t = (var_warn: VarWarnStatus.t, varpat: t): t =>
+  switch (varpat) {
+  | Var(err, var_err, _, x) => Var(err, var_err, var_warn, x)
+  | _ => raise(SetVarWarnStatusForNoVar)
+  };
+
 let is_inconsistent = (p: t): bool =>
   switch (get_err_status_t(p)) {
   | InHole(TypeInconsistent, _) => true
@@ -229,3 +236,19 @@ let favored_child: t => option((ChildIndex.t, t)) =
   | OpSeq(_, _) => None
   | Parenthesized(p)
   | Inj(_, _, p) => Some((0, p));
+
+let rec variables_in_pat = (var_set: VarSet.t, p: t): VarSet.t =>
+  switch (p) {
+  | Var(_, _, _, x) => var_set |> VarSet.add(x)
+  | Parenthesized(p) => variables_in_pat(var_set, p)
+  | OpSeq(_, seq) => variables_in_opseq(var_set, seq)
+  | Inj(_, _, p) => variables_in_pat(var_set, p)
+  | _ => var_set
+  }
+and variables_in_opseq = (var_set: VarSet.t, seq: opseq): VarSet.t =>
+  switch (seq) {
+  | ExpOpExp(e1, _, e2) =>
+    variables_in_pat(variables_in_pat(var_set, e2), e1)
+  | SeqOpExp(seq, _, e) =>
+    variables_in_opseq(variables_in_pat(var_set, e), seq)
+  };

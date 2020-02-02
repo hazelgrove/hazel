@@ -3,7 +3,8 @@ module HoleReason = {
   [@deriving sexp]
   type t =
     | Free
-    | Keyword(Keyword.t);
+    | Keyword(Keyword.t)
+    | Duplicate;
 };
 
 /* Variable: var_err */
