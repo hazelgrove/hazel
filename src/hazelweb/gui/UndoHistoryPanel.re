@@ -25,46 +25,37 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
         otherwise_str: option(string),
       )
       : string => {
-    switch (cursor_pos) {
-    | None =>
-      if (action == Backspace) {
-        "backspace";
-      } else if (action == Delete) {
-        "delete";
-      } else {
-        switch (otherwise_str) {
-        | None => failwith("Imposiible, undisplayed undo history entry")
-        | Some(str) => str
-        };
-      }
-    | Some(cursor_pos') =>
-      switch (cursor_pos') {
-      | OnText(pos_index) =>
-        if (action == Backspace && pos_index == 0) {
-          "backspace";
-        } else if (action == Delete) {
-          "delete";
-        } else {
-          switch (otherwise_str) {
-          | None => failwith("Imposiible, undisplayed undo history entry")
-          | Some(str) => str
-          };
-        }
-      | OnDelim(deli, side) =>
-        switch (side) {
-        | Before => string_of_int(deli) ++ ",  before"
-        | After => string_of_int(deli) ++ ",  after"
-        }
-      | OnOp(_) =>
+    switch (otherwise_str) {
+    | None => failwith("Imposiible, undisplayed undo history entry")
+    | Some(str) =>
+      switch (cursor_pos) {
+      | None =>
         if (action == Backspace) {
           "backspace";
         } else if (action == Delete) {
           "delete";
         } else {
-          switch (otherwise_str) {
-          | None => failwith("Imposiible, undisplayed undo history entry")
-          | Some(str) => str
-          };
+          str;
+        }
+      | Some(cursor_pos') =>
+        switch (cursor_pos') {
+        | OnText(_) => "edittext " ++ str
+        | OnDelim(_, side) =>
+          switch (side) {
+          | Before =>
+            if (action == Delete) {
+              "selectdelib " ++ str;
+            } else {
+              "editdelib " ++ str;
+            }
+          | After =>
+            if (action == Backspace) {
+              "selectdelia " ++ str;
+            } else {
+              "editdelia " ++ str;
+            }
+          }
+        | OnOp(_) => "addop " ++ str
         }
       }
     };
@@ -78,33 +69,31 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
       | Exp(cursor_pos, exp) =>
         let exp_str =
           switch (exp) {
-          | EmptyHole(meta_var) =>
-            "edit empty hole: " ++ string_of_int(meta_var)
-          | Var(_, _, var_str) => "edit var: " ++ var_str
-          | NumLit(_, num) => "edit number: " ++ string_of_int(num)
-          | BoolLit(_, bool_val) => "edit bool: " ++ string_of_bool(bool_val)
-          | ListNil(_) => "add an empty list"
-          | Lam(_, _, _, _) => "add a lambada function"
+          | EmptyHole(meta_var) => "hole: " ++ string_of_int(meta_var)
+          | Var(_, _, var_str) => "var: " ++ var_str
+          | NumLit(_, num) => "number: " ++ string_of_int(num)
+          | BoolLit(_, bool_val) => "bool: " ++ string_of_bool(bool_val)
+          | ListNil(_) => "empty list"
+          | Lam(_, _, _, _) => "lambada function"
           | Inj(_, inj_side, _) =>
-            "add an injection: " ++ InjSide.to_string(inj_side)
-          | Case(_, _, _, _) => "edit case match"
-          | Parenthesized(_) => "add ()"
+            "injection: " ++ InjSide.to_string(inj_side)
+          | Case(_, _, _, _) => "case match"
+          | Parenthesized(_) => "()"
           | ApPalette(_, _, _, _) => "I don't know its meaning"
           };
         back_delete_view(action, Some(cursor_pos), Some(exp_str));
       | Pat(cursor_pos, pat) =>
         let pat_str =
           switch (pat) {
-          | EmptyHole(meta_var) =>
-            "edit empty hole: " ++ string_of_int(meta_var)
+          | EmptyHole(meta_var) => "empty hole: " ++ string_of_int(meta_var)
           | Wild(_) => "I don't know its meaning"
-          | Var(_, _, var_str) => "edit var: " ++ var_str
-          | NumLit(_, num) => "edit number: " ++ string_of_int(num)
-          | BoolLit(_, bool_val) => "edit bool: " ++ string_of_bool(bool_val)
-          | ListNil(_) => "add an empty list"
-          | Parenthesized(_) => "add ()"
+          | Var(_, _, var_str) => "var: " ++ var_str
+          | NumLit(_, num) => "number: " ++ string_of_int(num)
+          | BoolLit(_, bool_val) => "bool: " ++ string_of_bool(bool_val)
+          | ListNil(_) => "empty list"
+          | Parenthesized(_) => "()"
           | Inj(_, inj_side, _) =>
-            "add an injection: " ++ InjSide.to_string(inj_side)
+            "injection: " ++ InjSide.to_string(inj_side)
           };
         back_delete_view(action, Some(cursor_pos), Some(pat_str));
       | Typ(cursor_pos, typ) =>
@@ -118,25 +107,34 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
           | List(_) => "type: [?]"
           };
         back_delete_view(action, Some(cursor_pos), Some(typ_str));
-      | Line(_) => "TBD aline"
       | ExpOp(cursor_pos, op) =>
         back_delete_view(
           action,
           Some(cursor_pos),
-          Some("edit operator: " ++ UHExp.string_of_operator(op)),
+          Some("operator: " ++ UHExp.string_of_operator(op)),
         )
       | PatOp(cursor_pos, op) =>
         back_delete_view(
           action,
           Some(cursor_pos),
-          Some("edit operator: " ++ UHPat.string_of_operator(op)),
+          Some("operator: " ++ UHPat.string_of_operator(op)),
         )
       | TypOp(cursor_pos, op) =>
         back_delete_view(
           action,
           Some(cursor_pos),
-          Some("edit operator: " ++ UHTyp.string_of_operator(op)),
+          Some("operator: " ++ UHTyp.string_of_operator(op)),
         )
+      | Line(cursor_pos, line_content) =>
+        let line_str =
+          switch (line_content) {
+          | EmptyLine => "empty line"
+          | LetLine(_, _, _) => "let binding"
+          | ExpLine(_) => "epression line"
+          };
+        back_delete_view(action, Some(cursor_pos), Some(line_str));
+      | Rule(cursor_pos, _) =>
+        back_delete_view(action, Some(cursor_pos), Some("rule"))
       }
     };
   };
@@ -172,7 +170,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
           | R => "inject right"
           }
         | SLet => "bulid 'let'"
-        | SLine => "add new line[s]"
+        | SLine => "add new lines"
         | SCase => "add case"
         | SOp(op) => "add operator " ++ Action.operator_shape_to_string(op)
         | SApPalette(_) => "appalette?"
