@@ -16,23 +16,6 @@ type operator_shape =
   | SCons
   | SAnd
   | SOr;
-let operator_shape_to_string = (op: operator_shape) => {
-  switch (op) {
-  | SMinus => "-"
-  | SPlus => "+"
-  | STimes => "*"
-  | SLessThan => "<"
-  | SGreaterThan => ">"
-  | SEquals => "="
-  | SSpace => "[space]"
-  | SComma => ","
-  | SArrow => "=>"
-  | SVBar => "[VBar]"
-  | SCons => "::"
-  | SAnd => "&"
-  | SOr => "|"
-  };
-};
 
 [@deriving sexp]
 type shape =
