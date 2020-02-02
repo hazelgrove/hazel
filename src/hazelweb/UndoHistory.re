@@ -16,6 +16,9 @@ let get_cursor_term =
 type undo_history_group = {
   group_entries: ZList.t(undo_history_entry, undo_history_entry),
   is_expanded: bool,
+  /* [is_complete: bool] if any cursor-moving action interupts the current edit,
+     the current group becomes complete.
+     Next action will start a new group */
   is_complete: bool,
 };
 
@@ -23,7 +26,10 @@ type t = ZList.t(undo_history_group, undo_history_group);
 
 let undoable_action = (action: option(Action.t)): bool => {
   switch (action) {
-  | None => failwith("Impossible, no None action will be pushed into history")
+  | None =>
+    failwith(
+      "Impossible match. None of None-action will be pushed into history",
+    )
   | Some(action') =>
     switch (action') {
     | UpdateApPalette(_)
@@ -50,10 +56,14 @@ let in_same_history_group =
     | (UpdateApPalette(_), UpdateApPalette(_))
     | (Delete, Delete)
     | (Backspace, Backspace) =>
-      CursorInfo.is_same_cursor_term(entry_1.cursor_term, entry_2.cursor_term)
+      CursorInfo.can_group_cursor_term(
+        entry_1.cursor_term,
+        entry_2.cursor_term,
+      )
     | (Construct(shape_1), Construct(shape_2)) =>
-      if (Action.is_same_shape(shape_1, shape_2)) {
-        CursorInfo.is_same_cursor_term(
+      /* if shapes are similar, then continue to check if they have similar cursor_term */
+      if (Action.can_group_shape(shape_1, shape_2)) {
+        CursorInfo.can_group_cursor_term(
           entry_1.cursor_term,
           entry_2.cursor_term,
         );
@@ -70,7 +80,9 @@ let in_same_history_group =
     | (MoveRight, _)
     | (MoveToNextHole, _)
     | (MoveToPrevHole, _) =>
-      failwith("not undoable actions, will not be matched")
+      failwith(
+        "Impossible match. Not undoable actions will not be added into history",
+      )
     }
   };
 };
@@ -91,6 +103,7 @@ let push_edit_state =
       cursor_term: get_cursor_term(cardstacks_state),
     };
     if (!cur_group.is_complete && in_same_history_group(cur_entry, new_entry)) {
+      /* group the new entry into the current group */
       let group_entries_after_push = (
         [],
         new_entry,
@@ -105,10 +118,11 @@ let push_edit_state =
           group_entries: group_entries_after_push,
           is_expanded: false,
           is_complete: false,
-        }, /* initial state of group should be folded*/
+        }, /* initial expanded-state of a group should be folded*/
         ZList.prj_suffix(undo_history),
       );
     } else {
+      /* start a new group */
       let new_group = {
         group_entries: ([], new_entry, []),
         is_expanded: false,
@@ -121,8 +135,10 @@ let push_edit_state =
       );
     };
   } else {
-    let new_group = {...cur_group, is_complete: true};
-    ZList.replace_z(new_group, undo_history);
+    /* if any cursor-moving action interupts the current edit,
+       the current group becomes complete. */
+    let cur_group' = {...cur_group, is_complete: true};
+    ZList.replace_z(cur_group', undo_history);
   };
 };
 

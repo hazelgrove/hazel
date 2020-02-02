@@ -200,15 +200,14 @@ let apply_action =
     model;
   | Undo => Model.undo(model)
   | Redo => Model.redo(model)
+  /* click the history panel to shift to the certain history entry */
   | ShiftHistory(group_id, elt_id) =>
-    /* click history panel to shift to the certain history entry */
-    /*shift to the group with group_id*/
-
+    /* shift to the group with group_id */
     switch (ZList.shift_to(group_id, model.undo_history)) {
-    | None => failwith("Impossible because undo_history is non-empty")
+    | None => failwith("Impossible match, because undo_history is non-empty")
     | Some(new_history) =>
       let cur_group = ZList.prj_z(new_history);
-      /*shift to the element with elt_id*/
+      /* shift to the element with elt_id */
       switch (ZList.shift_to(elt_id, cur_group.group_entries)) {
       | None => failwith("Impossible because group_entries is non-empty")
       | Some(new_group_entries) =>
@@ -227,13 +226,14 @@ let apply_action =
       };
     }
   | ToggleHistoryGroup(toggle_group_id) =>
-    let (suc_group, _, _) = model.undo_history;
-    let cur_group_id = List.length(suc_group);
-    /*shift to toggle group and change expanded state*/
+    let (suc_groups, _, _) = model.undo_history;
+    let cur_group_id = List.length(suc_groups);
+    /*shift to the toggle-target group and change its expanded state*/
     switch (ZList.shift_to(toggle_group_id, model.undo_history)) {
-    | None => failwith("Impossible because undo_history is non-empty")
+    | None => failwith("Impossible match, because undo_history is non-empty")
     | Some(history) =>
       let toggle_target_group = ZList.prj_z(history);
+      /* change expanded state of the toggle target group after toggling */
       let after_toggle =
         ZList.replace_z(
           {
@@ -244,7 +244,8 @@ let apply_action =
         );
       /*shift back to the current group*/
       switch (ZList.shift_to(cur_group_id, after_toggle)) {
-      | None => failwith("Impossible because undo_history is non-empty")
+      | None =>
+        failwith("Impossible match, because undo_history is non-empty")
       | Some(new_history) => {...model, undo_history: new_history}
       };
     };

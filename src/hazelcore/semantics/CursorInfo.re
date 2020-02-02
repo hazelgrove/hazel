@@ -197,7 +197,7 @@ and extract_from_ztyp_operand =
   };
 };
 
-let is_same_cursor_term =
+let can_group_cursor_term =
     (cursor_term_1: option(cursor_term), cursor_term_2: option(cursor_term))
     : bool => {
   switch (cursor_term_1, cursor_term_2) {
