@@ -45,7 +45,8 @@ type t =
   | Backspace
   | Construct(shape);
 
-let is_same_shape = (shape_1: shape, shape_2: shape): bool => {
+/* group entries in undo_history if their shapes are similar */
+let can_group_shape = (shape_1: shape, shape_2: shape): bool => {
   switch (shape_1, shape_2) {
   | (SLine, SLine)
   | (SChar(_), _) => true

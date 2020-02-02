@@ -4,12 +4,12 @@ type undo_history_entry = UndoHistory.undo_history_entry;
 
 let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
   /* a helper function working as an enhanced version of List.map() */
-  let rec incr_map_helper = (func_to_list, func_to_base, base, lst) => {
+  let rec list_map_helper_func = (func_to_list, func_to_base, base, lst) => {
     switch (lst) {
     | [] => []
     | [head, ...tail] => [
         func_to_list(base, head),
-        ...incr_map_helper(
+        ...list_map_helper_func(
              func_to_list,
              func_to_base,
              func_to_base(base),
@@ -18,8 +18,8 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
       ]
     };
   };
-  /* special case for backspace and delete */
-  let back_delete_view =
+  /* special display case for backspace and delete */
+  let filter_with_backspace_delete =
       (
         action: Action.t,
         cursor_pos: option(CursorPosition.t),
@@ -28,7 +28,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
       )
       : string => {
     switch (otherwise_str) {
-    | None => failwith("Imposiible, undisplayed undo history entry")
+    | None => failwith("Imposiible match, undisplayed undo history entry")
     | Some(str) =>
       switch (cursor_pos) {
       | None =>
@@ -37,7 +37,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
         } else if (action == Delete) {
           "delete";
         } else {
-          str;
+          "edit " ++ str;
         }
       | Some(cursor_pos') =>
         switch (cursor_pos') {
@@ -62,7 +62,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
               "edit " ++ str;
             }
           }
-        | OnOp(_) => "add " ++ str
+        | OnOp(_) => "edit " ++ str
         }
       }
     };
@@ -70,7 +70,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
   let display_string_of_cursor_term =
       (cursor_term: option(CursorInfo.cursor_term), action: Action.t): string => {
     switch (cursor_term) {
-    | None => back_delete_view(action, None, None, false)
+    | None => filter_with_backspace_delete(action, None, None, false)
     | Some(cursor_term') =>
       switch (cursor_term') {
       | Exp(cursor_pos, exp) =>
@@ -85,10 +85,15 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
           | Inj(_, inj_side, _) =>
             "injection: " ++ InjSide.to_string(inj_side)
           | Case(_, _, _, _) => "case match"
-          | Parenthesized(_) => "()"
+          | Parenthesized(_) => "( )"
           | ApPalette(_, _, _, _) => "I don't know its meaning"
           };
-        back_delete_view(action, Some(cursor_pos), Some(exp_str), false);
+        filter_with_backspace_delete(
+          action,
+          Some(cursor_pos),
+          Some(exp_str),
+          false,
+        );
       | Pat(cursor_pos, pat) =>
         let pat_str =
           switch (pat) {
@@ -98,11 +103,16 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
           | NumLit(_, num) => "number: " ++ string_of_int(num)
           | BoolLit(_, bool_val) => "bool: " ++ string_of_bool(bool_val)
           | ListNil(_) => "empty list"
-          | Parenthesized(_) => "()"
+          | Parenthesized(_) => "( )"
           | Inj(_, inj_side, _) =>
             "injection: " ++ InjSide.to_string(inj_side)
           };
-        back_delete_view(action, Some(cursor_pos), Some(pat_str), false);
+        filter_with_backspace_delete(
+          action,
+          Some(cursor_pos),
+          Some(pat_str),
+          false,
+        );
       | Typ(cursor_pos, typ) =>
         let typ_str =
           switch (typ) {
@@ -113,23 +123,28 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
           | Parenthesized(_) => "type: (?)"
           | List(_) => "type: [?]"
           };
-        back_delete_view(action, Some(cursor_pos), Some(typ_str), false);
+        filter_with_backspace_delete(
+          action,
+          Some(cursor_pos),
+          Some(typ_str),
+          false,
+        );
       | ExpOp(cursor_pos, op) =>
-        back_delete_view(
+        filter_with_backspace_delete(
           action,
           Some(cursor_pos),
           Some("operator: " ++ UHExp.string_of_operator(op)),
           false,
         )
       | PatOp(cursor_pos, op) =>
-        back_delete_view(
+        filter_with_backspace_delete(
           action,
           Some(cursor_pos),
           Some("operator: " ++ UHPat.string_of_operator(op)),
           false,
         )
       | TypOp(cursor_pos, op) =>
-        back_delete_view(
+        filter_with_backspace_delete(
           action,
           Some(cursor_pos),
           Some("operator: " ++ UHTyp.string_of_operator(op)),
@@ -138,21 +153,21 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
       | Line(cursor_pos, line_content) =>
         switch (line_content) {
         | EmptyLine =>
-          back_delete_view(
+          filter_with_backspace_delete(
             action,
             Some(cursor_pos),
             Some("empty line"),
             true,
           )
         | LetLine(_, _, _) =>
-          back_delete_view(
+          filter_with_backspace_delete(
             action,
             Some(cursor_pos),
             Some("let binding"),
             false,
           )
         | ExpLine(_) =>
-          back_delete_view(
+          filter_with_backspace_delete(
             action,
             Some(cursor_pos),
             Some("epression line"),
@@ -160,7 +175,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
           )
         }
       | Rule(cursor_pos, _) =>
-        back_delete_view(
+        filter_with_backspace_delete(
           action,
           Some(cursor_pos),
           Some("match rule"),
@@ -169,12 +184,13 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
       }
     };
   };
+
   let display_string_of_history_entry =
       (undo_history_entry: undo_history_entry): string => {
     let action = undo_history_entry.previous_action;
     let cursor_term = undo_history_entry.cursor_term;
     switch (action) {
-    | None => failwith("Imposiible, undisplayed undo history entry")
+    | None => failwith("Imposiible match, undisplayed undo history entry")
     | Some(action') =>
       switch (action') {
       | MoveTo(_)
@@ -184,7 +200,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
       | MoveToNextHole
       | MoveToPrevHole
       | UpdateApPalette(_) =>
-        failwith("not undoable actions, will not be matched")
+        failwith("Imposiible match, not undoable actions will not be matched")
       | Delete
       | Backspace => display_string_of_cursor_term(cursor_term, action')
       | Construct(shape) =>
@@ -209,6 +225,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
       }
     };
   };
+
   let history_hidden_entry_view =
       (group_id: int, elt_id: int, undo_history_entry: undo_history_entry) => {
     switch (undo_history_entry.previous_action) {
@@ -228,6 +245,32 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
     };
   };
 
+  let history_entry_tab_icon =
+      (group_id: int, has_hidden_part: bool, is_expanded: bool) => {
+    let icon_classes =
+      if (is_expanded) {
+        ["down-triangle", "history-tab-icon"];
+      } else {
+        ["left-triangle", "history-tab-icon"];
+      };
+    if (has_hidden_part) {
+      /* expand icon*/
+      Vdom.(
+        Node.div(
+          [
+            Attr.classes(icon_classes),
+            Attr.on_click(_ =>
+              inject(Update.Action.ToggleHistoryGroup(group_id))
+            ),
+          ],
+          [],
+        )
+      );
+    } else {
+      /* no expand icon if there is no hidden part */
+      Vdom.(Node.div([], []));
+    };
+  };
   /* The entry which is always displayed*/
   let history_title_entry_view =
       (
@@ -237,33 +280,6 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
         elt_id: int,
         undo_history_entry: undo_history_entry,
       ) => {
-    let history_tab_icon = (group_id: int) => {
-      let icon_classes =
-        if (is_expanded) {
-          ["down-triangle", "history-tab-icon"];
-        } else {
-          ["left-triangle", "history-tab-icon"];
-        };
-      if (has_hidden_part) {
-        /* expand icon*/
-        Vdom.(
-          Node.div(
-            [
-              Attr.classes(icon_classes),
-              Attr.on_click(_ =>
-                inject(Update.Action.ToggleHistoryGroup(group_id))
-              ),
-            ],
-            [],
-          )
-        );
-      } else {
-        /* no expand icon  if there is no hidden part */
-        Vdom.(
-          Node.div([], [])
-        );
-      };
-    };
     switch (undo_history_entry.previous_action) {
     | None => Vdom.(Node.div([], [])) /* entry in the initial state should not be displayed */
     | Some(_) =>
@@ -287,7 +303,11 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
                     ),
                   ],
                 ),
-                history_tab_icon(group_id),
+                history_entry_tab_icon(
+                  group_id,
+                  has_hidden_part,
+                  is_expanded,
+                ),
               ],
             ),
           ],
@@ -298,7 +318,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
 
   let group_view =
       (~is_cur_group: bool, group_id: int, group: undo_history_group) => {
-    /* if the group containning selected history entry, it should be splited to different css styles */
+    /* if the group containning selected history entry, it should be splited into different css styles */
     let suc_his_classes =
       if (is_cur_group) {
         ["the-suc-history"];
@@ -359,10 +379,10 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
                         ["hidden-history-entry"] @ prev_his_classes,
                       ),
                     ],
-                    incr_map_helper(
+                    list_map_helper_func(
                       history_hidden_entry_view(group_id),
                       base => base + 1,
-                      1, /* base elt_id is 1, because there is a title entry with elt_id=0 ahead */
+                      1, /* base elt_id is 1, because there is a title entry with elt_id=0 before */
                       prev_entries,
                     ),
                   )
@@ -431,7 +451,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
                   [
                     Attr.classes(["hidden-history-entry"] @ suc_his_classes),
                   ],
-                  incr_map_helper(
+                  list_map_helper_func(
                     history_hidden_entry_view(group_id),
                     base => base + 1,
                     1, /* base elt_id is 1, because there is a title entry with elt_id=0 ahead */
@@ -460,7 +480,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
                   [
                     Attr.classes(["hidden-history-entry"] @ prev_his_classes),
                   ],
-                  incr_map_helper(
+                  list_map_helper_func(
                     history_hidden_entry_view(group_id),
                     base => base + 1,
                     List.length(suc_entries) + 2, /* base elt_id */
@@ -506,7 +526,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
     Vdom.(
       Node.div(
         [Attr.classes(["the-prev-history"])],
-        incr_map_helper(
+        list_map_helper_func(
           group_view(~is_cur_group=false),
           base => base + 1,
           group_id_base,
@@ -520,7 +540,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
     Vdom.(
       Node.div(
         [Attr.classes(["the-suc-history"])],
-        incr_map_helper(
+        list_map_helper_func(
           group_view(~is_cur_group=false),
           base => base + 1,
           group_id_base,
@@ -550,7 +570,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
     let action = ZList.prj_z(cur_group.group_entries).previous_action;
     switch (action) {
     | None =>
-      /*if the init entry is only history entry */
+      /*if the initial entry is the only history entry */
       if (List.length(suc_groups) <= 1) {
         Vdom.(
           Node.div(
@@ -604,6 +624,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
         ],
       )
     );
+
   let expand_button = (all_hidden_history_expand: bool) => {
     let icon_classes =
       if (all_hidden_history_expand) {
@@ -621,6 +642,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
       )
     );
   };
+
   let button_bar_view = (all_hidden_history_expand: bool) =>
     Vdom.(
       Node.div(
@@ -628,6 +650,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
         [undo_button, redo_button, expand_button(all_hidden_history_expand)],
       )
     );
+
   Vdom.(
     Node.div(
       [Attr.classes(["panel", "context-inspector-panel"])],
