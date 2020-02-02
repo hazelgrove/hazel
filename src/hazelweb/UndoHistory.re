@@ -41,17 +41,25 @@ let undoable_action = (action: option(Action.t)): bool => {
 };
 
 let in_same_history_group =
-    (action_1: option(Action.t), action_2: option(Action.t)): bool => {
-  switch (action_1, action_2) {
+    (entry_1: undo_history_entry, entry_2: undo_history_entry): bool => {
+  switch (entry_1.previous_action, entry_2.previous_action) {
   | (None, _)
   | (_, None) => false
   | (Some(detail_action_1), Some(detail_action_2)) =>
     switch (detail_action_1, detail_action_2) {
     | (UpdateApPalette(_), UpdateApPalette(_))
     | (Delete, Delete)
-    | (Backspace, Backspace) => true
+    | (Backspace, Backspace) =>
+      CursorInfo.is_same_cursor_term(entry_1.cursor_term, entry_2.cursor_term)
     | (Construct(shape_1), Construct(shape_2)) =>
-      Action.is_same_shape(shape_1, shape_2)
+      if (Action.is_same_shape(shape_1, shape_2)) {
+        CursorInfo.is_same_cursor_term(
+          entry_1.cursor_term,
+          entry_2.cursor_term,
+        );
+      } else {
+        false;
+      }
     | (UpdateApPalette(_), _)
     | (Delete, _)
     | (Backspace, _)
@@ -77,13 +85,12 @@ let push_edit_state =
   let cur_group = ZList.prj_z(undo_history);
   let cur_entry = ZList.prj_z(cur_group.group_entries);
   if (undoable_action(action)) {
-    if (!cur_group.is_complete
-        && in_same_history_group(action, cur_entry.previous_action)) {
-      let new_entry = {
-        cardstacks_state,
-        previous_action: action,
-        cursor_term: get_cursor_term(cardstacks_state),
-      };
+    let new_entry = {
+      cardstacks_state,
+      previous_action: action,
+      cursor_term: get_cursor_term(cardstacks_state),
+    };
+    if (!cur_group.is_complete && in_same_history_group(cur_entry, new_entry)) {
       let group_entries_after_push = (
         [],
         new_entry,
@@ -103,15 +110,7 @@ let push_edit_state =
       );
     } else {
       let new_group = {
-        group_entries: (
-          [],
-          {
-            cardstacks_state,
-            previous_action: action,
-            cursor_term: get_cursor_term(cardstacks_state),
-          },
-          [],
-        ),
+        group_entries: ([], new_entry, []),
         is_expanded: false,
         is_complete: false,
       };

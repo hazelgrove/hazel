@@ -84,10 +84,11 @@ type cursor_term =
   | Exp(CursorPosition.t, UHExp.operand)
   | Pat(CursorPosition.t, UHPat.operand)
   | Typ(CursorPosition.t, UHTyp.operand)
-  | Line(UHExp.line) /* may be deleted TBD???*/
   | ExpOp(CursorPosition.t, UHExp.operator)
   | PatOp(CursorPosition.t, UHPat.operator)
-  | TypOp(CursorPosition.t, UHTyp.operator);
+  | TypOp(CursorPosition.t, UHTyp.operator)
+  | Line(CursorPosition.t, UHExp.line) /* may be deleted TBD???*/
+  | Rule(CursorPosition.t, UHExp.rule);
 
 // TODO refactor into variants
 // based on term family and shape
@@ -108,7 +109,7 @@ let rec extract_cursor_exp_term = (exp: ZExp.t): option(cursor_term) => {
 }
 and extract_from_zline = (zline: ZExp.zline): option(cursor_term) => {
   switch (zline) {
-  | CursorL(_, _) => None /* cursor in line is not editable */
+  | CursorL(cursor_pos, uex_line) => Some(Line(cursor_pos, uex_line))
   | ExpLineZ(zopseq) => extract_from_zexp_opseq(zopseq)
   | LetLineZP(zpat, _, _) => extract_cursor_pat_term(zpat)
   | LetLineZA(_, ztyp, _) => extract_cursor_type_term(ztyp)
@@ -125,9 +126,17 @@ and extract_from_zexp_operand =
   | LamZE(_, _, _, zexp)
   | InjZ(_, _, zexp)
   | CaseZE(_, zexp, _, _) => extract_cursor_exp_term(zexp)
-  | CaseZR(_, _, _, _) => None /*?????? TBD CaseZR(_, _, zrules, _)*/
+  | CaseZR(_, _, zrules, _) => extract_from_zrules(zrules)
   | CaseZA(_, _, _, ztyp) => extract_cursor_type_term(ztyp)
   | ApPaletteZ(_, _, _, _) => failwith("not oprand with cursor") /*TBD???*/
+  };
+}
+and extract_from_zrules = (zrules: ZExp.zrules): option(cursor_term) => {
+  let zrule = ZList.prj_z(zrules);
+  switch (zrule) {
+  | CursorR(cursor_pos, uex_rule) => Some(Rule(cursor_pos, uex_rule))
+  | RuleZP(zpat, _) => extract_cursor_pat_term(zpat)
+  | RuleZE(_, zexp) => extract_cursor_exp_term(zexp)
   };
 }
 and extract_from_zexp_opseq = (zopseq: ZExp.zopseq): option(cursor_term) => {
@@ -188,10 +197,29 @@ and extract_from_ztyp_operand =
   };
 };
 
-/* let update_cursor_term = (exp: ZExp.t, cursor_info: t): t => {
-     ...cursor_info,
-     cursor_term: extract_cursor_exp_term(exp),
-   }; */
+let is_same_cursor_term =
+    (cursor_term_1: option(cursor_term), cursor_term_2: option(cursor_term))
+    : bool => {
+  switch (cursor_term_1, cursor_term_2) {
+  | (None, _)
+  | (_, None) => false
+  | (Some(cur1), Some(cur2)) =>
+    switch (cur1, cur2) {
+    | (Exp(_, op1), Exp(_, op2)) => UHExp.is_same_operand(op1, op2)
+    | (Pat(_, op1), Pat(_, op2)) => UHPat.is_same_operand(op1, op2)
+    | (Line(_, line1), Line(_, line2)) =>
+      UHExp.can_group_lines(line1, line2)
+    | (Exp(_, _), _)
+    | (Pat(_, _), _)
+    | (Typ(_, _), _)
+    | (ExpOp(_, _), _)
+    | (PatOp(_, _), _)
+    | (TypOp(_, _), _)
+    | (Line(_, _), _)
+    | (Rule(_, _), _) => false
+    }
+  };
+};
 
 let mk = (~uses=?, typed, ctx) => {typed, ctx, uses};
 
