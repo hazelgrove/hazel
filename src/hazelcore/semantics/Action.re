@@ -2765,13 +2765,14 @@ module Exp = {
         _,
         CursorE(
           OnDelim(_) | OnOp(_),
-          Var(_) | NumLit(_) | BoolLit(_) | ApLivelit(_),
+          Var(_) | NumLit(_) | BoolLit(_) | ApLivelit(_) | FreeLivelit(_),
         ) |
         CursorE(
           OnText(_) | OnOp(_),
           EmptyHole(_) | ListNil(_) | Lam(_) | Inj(_) | Case(_) |
           Parenthesized(_) |
-          ApLivelit(_),
+          ApLivelit(_) |
+          FreeLivelit(_),
         ),
       ) =>
       Failed
@@ -3039,6 +3040,7 @@ module Exp = {
           | None => Failed
           }; */
     /* | (UpdateApPalette(_), CursorE(_)) => Failed */
+    | (PerformLivelitAction(_), CursorE(_)) => Failed
 
     | (Construct(SOp(SSpace)), CursorE(OnDelim(_, After), _))
         when !ZExp.is_after_zoperand(zoperand) =>
@@ -3767,13 +3769,15 @@ module Exp = {
         _,
         CursorE(
           OnDelim(_) | OnOp(_),
-          Var(_) | NumLit(_) | BoolLit(_) | ApLivelit(_, _, _, _),
+          Var(_) | NumLit(_) | BoolLit(_) | ApLivelit(_, _, _, _) |
+          FreeLivelit(_),
         ) |
         CursorE(
           OnText(_) | OnOp(_),
           EmptyHole(_) | ListNil(_) | Lam(_) | Inj(_) | Case(_) |
           Parenthesized(_) |
-          ApLivelit(_, _, _, _),
+          ApLivelit(_, _, _, _) |
+          FreeLivelit(_),
         ),
       ) =>
       Failed

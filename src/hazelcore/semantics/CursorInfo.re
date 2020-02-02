@@ -166,8 +166,10 @@ module Pat = {
                switch (opt_ctx) {
                | None => None
                | Some(ctx) =>
-                 Statics.Pat.syn_skel(ctx, skel, seq)
-                 |> Option.map(((_, ctx)) => ctx)
+                 switch (Statics.Pat.syn_skel(ctx, skel, seq)) {
+                 | None => None
+                 | Some((_, ctx)) => Some(ctx)
+                 }
                },
              Some(ctx),
            );

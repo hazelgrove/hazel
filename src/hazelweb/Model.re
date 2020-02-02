@@ -150,8 +150,8 @@ let result_of_edit_state = ((ze, _, _): edit_state): result => {
       ze |> ZExp.erase,
     );
   switch (expanded) {
-  | DoesNotElab => raise(DoesNotElab)
-  | Elabs(d, _, _) =>
+  | DoesNotExpand => raise(DoesNotExpand)
+  | Expands(d, _, _) =>
     switch (Evaluator.evaluate(d)) {
     | InvalidInput(_n) =>
       //JSUtil.log("InvalidInput " ++ string_of_int(n));
@@ -369,7 +369,7 @@ let load_example = (model: t, e: UHExp.t): t =>
   model
   |> update_edit_state(
        Statics.Exp.fix_and_renumber_holes_z(
-         (Contexts.empty, Livelits.initial_livelit_ctx),
+         (VarCtx.empty, Livelits.initial_livelit_ctx),
          e |> ZExp.place_before,
        ),
      );

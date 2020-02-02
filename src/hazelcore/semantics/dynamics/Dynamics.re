@@ -1070,6 +1070,13 @@ module Exp = {
         | Keyword(k) => DHExp.Keyword(u, 0, sigma, k)
         };
       Expands(d, Hole, delta);
+    | FreeLivelit(u, name) =>
+      let gamma = Contexts.gamma(ctx);
+      let sigma = id_env(gamma);
+      let delta =
+        MetaVarMap.extend_unique(delta, (u, (ExpressionHole, Hole, gamma)));
+      let d = DHExp.FreeLivelit(u, 0, sigma, name);
+      Expands(d, Hole, delta);
     | NumLit(NotInHole, n) => Expands(NumLit(n), Num, delta)
     | BoolLit(NotInHole, b) => Expands(BoolLit(b), Bool, delta)
     | ListNil(NotInHole) =>
@@ -1127,7 +1134,7 @@ module Exp = {
         let proto_expansion = expand(serialized_model);
         let (proto_elaboration_ctx, names_to_vars) = to_ctx(si);
         let proto_elaboration_result =
-          ana_expand(
+          ana_expand_block(
             proto_elaboration_ctx,
             delta,
             proto_expansion,
@@ -1137,7 +1144,7 @@ module Exp = {
         | DoesNotExpand => DoesNotExpand
         | Expands(proto_elaboration, _, delta) =>
           let elaboration_opt =
-            wrap_proto_elaboration(
+            wrap_proto_expansion(
               ctx,
               delta,
               names_to_vars,
@@ -1152,6 +1159,43 @@ module Exp = {
         };
       };
     }
+  and wrap_proto_expansion =
+      (
+        ctx: Contexts.t,
+        delta: Delta.t,
+        names_to_vars: NatMap.t(Var.t),
+        proto_expansion,
+        si: UHExp.splice_info,
+      )
+      : option((DHExp.t, Delta.t)) => {
+    let splice_map = si.splice_map;
+    let names_to_vars_list: list((SpliceInfo.splice_name, Var.t)) =
+      NatMap.to_list(names_to_vars);
+    List.fold_left(
+      (
+        res: option((DHExp.t, Delta.t)),
+        (name: SpliceInfo.splice_name, var: Var.t),
+      ) => {
+        switch (res) {
+        | None => None
+        | Some((expansion, delta)) =>
+          switch (NatMap.lookup(splice_map, name)) {
+          | None => None
+          | Some((ty, exp)) =>
+            switch (ana_expand(ctx, delta, exp, ty)) {
+            | DoesNotExpand => None
+            | Expands(d, _, delta) =>
+              let expansion =
+                DHExp.Ap(DHExp.Lam(DHPat.Var(var), ty, expansion), d);
+              Some((expansion, delta));
+            }
+          }
+        }
+      },
+      Some((proto_expansion, delta)),
+      names_to_vars_list,
+    );
+  }
   and ana_expand =
       (ctx: Contexts.t, delta: Delta.t, e: UHExp.t, ty: HTyp.t): expand_result =>
     switch (e) {
@@ -1338,7 +1382,7 @@ module Exp = {
     | Lam(InHole(TypeInconsistent as reason, u), _, _, _)
     | Inj(InHole(TypeInconsistent as reason, u), _, _)
     | Case(InHole(TypeInconsistent as reason, u), _, _, _)
-    | ApPalette(InHole(TypeInconsistent as reason, u), _, _, _) =>
+    | ApLivelit(InHole(TypeInconsistent as reason, u), _, _, _) =>
       let operand' = operand |> UHExp.set_err_status_operand(NotInHole);
       switch (syn_expand_operand(ctx, delta, operand')) {
       | DoesNotExpand => DoesNotExpand
@@ -1356,7 +1400,7 @@ module Exp = {
     | Lam(InHole(WrongLength, _), _, _, _)
     | Inj(InHole(WrongLength, _), _, _)
     | Case(InHole(WrongLength, _), _, _, _)
-    | ApPalette(InHole(WrongLength, _), _, _, _) => DoesNotExpand
+    | ApLivelit(InHole(WrongLength, _), _, _, _) => DoesNotExpand
     /* not in hole */
     | EmptyHole(u) =>
       let gamma = Contexts.gamma(ctx);
@@ -1375,6 +1419,13 @@ module Exp = {
         | Free => FreeVar(u, 0, sigma, x)
         | Keyword(k) => Keyword(u, 0, sigma, k)
         };
+      Expands(d, ty, delta);
+    | FreeLivelit(u, name) =>
+      let gamma = Contexts.gamma(ctx);
+      let sigma = id_env(gamma);
+      let delta =
+        MetaVarMap.extend_unique(delta, (u, (ExpressionHole, ty, gamma)));
+      let d = DHExp.FreeLivelit(u, 0, sigma, name);
       Expands(d, ty, delta);
     | Parenthesized(body) => ana_expand(ctx, delta, body, ty)
     | Lam(NotInHole, p, ann, body) =>
@@ -1465,7 +1516,7 @@ module Exp = {
     | Var(NotInHole, NotInVarHole, _)
     | BoolLit(NotInHole, _)
     | NumLit(NotInHole, _)
-    | ApPalette(NotInHole, _, _, _) =>
+    | ApLivelit(NotInHole, _, _, _) =>
       /* subsumption */
       syn_expand_operand(ctx, delta, operand)
     }
@@ -1577,6 +1628,9 @@ module Exp = {
     | Keyword(u, _, sigma, k) =>
       let (i, hii) = HoleInstanceInfo.next(hii, u, sigma, path);
       (Keyword(u, i, sigma, k), hii);
+    | FreeLivelit(u, _, sigma, name) =>
+      let (i, hii) = HoleInstanceInfo.next(hii, u, sigma, path);
+      (FreeLivelit(u, i, sigma, name), hii);
     | Cast(d1, ty1, ty2) =>
       let (d1, hii) = renumber_result_only(path, hii, d1);
       (Cast(d1, ty1, ty2), hii);
@@ -1672,6 +1726,10 @@ module Exp = {
       let (sigma, hii) = renumber_sigma(path, u, i, hii, sigma);
       let hii = HoleInstanceInfo.update_environment(hii, (u, i), sigma);
       (Keyword(u, i, sigma, k), hii);
+    | FreeLivelit(u, i, sigma, name) =>
+      let (sigma, hii) = renumber_sigma(path, u, i, hii, sigma);
+      let hii = HoleInstanceInfo.update_environment(hii, (u, i), sigma);
+      (FreeLivelit(u, i, sigma, name), hii);
     | Cast(d1, ty1, ty2) =>
       let (d1, hii) = renumber_sigmas_only(path, hii, d1);
       (Cast(d1, ty1, ty2), hii);
@@ -1939,6 +1997,7 @@ module Evaluator = {
       }
     | FreeVar(_) => Indet(d)
     | Keyword(_) => Indet(d)
+    | FreeLivelit(_, _, _, _) => Indet(d)
     | Cast(d1, ty, ty') =>
       switch (evaluate(d1)) {
       | InvalidInput(msg) => InvalidInput(msg)
