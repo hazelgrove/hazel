@@ -239,7 +239,7 @@ let init = (): t => {
     CardStacks.mk_cardstacks_state(CardStacks.cardstacks);
   let edit_state =
     ZList.prj_z(ZList.prj_z(cardstacks_state).zcards).edit_state;
-  let undo_history_state: UndoHistory.undo_history_entry = {
+  let undo_history_entry: UndoHistory.undo_history_entry = {
     cardstacks_state,
     previous_action: None,
     cursor_term: UndoHistory.get_cursor_term(cardstacks_state),
@@ -256,7 +256,7 @@ let init = (): t => {
     undo_history: (
       [],
       {
-        group_entries: ([], undo_history_state, []),
+        group_entries: ([], undo_history_entry, []),
         is_expanded: false,
         is_complete: true,
       },
