@@ -433,6 +433,20 @@ module ZNatMap = {
   };
 };
 
+module ListMinOne = {
+  type t('a) =
+    | Elem('a)
+    | Cons('a, t('a));
+
+  exception LessThanOneElement;
+
+  let rec of_list = (xs: list('a)): t('a) =>
+    switch (xs) {
+    | [] => raise(LessThanOneElement)
+    | [x] => Elem(x)
+    | [x, ...xs] => Cons(x, of_list(xs))
+    };
+};
 /**
  * List containing at least two elements. Used
  * to collect and manipulate tuple elements.

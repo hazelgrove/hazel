@@ -1075,6 +1075,46 @@ let syn_zlines =
     : option(Contexts.t((HTyp.t, CursorPath.steps))) =>
   syn_lines(steps, ctx, ZExp.erase_lines(zlines));
 
+type deferred_functor('a) = ListMinOne.t(VarWarnStatus.t) => 'a;
+
+type deferrable('a) =
+  | NotDeferred('a)
+  | Deferred(deferred_functor('a), ListMinOne.t(Var.t));
+
+exception FailToUndefer;
+exception DeferredNotConsistent;
+let undefer_one =
+    (var_warn: VarWarnStatus.t, deferred: deferrable('a)): deferrable('a) =>
+  switch (deferred) {
+  | NotDeferred(_) => raise(FailToUndefer)
+  | Deferred(deferred, var_list) =>
+    switch (var_list) {
+    | ListMinOne.Elem(_) =>
+      NotDeferred(ListMinOne.Elem(var_warn) |> deferred)
+    | ListMinOne.Cons(_, var_list) =>
+      Deferred(
+        warn_list => ListMinOne.Cons(var_warn, warn_list) |> deferred,
+        var_list,
+      )
+    }
+  };
+
+let defer_NotDeferred =
+    (var: Var.t, deferred: deferred_functor('a)): deferrable('a) =>
+  Deferred(deferred, ListMinOne.Elem(var));
+exception FailToDefer;
+let defer_deferred = (var: Var.t, deferred: deferrable('a)): deferrable('a) =>
+  switch (deferred) {
+  | NotDeferred(_) => raise(FailToDefer)
+  | Deferred(deferred, var_list) =>
+    Deferred(deferred, ListMinOne.Cons(var, var_list))
+  };
+let pass_deferrable = (func: 'a => 'b, deferrable: deferrable('a)): deferrable('b) =>
+  switch (deferrable) {
+  | NotDeferred(p) => NotDeferred(func(p))
+  | Deferred(deferred, var_list) =>
+    Deferred(warn_list => func(warn_list |> deferred), var_list)
+  };
 let rec syn_fix_holes_pat =
         (
           steps: CursorPath.steps,
@@ -1085,7 +1125,7 @@ let rec syn_fix_holes_pat =
           p: UHPat.t,
         )
         : (
-            UHPat.t,
+            deferrable(UHPat.t),
             HTyp.t,
             Contexts.t((HTyp.t, CursorPath.steps)),
             MetaVarGen.t,
@@ -1099,35 +1139,63 @@ let rec syn_fix_holes_pat =
   | EmptyHole(_) =>
     if (renumber_empty_holes) {
       let (u, u_gen) = MetaVarGen.next(u_gen);
-      (EmptyHole(u), Hole, ctx, u_gen);
+      (NotDeferred(EmptyHole(u)), Hole, ctx, u_gen);
     } else {
-      (p, HTyp.Hole, ctx, u_gen);
+      (NotDeferred(p), HTyp.Hole, ctx, u_gen);
     }
-  | Wild(_) => (p_nih_nvw, Hole, ctx, u_gen)
+  | Wild(_) => (NotDeferred(p_nih_nvw), Hole, ctx, u_gen)
   | Var(_, InVarHole(Free, _), _, _) => raise(UHPat.FreeVarInPat)
-  | Var(_, InVarHole(Keyword(_), _), _, _) => (p_nih_nvw, Hole, ctx, u_gen)
+  | Var(_, InVarHole(Keyword(_), _), _, _) => (
+      NotDeferred(p_nih_nvw),
+      Hole,
+      ctx,
+      u_gen,
+    )
   | Var(_, NotInVarHole | InVarHole(Duplicate, _), _, x)
       when !VarSet.mem(x, var_set) =>
-    // TODO: defer var_warn
     let ctx = Contexts.extend_gamma(ctx, (x, (Hole, steps)));
-    (Var(NotInHole, NotInVarHole, NoWarning, x), Hole, ctx, u_gen);
-  // variable pattern with duplicate name
-  | Var(_, InVarHole(Duplicate, _), _, _) => (p_nih_nvw, Hole, ctx, u_gen)
-  | Var(_, NotInVarHole, _, x) =>
-    let (u, u_gen) = MetaVarGen.next(u_gen);
     (
-      Var(NotInHole, InVarHole(Duplicate, u), NoWarning, x),
+      Deferred(
+        warn_list =>
+          switch (warn_list) {
+          | ListMinOne.Elem(warn) => Var(NotInHole, NotInVarHole, warn, x)
+          | ListMinOne.Cons(_, _) => raise(DeferredNotConsistent)
+          },
+        ListMinOne.Elem(x),
+      ),
       Hole,
       ctx,
       u_gen,
     );
-  | NumLit(_, _) => (p_nih_nvw, Num, ctx, u_gen)
-  | BoolLit(_, _) => (p_nih_nvw, Bool, ctx, u_gen)
-  | ListNil(_) => (p_nih_nvw, List(Hole), ctx, u_gen)
+  // variable pattern with duplicate name
+  | Var(_, InVarHole(Duplicate, _), _, _) => (
+      NotDeferred(p_nih_nvw),
+      Hole,
+      ctx,
+      u_gen,
+    )
+  | Var(_, NotInVarHole, _, x) =>
+    let (u, u_gen) = MetaVarGen.next(u_gen);
+    (
+      NotDeferred(Var(NotInHole, InVarHole(Duplicate, u), NoWarning, x)),
+      Hole,
+      ctx,
+      u_gen,
+    );
+  | NumLit(_, _) => (NotDeferred(p_nih_nvw), Num, ctx, u_gen)
+  | BoolLit(_, _) => (NotDeferred(p_nih_nvw), Bool, ctx, u_gen)
+  | ListNil(_) => (NotDeferred(p_nih_nvw), List(Hole), ctx, u_gen)
   | Parenthesized(p) =>
     let (p, ty, ctx, u_gen) =
-      syn_fix_holes_pat(steps @ [0], ctx, u_gen, ~renumber_empty_holes, p);
-    (Parenthesized(p), ty, ctx, u_gen);
+      syn_fix_holes_pat(
+        steps @ [0],
+        ctx,
+        u_gen,
+        ~renumber_empty_holes,
+        ~var_set,
+        p,
+      );
+    (pass_deferrable(p => UHPat.Parenthesized(p), p), ty, ctx, u_gen);
   | OpSeq(skel, seq) =>
     let (skel, seq, ty, ctx, u_gen) =
       syn_fix_holes_pat_skel(
@@ -1163,7 +1231,7 @@ and syn_fix_holes_pat_skel =
     )
     : (
         UHPat.skel_t,
-        UHPat.opseq,
+        deferrable(UHPat.opseq),
         HTyp.t,
         Contexts.t((HTyp.t, CursorPath.steps)),
         MetaVarGen.t,
@@ -1707,10 +1775,6 @@ let rec cmplx_fold_left =
     let tl_block = UHExp.Block(tl, e);
     cmplx_fold_left(f, f(acc, hd, tl_block), tl_block, f_base);
   };
-
-type deferrable('a) =
-  | NotDeferred('a)
-  | Deferred(list(VarWarnStatus.t) => 'a, list(Var.t));
 
 /* If renumber_empty_holes is true, then the metavars in empty holes will be assigned
  * new values in the same namespace as non-empty holes. Non-empty holes are renumbered
