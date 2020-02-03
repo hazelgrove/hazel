@@ -86,7 +86,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
             "injection: " ++ InjSide.to_string(inj_side)
           | Case(_, _, _, _) => "case match"
           | Parenthesized(_) => "( )"
-          | ApPalette(_, _, _, _) => "I don't know its meaning"
+          | ApPalette(_, _, _, _) => failwith("ApPalette is not implemented")
           };
         filter_with_backspace_delete(
           action,
@@ -198,9 +198,9 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
       | MoveLeft
       | MoveRight
       | MoveToNextHole
-      | MoveToPrevHole
-      | UpdateApPalette(_) =>
-        failwith("Imposiible match, not undoable actions will not be matched")
+      | MoveToPrevHole =>
+        failwith("Imposiible match, noone of undoable actions will be matched")
+      | UpdateApPalette(_) => failwith("ApPalette is not implemented")
       | Delete
       | Backspace => display_string_of_cursor_term(cursor_term, action')
       | Construct(shape) =>
@@ -220,7 +220,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
         | SCase => "add case"
         | SChar(_)
         | SOp(_) => display_string_of_cursor_term(cursor_term, action')
-        | SApPalette(_) => "appalette?"
+        | SApPalette(_) => failwith("ApPalette is not implemented")
         }
       }
     };
@@ -271,6 +271,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
       Vdom.(Node.div([], []));
     };
   };
+  
   /* The entry which is always displayed*/
   let history_title_entry_view =
       (

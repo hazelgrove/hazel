@@ -87,12 +87,12 @@ type cursor_term =
   | ExpOp(CursorPosition.t, UHExp.operator)
   | PatOp(CursorPosition.t, UHPat.operator)
   | TypOp(CursorPosition.t, UHTyp.operator)
-  | Line(CursorPosition.t, UHExp.line) /* may be deleted TBD???*/
+  | Line(CursorPosition.t, UHExp.line)
   | Rule(CursorPosition.t, UHExp.rule);
 
 // TODO refactor into variants
 // based on term family and shape
-//[@deriving sexp]
+[@deriving sexp]
 type t = {
   typed,
   ctx: Contexts.t,
@@ -128,7 +128,7 @@ and extract_from_zexp_operand =
   | CaseZE(_, zexp, _, _) => extract_cursor_exp_term(zexp)
   | CaseZR(_, _, zrules, _) => extract_from_zrules(zrules)
   | CaseZA(_, _, _, ztyp) => extract_cursor_type_term(ztyp)
-  | ApPaletteZ(_, _, _, _) => failwith("not oprand with cursor") /*TBD???*/
+  | ApPaletteZ(_, _, _, _) => failwith("ApPalette is not implemented")
   };
 }
 and extract_from_zrules = (zrules: ZExp.zrules): option(cursor_term) => {
@@ -205,8 +205,8 @@ let can_group_cursor_term =
   | (_, None) => false
   | (Some(cur1), Some(cur2)) =>
     switch (cur1, cur2) {
-    | (Exp(_, op1), Exp(_, op2)) => UHExp.is_same_operand(op1, op2)
-    | (Pat(_, op1), Pat(_, op2)) => UHPat.is_same_operand(op1, op2)
+    | (Exp(_, op1), Exp(_, op2)) => UHExp.can_group_operand(op1, op2)
+    | (Pat(_, op1), Pat(_, op2)) => UHPat.can_group_operand(op1, op2)
     | (Line(_, line1), Line(_, line2)) =>
       UHExp.can_group_lines(line1, line2)
     | (Exp(_, _), _)

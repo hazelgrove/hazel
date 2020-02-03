@@ -5,14 +5,6 @@ type undo_history_entry = {
   cursor_term: option(cursor_term),
 };
 
-let get_cursor_term =
-    (cardstacks_state: CardStacks.cardstacks_state): option(cursor_term) => {
-  let edit_state =
-    ZList.prj_z(ZList.prj_z(cardstacks_state).zcards).edit_state;
-  let (zexp, _, _) = edit_state;
-  CursorInfo.extract_cursor_exp_term(zexp);
-};
-
 type undo_history_group = {
   group_entries: ZList.t(undo_history_entry, undo_history_entry),
   is_expanded: bool,
@@ -24,6 +16,14 @@ type undo_history_group = {
 
 type t = ZList.t(undo_history_group, undo_history_group);
 
+let get_cursor_term =
+    (cardstacks_state: CardStacks.cardstacks_state): option(cursor_term) => {
+  let edit_state =
+    ZList.prj_z(ZList.prj_z(cardstacks_state).zcards).edit_state;
+  let (zexp, _, _) = edit_state;
+  CursorInfo.extract_cursor_exp_term(zexp);
+};
+
 let undoable_action = (action: option(Action.t)): bool => {
   switch (action) {
   | None =>
@@ -32,7 +32,8 @@ let undoable_action = (action: option(Action.t)): bool => {
     )
   | Some(action') =>
     switch (action') {
-    | UpdateApPalette(_)
+    | UpdateApPalette(_) =>
+      failwith("ApPalette is not implemented in undo_history")
     | Delete
     | Backspace
     | Construct(_) => true
@@ -53,7 +54,6 @@ let in_same_history_group =
   | (_, None) => false
   | (Some(detail_action_1), Some(detail_action_2)) =>
     switch (detail_action_1, detail_action_2) {
-    | (UpdateApPalette(_), UpdateApPalette(_))
     | (Delete, Delete)
     | (Backspace, Backspace) =>
       CursorInfo.can_group_cursor_term(
@@ -70,7 +70,8 @@ let in_same_history_group =
       } else {
         false;
       }
-    | (UpdateApPalette(_), _)
+    | (UpdateApPalette(_), _) =>
+      failwith("ApPalette is not implemented in undo_history")
     | (Delete, _)
     | (Backspace, _)
     | (Construct(_), _) => false

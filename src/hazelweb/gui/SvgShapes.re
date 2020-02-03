@@ -5,7 +5,6 @@ open Incr_dom;
  */
 let icon = (classes, _points) =>
   Vdom.Node.div([Vdom.Attr.classes(classes)], []);
-
 /* TODO dunno how to get svg stuff working with incr_dom
    Tyxml.(
      Svg.svg(
@@ -22,5 +21,3 @@ let left_arrow = (classes: list(string), _: unit) =>
   icon(classes, [(0.0, 50.0), (100.0, 0.0), (100.0, 100.0)]);
 let right_arrow = (classes: list(string), _: unit) =>
   icon(classes, [(0.0, 0.0), (100.0, 50.0), (0.0, 100.0)]);
-/* let down_arrow = (classes: list(string), _: unit) =>
-   icon(classes, [(0.0, 0.0), (100.0, 0.0), (50.0, 100.0)]); */

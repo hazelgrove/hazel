@@ -229,7 +229,7 @@ let text_operand =
     );
   };
 
-let is_same_operand = (op1: operand, op2: operand): bool => {
+let can_group_operand = (op1: operand, op2: operand): bool => {
   switch (op1, op2) {
   | (EmptyHole(metavar1), EmptyHole(metavar2)) => metavar1 == metavar2
   | (Var(_, _, _), Var(_, _, _))
