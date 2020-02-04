@@ -9,9 +9,10 @@ type t('annot) =
   | Annot('annot, t('annot)); // Annotations
 
 let rec box_height: 'annot. t('annot) => int =
-  layout => Obj.magic(Lazy.force(box_height_memo_table, Obj.magic(layout)))
+  layout =>
+    Obj.magic(snd(Lazy.force(box_height_memo_table), Obj.magic(layout)))
 
-and box_height_memo_table: Lazy.t(t(unit) => int) =
+and box_height_memo_table: Lazy.t((unit => unit, t(unit) => int)) =
   lazy(Memoize.WeakPoly.make(box_height'))
 
 and box_height' = (box: t('annot)): int => {
