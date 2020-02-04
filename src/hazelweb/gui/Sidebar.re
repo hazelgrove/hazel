@@ -67,7 +67,7 @@ let make_sidebar =
     )
   );
 
-let left = (~inject, sidebar_open, left_panels) => {
+let left = (~inject, model: Model.t, left_panels) => {
   make_sidebar(
     left_panels,
     "collapsible-left-bar",
@@ -77,13 +77,13 @@ let left = (~inject, sidebar_open, left_panels) => {
     "slidable-left-bar-body",
     "left-bar-body-padding",
     "left-bar-body",
-    sidebar_open,
+    model.left_sidebar_open,
     ~on_toggle=_ =>
     inject(Update.Action.ToggleLeftSidebar)
   );
 };
 
-let right = (~inject, sidebar_open, right_panels) => {
+let right = (~inject, model: Model.t, right_panels) => {
   make_sidebar(
     right_panels,
     "collapsible-right-bar",
@@ -93,7 +93,7 @@ let right = (~inject, sidebar_open, right_panels) => {
     "slidable-right-bar-body",
     "right-bar-body-padding",
     "right-bar-body",
-    sidebar_open,
+    model.right_sidebar_open,
     ~on_toggle=_ =>
     inject(Update.Action.ToggleRightSidebar)
   );

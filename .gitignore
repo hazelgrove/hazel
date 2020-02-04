@@ -44,3 +44,7 @@ setup.log
 # IntelliJ
 .idea
 *.iml
+
+# Visual Studio Code
+.vscode
+.history
