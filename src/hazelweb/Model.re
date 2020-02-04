@@ -242,7 +242,8 @@ let init = (): t => {
   let undo_history_entry: UndoHistory.undo_history_entry = {
     cardstacks_state,
     previous_action: None,
-    cursor_term: UndoHistory.get_cursor_term(cardstacks_state),
+    previous_cursor_term: None,
+    current_cursor_term: UndoHistory.get_cursor_term(cardstacks_state),
   };
   let compute_results = init_compute_results;
   {
@@ -287,6 +288,7 @@ let perform_edit_action = (model: t, a: Action.t): t => {
     let new_history =
       UndoHistory.push_edit_state(
         model.undo_history,
+        model.cardstacks_state,
         new_model.cardstacks_state,
         Some(a),
       );
