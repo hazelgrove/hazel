@@ -188,7 +188,8 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
   let display_string_of_history_entry =
       (undo_history_entry: undo_history_entry): string => {
     let action = undo_history_entry.previous_action;
-    let cursor_term = undo_history_entry.cursor_term;
+    let prev_cursor_term = undo_history_entry.previous_cursor_term;
+    let cur_cursor_term = undo_history_entry.current_cursor_term;
     switch (action) {
     | None => failwith("Imposiible match, undisplayed undo history entry")
     | Some(action') =>
@@ -199,10 +200,12 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
       | MoveRight
       | MoveToNextHole
       | MoveToPrevHole =>
-        failwith("Imposiible match, noone of undoable actions will be matched")
+        failwith(
+          "Imposiible match, noone of undoable actions will be matched",
+        )
       | UpdateApPalette(_) => failwith("ApPalette is not implemented")
       | Delete
-      | Backspace => display_string_of_cursor_term(cursor_term, action')
+      | Backspace => display_string_of_cursor_term(cur_cursor_term, action')
       | Construct(shape) =>
         switch (shape) {
         | SParenthesized => "add ( )"
@@ -218,8 +221,57 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
         | SLet => "add let binding"
         | SLine => "add new lines"
         | SCase => "add case"
-        | SChar(_)
-        | SOp(_) => display_string_of_cursor_term(cursor_term, action')
+        | SChar(_) => display_string_of_cursor_term(cur_cursor_term, action')
+        | SOp(shape) =>
+          switch (shape) {
+          | SMinus
+          | SPlus
+          | STimes
+          | SLessThan
+          | SGreaterThan
+          | SEquals
+          | SComma
+          | SArrow
+          | SVBar
+          | SCons
+          | SAnd
+          | SOr => display_string_of_cursor_term(cur_cursor_term, action')
+          | SSpace =>
+            switch (prev_cursor_term) {
+            | None => display_string_of_cursor_term(cur_cursor_term, action')
+            | Some(cursor_term') =>
+              switch (cursor_term') {
+              | Exp(_, uexp_operand) =>
+                switch (uexp_operand) {
+                | Var(_, InVarHole(Keyword(k), _), _) =>
+                  switch (k) {
+                  | Let => "construct let binding"
+                  | Case => "construct case match"
+                  }
+                | EmptyHole(_)
+                | Var(_, _, _)
+                | NumLit(_, _)
+                | BoolLit(_, _)
+                | ListNil(_)
+                | Lam(_, _, _, _)
+                | Inj(_, _, _)
+                | Case(_, _, _, _)
+                | Parenthesized(_) =>
+                  display_string_of_cursor_term(cur_cursor_term, action')
+                | ApPalette(_, _, _, _) =>
+                  failwith("ApPalette is not implemented")
+                }
+              | Pat(_, _)
+              | Typ(_, _)
+              | ExpOp(_, _)
+              | PatOp(_, _)
+              | TypOp(_, _)
+              | Line(_, _)
+              | Rule(_, _) =>
+                display_string_of_cursor_term(cur_cursor_term, action')
+              }
+            }
+          }
         | SApPalette(_) => failwith("ApPalette is not implemented")
         }
       }
@@ -271,7 +323,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
       Vdom.(Node.div([], []));
     };
   };
-  
+
   /* The entry which is always displayed*/
   let history_title_entry_view =
       (

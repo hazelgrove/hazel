@@ -2,7 +2,8 @@ type cursor_term = CursorInfo.cursor_term;
 type undo_history_entry = {
   cardstacks_state: CardStacks.cardstacks_state,
   previous_action: option(Action.t),
-  cursor_term: option(cursor_term),
+  previous_cursor_term: option(cursor_term),
+  current_cursor_term: option(cursor_term),
 };
 
 type undo_history_group = {
@@ -57,15 +58,15 @@ let in_same_history_group =
     | (Delete, Delete)
     | (Backspace, Backspace) =>
       CursorInfo.can_group_cursor_term(
-        entry_1.cursor_term,
-        entry_2.cursor_term,
+        entry_1.current_cursor_term,
+        entry_2.current_cursor_term,
       )
     | (Construct(shape_1), Construct(shape_2)) =>
       /* if shapes are similar, then continue to check if they have similar cursor_term */
       if (Action.can_group_shape(shape_1, shape_2)) {
         CursorInfo.can_group_cursor_term(
-          entry_1.cursor_term,
-          entry_2.cursor_term,
+          entry_1.current_cursor_term,
+          entry_2.current_cursor_term,
         );
       } else {
         false;
@@ -91,7 +92,8 @@ let in_same_history_group =
 let push_edit_state =
     (
       undo_history: t,
-      cardstacks_state: CardStacks.cardstacks_state,
+      prev_cardstacks_state: CardStacks.cardstacks_state,
+      cur_cardstacks_state: CardStacks.cardstacks_state,
       action: option(Action.t),
     )
     : t => {
@@ -99,9 +101,10 @@ let push_edit_state =
   let cur_entry = ZList.prj_z(cur_group.group_entries);
   if (undoable_action(action)) {
     let new_entry = {
-      cardstacks_state,
+      cardstacks_state: cur_cardstacks_state,
       previous_action: action,
-      cursor_term: get_cursor_term(cardstacks_state),
+      previous_cursor_term: get_cursor_term(prev_cardstacks_state),
+      current_cursor_term: get_cursor_term(cur_cardstacks_state),
     };
     if (!cur_group.is_complete && in_same_history_group(cur_entry, new_entry)) {
       /* group the new entry into the current group */
