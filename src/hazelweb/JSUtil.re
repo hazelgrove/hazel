@@ -670,11 +670,11 @@ let force_opt = x => Js.Opt.get(x, () => failwith("forced opt"));
 
 // TODO: find better Module to put this in
 module Vdom = Virtual_dom.Vdom;
-// let content_editable_of_layout: Layout.t('tag) => Vdom.Node.t =
+// let content_editable_of_layout: Layout.t('annot) => Vdom.Node.t =
 //   layout => {
-//     let record: Layout.text('tag, list(Vdom.Node.t), Vdom.Node.t) = {
+//     let record: Layout.text('annot, list(Vdom.Node.t), Vdom.Node.t) = {
 //       imp_of_string: string => [Vdom.Node.text(string)],
-//       imp_of_tag: (_, string) => [Vdom.Node.span([], string)], // TODO: add span data
+//       imp_of_annot: (_, string) => [Vdom.Node.span([], string)], // TODO: add span data
 //       imp_append: (s1, s2) => s1 @ s2,
 //       imp_newline: _ => [Vdom.Node.br([])],
 //       t_of_imp: s => Vdom.Node.span([], s) // TODO: use something other than `span`?
@@ -682,7 +682,7 @@ module Vdom = Virtual_dom.Vdom;
 //     Layout.make_of_layout(record, layout);
 //   };
 
-let rec vdom_of_box = (box: Box.t('tag)): Vdom.Node.t =>
+let rec vdom_of_box = (box: Box.t('annot)): Vdom.Node.t =>
   switch (box) {
   | Text(string) =>
     Vdom.Node.div([Vdom.Attr.classes(["text"])], [Vdom.Node.text(string)])
@@ -690,7 +690,7 @@ let rec vdom_of_box = (box: Box.t('tag)): Vdom.Node.t =>
     Vdom.Node.div([Vdom.Attr.classes(["hbox"])], List.map(vdom_of_box, bs))
   | VBox(bs) =>
     Vdom.Node.div([Vdom.Attr.classes(["vbox"])], List.map(vdom_of_box, bs))
-  | Tagged(_, b) =>
+  | Annot(_, b) =>
     // TODO
     vdom_of_box(b)
   };

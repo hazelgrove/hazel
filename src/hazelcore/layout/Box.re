@@ -2,36 +2,36 @@ open Sexplib.Std;
 
 // Invariant for HBox: all but last element must be height <= 1
 [@deriving sexp]
-type t('tag) =
+type t('annot) =
   | Text(string)
-  | HBox(list(t('tag))) // note: due to alignment, HBox([]) is not a zero (or maybe it is?)
-  | VBox(list(t('tag))) // note: due to alignment, VBox([]) is not a zero
-  | Tagged('tag, t('tag));
+  | HBox(list(t('annot))) // note: due to alignment, HBox([]) is not a zero (or maybe it is?)
+  | VBox(list(t('annot))) // note: due to alignment, VBox([]) is not a zero
+  | Annot('annot, t('annot)); // Annotations
 
-let rec box_height: 'tag. t('tag) => int =
+let rec box_height: 'annot. t('annot) => int =
   layout => Obj.magic(Lazy.force(box_height_memo_table, Obj.magic(layout)))
 
 and box_height_memo_table: Lazy.t(t(unit) => int) =
   lazy(Memoize.WeakPoly.make(box_height'))
 
-and box_height' = (box: t('tag)): int => {
+and box_height' = (box: t('annot)): int => {
   switch (box) {
   | Text(_) => 1
-  | Tagged(_, b) => box_height(b)
+  | Annot(_, b) => box_height(b)
   | HBox(bs) => List.fold_right(max, List.map(box_height, bs), 1) // Note: 1 is HBox([]) height
   | VBox(bs) => List.fold_right((+), List.map(box_height, bs), 0)
   };
 };
 
-let rec flatten = (box: t('tag)): t('tag) => {
+let rec flatten = (box: t('annot)): t('annot) => {
   let flatten_box_list =
       (
-        bs: list(t('tag)),
-        ctor: list(t('tag)) => t('tag),
-        pattern: t('tag) => option(list(t('tag))),
+        bs: list(t('annot)),
+        ctor: list(t('annot)) => t('annot),
+        pattern: t('annot) => option(list(t('annot))),
       )
-      : t('tag) => {
-    let rec go = (b: t('tag)): list(t('tag)) => {
+      : t('annot) => {
+    let rec go = (b: t('annot)): list(t('annot)) => {
       switch (pattern(b)) {
       | Some(bs) => List.concat(List.map(go, bs))
       | None => [b]
@@ -45,7 +45,7 @@ let rec flatten = (box: t('tag)): t('tag) => {
 
   switch (box) {
   | Text(_) => box
-  | Tagged(tag, b) => Tagged(tag, flatten(b))
+  | Annot(annot, b) => Annot(annot, flatten(b))
   | HBox(bs) =>
     flatten_box_list(
       bs,

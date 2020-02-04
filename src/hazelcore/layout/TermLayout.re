@@ -1,8 +1,8 @@
 [@deriving sexp]
-type tag = TermTag.t;
+type annot = TermAnnot.t;
 
 [@deriving sexp]
-type t = Layout.t(tag);
+type t = Layout.t(annot);
 
 // TODO shouldn't need this, refactor to use option
 module QueryResult = {
@@ -17,15 +17,15 @@ module QueryResult = {
     | Some(a) => Return(a);
 };
 
-let rec contains = (query: tag => QueryResult.t(unit), l: t): bool => {
+let rec contains = (query: annot => QueryResult.t(unit), l: t): bool => {
   let go = contains(query);
   switch (l) {
   | Linebreak
   | Text(_) => false
   | Align(l) => go(l)
   | Cat(l1, l2) => go(l1) || go(l2)
-  | Tagged(tag, l) =>
-    switch (query(tag)) {
+  | Annot(annot, l) =>
+    switch (query(annot)) {
     | Stop => false
     | Skip => go(l)
     | Return () => true
@@ -61,11 +61,11 @@ let has_para_OpenChild =
     | _ => Stop,
   );
 
-// TODO should be possible to make polymorphic over tag
+// TODO should be possible to make polymorphic over annot
 // but was getting confusing type inference error
-let rec find_and_decorate_Tagged =
-        (decorate: (tag, t) => QueryResult.t(t), l: t): option(t) => {
-  let go = find_and_decorate_Tagged(decorate);
+let rec find_and_decorate_Annot =
+        (decorate: (annot, t) => QueryResult.t(t), l: t): option(t) => {
+  let go = find_and_decorate_Annot(decorate);
   switch (l) {
   | Linebreak
   | Text(_) => None
@@ -75,10 +75,10 @@ let rec find_and_decorate_Tagged =
     | Some(l1) => Some(Cat(l1, l2))
     | None => go(l2) |> OptUtil.map(l2 => Layout.Cat(l1, l2))
     }
-  | Tagged(tag, l1) =>
-    switch (decorate(tag, l1)) {
+  | Annot(annot, l1) =>
+    switch (decorate(annot, l1)) {
     | Stop => None
-    | Skip => go(l1) |> OptUtil.map(l1 => Layout.Tagged(tag, l1))
+    | Skip => go(l1) |> OptUtil.map(l1 => Layout.Annot(annot, l1))
     | Return(l) => Some(l)
     }
   };
@@ -92,12 +92,12 @@ let rec follow_steps_and_decorate =
   | [] => decorate(l)
   | [next_step, ...rest] =>
     l
-    |> find_and_decorate_Tagged((tag: TermTag.t, l: t) => {
-         switch (tag) {
+    |> find_and_decorate_Annot((annot: TermAnnot.t, l: t) => {
+         switch (annot) {
          | Step(step) when step == next_step =>
            l
            |> go(~steps=rest)
-           |> OptUtil.map(l => Layout.Tagged(tag, l))
+           |> OptUtil.map(l => Layout.Annot(annot, l))
            |> QueryResult.of_opt
          | OpenChild(_)
          | ClosedChild(_)
@@ -118,12 +118,14 @@ let find_and_decorate_caret =
        ~decorate=
          switch (cursor) {
          | OnText(j) =>
-           find_and_decorate_Tagged((tag, l) =>
-             switch (tag) {
+           find_and_decorate_Annot((annot, l) =>
+             switch (annot) {
              | Text(text_data) =>
                Return(
                  l
-                 |> Layout.tag(TermTag.Text({...text_data, caret: Some(j)})),
+                 |> Layout.annot(
+                      TermAnnot.Text({...text_data, caret: Some(j)}),
+                    ),
                )
              | EmptyLine
              | Term(_) => Skip
@@ -131,25 +133,30 @@ let find_and_decorate_caret =
              }
            )
          | OnOp(side) =>
-           find_and_decorate_Tagged((tag, l) =>
-             switch (tag) {
+           find_and_decorate_Annot((annot, l) =>
+             switch (annot) {
              | Op(op_data) =>
                Return(
                  l
-                 |> Layout.tag(TermTag.Op({...op_data, caret: Some(side)})),
+                 |> Layout.annot(
+                      TermAnnot.Op({...op_data, caret: Some(side)}),
+                    ),
                )
              | _ => Stop
              }
            )
          | OnDelim(k, side) =>
-           find_and_decorate_Tagged((tag, l) =>
-             switch (tag) {
+           find_and_decorate_Annot((annot, l) =>
+             switch (annot) {
              | Delim({path: (_, index), _} as delim_data) =>
                index == k
                  ? Return(
                      l
-                     |> Layout.tag(
-                          TermTag.Delim({...delim_data, caret: Some(side)}),
+                     |> Layout.annot(
+                          TermAnnot.Delim({
+                            ...delim_data,
+                            caret: Some(side),
+                          }),
                         ),
                    )
                  : Stop
@@ -166,7 +173,7 @@ let find_and_decorate_caret =
 let rec find_and_decorate_Term =
         (
           ~steps: CursorPath.steps,
-          ~decorate_Term: (TermTag.term_data, t) => t,
+          ~decorate_Term: (TermAnnot.term_data, t) => t,
           l: t,
         )
         : option(t) => {
@@ -174,24 +181,24 @@ let rec find_and_decorate_Term =
   switch (steps) {
   | [] =>
     l
-    |> find_and_decorate_Tagged((tag, l) =>
-         switch (tag) {
+    |> find_and_decorate_Annot((annot, l) =>
+         switch (annot) {
          | Term(term_data) => Return(decorate_Term(term_data, l))
          | _ => Stop
          }
        )
   | [next_step, ...rest] =>
     l
-    |> find_and_decorate_Tagged((tag, l) => {
+    |> find_and_decorate_Annot((annot, l) => {
          let take_step = () =>
            l
            |> go(~steps=rest)
-           |> OptUtil.map(l => Layout.Tagged(tag, l))
+           |> OptUtil.map(l => Layout.Annot(annot, l))
            |> QueryResult.of_opt;
          let found_term_if = (cond, term_data) =>
            cond && rest == []
              ? QueryResult.Return(decorate_Term(term_data, l)) : Skip;
-         switch (tag) {
+         switch (annot) {
          | Step(step) => step == next_step ? take_step() : Stop
          | Term({shape: SubBlock({hd_index, _}), _} as term_data) =>
            found_term_if(hd_index == next_step, term_data)
@@ -212,7 +219,7 @@ let rec find_and_decorate_Term =
 
 let find_and_decorate_cursor =
   find_and_decorate_Term(~decorate_Term=(term_data, l) =>
-    l |> Layout.tag(TermTag.Term({...term_data, has_cursor: true}))
+    l |> Layout.annot(TermAnnot.Term({...term_data, has_cursor: true}))
   );
 
 let find_and_decorate_var_use =
@@ -220,8 +227,8 @@ let find_and_decorate_var_use =
     switch (term_data) {
     | {shape: Var(var_data), _} =>
       l
-      |> Layout.tag(
-           TermTag.Term({
+      |> Layout.annot(
+           TermAnnot.Term({
              ...term_data,
              shape: Var({...var_data, show_use: true}),
            }),
@@ -259,18 +266,18 @@ let path_before = (l: t): option(CursorPath.t) => {
       | (NotFound | Transport(Before) | Found(_)) as fin => fin
       | Transport(After) => go(l2)
       }
-    | Tagged(
+    | Annot(
         OpenChild(_) | ClosedChild(_) | DelimGroup | LetLine | EmptyLine |
         Step(_) |
         Term(_),
         l,
       ) =>
       go(l)
-    | Tagged(Padding | HoleLabel(_) | SpaceOp | UserNewline, _) => NotFound
-    | Tagged(Indent, _) => Transport(After)
-    | Tagged(Text({steps, _}), _) => Found((steps, OnText(0)))
-    | Tagged(Op({steps, _}), _) => Found((steps, OnOp(Before)))
-    | Tagged(Delim({path: (steps, k), _}), _) =>
+    | Annot(Padding | HoleLabel(_) | SpaceOp | UserNewline, _) => NotFound
+    | Annot(Indent, _) => Transport(After)
+    | Annot(Text({steps, _}), _) => Found((steps, OnText(0)))
+    | Annot(Op({steps, _}), _) => Found((steps, OnOp(Before)))
+    | Annot(Delim({path: (steps, k), _}), _) =>
       Found((steps, OnDelim(k, Before)))
     };
   go(l) |> PathSearchResult.to_opt;
@@ -287,18 +294,18 @@ let path_after = (l: t): option(CursorPath.t) => {
       | (NotFound | Transport(After) | Found(_)) as fin => fin
       | Transport(Before) => go(l1)
       }
-    | Tagged(
+    | Annot(
         OpenChild(_) | ClosedChild(_) | DelimGroup | LetLine | EmptyLine |
         Step(_) |
         Term(_),
         l,
       ) =>
       go(l)
-    | Tagged(UserNewline, _) => Transport(Before)
-    | Tagged(Padding | HoleLabel(_) | SpaceOp | Indent, _) => NotFound
-    | Tagged(Text({steps, length, _}), _) => Found((steps, OnText(length)))
-    | Tagged(Op({steps, _}), _) => Found((steps, OnOp(After)))
-    | Tagged(Delim({path: (steps, k), _}), _) =>
+    | Annot(UserNewline, _) => Transport(Before)
+    | Annot(Padding | HoleLabel(_) | SpaceOp | Indent, _) => NotFound
+    | Annot(Text({steps, length, _}), _) => Found((steps, OnText(length)))
+    | Annot(Op({steps, _}), _) => Found((steps, OnOp(After)))
+    | Annot(Delim({path: (steps, k), _}), _) =>
       Found((steps, OnDelim(k, After)))
     };
   go(l) |> PathSearchResult.to_opt;
@@ -320,7 +327,7 @@ let path_of_caret_position = (row: int, col: int, l: t): option(CursorPath.t) =>
         col - current_col <= end_col - col ? Before : After;
       switch (l) {
       | Text(_)
-      | Tagged(HoleLabel(_), _) => NotFound
+      | Annot(HoleLabel(_), _) => NotFound
       | Linebreak => Transport(row == end_row ? After : Before)
       | Align(l) => l |> go(current_col, current_row, current_col)
       | Cat(l1, l2) =>
@@ -346,20 +353,20 @@ let path_of_caret_position = (row: int, col: int, l: t): option(CursorPath.t) =>
           | Transport(Before) => PathSearchResult.of_opt(path_after(l1))
           };
         };
-      | Tagged(
+      | Annot(
           OpenChild(_) | ClosedChild(_) | DelimGroup | LetLine | EmptyLine |
           Step(_) |
           Term(_),
           l,
         ) =>
         l |> go(indent, current_row, current_col)
-      | Tagged(UserNewline, _) => Transport(Before)
-      | Tagged(Indent, _) => Transport(After)
-      | Tagged(Padding | SpaceOp, _) => Transport(leaning_side)
-      | Tagged(Text({steps, _}), _) =>
+      | Annot(UserNewline, _) => Transport(Before)
+      | Annot(Indent, _) => Transport(After)
+      | Annot(Padding | SpaceOp, _) => Transport(leaning_side)
+      | Annot(Text({steps, _}), _) =>
         Found((steps, OnText(col - current_col)))
-      | Tagged(Op({steps, _}), _) => Found((steps, OnOp(leaning_side)))
-      | Tagged(Delim({path: (steps, k), _}), _) =>
+      | Annot(Op({steps, _}), _) => Found((steps, OnOp(leaning_side)))
+      | Annot(Delim({path: (steps, k), _}), _) =>
         Found((steps, OnDelim(k, leaning_side)))
       };
     };

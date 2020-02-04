@@ -1,26 +1,15 @@
 open Sexplib.Std;
 
-// type t('tag) = {
-//   metrics,
-//   layout: layout('tag),
-// }
-// and metrics = {
-//   first_width: int,
-//   width: int,
-//   last_width: int,
-//   cost: int,
-// }
-
 [@deriving sexp]
-type t('tag) =
+type t('annot) =
   | Text(string) // Invariant: contains no newlines. Text("") is identity for `Cat`
-  | Cat(t('tag), t('tag)) // associative // TODO: list
+  | Cat(t('annot), t('annot)) // Associative
   | Linebreak
-  | Align(t('tag))
-  | Tagged('tag, t('tag)); // TODO: annot
+  | Align(t('annot))
+  | Annot('annot, t('annot)); // Annotations
 
-let align = (l: t('tag)) => Align(l);
-let tag = (tag: 'tag, l: t('tag)) => Tagged(tag, l);
+let align = (l: t('annot)) => Align(l);
+let annot = (annot: 'annot, l: t('annot)) => Annot(annot, l);
 
 type metrics = {
   height: int,
@@ -28,7 +17,7 @@ type metrics = {
   last_width_is_relative: bool,
 };
 
-let rec metrics: 'tag. t('tag) => metrics =
+let rec metrics: 'annot. t('annot) => metrics =
   // TODO: rename
   layout => {
     Obj.magic(Lazy.force(metrics_memo_table, Obj.magic(layout)));
@@ -45,7 +34,7 @@ and metrics' = (layout: t(unit)): metrics =>
       last_width_is_relative: true,
     }
   | Linebreak => {height: 2, last_width: 0, last_width_is_relative: false}
-  | Tagged(_, l) => metrics(l)
+  | Annot(_, l) => metrics(l)
   | Align(l) => {...metrics(l), last_width_is_relative: false}
   | Cat(l1, l2) =>
     let metrics1 = metrics(l1);
@@ -60,13 +49,13 @@ and metrics' = (layout: t(unit)): metrics =>
     {...metrics, height};
   };
 
-let rec remove_tags = (layout: t('tag)): t('tag) => {
+let rec remove_annots = (layout: t('annot)): t('annot) => {
   switch (layout) {
-  | Tagged(_, l) => remove_tags(l)
+  | Annot(_, l) => remove_annots(l)
   | Text(string) => Text(string)
-  | Cat(l1, l2) => Cat(remove_tags(l1), remove_tags(l2))
+  | Cat(l1, l2) => Cat(remove_annots(l1), remove_annots(l2))
   | Linebreak => Linebreak
-  | Align(l) => Align(remove_tags(l))
+  | Align(l) => Align(remove_annots(l))
   };
 };
 
@@ -76,19 +65,19 @@ let rec remove_tags = (layout: t('tag)): t('tag) => {
 //let linebreak = t_of_layout(linebreak);
 
 // TODO: move to own module
-type text('tag, 'imp, 't) = {
+type text('annot, 'imp, 't) = {
   // TODO: rename `imp`
   imp_of_string: string => 'imp,
   imp_append: ('imp, 'imp) => 'imp,
   imp_newline: int => 'imp,
-  imp_of_tag: ('tag, 'imp) => 'imp,
+  imp_of_annot: ('annot, 'imp) => 'imp,
   t_of_imp: 'imp => 't,
 };
 
-let make_of_layout: (text('tag, 'imp, 't), t('tag)) => 't =
+let make_of_layout: (text('annot, 'imp, 't), t('annot)) => 't =
   (text, layout) => {
     let column: ref(int) = ref(0);
-    let rec go: (int, t('tag)) => 'imp =
+    let rec go: (int, t('annot)) => 'imp =
       (indent, layout) => {
         switch (layout) {
         | Text(string) =>
@@ -103,29 +92,29 @@ let make_of_layout: (text('tag, 'imp, 't), t('tag)) => 't =
           column := indent;
           text.imp_newline(indent);
         | Align(l) => go(column^, l)
-        | Tagged(tag, l) => text.imp_of_tag(tag, go(indent, l))
+        | Annot(annot, l) => text.imp_of_annot(annot, go(indent, l))
         };
       };
     text.t_of_imp(go(0, layout));
   };
 
-let string_of_layout: 'tag. t('tag) => string =
+let string_of_layout: 'annot. t('annot) => string =
   layout => {
-    let record: 'tag. text('tag, string, string) = {
+    let record: 'annot. text('annot, string, string) = {
       imp_of_string: string => string,
       imp_append: (s1, s2) => s1 ++ s2,
       imp_newline: indent => "\n" ++ String.make(indent, ' '),
-      imp_of_tag: (_, imp) => imp,
+      imp_of_annot: (_, imp) => imp,
       t_of_imp: imp => imp,
     };
     make_of_layout(record, layout);
   };
 
 /* TODO got weird type inference error, see specialized instance in TermLayout
-   let rec find_and_decorate_Tagged =
-           (decorate: ('tag, t('tag)) => decorate_result('tag), l: t('tag))
-           : option(t('tag)) => {
-     let go = find_and_decorate_Tagged(decorate);
+   let rec find_and_decorate_Annot =
+           (decorate: ('annot, t('annot)) => decorate_result('annot), l: t('annot))
+           : option(t('annot)) => {
+     let go = find_and_decorate_Annot(decorate);
      switch (l) {
      | Linebreak
      | Text(_) => None
@@ -135,18 +124,21 @@ let string_of_layout: 'tag. t('tag) => string =
        | Some(l1) => Some(Cat(l1, l2))
        | None => l2 |> go |> OptUtil.map(l2 => Cat(l1, l2))
        }
-     | Tagged(tg, l) =>
-       switch (decorate(tag, l)) {
+     | Annot(tg, l) =>
+       switch (decorate(annot, l)) {
        | Failed => None
-       | Skipped => l |> go |> OptUtil.map(tag(tg))
+       | Skipped => l |> go |> OptUtil.map(annot(tg))
        | Decorated(l) => Some(l)
        }
      };
    };
    */
-let strings_of_layout: 'tag. t('tag) => list((int, string)) =
+let strings_of_layout: 'annot. t('annot) => list((int, string)) =
   layout => {
-    let record: 'tag. text('tag, list((int, string)), list((int, string))) = {
+    let record:
+      'annot.
+      text('annot, list((int, string)), list((int, string)))
+     = {
       imp_of_string: string => [(0, string)],
       imp_append: (s1, s2) => {
         switch (List.rev(s1), s2) {
@@ -162,7 +154,7 @@ let strings_of_layout: 'tag. t('tag) => list((int, string)) =
         };
       },
       imp_newline: indent => [(indent, "")],
-      imp_of_tag: (_, imp) => imp,
+      imp_of_annot: (_, imp) => imp,
       t_of_imp: s => s,
     };
     make_of_layout(record, layout);

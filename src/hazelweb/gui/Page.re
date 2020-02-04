@@ -152,7 +152,6 @@ let page_view =
       | Some(l) => l
       }
     );
-  //let layout = Layout.remove_tags(layout);
   let box = lazy(BoxOfLayout.box_of_layout(Lazy.force(layout)));
   Vdom.(
     Node.div(
@@ -222,23 +221,6 @@ let page_view =
                         }),
                       ],
                       [Node.text("Serialize to console")],
-                    ),
-                    Node.div(
-                      [],
-                      if (!model.show_content_editable) {
-                        [];
-                      } else {
-                        [
-                          Node.pre(
-                            [],
-                            [
-                              Node.text(
-                                Layout.string_of_layout(Lazy.force(layout)),
-                              ),
-                            ],
-                          ),
-                        ];
-                      },
                     ),
                     Node.div(
                       [
