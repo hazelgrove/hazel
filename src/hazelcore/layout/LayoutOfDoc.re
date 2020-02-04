@@ -145,7 +145,13 @@ let rec layout_of_doc': 'annot. Doc.t('annot) => m(Layout.t('annot)) =
     Obj.magic(snd(Lazy.force(memo_table), Obj.magic(doc), ~width, ~pos));
   }
 
-and memo_table: Lazy.t((unit => unit, Doc.t(unit) => m(Layout.t(unit)))) =
+and memo_table:
+  Lazy.t(
+    (
+      Memoize.WeakPoly.Table.t(m(Layout.t(unit))),
+      Doc.t(unit) => m(Layout.t(unit)),
+    ),
+  ) =
   lazy(Memoize.WeakPoly.make(layout_of_doc''))
 
 and layout_of_doc'': Doc.t(unit) => m(Layout.t(unit)) =
@@ -210,6 +216,6 @@ let layout_of_doc =
   // TODO: use options instead of max_int
   let l =
     minimum((max_int, (max_int, None)), layout_of_doc'(doc, ~width, ~pos));
-  fst(Lazy.force(memo_table), ());
+  Memoize.WeakPoly.Table.clear(fst(Lazy.force(memo_table)));
   l;
 };

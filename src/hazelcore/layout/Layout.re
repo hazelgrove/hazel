@@ -23,7 +23,8 @@ let rec metrics'': 'annot. t('annot) => metrics =
     Obj.magic(snd(Lazy.force(metrics_memo_table), Obj.magic(layout)));
   }
 
-and metrics_memo_table: Lazy.t((unit => unit, t(unit) => metrics)) =
+and metrics_memo_table:
+  Lazy.t((Memoize.WeakPoly.Table.t(metrics), t(unit) => metrics)) =
   lazy(Memoize.WeakPoly.make(metrics'))
 
 and metrics' = (layout: t(unit)): metrics =>
@@ -52,7 +53,7 @@ and metrics' = (layout: t(unit)): metrics =>
 let metrics: 'annot. t('annot) => metrics =
   layout => {
     let l = metrics''(layout);
-    fst(Lazy.force(metrics_memo_table), ());
+    Memoize.WeakPoly.Table.clear(fst(Lazy.force(metrics_memo_table)));
     l;
   };
 

@@ -1,11 +1,12 @@
 // Memoization on one particular key type
-module Make = (Table: Hashtbl.S) => {
+module Make = (T: Hashtbl.S) => {
+  module Table = T;
   type key = Table.key;
-  let make: 'b. (key => 'b) => (unit => unit, key => 'b) =
+  let make: 'b. (key => 'b) => (Table.t('b), key => 'b) =
     f => {
       let table = Table.create(0);
       (
-        () => Table.reset(table),
+        table,
         key => {
           switch (Table.find_opt(table, key)) {
           | Some(value) => value
@@ -28,8 +29,9 @@ module MakePoly = (H: (Hashtbl.HashedType) => Hashtbl.S) => {
     let hash = Hashtbl.hash;
     let equal = (==);
   };
-  module Make = Make((H(Key)));
-  let make: ('a => 'b) => (unit => unit, 'a => 'b) =
+  module Table = H(Key);
+  module Make = Make(Table);
+  let make: ('a => 'b) => (Table.t('b), 'a => 'b) =
     f => {
       let (clear, table: Make.key => 'b) =
         Make.make(key => f(Obj.magic(key)));
