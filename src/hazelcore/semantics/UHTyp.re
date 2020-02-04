@@ -135,16 +135,3 @@ and expand_operand =
   | Bool => Bool
   | Parenthesized(opseq) => expand(opseq)
   | List(opseq) => List(expand(opseq));
-
-let child_indices_operand =
-  fun
-  | Hole
-  | Unit
-  | Num
-  | Bool => []
-  | Parenthesized(_)
-  | List(_) => [0];
-let child_indices_opseq: opseq => list(int) =
-  fun
-  | OpSeq(_, seq) => seq |> Seq.length |> ListUtil.range;
-let child_indices = child_indices_opseq;

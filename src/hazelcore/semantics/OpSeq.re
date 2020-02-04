@@ -70,15 +70,3 @@ let make_inconsistent =
     let set_skel = Skel.BinOp(InHole(TypeInconsistent, u), op, skel1, skel2);
     (OpSeq(set_skel, seq), u_gen);
   };
-
-let child_indices =
-  fun
-  | OpSeq(_, seq) => seq |> Seq.length |> ListUtil.range;
-
-let is_multi_line =
-    (
-      ~is_multi_line_operand: 'operand => bool,
-      OpSeq(_, seq): t('operand, 'operator),
-    )
-    : bool =>
-  seq |> Seq.operands |> List.exists(is_multi_line_operand);

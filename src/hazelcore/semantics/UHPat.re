@@ -190,30 +190,6 @@ and make_inconsistent_operand =
     (Parenthesized(set_p), u_gen);
   };
 
-let child_indices_operand =
-  fun
-  | EmptyHole(_)
-  | Wild(_)
-  | Var(_, _, _)
-  | NumLit(_, _)
-  | BoolLit(_, _)
-  | ListNil(_) => []
-  | Parenthesized(_) => [0]
-  | Inj(_, _, _) => [0];
-let child_indices_opseq = OpSeq.child_indices;
-let child_indices = child_indices_opseq;
-
-let favored_child: operand => option((ChildIndex.t, t)) =
-  fun
-  | EmptyHole(_)
-  | Wild(_)
-  | Var(_, _, _)
-  | NumLit(_, _)
-  | BoolLit(_, _)
-  | ListNil(_) => None
-  | Parenthesized(p)
-  | Inj(_, _, p) => Some((0, p));
-
 let text_operand =
     (u_gen: MetaVarGen.t, shape: TextShape.t): (operand, MetaVarGen.t) =>
   switch (shape) {
