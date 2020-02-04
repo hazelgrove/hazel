@@ -18,178 +18,90 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
       ]
     };
   };
-  /* special display case for backspace and delete */
-  let filter_with_backspace_delete =
-      (
-        action: Action.t,
-        cursor_pos: option(CursorPosition.t),
-        otherwise_str: option(string),
-        is_empty_line: bool,
-      )
-      : string => {
-    switch (otherwise_str) {
-    | None => failwith("Imposiible match, undisplayed undo history entry")
-    | Some(str) =>
-      switch (cursor_pos) {
-      | None =>
-        if (action == Backspace) {
-          "backspace";
-        } else if (action == Delete) {
-          "delete";
-        } else {
-          "edit " ++ str;
-        }
-      | Some(cursor_pos') =>
-        switch (cursor_pos') {
-        | OnText(_) =>
-          if (is_empty_line) {
-            "clear the line";
-          } else {
-            "edit " ++ str;
-          }
-        | OnDelim(_, side) =>
-          switch (side) {
-          | Before =>
-            if (action == Delete) {
-              "select " ++ str;
-            } else {
-              "edit " ++ str;
-            }
-          | After =>
-            if (action == Backspace) {
-              "select " ++ str;
-            } else {
-              "edit " ++ str;
-            }
-          }
-        | OnOp(_) => "edit " ++ str
-        }
-      }
-    };
-  };
-  let display_string_of_cursor_term =
-      (cursor_term: option(CursorInfo.cursor_term), action: Action.t): string => {
-    switch (cursor_term) {
-    | None => filter_with_backspace_delete(action, None, None, false)
-    | Some(cursor_term') =>
-      switch (cursor_term') {
-      | Exp(cursor_pos, exp) =>
-        let exp_str =
-          switch (exp) {
-          | EmptyHole(meta_var) => "hole: " ++ string_of_int(meta_var)
-          | Var(_, _, var_str) => "var: " ++ var_str
-          | NumLit(_, num) => "number: " ++ string_of_int(num)
-          | BoolLit(_, bool_val) => "bool: " ++ string_of_bool(bool_val)
-          | ListNil(_) => "empty list"
-          | Lam(_, _, _, _) => "lambada function"
-          | Inj(_, inj_side, _) =>
-            "injection: " ++ InjSide.to_string(inj_side)
-          | Case(_, _, _, _) => "case match"
-          | Parenthesized(_) => "( )"
-          | ApPalette(_, _, _, _) => failwith("ApPalette is not implemented")
-          };
-        filter_with_backspace_delete(
-          action,
-          Some(cursor_pos),
-          Some(exp_str),
-          false,
-        );
-      | Pat(cursor_pos, pat) =>
-        let pat_str =
-          switch (pat) {
-          | EmptyHole(meta_var) => "hole: " ++ string_of_int(meta_var)
-          | Wild(_) => "I don't know its meaning"
-          | Var(_, _, var_str) => "var: " ++ var_str
-          | NumLit(_, num) => "number: " ++ string_of_int(num)
-          | BoolLit(_, bool_val) => "bool: " ++ string_of_bool(bool_val)
-          | ListNil(_) => "empty list"
-          | Parenthesized(_) => "( )"
-          | Inj(_, inj_side, _) =>
-            "injection: " ++ InjSide.to_string(inj_side)
-          };
-        filter_with_backspace_delete(
-          action,
-          Some(cursor_pos),
-          Some(pat_str),
-          false,
-        );
-      | Typ(cursor_pos, typ) =>
-        let typ_str =
-          switch (typ) {
-          | Hole => "type: Hole"
-          | Unit => "type: Unit"
-          | Num => "type: Num"
-          | Bool => "type: Bool"
-          | Parenthesized(_) => "type: (?)"
-          | List(_) => "type: [?]"
-          };
-        filter_with_backspace_delete(
-          action,
-          Some(cursor_pos),
-          Some(typ_str),
-          false,
-        );
-      | ExpOp(cursor_pos, op) =>
-        filter_with_backspace_delete(
-          action,
-          Some(cursor_pos),
-          Some("operator: " ++ UHExp.string_of_operator(op)),
-          false,
-        )
-      | PatOp(cursor_pos, op) =>
-        filter_with_backspace_delete(
-          action,
-          Some(cursor_pos),
-          Some("operator: " ++ UHPat.string_of_operator(op)),
-          false,
-        )
-      | TypOp(cursor_pos, op) =>
-        filter_with_backspace_delete(
-          action,
-          Some(cursor_pos),
-          Some("operator: " ++ UHTyp.string_of_operator(op)),
-          false,
-        )
-      | Line(cursor_pos, line_content) =>
-        switch (line_content) {
-        | EmptyLine =>
-          filter_with_backspace_delete(
-            action,
-            Some(cursor_pos),
-            Some("empty line"),
-            true,
-          )
-        | LetLine(_, _, _) =>
-          filter_with_backspace_delete(
-            action,
-            Some(cursor_pos),
-            Some("let binding"),
-            false,
-          )
-        | ExpLine(_) =>
-          filter_with_backspace_delete(
-            action,
-            Some(cursor_pos),
-            Some("epression line"),
-            false,
-          )
-        }
-      | Rule(cursor_pos, _) =>
-        filter_with_backspace_delete(
-          action,
-          Some(cursor_pos),
-          Some("match rule"),
-          false,
-        )
-      }
+
+  let exp_str = (exp: UHExp.operand): string => {
+    switch (exp) {
+    | EmptyHole(meta_var) => "hole: " ++ string_of_int(meta_var)
+    | Var(_, _, var_str) => "var: " ++ var_str
+    | NumLit(_, num) => "number: " ++ string_of_int(num)
+    | BoolLit(_, bool_val) => "bool: " ++ string_of_bool(bool_val)
+    | ListNil(_) => "empty list"
+    | Lam(_, _, _, _) => "lambada function"
+    | Inj(_, inj_side, _) => "injection: " ++ InjSide.to_string(inj_side)
+    | Case(_, _, _, _) => "case match"
+    | Parenthesized(_) => "( )"
+    | ApPalette(_, _, _, _) => failwith("ApPalette is not implemented")
     };
   };
 
+  let pat_str = (pat: UHPat.operand): string => {
+    switch (pat) {
+    | EmptyHole(meta_var) => "hole: " ++ string_of_int(meta_var)
+    | Wild(_) => "I don't know its meaning"
+    | Var(_, _, var_str) => "var: " ++ var_str
+    | NumLit(_, num) => "number: " ++ string_of_int(num)
+    | BoolLit(_, bool_val) => "bool: " ++ string_of_bool(bool_val)
+    | ListNil(_) => "empty list"
+    | Parenthesized(_) => "( )"
+    | Inj(_, inj_side, _) => "injection: " ++ InjSide.to_string(inj_side)
+    };
+  };
+
+  let typ_str = (typ: UHTyp.operand): string => {
+    switch (typ) {
+    | Hole => "type: Hole"
+    | Unit => "type: Unit"
+    | Num => "type: Num"
+    | Bool => "type: Bool"
+    | Parenthesized(_) => "type: (?)"
+    | List(_) => "type: [?]"
+    };
+  };
+
+  let display_string_of_cursor =
+      (cursor_term: option(CursorInfo.cursor_term)) => {
+    switch (cursor_term) {
+    | None =>
+      failwith("Imposiible match, the inital state will not be displayed")
+    | Some(cursor_term') =>
+      switch (cursor_term') {
+      | Exp(_, exp) => exp_str(exp)
+      | Pat(_, pat) => pat_str(pat)
+      | Typ(_, typ) => typ_str(typ)
+      | ExpOp(_, op) => UHExp.string_of_operator(op)
+      | PatOp(_, op) => UHPat.string_of_operator(op)
+      | TypOp(_, op) => UHTyp.string_of_operator(op)
+      | Line(_, line_content) =>
+        switch (line_content) {
+        | EmptyLine => "empty line"
+        | LetLine(_, _, _) => "let binding"
+        | ExpLine(_) => "expression line"
+        }
+      | Rule(_, _) => "match rule"
+      }
+    };
+  };
   let display_string_of_history_entry =
       (undo_history_entry: undo_history_entry): string => {
     let action = undo_history_entry.previous_action;
     let prev_cursor_term = undo_history_entry.previous_cursor_term;
     let cur_cursor_term = undo_history_entry.current_cursor_term;
+    let prev_cursor_pos =
+      switch (prev_cursor_term) {
+      | None =>
+        failwith("Imposiible match, the inital state will not be displayed")
+      | Some(prev_cursor) =>
+        switch (prev_cursor) {
+        | Exp(cursor_pos, _)
+        | Pat(cursor_pos, _)
+        | Typ(cursor_pos, _)
+        | ExpOp(cursor_pos, _)
+        | PatOp(cursor_pos, _)
+        | TypOp(cursor_pos, _)
+        | Line(cursor_pos, _)
+        | Rule(cursor_pos, _) => cursor_pos
+        }
+      };
     switch (action) {
     | None => failwith("Imposiible match, undisplayed undo history entry")
     | Some(action') =>
@@ -200,12 +112,46 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
       | MoveRight
       | MoveToNextHole
       | MoveToPrevHole =>
-        failwith(
-          "Imposiible match, noone of undoable actions will be matched",
-        )
+        failwith("Imposiible match, none of undoable actions will be matched")
       | UpdateApPalette(_) => failwith("ApPalette is not implemented")
-      | Delete
-      | Backspace => display_string_of_cursor_term(cur_cursor_term, action')
+      | Delete =>
+        switch (prev_cursor_pos) {
+        | OnText(_) => "edit " ++ display_string_of_cursor(cur_cursor_term)
+        | OnDelim(_, side) =>
+          switch (side) {
+          | Before =>
+            if (CursorInfo.is_hole(prev_cursor_term)) {
+              "move the cursor in " ++ display_string_of_cursor(prev_cursor_term);
+            } else {
+              "clear " ++ display_string_of_cursor(prev_cursor_term);
+            }
+          | After => "edit " ++ display_string_of_cursor(cur_cursor_term)
+          }
+        | OnOp(side) =>
+          switch (side) {
+          | Before => "clear " ++ display_string_of_cursor(prev_cursor_term)
+          | After => "edit " ++ display_string_of_cursor(cur_cursor_term)
+          }
+        }
+      | Backspace =>
+        switch (prev_cursor_pos) {
+        | OnText(_) => "edit " ++ display_string_of_cursor(cur_cursor_term)
+        | OnDelim(_, side) =>
+          switch (side) {
+          | Before => "edit " ++ display_string_of_cursor(cur_cursor_term)
+          | After =>
+            if (CursorInfo.is_hole(prev_cursor_term)) {
+              "move the cursor in " ++ display_string_of_cursor(prev_cursor_term);
+            } else {
+              "clear " ++ display_string_of_cursor(prev_cursor_term);
+            }
+          }
+        | OnOp(side) =>
+          switch (side) {
+          | Before => "edit " ++ display_string_of_cursor(cur_cursor_term)
+          | After => "clear " ++ display_string_of_cursor(prev_cursor_term)
+          }
+        }
       | Construct(shape) =>
         switch (shape) {
         | SParenthesized => "add ( )"
@@ -221,9 +167,9 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
         | SLet => "add let binding"
         | SLine => "add new lines"
         | SCase => "add case"
-        | SChar(_) => display_string_of_cursor_term(cur_cursor_term, action')
-        | SOp(shape) =>
-          switch (shape) {
+        | SChar(_) => "edit " ++ display_string_of_cursor(cur_cursor_term)
+        | SOp(shape') =>
+          switch (shape') {
           | SMinus
           | SPlus
           | STimes
@@ -235,10 +181,11 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
           | SVBar
           | SCons
           | SAnd
-          | SOr => display_string_of_cursor_term(cur_cursor_term, action')
+          | SOr => "edit " ++ display_string_of_cursor(cur_cursor_term)
           | SSpace =>
             switch (prev_cursor_term) {
-            | None => display_string_of_cursor_term(cur_cursor_term, action')
+            | None =>
+              failwith("Imposiible match, undisplayed undo history entry")
             | Some(cursor_term') =>
               switch (cursor_term') {
               | Exp(_, uexp_operand) =>
@@ -257,7 +204,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
                 | Inj(_, _, _)
                 | Case(_, _, _, _)
                 | Parenthesized(_) =>
-                  display_string_of_cursor_term(cur_cursor_term, action')
+                  "edit " ++ display_string_of_cursor(cur_cursor_term)
                 | ApPalette(_, _, _, _) =>
                   failwith("ApPalette is not implemented")
                 }
@@ -268,16 +215,16 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
               | TypOp(_, _)
               | Line(_, _)
               | Rule(_, _) =>
-                display_string_of_cursor_term(cur_cursor_term, action')
+                "edit " ++ display_string_of_cursor(cur_cursor_term)
               }
             }
           }
+
         | SApPalette(_) => failwith("ApPalette is not implemented")
         }
       }
     };
   };
-
   let history_hidden_entry_view =
       (group_id: int, elt_id: int, undo_history_entry: undo_history_entry) => {
     switch (undo_history_entry.previous_action) {
