@@ -199,7 +199,9 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
       | MoveRight
       | MoveToNextHole
       | MoveToPrevHole =>
-        failwith("Imposiible match, noone of undoable actions will be matched")
+        failwith(
+          "Imposiible match, noone of undoable actions will be matched",
+        )
       | UpdateApPalette(_) => failwith("ApPalette is not implemented")
       | Delete
       | Backspace => display_string_of_cursor_term(cursor_term, action')
@@ -271,7 +273,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
       Vdom.(Node.div([], []));
     };
   };
-  
+
   /* The entry which is always displayed*/
   let history_title_entry_view =
       (
