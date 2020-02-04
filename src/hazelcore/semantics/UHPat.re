@@ -245,3 +245,16 @@ let can_group_operand = (op1: operand, op2: operand): bool => {
   | (Inj(_, _, _), _) => false
   };
 };
+
+let operand_is_hole = (op: operand): bool => {
+  switch (op) {
+  | EmptyHole(_) => true
+  | Wild(_)
+  | Var(_, _, _)
+  | NumLit(_, _)
+  | BoolLit(_, _)
+  | ListNil(_)
+  | Parenthesized(_)
+  | Inj(_, _, _) => false
+  };
+};

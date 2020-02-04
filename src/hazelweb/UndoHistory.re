@@ -49,8 +49,8 @@ let undoable_action = (action: option(Action.t)): bool => {
 };
 
 let in_same_history_group =
-    (entry_1: undo_history_entry, entry_2: undo_history_entry): bool => {
-  switch (entry_1.previous_action, entry_2.previous_action) {
+    (~prev_entry: undo_history_entry, ~cur_entry: undo_history_entry): bool => {
+  switch (prev_entry.previous_action, cur_entry.previous_action) {
   | (None, _)
   | (_, None) => false
   | (Some(detail_action_1), Some(detail_action_2)) =>
@@ -58,15 +58,15 @@ let in_same_history_group =
     | (Delete, Delete)
     | (Backspace, Backspace) =>
       CursorInfo.can_group_cursor_term(
-        entry_1.current_cursor_term,
-        entry_2.current_cursor_term,
+        prev_entry.current_cursor_term,
+        cur_entry.current_cursor_term,
       )
     | (Construct(shape_1), Construct(shape_2)) =>
       /* if shapes are similar, then continue to check if they have similar cursor_term */
       if (Action.can_group_shape(shape_1, shape_2)) {
         CursorInfo.can_group_cursor_term(
-          entry_1.current_cursor_term,
-          entry_2.current_cursor_term,
+          prev_entry.current_cursor_term,
+          cur_entry.current_cursor_term,
         );
       } else {
         false;
@@ -97,23 +97,24 @@ let push_edit_state =
       action: option(Action.t),
     )
     : t => {
-  let cur_group = ZList.prj_z(undo_history);
-  let cur_entry = ZList.prj_z(cur_group.group_entries);
+  let prev_group = ZList.prj_z(undo_history);
+  let prev_entry = ZList.prj_z(prev_group.group_entries);
   if (undoable_action(action)) {
-    let new_entry = {
+    let cur_entry = {
       cardstacks_state: cur_cardstacks_state,
       previous_action: action,
       previous_cursor_term: get_cursor_term(prev_cardstacks_state),
       current_cursor_term: get_cursor_term(cur_cardstacks_state),
     };
-    if (!cur_group.is_complete && in_same_history_group(cur_entry, new_entry)) {
+    if (!prev_group.is_complete
+        && in_same_history_group(~prev_entry, ~cur_entry)) {
       /* group the new entry into the current group */
       let group_entries_after_push = (
         [],
-        new_entry,
+        cur_entry,
         [
-          ZList.prj_z(cur_group.group_entries),
-          ...ZList.prj_suffix(cur_group.group_entries),
+          ZList.prj_z(prev_group.group_entries),
+          ...ZList.prj_suffix(prev_group.group_entries),
         ],
       );
       (
@@ -128,7 +129,7 @@ let push_edit_state =
     } else {
       /* start a new group */
       let new_group = {
-        group_entries: ([], new_entry, []),
+        group_entries: ([], cur_entry, []),
         is_expanded: false,
         is_complete: false,
       };
@@ -141,8 +142,8 @@ let push_edit_state =
   } else {
     /* if any cursor-moving action interupts the current edit,
        the current group becomes complete. */
-    let cur_group' = {...cur_group, is_complete: true};
-    ZList.replace_z(cur_group', undo_history);
+    let prev_group' = {...prev_group, is_complete: true};
+    ZList.replace_z(prev_group', undo_history);
   };
 };
 

@@ -477,3 +477,18 @@ let can_group_lines = (line1: line, line2: line): bool => {
   | (ExpLine(_), _) => false
   };
 };
+
+let operand_is_hole = (op: operand): bool => {
+  switch (op) {
+  | EmptyHole(_) => true
+  | Var(_, _, _)
+  | NumLit(_, _)
+  | BoolLit(_, _)
+  | ListNil(_)
+  | Lam(_, _, _, _)
+  | Inj(_, _, _)
+  | Case(_, _, _, _)
+  | Parenthesized(_) => false
+  | ApPalette(_, _, _, _) => failwith("ApPalette is not implemented")
+  };
+};

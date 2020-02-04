@@ -148,3 +148,14 @@ let child_indices_opseq: opseq => list(int) =
   fun
   | OpSeq(_, seq) => seq |> Seq.length |> ListUtil.range;
 let child_indices = child_indices_opseq;
+
+let operand_is_hole = (op: operand) => {
+  switch (op) {
+  | Hole => true
+  | Unit
+  | Num
+  | Bool
+  | Parenthesized(_)
+  | List(_) => false
+  };
+};

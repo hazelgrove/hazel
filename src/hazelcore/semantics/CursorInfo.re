@@ -220,7 +220,22 @@ let can_group_cursor_term =
     }
   };
 };
-
+let is_hole = (cursor_term: option(cursor_term)): bool => {
+  switch (cursor_term) {
+  | None => false
+  | Some(cursor_term') =>
+    switch (cursor_term') {
+    | Exp(_, exp) => UHExp.operand_is_hole(exp)
+    | Pat(_, pat) => UHPat.operand_is_hole(pat)
+    | Typ(_, typ) => UHTyp.operand_is_hole(typ)
+    | ExpOp(_, _)
+    | PatOp(_, _)
+    | TypOp(_, _)
+    | Line(_, _)
+    | Rule(_, _) => false
+    }
+  };
+};
 let mk = (~uses=?, typed, ctx) => {typed, ctx, uses};
 
 module Typ = {
