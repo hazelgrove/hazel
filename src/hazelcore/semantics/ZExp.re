@@ -121,29 +121,6 @@ let force_get_zopseq =
 let parenthesize = (zbody: zoperand): zoperand =>
   ParenthesizedZ(ZE0(zbody));
 
-let bidelimit = (zoperand: zoperand): zoperand =>
-  switch (zoperand) {
-  | CursorE(_, operand) =>
-    if (UHExp.bidelimited(operand)) {
-      zoperand;
-    } else {
-      parenthesize(zoperand);
-    }
-  /* bidelimited */
-  | ParenthesizedZ(_)
-  | InjZ(_)
-  | ApPaletteZ(_) => zoperand
-  /* not bidelimited */
-  | CaseZE(_)
-  | CaseZR(_)
-  | CaseZA(_)
-  | LamZP(_)
-  | LamZA(_)
-  | LamZE(_) => parenthesize(zoperand)
-  };
-
-exception InconsistentOpSeq;
-
 let rec is_before: t => bool =
   fun
   | ZE2(ze2) => ze2 |> is_before_zblock
