@@ -57,7 +57,6 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
     | List(_) => "type: [?]"
     };
   };
-
   let display_string_of_cursor =
       (cursor_term: option(CursorInfo.cursor_term)) => {
     switch (cursor_term) {
@@ -81,29 +80,58 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
       }
     };
   };
+  let can_delete_typ_inf = (cursor_term: option(CursorInfo.cursor_term)) => {
+    switch (cursor_term) {
+    | None =>
+      failwith("Imposiible match, the inital state will not be displayed")
+    | Some(cursor_term') =>
+      switch (cursor_term') {
+      | Exp(_, exp) =>
+        switch (exp) {
+        | EmptyHole(_)
+        | Var(_, _, _)
+        | NumLit(_, _)
+        | BoolLit(_, _)
+        | ListNil(_)
+        | Inj(_, _, _)
+        | Case(_, _, _, _)
+        | Parenthesized(_) => false
+        | Lam(_, _, _, _) => true
+        | ApPalette(_, _, _, _) => failwith("ApPalette is not implemented")
+        }
+      | Pat(_, _)
+      | Typ(_, _)
+      | ExpOp(_, _)
+      | PatOp(_, _)
+      | TypOp(_, _) => false
+      | Line(_, line_content) =>
+        switch (line_content) {
+        | EmptyLine
+        | ExpLine(_) => false
+        | LetLine(_, _, _) => true
+        }
+      | Rule(_, _) => false
+      }
+    };
+  };
   let string_of_history_entry =
-      (undo_history_entry: undo_history_entry): string => {
+      (undo_history_entry: undo_history_entry): option(string) => {
     let action = undo_history_entry.previous_action;
     let prev_cursor_term = undo_history_entry.previous_cursor_term;
     let cur_cursor_term = undo_history_entry.current_cursor_term;
+    let cur_cursor_pos =
+      switch (cur_cursor_term) {
+      | None => failwith("Imposiible match, cur_cursor is never None")
+      | Some(cursor_term') => CursorInfo.get_cursor_pos(cursor_term')
+      };
     let prev_cursor_pos =
       switch (prev_cursor_term) {
       | None =>
         failwith("Imposiible match, the inital state will not be displayed")
-      | Some(prev_cursor) =>
-        switch (prev_cursor) {
-        | Exp(cursor_pos, _)
-        | Pat(cursor_pos, _)
-        | Typ(cursor_pos, _)
-        | ExpOp(cursor_pos, _)
-        | PatOp(cursor_pos, _)
-        | TypOp(cursor_pos, _)
-        | Line(cursor_pos, _)
-        | Rule(cursor_pos, _) => cursor_pos
-        }
+      | Some(cursor_term') => CursorInfo.get_cursor_pos(cursor_term')
       };
     switch (action) {
-    | None => failwith("Imposiible match, undisplayed undo history entry")
+    | None => None
     | Some(action') =>
       switch (action') {
       | MoveTo(_)
@@ -116,60 +144,98 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
       | UpdateApPalette(_) => failwith("ApPalette is not implemented")
       | Delete =>
         switch (prev_cursor_pos) {
-        | OnText(_) => "edit " ++ display_string_of_cursor(cur_cursor_term)
-        | OnDelim(_, side) =>
+        | OnText(_) =>
+          Some("edit " ++ display_string_of_cursor(cur_cursor_term))
+        | OnDelim(num, side) =>
           switch (side) {
           | Before =>
             if (CursorInfo.is_hole(prev_cursor_term)) {
-              "move the cursor in "
-              ++ display_string_of_cursor(prev_cursor_term);
+              None;
+            } else if (num == 1 && can_delete_typ_inf(prev_cursor_term)) {
+              Some(
+                "clear type inference of "
+                ++ display_string_of_cursor(prev_cursor_term),
+              );
             } else {
-              "clear " ++ display_string_of_cursor(prev_cursor_term);
+              Some(" clear " ++ display_string_of_cursor(prev_cursor_term));
             }
-          | After => "edit " ++ display_string_of_cursor(cur_cursor_term)
+          | After =>
+            switch (cur_cursor_pos) {
+            | OnText(_) =>
+              Some("edit " ++ display_string_of_cursor(cur_cursor_term))
+            | OnOp(side)
+            | OnDelim(_, side) =>
+              switch (side) {
+              | Before => None
+              | After =>
+                Some("edit " ++ display_string_of_cursor(cur_cursor_term))
+              }
+            }
           }
         | OnOp(side) =>
           switch (side) {
-          | Before => "clear " ++ display_string_of_cursor(prev_cursor_term)
-          | After => "edit " ++ display_string_of_cursor(cur_cursor_term)
+          | Before =>
+            Some("clear " ++ display_string_of_cursor(prev_cursor_term))
+          | After =>
+            Some("edit " ++ display_string_of_cursor(cur_cursor_term))
           }
         }
       | Backspace =>
         switch (prev_cursor_pos) {
-        | OnText(_) => "edit " ++ display_string_of_cursor(cur_cursor_term)
-        | OnDelim(_, side) =>
+        | OnText(_) =>
+          Some("edit " ++ display_string_of_cursor(cur_cursor_term))
+        | OnDelim(num, side) =>
           switch (side) {
-          | Before => "edit " ++ display_string_of_cursor(cur_cursor_term)
+          | Before =>
+            switch (cur_cursor_pos) {
+            | OnText(_) =>
+              Some("edit " ++ display_string_of_cursor(cur_cursor_term))
+            | OnOp(side)
+            | OnDelim(_, side) =>
+              switch (side) {
+              | Before =>
+                Some("edit " ++ display_string_of_cursor(cur_cursor_term))
+              | After => None
+              }
+            }
+
           | After =>
             if (CursorInfo.is_hole(prev_cursor_term)) {
-              "move the cursor in "
-              ++ display_string_of_cursor(prev_cursor_term);
+              None;
+            } else if (num == 1 && can_delete_typ_inf(prev_cursor_term)) {
+              Some(
+                "clear type inference of "
+                ++ display_string_of_cursor(prev_cursor_term),
+              );
             } else {
-              "clear " ++ display_string_of_cursor(prev_cursor_term);
+              Some(" clear " ++ display_string_of_cursor(prev_cursor_term));
             }
           }
         | OnOp(side) =>
           switch (side) {
-          | Before => "edit " ++ display_string_of_cursor(cur_cursor_term)
-          | After => "clear " ++ display_string_of_cursor(prev_cursor_term)
+          | Before =>
+            Some("edit " ++ display_string_of_cursor(cur_cursor_term))
+          | After =>
+            Some("clear " ++ display_string_of_cursor(prev_cursor_term))
           }
         }
       | Construct(shape) =>
         switch (shape) {
-        | SParenthesized => "add ( )"
-        | SList => "type List"
-        | SAsc => "type inference"
-        | SLam => "add lambada"
-        | SListNil => "add [ ]"
+        | SParenthesized => Some("add ( )")
+        | SList => Some("type List")
+        | SAsc => Some("type inference")
+        | SLam => Some("add lambada")
+        | SListNil => Some("add [ ]")
         | SInj(direction) =>
           switch (direction) {
-          | L => "inject left"
-          | R => "inject right"
+          | L => Some("inject left")
+          | R => Some("inject right")
           }
-        | SLet => "add let binding"
-        | SLine => "add new lines"
-        | SCase => "add case"
-        | SChar(_) => "edit " ++ display_string_of_cursor(cur_cursor_term)
+        | SLet => Some("add let binding")
+        | SLine => Some("add new lines")
+        | SCase => Some("add case")
+        | SChar(_) =>
+          Some("edit " ++ display_string_of_cursor(cur_cursor_term))
         | SOp(shape') =>
           switch (shape') {
           | SMinus
@@ -183,7 +249,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
           | SVBar
           | SCons
           | SAnd
-          | SOr => "edit " ++ display_string_of_cursor(cur_cursor_term)
+          | SOr => Some("edit " ++ display_string_of_cursor(cur_cursor_term))
           | SSpace =>
             switch (prev_cursor_term) {
             | None =>
@@ -194,8 +260,8 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
                 switch (uexp_operand) {
                 | Var(_, InVarHole(Keyword(k), _), _) =>
                   switch (k) {
-                  | Let => "construct let binding"
-                  | Case => "construct case match"
+                  | Let => Some("construct let binding")
+                  | Case => Some("construct case match")
                   }
                 | EmptyHole(_)
                 | Var(_, _, _)
@@ -206,7 +272,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
                 | Inj(_, _, _)
                 | Case(_, _, _, _)
                 | Parenthesized(_) =>
-                  "edit " ++ display_string_of_cursor(cur_cursor_term)
+                  Some("edit " ++ display_string_of_cursor(cur_cursor_term))
                 | ApPalette(_, _, _, _) =>
                   failwith("ApPalette is not implemented")
                 }
@@ -217,7 +283,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
               | TypOp(_, _)
               | Line(_, _)
               | Rule(_, _) =>
-                "edit " ++ display_string_of_cursor(cur_cursor_term)
+                Some("edit " ++ display_string_of_cursor(cur_cursor_term))
               }
             }
           }
@@ -231,54 +297,58 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
   let display_string_of_history_entry =
       (undo_history_entry: undo_history_entry): option(string) => {
     let cur_cursor_term = undo_history_entry.current_cursor_term;
-    switch (cur_cursor_term) {
-    | None => failwith("Imposiible match, undisplayed undo history entry")
-    | Some(cursor_term) =>
-      switch (cursor_term) {
-      | Exp(cursor_pos, exp) =>
-        switch (exp) {
-        | EmptyHole(_)
-        | Var(_, _, _)
-        | NumLit(_, _)
-        | BoolLit(_, _)
-        | ListNil(_) => Some(string_of_history_entry(undo_history_entry))
-        | Case(_, _, _, _)
-        | Lam(_, _, _, _)
-        | Parenthesized(_)
-        | Inj(_, _, _) =>
+    switch (string_of_history_entry(undo_history_entry)) {
+    | None => None
+    | Some(str) =>
+      switch (cur_cursor_term) {
+      | None => failwith("Imposiible match, undisplayed undo history entry")
+      | Some(cursor_term) =>
+        switch (cursor_term) {
+        | Exp(cursor_pos, exp) =>
+          switch (exp) {
+          | EmptyHole(_)
+          | Var(_, _, _)
+          | NumLit(_, _)
+          | BoolLit(_, _)
+          | ListNil(_) => Some(str)
+          | Case(_, _, _, _)
+          | Lam(_, _, _, _)
+          | Parenthesized(_)
+          | Inj(_, _, _) =>
+            switch (cursor_pos) {
+            | OnDelim(_, _) => None
+            | OnOp(_)
+            | OnText(_) => Some(str)
+            }
+          | ApPalette(_, _, _, _) => failwith("ApPalette is not implemented")
+          }
+        | Pat(cursor_pos, pat) =>
+          switch (pat) {
+          | EmptyHole(_)
+          | Wild(_)
+          | Var(_, _, _)
+          | NumLit(_, _)
+          | BoolLit(_, _)
+          | ListNil(_) => Some(str)
+          | Parenthesized(_)
+          | Inj(_, _, _) =>
+            switch (cursor_pos) {
+            | OnDelim(_, _) => None
+            | OnOp(_)
+            | OnText(_) => Some(str)
+            }
+          }
+        | Typ(_, _)
+        | ExpOp(_, _)
+        | PatOp(_, _)
+        | TypOp(_, _) => Some(str)
+        | Line(cursor_pos, _)
+        | Rule(cursor_pos, _) =>
           switch (cursor_pos) {
           | OnDelim(_, _) => None
           | OnOp(_)
-          | OnText(_) => Some(string_of_history_entry(undo_history_entry))
+          | OnText(_) => Some(str)
           }
-        | ApPalette(_, _, _, _) => failwith("ApPalette is not implemented")
-        }
-      | Pat(cursor_pos, pat) =>
-        switch (pat) {
-        | EmptyHole(_)
-        | Wild(_)
-        | Var(_, _, _)
-        | NumLit(_, _)
-        | BoolLit(_, _)
-        | ListNil(_) => Some(string_of_history_entry(undo_history_entry))
-        | Parenthesized(_)
-        | Inj(_, _, _) =>
-          switch (cursor_pos) {
-          | OnDelim(_, _) => None
-          | OnOp(_)
-          | OnText(_) => Some(string_of_history_entry(undo_history_entry))
-          }
-        }
-      | Typ(_, _)
-      | ExpOp(_, _)
-      | PatOp(_, _)
-      | TypOp(_, _) => Some(string_of_history_entry(undo_history_entry))
-      | Line(cursor_pos, _)
-      | Rule(cursor_pos, _) =>
-        switch (cursor_pos) {
-        | OnDelim(_, _) => None
-        | OnOp(_)
-        | OnText(_) => Some(string_of_history_entry(undo_history_entry))
         }
       }
     };
@@ -350,7 +420,12 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
       | Some(str) =>
         Vdom.(
           Node.div(
-            [Attr.classes(["the-history-title"])],
+            [
+              Attr.classes([
+                "the-history-title",
+                "always-display-history-entry",
+              ]),
+            ],
             [
               Node.div(
                 [Attr.classes(["the-history-title-entry"])],
@@ -417,11 +492,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
                 /* title entry */
                 Vdom.(
                   Node.div(
-                    [
-                      Attr.classes(
-                        ["always-display-history-entry"] @ cur_his_classes,
-                      ),
-                    ],
+                    [Attr.classes(cur_his_classes)],
                     [
                       history_title_entry_view(
                         ~is_expanded=group.is_expanded,
@@ -460,11 +531,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
               [
                 Vdom.(
                   Node.div(
-                    [
-                      Attr.classes(
-                        ["always-display-history-entry"] @ cur_his_classes,
-                      ),
-                    ],
+                    [Attr.classes(cur_his_classes)],
                     [
                       history_title_entry_view(
                         ~is_expanded=group.is_expanded,
@@ -491,11 +558,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
               /* the history title entry */
               Vdom.(
                 Node.div(
-                  [
-                    Attr.classes(
-                      ["always-display-history-entry"] @ suc_his_classes,
-                    ),
-                  ],
+                  [Attr.classes(suc_his_classes)],
                   [
                     history_title_entry_view(
                       ~is_expanded=group.is_expanded,
@@ -560,11 +623,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
             [
               Vdom.(
                 Node.div(
-                  [
-                    Attr.classes(
-                      ["always-display-history-entry"] @ suc_his_classes,
-                    ),
-                  ],
+                  [Attr.classes(suc_his_classes)],
                   [
                     history_title_entry_view(
                       ~is_expanded=group.is_expanded,
