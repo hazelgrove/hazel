@@ -39,15 +39,6 @@ let rec get_prod_elements: skel => list(skel) =
     get_prod_elements(skel1) @ get_prod_elements(skel2)
   | skel => [skel];
 
-let bidelimited =
-  fun
-  | Hole
-  | Unit
-  | Num
-  | Bool
-  | Parenthesized(_)
-  | List(_) => true;
-
 let unwrap_parentheses = (operand: operand): t =>
   switch (operand) {
   | Hole
@@ -135,16 +126,3 @@ and expand_operand =
   | Bool => Bool
   | Parenthesized(opseq) => expand(opseq)
   | List(opseq) => List(expand(opseq));
-
-let child_indices_operand =
-  fun
-  | Hole
-  | Unit
-  | Num
-  | Bool => []
-  | Parenthesized(_)
-  | List(_) => [0];
-let child_indices_opseq: opseq => list(int) =
-  fun
-  | OpSeq(_, seq) => seq |> Seq.length |> ListUtil.range;
-let child_indices = child_indices_opseq;
