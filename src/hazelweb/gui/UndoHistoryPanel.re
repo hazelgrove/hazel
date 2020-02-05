@@ -53,12 +53,12 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
     | Unit => "type: Unit"
     | Num => "type: Num"
     | Bool => "type: Bool"
-    | Parenthesized(_) => "type: (?)"
-    | List(_) => "type: [?]"
+    | Parenthesized(_) => "( )"
+    | List(_) => "[ ]"
     };
   };
   let display_string_of_cursor =
-      (cursor_term: option(CursorInfo.cursor_term)) => {
+      (cursor_term: option(CursorInfo.cursor_term)):string => {
     switch (cursor_term) {
     | None =>
       failwith("Imposiible match, the inital state will not be displayed")
@@ -152,6 +152,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
             if (CursorInfo.is_hole(prev_cursor_term)) {
               None;
             } else if (num == 1 && can_delete_typ_inf(prev_cursor_term)) {
+              /* num==1 is the position of ':' in an expression */
               Some(
                 "clear type inference of "
                 ++ display_string_of_cursor(prev_cursor_term),
@@ -220,6 +221,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
           }
         }
       | Construct(shape) =>
+      /* match for keyword */
         switch (shape) {
         | SParenthesized => Some("add ( )")
         | SList => Some("type List")
