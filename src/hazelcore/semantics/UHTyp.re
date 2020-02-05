@@ -39,15 +39,6 @@ let rec get_prod_elements: skel => list(skel) =
     get_prod_elements(skel1) @ get_prod_elements(skel2)
   | skel => [skel];
 
-let bidelimited =
-  fun
-  | Hole
-  | Unit
-  | Num
-  | Bool
-  | Parenthesized(_)
-  | List(_) => true;
-
 let unwrap_parentheses = (operand: operand): t =>
   switch (operand) {
   | Hole
