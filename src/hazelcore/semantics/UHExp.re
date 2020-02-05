@@ -170,42 +170,6 @@ let empty_rule = (u_gen: MetaVarGen.t): (rule, MetaVarGen.t) => {
   (rule, u_gen);
 };
 
-/**
- * Bidelimited expressions are those that do not need to
- * be wrapped in parentheses in an opseq. In most cases,
- * this means those expressions that don't have subexpressions
- * at the outer left/right edges in the concrete syntax.
- * In the ostensibly bidelimited case of case...end expressions,
- * however, we still require explicit parenthesization in an
- * opseq. This is because, in our edit actions, we require that
- * let and case expressions be constructed only at the beginning
- * of a line or parenthesized expression -- hence, constructing
- * a case expression in the middle of an opseq requires first
- * constructing parentheses around the desired scrutinee within
- * the opseq. For consistency, we require that case expressions
- * always be parenthesized in an opseq.
- */
-let bidelimited =
-  fun
-  | EmptyHole(_)
-  | Var(_, _, _)
-  | NumLit(_, _)
-  | BoolLit(_, _)
-  | ListNil(_)
-  | Inj(_, _, _)
-  | ApPalette(_, _, _, _)
-  | Parenthesized(_) => true
-  | Case(_, _, _, _)
-  | Lam(_, _, _, _) => false;
-
-/* if e is not bidelimited, bidelimit e parenthesizes it */
-let bidelimit = (operand): operand =>
-  if (bidelimited(operand)) {
-    operand;
-  } else {
-    Parenthesized(E0(operand));
-  };
-
 let get_opseq =
   fun
   | EmptyLine
@@ -350,90 +314,7 @@ let rec drop_outer_parentheses = (operand): t =>
   | _ => E0(operand)
   };
 
-let child_indices_line =
-  fun
-  | EmptyLine => []
-  | ExpLine(_) => []
-  | LetLine(_, None, _) => [0, 2]
-  | LetLine(_, Some(_), _) => [0, 1, 2];
-let child_indices_operand =
-  fun
-  | EmptyHole(_)
-  | Var(_, _, _)
-  | NumLit(_, _)
-  | BoolLit(_, _)
-  | ListNil(_) => []
-  | Lam(_, _, None, _) => [0, 2]
-  | Lam(_, _, Some(_), _) => [0, 1, 2]
-  | Case(_, _, rules, None) => ListUtil.range(List.length(rules) + 1)
-  | Case(_, _, rules, Some(_)) => ListUtil.range(List.length(rules) + 2)
-  | Inj(_, _, _) => [0]
-  | Parenthesized(_) => [0]
-  | ApPalette(_, _, _, _) => [];
-let child_indices_rule =
-  fun
-  | Rule(_, _) => [0, 1];
-
 let num_lines: block => int = List.length;
-
-let favored_child_of_line: line => option((ChildIndex.t, t)) =
-  fun
-  | EmptyLine
-  | ExpLine(_) => None
-  | LetLine(_, _, def) => Some((2, def));
-
-let favored_child_of_operand: operand => option((ChildIndex.t, t)) =
-  fun
-  | EmptyHole(_)
-  | Var(_, _, _)
-  | NumLit(_, _)
-  | BoolLit(_, _)
-  | ListNil(_)
-  | ApPalette(_, _, _, _) => None
-  | Lam(_, _, _, e) => Some((2, e))
-  | Inj(_, _, e)
-  | Case(_, e, _, _)
-  | Parenthesized(e) => Some((0, e));
-
-let has_concluding_let_line = (block: block): bool => {
-  let (leading, conclusion) = block |> force_split_conclusion;
-  switch (leading |> ListUtil.split_last, conclusion) {
-  | (Some((_, LetLine(_, _, _))), OpSeq(_, S(EmptyHole(_), E))) => true
-  | (_, _) => false
-  };
-};
-
-let rec is_multi_line: t => bool =
-  fun
-  | E2(e2) => e2 |> is_multi_line_block
-  | E1(e1) => e1 |> is_multi_line_opseq
-  | E0(e0) => e0 |> is_multi_line_operand
-and is_multi_line_block = block =>
-  List.length(block) > 1 || block |> List.exists(is_multi_line_line)
-and is_multi_line_line =
-  fun
-  | EmptyLine => false
-  | ExpLine(opseq) => is_multi_line_opseq(opseq)
-  | LetLine(_, _, def) => is_multi_line(def)
-and is_multi_line_opseq = (opseq: opseq): bool =>
-  OpSeq.is_multi_line(~is_multi_line_operand, opseq)
-and is_multi_line_operand =
-  fun
-  | EmptyHole(_)
-  | Var(_, _, _)
-  | NumLit(_, _)
-  | BoolLit(_, _)
-  | ListNil(_)
-  | ApPalette(_, _, _, _) => false
-  | Lam(_, _, _, body) => is_multi_line(body)
-  | Inj(_, _, body) => is_multi_line(body)
-  | Case(_, _, _, _) => true
-  | Parenthesized(body) => is_multi_line(body);
-
-let is_trivial_block =
-  fun
-  | [ExpLine(OpSeq(_, S(EmptyHole(_), E)))] => true
-  | _ => false;
 
 let text_operand =
     (u_gen: MetaVarGen.t, shape: TextShape.t): (operand, MetaVarGen.t) =>

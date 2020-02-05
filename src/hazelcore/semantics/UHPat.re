@@ -75,28 +75,6 @@ let rec make_tuple = (err: ErrStatus.t, elements: list(skel)): skel =>
     BinOp(err, Comma, skel, make_tuple(NotInHole, skels))
   };
 
-/* bidelimited patterns are those that don't have
- * sub-patterns at their outer left or right edge
- * in the concrete syntax */
-let bidelimited =
-  fun
-  | EmptyHole(_)
-  | Wild(_)
-  | Var(_, _, _)
-  | NumLit(_, _)
-  | BoolLit(_, _)
-  | ListNil(_)
-  | Inj(_, _, _)
-  | Parenthesized(_) => true;
-
-/* if p is not bidelimited, bidelimit e parenthesizes it */
-let bidelimit = p =>
-  if (bidelimited(p)) {
-    p;
-  } else {
-    Parenthesized(P0(p));
-  };
-
 /* helper function for constructing a new empty hole */
 let new_EmptyHole = (u_gen: MetaVarGen.t): (operand, MetaVarGen.t) => {
   let (u, u_gen) = MetaVarGen.next(u_gen);
@@ -189,30 +167,6 @@ and make_inconsistent_operand =
     let (set_p, u_gen) = p |> make_inconsistent(u_gen);
     (Parenthesized(set_p), u_gen);
   };
-
-let child_indices_operand =
-  fun
-  | EmptyHole(_)
-  | Wild(_)
-  | Var(_, _, _)
-  | NumLit(_, _)
-  | BoolLit(_, _)
-  | ListNil(_) => []
-  | Parenthesized(_) => [0]
-  | Inj(_, _, _) => [0];
-let child_indices_opseq = OpSeq.child_indices;
-let child_indices = child_indices_opseq;
-
-let favored_child: operand => option((ChildIndex.t, t)) =
-  fun
-  | EmptyHole(_)
-  | Wild(_)
-  | Var(_, _, _)
-  | NumLit(_, _)
-  | BoolLit(_, _)
-  | ListNil(_) => None
-  | Parenthesized(p)
-  | Inj(_, _, p) => Some((0, p));
 
 let text_operand =
     (u_gen: MetaVarGen.t, shape: TextShape.t): (operand, MetaVarGen.t) =>
