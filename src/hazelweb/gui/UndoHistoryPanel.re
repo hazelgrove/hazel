@@ -81,7 +81,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
       }
     };
   };
-  let display_string_of_history_entry =
+  let string_of_history_entry =
       (undo_history_entry: undo_history_entry): string => {
     let action = undo_history_entry.previous_action;
     let prev_cursor_term = undo_history_entry.previous_cursor_term;
@@ -121,7 +121,8 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
           switch (side) {
           | Before =>
             if (CursorInfo.is_hole(prev_cursor_term)) {
-              "move the cursor in " ++ display_string_of_cursor(prev_cursor_term);
+              "move the cursor in "
+              ++ display_string_of_cursor(prev_cursor_term);
             } else {
               "clear " ++ display_string_of_cursor(prev_cursor_term);
             }
@@ -141,7 +142,8 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
           | Before => "edit " ++ display_string_of_cursor(cur_cursor_term)
           | After =>
             if (CursorInfo.is_hole(prev_cursor_term)) {
-              "move the cursor in " ++ display_string_of_cursor(prev_cursor_term);
+              "move the cursor in "
+              ++ display_string_of_cursor(prev_cursor_term);
             } else {
               "clear " ++ display_string_of_cursor(prev_cursor_term);
             }
@@ -225,22 +227,82 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
       }
     };
   };
+
+  let display_string_of_history_entry =
+      (undo_history_entry: undo_history_entry): option(string) => {
+    let cur_cursor_term = undo_history_entry.current_cursor_term;
+    switch (cur_cursor_term) {
+    | None => failwith("Imposiible match, undisplayed undo history entry")
+    | Some(cursor_term) =>
+      switch (cursor_term) {
+      | Exp(cursor_pos, exp) =>
+        switch (exp) {
+        | EmptyHole(_)
+        | Var(_, _, _)
+        | NumLit(_, _)
+        | BoolLit(_, _)
+        | ListNil(_) => Some(string_of_history_entry(undo_history_entry))
+        | Case(_, _, _, _)
+        | Lam(_, _, _, _)
+        | Parenthesized(_)
+        | Inj(_, _, _) =>
+          switch (cursor_pos) {
+          | OnDelim(_, _) => None
+          | OnOp(_)
+          | OnText(_) => Some(string_of_history_entry(undo_history_entry))
+          }
+        | ApPalette(_, _, _, _) => failwith("ApPalette is not implemented")
+        }
+      | Pat(cursor_pos, pat) =>
+        switch (pat) {
+        | EmptyHole(_)
+        | Wild(_)
+        | Var(_, _, _)
+        | NumLit(_, _)
+        | BoolLit(_, _)
+        | ListNil(_) => Some(string_of_history_entry(undo_history_entry))
+        | Parenthesized(_)
+        | Inj(_, _, _) =>
+          switch (cursor_pos) {
+          | OnDelim(_, _) => None
+          | OnOp(_)
+          | OnText(_) => Some(string_of_history_entry(undo_history_entry))
+          }
+        }
+      | Typ(_, _)
+      | ExpOp(_, _)
+      | PatOp(_, _)
+      | TypOp(_, _) => Some(string_of_history_entry(undo_history_entry))
+      | Line(cursor_pos, _)
+      | Rule(cursor_pos, _) =>
+        switch (cursor_pos) {
+        | OnDelim(_, _) => None
+        | OnOp(_)
+        | OnText(_) => Some(string_of_history_entry(undo_history_entry))
+        }
+      }
+    };
+  };
   let history_hidden_entry_view =
       (group_id: int, elt_id: int, undo_history_entry: undo_history_entry) => {
     switch (undo_history_entry.previous_action) {
     | None => Vdom.(Node.div([], [])) /* entry in initial state should not be displayed */
     | Some(_) =>
-      Vdom.(
-        Node.div(
-          [
-            Attr.classes(["the-hidden-history-entry"]),
-            Attr.on_click(_ =>
-              inject(Update.Action.ShiftHistory(group_id, elt_id))
-            ),
-          ],
-          [Node.text(display_string_of_history_entry(undo_history_entry))],
+      switch (display_string_of_history_entry(undo_history_entry)) {
+      | None => Vdom.(Node.div([], []))
+      | Some(str) =>
+        Vdom.(
+          Node.div(
+            [
+              Attr.classes(["the-hidden-history-entry"]),
+              Attr.on_click(_ =>
+                inject(Update.Action.ShiftHistory(group_id, elt_id))
+              ),
+            ],
+            [Node.text(str)],
+          )
         )
-      )
+      }
     };
   };
 
@@ -283,36 +345,36 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
     switch (undo_history_entry.previous_action) {
     | None => Vdom.(Node.div([], [])) /* entry in the initial state should not be displayed */
     | Some(_) =>
-      Vdom.(
-        Node.div(
-          [Attr.classes(["the-history-title"])],
-          [
-            Node.div(
-              [Attr.classes(["the-history-title-entry"])],
-              [
-                Node.span(
-                  [
-                    Attr.classes(["the-history-title-txt"]),
-                    Attr.on_click(_ =>
-                      inject(Update.Action.ShiftHistory(group_id, elt_id))
-                    ),
-                  ],
-                  [
-                    Node.text(
-                      display_string_of_history_entry(undo_history_entry),
-                    ),
-                  ],
-                ),
-                history_entry_tab_icon(
-                  group_id,
-                  has_hidden_part,
-                  is_expanded,
-                ),
-              ],
-            ),
-          ],
+      switch (display_string_of_history_entry(undo_history_entry)) {
+      | None => Vdom.(Node.div([], []))
+      | Some(str) =>
+        Vdom.(
+          Node.div(
+            [Attr.classes(["the-history-title"])],
+            [
+              Node.div(
+                [Attr.classes(["the-history-title-entry"])],
+                [
+                  Node.span(
+                    [
+                      Attr.classes(["the-history-title-txt"]),
+                      Attr.on_click(_ =>
+                        inject(Update.Action.ShiftHistory(group_id, elt_id))
+                      ),
+                    ],
+                    [Node.text(str)],
+                  ),
+                  history_entry_tab_icon(
+                    group_id,
+                    has_hidden_part,
+                    is_expanded,
+                  ),
+                ],
+              ),
+            ],
+          )
         )
-      )
+      }
     };
   };
 
