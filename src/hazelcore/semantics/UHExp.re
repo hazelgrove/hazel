@@ -170,42 +170,6 @@ let empty_rule = (u_gen: MetaVarGen.t): (rule, MetaVarGen.t) => {
   (rule, u_gen);
 };
 
-/**
- * Bidelimited expressions are those that do not need to
- * be wrapped in parentheses in an opseq. In most cases,
- * this means those expressions that don't have subexpressions
- * at the outer left/right edges in the concrete syntax.
- * In the ostensibly bidelimited case of case...end expressions,
- * however, we still require explicit parenthesization in an
- * opseq. This is because, in our edit actions, we require that
- * let and case expressions be constructed only at the beginning
- * of a line or parenthesized expression -- hence, constructing
- * a case expression in the middle of an opseq requires first
- * constructing parentheses around the desired scrutinee within
- * the opseq. For consistency, we require that case expressions
- * always be parenthesized in an opseq.
- */
-let bidelimited =
-  fun
-  | EmptyHole(_)
-  | Var(_, _, _)
-  | NumLit(_, _)
-  | BoolLit(_, _)
-  | ListNil(_)
-  | Inj(_, _, _)
-  | ApPalette(_, _, _, _)
-  | Parenthesized(_) => true
-  | Case(_, _, _, _)
-  | Lam(_, _, _, _) => false;
-
-/* if e is not bidelimited, bidelimit e parenthesizes it */
-let bidelimit = (operand): operand =>
-  if (bidelimited(operand)) {
-    operand;
-  } else {
-    Parenthesized(E0(operand));
-  };
-
 let get_opseq =
   fun
   | EmptyLine

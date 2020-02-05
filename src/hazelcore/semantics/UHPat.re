@@ -75,28 +75,6 @@ let rec make_tuple = (err: ErrStatus.t, elements: list(skel)): skel =>
     BinOp(err, Comma, skel, make_tuple(NotInHole, skels))
   };
 
-/* bidelimited patterns are those that don't have
- * sub-patterns at their outer left or right edge
- * in the concrete syntax */
-let bidelimited =
-  fun
-  | EmptyHole(_)
-  | Wild(_)
-  | Var(_, _, _)
-  | NumLit(_, _)
-  | BoolLit(_, _)
-  | ListNil(_)
-  | Inj(_, _, _)
-  | Parenthesized(_) => true;
-
-/* if p is not bidelimited, bidelimit e parenthesizes it */
-let bidelimit = p =>
-  if (bidelimited(p)) {
-    p;
-  } else {
-    Parenthesized(P0(p));
-  };
-
 /* helper function for constructing a new empty hole */
 let new_EmptyHole = (u_gen: MetaVarGen.t): (operand, MetaVarGen.t) => {
   let (u, u_gen) = MetaVarGen.next(u_gen);

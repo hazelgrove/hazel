@@ -41,18 +41,6 @@ let is_valid_cursor_operator =
     (cursor: CursorPosition.t, operator: UHPat.operator): bool =>
   valid_cursors_operator(operator) |> List.mem(cursor);
 
-let bidelimit = zoperand =>
-  switch (zoperand) {
-  | CursorP(_, operand) =>
-    if (UHPat.bidelimited(operand)) {
-      zoperand;
-    } else {
-      ParenthesizedZ(ZP0(zoperand));
-    }
-  | ParenthesizedZ(_)
-  | InjZ(_, _, _) => zoperand
-  };
-
 let rec set_err_status = (err: ErrStatus.t, zp: t): t =>
   switch (zp) {
   | ZP1(zp1) => ZP1(zp1 |> set_err_status_zopseq(err))
