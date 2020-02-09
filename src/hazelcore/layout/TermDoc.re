@@ -770,44 +770,56 @@ module Exp = {
 
   let rec mk =
           (~steps: CursorPath.steps, ~enforce_inline: bool, e: UHExp.t): t =>
-    enforce_inline && UHExp.Block.num_lines(e) > 1
-      ? Fail : mk_block(~steps, e)
-  and mk_block = (~offset=0, ~steps: CursorPath.steps, block: UHExp.block): t =>
-    block
-    |> List.mapi((i, line) =>
-         mk_line(~steps=steps @ [offset + i], line)
-         |> annot_Step(offset + i)
-       )
-    |> ListUtil.split_last
-    |> (
-      fun
-      | None => failwith(__LOC__ ++ ": empty block")
-      | Some((leading, concluding)) =>
-        ListUtil.fold_right_i(
-          ((i, hd_doc), tl_doc) =>
-            Doc.vsep(hd_doc, tl_doc) |> annot_SubBlock(~hd_index=offset + i),
-          leading,
-          concluding
-          |> annot_SubBlock(
-               ~hd_index=offset + UHExp.Block.num_lines(block) - 1,
-             ),
-        )
-    )
-  and mk_line = (~steps: CursorPath.steps, line: UHExp.line): t =>
+    mk_block(~enforce_inline, ~steps, e)
+  and mk_block =
+      (
+        ~offset=0,
+        ~steps: CursorPath.steps,
+        ~enforce_inline: bool,
+        block: UHExp.block,
+      )
+      : t =>
+    if (enforce_inline && UHExp.Block.num_lines(block) > 1) {
+      Fail;
+    } else {
+      block
+      |> List.mapi((i, line) =>
+           mk_line(~enforce_inline, ~steps=steps @ [offset + i], line)
+           |> annot_Step(offset + i)
+         )
+      |> ListUtil.split_last
+      |> (
+        fun
+        | None => failwith(__LOC__ ++ ": empty block")
+        | Some((leading, concluding)) =>
+          ListUtil.fold_right_i(
+            ((i, hd_doc), tl_doc) =>
+              Doc.vsep(hd_doc, tl_doc)
+              |> annot_SubBlock(~hd_index=offset + i),
+            leading,
+            concluding
+            |> annot_SubBlock(
+                 ~hd_index=offset + UHExp.Block.num_lines(block) - 1,
+               ),
+          )
+      );
+    }
+  and mk_line =
+      (~enforce_inline: bool, ~steps: CursorPath.steps, line: UHExp.line): t =>
     switch (line) {
     | EmptyLine =>
       // TODO: Once we figure out content-editable cursors, use `mk_text(~steps, "")`
       mk_text(~steps, UnicodeConstants.zwsp)
       |> Doc.annot(TermAnnot.EmptyLine)
-    | ExpLine(opseq) => mk_opseq(~steps, ~enforce_inline=false, opseq)
+    | ExpLine(opseq) => mk_opseq(~steps, ~enforce_inline, opseq)
     | LetLine(p, ann, def) =>
-      let p = Pat.mk_child(~enforce_inline=false, ~steps, ~child_step=0, p);
+      let p = Pat.mk_child(~enforce_inline, ~steps, ~child_step=0, p);
       let ann =
         ann
         |> OptUtil.map(ann =>
-             Typ.mk_child(~enforce_inline=false, ~steps, ~child_step=1, ann)
+             Typ.mk_child(~enforce_inline, ~steps, ~child_step=1, ann)
            );
-      let def = mk_child(~enforce_inline=false, ~steps, ~child_step=2, def);
+      let def = mk_child(~enforce_inline, ~steps, ~child_step=2, def);
       mk_LetLine(~steps, p, ann, def) |> Doc.annot(TermAnnot.LetLine);
     }
   and mk_opseq =
@@ -883,7 +895,12 @@ module Exp = {
         EnforcedInline(Fail);
       } else {
         let formatted =
-          mk_block(~offset=1, ~steps=steps @ [child_step], subblock)
+          mk_block(
+            ~offset=1,
+            ~steps=steps @ [child_step],
+            ~enforce_inline=false,
+            subblock,
+          )
           |> annot_Step(child_step);
         UserNewline(formatted);
       }
