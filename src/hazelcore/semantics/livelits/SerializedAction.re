@@ -1,4 +1,2 @@
-open Sexplib.Std;
-
 [@deriving sexp]
-type t = string;
+type t = Sexplib.Sexp.t;

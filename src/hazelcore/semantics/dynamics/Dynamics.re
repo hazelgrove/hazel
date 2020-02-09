@@ -1134,7 +1134,7 @@ module Exp = {
         let proto_expansion = expand(serialized_model);
         let (proto_elaboration_ctx, names_to_vars) = to_ctx(si);
         let proto_elaboration_result =
-          ana_expand_block(
+          ana_expand(
             proto_elaboration_ctx,
             delta,
             proto_expansion,

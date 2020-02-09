@@ -966,7 +966,7 @@ module Exp = {
           let expansion_ty = livelit_defn.expansion_ty;
           let expand = livelit_defn.expand;
           let expansion = expand(serialized_model);
-          switch (ana_block(splice_ctx, expansion, expansion_ty)) {
+          switch (ana(splice_ctx, expansion, expansion_ty)) {
           | None => None
           | Some(_) => Some(expansion_ty)
           };

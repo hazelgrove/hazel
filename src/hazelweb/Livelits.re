@@ -1,3 +1,5 @@
+open Sexplib.Std;
+
 module Dom_html = Js_of_ocaml.Dom_html;
 module Dom = Js_of_ocaml.Dom;
 module Js = Js_of_ocaml.Js;
@@ -22,20 +24,16 @@ module type LIVELIT = {
   let name: LivelitName.t;
   let expansion_ty: HTyp.t;
 
+  [@deriving sexp]
   type model;
+  [@deriving sexp]
   type action;
-  type trigger = action => unit;
+  type trigger = action => Vdom.Event.t;
 
   let init_model: SpliceGenCmd.t(model);
   let update: (model, action) => SpliceGenCmd.t(model);
   let view: (model, trigger) => LivelitView.t;
-  let expand: model => UHExp.block;
-
-  let serialize_model: model => SerializedModel.t;
-  let deserialize_model: SerializedModel.t => model;
-
-  let serialize_action: action => SerializedAction.t;
-  let deserialize_action: SerializedAction.t => action;
+  let expand: model => UHExp.t;
 };
 
 /*
@@ -339,7 +337,7 @@ module type LIVELIT = {
    stuff below is infrastructure
    ---------- */
 
-type trigger_serialized = SerializedAction.t => unit;
+type trigger_serialized = SerializedAction.t => Vdom.Event.t;
 type serialized_view_fn_t =
   (SerializedModel.t, trigger_serialized) => LivelitView.t;
 
@@ -351,11 +349,15 @@ module LivelitViewCtx = {
 module LivelitContexts = {
   type t = (LivelitCtx.t, LivelitViewCtx.t);
   let empty = (LivelitViewCtx.empty, LivelitCtx.empty);
+  let extend =
+      ((livelit_ctx, livelit_view_ctx), (name, def, serialized_view_fn)) => (
+    VarMap.extend(livelit_ctx, (name, def)),
+    VarMap.extend(livelit_view_ctx, (name, serialized_view_fn)),
+  );
 };
 
 module LivelitAdapter = (L: LIVELIT) => {
-  let serialize_monad = model =>
-    SpliceGenCmd.return(L.serialize_model(model));
+  let serialize_monad = model => SpliceGenCmd.return(L.sexp_of_model(model));
 
   /* generate palette definition for Semantics */
   let livelit_defn =
@@ -365,18 +367,18 @@ module LivelitAdapter = (L: LIVELIT) => {
       update: (serialized_action, serialized_model) =>
         SpliceGenCmd.bind(
           L.update(
-            L.deserialize_model(serialized_model),
-            L.deserialize_action(serialized_action),
+            L.model_of_sexp(serialized_model),
+            L.action_of_sexp(serialized_action),
           ),
           serialize_monad,
         ),
       expand: serialized_model =>
-        L.expand(L.deserialize_model(serialized_model)),
+        L.expand(L.model_of_sexp(serialized_model)),
     };
 
   let serialized_view_fn = (serialized_model, update_fn) =>
-    L.view(L.deserialize_model(serialized_model), action =>
-      update_fn(L.serialize_action(action))
+    L.view(L.model_of_sexp(serialized_model), action =>
+      update_fn(L.sexp_of_action(action))
     );
 
   let contexts_entry = (L.name, livelit_defn, serialized_view_fn);

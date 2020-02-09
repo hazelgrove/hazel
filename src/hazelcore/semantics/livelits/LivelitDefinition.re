@@ -5,5 +5,5 @@ type t = {
   update:
     (SerializedAction.t, SerializedModel.t) =>
     SpliceGenCmd.t(SerializedModel.t),
-  expand: SerializedModel.t => UHExp.block,
+  expand: SerializedModel.t => UHExp.t,
 };
