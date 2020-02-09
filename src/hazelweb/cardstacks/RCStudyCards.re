@@ -243,7 +243,7 @@
              UHExp.letline(
                UHPat.var("defense_score"),
                ~ann=UHTyp.Num,
-               UHExp.EmptyHole(-1) |> UHExp.wrap_in_block,
+               UHExp.EmptyHole(-1) |> UHExp.Block.wrap',
              ),
              UHExp.EmptyLine,
              UHExp.letline(
