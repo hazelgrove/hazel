@@ -228,7 +228,7 @@ let move_cursor_right_zoperator: zoperator => option(zoperator) =
   | (OnOp(Before), op) => Some((OnOp(After), op));
 
 let rec move_cursor_right = (zp: t): option(t) =>
-  zp |> move_cursor_left_zopseq
+  zp |> move_cursor_right_zopseq
 and move_cursor_right_zopseq = zopseq =>
   ZOpSeq.move_cursor_right(
     ~move_cursor_right_zoperand,
