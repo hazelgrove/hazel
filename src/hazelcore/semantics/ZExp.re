@@ -746,15 +746,14 @@ and move_cursor_right_zline =
   | CursorL(OnDelim(_, _), EmptyLine | ExpLine(_)) => None
   | CursorL(OnDelim(k, After), LetLine(p, ann, def)) =>
     // k == 0 || k == 1 || k == 2 || k == 3
-    switch (k == 0, k == 1, k == 2, ann) {
-    | (true, _, _, _) => Some(LetLineZP(ZPat.place_before(p), ann, def))
-    | (_, true, _, None) =>
+    switch (k, ann) {
+    | (0, _) => Some(LetLineZP(ZPat.place_before(p), ann, def))
+    | (1, None) =>
       // invalid cursor position
       None
-    | (_, true, _, Some(ann)) =>
-      Some(LetLineZA(p, ZTyp.place_before(ann), def))
-    | (_, _, true, _) => Some(LetLineZE(p, ann, place_before(def)))
-    | (_, _, _, _) => None
+    | (1, Some(ann)) => Some(LetLineZA(p, ZTyp.place_before(ann), def))
+    | (2, _) => Some(LetLineZE(p, ann, place_before(def)))
+    | (_three, _) => None
     }
   | ExpLineZ(zopseq) =>
     switch (move_cursor_right_zopseq(zopseq)) {
