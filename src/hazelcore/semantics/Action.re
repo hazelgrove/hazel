@@ -2496,7 +2496,7 @@ module Exp = {
     | (MoveLeft, _) =>
       zline
       |> ZExp.move_cursor_left_zline
-      |> Option.fold(~none=Outcome.CursorEscaped(After), ~some=zline =>
+      |> Option.fold(~none=Outcome.CursorEscaped(Before), ~some=zline =>
            mk_result(u_gen, ([], zline, []))
          )
     | (MoveRight, _) =>
