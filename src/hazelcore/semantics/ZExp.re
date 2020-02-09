@@ -745,7 +745,6 @@ and move_cursor_right_zline =
     Some(CursorL(OnDelim(k, After), line))
   | CursorL(OnDelim(_, _), EmptyLine | ExpLine(_)) => None
   | CursorL(OnDelim(k, After), LetLine(p, ann, def)) =>
-    // k == 0 || k == 1 || k == 2 || k == 3
     switch (k, ann) {
     | (0, _) => Some(LetLineZP(ZPat.place_before(p), ann, def))
     | (1, None) =>
