@@ -37,205 +37,205 @@ module type LIVELIT = {
 };
 
 /*
- module PairPalette: PALETTE = {
-   let name = "$pair";
-   let expansion_ty = HTyp.(Arrow(Arrow(Hole, Arrow(Hole, Hole)), Hole));
+  module PairPalette: PALETTE = {
+    let name = "$pair";
+    let expansion_ty = HTyp.(Arrow(Arrow(Hole, Arrow(Hole, Hole)), Hole));
 
-   type model = (int, int);
-   let init_model = (0, 0); /* TODO Fix me */
-   type model_updater = model => unit;
+    type model = (int, int);
+    let init_model = (0, 0); /* TODO Fix me */
+    type model_updater = model => unit;
 
-   let view = ((leftID, rightID), model_updater) =>
-     MultiLine(
-       HTMLWithCells.Bind(
-         HTMLWithCells.NewCellFor(leftID),
-         left_cell_div =>
-           HTMLWithCells.Bind(
-             HTMLWithCells.NewCellFor(rightID),
-             right_cell_div =>
-               HTMLWithCells.Ret(
-                 Html5.(
-                   div(
-                     ~a=[a_class(["inline-div"])],
-                     [left_cell_div, right_cell_div],
-                   )
-                 ),
-               ),
-           ),
-       ),
-     );
+    let view = ((leftID, rightID), model_updater) =>
+      MultiLine(
+        HTMLWithCells.Bind(
+          HTMLWithCells.NewCellFor(leftID),
+          left_cell_div =>
+            HTMLWithCells.Bind(
+              HTMLWithCells.NewCellFor(rightID),
+              right_cell_div =>
+                HTMLWithCells.Ret(
+                  Html5.(
+                    div(
+                      ~a=[a_class(["inline-div"])],
+                      [left_cell_div, right_cell_div],
+                    )
+                  ),
+                ),
+            ),
+        ),
+      );
 
-   let expand = ((leftID, rightID)) => {
-     let to_uhvar = id =>
-       UHExp.(
-         Tm(
-           NotInHole,
-           Var(NotInVHole, PaletteHoleData.mk_hole_ref_var_name(id)),
-         )
-       );
-     let fVarName = "f";
-     let fVarPat = UHPat.Pat(NotInHole, UHPat.Var(fVarName));
-     let apOpSeq =
-       UHExp.(
-         Seq.(
-           operand_op_seq(
-             Tm(NotInHole, Var(NotInVarHole, fVarName)),
-             Space,
-             ExpOpExp(to_uhvar(leftID), Space, to_uhvar(rightID)),
-           )
-         )
-       );
-     UHExp.(
-       Tm(
-         NotInHole,
-         Lam(
-           fVarPat,
-           None,
-           Tm(
-             NotInHole,
-             UHExp.OpSeq(Associator.Exp.associate(apOpSeq), apOpSeq),
-           ),
-         ),
-       )
-     );
-   };
+    let expand = ((leftID, rightID)) => {
+      let to_uhvar = id =>
+        UHExp.(
+          Tm(
+            NotInHole,
+            Var(NotInVHole, PaletteHoleData.mk_hole_ref_var_name(id)),
+          )
+        );
+      let fVarName = "f";
+      let fVarPat = UHPat.Pat(NotInHole, UHPat.Var(fVarName));
+      let apOpSeq =
+        UHExp.(
+          Seq.(
+            operand_op_seq(
+              Tm(NotInHole, Var(NotInVarHole, fVarName)),
+              Space,
+              ExpOpExp(to_uhvar(leftID), Space, to_uhvar(rightID)),
+            )
+          )
+        );
+      UHExp.(
+        Tm(
+          NotInHole,
+          Lam(
+            fVarPat,
+            None,
+            Tm(
+              NotInHole,
+              UHExp.OpSeq(Associator.Exp.associate(apOpSeq), apOpSeq),
+            ),
+          ),
+        )
+      );
+    };
 
-   /* sprintf/sscanf are magical and treat string literals specially -
-      attempt to factor out the format string at your own peril */
-   let serialize = ((leftID, rightID)) =>
-     sprintf("(%d,%d)", leftID, rightID);
-   let deserialize = serialized =>
-     sscanf(serialized, "(%d,%d)", (leftID, rightID) => (leftID, rightID));
- };
+    /* sprintf/sscanf are magical and treat string literals specially -
+       attempt to factor out the format string at your own peril */
+    let serialize = ((leftID, rightID)) =>
+      sprintf("(%d,%d)", leftID, rightID);
+    let deserialize = serialized =>
+      sscanf(serialized, "(%d,%d)", (leftID, rightID) => (leftID, rightID));
+  };
 
- module ColorPalette: PALETTE = {
-   let name = "$color";
-   let expansion_ty =
-     HTyp.(Arrow(Arrow(Num, Arrow(Num, Arrow(Num, Hole))), Hole));
+  module ColorPalette: PALETTE = {
+    let name = "$color";
+    let expansion_ty =
+      HTyp.(Arrow(Arrow(Num, Arrow(Num, Arrow(Num, Hole))), Hole));
 
-   type model = string;
-   let init_model = UHExp.HoleRefs.Ret("#c94d4d");
+    type model = string;
+    let init_model = UHExp.HoleRefs.Ret("#c94d4d");
 
-   type model_updater = model => unit;
+    type model_updater = model => unit;
 
-   let colors = [
-     "#c94d4d",
-     "#d8832b",
-     "#dab71f",
-     "#446648",
-     "#165f99",
-     "#242551",
-   ];
+    let colors = [
+      "#c94d4d",
+      "#d8832b",
+      "#dab71f",
+      "#446648",
+      "#165f99",
+      "#242551",
+    ];
 
-   let view = (model, model_updater) => {
-     let mk_color_elt = (color, selected_color) => {
-       let selected = color == selected_color ? ["selected"] : [];
-       Html5.(
-         div(
-           ~a=[
-             a_class(["color", ...selected]),
-             a_style("background-color:" ++ color),
-           ],
-           [],
-         )
-       );
-     };
+    let view = (model, model_updater) => {
+      let mk_color_elt = (color, selected_color) => {
+        let selected = color == selected_color ? ["selected"] : [];
+        Html5.(
+          div(
+            ~a=[
+              a_class(["color", ...selected]),
+              a_style("background-color:" ++ color),
+            ],
+            [],
+          )
+        );
+      };
 
-     let color_elts = List.map(c => mk_color_elt(c, model), colors);
-     let _ =
-       List.map2(
-         (c, elt) => {
-           let elt_dom = Tyxml_js.To_dom.of_div(elt);
-           JSUtil.listen_to(
-             Dom_html.Event.click,
-             elt_dom,
-             _ => {
-               model_updater(c);
-               Js._true;
-             },
-           );
-         },
-         colors,
-         color_elts,
-       );
+      let color_elts = List.map(c => mk_color_elt(c, model), colors);
+      let _ =
+        List.map2(
+          (c, elt) => {
+            let elt_dom = Tyxml_js.To_dom.of_div(elt);
+            JSUtil.listen_to(
+              Dom_html.Event.click,
+              elt_dom,
+              _ => {
+                model_updater(c);
+                Js._true;
+              },
+            );
+          },
+          colors,
+          color_elts,
+        );
 
-     let picker = Html5.(div(~a=[a_class(["color-picker"])], color_elts));
-     MultiLine(HTMLWithCells.Ret(picker));
-   };
+      let picker = Html5.(div(~a=[a_class(["color-picker"])], color_elts));
+      MultiLine(HTMLWithCells.Ret(picker));
+    };
 
-   let expand = rgb_hex => {
-     let to_decimal = hex => int_of_string("0x" ++ hex);
-     let (r, g, b) =
-       sscanf(rgb_hex, "#%.2s%.2s%.2s", (r, g, b) =>
-         (to_decimal(r), to_decimal(g), to_decimal(b))
-       );
-     let fVarName = "f";
-     let fPat = UHPat.(Pat(NotInHole, Var(fVarName)));
-     let r_num = UHExp.(Tm(NotInHole, NumLit(r)));
-     let g_num = UHExp.(Tm(NotInHole, NumLit(g)));
-     let b_num = UHExp.(Tm(NotInHole, NumLit(b)));
-     let body =
-       UHExp.(
-         Seq.(
-           operand_op_seq(
-             Tm(NotInHole, Var(NotInVarHole, fVarName)),
-             Space,
-             operand_op_seq(r_num, Space, ExpOpExp(g_num, Space, b_num)),
-           )
-         )
-       );
-     UHExp.(
-       Tm(
-         NotInHole,
-         Lam(
-           fPat,
-           None,
-           Tm(NotInHole, OpSeq(Associator.Exp.associate(body), body)),
-         ),
-       )
-     );
-   };
+    let expand = rgb_hex => {
+      let to_decimal = hex => int_of_string("0x" ++ hex);
+      let (r, g, b) =
+        sscanf(rgb_hex, "#%.2s%.2s%.2s", (r, g, b) =>
+          (to_decimal(r), to_decimal(g), to_decimal(b))
+        );
+      let fVarName = "f";
+      let fPat = UHPat.(Pat(NotInHole, Var(fVarName)));
+      let r_num = UHExp.(Tm(NotInHole, NumLit(r)));
+      let g_num = UHExp.(Tm(NotInHole, NumLit(g)));
+      let b_num = UHExp.(Tm(NotInHole, NumLit(b)));
+      let body =
+        UHExp.(
+          Seq.(
+            operand_op_seq(
+              Tm(NotInHole, Var(NotInVarHole, fVarName)),
+              Space,
+              operand_op_seq(r_num, Space, ExpOpExp(g_num, Space, b_num)),
+            )
+          )
+        );
+      UHExp.(
+        Tm(
+          NotInHole,
+          Lam(
+            fPat,
+            None,
+            Tm(NotInHole, OpSeq(Associator.Exp.associate(body), body)),
+          ),
+        )
+      );
+    };
 
-   let serialize = model => model;
-   let deserialize = serialized => serialized;
- };
+    let serialize = model => model;
+    let deserialize = serialized => serialized;
+  };
+ */
 
- module CheckboxPalette: PALETTE = {
-   let name = "$checkbox";
-   let expansion_ty = HTyp.Sum(HTyp.Num, HTyp.Num);
+module CheckboxLivelit: LIVELIT = {
+  let name = "$checkbox";
+  let expansion_ty = HTyp.Bool;
 
-   type model = bool;
-   let init_model = UHExp.HoleRefs.Ret(false);
-   type model_updater = model => unit;
+  [@deriving sexp]
+  type model = bool;
+  [@deriving sexp]
+  type action =
+    | Toggle;
+  type trigger = action => Vdom.Event.t;
 
-   let view = (model, model_updater) => {
-     let checked_state = model ? [Html5.a_checked()] : [];
-     let input_elt =
-       Html5.(input(~a=[a_input_type(`Checkbox), ...checked_state], ()));
-     let input_dom = Tyxml_js.To_dom.of_input(input_elt);
-     let view_span = Html5.(span([input_elt]));
-     let _ =
-       JSUtil.listen_to(
-         Dom_html.Event.input,
-         input_dom,
-         _ => {
-           let is_checked = Js.to_bool(input_dom##.checked);
-           model_updater(is_checked);
-           Js._true;
-         },
-       );
-     Inline(view_span);
-   };
+  let init_model = SpliceGenCmd.return(false);
+  let update = (m, _) => SpliceGenCmd.return(!m);
 
-   let dummy_num = UHExp.Tm(NotInHole, UHExp.NumLit(0));
-   let true_exp = UHExp.Tm(NotInHole, UHExp.Inj(L, dummy_num));
-   let false_exp = UHExp.Tm(NotInHole, UHExp.Inj(R, dummy_num));
-   let expand = model => model ? true_exp : false_exp;
+  let view = (m, trig) => {
+    let checked_state = m ? [Vdom.Attr.checked] : [];
+    let input_elt =
+      Vdom.(
+        Node.input(
+          [
+            Attr.type_("checkbox"),
+            Attr.on_input((_, _) => trig(Toggle)),
+            ...checked_state,
+          ],
+          [],
+        )
+      );
+    let view_span = Vdom.Node.span([], [input_elt]);
+    LivelitView.Inline(view_span);
+  };
 
-   let serialize = model => model ? "T" : "F";
-   let deserialize = serialized =>
-     String.equal(serialized, "T") ? true : false;
- };
+  let expand = m => UHExp.E0(UHExp.BoolLit(NotInHole, m));
+};
+
+/*
 
  /* overflow paranoia */
  let maxSliderValue = 1000 * 1000 * 1000;
@@ -383,25 +383,11 @@ module LivelitAdapter = (L: LIVELIT) => {
 
   let contexts_entry = (L.name, livelit_defn, serialized_view_fn);
 };
-/*
- module CheckboxPaletteAdapter = PaletteAdapter(CheckboxPalette);
- module SliderPaletteAdapter = PaletteAdapter(SliderPalette);
- module ColorPaletteAdapter = PaletteAdapter(ColorPalette);
- module PairPaletteAdapter = PaletteAdapter(PairPalette);
- */
+
+module CheckboxLivelitAdapter = LivelitAdapter(CheckboxLivelit);
 let empty_livelit_contexts = LivelitContexts.empty;
-let (initial_livelit_ctx, initial_livelit_view_ctx) = empty_livelit_contexts;
-/*
- PaletteContexts.extend(
-   PaletteContexts.extend(
-     PaletteContexts.extend(
-       PaletteContexts.extend(
-         empty_palette_contexts,
-         CheckboxPaletteAdapter.contexts_entry,
-       ),
-       SliderPaletteAdapter.contexts_entry,
-     ),
-     ColorPaletteAdapter.contexts_entry,
-   ),
-   PairPaletteAdapter.contexts_entry,
- ); */
+let (initial_livelit_ctx, initial_livelit_view_ctx) =
+  LivelitContexts.extend(
+    empty_livelit_contexts,
+    CheckboxLivelitAdapter.contexts_entry,
+  );
