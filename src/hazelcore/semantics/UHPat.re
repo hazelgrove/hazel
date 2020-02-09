@@ -25,9 +25,7 @@ let is_Comma =
   | _ => false;
 
 [@deriving sexp]
-type t =
-  | P1(opseq)
-  | P0(operand)
+type t = opseq
 and opseq = OpSeq.t(operand, operator)
 and operand =
   | EmptyHole(MetaVar.t)
@@ -86,10 +84,7 @@ let is_EmptyHole =
   | EmptyHole(_) => true
   | _ => false;
 
-let rec get_err_status: t => ErrStatus.t =
-  fun
-  | P1(opseq) => opseq |> get_err_status_opseq
-  | P0(operand) => operand |> get_err_status_operand
+let rec get_err_status = (p: t) => get_err_status_opseq(p)
 and get_err_status_opseq = opseq =>
   OpSeq.get_err_status(~get_err_status_operand, opseq)
 and get_err_status_operand =
@@ -104,10 +99,7 @@ and get_err_status_operand =
   | Parenthesized(p) => get_err_status(p);
 
 let rec set_err_status = (err: ErrStatus.t, p: t): t =>
-  switch (p) {
-  | P1(opseq) => P1(opseq |> set_err_status_opseq(err))
-  | P0(operand) => P0(operand |> set_err_status_operand(err))
-  }
+  p |> set_err_status_opseq(err)
 and set_err_status_opseq = (err, opseq) =>
   OpSeq.set_err_status(~set_err_status_operand, err, opseq)
 and set_err_status_operand = (err, operand) =>
@@ -130,14 +122,7 @@ let is_inconsistent = (p: t): bool =>
 
 /* put p in a new hole, if it is not already in a hole */
 let rec make_inconsistent = (u_gen: MetaVarGen.t, p: t): (t, MetaVarGen.t) =>
-  switch (p) {
-  | P1(opseq) =>
-    let (opseq, u_gen) = opseq |> make_inconsistent_opseq(u_gen);
-    (P1(opseq), u_gen);
-  | P0(operand) =>
-    let (operand, u_gen) = operand |> make_inconsistent_operand(u_gen);
-    (P0(operand), u_gen);
-  }
+  make_inconsistent_opseq(u_gen, p)
 and make_inconsistent_opseq =
     (u_gen: MetaVarGen.t, opseq: opseq): (opseq, MetaVarGen.t) =>
   opseq |> OpSeq.make_inconsistent(~make_inconsistent_operand, u_gen)

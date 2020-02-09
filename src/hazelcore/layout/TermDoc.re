@@ -630,10 +630,7 @@ module Typ = {
 
   let rec mk =
           (~steps: CursorPath.steps, ~enforce_inline: bool, uty: UHTyp.t): t =>
-    switch (uty) {
-    | T1(uty1) => mk_opseq(~steps, ~enforce_inline, uty1)
-    | T0(uty0) => mk_operand(~steps, ~enforce_inline, uty0)
-    }
+    mk_opseq(~steps, ~enforce_inline, uty)
   and mk_opseq =
       (~steps: CursorPath.steps, ~enforce_inline: bool, opseq: UHTyp.opseq): t =>
     mk_NTuple(~mk_operand, ~mk_operator, ~steps, ~enforce_inline, opseq)
@@ -693,10 +690,7 @@ module Pat = {
 
   let rec mk =
           (~steps: CursorPath.steps, ~enforce_inline: bool, p: UHPat.t): t =>
-    switch (p) {
-    | P1(p1) => mk_opseq(~steps, ~enforce_inline, p1)
-    | P0(p0) => mk_operand(~steps, ~enforce_inline, p0)
-    }
+    mk_opseq(~steps, ~enforce_inline, p)
   and mk_opseq =
       (~steps: CursorPath.steps, ~enforce_inline: bool, opseq: UHPat.opseq): t =>
     mk_NTuple(~mk_operand, ~mk_operator, ~steps, ~enforce_inline, opseq)
@@ -776,14 +770,8 @@ module Exp = {
 
   let rec mk =
           (~steps: CursorPath.steps, ~enforce_inline: bool, e: UHExp.t): t =>
-    switch (e) {
-    | E2(e2) =>
-      // assumes edit states are always unwrapped,
-      // thus e2 must have two or more lines
-      enforce_inline ? Fail : mk_block(~steps, e2)
-    | E1(e1) => mk_opseq(~steps, ~enforce_inline, e1)
-    | E0(e0) => mk_operand(~steps, ~enforce_inline, e0)
-    }
+    enforce_inline && UHExp.Block.num_lines(e) > 1
+      ? Fail : mk_block(~steps, e)
   and mk_block = (~offset=0, ~steps: CursorPath.steps, block: UHExp.block): t =>
     block
     |> List.mapi((i, line) =>
@@ -800,7 +788,9 @@ module Exp = {
             Doc.vsep(hd_doc, tl_doc) |> annot_SubBlock(~hd_index=offset + i),
           leading,
           concluding
-          |> annot_SubBlock(~hd_index=offset + UHExp.num_lines(block) - 1),
+          |> annot_SubBlock(
+               ~hd_index=offset + UHExp.Block.num_lines(block) - 1,
+             ),
         )
     )
   and mk_line = (~steps: CursorPath.steps, line: UHExp.line): t =>
@@ -888,7 +878,7 @@ module Exp = {
   }
   and mk_child = (~enforce_inline, ~steps, ~child_step, e): formatted_child => {
     switch (e) {
-    | E2([EmptyLine, ...subblock]) =>
+    | [EmptyLine, ...subblock] =>
       if (enforce_inline) {
         EnforcedInline(Fail);
       } else {

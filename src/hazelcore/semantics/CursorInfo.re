@@ -110,10 +110,7 @@ type deferrable('t) =
 module Pat = {
   let rec syn_cursor_info =
           (~steps=[], ctx: Contexts.t, zp: ZPat.t): option(deferrable(t)) =>
-    switch (zp) {
-    | ZP1(zp1) => syn_cursor_info_zopseq(~steps, ctx, zp1)
-    | ZP0(zp0) => syn_cursor_info_zoperand(~steps, ctx, zp0)
-    }
+    syn_cursor_info_zopseq(~steps, ctx, zp)
   and syn_cursor_info_zopseq =
       (
         ~steps: CursorPath.steps,
@@ -256,10 +253,7 @@ module Pat = {
   and ana_cursor_info =
       (~steps, ctx: Contexts.t, zp: ZPat.t, ty: HTyp.t)
       : option(deferrable(t)) => {
-    switch (zp) {
-    | ZP1(zp1) => ana_cursor_info_zopseq(~steps, ctx, zp1, ty)
-    | ZP0(zp0) => ana_cursor_info_zoperand(~steps, ctx, zp0, ty)
-    };
+    ana_cursor_info_zopseq(~steps, ctx, zp, ty);
   }
   and ana_cursor_info_zopseq =
       (
@@ -478,9 +472,7 @@ module Exp = {
           };
         Some((err, verr));
       }
-    | ParenthesizedZ(ZE0(zoperand)) => cursor_on_outer_expr(zoperand)
-    | ParenthesizedZ(ZE1(ZOpSeq(skel, zseq)))
-    | ParenthesizedZ(ZE2((_, ExpLineZ(ZOpSeq(skel, zseq)), []))) =>
+    | ParenthesizedZ(([], ExpLineZ(ZOpSeq(skel, zseq)), [])) =>
       if (ZOpSeq.skel_is_rooted_at_cursor(skel, zseq)) {
         switch (skel, zseq) {
         | (BinOp(err, _, _, _), _) => Some((err, NotInVarHole))
@@ -494,11 +486,7 @@ module Exp = {
 
   let rec syn_cursor_info =
           (~steps=[], ctx: Contexts.t, ze: ZExp.t): option(t) => {
-    switch (ze) {
-    | ZE2(ze2) => syn_cursor_info_zblock(~steps, ctx, ze2)
-    | ZE1(ze1) => syn_cursor_info_zopseq(~steps, ctx, ze1)
-    | ZE0(ze0) => syn_cursor_info_zoperand(~steps, ctx, ze0)
-    };
+    syn_cursor_info_zblock(~steps, ctx, ze);
   }
   and syn_cursor_info_zblock =
       (
@@ -790,13 +778,8 @@ module Exp = {
     };
   }
   and ana_cursor_info =
-      (~steps=[], ctx: Contexts.t, ze: ZExp.t, ty: HTyp.t): option(t) => {
-    switch (ze) {
-    | ZE2(ze2) => ana_cursor_info_zblock(~steps, ctx, ze2, ty)
-    | ZE1(ze1) => ana_cursor_info_zopseq(~steps, ctx, ze1, ty)
-    | ZE0(ze0) => ana_cursor_info_zoperand(~steps, ctx, ze0, ty)
-    };
-  }
+      (~steps=[], ctx: Contexts.t, ze: ZExp.t, ty: HTyp.t): option(t) =>
+    ana_cursor_info_zblock(~steps, ctx, ze, ty)
   and ana_cursor_info_zblock =
       (
         ~steps: CursorPath.steps,
