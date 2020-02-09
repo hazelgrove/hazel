@@ -1,7 +1,5 @@
 [@deriving sexp]
-type t =
-  | ZP1(zopseq)
-  | ZP0(zoperand)
+type t = zopseq
 and zopseq = ZOpSeq.t(UHPat.operand, UHPat.operator, zoperand, zoperator)
 and zoperand =
   | CursorP(CursorPosition.t, UHPat.operand)
@@ -12,11 +10,6 @@ and zoperator = (CursorPosition.t, UHPat.operator);
 type operand_surround = Seq.operand_surround(UHPat.operand, UHPat.operator);
 type operator_surround = Seq.operator_surround(UHPat.operand, UHPat.operator);
 type zseq = ZSeq.t(UHPat.operand, UHPat.operator, zoperand, zoperator);
-
-let unwrap =
-  fun
-  | ZP1(ZOpSeq(_, ZOperand(zoperand, (E, E)))) => ZP0(zoperand)
-  | zp => zp;
 
 let valid_cursors_operand: UHPat.operand => list(CursorPosition.t) =
   CursorPosition.(
@@ -42,10 +35,7 @@ let is_valid_cursor_operator =
   valid_cursors_operator(operator) |> List.mem(cursor);
 
 let rec set_err_status = (err: ErrStatus.t, zp: t): t =>
-  switch (zp) {
-  | ZP1(zp1) => ZP1(zp1 |> set_err_status_zopseq(err))
-  | ZP0(zp0) => ZP0(zp0 |> set_err_status_zoperand(err))
-  }
+  zp |> set_err_status_zopseq(err)
 and set_err_status_zopseq = (err, zopseq) =>
   ZOpSeq.set_err_status(~set_err_status_zoperand, err, zopseq)
 and set_err_status_zoperand = (err, zoperand) =>
@@ -57,14 +47,7 @@ and set_err_status_zoperand = (err, zoperand) =>
   };
 
 let rec make_inconsistent = (u_gen: MetaVarGen.t, zp: t): (t, MetaVarGen.t) =>
-  switch (zp) {
-  | ZP1(zp1) =>
-    let (zp1, u_gen) = zp1 |> make_inconsistent_zopseq(u_gen);
-    (ZP1(zp1), u_gen);
-  | ZP0(zp0) =>
-    let (zp0, u_gen) = zp0 |> make_inconsistent_zoperand(u_gen);
-    (ZP0(zp0), u_gen);
-  }
+  zp |> make_inconsistent_zopseq(u_gen)
 and make_inconsistent_zopseq =
     (u_gen: MetaVarGen.t, zopseq: zopseq): (zopseq, MetaVarGen.t) =>
   ZOpSeq.make_inconsistent(~make_inconsistent_zoperand, u_gen, zopseq)
@@ -82,10 +65,7 @@ and make_inconsistent_zoperand = (u_gen, zoperand) =>
     (ParenthesizedZ(zp), u_gen);
   };
 
-let rec erase: t => UHPat.t =
-  fun
-  | ZP1(zp1) => P1(zp1 |> erase_zopseq)
-  | ZP0(zp0) => P0(zp0 |> erase_zoperand)
+let rec erase = (zp: t): UHPat.t => zp |> erase_zopseq
 and erase_zopseq =
   fun
   | ZOpSeq(skel, zseq) => OpSeq(skel, zseq |> erase_zseq)
@@ -99,10 +79,7 @@ and erase_zoperator =
   fun
   | (_, op) => op;
 
-let rec is_before: t => bool =
-  fun
-  | ZP1(zp1) => zp1 |> is_before_zopseq
-  | ZP0(zp0) => zp0 |> is_before_zoperand
+let rec is_before = (zp: t): bool => is_before_zopseq(zp)
 and is_before_zopseq = zopseq => ZOpSeq.is_before(~is_before_zoperand, zopseq)
 and is_before_zoperand =
   fun
@@ -121,10 +98,7 @@ let is_before_zoperator: zoperator => bool =
   | (OnOp(Before), _) => true
   | _ => false;
 
-let rec is_after: t => bool =
-  fun
-  | ZP1(zp1) => zp1 |> is_after_zopseq
-  | ZP0(zp0) => zp0 |> is_after_zoperand
+let rec is_after = (zp: t): bool => is_after_zopseq(zp)
 and is_after_zopseq = zopseq => ZOpSeq.is_after(~is_after_zoperand, zopseq)
 and is_after_zoperand =
   fun
@@ -144,10 +118,7 @@ let is_after_zoperator: zoperator => bool =
   | (OnOp(After), _) => true
   | _ => false;
 
-let rec place_before: UHPat.t => t =
-  fun
-  | P1(opseq) => ZP1(opseq |> place_before_opseq)
-  | P0(operand) => ZP0(operand |> place_before_operand)
+let rec place_before = (p: UHPat.t): t => place_before_opseq(p)
 and place_before_opseq = opseq =>
   ZOpSeq.place_before(~place_before_operand, opseq)
 and place_before_operand = operand =>
@@ -167,10 +138,7 @@ let place_before_operator = (op: UHPat.operator): option(zoperator) =>
   | _ => Some((OnOp(Before), op))
   };
 
-let rec place_after: UHPat.t => t =
-  fun
-  | P1(opseq) => ZP1(opseq |> place_after_opseq)
-  | P0(operand) => ZP0(operand |> place_after_operand)
+let rec place_after = (p: UHPat.t): t => place_after_opseq(p)
 and place_after_opseq = opseq =>
   ZOpSeq.place_after(~place_after_operand, opseq)
 and place_after_operand = operand =>
@@ -213,10 +181,8 @@ let move_cursor_left_zoperator: zoperator => option(zoperator) =
   | (OnOp(Before), _) => None
   | (OnOp(After), op) => Some((OnOp(Before), op));
 
-let rec move_cursor_left: t => option(t) =
-  fun
-  | ZP1(zp1) => zp1 |> move_cursor_left_zopseq |> OptUtil.map(z => ZP1(z))
-  | ZP0(zp0) => zp0 |> move_cursor_left_zoperand |> OptUtil.map(z => ZP0(z))
+let rec move_cursor_left = (zp: t): option(t) =>
+  zp |> move_cursor_left_zopseq
 and move_cursor_left_zopseq = zopseq =>
   ZOpSeq.move_cursor_left(
     ~move_cursor_left_zoperand,
@@ -261,10 +227,8 @@ let move_cursor_right_zoperator: zoperator => option(zoperator) =
   | (OnOp(After), _) => None
   | (OnOp(Before), op) => Some((OnOp(After), op));
 
-let rec move_cursor_right: t => option(t) =
-  fun
-  | ZP1(zp1) => zp1 |> move_cursor_right_zopseq |> OptUtil.map(z => ZP1(z))
-  | ZP0(zp0) => zp0 |> move_cursor_right_zoperand |> OptUtil.map(z => ZP0(z))
+let rec move_cursor_right = (zp: t): option(t) =>
+  zp |> move_cursor_right_zopseq
 and move_cursor_right_zopseq = zopseq =>
   ZOpSeq.move_cursor_right(
     ~move_cursor_right_zoperand,

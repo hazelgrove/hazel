@@ -33,7 +33,8 @@ let intro_caption =
       ptxt("Click Next to go to the next card once you are finished."),
     ],
   );
-let intro_init_zexp = ZExp.ZE0(CursorE(OnDelim(0, Before), EmptyHole(0)));
+let intro_init_zexp =
+  ZExp.ZBlock.wrap(CursorE(OnDelim(0, Before), EmptyHole(0)));
 // deserialize("(BlockZE()(CursorE(OnDelim 0 Before)(EmptyHole 0)))");
 let intro_card: Card.t = {caption: intro_caption, init_zexp: intro_init_zexp};
 /*
