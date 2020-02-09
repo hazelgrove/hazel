@@ -92,6 +92,8 @@ type t = {
 
 let mk = (~uses=?, typed, ctx) => {typed, ctx, uses};
 
+let get_ctx = ci => ci.ctx;
+
 module Typ = {
   let cursor_info = (~steps as _, ctx: Contexts.t, _: ZTyp.t): option(t) =>
     Some(mk(OnType, ctx));
