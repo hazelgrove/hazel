@@ -1749,9 +1749,17 @@ module Exp = {
     let holes = holes_z(ze, []);
     prev_hole_steps(holes);
   };
+  let prev_hole_steps_zline = (zline: ZExp.zline): option(steps) => {
+    let holes = holes_zline(zline, []);
+    prev_hole_steps(holes);
+  };
 
   let next_hole_steps_z = (ze: ZExp.t): option(steps) => {
     let holes = holes_z(ze, []);
+    next_hole_steps(holes);
+  };
+  let next_hole_steps_zline = (zline: ZExp.zline): option(steps) => {
+    let holes = holes_zline(zline, []);
     next_hole_steps(holes);
   };
 };

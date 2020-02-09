@@ -115,9 +115,8 @@ module Typ = {
     mk_ZOpSeq(ZOperand(zoperand, surround));
   };
 
-  let rec perform = (a: t, zty: ZTyp.t): Outcome.t(ZTyp.t) =>
+  let rec move = (a: t, zty: ZTyp.t): Outcome.t(ZTyp.t) =>
     switch (a) {
-    /* Movement */
     | MoveTo(path) =>
       switch (CursorPath.Typ.follow(path, zty |> ZTyp.erase)) {
       | None => Failed
@@ -133,12 +132,12 @@ module Typ = {
     | MoveToPrevHole =>
       switch (CursorPath.(prev_hole_steps(Typ.holes_z(zty, [])))) {
       | None => Failed
-      | Some(steps) => perform(MoveToBefore(steps), zty)
+      | Some(steps) => move(MoveToBefore(steps), zty)
       }
     | MoveToNextHole =>
       switch (CursorPath.(next_hole_steps(Typ.holes_z(zty, [])))) {
       | None => Failed
-      | Some(steps) => perform(MoveToBefore(steps), zty)
+      | Some(steps) => move(MoveToBefore(steps), zty)
       }
     | MoveLeft =>
       zty
@@ -152,8 +151,19 @@ module Typ = {
       |> OptUtil.map_default(~default=Outcome.CursorEscaped(After), z =>
            Succeeded(z)
          )
-    | _ => perform_opseq(a, zty)
-    }
+    | Construct(_)
+    | Delete
+    | Backspace
+    | UpdateApPalette(_) =>
+      failwith(
+        __LOC__
+        ++ ": expected movement action, got "
+        ++ Sexplib.Sexp.to_string(sexp_of_t(a)),
+      )
+    };
+
+  let rec perform = (a: t, zty: ZTyp.t): Outcome.t(ZTyp.t) =>
+    perform_opseq(a, zty)
   and perform_opseq =
       (a: t, ZOpSeq(skel, zseq) as zopseq: ZTyp.zopseq): Outcome.t(ZTyp.t) =>
     switch (a, zseq) {
@@ -175,7 +185,7 @@ module Typ = {
         MoveRight,
         _,
       ) =>
-      Failed
+      move(a, zopseq)
 
     /* Deletion */
 
@@ -267,7 +277,7 @@ module Typ = {
         MoveRight,
         _,
       ) =>
-      Failed
+      move(a, ZOpSeq.wrap(zoperand))
 
     /* Backspace and Delete */
 
@@ -2420,7 +2430,12 @@ module Exp = {
   and syn_perform_line =
       (ctx: Contexts.t, a: t, (zline: ZExp.zline, u_gen: MetaVarGen.t))
       : Outcome.t(line_success) => {
-    let mk_result = (u_gen, zlines): Outcome.t(_) => {
+    let mk_result = (u_gen, zlines): Outcome.t(_) =>
+      switch (Statics.Exp.syn_lines(ctx, ZExp.erase_zblock(zlines))) {
+      | None => Failed
+      | Some(ctx) => Succeeded(LineDone((zlines, ctx, u_gen)))
+      };
+    let fix_and_mk_result = (u_gen, zlines): Outcome.t(_) => {
       let (zlines, ctx, u_gen) =
         Statics.Exp.syn_fix_holes_zlines(ctx, u_gen, zlines);
       Succeeded(LineDone((zlines, ctx, u_gen)));
@@ -2434,7 +2449,7 @@ module Exp = {
       zline
       |> move_cursor
       |> OptUtil.map_default(~default=Outcome.CursorEscaped(side), new_zline =>
-           mk_result(u_gen, ([], new_zline, []))
+           fix_and_mk_result(u_gen, ([], new_zline, []))
          );
     };
 
@@ -2451,13 +2466,45 @@ module Exp = {
         when !ZExp.is_valid_cursor_line(cursor, line) =>
       Failed
 
-    /* Movement handled at top level */
-    | (
-        MoveTo(_) | MoveToBefore(_) | MoveToPrevHole | MoveToNextHole | MoveLeft |
-        MoveRight,
-        _,
-      ) =>
-      failwith("unimplemented")
+    /* Movement */
+    | (MoveTo(path), _) =>
+      zline
+      |> ZExp.erase_zline
+      |> CursorPath.Exp.follow_line(path)
+      |> Option.fold(~none=Outcome.Failed, ~some=zline =>
+           mk_result(u_gen, ([], zline, []))
+         )
+    | (MoveToBefore(steps), _) =>
+      zline
+      |> ZExp.erase_zline
+      |> CursorPath.Exp.follow_steps_line(~side=Before, steps)
+      |> Option.fold(~none=Outcome.Failed, ~some=zline =>
+           mk_result(u_gen, ([], zline, []))
+         )
+    | (MoveToPrevHole, _) =>
+      switch (CursorPath.Exp.prev_hole_steps_zline(zline)) {
+      | None => Failed
+      | Some(steps) =>
+        syn_perform_line(ctx, MoveToBefore(steps), (zline, u_gen))
+      }
+    | (MoveToNextHole, _) =>
+      switch (CursorPath.Exp.next_hole_steps_zline(zline)) {
+      | None => Failed
+      | Some(steps) =>
+        syn_perform_line(ctx, MoveToBefore(steps), (zline, u_gen))
+      }
+    | (MoveLeft, _) =>
+      zline
+      |> ZExp.move_cursor_left_zline
+      |> Option.fold(~none=Outcome.CursorEscaped(After), ~some=zline =>
+           mk_result(u_gen, ([], zline, []))
+         )
+    | (MoveRight, _) =>
+      zline
+      |> ZExp.move_cursor_right_zline
+      |> Option.fold(~none=Outcome.CursorEscaped(After), ~some=zline =>
+           mk_result(u_gen, ([], zline, []))
+         )
 
     /* Backspace & Delete */
 
@@ -2480,22 +2527,22 @@ module Exp = {
         /* let x :<| Num = 2   ==>   let x| = 2 */
         let zp = p |> ZPat.place_after;
         let new_zblock = ([], ZExp.LetLineZP(zp, None, def), []);
-        mk_result(u_gen, new_zblock);
+        fix_and_mk_result(u_gen, new_zblock);
       } else {
         let new_ze =
           k == 3 ? def |> ZExp.place_after : def |> ZExp.place_before;
-        mk_result(u_gen, new_ze);
+        fix_and_mk_result(u_gen, new_ze);
       }
 
     /* Construction */
 
     | (Construct(SLine), _) when zline |> ZExp.is_before_zline =>
       let new_zblock = ([UHExp.EmptyLine], zline, []);
-      mk_result(u_gen, new_zblock);
+      fix_and_mk_result(u_gen, new_zblock);
     | (Construct(SLine), _) when zline |> ZExp.is_after_zline =>
       let new_zline = UHExp.EmptyLine |> ZExp.place_before_line;
       let new_zblock = ([zline |> ZExp.erase_zline], new_zline, []);
-      mk_result(u_gen, new_zblock);
+      fix_and_mk_result(u_gen, new_zblock);
 
     | (Construct(_), CursorL(_, EmptyLine)) =>
       let (zhole, u_gen) = u_gen |> ZExp.new_EmptyHole;
@@ -2508,13 +2555,13 @@ module Exp = {
       | Some(ty) =>
         let zty = ty |> UHTyp.contract |> ZTyp.place_before;
         let new_zline = ZExp.LetLineZA(zp |> ZPat.erase, zty, def);
-        mk_result(u_gen, ([], new_zline, []));
+        fix_and_mk_result(u_gen, ([], new_zline, []));
       }
     | (Construct(SAsc), LetLineZP(zp, Some(uty), def)) =>
       // just move the cursor over if there is already an ascription
       let zty = ZTyp.place_before(uty);
       let new_zline = ZExp.LetLineZA(zp |> ZPat.erase, zty, def);
-      mk_result(u_gen, ([], new_zline, []));
+      fix_and_mk_result(u_gen, ([], new_zline, []));
 
     | (Construct(_) | UpdateApPalette(_), CursorL(OnDelim(_, side), _))
         when !ZExp.is_before_zline(zline) && !ZExp.is_after_zline(zline) =>
@@ -3358,7 +3405,7 @@ module Exp = {
         MoveRight,
         _,
       ) =>
-      Failed
+      failwith("unimplemented")
 
     /* Backspace & Delete */
 
