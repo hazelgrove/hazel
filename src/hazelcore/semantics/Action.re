@@ -1435,6 +1435,20 @@ module Pat = {
         );
       let (new_zopseq, u_gen) = complete_tuple(u_gen, opseq, ty);
       Succeeded((new_zopseq, ctx, u_gen));
+    | (
+        Construct(SParenthesized),
+        ZOperand(CursorP(_, EmptyHole(_)), (E, E)),
+      )
+        when List.length(HTyp.get_prod_elements(ty)) >= 2 =>
+      let (zopseq, u_gen) =
+        complete_tuple(u_gen, ZPat.erase_zopseq(zopseq), ty);
+      let new_zp =
+        ZOpSeq.wrap(
+          ZPat.ParenthesizedZ(
+            zopseq |> ZPat.erase_zopseq |> ZPat.place_before_opseq,
+          ),
+        );
+      Succeeded((new_zp, ctx, u_gen));
 
     | (Construct(SOp(os)), ZOperand(zoperand, surround))
         when
@@ -3769,6 +3783,22 @@ module Exp = {
         );
       let (new_zopseq, u_gen) = complete_tuple(u_gen, opseq, ty);
       Succeeded(AnaDone((ZExp.ZBlock.wrap'(new_zopseq), u_gen)));
+    | (
+        Construct(SParenthesized),
+        ZOperand(CursorE(_, EmptyHole(_)), (E, E)),
+      )
+        when List.length(HTyp.get_prod_elements(ty)) >= 2 =>
+      let (zopseq, u_gen) =
+        complete_tuple(u_gen, ZExp.erase_zopseq(zopseq), ty);
+      let new_ze =
+        ZExp.ZBlock.wrap(
+          ParenthesizedZ(
+            ZExp.ZBlock.wrap'(
+              zopseq |> ZExp.erase_zopseq |> ZExp.place_before_opseq,
+            ),
+          ),
+        );
+      Succeeded(AnaDone((new_ze, u_gen)));
 
     | (Construct(SLine), ZOperand(zoperand, (prefix, A(_) as suffix)))
         when zoperand |> ZExp.is_after_zoperand =>
