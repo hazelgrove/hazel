@@ -46,7 +46,7 @@ let create =
     ~apply_action=Update.apply_action(model),
     ~on_display=
       (state: State.t, ~schedule_action as _: Update.Action.t => unit) => {
-        let path = model |> Model.path;
+        let path = model |> Model.get_program |> Program.get_path;
         if (state.changing_cards^) {
           let (anchor_node, anchor_offset) =
             path |> Code.caret_position_of_path;
