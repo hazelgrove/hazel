@@ -289,16 +289,10 @@ and set_err_status_operand = (err, operand) =>
   | NumLit(_, n) => NumLit(err, n)
   | BoolLit(_, b) => BoolLit(err, b)
   | ListNil(_) => ListNil(err)
-<<<<<<< HEAD
+  | ListLit(_, l) => ListLit(err, l)
   | Lam(_, p, ann, def) => Lam(err, p, ann, def)
   | Inj(_, inj_side, body) => Inj(err, inj_side, body)
   | Case(_, scrut, rules, ann) => Case(err, scrut, rules, ann)
-=======
-  | ListLit(_, l) => ListLit(err, l)
-  | Lam(_, p, ann, block) => Lam(err, p, ann, block)
-  | Inj(_, inj_side, block) => Inj(err, inj_side, block)
-  | Case(_, block, rules, ann) => Case(err, block, rules, ann)
->>>>>>> 60d70ebe8e25640a8f7a483ace8ab49626030377
   | ApPalette(_, name, model, si) => ApPalette(err, name, model, si)
   | Parenthesized(body) => Parenthesized(body |> set_err_status(err))
   };
@@ -410,11 +404,7 @@ let favored_child_of_operand: operand => option((ChildIndex.t, t)) =
   | NumLit(_, _)
   | BoolLit(_, _)
   | ListNil(_)
-<<<<<<< HEAD
-=======
   | ListLit(_, _)
-  | OpSeq(_, _)
->>>>>>> 60d70ebe8e25640a8f7a483ace8ab49626030377
   | ApPalette(_, _, _, _) => None
   | Lam(_, _, _, e) => Some((2, e))
   | Inj(_, _, e)
