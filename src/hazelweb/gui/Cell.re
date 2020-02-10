@@ -101,12 +101,12 @@ let view =
                 ~inject,
                 ~path=program |> Program.get_path,
                 ~ci=program |> Program.get_cursor_info,
-                ~show_content_editable=model.show_content_editable,
+                ~show_contenteditable=model.show_contenteditable,
                 program |> Program.get_uhexp,
               )
             : Code.editor_view_of_exp(
                 ~inject,
-                ~show_content_editable=model.show_content_editable,
+                ~show_contenteditable=model.show_contenteditable,
                 program |> Program.get_uhexp,
               );
         [

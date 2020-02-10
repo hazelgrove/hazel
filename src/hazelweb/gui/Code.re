@@ -112,7 +112,7 @@ let caret_of_side: Side.t => Vdom.Node.t =
 let contenteditable_of_layout =
     (
       ~inject: Update.Action.t => Vdom.Event.t,
-      ~show_content_editable: bool,
+      ~show_contenteditable: bool,
       l: TermLayout.t,
     )
     : Vdom.Node.t => {
@@ -190,7 +190,7 @@ let contenteditable_of_layout =
           Attr.classes(
             ["code", "contenteditable"]
             @ (
-              if (show_content_editable) {
+              if (show_contenteditable) {
                 [];
               } else {
                 ["hiddencontenteditable"];
@@ -423,7 +423,7 @@ let editor_view_of_layout =
       ~inject: Update.Action.t => Vdom.Event.t,
       ~path: option(CursorPath.t)=?,
       ~ci: option(CursorInfo.t)=?,
-      ~show_content_editable: bool,
+      ~show_contenteditable: bool,
       l: TermLayout.t,
     )
     : (Vdom.Node.t, Vdom.Node.t) => {
@@ -465,7 +465,7 @@ let editor_view_of_layout =
          )
     };
   (
-    contenteditable_of_layout(~inject, ~show_content_editable, l),
+    contenteditable_of_layout(~inject, ~show_contenteditable, l),
     presentation_of_layout(~inject, l),
   );
 };
@@ -490,7 +490,7 @@ let editor_view_of_exp =
       ~pos=0,
       ~path: option(CursorPath.t)=?,
       ~ci: option(CursorInfo.t)=?,
-      ~show_content_editable: bool,
+      ~show_contenteditable: bool,
       e: UHExp.t,
     )
     : (Vdom.Node.t, Vdom.Node.t) => {
@@ -501,6 +501,6 @@ let editor_view_of_exp =
   switch (l) {
   | None => failwith("unimplemented: view_of_exp on layout failure")
   | Some(l) =>
-    editor_view_of_layout(~inject, ~path?, ~ci?, ~show_content_editable, l)
+    editor_view_of_layout(~inject, ~path?, ~ci?, ~show_contenteditable, l)
   };
 };

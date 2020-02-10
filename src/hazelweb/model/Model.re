@@ -6,7 +6,7 @@ type t = {
   is_cell_focused: bool,
   left_sidebar_open: bool,
   right_sidebar_open: bool,
-  show_content_editable: bool,
+  show_contenteditable: bool,
   show_presentation: bool,
   undo_history: UndoHistory.t,
 };
@@ -33,7 +33,7 @@ let init = (): t => {
     is_cell_focused: false,
     left_sidebar_open: false,
     right_sidebar_open: true,
-    show_content_editable: false,
+    show_contenteditable: false,
     show_presentation: false,
   };
 };
