@@ -808,7 +808,7 @@ module Exp = {
       (~enforce_inline: bool, ~steps: CursorPath.steps, line: UHExp.line): t =>
     switch (line) {
     | EmptyLine =>
-      // TODO: Once we figure out content-editable cursors, use `mk_text(~steps, "")`
+      // TODO: Once we figure out contenteditable cursors, use `mk_text(~steps, "")`
       mk_text(~steps, UnicodeConstants.zwsp)
       |> Doc.annot(TermAnnot.EmptyLine)
     | ExpLine(opseq) => mk_opseq(~steps, ~enforce_inline, opseq)

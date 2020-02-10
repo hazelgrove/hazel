@@ -127,9 +127,9 @@ let apply_action =
     state.changing_cards := true;
     Model.prev_card(model);
   | SetComputeResults(compute_results) => {...model, compute_results}
-  | SetShowContentEditable(show_content_editable) => {
+  | SetShowContentEditable(show_contenteditable) => {
       ...model,
-      show_content_editable,
+      show_contenteditable,
     }
   | SetShowPresentation(show_presentation) => {...model, show_presentation}
   | SelectHoleInstance(u, i) => model |> Model.select_hole_instance((u, i))
