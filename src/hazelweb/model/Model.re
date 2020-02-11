@@ -11,7 +11,7 @@ type t = {
   undo_history: UndoHistory.t,
 };
 
-let cutoff = (m1, m2) => m1 == m2;
+let cutoff = (m1, m2) => m1 === m2;
 
 let cardstack_info = [
   TutorialCards.cardstack,
