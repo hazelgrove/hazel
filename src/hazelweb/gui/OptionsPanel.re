@@ -60,9 +60,9 @@ let view =
           ),
           checkbox(
             ~inject,
-            "show_content_editable",
+            "show_contenteditable",
             "Show Content Editable (Debugging)",
-            model.show_content_editable,
+            model.show_contenteditable,
             checked =>
             Update.Action.SetShowContentEditable(checked)
           ),
