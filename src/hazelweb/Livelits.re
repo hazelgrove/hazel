@@ -348,7 +348,7 @@ module LivelitViewCtx = {
 
 module LivelitContexts = {
   type t = (LivelitCtx.t, LivelitViewCtx.t);
-  let empty = (LivelitViewCtx.empty, LivelitCtx.empty);
+  let empty = (LivelitCtx.empty, LivelitViewCtx.empty);
   let extend =
       ((livelit_ctx, livelit_view_ctx), (name, def, serialized_view_fn)) => (
     VarMap.extend(livelit_ctx, (name, def)),
