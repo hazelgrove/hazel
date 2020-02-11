@@ -95,7 +95,7 @@ let cardstack_state_of = model => ZList.prj_z(model.cardstacks_state);
 let edit_state_of = model =>
   ZList.prj_z(cardstack_state_of(model).zcards).edit_state;
 
-let cutoff = (m1, m2) => m1 == m2;
+let cutoff = (m1, m2) => m1 === m2;
 
 let zexp = model => {
   let (ze, _, _) = edit_state_of(model);
