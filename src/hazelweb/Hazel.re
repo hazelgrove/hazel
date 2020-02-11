@@ -57,7 +57,8 @@ let create =
           let (expected_node, expected_offset) =
             path |> Code.caret_position_of_path;
           let (actual_node, actual_offset) = JSUtil.get_selection_anchor();
-          if (actual_node == expected_node && actual_offset == expected_offset) {
+          if (actual_node === expected_node
+              && actual_offset === expected_offset) {
             state.setting_caret := false;
           } else {
             state.setting_caret := true;
