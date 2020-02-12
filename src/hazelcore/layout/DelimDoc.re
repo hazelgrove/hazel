@@ -32,7 +32,7 @@ let open_Inj = (~caret=?, steps, inj_side: InjSide.t) =>
 let close_Inj = (~caret=?, steps) => mk(~caret?, ~path=(steps, 1), ")");
 
 let sym_Lam = (~caret=?, steps) =>
-  mk(~caret?, ~path=(steps, 0), LangUtil.lamSym);
+  mk(~caret?, ~path=(steps, 0), UnicodeConstants.lamSym);
 let colon_Lam = (~caret=?, steps) => mk(~caret?, ~path=(steps, 1), ":");
 let open_Lam = (~caret=?, steps) => mk(~caret?, ~path=(steps, 2), ".{");
 let close_Lam = (~caret=?, steps) => mk(~caret?, ~path=(steps, 3), "}");
@@ -44,7 +44,7 @@ let close_Case_ann = (~caret=?, steps) =>
 
 let bar_Rule = (~caret=?, steps) => mk(~caret?, ~path=(steps, 0), "|");
 let arrow_Rule = (~caret=?, steps) =>
-  mk(~caret?, ~path=(steps, 1), LangUtil.caseArrowSym);
+  mk(~caret?, ~path=(steps, 1), UnicodeConstants.caseArrowSym);
 
 let let_LetLine = (~caret=?, steps) => mk(~caret?, ~path=(steps, 0), "let");
 let colon_LetLine = (~caret=?, steps) => mk(~caret?, ~path=(steps, 1), ":");

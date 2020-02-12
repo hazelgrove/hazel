@@ -73,13 +73,16 @@ let view =
   };
 
   let context_view = {
-    let ctx = Contexts.gamma(model.cursor_info.ctx);
+    let program = model |> Model.get_program;
+    let ctx =
+      program
+      |> Program.get_cursor_info
+      |> CursorInfo.get_ctx
+      |> Contexts.gamma;
     let sigma =
-      switch (model.result_state) {
-      | ResultsDisabled => Dynamics.Exp.id_env(ctx)
-      | Result(has_result_state) =>
-        let (_, hii, _) = has_result_state.result;
-        switch (has_result_state.selected_instance) {
+      if (model.compute_results) {
+        let (_, hii, _) = program |> Program.get_result;
+        switch (program |> Program.get_selected_instance) {
         | None => Dynamics.Exp.id_env(ctx)
         | Some(inst) =>
           switch (HoleInstanceInfo.lookup(hii, inst)) {
@@ -87,6 +90,8 @@ let view =
           | Some((sigma, _)) => sigma
           }
         };
+      } else {
+        Dynamics.Exp.id_env(ctx);
       };
     switch (VarCtx.to_list(ctx)) {
     | [] =>
@@ -214,7 +219,7 @@ let view =
 
   [@warning "-26"]
   let hii_summary =
-      (hii, (u_, i_) as inst, context_inspector: Model.context_inspector) => {
+      (hii, (u_, i_) as inst, context_inspector: Program.context_inspector) => {
     let num_instances = HoleInstanceInfo.num_instances(hii, u_);
     let msg =
       Vdom.(
@@ -351,12 +356,16 @@ let view =
     Vdom.(Node.div([Attr.classes(["path-summary"])], [msg, controls]));
   };
 
-  let path_viewer = {
-    switch (model.result_state) {
-    | ResultsDisabled => Vdom.Node.div([], [])
-    | Result(has_result_state) =>
-      let (_, _hii, _) = has_result_state.result;
-      if (VarMap.is_empty(Contexts.gamma(model.cursor_info.ctx))) {
+  let path_viewer =
+    if (model.compute_results) {
+      let program = model |> Model.get_program;
+      let ctx =
+        program
+        |> Program.get_cursor_info
+        |> CursorInfo.get_ctx
+        |> Contexts.gamma;
+      let (_, _hii, _) = program |> Program.get_result;
+      if (VarMap.is_empty(ctx)) {
         Vdom.Node.div([], []);
       } else {
         /*
@@ -402,8 +411,9 @@ let view =
           Node.div([Attr.classes(["the-path-viewer"])], [] /* children */)
         );
       };
+    } else {
+      Vdom.Node.div([], []);
     };
-  };
 
   Vdom.(
     Node.div(

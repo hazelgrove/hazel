@@ -33,9 +33,13 @@ let intro_caption =
       ptxt("Click Next to go to the next card once you are finished."),
     ],
   );
-let intro_init_zexp = ZExp.ZE0(CursorE(OnDelim(0, Before), EmptyHole(0)));
+let intro_init_zexp =
+  ZExp.ZBlock.wrap(CursorE(OnDelim(0, Before), EmptyHole(0)));
 // deserialize("(BlockZE()(CursorE(OnDelim 0 Before)(EmptyHole 0)))");
-let intro_card: Card.t = {caption: intro_caption, init_zexp: intro_init_zexp};
+let intro_card: CardInfo.t = {
+  caption: intro_caption,
+  init_zexp: intro_init_zexp,
+};
 /*
  let backspace_caption =
    div(
@@ -53,7 +57,7 @@ let intro_card: Card.t = {caption: intro_caption, init_zexp: intro_init_zexp};
    );
  let backspace_init_zblock =
    // deserialize("(BlockZE()(CursorE(OnText 5)(NumLit NotInHole 12345)))");
- let backspace_card: Card.t = {
+ let backspace_card: CardInfo.t = {
    caption: backspace_caption,
    init_zexp: backspace_init_zblock,
  };
@@ -91,13 +95,13 @@ let intro_card: Card.t = {caption: intro_caption, init_zexp: intro_init_zexp};
    );
  let empty_hole_insertion_init_zblock =
    deserialize("(BlockZE()(CursorE(OnDelim 0 Before)(EmptyHole 0)))");
- let empty_hole_insertion_card: Card.t = {
+ let empty_hole_insertion_card: CardInfo.t = {
    caption: empty_hole_insertion_caption,
    init_zexp: empty_hole_insertion_init_zblock,
  };
  */
 
-let cardstack: CardStack.t = {
+let cardstack: CardstackInfo.t = {
   title: "Hazel Tutorial",
   cards: [intro_card /*backspace_card, empty_hole_insertion_card */],
 };

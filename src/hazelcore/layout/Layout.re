@@ -1,16 +1,5 @@
 open Sexplib.Std;
 
-// type t('annot) = {
-//   metrics,
-//   layout: layout('annot),
-// }
-// and metrics = {
-//   first_width: int,
-//   width: int,
-//   last_width: int,
-//   cost: int,
-// }
-
 [@deriving sexp]
 type t('annot) =
   | Text(string) // Invariant: contains no newlines. Text("") is identity for `Cat`
@@ -28,13 +17,14 @@ type metrics = {
   last_width_is_relative: bool,
 };
 
-let rec metrics: 'annot. t('annot) => metrics =
+let rec metrics'': 'annot. t('annot) => metrics =
   // TODO: rename
   layout => {
-    Obj.magic(Lazy.force(metrics_memo_table, Obj.magic(layout)));
+    Obj.magic(snd(Lazy.force(metrics_memo_table), Obj.magic(layout)));
   }
 
-and metrics_memo_table: Lazy.t(t(unit) => metrics) =
+and metrics_memo_table:
+  Lazy.t((Memoize.WeakPoly.Table.t(metrics), t(unit) => metrics)) =
   lazy(Memoize.WeakPoly.make(metrics'))
 
 and metrics' = (layout: t(unit)): metrics =>
@@ -45,11 +35,11 @@ and metrics' = (layout: t(unit)): metrics =>
       last_width_is_relative: true,
     }
   | Linebreak => {height: 2, last_width: 0, last_width_is_relative: false}
-  | Annot(_, l) => metrics(l)
-  | Align(l) => {...metrics(l), last_width_is_relative: false}
+  | Annot(_, l) => metrics''(l)
+  | Align(l) => {...metrics''(l), last_width_is_relative: false}
   | Cat(l1, l2) =>
-    let metrics1 = metrics(l1);
-    let metrics2 = metrics(l2);
+    let metrics1 = metrics''(l1);
+    let metrics2 = metrics''(l2);
     let height = metrics1.height + metrics2.height - 1;
     let metrics =
       if (!metrics2.last_width_is_relative) {
@@ -58,6 +48,13 @@ and metrics' = (layout: t(unit)): metrics =>
         {...metrics1, last_width: metrics1.last_width + metrics2.last_width};
       };
     {...metrics, height};
+  };
+
+let metrics: 'annot. t('annot) => metrics =
+  layout => {
+    let l = metrics''(layout);
+    Memoize.WeakPoly.Table.clear(fst(Lazy.force(metrics_memo_table)));
+    l;
   };
 
 let rec remove_annots = (layout: t('annot)): t('annot) => {

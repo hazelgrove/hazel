@@ -100,12 +100,19 @@ type t = {
   uses: option(UsageAnalysis.uses_list),
 };
 
-let rec extract_cursor_exp_term = (exp: ZExp.t): option(cursor_term) => {
-  switch (exp) {
-  | ZE2(zblock) => extract_from_zline(ZList.prj_z(zblock))
-  | ZE1(zopseq) => extract_from_zexp_opseq(zopseq)
-  | ZE0(zoperand) => extract_from_zexp_operand(zoperand)
+let rec extract_cursor_term = (exp: ZExp.t): (option(cursor_term), bool) => {
+  let cursor_term = extract_cursor_exp_term(exp);
+  let prev_is_empty_line = {
+    let prefix = ZList.prj_prefix(exp);
+    switch (ListUtil.split_last(prefix)) {
+    | None => false
+    | Some((_, elt)) => UHExp.is_empty_line(elt)
+    };
   };
+  (cursor_term, prev_is_empty_line);
+}
+and extract_cursor_exp_term = (exp: ZExp.t): option(cursor_term) => {
+  extract_from_zline(ZList.prj_z(exp));
 }
 and extract_from_zline = (zline: ZExp.zline): option(cursor_term) => {
   switch (zline) {
@@ -152,17 +159,13 @@ and extract_from_zexp_opseq = (zopseq: ZExp.zopseq): option(cursor_term) => {
 }
 and extract_cursor_pat_term = (zpat: ZPat.t): option(cursor_term) => {
   switch (zpat) {
-  | ZP1(zpat_opseq) =>
-    switch (zpat_opseq) {
-    | ZOpSeq(_, zseq) =>
-      switch (zseq) {
-      | ZOperand(zpat_operand, _) => extract_from_zpat_operand(zpat_operand)
-      | ZOperator(zpat_operator, _) =>
-        let (cursor_pos, uop) = zpat_operator;
-        Some(PatOp(cursor_pos, uop));
-      }
+  | ZOpSeq(_, zseq) =>
+    switch (zseq) {
+    | ZOperand(zpat_operand, _) => extract_from_zpat_operand(zpat_operand)
+    | ZOperator(zpat_operator, _) =>
+      let (cursor_pos, uop) = zpat_operator;
+      Some(PatOp(cursor_pos, uop));
     }
-  | ZP0(zpat_operand) => extract_from_zpat_operand(zpat_operand)
   };
 }
 and extract_from_zpat_operand =
@@ -175,17 +178,13 @@ and extract_from_zpat_operand =
 }
 and extract_cursor_type_term = (ztyp: ZTyp.t): option(cursor_term) => {
   switch (ztyp) {
-  | ZT1(ztyp_opseq) =>
-    switch (ztyp_opseq) {
-    | ZOpSeq(_, zseq) =>
-      switch (zseq) {
-      | ZOperand(ztyp_operand, _) => extract_from_ztyp_operand(ztyp_operand)
-      | ZOperator(ztyp_operator, _) =>
-        let (cursor_pos, uop) = ztyp_operator;
-        Some(TypOp(cursor_pos, uop));
-      }
+  | ZOpSeq(_, zseq) =>
+    switch (zseq) {
+    | ZOperand(ztyp_operand, _) => extract_from_ztyp_operand(ztyp_operand)
+    | ZOperator(ztyp_operator, _) =>
+      let (cursor_pos, uop) = ztyp_operator;
+      Some(TypOp(cursor_pos, uop));
     }
-  | ZT0(ztyp_operand) => extract_from_ztyp_operand(ztyp_operand)
   };
 }
 and extract_from_ztyp_operand =
@@ -251,6 +250,8 @@ let get_cursor_pos = (cursor_term: cursor_term) => {
 };
 let mk = (~uses=?, typed, ctx) => {typed, ctx, uses};
 
+let get_ctx = ci => ci.ctx;
+
 module Typ = {
   let cursor_info = (~steps as _, ctx: Contexts.t, _: ZTyp.t): option(t) =>
     Some(mk(OnType, ctx));
@@ -269,10 +270,7 @@ type deferrable('t) =
 module Pat = {
   let rec syn_cursor_info =
           (~steps=[], ctx: Contexts.t, zp: ZPat.t): option(deferrable(t)) =>
-    switch (zp) {
-    | ZP1(zp1) => syn_cursor_info_zopseq(~steps, ctx, zp1)
-    | ZP0(zp0) => syn_cursor_info_zoperand(~steps, ctx, zp0)
-    }
+    syn_cursor_info_zopseq(~steps, ctx, zp)
   and syn_cursor_info_zopseq =
       (
         ~steps: CursorPath.steps,
@@ -415,10 +413,7 @@ module Pat = {
   and ana_cursor_info =
       (~steps, ctx: Contexts.t, zp: ZPat.t, ty: HTyp.t)
       : option(deferrable(t)) => {
-    switch (zp) {
-    | ZP1(zp1) => ana_cursor_info_zopseq(~steps, ctx, zp1, ty)
-    | ZP0(zp0) => ana_cursor_info_zoperand(~steps, ctx, zp0, ty)
-    };
+    ana_cursor_info_zopseq(~steps, ctx, zp, ty);
   }
   and ana_cursor_info_zopseq =
       (
@@ -637,9 +632,7 @@ module Exp = {
           };
         Some((err, verr));
       }
-    | ParenthesizedZ(ZE0(zoperand)) => cursor_on_outer_expr(zoperand)
-    | ParenthesizedZ(ZE1(ZOpSeq(skel, zseq)))
-    | ParenthesizedZ(ZE2((_, ExpLineZ(ZOpSeq(skel, zseq)), []))) =>
+    | ParenthesizedZ(([], ExpLineZ(ZOpSeq(skel, zseq)), [])) =>
       if (ZOpSeq.skel_is_rooted_at_cursor(skel, zseq)) {
         switch (skel, zseq) {
         | (BinOp(err, _, _, _), _) => Some((err, NotInVarHole))
@@ -653,11 +646,7 @@ module Exp = {
 
   let rec syn_cursor_info =
           (~steps=[], ctx: Contexts.t, ze: ZExp.t): option(t) => {
-    switch (ze) {
-    | ZE2(ze2) => syn_cursor_info_zblock(~steps, ctx, ze2)
-    | ZE1(ze1) => syn_cursor_info_zopseq(~steps, ctx, ze1)
-    | ZE0(ze0) => syn_cursor_info_zoperand(~steps, ctx, ze0)
-    };
+    syn_cursor_info_zblock(~steps, ctx, ze);
   }
   and syn_cursor_info_zblock =
       (
@@ -949,13 +938,8 @@ module Exp = {
     };
   }
   and ana_cursor_info =
-      (~steps=[], ctx: Contexts.t, ze: ZExp.t, ty: HTyp.t): option(t) => {
-    switch (ze) {
-    | ZE2(ze2) => ana_cursor_info_zblock(~steps, ctx, ze2, ty)
-    | ZE1(ze1) => ana_cursor_info_zopseq(~steps, ctx, ze1, ty)
-    | ZE0(ze0) => ana_cursor_info_zoperand(~steps, ctx, ze0, ty)
-    };
-  }
+      (~steps=[], ctx: Contexts.t, ze: ZExp.t, ty: HTyp.t): option(t) =>
+    ana_cursor_info_zblock(~steps, ctx, ze, ty)
   and ana_cursor_info_zblock =
       (
         ~steps: CursorPath.steps,
