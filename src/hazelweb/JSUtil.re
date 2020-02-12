@@ -560,7 +560,6 @@ type single_key =
   | Underscore;
 
 let letter_regexp = Js_of_ocaml.Regexp.regexp("^[a-zA-Z']$");
-let lowercase_letter_regexp = Js_of_ocaml.Regexp.regexp("^[a-z]");
 
 let is_single_key: Js.t(Dom_html.keyboardEvent) => option(single_key) =
   evt => {
