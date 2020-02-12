@@ -10,6 +10,7 @@ type t =
       show_use: bool,
     })
   | Operand({err: ErrStatus.t})
+  | FreeLivelit
   | BinOp({
       op_index: int,
       err: ErrStatus.t,

@@ -32,6 +32,7 @@ let kc_actions: Hashtbl.t(KeyCombo.t, CursorInfo.t => Action.t) =
     (LT, _ => Action.Construct(SOp(SLessThan))),
     (Space, _ => Action.Construct(SOp(SSpace))),
     (Comma, _ => Action.Construct(SOp(SComma))),
+    (Dollar, _ => Action.Construct(SChar("$"))),
     (
       LeftBracket,
       fun

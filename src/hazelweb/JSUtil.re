@@ -443,6 +443,7 @@ module KeyCombo = {
     | LT
     | Space
     | Comma
+    | Dollar
     | LeftBracket
     | Semicolon
     | Alt_L
@@ -474,6 +475,7 @@ module KeyCombo = {
     | LT => Details.lt
     | Space => Details.space
     | Comma => Details.comma
+    | Dollar => Details.dollar
     | LeftBracket => Details.left_bracket
     | Semicolon => Details.semicolon
     | Alt_L => Details.alt_L
@@ -528,6 +530,8 @@ module KeyCombo = {
       Some(Space);
     } else if (evt_matches(Details.comma)) {
       Some(Comma);
+    } else if (evt_matches(Details.dollar)) {
+      Some(Dollar);
     } else if (evt_matches(Details.left_bracket)) {
       Some(LeftBracket);
     } else if (evt_matches(Details.semicolon)) {

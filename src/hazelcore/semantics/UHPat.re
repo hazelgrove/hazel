@@ -221,6 +221,12 @@ let text_operand =
   | NumLit(n) => (numlit(n), u_gen)
   | BoolLit(b) => (boollit(b), u_gen)
   | Var(x) => (var(x), u_gen)
+  | LivelitName(lln) =>
+    let (u, u_gen) = u_gen |> MetaVarGen.next;
+    (
+      var(~var_err=InVarHole(Free, u), LivelitName.strip_prefix(lln)),
+      u_gen,
+    );
   | ExpandingKeyword(kw) =>
     let (u, u_gen) = u_gen |> MetaVarGen.next;
     (

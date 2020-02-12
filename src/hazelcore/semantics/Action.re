@@ -672,6 +672,15 @@ module Pat = {
         );
       let zp = ZPat.ZP0(CursorP(text_cursor, var));
       Succeeded((zp, HTyp.Hole, ctx, u_gen));
+    | Some(LivelitName(lln)) =>
+      let (u, u_gen) = u_gen |> MetaVarGen.next;
+      let var =
+        UHPat.var(
+          ~var_err=InVarHole(Free, u),
+          LivelitName.strip_prefix(lln),
+        );
+      let zp = ZPat.ZP0(CursorP(text_cursor, var));
+      Succeeded((zp, HTyp.Hole, ctx, u_gen));
     | Some(Var(x)) =>
       let ctx = Contexts.extend_gamma(ctx, (x, Hole));
       let zp = ZPat.ZP0(CursorP(text_cursor, UHPat.var(x)));
@@ -715,6 +724,15 @@ module Pat = {
     | Some(ExpandingKeyword(k)) =>
       let (u, u_gen) = u_gen |> MetaVarGen.next;
       let var = UHPat.var(~var_err=InVarHole(Keyword(k), u), text);
+      let zp = ZPat.ZP0(CursorP(text_cursor, var));
+      Succeeded((zp, ctx, u_gen));
+    | Some(LivelitName(lln)) =>
+      let (u, u_gen) = u_gen |> MetaVarGen.next;
+      let var =
+        UHPat.var(
+          ~var_err=InVarHole(Free, u),
+          LivelitName.strip_prefix(lln),
+        );
       let zp = ZPat.ZP0(CursorP(text_cursor, var));
       Succeeded((zp, ctx, u_gen));
     | Some(Var(x)) =>
@@ -1935,6 +1953,10 @@ module Exp = {
         );
       let ze = ZExp.ZE0(CursorE(text_cursor, var));
       Succeeded(SynDone((ze, HTyp.Hole, u_gen)));
+    | Some(LivelitName(lln)) =>
+      let (u, u_gen) = u_gen |> MetaVarGen.next;
+      let ze = ZExp.ZE0(CursorE(text_cursor, UHExp.FreeLivelit(u, lln)));
+      Succeeded(SynDone((ze, HTyp.Hole, u_gen)));
     | Some((Underscore | Var(_)) as shape) =>
       let x =
         switch (shape) {
@@ -1981,7 +2003,7 @@ module Exp = {
         );
       let ze = ZExp.ZE0(CursorE(text_cursor, var));
       Succeeded(AnaDone((ze, u_gen)));
-    | Some(NumLit(_) | BoolLit(_) | Underscore | Var(_)) =>
+    | Some(NumLit(_) | BoolLit(_) | Underscore | Var(_) | LivelitName(_)) =>
       // TODO: review whether subsumption correctly applied
       switch (mk_syn_text(ctx, u_gen, caret_index, text)) {
       | (Failed | CursorEscaped(_)) as err => err
@@ -2771,8 +2793,7 @@ module Exp = {
           OnText(_) | OnOp(_),
           EmptyHole(_) | ListNil(_) | Lam(_) | Inj(_) | Case(_) |
           Parenthesized(_) |
-          ApLivelit(_) |
-          FreeLivelit(_),
+          ApLivelit(_),
         ),
       ) =>
       Failed
@@ -2833,6 +2854,8 @@ module Exp = {
       syn_delete_text(ctx, u_gen, j, string_of_int(n))
     | (Delete, CursorE(OnText(j), BoolLit(_, b))) =>
       syn_delete_text(ctx, u_gen, j, string_of_bool(b))
+    | (Delete, CursorE(OnText(j), FreeLivelit(_, lln))) =>
+      syn_delete_text(ctx, u_gen, j, lln)
 
     | (Backspace, CursorE(OnText(j), Var(_, _, x))) =>
       syn_backspace_text(ctx, u_gen, j, x)
@@ -2840,6 +2863,8 @@ module Exp = {
       syn_backspace_text(ctx, u_gen, j, string_of_int(n))
     | (Backspace, CursorE(OnText(j), BoolLit(_, b))) =>
       syn_backspace_text(ctx, u_gen, j, string_of_bool(b))
+    | (Backspace, CursorE(OnText(j), FreeLivelit(_, lln))) =>
+      syn_backspace_text(ctx, u_gen, j, lln)
 
     /* \x :<| Num . x + 1   ==>   \x| . x + 1 */
     | (Backspace, CursorE(OnDelim(1, After), Lam(_, p, _, body))) =>
@@ -2900,6 +2925,11 @@ module Exp = {
           !ZExp.is_before_zoperand(zoperand)
           && !ZExp.is_after_zoperand(zoperand) =>
       syn_split_text(ctx, u_gen, j, sop, string_of_int(n))
+    | (Construct(SOp(sop)), CursorE(OnText(j), FreeLivelit(_, lln)))
+        when
+          !ZExp.is_before_zoperand(zoperand)
+          && !ZExp.is_after_zoperand(zoperand) =>
+      syn_split_text(ctx, u_gen, j, sop, lln)
 
     | (
         Construct(SOp(SSpace)),
@@ -2941,6 +2971,8 @@ module Exp = {
       syn_insert_text(ctx, u_gen, (j, s), string_of_int(n))
     | (Construct(SChar(s)), CursorE(OnText(j), BoolLit(_, b))) =>
       syn_insert_text(ctx, u_gen, (j, s), string_of_bool(b))
+    | (Construct(SChar(s)), CursorE(OnText(j), FreeLivelit(_, lln))) =>
+      syn_insert_text(ctx, u_gen, (j, s), lln)
     | (Construct(SChar(_)), CursorE(_)) => Failed
 
     | (Construct(SListNil), CursorE(_, EmptyHole(_))) =>
@@ -3776,8 +3808,7 @@ module Exp = {
           OnText(_) | OnOp(_),
           EmptyHole(_) | ListNil(_) | Lam(_) | Inj(_) | Case(_) |
           Parenthesized(_) |
-          ApLivelit(_, _, _, _) |
-          FreeLivelit(_),
+          ApLivelit(_, _, _, _),
         ),
       ) =>
       Failed
@@ -3851,6 +3882,8 @@ module Exp = {
       ana_delete_text(ctx, u_gen, j, string_of_int(n), ty)
     | (Delete, CursorE(OnText(j), BoolLit(_, b))) =>
       ana_delete_text(ctx, u_gen, j, string_of_bool(b), ty)
+    | (Delete, CursorE(OnText(j), FreeLivelit(_, lln))) =>
+      ana_delete_text(ctx, u_gen, j, lln, ty)
 
     | (Backspace, CursorE(OnText(j), Var(_, _, x))) =>
       ana_backspace_text(ctx, u_gen, j, x, ty)
@@ -3858,6 +3891,8 @@ module Exp = {
       ana_backspace_text(ctx, u_gen, j, string_of_int(n), ty)
     | (Backspace, CursorE(OnText(j), BoolLit(_, b))) =>
       ana_backspace_text(ctx, u_gen, j, string_of_bool(b), ty)
+    | (Backspace, CursorE(OnText(j), FreeLivelit(_, lln))) =>
+      ana_backspace_text(ctx, u_gen, j, lln, ty)
 
     /* \x :<| Num . x + 1   ==>   \x| . x + 1 */
     | (Backspace, CursorE(OnDelim(1, After), Lam(_, p, _, body))) =>
@@ -3913,6 +3948,8 @@ module Exp = {
       ana_insert_text(ctx, u_gen, (j, s), string_of_int(n), ty)
     | (Construct(SChar(s)), CursorE(OnText(j), BoolLit(_, b))) =>
       ana_insert_text(ctx, u_gen, (j, s), string_of_bool(b), ty)
+    | (Construct(SChar(s)), CursorE(OnText(j), FreeLivelit(_, lln))) =>
+      ana_insert_text(ctx, u_gen, (j, s), lln, ty)
     | (Construct(SChar(_)), CursorE(_)) => Failed
 
     | (
@@ -3944,6 +3981,11 @@ module Exp = {
           !ZExp.is_before_zoperand(zoperand)
           && !ZExp.is_after_zoperand(zoperand) =>
       ana_split_text(ctx, u_gen, j, sop, string_of_int(n), ty)
+    | (Construct(SOp(sop)), CursorE(OnText(j), FreeLivelit(_, lln)))
+        when
+          !ZExp.is_before_zoperand(zoperand)
+          && !ZExp.is_after_zoperand(zoperand) =>
+      ana_split_text(ctx, u_gen, j, sop, lln, ty)
 
     | (Construct(SAsc), LamZP(err, zp, None, body)) =>
       let new_zann = UHTyp.T0(Hole) |> ZTyp.place_before;

@@ -36,6 +36,7 @@ let shape_clss: TermShape.t => list(cls) =
     @ clss_of_verr(verr)
     @ (show_use ? ["show-use"] : [])
   | Operand({err}) => ["Operand", ...clss_of_err(err)]
+  | FreeLivelit => ["FreeLivelit"]
   | BinOp({err, op_index: _}) => ["BinOp", ...clss_of_err(err)]
   | NTuple({err, comma_indices: _}) => ["NTuple", ...clss_of_err(err)]
   | SubBlock(_) => ["SubBlock"];

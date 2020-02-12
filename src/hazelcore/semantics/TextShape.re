@@ -6,7 +6,8 @@ type t =
   | NumLit(int)
   | BoolLit(bool)
   | ExpandingKeyword(ExpandingKeyword.t)
-  | Var(Var.t);
+  | Var(Var.t)
+  | LivelitName(LivelitName.t);
 
 let of_text = (text: string): option(t) =>
   switch (
@@ -23,6 +24,8 @@ let of_text = (text: string): option(t) =>
   | (None, None, None) =>
     if (text |> String.equal("_")) {
       Some(Underscore);
+    } else if (text |> LivelitName.is_valid_free) {
+      Some(LivelitName(text));
     } else if (text |> Var.is_valid) {
       Some(Var(text));
     } else {
