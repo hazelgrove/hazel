@@ -1,18 +1,22 @@
 // Memoization on one particular key type
-module Make = (Table: Hashtbl.S) => {
+module Make = (T: Hashtbl.S) => {
+  module Table = T;
   type key = Table.key;
-  let make: 'b. (key => 'b, key) => 'b =
+  let make: 'b. (key => 'b) => (Table.t('b), key => 'b) =
     f => {
       let table = Table.create(0);
-      key => {
-        switch (Table.find_opt(table, key)) {
-        | Some(value) => value
-        | None =>
-          let value = f(key);
-          Table.add(table, key, value);
-          value;
-        };
-      };
+      (
+        table,
+        key => {
+          switch (Table.find_opt(table, key)) {
+          | Some(value) => value
+          | None =>
+            let value = f(key);
+            Table.add(table, key, value);
+            value;
+          };
+        },
+      );
     };
 };
 
@@ -25,19 +29,21 @@ module MakePoly = (H: (Hashtbl.HashedType) => Hashtbl.S) => {
     let hash = Hashtbl.hash;
     let equal = (==);
   };
-  module Make = Make((H(Key)));
-  let make: ('a => 'b, 'a) => 'b =
+  module Table = H(Key);
+  module Make = Make(Table);
+  let make: ('a => 'b) => (Table.t('b), 'a => 'b) =
     f => {
-      let table: Make.key => 'b = Make.make(key => f(Obj.magic(key)));
+      let (clear, table: Make.key => 'b) =
+        Make.make(key => f(Obj.magic(key)));
       let f' = (key: 'a): 'b => {
         let key': Make.key = Obj.magic(key);
         table(key');
       };
-      f';
+      (clear, f');
     };
 };
 
 module Strong = (Key: Hashtbl.HashedType) => Make((Hashtbl.Make(Key)));
-module Weak = (Key: Hashtbl.HashedType) => Make((Ephemeron.K1.Make(Key))) /* }*/;
+module Weak = (Key: Hashtbl.HashedType) => Make((Ephemeron.K1.Make(Key)));
 module StrongPoly = MakePoly(Hashtbl.Make);
 module WeakPoly = MakePoly(Ephemeron.K1.Make);

@@ -3,11 +3,7 @@ open Sexplib.Std;
 [@deriving sexp]
 type uses_list = list(CursorPath.steps);
 
-let rec binds_var = (x: Var.t, p: UHPat.t): bool =>
-  switch (p) {
-  | P1(opseq) => binds_var_opseq(x, opseq)
-  | P0(operand) => binds_var_operand(x, operand)
-  }
+let rec binds_var = (x: Var.t, p: UHPat.t): bool => binds_var_opseq(x, p)
 and binds_var_opseq = (x, OpSeq(_, seq): UHPat.opseq): bool =>
   seq |> Seq.operands |> List.exists(binds_var_operand(x))
 and binds_var_operand = (x, operand: UHPat.operand): bool =>
@@ -27,11 +23,7 @@ and binds_var_operand = (x, operand: UHPat.operand): bool =>
 
 let rec find_uses =
         (~steps: CursorPath.steps, x: Var.t, e: UHExp.t): uses_list =>
-  switch (e) {
-  | E2(block) => find_uses_block(~steps, x, block)
-  | E1(opseq) => find_uses_opseq(~steps, x, opseq)
-  | E0(operand) => find_uses_operand(~steps, x, operand)
-  }
+  find_uses_block(~steps, x, e)
 and find_uses_block =
     (~offset=0, ~steps, x: Var.t, block: UHExp.block): uses_list => {
   let (uses, _) =

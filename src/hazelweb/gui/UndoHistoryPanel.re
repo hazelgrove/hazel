@@ -58,7 +58,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
     };
   };
   let display_string_of_cursor =
-      (cursor_term: option(CursorInfo.cursor_term)):string => {
+      (cursor_term: option(CursorInfo.cursor_term)): string => {
     switch (cursor_term) {
     | None =>
       failwith("Imposiible match, the inital state will not be displayed")
@@ -221,7 +221,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
           }
         }
       | Construct(shape) =>
-      /* match for keyword */
+        /* match for keyword */
         switch (shape) {
         | SParenthesized => Some("add ( )")
         | SList => Some("type List")

@@ -31,6 +31,12 @@ let replace_z = (z: 'z, (prefix, _, suffix): t('z, 'a)): t('z, 'a) => (
   suffix,
 );
 
+let map_z = (fz: 'z1 => 'z2, (prefix, z, suffix): t('z1, 'x)): t('z2, 'x) => (
+  prefix,
+  fz(z),
+  suffix,
+);
+
 let map =
     (fz: 'y => 'z, f: 'a => 'b, (prefix, z, suffix): t('y, 'a)): t('z, 'b) => (
   prefix |> List.map(f),

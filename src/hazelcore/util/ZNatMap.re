@@ -1,7 +1,5 @@
-open Sexplib.Std;
+open Sexplib.Std /* Zippered finite map over nats, used with Z expressions * i.e. there is a selected element of type Z and the rest is a int map of type A */;
 
-/* Zippered finite map over nats, used with Z expressions
- * i.e. there is a selected element of type Z and the rest is a int map of type A */
 [@deriving sexp]
 type t('a, 'z) = (NatMap.t('a), (int, 'z));
 let make = (m: NatMap.t('a), (n, _) as nz: (int, 'z)): option(t('a, 'z)) =>

@@ -680,7 +680,7 @@ let force_opt = x => Js.Opt.get(x, () => failwith("forced opt"));
 
 // TODO: find better Module to put this in
 module Vdom = Virtual_dom.Vdom;
-// let content_editable_of_layout: Layout.t('annot) => Vdom.Node.t =
+// let contenteditable_of_layout: Layout.t('annot) => Vdom.Node.t =
 //   layout => {
 //     let record: Layout.text('annot, list(Vdom.Node.t), Vdom.Node.t) = {
 //       imp_of_string: string => [Vdom.Node.text(string)],

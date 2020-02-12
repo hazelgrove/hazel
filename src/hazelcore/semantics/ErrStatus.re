@@ -4,9 +4,8 @@ module HoleReason = {
   type t =
     | TypeInconsistent
     | WrongLength;
-};
+} /* Variable: `err` */;
 
-/* Variable: `err` */
 [@deriving sexp]
 type t =
   | NotInHole

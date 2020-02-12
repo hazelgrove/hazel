@@ -13,7 +13,7 @@ module Action = {
     | ToggleLeftSidebar
     | ToggleRightSidebar
     | LoadExample(Examples.id)
-    | LoadCardStack(int)
+    | LoadCardstack(int)
     | NextCard
     | PrevCard
     | SetComputeResults(bool)
@@ -72,13 +72,13 @@ let log_action = (action: Action.t, _: State.t): unit => {
   | ToggleLeftSidebar
   | ToggleRightSidebar
   | LoadExample(_)
-  | LoadCardStack(_)
+  | LoadCardstack(_)
   | NextCard
   | PrevCard
   | SetComputeResults(_)
   | SetShowContentEditable(_)
   | SetShowPresentation(_)
-  | SelectHoleInstance(_, _)
+  | SelectHoleInstance(_)
   | InvalidVar(_)
   | FocusCell
   | BlurCell
@@ -104,51 +104,43 @@ let apply_action =
   log_action(action, state);
   switch (action) {
   | EditAction(a) =>
-    switch (Model.perform_edit_action(model, a)) {
+    switch (model |> Model.perform_edit_action(a)) {
     | new_model => new_model
-    | exception Model.FailedAction =>
-      JSUtil.log("[Model.FailedAction]");
+    | exception Program.FailedAction =>
+      JSUtil.log("[Program.FailedAction]");
       model;
-    | exception Model.CursorEscaped =>
-      JSUtil.log("[CursorEscaped]");
+    | exception Program.CursorEscaped =>
+      JSUtil.log("[Program.CursorEscaped]");
       model;
-    | exception Model.MissingCursorInfo =>
-      JSUtil.log("[MissingCursorInfo]");
+    | exception Program.MissingCursorInfo =>
+      JSUtil.log("[Program.MissingCursorInfo]");
       model;
-    | exception Model.InvalidInput =>
-      JSUtil.log("[Model.InvalidInput");
+    | exception Program.InvalidInput =>
+      JSUtil.log("[Program.InvalidInput");
       model;
-    | exception Model.DoesNotExpand =>
-      JSUtil.log("[Model.DoesNotExpand]");
+    | exception Program.DoesNotExpand =>
+      JSUtil.log("[Program.DoesNotExpand]");
       model;
     }
   | ToggleLeftSidebar => Model.toggle_left_sidebar(model)
   | ToggleRightSidebar => Model.toggle_right_sidebar(model)
   | LoadExample(id) => Model.load_example(model, Examples.get(id))
-  | LoadCardStack(idx) => Model.load_cardstack(model, idx)
+  | LoadCardstack(idx) => Model.load_cardstack(model, idx)
   | NextCard =>
     state.changing_cards := true;
     Model.next_card(model);
   | PrevCard =>
     state.changing_cards := true;
     Model.prev_card(model);
-  | SetComputeResults(compute_results) => {
+  | SetComputeResults(compute_results) => {...model, compute_results}
+  | SetShowContentEditable(show_contenteditable) => {
       ...model,
-      compute_results,
-      result_state:
-        Model.result_state_of_edit_state(
-          Model.edit_state_of(model),
-          compute_results,
-        ),
-    }
-  | SetShowContentEditable(show_content_editable) => {
-      ...model,
-      show_content_editable,
+      show_contenteditable,
     }
   | SetShowPresentation(show_presentation) => {...model, show_presentation}
-  | SelectHoleInstance(u, i) => Model.select_hole_instance(model, (u, i))
+  | SelectHoleInstance(u, i) => model |> Model.select_hole_instance((u, i))
   | InvalidVar(_) => model
-  | MoveToHole(u) => Model.move_to_hole(model, u)
+  | MoveToHole(u) => model |> Model.move_to_hole(u)
   | FocusCell => model |> Model.focus_cell
   | FocusWindow =>
     state.setting_caret := true;
@@ -161,10 +153,11 @@ let apply_action =
       let anchorOffset = Dom_html.window##getSelection##.anchorOffset;
       let closest_elem = JSUtil.force_get_closest_elem(anchorNode);
       let id = closest_elem |> JSUtil.force_get_attr("id");
+      let model_path = model |> Model.get_program |> Program.get_path;
       switch (path_of_path_id(id), steps_of_text_id(id)) {
       | (None, None) => failwith(__LOC__ ++ ": unexpected caret position")
       | (Some((_, cursor) as path), _) =>
-        if (path == Model.path(model)) {
+        if (path == model_path) {
           switch (cursor) {
           | OnText(_) => failwith(__LOC__ ++ ": unexpected cursor")
           | OnOp(Before)
@@ -181,7 +174,7 @@ let apply_action =
         if (closest_elem
             |> JSUtil.force_get_parent_elem
             |> JSUtil.elem_has_cls("EmptyLine")) {
-          let (model_steps, _) = model |> Model.path;
+          let (model_steps, _) = model_path;
           if (steps == model_steps) {
             schedule_action(
               Action.EditAction(anchorOffset == 0 ? MoveLeft : MoveRight),
@@ -211,10 +204,8 @@ let apply_action =
       switch (ZList.shift_to(elt_id, cur_group.group_entries)) {
       | None => failwith("Impossible because group_entries is non-empty")
       | Some(new_group_entries) =>
-        let new_cardstacks_state =
-          ZList.prj_z(new_group_entries).cardstacks_state;
-        let new_model =
-          Model.update_cardstacks_state(model, new_cardstacks_state);
+        let new_cardstacks = ZList.prj_z(new_group_entries).cardstacks;
+        let new_model = model |> Model.put_cardstacks(new_cardstacks);
         {
           ...new_model,
           undo_history:

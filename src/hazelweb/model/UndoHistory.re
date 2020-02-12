@@ -1,9 +1,10 @@
 type cursor_term = CursorInfo.cursor_term;
 type undo_history_entry = {
-  cardstacks_state: CardStacks.cardstacks_state,
+  cardstacks: Cardstacks.t,
   previous_action: option(Action.t),
   previous_cursor_term: option(cursor_term),
   current_cursor_term: option(cursor_term),
+  prev_is_empty_line: bool,
 };
 
 type undo_history_group = {
@@ -17,12 +18,11 @@ type undo_history_group = {
 
 type t = ZList.t(undo_history_group, undo_history_group);
 
-let get_cursor_term =
-    (cardstacks_state: CardStacks.cardstacks_state): option(cursor_term) => {
-  let edit_state =
-    ZList.prj_z(ZList.prj_z(cardstacks_state).zcards).edit_state;
-  let (zexp, _, _) = edit_state;
-  CursorInfo.extract_cursor_exp_term(zexp);
+let get_cursor_info =
+    (cardstacks: Cardstacks.t): (option(cursor_term), bool) => {
+  let zexp =
+    ZList.prj_z(ZList.prj_z(cardstacks).zcards).program |> Program.get_zexp;
+  CursorInfo.extract_cursor_term(zexp);
 };
 
 let undoable_action = (action: option(Action.t)): bool => {
@@ -92,19 +92,23 @@ let in_same_history_group =
 let push_edit_state =
     (
       undo_history: t,
-      prev_cardstacks_state: CardStacks.cardstacks_state,
-      cur_cardstacks_state: CardStacks.cardstacks_state,
+      prev_cardstacks: Cardstacks.t,
+      cur_cardstacks: Cardstacks.t,
       action: option(Action.t),
     )
     : t => {
   let prev_group = ZList.prj_z(undo_history);
   let prev_entry = ZList.prj_z(prev_group.group_entries);
   if (undoable_action(action)) {
+    let (prev_cursor_term, _) = get_cursor_info(prev_cardstacks);
+    let (cur_cursor_term, prev_is_empty_line) =
+      get_cursor_info(cur_cardstacks);
     let cur_entry = {
-      cardstacks_state: cur_cardstacks_state,
+      cardstacks: cur_cardstacks,
       previous_action: action,
-      previous_cursor_term: get_cursor_term(prev_cardstacks_state),
-      current_cursor_term: get_cursor_term(cur_cardstacks_state),
+      previous_cursor_term: prev_cursor_term,
+      current_cursor_term: cur_cursor_term,
+      prev_is_empty_line,
     };
     if (!prev_group.is_complete
         && in_same_history_group(~prev_entry, ~cur_entry)) {

@@ -142,10 +142,16 @@ module StrongWidthPosKey = Memoize.Strong(WidthPosKey);
 
 let rec layout_of_doc': 'annot. Doc.t('annot) => m(Layout.t('annot)) =
   (doc, ~width: int, ~pos: int) => {
-    Obj.magic(Lazy.force(memo_table, Obj.magic(doc), ~width, ~pos));
+    Obj.magic(snd(Lazy.force(memo_table), Obj.magic(doc), ~width, ~pos));
   }
 
-and memo_table: Lazy.t(Doc.t(unit) => m(Layout.t(unit))) =
+and memo_table:
+  Lazy.t(
+    (
+      Memoize.WeakPoly.Table.t(m(Layout.t(unit))),
+      Doc.t(unit) => m(Layout.t(unit)),
+    ),
+  ) =
   lazy(Memoize.WeakPoly.make(layout_of_doc''))
 
 and layout_of_doc'': Doc.t(unit) => m(Layout.t(unit)) =
@@ -186,7 +192,7 @@ and layout_of_doc'': Doc.t(unit) => m(Layout.t(unit)) =
       };
       ret(~width, ~pos);
     };
-    let h = StrongWidthPosKey.make(g);
+    let (_clear, h) = StrongWidthPosKey.make(g);
     (~width, ~pos) => h((width, pos));
   };
 
@@ -208,5 +214,8 @@ let layout_of_doc =
       };
   };
   // TODO: use options instead of max_int
-  minimum((max_int, (max_int, None)), layout_of_doc'(doc, ~width, ~pos));
+  let l =
+    minimum((max_int, (max_int, None)), layout_of_doc'(doc, ~width, ~pos));
+  Memoize.WeakPoly.Table.clear(fst(Lazy.force(memo_table)));
+  l;
 };

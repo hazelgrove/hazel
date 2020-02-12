@@ -109,12 +109,19 @@ let caret_of_side: Side.t => Vdom.Node.t =
   | Before => caret_from_left(0.0)
   | After => caret_from_left(100.0);
 
-let contenteditable_of_layout = (~inject, l: TermLayout.t): Vdom.Node.t => {
+let contenteditable_of_layout =
+    (
+      ~inject: Update.Action.t => Vdom.Event.t,
+      ~show_contenteditable: bool,
+      l: TermLayout.t,
+    )
+    : Vdom.Node.t => {
   open Vdom;
   let caret_position = (path: CursorPath.t): Node.t =>
     Node.span(
       [Attr.id(path_id(path))],
-      [Node.text(LangUtil.nondisplay1)],
+      // TODO: Once we figure out content-editable cursor use `Node.text("")`
+      [Node.text(UnicodeConstants.zwsp)],
     );
   let record: Layout.text(annot, list(Node.t), Node.t) = {
     /* All DOM text nodes are expected to be wrapped in an
@@ -168,7 +175,10 @@ let contenteditable_of_layout = (~inject, l: TermLayout.t): Vdom.Node.t => {
         [contenteditable_false],
         [
           Node.text(
-            String.concat("", ListUtil.replicate(indent, LangUtil.nbsp1)),
+            String.concat(
+              "",
+              ListUtil.replicate(indent, UnicodeConstants.nbsp),
+            ),
           ),
         ],
       ),
@@ -177,7 +187,16 @@ let contenteditable_of_layout = (~inject, l: TermLayout.t): Vdom.Node.t => {
       Node.div(
         [
           Attr.id("contenteditable"),
-          Attr.classes(["code", "contenteditable"]),
+          Attr.classes(
+            ["code", "contenteditable"]
+            @ (
+              if (show_contenteditable) {
+                [];
+              } else {
+                ["hiddencontenteditable"];
+              }
+            ),
+          ),
           Attr.create("contenteditable", "true"),
           Attr.on("drop", _ => Event.Prevent_default),
           Attr.on_focus(_ => inject(Update.Action.FocusCell)),
@@ -404,6 +423,7 @@ let editor_view_of_layout =
       ~inject: Update.Action.t => Vdom.Event.t,
       ~path: option(CursorPath.t)=?,
       ~ci: option(CursorInfo.t)=?,
+      ~show_contenteditable: bool,
       l: TermLayout.t,
     )
     : (Vdom.Node.t, Vdom.Node.t) => {
@@ -445,7 +465,7 @@ let editor_view_of_layout =
          )
     };
   (
-    contenteditable_of_layout(~inject, l),
+    contenteditable_of_layout(~inject, ~show_contenteditable, l),
     presentation_of_layout(~inject, l),
   );
 };
@@ -470,6 +490,7 @@ let editor_view_of_exp =
       ~pos=0,
       ~path: option(CursorPath.t)=?,
       ~ci: option(CursorInfo.t)=?,
+      ~show_contenteditable: bool,
       e: UHExp.t,
     )
     : (Vdom.Node.t, Vdom.Node.t) => {
@@ -479,6 +500,7 @@ let editor_view_of_exp =
     |> LayoutOfDoc.layout_of_doc(~width, ~pos);
   switch (l) {
   | None => failwith("unimplemented: view_of_exp on layout failure")
-  | Some(l) => editor_view_of_layout(~inject, ~path?, ~ci?, l)
+  | Some(l) =>
+    editor_view_of_layout(~inject, ~path?, ~ci?, ~show_contenteditable, l)
   };
 };

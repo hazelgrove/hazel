@@ -57,7 +57,7 @@ let user_newline =
   Doc.(
     hcats([
       space |> annot_Padding,
-      Text(LangUtil.user_newline) |> annot(TermAnnot.UserNewline),
+      Text(UnicodeConstants.user_newline) |> annot(TermAnnot.UserNewline),
     ])
   );
 
@@ -534,7 +534,7 @@ module Typ = {
           Doc.(
             hcats([
               choices([Linebreak, space]),
-              Text(LangUtil.typeArrowSym ++ " "),
+              Text(UnicodeConstants.typeArrowSym ++ " "),
             ])
           );
         let ty1_doc =
@@ -630,10 +630,7 @@ module Typ = {
 
   let rec mk =
           (~steps: CursorPath.steps, ~enforce_inline: bool, uty: UHTyp.t): t =>
-    switch (uty) {
-    | T1(uty1) => mk_opseq(~steps, ~enforce_inline, uty1)
-    | T0(uty0) => mk_operand(~steps, ~enforce_inline, uty0)
-    }
+    mk_opseq(~steps, ~enforce_inline, uty)
   and mk_opseq =
       (~steps: CursorPath.steps, ~enforce_inline: bool, opseq: UHTyp.opseq): t =>
     mk_NTuple(~mk_operand, ~mk_operator, ~steps, ~enforce_inline, opseq)
@@ -693,10 +690,7 @@ module Pat = {
 
   let rec mk =
           (~steps: CursorPath.steps, ~enforce_inline: bool, p: UHPat.t): t =>
-    switch (p) {
-    | P1(p1) => mk_opseq(~steps, ~enforce_inline, p1)
-    | P0(p0) => mk_operand(~steps, ~enforce_inline, p0)
-    }
+    mk_opseq(~steps, ~enforce_inline, p)
   and mk_opseq =
       (~steps: CursorPath.steps, ~enforce_inline: bool, opseq: UHPat.opseq): t =>
     mk_NTuple(~mk_operand, ~mk_operator, ~steps, ~enforce_inline, opseq)
@@ -776,46 +770,56 @@ module Exp = {
 
   let rec mk =
           (~steps: CursorPath.steps, ~enforce_inline: bool, e: UHExp.t): t =>
-    switch (e) {
-    | E2(e2) =>
-      // assumes edit states are always unwrapped,
-      // thus e2 must have two or more lines
-      enforce_inline ? Fail : mk_block(~steps, e2)
-    | E1(e1) => mk_opseq(~steps, ~enforce_inline, e1)
-    | E0(e0) => mk_operand(~steps, ~enforce_inline, e0)
+    mk_block(~enforce_inline, ~steps, e)
+  and mk_block =
+      (
+        ~offset=0,
+        ~steps: CursorPath.steps,
+        ~enforce_inline: bool,
+        block: UHExp.block,
+      )
+      : t =>
+    if (enforce_inline && UHExp.Block.num_lines(block) > 1) {
+      Fail;
+    } else {
+      block
+      |> List.mapi((i, line) =>
+           mk_line(~enforce_inline, ~steps=steps @ [offset + i], line)
+           |> annot_Step(offset + i)
+         )
+      |> ListUtil.split_last
+      |> (
+        fun
+        | None => failwith(__LOC__ ++ ": empty block")
+        | Some((leading, concluding)) =>
+          ListUtil.fold_right_i(
+            ((i, hd_doc), tl_doc) =>
+              Doc.vsep(hd_doc, tl_doc)
+              |> annot_SubBlock(~hd_index=offset + i),
+            leading,
+            concluding
+            |> annot_SubBlock(
+                 ~hd_index=offset + UHExp.Block.num_lines(block) - 1,
+               ),
+          )
+      );
     }
-  and mk_block = (~offset=0, ~steps: CursorPath.steps, block: UHExp.block): t =>
-    block
-    |> List.mapi((i, line) =>
-         mk_line(~steps=steps @ [offset + i], line)
-         |> annot_Step(offset + i)
-       )
-    |> ListUtil.split_last
-    |> (
-      fun
-      | None => failwith(__LOC__ ++ ": empty block")
-      | Some((leading, concluding)) =>
-        ListUtil.fold_right_i(
-          ((i, hd_doc), tl_doc) =>
-            Doc.vsep(hd_doc, tl_doc) |> annot_SubBlock(~hd_index=offset + i),
-          leading,
-          concluding
-          |> annot_SubBlock(~hd_index=offset + UHExp.num_lines(block) - 1),
-        )
-    )
-  and mk_line = (~steps: CursorPath.steps, line: UHExp.line): t =>
+  and mk_line =
+      (~enforce_inline: bool, ~steps: CursorPath.steps, line: UHExp.line): t =>
     switch (line) {
     | EmptyLine =>
-      mk_text(~steps, LangUtil.nondisplay1) |> Doc.annot(TermAnnot.EmptyLine)
-    | ExpLine(opseq) => mk_opseq(~steps, ~enforce_inline=false, opseq)
+      // TODO: Once we figure out contenteditable cursors, use `mk_text(~steps, "")`
+      mk_text(~steps, UnicodeConstants.zwsp)
+      |> Doc.annot(TermAnnot.EmptyLine)
+    | ExpLine(opseq) => mk_opseq(~steps, ~enforce_inline, opseq)
     | LetLine(p, ann, def) =>
-      let p = Pat.mk_child(~enforce_inline=false, ~steps, ~child_step=0, p);
+      let p = Pat.mk_child(~enforce_inline, ~steps, ~child_step=0, p);
       let ann =
         ann
         |> OptUtil.map(ann =>
-             Typ.mk_child(~enforce_inline=false, ~steps, ~child_step=1, ann)
+             Typ.mk_child(~enforce_inline, ~steps, ~child_step=1, ann)
            );
-      let def = mk_child(~enforce_inline=false, ~steps, ~child_step=2, def);
+      let def = mk_child(~enforce_inline, ~steps, ~child_step=2, def);
       mk_LetLine(~steps, p, ann, def) |> Doc.annot(TermAnnot.LetLine);
     }
   and mk_opseq =
@@ -886,12 +890,17 @@ module Exp = {
   }
   and mk_child = (~enforce_inline, ~steps, ~child_step, e): formatted_child => {
     switch (e) {
-    | E2([EmptyLine, ...subblock]) =>
+    | [EmptyLine, ...subblock] =>
       if (enforce_inline) {
         EnforcedInline(Fail);
       } else {
         let formatted =
-          mk_block(~offset=1, ~steps=steps @ [child_step], subblock)
+          mk_block(
+            ~offset=1,
+            ~steps=steps @ [child_step],
+            ~enforce_inline=false,
+            subblock,
+          )
           |> annot_Step(child_step);
         UserNewline(formatted);
       }

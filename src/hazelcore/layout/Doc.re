@@ -12,8 +12,8 @@ type t('annot) =
   | Choice(t('annot), t('annot));
 
 let empty = Text("");
-let space = Text(LangUtil.nbsp1);
-let indent = Text(LangUtil.nbsp2);
+let space = Text(UnicodeConstants.nbsp);
+let indent = Text(UnicodeConstants.nbsp ++ UnicodeConstants.nbsp);
 
 let align = doc => Align(doc);
 let annot = (annot, doc) => Annot(annot, doc);
