@@ -350,10 +350,15 @@ module LivelitContexts = {
   type t = (LivelitCtx.t, LivelitViewCtx.t);
   let empty = (LivelitCtx.empty, LivelitViewCtx.empty);
   let extend =
-      ((livelit_ctx, livelit_view_ctx), (name, def, serialized_view_fn)) => (
-    VarMap.extend(livelit_ctx, (name, def)),
-    VarMap.extend(livelit_view_ctx, (name, serialized_view_fn)),
-  );
+      ((livelit_ctx, livelit_view_ctx), (name, def, serialized_view_fn)) => {
+    if (!LivelitName.is_valid(name)) {
+      failwith("Invalid livelit name " ++ name);
+    };
+    (
+      VarMap.extend(livelit_ctx, (name, def)),
+      VarMap.extend(livelit_view_ctx, (name, serialized_view_fn)),
+    );
+  };
 };
 
 module LivelitAdapter = (L: LIVELIT) => {
