@@ -24,7 +24,7 @@ let of_text = (text: string): option(t) =>
   | (None, None, None) =>
     if (text |> String.equal("_")) {
       Some(Underscore);
-    } else if (text |> LivelitName.is_valid_free) {
+    } else if (text |> LivelitName.is_valid_free_livelit_name) {
       Some(LivelitName(text));
     } else if (text |> Var.is_valid) {
       Some(Var(text));
