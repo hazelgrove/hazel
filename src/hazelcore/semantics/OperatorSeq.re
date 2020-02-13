@@ -112,7 +112,24 @@ let rec seq_update_nth = (n, seq, e) =>
     };
   };
 
+/*
+ for each position in n_list,
+ update corresponding expression in seq, if it exists */
+let rec seq_update_tms = (ns: list(int), seq, tms) =>
+  switch (ns, seq, tms) {
+  | ([], seq, []) => Some(seq)
+  | ([n], seq, [tm]) => seq_update_nth(n, seq, tm)
+  | ([n, ...ns], seq, [tm, ...tms]) =>
+    switch (seq_update_nth(n, seq, tm)) {
+    | Some(seq) => seq_update_tms(ns, seq, tms)
+    | None => None
+    }
+  // length of ns and tms does not match
+  | (_, _, _) => None
+  };
+
 /* set up this way to enforce the requirement that there be at least one op */
+
 [@deriving sexp]
 type opseq_surround('tm, 'op) =
   /* if the prefix is empty, there must be a non-empty suffix */

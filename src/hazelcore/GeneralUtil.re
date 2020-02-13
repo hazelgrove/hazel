@@ -433,18 +433,70 @@ module ZNatMap = {
   };
 };
 
-module ListMinOne = {
+module type LIST = {
   type t('a) =
-    | Elem('a)
+    | One('a)
+    | Cons('a, t('a));
+  let of_list: list('a) => t('a);
+  let elements: t('a) => list('a);
+  let append: (t('a), t('a)) => t('a);
+  let concat: list(t('a)) => t('a);
+  let divide_n: (int, t('a)) => (t('a), option(t('a)));
+};
+
+module ListMinOne: LIST = {
+  type t('a) =
+    | One('a)
     | Cons('a, t('a));
 
-  exception LessThanOneElement;
+  exception EmptyList;
 
   let rec of_list = (xs: list('a)): t('a) =>
     switch (xs) {
-    | [] => raise(LessThanOneElement)
-    | [x] => Elem(x)
+    | [] => raise(EmptyList)
+    | [x] => One(x)
     | [x, ...xs] => Cons(x, of_list(xs))
+    };
+
+  let rec elements = (xs: t('a)): list('a) =>
+    switch (xs) {
+    | One(x) => [x]
+    | Cons(x, xs) => [x, ...elements(xs)]
+    };
+
+  let rec append = (xs: t('a), ys: t('a)): t('a) =>
+    switch (xs) {
+    | One(x) => Cons(x, ys)
+    | Cons(x, xs) => Cons(x, append(xs, ys))
+    };
+
+  let rec concat = (xss: list(t('a))): t('a) =>
+    switch (xss) {
+    | [] => raise(EmptyList)
+    | [xs] => xs
+    | [xs, ...xss] => append(xs, concat(xss))
+    };
+
+  exception TooFewElements;
+  exception InvalidN;
+  let rec divide_n = (n: int, xs: t('a)): (t('a), option(t('a))) =>
+    switch (n, xs) {
+    | (1, One(_)) => (xs, None)
+    | (_, One(_)) =>
+      if (n < 1) {
+        raise(InvalidN);
+      } else {
+        raise(TooFewElements);
+      }
+    | (_, Cons(x, xs)) =>
+      if (n < 1) {
+        raise(InvalidN);
+      } else if (n == 1) {
+        (One(x), Some(xs));
+      } else {
+        let (first, opt_last) = divide_n(n - 1, xs);
+        (Cons(x, first), opt_last);
+      }
     };
 };
 /**
@@ -561,5 +613,50 @@ module Opt = {
     switch (opt) {
     | None => false
     | Some(_) => true
+    };
+};
+
+module MakeListDeferrable = (Needed: LIST) => {
+  type deferrable('needed_t, 'deferred_t, 'target_t) =
+    | NotDeferred('deferred_t)
+    | Deferred(Needed.t('needed_t) => 'deferred_t, Needed.t('target_t));
+
+  exception ForceNotDeferredfromDeferred;
+  let force_not_deferred =
+      (deferrable: deferrable('needed_t, 'deferred_t, 'target_t))
+      : 'deferred_t =>
+    switch (deferrable) {
+    | NotDeferred(not_deferred) => not_deferred
+    | Deferred(_, _) => raise(ForceNotDeferredfromDeferred)
+    };
+
+  exception UndeferNotDeferred;
+  exception DeferredNotConsistent;
+  let undefer_one =
+      (
+        one_to_fill: 'needed_t,
+        deferrable: deferrable('a, 'deferred_t, 'target_t),
+      )
+      : deferrable('a, 'deferred_t, 'target_t) =>
+    switch (deferrable) {
+    | NotDeferred(_) => raise(UndeferNotDeferred)
+    | Deferred(deferred, target_list) =>
+      switch (target_list) {
+      | One(_) => NotDeferred(Needed.One(one_to_fill) |> deferred)
+      | Cons(_, target_list) =>
+        Deferred(
+          warn_list => Needed.Cons(one_to_fill, warn_list) |> deferred,
+          target_list,
+        )
+      }
+    };
+
+  let pass_deferrable =
+      (func: 'a => 'b, deferrable: deferrable('needed_t, 'a, 'target_t))
+      : deferrable('needed_t, 'b, 'target_t) =>
+    switch (deferrable) {
+    | NotDeferred(p) => NotDeferred(func(p))
+    | Deferred(deferred, var_list) =>
+      Deferred(warn_list => func(warn_list |> deferred), var_list)
     };
 };
