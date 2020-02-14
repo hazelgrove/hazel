@@ -209,6 +209,7 @@ html, body {
   display: block; /* MUST do this: inline elements have in-built vertical margins */
   font-family: "Fira Mono", monospace;
   font-size: 16px;
+  cursor: default;
 }
 
 .sidebar-body-slider {
