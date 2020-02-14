@@ -279,7 +279,7 @@ let view =
                 Event.Many([Event.Prevent_default, ...updates]);
               }),
             ],
-            [Arrows.left_arrow(["prev-instance", "has-prev", "noselect"])],
+            [Icons.left_arrow(["prev-instance", "has-prev", "noselect"])],
           )
         )
       | None =>
@@ -289,7 +289,7 @@ let view =
               Attr.create("title", prev_title),
               Attr.classes(["instance-button-wrapper"]),
             ],
-            [Arrows.left_arrow(["prev-instance", "no-prev", "noselect"])],
+            [Icons.left_arrow(["prev-instance", "no-prev", "noselect"])],
           )
         )
       };
@@ -310,7 +310,7 @@ let view =
                 Event.Many([Event.Prevent_default, ...updates]);
               }),
             ],
-            [Arrows.right_arrow(["next-instance", "has-next", "noselect"])],
+            [Icons.right_arrow(["next-instance", "has-next", "noselect"])],
           )
         )
       | None =>
@@ -320,7 +320,7 @@ let view =
               Attr.create("title", next_title),
               Attr.classes(["instance-button-wrapper"]),
             ],
-            [Arrows.right_arrow(["next-instance", "no-next", "noselect"])],
+            [Icons.right_arrow(["next-instance", "no-next", "noselect"])],
           )
         )
       };
