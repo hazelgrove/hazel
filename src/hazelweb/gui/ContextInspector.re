@@ -279,12 +279,7 @@ let view =
                 Event.Many([Event.Prevent_default, ...updates]);
               }),
             ],
-            [
-              SvgShapes.left_arrow(
-                ["prev-instance", "has-prev", "noselect"],
-                (),
-              ),
-            ],
+            [Arrows.left_arrow(["prev-instance", "has-prev", "noselect"])],
           )
         )
       | None =>
@@ -294,12 +289,7 @@ let view =
               Attr.create("title", prev_title),
               Attr.classes(["instance-button-wrapper"]),
             ],
-            [
-              SvgShapes.left_arrow(
-                ["prev-instance", "no-prev", "noselect"],
-                (),
-              ),
-            ],
+            [Arrows.left_arrow(["prev-instance", "no-prev", "noselect"])],
           )
         )
       };
@@ -320,12 +310,7 @@ let view =
                 Event.Many([Event.Prevent_default, ...updates]);
               }),
             ],
-            [
-              SvgShapes.right_arrow(
-                ["next-instance", "has-next", "noselect"],
-                (),
-              ),
-            ],
+            [Arrows.right_arrow(["next-instance", "has-next", "noselect"])],
           )
         )
       | None =>
@@ -335,12 +320,7 @@ let view =
               Attr.create("title", next_title),
               Attr.classes(["instance-button-wrapper"]),
             ],
-            [
-              SvgShapes.right_arrow(
-                ["next-instance", "no-next", "noselect"],
-                (),
-              ),
-            ],
+            [Arrows.right_arrow(["next-instance", "no-next", "noselect"])],
           )
         )
       };
