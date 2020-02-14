@@ -159,7 +159,7 @@ html, body {
   width: 400px;
   flex-shrink: 0;
   transition: width 0.3s ease;
-  overflow-x: auto;
+  overflow-x: hidden;
 }
 
 .collapsed-sidebar {
@@ -183,8 +183,8 @@ html, body {
   height: 100%;
   direction: ltr; /* reset text direction */
   background-color: tan;
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-rows: 1fr auto;
   padding-top: 7px;
 }
 
@@ -205,11 +205,10 @@ html, body {
 }
 
 .sidebar-tab-icon {
-  width: 9px;
-  height: 9px;
-  flex-shrink: 0;
   fill: #41392c;
   display: block; /* MUST do this: inline elements have in-built vertical margins */
+  font-family: "Fira Mono", monospace;
+  font-size: 16px;
 }
 
 .sidebar-body-slider {
