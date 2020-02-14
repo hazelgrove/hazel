@@ -130,24 +130,12 @@ and is_before_zoperand =
   fun
   | CursorE(cursor, EmptyHole(_))
   | CursorE(cursor, ListNil(_)) => cursor == OnDelim(0, Before)
-<<<<<<< HEAD
   | CursorE(cursor, Var(_))
   | CursorE(cursor, NumLit(_))
   | CursorE(cursor, BoolLit(_)) => cursor == OnText(0)
   | CursorE(cursor, Lam(_))
   | CursorE(cursor, Inj(_))
   | CursorE(cursor, Case(_))
-=======
-  /* outer nodes - text */
-  | CursorE(cursor, Var(_, _, _))
-  | CursorE(cursor, NumLit(_, _))
-  | CursorE(cursor, BoolLit(_, _)) => cursor == OnText(0)
-  /* inner nodes */
-  | CursorE(cursor, ListLit(_, _)) => cursor == OnDelim(0, Before)
-  | CursorE(cursor, Lam(_, _, _, _))
-  | CursorE(cursor, Inj(_, _, _))
-  | CursorE(cursor, Case(_, _, _, _))
->>>>>>> 60d70ebe8e25640a8f7a483ace8ab49626030377
   | CursorE(cursor, Parenthesized(_)) => cursor == OnDelim(0, Before)
   | CursorE(cursor, ApPalette(_)) => cursor == OnDelim(0, Before) /* TODO[livelits] */
   | ParenthesizedZ(_)
@@ -193,13 +181,7 @@ and is_after_zoperand =
     cursor == OnText(IntUtil.num_digits(n))
   | CursorE(cursor, BoolLit(_, true)) => cursor == OnText(4)
   | CursorE(cursor, BoolLit(_, false)) => cursor == OnText(5)
-<<<<<<< HEAD
   | CursorE(cursor, Lam(_)) => cursor == OnDelim(3, After)
-=======
-  /* inner nodes */
-  | CursorE(cursor, ListLit(_)) => cursor == OnDelim(1, After)
-  | CursorE(_, Lam(_, _, _, _)) => false
->>>>>>> 60d70ebe8e25640a8f7a483ace8ab49626030377
   | CursorE(_, Case(_, _, _, Some(_))) => false
   | CursorE(cursor, Case(_, _, _, None)) => cursor == OnDelim(1, After)
   | CursorE(cursor, Inj(_)) => cursor == OnDelim(1, After)
@@ -243,7 +225,6 @@ and place_before_opseq = opseq =>
 and place_before_operand = operand =>
   switch (operand) {
   | EmptyHole(_)
-<<<<<<< HEAD
   | ListNil(_) => CursorE(OnDelim(0, Before), operand)
   | Var(_)
   | NumLit(_)
@@ -253,30 +234,6 @@ and place_before_operand = operand =>
   | Case(_)
   | Parenthesized(_) => CursorE(OnDelim(0, Before), operand)
   | ApPalette(_) => CursorE(OnDelim(0, Before), operand) /* TODO[livelits] */
-=======
-  | ListNil(_) => CursorE(OnDelim(0, Before), e)
-  /* outer nodes - text */
-  | Var(_, _, _)
-  | NumLit(_, _)
-  | BoolLit(_, _) => CursorE(OnText(0), e)
-  /* inner nodes */
-  | Lam(_, _, _, _)
-  | Inj(_, _, _)
-  | Case(_, _, _, _)
-  | ListLit(_) => CursorE(OnDelim(0, Before), e)
-  | Parenthesized(_) => CursorE(OnDelim(0, Before), e)
-  | OpSeq(skel, seq) =>
-    let (e1, suffix) = OperatorSeq.split0(seq);
-    let ze1 = place_before_exp(e1);
-    let surround = OperatorSeq.EmptyPrefix(suffix);
-    OpSeqZ(skel, ze1, surround);
-  | ApPalette(_, _, _, _) => CursorE(OnDelim(0, Before), e) /* TODO[livelits] */
-  };
-let place_before_lines = (lines: UHExp.lines): option(zlines) =>
-  switch (lines) {
-  | [] => None
-  | [line, ...lines] => Some(([], place_before_line(line), lines))
->>>>>>> 60d70ebe8e25640a8f7a483ace8ab49626030377
   };
 let place_before_rule = (rule: UHExp.rule): zrule =>
   CursorR(OnDelim(0, Before), rule);
@@ -310,23 +267,10 @@ and place_after_operand = operand =>
   | Lam(_) => CursorE(OnDelim(3, After), operand)
   | Case(err, block, rules, Some(uty)) =>
     CaseZA(err, block, rules, ZTyp.place_after(uty))
-<<<<<<< HEAD
   | Case(_, _, _, None) => CursorE(OnDelim(1, After), operand)
   | Inj(_) => CursorE(OnDelim(1, After), operand)
   | Parenthesized(_) => CursorE(OnDelim(1, After), operand)
   | ApPalette(_) => CursorE(OnDelim(0, After), operand) /* TODO[livelits] */
-=======
-  | Case(_, _, _, None) => CursorE(OnDelim(1, After), e)
-  | Inj(_, _, _) => CursorE(OnDelim(1, After), e)
-  | ListLit(_) => CursorE(OnDelim(1, After), e)
-  | Parenthesized(_) => CursorE(OnDelim(1, After), e)
-  | OpSeq(skel, seq) =>
-    let (e1, prefix) = OperatorSeq.split_tail(seq);
-    let ze1 = place_after_exp(e1);
-    let surround = OperatorSeq.EmptySuffix(prefix);
-    OpSeqZ(skel, ze1, surround);
-  | ApPalette(_, _, _, _) => CursorE(OnDelim(0, After), e) /* TODO[livelits] */
->>>>>>> 60d70ebe8e25640a8f7a483ace8ab49626030377
   };
 let place_after_rule = (Rule(p, clause): UHExp.rule): zrule =>
   RuleZE(p, place_after(clause));
