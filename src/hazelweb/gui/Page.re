@@ -172,13 +172,11 @@ let page_view =
         Node.div(
           [Attr.classes(["main-area"])],
           [
-            /*
-             Sidebar.left(
-               ~inject,
-               model,
-               [ActionPanel.view(~inject, model)] //the_history_panel,
-             ),
-             */
+            Sidebar.left(
+              ~inject,
+              model,
+              [ActionPanel.view(~inject, model)] //the_history_panel,
+            ),
             Node.div(
               [Attr.classes(["flex-wrapper"])],
               [
