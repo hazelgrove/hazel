@@ -766,3 +766,40 @@ let is_trivial_block =
   fun
   | Block([], EmptyHole(_)) => true
   | _ => false;
+
+let rec is_complete_block =
+  fun
+  | Block(lines, e) => is_complete_lines(lines) && is_complete_exp(e)
+and is_complete_lines =
+  fun
+  | [] => true
+  | [line, ...lines] => is_complete_line(line) && is_complete_lines(lines)
+and is_complete_line =
+  fun
+  | EmptyLine => true
+  | LetLine(_, _, b) => is_complete_block(b)
+  | ExpLine(e) => is_complete_exp(e)
+and is_complete_exp =
+  fun
+  | EmptyHole(_) => false
+  | Var(_, _, _)
+  | NumLit(_, _)
+  | BoolLit(_, _)
+  | ListNil(_)
+  | ApPalette(_, _, _, _) => true
+  | Lam(_, _, _, b)
+  | Inj(_, _, b)
+  | Parenthesized(b) => is_complete_block(b)
+  | Case(_, b, rs, _) => is_complete_block(b) && is_complete_rules(rs)
+  | OpSeq(_, seq) => is_complete_seq(seq)
+and is_complete_rules =
+  fun
+  | [] => true
+  | [r, ...rs] => is_complete_rule(r) && is_complete_rules(rs)
+and is_complete_rule =
+  fun
+  | Rule(_, b) => is_complete_block(b)
+and is_complete_seq =
+  fun
+  | ExpOpExp(e1, _, e2) => is_complete_exp(e1) && is_complete_exp(e2)
+  | SeqOpExp(seq, _, e) => is_complete_exp(e) && is_complete_seq(seq);
