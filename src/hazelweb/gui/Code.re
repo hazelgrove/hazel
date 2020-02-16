@@ -124,6 +124,7 @@ let contenteditable_of_layout =
       // TODO: Once we figure out content-editable cursor use `Node.text("")`
       [Node.text(UnicodeConstants.zwsp)],
     );
+  let found_linebreak = ref(false);
   let record: Layout.text(annot, list(Node.t), Node.t) = {
     /* All DOM text nodes are expected to be wrapped in an
      * element either with contenteditable set to false or
@@ -170,30 +171,49 @@ let contenteditable_of_layout =
       },
     imp_append: (vs1, vs2) => vs1 @ vs2,
     imp_of_string: str => [Node.text(str)],
-    imp_newline: (~col, ~indent) => [
-      Node.span(
-        [],
-        [
-          Node.text(
-            UnicodeConstants.nbsp
-            |> ListUtil.replicate(width - col)
-            |> StringUtil.cat,
-          ),
-        ],
-      ),
-      Node.br([]),
-      Node.span(
-        [contenteditable_false],
-        [
-          Node.text(
-            UnicodeConstants.nbsp
-            |> ListUtil.replicate(indent)
-            |> StringUtil.cat,
-          ),
-        ],
-      ),
-    ],
-    t_of_imp: vs =>
+    imp_newline: (~last_col, ~indent) => {
+      found_linebreak := true;
+      [
+        Node.span(
+          [],
+          [
+            Node.text(
+              UnicodeConstants.nbsp
+              |> ListUtil.replicate(width - last_col)
+              |> StringUtil.cat,
+            ),
+          ],
+        ),
+        Node.br([]),
+        Node.span(
+          [contenteditable_false],
+          [
+            Node.text(
+              UnicodeConstants.nbsp
+              |> ListUtil.replicate(indent)
+              |> StringUtil.cat,
+            ),
+          ],
+        ),
+      ];
+    },
+    t_of_imp: (~last_col, vs) => {
+      let vs =
+        found_linebreak^
+          ? vs
+          : vs
+            @ [
+              Node.span(
+                [contenteditable_false],
+                [
+                  Node.text(
+                    UnicodeConstants.nbsp
+                    |> ListUtil.replicate(width - last_col)
+                    |> StringUtil.cat,
+                  ),
+                ],
+              ),
+            ];
       Node.div(
         [
           Attr.id("contenteditable"),
@@ -213,7 +233,8 @@ let contenteditable_of_layout =
           Attr.on_blur(_ => inject(Update.Action.BlurCell)),
         ],
         vs,
-      ),
+      );
+    },
   };
   Layout.make_of_layout(record, l);
 };

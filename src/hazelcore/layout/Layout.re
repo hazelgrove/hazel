@@ -77,9 +77,9 @@ type text('annot, 'imp, 't) = {
   // TODO: rename `imp`
   imp_of_string: string => 'imp,
   imp_append: ('imp, 'imp) => 'imp,
-  imp_newline: (~col: int, ~indent: int) => 'imp,
+  imp_newline: (~last_col: int, ~indent: int) => 'imp,
   imp_of_annot: ('annot, 'imp) => 'imp,
-  t_of_imp: 'imp => 't,
+  t_of_imp: (~last_col: int, 'imp) => 't,
 };
 
 let make_of_layout: (text('annot, 'imp, 't), t('annot)) => 't =
@@ -97,14 +97,15 @@ let make_of_layout: (text('annot, 'imp, 't), t('annot)) => 't =
           text.imp_append(imp1, imp2);
         | Linebreak =>
           // TODO: no indent if on final line break
-          let col = column^;
+          let last_col = column^;
           column := indent;
-          text.imp_newline(~col, ~indent);
+          text.imp_newline(~last_col, ~indent);
         | Align(l) => go(column^, l)
         | Annot(annot, l) => text.imp_of_annot(annot, go(indent, l))
         };
       };
-    text.t_of_imp(go(0, layout));
+    let imp = go(0, layout);
+    text.t_of_imp(~last_col=column^, imp);
   };
 
 let string_of_layout: 'annot. t('annot) => string =
@@ -112,10 +113,10 @@ let string_of_layout: 'annot. t('annot) => string =
     let record: 'annot. text('annot, string, string) = {
       imp_of_string: string => string,
       imp_append: (s1, s2) => s1 ++ s2,
-      imp_newline: (~col as _col, ~indent) =>
+      imp_newline: (~last_col as _, ~indent) =>
         "\n" ++ String.make(indent, ' '),
       imp_of_annot: (_, imp) => imp,
-      t_of_imp: imp => imp,
+      t_of_imp: (~last_col as _, imp) => imp,
     };
     make_of_layout(record, layout);
   };
@@ -163,9 +164,9 @@ let strings_of_layout: 'annot. t('annot) => list((int, string)) =
           @ [(last_indent_1, last_string_1 ++ first_string_2), ...rest2];
         };
       },
-      imp_newline: (~col as _col, ~indent) => [(indent, "")],
+      imp_newline: (~last_col as _, ~indent) => [(indent, "")],
       imp_of_annot: (_, imp) => imp,
-      t_of_imp: s => s,
+      t_of_imp: (~last_col as _, s) => s,
     };
     make_of_layout(record, layout);
   };
