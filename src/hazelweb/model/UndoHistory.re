@@ -522,7 +522,9 @@ let join_group = (prev_group: undo_history_group, new_entry:undo_history_entry):
               }
           }
         }
-        | (Construct(shape_1), Construct(shape_2)) =>
+        | (Construct(shape_1), Construct(shape_2)) => {
+          switch
+        }
         | (UpdateApPalette(_), _) =>
           failwith("ApPalette is not implemented in undo_history")
         | (Delete, _)
