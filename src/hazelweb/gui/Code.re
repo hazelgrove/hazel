@@ -178,22 +178,14 @@ let contenteditable_of_layout =
           [],
           [
             Node.text(
-              UnicodeConstants.nbsp
-              |> ListUtil.replicate(width - last_col)
-              |> StringUtil.cat,
+              UnicodeConstants.nbsp |> StringUtil.replicat(width - last_col),
             ),
           ],
         ),
         Node.br([]),
         Node.span(
           [contenteditable_false],
-          [
-            Node.text(
-              UnicodeConstants.nbsp
-              |> ListUtil.replicate(indent)
-              |> StringUtil.cat,
-            ),
-          ],
+          [Node.text(UnicodeConstants.nbsp |> StringUtil.replicat(indent))],
         ),
       ];
     },
@@ -208,8 +200,7 @@ let contenteditable_of_layout =
                 [
                   Node.text(
                     UnicodeConstants.nbsp
-                    |> ListUtil.replicate(width - last_col)
-                    |> StringUtil.cat,
+                    |> StringUtil.replicat(width - last_col),
                   ),
                 ],
               ),
