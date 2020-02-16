@@ -177,7 +177,7 @@ let join_group = (prev_group: undo_history_group, new_entry:undo_history_entry):
                     /* num==1 is the position of ':' in an expression */
                   
                       let prev_group' = {
-                        ...prev_group,new_entry
+                        ...prev_group,
                         is_complete: true,
                       };
                       let new_entry' = set_edit_action_of_entry(new_entry, DeleteTypeAnn);
@@ -191,8 +191,12 @@ let join_group = (prev_group: undo_history_group, new_entry:undo_history_entry):
                       }
                       | None => {
                         /* delete and not reach a hole */
+                        let prev_group' = {
+                          ...prev_group,
+                          is_complete: true,
+                        };
                         let new_entry' = set_edit_action_of_entry(new_entry,DeleteToNotHole);
-                        Success(push_history_entry(prev_group,new_entry'));
+                        Success(push_history_entry(prev_group',new_entry'));
                       }
                       }
                   }
@@ -204,7 +208,7 @@ let join_group = (prev_group: undo_history_group, new_entry:undo_history_entry):
                 switch(CursorInfo.is_hole(prev_entry_info.current_cursor_term)){
                 | Some(hole_id) => {
                   let prev_group' = {
-                    ...prev_group,new_entry
+                    ...prev_group,
                     is_complete: true,
                   };
                   let new_entry' = set_edit_action_of_entry(new_entry, DeleteHole(hole_id));
@@ -212,21 +216,51 @@ let join_group = (prev_group: undo_history_group, new_entry:undo_history_entry):
                 }
                 | None => {
                   /* move cursor to next term, just ignore this move */
+                  let prev_group' = {
+                    ...prev_group,
+                    is_complete: true,
+                  };
                   let new_entry' = {
                     ...new_entry,
                     info: None,
                   };
-                  Success(push_history_entry(prev_group,new_entry'));
+                  Success(push_history_entry(prev_group',new_entry'));
                 }
                 }
               
               }
             | OnOp(side) =>
               switch (side) {
-              | Before =>
-                Some("clear " ++ display_string_of_cursor(prev_cursor_term))
-              | After =>
-                Some("edit " ++ display_string_of_cursor(cur_cursor_term))
+              | Before => {
+                switch(CursorInfo.is_hole(new_entry_info.current_cursor_term)){
+                  | Some(hole_id) => {
+                    /* delete and reach a hole */
+                    let new_entry' = set_edit_action_of_entry(new_entry,DeleteToHole(hole_id));
+                    Success(push_history_entry(prev_group,new_entry'));
+                  }
+                  | None => {
+                    /* delete and not reach a hole */
+                    let prev_group' = {
+                      ...prev_group,
+                      is_complete: true,
+                    };
+                    let new_entry' = set_edit_action_of_entry(new_entry,DeleteToNotHole);
+                    Success(push_history_entry(prev_group',new_entry'));
+                  }
+                }
+              }
+              | After =>{
+                /* move cursor to next term, just ignore this move */
+                let prev_group' = {
+                  ...prev_group,
+                  is_complete: true,
+                };
+                let new_entry' = {
+                  ...new_entry,
+                  info: None,
+                };
+                Success(push_history_entry(prev_group',new_entry'));
+              } 
               }
           }
         }
