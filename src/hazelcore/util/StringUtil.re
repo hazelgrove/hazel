@@ -1,5 +1,7 @@
 let is_empty = String.equal("");
 
+let cat = String.concat("");
+
 /**
  * A string of length n has caret positions 0 through n,
  * where 0 places the caret at the start and n places

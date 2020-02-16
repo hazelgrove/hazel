@@ -113,6 +113,7 @@ let contenteditable_of_layout =
     (
       ~inject: Update.Action.t => Vdom.Event.t,
       ~show_contenteditable: bool,
+      ~width: int,
       l: TermLayout.t,
     )
     : Vdom.Node.t => {
@@ -169,16 +170,25 @@ let contenteditable_of_layout =
       },
     imp_append: (vs1, vs2) => vs1 @ vs2,
     imp_of_string: str => [Node.text(str)],
-    imp_newline: indent => [
+    imp_newline: (~col, ~indent) => [
+      Node.span(
+        [],
+        [
+          Node.text(
+            UnicodeConstants.nbsp
+            |> ListUtil.replicate(width - col)
+            |> StringUtil.cat,
+          ),
+        ],
+      ),
       Node.br([]),
       Node.span(
         [contenteditable_false],
         [
           Node.text(
-            String.concat(
-              "",
-              ListUtil.replicate(indent, UnicodeConstants.nbsp),
-            ),
+            UnicodeConstants.nbsp
+            |> ListUtil.replicate(indent)
+            |> StringUtil.cat,
           ),
         ],
       ),
@@ -424,6 +434,7 @@ let editor_view_of_layout =
       ~path: option(CursorPath.t)=?,
       ~ci: option(CursorInfo.t)=?,
       ~show_contenteditable: bool,
+      ~width: int,
       l: TermLayout.t,
     )
     : (Vdom.Node.t, Vdom.Node.t) => {
@@ -465,7 +476,7 @@ let editor_view_of_layout =
          )
     };
   (
-    contenteditable_of_layout(~inject, ~show_contenteditable, l),
+    contenteditable_of_layout(~inject, ~width, ~show_contenteditable, l),
     presentation_of_layout(~inject, l),
   );
 };
@@ -501,6 +512,13 @@ let editor_view_of_exp =
   switch (l) {
   | None => failwith("unimplemented: view_of_exp on layout failure")
   | Some(l) =>
-    editor_view_of_layout(~inject, ~path?, ~ci?, ~show_contenteditable, l)
+    editor_view_of_layout(
+      ~inject,
+      ~width,
+      ~path?,
+      ~ci?,
+      ~show_contenteditable,
+      l,
+    )
   };
 };

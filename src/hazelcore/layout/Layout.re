@@ -77,7 +77,7 @@ type text('annot, 'imp, 't) = {
   // TODO: rename `imp`
   imp_of_string: string => 'imp,
   imp_append: ('imp, 'imp) => 'imp,
-  imp_newline: int => 'imp,
+  imp_newline: (~col: int, ~indent: int) => 'imp,
   imp_of_annot: ('annot, 'imp) => 'imp,
   t_of_imp: 'imp => 't,
 };
@@ -97,8 +97,9 @@ let make_of_layout: (text('annot, 'imp, 't), t('annot)) => 't =
           text.imp_append(imp1, imp2);
         | Linebreak =>
           // TODO: no indent if on final line break
+          let col = column^;
           column := indent;
-          text.imp_newline(indent);
+          text.imp_newline(~col, ~indent);
         | Align(l) => go(column^, l)
         | Annot(annot, l) => text.imp_of_annot(annot, go(indent, l))
         };
@@ -111,7 +112,8 @@ let string_of_layout: 'annot. t('annot) => string =
     let record: 'annot. text('annot, string, string) = {
       imp_of_string: string => string,
       imp_append: (s1, s2) => s1 ++ s2,
-      imp_newline: indent => "\n" ++ String.make(indent, ' '),
+      imp_newline: (~col as _col, ~indent) =>
+        "\n" ++ String.make(indent, ' '),
       imp_of_annot: (_, imp) => imp,
       t_of_imp: imp => imp,
     };
@@ -161,7 +163,7 @@ let strings_of_layout: 'annot. t('annot) => list((int, string)) =
           @ [(last_indent_1, last_string_1 ++ first_string_2), ...rest2];
         };
       },
-      imp_newline: indent => [(indent, "")],
+      imp_newline: (~col as _col, ~indent) => [(indent, "")],
       imp_of_annot: (_, imp) => imp,
       t_of_imp: s => s,
     };
