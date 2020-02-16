@@ -121,7 +121,7 @@ let contenteditable_of_layout =
   let caret_position = (path: CursorPath.t): Node.t =>
     Node.span(
       [Attr.id(path_id(path))],
-      // TODO: Once we figure out content-editable cursor use `Node.text("")`
+      // TODO: Once we figure out contenteditable cursor use `Node.text("")`
       [Node.text(UnicodeConstants.zwsp)],
     );
   let found_linebreak = ref(false);

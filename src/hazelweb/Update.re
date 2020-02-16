@@ -17,7 +17,7 @@ module Action = {
     | NextCard
     | PrevCard
     | SetComputeResults(bool)
-    | SetShowContentEditable(bool)
+    | SetShowContenteditable(bool)
     | SetShowPresentation(bool)
     | SelectHoleInstance(MetaVar.t, MetaVarInst.t)
     | InvalidVar(string)
@@ -73,7 +73,7 @@ let log_action = (action: Action.t, _: State.t): unit => {
   | NextCard
   | PrevCard
   | SetComputeResults(_)
-  | SetShowContentEditable(_)
+  | SetShowContenteditable(_)
   | SetShowPresentation(_)
   | SelectHoleInstance(_)
   | InvalidVar(_)
@@ -127,7 +127,7 @@ let apply_action =
     state.changing_cards := true;
     Model.prev_card(model);
   | SetComputeResults(compute_results) => {...model, compute_results}
-  | SetShowContentEditable(show_contenteditable) => {
+  | SetShowContenteditable(show_contenteditable) => {
       ...model,
       show_contenteditable,
     }
