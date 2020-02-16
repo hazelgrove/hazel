@@ -1,0 +1,110 @@
+{
+	"folders": [
+		{
+			"path": "C:\\Users\\10490\\Documents\\myland\\algorithm"
+		},
+		{
+			"path": "."
+		},
+		{
+			"path": "C:\\Users\\10490\\Documents\\myland\\virtual_dom"
+		},
+		{
+			"path": "C:\\Users\\10490\\Documents\\myland\\eecs482"
+		},
+		{
+			"path": "C:\\Users\\10490\\Documents\\myland\\eecs490"
+		},
+		{
+			"path": "C:\\Users\\10490\\Documents\\myland\\eecs483"
+		},
+		{
+			"path": "C:\\Users\\10490\\Downloads\\eecs281"
+		},
+		{
+			"path": "C:\\Users\\10490\\Documents\\myland\\483sol"
+		},
+		{
+			"path": "C:\\Users\\10490\\Documents\\myland\\PPER.github.io"
+		},
+		{
+			"path": "C:\\Users\\10490\\Documents\\myland\\duyung.pyhuang.zhiyipan.2"
+		},
+		{
+			"path": "C:\\Users\\10490\\Documents\\myland\\decaf_compiler_Parser"
+		}
+	],
+	"settings": {
+		"files.associations": {
+			"vector": "cpp",
+			"list": "cpp",
+			"iostream": "cpp",
+			"*.tcc": "cpp",
+			"array": "cpp",
+			"initializer_list": "cpp",
+			"utility": "cpp",
+			"ostream": "cpp",
+			"cmath": "cpp",
+			"string": "cpp",
+			"new": "cpp",
+			"algorithm": "cpp",
+			"cctype": "cpp",
+			"clocale": "cpp",
+			"cstdarg": "cpp",
+			"cstdint": "cpp",
+			"cstdio": "cpp",
+			"cstdlib": "cpp",
+			"cstring": "cpp",
+			"ctime": "cpp",
+			"cwchar": "cpp",
+			"cwctype": "cpp",
+			"deque": "cpp",
+			"unordered_map": "cpp",
+			"exception": "cpp",
+			"functional": "cpp",
+			"system_error": "cpp",
+			"tuple": "cpp",
+			"type_traits": "cpp",
+			"fstream": "cpp",
+			"iomanip": "cpp",
+			"iosfwd": "cpp",
+			"istream": "cpp",
+			"limits": "cpp",
+			"numeric": "cpp",
+			"sstream": "cpp",
+			"stdexcept": "cpp",
+			"streambuf": "cpp",
+			"typeinfo": "cpp",
+			"queue": "cpp",
+			"atomic": "cpp",
+			"bitset": "cpp",
+			"chrono": "cpp",
+			"condition_variable": "cpp",
+			"csignal": "cpp",
+			"cstddef": "cpp",
+			"forward_list": "cpp",
+			"unordered_set": "cpp",
+			"ratio": "cpp",
+			"string_view": "cpp",
+			"memory": "cpp",
+			"mutex": "cpp",
+			"thread": "cpp",
+			"regex": "cpp",
+			"valarray": "cpp",
+			"cfenv": "cpp",
+			"cinttypes": "cpp",
+			"complex": "cpp",
+			"csetjmp": "cpp",
+			"future": "cpp",
+			"scoped_allocator": "cpp",
+			"typeindex": "cpp",
+			"stdlib.h": "c",
+			"LINKER.C": "cpp",
+			"set": "cpp",
+			"iterator": "cpp",
+			"map": "cpp",
+			"memory_resource": "cpp",
+			"optional": "cpp"
+		}
+	}
+}

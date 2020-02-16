@@ -1,10 +1,27 @@
 type cursor_term = CursorInfo.cursor_term;
+type structure =
+  | LetBinding
+  | Lamda
+  | CaseMatch
+  | TypeAnn
+type edit_action =
+  | Delete(int)
+  | Insert(int)
+  | Edit
+  | Construct(structure)
+  | DeleteStructure(structure)
+  | MoveCursor
+
+type info = {
+  previous_action: Action.t,
+  previous_cursor_term: cursor_term,
+  current_cursor_term: cursor_term,
+  prev_is_empty_line: bool,
+  edit_action,
+}
 type undo_history_entry = {
   cardstacks: Cardstacks.t,
-  previous_action: option(Action.t),
-  previous_cursor_term: option(cursor_term),
-  current_cursor_term: option(cursor_term),
-  prev_is_empty_line: bool,
+  info: option(cursor_info);
 };
 
 type undo_history_group = {
@@ -47,7 +64,55 @@ let undoable_action = (action: option(Action.t)): bool => {
     }
   };
 };
+let get_last_history_entry = (group: undo_history_group):undo_history_entry => {
+  switch(ZList.prj_suffix(group.group_entries)){
+  | [] => ZList.prj_z(group.group_entries)
+  | [head,..tail] => head;
+  }
+}
+let get_cursor_pos = (cursor_term:cursor_term): CursorPosition.t => {
+  switch (cursor_term) {
+    | Exp(cursor_pos, _)
+    | Pat(cursor_pos, _)
+    | Typ(cursor_pos, _)
+    | ExpOp(cursor_pos, _)
+    | PatOp(cursor_pos, _)
+    | TypOp(cursor_pos, _)
+    | Line(cursor_pos, _)
+    | Rule(cursor_pos, _) => cursor_pos
+    }
+}
+let join_group = (prev_group: undo_history_group, new_entry:undo_history_entry): option(undo_history_group) => {
+  let prev_last_entry = get_last_history_entry(prev_group);
+  switch(prev_last_entry.info, new_entry.info){
+    | (None, _)
+    | (_, None) => None
+    | (Some(prev_entry_info),Some(new_entry_info)) => {
+      switch(prev_entry_info.previous_action, new_entry_info.previous_action) {
+        | (Delete, Delete) => {
+          /* if the cursor in the previous entry reaches OnDelim-before */
+        }
+        | (Backspace, Backspace) 
+        | (Construct(shape_1), Construct(shape_2)) =>
+        | (UpdateApPalette(_), _) =>
+          failwith("ApPalette is not implemented in undo_history")
+        | (Delete, _)
+        | (Backspace, _)
+        | (Construct(_), _) => false
+        | (MoveTo(_), _)
+        | (MoveToBefore(_), _)
+        | (MoveLeft, _)
+        | (MoveRight, _)
+        | (MoveToNextHole, _)
+        | (MoveToPrevHole, _) =>
+          failwith(
+            "Impossible match. Not undoable actions will not be added into history",
+          ) 
+      }
+    }
+  }
 
+}
 let in_same_history_group =
     (~prev_entry: undo_history_entry, ~cur_entry: undo_history_entry): bool => {
   switch (prev_entry.previous_action, cur_entry.previous_action) {
