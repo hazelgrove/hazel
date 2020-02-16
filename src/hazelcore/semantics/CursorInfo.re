@@ -100,7 +100,7 @@ type t = {
   uses: option(UsageAnalysis.uses_list),
 };
 
-let rec extract_cursor_term = (exp: ZExp.t): (option(cursor_term), bool) => {
+let rec extract_cursor_term = (exp: ZExp.t): (cursor_term, bool) => {
   let cursor_term = extract_cursor_exp_term(exp);
   let prev_is_empty_line = {
     let prefix = ZList.prj_prefix(exp);
@@ -111,12 +111,12 @@ let rec extract_cursor_term = (exp: ZExp.t): (option(cursor_term), bool) => {
   };
   (cursor_term, prev_is_empty_line);
 }
-and extract_cursor_exp_term = (exp: ZExp.t): option(cursor_term) => {
+and extract_cursor_exp_term = (exp: ZExp.t): cursor_term => {
   extract_from_zline(ZList.prj_z(exp));
 }
-and extract_from_zline = (zline: ZExp.zline): option(cursor_term) => {
+and extract_from_zline = (zline: ZExp.zline): cursor_term => {
   switch (zline) {
-  | CursorL(cursor_pos, uex_line) => Some(Line(cursor_pos, uex_line))
+  | CursorL(cursor_pos, uex_line) => Line(cursor_pos, uex_line)
   | ExpLineZ(zopseq) => extract_from_zexp_opseq(zopseq)
   | LetLineZP(zpat, _, _) => extract_cursor_pat_term(zpat)
   | LetLineZA(_, ztyp, _) => extract_cursor_type_term(ztyp)
@@ -124,9 +124,9 @@ and extract_from_zline = (zline: ZExp.zline): option(cursor_term) => {
   };
 }
 and extract_from_zexp_operand =
-    (zexp_operand: ZExp.zoperand): option(cursor_term) => {
+    (zexp_operand: ZExp.zoperand): cursor_term => {
   switch (zexp_operand) {
-  | CursorE(cursor_pos, operand) => Some(Exp(cursor_pos, operand))
+  | CursorE(cursor_pos, operand) => Exp(cursor_pos, operand)
   | ParenthesizedZ(zexp) => extract_cursor_exp_term(zexp)
   | LamZP(_, zpat, _, _) => extract_cursor_pat_term(zpat)
   | LamZA(_, _, ztyp, _) => extract_cursor_type_term(ztyp)
@@ -138,59 +138,59 @@ and extract_from_zexp_operand =
   | ApPaletteZ(_, _, _, _) => failwith("ApPalette is not implemented")
   };
 }
-and extract_from_zrules = (zrules: ZExp.zrules): option(cursor_term) => {
+and extract_from_zrules = (zrules: ZExp.zrules): cursor_term => {
   let zrule = ZList.prj_z(zrules);
   switch (zrule) {
-  | CursorR(cursor_pos, uex_rule) => Some(Rule(cursor_pos, uex_rule))
+  | CursorR(cursor_pos, uex_rule) => Rule(cursor_pos, uex_rule)
   | RuleZP(zpat, _) => extract_cursor_pat_term(zpat)
   | RuleZE(_, zexp) => extract_cursor_exp_term(zexp)
   };
 }
-and extract_from_zexp_opseq = (zopseq: ZExp.zopseq): option(cursor_term) => {
+and extract_from_zexp_opseq = (zopseq: ZExp.zopseq): cursor_term => {
   switch (zopseq) {
   | ZOpSeq(_, zseq) =>
     switch (zseq) {
     | ZOperand(zoperand, _) => extract_from_zexp_operand(zoperand)
     | ZOperator(zoperator, _) =>
       let (cursor_pos, uop) = zoperator;
-      Some(ExpOp(cursor_pos, uop));
+      ExpOp(cursor_pos, uop);
     }
   };
 }
-and extract_cursor_pat_term = (zpat: ZPat.t): option(cursor_term) => {
+and extract_cursor_pat_term = (zpat: ZPat.t): cursor_term => {
   switch (zpat) {
   | ZOpSeq(_, zseq) =>
     switch (zseq) {
     | ZOperand(zpat_operand, _) => extract_from_zpat_operand(zpat_operand)
     | ZOperator(zpat_operator, _) =>
       let (cursor_pos, uop) = zpat_operator;
-      Some(PatOp(cursor_pos, uop));
+      PatOp(cursor_pos, uop);
     }
   };
 }
 and extract_from_zpat_operand =
-    (zpat_operand: ZPat.zoperand): option(cursor_term) => {
+    (zpat_operand: ZPat.zoperand): cursor_term => {
   switch (zpat_operand) {
-  | CursorP(cursor_pos, upat_operand) => Some(Pat(cursor_pos, upat_operand))
+  | CursorP(cursor_pos, upat_operand) => Pat(cursor_pos, upat_operand)
   | ParenthesizedZ(zpat)
   | InjZ(_, _, zpat) => extract_cursor_pat_term(zpat)
   };
 }
-and extract_cursor_type_term = (ztyp: ZTyp.t): option(cursor_term) => {
+and extract_cursor_type_term = (ztyp: ZTyp.t): cursor_term => {
   switch (ztyp) {
   | ZOpSeq(_, zseq) =>
     switch (zseq) {
     | ZOperand(ztyp_operand, _) => extract_from_ztyp_operand(ztyp_operand)
     | ZOperator(ztyp_operator, _) =>
       let (cursor_pos, uop) = ztyp_operator;
-      Some(TypOp(cursor_pos, uop));
+      TypOp(cursor_pos, uop);
     }
   };
 }
 and extract_from_ztyp_operand =
-    (ztyp_operand: ZTyp.zoperand): option(cursor_term) => {
+    (ztyp_operand: ZTyp.zoperand): cursor_term => {
   switch (ztyp_operand) {
-  | CursorT(cursor_pos, utyp_operand) => Some(Typ(cursor_pos, utyp_operand))
+  | CursorT(cursor_pos, utyp_operand) => Typ(cursor_pos, utyp_operand)
   | ParenthesizedZ(ztyp)
   | ListZ(ztyp) => extract_cursor_type_term(ztyp)
   };
