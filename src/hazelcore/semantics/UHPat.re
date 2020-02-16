@@ -185,15 +185,15 @@ let can_group_operand = (op1: operand, op2: operand): bool => {
   };
 };
 
-let operand_is_hole = (op: operand): bool => {
+let operand_is_hole = (op: operand): option(int) => {
   switch (op) {
-  | EmptyHole(_) => true
+  | EmptyHole(num) => Some(num)
   | Wild(_)
   | Var(_, _, _)
   | NumLit(_, _)
   | BoolLit(_, _)
   | ListNil(_)
   | Parenthesized(_)
-  | Inj(_, _, _) => false
+  | Inj(_, _, _) => None
   };
 };

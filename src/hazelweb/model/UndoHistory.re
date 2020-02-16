@@ -5,12 +5,17 @@ type structure =
   | CaseMatch
   | TypeAnn
 type edit_action =
-  | Delete(int)
-  | Insert(int)
-  | Edit
+  | DeleteToHole(int)
+  | InsertToHole(int)
+  | DeleteToNotHole
+  | DeleteHole(int)
+  | DeleteEdit(cursor_term)
+  | InsertEdit(cursor_term)
   | Construct(structure)
   | DeleteStructure(structure)
+  | DeleteTypeAnn
   | MoveCursor
+  | NotSet
 
 type info = {
   previous_action: Action.t,
@@ -34,6 +39,7 @@ type undo_history_group = {
 };
 
 type t = ZList.t(undo_history_group, undo_history_group);
+
 
 let get_cursor_info =
     (cardstacks: Cardstacks.t): (option(cursor_term), bool) => {
@@ -82,15 +88,147 @@ let get_cursor_pos = (cursor_term:cursor_term): CursorPosition.t => {
     | Rule(cursor_pos, _) => cursor_pos
     }
 }
-let join_group = (prev_group: undo_history_group, new_entry:undo_history_entry): option(undo_history_group) => {
+let can_delete_typ_ann = cursor_term => {
+  switch (cursor_term) {
+  | Exp(_, exp) =>
+    switch (exp) {
+    | EmptyHole(_)
+    | Var(_, _, _)
+    | NumLit(_, _)
+    | BoolLit(_, _)
+    | ListNil(_)
+    | Inj(_, _, _)
+    | Case(_, _, _, _)
+    | Parenthesized(_) => false
+    | Lam(_, _, _, _) => true
+    | ApPalette(_, _, _, _) => failwith("ApPalette is not implemented")
+    }
+  | Pat(_, _)
+  | Typ(_, _)
+  | ExpOp(_, _)
+  | PatOp(_, _)
+  | TypOp(_, _) => false
+  | Line(_, line_content) =>
+    switch (line_content) {
+    | EmptyLine
+    | ExpLine(_) => false
+    | LetLine(_, _, _) => true
+    }
+  | Rule(_, _) => false
+  }
+};
+let push_history_entry = (prev_group: undo_history_group, new_entry:undo_history_entry): undo_history_group =>{
+  (
+    [],
+    new_entry,
+    [
+      ZList.prj_z(prev_group.group_entries),
+      ...ZList.prj_suffix(prev_group.group_entries),
+    ],
+  );
+}
+let set_edit_action_of_entry = (entry:undo_history_entry, edit_action):undo_history_entry => {
+  switch(entry.info){
+  | None => entry
+  | Some(entry_info) => {
+    ...entry
+    info: {
+      ...entry_info,
+      edit_action: edit_action,
+    }
+  } 
+  }
+}
+type group_result =
+  | Success(undo_history_group)
+  | Fail(undo_history_group,undo_history_entry)
+let join_group = (prev_group: undo_history_group, new_entry:undo_history_entry): group_result => {
   let prev_last_entry = get_last_history_entry(prev_group);
   switch(prev_last_entry.info, new_entry.info){
     | (None, _)
-    | (_, None) => None
+    | (_, None) => {
+      let prev_group' = {
+        ...prev_group,new_entry
+        is_complete: true,
+      };
+      Fail(prev_group', new_entry);
+    }
     | (Some(prev_entry_info),Some(new_entry_info)) => {
       switch(prev_entry_info.previous_action, new_entry_info.previous_action) {
         | (Delete, Delete) => {
           /* if the cursor in the previous entry reaches OnDelim-before */
+          let prev_cursor_pos = get_cursor_pos(prev_entry_info.current_cursor_term);
+          switch(prev_cursor_pos){
+            | OnText(_) => Success(push_history_entry(prev_group,new_entry));
+            | OnDelim(num, side) =>
+              switch (side) {
+              | Before => {
+                switch(CursorInfo.is_hole(prev_entry_info.current_cursor_term)){
+                | Some(_) => {
+                  /* move cursor in the hole */
+                  let new_entry' = {
+                    ...new_entry,
+                    info: None,
+                  };
+                  Success(push_history_entry(prev_group,new_entry'));
+                }
+                | None => {
+                  if (num == 1 && can_delete_typ_ann(prev_entry_info.current_cursor_term)) {
+                    /* num==1 is the position of ':' in an expression */
+                  
+                      let prev_group' = {
+                        ...prev_group,new_entry
+                        is_complete: true,
+                      };
+                      let new_entry' = set_edit_action_of_entry(new_entry, DeleteTypeAnn);
+                      Fail(prev_group', new_entry');
+                  } else {
+                    switch(CursorInfo.is_hole(new_entry_info.current_cursor_term)){
+                      | Some(hole_id) => {
+                        /* delete and reach a hole */
+                        let new_entry' = set_edit_action_of_entry(new_entry,DeleteToHole(hole_id));
+                        Success(push_history_entry(prev_group,new_entry'));
+                      }
+                      | None => {
+                        /* delete and not reach a hole */
+                        let new_entry' = set_edit_action_of_entry(new_entry,DeleteToNotHole);
+                        Success(push_history_entry(prev_group,new_entry'));
+                      }
+                      }
+                  }
+
+                }
+                }                   
+              }
+              | After =>
+                switch(CursorInfo.is_hole(prev_entry_info.current_cursor_term)){
+                | Some(hole_id) => {
+                  let prev_group' = {
+                    ...prev_group,new_entry
+                    is_complete: true,
+                  };
+                  let new_entry' = set_edit_action_of_entry(new_entry, DeleteHole(hole_id));
+                  Fail(prev_group', new_entry');
+                }
+                | None => {
+                  /* move cursor to next term, just ignore this move */
+                  let new_entry' = {
+                    ...new_entry,
+                    info: None,
+                  };
+                  Success(push_history_entry(prev_group,new_entry'));
+                }
+                }
+              
+              }
+            | OnOp(side) =>
+              switch (side) {
+              | Before =>
+                Some("clear " ++ display_string_of_cursor(prev_cursor_term))
+              | After =>
+                Some("edit " ++ display_string_of_cursor(cur_cursor_term))
+              }
+          }
         }
         | (Backspace, Backspace) 
         | (Construct(shape_1), Construct(shape_2)) =>
