@@ -219,9 +219,9 @@ let can_group_cursor_term =
     }
   };
 };
-let is_hole = (cursor_term: option(cursor_term)): bool => {
+let is_hole = (cursor_term: option(cursor_term)): option(int) => {
   switch (cursor_term) {
-  | None => false
+  | None => None
   | Some(cursor_term') =>
     switch (cursor_term') {
     | Exp(_, exp) => UHExp.operand_is_hole(exp)
@@ -231,7 +231,7 @@ let is_hole = (cursor_term: option(cursor_term)): bool => {
     | PatOp(_, _)
     | TypOp(_, _)
     | Line(_, _)
-    | Rule(_, _) => false
+    | Rule(_, _) => None
     }
   };
 };
