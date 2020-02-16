@@ -140,9 +140,93 @@ let set_edit_action_of_entry = (entry:undo_history_entry, edit_action):undo_hist
   } 
   }
 }
+
+let cursor_jump_after_delete = (cursor_pos1:CursorPosition.t, cursor_pos2:CursorPosition.t):bool => {
+  switch(cursor_pos1){
+    | OnText(pos1) => {
+      if(pos1!=0) {
+        switch(cursor_pos2){
+          | OnText(pos2) => pos2==0
+          | OnDelim(_, side) =>
+            switch(side){
+            | Before => true
+            | After => failwith("impossible jump")
+            }
+          | OnOp(side) =>
+            switch(side){
+              | Before => true
+              | After => failwith("impossible jump")
+              } 
+        }
+      } else false;
+    }
+    | OnDelim(_, side) =>
+      switch(side){
+      | Before => false
+      | After => true
+      }
+    | OnOp(side) => {
+      switch(side){
+        | Before => false
+        | After => true
+        }
+    }
+  }
+};
+let cursor_jump_after_backspace = (cursor_pos1:CursorPosition.t, cursor_pos2:CursorPosition.t):bool => {
+  switch(cursor_pos1){
+    | OnText(pos1) => {
+      if(pos1==0) {
+        switch(cursor_pos2){
+          | OnText(_) => true
+          | OnDelim(_, side) =>
+            switch(side){
+            | Before => failwith("impossible jump")
+            | After => true
+            }
+          | OnOp(side) =>
+            switch(side){
+              | Before => failwith("impossible jump")
+              | After => true
+              } 
+        }
+      } else false;
+    }
+    | OnDelim(_, side) =>
+      switch(side){
+      | Before => true
+      | After => false
+      }
+    | OnOp(side) => {
+      switch(side){
+        | Before => true
+        | After => false
+        }
+    }
+  }
+};
+/* let single_hole_removed = (prev_entry_info:info, action: Action.t): option(int) => {
+  switch(CursorInfo.is_hole(prev_entry_info.current_cursor_term)){
+  | None => None
+  | Some(hole_id) => {
+    let prev_cursor_pos = get_cursor_pos(prev_entry_info.current_cursor_term);
+    switch(prev_cursor_pos){
+    | OnDelim(_, side) => 
+      switch(side){
+      | Before => if(action == Backspace) Some(hole_id) else None; 
+      | After => if(action == Delete) Some(hole_id) else None; 
+      }
+    | OnText(_)
+    | OnOp(_) => failwith("Impossible, hole only has delim cursor position")
+    }
+  }
+  }
+} */
+
 type group_result =
   | Success(undo_history_group)
   | Fail(undo_history_group,undo_history_entry)
+
 let join_group = (prev_group: undo_history_group, new_entry:undo_history_entry): group_result => {
   let prev_last_entry = get_last_history_entry(prev_group);
   switch(prev_last_entry.info, new_entry.info){
@@ -157,12 +241,26 @@ let join_group = (prev_group: undo_history_group, new_entry:undo_history_entry):
     | (Some(prev_entry_info),Some(new_entry_info)) => {
       switch(prev_entry_info.previous_action, new_entry_info.previous_action) {
         | (Delete, Delete) => {
-          /* if the cursor in the previous entry reaches OnDelim-before */
           let prev_cursor_pos = get_cursor_pos(prev_entry_info.current_cursor_term);
+          let new_cursor_pos = get_cursor_pos(new_entry_info.current_cursor_term);
           switch(prev_cursor_pos){
             | OnText(_) => {
-              let new_entry' = set_edit_action_of_entry(new_entry,DeleteEdit(new_entry_info.current_cursor_term));
-              Success(push_history_entry(prev_group,new_entry'));
+              if(cursor_jump_after_delete(prev_cursor_pos,new_cursor_pos)){
+                /* jump to next term */
+                let prev_group' = {
+                  ...prev_group,
+                  is_complete: true,
+                };
+                let new_entry' = {
+                  ...new_entry,
+                  info: None,
+                };
+                Success(push_history_entry(prev_group',new_entry'));
+              } else {
+                /* normal edit */
+                let new_entry' = set_edit_action_of_entry(new_entry,DeleteEdit(new_entry_info.current_cursor_term));
+                Success(push_history_entry(prev_group,new_entry'));
+              }
             }
             | OnDelim(num, side) =>
               switch (side) {
@@ -272,14 +370,28 @@ let join_group = (prev_group: undo_history_group, new_entry:undo_history_entry):
           let prev_cursor_pos = get_cursor_pos(prev_entry_info.current_cursor_term);
           switch(prev_cursor_pos){
             | OnText(_) => {
-              let new_entry' = set_edit_action_of_entry(new_entry,DeleteEdit(new_entry_info.current_cursor_term));
-              Success(push_history_entry(prev_group,new_entry'));
+              if(cursor_jump_after_backspace(prev_cursor_pos,new_cursor_pos)){
+                /* jump to next term */
+                let prev_group' = {
+                  ...prev_group,
+                  is_complete: true,
+                };
+                let new_entry' = {
+                  ...new_entry,
+                  info: None,
+                };
+                Success(push_history_entry(prev_group',new_entry'));
+              } else {
+                /* normal edit */
+                let new_entry' = set_edit_action_of_entry(new_entry,DeleteEdit(new_entry_info.current_cursor_term));
+                Success(push_history_entry(prev_group,new_entry'));
+              }
             }
             | OnDelim(num, side) =>
               switch (side) {
               | Before =>
                 switch(CursorInfo.is_hole(prev_entry_info.current_cursor_term)){
-                  | Some(_) => {
+                  | Some(hole_id) => {
                     if(prev_entry_info.prev_is_empty_line){
                       /* whether delete the previous empty line */
                       switch(prev_entry_info.edit_action){
@@ -308,16 +420,12 @@ let join_group = (prev_group: undo_history_group, new_entry:undo_history_entry):
                         
                       }
                     } else {
-                      /* simply move the cursor to the previous term */
                       let prev_group' = {
                         ...prev_group,
                         is_complete: true,
                       };
-                      let new_entry' = {
-                        ...new_entry,
-                        info: None,
-                      };
-                      Success(push_history_entry(prev_group',new_entry'));
+                      let new_entry' = set_edit_action_of_entry(new_entry, DeleteHole(hole_id));
+                      Fail(prev_group', new_entry');
                     }
                   }
                   | None => {
@@ -382,6 +490,18 @@ let join_group = (prev_group: undo_history_group, new_entry:undo_history_entry):
             | OnOp(side) =>
               switch (side) {
               | Before => {
+                /* move cursor to next term, just ignore this move */
+                let prev_group' = {
+                  ...prev_group,
+                  is_complete: true,
+                };
+                let new_entry' = {
+                  ...new_entry,
+                  info: None,
+                };
+                Success(push_history_entry(prev_group',new_entry'));
+              } 
+              | After => {
                 switch(CursorInfo.is_hole(new_entry_info.current_cursor_term)){
                   | Some(hole_id) => {
                     /* delete and reach a hole */
@@ -399,18 +519,6 @@ let join_group = (prev_group: undo_history_group, new_entry:undo_history_entry):
                   }
                 }
               }
-              | After =>{
-                /* move cursor to next term, just ignore this move */
-                let prev_group' = {
-                  ...prev_group,
-                  is_complete: true,
-                };
-                let new_entry' = {
-                  ...new_entry,
-                  info: None,
-                };
-                Success(push_history_entry(prev_group',new_entry'));
-              } 
               }
           }
         }
