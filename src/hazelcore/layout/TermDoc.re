@@ -166,15 +166,15 @@ let mk_ListNil = (~family: TermFamily.t, ~err: ErrStatus.t, ()): t =>
   DelimDoc.mk(~index=0, "[]") |> annot_Operand(~family, ~err);
 
 let mk_Parenthesized = (~family: TermFamily.t, body: formatted_child): t => {
-  let open_group = DelimDoc.open_Parenthesized(steps) |> annot_DelimGroup;
-  let close_group = DelimDoc.close_Parenthesized(steps) |> annot_DelimGroup;
+  let open_group = DelimDoc.open_Parenthesized() |> annot_DelimGroup;
+  let close_group = DelimDoc.close_Parenthesized() |> annot_DelimGroup;
   Doc.hcats([open_group, body |> pad_open_child, close_group])
   |> annot_Operand(~family);
 };
 
 let mk_List = (body: formatted_child): t => {
-  let open_group = DelimDoc.open_List(steps) |> annot_DelimGroup;
-  let close_group = DelimDoc.close_List(steps) |> annot_DelimGroup;
+  let open_group = DelimDoc.open_List() |> annot_DelimGroup;
+  let close_group = DelimDoc.close_List() |> annot_DelimGroup;
   Doc.hcats([open_group, body |> pad_open_child, close_group])
   |> annot_Operand(~family=Typ);
 };
@@ -187,8 +187,8 @@ let mk_Inj =
       body: formatted_child,
     )
     : t => {
-  let open_group = DelimDoc.open_Inj(steps, inj_side) |> annot_DelimGroup;
-  let close_group = DelimDoc.close_Inj(steps) |> annot_DelimGroup;
+  let open_group = DelimDoc.open_Inj(inj_side) |> annot_DelimGroup;
+  let close_group = DelimDoc.close_Inj() |> annot_DelimGroup;
   Doc.hcats([open_group, body |> pad_open_child, close_group])
   |> annot_Operand(~family, ~err);
 };
@@ -202,13 +202,13 @@ let mk_Lam =
     )
     : t => {
   let open_group = {
-    let lam_delim = DelimDoc.sym_Lam(steps);
-    let open_delim = DelimDoc.open_Lam(steps);
+    let lam_delim = DelimDoc.sym_Lam();
+    let open_delim = DelimDoc.open_Lam();
     let doc =
       switch (ann) {
       | None => Doc.hcats([lam_delim, p |> pad_closed_child, open_delim])
       | Some(ann) =>
-        let colon_delim = DelimDoc.colon_Lam(steps);
+        let colon_delim = DelimDoc.colon_Lam();
         Doc.hcats([
           lam_delim,
           p |> pad_closed_child,
@@ -219,14 +219,14 @@ let mk_Lam =
       };
     doc |> annot_DelimGroup;
   };
-  let close_group = DelimDoc.close_Lam(steps) |> annot_DelimGroup;
+  let close_group = DelimDoc.close_Lam() |> annot_DelimGroup;
   Doc.hcats([open_group, body |> pad_open_child, close_group])
   |> annot_Operand(~family=Exp, ~err);
 };
 
 let mk_Case = (~err: ErrStatus.t, scrut: formatted_child, rules: list(t)): t => {
-  let open_group = DelimDoc.open_Case(steps) |> annot_DelimGroup;
-  let close_group = DelimDoc.close_Case(steps) |> annot_DelimGroup;
+  let open_group = DelimDoc.open_Case() |> annot_DelimGroup;
+  let close_group = DelimDoc.close_Case() |> annot_DelimGroup;
   Doc.(
     vseps(
       [
@@ -251,9 +251,9 @@ let mk_Case_ann =
       ann: formatted_child,
     )
     : t => {
-  let open_group = DelimDoc.open_Case(steps) |> annot_DelimGroup;
+  let open_group = DelimDoc.open_Case() |> annot_DelimGroup;
   let close_group = {
-    let end_delim = DelimDoc.close_Case_ann(steps);
+    let end_delim = DelimDoc.close_Case_ann();
     Doc.hcats([
       end_delim,
       ann |> pad_left_delimited_child(~is_open=false, ~inline_padding=space),
@@ -279,9 +279,9 @@ let mk_Case_ann =
 let mk_Rule = (p: formatted_child, clause: formatted_child): t => {
   let delim_group =
     Doc.hcats([
-      DelimDoc.bar_Rule(steps),
+      DelimDoc.bar_Rule(),
       p |> pad_closed_child(~inline_padding=(space, space)),
-      DelimDoc.arrow_Rule(steps),
+      DelimDoc.arrow_Rule(),
     ])
     |> annot_DelimGroup;
   Doc.hcats([
@@ -295,8 +295,8 @@ let mk_LetLine =
     (p: formatted_child, ann: option(formatted_child), def: formatted_child)
     : t => {
   let open_group = {
-    let let_delim = DelimDoc.let_LetLine(steps);
-    let eq_delim = DelimDoc.eq_LetLine(steps);
+    let let_delim = DelimDoc.let_LetLine();
+    let eq_delim = DelimDoc.eq_LetLine();
     let doc =
       switch (ann) {
       | None =>
@@ -306,7 +306,7 @@ let mk_LetLine =
           eq_delim,
         ])
       | Some(ann) =>
-        let colon_delim = DelimDoc.colon_LetLine(steps);
+        let colon_delim = DelimDoc.colon_LetLine();
         Doc.hcats([
           let_delim,
           p |> pad_closed_child(~inline_padding=(space, space)),
@@ -317,7 +317,7 @@ let mk_LetLine =
       };
     doc |> annot_DelimGroup;
   };
-  let close_group = DelimDoc.in_LetLine(steps) |> annot_DelimGroup;
+  let close_group = DelimDoc.in_LetLine() |> annot_DelimGroup;
   Doc.hcats([
     open_group,
     def |> pad_open_child(~inline_padding=(space, space)),
@@ -466,7 +466,7 @@ module Typ = {
       | Bool => mk_Bool()
       | List(ty) =>
         Doc.hcats([
-          DelimDoc.open_List(steps),
+          DelimDoc.open_List(),
           mk_htyp_child(
             ~parenthesize=false,
             ~enforce_inline,
@@ -474,7 +474,7 @@ module Typ = {
             ty,
           )
           |> pad_open_child,
-          DelimDoc.close_List(steps),
+          DelimDoc.close_List(),
         ])
       | Arrow(ty1, ty2) =>
         let padded_op =
@@ -547,9 +547,9 @@ module Typ = {
     // if steps ever matter here.
     parenthesize
       ? Doc.hcats([
-          DelimDoc.open_Parenthesized(steps),
+          DelimDoc.open_Parenthesized(),
           doc,
-          DelimDoc.close_Parenthesized(steps),
+          DelimDoc.close_Parenthesized(),
         ])
       : doc;
   }
@@ -567,7 +567,7 @@ module Typ = {
   and mk_opseq = (~enforce_inline: bool, opseq: UHTyp.opseq): t =>
     mk_NTuple(~mk_operand, ~mk_operator, ~enforce_inline, opseq)
   and mk_operator = (op: UHTyp.operator): t =>
-    mk_op(UHTyp.string_of_operator(op), ())
+    mk_op(UHTyp.string_of_operator(op))
   and mk_operand = (~enforce_inline: bool, operand: UHTyp.operand): t =>
     switch (operand) {
     | Hole => mk_EmptyHole("?")
@@ -618,11 +618,11 @@ module Pat = {
   and mk_opseq = (~enforce_inline: bool, opseq: UHPat.opseq): t =>
     mk_NTuple(~mk_operand, ~mk_operator, ~enforce_inline, opseq)
   and mk_operator = (op: UHPat.operator): t =>
-    op |> UHPat.is_Space ? space_op : mk_op(UHPat.string_of_operator(op), ())
+    op |> UHPat.is_Space ? space_op : mk_op(UHPat.string_of_operator(op))
   and mk_operand = (~enforce_inline: bool, operand: UHPat.operand): t =>
     switch (operand) {
     | EmptyHole(u) => mk_EmptyHole(hole_lbl(u))
-    | Wild(err) => mk_Wild(~err, ~child_steps)
+    | Wild(err) => mk_Wild(~err)
     | Var(err, verr, x) => mk_Var(~err, ~verr, x)
     | NumLit(err, n) => mk_NumLit(~err, n)
     | BoolLit(err, b) => mk_BoolLit(~err, b)
@@ -729,7 +729,7 @@ module Exp = {
   and mk_opseq = (~enforce_inline: bool, opseq: UHExp.opseq): t =>
     mk_NTuple(~mk_operand, ~mk_operator, ~enforce_inline, opseq)
   and mk_operator = (op: UHExp.operator): t =>
-    op |> UHExp.is_Space ? space_op : mk_op(UHExp.string_of_operator(op), ())
+    op |> UHExp.is_Space ? space_op : mk_op(UHExp.string_of_operator(op))
   and mk_operand = (~enforce_inline: bool, operand: UHExp.operand): t =>
     switch (operand) {
     | EmptyHole(u) => mk_EmptyHole(hole_lbl(u))

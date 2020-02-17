@@ -238,10 +238,11 @@ module PathSearchResult = {
     | Transport(Side.t)
     | NotFound;
 
-  let of_opt =
-    fun
-    | None => NotFound
-    | Some(path) => Found(path);
+  /*
+   let of_opt =
+     fun
+     | None => NotFound
+     | Some(path) => Found(path); */
 
   let to_opt =
     fun
@@ -250,121 +251,63 @@ module PathSearchResult = {
     | Found(path) => Some(path);
 };
 
-let path_before = (l: t): option(CursorPath.t) => {
-  let rec go = (l: t): PathSearchResult.t =>
+let rev_path_before =
+    (l: t): option((CursorPath.rev_steps, CursorPosition.t)) => {
+  let rec go = (~rev_steps, l: t): PathSearchResult.t => {
+    let go' = go(~rev_steps);
     switch (l) {
     | Text(_)
     | Linebreak => NotFound
-    | Align(l) => go(l)
+    | Align(l) => go'(l)
     | Cat(l1, l2) =>
-      switch (go(l1)) {
+      switch (go'(l1)) {
       | (NotFound | Transport(Before) | Found(_)) as fin => fin
-      | Transport(After) => go(l2)
+      | Transport(After) => go'(l2)
       }
     | Annot(
         OpenChild(_) | ClosedChild(_) | DelimGroup | LetLine | EmptyLine |
-        Step(_) |
         Term(_),
         l,
       ) =>
-      go(l)
+      go'(l)
     | Annot(Padding | HoleLabel(_) | SpaceOp | UserNewline, _) => NotFound
     | Annot(Indent, _) => Transport(After)
-    | Annot(Text({steps, _}), _) => Found((steps, OnText(0)))
-    | Annot(Op({steps, _}), _) => Found((steps, OnOp(Before)))
-    | Annot(Delim({path: (steps, k), _}), _) =>
-      Found((steps, OnDelim(k, Before)))
+    | Annot(Step(step), l) => go(~rev_steps=[step, ...rev_steps], l)
+    | Annot(Text(_), _) => Found((rev_steps, OnText(0)))
+    | Annot(Op(_), _) => Found((rev_steps, OnOp(Before)))
+    | Annot(Delim({index, _}), _) =>
+      Found((rev_steps, OnDelim(index, Before)))
     };
-  go(l) |> PathSearchResult.to_opt;
+  };
+  go(~rev_steps=[], l) |> PathSearchResult.to_opt;
 };
 
-let path_after = (l: t): option(CursorPath.t) => {
-  let rec go = (l: t): PathSearchResult.t =>
+let rev_path_after = (l: t): option(CursorPath.t) => {
+  let rec go = (~rev_steps, l: t): PathSearchResult.t => {
+    let go' = go(~rev_steps);
     switch (l) {
     | Text(_)
     | Linebreak => NotFound
-    | Align(l) => go(l)
+    | Align(l) => go'(l)
     | Cat(l1, l2) =>
-      switch (go(l2)) {
+      switch (go'(l2)) {
       | (NotFound | Transport(After) | Found(_)) as fin => fin
-      | Transport(Before) => go(l1)
+      | Transport(Before) => go'(l1)
       }
     | Annot(
         OpenChild(_) | ClosedChild(_) | DelimGroup | LetLine | EmptyLine |
-        Step(_) |
         Term(_),
         l,
       ) =>
-      go(l)
+      go'(l)
     | Annot(UserNewline, _) => Transport(Before)
     | Annot(Padding | HoleLabel(_) | SpaceOp | Indent, _) => NotFound
-    | Annot(Text({steps, length, _}), _) => Found((steps, OnText(length)))
-    | Annot(Op({steps, _}), _) => Found((steps, OnOp(After)))
-    | Annot(Delim({path: (steps, k), _}), _) =>
-      Found((steps, OnDelim(k, After)))
-    };
-  go(l) |> PathSearchResult.to_opt;
-};
-
-let path_of_caret_position = (row: int, col: int, l: t): option(CursorPath.t) => {
-  let rec go = (indent, current_row, current_col, l: t): PathSearchResult.t => {
-    let metrics = Layout.metrics(l);
-    let end_row = current_row + metrics.height - 1;
-    let end_col =
-      (metrics.height == 1 ? current_col : indent) + metrics.last_width;
-    if (current_row == end_row && col <= indent) {
-      PathSearchResult.of_opt(path_before(l));
-    } else if (current_row == end_row && col >= end_col) {
-      PathSearchResult.of_opt(path_after(l));
-    } else {
-      // current_row != end_row || indent < col < end_col
-      let leaning_side: Side.t =
-        col - current_col <= end_col - col ? Before : After;
-      switch (l) {
-      | Text(_)
-      | Annot(HoleLabel(_), _) => NotFound
-      | Linebreak => Transport(row == end_row ? After : Before)
-      | Align(l) => l |> go(current_col, current_row, current_col)
-      | Cat(l1, l2) =>
-        let metrics1 = Layout.metrics(l1);
-        let mid_row = current_row + metrics1.height - 1;
-        let mid_col =
-          (metrics1.height == 1 ? current_col : indent) + metrics1.last_width;
-        if (row == mid_row && col == mid_col) {
-          switch (path_after(l1), path_before(l2)) {
-          | (None, None) => NotFound
-          | (Some(path), _)
-          | (_, Some(path)) => Found(path)
-          };
-        } else if (row < mid_row || row == mid_row && col < mid_col) {
-          switch (l1 |> go(indent, current_row, current_col)) {
-          | (NotFound | Transport(Before) | Found(_)) as fin => fin
-          | Transport(After) => PathSearchResult.of_opt(path_before(l2))
-          };
-        } else {
-          // row >= mid_row && (row != mid_row || col > mid_col)
-          switch (l2 |> go(indent, mid_row, mid_col)) {
-          | (NotFound | Transport(After) | Found(_)) as fin => fin
-          | Transport(Before) => PathSearchResult.of_opt(path_after(l1))
-          };
-        };
-      | Annot(
-          OpenChild(_) | ClosedChild(_) | DelimGroup | LetLine | EmptyLine |
-          Step(_) |
-          Term(_),
-          l,
-        ) =>
-        l |> go(indent, current_row, current_col)
-      | Annot(UserNewline, _) => Transport(Before)
-      | Annot(Indent, _) => Transport(After)
-      | Annot(Padding | SpaceOp, _) => Transport(leaning_side)
-      | Annot(Text({steps, _}), _) =>
-        Found((steps, OnText(col - current_col)))
-      | Annot(Op({steps, _}), _) => Found((steps, OnOp(leaning_side)))
-      | Annot(Delim({path: (steps, k), _}), _) =>
-        Found((steps, OnDelim(k, leaning_side)))
-      };
+    | Annot(Step(step), l) => go(~rev_steps=[step, ...rev_steps], l)
+    | Annot(Text({length, _}), _) => Found((rev_steps, OnText(length)))
+    | Annot(Op(_), _) => Found((rev_steps, OnOp(After)))
+    | Annot(Delim({index, _}), _) =>
+      Found((rev_steps, OnDelim(index, After)))
     };
   };
-  l |> go(0, 0, 0) |> PathSearchResult.to_opt;
+  go(~rev_steps=[], l) |> PathSearchResult.to_opt;
 };

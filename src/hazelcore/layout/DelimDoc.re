@@ -17,7 +17,7 @@ let close_List = (~caret=?, ()) => mk(~caret?, ~index=1, "]");
 let open_Parenthesized = (~caret=?, ()) => mk(~caret?, ~index=0, "(");
 let close_Parenthesized = (~caret=?, ()) => mk(~caret?, ~index=1, ")");
 
-let open_Inj = (~caret=?, (), inj_side: InjSide.t) =>
+let open_Inj = (~caret=?, inj_side: InjSide.t) =>
   mk(~caret?, ~index=0, "inj[" ++ InjSide.to_string(inj_side) ++ "](");
 let close_Inj = (~caret=?, ()) => mk(~caret?, ~index=1, ")");
 

@@ -128,7 +128,7 @@ let page_view =
                       [
                         {
                           let (_, ty, _) = program |> Program.get_edit_state;
-                          Code.view_of_htyp(~inject, ty);
+                          Code.view_of_htyp(ty);
                         },
                       ],
                     ),
@@ -146,7 +146,7 @@ let page_view =
       );
     };
   let e = program |> Program.get_uhexp;
-  let doc = lazy(TermDoc.Exp.mk(~steps=[], ~enforce_inline=false, e));
+  let doc = lazy(TermDoc.Exp.mk(~enforce_inline=false, e));
   let layout =
     lazy(
       switch (LayoutOfDoc.layout_of_doc(Lazy.force(doc), ~width=80, ~pos=0)) {
@@ -242,7 +242,7 @@ let page_view =
               ~inject,
               model,
               [
-                CursorInspector.view(~inject, model),
+                CursorInspector.view(model),
                 ContextInspector.view(~inject, model),
                 OptionsPanel.view(~inject, model),
               ],

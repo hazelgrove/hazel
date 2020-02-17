@@ -14,7 +14,5 @@ let find_and_decorate_cursor: (~steps: CursorPath.steps, t) => option(t);
 
 let find_and_decorate_var_use: (~steps: CursorPath.steps, t) => option(t);
 
-let path_of_caret_position: (int, int, t) => option(CursorPath.t);
-
-let path_before: t => option(CursorPath.t);
-let path_after: t => option(CursorPath.t);
+let rev_path_before: t => option((CursorPath.rev_steps, CursorPosition.t));
+let rev_path_after: t => option((CursorPath.rev_steps, CursorPosition.t));
