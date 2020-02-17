@@ -135,20 +135,15 @@ let find_and_decorate_caret =
          | OnOp(side) =>
            find_and_decorate_Annot((annot, l) =>
              switch (annot) {
-             | Op(op_data) =>
-               Return(
-                 l
-                 |> Layout.annot(
-                      TermAnnot.Op({...op_data, caret: Some(side)}),
-                    ),
-               )
+             | Op(_) =>
+               Return(l |> Layout.annot(TermAnnot.Op({caret: Some(side)})))
              | _ => Stop
              }
            )
          | OnDelim(k, side) =>
            find_and_decorate_Annot((annot, l) =>
              switch (annot) {
-             | Delim({path: (_, index), _} as delim_data) =>
+             | Delim({index, _} as delim_data) =>
                index == k
                  ? Return(
                      l

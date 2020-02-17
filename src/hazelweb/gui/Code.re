@@ -118,22 +118,83 @@ let contenteditable_of_layout =
     )
     : Vdom.Node.t => {
   open Vdom;
-  let caret_position = (path: CursorPath.t): Node.t =>
+
+  let caret_position = (path: CursorPath.t) =>
     Node.span(
       [Attr.id(path_id(path))],
       // TODO: Once we figure out contenteditable cursor use `Node.text("")`
       [Node.text(UnicodeConstants.zwsp)],
     );
+
+  let whitespace = (~on_click_target: CursorPath.t, n: int) =>
+    Node.span(
+      [
+        contenteditable_false,
+        Attr.on_click(_ =>
+          inject(Update.Action.EditAction(MoveTo(on_click_target)))
+        ),
+      ],
+      [Node.text(UnicodeConstants.nbsp |> StringUtil.replicat(n))],
+    );
+
   let found_linebreak = ref(false);
-  let record: Layout.text(annot, list(Node.t), Node.t) = {
+  let column = ref(0);
+
+  let mk_linebreak = (~path_before: CursorPath.t, ~indent: int) => {
+    found_linebreak := true;
+    let last_col = column^;
+    column := indent;
+    [
+      whitespace(~on_click_target=path_before, width - last_col),
+      Node.br([]),
+    ];
+  };
+
+  let rec go =
+          (~indent: int, ~rev_steps: CursorPath.rev_steps, l: TermLayout.t)
+          : list(Vdom.Node.t) =>
     /* All DOM text nodes are expected to be wrapped in an
      * element either with contenteditable set to false or
      * annotated with the appropriate path-related metadata.
      * cf SelectionChange clause in Update.apply_action
      */
-    imp_of_annot: (annot, vs) =>
+    switch (l) {
+    | Text(s) =>
+      column := column^ + StringUtil.utf8_length(s);
+      [Node.text(s)];
+    | Cat(Cat(l1, Linebreak), l2)
+    | Cat(l1, Cat(Linebreak, l2)) =>
+      let vs1 = l1 |> go(~indent, ~rev_steps);
+      let vlinebreak = {
+        let path_before =
+          l1
+          |> TermLayout.path_after
+          |> OptUtil.get(() =>
+               failwith(__LOC__ ++ ": expected to find path before Linebreak")
+             );
+        mk_linebreak(~path_before, ~indent);
+      };
+      let vs2 = l2 |> go(~indent, ~rev_steps);
+      vs1 @ [vlinebreak, ...vs2];
+    | Linebreak =>
+      // TODO: no indent if on final linebreak
+      found_linebreak := true;
+      let last_col = column^;
+      column := indent;
+      [whitespace(width - last_col), Node.br([]), whitespace(indent)];
+    | Cat(l1, l2) =>
+      let vs1 = l1 |> go(~indent, ~rev_steps);
+      let vs2 = l2 |> go(~indent, ~rev_steps);
+      vs1 @ vs2;
+    | Align(l) => l |> go(~indent=column^, ~rev_steps)
+    | Annot(Step(step), l) =>
+      l |> go(~indent, ~rev_steps=[step, ...rev_steps])
+    | Annot(annot, l) =>
+      let vs = l |> go(~indent, ~rev_steps);
       switch (annot) {
-      | Delim({path: (steps, index), _}) =>
+      | Step(_) => assert(false)
+      | Delim({index, _}) =>
+        let steps = rev_steps |> List.rev;
         let path_before: CursorPath.t = (steps, OnDelim(index, Before));
         let path_after: CursorPath.t = (steps, OnDelim(index, After));
         [
@@ -141,7 +202,8 @@ let contenteditable_of_layout =
           Node.span([contenteditable_false], vs),
           caret_position(path_after),
         ];
-      | Op({steps, _}) =>
+      | Op(_) =>
+        let steps = rev_steps |> List.rev;
         let path_before: CursorPath.t = (steps, OnOp(Before));
         let path_after: CursorPath.t = (steps, OnOp(After));
         [
@@ -153,7 +215,9 @@ let contenteditable_of_layout =
       | SpaceOp => [
           Node.span([contenteditable_false, Attr.classes(["SpaceOp"])], vs),
         ]
-      | Text({steps, _}) => [Node.span([Attr.id(text_id(steps))], vs)]
+      | Text(_) =>
+        let steps = rev_steps |> List.rev;
+        [Node.span([Attr.id(text_id(steps))], vs)];
       | Padding => [
           Node.span([contenteditable_false, Attr.classes(["Padding"])], vs),
         ]
@@ -166,68 +230,33 @@ let contenteditable_of_layout =
       | HoleLabel(_)
       | DelimGroup
       | LetLine
-      | Step(_)
       | Term(_) => vs
-      },
-    imp_append: (vs1, vs2) => vs1 @ vs2,
-    imp_of_string: str => [Node.text(str)],
-    imp_newline: (~last_col, ~indent) => {
-      found_linebreak := true;
-      [
-        Node.span(
-          [],
-          [
-            Node.text(
-              UnicodeConstants.nbsp |> StringUtil.replicat(width - last_col),
-            ),
-          ],
-        ),
-        Node.br([]),
-        Node.span(
-          [contenteditable_false],
-          [Node.text(UnicodeConstants.nbsp |> StringUtil.replicat(indent))],
-        ),
-      ];
-    },
-    t_of_imp: (~last_col, vs) => {
-      let vs =
-        found_linebreak^
-          ? vs
-          : vs
-            @ [
-              Node.span(
-                [contenteditable_false],
-                [
-                  Node.text(
-                    UnicodeConstants.nbsp
-                    |> StringUtil.replicat(width - last_col),
-                  ),
-                ],
-              ),
-            ];
-      Node.div(
-        [
-          Attr.id("contenteditable"),
-          Attr.classes(
-            ["code", "contenteditable"]
-            @ (
-              if (show_contenteditable) {
-                [];
-              } else {
-                ["hiddencontenteditable"];
-              }
-            ),
-          ),
-          Attr.create("contenteditable", "true"),
-          Attr.on("drop", _ => Event.Prevent_default),
-          Attr.on_focus(_ => inject(Update.Action.FocusCell)),
-          Attr.on_blur(_ => inject(Update.Action.BlurCell)),
-        ],
-        vs,
-      );
-    },
+      };
+    };
+  let vs = {
+    let vs = go(~indent=0, ~rev_steps=[]);
+    found_linebreak^ ? vs : vs @ [whitespace(width - last_col)];
   };
-  Layout.make_of_layout(record, l);
+  Node.div(
+    [
+      Attr.id("contenteditable"),
+      Attr.classes(
+        ["code", "contenteditable"]
+        @ (
+          if (show_contenteditable) {
+            [];
+          } else {
+            ["hiddencontenteditable"];
+          }
+        ),
+      ),
+      Attr.create("contenteditable", "true"),
+      Attr.on("drop", _ => Event.Prevent_default),
+      Attr.on_focus(_ => inject(Update.Action.FocusCell)),
+      Attr.on_blur(_ => inject(Update.Action.BlurCell)),
+    ],
+    vs,
+  );
 };
 
 let caret_position_of_path =
