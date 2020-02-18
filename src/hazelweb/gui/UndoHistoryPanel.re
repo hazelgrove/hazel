@@ -4,17 +4,6 @@ type undo_history_entry = UndoHistory.undo_history_entry;
 
 let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
   /* a helper function working as an enhanced version of List.map() */
-  let rec none_display_entry_filter =
-          (entry_list: list(undo_history_entry)): undo_history_entry => {
-    switch (entry_list) {
-    | [] => []
-    | [head, ...tail] =>
-      switch (head.info) {
-      | None => none_display_entry_filter(tail)
-      | Some(_) => entry_list
-      }
-    };
-  };
 
   let rec list_map_helper_func = (func_to_list, func_to_base, base, lst) => {
     switch (lst) {
@@ -71,7 +60,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
   };
   let display_string_of_cursor_term =
       (cursor_term: CursorInfo.cursor_term): string => {
-    switch (cursor_term') {
+    switch (cursor_term) {
     | Exp(_, exp) => exp_str(exp)
     | Pat(_, pat) => pat_str(pat)
     | Typ(_, typ) => typ_str(typ)
@@ -95,46 +84,59 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
     | Some(info) =>
       switch (info.edit_action) {
       | DeleteToHole(id, cursor_term) =>
-        "delete "
-        ++ display_string_of_cursor_term(cursor_term)
-        ++ " and get hole #"
-        ++ string_of_int(id)
+        Some(
+          "delete "
+          ++ display_string_of_cursor_term(cursor_term)
+          ++ " and get hole #"
+          ++ string_of_int(id),
+        )
       | DeleteToNotHole(cursor_term) =>
-        "delete " ++ display_string_of_cursor_term(cursor_term)
-      | DeleteHole(id) => "delete hole #" ++ string_of_int(id)
-      | DeleteEmptyLine => "delete empty line"
+        Some("delete " ++ display_string_of_cursor_term(cursor_term))
+      | DeleteHole(id) => Some("delete hole #" ++ string_of_int(id))
+      | DeleteEmptyLine => Some("delete empty line")
       | DeleteEdit =>
-        "edit " ++ display_string_of_cursor_term(info.current_cursor_term)
+        Some(
+          "edit " ++ display_string_of_cursor_term(info.current_cursor_term),
+        )
       | InsertToHole(id) =>
-        "insert "
-        ++ display_string_of_cursor_term(info.current_cursor_term)
-        ++ " into hole #"
-        ++ string_of_int(id)
+        Some(
+          "insert "
+          ++ display_string_of_cursor_term(info.current_cursor_term)
+          ++ " into hole #"
+          ++ string_of_int(id),
+        )
       | InsertHole(first_id, second_id) =>
         switch (second_id) {
-        | None => "insert hole #" ++ string_of_int(first_id)
+        | None => Some("insert hole #" ++ string_of_int(first_id))
         | Some(second) =>
-          "insert hole #"
-          ++ string_of_int(first_id)
-          ++ " and hole #"
-          ++ string_of_int(second)
+          Some(
+            "insert hole #"
+            ++ string_of_int(first_id)
+            ++ " and hole #"
+            ++ string_of_int(second),
+          )
         }
       | InsertEdit =>
-        "edit " ++ display_string_of_cursor_term(info.current_cursor_term)
+        Some(
+          "edit " ++ display_string_of_cursor_term(info.current_cursor_term),
+        )
       | Construct(structure) =>
         switch (structure) {
-        | LetBinding => "construct let binding"
-        | Lamda => "construct lamda function"
-        | CaseMatch => "construct case match"
-        | TypeAnn => "insert type annotation"
-        | ShapeEdit(shape) => "insert " ++ shape_to_string(shape)
+        | LetBinding => Some("construct let binding")
+        | Lamda => Some("construct lamda function")
+        | CaseMatch => Some("construct case match")
+        | TypeAnn => Some("insert type annotation")
+        | ShapeEdit(shape) =>
+          Some("insert " ++ Action.shape_to_string(shape))
         | ShapeToHole(id, shape) =>
-          "insert "
-          ++ shape_to_string(shape)
-          ++ "into hole #"
-          ++ string_of_int(id)
+          Some(
+            "insert "
+            ++ Action.shape_to_string(shape)
+            ++ "into hole #"
+            ++ string_of_int(id),
+          )
         }
-      | DeleteTypeAnn => "delete type annotation"
+      | DeleteTypeAnn => Some("delete type annotation")
       | NotSet => None
       }
     };
@@ -463,7 +465,22 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
   };
   let history_view = (model: Model.t) => {
     let (suc_groups, cur_group, prev_groups) = model.undo_history;
-    let display_content =
+    /*if the initial entry is the only history entry */
+    if (ZList.length(model.undo_history) <= 1) {
+      Vdom.(
+        Node.div(
+          [Attr.classes(["the-history"])],
+          [
+            Vdom.(
+              Node.div(
+                [Attr.classes(["history-is-empty-msg"])],
+                [Node.text("no history in scope")],
+              )
+            ),
+          ],
+        )
+      );
+    } else {
       Vdom.(
         Node.div(
           [Attr.classes(["the-history"])],
@@ -474,28 +491,6 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
           ],
         )
       );
-    let action = ZList.prj_z(cur_group.group_entries).previous_action;
-    switch (action) {
-    | None =>
-      /*if the initial entry is the only history entry */
-      if (List.length(suc_groups) <= 1) {
-        Vdom.(
-          Node.div(
-            [Attr.classes(["the-history"])],
-            [
-              Vdom.(
-                Node.div(
-                  [Attr.classes(["history-is-empty-msg"])],
-                  [Node.text("no history in scope")],
-                )
-              ),
-            ],
-          )
-        );
-      } else {
-        display_content;
-      }
-    | Some(_) => display_content
     };
   };
   let undo_button =

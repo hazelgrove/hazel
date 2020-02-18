@@ -312,16 +312,17 @@ let construct_holes =
   };
 let get_first_cursor_term = (group: undo_history_group): option(cursor_term) => {
   let prefix = ZList.prj_prefix(group.group_entries);
-  switch(ListUtil.last(prefix)){
-  | Some(last) => 
-  switch (last.info) {
+
+  switch (ListUtil.last(prefix)) {
+  | Some(last) =>
+    switch (last.info) {
     | None => None
     | Some(info) =>
       switch (info.edit_action) {
-      | DeleteToHole(_, cursor_term)
-      | DeleteToNotHole(cursor_term) => Some(cursor_term)
-      | DeleteEdit
-      | InsertEdit => Some(info.previous_cursor_term)
+      | DeleteEdit => Some(info.previous_cursor_term)
+      | InsertEdit
+      | DeleteToHole(_, _)
+      | DeleteToNotHole(_)
       | DeleteHole(_)
       | DeleteEmptyLine
       | InsertToHole(_)
@@ -330,9 +331,26 @@ let get_first_cursor_term = (group: undo_history_group): option(cursor_term) => 
       | DeleteTypeAnn
       | NotSet => None
       }
-    };
+    }
   | None =>
-  }
+    switch (ZList.prj_z(group.group_entries).info) {
+    | None => None
+    | Some(info) =>
+      switch (info.edit_action) {
+      | DeleteEdit => Some(info.previous_cursor_term)
+      | InsertEdit
+      | DeleteToHole(_, _)
+      | DeleteToNotHole(_)
+      | DeleteHole(_)
+      | DeleteEmptyLine
+      | InsertToHole(_)
+      | InsertHole(_, _)
+      | Construct(_)
+      | DeleteTypeAnn
+      | NotSet => None
+      }
+    }
+  };
 };
 
 let join_group =
@@ -511,7 +529,7 @@ let join_group =
             set_fail_join(prev_group, new_entry, None, true)
           | None =>
             if (num == 1
-                && can_delete_typ_ann(prev_entry_info.current_cursor_term)) {
+                && can_delete_typ_ann(new_entry_info.previous_cursor_term)) {
               /* num==1 is the position of ':' in an expression */
               set_fail_join(
                 prev_group,
@@ -568,7 +586,7 @@ let join_group =
             set_fail_join(
               prev_group,
               new_entry,
-              Some(DeleteToNotHole, new_entry_info.previous_cursor_term),
+              Some(DeleteToNotHole(new_entry_info.previous_cursor_term)),
               true,
             )
           }
@@ -668,7 +686,7 @@ let join_group =
             | Lam(_, _, _, _)
             | Inj(_, _, _)
             | Case(_, _, _, _)
-            | Parenthesized(_) => construct_holes(prev_group, new_entry_info)
+            | Parenthesized(_) => construct_holes(prev_group, new_entry)
             | ApPalette(_, _, _, _) =>
               failwith("ApPalette is not implemented")
             }
@@ -678,7 +696,7 @@ let join_group =
           | PatOp(_, _)
           | TypOp(_, _)
           | Line(_, _)
-          | Rule(_, _) => construct_holes(prev_group, new_entry_info)
+          | Rule(_, _) => construct_holes(prev_group, new_entry)
           }
         }
       | SApPalette(_) => failwith("ApPalette is not implemented")
@@ -740,24 +758,14 @@ let join_group =
           | None =>
             set_fail_join(prev_group, new_entry, Some(DeleteEdit), false)
           | Some(hole_id) =>
-            switch (get_first_cursor_term(prev_group)) {
-            | None =>
-              set_fail_join(
-                prev_group,
-                new_entry,
-                Some(
-                  DeleteToHole(hole_id, new_entry_info.previous_cursor_term),
-                ),
-                true,
-              )
-            | Some(cursor_term) =>
-              set_fail_join(
-                prev_group,
-                new_entry,
-                Some(DeleteToHole(hole_id, cursor_term)),
-                true,
-              )
-            }
+            set_fail_join(
+              prev_group,
+              new_entry,
+              Some(
+                DeleteToHole(hole_id, new_entry_info.previous_cursor_term),
+              ),
+              true,
+            )
           };
         }
       | OnDelim(num, side) =>
@@ -977,6 +985,7 @@ let join_group =
     | (prev_ac, Backspace) =>
       let prev_cursor_pos =
         get_cursor_pos(prev_entry_info.current_cursor_term);
+      let new_cursor_pos = get_cursor_pos(new_entry_info.current_cursor_term);
       switch (prev_cursor_pos) {
       | OnText(_) =>
         if (cursor_jump_after_backspace(prev_cursor_pos, new_cursor_pos)) {
@@ -1018,16 +1027,15 @@ let join_group =
                     false,
                   );
                 }
-              | DeleteToHole(_)
+              | DeleteToHole(_, _)
               | InsertToHole(_)
-              | DeleteToNotHole
+              | InsertHole(_, _)
+              | DeleteToNotHole(_)
               | DeleteHole(_)
-              | DeleteEdit(_)
-              | InsertEdit(_)
+              | DeleteEdit
+              | InsertEdit
               | Construct(_)
-              | DeleteStructure(_)
               | DeleteTypeAnn
-              | MoveCursor
               | NotSet =>
                 set_fail_join(
                   prev_group,
@@ -1272,7 +1280,7 @@ let join_group =
           set_success_join(
             prev_group,
             new_entry,
-            Some(Construct(ShapeToHole(shape_2))),
+            Some(Construct(ShapeToHole(hole_id, shape_2))),
             true,
           )
         }
@@ -1285,7 +1293,7 @@ let join_group =
           } else {
             set_fail_join(prev_group, new_entry, Some(InsertEdit), false);
           }
-        | Some(_) =>
+        | Some(hole_id) =>
           set_success_join(
             prev_group,
             new_entry,
@@ -1353,7 +1361,7 @@ let join_group =
             | Lam(_, _, _, _)
             | Inj(_, _, _)
             | Case(_, _, _, _)
-            | Parenthesized(_) => construct_holes(prev_group, new_entry_info)
+            | Parenthesized(_) => construct_holes(prev_group, new_entry)
             | ApPalette(_, _, _, _) =>
               failwith("ApPalette is not implemented")
             }
@@ -1363,7 +1371,7 @@ let join_group =
           | PatOp(_, _)
           | TypOp(_, _)
           | Line(_, _)
-          | Rule(_, _) => construct_holes(prev_group, new_entry_info)
+          | Rule(_, _) => construct_holes(prev_group, new_entry)
           }
         }
 
@@ -1393,7 +1401,6 @@ let push_edit_state =
     )
     : t => {
   let prev_group = ZList.prj_z(undo_history);
-  let prev_entry = ZList.prj_z(prev_group.group_entries);
   if (undoable_action(action)) {
     let (prev_cursor_term, prev_is_empty_line) =
       get_cursor_info(prev_cardstacks);
