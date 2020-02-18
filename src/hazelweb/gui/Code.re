@@ -79,9 +79,9 @@ let contenteditable_of_layout =
 
   let on_click_noneditable =
       (
-        ~rev_steps: CursorPath.rev_steps,
         ~cursor_before: CursorPosition.t,
         ~cursor_after: CursorPosition.t,
+        ~rev_steps: CursorPath.rev_steps,
         evt,
       )
       : Vdom.Event.t => {
@@ -124,7 +124,7 @@ let contenteditable_of_layout =
     };
   };
 
-  let caret_position = (rev_steps: CursorPath.steps, cursor: CursorPosition.t) =>
+  let caret_position = ((cursor, rev_steps): CursorPath.rev_t) =>
     Node.span(
       [
         Attr.on("move_caret_here", _ => {
@@ -136,42 +136,21 @@ let contenteditable_of_layout =
       [Node.text(UnicodeConstants.zwsp)],
     );
 
-  let whitespace =
-      (
-        ~on_click_target as (
-          rev_steps: CursorPath.rev_steps,
-          cursor: CursorPosition.t,
-        ),
-        n: int,
-      ) => {
-    let path = (rev_steps |> List.rev, cursor);
-    Node.span(
-      [
-        contenteditable_false,
-        Attr.on_click(_ => inject(Update.Action.EditAction(MoveTo(path)))),
-      ],
-      [Node.text(UnicodeConstants.nbsp |> StringUtil.replicat(n))],
-    );
-  };
-
-  // whether `go` encounters a Layout.Linebreak
+  // whether `go` encounters a Linebreak
   let found_linebreak = ref(false);
   // the current column at the start of `l` on each call to `go`
   let column = ref(0);
 
-  let mk_linebreak = (~rev_path_before, ~indent) => {
-    found_linebreak := true;
-    let last_col = column^;
-    column := indent;
-    [
-      whitespace(~on_click_target=rev_path_before, width - last_col),
-      Node.br([]),
-    ];
+  let whitespace = (n: int) => {
+    Node.span(
+      [contenteditable_false],
+      [Node.text(UnicodeConstants.nbsp |> StringUtil.replicat(n))],
+    );
   };
 
   let rec go =
           (~indent: int, ~rev_steps: CursorPath.rev_steps, l: TermLayout.t)
-          : list(Vdom.Node.t) =>
+          : list(Vdom.Node.t) => {
     /* All DOM text nodes are expected to be wrapped in an
      * element either with contenteditable set to false or
      * annotated with the appropriate path-related metadata.
@@ -181,35 +160,29 @@ let contenteditable_of_layout =
     | Text(s) =>
       column := column^ + StringUtil.utf8_length(s);
       [Node.text(s)];
-    | Cat(Cat(l1, Linebreak), l2)
-    | Cat(l1, Cat(Linebreak, l2)) =>
-      let vs1 = l1 |> go(~indent, ~rev_steps);
-      let vlinebreak = {
-        let rev_path_before =
-          l1
-          |> TermLayout.rev_path_after
-          |> OptUtil.get(() =>
-               failwith(__LOC__ ++ ": expected to find path before Linebreak")
-             );
-        mk_linebreak(~rev_path_before, ~indent);
-      };
-      let vs2 = l2 |> go(~indent, ~rev_steps);
-      List.concat([vs1, vlinebreak, vs2]);
+
+    | Align(l) => l |> go(~indent=column^, ~rev_steps)
+
     | Linebreak =>
-      failwith(__LOC__ ++ ": expected to find a path near Linebreak")
+      found_linebreak := true;
+      let last_col = column^;
+      column := indent;
+      [whitespace(width - last_col), Node.br([]), whitespace(indent)];
+
     | Cat(l1, l2) =>
       let vs1 = l1 |> go(~indent, ~rev_steps);
       let vs2 = l2 |> go(~indent, ~rev_steps);
       vs1 @ vs2;
-    | Align(l) => l |> go(~indent=column^, ~rev_steps)
+
     | Annot(Step(step), l) =>
       l |> go(~indent, ~rev_steps=[step, ...rev_steps])
+
     | Annot(annot, l) =>
       let vs = l |> go(~indent, ~rev_steps);
       switch (annot) {
       | Step(_) => assert(false)
       | Delim({index, _}) => [
-          caret_position(rev_steps, OnDelim(index, Before)),
+          caret_position((OnDelim(index, Before), rev_steps)),
           Node.span(
             [
               Attr.classes(["code-delim"]),
@@ -224,12 +197,12 @@ let contenteditable_of_layout =
             ],
             vs,
           ),
-          caret_position(rev_steps, OnDelim(index, After)),
+          caret_position((OnDelim(index, After), rev_steps)),
         ]
       | Op(_) => [
-          caret_position(rev_steps, OnOp(Before)),
+          caret_position((OnOp(Before), rev_steps)),
           Node.span([contenteditable_false], vs),
-          caret_position(rev_steps, OnOp(After)),
+          caret_position((OnOp(After), rev_steps)),
         ]
       | EmptyLine => [Node.span([Attr.classes(["EmptyLine"])], vs)]
       | SpaceOp => [
@@ -265,32 +238,18 @@ let contenteditable_of_layout =
       | Term(_) => vs
       };
     };
+  };
   let vs = {
     let vs = l |> go(~indent=0, ~rev_steps=[]);
-    if (found_linebreak^) {
-      vs;
-    } else {
-      let rev_path_before =
-        l
-        |> TermLayout.rev_path_after
-        |> OptUtil.get(() =>
-             failwith(__LOC__ ++ ": expected to find path before Linebreak")
-           );
-      vs @ [whitespace(~on_click_target=rev_path_before, width - column^)];
-    };
+    found_linebreak^ ? vs : vs @ [whitespace(width - column^)];
   };
   Node.div(
     [
+      // TODO clean up classes
       Attr.id("contenteditable"),
       Attr.classes(
         ["code", "contenteditable"]
-        @ (
-          if (show_contenteditable) {
-            [];
-          } else {
-            ["hiddencontenteditable"];
-          }
-        ),
+        @ (show_contenteditable ? [] : ["hiddencontenteditable"]),
       ),
       Attr.create("contenteditable", "true"),
       Attr.on("drop", _ => Event.Prevent_default),
