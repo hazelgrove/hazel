@@ -376,13 +376,6 @@ module Typ = {
     };
 };
 
-let check_valid = (x: Var.t, outcome: Outcome.t('a)): Outcome.t('a) =>
-  if (Var.is_valid(x)) {
-    outcome;
-  } else {
-    Failed;
-  };
-
 let _syn_insert_text =
     (
       ~mk_syn_text:
