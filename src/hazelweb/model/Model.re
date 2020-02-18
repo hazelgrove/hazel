@@ -98,12 +98,7 @@ let perform_edit_action = (a: Action.t, model: t): t => {
          let cardstacks = model |> get_cardstacks;
          let new_cardstacks =
            model |> put_program(new_program) |> get_cardstacks;
-         UndoHistory.push_edit_state(
-           history,
-           cardstacks,
-           new_cardstacks,
-           a,
-         );
+         UndoHistory.push_edit_state(history, cardstacks, new_cardstacks, a);
        },
      );
 };

@@ -320,7 +320,6 @@ let text_operand =
     );
   };
 
-
 let operand_is_hole = (op: operand): option(int) => {
   switch (op) {
   | EmptyHole(num) => Some(num)

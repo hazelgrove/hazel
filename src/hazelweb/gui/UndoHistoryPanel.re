@@ -4,17 +4,17 @@ type undo_history_entry = UndoHistory.undo_history_entry;
 
 let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
   /* a helper function working as an enhanced version of List.map() */
-  let rec none_display_entry_filter = (entry_list:list(undo_history_entry)):undo_history_entry => {
-    switch(entry_list){
+  let rec none_display_entry_filter =
+          (entry_list: list(undo_history_entry)): undo_history_entry => {
+    switch (entry_list) {
     | [] => []
-    | [head,...tail] => {
-      switch(head.info){
+    | [head, ...tail] =>
+      switch (head.info) {
       | None => none_display_entry_filter(tail)
       | Some(_) => entry_list
       }
-    }
-    }
-  }
+    };
+  };
 
   let rec list_map_helper_func = (func_to_list, func_to_base, base, lst) => {
     switch (lst) {
@@ -71,58 +71,74 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
   };
   let display_string_of_cursor_term =
       (cursor_term: CursorInfo.cursor_term): string => {
-
-      switch (cursor_term') {
-      | Exp(_, exp) => exp_str(exp)
-      | Pat(_, pat) => pat_str(pat)
-      | Typ(_, typ) => typ_str(typ)
-      | ExpOp(_, op) => UHExp.string_of_operator(op)
-      | PatOp(_, op) => UHPat.string_of_operator(op)
-      | TypOp(_, op) => UHTyp.string_of_operator(op)
-      | Line(_, line_content) =>
-        switch (line_content) {
-        | EmptyLine => "empty line"
-        | LetLine(_, _, _) => "let binding"
-        | ExpLine(_) => "expression line"
-        }
-      | Rule(_, _) => "match rule"
+    switch (cursor_term') {
+    | Exp(_, exp) => exp_str(exp)
+    | Pat(_, pat) => pat_str(pat)
+    | Typ(_, typ) => typ_str(typ)
+    | ExpOp(_, op) => UHExp.string_of_operator(op)
+    | PatOp(_, op) => UHPat.string_of_operator(op)
+    | TypOp(_, op) => UHTyp.string_of_operator(op)
+    | Line(_, line_content) =>
+      switch (line_content) {
+      | EmptyLine => "empty line"
+      | LetLine(_, _, _) => "let binding"
+      | ExpLine(_) => "expression line"
       }
+    | Rule(_, _) => "match rule"
+    };
   };
-
 
   let display_string_of_history_entry =
       (undo_history_entry: undo_history_entry): option(string) => {
-        switch(undo_history_entry.info){
-        | None => None
-        | Some(info) => {
-          switch(info.edit_action){
-            | DeleteToHole(id,cursor_term) => "delete " ++ display_string_of_cursor_term(cursor_term) ++ " and get hole #" ++ string_of_int(id)
-            | DeleteToNotHole(cursor_term) => "delete " ++ display_string_of_cursor_term(cursor_term)
-            | DeleteHole(id) => "delete hole #" ++ string_of_int(id)
-            | DeleteEmptyLine => "delete empty line"
-            | DeleteEdit => "edit " ++ display_string_of_cursor_term(info.current_cursor_term)
-            | InsertToHole(id) => "insert " ++ display_string_of_cursor_term(info.current_cursor_term) ++ " into hole #" ++ string_of_int(id)
-            | InsertHole(first_id,second_id) =>
-              switch(second_id){
-              | None => "insert hole #" ++ string_of_int(first_id)
-              | Some(second) => "insert hole #" ++ string_of_int(first_id) ++ " and hole #" ++string_of_int(second)
-              }
-            | InsertEdit => "edit " ++ display_string_of_cursor_term(info.current_cursor_term)
-            | Construct(structure) => 
-              switch(structure){
-                | LetBinding => "construct let binding"
-                | Lamda => "construct lamda function"
-                | CaseMatch => "construct case match"
-                | TypeAnn => "insert type annotation"
-                | ShapeEdit(shape) => "insert " ++ shape_to_string(shape)
-                | ShapeToHole(id,shape) => "insert " ++ shape_to_string(shape) ++ "into hole #" ++ string_of_int(id)
-                }
-            | DeleteTypeAnn => "delete type annotation"
-            | NotSet =>None
-          }
+    switch (undo_history_entry.info) {
+    | None => None
+    | Some(info) =>
+      switch (info.edit_action) {
+      | DeleteToHole(id, cursor_term) =>
+        "delete "
+        ++ display_string_of_cursor_term(cursor_term)
+        ++ " and get hole #"
+        ++ string_of_int(id)
+      | DeleteToNotHole(cursor_term) =>
+        "delete " ++ display_string_of_cursor_term(cursor_term)
+      | DeleteHole(id) => "delete hole #" ++ string_of_int(id)
+      | DeleteEmptyLine => "delete empty line"
+      | DeleteEdit =>
+        "edit " ++ display_string_of_cursor_term(info.current_cursor_term)
+      | InsertToHole(id) =>
+        "insert "
+        ++ display_string_of_cursor_term(info.current_cursor_term)
+        ++ " into hole #"
+        ++ string_of_int(id)
+      | InsertHole(first_id, second_id) =>
+        switch (second_id) {
+        | None => "insert hole #" ++ string_of_int(first_id)
+        | Some(second) =>
+          "insert hole #"
+          ++ string_of_int(first_id)
+          ++ " and hole #"
+          ++ string_of_int(second)
         }
+      | InsertEdit =>
+        "edit " ++ display_string_of_cursor_term(info.current_cursor_term)
+      | Construct(structure) =>
+        switch (structure) {
+        | LetBinding => "construct let binding"
+        | Lamda => "construct lamda function"
+        | CaseMatch => "construct case match"
+        | TypeAnn => "insert type annotation"
+        | ShapeEdit(shape) => "insert " ++ shape_to_string(shape)
+        | ShapeToHole(id, shape) =>
+          "insert "
+          ++ shape_to_string(shape)
+          ++ "into hole #"
+          ++ string_of_int(id)
         }
-    }
+      | DeleteTypeAnn => "delete type annotation"
+      | NotSet => None
+      }
+    };
+  };
   let history_hidden_entry_view =
       (group_id: int, elt_id: int, undo_history_entry: undo_history_entry) => {
     switch (undo_history_entry.info) {
@@ -223,8 +239,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
     };
   };
 
-
-      let group_view =
+  let group_view =
       (~is_cur_group: bool, group_id: int, group: undo_history_group) => {
     /* if the group containning selected history entry, it should be splited into different css styles */
     let suc_his_classes =

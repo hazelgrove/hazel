@@ -99,18 +99,18 @@ type t = {
   // hack while merging
   uses: option(UsageAnalysis.uses_list),
 };
-let is_empty_line =(cursor_term):bool => {
+let is_empty_line = (cursor_term): bool => {
   switch (cursor_term) {
-    | Line(_, line) =>UHExp.is_empty_line(line)
-    | Exp(_, _) 
-    | Pat(_, _)
-    | Typ(_, _)
-    | ExpOp(_, _)
-    | PatOp(_, _)
-    | TypOp(_, _)
-    | Rule(_, _) => false
+  | Line(_, line) => UHExp.is_empty_line(line)
+  | Exp(_, _)
+  | Pat(_, _)
+  | Typ(_, _)
+  | ExpOp(_, _)
+  | PatOp(_, _)
+  | TypOp(_, _)
+  | Rule(_, _) => false
   };
-}
+};
 let rec extract_cursor_term = (exp: ZExp.t): (cursor_term, bool) => {
   let cursor_term = extract_cursor_exp_term(exp);
   let prev_is_empty_line = {
@@ -134,8 +134,7 @@ and extract_from_zline = (zline: ZExp.zline): cursor_term => {
   | LetLineZE(_, _, zexp) => extract_cursor_exp_term(zexp)
   };
 }
-and extract_from_zexp_operand =
-    (zexp_operand: ZExp.zoperand): cursor_term => {
+and extract_from_zexp_operand = (zexp_operand: ZExp.zoperand): cursor_term => {
   switch (zexp_operand) {
   | CursorE(cursor_pos, operand) => Exp(cursor_pos, operand)
   | ParenthesizedZ(zexp) => extract_cursor_exp_term(zexp)
@@ -179,8 +178,7 @@ and extract_cursor_pat_term = (zpat: ZPat.t): cursor_term => {
     }
   };
 }
-and extract_from_zpat_operand =
-    (zpat_operand: ZPat.zoperand): cursor_term => {
+and extract_from_zpat_operand = (zpat_operand: ZPat.zoperand): cursor_term => {
   switch (zpat_operand) {
   | CursorP(cursor_pos, upat_operand) => Pat(cursor_pos, upat_operand)
   | ParenthesizedZ(zpat)
@@ -198,8 +196,7 @@ and extract_cursor_type_term = (ztyp: ZTyp.t): cursor_term => {
     }
   };
 }
-and extract_from_ztyp_operand =
-    (ztyp_operand: ZTyp.zoperand): cursor_term => {
+and extract_from_ztyp_operand = (ztyp_operand: ZTyp.zoperand): cursor_term => {
   switch (ztyp_operand) {
   | CursorT(cursor_pos, utyp_operand) => Typ(cursor_pos, utyp_operand)
   | ParenthesizedZ(ztyp)
@@ -207,17 +204,16 @@ and extract_from_ztyp_operand =
   };
 };
 
-
 let is_hole = (cursor_term: cursor_term): option(int) => {
   switch (cursor_term) {
-    | Exp(_, exp) => UHExp.operand_is_hole(exp)
-    | Pat(_, pat) => UHPat.operand_is_hole(pat)
-    | Typ(_, typ) => UHTyp.operand_is_hole(typ)
-    | ExpOp(_, _)
-    | PatOp(_, _)
-    | TypOp(_, _)
-    | Line(_, _)
-    | Rule(_, _) => None
+  | Exp(_, exp) => UHExp.operand_is_hole(exp)
+  | Pat(_, pat) => UHPat.operand_is_hole(pat)
+  | Typ(_, typ) => UHTyp.operand_is_hole(typ)
+  | ExpOp(_, _)
+  | PatOp(_, _)
+  | TypOp(_, _)
+  | Line(_, _)
+  | Rule(_, _) => None
   };
 };
 
