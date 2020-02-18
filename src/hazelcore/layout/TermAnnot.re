@@ -26,7 +26,7 @@ type t =
   | OpenChild({is_inline: bool})
   | ClosedChild({is_inline: bool})
   | DelimGroup
-  | EmptyLine
+  | EmptyLine({has_caret: bool})
   | LetLine
   | Step(int)
   | Term(term_data);
@@ -36,6 +36,8 @@ let mk_Delim = (~caret: option(Side.t)=?, ~index: DelimIndex.t, ()): t =>
 let mk_Op = (~caret: option(Side.t)=?, ()): t => Op({caret: caret});
 let mk_Text = (~caret: option(int)=?, ~length: int, ()): t =>
   Text({caret, length});
+let mk_EmptyLine = (~has_caret=false, ()) =>
+  EmptyLine({has_caret: has_caret});
 let mk_Term =
     (~has_cursor=false, ~shape: TermShape.t, ~family: TermFamily.t, ()): t =>
   Term({has_cursor, shape, family});

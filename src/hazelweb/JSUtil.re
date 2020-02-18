@@ -25,10 +25,7 @@ let force_get_attr = (attr: string, elem: Js.t(Dom_html.element)): string => {
 };
 
 let has_attr = (attr: string, elem: Js.t(Dom_html.element)): bool =>
-  switch (Js.Opt.to_option(elem##getAttribute(Js.string(attr)))) {
-  | None => false
-  | Some(_) => true
-  };
+  Js.Opt.test(elem##getAttribute(Js.string(attr)));
 
 let force_get_closest_elem = node =>
   Js.Opt.get(Dom_html.CoerceTo.element(node), () =>
@@ -235,14 +232,20 @@ let force_get_parent_elem = elem =>
   |> Js.Opt.to_option
   |> OptUtil.get(() => assert(false));
 
-let force_get_next_sibling_elem = elem =>
-  (elem: Js.t(Dom_html.element) :> Js.t(Dom.node))
-  |> (node => node##.nextSibling)
-  |> Js.Opt.to_option
-  |> OptUtil.get(() => assert(false))
-  |> Dom_html.CoerceTo.element
-  |> Js.Opt.to_option
-  |> OptUtil.get(() => assert(false));
+let force_get_prev_sibling_elem = elem => {
+  let node = (elem: Js.t(Dom_html.element) :> Js.t(Dom.node));
+  let prev_node = Js.Opt.get(node##.previousSibling, () => assert(false));
+  Js.Opt.get(Dom_html.CoerceTo.element(prev_node), () => assert(false));
+};
+
+let force_get_next_sibling_elem = elem => {
+  let node = (elem: Js.t(Dom_html.element) :> Js.t(Dom.node));
+  let next_node = Js.Opt.get(node##.nextSibling, () => assert(false));
+  Js.Opt.get(Dom_html.CoerceTo.element(next_node), () => assert(false));
+};
+
+let dispatch_event = (args, elem) =>
+  Js.Unsafe.meth_call(elem, "dispatchEvent", args);
 
 let get_key = (evt: Js.t(Dom_html.keyboardEvent)) =>
   Js.to_string(Js.Optdef.get(evt##.key, () => assert(false)));

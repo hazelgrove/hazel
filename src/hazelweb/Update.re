@@ -4,7 +4,6 @@ module Dom_html = Js_of_ocaml.Dom_html;
 module EditAction = Action;
 module Sexp = Sexplib.Sexp;
 open Sexplib.Std;
-open ViewUtil;
 
 module Action = {
   [@deriving sexp]
@@ -92,6 +91,12 @@ let log_action = (action: Action.t, _: State.t): unit => {
   };
 };
 
+let has_cls = JSUtil.elem_has_cls;
+let move_caret_here =
+  JSUtil.dispatch_event([|
+    Js.Unsafe.inject(Dom.Event.make("move_caret_here")),
+  |]);
+
 let apply_action =
     (model: Model.t, action: Action.t, state: State.t, ~schedule_action)
     : Model.t => {
@@ -146,41 +151,61 @@ let apply_action =
       let anchorNode = Dom_html.window##getSelection##.anchorNode;
       let anchorOffset = Dom_html.window##getSelection##.anchorOffset;
       let closest_elem = JSUtil.force_get_closest_elem(anchorNode);
-      let id = closest_elem |> JSUtil.force_get_attr("id");
-      let model_path = model |> Model.get_program |> Program.get_path;
-      switch (path_of_path_id(id), steps_of_text_id(id)) {
-      | (None, None) => failwith(__LOC__ ++ ": unexpected caret position")
-      | (Some((_, cursor) as path), _) =>
-        if (path == model_path) {
-          switch (cursor) {
-          | OnText(_) => failwith(__LOC__ ++ ": unexpected cursor")
-          | OnOp(Before)
-          | OnDelim(_, Before) =>
-            schedule_action(Action.EditAction(MoveLeft))
-          | OnOp(After)
-          | OnDelim(_, After) =>
-            schedule_action(Action.EditAction(MoveRight))
-          };
-        } else {
-          schedule_action(Action.EditAction(MoveTo(path)));
-        }
-      | (_, Some(steps)) =>
-        if (closest_elem
-            |> JSUtil.force_get_parent_elem
-            |> JSUtil.elem_has_cls("EmptyLine")) {
-          let (model_steps, _) = model_path;
-          if (steps == model_steps) {
-            schedule_action(
-              Action.EditAction(anchorOffset == 0 ? MoveLeft : MoveRight),
-            );
-          } else {
-            schedule_action(Action.EditAction(MoveTo((steps, OnText(0)))));
-          };
-        } else {
+      if (closest_elem |> has_cls("caret-position")) {
+        if (closest_elem |> has_cls("has-caret")) {
           schedule_action(
-            Action.EditAction(MoveTo((steps, OnText(anchorOffset)))),
+            Action.EditAction(
+              closest_elem |> has_cls("Before") ? MoveLeft : MoveRight,
+            ),
           );
-        }
+        } else {
+          closest_elem |> move_caret_here;
+        };
+      } else if (closest_elem |> has_cls("caret-position-EmptyLine")) {
+        if (closest_elem |> has_cls("has-caret")) {
+          schedule_action(
+            Action.EditAction(anchorOffset == 0 ? MoveLeft : MoveRight),
+          );
+        } else {
+          closest_elem |> move_caret_here;
+        };
+      } else if (closest_elem |> has_cls("code-text")) {
+        let evt =
+          Js.Unsafe.(
+            new_obj(
+              global##_CustomEvent,
+              [|
+                inject(Js.string("move_caret_here")),
+                obj([|("on_text", inject(anchorOffset))|]),
+              |],
+            )
+          );
+        closest_elem |> JSUtil.dispatch_event([|Js.Unsafe.inject(evt)|]);
+      } else if (closest_elem
+                 |> has_cls("Padding")
+                 || closest_elem
+                 |> has_cls("SpaceOp")) {
+        let n = {
+          let s = Js.Opt.get(anchorNode##.nodeValue, () => assert(false));
+          s##.length;
+        };
+        let get_sibling_elem =
+          anchorOffset * 2 <= n
+            ? JSUtil.force_get_prev_sibling_elem
+            : JSUtil.force_get_next_sibling_elem;
+        closest_elem |> get_sibling_elem |> move_caret_here;
+      } else if (closest_elem |> has_cls("trailing-whitespace")) {
+        closest_elem |> JSUtil.force_get_prev_sibling_elem |> move_caret_here;
+      } else if (closest_elem |> has_cls("leading-whitespace")) {
+        let next_elem = {
+          let next = closest_elem |> JSUtil.force_get_next_sibling_elem;
+          next |> has_cls("Indent")
+            ? next |> JSUtil.force_get_next_sibling_elem : next;
+        };
+        next_elem
+        |> JSUtil.dispatch_event([|
+             Js.Unsafe.inject(Dom.Event.make("move_caret_here")),
+           |]);
       };
     };
 

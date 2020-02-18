@@ -124,9 +124,21 @@ let contenteditable_of_layout =
     };
   };
 
-  let caret_position = ((cursor, rev_steps): CursorPath.rev_t) =>
+  let caret_position =
+      (~has_caret: bool, (cursor, rev_steps): CursorPath.rev_t) => {
+    let side =
+      switch (cursor) {
+      | OnText(_) => raise(Invalid_argument("cursor"))
+      | OnOp(side)
+      | OnDelim(_, side) => side
+      };
     Node.span(
       [
+        Attr.classes([
+          "caret-position",
+          side == Before ? "Before" : "After",
+          ...has_caret ? ["has-caret"] : [],
+        ]),
         Attr.on("move_caret_here", _ => {
           let path = (rev_steps |> List.rev, cursor);
           inject(Update.Action.EditAction(MoveTo(path)));
@@ -135,15 +147,32 @@ let contenteditable_of_layout =
       // TODO: Once we figure out contenteditable cursor use `Node.text("")`
       [Node.text(UnicodeConstants.zwsp)],
     );
+  };
+
+  let caret_position_EmptyLine =
+      (~has_caret: bool, rev_steps: CursorPath.rev_steps) =>
+    Node.span(
+      [
+        Attr.classes([
+          "caret-position-EmptyLine",
+          ...has_caret ? ["has-caret"] : [],
+        ]),
+        Attr.on("move_caret_here", _ => {
+          let path = (rev_steps |> List.rev, CursorPosition.OnText(0));
+          inject(Update.Action.EditAction(MoveTo(path)));
+        }),
+      ],
+      [Node.text(UnicodeConstants.zwsp)],
+    );
 
   // whether `go` encounters a Linebreak
   let found_linebreak = ref(false);
   // the current column at the start of `l` on each call to `go`
   let column = ref(0);
 
-  let whitespace = (n: int) => {
+  let whitespace = (~clss: list(cls)=[], n: int) => {
     Node.span(
-      [contenteditable_false],
+      [contenteditable_false, Attr.classes(clss)],
       [Node.text(UnicodeConstants.nbsp |> StringUtil.replicat(n))],
     );
   };
@@ -167,7 +196,11 @@ let contenteditable_of_layout =
       found_linebreak := true;
       let last_col = column^;
       column := indent;
-      [whitespace(width - last_col), Node.br([]), whitespace(indent)];
+      [
+        whitespace(~clss=["trailing-whitespace"], width - last_col),
+        Node.br([]),
+        whitespace(~clss=["leading-whitespace"], indent),
+      ];
 
     | Cat(l1, l2) =>
       let vs1 = l1 |> go(~indent, ~rev_steps);
@@ -181,8 +214,11 @@ let contenteditable_of_layout =
       let vs = l |> go(~indent, ~rev_steps);
       switch (annot) {
       | Step(_) => assert(false)
-      | Delim({index, _}) => [
-          caret_position((OnDelim(index, Before), rev_steps)),
+      | Delim({index, caret}) => [
+          caret_position(
+            ~has_caret=caret == Some(Before),
+            (OnDelim(index, Before), rev_steps),
+          ),
           Node.span(
             [
               Attr.classes(["code-delim"]),
@@ -197,20 +233,35 @@ let contenteditable_of_layout =
             ],
             vs,
           ),
-          caret_position((OnDelim(index, After), rev_steps)),
+          caret_position(
+            ~has_caret=caret == Some(After),
+            (OnDelim(index, After), rev_steps),
+          ),
         ]
-      | Op(_) => [
-          caret_position((OnOp(Before), rev_steps)),
+      | Op({caret}) => [
+          caret_position(
+            ~has_caret=caret == Some(Before),
+            (OnOp(Before), rev_steps),
+          ),
           Node.span([contenteditable_false], vs),
-          caret_position((OnOp(After), rev_steps)),
+          caret_position(
+            ~has_caret=caret == Some(After),
+            (OnOp(After), rev_steps),
+          ),
         ]
-      | EmptyLine => [Node.span([Attr.classes(["EmptyLine"])], vs)]
+      | EmptyLine({has_caret}) => [
+          Node.span(
+            [Attr.classes(["EmptyLine"])],
+            [caret_position_EmptyLine(~has_caret, rev_steps)],
+          ),
+        ]
       | SpaceOp => [
           Node.span([contenteditable_false, Attr.classes(["SpaceOp"])], vs),
         ]
       | Text({length, _}) => [
           Node.span(
             [
+              Attr.classes(["code-text"]),
               Attr.on("move_caret_here", evt => {
                 let path = (
                   rev_steps |> List.rev,
@@ -241,7 +292,9 @@ let contenteditable_of_layout =
   };
   let vs = {
     let vs = l |> go(~indent=0, ~rev_steps=[]);
-    found_linebreak^ ? vs : vs @ [whitespace(width - column^)];
+    found_linebreak^
+      ? vs
+      : vs @ [whitespace(~clss=["trailing-whitespace"], width - column^)];
   };
   Node.div(
     [
@@ -312,9 +365,6 @@ let presentation_of_layout = (l: TermLayout.t): Vdom.Node.t => {
     | Annot(LetLine, l) => [
         Node.span([Attr.classes(["LetLine"])], go(l)),
       ]
-    | Annot(EmptyLine, l) => [
-        Node.span([Attr.classes(["EmptyLine"])], go(l)),
-      ]
     | Annot(Padding, l) => [
         Node.span(
           [contenteditable_false, Attr.classes(["Padding"])],
@@ -344,6 +394,13 @@ let presentation_of_layout = (l: TermLayout.t): Vdom.Node.t => {
           go(l),
         ),
       ]
+
+    | Annot(EmptyLine({has_caret}), _) =>
+      let children = {
+        let zwsp = Node.text(UnicodeConstants.zwsp);
+        has_caret ? [zwsp] : [caret_from_left(0.0), zwsp];
+      };
+      [Node.span([Attr.classes(["EmptyLine"])], children)];
 
     | Annot(Delim({caret, _}), l) =>
       let children =

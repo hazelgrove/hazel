@@ -120,6 +120,11 @@ let find_and_decorate_caret =
          | OnText(j) =>
            find_and_decorate_Annot((annot, l) =>
              switch (annot) {
+             | EmptyLine(_) =>
+               Return(
+                 l
+                 |> Layout.annot(TermAnnot.mk_EmptyLine(~has_caret=true, ())),
+               )
              | Text(text_data) =>
                Return(
                  l
@@ -127,7 +132,6 @@ let find_and_decorate_caret =
                       TermAnnot.Text({...text_data, caret: Some(j)}),
                     ),
                )
-             | EmptyLine
              | Term(_) => Skip
              | _ => Stop
              }
@@ -264,15 +268,12 @@ let rev_path_before =
       | (NotFound | Transport(Before) | Found(_)) as fin => fin
       | Transport(After) => go'(l2)
       }
-    | Annot(
-        OpenChild(_) | ClosedChild(_) | DelimGroup | LetLine | EmptyLine |
-        Term(_),
-        l,
-      ) =>
+    | Annot(OpenChild(_) | ClosedChild(_) | DelimGroup | LetLine | Term(_), l) =>
       go'(l)
     | Annot(Padding | HoleLabel(_) | SpaceOp | UserNewline, _) => NotFound
     | Annot(Indent, _) => Transport(After)
     | Annot(Step(step), l) => go(~rev_steps=[step, ...rev_steps], l)
+    | Annot(EmptyLine(_), _) => Found((rev_steps, OnText(0)))
     | Annot(Text(_), _) => Found((rev_steps, OnText(0)))
     | Annot(Op(_), _) => Found((rev_steps, OnOp(Before)))
     | Annot(Delim({index, _}), _) =>
@@ -294,16 +295,13 @@ let rev_path_after = (l: t): option(CursorPath.t) => {
       | (NotFound | Transport(After) | Found(_)) as fin => fin
       | Transport(Before) => go'(l1)
       }
-    | Annot(
-        OpenChild(_) | ClosedChild(_) | DelimGroup | LetLine | EmptyLine |
-        Term(_),
-        l,
-      ) =>
+    | Annot(OpenChild(_) | ClosedChild(_) | DelimGroup | LetLine | Term(_), l) =>
       go'(l)
     | Annot(UserNewline, _) => Transport(Before)
     | Annot(Padding | HoleLabel(_) | SpaceOp | Indent, _) => NotFound
     | Annot(Step(step), l) => go(~rev_steps=[step, ...rev_steps], l)
     | Annot(Text({length, _}), _) => Found((rev_steps, OnText(length)))
+    | Annot(EmptyLine(_), _) => Found((rev_steps, OnText(0)))
     | Annot(Op(_), _) => Found((rev_steps, OnOp(After)))
     | Annot(Delim({index, _}), _) =>
       Found((rev_steps, OnDelim(index, After)))

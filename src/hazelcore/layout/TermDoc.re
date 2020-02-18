@@ -714,7 +714,7 @@ module Exp = {
     switch (line) {
     | EmptyLine =>
       // TODO: Once we figure out contenteditable cursors, use `mk_text("")`
-      mk_text(UnicodeConstants.zwsp) |> Doc.annot(TermAnnot.EmptyLine)
+      Doc.empty |> Doc.annot(TermAnnot.mk_EmptyLine())
     | ExpLine(opseq) => mk_opseq(~enforce_inline, opseq)
     | LetLine(p, ann, def) =>
       let p = Pat.mk_child(~enforce_inline, ~child_step=0, p);
