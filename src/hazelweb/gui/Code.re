@@ -22,7 +22,7 @@ let clss_of_verr: VarErrStatus.t => list(cls) =
 let cursor_clss = (has_cursor: bool): list(cls) =>
   has_cursor ? ["Cursor"] : [];
 
-let family_clss: TermFamily.t => list(cls) =
+let sort_clss: TermSort.t => list(cls) =
   fun
   | Typ => ["Typ"]
   | Pat => ["Pat"]
@@ -358,14 +358,14 @@ let presentation_of_layout =
 
     | Annot(Step(_), l) => go(l)
 
-    | Annot(Term({has_cursor, shape, family}), l) => [
+    | Annot(Term({has_cursor, shape, sort}), l) => [
         Node.span(
           [
             Attr.classes(
               List.concat([
                 ["Term"],
                 cursor_clss(has_cursor),
-                family_clss(family),
+                sort_clss(sort),
                 shape_clss(shape),
                 open_child_clss(
                   l |> TermLayout.has_inline_OpenChild,

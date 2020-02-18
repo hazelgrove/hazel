@@ -866,7 +866,7 @@ h1 {
 }
 
 .Cursor.Term::before {
-  /* set by each term family */
+  /* set by each term sort */
   --bg-color: transparent;
   --shadow-color: transparent;
   content: "";
@@ -1005,7 +1005,7 @@ h1 {
 }
 
 .Cursor .DelimGroup {
-  /* set by each term family */
+  /* set by each term sort */
   --bg-color: transparent;
   --shadow-color: transparent;
   background-color: var(--bg-color);
