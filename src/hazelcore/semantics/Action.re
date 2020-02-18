@@ -32,6 +32,42 @@ type shape =
   | SOp(operator_shape)
   | SApPalette(PaletteName.t);
 
+let shape_to_string = (shape:shape):string =>{
+  switch(shape){
+    | SList => "[]"
+    | SParenthesized => "()"
+    | SChar(str) => str
+    | SAsc => "::"
+    | SLam => "lamda function"
+    | SListNil => "Nil"
+    | SInj(side) =>
+      switch(side){
+      | L => "inject left"
+      | R => "inject right"
+      }
+    | SLet => "let binding"
+    | SLine => "new line"
+    | SCase => "case match"
+    | SOp(operator_shape) => 
+      switch(operator_shape){
+        | SMinus => "-"
+        | SPlus => "+"
+        | STimes => "*"
+        | SLessThan => "<"
+        | SGreaterThan => ">"
+        | SEquals => "=="
+        | SSpace => "space"
+        | SComma => ","
+        | SArrow => "->"
+        | SVBar => "vbar" /* TBD */
+        | SCons => "::"
+        | SAnd => "&&"
+        | SOr => "||"
+      }
+    | SApPalette(_) => failwith("ApPalette not implemented") 
+  }
+}
+
 [@deriving sexp]
 type t =
   | MoveTo(CursorPath.t)
@@ -44,25 +80,6 @@ type t =
   | Delete
   | Backspace
   | Construct(shape);
-
-/* group entries in undo_history if their shapes are similar */
-let can_group_shape = (shape_1: shape, shape_2: shape): bool => {
-  switch (shape_1, shape_2) {
-  | (SLine, SLine)
-  | (SChar(_), _) => true
-  | (SParenthesized, _)
-  | (SList, _)
-  | (SAsc, _)
-  | (SLam, _)
-  | (SListNil, _)
-  | (SInj(_), _)
-  | (SLet, _)
-  | (SLine, _)
-  | (SCase, _)
-  | (SOp(_), _)
-  | (SApPalette(_), _) => false
-  };
-};
 
 module Outcome = {
   type t('success) =

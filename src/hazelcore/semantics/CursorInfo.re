@@ -99,7 +99,18 @@ type t = {
   // hack while merging
   uses: option(UsageAnalysis.uses_list),
 };
-
+let is_empty_line =(cursor_term):bool => {
+  switch (cursor_term) {
+    | Line(_, line) =>UHExp.is_empty_line(line)
+    | Exp(_, _) 
+    | Pat(_, _)
+    | Typ(_, _)
+    | ExpOp(_, _)
+    | PatOp(_, _)
+    | TypOp(_, _)
+    | Rule(_, _) => false
+  };
+}
 let rec extract_cursor_term = (exp: ZExp.t): (cursor_term, bool) => {
   let cursor_term = extract_cursor_exp_term(exp);
   let prev_is_empty_line = {
@@ -196,34 +207,9 @@ and extract_from_ztyp_operand =
   };
 };
 
-let can_group_cursor_term =
-    (cursor_term_1: option(cursor_term), cursor_term_2: option(cursor_term))
-    : bool => {
-  switch (cursor_term_1, cursor_term_2) {
-  | (None, _)
-  | (_, None) => false
-  | (Some(cur1), Some(cur2)) =>
-    switch (cur1, cur2) {
-    | (Exp(_, op1), Exp(_, op2)) => UHExp.can_group_operand(op1, op2)
-    | (Pat(_, op1), Pat(_, op2)) => UHPat.can_group_operand(op1, op2)
-    | (Line(_, line1), Line(_, line2)) =>
-      UHExp.can_group_lines(line1, line2)
-    | (Exp(_, _), _)
-    | (Pat(_, _), _)
-    | (Typ(_, _), _)
-    | (ExpOp(_, _), _)
-    | (PatOp(_, _), _)
-    | (TypOp(_, _), _)
-    | (Line(_, _), _)
-    | (Rule(_, _), _) => false
-    }
-  };
-};
-let is_hole = (cursor_term: option(cursor_term)): option(int) => {
+
+let is_hole = (cursor_term: cursor_term): option(int) => {
   switch (cursor_term) {
-  | None => None
-  | Some(cursor_term') =>
-    switch (cursor_term') {
     | Exp(_, exp) => UHExp.operand_is_hole(exp)
     | Pat(_, pat) => UHPat.operand_is_hole(pat)
     | Typ(_, typ) => UHTyp.operand_is_hole(typ)
@@ -232,7 +218,6 @@ let is_hole = (cursor_term: option(cursor_term)): option(int) => {
     | TypOp(_, _)
     | Line(_, _)
     | Rule(_, _) => None
-    }
   };
 };
 
