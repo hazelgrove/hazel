@@ -1,8 +1,10 @@
 open Sexplib;
 
-let block_of_string = (s: string): UHExp.block => {
-  let block = UHExp.block_of_sexp(Sexp.of_string(s));
-  let (block, _, _) =
-    Statics.fix_and_renumber_holes((VarCtx.empty, PaletteCtx.empty), block);
-  block;
+let exp_of_string = (s: string): UHExp.t =>
+  UHExp.t_of_sexp(Sexp.of_string(s));
+
+let fixed_exp_of_string = (s: string): UHExp.t => {
+  let e = UHExp.t_of_sexp(Sexp.of_string(s));
+  let (e, _, _) = Statics.Exp.fix_and_renumber_holes(Contexts.empty, e);
+  e;
 };
