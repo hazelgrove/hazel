@@ -1077,7 +1077,17 @@ module DHExp = {
           };
         Expands(d, ty, delta);
       }
-    | Case(NotInHole, _, _) => DoesNotExpand
+    | Case(NotInHole, block, rules) =>
+      switch (syn_expand_block(ctx, delta, block)) {
+      | DoesNotExpand => DoesNotExpand
+      | Expands(d1, ty, delta) =>
+        switch (syn_expand_rules(ctx, delta, rules, ty)) {
+        | None => DoesNotExpand
+        | Some((drs, delta)) =>
+          let d = Case(d1, drs, 0);
+          Expands(d, ty, delta);
+        }
+      }
     | ApPalette(NotInHole, _name, _serialized_model, _hole_data) =>
       DoesNotExpand
     /* TODO fix me */
@@ -1107,6 +1117,53 @@ module DHExp = {
        | None -> DoesNotExpand
        end */
     }
+  and syn_expand_rules =
+      (
+        ctx: Contexts.t,
+        delta: Delta.t,
+        rules: list(UHExp.rule),
+        pat_ty: HTyp.t,
+      )
+      : option((list(rule), Delta.t)) =>
+    switch (Statics.syn_rules(ctx, rules, pat_ty)) {
+    | None => None
+    | Some(join_ty) =>
+      List.fold_left(
+        (b, r) =>
+          switch (b) {
+          | None => None
+          | Some((drs, delta)) =>
+            switch (syn_expand_rule(ctx, delta, r, pat_ty, join_ty)) {
+            | None => None
+            | Some((dr, delta)) =>
+              let drs = drs @ [dr];
+              Some((drs, delta));
+            }
+          },
+        Some(([], delta)),
+        rules,
+      )
+    }
+  and syn_expand_rule =
+      (
+        ctx: Contexts.t,
+        delta: Delta.t,
+        r: UHExp.rule,
+        pat_ty: HTyp.t,
+        clause_ty: HTyp.t,
+      )
+      : option((rule, Delta.t)) => {
+    let UHExp.Rule(p, block) = r;
+    switch (DHPat.ana_expand(ctx, delta, p, pat_ty)) {
+    | DoesNotExpand => None
+    | Expands(dp, _, ctx, delta) =>
+      switch (syn_expand_block(ctx, delta, block)) {
+      | DoesNotExpand => None
+      | Expands(d1, ty1, delta) =>
+        Some((Rule(dp, cast(d1, ty1, clause_ty)), delta))
+      }
+    };
+  }
   and syn_expand_skel =
       (ctx: Contexts.t, delta: Delta.t, skel: UHExp.skel_t, seq: UHExp.opseq)
       : expand_result =>
