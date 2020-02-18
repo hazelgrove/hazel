@@ -214,11 +214,7 @@ let page_view =
                       [
                         Attr.on_click(_ => {
                           let e = program |> Program.get_uhexp;
-                          JSUtil.log(
-                            Js.string(
-                              Sexplib.Sexp.to_string(UHExp.sexp_of_t(e)),
-                            ),
-                          );
+                          JSUtil.log(Js.string(Serialize.string_of_exp(e)));
                           Event.Ignore;
                         }),
                       ],
