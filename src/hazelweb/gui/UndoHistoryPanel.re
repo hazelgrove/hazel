@@ -4,6 +4,18 @@ type undo_history_entry = UndoHistory.undo_history_entry;
 
 let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
   /* a helper function working as an enhanced version of List.map() */
+  let rec none_display_entry_filter = (entry_list:list(undo_history_entry)):undo_history_entry => {
+    switch(entry_list){
+    | [] => []
+    | [head,...tail] => {
+      switch(head.info){
+      | None => none_display_entry_filter(tail)
+      | Some(_) => entry_list
+      }
+    }
+    }
+  }
+
   let rec list_map_helper_func = (func_to_list, func_to_base, base, lst) => {
     switch (lst) {
     | [] => []
@@ -57,12 +69,9 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
     | List(_) => "[ ]"
     };
   };
-  let display_string_of_cursor =
-      (cursor_term: option(CursorInfo.cursor_term)): string => {
-    switch (cursor_term) {
-    | None =>
-      failwith("Imposiible match, the inital state will not be displayed")
-    | Some(cursor_term') =>
+  let display_string_of_cursor_term =
+      (cursor_term: CursorInfo.cursor_term): string => {
+
       switch (cursor_term') {
       | Exp(_, exp) => exp_str(exp)
       | Pat(_, pat) => pat_str(pat)
@@ -78,286 +87,45 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
         }
       | Rule(_, _) => "match rule"
       }
-    };
   };
-  let can_delete_typ_inf = (cursor_term: option(CursorInfo.cursor_term)) => {
-    switch (cursor_term) {
-    | None =>
-      failwith("Imposiible match, the inital state will not be displayed")
-    | Some(cursor_term') =>
-      switch (cursor_term') {
-      | Exp(_, exp) =>
-        switch (exp) {
-        | EmptyHole(_)
-        | Var(_, _, _)
-        | NumLit(_, _)
-        | BoolLit(_, _)
-        | ListNil(_)
-        | Inj(_, _, _)
-        | Case(_, _, _, _)
-        | Parenthesized(_) => false
-        | Lam(_, _, _, _) => true
-        | ApPalette(_, _, _, _) => failwith("ApPalette is not implemented")
-        }
-      | Pat(_, _)
-      | Typ(_, _)
-      | ExpOp(_, _)
-      | PatOp(_, _)
-      | TypOp(_, _) => false
-      | Line(_, line_content) =>
-        switch (line_content) {
-        | EmptyLine
-        | ExpLine(_) => false
-        | LetLine(_, _, _) => true
-        }
-      | Rule(_, _) => false
-      }
-    };
-  };
-  let string_of_history_entry =
-      (undo_history_entry: undo_history_entry): option(string) => {
-    let action = undo_history_entry.previous_action;
-    let prev_cursor_term = undo_history_entry.previous_cursor_term;
-    let cur_cursor_term = undo_history_entry.current_cursor_term;
-    let cur_cursor_pos =
-      switch (cur_cursor_term) {
-      | None => failwith("Imposiible match, cur_cursor is never None")
-      | Some(cursor_term') => CursorInfo.get_cursor_pos(cursor_term')
-      };
-    let prev_cursor_pos =
-      switch (prev_cursor_term) {
-      | None =>
-        failwith("Imposiible match, the inital state will not be displayed")
-      | Some(cursor_term') => CursorInfo.get_cursor_pos(cursor_term')
-      };
-    switch (action) {
-    | None => None
-    | Some(action') =>
-      switch (action') {
-      | MoveTo(_)
-      | MoveToBefore(_)
-      | MoveLeft
-      | MoveRight
-      | MoveToNextHole
-      | MoveToPrevHole =>
-        failwith("Imposiible match, none of undoable actions will be matched")
-      | UpdateApPalette(_) => failwith("ApPalette is not implemented")
-      | Delete =>
-        switch (prev_cursor_pos) {
-        | OnText(_) =>
-          Some("edit " ++ display_string_of_cursor(cur_cursor_term))
-        | OnDelim(num, side) =>
-          switch (side) {
-          | Before =>
-            if (CursorInfo.is_hole(prev_cursor_term)) {
-              None;
-            } else if (num == 1 && can_delete_typ_inf(prev_cursor_term)) {
-              /* num==1 is the position of ':' in an expression */
-              Some(
-                "clear type inference of "
-                ++ display_string_of_cursor(prev_cursor_term),
-              );
-            } else {
-              Some(" clear " ++ display_string_of_cursor(prev_cursor_term));
-            }
-          | After =>
-            switch (cur_cursor_pos) {
-            | OnText(_) =>
-              Some("edit " ++ display_string_of_cursor(cur_cursor_term))
-            | OnOp(side)
-            | OnDelim(_, side) =>
-              switch (side) {
-              | Before => None
-              | After =>
-                Some("edit " ++ display_string_of_cursor(cur_cursor_term))
-              }
-            }
-          }
-        | OnOp(side) =>
-          switch (side) {
-          | Before =>
-            Some("clear " ++ display_string_of_cursor(prev_cursor_term))
-          | After =>
-            Some("edit " ++ display_string_of_cursor(cur_cursor_term))
-          }
-        }
-      | Backspace =>
-        switch (prev_cursor_pos) {
-        | OnText(_) =>
-          Some("edit " ++ display_string_of_cursor(cur_cursor_term))
-        | OnDelim(num, side) =>
-          switch (side) {
-          | Before =>
-            switch (cur_cursor_pos) {
-            | OnText(_) =>
-              Some("edit " ++ display_string_of_cursor(cur_cursor_term))
-            | OnOp(side)
-            | OnDelim(_, side) =>
-              switch (side) {
-              | Before =>
-                Some("edit " ++ display_string_of_cursor(cur_cursor_term))
-              | After => None
-              }
-            }
 
-          | After =>
-            if (CursorInfo.is_hole(prev_cursor_term)) {
-              None;
-            } else if (num == 1 && can_delete_typ_inf(prev_cursor_term)) {
-              Some(
-                "clear type inference of "
-                ++ display_string_of_cursor(prev_cursor_term),
-              );
-            } else {
-              Some(" clear " ++ display_string_of_cursor(prev_cursor_term));
-            }
-          }
-        | OnOp(side) =>
-          switch (side) {
-          | Before =>
-            Some("edit " ++ display_string_of_cursor(cur_cursor_term))
-          | After =>
-            Some("clear " ++ display_string_of_cursor(prev_cursor_term))
-          }
-        }
-      | Construct(shape) =>
-        /* match for keyword */
-        switch (shape) {
-        | SParenthesized => Some("add ( )")
-        | SList => Some("type List")
-        | SAsc => Some("type inference")
-        | SLam => Some("add lambada")
-        | SListNil => Some("add [ ]")
-        | SInj(direction) =>
-          switch (direction) {
-          | L => Some("inject left")
-          | R => Some("inject right")
-          }
-        | SLet => Some("add let binding")
-        | SLine => Some("add new lines")
-        | SCase => Some("add case")
-        | SChar(_) =>
-          Some("edit " ++ display_string_of_cursor(cur_cursor_term))
-        | SOp(shape') =>
-          switch (shape') {
-          | SMinus
-          | SPlus
-          | STimes
-          | SLessThan
-          | SGreaterThan
-          | SEquals
-          | SComma
-          | SArrow
-          | SVBar
-          | SCons
-          | SAnd
-          | SOr => Some("edit " ++ display_string_of_cursor(cur_cursor_term))
-          | SSpace =>
-            switch (prev_cursor_term) {
-            | None =>
-              failwith("Imposiible match, undisplayed undo history entry")
-            | Some(cursor_term') =>
-              switch (cursor_term') {
-              | Exp(_, uexp_operand) =>
-                switch (uexp_operand) {
-                | Var(_, InVarHole(Keyword(k), _), _) =>
-                  switch (k) {
-                  | Let => Some("construct let binding")
-                  | Case => Some("construct case match")
-                  }
-                | EmptyHole(_)
-                | Var(_, _, _)
-                | NumLit(_, _)
-                | BoolLit(_, _)
-                | ListNil(_)
-                | Lam(_, _, _, _)
-                | Inj(_, _, _)
-                | Case(_, _, _, _)
-                | Parenthesized(_) =>
-                  Some("edit " ++ display_string_of_cursor(cur_cursor_term))
-                | ApPalette(_, _, _, _) =>
-                  failwith("ApPalette is not implemented")
-                }
-              | Pat(_, _)
-              | Typ(_, _)
-              | ExpOp(_, _)
-              | PatOp(_, _)
-              | TypOp(_, _)
-              | Line(_, _)
-              | Rule(_, _) =>
-                Some("edit " ++ display_string_of_cursor(cur_cursor_term))
-              }
-            }
-          }
-
-        | SApPalette(_) => failwith("ApPalette is not implemented")
-        }
-      }
-    };
-  };
 
   let display_string_of_history_entry =
       (undo_history_entry: undo_history_entry): option(string) => {
-    let cur_cursor_term = undo_history_entry.current_cursor_term;
-    switch (string_of_history_entry(undo_history_entry)) {
-    | None => None
-    | Some(str) =>
-      switch (cur_cursor_term) {
-      | None => failwith("Imposiible match, undisplayed undo history entry")
-      | Some(cursor_term) =>
-        switch (cursor_term) {
-        | Exp(cursor_pos, exp) =>
-          switch (exp) {
-          | EmptyHole(_)
-          | Var(_, _, _)
-          | NumLit(_, _)
-          | BoolLit(_, _)
-          | ListNil(_) => Some(str)
-          | Case(_, _, _, _)
-          | Lam(_, _, _, _)
-          | Parenthesized(_)
-          | Inj(_, _, _) =>
-            switch (cursor_pos) {
-            | OnDelim(_, _) => None
-            | OnOp(_)
-            | OnText(_) => Some(str)
-            }
-          | ApPalette(_, _, _, _) => failwith("ApPalette is not implemented")
-          }
-        | Pat(cursor_pos, pat) =>
-          switch (pat) {
-          | EmptyHole(_)
-          | Wild(_)
-          | Var(_, _, _)
-          | NumLit(_, _)
-          | BoolLit(_, _)
-          | ListNil(_) => Some(str)
-          | Parenthesized(_)
-          | Inj(_, _, _) =>
-            switch (cursor_pos) {
-            | OnDelim(_, _) => None
-            | OnOp(_)
-            | OnText(_) => Some(str)
-            }
-          }
-        | Typ(_, _)
-        | ExpOp(_, _)
-        | PatOp(_, _)
-        | TypOp(_, _) => Some(str)
-        | Line(cursor_pos, _)
-        | Rule(cursor_pos, _) =>
-          switch (cursor_pos) {
-          | OnDelim(_, _) => None
-          | OnOp(_)
-          | OnText(_) => Some(str)
+        switch(undo_history_entry.info){
+        | None => None
+        | Some(info) => {
+          switch(info.edit_action){
+            | DeleteToHole(id,cursor_term) => "delete " ++ display_string_of_cursor_term(cursor_term) ++ " and get hole #" ++ string_of_int(id)
+            | DeleteToNotHole(cursor_term) => "delete " ++ display_string_of_cursor_term(cursor_term)
+            | DeleteHole(id) => "delete hole #" ++ string_of_int(id)
+            | DeleteEmptyLine => "delete empty line"
+            | DeleteEdit => "edit " ++ display_string_of_cursor_term(info.current_cursor_term)
+            | InsertToHole(id) => "insert " ++ display_string_of_cursor_term(info.current_cursor_term) ++ " into hole #" ++ string_of_int(id)
+            | InsertHole(first_id,second_id) =>
+              switch(second_id){
+              | None => "insert hole #" ++ string_of_int(first_id)
+              | Some(second) => "insert hole #" ++ string_of_int(first_id) ++ " and hole #" ++string_of_int(second)
+              }
+            | InsertEdit => "edit " ++ display_string_of_cursor_term(info.current_cursor_term)
+            | Construct(structure) => 
+              switch(structure){
+                | LetBinding => "construct let binding"
+                | Lamda => "construct lamda function"
+                | CaseMatch => "construct case match"
+                | TypeAnn => "insert type annotation"
+                | ShapeEdit(shape) => "insert " ++ shape_to_string(shape)
+                | ShapeToHole(id,shape) => "insert " ++ shape_to_string(shape) ++ "into hole #" ++ string_of_int(id)
+                }
+            | DeleteTypeAnn => "delete type annotation"
+            | NotSet =>None
           }
         }
-      }
-    };
-  };
+        }
+    }
   let history_hidden_entry_view =
       (group_id: int, elt_id: int, undo_history_entry: undo_history_entry) => {
-    switch (undo_history_entry.previous_action) {
+    switch (undo_history_entry.info) {
     | None => Vdom.(Node.div([], [])) /* entry in initial state should not be displayed */
     | Some(_) =>
       switch (display_string_of_history_entry(undo_history_entry)) {
@@ -414,7 +182,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
         elt_id: int,
         undo_history_entry: undo_history_entry,
       ) => {
-    switch (undo_history_entry.previous_action) {
+    switch (undo_history_entry.info) {
     | None => Vdom.(Node.div([], [])) /* entry in the initial state should not be displayed */
     | Some(_) =>
       switch (display_string_of_history_entry(undo_history_entry)) {
@@ -455,7 +223,8 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
     };
   };
 
-  let group_view =
+
+      let group_view =
       (~is_cur_group: bool, group_id: int, group: undo_history_group) => {
     /* if the group containning selected history entry, it should be splited into different css styles */
     let suc_his_classes =
@@ -478,8 +247,8 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
       };
     switch (group.group_entries) {
     | ([], cur_entry, prev_entries) =>
-      switch (cur_entry.previous_action) {
-      | None => Vdom.(Node.div([], [])) /* the entry in intial state should not be displayed */
+      switch (cur_entry.info) {
+      | None => Vdom.(Node.div([], [])) /* the entry should not be displayed if its info is none */
       | Some(_) =>
         let has_hidden_part =
           switch (prev_entries) {

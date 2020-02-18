@@ -168,23 +168,6 @@ let text_operand =
     );
   };
 
-let can_group_operand = (op1: operand, op2: operand): bool => {
-  switch (op1, op2) {
-  | (EmptyHole(metavar1), EmptyHole(metavar2)) => metavar1 == metavar2
-  | (Var(_, _, _), Var(_, _, _))
-  | (NumLit(_, _), NumLit(_, _))
-  | (BoolLit(_, _), BoolLit(_, _)) => true
-  | (EmptyHole(_), _)
-  | (Wild(_), _)
-  | (Var(_, _, _), _)
-  | (NumLit(_, _), _)
-  | (BoolLit(_, _), _)
-  | (ListNil(_), _)
-  | (Parenthesized(_), _)
-  | (Inj(_, _, _), _) => false
-  };
-};
-
 let operand_is_hole = (op: operand): option(int) => {
   switch (op) {
   | EmptyHole(num) => Some(num)

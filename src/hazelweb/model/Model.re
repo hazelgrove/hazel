@@ -22,14 +22,9 @@ let cardstack_info = [
 let init = (): t => {
   let cardstacks = Cardstacks.mk(cardstack_info);
   let undo_history = {
-    let (cur_cursor_term, prev_is_empty_line) =
-      UndoHistory.get_cursor_info(cardstacks);
     let undo_history_entry: UndoHistory.undo_history_entry = {
       cardstacks,
-      previous_action: None,
-      previous_cursor_term: None,
-      current_cursor_term: cur_cursor_term,
-      prev_is_empty_line,
+      info: None,
     };
     let undo_history_group: UndoHistory.undo_history_group = {
       group_entries: ([], undo_history_entry, []),
@@ -107,7 +102,7 @@ let perform_edit_action = (a: Action.t, model: t): t => {
            history,
            cardstacks,
            new_cardstacks,
-           Some(a),
+           a,
          );
        },
      );
