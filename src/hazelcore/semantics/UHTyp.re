@@ -135,7 +135,7 @@ let child_indices_opseq: opseq => list(int) =
   | OpSeq(_, seq) => seq |> Seq.length |> ListUtil.range;
 let child_indices = child_indices_opseq;
 
-let operand_is_hole = (op: operand):option(int) => {
+let operand_is_hole = (op: operand): option(int) => {
   switch (op) {
   | Hole => Some(-1)
   | Unit

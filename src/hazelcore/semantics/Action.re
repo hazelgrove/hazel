@@ -32,41 +32,41 @@ type shape =
   | SOp(operator_shape)
   | SApPalette(PaletteName.t);
 
-let shape_to_string = (shape:shape):string =>{
-  switch(shape){
-    | SList => "[]"
-    | SParenthesized => "()"
-    | SChar(str) => str
-    | SAsc => "::"
-    | SLam => "lamda function"
-    | SListNil => "Nil"
-    | SInj(side) =>
-      switch(side){
-      | L => "inject left"
-      | R => "inject right"
-      }
-    | SLet => "let binding"
-    | SLine => "new line"
-    | SCase => "case match"
-    | SOp(operator_shape) => 
-      switch(operator_shape){
-        | SMinus => "-"
-        | SPlus => "+"
-        | STimes => "*"
-        | SLessThan => "<"
-        | SGreaterThan => ">"
-        | SEquals => "=="
-        | SSpace => "space"
-        | SComma => ","
-        | SArrow => "->"
-        | SVBar => "vbar" /* TBD */
-        | SCons => "::"
-        | SAnd => "&&"
-        | SOr => "||"
-      }
-    | SApPalette(_) => failwith("ApPalette not implemented") 
-  }
-}
+let shape_to_string = (shape: shape): string => {
+  switch (shape) {
+  | SList => "[]"
+  | SParenthesized => "()"
+  | SChar(str) => str
+  | SAsc => "::"
+  | SLam => "lamda function"
+  | SListNil => "Nil"
+  | SInj(side) =>
+    switch (side) {
+    | L => "inject left"
+    | R => "inject right"
+    }
+  | SLet => "let binding"
+  | SLine => "new line"
+  | SCase => "case match"
+  | SOp(operator_shape) =>
+    switch (operator_shape) {
+    | SMinus => "-"
+    | SPlus => "+"
+    | STimes => "*"
+    | SLessThan => "<"
+    | SGreaterThan => ">"
+    | SEquals => "=="
+    | SSpace => "space"
+    | SComma => ","
+    | SArrow => "->"
+    | SVBar => "vbar" /* TBD */
+    | SCons => "::"
+    | SAnd => "&&"
+    | SOr => "||"
+    }
+  | SApPalette(_) => failwith("ApPalette not implemented")
+  };
+};
 
 [@deriving sexp]
 type t =
