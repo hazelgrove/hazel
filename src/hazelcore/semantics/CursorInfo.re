@@ -112,18 +112,113 @@ let is_empty_line = (cursor_term): bool => {
   };
 };
 
-let is_wrapping_cursor_term = (cursor_term:cursor_term):bool => {
-  switch(cursor_term){
-  | Exp(_, UHExp.operand)
-  | Pat(_, UHPat.operand)
-  | Typ(_, UHTyp.operand)
-  | ExpOp(_, UHExp.operator)
-  | PatOp(_, UHPat.operator)
-  | TypOp(_, UHTyp.operator)
-  | Line(_, UHExp.line)
-  | Rule(_, UHExp.rule);
-  }
-}
+let is_exp_inside = (cursor_term: cursor_term): bool => {
+  switch (cursor_term) {
+  | Exp(cur_pos, op) =>
+    switch (op) {
+    | EmptyHole(_)
+    | Var(_, _, _)
+    | NumLit(_, _)
+    | BoolLit(_, _)
+    | ListNil(_) => false
+    | Lam(_, _, _, _) =>
+      switch (cur_pos) {
+      | OnText(_) => false
+      | OnDelim(pos, side) =>
+        switch (side) {
+        | Before => pos != 0
+        | After => pos != 3
+        }
+      | OnOp(_) => true
+      }
+    | Inj(_, _, _) =>
+      switch (cur_pos) {
+      | OnText(_) => false
+      | OnDelim(pos, side) =>
+        switch (side) {
+        | Before => pos != 0
+        | After => pos != 1
+        }
+      | OnOp(_) => true
+      }
+    | Case(_, _, _, _) =>
+      switch (cur_pos) {
+      | OnText(_) => false
+      | OnDelim(_, side) =>
+        switch (side) {
+        | Before => false
+        | After => true
+        }
+      | OnOp(_) => true
+      }
+    | Parenthesized(_) =>
+      switch (cur_pos) {
+      | OnText(_) => false
+      | OnDelim(_, _)
+      | OnOp(_) => true
+      }
+    | ApPalette(_, _, _, _) => failwith("ApPalette is not implemented")
+    }
+  | Pat(cur_pos, op) =>
+    switch (op) {
+    | EmptyHole(_)
+    | Wild(_)
+    | Var(_, _, _)
+    | NumLit(_, _)
+    | BoolLit(_, _)
+    | ListNil(_) => false
+    | Parenthesized(_) =>
+      switch (cur_pos) {
+      | OnText(_) => false
+      | OnDelim(_, _)
+      | OnOp(_) => true
+      }
+    | Inj(_, _, _) =>
+      switch (cur_pos) {
+      | OnText(_) => false
+      | OnDelim(pos, side) =>
+        switch (side) {
+        | Before => pos != 0
+        | After => pos != 1
+        }
+      | OnOp(_) => true
+      }
+    }
+  | Typ(cur_pos, op) =>
+    switch (op) {
+    | Hole
+    | Unit
+    | Num
+    | Bool => false
+    | Parenthesized(_)
+    | List(_) =>
+      switch (cur_pos) {
+      | OnText(_) => false
+      | OnDelim(_, _)
+      | OnOp(_) => true
+      }
+    }
+  | ExpOp(_, _)
+  | PatOp(_, _)
+  | TypOp(_, _) => true
+  | Line(cur_pos, line) =>
+    switch (line) {
+    | EmptyLine
+    | ExpLine(_) => false
+    | LetLine(_, _, _) =>
+      switch (cur_pos) {
+      | OnText(_) => false
+      | OnDelim(pos, side) =>
+        switch (side) {
+        | Before => pos != 0
+        | After => pos != 3
+        }
+      | OnOp(_) => true
+      }
+    }
+  | Rule(_, _) => true /* TBD special condition for match rule */
+  };
+};
 let rec extract_cursor_term = (exp: ZExp.t): (cursor_term, bool) => {
   let cursor_term = extract_cursor_exp_term(exp);
   let prev_is_empty_line = {

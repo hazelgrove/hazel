@@ -335,8 +335,6 @@ let operand_is_hole = (op: operand): option(int) => {
   };
 };
 
-
-
 let is_empty_line = (line: line): bool => {
   switch (line) {
   | EmptyLine => true
