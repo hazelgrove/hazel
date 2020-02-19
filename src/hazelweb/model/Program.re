@@ -63,8 +63,8 @@ exception InvalidInput;
 exception DoesNotExpand;
 let get_result = (program: t): Result.t => {
   open Dynamics;
-  let ze = program |> get_zexp;
-  switch (Exp.syn_expand(Contexts.empty, Delta.empty, ZExp.erase(ze))) {
+  let e = program |> get_uhexp;
+  switch (Exp.syn_expand(Contexts.empty, Delta.empty, e)) {
   | DoesNotExpand => raise(DoesNotExpand)
   | Expands(d, _, _) =>
     switch (Evaluator.evaluate(d)) {

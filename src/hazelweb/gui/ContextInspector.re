@@ -30,12 +30,7 @@ let view =
         Vdom.(
           Node.div(
             [Attr.classes(["dynamic-info"])],
-            [
-              Node.div(
-                [Attr.classes(["code"])],
-                [Node.span([], [Node.text("NONE!!!!!!")])],
-              ),
-            ],
+            [Node.div([], [Node.span([], [Node.text("NONE!!!!!!")])])],
           )
         ),
       )
@@ -45,13 +40,7 @@ let view =
         Vdom.(
           Node.div(
             [Attr.classes(["dynamic-info"])],
-            [
-              Node.div(
-                [Attr.classes(["code"])],
-                // [Code.view_of_dhexp(~inject, d)],
-                [],
-              ),
-            ],
+            [Node.div([], [DHCode.view(~width=30, d)])],
           )
         ),
       )
