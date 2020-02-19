@@ -255,7 +255,7 @@ let presentation_of_layout =
 
     // TODO adjust width to num digits, use visibility none
     | Annot(HoleLabel(_), l) => [
-        Node.span([Attr.classes(["SEmptyHole-num"])], go(l)),
+        Node.span([Attr.classes(["HoleLabel"])], go(l)),
       ]
 
     | Annot(DelimGroup, l) => [
