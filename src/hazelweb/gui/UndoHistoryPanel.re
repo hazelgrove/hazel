@@ -137,15 +137,18 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
         | Lamda => Some("construct lamda function")
         | CaseMatch => Some("construct case match")
         | TypeAnn => Some("Construct insert type annotation")
-        | ShapeEdit(shape) =>
-          Some("Construct insert " ++ Action.shape_to_string(shape))
-        | ShapeToHole(id, shape) =>
-          Some(
-            "Construct insert "
-            ++ Action.shape_to_string(shape)
-            ++ "into hole #"
-            ++ string_of_int(id),
-          )
+        | ShapeEdit(id_op, shape) =>
+          switch (id_op) {
+          | None =>
+            Some("Construct insert " ++ Action.shape_to_string(shape))
+          | Some(id) =>
+            Some(
+              "Construct insert "
+              ++ Action.shape_to_string(shape)
+              ++ " into hole #"
+              ++ string_of_int(id),
+            )
+          }
         }
       | DeleteTypeAnn => Some("DeleteTypeAnn delete type annotation")
       | NotSet => None

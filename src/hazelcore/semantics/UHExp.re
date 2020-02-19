@@ -320,7 +320,7 @@ let text_operand =
     );
   };
 
-let operand_is_hole = (op: operand): option(int) => {
+let operand_is_hole = (op: operand): option(MetaVar.t) => {
   switch (op) {
   | EmptyHole(num) => Some(num)
   | Var(_, _, _)
