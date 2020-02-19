@@ -63,7 +63,7 @@ let mk_BoolLit = b => Doc.Text(string_of_bool(b));
 let mk_Inj = (inj_side, padded_child) =>
   Doc.hcats([Delim.open_Inj(inj_side), padded_child, Delim.close_Inj]);
 
-let mk_Cons = (hd, tl) => Doc.hseps([hd, Text("::"), tl]);
+let mk_Cons = (hd, tl) => Doc.hcats([hd, Text("::"), tl]);
 
 let mk_Pair = (doc1, doc2) => Doc.hcats([doc1, Text(", "), doc2]);
 
