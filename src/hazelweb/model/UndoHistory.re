@@ -420,7 +420,9 @@ let ontext_del =
     : group_result => {
   let prev_cursor_pos = get_cursor_pos(new_entry_info.previous_cursor_term);
   let new_cursor_pos = get_cursor_pos(new_entry_info.current_cursor_term);
-  if (adjacent_is_empty_line && pos == 0) {
+  if (CursorInfo.is_empty_line(new_entry_info.previous_cursor_term)
+      || adjacent_is_empty_line
+      && pos == 0) {
     /* whether delete the previous empty line */
     switch (prev_entry_info) {
     | None =>
