@@ -342,31 +342,16 @@ let construct_holes =
     }
   };
 let get_first_cursor_term = (group: undo_history_group): option(cursor_term) => {
-  let prefix = ZList.prj_prefix(group.group_entries);
+  JSUtil.log("get first called!!!!!!!!");
+  let suffix = ZList.prj_suffix(group.group_entries);
 
-  switch (List.rev(prefix)) {
-  | [last, ..._] =>
-    switch (last.info) {
-    | None => None
-    | Some(info) =>
-      switch (info.edit_action) {
-      | DeleteEdit => Some(info.previous_cursor_term)
-      | InsertEdit
-      | DeleteToHole(_, _)
-      | DeleteToNotHole(_)
-      | DeleteHole(_)
-      | DeleteEmptyLine
-      | InsertToHole(_)
-      | InsertHole(_, _)
-      | Construct(_)
-      | InsertEmptyLine
-      | DeleteTypeAnn
-      | NotSet => None
-      }
-    }
+  switch (List.rev(suffix)) {
   | [] =>
+    JSUtil.log("empty prefix");
     switch (ZList.prj_z(group.group_entries).info) {
-    | None => None
+    | None =>
+      JSUtil.log(" empty prefix none last info");
+      None;
     | Some(info) =>
       switch (info.edit_action) {
       | DeleteEdit => Some(info.previous_cursor_term)
@@ -380,7 +365,34 @@ let get_first_cursor_term = (group: undo_history_group): option(cursor_term) => 
       | Construct(_)
       | InsertEmptyLine
       | DeleteTypeAnn
-      | NotSet => None
+      | NotSet =>
+        JSUtil.log(" empty prefix not proper");
+        None;
+      }
+    };
+  | ls =>
+    switch (List.hd(ls).info) {
+    | None =>
+      JSUtil.log("none last info");
+      None;
+    | Some(info) =>
+      switch (info.edit_action) {
+      | DeleteEdit =>
+        JSUtil.log("info prev");
+        Some(info.previous_cursor_term);
+      | InsertEdit
+      | DeleteToHole(_, _)
+      | DeleteToNotHole(_)
+      | DeleteHole(_)
+      | DeleteEmptyLine
+      | InsertToHole(_)
+      | InsertHole(_, _)
+      | Construct(_)
+      | InsertEmptyLine
+      | DeleteTypeAnn
+      | NotSet =>
+        JSUtil.log("not proper edit action");
+        None;
       }
     }
   };
@@ -961,13 +973,38 @@ let join_group =
               true,
             );
           } else {
-            /* normal edit */
-            set_success_join(
-              prev_group,
-              new_entry,
-              Some(DeleteEdit),
-              false,
-            );
+            switch (CursorInfo.is_hole(new_entry_info.current_cursor_term)) {
+            | None =>
+              set_success_join(
+                prev_group,
+                new_entry,
+                Some(DeleteEdit),
+                false,
+              )
+            | Some(hole_id) =>
+              switch (get_first_cursor_term(prev_group)) {
+              | None =>
+                set_success_join(
+                  prev_group,
+                  new_entry,
+                  Some(
+                    DeleteToHole(
+                      hole_id,
+                      new_entry_info.previous_cursor_term,
+                    ),
+                  ),
+                  true,
+                )
+
+              | Some(cursor_term) =>
+                set_success_join(
+                  prev_group,
+                  new_entry,
+                  Some(DeleteToHole(hole_id, cursor_term)),
+                  true,
+                )
+              }
+            };
           }
         | OnDelim(num, side) =>
           switch (side) {
