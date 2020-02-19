@@ -42,8 +42,8 @@ let shape_to_string = (shape: shape): string => {
   | SListNil => "Nil"
   | SInj(side) =>
     switch (side) {
-    | L => "inject left"
-    | R => "inject right"
+    | L => "left injection"
+    | R => "right injection"
     }
   | SLet => "let binding"
   | SLine => "new line"
