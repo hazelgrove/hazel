@@ -139,10 +139,11 @@ let page_view =
             Node.div(
               [Attr.classes(["result-view"])],
               [
-                {
-                  let (d, _, _) = program |> Program.get_result;
-                  DHCode.view(d);
-                },
+                DHCode.view(
+                  model.evaluate_expansion
+                    ? program |> Program.get_result |> Result.get_dhexp
+                    : program |> Program.get_expansion,
+                ),
               ],
             ),
           ],

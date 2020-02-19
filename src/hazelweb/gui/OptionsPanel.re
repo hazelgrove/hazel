@@ -53,15 +53,23 @@ let view =
           checkbox(
             ~inject,
             "compute_results",
-            "Compute Results",
+            "Compute expansion",
             model.compute_results,
             checked =>
             Update.Action.SetComputeResults(checked)
           ),
           checkbox(
             ~inject,
+            "evaluate_expansion",
+            "Evaluate expansion",
+            model.evaluate_expansion,
+            checked =>
+            Update.Action.SetEvaluateExpansion(checked)
+          ),
+          checkbox(
+            ~inject,
             "show_contenteditable",
-            "Show Content Editable (Debugging)",
+            "Show contenteditable (debugging)",
             model.show_contenteditable,
             checked =>
             Update.Action.SetShowContentEditable(checked)
@@ -69,7 +77,7 @@ let view =
           checkbox(
             ~inject,
             "show_presentation",
-            "Show Presentation (Debugging)",
+            "Show presentation (debugging)",
             model.show_presentation,
             checked =>
             Update.Action.SetShowPresentation(checked)

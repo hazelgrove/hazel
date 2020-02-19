@@ -59,15 +59,19 @@ let get_cursor_info = (program: t) => {
 };
 
 // TODO memoize
-exception InvalidInput;
 exception DoesNotExpand;
-let get_result = (program: t): Result.t => {
-  open Dynamics;
+let get_expansion = (program: t): DHExp.t => {
   let e = program |> get_uhexp;
-  switch (Exp.syn_expand(Contexts.empty, Delta.empty, e)) {
+  switch (Dynamics.Exp.syn_expand(Contexts.empty, Delta.empty, e)) {
   | DoesNotExpand => raise(DoesNotExpand)
-  | Expands(d, _, _) =>
-    switch (Evaluator.evaluate(d)) {
+  | Expands(d, _, _) => d
+  };
+};
+
+exception InvalidInput;
+let get_result = (program: t): Result.t =>
+  Dynamics.(
+    switch (program |> get_expansion |> Evaluator.evaluate) {
     | InvalidInput(_) => raise(InvalidInput)
     | BoxedValue(d) =>
       let (d_renumbered, hii) = Exp.renumber([], HoleInstanceInfo.empty, d);
@@ -76,8 +80,7 @@ let get_result = (program: t): Result.t => {
       let (d_renumbered, hii) = Exp.renumber([], HoleInstanceInfo.empty, d);
       (d_renumbered, hii, Indet(d_renumbered));
     }
-  };
-};
+  );
 
 let get_selected_instance = program => program.selected_instance;
 let put_selected_instance = ((u, i) as inst, program) => {
