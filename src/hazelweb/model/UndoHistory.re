@@ -122,15 +122,6 @@ let undoable_action = (action: Action.t): bool => {
   | MoveToPrevHole => false
   };
 };
-let get_last_history_entry = (group: undo_history_group): undo_history_entry => {
-  ZList.prj_z(
-    group.group_entries,
-    /*   switch(ZList.prj_suffix(group.group_entries)){
-         | [] => ZList.prj_z(group.group_entries)
-         | [head,..tail] => head;
-         } */
-  );
-};
 
 let get_cursor_pos = (cursor_term: cursor_term): CursorPosition.t => {
   switch (cursor_term) {
@@ -804,7 +795,7 @@ let entry_to_start_a_group =
 let join_group =
     (prev_group: undo_history_group, new_entry: undo_history_entry)
     : group_result => {
-  let prev_last_entry = get_last_history_entry(prev_group);
+  let prev_last_entry = ZList.prj_z(prev_group.group_entries);
   let prev_complete = prev_group.is_complete;
   switch (prev_last_entry.info, new_entry.info) {
   | (_, None) => set_fail_join(prev_group, new_entry, None, true)
@@ -1254,19 +1245,35 @@ let join_group =
               | Var(_, InVarHole(Keyword(k), _), _) =>
                 switch (k) {
                 | Let =>
+                  let prev_group' = {
+                    ...prev_group,
+                    group_entries:
+                      ZList.replace_z(
+                        {...prev_last_entry, info: None},
+                        prev_group.group_entries,
+                      ),
+                  };
                   set_success_join(
-                    prev_group,
+                    prev_group',
                     new_entry,
                     Some(Construct(LetBinding)),
                     true,
-                  )
+                  );
                 | Case =>
+                  let prev_group' = {
+                    ...prev_group,
+                    group_entries:
+                      ZList.replace_z(
+                        {...prev_last_entry, info: None},
+                        prev_group.group_entries,
+                      ),
+                  };
                   set_success_join(
-                    prev_group,
+                    prev_group',
                     new_entry,
                     Some(Construct(CaseMatch)),
                     true,
-                  )
+                  );
                 }
               | EmptyHole(_)
               | Var(_, _, _)
