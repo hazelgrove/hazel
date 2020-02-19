@@ -1,7 +1,24 @@
+let _SHOW_CASTS = false;
+let _SHOW_FN_BODIES = false;
+
 [@deriving sexp]
 type t = Doc.t(DHAnnot.t);
 
 type formattable_child = (~enforce_inline: bool) => t;
+
+let precedence_const = 0;
+let precedence_Ap = 1;
+let precedence_Times = 2;
+let precedence_Plus = 3;
+let precedence_Minus = 3;
+let precedence_Cons = 4;
+let precedence_Equals = 5;
+let precedence_LessThan = 5;
+let precedence_GreaterThan = 5;
+let precedence_And = 6;
+let precedence_Or = 7;
+let precedence_Comma = 8;
+let precedence_max = 9;
 
 let pad_child =
     (
@@ -80,29 +97,97 @@ module Typ = {
 };
 
 module Pat = {
-  let rec mk = (~enforce_inline: bool, dp: DHPat.t): t => {
-    let mk' = mk(~enforce_inline);
+  let precedence = (dp: DHPat.t) =>
     switch (dp) {
-    | EmptyHole(u, i) => mk_EmptyHole(u, i)
-    | NonEmptyHole(reason, u, i, dp) =>
-      mk'(dp) |> Doc.annot(DHAnnot.NonEmptyHole(reason, (u, i)))
-    | Keyword(u, i, k) => mk_Keyword(u, i, k)
-    | Var(x) => Doc.Text(x)
-    | Wild => Delim.wild
-    | Triv => Delim.triv
-    | NumLit(n) => mk_NumLit(n)
-    | BoolLit(b) => mk_BoolLit(b)
-    | Inj(inj_side, d) =>
-      mk_Inj(inj_side, mk(d) |> pad_child(~enforce_inline))
-    | ListNil => Delim.list_nil
-    | Cons(d1, d2) => mk_Cons(mk'(d1), mk'(d2))
-    | Pair(d1, d2) => mk_Pair(mk'(d1), mk'(d2))
-    | Ap(d1, d2) => mk_Ap(mk'(d1), mk'(d2))
+    | EmptyHole(_)
+    | NonEmptyHole(_)
+    | Wild
+    | Keyword(_)
+    | Var(_)
+    | NumLit(_)
+    | BoolLit(_)
+    | Inj(_)
+    | Triv
+    | ListNil
+    | Pair(_) => precedence_const
+    | Cons(_) => precedence_Cons
+    | Ap(_) => precedence_Ap
     };
+
+  let rec mk = (~parenthesize=false, ~enforce_inline: bool, dp: DHPat.t): t => {
+    let mk' = mk(~enforce_inline);
+    let left_operands = (precedence_op, dp1, dp2) => (
+      mk'(~parenthesize=precedence(dp1) > precedence_op, dp1),
+      mk'(~parenthesize=precedence(dp2) >= precedence_op, dp2),
+    );
+    let right_operands = (precedence_op, dp1, dp2) => (
+      mk'(~parenthesize=precedence(dp1) >= precedence_op, dp1),
+      mk'(~parenthesize=precedence(dp2) > precedence_op, dp2),
+    );
+    let doc =
+      switch (dp) {
+      | EmptyHole(u, i) => mk_EmptyHole(u, i)
+      | NonEmptyHole(reason, u, i, dp) =>
+        mk'(dp) |> Doc.annot(DHAnnot.NonEmptyHole(reason, (u, i)))
+      | Keyword(u, i, k) => mk_Keyword(u, i, k)
+      | Var(x) => Doc.Text(x)
+      | Wild => Delim.wild
+      | Triv => Delim.triv
+      | NumLit(n) => mk_NumLit(n)
+      | BoolLit(b) => mk_BoolLit(b)
+      | Inj(inj_side, dp) =>
+        mk_Inj(inj_side, mk(dp) |> pad_child(~enforce_inline))
+      | ListNil => Delim.list_nil
+      | Cons(dp1, dp2) =>
+        let (doc1, doc2) = right_operands(precedence_Cons, dp1, dp2);
+        mk_Cons(doc1, doc2);
+      | Pair(dp1, dp2) => mk_Pair(mk'(dp1), mk'(dp2))
+      | Ap(dp1, dp2) =>
+        let (doc1, doc2) = left_operands(precedence_Ap, dp1, dp2);
+        mk_Ap(doc1, doc2);
+      };
+    parenthesize
+      ? Doc.hcats([Delim.open_Parenthesized, doc, Delim.close_Parenthesized])
+      : doc;
   };
 };
 
 module Exp = {
+  let precedence_bin_num_op = (bno: DHExp.bin_num_op) =>
+    switch (bno) {
+    | Times => precedence_Times
+    | Plus => precedence_Plus
+    | Minus => precedence_Minus
+    | Equals => precedence_Equals
+    | LessThan => precedence_LessThan
+    | GreaterThan => precedence_GreaterThan
+    };
+  let rec precedence = (d: DHExp.t) =>
+    switch (d) {
+    | BoundVar(_)
+    | FreeVar(_)
+    | Keyword(_)
+    | BoolLit(_)
+    | NumLit(_)
+    | ListNil(_)
+    | Inj(_)
+    | EmptyHole(_)
+    | Triv
+    | FailedCast(_) => precedence_const
+    | Cast(d1, _, _) => _SHOW_CASTS ? precedence_const : precedence(d1)
+    | Let(_)
+    | FixF(_)
+    | Lam(_)
+    | Case(_) => precedence_max
+    | BinNumOp(op, _, _) => precedence_bin_num_op(op)
+    | Ap(_) => precedence_Ap
+    | Cons(_) => precedence_Cons
+    | And(_) => precedence_And
+    | Or(_) => precedence_Or
+    | Pair(_) => precedence_Comma
+    | NonEmptyHole(_, _, _, _, d) => precedence(d)
+    };
+
   let mk_bin_num_op = (op: DHExp.bin_num_op): t =>
     Doc.Text(
       switch (op) {
@@ -115,70 +200,92 @@ module Exp = {
       },
     );
 
-  let rec mk = (~enforce_inline: bool, d: DHExp.t): t => {
+  let rec mk = (~parenthesize=false, ~enforce_inline: bool, d: DHExp.t): t => {
     let mk' = mk(~enforce_inline);
-    switch (d) {
-    | EmptyHole(u, i, _sigma) => mk_EmptyHole(u, i)
-    | NonEmptyHole(reason, u, i, _sigma, d) =>
-      mk'(d) |> Doc.annot(DHAnnot.NonEmptyHole(reason, (u, i)))
-    | Keyword(u, i, _sigma, k) => mk_Keyword(u, i, k)
-    | FreeVar(u, i, _sigma, x) =>
-      Doc.Text(x) |> Doc.annot(DHAnnot.VarHole(Free, (u, i)))
-    | BoundVar(x) => Doc.Text(x)
-    | Let(dp, ddef, dbody) =>
-      Doc.(
-        vseps([
-          hcats([
-            Delim.mk("let"),
-            Pat.mk(dp)
-            |> pad_child(
-                 ~inline_padding=(Doc.space, Doc.space),
-                 ~enforce_inline,
-               ),
-            Delim.mk("="),
-            mk(ddef)
-            |> pad_child(
-                 ~inline_padding=(Doc.space, Doc.space),
-                 ~enforce_inline,
-               ),
-            Delim.mk("in"),
-          ]),
-          mk(~enforce_inline=false, dbody),
-        ])
-      )
-    | Ap(d1, d2) => mk_Ap(mk'(d1), mk'(d2))
-    | BoolLit(b) => mk_BoolLit(b)
-    | NumLit(n) => mk_NumLit(n)
-    | BinNumOp(op, d1, d2) =>
-      Doc.hseps([mk'(d1), mk_bin_num_op(op), mk'(d2)])
-    | And(d1, d2) => Doc.hseps([mk'(d1), Text("&&"), mk'(d2)])
-    | Or(d1, d2) => Doc.hseps([mk'(d1), Text("||"), mk'(d2)])
-    | ListNil(_) => Delim.list_nil
-    | Cons(d1, d2) => mk_Cons(mk'(d1), mk'(d2))
-    | Inj(_, inj_side, d) =>
-      mk_Inj(inj_side, mk(d) |> pad_child(~enforce_inline))
-    | Pair(d1, d2) => mk_Pair(mk'(d1), mk'(d2))
-    | Triv => Delim.triv
-    | Case(dscrut, drs, _) =>
-      Doc.(
-        vseps(
-          List.concat([
-            [hseps([Delim.open_Case, mk(~enforce_inline=true, dscrut)])],
-            drs |> List.map(mk_rule),
-            [Delim.close_Case],
-          ]),
+    let left_operands = (precedence_op, d1, d2) => (
+      mk'(~parenthesize=precedence(d1) > precedence_op, d1),
+      mk'(~parenthesize=precedence(d2) >= precedence_op, d2),
+    );
+    let right_operands = (precedence_op, d1, d2) => (
+      mk'(~parenthesize=precedence(d1) >= precedence_op, d1),
+      mk'(~parenthesize=precedence(d2) > precedence_op, d2),
+    );
+    let doc =
+      switch (d) {
+      | EmptyHole(u, i, _sigma) => mk_EmptyHole(u, i)
+      | NonEmptyHole(reason, u, i, _sigma, d) =>
+        mk'(d) |> Doc.annot(DHAnnot.NonEmptyHole(reason, (u, i)))
+      | Keyword(u, i, _sigma, k) => mk_Keyword(u, i, k)
+      | FreeVar(u, i, _sigma, x) =>
+        Doc.Text(x) |> Doc.annot(DHAnnot.VarHole(Free, (u, i)))
+      | BoundVar(x) => Doc.Text(x)
+      | Triv => Delim.triv
+      | BoolLit(b) => mk_BoolLit(b)
+      | NumLit(n) => mk_NumLit(n)
+      | ListNil(_) => Delim.list_nil
+      | Inj(_, inj_side, d) =>
+        mk_Inj(inj_side, mk(d) |> pad_child(~enforce_inline))
+      | Ap(d1, d2) =>
+        let (doc1, doc2) = left_operands(precedence_Ap, d1, d2);
+        mk_Ap(doc1, doc2);
+      | BinNumOp(op, d1, d2) =>
+        // TODO assumes all bin num ops are left associative
+        let (doc1, doc2) = left_operands(precedence_bin_num_op(op), d1, d2);
+        Doc.hseps([doc1, mk_bin_num_op(op), doc2]);
+      | Cons(d1, d2) =>
+        let (doc1, doc2) = right_operands(precedence_Cons, d1, d2);
+        mk_Cons(doc1, doc2);
+      | And(d1, d2) =>
+        let (doc1, doc2) = right_operands(precedence_And, d1, d2);
+        Doc.hseps([doc1, Text("&&"), doc2]);
+      | Or(d1, d2) =>
+        let (doc1, doc2) = right_operands(precedence_Or, d1, d2);
+        Doc.hseps([doc1, Text("||"), doc2]);
+      | Pair(d1, d2) => mk_Pair(mk'(d1), mk'(d2))
+      | Case(dscrut, drs, _) =>
+        Doc.(
+          vseps(
+            List.concat([
+              [hseps([Delim.open_Case, mk(~enforce_inline=true, dscrut)])],
+              drs |> List.map(mk_rule),
+              [Delim.close_Case],
+            ]),
+          )
         )
-      )
-    | Cast(d1, _ty1, _ty2) =>
-      Doc.hseps([
-        mk'(d1),
-        /*Typ.mk(~enforce_inline, ty1),
-          Typ.mk(~enforce_inline, ty2),*/
-      ])
-    | FixF(_)
-    | Lam(_)
-    | FailedCast(_) => failwith("unimplemented")
-    };
+      | Cast(d1, _ty1, _ty2) =>
+        Doc.hseps([
+          mk'(d1),
+          /*Typ.mk(~enforce_inline, ty1),
+            Typ.mk(~enforce_inline, ty2),*/
+        ])
+      | Let(dp, ddef, dbody) =>
+        Doc.(
+          vseps([
+            hcats([
+              Delim.mk("let"),
+              Pat.mk(dp)
+              |> pad_child(
+                   ~inline_padding=(Doc.space, Doc.space),
+                   ~enforce_inline,
+                 ),
+              Delim.mk("="),
+              mk(ddef)
+              |> pad_child(
+                   ~inline_padding=(Doc.space, Doc.space),
+                   ~enforce_inline,
+                 ),
+              Delim.mk("in"),
+            ]),
+            mk(~enforce_inline=false, dbody),
+          ])
+        )
+      | FixF(_)
+      | Lam(_)
+      | FailedCast(_) => failwith("unimplemented")
+      };
+    parenthesize
+      ? Doc.hcats([Delim.open_Parenthesized, doc, Delim.close_Parenthesized])
+      : doc;
   }
   and mk_rule = (Rule(dp, dclause): DHExp.rule): t =>
     Doc.(
