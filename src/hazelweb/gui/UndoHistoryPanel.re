@@ -28,7 +28,11 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
     | BoolLit(_, bool_val) => "bool: " ++ string_of_bool(bool_val)
     | ListNil(_) => "empty list"
     | Lam(_, _, _, _) => "lambada function"
-    | Inj(_, inj_side, _) => "injection: " ++ InjSide.to_string(inj_side)
+    | Inj(_, side, _) =>
+      switch (side) {
+      | L => "left injection"
+      | R => "right injection"
+      }
     | Case(_, _, _, _) => "case match"
     | Parenthesized(_) => "( )"
     | ApPalette(_, _, _, _) => failwith("ApPalette is not implemented")
@@ -44,7 +48,11 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
     | BoolLit(_, bool_val) => "bool: " ++ string_of_bool(bool_val)
     | ListNil(_) => "empty list"
     | Parenthesized(_) => "( )"
-    | Inj(_, inj_side, _) => "injection: " ++ InjSide.to_string(inj_side)
+    | Inj(_, side, _) =>
+      switch (side) {
+      | L => "left injection"
+      | R => "right injection"
+      }
     };
   };
 
@@ -58,6 +66,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
     | List(_) => "[ ]"
     };
   };
+
   let display_string_of_cursor_term =
       (cursor_term: CursorInfo.cursor_term): string => {
     switch (cursor_term) {
@@ -83,34 +92,38 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
     | None => None
     | Some(info) =>
       switch (info.edit_action) {
-      | DeleteToHole(id, cursor_term) =>
-        Some(
-          "DeleteToHole delete "
-          ++ display_string_of_cursor_term(cursor_term)
-          ++ " and get hole #"
-          ++ string_of_int(id),
-        )
-      | DeleteToNotHole(cursor_term) =>
-        Some(
-          "DeleteToNotHole delete "
-          ++ display_string_of_cursor_term(cursor_term),
-        )
-      | DeleteHole(id) =>
-        Some("DeleteHole delete hole #" ++ string_of_int(id))
-      | DeleteEmptyLine => Some("DeleteEmptyLine delete empty line")
-      | DeleteEdit =>
-        Some(
-          "DeleteEdit edit "
-          ++ display_string_of_cursor_term(info.current_cursor_term),
-        )
+      | DeleteEdit(edit_detail) =>
+        switch (edit_detail) {
+        | TermToHole(id, cursor_term) =>
+          Some(
+            "DeleteToHole delete "
+            ++ display_string_of_cursor_term(cursor_term)
+            ++ " and get hole "
+            ++ string_of_int(id),
+          )
+        | TermToNotHole(cursor_term) =>
+          Some(
+            "DeleteToNotHole delete "
+            ++ display_string_of_cursor_term(cursor_term),
+          )
+        | Hole(id) => Some("DeleteHole delete hole " ++ string_of_int(id))
+        | EmptyLine => Some("DeleteEmptyLine delete empty line")
+        | Edit =>
+          Some(
+            "DeleteEdit edit "
+            ++ display_string_of_cursor_term(info.current_cursor_term),
+          )
+        | TypeAnn => Some("DeleteTypeAnn delete type annotation")
+        }
+
       | InsertHole(first_id, second_id) =>
         switch (second_id) {
-        | None => Some("InsertHole insert hole #" ++ string_of_int(first_id))
+        | None => Some("InsertHole insert hole " ++ string_of_int(first_id))
         | Some(second) =>
           Some(
-            "InsertHole insert hole #"
+            "InsertHole insert hole "
             ++ string_of_int(first_id)
-            ++ " and hole #"
+            ++ " and hole "
             ++ string_of_int(second),
           )
         }
@@ -120,7 +133,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
           Some(
             "InsertToHole insert "
             ++ display_string_of_cursor_term(info.current_cursor_term)
-            ++ " into hole #"
+            ++ " into hole "
             ++ string_of_int(id),
           )
         | None =>
@@ -145,12 +158,11 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
             Some(
               "Construct insert "
               ++ Action.shape_to_string(shape)
-              ++ " into hole #"
+              ++ " into hole "
               ++ string_of_int(id),
             )
           }
         }
-      | DeleteTypeAnn => Some("DeleteTypeAnn delete type annotation")
       | NotSet => None
       }
     };
