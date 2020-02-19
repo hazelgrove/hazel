@@ -73,10 +73,13 @@ module Delim = {
   let open_Cast = mk("<");
   let close_Cast = mk(">");
 
+  let open_FailedCast = open_Cast |> Doc.annot(DHAnnot.FailedCastDelim);
+  let close_FailedCast = close_Cast |> Doc.annot(DHAnnot.FailedCastDelim);
+
   let cast_arrow = mk(UnicodeConstants.castArrowSym);
 
   let failed_cast_arrow =
-    mk(UnicodeConstants.castArrowSym) |> Doc.annot(DHAnnot.FailedCastArrow);
+    mk(UnicodeConstants.castArrowSym) |> Doc.annot(DHAnnot.FailedCastDelim);
 };
 
 let mk_EmptyHole = (u, i) =>
@@ -324,13 +327,13 @@ module Exp = {
           let (d_doc, d_cast) as dcast_doc = go'(d);
           let cast_decoration =
             Doc.hcats([
-              Delim.open_Cast,
+              Delim.open_FailedCast,
               Doc.hseps([
                 Typ.mk(~enforce_inline=true, ty1),
                 Delim.failed_cast_arrow,
                 Typ.mk(~enforce_inline=true, ty2),
               ]),
-              Delim.close_Cast,
+              Delim.close_FailedCast,
             ])
             |> Doc.annot(DHAnnot.FailedCastDecoration);
           switch (d_cast) {

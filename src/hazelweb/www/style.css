@@ -751,7 +751,7 @@ h1 {
   font-size: 75%;
   top: -10px;
 }
-.DHCode .FailedCastArrow {
+.DHCode .FailedCastDelim {
   color: red;
 }
 .DHCode .CastDecoration {
