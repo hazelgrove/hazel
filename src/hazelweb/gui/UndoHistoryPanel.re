@@ -126,7 +126,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
           "InsertEdit edit "
           ++ display_string_of_cursor_term(info.current_cursor_term),
         )
-      | InsertEmptyLine => Some("InsertEmptyLine insert empty line")
+      | InsertEmptyLine => Some("InsertEmptyLine insert new line")
       | Construct(structure) =>
         switch (structure) {
         | LetBinding => Some("construct let binding")

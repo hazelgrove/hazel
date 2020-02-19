@@ -37,7 +37,7 @@ let shape_to_string = (shape: shape): string => {
   | SList => "[]"
   | SParenthesized => "()"
   | SChar(str) => str
-  | SAsc => "::"
+  | SAsc => "type annotation"
   | SLam => "lamda function"
   | SListNil => "Nil"
   | SInj(side) =>
