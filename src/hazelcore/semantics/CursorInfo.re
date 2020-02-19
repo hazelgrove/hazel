@@ -219,7 +219,7 @@ let is_exp_inside = (cursor_term: cursor_term): bool => {
   | Rule(_, _) => true /* TBD special condition for match rule */
   };
 };
-let rec extract_cursor_term = (exp: ZExp.t): (cursor_term, bool) => {
+let rec extract_cursor_term = (exp: ZExp.t): (cursor_term, bool, bool) => {
   let cursor_term = extract_cursor_exp_term(exp);
   let prev_is_empty_line = {
     let prefix = ZList.prj_prefix(exp);
@@ -228,7 +228,14 @@ let rec extract_cursor_term = (exp: ZExp.t): (cursor_term, bool) => {
     | Some((_, elt)) => UHExp.is_empty_line(elt)
     };
   };
-  (cursor_term, prev_is_empty_line);
+  let next_is_empty_line = {
+    let suffix = ZList.prj_suffix(exp);
+    switch (suffix) {
+    | [] => false
+    | ls => UHExp.is_empty_line(List.hd(ls))
+    };
+  };
+  (cursor_term, prev_is_empty_line, next_is_empty_line);
 }
 and extract_cursor_exp_term = (exp: ZExp.t): cursor_term => {
   extract_from_zline(ZList.prj_z(exp));

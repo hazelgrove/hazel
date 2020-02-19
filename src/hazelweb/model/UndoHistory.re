@@ -23,6 +23,7 @@ type info = {
   previous_cursor_term: cursor_term,
   current_cursor_term: cursor_term,
   prev_is_empty_line: bool, /* who's mpty line */
+  next_is_empty_line: bool,
   edit_action,
 };
 type undo_history_entry = {
@@ -40,7 +41,21 @@ type undo_history_group = {
 };
 
 type t = ZList.t(undo_history_group, undo_history_group);
-
+let edit_action_is_DeleteEmptyLine = (edit_action: edit_action): bool => {
+  switch (edit_action) {
+  | DeleteEmptyLine => true
+  | DeleteToHole(_, _)
+  | InsertEdit(_)
+  | InsertHole(_, _)
+  | DeleteToNotHole(_)
+  | DeleteHole(_)
+  | DeleteEdit
+  | Construct(_)
+  | InsertEmptyLine
+  | DeleteTypeAnn
+  | NotSet => false
+  };
+};
 let action_is_Schar = (action: Action.t): bool => {
   switch (action) {
   | MoveTo(_)
@@ -100,7 +115,7 @@ let action_is_Sline = (action: Action.t): bool => {
     }
   };
 };
-let get_cursor_info = (cardstacks: Cardstacks.t): (cursor_term, bool) => {
+let get_cursor_info = (cardstacks: Cardstacks.t): (cursor_term, bool, bool) => {
   let zexp =
     ZList.prj_z(ZList.prj_z(cardstacks).zcards).program |> Program.get_zexp;
   CursorInfo.extract_cursor_term(zexp);
@@ -481,7 +496,17 @@ let entry_to_start_a_group =
         | After =>
           switch (CursorInfo.is_hole(new_entry_info.previous_cursor_term)) {
           | Some(hole_id) =>
-            if (CursorInfo.is_exp_inside(new_entry_info.current_cursor_term)) {
+            if (new_entry_info.next_is_empty_line) {
+              /* whether delete the previous empty line */
+              set_fail_join(
+                prev_group,
+                new_entry,
+                Some(DeleteEmptyLine),
+                false,
+              );
+            } else if (CursorInfo.is_exp_inside(
+                         new_entry_info.current_cursor_term,
+                       )) {
               set_fail_join(prev_group, new_entry, None, true);
             } else {
               set_fail_join(
@@ -526,8 +551,19 @@ let entry_to_start_a_group =
       }
     | Backspace =>
       switch (prev_cursor_pos) {
-      | OnText(_) =>
-        if (cursor_jump_after_backspace(prev_cursor_pos, new_cursor_pos)) {
+      | OnText(pos) =>
+        if (new_entry_info.prev_is_empty_line && pos == 0) {
+          /* whether delete the previous empty line */
+          set_fail_join(
+            prev_group,
+            new_entry,
+            Some(DeleteEmptyLine),
+            false,
+          );
+        } else if (cursor_jump_after_backspace(
+                     prev_cursor_pos,
+                     new_cursor_pos,
+                   )) {
           /* jump to next term */
           set_fail_join(
             prev_group,
@@ -587,7 +623,17 @@ let entry_to_start_a_group =
             }
           | None =>
             /* move cursor to next term, just ignore this move */
-            set_fail_join(prev_group, new_entry, None, true)
+            if (new_entry_info.prev_is_empty_line) {
+              /* whether delete the previous empty line */
+              set_fail_join(
+                prev_group,
+                new_entry,
+                Some(DeleteEmptyLine),
+                false,
+              );
+            } else {
+              set_fail_join(prev_group, new_entry, None, true);
+            }
           }
 
         | After =>
@@ -963,7 +1009,27 @@ let join_group =
           get_cursor_pos(new_entry_info.current_cursor_term);
         switch (prev_cursor_pos) {
         | OnText(_) =>
-          if (cursor_jump_after_backspace(prev_cursor_pos, new_cursor_pos)) {
+          if (prev_entry_info.prev_is_empty_line) {
+            /* whether delete the previous empty line */
+            if (edit_action_is_DeleteEmptyLine(prev_entry_info.edit_action)) {
+              set_success_join(
+                prev_group,
+                new_entry,
+                Some(DeleteEmptyLine),
+                false,
+              );
+            } else {
+              set_fail_join(
+                prev_group,
+                new_entry,
+                Some(DeleteEmptyLine),
+                false,
+              );
+            };
+          } else if (cursor_jump_after_backspace(
+                       prev_cursor_pos,
+                       new_cursor_pos,
+                     )) {
             /* jump to next term */
             set_fail_join(
               prev_group,
@@ -1009,31 +1075,22 @@ let join_group =
             | Some(hole_id) =>
               if (prev_entry_info.prev_is_empty_line) {
                 /* whether delete the previous empty line */
-                switch (prev_entry_info.edit_action) {
-                | DeleteEmptyLine =>
+                if (edit_action_is_DeleteEmptyLine(
+                      prev_entry_info.edit_action,
+                    )) {
                   set_success_join(
                     prev_group,
                     new_entry,
                     Some(DeleteEmptyLine),
                     false,
-                  )
-
-                | DeleteToHole(_, _)
-                | InsertEdit(_)
-                | InsertHole(_, _)
-                | DeleteToNotHole(_)
-                | DeleteHole(_)
-                | DeleteEdit
-                | Construct(_)
-                | InsertEmptyLine
-                | DeleteTypeAnn
-                | NotSet =>
+                  );
+                } else {
                   set_fail_join(
                     prev_group,
                     new_entry,
                     Some(DeleteEmptyLine),
                     false,
-                  )
+                  );
                 };
               } else if (CursorInfo.is_exp_inside(
                            new_entry_info.current_cursor_term,
@@ -1049,7 +1106,28 @@ let join_group =
               }
             | None =>
               /* move cursor to next term, just ignore this move */
-              set_fail_join(prev_group, new_entry, None, true)
+              if (prev_entry_info.prev_is_empty_line) {
+                /* whether delete the previous empty line */
+                if (edit_action_is_DeleteEmptyLine(
+                      prev_entry_info.edit_action,
+                    )) {
+                  set_success_join(
+                    prev_group,
+                    new_entry,
+                    Some(DeleteEmptyLine),
+                    false,
+                  );
+                } else {
+                  set_fail_join(
+                    prev_group,
+                    new_entry,
+                    Some(DeleteEmptyLine),
+                    false,
+                  );
+                };
+              } else {
+                set_fail_join(prev_group, new_entry, None, true);
+              }
             }
 
           | After =>
@@ -1324,14 +1402,15 @@ let push_edit_state =
     : t => {
   let prev_group = ZList.prj_z(undo_history);
   if (undoable_action(action)) {
-    let (prev_cursor_term, prev_is_empty_line) =
+    let (prev_cursor_term, prev_is_empty_line, next_is_empty_line) =
       get_cursor_info(prev_cardstacks);
-    let (cur_cursor_term, _) = get_cursor_info(cur_cardstacks);
+    let (cur_cursor_term, _, _) = get_cursor_info(cur_cardstacks);
     let new_entry_info = {
       previous_action: action,
       previous_cursor_term: prev_cursor_term,
       current_cursor_term: cur_cursor_term,
       prev_is_empty_line,
+      next_is_empty_line,
       edit_action: NotSet,
     };
     let new_entry = {cardstacks: cur_cardstacks, info: Some(new_entry_info)};
