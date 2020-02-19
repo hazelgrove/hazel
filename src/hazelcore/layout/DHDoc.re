@@ -61,7 +61,7 @@ module Delim = {
   let close_Lam = mk("}");
 
   let open_Inj = (inj_side: InjSide.t) =>
-    mk(StringUtil.cat(["inj[", InjSide.to_string(inj_side), "]("]));
+    mk(StringUtil.cat([InjSide.to_string(inj_side), "("]));
   let close_Inj = mk(")");
 
   let open_Case = mk("case");

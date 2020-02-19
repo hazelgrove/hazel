@@ -24,11 +24,7 @@ let close_Parenthesized = (~caret=?, steps) =>
   mk(~caret?, ~path=(steps, 1), ")");
 
 let open_Inj = (~caret=?, steps, inj_side: InjSide.t) =>
-  mk(
-    ~caret?,
-    ~path=(steps, 0),
-    "inj[" ++ InjSide.to_string(inj_side) ++ "](",
-  );
+  mk(~caret?, ~path=(steps, 0), InjSide.to_string(inj_side) ++ "(");
 let close_Inj = (~caret=?, steps) => mk(~caret?, ~path=(steps, 1), ")");
 
 let sym_Lam = (~caret=?, steps) =>
