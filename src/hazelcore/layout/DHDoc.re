@@ -74,6 +74,9 @@ module Delim = {
   let close_Cast = mk(">");
 
   let cast_arrow = mk(UnicodeConstants.castArrowSym);
+
+  let failed_cast_arrow =
+    mk(UnicodeConstants.castArrowSym) |> Doc.annot(DHAnnot.FailedCastArrow);
 };
 
 let mk_EmptyHole = (u, i) =>
@@ -324,7 +327,7 @@ module Exp = {
               Delim.open_Cast,
               Doc.hseps([
                 Typ.mk(~enforce_inline=true, ty1),
-                Delim.cast_arrow,
+                Delim.failed_cast_arrow,
                 Typ.mk(~enforce_inline=true, ty2),
               ]),
               Delim.close_Cast,
