@@ -365,8 +365,8 @@ let get_insert_hole = (group: undo_history_group): option(MetaVar.t) => {
   let suffix = ZList.prj_suffix(group.group_entries);
   let delete_edit_info_filter = (info: info): option(MetaVar.t) =>
     switch (info.edit_action) {
-    | InsertHole(hole_id, _) => Some(hole_id)
     | InsertEdit(hole) => hole
+    | InsertHole(hole_id, _) => Some(hole_id)
     | DeleteEdit
     | DeleteToHole(_, _)
     | DeleteToNotHole(_)
