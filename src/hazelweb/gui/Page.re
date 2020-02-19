@@ -128,7 +128,7 @@ let page_view =
                       [
                         {
                           let (_, ty, _) = program |> Program.get_edit_state;
-                          Code.view_of_htyp(~inject, ty);
+                          HTypCode.view(ty);
                         },
                       ],
                     ),
@@ -242,7 +242,7 @@ let page_view =
               ~inject,
               model,
               [
-                CursorInspector.view(~inject, model),
+                CursorInspector.view(model),
                 ContextInspector.view(~inject, model),
                 OptionsPanel.view(~inject, model),
               ],

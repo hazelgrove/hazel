@@ -14,12 +14,7 @@ let view =
             [
               Node.span([Attr.classes(["var"])], [Node.text(x)]),
               Node.text(" : "),
-              Code.view_of_htyp(
-                ~width=30,
-                ~pos=Var.length(x) + 3,
-                ~inject,
-                ty,
-              ),
+              HTypCode.view(~width=30, ~pos=Var.length(x) + 3, ty),
             ],
           ),
         ],

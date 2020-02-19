@@ -470,19 +470,6 @@ let editor_view_of_layout =
   );
 };
 
-let view_of_htyp =
-    (~inject: Update.Action.t => Vdom.Event.t, ~width=30, ~pos=0, ty: HTyp.t)
-    : Vdom.Node.t => {
-  let l =
-    ty
-    |> TermDoc.Typ.mk_htyp(~steps=[], ~enforce_inline=false)
-    |> LayoutOfDoc.layout_of_doc(~width, ~pos);
-  switch (l) {
-  | None => failwith("unimplemented: view_of_htyp on layout failure")
-  | Some(l) => presentation_of_layout(~inject, l)
-  };
-};
-
 let editor_view_of_exp =
     (
       ~inject: Update.Action.t => Vdom.Event.t,

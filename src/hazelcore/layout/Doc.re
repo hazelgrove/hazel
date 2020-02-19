@@ -18,6 +18,8 @@ let indent = Text(UnicodeConstants.nbsp ++ UnicodeConstants.nbsp);
 let align = doc => Align(doc);
 let annot = (annot, doc) => Annot(annot, doc);
 
+let indent_and_align = doc => Cat(indent, align(doc));
+
 let hcat = (x, y) => Cat(x, y);
 let hcats: list(t('annot)) => t('annot) =
   fun
@@ -42,3 +44,12 @@ let choices: list(t('annot)) => t('annot) =
   fun
   | [] => Fail
   | [doc, ...docs] => List.fold_left(choice, doc, docs);
+
+let rec map_annot: 'a 'b. ('a => 'b, t('a)) => t('b) =
+  f =>
+    fun
+    | (Text(_) | Linebreak | Fail) as d => d
+    | Annot(annot, d) => Annot(f(annot), map_annot(f, d))
+    | Align(d) => Align(map_annot(f, d))
+    | Cat(d1, d2) => Cat(map_annot(f, d1), map_annot(f, d2))
+    | Choice(d1, d2) => Choice(map_annot(f, d1), map_annot(f, d2));
