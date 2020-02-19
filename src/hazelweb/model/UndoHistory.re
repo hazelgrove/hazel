@@ -4,8 +4,7 @@ type structure =
   | Lamda
   | CaseMatch
   | TypeAnn
-  | ShapeEdit(Action.shape)
-  | ShapeToHole(MetaVar.t, Action.shape);
+  | ShapeEdit(option(MetaVar.t), Action.shape);
 type edit_action =
   | DeleteToHole(MetaVar.t, cursor_term)
   | DeleteToNotHole(cursor_term)
@@ -366,13 +365,13 @@ let get_insert_hole = (group: undo_history_group): option(MetaVar.t) => {
   let suffix = ZList.prj_suffix(group.group_entries);
   let delete_edit_info_filter = (info: info): option(MetaVar.t) =>
     switch (info.edit_action) {
+    | InsertHole(hole_id, _) => Some(hole_id)
     | InsertEdit(hole) => hole
     | DeleteEdit
     | DeleteToHole(_, _)
     | DeleteToNotHole(_)
     | DeleteHole(_)
     | DeleteEmptyLine
-    | InsertHole(_, _)
     | Construct(_)
     | InsertEmptyLine
     | DeleteTypeAnn
@@ -696,14 +695,14 @@ let entry_to_start_a_group =
           set_fail_join(
             prev_group,
             new_entry,
-            Some(Construct(ShapeEdit(shape))),
+            Some(Construct(ShapeEdit(None, shape))),
             true,
           )
         | Some(hole_id) =>
           set_fail_join(
             prev_group,
             new_entry,
-            Some(Construct(ShapeToHole(hole_id, shape))),
+            Some(Construct(ShapeEdit(Some(hole_id), shape))),
             true,
           )
         }
@@ -1169,14 +1168,14 @@ let join_group =
             set_fail_join(
               prev_group,
               new_entry,
-              Some(Construct(ShapeEdit(shape_2))),
+              Some(Construct(ShapeEdit(None, shape_2))),
               true,
             )
           | Some(hole_id) =>
             set_success_join(
               prev_group,
               new_entry,
-              Some(Construct(ShapeToHole(hole_id, shape_2))),
+              Some(Construct(ShapeEdit(Some(hole_id), shape_2))),
               true,
             )
           }
@@ -1227,14 +1226,14 @@ let join_group =
               set_fail_join(
                 prev_group,
                 new_entry,
-                Some(Construct(ShapeEdit(shape_2))),
+                Some(Construct(ShapeEdit(None, shape_2))),
                 true,
               )
             | Some(hole_id) =>
               set_success_join(
                 prev_group,
                 new_entry,
-                Some(Construct(ShapeToHole(hole_id, shape_2))),
+                Some(Construct(ShapeEdit(Some(hole_id), shape_2))),
                 true,
               )
             }

@@ -316,7 +316,7 @@ let is_hole = (cursor_term: cursor_term): option(MetaVar.t) => {
   switch (cursor_term) {
   | Exp(_, exp) => UHExp.operand_is_hole(exp)
   | Pat(_, pat) => UHPat.operand_is_hole(pat)
-  | Typ(_, typ) => UHTyp.operand_is_hole(typ)
+  | Typ(_, _) // => UHTyp.operand_is_hole(typ)
   | ExpOp(_, _)
   | PatOp(_, _)
   | TypOp(_, _)
