@@ -5,15 +5,15 @@ type structure =
   | CaseMatch
   | TypeAnn
   | ShapeEdit(Action.shape)
-  | ShapeToHole(int, Action.shape);
+  | ShapeToHole(MetaVar.t, Action.shape);
 type edit_action =
-  | DeleteToHole(int, cursor_term)
+  | DeleteToHole(MetaVar.t, cursor_term)
   | DeleteToNotHole(cursor_term)
-  | DeleteHole(int)
+  | DeleteHole(MetaVar.t)
   | DeleteEmptyLine
   | DeleteEdit
-  | InsertHole(int, option(int))
-  | InsertEdit(option(int))
+  | InsertHole(MetaVar.t, option(MetaVar.t))
+  | InsertEdit(option(MetaVar.t))
   | InsertEmptyLine
   | Construct(structure)
   | DeleteTypeAnn
@@ -362,9 +362,9 @@ let get_initial_term_before_delete =
   };
 };
 
-let get_insert_hole = (group: undo_history_group): option(int) => {
+let get_insert_hole = (group: undo_history_group): option(MetaVar.t) => {
   let suffix = ZList.prj_suffix(group.group_entries);
-  let delete_edit_info_filter = (info: info): option(int) =>
+  let delete_edit_info_filter = (info: info): option(MetaVar.t) =>
     switch (info.edit_action) {
     | InsertEdit(hole) => hole
     | DeleteEdit
