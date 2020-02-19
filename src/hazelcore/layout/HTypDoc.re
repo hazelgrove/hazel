@@ -6,7 +6,7 @@ let precedence_const = 0;
 let precedence_Prod = 1;
 let precedence_Sum = 2;
 let precedence_Arrow = 3;
-let precedence_ty = (ty: HTyp.t): int =>
+let precedence = (ty: HTyp.t): int =>
   switch (ty) {
   | Num
   | Bool
@@ -39,6 +39,17 @@ let mk_delim = s => Doc.Annot(HTypAnnot.Delim, Text(s));
 
 let rec mk = (~parenthesize=false, ~enforce_inline: bool, ty: HTyp.t): t => {
   open Doc;
+  let mk' = mk(~enforce_inline);
+  /*
+   let left_operands = (precedence_op, ty1, ty2) => (
+     mk'(~parenthesize=precedence(ty1) > precedence_op, ty1),
+     mk'(~parenthesize=precedence(ty2) >= precedence_op, ty2),
+   );
+   */
+  let right_operands = (precedence_op, ty1, ty2) => (
+    mk'(~parenthesize=precedence(ty1) >= precedence_op, ty1),
+    mk'(~parenthesize=precedence(ty2) > precedence_op, ty2),
+  );
   let doc =
     switch (ty) {
     | Hole => Annot(HTypAnnot.Delim, Annot(HoleLabel, Text("?")))
@@ -52,18 +63,7 @@ let rec mk = (~parenthesize=false, ~enforce_inline: bool, ty: HTyp.t): t => {
         mk_delim("]"),
       ])
     | Arrow(ty1, ty2) =>
-      let d1 =
-        mk(
-          ~parenthesize=precedence_ty(ty1) >= precedence_Arrow,
-          ~enforce_inline,
-          ty1,
-        );
-      let d2 =
-        mk(
-          ~parenthesize=precedence_ty(ty2) > precedence_Arrow,
-          ~enforce_inline,
-          ty2,
-        );
+      let (d1, d2) = right_operands(precedence_Arrow, ty1, ty2);
       hcats([
         d1,
         hcats([
@@ -73,32 +73,10 @@ let rec mk = (~parenthesize=false, ~enforce_inline: bool, ty: HTyp.t): t => {
         d2,
       ]);
     | Prod(ty1, ty2) =>
-      let d1 =
-        mk(
-          ~parenthesize=precedence_ty(ty1) >= precedence_Prod,
-          ~enforce_inline,
-          ty1,
-        );
-      let d2 =
-        mk(
-          ~parenthesize=precedence_ty(ty2) > precedence_Prod,
-          ~enforce_inline,
-          ty2,
-        );
+      let (d1, d2) = right_operands(precedence_Prod, ty1, ty2);
       hcats([d1, hcats([Text(","), choices([Linebreak, space])]), d2]);
     | Sum(ty1, ty2) =>
-      let d1 =
-        mk(
-          ~parenthesize=precedence_ty(ty1) >= precedence_Sum,
-          ~enforce_inline,
-          ty1,
-        );
-      let d2 =
-        mk(
-          ~parenthesize=precedence_ty(ty2) > precedence_Sum,
-          ~enforce_inline,
-          ty2,
-        );
+      let (d1, d2) = right_operands(precedence_Sum, ty1, ty2);
       hcats([d1, hcats([choices([Linebreak, space]), Text("| ")]), d2]);
     };
   parenthesize ? Doc.hcats([mk_delim("("), doc, mk_delim(")")]) : doc;
