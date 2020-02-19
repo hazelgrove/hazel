@@ -412,118 +412,118 @@ let entry_to_start_a_group =
   | None => set_fail_join(prev_group, new_entry, None, true)
   | Some(new_entry_info) =>
     let prev_cursor_pos = get_cursor_pos(new_entry_info.previous_cursor_term);
-    let new_cursor_pos = get_cursor_pos(new_entry_info.current_cursor_term);
-    switch (new_entry_info.previous_action) {
-    | Delete =>
-      switch (prev_cursor_pos) {
-      | OnText(_) =>
-        if (cursor_jump_after_delete(prev_cursor_pos, new_cursor_pos)) {
-          /* jump to next term */
-          set_fail_join(
-            prev_group,
-            new_entry,
-            None,
-            true,
-          );
-        } else {
-          /* normal edit */
-          switch (CursorInfo.is_hole(new_entry_info.current_cursor_term)) {
-          | None =>
-            if (CursorInfo.is_empty_line(new_entry_info.current_cursor_term)) {
-              set_fail_join(
-                prev_group,
-                new_entry,
-                Some(DeleteToNotHole(new_entry_info.previous_cursor_term)),
-                true,
-              );
-            } else {
-              set_fail_join(prev_group, new_entry, Some(DeleteEdit), false);
-            }
-          | Some(hole_id) =>
+    let ontext_func =
+        (
+          ~jump_judge_func,
+          ~prev_group: undo_history_group,
+          ~new_entry: undo_history_entry,
+          ~new_entry_info: info,
+          ~pos: CharIndex.t,
+          ~adjacent_is_empty_line: bool,
+        )
+        : group_result => {
+      let prev_cursor_pos =
+        get_cursor_pos(new_entry_info.previous_cursor_term);
+      let new_cursor_pos = get_cursor_pos(new_entry_info.current_cursor_term);
+      if (adjacent_is_empty_line && pos == 0) {
+        /* whether delete the previous empty line */
+        set_fail_join(
+          prev_group,
+          new_entry,
+          Some(DeleteEmptyLine),
+          false,
+        );
+      } else if (jump_judge_func(prev_cursor_pos, new_cursor_pos)) {
+        /* jump to next term */
+        set_fail_join(
+          prev_group,
+          new_entry,
+          None,
+          true,
+        );
+      } else {
+        /* normal edit */
+        switch (CursorInfo.is_hole(new_entry_info.current_cursor_term)) {
+        | None =>
+          if (CursorInfo.is_empty_line(new_entry_info.current_cursor_term)) {
             set_fail_join(
               prev_group,
               new_entry,
-              Some(
-                DeleteToHole(hole_id, new_entry_info.previous_cursor_term),
-              ),
+              Some(DeleteToNotHole(new_entry_info.previous_cursor_term)),
               true,
-            )
-          };
-        }
-      | OnDelim(num, side) =>
-        switch (side) {
-        | Before =>
-          switch (CursorInfo.is_hole(new_entry_info.previous_cursor_term)) {
-          | Some(_) =>
-            /* move cursor in the hole */
-            set_fail_join(prev_group, new_entry, None, true)
-          | None =>
-            if (num == 1
-                && can_delete_typ_ann(new_entry_info.previous_cursor_term)) {
-              /* num==1 is the position of ':' in an expression */
-              set_fail_join(
-                prev_group,
-                new_entry,
-                Some(DeleteTypeAnn),
-                true,
-              );
-            } else {
-              switch (CursorInfo.is_hole(new_entry_info.current_cursor_term)) {
-              | Some(hole_id) =>
-                /* delete and reach a hole */
-                set_fail_join(
-                  prev_group,
-                  new_entry,
-                  Some(
-                    DeleteToHole(
-                      hole_id,
-                      new_entry_info.previous_cursor_term,
-                    ),
-                  ),
-                  true,
-                )
-              | None =>
-                /* delete and not reach a hole */
-                set_fail_join(
-                  prev_group,
-                  new_entry,
-                  Some(DeleteToNotHole(new_entry_info.previous_cursor_term)),
-                  true,
-                )
-              };
-            }
+            );
+          } else {
+            set_fail_join(prev_group, new_entry, Some(DeleteEdit), false);
           }
-        | After =>
-          switch (CursorInfo.is_hole(new_entry_info.previous_cursor_term)) {
-          | Some(hole_id) =>
-            if (new_entry_info.next_is_empty_line) {
-              /* whether delete the previous empty line */
-              set_fail_join(
-                prev_group,
-                new_entry,
-                Some(DeleteEmptyLine),
-                false,
-              );
-            } else if (CursorInfo.is_exp_inside(
-                         new_entry_info.current_cursor_term,
-                       )) {
-              set_fail_join(prev_group, new_entry, None, true);
-            } else {
-              set_fail_join(
-                prev_group,
-                new_entry,
-                Some(DeleteHole(hole_id)),
-                true,
-              );
-            }
-          | None =>
-            /* move cursor to next term, just ignore this move */
-            set_fail_join(prev_group, new_entry, None, true)
+        | Some(hole_id) =>
+          set_fail_join(
+            prev_group,
+            new_entry,
+            Some(DeleteToHole(hole_id, new_entry_info.previous_cursor_term)),
+            true,
+          )
+        };
+      };
+    };
+
+    let ondelim_undel =
+        (
+          ~prev_group: undo_history_group,
+          ~new_entry: undo_history_entry,
+          ~new_entry_info: info,
+          ~adjacent_is_empty_line: bool,
+        )
+        : group_result =>
+      if (adjacent_is_empty_line) {
+        /* whether delete the previous empty line */
+        set_fail_join(
+          prev_group,
+          new_entry,
+          Some(DeleteEmptyLine),
+          false,
+        );
+      } else {
+        switch (CursorInfo.is_hole(new_entry_info.previous_cursor_term)) {
+        | Some(hole_id) =>
+          if (CursorInfo.is_exp_inside(new_entry_info.current_cursor_term)) {
+            set_fail_join(prev_group, new_entry, None, true);
+          } else {
+            set_fail_join(
+              prev_group,
+              new_entry,
+              Some(DeleteHole(hole_id)),
+              true,
+            );
           }
-        }
-      | OnOp(side) =>
-        switch (side) {
-        | Before =>
+        | None =>
+          /* move cursor to next term, just ignore this move */
+          set_fail_join(prev_group, new_entry, None, true)
+        };
+      };
+
+    let ondelim_del =
+        (
+          ~prev_group: undo_history_group,
+          ~new_entry: undo_history_entry,
+          ~new_entry_info: info,
+          ~pos: DelimIndex.t,
+        )
+        : group_result => {
+      switch (CursorInfo.is_hole(new_entry_info.previous_cursor_term)) {
+      | Some(_) =>
+        /* move cursor in the hole */
+        set_fail_join(prev_group, new_entry, None, true)
+      | None =>
+        if (pos == 1
+            && can_delete_typ_ann(new_entry_info.previous_cursor_term)) {
+          /* num==1 is the position of ':' in an expression */
+          set_fail_join(
+            prev_group,
+            new_entry,
+            Some(DeleteTypeAnn),
+            true,
+          );
+        } else {
           switch (CursorInfo.is_hole(new_entry_info.current_cursor_term)) {
           | Some(hole_id) =>
             /* delete and reach a hole */
@@ -543,7 +543,64 @@ let entry_to_start_a_group =
               Some(DeleteToNotHole(new_entry_info.previous_cursor_term)),
               true,
             )
-          }
+          };
+        }
+      };
+    };
+
+    let op_del =
+        (
+          ~prev_group: undo_history_group,
+          ~new_entry: undo_history_entry,
+          ~new_entry_info: info,
+        )
+        : group_result => {
+      switch (CursorInfo.is_hole(new_entry_info.current_cursor_term)) {
+      | Some(hole_id) =>
+        /* delete and reach a hole */
+        set_fail_join(
+          prev_group,
+          new_entry,
+          Some(DeleteToHole(hole_id, new_entry_info.previous_cursor_term)),
+          true,
+        )
+      | None =>
+        /* delete and not reach a hole */
+        set_fail_join(
+          prev_group,
+          new_entry,
+          Some(DeleteToNotHole(new_entry_info.previous_cursor_term)),
+          true,
+        )
+      };
+    };
+    switch (new_entry_info.previous_action) {
+    | Delete =>
+      switch (prev_cursor_pos) {
+      | OnText(pos) =>
+        ontext_func(
+          ~jump_judge_func=cursor_jump_after_delete,
+          ~prev_group,
+          ~new_entry,
+          ~new_entry_info,
+          ~pos,
+          ~adjacent_is_empty_line=new_entry_info.next_is_empty_line,
+        )
+      | OnDelim(pos, side) =>
+        switch (side) {
+        | Before =>
+          ondelim_del(~prev_group, ~new_entry, ~new_entry_info, ~pos)
+        | After =>
+          ondelim_undel(
+            ~prev_group,
+            ~new_entry,
+            ~new_entry_info,
+            ~adjacent_is_empty_line=new_entry_info.next_is_empty_line,
+          )
+        }
+      | OnOp(side) =>
+        switch (side) {
+        | Before => op_del(~prev_group, ~new_entry, ~new_entry_info)
         | After =>
           /* move cursor to next term, just ignore this move */
           set_fail_join(prev_group, new_entry, None, true)
@@ -552,158 +609,32 @@ let entry_to_start_a_group =
     | Backspace =>
       switch (prev_cursor_pos) {
       | OnText(pos) =>
-        if (new_entry_info.prev_is_empty_line && pos == 0) {
-          /* whether delete the previous empty line */
-          set_fail_join(
-            prev_group,
-            new_entry,
-            Some(DeleteEmptyLine),
-            false,
-          );
-        } else if (cursor_jump_after_backspace(
-                     prev_cursor_pos,
-                     new_cursor_pos,
-                   )) {
-          /* jump to next term */
-          set_fail_join(
-            prev_group,
-            new_entry,
-            None,
-            true,
-          );
-        } else {
-          /* normal edit */
-          switch (CursorInfo.is_hole(new_entry_info.current_cursor_term)) {
-          | None =>
-            if (CursorInfo.is_empty_line(new_entry_info.current_cursor_term)) {
-              set_fail_join(
-                prev_group,
-                new_entry,
-                Some(DeleteToNotHole(new_entry_info.previous_cursor_term)),
-                true,
-              );
-            } else {
-              set_fail_join(prev_group, new_entry, Some(DeleteEdit), false);
-            }
-          | Some(hole_id) =>
-            set_fail_join(
-              prev_group,
-              new_entry,
-              Some(
-                DeleteToHole(hole_id, new_entry_info.previous_cursor_term),
-              ),
-              true,
-            )
-          };
-        }
-      | OnDelim(num, side) =>
+        ontext_func(
+          ~jump_judge_func=cursor_jump_after_backspace,
+          ~prev_group,
+          ~new_entry,
+          ~new_entry_info,
+          ~pos,
+          ~adjacent_is_empty_line=new_entry_info.prev_is_empty_line,
+        )
+      | OnDelim(pos, side) =>
         switch (side) {
         | Before =>
-          switch (CursorInfo.is_hole(new_entry_info.previous_cursor_term)) {
-          | Some(hole_id) =>
-            if (new_entry_info.prev_is_empty_line) {
-              /* whether delete the previous empty line */
-              set_fail_join(
-                prev_group,
-                new_entry,
-                Some(DeleteEmptyLine),
-                false,
-              );
-            } else if (CursorInfo.is_exp_inside(
-                         new_entry_info.current_cursor_term,
-                       )) {
-              set_fail_join(prev_group, new_entry, None, true);
-            } else {
-              set_fail_join(
-                prev_group,
-                new_entry,
-                Some(DeleteHole(hole_id)),
-                true,
-              );
-            }
-          | None =>
-            /* move cursor to next term, just ignore this move */
-            if (new_entry_info.prev_is_empty_line) {
-              /* whether delete the previous empty line */
-              set_fail_join(
-                prev_group,
-                new_entry,
-                Some(DeleteEmptyLine),
-                false,
-              );
-            } else {
-              set_fail_join(prev_group, new_entry, None, true);
-            }
-          }
+          ondelim_undel(
+            ~prev_group,
+            ~new_entry,
+            ~new_entry_info,
+            ~adjacent_is_empty_line=new_entry_info.prev_is_empty_line,
+          )
 
-        | After =>
-          switch (CursorInfo.is_hole(new_entry_info.previous_cursor_term)) {
-          | Some(_) =>
-            /* move cursor in the hole */
-            set_fail_join(prev_group, new_entry, None, true)
-          | None =>
-            if (num == 1
-                && can_delete_typ_ann(new_entry_info.previous_cursor_term)) {
-              /* num==1 is the position of ':' in an expression */
-              set_fail_join(
-                prev_group,
-                new_entry,
-                Some(DeleteTypeAnn),
-                true,
-              );
-            } else {
-              switch (CursorInfo.is_hole(new_entry_info.current_cursor_term)) {
-              | Some(hole_id) =>
-                /* delete and reach a hole */
-                set_fail_join(
-                  prev_group,
-                  new_entry,
-                  Some(
-                    DeleteToHole(
-                      hole_id,
-                      new_entry_info.previous_cursor_term,
-                    ),
-                  ),
-                  true,
-                )
-              | None =>
-                /* delete and not reach a hole */
-                set_fail_join(
-                  prev_group,
-                  new_entry,
-                  Some(DeleteToNotHole(new_entry_info.previous_cursor_term)),
-                  true,
-                )
-              };
-            }
-          }
+        | After => ondelim_del(~prev_group, ~new_entry, ~new_entry_info, ~pos)
         }
       | OnOp(side) =>
         switch (side) {
         | Before =>
           /* move cursor to next term, just ignore this move */
           set_fail_join(prev_group, new_entry, None, true)
-        | After =>
-          switch (CursorInfo.is_hole(new_entry_info.current_cursor_term)) {
-          | Some(hole_id) =>
-            /* delete and reach a hole */
-            set_fail_join(
-              prev_group,
-              new_entry,
-              Some(
-                DeleteToHole(hole_id, new_entry_info.previous_cursor_term),
-              ),
-              true,
-            )
-          | None =>
-            /* delete and not reach a hole */
-            set_fail_join(
-              prev_group,
-              new_entry,
-              Some(DeleteToNotHole(new_entry_info.previous_cursor_term)),
-              true,
-            )
-          }
+        | After => op_del(~prev_group, ~new_entry, ~new_entry_info)
         }
       }
     | Construct(shape) =>
