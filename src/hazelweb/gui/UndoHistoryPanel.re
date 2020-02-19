@@ -85,32 +85,37 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
       switch (info.edit_action) {
       | DeleteToHole(id, cursor_term) =>
         Some(
-          "delete "
+          "DeleteToHole delete "
           ++ display_string_of_cursor_term(cursor_term)
           ++ " and get hole #"
           ++ string_of_int(id),
         )
       | DeleteToNotHole(cursor_term) =>
-        Some("delete " ++ display_string_of_cursor_term(cursor_term))
-      | DeleteHole(id) => Some("delete hole #" ++ string_of_int(id))
-      | DeleteEmptyLine => Some("delete empty line")
+        Some(
+          "DeleteToNotHole delete "
+          ++ display_string_of_cursor_term(cursor_term),
+        )
+      | DeleteHole(id) =>
+        Some("DeleteHole delete hole #" ++ string_of_int(id))
+      | DeleteEmptyLine => Some("DeleteEmptyLine delete empty line")
       | DeleteEdit =>
         Some(
-          "edit " ++ display_string_of_cursor_term(info.current_cursor_term),
+          "DeleteEdit edit "
+          ++ display_string_of_cursor_term(info.current_cursor_term),
         )
       | InsertToHole(id) =>
         Some(
-          "insert "
+          "InsertToHole insert "
           ++ display_string_of_cursor_term(info.current_cursor_term)
           ++ " into hole #"
           ++ string_of_int(id),
         )
       | InsertHole(first_id, second_id) =>
         switch (second_id) {
-        | None => Some("insert hole #" ++ string_of_int(first_id))
+        | None => Some("InsertHole insert hole #" ++ string_of_int(first_id))
         | Some(second) =>
           Some(
-            "insert hole #"
+            "InsertHole insert hole #"
             ++ string_of_int(first_id)
             ++ " and hole #"
             ++ string_of_int(second),
@@ -118,25 +123,27 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
         }
       | InsertEdit =>
         Some(
-          "edit " ++ display_string_of_cursor_term(info.current_cursor_term),
+          "InsertEdit edit "
+          ++ display_string_of_cursor_term(info.current_cursor_term),
         )
+      | InsertEmptyLine => Some("InsertEmptyLine insert empty line")
       | Construct(structure) =>
         switch (structure) {
         | LetBinding => Some("construct let binding")
         | Lamda => Some("construct lamda function")
         | CaseMatch => Some("construct case match")
-        | TypeAnn => Some("insert type annotation")
+        | TypeAnn => Some("Construct insert type annotation")
         | ShapeEdit(shape) =>
-          Some("insert " ++ Action.shape_to_string(shape))
+          Some("Construct insert " ++ Action.shape_to_string(shape))
         | ShapeToHole(id, shape) =>
           Some(
-            "insert "
+            "Construct insert "
             ++ Action.shape_to_string(shape)
             ++ "into hole #"
             ++ string_of_int(id),
           )
         }
-      | DeleteTypeAnn => Some("delete type annotation")
+      | DeleteTypeAnn => Some("DeleteTypeAnn delete type annotation")
       | NotSet => None
       }
     };
