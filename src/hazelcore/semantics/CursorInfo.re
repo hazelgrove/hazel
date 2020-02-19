@@ -312,7 +312,7 @@ and extract_from_ztyp_operand = (ztyp_operand: ZTyp.zoperand): cursor_term => {
   };
 };
 
-let is_hole = (cursor_term: cursor_term): option(int) => {
+let is_hole = (cursor_term: cursor_term): option(MetaVar.t) => {
   switch (cursor_term) {
   | Exp(_, exp) => UHExp.operand_is_hole(exp)
   | Pat(_, pat) => UHPat.operand_is_hole(pat)
