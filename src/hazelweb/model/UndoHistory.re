@@ -421,7 +421,16 @@ let entry_to_start_a_group =
           /* normal edit */
           switch (CursorInfo.is_hole(new_entry_info.current_cursor_term)) {
           | None =>
-            set_fail_join(prev_group, new_entry, Some(DeleteEdit), false)
+            if (CursorInfo.is_empty_line(new_entry_info.current_cursor_term)) {
+              set_fail_join(
+                prev_group,
+                new_entry,
+                Some(DeleteToNotHole(new_entry_info.previous_cursor_term)),
+                true,
+              );
+            } else {
+              set_fail_join(prev_group, new_entry, Some(DeleteEdit), false);
+            }
           | Some(hole_id) =>
             set_fail_join(
               prev_group,
@@ -531,12 +540,28 @@ let entry_to_start_a_group =
           );
         } else {
           /* normal edit */
-          set_fail_join(
-            prev_group,
-            new_entry,
-            Some(DeleteEdit),
-            false,
-          );
+          switch (CursorInfo.is_hole(new_entry_info.current_cursor_term)) {
+          | None =>
+            if (CursorInfo.is_empty_line(new_entry_info.current_cursor_term)) {
+              set_fail_join(
+                prev_group,
+                new_entry,
+                Some(DeleteToNotHole(new_entry_info.previous_cursor_term)),
+                true,
+              );
+            } else {
+              set_fail_join(prev_group, new_entry, Some(DeleteEdit), false);
+            }
+          | Some(hole_id) =>
+            set_fail_join(
+              prev_group,
+              new_entry,
+              Some(
+                DeleteToHole(hole_id, new_entry_info.previous_cursor_term),
+              ),
+              true,
+            )
+          };
         }
       | OnDelim(num, side) =>
         switch (side) {
@@ -786,12 +811,34 @@ let join_group =
           } else {
             switch (CursorInfo.is_hole(new_entry_info.current_cursor_term)) {
             | None =>
-              set_success_join(
-                prev_group,
-                new_entry,
-                Some(DeleteEdit),
-                false,
-              )
+              if (CursorInfo.is_empty_line(new_entry_info.current_cursor_term)) {
+                switch (get_first_cursor_term(prev_group)) {
+                | None =>
+                  set_fail_join(
+                    prev_group,
+                    new_entry,
+                    Some(
+                      DeleteToNotHole(new_entry_info.previous_cursor_term),
+                    ),
+                    true,
+                  )
+                | Some(cursor_term) =>
+                  set_fail_join(
+                    prev_group,
+                    new_entry,
+                    Some(DeleteToNotHole(cursor_term)),
+                    true,
+                  )
+                };
+              } else {
+                set_success_join(
+                  prev_group,
+                  new_entry,
+                  Some(DeleteEdit),
+                  false,
+                );
+              }
+
             | Some(hole_id) =>
               switch (get_first_cursor_term(prev_group)) {
               | None =>
@@ -975,12 +1022,33 @@ let join_group =
           } else {
             switch (CursorInfo.is_hole(new_entry_info.current_cursor_term)) {
             | None =>
-              set_success_join(
-                prev_group,
-                new_entry,
-                Some(DeleteEdit),
-                false,
-              )
+              if (CursorInfo.is_empty_line(new_entry_info.current_cursor_term)) {
+                switch (get_first_cursor_term(prev_group)) {
+                | None =>
+                  set_fail_join(
+                    prev_group,
+                    new_entry,
+                    Some(
+                      DeleteToNotHole(new_entry_info.previous_cursor_term),
+                    ),
+                    true,
+                  )
+                | Some(cursor_term) =>
+                  set_fail_join(
+                    prev_group,
+                    new_entry,
+                    Some(DeleteToNotHole(cursor_term)),
+                    true,
+                  )
+                };
+              } else {
+                set_success_join(
+                  prev_group,
+                  new_entry,
+                  Some(DeleteEdit),
+                  false,
+                );
+              }
             | Some(hole_id) =>
               switch (get_first_cursor_term(prev_group)) {
               | None =>
