@@ -139,7 +139,12 @@ let page_view =
             Node.div(
               [Attr.classes(["result-view"])],
               // [Code.view_of_result(~inject, model)],
-              [],
+              [
+                {
+                  let (d, _, _) = program |> Program.get_result;
+                  DHCode.view(d);
+                },
+              ],
             ),
           ],
         )
