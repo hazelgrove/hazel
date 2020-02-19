@@ -260,7 +260,6 @@ let cursor_jump_after_backspace =
   };
 };
 
-
 type group_result =
   | Success(undo_history_group)
   | Fail(undo_history_group, undo_history_entry, bool);
@@ -489,12 +488,16 @@ let entry_to_start_a_group =
         | After =>
           switch (CursorInfo.is_hole(new_entry_info.previous_cursor_term)) {
           | Some(hole_id) =>
-            set_fail_join(
-              prev_group,
-              new_entry,
-              Some(DeleteHole(hole_id)),
-              true,
-            )
+            if (CursorInfo.is_exp_inside(new_entry_info.current_cursor_term)) {
+              set_fail_join(prev_group, new_entry, None, true);
+            } else {
+              set_fail_join(
+                prev_group,
+                new_entry,
+                Some(DeleteHole(hole_id)),
+                true,
+              );
+            }
           | None =>
             /* move cursor to next term, just ignore this move */
             set_fail_join(prev_group, new_entry, None, true)
@@ -577,6 +580,10 @@ let entry_to_start_a_group =
                 Some(DeleteEmptyLine),
                 false,
               );
+            } else if (CursorInfo.is_exp_inside(
+                         new_entry_info.current_cursor_term,
+                       )) {
+              set_fail_join(prev_group, new_entry, None, true);
             } else {
               set_fail_join(
                 prev_group,
@@ -937,12 +944,16 @@ let join_group =
           | After =>
             switch (CursorInfo.is_hole(prev_entry_info.current_cursor_term)) {
             | Some(hole_id) =>
-              set_fail_join(
-                prev_group,
-                new_entry,
-                Some(DeleteHole(hole_id)),
-                true,
-              )
+              if (CursorInfo.is_exp_inside(new_entry_info.current_cursor_term)) {
+                set_fail_join(prev_group, new_entry, None, true);
+              } else {
+                set_fail_join(
+                  prev_group,
+                  new_entry,
+                  Some(DeleteHole(hole_id)),
+                  true,
+                );
+              }
             | None =>
               /* move cursor to next term, just ignore this move */
               set_fail_join(prev_group, new_entry, None, true)
@@ -1109,6 +1120,10 @@ let join_group =
                     false,
                   )
                 };
+              } else if (CursorInfo.is_exp_inside(
+                           new_entry_info.current_cursor_term,
+                         )) {
+                set_fail_join(prev_group, new_entry, None, true);
               } else {
                 set_fail_join(
                   prev_group,
