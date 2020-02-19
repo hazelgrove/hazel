@@ -103,13 +103,6 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
           "DeleteEdit edit "
           ++ display_string_of_cursor_term(info.current_cursor_term),
         )
-      | InsertToHole(id) =>
-        Some(
-          "InsertToHole insert "
-          ++ display_string_of_cursor_term(info.current_cursor_term)
-          ++ " into hole #"
-          ++ string_of_int(id),
-        )
       | InsertHole(first_id, second_id) =>
         switch (second_id) {
         | None => Some("InsertHole insert hole #" ++ string_of_int(first_id))
@@ -121,11 +114,22 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
             ++ string_of_int(second),
           )
         }
-      | InsertEdit =>
-        Some(
-          "InsertEdit edit "
-          ++ display_string_of_cursor_term(info.current_cursor_term),
-        )
+      | InsertEdit(hole) =>
+        switch (hole) {
+        | Some(id) =>
+          Some(
+            "InsertToHole insert "
+            ++ display_string_of_cursor_term(info.current_cursor_term)
+            ++ " into hole #"
+            ++ string_of_int(id),
+          )
+        | None =>
+          Some(
+            "InsertEdit edit "
+            ++ display_string_of_cursor_term(info.current_cursor_term),
+          )
+        }
+
       | InsertEmptyLine => Some("InsertEmptyLine insert new line")
       | Construct(structure) =>
         switch (structure) {

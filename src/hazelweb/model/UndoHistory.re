@@ -12,9 +12,8 @@ type edit_action =
   | DeleteHole(int)
   | DeleteEmptyLine
   | DeleteEdit
-  | InsertToHole(int)
   | InsertHole(int, option(int))
-  | InsertEdit
+  | InsertEdit(option(int))
   | InsertEmptyLine
   | Construct(structure)
   | DeleteTypeAnn
@@ -341,59 +340,63 @@ let construct_holes =
       };
     }
   };
-let get_first_cursor_term = (group: undo_history_group): option(cursor_term) => {
-  JSUtil.log("get first called!!!!!!!!");
+let get_initial_term_before_delete =
+    (group: undo_history_group, new_entry_info: info): cursor_term => {
   let suffix = ZList.prj_suffix(group.group_entries);
-
+  let delete_edit_info_filter = (info: info): cursor_term =>
+    switch (info.edit_action) {
+    | DeleteEdit => info.previous_cursor_term
+    | DeleteToHole(_, _)
+    | DeleteToNotHole(_)
+    | DeleteHole(_)
+    | DeleteEmptyLine
+    | InsertEdit(_)
+    | InsertHole(_, _)
+    | Construct(_)
+    | InsertEmptyLine
+    | DeleteTypeAnn
+    | NotSet => new_entry_info.previous_cursor_term
+    };
   switch (List.rev(suffix)) {
   | [] =>
-    JSUtil.log("empty prefix");
     switch (ZList.prj_z(group.group_entries).info) {
-    | None =>
-      JSUtil.log(" empty prefix none last info");
-      None;
-    | Some(info) =>
-      switch (info.edit_action) {
-      | DeleteEdit => Some(info.previous_cursor_term)
-      | InsertEdit
-      | DeleteToHole(_, _)
-      | DeleteToNotHole(_)
-      | DeleteHole(_)
-      | DeleteEmptyLine
-      | InsertToHole(_)
-      | InsertHole(_, _)
-      | Construct(_)
-      | InsertEmptyLine
-      | DeleteTypeAnn
-      | NotSet =>
-        JSUtil.log(" empty prefix not proper");
-        None;
-      }
-    };
+    | None => new_entry_info.previous_cursor_term
+    | Some(info) => delete_edit_info_filter(info)
+    }
   | ls =>
     switch (List.hd(ls).info) {
-    | None =>
-      JSUtil.log("none last info");
-      None;
-    | Some(info) =>
-      switch (info.edit_action) {
-      | DeleteEdit =>
-        JSUtil.log("info prev");
-        Some(info.previous_cursor_term);
-      | InsertEdit
-      | DeleteToHole(_, _)
-      | DeleteToNotHole(_)
-      | DeleteHole(_)
-      | DeleteEmptyLine
-      | InsertToHole(_)
-      | InsertHole(_, _)
-      | Construct(_)
-      | InsertEmptyLine
-      | DeleteTypeAnn
-      | NotSet =>
-        JSUtil.log("not proper edit action");
-        None;
-      }
+    | None => new_entry_info.previous_cursor_term
+    | Some(info) => delete_edit_info_filter(info)
+    }
+  };
+};
+
+let get_insert_hole = (group: undo_history_group): option(int) => {
+  let suffix = ZList.prj_suffix(group.group_entries);
+  let delete_edit_info_filter = (info: info): option(int) =>
+    switch (info.edit_action) {
+    | InsertEdit(hole) => hole
+    | DeleteEdit
+    | DeleteToHole(_, _)
+    | DeleteToNotHole(_)
+    | DeleteHole(_)
+    | DeleteEmptyLine
+    | InsertHole(_, _)
+    | Construct(_)
+    | InsertEmptyLine
+    | DeleteTypeAnn
+    | NotSet => None
+    };
+  switch (List.rev(suffix)) {
+  | [] =>
+    switch (ZList.prj_z(group.group_entries).info) {
+    | None => None
+    | Some(info) => delete_edit_info_filter(info)
+    }
+  | ls =>
+    switch (List.hd(ls).info) {
+    | None => None
+    | Some(info) => delete_edit_info_filter(info)
     }
   };
 };
@@ -673,12 +676,17 @@ let entry_to_start_a_group =
         /* if previous is hole then combine else if previous is char then combine else start a new group */
         switch (CursorInfo.is_hole(new_entry_info.previous_cursor_term)) {
         | None =>
-          set_fail_join(prev_group, new_entry, Some(InsertEdit), false)
+          set_fail_join(
+            prev_group,
+            new_entry,
+            Some(InsertEdit(None)),
+            false,
+          )
         | Some(hole_id) =>
           set_fail_join(
             prev_group,
             new_entry,
-            Some(InsertToHole(hole_id)),
+            Some(InsertEdit(Some(hole_id))),
             false,
           )
         }
@@ -724,12 +732,17 @@ let entry_to_start_a_group =
         | SOr =>
           switch (CursorInfo.is_hole(new_entry_info.previous_cursor_term)) {
           | None =>
-            set_fail_join(prev_group, new_entry, Some(InsertEdit), true)
+            set_fail_join(
+              prev_group,
+              new_entry,
+              Some(InsertEdit(None)),
+              true,
+            )
           | Some(hole_id) =>
             set_fail_join(
               prev_group,
               new_entry,
-              Some(InsertToHole(hole_id)),
+              Some(InsertEdit(Some(hole_id))),
               true,
             )
           }
@@ -820,24 +833,15 @@ let join_group =
             switch (CursorInfo.is_hole(new_entry_info.current_cursor_term)) {
             | None =>
               if (CursorInfo.is_empty_line(new_entry_info.current_cursor_term)) {
-                switch (get_first_cursor_term(prev_group)) {
-                | None =>
-                  set_fail_join(
-                    prev_group,
-                    new_entry,
-                    Some(
-                      DeleteToNotHole(new_entry_info.previous_cursor_term),
-                    ),
-                    true,
-                  )
-                | Some(cursor_term) =>
-                  set_fail_join(
-                    prev_group,
-                    new_entry,
-                    Some(DeleteToNotHole(cursor_term)),
-                    true,
-                  )
-                };
+                let initial_term =
+                  get_initial_term_before_delete(prev_group, new_entry_info);
+
+                set_fail_join(
+                  prev_group,
+                  new_entry,
+                  Some(DeleteToNotHole(initial_term)),
+                  true,
+                );
               } else {
                 set_success_join(
                   prev_group,
@@ -848,28 +852,14 @@ let join_group =
               }
 
             | Some(hole_id) =>
-              switch (get_first_cursor_term(prev_group)) {
-              | None =>
-                set_success_join(
-                  prev_group,
-                  new_entry,
-                  Some(
-                    DeleteToHole(
-                      hole_id,
-                      new_entry_info.previous_cursor_term,
-                    ),
-                  ),
-                  true,
-                )
-
-              | Some(cursor_term) =>
-                set_success_join(
-                  prev_group,
-                  new_entry,
-                  Some(DeleteToHole(hole_id, cursor_term)),
-                  true,
-                )
-              }
+              let initial_term =
+                get_initial_term_before_delete(prev_group, new_entry_info);
+              set_success_join(
+                prev_group,
+                new_entry,
+                Some(DeleteToHole(hole_id, initial_term)),
+                true,
+              );
             };
           }
         | OnDelim(num, side) =>
@@ -895,49 +885,31 @@ let join_group =
                 ) {
                 | Some(hole_id) =>
                   /* delete and reach a hole */
-                  switch (get_first_cursor_term(prev_group)) {
-                  | None =>
-                    set_success_join(
+                  let initial_term =
+                    get_initial_term_before_delete(
                       prev_group,
-                      new_entry,
-                      Some(
-                        DeleteToHole(
-                          hole_id,
-                          new_entry_info.previous_cursor_term,
-                        ),
-                      ),
-                      true,
-                    )
+                      new_entry_info,
+                    );
+                  set_success_join(
+                    prev_group,
+                    new_entry,
+                    Some(DeleteToHole(hole_id, initial_term)),
+                    true,
+                  );
 
-                  | Some(cursor_term) =>
-                    set_success_join(
-                      prev_group,
-                      new_entry,
-                      Some(DeleteToHole(hole_id, cursor_term)),
-                      true,
-                    )
-                  }
                 | None =>
                   /* delete and not reach a hole */
-                  switch (get_first_cursor_term(prev_group)) {
-                  | None =>
-                    set_success_join(
+                  let initial_term =
+                    get_initial_term_before_delete(
                       prev_group,
-                      new_entry,
-                      Some(
-                        DeleteToNotHole(new_entry_info.previous_cursor_term),
-                      ),
-                      true,
-                    )
-
-                  | Some(cursor_term) =>
-                    set_success_join(
-                      prev_group,
-                      new_entry,
-                      Some(DeleteToNotHole(cursor_term)),
-                      true,
-                    )
-                  }
+                      new_entry_info,
+                    );
+                  set_success_join(
+                    prev_group,
+                    new_entry,
+                    Some(DeleteToNotHole(initial_term)),
+                    true,
+                  );
                 };
               }
             }
@@ -965,47 +937,25 @@ let join_group =
             switch (CursorInfo.is_hole(new_entry_info.current_cursor_term)) {
             | Some(hole_id) =>
               /* delete and reach a hole */
-              switch (get_first_cursor_term(prev_group)) {
-              | None =>
-                set_success_join(
-                  prev_group,
-                  new_entry,
-                  Some(
-                    DeleteToHole(
-                      hole_id,
-                      new_entry_info.previous_cursor_term,
-                    ),
-                  ),
-                  true,
-                )
-
-              | Some(cursor_term) =>
-                set_success_join(
-                  prev_group,
-                  new_entry,
-                  Some(DeleteToHole(hole_id, cursor_term)),
-                  true,
-                )
-              }
+              let initial_term =
+                get_initial_term_before_delete(prev_group, new_entry_info);
+              set_success_join(
+                prev_group,
+                new_entry,
+                Some(DeleteToHole(hole_id, initial_term)),
+                true,
+              );
 
             | None =>
               /* delete and not reach a hole */
-              switch (get_first_cursor_term(prev_group)) {
-              | None =>
-                set_success_join(
-                  prev_group,
-                  new_entry,
-                  Some(DeleteToNotHole(new_entry_info.previous_cursor_term)),
-                  true,
-                )
-              | Some(cursor_term) =>
-                set_success_join(
-                  prev_group,
-                  new_entry,
-                  Some(DeleteToNotHole(cursor_term)),
-                  true,
-                )
-              }
+              let initial_term =
+                get_initial_term_before_delete(prev_group, new_entry_info);
+              set_success_join(
+                prev_group,
+                new_entry,
+                Some(DeleteToNotHole(initial_term)),
+                true,
+              );
             }
           | After =>
             /* move cursor to next term, just ignore this move */
@@ -1035,24 +985,14 @@ let join_group =
             switch (CursorInfo.is_hole(new_entry_info.current_cursor_term)) {
             | None =>
               if (CursorInfo.is_empty_line(new_entry_info.current_cursor_term)) {
-                switch (get_first_cursor_term(prev_group)) {
-                | None =>
-                  set_fail_join(
-                    prev_group,
-                    new_entry,
-                    Some(
-                      DeleteToNotHole(new_entry_info.previous_cursor_term),
-                    ),
-                    true,
-                  )
-                | Some(cursor_term) =>
-                  set_fail_join(
-                    prev_group,
-                    new_entry,
-                    Some(DeleteToNotHole(cursor_term)),
-                    true,
-                  )
-                };
+                let initial_term =
+                  get_initial_term_before_delete(prev_group, new_entry_info);
+                set_success_join(
+                  prev_group,
+                  new_entry,
+                  Some(DeleteToNotHole(initial_term)),
+                  true,
+                );
               } else {
                 set_success_join(
                   prev_group,
@@ -1062,28 +1002,14 @@ let join_group =
                 );
               }
             | Some(hole_id) =>
-              switch (get_first_cursor_term(prev_group)) {
-              | None =>
-                set_success_join(
-                  prev_group,
-                  new_entry,
-                  Some(
-                    DeleteToHole(
-                      hole_id,
-                      new_entry_info.previous_cursor_term,
-                    ),
-                  ),
-                  true,
-                )
-
-              | Some(cursor_term) =>
-                set_success_join(
-                  prev_group,
-                  new_entry,
-                  Some(DeleteToHole(hole_id, cursor_term)),
-                  true,
-                )
-              }
+              let initial_term =
+                get_initial_term_before_delete(prev_group, new_entry_info);
+              set_success_join(
+                prev_group,
+                new_entry,
+                Some(DeleteToHole(hole_id, initial_term)),
+                true,
+              );
             };
           }
         | OnDelim(num, side) =>
@@ -1103,12 +1029,11 @@ let join_group =
                   )
 
                 | DeleteToHole(_, _)
-                | InsertToHole(_)
+                | InsertEdit(_)
                 | InsertHole(_, _)
                 | DeleteToNotHole(_)
                 | DeleteHole(_)
                 | DeleteEdit
-                | InsertEdit
                 | Construct(_)
                 | InsertEmptyLine
                 | DeleteTypeAnn
@@ -1158,49 +1083,30 @@ let join_group =
                 ) {
                 | Some(hole_id) =>
                   /* delete and reach a hole */
-                  switch (get_first_cursor_term(prev_group)) {
-                  | None =>
-                    set_success_join(
+                  let initial_term =
+                    get_initial_term_before_delete(
                       prev_group,
-                      new_entry,
-                      Some(
-                        DeleteToHole(
-                          hole_id,
-                          new_entry_info.previous_cursor_term,
-                        ),
-                      ),
-                      true,
-                    )
-
-                  | Some(cursor_term) =>
-                    set_success_join(
-                      prev_group,
-                      new_entry,
-                      Some(DeleteToHole(hole_id, cursor_term)),
-                      true,
-                    )
-                  }
+                      new_entry_info,
+                    );
+                  set_success_join(
+                    prev_group,
+                    new_entry,
+                    Some(DeleteToHole(hole_id, initial_term)),
+                    true,
+                  );
                 | None =>
                   /* delete and not reach a hole */
-                  switch (get_first_cursor_term(prev_group)) {
-                  | None =>
-                    set_success_join(
+                  let initial_term =
+                    get_initial_term_before_delete(
                       prev_group,
-                      new_entry,
-                      Some(
-                        DeleteToNotHole(new_entry_info.previous_cursor_term),
-                      ),
-                      true,
-                    )
-
-                  | Some(cursor_term) =>
-                    set_success_join(
-                      prev_group,
-                      new_entry,
-                      Some(DeleteToNotHole(cursor_term)),
-                      true,
-                    )
-                  }
+                      new_entry_info,
+                    );
+                  set_success_join(
+                    prev_group,
+                    new_entry,
+                    Some(DeleteToNotHole(initial_term)),
+                    true,
+                  );
                 };
               }
             }
@@ -1214,47 +1120,25 @@ let join_group =
             switch (CursorInfo.is_hole(new_entry_info.current_cursor_term)) {
             | Some(hole_id) =>
               /* delete and reach a hole */
-              switch (get_first_cursor_term(prev_group)) {
-              | None =>
-                set_success_join(
-                  prev_group,
-                  new_entry,
-                  Some(
-                    DeleteToHole(
-                      hole_id,
-                      new_entry_info.previous_cursor_term,
-                    ),
-                  ),
-                  true,
-                )
 
-              | Some(cursor_term) =>
-                set_success_join(
-                  prev_group,
-                  new_entry,
-                  Some(DeleteToHole(hole_id, cursor_term)),
-                  true,
-                )
-              }
+              let initial_term =
+                get_initial_term_before_delete(prev_group, new_entry_info);
+              set_success_join(
+                prev_group,
+                new_entry,
+                Some(DeleteToHole(hole_id, initial_term)),
+                true,
+              );
             | None =>
               /* delete and not reach a hole */
-              switch (get_first_cursor_term(prev_group)) {
-              | None =>
-                set_success_join(
-                  prev_group,
-                  new_entry,
-                  Some(DeleteToNotHole(new_entry_info.previous_cursor_term)),
-                  true,
-                )
-
-              | Some(cursor_term) =>
-                set_success_join(
-                  prev_group,
-                  new_entry,
-                  Some(DeleteToNotHole(cursor_term)),
-                  true,
-                )
-              }
+              let initial_term =
+                get_initial_term_before_delete(prev_group, new_entry_info);
+              set_success_join(
+                prev_group,
+                new_entry,
+                Some(DeleteToNotHole(initial_term)),
+                true,
+              );
             }
           }
         };
@@ -1313,17 +1197,22 @@ let join_group =
               set_success_join(
                 prev_group,
                 new_entry,
-                Some(InsertEdit),
+                Some(InsertEdit(get_insert_hole(prev_group))),
                 false,
               );
             } else {
-              set_fail_join(prev_group, new_entry, Some(InsertEdit), false);
+              set_fail_join(
+                prev_group,
+                new_entry,
+                Some(InsertEdit(get_insert_hole(prev_group))),
+                false,
+              );
             }
           | Some(hole_id) =>
             set_success_join(
               prev_group,
               new_entry,
-              Some(InsertToHole(hole_id)),
+              Some(InsertEdit(Some(hole_id))),
               false,
             )
           }
