@@ -260,6 +260,7 @@ let cursor_jump_after_backspace =
   };
 };
 
+
 type group_result =
   | Success(undo_history_group)
   | Fail(undo_history_group, undo_history_entry, bool);

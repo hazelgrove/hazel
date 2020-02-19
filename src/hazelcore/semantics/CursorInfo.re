@@ -111,6 +111,19 @@ let is_empty_line = (cursor_term): bool => {
   | Rule(_, _) => false
   };
 };
+
+let is_wrapping_cursor_term = (cursor_term:cursor_term):bool => {
+  switch(cursor_term){
+  | Exp(_, UHExp.operand)
+  | Pat(_, UHPat.operand)
+  | Typ(_, UHTyp.operand)
+  | ExpOp(_, UHExp.operator)
+  | PatOp(_, UHPat.operator)
+  | TypOp(_, UHTyp.operator)
+  | Line(_, UHExp.line)
+  | Rule(_, UHExp.rule);
+  }
+}
 let rec extract_cursor_term = (exp: ZExp.t): (cursor_term, bool) => {
   let cursor_term = extract_cursor_exp_term(exp);
   let prev_is_empty_line = {
