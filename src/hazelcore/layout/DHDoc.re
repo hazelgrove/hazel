@@ -201,91 +201,124 @@ module Exp = {
     );
 
   let rec mk = (~parenthesize=false, ~enforce_inline: bool, d: DHExp.t): t => {
-    let mk' = mk(~enforce_inline);
-    let left_operands = (precedence_op, d1, d2) => (
-      mk'(~parenthesize=precedence(d1) > precedence_op, d1),
-      mk'(~parenthesize=precedence(d2) >= precedence_op, d2),
-    );
-    let right_operands = (precedence_op, d1, d2) => (
-      mk'(~parenthesize=precedence(d1) >= precedence_op, d1),
-      mk'(~parenthesize=precedence(d2) > precedence_op, d2),
-    );
-    let doc =
-      switch (d) {
-      | EmptyHole(u, i, _sigma) => mk_EmptyHole(u, i)
-      | NonEmptyHole(reason, u, i, _sigma, d) =>
-        mk'(d) |> Doc.annot(DHAnnot.NonEmptyHole(reason, (u, i)))
-      | Keyword(u, i, _sigma, k) => mk_Keyword(u, i, k)
-      | FreeVar(u, i, _sigma, x) =>
-        Doc.Text(x) |> Doc.annot(DHAnnot.VarHole(Free, (u, i)))
-      | BoundVar(x) => Doc.Text(x)
-      | Triv => Delim.triv
-      | BoolLit(b) => mk_BoolLit(b)
-      | NumLit(n) => mk_NumLit(n)
-      | ListNil(_) => Delim.list_nil
-      | Inj(_, inj_side, d) =>
-        mk_Inj(inj_side, mk(d) |> pad_child(~enforce_inline))
-      | Ap(d1, d2) =>
-        let (doc1, doc2) = left_operands(precedence_Ap, d1, d2);
-        mk_Ap(doc1, doc2);
-      | BinNumOp(op, d1, d2) =>
-        // TODO assumes all bin num ops are left associative
-        let (doc1, doc2) = left_operands(precedence_bin_num_op(op), d1, d2);
-        Doc.hseps([doc1, mk_bin_num_op(op), doc2]);
-      | Cons(d1, d2) =>
-        let (doc1, doc2) = right_operands(precedence_Cons, d1, d2);
-        mk_Cons(doc1, doc2);
-      | And(d1, d2) =>
-        let (doc1, doc2) = right_operands(precedence_And, d1, d2);
-        Doc.hseps([doc1, Text("&&"), doc2]);
-      | Or(d1, d2) =>
-        let (doc1, doc2) = right_operands(precedence_Or, d1, d2);
-        Doc.hseps([doc1, Text("||"), doc2]);
-      | Pair(d1, d2) => mk_Pair(mk'(d1), mk'(d2))
-      | Case(dscrut, drs, _) =>
-        Doc.(
-          vseps(
-            List.concat([
-              [hseps([Delim.open_Case, mk(~enforce_inline=true, dscrut)])],
-              drs |> List.map(mk_rule),
-              [Delim.close_Case],
-            ]),
-          )
-        )
-      | Cast(d1, _ty1, _ty2) =>
-        Doc.hseps([
-          mk'(d1),
-          /*Typ.mk(~enforce_inline, ty1),
-            Typ.mk(~enforce_inline, ty2),*/
-        ])
-      | Let(dp, ddef, dbody) =>
-        Doc.(
-          vseps([
-            hcats([
-              Delim.mk("let"),
-              Pat.mk(dp)
-              |> pad_child(
-                   ~inline_padding=(Doc.space, Doc.space),
-                   ~enforce_inline,
-                 ),
-              Delim.mk("="),
-              mk(ddef)
-              |> pad_child(
-                   ~inline_padding=(Doc.space, Doc.space),
-                   ~enforce_inline,
-                 ),
-              Delim.mk("in"),
-            ]),
-            mk(~enforce_inline=false, dbody),
-          ])
-        )
-      | FixF(_)
-      | Lam(_)
-      | FailedCast(_) => failwith("unimplemented")
+    let mk_cast = ((doc: t, ty: option(HTyp.t))): t =>
+      switch (ty) {
+      | None => doc
+      | Some(ty) => Doc.Cat(doc, Typ.mk(~enforce_inline=true, ty))
       };
-    parenthesize
-      ? Doc.hcats([Delim.open_Parenthesized, doc, Delim.close_Parenthesized])
-      : doc;
+    let rec go =
+            (~parenthesize=false, ~enforce_inline, d: DHExp.t)
+            : (t, option(HTyp.t)) => {
+      let go' = go(~enforce_inline);
+      let left_operands = (precedence_op, d1, d2) => (
+        go'(~parenthesize=precedence(d1) > precedence_op, d1),
+        go'(~parenthesize=precedence(d2) >= precedence_op, d2),
+      );
+      let right_operands = (precedence_op, d1, d2) => (
+        go'(~parenthesize=precedence(d1) >= precedence_op, d1),
+        go'(~parenthesize=precedence(d2) > precedence_op, d2),
+      );
+      let no_cast = doc => (doc, None);
+      let (doc, cast) =
+        switch (d) {
+        | EmptyHole(u, i, _sigma) => mk_EmptyHole(u, i) |> no_cast
+        | NonEmptyHole(reason, u, i, _sigma, d) =>
+          go'(d)
+          |> mk_cast
+          |> Doc.annot(DHAnnot.NonEmptyHole(reason, (u, i)))
+          |> no_cast
+        | Keyword(u, i, _sigma, k) => mk_Keyword(u, i, k) |> no_cast
+        | FreeVar(u, i, _sigma, x) =>
+          Doc.Text(x)
+          |> Doc.annot(DHAnnot.VarHole(Free, (u, i)))
+          |> no_cast
+        | BoundVar(x) => Doc.Text(x) |> no_cast
+        | Triv => Delim.triv |> no_cast
+        | BoolLit(b) => mk_BoolLit(b) |> no_cast
+        | NumLit(n) => mk_NumLit(n) |> no_cast
+        | ListNil(_) => Delim.list_nil |> no_cast
+        | Inj(_, inj_side, d) =>
+          let child = (~enforce_inline) => go(~enforce_inline, d) |> mk_cast;
+          mk_Inj(inj_side, child |> pad_child(~enforce_inline)) |> no_cast;
+        | Ap(d1, d2) =>
+          let (doc1, doc2) = left_operands(precedence_Ap, d1, d2);
+          mk_Ap(mk_cast(doc1), mk_cast(doc2)) |> no_cast;
+        | BinNumOp(op, d1, d2) =>
+          // TODO assumes all bin num ops are left associative
+          let (doc1, doc2) =
+            left_operands(precedence_bin_num_op(op), d1, d2);
+          Doc.hseps([mk_cast(doc1), mk_bin_num_op(op), mk_cast(doc2)])
+          |> no_cast;
+        | Cons(d1, d2) =>
+          let (doc1, doc2) = right_operands(precedence_Cons, d1, d2);
+          mk_Cons(mk_cast(doc1), mk_cast(doc2)) |> no_cast;
+        | And(d1, d2) =>
+          let (doc1, doc2) = right_operands(precedence_And, d1, d2);
+          Doc.hseps([mk_cast(doc1), Text("&&"), mk_cast(doc2)]) |> no_cast;
+        | Or(d1, d2) =>
+          let (doc1, doc2) = right_operands(precedence_Or, d1, d2);
+          Doc.hseps([mk_cast(doc1), Text("||"), mk_cast(doc2)]) |> no_cast;
+        | Pair(d1, d2) =>
+          mk_Pair(mk_cast(go'(d1)), mk_cast(go'(d2))) |> no_cast
+        | Case(dscrut, drs, _) =>
+          Doc.(
+            vseps(
+              List.concat([
+                [
+                  hseps([
+                    Delim.open_Case,
+                    mk_cast(go(~enforce_inline=true, dscrut)),
+                  ]),
+                ],
+                drs |> List.map(mk_rule),
+                [Delim.close_Case],
+              ]),
+            )
+          )
+          |> no_cast
+        | Cast(d, _ty1, ty2) =>
+          let (doc, _) = go'(d);
+          (doc, Some(ty2));
+        | Let(dp, ddef, dbody) =>
+          let doc_def = (~enforce_inline) =>
+            go(~enforce_inline, ddef) |> mk_cast;
+          Doc.(
+            vseps([
+              hcats([
+                Delim.mk("let"),
+                Pat.mk(dp)
+                |> pad_child(
+                     ~inline_padding=(Doc.space, Doc.space),
+                     ~enforce_inline,
+                   ),
+                Delim.mk("="),
+                doc_def
+                |> pad_child(
+                     ~inline_padding=(Doc.space, Doc.space),
+                     ~enforce_inline,
+                   ),
+                Delim.mk("in"),
+              ]),
+              mk_cast(go(~enforce_inline=false, dbody)),
+            ])
+          )
+          |> no_cast;
+        | FixF(_)
+        | Lam(_)
+        | FailedCast(_) => failwith("unimplemented")
+        };
+      parenthesize
+        ? (
+          Doc.hcats([
+            Delim.open_Parenthesized,
+            doc,
+            Delim.close_Parenthesized,
+          ]),
+          cast,
+        )
+        : (doc, cast);
+    };
+    mk_cast(go(~parenthesize, ~enforce_inline, d));
   }
   and mk_rule = (Rule(dp, dclause): DHExp.rule): t =>
     Doc.(
