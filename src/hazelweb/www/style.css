@@ -1260,6 +1260,10 @@ h1 {
   margin-bottom: -3px;
   /* line-height: initial; */
 }
+.DHCode .CastDecoration .HoleLabel,
+.DHCode .FailedCastDecoration .HoleLabel {
+  color: #777;
+}
 
 .hole-inst-num {
   vertical-align: super;
