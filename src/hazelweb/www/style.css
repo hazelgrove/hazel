@@ -740,6 +740,14 @@ h1 {
   float: left;
 }
 
+.DHCode * {
+  border-radius: var(--code-radius);
+  line-height: var(--code-line-height);
+}
+.DHCode .FailedCast {
+  background-color: rgba(255, 0, 0, 0.1);
+}
+
 .code {
   font-family: "Fira Mono", monospace;
   // TODO probably unnecessary if we commit to nbsp

@@ -64,6 +64,11 @@ module Delim = {
 
   let bar_Rule = mk("|");
   let arrow_Rule = mk(UnicodeConstants.caseArrowSym);
+
+  let open_Cast = mk("<");
+  let close_Cast = mk(">");
+
+  let cast_arrow = mk(UnicodeConstants.castArrowSym);
 };
 
 let mk_EmptyHole = (u, i) =>
@@ -280,7 +285,7 @@ module Exp = {
           let (doc, _) = go'(d);
           (doc, Some(ty2));
         | Let(dp, ddef, dbody) =>
-          let doc_def = (~enforce_inline) =>
+          let def_doc = (~enforce_inline) =>
             go(~enforce_inline, ddef) |> mk_cast;
           Doc.(
             vseps([
@@ -292,7 +297,7 @@ module Exp = {
                      ~enforce_inline,
                    ),
                 Delim.mk("="),
-                doc_def
+                def_doc
                 |> pad_child(
                      ~inline_padding=(Doc.space, Doc.space),
                      ~enforce_inline,
@@ -303,9 +308,29 @@ module Exp = {
             ])
           )
           |> no_cast;
+        | FailedCast(d, ty1, ty2) =>
+          let (d_doc, d_cast) as dcast_doc = go'(d);
+          let cast_doc =
+            Doc.hcats([
+              Delim.open_Cast,
+              Doc.hseps([
+                Typ.mk(~enforce_inline=true, ty1),
+                Delim.cast_arrow,
+                Typ.mk(~enforce_inline=true, ty2),
+              ]),
+              Delim.close_Cast,
+            ]);
+          let annot_FailedCast = Doc.annot(DHAnnot.FailedCast);
+          switch (d_cast) {
+          | Some(ty1') when HTyp.eq(ty1, ty1') =>
+            Doc.hcats([d_doc, cast_doc]) |> annot_FailedCast |> no_cast
+          | _ =>
+            Doc.hcats([mk_cast(dcast_doc), cast_doc])
+            |> annot_FailedCast
+            |> no_cast
+          };
         | FixF(_)
-        | Lam(_)
-        | FailedCast(_) => failwith("unimplemented")
+        | Lam(_) => failwith("unimplemented")
         };
       parenthesize
         ? (
