@@ -169,11 +169,11 @@ module Exp = {
           ]),
         )
       )
-    | Cast(d1, ty1, ty2) =>
+    | Cast(d1, _ty1, _ty2) =>
       Doc.hseps([
         mk'(d1),
-        Typ.mk(~enforce_inline, ty1),
-        Typ.mk(~enforce_inline, ty2),
+        /*Typ.mk(~enforce_inline, ty1),
+          Typ.mk(~enforce_inline, ty2),*/
       ])
     | FixF(_)
     | Lam(_)
