@@ -55,6 +55,11 @@ module Delim = {
   let open_Parenthesized = mk("(");
   let close_Parenthesized = mk(")");
 
+  let sym_Lam = mk(UnicodeConstants.lamSym);
+  let colon_Lam = mk(":");
+  let open_Lam = mk(".{");
+  let close_Lam = mk("}");
+
   let open_Inj = (inj_side: InjSide.t) =>
     mk(StringUtil.cat(["inj[", InjSide.to_string(inj_side), "]("]));
   let close_Inj = mk(")");
@@ -329,8 +334,20 @@ module Exp = {
             |> annot_FailedCast
             |> no_cast
           };
-        | FixF(_)
-        | Lam(_) => failwith("unimplemented")
+        | Lam(dp, ty, dbody) =>
+          let doc_body = (~enforce_inline) =>
+            go(~enforce_inline, dbody) |> mk_cast;
+          Doc.hcats([
+            Delim.sym_Lam,
+            Pat.mk(~enforce_inline=true, dp),
+            Delim.colon_Lam,
+            Typ.mk(~enforce_inline=true, ty),
+            Delim.open_Lam,
+            doc_body |> pad_child(~enforce_inline),
+            Delim.close_Lam,
+          ])
+          |> no_cast;
+        | FixF(_) => failwith("unimplemented")
         };
       parenthesize
         ? (
