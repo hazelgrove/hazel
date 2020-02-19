@@ -330,7 +330,7 @@ let construct_holes =
       };
     } else {
       switch (CursorInfo.is_hole(new_entry_info.current_cursor_term)) {
-      | None => failwith("impossible match")
+      | None => set_fail_join(prev_group, new_entry, None, false)
       | Some(hole_id) =>
         set_fail_join(
           prev_group,
