@@ -540,53 +540,75 @@ let ondelim_undel =
     };
   };
 
-  let ondelim_del =
-  (
-    ~prev_group: undo_history_group,
-    ~new_entry: undo_history_entry,
-    ~new_entry_info: info,
-    ~pos: DelimIndex.t,
-    ~prev_entry_info: option(info)=?,
+let ondelim_del =
+    (
+      ~prev_group: undo_history_group,
+      ~new_entry: undo_history_entry,
+      ~new_entry_info: info,
+      ~pos: DelimIndex.t,
+      ~prev_entry_info: option(info)=?,
       (),
-  )
-  : group_result => {
-switch (CursorInfo.is_hole(new_entry_info.previous_cursor_term)) {
-| Some(_) =>
-  /* move cursor in the hole */
-  set_fail_join(prev_group, new_entry, None, true)
-| None =>
-  if (pos == 1
-      && can_delete_typ_ann(new_entry_info.previous_cursor_term)) {
-    /* num==1 is the position of ':' in an expression */
-    set_fail_join(
-      prev_group,
-      new_entry,
-      Some(DeleteTypeAnn),
-      true,
-    );
-  } else {
-    switch (CursorInfo.is_hole(new_entry_info.current_cursor_term)) {
-    | Some(hole_id) =>
-      /* delete and reach a hole */
+    )
+    : group_result => {
+  switch (CursorInfo.is_hole(new_entry_info.previous_cursor_term)) {
+  | Some(_) =>
+    /* move cursor in the hole */
+    set_fail_join(prev_group, new_entry, None, true)
+  | None =>
+    if (pos == 1 && can_delete_typ_ann(new_entry_info.previous_cursor_term)) {
+      /* num==1 is the position of ':' in an expression */
       set_fail_join(
         prev_group,
         new_entry,
-        Some(
-          DeleteToHole(hole_id, new_entry_info.previous_cursor_term),
-        ),
+        Some(DeleteTypeAnn),
         true,
-      )
-    | None =>
-      /* delete and not reach a hole */
-      set_fail_join(
-        prev_group,
-        new_entry,
-        Some(DeleteToNotHole(new_entry_info.previous_cursor_term)),
-        true,
-      )
-    };
-  }
-};
+      );
+    } else {
+      switch (CursorInfo.is_hole(new_entry_info.current_cursor_term)) {
+      | Some(hole_id) =>
+        /* delete and reach a hole */
+        switch (prev_entry_info) {
+        | None =>
+          set_fail_join(
+            prev_group,
+            new_entry,
+            Some(DeleteToHole(hole_id, new_entry_info.previous_cursor_term)),
+            true,
+          )
+        | Some(_) =>
+          let initial_term =
+            get_initial_term_before_delete(prev_group, new_entry_info);
+          set_success_join(
+            prev_group,
+            new_entry,
+            Some(DeleteToHole(hole_id, initial_term)),
+            true,
+          );
+        }
+
+      | None =>
+        /* delete and not reach a hole */
+        switch (prev_entry_info) {
+        | None =>
+          set_fail_join(
+            prev_group,
+            new_entry,
+            Some(DeleteToNotHole(new_entry_info.previous_cursor_term)),
+            true,
+          )
+        | Some(_) =>
+          let initial_term =
+            get_initial_term_before_delete(prev_group, new_entry_info);
+          set_success_join(
+            prev_group,
+            new_entry,
+            Some(DeleteToNotHole(initial_term)),
+            true,
+          );
+        }
+      };
+    }
+  };
 };
 let entry_to_start_a_group =
     (prev_group: undo_history_group, new_entry: undo_history_entry)
@@ -638,7 +660,7 @@ let entry_to_start_a_group =
       | OnDelim(pos, side) =>
         switch (side) {
         | Before =>
-          ondelim_del(~prev_group, ~new_entry, ~new_entry_info, ~pos,())
+          ondelim_del(~prev_group, ~new_entry, ~new_entry_info, ~pos, ())
         | After =>
           ondelim_undel(
             ~prev_group,
@@ -679,7 +701,8 @@ let entry_to_start_a_group =
             (),
           )
 
-        | After => ondelim_del(~prev_group, ~new_entry, ~new_entry_info, ~pos,())
+        | After =>
+          ondelim_del(~prev_group, ~new_entry, ~new_entry_info, ~pos, ())
         }
       | OnOp(side) =>
         switch (side) {
@@ -848,57 +871,17 @@ let join_group =
             ~prev_entry_info,
             (),
           )
-        | OnDelim(num, side) =>
+        | OnDelim(pos, side) =>
           switch (side) {
           | Before =>
-            switch (CursorInfo.is_hole(prev_entry_info.current_cursor_term)) {
-            | Some(_) =>
-              /* move cursor in the hole */
-              set_fail_join(prev_group, new_entry, None, true)
-            | None =>
-              if (num == 1
-                  && can_delete_typ_ann(prev_entry_info.current_cursor_term)) {
-                /* num==1 is the position of ':' in an expression */
-                set_fail_join(
-                  prev_group,
-                  new_entry,
-                  Some(DeleteTypeAnn),
-                  true,
-                );
-              } else {
-                switch (
-                  CursorInfo.is_hole(new_entry_info.current_cursor_term)
-                ) {
-                | Some(hole_id) =>
-                  /* delete and reach a hole */
-                  let initial_term =
-                    get_initial_term_before_delete(
-                      prev_group,
-                      new_entry_info,
-                    );
-                  set_success_join(
-                    prev_group,
-                    new_entry,
-                    Some(DeleteToHole(hole_id, initial_term)),
-                    true,
-                  );
-
-                | None =>
-                  /* delete and not reach a hole */
-                  let initial_term =
-                    get_initial_term_before_delete(
-                      prev_group,
-                      new_entry_info,
-                    );
-                  set_success_join(
-                    prev_group,
-                    new_entry,
-                    Some(DeleteToNotHole(initial_term)),
-                    true,
-                  );
-                };
-              }
-            }
+            ondelim_del(
+              ~prev_group,
+              ~new_entry,
+              ~new_entry_info,
+              ~pos,
+              ~prev_entry_info,
+              (),
+            )
           | After =>
             ondelim_undel(
               ~prev_group,
@@ -960,7 +943,7 @@ let join_group =
             (),
           )
 
-        | OnDelim(num, side) =>
+        | OnDelim(pos, side) =>
           switch (side) {
           | Before =>
             ondelim_undel(
@@ -973,53 +956,14 @@ let join_group =
             )
 
           | After =>
-            switch (CursorInfo.is_hole(prev_entry_info.current_cursor_term)) {
-            | Some(_) =>
-              /* move cursor in the hole */
-              set_fail_join(prev_group, new_entry, None, true)
-            | None =>
-              if (num == 1
-                  && can_delete_typ_ann(prev_entry_info.current_cursor_term)) {
-                /* num==1 is the position of ':' in an expression */
-                set_fail_join(
-                  prev_group,
-                  new_entry,
-                  Some(DeleteTypeAnn),
-                  true,
-                );
-              } else {
-                switch (
-                  CursorInfo.is_hole(new_entry_info.current_cursor_term)
-                ) {
-                | Some(hole_id) =>
-                  /* delete and reach a hole */
-                  let initial_term =
-                    get_initial_term_before_delete(
-                      prev_group,
-                      new_entry_info,
-                    );
-                  set_success_join(
-                    prev_group,
-                    new_entry,
-                    Some(DeleteToHole(hole_id, initial_term)),
-                    true,
-                  );
-                | None =>
-                  /* delete and not reach a hole */
-                  let initial_term =
-                    get_initial_term_before_delete(
-                      prev_group,
-                      new_entry_info,
-                    );
-                  set_success_join(
-                    prev_group,
-                    new_entry,
-                    Some(DeleteToNotHole(initial_term)),
-                    true,
-                  );
-                };
-              }
-            }
+            ondelim_del(
+              ~prev_group,
+              ~new_entry,
+              ~new_entry_info,
+              ~pos,
+              ~prev_entry_info,
+              (),
+            )
           }
         | OnOp(side) =>
           switch (side) {
