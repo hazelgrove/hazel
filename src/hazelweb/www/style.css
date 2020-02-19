@@ -744,7 +744,14 @@ h1 {
   border-radius: var(--code-radius);
   line-height: var(--code-line-height);
 }
-.DHCode .FailedCast {
+.DHCode .CastDecoration,
+.DHCode .FailedCastDecoration {
+  display: inline-block;
+  position: relative;
+  font-size: 75%;
+  top: -10px;
+}
+.DHCode .FailedCastDecoration {
   background-color: rgba(255, 0, 0, 0.1);
 }
 

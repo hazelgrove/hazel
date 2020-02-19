@@ -21,8 +21,11 @@ let view_of_layout = (l: DHLayout.t): Vdom.Node.t => {
         Node.span([Attr.classes(["InVarHole"])], go(l)),
       ]
     | Annot(EmptyHole(_), l) => go(l)
-    | Annot(FailedCast, l) => [
-        Node.span([Attr.classes(["FailedCast"])], go(l)),
+    | Annot(FailedCastDecoration, l) => [
+        Node.span([Attr.classes(["FailedCastDecoration"])], go(l)),
+      ]
+    | Annot(CastDecoration, l) => [
+        Node.div([Attr.classes(["CastDecoration"])], go(l)),
       ]
     };
   Node.div([Attr.classes(["code", "DHCode"])], go(l));

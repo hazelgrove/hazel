@@ -214,7 +214,11 @@ module Exp = {
     let mk_cast = ((doc: t, ty: option(HTyp.t))): t =>
       switch (ty) {
       | None => doc
-      | Some(ty) => Doc.Cat(doc, Typ.mk(~enforce_inline=true, ty))
+      | Some(ty) =>
+        Doc.Cat(
+          doc,
+          Annot(CastDecoration, Typ.mk(~enforce_inline=true, ty)),
+        )
       };
     let rec go =
             (~parenthesize=false, ~enforce_inline, d: DHExp.t)
@@ -315,7 +319,7 @@ module Exp = {
           |> no_cast;
         | FailedCast(d, ty1, ty2) =>
           let (d_doc, d_cast) as dcast_doc = go'(d);
-          let cast_doc =
+          let cast_decoration =
             Doc.hcats([
               Delim.open_Cast,
               Doc.hseps([
@@ -324,15 +328,12 @@ module Exp = {
                 Typ.mk(~enforce_inline=true, ty2),
               ]),
               Delim.close_Cast,
-            ]);
-          let annot_FailedCast = Doc.annot(DHAnnot.FailedCast);
+            ])
+            |> Doc.annot(DHAnnot.FailedCastDecoration);
           switch (d_cast) {
           | Some(ty1') when HTyp.eq(ty1, ty1') =>
-            Doc.hcats([d_doc, cast_doc]) |> annot_FailedCast |> no_cast
-          | _ =>
-            Doc.hcats([mk_cast(dcast_doc), cast_doc])
-            |> annot_FailedCast
-            |> no_cast
+            Doc.hcats([d_doc, cast_decoration]) |> no_cast
+          | _ => Doc.hcats([mk_cast(dcast_doc), cast_decoration]) |> no_cast
           };
         | Lam(dp, ty, dbody) =>
           let doc_body = (~enforce_inline) =>
