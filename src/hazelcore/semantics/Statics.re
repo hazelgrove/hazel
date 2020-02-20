@@ -1078,6 +1078,26 @@ let syn_zlines =
 include MakeListDeferrable(GeneralUtil.ListMinOne);
 type var_warns_deferrable('a) = deferrable(VarWarnStatus.t, 'a, Var.t);
 
+let examine_deferrable_in_block =
+    (deferrable: var_warns_deferrable('a), block: UHExp.block): 'a =>
+  switch (deferrable) {
+  | NotDeferred(_) => deferrable
+  | Deferred(deferred, vars) =>
+    if (UHExp.is_complete_block(block)) {
+      List.map(
+        var =>
+          switch (UsageAnalysis.find_uses_block(var, block)) {
+          | [] => VarWarnStatus.CritUnused
+          | [_, ..._] => VarWarnStatus.NoWarning
+          },
+        ListMinOne.elements(vars),
+      )
+      |> deferred;
+    } else {
+      List.map(_ => VarWarnStatus.NoWarning, vars) |> deferred
+    }
+  };
+
 let rec syn_fix_holes_pat =
         (
           steps: CursorPath.steps,
@@ -2157,13 +2177,17 @@ and syn_fix_holes_line =
       ~renumber_empty_holes=false,
       line: UHExp.line,
     )
-    : (UHExp.line, Contexts.t((HTyp.t, CursorPath.steps)), MetaVarGen.t) =>
+    : (
+        var_warns_deferrable(UHExp.line),
+        Contexts.t((HTyp.t, CursorPath.steps)),
+        MetaVarGen.t,
+      ) =>
   switch (line) {
   | ExpLine(e) =>
     let (e, _, u_gen) =
       syn_fix_holes_exp(steps, ctx, u_gen, ~renumber_empty_holes, e);
-    (ExpLine(e), ctx, u_gen);
-  | EmptyLine => (line, ctx, u_gen)
+    (NotDeferred(ExpLine(e)), ctx, u_gen);
+  | EmptyLine => (NotDeferred(line), ctx, u_gen)
   | LetLine(p, ann, block) =>
     switch (ann) {
     | Some(uty1) =>
@@ -2187,7 +2211,13 @@ and syn_fix_holes_line =
           p,
           ty1,
         );
-      (LetLine(p, ann, block), ctx, u_gen);
+      let p =
+        if (HTyp.has_matched_arrow(ty1)) {
+          examine_deferrable_in_block(p, block);
+        } else {
+          p;
+        };
+      (pass_deferrable(p => UHExp.LetLine(p, ann, block), p), ctx, u_gen);
     | None =>
       let (block, ty1, u_gen) =
         syn_fix_holes_block(
@@ -2206,7 +2236,7 @@ and syn_fix_holes_line =
           p,
           ty1,
         );
-      (LetLine(p, ann, block), ctx, u_gen);
+      (pass_deferrable(p => UHExp.LetLine(p, ann, block), p), ctx, u_gen);
     }
   }
 and syn_fix_holes_exp =
