@@ -662,7 +662,7 @@ html, body {
   position: relative;
   left: 2.5ch;
 }
-#OptionsPanel label:disabled {
+#OptionsPanel label[disabled] {
   opacity: 0.5;
 }
 
