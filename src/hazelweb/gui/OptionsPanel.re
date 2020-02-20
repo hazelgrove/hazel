@@ -6,6 +6,7 @@ let checkbox =
       ~id: string,
       ~label: string,
       ~on_change: unit => Vdom.Event.t,
+      ~disabled=false,
       checked: bool,
     )
     : Vdom.Node.t => {
@@ -15,11 +16,15 @@ let checkbox =
       [
         Node.input(
           [
-            Attr.id(id),
-            Attr.type_("checkbox"),
-            Attr.on_change((_, _) => on_change()),
-            ...checked ? [Attr.checked] : [],
-          ],
+            [
+              Attr.id(id),
+              Attr.type_("checkbox"),
+              Attr.on_change((_, _) => on_change()),
+            ],
+            checked ? [Attr.checked] : [],
+            disabled ? [Attr.disabled] : [],
+          ]
+          |> List.concat,
           [],
         ),
         Node.label([Attr.for_(id)], [Node.text(label)]),
@@ -45,6 +50,7 @@ let view =
             ~id="evaluate_expansion",
             ~label="Evaluate expansion",
             ~on_change=() => inject(ToggleEvaluateExpansion),
+            ~disabled=!model.compute_results,
             model.evaluate_expansion,
           ),
           checkbox(
