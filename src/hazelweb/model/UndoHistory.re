@@ -1,7 +1,6 @@
 type cursor_term = CursorInfo.cursor_term;
 type structure =
   | LetBinding
-  | Lamda
   | CaseMatch
   | TypeAnn
   | ShapeEdit(option(MetaVar.t), Action.shape);
@@ -12,11 +11,13 @@ type delete_edit =
   | EmptyLine
   | Edit
   | TypeAnn;
+type insert_edit =
+  | Hole(MetaVar.t, option(MetaVar.t))
+  | EmptyLine
+  | Edit(option(MetaVar.t));
 type edit_action =
   | DeleteEdit(delete_edit)
-  | InsertHole(MetaVar.t, option(MetaVar.t))
-  | InsertEdit(option(MetaVar.t))
-  | InsertEmptyLine
+  | InsertEdit(insert_edit)
   | Construct(structure)
   | NotSet;
 
@@ -57,9 +58,7 @@ let edit_action_is_DeleteEmptyLine = (edit_action: edit_action): bool => {
     }
 
   | InsertEdit(_)
-  | InsertHole(_, _)
   | Construct(_)
-  | InsertEmptyLine
   | NotSet => false
   };
 };
@@ -335,7 +334,7 @@ let construct_holes =
         set_fail_join(
           prev_group,
           new_entry,
-          Some(InsertHole(hole_id, Some(hole_id - 1))),
+          Some(InsertEdit(Hole(hole_id, Some(hole_id - 1)))),
           false,
         )
       };
@@ -346,7 +345,7 @@ let construct_holes =
         set_fail_join(
           prev_group,
           new_entry,
-          Some(InsertHole(hole_id, None)),
+          Some(InsertEdit(Hole(hole_id, None))),
           false,
         )
       };
@@ -367,9 +366,7 @@ let get_initial_term_before_delete =
       | TypeAnn => new_entry_info.previous_cursor_term
       }
     | InsertEdit(_)
-    | InsertHole(_, _)
     | Construct(_)
-    | InsertEmptyLine
     | NotSet => new_entry_info.previous_cursor_term
     };
   switch (List.rev(suffix)) {
@@ -390,11 +387,14 @@ let get_insert_hole = (group: undo_history_group): option(MetaVar.t) => {
   let suffix = ZList.prj_suffix(group.group_entries);
   let delete_edit_info_filter = (info: info): option(MetaVar.t) =>
     switch (info.edit_action) {
-    | InsertEdit(hole) => hole
-    | InsertHole(hole_id, _) => Some(hole_id)
+    | InsertEdit(edit_detail) =>
+      switch (edit_detail) {
+      | Hole(hole_id, _) => Some(hole_id)
+      | EmptyLine => None
+      | Edit(hole) => hole
+      }
     | DeleteEdit(_)
     | Construct(_)
-    | InsertEmptyLine
     | NotSet => None
     };
   switch (List.rev(suffix)) {
@@ -776,19 +776,24 @@ let entry_to_start_a_group =
           set_fail_join(
             prev_group,
             new_entry,
-            Some(InsertEdit(None)),
+            Some(InsertEdit(Edit(None))),
             false,
           )
         | Some(hole_id) =>
           set_fail_join(
             prev_group,
             new_entry,
-            Some(InsertEdit(Some(hole_id))),
+            Some(InsertEdit(Edit(Some(hole_id)))),
             false,
           )
         }
       | SLine =>
-        set_fail_join(prev_group, new_entry, Some(InsertEmptyLine), false)
+        set_fail_join(
+          prev_group,
+          new_entry,
+          Some(InsertEdit(EmptyLine)),
+          false,
+        )
       | SParenthesized
       | SList
       | SAsc
@@ -832,14 +837,14 @@ let entry_to_start_a_group =
             set_fail_join(
               prev_group,
               new_entry,
-              Some(InsertEdit(None)),
+              Some(InsertEdit(Edit(None))),
               true,
             )
           | Some(hole_id) =>
             set_fail_join(
               prev_group,
               new_entry,
-              Some(InsertEdit(Some(hole_id))),
+              Some(InsertEdit(Edit(Some(hole_id)))),
               true,
             )
           }
@@ -1062,14 +1067,14 @@ let join_group =
             set_success_join(
               prev_group,
               new_entry,
-              Some(InsertEmptyLine),
+              Some(InsertEdit(EmptyLine)),
               false,
             );
           } else {
             set_fail_join(
               prev_group,
               new_entry,
-              Some(InsertEmptyLine),
+              Some(InsertEdit(EmptyLine)),
               false,
             );
           }
@@ -1106,14 +1111,14 @@ let join_group =
               set_success_join(
                 prev_group,
                 new_entry,
-                Some(InsertEdit(get_insert_hole(prev_group))),
+                Some(InsertEdit(Edit(get_insert_hole(prev_group)))),
                 false,
               );
             } else {
               set_fail_join(
                 prev_group,
                 new_entry,
-                Some(InsertEdit(get_insert_hole(prev_group))),
+                Some(InsertEdit(Edit(get_insert_hole(prev_group)))),
                 false,
               );
             }
@@ -1121,7 +1126,7 @@ let join_group =
             set_success_join(
               prev_group,
               new_entry,
-              Some(InsertEdit(Some(hole_id))),
+              Some(InsertEdit(Edit(Some(hole_id)))),
               false,
             )
           }
