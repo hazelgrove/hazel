@@ -1,7 +1,7 @@
 module Dom_html = Js_of_ocaml.Dom_html;
 module Vdom = Virtual_dom.Vdom;
 
-let checkbox =
+let labeled_checkbox =
     (
       ~id: string,
       ~label: string,
@@ -10,14 +10,15 @@ let checkbox =
       checked: bool,
     )
     : Vdom.Node.t => {
+  let checkbox_id = id ++ "_checkbox";
   Vdom.(
     Node.div(
-      [],
+      [Attr.id(id), Attr.classes(["labeled-checkbox"])],
       [
         Node.input(
           [
             [
-              Attr.id(id),
+              Attr.id(checkbox_id),
               Attr.type_("checkbox"),
               Attr.on_change((_, _) => on_change()),
             ],
@@ -27,7 +28,10 @@ let checkbox =
           |> List.concat,
           [],
         ),
-        Node.label([Attr.for_(id)], [Node.text(label)]),
+        Node.label(
+          [Attr.for_(id), ...disabled ? [Attr.disabled] : []],
+          [Node.text(label)],
+        ),
       ],
     )
   );
@@ -38,28 +42,28 @@ let view =
   let compute_results_checkbox =
     Vdom.(
       Node.div(
-        [],
+        [Attr.id("OptionsPanel")],
         [
-          checkbox(
+          labeled_checkbox(
             ~id="compute_results",
-            ~label="Compute expansion",
+            ~label="Compute results",
             ~on_change=() => inject(ToggleComputeResults),
             model.compute_results,
           ),
-          checkbox(
-            ~id="evaluate_expansion",
-            ~label="Evaluate expansion",
-            ~on_change=() => inject(ToggleEvaluateExpansion),
+          labeled_checkbox(
+            ~id="show_unevaluated_expansion",
+            ~label="Show unevaluated expansion",
+            ~on_change=() => inject(ToggleShowUnevaluatedExpansion),
             ~disabled=!model.compute_results,
-            model.evaluate_expansion,
+            model.show_unevaluated_expansion,
           ),
-          checkbox(
+          labeled_checkbox(
             ~id="show_contenteditable",
             ~label="Show contenteditable (debugging)",
-            ~on_change=() => inject(ToggleEvaluateExpansion),
+            ~on_change=() => inject(ToggleShowUnevaluatedExpansion),
             model.show_contenteditable,
           ),
-          checkbox(
+          labeled_checkbox(
             ~id="show_presentation",
             ~label="Show presentation (debugging)",
             ~on_change=() => inject(ToggleShowPresentation),

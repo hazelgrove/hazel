@@ -140,9 +140,9 @@ let page_view =
               [Attr.classes(["result-view"])],
               [
                 DHCode.view(
-                  model.evaluate_expansion
-                    ? program |> Program.get_result |> Result.get_dhexp
-                    : program |> Program.get_expansion,
+                  model.show_unevaluated_expansion
+                    ? program |> Program.get_expansion
+                    : program |> Program.get_result |> Result.get_dhexp,
                 ),
               ],
             ),

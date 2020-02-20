@@ -659,13 +659,18 @@ html, body {
 
 /* options panel */
 
-.options-panel {
-  background-color: #EEE;
-  outline: 1px solid #444;
+#OptionsPanel .labeled-checkbox {
+  display: grid;
+  grid-template-columns: max-content max-content;
+  column-gap: 0.5ch;
+  align-items: center;
 }
-
-.options-panel .title-bar {
-  background-color: #444;
+#OptionsPanel #show_unevaluated_expansion {
+  position: relative;
+  left: 2.5ch;
+}
+#OptionsPanel label:disabled {
+  opacity: 0.5;
 }
 
 /* page */

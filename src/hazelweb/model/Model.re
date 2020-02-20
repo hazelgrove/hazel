@@ -2,7 +2,7 @@ type t = {
   cardstacks: Cardstacks.t,
   /* UI state */
   compute_results: bool,
-  evaluate_expansion: bool,
+  show_unevaluated_expansion: bool,
   selected_example: option(UHExp.t),
   is_cell_focused: bool,
   left_sidebar_open: bool,
@@ -30,7 +30,7 @@ let init = (): t => {
     cardstacks,
     undo_history,
     compute_results: true,
-    evaluate_expansion: true,
+    show_unevaluated_expansion: false,
     selected_example: None,
     is_cell_focused: false,
     left_sidebar_open: false,

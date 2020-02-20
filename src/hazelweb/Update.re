@@ -17,7 +17,7 @@ module Action = {
     | NextCard
     | PrevCard
     | ToggleComputeResults
-    | ToggleEvaluateExpansion
+    | ToggleShowUnevaluatedExpansion
     | ToggleShowContenteditable
     | ToggleShowPresentation
     | SelectHoleInstance(MetaVar.t, MetaVarInst.t)
@@ -74,7 +74,7 @@ let log_action = (action: Action.t, _: State.t): unit => {
   | NextCard
   | PrevCard
   | ToggleComputeResults
-  | ToggleEvaluateExpansion
+  | ToggleShowUnevaluatedExpansion
   | ToggleShowContenteditable
   | ToggleShowPresentation
   | SelectHoleInstance(_)
@@ -132,9 +132,9 @@ let apply_action =
       ...model,
       compute_results: !model.compute_results,
     }
-  | ToggleEvaluateExpansion => {
+  | ToggleShowUnevaluatedExpansion => {
       ...model,
-      evaluate_expansion: !model.evaluate_expansion,
+      show_unevaluated_expansion: !model.show_unevaluated_expansion,
     }
   | ToggleShowContenteditable => {
       ...model,
