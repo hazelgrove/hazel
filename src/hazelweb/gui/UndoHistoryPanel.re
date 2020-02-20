@@ -115,39 +115,40 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
           )
         | TypeAnn => Some("DeleteTypeAnn delete type annotation")
         }
-
-      | InsertHole(first_id, second_id) =>
-        switch (second_id) {
-        | None => Some("InsertHole insert hole " ++ string_of_int(first_id))
-        | Some(second) =>
-          Some(
-            "InsertHole insert hole "
-            ++ string_of_int(first_id)
-            ++ " and hole "
-            ++ string_of_int(second),
-          )
+      | InsertEdit(edit_detail) =>
+        switch (edit_detail) {
+        | Hole(first_id, second_id) =>
+          switch (second_id) {
+          | None =>
+            Some("InsertHole insert hole " ++ string_of_int(first_id))
+          | Some(second) =>
+            Some(
+              "InsertHole insert hole "
+              ++ string_of_int(first_id)
+              ++ " and hole "
+              ++ string_of_int(second),
+            )
+          }
+        | EmptyLine => Some("InsertEmptyLine insert new line")
+        | Edit(hole) =>
+          switch (hole) {
+          | Some(id) =>
+            Some(
+              "InsertToHole insert "
+              ++ display_string_of_cursor_term(info.current_cursor_term)
+              ++ " into hole "
+              ++ string_of_int(id),
+            )
+          | None =>
+            Some(
+              "InsertEdit edit "
+              ++ display_string_of_cursor_term(info.current_cursor_term),
+            )
+          }
         }
-      | InsertEdit(hole) =>
-        switch (hole) {
-        | Some(id) =>
-          Some(
-            "InsertToHole insert "
-            ++ display_string_of_cursor_term(info.current_cursor_term)
-            ++ " into hole "
-            ++ string_of_int(id),
-          )
-        | None =>
-          Some(
-            "InsertEdit edit "
-            ++ display_string_of_cursor_term(info.current_cursor_term),
-          )
-        }
-
-      | InsertEmptyLine => Some("InsertEmptyLine insert new line")
       | Construct(structure) =>
         switch (structure) {
         | LetBinding => Some("construct let binding")
-        | Lamda => Some("construct lamda function")
         | CaseMatch => Some("construct case match")
         | TypeAnn => Some("Construct insert type annotation")
         | ShapeEdit(id_op, shape) =>
