@@ -40,7 +40,12 @@ let view =
         Vdom.(
           Node.div(
             [Attr.classes(["dynamic-info"])],
-            [Node.div([], [DHCode.view(~width=30, d)])],
+            [
+              Node.div(
+                [],
+                [DHCode.view(~show_casts=model.show_casts, ~width=30, d)],
+              ),
+            ],
           )
         ),
       )

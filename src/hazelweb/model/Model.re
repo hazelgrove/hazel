@@ -2,6 +2,7 @@ type t = {
   cardstacks: Cardstacks.t,
   /* UI state */
   compute_results: bool,
+  show_casts: bool,
   show_unevaluated_expansion: bool,
   selected_example: option(UHExp.t),
   is_cell_focused: bool,
@@ -30,6 +31,7 @@ let init = (): t => {
     cardstacks,
     undo_history,
     compute_results: true,
+    show_casts: false,
     show_unevaluated_expansion: false,
     selected_example: None,
     is_cell_focused: false,

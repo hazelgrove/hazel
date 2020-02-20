@@ -1,4 +1,3 @@
-let _SHOW_CASTS = false;
 let _SHOW_FN_BODIES = false;
 
 [@deriving sexp]
@@ -178,7 +177,8 @@ module Exp = {
     | LessThan => precedence_LessThan
     | GreaterThan => precedence_GreaterThan
     };
-  let rec precedence = (d: DHExp.t) =>
+  let rec precedence = (~show_casts: bool, d: DHExp.t) => {
+    let precedence' = precedence(~show_casts);
     switch (d) {
     | BoundVar(_)
     | FreeVar(_)
@@ -190,7 +190,7 @@ module Exp = {
     | EmptyHole(_)
     | Triv
     | FailedCast(_) => precedence_const
-    | Cast(d1, _, _) => _SHOW_CASTS ? precedence_const : precedence(d1)
+    | Cast(d1, _, _) => show_casts ? precedence_const : precedence'(d1)
     | Let(_)
     | FixF(_)
     | Lam(_)
@@ -201,8 +201,9 @@ module Exp = {
     | And(_) => precedence_And
     | Or(_) => precedence_Or
     | Pair(_) => precedence_Comma
-    | NonEmptyHole(_, _, _, _, d) => precedence(d)
+    | NonEmptyHole(_, _, _, _, d) => precedence'(d)
     };
+  };
 
   let mk_bin_num_op = (op: DHExp.bin_num_op): t =>
     Doc.Text(
@@ -216,15 +217,23 @@ module Exp = {
       },
     );
 
-  let rec mk = (~parenthesize=false, ~enforce_inline: bool, d: DHExp.t): t => {
+  let rec mk =
+          (
+            ~show_casts: bool,
+            ~parenthesize=false,
+            ~enforce_inline: bool,
+            d: DHExp.t,
+          )
+          : t => {
+    let precedence = precedence(~show_casts);
     let mk_cast = ((doc: t, ty: option(HTyp.t))): t =>
       switch (ty) {
-      | None => doc
-      | Some(ty) =>
+      | Some(ty) when show_casts =>
         Doc.Cat(
           doc,
           Annot(CastDecoration, Typ.mk(~enforce_inline=true, ty)),
         )
+      | _ => doc
       };
     let rec go =
             (~parenthesize=false, ~enforce_inline, d: DHExp.t)
@@ -290,7 +299,7 @@ module Exp = {
                     mk_cast(go(~enforce_inline=true, dscrut)),
                   ]),
                 ],
-                drs |> List.map(mk_rule),
+                drs |> List.map(mk_rule(~show_casts)),
                 [Delim.close_Case],
               ]),
             )
@@ -369,7 +378,7 @@ module Exp = {
     };
     mk_cast(go(~parenthesize, ~enforce_inline, d));
   }
-  and mk_rule = (Rule(dp, dclause): DHExp.rule): t =>
+  and mk_rule = (~show_casts, Rule(dp, dclause): DHExp.rule): t =>
     Doc.(
       hcats([
         Delim.bar_Rule,
@@ -377,8 +386,11 @@ module Exp = {
         |> pad_child(~inline_padding=(space, space), ~enforce_inline=false),
         Delim.arrow_Rule,
         choices([
-          hcats([space, mk(~enforce_inline=true, dclause)]),
-          hcats([Linebreak, mk(~enforce_inline=false, dclause)]),
+          hcats([space, mk(~show_casts, ~enforce_inline=true, dclause)]),
+          hcats([
+            Linebreak,
+            mk(~show_casts, ~enforce_inline=false, dclause),
+          ]),
         ]),
       ])
     );

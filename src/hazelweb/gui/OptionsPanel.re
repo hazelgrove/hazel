@@ -51,6 +51,13 @@ let view =
             model.compute_results,
           ),
           labeled_checkbox(
+            ~id="show_casts",
+            ~label="Show casts",
+            ~on_change=() => inject(ToggleShowCasts),
+            ~disabled=!model.compute_results,
+            model.show_casts,
+          ),
+          labeled_checkbox(
             ~id="show_unevaluated_expansion",
             ~label="Show unevaluated expansion",
             ~on_change=() => inject(ToggleShowUnevaluatedExpansion),

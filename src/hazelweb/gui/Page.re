@@ -140,6 +140,7 @@ let page_view =
               [Attr.classes(["result-view"])],
               [
                 DHCode.view(
+                  ~show_casts=model.show_casts,
                   model.show_unevaluated_expansion
                     ? program |> Program.get_expansion
                     : program |> Program.get_result |> Result.get_dhexp,

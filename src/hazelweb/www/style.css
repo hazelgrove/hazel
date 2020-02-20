@@ -277,10 +277,6 @@ html, body {
   background-color: var(--title-bar-color);
 }
 
-.panel-title-bar {
-
-}
-
 .panel-body {
   flex-grow: 1;
   /* enable scroll */
@@ -289,10 +285,6 @@ html, body {
 }
 
 /* cursor inspector */
-
-.cursor-inspector-outer {
-
-}
 
 .cursor-OK.cursor-inspector {
   outline: 1px solid var(--title-bar-color);
@@ -665,7 +657,8 @@ html, body {
   column-gap: 0.5ch;
   align-items: center;
 }
-#OptionsPanel #show_unevaluated_expansion {
+#OptionsPanel #show_unevaluated_expansion,
+#OptionsPanel #show_casts {
   position: relative;
   left: 2.5ch;
 }

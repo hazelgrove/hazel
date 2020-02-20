@@ -17,6 +17,7 @@ module Action = {
     | NextCard
     | PrevCard
     | ToggleComputeResults
+    | ToggleShowCasts
     | ToggleShowUnevaluatedExpansion
     | ToggleShowContenteditable
     | ToggleShowPresentation
@@ -74,6 +75,7 @@ let log_action = (action: Action.t, _: State.t): unit => {
   | NextCard
   | PrevCard
   | ToggleComputeResults
+  | ToggleShowCasts
   | ToggleShowUnevaluatedExpansion
   | ToggleShowContenteditable
   | ToggleShowPresentation
@@ -132,6 +134,7 @@ let apply_action =
       ...model,
       compute_results: !model.compute_results,
     }
+  | ToggleShowCasts => {...model, show_casts: !model.show_casts}
   | ToggleShowUnevaluatedExpansion => {
       ...model,
       show_unevaluated_expansion: !model.show_unevaluated_expansion,
