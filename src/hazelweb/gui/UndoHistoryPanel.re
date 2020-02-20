@@ -85,7 +85,18 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
     | Rule(_, _) => "match rule"
     };
   };
-
+  let is_op = (cursor_term: CursorInfo.cursor_term): bool => {
+    switch (cursor_term) {
+    | Exp(_, _)
+    | Pat(_, _)
+    | Typ(_, _) => false
+    | ExpOp(_, _)
+    | PatOp(_, _)
+    | TypOp(_, _) => true
+    | Line(_, _)
+    | Rule(_, _) => false
+    };
+  };
   let display_string_of_history_entry =
       (undo_history_entry: undo_history_entry): option(string) => {
     switch (undo_history_entry.info) {
@@ -135,10 +146,17 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
               ++ string_of_int(id),
             )
           | None =>
-            Some(
-              "edit "
-              ++ display_string_of_cursor_term(info.current_cursor_term),
-            )
+            if (is_op(info.current_cursor_term)) {
+              Some(
+                "insert "
+                ++ display_string_of_cursor_term(info.current_cursor_term),
+              );
+            } else {
+              Some(
+                "edit "
+                ++ display_string_of_cursor_term(info.current_cursor_term),
+              );
+            }
           }
         }
       | Construct(structure) =>
