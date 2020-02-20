@@ -1,12 +1,12 @@
+module Dom_html = Js_of_ocaml.Dom_html;
 module Vdom = Virtual_dom.Vdom;
 
 let checkbox =
     (
-      ~inject: Update.Action.t => Vdom.Event.t,
-      id: string,
-      text: string,
-      default: bool,
-      action: bool => Update.Action.t,
+      ~id: string,
+      ~label: string,
+      ~on_change: unit => Vdom.Event.t,
+      checked: bool,
     )
     : Vdom.Node.t => {
   Vdom.(
@@ -14,30 +14,15 @@ let checkbox =
       [],
       [
         Node.input(
-          (
-            if (default) {
-              [Attr.checked];
-            } else {
-              [];
-            }
-          )
-          @ [
-            Attr.type_("checkbox"),
+          [
             Attr.id(id),
-            Attr.on_change((evt, _) => {
-              let target =
-                JSUtil.force_opt(
-                  Js_of_ocaml.Dom_html.CoerceTo.input(
-                    JSUtil.force_opt(evt##.target),
-                  ),
-                );
-              let checked = Js_of_ocaml.Js.to_bool(target##.checked);
-              inject(action(checked));
-            }),
+            Attr.type_("checkbox"),
+            Attr.on_change((_, _) => on_change()),
+            ...checked ? [Attr.checked] : [],
           ],
           [],
         ),
-        Node.label([Attr.for_(id)], [Node.text(text)]),
+        Node.label([Attr.for_(id)], [Node.text(label)]),
       ],
     )
   );
@@ -51,36 +36,28 @@ let view =
         [],
         [
           checkbox(
-            ~inject,
-            "compute_results",
-            "Compute expansion",
+            ~id="compute_results",
+            ~label="Compute expansion",
+            ~on_change=() => inject(ToggleComputeResults),
             model.compute_results,
-            checked =>
-            Update.Action.SetComputeResults(checked)
           ),
           checkbox(
-            ~inject,
-            "evaluate_expansion",
-            "Evaluate expansion",
+            ~id="evaluate_expansion",
+            ~label="Evaluate expansion",
+            ~on_change=() => inject(ToggleEvaluateExpansion),
             model.evaluate_expansion,
-            checked =>
-            Update.Action.SetEvaluateExpansion(checked)
           ),
           checkbox(
-            ~inject,
-            "show_contenteditable",
-            "Show contenteditable (debugging)",
+            ~id="show_contenteditable",
+            ~label="Show contenteditable (debugging)",
+            ~on_change=() => inject(ToggleEvaluateExpansion),
             model.show_contenteditable,
-            checked =>
-            Update.Action.SetShowContentEditable(checked)
           ),
           checkbox(
-            ~inject,
-            "show_presentation",
-            "Show presentation (debugging)",
+            ~id="show_presentation",
+            ~label="Show presentation (debugging)",
+            ~on_change=() => inject(ToggleShowPresentation),
             model.show_presentation,
-            checked =>
-            Update.Action.SetShowPresentation(checked)
           ),
         ],
       )

@@ -16,10 +16,10 @@ module Action = {
     | LoadCardstack(int)
     | NextCard
     | PrevCard
-    | SetComputeResults(bool)
-    | SetEvaluateExpansion(bool)
-    | SetShowContentEditable(bool)
-    | SetShowPresentation(bool)
+    | ToggleComputeResults
+    | ToggleEvaluateExpansion
+    | ToggleShowContenteditable
+    | ToggleShowPresentation
     | SelectHoleInstance(MetaVar.t, MetaVarInst.t)
     | InvalidVar(string)
     | MoveToHole(MetaVar.t)
@@ -73,10 +73,10 @@ let log_action = (action: Action.t, _: State.t): unit => {
   | LoadCardstack(_)
   | NextCard
   | PrevCard
-  | SetComputeResults(_)
-  | SetEvaluateExpansion(_)
-  | SetShowContentEditable(_)
-  | SetShowPresentation(_)
+  | ToggleComputeResults
+  | ToggleEvaluateExpansion
+  | ToggleShowContenteditable
+  | ToggleShowPresentation
   | SelectHoleInstance(_)
   | InvalidVar(_)
   | FocusCell
@@ -128,16 +128,22 @@ let apply_action =
   | PrevCard =>
     state.changing_cards := true;
     Model.prev_card(model);
-  | SetComputeResults(compute_results) => {...model, compute_results}
-  | SetEvaluateExpansion(evaluate_expansion) => {
+  | ToggleComputeResults => {
       ...model,
-      evaluate_expansion,
+      compute_results: !model.compute_results,
     }
-  | SetShowContentEditable(show_contenteditable) => {
+  | ToggleEvaluateExpansion => {
       ...model,
-      show_contenteditable,
+      evaluate_expansion: !model.evaluate_expansion,
     }
-  | SetShowPresentation(show_presentation) => {...model, show_presentation}
+  | ToggleShowContenteditable => {
+      ...model,
+      show_contenteditable: !model.show_contenteditable,
+    }
+  | ToggleShowPresentation => {
+      ...model,
+      show_presentation: !model.show_presentation,
+    }
   | SelectHoleInstance(u, i) => model |> Model.select_hole_instance((u, i))
   | InvalidVar(_) => model
   | MoveToHole(u) => model |> Model.move_to_hole(u)
