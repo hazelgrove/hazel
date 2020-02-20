@@ -107,8 +107,7 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
         | EmptyLine => Some("delete empty line")
         | Edit =>
           Some(
-            "DeleteEdit edit "
-            ++ display_string_of_cursor_term(info.current_cursor_term),
+            "edit " ++ display_string_of_cursor_term(info.current_cursor_term),
           )
         | TypeAnn => Some("delete type annotation")
         }
