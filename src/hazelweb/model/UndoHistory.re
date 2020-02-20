@@ -36,13 +36,11 @@ type undo_history_entry = {
 
 type undo_history_group = {
   group_entries: ZList.t(undo_history_entry, undo_history_entry),
-  edit_time: float,
   is_expanded: bool,
   /* [is_complete: bool] if any cursor-moving action interupts the current edit,
      the current group becomes complete.
      Next action will start a new group */
   is_complete: bool,
-
 };
 
 type t = ZList.t(undo_history_group, undo_history_group);
@@ -857,19 +855,38 @@ let entry_to_start_a_group =
             | Var(_, InVarHole(Keyword(k), _), _) =>
               switch (k) {
               | Let =>
-                set_fail_join(
-                  prev_group,
-                  new_entry,
-                  Some(Construct(LetBinding)),
-                  true,
-                )
+                switch (get_cursor_pos(new_entry_info.previous_cursor_term)) {
+                | OnText(pos) =>
+                  if (pos == 3) {
+                    set_fail_join(
+                      prev_group,
+                      new_entry,
+                      Some(Construct(LetBinding)),
+                      true,
+                    );
+                  } else {
+                    construct_holes(prev_group, new_entry);
+                  }
+                | OnDelim(_, _)
+                | OnOp(_) => construct_holes(prev_group, new_entry)
+                }
+
               | Case =>
-                set_fail_join(
-                  prev_group,
-                  new_entry,
-                  Some(Construct(CaseMatch)),
-                  true,
-                )
+                switch (get_cursor_pos(new_entry_info.previous_cursor_term)) {
+                | OnText(pos) =>
+                  if (pos == 4) {
+                    set_fail_join(
+                      prev_group,
+                      new_entry,
+                      Some(Construct(CaseMatch)),
+                      true,
+                    );
+                  } else {
+                    construct_holes(prev_group, new_entry);
+                  }
+                | OnDelim(_, _)
+                | OnOp(_) => construct_holes(prev_group, new_entry)
+                }
               }
             | EmptyHole(_)
             | Var(_, _, _)

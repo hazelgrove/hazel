@@ -96,52 +96,48 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
         switch (edit_detail) {
         | TermToHole(id, cursor_term) =>
           Some(
-            "DeleteToHole delete "
+            "delete "
             ++ display_string_of_cursor_term(cursor_term)
             ++ " and get hole "
             ++ string_of_int(id),
           )
         | TermToNotHole(cursor_term) =>
-          Some(
-            "DeleteToNotHole delete "
-            ++ display_string_of_cursor_term(cursor_term),
-          )
-        | Hole(id) => Some("DeleteHole delete hole " ++ string_of_int(id))
-        | EmptyLine => Some("DeleteEmptyLine delete empty line")
+          Some("delete " ++ display_string_of_cursor_term(cursor_term))
+        | Hole(id) => Some("delete hole " ++ string_of_int(id))
+        | EmptyLine => Some("delete empty line")
         | Edit =>
           Some(
             "DeleteEdit edit "
             ++ display_string_of_cursor_term(info.current_cursor_term),
           )
-        | TypeAnn => Some("DeleteTypeAnn delete type annotation")
+        | TypeAnn => Some("delete type annotation")
         }
       | InsertEdit(edit_detail) =>
         switch (edit_detail) {
         | Hole(first_id, second_id) =>
           switch (second_id) {
-          | None =>
-            Some("InsertHole insert hole " ++ string_of_int(first_id))
+          | None => Some("insert hole " ++ string_of_int(first_id))
           | Some(second) =>
             Some(
-              "InsertHole insert hole "
+              "insert hole "
               ++ string_of_int(first_id)
               ++ " and hole "
               ++ string_of_int(second),
             )
           }
-        | EmptyLine => Some("InsertEmptyLine insert new line")
+        | EmptyLine => Some("insert new line")
         | Edit(hole) =>
           switch (hole) {
           | Some(id) =>
             Some(
-              "InsertToHole insert "
+              "insert "
               ++ display_string_of_cursor_term(info.current_cursor_term)
               ++ " into hole "
               ++ string_of_int(id),
             )
           | None =>
             Some(
-              "InsertEdit edit "
+              "edit "
               ++ display_string_of_cursor_term(info.current_cursor_term),
             )
           }
@@ -150,14 +146,13 @@ let view = (~inject: Update.Action.t => Vdom.Event.t, model: Model.t) => {
         switch (structure) {
         | LetBinding => Some("construct let binding")
         | CaseMatch => Some("construct case match")
-        | TypeAnn => Some("Construct insert type annotation")
+        | TypeAnn => Some("insert type annotation")
         | ShapeEdit(id_op, shape) =>
           switch (id_op) {
-          | None =>
-            Some("Construct insert " ++ Action.shape_to_string(shape))
+          | None => Some("insert " ++ Action.shape_to_string(shape))
           | Some(id) =>
             Some(
-              "Construct insert "
+              "insert "
               ++ Action.shape_to_string(shape)
               ++ " into hole "
               ++ string_of_int(id),
