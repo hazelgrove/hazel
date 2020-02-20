@@ -36,11 +36,13 @@ type undo_history_entry = {
 
 type undo_history_group = {
   group_entries: ZList.t(undo_history_entry, undo_history_entry),
+  edit_time: float,
   is_expanded: bool,
   /* [is_complete: bool] if any cursor-moving action interupts the current edit,
      the current group becomes complete.
      Next action will start a new group */
   is_complete: bool,
+
 };
 
 type t = ZList.t(undo_history_group, undo_history_group);
