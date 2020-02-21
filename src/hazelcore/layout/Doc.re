@@ -1,8 +1,20 @@
-open Sexplib.Std;
+module WidthPosKey = {
+  type t = (int, int);
+  let hash = ((width, pos)) => 256 * 256 * width + pos;
+  let equal = ((w1, p1), (w2, p2)) => w1 == w2 && p1 == p2;
+};
 
-/* Variable: `doc` */
-[@deriving sexp]
-type t('annot) =
+// NOTE: pos is relative to most recent `Align`
+type m'('a) = PosMap.t((int /*cost*/, 'a));
+type m('a) = (~width: int, ~pos: int) => m'('a);
+
+module M = Hashtbl.Make(WidthPosKey);
+
+type t('annot) = {
+  mem: M.t(m'(Layout.t('annot))),
+  doc: t'('annot),
+}
+and t'('annot) =
   | Text(string) // Text("") is identity for `Cat`
   | Cat(t('annot), t('annot)) // associative
   | Linebreak
@@ -11,34 +23,39 @@ type t('annot) =
   | Fail // identity for `Choice`
   | Choice(t('annot), t('annot));
 
-let empty = Text("");
-let space = Text(UnicodeConstants.nbsp);
-let indent = Text(UnicodeConstants.nbsp ++ UnicodeConstants.nbsp);
+let t_of_t' = (t': t'('annot)): t('annot) => {mem: M.create(0), doc: t'};
 
-let align = doc => Align(doc);
-let annot = (annot, doc) => Annot(annot, doc);
+let text = (s: string) => t_of_t'(Text(s));
+let linebreak = () => t_of_t'(Linebreak);
+let align = doc => t_of_t'(Align(doc));
+let annot = (annot, doc) => t_of_t'(Annot(annot, doc));
+let fail = () => t_of_t'(Fail);
 
-let hcat = (x, y) => Cat(x, y);
+let empty = () => text("");
+let space = () => text(UnicodeConstants.nbsp);
+let indent = () => text(UnicodeConstants.nbsp ++ UnicodeConstants.nbsp);
+
+let hcat = (x, y) => t_of_t'(Cat(x, y));
 let hcats: list(t('annot)) => t('annot) =
   fun
-  | [] => empty
+  | [] => empty()
   | [doc, ...docs] => List.fold_left(hcat, doc, docs);
 
-let hsep = (x, y) => Cat(x, Cat(space, y));
+let hsep = (x, y) => t_of_t'(Cat(x, t_of_t'(Cat(space(), y))));
 let hseps: list(t('annot)) => t('annot) =
   fun
-  | [] => empty
+  | [] => empty()
   | [doc, ...docs] => List.fold_left(hsep, doc, docs);
 
-let vsep = (x, y) => Cat(x, Cat(Linebreak, y));
+let vsep = (x, y) => t_of_t'(Cat(x, t_of_t'(Cat(linebreak(), y))));
 let vseps: list(t('annot)) => t('annot) =
   fun
   | [] => failwith(__LOC__ ++ ": vseps requires a non-empty list")
   | [doc] => doc
   | [doc, ...docs] => List.fold_left(vsep, doc, docs);
 
-let choice = (x, y) => Choice(x, y);
+let choice = (x, y) => t_of_t'(Choice(x, y));
 let choices: list(t('annot)) => t('annot) =
   fun
-  | [] => Fail
+  | [] => fail()
   | [doc, ...docs] => List.fold_left(choice, doc, docs);

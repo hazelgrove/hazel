@@ -4,12 +4,12 @@ type doc = Doc.t(TermAnnot.t);
 
 let mk =
     (~caret: option(Side.t)=?, ~path: delim_path, delim_text: string): doc =>
-  Doc.Text(delim_text) |> Doc.annot(TermAnnot.mk_Delim(~caret?, ~path, ()));
+  Doc.text(delim_text) |> Doc.annot(TermAnnot.mk_Delim(~caret?, ~path, ()));
 
 let empty_hole_doc =
     (~caret: option(Side.t)=?, ~steps: CursorPath.steps, hole_lbl: string)
     : doc =>
-  Doc.Text(hole_lbl)
+  Doc.text(hole_lbl)
   |> Doc.annot(
        TermAnnot.HoleLabel({len: hole_lbl |> StringUtil.utf8_length}),
      )
