@@ -1,5 +1,3 @@
-open Sexplib.Std;
-
 // TODO: compute actual layout size and use instead of t_of_layout
 let rec all: 'annot. Doc.t('annot) => list(Layout.t('annot)) = {
   doc => {
@@ -118,7 +116,7 @@ and layout_of_doc'': Doc.t(unit) => m(Layout.t(unit)) =
       let ret: m(Layout.t(unit)) = {
         switch (doc.doc) {
         | Text(string) =>
-          let%bind () = modify_position(StringUtil.utf8_length(string));
+          let%bind () = modify_position(Unicode.length(string));
           return(Layout.Text(string));
         | Cat(d1, d2) =>
           let%bind l1 = layout_of_doc'(d1);
@@ -173,7 +171,15 @@ let layout_of_doc =
       };
   };
   // TODO: use options instead of max_int
+  let start_time = Sys.time();
   let l =
     minimum((max_int, (max_int, None)), layout_of_doc'(doc, ~width, ~pos));
+  let end_time = Sys.time();
+  Printf.printf(
+    "layout_of_doc: %d \t%f\n",
+    -1, //fst(Lazy.force(memo_table))##.size,
+    //Memoize.WeakPoly.Table.length(fst(Lazy.force(memo_table))),
+    1000.0 *. (end_time -. start_time),
+  );
   l;
 };

@@ -2,6 +2,7 @@ module Js = Js_of_ocaml.Js;
 module Dom = Js_of_ocaml.Dom;
 module Dom_html = Js_of_ocaml.Dom_html;
 module Vdom = Virtual_dom.Vdom;
+open Pretty;
 open ViewUtil;
 
 type annot = TermAnnot.t;
@@ -432,11 +433,7 @@ let editor_view_of_layout =
     | None => l
     | Some((steps, _) as path) =>
       switch (l |> TermLayout.find_and_decorate_caret(~path)) {
-      | None =>
-        JSUtil.log(
-          Js.string(Sexplib.Sexp.to_string_hum(TermLayout.sexp_of_t(l))),
-        );
-        failwith(__LOC__ ++ ": could not find caret");
+      | None => failwith(__LOC__ ++ ": could not find caret")
       | Some(l) =>
         switch (l |> TermLayout.find_and_decorate_cursor(~steps)) {
         | None => failwith(__LOC__ ++ ": could not find cursor")
